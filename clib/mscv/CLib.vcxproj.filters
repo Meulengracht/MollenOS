@@ -1,0 +1,246 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="Source">
+      <UniqueIdentifier>{2c11d00f-20e8-47f9-be38-357952a4b0d0}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source\string">
+      <UniqueIdentifier>{b31684f5-13cb-47e6-aafc-4e07d5c36862}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source\ctype">
+      <UniqueIdentifier>{4f1d32f2-1082-49d0-84b5-a90989113ed7}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source\errno">
+      <UniqueIdentifier>{c3cbe01e-292a-41c9-9014-d1f8ad484436}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source\math">
+      <UniqueIdentifier>{d236cfab-69ca-4241-b3b5-bcfa67f69cd3}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source\stdio">
+      <UniqueIdentifier>{5a275b44-a4e2-4f02-8637-a977e0087a91}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source\signal">
+      <UniqueIdentifier>{626d7b43-18fa-46af-b751-8dc80c1a7314}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source\setjmp">
+      <UniqueIdentifier>{f2f965bb-d6e5-46e1-9d9f-3d240a1e9818}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="..\src\string\atof.c">
+      <Filter>Source\string</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\string\atoi64.c">
+      <Filter>Source\string</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\string\atol.c">
+      <Filter>Source\string</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\string\itoa.c">
+      <Filter>Source\string</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\string\memchr.c">
+      <Filter>Source\string</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\string\memcmp.c">
+      <Filter>Source\string</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\string\memcpy.c">
+      <Filter>Source\string</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\string\memmove.c">
+      <Filter>Source\string</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\string\memset.c">
+      <Filter>Source\string</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\string\strcasecmp.c">
+      <Filter>Source\string</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\string\strcat.c">
+      <Filter>Source\string</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\string\strchr.c">
+      <Filter>Source\string</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\string\strcmp.c">
+      <Filter>Source\string</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\string\strcoll.c">
+      <Filter>Source\string</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\string\strcpy.c">
+      <Filter>Source\string</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\string\strcspn.c">
+      <Filter>Source\string</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\string\strdup.c">
+      <Filter>Source\string</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\string\strlen.c">
+      <Filter>Source\string</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\string\strncasecmp.c">
+      <Filter>Source\string</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\string\strncat.c">
+      <Filter>Source\string</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\string\strncmp.c">
+      <Filter>Source\string</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\string\strncpy.c">
+      <Filter>Source\string</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\string\strpbrk.c">
+      <Filter>Source\string</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\string\strrchr.c">
+      <Filter>Source\string</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\string\strspn.c">
+      <Filter>Source\string</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\string\strstr.c">
+      <Filter>Source\string</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\string\strtod.c">
+      <Filter>Source\string</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\string\strtof.c">
+      <Filter>Source\string</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\string\strtoi64.c">
+      <Filter>Source\string</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\string\strtok.c">
+      <Filter>Source\string</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\string\strtol.c">
+      <Filter>Source\string</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\string\strtold.c">
+      <Filter>Source\string</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\string\strtoul.c">
+      <Filter>Source\string</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\string\strtoull.c">
+      <Filter>Source\string</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\string\strxfrm.c">
+      <Filter>Source\string</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\errno\errno.c">
+      <Filter>Source\errno</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\errno\errstrings.c">
+      <Filter>Source\errno</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\ctype\ctype.c">
+      <Filter>Source\ctype</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\math\copysign.c">
+      <Filter>Source\math</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\math\cos.c">
+      <Filter>Source\math</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\math\exp.c">
+      <Filter>Source\math</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\math\frexp.c">
+      <Filter>Source\math</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\math\hugeval.c">
+      <Filter>Source\math</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\math\isnan.c">
+      <Filter>Source\math</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\math\ldexp.c">
+      <Filter>Source\math</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\math\log.c">
+      <Filter>Source\math</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\math\log10.c">
+      <Filter>Source\math</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\math\modf.c">
+      <Filter>Source\math</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\math\pow.c">
+      <Filter>Source\math</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\math\scalbn.c">
+      <Filter>Source\math</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\math\sin.c">
+      <Filter>Source\math</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\math\cosf.c">
+      <Filter>Source\math</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\math\sinf.c">
+      <Filter>Source\math</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\math\tanh.c">
+      <Filter>Source\math</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\stdio\fprintf.c">
+      <Filter>Source\stdio</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\stdio\printf.c">
+      <Filter>Source\stdio</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\stdio\snprintf.c">
+      <Filter>Source\stdio</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\stdio\sprintf.c">
+      <Filter>Source\stdio</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\stdio\stream.c">
+      <Filter>Source\stdio</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\stdio\vasprintf.c">
+      <Filter>Source\stdio</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\stdio\vfprintf.c">
+      <Filter>Source\stdio</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\stdio\vprintf.c">
+      <Filter>Source\stdio</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\stdio\vsnprintf.c">
+      <Filter>Source\stdio</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\stdio\vsprintf.c">
+      <Filter>Source\stdio</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\setjmp\setjmp.c">
+      <Filter>Source\setjmp</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\signal\signal.c">
+      <Filter>Source\signal</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <MASM Include="..\src\math\fabs.S">
+      <Filter>Source\math</Filter>
+    </MASM>
+    <MASM Include="..\src\math\floor.S">
+      <Filter>Source\math</Filter>
+    </MASM>
+    <MASM Include="..\src\math\log.S">
+      <Filter>Source\math</Filter>
+    </MASM>
+    <MASM Include="..\src\math\log10.S">
+      <Filter>Source\math</Filter>
+    </MASM>
+    <MASM Include="..\src\math\sqrt.S">
+      <Filter>Source\math</Filter>
+    </MASM>
+  </ItemGroup>
+</Project>

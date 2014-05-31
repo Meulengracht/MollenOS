@@ -1,0 +1,229 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" ToolsVersion="12.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="CLibK|Win32">
+      <Configuration>CLibK</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="CLib|Win32">
+      <Configuration>CLib</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="..\src\ctype\ctype.c" />
+    <ClCompile Include="..\src\errno\errno.c" />
+    <ClCompile Include="..\src\errno\errstrings.c" />
+    <ClCompile Include="..\src\math\copysign.c" />
+    <ClCompile Include="..\src\math\cos.c" />
+    <ClCompile Include="..\src\math\cosf.c" />
+    <ClCompile Include="..\src\math\exp.c" />
+    <ClCompile Include="..\src\math\frexp.c" />
+    <ClCompile Include="..\src\math\hugeval.c" />
+    <ClCompile Include="..\src\math\isnan.c" />
+    <ClCompile Include="..\src\math\ldexp.c" />
+    <ClCompile Include="..\src\math\log.c" />
+    <ClCompile Include="..\src\math\log10.c" />
+    <ClCompile Include="..\src\math\modf.c" />
+    <ClCompile Include="..\src\math\pow.c" />
+    <ClCompile Include="..\src\math\scalbn.c" />
+    <ClCompile Include="..\src\math\sin.c" />
+    <ClCompile Include="..\src\math\sinf.c" />
+    <ClCompile Include="..\src\math\tanh.c" />
+    <ClCompile Include="..\src\setjmp\setjmp.c" />
+    <ClCompile Include="..\src\signal\signal.c" />
+    <ClCompile Include="..\src\stdio\fprintf.c" />
+    <ClCompile Include="..\src\stdio\printf.c" />
+    <ClCompile Include="..\src\stdio\snprintf.c" />
+    <ClCompile Include="..\src\stdio\sprintf.c" />
+    <ClCompile Include="..\src\stdio\stream.c" />
+    <ClCompile Include="..\src\stdio\vasprintf.c" />
+    <ClCompile Include="..\src\stdio\vfprintf.c" />
+    <ClCompile Include="..\src\stdio\vprintf.c" />
+    <ClCompile Include="..\src\stdio\vsnprintf.c" />
+    <ClCompile Include="..\src\stdio\vsprintf.c" />
+    <ClCompile Include="..\src\string\atof.c" />
+    <ClCompile Include="..\src\string\atoi64.c" />
+    <ClCompile Include="..\src\string\atol.c" />
+    <ClCompile Include="..\src\string\itoa.c" />
+    <ClCompile Include="..\src\string\memchr.c" />
+    <ClCompile Include="..\src\string\memcmp.c" />
+    <ClCompile Include="..\src\string\memcpy.c" />
+    <ClCompile Include="..\src\string\memmove.c" />
+    <ClCompile Include="..\src\string\memset.c" />
+    <ClCompile Include="..\src\string\strcasecmp.c" />
+    <ClCompile Include="..\src\string\strcat.c" />
+    <ClCompile Include="..\src\string\strchr.c" />
+    <ClCompile Include="..\src\string\strcmp.c" />
+    <ClCompile Include="..\src\string\strcoll.c" />
+    <ClCompile Include="..\src\string\strcpy.c" />
+    <ClCompile Include="..\src\string\strcspn.c" />
+    <ClCompile Include="..\src\string\strdup.c" />
+    <ClCompile Include="..\src\string\strlen.c" />
+    <ClCompile Include="..\src\string\strncasecmp.c" />
+    <ClCompile Include="..\src\string\strncat.c" />
+    <ClCompile Include="..\src\string\strncmp.c" />
+    <ClCompile Include="..\src\string\strncpy.c" />
+    <ClCompile Include="..\src\string\strpbrk.c" />
+    <ClCompile Include="..\src\string\strrchr.c" />
+    <ClCompile Include="..\src\string\strspn.c" />
+    <ClCompile Include="..\src\string\strstr.c" />
+    <ClCompile Include="..\src\string\strtod.c" />
+    <ClCompile Include="..\src\string\strtof.c" />
+    <ClCompile Include="..\src\string\strtoi64.c" />
+    <ClCompile Include="..\src\string\strtok.c" />
+    <ClCompile Include="..\src\string\strtol.c" />
+    <ClCompile Include="..\src\string\strtold.c" />
+    <ClCompile Include="..\src\string\strtoul.c" />
+    <ClCompile Include="..\src\string\strtoull.c" />
+    <ClCompile Include="..\src\string\strxfrm.c" />
+  </ItemGroup>
+  <ItemGroup>
+    <MASM Include="..\src\math\fabs.S">
+      <FileType>Document</FileType>
+    </MASM>
+    <MASM Include="..\src\math\floor.S">
+      <FileType>Document</FileType>
+    </MASM>
+    <MASM Include="..\src\math\log.S">
+      <FileType>Document</FileType>
+    </MASM>
+    <MASM Include="..\src\math\log10.S">
+      <FileType>Document</FileType>
+    </MASM>
+    <MASM Include="..\src\math\sqrt.S">
+      <FileType>Document</FileType>
+    </MASM>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <ProjectGuid>{5F7F1D6B-FFEE-44E1-8DF5-00725A1A5461}</ProjectGuid>
+    <Keyword>Win32Proj</Keyword>
+    <RootNamespace>CLib</RootNamespace>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='CLibK|Win32'" Label="Configuration">
+    <ConfigurationType>StaticLibrary</ConfigurationType>
+    <UseDebugLibraries>true</UseDebugLibraries>
+    <PlatformToolset>v120</PlatformToolset>
+    <CharacterSet>MultiByte</CharacterSet>
+    <UseOfMfc />
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='CLib|Win32'" Label="Configuration">
+    <ConfigurationType>StaticLibrary</ConfigurationType>
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <PlatformToolset>v120</PlatformToolset>
+    <WholeProgramOptimization>false</WholeProgramOptimization>
+    <CharacterSet>MultiByte</CharacterSet>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <ImportGroup Label="ExtensionSettings">
+    <Import Project="$(VCTargetsPath)\BuildCustomizations\masm.props" />
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='CLibK|Win32'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='CLib|Win32'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <PropertyGroup Label="UserMacros" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='CLibK|Win32'">
+    <OutDir>..\build\</OutDir>
+    <IncludePath>C:\Users\Phail\Documents\GitHub\MollenOS\clib\include</IncludePath>
+    <ReferencePath />
+    <LibraryPath />
+    <LibraryWPath />
+    <TargetName>CLibK</TargetName>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='CLib|Win32'">
+    <OutDir>..\build\</OutDir>
+    <IncludePath>C:\Users\Phail\Documents\GitHub\MollenOS\clib\include</IncludePath>
+    <ReferencePath />
+    <LibraryPath />
+    <LibraryWPath />
+    <TargetName>CLib</TargetName>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <TargetName>CLib</TargetName>
+  </PropertyGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='CLibK|Win32'">
+    <ClCompile>
+      <PrecompiledHeader>
+      </PrecompiledHeader>
+      <WarningLevel>EnableAllWarnings</WarningLevel>
+      <Optimization>Full</Optimization>
+      <PreprocessorDefinitions>LIBC_KERNEL</PreprocessorDefinitions>
+      <SDLCheck>true</SDLCheck>
+      <CompileAsManaged>
+      </CompileAsManaged>
+      <TreatWarningAsError>true</TreatWarningAsError>
+      <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
+      <CompileAsWinRT>
+      </CompileAsWinRT>
+      <IntrinsicFunctions>false</IntrinsicFunctions>
+      <MultiProcessorCompilation>true</MultiProcessorCompilation>
+      <ExceptionHandling>false</ExceptionHandling>
+      <BasicRuntimeChecks>Default</BasicRuntimeChecks>
+      <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
+      <FunctionLevelLinking>true</FunctionLevelLinking>
+      <EnableParallelCodeGeneration>true</EnableParallelCodeGeneration>
+      <AssemblerOutput>All</AssemblerOutput>
+      <MinimalRebuild>false</MinimalRebuild>
+      <DisableSpecificWarnings>4706;4127;4100</DisableSpecificWarnings>
+      <InlineFunctionExpansion>OnlyExplicitInline</InlineFunctionExpansion>
+    </ClCompile>
+    <Link>
+      <SubSystem>Windows</SubSystem>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+    </Link>
+    <Lib>
+      <SubSystem>Native</SubSystem>
+      <IgnoreAllDefaultLibraries>true</IgnoreAllDefaultLibraries>
+      <TargetMachine Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">MachineX86</TargetMachine>
+      <TargetMachine Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">MachineX86</TargetMachine>
+      <TargetMachine Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">MachineX86</TargetMachine>
+      <TargetMachine>MachineX86</TargetMachine>
+    </Lib>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='CLib|Win32'">
+    <ClCompile>
+      <WarningLevel>EnableAllWarnings</WarningLevel>
+      <PrecompiledHeader>
+      </PrecompiledHeader>
+      <Optimization>Full</Optimization>
+      <FunctionLevelLinking>true</FunctionLevelLinking>
+      <IntrinsicFunctions>false</IntrinsicFunctions>
+      <PreprocessorDefinitions>
+      </PreprocessorDefinitions>
+      <SDLCheck>true</SDLCheck>
+      <CompileAsManaged>
+      </CompileAsManaged>
+      <TreatWarningAsError>true</TreatWarningAsError>
+      <CompileAsWinRT>
+      </CompileAsWinRT>
+      <MultiProcessorCompilation>true</MultiProcessorCompilation>
+      <MinimalRebuild>false</MinimalRebuild>
+      <ExceptionHandling>false</ExceptionHandling>
+      <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
+      <EnableParallelCodeGeneration>true</EnableParallelCodeGeneration>
+      <AssemblerOutput>All</AssemblerOutput>
+      <DisableSpecificWarnings>4706;4127;4100</DisableSpecificWarnings>
+      <InlineFunctionExpansion>OnlyExplicitInline</InlineFunctionExpansion>
+    </ClCompile>
+    <Link>
+      <SubSystem>Windows</SubSystem>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <EnableCOMDATFolding>true</EnableCOMDATFolding>
+      <OptimizeReferences>true</OptimizeReferences>
+    </Link>
+    <Lib>
+      <SubSystem>Native</SubSystem>
+      <IgnoreAllDefaultLibraries>true</IgnoreAllDefaultLibraries>
+      <TargetMachine Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">MachineX86</TargetMachine>
+      <TargetMachine>MachineX86</TargetMachine>
+    </Lib>
+  </ItemDefinitionGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <ImportGroup Label="ExtensionTargets">
+    <Import Project="$(VCTargetsPath)\BuildCustomizations\masm.targets" />
+  </ImportGroup>
+</Project>
