@@ -1,0 +1,30 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="Startup">
+      <UniqueIdentifier>{301b2fae-cf85-4127-ba6b-debc87dc4389}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Components">
+      <UniqueIdentifier>{14b68f60-ab34-4c8c-af4e-a418705d061b}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Drivers">
+      <UniqueIdentifier>{43b531be-c840-4806-b4eb-48a5eb504b2f}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <MASM Include="..\..\..\arch\x86\boot\boot.asm">
+      <Filter>Startup</Filter>
+    </MASM>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="..\..\..\arch\x86\boot\main.c">
+      <Filter>Startup</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\arch\x86\components\video.c">
+      <Filter>Components</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\arch\x86\components\video_font8x16.c">
+      <Filter>Components</Filter>
+    </ClCompile>
+  </ItemGroup>
+</Project>

@@ -25,6 +25,9 @@
     <Filter Include="Source\setjmp">
       <UniqueIdentifier>{f2f965bb-d6e5-46e1-9d9f-3d240a1e9818}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Source\crt">
+      <UniqueIdentifier>{93111976-39cc-46dc-ae42-4e5bc1b191ea}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\src\string\atof.c">
@@ -225,6 +228,9 @@
     <ClCompile Include="..\src\signal\signal.c">
       <Filter>Source\signal</Filter>
     </ClCompile>
+    <ClCompile Include="..\crt\math.c">
+      <Filter>Source\crt</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <MASM Include="..\src\math\fabs.S">
@@ -242,5 +248,52 @@
     <MASM Include="..\src\math\sqrt.S">
       <Filter>Source\math</Filter>
     </MASM>
+    <MASM Include="..\crt\alldvrm.S">
+      <Filter>Source\crt</Filter>
+    </MASM>
+    <MASM Include="..\crt\aulldiv.S">
+      <Filter>Source\crt</Filter>
+    </MASM>
+    <MASM Include="..\crt\aulldvrm.S">
+      <Filter>Source\crt</Filter>
+    </MASM>
+    <MASM Include="..\crt\aullrem.S">
+      <Filter>Source\crt</Filter>
+    </MASM>
+    <MASM Include="..\crt\aullshr.S">
+      <Filter>Source\crt</Filter>
+    </MASM>
+    <MASM Include="..\crt\chkstk.S">
+      <Filter>Source\crt</Filter>
+    </MASM>
+    <MASM Include="..\crt\constants.S">
+      <Filter>Source\crt</Filter>
+    </MASM>
+    <MASM Include="..\crt\ftol.S">
+      <Filter>Source\crt</Filter>
+    </MASM>
+    <MASM Include="..\crt\ftol2.S">
+      <Filter>Source\crt</Filter>
+    </MASM>
+    <MASM Include="..\crt\ints.S">
+      <Filter>Source\crt</Filter>
+    </MASM>
+  </ItemGroup>
+  <ItemGroup>
+    <Object Include="..\crt\lldiv.obj">
+      <Filter>Source\crt</Filter>
+    </Object>
+    <Object Include="..\crt\llmul.obj">
+      <Filter>Source\crt</Filter>
+    </Object>
+    <Object Include="..\crt\llrem.obj">
+      <Filter>Source\crt</Filter>
+    </Object>
+    <Object Include="..\crt\llshl.obj">
+      <Filter>Source\crt</Filter>
+    </Object>
+    <Object Include="..\crt\llshr.obj">
+      <Filter>Source\crt</Filter>
+    </Object>
   </ItemGroup>
 </Project>

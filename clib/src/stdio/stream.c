@@ -64,7 +64,7 @@ enum
 #define round(x) floor((x) + 0.5)
 
 #ifdef LIBC_KERNEL
-extern int PutChar(int character);
+extern int video_putchar(int character);
 #endif
 
 //Putchar call
@@ -85,7 +85,7 @@ static int streamout_char(char **out, uint32_t *cnt, int c)
 #ifndef LIBC_KERNEL
 		return putchar(c);
 #else
-		return PutChar(c);
+		return video_putchar(c);
 #endif
 	}
 }

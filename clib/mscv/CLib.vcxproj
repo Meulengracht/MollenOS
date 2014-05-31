@@ -11,6 +11,7 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="..\crt\math.c" />
     <ClCompile Include="..\src\ctype\ctype.c" />
     <ClCompile Include="..\src\errno\errno.c" />
     <ClCompile Include="..\src\errno\errstrings.c" />
@@ -95,6 +96,55 @@
       <FileType>Document</FileType>
     </MASM>
   </ItemGroup>
+  <ItemGroup>
+    <MASM Include="..\crt\alldvrm.S">
+      <FileType>Document</FileType>
+    </MASM>
+    <MASM Include="..\crt\aulldiv.S">
+      <FileType>Document</FileType>
+    </MASM>
+    <MASM Include="..\crt\aulldvrm.S">
+      <FileType>Document</FileType>
+    </MASM>
+    <MASM Include="..\crt\aullrem.S">
+      <FileType>Document</FileType>
+    </MASM>
+    <MASM Include="..\crt\aullshr.S">
+      <FileType>Document</FileType>
+    </MASM>
+    <MASM Include="..\crt\chkstk.S">
+      <FileType>Document</FileType>
+    </MASM>
+    <MASM Include="..\crt\constants.S">
+      <FileType>Document</FileType>
+    </MASM>
+    <MASM Include="..\crt\ftol.S">
+      <FileType>Document</FileType>
+    </MASM>
+    <MASM Include="..\crt\ftol2.S">
+      <FileType>Document</FileType>
+    </MASM>
+    <MASM Include="..\crt\ints.S">
+      <FileType>Document</FileType>
+    </MASM>
+  </ItemGroup>
+  <ItemGroup>
+    <Object Include="..\crt\lldiv.obj">
+      <DeploymentContent>false</DeploymentContent>
+    </Object>
+    <Object Include="..\crt\llmul.obj">
+      <DeploymentContent>false</DeploymentContent>
+    </Object>
+    <Object Include="..\crt\llrem.obj">
+      <DeploymentContent>false</DeploymentContent>
+    </Object>
+    <Object Include="..\crt\llshl.obj">
+      <DeploymentContent>false</DeploymentContent>
+    </Object>
+    <Object Include="..\crt\llshr.obj">
+      <DeploymentContent>false</DeploymentContent>
+    </Object>
+  </ItemGroup>
   <PropertyGroup Label="Globals">
     <ProjectGuid>{5F7F1D6B-FFEE-44E1-8DF5-00725A1A5461}</ProjectGuid>
     <Keyword>Win32Proj</Keyword>
@@ -104,14 +154,14 @@
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='CLibK|Win32'" Label="Configuration">
     <ConfigurationType>StaticLibrary</ConfigurationType>
     <UseDebugLibraries>true</UseDebugLibraries>
-    <PlatformToolset>v120</PlatformToolset>
+    <PlatformToolset>v100</PlatformToolset>
     <CharacterSet>MultiByte</CharacterSet>
     <UseOfMfc />
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='CLib|Win32'" Label="Configuration">
     <ConfigurationType>StaticLibrary</ConfigurationType>
     <UseDebugLibraries>false</UseDebugLibraries>
-    <PlatformToolset>v120</PlatformToolset>
+    <PlatformToolset>v100</PlatformToolset>
     <WholeProgramOptimization>false</WholeProgramOptimization>
     <CharacterSet>MultiByte</CharacterSet>
   </PropertyGroup>
@@ -152,7 +202,8 @@
       <WarningLevel>EnableAllWarnings</WarningLevel>
       <Optimization>Full</Optimization>
       <PreprocessorDefinitions>LIBC_KERNEL</PreprocessorDefinitions>
-      <SDLCheck>true</SDLCheck>
+      <SDLCheck>
+      </SDLCheck>
       <CompileAsManaged>
       </CompileAsManaged>
       <TreatWarningAsError>true</TreatWarningAsError>
@@ -168,8 +219,9 @@
       <EnableParallelCodeGeneration>true</EnableParallelCodeGeneration>
       <AssemblerOutput>All</AssemblerOutput>
       <MinimalRebuild>false</MinimalRebuild>
-      <DisableSpecificWarnings>4706;4127;4100</DisableSpecificWarnings>
+      <DisableSpecificWarnings>4706;4127;4100;4738</DisableSpecificWarnings>
       <InlineFunctionExpansion>OnlyExplicitInline</InlineFunctionExpansion>
+      <BufferSecurityCheck>false</BufferSecurityCheck>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
@@ -206,8 +258,9 @@
       <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
       <EnableParallelCodeGeneration>true</EnableParallelCodeGeneration>
       <AssemblerOutput>All</AssemblerOutput>
-      <DisableSpecificWarnings>4706;4127;4100</DisableSpecificWarnings>
+      <DisableSpecificWarnings>4706;4127;4100;4738</DisableSpecificWarnings>
       <InlineFunctionExpansion>OnlyExplicitInline</InlineFunctionExpansion>
+      <BasicRuntimeChecks>Default</BasicRuntimeChecks>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>

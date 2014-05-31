@@ -33,6 +33,10 @@
 #define _CRT_WIDE(_String) __CRT_WIDE(_String)
 #endif
 
+#ifndef _CRT_EXTERN
+#define _CRT_EXTERN extern
+#endif
+
 #ifndef _W64
  #if !defined(_midl) && defined(_X86_) && _MSC_VER >= 1300
   #define _W64 __w64
