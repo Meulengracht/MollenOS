@@ -23,6 +23,7 @@
 
 
 /* Includes */
+#include <arch.h>
 #include <stdint.h>
 
 
@@ -62,7 +63,7 @@ typedef struct VBE_GraphicsInfo
 	uint8_t ModeInfo_ReservedMaskPos;
 	uint8_t ModeInfo_DirectColorModeInfo;
 
-	// VBE 2.0 extensions
+	/* VBE 2.0 Extensions */
 	uint32_t ModeInfo_PhysBasePtr;
 	uint32_t ModeInfo_OffScreenMemOffset;
 	uint16_t  ModeInfo_OffScreenMemSize;
@@ -103,6 +104,21 @@ typedef struct GraphicsInfo
 } graphics_t;
 #pragma pack(pop)
 
+
+/* The Graphic Terminal structure we save
+* in the kernel. */
+#pragma pack(push, 1)
+typedef struct Terminal
+{
+	/* Cursor Position */
+	uint32_t CursorX;
+	uint32_t CursorY;
+	
+	/* TTY Spinlock */
+	spinlock_t *lock;
+
+} tty_t;
+#pragma pack(pop)
 
 
 #endif // !_X86_VIDEO_

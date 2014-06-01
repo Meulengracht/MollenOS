@@ -24,12 +24,12 @@
 #include <video.h>
 
 /* Externs */
-extern unsigned char x86_font_8x16[];
+extern const unsigned char x86_font_8x16[];
 
 /* We have no memory allocation system in place yet,
  * so we allocate some static memory */
 graphics_t gfx_info;
-//tty_t term;
+tty_t term;
 
 /* We read the multiboot header for video 
  * information and setup the terminal accordingly */
@@ -44,6 +44,7 @@ void video_init(multiboot_info_t *bootinfo)
 			gfx_info.ResX = 80;
 			gfx_info.ResY = 25;
 			gfx_info.BitsPerPixel = 16;
+			gfx_info.BytesPerScanLine = 2 * 80;
 			gfx_info.GraphicMode = 0;
 			gfx_info.VideoAddr = STD_VIDEO_MEMORY;
 
@@ -94,14 +95,41 @@ void video_init(multiboot_info_t *bootinfo)
 	}
 
 	/* Initialise the TTY structure */
-
+	term.CursorX = 0;
+	term.CursorY = 0;
+	spinlock_reset(term.lock);
 }
 
 int video_putchar(int character)
 {
-	/* Get spinlock */
+	/* Decls */
+	uint32_t *video_ptr;
+	uint8_t *ch_ptr;
+	uint32_t row, i;
 
+	/* Get spinlock */
+	spinlock_acquire(term.lock);
+
+	/* Calculate video offset */
+	video_ptr = (uint32_t*)(gfx_info.VideoAddr + ((term.CursorY * gfx_info.BytesPerScanLine) 
+		+ (term.CursorX * (gfx_info.BitsPerPixel / 8))));
+	ch_ptr = (uint8_t*)&x86_font_8x16[character * 16];
+
+	for (row = 0; row < 16; row++)
+	{
+		uint8_t data = ch_ptr[row];
+		uint32_t _;
+
+		for (i = 0; i < 8; i++)
+			video_ptr[i] = (data >> (7 - i)) & 1 ? 0xFFFFFFFF : 0;
+
+		_ = (uint32_t)video_ptr;
+		_ += gfx_info.BytesPerScanLine;
+		video_ptr = (uint32_t*)_;
+	}
 
 	/* Release spinlock */
+	spinlock_release(term.lock);
+
 	return character;
 }

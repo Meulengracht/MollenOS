@@ -35,10 +35,10 @@ void init(multiboot_info_t *bootinfo, uint32_t kernel_size)
 	kernel_size = kernel_size;
 
 	/* Print MollenOS Header */
-	printf("MollenOS Operating System - Platform: %s - Layer Version: %s\n", 
-		ARCHITECTURE_NAME, ARCHITECTURE_VERSION);
+	printf("MollenOS Operating System - Platform: %s - Version %i.%i.%i\n", 
+		ARCHITECTURE_NAME, REVISION_MAJOR, REVISION_MINOR, REVISION_BUILD);
 	printf("Written by Philip Meulengracht, Copyright 2011-2014, All Rights Reserved.\n");
-	printf("Build Date 31-05-2014\n");
+	printf("VC Build %s - %s\n", BUILD_DATE, BUILD_TIME);
 
 	/* Done with setup! 
 	 * This should be called on a new thread */

@@ -23,20 +23,36 @@
 #define _MCORE_X86_ARCH_
 
 /* Architecture Includes */
+#include <revision.h>
 #include <crtdefs.h>
 #include <multiboot.h>
 
 /* Architecture Definitions */
-#define ARCHITECTURE_VERSION	"0.0.1a"
 #define ARCHITECTURE_NAME		"x86-32"
 #define STD_VIDEO_MEMORY		0xB8000
+
+/* Architecture typedefs */
+typedef unsigned long spinlock_t;
+typedef unsigned int physaddr_t;
+typedef unsigned int virtaddr_t;
+typedef unsigned int addr_t;
+typedef signed int saddr_t;
+
 
 /* Architecture Prototypes, you should define 
  * as many as these as possible */
 
 /* Components */
+
+/* Video */
 _CRT_EXTERN void video_init(multiboot_info_t *bootinfo);
 _CRT_EXTERN int video_putchar(int character);
+
+/* Spinlock */
+_CRT_EXTERN void spinlock_reset(spinlock_t *spinlock);
+_CRT_EXTERN int spinlock_acquire(spinlock_t *spinlock);
+_CRT_EXTERN void spinlock_release(spinlock_t *spinlock);
+
 
 /* Driver Interface */
 

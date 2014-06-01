@@ -62,13 +62,19 @@
       <EnableCOMDATFolding>false</EnableCOMDATFolding>
       <OptimizeReferences>false</OptimizeReferences>
       <EntryPointSymbol>kentry</EntryPointSymbol>
-      <RandomizedBaseAddress>false</RandomizedBaseAddress>
+      <RandomizedBaseAddress>
+      </RandomizedBaseAddress>
       <FixedBaseAddress>true</FixedBaseAddress>
-      <DataExecutionPrevention>false</DataExecutionPrevention>
+      <DataExecutionPrevention>
+      </DataExecutionPrevention>
       <BaseAddress>0x100000</BaseAddress>
       <AdditionalDependencies>CLibK.lib;Libx86.lib</AdditionalDependencies>
       <IgnoreAllDefaultLibraries>true</IgnoreAllDefaultLibraries>
       <ImageHasSafeExceptionHandlers />
+      <GenerateMapFile>true</GenerateMapFile>
+      <MapExports>true</MapExports>
+      <SectionAlignment>512</SectionAlignment>
+      <Driver>Driver</Driver>
     </Link>
   </ItemDefinitionGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

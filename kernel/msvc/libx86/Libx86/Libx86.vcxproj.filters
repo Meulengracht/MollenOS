@@ -15,6 +15,9 @@
     <MASM Include="..\..\..\arch\x86\boot\boot.asm">
       <Filter>Startup</Filter>
     </MASM>
+    <MASM Include="..\..\..\arch\x86\components\spinlock.asm">
+      <Filter>Components</Filter>
+    </MASM>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\..\arch\x86\boot\main.c">

@@ -10,6 +10,7 @@
     <MASM Include="..\..\..\arch\x86\boot\boot.asm">
       <FileType>Document</FileType>
     </MASM>
+    <MASM Include="..\..\..\arch\x86\components\spinlock.asm" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\..\arch\x86\boot\main.c" />
@@ -40,7 +41,7 @@
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <OutDir>..\..\..\build\</OutDir>
-    <IncludePath>C:\Users\Phail\Documents\GitHub\MollenOS\clib\include;C:\Users\Phail\Documents\GitHub\MollenOS\kernel\arch\x86</IncludePath>
+    <IncludePath>C:\Users\Phail\Documents\GitHub\MollenOS\kernel\msvc\MCoreConfig;C:\Users\Phail\Documents\GitHub\MollenOS\clib\include;C:\Users\Phail\Documents\GitHub\MollenOS\kernel\arch\x86</IncludePath>
     <ReferencePath />
     <LibraryWPath />
     <LibraryPath>C:\Users\Phail\Documents\GitHub\MollenOS\clib\build</LibraryPath>
