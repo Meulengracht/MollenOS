@@ -55,6 +55,7 @@
       <BufferSecurityCheck>false</BufferSecurityCheck>
       <AssemblerOutput>All</AssemblerOutput>
       <InlineFunctionExpansion>OnlyExplicitInline</InlineFunctionExpansion>
+      <RuntimeLibrary>MultiThreadedDebugDLL</RuntimeLibrary>
     </ClCompile>
     <Link>
       <SubSystem>Native</SubSystem>
@@ -73,7 +74,8 @@
       <ImageHasSafeExceptionHandlers />
       <GenerateMapFile>true</GenerateMapFile>
       <MapExports>true</MapExports>
-      <SectionAlignment>512</SectionAlignment>
+      <SectionAlignment>
+      </SectionAlignment>
       <Driver>Driver</Driver>
     </Link>
   </ItemDefinitionGroup>

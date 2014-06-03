@@ -10,22 +10,22 @@ INCLUDELIB MSVCRT
 INCLUDELIB OLDNAMES
 
 _DATA	SEGMENT
-$SG2355	DB	'-', 00H
+$SG2354	DB	'-', 00H
 	ORG $+2
-$SG2358	DB	'+', 00H
+$SG2357	DB	'+', 00H
 	ORG $+2
-$SG2361	DB	' ', 00H
+$SG2360	DB	' ', 00H
 	ORG $+2
-$SG2400	DB	'(null)', 00H
+$SG2399	DB	'(null)', 00H
 	ORG $+1
-?_nullstring@?1??streamout@@9@9 DD FLAT:$SG2400		; `streamout'::`2'::_nullstring
-$SG2608	DB	'-', 00H
+?_nullstring@?1??streamout@@9@9 DD FLAT:$SG2399		; `streamout'::`2'::_nullstring
+$SG2607	DB	'-', 00H
 	ORG $+2
-$SG2611	DB	'+', 00H
+$SG2610	DB	'+', 00H
 	ORG $+2
-$SG2614	DB	' ', 00H
+$SG2613	DB	' ', 00H
 	ORG $+2
-$SG2618	DB	'0', 00H
+$SG2617	DB	'0', 00H
 _DATA	ENDS
 CONST	SEGMENT
 ?digits_l@?1??format_float@@9@9 DB '0123456789abcdef0x', 00H ; `format_float'::`2'::digits_l
@@ -51,50 +51,48 @@ _streamout_char PROC					; COMDAT
 ; _c$ = eax
 
 ; 73   : 	/* Sanity */
-; 74   : 	if(*cnt == 0 && out != NULL)
+; 74   : 	if(*cnt == 0)
 
   00000	83 3a 00	 cmp	 DWORD PTR [edx], 0
-  00003	75 07		 jne	 SHORT $LN3@streamout_
-  00005	85 c9		 test	 ecx, ecx
-  00007	74 12		 je	 SHORT $LN2@streamout_
+  00003	75 03		 jne	 SHORT $LN3@streamout_
 
 ; 75   : 		return 0;
 
-  00009	33 c0		 xor	 eax, eax
+  00005	33 c0		 xor	 eax, eax
 
 ; 89   : #endif
 ; 90   : 	}
 ; 91   : }
 
-  0000b	c3		 ret	 0
+  00007	c3		 ret	 0
 $LN3@streamout_:
 
 ; 76   : 
 ; 77   : 	if (out) {
 
-  0000c	85 c9		 test	 ecx, ecx
-  0000e	74 0b		 je	 SHORT $LN2@streamout_
+  00008	85 c9		 test	 ecx, ecx
+  0000a	74 0b		 je	 SHORT $LN2@streamout_
 
 ; 78   : 		**out = (char)c;
 
-  00010	56		 push	 esi
-  00011	8b 31		 mov	 esi, DWORD PTR [ecx]
-  00013	88 06		 mov	 BYTE PTR [esi], al
+  0000c	56		 push	 esi
+  0000d	8b 31		 mov	 esi, DWORD PTR [ecx]
+  0000f	88 06		 mov	 BYTE PTR [esi], al
 
 ; 79   : 		++(*out);
 
-  00015	ff 01		 inc	 DWORD PTR [ecx]
+  00011	ff 01		 inc	 DWORD PTR [ecx]
 
 ; 80   : 		*cnt -= 1;
 
-  00017	ff 0a		 dec	 DWORD PTR [edx]
-  00019	5e		 pop	 esi
+  00013	ff 0a		 dec	 DWORD PTR [edx]
+  00015	5e		 pop	 esi
 
 ; 89   : #endif
 ; 90   : 	}
 ; 91   : }
 
-  0001a	c3		 ret	 0
+  00016	c3		 ret	 0
 $LN2@streamout_:
 
 ; 81   : 		return c;
@@ -106,15 +104,15 @@ $LN2@streamout_:
 ; 87   : #else
 ; 88   : 		return video_putchar(c);
 
-  0001b	50		 push	 eax
-  0001c	e8 00 00 00 00	 call	 _video_putchar
-  00021	83 c4 04	 add	 esp, 4
+  00017	50		 push	 eax
+  00018	e8 00 00 00 00	 call	 _video_putchar
+  0001d	83 c4 04	 add	 esp, 4
 
 ; 89   : #endif
 ; 90   : 	}
 ; 91   : }
 
-  00024	c3		 ret	 0
+  00020	c3		 ret	 0
 _streamout_char ENDP
 ; Function compile flags: /Ogtp
 _TEXT	ENDS
@@ -481,10 +479,10 @@ $LN30@format_flo:
 
   000d5	83 ff fc	 cmp	 edi, -4			; fffffffcH
   000d8	0f 8c 91 00 00
-	00		 jl	 $case_e$2336
+	00		 jl	 $case_e$2335
   000de	3b fb		 cmp	 edi, ebx
   000e0	0f 8d 89 00 00
-	00		 jge	 $case_e$2336
+	00		 jge	 $case_e$2335
   000e6	dd d8		 fstp	 ST(0)
 
 ; 157  : 
@@ -574,7 +572,7 @@ $LN33@format_flo:
 
   0015a	8b 45 18	 mov	 eax, DWORD PTR _prefix$[ebp]
   0015d	c7 00 00 00 00
-	00		 mov	 DWORD PTR [eax], OFFSET $SG2355
+	00		 mov	 DWORD PTR [eax], OFFSET $SG2354
   00163	e9 73 01 00 00	 jmp	 $LN14@format_flo
 $LN25@format_flo:
 
@@ -586,7 +584,7 @@ $LN25@format_flo:
 
   00168	c7 45 fc 00 00
 	00 00		 mov	 DWORD PTR _digits$[ebp], OFFSET ?digits_u@?1??format_float@@9@9
-$case_e$2336:
+$case_e$2335:
 
 ; 171  : 	case ('e'):
 ; 172  : case_e:
@@ -790,7 +788,7 @@ $LN18@format_flo:
 
   002c3	8b 4d 18	 mov	 ecx, DWORD PTR _prefix$[ebp]
   002c6	c7 01 00 00 00
-	00		 mov	 DWORD PTR [ecx], OFFSET $SG2358
+	00		 mov	 DWORD PTR [ecx], OFFSET $SG2357
   002cc	eb 0d		 jmp	 SHORT $LN14@format_flo
 $LN16@format_flo:
 
@@ -803,7 +801,7 @@ $LN16@format_flo:
 
   002d2	8b 55 18	 mov	 edx, DWORD PTR _prefix$[ebp]
   002d5	c7 02 00 00 00
-	00		 mov	 DWORD PTR [edx], OFFSET $SG2361
+	00		 mov	 DWORD PTR [edx], OFFSET $SG2360
 $LN14@format_flo:
 
 ; 223  : 
@@ -1011,7 +1009,7 @@ $LN136@format_flo:
   003d0	00 00 00 00	 DD	 $LN88@format_flo
   003d4	00 00 00 00	 DD	 $LN25@format_flo
   003d8	00 00 00 00	 DD	 $LN32@format_flo
-  003dc	00 00 00 00	 DD	 $case_e$2336
+  003dc	00 00 00 00	 DD	 $case_e$2335
   003e0	00 00 00 00	 DD	 $LN31@format_flo
   003e4	00 00 00 00	 DD	 $LN87@format_flo
 $LN68@format_flo:
@@ -1717,11 +1715,11 @@ $LN52@streamout:
 
   0024e	f7 c3 00 01 00
 	00		 test	 ebx, 256		; 00000100H
-  00254	75 09		 jne	 SHORT $case_char$2522
+  00254	75 09		 jne	 SHORT $case_char$2521
   00256	81 cb 00 02 00
 	00		 or	 ebx, 512		; 00000200H
   0025c	89 5d f4	 mov	 DWORD PTR _flags$[ebp], ebx
-$case_char$2522:
+$case_char$2521:
 
 ; 413  : 			goto case_char;
 ; 414  : 
@@ -1894,14 +1892,14 @@ $LN44@streamout:
 
   0032d	f7 c3 00 01 00
 	00		 test	 ebx, 256		; 00000100H
-  00333	75 17		 jne	 SHORT $case_string$2559
+  00333	75 17		 jne	 SHORT $case_string$2558
   00335	81 cb 00 02 00
 	00		 or	 ebx, 512		; 00000200H
   0033b	89 5d f4	 mov	 DWORD PTR _flags$[ebp], ebx
 
 ; 445  : 			goto case_string;
 
-  0033e	eb 0c		 jmp	 SHORT $case_string$2559
+  0033e	eb 0c		 jmp	 SHORT $case_string$2558
 $LN42@streamout:
 
 ; 446  : 
@@ -1912,7 +1910,7 @@ $LN42@streamout:
   00343	89 75 14	 mov	 DWORD PTR _argptr$[ebp], esi
   00346	8b 76 fc	 mov	 esi, DWORD PTR [esi-4]
   00349	89 75 f8	 mov	 DWORD PTR _string$[ebp], esi
-$case_string$2559:
+$case_string$2558:
 
 ; 449  : 
 ; 450  : case_string:
@@ -2066,8 +2064,8 @@ $LN172@streamout:
 ; 489  : 				prefix = ("-");
 
   00405	c7 45 ec 00 00
-	00 00		 mov	 DWORD PTR _prefix$[ebp], OFFSET $SG2608
-  0040c	e9 87 00 00 00	 jmp	 $case_number$2615
+	00 00		 mov	 DWORD PTR _prefix$[ebp], OFFSET $SG2607
+  0040c	e9 87 00 00 00	 jmp	 $case_number$2614
 $LN38@streamout:
 
 ; 490  : 			}
@@ -2079,24 +2077,24 @@ $LN38@streamout:
 ; 492  : 				prefix = ("+");
 
   00416	c7 45 ec 00 00
-	00 00		 mov	 DWORD PTR _prefix$[ebp], OFFSET $SG2611
-  0041d	eb 79		 jmp	 SHORT $case_number$2615
+	00 00		 mov	 DWORD PTR _prefix$[ebp], OFFSET $SG2610
+  0041d	eb 79		 jmp	 SHORT $case_number$2614
 $LN36@streamout:
 
 ; 493  : 			else if (flags & FLAG_FORCE_SIGNSP)
 
   0041f	f6 c3 04	 test	 bl, 4
-  00422	74 74		 je	 SHORT $case_number$2615
+  00422	74 74		 je	 SHORT $case_number$2614
 
 ; 494  : 				prefix = (" ");
 
   00424	c7 45 ec 00 00
-	00 00		 mov	 DWORD PTR _prefix$[ebp], OFFSET $SG2614
+	00 00		 mov	 DWORD PTR _prefix$[ebp], OFFSET $SG2613
 
 ; 495  : 
 ; 496  : 			goto case_number;
 
-  0042b	eb 6b		 jmp	 SHORT $case_number$2615
+  0042b	eb 6b		 jmp	 SHORT $case_number$2614
 $LN33@streamout:
 
 ; 497  : 
@@ -2108,7 +2106,7 @@ $LN33@streamout:
 ; 500  : 			if (flags & FLAG_SPECIAL)
 
   00432	f6 c3 10	 test	 bl, 16			; 00000010H
-  00435	74 33		 je	 SHORT $case_unsigned$2620
+  00435	74 33		 je	 SHORT $case_unsigned$2619
 
 ; 501  : 			{
 ; 502  : 				prefix = ("0");
@@ -2116,14 +2114,14 @@ $LN33@streamout:
 
   00437	83 7d 0c 00	 cmp	 DWORD PTR _precision$[ebp], 0
   0043b	c7 45 ec 00 00
-	00 00		 mov	 DWORD PTR _prefix$[ebp], OFFSET $SG2618
-  00442	7e 26		 jle	 SHORT $case_unsigned$2620
+	00 00		 mov	 DWORD PTR _prefix$[ebp], OFFSET $SG2617
+  00442	7e 26		 jle	 SHORT $case_unsigned$2619
   00444	ff 4d 0c	 dec	 DWORD PTR _precision$[ebp]
 
 ; 504  : 			}
 ; 505  : 			goto case_unsigned;
 
-  00447	eb 21		 jmp	 SHORT $case_unsigned$2620
+  00447	eb 21		 jmp	 SHORT $case_unsigned$2619
 $LN30@streamout:
 
 ; 506  : 
@@ -2158,14 +2156,14 @@ $LN193@streamout:
 ; 519  : 			if (flags & FLAG_SPECIAL)
 
   00460	f6 c3 10	 test	 bl, 16			; 00000010H
-  00463	74 05		 je	 SHORT $case_unsigned$2620
+  00463	74 05		 je	 SHORT $case_unsigned$2619
 
 ; 520  : 			{
 ; 521  : 				prefix = &digits[16];
 
   00465	03 cf		 add	 ecx, edi
   00467	89 4d ec	 mov	 DWORD PTR _prefix$[ebp], ecx
-$case_unsigned$2620:
+$case_unsigned$2619:
 
 ; 522  : 			}
 ; 523  : 
@@ -2180,7 +2178,7 @@ $case_unsigned$2620:
   00474	83 c6 08	 add	 esi, 8
   00477	89 75 14	 mov	 DWORD PTR _argptr$[ebp], esi
   0047a	8b 76 fc	 mov	 esi, DWORD PTR [esi-4]
-  0047d	eb 19		 jmp	 SHORT $case_number$2615
+  0047d	eb 19		 jmp	 SHORT $case_number$2614
 $LN121@streamout:
   0047f	83 c6 04	 add	 esi, 4
   00482	89 75 14	 mov	 DWORD PTR _argptr$[ebp], esi
@@ -2193,7 +2191,7 @@ $LN119@streamout:
   00493	8b 4e fc	 mov	 ecx, DWORD PTR [esi-4]
 $LN120@streamout:
   00496	33 f6		 xor	 esi, esi
-$case_number$2615:
+$case_number$2614:
 
 ; 527  : 
 ; 528  : case_number:
@@ -2543,13 +2541,13 @@ $LN218@streamout:
   0063c	00 00 00 00	 DD	 $LN44@streamout
   00640	00 00 00 00	 DD	 $LN192@streamout
   00644	00 00 00 00	 DD	 $LN47@streamout
-  00648	00 00 00 00	 DD	 $case_char$2522
+  00648	00 00 00 00	 DD	 $case_char$2521
   0064c	00 00 00 00	 DD	 $LN39@streamout
   00650	00 00 00 00	 DD	 $LN57@streamout
   00654	00 00 00 00	 DD	 $LN33@streamout
   00658	00 00 00 00	 DD	 $LN30@streamout
   0065c	00 00 00 00	 DD	 $LN42@streamout
-  00660	00 00 00 00	 DD	 $case_unsigned$2620
+  00660	00 00 00 00	 DD	 $case_unsigned$2619
   00664	00 00 00 00	 DD	 $LN193@streamout
   00668	00 00 00 00	 DD	 $LN22@streamout
 $LN169@streamout:

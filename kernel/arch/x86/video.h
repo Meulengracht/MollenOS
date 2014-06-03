@@ -26,7 +26,6 @@
 #include <arch.h>
 #include <stdint.h>
 
-
 /* This is the VBE Graphic Information
 * Descriptor which we have setup in
 * the bootloader */
@@ -113,12 +112,15 @@ typedef struct Terminal
 	/* Cursor Position */
 	uint32_t CursorX;
 	uint32_t CursorY;
+
+	/* Cursor Limits */
+	uint32_t CursorLimitX;
+	uint32_t CursorLimitY;
 	
 	/* TTY Spinlock */
-	spinlock_t *lock;
+	spinlock_t lock;
 
 } tty_t;
 #pragma pack(pop)
-
 
 #endif // !_X86_VIDEO_

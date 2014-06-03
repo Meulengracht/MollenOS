@@ -2,10 +2,10 @@
 	- assert()
 */
 
-#ifndef _KERNEL_ASSERT
-#define _KERNEL_ASSERT
+#ifndef _CLIB_ASSERT
+#define _CLIB_ASSERT
 
-extern void _cdecl kernel_panic (const char* fmt, ...);
+extern void kernel_panic (const char* str);
 
 #define __symbol2value( x ) #x
 #define __symbol2string( x ) __symbol2value( x )

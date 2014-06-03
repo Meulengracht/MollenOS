@@ -50,6 +50,9 @@ int printf(const char *format, ...)
 #include <stdlib.h>
 #include <string.h>
 
+/* Directly call */
+extern int streamout(char **out, size_t size, const char *format, va_list argptr);
+
 /* However in kernel mode, we just print the damned string */
 int printf(const char *format, ...)
 {
@@ -63,7 +66,7 @@ int printf(const char *format, ...)
 
 	//Use sprintf for this
 	va_start(args, format);
-	result = vsprintf(NULL, format, args);
+	result = streamout(NULL, 0x20000, format, args);
 	va_end(args);
 
 	return result;

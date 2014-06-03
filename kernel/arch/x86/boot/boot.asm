@@ -18,15 +18,14 @@
 ;
 ; MollenOS x86-32 Boot Code
 ;
-.386
-.model flat
-option casemap :none 
+bits 32
+segment .text
 
 ; Extern main function in C-code
-extrn _init:proc
+extern _init
 
 ; Publics in this file
-public _kentry
+global _kentry
 
 ; No matter what, this is booted by multiboot, and thus
 ; We can assume the state when this point is reached.
@@ -34,7 +33,6 @@ public _kentry
 ; EBX - Contains address of the multiboot structure, but
 ;		it should be located in stack aswell.
 ; EDX - Should contain size of the kernel file
-.code
 
 _kentry:
 	;We disable interrupts, we have no IDT installed
@@ -45,9 +43,9 @@ _kentry:
 
 	;Setup a new stack to an unused
 	;place in memory. This will be temporary.
-	mov eax, 10h
+	mov eax, 0x10
 	mov ss, ax					
-	mov esp, 90000h
+	mov esp, 0x90000
 	mov ebp, esp
 
 	;Now, we place multiboot structure and kernel
@@ -60,10 +58,8 @@ _kentry:
 
 	;When we return from here, we just
 	;enter into an idle loop.
-	mov eax, 0000DEADh
+	mov eax, 0x0000DEAD
 	
-	idle:
+	.idle:
 		hlt
-		jmp idle
-
-end _kentry
+		jmp .idle

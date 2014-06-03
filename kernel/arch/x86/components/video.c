@@ -97,7 +97,9 @@ void video_init(multiboot_info_t *bootinfo)
 	/* Initialise the TTY structure */
 	term.CursorX = 0;
 	term.CursorY = 0;
-	spinlock_reset(term.lock);
+	term.CursorLimitX = gfx_info.ResX / 10;
+	term.CursorLimitY = gfx_info.ResY / 16;
+	spinlock_reset(&term.lock);
 }
 
 int video_putchar(int character)
@@ -108,28 +110,73 @@ int video_putchar(int character)
 	uint32_t row, i;
 
 	/* Get spinlock */
-	spinlock_acquire(term.lock);
+	spinlock_acquire(&term.lock);
 
-	/* Calculate video offset */
-	video_ptr = (uint32_t*)(gfx_info.VideoAddr + ((term.CursorY * gfx_info.BytesPerScanLine) 
-		+ (term.CursorX * (gfx_info.BitsPerPixel / 8))));
-	ch_ptr = (uint8_t*)&x86_font_8x16[character * 16];
-
-	for (row = 0; row < 16; row++)
+	/* Handle Special Characters */
+	switch (character)
 	{
-		uint8_t data = ch_ptr[row];
-		uint32_t _;
+		/* New line */
+		case '\n':
+		{
+			term.CursorX = 0;
+			term.CursorY += 16;
+		} break;
 
-		for (i = 0; i < 8; i++)
-			video_ptr[i] = (data >> (7 - i)) & 1 ? 0xFFFFFFFF : 0;
+		/* Carriage Return */
+		case '\r':
+		{
+			term.CursorX = 0;
+		} break;
+		
+		/* Default */
+		default:
+		{
+			/* Calculate video offset */
+			video_ptr = (uint32_t*)(gfx_info.VideoAddr + ((term.CursorY * gfx_info.BytesPerScanLine)
+				+ (term.CursorX * (gfx_info.BitsPerPixel / 8))));
+			ch_ptr = (uint8_t*)&x86_font_8x16[character * 16];
 
-		_ = (uint32_t)video_ptr;
-		_ += gfx_info.BytesPerScanLine;
-		video_ptr = (uint32_t*)_;
+			for (row = 0; row < 16; row++)
+			{
+				uint8_t data = ch_ptr[row];
+				uint32_t _;
+
+				for (i = 0; i < 8; i++)
+					video_ptr[i] = (data >> (7 - i)) & 1 ? 0xFFFFFFFF : 0;
+
+				_ = (uint32_t)video_ptr;
+				_ += gfx_info.BytesPerScanLine;
+				video_ptr = (uint32_t*)_;
+			}
+
+			/* Increase position */
+			term.CursorX += 10;
+		} break;
+	}
+
+	/* Newline check */
+	if ((term.CursorX + 10) >= gfx_info.ResX)
+	{
+		term.CursorX = 0;
+		term.CursorY += 16;
+	}
+
+	/* Do scroll check here */
+	if ((term.CursorY + 16) > gfx_info.ResY)
+	{
+		memcpy((uint8_t*)gfx_info.VideoAddr,
+			(uint8_t*)gfx_info.VideoAddr + (gfx_info.BytesPerScanLine * 16),
+			(size_t)(gfx_info.BytesPerScanLine * (gfx_info.ResY - 16)));
+		memset((uint8_t*)(gfx_info.VideoAddr + gfx_info.BytesPerScanLine * (gfx_info.ResY - 16)),
+			(int8_t)0,
+			(size_t)gfx_info.BytesPerScanLine * 16);
+
+		//We scrolled, set it back one line.
+		term.CursorY -= 16;
 	}
 
 	/* Release spinlock */
-	spinlock_release(term.lock);
+	spinlock_release(&term.lock);
 
 	return character;
 }

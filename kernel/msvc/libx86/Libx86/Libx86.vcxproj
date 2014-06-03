@@ -1,5 +1,6 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" ToolsVersion="12.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <Import Project="..\..\packages\nasm.2.10.07\build\native\nasm.props" Condition="Exists('..\..\packages\nasm.2.10.07\build\native\nasm.props')" />
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="Release|Win32">
       <Configuration>Release</Configuration>
@@ -7,15 +8,33 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
-    <MASM Include="..\..\..\arch\x86\boot\boot.asm">
+    <NASM Include="..\..\..\arch\x86\boot\boot.asm">
       <FileType>Document</FileType>
-    </MASM>
-    <MASM Include="..\..\..\arch\x86\components\spinlock.asm" />
+      <Command Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">nasm -f win32 boot.asm -o boot.obj</Command>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">boot.obj</Outputs>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">false</ExcludedFromBuild>
+    </NASM>
+    <NASM Include="..\..\..\arch\x86\components\desc.asm">
+      <FileType>Document</FileType>
+    </NASM>
+    <NASM Include="..\..\..\arch\x86\components\irq.asm" />
+    <NASM Include="..\..\..\arch\x86\components\spinlock.asm">
+      <FileType>Document</FileType>
+    </NASM>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\..\arch\x86\boot\main.c" />
+    <ClCompile Include="..\..\..\arch\x86\components\exceptions.c" />
+    <ClCompile Include="..\..\..\arch\x86\components\gdt.c" />
+    <ClCompile Include="..\..\..\arch\x86\components\idt.c" />
+    <ClCompile Include="..\..\..\arch\x86\components\interrupts.c" />
     <ClCompile Include="..\..\..\arch\x86\components\video.c" />
     <ClCompile Include="..\..\..\arch\x86\components\video_font8x16.c" />
+    <ClCompile Include="..\..\..\arch\x86\memory\mm_phys.c" />
+    <ClCompile Include="..\..\..\arch\x86\memory\mm_virt.c" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="packages.config" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <ProjectGuid>{17145F88-DAEA-496B-A91F-2A78ED5673CC}</ProjectGuid>
@@ -32,13 +51,13 @@
     <UseOfMfc />
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
-  <ImportGroup Label="ExtensionSettings">
-    <Import Project="$(VCTargetsPath)\BuildCustomizations\masm.props" />
-  </ImportGroup>
+  <ImportGroup Label="ExtensionSettings" />
   <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
   </ImportGroup>
-  <PropertyGroup Label="UserMacros" />
+  <PropertyGroup Label="UserMacros">
+    <NuGetPackageImportStamp>3308c32b</NuGetPackageImportStamp>
+  </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <OutDir>..\..\..\build\</OutDir>
     <IncludePath>C:\Users\Phail\Documents\GitHub\MollenOS\kernel\msvc\MCoreConfig;C:\Users\Phail\Documents\GitHub\MollenOS\clib\include;C:\Users\Phail\Documents\GitHub\MollenOS\kernel\arch\x86</IncludePath>
@@ -64,6 +83,8 @@
       <AssemblerOutput>All</AssemblerOutput>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
       <InlineFunctionExpansion>OnlyExplicitInline</InlineFunctionExpansion>
+      <RuntimeLibrary>MultiThreadedDebugDLL</RuntimeLibrary>
+      <ExpandAttributedSource>true</ExpandAttributedSource>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
@@ -82,6 +103,13 @@
   </ItemDefinitionGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
-    <Import Project="$(VCTargetsPath)\BuildCustomizations\masm.targets" />
+    <Import Project="..\..\packages\nasm.2.10.07\build\native\nasm.targets" Condition="Exists('..\..\packages\nasm.2.10.07\build\native\nasm.targets')" />
   </ImportGroup>
+  <Target Name="EnsureNuGetPackageBuildImports" BeforeTargets="PrepareForBuild">
+    <PropertyGroup>
+      <ErrorText>This project references NuGet package(s) that are missing on this computer. Enable NuGet Package Restore to download them.  For more information, see http://go.microsoft.com/fwlink/?LinkID=322105. The missing file is {0}.</ErrorText>
+    </PropertyGroup>
+    <Error Condition="!Exists('..\..\packages\nasm.2.10.07\build\native\nasm.props')" Text="$([System.String]::Format('$(ErrorText)', '..\..\packages\nasm.2.10.07\build\native\nasm.props'))" />
+    <Error Condition="!Exists('..\..\packages\nasm.2.10.07\build\native\nasm.targets')" Text="$([System.String]::Format('$(ErrorText)', '..\..\packages\nasm.2.10.07\build\native\nasm.targets'))" />
+  </Target>
 </Project>

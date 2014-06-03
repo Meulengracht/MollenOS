@@ -16,82 +16,82 @@
 ; along with this program.  If not, see <http://www.gnu.org/licenses/>.
 ;
 ;
-; MollenOS x86-32 Spinlock Code
+; MollenOS x86-32 Descriptor Assembly Functions
 ;
 bits 32
 segment .text
 
 ;Functions in this asm
-global _spinlock_reset
-global _spinlock_acquire
-global _spinlock_release
+global _gdt_install
+global _tss_install
+global _idt_install
 
-; void spinlock_reset(spinlock_t *spinlock)
-; We set the spinlock to value 0
-_spinlock_reset:
+extern _gdt_ptr
+extern _idt_ptr
+
+; void _gdt_install()
+; Load the given gdt into gdtr
+_gdt_install:
 	; Stack Frame
 	push ebp
 	mov ebp, esp
-	push ebx
 
-	; Get address of lock
-	mov ebx, dword [ebp + 8]
-	mov dword [ebx], 0
+	; Install GDT
+	lgdt [_gdt_ptr]
 
+	; Jump into correct descriptor
+	xor eax, eax
+	mov ax, 0x10
+	mov ds, ax
+	mov es, ax
+	mov fs, ax
+	mov gs, ax
+	mov ss, ax
+
+	jmp 0x08:done
+
+	done:
 	; Release stack frame
 	xor eax, eax
-	pop ebx
 	pop ebp
 	ret 
 
-; int spinlock_acquire(spinlock_t *spinlock)
-; We wait for the spinlock to become free
-; then set value to 1 to mark it in use.
-_spinlock_acquire:
+; void _tss_install(uint32_t gdt_index)
+; Load the given TSS descriptor
+; index
+_tss_install:
 	; Stack Frame
 	push ebp
 	mov ebp, esp
-	push ebx
+	push ecx
 
-	; Get address of lock
-	mov ebx, dword [ebp + 8]
-	mov eax, 1
+	; Calculate index
+	mov eax, dword [ebp + 8]
+	mov ecx, 0x8
+	mul ecx
+	or eax, 0x3
 
-	; Try to get lock
-	.trylock:
-	xchg dword [ebx], eax
-	test eax, eax
-	je .gotlock
+	; Load task register
+	ltr ax
 
-	; Busy-wait loop
-	.lockloop:
-	pause
-	cmp dword [ebx], 0
-	jne .lockloop
-	jmp .trylock
-
-	.gotlock:
 	; Release stack frame
-	mov eax, 1
-	pop ebx
+	pop ecx
+	xor eax, eax
 	pop ebp
 	ret
 
-
-; void spinlock_release(spinlock_t *spinlock)
-; We set the spinlock to value 0
-_spinlock_release:
+; void _tss_install()
+; Load the given TSS descriptor
+; index
+_idt_install:
 	; Stack Frame
 	push ebp
 	mov ebp, esp
-	push ebx
 
-	; Get address of lock
-	mov ebx, dword [ebp + 8]
-	mov dword [ebx], 0
+	; Install IDT
+	lidt [_idt_ptr]
 
 	; Release stack frame
 	xor eax, eax
-	pop ebx
 	pop ebp
-	ret
+	ret 

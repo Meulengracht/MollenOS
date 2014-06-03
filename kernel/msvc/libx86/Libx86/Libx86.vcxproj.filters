@@ -10,24 +10,63 @@
     <Filter Include="Drivers">
       <UniqueIdentifier>{43b531be-c840-4806-b4eb-48a5eb504b2f}</UniqueIdentifier>
     </Filter>
-  </ItemGroup>
-  <ItemGroup>
-    <MASM Include="..\..\..\arch\x86\boot\boot.asm">
-      <Filter>Startup</Filter>
-    </MASM>
-    <MASM Include="..\..\..\arch\x86\components\spinlock.asm">
-      <Filter>Components</Filter>
-    </MASM>
+    <Filter Include="Components\Video">
+      <UniqueIdentifier>{24aa07f6-b326-490c-8a3c-bb076f36be3b}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Components\Descriptors">
+      <UniqueIdentifier>{4ca598f1-0554-4331-be1b-6c43e545d43a}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Interrupts">
+      <UniqueIdentifier>{11123936-825e-45b2-be98-5fa6e60d0e19}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Memory">
+      <UniqueIdentifier>{8e1fa0a3-90b8-4f07-8fa1-a03aab0134c7}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\..\arch\x86\boot\main.c">
       <Filter>Startup</Filter>
     </ClCompile>
     <ClCompile Include="..\..\..\arch\x86\components\video.c">
-      <Filter>Components</Filter>
+      <Filter>Components\Video</Filter>
     </ClCompile>
     <ClCompile Include="..\..\..\arch\x86\components\video_font8x16.c">
-      <Filter>Components</Filter>
+      <Filter>Components\Video</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\..\arch\x86\components\gdt.c">
+      <Filter>Components\Descriptors</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\arch\x86\components\idt.c">
+      <Filter>Components\Descriptors</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\arch\x86\components\exceptions.c">
+      <Filter>Interrupts</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\arch\x86\components\interrupts.c">
+      <Filter>Interrupts</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\arch\x86\memory\mm_phys.c">
+      <Filter>Memory</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\arch\x86\memory\mm_virt.c">
+      <Filter>Memory</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="packages.config" />
+  </ItemGroup>
+  <ItemGroup>
+    <NASM Include="..\..\..\arch\x86\boot\boot.asm">
+      <Filter>Startup</Filter>
+    </NASM>
+    <NASM Include="..\..\..\arch\x86\components\spinlock.asm">
+      <Filter>Components</Filter>
+    </NASM>
+    <NASM Include="..\..\..\arch\x86\components\desc.asm">
+      <Filter>Components\Descriptors</Filter>
+    </NASM>
+    <NASM Include="..\..\..\arch\x86\components\irq.asm">
+      <Filter>Interrupts</Filter>
+    </NASM>
   </ItemGroup>
 </Project>

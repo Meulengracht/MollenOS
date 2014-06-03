@@ -21,6 +21,10 @@
 
 /* Includes */
 #include <arch.h>
+#include <gdt.h>
+#include <idt.h>
+#include <exceptions.h>
+
 #include <stddef.h>
 #include <stdio.h>
 
@@ -32,13 +36,31 @@ void init(multiboot_info_t *bootinfo, uint32_t kernel_size)
 {
 	/* Setup output device */
 	video_init(bootinfo);
-	kernel_size = kernel_size;
 
 	/* Print MollenOS Header */
 	printf("MollenOS Operating System - Platform: %s - Version %i.%i.%i\n", 
 		ARCHITECTURE_NAME, REVISION_MAJOR, REVISION_MINOR, REVISION_BUILD);
 	printf("Written by Philip Meulengracht, Copyright 2011-2014, All Rights Reserved.\n");
-	printf("VC Build %s - %s\n", BUILD_DATE, BUILD_TIME);
+	printf("Bootloader - %s\n", (char*)bootinfo->BootLoaderName);
+	printf("VC Build %s - %s\n\n", BUILD_DATE, BUILD_TIME);
+
+	/* Setup base components */
+	printf("  - Setting up base components\n");
+	printf("    * Installing GDT...\n");
+	gdt_init();
+	printf("    * Installing IDT...\n");
+	idt_init();
+	printf("    * Installing Interrupts...\n");
+	exceptions_init();
+
+	/* Memory setup! */
+	printf("  - Setting up memory systems\n");
+	printf("    * Physical Memory Manager...\n");
+	physmem_init(bootinfo, kernel_size);
+	printf("    * Virtual Memory Manager...\n");
+	virtmem_init();
+
+	/* Setup APIC */
 
 	/* Done with setup! 
 	 * This should be called on a new thread */

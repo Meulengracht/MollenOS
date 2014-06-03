@@ -71,7 +71,7 @@ extern int video_putchar(int character);
 static int streamout_char(char **out, uint32_t *cnt, int c)
 {
 	/* Sanity */
-	if(*cnt == 0 && out != NULL)
+	if(*cnt == 0)
 		return 0;
 
 	if (out) {
