@@ -24,10 +24,58 @@ segment .text
 ;Functions in this asm
 global _exception_common
 global _irq_common
+global ___cli
+global ___sti
+global ___getflags
 
 ;Externs, common entry points
 extern _exception_entry
 extern _interrupt_entry
+
+; void __cli(void)
+; Disables interrupts
+___cli:
+	; Stack Frame
+	push ebp
+	mov ebp, esp
+
+	; Disable interrupts
+	cli
+
+	; Release stack frame
+	xor eax, eax
+	pop ebp
+	ret 
+
+; void __sti(void)
+; Enables interrupts
+___sti:
+	; Stack Frame
+	push ebp
+	mov ebp, esp
+
+	; Enable interrupts
+	sti
+
+	; Release stack frame
+	xor eax, eax
+	pop ebp
+	ret 
+
+; uint32_t __getflags(void)
+; Gets Eflags
+___getflags:
+	; Stack Frame
+	push ebp
+	mov ebp, esp
+
+	; Get flags
+	pushfd
+	pop eax
+
+	; Release stack frame
+	pop ebp
+	ret 
 
 ;Common entry point for exceptions
 _exception_common:

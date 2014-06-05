@@ -34,10 +34,20 @@
 /* Architecture typedefs */
 typedef volatile unsigned long spinlock_t;
 
+typedef uint32_t interrupt_status_t;
+typedef void(*irq_handler_t)(void*);
+
 typedef unsigned int physaddr_t;
 typedef unsigned int virtaddr_t;
 typedef unsigned int addr_t;
 typedef signed int saddr_t;
+
+/* X86-32 Interrupt Entry */
+typedef struct irq_entry
+{
+	irq_handler_t function;
+	void *data;
+} irq_entry_t;
 
 /* X86-32 Context */
 typedef struct registers
@@ -62,6 +72,8 @@ typedef struct registers
 	uint32_t irq;
 	uint32_t error_code;
 	uint32_t eip;
+	uint32_t ss;
+	uint32_t user_esp;
 
 } registers_t;
 
@@ -89,10 +101,38 @@ _CRT_EXTERN void physmem_free_block(physaddr_t addr);
 
 /* Virtual Memory */
 _CRT_EXTERN void virtmem_init(void);
-_CRT_EXTERN void virtmem_map(void);
-_CRT_EXTERN void virtmem_unmap(void);
+_CRT_EXTERN void memory_map(void *page_dir, physaddr_t phys, virtaddr_t virt, uint32_t flags);
+_CRT_EXTERN void memory_unmap(void *page_dir, virtaddr_t virt);
 _CRT_EXTERN physaddr_t virtmem_getmapping(void);
 
+/* Interrupt Interface */
+_CRT_EXTERN void interrupt_init(void);
+_CRT_EXTERN void interrupt_install(uint32_t irq, irq_handler_t callback, void *args);
+
+_CRT_EXTERN interrupt_status_t interrupt_disable(void);
+_CRT_EXTERN interrupt_status_t interrupt_enable(void);
+_CRT_EXTERN interrupt_status_t interrupt_get_state(void);
+_CRT_EXTERN interrupt_status_t interrupt_set_state(interrupt_status_t state);
+
+/* Threading */
+
 /* Driver Interface */
+
+
+
+
+/* Architecture Memory Layout, this
+ * gives you an idea how memory layout
+ * is on the x86-32 platform in MollenOS */
+#define MEMORY_LOCATION_KERNEL			0x100000 /* Kernel Image Space: 256 kB */
+#define MEMORY_LOCATION_BITMAP			0x140000
+
+#define MEMORY_LOCATION_HEAP			0x400000
+#define MEMORY_LOCATION_HEAP_END		0x4000000
+
+#define MEMORY_LOCATION_VIDEO			0x4000000
+
+#define MEMORY_LOCATION_SHM				0x9000000
+#define MEMORY_LOCATION_SHM_END			0x30000000
 
 #endif // !_MCORE_X86_ARCH_

@@ -102,7 +102,7 @@ extern "C" {
 #endif
 #define _crt_va_arg(ap,t) (*(t*)((ap += _SLOTSIZEOF(t) + _APALIGN(t,ap))  - _SLOTSIZEOF(t)))
 #define _crt_va_end(ap)      ( ap = (va_list)0 )
-#else //if defined(_M_IA64) || defined(_M_CEE)
+#else
 #error Please implement me
 #endif
 

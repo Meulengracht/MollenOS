@@ -68,5 +68,8 @@
     <NASM Include="..\..\..\arch\x86\components\irq.asm">
       <Filter>Interrupts</Filter>
     </NASM>
+    <NASM Include="..\..\..\arch\x86\memory\mm_paging.asm">
+      <Filter>Memory</Filter>
+    </NASM>
   </ItemGroup>
 </Project>

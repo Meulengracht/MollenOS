@@ -21,29 +21,12 @@
 
 /* Includes */
 #include <arch.h>
+#include <memory.h>
 #include <assert.h>
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdio.h>
-
-/* Internal Defines */
-#define PHYS_MM_KERNEL_LOCATION			0x100000
-
-/* 256 Kb for kernel */
-#define PHYS_MM_KERNEL_RESERVED			0x40000
-#define PHYS_MM_BITMAP_LOCATION			(PHYS_MM_KERNEL_LOCATION + PHYS_MM_KERNEL_RESERVED)
-
-/* Internal Structure */
-#pragma pack(push, 1)
-typedef struct mboot_mem_region
-{
-	uint64_t	address;
-	uint64_t	size;
-	uint32_t	type;
-	uint32_t	nil;
-} mboot_mem_region_t;
-#pragma pack(pop)
 
 /* Globals */
 volatile uint32_t *memory_bitmap = NULL;
@@ -82,8 +65,10 @@ int memory_get_free_bit_low(void)
 	uint32_t i;
 	int j;
 	int rbit = -1;
+	interrupt_status_t int_state;
 
 	/* Get spinlock */
+	int_state = interrupt_disable();
 	spinlock_acquire(&memory_plock);
 
 	/* Find time! */
@@ -109,6 +94,7 @@ int memory_get_free_bit_low(void)
 
 	/* Release Spinlock */
 	spinlock_release(&memory_plock);
+	interrupt_set_state(int_state);
 
 	/* Return frame */
 	return rbit;
@@ -121,8 +107,10 @@ int memory_get_free_bit_high(void)
 	uint32_t i, max = memory_blocks;
 	int j;
 	int rbit = -1;
+	interrupt_status_t int_state;
 
 	/* Get spinlock */
+	int_state = interrupt_disable();
 	spinlock_acquire(&memory_plock);
 
 	/* Find time! */
@@ -148,6 +136,7 @@ int memory_get_free_bit_high(void)
 
 	/* Release Spinlock */
 	spinlock_release(&memory_plock);
+	interrupt_set_state(int_state);
 
 	return rbit;
 }
@@ -174,9 +163,9 @@ void memory_alloc_region(uint32_t base, size_t size)
 	int blocks = (int32_t)(size / PAGE_SIZE);
 	uint32_t i;
 
-	for (i = base; blocks > 0; blocks--, i += PAGE_SIZE)
+	for (i = base; (blocks + 1) > 0; blocks--, i += PAGE_SIZE)
 	{
-		/* Free memory */
+		/* Allocate memory */
 		memory_setbit(align++);
 		memory_usedblocks++;
 	}
@@ -187,7 +176,6 @@ void physmem_init(multiboot_info_t *bootinfo, uint32_t img_size)
 {
 	/* Step 1. Set location of memory bitmap at 2mb */
 	mboot_mem_region_t *region = (mboot_mem_region_t*)bootinfo->MemoryMapAddr;
-	uint32_t bitmap_location = PHYS_MM_BITMAP_LOCATION;
 	uint32_t i;
 	img_size = img_size;
 
@@ -200,7 +188,7 @@ void physmem_init(multiboot_info_t *bootinfo, uint32_t img_size)
 	assert((memory_size / 1024 / 1024) >= 2);
 
 	/* Set storage variables */
-	memory_bitmap = (uint32_t*)bitmap_location;
+	memory_bitmap = (uint32_t*)PHYS_MM_BITMAP_LOCATION;
 	memory_blocks = memory_size / PAGE_SIZE;
 	memory_usedblocks = memory_blocks;
 	memory_bitmap_size = memory_blocks / 8; /* 8 blocks per byte, 32 per int */
@@ -228,12 +216,16 @@ void physmem_init(multiboot_info_t *bootinfo, uint32_t img_size)
 	memory_setbit(0x4000 / PAGE_SIZE);
 	memory_usedblocks++;
 
+	/* 0x90000 - 0x9F000 || Kernel Stack */
+	memory_alloc_region(0x90000, 0xF000);
+
 	/* 0x100000 - 0x140000 || Kernel Space */
 	memory_alloc_region(PHYS_MM_KERNEL_LOCATION, PHYS_MM_KERNEL_RESERVED);
 
 	/* 0x140000 - ?? || Bitmap Space */
 	memory_alloc_region(PHYS_MM_BITMAP_LOCATION, memory_bitmap_size);
 
+	printf("      > Bitmap size: %u Bytes\n", memory_bitmap_size);
 	printf("      > Memory in use %u Bytes\n", memory_usedblocks * PAGE_SIZE);
 }
 
@@ -241,8 +233,10 @@ void physmem_free_block(physaddr_t addr)
 {
 	/* Calculate Bit */
 	int bit = (int32_t)(addr / PAGE_SIZE);
+	interrupt_status_t int_state;
 
 	/* Get spinlock */
+	int_state = interrupt_disable();
 	spinlock_acquire(&memory_plock);
 
 	/* Sanity */
@@ -253,6 +247,7 @@ void physmem_free_block(physaddr_t addr)
 
 	/* Release Spinlock */
 	spinlock_release(&memory_plock);
+	interrupt_set_state(int_state);
 
 	/* Statistics */
 	memory_usedblocks--;
@@ -262,11 +257,13 @@ physaddr_t physmem_alloc_block(void)
 {
 	/* Get free bit */
 	int bit = memory_get_free_bit_high();
+	interrupt_status_t int_state;
 
 	/* Sanity */
 	assert(bit != -1);
 
 	/* Get spinlock */
+	int_state = interrupt_disable();
 	spinlock_acquire(&memory_plock);
 
 	/* Set it */
@@ -274,6 +271,7 @@ physaddr_t physmem_alloc_block(void)
 
 	/* Release Spinlock */
 	spinlock_release(&memory_plock);
+	interrupt_set_state(int_state);
 
 	/* Statistics */
 	memory_usedblocks++;

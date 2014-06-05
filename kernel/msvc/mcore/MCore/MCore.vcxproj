@@ -8,6 +8,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\..\init\entry.c" />
+    <ClCompile Include="..\..\..\system\heap.c" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <ProjectGuid>{E1811ABC-D002-44D1-8581-2ACF9C1DD0F9}</ProjectGuid>
@@ -32,7 +33,7 @@
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <GenerateManifest>false</GenerateManifest>
-    <IncludePath>C:\Users\Phail\Documents\GitHub\MollenOS\clib\include</IncludePath>
+    <IncludePath>C:\Users\Phail\Documents\GitHub\MollenOS\clib\include;C:\Users\Phail\Documents\GitHub\MollenOS\kernel\include</IncludePath>
     <LibraryWPath />
     <LibraryPath>C:\Users\Phail\Documents\GitHub\MollenOS\kernel\build;C:\Users\Phail\Documents\GitHub\MollenOS\clib\build</LibraryPath>
     <OutDir>..\..\..\build\</OutDir>

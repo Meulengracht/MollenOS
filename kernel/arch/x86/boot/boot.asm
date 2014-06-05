@@ -45,7 +45,7 @@ _kentry:
 	;place in memory. This will be temporary.
 	mov eax, 0x10
 	mov ss, ax					
-	mov esp, 0x90000
+	mov esp, 0x9F000
 	mov ebp, esp
 
 	;Now, we place multiboot structure and kernel

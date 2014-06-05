@@ -21,6 +21,7 @@
     <NASM Include="..\..\..\arch\x86\components\spinlock.asm">
       <FileType>Document</FileType>
     </NASM>
+    <NASM Include="..\..\..\arch\x86\memory\mm_paging.asm" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\..\arch\x86\boot\main.c" />
@@ -60,7 +61,7 @@
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <OutDir>..\..\..\build\</OutDir>
-    <IncludePath>C:\Users\Phail\Documents\GitHub\MollenOS\kernel\msvc\MCoreConfig;C:\Users\Phail\Documents\GitHub\MollenOS\clib\include;C:\Users\Phail\Documents\GitHub\MollenOS\kernel\arch\x86</IncludePath>
+    <IncludePath>C:\Users\Phail\Documents\GitHub\MollenOS\kernel\include;C:\Users\Phail\Documents\GitHub\MollenOS\kernel\msvc\MCoreConfig;C:\Users\Phail\Documents\GitHub\MollenOS\clib\include;C:\Users\Phail\Documents\GitHub\MollenOS\kernel\arch\x86</IncludePath>
     <ReferencePath />
     <LibraryWPath />
     <LibraryPath>C:\Users\Phail\Documents\GitHub\MollenOS\clib\build</LibraryPath>

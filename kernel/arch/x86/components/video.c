@@ -108,8 +108,10 @@ int video_putchar(int character)
 	uint32_t *video_ptr;
 	uint8_t *ch_ptr;
 	uint32_t row, i;
+	interrupt_status_t int_state;
 
 	/* Get spinlock */
+	int_state = interrupt_disable();
 	spinlock_acquire(&term.lock);
 
 	/* Handle Special Characters */
@@ -177,6 +179,7 @@ int video_putchar(int character)
 
 	/* Release spinlock */
 	spinlock_release(&term.lock);
+	interrupt_set_state(int_state);
 
 	return character;
 }

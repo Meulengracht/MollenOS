@@ -30,7 +30,7 @@
 * Descriptor which we have setup in
 * the bootloader */
 #pragma pack(push, 1)
-typedef struct VBE_GraphicsInfo
+typedef struct vbe_mode_info
 {
 	uint16_t ModeInfo_ModeAttributes;
 	uint8_t ModeInfo_WinAAttributes;
@@ -72,7 +72,7 @@ typedef struct VBE_GraphicsInfo
 /* The Graphic Info structure we save 
  * in the kernel. */
 #pragma pack(push, 1)
-typedef struct GraphicsInfo
+typedef struct graphic_info
 {
 	//Graphics mode (Text, VGA, VESA, NATIVE)
 	uint8_t GraphicMode;
@@ -107,7 +107,7 @@ typedef struct GraphicsInfo
 /* The Graphic Terminal structure we save
 * in the kernel. */
 #pragma pack(push, 1)
-typedef struct Terminal
+typedef struct terminal
 {
 	/* Cursor Position */
 	uint32_t CursorX;

@@ -15,6 +15,8 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "MCore", "mcore\MCore\MCore.
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "MCoreConfig", "MCoreConfig\MCoreConfig.vcxproj", "{7884D19E-EF4A-4898-81E4-A33DAAE85D27}"
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "AcpiSubsystem", "acpica\AcpiSubsystem.vcxproj", "{2B403FFB-5AFB-48D8-8C13-F8E65CEC5BB6}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Win32 = Debug|Win32
@@ -33,6 +35,10 @@ Global
 		{7884D19E-EF4A-4898-81E4-A33DAAE85D27}.Debug|Win32.Build.0 = Debug|Win32
 		{7884D19E-EF4A-4898-81E4-A33DAAE85D27}.Release|Win32.ActiveCfg = Release|Win32
 		{7884D19E-EF4A-4898-81E4-A33DAAE85D27}.Release|Win32.Build.0 = Release|Win32
+		{2B403FFB-5AFB-48D8-8C13-F8E65CEC5BB6}.Debug|Win32.ActiveCfg = Debug|Win32
+		{2B403FFB-5AFB-48D8-8C13-F8E65CEC5BB6}.Debug|Win32.Build.0 = Debug|Win32
+		{2B403FFB-5AFB-48D8-8C13-F8E65CEC5BB6}.Release|Win32.ActiveCfg = Release|Win32
+		{2B403FFB-5AFB-48D8-8C13-F8E65CEC5BB6}.Release|Win32.Build.0 = Release|Win32
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

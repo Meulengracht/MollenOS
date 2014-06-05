@@ -20,6 +20,7 @@
 */
 
 /* Includes */
+#include <heap.h>
 #include <stdio.h>
 
 void mcore_entry(void *args)

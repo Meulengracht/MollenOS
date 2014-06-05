@@ -32,6 +32,11 @@
  * and all platform libs should enter this function */
 extern void mcore_entry(void*);
 
+/* These functions are cross-platform and located in the
+ * MCore project. All platform libs should call these 
+ * whenever possible. */
+extern void heap_init(void);
+
 void init(multiboot_info_t *bootinfo, uint32_t kernel_size)
 {
 	/* Setup output device */
@@ -52,15 +57,24 @@ void init(multiboot_info_t *bootinfo, uint32_t kernel_size)
 	idt_init();
 	printf("    * Installing Interrupts...\n");
 	exceptions_init();
-
+	interrupt_init();
+	  
 	/* Memory setup! */
 	printf("  - Setting up memory systems\n");
 	printf("    * Physical Memory Manager...\n");
 	physmem_init(bootinfo, kernel_size);
 	printf("    * Virtual Memory Manager...\n");
 	virtmem_init();
+	printf("    * Heap Memory Manager...\n");
+	heap_init();
 
-	/* Setup APIC */
+	/* Setup early ACPICA */
+
+	/* Install Basic Threading */
+
+	/* Setup Full APICPA */
+
+	/* Startup AP cores */
 
 	/* Done with setup! 
 	 * This should be called on a new thread */

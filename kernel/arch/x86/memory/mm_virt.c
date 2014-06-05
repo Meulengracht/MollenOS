@@ -20,11 +20,271 @@
 */
 
 #include <arch.h>
+#include <video.h>
+#include <memory.h>
+#include <assert.h>
+#include <stddef.h>
+#include <string.h>
+#include <stdio.h>
 
+/* Globals */
+page_directory_t *kernel_directory = NULL;
+addr_t *current_directories;
 
+/* Externs */
+extern graphics_t gfx_info;
+extern void memory_set_paging(int enable);
+extern void memory_load_cr3(addr_t pda);
+extern void memory_reload_cr3(void);
+extern void memory_invalidate_addr(addr_t pda);
+
+/* Create a page-table */
+page_table_t *memory_create_page_table(void)
+{
+	/* Allocate a page table */
+	physaddr_t addr = physmem_alloc_block();
+	page_table_t *ptable = (page_table_t*)addr;
+
+	/* Sanity */
+	assert((physaddr_t)ptable > 0);
+
+	/* Zero it */
+	memset((void*)ptable, 0, sizeof(page_table_t));
+
+	return ptable;
+}
+
+/* Identity maps an address range */
+void memory_fill_page_table(page_table_t *ptable, physaddr_t pstart, virtaddr_t vstart)
+{
+	/* Iterators */
+	addr_t phys, virt;
+	uint32_t i;
+
+	/* Identity Map */
+	for (i = PAGE_TABLE_INDEX(vstart), phys = pstart, virt = vstart; 
+		i < 1024;
+		i++, phys += PAGE_SIZE, virt += PAGE_SIZE)
+	{
+		/* Create Entry */
+		uint32_t page = phys | PAGE_PRESENT | PAGE_WRITE;
+
+		/* Set it at correct offset */
+		ptable->Pages[PAGE_TABLE_INDEX(virt)] = page;
+	}
+}
+
+/* Map physical range to virtual range */
+void memory_map_phys_range_to_virt(page_directory_t* page_dir, 
+	physaddr_t pstart, virtaddr_t vstart, addr_t size, uint32_t fill, uint32_t flags)
+{
+	uint32_t i, k;
+
+	for (i = PAGE_DIRECTORY_INDEX(vstart), k = 0; 
+		i < (PAGE_DIRECTORY_INDEX(vstart + size - 1) + 1); 
+		i++, k++)
+	{
+		/* Initialize new page table */
+		page_table_t *ptable = memory_create_page_table();
+
+		/* Get addresses that match page table */
+		uint32_t current_phys = pstart + (k * TABLE_SPACE_SIZE);
+		uint32_t current_virt = vstart + (k * TABLE_SPACE_SIZE);
+
+		/* Fill it */
+		if (fill != 0)
+			memory_fill_page_table(ptable, current_phys, current_virt);
+
+		/* Install Table */
+		page_dir->pTables[i] = (physaddr_t)ptable | PAGE_PRESENT | PAGE_WRITE | flags;
+		page_dir->vTables[i] = (addr_t)ptable;
+	}
+}
+
+/* Updates the current CPU current directory */
+void memory_switch_directory(uint32_t cpu, page_directory_t* page_dir, physaddr_t pda)
+{
+	/* Sanity */
+	assert(page_dir != NULL);
+
+	/* Update Current */
+	current_directories[cpu] = (addr_t)page_dir;
+
+	/* Switch */
+	memory_load_cr3(pda);
+
+	/* Done */
+	return;
+}
+
+/* Maps a virtual memory address to a physical
+ * memory address in a given page-directory 
+ * If page-directory is NULL, current directory
+ * is used */
+void memory_map(void *page_dir, physaddr_t phys, virtaddr_t virt, uint32_t flags)
+{
+	page_directory_t *pdir = (page_directory_t*)page_dir;
+	page_table_t *ptable = NULL;
+	interrupt_status_t int_state;
+	
+	/* Determine page directory */
+	if (pdir == NULL)
+	{
+		/* Get CPU */
+		pdir = (page_directory_t*)current_directories[0];
+	}
+
+	/* Sanity */
+	assert(pdir != NULL);
+
+	/* Get spinlock */
+	int_state = interrupt_disable();
+	spinlock_acquire(&pdir->plock);
+
+	/* Does page table exist? */
+	if (!(pdir->pTables[PAGE_DIRECTORY_INDEX(virt)] & PAGE_PRESENT))
+	{
+		/* No... Create it */
+		printf("MEMORY_MAP:::::: FUCK, NO DYNAMIC MEMORY ALLOCATION 0x%x\n", virt);
+
+		for (;;);
+
+		/* Reload CR3 */
+		//if (page_dir == NULL)
+		//	memory_reload_cr3();
+	}
+
+	/* Get it */
+	ptable = (page_table_t*)pdir->vTables[PAGE_DIRECTORY_INDEX(virt)];
+
+	/* Now, lets map page! */
+	assert(ptable->Pages[PAGE_TABLE_INDEX(virt)] == 0 
+		&& "Dont remap pages without freeing :(" );
+
+	/* Map it */
+	ptable->Pages[PAGE_TABLE_INDEX(virt)] = (phys & PAGE_MASK) | PAGE_PRESENT | PAGE_WRITE | flags;
+
+	/* Release spinlock */
+	spinlock_release(&pdir->plock);
+	interrupt_set_state(int_state);
+
+	/* Invalidate Address */
+	if (page_dir == NULL)
+		memory_invalidate_addr(virt);
+}
+
+/* Unmaps a virtual memory address and frees the physical
+* memory address in a given page-directory
+* If page-directory is NULL, current directory
+* is used */
+void memory_unmap(void *page_dir, virtaddr_t virt)
+{
+	page_directory_t *pdir = (page_directory_t*)page_dir;
+	page_table_t *ptable = NULL;
+	physaddr_t phys = 0;
+	interrupt_status_t int_state;
+
+	/* Determine page directory */
+	if (pdir == NULL)
+	{
+		/* Get CPU */
+		pdir = (page_directory_t*)current_directories[0];
+	}
+
+	/* Sanity */
+	assert(pdir != NULL);
+
+	/* Get spinlock */
+	int_state = interrupt_disable();
+	spinlock_acquire(&pdir->plock);
+
+	/* Does page table exist? */
+	if (!(pdir->pTables[PAGE_DIRECTORY_INDEX(virt)] & PAGE_PRESENT))
+	{
+		/* No... What the fuck? */
+		
+		/* Release spinlock */
+		spinlock_release(&pdir->plock);
+
+		/* Return */
+		return;
+	}
+
+	/* Get it */
+	ptable = (page_table_t*)pdir->vTables[PAGE_DIRECTORY_INDEX(virt)];
+
+	/* Sanity */
+	if (ptable->Pages[PAGE_TABLE_INDEX(virt)] == 0)
+	{
+		/* Release spinlock */
+		spinlock_release(&pdir->plock);
+
+		/* Return */
+		return;
+	}
+
+	/* Do it */
+	phys = ptable->Pages[PAGE_TABLE_INDEX(virt)];
+	ptable->Pages[PAGE_TABLE_INDEX(virt)] = 0;
+
+	/* Release memory */
+	physmem_free_block(phys);
+
+	/* Release spinlock */
+	spinlock_release(&pdir->plock);
+	interrupt_set_state(int_state);
+
+	/* Invalidate Address */
+	if (page_dir == NULL)
+		memory_invalidate_addr(virt);
+}
 
 /* Creates a page directory and loads it */
 void virtmem_init(void)
 {
+	/* Variables we need */
+	page_table_t *itable;
 
+	/* Allocate space */
+	kernel_directory = (page_directory_t*)physmem_alloc_block();
+	physmem_alloc_block(); physmem_alloc_block();
+	itable = memory_create_page_table();
+	current_directories = (addr_t*)physmem_alloc_block();
+	memset((void*)current_directories, 0, PAGE_SIZE);
+
+	/* Identity map only first 4 mB (THIS IS KERNEL ONLY) */
+	printf("    * Identity mapping first 4 mB\n");
+	memory_fill_page_table(itable, 0x1000, 0x1000);
+
+	/* Clear out page_directory */
+	memset((void*)kernel_directory, 0, sizeof(page_directory_t));
+
+	/* Install it */
+	kernel_directory->pTables[0] = (physaddr_t)itable | PAGE_PRESENT | PAGE_WRITE;
+	kernel_directory->vTables[0] = (addr_t)itable;
+	spinlock_reset(&kernel_directory->plock);
+
+	/* Map Memory Regions */
+
+	/* HEAP */
+	printf("      > Mapping heap region to 0x%x\n", MEMORY_LOCATION_HEAP);
+	memory_map_phys_range_to_virt(kernel_directory, 0, MEMORY_LOCATION_HEAP, 
+		(MEMORY_LOCATION_HEAP_END - MEMORY_LOCATION_HEAP), 0, 0);
+
+	/* SHARED MEMORY */
+	printf("      > Mapping shared memory region to 0x%x\n", MEMORY_LOCATION_SHM);
+	memory_map_phys_range_to_virt(kernel_directory, 0, MEMORY_LOCATION_SHM,
+		(MEMORY_LOCATION_SHM_END - MEMORY_LOCATION_SHM), 0, PAGE_USER);
+
+	/* VIDEO MEMORY (WITH FILL) */
+	printf("      > Mapping video memory to 0x%x\n", MEMORY_LOCATION_VIDEO);
+	memory_map_phys_range_to_virt(kernel_directory, gfx_info.VideoAddr, 
+		MEMORY_LOCATION_VIDEO, (gfx_info.BytesPerScanLine * gfx_info.ResY), 1, PAGE_USER);
+
+	/* Modify Video Address */
+	gfx_info.VideoAddr = MEMORY_LOCATION_VIDEO;
+
+	/* Enable paging */
+	memory_switch_directory(0, kernel_directory, (addr_t)kernel_directory);
+	memory_set_paging(1);
 }

@@ -4,10 +4,16 @@
     <Filter Include="Entry">
       <UniqueIdentifier>{6fdb26a5-3e43-473f-b98f-b8f352ca2277}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Systems">
+      <UniqueIdentifier>{3bcea2c0-a650-46ec-b90d-fefe4ec8eedb}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\..\init\entry.c">
       <Filter>Entry</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\system\heap.c">
+      <Filter>Systems</Filter>
     </ClCompile>
   </ItemGroup>
 </Project>
