@@ -22,6 +22,8 @@
 /* Includes */
 #include <arch.h>
 #include <video.h>
+#include <multiboot.h>
+#include <string.h>
 
 /* Externs */
 extern const unsigned char x86_font_8x16[];
@@ -33,10 +35,13 @@ tty_t term;
 
 /* We read the multiboot header for video 
  * information and setup the terminal accordingly */
-void video_init(multiboot_info_t *bootinfo)
+void video_init(void *bootinfo)
 {
+	/* Cast */
+	multiboot_info_t *mboot = (multiboot_info_t*)bootinfo;
+
 	/* Do we have VESA or is this text mode? */
-	switch (bootinfo->VbeMode)
+	switch (mboot->VbeMode)
 	{
 		case 0:
 		{
@@ -71,7 +76,7 @@ void video_init(multiboot_info_t *bootinfo)
 			/* Assume VESA otherwise */
 
 			/* Get info struct */
-			vbe_mode_t *vbe = (vbe_mode_t*)bootinfo->VbeControllerInfo;
+			vbe_mode_t *vbe = (vbe_mode_t*)mboot->VbeControllerInfo;
 
 			/* Fill our structure */
 			gfx_info.VideoAddr = vbe->ModeInfo_PhysBasePtr;
@@ -108,10 +113,9 @@ int video_putchar(int character)
 	uint32_t *video_ptr;
 	uint8_t *ch_ptr;
 	uint32_t row, i;
-	interrupt_status_t int_state;
 
 	/* Get spinlock */
-	int_state = interrupt_disable();
+	interrupt_status_t int_state = interrupt_disable();
 	spinlock_acquire(&term.lock);
 
 	/* Handle Special Characters */
@@ -164,12 +168,12 @@ int video_putchar(int character)
 	}
 
 	/* Do scroll check here */
-	if ((term.CursorY + 16) > gfx_info.ResY)
+	if ((term.CursorY + 16) >= gfx_info.ResY)
 	{
 		memcpy((uint8_t*)gfx_info.VideoAddr,
 			(uint8_t*)gfx_info.VideoAddr + (gfx_info.BytesPerScanLine * 16),
 			(size_t)(gfx_info.BytesPerScanLine * (gfx_info.ResY - 16)));
-		memset((uint8_t*)(gfx_info.VideoAddr + gfx_info.BytesPerScanLine * (gfx_info.ResY - 16)),
+		memset((uint8_t*)(gfx_info.VideoAddr + (gfx_info.BytesPerScanLine * (gfx_info.ResY - 16))),
 			(int8_t)0,
 			(size_t)gfx_info.BytesPerScanLine * 16);
 

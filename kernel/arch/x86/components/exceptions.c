@@ -25,6 +25,9 @@
 #include <gdt.h>
 #include <stdio.h>
 
+/* Extern Assembly */
+extern uint32_t __getcr2(void);
+
 void exceptions_init(void)
 {
 	/* Install exception handlers */
@@ -99,6 +102,11 @@ void exception_entry(registers_t *regs)
 	/* Determine Irq */
 	printf("Exception Handler! Irq %u, Error Code: %u, Faulty Address: 0x%x\n",
 		regs->irq, regs->error_code, regs->eip);
+
+	if (regs->irq == 14)
+	{
+		printf("CR2 Address: 0x%x\n", __getcr2());
+	}
 
 	for(;;);
 }

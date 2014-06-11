@@ -23,9 +23,8 @@
 #define _MCORE_X86_ARCH_
 
 /* Architecture Includes */
-#include <revision.h>
+#include <stdint.h>
 #include <crtdefs.h>
-#include <multiboot.h>
 
 /* Architecture Definitions */
 #define ARCHITECTURE_NAME		"x86-32"
@@ -82,8 +81,17 @@ typedef struct registers
 
 /* Components */
 
+/* Port IO */
+_CRT_EXTERN uint8_t inb(uint16_t port);
+_CRT_EXTERN uint16_t inw(uint16_t port);
+_CRT_EXTERN uint32_t inl(uint16_t port);
+
+_CRT_EXTERN void outb(uint16_t port, uint8_t data);
+_CRT_EXTERN void outw(uint16_t port, uint16_t data);
+_CRT_EXTERN void outl(uint16_t port, uint32_t data);
+
 /* Video */
-_CRT_EXTERN void video_init(multiboot_info_t *bootinfo);
+_CRT_EXTERN void video_init(void *bootinfo);
 _CRT_EXTERN int video_putchar(int character);
 
 /* Spinlock */
@@ -92,10 +100,20 @@ _CRT_EXTERN int spinlock_acquire(spinlock_t *spinlock);
 _CRT_EXTERN void spinlock_release(spinlock_t *spinlock);
 
 /* Memory */
+#ifndef PAGE_SIZE
 #define PAGE_SIZE 0x1000
+#endif
+
+#ifndef PAGE_MASK
+#define PAGE_MASK 0xFFFFF000
+#endif
+
+#ifndef ATTRIBUTE_MASK
+#define ATTRIBUTE_MASK 0x00000FFF
+#endif
 
 /* Physical Memory */
-_CRT_EXTERN void physmem_init(multiboot_info_t *bootinfo, uint32_t img_size);
+_CRT_EXTERN void physmem_init(void *bootinfo, uint32_t img_size);
 _CRT_EXTERN physaddr_t physmem_alloc_block(void);
 _CRT_EXTERN void physmem_free_block(physaddr_t addr);
 
@@ -103,7 +121,7 @@ _CRT_EXTERN void physmem_free_block(physaddr_t addr);
 _CRT_EXTERN void virtmem_init(void);
 _CRT_EXTERN void memory_map(void *page_dir, physaddr_t phys, virtaddr_t virt, uint32_t flags);
 _CRT_EXTERN void memory_unmap(void *page_dir, virtaddr_t virt);
-_CRT_EXTERN physaddr_t virtmem_getmapping(void);
+_CRT_EXTERN physaddr_t memory_getmap(void *page_dir, virtaddr_t virt);
 
 /* Interrupt Interface */
 _CRT_EXTERN void interrupt_init(void);
@@ -113,6 +131,11 @@ _CRT_EXTERN interrupt_status_t interrupt_disable(void);
 _CRT_EXTERN interrupt_status_t interrupt_enable(void);
 _CRT_EXTERN interrupt_status_t interrupt_get_state(void);
 _CRT_EXTERN interrupt_status_t interrupt_set_state(interrupt_status_t state);
+
+/* ACPI / APIC */
+_CRT_EXTERN void acpi_init_stage1(void);
+_CRT_EXTERN void acpi_init_stage2(void);
+_CRT_EXTERN void apic_init(void);
 
 /* Threading */
 
@@ -134,5 +157,11 @@ _CRT_EXTERN interrupt_status_t interrupt_set_state(interrupt_status_t state);
 
 #define MEMORY_LOCATION_SHM				0x9000000
 #define MEMORY_LOCATION_SHM_END			0x30000000
+
+#define MEMORY_LOCATION_RESERVED		0xA0000000
+
+/* Architecture Locked Interrupts */
+#define INTERRUPT_SYSCALL				0x80
+#define INTERRUPT_SPURIOUS				0xFF
 
 #endif // !_MCORE_X86_ARCH_

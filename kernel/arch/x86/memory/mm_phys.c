@@ -22,6 +22,7 @@
 /* Includes */
 #include <arch.h>
 #include <memory.h>
+#include <multiboot.h>
 #include <assert.h>
 #include <stdint.h>
 #include <stddef.h>
@@ -35,6 +36,9 @@ volatile uint32_t memory_blocks = 0;
 volatile uint32_t memory_usedblocks = 0;
 volatile uint32_t memory_size = 0;
 spinlock_t memory_plock = 0;
+
+/* Reserved Regions */
+sys_mappings_t reserved_mappings[16];
 
 /* Helpers */
 void memory_setbit(int bit)
@@ -65,10 +69,9 @@ int memory_get_free_bit_low(void)
 	uint32_t i;
 	int j;
 	int rbit = -1;
-	interrupt_status_t int_state;
 
 	/* Get spinlock */
-	int_state = interrupt_disable();
+	interrupt_status_t int_state = interrupt_disable();
 	spinlock_acquire(&memory_plock);
 
 	/* Find time! */
@@ -107,10 +110,9 @@ int memory_get_free_bit_high(void)
 	uint32_t i, max = memory_blocks;
 	int j;
 	int rbit = -1;
-	interrupt_status_t int_state;
 
 	/* Get spinlock */
-	int_state = interrupt_disable();
+	interrupt_status_t int_state = interrupt_disable();
 	spinlock_acquire(&memory_plock);
 
 	/* Find time! */
@@ -172,16 +174,17 @@ void memory_alloc_region(uint32_t base, size_t size)
 }
 
 /* Initialises the physical memory bitmap */
-void physmem_init(multiboot_info_t *bootinfo, uint32_t img_size)
+void physmem_init(void *bootinfo, uint32_t img_size)
 {
 	/* Step 1. Set location of memory bitmap at 2mb */
-	mboot_mem_region_t *region = (mboot_mem_region_t*)bootinfo->MemoryMapAddr;
-	uint32_t i;
+	multiboot_info_t *mboot = (multiboot_info_t*)bootinfo;
+	mboot_mem_region_t *region = (mboot_mem_region_t*)mboot->MemoryMapAddr;
+	uint32_t i, j;
 	img_size = img_size;
 
 	/* Get information from multiboot struct */
-	memory_size = bootinfo->MemoryHigh;
-	memory_size += bootinfo->MemoryLow; /* This is in kilobytes ... */
+	memory_size = mboot->MemoryHigh;
+	memory_size += mboot->MemoryLow; /* This is in kilobytes ... */
 	memory_size *= 1024;
 
 	/* Sanity, we need AT LEAST 4 mb to run! */
@@ -195,16 +198,34 @@ void physmem_init(multiboot_info_t *bootinfo, uint32_t img_size)
 
 	/* Set all memory in use */
 	memset((void*)memory_bitmap, 0xF, memory_bitmap_size);
+	memset((void*)reserved_mappings, 0, sizeof(reserved_mappings));
+
+	/* Let us make it possible to access 
+	 * the first page of memory, but not through normal means */
+	reserved_mappings[0].type = 2;
+	reserved_mappings[0].physical = 0;
+	reserved_mappings[0].virtual = 0;
+	reserved_mappings[0].length = PAGE_SIZE;
 
 	/* Loop through memory regions from bootloader */
-	for (i = 0; i < bootinfo->MemoryMapLength; i++)
+	for (i = 0, j= 1; i < mboot->MemoryMapLength; i++)
 	{
 		printf("      > Memory Region %u: Address: 0x%x, Size 0x%x\n", 
-			region->type, (uint32_t)region->address, (uint32_t)region->size);
+			region->type, (physaddr_t)region->address, (size_t)region->size);
 
 		/* Available Region? */
 		if (region->type == 1)
-			memory_free_region((uint32_t)region->address, (uint32_t)region->size);
+			memory_free_region((physaddr_t)region->address, (size_t)region->size);
+		else
+		{
+			reserved_mappings[j].type = region->type;
+			reserved_mappings[j].physical = (physaddr_t)region->address;
+			reserved_mappings[j].virtual = 0;
+			reserved_mappings[j].length = (size_t)region->size;
+
+			/* Advance */
+			j++;
+		}
 
 		/* Advance to next */
 		region++;
@@ -212,9 +233,10 @@ void physmem_init(multiboot_info_t *bootinfo, uint32_t img_size)
 
 	/* Mark special regions as reserved */
 
-	/* 0x4000 - 0x5000 || Used for memory region & Trampoline-code */
+	/* 0x4000 - 0x6000 || Used for memory region & Trampoline-code */
 	memory_setbit(0x4000 / PAGE_SIZE);
-	memory_usedblocks++;
+	memory_setbit(0x5000 / PAGE_SIZE);
+	memory_usedblocks += 2;
 
 	/* 0x90000 - 0x9F000 || Kernel Stack */
 	memory_alloc_region(0x90000, 0xF000);
@@ -234,6 +256,11 @@ void physmem_free_block(physaddr_t addr)
 	/* Calculate Bit */
 	int bit = (int32_t)(addr / PAGE_SIZE);
 	interrupt_status_t int_state;
+
+	/* Sanity */
+	if (addr > memory_size
+		|| addr < 0x200000)
+		return;
 
 	/* Get spinlock */
 	int_state = interrupt_disable();
@@ -279,6 +306,32 @@ physaddr_t physmem_alloc_block(void)
 	return (physaddr_t)(bit * PAGE_SIZE);
 }
 
+/* Get system region */
+virtaddr_t memory_get_reserved_mapping(physaddr_t physical)
+{
+	uint32_t i;
+
+	/* Find address, if it exists! */
+	for (i = 0; i < 16; i++)
+	{
+		if (reserved_mappings[i].length != 0)
+		{
+			/* Get start and end */
+			physaddr_t start = reserved_mappings[i].physical;
+			physaddr_t end = reserved_mappings[i].physical + reserved_mappings[i].length - 1;
+
+			/* Is it in range? :) */
+			if (physical >= start
+				&& physical <= end)
+			{
+				/* Yay, return virtual mapping! */
+				return reserved_mappings[i].virtual + (physical - reserved_mappings[i].physical);
+			}
+		}
+	}
+
+	return 0;
+}
 
 /***************************
  * Physical Memory Manager

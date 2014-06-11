@@ -125,6 +125,9 @@
 
 /*! [End] no source code translation !*/
 
+//#define ACPI_CACHE_T                ACPI_MEMORY_LIST
+//#define ACPI_USE_LOCAL_CACHE        1
+
 #define ACPI_MACHINE_WIDTH      32
 
 #define ACPI_USE_STANDARD_HEADERS

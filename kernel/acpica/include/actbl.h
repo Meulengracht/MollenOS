@@ -461,6 +461,7 @@ typedef union acpi_name_union
 
 /* Internal ACPI Table Descriptor. One per ACPI table. */
 
+#pragma pack(push, 1)
 typedef struct acpi_table_desc
 {
     ACPI_PHYSICAL_ADDRESS           Address;
@@ -471,6 +472,7 @@ typedef struct acpi_table_desc
     UINT8                           Flags;
 
 } ACPI_TABLE_DESC;
+#pragma pack(pop)
 
 /* Masks for Flags field above */
 

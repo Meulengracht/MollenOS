@@ -20,9 +20,12 @@
  */
 
 /* Includes */
+#include <revision.h>
 #include <arch.h>
+#include <multiboot.h>
 #include <gdt.h>
 #include <idt.h>
+#include <cpu.h>
 #include <exceptions.h>
 
 #include <stddef.h>
@@ -58,6 +61,10 @@ void init(multiboot_info_t *bootinfo, uint32_t kernel_size)
 	printf("    * Installing Interrupts...\n");
 	exceptions_init();
 	interrupt_init();
+
+	/* CPU Setup */
+	cpu_boot_init();
+	cpu_ap_init();
 	  
 	/* Memory setup! */
 	printf("  - Setting up memory systems\n");
@@ -69,10 +76,17 @@ void init(multiboot_info_t *bootinfo, uint32_t kernel_size)
 	heap_init();
 
 	/* Setup early ACPICA */
+	printf("  - Initializing ACPI Systems\n");
+	acpi_init_stage1();
+
+	/* Enable the APIC */
+	printf("    * APIC Initializing\n");
+	apic_init();
 
 	/* Install Basic Threading */
 
 	/* Setup Full APICPA */
+	acpi_init_stage2();
 
 	/* Startup AP cores */
 

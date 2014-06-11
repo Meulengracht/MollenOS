@@ -20,6 +20,7 @@
 */
 
 #include <arch.h>
+#include <heap.h>
 #include <video.h>
 #include <memory.h>
 #include <assert.h>
@@ -33,6 +34,7 @@ addr_t *current_directories;
 
 /* Externs */
 extern graphics_t gfx_info;
+extern sys_mappings_t reserved_mappings[16];
 extern void memory_set_paging(int enable);
 extern void memory_load_cr3(addr_t pda);
 extern void memory_reload_cr3(void);
@@ -145,13 +147,33 @@ void memory_map(void *page_dir, physaddr_t phys, virtaddr_t virt, uint32_t flags
 	if (!(pdir->pTables[PAGE_DIRECTORY_INDEX(virt)] & PAGE_PRESENT))
 	{
 		/* No... Create it */
-		printf("MEMORY_MAP:::::: FUCK, NO DYNAMIC MEMORY ALLOCATION 0x%x\n", virt);
+		addr_t phys_table = 0;
+		page_table_t *ntable = NULL;
 
-		for (;;);
+		/* Release spinlock */
+		spinlock_release(&pdir->plock);
+		interrupt_set_state(int_state);
+
+		/* Allocate new table */
+		ntable = (page_table_t*)kmalloc_ap(PAGE_SIZE, &phys_table);
+
+		/* Sanity */
+		assert((addr_t)ntable > 0);
+
+		/* Zero it */
+		memset((void*)ntable, 0, sizeof(page_table_t));
+
+		/* Get spinlock */
+		int_state = interrupt_disable();
+		spinlock_acquire(&pdir->plock);
+
+		/* Install it */
+		pdir->pTables[PAGE_DIRECTORY_INDEX(virt)] = phys_table | PAGE_PRESENT | PAGE_WRITE | flags;
+		pdir->vTables[PAGE_DIRECTORY_INDEX(virt)] = (addr_t)ntable;
 
 		/* Reload CR3 */
-		//if (page_dir == NULL)
-		//	memory_reload_cr3();
+		if (page_dir == NULL)
+			memory_reload_cr3();
 	}
 
 	/* Get it */
@@ -239,10 +261,66 @@ void memory_unmap(void *page_dir, virtaddr_t virt)
 		memory_invalidate_addr(virt);
 }
 
+/* Gets a physical memory address from a virtual
+* memory address in a given page-directory
+* If page-directory is NULL, current directory
+* is used */
+physaddr_t memory_getmap(void *page_dir, virtaddr_t virt)
+{
+	page_directory_t *pdir = (page_directory_t*)page_dir;
+	page_table_t *ptable = NULL;
+	physaddr_t phys = 0;
+	interrupt_status_t int_state;
+
+	/* Determine page directory */
+	if (pdir == NULL)
+	{
+		/* Get CPU */
+		pdir = (page_directory_t*)current_directories[0];
+	}
+
+	/* Sanity */
+	assert(pdir != NULL);
+
+	/* Get spinlock */
+	int_state = interrupt_disable();
+	spinlock_acquire(&pdir->plock);
+
+	/* Does page table exist? */
+	if (!(pdir->pTables[PAGE_DIRECTORY_INDEX(virt)] & PAGE_PRESENT))
+	{
+		/* No... */
+
+		/* Release spinlock */
+		spinlock_release(&pdir->plock);
+
+		/* Return */
+		return phys;
+	}
+
+	/* Get it */
+	ptable = (page_table_t*)pdir->vTables[PAGE_DIRECTORY_INDEX(virt)];
+
+	/* Sanity */
+	assert(ptable != NULL);
+
+	/* Return mapping */
+	phys = ptable->Pages[PAGE_TABLE_INDEX(virt)] & PAGE_MASK;
+
+	/* Release spinlock */
+	spinlock_release(&pdir->plock);
+	interrupt_set_state(int_state);
+
+	/* Done */
+	return phys;
+}
+
 /* Creates a page directory and loads it */
 void virtmem_init(void)
 {
 	/* Variables we need */
+	uint32_t i;
+	addr_t reserved_ptr = MEMORY_LOCATION_RESERVED;
 	page_table_t *itable;
 
 	/* Allocate space */
@@ -283,6 +361,38 @@ void virtmem_init(void)
 
 	/* Modify Video Address */
 	gfx_info.VideoAddr = MEMORY_LOCATION_VIDEO;
+
+	/* Now, tricky, map reserved memory regions */
+
+	/* Step 1. Install a pagetable at MEMORY_LOCATION_RESERVED */
+	printf("      > Mapping reserved memory to 0x%x\n", MEMORY_LOCATION_RESERVED);
+	itable = memory_create_page_table();
+	kernel_directory->pTables[PAGE_DIRECTORY_INDEX(MEMORY_LOCATION_RESERVED)] = (physaddr_t)itable | PAGE_PRESENT | PAGE_WRITE;
+	kernel_directory->vTables[PAGE_DIRECTORY_INDEX(MEMORY_LOCATION_RESERVED)] = (addr_t)itable;
+
+	/* Step 2. Map */
+	for (i = 0; i < 16; i++)
+	{
+		if (reserved_mappings[i].length != 0)
+		{
+			/* Get page count */
+			size_t page_length = reserved_mappings[i].length / PAGE_SIZE;
+			uint32_t k;
+
+			/* Update entry */
+			reserved_mappings[i].virtual = reserved_ptr;
+
+			/* Map it */
+			for (k = 0; k < page_length; k++)
+			{
+				/* Set pages */
+				itable->Pages[PAGE_TABLE_INDEX(reserved_ptr)] = 
+					(reserved_mappings[i].physical + (k * PAGE_SIZE)) | PAGE_PRESENT | PAGE_WRITE;
+				
+				reserved_ptr += PAGE_SIZE;
+			}
+		}
+	}
 
 	/* Enable paging */
 	memory_switch_directory(0, kernel_directory, (addr_t)kernel_directory);

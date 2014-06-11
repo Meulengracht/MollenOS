@@ -187,6 +187,7 @@ typedef struct acpi_gtm_info
  * Note: This structure is returned from the AcpiDecodePldBuffer
  * interface.
  */
+#pragma pack(push, 1)
 typedef struct acpi_pld_info
 {
     UINT8               Revision;
@@ -217,7 +218,7 @@ typedef struct acpi_pld_info
     UINT16              HorizontalOffset;
 
 } ACPI_PLD_INFO;
-
+#pragma pack(pop)
 
 /*
  * Macros to:

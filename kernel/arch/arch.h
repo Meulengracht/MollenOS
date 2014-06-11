@@ -16,17 +16,20 @@
 * along with this program.If not, see <http://www.gnu.org/licenses/>.
 *
 *
-* MollenOS Common Entry Point
+* MollenOS x86-32 Architecture Header
 */
 
-/* Includes */
-#include <arch.h>
-#include <heap.h>
-#include <stdio.h>
+#ifndef _MCORE_MAIN_ARCH_
+#define _MCORE_MAIN_ARCH_
 
-void mcore_entry(void *args)
-{
-	/* args are unused for now */
-	printf("Setting up mcore systems\n");
-	args = args;
-}
+/* Select Correct ARCH file */
+#if defined(_X86_32)
+#include "x86\arch.h"
+#elif defined(_X86_64)
+#include "x64\arch.h"
+#else
+#error "Unsupported Architecture :("
+#endif
+
+
+#endif

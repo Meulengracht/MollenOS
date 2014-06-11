@@ -405,7 +405,7 @@
 #define ACPI_STRCMP(d,s)        strcmp((d), (s))
 #define ACPI_STRCAT(d,s)        (void) strcat((d), (s))
 #define ACPI_STRNCAT(d,s,n)     strncat((d), (s), (ACPI_SIZE)(n))
-#define ACPI_STRTOUL(d,s,n)     strtoul((d), (s), (ACPI_SIZE)(n))
+#define ACPI_STRTOUL(d,s,n)     (unsigned long)strtoull((d), (s), (ACPI_SIZE)(n))
 #define ACPI_MEMCMP(s1,s2,n)    memcmp((const char *)(s1), (const char *)(s2), (ACPI_SIZE)(n))
 #define ACPI_MEMCPY(d,s,n)      (void) memcpy((d), (s), (ACPI_SIZE)(n))
 #define ACPI_MEMSET(d,s,n)      (void) memset((d), (s), (ACPI_SIZE)(n))

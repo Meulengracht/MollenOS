@@ -27,6 +27,7 @@ global _irq_common
 global ___cli
 global ___sti
 global ___getflags
+global ___getcr2
 
 ;Externs, common entry points
 extern _exception_entry
@@ -72,6 +73,20 @@ ___getflags:
 	; Get flags
 	pushfd
 	pop eax
+
+	; Release stack frame
+	pop ebp
+	ret 
+
+; uint32_t __getcr2(void)
+; Gets CR2 register
+___getcr2:
+	; Stack Frame
+	push ebp
+	mov ebp, esp
+
+	; Get cr2
+	mov eax, cr2
 
 	; Release stack frame
 	pop ebp

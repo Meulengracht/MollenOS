@@ -21,11 +21,13 @@
 
 #include <assert.h>
 #include <arch.h>
+#include <acpi.h>
 #include <idt.h>
 #include <gdt.h>
 #include <string.h>
 #include <stddef.h>
 #include <stdio.h>
+#include <list.h>
 
 /* Internal Defines */
 #define EFLAGS_INTERRUPT_FLAG (1 << 9)
@@ -34,6 +36,7 @@
 extern void __cli(void);
 extern void __sti(void);
 extern uint32_t __getflags(void);
+extern list_t *acpi_nodes;
 
 /* Globals */
 irq_entry_t irq_table[X86_IDT_DESCRIPTORS];
@@ -97,10 +100,34 @@ void interrupt_init(void)
 void interrupt_install(uint32_t irq, irq_handler_t callback, void *args)
 {
 	/* Determine Correct Irq */
-	uint32_t c_irq = irq + 0x20;
+	uint32_t c_irq = 0x20;
+	uint32_t i_irq = irq;
 
 	/* Sanity */
 	assert(irq < X86_IDT_DESCRIPTORS);
+
+	/* Uh, check for ACPI redirection */
+	if (acpi_nodes != NULL)
+	{
+		ACPI_MADT_INTERRUPT_OVERRIDE *io_redirect = list_get_data_by_id(acpi_nodes, ACPI_MADT_TYPE_INTERRUPT_OVERRIDE, 0);
+		int n = 1;
+
+		while (io_redirect != NULL)
+		{
+			/* Do we need to redirect? */
+			if (io_redirect->SourceIrq == irq)
+			{
+				i_irq = io_redirect->GlobalIrq;
+				break;
+			}
+
+			/* Get next io redirection */
+			io_redirect = list_get_data_by_id(acpi_nodes, ACPI_MADT_TYPE_INTERRUPT_OVERRIDE, n);
+			n++;
+		}	
+	}
+	
+	c_irq += i_irq;
 
 	/* Install into table */
 	irq_table[c_irq].function = callback;

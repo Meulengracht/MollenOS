@@ -7,6 +7,9 @@
     <Filter Include="Systems">
       <UniqueIdentifier>{3bcea2c0-a650-46ec-b90d-fefe4ec8eedb}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Common">
+      <UniqueIdentifier>{11bf9b2b-b5e5-4840-a298-1874f32c35ba}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\..\init\entry.c">
@@ -14,6 +17,9 @@
     </ClCompile>
     <ClCompile Include="..\..\..\system\heap.c">
       <Filter>Systems</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\common\list.c">
+      <Filter>Common</Filter>
     </ClCompile>
   </ItemGroup>
 </Project>

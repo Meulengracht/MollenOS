@@ -32,7 +32,8 @@
 *  0x4000000        0x8000000	   VESA LFB Buffer (64 MB)
 *  0x8000000        0x800F000      Kernel Stack (60 KB) 
 *  0x9000000        0x30000000     Shared Memory (600~ MB)
-*  0x30000000       0xB0000000     Unused Memory (2048 MB) 
+*  0x30000000       0xA0000000     Unused Memory (2048 - 256 MB) 
+*  0xA0000000       0xB0000000     Reserved Memory (256 MB)
 *  0xB0000000       0xFFFFFFFF     Reserved Memory (Reserved - 1280 MB)
 */
 
@@ -74,6 +75,23 @@ typedef struct mboot_mem_region
 } mboot_mem_region_t;
 #pragma pack(pop)
 
+/* System Reserved Mappings */
+typedef struct sys_mappings
+{
+	/* Where it starts in physical */
+	physaddr_t physical;
+
+	/* Where we have mapped this virtual */
+	virtaddr_t virtual;
+
+	/* Length */
+	size_t length;
+
+	/* Type. 2 - ACPI */
+	int type;
+
+} sys_mappings_t;
+
 /**********************************/
 /* Virtual Memory Defs & Structs  */
 /**********************************/
@@ -88,6 +106,13 @@ typedef struct mboot_mem_region
 #define PAGE_PRESENT		0x1
 #define PAGE_WRITE			0x2
 #define PAGE_USER			0x4
+#define PAGE_WRITETHROUGH	0x8
+#define PAGE_CACHE_DISABLE	0x10
+#define PAGE_ACCESSED		0x20
+#define PAGE_DIRTY			0x40
+#define PAGE_RESERVED		0x80
+#define PAGE_GLOBAL			0x100
+#define PAGE_SYSTEM_MAP		0x200
 
 /* Masks */
 #define PAGE_MASK			0xFFFFF000
@@ -106,7 +131,6 @@ typedef struct page_table
 
 } page_table_t;
 
-
 /* Page Directory */
 typedef struct page_directory
 {
@@ -122,5 +146,9 @@ typedef struct page_directory
 	spinlock_t plock;
 
 } page_directory_t;
+
+
+/* Hihi */
+_CRT_EXTERN virtaddr_t memory_get_reserved_mapping(physaddr_t physical);
 
 #endif // !_X86_MEMORY_H_

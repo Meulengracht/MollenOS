@@ -420,9 +420,6 @@
     <ClCompile Include="..\..\acpica\resources\rsdump.c">
       <Filter>Source Files\Resources</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\acpica\resources\rsdumpinfo.c">
-      <Filter>Source Files\Resources</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\acpica\resources\rsinfo.c">
       <Filter>Source Files\Resources</Filter>
     </ClCompile>
@@ -492,13 +489,7 @@
     <ClCompile Include="..\..\acpica\utilities\utcache.c">
       <Filter>Source Files\Utilities</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\acpica\utilities\utclib.c">
-      <Filter>Source Files\Utilities</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\acpica\utilities\utcopy.c">
-      <Filter>Source Files\Utilities</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\acpica\utilities\utdebug.c">
       <Filter>Source Files\Utilities</Filter>
     </ClCompile>
     <ClCompile Include="..\..\acpica\utilities\utdecode.c">
@@ -566,6 +557,9 @@
     </ClCompile>
     <ClCompile Include="..\..\acpica\utilities\utxfinit.c">
       <Filter>Source Files\Utilities</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\acpica\oslmos.c">
+      <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -680,8 +674,5 @@
     <ClInclude Include="..\..\acpica\INCLUDE\amlresrc.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-  </ItemGroup>
-  <ItemGroup>
-    <None Include="AcpiSubsystem.plg" />
   </ItemGroup>
 </Project>

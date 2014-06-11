@@ -220,7 +220,7 @@
 
 
 /* Debug support. Must be last in this file, do not move. */
-
+#undef _DEBUG
 #ifdef _DEBUG
 #include <crtdbg.h>
 

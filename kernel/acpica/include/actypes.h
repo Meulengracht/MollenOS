@@ -967,6 +967,7 @@ typedef struct acpi_sleep_functions
  * Note: Type == ACPI_TYPE_ANY (0) is used to indicate a NULL package element
  * or an unresolved named reference.
  */
+#pragma pack(push, 1)
 typedef union acpi_object
 {
     ACPI_OBJECT_TYPE                Type;   /* See definition of AcpiNsType for values */
@@ -1020,7 +1021,7 @@ typedef union acpi_object
     } PowerResource;
 
 } ACPI_OBJECT;
-
+#pragma pack(pop)
 
 /*
  * List of objects, used as a parameter list for control method evaluation
@@ -1069,6 +1070,7 @@ typedef struct acpi_buffer
 /*
  * Predefined Namespace items
  */
+#pragma pack(push, 1)
 typedef struct acpi_predefined_names
 {
     char                            *Name;
@@ -1076,7 +1078,7 @@ typedef struct acpi_predefined_names
     char                            *Val;
 
 } ACPI_PREDEFINED_NAMES;
-
+#pragma pack(pop)
 
 /*
  * Structure and flags for AcpiGetSystemInfo
@@ -1215,6 +1217,7 @@ ACPI_STATUS (*ACPI_ADR_SPACE_HANDLER) (
 
 /* Special Context data for GenericSerialBus/GeneralPurposeIo (ACPI 5.0) */
 
+#pragma pack(push, 1)
 typedef struct acpi_connection_info
 {
     UINT8                           *Connection;
@@ -1222,7 +1225,7 @@ typedef struct acpi_connection_info
     UINT8                           AccessLength;
 
 } ACPI_CONNECTION_INFO;
-
+#pragma pack(pop)
 
 typedef
 ACPI_STATUS (*ACPI_ADR_SPACE_SETUP) (
@@ -1287,6 +1290,7 @@ typedef struct acpi_pnp_device_id_list
  * Structure returned from AcpiGetObjectInfo.
  * Optimized for both 32- and 64-bit builds
  */
+#pragma pack(push, 1)
 typedef struct acpi_device_info
 {
     UINT32                          InfoSize;           /* Size of info, including ID strings */
@@ -1305,6 +1309,7 @@ typedef struct acpi_device_info
     ACPI_PNP_DEVICE_ID_LIST         CompatibleIdList;   /* _CID list <must be last> */
 
 } ACPI_DEVICE_INFO;
+#pragma pack(pop)
 
 /* Values for Flags field above (AcpiGetObjectInfo) */
 
@@ -1356,6 +1361,7 @@ typedef struct acpi_mem_space_context
 /*
  * ACPI_MEMORY_LIST is used only if the ACPICA local cache is enabled
  */
+#pragma pack(push, 1)
 typedef struct acpi_memory_list
 {
     char                            *ListName;
@@ -1378,7 +1384,7 @@ typedef struct acpi_memory_list
 #endif
 
 } ACPI_MEMORY_LIST;
-
+#pragma pack(pop)
 
 /* Definitions of _OSI support */
 

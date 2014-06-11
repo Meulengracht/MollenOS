@@ -7,6 +7,7 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="..\..\..\common\list.c" />
     <ClCompile Include="..\..\..\init\entry.c" />
     <ClCompile Include="..\..\..\system\heap.c" />
   </ItemGroup>
@@ -33,9 +34,9 @@
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <GenerateManifest>false</GenerateManifest>
-    <IncludePath>C:\Users\Phail\Documents\GitHub\MollenOS\clib\include;C:\Users\Phail\Documents\GitHub\MollenOS\kernel\include</IncludePath>
+    <IncludePath>C:\Users\Phail\Documents\GitHub\MollenOS\kernel\arch;C:\Users\Phail\Documents\GitHub\MollenOS\clib\include;C:\Users\Phail\Documents\GitHub\MollenOS\kernel\include</IncludePath>
     <LibraryWPath />
-    <LibraryPath>C:\Users\Phail\Documents\GitHub\MollenOS\kernel\build;C:\Users\Phail\Documents\GitHub\MollenOS\clib\build</LibraryPath>
+    <LibraryPath>C:\Users\Phail\Documents\GitHub\MollenOS\clib\build;C:\Users\Phail\Documents\GitHub\MollenOS\kernel\build</LibraryPath>
     <OutDir>..\..\..\build\</OutDir>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
@@ -46,8 +47,7 @@
       <Optimization>Full</Optimization>
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>false</IntrinsicFunctions>
-      <PreprocessorDefinitions>
-      </PreprocessorDefinitions>
+      <PreprocessorDefinitions>MOLLENOS;_X86_32</PreprocessorDefinitions>
       <SDLCheck>
       </SDLCheck>
       <TreatWarningAsError>true</TreatWarningAsError>
@@ -61,8 +61,8 @@
     <Link>
       <SubSystem>Native</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <EnableCOMDATFolding>false</EnableCOMDATFolding>
-      <OptimizeReferences>false</OptimizeReferences>
+      <EnableCOMDATFolding>true</EnableCOMDATFolding>
+      <OptimizeReferences>true</OptimizeReferences>
       <EntryPointSymbol>kentry</EntryPointSymbol>
       <RandomizedBaseAddress>
       </RandomizedBaseAddress>
@@ -70,7 +70,7 @@
       <DataExecutionPrevention>
       </DataExecutionPrevention>
       <BaseAddress>0x100000</BaseAddress>
-      <AdditionalDependencies>CLibK.lib;Libx86.lib</AdditionalDependencies>
+      <AdditionalDependencies>CLibK.lib;Libx86.lib;acpica.lib</AdditionalDependencies>
       <IgnoreAllDefaultLibraries>true</IgnoreAllDefaultLibraries>
       <ImageHasSafeExceptionHandlers />
       <GenerateMapFile>true</GenerateMapFile>

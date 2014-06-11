@@ -18,13 +18,18 @@
       <FileType>Document</FileType>
     </NASM>
     <NASM Include="..\..\..\arch\x86\components\irq.asm" />
+    <NASM Include="..\..\..\arch\x86\components\portio.asm" />
     <NASM Include="..\..\..\arch\x86\components\spinlock.asm">
       <FileType>Document</FileType>
     </NASM>
     <NASM Include="..\..\..\arch\x86\memory\mm_paging.asm" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="..\..\..\arch\x86\boot\apinit.c" />
+    <ClCompile Include="..\..\..\arch\x86\boot\cpu.c" />
     <ClCompile Include="..\..\..\arch\x86\boot\main.c" />
+    <ClCompile Include="..\..\..\arch\x86\components\acpi.c" />
+    <ClCompile Include="..\..\..\arch\x86\components\apic.c" />
     <ClCompile Include="..\..\..\arch\x86\components\exceptions.c" />
     <ClCompile Include="..\..\..\arch\x86\components\gdt.c" />
     <ClCompile Include="..\..\..\arch\x86\components\idt.c" />
@@ -61,10 +66,10 @@
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <OutDir>..\..\..\build\</OutDir>
-    <IncludePath>C:\Users\Phail\Documents\GitHub\MollenOS\kernel\include;C:\Users\Phail\Documents\GitHub\MollenOS\kernel\msvc\MCoreConfig;C:\Users\Phail\Documents\GitHub\MollenOS\clib\include;C:\Users\Phail\Documents\GitHub\MollenOS\kernel\arch\x86</IncludePath>
+    <IncludePath>C:\Users\Phail\Documents\GitHub\MollenOS\kernel\acpica\include;C:\Users\Phail\Documents\GitHub\MollenOS\kernel\include;C:\Users\Phail\Documents\GitHub\MollenOS\kernel\msvc\MCoreConfig;C:\Users\Phail\Documents\GitHub\MollenOS\clib\include;C:\Users\Phail\Documents\GitHub\MollenOS\kernel\arch\x86</IncludePath>
     <ReferencePath />
     <LibraryWPath />
-    <LibraryPath>C:\Users\Phail\Documents\GitHub\MollenOS\clib\build</LibraryPath>
+    <LibraryPath>C:\Users\Phail\Documents\GitHub\MollenOS\kernel\build;C:\Users\Phail\Documents\GitHub\MollenOS\clib\build</LibraryPath>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <ClCompile>
@@ -74,8 +79,7 @@
       <Optimization>Full</Optimization>
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
-      <PreprocessorDefinitions>
-      </PreprocessorDefinitions>
+      <PreprocessorDefinitions>MOLLENOS</PreprocessorDefinitions>
       <SDLCheck>
       </SDLCheck>
       <TreatWarningAsError>true</TreatWarningAsError>
@@ -94,7 +98,8 @@
       <OptimizeReferences>true</OptimizeReferences>
     </Link>
     <Lib>
-      <AdditionalDependencies>CLibK.lib</AdditionalDependencies>
+      <AdditionalDependencies>
+      </AdditionalDependencies>
     </Lib>
     <Lib>
       <IgnoreAllDefaultLibraries>true</IgnoreAllDefaultLibraries>

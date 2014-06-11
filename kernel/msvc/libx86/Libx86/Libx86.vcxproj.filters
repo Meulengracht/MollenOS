@@ -51,6 +51,18 @@
     <ClCompile Include="..\..\..\arch\x86\memory\mm_virt.c">
       <Filter>Memory</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\..\arch\x86\boot\apinit.c">
+      <Filter>Startup</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\arch\x86\boot\cpu.c">
+      <Filter>Startup</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\arch\x86\components\apic.c">
+      <Filter>Components</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\arch\x86\components\acpi.c">
+      <Filter>Components</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <None Include="packages.config" />
@@ -70,6 +82,9 @@
     </NASM>
     <NASM Include="..\..\..\arch\x86\memory\mm_paging.asm">
       <Filter>Memory</Filter>
+    </NASM>
+    <NASM Include="..\..\..\arch\x86\components\portio.asm">
+      <Filter>Components</Filter>
     </NASM>
   </ItemGroup>
 </Project>

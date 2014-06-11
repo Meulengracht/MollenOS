@@ -25,93 +25,93 @@
 #define _MCORE_HEAP_H_
 
 /* Includes */
+#include <arch.h>
 #include <stdint.h>
 #include <crtdefs.h>
 
 /***************************
 Heap Management
 ***************************/
-#define KERNEL_HEAP_STRUCT	0x10000000
-#define KERNEL_HEAP_START	0x10200000
-#define KERNEL_HEAP_END		0x20000000
-#define KERNEL_HEAP_SIZE	(KERNEL_HEAP_END - KERNEL_HEAP_START)
-
-#define KERNEL_HEAP_INC		0x10000
-#define HEAP_LARGE_BLOCK	0x1000
-
-#define KERNEL_HEAP_SINC	0x4000
-#define HEAP_SMALL_BLOCK	0x20
+#define MEMORY_STATIC_OFFSET	0x20000 /* Reserved Header Space */
+#define HEAP_NORMAL_BLOCK		0x1000
+#define HEAP_LARGE_BLOCK		0x10000
 
 /* 12 bytes overhead */
-typedef struct hmm_header
+typedef struct heap_node_descriptor
 {
 	/* Address */
-	uint32_t addr;
+	addr_t addr;
 
 	/* Link */
-	struct hmmheader_t *next;
+	struct heap_node_descriptor *link;
 
 	/* Status */
 	uint32_t allocated : 1;
 
 	/* Length */
-	uint32_t length : 31;
+	size_t length : 31;
 
-} hmmheader_t;
+} heap_node_t;
 
-#define NODE_4KB_FLAG	0x1
-#define NODE_IS_CUSTOM	0x2
+#define BLOCK_NORMAL			0x0
+#define BLOCK_LARGE				0x1
+#define BLOCK_VERY_LARGE		0x2
 #define AddrIsAligned(x) ((x & 0xFFF) == 0)
 
-/* A node descriptor, contains a 
+#define ALLOCATION_NORMAL		0x0
+#define ALLOCATION_ALIGNED		0x1
+#define ALLOCATION_SPECIAL		0x2
+
+/* A block descriptor, contains a 
  * memory range */
-typedef struct hmm_node
+typedef struct heap_block_descriptor
 {
 	/* Start - End Address */
-	uint32_t addr_start;
-	uint32_t addr_end;
+	addr_t addr_start;
+	addr_t addr_end;
 
 	/* Node Flags */
-	uint32_t flags;
+	int flags;
 
 	/* Stats */
-	uint32_t free_header_count;
+	size_t bytes_free;
 
 	/* Spinlock */
-	uint32_t plock;
+	spinlock_t plock;
 
 	/* Next in Linked List */
-	struct hmmnode_t *next;
+	struct heap_block_descriptor *link;
 
 	/* Head of Header List */
-	struct hmmheader_t *head;
+	struct heap_node_descriptor *nodes;
 
-} hmmnode_t;
+} heap_block_t;
 
-//4 bytes
-typedef struct hmm_area
+/* A heap */
+typedef struct heap_area
 {
 	/* Head of Node List */
-	struct hmmnode_t *head;
+	struct heap_block_descriptor *blocks;
 
-} hmmarea_t;
+} heap_t;
 
-//Init
+/* Initializer & Maintience */
 extern void heap_init(void);
 extern uint32_t heap_get_count(void);
 extern void heap_print_stats(void);
+extern void heap_reap(void);
 
 //kMalloc Align and phys return
-extern void *kmalloc_ap(uint32_t l, uint32_t *p);
+extern void *kmalloc_ap(size_t sz, addr_t *p);
 
 //kMalloc return phys
-extern void *kmalloc_p(uint32_t l, uint32_t *p);
+extern void *kmalloc_p(size_t sz, addr_t *p);
 
 //kMalloc align
-extern void *kmalloc_a(uint32_t l);
+extern void *kmalloc_a(size_t sz);
 
 //kMalloc
-extern void *kmalloc(uint32_t l);
+extern void *kmalloc(size_t sz);
 
 //kFree
 extern void kfree(void *p);
