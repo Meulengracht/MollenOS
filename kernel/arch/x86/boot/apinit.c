@@ -62,7 +62,7 @@ void ap_entry(void)
 
 #pragma warning(disable:4054)
 
-void cpu_ap_init(void)
+void cpu_ap_setup(void)
 {
 	/* Set AP entry point */
 	addr_t ApEntry = (addr_t)(addr_t*)ap_entry;
@@ -72,4 +72,9 @@ void cpu_ap_init(void)
 
 	/* Now copy it to memory */
 	memcpy((void*)TRAMPOLINE_CODE_MEM, (char*)trampoline_code, 0x132);
+}
+
+void cpu_ap_init(void)
+{
+
 }

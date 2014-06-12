@@ -285,7 +285,7 @@ ACPI_STATUS AcpiOsPhysicalTableOverride(
 			ACPI_PHYSICAL_ADDRESS   *NewAddress,
 			UINT32                  *NewTableLength)
 {
-	return (AE_SUPPORT);
+	return (AE_NOT_IMPLEMENTED);
 }
 
 /******************************************************************************
@@ -404,6 +404,7 @@ UINT32 AcpiOsInstallInterruptHandler(
 		void                    *Context)
 {
 	/* Install it */
+	printf("Installing Interrupt %u\n", InterruptNumber);
 	interrupt_install(InterruptNumber, ServiceRoutine, Context);
 
 	/* Done */
@@ -446,9 +447,8 @@ ACPI_STATUS AcpiOsRemoveInterruptHandler(
 
 void AcpiOsStall(UINT32 Microseconds)
 {
-	/* TODO */
-	//Sleep((Microseconds / ACPI_USEC_PER_MSEC) + 1);
-	return;
+	/* Stall OS */
+	stall_ms(Microseconds + 1);
 }
 
 /******************************************************************************
@@ -492,8 +492,10 @@ ACPI_STATUS AcpiOsReadPciConfiguration(
 			UINT64                  *Value,
 			UINT32                  Width)
 {
-	/* TODO */
-	*Value = 0;
+	outl(0xCF8, 0x80000000L | ((uint32_t)PciId->Bus << 16) | ((uint32_t)PciId->Device << 11) |
+		((uint32_t)PciId->Function << 8) | (Register & ~3));
+
+	*Value = inl(0xCFC + (Register & 3));
 	return (AE_OK);
 }
 
@@ -518,7 +520,9 @@ ACPI_STATUS AcpiOsWritePciConfiguration(
 			UINT64                  Value,
 			UINT32                  Width)
 {
-	/* TODO */
+	outl(0xCF8, 0x80000000L | ((uint32_t)PciId->Bus << 16) | ((uint32_t)PciId->Device << 11) |
+		((uint32_t)PciId->Function << 8) | (Register & ~3));
+	outl(0xCFC + (Register & 3), (uint32_t)Value);
 	return (AE_OK);
 }
 
@@ -885,6 +889,9 @@ ACPI_STATUS AcpiOsCreateLock(ACPI_SPINLOCK *OutHandle)
 
 	/* Create lock */
 	spinlock_reset(pLock);
+
+	/* Set it */
+	*OutHandle = (void*)pLock;
 
 	/* Done */
 	return (AE_OK);

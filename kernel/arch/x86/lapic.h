@@ -111,10 +111,26 @@ input.
 
 /* Initialisers */
 _CRT_EXTERN void apic_init(void);
+_CRT_EXTERN void apic_timer_init(void);
+
+_CRT_EXTERN void acpi_init_stage1(void);
+_CRT_EXTERN void acpi_init_stage2(void);
 
 /* Read/Write to local apic */
 _CRT_EXTERN uint32_t apic_read_local(uint32_t reg);
 _CRT_EXTERN void apic_write_local(uint32_t reg, uint32_t value);
+
+/* Read/Write to io apic */
+_CRT_EXTERN uint32_t apic_read_io(uint8_t ioapic, uint32_t reg);
+_CRT_EXTERN void apic_write_io(uint8_t ioapic, uint32_t reg, uint32_t data);
+_CRT_EXTERN void apic_write_entry_io(uint8_t ioapic, uint32_t reg, uint64_t data);
+_CRT_EXTERN uint64_t apic_read_entry_io(uint8_t ioapic, uint32_t reg);
+
+/* Set Task Priority */
+_CRT_EXTERN void apic_set_task_priority(uint32_t priority);
+
+/* Send EOI */
+_CRT_EXTERN void apic_send_eoi(void);
 
 /* Call this on AP */
 _CRT_EXTERN void lapic_init(void);

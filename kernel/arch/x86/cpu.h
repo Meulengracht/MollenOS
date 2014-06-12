@@ -121,6 +121,7 @@ typedef struct cpu_info
 
 /* CPU Prototypes */
 extern void cpu_boot_init(void);
+extern void cpu_ap_setup(void);
 extern void cpu_ap_init(void);
 
 /* These three are located in boot.asm */

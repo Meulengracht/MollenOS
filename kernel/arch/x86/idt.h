@@ -91,4 +91,32 @@ _CRT_EXTERN void idt_install_descriptor(uint32_t int_num, uint32_t base,
 /* Should be called by AP cores */
 _CRT_EXTERN void idt_install(void);
 
+
+/* IRQS */
+_CRT_EXTERN void irq_handler32(void); 
+_CRT_EXTERN void irq_handler33(void);
+_CRT_EXTERN void irq_handler34(void);
+_CRT_EXTERN void irq_handler35(void);
+_CRT_EXTERN void irq_handler36(void);
+_CRT_EXTERN void irq_handler37(void);
+_CRT_EXTERN void irq_handler38(void);
+_CRT_EXTERN void irq_handler39(void);
+_CRT_EXTERN void irq_handler40(void);
+_CRT_EXTERN void irq_handler41(void);
+_CRT_EXTERN void irq_handler42(void);
+_CRT_EXTERN void irq_handler43(void);
+_CRT_EXTERN void irq_handler44(void);
+_CRT_EXTERN void irq_handler45(void);
+_CRT_EXTERN void irq_handler46(void);
+_CRT_EXTERN void irq_handler47(void);
+_CRT_EXTERN void irq_handler48(void);
+_CRT_EXTERN void irq_handler49(void);
+_CRT_EXTERN void irq_handler50(void);
+
+
+
+_CRT_EXTERN void irq_handler127(void);
+_CRT_EXTERN void irq_handler128(void);
+_CRT_EXTERN void irq_handler129(void);
+
 #endif // !_x86_GDT_H_

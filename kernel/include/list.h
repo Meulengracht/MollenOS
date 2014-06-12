@@ -25,6 +25,7 @@
 /* List Includes */
 #include <arch.h>
 #include <crtdefs.h>
+#include <stddef.h>
 
 /* List Structures */
 typedef struct _list_node 
@@ -58,7 +59,8 @@ typedef struct _list_main
 #define LIST_NORMAL		0x0
 #define LIST_SAFE		0x1
 
-#define foreach(i, list) for (list_node_t * i = list->head; i != NULL; i = i->link)
+/* Foreach Macro */
+#define foreach(i, list) list_node_t *i; for (i = list->head; i != NULL; i = i->link)
 
 
 /* List Prototypes */
@@ -77,6 +79,9 @@ _CRT_EXTERN int list_get_index_by_node(list_t *list, list_node_t *node);
 
 _CRT_EXTERN list_node_t *list_get_node_by_id(list_t *list, int id, int n);
 _CRT_EXTERN void *list_get_data_by_id(list_t *list, int id, int n);
+
+_CRT_EXTERN void list_execute_on_id(list_t *list, void(*func)(void*, int), int id);
+_CRT_EXTERN void list_execute_all(list_t *list, void(*func)(void*, int));
 
 _CRT_EXTERN void list_remove_by_node(list_t *list, list_node_t* node);
 _CRT_EXTERN void list_remove_by_index(list_t *list, int index);

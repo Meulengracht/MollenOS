@@ -107,14 +107,15 @@ void list_remove_by_node(list_t *list, list_node_t* node)
  * we want more than one by that same ID */
 list_node_t *list_get_node_by_id(list_t *list, int id, int n)
 {
+	int counter = n;
 	foreach(i, list)
 	{
 		if (i->identifier == id)
 		{
-			if (n == 0)
+			if (counter == 0)
 				return i;
 			else
-				n--;
+				counter--;
 		}
 	}
 
@@ -126,17 +127,37 @@ list_node_t *list_get_node_by_id(list_t *list, int id, int n)
 * we want more than one by that same ID */
 void *list_get_data_by_id(list_t *list, int id, int n)
 {
+	int counter = n;
 	foreach(i, list)
 	{
 		if (i->identifier == id)
 		{
-			if (n == 0)
+			if (counter == 0)
 				return i->data;
 			else
-				n--;
+				counter--;
 		}
 	}
 
 	/* If we reach here, not enough of id */
 	return NULL;
+}
+
+/* Go through members and execute a function 
+ * on each member matching the given id */
+void list_execute_on_id(list_t *list, void(*func)(void*, int), int id)
+{
+	int n = 0;
+	foreach(i, list)
+	{
+		/* Check */
+		if (i->identifier == id)
+		{
+			/* Execute */
+			func(i->data, n);
+
+			/* Increase */
+			n++;
+		}
+	}
 }

@@ -22,6 +22,7 @@
 /* Includes */
 #include <revision.h>
 #include <arch.h>
+#include <lapic.h>
 #include <multiboot.h>
 #include <gdt.h>
 #include <idt.h>
@@ -64,7 +65,7 @@ void init(multiboot_info_t *bootinfo, uint32_t kernel_size)
 
 	/* CPU Setup */
 	cpu_boot_init();
-	cpu_ap_init();
+	cpu_ap_setup();
 	  
 	/* Memory setup! */
 	printf("  - Setting up memory systems\n");
@@ -83,12 +84,19 @@ void init(multiboot_info_t *bootinfo, uint32_t kernel_size)
 	printf("    * APIC Initializing\n");
 	apic_init();
 
-	/* Install Basic Threading */
+	/* Setup Timers */
+	printf("    * Setting up local timer\n");
+	apic_timer_init();
 
 	/* Setup Full APICPA */
+	printf("    * ACPICA Full Setup\n");
 	acpi_init_stage2();
 
+	/* Install Basic Threading */
+	printf("  - Initializing Threading\n");
+
 	/* Startup AP cores */
+	cpu_ap_init();
 
 	/* Done with setup! 
 	 * This should be called on a new thread */

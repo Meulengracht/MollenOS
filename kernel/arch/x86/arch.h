@@ -41,6 +41,9 @@ typedef unsigned int virtaddr_t;
 typedef unsigned int addr_t;
 typedef signed int saddr_t;
 
+typedef unsigned int tid_t;
+typedef void(*thread_entry)(void*);
+
 /* X86-32 Interrupt Entry */
 typedef struct irq_entry
 {
@@ -75,6 +78,21 @@ typedef struct registers
 	uint32_t user_esp;
 
 } registers_t;
+
+/* X86-32 Thread */
+typedef struct thread
+{
+	/* Info */
+	char *name;
+
+	/* Context */
+
+	/* User Context */
+
+	/* Flags */
+
+
+} thread_t;
 
 /* Architecture Prototypes, you should define 
  * as many as these as possible */
@@ -126,18 +144,22 @@ _CRT_EXTERN physaddr_t memory_getmap(void *page_dir, virtaddr_t virt);
 /* Interrupt Interface */
 _CRT_EXTERN void interrupt_init(void);
 _CRT_EXTERN void interrupt_install(uint32_t irq, irq_handler_t callback, void *args);
+_CRT_EXTERN void interrupt_install_soft(uint32_t idt_entry, irq_handler_t callback, void *args);
 
 _CRT_EXTERN interrupt_status_t interrupt_disable(void);
 _CRT_EXTERN interrupt_status_t interrupt_enable(void);
 _CRT_EXTERN interrupt_status_t interrupt_get_state(void);
 _CRT_EXTERN interrupt_status_t interrupt_set_state(interrupt_status_t state);
 
-/* ACPI / APIC */
-_CRT_EXTERN void acpi_init_stage1(void);
-_CRT_EXTERN void acpi_init_stage2(void);
-_CRT_EXTERN void apic_init(void);
+/* Utils */
+_CRT_EXTERN void stall_ms(size_t ms);
+_CRT_EXTERN void idle(void);
 
 /* Threading */
+_CRT_EXTERN void threading_init(void);
+_CRT_EXTERN tid_t threading_create_thread(thread_entry function, void *args);
+_CRT_EXTERN void threading_kill_thread(tid_t thread_id);
+_CRT_EXTERN void threading_yield(void);
 
 /* Driver Interface */
 
@@ -161,7 +183,8 @@ _CRT_EXTERN void apic_init(void);
 #define MEMORY_LOCATION_RESERVED		0xA0000000
 
 /* Architecture Locked Interrupts */
+#define INTERRUPT_SPURIOUS				0x7F
 #define INTERRUPT_SYSCALL				0x80
-#define INTERRUPT_SPURIOUS				0xFF
+#define INTERRUPT_YIELD					0x81
 
 #endif // !_MCORE_X86_ARCH_

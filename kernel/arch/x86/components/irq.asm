@@ -26,6 +26,7 @@ global _exception_common
 global _irq_common
 global ___cli
 global ___sti
+global ___hlt
 global ___getflags
 global ___getcr2
 
@@ -57,6 +58,21 @@ ___sti:
 
 	; Enable interrupts
 	sti
+
+	; Release stack frame
+	xor eax, eax
+	pop ebp
+	ret 
+
+; void __hlt(void)
+; Enables interrupts
+___hlt:
+	; Stack Frame
+	push ebp
+	mov ebp, esp
+
+	; Idle
+	hlt
 
 	; Release stack frame
 	xor eax, eax
@@ -256,3 +272,11 @@ irq_normal 44, 12
 irq_normal 45, 13
 irq_normal 46, 14
 irq_normal 47, 15
+irq_normal 48, 16
+irq_normal 49, 17
+irq_normal 50, 18
+
+
+irq_normal 127, 95
+irq_normal 128, 96
+irq_normal 129, 97

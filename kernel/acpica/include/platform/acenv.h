@@ -129,8 +129,8 @@
 
 /* Types for DEBUGGER_THREADING */
 
-#define DEBUGGER_SINGLE_THREADED    0
-#define DEBUGGER_MULTI_THREADED     1
+#define DEBUGGER_SINGLE_THREADED    1
+#define DEBUGGER_MULTI_THREADED     0
 
 
 /******************************************************************************

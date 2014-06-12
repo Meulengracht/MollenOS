@@ -38,7 +38,7 @@ volatile uint32_t memory_size = 0;
 spinlock_t memory_plock = 0;
 
 /* Reserved Regions */
-sys_mappings_t reserved_mappings[16];
+sys_mappings_t reserved_mappings[32];
 
 /* Helpers */
 void memory_setbit(int bit)
@@ -173,6 +173,29 @@ void memory_alloc_region(uint32_t base, size_t size)
 	}
 }
 
+/* Mappings contains type and address already? */
+int memory_reserved_contains(addr_t base, int type)
+{
+	uint32_t i;
+
+	/* Find address, if it exists! */
+	for (i = 0; i < 32; i++)
+	{
+		if (reserved_mappings[i].length == 0)
+			continue;
+
+		/* Does type match ? */
+		if (reserved_mappings[i].type == type)
+		{
+			/* check if addr is matching */
+			if (reserved_mappings[i].physical == base)
+				return 1;
+		}
+	}
+
+	return 0;
+}
+
 /* Initialises the physical memory bitmap */
 void physmem_init(void *bootinfo, uint32_t img_size)
 {
@@ -208,16 +231,17 @@ void physmem_init(void *bootinfo, uint32_t img_size)
 	reserved_mappings[0].length = PAGE_SIZE;
 
 	/* Loop through memory regions from bootloader */
-	for (i = 0, j= 1; i < mboot->MemoryMapLength; i++)
+	for (i = 0, j = 1; i < mboot->MemoryMapLength; i++)
 	{
-		printf("      > Memory Region %u: Address: 0x%x, Size 0x%x\n", 
-			region->type, (physaddr_t)region->address, (size_t)region->size);
-
-		/* Available Region? */
-		if (region->type == 1)
-			memory_free_region((physaddr_t)region->address, (size_t)region->size);
-		else
+		if (!memory_reserved_contains((physaddr_t)region->address, (int)region->type))
 		{
+			/* Available Region? */
+			if (region->type == 1)
+				memory_free_region((physaddr_t)region->address, (size_t)region->size);
+
+			printf("      > Memory Region %u: Address: 0x%x, Size 0x%x\n",
+				region->type, (physaddr_t)region->address, (size_t)region->size);
+
 			reserved_mappings[j].type = region->type;
 			reserved_mappings[j].physical = (physaddr_t)region->address;
 			reserved_mappings[j].virtual = 0;
@@ -226,7 +250,7 @@ void physmem_init(void *bootinfo, uint32_t img_size)
 			/* Advance */
 			j++;
 		}
-
+		
 		/* Advance to next */
 		region++;
 	}
@@ -312,9 +336,9 @@ virtaddr_t memory_get_reserved_mapping(physaddr_t physical)
 	uint32_t i;
 
 	/* Find address, if it exists! */
-	for (i = 0; i < 16; i++)
+	for (i = 0; i < 32; i++)
 	{
-		if (reserved_mappings[i].length != 0)
+		if (reserved_mappings[i].length != 0 && reserved_mappings[i].type != 1)
 		{
 			/* Get start and end */
 			physaddr_t start = reserved_mappings[i].physical;
