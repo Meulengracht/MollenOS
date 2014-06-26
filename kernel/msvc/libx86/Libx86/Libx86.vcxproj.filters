@@ -23,7 +23,7 @@
       <UniqueIdentifier>{8e1fa0a3-90b8-4f07-8fa1-a03aab0134c7}</UniqueIdentifier>
     </Filter>
     <Filter Include="Threading">
-      <UniqueIdentifier>{c03ab85f-449a-4df7-990d-e6971b3e1c92}</UniqueIdentifier>
+      <UniqueIdentifier>{d5a4e472-8069-4770-86ad-04971f2e9ccb}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>
@@ -66,6 +66,15 @@
     <ClCompile Include="..\..\..\arch\x86\components\acpi.c">
       <Filter>Components</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\..\arch\x86\components\thread.c">
+      <Filter>Threading</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\arch\x86\components\context.c">
+      <Filter>Threading</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\arch\x86\drivers\driver_manager.c">
+      <Filter>Drivers</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <None Include="packages.config" />
@@ -88,6 +97,9 @@
     </NASM>
     <NASM Include="..\..\..\arch\x86\components\portio.asm">
       <Filter>Components</Filter>
+    </NASM>
+    <NASM Include="..\..\..\arch\x86\components\threading.asm">
+      <Filter>Threading</Filter>
     </NASM>
   </ItemGroup>
 </Project>

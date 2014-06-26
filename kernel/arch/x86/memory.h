@@ -149,6 +149,11 @@ typedef struct page_directory
 
 
 /* Hihi */
+_CRT_EXTERN page_directory_t *memory_get_current_pdir(cpu_t cpu);
+_CRT_EXTERN void memory_switch_directory(uint32_t cpu, page_directory_t* page_dir, physaddr_t pda);
 _CRT_EXTERN virtaddr_t memory_get_reserved_mapping(physaddr_t physical);
+
+/* Install paging for AP Cores */
+_CRT_EXTERN void memory_install_paging(cpu_t cpu);
 
 #endif // !_X86_MEMORY_H_

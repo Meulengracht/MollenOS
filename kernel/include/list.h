@@ -50,6 +50,9 @@ typedef struct _list_main
 	/* Attributes */
 	int attributes;
 
+	/* Length */
+	int length;
+
 	/* Perhaps we use a lock */
 	spinlock_t lock;
 
@@ -72,6 +75,8 @@ _CRT_EXTERN list_node_t *list_create_node(int id, void *data);
 _CRT_EXTERN void list_insert(list_t *list, list_node_t *node, int position);
 _CRT_EXTERN void list_insert_front(list_t *list, list_node_t *node);
 _CRT_EXTERN void list_append(list_t *list, list_node_t *node);
+
+_CRT_EXTERN list_node_t *list_pop(list_t *list);
 
 _CRT_EXTERN int list_get_index_by_data(list_t *list, void *data);
 _CRT_EXTERN int list_get_index_by_id(list_t *list, int id);

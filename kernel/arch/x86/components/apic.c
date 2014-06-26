@@ -24,6 +24,7 @@
 #include <lapic.h>
 #include <cpu.h>
 #include <list.h>
+#include <thread.h>
 
 #include <assert.h>
 #include <stdio.h>
@@ -35,14 +36,16 @@ volatile uint32_t timer_quantum = 0;
 
 /* Externs */
 extern volatile addr_t local_apic_addr;
+extern volatile uint32_t num_cpus;
 extern list_t *acpi_nodes;
 
 /* Primary CPU Timer IRQ */
 void apic_timer_handler(void *args)
 {
 	/* Get registers */
-	registers_t *regs = (registers_t*)args;
-	regs = regs;
+	registers_t **regs = (registers_t**)args;
+	uint32_t time_slice = 20;
+	uint32_t task_priority = 0;
 
 	/* Increase timer_ticks */
 	timer_ticks++;
@@ -51,7 +54,16 @@ void apic_timer_handler(void *args)
 	apic_send_eoi();
 
 	/* Switch Task */
-	//regs->esp = switch_task(regs->esp);
+	*regs = threading_switch((*regs), 1, &time_slice, &task_priority);
+
+	/* Set Task Priority */
+	apic_set_task_priority((task_priority >= 10) ? (task_priority / 2) : 5);
+
+	/* Reset Timer Tick - TODO get priority */
+	apic_write_local(LAPIC_INITIAL_COUNT, timer_quantum * time_slice);
+
+	/* Re-enable timer in one-shot mode */
+	apic_write_local(LAPIC_TIMER_VECTOR, LAPIC_INTERRUPT_VEC);		//0x20000 - Periodic
 }
 
 /* Spurious handler */
@@ -207,6 +219,31 @@ void lapic_init(void)
 	bootstrap_cpu_id = (uint8_t)(bsp_apic & 0xFF);
 }
 
+/* Enable/Config AP LAPIC */
+void lapic_ap_init(void)
+{
+	/* Set destination format register to flat model */
+	apic_write_local(LAPIC_DEST_FORMAT, apic_read_local(LAPIC_DEST_FORMAT) & 0xF0000000);
+
+	/* Set bits 31-24 for all cores to be in Group 1 in logical destination register */
+	apic_write_local(LAPIC_LOGICAL_DEST, 0xFF000000);
+
+	/* Reset register states */
+	apic_write_local(LAPIC_ERROR_REGISTER, 0x10000);
+	apic_write_local(LAPIC_LINT0_REGISTER, 0x10000);
+	apic_write_local(LAPIC_LINT1_REGISTER, 0x10000);
+	apic_write_local(LAPIC_PERF_MONITOR, 0x10000);
+	apic_write_local(LAPIC_THERMAL_SENSOR, 0x10000);
+	apic_write_local(LAPIC_TIMER_VECTOR, 0x10000);
+
+	/* Enable local apic */
+	/* Install Spurious vector */
+	apic_write_local(LAPIC_SPURIOUS_REG, 0x100 | INTERRUPT_SPURIOUS);	// Set bit 8 in SVR.
+
+	/* Set initial task priority */
+	apic_set_task_priority(0);
+}
+
 /* Enable PIT & Local Apic */
 void apic_timer_init(void)
 {
@@ -245,17 +282,17 @@ void apic_timer_init(void)
 	/* Calculate bus frequency */
 	lapic_ticks = (0xFFFFFFFF - apic_read_local(LAPIC_CURRENT_COUNT));
 	printf("    * Ticks: %u\n", lapic_ticks);
-	timer_quantum = (lapic_ticks * 4) / 30;
+	timer_quantum = ((lapic_ticks * 4) / 1000) + 1;
 	printf("    * Quantum: %u\n", timer_quantum);
 
 	/* Install Interrupt */
 	interrupt_install(0, apic_timer_handler, NULL);
 
-	/* Sanity */
-	apic_write_local(LAPIC_INITIAL_COUNT, timer_quantum);
+	/* Reset Timer Tick */
+	apic_write_local(LAPIC_INITIAL_COUNT, timer_quantum * 20);
 
 	/* Re-enable timer in periodic mode */
-	apic_write_local(LAPIC_TIMER_VECTOR, 0x20000 | 0x22);
+	apic_write_local(LAPIC_TIMER_VECTOR, LAPIC_INTERRUPT_VEC);		//0x20000 - Periodic
 
 	/* Reset divider to make sure */
 	apic_write_local(LAPIC_DIVIDE_REGISTER, LAPIC_DIVIDER_1);
@@ -379,7 +416,6 @@ uint64_t apic_read_entry_io(uint8_t ioapic, uint32_t reg)
 	return val;
 }
 
-
 /* Sleep */
 void stall_ms(size_t ms)
 {
@@ -387,4 +423,22 @@ void stall_ms(size_t ms)
 
 	while (timer_ticks < ticks)
 		idle();
+}
+
+/* Get cpu id */
+cpu_t get_cpu(void)
+{
+	cpu_t id = 0;
+
+	/* Sanity */
+	if (num_cpus <= 1)
+		return id;
+
+	/* Read APIC Register */
+	id = apic_read_local(LAPIC_PROCESSOR_ID);
+
+	/* Id is 8 top bits */
+	id >>= 24;
+
+	return id;
 }

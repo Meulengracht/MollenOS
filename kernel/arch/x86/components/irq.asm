@@ -112,7 +112,6 @@ ___getcr2:
 _exception_common:
 	
 	; Save Segments
-	xchg bx, bx
 	push ds
 	push es
 	push fs
@@ -129,6 +128,8 @@ _exception_common:
 	mov gs, ax
 
 	; Push registers as pointer to struct
+	; However, dont do the doubly-pointy as in int
+	; We have no reason to switch task in an EXCEPTION!
 	push esp
 
 	; Call C-code exception handler
@@ -173,12 +174,14 @@ _irq_common:
 
 	; Push registers as pointer to struct
 	push esp
+	push esp
 
 	; Call C-code exception handler
 	call _interrupt_entry
 
 	; Cleanup
 	add esp, 0x4
+	pop esp
 
 	; When we return, restore state
 	popad

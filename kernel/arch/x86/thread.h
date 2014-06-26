@@ -16,23 +16,33 @@
 * along with this program.If not, see <http://www.gnu.org/licenses/>.
 *
 *
-* MollenOS Common Entry Point
+* MollenOS Threads
 */
+
+#ifndef _X86_THREAD_H_
+#define _X86_THREAD_H_
 
 /* Includes */
 #include <arch.h>
-#include <heap.h>
-#include <stdio.h>
+#include <crtdefs.h>
 
-void mcore_entry(void *args)
-{
-	/* Now, lets initialize the high-end systems */
-	args = args;
-	printf("  - MCore Initializing...\n");
+/* Definitions */
+#define X86_THREAD_USEDFPU			0x1
+#define X86_THREAD_FPU_INITIALISED	0x2
+#define X86_THREAD_FINISHED			0x4
+#define X86_THREAD_CPU_BOUND		0x8
+#define X86_THREAD_USERMODE			0x10
+#define X86_THREAD_IDLE				0x20
+#define X86_THREAD_TRANSITION		0x40
 
-	/* Virtual Filesystem */
+#define X86_THREAD_EFLAGS			0x202
 
-	/* Drivers */
+/* Prototypes */
+_CRT_EXTERN void threading_init(void);
+_CRT_EXTERN void threading_ap_init(void);
+_CRT_EXTERN registers_t *threading_switch(registers_t *regs, int preemptive, uint32_t *time_slice, uint32_t *task_priority);
 
-	/* Start the compositor */
-}
+/* Context Manipulation */
+_CRT_EXTERN registers_t *context_create(addr_t eip);
+
+#endif // !_MCORE_THREAD_H_

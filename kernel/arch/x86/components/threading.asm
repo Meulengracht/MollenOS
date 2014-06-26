@@ -16,103 +16,107 @@
 ; along with this program.  If not, see <http://www.gnu.org/licenses/>.
 ;
 ;
-; MollenOS x86-32 Paging Assembly Functions
+; MollenOS x86-32 Descriptor Assembly Functions
 ;
 bits 32
 segment .text
 
 ;Functions in this asm
-global _memory_set_paging
-global _memory_reload_cr3
-global _memory_get_cr3
-global _memory_load_cr3
-global _memory_invalidate_addr
+global _init_fpu
+global _save_fpu
+global _load_fpu
+global _clear_ts
+global _set_ts
+global __yield
 
-;void memory_set_paging(int enable)
-;Either enables or disables paging
-_memory_set_paging:
+; void _yield(void)
+; Yields
+__yield:
 	; Stack Frame
 	push ebp
 	mov ebp, esp
 
-	; Get [enable]
-	mov	eax, dword [ebp + 8]
-	cmp eax, 0
-	je	.disable
+	; call int 0x81
+	int 0x81
 
-	; Enable
+	; Release stack frame
+	xor eax, eax
+	pop ebp
+	ret 
+
+; void save_fpu(addr_t *buffer)
+; Save MMX and MMX registers
+_save_fpu:
+	; Stack Frame
+	push ebp
+	mov ebp, esp
+
+	; Save FPU to argument 1
+	mov eax, [ebp + 8]
+	fxsave [eax]
+
+	; Release stack frame
+	xor eax, eax
+	pop ebp
+	ret 
+
+; void load_fpu(addr_t *buffer)
+; Load MMX and MMX registers
+_load_fpu:
+	; Stack Frame
+	push ebp
+	mov ebp, esp
+
+	; Save FPU to argument 1
+	mov eax, [ebp + 8]
+	fxrstor [eax]
+
+	; Release stack frame
+	xor eax, eax
+	pop ebp
+	ret 
+
+; void set_ts()
+; Sets the Task-Switch register
+_set_ts:
+	; Stack Frame
+	push ebp
+	mov ebp, esp
+
+	; Set TS
 	mov eax, cr0
-	or eax, 0x80000000		; Set bit 31
-	mov	cr0, eax
-	jmp .done
-	
-	.disable:
-		mov eax, cr0
-		and eax, 0x7FFFFFFF		; Clear bit 31
-		mov	cr0, eax
-
-	.done:
-		; Release stack frame
-		xor eax, eax
-		pop ebp
-		ret 
-
-
-;void memory_reload_cr3(void)
-;Reloads the cr3 register
-_memory_reload_cr3:
-	; Stack Frame
-	push ebp
-	mov ebp, esp
-
-	; Reload
-	mov eax, cr3
-	mov cr3, eax
+	bts eax, 3
+	mov cr0, eax
 
 	; Release stack frame
 	xor eax, eax
 	pop ebp
 	ret 
 
-;void memory_get_cr3(void)
-;Returns the cr3 register
-_memory_get_cr3:
+; void clear_ts()
+; Clears the Task-Switch register
+_clear_ts:
 	; Stack Frame
 	push ebp
 	mov ebp, esp
 
-	; Get
-	mov eax, cr3
-
-	; Release stack frame
-	pop ebp
-	ret 
-
-;void _memory_load_cr3(addr_t pda)
-;Loads the cr3 register
-_memory_load_cr3:
-	; Stack Frame
-	push ebp
-	mov ebp, esp
-
-	; Reload
-	mov	eax, dword [ebp + 8]
-	mov cr3, eax
+	; clear
+	clts
 
 	; Release stack frame
 	xor eax, eax
 	pop ebp
 	ret 
 
-;void _memory_invalidate_addr(addr_t pda)
-;Invalidates a page address
-_memory_invalidate_addr:
+; void init_fpu()
+; Clears the Task-Switch register
+_init_fpu:
 	; Stack Frame
 	push ebp
 	mov ebp, esp
 
-	; Reload
-	invlpg [ebp + 8]
+	; fpu init
+	finit
 
 	; Release stack frame
 	xor eax, eax

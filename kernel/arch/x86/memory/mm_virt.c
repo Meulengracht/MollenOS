@@ -30,7 +30,7 @@
 
 /* Globals */
 page_directory_t *kernel_directory = NULL;
-addr_t *current_directories;
+page_directory_t *current_directories[64];
 
 /* Externs */
 extern graphics_t gfx_info;
@@ -110,13 +110,27 @@ void memory_switch_directory(uint32_t cpu, page_directory_t* page_dir, physaddr_
 	assert(page_dir != NULL);
 
 	/* Update Current */
-	current_directories[cpu] = (addr_t)page_dir;
+	current_directories[cpu] = page_dir;
 
 	/* Switch */
 	memory_load_cr3(pda);
 
 	/* Done */
 	return;
+}
+
+/* Returns current memory directory */
+page_directory_t *memory_get_current_pdir(cpu_t cpu)
+{
+	return current_directories[cpu];
+}
+
+/* Install paging for AP Cores */
+void memory_install_paging(cpu_t cpu)
+{
+	/* Enable paging */
+	memory_switch_directory(cpu, kernel_directory, (addr_t)kernel_directory);
+	memory_set_paging(1);
 }
 
 /* Maps a virtual memory address to a physical
@@ -133,7 +147,7 @@ void memory_map(void *page_dir, physaddr_t phys, virtaddr_t virt, uint32_t flags
 	if (pdir == NULL)
 	{
 		/* Get CPU */
-		pdir = (page_directory_t*)current_directories[0];
+		pdir = (page_directory_t*)current_directories[get_cpu()];
 	}
 
 	/* Sanity */
@@ -210,7 +224,7 @@ void memory_unmap(void *page_dir, virtaddr_t virt)
 	if (pdir == NULL)
 	{
 		/* Get CPU */
-		pdir = (page_directory_t*)current_directories[0];
+		pdir = (page_directory_t*)current_directories[get_cpu()];
 	}
 
 	/* Sanity */
@@ -276,7 +290,7 @@ physaddr_t memory_getmap(void *page_dir, virtaddr_t virt)
 	if (pdir == NULL)
 	{
 		/* Get CPU */
-		pdir = (page_directory_t*)current_directories[0];
+		pdir = (page_directory_t*)current_directories[get_cpu()];
 	}
 
 	/* Sanity */
@@ -315,7 +329,6 @@ physaddr_t memory_getmap(void *page_dir, virtaddr_t virt)
 	return phys;
 }
 
-
 /* Maps a virtual memory address to a physical
 * memory address in a given page-directory
 * If page-directory is NULL, current directory
@@ -350,7 +363,6 @@ void memory_inital_map(physaddr_t phys, virtaddr_t virt)
 	ptable->Pages[PAGE_TABLE_INDEX(virt)] = (phys & PAGE_MASK) | PAGE_PRESENT | PAGE_WRITE;
 }
 
-
 /* Creates a page directory and loads it */
 void virtmem_init(void)
 {
@@ -363,8 +375,6 @@ void virtmem_init(void)
 	kernel_directory = (page_directory_t*)physmem_alloc_block();
 	physmem_alloc_block(); physmem_alloc_block();
 	itable = memory_create_page_table();
-	current_directories = (addr_t*)physmem_alloc_block();
-	memset((void*)current_directories, 0, PAGE_SIZE);
 
 	/* Identity map only first 4 mB (THIS IS KERNEL ONLY) */
 	memory_fill_page_table(itable, 0x1000, 0x1000);

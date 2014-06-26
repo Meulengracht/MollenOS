@@ -27,10 +27,12 @@
 
 /* ACPICA Stuff */
 #define ACPI_MAX_INIT_TABLES 16
+static ACPI_TABLE_DESC TableArray[ACPI_MAX_INIT_TABLES];
 
 /* Global ACPI Information */
 list_t *acpi_nodes = NULL;
 volatile addr_t local_apic_addr = 0;
+volatile uint32_t num_cpus = 0;
 
 /* Enumerate MADT Entries */
 void madt_enumerate(void *start, void *end)
@@ -59,6 +61,9 @@ void madt_enumerate(void *start, void *end)
 			list_append(acpi_nodes, list_create_node(ACPI_MADT_TYPE_LOCAL_APIC, cpu_node));
 
 			printf("      > Found CPU: %u (Flags 0x%x)\n", cpu->Id, cpu->LapicFlags);
+
+			/* Increase CPU count */
+			num_cpus++;
 
 		} break;
 
@@ -96,7 +101,7 @@ void madt_enumerate(void *start, void *end)
 
 		} break;
 
-		/* Local APIC NMI */
+		/* Local APIC NMI Configuration */
 		case ACPI_MADT_TYPE_LOCAL_APIC_NMI:
 		{
 			/* Cast to correct structure */
@@ -110,6 +115,16 @@ void madt_enumerate(void *start, void *end)
 			list_append(acpi_nodes, list_create_node(ACPI_MADT_TYPE_LOCAL_APIC_NMI, nmi_apic));
 
 			printf("      > Found Local APIC NMI: LintN %u connected to CPU %u\n", nmi_override->Lint, nmi_override->ProcessorId);
+
+			/* Install */
+			if (nmi_override->ProcessorId == 0xFF)
+			{
+				/* Broadcast */
+			}
+			else
+			{
+				/* Set core LVT */
+			}
 
 		} break;
 
@@ -133,7 +148,7 @@ void acpi_init_stage1(void)
 	ACPI_STATUS Status = 0;
 
 	/* Early Table Access */
-	Status = AcpiInitializeTables(NULL, ACPI_MAX_INIT_TABLES, TRUE);
+	Status = AcpiInitializeTables((ACPI_TABLE_DESC*)&TableArray, ACPI_MAX_INIT_TABLES, TRUE);
 
 	/* Sanity */
 	if (ACPI_FAILURE(Status))
@@ -163,6 +178,7 @@ void acpi_init_stage1(void)
 
 	/* Get Local Apic Address */
 	local_apic_addr = madt->Address;
+	num_cpus = 0;
 
 	/* Identity map it in */
 	if (!memory_getmap(NULL, local_apic_addr))
@@ -183,28 +199,31 @@ void acpi_init_stage2(void)
 	ACPI_STATUS Status;
 
 	/* Initialize the ACPICA subsystem */
-	printf("    * Initializing subsystems\n");
+	printf("    * Acpica Stage 2 Starting\n");
+	printf("      > Initializing subsystems\n");
 	Status = AcpiInitializeSubsystem();
 	if (ACPI_FAILURE(Status))
 	{
-		printf("    * FAILED InititalizeSubsystem, %u!\n", Status);
+		printf("      > FAILED InititalizeSubsystem, %u!\n", Status);
 		for (;;);
 	}
 
 	/* Copy the root table list to dynamic memory */
-	printf("    * Reallocating tables\n");
+	printf("      > Reallocating tables\n");
 	Status = AcpiReallocateRootTable();
 	if (ACPI_FAILURE(Status))
 	{
-		/* Do nothing, we did provide dynamic memory before */
+		/*  */
+		printf("      > FAILED AcpiReallocateRootTable, %u!\n", Status);
+		for (;;);
 	}
 
 	/* Create the ACPI namespace from ACPI tables */
-	printf("    * Loading tables\n");
+	printf("      > Loading tables\n");
 	Status = AcpiLoadTables();
 	if (ACPI_FAILURE(Status))
 	{
-		printf("    * FAILED LoadTables, %u!\n", Status);
+		printf("      > FAILED LoadTables, %u!\n", Status);
 		for (;;);
 	}
 	
@@ -213,20 +232,32 @@ void acpi_init_stage2(void)
 
 
 	/* Initialize the ACPI hardware */
-	printf("    * Enabling subsystems\n");
+	printf("      > Enabling subsystems\n");
 	Status = AcpiEnableSubsystem(ACPI_FULL_INITIALIZATION);
 	if (ACPI_FAILURE(Status))
 	{
-		printf("    * FAILED EnableSystem, %u!\n", Status);
+		printf("      > FAILED EnableSystem, %u!\n", Status);
 		for (;;);
 	}
 	
 	/* Complete the ACPI namespace object initialization */
-	printf("    * Initializing objects\n");
+	printf("      > Initializing objects\n");
 	Status = AcpiInitializeObjects(ACPI_FULL_INITIALIZATION);
 	if (ACPI_FAILURE(Status))
 	{
-		printf("    * FAILED InitializeObjects, %u!\n", Status);
+		printf("      > FAILED InitializeObjects, %u!\n", Status);
 		for (;;);
 	}
+
+	/* Now it is expected to do namespace walk and execute
+	 * all _PRW methods. I should install GPE handlers here */
+
+	/* Call this on all _PRW methods, AcpiSetWakeGpe */
+	
+	//AcpiInstallGpeHandler()
+	//AcpiInstallGlobalEventHandler()
+	/* Call this when done */
+	//AcpiUpdateAllGpes();
+
+	printf("    * Acpica Stage 2 Started\n");
 }

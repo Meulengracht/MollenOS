@@ -404,7 +404,6 @@ UINT32 AcpiOsInstallInterruptHandler(
 		void                    *Context)
 {
 	/* Install it */
-	printf("Installing Interrupt %u\n", InterruptNumber);
 	interrupt_install(InterruptNumber, ServiceRoutine, Context);
 
 	/* Done */
@@ -771,6 +770,7 @@ ACPI_OSD_EXEC_CALLBACK  Function,
 void                    *Context)
 {
 	/* TODO */
+	printf("Tried to execute handler type %u\n", (UINT32)Type);
 	//_beginthread(Function, (unsigned)0, Context);
 	return (0);
 }
@@ -810,9 +810,12 @@ void ACPI_INTERNAL_VAR_XFACE AcpiOsPrintf(const char *Fmt, ...)
 		//{
 			/* No redirection, send output to console (once only!) */
 
-			Flags |= ACPI_DB_CONSOLE_OUTPUT;
+			Flags = ACPI_DB_CONSOLE_OUTPUT;
 		//}
 	}
+
+	/* For now */
+	Flags &= ~ACPI_DB_CONSOLE_OUTPUT;
 
 	if (Flags & ACPI_DB_CONSOLE_OUTPUT)
 	{
@@ -865,6 +868,9 @@ va_list                 Args)
 			Flags |= ACPI_DB_CONSOLE_OUTPUT;
 		//}
 	}
+
+	/* For now ffs, it does not seem to work */
+	Flags &= ~ACPI_DB_CONSOLE_OUTPUT;
 
 	if (Flags & ACPI_DB_CONSOLE_OUTPUT)
 	{

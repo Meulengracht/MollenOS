@@ -106,10 +106,10 @@ void interrupt_install_soft(uint32_t idt_entry, irq_handler_t callback, void *ar
 }
 
 /* The common entry point for interrupts */
-void interrupt_entry(registers_t *regs)
+void interrupt_entry(registers_t **regs)
 {
 	/* Determine Irq */
-	uint32_t irq = regs->irq + 0x20;
+	uint32_t irq = (*regs)->irq + 0x20;
 
 	/* Get handler */
 	if (irq_table[irq].function != NULL)
@@ -117,7 +117,7 @@ void interrupt_entry(registers_t *regs)
 		/* If no args are specified we give access 
 		 * to registers */
 		if (irq_table[irq].data == NULL)
-			irq_table[irq].function(regs);
+			irq_table[irq].function((void*)regs);
 		else
 			irq_table[irq].function(irq_table[irq].data);
 	}

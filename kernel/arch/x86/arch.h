@@ -41,6 +41,7 @@ typedef unsigned int virtaddr_t;
 typedef unsigned int addr_t;
 typedef signed int saddr_t;
 
+typedef unsigned int cpu_t;
 typedef unsigned int tid_t;
 typedef void(*thread_entry)(void*);
 
@@ -74,25 +75,53 @@ typedef struct registers
 	uint32_t irq;
 	uint32_t error_code;
 	uint32_t eip;
-	uint32_t ss;
+	uint32_t cs;
+	uint32_t eflags;
+
+	/* User Stuff */
 	uint32_t user_esp;
+	uint32_t user_ss;
+	uint32_t user_arg;
 
 } registers_t;
 
 /* X86-32 Thread */
-typedef struct thread
+typedef struct _thread
 {
-	/* Info */
+	/* Name */
 	char *name;
 
-	/* Context */
+	/* Information */
+	uint32_t flags;
+	uint32_t time_slice;
+	int32_t priority;
 
-	/* User Context */
+	/* Ids */
+	tid_t thread_id;
+	tid_t parent_id;
+	cpu_t cpu_id;
 
-	/* Flags */
+	/* Context(s) */
+	registers_t *context;
+	registers_t *user_context;
 
+	/* Math Buffer */
+	addr_t *fpu_buffer;
+
+	/* Memory Space */
+	addr_t cr3;
+	void *page_dir;
+
+	/* Entry point */
+	thread_entry func;
+	void *args;
 
 } thread_t;
+
+/* X86-32 Threading Flags */
+#define THREADING_USERMODE		0x1
+#define THREADING_CPUBOUND		0x2
+#define THREADING_SYSTEMTHREAD	0x4
 
 /* Architecture Prototypes, you should define 
  * as many as these as possible */
@@ -152,17 +181,17 @@ _CRT_EXTERN interrupt_status_t interrupt_get_state(void);
 _CRT_EXTERN interrupt_status_t interrupt_set_state(interrupt_status_t state);
 
 /* Utils */
+_CRT_EXTERN cpu_t get_cpu(void);
 _CRT_EXTERN void stall_ms(size_t ms);
 _CRT_EXTERN void idle(void);
 
-/* Threading */
-_CRT_EXTERN void threading_init(void);
-_CRT_EXTERN tid_t threading_create_thread(thread_entry function, void *args);
+/* Threading - Flags -> Look above for flags  */
+_CRT_EXTERN tid_t threading_create_thread(char *name, thread_entry function, void *args, int flags);
 _CRT_EXTERN void threading_kill_thread(tid_t thread_id);
-_CRT_EXTERN void threading_yield(void);
+_CRT_EXTERN void threading_yield(void *args);
 
 /* Driver Interface */
-
+_CRT_EXTERN void drivers_init(void);
 
 
 

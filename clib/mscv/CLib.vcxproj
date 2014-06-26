@@ -178,7 +178,7 @@
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='CLibK|Win32'">
     <OutDir>..\build\</OutDir>
-    <IncludePath>C:\Users\Phail\Documents\GitHub\MollenOS\clib\include</IncludePath>
+    <IncludePath>C:\Users\Phail\Documents\GitHub\MollenOS\kernel\arch;C:\Users\Phail\Documents\GitHub\MollenOS\kernel\include;C:\Users\Phail\Documents\GitHub\MollenOS\clib\include</IncludePath>
     <ReferencePath />
     <LibraryPath />
     <LibraryWPath />
@@ -201,7 +201,7 @@
       </PrecompiledHeader>
       <WarningLevel>EnableAllWarnings</WarningLevel>
       <Optimization>Full</Optimization>
-      <PreprocessorDefinitions>LIBC_KERNEL</PreprocessorDefinitions>
+      <PreprocessorDefinitions>LIBC_KERNEL;_X86_32</PreprocessorDefinitions>
       <SDLCheck>
       </SDLCheck>
       <CompileAsManaged>

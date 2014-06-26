@@ -10,7 +10,7 @@ INCLUDELIB MSVCRT
 INCLUDELIB OLDNAMES
 
 PUBLIC	_strdup
-EXTRN	_malloc:PROC
+EXTRN	_kmalloc:PROC
 EXTRN	_memcpy:PROC
 ; Function compile flags: /Ogtp
 ; File c:\users\phail\documents\github\mollenos\clib\src\string\strdup.c
@@ -19,13 +19,13 @@ _TEXT	SEGMENT
 _str$ = 8						; size = 4
 _strdup	PROC						; COMDAT
 
-; 9    : {
+; 11   : {
 
   00000	55		 push	 ebp
   00001	8b ec		 mov	 ebp, esp
   00003	53		 push	 ebx
 
-; 10   : 	size_t len = strlen(str);
+; 12   : 	size_t len = strlen(str);
 
   00004	8b 5d 08	 mov	 ebx, DWORD PTR _str$[ebp]
   00007	56		 push	 esi
@@ -40,14 +40,14 @@ $LL3@strdup:
   00015	75 f9		 jne	 SHORT $LL3@strdup
   00017	2b c2		 sub	 eax, edx
 
-; 11   : 	char * out = (char*)malloc(sizeof(char) * (len+1));
+; 13   : 	char * out = (char*)kmalloc(sizeof(char) * (len+1));
 
   00019	8d 70 01	 lea	 esi, DWORD PTR [eax+1]
   0001c	56		 push	 esi
-  0001d	e8 00 00 00 00	 call	 _malloc
+  0001d	e8 00 00 00 00	 call	 _kmalloc
 
-; 12   : 
-; 13   : 	memcpy(out, str, len+1);
+; 14   : 
+; 15   : 	memcpy(out, str, len+1);
 
   00022	56		 push	 esi
   00023	8b f8		 mov	 edi, eax
@@ -56,15 +56,15 @@ $LL3@strdup:
   00027	e8 00 00 00 00	 call	 _memcpy
   0002c	83 c4 10	 add	 esp, 16			; 00000010H
 
-; 14   : 
-; 15   : 	return out;
+; 16   : 
+; 17   : 	return out;
 
   0002f	8b c7		 mov	 eax, edi
   00031	5f		 pop	 edi
   00032	5e		 pop	 esi
   00033	5b		 pop	 ebx
 
-; 16   : }
+; 18   : }
 
   00034	5d		 pop	 ebp
   00035	c3		 ret	 0

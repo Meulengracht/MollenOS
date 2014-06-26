@@ -22,11 +22,20 @@
 #include <arch.h>
 #include <exceptions.h>
 #include <idt.h>
+#include <thread.h>
 #include <gdt.h>
 #include <stdio.h>
+#include <stddef.h>
 
 /* Extern Assembly */
 extern uint32_t __getcr2(void);
+extern void init_fpu(void);
+extern void load_fpu(addr_t *buffer);
+extern void clear_ts(void);
+
+/* Extern Thread */
+extern thread_t *threading_get_current_thread(cpu_t cpu);
+extern cpu_t get_cpu(void);
 
 void exceptions_init(void)
 {
@@ -99,16 +108,62 @@ void exceptions_init(void)
 
 void exception_entry(registers_t *regs)
 {
+	thread_t *t;
+	cpu_t cpu;
+	uint32_t fixed = 0;
+
 	/* Determine Irq */
-	printf("Exception Handler! Irq %u, Error Code: %u, Faulty Address: 0x%x\n",
-		regs->irq, regs->error_code, regs->eip);
+	if (regs->irq == 7)
+	{
+		/* Device Not Available */
+		/* This happens if FPU needs to be restored OR initialized */
+		cpu = get_cpu();
+		t = threading_get_current_thread(cpu);
+
+		/* If it is NULL shit has gone down */
+		if (t != NULL)
+		{
+			/* Now, do we need to initialise? */
+			if (!(t->flags & X86_THREAD_FPU_INITIALISED))
+			{
+				/* Clear TS */
+				clear_ts();
+
+				/* Init */
+				init_fpu();
+				
+				/* Set this exception as handled */
+				fixed = 1;
+			}
+			else if (!(t->flags & X86_THREAD_USEDFPU))
+			{
+				/* Clear TS */
+				clear_ts();
+
+				/* Noooo, we just need to restore */
+				load_fpu(t->fpu_buffer);
+
+				/* Now, set thread to used fpu */
+				t->flags |= X86_THREAD_USEDFPU;
+
+				/* Set this exception as handled */
+				fixed = 1;
+			}
+		}
+	}
 
 	if (regs->irq == 14)
 	{
 		printf("CR2 Address: 0x%x\n", __getcr2());
 	}
 
-	for(;;);
+	if (fixed == 0)
+	{
+		printf("Exception Handler! Irq %u, Error Code: %u, Faulty Address: 0x%x\n",
+			regs->irq, regs->error_code, regs->eip);
+
+		for (;;);
+	}
 }
 
 void kernel_panic(const char *message)
