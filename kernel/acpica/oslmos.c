@@ -124,6 +124,7 @@
 #else
 #include "..\arch\x86\arch.h"
 #include "..\arch\x86\memory.h"
+#include "..\arch\x86\pci.h"
 #endif
 
 #include <heap.h>
@@ -491,10 +492,27 @@ ACPI_STATUS AcpiOsReadPciConfiguration(
 			UINT64                  *Value,
 			UINT32                  Width)
 {
-	outl(0xCF8, 0x80000000L | ((uint32_t)PciId->Bus << 16) | ((uint32_t)PciId->Device << 11) |
-		((uint32_t)PciId->Function << 8) | (Register & ~3));
+	switch (Width)
+	{
+		case 8:
+		{
+			*Value = pci_read_byte(PciId->Bus, PciId->Device, PciId->Function, Register);
+		} break;
 
-	*Value = inl(0xCFC + (Register & 3));
+		case 16:
+		{
+			*Value = pci_read_word(PciId->Bus, PciId->Device, PciId->Function, Register);
+		} break;
+
+		case 32:
+		{
+			*Value = pci_read_dword(PciId->Bus, PciId->Device, PciId->Function, Register);
+		} break;
+
+		default:
+			return (AE_ERROR);
+	}
+
 	return (AE_OK);
 }
 
@@ -519,9 +537,27 @@ ACPI_STATUS AcpiOsWritePciConfiguration(
 			UINT64                  Value,
 			UINT32                  Width)
 {
-	outl(0xCF8, 0x80000000L | ((uint32_t)PciId->Bus << 16) | ((uint32_t)PciId->Device << 11) |
-		((uint32_t)PciId->Function << 8) | (Register & ~3));
-	outl(0xCFC + (Register & 3), (uint32_t)Value);
+	switch (Width)
+	{
+	case 8:
+	{
+		pci_write_byte(PciId->Bus, PciId->Device, PciId->Function, Register, (UINT8)Value);
+	} break;
+
+	case 16:
+	{
+		pci_write_word(PciId->Bus, PciId->Device, PciId->Function, Register, (UINT16)Value);
+	} break;
+
+	case 32:
+	{
+		pci_write_dword(PciId->Bus, PciId->Device, PciId->Function, Register, (UINT32)Value);
+	} break;
+
+	default:
+		return (AE_ERROR);
+	}
+
 	return (AE_OK);
 }
 

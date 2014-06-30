@@ -39,12 +39,17 @@
     <ClCompile Include="..\..\..\arch\x86\components\thread.c" />
     <ClCompile Include="..\..\..\arch\x86\components\video.c" />
     <ClCompile Include="..\..\..\arch\x86\components\video_font8x16.c" />
+    <ClCompile Include="..\..\..\arch\x86\debug\disasm.c" />
     <ClCompile Include="..\..\..\arch\x86\drivers\driver_manager.c" />
+    <ClCompile Include="..\..\..\arch\x86\drivers\usb\ohci\ohci.c" />
     <ClCompile Include="..\..\..\arch\x86\memory\mm_phys.c" />
     <ClCompile Include="..\..\..\arch\x86\memory\mm_virt.c" />
   </ItemGroup>
   <ItemGroup>
     <None Include="packages.config" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\..\..\arch\x86\debug\disasm.h" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <ProjectGuid>{17145F88-DAEA-496B-A91F-2A78ED5673CC}</ProjectGuid>

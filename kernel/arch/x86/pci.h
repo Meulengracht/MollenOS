@@ -105,9 +105,27 @@ typedef struct _pci_driver
 	struct _pci_device_header *header;
 
 	/* Children (list.h) */
+	void *parent;
 	void *children;
 
 } pci_driver_t;
+
+typedef struct _pci_root_bridge
+{
+	/* Type */
+	uint32_t type;
+
+	/* Location */
+	uint32_t bus;
+
+	/* Information (ACPICA) */
+	void *handle;
+	int irqtable[128];		/* 4 * 32 */
+
+	/* Children (list.h) */
+	void *children;
+
+} pci_root_bridge_t;
 
 /* Types */
 #define X86_PCI_TYPE_BRIDGE		0x1
@@ -119,5 +137,21 @@ typedef struct _pci_driver
 #define X86_PCI_TYPE_UHCI		0x4
 #define X86_PCI_TYPE_OHCI		0x5
 #define X86_PCI_TYPE_XHCI		0x6
+
+
+/* Prototypes */
+_CRT_EXTERN uint8_t pci_read_byte(const uint16_t bus, const uint16_t dev,
+									const uint16_t func, const uint32_t reg);
+_CRT_EXTERN uint16_t pci_read_word(const uint16_t bus, const uint16_t dev,
+									const uint16_t func, const uint32_t reg);
+_CRT_EXTERN uint32_t pci_read_dword(const uint16_t bus, const uint16_t dev,
+									const uint16_t func, const uint32_t reg);
+
+_CRT_EXTERN void pci_write_byte(const uint16_t bus, const uint16_t dev,
+								 const uint16_t func, const uint32_t reg, uint8_t value);
+_CRT_EXTERN void pci_write_word(const uint16_t bus, const uint16_t dev,
+								 const uint16_t func, const uint32_t reg, uint16_t value);
+_CRT_EXTERN void pci_write_dword(const uint16_t bus, const uint16_t dev,
+								 const uint16_t func, const uint32_t reg, uint32_t value);
 
 #endif // !_X86_PCI_H_

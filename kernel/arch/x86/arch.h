@@ -185,6 +185,9 @@ _CRT_EXTERN cpu_t get_cpu(void);
 _CRT_EXTERN void stall_ms(size_t ms);
 _CRT_EXTERN void idle(void);
 
+/* Debug */
+_CRT_EXTERN char *get_instructions_at_mem(addr_t address);
+
 /* Threading - Flags -> Look above for flags  */
 _CRT_EXTERN tid_t threading_create_thread(char *name, thread_entry function, void *args, int flags);
 _CRT_EXTERN void threading_kill_thread(tid_t thread_id);

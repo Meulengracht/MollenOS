@@ -25,6 +25,15 @@
     <Filter Include="Threading">
       <UniqueIdentifier>{d5a4e472-8069-4770-86ad-04971f2e9ccb}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Drivers\Usb">
+      <UniqueIdentifier>{7aac0147-c0dc-4843-86d7-c798578a964c}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Drivers\Usb\OHCI">
+      <UniqueIdentifier>{4973448b-314e-47e9-b1df-7312d7f22af7}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Disasm">
+      <UniqueIdentifier>{e326f9c3-c06c-4e99-b85d-431d109952cc}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\..\arch\x86\boot\main.c">
@@ -75,6 +84,12 @@
     <ClCompile Include="..\..\..\arch\x86\drivers\driver_manager.c">
       <Filter>Drivers</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\..\arch\x86\drivers\usb\ohci\ohci.c">
+      <Filter>Drivers\Usb\OHCI</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\arch\x86\debug\disasm.c">
+      <Filter>Disasm</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <None Include="packages.config" />
@@ -101,5 +116,10 @@
     <NASM Include="..\..\..\arch\x86\components\threading.asm">
       <Filter>Threading</Filter>
     </NASM>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\..\..\arch\x86\debug\disasm.h">
+      <Filter>Disasm</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

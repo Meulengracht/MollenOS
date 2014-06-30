@@ -24,8 +24,11 @@
 #include <idt.h>
 #include <thread.h>
 #include <gdt.h>
+#include <string.h>
 #include <stdio.h>
 #include <stddef.h>
+#include <debug\disasm.h>
+#include <heap.h>
 
 /* Extern Assembly */
 extern uint32_t __getcr2(void);
@@ -111,6 +114,7 @@ void exception_entry(registers_t *regs)
 	thread_t *t;
 	cpu_t cpu;
 	uint32_t fixed = 0;
+	//char *instructions = NULL;
 
 	/* Determine Irq */
 	if (regs->irq == 7)
@@ -162,9 +166,58 @@ void exception_entry(registers_t *regs)
 		printf("Exception Handler! Irq %u, Error Code: %u, Faulty Address: 0x%x\n",
 			regs->irq, regs->error_code, regs->eip);
 
+		/* Disassembly */
+		//instructions = get_instructions_at_mem(regs->eip);
+
+		/* Print it */
+		//printf("Disassembly of 0x%x:\n%s", regs->eip, instructions);
+
 		for (;;);
 	}
 }
+
+/* Disassembles Memory */
+//char *get_instructions_at_mem(addr_t address)
+//{
+//	/* We debug 50 bytes of memory */
+//	int n;
+//	int num_instructions = 1; /* Debug, normal 50 */
+//	char *instructions = (char*)kmalloc(0x1000);
+//	addr_t pointer = address;
+//
+//	/* Null */
+//	memset(instructions, 0, 0x1000);
+//
+//	/* Do it! */
+//	for (n = 0; n < num_instructions; n++)
+//	{
+//		INSTRUCTION inst;
+//		char inst_str[64];
+//
+//		/* Get instruction */
+//		get_instruction(&inst, (void*)pointer, MODE_32);
+//
+//		/* Translate */
+//		get_instruction_string(&inst, FORMAT_ATT, 0, inst_str, sizeof(inst_str));
+//
+//		/* Append to list */
+//		if (n == 0)
+//		{
+//			strcpy(instructions, inst_str);
+//			strcat(instructions, "\n");
+//		}
+//		else
+//		{
+//			strcat(instructions, inst_str);
+//			strcat(instructions, "\n");
+//		}
+//
+//		/* Increament Pointer */
+//		pointer += inst.length;
+//	}
+//
+//	return instructions;
+//}
 
 void kernel_panic(const char *message)
 {

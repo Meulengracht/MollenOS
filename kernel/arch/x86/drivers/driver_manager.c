@@ -22,11 +22,25 @@
 
 /* Includes */
 #include <arch.h>
+#include <assert.h>
+#include <acpi.h>
 #include <pci.h>
 #include <list.h>
 #include <heap.h>
 #include <stddef.h>
 #include <stdio.h>
+#include <limits.h>
+
+/* Definitions */
+#define ACPI_BUS_TYPE_DEVICE	0x1
+#define ACPI_BUS_TYPE_PROCESSOR	0x2
+#define ACPI_BUS_TYPE_THERMAL	0x3
+#define ACPI_BUS_TYPE_POWER		0x4
+
+#define ACPI_STA_DEFAULT		0x1
+
+/* Drivers */
+#include <drivers\usb\ohci\ohci.h>
 
 /* Prototypes */
 void pci_check_function(uint8_t bus, uint8_t device, uint8_t function);
@@ -35,6 +49,10 @@ void pci_check_bus(uint8_t bus);
 
 /* Globals */
 list_t *glb_pci_devices = NULL;
+
+
+list_t *glb_pci_acpica = NULL;
+uint32_t glb_root_count = 0;
 
 /* Externs */
 
@@ -239,7 +257,7 @@ char *pci_to_string(uint8_t class, uint8_t sub_class, uint8_t prog_if)
 
 				case 3:
 				{
-					return "Flash Card Controller"
+					return "Flash Card Controller";
 				} break;
 
 				case 0x80:
@@ -1053,8 +1071,30 @@ uint32_t pci_read_dword(const uint16_t bus, const uint16_t dev,
 	return inl(X86_PCI_DATA + (reg & 3));
 }
 
+uint16_t pci_read_word(const uint16_t bus, const uint16_t dev,
+	const uint16_t func, const uint32_t reg)
+{
+	/* Select Bus/Device/Function/Register */
+	outl(X86_PCI_SELECT, 0x80000000L | ((uint32_t)bus << 16) | ((uint32_t)dev << 11) |
+		((uint32_t)func << 8) | (reg & ~3));
+
+	/* Read Data */
+	return inw(X86_PCI_DATA + (reg & 3));
+}
+
+uint8_t pci_read_byte(const uint16_t bus, const uint16_t dev,
+	const uint16_t func, const uint32_t reg)
+{
+	/* Select Bus/Device/Function/Register */
+	outl(X86_PCI_SELECT, 0x80000000L | ((uint32_t)bus << 16) | ((uint32_t)dev << 11) |
+		((uint32_t)func << 8) | (reg & ~3));
+
+	/* Read Data */
+	return inb(X86_PCI_DATA + (reg & 3));
+}
+
 void pci_write_dword(const uint16_t bus, const uint16_t dev,
-	const uint16_t func, const uint32_t reg, const uint32_t value)
+	const uint16_t func, const uint32_t reg, uint32_t value)
 {
 	/* Select Bus/Device/Function/Register */
 	outl(X86_PCI_SELECT, 0x80000000L | ((uint32_t)bus << 16) | ((uint32_t)dev << 11) |
@@ -1062,6 +1102,30 @@ void pci_write_dword(const uint16_t bus, const uint16_t dev,
 
 	/* Write DATA */
 	outl(X86_PCI_DATA + (reg & 3), value);
+	return;
+}
+
+void pci_write_word(const uint16_t bus, const uint16_t dev,
+	const uint16_t func, const uint32_t reg, uint16_t value)
+{
+	/* Select Bus/Device/Function/Register */
+	outl(X86_PCI_SELECT, 0x80000000L | ((uint32_t)bus << 16) | ((uint32_t)dev << 11) |
+		((uint32_t)func << 8) | (reg & ~3));
+
+	/* Write DATA */
+	outw(X86_PCI_DATA + (reg & 3), value);
+	return;
+}
+
+void pci_write_byte(const uint16_t bus, const uint16_t dev,
+	const uint16_t func, const uint32_t reg, uint8_t value)
+{
+	/* Select Bus/Device/Function/Register */
+	outl(X86_PCI_SELECT, 0x80000000L | ((uint32_t)bus << 16) | ((uint32_t)dev << 11) |
+		((uint32_t)func << 8) | (reg & ~3));
+
+	/* Write DATA */
+	outb(X86_PCI_DATA + (reg & 3), value);
 	return;
 }
 
@@ -1301,6 +1365,175 @@ void drivers_enumerate(void)
 	}
 }
 
+/* Get Status and Type */
+ACPI_STATUS acpi_retrieve_status(ACPI_HANDLE ObjHandle, uint64_t *STA)
+{
+	ACPI_STATUS Status;
+	ACPI_BUFFER aBuffer;
+
+	aBuffer.Length = 8;
+	aBuffer.Pointer = STA;
+
+	/* Execute _STA method */
+	Status = AcpiEvaluateObjectTyped(ObjHandle, "_STA", NULL, &aBuffer, ACPI_TYPE_INTEGER);
+	if (ACPI_SUCCESS(Status))
+		return AE_OK;
+
+	/* Set it to pseudo ok */
+	if (Status == AE_NOT_FOUND) 
+	{
+		*STA = ACPI_STA_DEVICE_PRESENT | ACPI_STA_DEVICE_ENABLED |
+				ACPI_STA_DEVICE_UI | ACPI_STA_DEVICE_FUNCTIONING;
+		return AE_OK;
+
+	}
+
+	return Status;
+}
+
+int acpi_retrieve_type_status(ACPI_HANDLE ObjHandle, int *ObjType, uint64_t *STA)
+{
+	ACPI_STATUS Status;
+	ACPI_OBJECT_TYPE Type;
+
+	/* Get Handle Type */
+	Status = AcpiGetType(ObjHandle, &Type);
+	if (ACPI_FAILURE(Status))
+		return -1;
+
+	switch (Type)
+	{
+		case ACPI_TYPE_ANY:             /* for ACPI_ROOT_OBJECT */
+		case ACPI_TYPE_DEVICE:
+			*ObjType = ACPI_BUS_TYPE_DEVICE;
+			Status = acpi_retrieve_status(ObjHandle, STA);
+			if (ACPI_FAILURE(Status))
+				return -1;
+			break;
+		case ACPI_TYPE_PROCESSOR:
+			*ObjType = ACPI_BUS_TYPE_PROCESSOR;
+			Status = acpi_retrieve_status(ObjHandle, STA);
+			if (ACPI_FAILURE(Status))
+				return -1;
+			break;
+		case ACPI_TYPE_THERMAL:
+			*ObjType = ACPI_BUS_TYPE_THERMAL;
+			*STA = ACPI_STA_DEFAULT;
+			break;
+		case ACPI_TYPE_POWER:
+			*ObjType = ACPI_BUS_TYPE_POWER;
+			*STA = ACPI_STA_DEFAULT;
+			break;
+		default:
+			return -1;
+	}
+
+	return 0;
+}
+
+/* Callback */
+
+/* _SEG - Segment Number 
+ * _BBN - Bus Number */
+ACPI_STATUS acpi_walk_callback(ACPI_HANDLE ObjHandle, UINT32 Level, void *Context, void **ReturnValue)
+{
+	int Type;
+	uint64_t STA;
+	int Result;
+	ACPI_STATUS Status;
+	ACPI_DEVICE_INFO DevInfo;
+	ACPI_DEVICE_INFO *DevInfoPtr = &DevInfo;
+
+	/* Get type and status */
+	Result = acpi_retrieve_type_status(ObjHandle, &Type, &STA);
+	
+	/* Sanity */
+	if (Result)
+		return AE_OK;
+
+	/* Create an acpi object, fill with info */
+	Status = AcpiGetObjectInfo(ObjHandle, &DevInfoPtr);
+
+	/* Sanity */
+	if (ACPI_FAILURE(Status))
+		return AE_OK;
+
+	
+}
+
+/* Retrives Object Data */
+ACPI_STATUS acpi_get_info_callback(ACPI_RESOURCE *res, void *context)
+{
+	context = context;
+	if (res->Type == ACPI_RESOURCE_TYPE_IRQ) 
+	{
+		ACPI_RESOURCE_IRQ *irq;
+
+		irq = &res->Data.Irq;
+		printf("Irq: %u\n", irq->Interrupts[0]);
+		
+	}
+	else if (res->Type == ACPI_RESOURCE_TYPE_EXTENDED_IRQ)
+	{
+		ACPI_RESOURCE_EXTENDED_IRQ *irq;
+
+		irq = &res->Data.ExtendedIrq;
+		printf("Irq: %u\n", irq->Interrupts[0]);
+	}
+
+	return AE_OK;
+}
+
+ACPI_STATUS DisplayOneDevice(ACPI_HANDLE ObjHandle, UINT32 Level, void *Context, void **ReturnValue)
+{
+	ACPI_STATUS Status;
+	ACPI_DEVICE_INFO Info;
+	ACPI_DEVICE_INFO *pInfo = &Info;
+	ACPI_BUFFER Path;
+	char Buffer[256];
+	uint32_t fn_num = 0;
+	uint32_t dev_num = 0;
+
+	Path.Length = sizeof(Buffer);
+	Path.Pointer = Buffer;
+
+	/* Get the full path of this device and print it */
+	Status = AcpiGetName(ObjHandle, ACPI_FULL_PATHNAME, &Path);
+	
+	if (ACPI_SUCCESS(Status))
+		printf("%s ", Path.Pointer);
+	
+	/* Get the device info for this device and print it */
+	Status = AcpiGetObjectInfo(ObjHandle, &pInfo);
+	if (ACPI_SUCCESS(Status))
+	{
+		fn_num = (Info.Address >> 16) & 0xFFFF;
+		dev_num = Info.Address & 0xFFFF;
+		
+		printf("- HID: 0x%x, Status: 0x%x, Device: %u, Function: %u\n",
+			Info.HardwareId, Info.CurrentStatus, dev_num, fn_num);
+		
+	}
+
+	/* Get info...? :/ */
+	//AcpiWalkResources(ObjHandle, METHOD_NAME__CRS, acpi_get_info_callback, NULL);
+
+	/* Done */
+	return (AE_OK);
+}
+
+/* Same as above, using ACPICA */
+void drivers_enumerate_acpica(void)
+{
+	ACPI_STATUS status;
+
+	/* Scan PCI */
+	status = AcpiWalkNamespace(ACPI_TYPE_ANY, ACPI_ROOT_OBJECT, ACPI_UINT32_MAX, DisplayOneDevice, NULL, NULL, NULL);
+
+	/* Sanity */
+	assert(ACPI_SUCCESS(status));
+}
+
 /* This installs a driver for each device present (if we have a driver!) */
 void drivers_setup_device(void *data, int n)
 {
@@ -1317,12 +1550,29 @@ void drivers_setup_device(void *data, int n)
 
 			/* Install drivers on that bus */
 			list_execute_all(sub_bus, drivers_setup_device);
+
 		} break;
 
 		case X86_PCI_TYPE_DEVICE:
 		{
 			/* Get driver */
-			
+
+			/* Serial Bus Comms */
+			if (driver->header->class_code == 0x0C)
+			{
+				/* Usb? */
+				if (driver->header->subclass == 0x03)
+				{
+					/* Controller Type? */
+
+					/* UHCI -> 0. OHCI -> 0x10. EHCI -> 0x20. xHCI -> 0x30 */
+					if (driver->header->ProgIF == 0x10)
+					{
+						/* Initialise Controller */
+						ohci_init(driver);
+					}
+				}
+			}
 
 		} break;
 
@@ -1336,9 +1586,11 @@ void drivers_init(void)
 {
 	/* Init list, this is "bus 0" */
 	glb_pci_devices = list_create(LIST_SAFE);
+	glb_pci_acpica = list_create(LIST_SAFE);
 
 	/* Start out by enumerating devices */
 	drivers_enumerate();
+	drivers_enumerate_acpica();
 
 	/* Now, for each driver we have available install it */
 	list_execute_all(glb_pci_devices, drivers_setup_device);

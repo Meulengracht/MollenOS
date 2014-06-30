@@ -16,7 +16,7 @@
 * along with this program.If not, see <http://www.gnu.org/licenses/>.
 *
 *
-* MollenOS x86-32 Architecture Header
+* MollenOS Architecture Header
 */
 
 #ifndef _MCORE_MAIN_ARCH_

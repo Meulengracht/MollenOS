@@ -75,7 +75,7 @@ int memory_get_free_bit_low(void)
 	spinlock_acquire(&memory_plock);
 
 	/* Find time! */
-	for (i = 0; i < 8; i++)
+	for (i = 1; i < 8; i++)
 	{
 		if (memory_bitmap[i] != 0xFFFFFFFF)
 		{
@@ -308,6 +308,32 @@ physaddr_t physmem_alloc_block(void)
 {
 	/* Get free bit */
 	int bit = memory_get_free_bit_high();
+	interrupt_status_t int_state;
+
+	/* Sanity */
+	assert(bit != -1);
+
+	/* Get spinlock */
+	int_state = interrupt_disable();
+	spinlock_acquire(&memory_plock);
+
+	/* Set it */
+	memory_setbit(bit);
+
+	/* Release Spinlock */
+	spinlock_release(&memory_plock);
+	interrupt_set_state(int_state);
+
+	/* Statistics */
+	memory_usedblocks++;
+
+	return (physaddr_t)(bit * PAGE_SIZE);
+}
+
+physaddr_t physmem_alloc_block_dma(void)
+{
+	/* Get free bit */
+	int bit = memory_get_free_bit_low();
 	interrupt_status_t int_state;
 
 	/* Sanity */

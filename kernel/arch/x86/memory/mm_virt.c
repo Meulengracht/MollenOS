@@ -31,6 +31,7 @@
 /* Globals */
 page_directory_t *kernel_directory = NULL;
 page_directory_t *current_directories[64];
+volatile addr_t glb_reserved_ptr = 0;
 
 /* Externs */
 extern graphics_t gfx_info;
@@ -363,15 +364,38 @@ void memory_inital_map(physaddr_t phys, virtaddr_t virt)
 	ptable->Pages[PAGE_TABLE_INDEX(virt)] = (phys & PAGE_MASK) | PAGE_PRESENT | PAGE_WRITE;
 }
 
+/* Map system memory */
+virtaddr_t *memory_map_system_memory(physaddr_t physical, int pages)
+{
+	int i;
+	cpu_t cpu;
+	virtaddr_t *ret = (virtaddr_t*)glb_reserved_ptr;
+
+	/* Get cpu */
+	cpu = get_cpu();
+
+	/* Map it */
+	for (i = 0; i < pages; i++)
+	{
+		/* Call Map */
+		memory_map(memory_get_current_pdir(cpu), physical + (i * PAGE_SIZE), glb_reserved_ptr, 0);
+
+		/* Increase */
+		glb_reserved_ptr += PAGE_SIZE;
+	}
+
+	return ret + (physical & 0xFFF);
+}
+
 /* Creates a page directory and loads it */
 void virtmem_init(void)
 {
 	/* Variables we need */
 	uint32_t i;
-	addr_t reserved_ptr = MEMORY_LOCATION_RESERVED;
 	page_table_t *itable;
 
 	/* Allocate space */
+	glb_reserved_ptr = MEMORY_LOCATION_RESERVED;
 	kernel_directory = (page_directory_t*)physmem_alloc_block();
 	physmem_alloc_block(); physmem_alloc_block();
 	itable = memory_create_page_table();
@@ -423,16 +447,16 @@ void virtmem_init(void)
 				page_length++;
 
 			/* Update entry */
-			reserved_mappings[i].virtual = reserved_ptr;
+			reserved_mappings[i].virtual = glb_reserved_ptr;
 
 			/* Map it */
 			for (k = 0; k < page_length; k++)
 			{ 
 				/* Call Map */
-				memory_inital_map(((reserved_mappings[i].physical & PAGE_MASK) + (k * PAGE_SIZE)), reserved_ptr);
+				memory_inital_map(((reserved_mappings[i].physical & PAGE_MASK) + (k * PAGE_SIZE)), glb_reserved_ptr);
 
 				/* Increase */
-				reserved_ptr += PAGE_SIZE;
+				glb_reserved_ptr += PAGE_SIZE;
 			}
 		}
 	}

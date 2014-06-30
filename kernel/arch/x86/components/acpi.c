@@ -20,6 +20,7 @@
 */
 
 #include <arch.h>
+#include <assert.h>
 #include <acpi.h>
 #include <stdio.h>
 #include <heap.h>
@@ -33,6 +34,38 @@ static ACPI_TABLE_DESC TableArray[ACPI_MAX_INIT_TABLES];
 list_t *acpi_nodes = NULL;
 volatile addr_t local_apic_addr = 0;
 volatile uint32_t num_cpus = 0;
+
+/* Fixed Event Handlers */
+UINT32 acpi_shutdown(void *Context)
+{
+	ACPI_EVENT_STATUS eStatus;
+	ACPI_STATUS Status;
+
+	/* Get Event Data */
+	Status = AcpiGetEventStatus(ACPI_EVENT_POWER_BUTTON, &eStatus);
+
+	/* Sanity */
+	assert(ACPI_SUCCESS(Status));
+
+	/* */
+	if (eStatus & ACPI_EVENT_FLAG_ENABLED)
+	{
+		/* bla bla */
+	}
+
+	/*AcpiEnableEvent(ACPI_EVENT_POWER_BUTTON, 0);
+	AcpiTerminate();*/
+	return AE_OK;
+}
+
+UINT32 acpi_sleep(void *Context)
+{
+
+
+
+	//AcpiEnterSleepState
+	return AE_OK;
+}
 
 /* Enumerate MADT Entries */
 void madt_enumerate(void *start, void *end)
@@ -197,6 +230,8 @@ void acpi_init_stage1(void)
 void acpi_init_stage2(void)
 {
 	ACPI_STATUS Status;
+	ACPI_OBJECT arg1;
+	ACPI_OBJECT_LIST args;
 
 	/* Initialize the ACPICA subsystem */
 	printf("    * Acpica Stage 2 Starting\n");
@@ -229,7 +264,8 @@ void acpi_init_stage2(void)
 	
 	
 	/* Note: Local handlers should be installed here */
-
+	AcpiInstallFixedEventHandler(ACPI_EVENT_POWER_BUTTON, acpi_shutdown, NULL);
+	AcpiInstallFixedEventHandler(ACPI_EVENT_SLEEP_BUTTON, acpi_sleep, NULL);
 
 	/* Initialize the ACPI hardware */
 	printf("      > Enabling subsystems\n");
@@ -248,6 +284,13 @@ void acpi_init_stage2(void)
 		printf("      > FAILED InitializeObjects, %u!\n", Status);
 		for (;;);
 	}
+
+	arg1.Type = ACPI_TYPE_INTEGER;
+	arg1.Integer.Value = 1;
+	args.Count = 1;
+	args.Pointer = &arg1;
+
+	AcpiEvaluateObject(ACPI_ROOT_OBJECT, "_PIC", &args, NULL);
 
 	/* Now it is expected to do namespace walk and execute
 	 * all _PRW methods. I should install GPE handlers here */
