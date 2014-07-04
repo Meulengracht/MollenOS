@@ -225,6 +225,6 @@ typedef struct _o_controller
 } ohci_controller_t;
 
 /* Prototypes */
-_CRT_EXTERN void ohci_init(pci_driver_t *device);
+_CRT_EXTERN void ohci_init(pci_driver_t *device, int irq_override);
 
 #endif // !_X86_USB_OHCI_H_

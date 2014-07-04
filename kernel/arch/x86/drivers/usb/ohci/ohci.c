@@ -57,7 +57,7 @@ const char *ohci_err_msgs[] =
 	"Not Accessed"
 };
 
-void ohci_init(pci_driver_t *device)
+void ohci_init(pci_driver_t *device, int irq_override)
 {
 	ohci_controller_t *controller;
 
@@ -69,7 +69,12 @@ void ohci_init(pci_driver_t *device)
 	controller = (ohci_controller_t*)kmalloc(sizeof(ohci_controller_t));
 	controller->pci_info = device;
 	controller->id = glb_ohci_id;
-	controller->irq = device->header->interrupt_line;
+
+	/* Determine Irq */
+	if (irq_override != -1)
+		controller->irq = (uint32_t)irq_override;
+	else
+		controller->irq = device->header->interrupt_line;
 
 	/* Enable memory and bus mastering */
 	pci_write_word((const uint16_t)device->bus, (const uint16_t)device->device, (const uint16_t)device->function, 0x4, 0x6);
@@ -99,7 +104,7 @@ void ohci_init(pci_driver_t *device)
 
 	/* Debug */
 	printf("OHCI - Id %u, Irq %u, bar0: 0x%x (0x%x), dma: 0x%x\n", 
-		controller->id, device->header->interrupt_pin, controller->control_space,
+		controller->id, controller->irq, controller->control_space,
 		(addr_t)controller->registers, controller->hcca_space);
 
 	/* Do we have control of this controller? */

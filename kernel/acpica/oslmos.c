@@ -539,23 +539,23 @@ ACPI_STATUS AcpiOsWritePciConfiguration(
 {
 	switch (Width)
 	{
-	case 8:
-	{
-		pci_write_byte(PciId->Bus, PciId->Device, PciId->Function, Register, (UINT8)Value);
-	} break;
+		case 8:
+		{
+			pci_write_byte(PciId->Bus, PciId->Device, PciId->Function, Register, (UINT8)Value);
+		} break;
 
-	case 16:
-	{
-		pci_write_word(PciId->Bus, PciId->Device, PciId->Function, Register, (UINT16)Value);
-	} break;
+		case 16:
+		{
+			pci_write_word(PciId->Bus, PciId->Device, PciId->Function, Register, (UINT16)Value);
+		} break;
 
-	case 32:
-	{
-		pci_write_dword(PciId->Bus, PciId->Device, PciId->Function, Register, (UINT32)Value);
-	} break;
+		case 32:
+		{
+			pci_write_dword(PciId->Bus, PciId->Device, PciId->Function, Register, (UINT32)Value);
+		} break;
 
-	default:
-		return (AE_ERROR);
+		default:
+			return (AE_ERROR);
 	}
 
 	return (AE_OK);

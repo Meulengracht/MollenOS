@@ -51,10 +51,12 @@ UINT32 acpi_shutdown(void *Context)
 	if (eStatus & ACPI_EVENT_FLAG_ENABLED)
 	{
 		/* bla bla */
+		AcpiClearEvent(ACPI_EVENT_POWER_BUTTON);
 	}
 
-	/*AcpiEnableEvent(ACPI_EVENT_POWER_BUTTON, 0);
-	AcpiTerminate();*/
+	/* Shutdown - State S5 */
+	AcpiEnterSleepState(ACPI_STATE_S5);
+
 	return AE_OK;
 }
 
@@ -65,6 +67,19 @@ UINT32 acpi_sleep(void *Context)
 
 	//AcpiEnterSleepState
 	return AE_OK;
+}
+
+UINT32 acpi_reboot(void)
+{
+	ACPI_STATUS status = AcpiReset();
+
+	if (ACPI_FAILURE(status))
+		printf("Reboot is unsupported\n");
+	else
+		printf("Reboot is in progress...\n");
+
+	/* Safety Catch */
+	for (;;);
 }
 
 /* Enumerate MADT Entries */
@@ -267,6 +282,36 @@ void acpi_init_stage2(void)
 	AcpiInstallFixedEventHandler(ACPI_EVENT_POWER_BUTTON, acpi_shutdown, NULL);
 	AcpiInstallFixedEventHandler(ACPI_EVENT_SLEEP_BUTTON, acpi_sleep, NULL);
 
+	/* Install the default address space handlers. */
+	Status = AcpiInstallAddressSpaceHandler(ACPI_ROOT_OBJECT,
+		ACPI_ADR_SPACE_SYSTEM_MEMORY, ACPI_DEFAULT_HANDLER, NULL, NULL);
+	if (ACPI_FAILURE(Status)) {
+		printf("Could not initialise SystemMemory handler: %s\n",
+			AcpiFormatException(Status));
+	}
+
+	Status = AcpiInstallAddressSpaceHandler(ACPI_ROOT_OBJECT,
+		ACPI_ADR_SPACE_SYSTEM_IO, ACPI_DEFAULT_HANDLER, NULL, NULL);
+	if (ACPI_FAILURE(Status)) {
+		printf("Could not initialise SystemIO handler: %s\n",
+			AcpiFormatException(Status));
+	}
+
+	Status = AcpiInstallAddressSpaceHandler(ACPI_ROOT_OBJECT,
+		ACPI_ADR_SPACE_PCI_CONFIG, ACPI_DEFAULT_HANDLER, NULL, NULL);
+	if (ACPI_FAILURE(Status)) {
+		printf("Could not initialise PciConfig handler: %s\n",
+			AcpiFormatException(Status));
+	}
+
+	/* Set APIC Mode */
+	arg1.Type = ACPI_TYPE_INTEGER;
+	arg1.Integer.Value = 1;
+	args.Count = 1;
+	args.Pointer = &arg1;
+
+	AcpiEvaluateObject(ACPI_ROOT_OBJECT, "_PIC", &args, NULL);
+
 	/* Initialize the ACPI hardware */
 	printf("      > Enabling subsystems\n");
 	Status = AcpiEnableSubsystem(ACPI_FULL_INITIALIZATION);
@@ -284,13 +329,6 @@ void acpi_init_stage2(void)
 		printf("      > FAILED InitializeObjects, %u!\n", Status);
 		for (;;);
 	}
-
-	arg1.Type = ACPI_TYPE_INTEGER;
-	arg1.Integer.Value = 1;
-	args.Count = 1;
-	args.Pointer = &arg1;
-
-	AcpiEvaluateObject(ACPI_ROOT_OBJECT, "_PIC", &args, NULL);
 
 	/* Now it is expected to do namespace walk and execute
 	 * all _PRW methods. I should install GPE handlers here */

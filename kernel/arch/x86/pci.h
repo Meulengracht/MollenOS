@@ -110,22 +110,101 @@ typedef struct _pci_driver
 
 } pci_driver_t;
 
-typedef struct _pci_root_bridge
+/* Internal Use */
+typedef struct _pci_irq_res
+{
+	/* Double Voids */
+	void *device;
+	void *table;
+
+} pci_irq_resource_t;
+
+typedef struct _pci_routings
+{
+	/* Just a lot of ints */
+	int interrupts[128];
+
+} pci_routing_table_t;
+
+#pragma pack(push, 1)
+typedef struct _pci_device
 {
 	/* Type */
 	uint32_t type;
 
-	/* Location */
-	uint32_t bus;
-
-	/* Information (ACPICA) */
+	/* ACPI_HANDLE */
 	void *handle;
-	int irqtable[128];		/* 4 * 32 */
 
-	/* Children (list.h) */
-	void *children;
+	/* Irq Routings */
+	struct _pci_routings *routings;
 
-} pci_root_bridge_t;
+	/* Bus Id */
+	char bus_id[8];
+
+	/* PCI Location */
+	uint32_t bus;
+	uint32_t dev;
+	uint32_t func;
+	uint32_t seg;
+
+	/* Supported NS Functions */
+	uint32_t features;
+
+	/* Current Status */
+	uint32_t status;
+
+	/* Bus Address */
+	uint64_t address;
+
+	/* Hardware Id */
+	char hid[16];
+
+	/* Unique Id */
+	char uid[16];
+
+	/* Compatible Id's */
+	void *cid;
+
+	/* Type Features */
+	uint64_t xfeatures;
+
+} pci_device_t;
+#pragma pack(pop)
+
+
+/* Feature Flags */
+#define X86_ACPI_FEATURE_STA	0x1
+#define X86_ACPI_FEATURE_CID	0x2
+#define X86_ACPI_FEATURE_RMV	0x4
+#define X86_ACPI_FEATURE_EJD	0x8
+#define X86_ACPI_FEATURE_LCK	0x10
+#define X86_ACPI_FEATURE_PS0	0x20
+#define X86_ACPI_FEATURE_PRW	0x40
+#define X86_ACPI_FEATURE_ADR	0x80
+#define X86_ACPI_FEATURE_HID	0x100
+#define X86_ACPI_FEATURE_UID	0x200
+#define X86_ACPI_FEATURE_PRT	0x400
+#define X86_ACPI_FEATURE_BBN	0x800
+#define X86_ACPI_FEATURE_SEG	0x1000
+#define X86_ACPI_FEATURE_REG	0x2000
+
+/* Type Definitions */
+#define ACPI_BUS_SYSTEM			0x0
+#define ACPI_BUS_TYPE_DEVICE	0x1
+#define ACPI_BUS_TYPE_PROCESSOR	0x2
+#define ACPI_BUS_TYPE_THERMAL	0x3
+#define ACPI_BUS_TYPE_POWER		0x4
+#define ACPI_BUS_TYPE_SLEEP		0x5
+#define ACPI_BUS_TYPE_PWM		0x6
+#define ACPI_BUS_ROOT_BRIDGE	0x7
+
+
+/* Video Features */
+#define ACPI_VIDEO_SWITCHING	0x1
+#define ACPI_VIDEO_ROM			0x2
+#define ACPI_VIDEO_POSTING		0x4
+#define ACPI_VIDEO_BACKLIGHT	0x8
+#define ACPI_VIDEO_BRIGHTNESS	0x10
 
 /* Types */
 #define X86_PCI_TYPE_BRIDGE		0x1
