@@ -42,6 +42,7 @@ extern void mcore_entry(void*);
  * MCore project. All platform libs should call these 
  * whenever possible. */
 extern void heap_init(void);
+extern void apic_print_debug_cpu(void);
 
 void init(multiboot_info_t *bootinfo, uint32_t kernel_size)
 {

@@ -38,6 +38,7 @@ extern cpu_info_t boot_cpu_info;
 
 /* Globals */
 spinlock_t glb_boot_lock = 0;
+volatile uint32_t glb_cpus_booted = 1;
 
 /* Trampoline Code */
 unsigned char trampoline_code[] = {
@@ -78,6 +79,9 @@ void ap_entry(void)
 
 	/* Disable interrupts */
 	interrupt_disable();
+
+	/* Increament Boot Count */
+	glb_cpus_booted++;
 
 	/* Install GDT, IDT */
 	gdt_install();
@@ -163,7 +167,9 @@ void cpu_start_core(void *data, int n)
 	/* Send INIT SIPI command (0x4600) */
 	apic_write_local(0x300, 0x4600 | 0x5);  /* Vector 5, code is located at 0x5000 */
 
-	/* Verify startup */
+	/* Verify startup 
+	 * It should have a timeout of 200 ms, 
+	 * then resend SIPI */
 	cpu_result = apic_read_local(0x300);
 	while (cpu_result & 0x1000) stall_ms(1);
 	printf(" booted!\n");

@@ -42,15 +42,13 @@ extern uint32_t __getflags(void);
 extern list_t *acpi_nodes;
 
 /* Globals */
-irq_entry_t irq_table[X86_IDT_DESCRIPTORS];
+irq_entry_t irq_table[X86_IDT_DESCRIPTORS][X86_MAX_HANDLERS_PER_INTERRUPT];
 
 /* Install a interrupt handler */
-void interrupt_install(uint32_t irq, irq_handler_t callback, void *args)
+void _interrupt_install(uint32_t irq, uint32_t idt_entry, uint64_t apic_entry, irq_handler_t callback, void *args)
 {
 	/* Determine Correct Irq */
-	uint32_t c_irq = 0x20;
 	uint32_t i_irq = irq;
-	uint64_t apic_flags = 0;
 
 	/* Sanity */
 	assert(irq < X86_IDT_DESCRIPTORS);
@@ -63,7 +61,9 @@ void interrupt_install(uint32_t irq, irq_handler_t callback, void *args)
 
 		while (io_redirect != NULL)
 		{
-			/* Do we need to redirect? */
+			/* Do we need to redirect? 
+			 * TODO Extract Trigger mode & Polarity if redirect is
+			 * avail */
 			if (io_redirect->SourceIrq == irq)
 			{
 				i_irq = io_redirect->GlobalIrq;
@@ -75,25 +75,40 @@ void interrupt_install(uint32_t irq, irq_handler_t callback, void *args)
 			n++;
 		}
 	}
-	
-	c_irq += i_irq;
 
 	/* Install into table */
-	irq_table[c_irq].function = callback;
-	irq_table[c_irq].data = args;
+	interrupt_install_soft(idt_entry, callback, args);
 
 	/* Do ACPI */
-	/* TODO!!!! Check that i_irq is LOWER than max redirection entries */
-
-	/* Update APIC */
-	/* Setup flags */
-	apic_flags |= 0x0F;	/* Target all groups */
-	apic_flags <<= 56;
-	apic_flags |= 0x100; /* Lowest Priority */
-	apic_flags |= 0x800; /* Logical Destination Mode */
+	/* TODO!!!! FIND CORRECT APIC IO if multiple */
 
 	/* i_irq is the initial irq */
-	apic_write_entry_io(0, (0x10 + (i_irq * 2)), (apic_flags | (0x20 + i_irq)));
+	apic_write_entry_io(0, (0x10 + (i_irq * 2)), apic_entry);
+}
+
+/* Install a normal, lowest priority interrupt */
+void interrupt_install(uint32_t irq, uint32_t idt_entry, irq_handler_t callback, void *args)
+{
+	uint64_t apic_flags = 0;
+
+	apic_flags = 0xFF00000000000000;	/* Target all groups */
+	apic_flags |= 0x100;				/* Lowest Priority */
+	apic_flags |= 0x800;				/* Logical Destination Mode */
+	apic_flags |= idt_entry;			/* Interrupt Vector */
+
+	_interrupt_install(irq, idt_entry, apic_flags, callback, args);
+}
+
+/* Install a broadcast, global interupt */
+void interrupt_install_broadcast(uint32_t irq, uint32_t idt_entry, irq_handler_t callback, void *args)
+{
+	uint64_t apic_flags = 0;
+
+	apic_flags = 0xFF00000000000000;	/* Target all groups */
+	apic_flags |= 0x800;				/* Logical Destination Mode */
+	apic_flags |= idt_entry;			/* Interrupt Vector */
+
+	_interrupt_install(irq, idt_entry, apic_flags, callback, args);
 }
 
 /* Install only the interrupt handler, 
@@ -101,30 +116,52 @@ void interrupt_install(uint32_t irq, irq_handler_t callback, void *args)
 void interrupt_install_soft(uint32_t idt_entry, irq_handler_t callback, void *args)
 {
 	/* Install into table */
-	irq_table[idt_entry].function = callback;
-	irq_table[idt_entry].data = args;
+	int i;
+	int found = 0;
+
+	/* Find a free interrupt */
+	for (i = 0; i < X86_MAX_HANDLERS_PER_INTERRUPT; i++)
+	{
+		if (irq_table[idt_entry][i].function != NULL)
+			continue;
+	
+		/* Install it */
+		irq_table[idt_entry][i].function = callback;
+		irq_table[idt_entry][i].data = args;
+		found = 1;
+		break;
+	}
+
+	/* Sanity */
+	assert(found != 0);
 }
 
 /* The common entry point for interrupts */
 void interrupt_entry(registers_t **regs)
 {
 	/* Determine Irq */
+	int i;
+	int calls = 0;
 	uint32_t irq = (*regs)->irq + 0x20;
 
-	/* Get handler */
-	if (irq_table[irq].function != NULL)
+	/* Get handler(s) */
+	for (i = 0; i < X86_MAX_HANDLERS_PER_INTERRUPT; i++)
 	{
-		/* If no args are specified we give access 
-		 * to registers */
-		if (irq_table[irq].data == NULL)
-			irq_table[irq].function((void*)regs);
-		else
-			irq_table[irq].function(irq_table[irq].data);
+		if (irq_table[irq][i].function != NULL)
+		{
+			calls++;
+			/* If no args are specified we give access
+			* to registers */
+			if (irq_table[irq][i].data == NULL)
+				irq_table[irq][i].function((void*)regs);
+			else
+				irq_table[irq][i].function(irq_table[irq][i].data);
+		}
 	}
-	else
-	{
+	
+	/* Sanity */
+	if (calls == 0)
 		printf("Unhandled interrupt vector %u\n", irq);
-	}
 }
 
 /* Disables interrupts and returns
@@ -205,6 +242,82 @@ void interrupt_init(void)
 	idt_install_descriptor(48, (uint32_t)&irq_stringify(48), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
 	idt_install_descriptor(49, (uint32_t)&irq_stringify(49), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
 	idt_install_descriptor(50, (uint32_t)&irq_stringify(50), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
+	idt_install_descriptor(51, (uint32_t)&irq_stringify(51), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
+	idt_install_descriptor(52, (uint32_t)&irq_stringify(52), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
+	idt_install_descriptor(53, (uint32_t)&irq_stringify(53), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
+	idt_install_descriptor(54, (uint32_t)&irq_stringify(54), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
+	idt_install_descriptor(55, (uint32_t)&irq_stringify(55), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
+	idt_install_descriptor(56, (uint32_t)&irq_stringify(56), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
+	idt_install_descriptor(57, (uint32_t)&irq_stringify(57), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
+	idt_install_descriptor(58, (uint32_t)&irq_stringify(58), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
+	idt_install_descriptor(59, (uint32_t)&irq_stringify(59), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
+	idt_install_descriptor(60, (uint32_t)&irq_stringify(60), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
+	idt_install_descriptor(61, (uint32_t)&irq_stringify(61), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
+	idt_install_descriptor(62, (uint32_t)&irq_stringify(62), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
+	idt_install_descriptor(63, (uint32_t)&irq_stringify(63), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
+	idt_install_descriptor(64, (uint32_t)&irq_stringify(64), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
+	idt_install_descriptor(65, (uint32_t)&irq_stringify(65), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
+	idt_install_descriptor(66, (uint32_t)&irq_stringify(66), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
+	idt_install_descriptor(67, (uint32_t)&irq_stringify(67), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
+	idt_install_descriptor(68, (uint32_t)&irq_stringify(68), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
+	idt_install_descriptor(69, (uint32_t)&irq_stringify(69), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
+	idt_install_descriptor(70, (uint32_t)&irq_stringify(70), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
+	idt_install_descriptor(71, (uint32_t)&irq_stringify(71), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
+	idt_install_descriptor(72, (uint32_t)&irq_stringify(72), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
+	idt_install_descriptor(73, (uint32_t)&irq_stringify(73), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
+	idt_install_descriptor(74, (uint32_t)&irq_stringify(74), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
+	idt_install_descriptor(75, (uint32_t)&irq_stringify(75), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
+	idt_install_descriptor(76, (uint32_t)&irq_stringify(76), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
+	idt_install_descriptor(77, (uint32_t)&irq_stringify(77), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
+	idt_install_descriptor(78, (uint32_t)&irq_stringify(78), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
+	idt_install_descriptor(79, (uint32_t)&irq_stringify(79), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
+	idt_install_descriptor(80, (uint32_t)&irq_stringify(80), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
+	idt_install_descriptor(81, (uint32_t)&irq_stringify(81), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
+	idt_install_descriptor(82, (uint32_t)&irq_stringify(82), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
+	idt_install_descriptor(83, (uint32_t)&irq_stringify(83), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
+	idt_install_descriptor(84, (uint32_t)&irq_stringify(84), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
+	idt_install_descriptor(85, (uint32_t)&irq_stringify(85), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
+	idt_install_descriptor(86, (uint32_t)&irq_stringify(86), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
+	idt_install_descriptor(87, (uint32_t)&irq_stringify(87), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
+	idt_install_descriptor(88, (uint32_t)&irq_stringify(88), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
+	idt_install_descriptor(89, (uint32_t)&irq_stringify(89), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
+	idt_install_descriptor(90, (uint32_t)&irq_stringify(90), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
+	idt_install_descriptor(91, (uint32_t)&irq_stringify(91), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
+	idt_install_descriptor(92, (uint32_t)&irq_stringify(92), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
+	idt_install_descriptor(93, (uint32_t)&irq_stringify(93), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
+	idt_install_descriptor(94, (uint32_t)&irq_stringify(94), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
+	idt_install_descriptor(95, (uint32_t)&irq_stringify(95), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
+	idt_install_descriptor(96, (uint32_t)&irq_stringify(96), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
+	idt_install_descriptor(97, (uint32_t)&irq_stringify(97), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
+	idt_install_descriptor(98, (uint32_t)&irq_stringify(98), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
+	idt_install_descriptor(99, (uint32_t)&irq_stringify(99), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
+	idt_install_descriptor(100, (uint32_t)&irq_stringify(100), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
+	idt_install_descriptor(101, (uint32_t)&irq_stringify(101), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
+	idt_install_descriptor(102, (uint32_t)&irq_stringify(102), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
+	idt_install_descriptor(103, (uint32_t)&irq_stringify(103), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
+	idt_install_descriptor(104, (uint32_t)&irq_stringify(104), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
+	idt_install_descriptor(105, (uint32_t)&irq_stringify(105), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
+	idt_install_descriptor(106, (uint32_t)&irq_stringify(106), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
+	idt_install_descriptor(107, (uint32_t)&irq_stringify(107), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
+	idt_install_descriptor(108, (uint32_t)&irq_stringify(108), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
+	idt_install_descriptor(109, (uint32_t)&irq_stringify(109), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
+	idt_install_descriptor(110, (uint32_t)&irq_stringify(110), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
+	idt_install_descriptor(111, (uint32_t)&irq_stringify(111), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
+	idt_install_descriptor(112, (uint32_t)&irq_stringify(112), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
+	idt_install_descriptor(113, (uint32_t)&irq_stringify(113), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
+	idt_install_descriptor(114, (uint32_t)&irq_stringify(114), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
+	idt_install_descriptor(115, (uint32_t)&irq_stringify(115), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
+	idt_install_descriptor(116, (uint32_t)&irq_stringify(116), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
+	idt_install_descriptor(117, (uint32_t)&irq_stringify(117), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
+	idt_install_descriptor(118, (uint32_t)&irq_stringify(118), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
+	idt_install_descriptor(119, (uint32_t)&irq_stringify(119), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
+	idt_install_descriptor(120, (uint32_t)&irq_stringify(120), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
+	idt_install_descriptor(121, (uint32_t)&irq_stringify(121), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
+	idt_install_descriptor(122, (uint32_t)&irq_stringify(122), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
+	idt_install_descriptor(123, (uint32_t)&irq_stringify(123), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
+	idt_install_descriptor(124, (uint32_t)&irq_stringify(124), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
+	idt_install_descriptor(125, (uint32_t)&irq_stringify(125), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
+	idt_install_descriptor(126, (uint32_t)&irq_stringify(126), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
 
 	/* Spurious */
 	idt_install_descriptor(127, (uint32_t)&irq_stringify(127), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
@@ -214,4 +327,134 @@ void interrupt_init(void)
 
 	/* Yield */
 	idt_install_descriptor(129, (uint32_t)&irq_stringify(129), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
+
+	/* Next Batch */
+	idt_install_descriptor(130, (uint32_t)&irq_stringify(130), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
+	idt_install_descriptor(131, (uint32_t)&irq_stringify(131), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
+	idt_install_descriptor(132, (uint32_t)&irq_stringify(132), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
+	idt_install_descriptor(133, (uint32_t)&irq_stringify(133), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
+	idt_install_descriptor(134, (uint32_t)&irq_stringify(134), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
+	idt_install_descriptor(135, (uint32_t)&irq_stringify(135), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
+	idt_install_descriptor(136, (uint32_t)&irq_stringify(136), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
+	idt_install_descriptor(137, (uint32_t)&irq_stringify(137), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
+	idt_install_descriptor(138, (uint32_t)&irq_stringify(138), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
+	idt_install_descriptor(139, (uint32_t)&irq_stringify(139), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
+	idt_install_descriptor(140, (uint32_t)&irq_stringify(140), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
+	idt_install_descriptor(141, (uint32_t)&irq_stringify(141), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
+	idt_install_descriptor(142, (uint32_t)&irq_stringify(142), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
+	idt_install_descriptor(143, (uint32_t)&irq_stringify(143), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
+	idt_install_descriptor(144, (uint32_t)&irq_stringify(144), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
+	idt_install_descriptor(145, (uint32_t)&irq_stringify(145), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
+	idt_install_descriptor(146, (uint32_t)&irq_stringify(146), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
+	idt_install_descriptor(147, (uint32_t)&irq_stringify(147), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
+	idt_install_descriptor(148, (uint32_t)&irq_stringify(148), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
+	idt_install_descriptor(149, (uint32_t)&irq_stringify(149), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
+	idt_install_descriptor(150, (uint32_t)&irq_stringify(150), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
+	idt_install_descriptor(151, (uint32_t)&irq_stringify(151), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
+	idt_install_descriptor(152, (uint32_t)&irq_stringify(152), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
+	idt_install_descriptor(153, (uint32_t)&irq_stringify(153), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
+	idt_install_descriptor(154, (uint32_t)&irq_stringify(154), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
+	idt_install_descriptor(155, (uint32_t)&irq_stringify(155), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
+	idt_install_descriptor(156, (uint32_t)&irq_stringify(156), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
+	idt_install_descriptor(157, (uint32_t)&irq_stringify(157), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
+	idt_install_descriptor(158, (uint32_t)&irq_stringify(158), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
+	idt_install_descriptor(159, (uint32_t)&irq_stringify(159), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
+	idt_install_descriptor(160, (uint32_t)&irq_stringify(160), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
+	idt_install_descriptor(161, (uint32_t)&irq_stringify(161), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
+	idt_install_descriptor(162, (uint32_t)&irq_stringify(162), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
+	idt_install_descriptor(163, (uint32_t)&irq_stringify(163), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
+	idt_install_descriptor(164, (uint32_t)&irq_stringify(164), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
+	idt_install_descriptor(165, (uint32_t)&irq_stringify(165), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
+	idt_install_descriptor(166, (uint32_t)&irq_stringify(166), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
+	idt_install_descriptor(167, (uint32_t)&irq_stringify(167), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
+	idt_install_descriptor(168, (uint32_t)&irq_stringify(168), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
+	idt_install_descriptor(169, (uint32_t)&irq_stringify(169), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
+	idt_install_descriptor(170, (uint32_t)&irq_stringify(170), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
+	idt_install_descriptor(171, (uint32_t)&irq_stringify(171), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
+	idt_install_descriptor(172, (uint32_t)&irq_stringify(172), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
+	idt_install_descriptor(173, (uint32_t)&irq_stringify(173), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
+	idt_install_descriptor(174, (uint32_t)&irq_stringify(174), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
+	idt_install_descriptor(175, (uint32_t)&irq_stringify(175), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
+	idt_install_descriptor(176, (uint32_t)&irq_stringify(176), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
+	idt_install_descriptor(177, (uint32_t)&irq_stringify(177), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
+	idt_install_descriptor(178, (uint32_t)&irq_stringify(178), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
+	idt_install_descriptor(179, (uint32_t)&irq_stringify(179), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
+	idt_install_descriptor(180, (uint32_t)&irq_stringify(180), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
+	idt_install_descriptor(181, (uint32_t)&irq_stringify(181), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
+	idt_install_descriptor(182, (uint32_t)&irq_stringify(182), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
+	idt_install_descriptor(183, (uint32_t)&irq_stringify(183), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
+	idt_install_descriptor(184, (uint32_t)&irq_stringify(184), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
+	idt_install_descriptor(185, (uint32_t)&irq_stringify(185), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
+	idt_install_descriptor(186, (uint32_t)&irq_stringify(186), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
+	idt_install_descriptor(187, (uint32_t)&irq_stringify(187), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
+	idt_install_descriptor(188, (uint32_t)&irq_stringify(188), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
+	idt_install_descriptor(189, (uint32_t)&irq_stringify(189), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
+	idt_install_descriptor(190, (uint32_t)&irq_stringify(190), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
+	idt_install_descriptor(191, (uint32_t)&irq_stringify(191), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
+	idt_install_descriptor(192, (uint32_t)&irq_stringify(192), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
+	idt_install_descriptor(193, (uint32_t)&irq_stringify(193), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
+	idt_install_descriptor(194, (uint32_t)&irq_stringify(194), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
+	idt_install_descriptor(195, (uint32_t)&irq_stringify(195), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
+	idt_install_descriptor(196, (uint32_t)&irq_stringify(196), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
+	idt_install_descriptor(197, (uint32_t)&irq_stringify(197), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
+	idt_install_descriptor(198, (uint32_t)&irq_stringify(198), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
+	idt_install_descriptor(199, (uint32_t)&irq_stringify(199), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
+	idt_install_descriptor(200, (uint32_t)&irq_stringify(200), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
+	idt_install_descriptor(201, (uint32_t)&irq_stringify(201), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
+	idt_install_descriptor(202, (uint32_t)&irq_stringify(202), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
+	idt_install_descriptor(203, (uint32_t)&irq_stringify(203), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
+	idt_install_descriptor(204, (uint32_t)&irq_stringify(204), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
+	idt_install_descriptor(205, (uint32_t)&irq_stringify(205), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
+	idt_install_descriptor(206, (uint32_t)&irq_stringify(206), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
+	idt_install_descriptor(207, (uint32_t)&irq_stringify(207), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
+	idt_install_descriptor(208, (uint32_t)&irq_stringify(208), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
+	idt_install_descriptor(209, (uint32_t)&irq_stringify(209), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
+	idt_install_descriptor(210, (uint32_t)&irq_stringify(210), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
+	idt_install_descriptor(211, (uint32_t)&irq_stringify(211), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
+	idt_install_descriptor(212, (uint32_t)&irq_stringify(212), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
+	idt_install_descriptor(213, (uint32_t)&irq_stringify(213), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
+	idt_install_descriptor(214, (uint32_t)&irq_stringify(214), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
+	idt_install_descriptor(215, (uint32_t)&irq_stringify(215), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
+	idt_install_descriptor(216, (uint32_t)&irq_stringify(216), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
+	idt_install_descriptor(217, (uint32_t)&irq_stringify(217), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
+	idt_install_descriptor(218, (uint32_t)&irq_stringify(218), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
+	idt_install_descriptor(219, (uint32_t)&irq_stringify(219), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
+	idt_install_descriptor(220, (uint32_t)&irq_stringify(220), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
+	idt_install_descriptor(221, (uint32_t)&irq_stringify(221), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
+	idt_install_descriptor(222, (uint32_t)&irq_stringify(222), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
+	idt_install_descriptor(223, (uint32_t)&irq_stringify(223), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
+	idt_install_descriptor(224, (uint32_t)&irq_stringify(224), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
+	idt_install_descriptor(225, (uint32_t)&irq_stringify(225), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
+	idt_install_descriptor(226, (uint32_t)&irq_stringify(226), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
+	idt_install_descriptor(227, (uint32_t)&irq_stringify(227), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
+	idt_install_descriptor(228, (uint32_t)&irq_stringify(228), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
+	idt_install_descriptor(229, (uint32_t)&irq_stringify(229), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
+	idt_install_descriptor(230, (uint32_t)&irq_stringify(230), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
+	idt_install_descriptor(231, (uint32_t)&irq_stringify(231), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
+
+	/* Hardware Ints */
+	idt_install_descriptor(232, (uint32_t)&irq_stringify(232), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
+	idt_install_descriptor(233, (uint32_t)&irq_stringify(233), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
+	idt_install_descriptor(234, (uint32_t)&irq_stringify(234), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
+	idt_install_descriptor(235, (uint32_t)&irq_stringify(235), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
+	idt_install_descriptor(236, (uint32_t)&irq_stringify(236), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
+	idt_install_descriptor(237, (uint32_t)&irq_stringify(237), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
+	idt_install_descriptor(238, (uint32_t)&irq_stringify(238), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
+	idt_install_descriptor(239, (uint32_t)&irq_stringify(239), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
+	idt_install_descriptor(240, (uint32_t)&irq_stringify(240), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
+	idt_install_descriptor(241, (uint32_t)&irq_stringify(241), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
+	idt_install_descriptor(242, (uint32_t)&irq_stringify(242), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
+	idt_install_descriptor(243, (uint32_t)&irq_stringify(243), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
+	idt_install_descriptor(244, (uint32_t)&irq_stringify(244), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
+	idt_install_descriptor(245, (uint32_t)&irq_stringify(245), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
+	idt_install_descriptor(246, (uint32_t)&irq_stringify(246), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
+	idt_install_descriptor(247, (uint32_t)&irq_stringify(247), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
+	idt_install_descriptor(248, (uint32_t)&irq_stringify(248), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
+	idt_install_descriptor(249, (uint32_t)&irq_stringify(249), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
+	idt_install_descriptor(250, (uint32_t)&irq_stringify(250), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
+	idt_install_descriptor(251, (uint32_t)&irq_stringify(251), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
+	idt_install_descriptor(252, (uint32_t)&irq_stringify(252), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
+	idt_install_descriptor(253, (uint32_t)&irq_stringify(253), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
+	idt_install_descriptor(254, (uint32_t)&irq_stringify(254), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
+	idt_install_descriptor(255, (uint32_t)&irq_stringify(255), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
 }

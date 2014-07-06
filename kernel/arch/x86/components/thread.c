@@ -21,6 +21,7 @@
 
 /* Includes */
 #include <arch.h>
+#include <assert.h>
 #include <scheduler.h>
 #include <thread.h>
 #include <memory.h>
@@ -62,13 +63,13 @@ void threading_yield(void *args)
 	*regs = (void*)threading_switch(*regs, 0, &time_slice, &task_priority);
 
 	/* Set Task Priority */
-	apic_set_task_priority((task_priority >= 10) ? (task_priority / 2) : 5);
+	apic_set_task_priority(61 - task_priority);
 
 	/* Reset Timer Tick */
 	apic_write_local(LAPIC_INITIAL_COUNT, timer_quantum * time_slice);
 
 	/* Re-enable timer in one-shot mode */
-	apic_write_local(LAPIC_TIMER_VECTOR, LAPIC_INTERRUPT_VEC);
+	apic_write_local(LAPIC_TIMER_VECTOR, INTERRUPT_TIMER);
 }
 
 /* Initialization 
@@ -89,7 +90,7 @@ void threading_init(void)
 	init->fpu_buffer = kmalloc_a(0x1000);
 	init->priority = 60;
 	init->flags = X86_THREAD_FPU_INITIALISED | X86_THREAD_USEDFPU | X86_THREAD_CPU_BOUND | X86_THREAD_IDLE;
-	init->time_slice = MCORE_INITIAL_TIMESLICE;
+	init->time_slice = MCORE_IDLE_TIMESLICE;
 	init->parent_id = 0xDEADBEEF;
 	init->thread_id = glb_thread_id;
 	init->cpu_id = 0;
@@ -139,7 +140,7 @@ void threading_ap_init(void)
 	init->fpu_buffer = kmalloc_a(0x1000);
 	init->priority = 60;
 	init->flags = X86_THREAD_FPU_INITIALISED | X86_THREAD_USEDFPU | X86_THREAD_CPU_BOUND | X86_THREAD_IDLE;
-	init->time_slice = MCORE_INITIAL_TIMESLICE;
+	init->time_slice = MCORE_IDLE_TIMESLICE;
 	init->parent_id = 0xDEADBEEF;
 	init->thread_id = glb_thread_id;
 	init->cpu_id = cpu;
@@ -302,6 +303,9 @@ registers_t *threading_switch(registers_t *regs, int preemptive, uint32_t *time_
 
 	/* Get thread */
 	t = threading_get_current_thread(cpu);
+
+	/* What the fuck?? */
+	assert(t != NULL && regs != NULL);
 
 	/* Save FPU/MMX/SSE State */
 	if (t->flags & X86_THREAD_USEDFPU)

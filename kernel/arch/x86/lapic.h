@@ -93,7 +93,7 @@ input.
 #define LAPIC_DIVIDER_16	0x3
 #define LAPIC_DIVIDER_128	0xA
 
-#define LAPIC_INTERRUPT_VEC		0x22
+#define X86_MAX_HANDLERS_PER_INTERRUPT	4
 
 #define LAPIC_PROCESSOR_ID		0x20
 #define LAPIC_INTERRUPT_ACK		0xB0
@@ -134,6 +134,9 @@ _CRT_EXTERN void apic_set_task_priority(uint32_t priority);
 
 /* Send EOI */
 _CRT_EXTERN void apic_send_eoi(void);
+
+/* Send APIC Interrupt to a core */
+_CRT_EXTERN void lapic_send_ipi(uint8_t cpu_destination, uint8_t irq_vector);
 
 /* Call this on AP */
 _CRT_EXTERN void lapic_ap_init(void);

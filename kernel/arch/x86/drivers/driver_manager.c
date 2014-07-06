@@ -32,6 +32,7 @@
 #include <limits.h>
 
 /* Drivers */
+#include <drivers\clock\clock.h>
 #include <drivers\usb\ohci\ohci.h>
 
 /* Prototypes */
@@ -2251,6 +2252,9 @@ void drivers_init(void)
 	/* Start out by enumerating devices */
 	drivers_enumerate();
 	drivers_enumerate_acpica();
+
+	/* Fixed Driver Install Here */
+	clock_init();
 
 	/* Now, for each driver we have available install it */
 	list_execute_all(glb_pci_devices, drivers_setup_device);

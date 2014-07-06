@@ -405,7 +405,7 @@ UINT32 AcpiOsInstallInterruptHandler(
 		void                    *Context)
 {
 	/* Install it */
-	interrupt_install(InterruptNumber, ServiceRoutine, Context);
+	interrupt_install(InterruptNumber, 0x20 + InterruptNumber, ServiceRoutine, Context);
 
 	/* Done */
 	return (AE_OK);
@@ -428,7 +428,7 @@ ACPI_STATUS AcpiOsRemoveInterruptHandler(
 			ACPI_OSD_HANDLER        ServiceRoutine)
 {
 	/* Override it */
-	interrupt_install(InterruptNumber, NULL, NULL);
+	interrupt_install(InterruptNumber, 0x20 + InterruptNumber, NULL, NULL);
 
 	return (AE_OK);
 }

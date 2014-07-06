@@ -34,6 +34,9 @@
     <Filter Include="Disasm">
       <UniqueIdentifier>{e326f9c3-c06c-4e99-b85d-431d109952cc}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Drivers\Clock">
+      <UniqueIdentifier>{27f21261-2ecf-4a21-a56b-b2becadd0c3e}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\..\arch\x86\boot\main.c">
@@ -89,6 +92,15 @@
     </ClCompile>
     <ClCompile Include="..\..\..\arch\x86\debug\disasm.c">
       <Filter>Disasm</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\arch\x86\drivers\clock\clock.c">
+      <Filter>Drivers\Clock</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\arch\x86\drivers\clock\rtc.c">
+      <Filter>Drivers\Clock</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\arch\x86\drivers\usb\usb.c">
+      <Filter>Drivers\Usb</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>

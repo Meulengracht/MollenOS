@@ -38,6 +38,7 @@
 /* Definitions */
 #define MCORE_SCHEDULER_LEVELS		61
 #define MCORE_INITIAL_TIMESLICE		10
+#define MCORE_IDLE_TIMESLICE		300
 #define MCORE_SCHEDULER_BOOST_MS	7000
 
 /* Prototypes */

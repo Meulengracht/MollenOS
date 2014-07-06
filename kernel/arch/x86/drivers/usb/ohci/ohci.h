@@ -64,6 +64,9 @@ typedef struct _o_endpoint_desc
 
 } ohci_endpoint_desc_t;
 
+/* Bit Defintions */
+#define X86_OHCI_EP_SKIP		(1 << 14)
+
 /* Must be 16 byte aligned 
  * General Transfer Descriptor */
 typedef struct _o_gtransfer_desc
@@ -199,6 +202,65 @@ typedef struct _o_registers
 
 } ohci_registers_t;
 
+
+/* Bit Defintions */
+#define X86_OHCI_REVISION			0x10
+
+#define X86_OHCI_CMD_RESETCTRL		(1 << 0)
+#define X86_OHCI_CMD_TDACTIVE_CTRL	(1 << 1)
+#define X86_OHCI_CMD_TDACTIVE_BULK	(1 << 2)
+#define X86_OHCI_CMD_OWNERSHIP		(1 << 3)
+
+#define X86_OHCI_CTRL_INT_ROUTING	(1 << 8)
+#define X86_OHCI_CTRL_REMOTE_WAKE	(1 << 10)
+
+#define X86_OHCI_CTRL_DISABLE_QUEUES	(1 << 2) | (1 << 3) | (1 << 4) | (1 << 5)
+#define X86_OHCI_CTRL_ENABLE_QUEUES	0x3C
+
+#define X86_OHCI_CTRL_USB_RESET		0x0
+#define X86_OHCI_CTRL_USB_RESUME	0x40
+#define X86_OHCI_CTRL_USB_WORKING	0x80
+#define X86_OHCI_CTRL_USB_SUSPEND	0xC0
+
+/* Bits 0 and 1 */
+#define X86_OHCI_CTRL_SRATIO_BITS		(1 << 0) | (1 << 1)
+
+/* Bits 6 and 7 */
+#define X86_OHCI_CTRL_FSTATE_BITS		(1 << 6) | (1 << 7) 
+
+#define X86_OHCI_INTR_SCHEDULING_OVRRN	0x1
+#define X86_OHCI_INTR_HEAD_DONE			0x2
+#define X86_OHCI_INTR_SOF				0x4
+#define X86_OHCI_INTR_RESUME_DETECT		0x8
+#define X86_OHCI_INTR_FATAL_ERROR		0x10
+#define X86_OHCI_INTR_FRAME_OVERFLOW	0x20
+#define X86_OHCI_INTR_ROOT_HUB_EVENT	0x40
+#define X86_OHCI_INTR_OWNERSHIP_EVENT	0x80000000
+
+#define X86_OHCI_INTR_ENABLE_ALL		0xC000007B
+#define X86_OHCI_INTR_MASTER_INTR		(1 << 31)
+#define X86_OHCI_INTR_DISABLE_SOF		0x4
+
+#define X86_OHCI_MAX_PACKET_SIZE_BITS	0x7FFF0000
+#define X86_OHCI_FRMV_FRT				(1 << 31)
+
+#define X86_OHCI_DESCA_DEVICE_TYPE		(1 << 10)
+
+#define X86_OHCI_STATUS_POWER_ON		(1 << 16)
+
+#define X86_OHCI_PORT_CONNECTED			(1 << 0)
+#define X86_OHCI_PORT_ENABLED			(1 << 1)
+#define X86_OHCI_PORT_SUSPENDED			(1 << 2)
+#define X86_OHCI_PORT_OVER_CURRENT		(1 << 3)
+#define X86_OHCI_PORT_RESET				(1 << 4)
+#define X86_OHCI_PORT_POWER_ENABLE		(1 << 8)
+#define X86_OHCI_PORT_FULL_SPEED		(1 << 9)
+#define X86_OHIC_PORT_CONNECT_EVENT		(1 << 16) /* Connect / Disconnect event */
+#define X86_OHCI_PORT_ENABLE_EVENT		(1 << 17)
+#define X86_OHCI_PORT_SUSPEND_EVENT		(1 << 18)
+#define X86_OHCI_PORT_OVR_CURRENT_EVENT	(1 << 19)
+#define X86_OHCI_PORT_RESET_EVENT		(1 << 20)
+
 /* Controller Structure */
 typedef struct _o_controller
 {
@@ -221,6 +283,12 @@ typedef struct _o_controller
 
 	/* Interrupt Table */
 	ohci_int_table_t *int_table;
+
+	/* Power On Time */
+	uint32_t power_on_delay_ms;
+
+	/* Port Count */
+	uint32_t ports;
 
 } ohci_controller_t;
 

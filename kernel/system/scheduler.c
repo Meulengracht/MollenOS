@@ -63,7 +63,7 @@ void scheduler_boost(void)
 
 	/* Step 1. Loop through all queues, pop their elements and append them to queue 0
 	 * Reset time-slices */
-	for (i = i; i < (MCORE_SCHEDULER_LEVELS - 1); i++)
+	for (i = 1; i < (MCORE_SCHEDULER_LEVELS - 1); i++)
 	{
 		if (thread_queues[i]->length > 0)
 		{
