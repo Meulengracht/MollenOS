@@ -24,6 +24,7 @@
 #include <lapic.h>
 #include <assert.h>
 #include <memory.h>
+#include <scheduler.h>
 #include <heap.h>
 #include <list.h>
 #include <stdio.h>
@@ -38,6 +39,7 @@ volatile uint32_t glb_ohci_id = 0;
 
 /* Externs */
 extern void clock_stall_noint(time_t ms);
+extern void _yield(void);
 
 /* Prototypes */
 void ohci_interrupt_handler(void *data);
@@ -529,8 +531,6 @@ void ohci_setup(ohci_controller_t *controller)
 	The transaction is started only if FrameRemaining >= this field.
 	The value is calculated by HCD with the consideration of transmission and setup overhead.
 	*/
-	controller->registers->HcLSThreshold = 0;
-
 	printf("HcFrameInterval: %u", controller->registers->HcFmInterval & 0x3FFF);
 	printf("  HcPeriodicStart: %u", controller->registers->HcPeriodicStart);
 	printf("  FSMPS: %u bytes", (controller->registers->HcFmInterval >> 16) & 0x7FFF);
@@ -570,9 +570,6 @@ void ohci_setup(ohci_controller_t *controller)
 			controller->power_mode = X86_OHCI_POWER_PORT_GLOBAL;
 		}
 	}
-
-	/* Make sure root hub is not set as compound device */
-	controller->registers->HcRhDescriptorA &= ~X86_OHCI_DESCA_DEVICE_TYPE;
 
 	/* Get Power On Delay 
 	 * PowerOnToPowerGoodTime (24 - 31)
@@ -775,6 +772,8 @@ void ohci_interrupt_handler(void *data)
 	if (temp_value & X86_OHCI_INTR_HEAD_DONE)
 	{
 		/* Wuhu, handle this! */
+		uint32_t ed_address = controller->hcca->head_done;
+		scheduler_wakeup_one((addr_t*)ed_address);
 
 		/* Acknowledge Interrupt */
 		controller->hcca->head_done = 0;
@@ -934,9 +933,16 @@ ohci_gtransfer_desc_t *ohci_td_io(ohci_controller_t *controller, uint32_t type,
 	
 	/* Bytes to transfer?? */
 	if (length > 0)
+	{
+		td->cbp = memory_getmap(NULL, (virtaddr_t)buffer);
 		td->buffer_end = td->cbp + length - 1;
+	}
 	else
+	{
+		td->cbp = 0;
 		td->buffer_end = td->cbp;
+	}
+		
 	
 	/* Make Queue Tail point to this */
 	ed->tail_ptr = td_phys;
@@ -971,6 +977,9 @@ void ohci_transaction_init(void *controller, usb_hc_request_t *request)
 		request->data = (void*)ctrl->ed_pool[ctrl->ed_index_bulk];
 		ctrl->ed_index_bulk++;
 	}
+
+	/* Set as not completed for start */
+	request->completed = 0;
 }
 
 /* This one prepaires an setup TD */
@@ -1088,43 +1097,44 @@ void ohci_transaction_send(void *controller, usb_hc_request_t *request)
 	ohci_controller_t *ctrl = (ohci_controller_t*)controller;
 	int i, completed = 1;
 	ohci_gtransfer_desc_t *td = NULL;
-	ohci_endpoint_desc_t *ep = (ohci_endpoint_desc_t*)request->data;
 	uint32_t condition_code;
+	addr_t ed_address, ed_interrupt = 0;
 
-	/* Print Info */
-	printf("OHCI_Send: Request %u, Endpoint %u\n", request->type, request->endpoint);
+	/* Get physical */
+	ed_address = memory_getmap(NULL, (virtaddr_t)request->data);
+
+	/* Set as not completed for start */
+	request->completed = 0;
 
 	/* Add dummy TD to end */
 	usb_transaction_out(usb_get_hcd(ctrl->hcd_id), request, 1, 0, 0);
-
-	clock_stall(500);
-
-	/* Debug */
-	transaction = request->transactions;
-	while (transaction)
-	{
-		td = (ohci_gtransfer_desc_t*)transaction->transfer_descriptor;
-		printf("OHCI_Transaction: TD at 0x%x, TD Buffer at 0x%x. Type %u\n",
-			(addr_t)transaction->transfer_descriptor, (addr_t)transaction->transfer_buffer,
-			transaction->type);
-		printf("TD Flags 0x%x, TD BufPtr 0x%x, TD BufEnd 0x%x, TD NextTD 0x%x\n", td->flags,
-			td->cbp, td->buffer_end, td->next_td);
-
-
-		transaction = transaction->link;
-	}
 
 	/* Setup an ED for this */
 	ohci_ep_init(request->data, (addr_t)request->transactions->transfer_descriptor,
 		request->device->address, request->endpoint, request->length, request->lowspeed);
 
-	printf("OHCI_EP: Flags 0x%x, Head 0x%x, Tail 0x%x\n", ep->flags, ep->head_ptr, ep->tail_ptr);
+	/* Set last TD to produce an interrupt (not dummy) */
+	transaction = request->transactions;
+	while (transaction->link)
+	{
+		/* Check if last before dummy */
+		if (transaction->link->link == NULL)
+		{
+			/* Set TD to produce interrupt */
+			td = (ohci_gtransfer_desc_t*)transaction->transfer_descriptor;
+			td->flags &= ~X86_OHCI_TRANSFER_BUF_NO_INTERRUPT;
+			ed_interrupt = memory_getmap(NULL, (virtaddr_t)td);
+			break;
+		}
+
+		transaction = transaction->link;
+	}
 
 	/* Add it HcControl/BulkCurrentED */
 	if (request->type == X86_USB_REQUEST_TYPE_CONTROL)
-		ctrl->registers->HcControlCurrentED = memory_getmap(NULL, (virtaddr_t)request->data);
+		ctrl->registers->HcControlCurrentED = ed_address;
 	else
-		ctrl->registers->HcBulkCurrentED = memory_getmap(NULL, (virtaddr_t)request->data);
+		ctrl->registers->HcBulkCurrentED = ed_address;
 
 	/* Now lets try the transaction */
 	for (i = 0; i < 3; i++)
@@ -1137,8 +1147,9 @@ void ohci_transaction_send(void *controller, usb_hc_request_t *request)
 		((ohci_endpoint_desc_t*)request->data)->head_ptr &= ~0x1;
 		ctrl->registers->HcControl |= (X86_OHCI_CTRL_CONTROL_LIST | X86_OHCI_CTRL_BULK_LIST);
 
-		/* Give it 200 ms to complete */
-		clock_stall(200);
+		/* Wait for interrupt */
+		scheduler_sleep_thread((addr_t*)ed_interrupt);
+		_yield();
 
 		/* Check Conditions (WithOUT dummy) */
 		transaction = request->transactions;
@@ -1146,7 +1157,7 @@ void ohci_transaction_send(void *controller, usb_hc_request_t *request)
 		{
 			td = (ohci_gtransfer_desc_t*)transaction->transfer_descriptor;
 			condition_code = (td->flags & 0xF0000000) >> 28;
-			printf("TD Flags 0x%x, TD Condition Code %u (%s)\n", td->flags, condition_code, ohci_err_msgs[condition_code]);
+			//printf("TD Flags 0x%x, TD Condition Code %u (%s)\n", td->flags, condition_code, ohci_err_msgs[condition_code]);
 
 			if (condition_code == 0 && completed == 1)
 				completed = 1;
@@ -1164,21 +1175,24 @@ void ohci_transaction_send(void *controller, usb_hc_request_t *request)
 	/* Lets see... */
 	if (completed)
 	{
-		printf("Transaction Complete!\n");
-		
 		/* Build Buffer */
 		transaction = request->transactions;
 
 		while (transaction->link)
 		{
 			/* Copy Data? */
-			printf("Buffer Copy 0x%x, Length 0x%x\n", transaction->io_buffer, transaction->io_length);
 			if (transaction->io_buffer != NULL && transaction->io_length != 0)
+			{
+				//printf("Buffer Copy 0x%x, Length 0x%x\n", transaction->io_buffer, transaction->io_length);
 				memcpy(transaction->io_buffer, transaction->transfer_buffer, transaction->io_length);
-
+			}
+			
 			/* Next Link */
 			transaction = transaction->link;
 		}
+
+		/* Set as completed */
+		request->completed = 1;
 	}
 		
 }

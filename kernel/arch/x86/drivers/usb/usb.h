@@ -235,10 +235,26 @@ typedef struct _usb_hc_endpoint
 } usb_hc_endpoint_t;
 
 /* The Abstract Device */
+#pragma pack(push, 1)
 typedef struct _usb_hc_device
 {
 	/* Device Information */
-	uint32_t type;
+	uint8_t class_code;
+	uint8_t subclass_code;
+	uint8_t protocol_code;
+	uint16_t vendor_id;
+	uint16_t product_id;
+	uint8_t num_configurations;
+	uint16_t config_max_length;
+	uint16_t max_power_consumption;
+
+	/* Interfaces */
+	uint8_t num_interfaces;
+
+	/* String Ids */
+	uint8_t str_index_product;
+	uint8_t str_index_manufactor;
+	uint8_t str_index_sn;
 
 	/* Device Address */
 	uint32_t address;
@@ -248,6 +264,7 @@ typedef struct _usb_hc_device
 	struct _usb_hc_endpoint *endpoints[X86_USB_CORE_MAX_EP];
 
 } usb_hc_device_t;
+#pragma pack(pop)
 
 /* The Abstract Transaction 
  * A request consists of several transactions */
@@ -306,6 +323,9 @@ typedef struct _usb_hc_request
 
 	/* The Transaction List */
 	struct _usb_hc_transaction *transactions;
+
+	/* Is it done? */
+	uint32_t completed;
 
 } usb_hc_request_t;
 
@@ -394,8 +414,9 @@ _CRT_EXTERN void usb_transaction_out(usb_hc_t *hc, usb_hc_request_t *dev_request
 _CRT_EXTERN void usb_transaction_send(usb_hc_t *hc, usb_hc_request_t *dev_request);
 
 /* Functions */
-_CRT_EXTERN void usb_function_set_address(usb_hc_port_t *port);
-_CRT_EXTERN void usb_function_get_device_descriptor(usb_hc_t *hc, int port);
+_CRT_EXTERN int usb_function_set_address(usb_hc_t *hc, int port, uint32_t address);
+_CRT_EXTERN int usb_function_get_device_descriptor(usb_hc_t *hc, int port);
+_CRT_EXTERN int usb_function_get_config_descriptor(usb_hc_t *hc, int port);
 
 /* Events */
 _CRT_EXTERN void usb_event_create(usb_hc_t *hc, int port, uint32_t type);

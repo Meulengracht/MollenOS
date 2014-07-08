@@ -164,12 +164,13 @@ void interrupt_install_soft(uint32_t idt_entry, irq_handler_t callback, void *ar
 	/* Find a free interrupt */
 	for (i = 0; i < X86_MAX_HANDLERS_PER_INTERRUPT; i++)
 	{
-		if (irq_table[idt_entry][i].function != NULL)
+		if (irq_table[idt_entry][i].installed)
 			continue;
 	
 		/* Install it */
 		irq_table[idt_entry][i].function = callback;
 		irq_table[idt_entry][i].data = args;
+		irq_table[idt_entry][i].installed = 1;
 		found = 1;
 		break;
 	}
@@ -189,15 +190,16 @@ void interrupt_entry(registers_t **regs)
 	/* Get handler(s) */
 	for (i = 0; i < X86_MAX_HANDLERS_PER_INTERRUPT; i++)
 	{
-		if (irq_table[irq][i].function != NULL)
+		if (irq_table[irq][i].installed)
 		{
-			calls++;
 			/* If no args are specified we give access
 			* to registers */
 			if (irq_table[irq][i].data == NULL)
 				irq_table[irq][i].function((void*)regs);
 			else
 				irq_table[irq][i].function(irq_table[irq][i].data);
+
+			calls++;
 		}
 	}
 	
@@ -261,8 +263,23 @@ void idle(void)
 /* Initiates Interrupt Handlers */
 void interrupt_init(void)
 {
+	int i, j;
+
 	/* Null out interrupt table */
 	memset((void*)&irq_table, 0, sizeof(irq_table));
+
+	/* Setup Stuff */
+	for (i = 0; i < X86_IDT_DESCRIPTORS; i++)
+	{
+		for (j = 4; j < X86_MAX_HANDLERS_PER_INTERRUPT; j++)
+		{
+			/* Mark reserved interrupts */
+			if (i < 0x20)
+				irq_table[i][j].installed = 1;
+			else
+				irq_table[i][j].installed = 0;
+		}
+	}
 
 	/* Install Irqs */
 	idt_install_descriptor(32, (uint32_t)&irq_stringify(32), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);

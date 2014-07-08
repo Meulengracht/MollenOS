@@ -37,7 +37,7 @@ volatile time_t glb_clock_tick = 0;
 /* The Clock Handler */
 void clock_irq_handler(void *data)
 {
-	data = data;
+	_CRT_UNUSED(data);
 
 	/* Update Tick Counter */
 	glb_clock_tick++;

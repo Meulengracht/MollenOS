@@ -122,9 +122,10 @@ void usb_device_setup(usb_hc_t *hc, int port)
 
 	/* Create a device */
 	device = (usb_hc_device_t*)kmalloc(sizeof(usb_hc_device_t));
-	device->type = 0;
 	device->num_endpoints = 3;
-	device->address = port;
+	
+	/* Initial Address must be 0 */
+	device->address = 0;
 
 	/* Allocate endpoints (3, interrupt, in, out) */
 	for (i = 0; i < 3; i++)
@@ -137,16 +138,45 @@ void usb_device_setup(usb_hc_t *hc, int port)
 	/* Bind it */
 	hc->ports[port]->device = device;
 
-	/* Get Device Descriptor */
-	usb_function_get_device_descriptor(hc, port);
+	/* Set Device Address (Just bind it to the port number + 1 (never set address 0) ) */
+	if (!usb_function_set_address(hc, port, (uint32_t)(port + 1)))
+	{
+		/* Try again */
+		if (!usb_function_set_address(hc, port, (uint32_t)(port + 1)))
+		{
+			printf("USB_Handler: (Set_Address) Failed to setup port %u\n");
+			return;
+		}
+	}
 
-	/* Set Device Address */
+	/* Get Device Descriptor */
+	if (!usb_function_get_device_descriptor(hc, port))
+	{
+		/* Try Again */
+		if (!usb_function_get_device_descriptor(hc, port))
+		{
+			printf("USB_Handler: (Get_Device_Desc) Failed to setup port %u\n");
+			return;
+		}
+	}
 	
 	/* Get Config Descriptor */
+	if (!usb_function_get_config_descriptor(hc, port))
+	{
+		/* Try Again */
+		if (!usb_function_get_config_descriptor(hc, port))
+		{
+			printf("USB_Handler: (Get_Config_Desc) Failed to setup port %u\n");
+			return;
+		}
+	}
 
 	/* Set Configuration */
 
 	/* Determine Driver */
+
+	/* Done */
+	printf("OHCI: Setup of port %u done!\n", port);
 }
 
 void usb_device_destroy(usb_hc_t *hc, int port)

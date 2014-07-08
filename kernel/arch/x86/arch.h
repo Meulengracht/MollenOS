@@ -50,6 +50,7 @@ typedef struct irq_entry
 {
 	irq_handler_t function;
 	void *data;
+	uint32_t installed;
 } irq_entry_t;
 
 /* X86-32 Context */

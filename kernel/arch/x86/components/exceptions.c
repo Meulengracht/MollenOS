@@ -159,6 +159,7 @@ void exception_entry(registers_t *regs)
 	if (regs->irq == 14)
 	{
 		printf("CR2 Address: 0x%x\n", __getcr2());
+		_asm xchg bx, bx;
 	}
 
 	if (fixed == 0)

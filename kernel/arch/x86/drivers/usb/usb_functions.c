@@ -180,14 +180,43 @@ void usb_transaction_send(usb_hc_t *hc, usb_hc_request_t *dev_request)
 }
 
 /* Set address of an usb device */
-void usb_function_set_address(usb_hc_port_t *port)
+int usb_function_set_address(usb_hc_t *hc, int port, uint32_t address)
 {
-	port = port;
+	usb_hc_request_t dev_request;
+
+	/* Init transfer */
+	usb_transaction_init(hc, &dev_request, X86_USB_REQUEST_TYPE_CONTROL,
+		hc->ports[port]->device, 0, 64);
+
+	/* Setup Packet */
+	dev_request.lowspeed = (hc->ports[port]->full_speed == 0) ? 1 : 0;
+	dev_request.packet.direction = 0;
+	dev_request.packet.type = X86_USB_REQ_SET_ADDR;
+	dev_request.packet.value_high = 0;
+	dev_request.packet.value_low = (address & 0xFF);
+	dev_request.packet.index = 0;
+	dev_request.packet.length = 0;		/* We do not want data */
+
+	/* Setup Transfer */
+	usb_transaction_setup(hc, &dev_request, sizeof(usb_packet_t));
+
+	/* ACK Transfer */
+	usb_transaction_in(hc, &dev_request, 1, NULL, 0);
+
+	/* Send it */
+	usb_transaction_send(hc, &dev_request);
+
+	/* Check if it completed */
+	if (dev_request.completed)
+		dev_request.device->address = address;
+
+	return dev_request.completed;
 }
 
 /* Gets the device descriptor */
-void usb_function_get_device_descriptor(usb_hc_t *hc, int port)
+int usb_function_get_device_descriptor(usb_hc_t *hc, int port)
 {
+	int i;
 	usb_device_descriptor_t dev_info;
 	usb_hc_request_t dev_request;
 
@@ -216,5 +245,121 @@ void usb_function_get_device_descriptor(usb_hc_t *hc, int port)
 	/* Send it */
 	usb_transaction_send(hc, &dev_request);
 
-	printf("USB Length 0x%x - Device Class & Subclass: 0x%x - 0x%x\n", dev_info.length, dev_info.class_code, dev_info.subclass_code);
+	/* Update Device Information */
+	if (dev_request.completed)
+	{
+		printf("USB Length 0x%x - Device Vendor Id & Product Id: 0x%x - 0x%x\n", dev_info.length, dev_info.vendor_id, dev_info.product_id);
+		printf("Device Configurations 0x%x, Max Packet Size: 0x%x\n", dev_info.num_configurations, dev_info.max_packet_size);
+
+		hc->ports[port]->device->class_code = dev_info.class_code;
+		hc->ports[port]->device->subclass_code = dev_info.subclass_code;
+		hc->ports[port]->device->protocol_code = dev_info.protocol_code;
+		hc->ports[port]->device->vendor_id = dev_info.vendor_id;
+		hc->ports[port]->device->product_id = dev_info.product_id;
+		hc->ports[port]->device->str_index_manufactor = dev_info.str_index_manufactor;
+		hc->ports[port]->device->str_index_product = dev_info.str_index_product;
+		hc->ports[port]->device->str_index_sn = dev_info.str_index_serial_num;
+		hc->ports[port]->device->num_configurations = dev_info.num_configurations;
+		
+		/* Set MPS */
+		for (i = 0; i < (int)hc->ports[port]->device->num_endpoints; i++)
+			hc->ports[port]->device->endpoints[i]->max_packet_size = dev_info.max_packet_size;
+	}
+
+	return dev_request.completed;
+}
+
+/* Gets the initial config descriptor */
+int usb_function_get_initial_config_descriptor(usb_hc_t *hc, int port)
+{
+	usb_hc_request_t dev_request;
+	usb_config_descriptor_t dev_config;
+
+	/* Step 1. Get configuration descriptor */
+
+	/* Init transfer */
+	usb_transaction_init(hc, &dev_request, X86_USB_REQUEST_TYPE_CONTROL,
+		hc->ports[port]->device, 0, 64);
+
+	/* Setup Packet */
+	dev_request.lowspeed = (hc->ports[port]->full_speed == 0) ? 1 : 0;
+	dev_request.packet.direction = 0x80;
+	dev_request.packet.type = X86_USB_REQ_GET_DESC;
+	dev_request.packet.value_high = X86_USB_DESC_TYPE_CONFIG;
+	dev_request.packet.value_low = 0;
+	dev_request.packet.index = 0;
+	dev_request.packet.length = sizeof(usb_config_descriptor_t);
+
+	/* Setup Transfer */
+	usb_transaction_setup(hc, &dev_request, sizeof(usb_packet_t));
+
+	/* In Transfer, we want to fill the descriptor */
+	usb_transaction_in(hc, &dev_request, 0, &dev_config, sizeof(usb_config_descriptor_t));
+
+	/* Out Transfer, STATUS Stage */
+	usb_transaction_out(hc, &dev_request, 1, NULL, 0);
+
+	/* Send it */
+	usb_transaction_send(hc, &dev_request);
+
+	/* Complete ? */
+	if (dev_request.completed)
+	{
+		hc->ports[port]->device->config_max_length = dev_config.total_length;
+		hc->ports[port]->device->num_interfaces = dev_config.num_interfaces;
+		hc->ports[port]->device->max_power_consumption = (uint16_t)(dev_config.max_power_consumption * 2);
+	}
+
+	/* Done */
+	return dev_request.completed;
+}
+
+/* Gets the config descriptor */
+int usb_function_get_config_descriptor(usb_hc_t *hc, int port)
+{
+	usb_hc_request_t dev_request;
+	void *buffer;
+
+	/* Step 1. Get configuration descriptor */
+	if (!usb_function_get_initial_config_descriptor(hc, port))
+		return 0;
+	
+	/* Step 2. Get FULL descriptor */
+	printf("OHCI_Handler: (Get_Config_Desc) Configuration Length: 0x%x\n",
+		hc->ports[port]->device->config_max_length);
+	buffer = kmalloc(hc->ports[port]->device->config_max_length);
+	
+	/* Init transfer */
+	usb_transaction_init(hc, &dev_request, X86_USB_REQUEST_TYPE_CONTROL,
+		hc->ports[port]->device, 0, 64);
+
+	/* Setup Packet */
+	dev_request.lowspeed = (hc->ports[port]->full_speed == 0) ? 1 : 0;
+	dev_request.packet.direction = 0x80;
+	dev_request.packet.type = X86_USB_REQ_GET_DESC;
+	dev_request.packet.value_high = X86_USB_DESC_TYPE_CONFIG;
+	dev_request.packet.value_low = 0;
+	dev_request.packet.index = 0;
+	dev_request.packet.length = hc->ports[port]->device->config_max_length;
+
+	/* Setup Transfer */
+	usb_transaction_setup(hc, &dev_request, sizeof(usb_packet_t));
+
+	/* In Transfer, we want to fill the descriptor */
+	usb_transaction_in(hc, &dev_request, 0, buffer, hc->ports[port]->device->config_max_length);
+
+	/* Out Transfer, STATUS Stage */
+	usb_transaction_out(hc, &dev_request, 1, NULL, 0);
+
+	/* Send it */
+	usb_transaction_send(hc, &dev_request);
+
+	/* Completed ? */
+	if (dev_request.completed)
+	{
+		/* Parse Interface & Endpoints */
+	}
+
+	/* Done */
+	return dev_request.completed;
 }
