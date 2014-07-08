@@ -24,5 +24,8 @@
     <ClCompile Include="..\..\..\system\scheduler.c">
       <Filter>Systems</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\..\system\semaphore.c">
+      <Filter>Systems</Filter>
+    </ClCompile>
   </ItemGroup>
 </Project>

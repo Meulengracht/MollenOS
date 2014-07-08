@@ -44,7 +44,8 @@
     <ClCompile Include="..\..\..\arch\x86\drivers\clock\rtc.c" />
     <ClCompile Include="..\..\..\arch\x86\drivers\driver_manager.c" />
     <ClCompile Include="..\..\..\arch\x86\drivers\usb\ohci\ohci.c" />
-    <ClCompile Include="..\..\..\arch\x86\drivers\usb\usb.c" />
+    <ClCompile Include="..\..\..\arch\x86\drivers\usb\usb_core.c" />
+    <ClCompile Include="..\..\..\arch\x86\drivers\usb\usb_functions.c" />
     <ClCompile Include="..\..\..\arch\x86\memory\mm_phys.c" />
     <ClCompile Include="..\..\..\arch\x86\memory\mm_virt.c" />
   </ItemGroup>

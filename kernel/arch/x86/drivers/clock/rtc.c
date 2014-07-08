@@ -27,6 +27,10 @@
 #include <stddef.h>
 #include <stdio.h>
 
+/* Externs */
+extern volatile uint32_t timer_quantum;
+extern void rdtsc(uint64_t *value);
+
 /* Globals */
 volatile time_t glb_clock_tick = 0;
 
@@ -103,4 +107,21 @@ void clock_stall(time_t ms)
 	/* While */
 	while (ticks >= clock_get_clocks())
 		idle();
+}
+
+/* Stall for ms */
+void clock_stall_noint(time_t ms)
+{
+	uint64_t rd_ticks = 0;
+	uint64_t ticks = 0;
+
+	/* Read Time Stamp Counter */
+	rdtsc(&rd_ticks);
+
+	/* Calculate ticks */
+	ticks = rd_ticks + (ms * timer_quantum);
+
+	/* Wait */
+	while (ticks > rd_ticks)
+		rdtsc(&rd_ticks);
 }

@@ -95,6 +95,7 @@ typedef struct _thread
 	uint32_t flags;
 	uint32_t time_slice;
 	int32_t priority;
+	addr_t *sleep_resource;
 
 	/* Ids */
 	tid_t thread_id;
@@ -174,6 +175,7 @@ _CRT_EXTERN physaddr_t memory_getmap(void *page_dir, virtaddr_t virt);
 _CRT_EXTERN void interrupt_init(void);
 _CRT_EXTERN void interrupt_install(uint32_t irq, uint32_t idt_entry, irq_handler_t callback, void *args);
 _CRT_EXTERN void interrupt_install_broadcast(uint32_t irq, uint32_t idt_entry, irq_handler_t callback, void *args);
+_CRT_EXTERN void interrupt_install_pci(uint32_t irq, uint32_t pin, irq_handler_t callback, void *args);
 _CRT_EXTERN void interrupt_install_soft(uint32_t idt_entry, irq_handler_t callback, void *args);
 
 _CRT_EXTERN interrupt_status_t interrupt_disable(void);
@@ -192,13 +194,17 @@ _CRT_EXTERN char *get_instructions_at_mem(addr_t address);
 
 /* Threading - Flags -> Look above for flags  */
 _CRT_EXTERN tid_t threading_create_thread(char *name, thread_entry function, void *args, int flags);
+_CRT_EXTERN void *threading_enter_sleep(void);
 _CRT_EXTERN void threading_kill_thread(tid_t thread_id);
 _CRT_EXTERN void threading_yield(void *args);
+_CRT_EXTERN tid_t threading_get_thread_id(void);
 
 /* Driver Interface */
 _CRT_EXTERN void drivers_init(void);
 
-
+/* Utils Definitions */
+#define MIN(a,b) (((a)<(b))?(a):(b))
+#define MAX(a,b) (((a)>(b))?(a):(b))
 
 /* Architecture Memory Layout, this
  * gives you an idea how memory layout
@@ -219,7 +225,10 @@ _CRT_EXTERN void drivers_init(void);
 /* Architecture Locked Interrupts */
 #define INTERRUPT_TIMER					0xF0
 #define INTERRUPT_RTC					0xEC
-#define INTERRUPT_USB_OHCI				0xE8
+#define INTERRUPT_PCI_PIN_3				0xE8
+#define INTERRUPT_PCI_PIN_2				0xE4
+#define INTERRUPT_PCI_PIN_1				0xE0
+#define INTERRUPT_PCI_PIN_0				0xDC
 
 #define INTERRUPT_SPURIOUS				0x7F
 #define INTERRUPT_SYSCALL				0x80

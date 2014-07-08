@@ -100,6 +100,7 @@ void threading_init(void)
 	init->page_dir = memory_get_current_pdir(0);
 	init->func = NULL;
 	init->args = NULL;
+	init->sleep_resource = NULL;
 
 	/* Reset lock */
 	spinlock_reset(&glb_thread_lock);
@@ -150,6 +151,7 @@ void threading_ap_init(void)
 	init->page_dir = memory_get_current_pdir(cpu);
 	init->func = NULL;
 	init->args = NULL;
+	init->sleep_resource = NULL;
 
 	/* Memset the buffer */
 	memset(init->fpu_buffer, 0, 0x1000);
@@ -179,6 +181,21 @@ list_node_t *threading_get_current_node(cpu_t cpu)
 {
 	/* Get thread */
 	return (list_node_t*)glb_current_threads[cpu];
+}
+
+tid_t threading_get_thread_id(void)
+{
+	cpu_t cpu = get_cpu();
+	return threading_get_current_thread(cpu)->thread_id;
+}
+
+/* Marks current thread for sleep */
+void *threading_enter_sleep(void)
+{
+	cpu_t cpu = get_cpu();
+	thread_t *t = threading_get_current_thread(cpu);
+	t->flags |= X86_THREAD_ENTER_SLEEP;
+	return threading_get_current_node(cpu);
 }
 
 /* Set Current List Node */
@@ -321,11 +338,16 @@ registers_t *threading_switch(registers_t *regs, int preemptive, uint32_t *time_
 	node = threading_get_current_node(cpu);
 
 	/* Unless this one is done.. */
-	if (t->flags & X86_THREAD_FINISHED || t->flags & X86_THREAD_IDLE)
+	if (t->flags & X86_THREAD_FINISHED || t->flags & X86_THREAD_IDLE
+		|| t->flags & X86_THREAD_ENTER_SLEEP)
 	{
 		/* Someone should really kill those zombies :/ */
 		if (t->flags & X86_THREAD_FINISHED)
 			list_append(zombies, node);
+
+		/* Remove flag so it does not happen again */
+		if (t->flags & X86_THREAD_ENTER_SLEEP)
+			t->flags &= ~X86_THREAD_ENTER_SLEEP;
 
 		node = scheduler_schedule(cpu, NULL, preemptive);
 	}

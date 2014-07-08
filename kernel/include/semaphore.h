@@ -16,15 +16,36 @@
 * along with this program.If not, see <http://www.gnu.org/licenses/>.
 *
 *
-* MollenOS X86-32 USB Core Driver
+* MollenOS Synchronization
+* Semaphores
 */
 
+#ifndef _MCORE_SEMAPHORE_H_
+#define _MCORE_SEMAPHORE_H_
+
 /* Includes */
-#include <drivers\usb\usb.h>
+#include <arch.h>
+#include <crtdefs.h>
+#include <stdint.h>
 
-
-/* bla */
-void usb_lol(void)
+/* Structures */
+typedef struct _semaphore 
 {
+	/* Spinlock */
+	spinlock_t lock;
 
-}
+	/* Value */
+	int value;
+
+	/* Semaphore Creator */
+	tid_t creator;
+
+} semaphore_t;
+
+/* Prototypes */
+_CRT_EXTERN semaphore_t *semaphore_create(int value);
+_CRT_EXTERN void semaphore_destroy(semaphore_t *sem);
+_CRT_EXTERN void semaphore_P(semaphore_t *sem);
+_CRT_EXTERN void semaphore_V(semaphore_t *sem);
+
+#endif // !_MCORE_SEMAPHORE_H_

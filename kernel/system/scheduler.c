@@ -35,6 +35,7 @@
 
 /* Globals */
 list_t *thread_queues[MCORE_SCHEDULER_LEVELS];
+list_t *sleep_queue = NULL;
 volatile uint32_t glb_boost_timer = 0;
 volatile uint32_t glb_scheduler_enabled = 0;
 
@@ -47,6 +48,8 @@ void scheduler_init(void)
 	for (i = 0; i < MCORE_SCHEDULER_LEVELS; i++)
 		thread_queues[i] = list_create(LIST_SAFE);
 	
+	sleep_queue = list_create(LIST_SAFE);
+
 	/* Reset boost timer */
 	glb_boost_timer = 0;
 
@@ -101,6 +104,63 @@ void scheduler_ready_thread(list_node_t *node)
 
 	/* Step 2. Add it to appropriate list */
 	list_append(thread_queues[t->priority], node);
+}
+
+/* Make a thread enter sleep */
+void scheduler_sleep_thread(addr_t *resource)
+{
+	/* Mark current thread for sleep and get its queue_node */
+	interrupt_status_t int_state = interrupt_disable();
+	list_node_t *t_node = threading_enter_sleep();
+	thread_t *t = (thread_t*)t_node->data;
+
+	/* Add to list */
+	t->sleep_resource = resource;
+	list_append(sleep_queue, t_node);
+
+	/* Restore interrupts */
+	interrupt_set_state(int_state);
+}
+
+/* Wake up a thread sleeping */
+int scheduler_wakeup_one(addr_t *resource)
+{
+	/* Find first thread matching resource */
+	list_node_t *match = NULL;
+	foreach(i, sleep_queue)
+	{
+		thread_t *t = (thread_t*)i->data;
+
+		if (t->sleep_resource == resource)
+		{
+			match = i;
+			break;
+		}
+	}
+
+	if (match != NULL)
+	{
+		thread_t *t = (thread_t*)match->data;
+		list_remove_by_node(sleep_queue, match);
+
+		/* Grant it top priority */
+		t->priority = -1;
+
+		scheduler_ready_thread(match);
+		return 1;
+	}
+	else
+		return 0;
+}
+
+/* Wake up a all threads sleeping */
+void scheduler_wakeup_all(addr_t *resource)
+{
+	while (1)
+	{
+		if (!scheduler_wakeup_one(resource))
+			break;
+	}
 }
 
 /* Schedule */

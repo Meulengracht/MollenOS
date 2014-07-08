@@ -111,6 +111,48 @@ void interrupt_install_broadcast(uint32_t irq, uint32_t idt_entry, irq_handler_t
 	_interrupt_install(irq, idt_entry, apic_flags, callback, args);
 }
 
+/* Install a pci interrupt */
+void interrupt_install_pci(uint32_t irq, uint32_t pin, irq_handler_t callback, void *args)
+{
+	uint64_t apic_flags = 0;
+	uint32_t idt_entry = irq + 0x20;
+
+	apic_flags = 0xFF00000000000000;	/* Target all groups */
+	apic_flags |= 0x100;				/* Lowest Priority */
+	apic_flags |= 0x800;				/* Logical Destination Mode */
+
+	/* Sanity */
+	if (pin == 4)
+		pin--;
+
+	switch (pin)
+	{
+		case 0:
+		{
+			idt_entry = INTERRUPT_PCI_PIN_0;
+		} break;
+		case 1:
+		{
+			idt_entry = INTERRUPT_PCI_PIN_1;
+		} break;
+		case 2:
+		{
+			idt_entry = INTERRUPT_PCI_PIN_2;
+		} break;
+		case 3:
+		{
+			idt_entry = INTERRUPT_PCI_PIN_3;
+		} break;
+		
+		default:
+			break;
+	}
+
+	apic_flags |= idt_entry;
+
+	_interrupt_install(irq, idt_entry, apic_flags, callback, args);
+}
+
 /* Install only the interrupt handler, 
  *  this should be used for software interrupts */
 void interrupt_install_soft(uint32_t idt_entry, irq_handler_t callback, void *args)
@@ -419,21 +461,21 @@ void interrupt_init(void)
 	idt_install_descriptor(217, (uint32_t)&irq_stringify(217), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
 	idt_install_descriptor(218, (uint32_t)&irq_stringify(218), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
 	idt_install_descriptor(219, (uint32_t)&irq_stringify(219), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
-	idt_install_descriptor(220, (uint32_t)&irq_stringify(220), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
+	idt_install_descriptor(220, (uint32_t)&irq_stringify(220), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);			/* PCI Interrupt 0 */
 	idt_install_descriptor(221, (uint32_t)&irq_stringify(221), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
 	idt_install_descriptor(222, (uint32_t)&irq_stringify(222), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
 	idt_install_descriptor(223, (uint32_t)&irq_stringify(223), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
-	idt_install_descriptor(224, (uint32_t)&irq_stringify(224), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
+	idt_install_descriptor(224, (uint32_t)&irq_stringify(224), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);			/* PCI Interrupt 1 */
 	idt_install_descriptor(225, (uint32_t)&irq_stringify(225), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
 	idt_install_descriptor(226, (uint32_t)&irq_stringify(226), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
 	idt_install_descriptor(227, (uint32_t)&irq_stringify(227), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
-	idt_install_descriptor(228, (uint32_t)&irq_stringify(228), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
+	idt_install_descriptor(228, (uint32_t)&irq_stringify(228), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);			/* PCI Interrupt 2 */
 	idt_install_descriptor(229, (uint32_t)&irq_stringify(229), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
 	idt_install_descriptor(230, (uint32_t)&irq_stringify(230), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
 	idt_install_descriptor(231, (uint32_t)&irq_stringify(231), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
 
 	/* Hardware Ints */
-	idt_install_descriptor(232, (uint32_t)&irq_stringify(232), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
+	idt_install_descriptor(232, (uint32_t)&irq_stringify(232), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);			/* PCI Interrupt 3 */
 	idt_install_descriptor(233, (uint32_t)&irq_stringify(233), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
 	idt_install_descriptor(234, (uint32_t)&irq_stringify(234), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
 	idt_install_descriptor(235, (uint32_t)&irq_stringify(235), X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);

@@ -28,6 +28,8 @@
 #include <pci.h>
 
 /* Definitions */
+#define X86_OHCI_STRUCT_ALIGN		32
+#define X86_OHCI_STRUCT_ALIGN_BITS	0x1F
 
 /* Structures */
 
@@ -65,7 +67,18 @@ typedef struct _o_endpoint_desc
 } ohci_endpoint_desc_t;
 
 /* Bit Defintions */
-#define X86_OHCI_EP_SKIP		(1 << 14)
+#define X86_OHCI_EP_ADDR_BITS		0x7F
+#define X86_OHCI_EP_EP_NUM_BITS		0xF
+#define X86_OHCI_EP_PACKET_BITS		0x3FF
+#define X86_OHCI_EP_EP_NUM(n)		(n << 7)
+#define X86_OHCI_EP_PID_TD			0
+#define X86_OHCI_EP_PID_OUT			(1 << 11)
+#define X86_OHCI_EP_PID_IN			(1 << 12)
+#define X86_OHCI_EP_LOWSPEED(n)		(n << 13)
+#define X86_OHCI_EP_SKIP			(1 << 14)
+#define X86_OHCI_EP_ISOCHRONOUS		(1 << 15)
+#define X86_OHCI_EP_PACKET_SIZE(n)	(n << 16)
+
 
 /* Must be 16 byte aligned 
  * General Transfer Descriptor */
@@ -96,7 +109,17 @@ typedef struct _o_gtransfer_desc
 	 * while using cbp */
 	uint32_t buffer_end;
 
-} ohci_gtransfer_desc;
+} ohci_gtransfer_desc_t;
+
+/* Transfer Definitions */
+#define X86_OHCI_TRANSFER_END_OF_LIST		0x1
+#define X86_OHCI_TRANSFER_BUF_ROUNDING		(1 << 18)
+#define X86_OHCI_TRANSFER_BUF_PID_SETUP		0
+#define X86_OHCI_TRANSFER_BUF_PID_OUT		(1 << 19)
+#define X86_OHCI_TRANSFER_BUF_PID_IN		(1 << 20)
+#define X86_OHCI_TRANSFER_BUF_NO_INTERRUPT	(1 << 21) | (1 << 22) | (1 << 23)
+#define X86_OHCI_TRANSFER_BUF_TD_TOGGLE		(1 << 25)
+#define X86_OHCI_TRANSFER_BUF_NOCC			(1 << 28) | (1 << 29) | (1 << 30) | (1 << 31)
 
 /* Must be 32 byte aligned
  * Isochronous Transfer Descriptor */
@@ -132,7 +155,7 @@ typedef struct _o_itransfer_desc
 	 * Bits 12-15:	Condition Code (Error Code) */
 	uint16_t offsets[8];
 
-} ohci_itransfer_desc;
+} ohci_itransfer_desc_t;
 
 /* Host Controller Communcations Area 
  * must be 256-byte aligned */
@@ -153,22 +176,9 @@ typedef struct _o_hcca
 	uint32_t head_done;
 
 	/* Reserved for HC */
-	uint32_t reserved[29];
+	uint8_t reserved[116];
 
 } ohci_hcca_t;
-
-/* Ohci Interrupt Table */
-typedef struct _o_interrupt_table
-{
-	/* Binary Tree */
-	ohci_endpoint_desc_t	ms16[16];
-	ohci_endpoint_desc_t	ms8[8];
-	ohci_endpoint_desc_t	ms4[4];
-	ohci_endpoint_desc_t	ms2[2];
-	ohci_endpoint_desc_t	ms1[1];
-	ohci_endpoint_desc_t	stop_ed;
-
-} ohci_int_table_t;
 
 /* Register Space */
 typedef struct _o_registers
@@ -211,10 +221,6 @@ typedef struct _o_registers
 #define X86_OHCI_CMD_TDACTIVE_BULK	(1 << 2)
 #define X86_OHCI_CMD_OWNERSHIP		(1 << 3)
 
-#define X86_OHCI_CTRL_INT_ROUTING	(1 << 8)
-#define X86_OHCI_CTRL_REMOTE_WAKE	(1 << 10)
-
-#define X86_OHCI_CTRL_DISABLE_QUEUES	(1 << 2) | (1 << 3) | (1 << 4) | (1 << 5)
 #define X86_OHCI_CTRL_ENABLE_QUEUES	0x3C
 
 #define X86_OHCI_CTRL_USB_RESET		0x0
@@ -225,8 +231,21 @@ typedef struct _o_registers
 /* Bits 0 and 1 */
 #define X86_OHCI_CTRL_SRATIO_BITS		(1 << 0) | (1 << 1)
 
+/* Bit 2-5 (Queues) */
+#define X86_OCHI_CTRL_PERIODIC_LIST		(1 << 2)
+#define X86_OHCI_CTRL_ISOCHRONOUS_LIST	(1 << 3)
+#define X86_OHCI_CTRL_CONTROL_LIST		(1 << 4)
+#define X86_OHCI_CTRL_BULK_LIST			(1 << 5)
+#define X86_OHCI_CTRL_ALL_LISTS			(1 << 2) | (1 << 3) | (1 << 4) | (1 << 5)
+
 /* Bits 6 and 7 */
 #define X86_OHCI_CTRL_FSTATE_BITS		(1 << 6) | (1 << 7) 
+
+/* Bits 8 */
+#define X86_OHCI_CTRL_INT_ROUTING		(1 << 8)
+
+/* Bit 10 */
+#define X86_OHCI_CTRL_REMOTE_WAKE		(1 << 10)
 
 #define X86_OHCI_INTR_SCHEDULING_OVRRN	0x1
 #define X86_OHCI_INTR_HEAD_DONE			0x2
@@ -248,27 +267,44 @@ typedef struct _o_registers
 
 #define X86_OHCI_STATUS_POWER_ON		(1 << 16)
 
+#define X86_OHCI_PORT_DISABLE			(1 << 0)
 #define X86_OHCI_PORT_CONNECTED			(1 << 0)
 #define X86_OHCI_PORT_ENABLED			(1 << 1)
 #define X86_OHCI_PORT_SUSPENDED			(1 << 2)
 #define X86_OHCI_PORT_OVER_CURRENT		(1 << 3)
 #define X86_OHCI_PORT_RESET				(1 << 4)
 #define X86_OHCI_PORT_POWER_ENABLE		(1 << 8)
-#define X86_OHCI_PORT_FULL_SPEED		(1 << 9)
-#define X86_OHIC_PORT_CONNECT_EVENT		(1 << 16) /* Connect / Disconnect event */
+#define X86_OHCI_PORT_LOW_SPEED			(1 << 9)
+#define X86_OHCI_PORT_CONNECT_EVENT		(1 << 16) /* Connect / Disconnect event */
 #define X86_OHCI_PORT_ENABLE_EVENT		(1 << 17)
 #define X86_OHCI_PORT_SUSPEND_EVENT		(1 << 18)
 #define X86_OHCI_PORT_OVR_CURRENT_EVENT	(1 << 19)
 #define X86_OHCI_PORT_RESET_EVENT		(1 << 20)
+
+/* Pool Definitions */
+#define X86_OHCI_POOL_NUM_ED			50
+#define X86_OHCI_POOL_NUM_TD			100
+
+#define X86_OHCI_POOL_ED_CONTROL_START	0
+#define X86_OHCI_POOL_ED_BULK_START		20
+
+#define X86_OHCI_POOL_TD_CONTROL_START	0
+#define X86_OHCI_POOL_TD_BULK_START		40
+
+#define X86_OHCI_INDEX_TYPE_CONTROL		0x01
+#define X86_OHCI_INDEX_TYPE_BULK		0x02
 
 /* Controller Structure */
 typedef struct _o_controller
 {
 	/* Id */
 	uint32_t id;
+	uint32_t hcd_id;
 
 	/* Irq Num */
 	uint32_t irq;
+
+	/* Semaphore */
 
 	/* Pci Header */
 	pci_driver_t *pci_info;
@@ -281,16 +317,34 @@ typedef struct _o_controller
 	volatile ohci_registers_t *registers;
 	volatile ohci_hcca_t *hcca;
 
-	/* Interrupt Table */
-	ohci_int_table_t *int_table;
+	/* ED Pool */
+	ohci_endpoint_desc_t  *ed_pool[X86_OHCI_POOL_NUM_ED];
+
+	/* TD Pool */
+	ohci_gtransfer_desc_t *td_pool[X86_OHCI_POOL_NUM_TD];
+	addr_t td_pool_phys[X86_OHCI_POOL_NUM_TD];
+	addr_t *td_pool_buffers[X86_OHCI_POOL_NUM_TD];
+
+	/* Pool Indices */
+	uint32_t ed_index_control;
+	uint32_t ed_index_bulk;
+	uint32_t td_index_control;
+	uint32_t td_index_bulk;
 
 	/* Power On Time */
+	uint32_t power_mode;
 	uint32_t power_on_delay_ms;
 
 	/* Port Count */
 	uint32_t ports;
 
 } ohci_controller_t;
+
+/* Power Mode Flags */
+#define X86_OHCI_POWER_ALWAYS_ON		0
+#define X86_OHCI_POWER_PORT_CONTROLLED	1
+#define X86_OHCI_POWER_PORT_GLOBAL		2
+
 
 /* Prototypes */
 _CRT_EXTERN void ohci_init(pci_driver_t *device, int irq_override);

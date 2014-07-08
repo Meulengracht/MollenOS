@@ -46,4 +46,8 @@ _CRT_EXTERN void scheduler_init(void);
 _CRT_EXTERN void scheduler_ready_thread(list_node_t* node);
 _CRT_EXTERN list_node_t *scheduler_schedule(cpu_t cpu, list_node_t *node, int preemptive);
 
+_CRT_EXTERN void scheduler_sleep_thread(addr_t *resource);
+_CRT_EXTERN int scheduler_wakeup_one(addr_t *resource);
+_CRT_EXTERN void scheduler_wakeup_all(addr_t *resource);
+
 #endif // !_MCORE_SCHEDULER_H_

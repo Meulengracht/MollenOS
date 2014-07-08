@@ -326,8 +326,8 @@ physaddr_t memory_getmap(void *page_dir, virtaddr_t virt)
 	spinlock_release(&pdir->plock);
 	interrupt_set_state(int_state);
 
-	/* Done */
-	return phys;
+	/* Done - Return with offset */
+	return (phys + (virt & ATTRIBUTE_MASK));
 }
 
 /* Maps a virtual memory address to a physical

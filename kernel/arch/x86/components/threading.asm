@@ -27,6 +27,7 @@ global _save_fpu
 global _load_fpu
 global _clear_ts
 global _set_ts
+global _rdtsc
 global __yield
 
 ; void _yield(void)
@@ -117,6 +118,24 @@ _init_fpu:
 
 	; fpu init
 	finit
+
+	; Release stack frame
+	xor eax, eax
+	pop ebp
+	ret 
+
+; void rdtsc(uint64_t *value)
+; Gets the CPU time-stamp counter
+_rdtsc:
+	; Stack Frame
+	push ebp
+	mov ebp, esp
+
+	; Get pointer
+	mov ebx, [ebp + 8]
+	rdtsc
+	mov [ebx], eax
+	mov [ebx + 4], edx
 
 	; Release stack frame
 	xor eax, eax
