@@ -357,8 +357,143 @@ int usb_function_get_config_descriptor(usb_hc_t *hc, int port)
 	/* Completed ? */
 	if (dev_request.completed)
 	{
+		uint8_t *buf_ptr = (uint8_t*)buffer;
+		uint32_t bytes_left = hc->ports[port]->device->config_max_length;
+		uint32_t endpoints = 1;
+		int i;
+		hc->ports[port]->device->num_interfaces = 0;
+
 		/* Parse Interface & Endpoints */
+		while (bytes_left > 0)
+		{
+			/* Cast */
+			uint8_t length = *buf_ptr;
+			uint8_t type = *(buf_ptr + 1);
+
+			/* Is this an interface or endpoint? :O */
+			if (length == sizeof(usb_interface_descriptor_t) 
+				&& type == X86_USB_DESC_TYPE_INTERFACE)
+			{
+				usb_hc_interface_t *usb_if;
+				usb_interface_descriptor_t *iface = (usb_interface_descriptor_t*)buf_ptr;
+
+				/* Debug Print */
+				printf("Interface %u - Endpoints %u (Class %u, Subclass %u, Protocol %u)\n",
+					iface->num_interface, iface->num_endpoints, iface->class_code,
+					iface->subclass_code, iface->protocol_code);
+
+				/* Allocate */
+				usb_if = (usb_hc_interface_t*)kmalloc(sizeof(usb_hc_interface_t));
+				usb_if->id = iface->num_interface;
+				usb_if->endpoints = iface->num_endpoints;
+				usb_if->class_code = iface->class_code;
+				usb_if->subclass_code = iface->subclass_code;
+				usb_if->protocol_code = iface->protocol_code;
+				endpoints += iface->num_endpoints;
+
+				/* Update Device */
+				hc->ports[port]->device->interfaces[hc->ports[port]->device->num_interfaces] = usb_if;
+				hc->ports[port]->device->num_interfaces++;
+
+				/* Increase Pointer */
+				bytes_left -= iface->length;
+				buf_ptr += iface->length;
+			}
+			else
+			{
+				buf_ptr++;
+				bytes_left--;
+			}
+		}
+
+		/* Prepare Endpoint Loop */
+		buf_ptr = (uint8_t*)buffer;
+		bytes_left = hc->ports[port]->device->config_max_length;
+
+		/* Reallocate new endpoints */
+		if (endpoints > 1)
+		{
+			for (i = 1; i < (int)endpoints; i++)
+				hc->ports[port]->device->endpoints[i] = (usb_hc_endpoint_t*)kmalloc(sizeof(usb_hc_endpoint_t));
+		}
+		else
+			return dev_request.completed;
+
+		/* Update Device */
+		hc->ports[port]->device->num_endpoints = endpoints;
+		
+
+		while (bytes_left > 0)
+		{
+			/* Cast */
+			uint8_t length = *buf_ptr;
+			uint8_t type = *(buf_ptr + 1);
+
+			/* Is this an interface or endpoint? :O */
+			if (length == sizeof(usb_endpoint_descriptor_t)
+				&& type == X86_USB_DESC_TYPE_ENDP)
+			{
+				usb_endpoint_descriptor_t *endpoint = (usb_endpoint_descriptor_t*)buf_ptr;
+				uint32_t ep_address = endpoint->address & 0xF;
+				uint32_t ep_type = endpoint->attributes & 0x3;
+
+				printf("Endpoint %u - Attributes 0x%x (MaxPacketSize 0x%x)\n",
+					endpoint->address, endpoint->attributes, endpoint->max_packet_size);
+
+				/* Update Device */
+				hc->ports[port]->device->endpoints[ep_address]->max_packet_size = endpoint->max_packet_size;
+				hc->ports[port]->device->endpoints[ep_address]->interval = endpoint->interval;
+				hc->ports[port]->device->endpoints[ep_address]->toggle = 0;
+				hc->ports[port]->device->endpoints[ep_address]->type = ep_type;
+
+				/* In or Out? */
+				if (endpoint->address & 0x80)
+					hc->ports[port]->device->endpoints[ep_address]->direction = X86_USB_EP_DIRECTION_IN;
+				else
+					hc->ports[port]->device->endpoints[ep_address]->direction = X86_USB_EP_DIRECTION_OUT;
+
+				/* Increase Pointer */
+				bytes_left -= endpoint->length;
+				buf_ptr += endpoint->length;
+			}
+			else
+			{
+				buf_ptr++;
+				bytes_left--;
+			}
+		}
 	}
+
+	/* Done */
+	return dev_request.completed;
+}
+
+/* Set configuration of an usb device */
+int usb_function_set_configuration(usb_hc_t *hc, int port, uint32_t configuration)
+{
+	usb_hc_request_t dev_request;
+
+	/* Init transfer */
+	usb_transaction_init(hc, &dev_request, X86_USB_REQUEST_TYPE_CONTROL,
+		hc->ports[port]->device, 0, 64);
+
+	/* Setup Packet */
+	dev_request.lowspeed = (hc->ports[port]->full_speed == 0) ? 1 : 0;
+	dev_request.packet.direction = 0;
+	dev_request.packet.type = X86_USB_REQ_SET_CONFIG;
+	dev_request.packet.value_high = 0;
+	dev_request.packet.value_low = (configuration & 0xFF);
+	dev_request.packet.index = 0;
+	dev_request.packet.length = 0;		/* We do not want data */
+
+	/* Setup Transfer */
+	usb_transaction_setup(hc, &dev_request, sizeof(usb_packet_t));
+
+	/* ACK Transfer */
+	usb_transaction_in(hc, &dev_request, 1, NULL, 0);
+
+	/* Send it */
+	usb_transaction_send(hc, &dev_request);
 
 	/* Done */
 	return dev_request.completed;

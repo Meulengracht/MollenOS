@@ -685,7 +685,6 @@ void ohci_reset(ohci_controller_t *controller)
 	The transaction is started only if FrameRemaining >= this field.
 	The value is calculated by HCD with the consideration of transmission and setup overhead.
 	*/
-	controller->registers->HcLSThreshold = 0;
 
 	/* Set Control Bulk Ratio */
 	controller->registers->HcControl |= X86_OHCI_CTRL_SRATIO_BITS;
@@ -694,12 +693,28 @@ void ohci_reset(ohci_controller_t *controller)
 	* and get port count from (DescriptorA & 0x7F) */
 	ohci_set_mode(controller, X86_OHCI_CTRL_USB_WORKING);
 
-	/* Turn on power for ports! */
-	controller->registers->HcRhStatus |= X86_OHCI_STATUS_POWER_ON;
-
-	/* Make sure root hub is not set as compound device */
-	controller->registers->HcRhDescriptorA &= ~X86_OHCI_DESCA_DEVICE_TYPE;
-	controller->registers->HcRhDescriptorB = 0;
+	/* Check Power Mode */
+	if (controller->registers->HcRhDescriptorA & (1 << 9))
+		controller->power_mode = X86_OHCI_POWER_ALWAYS_ON;
+	else
+	{
+		/* Ports are power-switched
+		* Check Mode */
+		if (controller->registers->HcRhDescriptorA & (1 << 8))
+		{
+			/* This is favorable mode
+			* (If this is supported we set power-mask so that all ports control their own power) */
+			controller->power_mode = X86_OHCI_POWER_PORT_CONTROLLED;
+			controller->registers->HcRhDescriptorB = 0xFFFF0000;
+		}
+		else
+		{
+			/* Global Power Switch */
+			controller->registers->HcRhDescriptorB = 0;
+			controller->registers->HcRhStatus |= X86_OHCI_STATUS_POWER_ON;
+			controller->power_mode = X86_OHCI_POWER_PORT_GLOBAL;
+		}
+	}
 }
 
 /* Interrupt Handler 

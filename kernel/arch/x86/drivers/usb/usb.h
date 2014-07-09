@@ -28,6 +28,7 @@
 
 /* Definitions */
 #define X86_USB_CORE_MAX_PORTS	16
+#define X86_USB_CORE_MAX_IF		4
 #define X86_USB_CORE_MAX_EP		16
 
 #define X86_USB_TYPE_OHCI		0
@@ -52,7 +53,7 @@
 #define X86_USB_DESC_TYPE_DEVICE	0x01
 #define X86_USB_DESC_TYPE_CONFIG	0x02
 #define X86_USB_DESC_TYPE_STRING	0x03
-#define X86_USB_DESC_TYPE_IF		0x04 //Interface
+#define X86_USB_DESC_TYPE_INTERFACE	0x04 //Interface
 #define X86_USB_DESC_TYPE_ENDP		0x05
 #define X86_USB_DESC_TYPE_DEV_QAL	0x06 //DEVICE QUALIFIER
 #define X86_USB_DESC_TYPE_OSC		0x07 //Other Speed Config
@@ -170,8 +171,8 @@ typedef struct _usb_interface_descriptor
 	/* Descriptor Type */
 	uint8_t type;
 
-	/* Number of Interfaces */
-	uint8_t num_interfaces;
+	/* Number of Interface */
+	uint8_t num_interface;
 
 	/* Alternative Setting */
 	uint8_t alternative_setting;
@@ -226,13 +227,45 @@ typedef struct _usb_endpoint_descriptor
 /* The Abstract Usb Endpoint */
 typedef struct _usb_hc_endpoint
 {
+	/* Type */
+	uint32_t type;
+
+	/* Direction (IN, OUT) */
+	uint32_t direction;
+
 	/* Max Packet Size (Always 64 bytes, almost) */
 	uint32_t max_packet_size;
 
 	/* Data Toggle */
 	uint32_t toggle;
 
+	/* Poll Interval */
+	uint32_t interval;
+
 } usb_hc_endpoint_t;
+
+#define X86_USB_EP_DIRECTION_IN		0x0
+#define X86_USB_EP_DIRECTION_OUT	0x1
+#define X86_USB_EP_DIRECTION_BOTH	0x2
+
+#define X86_USB_EP_TYPE_CONTROL		0x0
+#define X86_USB_EP_TYPE_ISOCHRONOUS	0x1
+#define X86_USB_EP_TYPE_BULK		0x2
+#define X86_USB_EP_TYPE_INTERRUPT	0x3
+
+/* The Abstract Usb Interface */
+typedef struct _usb_hc_interface
+{
+	/* Interface Type */
+	uint32_t id;
+	uint32_t class_code;
+	uint32_t subclass_code;
+	uint32_t protocol_code;
+
+	/* Ep Numbers */
+	uint32_t endpoints;
+
+} usb_hc_interface_t;
 
 /* The Abstract Device */
 #pragma pack(push, 1)
@@ -248,9 +281,6 @@ typedef struct _usb_hc_device
 	uint16_t config_max_length;
 	uint16_t max_power_consumption;
 
-	/* Interfaces */
-	uint8_t num_interfaces;
-
 	/* String Ids */
 	uint8_t str_index_product;
 	uint8_t str_index_manufactor;
@@ -258,6 +288,10 @@ typedef struct _usb_hc_device
 
 	/* Device Address */
 	uint32_t address;
+
+	/* Device Interfaces */
+	uint32_t num_interfaces;
+	struct _usb_hc_interface *interfaces[X86_USB_CORE_MAX_IF];
 
 	/* Device Endpoints */
 	uint32_t num_endpoints;
@@ -417,6 +451,7 @@ _CRT_EXTERN void usb_transaction_send(usb_hc_t *hc, usb_hc_request_t *dev_reques
 _CRT_EXTERN int usb_function_set_address(usb_hc_t *hc, int port, uint32_t address);
 _CRT_EXTERN int usb_function_get_device_descriptor(usb_hc_t *hc, int port);
 _CRT_EXTERN int usb_function_get_config_descriptor(usb_hc_t *hc, int port);
+_CRT_EXTERN int usb_function_set_configuration(usb_hc_t *hc, int port, uint32_t configuration);
 
 /* Events */
 _CRT_EXTERN void usb_event_create(usb_hc_t *hc, int port, uint32_t type);

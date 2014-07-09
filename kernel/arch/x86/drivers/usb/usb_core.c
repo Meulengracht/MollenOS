@@ -122,17 +122,20 @@ void usb_device_setup(usb_hc_t *hc, int port)
 
 	/* Create a device */
 	device = (usb_hc_device_t*)kmalloc(sizeof(usb_hc_device_t));
-	device->num_endpoints = 3;
+	device->num_endpoints = 1;
 	
 	/* Initial Address must be 0 */
 	device->address = 0;
 
-	/* Allocate endpoints (3, interrupt, in, out) */
-	for (i = 0; i < 3; i++)
+	/* Allocate control endpoint */
+	for (i = 0; i < 1; i++)
 	{
 		device->endpoints[i] = (usb_hc_endpoint_t*)kmalloc(sizeof(usb_hc_endpoint_t));
+		device->endpoints[i]->type = X86_USB_EP_TYPE_CONTROL;
 		device->endpoints[i]->toggle = 0;
 		device->endpoints[i]->max_packet_size = 64;
+		device->endpoints[i]->direction = X86_USB_EP_DIRECTION_BOTH;
+		device->endpoints[i]->interval = 0;
 	}
 
 	/* Bind it */
@@ -144,7 +147,7 @@ void usb_device_setup(usb_hc_t *hc, int port)
 		/* Try again */
 		if (!usb_function_set_address(hc, port, (uint32_t)(port + 1)))
 		{
-			printf("USB_Handler: (Set_Address) Failed to setup port %u\n");
+			printf("USB_Handler: (Set_Address) Failed to setup port %u\n", port);
 			return;
 		}
 	}
@@ -155,7 +158,7 @@ void usb_device_setup(usb_hc_t *hc, int port)
 		/* Try Again */
 		if (!usb_function_get_device_descriptor(hc, port))
 		{
-			printf("USB_Handler: (Get_Device_Desc) Failed to setup port %u\n");
+			printf("USB_Handler: (Get_Device_Desc) Failed to setup port %u\n", port);
 			return;
 		}
 	}
@@ -166,14 +169,24 @@ void usb_device_setup(usb_hc_t *hc, int port)
 		/* Try Again */
 		if (!usb_function_get_config_descriptor(hc, port))
 		{
-			printf("USB_Handler: (Get_Config_Desc) Failed to setup port %u\n");
+			printf("USB_Handler: (Get_Config_Desc) Failed to setup port %u\n", port);
 			return;
 		}
 	}
 
 	/* Set Configuration */
+	if (!usb_function_set_configuration(hc, port, 1))
+	{
+		/* Try Again */
+		if (!usb_function_set_configuration(hc, port, 1))
+		{
+			printf("USB_Handler: (Set_Configuration) Failed to setup port %u\n", port);
+			return;
+		}
+	}
 
 	/* Determine Driver */
+	
 
 	/* Done */
 	printf("OHCI: Setup of port %u done!\n", port);
@@ -185,7 +198,6 @@ void usb_device_destroy(usb_hc_t *hc, int port)
 	hc = hc;
 	port = port;
 }
-
 
 /* Ports */
 usb_hc_port_t *usb_create_port(usb_hc_t *hc, int port)

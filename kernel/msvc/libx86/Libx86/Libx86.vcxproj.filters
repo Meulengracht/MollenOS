@@ -107,9 +107,6 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <None Include="packages.config" />
-  </ItemGroup>
-  <ItemGroup>
     <NASM Include="..\..\..\arch\x86\boot\boot.asm">
       <Filter>Startup</Filter>
     </NASM>
@@ -136,5 +133,8 @@
     <ClInclude Include="..\..\..\arch\x86\debug\disasm.h">
       <Filter>Disasm</Filter>
     </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="packages.config" />
   </ItemGroup>
 </Project>
