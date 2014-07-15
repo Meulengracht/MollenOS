@@ -123,6 +123,10 @@ void usb_device_setup(usb_hc_t *hc, int port)
 	/* Create a device */
 	device = (usb_hc_device_t*)kmalloc(sizeof(usb_hc_device_t));
 	device->num_endpoints = 1;
+
+	device->num_interfaces = 0;
+	for (i = 0; i < X86_USB_CORE_MAX_IF; i++)
+		device->interfaces[i] = NULL;
 	
 	/* Initial Address must be 0 */
 	device->address = 0;
@@ -131,6 +135,7 @@ void usb_device_setup(usb_hc_t *hc, int port)
 	for (i = 0; i < 1; i++)
 	{
 		device->endpoints[i] = (usb_hc_endpoint_t*)kmalloc(sizeof(usb_hc_endpoint_t));
+		device->endpoints[i]->address = 0;
 		device->endpoints[i]->type = X86_USB_EP_TYPE_CONTROL;
 		device->endpoints[i]->toggle = 0;
 		device->endpoints[i]->max_packet_size = 64;
@@ -175,10 +180,10 @@ void usb_device_setup(usb_hc_t *hc, int port)
 	}
 
 	/* Set Configuration */
-	if (!usb_function_set_configuration(hc, port, 1))
+	if (!usb_function_set_configuration(hc, port, hc->ports[port]->device->configuration))
 	{
 		/* Try Again */
-		if (!usb_function_set_configuration(hc, port, 1))
+		if (!usb_function_set_configuration(hc, port, hc->ports[port]->device->configuration))
 		{
 			printf("USB_Handler: (Set_Configuration) Failed to setup port %u\n", port);
 			return;
@@ -256,6 +261,13 @@ void usb_core_event_handler(void *args)
 			{
 				/* Destroy Device */
 				usb_device_destroy(event->controller, event->port);
+
+			} break;
+
+			case X86_USB_EVENT_ROOTHUB_CHECK:
+			{
+				/* Check Ports for Activity */
+				event->controller->root_hub_check(event->controller->hc);
 
 			} break;
 

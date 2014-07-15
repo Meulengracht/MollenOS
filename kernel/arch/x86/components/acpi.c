@@ -268,20 +268,6 @@ void acpi_init_stage2(void)
 		for (;;);
 	}
 
-	/* Create the ACPI namespace from ACPI tables */
-	printf("      > Loading tables\n");
-	Status = AcpiLoadTables();
-	if (ACPI_FAILURE(Status))
-	{
-		printf("      > FAILED LoadTables, %u!\n", Status);
-		for (;;);
-	}
-	
-	
-	/* Note: Local handlers should be installed here */
-	AcpiInstallFixedEventHandler(ACPI_EVENT_POWER_BUTTON, acpi_shutdown, NULL);
-	AcpiInstallFixedEventHandler(ACPI_EVENT_SLEEP_BUTTON, acpi_sleep, NULL);
-
 	/* Install the default address space handlers. */
 	Status = AcpiInstallAddressSpaceHandler(ACPI_ROOT_OBJECT,
 		ACPI_ADR_SPACE_SYSTEM_MEMORY, ACPI_DEFAULT_HANDLER, NULL, NULL);
@@ -304,6 +290,15 @@ void acpi_init_stage2(void)
 			AcpiFormatException(Status));
 	}
 
+	/* Create the ACPI namespace from ACPI tables */
+	printf("      > Loading tables\n");
+	Status = AcpiLoadTables();
+	if (ACPI_FAILURE(Status))
+	{
+		printf("      > FAILED LoadTables, %u!\n", Status);
+		for (;;);
+	}
+
 	/* Set APIC Mode */
 	arg1.Type = ACPI_TYPE_INTEGER;
 	arg1.Integer.Value = 1;
@@ -318,7 +313,6 @@ void acpi_init_stage2(void)
 	if (ACPI_FAILURE(Status))
 	{
 		printf("      > FAILED EnableSystem, %u!\n", Status);
-		for (;;);
 	}
 	
 	/* Complete the ACPI namespace object initialization */
@@ -330,15 +324,9 @@ void acpi_init_stage2(void)
 		for (;;);
 	}
 
-	/* Now it is expected to do namespace walk and execute
-	 * all _PRW methods. I should install GPE handlers here */
-
-	/* Call this on all _PRW methods, AcpiSetWakeGpe */
-	
-	//AcpiInstallGpeHandler()
-	//AcpiInstallGlobalEventHandler()
-	/* Call this when done */
-	//AcpiUpdateAllGpes();
+	/* Note: Local handlers should be installed here */
+	AcpiInstallFixedEventHandler(ACPI_EVENT_POWER_BUTTON, acpi_shutdown, NULL);
+	AcpiInstallFixedEventHandler(ACPI_EVENT_SLEEP_BUTTON, acpi_sleep, NULL);
 
 	printf("    * Acpica Stage 2 Started\n");
 }

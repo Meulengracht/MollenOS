@@ -86,17 +86,17 @@ void init(multiboot_info_t *bootinfo, uint32_t kernel_size)
 	printf("    * APIC Initializing\n");
 	apic_init();
 
+	/* Threading */
+	printf("  - Threading\n");
+	scheduler_init();
+	threading_init();
+
 	/* Setup Timers */
 	printf("    * Setting up local timer\n");
 	apic_timer_init();
 
 	/* Setup Full APICPA */
 	acpi_init_stage2();
-
-	/* Threading */
-	printf("  - Threading\n");
-	scheduler_init();
-	threading_init();
 
 	/* Start out any extra cores */
 	printf("  - Booting Cores\n");

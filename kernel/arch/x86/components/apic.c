@@ -381,6 +381,12 @@ void apic_set_task_priority(uint32_t priority)
 	apic_write_local(0x80, priority);
 }
 
+uint32_t apic_get_task_priority(void)
+{
+	/* Write it to local apic */
+	return (apic_read_local(0x80) & 0xFF);
+}
+
 /* Shortcut, send EOI */
 void apic_send_eoi(void)
 {

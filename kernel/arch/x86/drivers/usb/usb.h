@@ -230,6 +230,9 @@ typedef struct _usb_hc_endpoint
 	/* Type */
 	uint32_t type;
 
+	/* Address */
+	uint32_t address;
+
 	/* Direction (IN, OUT) */
 	uint32_t direction;
 
@@ -280,6 +283,7 @@ typedef struct _usb_hc_device
 	uint8_t num_configurations;
 	uint16_t config_max_length;
 	uint16_t max_power_consumption;
+	uint8_t configuration;
 
 	/* String Ids */
 	uint8_t str_index_product;
@@ -403,6 +407,7 @@ typedef struct _usb_hc
 	struct _usb_hc_port *ports[X86_USB_CORE_MAX_PORTS];
 
 	/* Port Functions */
+	void (*root_hub_check)(void *);
 	void (*port_status)(void *, usb_hc_port_t *);
 
 	/* Transaction Functions */
@@ -432,6 +437,7 @@ typedef struct _usb_event
 #define X86_USB_EVENT_CONNECTED		0
 #define X86_USB_EVENT_DISCONNECTED	1
 #define X86_USB_EVENT_TRANSFER		2
+#define X86_USB_EVENT_ROOTHUB_CHECK	3
 
 /* Prototypes */
 

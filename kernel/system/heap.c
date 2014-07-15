@@ -677,11 +677,11 @@ void heap_init(void)
 	/* Vars */
 	heap_block_t *block_normal, *block_special;
 
-	/* Allocate the heap */
-	heap = (heap_t*)heap_salloc(sizeof(heap_t));
-
 	/* Initiate the global spinlock */
 	spinlock_reset(&heap_plock);
+
+	/* Allocate the heap */
+	heap = (heap_t*)heap_salloc(sizeof(heap_t));
 
 	/* Create a normal node */
 	block_normal = heap_create_block(HEAP_NORMAL_BLOCK, BLOCK_NORMAL);

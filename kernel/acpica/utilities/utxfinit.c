@@ -123,6 +123,7 @@
 #include "acnamesp.h"
 #include "acdebug.h"
 #include "actables.h"
+#include <stdio.h>
 
 #define _COMPONENT          ACPI_UTILITIES
         ACPI_MODULE_NAME    ("utxfinit")
@@ -240,11 +241,10 @@ AcpiEnableSubsystem (
 
     ACPI_FUNCTION_TRACE (AcpiEnableSubsystem);
 
-
 #if (!ACPI_REDUCED_HARDWARE)
 
     /* Enable ACPI mode */
-
+	
     if (!(Flags & ACPI_NO_ACPI_ENABLE))
     {
         ACPI_DEBUG_PRINT ((ACPI_DB_EXEC, "[Init] Going into ACPI mode\n"));

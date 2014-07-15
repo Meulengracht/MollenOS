@@ -119,12 +119,17 @@ typedef struct _pci_irq_res
 
 } pci_irq_resource_t;
 
+#pragma pack(push, 1)
 typedef struct _pci_routings
 {
 	/* Just a lot of ints */
 	int interrupts[128];
+	uint8_t trigger[128];
+	uint8_t shareable[128];
+	uint8_t polarity[128];
 
 } pci_routing_table_t;
+#pragma pack(pop)
 
 #pragma pack(push, 1)
 typedef struct _pci_device
@@ -219,6 +224,8 @@ typedef struct _pci_device
 
 
 /* Prototypes */
+
+/* Read I/O */
 _CRT_EXTERN uint8_t pci_read_byte(const uint16_t bus, const uint16_t dev,
 									const uint16_t func, const uint32_t reg);
 _CRT_EXTERN uint16_t pci_read_word(const uint16_t bus, const uint16_t dev,
@@ -226,11 +233,44 @@ _CRT_EXTERN uint16_t pci_read_word(const uint16_t bus, const uint16_t dev,
 _CRT_EXTERN uint32_t pci_read_dword(const uint16_t bus, const uint16_t dev,
 									const uint16_t func, const uint32_t reg);
 
+/* Write I/O */
 _CRT_EXTERN void pci_write_byte(const uint16_t bus, const uint16_t dev,
 								 const uint16_t func, const uint32_t reg, uint8_t value);
 _CRT_EXTERN void pci_write_word(const uint16_t bus, const uint16_t dev,
 								 const uint16_t func, const uint32_t reg, uint16_t value);
 _CRT_EXTERN void pci_write_dword(const uint16_t bus, const uint16_t dev,
 								 const uint16_t func, const uint32_t reg, uint32_t value);
+
+/* Install PCI Interrupt */
+_CRT_EXTERN void interrupt_install_pci(pci_driver_t *device, irq_handler_t callback, void *args);
+
+/* Get Irq by Bus / Dev / Pin
+* Returns -1 if no overrides exists */
+_CRT_EXTERN int pci_device_get_irq(uint32_t bus, uint32_t device, uint32_t pin,
+									uint8_t *trigger_mode, uint8_t *polarity, uint8_t *shareable);
+
+/* Decode PCI Device to String */
+_CRT_EXTERN char *pci_to_string(uint8_t class, uint8_t sub_class, uint8_t prog_if);
+
+/* Reads the vendor id at given location */
+_CRT_EXTERN uint16_t pci_read_vendor_id(const uint16_t bus, const uint16_t device, const uint16_t function);
+
+/* Reads a PCI header at given location */
+_CRT_EXTERN void pci_read_function(pci_device_header_t *pcs, const uint16_t bus, const uint16_t device, const uint16_t function);
+
+/* Reads the base class at given location */
+_CRT_EXTERN uint8_t pci_read_base_class(const uint16_t bus, const uint16_t device, const uint16_t function);
+
+/* Reads the sub class at given location */
+_CRT_EXTERN uint8_t pci_read_sub_class(const uint16_t bus, const uint16_t device, const uint16_t function);
+
+/* Reads the secondary bus number at given location */
+_CRT_EXTERN uint8_t pci_read_secondary_bus_number(const uint16_t bus, const uint16_t device, const uint16_t function);
+
+/* Reads the sub class at given location 
+ * Bit 7 - MultiFunction, Lower 4 bits is type.
+ * Type 0 is standard, Type 1 is PCI-PCI Bridge,
+ * Type 2 is CardBus Bridge */
+_CRT_EXTERN uint8_t pci_read_header_type(const uint16_t bus, const uint16_t device, const uint16_t function);
 
 #endif // !_X86_PCI_H_

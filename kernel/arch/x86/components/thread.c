@@ -186,7 +186,11 @@ list_node_t *threading_get_current_node(cpu_t cpu)
 tid_t threading_get_thread_id(void)
 {
 	cpu_t cpu = get_cpu();
-	return threading_get_current_thread(cpu)->thread_id;
+
+	if (glb_thread_id == 0)
+		return 0;
+	else
+		return threading_get_current_thread(cpu)->thread_id;
 }
 
 /* Marks current thread for sleep */

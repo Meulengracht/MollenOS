@@ -44,9 +44,6 @@ void clock_irq_handler(void *data)
 
 	/* Acknowledge Irq 8 by reading register C */
 	clock_read_register(X86_CMOS_REGISTER_STATUS_C);
-
-	/* Send EOI */
-	apic_send_eoi();
 }
 
 /* Initialization */

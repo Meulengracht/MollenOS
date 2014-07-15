@@ -30,7 +30,7 @@
 #include <stdio.h>
 
 /* Globals */
-volatile uint32_t *memory_bitmap = NULL;
+volatile addr_t *memory_bitmap = NULL;
 volatile uint32_t memory_bitmap_size = 0;
 volatile uint32_t memory_blocks = 0;
 volatile uint32_t memory_usedblocks = 0;
@@ -111,10 +111,6 @@ int memory_get_free_bit_high(void)
 	int j;
 	int rbit = -1;
 
-	/* Get spinlock */
-	interrupt_status_t int_state = interrupt_disable();
-	spinlock_acquire(&memory_plock);
-
 	/* Find time! */
 	for (i = 8; i < max; i++)
 	{
@@ -123,6 +119,8 @@ int memory_get_free_bit_high(void)
 			for (j = 0; j < 32; j++)
 			{
 				int bit = 1 << j;
+
+				/* Test it */
 				if (!(memory_bitmap[i] & bit))
 				{
 					rbit = (int)(i * 4 * 8 + j);
@@ -135,10 +133,6 @@ int memory_get_free_bit_high(void)
 		if (rbit != -1)
 			break;
 	}
-
-	/* Release Spinlock */
-	spinlock_release(&memory_plock);
-	interrupt_set_state(int_state);
 
 	return rbit;
 }
@@ -154,7 +148,9 @@ void memory_free_region(uint32_t base, size_t size)
 	{
 		/* Free memory */
 		memory_unsetbit(align++);
-		memory_usedblocks--;
+
+		if (memory_usedblocks != 0)
+			memory_usedblocks--;
 	}
 }
 
@@ -203,7 +199,8 @@ void physmem_init(void *bootinfo, uint32_t img_size)
 	multiboot_info_t *mboot = (multiboot_info_t*)bootinfo;
 	mboot_mem_region_t *region = (mboot_mem_region_t*)mboot->MemoryMapAddr;
 	uint32_t i, j;
-	img_size = img_size;
+	
+	_CRT_UNUSED(img_size);
 
 	/* Get information from multiboot struct */
 	memory_size = mboot->MemoryHigh;
@@ -214,14 +211,20 @@ void physmem_init(void *bootinfo, uint32_t img_size)
 	assert((memory_size / 1024 / 1024) >= 2);
 
 	/* Set storage variables */
-	memory_bitmap = (uint32_t*)PHYS_MM_BITMAP_LOCATION;
+	memory_bitmap = (addr_t*)PHYS_MM_BITMAP_LOCATION;
 	memory_blocks = memory_size / PAGE_SIZE;
-	memory_usedblocks = memory_blocks;
-	memory_bitmap_size = memory_blocks / 8; /* 8 blocks per byte, 32 per int */
+	memory_usedblocks = memory_blocks + 1;
+	memory_bitmap_size = (memory_blocks + 1) / 8; /* 8 blocks per byte, 32 per int */
+
+	if ((memory_blocks + 1) % 8)
+		memory_bitmap_size++;
 
 	/* Set all memory in use */
 	memset((void*)memory_bitmap, 0xF, memory_bitmap_size);
 	memset((void*)reserved_mappings, 0, sizeof(reserved_mappings));
+
+	/* Reset Spinlock */
+	spinlock_reset(&memory_plock);
 
 	/* Let us make it possible to access 
 	 * the first page of memory, but not through normal means */
@@ -239,8 +242,8 @@ void physmem_init(void *bootinfo, uint32_t img_size)
 			if (region->type == 1)
 				memory_free_region((physaddr_t)region->address, (size_t)region->size);
 
-			printf("      > Memory Region %u: Address: 0x%x, Size 0x%x\n",
-				region->type, (physaddr_t)region->address, (size_t)region->size);
+			/*printf("      > Memory Region %u: Address: 0x%x, Size 0x%x\n",
+				region->type, (physaddr_t)region->address, (size_t)region->size); */
 
 			reserved_mappings[j].type = region->type;
 			reserved_mappings[j].physical = (physaddr_t)region->address;
@@ -265,10 +268,10 @@ void physmem_init(void *bootinfo, uint32_t img_size)
 	/* 0x90000 - 0x9F000 || Kernel Stack */
 	memory_alloc_region(0x90000, 0xF000);
 
-	/* 0x100000 - 0x140000 || Kernel Space */
+	/* 0x100000 - 0x180000 || Kernel Space */
 	memory_alloc_region(PHYS_MM_KERNEL_LOCATION, PHYS_MM_KERNEL_RESERVED);
 
-	/* 0x140000 - ?? || Bitmap Space */
+	/* 0x180000 - ?? || Bitmap Space */
 	memory_alloc_region(PHYS_MM_BITMAP_LOCATION, memory_bitmap_size);
 
 	printf("      > Bitmap size: %u Bytes\n", memory_bitmap_size);
@@ -301,21 +304,24 @@ void physmem_free_block(physaddr_t addr)
 	interrupt_set_state(int_state);
 
 	/* Statistics */
-	memory_usedblocks--;
+	if (memory_usedblocks != 0)
+		memory_usedblocks--;
 }
 
 physaddr_t physmem_alloc_block(void)
 {
 	/* Get free bit */
-	int bit = memory_get_free_bit_high();
+	int bit;
 	interrupt_status_t int_state;
-
-	/* Sanity */
-	assert(bit != -1);
 
 	/* Get spinlock */
 	int_state = interrupt_disable();
 	spinlock_acquire(&memory_plock);
+
+	bit = memory_get_free_bit_high();
+
+	/* Sanity */
+	assert(bit != -1);
 
 	/* Set it */
 	memory_setbit(bit);

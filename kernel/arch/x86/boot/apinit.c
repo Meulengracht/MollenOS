@@ -143,7 +143,7 @@ void cpu_start_core(void *data, int n)
 {
 	ACPI_MADT_LOCAL_APIC *core = (ACPI_MADT_LOCAL_APIC*)data;
 	uint32_t cpu_apic_id = core->Id;
-	uint32_t cpu_result = 0;
+	volatile uint32_t cpu_result = 0;
 
 	/* Dont boot bootstrap cpu */
 	if (bootstrap_cpu_id == core->Id)
@@ -160,9 +160,14 @@ void cpu_start_core(void *data, int n)
 	apic_write_local(0x300, 0x4500);
 
 	/* Verify startup */
+	printf("..");
 	cpu_result = apic_read_local(0x300);
-	while (cpu_result & 0x1000) stall_ms(1);
-	printf("...");
+	while (cpu_result & 0x1000)
+	{
+		stall_ms(1);
+		cpu_result = apic_read_local(0x300);
+	}
+	printf("..");
 
 	/* Send INIT SIPI command (0x4600) */
 	apic_write_local(0x300, 0x4600 | 0x5);  /* Vector 5, code is located at 0x5000 */
@@ -171,7 +176,11 @@ void cpu_start_core(void *data, int n)
 	 * It should have a timeout of 200 ms, 
 	 * then resend SIPI */
 	cpu_result = apic_read_local(0x300);
-	while (cpu_result & 0x1000) stall_ms(1);
+	while (cpu_result & 0x1000)
+	{
+		stall_ms(1);
+		cpu_result = apic_read_local(0x300);
+	}
 	printf(" booted!\n");
 }
 

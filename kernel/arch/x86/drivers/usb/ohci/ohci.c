@@ -78,16 +78,10 @@ const char *ohci_err_msgs[] =
 void ohci_set_mode(ohci_controller_t *controller, uint32_t mode)
 {
 	/* First we clear the current Operation Mode */
-	controller->registers->HcControl &= ~X86_OHCI_CTRL_FSTATE_BITS;
-	controller->registers->HcControl |= mode;
-}
-
-void ohci_toggle_frt(ohci_controller_t *controller)
-{
-	if (controller->registers->HcFmInterval & X86_OHCI_FRMV_FRT)
-		controller->registers->HcFmInterval &= ~X86_OHCI_FRMV_FRT;
-	else
-		controller->registers->HcFmInterval |= X86_OHCI_FRMV_FRT;
+	uint32_t val = controller->registers->HcControl;
+	val = (val & ~X86_OHCI_CTRL_USB_SUSPEND);
+	val |= mode;
+	controller->registers->HcControl = val;
 }
 
 void ohci_reset_indices(ohci_controller_t *controller, uint32_t type)
@@ -133,13 +127,63 @@ addr_t ohci_align(addr_t addr, addr_t alignment_bits, addr_t alignment)
 	return aligned_addr;
 }
 
+/* This resets a port, this is only ever
+* called from an interrupt and thus we can't use clock_stall :/ */
+void ohci_port_reset(ohci_controller_t *controller, uint32_t port, int noint)
+{
+	int i = 0;
+	uint32_t temp;
+
+	/* Set reset */
+	if (noint)
+		controller->registers->HcRhPortStatus[port] = (X86_OHCI_PORT_RESET | X86_OHCI_PORT_CONNECT_EVENT);
+	else
+		controller->registers->HcRhPortStatus[port] = (X86_OHCI_PORT_RESET);
+
+	/* Wait with timeout */
+	temp = controller->registers->HcRhPortStatus[port];
+	while ((temp & X86_OHCI_PORT_RESET)
+		&& (i < 1000))
+	{
+		/* Increase timeout */
+		i++;
+
+		/* Stall */
+		clock_stall_noint(200000);
+
+		/* Update */
+		temp = controller->registers->HcRhPortStatus[port];
+	}
+
+	/* Clear Reset Event */
+	if (noint)
+		controller->registers->HcRhPortStatus[port] = X86_OHCI_PORT_RESET_EVENT;
+
+	/* Set Enable */
+	if (!(controller->registers->HcRhPortStatus[port] & X86_OHCI_PORT_ENABLED))
+	{
+		if (controller->power_mode == X86_OHCI_POWER_PORT_CONTROLLED)
+			controller->registers->HcRhPortStatus[port] = X86_OHCI_PORT_ENABLED | X86_OHCI_PORT_POWER_ENABLE;
+		else
+			controller->registers->HcRhPortStatus[port] = X86_OHCI_PORT_ENABLED;
+	}
+
+	/* Stall */
+	clock_stall_noint(100000);
+}
+
+
 /* Callbacks */
 void ohci_port_status(void *ctrl_data, usb_hc_port_t *port)
 {
 	ohci_controller_t *controller = (ohci_controller_t*)ctrl_data;
-	uint32_t status = controller->registers->HcRhPortStatus[port->id];
+	uint32_t status;
+
+	/* Reset Port */
+	ohci_port_reset(controller, port->id, 1);
 
 	/* Update information in port */
+	status = controller->registers->HcRhPortStatus[port->id];
 
 	/* Is it connected? */
 	if (status & X86_OHCI_PORT_CONNECTED)
@@ -159,41 +203,30 @@ void ohci_port_status(void *ctrl_data, usb_hc_port_t *port)
 	else
 		port->full_speed = 1;
 
+	/* Clear Connect Event */
+	if (controller->registers->HcRhPortStatus[port->id] & X86_OHCI_PORT_CONNECT_EVENT)
+		controller->registers->HcRhPortStatus[port->id] = X86_OHCI_PORT_CONNECT_EVENT;
+
+	/* If Enable Event bit is set, clear it */
+	if (controller->registers->HcRhPortStatus[port->id] & X86_OHCI_PORT_ENABLE_EVENT)
+		controller->registers->HcRhPortStatus[port->id] = X86_OHCI_PORT_ENABLE_EVENT;
+
+	/* If Suspend Event is set, clear it */
+	if (controller->registers->HcRhPortStatus[port->id] & X86_OHCI_PORT_SUSPEND_EVENT)
+		controller->registers->HcRhPortStatus[port->id] = X86_OHCI_PORT_SUSPEND_EVENT;
+
+	/* If Over Current Event is set, clear it */
+	if (controller->registers->HcRhPortStatus[port->id] & X86_OHCI_PORT_OVR_CURRENT_EVENT)
+		controller->registers->HcRhPortStatus[port->id] = X86_OHCI_PORT_OVR_CURRENT_EVENT;
+
+	/* If reset bit is set, clear it */
+	if (controller->registers->HcRhPortStatus[port->id] & X86_OHCI_PORT_RESET_EVENT)
+		controller->registers->HcRhPortStatus[port->id] = X86_OHCI_PORT_RESET_EVENT;
+
 	printf("OHCI: Port Status %u: 0x%x\n", port->id, status);
 }
 
 /* Port Functions */
-
-/* This resets a port, this is only ever
- * called from an interrupt and thus we can't use clock_stall :/ */
-void ohci_port_reset(ohci_controller_t *controller, uint32_t port)
-{
-	int i = 0;
-
-	/* Set reset */
-	controller->registers->HcRhPortStatus[port] = X86_OHCI_PORT_RESET;
-
-	/* Wait with timeout */
-	while ((controller->registers->HcRhPortStatus[port] & X86_OHCI_PORT_RESET)
-		&& (i < 1000))
-	{
-		/* Increase timeout */
-		i++;
-
-		/* Stall */
-		clock_stall_noint(20000);
-	}
-
-	/* Set Enable */
-	if (controller->power_mode == X86_OHCI_POWER_PORT_CONTROLLED)
-		controller->registers->HcRhPortStatus[port] = X86_OHCI_PORT_ENABLED | X86_OHCI_PORT_POWER_ENABLE;
-	else
-		controller->registers->HcRhPortStatus[port] = X86_OHCI_PORT_ENABLED;
-	
-	/* Stall */
-	clock_stall_noint(100000);
-}
-
 void ohci_port_check(ohci_controller_t *controller, uint32_t port)
 {
 	usb_hc_t *hc;
@@ -204,7 +237,7 @@ void ohci_port_check(ohci_controller_t *controller, uint32_t port)
 		if (controller->registers->HcRhPortStatus[port] & X86_OHCI_PORT_CONNECTED)
 		{
 			/* Reset on Attach */
-			ohci_port_reset(controller, port);
+			ohci_port_reset(controller, port, 0);
 		}
 		else
 		{
@@ -276,10 +309,10 @@ void ohci_ports_check(ohci_controller_t *controller)
 
 /* Function Allocates Resources 
  * and starts a init thread */
-void ohci_init(pci_driver_t *device, int irq_override)
+void ohci_init(pci_driver_t *device)
 {
+	uint16_t pci_command;
 	ohci_controller_t *controller = NULL;
-	uint32_t pin = 0xFF;
 
 	/* Sanity */
 	if (glb_ohci_controllers == NULL)
@@ -290,17 +323,9 @@ void ohci_init(pci_driver_t *device, int irq_override)
 	controller->pci_info = device;
 	controller->id = glb_ohci_id;
 
-	/* Determine Irq */
-	if (irq_override != -1)
-	{
-		controller->irq = (uint32_t)irq_override;
-		pin = device->header->interrupt_pin;
-	}
-	else
-		controller->irq = device->header->interrupt_line;
-
 	/* Enable memory and bus mastering */
-	pci_write_word((const uint16_t)device->bus, (const uint16_t)device->device, (const uint16_t)device->function, 0x4, 0x6);
+	pci_command = pci_read_word((const uint16_t)device->bus, (const uint16_t)device->device, (const uint16_t)device->function, 0x4);
+	pci_write_word((const uint16_t)device->bus, (const uint16_t)device->device, (const uint16_t)device->function, 0x4, pci_command | 0x6);
 
 	/* Get location of registers */
 	controller->control_space = device->header->bar0;
@@ -325,114 +350,22 @@ void ohci_init(pci_driver_t *device, int irq_override)
 	memset((void*)controller->hcca, 0, 0x1000);
 
 	/* Install IRQ Handler */
-	interrupt_install_pci(controller->irq, pin, ohci_interrupt_handler, controller);
+	interrupt_install_pci(device, ohci_interrupt_handler, controller);
 
 	/* Debug */
-	printf("OHCI - Id %u, Irq %u, bar0: 0x%x (0x%x), dma: 0x%x\n", 
-		controller->id, controller->irq, controller->control_space,
+	printf("OHCI - Id %u, bar0: 0x%x (0x%x), dma: 0x%x\n", 
+		controller->id, controller->control_space,
 		(addr_t)controller->registers, controller->hcca_space);
 
-	
 	/* Reset Controller */
 	ohci_setup(controller);
 }
 
-/* Resets the controllre to a working state from initial */
-void ohci_setup(ohci_controller_t *controller)
+/* Initializes Controller Queues */
+void ohci_init_queues(ohci_controller_t *controller)
 {
-	usb_hc_t *hc;
-	uint32_t temp_value = 0;
 	addr_t buffer_address = 0, buffer_address_max = 0;
 	int i;
-
-	/* Step 1. Verify the Revision */
-	temp_value = (controller->registers->HcRevision & 0xFF);
-	if (temp_value != X86_OHCI_REVISION)
-	{
-		printf("OHCI Revision is wrong (0x%x), exiting :(\n", temp_value);
-		physmem_free_block(controller->hcca_space);
-		kfree(controller);
-		return;
-	}
-
-	/* Disable All Interrupts */
-	controller->registers->HcInterruptDisable = (uint32_t)X86_OHCI_INTR_MASTER_INTR;
-
-	/* Step 2. Gain control of controller */
-
-	/* Is SMM the bitch? */
-	if (controller->registers->HcControl & X86_OHCI_CTRL_INT_ROUTING)
-	{
-		/* Ok, SMM has control, now give me my hat back */
-		controller->registers->HcCommandStatus |= X86_OHCI_CMD_OWNERSHIP;
-
-		/* Wait for InterruptRouting to clear */
-		i = 0;
-		while ((i < 500) && (controller->registers->HcControl & X86_OHCI_CTRL_INT_ROUTING))
-		{
-			/* Idle idle idle */
-			clock_stall(1);
-
-			/* Increase I */
-			i++;
-		}
-
-		if (i == 500)
-		{
-			/* Did not work, reset bit, try that */
-			controller->registers->HcControl &= ~X86_OHCI_CTRL_INT_ROUTING;
-			clock_stall(200);
-
-			if (controller->registers->HcControl & X86_OHCI_CTRL_INT_ROUTING)
-			{
-				printf("OHCI: SMM Won't give us the controller, we're backing down >(\n");
-				physmem_free_block(controller->hcca_space);
-				kfree(controller);
-				return;
-			}
-		}
-	}
-	/* Is BIOS the bitch?? */
-	else if (controller->registers->HcControl & X86_OHCI_CTRL_FSTATE_BITS)
-	{
-		if ((controller->registers->HcControl & X86_OHCI_CTRL_FSTATE_BITS) != X86_OHCI_CTRL_USB_WORKING)
-		{
-			/* Resume Usb Operations */
-			ohci_set_mode(controller, X86_OHCI_CTRL_USB_RESUME);
-
-			/* Wait 10 ms */
-			clock_stall(10);
-		}
-	}
-	else
-	{
-		/* Cold Boot */
-
-		/* Wait 10 ms */
-		clock_stall(10);
-	}
-
-	/* Okiiii, reset controller, we need to save FmInterval */
-	temp_value = controller->registers->HcFmInterval;
-
-	/* Set bit 0 to request reboot */
-	controller->registers->HcCommandStatus |= X86_OHCI_CMD_RESETCTRL;
-
-	/* Wait for reboot (takes maximum of 10 ms) */
-	clock_stall(20);
-
-	/* Now restore FmInterval */
-	controller->registers->HcFmInterval = temp_value;
-	ohci_toggle_frt(controller);
-
-	/* Controller is now in usb_suspend state (84 page)
-	* if we stay in this state for more than 2 ms
-	* usb resume state must be entered to resume usb operations */
-	if ((controller->registers->HcControl & X86_OHCI_CTRL_FSTATE_BITS) == X86_OHCI_CTRL_USB_SUSPEND)
-	{
-		ohci_set_mode(controller, X86_OHCI_CTRL_USB_RESUME);
-		clock_stall(100);
-	}
 
 	/* Initialise ED Pool */
 	for (i = 0; i < X86_OHCI_POOL_NUM_ED; i++)
@@ -443,9 +376,9 @@ void ohci_setup(ohci_controller_t *controller)
 	}
 
 	/* Setup ED List
-	 * We use the first 20 ED's for Control Transfers 
-	 * And the next 30 for Bulk Transfers 
-	 * This means we have two seperate lists, however under one "roof" */
+	* We use the first 20 ED's for Control Transfers
+	* And the next 30 for Bulk Transfers
+	* This means we have two seperate lists, however under one "roof" */
 	for (i = 0; i < X86_OHCI_POOL_NUM_ED; i++)
 	{
 		/* Is it end of Control List ? */
@@ -458,16 +391,10 @@ void ohci_setup(ohci_controller_t *controller)
 		{
 			/* Otherwise, link this ED to the next in list
 			* and set it as SKIP initially since we have no transactions yet */
-			controller->ed_pool[i]->flags |= X86_OHCI_EP_SKIP;
+			controller->ed_pool[i]->flags = X86_OHCI_EP_SKIP;
 			controller->ed_pool[i]->next_ed = memory_getmap(NULL, (virtaddr_t)controller->ed_pool[i + 1]);
 		}
 	}
-
-	/* Setup initial ED points */
-	controller->registers->HcControlHeadED =
-		controller->registers->HcControlCurrentED = memory_getmap(NULL, (virtaddr_t)controller->ed_pool[X86_OHCI_POOL_ED_CONTROL_START]);
-	controller->registers->HcBulkHeadED =
-		controller->registers->HcBulkCurrentED = memory_getmap(NULL, (virtaddr_t)controller->ed_pool[X86_OHCI_POOL_ED_BULK_START]);
 
 	/* Initialise TD Pool */
 	for (i = 0; i < X86_OHCI_POOL_NUM_TD; i++)
@@ -499,58 +426,170 @@ void ohci_setup(ohci_controller_t *controller)
 	/* Reset Indices */
 	ohci_reset_indices(controller, X86_OHCI_INDEX_TYPE_CONTROL | X86_OHCI_INDEX_TYPE_BULK);
 
-	/* Initial values for frame */
-	controller->hcca->current_frame = 0;
-	controller->hcca->head_done = 0;
+	/* Allocate a transaction list */
+	controller->transactions_list = list_create(LIST_SAFE);
+}
+
+/* Resets the controllre to a working state from initial */
+void ohci_setup(ohci_controller_t *controller)
+{
+	usb_hc_t *hc;
+	uint32_t temp_value = 0, temp = 0, fmint = 0;
+	int i;
+
+	/* Step 1. Verify the Revision */
+	temp_value = (controller->registers->HcRevision & 0xFF);
+	if (temp_value != X86_OHCI_REVISION)
+	{
+		printf("OHCI Revision is wrong (0x%x), exiting :(\n", temp_value);
+		physmem_free_block(controller->hcca_space);
+		kfree(controller);
+		return;
+	}
+
+	/* Step 2. Init Virtual Queues */
+	ohci_init_queues(controller);
+
+	/* Step 3. Gain control of controller */
+
+	/* Is SMM the bitch? */
+	if (controller->registers->HcControl & X86_OHCI_CTRL_INT_ROUTING)
+	{
+		/* Ok, SMM has control, now give me my hat back */
+		temp = controller->registers->HcCommandStatus;
+		temp |= X86_OHCI_CMD_OWNERSHIP;
+		controller->registers->HcCommandStatus = temp;
+
+		/* Wait for InterruptRouting to clear */
+		i = 0;
+		while ((i < 500) 
+			&& (controller->registers->HcControl & X86_OHCI_CTRL_INT_ROUTING))
+		{
+			/* Idle idle idle */
+			clock_stall(10);
+
+			/* Increase I */
+			i++;
+		}
+
+		if (i == 500)
+		{
+			/* Did not work, reset bit, try that */
+			controller->registers->HcControl &= ~X86_OHCI_CTRL_INT_ROUTING;
+			clock_stall(200);
+
+			if (controller->registers->HcControl & X86_OHCI_CTRL_INT_ROUTING)
+			{
+				printf("OHCI: SMM Won't give us the controller, we're backing down >(\n");
+				physmem_free_block(controller->hcca_space);
+				kfree(controller);
+				return;
+			}
+		}
+	}
+	/* Is BIOS the bitch?? */
+	else if (controller->registers->HcControl & X86_OHCI_CTRL_FSTATE_BITS)
+	{
+		if ((controller->registers->HcControl & X86_OHCI_CTRL_FSTATE_BITS) != X86_OHCI_CTRL_USB_WORKING)
+		{
+			/* Resume Usb Operations */
+			ohci_set_mode(controller, X86_OHCI_CTRL_USB_WORKING);
+
+			/* Wait 10 ms */
+			clock_stall(10);
+		}
+	}
+	else
+	{
+		/* Cold Boot */
+
+		/* Wait 10 ms */
+		clock_stall(10);
+	}
+
+	/* Disable All Interrupts */
+	controller->registers->HcInterruptDisable = (uint32_t)X86_OHCI_INTR_MASTER_INTR;
+
+	/* Perform a reset of HC Controller */
+	ohci_set_mode(controller, X86_OHCI_CTRL_USB_SUSPEND);
+	clock_stall(200);
+
+	/* Okiiii, reset controller, we need to save FmInterval */
+	fmint = controller->registers->HcFmInterval;
+
+	/* Set bit 0 to request reboot */
+	temp = controller->registers->HcCommandStatus;
+	temp |= X86_OHCI_CMD_RESETCTRL;
+	controller->registers->HcCommandStatus = temp;
+
+	/* Wait for reboot (takes maximum of 10 ms) */
+	i = 0;
+	while ((i < 500) && controller->registers->HcCommandStatus & X86_OHCI_CMD_RESETCTRL)
+	{
+		clock_stall(1);
+		i++;
+	}
+
+	/* Sanity */
+	if (i == 500)
+	{
+		printf("OHCI: Reset Timeout :(\n");
+		return;
+	}
+
+	/**************************************/
+	/* We now have 2 ms to complete setup */
+	/**************************************/
 
 	/* Set HcHCCA to phys address of HCCA */
 	controller->registers->HcHCCA = controller->hcca_space;
 
-	/* Set HcEnableInterrupt to all except SOF */
-	controller->registers->HcInterruptDisable = (uint32_t)(X86_OHCI_INTR_DISABLE_SOF | X86_OHCI_INTR_MASTER_INTR);
-	controller->registers->HcInterruptStatus = ~(uint32_t)0;
-	controller->registers->HcInterruptEnable = X86_OHCI_INTR_ENABLE_ALL;
+	/* Initial values for frame */
+	controller->hcca->current_frame = 0;
+	controller->hcca->head_done = 0;
 
-	/* Disable queues for now */
-	controller->registers->HcControl &= ~X86_OHCI_CTRL_ALL_LISTS;
-	controller->registers->HcControl |= X86_OHCI_CTRL_REMOTE_WAKE;
+	/* Setup initial ED points */
+	controller->registers->HcControlHeadED =
+		controller->registers->HcControlCurrentED = memory_getmap(NULL, (virtaddr_t)controller->ed_pool[X86_OHCI_POOL_ED_CONTROL_START]);
+	controller->registers->HcBulkHeadED =
+		controller->registers->HcBulkCurrentED = memory_getmap(NULL, (virtaddr_t)controller->ed_pool[X86_OHCI_POOL_ED_BULK_START]);
+
+	/* Set HcEnableInterrupt to all except SOF and OC */
+	controller->registers->HcInterruptDisable = (X86_OHCI_INTR_SOF | X86_OHCI_INTR_ROOT_HUB_EVENT | X86_OHCI_INTR_OWNERSHIP_EVENT);
+	controller->registers->HcInterruptStatus = ~(uint32_t)0;
+	controller->registers->HcInterruptEnable = (X86_OHCI_INTR_SCHEDULING_OVRRN | X86_OHCI_INTR_HEAD_DONE |
+		X86_OHCI_INTR_RESUME_DETECT | X86_OHCI_INTR_FATAL_ERROR | X86_OHCI_INTR_FRAME_OVERFLOW | X86_OHCI_INTR_MASTER_INTR);
 
 	/* Set HcPeriodicStart to a value that is 90% of FrameInterval in HcFmInterval */
 	temp_value = (controller->registers->HcFmInterval & 0x3FFF);
 	controller->registers->HcPeriodicStart = (temp_value / 10) * 9;
 
-	/* The counter value indicates max value transfered 
-	 * initially we want this cleared, and for some reason we need 
-	 * to reset bit 30 afterwards :s */
-	controller->registers->HcFmInterval &= ~X86_OHCI_MAX_PACKET_SIZE_BITS;
-	controller->registers->HcFmInterval |= (1 << 30);
-	ohci_toggle_frt(controller);
+	/* Setup Control */
+	temp = controller->registers->HcControl;
+	if (temp & X86_OHCI_CTRL_REMOTE_WAKE)
+		temp |= X86_OHCI_CTRL_REMOTE_WAKE;
 
-	/*
-	LSThreshold contains a value which is compared to the FrameRemaining field prior to initiating a Low Speed transaction.
-	The transaction is started only if FrameRemaining >= this field.
-	The value is calculated by HCD with the consideration of transmission and setup overhead.
-	*/
-	printf("HcFrameInterval: %u", controller->registers->HcFmInterval & 0x3FFF);
-	printf("  HcPeriodicStart: %u", controller->registers->HcPeriodicStart);
-	printf("  FSMPS: %u bytes", (controller->registers->HcFmInterval >> 16) & 0x7FFF);
-	printf("  LSThreshhold: %u\n", controller->registers->HcLSThreshold & 0xFFF);
+	/* Clear Lists, Mode, Ratio and IR */
+	temp = (temp & ~(0x0000003C | X86_OHCI_CTRL_USB_SUSPEND | 0x3 | 0x100));
 
-	/* Set Control Bulk Ratio */
-	controller->registers->HcControl |= X86_OHCI_CTRL_SRATIO_BITS;
+	/* Set Ratio (4:1) and Mode (Operational) */
+	temp |= (0x3 | X86_OHCI_CTRL_USB_WORKING);
+	controller->registers->HcControl = temp;
 
-	/* Start controller by setting it to UsbOperational
-	* and get port count from (DescriptorA & 0x7F) */
-	controller->ports = controller->registers->HcRhDescriptorA & 0x7F;
-	ohci_set_mode(controller, X86_OHCI_CTRL_USB_WORKING);
+	/* Now restore FmInterval */
+	controller->registers->HcFmInterval = fmint;
 
-	/* Sanity */
-	if (controller->ports > 15)
-		controller->ports = 15;
+	/* Controller is now running! */
+	printf("OHCI: Controller %u Started, Control 0x%x\n",
+		controller->id, controller->registers->HcControl);
 
 	/* Check Power Mode */
 	if (controller->registers->HcRhDescriptorA & (1 << 9))
+	{
 		controller->power_mode = X86_OHCI_POWER_ALWAYS_ON;
+		controller->registers->HcRhStatus = X86_OHCI_STATUS_POWER_ON;
+		controller->registers->HcRhDescriptorB = 0;
+	}
 	else
 	{
 		/* Ports are power-switched 
@@ -566,10 +605,20 @@ void ohci_setup(ohci_controller_t *controller)
 		{
 			/* Global Power Switch */
 			controller->registers->HcRhDescriptorB = 0;
-			controller->registers->HcRhStatus |= X86_OHCI_STATUS_POWER_ON;
+			controller->registers->HcRhStatus = X86_OHCI_STATUS_POWER_ON;
 			controller->power_mode = X86_OHCI_POWER_PORT_GLOBAL;
 		}
 	}
+
+	/* Get port count from (DescriptorA & 0x7F) */
+	controller->ports = controller->registers->HcRhDescriptorA & 0x7F;
+
+	/* Sanity */
+	if (controller->ports > 15)
+		controller->ports = 15;
+
+	/* Set RhA */
+	controller->registers->HcRhDescriptorA &= ~(0x00000000 | X86_OHCI_DESCA_DEVICE_TYPE);
 
 	/* Get Power On Delay 
 	 * PowerOnToPowerGoodTime (24 - 31)
@@ -580,22 +629,26 @@ void ohci_setup(ohci_controller_t *controller)
 	 */
 	temp_value = controller->registers->HcRhDescriptorA;
 	temp_value >>= 24;
+	temp_value &= 0x000000FF;
 	temp_value *= 2;
 
-	/* Sanity */
-	if (temp_value > 20)
-		temp_value = 20;
+	/* Give it atleast 100 ms :p */
+	if (temp_value < 100)
+		temp_value = 100;
 
 	controller->power_on_delay_ms = temp_value;
 
-	printf("OHCI: Controller %u Started, ports %u (power mode %u)\n", 
-		controller->id, controller->ports, controller->power_mode);
+	printf("OHCI: Ports %u (power mode %u, power delay %u)\n", 
+		controller->ports, controller->power_mode, temp_value);
 
 	/* Setup HCD */
 	hc = usb_init_controller((void*)controller, X86_USB_TYPE_OHCI, controller->ports);
 
+	/* Port Functions */
+	hc->root_hub_check = ohci_ports_check;
 	hc->port_status = ohci_port_status;
 
+	/* Transaction Functions */
 	hc->transaction_init = ohci_transaction_init;
 	hc->transaction_setup = ohci_transaction_setup;
 	hc->transaction_in = ohci_transaction_in;
@@ -607,45 +660,74 @@ void ohci_setup(ohci_controller_t *controller)
 	/* Setup Ports */
 	for (i = 0; i < (int)controller->ports; i++)
 	{
-		/* Check ports in with usb controller */
-		if (controller->power_mode == X86_OHCI_POWER_PORT_CONTROLLED)
-			controller->registers->HcRhPortStatus[i] = X86_OHCI_PORT_CONNECTED | X86_OHCI_PORT_ENABLED | X86_OHCI_PORT_RESET | X86_OHCI_PORT_POWER_ENABLE;
-		else
-			controller->registers->HcRhPortStatus[i] = X86_OHCI_PORT_CONNECTED | X86_OHCI_PORT_ENABLED | X86_OHCI_PORT_RESET;
+		int p = i;
 
-		clock_stall(50);
+		/* Make sure power is on */
+		if (!(controller->registers->HcRhPortStatus[i] & X86_OHCI_PORT_POWER_ENABLE))
+		{
+			/* Powerup! */
+			controller->registers->HcRhPortStatus[i] = X86_OHCI_PORT_POWER_ENABLE;
+
+			/* Wait for power to stabilize */
+			clock_stall(controller->power_on_delay_ms);
+		}
+
+		/* Check if port is connected */
+		if (controller->registers->HcRhPortStatus[i] & X86_OHCI_PORT_CONNECTED)
+			usb_event_create(usb_get_hcd(controller->hcd_id), p, X86_USB_EVENT_CONNECTED);
 	}
+
+	/* Now we can enable hub events (and clear interrupts) */
+	controller->registers->HcInterruptStatus &= ~(uint32_t)0;
+	controller->registers->HcInterruptEnable = X86_OHCI_INTR_ROOT_HUB_EVENT;
 }
 
 /* Reset Controller */
 void ohci_reset(ohci_controller_t *controller)
 {
-	uint32_t temp_value;
+	uint32_t temp_value, temp, fmint;
+	int i;
 
 	/* Disable All Interrupts */
 	controller->registers->HcInterruptDisable = (uint32_t)X86_OHCI_INTR_MASTER_INTR;
 
+	/* Perform a reset of HC Controller */
+	ohci_set_mode(controller, X86_OHCI_CTRL_USB_SUSPEND);
+	clock_stall(200);
+
 	/* Okiiii, reset controller, we need to save FmInterval */
-	temp_value = controller->registers->HcFmInterval;
+	fmint = controller->registers->HcFmInterval;
 
 	/* Set bit 0 to request reboot */
-	controller->registers->HcCommandStatus |= X86_OHCI_CMD_RESETCTRL;
+	temp = controller->registers->HcCommandStatus;
+	temp |= X86_OHCI_CMD_RESETCTRL;
+	controller->registers->HcCommandStatus = temp;
 
 	/* Wait for reboot (takes maximum of 10 ms) */
-	clock_stall_noint(100);
-
-	/* Now restore FmInterval */
-	controller->registers->HcFmInterval = temp_value;
-	ohci_toggle_frt(controller);
-
-	/* Controller is now in usb_suspend state (84 page)
-	* if we stay in this state for more than 2 ms
-	* usb resume state must be entered to resume usb operations */
-	if ((controller->registers->HcControl & X86_OHCI_CTRL_FSTATE_BITS) == X86_OHCI_CTRL_USB_SUSPEND)
+	i = 0;
+	while ((i < 500) && controller->registers->HcCommandStatus & X86_OHCI_CMD_RESETCTRL)
 	{
-		ohci_set_mode(controller, X86_OHCI_CTRL_USB_RESUME);
-		clock_stall(500);
+		clock_stall(1);
+		i++;
 	}
+
+	/* Sanity */
+	if (i == 500)
+	{
+		printf("OHCI: Reset Timeout :(\n");
+		return;
+	}
+
+	/**************************************/
+	/* We now have 2 ms to complete setup */
+	/**************************************/
+
+	/* Set HcHCCA to phys address of HCCA */
+	controller->registers->HcHCCA = controller->hcca_space;
+
+	/* Initial values for frame */
+	controller->hcca->current_frame = 0;
+	controller->hcca->head_done = 0;
 
 	/* Setup initial ED points */
 	controller->registers->HcControlHeadED =
@@ -653,49 +735,42 @@ void ohci_reset(ohci_controller_t *controller)
 	controller->registers->HcBulkHeadED =
 		controller->registers->HcBulkCurrentED = memory_getmap(NULL, (virtaddr_t)controller->ed_pool[X86_OHCI_POOL_ED_BULK_START]);
 
-	/* Initial values for frame */
-	controller->hcca->current_frame = 0;
-	controller->hcca->head_done = 0;
-
-	/* Set HcHCCA to phys address of HCCA */
-	controller->registers->HcHCCA = controller->hcca_space;
-
-	/* Set HcEnableInterrupt to all except SOF */
-	controller->registers->HcInterruptDisable = (uint32_t)(X86_OHCI_INTR_DISABLE_SOF | X86_OHCI_INTR_MASTER_INTR);
+	/* Set HcEnableInterrupt to all except SOF and OC */
+	controller->registers->HcInterruptDisable = (X86_OHCI_INTR_SOF | X86_OHCI_INTR_ROOT_HUB_EVENT | X86_OHCI_INTR_OWNERSHIP_EVENT);
 	controller->registers->HcInterruptStatus = ~(uint32_t)0;
-	controller->registers->HcInterruptEnable = X86_OHCI_INTR_ENABLE_ALL;
-
-	/* Disable queues for now */
-	controller->registers->HcControl &= ~X86_OHCI_CTRL_ALL_LISTS;
-	controller->registers->HcControl |= X86_OHCI_CTRL_REMOTE_WAKE;
+	controller->registers->HcInterruptEnable = (X86_OHCI_INTR_SCHEDULING_OVRRN | X86_OHCI_INTR_HEAD_DONE |
+		X86_OHCI_INTR_RESUME_DETECT | X86_OHCI_INTR_FATAL_ERROR | X86_OHCI_INTR_FRAME_OVERFLOW | X86_OHCI_INTR_MASTER_INTR);
 
 	/* Set HcPeriodicStart to a value that is 90% of FrameInterval in HcFmInterval */
 	temp_value = (controller->registers->HcFmInterval & 0x3FFF);
 	controller->registers->HcPeriodicStart = (temp_value / 10) * 9;
 
-	/* The counter value indicates max value transfered
-	* initially we want this cleared, and for some reason we need
-	* to reset bit 30 afterwards :s */
-	controller->registers->HcFmInterval &= ~X86_OHCI_MAX_PACKET_SIZE_BITS;
-	controller->registers->HcFmInterval |= (1 << 30);
-	ohci_toggle_frt(controller);
+	/* Setup Control */
+	temp = controller->registers->HcControl;
+	if (temp & X86_OHCI_CTRL_REMOTE_WAKE)
+		temp |= X86_OHCI_CTRL_REMOTE_WAKE;
 
-	/*
-	LSThreshold contains a value which is compared to the FrameRemaining field prior to initiating a Low Speed transaction.
-	The transaction is started only if FrameRemaining >= this field.
-	The value is calculated by HCD with the consideration of transmission and setup overhead.
-	*/
+	/* Clear Lists, Mode, Ratio and IR */
+	temp = (temp & ~(0x0000003C | X86_OHCI_CTRL_USB_SUSPEND | 0x3 | 0x100));
 
-	/* Set Control Bulk Ratio */
-	controller->registers->HcControl |= X86_OHCI_CTRL_SRATIO_BITS;
+	/* Set Ratio (4:1) and Mode (Operational) */
+	temp |= (0x3 | X86_OHCI_CTRL_USB_WORKING);
+	controller->registers->HcControl = temp;
 
-	/* Start controller by setting it to UsbOperational
-	* and get port count from (DescriptorA & 0x7F) */
-	ohci_set_mode(controller, X86_OHCI_CTRL_USB_WORKING);
+	/* Now restore FmInterval */
+	controller->registers->HcFmInterval = fmint;
+
+	/* Controller is now running! */
+	printf("OHCI: Controller %u Started, Control 0x%x\n",
+		controller->id, controller->registers->HcControl);
 
 	/* Check Power Mode */
 	if (controller->registers->HcRhDescriptorA & (1 << 9))
+	{
 		controller->power_mode = X86_OHCI_POWER_ALWAYS_ON;
+		controller->registers->HcRhStatus = X86_OHCI_STATUS_POWER_ON;
+		controller->registers->HcRhDescriptorB = 0;
+	}
 	else
 	{
 		/* Ports are power-switched
@@ -711,9 +786,84 @@ void ohci_reset(ohci_controller_t *controller)
 		{
 			/* Global Power Switch */
 			controller->registers->HcRhDescriptorB = 0;
-			controller->registers->HcRhStatus |= X86_OHCI_STATUS_POWER_ON;
+			controller->registers->HcRhStatus = X86_OHCI_STATUS_POWER_ON;
 			controller->power_mode = X86_OHCI_POWER_PORT_GLOBAL;
 		}
+	}
+
+	/* Now we can enable hub events (and clear interrupts) */
+	controller->registers->HcInterruptStatus &= ~(uint32_t)0;
+	controller->registers->HcInterruptEnable = X86_OHCI_INTR_ROOT_HUB_EVENT;
+}
+
+/* Process Done Queue */
+void ohci_process_done_queue(ohci_controller_t *controller, addr_t done_head)
+{
+	list_t *transactions = controller->transactions_list;
+	list_node_t *ta = NULL;
+	addr_t td_physical;
+	int n = 0;
+
+	/* Find it */
+	ta = list_get_node_by_id(transactions, 0, n);
+	while (ta != NULL)
+	{
+		ohci_endpoint_desc_t *ep = (ohci_endpoint_desc_t*)ta->data;
+		usb_hc_transaction_t *t_list = (usb_hc_transaction_t*)ep->hcd_data;
+
+		/* Process TD's and see if all transfers are done */
+		while (t_list)
+		{
+			/* Get physical of TD */
+			td_physical = memory_getmap(NULL, (virtaddr_t)t_list->transfer_descriptor);
+			
+			if (td_physical == done_head)
+			{
+				/* Is this the last? :> */
+				if (t_list->link == NULL || t_list->link->link == NULL)
+				{
+					n = 0xDEADBEEF;
+					break;
+				}
+				else
+				{
+					/* Error :/ */
+					ohci_gtransfer_desc_t *td = (ohci_gtransfer_desc_t*)t_list->transfer_descriptor;
+					uint32_t condition_code = (td->flags & 0xF0000000) >> 28;
+					printf("FAILURE: TD Flags 0x%x, TD Condition Code %u (%s)\n", td->flags, condition_code, ohci_err_msgs[condition_code]);
+					n = 0xBEEFDEAD;
+					break;
+				}
+			}
+
+			/* Next */
+			t_list = t_list->link;
+		}
+
+		if (n == 0xDEADBEEF || n == 0xBEEFDEAD)
+			break;
+		else
+		{
+			n++;
+			ta = list_get_node_by_id(transactions, 0, n);
+		}
+	}
+	
+	if (ta != NULL && n == 0xDEADBEEF)
+	{
+		/* Either it failed, or it succeded */
+
+		/* Mark EP Descriptor as SKip */
+		((ohci_endpoint_desc_t*)ta->data)->flags = X86_OHCI_EP_SKIP;
+
+		/* Wake a node */
+		scheduler_wakeup_one((addr_t*)ta->data);
+
+		/* Remove from list */
+		list_remove_by_node(transactions, ta);
+
+		/* Cleanup node */
+		kfree(ta);
 	}
 }
 
@@ -722,21 +872,39 @@ void ohci_reset(ohci_controller_t *controller)
  * as this interrupt will be shared with other OHCI's */
 void ohci_interrupt_handler(void *data)
 {
-	uint32_t temp_value = 0;
+	uint32_t intr_state = 0;
 	ohci_controller_t *controller = (ohci_controller_t*)data;
 
-	/* Was it this controller that made the interrupt? 
-	 * We only want the interrupts we have set as enabled */
-	temp_value = controller->registers->HcInterruptStatus & controller->registers->HcInterruptEnable;
+	/* Is this our interrupt ? */
+	if (controller->hcca->head_done != 0)
+	{
+		/* Acknowledge */
+		intr_state = X86_OHCI_INTR_HEAD_DONE;
 
-	if (temp_value == 0)
-		return;
+		if (controller->hcca->head_done & 0x1)
+		{
+			/* Get rest of interrupts, since head_done has halted */
+			intr_state |= (controller->registers->HcInterruptStatus & controller->registers->HcInterruptEnable);
+		}
+	}
+	else
+	{
+		/* Was it this controller that made the interrupt?
+		* We only want the interrupts we have set as enabled */
+		intr_state = (controller->registers->HcInterruptStatus & controller->registers->HcInterruptEnable);
+
+		if (intr_state == 0)
+			return;
+	}
+
+	/* Debug */
+	//printf("OHCI: Controller %u Interrupt: 0x%x\n", controller->hcd_id, intr_state);
 
 	/* Disable Interrupts */
 	controller->registers->HcInterruptDisable = (uint32_t)X86_OHCI_INTR_MASTER_INTR;
 
 	/* Fatal Error? */
-	if (temp_value & X86_OHCI_INTR_FATAL_ERROR)
+	if (intr_state & X86_OHCI_INTR_FATAL_ERROR)
 	{
 		printf("OHCI %u: Fatal Error, resetting...\n", controller->id);
 		ohci_reset(controller);
@@ -744,78 +912,86 @@ void ohci_interrupt_handler(void *data)
 	}
 
 	/* Flag for end of frame type interrupts */
-	if (temp_value & (X86_OHCI_INTR_SCHEDULING_OVRRN | X86_OHCI_INTR_HEAD_DONE | X86_OHCI_INTR_SOF | X86_OHCI_INTR_FRAME_OVERFLOW))
-		temp_value |= X86_OHCI_INTR_MASTER_INTR;
+	if (intr_state & (X86_OHCI_INTR_SCHEDULING_OVRRN | X86_OHCI_INTR_HEAD_DONE | X86_OHCI_INTR_SOF | X86_OHCI_INTR_FRAME_OVERFLOW))
+		intr_state |= X86_OHCI_INTR_MASTER_INTR;
 
 	/* Scheduling Overrun? */
-	if (temp_value & X86_OHCI_INTR_SCHEDULING_OVRRN)
+	if (intr_state & X86_OHCI_INTR_SCHEDULING_OVRRN)
 	{
 		printf("OHCI %u: Scheduling Overrun\n", controller->id);
 
 		/* Acknowledge Interrupt */
 		controller->registers->HcInterruptStatus = X86_OHCI_INTR_SCHEDULING_OVRRN;
-		temp_value &= ~X86_OHCI_INTR_SCHEDULING_OVRRN;
+		intr_state = intr_state & ~(X86_OHCI_INTR_SCHEDULING_OVRRN);
 	}	
 	
 	/* Resume Detection? */
-	if (temp_value & X86_OHCI_INTR_RESUME_DETECT)
+	if (intr_state & X86_OHCI_INTR_RESUME_DETECT)
 	{
 		printf("OHCI %u: Resume Detected\n", controller->id);
 
 		/* We must wait 20 ms before putting controller to Operational */
-		clock_stall_noint(200);
+		clock_stall_noint(2000);
 		ohci_set_mode(controller, X86_OHCI_CTRL_USB_WORKING);
 
 		/* Acknowledge Interrupt */
 		controller->registers->HcInterruptStatus = X86_OHCI_INTR_RESUME_DETECT;
-		temp_value &= ~X86_OHCI_INTR_RESUME_DETECT;
+		intr_state = intr_state & ~(X86_OHCI_INTR_RESUME_DETECT);
 	}
-		
+	
 	/* Frame Overflow 
 	 * Happens when it rolls over from 0xFFFF to 0 */
-	if (temp_value & X86_OHCI_INTR_FRAME_OVERFLOW)
+	if (intr_state & X86_OHCI_INTR_FRAME_OVERFLOW)
 	{
 		//printf("OHCI %u: Frame Overflow (%u)\n", controller->id, controller->registers->HcFmNumber);
 
 		/* Acknowledge Interrupt */
 		controller->registers->HcInterruptStatus = X86_OHCI_INTR_FRAME_OVERFLOW;
-		temp_value &= ~X86_OHCI_INTR_FRAME_OVERFLOW;
+		intr_state = intr_state & ~(X86_OHCI_INTR_FRAME_OVERFLOW);
 	}
 
 	/* Why yes, yes it was, wake up the TD handler thread
 	* if it was head_done_writeback */
-	if (temp_value & X86_OHCI_INTR_HEAD_DONE)
+	if (intr_state & X86_OHCI_INTR_HEAD_DONE)
 	{
 		/* Wuhu, handle this! */
-		uint32_t ed_address = controller->hcca->head_done;
-		scheduler_wakeup_one((addr_t*)ed_address);
+		uint32_t td_address = (controller->hcca->head_done & ~(0x00000001));
+		
+		ohci_process_done_queue(controller, td_address);
+		//scheduler_wakeup_one((addr_t*)td_address);
 
 		/* Acknowledge Interrupt */
 		controller->hcca->head_done = 0;
 		controller->registers->HcInterruptStatus = X86_OHCI_INTR_HEAD_DONE;
-		temp_value &= ~X86_OHCI_INTR_HEAD_DONE;
+		intr_state = intr_state & ~(X86_OHCI_INTR_HEAD_DONE);
 	}
 
 	/* Root Hub Status Change 
 	 * Do a port status check */
-	if (temp_value & X86_OHCI_INTR_ROOT_HUB_EVENT)
+	if (intr_state & X86_OHCI_INTR_ROOT_HUB_EVENT)
 	{
-		ohci_ports_check(controller);
+		/* Port does not matter here */
+		usb_event_create(usb_get_hcd(controller->hcd_id), 0, X86_USB_EVENT_ROOTHUB_CHECK);
 
 		/* Acknowledge Interrupt */
 		controller->registers->HcInterruptStatus = X86_OHCI_INTR_ROOT_HUB_EVENT;
-		temp_value &= ~X86_OHCI_INTR_ROOT_HUB_EVENT;
+		intr_state = intr_state & ~(X86_OHCI_INTR_ROOT_HUB_EVENT);
+	}
+
+	/* Start of Frame? */
+	if (intr_state & X86_OHCI_INTR_SOF)
+	{
+		/* Acknowledge Interrupt */
+		controller->registers->HcInterruptStatus = X86_OHCI_INTR_SOF;
+		intr_state = intr_state & ~(X86_OHCI_INTR_SOF);
 	}
 	
 	/* Mask out remaining interrupts, we dont use them */
-	if (temp_value & ~X86_OHCI_INTR_MASTER_INTR)
-		controller->registers->HcInterruptDisable = temp_value;
+	if (intr_state & ~(X86_OHCI_INTR_MASTER_INTR))
+		controller->registers->HcInterruptDisable = intr_state;
 
 	/* Enable Interrupts */
 	controller->registers->HcInterruptEnable = (uint32_t)X86_OHCI_INTR_MASTER_INTR;
-
-	/* Send EOI */
-	apic_send_eoi();
 }
 
 /* ED Functions */
@@ -878,7 +1054,7 @@ ohci_gtransfer_desc_t *ohci_td_setup(ohci_controller_t *controller, uint32_t typ
 	td->flags = 0;
 	td->flags |= X86_OHCI_TRANSFER_BUF_ROUNDING;
 	td->flags |= X86_OHCI_TRANSFER_BUF_PID_SETUP;
-	td->flags |= X86_OHCI_TRANSFER_BUF_NO_INTERRUPT;	/* We don't want interrupt */
+	//td->flags |= X86_OHCI_TRANSFER_BUF_NO_INTERRUPT;	/* We don't want interrupt */
 	td->flags |= (toggle << 24);
 	td->flags |= X86_OHCI_TRANSFER_BUF_TD_TOGGLE;
 	td->flags |= X86_OHCI_TRANSFER_BUF_NOCC;
@@ -894,6 +1070,7 @@ ohci_gtransfer_desc_t *ohci_td_setup(ohci_controller_t *controller, uint32_t typ
 	packet->length = request_length;
 
 	/* Set TD buffer */
+	td->cbp = memory_getmap(NULL, (virtaddr_t)buffer);
 	td->buffer_end = td->cbp + sizeof(usb_packet_t) - 1;
 
 	/* Make Queue Tail point to this */
@@ -971,13 +1148,18 @@ ohci_gtransfer_desc_t *ohci_td_io(ohci_controller_t *controller, uint32_t type,
 void ohci_transaction_init(void *controller, usb_hc_request_t *request)
 {
 	ohci_controller_t *ctrl = (ohci_controller_t*)controller;
+	uint32_t temp;
 
 	/* Disable BULK and CONTROL queues */
-	ctrl->registers->HcControl &= ~(X86_OHCI_CTRL_CONTROL_LIST | X86_OHCI_CTRL_BULK_LIST); 
+	temp = ctrl->registers->HcControl;
+	temp = (temp & ~0x00000030);
+	ctrl->registers->HcControl = temp;
 
 	/* Tell Command Status we dont have the list filled */
-	ctrl->registers->HcCommandStatus &= ~(X86_OHCI_CMD_TDACTIVE_CTRL | X86_OHCI_CMD_TDACTIVE_BULK);
-		
+	temp = ctrl->registers->HcCommandStatus;
+	temp = (temp & ~0x00000006);
+	ctrl->registers->HcCommandStatus = temp;
+
 	/* Validate TD/ED Indices */
 	ohci_validate_indices(ctrl);
 
@@ -1110,10 +1292,10 @@ void ohci_transaction_send(void *controller, usb_hc_request_t *request)
 	/* Debug Time */
 	usb_hc_transaction_t *transaction = request->transactions;
 	ohci_controller_t *ctrl = (ohci_controller_t*)controller;
-	int i, completed = 1;
+	int completed = 1;
 	ohci_gtransfer_desc_t *td = NULL;
 	uint32_t condition_code;
-	addr_t ed_address, ed_interrupt = 0;
+	addr_t ed_address;
 
 	/* Get physical */
 	ed_address = memory_getmap(NULL, (virtaddr_t)request->data);
@@ -1125,25 +1307,14 @@ void ohci_transaction_send(void *controller, usb_hc_request_t *request)
 	usb_transaction_out(usb_get_hcd(ctrl->hcd_id), request, 1, 0, 0);
 
 	/* Setup an ED for this */
+	((ohci_endpoint_desc_t*)request->data)->hcd_data = (uint32_t)transaction;
 	ohci_ep_init(request->data, (addr_t)request->transactions->transfer_descriptor,
 		request->device->address, request->endpoint, request->length, request->lowspeed);
 
-	/* Set last TD to produce an interrupt (not dummy) */
-	transaction = request->transactions;
-	while (transaction->link)
-	{
-		/* Check if last before dummy */
-		if (transaction->link->link == NULL)
-		{
-			/* Set TD to produce interrupt */
-			td = (ohci_gtransfer_desc_t*)transaction->transfer_descriptor;
-			td->flags &= ~X86_OHCI_TRANSFER_BUF_NO_INTERRUPT;
-			ed_interrupt = memory_getmap(NULL, (virtaddr_t)td);
-			break;
-		}
-
-		transaction = transaction->link;
-	}
+	/* Now lets try the transaction */
+	
+	/* Set true */
+	completed = 1;
 
 	/* Add it HcControl/BulkCurrentED */
 	if (request->type == X86_USB_REQUEST_TYPE_CONTROL)
@@ -1151,40 +1322,32 @@ void ohci_transaction_send(void *controller, usb_hc_request_t *request)
 	else
 		ctrl->registers->HcBulkCurrentED = ed_address;
 
-	/* Now lets try the transaction */
-	for (i = 0; i < 3; i++)
+	/* Add this transaction to list */
+	list_append(ctrl->transactions_list, list_create_node(0, request->data));
+
+	/* Set Lists Filled (Enable Them) */
+	((ohci_endpoint_desc_t*)request->data)->head_ptr &= ~(0x00000001);
+	ctrl->registers->HcCommandStatus |= (X86_OHCI_CMD_TDACTIVE_CTRL | X86_OHCI_CMD_TDACTIVE_BULK);
+	ctrl->registers->HcControl |= (X86_OHCI_CTRL_CONTROL_LIST | X86_OHCI_CTRL_BULK_LIST);
+
+	/* Wait for interrupt */
+	scheduler_sleep_thread((addr_t*)request->data);
+	_yield();
+
+	/* Check Conditions (WithOUT dummy) */
+	transaction = request->transactions;
+	while (transaction->link)
 	{
-		/* Set false */
-		completed = 1;
+		td = (ohci_gtransfer_desc_t*)transaction->transfer_descriptor;
+		condition_code = (td->flags & 0xF0000000) >> 28;
+		//printf("TD Flags 0x%x, TD Condition Code %u (%s)\n", td->flags, condition_code, ohci_err_msgs[condition_code]);
 
-		/* Set Lists Filled (Enable Them) */
-		ctrl->registers->HcCommandStatus |= (X86_OHCI_CMD_TDACTIVE_CTRL | X86_OHCI_CMD_TDACTIVE_BULK);
-		((ohci_endpoint_desc_t*)request->data)->head_ptr &= ~0x1;
-		ctrl->registers->HcControl |= (X86_OHCI_CTRL_CONTROL_LIST | X86_OHCI_CTRL_BULK_LIST);
+		if (condition_code == 0 && completed == 1)
+			completed = 1;
+		else
+			completed = 0;
 
-		/* Wait for interrupt */
-		scheduler_sleep_thread((addr_t*)ed_interrupt);
-		_yield();
-
-		/* Check Conditions (WithOUT dummy) */
-		transaction = request->transactions;
-		while (transaction->link)
-		{
-			td = (ohci_gtransfer_desc_t*)transaction->transfer_descriptor;
-			condition_code = (td->flags & 0xF0000000) >> 28;
-			//printf("TD Flags 0x%x, TD Condition Code %u (%s)\n", td->flags, condition_code, ohci_err_msgs[condition_code]);
-
-			if (condition_code == 0 && completed == 1)
-				completed = 1;
-			else
-				completed = 0;
-
-			transaction = transaction->link;
-		}
-
-		/* Did we do it?! */
-		if (completed == 1)
-			break;
+		transaction = transaction->link;
 	}
 
 	/* Lets see... */
@@ -1209,5 +1372,4 @@ void ohci_transaction_send(void *controller, usb_hc_request_t *request)
 		/* Set as completed */
 		request->completed = 1;
 	}
-		
 }

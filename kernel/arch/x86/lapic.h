@@ -131,6 +131,7 @@ _CRT_EXTERN uint64_t apic_read_entry_io(uint8_t ioapic, uint32_t reg);
 
 /* Set Task Priority */
 _CRT_EXTERN void apic_set_task_priority(uint32_t priority);
+_CRT_EXTERN uint32_t apic_get_task_priority(void);
 
 /* Send EOI */
 _CRT_EXTERN void apic_send_eoi(void);

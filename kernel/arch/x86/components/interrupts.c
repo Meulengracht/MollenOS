@@ -22,6 +22,7 @@
 #include <assert.h>
 #include <arch.h>
 #include <acpi.h>
+#include <pci.h>
 #include <lapic.h>
 #include <idt.h>
 #include <gdt.h>
@@ -94,6 +95,14 @@ void interrupt_install(uint32_t irq, uint32_t idt_entry, irq_handler_t callback,
 	apic_flags = 0xFF00000000000000;	/* Target all groups */
 	apic_flags |= 0x100;				/* Lowest Priority */
 	apic_flags |= 0x800;				/* Logical Destination Mode */
+
+	/* We have one ACPI Special Case */
+	if (irq == AcpiGbl_FADT.SciInterrupt)
+	{
+		apic_flags |= 0x2000;			/* Active Low */
+		apic_flags |= 0x8000;			/* Level Sensitive */
+	}
+
 	apic_flags |= idt_entry;			/* Interrupt Vector */
 
 	_interrupt_install(irq, idt_entry, apic_flags, callback, args);
@@ -112,21 +121,47 @@ void interrupt_install_broadcast(uint32_t irq, uint32_t idt_entry, irq_handler_t
 }
 
 /* Install a pci interrupt */
-void interrupt_install_pci(uint32_t irq, uint32_t pin, irq_handler_t callback, void *args)
+void interrupt_install_pci(pci_driver_t *device, irq_handler_t callback, void *args)
 {
 	uint64_t apic_flags = 0;
-	uint32_t idt_entry = irq + 0x20;
+	int result;
+	uint8_t trigger_mode = 0, polarity = 0, shareable = 0;
+	uint32_t io_entry = 0;
+	uint32_t idt_entry = 0x20;
+	uint32_t pin;
 
-	apic_flags = 0xFF00000000000000;	/* Target all groups */
-	apic_flags |= 0x100;				/* Lowest Priority */
-	apic_flags |= 0x800;				/* Logical Destination Mode */
+	/* Get Interrupt Information */
+	result = pci_device_get_irq(device->bus, device->device, device->header->interrupt_pin,
+		&trigger_mode, &polarity, &shareable);
 
-	/* Sanity */
-	if (pin == 4)
-		pin--;
-
-	switch (pin)
+	/* If no routing exists use the interrupt_line */
+	if (result == -1)
 	{
+		io_entry = device->header->interrupt_line;
+		idt_entry += device->header->interrupt_line;
+
+		apic_flags = 0xFF00000000000000;	/* Target all groups */
+		apic_flags |= 0x100;				/* Lowest Priority */
+		apic_flags |= 0x800;				/* Logical Destination Mode */
+	}
+	else
+	{
+		io_entry = (uint32_t)result;
+		pin = device->header->interrupt_pin;
+
+		/* Setup APIC flags */
+		apic_flags = 0xFF00000000000000;	/* Target all groups */
+		apic_flags |= 0x100;				/* Lowest Priority */
+		apic_flags |= 0x800;				/* Logical Destination Mode */
+		apic_flags |= (polarity << 13);		/* Set Polarity */
+		apic_flags |= (trigger_mode << 15);	/* Set Trigger Mode */
+
+		/* Sanity */
+		if (pin == 4)
+			pin--;
+
+		switch (pin)
+		{
 		case 0:
 		{
 			idt_entry = INTERRUPT_PCI_PIN_0;
@@ -143,14 +178,16 @@ void interrupt_install_pci(uint32_t irq, uint32_t pin, irq_handler_t callback, v
 		{
 			idt_entry = INTERRUPT_PCI_PIN_3;
 		} break;
-		
+
 		default:
 			break;
+		}
 	}
-
+	
+	/* Set IDT Vector */
 	apic_flags |= idt_entry;
 
-	_interrupt_install(irq, idt_entry, apic_flags, callback, args);
+	_interrupt_install(io_entry, idt_entry, apic_flags, callback, args);
 }
 
 /* Install only the interrupt handler, 
@@ -186,6 +223,11 @@ void interrupt_entry(registers_t **regs)
 	int i;
 	int calls = 0;
 	uint32_t irq = (*regs)->irq + 0x20;
+	uint32_t tp = 0;
+
+	/* Set Task Priority */
+	tp = apic_get_task_priority();
+	apic_set_task_priority(irq);
 
 	/* Get handler(s) */
 	for (i = 0; i < X86_MAX_HANDLERS_PER_INTERRUPT; i++)
@@ -206,6 +248,14 @@ void interrupt_entry(registers_t **regs)
 	/* Sanity */
 	if (calls == 0)
 		printf("Unhandled interrupt vector %u\n", irq);
+
+	/* Send EOI & Restore Task Priority */
+	if (irq != INTERRUPT_TIMER)
+	{
+		apic_set_task_priority(tp);
+		apic_send_eoi();
+	}
+		
 }
 
 /* Disables interrupts and returns

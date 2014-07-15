@@ -37,6 +37,9 @@
     <Filter Include="Drivers\Clock">
       <UniqueIdentifier>{27f21261-2ecf-4a21-a56b-b2becadd0c3e}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Drivers\Usb\EHCI">
+      <UniqueIdentifier>{4c03b94c-dfa8-44e1-9c7c-65ecd81c054b}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\..\arch\x86\boot\main.c">
@@ -104,6 +107,15 @@
     </ClCompile>
     <ClCompile Include="..\..\..\arch\x86\drivers\usb\usb_functions.c">
       <Filter>Drivers\Usb</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\arch\x86\drivers\driver_strings.c">
+      <Filter>Drivers</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\arch\x86\drivers\driver_pci.c">
+      <Filter>Drivers</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\arch\x86\drivers\usb\ehci\ehci.c">
+      <Filter>Drivers\Usb\EHCI</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>

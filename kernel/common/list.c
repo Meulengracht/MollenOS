@@ -55,7 +55,7 @@ list_node_t *list_create_node(int id, void *data)
 void list_insert_front(list_t *list, list_node_t *node)
 {
 	/* Get lock */
-	interrupt_status_t int_state;
+	interrupt_status_t int_state = 0;
 
 	if (list->attributes & LIST_SAFE)
 	{
@@ -120,8 +120,15 @@ void list_remove_by_node(list_t *list, list_node_t* node)
 {
 	/* Traverse the list to find the next pointer of the
 	* node that comes before the one to be removed. */
-	list_node_t *curr, **pnp = &list->head;
+	list_node_t *curr = NULL, **pnp = NULL;
 	interrupt_status_t int_state = 0;
+
+	/* Sanity */
+	if (list == NULL && list->head != NULL)
+		return;
+
+	/* Set Initial */
+	pnp = &list->head;
 	
 	/* Get lock */
 	if (list->attributes & LIST_SAFE)
@@ -162,13 +169,20 @@ void list_remove_by_node(list_t *list, list_node_t* node)
 	}
 }
 
-/* Removes a node from this list. */
+/* Removes a node from START of list. */
 list_node_t *list_pop(list_t *list)
 {
 	/* Traverse the list to find the next pointer of the
 	* node that comes before the one to be removed. */
-	list_node_t *curr = NULL, **pnp = &list->head;
+	list_node_t *curr = NULL, **pnp = NULL;
 	interrupt_status_t int_state = 0;
+
+	/* Sanity */
+	if (list == NULL && list->head != NULL)
+		return NULL;
+
+	/* Set Initial */
+	pnp = &list->head;
 
 	/* Get lock */
 	if (list->attributes & LIST_SAFE)

@@ -34,6 +34,7 @@ page_directory_t *current_directories[64];
 volatile addr_t glb_reserved_ptr = 0;
 
 /* Externs */
+extern volatile uint32_t num_cpus;
 extern graphics_t gfx_info;
 extern sys_mappings_t reserved_mappings[32];
 extern void memory_set_paging(int enable);
@@ -369,7 +370,7 @@ virtaddr_t *memory_map_system_memory(physaddr_t physical, int pages)
 {
 	int i;
 	cpu_t cpu;
-	virtaddr_t *ret = (virtaddr_t*)glb_reserved_ptr;
+	virtaddr_t ret = glb_reserved_ptr;
 
 	/* Get cpu */
 	cpu = get_cpu();
@@ -384,7 +385,7 @@ virtaddr_t *memory_map_system_memory(physaddr_t physical, int pages)
 		glb_reserved_ptr += PAGE_SIZE;
 	}
 
-	return ret + (physical & 0xFFF);
+	return (virtaddr_t*)(ret + (physical & ATTRIBUTE_MASK));
 }
 
 /* Creates a page directory and loads it */
@@ -395,6 +396,7 @@ void virtmem_init(void)
 	page_table_t *itable;
 
 	/* Allocate space */
+	num_cpus = 0;
 	glb_reserved_ptr = MEMORY_LOCATION_RESERVED;
 	kernel_directory = (page_directory_t*)physmem_alloc_block();
 	physmem_alloc_block(); physmem_alloc_block();

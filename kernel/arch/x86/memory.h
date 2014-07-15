@@ -60,8 +60,8 @@
 /**********************************/
 #define PHYS_MM_KERNEL_LOCATION			0x100000
 
-/* 256 Kb for kernel */
-#define PHYS_MM_KERNEL_RESERVED			0x40000
+/* 512 Kb for kernel */
+#define PHYS_MM_KERNEL_RESERVED			0x80000
 #define PHYS_MM_BITMAP_LOCATION			(PHYS_MM_KERNEL_LOCATION + PHYS_MM_KERNEL_RESERVED)
 
 /* Memory Map Structure */

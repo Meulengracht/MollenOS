@@ -64,6 +64,9 @@ typedef struct _o_endpoint_desc
 	 * Lower 4 bits not used */
 	uint32_t next_ed;
 
+	/* HCD Defined Data */
+	uint32_t hcd_data;
+
 } ohci_endpoint_desc_t;
 
 /* Bit Defintions */
@@ -117,9 +120,9 @@ typedef struct _o_gtransfer_desc
 #define X86_OHCI_TRANSFER_BUF_PID_SETUP		0
 #define X86_OHCI_TRANSFER_BUF_PID_OUT		(1 << 19)
 #define X86_OHCI_TRANSFER_BUF_PID_IN		(1 << 20)
-#define X86_OHCI_TRANSFER_BUF_NO_INTERRUPT	(1 << 21) | (1 << 22) | (1 << 23)
+#define X86_OHCI_TRANSFER_BUF_NO_INTERRUPT	((1 << 21) | (1 << 22) | (1 << 23))
 #define X86_OHCI_TRANSFER_BUF_TD_TOGGLE		(1 << 25)
-#define X86_OHCI_TRANSFER_BUF_NOCC			(1 << 28) | (1 << 29) | (1 << 30) | (1 << 31)
+#define X86_OHCI_TRANSFER_BUF_NOCC			((1 << 28) | (1 << 29) | (1 << 30) | (1 << 31))
 
 /* Must be 32 byte aligned
  * Isochronous Transfer Descriptor */
@@ -254,11 +257,8 @@ typedef struct _o_registers
 #define X86_OHCI_INTR_FATAL_ERROR		0x10
 #define X86_OHCI_INTR_FRAME_OVERFLOW	0x20
 #define X86_OHCI_INTR_ROOT_HUB_EVENT	0x40
-#define X86_OHCI_INTR_OWNERSHIP_EVENT	0x80000000
-
-#define X86_OHCI_INTR_ENABLE_ALL		0xC000007B
-#define X86_OHCI_INTR_MASTER_INTR		(1 << 31)
-#define X86_OHCI_INTR_DISABLE_SOF		0x4
+#define X86_OHCI_INTR_OWNERSHIP_EVENT	0x40000000
+#define X86_OHCI_INTR_MASTER_INTR		0x80000000
 
 #define X86_OHCI_MAX_PACKET_SIZE_BITS	0x7FFF0000
 #define X86_OHCI_FRMV_FRT				(1 << 31)
@@ -267,15 +267,15 @@ typedef struct _o_registers
 
 #define X86_OHCI_STATUS_POWER_ON		(1 << 16)
 
-#define X86_OHCI_PORT_DISABLE			(1 << 0)
-#define X86_OHCI_PORT_CONNECTED			(1 << 0)
+#define X86_OHCI_PORT_DISABLE			0x1
+#define X86_OHCI_PORT_CONNECTED			0x1
 #define X86_OHCI_PORT_ENABLED			(1 << 1)
 #define X86_OHCI_PORT_SUSPENDED			(1 << 2)
 #define X86_OHCI_PORT_OVER_CURRENT		(1 << 3)
-#define X86_OHCI_PORT_RESET				(1 << 4)
-#define X86_OHCI_PORT_POWER_ENABLE		(1 << 8)
+#define X86_OHCI_PORT_RESET				0x10
+#define X86_OHCI_PORT_POWER_ENABLE		0x100
 #define X86_OHCI_PORT_LOW_SPEED			(1 << 9)
-#define X86_OHCI_PORT_CONNECT_EVENT		(1 << 16) /* Connect / Disconnect event */
+#define X86_OHCI_PORT_CONNECT_EVENT		0x10000 /* Connect / Disconnect event */
 #define X86_OHCI_PORT_ENABLE_EVENT		(1 << 17)
 #define X86_OHCI_PORT_SUSPEND_EVENT		(1 << 18)
 #define X86_OHCI_PORT_OVR_CURRENT_EVENT	(1 << 19)
@@ -301,10 +301,8 @@ typedef struct _o_controller
 	uint32_t id;
 	uint32_t hcd_id;
 
-	/* Irq Num */
-	uint32_t irq;
-
-	/* Semaphore */
+	/* Lock */
+	spinlock_t lock;
 
 	/* Pci Header */
 	pci_driver_t *pci_info;
@@ -331,12 +329,17 @@ typedef struct _o_controller
 	uint32_t td_index_control;
 	uint32_t td_index_bulk;
 
-	/* Power On Time */
+	/* Power */
 	uint32_t power_mode;
 	uint32_t power_on_delay_ms;
 
 	/* Port Count */
 	uint32_t ports;
+
+	/* Transaction List 
+	 * Contains transactions
+	 * in progress */
+	void *transactions_list;
 
 } ohci_controller_t;
 
@@ -347,6 +350,6 @@ typedef struct _o_controller
 
 
 /* Prototypes */
-_CRT_EXTERN void ohci_init(pci_driver_t *device, int irq_override);
+_CRT_EXTERN void ohci_init(pci_driver_t *device);
 
 #endif // !_X86_USB_OHCI_H_

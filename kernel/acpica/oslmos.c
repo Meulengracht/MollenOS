@@ -361,7 +361,15 @@ void AcpiOsUnmapMemory(void *Where, ACPI_SIZE Length)
 
 void * AcpiOsAllocate(ACPI_SIZE Size)
 {
-	return kmalloc(Size);
+	void *ret;
+
+	/* Allocate */
+	ret = kmalloc(Size);
+
+	/* Zero it */
+	memset(ret, 0, Size);
+
+	return ret;
 }
 
 
@@ -428,7 +436,7 @@ ACPI_STATUS AcpiOsRemoveInterruptHandler(
 			ACPI_OSD_HANDLER        ServiceRoutine)
 {
 	/* Override it */
-	interrupt_install(InterruptNumber, 0x20 + InterruptNumber, NULL, NULL);
+	//interrupt_install(InterruptNumber, 0x20 + InterruptNumber, NULL, NULL);
 
 	return (AE_OK);
 }
@@ -467,6 +475,7 @@ void AcpiOsSleep(UINT64 Milliseconds)
 {
 	/* TODO */
 	/* Add 10ms to account for clock tick granularity */
+	stall_ms(Milliseconds + 1);
 	//Sleep(((unsigned long)Milliseconds) + 10);
 	return;
 }
@@ -781,7 +790,7 @@ void)
 	/* Ensure ID is never 0 */
 
 	//ThreadId = GetCurrentThreadId();
-	return 0;//((ACPI_THREAD_ID)(ThreadId + 1));
+	return threading_get_thread_id() + 1;
 }
 
 
@@ -825,42 +834,11 @@ void                    *Context)
 
 void ACPI_INTERNAL_VAR_XFACE AcpiOsPrintf(const char *Fmt, ...)
 {
-	va_list                 Args;
-	UINT8                   Flags;
-
-
-	Flags = AcpiGbl_DbOutputFlags;
-	if (Flags & ACPI_DB_REDIRECTABLE_OUTPUT)
-	{
-		/* Output is directable to either a file (if open) or the console */
-
-		//if (AcpiGbl_DebugFile)
-		//{
-		//	/* Output file is open, send the output there */
-
-		//	va_start(Args, Fmt);
-		//	vfprintf(AcpiGbl_DebugFile, Fmt, Args);
-		//	va_end(Args);
-		//}
-		//else
-		//{
-			/* No redirection, send output to console (once only!) */
-
-			Flags = ACPI_DB_CONSOLE_OUTPUT;
-		//}
-	}
-
-	/* For now */
-	Flags &= ~ACPI_DB_CONSOLE_OUTPUT;
-
-	if (Flags & ACPI_DB_CONSOLE_OUTPUT)
-	{
-		va_start(Args, Fmt);
-		vprintf(Fmt, Args);
-		va_end(Args);
-	}
-
-	return;
+	va_list		Args;
+	
+	va_start(Args, Fmt);
+	AcpiOsVprintf(Fmt, Args);
+	va_end(Args);
 }
 
 
@@ -882,38 +860,14 @@ AcpiOsVprintf(
 const char              *Fmt,
 va_list                 Args)
 {
-	INT32                   Count = 0;
-	UINT8                   Flags;
+	char					Buffer[512];
 
+	/* Clear Buffer */
+	memset(Buffer, 0, 512);
 
-	Flags = AcpiGbl_DbOutputFlags;
-	if (Flags & ACPI_DB_REDIRECTABLE_OUTPUT)
-	{
-		/* Output is directable to either a file (if open) or the console */
-
-		//if (AcpiGbl_DebugFile)
-		//{
-		//	/* Output file is open, send the output there */
-
-		//	Count = vfprintf(AcpiGbl_DebugFile, Fmt, Args);
-		//}
-		//else
-		//{
-			/* No redirection, send output to console (once only!) */
-
-			Flags |= ACPI_DB_CONSOLE_OUTPUT;
-		//}
-	}
-
-	/* For now ffs, it does not seem to work */
-	Flags &= ~ACPI_DB_CONSOLE_OUTPUT;
-
-	if (Flags & ACPI_DB_CONSOLE_OUTPUT)
-	{
-		Count = vprintf(Fmt, Args);
-	}
-
-	return;
+	/* Format To Buffer */
+	vsprintf(Buffer, Fmt, Args);
+	printf(Buffer);
 }
 
 /******************************************************************************

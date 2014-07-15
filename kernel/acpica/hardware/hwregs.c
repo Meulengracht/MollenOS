@@ -189,7 +189,7 @@ AcpiHwValidateRegister (
         (Reg->SpaceId != ACPI_ADR_SPACE_SYSTEM_IO))
     {
         ACPI_ERROR ((AE_INFO,
-            "Unsupported address space: 0x%X", Reg->SpaceId));
+            "Unsupported address space: 0x%X (Address 0x%x)", Reg->SpaceId, Reg->Address));
         return (AE_SUPPORT);
     }
 

@@ -176,7 +176,6 @@ _CRT_EXTERN physaddr_t memory_getmap(void *page_dir, virtaddr_t virt);
 _CRT_EXTERN void interrupt_init(void);
 _CRT_EXTERN void interrupt_install(uint32_t irq, uint32_t idt_entry, irq_handler_t callback, void *args);
 _CRT_EXTERN void interrupt_install_broadcast(uint32_t irq, uint32_t idt_entry, irq_handler_t callback, void *args);
-_CRT_EXTERN void interrupt_install_pci(uint32_t irq, uint32_t pin, irq_handler_t callback, void *args);
 _CRT_EXTERN void interrupt_install_soft(uint32_t idt_entry, irq_handler_t callback, void *args);
 
 _CRT_EXTERN interrupt_status_t interrupt_disable(void);

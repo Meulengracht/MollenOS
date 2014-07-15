@@ -54,7 +54,7 @@ void usb_transaction_init(usb_hc_t *hc, usb_hc_request_t *dev_request, uint32_t 
 	dev_request->data = NULL;
 	dev_request->device = device;
 	dev_request->length = MIN(device->endpoints[endpoint]->max_packet_size, max_length);
-	dev_request->endpoint = endpoint;
+	dev_request->endpoint = device->endpoints[endpoint]->address;
 	dev_request->transactions = NULL;
 
 	/* Perform */
@@ -305,6 +305,7 @@ int usb_function_get_initial_config_descriptor(usb_hc_t *hc, int port)
 	/* Complete ? */
 	if (dev_request.completed)
 	{
+		hc->ports[port]->device->configuration = dev_config.configuration_value;
 		hc->ports[port]->device->config_max_length = dev_config.total_length;
 		hc->ports[port]->device->num_interfaces = dev_config.num_interfaces;
 		hc->ports[port]->device->max_power_consumption = (uint16_t)(dev_config.max_power_consumption * 2);
@@ -360,6 +361,7 @@ int usb_function_get_config_descriptor(usb_hc_t *hc, int port)
 		uint8_t *buf_ptr = (uint8_t*)buffer;
 		uint32_t bytes_left = hc->ports[port]->device->config_max_length;
 		uint32_t endpoints = 1;
+		uint32_t ep_itr = 1;
 		int i;
 		hc->ports[port]->device->num_interfaces = 0;
 
@@ -371,30 +373,33 @@ int usb_function_get_config_descriptor(usb_hc_t *hc, int port)
 			uint8_t type = *(buf_ptr + 1);
 
 			/* Is this an interface or endpoint? :O */
-			if (length == sizeof(usb_interface_descriptor_t) 
+			if (length == sizeof(usb_interface_descriptor_t)
 				&& type == X86_USB_DESC_TYPE_INTERFACE)
 			{
 				usb_hc_interface_t *usb_if;
 				usb_interface_descriptor_t *iface = (usb_interface_descriptor_t*)buf_ptr;
 
 				/* Debug Print */
-				printf("Interface %u - Endpoints %u (Class %u, Subclass %u, Protocol %u)\n",
-					iface->num_interface, iface->num_endpoints, iface->class_code,
-					iface->subclass_code, iface->protocol_code);
+				if (hc->ports[port]->device->interfaces[iface->num_interface] == NULL)
+				{
+					printf("Interface %u - Endpoints %u (Class %u, Subclass %u, Protocol %u)\n",
+						iface->num_interface, iface->num_endpoints, iface->class_code,
+						iface->subclass_code, iface->protocol_code);
 
-				/* Allocate */
-				usb_if = (usb_hc_interface_t*)kmalloc(sizeof(usb_hc_interface_t));
-				usb_if->id = iface->num_interface;
-				usb_if->endpoints = iface->num_endpoints;
-				usb_if->class_code = iface->class_code;
-				usb_if->subclass_code = iface->subclass_code;
-				usb_if->protocol_code = iface->protocol_code;
-				endpoints += iface->num_endpoints;
+					/* Allocate */
+					usb_if = (usb_hc_interface_t*)kmalloc(sizeof(usb_hc_interface_t));
+					usb_if->id = iface->num_interface;
+					usb_if->endpoints = iface->num_endpoints;
+					usb_if->class_code = iface->class_code;
+					usb_if->subclass_code = iface->subclass_code;
+					usb_if->protocol_code = iface->protocol_code;
+					endpoints += iface->num_endpoints;
 
-				/* Update Device */
-				hc->ports[port]->device->interfaces[hc->ports[port]->device->num_interfaces] = usb_if;
-				hc->ports[port]->device->num_interfaces++;
-
+					/* Update Device */
+					hc->ports[port]->device->interfaces[hc->ports[port]->device->num_interfaces] = usb_if;
+					hc->ports[port]->device->num_interfaces++;
+				}
+				
 				/* Increase Pointer */
 				bytes_left -= iface->length;
 				buf_ptr += iface->length;
@@ -413,14 +418,14 @@ int usb_function_get_config_descriptor(usb_hc_t *hc, int port)
 		/* Reallocate new endpoints */
 		if (endpoints > 1)
 		{
-			for (i = 1; i < (int)endpoints; i++)
+			for (i = 1; i < (int)(endpoints + 1); i++)
 				hc->ports[port]->device->endpoints[i] = (usb_hc_endpoint_t*)kmalloc(sizeof(usb_hc_endpoint_t));
 		}
 		else
 			return dev_request.completed;
 
 		/* Update Device */
-		hc->ports[port]->device->num_endpoints = endpoints;
+		hc->ports[port]->device->num_endpoints = (endpoints + 1);
 		
 
 		while (bytes_left > 0)
@@ -437,20 +442,27 @@ int usb_function_get_config_descriptor(usb_hc_t *hc, int port)
 				uint32_t ep_address = endpoint->address & 0xF;
 				uint32_t ep_type = endpoint->attributes & 0x3;
 
-				printf("Endpoint %u - Attributes 0x%x (MaxPacketSize 0x%x)\n",
-					endpoint->address, endpoint->attributes, endpoint->max_packet_size);
+				if (ep_itr < endpoints)
+				{
+					printf("Endpoint %u - Attributes 0x%x (MaxPacketSize 0x%x)\n",
+						endpoint->address, endpoint->attributes, endpoint->max_packet_size);
 
-				/* Update Device */
-				hc->ports[port]->device->endpoints[ep_address]->max_packet_size = endpoint->max_packet_size;
-				hc->ports[port]->device->endpoints[ep_address]->interval = endpoint->interval;
-				hc->ports[port]->device->endpoints[ep_address]->toggle = 0;
-				hc->ports[port]->device->endpoints[ep_address]->type = ep_type;
+					/* Update Device */
+					hc->ports[port]->device->endpoints[ep_itr]->address = ep_address;
+					hc->ports[port]->device->endpoints[ep_itr]->max_packet_size = endpoint->max_packet_size;
+					hc->ports[port]->device->endpoints[ep_itr]->interval = endpoint->interval;
+					hc->ports[port]->device->endpoints[ep_itr]->toggle = 0;
+					hc->ports[port]->device->endpoints[ep_itr]->type = ep_type;
 
-				/* In or Out? */
-				if (endpoint->address & 0x80)
-					hc->ports[port]->device->endpoints[ep_address]->direction = X86_USB_EP_DIRECTION_IN;
-				else
-					hc->ports[port]->device->endpoints[ep_address]->direction = X86_USB_EP_DIRECTION_OUT;
+					/* In or Out? */
+					if (endpoint->address & 0x80)
+						hc->ports[port]->device->endpoints[ep_itr]->direction = X86_USB_EP_DIRECTION_IN;
+					else
+						hc->ports[port]->device->endpoints[ep_itr]->direction = X86_USB_EP_DIRECTION_OUT;
+
+					ep_itr++;
+				}
+				
 
 				/* Increase Pointer */
 				bytes_left -= endpoint->length;
