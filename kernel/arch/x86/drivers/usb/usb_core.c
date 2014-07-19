@@ -22,6 +22,7 @@
 /* Includes */
 #include <arch.h>
 #include <drivers\usb\usb.h>
+#include <drivers\usb\hid\hid_manager.h>
 #include <semaphore.h>
 #include <heap.h>
 #include <list.h>
@@ -122,6 +123,8 @@ void usb_device_setup(usb_hc_t *hc, int port)
 
 	/* Create a device */
 	device = (usb_hc_device_t*)kmalloc(sizeof(usb_hc_device_t));
+	device->hcd = hc;
+	device->port = (uint8_t)port;
 	device->num_endpoints = 1;
 
 	device->num_interfaces = 0;
@@ -190,8 +193,33 @@ void usb_device_setup(usb_hc_t *hc, int port)
 		}
 	}
 
-	/* Determine Driver */
-	
+	/* Go through interfaces and add them */
+	for (i = 0; i < (int)hc->ports[port]->device->num_interfaces; i++)
+	{
+		/* We want to support Hubs, HIDs and MSDs*/
+		uint32_t iface = (uint32_t)i;
+
+		/* Is this an HID Interface? :> */
+		if (hc->ports[port]->device->interfaces[i]->class_code == X86_USB_CLASS_HID)
+		{
+			/* Registrate us with HID Manager */
+			usb_hid_initialise(hc->ports[port]->device, iface);
+		}
+
+		/* Is this an MSD Interface? :> */
+		if (hc->ports[port]->device->interfaces[i]->class_code == X86_USB_CLASS_MSD)
+		{
+			/* Registrate us with MSD Manager */
+		}
+
+		/* Is this an HUB Interface? :> */
+		if (hc->ports[port]->device->interfaces[i]->class_code == X86_USB_CLASS_MSD)
+		{
+			/* Protocol specifies usb interface (high or low speed) */
+
+			/* Registrate us with Hub Manager */
+		}
+	}
 
 	/* Done */
 	printf("OHCI: Setup of port %u done!\n", port);

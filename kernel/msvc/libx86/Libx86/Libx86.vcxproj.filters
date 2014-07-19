@@ -28,17 +28,35 @@
     <Filter Include="Drivers\Usb">
       <UniqueIdentifier>{7aac0147-c0dc-4843-86d7-c798578a964c}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Drivers\Usb\OHCI">
-      <UniqueIdentifier>{4973448b-314e-47e9-b1df-7312d7f22af7}</UniqueIdentifier>
-    </Filter>
     <Filter Include="Disasm">
       <UniqueIdentifier>{e326f9c3-c06c-4e99-b85d-431d109952cc}</UniqueIdentifier>
     </Filter>
     <Filter Include="Drivers\Clock">
       <UniqueIdentifier>{27f21261-2ecf-4a21-a56b-b2becadd0c3e}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Drivers\Usb\EHCI">
+    <Filter Include="Drivers\Usb\Controllers">
+      <UniqueIdentifier>{4811c3b9-82db-4592-8068-be8db75a95ee}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Drivers\Usb\Controllers\OHCI">
+      <UniqueIdentifier>{4973448b-314e-47e9-b1df-7312d7f22af7}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Drivers\Usb\Controllers\UHCI">
+      <UniqueIdentifier>{8fbe3912-0905-4210-baf3-170774b84d40}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Drivers\Usb\Controllers\EHCI">
       <UniqueIdentifier>{4c03b94c-dfa8-44e1-9c7c-65ecd81c054b}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Drivers\Usb\HID">
+      <UniqueIdentifier>{6e984708-f491-453e-b086-a4f35f98bf31}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Drivers\Usb\MSD">
+      <UniqueIdentifier>{b8fbf389-bba1-4212-9148-299c7d2489a8}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Drivers\Usb\Controllers\XHCI">
+      <UniqueIdentifier>{2efff2a4-618a-4755-9fe2-33e542ffe20a}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Drivers\Sata">
+      <UniqueIdentifier>{a73a6be5-2173-4862-bf10-9eb78df4c84e}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>
@@ -91,7 +109,7 @@
       <Filter>Drivers</Filter>
     </ClCompile>
     <ClCompile Include="..\..\..\arch\x86\drivers\usb\ohci\ohci.c">
-      <Filter>Drivers\Usb\OHCI</Filter>
+      <Filter>Drivers\Usb\Controllers\OHCI</Filter>
     </ClCompile>
     <ClCompile Include="..\..\..\arch\x86\debug\disasm.c">
       <Filter>Disasm</Filter>
@@ -115,7 +133,10 @@
       <Filter>Drivers</Filter>
     </ClCompile>
     <ClCompile Include="..\..\..\arch\x86\drivers\usb\ehci\ehci.c">
-      <Filter>Drivers\Usb\EHCI</Filter>
+      <Filter>Drivers\Usb\Controllers\EHCI</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\arch\x86\drivers\usb\hid\hid_manager.c">
+      <Filter>Drivers\Usb\HID</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>

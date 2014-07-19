@@ -36,6 +36,42 @@
 #define X86_USB_TYPE_EHCI		2
 #define X86_USB_TYPE_XHCI		3
 
+/* Usb Devices Class Codes */
+#define X86_USB_CLASS_IF			0x00	/* Get from Interface */
+#define X86_USB_CLASS_AUDIO			0x01
+#define X86_USB_CLASS_CDC			0x02
+#define X86_USB_CLASS_HID			0x03
+#define X86_USB_CLASS_PHYSICAL		0x05
+#define X86_USB_CLASS_IMAGE			0x06
+#define X86_USB_CLASS_PRINTER		0x07
+#define X86_USB_CLASS_MSD			0x08
+#define X86_USB_CLASS_HUB			0x09
+#define X86_USB_CLASS_CDC_DATA		0x0A
+#define X86_USB_CLASS_SMART_CARD	0x0B
+#define X86_USB_CLASS_SECURITY		0x0D
+#define X86_USB_CLASS_VIDEO			0x0E
+#define X86_USB_CLASS_HEALTHCARE	0x0F
+#define X86_USB_CLASS_DIAGNOSIS		0xDC
+#define X86_USB_CLASS_WIRELESS		0xE0
+#define X86_USB_CLASS_MISC			0xEF
+#define X86_USB_CLASS_APP_SPECIFIC	0xFE
+#define X86_USB_CLASS_VENDOR_SPEC	0xFF
+
+/* Packet Request Targets */
+
+/* Bit 7 */
+#define X86_USB_REQ_DIRECTION_IN		0x80
+#define X86_USB_REQ_DIRECTION_OUT		0x0
+
+/* Bit 5-6 */
+#define X86_USB_REQ_TARGET_CLASS		0x20
+
+/* Bits 0-4 */
+#define X86_USB_REQ_TARGET_DEVICE		0x0
+#define X86_USB_REQ_TARGET_INTERFACE	0x1
+#define X86_USB_REQ_TARGET_ENDPOINT		0x2
+#define X86_USB_REQ_TARGET_OTHER		0x3
+
 /* Packet Request Types */
 #define X86_USB_REQ_GET_STATUS		0x00
 #define X86_USB_REQ_CLR_FEATURE		0x01
@@ -63,7 +99,7 @@
 #pragma pack(push, 1)
 typedef struct _usb_packet
 {
-	/* Request Direction (Bit 7: 1 -> Host to device, 0 - Device To Host) 
+	/* Request Direction (Bit 7: 1 -> IN, 0 - OUT) 
 	 *                   (Bit 0-4: 0 -> Device, 1 -> Interface, 2 -> Endpoint, 3 -> Other, 4... Reserved) */
 	uint8_t direction;
 
@@ -290,8 +326,16 @@ typedef struct _usb_hc_device
 	uint8_t str_index_manufactor;
 	uint8_t str_index_sn;
 
+	/* Host Driver (usb_hc_t) & Port Number */
+	void *hcd;
+	uint8_t port;
+
 	/* Device Address */
 	uint32_t address;
+
+	/* Device Descriptors (Config,Interface,Endpoint,Hid,etc) */
+	void *descriptors;
+	uint32_t descriptors_length;
 
 	/* Device Interfaces */
 	uint32_t num_interfaces;
@@ -300,6 +344,9 @@ typedef struct _usb_hc_device
 	/* Device Endpoints */
 	uint32_t num_endpoints;
 	struct _usb_hc_endpoint *endpoints[X86_USB_CORE_MAX_EP];
+
+	/* Driver Data */
+	void *driver_data;
 
 } usb_hc_device_t;
 #pragma pack(pop)
@@ -368,8 +415,11 @@ typedef struct _usb_hc_request
 } usb_hc_request_t;
 
 /* Type Definitions */
-#define X86_USB_REQUEST_TYPE_CONTROL	0x1
-#define X86_USB_REQUEST_TYPE_BULK		0x2
+#define X86_USB_REQUEST_TYPE_CONTROL	0x0
+#define X86_USB_REQUEST_TYPE_BULK		0x1
+#define X86_USB_REQUEST_TYPE_INTERRUPT	0x2
+#define X86_USB_REQUEST_TYPE_ISOCHR		0x3
+
 
 /* The Abstract Port */
 typedef struct _usb_hc_port
@@ -411,11 +461,15 @@ typedef struct _usb_hc
 	void (*port_status)(void *, usb_hc_port_t *);
 
 	/* Transaction Functions */
-	void (*transaction_init)(void *, struct _usb_hc_request*);
+	void (*transaction_init)(void*, struct _usb_hc_request*);
 	struct _usb_hc_transaction *(*transaction_setup)(void*, struct _usb_hc_request*);
 	struct _usb_hc_transaction *(*transaction_in)(void*, struct _usb_hc_request*);
 	struct _usb_hc_transaction *(*transaction_out)(void*, struct _usb_hc_request*);
 	void (*transaction_send)(void*, struct _usb_hc_request*);
+
+	/* Install Interrupt EP */
+	void (*install_interrupt)(void*, struct _usb_hc_device*, struct _usb_hc_endpoint*, 
+		void*, size_t, void(*callback)(void*, size_t), void*);
 
 } usb_hc_t;
 
@@ -458,6 +512,13 @@ _CRT_EXTERN int usb_function_set_address(usb_hc_t *hc, int port, uint32_t addres
 _CRT_EXTERN int usb_function_get_device_descriptor(usb_hc_t *hc, int port);
 _CRT_EXTERN int usb_function_get_config_descriptor(usb_hc_t *hc, int port);
 _CRT_EXTERN int usb_function_set_configuration(usb_hc_t *hc, int port, uint32_t configuration);
+_CRT_EXTERN int usb_function_get_descriptor(usb_hc_t *hc, int port, void *buffer, uint8_t direction,
+											uint8_t descriptor_type, uint8_t descriptor_subtype, 
+											uint8_t descriptor_index, uint16_t descriptor_length);
+/* Send packet */
+_CRT_EXTERN int usb_function_send_packet(usb_hc_t *hc, int port, void *buffer, uint8_t request_type,
+											uint8_t request, uint8_t value_high, uint8_t value_low, 
+											uint16_t index, uint16_t length);
 
 /* Events */
 _CRT_EXTERN void usb_event_create(usb_hc_t *hc, int port, uint32_t type);

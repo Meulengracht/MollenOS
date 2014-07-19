@@ -364,6 +364,8 @@ int usb_function_get_config_descriptor(usb_hc_t *hc, int port)
 		uint32_t ep_itr = 1;
 		int i;
 		hc->ports[port]->device->num_interfaces = 0;
+		hc->ports[port]->device->descriptors = buffer;
+		hc->ports[port]->device->descriptors_length = hc->ports[port]->device->config_max_length;
 
 		/* Parse Interface & Endpoints */
 		while (bytes_left > 0)
@@ -406,8 +408,8 @@ int usb_function_get_config_descriptor(usb_hc_t *hc, int port)
 			}
 			else
 			{
-				buf_ptr++;
-				bytes_left--;
+				buf_ptr += length;
+				bytes_left -= length;
 			}
 		}
 
@@ -418,14 +420,14 @@ int usb_function_get_config_descriptor(usb_hc_t *hc, int port)
 		/* Reallocate new endpoints */
 		if (endpoints > 1)
 		{
-			for (i = 1; i < (int)(endpoints + 1); i++)
+			for (i = 1; i < (int)endpoints; i++)
 				hc->ports[port]->device->endpoints[i] = (usb_hc_endpoint_t*)kmalloc(sizeof(usb_hc_endpoint_t));
 		}
 		else
 			return dev_request.completed;
 
 		/* Update Device */
-		hc->ports[port]->device->num_endpoints = (endpoints + 1);
+		hc->ports[port]->device->num_endpoints = endpoints;
 		
 
 		while (bytes_left > 0)
@@ -470,11 +472,13 @@ int usb_function_get_config_descriptor(usb_hc_t *hc, int port)
 			}
 			else
 			{
-				buf_ptr++;
-				bytes_left--;
+				buf_ptr += length;
+				bytes_left -= length;
 			}
 		}
 	}
+	else
+		hc->ports[port]->device->descriptors = NULL;
 
 	/* Done */
 	return dev_request.completed;
@@ -508,5 +512,93 @@ int usb_function_set_configuration(usb_hc_t *hc, int port, uint32_t configuratio
 	usb_transaction_send(hc, &dev_request);
 
 	/* Done */
+	return dev_request.completed;
+}
+
+/* Get specific descriptor */
+int usb_function_get_descriptor(usb_hc_t *hc, int port, void *buffer, uint8_t direction, 
+	uint8_t descriptor_type, uint8_t descriptor_subtype, uint8_t descriptor_index, uint16_t descriptor_length)
+{
+	usb_hc_request_t dev_request;
+
+	/* Init transfer */
+	usb_transaction_init(hc, &dev_request, X86_USB_REQUEST_TYPE_CONTROL,
+		hc->ports[port]->device, 0, 64);
+
+	/* Setup Packet */
+	dev_request.lowspeed = (hc->ports[port]->full_speed == 0) ? 1 : 0;
+	dev_request.packet.direction = direction;
+	dev_request.packet.type = X86_USB_REQ_GET_DESC;
+	dev_request.packet.value_high = descriptor_type;
+	dev_request.packet.value_low = descriptor_subtype;
+	dev_request.packet.index = descriptor_index;
+	dev_request.packet.length = descriptor_length;
+
+	/* Setup Transfer */
+	usb_transaction_setup(hc, &dev_request, sizeof(usb_packet_t));
+
+	/* In Transfer, we want to fill the descriptor */
+	usb_transaction_in(hc, &dev_request, 0, buffer, descriptor_length);
+
+	/* Out Transfer, STATUS Stage */
+	usb_transaction_out(hc, &dev_request, 1, NULL, 0);
+
+	/* Send it */
+	usb_transaction_send(hc, &dev_request);
+
+	return dev_request.completed;
+}
+
+/* Send packet */
+int usb_function_send_packet(usb_hc_t *hc, int port, void *buffer, uint8_t request_type,
+	uint8_t request, uint8_t value_high, uint8_t value_low, uint16_t index, uint16_t length)
+{
+	usb_hc_request_t dev_request;
+
+	/* Init transfer */
+	usb_transaction_init(hc, &dev_request, X86_USB_REQUEST_TYPE_CONTROL,
+		hc->ports[port]->device, 0, 64);
+
+	/* Setup Packet */
+	dev_request.lowspeed = (hc->ports[port]->full_speed == 0) ? 1 : 0;
+	dev_request.packet.direction = request_type;
+	dev_request.packet.type = request;
+	dev_request.packet.value_high = value_high;
+	dev_request.packet.value_low = value_low;
+	dev_request.packet.index = index;
+	dev_request.packet.length = length;
+
+	/* Setup Transfer */
+	usb_transaction_setup(hc, &dev_request, sizeof(usb_packet_t));
+
+	/* In/Out Transfer, we want to fill data */
+	if (length != 0)
+	{
+		if (request_type & X86_USB_REQ_DIRECTION_IN)
+		{
+			usb_transaction_in(hc, &dev_request, 0, buffer, length);
+
+			/* Out Transfer, STATUS Stage */
+			usb_transaction_out(hc, &dev_request, 1, NULL, 0);
+		}
+			
+		else
+		{
+			usb_transaction_out(hc, &dev_request, 0, buffer, length);
+
+			/* In Transfer, ACK Stage */
+			usb_transaction_in(hc, &dev_request, 1, NULL, 0);
+		}
+			
+	}
+	else
+	{
+		/* In Transfer, ACK Stage */
+		usb_transaction_in(hc, &dev_request, 1, NULL, 0);
+	}
+	
+	/* Send it */
+	usb_transaction_send(hc, &dev_request);
+
 	return dev_request.completed;
 }

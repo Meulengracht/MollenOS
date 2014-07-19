@@ -44,7 +44,7 @@ typedef struct _o_endpoint_desc
 	 * Bits 14: If set, it skips the TD queues and moves on to next EP descriptor
 	 * Bits 15: (Format). 0 = Bulk/Control/Interrupt Endpoint. 1 = Isochronous TD format.
 	 * Bits 16-26: Maximum Packet Size per data packet.
-	 * Bits 27-31: Not used.
+	 * Bits 27-31: Type -> 0000 (Control), 0001 (Bulk), 0010 (Interrupt) 0011 (Isoc).
 	 */
 	uint32_t flags;
 
@@ -78,9 +78,10 @@ typedef struct _o_endpoint_desc
 #define X86_OHCI_EP_PID_OUT			(1 << 11)
 #define X86_OHCI_EP_PID_IN			(1 << 12)
 #define X86_OHCI_EP_LOWSPEED(n)		(n << 13)
-#define X86_OHCI_EP_SKIP			(1 << 14)
+#define X86_OHCI_EP_SKIP			0x4000
 #define X86_OHCI_EP_ISOCHRONOUS		(1 << 15)
 #define X86_OHCI_EP_PACKET_SIZE(n)	(n << 16)
+#define X86_OHCI_EP_TYPE(n)			(n << 27)
 
 
 /* Must be 16 byte aligned 
@@ -281,14 +282,33 @@ typedef struct _o_registers
 #define X86_OHCI_PORT_OVR_CURRENT_EVENT	(1 << 19)
 #define X86_OHCI_PORT_RESET_EVENT		(1 << 20)
 
+/* Interrupt Transfer Callback Structure */
+typedef struct _o_periodic_callback
+{
+	/* Buffer */
+	void *buffer;
+
+	/* Byte Count */
+	size_t bytes;
+
+	/* Callback */
+	void (*callback)(void*, size_t);
+
+	/* Callback arguments */
+	void *args;
+
+} ohci_periodic_callback_t;
+
 /* Pool Definitions */
 #define X86_OHCI_POOL_NUM_ED			50
 #define X86_OHCI_POOL_NUM_TD			100
+#define X86_OHCI_POOL_NUM_PIPES			10
 
 #define X86_OHCI_POOL_ED_CONTROL_START	0
 #define X86_OHCI_POOL_ED_BULK_START		20
 
 #define X86_OHCI_POOL_TD_CONTROL_START	0
+#define X86_OHCI_POOL_TD_PIPE_START		30
 #define X86_OHCI_POOL_TD_BULK_START		40
 
 #define X86_OHCI_INDEX_TYPE_CONTROL		0x01
@@ -328,6 +348,10 @@ typedef struct _o_controller
 	uint32_t ed_index_bulk;
 	uint32_t td_index_control;
 	uint32_t td_index_bulk;
+
+	/* Interrupt Pipe List */
+	ohci_endpoint_desc_t *pipe_pool[X86_OHCI_POOL_NUM_PIPES];
+	uint32_t pipe_index;
 
 	/* Power */
 	uint32_t power_mode;

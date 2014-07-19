@@ -46,6 +46,7 @@
     <ClCompile Include="..\..\..\arch\x86\drivers\driver_pci.c" />
     <ClCompile Include="..\..\..\arch\x86\drivers\driver_strings.c" />
     <ClCompile Include="..\..\..\arch\x86\drivers\usb\ehci\ehci.c" />
+    <ClCompile Include="..\..\..\arch\x86\drivers\usb\hid\hid_manager.c" />
     <ClCompile Include="..\..\..\arch\x86\drivers\usb\ohci\ohci.c" />
     <ClCompile Include="..\..\..\arch\x86\drivers\usb\usb_core.c" />
     <ClCompile Include="..\..\..\arch\x86\drivers\usb\usb_functions.c" />
