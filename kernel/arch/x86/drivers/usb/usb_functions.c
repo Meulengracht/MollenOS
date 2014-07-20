@@ -602,3 +602,5 @@ int usb_function_send_packet(usb_hc_t *hc, int port, void *buffer, uint8_t reque
 
 	return dev_request.completed;
 }
+
+/* Send SCSI Command */

@@ -29,6 +29,7 @@ global _clear_ts
 global _set_ts
 global _rdtsc
 global __yield
+global _enter_thread
 
 ; void _yield(void)
 ; Yields
@@ -141,3 +142,29 @@ _rdtsc:
 	xor eax, eax
 	pop ebp
 	ret 
+
+; void enter_thread(registers_t *stack)
+; Switches stack and far jumps to next task
+_enter_thread:
+	; Stack Frame
+	push ebp
+	mov ebp, esp
+
+	; Get pointer
+	mov eax, [ebp + 8]
+	mov esp, eax
+
+	; When we return, restore state
+	popad
+
+	; Restore segments
+	pop gs
+	pop fs
+	pop es
+	pop ds
+
+	; Cleanup IrqNum & IrqErrorCode from stack
+	add esp, 0x8
+
+	; Return
+	iret

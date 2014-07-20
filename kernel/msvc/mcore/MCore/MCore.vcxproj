@@ -8,10 +8,12 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\..\common\list.c" />
+    <ClCompile Include="..\..\..\common\ringbuffer.c" />
     <ClCompile Include="..\..\..\init\entry.c" />
     <ClCompile Include="..\..\..\system\heap.c" />
     <ClCompile Include="..\..\..\system\scheduler.c" />
     <ClCompile Include="..\..\..\system\semaphore.c" />
+    <ClCompile Include="..\..\..\system\userspace\input_manager.c" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <ProjectGuid>{E1811ABC-D002-44D1-8581-2ACF9C1DD0F9}</ProjectGuid>

@@ -47,12 +47,13 @@ extern uint32_t memory_get_cr3(void);
 extern void save_fpu(addr_t *buffer);
 extern void set_ts(void);
 extern void _yield(void);
+extern void enter_thread(registers_t *regs);
 
 /* The YIELD handler */
 void threading_yield(void *args)
 {
 	/* Get registers */
-	registers_t **regs = (registers_t**)args;
+	registers_t *regs = NULL;
 	uint32_t time_slice = 20;
 	uint32_t task_priority = 0;
 
@@ -60,7 +61,7 @@ void threading_yield(void *args)
 	apic_send_eoi();
 
 	/* Switch Task */ 
-	*regs = (void*)threading_switch(*regs, 0, &time_slice, &task_priority);
+	regs = (void*)threading_switch((registers_t*)args, 0, &time_slice, &task_priority);
 
 	/* Set Task Priority */
 	apic_set_task_priority(61 - task_priority);
@@ -70,6 +71,9 @@ void threading_yield(void *args)
 
 	/* Re-enable timer in one-shot mode */
 	apic_write_local(LAPIC_TIMER_VECTOR, INTERRUPT_TIMER);
+
+	/* Enter new thread */
+	enter_thread(regs);
 }
 
 /* Initialization 

@@ -111,15 +111,6 @@
 #define X86_USB_REPORT_USAGE_R_Z				0x35
 #define X86_USB_REPORT_USAGE_WHEEL				0x36
 
-/* Types */
-#define X86_USB_HID_TYPE_UNKNOWN				0x0
-#define X86_USB_HID_TYPE_MOUSE					0x1
-#define X86_USB_HID_TYPE_KEYBOARD				0x2
-#define X86_USB_HID_TYPE_KEYPAD					0x3
-#define X86_USB_HID_TYPE_JOYSTICK				0x4
-#define X86_USB_HID_TYPE_GAMEPAD				0x5
-#define X86_USB_HID_TYPE_OTHER					0x6
-
 /* Structures */
 #pragma pack(push, 1)
 typedef struct _usb_hid_descriptor

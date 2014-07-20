@@ -93,7 +93,7 @@ void* memcpy_mmx(void *destination, const void *source, size_t count)
 	/* Pointers */
 	uint32_t *Dest = (uint32_t*)destination;
 	uint32_t *Source = (uint32_t*)source;
-	
+
 	/* Loop Count */
 	uint32_t MmxLoops = count / 8;
 	uint32_t mBytes = count % 8;

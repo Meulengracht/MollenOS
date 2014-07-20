@@ -23,6 +23,7 @@
 #include <arch.h>
 #include <drivers\usb\usb.h>
 #include <drivers\usb\hid\hid_manager.h>
+#include <input_manager.h>
 #include <semaphore.h>
 #include <heap.h>
 #include <list.h>
@@ -32,8 +33,6 @@
 /* Prototypes */
 void usb_hid_parse_report_descriptor(usb_hid_driver_t *driver, uint8_t *report, uint32_t report_length);
 void usb_hid_callback(void *driver, size_t bytes);
-
-/* */
 
 /* Collection List Helpers */
 void usb_hid_collection_insert_child(usb_report_collection_t *collection, 
@@ -205,7 +204,7 @@ void usb_hid_parse_report_descriptor(usb_hid_driver_t *driver, uint8_t *report, 
 	usb_report_global_stats_t global_stats = { 0 };
 	usb_report_item_stats_t item_stats = { 0 };
 	uint32_t bit_offset = 0;
-	uint32_t current_type = X86_USB_HID_TYPE_UNKNOWN;
+	uint32_t current_type = MCORE_INPUT_TYPE_UNKNOWN;
 
 	/* Null Report Id */
 	global_stats.report_id = 0xFFFFFFFF;
@@ -507,15 +506,15 @@ void usb_hid_parse_report_descriptor(usb_hid_driver_t *driver, uint8_t *report, 
 					{
 						if (packet == X86_USB_REPORT_USAGE_POINTER
 							|| packet == X86_USB_REPORT_USAGE_MOUSE)
-							current_type = X86_USB_HID_TYPE_MOUSE;
+							current_type = MCORE_INPUT_TYPE_MOUSE;
 						else if (packet == X86_USB_REPORT_USAGE_KEYBOARD)
-							current_type = X86_USB_HID_TYPE_KEYBOARD;
+							current_type = MCORE_INPUT_TYPE_KEYBOARD;
 						else if (packet == X86_USB_REPORT_USAGE_KEYPAD)
-							current_type = X86_USB_HID_TYPE_KEYPAD;
+							current_type = MCORE_INPUT_TYPE_KEYPAD;
 						else if (packet == X86_USB_REPORT_USAGE_JOYSTICK)
-							current_type = X86_USB_HID_TYPE_JOYSTICK;
+							current_type = MCORE_INPUT_TYPE_JOYSTICK;
 						else if (packet == X86_USB_REPORT_USAGE_GAMEPAD)
-							current_type = X86_USB_HID_TYPE_GAMEPAD;
+							current_type = MCORE_INPUT_TYPE_GAMEPAD;
 
 						for (j = 0; j < 16; j++)
 						{
@@ -556,6 +555,8 @@ void usb_hid_parse_report_descriptor(usb_hid_driver_t *driver, uint8_t *report, 
 void usb_hid_apply_input_data(usb_hid_driver_t *driver_data, usb_report_collection_item_t *input_item)
 {
 	usb_report_input_t *input = (usb_report_input_t*)input_item->data;
+	input_pointer_data_t pointer_data = { 0 };
+	input_button_data_t button_data = { 0 };
 	uint64_t value = 0, old_value = 0;
 	uint32_t i, offset, length, usage;
 
@@ -573,6 +574,10 @@ void usb_hid_apply_input_data(usb_hid_driver_t *driver_data, usb_report_collecti
 		if (report_id != (uint8_t)input_item->stats.report_id)
 			return;
 	}
+
+	/* Set type */
+	pointer_data.type = input_item->input_type;
+	button_data.type = input_item->input_type;
 
 	/* Loop through report data */
 	offset = input->stats.bit_offset;
@@ -606,6 +611,10 @@ void usb_hid_apply_input_data(usb_hid_driver_t *driver_data, usb_report_collecti
 					{
 						int64_t x_relative = (int64_t)value;
 
+						/* Sanity */
+						if (value == 0)
+							break;
+
 						/* Convert to relative if necessary */
 						if (input->flags == X86_USB_REPORT_INPUT_TYPE_ABSOLUTE)
 						{
@@ -624,8 +633,14 @@ void usb_hid_apply_input_data(usb_hid_driver_t *driver_data, usb_report_collecti
 						}
 
 						if (x_relative != 0)
-							printf("X-Change: %i (Original 0x%x, Old 0x%x)\n", 
+						{
+							/* Add it */
+							pointer_data.x_relative = (int32_t)x_relative;
+
+							/* Now it epends on mouse, joystick or w/e */
+							printf("X-Change: %i (Original 0x%x, Old 0x%x)\n",
 								(int32_t)x_relative, (uint32_t)value, (uint32_t)old_value);
+						}
 
 					} break;
 
@@ -633,6 +648,10 @@ void usb_hid_apply_input_data(usb_hid_driver_t *driver_data, usb_report_collecti
 					case X86_USB_REPORT_USAGE_Y_AXIS:
 					{
 						int64_t y_relative = (int64_t)value;
+
+						/* Sanity */
+						if (value == 0)
+							break;
 
 						/* Convert to relative if necessary */
 						if (input->flags == X86_USB_REPORT_INPUT_TYPE_ABSOLUTE)
@@ -652,8 +671,14 @@ void usb_hid_apply_input_data(usb_hid_driver_t *driver_data, usb_report_collecti
 						}
 
 						if (y_relative != 0)
+						{
+							/* Add it */
+							pointer_data.y_relative = (int32_t)y_relative;
+
+							/* Now it epends on mouse, joystick or w/e */
 							printf("Y-Change: %i (Original 0x%x, Old 0x%x)\n",
 								(int32_t)y_relative, (uint32_t)value, (uint32_t)old_value);
+						}
 
 					} break;
 
@@ -661,6 +686,10 @@ void usb_hid_apply_input_data(usb_hid_driver_t *driver_data, usb_report_collecti
 					case X86_USB_REPORT_USAGE_Z_AXIS:
 					{
 						int64_t z_relative = (int64_t)value;
+
+						/* Sanity */
+						if (value == 0)
+							break;
 
 						/* Convert to relative if necessary */
 						if (input->flags == X86_USB_REPORT_INPUT_TYPE_ABSOLUTE)
@@ -680,15 +709,27 @@ void usb_hid_apply_input_data(usb_hid_driver_t *driver_data, usb_report_collecti
 						}
 
 						if (z_relative != 0)
+						{
+							/* Add it */
+							pointer_data.z_relative = (int32_t)z_relative;
+
+							/* Now it epends on mouse, joystick or w/e */
 							printf("Z-Change: %i (Original 0x%x, Old 0x%x)\n",
 								(int32_t)z_relative, (uint32_t)value, (uint32_t)old_value);
+						}
 
 					} break;
 				}
 
 			} break;
 
-			/* Buttons */
+			/* Keyboard, Keypad */
+			case X86_USB_REPORT_USAGE_PAGE_KEYBOARD:
+			{
+
+			} break;
+
+			/* Buttons (Mouse, Joystick, Gamepad, etc) */
 			case X86_USB_REPORT_USAGE_PAGE_BUTTON:
 			{
 				/* Determine if keystate has changed */
@@ -697,36 +738,31 @@ void usb_hid_apply_input_data(usb_hid_driver_t *driver_data, usb_report_collecti
 
 				if (value != old_value)
 					keystate_changed = 1;
+				else
+					break;
+
+				/* Ok, so if we have multiple buttons (an array) 
+				 * we will use the logical min & max to find out which
+				 * button id this is */
+				printf("Button %u: %u\n", i, (uint32_t)value);
 
 				/* Keyboard, keypad, mouse, gamepad or joystick? */
 				switch (input_item->input_type)
 				{
 					/* Mouse Button */
-					case X86_USB_HID_TYPE_MOUSE:
-					{
-
-					} break;
-
-					/* Keyboard Button */
-					case X86_USB_HID_TYPE_KEYBOARD:
-					{
-
-					} break;
-
-					/* Keypad Button */
-					case X86_USB_HID_TYPE_KEYPAD:
+					case MCORE_INPUT_TYPE_MOUSE:
 					{
 
 					} break;
 
 					/* Gamepad Button */
-					case X86_USB_HID_TYPE_GAMEPAD:
+					case MCORE_INPUT_TYPE_GAMEPAD:
 					{
 
 					} break;
 
 					/* Joystick Button */
-					case X86_USB_HID_TYPE_JOYSTICK:
+					case MCORE_INPUT_TYPE_JOYSTICK:
 					{
 
 					} break;
@@ -736,6 +772,15 @@ void usb_hid_apply_input_data(usb_hid_driver_t *driver_data, usb_report_collecti
 						break;
 				}
 
+			} break;
+
+			/* Consumer, this is device-specific */
+			case X86_USB_REPORT_USAGE_PAGE_CONSUMER:
+			{
+				/* Virtual box sends me 0x238 which means AC Pan 
+				 * which actually is a kind of scrolling 
+				 * From the HID Usage Table Specs:
+				 * Sel - Set the horizontal offset of the display in the document. */
 			} break;
 
 			/* Debug Print */
@@ -751,6 +796,13 @@ void usb_hid_apply_input_data(usb_hid_driver_t *driver_data, usb_report_collecti
 		offset += length;
 	}
 	
+	/* We send a report here */
+	if (pointer_data.x_relative != 0 ||
+		pointer_data.y_relative != 0 ||
+		pointer_data.z_relative != 0)
+	{
+		//input_manager_send_pointer_data(&pointer_data);
+	}
 
 	/* printf("Input Item (%u): Report Offset %u, Report Size %u, Report Count %u (Minimum %i, Maximmum %i)\n",
 		input->stats.usages[0], input->stats.bit_offset, input_item->stats.report_size, input_item->stats.report_count,

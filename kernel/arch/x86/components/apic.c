@@ -39,12 +39,13 @@ extern volatile addr_t local_apic_addr;
 extern volatile uint32_t num_cpus;
 extern volatile uint32_t glb_cpus_booted;
 extern list_t *acpi_nodes;
+extern void enter_thread(registers_t *regs);
 
 /* Primary CPU Timer IRQ */
 void apic_timer_handler(void *args)
 {
 	/* Get registers */
-	registers_t **regs = (registers_t**)args;
+	registers_t *regs = NULL;
 	uint32_t time_slice = 20;
 	uint32_t task_priority = 0;
 
@@ -55,7 +56,7 @@ void apic_timer_handler(void *args)
 	apic_send_eoi();
 
 	/* Switch Task */
-	*regs = threading_switch((*regs), 1, &time_slice, &task_priority);
+	regs = threading_switch((registers_t*)args, 1, &time_slice, &task_priority);
 
 	/* Set Task Priority */
 	apic_set_task_priority(61 - task_priority);
@@ -65,6 +66,9 @@ void apic_timer_handler(void *args)
 
 	/* Re-enable timer in one-shot mode */
 	apic_write_local(LAPIC_TIMER_VECTOR, INTERRUPT_TIMER);		//0x20000 - Periodic
+
+	/* Enter new thread */
+	enter_thread(regs);
 }
 
 /* Spurious handler */

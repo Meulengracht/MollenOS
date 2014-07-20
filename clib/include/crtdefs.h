@@ -45,6 +45,21 @@
  #endif
 #endif
 
+#ifndef _Check_return_
+#define _Check_return_
+#endif
+
+#ifndef _In_
+#define _In_
+#endif
+
+#ifndef _Out_
+#define _Out_
+#endif
+
+#ifndef _M_IX86
+#define _M_IX86 600
+#endif
 
 #ifndef _CRTIMP
 #ifdef CRTDLL /* Defined for ntdll, crtdll, msvcrt, etc */

@@ -131,13 +131,13 @@ typedef struct _thread
 /* Components */
 
 /* Port IO */
-_CRT_EXTERN uint8_t inb(uint16_t port);
-_CRT_EXTERN uint16_t inw(uint16_t port);
-_CRT_EXTERN uint32_t inl(uint16_t port);
+_CRT_EXTERN uint8_t __CRTDECL inb(uint16_t port);
+_CRT_EXTERN uint16_t __CRTDECL inw(uint16_t port);
+_CRT_EXTERN uint32_t __CRTDECL inl(uint16_t port);
 
-_CRT_EXTERN void outb(uint16_t port, uint8_t data);
-_CRT_EXTERN void outw(uint16_t port, uint16_t data);
-_CRT_EXTERN void outl(uint16_t port, uint32_t data);
+_CRT_EXTERN void __CRTDECL outb(uint16_t port, uint8_t data);
+_CRT_EXTERN void __CRTDECL outw(uint16_t port, uint16_t data);
+_CRT_EXTERN void __CRTDECL outl(uint16_t port, uint32_t data);
 
 /* Video */
 _CRT_EXTERN void video_init(void *bootinfo);

@@ -23,6 +23,7 @@
 #include <arch.h>
 #include <drivers\usb\usb.h>
 #include <drivers\usb\hid\hid_manager.h>
+#include <drivers\usb\msd\msd_manager.h>
 #include <semaphore.h>
 #include <heap.h>
 #include <list.h>
@@ -53,7 +54,7 @@ void usb_core_init(void)
 	glb_event_lock = semaphore_create(0);
 
 	/* Start Event Thread */
-	threading_create_thread("UsbEventHandler", usb_core_event_handler, NULL, 0);
+	//threading_create_thread("UsbEventHandler", usb_core_event_handler, NULL, 0);
 }
 
 /* Registrate an OHCI/UHCI/EHCI/XHCI controller */
@@ -210,10 +211,11 @@ void usb_device_setup(usb_hc_t *hc, int port)
 		if (hc->ports[port]->device->interfaces[i]->class_code == X86_USB_CLASS_MSD)
 		{
 			/* Registrate us with MSD Manager */
+			usb_msd_initialise(hc->ports[port]->device, iface);
 		}
 
 		/* Is this an HUB Interface? :> */
-		if (hc->ports[port]->device->interfaces[i]->class_code == X86_USB_CLASS_MSD)
+		if (hc->ports[port]->device->interfaces[i]->class_code == X86_USB_CLASS_HUB)
 		{
 			/* Protocol specifies usb interface (high or low speed) */
 

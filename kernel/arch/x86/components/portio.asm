@@ -40,7 +40,8 @@ _inb:
 
 	; Get byte
 	xor eax, eax
-	mov edx, [ebp + 8]
+	xor edx, edx
+	mov dx, [ebp + 8]
 	in al, dx
 
 	; Release stack frame
@@ -58,7 +59,8 @@ _inw:
 
 	; Get byte
 	xor eax, eax
-	mov edx, [ebp + 8]
+	xor edx, edx
+	mov dx, [ebp + 8]
 	in ax, dx
 
 	; Release stack frame
@@ -76,7 +78,8 @@ _inl:
 
 	; Get byte
 	xor eax, eax
-	mov edx, [ebp + 8]
+	xor edx, edx
+	mov dx, [ebp + 8]
 	in eax, dx
 
 	; Release stack frame
@@ -93,8 +96,10 @@ _outb:
 	push edx
 
 	; Get data
-	mov edx, [ebp + 8]
-	mov eax, [ebp + 12]
+	xor eax, eax
+	xor edx, edx
+	mov dx, [ebp + 8]
+	mov al, [ebp + 12]
 	out dx, al
 
 	; Release stack frame
@@ -112,8 +117,10 @@ _outw:
 	push edx
 
 	; Get data
-	mov edx, [ebp + 8]
-	mov eax, [ebp + 12]
+	xor eax, eax
+	xor edx, edx
+	mov dx, [ebp + 8]
+	mov ax, [ebp + 12]
 	out dx, ax
 
 	; Release stack frame
@@ -131,7 +138,8 @@ _outl:
 	push edx
 
 	; Get data
-	mov edx, [ebp + 8]
+	xor edx, edx
+	mov dx, [ebp + 8]
 	mov eax, [ebp + 12]
 	out dx, eax
 

@@ -217,17 +217,12 @@ void interrupt_install_soft(uint32_t idt_entry, irq_handler_t callback, void *ar
 }
 
 /* The common entry point for interrupts */
-void interrupt_entry(registers_t **regs)
+void interrupt_entry(registers_t *regs)
 {
 	/* Determine Irq */
 	int i;
 	int calls = 0;
-	uint32_t irq = (*regs)->irq + 0x20;
-	uint32_t tp = 0;
-
-	/* Set Task Priority */
-	tp = apic_get_task_priority();
-	apic_set_task_priority(irq);
+	uint32_t irq = regs->irq + 0x20;
 
 	/* Get handler(s) */
 	for (i = 0; i < X86_MAX_HANDLERS_PER_INTERRUPT; i++)
@@ -249,13 +244,8 @@ void interrupt_entry(registers_t **regs)
 	if (calls == 0)
 		printf("Unhandled interrupt vector %u\n", irq);
 
-	/* Send EOI & Restore Task Priority */
-	if (irq != INTERRUPT_TIMER)
-	{
-		apic_set_task_priority(tp);
-		apic_send_eoi();
-	}
-		
+	/* Send EOI */
+	apic_send_eoi();
 }
 
 /* Disables interrupts and returns
