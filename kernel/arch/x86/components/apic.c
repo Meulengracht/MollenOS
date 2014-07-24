@@ -352,6 +352,12 @@ void apic_timer_init(void)
 	lapic_ticks = (0xFFFFFFFF - apic_read_local(LAPIC_CURRENT_COUNT));
 	printf("    * Ticks: %u\n", lapic_ticks);
 	timer_quantum = ((lapic_ticks * 4) / 1000) + 1;
+
+	/* We want a minimum of ca 400, this is to ensure on "slow"
+	 * computers we atleast get a few ms of processing power */
+	if (timer_quantum < 400)
+		timer_quantum = 400;
+
 	printf("    * Quantum: %u\n", timer_quantum);
 
 	/* Install Interrupt */

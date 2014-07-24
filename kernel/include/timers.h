@@ -31,10 +31,25 @@ typedef unsigned int tmid_t;
 typedef void(*timer_handler_t)(void*);
 
 /* Structures */
+typedef struct _mcore_timer
+{
+	/* Callback */
+	timer_handler_t callback;
 
+	/* Argument for callback */
+	void *argument;
+
+	/* Periode MS */
+	uint32_t ms;
+
+	/* Counter */
+	volatile int32_t ms_left;
+
+} timer_t;
 
 /* Prototypes */
-_CRT_EXTERN tmid_t timers_create_periodic(timer_handler_t callback, uint32_t ms);
+_CRT_EXTERN tmid_t timers_create_periodic(timer_handler_t callback, void *arg, uint32_t ms);
+_CRT_EXTERN void timers_apply_time(uint32_t ms);
 
 #endif // !_MCORE_TIMERS_H_
 

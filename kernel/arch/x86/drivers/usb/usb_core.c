@@ -142,6 +142,7 @@ void usb_device_setup(usb_hc_t *hc, int port)
 		device->endpoints[i]->address = 0;
 		device->endpoints[i]->type = X86_USB_EP_TYPE_CONTROL;
 		device->endpoints[i]->toggle = 0;
+		device->endpoints[i]->bandwidth = 1;
 		device->endpoints[i]->max_packet_size = 64;
 		device->endpoints[i]->direction = X86_USB_EP_DIRECTION_BOTH;
 		device->endpoints[i]->interval = 0;

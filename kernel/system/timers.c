@@ -22,6 +22,7 @@
 /* Includes */
 #include <arch.h>
 #include <timers.h>
+#include <heap.h>
 #include <list.h>
 
 /* Globals */
@@ -38,14 +39,45 @@ void timers_init(void)
 	glb_timer_ids = 0;
 }
 
-tmid_t timers_create_periodic(timer_handler_t callback, uint32_t ms)
+tmid_t timers_create_periodic(timer_handler_t callback, void *arg, uint32_t ms)
 {
-	_CRT_UNUSED(callback);
-	_CRT_UNUSED(ms);
+	timer_t *timer;
+	tmid_t id;
 
 	/* Sanity */
 	if (glb_timers_initialized != 0xDEADBEEF)
 		timers_init();
 
-	return glb_timer_ids;
+	/* Allocate */
+	timer = (timer_t*)kmalloc(sizeof(timer_t));
+	timer->callback = callback;
+	timer->argument = arg;
+	timer->ms = ms;
+	timer->ms_left = ms;
+
+	/* Append to list */
+	list_append(glb_timers, list_create_node(glb_timer_ids, timer));
+
+	/* Increase */
+	id = glb_timer_ids;
+	glb_timer_ids++;
+
+	return id;
+}
+
+/* This should be called by only ONE periodic irq */
+void timers_apply_time(uint32_t ms)
+{
+	foreach(i, glb_timers)
+	{
+		timer_t *timer = (timer_t*)i->data;
+		timer->ms_left -= ms;
+
+		/* Pop timer? */
+		if (timer->ms_left <= 0)
+		{
+			timer->callback(timer->argument);
+			timer->ms_left = (int32_t)timer->ms;
+		}
+	}
 }

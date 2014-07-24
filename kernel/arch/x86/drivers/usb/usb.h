@@ -275,6 +275,9 @@ typedef struct _usb_hc_endpoint
 	/* Max Packet Size (Always 64 bytes, almost) */
 	uint32_t max_packet_size;
 
+	/* Bandwidth */
+	uint32_t bandwidth;
+
 	/* Data Toggle */
 	uint32_t toggle;
 

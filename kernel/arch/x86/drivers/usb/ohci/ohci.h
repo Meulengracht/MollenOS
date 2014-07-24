@@ -70,6 +70,9 @@ typedef struct _o_endpoint_desc
 	/* HCD Defined Data */
 	uint32_t hcd_data;
 
+	/* Padding to 32 bytes */
+	uint32_t padding[2];
+
 } ohci_endpoint_desc_t;
 
 /* Bit Defintions */
@@ -300,19 +303,30 @@ typedef struct _o_periodic_callback
 	/* Callback arguments */
 	void *args;
 
+	/* TD Head */
+	uint32_t td_index;
+
 } ohci_periodic_callback_t;
 
 /* Pool Definitions */
 #define X86_OHCI_POOL_NUM_ED			50
 #define X86_OHCI_POOL_NUM_TD			100
-#define X86_OHCI_POOL_NUM_PIPES			10
-
-#define X86_OHCI_POOL_TD_CONTROL_START	0
-#define X86_OHCI_POOL_TD_PIPE_START		30
-#define X86_OHCI_POOL_TD_BULK_START		40
 
 #define X86_OHCI_INDEX_TYPE_CONTROL		0x01
 #define X86_OHCI_INDEX_TYPE_BULK		0x02
+
+/* Interrupt Table */
+typedef struct _o_intr_table
+{
+	/* 32 Ep's */
+	ohci_endpoint_desc_t ms16[16];
+	ohci_endpoint_desc_t ms8[8];
+	ohci_endpoint_desc_t ms4[4];
+	ohci_endpoint_desc_t ms2[2];
+	ohci_endpoint_desc_t ms1[1];
+	ohci_endpoint_desc_t stop;
+
+} ohci_interrupt_table_t;
 
 /* Controller Structure */
 typedef struct _o_controller
@@ -336,7 +350,7 @@ typedef struct _o_controller
 	volatile ohci_hcca_t *hcca;
 
 	/* ED Pool */
-	ohci_endpoint_desc_t  *ed_pool[X86_OHCI_POOL_NUM_ED];
+	ohci_endpoint_desc_t *ed_pool[X86_OHCI_POOL_NUM_ED];
 
 	/* TD Pool */
 	ohci_gtransfer_desc_t *td_pool[X86_OHCI_POOL_NUM_TD];
@@ -345,12 +359,16 @@ typedef struct _o_controller
 
 	/* Pool Indices */
 	uint32_t ed_index;
-	uint32_t td_index_control;
-	uint32_t td_index_bulk;
+	uint32_t td_index;
 
-	/* Interrupt Pipe List */
-	ohci_endpoint_desc_t *pipe_pool[X86_OHCI_POOL_NUM_PIPES];
-	uint32_t pipe_index;
+	/* Interrupt Table & List */
+	ohci_interrupt_table_t *itable;
+	ohci_endpoint_desc_t *ed32[32];
+	uint32_t i32;
+	uint32_t i16;
+	uint32_t i8;
+	uint32_t i4;
+	uint32_t i2;
 
 	/* Power */
 	uint32_t power_mode;

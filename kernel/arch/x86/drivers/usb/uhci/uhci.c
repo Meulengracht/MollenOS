@@ -247,7 +247,7 @@ void uhci_setup(uhci_controller_t *controller)
 	usb_event_create(hc, 0, X86_USB_EVENT_ROOTHUB_CHECK);
 
 	/* Install Periodic Check (WTF NO HUB INTERRUPTS!?) */
-	timers_create_periodic(uhci_ports_check, 10);
+	timers_create_periodic(uhci_ports_check, controller, 10);
 }
 
 /* Initialises Queue Heads & Interrupt Queeue */

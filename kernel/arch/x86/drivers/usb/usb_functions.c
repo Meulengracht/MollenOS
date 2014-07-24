@@ -451,7 +451,8 @@ int usb_function_get_config_descriptor(usb_hc_t *hc, int port)
 
 					/* Update Device */
 					hc->ports[port]->device->endpoints[ep_itr]->address = ep_address;
-					hc->ports[port]->device->endpoints[ep_itr]->max_packet_size = endpoint->max_packet_size;
+					hc->ports[port]->device->endpoints[ep_itr]->max_packet_size = (endpoint->max_packet_size & 0x7FF);
+					hc->ports[port]->device->endpoints[ep_itr]->bandwidth = ((endpoint->max_packet_size >> 11) & 0x3) + 1;
 					hc->ports[port]->device->endpoints[ep_itr]->interval = endpoint->interval;
 					hc->ports[port]->device->endpoints[ep_itr]->toggle = 0;
 					hc->ports[port]->device->endpoints[ep_itr]->type = ep_type;
