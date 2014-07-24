@@ -16,26 +16,36 @@
 * along with this program.If not, see <http://www.gnu.org/licenses/>.
 *
 *
-* MollenOS Common Entry Point
+* MollenOS MCORE - Timer Manager
 */
 
 /* Includes */
 #include <arch.h>
-#include <heap.h>
-#include <stdio.h>
+#include <timers.h>
+#include <list.h>
 
-void mcore_entry(void *args)
+/* Globals */
+list_t *glb_timers = NULL;
+volatile tmid_t glb_timer_ids = 0;
+volatile uint32_t glb_timers_initialized = 0;
+
+/* Init */
+void timers_init(void)
 {
-	_CRT_UNUSED(args);
+	/* Create list */
+	glb_timers = list_create(LIST_SAFE);
+	glb_timers_initialized = 0xDEADBEEF;
+	glb_timer_ids = 0;
+}
 
-	/* Now, lets initialize the high-end systems */
-	printf("  - MCore Initializing...\n");
+tmid_t timers_create_periodic(timer_handler_t callback, uint32_t ms)
+{
+	_CRT_UNUSED(callback);
+	_CRT_UNUSED(ms);
 
-	/* Virtual Filesystem */
-	while (1)
-		;
+	/* Sanity */
+	if (glb_timers_initialized != 0xDEADBEEF)
+		timers_init();
 
-	/* Drivers */
-
-	/* Start the compositor */
+	return glb_timer_ids;
 }

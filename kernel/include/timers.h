@@ -16,26 +16,26 @@
 * along with this program.If not, see <http://www.gnu.org/licenses/>.
 *
 *
-* MollenOS Common Entry Point
+* MollenOS MCORE - Timer Manager
 */
 
-/* Includes */
-#include <arch.h>
-#include <heap.h>
-#include <stdio.h>
+#ifndef _MCORE_TIMERS_H_
+#define _MCORE_TIMERS_H_
 
-void mcore_entry(void *args)
-{
-	_CRT_UNUSED(args);
+/* Include */
+#include <crtdefs.h>
+#include <stdint.h>
 
-	/* Now, lets initialize the high-end systems */
-	printf("  - MCore Initializing...\n");
+/* Definitions */
+typedef unsigned int tmid_t;
+typedef void(*timer_handler_t)(void*);
 
-	/* Virtual Filesystem */
-	while (1)
-		;
+/* Structures */
 
-	/* Drivers */
 
-	/* Start the compositor */
-}
+/* Prototypes */
+_CRT_EXTERN tmid_t timers_create_periodic(timer_handler_t callback, uint32_t ms);
+
+#endif // !_MCORE_TIMERS_H_
+
+

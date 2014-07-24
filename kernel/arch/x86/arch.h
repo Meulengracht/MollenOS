@@ -186,7 +186,7 @@ _CRT_EXTERN interrupt_status_t interrupt_set_state(interrupt_status_t state);
 /* Utils */
 _CRT_EXTERN cpu_t get_cpu(void);
 _CRT_EXTERN void stall_ms(size_t ms);
-_CRT_EXTERN void clock_stall(time_t ms);
+_CRT_EXTERN void clock_stall(uint32_t ms);
 _CRT_EXTERN void idle(void);
 
 /* Debug */
@@ -200,7 +200,7 @@ _CRT_EXTERN void threading_yield(void *args);
 _CRT_EXTERN tid_t threading_get_thread_id(void);
 
 /* Driver Interface */
-_CRT_EXTERN void drivers_init(void);
+_CRT_EXTERN void drivers_init(void *args);
 
 /* Utils Definitions */
 #define MIN(a,b) (((a)<(b))?(a):(b))

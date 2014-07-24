@@ -35,6 +35,9 @@ _memory_set_paging:
 	push ebp
 	mov ebp, esp
 
+	; Save stuff
+	push eax
+
 	; Get [enable]
 	mov	eax, dword [ebp + 8]
 	cmp eax, 0
@@ -53,7 +56,7 @@ _memory_set_paging:
 
 	.done:
 		; Release stack frame
-		xor eax, eax
+		pop eax
 		pop ebp
 		ret 
 
@@ -61,31 +64,24 @@ _memory_set_paging:
 ;void memory_reload_cr3(void)
 ;Reloads the cr3 register
 _memory_reload_cr3:
-	; Stack Frame
-	push ebp
-	mov ebp, esp
+	; Save stuff
+	push eax
 
 	; Reload
 	mov eax, cr3
 	mov cr3, eax
 
-	; Release stack frame
-	xor eax, eax
-	pop ebp
+	; Restore
+	pop eax
 	ret 
 
-;void memory_get_cr3(void)
+;uint32_t memory_get_cr3(void)
 ;Returns the cr3 register
 _memory_get_cr3:
-	; Stack Frame
-	push ebp
-	mov ebp, esp
-
 	; Get
 	mov eax, cr3
 
-	; Release stack frame
-	pop ebp
+	; Return
 	ret 
 
 ;void _memory_load_cr3(addr_t pda)
@@ -95,12 +91,17 @@ _memory_load_cr3:
 	push ebp
 	mov ebp, esp
 
+	; Save EAX
+	push eax
+
 	; Reload
 	mov	eax, dword [ebp + 8]
 	mov cr3, eax
 
+	; Restore
+	pop eax
+
 	; Release stack frame
-	xor eax, eax
 	pop ebp
 	ret 
 
@@ -115,6 +116,5 @@ _memory_invalidate_addr:
 	invlpg [ebp + 8]
 
 	; Release stack frame
-	xor eax, eax
 	pop ebp
 	ret 

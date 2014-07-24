@@ -9,24 +9,14 @@
 INCLUDELIB MSVCRT
 INCLUDELIB OLDNAMES
 
+PUBLIC	??_C@_06OJHGLDPL@?$CInull?$CJ?$AA@		; `string'
 _DATA	SEGMENT
-$SG2354	DB	'-', 00H
-	ORG $+2
-$SG2357	DB	'+', 00H
-	ORG $+2
-$SG2360	DB	' ', 00H
-	ORG $+2
-$SG2399	DB	'(null)', 00H
-	ORG $+1
-?_nullstring@?1??streamout@@9@9 DD FLAT:$SG2399		; `streamout'::`2'::_nullstring
-$SG2607	DB	'-', 00H
-	ORG $+2
-$SG2610	DB	'+', 00H
-	ORG $+2
-$SG2613	DB	' ', 00H
-	ORG $+2
-$SG2617	DB	'0', 00H
+?_nullstring@?1??streamout@@9@9 DD FLAT:??_C@_06OJHGLDPL@?$CInull?$CJ?$AA@ ; `streamout'::`2'::_nullstring
 _DATA	ENDS
+;	COMDAT ??_C@_06OJHGLDPL@?$CInull?$CJ?$AA@
+CONST	SEGMENT
+??_C@_06OJHGLDPL@?$CInull?$CJ?$AA@ DB '(null)', 00H	; `string'
+CONST	ENDS
 CONST	SEGMENT
 ?digits_l@?1??format_float@@9@9 DB '0123456789abcdef0x', 00H ; `format_float'::`2'::digits_l
 	ORG $+1
@@ -284,6 +274,9 @@ $LN7@streamout_@3:
 _streamout_wstring ENDP
 _TEXT	ENDS
 PUBLIC	__real@3ff0000000000000
+PUBLIC	??_C@_01CLKCMJKC@?5?$AA@			; `string'
+PUBLIC	??_C@_01MIFGBAGJ@?$CL?$AA@			; `string'
+PUBLIC	??_C@_01JOAMLHOP@?9?$AA@			; `string'
 PUBLIC	__real@3fe0000000000000
 PUBLIC	__real@4024000000000000
 PUBLIC	__real@0000000000000000
@@ -300,6 +293,18 @@ EXTRN	__CIlog10:PROC
 ;	COMDAT __real@3ff0000000000000
 CONST	SEGMENT
 __real@3ff0000000000000 DQ 03ff0000000000000r	; 1
+CONST	ENDS
+;	COMDAT ??_C@_01CLKCMJKC@?5?$AA@
+CONST	SEGMENT
+??_C@_01CLKCMJKC@?5?$AA@ DB ' ', 00H			; `string'
+CONST	ENDS
+;	COMDAT ??_C@_01MIFGBAGJ@?$CL?$AA@
+CONST	SEGMENT
+??_C@_01MIFGBAGJ@?$CL?$AA@ DB '+', 00H			; `string'
+CONST	ENDS
+;	COMDAT ??_C@_01JOAMLHOP@?9?$AA@
+CONST	SEGMENT
+??_C@_01JOAMLHOP@?9?$AA@ DB '-', 00H			; `string'
 CONST	ENDS
 ;	COMDAT __real@3fe0000000000000
 CONST	SEGMENT
@@ -572,7 +577,7 @@ $LN33@format_flo:
 
   0015a	8b 45 18	 mov	 eax, DWORD PTR _prefix$[ebp]
   0015d	c7 00 00 00 00
-	00		 mov	 DWORD PTR [eax], OFFSET $SG2354
+	00		 mov	 DWORD PTR [eax], OFFSET ??_C@_01JOAMLHOP@?9?$AA@
   00163	e9 73 01 00 00	 jmp	 $LN14@format_flo
 $LN25@format_flo:
 
@@ -788,7 +793,7 @@ $LN18@format_flo:
 
   002c3	8b 4d 18	 mov	 ecx, DWORD PTR _prefix$[ebp]
   002c6	c7 01 00 00 00
-	00		 mov	 DWORD PTR [ecx], OFFSET $SG2357
+	00		 mov	 DWORD PTR [ecx], OFFSET ??_C@_01MIFGBAGJ@?$CL?$AA@
   002cc	eb 0d		 jmp	 SHORT $LN14@format_flo
 $LN16@format_flo:
 
@@ -801,7 +806,7 @@ $LN16@format_flo:
 
   002d2	8b 55 18	 mov	 edx, DWORD PTR _prefix$[ebp]
   002d5	c7 02 00 00 00
-	00		 mov	 DWORD PTR [edx], OFFSET $SG2360
+	00		 mov	 DWORD PTR [edx], OFFSET ??_C@_01CLKCMJKC@?5?$AA@
 $LN14@format_flo:
 
 ; 223  : 
@@ -1054,9 +1059,14 @@ $LN68@format_flo:
   0040e	04		 DB	 4
 _format_float ENDP
 _TEXT	ENDS
+PUBLIC	??_C@_01GBGANLPD@0?$AA@				; `string'
 PUBLIC	_streamout
 EXTRN	__aulldvrm:PROC
+;	COMDAT ??_C@_01GBGANLPD@0?$AA@
+CONST	SEGMENT
+??_C@_01GBGANLPD@0?$AA@ DB '0', 00H			; `string'
 ; Function compile flags: /Ogtp
+CONST	ENDS
 ;	COMDAT _streamout
 _TEXT	SEGMENT
 _buffer$ = -100						; size = 50
@@ -2064,8 +2074,8 @@ $LN172@streamout:
 ; 489  : 				prefix = ("-");
 
   00405	c7 45 ec 00 00
-	00 00		 mov	 DWORD PTR _prefix$[ebp], OFFSET $SG2607
-  0040c	e9 87 00 00 00	 jmp	 $case_number$2614
+	00 00		 mov	 DWORD PTR _prefix$[ebp], OFFSET ??_C@_01JOAMLHOP@?9?$AA@
+  0040c	e9 87 00 00 00	 jmp	 $case_number$2611
 $LN38@streamout:
 
 ; 490  : 			}
@@ -2077,24 +2087,24 @@ $LN38@streamout:
 ; 492  : 				prefix = ("+");
 
   00416	c7 45 ec 00 00
-	00 00		 mov	 DWORD PTR _prefix$[ebp], OFFSET $SG2610
-  0041d	eb 79		 jmp	 SHORT $case_number$2614
+	00 00		 mov	 DWORD PTR _prefix$[ebp], OFFSET ??_C@_01MIFGBAGJ@?$CL?$AA@
+  0041d	eb 79		 jmp	 SHORT $case_number$2611
 $LN36@streamout:
 
 ; 493  : 			else if (flags & FLAG_FORCE_SIGNSP)
 
   0041f	f6 c3 04	 test	 bl, 4
-  00422	74 74		 je	 SHORT $case_number$2614
+  00422	74 74		 je	 SHORT $case_number$2611
 
 ; 494  : 				prefix = (" ");
 
   00424	c7 45 ec 00 00
-	00 00		 mov	 DWORD PTR _prefix$[ebp], OFFSET $SG2613
+	00 00		 mov	 DWORD PTR _prefix$[ebp], OFFSET ??_C@_01CLKCMJKC@?5?$AA@
 
 ; 495  : 
 ; 496  : 			goto case_number;
 
-  0042b	eb 6b		 jmp	 SHORT $case_number$2614
+  0042b	eb 6b		 jmp	 SHORT $case_number$2611
 $LN33@streamout:
 
 ; 497  : 
@@ -2106,7 +2116,7 @@ $LN33@streamout:
 ; 500  : 			if (flags & FLAG_SPECIAL)
 
   00432	f6 c3 10	 test	 bl, 16			; 00000010H
-  00435	74 33		 je	 SHORT $case_unsigned$2619
+  00435	74 33		 je	 SHORT $case_unsigned$2616
 
 ; 501  : 			{
 ; 502  : 				prefix = ("0");
@@ -2114,14 +2124,14 @@ $LN33@streamout:
 
   00437	83 7d 0c 00	 cmp	 DWORD PTR _precision$[ebp], 0
   0043b	c7 45 ec 00 00
-	00 00		 mov	 DWORD PTR _prefix$[ebp], OFFSET $SG2617
-  00442	7e 26		 jle	 SHORT $case_unsigned$2619
+	00 00		 mov	 DWORD PTR _prefix$[ebp], OFFSET ??_C@_01GBGANLPD@0?$AA@
+  00442	7e 26		 jle	 SHORT $case_unsigned$2616
   00444	ff 4d 0c	 dec	 DWORD PTR _precision$[ebp]
 
 ; 504  : 			}
 ; 505  : 			goto case_unsigned;
 
-  00447	eb 21		 jmp	 SHORT $case_unsigned$2619
+  00447	eb 21		 jmp	 SHORT $case_unsigned$2616
 $LN30@streamout:
 
 ; 506  : 
@@ -2156,14 +2166,14 @@ $LN193@streamout:
 ; 519  : 			if (flags & FLAG_SPECIAL)
 
   00460	f6 c3 10	 test	 bl, 16			; 00000010H
-  00463	74 05		 je	 SHORT $case_unsigned$2619
+  00463	74 05		 je	 SHORT $case_unsigned$2616
 
 ; 520  : 			{
 ; 521  : 				prefix = &digits[16];
 
   00465	03 cf		 add	 ecx, edi
   00467	89 4d ec	 mov	 DWORD PTR _prefix$[ebp], ecx
-$case_unsigned$2619:
+$case_unsigned$2616:
 
 ; 522  : 			}
 ; 523  : 
@@ -2178,7 +2188,7 @@ $case_unsigned$2619:
   00474	83 c6 08	 add	 esi, 8
   00477	89 75 14	 mov	 DWORD PTR _argptr$[ebp], esi
   0047a	8b 76 fc	 mov	 esi, DWORD PTR [esi-4]
-  0047d	eb 19		 jmp	 SHORT $case_number$2614
+  0047d	eb 19		 jmp	 SHORT $case_number$2611
 $LN121@streamout:
   0047f	83 c6 04	 add	 esi, 4
   00482	89 75 14	 mov	 DWORD PTR _argptr$[ebp], esi
@@ -2191,7 +2201,7 @@ $LN119@streamout:
   00493	8b 4e fc	 mov	 ecx, DWORD PTR [esi-4]
 $LN120@streamout:
   00496	33 f6		 xor	 esi, esi
-$case_number$2614:
+$case_number$2611:
 
 ; 527  : 
 ; 528  : case_number:
@@ -2547,7 +2557,7 @@ $LN218@streamout:
   00654	00 00 00 00	 DD	 $LN33@streamout
   00658	00 00 00 00	 DD	 $LN30@streamout
   0065c	00 00 00 00	 DD	 $LN42@streamout
-  00660	00 00 00 00	 DD	 $case_unsigned$2619
+  00660	00 00 00 00	 DD	 $case_unsigned$2616
   00664	00 00 00 00	 DD	 $LN193@streamout
   00668	00 00 00 00	 DD	 $LN22@streamout
 $LN169@streamout:

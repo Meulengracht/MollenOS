@@ -23,8 +23,9 @@
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
     <ConfigurationType>StaticLibrary</ConfigurationType>
-    <UseOfMfc>false</UseOfMfc>
-    <CharacterSet>Unicode</CharacterSet>
+    <UseOfMfc>
+    </UseOfMfc>
+    <CharacterSet>MultiByte</CharacterSet>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
   <ImportGroup Label="ExtensionSettings">
@@ -40,8 +41,8 @@
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup>
     <_ProjectFileVersion>10.0.40219.1</_ProjectFileVersion>
-    <OutDir Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">.\AcpiSubsystemDebug\</OutDir>
-    <IntDir Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">.\AcpiSubsystemDebug\</IntDir>
+    <OutDir Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">..\..\build\</OutDir>
+    <IntDir Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">.\AcpiSubsystem\</IntDir>
     <OutDir Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">..\..\build\</OutDir>
     <IntDir Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">.\AcpiSubsystem\</IntDir>
     <CodeAnalysisRuleSet Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">AllRules.ruleset</CodeAnalysisRuleSet>
@@ -58,50 +59,61 @@
     <PreLinkEventUseInBuild>false</PreLinkEventUseInBuild>
     <TargetName>acpica</TargetName>
   </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <TargetName>acpica</TargetName>
+    <IncludePath>C:\Users\Phail\Documents\GitHub\MollenOS\clib\include;C:\Users\Phail\Documents\GitHub\MollenOS\kernel\arch;C:\Users\Phail\Documents\GitHub\MollenOS\kernel\include</IncludePath>
+    <ReferencePath />
+    <LibraryPath>C:\Users\Phail\Documents\GitHub\MollenOS\clib\build;C:\Users\Phail\Documents\GitHub\MollenOS\kernel\build</LibraryPath>
+  </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
       <Optimization>MinSpace</Optimization>
       <InlineFunctionExpansion>OnlyExplicitInline</InlineFunctionExpansion>
       <FavorSizeOrSpeed>Size</FavorSizeOrSpeed>
-      <OmitFramePointers>true</OmitFramePointers>
-      <AdditionalIncludeDirectories>..\..\acpica\Include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-      <PreprocessorDefinitions>ACPI_LIBRARY;ACPI_FULL_DEBUG;_WINDOWS;PROCESSOR_ARCHITECTURE=x86;WIN32;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <StringPooling>true</StringPooling>
+      <AdditionalIncludeDirectories>..\..\acpica\Include</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>ACPI_LIBRARY;NDEBUG;_GEN;DRIVER;PROCESSOR_ARCHITECTURE=x86;MOLLENOS;_X86_32</PreprocessorDefinitions>
+      <StringPooling>false</StringPooling>
       <ExceptionHandling>
       </ExceptionHandling>
-      <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
-      <DisableLanguageExtensions>true</DisableLanguageExtensions>
-      <PrecompiledHeaderOutputFile>.\AcpiSubsystemDebug\AcpiSubsystem.pch</PrecompiledHeaderOutputFile>
-      <AssemblerListingLocation>.\AcpiSubsystemDebug\</AssemblerListingLocation>
-      <ObjectFileName>.\AcpiSubsystemDebug\</ObjectFileName>
-      <ProgramDataBaseFileName>.\AcpiSubsystemDebug\</ProgramDataBaseFileName>
+      <BasicRuntimeChecks>Default</BasicRuntimeChecks>
+      <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
+      <FunctionLevelLinking>true</FunctionLevelLinking>
+      <DisableLanguageExtensions>false</DisableLanguageExtensions>
+      <PrecompiledHeaderOutputFile>.\AcpiSubsystem\AcpiSubsystem.pch</PrecompiledHeaderOutputFile>
+      <AssemblerListingLocation>.\AcpiSubsystem\</AssemblerListingLocation>
+      <ObjectFileName>.\AcpiSubsystem\</ObjectFileName>
+      <ProgramDataBaseFileName>.\AcpiSubsystem\</ProgramDataBaseFileName>
       <BrowseInformation>true</BrowseInformation>
       <WarningLevel>Level4</WarningLevel>
       <SuppressStartupBanner>true</SuppressStartupBanner>
-      <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
-      <CallingConvention>FastCall</CallingConvention>
-      <CompileAs>CompileAsC</CompileAs>
+      <CallingConvention>Cdecl</CallingConvention>
+      <CompileAs>Default</CompileAs>
+      <MultiProcessorCompilation>true</MultiProcessorCompilation>
+      <BufferSecurityCheck>false</BufferSecurityCheck>
+      <StructMemberAlignment>Default</StructMemberAlignment>
     </ClCompile>
     <ResourceCompile>
+      <PreprocessorDefinitions>NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <Culture>0x0409</Culture>
     </ResourceCompile>
     <PreLinkEvent>
-      <Command>if NOT EXIST ..\..\libraries mkdir ..\..\libraries</Command>
+      <Command>
+      </Command>
     </PreLinkEvent>
     <Lib>
       <UseUnicodeResponseFiles>false</UseUnicodeResponseFiles>
-      <OutputFile>.\AcpiSubsystemDebug\AcpiSubsystem.lib</OutputFile>
-      <SuppressStartupBanner>true</SuppressStartupBanner>
+      <OutputFile>$(OutDir)$(TargetName)$(TargetExt)</OutputFile>
+      <IgnoreAllDefaultLibraries>true</IgnoreAllDefaultLibraries>
     </Lib>
     <Bscmake>
       <SuppressStartupBanner>true</SuppressStartupBanner>
       <OutputFile>$(IntDir)</OutputFile>
     </Bscmake>
     <PostBuildEvent>
-      <Message>Copy ACPICA library to Libraries (DEBUG)</Message>
-      <Command>copy AcpiSubsystemDebug\acpisubsystem.lib ..\..\libraries\Acpica_dbg.lib
-dir ..\..\libraries\acpica_dbg.lib
-</Command>
+      <Message>
+      </Message>
+      <Command>
+      </Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">

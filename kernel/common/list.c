@@ -21,6 +21,7 @@
 
 #include <list.h>
 #include <heap.h>
+#include <stdio.h>
 #include <stddef.h>
 
 /* Create a new list, empty, with given attributes */
@@ -29,7 +30,7 @@ list_t *list_create(int attributes)
 	list_t *list = (list_t*)kmalloc(sizeof(list_t));
 	list->attributes = attributes;
 	list->head = NULL;
-	list->tailp = &list->head;
+	list->tailp = NULL;
 	list->length = 0;
 
 	/* Do we use a lock? */
@@ -63,17 +64,18 @@ void list_insert_front(list_t *list, list_node_t *node)
 		spinlock_acquire(&list->lock);
 	}
 
-	/* Set new node's link to the original head */
-	node->link = list->head;
-
-	/* Set new head */
-	list->head = node;
-
-	/* Update tail pointer */
-	if (list->tailp == &list->head) {
-		list->tailp = &node->link;
+	/* Empty list  ? */
+	if (list->head == NULL)
+	{
+		list->tailp = list->head = node;
+		node->link = NULL;
+	}	
+	else
+	{
+		node->link = list->head;
+		list->head = node;
 	}
-
+	
 	/* Increase Count */
 	list->length++;
 
@@ -88,20 +90,30 @@ void list_insert_front(list_t *list, list_node_t *node)
 /* Appends a node at the end of this list. */
 void list_append(list_t *list, list_node_t *node) 
 {
-	/* Get lock */
 	interrupt_status_t int_state = 0;
 
+	/* Sanity */
+	if (list == NULL || node == NULL)
+		return;
+
+	/* Get lock */
 	if (list->attributes & LIST_SAFE)
 	{
 		int_state = interrupt_disable();
 		spinlock_acquire(&list->lock);
 	}
 
-	/* Update tail pointer */
-	*list->tailp = node;
-	list->tailp = &node->link;
+	/* Empty list ? */
+	if (list->head == NULL)
+		list->tailp = list->head = node;
+	else
+	{
+		/* Update Tail */
+		list->tailp->link = node;
+		list->tailp = node;
+	}
 
-	/* Set last link NULL (EOL) */
+	/* Set link NULL (EoL) */
 	node->link = NULL;
 
 	/* Increase Count */
@@ -109,9 +121,9 @@ void list_append(list_t *list, list_node_t *node)
 
 	/* Release Lock */
 	if (list->attributes & LIST_SAFE)
-	{
 		spinlock_release(&list->lock);
 		interrupt_set_state(int_state);
+	{
 	}
 }
 
@@ -120,45 +132,42 @@ void list_remove_by_node(list_t *list, list_node_t* node)
 {
 	/* Traverse the list to find the next pointer of the
 	* node that comes before the one to be removed. */
-	list_node_t *curr = NULL, **pnp = NULL;
+	list_node_t *i = NULL, *prev = NULL;
 	interrupt_status_t int_state = 0;
 
 	/* Sanity */
 	if (list == NULL && list->head != NULL)
 		return;
 
-	/* Set Initial */
-	pnp = &list->head;
-	
-	/* Get lock */
-	if (list->attributes & LIST_SAFE)
+	/* Loop and locate */
+	_foreach(i, list)
 	{
-		int_state = interrupt_disable();
-		spinlock_acquire(&list->lock);
-	}
-
-
-	while ((curr = *pnp) != NULL) 
-	{
-		if (curr == node) 
+		if (i == node)
 		{
-			/* We found the node, so remove it. */
-			*pnp = node->link;
-			if (list->tailp == &node->link) 
+			/* Two cases, either its first element or not */
+			if (prev == NULL)
+				list->head = i->link;
+			else
+				prev->link = i->link;
+
+			/* Do we have to update tail? */
+			if (list->tailp == node)
 			{
-				list->tailp = pnp;
+				if (prev == NULL)
+					list->tailp = NULL;
+				else
+					list->tailp = prev;
 			}
 
-			/* Decrease Count */
-			list->length--;
-
-			/* Set last link NULL */
+			/* Reset link */
 			node->link = NULL;
+
+			/* Done */
 			break;
 		}
 
-		/* Tail pointer */
-		pnp = &curr->link;
+		/* Update previous */
+		prev = i;
 	}
 
 	/* Release Lock */
@@ -170,19 +179,16 @@ void list_remove_by_node(list_t *list, list_node_t* node)
 }
 
 /* Removes a node from START of list. */
-list_node_t *list_pop(list_t *list)
+list_node_t *list_pop_front(list_t *list)
 {
 	/* Traverse the list to find the next pointer of the
 	* node that comes before the one to be removed. */
-	list_node_t *curr = NULL, **pnp = NULL;
+	list_node_t *curr = NULL;
 	interrupt_status_t int_state = 0;
 
 	/* Sanity */
 	if (list == NULL && list->head != NULL)
 		return NULL;
-
-	/* Set Initial */
-	pnp = &list->head;
 
 	/* Get lock */
 	if (list->attributes & LIST_SAFE)
@@ -191,23 +197,15 @@ list_node_t *list_pop(list_t *list)
 		spinlock_acquire(&list->lock);
 	}
 
-	if (*pnp != NULL)
+	/* Sanity */
+	if (list->head != NULL)
 	{
-		/* We found a node so remove it. */
-		curr = *pnp;
-		*pnp = curr->link;
+		curr = list->head;
+		list->head = curr->link;
 
-		/* EoL */
-		if (list->tailp == &curr->link)
-		{
-			list->tailp = pnp;
-		}
-
-		/* Decrease Count */
-		list->length--;
-
-		/* Set last link NULL */
-		curr->link = NULL;
+		/* Update tail */
+		if (list->head == NULL || list->tailp == curr)
+			list->tailp = NULL;
 	}
 
 	/* Release Lock */

@@ -68,7 +68,7 @@ void init(multiboot_info_t *bootinfo, uint32_t kernel_size)
 
 	/* CPU Setup */
 	cpu_boot_init();
-	  
+
 	/* Memory setup! */
 	printf("  - Setting up memory systems\n");
 	printf("    * Physical Memory Manager...\n");
@@ -86,27 +86,32 @@ void init(multiboot_info_t *bootinfo, uint32_t kernel_size)
 	printf("    * APIC Initializing\n");
 	apic_init();
 
+	/* Setup Full APICPA */
+	acpi_init_stage2();
+
 	/* Threading */
 	printf("  - Threading\n");
-	scheduler_init();
+	scheduler_init(0);
 	threading_init();
 
 	/* Setup Timers */
 	printf("    * Setting up local timer\n");
 	apic_timer_init();
 
-	/* Setup Full APICPA */
-	acpi_init_stage2();
-
 	/* Start out any extra cores */
 	printf("  - Booting Cores\n");
 	cpu_ap_init();
 
+	/* From this point, we should start seperate threads and
+	 * let this thread die out, because initial system setup
+	 * is now totally done, and the moment we start another
+	 * thread, it will take over as this is the idle thread */
+
 	/* Drivers... Damn drivers.. */
 	printf("  - Enumerating Drivers...\n");
-	drivers_init();
+	threading_create_thread("DriverSetup", drivers_init, NULL, 0);
 
 	/* Done with setup! 
 	 * This should be called on a new thread */
-	threading_create_thread("SystemSetup", mcore_entry, NULL, 0);
+	//threading_create_thread("SystemSetup", mcore_entry, NULL, 0);
 }

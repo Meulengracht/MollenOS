@@ -45,6 +45,54 @@ extern list_t *acpi_nodes;
 /* Globals */
 irq_entry_t irq_table[X86_IDT_DESCRIPTORS][X86_MAX_HANDLERS_PER_INTERRUPT];
 
+/* Parses Intiflags for Polarity */
+uint32_t _interrupt_get_polarity(uint16_t IntiFlags, uint8_t IrqSource)
+{
+	/* Returning 1 means LOW, returning 0 means HIGH */
+	switch (IntiFlags & ACPI_MADT_POLARITY_MASK)
+	{
+		case ACPI_MADT_POLARITY_CONFORMS:
+		{
+			if (IrqSource == AcpiGbl_FADT.SciInterrupt)
+				return 1;
+			else
+				return 0;
+		} break;
+
+		/* Active High */
+		case ACPI_MADT_POLARITY_ACTIVE_HIGH:
+			return 0;
+		case ACPI_MADT_POLARITY_ACTIVE_LOW:
+			return 1;
+	}
+
+	return 0;
+}
+
+/* Parses Intiflags for Trigger Mode */
+uint32_t _interrupt_get_trigger(uint16_t IntiFlags, uint8_t IrqSource)
+{
+	/* Returning 1 means LEVEL, returning 0 means EDGE */
+	switch (IntiFlags & ACPI_MADT_TRIGGER_MASK)
+	{
+		case ACPI_MADT_TRIGGER_CONFORMS:
+		{
+			if (IrqSource == AcpiGbl_FADT.SciInterrupt)
+				return 1;
+			else
+				return 0;
+		} break;
+
+		/* Active High */
+		case ACPI_MADT_TRIGGER_EDGE:
+			return 0;
+		case ACPI_MADT_TRIGGER_LEVEL:
+			return 1;
+	}
+
+	return 0;
+}
+
 /* Install a interrupt handler */
 void _interrupt_install(uint32_t irq, uint32_t idt_entry, uint64_t apic_entry, irq_handler_t callback, void *args)
 {

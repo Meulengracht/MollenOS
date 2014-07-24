@@ -9,11 +9,8 @@
 INCLUDELIB MSVCRT
 INCLUDELIB OLDNAMES
 
-_DATA	SEGMENT
-$SG1710	DB	'r+', 00H
-	ORG $+1
-$SG1711	DB	'c:/system/mlog.txt', 00H
-_DATA	ENDS
+PUBLIC	??_C@_0BD@FCDCCLAO@c?3?1system?1mlog?4txt?$AA@	; `string'
+PUBLIC	??_C@_02CBLLGHLK@r?$CL?$AA@			; `string'
 PUBLIC	_vfprintf
 EXTRN	_fclose:PROC
 EXTRN	_fopen:PROC
@@ -22,8 +19,16 @@ EXTRN	_fwrite:PROC
 EXTRN	_vsprintf:PROC
 EXTRN	_malloc:PROC
 EXTRN	_memset:PROC
-; Function compile flags: /Ogtp
+;	COMDAT ??_C@_0BD@FCDCCLAO@c?3?1system?1mlog?4txt?$AA@
 ; File c:\users\phail\documents\github\mollenos\clib\src\stdio\vfprintf.c
+CONST	SEGMENT
+??_C@_0BD@FCDCCLAO@c?3?1system?1mlog?4txt?$AA@ DB 'c:/system/mlog.txt', 00H ; `string'
+CONST	ENDS
+;	COMDAT ??_C@_02CBLLGHLK@r?$CL?$AA@
+CONST	SEGMENT
+??_C@_02CBLLGHLK@r?$CL?$AA@ DB 'r+', 00H		; `string'
+; Function compile flags: /Ogtp
+CONST	ENDS
 ;	COMDAT _vfprintf
 _TEXT	SEGMENT
 _stream$ = 8						; size = 4
@@ -116,8 +121,8 @@ $LN3@vfprintf:
 ; 25   : 		//Ok, writing to sys-log
 ; 26   : 		FILE *temp = fopen("c:/system/mlog.txt", "r+");
 
-  00065	68 00 00 00 00	 push	 OFFSET $SG1710
-  0006a	68 00 00 00 00	 push	 OFFSET $SG1711
+  00065	68 00 00 00 00	 push	 OFFSET ??_C@_02CBLLGHLK@r?$CL?$AA@
+  0006a	68 00 00 00 00	 push	 OFFSET ??_C@_0BD@FCDCCLAO@c?3?1system?1mlog?4txt?$AA@
   0006f	e8 00 00 00 00	 call	 _fopen
   00074	8b f8		 mov	 edi, eax
   00076	83 c4 08	 add	 esp, 8

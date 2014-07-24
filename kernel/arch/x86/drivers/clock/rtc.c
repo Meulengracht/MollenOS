@@ -32,18 +32,26 @@ extern volatile uint32_t timer_quantum;
 extern void rdtsc(uint64_t *value);
 
 /* Globals */
-volatile time_t glb_clock_tick = 0;
+volatile uint32_t glb_clock_tick = 0;
+volatile uint32_t glb_alarm_tick = 0;
 
 /* The Clock Handler */
 void clock_irq_handler(void *data)
 {
+	uint8_t irq_status = 0;
+
+	/* Unused */
 	_CRT_UNUSED(data);
 
-	/* Update Tick Counter */
-	glb_clock_tick++;
-
 	/* Acknowledge Irq 8 by reading register C */
-	clock_read_register(X86_CMOS_REGISTER_STATUS_C);
+	irq_status = clock_read_register(X86_CMOS_REGISTER_STATUS_C);
+
+	/* Alarm Int? */
+	if (irq_status & 0x20)
+		glb_alarm_tick++;
+
+	/* Update Peroidic Tick Counter */
+	glb_clock_tick = glb_clock_tick + 1;
 }
 
 /* Initialization */
@@ -51,18 +59,19 @@ void clock_init(void)
 {
 	interrupt_status_t int_state;
 	uint8_t state_b = 0;
-	uint8_t rate = 9; /* must be between 3 and 15 */
+	uint8_t rate = 8; /* must be between 3 and 15 */
 
-	/* Ms is 7.8, 128 ints per sec */
+	/* Ms is 1.95, 256 ints per sec */
 	/* Frequency = 32768 >> (rate-1) */
 
 	/* Disable IRQ's for this duration */
 	int_state = interrupt_disable();
 	glb_clock_tick = 0;
+	glb_alarm_tick = 0;
 
 	/* Disable RTC Irq */
 	state_b = clock_read_register(X86_CMOSX_BIT_DISABLE_NMI | X86_CMOS_REGISTER_STATUS_B);
-	state_b &= ~0x70;
+	state_b &= ~(0x70);
 	clock_write_register(X86_CMOSX_BIT_DISABLE_NMI | X86_CMOS_REGISTER_STATUS_B, state_b);
 
 	/* Install IRQ Handler */
@@ -84,15 +93,15 @@ void clock_init(void)
 }
 
 /* Clock Ticks */
-time_t clock_get_clocks(void)
+uint32_t clock_get_clocks(void)
 {
 	return glb_clock_tick;
 }
 
 /* Stall for ms */
-void clock_stall(time_t ms)
+void clock_stall(uint32_t ms)
 {
-	time_t ticks = (ms / 8) + clock_get_clocks();
+	uint32_t ticks = (ms / 2) + clock_get_clocks();
 
 	/* If glb_clock_tick is 0, RTC failure */
 	if (clock_get_clocks() == 0)
@@ -107,7 +116,7 @@ void clock_stall(time_t ms)
 }
 
 /* Stall for ms */
-void clock_stall_noint(time_t ms)
+void clock_stall_noint(uint32_t ms)
 {
 	uint64_t rd_ticks = 0;
 	uint64_t ticks = 0;

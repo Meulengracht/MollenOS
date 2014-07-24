@@ -9,41 +9,66 @@
 INCLUDELIB MSVCRT
 INCLUDELIB OLDNAMES
 
+PUBLIC	??_C@_0BF@MMAMBPEK@Abnormal?5termination?$AA@	; `string'
+PUBLIC	??_C@_0L@EKFNCKAB@CTRL?$CLBREAK?$AA@		; `string'
+PUBLIC	??_C@_0BE@FPFDJFHC@Termination?5request?$AA@	; `string'
+PUBLIC	??_C@_0BH@FHLEKBIN@Illegal?5storage?5access?$AA@ ; `string'
+PUBLIC	??_C@_0BJ@BFPOPCCI@Floating?9point?5exception?$AA@ ; `string'
+PUBLIC	??_C@_0BE@MLNNHANJ@Illegal?5instruction?$AA@	; `string'
+PUBLIC	??_C@_06PMDCMLGN@CTRL?$CLC?$AA@			; `string'
 _DATA	SEGMENT
-$SG1305	DB	'CTRL+C', 00H
-	ORG $+1
-$SG1307	DB	'Illegal instruction', 00H
-$SG1309	DB	'Floating-point exception', 00H
-	ORG $+3
-$SG1311	DB	'Illegal storage access', 00H
-	ORG $+1
-$SG1313	DB	'Termination request', 00H
-$SG1315	DB	'CTRL+BREAK', 00H
-	ORG $+1
-$SG1317	DB	'Abnormal termination', 00H
-	ORG $+3
 _signal_list DD	02H
-	DD	FLAT:$SG1305
+	DD	FLAT:??_C@_06PMDCMLGN@CTRL?$CLC?$AA@
 	DD	00H
 	DD	04H
-	DD	FLAT:$SG1307
+	DD	FLAT:??_C@_0BE@MLNNHANJ@Illegal?5instruction?$AA@
 	DD	00H
 	DD	08H
-	DD	FLAT:$SG1309
+	DD	FLAT:??_C@_0BJ@BFPOPCCI@Floating?9point?5exception?$AA@
 	DD	00H
 	DD	0bH
-	DD	FLAT:$SG1311
+	DD	FLAT:??_C@_0BH@FHLEKBIN@Illegal?5storage?5access?$AA@
 	DD	00H
 	DD	0fH
-	DD	FLAT:$SG1313
+	DD	FLAT:??_C@_0BE@FPFDJFHC@Termination?5request?$AA@
 	DD	00H
 	DD	015H
-	DD	FLAT:$SG1315
+	DD	FLAT:??_C@_0L@EKFNCKAB@CTRL?$CLBREAK?$AA@
 	DD	00H
 	DD	06H
-	DD	FLAT:$SG1317
+	DD	FLAT:??_C@_0BF@MMAMBPEK@Abnormal?5termination?$AA@
 	DD	00H
 _DATA	ENDS
+;	COMDAT ??_C@_0BF@MMAMBPEK@Abnormal?5termination?$AA@
+CONST	SEGMENT
+??_C@_0BF@MMAMBPEK@Abnormal?5termination?$AA@ DB 'Abnormal termination', 00H ; `string'
+CONST	ENDS
+;	COMDAT ??_C@_0L@EKFNCKAB@CTRL?$CLBREAK?$AA@
+CONST	SEGMENT
+??_C@_0L@EKFNCKAB@CTRL?$CLBREAK?$AA@ DB 'CTRL+BREAK', 00H ; `string'
+CONST	ENDS
+;	COMDAT ??_C@_0BE@FPFDJFHC@Termination?5request?$AA@
+CONST	SEGMENT
+??_C@_0BE@FPFDJFHC@Termination?5request?$AA@ DB 'Termination request', 00H ; `string'
+CONST	ENDS
+;	COMDAT ??_C@_0BH@FHLEKBIN@Illegal?5storage?5access?$AA@
+CONST	SEGMENT
+??_C@_0BH@FHLEKBIN@Illegal?5storage?5access?$AA@ DB 'Illegal storage acce'
+	DB	'ss', 00H					; `string'
+CONST	ENDS
+;	COMDAT ??_C@_0BJ@BFPOPCCI@Floating?9point?5exception?$AA@
+CONST	SEGMENT
+??_C@_0BJ@BFPOPCCI@Floating?9point?5exception?$AA@ DB 'Floating-point exc'
+	DB	'eption', 00H				; `string'
+CONST	ENDS
+;	COMDAT ??_C@_0BE@MLNNHANJ@Illegal?5instruction?$AA@
+CONST	SEGMENT
+??_C@_0BE@MLNNHANJ@Illegal?5instruction?$AA@ DB 'Illegal instruction', 00H ; `string'
+CONST	ENDS
+;	COMDAT ??_C@_06PMDCMLGN@CTRL?$CLC?$AA@
+CONST	SEGMENT
+??_C@_06PMDCMLGN@CTRL?$CLC?$AA@ DB 'CTRL+C', 00H	; `string'
+CONST	ENDS
 PUBLIC	_signal
 EXTRN	___errno:PROC
 ; Function compile flags: /Ogtp

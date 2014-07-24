@@ -9,354 +9,803 @@
 INCLUDELIB MSVCRT
 INCLUDELIB OLDNAMES
 
+PUBLIC	??_C@_0BG@GMFMDOIH@Operation?5would?5block?$AA@	; `string'
+PUBLIC	??_C@_0BD@GAMHLFM@Streams?5pipe?5error?$AA@	; `string'
+PUBLIC	??_C@_0BE@KIMJAJFJ@Previous?5owner?5died?$AA@	; `string'
+PUBLIC	??_C@_0BG@EHCFMNMH@State?5not?5recoverable?$AA@	; `string'
+PUBLIC	??_C@_0BD@OIDFIKFE@Operation?5canceled?$AA@	; `string'
+PUBLIC	??_C@_0CG@DFNGKKAF@Value?5too?5large?5for?5defined?5data@ ; `string'
+PUBLIC	??_C@_0CE@HHJNAHKK@Filename?5exists?5with?5different?5c@ ; `string'
+PUBLIC	??_C@_0BN@MNBPDAIP@No?5such?5host?5or?5network?5path?$AA@ ; `string'
+PUBLIC	??_C@_0BK@EEAEOOMM@No?5medium?5?$CIin?5tape?5drive?$CJ?$AA@ ; `string'
+PUBLIC	??_C@_0O@BKCHHJEH@Not?5supported?$AA@		; `string'
+PUBLIC	??_C@_0BI@ILAOGBJJ@Socket?5is?5not?5connected?$AA@ ; `string'
+PUBLIC	??_C@_0BM@CCONNCKE@Socket?5is?5already?5connected?$AA@ ; `string'
+PUBLIC	??_C@_00CNPNBAHC@?$AA@				; `string'
+PUBLIC	??_C@_0BG@LPGNEDFC@Address?5not?5available?$AA@	; `string'
+PUBLIC	??_C@_0BK@LMAIHBL@Socket?5type?5not?5supported?$AA@ ; `string'
+PUBLIC	??_C@_0BB@DFOBLDAF@Unknown?5protocol?$AA@	; `string'
+PUBLIC	??_C@_0BB@NDAKHOCP@Message?5too?5long?$AA@	; `string'
+PUBLIC	??_C@_0BN@HFCIEIME@Destination?5address?5required?$AA@ ; `string'
+PUBLIC	??_C@_0BJ@KMBMHKCD@Socket?5already?5connected?$AA@ ; `string'
+PUBLIC	??_C@_0BP@KHALOCAM@Connection?5already?5in?5progress?$AA@ ; `string'
+PUBLIC	??_C@_0BE@DGMKCHAF@Host?5is?5unreachable?$AA@	; `string'
+PUBLIC	??_C@_0N@OHOPOBEF@Host?5is?5down?$AA@		; `string'
+PUBLIC	??_C@_0BF@IBBHAGLD@Connection?5timed?5out?$AA@	; `string'
+PUBLIC	??_C@_0CE@LAALEKON@Network?5interface?5is?5not?5configu@ ; `string'
+PUBLIC	??_C@_0BH@CIEOBPFM@Network?5is?5unreachable?$AA@ ; `string'
+PUBLIC	??_C@_0BD@OAFHECHI@Connection?5aborted?$AA@	; `string'
+PUBLIC	??_C@_0BH@LOKACPE@Address?5already?5in?5use?$AA@ ; `string'
+PUBLIC	??_C@_0BD@NPDMPPFP@Connection?5refused?$AA@	; `string'
+PUBLIC	??_C@_0CB@IOOOMFJJ@Can?8t?5send?5after?5socket?5shutdown@ ; `string'
+PUBLIC	??_C@_0BH@HPHKDMA@Protocol?5not?5available?$AA@	; `string'
+PUBLIC	??_C@_0BP@MCCLAMPH@Socket?5operation?5on?5non?9socket?$AA@ ; `string'
+PUBLIC	??_C@_0BP@PDKJLOAE@Protocol?5wrong?5type?5for?5socket?$AA@ ; `string'
+PUBLIC	??_C@_0DA@KDGLCJJO@Address?5family?5not?5supported?5by?5@ ; `string'
+PUBLIC	??_C@_0BK@OCAHGMEA@No?5buffer?5space?5available?$AA@ ; `string'
+PUBLIC	??_C@_0BJ@FJAMCHKE@Connection?5reset?5by?5peer?$AA@ ; `string'
+PUBLIC	??_C@_0BO@EBCCBLCJ@Protocol?5family?5not?5supported?$AA@ ; `string'
+PUBLIC	??_C@_0CO@JLBOCJAJ@Operation?5not?5supported?5on?5trans@ ; `string'
+PUBLIC	??_C@_0BI@BKPOKEOP@Too?5many?5symbolic?5links?$AA@ ; `string'
+PUBLIC	??_C@_0BL@MEFLJCGC@File?5or?5path?5name?5too?5long?$AA@ ; `string'
+PUBLIC	??_C@_0BE@ICMCHPHH@Directory?5not?5empty?$AA@	; `string'
+PUBLIC	??_C@_0O@NGOKJKDG@No?5more?5files?$AA@		; `string'
+PUBLIC	??_C@_0BJ@IHEHINLI@Function?5not?5implemented?$AA@ ; `string'
+PUBLIC	??_C@_0CE@CEBHCCKI@Attempting?5to?5exec?5a?5shared?5libr@ ; `string'
+PUBLIC	??_C@_0CE@DPKKAIIB@Attempting?5to?5link?5in?5too?5many?5l@ ; `string'
+PUBLIC	??_C@_0CA@NMOFLAMN@?4lib?5section?5in?5a?4out?5corrupted?$AA@ ; `string'
+PUBLIC	??_C@_0CB@MKKCMLBG@Accessing?5a?5corrupted?5shared?5lib@ ; `string'
+PUBLIC	??_C@_0CB@KDPGMGIP@Can?8t?5access?5a?5needed?5shared?5lib@ ; `string'
+PUBLIC	??_C@_0BH@PLJJDOFH@Remote?5address?5changed?$AA@ ; `string'
+PUBLIC	??_C@_0CA@DOLNGKNE@f?4d?4?5invalid?5for?5this?5operation?$AA@ ; `string'
+PUBLIC	??_C@_0BL@GPCKGLHB@Given?5log?4?5name?5not?5unique?$AA@ ; `string'
+PUBLIC	??_C@_0CC@GLJPLFOJ@Inappropriate?5file?5type?5or?5forma@ ; `string'
+PUBLIC	??_C@_0CC@KOCLKFFP@Trying?5to?5read?5unreadable?5messag@ ; `string'
+PUBLIC	??_C@_0CF@FGIEINCJ@Cross?5mount?5point?5?$CInot?5really?5er@ ; `string'
+PUBLIC	??_C@_0CD@KPODADFA@Inode?5is?5remote?5?$CInot?5really?5erro@ ; `string'
+PUBLIC	??_C@_0BD@BLOHNAGF@Multihop?5attempted?$AA@	; `string'
+PUBLIC	??_C@_0P@NFDLBHIK@Protocol?5error?$AA@		; `string'
+PUBLIC	??_C@_0BM@IICHAPMP@Communication?5error?5on?5send?$AA@ ; `string'
+PUBLIC	??_C@_0O@PNKOMOIN@Srmount?5error?$AA@		; `string'
+PUBLIC	??_C@_0BA@CLBOMJDE@Advertise?5error?$AA@	; `string'
+PUBLIC	??_C@_0BK@EGOAKCFJ@The?5link?5has?5been?5severed?$AA@ ; `string'
+PUBLIC	??_C@_0BF@OKEJJIFJ@The?5object?5is?5remote?$AA@	; `string'
+PUBLIC	??_C@_0BG@PENABFCL@Package?5not?5installed?$AA@	; `string'
+PUBLIC	??_C@_0BO@HHCFAFPP@Machine?5is?5not?5on?5the?5network?$AA@ ; `string'
+PUBLIC	??_C@_0BJ@LMGEHDKE@Out?5of?5streams?5resources?$AA@ ; `string'
+PUBLIC	??_C@_0O@CIIBHFID@Timer?5expired?$AA@		; `string'
+PUBLIC	??_C@_0BK@EHAHNPHJ@No?5data?5?$CIfor?5no?5delay?5io?$CJ?$AA@ ; `string'
+PUBLIC	??_C@_0BE@OBKOAMOF@Device?5not?5a?5stream?$AA@	; `string'
+PUBLIC	??_C@_0BC@LDAIGFN@Bad?5font?5file?5fmt?$AA@	; `string'
+PUBLIC	??_C@_0BM@IIJKBKIC@File?5locking?5deadlock?5error?$AA@ ; `string'
+PUBLIC	??_C@_0N@OJLOCMHN@Invalid?5slot?$AA@		; `string'
+PUBLIC	??_C@_0BF@KIBCNCKF@Invalid?5request?5code?$AA@	; `string'
+PUBLIC	??_C@_08BIGLLGNH@No?5anode?$AA@			; `string'
+PUBLIC	??_C@_0O@NCOMEHMK@Exchange?5full?$AA@		; `string'
+PUBLIC	??_C@_0BL@LAEJEDCA@Invalid?5request?5descriptor?$AA@ ; `string'
+PUBLIC	??_C@_0BB@LFLECOBL@Invalid?5exchange?$AA@	; `string'
+PUBLIC	??_C@_0BK@GGNBMAOK@No?5record?5locks?5available?$AA@ ; `string'
+PUBLIC	??_C@_0BD@PEJCEEGA@Deadlock?5condition?$AA@	; `string'
+PUBLIC	??_C@_0P@GFHNCODL@Level?52?5halted?$AA@		; `string'
+PUBLIC	??_C@_0BL@KPHAONLD@No?5CSI?5structure?5available?$AA@ ; `string'
+PUBLIC	??_C@_0BN@EDGCMPPD@Protocol?5driver?5not?5attached?$AA@ ; `string'
+PUBLIC	??_C@_0BJ@PCMPELA@Link?5number?5out?5of?5range?$AA@ ; `string'
+PUBLIC	??_C@_0O@FKAIHCCE@Level?53?5reset?$AA@		; `string'
+PUBLIC	??_C@_0P@HCAGDKHI@Level?53?5halted?$AA@		; `string'
+PUBLIC	??_C@_0BJ@CBMFBDJD@Level?52?5not?5synchronized?$AA@ ; `string'
+PUBLIC	??_C@_0BM@HLDNIMCM@Channel?5number?5out?5of?5range?$AA@ ; `string'
+PUBLIC	??_C@_0BD@LJPFLIMC@Identifier?5removed?$AA@	; `string'
+PUBLIC	??_C@_0BL@LAELPFGP@No?5message?5of?5desired?5type?$AA@ ; `string'
+PUBLIC	??_C@_0BO@HEIOIBI@Math?5result?5not?5representable?$AA@ ; `string'
+PUBLIC	??_C@_0BP@GBAMDOKI@Math?5arg?5out?5of?5domain?5of?5func?$AA@ ; `string'
+PUBLIC	??_C@_0M@LHEPIIOM@Broken?5pipe?$AA@		; `string'
+PUBLIC	??_C@_0P@PKCJJLLM@Too?5many?5links?$AA@		; `string'
+PUBLIC	??_C@_0BG@MALOBFPM@Read?5only?5file?5system?$AA@ ; `string'
+PUBLIC	??_C@_0N@JPKNIBBK@Illegal?5seek?$AA@		; `string'
+PUBLIC	??_C@_0BI@FEALHKLD@No?5space?5left?5on?5device?$AA@ ; `string'
+PUBLIC	??_C@_0P@LFMMIPAE@File?5too?5large?$AA@		; `string'
+PUBLIC	??_C@_0P@HJGPGMF@Text?5file?5busy?$AA@		; `string'
+PUBLIC	??_C@_0BB@HHIJPGKH@Not?5a?5typewriter?$AA@	; `string'
+PUBLIC	??_C@_0BE@INBJMKGG@Too?5many?5open?5files?$AA@	; `string'
+PUBLIC	??_C@_0BO@IIFBODJE@Too?5many?5open?5files?5in?5system?$AA@ ; `string'
+PUBLIC	??_C@_0BB@HMGGCEBG@Invalid?5argument?$AA@	; `string'
+PUBLIC	??_C@_0P@NDHGCGKE@Is?5a?5directory?$AA@		; `string'
+PUBLIC	??_C@_0BA@CJBACOOL@Not?5a?5directory?$AA@	; `string'
+PUBLIC	??_C@_0P@NLEIANHE@No?5such?5device?$AA@		; `string'
+PUBLIC	??_C@_0BC@OFBLDMPL@Cross?9device?5link?$AA@	; `string'
+PUBLIC	??_C@_0M@NAAJNNGH@File?5exists?$AA@		; `string'
+PUBLIC	??_C@_0BC@LIDFKBOE@Mount?5device?5busy?$AA@	; `string'
+PUBLIC	??_C@_0BG@DDDDJJIM@Block?5device?5required?$AA@	; `string'
+PUBLIC	??_C@_0M@LOEHLCJD@Bad?5address?$AA@		; `string'
+PUBLIC	??_C@_0BC@HFNFNKAI@Permission?5denied?$AA@	; `string'
+PUBLIC	??_C@_0BA@PEMLFNGN@Not?5enough?5core?$AA@	; `string'
+PUBLIC	??_C@_0BC@FPOGLOBD@No?5more?5processes?$AA@	; `string'
+PUBLIC	??_C@_0M@MOBHAKFA@No?5children?$AA@		; `string'
+PUBLIC	??_C@_0BA@IMABKEOI@Bad?5file?5number?$AA@	; `string'
+PUBLIC	??_C@_0BC@HKPNECK@Exec?5format?5error?$AA@	; `string'
+PUBLIC	??_C@_0BC@MFFGCDFL@Arg?5list?5too?5long?$AA@	; `string'
+PUBLIC	??_C@_0BK@DPKMCKJ@No?5such?5device?5or?5address?$AA@ ; `string'
+PUBLIC	??_C@_09FIANMNHE@I?1O?5error?$AA@		; `string'
+PUBLIC	??_C@_0BI@EAGLFFDI@Interrupted?5system?5call?$AA@ ; `string'
+PUBLIC	??_C@_0BA@FKIAIBGA@No?5such?5process?$AA@	; `string'
+PUBLIC	??_C@_0BK@FMDHKPNF@No?5such?5file?5or?5directory?$AA@ ; `string'
+PUBLIC	??_C@_0P@HDPBNLJJ@Not?5super?9user?$AA@		; `string'
 PUBLIC	__errstrings
-_BSS	SEGMENT
-$SG1473	DB	01H DUP (?)
-$SG1468	DB	01H DUP (?)
-$SG1467	DB	01H DUP (?)
-$SG1466	DB	01H DUP (?)
-$SG1465	DB	01H DUP (?)
-$SG1464	DB	01H DUP (?)
-$SG1461	DB	01H DUP (?)
-_BSS	ENDS
 _DATA	SEGMENT
-$SG1353	DB	'Not super-user', 00H
-	ORG $+1
-$SG1354	DB	'No such file or directory', 00H
-	ORG $+2
-$SG1355	DB	'No such process', 00H
-$SG1356	DB	'Interrupted system call', 00H
-$SG1357	DB	'I/O error', 00H
-	ORG $+2
-$SG1358	DB	'No such device or address', 00H
-	ORG $+2
-$SG1359	DB	'Arg list too long', 00H
-	ORG $+2
-$SG1360	DB	'Exec format error', 00H
-	ORG $+2
-$SG1361	DB	'Bad file number', 00H
-$SG1362	DB	'No children', 00H
-$SG1363	DB	'No more processes', 00H
-	ORG $+2
-$SG1364	DB	'Not enough core', 00H
-$SG1365	DB	'Permission denied', 00H
-	ORG $+2
-$SG1366	DB	'Bad address', 00H
-$SG1367	DB	'Block device required', 00H
-	ORG $+2
-$SG1368	DB	'Mount device busy', 00H
-	ORG $+2
-$SG1369	DB	'File exists', 00H
-$SG1370	DB	'Cross-device link', 00H
-	ORG $+2
-$SG1371	DB	'No such device', 00H
-	ORG $+1
-$SG1372	DB	'Not a directory', 00H
-$SG1373	DB	'Is a directory', 00H
-	ORG $+1
-$SG1374	DB	'Invalid argument', 00H
-	ORG $+3
-$SG1375	DB	'Too many open files in system', 00H
-	ORG $+2
-$SG1376	DB	'Too many open files', 00H
-$SG1377	DB	'Not a typewriter', 00H
-	ORG $+3
-$SG1378	DB	'Text file busy', 00H
-	ORG $+1
-$SG1379	DB	'File too large', 00H
-	ORG $+1
-$SG1380	DB	'No space left on device', 00H
-$SG1381	DB	'Illegal seek', 00H
-	ORG $+3
-$SG1382	DB	'Read only file system', 00H
-	ORG $+2
-$SG1383	DB	'Too many links', 00H
-	ORG $+1
-$SG1384	DB	'Broken pipe', 00H
-$SG1385	DB	'Math arg out of domain of func', 00H
-	ORG $+1
-$SG1386	DB	'Math result not representable', 00H
-	ORG $+2
-$SG1387	DB	'No message of desired type', 00H
-	ORG $+1
-$SG1388	DB	'Identifier removed', 00H
-	ORG $+1
-$SG1389	DB	'Channel number out of range', 00H
-$SG1390	DB	'Level 2 not synchronized', 00H
-	ORG $+3
-$SG1391	DB	'Level 3 halted', 00H
-	ORG $+1
-$SG1392	DB	'Level 3 reset', 00H
-	ORG $+2
-$SG1393	DB	'Link number out of range', 00H
-	ORG $+3
-$SG1394	DB	'Protocol driver not attached', 00H
-	ORG $+3
-$SG1395	DB	'No CSI structure available', 00H
-	ORG $+1
-$SG1396	DB	'Level 2 halted', 00H
-	ORG $+1
-$SG1397	DB	'Deadlock condition', 00H
-	ORG $+1
-$SG1398	DB	'No record locks available', 00H
-	ORG $+2
-$SG1399	DB	'Invalid exchange', 00H
-	ORG $+3
-$SG1400	DB	'Invalid request descriptor', 00H
-	ORG $+1
-$SG1401	DB	'Exchange full', 00H
-	ORG $+2
-$SG1402	DB	'No anode', 00H
-	ORG $+3
-$SG1403	DB	'Invalid request code', 00H
-	ORG $+3
-$SG1404	DB	'Invalid slot', 00H
-	ORG $+3
-$SG1405	DB	'File locking deadlock error', 00H
-$SG1406	DB	'Bad font file fmt', 00H
-	ORG $+2
-$SG1407	DB	'Device not a stream', 00H
-$SG1408	DB	'No data (for no delay io)', 00H
-	ORG $+2
-$SG1409	DB	'Timer expired', 00H
-	ORG $+2
-$SG1410	DB	'Out of streams resources', 00H
-	ORG $+3
-$SG1411	DB	'Machine is not on the network', 00H
-	ORG $+2
-$SG1412	DB	'Package not installed', 00H
-	ORG $+2
-$SG1413	DB	'The object is remote', 00H
-	ORG $+3
-$SG1414	DB	'The link has been severed', 00H
-	ORG $+2
-$SG1415	DB	'Advertise error', 00H
-$SG1416	DB	'Srmount error', 00H
-	ORG $+2
-$SG1417	DB	'Communication error on send', 00H
-$SG1418	DB	'Protocol error', 00H
-	ORG $+1
-$SG1419	DB	'Multihop attempted', 00H
-	ORG $+1
-$SG1420	DB	'Inode is remote (not really error)', 00H
-	ORG $+1
-$SG1421	DB	'Cross mount point (not really error)', 00H
-	ORG $+3
-$SG1422	DB	'Trying to read unreadable message', 00H
-	ORG $+2
-$SG1423	DB	'Inappropriate file type or format', 00H
-	ORG $+2
-$SG1424	DB	'Given log. name not unique', 00H
-	ORG $+1
-$SG1425	DB	'f.d. invalid for this operation', 00H
-$SG1426	DB	'Remote address changed', 00H
-	ORG $+1
-$SG1427	DB	'Can''t access a needed shared lib', 00H
-	ORG $+3
-$SG1428	DB	'Accessing a corrupted shared lib', 00H
-	ORG $+3
-$SG1429	DB	'.lib section in a.out corrupted', 00H
-$SG1430	DB	'Attempting to link in too many libs', 00H
-$SG1431	DB	'Attempting to exec a shared library', 00H
-$SG1432	DB	'Function not implemented', 00H
-	ORG $+3
-$SG1433	DB	'No more files', 00H
-	ORG $+2
-$SG1434	DB	'Directory not empty', 00H
-$SG1435	DB	'File or path name too long', 00H
-	ORG $+1
-$SG1436	DB	'Too many symbolic links', 00H
-$SG1437	DB	'Operation not supported on transport endpoint', 00H
-	ORG $+2
-$SG1438	DB	'Protocol family not supported', 00H
-	ORG $+2
-$SG1439	DB	'Connection reset by peer', 00H
-	ORG $+3
-$SG1440	DB	'No buffer space available', 00H
-	ORG $+2
-$SG1441	DB	'Address family not supported by protocol family', 00H
-$SG1442	DB	'Protocol wrong type for socket', 00H
-	ORG $+1
-$SG1443	DB	'Socket operation on non-socket', 00H
-	ORG $+1
-$SG1444	DB	'Protocol not available', 00H
-	ORG $+1
-$SG1445	DB	'Can''t send after socket shutdown', 00H
-	ORG $+3
-$SG1446	DB	'Connection refused', 00H
-	ORG $+1
-$SG1447	DB	'Address already in use', 00H
-	ORG $+1
-$SG1448	DB	'Connection aborted', 00H
-	ORG $+1
-$SG1449	DB	'Network is unreachable', 00H
-	ORG $+1
-$SG1450	DB	'Network interface is not configured', 00H
-$SG1451	DB	'Connection timed out', 00H
-	ORG $+3
-$SG1452	DB	'Host is down', 00H
-	ORG $+3
-$SG1453	DB	'Host is unreachable', 00H
-$SG1454	DB	'Connection already in progress', 00H
-	ORG $+1
-$SG1455	DB	'Socket already connected', 00H
-	ORG $+3
-$SG1456	DB	'Destination address required', 00H
-	ORG $+3
-$SG1457	DB	'Message too long', 00H
-	ORG $+3
-$SG1458	DB	'Unknown protocol', 00H
-	ORG $+3
-$SG1459	DB	'Socket type not supported', 00H
-	ORG $+2
-$SG1460	DB	'Address not available', 00H
-	ORG $+2
-$SG1462	DB	'Socket is already connected', 00H
-$SG1463	DB	'Socket is not connected', 00H
-$SG1469	DB	'Not supported', 00H
-	ORG $+2
-$SG1470	DB	'No medium (in tape drive)', 00H
-	ORG $+2
-$SG1471	DB	'No such host or network path', 00H
-	ORG $+3
-$SG1472	DB	'Filename exists with different case', 00H
-$SG1474	DB	'Value too large for defined data type', 00H
-	ORG $+2
-$SG1475	DB	'Operation canceled', 00H
-	ORG $+1
-$SG1476	DB	'State not recoverable', 00H
-	ORG $+2
-$SG1477	DB	'Previous owner died', 00H
-$SG1478	DB	'Streams pipe error', 00H
-	ORG $+1
-$SG1479	DB	'Operation would block', 00H
-	ORG $+6
-__errstrings DD	FLAT:$SG1353
-	DD	FLAT:$SG1354
-	DD	FLAT:$SG1355
-	DD	FLAT:$SG1356
-	DD	FLAT:$SG1357
-	DD	FLAT:$SG1358
-	DD	FLAT:$SG1359
-	DD	FLAT:$SG1360
-	DD	FLAT:$SG1361
-	DD	FLAT:$SG1362
-	DD	FLAT:$SG1363
-	DD	FLAT:$SG1364
-	DD	FLAT:$SG1365
-	DD	FLAT:$SG1366
-	DD	FLAT:$SG1367
-	DD	FLAT:$SG1368
-	DD	FLAT:$SG1369
-	DD	FLAT:$SG1370
-	DD	FLAT:$SG1371
-	DD	FLAT:$SG1372
-	DD	FLAT:$SG1373
-	DD	FLAT:$SG1374
-	DD	FLAT:$SG1375
-	DD	FLAT:$SG1376
-	DD	FLAT:$SG1377
-	DD	FLAT:$SG1378
-	DD	FLAT:$SG1379
-	DD	FLAT:$SG1380
-	DD	FLAT:$SG1381
-	DD	FLAT:$SG1382
-	DD	FLAT:$SG1383
-	DD	FLAT:$SG1384
-	DD	FLAT:$SG1385
-	DD	FLAT:$SG1386
-	DD	FLAT:$SG1387
-	DD	FLAT:$SG1388
-	DD	FLAT:$SG1389
-	DD	FLAT:$SG1390
-	DD	FLAT:$SG1391
-	DD	FLAT:$SG1392
-	DD	FLAT:$SG1393
-	DD	FLAT:$SG1394
-	DD	FLAT:$SG1395
-	DD	FLAT:$SG1396
-	DD	FLAT:$SG1397
-	DD	FLAT:$SG1398
-	DD	FLAT:$SG1399
-	DD	FLAT:$SG1400
-	DD	FLAT:$SG1401
-	DD	FLAT:$SG1402
-	DD	FLAT:$SG1403
-	DD	FLAT:$SG1404
-	DD	FLAT:$SG1405
-	DD	FLAT:$SG1406
-	DD	FLAT:$SG1407
-	DD	FLAT:$SG1408
-	DD	FLAT:$SG1409
-	DD	FLAT:$SG1410
-	DD	FLAT:$SG1411
-	DD	FLAT:$SG1412
-	DD	FLAT:$SG1413
-	DD	FLAT:$SG1414
-	DD	FLAT:$SG1415
-	DD	FLAT:$SG1416
-	DD	FLAT:$SG1417
-	DD	FLAT:$SG1418
-	DD	FLAT:$SG1419
-	DD	FLAT:$SG1420
-	DD	FLAT:$SG1421
-	DD	FLAT:$SG1422
-	DD	FLAT:$SG1423
-	DD	FLAT:$SG1424
-	DD	FLAT:$SG1425
-	DD	FLAT:$SG1426
-	DD	FLAT:$SG1427
-	DD	FLAT:$SG1428
-	DD	FLAT:$SG1429
-	DD	FLAT:$SG1430
-	DD	FLAT:$SG1431
-	DD	FLAT:$SG1432
-	DD	FLAT:$SG1433
-	DD	FLAT:$SG1434
-	DD	FLAT:$SG1435
-	DD	FLAT:$SG1436
-	DD	FLAT:$SG1437
-	DD	FLAT:$SG1438
-	DD	FLAT:$SG1439
-	DD	FLAT:$SG1440
-	DD	FLAT:$SG1441
-	DD	FLAT:$SG1442
-	DD	FLAT:$SG1443
-	DD	FLAT:$SG1444
-	DD	FLAT:$SG1445
-	DD	FLAT:$SG1446
-	DD	FLAT:$SG1447
-	DD	FLAT:$SG1448
-	DD	FLAT:$SG1449
-	DD	FLAT:$SG1450
-	DD	FLAT:$SG1451
-	DD	FLAT:$SG1452
-	DD	FLAT:$SG1453
-	DD	FLAT:$SG1454
-	DD	FLAT:$SG1455
-	DD	FLAT:$SG1456
-	DD	FLAT:$SG1457
-	DD	FLAT:$SG1458
-	DD	FLAT:$SG1459
-	DD	FLAT:$SG1460
-	DD	FLAT:$SG1461
-	DD	FLAT:$SG1462
-	DD	FLAT:$SG1463
-	DD	FLAT:$SG1464
-	DD	FLAT:$SG1465
-	DD	FLAT:$SG1466
-	DD	FLAT:$SG1467
-	DD	FLAT:$SG1468
-	DD	FLAT:$SG1469
-	DD	FLAT:$SG1470
-	DD	FLAT:$SG1471
-	DD	FLAT:$SG1472
-	DD	FLAT:$SG1473
-	DD	FLAT:$SG1474
-	DD	FLAT:$SG1475
-	DD	FLAT:$SG1476
-	DD	FLAT:$SG1477
-	DD	FLAT:$SG1478
-	DD	FLAT:$SG1479
+__errstrings DD	FLAT:??_C@_0P@HDPBNLJJ@Not?5super?9user?$AA@
+	DD	FLAT:??_C@_0BK@FMDHKPNF@No?5such?5file?5or?5directory?$AA@
+	DD	FLAT:??_C@_0BA@FKIAIBGA@No?5such?5process?$AA@
+	DD	FLAT:??_C@_0BI@EAGLFFDI@Interrupted?5system?5call?$AA@
+	DD	FLAT:??_C@_09FIANMNHE@I?1O?5error?$AA@
+	DD	FLAT:??_C@_0BK@DPKMCKJ@No?5such?5device?5or?5address?$AA@
+	DD	FLAT:??_C@_0BC@MFFGCDFL@Arg?5list?5too?5long?$AA@
+	DD	FLAT:??_C@_0BC@HKPNECK@Exec?5format?5error?$AA@
+	DD	FLAT:??_C@_0BA@IMABKEOI@Bad?5file?5number?$AA@
+	DD	FLAT:??_C@_0M@MOBHAKFA@No?5children?$AA@
+	DD	FLAT:??_C@_0BC@FPOGLOBD@No?5more?5processes?$AA@
+	DD	FLAT:??_C@_0BA@PEMLFNGN@Not?5enough?5core?$AA@
+	DD	FLAT:??_C@_0BC@HFNFNKAI@Permission?5denied?$AA@
+	DD	FLAT:??_C@_0M@LOEHLCJD@Bad?5address?$AA@
+	DD	FLAT:??_C@_0BG@DDDDJJIM@Block?5device?5required?$AA@
+	DD	FLAT:??_C@_0BC@LIDFKBOE@Mount?5device?5busy?$AA@
+	DD	FLAT:??_C@_0M@NAAJNNGH@File?5exists?$AA@
+	DD	FLAT:??_C@_0BC@OFBLDMPL@Cross?9device?5link?$AA@
+	DD	FLAT:??_C@_0P@NLEIANHE@No?5such?5device?$AA@
+	DD	FLAT:??_C@_0BA@CJBACOOL@Not?5a?5directory?$AA@
+	DD	FLAT:??_C@_0P@NDHGCGKE@Is?5a?5directory?$AA@
+	DD	FLAT:??_C@_0BB@HMGGCEBG@Invalid?5argument?$AA@
+	DD	FLAT:??_C@_0BO@IIFBODJE@Too?5many?5open?5files?5in?5system?$AA@
+	DD	FLAT:??_C@_0BE@INBJMKGG@Too?5many?5open?5files?$AA@
+	DD	FLAT:??_C@_0BB@HHIJPGKH@Not?5a?5typewriter?$AA@
+	DD	FLAT:??_C@_0P@HJGPGMF@Text?5file?5busy?$AA@
+	DD	FLAT:??_C@_0P@LFMMIPAE@File?5too?5large?$AA@
+	DD	FLAT:??_C@_0BI@FEALHKLD@No?5space?5left?5on?5device?$AA@
+	DD	FLAT:??_C@_0N@JPKNIBBK@Illegal?5seek?$AA@
+	DD	FLAT:??_C@_0BG@MALOBFPM@Read?5only?5file?5system?$AA@
+	DD	FLAT:??_C@_0P@PKCJJLLM@Too?5many?5links?$AA@
+	DD	FLAT:??_C@_0M@LHEPIIOM@Broken?5pipe?$AA@
+	DD	FLAT:??_C@_0BP@GBAMDOKI@Math?5arg?5out?5of?5domain?5of?5func?$AA@
+	DD	FLAT:??_C@_0BO@HEIOIBI@Math?5result?5not?5representable?$AA@
+	DD	FLAT:??_C@_0BL@LAELPFGP@No?5message?5of?5desired?5type?$AA@
+	DD	FLAT:??_C@_0BD@LJPFLIMC@Identifier?5removed?$AA@
+	DD	FLAT:??_C@_0BM@HLDNIMCM@Channel?5number?5out?5of?5range?$AA@
+	DD	FLAT:??_C@_0BJ@CBMFBDJD@Level?52?5not?5synchronized?$AA@
+	DD	FLAT:??_C@_0P@HCAGDKHI@Level?53?5halted?$AA@
+	DD	FLAT:??_C@_0O@FKAIHCCE@Level?53?5reset?$AA@
+	DD	FLAT:??_C@_0BJ@PCMPELA@Link?5number?5out?5of?5range?$AA@
+	DD	FLAT:??_C@_0BN@EDGCMPPD@Protocol?5driver?5not?5attached?$AA@
+	DD	FLAT:??_C@_0BL@KPHAONLD@No?5CSI?5structure?5available?$AA@
+	DD	FLAT:??_C@_0P@GFHNCODL@Level?52?5halted?$AA@
+	DD	FLAT:??_C@_0BD@PEJCEEGA@Deadlock?5condition?$AA@
+	DD	FLAT:??_C@_0BK@GGNBMAOK@No?5record?5locks?5available?$AA@
+	DD	FLAT:??_C@_0BB@LFLECOBL@Invalid?5exchange?$AA@
+	DD	FLAT:??_C@_0BL@LAEJEDCA@Invalid?5request?5descriptor?$AA@
+	DD	FLAT:??_C@_0O@NCOMEHMK@Exchange?5full?$AA@
+	DD	FLAT:??_C@_08BIGLLGNH@No?5anode?$AA@
+	DD	FLAT:??_C@_0BF@KIBCNCKF@Invalid?5request?5code?$AA@
+	DD	FLAT:??_C@_0N@OJLOCMHN@Invalid?5slot?$AA@
+	DD	FLAT:??_C@_0BM@IIJKBKIC@File?5locking?5deadlock?5error?$AA@
+	DD	FLAT:??_C@_0BC@LDAIGFN@Bad?5font?5file?5fmt?$AA@
+	DD	FLAT:??_C@_0BE@OBKOAMOF@Device?5not?5a?5stream?$AA@
+	DD	FLAT:??_C@_0BK@EHAHNPHJ@No?5data?5?$CIfor?5no?5delay?5io?$CJ?$AA@
+	DD	FLAT:??_C@_0O@CIIBHFID@Timer?5expired?$AA@
+	DD	FLAT:??_C@_0BJ@LMGEHDKE@Out?5of?5streams?5resources?$AA@
+	DD	FLAT:??_C@_0BO@HHCFAFPP@Machine?5is?5not?5on?5the?5network?$AA@
+	DD	FLAT:??_C@_0BG@PENABFCL@Package?5not?5installed?$AA@
+	DD	FLAT:??_C@_0BF@OKEJJIFJ@The?5object?5is?5remote?$AA@
+	DD	FLAT:??_C@_0BK@EGOAKCFJ@The?5link?5has?5been?5severed?$AA@
+	DD	FLAT:??_C@_0BA@CLBOMJDE@Advertise?5error?$AA@
+	DD	FLAT:??_C@_0O@PNKOMOIN@Srmount?5error?$AA@
+	DD	FLAT:??_C@_0BM@IICHAPMP@Communication?5error?5on?5send?$AA@
+	DD	FLAT:??_C@_0P@NFDLBHIK@Protocol?5error?$AA@
+	DD	FLAT:??_C@_0BD@BLOHNAGF@Multihop?5attempted?$AA@
+	DD	FLAT:??_C@_0CD@KPODADFA@Inode?5is?5remote?5?$CInot?5really?5erro@
+	DD	FLAT:??_C@_0CF@FGIEINCJ@Cross?5mount?5point?5?$CInot?5really?5er@
+	DD	FLAT:??_C@_0CC@KOCLKFFP@Trying?5to?5read?5unreadable?5messag@
+	DD	FLAT:??_C@_0CC@GLJPLFOJ@Inappropriate?5file?5type?5or?5forma@
+	DD	FLAT:??_C@_0BL@GPCKGLHB@Given?5log?4?5name?5not?5unique?$AA@
+	DD	FLAT:??_C@_0CA@DOLNGKNE@f?4d?4?5invalid?5for?5this?5operation?$AA@
+	DD	FLAT:??_C@_0BH@PLJJDOFH@Remote?5address?5changed?$AA@
+	DD	FLAT:??_C@_0CB@KDPGMGIP@Can?8t?5access?5a?5needed?5shared?5lib@
+	DD	FLAT:??_C@_0CB@MKKCMLBG@Accessing?5a?5corrupted?5shared?5lib@
+	DD	FLAT:??_C@_0CA@NMOFLAMN@?4lib?5section?5in?5a?4out?5corrupted?$AA@
+	DD	FLAT:??_C@_0CE@DPKKAIIB@Attempting?5to?5link?5in?5too?5many?5l@
+	DD	FLAT:??_C@_0CE@CEBHCCKI@Attempting?5to?5exec?5a?5shared?5libr@
+	DD	FLAT:??_C@_0BJ@IHEHINLI@Function?5not?5implemented?$AA@
+	DD	FLAT:??_C@_0O@NGOKJKDG@No?5more?5files?$AA@
+	DD	FLAT:??_C@_0BE@ICMCHPHH@Directory?5not?5empty?$AA@
+	DD	FLAT:??_C@_0BL@MEFLJCGC@File?5or?5path?5name?5too?5long?$AA@
+	DD	FLAT:??_C@_0BI@BKPOKEOP@Too?5many?5symbolic?5links?$AA@
+	DD	FLAT:??_C@_0CO@JLBOCJAJ@Operation?5not?5supported?5on?5trans@
+	DD	FLAT:??_C@_0BO@EBCCBLCJ@Protocol?5family?5not?5supported?$AA@
+	DD	FLAT:??_C@_0BJ@FJAMCHKE@Connection?5reset?5by?5peer?$AA@
+	DD	FLAT:??_C@_0BK@OCAHGMEA@No?5buffer?5space?5available?$AA@
+	DD	FLAT:??_C@_0DA@KDGLCJJO@Address?5family?5not?5supported?5by?5@
+	DD	FLAT:??_C@_0BP@PDKJLOAE@Protocol?5wrong?5type?5for?5socket?$AA@
+	DD	FLAT:??_C@_0BP@MCCLAMPH@Socket?5operation?5on?5non?9socket?$AA@
+	DD	FLAT:??_C@_0BH@HPHKDMA@Protocol?5not?5available?$AA@
+	DD	FLAT:??_C@_0CB@IOOOMFJJ@Can?8t?5send?5after?5socket?5shutdown@
+	DD	FLAT:??_C@_0BD@NPDMPPFP@Connection?5refused?$AA@
+	DD	FLAT:??_C@_0BH@LOKACPE@Address?5already?5in?5use?$AA@
+	DD	FLAT:??_C@_0BD@OAFHECHI@Connection?5aborted?$AA@
+	DD	FLAT:??_C@_0BH@CIEOBPFM@Network?5is?5unreachable?$AA@
+	DD	FLAT:??_C@_0CE@LAALEKON@Network?5interface?5is?5not?5configu@
+	DD	FLAT:??_C@_0BF@IBBHAGLD@Connection?5timed?5out?$AA@
+	DD	FLAT:??_C@_0N@OHOPOBEF@Host?5is?5down?$AA@
+	DD	FLAT:??_C@_0BE@DGMKCHAF@Host?5is?5unreachable?$AA@
+	DD	FLAT:??_C@_0BP@KHALOCAM@Connection?5already?5in?5progress?$AA@
+	DD	FLAT:??_C@_0BJ@KMBMHKCD@Socket?5already?5connected?$AA@
+	DD	FLAT:??_C@_0BN@HFCIEIME@Destination?5address?5required?$AA@
+	DD	FLAT:??_C@_0BB@NDAKHOCP@Message?5too?5long?$AA@
+	DD	FLAT:??_C@_0BB@DFOBLDAF@Unknown?5protocol?$AA@
+	DD	FLAT:??_C@_0BK@LMAIHBL@Socket?5type?5not?5supported?$AA@
+	DD	FLAT:??_C@_0BG@LPGNEDFC@Address?5not?5available?$AA@
+	DD	FLAT:??_C@_00CNPNBAHC@?$AA@
+	DD	FLAT:??_C@_0BM@CCONNCKE@Socket?5is?5already?5connected?$AA@
+	DD	FLAT:??_C@_0BI@ILAOGBJJ@Socket?5is?5not?5connected?$AA@
+	DD	FLAT:??_C@_00CNPNBAHC@?$AA@
+	DD	FLAT:??_C@_00CNPNBAHC@?$AA@
+	DD	FLAT:??_C@_00CNPNBAHC@?$AA@
+	DD	FLAT:??_C@_00CNPNBAHC@?$AA@
+	DD	FLAT:??_C@_00CNPNBAHC@?$AA@
+	DD	FLAT:??_C@_0O@BKCHHJEH@Not?5supported?$AA@
+	DD	FLAT:??_C@_0BK@EEAEOOMM@No?5medium?5?$CIin?5tape?5drive?$CJ?$AA@
+	DD	FLAT:??_C@_0BN@MNBPDAIP@No?5such?5host?5or?5network?5path?$AA@
+	DD	FLAT:??_C@_0CE@HHJNAHKK@Filename?5exists?5with?5different?5c@
+	DD	FLAT:??_C@_00CNPNBAHC@?$AA@
+	DD	FLAT:??_C@_0CG@DFNGKKAF@Value?5too?5large?5for?5defined?5data@
+	DD	FLAT:??_C@_0BD@OIDFIKFE@Operation?5canceled?$AA@
+	DD	FLAT:??_C@_0BG@EHCFMNMH@State?5not?5recoverable?$AA@
+	DD	FLAT:??_C@_0BE@KIMJAJFJ@Previous?5owner?5died?$AA@
+	DD	FLAT:??_C@_0BD@GAMHLFM@Streams?5pipe?5error?$AA@
+	DD	FLAT:??_C@_0BG@GMFMDOIH@Operation?5would?5block?$AA@
 _DATA	ENDS
+;	COMDAT ??_C@_0BG@GMFMDOIH@Operation?5would?5block?$AA@
+CONST	SEGMENT
+??_C@_0BG@GMFMDOIH@Operation?5would?5block?$AA@ DB 'Operation would block'
+	DB	00H						; `string'
+CONST	ENDS
+;	COMDAT ??_C@_0BD@GAMHLFM@Streams?5pipe?5error?$AA@
+CONST	SEGMENT
+??_C@_0BD@GAMHLFM@Streams?5pipe?5error?$AA@ DB 'Streams pipe error', 00H ; `string'
+CONST	ENDS
+;	COMDAT ??_C@_0BE@KIMJAJFJ@Previous?5owner?5died?$AA@
+CONST	SEGMENT
+??_C@_0BE@KIMJAJFJ@Previous?5owner?5died?$AA@ DB 'Previous owner died', 00H ; `string'
+CONST	ENDS
+;	COMDAT ??_C@_0BG@EHCFMNMH@State?5not?5recoverable?$AA@
+CONST	SEGMENT
+??_C@_0BG@EHCFMNMH@State?5not?5recoverable?$AA@ DB 'State not recoverable'
+	DB	00H						; `string'
+CONST	ENDS
+;	COMDAT ??_C@_0BD@OIDFIKFE@Operation?5canceled?$AA@
+CONST	SEGMENT
+??_C@_0BD@OIDFIKFE@Operation?5canceled?$AA@ DB 'Operation canceled', 00H ; `string'
+CONST	ENDS
+;	COMDAT ??_C@_0CG@DFNGKKAF@Value?5too?5large?5for?5defined?5data@
+CONST	SEGMENT
+??_C@_0CG@DFNGKKAF@Value?5too?5large?5for?5defined?5data@ DB 'Value too l'
+	DB	'arge for defined data type', 00H		; `string'
+CONST	ENDS
+;	COMDAT ??_C@_0CE@HHJNAHKK@Filename?5exists?5with?5different?5c@
+CONST	SEGMENT
+??_C@_0CE@HHJNAHKK@Filename?5exists?5with?5different?5c@ DB 'Filename exi'
+	DB	'sts with different case', 00H		; `string'
+CONST	ENDS
+;	COMDAT ??_C@_0BN@MNBPDAIP@No?5such?5host?5or?5network?5path?$AA@
+CONST	SEGMENT
+??_C@_0BN@MNBPDAIP@No?5such?5host?5or?5network?5path?$AA@ DB 'No such hos'
+	DB	't or network path', 00H			; `string'
+CONST	ENDS
+;	COMDAT ??_C@_0BK@EEAEOOMM@No?5medium?5?$CIin?5tape?5drive?$CJ?$AA@
+CONST	SEGMENT
+??_C@_0BK@EEAEOOMM@No?5medium?5?$CIin?5tape?5drive?$CJ?$AA@ DB 'No medium'
+	DB	' (in tape drive)', 00H			; `string'
+CONST	ENDS
+;	COMDAT ??_C@_0O@BKCHHJEH@Not?5supported?$AA@
+CONST	SEGMENT
+??_C@_0O@BKCHHJEH@Not?5supported?$AA@ DB 'Not supported', 00H ; `string'
+CONST	ENDS
+;	COMDAT ??_C@_0BI@ILAOGBJJ@Socket?5is?5not?5connected?$AA@
+CONST	SEGMENT
+??_C@_0BI@ILAOGBJJ@Socket?5is?5not?5connected?$AA@ DB 'Socket is not conn'
+	DB	'ected', 00H					; `string'
+CONST	ENDS
+;	COMDAT ??_C@_0BM@CCONNCKE@Socket?5is?5already?5connected?$AA@
+CONST	SEGMENT
+??_C@_0BM@CCONNCKE@Socket?5is?5already?5connected?$AA@ DB 'Socket is alre'
+	DB	'ady connected', 00H				; `string'
+CONST	ENDS
+;	COMDAT ??_C@_00CNPNBAHC@?$AA@
+CONST	SEGMENT
+??_C@_00CNPNBAHC@?$AA@ DB 00H				; `string'
+CONST	ENDS
+;	COMDAT ??_C@_0BG@LPGNEDFC@Address?5not?5available?$AA@
+CONST	SEGMENT
+??_C@_0BG@LPGNEDFC@Address?5not?5available?$AA@ DB 'Address not available'
+	DB	00H						; `string'
+CONST	ENDS
+;	COMDAT ??_C@_0BK@LMAIHBL@Socket?5type?5not?5supported?$AA@
+CONST	SEGMENT
+??_C@_0BK@LMAIHBL@Socket?5type?5not?5supported?$AA@ DB 'Socket type not s'
+	DB	'upported', 00H				; `string'
+CONST	ENDS
+;	COMDAT ??_C@_0BB@DFOBLDAF@Unknown?5protocol?$AA@
+CONST	SEGMENT
+??_C@_0BB@DFOBLDAF@Unknown?5protocol?$AA@ DB 'Unknown protocol', 00H ; `string'
+CONST	ENDS
+;	COMDAT ??_C@_0BB@NDAKHOCP@Message?5too?5long?$AA@
+CONST	SEGMENT
+??_C@_0BB@NDAKHOCP@Message?5too?5long?$AA@ DB 'Message too long', 00H ; `string'
+CONST	ENDS
+;	COMDAT ??_C@_0BN@HFCIEIME@Destination?5address?5required?$AA@
+CONST	SEGMENT
+??_C@_0BN@HFCIEIME@Destination?5address?5required?$AA@ DB 'Destination ad'
+	DB	'dress required', 00H			; `string'
+CONST	ENDS
+;	COMDAT ??_C@_0BJ@KMBMHKCD@Socket?5already?5connected?$AA@
+CONST	SEGMENT
+??_C@_0BJ@KMBMHKCD@Socket?5already?5connected?$AA@ DB 'Socket already con'
+	DB	'nected', 00H				; `string'
+CONST	ENDS
+;	COMDAT ??_C@_0BP@KHALOCAM@Connection?5already?5in?5progress?$AA@
+CONST	SEGMENT
+??_C@_0BP@KHALOCAM@Connection?5already?5in?5progress?$AA@ DB 'Connection '
+	DB	'already in progress', 00H			; `string'
+CONST	ENDS
+;	COMDAT ??_C@_0BE@DGMKCHAF@Host?5is?5unreachable?$AA@
+CONST	SEGMENT
+??_C@_0BE@DGMKCHAF@Host?5is?5unreachable?$AA@ DB 'Host is unreachable', 00H ; `string'
+CONST	ENDS
+;	COMDAT ??_C@_0N@OHOPOBEF@Host?5is?5down?$AA@
+CONST	SEGMENT
+??_C@_0N@OHOPOBEF@Host?5is?5down?$AA@ DB 'Host is down', 00H ; `string'
+CONST	ENDS
+;	COMDAT ??_C@_0BF@IBBHAGLD@Connection?5timed?5out?$AA@
+CONST	SEGMENT
+??_C@_0BF@IBBHAGLD@Connection?5timed?5out?$AA@ DB 'Connection timed out', 00H ; `string'
+CONST	ENDS
+;	COMDAT ??_C@_0CE@LAALEKON@Network?5interface?5is?5not?5configu@
+CONST	SEGMENT
+??_C@_0CE@LAALEKON@Network?5interface?5is?5not?5configu@ DB 'Network inte'
+	DB	'rface is not configured', 00H		; `string'
+CONST	ENDS
+;	COMDAT ??_C@_0BH@CIEOBPFM@Network?5is?5unreachable?$AA@
+CONST	SEGMENT
+??_C@_0BH@CIEOBPFM@Network?5is?5unreachable?$AA@ DB 'Network is unreachab'
+	DB	'le', 00H					; `string'
+CONST	ENDS
+;	COMDAT ??_C@_0BD@OAFHECHI@Connection?5aborted?$AA@
+CONST	SEGMENT
+??_C@_0BD@OAFHECHI@Connection?5aborted?$AA@ DB 'Connection aborted', 00H ; `string'
+CONST	ENDS
+;	COMDAT ??_C@_0BH@LOKACPE@Address?5already?5in?5use?$AA@
+CONST	SEGMENT
+??_C@_0BH@LOKACPE@Address?5already?5in?5use?$AA@ DB 'Address already in u'
+	DB	'se', 00H					; `string'
+CONST	ENDS
+;	COMDAT ??_C@_0BD@NPDMPPFP@Connection?5refused?$AA@
+CONST	SEGMENT
+??_C@_0BD@NPDMPPFP@Connection?5refused?$AA@ DB 'Connection refused', 00H ; `string'
+CONST	ENDS
+;	COMDAT ??_C@_0CB@IOOOMFJJ@Can?8t?5send?5after?5socket?5shutdown@
+CONST	SEGMENT
+??_C@_0CB@IOOOMFJJ@Can?8t?5send?5after?5socket?5shutdown@ DB 'Can''t send'
+	DB	' after socket shutdown', 00H		; `string'
+CONST	ENDS
+;	COMDAT ??_C@_0BH@HPHKDMA@Protocol?5not?5available?$AA@
+CONST	SEGMENT
+??_C@_0BH@HPHKDMA@Protocol?5not?5available?$AA@ DB 'Protocol not availabl'
+	DB	'e', 00H					; `string'
+CONST	ENDS
+;	COMDAT ??_C@_0BP@MCCLAMPH@Socket?5operation?5on?5non?9socket?$AA@
+CONST	SEGMENT
+??_C@_0BP@MCCLAMPH@Socket?5operation?5on?5non?9socket?$AA@ DB 'Socket ope'
+	DB	'ration on non-socket', 00H			; `string'
+CONST	ENDS
+;	COMDAT ??_C@_0BP@PDKJLOAE@Protocol?5wrong?5type?5for?5socket?$AA@
+CONST	SEGMENT
+??_C@_0BP@PDKJLOAE@Protocol?5wrong?5type?5for?5socket?$AA@ DB 'Protocol w'
+	DB	'rong type for socket', 00H			; `string'
+CONST	ENDS
+;	COMDAT ??_C@_0DA@KDGLCJJO@Address?5family?5not?5supported?5by?5@
+CONST	SEGMENT
+??_C@_0DA@KDGLCJJO@Address?5family?5not?5supported?5by?5@ DB 'Address fam'
+	DB	'ily not supported by protocol family', 00H	; `string'
+CONST	ENDS
+;	COMDAT ??_C@_0BK@OCAHGMEA@No?5buffer?5space?5available?$AA@
+CONST	SEGMENT
+??_C@_0BK@OCAHGMEA@No?5buffer?5space?5available?$AA@ DB 'No buffer space '
+	DB	'available', 00H				; `string'
+CONST	ENDS
+;	COMDAT ??_C@_0BJ@FJAMCHKE@Connection?5reset?5by?5peer?$AA@
+CONST	SEGMENT
+??_C@_0BJ@FJAMCHKE@Connection?5reset?5by?5peer?$AA@ DB 'Connection reset '
+	DB	'by peer', 00H				; `string'
+CONST	ENDS
+;	COMDAT ??_C@_0BO@EBCCBLCJ@Protocol?5family?5not?5supported?$AA@
+CONST	SEGMENT
+??_C@_0BO@EBCCBLCJ@Protocol?5family?5not?5supported?$AA@ DB 'Protocol fam'
+	DB	'ily not supported', 00H			; `string'
+CONST	ENDS
+;	COMDAT ??_C@_0CO@JLBOCJAJ@Operation?5not?5supported?5on?5trans@
+CONST	SEGMENT
+??_C@_0CO@JLBOCJAJ@Operation?5not?5supported?5on?5trans@ DB 'Operation no'
+	DB	't supported on transport endpoint', 00H	; `string'
+CONST	ENDS
+;	COMDAT ??_C@_0BI@BKPOKEOP@Too?5many?5symbolic?5links?$AA@
+CONST	SEGMENT
+??_C@_0BI@BKPOKEOP@Too?5many?5symbolic?5links?$AA@ DB 'Too many symbolic '
+	DB	'links', 00H					; `string'
+CONST	ENDS
+;	COMDAT ??_C@_0BL@MEFLJCGC@File?5or?5path?5name?5too?5long?$AA@
+CONST	SEGMENT
+??_C@_0BL@MEFLJCGC@File?5or?5path?5name?5too?5long?$AA@ DB 'File or path '
+	DB	'name too long', 00H				; `string'
+CONST	ENDS
+;	COMDAT ??_C@_0BE@ICMCHPHH@Directory?5not?5empty?$AA@
+CONST	SEGMENT
+??_C@_0BE@ICMCHPHH@Directory?5not?5empty?$AA@ DB 'Directory not empty', 00H ; `string'
+CONST	ENDS
+;	COMDAT ??_C@_0O@NGOKJKDG@No?5more?5files?$AA@
+CONST	SEGMENT
+??_C@_0O@NGOKJKDG@No?5more?5files?$AA@ DB 'No more files', 00H ; `string'
+CONST	ENDS
+;	COMDAT ??_C@_0BJ@IHEHINLI@Function?5not?5implemented?$AA@
+CONST	SEGMENT
+??_C@_0BJ@IHEHINLI@Function?5not?5implemented?$AA@ DB 'Function not imple'
+	DB	'mented', 00H				; `string'
+CONST	ENDS
+;	COMDAT ??_C@_0CE@CEBHCCKI@Attempting?5to?5exec?5a?5shared?5libr@
+CONST	SEGMENT
+??_C@_0CE@CEBHCCKI@Attempting?5to?5exec?5a?5shared?5libr@ DB 'Attempting '
+	DB	'to exec a shared library', 00H		; `string'
+CONST	ENDS
+;	COMDAT ??_C@_0CE@DPKKAIIB@Attempting?5to?5link?5in?5too?5many?5l@
+CONST	SEGMENT
+??_C@_0CE@DPKKAIIB@Attempting?5to?5link?5in?5too?5many?5l@ DB 'Attempting'
+	DB	' to link in too many libs', 00H		; `string'
+CONST	ENDS
+;	COMDAT ??_C@_0CA@NMOFLAMN@?4lib?5section?5in?5a?4out?5corrupted?$AA@
+CONST	SEGMENT
+??_C@_0CA@NMOFLAMN@?4lib?5section?5in?5a?4out?5corrupted?$AA@ DB '.lib se'
+	DB	'ction in a.out corrupted', 00H		; `string'
+CONST	ENDS
+;	COMDAT ??_C@_0CB@MKKCMLBG@Accessing?5a?5corrupted?5shared?5lib@
+CONST	SEGMENT
+??_C@_0CB@MKKCMLBG@Accessing?5a?5corrupted?5shared?5lib@ DB 'Accessing a '
+	DB	'corrupted shared lib', 00H			; `string'
+CONST	ENDS
+;	COMDAT ??_C@_0CB@KDPGMGIP@Can?8t?5access?5a?5needed?5shared?5lib@
+CONST	SEGMENT
+??_C@_0CB@KDPGMGIP@Can?8t?5access?5a?5needed?5shared?5lib@ DB 'Can''t acc'
+	DB	'ess a needed shared lib', 00H		; `string'
+CONST	ENDS
+;	COMDAT ??_C@_0BH@PLJJDOFH@Remote?5address?5changed?$AA@
+CONST	SEGMENT
+??_C@_0BH@PLJJDOFH@Remote?5address?5changed?$AA@ DB 'Remote address chang'
+	DB	'ed', 00H					; `string'
+CONST	ENDS
+;	COMDAT ??_C@_0CA@DOLNGKNE@f?4d?4?5invalid?5for?5this?5operation?$AA@
+CONST	SEGMENT
+??_C@_0CA@DOLNGKNE@f?4d?4?5invalid?5for?5this?5operation?$AA@ DB 'f.d. in'
+	DB	'valid for this operation', 00H		; `string'
+CONST	ENDS
+;	COMDAT ??_C@_0BL@GPCKGLHB@Given?5log?4?5name?5not?5unique?$AA@
+CONST	SEGMENT
+??_C@_0BL@GPCKGLHB@Given?5log?4?5name?5not?5unique?$AA@ DB 'Given log. na'
+	DB	'me not unique', 00H				; `string'
+CONST	ENDS
+;	COMDAT ??_C@_0CC@GLJPLFOJ@Inappropriate?5file?5type?5or?5forma@
+CONST	SEGMENT
+??_C@_0CC@GLJPLFOJ@Inappropriate?5file?5type?5or?5forma@ DB 'Inappropriat'
+	DB	'e file type or format', 00H			; `string'
+CONST	ENDS
+;	COMDAT ??_C@_0CC@KOCLKFFP@Trying?5to?5read?5unreadable?5messag@
+CONST	SEGMENT
+??_C@_0CC@KOCLKFFP@Trying?5to?5read?5unreadable?5messag@ DB 'Trying to re'
+	DB	'ad unreadable message', 00H			; `string'
+CONST	ENDS
+;	COMDAT ??_C@_0CF@FGIEINCJ@Cross?5mount?5point?5?$CInot?5really?5er@
+CONST	SEGMENT
+??_C@_0CF@FGIEINCJ@Cross?5mount?5point?5?$CInot?5really?5er@ DB 'Cross mo'
+	DB	'unt point (not really error)', 00H		; `string'
+CONST	ENDS
+;	COMDAT ??_C@_0CD@KPODADFA@Inode?5is?5remote?5?$CInot?5really?5erro@
+CONST	SEGMENT
+??_C@_0CD@KPODADFA@Inode?5is?5remote?5?$CInot?5really?5erro@ DB 'Inode is'
+	DB	' remote (not really error)', 00H		; `string'
+CONST	ENDS
+;	COMDAT ??_C@_0BD@BLOHNAGF@Multihop?5attempted?$AA@
+CONST	SEGMENT
+??_C@_0BD@BLOHNAGF@Multihop?5attempted?$AA@ DB 'Multihop attempted', 00H ; `string'
+CONST	ENDS
+;	COMDAT ??_C@_0P@NFDLBHIK@Protocol?5error?$AA@
+CONST	SEGMENT
+??_C@_0P@NFDLBHIK@Protocol?5error?$AA@ DB 'Protocol error', 00H ; `string'
+CONST	ENDS
+;	COMDAT ??_C@_0BM@IICHAPMP@Communication?5error?5on?5send?$AA@
+CONST	SEGMENT
+??_C@_0BM@IICHAPMP@Communication?5error?5on?5send?$AA@ DB 'Communication '
+	DB	'error on send', 00H				; `string'
+CONST	ENDS
+;	COMDAT ??_C@_0O@PNKOMOIN@Srmount?5error?$AA@
+CONST	SEGMENT
+??_C@_0O@PNKOMOIN@Srmount?5error?$AA@ DB 'Srmount error', 00H ; `string'
+CONST	ENDS
+;	COMDAT ??_C@_0BA@CLBOMJDE@Advertise?5error?$AA@
+CONST	SEGMENT
+??_C@_0BA@CLBOMJDE@Advertise?5error?$AA@ DB 'Advertise error', 00H ; `string'
+CONST	ENDS
+;	COMDAT ??_C@_0BK@EGOAKCFJ@The?5link?5has?5been?5severed?$AA@
+CONST	SEGMENT
+??_C@_0BK@EGOAKCFJ@The?5link?5has?5been?5severed?$AA@ DB 'The link has be'
+	DB	'en severed', 00H				; `string'
+CONST	ENDS
+;	COMDAT ??_C@_0BF@OKEJJIFJ@The?5object?5is?5remote?$AA@
+CONST	SEGMENT
+??_C@_0BF@OKEJJIFJ@The?5object?5is?5remote?$AA@ DB 'The object is remote', 00H ; `string'
+CONST	ENDS
+;	COMDAT ??_C@_0BG@PENABFCL@Package?5not?5installed?$AA@
+CONST	SEGMENT
+??_C@_0BG@PENABFCL@Package?5not?5installed?$AA@ DB 'Package not installed'
+	DB	00H						; `string'
+CONST	ENDS
+;	COMDAT ??_C@_0BO@HHCFAFPP@Machine?5is?5not?5on?5the?5network?$AA@
+CONST	SEGMENT
+??_C@_0BO@HHCFAFPP@Machine?5is?5not?5on?5the?5network?$AA@ DB 'Machine is'
+	DB	' not on the network', 00H			; `string'
+CONST	ENDS
+;	COMDAT ??_C@_0BJ@LMGEHDKE@Out?5of?5streams?5resources?$AA@
+CONST	SEGMENT
+??_C@_0BJ@LMGEHDKE@Out?5of?5streams?5resources?$AA@ DB 'Out of streams re'
+	DB	'sources', 00H				; `string'
+CONST	ENDS
+;	COMDAT ??_C@_0O@CIIBHFID@Timer?5expired?$AA@
+CONST	SEGMENT
+??_C@_0O@CIIBHFID@Timer?5expired?$AA@ DB 'Timer expired', 00H ; `string'
+CONST	ENDS
+;	COMDAT ??_C@_0BK@EHAHNPHJ@No?5data?5?$CIfor?5no?5delay?5io?$CJ?$AA@
+CONST	SEGMENT
+??_C@_0BK@EHAHNPHJ@No?5data?5?$CIfor?5no?5delay?5io?$CJ?$AA@ DB 'No data '
+	DB	'(for no delay io)', 00H			; `string'
+CONST	ENDS
+;	COMDAT ??_C@_0BE@OBKOAMOF@Device?5not?5a?5stream?$AA@
+CONST	SEGMENT
+??_C@_0BE@OBKOAMOF@Device?5not?5a?5stream?$AA@ DB 'Device not a stream', 00H ; `string'
+CONST	ENDS
+;	COMDAT ??_C@_0BC@LDAIGFN@Bad?5font?5file?5fmt?$AA@
+CONST	SEGMENT
+??_C@_0BC@LDAIGFN@Bad?5font?5file?5fmt?$AA@ DB 'Bad font file fmt', 00H ; `string'
+CONST	ENDS
+;	COMDAT ??_C@_0BM@IIJKBKIC@File?5locking?5deadlock?5error?$AA@
+CONST	SEGMENT
+??_C@_0BM@IIJKBKIC@File?5locking?5deadlock?5error?$AA@ DB 'File locking d'
+	DB	'eadlock error', 00H				; `string'
+CONST	ENDS
+;	COMDAT ??_C@_0N@OJLOCMHN@Invalid?5slot?$AA@
+CONST	SEGMENT
+??_C@_0N@OJLOCMHN@Invalid?5slot?$AA@ DB 'Invalid slot', 00H ; `string'
+CONST	ENDS
+;	COMDAT ??_C@_0BF@KIBCNCKF@Invalid?5request?5code?$AA@
+CONST	SEGMENT
+??_C@_0BF@KIBCNCKF@Invalid?5request?5code?$AA@ DB 'Invalid request code', 00H ; `string'
+CONST	ENDS
+;	COMDAT ??_C@_08BIGLLGNH@No?5anode?$AA@
+CONST	SEGMENT
+??_C@_08BIGLLGNH@No?5anode?$AA@ DB 'No anode', 00H	; `string'
+CONST	ENDS
+;	COMDAT ??_C@_0O@NCOMEHMK@Exchange?5full?$AA@
+CONST	SEGMENT
+??_C@_0O@NCOMEHMK@Exchange?5full?$AA@ DB 'Exchange full', 00H ; `string'
+CONST	ENDS
+;	COMDAT ??_C@_0BL@LAEJEDCA@Invalid?5request?5descriptor?$AA@
+CONST	SEGMENT
+??_C@_0BL@LAEJEDCA@Invalid?5request?5descriptor?$AA@ DB 'Invalid request '
+	DB	'descriptor', 00H				; `string'
+CONST	ENDS
+;	COMDAT ??_C@_0BB@LFLECOBL@Invalid?5exchange?$AA@
+CONST	SEGMENT
+??_C@_0BB@LFLECOBL@Invalid?5exchange?$AA@ DB 'Invalid exchange', 00H ; `string'
+CONST	ENDS
+;	COMDAT ??_C@_0BK@GGNBMAOK@No?5record?5locks?5available?$AA@
+CONST	SEGMENT
+??_C@_0BK@GGNBMAOK@No?5record?5locks?5available?$AA@ DB 'No record locks '
+	DB	'available', 00H				; `string'
+CONST	ENDS
+;	COMDAT ??_C@_0BD@PEJCEEGA@Deadlock?5condition?$AA@
+CONST	SEGMENT
+??_C@_0BD@PEJCEEGA@Deadlock?5condition?$AA@ DB 'Deadlock condition', 00H ; `string'
+CONST	ENDS
+;	COMDAT ??_C@_0P@GFHNCODL@Level?52?5halted?$AA@
+CONST	SEGMENT
+??_C@_0P@GFHNCODL@Level?52?5halted?$AA@ DB 'Level 2 halted', 00H ; `string'
+CONST	ENDS
+;	COMDAT ??_C@_0BL@KPHAONLD@No?5CSI?5structure?5available?$AA@
+CONST	SEGMENT
+??_C@_0BL@KPHAONLD@No?5CSI?5structure?5available?$AA@ DB 'No CSI structur'
+	DB	'e available', 00H				; `string'
+CONST	ENDS
+;	COMDAT ??_C@_0BN@EDGCMPPD@Protocol?5driver?5not?5attached?$AA@
+CONST	SEGMENT
+??_C@_0BN@EDGCMPPD@Protocol?5driver?5not?5attached?$AA@ DB 'Protocol driv'
+	DB	'er not attached', 00H			; `string'
+CONST	ENDS
+;	COMDAT ??_C@_0BJ@PCMPELA@Link?5number?5out?5of?5range?$AA@
+CONST	SEGMENT
+??_C@_0BJ@PCMPELA@Link?5number?5out?5of?5range?$AA@ DB 'Link number out o'
+	DB	'f range', 00H				; `string'
+CONST	ENDS
+;	COMDAT ??_C@_0O@FKAIHCCE@Level?53?5reset?$AA@
+CONST	SEGMENT
+??_C@_0O@FKAIHCCE@Level?53?5reset?$AA@ DB 'Level 3 reset', 00H ; `string'
+CONST	ENDS
+;	COMDAT ??_C@_0P@HCAGDKHI@Level?53?5halted?$AA@
+CONST	SEGMENT
+??_C@_0P@HCAGDKHI@Level?53?5halted?$AA@ DB 'Level 3 halted', 00H ; `string'
+CONST	ENDS
+;	COMDAT ??_C@_0BJ@CBMFBDJD@Level?52?5not?5synchronized?$AA@
+CONST	SEGMENT
+??_C@_0BJ@CBMFBDJD@Level?52?5not?5synchronized?$AA@ DB 'Level 2 not synch'
+	DB	'ronized', 00H				; `string'
+CONST	ENDS
+;	COMDAT ??_C@_0BM@HLDNIMCM@Channel?5number?5out?5of?5range?$AA@
+CONST	SEGMENT
+??_C@_0BM@HLDNIMCM@Channel?5number?5out?5of?5range?$AA@ DB 'Channel numbe'
+	DB	'r out of range', 00H			; `string'
+CONST	ENDS
+;	COMDAT ??_C@_0BD@LJPFLIMC@Identifier?5removed?$AA@
+CONST	SEGMENT
+??_C@_0BD@LJPFLIMC@Identifier?5removed?$AA@ DB 'Identifier removed', 00H ; `string'
+CONST	ENDS
+;	COMDAT ??_C@_0BL@LAELPFGP@No?5message?5of?5desired?5type?$AA@
+CONST	SEGMENT
+??_C@_0BL@LAELPFGP@No?5message?5of?5desired?5type?$AA@ DB 'No message of '
+	DB	'desired type', 00H				; `string'
+CONST	ENDS
+;	COMDAT ??_C@_0BO@HEIOIBI@Math?5result?5not?5representable?$AA@
+CONST	SEGMENT
+??_C@_0BO@HEIOIBI@Math?5result?5not?5representable?$AA@ DB 'Math result n'
+	DB	'ot representable', 00H			; `string'
+CONST	ENDS
+;	COMDAT ??_C@_0BP@GBAMDOKI@Math?5arg?5out?5of?5domain?5of?5func?$AA@
+CONST	SEGMENT
+??_C@_0BP@GBAMDOKI@Math?5arg?5out?5of?5domain?5of?5func?$AA@ DB 'Math arg'
+	DB	' out of domain of func', 00H		; `string'
+CONST	ENDS
+;	COMDAT ??_C@_0M@LHEPIIOM@Broken?5pipe?$AA@
+CONST	SEGMENT
+??_C@_0M@LHEPIIOM@Broken?5pipe?$AA@ DB 'Broken pipe', 00H ; `string'
+CONST	ENDS
+;	COMDAT ??_C@_0P@PKCJJLLM@Too?5many?5links?$AA@
+CONST	SEGMENT
+??_C@_0P@PKCJJLLM@Too?5many?5links?$AA@ DB 'Too many links', 00H ; `string'
+CONST	ENDS
+;	COMDAT ??_C@_0BG@MALOBFPM@Read?5only?5file?5system?$AA@
+CONST	SEGMENT
+??_C@_0BG@MALOBFPM@Read?5only?5file?5system?$AA@ DB 'Read only file syste'
+	DB	'm', 00H					; `string'
+CONST	ENDS
+;	COMDAT ??_C@_0N@JPKNIBBK@Illegal?5seek?$AA@
+CONST	SEGMENT
+??_C@_0N@JPKNIBBK@Illegal?5seek?$AA@ DB 'Illegal seek', 00H ; `string'
+CONST	ENDS
+;	COMDAT ??_C@_0BI@FEALHKLD@No?5space?5left?5on?5device?$AA@
+CONST	SEGMENT
+??_C@_0BI@FEALHKLD@No?5space?5left?5on?5device?$AA@ DB 'No space left on '
+	DB	'device', 00H				; `string'
+CONST	ENDS
+;	COMDAT ??_C@_0P@LFMMIPAE@File?5too?5large?$AA@
+CONST	SEGMENT
+??_C@_0P@LFMMIPAE@File?5too?5large?$AA@ DB 'File too large', 00H ; `string'
+CONST	ENDS
+;	COMDAT ??_C@_0P@HJGPGMF@Text?5file?5busy?$AA@
+CONST	SEGMENT
+??_C@_0P@HJGPGMF@Text?5file?5busy?$AA@ DB 'Text file busy', 00H ; `string'
+CONST	ENDS
+;	COMDAT ??_C@_0BB@HHIJPGKH@Not?5a?5typewriter?$AA@
+CONST	SEGMENT
+??_C@_0BB@HHIJPGKH@Not?5a?5typewriter?$AA@ DB 'Not a typewriter', 00H ; `string'
+CONST	ENDS
+;	COMDAT ??_C@_0BE@INBJMKGG@Too?5many?5open?5files?$AA@
+CONST	SEGMENT
+??_C@_0BE@INBJMKGG@Too?5many?5open?5files?$AA@ DB 'Too many open files', 00H ; `string'
+CONST	ENDS
+;	COMDAT ??_C@_0BO@IIFBODJE@Too?5many?5open?5files?5in?5system?$AA@
+CONST	SEGMENT
+??_C@_0BO@IIFBODJE@Too?5many?5open?5files?5in?5system?$AA@ DB 'Too many o'
+	DB	'pen files in system', 00H			; `string'
+CONST	ENDS
+;	COMDAT ??_C@_0BB@HMGGCEBG@Invalid?5argument?$AA@
+CONST	SEGMENT
+??_C@_0BB@HMGGCEBG@Invalid?5argument?$AA@ DB 'Invalid argument', 00H ; `string'
+CONST	ENDS
+;	COMDAT ??_C@_0P@NDHGCGKE@Is?5a?5directory?$AA@
+CONST	SEGMENT
+??_C@_0P@NDHGCGKE@Is?5a?5directory?$AA@ DB 'Is a directory', 00H ; `string'
+CONST	ENDS
+;	COMDAT ??_C@_0BA@CJBACOOL@Not?5a?5directory?$AA@
+CONST	SEGMENT
+??_C@_0BA@CJBACOOL@Not?5a?5directory?$AA@ DB 'Not a directory', 00H ; `string'
+CONST	ENDS
+;	COMDAT ??_C@_0P@NLEIANHE@No?5such?5device?$AA@
+CONST	SEGMENT
+??_C@_0P@NLEIANHE@No?5such?5device?$AA@ DB 'No such device', 00H ; `string'
+CONST	ENDS
+;	COMDAT ??_C@_0BC@OFBLDMPL@Cross?9device?5link?$AA@
+CONST	SEGMENT
+??_C@_0BC@OFBLDMPL@Cross?9device?5link?$AA@ DB 'Cross-device link', 00H ; `string'
+CONST	ENDS
+;	COMDAT ??_C@_0M@NAAJNNGH@File?5exists?$AA@
+CONST	SEGMENT
+??_C@_0M@NAAJNNGH@File?5exists?$AA@ DB 'File exists', 00H ; `string'
+CONST	ENDS
+;	COMDAT ??_C@_0BC@LIDFKBOE@Mount?5device?5busy?$AA@
+CONST	SEGMENT
+??_C@_0BC@LIDFKBOE@Mount?5device?5busy?$AA@ DB 'Mount device busy', 00H ; `string'
+CONST	ENDS
+;	COMDAT ??_C@_0BG@DDDDJJIM@Block?5device?5required?$AA@
+CONST	SEGMENT
+??_C@_0BG@DDDDJJIM@Block?5device?5required?$AA@ DB 'Block device required'
+	DB	00H						; `string'
+CONST	ENDS
+;	COMDAT ??_C@_0M@LOEHLCJD@Bad?5address?$AA@
+CONST	SEGMENT
+??_C@_0M@LOEHLCJD@Bad?5address?$AA@ DB 'Bad address', 00H ; `string'
+CONST	ENDS
+;	COMDAT ??_C@_0BC@HFNFNKAI@Permission?5denied?$AA@
+CONST	SEGMENT
+??_C@_0BC@HFNFNKAI@Permission?5denied?$AA@ DB 'Permission denied', 00H ; `string'
+CONST	ENDS
+;	COMDAT ??_C@_0BA@PEMLFNGN@Not?5enough?5core?$AA@
+CONST	SEGMENT
+??_C@_0BA@PEMLFNGN@Not?5enough?5core?$AA@ DB 'Not enough core', 00H ; `string'
+CONST	ENDS
+;	COMDAT ??_C@_0BC@FPOGLOBD@No?5more?5processes?$AA@
+CONST	SEGMENT
+??_C@_0BC@FPOGLOBD@No?5more?5processes?$AA@ DB 'No more processes', 00H ; `string'
+CONST	ENDS
+;	COMDAT ??_C@_0M@MOBHAKFA@No?5children?$AA@
+CONST	SEGMENT
+??_C@_0M@MOBHAKFA@No?5children?$AA@ DB 'No children', 00H ; `string'
+CONST	ENDS
+;	COMDAT ??_C@_0BA@IMABKEOI@Bad?5file?5number?$AA@
+CONST	SEGMENT
+??_C@_0BA@IMABKEOI@Bad?5file?5number?$AA@ DB 'Bad file number', 00H ; `string'
+CONST	ENDS
+;	COMDAT ??_C@_0BC@HKPNECK@Exec?5format?5error?$AA@
+CONST	SEGMENT
+??_C@_0BC@HKPNECK@Exec?5format?5error?$AA@ DB 'Exec format error', 00H ; `string'
+CONST	ENDS
+;	COMDAT ??_C@_0BC@MFFGCDFL@Arg?5list?5too?5long?$AA@
+CONST	SEGMENT
+??_C@_0BC@MFFGCDFL@Arg?5list?5too?5long?$AA@ DB 'Arg list too long', 00H ; `string'
+CONST	ENDS
+;	COMDAT ??_C@_0BK@DPKMCKJ@No?5such?5device?5or?5address?$AA@
+CONST	SEGMENT
+??_C@_0BK@DPKMCKJ@No?5such?5device?5or?5address?$AA@ DB 'No such device o'
+	DB	'r address', 00H				; `string'
+CONST	ENDS
+;	COMDAT ??_C@_09FIANMNHE@I?1O?5error?$AA@
+CONST	SEGMENT
+??_C@_09FIANMNHE@I?1O?5error?$AA@ DB 'I/O error', 00H	; `string'
+CONST	ENDS
+;	COMDAT ??_C@_0BI@EAGLFFDI@Interrupted?5system?5call?$AA@
+CONST	SEGMENT
+??_C@_0BI@EAGLFFDI@Interrupted?5system?5call?$AA@ DB 'Interrupted system '
+	DB	'call', 00H					; `string'
+CONST	ENDS
+;	COMDAT ??_C@_0BA@FKIAIBGA@No?5such?5process?$AA@
+CONST	SEGMENT
+??_C@_0BA@FKIAIBGA@No?5such?5process?$AA@ DB 'No such process', 00H ; `string'
+CONST	ENDS
+;	COMDAT ??_C@_0BK@FMDHKPNF@No?5such?5file?5or?5directory?$AA@
+CONST	SEGMENT
+??_C@_0BK@FMDHKPNF@No?5such?5file?5or?5directory?$AA@ DB 'No such file or'
+	DB	' directory', 00H				; `string'
+CONST	ENDS
+;	COMDAT ??_C@_0P@HDPBNLJJ@Not?5super?9user?$AA@
+CONST	SEGMENT
+??_C@_0P@HDPBNLJJ@Not?5super?9user?$AA@ DB 'Not super-user', 00H ; `string'
+CONST	ENDS
 END

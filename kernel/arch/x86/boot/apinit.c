@@ -24,6 +24,7 @@
 #include <lapic.h>
 #include <gdt.h>
 #include <thread.h>
+#include <scheduler.h>
 #include <memory.h>
 #include <idt.h>
 #include <cpu.h>
@@ -107,6 +108,9 @@ void ap_entry(void)
 	/* Enable SSE */
 	if (boot_cpu_info.edx_features & CPUID_FEAT_EDX_SSE)
 		enable_sse();
+
+	/* Setup Scheduler */
+	scheduler_init(cpu);
 
 	/* Setup local apic */
 	lapic_ap_init();

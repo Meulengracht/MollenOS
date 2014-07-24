@@ -54,7 +54,7 @@ void usb_core_init(void)
 	glb_event_lock = semaphore_create(0);
 
 	/* Start Event Thread */
-	//threading_create_thread("UsbEventHandler", usb_core_event_handler, NULL, 0);
+	threading_create_thread("UsbEventHandler", usb_core_event_handler, NULL, 0);
 }
 
 /* Registrate an OHCI/UHCI/EHCI/XHCI controller */
@@ -149,6 +149,9 @@ void usb_device_setup(usb_hc_t *hc, int port)
 
 	/* Bind it */
 	hc->ports[port]->device = device;
+
+	//if (device != NULL)
+	//	return;
 
 	/* Set Device Address (Just bind it to the port number + 1 (never set address 0) ) */
 	if (!usb_function_set_address(hc, port, (uint32_t)(port + 1)))
@@ -265,7 +268,7 @@ void usb_core_event_handler(void *args)
 		semaphore_P(glb_event_lock);
 
 		/* Pop Event */
-		node = list_pop(glb_usb_events);
+		node = list_pop_front(glb_usb_events);
 
 		/* Sanity */
 		if (node == NULL)

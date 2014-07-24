@@ -17,6 +17,11 @@
 *
 *
 * MollenOS X86-32 USB OHCI Controller Driver
+* Todo:
+* Isochronous Support
+* Multiple Interrupt Support (Proper support for the interrupt table).
+* Stability (Only tested on emulators and one real hardware pc).
+* Optimize the pools.
 */
 
 /* Includes */
@@ -34,11 +39,10 @@
 #include <drivers\usb\ohci\ohci.h>
 
 /* Globals */
-list_t *glb_ohci_controllers = NULL;
 volatile uint32_t glb_ohci_id = 0;
 
 /* Externs */
-extern void clock_stall_noint(time_t ms);
+extern void clock_stall_noint(uint32_t ms);
 extern void _yield(void);
 
 /* Prototypes */
@@ -90,30 +94,21 @@ void ohci_set_mode(ohci_controller_t *controller, uint32_t mode)
 void ohci_reset_indices(ohci_controller_t *controller, uint32_t type)
 {
 	if (type & X86_OHCI_INDEX_TYPE_CONTROL)
-	{
-		controller->ed_index_control = X86_OHCI_POOL_ED_CONTROL_START;
 		controller->td_index_control = X86_OHCI_POOL_TD_CONTROL_START;
-	}
 	
 	if (type & X86_OHCI_INDEX_TYPE_BULK)
-	{
-		controller->ed_index_bulk = X86_OHCI_POOL_ED_BULK_START;
 		controller->td_index_bulk = X86_OHCI_POOL_TD_BULK_START;
-	}
 }
 
 void ohci_validate_indices(ohci_controller_t *controller)
 {
 	/* Check Control ED/TD */
-	if ((controller->ed_index_control == (X86_OHCI_POOL_TD_PIPE_START - 2))
-		|| (controller->ed_index_control == (X86_OHCI_POOL_TD_PIPE_START - 1))
-		|| (controller->td_index_control == (X86_OHCI_POOL_TD_PIPE_START - 2))
+	if ((controller->td_index_control == (X86_OHCI_POOL_TD_PIPE_START - 2))
 		|| (controller->td_index_control == (X86_OHCI_POOL_TD_PIPE_START - 1)))
 		ohci_reset_indices(controller, X86_OHCI_INDEX_TYPE_CONTROL);
 
-	/* Check Bulk ED/TD */
-	if ((controller->ed_index_bulk >= (X86_OHCI_POOL_NUM_ED) - 2)
-		|| (controller->td_index_bulk >= (X86_OHCI_POOL_NUM_TD) - 2))
+	/* Check Bulk TD */
+	if (controller->td_index_bulk >= (X86_OHCI_POOL_NUM_TD - 2))
 		ohci_reset_indices(controller, X86_OHCI_INDEX_TYPE_BULK);
 }
 
@@ -128,6 +123,22 @@ addr_t ohci_align(addr_t addr, addr_t alignment_bits, addr_t alignment)
 	}
 
 	return aligned_addr;
+}
+
+/* Stop/Start */
+void ohci_stop(ohci_controller_t *controller)
+{
+	uint32_t temp;
+
+	/* Disable BULK and CONTROL queues */
+	temp = controller->registers->HcControl;
+	temp = (temp & ~0x00000030);
+	controller->registers->HcControl = temp;
+
+	/* Tell Command Status we dont have the list filled */
+	temp = controller->registers->HcCommandStatus;
+	temp = (temp & ~0x00000006);
+	controller->registers->HcCommandStatus = temp;
 }
 
 /* This resets a port, this is only ever
@@ -152,7 +163,7 @@ void ohci_port_reset(ohci_controller_t *controller, uint32_t port, int noint)
 		i++;
 
 		/* Stall */
-		clock_stall_noint(200000);
+		clock_stall(5);
 
 		/* Update */
 		temp = controller->registers->HcRhPortStatus[port];
@@ -172,7 +183,7 @@ void ohci_port_reset(ohci_controller_t *controller, uint32_t port, int noint)
 	}
 
 	/* Stall */
-	clock_stall_noint(100000);
+	clock_stall(100);
 }
 
 /* Callbacks */
@@ -315,10 +326,6 @@ void ohci_init(pci_driver_t *device)
 {
 	uint16_t pci_command;
 	ohci_controller_t *controller = NULL;
-
-	/* Sanity */
-	if (glb_ohci_controllers == NULL)
-		glb_ohci_controllers = list_create(LIST_NORMAL);
 	
 	/* Allocate Resources for this controller */
 	controller = (ohci_controller_t*)kmalloc(sizeof(ohci_controller_t));
@@ -347,6 +354,7 @@ void ohci_init(pci_driver_t *device)
 	controller->registers = (volatile ohci_registers_t*)memory_map_system_memory(controller->control_space, 1);
 	controller->hcca_space = (uint32_t)physmem_alloc_block_dma();
 	controller->hcca = (volatile ohci_hcca_t*)controller->hcca_space;
+	spinlock_reset(&controller->lock);
 
 	/* Memset HCCA Space */
 	memset((void*)controller->hcca, 0, 0x1000);
@@ -367,51 +375,34 @@ void ohci_init(pci_driver_t *device)
 void ohci_init_queues(ohci_controller_t *controller)
 {
 	addr_t buffer_address = 0, buffer_address_max = 0;
+	addr_t pool = 0, pool_phys = 0;
 	int i;
 
-	/* Initialise Bulk/Control ED Pool */
+	/* Initialise ED Pool */
+	controller->ed_index = 0;
 	for (i = 0; i < X86_OHCI_POOL_NUM_ED; i++)
 	{
 		addr_t a_space = (addr_t)kmalloc(sizeof(ohci_endpoint_desc_t) + X86_OHCI_STRUCT_ALIGN);
 		controller->ed_pool[i] = (ohci_endpoint_desc_t*)ohci_align(a_space, X86_OHCI_STRUCT_ALIGN_BITS, X86_OHCI_STRUCT_ALIGN);
 		memset((void*)controller->ed_pool[i], 0, sizeof(ohci_endpoint_desc_t));
+		controller->ed_pool[i]->next_ed = 0;
+		controller->ed_pool[i]->flags = X86_OHCI_EP_SKIP;
 	}
 
-	/* Setup Bulk/Control ED List
-	* We use the first 20 ED's for Control Transfers
-	* And the next 30 for Bulk Transfers
-	* This means we have two seperate lists, however under one "roof" */
-	for (i = 0; i < X86_OHCI_POOL_NUM_ED; i++)
-	{
-		/* Is it end of Control List ? */
-		if (i == X86_OHCI_POOL_ED_BULK_START - 1)
-			controller->ed_pool[i]->next_ed = 0;
-		/* Is it end of bulk list ? */
-		else if (i == X86_OHCI_POOL_NUM_ED - 1)
-			controller->ed_pool[i]->next_ed = 0;
-		else
-		{
-			/* Otherwise, link this ED to the next in list
-			* and set it as SKIP initially since we have no transactions yet */
-			controller->ed_pool[i]->flags = X86_OHCI_EP_SKIP;
-			controller->ed_pool[i]->next_ed = memory_getmap(NULL, (virtaddr_t)controller->ed_pool[i + 1]);
-		}
-	}
-
-	/* Initialise Bulk/Control TD Pool */
-	for (i = 0; i < X86_OHCI_POOL_NUM_TD; i++)
-	{
-		addr_t a_space = (addr_t)kmalloc(sizeof(ohci_gtransfer_desc_t) + X86_OHCI_STRUCT_ALIGN);
-		controller->td_pool[i] = (ohci_gtransfer_desc_t*)ohci_align(a_space, X86_OHCI_STRUCT_ALIGN_BITS, X86_OHCI_STRUCT_ALIGN);
-		controller->td_pool_phys[i] = memory_getmap(NULL, (virtaddr_t)controller->td_pool[i]);
-		memset((void*)controller->td_pool[i], 0, sizeof(ohci_gtransfer_desc_t));
-	}
-
-	/* Initialise Bulk/Control/Interrupt TD Pool Buffers */
+	/* Initialise Bulk/Control TD Pool & Buffers */
 	buffer_address = (addr_t)kmalloc_a(0x1000);
 	buffer_address_max = buffer_address + 0x1000 - 1;
+
+	pool = (addr_t)kmalloc((sizeof(ohci_gtransfer_desc_t) * X86_OHCI_POOL_NUM_TD) + X86_OHCI_STRUCT_ALIGN);
+	pool = ohci_align(pool, X86_OHCI_STRUCT_ALIGN_BITS, X86_OHCI_STRUCT_ALIGN);
+	pool_phys = memory_getmap(NULL, pool);
+	memset((void*)pool, 0, sizeof(ohci_gtransfer_desc_t) * X86_OHCI_POOL_NUM_TD);
 	for (i = 0; i < X86_OHCI_POOL_NUM_TD; i++)
 	{
+		/* Set */
+		controller->td_pool[i] = (ohci_gtransfer_desc_t*)pool;
+		controller->td_pool_phys[i] = pool_phys;
+
 		/* Allocate another page? */
 		if (buffer_address > buffer_address_max)
 		{
@@ -422,6 +413,10 @@ void ohci_init_queues(ohci_controller_t *controller)
 		/* Setup buffer */
 		controller->td_pool_buffers[i] = (addr_t*)buffer_address;
 		controller->td_pool[i]->cbp = memory_getmap(NULL, buffer_address);
+
+		/* Increase */
+		pool += sizeof(ohci_gtransfer_desc_t);
+		pool_phys += sizeof(ohci_gtransfer_desc_t);
 		buffer_address += 0x200;
 	}
 
@@ -443,6 +438,10 @@ void ohci_init_queues(ohci_controller_t *controller)
 		controller->hcca->interrupt_table[i] = memory_getmap(NULL, (virtaddr_t)controller->pipe_pool[0]);
 
 	/* Allocate a transaction list */
+	controller->transactions_waiting_bulk = 0;
+	controller->transactions_waiting_control = 0;
+	controller->transaction_queue_bulk = 0;
+	controller->transaction_queue_control = 0;
 	controller->transactions_list = list_create(LIST_SAFE);
 }
 
@@ -566,9 +565,9 @@ void ohci_setup(ohci_controller_t *controller)
 
 	/* Setup initial ED points */
 	controller->registers->HcControlHeadED =
-		controller->registers->HcControlCurrentED = memory_getmap(NULL, (virtaddr_t)controller->ed_pool[X86_OHCI_POOL_ED_CONTROL_START]);
+		controller->registers->HcControlCurrentED = 0;
 	controller->registers->HcBulkHeadED =
-		controller->registers->HcBulkCurrentED = memory_getmap(NULL, (virtaddr_t)controller->ed_pool[X86_OHCI_POOL_ED_BULK_START]);
+		controller->registers->HcBulkCurrentED = 0;
 
 	/* Set HcEnableInterrupt to all except SOF and OC */
 	controller->registers->HcInterruptDisable = (X86_OHCI_INTR_SOF | X86_OHCI_INTR_ROOT_HUB_EVENT | X86_OHCI_INTR_OWNERSHIP_EVENT);
@@ -748,9 +747,9 @@ void ohci_reset(ohci_controller_t *controller)
 
 	/* Setup initial ED points */
 	controller->registers->HcControlHeadED =
-		controller->registers->HcControlCurrentED = memory_getmap(NULL, (virtaddr_t)controller->ed_pool[X86_OHCI_POOL_ED_CONTROL_START]);
+		controller->registers->HcControlCurrentED = 0;
 	controller->registers->HcBulkHeadED =
-		controller->registers->HcBulkCurrentED = memory_getmap(NULL, (virtaddr_t)controller->ed_pool[X86_OHCI_POOL_ED_BULK_START]);
+		controller->registers->HcBulkCurrentED = 0;
 
 	/* Set HcEnableInterrupt to all except SOF and OC */
 	controller->registers->HcInterruptDisable = (X86_OHCI_INTR_SOF | X86_OHCI_INTR_ROOT_HUB_EVENT | X86_OHCI_INTR_OWNERSHIP_EVENT);
@@ -813,239 +812,43 @@ void ohci_reset(ohci_controller_t *controller)
 	controller->registers->HcInterruptEnable = X86_OHCI_INTR_ROOT_HUB_EVENT;
 }
 
-/* Process Done Queue */
-void ohci_process_done_queue(ohci_controller_t *controller, addr_t done_head)
-{
-	list_t *transactions = controller->transactions_list;
-	list_node_t *ta = NULL;
-	addr_t td_physical;
-	int n;
-
-	/* First we check if it was an interrupt TD */
-	for (n = X86_OHCI_POOL_TD_PIPE_START; n < X86_OHCI_POOL_TD_BULK_START; n++)
-	{
-		if (controller->td_pool_phys[n] == done_head)
-		{
-			void *td_buffer = controller->td_pool_buffers[n];
-			ohci_gtransfer_desc_t *interrupt_td = controller->td_pool[n];
-			ohci_endpoint_desc_t *interrupt_ep = controller->pipe_pool[n - X86_OHCI_POOL_TD_PIPE_START];
-			ohci_periodic_callback_t *cb_info = (ohci_periodic_callback_t*)interrupt_ep->hcd_data;
-			uint32_t condition_code = (interrupt_td->flags & 0xF0000000) >> 28;
-
-			/* Sanity */
-			if (condition_code == 0)
-			{
-				/* Get data */
-				memcpy(cb_info->buffer, td_buffer, cb_info->bytes);
-
-				/* Inform Callback */
-				cb_info->callback(cb_info->args, cb_info->bytes);
-			}
-			
-			/* Restart TD */
-			interrupt_td->cbp = interrupt_td->buffer_end - 0x200 + 1;
-			interrupt_td->flags |= X86_OHCI_TRANSFER_BUF_NOCC;
-
-			/* Reset EP */
-			interrupt_ep->head_ptr = controller->td_pool_phys[n];
-
-			/* We are done, return */
-			return;
-		}
-	}
-
-	/* Find it */
-	n = 0;
-	ta = list_get_node_by_id(transactions, 0, n);
-	while (ta != NULL)
-	{
-		ohci_endpoint_desc_t *ep = (ohci_endpoint_desc_t*)ta->data;
-		usb_hc_transaction_t *t_list = (usb_hc_transaction_t*)ep->hcd_data;
-
-		/* Process TD's and see if all transfers are done */
-		while (t_list)
-		{
-			/* Get physical of TD */
-			td_physical = memory_getmap(NULL, (virtaddr_t)t_list->transfer_descriptor);
-			
-			if (td_physical == done_head)
-			{
-				/* Is this the last? :> */
-				if (t_list->link == NULL || t_list->link->link == NULL)
-				{
-					n = 0xDEADBEEF;
-					break;
-				}
-				else
-				{
-					/* Error :/ */
-					ohci_gtransfer_desc_t *td = (ohci_gtransfer_desc_t*)t_list->transfer_descriptor;
-					uint32_t condition_code = (td->flags & 0xF0000000) >> 28;
-					printf("FAILURE: TD Flags 0x%x, TD Condition Code %u (%s)\n", td->flags, condition_code, ohci_err_msgs[condition_code]);
-					n = 0xBEEFDEAD;
-					break;
-				}
-			}
-
-			/* Next */
-			t_list = t_list->link;
-		}
-
-		if (n == 0xDEADBEEF || n == 0xBEEFDEAD)
-			break;
-		else
-		{
-			n++;
-			ta = list_get_node_by_id(transactions, 0, n);
-		}
-	}
-	
-	if (ta != NULL && (n == 0xDEADBEEF || n == 0xBEEFDEAD))
-	{
-		/* Either it failed, or it succeded */
-
-		/* Mark EP Descriptor as SKip */
-		((ohci_endpoint_desc_t*)ta->data)->flags = X86_OHCI_EP_SKIP;
-
-		/* Wake a node */
-		scheduler_wakeup_one((addr_t*)ta->data);
-
-		/* Remove from list */
-		list_remove_by_node(transactions, ta);
-
-		/* Cleanup node */
-		kfree(ta);
-	}
-}
-
-/* Interrupt Handler 
- * Make sure that this controller actually made the interrupt 
- * as this interrupt will be shared with other OHCI's */
-void ohci_interrupt_handler(void *data)
-{
-	uint32_t intr_state = 0;
-	ohci_controller_t *controller = (ohci_controller_t*)data;
-
-	/* Is this our interrupt ? */
-	if (controller->hcca->head_done != 0)
-	{
-		/* Acknowledge */
-		intr_state = X86_OHCI_INTR_HEAD_DONE;
-
-		if (controller->hcca->head_done & 0x1)
-		{
-			/* Get rest of interrupts, since head_done has halted */
-			intr_state |= (controller->registers->HcInterruptStatus & controller->registers->HcInterruptEnable);
-		}
-	}
-	else
-	{
-		/* Was it this controller that made the interrupt?
-		* We only want the interrupts we have set as enabled */
-		intr_state = (controller->registers->HcInterruptStatus & controller->registers->HcInterruptEnable);
-
-		if (intr_state == 0)
-			return;
-	}
-
-	/* Debug */
-	//printf("OHCI: Controller %u Interrupt: 0x%x\n", controller->hcd_id, intr_state);
-
-	/* Disable Interrupts */
-	controller->registers->HcInterruptDisable = (uint32_t)X86_OHCI_INTR_MASTER_INTR;
-
-	/* Fatal Error? */
-	if (intr_state & X86_OHCI_INTR_FATAL_ERROR)
-	{
-		printf("OHCI %u: Fatal Error, resetting...\n", controller->id);
-		ohci_reset(controller);
-		return;
-	}
-
-	/* Flag for end of frame type interrupts */
-	if (intr_state & (X86_OHCI_INTR_SCHEDULING_OVRRN | X86_OHCI_INTR_HEAD_DONE | X86_OHCI_INTR_SOF | X86_OHCI_INTR_FRAME_OVERFLOW))
-		intr_state |= X86_OHCI_INTR_MASTER_INTR;
-
-	/* Scheduling Overrun? */
-	if (intr_state & X86_OHCI_INTR_SCHEDULING_OVRRN)
-	{
-		printf("OHCI %u: Scheduling Overrun\n", controller->id);
-
-		/* Acknowledge Interrupt */
-		controller->registers->HcInterruptStatus = X86_OHCI_INTR_SCHEDULING_OVRRN;
-		intr_state = intr_state & ~(X86_OHCI_INTR_SCHEDULING_OVRRN);
-	}	
-	
-	/* Resume Detection? */
-	if (intr_state & X86_OHCI_INTR_RESUME_DETECT)
-	{
-		printf("OHCI %u: Resume Detected\n", controller->id);
-
-		/* We must wait 20 ms before putting controller to Operational */
-		clock_stall_noint(2000);
-		ohci_set_mode(controller, X86_OHCI_CTRL_USB_WORKING);
-
-		/* Acknowledge Interrupt */
-		controller->registers->HcInterruptStatus = X86_OHCI_INTR_RESUME_DETECT;
-		intr_state = intr_state & ~(X86_OHCI_INTR_RESUME_DETECT);
-	}
-	
-	/* Frame Overflow 
-	 * Happens when it rolls over from 0xFFFF to 0 */
-	if (intr_state & X86_OHCI_INTR_FRAME_OVERFLOW)
-	{
-		//printf("OHCI %u: Frame Overflow (%u)\n", controller->id, controller->registers->HcFmNumber);
-
-		/* Acknowledge Interrupt */
-		controller->registers->HcInterruptStatus = X86_OHCI_INTR_FRAME_OVERFLOW;
-		intr_state = intr_state & ~(X86_OHCI_INTR_FRAME_OVERFLOW);
-	}
-
-	/* Why yes, yes it was, wake up the TD handler thread
-	* if it was head_done_writeback */
-	if (intr_state & X86_OHCI_INTR_HEAD_DONE)
-	{
-		/* Wuhu, handle this! */
-		uint32_t td_address = (controller->hcca->head_done & ~(0x00000001));
-		
-		ohci_process_done_queue(controller, td_address);
-		//scheduler_wakeup_one((addr_t*)td_address);
-
-		/* Acknowledge Interrupt */
-		controller->hcca->head_done = 0;
-		controller->registers->HcInterruptStatus = X86_OHCI_INTR_HEAD_DONE;
-		intr_state = intr_state & ~(X86_OHCI_INTR_HEAD_DONE);
-	}
-
-	/* Root Hub Status Change 
-	 * Do a port status check */
-	if (intr_state & X86_OHCI_INTR_ROOT_HUB_EVENT)
-	{
-		/* Port does not matter here */
-		usb_event_create(usb_get_hcd(controller->hcd_id), 0, X86_USB_EVENT_ROOTHUB_CHECK);
-
-		/* Acknowledge Interrupt */
-		controller->registers->HcInterruptStatus = X86_OHCI_INTR_ROOT_HUB_EVENT;
-		intr_state = intr_state & ~(X86_OHCI_INTR_ROOT_HUB_EVENT);
-	}
-
-	/* Start of Frame? */
-	if (intr_state & X86_OHCI_INTR_SOF)
-	{
-		/* Acknowledge Interrupt */
-		controller->registers->HcInterruptStatus = X86_OHCI_INTR_SOF;
-		intr_state = intr_state & ~(X86_OHCI_INTR_SOF);
-	}
-	
-	/* Mask out remaining interrupts, we dont use them */
-	if (intr_state & ~(X86_OHCI_INTR_MASTER_INTR))
-		controller->registers->HcInterruptDisable = intr_state;
-
-	/* Enable Interrupts */
-	controller->registers->HcInterruptEnable = (uint32_t)X86_OHCI_INTR_MASTER_INTR;
-}
-
 /* ED Functions */
+uint32_t ohci_allocate_ep(ohci_controller_t *controller)
+{
+	interrupt_status_t int_state;
+	int32_t index = -1;
+	ohci_endpoint_desc_t *ed;
+
+	/* Pick a QH */
+	int_state = interrupt_disable();
+	spinlock_acquire(&controller->lock);
+
+	/* Grap it, locked operation */
+	while (index == -1)
+	{
+		ed = controller->ed_pool[controller->ed_index];
+
+		if (ed->flags & X86_OHCI_EP_SKIP)
+		{
+			/* Done! */
+			index = controller->ed_index;
+			ed->flags = 0;
+		}
+
+		controller->ed_index++;
+
+		/* Index Sanity */
+		if (controller->ed_index == X86_OHCI_POOL_NUM_ED)
+			controller->ed_index = 0;
+	}
+
+	/* Release lock */
+	spinlock_release(&controller->lock);
+	interrupt_set_state(int_state);
+
+	return (uint32_t)index;
+}
+
 void ohci_ep_init(ohci_endpoint_desc_t *ep, addr_t first_td, uint32_t type, 
 	uint32_t address, uint32_t endpoint, uint32_t packet_size, uint32_t lowspeed)
 {
@@ -1064,9 +867,18 @@ void ohci_ep_init(ohci_endpoint_desc_t *ep, addr_t first_td, uint32_t type,
 		ep->head_ptr = X86_OHCI_TRANSFER_END_OF_LIST;
 	else
 		ep->head_ptr = memory_getmap(NULL, (first_td & ~0xD));
+
+	/* Set Tail */
+	ep->next_ed = 0;
+	ep->next_ed_virt = 0;
 }
 
 /* TD Functions */
+uint32_t ohci_allocate_td(ohci_controller_t *controller)
+{
+	return controller->td_index_bulk;
+}
+
 ohci_gtransfer_desc_t *ohci_td_setup(ohci_controller_t *controller, uint32_t type, 
 	ohci_endpoint_desc_t *ed, addr_t next_td, uint32_t toggle, uint8_t request_direction,
 	uint8_t request_type, uint8_t request_value_low, uint8_t request_value_high, uint16_t request_index,
@@ -1202,30 +1014,8 @@ void ohci_transaction_init(void *controller, usb_hc_request_t *request)
 	ohci_controller_t *ctrl = (ohci_controller_t*)controller;
 	uint32_t temp;
 
-	/* Disable BULK and CONTROL queues */
-	temp = ctrl->registers->HcControl;
-	temp = (temp & ~0x00000030);
-	ctrl->registers->HcControl = temp;
-
-	/* Tell Command Status we dont have the list filled */
-	temp = ctrl->registers->HcCommandStatus;
-	temp = (temp & ~0x00000006);
-	ctrl->registers->HcCommandStatus = temp;
-
-	/* Validate TD/ED Indices */
-	ohci_validate_indices(ctrl);
-
-	/* Grab an ED and increase index */
-	if (request->type == X86_USB_REQUEST_TYPE_CONTROL)
-	{
-		request->data = (void*)ctrl->ed_pool[ctrl->ed_index_control];
-		ctrl->ed_index_control++;
-	}
-	else
-	{
-		request->data = (void*)ctrl->ed_pool[ctrl->ed_index_bulk];
-		ctrl->ed_index_bulk++;
-	}
+	temp = ohci_allocate_ep(ctrl);
+	request->data = ctrl->ed_pool[temp];
 
 	/* Set as not completed for start */
 	request->completed = 0;
@@ -1341,10 +1131,11 @@ usb_hc_transaction_t *ohci_transaction_out(void *controller, usb_hc_request_t *r
 /* This one queues the transaction up for processing */
 void ohci_transaction_send(void *controller, usb_hc_request_t *request)
 {
-	/* Debug Time */
+	/* Wuhu */
 	usb_hc_transaction_t *transaction = request->transactions;
 	ohci_controller_t *ctrl = (ohci_controller_t*)controller;
 	int completed = 1;
+	interrupt_status_t int_state = 0;
 	ohci_gtransfer_desc_t *td = NULL;
 	uint32_t condition_code;
 	addr_t ed_address;
@@ -1364,24 +1155,108 @@ void ohci_transaction_send(void *controller, usb_hc_request_t *request)
 		request->device->address, request->endpoint, request->length, request->lowspeed);
 
 	/* Now lets try the transaction */
-	
+	int_state = interrupt_disable();
+	spinlock_acquire(&ctrl->lock);
+
 	/* Set true */
 	completed = 1;
 
-	/* Add it HcControl/BulkCurrentED */
-	if (request->type == X86_USB_REQUEST_TYPE_CONTROL)
-		ctrl->registers->HcControlCurrentED = ed_address;
-	else
-		ctrl->registers->HcBulkCurrentED = ed_address;
-
 	/* Add this transaction to list */
+	((ohci_endpoint_desc_t*)request->data)->head_ptr &= ~(0x00000001);
 	list_append(ctrl->transactions_list, list_create_node(0, request->data));
 
-	/* Set Lists Filled (Enable Them) */
-	((ohci_endpoint_desc_t*)request->data)->head_ptr &= ~(0x00000001);
-	ctrl->registers->HcCommandStatus |= (X86_OHCI_CMD_TDACTIVE_CTRL | X86_OHCI_CMD_TDACTIVE_BULK);
-	ctrl->registers->HcControl |= (X86_OHCI_CTRL_CONTROL_LIST | X86_OHCI_CTRL_BULK_LIST);
+	/* Is this the "first" control transfer? */
+	if (request->type == X86_USB_REQUEST_TYPE_CONTROL)
+	{
+		if (ctrl->transactions_waiting_control > 0)
+		{
+			/* Insert it */
+			if (ctrl->transaction_queue_control == 0)
+				ctrl->transaction_queue_control = (uint32_t)request->data;
+			else
+			{
+				ohci_endpoint_desc_t *ep = (ohci_endpoint_desc_t*)ctrl->transaction_queue_control;
 
+				/* Find tail */
+				while (ep->next_ed)
+					ep = (ohci_endpoint_desc_t*)ep->next_ed_virt;
+
+				/* Insert it */
+				ep->next_ed = ed_address;
+				ep->next_ed_virt = (uint32_t)request->data;
+			}
+
+			/* Increase */
+			ctrl->transactions_waiting_control++;
+
+			/* Release spinlock */
+			spinlock_release(&ctrl->lock);
+			interrupt_set_state(int_state);
+		}
+		else
+		{
+			/* Add it HcControl/BulkCurrentED */
+			ctrl->registers->HcControlHeadED = 
+				ctrl->registers->HcControlCurrentED = ed_address;
+
+			/* Increase */
+			ctrl->transactions_waiting_control++;
+
+			/* Release spinlock */
+			spinlock_release(&ctrl->lock);
+			interrupt_set_state(int_state);
+
+			/* Set Lists Filled (Enable Them) */
+			ctrl->registers->HcCommandStatus |= X86_OHCI_CMD_TDACTIVE_CTRL;
+			ctrl->registers->HcControl |= X86_OHCI_CTRL_CONTROL_LIST;
+		}
+	}
+	else if (request->type == X86_USB_REQUEST_TYPE_BULK)
+	{
+		if (ctrl->transactions_waiting_bulk > 0)
+		{
+			/* Insert it */
+			if (ctrl->transaction_queue_bulk == 0)
+				ctrl->transaction_queue_bulk = (addr_t)request->data;
+			else
+			{
+				ohci_endpoint_desc_t *ep = (ohci_endpoint_desc_t*)ctrl->transaction_queue_bulk;
+
+				/* Find tail */
+				while (ep->next_ed)
+					ep = (ohci_endpoint_desc_t*)ep->next_ed_virt;
+
+				/* Insert it */
+				ep->next_ed = ed_address;
+				ep->next_ed_virt = (uint32_t)request->data;
+			}
+
+			/* Increase */
+			ctrl->transactions_waiting_bulk++;
+			
+			/* Release spinlock */
+			spinlock_release(&ctrl->lock);
+			interrupt_set_state(int_state);
+		}
+		else
+		{
+			/* Add it HcControl/BulkCurrentED */
+			ctrl->registers->HcBulkHeadED = 
+				ctrl->registers->HcBulkCurrentED = ed_address;
+
+			/* Increase */
+			ctrl->transactions_waiting_bulk++;
+
+			/* Release spinlock */
+			spinlock_release(&ctrl->lock);
+			interrupt_set_state(int_state);
+
+			/* Set Lists Filled (Enable Them) */
+			ctrl->registers->HcCommandStatus |= X86_OHCI_CMD_TDACTIVE_BULK;
+			ctrl->registers->HcControl |= X86_OHCI_CTRL_BULK_LIST;
+		}
+	}
+	
 	/* Wait for interrupt */
 	scheduler_sleep_thread((addr_t*)request->data);
 	_yield();
@@ -1479,4 +1354,284 @@ void ohci_install_interrupt(void *controller, usb_hc_device_t *device, usb_hc_en
 
 	/* Enable Queue in case it was disabled */
 	ctrl->registers->HcControl |= X86_OCHI_CTRL_PERIODIC_LIST;
+}
+
+/* Process Done Queue */
+void ohci_process_done_queue(ohci_controller_t *controller, addr_t done_head)
+{
+	list_t *transactions = controller->transactions_list;
+	list_node_t *ta = NULL;
+	addr_t td_physical;
+	uint32_t transfer_type = 0;
+	int n;
+
+	/* First we check if it was an interrupt TD */
+	for (n = X86_OHCI_POOL_TD_PIPE_START; n < X86_OHCI_POOL_TD_BULK_START; n++)
+	{
+		if (controller->td_pool_phys[n] == done_head)
+		{
+			void *td_buffer = controller->td_pool_buffers[n];
+			ohci_gtransfer_desc_t *interrupt_td = controller->td_pool[n];
+			ohci_endpoint_desc_t *interrupt_ep = controller->pipe_pool[n - X86_OHCI_POOL_TD_PIPE_START];
+			ohci_periodic_callback_t *cb_info = (ohci_periodic_callback_t*)interrupt_ep->hcd_data;
+			uint32_t condition_code = (interrupt_td->flags & 0xF0000000) >> 28;
+
+			/* Sanity */
+			if (condition_code == 0)
+			{
+				/* Get data */
+				memcpy(cb_info->buffer, td_buffer, cb_info->bytes);
+
+				/* Inform Callback */
+				cb_info->callback(cb_info->args, cb_info->bytes);
+			}
+
+			/* Restart TD */
+			interrupt_td->cbp = interrupt_td->buffer_end - 0x200 + 1;
+			interrupt_td->flags |= X86_OHCI_TRANSFER_BUF_NOCC;
+
+			/* Reset EP */
+			interrupt_ep->head_ptr = controller->td_pool_phys[n];
+
+			/* We are done, return */
+			return;
+		}
+	}
+
+	/* Find it */
+	n = 0;
+	ta = list_get_node_by_id(transactions, 0, n);
+	while (ta != NULL)
+	{
+		ohci_endpoint_desc_t *ep = (ohci_endpoint_desc_t*)ta->data;
+		usb_hc_transaction_t *t_list = (usb_hc_transaction_t*)ep->hcd_data;
+		transfer_type = (ep->flags >> 27);
+		/* Process TD's and see if all transfers are done */
+		while (t_list)
+		{
+			/* Get physical of TD */
+			td_physical = memory_getmap(NULL, (virtaddr_t)t_list->transfer_descriptor);
+
+			if (td_physical == done_head)
+			{
+				/* Is this the last? :> */
+				if (t_list->link == NULL || t_list->link->link == NULL)
+				{
+					n = 0xDEADBEEF;
+					break;
+				}
+				else
+				{
+					/* Error :/ */
+					ohci_gtransfer_desc_t *td = (ohci_gtransfer_desc_t*)t_list->transfer_descriptor;
+					uint32_t condition_code = (td->flags & 0xF0000000) >> 28;
+					printf("FAILURE: TD Flags 0x%x, TD Condition Code %u (%s)\n", td->flags, condition_code, ohci_err_msgs[condition_code]);
+					n = 0xBEEFDEAD;
+					break;
+				}
+			}
+
+			/* Next */
+			t_list = t_list->link;
+		}
+
+		if (n == 0xDEADBEEF || n == 0xBEEFDEAD)
+			break;
+		else
+		{
+			n++;
+			ta = list_get_node_by_id(transactions, 0, n);
+		}
+	}
+
+	if (ta != NULL && (n == 0xDEADBEEF || n == 0xBEEFDEAD))
+	{
+		/* Either it failed, or it succeded */
+
+		/* So now, before waking up a sleeper we see if transactions are pending
+		 * if they are, we simply copy the queue over to the current */
+		spinlock_acquire(&controller->lock);
+
+		/* Any Controls waiting? */
+		if (transfer_type == 0)
+		{
+			if (controller->transactions_waiting_control > 0)
+			{
+				/* Get physical of EP */
+				addr_t ep_physical = memory_getmap(NULL, controller->transaction_queue_control);
+
+				/* Set it */
+				controller->registers->HcControlHeadED =
+					controller->registers->HcControlCurrentED = ep_physical;
+
+				/* Start queue */
+				controller->registers->HcCommandStatus |= X86_OHCI_CMD_TDACTIVE_CTRL;
+				controller->registers->HcControl |= X86_OHCI_CTRL_CONTROL_LIST;
+			}
+
+			/* Reset control queue */
+			controller->transaction_queue_control = 0;
+			controller->transactions_waiting_control = 0;
+		}
+		else if (transfer_type == 1)
+		{
+			/* Bulk */
+			if (controller->transactions_waiting_bulk > 0)
+			{
+				/* Get physical of EP */
+				addr_t ep_physical = memory_getmap(NULL, controller->transaction_queue_bulk);
+
+				/* Add it to queue */
+				controller->registers->HcBulkHeadED = 
+					controller->registers->HcBulkCurrentED = ep_physical;
+
+				/* Start queue */
+				controller->registers->HcCommandStatus |= X86_OHCI_CMD_TDACTIVE_BULK;
+				controller->registers->HcControl |= X86_OHCI_CTRL_BULK_LIST;
+			}
+
+			/* Reset control queue */
+			controller->transaction_queue_bulk = 0;
+			controller->transactions_waiting_bulk = 0;
+		}
+
+		/* Done */
+		spinlock_release(&controller->lock);
+
+		/* Mark EP Descriptor as sKip SEHR IMPORTANTE */
+		((ohci_endpoint_desc_t*)ta->data)->flags = X86_OHCI_EP_SKIP;
+
+		/* Wake a node */
+		scheduler_wakeup_one((addr_t*)ta->data);
+
+		/* Remove from list */
+		list_remove_by_node(transactions, ta);
+
+		/* Cleanup node */
+		kfree(ta);
+	}
+}
+
+/* Interrupt Handler
+* Make sure that this controller actually made the interrupt
+* as this interrupt will be shared with other OHCI's */
+void ohci_interrupt_handler(void *data)
+{
+	uint32_t intr_state = 0;
+	ohci_controller_t *controller = (ohci_controller_t*)data;
+
+	/* Is this our interrupt ? */
+	if (controller->hcca->head_done != 0)
+	{
+		/* Acknowledge */
+		intr_state = X86_OHCI_INTR_HEAD_DONE;
+
+		if (controller->hcca->head_done & 0x1)
+		{
+			/* Get rest of interrupts, since head_done has halted */
+			intr_state |= (controller->registers->HcInterruptStatus & controller->registers->HcInterruptEnable);
+		}
+	}
+	else
+	{
+		/* Was it this controller that made the interrupt?
+		* We only want the interrupts we have set as enabled */
+		intr_state = (controller->registers->HcInterruptStatus & controller->registers->HcInterruptEnable);
+
+		if (intr_state == 0)
+			return;
+	}
+
+	/* Debug */
+	//printf("OHCI: Controller %u Interrupt: 0x%x\n", controller->hcd_id, intr_state);
+
+	/* Disable Interrupts */
+	controller->registers->HcInterruptDisable = (uint32_t)X86_OHCI_INTR_MASTER_INTR;
+
+	/* Fatal Error? */
+	if (intr_state & X86_OHCI_INTR_FATAL_ERROR)
+	{
+		printf("OHCI %u: Fatal Error, resetting...\n", controller->id);
+		ohci_reset(controller);
+		return;
+	}
+
+	/* Flag for end of frame type interrupts */
+	if (intr_state & (X86_OHCI_INTR_SCHEDULING_OVRRN | X86_OHCI_INTR_HEAD_DONE | X86_OHCI_INTR_SOF | X86_OHCI_INTR_FRAME_OVERFLOW))
+		intr_state |= X86_OHCI_INTR_MASTER_INTR;
+
+	/* Scheduling Overrun? */
+	if (intr_state & X86_OHCI_INTR_SCHEDULING_OVRRN)
+	{
+		printf("OHCI %u: Scheduling Overrun\n", controller->id);
+
+		/* Acknowledge Interrupt */
+		controller->registers->HcInterruptStatus = X86_OHCI_INTR_SCHEDULING_OVRRN;
+		intr_state = intr_state & ~(X86_OHCI_INTR_SCHEDULING_OVRRN);
+	}
+
+	/* Resume Detection? */
+	if (intr_state & X86_OHCI_INTR_RESUME_DETECT)
+	{
+		printf("OHCI %u: Resume Detected\n", controller->id);
+
+		/* We must wait 20 ms before putting controller to Operational */
+		clock_stall_noint(2000);
+		ohci_set_mode(controller, X86_OHCI_CTRL_USB_WORKING);
+
+		/* Acknowledge Interrupt */
+		controller->registers->HcInterruptStatus = X86_OHCI_INTR_RESUME_DETECT;
+		intr_state = intr_state & ~(X86_OHCI_INTR_RESUME_DETECT);
+	}
+
+	/* Frame Overflow
+	* Happens when it rolls over from 0xFFFF to 0 */
+	if (intr_state & X86_OHCI_INTR_FRAME_OVERFLOW)
+	{
+		/* Acknowledge Interrupt */
+		controller->registers->HcInterruptStatus = X86_OHCI_INTR_FRAME_OVERFLOW;
+		intr_state = intr_state & ~(X86_OHCI_INTR_FRAME_OVERFLOW);
+	}
+
+	/* Why yes, yes it was, wake up the TD handler thread
+	* if it was head_done_writeback */
+	if (intr_state & X86_OHCI_INTR_HEAD_DONE)
+	{
+		/* Wuhu, handle this! */
+		uint32_t td_address = (controller->hcca->head_done & ~(0x00000001));
+
+		ohci_process_done_queue(controller, td_address);
+
+		/* Acknowledge Interrupt */
+		controller->hcca->head_done = 0;
+		controller->registers->HcInterruptStatus = X86_OHCI_INTR_HEAD_DONE;
+		intr_state = intr_state & ~(X86_OHCI_INTR_HEAD_DONE);
+	}
+
+	/* Root Hub Status Change
+	* Do a port status check */
+	if (intr_state & X86_OHCI_INTR_ROOT_HUB_EVENT)
+	{
+		/* Port does not matter here */
+		usb_event_create(usb_get_hcd(controller->hcd_id), 0, X86_USB_EVENT_ROOTHUB_CHECK);
+
+		/* Acknowledge Interrupt */
+		controller->registers->HcInterruptStatus = X86_OHCI_INTR_ROOT_HUB_EVENT;
+		intr_state = intr_state & ~(X86_OHCI_INTR_ROOT_HUB_EVENT);
+	}
+
+	/* Start of Frame? */
+	if (intr_state & X86_OHCI_INTR_SOF)
+	{
+		/* Acknowledge Interrupt */
+		controller->registers->HcInterruptStatus = X86_OHCI_INTR_SOF;
+		intr_state = intr_state & ~(X86_OHCI_INTR_SOF);
+	}
+
+	/* Mask out remaining interrupts, we dont use them */
+	if (intr_state & ~(X86_OHCI_INTR_MASTER_INTR))
+		controller->registers->HcInterruptDisable = intr_state;
+
+	/* Enable Interrupts */
+	controller->registers->HcInterruptEnable = (uint32_t)X86_OHCI_INTR_MASTER_INTR;
 }

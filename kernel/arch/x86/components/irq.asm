@@ -37,75 +37,47 @@ extern _interrupt_entry
 ; void __cli(void)
 ; Disables interrupts
 ___cli:
-	; Stack Frame
-	push ebp
-	mov ebp, esp
-
 	; Disable interrupts
 	cli
 
-	; Release stack frame
-	xor eax, eax
-	pop ebp
+	; Return
 	ret 
 
 ; void __sti(void)
 ; Enables interrupts
 ___sti:
-	; Stack Frame
-	push ebp
-	mov ebp, esp
-
 	; Enable interrupts
 	sti
 
-	; Release stack frame
-	xor eax, eax
-	pop ebp
+	; Return
 	ret 
 
 ; void __hlt(void)
 ; Enables interrupts
 ___hlt:
-	; Stack Frame
-	push ebp
-	mov ebp, esp
-
 	; Idle
 	hlt
 
-	; Release stack frame
-	xor eax, eax
-	pop ebp
+	; Return
 	ret 
 
 ; uint32_t __getflags(void)
 ; Gets Eflags
 ___getflags:
-	; Stack Frame
-	push ebp
-	mov ebp, esp
-
 	; Get flags
 	pushfd
 	pop eax
 
-	; Release stack frame
-	pop ebp
+	; Return
 	ret 
 
 ; uint32_t __getcr2(void)
 ; Gets CR2 register
 ___getcr2:
-	; Stack Frame
-	push ebp
-	mov ebp, esp
-
 	; Get cr2
 	mov eax, cr2
 
-	; Release stack frame
-	pop ebp
+	; Return
 	ret 
 
 ;Common entry point for exceptions
@@ -208,6 +180,7 @@ _irq_common:
 %macro irq_error 1
 	global _irq_handler%1
 	_irq_handler%1:
+		xchg bx, bx
 		push %1
 		jmp _exception_common
 %endmacro

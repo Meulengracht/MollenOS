@@ -63,9 +63,9 @@ _CRT_EXTERN uint8_t clock_read_register(uint8_t reg);
 _CRT_EXTERN void clock_write_register(uint8_t reg, uint8_t data);
 
 _CRT_EXTERN void clock_get_time(tm *t);
-_CRT_EXTERN time_t clock_get_clocks(void);
-_CRT_EXTERN void clock_stall(time_t ms);
-_CRT_EXTERN void clock_stall_noint(time_t ms);
+_CRT_EXTERN uint32_t clock_get_clocks(void);
+_CRT_EXTERN void clock_stall(uint32_t ms);
+_CRT_EXTERN void clock_stall_noint(uint32_t ms);
 
 _CRT_EXTERN void clock_init(void);
 

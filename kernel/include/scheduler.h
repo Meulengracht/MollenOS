@@ -36,13 +36,31 @@
 #include <list.h>
 
 /* Definitions */
+#define MCORE_SYSTEM_QUEUE			60
 #define MCORE_SCHEDULER_LEVELS		61
 #define MCORE_INITIAL_TIMESLICE		10
 #define MCORE_IDLE_TIMESLICE		300
-#define MCORE_SCHEDULER_BOOST_MS	7000
+#define MCORE_SCHEDULER_BOOST_MS	2000
+
+/* Structures */
+typedef struct _mcore_scheduler
+{
+	/* Queues */
+	list_t *queues[MCORE_SCHEDULER_LEVELS];
+
+	/* Boost Timer */
+	volatile uint32_t boost_timer;
+
+	/* Number of threads */
+	volatile uint32_t num_threads;
+
+	/* Lock */
+	spinlock_t lock;
+
+} scheduler_t;
 
 /* Prototypes */
-_CRT_EXTERN void scheduler_init(void);
+_CRT_EXTERN void scheduler_init(cpu_t cpu);
 _CRT_EXTERN void scheduler_ready_thread(list_node_t* node);
 _CRT_EXTERN list_node_t *scheduler_schedule(cpu_t cpu, list_node_t *node, int preemptive);
 

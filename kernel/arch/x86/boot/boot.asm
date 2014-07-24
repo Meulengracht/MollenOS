@@ -71,9 +71,8 @@ _kentry:
 ; Assembly routine to enable
 ; sse support
 _enable_sse:
-	; Stack Frame
-	push ebp
-	mov ebp, esp
+	; Save EAX
+	push eax
 
 	; Enable
 	mov eax, cr4
@@ -81,17 +80,15 @@ _enable_sse:
 	bts eax, 10		;Set Operating System Support for Unmasked SIMD Floating-Point Exceptions (Bit 10)
 	mov cr4, eax
 
-	; Release stack frame
-	xor eax, eax
-	pop ebp
+	; Restore EAX
+	pop eax
 	ret 
 
 ; Assembly routine to enable
 ; fpu support
 _enable_fpu:
-	; Stack Frame
-	push ebp
-	mov ebp, esp
+	; Save EAX
+	push eax
 
 	; Enable
 	mov eax, cr0
@@ -103,9 +100,8 @@ _enable_fpu:
 
 	finit
 
-	; Release stack frame
-	xor eax, eax
-	pop ebp
+	; Restore
+	pop eax
 	ret 
 
 ; Assembly routine to get
@@ -131,6 +127,5 @@ _cpuid:
 
 	; Release stack frame
 	popad
-	xor eax, eax
 	pop ebp
 	ret 

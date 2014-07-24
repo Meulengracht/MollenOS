@@ -790,7 +790,7 @@ void)
 	/* Ensure ID is never 0 */
 
 	//ThreadId = GetCurrentThreadId();
-	return threading_get_thread_id() + 1;
+	return 1;
 }
 
 

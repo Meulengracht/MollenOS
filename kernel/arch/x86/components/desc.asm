@@ -32,9 +32,8 @@ extern _idt_ptr
 ; void _gdt_install()
 ; Load the given gdt into gdtr
 _gdt_install:
-	; Stack Frame
-	push ebp
-	mov ebp, esp
+	; Save EAX
+	push eax
 
 	; Install GDT
 	lgdt [_gdt_ptr]
@@ -51,22 +50,24 @@ _gdt_install:
 	jmp 0x08:done
 
 	done:
-	; Release stack frame
-	xor eax, eax
-	pop ebp
+	; Restore EAX
+	pop eax
 	ret 
 
 ; void _tss_install(uint32_t gdt_index)
 ; Load the given TSS descriptor
 ; index
 _tss_install:
-	; Stack Frame
+	; Create a stack frame
 	push ebp
 	mov ebp, esp
+
+	; Save registers
+	push eax
 	push ecx
 
 	; Calculate index
-	mov eax, dword [ebp + 8]
+	mov eax, [ebp + 8]
 	mov ecx, 0x8
 	mul ecx
 	or eax, 0x3
@@ -74,9 +75,11 @@ _tss_install:
 	; Load task register
 	ltr ax
 
-	; Release stack frame
+	; Restore
 	pop ecx
-	xor eax, eax
+	pop eax
+
+	; Leave frame
 	pop ebp
 	ret
 
@@ -84,14 +87,8 @@ _tss_install:
 ; Load the given TSS descriptor
 ; index
 _idt_install:
-	; Stack Frame
-	push ebp
-	mov ebp, esp
-
 	; Install IDT
 	lidt [_idt_ptr]
 
-	; Release stack frame
-	xor eax, eax
-	pop ebp
+	; Return
 	ret 

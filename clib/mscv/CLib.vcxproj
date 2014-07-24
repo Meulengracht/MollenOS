@@ -200,7 +200,7 @@
       <PrecompiledHeader>
       </PrecompiledHeader>
       <WarningLevel>EnableAllWarnings</WarningLevel>
-      <Optimization>Full</Optimization>
+      <Optimization>MaxSpeed</Optimization>
       <PreprocessorDefinitions>LIBC_KERNEL;_X86_32</PreprocessorDefinitions>
       <SDLCheck>
       </SDLCheck>

@@ -141,6 +141,9 @@
     <ClCompile Include="..\..\..\arch\x86\drivers\usb\msd\msd_manager.c">
       <Filter>Drivers\Usb\MSD</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\..\arch\x86\drivers\usb\uhci\uhci.c">
+      <Filter>Drivers\Usb\Controllers\UHCI</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <NASM Include="..\..\..\arch\x86\boot\boot.asm">

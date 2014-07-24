@@ -213,6 +213,10 @@ void threading_set_current_node(cpu_t cpu, list_node_t *node)
 }
 
 /* Cleanup a thread */
+void threading_cleanup_thread(thread_t *thread)
+{
+	_CRT_UNUSED(thread);
+}
 
 /* This is actually every thread entry point, 
  * It makes sure to handle ALL threads terminating */
@@ -259,55 +263,57 @@ tid_t threading_create_thread(char *name, thread_entry function, void *args, int
 	/* Allocate a new thread structure */
 	t = (thread_t*)kmalloc(sizeof(thread_t));
 
-	/* Are we bound to a cpu? */
-	if (flags & THREADING_CPUBOUND)
-		t->cpu_id = cpu;
-	else
-		t->cpu_id = 0xDEADBEEF;
-
-	t->time_slice = MCORE_INITIAL_TIMESLICE;
-	t->flags = 0;
-	t->thread_id = glb_thread_id;
+	/* Setup */
+	t->name = strdup(name);
 	t->func = function;
 	t->args = args;
+	t->context = context_create((addr_t)threading_start);
+	t->user_context = NULL;
 
-	/* System thread? */
-	t->priority = -1;
-	
-	/* Get current id */
-	if (parent != NULL)
-		t->parent_id = parent->thread_id;
+	/* If we are CPU bound :/ */
+	if (flags & THREADING_CPUBOUND)
+	{
+		t->flags = X86_THREAD_CPU_BOUND;
+		t->cpu_id = cpu;
+	}
 	else
-		t->parent_id = 0xDEADBEEF;
+	{
+		/* Select the low bearing CPU */
+		t->flags = 0;
+		t->cpu_id = 0xFF;
+	}
+
+	t->parent_id = parent->thread_id;
+	t->thread_id = glb_thread_id;
+	t->sleep_resource = NULL;
+
+	/* Scheduler Related */
+	t->priority = -1;
+	t->time_slice = MCORE_INITIAL_TIMESLICE;
 	
-	/* Allocate Stuff */
-	t->name = strdup(name);
+	/* Memory */
+	t->cr3 = memory_get_cr3();
+	t->page_dir = memory_get_current_pdir(cpu);
+
+	/* FPU */
 	t->fpu_buffer = (addr_t*)kmalloc_a(0x1000);
 
 	/* Memset the buffer */
 	memset(t->fpu_buffer, 0, 0x1000);
 
-	/* Memory Space */
-	t->cr3 = memory_get_cr3();
-	t->page_dir = memory_get_current_pdir(cpu);
-
-	/* Setup a normal stack */
-	t->context = context_create((addr_t)threading_start);
-
-	/* NULL user context */
-	t->user_context = NULL;
-
 	/* Increase id */
 	glb_thread_id++;
-
-	/* Release lock */
-	spinlock_release(&glb_thread_lock);
-	interrupt_set_state(int_state);
 
 	/* Append it to list & scheduler */
 	node = list_create_node(t->thread_id, t);
 	list_append(threads, node);
+
+	/* Ready */
 	scheduler_ready_thread(node);
+
+	/* Release lock */
+	spinlock_release(&glb_thread_lock);
+	interrupt_set_state(int_state);
 
 	return t->thread_id;
 }

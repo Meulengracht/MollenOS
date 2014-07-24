@@ -33,6 +33,7 @@
 
 /* Drivers */
 #include <drivers\clock\clock.h>
+#include <drivers\usb\uhci\uhci.h>
 #include <drivers\usb\ohci\ohci.h>
 #include <drivers\usb\ehci\ehci.h>
 
@@ -1073,7 +1074,13 @@ void drivers_setup_device(void *data, int n)
 					/* Controller Type? */
 
 					/* UHCI -> 0. OHCI -> 0x10. EHCI -> 0x20. xHCI -> 0x30 */
-					if (driver->header->ProgIF == 0x10)
+
+					if (driver->header->ProgIF == 0x0)
+					{
+						/* Initialise Controller */
+						uhci_init(driver);
+					}
+					else if (driver->header->ProgIF == 0x10)
 					{
 						/* Initialise Controller */
 						ohci_init(driver);
@@ -1089,11 +1096,14 @@ void drivers_setup_device(void *data, int n)
 }
 
 /* Initialises all available drivers in system */
-void drivers_init(void)
+void drivers_init(void *args)
 {
 	/* Init list, this is "bus 0" */
 	glb_pci_devices = list_create(LIST_SAFE);
 	glb_pci_acpica = list_create(LIST_SAFE);
+
+	/* Unused */
+	_CRT_UNUSED(args);
 
 	/* Start out by enumerating devices */
 	drivers_enumerate();

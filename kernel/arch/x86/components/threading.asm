@@ -34,16 +34,10 @@ global _enter_thread
 ; void _yield(void)
 ; Yields
 __yield:
-	; Stack Frame
-	push ebp
-	mov ebp, esp
-
 	; call int 0x81
 	int 0x81
 
-	; Release stack frame
-	xor eax, eax
-	pop ebp
+	; Return
 	ret 
 
 ; void save_fpu(addr_t *buffer)
@@ -53,12 +47,17 @@ _save_fpu:
 	push ebp
 	mov ebp, esp
 
+	; Save EAX
+	push eax
+
 	; Save FPU to argument 1
 	mov eax, [ebp + 8]
 	fxsave [eax]
 
+	; Restore EAX
+	pop eax
+
 	; Release stack frame
-	xor eax, eax
 	pop ebp
 	ret 
 
@@ -69,60 +68,51 @@ _load_fpu:
 	push ebp
 	mov ebp, esp
 
+	; Save EAX
+	push eax
+
 	; Save FPU to argument 1
 	mov eax, [ebp + 8]
 	fxrstor [eax]
 
+	; Restore EAX
+	pop eax
+
 	; Release stack frame
-	xor eax, eax
 	pop ebp
 	ret 
 
 ; void set_ts()
 ; Sets the Task-Switch register
 _set_ts:
-	; Stack Frame
-	push ebp
-	mov ebp, esp
+	; Save eax
+	push eax
 
 	; Set TS
 	mov eax, cr0
 	bts eax, 3
 	mov cr0, eax
 
-	; Release stack frame
-	xor eax, eax
-	pop ebp
+	; Restore
+	pop eax
 	ret 
 
 ; void clear_ts()
 ; Clears the Task-Switch register
 _clear_ts:
-	; Stack Frame
-	push ebp
-	mov ebp, esp
-
 	; clear
 	clts
 
-	; Release stack frame
-	xor eax, eax
-	pop ebp
+	; Return
 	ret 
 
 ; void init_fpu()
-; Clears the Task-Switch register
+; Initializes the FPU
 _init_fpu:
-	; Stack Frame
-	push ebp
-	mov ebp, esp
-
 	; fpu init
 	finit
 
-	; Release stack frame
-	xor eax, eax
-	pop ebp
+	; Return
 	ret 
 
 ; void rdtsc(uint64_t *value)
@@ -132,14 +122,21 @@ _rdtsc:
 	push ebp
 	mov ebp, esp
 
+	; Save stuff
+	push eax
+	push ebx
+
 	; Get pointer
 	mov ebx, [ebp + 8]
 	rdtsc
 	mov [ebx], eax
 	mov [ebx + 4], edx
 
+	; Restore
+	pop ebx
+	pop eax
+
 	; Release stack frame
-	xor eax, eax
 	pop ebp
 	ret 
 

@@ -9,13 +9,14 @@
 INCLUDELIB MSVCRT
 INCLUDELIB OLDNAMES
 
-_BSS	SEGMENT
-$SG1502	DB	01H DUP (?)
-$SG1492	DB	01H DUP (?)
-_BSS	ENDS
+PUBLIC	??_C@_00CNPNBAHC@?$AA@				; `string'
 _DATA	SEGMENT
-?ssave@?1??strtok@@9@9 DD FLAT:$SG1502			; `strtok'::`2'::ssave
+?ssave@?1??strtok@@9@9 DD FLAT:??_C@_00CNPNBAHC@?$AA@	; `strtok'::`2'::ssave
 _DATA	ENDS
+;	COMDAT ??_C@_00CNPNBAHC@?$AA@
+CONST	SEGMENT
+??_C@_00CNPNBAHC@?$AA@ DB 00H				; `string'
+CONST	ENDS
 PUBLIC	_strtok_r
 EXTRN	_strcspn:PROC
 EXTRN	_strspn:PROC
@@ -65,7 +66,7 @@ $LN6@strtok_r:
   00026	5f		 pop	 edi
   00027	5e		 pop	 esi
   00028	c7 03 00 00 00
-	00		 mov	 DWORD PTR [ebx], OFFSET $SG1492
+	00		 mov	 DWORD PTR [ebx], OFFSET ??_C@_00CNPNBAHC@?$AA@
 
 ; 23   :          return NULL;
 

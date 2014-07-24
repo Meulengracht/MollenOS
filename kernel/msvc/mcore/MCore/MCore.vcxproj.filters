@@ -36,5 +36,8 @@
     <ClCompile Include="..\..\..\common\ringbuffer.c">
       <Filter>Common</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\..\system\timers.c">
+      <Filter>Systems</Filter>
+    </ClCompile>
   </ItemGroup>
 </Project>

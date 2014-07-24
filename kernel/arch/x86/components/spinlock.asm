@@ -32,6 +32,8 @@ _spinlock_reset:
 	; Stack Frame
 	push ebp
 	mov ebp, esp
+
+	; Save stuff
 	push ebx
 
 	; Get address of lock
@@ -39,7 +41,6 @@ _spinlock_reset:
 	mov dword [ebx], 0
 
 	; Release stack frame
-	xor eax, eax
 	pop ebx
 	pop ebp
 	ret 
@@ -51,6 +52,8 @@ _spinlock_acquire:
 	; Stack Frame
 	push ebp
 	mov ebp, esp
+	
+	; Save stuff
 	push ebx
 
 	; Get address of lock
@@ -84,6 +87,8 @@ _spinlock_release:
 	; Stack Frame
 	push ebp
 	mov ebp, esp
+
+	; Save stuff
 	push ebx
 
 	; Get address of lock
@@ -91,7 +96,6 @@ _spinlock_release:
 	mov dword [ebx], 0
 
 	; Release stack frame
-	xor eax, eax
 	pop ebx
 	pop ebp
 	ret

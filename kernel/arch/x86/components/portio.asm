@@ -30,69 +30,84 @@ global _outb
 global _outw
 global _outl
 
-; void inb(uint16_t port)
+; uint8_t inb(uint16_t port)
 ; Recieves a byte from a port
 _inb:
-	; Stack Frame
+	; Setup frame
 	push ebp
 	mov ebp, esp
+
+	; Save stuff
 	push edx
 
 	; Get byte
-	xor eax, eax
+	xor al, al
 	xor edx, edx
 	mov dx, [ebp + 8]
 	in al, dx
 
-	; Release stack frame
+	; Restore
 	pop edx
+
+	; Leave frame
 	pop ebp
 	ret
 
-; void inw(uint16_t port)
+; uint16_t inw(uint16_t port)
 ; Recieves a word from a port
 _inw:
-	; Stack Frame
+	; Setup frame
 	push ebp
 	mov ebp, esp
+
+	; Save stuff
 	push edx
 
-	; Get byte
-	xor eax, eax
+	; Get word
+	xor ax, ax
 	xor edx, edx
 	mov dx, [ebp + 8]
 	in ax, dx
 
-	; Release stack frame
+	; Restore
 	pop edx
+
+	; Leave
 	pop ebp
 	ret
 
-; void inl(uint16_t port)
+; uint32_t inl(uint16_t port)
 ; Recieves a long from a port
 _inl:
-	; Stack Frame
+	; Setup frame
 	push ebp
 	mov ebp, esp
+
+	; Save stuff
 	push edx
 
-	; Get byte
+	; Get dword
 	xor eax, eax
 	xor edx, edx
 	mov dx, [ebp + 8]
 	in eax, dx
 
-	; Release stack frame
+	; Restore
 	pop edx
+
+	; Leave
 	pop ebp
 	ret
 
 ; void outb(uint16_t port, uint8_t data)
 ; Sends a byte to a port
 _outb:
-	; Stack Frame
+	; Setup frame
 	push ebp
 	mov ebp, esp
+
+	; Save stuff
+	push eax
 	push edx
 
 	; Get data
@@ -102,9 +117,11 @@ _outb:
 	mov al, [ebp + 12]
 	out dx, al
 
-	; Release stack frame
-	xor eax, eax
+	; Restore
 	pop edx
+	pop eax
+
+	; Leave
 	pop ebp
 	ret
 
@@ -114,6 +131,9 @@ _outw:
 	; Stack Frame
 	push ebp
 	mov ebp, esp
+
+	; Save stuff
+	push eax
 	push edx
 
 	; Get data
@@ -123,9 +143,11 @@ _outw:
 	mov ax, [ebp + 12]
 	out dx, ax
 
-	; Release stack frame
-	xor eax, eax
+	; Restore
 	pop edx
+	pop eax
+
+	; Release stack frame
 	pop ebp
 	ret
 
@@ -135,6 +157,9 @@ _outl:
 	; Stack Frame
 	push ebp
 	mov ebp, esp
+
+	; Save stuff
+	push eax
 	push edx
 
 	; Get data
@@ -143,8 +168,10 @@ _outl:
 	mov eax, [ebp + 12]
 	out dx, eax
 
-	; Release stack frame
-	xor eax, eax
+	; Restore
 	pop edx
+	pop eax
+
+	; Release stack frame
 	pop ebp
 	ret

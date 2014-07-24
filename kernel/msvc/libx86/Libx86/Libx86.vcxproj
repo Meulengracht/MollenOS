@@ -2,6 +2,10 @@
 <Project DefaultTargets="Build" ToolsVersion="12.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <Import Project="..\..\packages\nasm.2.10.07\build\native\nasm.props" Condition="Exists('..\..\packages\nasm.2.10.07\build\native\nasm.props')" />
   <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|Win32">
+      <Configuration>Debug</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
     <ProjectConfiguration Include="Release|Win32">
       <Configuration>Release</Configuration>
       <Platform>Win32</Platform>
@@ -49,6 +53,7 @@
     <ClCompile Include="..\..\..\arch\x86\drivers\usb\hid\hid_manager.c" />
     <ClCompile Include="..\..\..\arch\x86\drivers\usb\msd\msd_manager.c" />
     <ClCompile Include="..\..\..\arch\x86\drivers\usb\ohci\ohci.c" />
+    <ClCompile Include="..\..\..\arch\x86\drivers\usb\uhci\uhci.c" />
     <ClCompile Include="..\..\..\arch\x86\drivers\usb\usb_core.c" />
     <ClCompile Include="..\..\..\arch\x86\drivers\usb\usb_functions.c" />
     <ClCompile Include="..\..\..\arch\x86\memory\mm_phys.c" />
@@ -66,6 +71,14 @@
     <RootNamespace>Libx86</RootNamespace>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
+    <ConfigurationType>StaticLibrary</ConfigurationType>
+    <UseDebugLibraries>true</UseDebugLibraries>
+    <PlatformToolset>v100</PlatformToolset>
+    <WholeProgramOptimization>true</WholeProgramOptimization>
+    <CharacterSet>MultiByte</CharacterSet>
+    <UseOfMfc />
+  </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="Configuration">
     <ConfigurationType>StaticLibrary</ConfigurationType>
     <UseDebugLibraries>false</UseDebugLibraries>
@@ -76,11 +89,21 @@
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
   <ImportGroup Label="ExtensionSettings" />
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
   <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
   </ImportGroup>
   <PropertyGroup Label="UserMacros">
     <NuGetPackageImportStamp>3308c32b</NuGetPackageImportStamp>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <OutDir>..\..\..\build\</OutDir>
+    <IncludePath>C:\Users\Phail\Documents\GitHub\MollenOS\kernel\acpica\include;C:\Users\Phail\Documents\GitHub\MollenOS\kernel\include;C:\Users\Phail\Documents\GitHub\MollenOS\kernel\msvc\MCoreConfig;C:\Users\Phail\Documents\GitHub\MollenOS\clib\include;C:\Users\Phail\Documents\GitHub\MollenOS\kernel\arch\x86</IncludePath>
+    <ReferencePath />
+    <LibraryWPath />
+    <LibraryPath>C:\Users\Phail\Documents\GitHub\MollenOS\kernel\build;C:\Users\Phail\Documents\GitHub\MollenOS\clib\build</LibraryPath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <OutDir>..\..\..\build\</OutDir>
@@ -89,6 +112,46 @@
     <LibraryWPath />
     <LibraryPath>C:\Users\Phail\Documents\GitHub\MollenOS\kernel\build;C:\Users\Phail\Documents\GitHub\MollenOS\clib\build</LibraryPath>
   </PropertyGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <ClCompile>
+      <WarningLevel>EnableAllWarnings</WarningLevel>
+      <PrecompiledHeader>
+      </PrecompiledHeader>
+      <Optimization>MaxSpeed</Optimization>
+      <FunctionLevelLinking>true</FunctionLevelLinking>
+      <IntrinsicFunctions>false</IntrinsicFunctions>
+      <PreprocessorDefinitions>MOLLENOS</PreprocessorDefinitions>
+      <SDLCheck>
+      </SDLCheck>
+      <TreatWarningAsError>true</TreatWarningAsError>
+      <ExceptionHandling>false</ExceptionHandling>
+      <BufferSecurityCheck>false</BufferSecurityCheck>
+      <AssemblerOutput>All</AssemblerOutput>
+      <MultiProcessorCompilation>true</MultiProcessorCompilation>
+      <InlineFunctionExpansion>OnlyExplicitInline</InlineFunctionExpansion>
+      <RuntimeLibrary>MultiThreadedDebugDLL</RuntimeLibrary>
+      <ExpandAttributedSource>true</ExpandAttributedSource>
+      <DisableSpecificWarnings>4127</DisableSpecificWarnings>
+      <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
+      <BasicRuntimeChecks>Default</BasicRuntimeChecks>
+      <MinimalRebuild>false</MinimalRebuild>
+    </ClCompile>
+    <Link>
+      <SubSystem>Windows</SubSystem>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <EnableCOMDATFolding>true</EnableCOMDATFolding>
+      <OptimizeReferences>true</OptimizeReferences>
+    </Link>
+    <Lib>
+      <AdditionalDependencies>
+      </AdditionalDependencies>
+    </Lib>
+    <Lib>
+      <IgnoreAllDefaultLibraries>true</IgnoreAllDefaultLibraries>
+      <TargetMachine>MachineX86</TargetMachine>
+      <SubSystem>Native</SubSystem>
+    </Lib>
+  </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <ClCompile>
       <WarningLevel>EnableAllWarnings</WarningLevel>

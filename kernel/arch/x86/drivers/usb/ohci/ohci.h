@@ -64,6 +64,9 @@ typedef struct _o_endpoint_desc
 	 * Lower 4 bits not used */
 	uint32_t next_ed;
 
+	/* Next EP Descriptor (Virtual) */
+	uint32_t next_ed_virt;
+
 	/* HCD Defined Data */
 	uint32_t hcd_data;
 
@@ -304,9 +307,6 @@ typedef struct _o_periodic_callback
 #define X86_OHCI_POOL_NUM_TD			100
 #define X86_OHCI_POOL_NUM_PIPES			10
 
-#define X86_OHCI_POOL_ED_CONTROL_START	0
-#define X86_OHCI_POOL_ED_BULK_START		20
-
 #define X86_OHCI_POOL_TD_CONTROL_START	0
 #define X86_OHCI_POOL_TD_PIPE_START		30
 #define X86_OHCI_POOL_TD_BULK_START		40
@@ -344,8 +344,7 @@ typedef struct _o_controller
 	addr_t *td_pool_buffers[X86_OHCI_POOL_NUM_TD];
 
 	/* Pool Indices */
-	uint32_t ed_index_control;
-	uint32_t ed_index_bulk;
+	uint32_t ed_index;
 	uint32_t td_index_control;
 	uint32_t td_index_bulk;
 
@@ -359,6 +358,12 @@ typedef struct _o_controller
 
 	/* Port Count */
 	uint32_t ports;
+
+	/* Transaction Queue */
+	uint32_t transactions_waiting_control;
+	uint32_t transactions_waiting_bulk;
+	addr_t transaction_queue_control;
+	addr_t transaction_queue_bulk;
 
 	/* Transaction List 
 	 * Contains transactions

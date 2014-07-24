@@ -45,7 +45,7 @@ typedef struct _list_node
 typedef struct _list_main 
 {
 	/* Head and Tail */
-	list_node_t *head, **tailp;
+	list_node_t *head, *tailp;
 
 	/* Attributes */
 	int attributes;
@@ -63,6 +63,7 @@ typedef struct _list_main
 #define LIST_SAFE		0x1
 
 /* Foreach Macro */
+#define _foreach(i, list) for (i = list->head; i != NULL; i = i->link)
 #define foreach(i, list) list_node_t *i; for (i = list->head; i != NULL; i = i->link)
 
 
@@ -76,8 +77,8 @@ _CRT_EXTERN void list_insert(list_t *list, list_node_t *node, int position);
 _CRT_EXTERN void list_insert_front(list_t *list, list_node_t *node);
 _CRT_EXTERN void list_append(list_t *list, list_node_t *node);
 
-_CRT_EXTERN list_node_t *list_pop(list_t *list);
-_CRT_EXTERN list_node_t *list_dequeue(list_t *list);
+_CRT_EXTERN list_node_t *list_pop_front(list_t *list);
+_CRT_EXTERN list_node_t *list_pop_back(list_t *list);
 
 _CRT_EXTERN int list_get_index_by_data(list_t *list, void *data);
 _CRT_EXTERN int list_get_index_by_id(list_t *list, int id);
