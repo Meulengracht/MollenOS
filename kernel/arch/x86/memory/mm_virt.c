@@ -143,7 +143,6 @@ void memory_map(void *page_dir, physaddr_t phys, virtaddr_t virt, uint32_t flags
 {
 	page_directory_t *pdir = (page_directory_t*)page_dir;
 	page_table_t *ptable = NULL;
-	interrupt_status_t int_state;
 	
 	/* Determine page directory */
 	if (pdir == NULL)
@@ -156,7 +155,6 @@ void memory_map(void *page_dir, physaddr_t phys, virtaddr_t virt, uint32_t flags
 	assert(pdir != NULL);
 
 	/* Get spinlock */
-	int_state = interrupt_disable();
 	spinlock_acquire(&pdir->plock);
 
 	/* Does page table exist? */
@@ -168,7 +166,6 @@ void memory_map(void *page_dir, physaddr_t phys, virtaddr_t virt, uint32_t flags
 
 		/* Release spinlock */
 		spinlock_release(&pdir->plock);
-		interrupt_set_state(int_state);
 
 		/* Allocate new table */
 		ntable = (page_table_t*)kmalloc_ap(PAGE_SIZE, &phys_table);
@@ -180,7 +177,6 @@ void memory_map(void *page_dir, physaddr_t phys, virtaddr_t virt, uint32_t flags
 		memset((void*)ntable, 0, sizeof(page_table_t));
 
 		/* Get spinlock */
-		int_state = interrupt_disable();
 		spinlock_acquire(&pdir->plock);
 
 		/* Install it */
@@ -204,7 +200,6 @@ void memory_map(void *page_dir, physaddr_t phys, virtaddr_t virt, uint32_t flags
 
 	/* Release spinlock */
 	spinlock_release(&pdir->plock);
-	interrupt_set_state(int_state);
 
 	/* Invalidate Address */
 	if (page_dir == NULL)
@@ -220,7 +215,6 @@ void memory_unmap(void *page_dir, virtaddr_t virt)
 	page_directory_t *pdir = (page_directory_t*)page_dir;
 	page_table_t *ptable = NULL;
 	physaddr_t phys = 0;
-	interrupt_status_t int_state;
 
 	/* Determine page directory */
 	if (pdir == NULL)
@@ -233,7 +227,6 @@ void memory_unmap(void *page_dir, virtaddr_t virt)
 	assert(pdir != NULL);
 
 	/* Get spinlock */
-	int_state = interrupt_disable();
 	spinlock_acquire(&pdir->plock);
 
 	/* Does page table exist? */
@@ -270,7 +263,6 @@ void memory_unmap(void *page_dir, virtaddr_t virt)
 
 	/* Release spinlock */
 	spinlock_release(&pdir->plock);
-	interrupt_set_state(int_state);
 
 	/* Invalidate Address */
 	if (page_dir == NULL)
@@ -286,7 +278,6 @@ physaddr_t memory_getmap(void *page_dir, virtaddr_t virt)
 	page_directory_t *pdir = (page_directory_t*)page_dir;
 	page_table_t *ptable = NULL;
 	physaddr_t phys = 0;
-	interrupt_status_t int_state;
 
 	/* Determine page directory */
 	if (pdir == NULL)
@@ -299,7 +290,6 @@ physaddr_t memory_getmap(void *page_dir, virtaddr_t virt)
 	assert(pdir != NULL);
 
 	/* Get spinlock */
-	int_state = interrupt_disable();
 	spinlock_acquire(&pdir->plock);
 
 	/* Does page table exist? */
@@ -325,7 +315,10 @@ physaddr_t memory_getmap(void *page_dir, virtaddr_t virt)
 
 	/* Release spinlock */
 	spinlock_release(&pdir->plock);
-	interrupt_set_state(int_state);
+
+	/* Sanity */
+	if (phys == 0)
+		return 0;
 
 	/* Done - Return with offset */
 	return (phys + (virt & ATTRIBUTE_MASK));

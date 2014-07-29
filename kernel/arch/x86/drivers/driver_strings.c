@@ -745,22 +745,22 @@ char *pci_to_string(uint8_t class, uint8_t sub_class, uint8_t prog_if)
 			{
 			case 0:
 			{
-				return "USB UHCI (Universal Host Controller Spec)";
+				return "USB UHCI (Universal Host Controller)";
 			} break;
 
 			case 0x10:
 			{
-				return "USB OHCI (Open Host Controller Spec)";
+				return "USB OHCI (Open Host Controller)";
 			} break;
 
 			case 0x20:
 			{
-				return "USB EHCI (Intel Enhanced Host Controller Interface)";
+				return "USB EHCI (Intel Enhanced Host Controller)";
 			} break;
 
 			case 0x30:
 			{
-				return "USB XHCI (Intel Enhanced Host Controller Interface)";
+				return "USB XHCI (Intel xHanced Host Controller)";
 			} break;
 
 			case 0x80:

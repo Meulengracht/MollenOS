@@ -23,7 +23,7 @@
     </NASM>
     <NASM Include="..\..\..\arch\x86\components\irq.asm" />
     <NASM Include="..\..\..\arch\x86\components\portio.asm" />
-    <NASM Include="..\..\..\arch\x86\components\spinlock.asm">
+    <NASM Include="..\..\..\arch\x86\components\_spinlock.asm">
       <FileType>Document</FileType>
     </NASM>
     <NASM Include="..\..\..\arch\x86\components\threading.asm" />
@@ -40,6 +40,7 @@
     <ClCompile Include="..\..\..\arch\x86\components\gdt.c" />
     <ClCompile Include="..\..\..\arch\x86\components\idt.c" />
     <ClCompile Include="..\..\..\arch\x86\components\interrupts.c" />
+    <ClCompile Include="..\..\..\arch\x86\components\spinlock.c" />
     <ClCompile Include="..\..\..\arch\x86\components\thread.c" />
     <ClCompile Include="..\..\..\arch\x86\components\video.c" />
     <ClCompile Include="..\..\..\arch\x86\components\video_font8x16.c" />

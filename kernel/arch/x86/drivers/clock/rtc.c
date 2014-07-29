@@ -24,6 +24,7 @@
 #include <arch.h>
 #include <lapic.h>
 #include <drivers\clock\clock.h>
+#include <timers.h>
 #include <stddef.h>
 #include <stdio.h>
 
@@ -52,6 +53,9 @@ void clock_irq_handler(void *data)
 
 	/* Update Peroidic Tick Counter */
 	glb_clock_tick = glb_clock_tick + 1;
+
+	/* Apply Timer Time */
+	timers_apply_time(2);
 }
 
 /* Initialization */

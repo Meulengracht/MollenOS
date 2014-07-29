@@ -31,10 +31,18 @@
 #define STD_VIDEO_MEMORY		0xB8000
 
 /* Architecture typedefs */
-typedef volatile unsigned long spinlock_t;
-
 typedef uint32_t interrupt_status_t;
 typedef void(*irq_handler_t)(void*);
+
+typedef struct _x86_spinlock
+{
+	/* The lock itself */
+	volatile unsigned lock;
+
+	/* The INTR state */
+	interrupt_status_t intr_state;
+
+} spinlock_t;
 
 typedef unsigned int physaddr_t;
 typedef unsigned int virtaddr_t;
@@ -146,7 +154,9 @@ _CRT_EXTERN int video_putchar(int character);
 /* Spinlock */
 _CRT_EXTERN void spinlock_reset(spinlock_t *spinlock);
 _CRT_EXTERN int spinlock_acquire(spinlock_t *spinlock);
+_CRT_EXTERN int spinlock_acquire_nint(spinlock_t *spinlock);
 _CRT_EXTERN void spinlock_release(spinlock_t *spinlock);
+_CRT_EXTERN void spinlock_release_nint(spinlock_t *spinlock);
 
 /* Memory */
 #ifndef PAGE_SIZE

@@ -308,6 +308,17 @@ void *AcpiOsMapMemory(
 { 
 	/* Vars */
 	addr_t Acpi_Mapping = memory_get_reserved_mapping(Where);
+	uint32_t Acpi_Pages = (Length / 0x1000) + ((Length % 0x1000) != 0 ? 1 : 0);
+
+	/* We should handle the case where it crosses a page boundary :o */
+	if (Acpi_Pages == 1)
+	{
+		uint32_t current_page = Where & PAGE_MASK;
+		uint32_t end_page = (Where + Length) & PAGE_MASK;
+
+		if (current_page != end_page)
+			Acpi_Pages++;
+	}
 
 	/* We have a few special cases if it returns back to us 0 */
 	if (Acpi_Mapping == 0)
@@ -318,8 +329,7 @@ void *AcpiOsMapMemory(
 		else
 		{
 			/* Sigh... Imap it and hope stuff do not break :(((( */
-			memory_map(NULL, Where, Where, 0);
-			Acpi_Mapping = (addr_t)Where;
+			return (void*)memory_map_system_memory(Where, Acpi_Pages);
 		}
 	}
 
@@ -895,23 +905,20 @@ ACPI_STATUS AcpiOsCreateLock(ACPI_SPINLOCK *OutHandle)
 
 void AcpiOsDeleteLock(ACPI_SPINLOCK Handle)
 {
-	kfree((void*)Handle);
+	kfree(Handle);
 }
 
 ACPI_CPU_FLAGS AcpiOsAcquireLock(ACPI_SPINLOCK Handle)
 {
 	/* Create lock */
-	ACPI_CPU_FLAGS Flags = interrupt_disable();
 	spinlock_acquire((spinlock_t*)Handle);
-
-	return Flags;
+	return 0;
 }
 
 void AcpiOsReleaseLock(ACPI_SPINLOCK Handle, ACPI_CPU_FLAGS Flags)
 {
 	/* Release Lock */
 	spinlock_release((spinlock_t*)Handle);
-	interrupt_set_state(Flags);
 }
 
 /******************************************************************************
@@ -930,7 +937,7 @@ UINT32              MaxUnits,
 UINT32              InitialUnits,
 ACPI_HANDLE         *OutHandle)
 {
-	*OutHandle = (ACPI_HANDLE)1;
+	*OutHandle = (void*)6;
 	return (AE_OK);
 }
 

@@ -144,13 +144,13 @@
     <ClCompile Include="..\..\..\arch\x86\drivers\usb\uhci\uhci.c">
       <Filter>Drivers\Usb\Controllers\UHCI</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\..\arch\x86\components\spinlock.c">
+      <Filter>Components</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <NASM Include="..\..\..\arch\x86\boot\boot.asm">
       <Filter>Startup</Filter>
-    </NASM>
-    <NASM Include="..\..\..\arch\x86\components\spinlock.asm">
-      <Filter>Components</Filter>
     </NASM>
     <NASM Include="..\..\..\arch\x86\components\desc.asm">
       <Filter>Components\Descriptors</Filter>
@@ -166,6 +166,9 @@
     </NASM>
     <NASM Include="..\..\..\arch\x86\components\threading.asm">
       <Filter>Threading</Filter>
+    </NASM>
+    <NASM Include="..\..\..\arch\x86\components\_spinlock.asm">
+      <Filter>Components</Filter>
     </NASM>
   </ItemGroup>
   <ItemGroup>

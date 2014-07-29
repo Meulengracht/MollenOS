@@ -20,7 +20,7 @@
 * Implements scheduling with priority
 * Priority 61 is System Priority.
 * Priority 60 - 0 are Normal Priorties
-* Priorities 60 - 0 start at 10 ms, slowly increases to 300 ms.
+* Priorities 60 - 0 start at 10 ms, slowly increases to 130 ms.
 * Priority boosts every 1000 ms? 
 * On yields, keep priority.
 * On task-switchs, decrease priority.
@@ -240,7 +240,7 @@ list_node_t *scheduler_schedule(cpu_t cpu, list_node_t *node, int preemptive)
 			t->priority++;
 
 			/* Recalculate time-slice */
-			t->time_slice = (t->priority * 5) + MCORE_INITIAL_TIMESLICE;
+			t->time_slice = (t->priority * 2) + MCORE_INITIAL_TIMESLICE;
 		}
 
 		/* Step 2. Add it to appropriate list */

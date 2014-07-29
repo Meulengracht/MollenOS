@@ -38,7 +38,7 @@ extern volatile uint8_t bootstrap_cpu_id;
 extern cpu_info_t boot_cpu_info;
 
 /* Globals */
-spinlock_t glb_boot_lock = 0;
+spinlock_t glb_boot_lock;
 volatile uint32_t glb_cpus_booted = 1;
 
 /* Trampoline Code */
@@ -89,7 +89,7 @@ void ap_entry(void)
 	idt_install();
 
 	/* Shared, need lock */
-	spinlock_acquire(&glb_boot_lock);
+	spinlock_acquire_nint(&glb_boot_lock);
 	
 	/* TSS */
 	gdt_install_tss();
@@ -99,7 +99,7 @@ void ap_entry(void)
 	memory_install_paging(cpu);
 
 	/* Done with shared */
-	spinlock_release(&glb_boot_lock);
+	spinlock_release_nint(&glb_boot_lock);
 
 	/* Enable FPU */
 	if (boot_cpu_info.edx_features & CPUID_FEAT_EDX_FPU)

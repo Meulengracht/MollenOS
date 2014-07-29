@@ -61,6 +61,7 @@ void video_init(void *bootinfo)
 			gfx_info.ResY = 50;
 			gfx_info.BitsPerPixel = 16;
 			gfx_info.GraphicMode = 1;
+			gfx_info.BytesPerScanLine = 2 * 80;
 			gfx_info.VideoAddr = STD_VIDEO_MEMORY;
 
 		} break;
@@ -115,7 +116,6 @@ int video_putchar(int character)
 	uint32_t row, i;
 
 	/* Get spinlock */
-	interrupt_status_t int_state = interrupt_disable();
 	spinlock_acquire(&term.lock);
 
 	/* Handle Special Characters */
@@ -183,7 +183,6 @@ int video_putchar(int character)
 
 	/* Release spinlock */
 	spinlock_release(&term.lock);
-	interrupt_set_state(int_state);
 
 	return character;
 }

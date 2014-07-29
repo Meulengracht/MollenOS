@@ -714,7 +714,7 @@ void ohci_setup(ohci_controller_t *controller)
 
 	/* Port Functions */
 	hc->root_hub_check = ohci_ports_check;
-	hc->port_status = ohci_port_status;
+	hc->port_setup = ohci_port_status;
 
 	/* Transaction Functions */
 	hc->transaction_init = ohci_transaction_init;
@@ -868,12 +868,10 @@ void ohci_reset(ohci_controller_t *controller)
 /* ED Functions */
 uint32_t ohci_allocate_ep(ohci_controller_t *controller)
 {
-	interrupt_status_t int_state;
 	int32_t index = -1;
 	ohci_endpoint_desc_t *ed;
 
 	/* Pick a QH */
-	int_state = interrupt_disable();
 	spinlock_acquire(&controller->lock);
 
 	/* Grap it, locked operation */
@@ -897,7 +895,6 @@ uint32_t ohci_allocate_ep(ohci_controller_t *controller)
 
 	/* Release lock */
 	spinlock_release(&controller->lock);
-	interrupt_set_state(int_state);
 
 	return (uint32_t)index;
 }
@@ -929,12 +926,10 @@ void ohci_ep_init(ohci_endpoint_desc_t *ep, addr_t first_td, uint32_t type,
 /* TD Functions */
 uint32_t ohci_allocate_td(ohci_controller_t *controller)
 {
-	interrupt_status_t int_state;
 	int32_t index = -1;
 	ohci_gtransfer_desc_t *td;
 
 	/* Pick a QH */
-	int_state = interrupt_disable();
 	spinlock_acquire(&controller->lock);
 
 	/* Grap it, locked operation */
@@ -958,7 +953,6 @@ uint32_t ohci_allocate_td(ohci_controller_t *controller)
 
 	/* Release lock */
 	spinlock_release(&controller->lock);
-	interrupt_set_state(int_state);
 
 	return (uint32_t)index;
 }
@@ -1198,7 +1192,6 @@ void ohci_transaction_send(void *controller, usb_hc_request_t *request)
 	usb_hc_transaction_t *transaction = request->transactions;
 	ohci_controller_t *ctrl = (ohci_controller_t*)controller;
 	int completed = 1;
-	interrupt_status_t int_state = 0;
 	ohci_gtransfer_desc_t *td = NULL;
 	uint32_t condition_code;
 	addr_t ed_address;
@@ -1218,7 +1211,6 @@ void ohci_transaction_send(void *controller, usb_hc_request_t *request)
 		request->device->address, request->endpoint, request->length, request->lowspeed);
 
 	/* Now lets try the transaction */
-	int_state = interrupt_disable();
 	spinlock_acquire(&ctrl->lock);
 
 	/* Set true */
@@ -1254,7 +1246,6 @@ void ohci_transaction_send(void *controller, usb_hc_request_t *request)
 
 			/* Release spinlock */
 			spinlock_release(&ctrl->lock);
-			interrupt_set_state(int_state);
 		}
 		else
 		{
@@ -1267,7 +1258,6 @@ void ohci_transaction_send(void *controller, usb_hc_request_t *request)
 
 			/* Release spinlock */
 			spinlock_release(&ctrl->lock);
-			interrupt_set_state(int_state);
 
 			/* Set Lists Filled (Enable Them) */
 			ctrl->registers->HcCommandStatus |= X86_OHCI_CMD_TDACTIVE_CTRL;
@@ -1299,7 +1289,6 @@ void ohci_transaction_send(void *controller, usb_hc_request_t *request)
 			
 			/* Release spinlock */
 			spinlock_release(&ctrl->lock);
-			interrupt_set_state(int_state);
 		}
 		else
 		{
@@ -1312,7 +1301,6 @@ void ohci_transaction_send(void *controller, usb_hc_request_t *request)
 
 			/* Release spinlock */
 			spinlock_release(&ctrl->lock);
-			interrupt_set_state(int_state);
 
 			/* Set Lists Filled (Enable Them) */
 			ctrl->registers->HcCommandStatus |= X86_OHCI_CMD_TDACTIVE_BULK;
@@ -1371,7 +1359,6 @@ void ohci_install_interrupt(void *controller, usb_hc_device_t *device, usb_hc_en
 	usb_hc_t *hcd = device->hcd;
 	ohci_controller_t *ctrl = (ohci_controller_t*)controller;
 	ohci_endpoint_desc_t *ep = NULL, *iep = NULL;
-	interrupt_status_t int_state;
 	ohci_gtransfer_desc_t *td = NULL;
 	void *td_buffer = NULL;
 	uint32_t period = 32;
@@ -1434,7 +1421,6 @@ void ohci_install_interrupt(void *controller, usb_hc_device_t *device, usb_hc_en
 
 	/* Ok, queue it
 	 * Lock & stop ints */
-	int_state = interrupt_disable();
 	spinlock_acquire(&ctrl->lock);
 
 	if (period == 1)
@@ -1528,7 +1514,6 @@ void ohci_install_interrupt(void *controller, usb_hc_device_t *device, usb_hc_en
 
 	/* Done */
 	spinlock_release(&ctrl->lock);
-	interrupt_set_state(int_state);
 
 	/* Enable Queue in case it was disabled */
 	ctrl->registers->HcControl |= X86_OCHI_CTRL_PERIODIC_LIST;

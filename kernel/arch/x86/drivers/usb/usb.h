@@ -461,7 +461,7 @@ typedef struct _usb_hc
 
 	/* Port Functions */
 	void (*root_hub_check)(void *);
-	void (*port_status)(void *, usb_hc_port_t *);
+	void (*port_setup)(void *, usb_hc_port_t *);
 
 	/* Transaction Functions */
 	void (*transaction_init)(void*, struct _usb_hc_request*);
@@ -525,9 +525,6 @@ _CRT_EXTERN int usb_function_send_packet(usb_hc_t *hc, int port, void *buffer, u
 
 /* Events */
 _CRT_EXTERN void usb_event_create(usb_hc_t *hc, int port, uint32_t type);
-
-/* Ports */
-_CRT_EXTERN usb_hc_port_t *usb_create_port(usb_hc_t *hc, int port);
 
 /* Gets */
 _CRT_EXTERN usb_hc_t *usb_get_hcd(uint32_t controller_id);

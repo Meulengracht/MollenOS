@@ -56,13 +56,8 @@ list_node_t *list_create_node(int id, void *data)
 void list_insert_front(list_t *list, list_node_t *node)
 {
 	/* Get lock */
-	interrupt_status_t int_state = 0;
-
 	if (list->attributes & LIST_SAFE)
-	{
-		int_state = interrupt_disable();
 		spinlock_acquire(&list->lock);
-	}
 
 	/* Empty list  ? */
 	if (list->head == NULL)
@@ -81,27 +76,19 @@ void list_insert_front(list_t *list, list_node_t *node)
 
 	/* Release Lock */
 	if (list->attributes & LIST_SAFE)
-	{
 		spinlock_release(&list->lock);
-		interrupt_set_state(int_state);
-	}
 }
 
 /* Appends a node at the end of this list. */
 void list_append(list_t *list, list_node_t *node) 
 {
-	interrupt_status_t int_state = 0;
-
 	/* Sanity */
 	if (list == NULL || node == NULL)
 		return;
 
 	/* Get lock */
 	if (list->attributes & LIST_SAFE)
-	{
-		int_state = interrupt_disable();
 		spinlock_acquire(&list->lock);
-	}
 
 	/* Empty list ? */
 	if (list->head == NULL)
@@ -122,9 +109,6 @@ void list_append(list_t *list, list_node_t *node)
 	/* Release Lock */
 	if (list->attributes & LIST_SAFE)
 		spinlock_release(&list->lock);
-		interrupt_set_state(int_state);
-	{
-	}
 }
 
 /* Removes a node from this list. */
@@ -133,11 +117,14 @@ void list_remove_by_node(list_t *list, list_node_t* node)
 	/* Traverse the list to find the next pointer of the
 	* node that comes before the one to be removed. */
 	list_node_t *i = NULL, *prev = NULL;
-	interrupt_status_t int_state = 0;
 
 	/* Sanity */
 	if (list == NULL && list->head != NULL)
 		return;
+
+	/* Get lock */
+	if (list->attributes & LIST_SAFE)
+		spinlock_acquire(&list->lock);
 
 	/* Loop and locate */
 	_foreach(i, list)
@@ -172,10 +159,7 @@ void list_remove_by_node(list_t *list, list_node_t* node)
 
 	/* Release Lock */
 	if (list->attributes & LIST_SAFE)
-	{
 		spinlock_release(&list->lock);
-		interrupt_set_state(int_state);
-	}
 }
 
 /* Removes a node from START of list. */
@@ -184,7 +168,6 @@ list_node_t *list_pop_front(list_t *list)
 	/* Traverse the list to find the next pointer of the
 	* node that comes before the one to be removed. */
 	list_node_t *curr = NULL;
-	interrupt_status_t int_state = 0;
 
 	/* Sanity */
 	if (list == NULL && list->head != NULL)
@@ -192,10 +175,7 @@ list_node_t *list_pop_front(list_t *list)
 
 	/* Get lock */
 	if (list->attributes & LIST_SAFE)
-	{
-		int_state = interrupt_disable();
 		spinlock_acquire(&list->lock);
-	}
 
 	/* Sanity */
 	if (list->head != NULL)
@@ -210,10 +190,7 @@ list_node_t *list_pop_front(list_t *list)
 
 	/* Release Lock */
 	if (list->attributes & LIST_SAFE)
-	{
 		spinlock_release(&list->lock);
-		interrupt_set_state(int_state);
-	}
 
 	/* Return */
 	return curr;

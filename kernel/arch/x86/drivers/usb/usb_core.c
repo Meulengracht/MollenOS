@@ -35,12 +35,14 @@ list_t *glb_usb_controllers = NULL;
 list_t *glb_usb_devices = NULL;
 list_t *glb_usb_events = NULL;
 semaphore_t *glb_event_lock = NULL;
+volatile uint32_t glb_initialized = 0;
 volatile uint32_t glb_usb_id = 0;
 
 /* Prototypes */
 void usb_core_event_handler(void*);
 void usb_device_setup(usb_hc_t *hc, int port);
 void usb_device_destroy(usb_hc_t *hc, int port);
+usb_hc_port_t *usb_create_port(int port);
 
 /* Gets called once a USB controller is registreret */
 void usb_core_init(void)
@@ -49,6 +51,7 @@ void usb_core_init(void)
 	glb_usb_controllers = list_create(LIST_SAFE);
 	glb_usb_events = list_create(LIST_SAFE);
 	glb_usb_id = 0;
+	glb_initialized = 0xDEADBEEF;
 
 	/* Initialize Event Semaphore */
 	glb_event_lock = semaphore_create(0);
@@ -78,7 +81,7 @@ uint32_t usb_register_controller(usb_hc_t *controller)
 	uint32_t id;
 
 	/* First call? */
-	if (glb_usb_controllers == NULL)
+	if (glb_initialized != 0xDEADBEEF)
 	{
 		/* Oh shit, put hat on quick! */
 		usb_core_init();
@@ -120,7 +123,7 @@ void usb_device_setup(usb_hc_t *hc, int port)
 
 	/* Make sure we have the port allocated */
 	if (hc->ports[port] == NULL)
-		hc->ports[port] = usb_create_port(hc, port);
+		hc->ports[port] = usb_create_port(port);
 
 	/* Create a device */
 	device = (usb_hc_device_t*)kmalloc(sizeof(usb_hc_device_t));
@@ -151,8 +154,11 @@ void usb_device_setup(usb_hc_t *hc, int port)
 	/* Bind it */
 	hc->ports[port]->device = device;
 
-	//if (device != NULL)
-	//	return;
+	/* Allow 150 ms for insertion to complete */
+	clock_stall(150);
+
+	/* Setup Port */
+	hc->port_setup(hc->hc, hc->ports[port]);
 
 	/* Set Device Address (Just bind it to the port number + 1 (never set address 0) ) */
 	if (!usb_function_set_address(hc, port, (uint32_t)(port + 1)))
@@ -164,6 +170,9 @@ void usb_device_setup(usb_hc_t *hc, int port)
 			return;
 		}
 	}
+
+	/* After SetAddress device is allowed 2 ms recovery */
+	clock_stall(2);
 
 	/* Get Device Descriptor */
 	if (!usb_function_get_device_descriptor(hc, port))
@@ -239,7 +248,7 @@ void usb_device_destroy(usb_hc_t *hc, int port)
 }
 
 /* Ports */
-usb_hc_port_t *usb_create_port(usb_hc_t *hc, int port)
+usb_hc_port_t *usb_create_port(int port)
 {
 	usb_hc_port_t *hc_port;
 
@@ -248,7 +257,6 @@ usb_hc_port_t *usb_create_port(usb_hc_t *hc, int port)
 
 	/* Get Port Status */
 	hc_port->id = port;
-	hc->port_status(hc->hc, hc_port);
 
 	/* Done */
 	return hc_port;

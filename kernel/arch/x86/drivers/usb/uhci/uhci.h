@@ -31,6 +31,8 @@
 #define X86_UHCI_MAX_PORTS				7
 #define X86_UHCI_STRUCT_ALIGN			16
 #define X86_UHCI_STRUCT_ALIGN_BITS		0xF
+#define X86_UHCI_NUM_FRAMES				1024
+#define X86_UHCI_USBRES_INTEL			0xc4
 
 /* Registers */
 #define X86_UHCI_REGISTER_COMMAND		0x00
@@ -122,6 +124,9 @@ typedef struct _u_transfer_descriptor
 	/* Buffer Pointer */
 	uint32_t buffer;
 
+	/* 4 Dwords for software use */
+	uint32_t usable[4];
+
 } uhci_transfer_desc_t;
 
 /* Link bit switches */
@@ -132,7 +137,12 @@ typedef struct _u_transfer_descriptor
 /* Control / Status bit switches */
 #define X86_UHCI_TD_ACTUAL_LENGTH_BITS	0x7FF
 #define X86_UHCI_TD_CTRL_ACTIVE			0x800000
-#define X86_UHCI_TD_LOWSPEED			0x1000000
+#define X86_UHCI_TD_IOC					0x1000000
+#define X86_UHCI_TD_ISOCHRONOUS			0x2000000
+#define X86_UHCI_TD_LOWSPEED			0x4000000
+#define X86_UHCI_TD_SET_ERR_CNT(n)		((n & 0x3) << 27)
+#define X86_UHCI_TD_ERROR_COUNT(n)		((n & 0x18000000) >> 27)
+#define X86_UHCI_TD_STATUS(n)			((n & 0x7E0000) >> 17)
 
 /* Header bit switches */
 #define X86_UHCI_TD_PID_SETUP			0x2D
@@ -157,20 +167,44 @@ typedef struct _u_queue_head
 	uint32_t head_ptr;
 
 	/* Controller Driver Specific 
-	 * Bit 0: If set, this is in use */
+	 * Bit 0: If set, this is in use 
+	 * Bit 1-7: Pool Number
+	 * Bit 8-15: Queue Head Index 
+	 * Bit 16-17: Queue Head Type (00 Control, 01 Bulk, 10 Interrupt, 11 Isochronous) */
 	uint32_t flags;
 
-	/* QH Pool Index */
-	uint32_t qh_index;
+	/* Driver Data */
+	uint32_t hcd_data;
+
+	/* Virtual Address of next QH */
+	uint32_t link;
+
+	/* Virtual Address of TD Head */
+	uint32_t head;
+
+	/* Padding */
+	uint32_t padding[2];
 
 } uhci_queue_head_t;
 
 /* Flag bit switches */
 #define X86_UHCI_QH_ACTIVE				0x1
+#define X86_UHCI_QH_POOL_NUM(n)			((n & 0x7F) << 1)
+#define X86_UHCI_QH_INDEX(n)			((n & 0xFF) << 8)
+#define X86_UHCI_QH_TYPE(n)				((n & 0x3) << 16)
+
+#define X86_UHCI_QH_SET_POOL_NUM(n)		((n << 1) & 0xFE)	
 
 /* Pool Definitions */
 #define X86_UHCI_POOL_NUM_TD			100
-#define X86_UHCI_POOL_NUM_QH			50
+#define X86_UHCI_POOL_NUM_QH			60
+
+#define X86_UHCI_POOL_NULL_TD			0
+
+#define X86_UHCI_POOL_UNSCHEDULE		0
+#define X86_UHCI_POOL_ISOCHRONOUS		1
+#define X86_UHCI_POOL_ASYNC				9
+#define X86_UHCI_POOL_NULL				10
 
 #pragma pack(push, 1)
 typedef struct _u_controller
@@ -187,6 +221,9 @@ typedef struct _u_controller
 
 	/* I/O Registers */
 	uint16_t io_base;
+
+	/* State */
+	uint32_t initialized;
 
 	/* Frame List */
 	void *frame_list;

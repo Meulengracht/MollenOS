@@ -58,10 +58,7 @@ void semaphore_destroy(semaphore_t *sem)
 /* Acquire Lock */
 void semaphore_P(semaphore_t *sem)
 {
-	interrupt_status_t int_state;
-
 	/* Lock */
-	int_state = interrupt_disable();
 	spinlock_acquire(&sem->lock);
 
 	sem->value--;
@@ -74,27 +71,19 @@ void semaphore_P(semaphore_t *sem)
 	}
 	else
 		spinlock_release(&sem->lock);
-
-	/* Release */
-	interrupt_set_state(int_state);
 }
 
 /* Release Lock */
 void semaphore_V(semaphore_t *sem)
 {
-	interrupt_status_t int_state;
-
 	/* Lock */
-	int_state = interrupt_disable();
 	spinlock_acquire(&sem->lock);
 
-
+	/* Do Magic */
 	sem->value++;
 	if (sem->value <= 0)
 		scheduler_wakeup_one((addr_t*)sem);
 
-	spinlock_release(&sem->lock);
-	
 	/* Release */
-	interrupt_set_state(int_state);
+	spinlock_release(&sem->lock);
 }

@@ -34,7 +34,7 @@ heap_t *heap = NULL;
 volatile addr_t heap_mem_start = MEMORY_LOCATION_HEAP + MEMORY_STATIC_OFFSET;
 volatile addr_t heap_s_current = MEMORY_LOCATION_HEAP;
 volatile addr_t heap_s_max = MEMORY_LOCATION_HEAP;
-spinlock_t heap_plock = 0;
+spinlock_t heap_plock;
 
 /* Heap Statistics */
 volatile addr_t heap_bytes_allocated = 0;
@@ -48,11 +48,9 @@ volatile addr_t heap_num_pages = 0;
 
 addr_t *heap_salloc(size_t sz)
 {
-	interrupt_status_t int_state;
 	addr_t *ret;
 
 	/* Acquire Lock */
-	int_state = interrupt_disable();
 	spinlock_acquire(&heap_plock);
 
 	/* Sanity */
@@ -74,7 +72,6 @@ addr_t *heap_salloc(size_t sz)
 
 	/* Release Lock */
 	spinlock_release(&heap_plock);
-	interrupt_set_state(int_state);
 
 	return ret;
 }
@@ -82,13 +79,11 @@ addr_t *heap_salloc(size_t sz)
 void heap_add_block_to_list(heap_block_t *block)
 {
 	heap_block_t *current_block, *previous_block;
-	interrupt_status_t int_state;
 
 	/* Sanity */
 	assert(block != NULL);
 
 	/* Acquire Lock */
-	int_state = interrupt_disable();
 	spinlock_acquire(&heap_plock);
 
 	/* Loop To End */
@@ -106,15 +101,11 @@ void heap_add_block_to_list(heap_block_t *block)
 
 	/* Release Lock */
 	spinlock_release(&heap_plock);
-	interrupt_set_state(int_state);
 }
 
 void heap_remove_block_from_list(heap_block_t **previous_block, heap_block_t **node)
 {
-	interrupt_status_t int_state;
-
 	/* Acquire Lock */
-	int_state = interrupt_disable();
 	spinlock_acquire(&heap_plock);
 
 	/* Sanity */
@@ -128,7 +119,6 @@ void heap_remove_block_from_list(heap_block_t **previous_block, heap_block_t **n
 
 	/* Release Lock */
 	spinlock_release(&heap_plock);
-	interrupt_set_state(int_state);
 }
 
 addr_t heap_page_align_roundup(addr_t addr)
@@ -258,7 +248,6 @@ addr_t heap_allocate_in_block(heap_block_t *block, size_t size)
 	uint32_t i;
 
 	/* Get spinlock */
-	interrupt_status_t int_state = interrupt_disable();
 	spinlock_acquire(&block->plock);
 
 	/* Make sure we map enough pages */
@@ -317,7 +306,6 @@ addr_t heap_allocate_in_block(heap_block_t *block, size_t size)
 
 	/* Release spinlock */
 	spinlock_release(&block->plock);
-	interrupt_set_state(int_state);
 
 	if (return_addr != 0)
 	{
@@ -554,7 +542,6 @@ void heap_free_in_node(heap_block_t *block, addr_t addr)
 	heap_node_t *current_node = block->nodes, *previous_node = NULL;
 
 	/* Get spinlock */
-	interrupt_status_t int_state = interrupt_disable();
 	spinlock_acquire(&block->plock);
 
 	/* Standard block freeing algorithm */
@@ -628,7 +615,6 @@ void heap_free_in_node(heap_block_t *block, addr_t addr)
 
 	/* Release spinlock */
 	spinlock_release(&block->plock);
-	interrupt_set_state(int_state);
 }
 
 /* Finds the appropriate block

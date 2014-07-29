@@ -39,7 +39,7 @@ volatile tid_t glb_thread_id = 0;
 volatile list_node_t *glb_current_threads[64];
 volatile list_node_t *glb_idle_threads[64];
 volatile uint8_t glb_threading_enabled = 0;
-spinlock_t glb_thread_lock = 0;
+spinlock_t glb_thread_lock;
 
 /* Externs */
 extern volatile uint32_t timer_quantum;
@@ -136,7 +136,7 @@ void threading_ap_init(void)
 	list_node_t *node;
 
 	/* Acquire Lock */
-	spinlock_acquire(&glb_thread_lock);
+	spinlock_acquire_nint(&glb_thread_lock);
 
 	/* Setup initial thread */
 	cpu = get_cpu();
@@ -170,7 +170,7 @@ void threading_ap_init(void)
 	glb_thread_id++;
 
 	/* Release */
-	spinlock_release(&glb_thread_lock);
+	spinlock_release_nint(&glb_thread_lock);
 }
 
 /* Get Current Thread */
@@ -248,12 +248,10 @@ void threading_start(void)
 tid_t threading_create_thread(char *name, thread_entry function, void *args, int flags)
 {
 	thread_t *t, *parent;
-	interrupt_status_t int_state;
 	cpu_t cpu;
 	list_node_t *node;
 
 	/* Get spinlock */
-	int_state = interrupt_disable();
 	spinlock_acquire(&glb_thread_lock);
 
 	/* Get cpu */
@@ -313,7 +311,6 @@ tid_t threading_create_thread(char *name, thread_entry function, void *args, int
 
 	/* Release lock */
 	spinlock_release(&glb_thread_lock);
-	interrupt_set_state(int_state);
 
 	return t->thread_id;
 }

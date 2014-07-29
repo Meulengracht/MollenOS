@@ -68,7 +68,13 @@ tmid_t timers_create_periodic(timer_handler_t callback, void *arg, uint32_t ms)
 /* This should be called by only ONE periodic irq */
 void timers_apply_time(uint32_t ms)
 {
-	foreach(i, glb_timers)
+	list_node_t *i;
+
+	/* Sanity */
+	if (glb_timers_initialized != 0xDEADBEEF)
+		return;
+
+	_foreach(i, glb_timers)
 	{
 		timer_t *timer = (timer_t*)i->data;
 		timer->ms_left -= ms;

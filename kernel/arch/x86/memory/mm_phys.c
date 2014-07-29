@@ -35,7 +35,7 @@ volatile uint32_t memory_bitmap_size = 0;
 volatile uint32_t memory_blocks = 0;
 volatile uint32_t memory_usedblocks = 0;
 volatile uint32_t memory_size = 0;
-spinlock_t memory_plock = 0;
+spinlock_t memory_plock;
 
 /* Reserved Regions */
 sys_mappings_t reserved_mappings[32];
@@ -70,10 +70,6 @@ int memory_get_free_bit_low(void)
 	int j;
 	int rbit = -1;
 
-	/* Get spinlock */
-	interrupt_status_t int_state = interrupt_disable();
-	spinlock_acquire(&memory_plock);
-
 	/* Find time! */
 	for (i = 1; i < 8; i++)
 	{
@@ -94,10 +90,6 @@ int memory_get_free_bit_low(void)
 		if (rbit != -1)
 			break;
 	}
-
-	/* Release Spinlock */
-	spinlock_release(&memory_plock);
-	interrupt_set_state(int_state);
 
 	/* Return frame */
 	return rbit;
@@ -282,7 +274,6 @@ void physmem_free_block(physaddr_t addr)
 {
 	/* Calculate Bit */
 	int bit = (int32_t)(addr / PAGE_SIZE);
-	interrupt_status_t int_state;
 
 	/* Sanity */
 	if (addr > memory_size
@@ -290,7 +281,6 @@ void physmem_free_block(physaddr_t addr)
 		return;
 
 	/* Get spinlock */
-	int_state = interrupt_disable();
 	spinlock_acquire(&memory_plock);
 
 	/* Sanity */
@@ -301,7 +291,6 @@ void physmem_free_block(physaddr_t addr)
 
 	/* Release Spinlock */
 	spinlock_release(&memory_plock);
-	interrupt_set_state(int_state);
 
 	/* Statistics */
 	if (memory_usedblocks != 0)
@@ -312,10 +301,8 @@ physaddr_t physmem_alloc_block(void)
 {
 	/* Get free bit */
 	int bit;
-	interrupt_status_t int_state;
 
 	/* Get spinlock */
-	int_state = interrupt_disable();
 	spinlock_acquire(&memory_plock);
 
 	bit = memory_get_free_bit_high();
@@ -328,7 +315,6 @@ physaddr_t physmem_alloc_block(void)
 
 	/* Release Spinlock */
 	spinlock_release(&memory_plock);
-	interrupt_set_state(int_state);
 
 	/* Statistics */
 	memory_usedblocks++;
@@ -339,22 +325,21 @@ physaddr_t physmem_alloc_block(void)
 physaddr_t physmem_alloc_block_dma(void)
 {
 	/* Get free bit */
-	int bit = memory_get_free_bit_low();
-	interrupt_status_t int_state;
+	int bit;
+
+	/* Get spinlock */
+	spinlock_acquire(&memory_plock);
+
+	bit = memory_get_free_bit_low();
 
 	/* Sanity */
 	assert(bit != -1);
-
-	/* Get spinlock */
-	int_state = interrupt_disable();
-	spinlock_acquire(&memory_plock);
 
 	/* Set it */
 	memory_setbit(bit);
 
 	/* Release Spinlock */
 	spinlock_release(&memory_plock);
-	interrupt_set_state(int_state);
 
 	/* Statistics */
 	memory_usedblocks++;

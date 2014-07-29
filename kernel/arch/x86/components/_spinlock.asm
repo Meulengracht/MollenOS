@@ -23,11 +23,11 @@ segment .text
 
 ;Functions in this asm
 global _spinlock_reset
-global _spinlock_acquire
-global _spinlock_release
+global __spinlock_acquire
+global __spinlock_release
 
 ; void spinlock_reset(spinlock_t *spinlock)
-; We set the spinlock to value 0
+; We null the lock
 _spinlock_reset:
 	; Stack Frame
 	push ebp
@@ -38,9 +38,17 @@ _spinlock_reset:
 
 	; Get address of lock
 	mov ebx, dword [ebp + 8]
+
+	; Sanity
+	test ebx, ebx
+	je .done
+
+	; Ok, we assume valid pointer, set it to 0
 	mov dword [ebx], 0
+	mov dword [ebx + 4], 0
 
 	; Release stack frame
+	.done:
 	pop ebx
 	pop ebp
 	ret 
@@ -48,7 +56,7 @@ _spinlock_reset:
 ; int spinlock_acquire(spinlock_t *spinlock)
 ; We wait for the spinlock to become free
 ; then set value to 1 to mark it in use.
-_spinlock_acquire:
+__spinlock_acquire:
 	; Stack Frame
 	push ebp
 	mov ebp, esp
@@ -58,6 +66,12 @@ _spinlock_acquire:
 
 	; Get address of lock
 	mov ebx, dword [ebp + 8]
+
+	; Sanity
+	test ebx, ebx
+	je .gotlock
+
+	; We use this to test
 	mov eax, 1
 
 	; Try to get lock
@@ -83,7 +97,7 @@ _spinlock_acquire:
 
 ; void spinlock_release(spinlock_t *spinlock)
 ; We set the spinlock to value 0
-_spinlock_release:
+__spinlock_release:
 	; Stack Frame
 	push ebp
 	mov ebp, esp
@@ -93,9 +107,16 @@ _spinlock_release:
 
 	; Get address of lock
 	mov ebx, dword [ebp + 8]
+	
+	; Sanity
+	test ebx, ebx
+	je .done
+
+	; Ok, we assume valid pointer, set it to 0
 	mov dword [ebx], 0
 
 	; Release stack frame
+	.done:
 	pop ebx
 	pop ebp
 	ret
