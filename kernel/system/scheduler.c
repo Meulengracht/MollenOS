@@ -84,7 +84,7 @@ void scheduler_boost(scheduler_t *scheduler)
 
 	/* Step 1. Loop through all queues, pop their elements and append them to queue 0
 	 * Reset time-slices */
-	for (i = 1; i < MCORE_SYSTEM_QUEUE; i++)
+	for (i = 1; i < MCORE_SCHEDULER_LEVELS; i++)
 	{
 		if (scheduler->queues[i]->length > 0)
 		{
@@ -234,7 +234,7 @@ list_node_t *scheduler_schedule(cpu_t cpu, list_node_t *node, int preemptive)
 
 		/* Step 1. Is this a YIELD?!?!? */
 		if (preemptive != 0
-			&& t->priority < (MCORE_SYSTEM_QUEUE - 1)) /* Must be below 59, 59 is highest normal queue */
+			&& t->priority < MCORE_SYSTEM_QUEUE) /* Must be below 60, 60 is highest normal queue */
 		{
 			/* Reduce priority */
 			t->priority++;
@@ -250,7 +250,7 @@ list_node_t *scheduler_schedule(cpu_t cpu, list_node_t *node, int preemptive)
 		time_slice = MCORE_INITIAL_TIMESLICE;
 
 	/* Acquire Lock */
-	spinlock_acquire(&glb_schedulers[cpu]->lock);
+	spinlock_acquire_nint(&glb_schedulers[cpu]->lock);
 
 	/* Step 3. Boost??? */
 	glb_schedulers[cpu]->boost_timer += time_slice;
@@ -262,23 +262,10 @@ list_node_t *scheduler_schedule(cpu_t cpu, list_node_t *node, int preemptive)
 		glb_schedulers[cpu]->boost_timer = 0;
 	}
 
-	/* Get next node */
-
-	/* Step 4. Always do system nodes first */
-	if (glb_schedulers[cpu]->queues[MCORE_SYSTEM_QUEUE]->length > 0)
+	/* Step 4. Get next node */
+	for (i = 0; i < MCORE_SCHEDULER_LEVELS; i++)
 	{
-		next = list_pop_front(glb_schedulers[cpu]->queues[MCORE_SYSTEM_QUEUE]);
-
-		if (next != NULL)
-		{
-			glb_schedulers[cpu]->num_threads--;
-			goto done;
-		}
-	}
-
-	/* Step 5. Then normal */
-	for (i = 0; i < MCORE_SYSTEM_QUEUE; i++)
-	{
+		/* Do we even have any nodes in here ? */
 		if (glb_schedulers[cpu]->queues[i]->length > 0)
 		{
 			next = list_pop_front(glb_schedulers[cpu]->queues[i]);
@@ -288,7 +275,6 @@ list_node_t *scheduler_schedule(cpu_t cpu, list_node_t *node, int preemptive)
 				glb_schedulers[cpu]->num_threads--;
 				goto done;
 			}
-				
 		}
 	}
 
@@ -296,7 +282,7 @@ list_node_t *scheduler_schedule(cpu_t cpu, list_node_t *node, int preemptive)
 done:
 
 	/* Release Lock */
-	spinlock_release(&glb_schedulers[cpu]->lock);
+	spinlock_release_nint(&glb_schedulers[cpu]->lock);
 
 	/* Return */
 	return next;

@@ -30,14 +30,14 @@
 /* List Structures */
 typedef struct _list_node 
 {
-	/* Link */
-	struct _list_node *link;
-	
 	/* Identifier */
 	int identifier;
 
 	/* Payload */
 	void *data;
+
+	/* Link */
+	struct _list_node *link;
 	
 } list_node_t;
 
@@ -70,6 +70,7 @@ typedef struct _list_main
 /* List Prototypes */
 _CRT_EXTERN list_t *list_create(int attributes);
 _CRT_EXTERN void list_destroy(list_t *list);
+_CRT_EXTERN int list_length(list_t *list);
 
 _CRT_EXTERN list_node_t *list_create_node(int id, void *data);
 

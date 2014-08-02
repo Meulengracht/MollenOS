@@ -61,13 +61,15 @@ addr_t *heap_salloc(size_t sz)
 	{
 		/* Map? */
 		if (!memory_getmap(NULL, heap_s_max))
+		{
 			memory_map(NULL, physmem_alloc_block(), heap_s_max, 0);
+			memset((void*)heap_s_max, 0, PAGE_SIZE);
+		}	
 
 		heap_s_max += PAGE_SIZE;
 	}
 
 	ret = (addr_t*)heap_s_current;
-	memset((void*)heap_s_current, 0, sz);
 	heap_s_current += sz;
 
 	/* Release Lock */
@@ -318,9 +320,7 @@ addr_t heap_allocate_in_block(heap_block_t *block, size_t size)
 		for (i = 0; i < pages; i++)
 		{
 			if (!memory_getmap(NULL, return_addr + (i * PAGE_SIZE)))
-			{
 				memory_map(NULL, physmem_alloc_block(), return_addr + (i * PAGE_SIZE), 0);
-			}
 		}
 	}
 
@@ -662,6 +662,11 @@ void heap_init(void)
 {
 	/* Vars */
 	heap_block_t *block_normal, *block_special;
+
+	/* Just to be safe */
+	heap_mem_start = MEMORY_LOCATION_HEAP + MEMORY_STATIC_OFFSET;
+	heap_s_current = MEMORY_LOCATION_HEAP;
+	heap_s_max = MEMORY_LOCATION_HEAP;
 
 	/* Initiate the global spinlock */
 	spinlock_reset(&heap_plock);

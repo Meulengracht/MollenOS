@@ -96,6 +96,7 @@ void pci_check_function(uint8_t bus, uint8_t device, uint8_t function)
 	else
 	{
 		/* Find correct bus */
+		
 	}
 
 	/* Is this a secondary (PCI) bus */
@@ -244,6 +245,7 @@ ACPI_STATUS pci_device_is_video(pci_device_t *device)
 	else 
 		return AE_NOT_FOUND;
 }
+
 /* Is this a docking device? 
  * If it has a _DCK method, yes */
 ACPI_STATUS pci_device_is_dock(pci_device_t *device)
@@ -313,20 +315,23 @@ int pci_device_get_irq(uint32_t bus, uint32_t device, uint32_t pin,
 
 		if (dev->bus == bus && (dev->routings != NULL))
 		{
+			/* Get offset */
+			uint32_t toffset = device * 4 + (pin - 1);
+
 			/* Update IRQ Information */
-			if (dev->routings->trigger[device * 4 + (pin - 1)] == ACPI_LEVEL_SENSITIVE)
+			if (dev->routings->trigger[toffset] == ACPI_LEVEL_SENSITIVE)
 				*trigger_mode = 1;
 			else
 				*trigger_mode = 0;
 
-			if ((dev->routings->polarity[device * 4 + (pin - 1)] == ACPI_ACTIVE_HIGH)
-				|| (dev->routings->polarity[device * 4 + (pin - 1)] == ACPI_ACTIVE_BOTH))
+			if ((dev->routings->polarity[toffset] == ACPI_ACTIVE_HIGH)
+				|| (dev->routings->polarity[toffset] == ACPI_ACTIVE_BOTH))
 				*polarity = 0;
 			else
 				*polarity = 1;
 
-			*shareable = dev->routings->shareable[device * 4 + (pin - 1)];
-			return dev->routings->interrupts[device * 4 + (pin - 1)];
+			*shareable = dev->routings->shareable[toffset];
+			return dev->routings->interrupts[toffset];
 		}
 			
 	}
@@ -369,10 +374,11 @@ ACPI_STATUS pci_get_device_status(pci_device_t* device)
 	{
 		status = AcpiEvaluateObjectTyped(device->handle, "_STA", NULL, &buffer, ACPI_TYPE_INTEGER);
 
-		if (ACPI_FAILURE(status))
-			return status;
-
-		device->status = (uint32_t)((ACPI_OBJECT *)buffer.Pointer)->Integer.Value;
+		/* Should not fail :( */
+		if (ACPI_SUCCESS(status))
+			device->status = (uint32_t)((ACPI_OBJECT *)buffer.Pointer)->Integer.Value;
+		else
+			device->status = 0;
 	}
 	else
 	{
@@ -382,7 +388,7 @@ ACPI_STATUS pci_get_device_status(pci_device_t* device)
 							ACPI_STA_DEVICE_UI | ACPI_STA_DEVICE_FUNCTIONING;
 	}
 
-	return AE_OK;
+	return status;
 }
 
 /* Gets Device Bus Number */
@@ -401,14 +407,14 @@ ACPI_STATUS pci_get_device_bus_seg(pci_device_t* device)
 	{
 		status = AcpiEvaluateObjectTyped(device->handle, "_BBN", NULL, &buffer, ACPI_TYPE_INTEGER);
 
-		if (ACPI_FAILURE(status))
-			return status;
-
-		device->bus = (uint32_t)((ACPI_OBJECT *)buffer.Pointer)->Integer.Value;
+		if (ACPI_SUCCESS(status))
+			device->bus = (uint32_t)((ACPI_OBJECT *)buffer.Pointer)->Integer.Value;
+		else
+			device->bus = 0;
 	}
 	else
 	{
-		/* Bus number is 0 :( */
+		/* Bus number is 0-ish */
 		device->bus = 0;
 	}
 
@@ -417,18 +423,18 @@ ACPI_STATUS pci_get_device_bus_seg(pci_device_t* device)
 	{
 		status = AcpiEvaluateObjectTyped(device->handle, "_SEG", NULL, &buffer, ACPI_TYPE_INTEGER);
 
-		if (ACPI_FAILURE(status))
-			return status;
-
-		device->seg = (uint32_t)((ACPI_OBJECT *)buffer.Pointer)->Integer.Value;
+		if (ACPI_SUCCESS(status))
+			device->seg = (uint32_t)((ACPI_OBJECT *)buffer.Pointer)->Integer.Value;
+		else
+			device->seg = 0;
 	}
 	else
 	{
-		/* Bus number is 0 :( */
-		device->bus = 0;
+		/* Bus number is 0-ish */
+		device->seg = 0;
 	}
 
-	return AE_OK;
+	return status;
 }
 
 /* IRQ Routing Callback */
@@ -488,11 +494,17 @@ ACPI_STATUS pci_get_device_irq_routings(pci_device_t *device)
 	
 	/* Reset it */
 	for (i = 0; i < 128; i++)
+	{
 		table->interrupts[i] = -1;
+		table->polarity[i] = 0;
+		table->shareable[i] = 0;
+		table->trigger[i] = 0;
+	}
 
 	/* Link it */
 	device->routings = table;
 
+	/* Enumerate */
 	for (tbl = (ACPI_PCI_ROUTING_TABLE *)abuff.Pointer; tbl->Length;
 		tbl = (ACPI_PCI_ROUTING_TABLE *)
 		((char *)tbl + tbl->Length)) 
@@ -538,8 +550,12 @@ done:
 /* Gets Device Name */
 ACPI_STATUS pci_get_bus_id(pci_device_t *device, uint32_t type)
 {
+	ACPI_STATUS status = AE_OK;
 	ACPI_BUFFER buffer;
 	char bus_id[8];
+
+	/* Memset bus_id */
+	memset(bus_id, 0, sizeof(bus_id));
 
 	/* Setup Buffer */
 	buffer.Pointer = bus_id;
@@ -558,12 +574,17 @@ ACPI_STATUS pci_get_bus_id(pci_device_t *device, uint32_t type)
 			strcpy(device->bus_id, "SLEEPF");
 			break;
 		default:
-			AcpiGetName(device->handle, ACPI_SINGLE_NAME, &buffer);
-			strcpy(device->bus_id, bus_id);
-			break;
+		{
+			/* Get name */
+			status = AcpiGetName(device->handle, ACPI_SINGLE_NAME, &buffer);
+
+			/* Sanity */
+			if (ACPI_SUCCESS(status))
+				strcpy(device->bus_id, bus_id);
+		} break;
 	}
 
-	return AE_OK;
+	return status;
 }
 
 /* Gets Device Features */
@@ -666,6 +687,9 @@ ACPI_STATUS pci_get_device_hw_info(pci_device_t *device, ACPI_HANDLE dev_parent,
 	char *hid = NULL;
 	char *uid = NULL;
 	const char *cid_add = NULL;
+
+	/* Memset buffer */
+	memset(lbuf, 0, sizeof(lbuf));
 
 	/* Set up initial variables */
 	buffer.Length = sizeof(lbuf);
@@ -802,7 +826,6 @@ ACPI_STATUS pci_get_device_hw_info(pci_device_t *device, ACPI_HANDLE dev_parent,
 pci_device_t *pci_add_object(ACPI_HANDLE handle, ACPI_HANDLE parent, uint32_t type)
 {
 	ACPI_STATUS status;
-	//ACPI_PCI_ID pci_id;
 	pci_device_t *device;
 
 	/* Allocate Resources */
@@ -815,13 +838,13 @@ pci_device_t *pci_add_object(ACPI_HANDLE handle, ACPI_HANDLE parent, uint32_t ty
 	device->handle = handle;
 
 	/* Get Bus Identifier */
-	pci_get_bus_id(device, type);
+	status = pci_get_bus_id(device, type);
 
 	/* Which namespace functions is supported? */
-	pci_get_features(device);
+	status = pci_get_features(device);
 
 	/* Get Bus and Seg Number */
-	pci_get_device_bus_seg(device);
+	status = pci_get_device_bus_seg(device);
 
 	/* Check device status */
 	switch (type)
@@ -835,6 +858,7 @@ pci_device_t *pci_add_object(ACPI_HANDLE handle, ACPI_HANDLE parent, uint32_t ty
 
 			if (ACPI_FAILURE(status))
 			{
+				printf("ACPI: Device %s failed its dynamic status check\n", device->bus_id);
 				kfree(device);
 				return NULL;
 			}
@@ -843,6 +867,7 @@ pci_device_t *pci_add_object(ACPI_HANDLE handle, ACPI_HANDLE parent, uint32_t ty
 			if (!(device->status & ACPI_STA_DEVICE_PRESENT) &&
 				!(device->status & ACPI_STA_DEVICE_FUNCTIONING))
 			{
+				printf("ACPI: Device %s is not present or functioning\n", device->bus_id);
 				kfree(device);
 				return NULL;
 			}
@@ -856,8 +881,10 @@ pci_device_t *pci_add_object(ACPI_HANDLE handle, ACPI_HANDLE parent, uint32_t ty
 	/* Now, get HID, ADDR and UUID */
 	status = pci_get_device_hw_info(device, parent, type);
 	
+	/* Make sure this call worked */
 	if (ACPI_FAILURE(status))
 	{
+		printf("ACPI: Failed to retrieve object information about device %s\n", device->bus_id);
 		kfree(device);
 		return NULL;
 	}
@@ -865,12 +892,6 @@ pci_device_t *pci_add_object(ACPI_HANDLE handle, ACPI_HANDLE parent, uint32_t ty
 	/* Store the device structure with the object itself */
 	status = pci_device_set_data(device, type);
 	
-	if (ACPI_FAILURE(status))
-	{
-		kfree(device);
-		return NULL;
-	}
-
 	/* Convert ADR to device / function */
 	if (device->features & X86_ACPI_FEATURE_ADR)
 	{
@@ -893,17 +914,24 @@ pci_device_t *pci_add_object(ACPI_HANDLE handle, ACPI_HANDLE parent, uint32_t ty
 	/* printf("[%u:%u:%u]: %s (Name %s, Flags 0x%x)\n", device->bus,
 		device->dev, device->func, device->hid, device->bus_id, device->features); */
 
-
 	/* Does it contain routings */
 	if (device->features & X86_ACPI_FEATURE_PRT)
-		pci_get_device_irq_routings(device);
+	{
+		status = pci_get_device_irq_routings(device);
+
+		if (ACPI_FAILURE(status))
+			printf("ACPI: Failed to retrieve pci irq routings from device %s\n", device->bus_id);
+	}
 
 	/* Is this root bus? */
 	if (strncmp(device->hid, "PNP0A03", 7) == 0 ||
 		strncmp(device->hid, "PNP0A08", 7) == 0)	/* PCI or PCI-express */
 	{
-		/* Save it root bridge list */
+		/* OK so actually we can get the bus number from this, and then SIMPLY
+		 * just use standard enumeration, wtf i did obviously fail at logic */
+		pci_check_bus((uint8_t)device->bus);
 
+		/* Save it root bridge list */
 		device->type = ACPI_BUS_ROOT_BRIDGE;
 		device->bus = glb_bus_counter;
 		glb_bus_counter++;
@@ -964,9 +992,9 @@ ACPI_STATUS pci_scan_callback(ACPI_HANDLE handle, UINT32 level, void *context, v
 	
 	/* Sanity */
 	if (!device)
-		return AE_CTRL_DEPTH;
-
-	//acpi_scan_init_hotplug(device);
+	{
+		//acpi_scan_init_hotplug(device);
+	}
 
 	return AE_OK;
 }
@@ -1106,10 +1134,11 @@ void drivers_init(void *args)
 	_CRT_UNUSED(args);
 
 	/* Start out by enumerating devices */
-	drivers_enumerate();
+	printf("    * Enumerating PCI Space\n");
 	drivers_enumerate_acpica();
 
 	/* Fixed Driver Install Here */
+	printf("    * Installing RTC Driver\n");
 	clock_init();
 
 	/* Special Step for EHCI Controllers 

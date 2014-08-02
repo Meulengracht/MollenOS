@@ -19,6 +19,7 @@
 * MollenOS Common - List Implementation
 */
 
+#include <assert.h>
 #include <list.h>
 #include <heap.h>
 #include <stdio.h>
@@ -28,6 +29,11 @@
 list_t *list_create(int attributes)
 {
 	list_t *list = (list_t*)kmalloc(sizeof(list_t));
+
+	/* Sanity */
+	assert(list != NULL);
+
+	/* Set stuff */
 	list->attributes = attributes;
 	list->head = NULL;
 	list->tailp = NULL;
@@ -45,6 +51,11 @@ list_node_t *list_create_node(int id, void *data)
 {
 	/* Allocate a new node */
 	list_node_t *node = (list_node_t*)kmalloc(sizeof(list_node_t));
+
+	/* Sanity */
+	assert(node != NULL);
+
+	/* Set items */
 	node->data = data;
 	node->identifier = id;
 	node->link = NULL;
@@ -55,19 +66,26 @@ list_node_t *list_create_node(int id, void *data)
 /* Inserts a node at the beginning of this list. */
 void list_insert_front(list_t *list, list_node_t *node)
 {
+	/* Sanity */
+	if (list == NULL || node == NULL)
+		return;
+
 	/* Get lock */
 	if (list->attributes & LIST_SAFE)
 		spinlock_acquire(&list->lock);
 
 	/* Empty list  ? */
-	if (list->head == NULL)
+	if (list->head == NULL || list->tailp == NULL)
 	{
 		list->tailp = list->head = node;
 		node->link = NULL;
 	}	
 	else
 	{
+		/* Make the node point to head */
 		node->link = list->head;
+
+		/* Make the node the new head */
 		list->head = node;
 	}
 	
@@ -91,12 +109,14 @@ void list_append(list_t *list, list_node_t *node)
 		spinlock_acquire(&list->lock);
 
 	/* Empty list ? */
-	if (list->head == NULL)
+	if (list->head == NULL || list->tailp == NULL)
 		list->tailp = list->head = node;
 	else
 	{
-		/* Update Tail */
+		/* Update current tail link */
 		list->tailp->link = node;
+
+		/* Now make tail point to this */
 		list->tailp = node;
 	}
 
@@ -119,7 +139,7 @@ void list_remove_by_node(list_t *list, list_node_t* node)
 	list_node_t *i = NULL, *prev = NULL;
 
 	/* Sanity */
-	if (list == NULL && list->head != NULL)
+	if (list == NULL || list->head == NULL || node == NULL)
 		return;
 
 	/* Get lock */
@@ -129,19 +149,20 @@ void list_remove_by_node(list_t *list, list_node_t* node)
 	/* Loop and locate */
 	_foreach(i, list)
 	{
+		/* Did we find a match? */
 		if (i == node)
 		{
 			/* Two cases, either its first element or not */
 			if (prev == NULL)
-				list->head = i->link;
+				list->head = i->link; /* We are removing first node */
 			else
-				prev->link = i->link;
+				prev->link = i->link; /* Make previous point to the next node after this */
 
 			/* Do we have to update tail? */
 			if (list->tailp == node)
 			{
 				if (prev == NULL)
-					list->tailp = NULL;
+					list->head = list->tailp = NULL;
 				else
 					list->tailp = prev;
 			}
@@ -170,7 +191,7 @@ list_node_t *list_pop_front(list_t *list)
 	list_node_t *curr = NULL;
 
 	/* Sanity */
-	if (list == NULL && list->head != NULL)
+	if (list == NULL)
 		return NULL;
 
 	/* Get lock */
@@ -180,12 +201,18 @@ list_node_t *list_pop_front(list_t *list)
 	/* Sanity */
 	if (list->head != NULL)
 	{
+		/* Get the head */
 		curr = list->head;
+
+		/* Update head pointer */
 		list->head = curr->link;
 
-		/* Update tail */
-		if (list->head == NULL || list->tailp == curr)
-			list->tailp = NULL;
+		/* Update tail if necessary */
+		if (list->tailp == curr)
+			list->head = list->tailp = NULL;
+
+		/* Reset its link (remove any list traces!) */
+		curr->link = NULL;
 	}
 
 	/* Release Lock */
@@ -200,8 +227,14 @@ list_node_t *list_pop_front(list_t *list)
  * we want more than one by that same ID */
 list_node_t *list_get_node_by_id(list_t *list, int id, int n)
 {
+	list_node_t *i;
 	int counter = n;
-	foreach(i, list)
+
+	/* Sanity */
+	if (list == NULL || list->head == NULL || list->length == 0)
+		return NULL;
+
+	_foreach(i, list)
 	{
 		if (i->identifier == id)
 		{
@@ -220,8 +253,14 @@ list_node_t *list_get_node_by_id(list_t *list, int id, int n)
 * we want more than one by that same ID */
 void *list_get_data_by_id(list_t *list, int id, int n)
 {
+	list_node_t *i;
 	int counter = n;
-	foreach(i, list)
+
+	/* Sanity */
+	if (list == NULL || list->head == NULL || list->length == 0)
+		return NULL;
+
+	_foreach(i, list)
 	{
 		if (i->identifier == id)
 		{
@@ -240,8 +279,14 @@ void *list_get_data_by_id(list_t *list, int id, int n)
  * on each member matching the given id */
 void list_execute_on_id(list_t *list, void(*func)(void*, int), int id)
 {
+	list_node_t *i;
 	int n = 0;
-	foreach(i, list)
+
+	/* Sanity */
+	if (list == NULL || list->head == NULL || list->length == 0)
+		return;
+
+	_foreach(i, list)
 	{
 		/* Check */
 		if (i->identifier == id)
@@ -259,8 +304,14 @@ void list_execute_on_id(list_t *list, void(*func)(void*, int), int id)
 * on each member matching the given id */
 void list_execute_all(list_t *list, void(*func)(void*, int))
 {
+	list_node_t *i;
 	int n = 0;
-	foreach(i, list)
+	
+	/* Sanity */
+	if (list == NULL || list->head == NULL || list->length == 0)
+		return;
+
+	_foreach(i, list)
 	{
 		/* Execute */
 		func(i->data, n);
@@ -268,4 +319,49 @@ void list_execute_all(list_t *list, void(*func)(void*, int))
 		/* Increase */
 		n++;
 	}
+}
+
+/* Testing */
+void list_test_cb(void *data, int n)
+{
+	_CRT_UNUSED(n);
+	printf((const char*)data);
+}
+
+void list_test(void)
+{
+	list_t *list;
+	
+	/* Allocate a list */
+	printf("Creating list\n");
+	list = list_create(0);
+
+	/* Add elements */
+	printf("Adding elements...\n");
+	list_append(list, list_create_node(0, "1\n"));
+	list_append(list, list_create_node(0, "2\n"));
+	list_append(list, list_create_node(0, "3\n"));
+	list_append(list, list_create_node(0, "4\n"));
+	list_append(list, list_create_node(0, "5\n"));
+	list_append(list, list_create_node(0, "6\n"));
+	list_append(list, list_create_node(0, "7\n"));
+	list_append(list, list_create_node(0, "8\n"));
+	list_append(list, list_create_node(0, "9\n"));
+
+	/* Iterate them */
+	printf("Iterating elements...\n");
+	list_execute_all(list, list_test_cb);
+
+	/* Pop some elements */
+	printf("Pop 3 elements...\n");
+	kfree(list_pop_front(list));
+	kfree(list_pop_front(list));
+	kfree(list_pop_front(list));
+
+	/* Iterate them again */
+	printf("Iterating elements...\n");
+	list_execute_all(list, list_test_cb);
+
+	if (list != NULL)
+		for (;;);
 }

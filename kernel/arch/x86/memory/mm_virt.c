@@ -31,6 +31,7 @@
 /* Globals */
 page_directory_t *kernel_directory = NULL;
 page_directory_t *current_directories[64];
+spinlock_t glb_vm_lock;
 volatile addr_t glb_reserved_ptr = 0;
 
 /* Externs */
@@ -363,20 +364,29 @@ virtaddr_t *memory_map_system_memory(physaddr_t physical, int pages)
 {
 	int i;
 	cpu_t cpu;
-	virtaddr_t ret = glb_reserved_ptr;
+	virtaddr_t ret = 0;
 
 	/* Get cpu */
 	cpu = get_cpu();
+
+	/* Acquire Lock */
+	spinlock_acquire(&glb_vm_lock);
+
+	ret = glb_reserved_ptr;
 
 	/* Map it */
 	for (i = 0; i < pages; i++)
 	{
 		/* Call Map */
-		memory_map(memory_get_current_pdir(cpu), physical + (i * PAGE_SIZE), glb_reserved_ptr, 0);
+		if (!memory_getmap(memory_get_current_pdir(cpu), glb_reserved_ptr))
+			memory_map(memory_get_current_pdir(cpu), physical + (i * PAGE_SIZE), glb_reserved_ptr, 0);
 
 		/* Increase */
 		glb_reserved_ptr += PAGE_SIZE;
 	}
+
+	/* Release */
+	spinlock_release(&glb_vm_lock);
 
 	return (virtaddr_t*)(ret + (physical & ATTRIBUTE_MASK));
 }
@@ -405,6 +415,7 @@ void virtmem_init(void)
 	kernel_directory->pTables[0] = (physaddr_t)itable | PAGE_PRESENT | PAGE_WRITE;
 	kernel_directory->vTables[0] = (addr_t)itable;
 	spinlock_reset(&kernel_directory->plock);
+	spinlock_reset(&glb_vm_lock);
 
 	/* Map Memory Regions */
 

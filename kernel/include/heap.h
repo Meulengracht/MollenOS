@@ -42,14 +42,14 @@ typedef struct heap_node_descriptor
 	/* Address */
 	addr_t addr;
 
-	/* Link */
-	struct heap_node_descriptor *link;
-
 	/* Status */
-	uint32_t allocated : 1;
+	uint32_t allocated;
 
 	/* Length */
-	size_t length : 31;
+	size_t length;
+
+	/* Link */
+	struct heap_node_descriptor *link;
 
 } heap_node_t;
 

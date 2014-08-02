@@ -105,10 +105,13 @@ void video_init(void *bootinfo)
 	term.CursorY = 0;
 	term.CursorLimitX = gfx_info.ResX / 10;
 	term.CursorLimitY = gfx_info.ResY / 16;
+	term.FgColor = (0 << 4) | (15 & 0x0F);
+	term.BgColor = 0;
 	spinlock_reset(&term.lock);
 }
 
-int video_putchar(int character)
+/* Write a character in VESA mode */
+int video_putchar_vesa(int character)
 {
 	/* Decls */
 	uint32_t *video_ptr;
@@ -122,42 +125,42 @@ int video_putchar(int character)
 	switch (character)
 	{
 		/* New line */
-		case '\n':
+	case '\n':
+	{
+		term.CursorX = 0;
+		term.CursorY += 16;
+	} break;
+
+	/* Carriage Return */
+	case '\r':
+	{
+		term.CursorX = 0;
+	} break;
+
+	/* Default */
+	default:
+	{
+		/* Calculate video offset */
+		video_ptr = (uint32_t*)(gfx_info.VideoAddr + ((term.CursorY * gfx_info.BytesPerScanLine)
+			+ (term.CursorX * (gfx_info.BitsPerPixel / 8))));
+		ch_ptr = (uint8_t*)&x86_font_8x16[character * 16];
+
+		for (row = 0; row < 16; row++)
 		{
-			term.CursorX = 0;
-			term.CursorY += 16;
-		} break;
+			uint8_t data = ch_ptr[row];
+			uint32_t _;
 
-		/* Carriage Return */
-		case '\r':
-		{
-			term.CursorX = 0;
-		} break;
-		
-		/* Default */
-		default:
-		{
-			/* Calculate video offset */
-			video_ptr = (uint32_t*)(gfx_info.VideoAddr + ((term.CursorY * gfx_info.BytesPerScanLine)
-				+ (term.CursorX * (gfx_info.BitsPerPixel / 8))));
-			ch_ptr = (uint8_t*)&x86_font_8x16[character * 16];
+			for (i = 0; i < 8; i++)
+				video_ptr[i] = (data >> (7 - i)) & 1 ? 0xFFFFFFFF : 0;
 
-			for (row = 0; row < 16; row++)
-			{
-				uint8_t data = ch_ptr[row];
-				uint32_t _;
+			_ = (uint32_t)video_ptr;
+			_ += gfx_info.BytesPerScanLine;
+			video_ptr = (uint32_t*)_;
+		}
 
-				for (i = 0; i < 8; i++)
-					video_ptr[i] = (data >> (7 - i)) & 1 ? 0xFFFFFFFF : 0;
-
-				_ = (uint32_t)video_ptr;
-				_ += gfx_info.BytesPerScanLine;
-				video_ptr = (uint32_t*)_;
-			}
-
-			/* Increase position */
-			term.CursorX += 10;
-		} break;
+		/* Increase position */
+		term.CursorX += 10;
+	} break;
 	}
 
 	/* Newline check */
@@ -185,4 +188,79 @@ int video_putchar(int character)
 	spinlock_release(&term.lock);
 
 	return character;
+}
+
+/* Write a character in TEXT mode */
+int video_putchar_text(int character)
+{
+	uint16_t attribute = (uint16_t)(term.FgColor << 8);
+	uint16_t cursorLocation = 0;
+
+	/* Get spinlock */
+	spinlock_acquire(&term.lock);
+
+	/* Check special characters */
+	if (character == 0x08 && term.CursorX)		//Backspace
+		term.CursorX--;
+	else if (character == 0x09)					//Tab
+		term.CursorX = (uint32_t)((term.CursorX + 8) & ~(8 - 1));
+	else if (character == '\r')					//Carriage return
+		term.CursorX = 0;				//New line
+	else if (character == '\n') {
+		term.CursorX = 0;
+		term.CursorY++;
+	}
+	//Printable characters
+	else if (character >= ' ')
+	{
+		uint16_t* location = (uint16_t*)gfx_info.VideoAddr + (term.CursorY * gfx_info.ResX + term.CursorX);
+		*location = (uint16_t)(character | attribute);
+		term.CursorX++;
+	}
+
+	//Go to new line?
+	if (term.CursorX >= gfx_info.ResX) {
+
+		term.CursorX = 0;
+		term.CursorY++;
+	}
+
+	//Scroll if at last line
+	if (term.CursorY >= gfx_info.ResY)
+	{
+		uint16_t attribute = (uint16_t)(term.FgColor << 8);
+		uint16_t *vid_mem = (uint16_t*)gfx_info.VideoAddr;
+		uint16_t i;
+
+		//Move display one line up
+		for (i = 0 * gfx_info.ResX; i < (gfx_info.ResY - 1) * gfx_info.ResX; i++)
+			vid_mem[i] = vid_mem[i + gfx_info.ResX];
+
+		//Clear last line
+		for (i = (gfx_info.ResY - 1) * gfx_info.ResX; i < (gfx_info.ResY * gfx_info.ResX); i++)
+			vid_mem[i] = (uint16_t)(attribute | ' ');
+
+		term.CursorY = (gfx_info.ResY - 1);
+	}
+
+	//Update HW Cursor
+	cursorLocation = (uint16_t)((term.CursorY * gfx_info.ResX) + term.CursorX);
+
+	outb(0x3D4, 14);
+	outb(0x3D5, (uint8_t)(cursorLocation >> 8)); // Send the high byte.
+	outb(0x3D4, 15);
+	outb(0x3D5, (uint8_t)cursorLocation);      // Send the low byte.
+
+	/* Release spinlock */
+	spinlock_release(&term.lock);
+
+	return character;
+}
+
+int video_putchar(int character)
+{
+	if (gfx_info.GraphicMode == 0 || gfx_info.GraphicMode == 1)
+		return video_putchar_text(character);
+	else
+		return video_putchar_vesa(character);
 }

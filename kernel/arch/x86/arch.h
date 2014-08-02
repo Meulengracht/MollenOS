@@ -240,6 +240,7 @@ _CRT_EXTERN void drivers_init(void *args);
 #define INTERRUPT_PCI_PIN_1				0xE0
 #define INTERRUPT_PCI_PIN_0				0xDC
 
+#define INTERRUPT_SPURIOUS7				0x27
 #define INTERRUPT_SPURIOUS				0x7F
 #define INTERRUPT_SYSCALL				0x80
 #define INTERRUPT_YIELD					0x81

@@ -201,9 +201,6 @@ void uhci_init(pci_driver_t *device)
 	pci_command = pci_read_word((const uint16_t)device->bus, (const uint16_t)device->device, (const uint16_t)device->function, 0x4);
 	pci_write_word((const uint16_t)device->bus, (const uint16_t)device->device, (const uint16_t)device->function, 0x4, pci_command | 0x5);
 
-	/* Disable Legacy Emulation & Interrupts */
-	pci_write_word((const uint16_t)device->bus, (const uint16_t)device->device, (const uint16_t)device->function, 0xC0, 0xF800);
-
 	/* Get I/O Base from Bar4 */
 	controller->io_base = (device->header->bar4 & 0x0000FFFE);
 
@@ -227,7 +224,16 @@ void uhci_init(pci_driver_t *device)
 void uhci_setup(uhci_controller_t *controller)
 {
 	usb_hc_t *hc;
+	uint16_t enabled_ports = 2;
 	uint16_t temp = 0, i = 0;
+
+	/* Disable interrupts while configuring (and stop controller) */
+	uhci_write16(controller, X86_UHCI_REGISTER_COMMAND, 0x0000);
+	uhci_write16(controller, X86_UHCI_REGISTER_INTR, 0x0000);
+
+	/* Disable Legacy Emulation & Interrupts */
+	pci_write_word((const uint16_t)controller->pci_info->bus, (const uint16_t)controller->pci_info->device, 
+		(const uint16_t)controller->pci_info->function, 0xC0, 0x8F00);
 
 	/* Reset Controller */
 	uhci_write16(controller, X86_UHCI_REGISTER_COMMAND, X86_UHCI_CMD_HCRESET);
@@ -284,8 +290,17 @@ void uhci_setup(uhci_controller_t *controller)
 	uhci_init_queues(controller);
 
 	/* Now start and wait */
-	controller->initialized = 1;
-	temp = (X86_UHCI_CMD_CF | X86_UHCI_CMD_RUN | X86_UHCI_CMD_MAXPACKET64);
+	if (enabled_ports == 0)
+	{
+		controller->initialized = 2;
+		temp = (X86_UHCI_CMD_CF | X86_UHCI_CMD_MAXPACKET64);
+	}
+	else
+	{
+		controller->initialized = 1;
+		temp = (X86_UHCI_CMD_CF | X86_UHCI_CMD_RUN | X86_UHCI_CMD_MAXPACKET64);
+	}
+	
 	uhci_write16(controller, X86_UHCI_REGISTER_COMMAND, temp);
 
 	/* Enable interrupts */
@@ -293,9 +308,10 @@ void uhci_setup(uhci_controller_t *controller)
 		| X86_UHCI_INTR_RESUME | X86_UHCI_INTR_COMPLETION);
 	uhci_write16(controller, X86_UHCI_REGISTER_INTR, temp);
 
-	/* Further delay, wait for ports to stabilize */
-	clock_stall(100);
+	/* Give it a 10 ms */
+	clock_stall(10);
 
+	/* Debug */
 	printf("UHCI: Port Count %u, Command Register 0x%x\n", 
 		controller->ports, uhci_read16(controller, X86_UHCI_REGISTER_COMMAND));
 
@@ -438,7 +454,7 @@ void uhci_port_reset(uhci_controller_t *controller, int port, int noint)
 	_CRT_UNUSED(noint);
 
 	/* Step 1. Reset Port for 50 ms */
-	uhci_write16(controller, (X86_UHCI_REGISTER_PORT_BASE + ((uint16_t)port * 2)), X86_UHCI_PORT_RESET);
+	uhci_write16(controller, (X86_UHCI_REGISTER_PORT_BASE + ((uint16_t)port * 2)), X86_UHCI_PORT_RESET | X86_UHCI_PORT_CONNECT_EVENT);
 
 	/* Wait atlest 50 ms (per USB specification) */
 	clock_stall(50);
@@ -1020,6 +1036,13 @@ void uhci_interrupt_handler(void *args)
 
 	/* Debug */
 	printf("UHCI_INTERRUPT Controller %u: 0x%x\n", controller->id, intr_state);
+
+	/* Sanity */
+	if (controller->initialized == 0)
+	{
+		/* Bleh */
+		return;
+	}
 
 	/* So.. */
 	if (intr_state & (X86_UHCI_STATUS_USBINT | X86_UHCI_STATUS_INTR_ERROR))

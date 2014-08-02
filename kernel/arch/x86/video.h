@@ -117,6 +117,10 @@ typedef struct terminal
 	uint32_t CursorLimitX;
 	uint32_t CursorLimitY;
 	
+	/* Colors */
+	uint32_t FgColor;
+	uint32_t BgColor;
+
 	/* TTY Spinlock */
 	spinlock_t lock;
 

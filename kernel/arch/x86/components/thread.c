@@ -358,7 +358,7 @@ registers_t *threading_switch(registers_t *regs, int preemptive, uint32_t *time_
 
 		/* Remove flag so it does not happen again */
 		if (t->flags & X86_THREAD_ENTER_SLEEP)
-			t->flags &= ~X86_THREAD_ENTER_SLEEP;
+			t->flags &= ~(X86_THREAD_ENTER_SLEEP);
 
 		node = scheduler_schedule(cpu, NULL, preemptive);
 	}
@@ -370,9 +370,7 @@ registers_t *threading_switch(registers_t *regs, int preemptive, uint32_t *time_
 
 	/* Sanity */
 	if (node == NULL)
-	{
 		node = (list_node_t*)glb_idle_threads[cpu];
-	}
 
 	/* Update current */
 	threading_set_current_node(cpu, node);

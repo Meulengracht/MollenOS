@@ -249,22 +249,22 @@ void acpi_init_stage2(void)
 	ACPI_OBJECT_LIST args;
 
 	/* Initialize the ACPICA subsystem */
-	printf("    * Acpica Stage 2 Starting\n");
-	printf("      > Initializing subsystems\n");
+	printf("  - Acpica Stage 2 Starting\n");
+	printf("    * Initializing subsystems\n");
 	Status = AcpiInitializeSubsystem();
 	if (ACPI_FAILURE(Status))
 	{
-		printf("      > FAILED InititalizeSubsystem, %u!\n", Status);
+		printf("    * FAILED InititalizeSubsystem, %u!\n", Status);
 		for (;;);
 	}
 
 	/* Copy the root table list to dynamic memory */
-	printf("      > Reallocating tables\n");
+	printf("    * Reallocating tables\n");
 	Status = AcpiReallocateRootTable();
 	if (ACPI_FAILURE(Status))
 	{
 		/*  */
-		printf("      > FAILED AcpiReallocateRootTable, %u!\n", Status);
+		printf("    * FAILED AcpiReallocateRootTable, %u!\n", Status);
 		for (;;);
 	}
 
@@ -295,7 +295,7 @@ void acpi_init_stage2(void)
 	Status = AcpiLoadTables();
 	if (ACPI_FAILURE(Status))
 	{
-		printf("      > FAILED LoadTables, %u!\n", Status);
+		printf("    * FAILED LoadTables, %u!\n", Status);
 		for (;;);
 	}
 
@@ -308,19 +308,19 @@ void acpi_init_stage2(void)
 	AcpiEvaluateObject(ACPI_ROOT_OBJECT, "_PIC", &args, NULL);
 
 	/* Initialize the ACPI hardware */
-	printf("      > Enabling subsystems\n");
+	printf("    * Enabling subsystems\n");
 	Status = AcpiEnableSubsystem(ACPI_FULL_INITIALIZATION);
 	if (ACPI_FAILURE(Status))
 	{
-		printf("      > FAILED EnableSystem, %u!\n", Status);
+		printf("    * FAILED EnableSystem, %u!\n", Status);
 	}
 	
 	/* Complete the ACPI namespace object initialization */
-	printf("      > Initializing objects\n");
+	printf("    * Initializing objects\n");
 	Status = AcpiInitializeObjects(ACPI_FULL_INITIALIZATION);
 	if (ACPI_FAILURE(Status))
 	{
-		printf("      > FAILED InitializeObjects, %u!\n", Status);
+		printf("    * FAILED InitializeObjects, %u!\n", Status);
 		for (;;);
 	}
 

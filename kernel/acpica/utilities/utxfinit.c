@@ -362,7 +362,6 @@ AcpiInitializeObjects (
 
     ACPI_FUNCTION_TRACE (AcpiInitializeObjects);
 
-
     /*
      * Run all _REG methods
      *

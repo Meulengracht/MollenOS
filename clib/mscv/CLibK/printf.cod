@@ -9,8 +9,18 @@
 INCLUDELIB MSVCRT
 INCLUDELIB OLDNAMES
 
+PUBLIC	_glb_printf_init
+_DATA	SEGMENT
+COMM	_glb_printf_lock:QWORD
+_DATA	ENDS
+_BSS	SEGMENT
+_glb_printf_init DD 01H DUP (?)
+_BSS	ENDS
 PUBLIC	_printf
+EXTRN	_spinlock_release:PROC
 EXTRN	_streamout:PROC
+EXTRN	_spinlock_acquire:PROC
+EXTRN	_spinlock_reset:PROC
 ; Function compile flags: /Ogtp
 ; File c:\users\phail\documents\github\mollenos\clib\src\stdio\printf.c
 ;	COMDAT _printf
@@ -18,55 +28,94 @@ _TEXT	SEGMENT
 _format$ = 8						; size = 4
 _printf	PROC						; COMDAT
 
-; 58   : {
+; 63   : {
 
   00000	55		 push	 ebp
   00001	8b ec		 mov	 ebp, esp
 
-; 59   : 	//Decl
-; 60   : 	va_list args;
-; 61   : 	int result = 0;
-; 62   : 
-; 63   : 	//Sanity
-; 64   : 	if (format == NULL)
+; 64   : 	//Decl
+; 65   : 	va_list args;
+; 66   : 	int result = 0;
+; 67   : 
+; 68   : 	//Sanity
+; 69   : 	if (format == NULL)
 
-  00003	8b 45 08	 mov	 eax, DWORD PTR _format$[ebp]
-  00006	85 c0		 test	 eax, eax
-  00008	75 05		 jne	 SHORT $LN1@printf
+  00003	83 7d 08 00	 cmp	 DWORD PTR _format$[ebp], 0
+  00007	75 05		 jne	 SHORT $LN2@printf
 
-; 65   : 		return -1;
+; 70   : 		return -1;
 
-  0000a	83 c8 ff	 or	 eax, -1
+  00009	83 c8 ff	 or	 eax, -1
 
-; 70   : 	va_end(args);
+; 91   : }
+
+  0000c	5d		 pop	 ebp
+  0000d	c3		 ret	 0
+$LN2@printf:
+
 ; 71   : 
-; 72   : 	return result;
-; 73   : }
+; 72   : 	//Init
+; 73   : 	if (glb_printf_init != 0xDEADBEEF)
 
-  0000d	5d		 pop	 ebp
-  0000e	c3		 ret	 0
+  0000e	a1 00 00 00 00	 mov	 eax, DWORD PTR _glb_printf_init
+  00013	3d ef be ad de	 cmp	 eax, -559038737		; deadbeefH
+  00018	74 17		 je	 SHORT $LN1@printf
+
+; 74   : 	{
+; 75   : 		spinlock_reset(&glb_printf_lock);
+
+  0001a	68 00 00 00 00	 push	 OFFSET _glb_printf_lock
+  0001f	e8 00 00 00 00	 call	 _spinlock_reset
+  00024	83 c4 04	 add	 esp, 4
+
+; 76   : 		glb_printf_init = 0xDEADBEEF;
+
+  00027	c7 05 00 00 00
+	00 ef be ad de	 mov	 DWORD PTR _glb_printf_init, -559038737 ; deadbeefH
 $LN1@printf:
 
-; 66   : 
-; 67   : 	//Use sprintf for this
-; 68   : 	va_start(args, format);
-; 69   : 	result = streamout(NULL, 0x20000, format, args);
+; 77   : 	}
+; 78   : 
+; 79   : 	/* Acquire Lock */
+; 80   : 	spinlock_acquire(&glb_printf_lock);
 
-  0000f	8d 4d 0c	 lea	 ecx, DWORD PTR _format$[ebp+4]
-  00012	51		 push	 ecx
-  00013	50		 push	 eax
-  00014	68 00 00 02 00	 push	 131072			; 00020000H
-  00019	6a 00		 push	 0
-  0001b	e8 00 00 00 00	 call	 _streamout
-  00020	83 c4 10	 add	 esp, 16			; 00000010H
+  00031	56		 push	 esi
+  00032	68 00 00 00 00	 push	 OFFSET _glb_printf_lock
+  00037	e8 00 00 00 00	 call	 _spinlock_acquire
 
-; 70   : 	va_end(args);
-; 71   : 
-; 72   : 	return result;
-; 73   : }
+; 81   : 
+; 82   : 	/* Do the deed */
+; 83   : 	va_start(args, format);
+; 84   : 	result = streamout(NULL, 0x20000, format, args);
 
-  00023	5d		 pop	 ebp
-  00024	c3		 ret	 0
+  0003c	8b 55 08	 mov	 edx, DWORD PTR _format$[ebp]
+  0003f	8d 4d 0c	 lea	 ecx, DWORD PTR _format$[ebp+4]
+  00042	51		 push	 ecx
+  00043	52		 push	 edx
+  00044	68 00 00 02 00	 push	 131072			; 00020000H
+  00049	6a 00		 push	 0
+  0004b	e8 00 00 00 00	 call	 _streamout
+
+; 85   : 	va_end(args);
+; 86   : 
+; 87   : 	/* Release */
+; 88   : 	spinlock_release(&glb_printf_lock);
+
+  00050	68 00 00 00 00	 push	 OFFSET _glb_printf_lock
+  00055	8b f0		 mov	 esi, eax
+  00057	e8 00 00 00 00	 call	 _spinlock_release
+  0005c	83 c4 18	 add	 esp, 24			; 00000018H
+
+; 89   : 
+; 90   : 	return result;
+
+  0005f	8b c6		 mov	 eax, esi
+  00061	5e		 pop	 esi
+
+; 91   : }
+
+  00062	5d		 pop	 ebp
+  00063	c3		 ret	 0
 _printf	ENDP
 _TEXT	ENDS
 END

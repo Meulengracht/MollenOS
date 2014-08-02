@@ -180,7 +180,7 @@ void apic_init(void)
 	list_execute_on_id(acpi_nodes, apic_setup_ioapic, ACPI_MADT_TYPE_IO_APIC);
 
 	/* Install spurious handlers */
-	interrupt_install_soft(0x27, apic_spurious_handler, NULL);
+	interrupt_install_soft(INTERRUPT_SPURIOUS7, apic_spurious_handler, NULL);
 	interrupt_install_soft(INTERRUPT_SPURIOUS, apic_spurious_handler, NULL);
 
 	/* Done! Enable interrupts */
@@ -263,7 +263,7 @@ void lapic_send_ipi(uint8_t cpu_destination, uint8_t irq_vector)
 {
 	if (cpu_destination == 0xFF)
 	{
-		/* BroadCast */
+		/* Broadcast */
 	}
 	else
 	{
@@ -304,10 +304,10 @@ void lapic_send_ipi(uint8_t cpu_destination, uint8_t irq_vector)
 		int_setup |= irq_vector;
 
 		/* Write upper 32 bits to ICR1 */
-		apic_write_local(0x310, (uint32_t)(int_setup >> 32));
+		apic_write_local(0x310, (uint32_t)((int_setup >> 32) & 0xFFFFFFFF));
 
 		/* Write lower 32 bits to ICR0 */
-		apic_write_local(0x300, (uint32_t)(int_setup >> 32));
+		apic_write_local(0x300, (uint32_t)(int_setup & 0xFFFFFFFF));
 	}
 
 }

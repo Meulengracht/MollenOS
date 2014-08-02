@@ -292,8 +292,9 @@ void interrupt_entry(registers_t *regs)
 	if (calls == 0)
 		printf("Unhandled interrupt vector %u\n", irq);
 
-	/* Send EOI */
-	apic_send_eoi();
+	/* Send EOI (if not spurious) */
+	if (irq != INTERRUPT_SPURIOUS7 && irq != INTERRUPT_SPURIOUS)
+		apic_send_eoi();
 }
 
 /* Disables interrupts and returns

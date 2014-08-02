@@ -128,6 +128,7 @@
 #endif
 
 #include <heap.h>
+#include <semaphore.h>
 #include <stdio.h>
 
 #define _COMPONENT          ACPI_OS_SERVICES
@@ -791,16 +792,9 @@ void                    *Info)
 *
 *****************************************************************************/
 
-ACPI_THREAD_ID
-AcpiOsGetThreadId(
-void)
+ACPI_THREAD_ID AcpiOsGetThreadId(void)
 {
-	//UINT32 ThreadId;
-
-	/* Ensure ID is never 0 */
-
-	//ThreadId = GetCurrentThreadId();
-	return 1;
+	return threading_get_thread_id() + 1;
 }
 
 
@@ -865,12 +859,9 @@ void ACPI_INTERNAL_VAR_XFACE AcpiOsPrintf(const char *Fmt, ...)
 *
 *****************************************************************************/
 
-void
-AcpiOsVprintf(
-const char              *Fmt,
-va_list                 Args)
+void AcpiOsVprintf(const char *Fmt, va_list Args)
 {
-	char					Buffer[512];
+	char Buffer[512];
 
 	/* Clear Buffer */
 	memset(Buffer, 0, 512);
@@ -937,7 +928,7 @@ UINT32              MaxUnits,
 UINT32              InitialUnits,
 ACPI_HANDLE         *OutHandle)
 {
-	*OutHandle = (void*)6;
+	*OutHandle = (void*)semaphore_create(InitialUnits);
 	return (AE_OK);
 }
 
@@ -945,6 +936,7 @@ ACPI_STATUS
 AcpiOsDeleteSemaphore(
 ACPI_HANDLE         Handle)
 {
+	semaphore_destroy(Handle);
 	return (AE_OK);
 }
 
