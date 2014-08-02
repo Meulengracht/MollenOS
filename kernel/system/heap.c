@@ -50,77 +50,46 @@ addr_t *heap_salloc(size_t sz)
 {
 	addr_t *ret;
 
-	/* Acquire Lock */
-	spinlock_acquire(&heap_plock);
-
 	/* Sanity */
 	assert(sz > 0);
 
 	/* Sanity */
 	if ((heap_s_current + sz) >= heap_s_max)
 	{
-		/* Map? */
-		if (!memory_getmap(NULL, heap_s_max))
+		/* Sanity */
+		if ((heap_s_max + PAGE_SIZE) >= (MEMORY_LOCATION_HEAP + MEMORY_STATIC_OFFSET))
 		{
-			memory_map(NULL, physmem_alloc_block(), heap_s_max, 0);
-			memset((void*)heap_s_max, 0, PAGE_SIZE);
-		}	
+			printf("HeapMgr: RAN OUT OF MEMORY\n");
+			for (;;);
+		}
 
+		/* Map */
+		memory_map(NULL, physmem_alloc_block(), heap_s_max, 0);
+		memset((void*)heap_s_max, 0, PAGE_SIZE);
 		heap_s_max += PAGE_SIZE;
 	}
 
 	ret = (addr_t*)heap_s_current;
 	heap_s_current += sz;
 
-	/* Release Lock */
-	spinlock_release(&heap_plock);
-
 	return ret;
 }
 
 void heap_add_block_to_list(heap_block_t *block)
 {
-	heap_block_t *current_block, *previous_block;
+	heap_block_t *current_block;
 
 	/* Sanity */
 	assert(block != NULL);
 
-	/* Acquire Lock */
-	spinlock_acquire(&heap_plock);
-
 	/* Loop To End */
 	current_block = heap->blocks;
-	previous_block = NULL;
-	
-	while (current_block)
-	{
-		previous_block = current_block;
+
+	while (current_block->link)
 		current_block = current_block->link;
-	}
 
 	/* Set as end */
-	previous_block->link = block;
-
-	/* Release Lock */
-	spinlock_release(&heap_plock);
-}
-
-void heap_remove_block_from_list(heap_block_t **previous_block, heap_block_t **node)
-{
-	/* Acquire Lock */
-	spinlock_acquire(&heap_plock);
-
-	/* Sanity */
-	assert(previous_block != NULL && node != NULL);
-
-	/* Remove */
-	if ((*node)->link == NULL)
-		(*previous_block)->link = NULL;
-	else
-		(*previous_block)->link = (*node)->link;
-
-	/* Release Lock */
-	spinlock_release(&heap_plock);
+	current_block->link = block;
 }
 
 addr_t heap_page_align_roundup(addr_t addr)
@@ -221,13 +190,7 @@ void heap_expand(size_t size, int expand_type)
 	else
 	{
 		/* Page Align */
-		size_t nsize = size;
-
-		if (nsize & ATTRIBUTE_MASK)
-		{
-			nsize &= PAGE_MASK;
-			nsize += PAGE_SIZE;
-		}
+		size_t nsize = heap_page_align_roundup(size);
 
 		/* And allocate */
 		block = heap_create_block(nsize, BLOCK_VERY_LARGE);
@@ -248,9 +211,6 @@ addr_t heap_allocate_in_block(heap_block_t *block, size_t size)
 	addr_t return_addr = 0;
 	size_t pages = size / PAGE_SIZE;
 	uint32_t i;
-
-	/* Get spinlock */
-	spinlock_acquire(&block->plock);
 
 	/* Make sure we map enough pages */
 	if (size % PAGE_SIZE)
@@ -306,9 +266,6 @@ addr_t heap_allocate_in_block(heap_block_t *block, size_t size)
 		current_node = current_node->link;
 	}
 
-	/* Release spinlock */
-	spinlock_release(&block->plock);
-
 	if (return_addr != 0)
 	{
 		/* Do we step across page boundary? */
@@ -355,23 +312,24 @@ addr_t heap_allocate(size_t size, int flags)
 		}
 
 		/* Check aligned */
-		if ((flags & ALLOCATION_ALIGNED)
+		if ((flags == ALLOCATION_ALIGNED)
 			&& (current_block->flags & BLOCK_LARGE)
 			&& (current_block->bytes_free >= size))
 		{
 			/* Var */
 			addr_t res = 0;
+			size_t a_size = size;
 
 			/* Page align allocation */
-			if (size & ATTRIBUTE_MASK)
+			if (a_size & ATTRIBUTE_MASK)
 			{
-				size &= PAGE_MASK;
-				size += PAGE_SIZE;
+				a_size &= PAGE_MASK;
+				a_size += PAGE_SIZE;
 			}
 
 			/* Try to make the allocation, THIS CAN
 			* FAIL */
-			res = heap_allocate_in_block(current_block, size);
+			res = heap_allocate_in_block(current_block, a_size);
 
 			/* Check if failed */
 			if (res != 0)
@@ -379,7 +337,7 @@ addr_t heap_allocate(size_t size, int flags)
 		}
 
 		/* Check Special */
-		if ((flags & ALLOCATION_SPECIAL)
+		if ((flags == ALLOCATION_SPECIAL)
 			&& (current_block->flags & BLOCK_VERY_LARGE)
 			&& (current_block->bytes_free >= size))
 		{
@@ -415,8 +373,11 @@ void *kmalloc_ap(size_t sz, addr_t *p)
 	/* Sanity */
 	assert(sz != 0);
 
+	/* Lock */
+	spinlock_acquire(&heap_plock);
+
 	/* Calculate some options */
-	if (sz >= 0x4000)
+	if (sz >= 0x3000)
 	{
 		/* Special Allocation */
 		flags = ALLOCATION_SPECIAL;
@@ -424,6 +385,9 @@ void *kmalloc_ap(size_t sz, addr_t *p)
 
 	/* Do the call */
 	addr = heap_allocate(sz, flags);
+
+	/* Release */
+	spinlock_release(&heap_plock);
 
 	/* Sanity */
 	assert(addr != 0);
@@ -445,6 +409,9 @@ void *kmalloc_p(size_t sz, addr_t *p)
 	/* Sanity */
 	assert(sz != 0);
 
+	/* Lock */
+	spinlock_acquire(&heap_plock);
+
 	/* Calculate some options */
 	if (sz >= 0x500)
 	{
@@ -452,7 +419,7 @@ void *kmalloc_p(size_t sz, addr_t *p)
 		flags = ALLOCATION_ALIGNED;
 	}
 
-	if (sz >= 0x4000)
+	if (sz >= 0x3000)
 	{
 		/* Special Allocation */
 		flags = ALLOCATION_SPECIAL;
@@ -460,6 +427,9 @@ void *kmalloc_p(size_t sz, addr_t *p)
 
 	/* Do the call */
 	addr = heap_allocate(sz, flags);
+
+	/* Release */
+	spinlock_release(&heap_plock);
 
 	/* Sanity */
 	assert(addr != 0);
@@ -479,10 +449,13 @@ void *kmalloc_a(size_t sz)
 	int flags = ALLOCATION_ALIGNED;
 
 	/* Sanity */
-	assert(sz != 0);
+	assert(sz > 0);
+
+	/* Lock */
+	spinlock_acquire(&heap_plock);
 
 	/* Calculate some options */
-	if (sz >= 0x4000)
+	if (sz >= 0x3000)
 	{
 		/* Special Allocation */
 		flags = ALLOCATION_SPECIAL;
@@ -490,6 +463,9 @@ void *kmalloc_a(size_t sz)
 
 	/* Do the call */
 	addr = heap_allocate(sz, flags);
+
+	/* Release */
+	spinlock_release(&heap_plock);
 
 	/* Sanity */
 	assert(addr != 0);
@@ -506,7 +482,10 @@ void *kmalloc(size_t sz)
 	int flags = ALLOCATION_NORMAL;
 
 	/* Sanity */
-	assert(sz != 0);
+	assert(sz > 0);
+
+	/* Lock */
+	spinlock_acquire(&heap_plock);
 
 	/* Calculate some options */
 	if (sz >= 0x500)
@@ -514,8 +493,8 @@ void *kmalloc(size_t sz)
 		/* Do aligned allocation */
 		flags = ALLOCATION_ALIGNED;
 	}
-		
-	if (sz >= 0x4000)
+	
+	if (sz >= 0x3000)
 	{
 		/* Special Allocation */
 		flags = ALLOCATION_SPECIAL;
@@ -523,6 +502,9 @@ void *kmalloc(size_t sz)
 
 	/* Do the call */
 	addr = heap_allocate(sz, flags);
+
+	/* Release */
+	spinlock_release(&heap_plock);
 
 	/* Sanity */
 	assert(addr != 0);
@@ -540,9 +522,6 @@ void heap_free_in_node(heap_block_t *block, addr_t addr)
 {
 	/* Vars */
 	heap_node_t *current_node = block->nodes, *previous_node = NULL;
-
-	/* Get spinlock */
-	spinlock_acquire(&block->plock);
 
 	/* Standard block freeing algorithm */
 	while (current_node)
@@ -612,9 +591,6 @@ void heap_free_in_node(heap_block_t *block, addr_t addr)
 		previous_node = current_node;
 		current_node = current_node->link;
 	}
-
-	/* Release spinlock */
-	spinlock_release(&block->plock);
 }
 
 /* Finds the appropriate block
@@ -645,10 +621,16 @@ void heap_free(addr_t addr)
 void kfree(void *p)
 {
 	/* Sanity */
-	assert(p != NULL);
+	assert(p != NULL); 
+
+	/* Lock */
+	spinlock_acquire(&heap_plock);
 
 	/* Free */
 	heap_free((addr_t)p);
+
+	/* Release */
+	spinlock_release(&heap_plock);
 
 	/* Set NULL */
 	p = NULL;

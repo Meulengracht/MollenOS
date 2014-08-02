@@ -108,7 +108,7 @@ void init(multiboot_info_t *bootinfo, uint32_t kernel_size)
 	printf("  - Initializing Drivers...\n");
 	threading_create_thread("DriverSetup", drivers_init, NULL, 0);
 
-	/* Done with setup! 
+	/* Done with setup!
 	 * This should be called on a new thread */
 	//threading_create_thread("SystemSetup", mcore_entry, NULL, 0);
 }

@@ -58,6 +58,9 @@
     <Filter Include="Drivers\Sata">
       <UniqueIdentifier>{a73a6be5-2173-4862-bf10-9eb78df4c84e}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Drivers\HPET">
+      <UniqueIdentifier>{4104b72c-8b5d-4bd2-8c25-0108cd6074b8}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\..\arch\x86\boot\main.c">

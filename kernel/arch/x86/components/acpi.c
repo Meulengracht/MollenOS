@@ -291,7 +291,7 @@ void acpi_init_stage2(void)
 	}
 
 	/* Create the ACPI namespace from ACPI tables */
-	printf("      > Loading tables\n");
+	printf("    * Loading tables\n");
 	Status = AcpiLoadTables();
 	if (ACPI_FAILURE(Status))
 	{

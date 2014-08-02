@@ -98,9 +98,6 @@ void ap_entry(void)
 	cpu = get_cpu();
 	memory_install_paging(cpu);
 
-	/* Done with shared */
-	spinlock_release_nint(&glb_boot_lock);
-
 	/* Enable FPU */
 	if (boot_cpu_info.edx_features & CPUID_FEAT_EDX_FPU)
 		enable_fpu();
@@ -117,6 +114,9 @@ void ap_entry(void)
 
 	/* Create idle task */
 	threading_ap_init();
+
+	/* Done with shared */
+	spinlock_release_nint(&glb_boot_lock);
 
 	/* Enable ints */
 	interrupt_enable();
@@ -168,7 +168,7 @@ void cpu_start_core(void *data, int n)
 	cpu_result = apic_read_local(0x300);
 	while (cpu_result & 0x1000)
 	{
-		stall_ms(1);
+		clock_stall(1);
 		cpu_result = apic_read_local(0x300);
 	}
 	printf("..");
@@ -182,7 +182,7 @@ void cpu_start_core(void *data, int n)
 	cpu_result = apic_read_local(0x300);
 	while (cpu_result & 0x1000)
 	{
-		stall_ms(1);
+		clock_stall(1);
 		cpu_result = apic_read_local(0x300);
 	}
 	printf(" booted!\n");

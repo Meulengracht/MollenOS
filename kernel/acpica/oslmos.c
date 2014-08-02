@@ -467,7 +467,7 @@ ACPI_STATUS AcpiOsRemoveInterruptHandler(
 void AcpiOsStall(UINT32 Microseconds)
 {
 	/* Stall OS */
-	stall_ms(Microseconds + 1);
+	clock_stall(Microseconds + 1);
 }
 
 /******************************************************************************
@@ -486,7 +486,7 @@ void AcpiOsSleep(UINT64 Milliseconds)
 {
 	/* TODO */
 	/* Add 10ms to account for clock tick granularity */
-	stall_ms(Milliseconds + 1);
+	clock_stall(Milliseconds + 1);
 	//Sleep(((unsigned long)Milliseconds) + 10);
 	return;
 }

@@ -110,7 +110,7 @@ void clock_stall(uint32_t ms)
 	/* If glb_clock_tick is 0, RTC failure */
 	if (clock_get_clocks() == 0)
 	{
-		stall_ms((size_t)ms);
+		printf("Tried to use RTC while having a failure :/\n");
 		return;
 	}
 

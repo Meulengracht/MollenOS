@@ -193,8 +193,13 @@ void memory_map(void *page_dir, physaddr_t phys, virtaddr_t virt, uint32_t flags
 	ptable = (page_table_t*)pdir->vTables[PAGE_DIRECTORY_INDEX(virt)];
 
 	/* Now, lets map page! */
-	assert(ptable->Pages[PAGE_TABLE_INDEX(virt)] == 0 
-		&& "Dont remap pages without freeing :(" );
+	if (ptable->Pages[PAGE_TABLE_INDEX(virt)] != 0)
+	{
+		printf("Trying to remap virtual 0x%x to physical 0x%x (original mapping 0x%x)\n",
+			virt, phys, ptable->Pages[PAGE_TABLE_INDEX(virt)]);
+		for (;;);
+		return;
+	}
 
 	/* Map it */
 	ptable->Pages[PAGE_TABLE_INDEX(virt)] = (phys & PAGE_MASK) | PAGE_PRESENT | PAGE_WRITE | flags;
@@ -319,7 +324,7 @@ physaddr_t memory_getmap(void *page_dir, virtaddr_t virt)
 
 	/* Sanity */
 	if (phys == 0)
-		return 0;
+		return phys;
 
 	/* Done - Return with offset */
 	return (phys + (virt & ATTRIBUTE_MASK));

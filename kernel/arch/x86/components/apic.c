@@ -26,6 +26,8 @@
 #include <list.h>
 #include <thread.h>
 
+#include <drivers\clock\clock.h>
+
 #include <assert.h>
 #include <stdio.h>
 
@@ -48,9 +50,15 @@ void apic_timer_handler(void *args)
 	registers_t *regs = NULL;
 	uint32_t time_slice = 20;
 	uint32_t task_priority = 0;
+	cpu_t cpu = get_cpu();
+
+	/* Uh oh */
+	if (apic_read_local(LAPIC_CURRENT_COUNT) != 0
+		|| apic_read_local(LAPIC_TIMER_VECTOR) & 0x10000)
+		return;
 
 	/* Increase timer_ticks */
-	timer_ticks[get_cpu()]++;
+	timer_ticks[cpu]++;
 
 	/* Send EOI */
 	apic_send_eoi();
@@ -58,15 +66,25 @@ void apic_timer_handler(void *args)
 	/* Switch Task */
 	regs = threading_switch((registers_t*)args, 1, &time_slice, &task_priority);
 
-	/* Set Task Priority */
-	apic_set_task_priority(61 - task_priority);
+	/* If we just got hold of idle task, well fuck it disable timer 
+	 * untill we get another task */
+	if (!(threading_get_current_thread(cpu)->flags & X86_THREAD_IDLE))
+	{
+		/* Set Task Priority */
+		apic_set_task_priority(61 - task_priority);
 
-	/* Reset Timer Tick */
-	apic_write_local(LAPIC_INITIAL_COUNT, timer_quantum * time_slice);
+		/* Reset Timer Tick */
+		apic_write_local(LAPIC_INITIAL_COUNT, timer_quantum * time_slice);
 
-	/* Re-enable timer in one-shot mode */
-	apic_write_local(LAPIC_TIMER_VECTOR, INTERRUPT_TIMER);		//0x20000 - Periodic
-
+		/* Re-enable timer in one-shot mode */
+		apic_write_local(LAPIC_TIMER_VECTOR, INTERRUPT_TIMER);		//0x20000 - Periodic
+	}
+	else
+	{
+		apic_write_local(LAPIC_TIMER_VECTOR, 0x10000);
+		apic_set_task_priority(0);
+	}
+	
 	/* Enter new thread */
 	enter_thread(regs);
 }
@@ -143,7 +161,7 @@ void apic_setup_ioapic(void *data, int n)
 }
 
 void apic_init(void)
-{	
+{
 	/* Inititalize & Remap PIC. WE HAVE TO DO THIS :( */
 	
 	/* Send INIT (0x10) and IC4 (0x1) Commands*/
@@ -189,6 +207,11 @@ void apic_init(void)
 
 	/* Kickstart things */
 	apic_send_eoi();
+
+	/* We install our timer here, we need it later on 
+	 * TODO check for HPET first, then use RTC if it does not exist */
+	printf("    * Installing Timer\n");
+	clock_init();
 }
 
 /* Enable/Config LAPIC */
@@ -283,8 +306,8 @@ void lapic_send_ipi(uint8_t cpu_destination, uint8_t irq_vector)
 		* Bit 11: Destination Mode, determines how the destination is interpreted. 0 means
 		*                           phyiscal mode (we use apic id), 1 means logical mode (we use set of processors).
 		* Bit 12: Delivery Status of the interrupt, read only. 0 = IDLE, 1 = Send Pending
-		* Bit 13: Used for INIT mode, set to 1 if not using
-		* Bit 14: Used for INIT mode aswell
+		* Bit 13: Not used
+		* Bit 14: Used for INIT mode aswell (1 = Assert, 0 = Deassert)
 		* Bit 15: Trigger Mode, read / write, 1 = Level sensitive, 0 = Edge sensitive.
 		* Bit 16-17: Reserved
 		* Bits 18-19: Destination Shorthand: 00 - Destination Field, 01 - Self, 10 - All, 11 - All others than self.
@@ -300,7 +323,7 @@ void lapic_send_ipi(uint8_t cpu_destination, uint8_t irq_vector)
 		 * Active High */
 		int_setup = cpu_destination;
 		int_setup <<= 56;
-		int_setup |= (1 << 13);
+		int_setup |= (1 << 14);
 		int_setup |= irq_vector;
 
 		/* Write upper 32 bits to ICR1 */
@@ -309,7 +332,6 @@ void lapic_send_ipi(uint8_t cpu_destination, uint8_t irq_vector)
 		/* Write lower 32 bits to ICR0 */
 		apic_write_local(0x300, (uint32_t)(int_setup & 0xFFFFFFFF));
 	}
-
 }
 
 /* Enable PIT & Local Apic */
@@ -366,7 +388,7 @@ void apic_timer_init(void)
 	/* Reset Timer Tick */
 	apic_write_local(LAPIC_INITIAL_COUNT, timer_quantum * 20);
 
-	/* Re-enable timer in periodic mode */
+	/* Re-enable timer in one-shot mode */
 	apic_write_local(LAPIC_TIMER_VECTOR, INTERRUPT_TIMER);		//0x20000 - Periodic
 
 	/* Reset divider to make sure */
@@ -495,16 +517,6 @@ uint64_t apic_read_entry_io(uint8_t ioapic, uint32_t reg)
 	val <<= 32;
 	val |= lo;
 	return val;
-}
-
-/* Sleep - Unreliable as crap */
-void stall_ms(size_t ms)
-{
-	cpu_t cpu = get_cpu();
-	size_t ticks = ((ms / 35) + 1) + timer_ticks[cpu];
-
-	while (timer_ticks[cpu] < ticks)
-		idle();
 }
 
 /* Get cpu id */

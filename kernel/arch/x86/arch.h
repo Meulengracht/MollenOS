@@ -195,7 +195,8 @@ _CRT_EXTERN interrupt_status_t interrupt_set_state(interrupt_status_t state);
 
 /* Utils */
 _CRT_EXTERN cpu_t get_cpu(void);
-_CRT_EXTERN void stall_ms(size_t ms);
+_CRT_EXTERN void lapic_send_ipi(uint8_t cpu_destination, uint8_t irq_vector);
+//_CRT_EXTERN void stall_ms(size_t ms);
 _CRT_EXTERN void clock_stall(uint32_t ms);
 _CRT_EXTERN void idle(void);
 
@@ -208,6 +209,7 @@ _CRT_EXTERN void *threading_enter_sleep(void);
 _CRT_EXTERN void threading_kill_thread(tid_t thread_id);
 _CRT_EXTERN void threading_yield(void *args);
 _CRT_EXTERN tid_t threading_get_thread_id(void);
+_CRT_EXTERN thread_t *threading_get_current_thread(cpu_t cpu);
 
 /* Driver Interface */
 _CRT_EXTERN void drivers_init(void *args);

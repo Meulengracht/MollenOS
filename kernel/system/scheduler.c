@@ -155,6 +155,10 @@ void scheduler_ready_thread(list_node_t *node)
 
 	/* Release lock */
 	spinlock_release(&glb_schedulers[index]->lock);
+
+	/* Wakeup CPU if sleeping */
+	if (threading_get_current_thread(t->cpu_id)->flags & 0x20)
+		lapic_send_ipi((uint8_t)t->cpu_id, INTERRUPT_YIELD);
 }
 
 /* Make a thread enter sleep */

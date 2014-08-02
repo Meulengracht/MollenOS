@@ -32,7 +32,6 @@
 #include <limits.h>
 
 /* Drivers */
-#include <drivers\clock\clock.h>
 #include <drivers\usb\uhci\uhci.h>
 #include <drivers\usb\ohci\ohci.h>
 #include <drivers\usb\ehci\ehci.h>
@@ -1136,10 +1135,6 @@ void drivers_init(void *args)
 	/* Start out by enumerating devices */
 	printf("    * Enumerating PCI Space\n");
 	drivers_enumerate_acpica();
-
-	/* Fixed Driver Install Here */
-	printf("    * Installing RTC Driver\n");
-	clock_init();
 
 	/* Special Step for EHCI Controllers 
 	 * This is untill I know OHCI and UHCI works perfectly! */

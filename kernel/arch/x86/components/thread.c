@@ -56,6 +56,7 @@ void threading_yield(void *args)
 	registers_t *regs = NULL;
 	uint32_t time_slice = 20;
 	uint32_t task_priority = 0;
+	cpu_t cpu = get_cpu();
 
 	/* Send EOI */
 	apic_send_eoi();
@@ -63,14 +64,24 @@ void threading_yield(void *args)
 	/* Switch Task */ 
 	regs = (void*)threading_switch((registers_t*)args, 0, &time_slice, &task_priority);
 
-	/* Set Task Priority */
-	apic_set_task_priority(61 - task_priority);
+	/* If we just got hold of idle task, well fuck it disable timer
+	* untill we get another task */
+	if (!(threading_get_current_thread(cpu)->flags & X86_THREAD_IDLE))
+	{
+		/* Set Task Priority */
+		apic_set_task_priority(61 - task_priority);
 
-	/* Reset Timer Tick */
-	apic_write_local(LAPIC_INITIAL_COUNT, timer_quantum * time_slice);
+		/* Reset Timer Tick */
+		apic_write_local(LAPIC_INITIAL_COUNT, timer_quantum * time_slice);
 
-	/* Re-enable timer in one-shot mode */
-	apic_write_local(LAPIC_TIMER_VECTOR, INTERRUPT_TIMER);
+		/* Re-enable timer in one-shot mode */
+		apic_write_local(LAPIC_TIMER_VECTOR, INTERRUPT_TIMER);		//0x20000 - Periodic
+	}
+	else
+	{
+		apic_write_local(LAPIC_TIMER_VECTOR, 0x10000);
+		apic_set_task_priority(0);
+	}
 
 	/* Enter new thread */
 	enter_thread(regs);
