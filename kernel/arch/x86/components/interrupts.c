@@ -295,10 +295,6 @@ void interrupt_entry(registers_t *regs)
 				calls++;
 		}
 	}
-	
-	/* Sanity */
-	//if (calls == 0)
-	//	printf("Unhandled interrupt vector %u\n", irq);
 
 	/* Send EOI (if not spurious) */
 	if (irq != INTERRUPT_SPURIOUS7 && irq != INTERRUPT_SPURIOUS)

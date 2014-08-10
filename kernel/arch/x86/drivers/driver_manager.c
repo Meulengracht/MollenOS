@@ -835,36 +835,6 @@ ACPI_STATUS pci_get_device_hw_info(pci_device_t *device, ACPI_HANDLE dev_parent,
 	return AE_OK;
 }
 
-/* Get OSC Capabilities from device */
-const char *osc_uuid = "33DB4D5B-1FF7-401C-9657-7441C03DD766";
-
-ACPI_STATUS pci_get_osc_capabilities(pci_device_t *device, uint32_t support)
-{
-	ACPI_STATUS status = AE_OK;
-	uint32_t capabilities[3];
-
-	/* We only want the first 5 bits */
-	support &= 0x1F;
-
-	/* Setup request */
-	capabilities[0] = 0x1;			/* 1 Dword is Query: Query Enable */
-	capabilities[1] = support;		/* 2 Dword is Support: Support */
-	capabilities[2] = 0;			/* 3 Dword is Control: dunno */
-
-	/* Run it */
-}
-
-/* Get control of PCI space */
-ACPI_STATUS pci_negiotiate_os_control(pci_device_t *device)
-{
-	ACPI_STATUS status = AE_OK;
-	uint32_t support, control, requested;
-
-	/* Set initial */
-	support = 0x1;				/* PCI_EXT_CONFIG_SUPPORT */
-
-}
-
 /* Adds an object to the Acpi List */
 pci_device_t *pci_add_object(ACPI_HANDLE handle, ACPI_HANDLE parent, uint32_t type)
 {
@@ -971,7 +941,7 @@ pci_device_t *pci_add_object(ACPI_HANDLE handle, ACPI_HANDLE parent, uint32_t ty
 		strncmp(device->hid, "PNP0A08", 7) == 0)	/* PCI or PCI-express */
 	{
 		/* First, we have to negiotiate OS Control */
-		pci_negiotiate_os_control(device);
+		//pci_negiotiate_os_control(device);
 
 		/* OK so actually we can get the bus number from this, and then SIMPLY
 		 * just use standard enumeration, wtf i did obviously fail at logic */
@@ -1001,9 +971,20 @@ ACPI_STATUS pci_scan_callback(ACPI_HANDLE handle, UINT32 level, void *context, v
 	ACPI_STATUS status = AE_OK;
 	ACPI_OBJECT_TYPE type = 0;
 	ACPI_HANDLE parent = (ACPI_HANDLE)context;
+//	uint8_t x_name[128];
+//	ACPI_BUFFER n_buf;
 
 	/* Have we already enumerated this device? */
 	/* HINT, look at attached data */
+//	memset(x_name, 0, sizeof(x_name));
+//	n_buf.Length = sizeof(x_name);
+//	n_buf.Pointer = x_name;
+
+	/* Get name */
+	//status = AcpiGetName(handle, ACPI_FULL_PATHNAME, &n_buf);
+	
+	//if (ACPI_SUCCESS(status))
+	//	printf("ACPI: %s\n", &x_name);
 
 	/* Get Type */
 	status = AcpiGetType(handle, &type);

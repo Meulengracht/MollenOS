@@ -51,45 +51,6 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="..\..\acpica\DEBUGGER\dbcmds.c">
-      <Filter>Source Files\Debugger</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\acpica\debugger\dbconvert.c">
-      <Filter>Source Files\Debugger</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\acpica\DEBUGGER\dbdisply.c">
-      <Filter>Source Files\Debugger</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\acpica\DEBUGGER\dbexec.c">
-      <Filter>Source Files\Debugger</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\acpica\DEBUGGER\dbfileio.c">
-      <Filter>Source Files\Debugger</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\acpica\DEBUGGER\dbhistry.c">
-      <Filter>Source Files\Debugger</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\acpica\DEBUGGER\dbinput.c">
-      <Filter>Source Files\Debugger</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\acpica\debugger\dbmethod.c">
-      <Filter>Source Files\Debugger</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\acpica\debugger\dbnames.c">
-      <Filter>Source Files\Debugger</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\acpica\DEBUGGER\dbstats.c">
-      <Filter>Source Files\Debugger</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\acpica\debugger\dbtest.c">
-      <Filter>Source Files\Debugger</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\acpica\DEBUGGER\dbutils.c">
-      <Filter>Source Files\Debugger</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\acpica\DEBUGGER\dbxface.c">
-      <Filter>Source Files\Debugger</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\acpica\Disassembler\dmbuffer.c">
       <Filter>Source Files\Disassembler</Filter>
     </ClCompile>
@@ -312,69 +273,6 @@
     <ClCompile Include="..\..\acpica\hardware\hwacpi.c">
       <Filter>Source Files\Hardware</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\acpica\namespace\nsaccess.c">
-      <Filter>Source Files\Namespace</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\acpica\namespace\nsalloc.c">
-      <Filter>Source Files\Namespace</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\acpica\namespace\nsarguments.c">
-      <Filter>Source Files\Namespace</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\acpica\namespace\nsconvert.c">
-      <Filter>Source Files\Namespace</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\acpica\namespace\nsdump.c">
-      <Filter>Source Files\Namespace</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\acpica\namespace\nseval.c">
-      <Filter>Source Files\Namespace</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\acpica\namespace\nsinit.c">
-      <Filter>Source Files\Namespace</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\acpica\namespace\nsload.c">
-      <Filter>Source Files\Namespace</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\acpica\namespace\nsnames.c">
-      <Filter>Source Files\Namespace</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\acpica\namespace\nsobject.c">
-      <Filter>Source Files\Namespace</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\acpica\NAMESPACE\nsparse.c">
-      <Filter>Source Files\Namespace</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\acpica\namespace\nspredef.c">
-      <Filter>Source Files\Namespace</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\acpica\namespace\nsprepkg.c">
-      <Filter>Source Files\Namespace</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\acpica\namespace\nsrepair.c">
-      <Filter>Source Files\Namespace</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\acpica\namespace\nsrepair2.c">
-      <Filter>Source Files\Namespace</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\acpica\namespace\nssearch.c">
-      <Filter>Source Files\Namespace</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\acpica\namespace\nsutils.c">
-      <Filter>Source Files\Namespace</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\acpica\namespace\nswalk.c">
-      <Filter>Source Files\Namespace</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\acpica\NAMESPACE\nsxfeval.c">
-      <Filter>Source Files\Namespace</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\acpica\namespace\nsxfname.c">
-      <Filter>Source Files\Namespace</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\acpica\namespace\nsxfobj.c">
-      <Filter>Source Files\Namespace</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\acpica\parser\psxface.c">
       <Filter>Source Files\Parser</Filter>
     </ClCompile>
@@ -408,45 +306,6 @@
     <ClCompile Include="..\..\acpica\parser\pswalk.c">
       <Filter>Source Files\Parser</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\acpica\resources\rsaddr.c">
-      <Filter>Source Files\Resources</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\acpica\resources\rscalc.c">
-      <Filter>Source Files\Resources</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\acpica\resources\rscreate.c">
-      <Filter>Source Files\Resources</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\acpica\resources\rsdump.c">
-      <Filter>Source Files\Resources</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\acpica\resources\rsinfo.c">
-      <Filter>Source Files\Resources</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\acpica\resources\rsio.c">
-      <Filter>Source Files\Resources</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\acpica\resources\rsirq.c">
-      <Filter>Source Files\Resources</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\acpica\resources\rslist.c">
-      <Filter>Source Files\Resources</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\acpica\resources\rsmemory.c">
-      <Filter>Source Files\Resources</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\acpica\resources\rsmisc.c">
-      <Filter>Source Files\Resources</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\acpica\resources\rsserial.c">
-      <Filter>Source Files\Resources</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\acpica\resources\rsutils.c">
-      <Filter>Source Files\Resources</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\acpica\resources\rsxface.c">
-      <Filter>Source Files\Resources</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\acpica\tables\tbdata.c">
       <Filter>Source Files\Tables</Filter>
     </ClCompile>
@@ -474,8 +333,8 @@
     <ClCompile Include="..\..\acpica\tables\tbxfroot.c">
       <Filter>Source Files\Tables</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\acpica\utilities\utxfmutex.c">
-      <Filter>Source Files\Utilities</Filter>
+    <ClCompile Include="..\..\acpica\oslmos.c">
+      <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="..\..\acpica\utilities\utaddress.c">
       <Filter>Source Files\Utilities</Filter>
@@ -489,7 +348,13 @@
     <ClCompile Include="..\..\acpica\utilities\utcache.c">
       <Filter>Source Files\Utilities</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\acpica\utilities\utclib.c">
+      <Filter>Source Files\Utilities</Filter>
+    </ClCompile>
     <ClCompile Include="..\..\acpica\utilities\utcopy.c">
+      <Filter>Source Files\Utilities</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\acpica\utilities\utdebug.c">
       <Filter>Source Files\Utilities</Filter>
     </ClCompile>
     <ClCompile Include="..\..\acpica\utilities\utdecode.c">
@@ -507,7 +372,13 @@
     <ClCompile Include="..\..\acpica\utilities\utexcep.c">
       <Filter>Source Files\Utilities</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\acpica\utilities\utfileio.c">
+      <Filter>Source Files\Utilities</Filter>
+    </ClCompile>
     <ClCompile Include="..\..\acpica\utilities\utglobal.c">
+      <Filter>Source Files\Utilities</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\acpica\utilities\uthex.c">
       <Filter>Source Files\Utilities</Filter>
     </ClCompile>
     <ClCompile Include="..\..\acpica\utilities\utids.c">
@@ -540,6 +411,9 @@
     <ClCompile Include="..\..\acpica\utilities\utpredef.c">
       <Filter>Source Files\Utilities</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\acpica\utilities\utprint.c">
+      <Filter>Source Files\Utilities</Filter>
+    </ClCompile>
     <ClCompile Include="..\..\acpica\utilities\utresrc.c">
       <Filter>Source Files\Utilities</Filter>
     </ClCompile>
@@ -547,6 +421,12 @@
       <Filter>Source Files\Utilities</Filter>
     </ClCompile>
     <ClCompile Include="..\..\acpica\utilities\utstring.c">
+      <Filter>Source Files\Utilities</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\acpica\utilities\uttrack.c">
+      <Filter>Source Files\Utilities</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\acpica\utilities\utuuid.c">
       <Filter>Source Files\Utilities</Filter>
     </ClCompile>
     <ClCompile Include="..\..\acpica\utilities\utxface.c">
@@ -558,8 +438,155 @@
     <ClCompile Include="..\..\acpica\utilities\utxfinit.c">
       <Filter>Source Files\Utilities</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\acpica\oslmos.c">
-      <Filter>Source Files</Filter>
+    <ClCompile Include="..\..\acpica\utilities\utxfmutex.c">
+      <Filter>Source Files\Utilities</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\acpica\debugger\dbcmds.c">
+      <Filter>Source Files\Debugger</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\acpica\debugger\dbconvert.c">
+      <Filter>Source Files\Debugger</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\acpica\debugger\dbdisply.c">
+      <Filter>Source Files\Debugger</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\acpica\debugger\dbexec.c">
+      <Filter>Source Files\Debugger</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\acpica\debugger\dbfileio.c">
+      <Filter>Source Files\Debugger</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\acpica\debugger\dbhistry.c">
+      <Filter>Source Files\Debugger</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\acpica\debugger\dbinput.c">
+      <Filter>Source Files\Debugger</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\acpica\debugger\dbmethod.c">
+      <Filter>Source Files\Debugger</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\acpica\debugger\dbnames.c">
+      <Filter>Source Files\Debugger</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\acpica\debugger\dbstats.c">
+      <Filter>Source Files\Debugger</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\acpica\debugger\dbtest.c">
+      <Filter>Source Files\Debugger</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\acpica\debugger\dbutils.c">
+      <Filter>Source Files\Debugger</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\acpica\debugger\dbxface.c">
+      <Filter>Source Files\Debugger</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\acpica\namespace\nsaccess.c">
+      <Filter>Source Files\Namespace</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\acpica\namespace\nsalloc.c">
+      <Filter>Source Files\Namespace</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\acpica\namespace\nsarguments.c">
+      <Filter>Source Files\Namespace</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\acpica\namespace\nsconvert.c">
+      <Filter>Source Files\Namespace</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\acpica\namespace\nsdump.c">
+      <Filter>Source Files\Namespace</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\acpica\namespace\nsdumpdv.c">
+      <Filter>Source Files\Namespace</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\acpica\namespace\nseval.c">
+      <Filter>Source Files\Namespace</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\acpica\namespace\nsinit.c">
+      <Filter>Source Files\Namespace</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\acpica\namespace\nsload.c">
+      <Filter>Source Files\Namespace</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\acpica\namespace\nsnames.c">
+      <Filter>Source Files\Namespace</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\acpica\namespace\nsobject.c">
+      <Filter>Source Files\Namespace</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\acpica\namespace\nsparse.c">
+      <Filter>Source Files\Namespace</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\acpica\namespace\nspredef.c">
+      <Filter>Source Files\Namespace</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\acpica\namespace\nsprepkg.c">
+      <Filter>Source Files\Namespace</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\acpica\namespace\nsrepair.c">
+      <Filter>Source Files\Namespace</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\acpica\namespace\nsrepair2.c">
+      <Filter>Source Files\Namespace</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\acpica\namespace\nssearch.c">
+      <Filter>Source Files\Namespace</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\acpica\namespace\nsutils.c">
+      <Filter>Source Files\Namespace</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\acpica\namespace\nswalk.c">
+      <Filter>Source Files\Namespace</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\acpica\namespace\nsxfeval.c">
+      <Filter>Source Files\Namespace</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\acpica\namespace\nsxfname.c">
+      <Filter>Source Files\Namespace</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\acpica\namespace\nsxfobj.c">
+      <Filter>Source Files\Namespace</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\acpica\resources\rsaddr.c">
+      <Filter>Source Files\Resources</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\acpica\resources\rscalc.c">
+      <Filter>Source Files\Resources</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\acpica\resources\rscreate.c">
+      <Filter>Source Files\Resources</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\acpica\resources\rsdump.c">
+      <Filter>Source Files\Resources</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\acpica\resources\rsdumpinfo.c">
+      <Filter>Source Files\Resources</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\acpica\resources\rsinfo.c">
+      <Filter>Source Files\Resources</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\acpica\resources\rsio.c">
+      <Filter>Source Files\Resources</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\acpica\resources\rsirq.c">
+      <Filter>Source Files\Resources</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\acpica\resources\rslist.c">
+      <Filter>Source Files\Resources</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\acpica\resources\rsmemory.c">
+      <Filter>Source Files\Resources</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\acpica\resources\rsmisc.c">
+      <Filter>Source Files\Resources</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\acpica\resources\rsserial.c">
+      <Filter>Source Files\Resources</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\acpica\resources\rsutils.c">
+      <Filter>Source Files\Resources</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\acpica\resources\rsxface.c">
+      <Filter>Source Files\Resources</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
