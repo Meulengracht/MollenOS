@@ -199,6 +199,7 @@
 typedef unsigned char                   BOOLEAN;
 typedef unsigned char                   UINT8;
 typedef unsigned short                  UINT16;
+typedef short                           INT16;
 typedef COMPILER_DEPENDENT_UINT64       UINT64;
 typedef COMPILER_DEPENDENT_INT64        INT64;
 
@@ -595,7 +596,7 @@ typedef UINT64                          ACPI_INTEGER;
 
 #define ACPI_TO_POINTER(i)              ACPI_ADD_PTR (void, (void *) NULL,(ACPI_SIZE) i)
 #define ACPI_TO_INTEGER(p)              ACPI_PTR_DIFF (p, (void *) NULL)
-#define ACPI_OFFSET(d, f)               (ACPI_SIZE) ACPI_PTR_DIFF (&(((d *)0)->f), (void *) NULL)
+#define ACPI_OFFSET(d, f)               ACPI_PTR_DIFF (&(((d *) 0)->f), (void *) NULL)
 #define ACPI_PHYSADDR_TO_PTR(i)         ACPI_TO_POINTER(i)
 #define ACPI_PTR_TO_PHYSADDR(i)         ACPI_TO_INTEGER(i)
 
@@ -689,8 +690,9 @@ typedef UINT64                          ACPI_INTEGER;
 #define ACPI_NOTIFY_RESERVED            (UINT8) 0x0A
 #define ACPI_NOTIFY_LOCALITY_UPDATE     (UINT8) 0x0B
 #define ACPI_NOTIFY_SHUTDOWN_REQUEST    (UINT8) 0x0C
+#define ACPI_NOTIFY_AFFINITY_UPDATE     (UINT8) 0x0D
 
-#define ACPI_NOTIFY_MAX                 0x0C
+#define ACPI_NOTIFY_MAX                 0x0D
 
 /*
  * Types associated with ACPI names and objects. The first group of
@@ -1216,7 +1218,6 @@ ACPI_STATUS (*ACPI_ADR_SPACE_HANDLER) (
 #define ACPI_DEFAULT_HANDLER            NULL
 
 /* Special Context data for GenericSerialBus/GeneralPurposeIo (ACPI 5.0) */
-
 #pragma pack(push, 1)
 typedef struct acpi_connection_info
 {
@@ -1412,6 +1413,21 @@ typedef struct acpi_memory_list
 #define ACPI_OSI_WIN_VISTA_SP2          0x0A
 #define ACPI_OSI_WIN_7                  0x0B
 #define ACPI_OSI_WIN_8                  0x0C
+
+
+/* Definitions of file IO */
+
+#define ACPI_FILE_READING               0x01
+#define ACPI_FILE_WRITING               0x02
+#define ACPI_FILE_BINARY                0x04
+
+#define ACPI_FILE_BEGIN                 0x01
+#define ACPI_FILE_END                   0x02
+
+
+/* Definitions of getopt */
+
+#define ACPI_OPT_END                    -1
 
 
 #endif /* __ACTYPES_H__ */

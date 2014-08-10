@@ -31,8 +31,11 @@ uint32_t pci_read_dword(const uint16_t bus, const uint16_t dev,
 	const uint16_t func, const uint32_t reg)
 {
 	/* Select Bus/Device/Function/Register */
-	outl(X86_PCI_SELECT, 0x80000000L | ((uint32_t)bus << 16) | ((uint32_t)dev << 11) |
-		((uint32_t)func << 8) | (reg & ~3));
+	outl(X86_PCI_SELECT, 0x80000000
+		| (bus << 16)
+		| (dev << 11)
+		| (func << 8)
+		| (reg & 0xFC));
 
 	/* Read Data */
 	return inl(X86_PCI_DATA + (reg & 3));
@@ -42,8 +45,11 @@ uint16_t pci_read_word(const uint16_t bus, const uint16_t dev,
 	const uint16_t func, const uint32_t reg)
 {
 	/* Select Bus/Device/Function/Register */
-	outl(X86_PCI_SELECT, 0x80000000L | ((uint32_t)bus << 16) | ((uint32_t)dev << 11) |
-		((uint32_t)func << 8) | (reg & ~3));
+	outl(X86_PCI_SELECT, 0x80000000
+		| (bus << 16)
+		| (dev << 11)
+		| (func << 8)
+		| (reg & 0xFC));
 
 	/* Read Data */
 	return inw(X86_PCI_DATA + (reg & 3));
@@ -53,8 +59,11 @@ uint8_t pci_read_byte(const uint16_t bus, const uint16_t dev,
 	const uint16_t func, const uint32_t reg)
 {
 	/* Select Bus/Device/Function/Register */
-	outl(X86_PCI_SELECT, 0x80000000L | ((uint32_t)bus << 16) | ((uint32_t)dev << 11) |
-		((uint32_t)func << 8) | (reg & ~3));
+	outl(X86_PCI_SELECT, 0x80000000
+		| (bus << 16)
+		| (dev << 11)
+		| (func << 8)
+		| (reg & 0xFC));
 
 	/* Read Data */
 	return inb(X86_PCI_DATA + (reg & 3));
@@ -64,36 +73,42 @@ void pci_write_dword(const uint16_t bus, const uint16_t dev,
 	const uint16_t func, const uint32_t reg, uint32_t value)
 {
 	/* Select Bus/Device/Function/Register */
-	outl(X86_PCI_SELECT, 0x80000000L | ((uint32_t)bus << 16) | ((uint32_t)dev << 11) |
-		((uint32_t)func << 8) | (reg & ~3));
+	outl(X86_PCI_SELECT, 0x80000000
+		| (bus << 16)
+		| (dev << 11)
+		| (func << 8)
+		| (reg & 0xFC));
 
 	/* Write DATA */
-	outl(X86_PCI_DATA + (reg & 3), value);
-	return;
+	outl(X86_PCI_DATA, value);
 }
 
 void pci_write_word(const uint16_t bus, const uint16_t dev,
 	const uint16_t func, const uint32_t reg, uint16_t value)
 {
 	/* Select Bus/Device/Function/Register */
-	outl(X86_PCI_SELECT, 0x80000000L | ((uint32_t)bus << 16) | ((uint32_t)dev << 11) |
-		((uint32_t)func << 8) | (reg & ~3));
+	outl(X86_PCI_SELECT, 0x80000000
+		| (bus << 16)
+		| (dev << 11)
+		| (func << 8)
+		| (reg & 0xFC));
 
 	/* Write DATA */
-	outw(X86_PCI_DATA + (reg & 3), value);
-	return;
+	outw(X86_PCI_DATA, value);
 }
 
 void pci_write_byte(const uint16_t bus, const uint16_t dev,
 	const uint16_t func, const uint32_t reg, uint8_t value)
 {
 	/* Select Bus/Device/Function/Register */
-	outl(X86_PCI_SELECT, 0x80000000L | ((uint32_t)bus << 16) | ((uint32_t)dev << 11) |
-		((uint32_t)func << 8) | (reg & ~3));
+	outl(X86_PCI_SELECT, 0x80000000
+		| (bus << 16)
+		| (dev << 11)
+		| (func << 8)
+		| (reg & 0xFC));
 
 	/* Write DATA */
-	outb(X86_PCI_DATA + (reg & 3), value);
-	return;
+	outb(X86_PCI_DATA + (reg & 0x03), value);
 }
 
 /* Reads the vendor id at given location */

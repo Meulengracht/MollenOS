@@ -38,6 +38,37 @@
 #include <drivers\usb\usb.h>
 #include <drivers\usb\uhci\uhci.h>
 
+/* Uhci Devices Strings */
+static pci_dev_info_t uhci_devices_intel[] = {
+	{ 0x2412, "82801AA (ICH)" },
+	{ 0x2422, "82801AB (ICH0)" },
+	{ 0x2442, "82801BA/BAM (ICH2) USB-A" },
+	{ 0x2444, "82801BA/BAM (ICH2) USB-B" },
+	{ 0x2452, "82801E" },
+	{ 0x2482, "82801CA/CAM (ICH3) USB-A" },
+	{ 0x2484, "82801CA/CAM (ICH3) USB-B" },
+	{ 0x2487, "82801CA/CAM (ICH3) USB-C" },
+	{ 0x24c2, "82801DB (ICH4) USB-A" },
+	{ 0x24c4, "82801DB (ICH4) USB-B" },
+	{ 0x24c7, "82801DB (ICH4) USB-C" },
+	{ 0x24d2, "82801EB/ER (ICH5/ICH5R) USB-A" },
+	{ 0x24d4, "82801EB/ER (ICH5/ICH5R) USB-B" },
+	{ 0x24d7, "82801EB/ER (ICH5/ICH5R) USB-C" },
+	{ 0x24de, "82801EB/ER (ICH5/ICH5R) USB-D" },
+	{ 0x25a9, "6300ESB" },
+	{ 0x24aa, "6300ESB" },
+	{ 0x7020, "82371SB (PIIX3)" },
+	{ 0x7112, "82371AB/EB/MB (PIIX4)" },
+	{ 0x719a, "82443MX" },
+	{ 0x7602, "82372FB/82468GX (PIIX5)" },
+	{ 0, 0 }
+};
+
+static pci_dev_info_t uhci_devices_via[] = {
+	{ 0x3038, "VT83C572, VT6202" },
+	{ 0, 0 }
+};
+
 /* Globals */
 volatile uint32_t glb_uhci_id = 0;
 
@@ -46,8 +77,8 @@ extern void _yield(void);
 
 /* Prototypes (Internal) */
 void uhci_init_queues(uhci_controller_t *controller);
-void uhci_setup(uhci_controller_t *controller);
-void uhci_interrupt_handler(void *args);
+void uhci_setup(void *c_data);
+int uhci_interrupt_handler(void *args);
 
 void uhci_port_reset(uhci_controller_t *controller, int port, int noint);
 void uhci_port_check(uhci_controller_t *controller, int port);
@@ -186,7 +217,6 @@ void uhci_stop(uhci_controller_t *controller)
 * and starts a init thread */
 void uhci_init(pci_driver_t *device)
 {
-	uint16_t pci_command;
 	uhci_controller_t *controller = NULL;
 
 	/* Allocate Resources for this controller */
@@ -198,15 +228,11 @@ void uhci_init(pci_driver_t *device)
 	glb_uhci_id++;
 
 	/* Enable i/o and bus mastering */
-	pci_command = pci_read_word((const uint16_t)device->bus, (const uint16_t)device->device, (const uint16_t)device->function, 0x4);
-	pci_write_word((const uint16_t)device->bus, (const uint16_t)device->device, (const uint16_t)device->function, 0x4, pci_command | 0x5);
+	pci_write_word((const uint16_t)device->bus, (const uint16_t)device->device, (const uint16_t)device->function, 0x4, 0x0005);
 
 	/* Get I/O Base from Bar4 */
 	controller->io_base = (device->header->bar4 & 0x0000FFFE);
-
-	/* Install IRQ Handler */
-	interrupt_install_pci(device, uhci_interrupt_handler, controller);
-
+	
 	/* Get DMA */
 	controller->frame_list_phys = physmem_alloc_block_dma();
 	controller->frame_list = (void*)controller->frame_list_phys;
@@ -214,32 +240,39 @@ void uhci_init(pci_driver_t *device)
 	/* Memset */
 	memset(controller->frame_list, 0, 0x1000);
 
-	/* Debug */
-	printf("UHCI - Id %u, Bar4: 0x%x, Dma: 0x%x\n", controller->id, controller->io_base, controller->frame_list_phys);
-
 	/* Reset Controller */
-	uhci_setup(controller);
+	threading_create_thread("UhciSetup", uhci_setup, controller, 0);
 }
 
-void uhci_setup(uhci_controller_t *controller)
+void uhci_setup(void *c_data)
 {
 	usb_hc_t *hc;
-	uint16_t enabled_ports = 2;
+	uint16_t enabled_ports = 0;
 	uint16_t temp = 0, i = 0;
+	uhci_controller_t *controller;
+
+	controller = (uhci_controller_t*)c_data;
+
+	/* Disable Legacy Emulation & Interrupts */
+	pci_write_word((const uint16_t)controller->pci_info->bus, (const uint16_t)controller->pci_info->device,
+		(const uint16_t)controller->pci_info->function, X86_UHCI_USBLEG, 0x8F00);
 
 	/* Disable interrupts while configuring (and stop controller) */
 	uhci_write16(controller, X86_UHCI_REGISTER_COMMAND, 0x0000);
 	uhci_write16(controller, X86_UHCI_REGISTER_INTR, 0x0000);
 
-	/* Disable Legacy Emulation & Interrupts */
-	pci_write_word((const uint16_t)controller->pci_info->bus, (const uint16_t)controller->pci_info->device, 
-		(const uint16_t)controller->pci_info->function, 0xC0, 0x8F00);
-
 	/* Reset Controller */
+
+	/* Global Reset */
+	uhci_write16(controller, X86_UHCI_REGISTER_COMMAND, X86_UHCI_CMD_GRESET);
+	clock_stall(100);
+	uhci_write16(controller, X86_UHCI_REGISTER_COMMAND, 0x0000);
+
+	/* HC Reset */
 	uhci_write16(controller, X86_UHCI_REGISTER_COMMAND, X86_UHCI_CMD_HCRESET);
 
 	/* Recovery */
-	clock_stall(5);
+	clock_stall(1);
 
 	/* Wait for reset */
 	while (uhci_read16(controller, X86_UHCI_REGISTER_COMMAND) & X86_UHCI_CMD_HCRESET)
@@ -250,7 +283,7 @@ void uhci_setup(uhci_controller_t *controller)
 	uhci_write16(controller, X86_UHCI_REGISTER_INTR, 0x0000);
 
 	/* We get port count & 0 them */
-	for (i = 0; i < 7; i++)
+	for (i = 0; i < 8; i++)
 	{
 		temp = uhci_read16(controller, (X86_UHCI_REGISTER_PORT_BASE + (i * 2)));
 
@@ -275,19 +308,32 @@ void uhci_setup(uhci_controller_t *controller)
 	uhci_write16(controller, X86_UHCI_REGISTER_FRNUM, 0);
 	uhci_write8(controller, X86_UHCI_REGISTER_SOFMOD, 64); /* Frame Length 1 ms */
 
+	/* Setup Queues */
+	uhci_init_queues(controller);
+
+	/* Turn on only if connected ports */
+	for (i = 0; i < controller->ports; i++)
+	{
+		temp = uhci_read16(controller, (X86_UHCI_REGISTER_PORT_BASE + (i * 2)));
+		
+		/* enabled? */
+		if (temp & X86_UHCI_PORT_CONNECT_STATUS)
+			enabled_ports++;
+	}
+
+	/* Install IRQ Handler */
+	interrupt_install_pci(controller->pci_info, uhci_interrupt_handler, controller);
+
 	/* Enable PCI Interrupts */
 	pci_write_word((const uint16_t)controller->pci_info->bus,
 		(const uint16_t)controller->pci_info->device,
 		(const uint16_t)controller->pci_info->function,
-		0xC0, 0x2000);
+		X86_UHCI_USBLEG, 0x2000);
 
 	/* If vendor is Intel we null out the intel register */
 	if (controller->pci_info->header->vendor_id == 0x8086)
 		pci_write_byte((const uint16_t)controller->pci_info->bus, (const uint16_t)controller->pci_info->device,
-						(const uint16_t)controller->pci_info->function, X86_UHCI_USBRES_INTEL, 0);
-
-	/* Setup Queues */
-	uhci_init_queues(controller);
+		(const uint16_t)controller->pci_info->function, X86_UHCI_USBRES_INTEL, 0x00);
 
 	/* Now start and wait */
 	if (enabled_ports == 0)
@@ -301,18 +347,19 @@ void uhci_setup(uhci_controller_t *controller)
 		temp = (X86_UHCI_CMD_CF | X86_UHCI_CMD_RUN | X86_UHCI_CMD_MAXPACKET64);
 	}
 	
+	/* Start controller */
 	uhci_write16(controller, X86_UHCI_REGISTER_COMMAND, temp);
 
 	/* Enable interrupts */
-	temp = (X86_UHCI_INTR_TIMEOUT | X86_UHCI_INTR_SHORT_PACKET
-		| X86_UHCI_INTR_RESUME | X86_UHCI_INTR_COMPLETION);
-	uhci_write16(controller, X86_UHCI_REGISTER_INTR, temp);
+	uhci_write16(controller, X86_UHCI_REGISTER_INTR, 
+		(X86_UHCI_INTR_TIMEOUT | X86_UHCI_INTR_SHORT_PACKET
+		| X86_UHCI_INTR_RESUME | X86_UHCI_INTR_COMPLETION));
 
 	/* Give it a 10 ms */
 	clock_stall(10);
 
 	/* Debug */
-	printf("UHCI: Port Count %u, Command Register 0x%x\n", 
+	printf("UHCI %u: Port Count %u, Command Register 0x%x\n", controller->id,
 		controller->ports, uhci_read16(controller, X86_UHCI_REGISTER_COMMAND));
 
 	/* Setup HCD */
@@ -332,9 +379,9 @@ void uhci_setup(uhci_controller_t *controller)
 
 	controller->hcd_id = usb_register_controller(hc);
 
-	/* Install Periodic Check (WTF NO HUB INTERRUPTS!?) 
+	/* Install Periodic Check (WTF NO HUB INTERRUPTS!?)
 	 * Anyway this will initiate ports */
-	timers_create_periodic(uhci_ports_check, controller, 300);
+	timers_create_periodic(uhci_ports_check, controller, 500);
 }
 
 /* Initialises Queue Heads & Interrupt Queeue */
@@ -451,40 +498,54 @@ void uhci_init_queues(uhci_controller_t *controller)
 void uhci_port_reset(uhci_controller_t *controller, int port, int noint)
 {
 	uint16_t temp, i;
+	uint16_t offset = (X86_UHCI_REGISTER_PORT_BASE + ((uint16_t)port * 2));
 	_CRT_UNUSED(noint);
 
-	/* Step 1. Reset Port for 50 ms */
-	uhci_write16(controller, (X86_UHCI_REGISTER_PORT_BASE + ((uint16_t)port * 2)), X86_UHCI_PORT_RESET | X86_UHCI_PORT_CONNECT_EVENT);
+	/* Step 1. Send reset signal */
+	temp = uhci_read16(controller, offset) & 0xFFF5;
+	uhci_write16(controller, offset, temp | X86_UHCI_PORT_RESET);
 
 	/* Wait atlest 50 ms (per USB specification) */
-	clock_stall(50);
+	clock_stall(60);
 
 	/* Now deassert reset signal */
-	uhci_write16(controller, (X86_UHCI_REGISTER_PORT_BASE + ((uint16_t)port * 2)), 0);
+	temp = uhci_read16(controller, offset) & 0xFFF5;
+	uhci_write16(controller, offset, temp & ~X86_UHCI_PORT_RESET);
 
 	/* Recovery Wait */
-	clock_stall(100);
+	clock_stall(10);
 
 	/* Step 2. Enable Port */
-	uhci_write16(controller, (X86_UHCI_REGISTER_PORT_BASE + ((uint16_t)port * 2)), (X86_UHCI_PORT_ENABLED | X86_UHCI_PORT_CONNECT_EVENT | X86_UHCI_PORT_ENABLED_EVENT));
-
-	/* Give it 10 ms to recover */
-	clock_stall(10);
+	temp = uhci_read16(controller, offset) & 0xFFF5;
+	uhci_write16(controller, offset, temp | X86_UHCI_PORT_ENABLED);
 
 	/* Wait for enable, with timeout */
 	i = 0;
-	while (i < 1000)
+	while (i < 10)
 	{
-		/* Check status */
-		temp = uhci_read16(controller, (X86_UHCI_REGISTER_PORT_BASE + ((uint16_t)port * 2)));
-		if (temp & X86_UHCI_PORT_ENABLED)
-			break;
-
-		/* Stall */
-		clock_stall(10);
-
 		/* Increase */
 		i++;
+
+		/* Stall */
+		clock_stall(12);
+
+		/* Check status */
+		temp = uhci_read16(controller, offset);
+
+		/* Is device still connected? */
+		if (!(temp & X86_UHCI_PORT_CONNECT_STATUS))
+			return;
+
+		/* Has it raised any event bits? In that case clear'em */
+		if (temp & (X86_UHCI_PORT_CONNECT_EVENT | X86_UHCI_PORT_ENABLED_EVENT))
+		{
+			uhci_write16(controller, offset, (temp & 0xFFF5) | (X86_UHCI_PORT_CONNECT_EVENT | X86_UHCI_PORT_ENABLED_EVENT));
+			continue;
+		}
+
+		/* Done? */
+		if (temp & X86_UHCI_PORT_ENABLED)
+			break;
 	}
 
 	/* Sanity */
@@ -505,6 +566,12 @@ void uhci_port_check(uhci_controller_t *controller, int port)
 	if (!(pstatus & X86_UHCI_PORT_CONNECT_STATUS))
 		return;
 
+	/* Clear bits asap */
+	if ((pstatus & X86_UHCI_PORT_CONNECT_EVENT)
+		|| (pstatus & X86_UHCI_PORT_ENABLED_EVENT)
+		|| (pstatus & X86_UHCI_PORT_RESUME_DETECT))
+		uhci_write16(controller, (X86_UHCI_REGISTER_PORT_BASE + ((uint16_t)port * 2)), pstatus);
+
 	/* Get HCD data */
 	hc = usb_get_hcd(controller->hcd_id);
 
@@ -518,12 +585,6 @@ void uhci_port_check(uhci_controller_t *controller, int port)
 		/* Connect event? */
 		if (pstatus & X86_UHCI_PORT_CONNECT_STATUS)
 		{
-			/* First check if there is a Enabled Event, 
-			 * because this means that the controller has
-			 * disabled this port for a reason */
-			//if (pstatus & X86_UHCI_PORT_ENABLED_EVENT)
-			//	return;
-
 			/* Connection Event */
 			usb_event_create(hc, port, X86_USB_EVENT_CONNECTED);
 		}
@@ -533,12 +594,6 @@ void uhci_port_check(uhci_controller_t *controller, int port)
 			usb_event_create(hc, port, X86_USB_EVENT_DISCONNECTED);
 		}
 	}
-
-	/* Clear bits */
-	if ((pstatus & X86_UHCI_PORT_CONNECT_EVENT)
-		|| (pstatus & X86_UHCI_PORT_ENABLED_EVENT)
-		|| (pstatus & X86_UHCI_PORT_RESUME_DETECT))
-		uhci_write16(controller, (X86_UHCI_REGISTER_PORT_BASE + ((uint16_t)port * 2)), pstatus);
 }
 
 /* Go through ports */
@@ -567,10 +622,14 @@ void uhci_port_setup(void *data, usb_hc_port_t *port)
 	/* Is it connected? */
 	if (pstatus & X86_UHCI_PORT_CONNECT_STATUS)
 		port->connected = 1;
+	else
+		port->connected = 0;
 
 	/* Enabled? */
 	if (pstatus & X86_UHCI_PORT_ENABLED)
 		port->enabled = 1;
+	else
+		port->enabled = 0;
 
 	/* Lowspeed? */
 	if (pstatus & X86_UHCI_PORT_LOWSPEED)
@@ -953,7 +1012,7 @@ void uhci_transaction_send(void *controller, usb_hc_request_t *request)
 	list_append(ctrl->transactions_list, list_create_node(0, request->data));
 
 	/* Wait for interrupt */
-	scheduler_sleep_thread((addr_t*)request->data);
+	//scheduler_sleep_thread((addr_t*)request->data);
 
 	/* Start controller */
 	uhci_start(ctrl);
@@ -971,6 +1030,10 @@ void uhci_transaction_send(void *controller, usb_hc_request_t *request)
 	while (transaction)
 	{
 		td = (uhci_transfer_desc_t*)transaction->transfer_descriptor;
+
+		/* Debug */
+		printf("TD at 0x%x, Control 0x%x, Header 0x%x, Buffer 0x%x, Link 0x%x\n",
+			(addr_t)td, td->control, td->header, td->buffer, td->link_ptr);
 		
 		/* Error? :s */
 		if (X86_UHCI_TD_STATUS(td->control))
@@ -1019,29 +1082,29 @@ void uhci_install_interrupt(void *controller, usb_hc_device_t *device, usb_hc_en
 }
 
 /* Interrupt Handler */
-void uhci_interrupt_handler(void *args)
+int uhci_interrupt_handler(void *args)
 {
 	uint16_t intr_state = 0;
 	uhci_controller_t *controller = (uhci_controller_t*)args;
 
 	/* Get INTR state */
 	intr_state = uhci_read16(controller, X86_UHCI_REGISTER_STATUS);
-
+	
 	/* Did this one come from us? */
 	if (!(intr_state & 0x1F))
-		return;
-
-	/* Clear Interrupt Bits :-) */
-	uhci_write16(controller, X86_UHCI_REGISTER_STATUS, intr_state);
+		return X86_IRQ_NOT_HANDLED;
 
 	/* Debug */
 	printf("UHCI_INTERRUPT Controller %u: 0x%x\n", controller->id, intr_state);
+
+	/* Clear Interrupt Bits :-) */
+	uhci_write16(controller, X86_UHCI_REGISTER_STATUS, intr_state);
 
 	/* Sanity */
 	if (controller->initialized == 0)
 	{
 		/* Bleh */
-		return;
+		return X86_IRQ_HANDLED;
 	}
 
 	/* So.. */
@@ -1143,4 +1206,6 @@ void uhci_interrupt_handler(void *args)
 		 * Unschedule TDs and restart controller */
 		printf("UHCI: Processing Error :/ \n");
 	}
+
+	return X86_IRQ_HANDLED;
 }

@@ -37,9 +37,9 @@
 #include <drivers\usb\ehci\ehci.h>
 
 /* Prototypes */
-void pci_check_function(uint8_t bus, uint8_t device, uint8_t function);
-void pci_check_device(uint8_t bus, uint8_t device);
-void pci_check_bus(uint8_t bus);
+void pci_check_function(list_t *bridge, uint8_t bus, uint8_t device, uint8_t function);
+void pci_check_device(list_t *bridge, uint8_t bus, uint8_t device);
+void pci_check_bus(list_t *bridge, uint8_t bus);
 
 pci_device_t *pci_add_object(ACPI_HANDLE handle, ACPI_HANDLE parent, uint32_t type);
 
@@ -48,10 +48,13 @@ list_t *glb_pci_devices = NULL;
 list_t *glb_pci_acpica = NULL;
 volatile uint32_t glb_bus_counter = 0;
 
+/* Extern */
+extern void threading_debug(void);
+
 /* Check a function */
 /* For each function we create a 
  * pci_device and add it to the list */
-void pci_check_function(uint8_t bus, uint8_t device, uint8_t function)
+void pci_check_function(list_t *bridge, uint8_t bus, uint8_t device, uint8_t function)
 {
 	uint8_t sec_bus;
 	pci_device_header_t *pcs;
@@ -71,31 +74,34 @@ void pci_check_function(uint8_t bus, uint8_t device, uint8_t function)
 	pci_driver->function = function;
 	pci_driver->children = NULL;
 
-	/* Info */
-	printf("    * [%d:%d:%d][%d:%d:%d] Vendor 0x%x, Device 0x%x : %s\n",
-		pcs->class_code, pcs->subclass, pcs->ProgIF, 
-		bus, device, function,
-		pcs->vendor_id, pcs->device_id,
-		pci_to_string(pcs->class_code, pcs->subclass, pcs->ProgIF));
-
-	/* Add to list */
-	if (bus == 0)
+	/* Info 
+	 * Ignore the spam of device_id 0x7a0 in VMWare*/
+	if (pcs->device_id != 0x7a0)
 	{
-		if (pcs->class_code == 0x06 && pcs->subclass == 0x04)
-		{
-			pci_driver->type = X86_PCI_TYPE_BRIDGE;
-			list_append(glb_pci_devices, list_create_node(X86_PCI_TYPE_BRIDGE, pci_driver));
-		}
-		else
-		{
-			pci_driver->type = X86_PCI_TYPE_DEVICE;
-			list_append(glb_pci_devices, list_create_node(X86_PCI_TYPE_DEVICE, pci_driver));
-		}
+		printf("    * [%d:%d:%d][%d:%d:%d] Vendor 0x%x, Device 0x%x : %s\n",
+			pcs->class_code, pcs->subclass, pcs->ProgIF,
+			bus, device, function,
+			pcs->vendor_id, pcs->device_id,
+			pci_to_string(pcs->class_code, pcs->subclass, pcs->ProgIF));
+	}
+
+	/* Do some disabling */
+	if ((pcs->class_code != 0x06) && (pcs->class_code != 0x03))
+	{
+		/* Disable Device untill further notice */
+		pci_write_word((const uint16_t)bus, (const uint16_t)device, (const uint16_t)function, 0x04, 0x0400);
+	}
+	
+	/* Add to list */
+	if (pcs->class_code == 0x06 && pcs->subclass == 0x04)
+	{
+		pci_driver->type = X86_PCI_TYPE_BRIDGE;
+		list_append(bridge, list_create_node(X86_PCI_TYPE_BRIDGE, pci_driver));
 	}
 	else
 	{
-		/* Find correct bus */
-		
+		pci_driver->type = X86_PCI_TYPE_DEVICE;
+		list_append(bridge, list_create_node(X86_PCI_TYPE_DEVICE, pci_driver));
 	}
 
 	/* Is this a secondary (PCI) bus */
@@ -105,12 +111,12 @@ void pci_check_function(uint8_t bus, uint8_t device, uint8_t function)
 		pci_driver->children = list_create(LIST_SAFE);
 
 		sec_bus = pci_read_secondary_bus_number(bus, device, function);
-		pci_check_bus(sec_bus);
+		pci_check_bus(pci_driver->children, sec_bus);
 	}
 }
 
 /* Check a device */
-void pci_check_device(uint8_t bus, uint8_t device)
+void pci_check_device(list_t *bridge, uint8_t bus, uint8_t device)
 {
 	uint8_t function = 0;
 	uint16_t vendor_id = 0;
@@ -124,7 +130,7 @@ void pci_check_device(uint8_t bus, uint8_t device)
 		return;
 
 	/* Check function 0 */
-	pci_check_function(bus, device, function);
+	pci_check_function(bridge, bus, device, function);
 	header_type = pci_read_header_type(bus, device, function);
 
 	/* Multi-function or single? */
@@ -135,18 +141,18 @@ void pci_check_device(uint8_t bus, uint8_t device)
 		{
 			/* Only check if valid vendor */
 			if (pci_read_vendor_id(bus, device, function) != 0xFFFF)
-				pci_check_function(bus, device, function);
+				pci_check_function(bridge, bus, device, function);
 		}
 	}
 }
 
 /* Check a bus */
-void pci_check_bus(uint8_t bus) 
+void pci_check_bus(list_t *bridge, uint8_t bus)
 {
 	uint8_t device;
 
 	for (device = 0; device < 32; device++)
-		pci_check_device(bus, device);
+		pci_check_device(bridge, bus, device);
 }
 
 /* First of all, devices exists on TWO different
@@ -163,7 +169,7 @@ void drivers_enumerate(void)
 	{
 		/* Single PCI host controller */
 		printf("    * Single Bus Present\n");
-		pci_check_bus(0);
+		pci_check_bus(glb_pci_devices, 0);
 	}
 	else 
 	{
@@ -176,7 +182,7 @@ void drivers_enumerate(void)
 
 			/* Check bus */
 			bus = function;
-			pci_check_bus(bus);
+			pci_check_bus(glb_pci_devices, bus);
 		}
 	}
 }
@@ -312,10 +318,11 @@ int pci_device_get_irq(uint32_t bus, uint32_t device, uint32_t pin,
 		if (dev == NULL)
 			break;
 
-		if (dev->bus == bus && (dev->routings != NULL))
+		/* Todo, make sure we find the correct root-bridge */
+		if (dev->routings != NULL)
 		{
 			/* Get offset */
-			uint32_t toffset = device * 4 + (pin - 1);
+			uint32_t toffset = (device * 4) + pin;
 
 			/* Update IRQ Information */
 			if (dev->routings->trigger[toffset] == ACPI_LEVEL_SENSITIVE)
@@ -323,16 +330,17 @@ int pci_device_get_irq(uint32_t bus, uint32_t device, uint32_t pin,
 			else
 				*trigger_mode = 0;
 
-			if ((dev->routings->polarity[toffset] == ACPI_ACTIVE_HIGH)
-				|| (dev->routings->polarity[toffset] == ACPI_ACTIVE_BOTH))
-				*polarity = 0;
-			else
+			if (dev->routings->polarity[toffset] == ACPI_ACTIVE_LOW)
 				*polarity = 1;
+			else
+				*polarity = 0;
 
 			*shareable = dev->routings->shareable[toffset];
 			return dev->routings->interrupts[toffset];
 		}
-			
+		
+		/* Increase N */
+		n++;
 	}
 
 	return -1;
@@ -388,6 +396,12 @@ ACPI_STATUS pci_get_device_status(pci_device_t* device)
 	}
 
 	return status;
+}
+
+/* Get Memory Configuration Range */
+ACPI_STATUS pci_get_mem_config_range(pci_device_t *device)
+{
+	return (AE_OK);
 }
 
 /* Gets Device Bus Number */
@@ -821,6 +835,36 @@ ACPI_STATUS pci_get_device_hw_info(pci_device_t *device, ACPI_HANDLE dev_parent,
 	return AE_OK;
 }
 
+/* Get OSC Capabilities from device */
+const char *osc_uuid = "33DB4D5B-1FF7-401C-9657-7441C03DD766";
+
+ACPI_STATUS pci_get_osc_capabilities(pci_device_t *device, uint32_t support)
+{
+	ACPI_STATUS status = AE_OK;
+	uint32_t capabilities[3];
+
+	/* We only want the first 5 bits */
+	support &= 0x1F;
+
+	/* Setup request */
+	capabilities[0] = 0x1;			/* 1 Dword is Query: Query Enable */
+	capabilities[1] = support;		/* 2 Dword is Support: Support */
+	capabilities[2] = 0;			/* 3 Dword is Control: dunno */
+
+	/* Run it */
+}
+
+/* Get control of PCI space */
+ACPI_STATUS pci_negiotiate_os_control(pci_device_t *device)
+{
+	ACPI_STATUS status = AE_OK;
+	uint32_t support, control, requested;
+
+	/* Set initial */
+	support = 0x1;				/* PCI_EXT_CONFIG_SUPPORT */
+
+}
+
 /* Adds an object to the Acpi List */
 pci_device_t *pci_add_object(ACPI_HANDLE handle, ACPI_HANDLE parent, uint32_t type)
 {
@@ -926,9 +970,12 @@ pci_device_t *pci_add_object(ACPI_HANDLE handle, ACPI_HANDLE parent, uint32_t ty
 	if (strncmp(device->hid, "PNP0A03", 7) == 0 ||
 		strncmp(device->hid, "PNP0A08", 7) == 0)	/* PCI or PCI-express */
 	{
+		/* First, we have to negiotiate OS Control */
+		pci_negiotiate_os_control(device);
+
 		/* OK so actually we can get the bus number from this, and then SIMPLY
 		 * just use standard enumeration, wtf i did obviously fail at logic */
-		pci_check_bus((uint8_t)device->bus);
+		pci_check_bus(glb_pci_devices, (uint8_t)device->bus);
 
 		/* Save it root bridge list */
 		device->type = ACPI_BUS_ROOT_BRIDGE;
@@ -937,7 +984,6 @@ pci_device_t *pci_add_object(ACPI_HANDLE handle, ACPI_HANDLE parent, uint32_t ty
 
 		/* Perform PCI Config Space Initialization */
 		AcpiInstallAddressSpaceHandler(device->handle, ACPI_ADR_SPACE_PCI_CONFIG, ACPI_DEFAULT_HANDLER, NULL, NULL);
-
 	}
 	else
 		device->type = type;
@@ -1073,8 +1119,10 @@ void drivers_disable_ehci(void *data, int n)
 void drivers_setup_device(void *data, int n)
 {
 	pci_driver_t *driver = (pci_driver_t*)data;
-	list_t *sub_bus;
-	n = n;
+	list_t *sub_bus; 
+
+	/* We dont really use 'n' */
+	_CRT_UNUSED(n);
 
 	switch (driver->type)
 	{
@@ -1083,6 +1131,13 @@ void drivers_setup_device(void *data, int n)
 			/* Get bus list */
 			sub_bus = (list_t*)driver->children;
 
+			/* Sanity */
+			if (sub_bus == NULL || sub_bus->length == 0)
+			{
+				/* Something is up */
+				break;
+			}
+
 			/* Install drivers on that bus */
 			list_execute_all(sub_bus, drivers_setup_device);
 
@@ -1090,8 +1145,6 @@ void drivers_setup_device(void *data, int n)
 
 		case X86_PCI_TYPE_DEVICE:
 		{
-			/* Get driver */
-
 			/* Serial Bus Comms */
 			if (driver->header->class_code == 0x0C)
 			{
@@ -1142,4 +1195,7 @@ void drivers_init(void *args)
 
 	/* Now, for each driver we have available install it */
 	list_execute_all(glb_pci_devices, drivers_setup_device);
+
+	/* Debug */
+	printf("    * Device Enumeration Done!\n");
 }

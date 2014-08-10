@@ -113,9 +113,9 @@
  *
  *****************************************************************************/
 
-
 #include "acpi.h"
 #include "accommon.h"
+#include "acutils.h"
 #include "acdisasm.h"
 #include "acparser.h"
 #include "amlcode.h"
@@ -130,6 +130,10 @@
 /* Local prototypes */
 
 static void
+AcpiDmUuid (
+    ACPI_PARSE_OBJECT       *Op);
+
+static void
 AcpiDmUnicode (
     ACPI_PARSE_OBJECT       *Op);
 
@@ -142,6 +146,9 @@ AcpiDmPldBuffer (
     UINT32                  Level,
     UINT8                   *ByteData,
     UINT32                  ByteCount);
+
+
+#define ACPI_BUFFER_BYTES_PER_LINE      8
 
 
 /*******************************************************************************
@@ -166,6 +173,9 @@ AcpiDmDisasmByteList (
     UINT32                  ByteCount)
 {
     UINT32                  i;
+    UINT32                  j;
+    UINT32                  CurrentIndex;
+    UINT8                   BufChar;
 
 
     if (!ByteCount)
@@ -173,39 +183,68 @@ AcpiDmDisasmByteList (
         return;
     }
 
-    /* Dump the byte list */
-
-    for (i = 0; i < ByteCount; i++)
+    for (i = 0; i < ByteCount; i += ACPI_BUFFER_BYTES_PER_LINE)
     {
-        /* New line every 8 bytes */
+        /* Line indent and offset prefix for each new line */
 
-        if (((i % 8) == 0) && (i < ByteCount))
+        AcpiDmIndent (Level);
+        if (ByteCount > ACPI_BUFFER_BYTES_PER_LINE)
         {
-            if (i > 0)
+            AcpiOsPrintf ("/* %04X */ ", i);
+        }
+
+        /* Dump the actual hex values */
+
+        for (j = 0; j < ACPI_BUFFER_BYTES_PER_LINE; j++)
+        {
+            CurrentIndex = i + j;
+            if (CurrentIndex >= ByteCount)
             {
-                AcpiOsPrintf ("\n");
+                /* Dump fill spaces */
+
+                AcpiOsPrintf ("      ");
+                continue;
             }
 
-            AcpiDmIndent (Level);
-            if (ByteCount > 8)
+            AcpiOsPrintf (" 0x%2.2X", ByteData[CurrentIndex]);
+
+            /* Add comma if there are more bytes to display */
+
+            if (CurrentIndex < (ByteCount - 1))
             {
-                AcpiOsPrintf ("/* %04X */  ", i);
+                AcpiOsPrintf (",");
+            }
+            else
+            {
+                AcpiOsPrintf (" ");
             }
         }
 
-        AcpiOsPrintf (" 0x%2.2X", (UINT32) ByteData[i]);
+        /* Dump the ASCII equivalents within a comment */
 
-        /* Add comma if there are more bytes to display */
-
-        if (i < (ByteCount -1))
+        AcpiOsPrintf ("  /* ");
+        for (j = 0; j < ACPI_BUFFER_BYTES_PER_LINE; j++)
         {
-            AcpiOsPrintf (",");
-        }
-    }
+            CurrentIndex = i + j;
+            if (CurrentIndex >= ByteCount)
+            {
+                break;
+            }
 
-    if (Level)
-    {
-        AcpiOsPrintf ("\n");
+            BufChar = ByteData[CurrentIndex];
+            if (ACPI_IS_PRINT (BufChar))
+            {
+                AcpiOsPrintf ("%c", BufChar);
+            }
+            else
+            {
+                AcpiOsPrintf (".");
+            }
+        }
+
+        /* Finished with this line */
+
+        AcpiOsPrintf (" */\n");
     }
 }
 
@@ -254,6 +293,11 @@ AcpiDmByteList (
         AcpiOsPrintf ("\n");
         break;
 
+    case ACPI_DASM_UUID:
+
+        AcpiDmUuid (Op);
+        break;
+
     case ACPI_DASM_UNICODE:
 
         AcpiDmUnicode (Op);
@@ -273,6 +317,137 @@ AcpiDmByteList (
          */
         AcpiDmDisasmByteList (Info->Level, ByteData, ByteCount);
         break;
+    }
+}
+
+
+/*******************************************************************************
+ *
+ * FUNCTION:    AcpiDmIsUuidBuffer
+ *
+ * PARAMETERS:  Op              - Buffer Object to be examined
+ *
+ * RETURN:      TRUE if buffer contains a UUID
+ *
+ * DESCRIPTION: Determine if a buffer Op contains a UUID
+ *
+ * To help determine whether the buffer is a UUID versus a raw data buffer,
+ * there a are a couple bytes we can look at:
+ *
+ *    xxxxxxxx-xxxx-Mxxx-Nxxx-xxxxxxxxxxxx
+ *
+ * The variant covered by the UUID specification is indicated by the two most
+ * significant bits of N being 1 0 (i.e., the hexadecimal N will always be
+ * 8, 9, A, or B).
+ *
+ * The variant covered by the UUID specification has five versions. For this
+ * variant, the four bits of M indicates the UUID version (i.e., the
+ * hexadecimal M will be either 1, 2, 3, 4, or 5).
+ *
+ ******************************************************************************/
+
+BOOLEAN
+AcpiDmIsUuidBuffer (
+    ACPI_PARSE_OBJECT       *Op)
+{
+    UINT8                   *ByteData;
+    UINT32                  ByteCount;
+    ACPI_PARSE_OBJECT       *SizeOp;
+    ACPI_PARSE_OBJECT       *NextOp;
+
+
+    /* Buffer size is the buffer argument */
+
+    SizeOp = Op->Common.Value.Arg;
+
+    /* Next, the initializer byte list to examine */
+
+    NextOp = SizeOp->Common.Next;
+    if (!NextOp)
+    {
+        return (FALSE);
+    }
+
+    /* Extract the byte list info */
+
+    ByteData = NextOp->Named.Data;
+    ByteCount = (UINT32) NextOp->Common.Value.Integer;
+
+    /* Byte count must be exactly 16 */
+
+    if (ByteCount != UUID_BUFFER_LENGTH)
+    {
+        return (FALSE);
+    }
+
+    /* Check for valid "M" and "N" values (see function header above) */
+
+    if (((ByteData[7] & 0xF0) == 0x00) || /* M={1,2,3,4,5} */
+        ((ByteData[7] & 0xF0) > 0x50)  ||
+        ((ByteData[8] & 0xF0) < 0x80)  || /* N={8,9,A,B} */
+        ((ByteData[8] & 0xF0) > 0xB0))
+    {
+        return (FALSE);
+    }
+
+    /* Ignore the Size argument in the disassembly of this buffer op */
+
+    SizeOp->Common.DisasmFlags |= ACPI_PARSEOP_IGNORE;
+    return (TRUE);
+}
+
+
+/*******************************************************************************
+ *
+ * FUNCTION:    AcpiDmUuid
+ *
+ * PARAMETERS:  Op              - Byte List op containing a UUID
+ *
+ * RETURN:      None
+ *
+ * DESCRIPTION: Dump a buffer containing a UUID as a standard ASCII string.
+ *
+ * Output Format:
+ * In its canonical form, the UUID is represented by a string containing 32
+ * lowercase hexadecimal digits, displayed in 5 groups separated by hyphens.
+ * The complete form is 8-4-4-4-12 for a total of 36 characters (32
+ * alphanumeric characters representing hex digits and 4 hyphens). In bytes,
+ * 4-2-2-2-6. Example:
+ *
+ *    ToUUID ("107ededd-d381-4fd7-8da9-08e9a6c79644")
+ *
+ ******************************************************************************/
+
+static void
+AcpiDmUuid (
+    ACPI_PARSE_OBJECT       *Op)
+{
+    UINT8                   *Data;
+    const char              *Description;
+
+
+    Data = ACPI_CAST_PTR (UINT8, Op->Named.Data);
+
+    /* Emit the 36-byte UUID string in the proper format/order */
+
+    AcpiOsPrintf (
+        "\"%2.2x%2.2x%2.2x%2.2x-"
+        "%2.2x%2.2x-"
+        "%2.2x%2.2x-"
+        "%2.2x%2.2x-"
+        "%2.2x%2.2x%2.2x%2.2x%2.2x%2.2x\")",
+        Data[3], Data[2], Data[1], Data[0],
+        Data[5], Data[4],
+        Data[7], Data[6],
+        Data[8], Data[9],
+        Data[10], Data[11], Data[12], Data[13], Data[14], Data[15]);
+
+    /* Dump the UUID description string if available */
+
+    Description = AcpiAhMatchUuid (Data);
+    if (Description)
+    {
+        AcpiOsPrintf (" /* %s */", Description);
     }
 }
 

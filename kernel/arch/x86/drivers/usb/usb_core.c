@@ -47,11 +47,11 @@ usb_hc_port_t *usb_create_port(int port);
 /* Gets called once a USB controller is registreret */
 void usb_core_init(void)
 {
+	glb_initialized = 0xDEADBEEF;
 	glb_usb_devices = list_create(LIST_SAFE);
 	glb_usb_controllers = list_create(LIST_SAFE);
 	glb_usb_events = list_create(LIST_SAFE);
 	glb_usb_id = 0;
-	glb_initialized = 0xDEADBEEF;
 
 	/* Initialize Event Semaphore */
 	glb_event_lock = semaphore_create(0);
@@ -154,8 +154,8 @@ void usb_device_setup(usb_hc_t *hc, int port)
 	/* Bind it */
 	hc->ports[port]->device = device;
 
-	/* Allow 150 ms for insertion to complete */
-	clock_stall(150);
+	/* Allow 100 ms for insertion to complete */
+	clock_stall(100);
 
 	/* Setup Port */
 	hc->port_setup(hc->hc, hc->ports[port]);

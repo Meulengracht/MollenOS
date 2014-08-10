@@ -32,7 +32,7 @@
 /***************************
 Heap Management
 ***************************/
-#define MEMORY_STATIC_OFFSET	0x80000 /* Reserved Header Space */
+#define MEMORY_STATIC_OFFSET	0x200000 /* Reserved Header Space */
 #define HEAP_NORMAL_BLOCK		0x1000
 #define HEAP_LARGE_BLOCK		0x10000
 

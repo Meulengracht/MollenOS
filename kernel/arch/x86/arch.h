@@ -32,7 +32,11 @@
 
 /* Architecture typedefs */
 typedef uint32_t interrupt_status_t;
-typedef void(*irq_handler_t)(void*);
+typedef int(*irq_handler_t)(void*);
+
+/* Irq Return Codes */
+#define X86_IRQ_NOT_HANDLED			(int)0x0
+#define X86_IRQ_HANDLED				(int)0x1
 
 typedef struct _x86_spinlock
 {
@@ -207,7 +211,7 @@ _CRT_EXTERN char *get_instructions_at_mem(addr_t address);
 _CRT_EXTERN tid_t threading_create_thread(char *name, thread_entry function, void *args, int flags);
 _CRT_EXTERN void *threading_enter_sleep(void);
 _CRT_EXTERN void threading_kill_thread(tid_t thread_id);
-_CRT_EXTERN void threading_yield(void *args);
+_CRT_EXTERN int threading_yield(void *args);
 _CRT_EXTERN tid_t threading_get_thread_id(void);
 _CRT_EXTERN thread_t *threading_get_current_thread(cpu_t cpu);
 

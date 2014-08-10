@@ -222,6 +222,17 @@ typedef struct _pci_device
 #define X86_PCI_TYPE_OHCI		0x5
 #define X86_PCI_TYPE_XHCI		0x6
 
+/* This is information */
+typedef struct _pci_device_information
+{
+	/* Pci Vendor Id */
+	uint32_t device_id;
+
+	/* String */
+	char *string;
+
+} pci_dev_info_t;
+
 
 /* Prototypes */
 

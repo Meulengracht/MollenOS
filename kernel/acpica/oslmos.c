@@ -136,6 +136,17 @@ ACPI_MODULE_NAME("oslmos")
 
 /* Globals */
 volatile void *Acpi_RedirectionTarget = NULL;
+ACPI_OSD_HANDLER Acpi_ServiceRoutine;
+
+/* Irq Wrapper System */
+int acpica_interrupt_handler(void *args)
+{
+	/* Call it */
+	if (Acpi_ServiceRoutine != NULL)
+		Acpi_ServiceRoutine(args);
+
+	return X86_IRQ_HANDLED;
+}
 
 /******************************************************************************
 *
@@ -152,6 +163,7 @@ volatile void *Acpi_RedirectionTarget = NULL;
 ACPI_STATUS AcpiOsInitialize(void)
 {
 	/* Init */
+	Acpi_ServiceRoutine = NULL;
 	Acpi_RedirectionTarget = NULL;
 
 	return (AE_OK);
@@ -423,8 +435,12 @@ UINT32 AcpiOsInstallInterruptHandler(
 		ACPI_OSD_HANDLER        ServiceRoutine,
 		void                    *Context)
 {
+	if (Acpi_ServiceRoutine != NULL)
+		return (AE_ALREADY_ACQUIRED);
+
 	/* Install it */
-	interrupt_install(InterruptNumber, 0x20 + InterruptNumber, ServiceRoutine, Context);
+	Acpi_ServiceRoutine = ServiceRoutine;
+	interrupt_install(InterruptNumber, 0x20 + InterruptNumber, acpica_interrupt_handler, Context);
 
 	/* Done */
 	return (AE_OK);

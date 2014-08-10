@@ -118,7 +118,7 @@
 
 /* Current ACPICA subsystem version in YYYYMMDD format */
 
-#define ACPI_CA_VERSION                 0x20140424
+#define ACPI_CA_VERSION                 0x20140724
 
 #include "acconfig.h"
 #include "actypes.h"
@@ -232,6 +232,15 @@ ACPI_INIT_GLOBAL (UINT8,            AcpiGbl_CreateOsiMethod, TRUE);
  * TRUE to use the defaults, if an FADT contains incorrect widths/lengths.
  */
 ACPI_INIT_GLOBAL (UINT8,            AcpiGbl_UseDefaultRegisterWidths, TRUE);
+
+/*
+ * Whether or not to verify the table checksum before installation. Set
+ * this to TRUE to verify the table checksum before install it to the table
+ * manager. Note that enabling this option causes errors to happen in some
+ * OSPMs during early initialization stages. Default behavior is to do such
+ * verification.
+ */
+ACPI_INIT_GLOBAL (UINT8,            AcpiGbl_VerifyTableChecksum, TRUE);
 
 /*
  * Optionally enable output from the AML Debug Object.
@@ -404,6 +413,24 @@ ACPI_GLOBAL (BOOLEAN,               AcpiGbl_SystemAwakeAndRunning);
     static ACPI_INLINE Prototype {return;}
 
 #endif /* ACPI_DEBUG_OUTPUT */
+
+
+/*
+ * Application prototypes
+ *
+ * All interfaces used by application will be configured
+ * out of the ACPICA build unless the ACPI_APPLICATION
+ * flag is defined.
+ */
+#ifdef ACPI_APPLICATION
+#define ACPI_APP_DEPENDENT_RETURN_VOID(Prototype) \
+    Prototype;
+
+#else
+#define ACPI_APP_DEPENDENT_RETURN_VOID(Prototype) \
+    static ACPI_INLINE Prototype {return;}
+
+#endif /* ACPI_APPLICATION */
 
 
 /*****************************************************************************
@@ -896,6 +923,12 @@ AcpiFinishGpe (
 
 ACPI_HW_DEPENDENT_RETURN_STATUS (
 ACPI_STATUS
+AcpiMarkGpeForWake (
+    ACPI_HANDLE             GpeDevice,
+    UINT32                  GpeNumber))
+
+ACPI_HW_DEPENDENT_RETURN_STATUS (
+ACPI_STATUS
 AcpiSetupGpeForWake (
     ACPI_HANDLE             ParentDevice,
     ACPI_HANDLE             GpeDevice,
@@ -1205,6 +1238,13 @@ AcpiDebugPrintRaw (
     const char              *FunctionName,
     const char              *ModuleName,
     UINT32                  ComponentId,
+    const char              *Format,
+    ...))
+
+ACPI_APP_DEPENDENT_RETURN_VOID (
+ACPI_PRINTF_LIKE(1)
+void ACPI_INTERNAL_VAR_XFACE
+AcpiLogError (
     const char              *Format,
     ...))
 

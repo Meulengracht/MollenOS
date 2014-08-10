@@ -195,7 +195,6 @@ AcpiTbLoadNamespace (
 
     (void) AcpiUtAcquireMutex (ACPI_MTX_TABLES);
 
-
     /*
      * Load the namespace. The DSDT is required, but any SSDT and
      * PSDT tables are optional. Verify the DSDT.
@@ -244,6 +243,7 @@ AcpiTbLoadNamespace (
     (void) AcpiUtReleaseMutex (ACPI_MTX_TABLES);
 
     /* Load and parse tables */
+
     Status = AcpiNsLoadTable (ACPI_TABLE_INDEX_DSDT, AcpiGbl_RootNode);
     if (ACPI_FAILURE (Status))
     {

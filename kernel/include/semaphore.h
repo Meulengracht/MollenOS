@@ -35,7 +35,7 @@ typedef struct _semaphore
 	spinlock_t lock;
 
 	/* Value */
-	int value;
+	volatile int value;
 
 	/* Semaphore Creator */
 	tid_t creator;

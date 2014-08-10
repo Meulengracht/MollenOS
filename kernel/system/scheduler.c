@@ -111,7 +111,6 @@ void scheduler_ready_thread(list_node_t *node)
 	thread_t *t = (thread_t*)node->data;
 	cpu_t index = 0;
 	uint32_t i = 0;
-	uint32_t lowest = 0;
 	
 	/* Step 1. New thread? :) */
 	if (t->priority == -1)
@@ -131,7 +130,7 @@ void scheduler_ready_thread(list_node_t *node)
 		 * TODO */
 		while (glb_schedulers[i] != NULL)
 		{
-			if (glb_schedulers[i]->num_threads < lowest)
+			if (glb_schedulers[i]->num_threads < glb_schedulers[index]->num_threads)
 				index = i;
 
 			i++;
@@ -230,13 +229,13 @@ list_node_t *scheduler_schedule(cpu_t cpu, list_node_t *node, int preemptive)
 	if (glb_scheduler_enabled == 0 || glb_schedulers[cpu] == NULL)
 		return node;
 
-	/* Add task to a queue based on its priority */
+	/* Get the time delta */
 	if (node != NULL)
 	{
 		t = (thread_t*)node->data;
 		time_slice = t->time_slice;
 
-		/* Step 1. Is this a YIELD?!?!? */
+		/* Increase its priority */
 		if (preemptive != 0
 			&& t->priority < MCORE_SYSTEM_QUEUE) /* Must be below 60, 60 is highest normal queue */
 		{
@@ -247,7 +246,7 @@ list_node_t *scheduler_schedule(cpu_t cpu, list_node_t *node, int preemptive)
 			t->time_slice = (t->priority * 2) + MCORE_INITIAL_TIMESLICE;
 		}
 
-		/* Step 2. Add it to appropriate list */
+		/* Schedúle */
 		scheduler_ready_thread(node);
 	}
 	else

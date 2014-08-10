@@ -31,31 +31,29 @@
 /* Externs */
 extern volatile uint32_t timer_quantum;
 extern void rdtsc(uint64_t *value);
+extern void _yield(void);
 
 /* Globals */
 volatile uint32_t glb_clock_tick = 0;
 volatile uint32_t glb_alarm_tick = 0;
+spinlock_t stall_lock;
 
 /* The Clock Handler */
-void clock_irq_handler(void *data)
+int clock_irq_handler(void *data)
 {
-	uint8_t irq_status = 0;
-
 	/* Unused */
 	_CRT_UNUSED(data);
 
-	/* Acknowledge Irq 8 by reading register C */
-	irq_status = clock_read_register(X86_CMOS_REGISTER_STATUS_C);
-
-	/* Alarm Int? */
-	if (irq_status & 0x20)
-		glb_alarm_tick++;
-
 	/* Update Peroidic Tick Counter */
-	glb_clock_tick = glb_clock_tick + 1;
+	glb_clock_tick++;
 
 	/* Apply Timer Time */
 	timers_apply_time(2);
+
+	/* Acknowledge Irq 8 by reading register C */
+	clock_read_register(X86_CMOS_REGISTER_STATUS_C);
+
+	return X86_IRQ_HANDLED;
 }
 
 /* Initialization */
@@ -63,10 +61,13 @@ void clock_init(void)
 {
 	interrupt_status_t int_state;
 	uint8_t state_b = 0;
-	uint8_t rate = 8; /* must be between 3 and 15 */
+	uint8_t rate = 0x07; /* must be between 3 and 15 */
 
-	/* Ms is 1.95, 256 ints per sec */
+	/* Ms is 1.95, 512 ints per sec */
 	/* Frequency = 32768 >> (rate-1) */
+
+	/* Reset lock */
+	spinlock_reset(&stall_lock);
 
 	/* Disable IRQ's for this duration */
 	int_state = interrupt_disable();
@@ -116,7 +117,7 @@ void clock_stall(uint32_t ms)
 
 	/* While */
 	while (ticks >= clock_get_clocks())
-		idle();
+		_yield();
 }
 
 /* Stall for ms */

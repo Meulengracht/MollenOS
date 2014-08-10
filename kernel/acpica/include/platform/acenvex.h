@@ -1,9 +1,8 @@
-/*******************************************************************************
+/******************************************************************************
  *
- * Module Name: dbfileio - Debugger file I/O commands. These can't usually
- *              be used when running the debugger in Ring 0 (Kernel mode)
+ * Name: acenvex.h - Extra host and compiler configuration
  *
- ******************************************************************************/
+ *****************************************************************************/
 
 /******************************************************************************
  *
@@ -114,236 +113,23 @@
  *
  *****************************************************************************/
 
+#ifndef __ACENVEX_H__
+#define __ACENVEX_H__
 
-#include "acpi.h"
-#include "accommon.h"
-#include "acdebug.h"
-#include "actables.h"
+/*! [Begin] no source code translation */
 
-#if (defined ACPI_DEBUGGER || defined ACPI_DISASSEMBLER)
-
-#define _COMPONENT          ACPI_CA_DEBUGGER
-        ACPI_MODULE_NAME    ("dbfileio")
-
-#ifdef ACPI_DEBUGGER
-
-/*******************************************************************************
+/******************************************************************************
  *
- * FUNCTION:    AcpiDbCloseDebugFile
+ * Extra host configuration files. All ACPICA headers are included before
+ * including these files.
  *
- * PARAMETERS:  None
- *
- * RETURN:      None
- *
- * DESCRIPTION: If open, close the current debug output file
- *
- ******************************************************************************/
+ *****************************************************************************/
 
-void
-AcpiDbCloseDebugFile (
-    void)
-{
-
-#ifdef ACPI_APPLICATION
-
-    if (AcpiGbl_DebugFile)
-    {
-       fclose (AcpiGbl_DebugFile);
-       AcpiGbl_DebugFile = NULL;
-       AcpiGbl_DbOutputToFile = FALSE;
-       AcpiOsPrintf ("Debug output file %s closed\n", AcpiGbl_DbDebugFilename);
-    }
-#endif
-}
-
-
-/*******************************************************************************
- *
- * FUNCTION:    AcpiDbOpenDebugFile
- *
- * PARAMETERS:  Name                - Filename to open
- *
- * RETURN:      None
- *
- * DESCRIPTION: Open a file where debug output will be directed.
- *
- ******************************************************************************/
-
-void
-AcpiDbOpenDebugFile (
-    char                    *Name)
-{
-
-#ifdef ACPI_APPLICATION
-
-    AcpiDbCloseDebugFile ();
-    AcpiGbl_DebugFile = fopen (Name, "w+");
-    if (!AcpiGbl_DebugFile)
-    {
-        AcpiOsPrintf ("Could not open debug file %s\n", Name);
-        return;
-    }
-
-    AcpiOsPrintf ("Debug output file %s opened\n", Name);
-    ACPI_STRNCPY (AcpiGbl_DbDebugFilename, Name,
-        sizeof (AcpiGbl_DbDebugFilename));
-    AcpiGbl_DbOutputToFile = TRUE;
+#if defined(_LINUX) || defined(__linux__)
+#include "aclinuxex.h"
 
 #endif
-}
-#endif
 
+/*! [End] no source code translation !*/
 
-#ifdef ACPI_APPLICATION
-#include "acapps.h"
-
-/*******************************************************************************
- *
- * FUNCTION:    AeLocalLoadTable
- *
- * PARAMETERS:  Table           - pointer to a buffer containing the entire
- *                                table to be loaded
- *
- * RETURN:      Status
- *
- * DESCRIPTION: This function is called to load a table from the caller's
- *              buffer. The buffer must contain an entire ACPI Table including
- *              a valid header. The header fields will be verified, and if it
- *              is determined that the table is invalid, the call will fail.
- *
- ******************************************************************************/
-
-static ACPI_STATUS
-AeLocalLoadTable (
-    ACPI_TABLE_HEADER       *Table)
-{
-    ACPI_STATUS             Status = AE_OK;
-/*    ACPI_TABLE_DESC         TableInfo; */
-
-
-    ACPI_FUNCTION_TRACE (AeLocalLoadTable);
-#if 0
-
-
-    if (!Table)
-    {
-        return_ACPI_STATUS (AE_BAD_PARAMETER);
-    }
-
-    TableInfo.Pointer = Table;
-    Status = AcpiTbRecognizeTable (&TableInfo, ACPI_TABLE_ALL);
-    if (ACPI_FAILURE (Status))
-    {
-        return_ACPI_STATUS (Status);
-    }
-
-    /* Install the new table into the local data structures */
-
-    Status = AcpiTbInitTableDescriptor (&TableInfo);
-    if (ACPI_FAILURE (Status))
-    {
-        if (Status == AE_ALREADY_EXISTS)
-        {
-            /* Table already exists, no error */
-
-            Status = AE_OK;
-        }
-
-        /* Free table allocated by AcpiTbGetTable */
-
-        AcpiTbDeleteSingleTable (&TableInfo);
-        return_ACPI_STATUS (Status);
-    }
-
-#if (!defined (ACPI_NO_METHOD_EXECUTION) && !defined (ACPI_CONSTANT_EVAL_ONLY))
-
-    Status = AcpiNsLoadTable (TableInfo.InstalledDesc, AcpiGbl_RootNode);
-    if (ACPI_FAILURE (Status))
-    {
-        /* Uninstall table and free the buffer */
-
-        AcpiTbDeleteTablesByType (ACPI_TABLE_ID_DSDT);
-        return_ACPI_STATUS (Status);
-    }
-#endif
-#endif
-
-    return_ACPI_STATUS (Status);
-}
-#endif
-
-
-/*******************************************************************************
- *
- * FUNCTION:    AcpiDbGetTableFromFile
- *
- * PARAMETERS:  Filename        - File where table is located
- *              ReturnTable     - Where a pointer to the table is returned
- *
- * RETURN:      Status
- *
- * DESCRIPTION: Load an ACPI table from a file
- *
- ******************************************************************************/
-
-ACPI_STATUS
-AcpiDbGetTableFromFile (
-    char                    *Filename,
-    ACPI_TABLE_HEADER       **ReturnTable)
-{
-#ifdef ACPI_APPLICATION
-    ACPI_STATUS             Status;
-    ACPI_TABLE_HEADER       *Table;
-    BOOLEAN                 IsAmlTable = TRUE;
-
-
-    Status = AcpiUtReadTableFromFile (Filename, &Table);
-    if (ACPI_FAILURE (Status))
-    {
-        return (Status);
-    }
-
-#ifdef ACPI_DATA_TABLE_DISASSEMBLY
-    IsAmlTable = AcpiUtIsAmlTable (Table);
-#endif
-
-    if (IsAmlTable)
-    {
-        /* Attempt to recognize and install the table */
-
-        Status = AeLocalLoadTable (Table);
-        if (ACPI_FAILURE (Status))
-        {
-            if (Status == AE_ALREADY_EXISTS)
-            {
-                AcpiOsPrintf ("Table %4.4s is already installed\n",
-                    Table->Signature);
-            }
-            else
-            {
-                AcpiOsPrintf ("Could not install table, %s\n",
-                    AcpiFormatException (Status));
-            }
-
-            return (Status);
-        }
-
-        AcpiTbPrintTableHeader (0, Table);
-
-        fprintf (stderr,
-            "Acpi table [%4.4s] successfully installed and loaded\n",
-            Table->Signature);
-    }
-
-    AcpiGbl_AcpiHardwarePresent = FALSE;
-    if (ReturnTable)
-    {
-        *ReturnTable = Table;
-    }
-
-
-#endif  /* ACPI_APPLICATION */
-    return (AE_OK);
-}
-
-#endif  /* ACPI_DEBUGGER */
+#endif /* __ACENVEX_H__ */

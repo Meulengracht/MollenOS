@@ -50,7 +50,7 @@ extern void _yield(void);
 extern void enter_thread(registers_t *regs);
 
 /* The YIELD handler */
-void threading_yield(void *args)
+int threading_yield(void *args)
 {
 	/* Get registers */
 	registers_t *regs = NULL;
@@ -85,6 +85,9 @@ void threading_yield(void *args)
 
 	/* Enter new thread */
 	enter_thread(regs);
+
+	/* Never reached */
+	return X86_IRQ_HANDLED;
 }
 
 /* Initialization 
@@ -123,10 +126,14 @@ void threading_init(void)
 	/* Memset the buffer */
 	memset(init->fpu_buffer, 0, 0x1000);
 
-	/* Add this thread to the list */
+	/* Create a node for the scheduler */
 	node = list_create_node(glb_thread_id, init);
 	glb_current_threads[0] = node;
 	glb_idle_threads[0] = node;
+
+
+	/* Create a node for the thread-list */
+	node = list_create_node(glb_thread_id, init);
 	list_append(threads, node);
 
 	/* Increase Id */
@@ -171,10 +178,13 @@ void threading_ap_init(void)
 	/* Memset the buffer */
 	memset(init->fpu_buffer, 0, 0x1000);
 
-	/* Add this thread to the list */
+	/* Create a node for the scheduler */
 	node = list_create_node(glb_thread_id, init);
 	glb_current_threads[cpu] = node;
 	glb_idle_threads[cpu] = node;
+
+	/* Create a node for the thread list */
+	node = list_create_node(glb_thread_id, init);
 	list_append(threads, node);
 
 	/* Increase Id */
@@ -191,7 +201,7 @@ thread_t *threading_get_current_thread(cpu_t cpu)
 	return (thread_t*)glb_current_threads[cpu]->data;
 }
 
-/* Get Current List Node */
+/* Get Current Scheduler(!!!) Node */
 list_node_t *threading_get_current_node(cpu_t cpu)
 {
 	/* Get thread */
@@ -227,6 +237,17 @@ void threading_set_current_node(cpu_t cpu, list_node_t *node)
 void threading_cleanup_thread(thread_t *thread)
 {
 	_CRT_UNUSED(thread);
+}
+
+/* Prints threads */
+void threading_debug(void)
+{
+	foreach(i, threads)
+	{
+		thread_t *t = i->data;
+		printf("Thread %u (%s) - Flags %u, Priority %u, Timeslice %u\n",
+			t->thread_id, t->name, t->flags, t->priority, t->time_slice);
+	}
 }
 
 /* This is actually every thread entry point, 
@@ -313,15 +334,16 @@ tid_t threading_create_thread(char *name, thread_entry function, void *args, int
 	/* Increase id */
 	glb_thread_id++;
 
+	/* Release lock */
+	spinlock_release(&glb_thread_lock);
+
 	/* Append it to list & scheduler */
 	node = list_create_node(t->thread_id, t);
 	list_append(threads, node);
 
 	/* Ready */
+	node = list_create_node(t->thread_id, t);
 	scheduler_ready_thread(node);
-
-	/* Release lock */
-	spinlock_release(&glb_thread_lock);
 
 	return t->thread_id;
 }
@@ -365,7 +387,11 @@ registers_t *threading_switch(registers_t *regs, int preemptive, uint32_t *time_
 	{
 		/* Someone should really kill those zombies :/ */
 		if (t->flags & X86_THREAD_FINISHED)
-			list_append(zombies, node);
+		{
+			list_node_t *n = list_get_data_by_id(threads, t->thread_id, 0);
+			list_remove_by_node(threads, n);
+			list_append(zombies, n);
+		}
 
 		/* Remove flag so it does not happen again */
 		if (t->flags & X86_THREAD_ENTER_SLEEP)

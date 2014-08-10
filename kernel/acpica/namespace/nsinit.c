@@ -246,6 +246,7 @@ AcpiNsInitializeDevices (
         "and executing _INI/_STA methods:\n"));
 
     /* Tree analysis: find all subtrees that contain _INI methods */
+
     Status = AcpiNsWalkNamespace (ACPI_TYPE_ANY, ACPI_ROOT_OBJECT,
                 ACPI_UINT32_MAX, FALSE, AcpiNsFindIniMethods, NULL, &Info, NULL);
     if (ACPI_FAILURE (Status))
@@ -254,13 +255,14 @@ AcpiNsInitializeDevices (
     }
 
     /* Allocate the evaluation information block */
+
     Info.EvaluateInfo = ACPI_ALLOCATE_ZEROED (sizeof (ACPI_EVALUATE_INFO));
     if (!Info.EvaluateInfo)
     {
         Status = AE_NO_MEMORY;
         goto ErrorExit;
     }
-	
+
     /*
      * Execute the "global" _INI method that may appear at the root. This
      * support is provided for Windows compatibility (Vista+) and is not
@@ -270,7 +272,7 @@ AcpiNsInitializeDevices (
     Info.EvaluateInfo->RelativePathname = METHOD_NAME__INI;
     Info.EvaluateInfo->Parameters = NULL;
     Info.EvaluateInfo->Flags = ACPI_IGNORE_RETURN_VALUE;
-	
+
     Status = AcpiNsEvaluate (Info.EvaluateInfo);
     if (ACPI_SUCCESS (Status))
     {
@@ -278,6 +280,7 @@ AcpiNsInitializeDevices (
     }
 
     /* Walk namespace to execute all _INIs on present devices */
+
     Status = AcpiNsWalkNamespace (ACPI_TYPE_ANY, ACPI_ROOT_OBJECT,
                 ACPI_UINT32_MAX, FALSE, AcpiNsInitOneDevice, NULL, &Info, NULL);
 

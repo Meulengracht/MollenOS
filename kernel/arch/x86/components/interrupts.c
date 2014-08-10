@@ -176,10 +176,13 @@ void interrupt_install_pci(pci_driver_t *device, irq_handler_t callback, void *a
 	uint8_t trigger_mode = 0, polarity = 0, shareable = 0;
 	uint32_t io_entry = 0;
 	uint32_t idt_entry = 0x20;
-	uint32_t pin;
+	uint32_t pin = device->header->interrupt_pin;
+	
+	/* Pin is not 0 indexed from PCI info */
+	pin--;
 
 	/* Get Interrupt Information */
-	result = pci_device_get_irq(device->bus, device->device, device->header->interrupt_pin,
+	result = pci_device_get_irq(device->bus, device->device, pin,
 		&trigger_mode, &polarity, &shareable);
 
 	/* If no routing exists use the interrupt_line */
@@ -197,45 +200,49 @@ void interrupt_install_pci(pci_driver_t *device, irq_handler_t callback, void *a
 		io_entry = (uint32_t)result;
 		pin = device->header->interrupt_pin;
 
-		/* Setup APIC flags */
-		apic_flags = 0xFF00000000000000;	/* Target all groups */
-		apic_flags |= 0x100;				/* Lowest Priority */
-		apic_flags |= 0x800;				/* Logical Destination Mode */
-		apic_flags |= (polarity << 13);		/* Set Polarity */
-		apic_flags |= (trigger_mode << 15);	/* Set Trigger Mode */
+		/* Update PCI Interrupt Line */
+		pci_write_byte(
+			(const uint16_t)device->bus, (const uint16_t)device->device, 
+			(const uint16_t)device->function, 0x3C, (uint8_t)io_entry);
 
-		/* Sanity */
-		if (pin == 4)
-			pin--;
+		/* Setup APIC flags */
+		apic_flags = 0xFF00000000000000;			/* Target all groups */
+		apic_flags |= 0x100;						/* Lowest Priority */
+		apic_flags |= 0x800;						/* Logical Destination Mode */
+		apic_flags |= ((polarity & 0x1) << 13);		/* Set Polarity */
+		apic_flags |= ((trigger_mode & 0x1) << 15);	/* Set Trigger Mode */
 
 		switch (pin)
 		{
-		case 0:
-		{
-			idt_entry = INTERRUPT_PCI_PIN_0;
-		} break;
-		case 1:
-		{
-			idt_entry = INTERRUPT_PCI_PIN_1;
-		} break;
-		case 2:
-		{
-			idt_entry = INTERRUPT_PCI_PIN_2;
-		} break;
-		case 3:
-		{
-			idt_entry = INTERRUPT_PCI_PIN_3;
-		} break;
+			case 0:
+			{
+				idt_entry = INTERRUPT_PCI_PIN_0;
+			} break;
+			case 1:
+			{
+				idt_entry = INTERRUPT_PCI_PIN_1;
+			} break;
+			case 2:
+			{
+				idt_entry = INTERRUPT_PCI_PIN_2;
+			} break;
+			case 3:
+			{
+				idt_entry = INTERRUPT_PCI_PIN_3;
+			} break;
 
-		default:
-			break;
+			default:
+				break;
 		}
 	}
 	
 	/* Set IDT Vector */
 	apic_flags |= idt_entry;
 
-	_interrupt_install(io_entry, idt_entry, apic_flags, callback, args);
+	if (irq_table[idt_entry][0].installed)
+		interrupt_install_soft(idt_entry, callback, args);
+	else
+		_interrupt_install(io_entry, idt_entry, apic_flags, callback, args);
 }
 
 /* Install only the interrupt handler, 
@@ -268,7 +275,7 @@ void interrupt_install_soft(uint32_t idt_entry, irq_handler_t callback, void *ar
 void interrupt_entry(registers_t *regs)
 {
 	/* Determine Irq */
-	int i;
+	int i, res = 0;
 	int calls = 0;
 	uint32_t irq = regs->irq + 0x20;
 
@@ -280,17 +287,18 @@ void interrupt_entry(registers_t *regs)
 			/* If no args are specified we give access
 			* to registers */
 			if (irq_table[irq][i].data == NULL)
-				irq_table[irq][i].function((void*)regs);
+				res = irq_table[irq][i].function((void*)regs);
 			else
-				irq_table[irq][i].function(irq_table[irq][i].data);
+				res = irq_table[irq][i].function(irq_table[irq][i].data);
 
-			calls++;
+			if (res != X86_IRQ_NOT_HANDLED)
+				calls++;
 		}
 	}
 	
 	/* Sanity */
-	if (calls == 0)
-		printf("Unhandled interrupt vector %u\n", irq);
+	//if (calls == 0)
+	//	printf("Unhandled interrupt vector %u\n", irq);
 
 	/* Send EOI (if not spurious) */
 	if (irq != INTERRUPT_SPURIOUS7 && irq != INTERRUPT_SPURIOUS)
@@ -329,8 +337,7 @@ interrupt_status_t interrupt_set_state(interrupt_status_t state)
 /* Gets the current interrupt state */
 interrupt_status_t interrupt_get_state(void)
 {
-	interrupt_status_t status = (interrupt_status_t)__getflags();
-	if (status & EFLAGS_INTERRUPT_FLAG)
+	if (__getflags() & EFLAGS_INTERRUPT_FLAG)
 		return 1;
 	else
 		return 0;

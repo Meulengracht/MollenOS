@@ -82,6 +82,15 @@ UINT32 acpi_reboot(void)
 	for (;;);
 }
 
+/* Interface Handlers */
+UINT32 acpi_osi(ACPI_STRING InterfaceName, UINT32 Supported)
+{
+	if (InterfaceName != NULL)
+		return Supported;
+
+	return Supported;
+}
+
 /* Enumerate MADT Entries */
 void madt_enumerate(void *start, void *end)
 {
@@ -327,6 +336,7 @@ void acpi_init_stage2(void)
 	/* Note: Local handlers should be installed here */
 	AcpiInstallFixedEventHandler(ACPI_EVENT_POWER_BUTTON, acpi_shutdown, NULL);
 	AcpiInstallFixedEventHandler(ACPI_EVENT_SLEEP_BUTTON, acpi_sleep, NULL);
+	AcpiInstallInterfaceHandler(acpi_osi);
 
 	printf("    * Acpica Stage 2 Started\n");
 }

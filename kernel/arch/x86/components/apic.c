@@ -44,7 +44,7 @@ extern list_t *acpi_nodes;
 extern void enter_thread(registers_t *regs);
 
 /* Primary CPU Timer IRQ */
-void apic_timer_handler(void *args)
+int apic_timer_handler(void *args)
 {
 	/* Get registers */
 	registers_t *regs = NULL;
@@ -55,7 +55,7 @@ void apic_timer_handler(void *args)
 	/* Uh oh */
 	if (apic_read_local(LAPIC_CURRENT_COUNT) != 0
 		|| apic_read_local(LAPIC_TIMER_VECTOR) & 0x10000)
-		return;
+		return X86_IRQ_NOT_HANDLED;
 
 	/* Increase timer_ticks */
 	timer_ticks[cpu]++;
@@ -87,12 +87,16 @@ void apic_timer_handler(void *args)
 	
 	/* Enter new thread */
 	enter_thread(regs);
+
+	/* Never reached */
+	return X86_IRQ_HANDLED;
 }
 
 /* Spurious handler */
-void apic_spurious_handler(void *args)
+int apic_spurious_handler(void *args)
 {
 	args = args;
+	return X86_IRQ_HANDLED;
 }
 
 /* This function redirects a IO Apic */

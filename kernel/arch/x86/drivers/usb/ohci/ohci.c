@@ -45,7 +45,7 @@ extern void clock_stall_noint(uint32_t ms);
 extern void _yield(void);
 
 /* Prototypes */
-void ohci_interrupt_handler(void *data);
+int ohci_interrupt_handler(void *data);
 void ohci_reset(ohci_controller_t *controller);
 void ohci_setup(ohci_controller_t *controller);
 
@@ -1683,7 +1683,7 @@ void ohci_process_done_queue(ohci_controller_t *controller, addr_t done_head)
 /* Interrupt Handler
 * Make sure that this controller actually made the interrupt
 * as this interrupt will be shared with other OHCI's */
-void ohci_interrupt_handler(void *data)
+int ohci_interrupt_handler(void *data)
 {
 	uint32_t intr_state = 0;
 	ohci_controller_t *controller = (ohci_controller_t*)data;
@@ -1707,7 +1707,7 @@ void ohci_interrupt_handler(void *data)
 		intr_state = (controller->registers->HcInterruptStatus & controller->registers->HcInterruptEnable);
 
 		if (intr_state == 0)
-			return;
+			return X86_IRQ_NOT_HANDLED;
 	}
 
 	/* Debug */
@@ -1721,7 +1721,7 @@ void ohci_interrupt_handler(void *data)
 	{
 		printf("OHCI %u: Fatal Error, resetting...\n", controller->id);
 		ohci_reset(controller);
-		return;
+		return X86_IRQ_HANDLED;
 	}
 
 	/* Flag for end of frame type interrupts */
@@ -1802,4 +1802,6 @@ void ohci_interrupt_handler(void *data)
 
 	/* Enable Interrupts */
 	controller->registers->HcInterruptEnable = (uint32_t)X86_OHCI_INTR_MASTER_INTR;
+
+	return X86_IRQ_HANDLED;
 }

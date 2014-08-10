@@ -34,20 +34,18 @@
 #include <drivers\usb\ehci\ehci.h>
 
 /* Globals */
-list_t *glb_ehci_controllers = NULL;
 volatile uint32_t glb_ehci_id = 0;
 
 /* Initialise Controller from PCI */
 void ehci_init(pci_driver_t *device)
 {
-	//uint32_t pin = 0xFF;
-	ehci_capability_registers_t *cap_registers;
-	ehci_operational_registers_t *op_registers;
+	volatile ehci_capability_registers_t *cap_registers;
+	volatile ehci_operational_registers_t *op_registers;
 	uint32_t eecp;
+	uint32_t cmd;
 
-	/* Sanity */
-	if (glb_ehci_controllers == NULL)
-		glb_ehci_controllers = list_create(LIST_NORMAL);
+	/* Enable memory io and bus mastering, keep interrupts disabled */
+	pci_write_word((const uint16_t)device->bus, (const uint16_t)device->device, (const uint16_t)device->function, 0x4, 0x0406);
 
 	/* Pci Registers 
 	 * BAR0 - Usb Base Registers 
@@ -59,24 +57,25 @@ void ehci_init(pci_driver_t *device)
 	 * The above means ???? = EECP. EECP Offset in PCI space where
 	 * we can find the above registers */
 	cap_registers = (ehci_capability_registers_t*)memory_map_system_memory(device->header->bar0, 1);
-	eecp = (cap_registers->cparams & 0x0000FF00) >> 8;
+	cmd = eecp = ((cap_registers->cparams >> 8) & 0xFF);
 
 	/* Two cases, if EECP is valid we do additional steps */
 	if (eecp >= 0x40)
 	{
-		uint8_t semaphore;
-		uint8_t cap_id;
-		uint8_t failed;
-		uint32_t timeout;
+		uint8_t semaphore = 0;
+		uint8_t cap_id = 0;
+		uint8_t failed = 0;
+		uint32_t timeout = 0;
 
 		/* Get the extended capability register 
 		 * We read the second byte, because it contains 
 		 * the BIOS Semaphore */
 		failed = 0;
+		cap_id = pci_read_byte((uint16_t)device->bus, (uint16_t)device->device, (uint16_t)device->function, eecp);
 		semaphore = pci_read_byte((uint16_t)device->bus, (uint16_t)device->device, (uint16_t)device->function, eecp + 0x2);
 
 		/* Is it BIOS owned? First bit in second byte */
-		if (semaphore & (1 << 0))
+		if (semaphore & 0x1)
 		{
 			/* Request for my hat back :/ 
 			 * Third byte contains the OS Semaphore */
@@ -84,9 +83,10 @@ void ehci_init(pci_driver_t *device)
 
 			/* Now we wait for the hat to return */
 			timeout = 0;
-			while ((timeout < 1000) && (semaphore & (1 << 0)))
+			semaphore = pci_read_byte((uint16_t)device->bus, (uint16_t)device->device, (uint16_t)device->function, eecp + 0x2);
+			while ((timeout < 1000) && (semaphore & 0x1))
 			{
-				clock_stall(1);
+				clock_stall(5);
 				semaphore = pci_read_byte((uint16_t)device->bus, (uint16_t)device->device, (uint16_t)device->function, eecp + 0x2);
 				timeout++;
 			}
@@ -98,9 +98,9 @@ void ehci_init(pci_driver_t *device)
 			/* Now, we wait for OS semaphore to be 1 */
 			if (!failed)
 			{
-				semaphore = pci_read_byte((uint16_t)device->bus, (uint16_t)device->device, (uint16_t)device->function, eecp + 0x3);
 				timeout = 0;
-				while ((timeout < 1000) && (!(semaphore & (1 << 0))))
+				semaphore = pci_read_byte((uint16_t)device->bus, (uint16_t)device->device, (uint16_t)device->function, eecp + 0x3);
+				while ((timeout < 1000) && (!(semaphore & 0x1)))
 				{
 					clock_stall(1);
 					semaphore = pci_read_byte((uint16_t)device->bus, (uint16_t)device->device, (uint16_t)device->function, eecp + 0x3);
@@ -112,26 +112,34 @@ void ehci_init(pci_driver_t *device)
 					failed = 1;
 			}
 			
-			/* Wuhuu, hat returned?? */
-			if (failed)
-			{
-				/* You evul bios :( 
-				 * now we disable the controller manually :( */
-				cap_id = pci_read_byte((uint16_t)device->bus, (uint16_t)device->device, (uint16_t)device->function, eecp);
-
-				/* Legacy Support? */
-				if (cap_id == 0x01)
-				{
-					/* Disable SMI by setting all lower 16 bits to 0 of EECP+4 */
-					pci_write_word((uint16_t)device->bus, (uint16_t)device->device, (uint16_t)device->function, eecp + 0x4, 0x0000);
-				}
-			}
+			/* Disable SMI by setting all lower 16 bits to 0 of EECP+4 */
+			if (cap_id & 1)
+				pci_write_dword((uint16_t)device->bus, (uint16_t)device->device, (uint16_t)device->function, eecp + 0x4, 0x0000);
 		}
 	}
 
 	/* Now we are almost done 
 	 * Get operational registers */
 	op_registers = (ehci_operational_registers_t*)((addr_t)cap_registers + cap_registers->length);
+	
+	/* Stop scheduler */
+	cmd = op_registers->usb_command;
+	cmd &= ~(0x30);
+	op_registers->usb_command = cmd;
+
+	/* Wait for stop */
+	while (op_registers->usb_status & 0xC000)
+		clock_stall(5);
+
+	/* Stop controller */
+	cmd = op_registers->usb_command;
+	cmd &= ~(0x1);
+	op_registers->usb_command = cmd;
+	op_registers->usb_intr = 0;
+
+	/* Wait for stop */
+	while (!(op_registers->usb_status & 0x1000))
+		clock_stall(5);
 
 	/* Clear Configured Flag */
 	op_registers->config_flag = 0;

@@ -1,8 +1,8 @@
-/*******************************************************************************
+/******************************************************************************
  *
- * Module Name: utxferror - Various error/warning output functions
+ * Module Name: uthex -- Hex/ASCII support functions
  *
- ******************************************************************************/
+ *****************************************************************************/
 
 /******************************************************************************
  *
@@ -113,256 +113,73 @@
  *
  *****************************************************************************/
 
-#define __UTXFERROR_C__
-#define EXPORT_ACPI_INTERFACES
+#define __UTHEX_C__
 
 #include "acpi.h"
 #include "accommon.h"
 
+#define _COMPONENT          ACPI_COMPILER
+        ACPI_MODULE_NAME    ("uthex")
 
-#define _COMPONENT          ACPI_UTILITIES
-        ACPI_MODULE_NAME    ("utxferror")
 
-/*
- * This module is used for the in-kernel ACPICA as well as the ACPICA
- * tools/applications.
- */
+/* Hex to ASCII conversion table */
 
-#ifndef ACPI_NO_ERROR_MESSAGES /* Entire module */
-
-/*******************************************************************************
- *
- * FUNCTION:    AcpiError
- *
- * PARAMETERS:  ModuleName          - Caller's module name (for error output)
- *              LineNumber          - Caller's line number (for error output)
- *              Format              - Printf format string + additional args
- *
- * RETURN:      None
- *
- * DESCRIPTION: Print "ACPI Error" message with module/line/version info
- *
- ******************************************************************************/
-
-void ACPI_INTERNAL_VAR_XFACE
-AcpiError (
-    const char              *ModuleName,
-    UINT32                  LineNumber,
-    const char              *Format,
-    ...)
+static char                 AcpiGbl_HexToAscii[] =
 {
-    va_list                 ArgList;
-
-
-    ACPI_MSG_REDIRECT_BEGIN;
-    AcpiOsPrintf (ACPI_MSG_ERROR);
-
-    va_start (ArgList, Format);
-    AcpiOsVprintf (Format, ArgList);
-    ACPI_MSG_SUFFIX;
-    va_end (ArgList);
-
-    ACPI_MSG_REDIRECT_END;
-}
-
-ACPI_EXPORT_SYMBOL (AcpiError)
+    '0','1','2','3','4','5','6','7','8','9','A','B','C','D','E','F'
+};
 
 
 /*******************************************************************************
  *
- * FUNCTION:    AcpiException
+ * FUNCTION:    AcpiUtHexToAsciiChar
  *
- * PARAMETERS:  ModuleName          - Caller's module name (for error output)
- *              LineNumber          - Caller's line number (for error output)
- *              Status              - Status to be formatted
- *              Format              - Printf format string + additional args
+ * PARAMETERS:  Integer             - Contains the hex digit
+ *              Position            - bit position of the digit within the
+ *                                    integer (multiple of 4)
  *
- * RETURN:      None
+ * RETURN:      The converted Ascii character
  *
- * DESCRIPTION: Print "ACPI Exception" message with module/line/version info
- *              and decoded ACPI_STATUS.
+ * DESCRIPTION: Convert a hex digit to an Ascii character
  *
  ******************************************************************************/
 
-void ACPI_INTERNAL_VAR_XFACE
-AcpiException (
-    const char              *ModuleName,
-    UINT32                  LineNumber,
-    ACPI_STATUS             Status,
-    const char              *Format,
-    ...)
+char
+AcpiUtHexToAsciiChar (
+    UINT64                  Integer,
+    UINT32                  Position)
 {
-    va_list                 ArgList;
 
-
-    ACPI_MSG_REDIRECT_BEGIN;
-    AcpiOsPrintf (ACPI_MSG_EXCEPTION "%s, ", AcpiFormatException (Status));
-
-    va_start (ArgList, Format);
-    AcpiOsVprintf (Format, ArgList);
-    ACPI_MSG_SUFFIX;
-    va_end (ArgList);
-
-    ACPI_MSG_REDIRECT_END;
+    return (AcpiGbl_HexToAscii[(Integer >> Position) & 0xF]);
 }
-
-ACPI_EXPORT_SYMBOL (AcpiException)
 
 
 /*******************************************************************************
  *
- * FUNCTION:    AcpiWarning
+ * FUNCTION:    AcpiUtHexCharToValue
  *
- * PARAMETERS:  ModuleName          - Caller's module name (for error output)
- *              LineNumber          - Caller's line number (for error output)
- *              Format              - Printf format string + additional args
+ * PARAMETERS:  AsciiChar             - Hex character in Ascii
  *
- * RETURN:      None
+ * RETURN:      The binary value of the ascii/hex character
  *
- * DESCRIPTION: Print "ACPI Warning" message with module/line/version info
+ * DESCRIPTION: Perform ascii-to-hex translation
  *
  ******************************************************************************/
 
-void ACPI_INTERNAL_VAR_XFACE
-AcpiWarning (
-    const char              *ModuleName,
-    UINT32                  LineNumber,
-    const char              *Format,
-    ...)
+UINT8
+AcpiUtAsciiCharToHex (
+    int                     HexChar)
 {
-    va_list                 ArgList;
 
+    if (HexChar <= 0x39)
+    {
+        return ((UINT8) (HexChar - 0x30));
+    }
 
-    ACPI_MSG_REDIRECT_BEGIN;
-    AcpiOsPrintf (ACPI_MSG_WARNING);
+    if (HexChar <= 0x46)
+    {
+        return ((UINT8) (HexChar - 0x37));
+    }
 
-    va_start (ArgList, Format);
-    AcpiOsVprintf (Format, ArgList);
-    ACPI_MSG_SUFFIX;
-    va_end (ArgList);
-
-    ACPI_MSG_REDIRECT_END;
+    return ((UINT8) (HexChar - 0x57));
 }
-
-ACPI_EXPORT_SYMBOL (AcpiWarning)
-
-
-/*******************************************************************************
- *
- * FUNCTION:    AcpiInfo
- *
- * PARAMETERS:  ModuleName          - Caller's module name (for error output)
- *              LineNumber          - Caller's line number (for error output)
- *              Format              - Printf format string + additional args
- *
- * RETURN:      None
- *
- * DESCRIPTION: Print generic "ACPI:" information message. There is no
- *              module/line/version info in order to keep the message simple.
- *
- * TBD: ModuleName and LineNumber args are not needed, should be removed.
- *
- ******************************************************************************/
-
-void ACPI_INTERNAL_VAR_XFACE
-AcpiInfo (
-    const char              *ModuleName,
-    UINT32                  LineNumber,
-    const char              *Format,
-    ...)
-{
-    va_list                 ArgList;
-
-
-    ACPI_MSG_REDIRECT_BEGIN;
-    AcpiOsPrintf (ACPI_MSG_INFO);
-
-    va_start (ArgList, Format);
-    AcpiOsVprintf (Format, ArgList);
-    AcpiOsPrintf ("\n");
-    va_end (ArgList);
-
-    ACPI_MSG_REDIRECT_END;
-}
-
-ACPI_EXPORT_SYMBOL (AcpiInfo)
-
-
-/*******************************************************************************
- *
- * FUNCTION:    AcpiBiosError
- *
- * PARAMETERS:  ModuleName          - Caller's module name (for error output)
- *              LineNumber          - Caller's line number (for error output)
- *              Format              - Printf format string + additional args
- *
- * RETURN:      None
- *
- * DESCRIPTION: Print "ACPI Firmware Error" message with module/line/version
- *              info
- *
- ******************************************************************************/
-
-void ACPI_INTERNAL_VAR_XFACE
-AcpiBiosError (
-    const char              *ModuleName,
-    UINT32                  LineNumber,
-    const char              *Format,
-    ...)
-{
-    va_list                 ArgList;
-
-
-    ACPI_MSG_REDIRECT_BEGIN;
-    AcpiOsPrintf (ACPI_MSG_BIOS_ERROR);
-
-    va_start (ArgList, Format);
-    AcpiOsVprintf (Format, ArgList);
-    ACPI_MSG_SUFFIX;
-    va_end (ArgList);
-
-    ACPI_MSG_REDIRECT_END;
-}
-
-ACPI_EXPORT_SYMBOL (AcpiBiosError)
-
-
-/*******************************************************************************
- *
- * FUNCTION:    AcpiBiosWarning
- *
- * PARAMETERS:  ModuleName          - Caller's module name (for error output)
- *              LineNumber          - Caller's line number (for error output)
- *              Format              - Printf format string + additional args
- *
- * RETURN:      None
- *
- * DESCRIPTION: Print "ACPI Firmware Warning" message with module/line/version
- *              info
- *
- ******************************************************************************/
-
-void ACPI_INTERNAL_VAR_XFACE
-AcpiBiosWarning (
-    const char              *ModuleName,
-    UINT32                  LineNumber,
-    const char              *Format,
-    ...)
-{
-    va_list                 ArgList;
-
-
-    ACPI_MSG_REDIRECT_BEGIN;
-    AcpiOsPrintf (ACPI_MSG_BIOS_WARNING);
-
-    va_start (ArgList, Format);
-    AcpiOsVprintf (Format, ArgList);
-    ACPI_MSG_SUFFIX;
-    va_end (ArgList);
-
-    ACPI_MSG_REDIRECT_END;
-}
-
-ACPI_EXPORT_SYMBOL (AcpiBiosWarning)
-
-#endif /* ACPI_NO_ERROR_MESSAGES */
