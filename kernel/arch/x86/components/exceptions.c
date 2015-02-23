@@ -27,7 +27,6 @@
 #include <string.h>
 #include <stdio.h>
 #include <stddef.h>
-#include <debug\disasm.h>
 #include <heap.h>
 
 /* Extern Assembly */

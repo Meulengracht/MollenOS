@@ -129,21 +129,21 @@
     </MASM>
   </ItemGroup>
   <ItemGroup>
-    <Object Include="..\crt\lldiv.obj">
-      <DeploymentContent>false</DeploymentContent>
-    </Object>
-    <Object Include="..\crt\llmul.obj">
-      <DeploymentContent>false</DeploymentContent>
-    </Object>
-    <Object Include="..\crt\llrem.obj">
-      <DeploymentContent>false</DeploymentContent>
-    </Object>
-    <Object Include="..\crt\llshl.obj">
-      <DeploymentContent>false</DeploymentContent>
-    </Object>
-    <Object Include="..\crt\llshr.obj">
-      <DeploymentContent>false</DeploymentContent>
-    </Object>
+    <MASM Include="..\crt\lldiv.S">
+      <FileType>Document</FileType>
+    </MASM>
+    <MASM Include="..\crt\llmul.S">
+      <FileType>Document</FileType>
+    </MASM>
+    <MASM Include="..\crt\llrem.S">
+      <FileType>Document</FileType>
+    </MASM>
+    <MASM Include="..\crt\llshl.S">
+      <FileType>Document</FileType>
+    </MASM>
+    <MASM Include="..\crt\llshr.S">
+      <FileType>Document</FileType>
+    </MASM>
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <ProjectGuid>{5F7F1D6B-FFEE-44E1-8DF5-00725A1A5461}</ProjectGuid>
@@ -154,14 +154,14 @@
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='CLibK|Win32'" Label="Configuration">
     <ConfigurationType>StaticLibrary</ConfigurationType>
     <UseDebugLibraries>true</UseDebugLibraries>
-    <PlatformToolset>v100</PlatformToolset>
+    <PlatformToolset>v120</PlatformToolset>
     <CharacterSet>MultiByte</CharacterSet>
     <UseOfMfc />
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='CLib|Win32'" Label="Configuration">
     <ConfigurationType>StaticLibrary</ConfigurationType>
     <UseDebugLibraries>false</UseDebugLibraries>
-    <PlatformToolset>v100</PlatformToolset>
+    <PlatformToolset>v120</PlatformToolset>
     <WholeProgramOptimization>false</WholeProgramOptimization>
     <CharacterSet>MultiByte</CharacterSet>
   </PropertyGroup>
@@ -178,7 +178,7 @@
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='CLibK|Win32'">
     <OutDir>..\build\</OutDir>
-    <IncludePath>C:\Users\Phail\Documents\GitHub\MollenOS\kernel\arch;C:\Users\Phail\Documents\GitHub\MollenOS\kernel\include;C:\Users\Phail\Documents\GitHub\MollenOS\clib\include</IncludePath>
+    <IncludePath>C:\Users\Philip\Documents\GitHub\MollenOS\kernel\arch;C:\Users\Philip\Documents\GitHub\MollenOS\kernel\include;C:\Users\Philip\Documents\GitHub\MollenOS\clib\include</IncludePath>
     <ReferencePath />
     <LibraryPath />
     <LibraryWPath />
@@ -222,6 +222,7 @@
       <DisableSpecificWarnings>4706;4127;4100;4738</DisableSpecificWarnings>
       <InlineFunctionExpansion>OnlyExplicitInline</InlineFunctionExpansion>
       <BufferSecurityCheck>false</BufferSecurityCheck>
+      <EnableEnhancedInstructionSet>StreamingSIMDExtensions</EnableEnhancedInstructionSet>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>

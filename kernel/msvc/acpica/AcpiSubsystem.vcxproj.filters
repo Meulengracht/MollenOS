@@ -51,39 +51,6 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="..\..\acpica\Disassembler\dmbuffer.c">
-      <Filter>Source Files\Disassembler</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\acpica\disassembler\dmdeferred.c">
-      <Filter>Source Files\Disassembler</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\acpica\Disassembler\dmnames.c">
-      <Filter>Source Files\Disassembler</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\acpica\disassembler\dmobject.c">
-      <Filter>Source Files\Disassembler</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\acpica\Disassembler\dmopcode.c">
-      <Filter>Source Files\Disassembler</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\acpica\Disassembler\dmresrc.c">
-      <Filter>Source Files\Disassembler</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\acpica\Disassembler\dmresrcl.c">
-      <Filter>Source Files\Disassembler</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\acpica\disassembler\dmresrcl2.c">
-      <Filter>Source Files\Disassembler</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\acpica\Disassembler\dmresrcs.c">
-      <Filter>Source Files\Disassembler</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\acpica\Disassembler\dmutils.c">
-      <Filter>Source Files\Disassembler</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\acpica\Disassembler\dmwalk.c">
-      <Filter>Source Files\Disassembler</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\acpica\dispatcher\dsargs.c">
       <Filter>Source Files\Dispatcher</Filter>
     </ClCompile>
@@ -587,6 +554,42 @@
     </ClCompile>
     <ClCompile Include="..\..\acpica\resources\rsxface.c">
       <Filter>Source Files\Resources</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\acpica\disassembler\dmbuffer.c">
+      <Filter>Source Files\Disassembler</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\acpica\disassembler\dmcstyle.c">
+      <Filter>Source Files\Disassembler</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\acpica\disassembler\dmdeferred.c">
+      <Filter>Source Files\Disassembler</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\acpica\disassembler\dmnames.c">
+      <Filter>Source Files\Disassembler</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\acpica\disassembler\dmobject.c">
+      <Filter>Source Files\Disassembler</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\acpica\disassembler\dmopcode.c">
+      <Filter>Source Files\Disassembler</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\acpica\disassembler\dmresrc.c">
+      <Filter>Source Files\Disassembler</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\acpica\disassembler\dmresrcl.c">
+      <Filter>Source Files\Disassembler</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\acpica\disassembler\dmresrcl2.c">
+      <Filter>Source Files\Disassembler</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\acpica\disassembler\dmresrcs.c">
+      <Filter>Source Files\Disassembler</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\acpica\disassembler\dmutils.c">
+      <Filter>Source Files\Disassembler</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\acpica\disassembler\dmwalk.c">
+      <Filter>Source Files\Disassembler</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>

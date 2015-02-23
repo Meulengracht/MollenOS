@@ -8,7 +8,7 @@
  *
  * 1. Copyright Notice
  *
- * Some or all of this work - Copyright (c) 1999 - 2014, Intel Corp.
+ * Some or all of this work - Copyright (c) 1999 - 2015, Intel Corp.
  * All rights reserved.
  *
  * 2. License
@@ -262,6 +262,7 @@ typedef struct acpi_op_walk_info
     UINT32                  BitOffset;
     UINT32                  Flags;
     ACPI_WALK_STATE         *WalkState;
+    ACPI_PARSE_OBJECT       *MappingOp;
 
 } ACPI_OP_WALK_INFO;
 
@@ -279,6 +280,7 @@ ACPI_STATUS (*ASL_WALK_CALLBACK) (
 
 typedef
 void (*ACPI_RESOURCE_HANDLER) (
+    ACPI_OP_WALK_INFO       *Info,
     AML_RESOURCE            *Resource,
     UINT32                  Length,
     UINT32                  Level);
@@ -432,6 +434,7 @@ extern ACPI_DMTABLE_INFO        AcpiDmTableInfoSratHdr[];
 extern ACPI_DMTABLE_INFO        AcpiDmTableInfoSrat0[];
 extern ACPI_DMTABLE_INFO        AcpiDmTableInfoSrat1[];
 extern ACPI_DMTABLE_INFO        AcpiDmTableInfoSrat2[];
+extern ACPI_DMTABLE_INFO        AcpiDmTableInfoSrat3[];
 extern ACPI_DMTABLE_INFO        AcpiDmTableInfoTcpa[];
 extern ACPI_DMTABLE_INFO        AcpiDmTableInfoTpm2[];
 extern ACPI_DMTABLE_INFO        AcpiDmTableInfoUefi[];
@@ -864,72 +867,84 @@ AcpiDmDescriptorName (
  */
 void
 AcpiDmWordDescriptor (
+    ACPI_OP_WALK_INFO       *Info,
     AML_RESOURCE            *Resource,
     UINT32                  Length,
     UINT32                  Level);
 
 void
 AcpiDmDwordDescriptor (
+    ACPI_OP_WALK_INFO       *Info,
     AML_RESOURCE            *Resource,
     UINT32                  Length,
     UINT32                  Level);
 
 void
 AcpiDmExtendedDescriptor (
+    ACPI_OP_WALK_INFO       *Info,
     AML_RESOURCE            *Resource,
     UINT32                  Length,
     UINT32                  Level);
 
 void
 AcpiDmQwordDescriptor (
+    ACPI_OP_WALK_INFO       *Info,
     AML_RESOURCE            *Resource,
     UINT32                  Length,
     UINT32                  Level);
 
 void
 AcpiDmMemory24Descriptor (
+    ACPI_OP_WALK_INFO       *Info,
     AML_RESOURCE            *Resource,
     UINT32                  Length,
     UINT32                  Level);
 
 void
 AcpiDmMemory32Descriptor (
+    ACPI_OP_WALK_INFO       *Info,
     AML_RESOURCE            *Resource,
     UINT32                  Length,
     UINT32                  Level);
 
 void
 AcpiDmFixedMemory32Descriptor (
+    ACPI_OP_WALK_INFO       *Info,
     AML_RESOURCE            *Resource,
     UINT32                  Length,
     UINT32                  Level);
 
 void
 AcpiDmGenericRegisterDescriptor (
+    ACPI_OP_WALK_INFO       *Info,
     AML_RESOURCE            *Resource,
     UINT32                  Length,
     UINT32                  Level);
 
 void
 AcpiDmInterruptDescriptor (
+    ACPI_OP_WALK_INFO       *Info,
     AML_RESOURCE            *Resource,
     UINT32                  Length,
     UINT32                  Level);
 
 void
 AcpiDmVendorLargeDescriptor (
+    ACPI_OP_WALK_INFO       *Info,
     AML_RESOURCE            *Resource,
     UINT32                  Length,
     UINT32                  Level);
 
 void
 AcpiDmGpioDescriptor (
+    ACPI_OP_WALK_INFO       *Info,
     AML_RESOURCE            *Resource,
     UINT32                  Length,
     UINT32                  Level);
 
 void
 AcpiDmSerialBusDescriptor (
+    ACPI_OP_WALK_INFO       *Info,
     AML_RESOURCE            *Resource,
     UINT32                  Length,
     UINT32                  Level);
@@ -947,48 +962,56 @@ AcpiDmVendorCommon (
  */
 void
 AcpiDmIrqDescriptor (
+    ACPI_OP_WALK_INFO       *Info,
     AML_RESOURCE            *Resource,
     UINT32                  Length,
     UINT32                  Level);
 
 void
 AcpiDmDmaDescriptor (
+    ACPI_OP_WALK_INFO       *Info,
     AML_RESOURCE            *Resource,
     UINT32                  Length,
     UINT32                  Level);
 
 void
 AcpiDmFixedDmaDescriptor (
+    ACPI_OP_WALK_INFO       *Info,
     AML_RESOURCE            *Resource,
     UINT32                  Length,
     UINT32                  Level);
 
 void
 AcpiDmIoDescriptor (
+    ACPI_OP_WALK_INFO       *Info,
     AML_RESOURCE            *Resource,
     UINT32                  Length,
     UINT32                  Level);
 
 void
 AcpiDmFixedIoDescriptor (
+    ACPI_OP_WALK_INFO       *Info,
     AML_RESOURCE            *Resource,
     UINT32                  Length,
     UINT32                  Level);
 
 void
 AcpiDmStartDependentDescriptor (
+    ACPI_OP_WALK_INFO       *Info,
     AML_RESOURCE            *Resource,
     UINT32                  Length,
     UINT32                  Level);
 
 void
 AcpiDmEndDependentDescriptor (
+    ACPI_OP_WALK_INFO       *Info,
     AML_RESOURCE            *Resource,
     UINT32                  Length,
     UINT32                  Level);
 
 void
 AcpiDmVendorSmallDescriptor (
+    ACPI_OP_WALK_INFO       *Info,
     AML_RESOURCE            *Resource,
     UINT32                  Length,
     UINT32                  Level);
@@ -1028,11 +1051,23 @@ AcpiDmCheckResourceReference (
 
 
 /*
+ * dmcstyle
+ */
+BOOLEAN
+AcpiDmCheckForSymbolicOpcode (
+    ACPI_PARSE_OBJECT       *Op,
+    ACPI_OP_WALK_INFO       *Info);
+
+void
+AcpiDmCloseOperator (
+    ACPI_PARSE_OBJECT       *Op);
+
+
+/*
  * acdisasm
  */
 void
 AdDisassemblerHeader (
     char                    *Filename);
-
 
 #endif  /* __ACDISASM_H__ */

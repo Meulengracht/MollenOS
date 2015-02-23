@@ -29,7 +29,7 @@
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
     <UseDebugLibraries>false</UseDebugLibraries>
-    <PlatformToolset>v100</PlatformToolset>
+    <PlatformToolset>v120</PlatformToolset>
     <WholeProgramOptimization>true</WholeProgramOptimization>
     <CharacterSet>MultiByte</CharacterSet>
     <UseOfMfc />
@@ -51,12 +51,14 @@
   <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
   </ImportGroup>
-  <PropertyGroup Label="UserMacros" />
+  <PropertyGroup Label="UserMacros">
+    <NuGetPackageImportStamp>56f82426</NuGetPackageImportStamp>
+  </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <GenerateManifest>false</GenerateManifest>
-    <IncludePath>C:\Users\Phail\Documents\GitHub\MollenOS\kernel\arch;C:\Users\Phail\Documents\GitHub\MollenOS\clib\include;C:\Users\Phail\Documents\GitHub\MollenOS\kernel\include</IncludePath>
+    <IncludePath>C:\Users\Philip\Documents\GitHub\MollenOS\kernel\arch;C:\Users\Philip\Documents\GitHub\MollenOS\clib\include;C:\Users\Philip\Documents\GitHub\MollenOS\kernel\include</IncludePath>
     <LibraryWPath />
-    <LibraryPath>C:\Users\Phail\Documents\GitHub\MollenOS\clib\build;C:\Users\Phail\Documents\GitHub\MollenOS\kernel\build</LibraryPath>
+    <LibraryPath>C:\Users\Philip\Documents\GitHub\MollenOS\clib\build;C:\Users\Philip\Documents\GitHub\MollenOS\kernel\build</LibraryPath>
     <OutDir>..\..\..\build\</OutDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
@@ -159,6 +161,5 @@
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
-  <ImportGroup Label="ExtensionTargets">
-  </ImportGroup>
+  <ImportGroup Label="ExtensionTargets" />
 </Project>

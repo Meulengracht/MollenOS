@@ -28,9 +28,6 @@
     <Filter Include="Drivers\Usb">
       <UniqueIdentifier>{7aac0147-c0dc-4843-86d7-c798578a964c}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Disasm">
-      <UniqueIdentifier>{e326f9c3-c06c-4e99-b85d-431d109952cc}</UniqueIdentifier>
-    </Filter>
     <Filter Include="Drivers\Clock">
       <UniqueIdentifier>{27f21261-2ecf-4a21-a56b-b2becadd0c3e}</UniqueIdentifier>
     </Filter>
@@ -114,9 +111,6 @@
     <ClCompile Include="..\..\..\arch\x86\drivers\usb\ohci\ohci.c">
       <Filter>Drivers\Usb\Controllers\OHCI</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\..\arch\x86\debug\disasm.c">
-      <Filter>Disasm</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\..\arch\x86\drivers\clock\clock.c">
       <Filter>Drivers\Clock</Filter>
     </ClCompile>
@@ -152,34 +146,26 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <NASM Include="..\..\..\arch\x86\boot\boot.asm">
-      <Filter>Startup</Filter>
-    </NASM>
-    <NASM Include="..\..\..\arch\x86\components\desc.asm">
+    <CustomBuild Include="..\..\..\arch\x86\components\_spinlock.asm">
+      <Filter>Components</Filter>
+    </CustomBuild>
+    <CustomBuild Include="..\..\..\arch\x86\components\desc.asm">
       <Filter>Components\Descriptors</Filter>
-    </NASM>
-    <NASM Include="..\..\..\arch\x86\components\irq.asm">
+    </CustomBuild>
+    <CustomBuild Include="..\..\..\arch\x86\components\portio.asm">
+      <Filter>Components</Filter>
+    </CustomBuild>
+    <CustomBuild Include="..\..\..\arch\x86\components\irq.asm">
       <Filter>Interrupts</Filter>
-    </NASM>
-    <NASM Include="..\..\..\arch\x86\memory\mm_paging.asm">
+    </CustomBuild>
+    <CustomBuild Include="..\..\..\arch\x86\memory\mm_paging.asm">
       <Filter>Memory</Filter>
-    </NASM>
-    <NASM Include="..\..\..\arch\x86\components\portio.asm">
-      <Filter>Components</Filter>
-    </NASM>
-    <NASM Include="..\..\..\arch\x86\components\threading.asm">
+    </CustomBuild>
+    <CustomBuild Include="..\..\..\arch\x86\boot\boot.asm">
+      <Filter>Startup</Filter>
+    </CustomBuild>
+    <CustomBuild Include="..\..\..\arch\x86\components\threading.asm">
       <Filter>Threading</Filter>
-    </NASM>
-    <NASM Include="..\..\..\arch\x86\components\_spinlock.asm">
-      <Filter>Components</Filter>
-    </NASM>
-  </ItemGroup>
-  <ItemGroup>
-    <ClInclude Include="..\..\..\arch\x86\debug\disasm.h">
-      <Filter>Disasm</Filter>
-    </ClInclude>
-  </ItemGroup>
-  <ItemGroup>
-    <None Include="packages.config" />
+    </CustomBuild>
   </ItemGroup>
 </Project>

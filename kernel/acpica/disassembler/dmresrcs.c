@@ -8,7 +8,7 @@
  *
  * 1. Copyright Notice
  *
- * Some or all of this work - Copyright (c) 1999 - 2014, Intel Corp.
+ * Some or all of this work - Copyright (c) 1999 - 2015, Intel Corp.
  * All rights reserved.
  *
  * 2. License
@@ -113,7 +113,6 @@
  *
  *****************************************************************************/
 
-
 #include "acpi.h"
 #include "accommon.h"
 #include "acdisasm.h"
@@ -129,7 +128,8 @@
  *
  * FUNCTION:    AcpiDmIrqDescriptor
  *
- * PARAMETERS:  Resource            - Pointer to the resource descriptor
+ * PARAMETERS:  Info                - Extra resource info
+ *              Resource            - Pointer to the resource descriptor
  *              Length              - Length of the descriptor in bytes
  *              Level               - Current source code indentation level
  *
@@ -141,6 +141,7 @@
 
 void
 AcpiDmIrqDescriptor (
+    ACPI_OP_WALK_INFO       *Info,
     AML_RESOURCE            *Resource,
     UINT32                  Length,
     UINT32                  Level)
@@ -174,7 +175,8 @@ AcpiDmIrqDescriptor (
  *
  * FUNCTION:    AcpiDmDmaDescriptor
  *
- * PARAMETERS:  Resource            - Pointer to the resource descriptor
+ * PARAMETERS:  Info                - Extra resource info
+ *              Resource            - Pointer to the resource descriptor
  *              Length              - Length of the descriptor in bytes
  *              Level               - Current source code indentation level
  *
@@ -186,6 +188,7 @@ AcpiDmIrqDescriptor (
 
 void
 AcpiDmDmaDescriptor (
+    ACPI_OP_WALK_INFO       *Info,
     AML_RESOURCE            *Resource,
     UINT32                  Length,
     UINT32                  Level)
@@ -211,7 +214,8 @@ AcpiDmDmaDescriptor (
  *
  * FUNCTION:    AcpiDmFixedDmaDescriptor
  *
- * PARAMETERS:  Resource            - Pointer to the resource descriptor
+ * PARAMETERS:  Info                - Extra resource info
+ *              Resource            - Pointer to the resource descriptor
  *              Length              - Length of the descriptor in bytes
  *              Level               - Current source code indentation level
  *
@@ -223,6 +227,7 @@ AcpiDmDmaDescriptor (
 
 void
 AcpiDmFixedDmaDescriptor (
+    ACPI_OP_WALK_INFO       *Info,
     AML_RESOURCE            *Resource,
     UINT32                  Length,
     UINT32                  Level)
@@ -254,7 +259,8 @@ AcpiDmFixedDmaDescriptor (
  *
  * FUNCTION:    AcpiDmIoDescriptor
  *
- * PARAMETERS:  Resource            - Pointer to the resource descriptor
+ * PARAMETERS:  Info                - Extra resource info
+ *              Resource            - Pointer to the resource descriptor
  *              Length              - Length of the descriptor in bytes
  *              Level               - Current source code indentation level
  *
@@ -266,6 +272,7 @@ AcpiDmFixedDmaDescriptor (
 
 void
 AcpiDmIoDescriptor (
+    ACPI_OP_WALK_INFO       *Info,
     AML_RESOURCE            *Resource,
     UINT32                  Length,
     UINT32                  Level)
@@ -299,7 +306,8 @@ AcpiDmIoDescriptor (
  *
  * FUNCTION:    AcpiDmFixedIoDescriptor
  *
- * PARAMETERS:  Resource            - Pointer to the resource descriptor
+ * PARAMETERS:  Info                - Extra resource info
+ *              Resource            - Pointer to the resource descriptor
  *              Length              - Length of the descriptor in bytes
  *              Level               - Current source code indentation level
  *
@@ -311,6 +319,7 @@ AcpiDmIoDescriptor (
 
 void
 AcpiDmFixedIoDescriptor (
+    ACPI_OP_WALK_INFO       *Info,
     AML_RESOURCE            *Resource,
     UINT32                  Length,
     UINT32                  Level)
@@ -337,7 +346,8 @@ AcpiDmFixedIoDescriptor (
  *
  * FUNCTION:    AcpiDmStartDependentDescriptor
  *
- * PARAMETERS:  Resource            - Pointer to the resource descriptor
+ * PARAMETERS:  Info                - Extra resource info
+ *              Resource            - Pointer to the resource descriptor
  *              Length              - Length of the descriptor in bytes
  *              Level               - Current source code indentation level
  *
@@ -349,6 +359,7 @@ AcpiDmFixedIoDescriptor (
 
 void
 AcpiDmStartDependentDescriptor (
+    ACPI_OP_WALK_INFO       *Info,
     AML_RESOURCE            *Resource,
     UINT32                  Length,
     UINT32                  Level)
@@ -376,7 +387,8 @@ AcpiDmStartDependentDescriptor (
  *
  * FUNCTION:    AcpiDmEndDependentDescriptor
  *
- * PARAMETERS:  Resource            - Pointer to the resource descriptor
+ * PARAMETERS:  Info                - Extra resource info
+ *              Resource            - Pointer to the resource descriptor
  *              Length              - Length of the descriptor in bytes
  *              Level               - Current source code indentation level
  *
@@ -388,6 +400,7 @@ AcpiDmStartDependentDescriptor (
 
 void
 AcpiDmEndDependentDescriptor (
+    ACPI_OP_WALK_INFO       *Info,
     AML_RESOURCE            *Resource,
     UINT32                  Length,
     UINT32                  Level)
@@ -404,7 +417,8 @@ AcpiDmEndDependentDescriptor (
  *
  * FUNCTION:    AcpiDmVendorSmallDescriptor
  *
- * PARAMETERS:  Resource            - Pointer to the resource descriptor
+ * PARAMETERS:  Info                - Extra resource info
+ *              Resource            - Pointer to the resource descriptor
  *              Length              - Length of the descriptor in bytes
  *              Level               - Current source code indentation level
  *
@@ -416,6 +430,7 @@ AcpiDmEndDependentDescriptor (
 
 void
 AcpiDmVendorSmallDescriptor (
+    ACPI_OP_WALK_INFO       *Info,
     AML_RESOURCE            *Resource,
     UINT32                  Length,
     UINT32                  Level)

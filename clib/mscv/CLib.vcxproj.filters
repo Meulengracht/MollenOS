@@ -278,22 +278,20 @@
     <MASM Include="..\crt\ints.S">
       <Filter>Source\crt</Filter>
     </MASM>
-  </ItemGroup>
-  <ItemGroup>
-    <Object Include="..\crt\lldiv.obj">
+    <MASM Include="..\crt\lldiv.S">
       <Filter>Source\crt</Filter>
-    </Object>
-    <Object Include="..\crt\llmul.obj">
+    </MASM>
+    <MASM Include="..\crt\llmul.S">
       <Filter>Source\crt</Filter>
-    </Object>
-    <Object Include="..\crt\llrem.obj">
+    </MASM>
+    <MASM Include="..\crt\llrem.S">
       <Filter>Source\crt</Filter>
-    </Object>
-    <Object Include="..\crt\llshl.obj">
+    </MASM>
+    <MASM Include="..\crt\llshl.S">
       <Filter>Source\crt</Filter>
-    </Object>
-    <Object Include="..\crt\llshr.obj">
+    </MASM>
+    <MASM Include="..\crt\llshr.S">
       <Filter>Source\crt</Filter>
-    </Object>
+    </MASM>
   </ItemGroup>
 </Project>

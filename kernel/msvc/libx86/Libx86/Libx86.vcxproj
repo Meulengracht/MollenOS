@@ -1,6 +1,5 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" ToolsVersion="12.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
-  <Import Project="..\..\packages\nasm.2.10.07\build\native\nasm.props" Condition="Exists('..\..\packages\nasm.2.10.07\build\native\nasm.props')" />
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="Debug|Win32">
       <Configuration>Debug</Configuration>
@@ -12,22 +11,44 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
-    <NASM Include="..\..\..\arch\x86\boot\boot.asm">
+    <CustomBuild Include="..\..\..\arch\x86\boot\boot.asm">
       <FileType>Document</FileType>
       <Command Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">nasm -f win32 boot.asm -o boot.obj</Command>
       <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">boot.obj</Outputs>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">false</ExcludedFromBuild>
-    </NASM>
-    <NASM Include="..\..\..\arch\x86\components\desc.asm">
+      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">nasm -f win32 -Xvc -o $(IntDir)\%(Filename).obj %(FullPath)</Command>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">$(IntDir)\%(Filename).obj</Outputs>
+    </CustomBuild>
+    <CustomBuild Include="..\..\..\arch\x86\components\desc.asm">
       <FileType>Document</FileType>
-    </NASM>
-    <NASM Include="..\..\..\arch\x86\components\irq.asm" />
-    <NASM Include="..\..\..\arch\x86\components\portio.asm" />
-    <NASM Include="..\..\..\arch\x86\components\_spinlock.asm">
+      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">nasm -f win32 -Xvc -o $(IntDir)\%(Filename).obj %(FullPath)</Command>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">$(IntDir)\%(Filename).obj</Outputs>
+    </CustomBuild>
+    <CustomBuild Include="..\..\..\arch\x86\components\irq.asm">
       <FileType>Document</FileType>
-    </NASM>
-    <NASM Include="..\..\..\arch\x86\components\threading.asm" />
-    <NASM Include="..\..\..\arch\x86\memory\mm_paging.asm" />
+      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">nasm -f win32 -Xvc -o $(IntDir)\%(Filename).obj %(FullPath)</Command>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">$(IntDir)\%(Filename).obj</Outputs>
+    </CustomBuild>
+    <CustomBuild Include="..\..\..\arch\x86\components\portio.asm">
+      <FileType>Document</FileType>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">nasm -f win32 -Xvc -o $(IntDir)\%(Filename).obj %(FullPath)</Command>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">$(IntDir)\%(Filename).obj</Outputs>
+    </CustomBuild>
+    <CustomBuild Include="..\..\..\arch\x86\components\_spinlock.asm">
+      <FileType>Document</FileType>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">nasm -f win32 -Xvc -o $(IntDir)\%(Filename).obj %(FullPath)</Command>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">$(IntDir)\%(Filename).obj</Outputs>
+    </CustomBuild>
+    <CustomBuild Include="..\..\..\arch\x86\components\threading.asm">
+      <FileType>Document</FileType>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">nasm -f win32 -Xvc -o $(IntDir)\%(Filename).obj %(FullPath)</Command>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">$(IntDir)\%(Filename).obj</Outputs>
+    </CustomBuild>
+    <CustomBuild Include="..\..\..\arch\x86\memory\mm_paging.asm">
+      <FileType>Document</FileType>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">nasm -f win32 -Xvc -o $(IntDir)\%(Filename).obj %(FullPath)</Command>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">$(IntDir)\%(Filename).obj</Outputs>
+    </CustomBuild>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\..\arch\x86\boot\apinit.c" />
@@ -44,7 +65,6 @@
     <ClCompile Include="..\..\..\arch\x86\components\thread.c" />
     <ClCompile Include="..\..\..\arch\x86\components\video.c" />
     <ClCompile Include="..\..\..\arch\x86\components\video_font8x16.c" />
-    <ClCompile Include="..\..\..\arch\x86\debug\disasm.c" />
     <ClCompile Include="..\..\..\arch\x86\drivers\clock\clock.c" />
     <ClCompile Include="..\..\..\arch\x86\drivers\clock\rtc.c" />
     <ClCompile Include="..\..\..\arch\x86\drivers\driver_manager.c" />
@@ -60,12 +80,6 @@
     <ClCompile Include="..\..\..\arch\x86\memory\mm_phys.c" />
     <ClCompile Include="..\..\..\arch\x86\memory\mm_virt.c" />
   </ItemGroup>
-  <ItemGroup>
-    <None Include="packages.config" />
-  </ItemGroup>
-  <ItemGroup>
-    <ClInclude Include="..\..\..\arch\x86\debug\disasm.h" />
-  </ItemGroup>
   <PropertyGroup Label="Globals">
     <ProjectGuid>{17145F88-DAEA-496B-A91F-2A78ED5673CC}</ProjectGuid>
     <Keyword>Win32Proj</Keyword>
@@ -75,7 +89,7 @@
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
     <ConfigurationType>StaticLibrary</ConfigurationType>
     <UseDebugLibraries>true</UseDebugLibraries>
-    <PlatformToolset>v100</PlatformToolset>
+    <PlatformToolset>v120</PlatformToolset>
     <WholeProgramOptimization>true</WholeProgramOptimization>
     <CharacterSet>MultiByte</CharacterSet>
     <UseOfMfc />
@@ -97,14 +111,14 @@
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
   </ImportGroup>
   <PropertyGroup Label="UserMacros">
-    <NuGetPackageImportStamp>3308c32b</NuGetPackageImportStamp>
+    <NuGetPackageImportStamp>27414a97</NuGetPackageImportStamp>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <OutDir>..\..\..\build\</OutDir>
-    <IncludePath>C:\Users\Phail\Documents\GitHub\MollenOS\kernel\acpica\include;C:\Users\Phail\Documents\GitHub\MollenOS\kernel\include;C:\Users\Phail\Documents\GitHub\MollenOS\kernel\msvc\MCoreConfig;C:\Users\Phail\Documents\GitHub\MollenOS\clib\include;C:\Users\Phail\Documents\GitHub\MollenOS\kernel\arch\x86</IncludePath>
+    <IncludePath>C:\Users\Philip\Documents\GitHub\MollenOS\kernel\acpica\include;C:\Users\Philip\Documents\GitHub\MollenOS\kernel\include;C:\Users\Philip\Documents\GitHub\MollenOS\kernel\msvc\MCoreConfig;C:\Users\Philip\Documents\GitHub\MollenOS\clib\include;C:\Users\Philip\Documents\GitHub\MollenOS\kernel\arch\x86</IncludePath>
     <ReferencePath />
     <LibraryWPath />
-    <LibraryPath>C:\Users\Phail\Documents\GitHub\MollenOS\kernel\build;C:\Users\Phail\Documents\GitHub\MollenOS\clib\build</LibraryPath>
+    <LibraryPath>C:\Users\Philip\Documents\GitHub\MollenOS\kernel\build;C:\Users\Philip\Documents\GitHub\MollenOS\clib\build</LibraryPath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <OutDir>..\..\..\build\</OutDir>
@@ -191,14 +205,5 @@
     </Lib>
   </ItemDefinitionGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
-  <ImportGroup Label="ExtensionTargets">
-    <Import Project="..\..\packages\nasm.2.10.07\build\native\nasm.targets" Condition="Exists('..\..\packages\nasm.2.10.07\build\native\nasm.targets')" />
-  </ImportGroup>
-  <Target Name="EnsureNuGetPackageBuildImports" BeforeTargets="PrepareForBuild">
-    <PropertyGroup>
-      <ErrorText>This project references NuGet package(s) that are missing on this computer. Enable NuGet Package Restore to download them.  For more information, see http://go.microsoft.com/fwlink/?LinkID=322105. The missing file is {0}.</ErrorText>
-    </PropertyGroup>
-    <Error Condition="!Exists('..\..\packages\nasm.2.10.07\build\native\nasm.props')" Text="$([System.String]::Format('$(ErrorText)', '..\..\packages\nasm.2.10.07\build\native\nasm.props'))" />
-    <Error Condition="!Exists('..\..\packages\nasm.2.10.07\build\native\nasm.targets')" Text="$([System.String]::Format('$(ErrorText)', '..\..\packages\nasm.2.10.07\build\native\nasm.targets'))" />
-  </Target>
+  <ImportGroup Label="ExtensionTargets" />
 </Project>
