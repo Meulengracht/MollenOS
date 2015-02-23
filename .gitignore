@@ -76,6 +76,9 @@ build/
 .builds
 *.pidb
 *.log
+*.tlog
+*.cod
+*.lastbuildstate
 *.scc
 
 # Visual C++ cache files
