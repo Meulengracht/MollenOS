@@ -82,7 +82,7 @@ typedef struct MultibootInfo
 	uint32_t VbeInterfaceOffset;
 	uint32_t VbeInterfaceLength;
 
-} multiboot_info_t;
+} Multiboot_t;
 #pragma pack(pop)
 
 /* Flags */

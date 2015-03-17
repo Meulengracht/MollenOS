@@ -116,8 +116,8 @@ input.
 _CRT_EXTERN void apic_init(void);
 _CRT_EXTERN void apic_timer_init(void);
 
-_CRT_EXTERN void acpi_init_stage1(void);
-_CRT_EXTERN void acpi_init_stage2(void);
+_CRT_EXTERN void AcpiInitStage1(void);
+_CRT_EXTERN void AcpiInitStage2(void);
 
 /* Read/Write to local apic */
 _CRT_EXTERN uint32_t apic_read_local(uint32_t reg);

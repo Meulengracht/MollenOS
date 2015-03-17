@@ -16,21 +16,21 @@
 * along with this program.If not, see <http://www.gnu.org/licenses/>.
 *
 *
-* MollenOS x86-32 Video Header
+* MollenOS x86 Video Header
 */
 #ifndef _X86_VIDEO_
 #define _X86_VIDEO_
 
 
 /* Includes */
-#include <arch.h>
+#include <Arch.h>
 #include <stdint.h>
 
 /* This is the VBE Graphic Information
 * Descriptor which we have setup in
 * the bootloader */
 #pragma pack(push, 1)
-typedef struct vbe_mode_info
+typedef struct _VbeMode
 {
 	uint16_t ModeInfo_ModeAttributes;
 	uint8_t ModeInfo_WinAAttributes;
@@ -66,13 +66,13 @@ typedef struct vbe_mode_info
 	uint32_t ModeInfo_PhysBasePtr;
 	uint32_t ModeInfo_OffScreenMemOffset;
 	uint16_t  ModeInfo_OffScreenMemSize;
-} vbe_mode_t;
+} VbeMode_t;
 #pragma pack(pop)
 
 /* The Graphic Info structure we save 
  * in the kernel. */
 #pragma pack(push, 1)
-typedef struct graphic_info
+typedef struct _Graphics
 {
 	//Graphics mode (Text, VGA, VESA, NATIVE)
 	uint8_t GraphicMode;
@@ -100,14 +100,14 @@ typedef struct graphic_info
 	uint8_t ReservedMaskPos;
 	uint16_t Attributes;
 
-} graphics_t;
+} Graphics_t;
 #pragma pack(pop)
 
 
 /* The Graphic Terminal structure we save
 * in the kernel. */
 #pragma pack(push, 1)
-typedef struct terminal
+typedef struct _Terminal
 {
 	/* Cursor Position */
 	uint32_t CursorX;
@@ -122,9 +122,9 @@ typedef struct terminal
 	uint32_t BgColor;
 
 	/* TTY Spinlock */
-	spinlock_t lock;
+	Spinlock_t Lock;
 
-} tty_t;
+} TTY_t;
 #pragma pack(pop)
 
 #endif // !_X86_VIDEO_

@@ -19,40 +19,40 @@
 * MollenOS x86-32 Interrupt Descriptor Table
 */
 
-#include <idt.h>
+#include <Idt.h>
 #include <string.h>
 
 /* We have no memory allocation system 
  * in place yet, so uhm, allocate in place */
-idt_t idt_ptr;
-idt_entry_t idt_descriptors[X86_IDT_DESCRIPTORS];
+Idt_t Idtptr;
+IdtEntry_t IdtDescriptors[X86_IDT_DESCRIPTORS];
 
-void idt_init(void)
+void IdtInit(void)
 {
 	/* Setup the IDT */
-	idt_ptr.limit = (sizeof(idt_entry_t) * X86_IDT_DESCRIPTORS) - 1;
-	idt_ptr.base = (uint32_t)&idt_descriptors[0];
+	Idtptr.Limit = (sizeof(IdtEntry_t) * X86_IDT_DESCRIPTORS) - 1;
+	Idtptr.Base = (uint32_t)&IdtDescriptors[0];
 
 	/* Null out entries */
-	memset(&idt_descriptors[0], 0, sizeof(idt_descriptors));
+	memset(&IdtDescriptors[0], 0, sizeof(IdtDescriptors));
 
 	/* Reload GDT */
-	idt_install();
+	IdtInstall();
 }
 
-void idt_install_descriptor(uint32_t int_num, uint32_t base,
-	uint16_t selector, uint8_t flags)
+void IdtInstallDescriptor(uint32_t IntNum, uint32_t Base,
+	uint16_t Selector, uint8_t Flags)
 {
 	/* Set Address */
-	idt_descriptors[int_num].base_lo = (base & 0xFFFF);
-	idt_descriptors[int_num].base_high = ((base >> 16) & 0xFFFF);
+	IdtDescriptors[IntNum].BaseLow = (Base & 0xFFFF);
+	IdtDescriptors[IntNum].BaseHigh = ((Base >> 16) & 0xFFFF);
 
 	/* Selector */
-	idt_descriptors[int_num].selector = selector;
+	IdtDescriptors[IntNum].Selector = Selector;
 
 	/* Zero */
-	idt_descriptors[int_num].zero = 0;
+	IdtDescriptors[IntNum].Zero = 0;
 
 	/* Flags! */
-	idt_descriptors[int_num].info = flags;
+	IdtDescriptors[IntNum].Info = Flags;
 }

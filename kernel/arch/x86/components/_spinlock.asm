@@ -22,13 +22,13 @@ bits 32
 segment .text
 
 ;Functions in this asm
-global _spinlock_reset
+global _SpinlockReset
 global __spinlock_acquire
 global __spinlock_release
 
-; void spinlock_reset(spinlock_t *spinlock)
+; void SpinlockReset(Spinlock_t *Spinlock)
 ; We null the lock
-_spinlock_reset:
+_SpinlockReset:
 	; Stack Frame
 	push ebp
 	mov ebp, esp

@@ -127,6 +127,7 @@ typedef struct _pci_routings
 	uint8_t trigger[128];
 	uint8_t shareable[128];
 	uint8_t polarity[128];
+	uint8_t fixed[128];
 
 } pci_routing_table_t;
 #pragma pack(pop)
@@ -192,6 +193,7 @@ typedef struct _pci_device
 #define X86_ACPI_FEATURE_BBN	0x800
 #define X86_ACPI_FEATURE_SEG	0x1000
 #define X86_ACPI_FEATURE_REG	0x2000
+#define X86_ACPI_FEATURE_CRS	0x4000
 
 /* Type Definitions */
 #define ACPI_BUS_SYSTEM			0x0
@@ -253,12 +255,13 @@ _CRT_EXTERN void pci_write_dword(const uint16_t bus, const uint16_t dev,
 								 const uint16_t func, const uint32_t reg, uint32_t value);
 
 /* Install PCI Interrupt */
-_CRT_EXTERN void interrupt_install_pci(pci_driver_t *device, irq_handler_t callback, void *args);
+_CRT_EXTERN void InterruptInstallPci(pci_driver_t *PciDevice, IrqHandler_t Callback, void *Args);
 
 /* Get Irq by Bus / Dev / Pin
 * Returns -1 if no overrides exists */
 _CRT_EXTERN int pci_device_get_irq(uint32_t bus, uint32_t device, uint32_t pin,
-									uint8_t *trigger_mode, uint8_t *polarity, uint8_t *shareable);
+									uint8_t *trigger_mode, uint8_t *polarity, uint8_t *shareable,
+									uint8_t *fixed);
 
 /* Decode PCI Device to String */
 _CRT_EXTERN char *pci_to_string(uint8_t class, uint8_t sub_class, uint8_t prog_if);

@@ -23,7 +23,7 @@
 #define _X86_THREAD_H_
 
 /* Includes */
-#include <arch.h>
+#include <Arch.h>
 #include <crtdefs.h>
 
 /* Definitions */
@@ -41,9 +41,9 @@
 /* Prototypes */
 _CRT_EXTERN void threading_init(void);
 _CRT_EXTERN void threading_ap_init(void);
-_CRT_EXTERN registers_t *threading_switch(registers_t *regs, int preemptive, uint32_t *time_slice, uint32_t *task_priority);
+_CRT_EXTERN Registers_t *threading_switch(Registers_t *regs, int preemptive, uint32_t *time_slice, uint32_t *task_priority);
 
 /* Context Manipulation */
-_CRT_EXTERN registers_t *context_create(addr_t eip);
+_CRT_EXTERN Registers_t *context_create(Addr_t eip);
 
 #endif // !_MCORE_THREAD_H_

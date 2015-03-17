@@ -22,79 +22,80 @@
 */
 
 /* Heap Includes */
-#include <arch.h>
-#include <heap.h>
+#include <Arch.h>
+#include <Heap.h>
 #include <assert.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdio.h>
 
 /* Globals */
-heap_t *heap = NULL;
-volatile addr_t heap_mem_start = MEMORY_LOCATION_HEAP + MEMORY_STATIC_OFFSET;
-volatile addr_t heap_s_current = MEMORY_LOCATION_HEAP;
-volatile addr_t heap_s_max = MEMORY_LOCATION_HEAP;
-spinlock_t heap_plock;
+Heap_t *Heap = NULL;
+volatile Addr_t HeapMemStartData = MEMORY_LOCATION_HEAP + MEMORY_STATIC_OFFSET;
+volatile Addr_t HeapMemHeaderCurrent = MEMORY_LOCATION_HEAP;
+volatile Addr_t HeapMemHeaderMax = MEMORY_LOCATION_HEAP;
+Mutex_t HeapLock;
 
 /* Heap Statistics */
-volatile addr_t heap_bytes_allocated = 0;
-volatile addr_t heap_num_allocs = 0;
-volatile addr_t heap_num_frees = 0;
-volatile addr_t heap_num_pages = 0;
+volatile Addr_t HeapBytesAllocated = 0;
+volatile Addr_t HeapNumAllocs = 0;
+volatile Addr_t HeapNumFrees = 0;
+volatile Addr_t HeapNumPages = 0;
 
 /**************************************/
 /******* Heap Helper Functions ********/
 /**************************************/
-
-addr_t *heap_salloc(size_t sz)
+Addr_t *HeapSAllocator(size_t Size)
 {
-	addr_t *ret;
+	Addr_t *ret;
 
 	/* Sanity */
-	assert(sz > 0);
+	assert(Size > 0);
 
 	/* Sanity */
-	if ((heap_s_current + sz) >= heap_s_max)
+	if ((HeapMemHeaderCurrent + Size) >= HeapMemHeaderMax)
 	{
 		/* Sanity */
-		if ((heap_s_max + PAGE_SIZE) >= (MEMORY_LOCATION_HEAP + MEMORY_STATIC_OFFSET))
+		if ((HeapMemHeaderMax + PAGE_SIZE) >= (MEMORY_LOCATION_HEAP + MEMORY_STATIC_OFFSET))
 		{
 			printf("HeapMgr: RAN OUT OF MEMORY\n");
 			for (;;);
 		}
 
 		/* Map */
-		memory_map(NULL, physmem_alloc_block(), heap_s_max, 0);
-		memset((void*)heap_s_max, 0, PAGE_SIZE);
-		heap_s_max += PAGE_SIZE;
+		MmVirtualMap(NULL, MmPhysicalAllocateBlock(), HeapMemHeaderMax, 0);
+		memset((void*)HeapMemHeaderMax, 0, PAGE_SIZE);
+		HeapMemHeaderMax += PAGE_SIZE;
 	}
 
-	ret = (addr_t*)heap_s_current;
-	heap_s_current += sz;
+	ret = (Addr_t*)HeapMemHeaderCurrent;
+	HeapMemHeaderCurrent += Size;
 
 	return ret;
 }
 
-void heap_add_block_to_list(heap_block_t *block)
+/* Appends block to end of block list */
+void HeapAppendBlockToList(HeapBlock_t *Block)
 {
-	heap_block_t *current_block;
+	HeapBlock_t *current_block;
 
 	/* Sanity */
-	assert(block != NULL);
+	assert(Block != NULL);
 
 	/* Loop To End */
-	current_block = heap->blocks;
+	current_block = Heap->Blocks;
 
-	while (current_block->link)
-		current_block = current_block->link;
+	while (current_block->Link)
+		current_block = current_block->Link;
 
 	/* Set as end */
-	current_block->link = block;
+	current_block->Link = Block;
 }
 
-addr_t heap_page_align_roundup(addr_t addr)
+/* Rounds up an address to page */
+Addr_t HeapAlignPageWithRoundup(Addr_t Address)
 {
-	addr_t res = addr;
+	Addr_t res = Address;
 
 	/* Page Align */
 	if (res % PAGE_SIZE)
@@ -106,37 +107,38 @@ addr_t heap_page_align_roundup(addr_t addr)
 	return res;
 }
 
-void heap_print_stats(void)
+/* Prints stats of heap */
+void HeapPrintStats(void)
 {
-	heap_block_t *current_block, *previous_block;
+	HeapBlock_t *current_block, *previous_block;
 	uint32_t node_count = 0;
 	size_t total_bytes_allocated = 0;
 	size_t total_nodes_allocated = 0;
 
 	/* Count Nodes */
-	current_block = heap->blocks, previous_block = NULL;
+	current_block = Heap->Blocks, previous_block = NULL;
 	while (current_block)
 	{
-		heap_node_t *current_node = current_block->nodes, *previous_node = NULL;
+		HeapNode_t *current_node = current_block->Nodes, *previous_node = NULL;
 
 		while (current_node)
 		{
 			/* Stats */
-			total_nodes_allocated = (current_node->allocated == 0) ? 
+			total_nodes_allocated = (current_node->Allocated == 0) ? 
 				total_nodes_allocated : total_nodes_allocated + 1;
-			total_bytes_allocated = (current_node->allocated == 0) ?
-				total_bytes_allocated : (total_bytes_allocated + current_node->length);
+			total_bytes_allocated = (current_node->Allocated == 0) ?
+				total_bytes_allocated : (total_bytes_allocated + current_node->Length);
 
 			node_count++;
 
 			/* Next Node */
 			previous_node = current_node;
-			current_node = current_node->link;
+			current_node = current_node->Link;
 		}
 
 		/* Next Block */
 		previous_block = current_block;
-		current_block = current_block->link;
+		current_block = current_block->Link;
 	}
 
 	/* Done, print */
@@ -146,31 +148,32 @@ void heap_print_stats(void)
 	printf("  -- Bytes Allocated: %u\n", total_bytes_allocated);
 }
 
-heap_block_t *heap_create_block(size_t node_size, int node_flags)
+/* Helper to allocate and create a block */
+HeapBlock_t *HeapCreateBlock(size_t node_size, int node_flags)
 {
 	/* Allocate a block & node */
-	heap_block_t *block = (heap_block_t*)heap_salloc(sizeof(heap_block_t));
-	heap_node_t *node = (heap_node_t*)heap_salloc(sizeof(heap_node_t));
+	HeapBlock_t *block = (HeapBlock_t*)HeapSAllocator(sizeof(HeapBlock_t));
+	HeapNode_t *node = (HeapNode_t*)HeapSAllocator(sizeof(HeapNode_t));
 
 	/* Set Members */
-	block->addr_start = heap_mem_start;
-	block->addr_end = (heap_mem_start + node_size - 1);
-	block->bytes_free = node_size;
-	block->flags = node_flags;
-	block->link = NULL;
-	block->nodes = node;
+	block->AddressStart = HeapMemStartData;
+	block->AddressEnd = (HeapMemStartData + node_size - 1);
+	block->BytesFree = node_size;
+	block->Flags = node_flags;
+	block->Link = NULL;
+	block->Nodes = node;
 
-	/* Setup Spinlock */
-	spinlock_reset(&block->plock);
+	/* Setup Mutex */
+	MutexConstruct(&block->Mutex);
 
 	/* Setup node */
-	node->addr = heap_mem_start;
-	node->link = NULL;
-	node->allocated = 0;
-	node->length = node_size;
+	node->Address = HeapMemStartData;
+	node->Link = NULL;
+	node->Allocated = 0;
+	node->Length = node_size;
 
 	/* Increament Address */
-	heap_mem_start += node_size;
+	HeapMemStartData += node_size;
 
 	return block;
 }
@@ -178,26 +181,26 @@ heap_block_t *heap_create_block(size_t node_size, int node_flags)
 /**************************************/
 /********** Heap Expansion  ***********/
 /**************************************/
-void heap_expand(size_t size, int expand_type)
+void HeapExpand(size_t Size, int ExpandType)
 {
-	heap_block_t *block;
+	HeapBlock_t *block;
 
 	/* Normal expansion? */
-	if (expand_type == ALLOCATION_NORMAL)
-		block = heap_create_block(HEAP_NORMAL_BLOCK, BLOCK_NORMAL);
-	else if (expand_type & ALLOCATION_ALIGNED)
-		block = heap_create_block(HEAP_LARGE_BLOCK, BLOCK_LARGE);
+	if (ExpandType == ALLOCATION_NORMAL)
+		block = HeapCreateBlock(HEAP_NORMAL_BLOCK, BLOCK_NORMAL);
+	else if (ExpandType & ALLOCATION_ALIGNED)
+		block = HeapCreateBlock(HEAP_LARGE_BLOCK, BLOCK_LARGE);
 	else
 	{
 		/* Page Align */
-		size_t nsize = heap_page_align_roundup(size);
+		size_t nsize = HeapAlignPageWithRoundup(Size);
 
 		/* And allocate */
-		block = heap_create_block(nsize, BLOCK_VERY_LARGE);
+		block = HeapCreateBlock(nsize, BLOCK_VERY_LARGE);
 	}
 	
 	/* Add it to list */
-	heap_add_block_to_list(block);
+	HeapAppendBlockToList(block);
 }
 
 /**************************************/
@@ -205,56 +208,56 @@ void heap_expand(size_t size, int expand_type)
 /**************************************/
 
 /* Allocates <size> in a given <block> */
-addr_t heap_allocate_in_block(heap_block_t *block, size_t size)
+Addr_t HeapAllocateSizeInBlock(HeapBlock_t *Block, size_t Size)
 {
-	heap_node_t *current_node = block->nodes, *previous_node = NULL;
-	addr_t return_addr = 0;
-	size_t pages = size / PAGE_SIZE;
+	HeapNode_t *current_node = Block->Nodes, *previous_node = NULL;
+	Addr_t return_addr = 0;
+	size_t pages = Size / PAGE_SIZE;
 	uint32_t i;
 
 	/* Make sure we map enough pages */
-	if (size % PAGE_SIZE)
+	if (Size % PAGE_SIZE)
 		pages++;
 
 	/* Standard block allocation algorithm */
 	while (current_node)
 	{
 		/* Check if free and large enough */
-		if (current_node->allocated == 0
-			&& current_node->length >= size)
+		if (current_node->Allocated == 0
+			&& current_node->Length >= Size)
 		{
 			/* Allocate, two cases, either exact
 			 * match in size or we make a new header */
-			if (current_node->length == size
-				|| block->flags & BLOCK_VERY_LARGE)
+			if (current_node->Length == Size
+				|| Block->Flags & BLOCK_VERY_LARGE)
 			{
 				/* Easy peasy, set allocated and
 				 * return */
-				current_node->allocated = 1;
-				return_addr = current_node->addr;
-				block->bytes_free -= size;
+				current_node->Allocated = 1;
+				return_addr = current_node->Address;
+				Block->BytesFree -= Size;
 				break;
 			}
 			else
 			{
 				/* Make new node */
 				/* Insert it before this */
-				heap_node_t *node = (heap_node_t*)heap_salloc(sizeof(heap_node_t));
-				node->addr = current_node->addr;
-				node->allocated = 1;
-				node->length = size;
-				node->link = current_node;
-				return_addr = node->addr;
+				HeapNode_t *node = (HeapNode_t*)HeapSAllocator(sizeof(HeapNode_t));
+				node->Address = current_node->Address;
+				node->Allocated = 1;
+				node->Length = Size;
+				node->Link = current_node;
+				return_addr = node->Address;
 
 				/* Update current node stats */
-				current_node->addr = node->addr + size;
-				current_node->length -= size;
+				current_node->Address = node->Address + Size;
+				current_node->Length -= Size;
 
 				/* Update previous */
 				if (previous_node != NULL)
-					previous_node->link = node;
+					previous_node->Link = node;
 				else
-					block->nodes = node;
+					Block->Nodes = node;
 
 				break;
 			}
@@ -263,21 +266,21 @@ addr_t heap_allocate_in_block(heap_block_t *block, size_t size)
 
 		/* Next node, search for a free */
 		previous_node = current_node;
-		current_node = current_node->link;
+		current_node = current_node->Link;
 	}
 
 	if (return_addr != 0)
 	{
 		/* Do we step across page boundary? */
 		if ((return_addr & PAGE_MASK)
-			!= ((return_addr + size) & PAGE_MASK))
+			!= ((return_addr + Size) & PAGE_MASK))
 			pages++;
 
 		/* Map */
 		for (i = 0; i < pages; i++)
 		{
-			if (!memory_getmap(NULL, return_addr + (i * PAGE_SIZE)))
-				memory_map(NULL, physmem_alloc_block(), return_addr + (i * PAGE_SIZE), 0);
+			if (!MmVirtualGetMapping(NULL, return_addr + (i * PAGE_SIZE)))
+				MmVirtualMap(NULL, MmPhysicalAllocateBlock(), return_addr + (i * PAGE_SIZE), 0);
 		}
 	}
 
@@ -287,24 +290,24 @@ addr_t heap_allocate_in_block(heap_block_t *block, size_t size)
 
 /* Finds a suitable block for allocation
  * and allocates in that block */
-addr_t heap_allocate(size_t size, int flags)
+Addr_t HeapAllocate(size_t Size, int Flags)
 {
 	/* Find a block that match our 
 	 * requirements */
-	heap_block_t *current_block = heap->blocks, *previous_block = NULL;
+	HeapBlock_t *current_block = Heap->Blocks, *previous_block = NULL;
 
 	while (current_block)
 	{
 		/* Find a matching block */
 
 		/* Check normal */
-		if ((flags == ALLOCATION_NORMAL)
-			&& (current_block->flags == BLOCK_NORMAL)
-			&& (current_block->bytes_free >= size))
+		if ((Flags == ALLOCATION_NORMAL)
+			&& (current_block->Flags == BLOCK_NORMAL)
+			&& (current_block->BytesFree >= Size))
 		{
 			/* Try to make the allocation, THIS CAN 
 			 * FAIL */
-			addr_t res = heap_allocate_in_block(current_block, size);
+			Addr_t res = HeapAllocateSizeInBlock(current_block, Size);
 
 			/* Check if failed */
 			if (res != 0)
@@ -312,13 +315,13 @@ addr_t heap_allocate(size_t size, int flags)
 		}
 
 		/* Check aligned */
-		if ((flags == ALLOCATION_ALIGNED)
-			&& (current_block->flags & BLOCK_LARGE)
-			&& (current_block->bytes_free >= size))
+		if ((Flags == ALLOCATION_ALIGNED)
+			&& (current_block->Flags & BLOCK_LARGE)
+			&& (current_block->BytesFree >= Size))
 		{
 			/* Var */
-			addr_t res = 0;
-			size_t a_size = size;
+			Addr_t res = 0;
+			size_t a_size = Size;
 
 			/* Page align allocation */
 			if (a_size & ATTRIBUTE_MASK)
@@ -329,7 +332,7 @@ addr_t heap_allocate(size_t size, int flags)
 
 			/* Try to make the allocation, THIS CAN
 			* FAIL */
-			res = heap_allocate_in_block(current_block, a_size);
+			res = HeapAllocateSizeInBlock(current_block, a_size);
 
 			/* Check if failed */
 			if (res != 0)
@@ -337,13 +340,13 @@ addr_t heap_allocate(size_t size, int flags)
 		}
 
 		/* Check Special */
-		if ((flags == ALLOCATION_SPECIAL)
-			&& (current_block->flags & BLOCK_VERY_LARGE)
-			&& (current_block->bytes_free >= size))
+		if ((Flags == ALLOCATION_SPECIAL)
+			&& (current_block->Flags & BLOCK_VERY_LARGE)
+			&& (current_block->BytesFree >= Size))
 		{
 			/* Try to make the allocation, THIS CAN
 			* FAIL */
-			addr_t res = heap_allocate_in_block(current_block, size);
+			Addr_t res = HeapAllocateSizeInBlock(current_block, Size);
 
 			/* Check if failed */
 			if (res != 0)
@@ -352,29 +355,29 @@ addr_t heap_allocate(size_t size, int flags)
 
 		/* Next Block */
 		previous_block = current_block;
-		current_block = current_block->link;
+		current_block = current_block->Link;
 	}
 
 	/* If we reach here, expand and research */
-	heap_expand(size, flags);
+	HeapExpand(Size, Flags);
 
-	return heap_allocate(size, flags);
+	return HeapAllocate(Size, Flags);
 }
 
 /* The real calls */
 
 /* Page align & return physical */
-void *kmalloc_ap(size_t sz, addr_t *p)
+void *kmalloc_ap(size_t sz, Addr_t *p)
 {
 	/* Vars */
-	addr_t addr;
+	Addr_t addr;
 	int flags = ALLOCATION_ALIGNED;
 
 	/* Sanity */
 	assert(sz != 0);
 
 	/* Lock */
-	spinlock_acquire(&heap_plock);
+	MutexLock(&HeapLock);
 
 	/* Calculate some options */
 	if (sz >= 0x3000)
@@ -384,33 +387,33 @@ void *kmalloc_ap(size_t sz, addr_t *p)
 	}
 
 	/* Do the call */
-	addr = heap_allocate(sz, flags);
+	addr = HeapAllocate(sz, flags);
 
 	/* Release */
-	spinlock_release(&heap_plock);
+	MutexUnlock(&HeapLock);
 
 	/* Sanity */
 	assert(addr != 0);
 
 	/* Now, get physical mapping */
-	*p = memory_getmap(NULL, addr);
+	*p = MmVirtualGetMapping(NULL, addr);
 
 	/* Done */
 	return (void*)addr;
 }
 
 /* Normal allocation, return physical */
-void *kmalloc_p(size_t sz, addr_t *p)
+void *kmalloc_p(size_t sz, Addr_t *p)
 {
 	/* Vars */
-	addr_t addr;
+	Addr_t addr;
 	int flags = ALLOCATION_NORMAL;
 
 	/* Sanity */
 	assert(sz != 0);
 
 	/* Lock */
-	spinlock_acquire(&heap_plock);
+	MutexLock(&HeapLock);
 
 	/* Calculate some options */
 	if (sz >= 0x500)
@@ -426,16 +429,16 @@ void *kmalloc_p(size_t sz, addr_t *p)
 	}
 
 	/* Do the call */
-	addr = heap_allocate(sz, flags);
+	addr = HeapAllocate(sz, flags);
 
 	/* Release */
-	spinlock_release(&heap_plock);
+	MutexUnlock(&HeapLock);
 
 	/* Sanity */
 	assert(addr != 0);
 
 	/* Get physical mapping */
-	*p = memory_getmap(NULL, addr);
+	*p = MmVirtualGetMapping(NULL, addr);
 
 	/* Done */
 	return (void*)addr;
@@ -445,14 +448,14 @@ void *kmalloc_p(size_t sz, addr_t *p)
 void *kmalloc_a(size_t sz)
 {
 	/* Vars */
-	addr_t addr;
+	Addr_t addr;
 	int flags = ALLOCATION_ALIGNED;
 
 	/* Sanity */
 	assert(sz > 0);
 
 	/* Lock */
-	spinlock_acquire(&heap_plock);
+	MutexLock(&HeapLock);
 
 	/* Calculate some options */
 	if (sz >= 0x3000)
@@ -462,10 +465,10 @@ void *kmalloc_a(size_t sz)
 	}
 
 	/* Do the call */
-	addr = heap_allocate(sz, flags);
+	addr = HeapAllocate(sz, flags);
 
 	/* Release */
-	spinlock_release(&heap_plock);
+	MutexUnlock(&HeapLock);
 
 	/* Sanity */
 	assert(addr != 0);
@@ -478,14 +481,14 @@ void *kmalloc_a(size_t sz)
 void *kmalloc(size_t sz)
 {
 	/* Vars */
-	addr_t addr;
+	Addr_t addr;
 	int flags = ALLOCATION_NORMAL;
 
 	/* Sanity */
 	assert(sz > 0);
 
 	/* Lock */
-	spinlock_acquire(&heap_plock);
+	MutexLock(&HeapLock);
 
 	/* Calculate some options */
 	if (sz >= 0x500)
@@ -501,10 +504,10 @@ void *kmalloc(size_t sz)
 	}
 
 	/* Do the call */
-	addr = heap_allocate(sz, flags);
+	addr = HeapAllocate(sz, flags);
 
 	/* Release */
-	spinlock_release(&heap_plock);
+	MutexUnlock(&HeapLock);
 
 	/* Sanity */
 	assert(addr != 0);
@@ -516,39 +519,38 @@ void *kmalloc(size_t sz)
 /**************************************/
 /*********** Heap Freeing *************/
 /**************************************/
-
 /* Free in node */
-void heap_free_in_node(heap_block_t *block, addr_t addr)
+void HeapFreeAddressInNode(HeapBlock_t *Block, Addr_t Address)
 {
 	/* Vars */
-	heap_node_t *current_node = block->nodes, *previous_node = NULL;
+	HeapNode_t *current_node = Block->Nodes, *previous_node = NULL;
 
 	/* Standard block freeing algorithm */
 	while (current_node)
 	{
 		/* Calculate end and start */
-		addr_t start = current_node->addr;
-		addr_t end = current_node->addr + current_node->length - 1;
+		Addr_t start = current_node->Address;
+		Addr_t end = current_node->Address + current_node->Length - 1;
 		uint8_t merged = 0;
 
 		/* Check if address is a part of this node */
-		if (start <= addr && end >= addr)
+		if (start <= Address && end >= Address)
 		{
 			/* Well, well, well. */
-			current_node->allocated = 0;
-			block->bytes_free += current_node->length;
+			current_node->Allocated = 0;
+			Block->BytesFree += current_node->Length;
 
 			/* CHECK IF WE CAN MERGE!! */
 
 			/* Can we merge with previous? */
 			if (previous_node != NULL
-				&& previous_node->allocated == 0)
+				&& previous_node->Allocated == 0)
 			{
 				/* Add this length to previous */
-				previous_node->length += current_node->length;
+				previous_node->Length += current_node->Length;
 
 				/* Remove this link (TODO SAVE HEADERS) */
-				previous_node->link = current_node->link;
+				previous_node->Link = current_node->Link;
 				merged = 1;
 			}
 
@@ -558,29 +560,29 @@ void heap_free_in_node(heap_block_t *block, addr_t addr)
 			if (merged)
 			{
 				/* This link is dead, and now is previous */
-				if (previous_node->link != NULL
-					&& previous_node->link->allocated == 0)
+				if (previous_node->Link != NULL
+					&& previous_node->Link->Allocated == 0)
 				{
 					/* Add length */
-					previous_node->length += previous_node->link->length;
+					previous_node->Length += previous_node->Link->Length;
 
 					/* Remove the link (TODO SAVE HEADERS) */
-					current_node = previous_node->link->link;
-					previous_node->link = current_node;
+					current_node = previous_node->Link->Link;
+					previous_node->Link = current_node;
 				}
 			}
 			else
 			{
 				/* We did not merget with previous, current is still alive! */
-				if (current_node->link != NULL
-					&& current_node->link->allocated == 0)
+				if (current_node->Link != NULL
+					&& current_node->Link->Allocated == 0)
 				{
 					/* Merge time! */
-					current_node->length += current_node->link->length;
+					current_node->Length += current_node->Link->Length;
 
 					/* Remove then link (TODO SAVE HEADERS) */
-					previous_node = current_node->link->link;
-					current_node->link = previous_node;
+					previous_node = current_node->Link->Link;
+					current_node->Link = previous_node;
 				}
 			}
 
@@ -589,31 +591,31 @@ void heap_free_in_node(heap_block_t *block, addr_t addr)
 
 		/* Next node, search for the allocated block */
 		previous_node = current_node;
-		current_node = current_node->link;
+		current_node = current_node->Link;
 	}
 }
 
 /* Finds the appropriate block
  * that should contain our node */
-void heap_free(addr_t addr)
+void HeapFree(Addr_t addr)
 {
 	/* Find a block that match our
 	* address */
-	heap_block_t *current_block = heap->blocks, *previous_block = NULL;
+	HeapBlock_t *current_block = Heap->Blocks, *previous_block = NULL;
 
 	while (current_block)
 	{
 		/* Correct block? */
-		if (!(current_block->addr_start > addr
-			|| current_block->addr_end < addr))
+		if (!(current_block->AddressStart > addr
+			|| current_block->AddressEnd < addr))
 		{
-			heap_free_in_node(current_block, addr);
+			HeapFreeAddressInNode(current_block, addr);
 			return;
 		}
 		
 		/* Next Block */
 		previous_block = current_block;
-		current_block = current_block->link;
+		current_block = current_block->Link;
 	}
 }
 
@@ -624,13 +626,13 @@ void kfree(void *p)
 	assert(p != NULL); 
 
 	/* Lock */
-	spinlock_acquire(&heap_plock);
+	MutexLock(&HeapLock);
 
 	/* Free */
-	heap_free((addr_t)p);
+	HeapFree((Addr_t)p);
 
 	/* Release */
-	spinlock_release(&heap_plock);
+	MutexUnlock(&HeapLock);
 
 	/* Set NULL */
 	p = NULL;
@@ -639,30 +641,29 @@ void kfree(void *p)
 /**************************************/
 /******** Heap Initialization *********/
 /**************************************/
-
-void heap_init(void)
+void HeapInit(void)
 {
 	/* Vars */
-	heap_block_t *block_normal, *block_special;
+	HeapBlock_t *block_normal, *block_special;
 
 	/* Just to be safe */
-	heap_mem_start = MEMORY_LOCATION_HEAP + MEMORY_STATIC_OFFSET;
-	heap_s_current = MEMORY_LOCATION_HEAP;
-	heap_s_max = MEMORY_LOCATION_HEAP;
+	HeapMemStartData = MEMORY_LOCATION_HEAP + MEMORY_STATIC_OFFSET;
+	HeapMemHeaderCurrent = MEMORY_LOCATION_HEAP;
+	HeapMemHeaderMax = MEMORY_LOCATION_HEAP;
 
-	/* Initiate the global spinlock */
-	spinlock_reset(&heap_plock);
+	/* Initiate the global mutex */
+	MutexConstruct(&HeapLock);
 
 	/* Allocate the heap */
-	heap = (heap_t*)heap_salloc(sizeof(heap_t));
+	Heap = (Heap_t*)HeapSAllocator(sizeof(Heap_t));
 
 	/* Create a normal node */
-	block_normal = heap_create_block(HEAP_NORMAL_BLOCK, BLOCK_NORMAL);
-	block_special = heap_create_block(HEAP_LARGE_BLOCK, BLOCK_LARGE);
+	block_normal = HeapCreateBlock(HEAP_NORMAL_BLOCK, BLOCK_NORMAL);
+	block_special = HeapCreateBlock(HEAP_LARGE_BLOCK, BLOCK_LARGE);
 
 	/* Insert them */
-	block_normal->link = block_special;
-	heap->blocks = block_normal;
+	block_normal->Link = block_special;
+	Heap->Blocks = block_normal;
 
 	/* Heap is now ready to use! */
 }
@@ -676,7 +677,7 @@ void heap_test(void)
 	uint32_t phys1 = 0, phys2 = 0, i = 0;
 	void *res1, *res2, *res3, *res4, *res5, *res6;
 
-	heap_print_stats();
+	HeapPrintStats();
 
 	printf(" >> Performing small allocs & frees (a few)\n");
 	res1 = kmalloc(0x30);
@@ -686,7 +687,7 @@ void heap_test(void)
 	res5 = kmalloc(0x600);
 	res6 = kmalloc(0x3000);
 
-	heap_print_stats();
+	HeapPrintStats();
 
 	printf(" Alloc1 (0x30): 0x%x, Alloc2 (0x50): 0x%x, Alloc3 (0x130): 0x%x, Alloc4 (0x180): 0x%x\n",
 		(uint32_t)res1, (uint32_t)res2, (uint32_t)res3, (uint32_t)res4);
@@ -697,7 +698,7 @@ void heap_test(void)
 	kfree(res2);
 	kfree(res3);
 
-	heap_print_stats();
+	HeapPrintStats();
 
 	printf(" Re-allocing 5, 2 & 3\n");
 	res2 = kmalloc(0x90);
@@ -714,7 +715,7 @@ void heap_test(void)
 	kfree(res5);
 	kfree(res6);
 
-	heap_print_stats();
+	HeapPrintStats();
 
 	printf(" Making special allocations (aligned & aligned /w phys)\n");
 	res1 = kmalloc_a(0x30);
@@ -738,7 +739,7 @@ void heap_test(void)
 	kfree(res5);
 	kfree(res6);
 
-	heap_print_stats();
+	HeapPrintStats();
 
 	printf(" >> Performing allocations (150)\n");
 	
@@ -749,7 +750,7 @@ void heap_test(void)
 		kmalloc(0x3000);
 	}
 
-	heap_print_stats();
+	HeapPrintStats();
 	
 	printf(" >> Performing allocs & frees (150)\n");
 	for (i = 0; i < 50; i++)

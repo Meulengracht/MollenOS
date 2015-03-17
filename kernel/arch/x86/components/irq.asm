@@ -31,8 +31,8 @@ global ___getflags
 global ___getcr2
 
 ;Externs, common entry points
-extern _exception_entry
-extern _interrupt_entry
+extern _ExceptionEntry
+extern _InterruptEntry
 
 ; void __cli(void)
 ; Disables interrupts
@@ -103,7 +103,7 @@ _exception_common:
 	push esp
 
 	; Call C-code exception handler
-	call _exception_entry
+	call _ExceptionEntry
 
 	; Cleanup
 	add esp, 0x4
@@ -146,7 +146,7 @@ _irq_common:
 	push esp
 
 	; Call C-code exception handler
-	call _interrupt_entry
+	call _InterruptEntry
 
 	; Cleanup
 	add esp, 0x4

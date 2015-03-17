@@ -20,44 +20,44 @@
 */
 
 /* Includes */
-#include <arch.h>
+#include <Arch.h>
 
-/* Externs */
-extern int _spinlock_acquire(spinlock_t *spinlock);
-extern void _spinlock_release(spinlock_t *spinlock);
+/* Externs to assembly */
+extern int _spinlock_acquire(Spinlock_t *Spinlock);
+extern void _spinlock_release(Spinlock_t *Spinlock);
 
 /* Acquire Spinlock */
-int spinlock_acquire(spinlock_t *spinlock)
+OsStatus_t SpinlockAcquire(Spinlock_t *Spinlock)
 {
 	int result = 0;
 
 	/* Step 1. Acquire */
-	result = _spinlock_acquire(spinlock);
+	result = _spinlock_acquire(Spinlock);
 
 	/* Step 2. Disable interrupts */
-	spinlock->intr_state = interrupt_disable();
+	Spinlock->IntrState = InterruptDisable();
 
-	return result;
+	return (result == 1) ? OS_STATUS_OK : OS_STATUS_FAIL;
 }
 
 /* Release Spinlock */
-void spinlock_release(spinlock_t *spinlock)
+void SpinlockRelease(Spinlock_t *Spinlock)
 {
 	/* Step 1. Release spinlock */
-	_spinlock_release(spinlock);
+	_spinlock_release(Spinlock);
 
 	/* Step 2. Enable interrupts */
-	interrupt_set_state(spinlock->intr_state);
+	InterruptRestoreState(Spinlock->IntrState);
 }
 
 /* Acquire Spinlock, no interrupts */
-int spinlock_acquire_nint(spinlock_t *spinlock)
+OsStatus_t SpinlockAcquireNoInt(Spinlock_t *Spinlock)
 {
-	return _spinlock_acquire(spinlock);
+	return _spinlock_acquire(Spinlock);
 }
 
 /* Release spinlock, no interrupts */
-void spinlock_release_nint(spinlock_t *spinlock)
+void SpinlockReleaseNoInt(Spinlock_t *Spinlock)
 {
-	_spinlock_release(spinlock);
+	_spinlock_release(Spinlock);
 }

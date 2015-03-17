@@ -120,15 +120,17 @@
 #pragma warning(disable:4115)   
 
 #ifdef MOLLENOS64
-#include "..\arch\x64\arch.h"
+#include "..\Arch\x86\x64\Arch.h"
 #else
-#include "..\arch\x86\arch.h"
-#include "..\arch\x86\memory.h"
-#include "..\arch\x86\pci.h"
+#include "..\Arch\x86\x32\Arch.h"
+#include "..\Arch\x86\Memory.h"
 #endif
 
-#include <heap.h>
-#include <semaphore.h>
+/* Shared */
+#include "..\Arch\x86\Pci.h"
+
+#include <Heap.h>
+#include <Semaphore.h>
 #include <stdio.h>
 
 #define _COMPONENT          ACPI_OS_SERVICES
@@ -320,7 +322,7 @@ void *AcpiOsMapMemory(
 	ACPI_SIZE               Length)
 { 
 	/* Vars */
-	addr_t Acpi_Mapping = memory_get_reserved_mapping(Where);
+	Addr_t Acpi_Mapping = MmPhyiscalGetSysMappingVirtual(Where);
 	uint32_t Acpi_Pages = (Length / 0x1000) + ((Length % 0x1000) != 0 ? 1 : 0);
 
 	/* We should handle the case where it crosses a page boundary :o */
@@ -338,11 +340,11 @@ void *AcpiOsMapMemory(
 	{
 		/* This is the last special case, we already IMAP some space */
 		if (Where >= 0x1000 && Where < TABLE_SPACE_SIZE)
-			Acpi_Mapping = (addr_t)Where;
+			Acpi_Mapping = (Addr_t)Where;
 		else
 		{
 			/* Sigh... Imap it and hope stuff do not break :(((( */
-			return (void*)memory_map_system_memory(Where, Acpi_Pages);
+			return (void*)MmVirtualMapSysMemory(Where, Acpi_Pages);
 		}
 	}
 
@@ -440,7 +442,7 @@ UINT32 AcpiOsInstallInterruptHandler(
 
 	/* Install it */
 	Acpi_ServiceRoutine = ServiceRoutine;
-	interrupt_install(InterruptNumber, 0x20 + InterruptNumber, acpica_interrupt_handler, Context);
+	InterruptInstallISA(InterruptNumber, 0x20 + InterruptNumber, acpica_interrupt_handler, Context);
 
 	/* Done */
 	return (AE_OK);
@@ -898,10 +900,10 @@ void AcpiOsVprintf(const char *Fmt, va_list Args)
 ACPI_STATUS AcpiOsCreateLock(ACPI_SPINLOCK *OutHandle)
 {
 	/* Cast */
-	spinlock_t *pLock = (spinlock_t*)kmalloc(sizeof(spinlock_t));
+	Spinlock_t *pLock = (Spinlock_t*)kmalloc(sizeof(Spinlock_t));
 
 	/* Create lock */
-	spinlock_reset(pLock);
+	SpinlockReset(pLock);
 
 	/* Set it */
 	*OutHandle = (void*)pLock;
@@ -918,14 +920,14 @@ void AcpiOsDeleteLock(ACPI_SPINLOCK Handle)
 ACPI_CPU_FLAGS AcpiOsAcquireLock(ACPI_SPINLOCK Handle)
 {
 	/* Create lock */
-	spinlock_acquire((spinlock_t*)Handle);
+	SpinlockAcquire((Spinlock_t*)Handle);
 	return 0;
 }
 
 void AcpiOsReleaseLock(ACPI_SPINLOCK Handle, ACPI_CPU_FLAGS Flags)
 {
 	/* Release Lock */
-	spinlock_release((spinlock_t*)Handle);
+	SpinlockRelease((Spinlock_t*)Handle);
 }
 
 /******************************************************************************

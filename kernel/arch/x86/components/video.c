@@ -20,25 +20,25 @@
 */
 
 /* Includes */
-#include <arch.h>
-#include <video.h>
-#include <multiboot.h>
+#include <Arch.h>
+#include <Video.h>
+#include <Multiboot.h>
 #include <string.h>
 
 /* Externs */
-extern const unsigned char x86_font_8x16[];
+extern const uint8_t x86Font8x16[];
 
 /* We have no memory allocation system in place yet,
  * so we allocate some static memory */
-graphics_t gfx_info;
-tty_t term;
+Graphics_t gfx_info;
+TTY_t term;
 
 /* We read the multiboot header for video 
  * information and setup the terminal accordingly */
-void video_init(void *bootinfo)
+OsStatus_t VideoInit(void *BootInfo)
 {
 	/* Cast */
-	multiboot_info_t *mboot = (multiboot_info_t*)bootinfo;
+	Multiboot_t *mboot = (Multiboot_t*)BootInfo;
 
 	/* Do we have VESA or is this text mode? */
 	switch (mboot->VbeMode)
@@ -77,7 +77,7 @@ void video_init(void *bootinfo)
 			/* Assume VESA otherwise */
 
 			/* Get info struct */
-			vbe_mode_t *vbe = (vbe_mode_t*)mboot->VbeControllerInfo;
+			VbeMode_t *vbe = (VbeMode_t*)mboot->VbeModeInfo;
 
 			/* Fill our structure */
 			gfx_info.VideoAddr = vbe->ModeInfo_PhysBasePtr;
@@ -107,11 +107,16 @@ void video_init(void *bootinfo)
 	term.CursorLimitY = gfx_info.ResY / 16;
 	term.FgColor = (0 << 4) | (15 & 0x0F);
 	term.BgColor = 0;
-	spinlock_reset(&term.lock);
+	
+	/* Prepare spinlock */
+	SpinlockReset(&term.Lock);
+
+	/* Done */
+	return OS_STATUS_OK;
 }
 
 /* Write a character in VESA mode */
-int video_putchar_vesa(int character)
+int VideoPutCharVesa(int Character)
 {
 	/* Decls */
 	uint32_t *video_ptr;
@@ -119,48 +124,48 @@ int video_putchar_vesa(int character)
 	uint32_t row, i;
 
 	/* Get spinlock */
-	spinlock_acquire(&term.lock);
+	SpinlockAcquire(&term.Lock);
 
 	/* Handle Special Characters */
-	switch (character)
+	switch (Character)
 	{
 		/* New line */
-	case '\n':
-	{
-		term.CursorX = 0;
-		term.CursorY += 16;
-	} break;
-
-	/* Carriage Return */
-	case '\r':
-	{
-		term.CursorX = 0;
-	} break;
-
-	/* Default */
-	default:
-	{
-		/* Calculate video offset */
-		video_ptr = (uint32_t*)(gfx_info.VideoAddr + ((term.CursorY * gfx_info.BytesPerScanLine)
-			+ (term.CursorX * (gfx_info.BitsPerPixel / 8))));
-		ch_ptr = (uint8_t*)&x86_font_8x16[character * 16];
-
-		for (row = 0; row < 16; row++)
+		case '\n':
 		{
-			uint8_t data = ch_ptr[row];
-			uint32_t _;
+			term.CursorX = 0;
+			term.CursorY += 16;
+		} break;
 
-			for (i = 0; i < 8; i++)
-				video_ptr[i] = (data >> (7 - i)) & 1 ? 0xFFFFFFFF : 0;
+		/* Carriage Return */
+		case '\r':
+		{
+			term.CursorX = 0;
+		} break;
 
-			_ = (uint32_t)video_ptr;
-			_ += gfx_info.BytesPerScanLine;
-			video_ptr = (uint32_t*)_;
-		}
+		/* Default */
+		default:
+		{
+			/* Calculate video offset */
+			video_ptr = (uint32_t*)(gfx_info.VideoAddr + ((term.CursorY * gfx_info.BytesPerScanLine)
+				+ (term.CursorX * (gfx_info.BitsPerPixel / 8))));
+			ch_ptr = (uint8_t*)&x86Font8x16[Character * 16];
 
-		/* Increase position */
-		term.CursorX += 10;
-	} break;
+			for (row = 0; row < 16; row++)
+			{
+				uint8_t data = ch_ptr[row];
+				uint32_t _;
+
+				for (i = 0; i < 8; i++)
+					video_ptr[i] = (data >> (7 - i)) & 1 ? 0xFFFFFFFF : 0;
+
+				_ = (uint32_t)video_ptr;
+				_ += gfx_info.BytesPerScanLine;
+				video_ptr = (uint32_t*)_;
+			}
+
+			/* Increase position */
+			term.CursorX += 10;
+		} break;
 	}
 
 	/* Newline check */
@@ -185,36 +190,36 @@ int video_putchar_vesa(int character)
 	}
 
 	/* Release spinlock */
-	spinlock_release(&term.lock);
+	SpinlockRelease(&term.Lock);
 
-	return character;
+	return Character;
 }
 
 /* Write a character in TEXT mode */
-int video_putchar_text(int character)
+int VideoPutCharText(int Character)
 {
 	uint16_t attribute = (uint16_t)(term.FgColor << 8);
 	uint16_t cursorLocation = 0;
 
 	/* Get spinlock */
-	spinlock_acquire(&term.lock);
+	SpinlockAcquire(&term.Lock);
 
 	/* Check special characters */
-	if (character == 0x08 && term.CursorX)		//Backspace
+	if (Character == 0x08 && term.CursorX)		//Backspace
 		term.CursorX--;
-	else if (character == 0x09)					//Tab
+	else if (Character == 0x09)					//Tab
 		term.CursorX = (uint32_t)((term.CursorX + 8) & ~(8 - 1));
-	else if (character == '\r')					//Carriage return
+	else if (Character == '\r')					//Carriage return
 		term.CursorX = 0;				//New line
-	else if (character == '\n') {
+	else if (Character == '\n') {
 		term.CursorX = 0;
 		term.CursorY++;
 	}
 	//Printable characters
-	else if (character >= ' ')
+	else if (Character >= ' ')
 	{
 		uint16_t* location = (uint16_t*)gfx_info.VideoAddr + (term.CursorY * gfx_info.ResX + term.CursorX);
-		*location = (uint16_t)(character | attribute);
+		*location = (uint16_t)(Character | attribute);
 		term.CursorX++;
 	}
 
@@ -252,15 +257,19 @@ int video_putchar_text(int character)
 	outb(0x3D5, (uint8_t)cursorLocation);      // Send the low byte.
 
 	/* Release spinlock */
-	spinlock_release(&term.lock);
+	SpinlockRelease(&term.Lock);
 
-	return character;
+	return Character;
 }
 
-int video_putchar(int character)
+/* PutChar Wrapper */
+OsStatus_t video_putchar(int Character)
 {
 	if (gfx_info.GraphicMode == 0 || gfx_info.GraphicMode == 1)
-		return video_putchar_text(character);
+		VideoPutCharText(Character);
 	else
-		return video_putchar_vesa(character);
+		VideoPutCharVesa(Character);
+
+	/* Done */
+	return OS_STATUS_OK;
 }

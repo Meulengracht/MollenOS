@@ -30,7 +30,7 @@
 
 
 /* Exception Prototypes */
-_CRT_EXTERN void exceptions_init(void);
+_CRT_EXTERN void ExceptionsInit(void);
 
 /* Exception Assembly Externs */
 _CRT_EXTERN void irq_handler0(void);

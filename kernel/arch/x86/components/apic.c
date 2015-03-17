@@ -19,17 +19,17 @@
 * MollenOS x86-32 Advanced Programmable Interrupt Controller Driver
 */
 
-#include <arch.h>
-#include <acpi.h>
-#include <lapic.h>
-#include <cpu.h>
-#include <list.h>
-#include <thread.h>
-
-#include <drivers\clock\clock.h>
-
+#include <Arch.h>
+#include <Acpi.h>
+#include <LApic.h>
+#include <Cpu.h>
+#include <List.h>
+#include <Thread.h>
 #include <assert.h>
 #include <stdio.h>
+
+/* Drivers */
+#include <SysTimers.h>
 
 /* Globals */
 volatile uint8_t bootstrap_cpu_id = 0;
@@ -37,11 +37,11 @@ volatile uint32_t timer_ticks[64];
 volatile uint32_t timer_quantum = 0;
 
 /* Externs */
-extern volatile addr_t local_apic_addr;
+extern volatile Addr_t local_apic_addr;
 extern volatile uint32_t num_cpus;
 extern volatile uint32_t glb_cpus_booted;
 extern list_t *acpi_nodes;
-extern void enter_thread(registers_t *regs);
+extern void enter_thread(Registers_t *regs);
 
 /* Primary CPU Timer IRQ */
 int apic_timer_handler(void *args)
@@ -215,7 +215,7 @@ void apic_init(void)
 	/* We install our timer here, we need it later on 
 	 * TODO check for HPET first, then use RTC if it does not exist */
 	printf("    * Installing Timer\n");
-	clock_init();
+	timers_init();
 }
 
 /* Enable/Config LAPIC */

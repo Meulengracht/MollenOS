@@ -19,12 +19,12 @@
 * MollenOS x86-32 ACPI Interface (Uses ACPICA)
 */
 
-#include <arch.h>
+#include <Arch.h>
 #include <assert.h>
 #include <acpi.h>
 #include <stdio.h>
-#include <heap.h>
-#include <list.h>
+#include <Heap.h>
+#include <List.h>
 
 /* OSC */
 #define ACPI_OSC_QUERY_INDEX				0
@@ -60,11 +60,11 @@ extern void AcpiUtConvertStringToUuid(char*, UINT8*);
 char *sb_uuid_str = "0811B06E-4A27-44F9-8D60-3CBBC22E7B48";
 char *osc_uuid_str = "33DB4D5B-1FF7-401C-9657-7441C03DD766";
 list_t *acpi_nodes = NULL;
-volatile addr_t local_apic_addr = 0;
+volatile Addr_t local_apic_addr = 0;
 volatile uint32_t num_cpus = 0;
 
 /* Fixed Event Handlers */
-UINT32 acpi_shutdown(void *Context)
+UINT32 AcpiShutdownHandler(void *Context)
 {
 	ACPI_EVENT_STATUS eStatus;
 	ACPI_STATUS Status;
@@ -88,7 +88,7 @@ UINT32 acpi_shutdown(void *Context)
 	return AE_OK;
 }
 
-UINT32 acpi_sleep(void *Context)
+UINT32 AcpiSleepHandler(void *Context)
 {
 
 
@@ -97,7 +97,7 @@ UINT32 acpi_sleep(void *Context)
 	return AE_OK;
 }
 
-UINT32 acpi_reboot(void)
+UINT32 AcpiRebootHandler(void)
 {
 	ACPI_STATUS status = AcpiReset();
 
@@ -111,7 +111,7 @@ UINT32 acpi_reboot(void)
 }
 
 /* Notify Handler */
-void acpi_bus_notify(ACPI_HANDLE Device, UINT32 NotifyType, void *Context)
+void AcpiBusNotifyHandler(ACPI_HANDLE Device, UINT32 NotifyType, void *Context)
 {
 	_CRT_UNUSED(Device);
 	_CRT_UNUSED(Context);
@@ -120,7 +120,7 @@ void acpi_bus_notify(ACPI_HANDLE Device, UINT32 NotifyType, void *Context)
 }
 
 /* Global Event Handler */
-void acpi_events(UINT32 EventType, ACPI_HANDLE Device, UINT32 EventNumber, void *Context)
+void AcpiEventHandler(UINT32 EventType, ACPI_HANDLE Device, UINT32 EventNumber, void *Context)
 {
 	_CRT_UNUSED(Device);
 	_CRT_UNUSED(Context);
@@ -129,7 +129,7 @@ void acpi_events(UINT32 EventType, ACPI_HANDLE Device, UINT32 EventNumber, void 
 }
 
 /* Interface Handlers */
-UINT32 acpi_osi(ACPI_STRING InterfaceName, UINT32 Supported)
+UINT32 AcpiOsi(ACPI_STRING InterfaceName, UINT32 Supported)
 {
 	if (InterfaceName != NULL)
 		return Supported;
@@ -138,7 +138,7 @@ UINT32 acpi_osi(ACPI_STRING InterfaceName, UINT32 Supported)
 }
 
 /* Run OSC Query */
-ACPI_STATUS acpi_run_osc(ACPI_HANDLE device, struct _acpi_osc *osc)
+ACPI_STATUS AcpiRunOscRequest(ACPI_HANDLE device, struct _acpi_osc *osc)
 {
 	ACPI_STATUS status = AE_ERROR;
 	ACPI_OBJECT_LIST input;
@@ -246,7 +246,7 @@ fail:
 }
 
 /* Run OSC Support */
-void acpi_bus_osc(void)
+void AcpiCheckBusOscSupport(void)
 {
 	/* Decls */
 	ACPI_HANDLE handle;
@@ -271,7 +271,7 @@ void acpi_bus_osc(void)
 		return;
 
 	/* Run OSC Query */
-	if (ACPI_SUCCESS(acpi_run_osc(handle, &osc)))
+	if (ACPI_SUCCESS(AcpiRunOscRequest(handle, &osc)))
 	{
 		/* Get capabilities */
 		uint32_t *capabilitybuffer = osc.retval.Pointer;
@@ -286,7 +286,7 @@ void acpi_bus_osc(void)
 }
 
 /* Enumerate MADT Entries */
-void madt_enumerate(void *start, void *end)
+void AcpiEnumarateMADT(void *start, void *end)
 {
 	ACPI_SUBTABLE_HEADER *entry;
 
@@ -391,7 +391,7 @@ void madt_enumerate(void *start, void *end)
 
 /* Initializes Early Access 
  * and enumerates the APIC */
-void acpi_init_stage1(void)
+void AcpiInitStage1(void)
 {
 	/* Vars */
 	ACPI_TABLE_MADT *madt = NULL;
@@ -432,11 +432,11 @@ void acpi_init_stage1(void)
 	num_cpus = 0;
 
 	/* Identity map it in */
-	if (!memory_getmap(NULL, local_apic_addr))
-		memory_map(NULL, local_apic_addr, local_apic_addr, 0);
+	if (!MmVirtualGetMapping(NULL, local_apic_addr))
+		MmVirtualMap(NULL, local_apic_addr, local_apic_addr, 0);
 
 	/* Enumerate MADT */
-	madt_enumerate((void*)((addr_t)madt + sizeof(ACPI_TABLE_MADT)), (void*)((addr_t)madt + madt->Header.Length));
+	AcpiEnumarateMADT((void*)((Addr_t)madt + sizeof(ACPI_TABLE_MADT)), (void*)((Addr_t)madt + madt->Header.Length));
 
 	/* Enumerate SRAT */
 
@@ -445,7 +445,7 @@ void acpi_init_stage1(void)
 
 /* Initializes FULL access 
  * across ACPICA */
-void acpi_init_stage2(void)
+void AcpiInitStage2(void)
 {
 	ACPI_STATUS Status;
 	ACPI_OBJECT arg1;
@@ -503,7 +503,7 @@ void acpi_init_stage2(void)
 	}
 
 	/* Install OSL Handler */
-	AcpiInstallInterfaceHandler(acpi_osi);
+	AcpiInstallInterfaceHandler(AcpiOsi);
 
 	/* Initialize the ACPI hardware */
 	printf("    * Enabling subsystems\n");
@@ -525,7 +525,7 @@ void acpi_init_stage2(void)
 	}
 
 	/* Run _OSC on root, it should always be run after InitializeObjects */
-	acpi_bus_osc();
+	AcpiCheckBusOscSupport();
 
 	/* Set APIC Mode */
 	arg1.Type = ACPI_TYPE_INTEGER;
@@ -536,10 +536,10 @@ void acpi_init_stage2(void)
 	AcpiEvaluateObject(ACPI_ROOT_OBJECT, "_PIC", &args, NULL);
 
 	/* Install a notify handler */
-	AcpiInstallNotifyHandler(ACPI_ROOT_OBJECT, ACPI_SYSTEM_NOTIFY, acpi_bus_notify, NULL);
+	AcpiInstallNotifyHandler(ACPI_ROOT_OBJECT, ACPI_SYSTEM_NOTIFY, AcpiBusNotifyHandler, NULL);
 
 	/* Install a global event handler */
-	AcpiInstallGlobalEventHandler(acpi_events, NULL);
+	AcpiInstallGlobalEventHandler(AcpiEventHandler, NULL);
 	//AcpiInstallFixedEventHandler(ACPI_EVENT_POWER_BUTTON, acpi_shutdown, NULL);
 	//AcpiInstallFixedEventHandler(ACPI_EVENT_SLEEP_BUTTON, acpi_sleep, NULL);
 

@@ -1,0 +1,49 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="Entry">
+      <UniqueIdentifier>{6fdb26a5-3e43-473f-b98f-b8f352ca2277}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Systems">
+      <UniqueIdentifier>{3bcea2c0-a650-46ec-b90d-fefe4ec8eedb}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Common">
+      <UniqueIdentifier>{11bf9b2b-b5e5-4840-a298-1874f32c35ba}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Systems\Userspace">
+      <UniqueIdentifier>{8246489b-b3ed-4f90-ad33-d8e78a9607da}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Systems\Synchronization">
+      <UniqueIdentifier>{ed808d43-58c2-4e5f-a44d-ddd1d6bc7dab}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="..\..\Common\List.c">
+      <Filter>Common</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Common\RingBuffer.c">
+      <Filter>Common</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Init\Entry.c">
+      <Filter>Entry</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\System\Userspace\InputManager.c">
+      <Filter>Systems\Userspace</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\System\Synchronization\Mutex.c">
+      <Filter>Systems\Synchronization</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\System\Synchronization\Semaphore.c">
+      <Filter>Systems\Synchronization</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\System\Heap.c">
+      <Filter>Systems</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\System\Scheduler.c">
+      <Filter>Systems</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\System\Timers.c">
+      <Filter>Systems</Filter>
+    </ClCompile>
+  </ItemGroup>
+</Project>

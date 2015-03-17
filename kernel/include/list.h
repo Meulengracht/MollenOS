@@ -23,7 +23,7 @@
 #define _LIST_H_
 
 /* List Includes */
-#include <arch.h>
+#include <Arch.h>
 #include <crtdefs.h>
 #include <stddef.h>
 
@@ -54,7 +54,7 @@ typedef struct _list_main
 	int length;
 
 	/* Perhaps we use a lock */
-	spinlock_t lock;
+	Spinlock_t lock;
 
 } list_t;
 

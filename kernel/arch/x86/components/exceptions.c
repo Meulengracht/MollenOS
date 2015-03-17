@@ -19,9 +19,9 @@
 * MollenOS x86-32 Exception Handlers & Init
 */
 
-#include <arch.h>
-#include <exceptions.h>
-#include <idt.h>
+#include <Arch.h>
+#include <Exceptions.h>
+#include <Idt.h>
 #include <thread.h>
 #include <gdt.h>
 #include <string.h>
@@ -32,91 +32,91 @@
 /* Extern Assembly */
 extern uint32_t __getcr2(void);
 extern void init_fpu(void);
-extern void load_fpu(addr_t *buffer);
+extern void load_fpu(Addr_t *buffer);
 extern void clear_ts(void);
 
 /* Extern Thread */
-extern thread_t *threading_get_current_thread(cpu_t cpu);
-extern cpu_t get_cpu(void);
+extern Thread_t *threading_get_current_thread(Cpu_t cpu);
+extern Cpu_t get_cpu(void);
 
-void exceptions_init(void)
+void ExceptionsInit(void)
 {
 	/* Install exception handlers */
-	idt_install_descriptor(0, (uint32_t)&irq_handler0, 
+	IdtInstallDescriptor(0, (uint32_t)&irq_handler0,
 		X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
-	idt_install_descriptor(1, (uint32_t)&irq_handler1,
+	IdtInstallDescriptor(1, (uint32_t)&irq_handler1,
 		X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
-	idt_install_descriptor(2, (uint32_t)&irq_handler2,
+	IdtInstallDescriptor(2, (uint32_t)&irq_handler2,
 		X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
-	idt_install_descriptor(3, (uint32_t)&irq_handler3,
+	IdtInstallDescriptor(3, (uint32_t)&irq_handler3,
 		X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
-	idt_install_descriptor(4, (uint32_t)&irq_handler4,
+	IdtInstallDescriptor(4, (uint32_t)&irq_handler4,
 		X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
-	idt_install_descriptor(5, (uint32_t)&irq_handler5,
+	IdtInstallDescriptor(5, (uint32_t)&irq_handler5,
 		X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
-	idt_install_descriptor(6, (uint32_t)&irq_handler6,
+	IdtInstallDescriptor(6, (uint32_t)&irq_handler6,
 		X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
-	idt_install_descriptor(7, (uint32_t)&irq_handler7,
+	IdtInstallDescriptor(7, (uint32_t)&irq_handler7,
 		X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
-	idt_install_descriptor(8, (uint32_t)&irq_handler8,
+	IdtInstallDescriptor(8, (uint32_t)&irq_handler8,
 		X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
-	idt_install_descriptor(9, (uint32_t)&irq_handler9,
+	IdtInstallDescriptor(9, (uint32_t)&irq_handler9,
 		X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
-	idt_install_descriptor(10, (uint32_t)&irq_handler10,
+	IdtInstallDescriptor(10, (uint32_t)&irq_handler10,
 		X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
-	idt_install_descriptor(11, (uint32_t)&irq_handler11,
+	IdtInstallDescriptor(11, (uint32_t)&irq_handler11,
 		X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
-	idt_install_descriptor(12, (uint32_t)&irq_handler12,
+	IdtInstallDescriptor(12, (uint32_t)&irq_handler12,
 		X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
-	idt_install_descriptor(13, (uint32_t)&irq_handler13,
+	IdtInstallDescriptor(13, (uint32_t)&irq_handler13,
 		X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
-	idt_install_descriptor(14, (uint32_t)&irq_handler14,
+	IdtInstallDescriptor(14, (uint32_t)&irq_handler14,
 		X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
-	idt_install_descriptor(15, (uint32_t)&irq_handler15,
+	IdtInstallDescriptor(15, (uint32_t)&irq_handler15,
 		X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
-	idt_install_descriptor(16, (uint32_t)&irq_handler16,
+	IdtInstallDescriptor(16, (uint32_t)&irq_handler16,
 		X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
-	idt_install_descriptor(17, (uint32_t)&irq_handler17,
+	IdtInstallDescriptor(17, (uint32_t)&irq_handler17,
 		X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
-	idt_install_descriptor(18, (uint32_t)&irq_handler18,
+	IdtInstallDescriptor(18, (uint32_t)&irq_handler18,
 		X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
-	idt_install_descriptor(19, (uint32_t)&irq_handler19,
+	IdtInstallDescriptor(19, (uint32_t)&irq_handler19,
 		X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
-	idt_install_descriptor(20, (uint32_t)&irq_handler20,
+	IdtInstallDescriptor(20, (uint32_t)&irq_handler20,
 		X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
-	idt_install_descriptor(21, (uint32_t)&irq_handler21,
+	IdtInstallDescriptor(21, (uint32_t)&irq_handler21,
 		X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
-	idt_install_descriptor(22, (uint32_t)&irq_handler22,
+	IdtInstallDescriptor(22, (uint32_t)&irq_handler22,
 		X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
-	idt_install_descriptor(23, (uint32_t)&irq_handler23,
+	IdtInstallDescriptor(23, (uint32_t)&irq_handler23,
 		X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
-	idt_install_descriptor(24, (uint32_t)&irq_handler24,
+	IdtInstallDescriptor(24, (uint32_t)&irq_handler24,
 		X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
-	idt_install_descriptor(25, (uint32_t)&irq_handler25,
+	IdtInstallDescriptor(25, (uint32_t)&irq_handler25,
 		X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
-	idt_install_descriptor(26, (uint32_t)&irq_handler26,
+	IdtInstallDescriptor(26, (uint32_t)&irq_handler26,
 		X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
-	idt_install_descriptor(27, (uint32_t)&irq_handler27,
+	IdtInstallDescriptor(27, (uint32_t)&irq_handler27,
 		X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
-	idt_install_descriptor(28, (uint32_t)&irq_handler28,
+	IdtInstallDescriptor(28, (uint32_t)&irq_handler28,
 		X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
-	idt_install_descriptor(29, (uint32_t)&irq_handler29,
+	IdtInstallDescriptor(29, (uint32_t)&irq_handler29,
 		X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
-	idt_install_descriptor(30, (uint32_t)&irq_handler30,
+	IdtInstallDescriptor(30, (uint32_t)&irq_handler30,
 		X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
-	idt_install_descriptor(31, (uint32_t)&irq_handler31,
+	IdtInstallDescriptor(31, (uint32_t)&irq_handler31,
 		X86_KERNEL_CODE_SEGMENT, X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_INTERRUPT_GATE32);
 }
 
-void exception_entry(registers_t *regs)
+void ExceptionEntry(Registers_t *regs)
 {
-	thread_t *t;
-	cpu_t cpu;
+	Thread_t *t;
+	Cpu_t cpu;
 	uint32_t fixed = 0;
 	//char *instructions = NULL;
 
 	/* Determine Irq */
-	if (regs->irq == 7)
+	if (regs->Irq == 7)
 	{
 		/* Device Not Available */
 		/* This happens if FPU needs to be restored OR initialized */
@@ -127,7 +127,7 @@ void exception_entry(registers_t *regs)
 		if (t != NULL)
 		{
 			/* Now, do we need to initialise? */
-			if (!(t->flags & X86_THREAD_FPU_INITIALISED))
+			if (!(t->Flags & X86_THREAD_FPU_INITIALISED))
 			{
 				/* Clear TS */
 				clear_ts();
@@ -138,32 +138,32 @@ void exception_entry(registers_t *regs)
 				/* Set this exception as handled */
 				fixed = 1;
 			}
-			else if (!(t->flags & X86_THREAD_USEDFPU))
+			else if (!(t->Flags & X86_THREAD_USEDFPU))
 			{
 				/* Clear TS */
 				clear_ts();
 
 				/* Noooo, we just need to restore */
-				load_fpu(t->fpu_buffer);
+				load_fpu(t->FpuBuffer);
 
 				/* Now, set thread to used fpu */
-				t->flags |= X86_THREAD_USEDFPU;
+				t->Flags |= X86_THREAD_USEDFPU;
 
 				/* Set this exception as handled */
 				fixed = 1;
 			}
 		}
 	}
-	else if (regs->irq == 14)
+	else if (regs->Irq == 14)
 	{
-		printf("CR2 Address: 0x%x... Faulty Address: 0x%x\n", __getcr2(), regs->eip);
+		printf("CR2 Address: 0x%x... Faulty Address: 0x%x\n", __getcr2(), regs->Eip);
 		idle();
 	}
 
 	if (fixed == 0)
 	{
 		printf("Exception Handler! Irq %u, Error Code: %u, Faulty Address: 0x%x\n",
-			regs->irq, regs->error_code, regs->eip);
+			regs->Irq, regs->ErrorCode, regs->Eip);
 
 		/* Disassembly */
 		//instructions = get_instructions_at_mem(regs->eip);

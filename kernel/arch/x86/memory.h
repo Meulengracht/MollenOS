@@ -53,7 +53,7 @@
 
 /* Includes */
 #include <stdint.h>
-#include <arch.h>
+#include <Mutex.h>
 
 /**********************************/
 /* Physical Memory Defs & Structs */
@@ -66,31 +66,32 @@
 
 /* Memory Map Structure */
 #pragma pack(push, 1)
-typedef struct mboot_mem_region
+typedef struct _MBootMemoryRegion
 {
-	uint64_t	address;
-	uint64_t	size;
-	uint32_t	type;
-	uint32_t	nil;
-} mboot_mem_region_t;
+	uint64_t	Address;
+	uint64_t	Size;
+	uint32_t	Type;
+	uint32_t	Nil;
+	uint64_t	Padding;
+} MBootMemoryRegion_t;
 #pragma pack(pop)
 
 /* System Reserved Mappings */
-typedef struct sys_mappings
+typedef struct _SysMemMapping
 {
 	/* Where it starts in physical */
-	physaddr_t physical;
+	PhysAddr_t PhysicalAddrStart;
 
 	/* Where we have mapped this virtual */
-	virtaddr_t virtual;
+	VirtAddr_t VirtualAddrStart;
 
 	/* Length */
-	size_t length;
+	size_t Length;
 
 	/* Type. 2 - ACPI */
-	int type;
+	int Type;
 
-} sys_mappings_t;
+} SysMemMapping_t;
 
 /**********************************/
 /* Virtual Memory Defs & Structs  */
@@ -123,16 +124,16 @@ typedef struct sys_mappings
 #define PAGE_TABLE_INDEX(x) (((x) >> 12) & 0x3FF)
 
 /* Page Table */
-typedef struct page_table
+typedef struct _PageTable
 {
 	/* Pages (Physical Bindings)
 	* Seen by MMU */
 	uint32_t Pages[PAGES_PER_TABLE];
 
-} page_table_t;
+} PageTable_t;
 
 /* Page Directory */
-typedef struct page_directory
+typedef struct _PageDirectory
 {
 	/* Page Tables (Physical Bindings)
 	 * Seen by MMU */
@@ -143,19 +144,19 @@ typedef struct page_directory
 	uint32_t vTables[TABLES_PER_PDIR];
 
 	/* Spinlock */
-	spinlock_t plock;
+	Mutex_t pMutex;
 
-} page_directory_t;
+} PageDirectory_t;
 
 
 /* Hihi */
-_CRT_EXTERN virtaddr_t *memory_map_system_memory(physaddr_t physical, int pages); 
-_CRT_EXTERN physaddr_t physmem_alloc_block_dma(void);
-_CRT_EXTERN page_directory_t *memory_get_current_pdir(cpu_t cpu);
-_CRT_EXTERN void memory_switch_directory(uint32_t cpu, page_directory_t* page_dir, physaddr_t pda);
-_CRT_EXTERN virtaddr_t memory_get_reserved_mapping(physaddr_t physical);
+_CRT_EXTERN VirtAddr_t *MmVirtualMapSysMemory(PhysAddr_t PhysicalAddr, int Pages);
+_CRT_EXTERN PhysAddr_t MmPhysicalAllocateBlockDma(void);
+_CRT_EXTERN PageDirectory_t *MmVirtualGetCurrentDirectory(Cpu_t cpu);
+_CRT_EXTERN void MmVirtualSwitchPageDirectory(Cpu_t cpu, PageDirectory_t* PageDirectory, PhysAddr_t Pdb);
+_CRT_EXTERN VirtAddr_t MmPhyiscalGetSysMappingVirtual(PhysAddr_t PhysicalAddr);
 
 /* Install paging for AP Cores */
-_CRT_EXTERN void memory_install_paging(cpu_t cpu);
+_CRT_EXTERN void MmVirtualInstallPaging(Cpu_t cpu);
 
 #endif // !_X86_MEMORY_H_

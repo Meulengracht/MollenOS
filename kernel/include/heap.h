@@ -25,7 +25,8 @@
 #define _MCORE_HEAP_H_
 
 /* Includes */
-#include <arch.h>
+#include <Arch.h>
+#include <Mutex.h>
 #include <stdint.h>
 #include <crtdefs.h>
 
@@ -37,21 +38,21 @@ Heap Management
 #define HEAP_LARGE_BLOCK		0x10000
 
 /* 12 bytes overhead */
-typedef struct heap_node_descriptor
+typedef struct _HeapNode
 {
 	/* Address */
-	addr_t addr;
+	Addr_t Address;
 
 	/* Status */
-	uint32_t allocated;
+	uint32_t Allocated;
 
 	/* Length */
-	size_t length;
+	size_t Length;
 
 	/* Link */
-	struct heap_node_descriptor *link;
+	struct _HeapNode *Link;
 
-} heap_node_t;
+} HeapNode_t;
 
 #define BLOCK_NORMAL			0x0
 #define BLOCK_LARGE				0x1
@@ -64,60 +65,60 @@ typedef struct heap_node_descriptor
 
 /* A block descriptor, contains a 
  * memory range */
-typedef struct heap_block_descriptor
+typedef struct _HeapBlock
 {
 	/* Start - End Address */
-	addr_t addr_start;
-	addr_t addr_end;
+	Addr_t AddressStart;
+	Addr_t AddressEnd;
 
 	/* Node Flags */
-	int flags;
+	int Flags;
 
 	/* Stats */
-	size_t bytes_free;
+	size_t BytesFree;
 
-	/* Spinlock */
-	spinlock_t plock;
+	/* Mutex */
+	Mutex_t Mutex;
 
 	/* Next in Linked List */
-	struct heap_block_descriptor *link;
+	struct _HeapBlock *Link;
 
 	/* Head of Header List */
-	struct heap_node_descriptor *nodes;
+	struct _HeapNode *Nodes;
 
-} heap_block_t;
+} HeapBlock_t;
 
 /* A heap */
-typedef struct heap_area
+typedef struct _HeapArea
 {
 	/* Head of Node List */
-	struct heap_block_descriptor *blocks;
+	struct _HeapBlock *Blocks;
 
-} heap_t;
+} Heap_t;
 
 /* Initializer & Maintience */
-extern void heap_init(void);
-extern uint32_t heap_get_count(void);
-extern void heap_print_stats(void);
-extern void heap_reap(void);
+_CRT_EXTERN void HeapInit(void);
+_CRT_EXTERN uint32_t HeapGetCount(void);
+_CRT_EXTERN void HeapPrintStats(void);
+_CRT_EXTERN void HeapReap(void);
 
 //kMalloc Align and phys return
-extern void *kmalloc_ap(size_t sz, addr_t *p);
+_CRT_EXTERN void *kmalloc_ap(size_t sz, Addr_t *p);
 
 //kMalloc return phys
-extern void *kmalloc_p(size_t sz, addr_t *p);
+_CRT_EXTERN void *kmalloc_p(size_t sz, Addr_t *p);
 
 //kMalloc align
-extern void *kmalloc_a(size_t sz);
+_CRT_EXTERN void *kmalloc_a(size_t sz);
 
 //kMalloc
-extern void *kmalloc(size_t sz);
+_CRT_EXTERN void *kmalloc(size_t sz);
 
 //kFree
-extern void kfree(void *p);
+_CRT_EXTERN void kfree(void *p);
 
 //krealloc / reallocate
-extern void *kcalloc(size_t nmemb, size_t size);
-extern void *krealloc(void *ptr, size_t size);
+_CRT_EXTERN void *kcalloc(size_t nmemb, size_t size);
+_CRT_EXTERN void *krealloc(void *ptr, size_t size);
 
 #endif

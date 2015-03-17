@@ -16,7 +16,7 @@
 * along with this program.If not, see <http://www.gnu.org/licenses/>.
 *
 *
-* MollenOS x86-32 CPU Init
+* MollenOS x86 CPU Init
 */
 
 #ifndef _x86_CPU_H_
@@ -91,42 +91,42 @@ enum CpuFeatures{
 };
 
 /* CPU Structures */
-typedef struct cpu_info
+typedef struct _CpuObject
 {
 	/* Names */
-	char cpu_brand[49];
-	char cpu_manufacter[13];
+	char CpuBrand[49];
+	char CpuManufacter[13];
 
 	/* Specs */
-	char cpu_stepping;
-	char cpu_model;
-	char cpu_family;
-	char cpu_type;
-	char cpu_cache_size;
-	char cpu_num_logical_processors;
-	char cpu_lapic_id;
+	char CpuStepping;
+	char CpuModel;
+	char CpuFamily;
+	char CpuType;
+	char CpuCacheSize;
+	char CpuNumLogicalProessors;
+	char CpuLApicId;
 
 	/* Padding */
-	char padding[3];
+	char Padding[3];
 
 	/* Cpuid Features */
-	uint32_t cpuid_level;
-	uint32_t cpuid_extensions;
+	uint32_t CpuIdLevel;
+	uint32_t CpuIdExtensions;
 
 	/* CPU Features */
-	uint32_t ecx_features;
-	uint32_t edx_features;
+	uint32_t EcxFeatures;
+	uint32_t EdxFeatures;
 
-} cpu_info_t;
+} CpuObject_t;
 
 /* CPU Prototypes */
-extern void cpu_boot_init(void);
-extern void cpu_ap_setup(void);
-extern void cpu_ap_init(void);
+extern void CpuBspInit(void);
+extern void CpuApSetup(void);
+extern void CpuApInit(void);
 
 /* These three are located in boot.asm */
-extern void enable_sse(void);
-extern void enable_fpu(void);
-extern void cpuid(uint32_t cpuid, uint32_t *eax, uint32_t *ebx, uint32_t *ecx, uint32_t *edx);
+extern void CpuEnableSse(void);
+extern void CpuEnableFpu(void);
+extern void CpuId(uint32_t cpuid, uint32_t *eax, uint32_t *ebx, uint32_t *ecx, uint32_t *edx);
 
 #endif // !_x86_CPU_H_

@@ -24,9 +24,9 @@
 
 /* Select Correct ARCH file */
 #if defined(_X86_32)
-#include "x86\arch.h"
+#include "x86\x32\Arch.h"
 #elif defined(_X86_64)
-#include "x64\arch.h"
+#include "x86\x64\Arch.h"
 #else
 #error "Unsupported Architecture :("
 #endif

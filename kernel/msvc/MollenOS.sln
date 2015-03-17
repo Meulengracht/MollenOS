@@ -3,13 +3,13 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio 2013
 VisualStudioVersion = 12.0.30501.0
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "Libx86", "libx86\Libx86\Libx86.vcxproj", "{17145F88-DAEA-496B-A91F-2A78ED5673CC}"
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "Libx86", "Libx86\Libx86.vcxproj", "{17145F88-DAEA-496B-A91F-2A78ED5673CC}"
 	ProjectSection(ProjectDependencies) = postProject
 		{7884D19E-EF4A-4898-81E4-A33DAAE85D27} = {7884D19E-EF4A-4898-81E4-A33DAAE85D27}
 		{2B403FFB-5AFB-48D8-8C13-F8E65CEC5BB6} = {2B403FFB-5AFB-48D8-8C13-F8E65CEC5BB6}
 	EndProjectSection
 EndProject
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "MCore", "mcore\MCore\MCore.vcxproj", "{E1811ABC-D002-44D1-8581-2ACF9C1DD0F9}"
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "MCore", "MCore\MCore.vcxproj", "{E1811ABC-D002-44D1-8581-2ACF9C1DD0F9}"
 	ProjectSection(ProjectDependencies) = postProject
 		{17145F88-DAEA-496B-A91F-2A78ED5673CC} = {17145F88-DAEA-496B-A91F-2A78ED5673CC}
 		{7884D19E-EF4A-4898-81E4-A33DAAE85D27} = {7884D19E-EF4A-4898-81E4-A33DAAE85D27}
@@ -18,7 +18,7 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "MCore", "mcore\MCore\MCore.
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "MCoreConfig", "MCoreConfig\MCoreConfig.vcxproj", "{7884D19E-EF4A-4898-81E4-A33DAAE85D27}"
 EndProject
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "AcpiSubsystem", "acpica\AcpiSubsystem.vcxproj", "{2B403FFB-5AFB-48D8-8C13-F8E65CEC5BB6}"
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "AcpiSubsystem", "Acpica\AcpiSubsystem.vcxproj", "{2B403FFB-5AFB-48D8-8C13-F8E65CEC5BB6}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
