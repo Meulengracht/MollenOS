@@ -43,17 +43,11 @@
     <Filter Include="Drivers\Usb\Controllers\EHCI">
       <UniqueIdentifier>{4c03b94c-dfa8-44e1-9c7c-65ecd81c054b}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Drivers\Usb\HID">
-      <UniqueIdentifier>{6e984708-f491-453e-b086-a4f35f98bf31}</UniqueIdentifier>
-    </Filter>
     <Filter Include="Drivers\Usb\MSD">
       <UniqueIdentifier>{b8fbf389-bba1-4212-9148-299c7d2489a8}</UniqueIdentifier>
     </Filter>
     <Filter Include="Drivers\Usb\Controllers\XHCI">
       <UniqueIdentifier>{2efff2a4-618a-4755-9fe2-33e542ffe20a}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Drivers\Sata">
-      <UniqueIdentifier>{a73a6be5-2173-4862-bf10-9eb78df4c84e}</UniqueIdentifier>
     </Filter>
     <Filter Include="Drivers\Timers">
       <UniqueIdentifier>{6e3df768-4732-455d-9fc8-43db57acd982}</UniqueIdentifier>
@@ -64,12 +58,16 @@
     <Filter Include="Components\Locks">
       <UniqueIdentifier>{af9ed2db-f31c-4c62-9fd6-d7765903d1b4}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Drivers\Usb\Sata">
+      <UniqueIdentifier>{a73a6be5-2173-4862-bf10-9eb78df4c84e}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Drivers\Usb\HID">
+      <UniqueIdentifier>{6e984708-f491-453e-b086-a4f35f98bf31}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\Arch\x86\Drivers\Cmos\Cmos.c" />
     <ClCompile Include="..\..\Arch\x86\Drivers\Cmos\Rtc.c" />
-    <ClCompile Include="..\..\Arch\x86\Drivers\DriverManager.c" />
-    <ClCompile Include="..\..\Arch\x86\Drivers\DriverPci.c" />
     <ClCompile Include="..\..\Arch\x86\Drivers\Timers\Hpet\Hpet.c" />
     <ClCompile Include="..\..\Arch\x86\Drivers\Timers\TimerManager.c" />
     <ClCompile Include="..\..\Arch\x86\Drivers\Usb\Ehci\Ehci.c" />
@@ -128,6 +126,12 @@
       <Filter>Components</Filter>
     </ClCompile>
     <ClCompile Include="..\..\Arch\x86\Drivers\DriverStrings.c">
+      <Filter>Drivers</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Arch\x86\Drivers\DriverPci.c">
+      <Filter>Drivers</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Arch\x86\Drivers\DriverManager.c">
       <Filter>Drivers</Filter>
     </ClCompile>
   </ItemGroup>

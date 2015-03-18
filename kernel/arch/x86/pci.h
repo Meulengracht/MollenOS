@@ -32,149 +32,150 @@
 #define X86_PCI_DATA		0xCFC
 
 /* Structures */
-typedef struct _pci_device_header
+typedef struct _PciNativeHeader
 {
 	/* 0x00 */
-	uint16_t vendor_id;
-	uint16_t device_id;
+	uint16_t VendorId;
+	uint16_t DeviceId;
 
 	/* 0x04 */
-	uint16_t command;
-	uint16_t status;
+	uint16_t Command;
+	uint16_t Status;
 
 	/* 0x08 */
-	uint8_t  revision;
-	uint8_t  ProgIF;
-	uint8_t  subclass;
-	uint8_t  class_code;
+	uint8_t  Revision;
+	uint8_t  Interface;
+	uint8_t  Subclass;
+	uint8_t  Class;
 
 	/* 0x0C */
-	uint8_t  cache_line_size;
-	uint8_t  latency_timer;
-	uint8_t  header_type;
-	uint8_t  bist;
+	uint8_t  CacheLineSize;
+	uint8_t  LatencyTimer;
+	uint8_t  HeaderType;
+	uint8_t  Bist;
 
 	/* 0x10 */
-	uint32_t bar0;
+	uint32_t Bar0;
 	/* 0x14 */
-	uint32_t bar1;
+	uint32_t Bar1;
 	/* 0x18 */
-	uint32_t bar2;
+	uint32_t Bar2;
 	/* 0x1C */
-	uint32_t bar3;
+	uint32_t Bar3;
 	/* 0x20 */
-	uint32_t bar4;
+	uint32_t Bar4;
 	/* 0x24 */
-	uint32_t bar5;
+	uint32_t Bar5;
 
 	/* 0x28 */
-	uint32_t cardbus_cis_pointer;
+	uint32_t CardbusCISPtr;
 	/* 0x2C */
-	uint16_t subsystem_vendor_id;
-	uint16_t subsystem_id;
+	uint16_t SubSystemVendorId;
+	uint16_t SubSystemId;
 
 	/* 0x30 */
-	uint32_t expansion_rom_base_address;
+	uint32_t ExpansionRomBaseAddr;
 
 	/* 0x34 */
-	uint32_t reserved0;
+	uint32_t Reserved0;
 
 	/* 0x38 */
-	uint32_t reserved1;
+	uint32_t Reserved1;
 
 	/* 0x3C */
-	uint8_t  interrupt_line;
-	uint8_t  interrupt_pin;
-	uint8_t  min_grant;
-	uint8_t  max_latency;
+	uint8_t  InterruptLine;
+	uint8_t  InterruptPin;
+	uint8_t  MinGrant;
+	uint8_t  MaxLatency;
 
-} pci_device_header_t;
+} PciNativeHeader_t;
 
 /* The Driver Header */
-typedef struct _pci_driver
+typedef struct _PciDevice
 {
 	/* Type */
-	uint32_t type;
+	uint32_t Type;
 
 	/* Location */
-	uint32_t bus;
-	uint32_t device;
-	uint32_t function;
+	uint32_t Bus;
+	uint32_t Device;
+	uint32_t Function;
 
 	/* Information (Header) */
-	struct _pci_device_header *header;
+	struct _PciNativeHeader *Header;
 
 	/* Children (list.h) */
-	void *parent;
-	void *children;
+	void *Parent;
+	void *Children;
 
-} pci_driver_t;
+} PciDevice_t;
 
 /* Internal Use */
-typedef struct _pci_irq_res
+typedef struct _PciIrqResource
 {
 	/* Double Voids */
-	void *device;
-	void *table;
+	void *Device;
+	void *Table;
 
-} pci_irq_resource_t;
+} PciIrqResource_t;
 
+/* This doesn't fully support linked entries */
 #pragma pack(push, 1)
-typedef struct _pci_routings
+typedef struct _PciRoutings
 {
 	/* Just a lot of ints */
-	int interrupts[128];
-	uint8_t trigger[128];
-	uint8_t shareable[128];
-	uint8_t polarity[128];
-	uint8_t fixed[128];
+	int Interrupts[128];
+	uint8_t Trigger[128];
+	uint8_t Shareable[128];
+	uint8_t Polarity[128];
+	uint8_t Fixed[128];
 
-} pci_routing_table_t;
+} PciRoutings_t;
 #pragma pack(pop)
 
 #pragma pack(push, 1)
-typedef struct _pci_device
+typedef struct _PciAcpiDevice
 {
 	/* Type */
-	uint32_t type;
+	uint32_t Type;
 
 	/* ACPI_HANDLE */
-	void *handle;
+	void *Handle;
 
 	/* Irq Routings */
-	struct _pci_routings *routings;
+	struct _PciRoutings *Routings;
 
 	/* Bus Id */
-	char bus_id[8];
+	char BusId[8];
 
 	/* PCI Location */
-	uint32_t bus;
-	uint32_t dev;
-	uint32_t func;
-	uint32_t seg;
+	uint32_t Bus;
+	uint32_t Device;
+	uint32_t Function;
+	uint32_t Segment;
 
 	/* Supported NS Functions */
-	uint32_t features;
+	uint32_t Features;
 
 	/* Current Status */
-	uint32_t status;
+	uint32_t Status;
 
 	/* Bus Address */
-	uint64_t address;
+	uint64_t Address;
 
 	/* Hardware Id */
-	char hid[16];
+	char HID[16];
 
 	/* Unique Id */
-	char uid[16];
+	char UID[16];
 
 	/* Compatible Id's */
-	void *cid;
+	void *CID;
 
 	/* Type Features */
-	uint64_t xfeatures;
+	uint64_t xFeatures;
 
-} pci_device_t;
+} PciAcpiDevice_t;
 #pragma pack(pop)
 
 
@@ -225,66 +226,66 @@ typedef struct _pci_device
 #define X86_PCI_TYPE_XHCI		0x6
 
 /* This is information */
-typedef struct _pci_device_information
+typedef struct _PciDeviceInformation
 {
 	/* Pci Vendor Id */
-	uint32_t device_id;
+	uint32_t DeviceId;
 
 	/* String */
-	char *string;
+	char *String;
 
-} pci_dev_info_t;
+} PciDeviceInformation_t;
 
 
 /* Prototypes */
 
 /* Read I/O */
-_CRT_EXTERN uint8_t pci_read_byte(const uint16_t bus, const uint16_t dev,
-									const uint16_t func, const uint32_t reg);
-_CRT_EXTERN uint16_t pci_read_word(const uint16_t bus, const uint16_t dev,
-									const uint16_t func, const uint32_t reg);
-_CRT_EXTERN uint32_t pci_read_dword(const uint16_t bus, const uint16_t dev,
-									const uint16_t func, const uint32_t reg);
+_CRT_EXTERN uint8_t PciReadByte(const uint16_t Bus, const uint16_t Device,
+							   const uint16_t Function, const uint32_t Register);
+_CRT_EXTERN uint16_t PciReadWord(const uint16_t Bus, const uint16_t Device,
+								 const uint16_t Function, const uint32_t Register);
+_CRT_EXTERN uint32_t PciReadDword(const uint16_t Bus, const uint16_t Device,
+								  const uint16_t Function, const uint32_t Register);
 
 /* Write I/O */
-_CRT_EXTERN void pci_write_byte(const uint16_t bus, const uint16_t dev,
-								 const uint16_t func, const uint32_t reg, uint8_t value);
-_CRT_EXTERN void pci_write_word(const uint16_t bus, const uint16_t dev,
-								 const uint16_t func, const uint32_t reg, uint16_t value);
-_CRT_EXTERN void pci_write_dword(const uint16_t bus, const uint16_t dev,
-								 const uint16_t func, const uint32_t reg, uint32_t value);
+_CRT_EXTERN void PciWriteByte(const uint16_t Bus, const uint16_t Device,
+							  const uint16_t Function, const uint32_t Register, uint8_t Value);
+_CRT_EXTERN void PciWriteWord(const uint16_t Bus, const uint16_t Device,
+							  const uint16_t Function, const uint32_t Register, uint16_t Value);
+_CRT_EXTERN void PciWriteDword(const uint16_t Bus, const uint16_t Device,
+							   const uint16_t Function, const uint32_t Register, uint32_t Value);
 
 /* Install PCI Interrupt */
-_CRT_EXTERN void InterruptInstallPci(pci_driver_t *PciDevice, IrqHandler_t Callback, void *Args);
+_CRT_EXTERN void InterruptInstallPci(PciDevice_t *PciDevice, IrqHandler_t Callback, void *Args);
 
 /* Get Irq by Bus / Dev / Pin
 * Returns -1 if no overrides exists */
-_CRT_EXTERN int pci_device_get_irq(uint32_t bus, uint32_t device, uint32_t pin,
-									uint8_t *trigger_mode, uint8_t *polarity, uint8_t *shareable,
-									uint8_t *fixed);
+_CRT_EXTERN int PciDeviceGetIrq(uint32_t Bus, uint32_t Device, uint32_t Pin,
+								uint8_t *TriggerMode, uint8_t *Polarity, uint8_t *Shareable,
+								uint8_t *Fixed);
 
 /* Decode PCI Device to String */
 _CRT_EXTERN char *PciToString(uint8_t Class, uint8_t SubClass, uint8_t Interface);
 
 /* Reads the vendor id at given location */
-_CRT_EXTERN uint16_t pci_read_vendor_id(const uint16_t bus, const uint16_t device, const uint16_t function);
+_CRT_EXTERN uint16_t PciReadVendorId(const uint16_t Bus, const uint16_t Device, const uint16_t Function);
 
 /* Reads a PCI header at given location */
-_CRT_EXTERN void pci_read_function(pci_device_header_t *pcs, const uint16_t bus, const uint16_t device, const uint16_t function);
+_CRT_EXTERN void PciReadFunction(PciNativeHeader_t *Pcs, const uint16_t Bus, const uint16_t Device, const uint16_t Function);
 
 /* Reads the base class at given location */
-_CRT_EXTERN uint8_t pci_read_base_class(const uint16_t bus, const uint16_t device, const uint16_t function);
+_CRT_EXTERN uint8_t PciReadBaseClass(const uint16_t Bus, const uint16_t Device, const uint16_t Function);
 
 /* Reads the sub class at given location */
-_CRT_EXTERN uint8_t pci_read_sub_class(const uint16_t bus, const uint16_t device, const uint16_t function);
+_CRT_EXTERN uint8_t PciReadSubclass(const uint16_t Bus, const uint16_t Device, const uint16_t Function);
 
 /* Reads the secondary bus number at given location */
-_CRT_EXTERN uint8_t pci_read_secondary_bus_number(const uint16_t bus, const uint16_t device, const uint16_t function);
+_CRT_EXTERN uint8_t PciReadSecondaryBusNumber(const uint16_t Bus, const uint16_t Device, const uint16_t Function);
 
 /* Reads the sub class at given location 
  * Bit 7 - MultiFunction, Lower 4 bits is type.
  * Type 0 is standard, Type 1 is PCI-PCI Bridge,
  * Type 2 is CardBus Bridge */
-_CRT_EXTERN uint8_t pci_read_header_type(const uint16_t bus, const uint16_t device, const uint16_t function);
+_CRT_EXTERN uint8_t PciReadHeaderType(const uint16_t Bus, const uint16_t Device, const uint16_t Function);
 
 #endif // !_X86_PCI_H_

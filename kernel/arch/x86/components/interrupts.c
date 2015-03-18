@@ -169,28 +169,28 @@ void InterruptInstallBroadcast(uint32_t Irq, uint32_t IdtEntry, IrqHandler_t Cal
 }
 
 /* Install a pci interrupt */
-void InterruptInstallPci(pci_driver_t *PciDevice, IrqHandler_t Callback, void *Args)
+void InterruptInstallPci(PciDevice_t *PciDevice, IrqHandler_t Callback, void *Args)
 {
 	uint64_t apic_flags = 0;
 	int result;
 	uint8_t trigger_mode = 0, polarity = 0, shareable = 0;
 	uint32_t io_entry = 0;
 	uint32_t idt_entry = 0x20;
-	uint32_t pin = PciDevice->header->interrupt_pin;
+	uint32_t pin = PciDevice->Header->InterruptPin;
 	uint8_t fixed = 0;
 	
 	/* Pin is not 0 indexed from PCI info */
 	pin--;
 
 	/* Get Interrupt Information */
-	result = pci_device_get_irq(PciDevice->bus, PciDevice->device, pin,
+	result = pci_device_get_irq(PciDevice->Bus, PciDevice->Device, pin,
 		&trigger_mode, &polarity, &shareable, &fixed);
 
 	/* If no routing exists use the interrupt_line */
 	if (result == -1)
 	{
-		io_entry = PciDevice->header->interrupt_line;
-		idt_entry += PciDevice->header->interrupt_line;
+		io_entry = PciDevice->Header->InterruptLine;
+		idt_entry += PciDevice->Header->InterruptLine;
 
 		apic_flags = 0xFF00000000000000;	/* Target all groups */
 		apic_flags |= 0x100;				/* Lowest Priority */
@@ -199,12 +199,12 @@ void InterruptInstallPci(pci_driver_t *PciDevice, IrqHandler_t Callback, void *A
 	else
 	{
 		io_entry = (uint32_t)result;
-		pin = PciDevice->header->interrupt_pin;
+		pin = PciDevice->Header->InterruptPin;
 
 		/* Update PCI Interrupt Line */
 		pci_write_byte(
-			(const uint16_t)PciDevice->bus, (const uint16_t)PciDevice->device,
-			(const uint16_t)PciDevice->function, 0x3C, (uint8_t)io_entry);
+			(const uint16_t)PciDevice->Bus, (const uint16_t)PciDevice->Device,
+			(const uint16_t)PciDevice->Function, 0x3C, (uint8_t)io_entry);
 
 		/* Setup APIC flags */
 		apic_flags = 0xFF00000000000000;			/* Target all groups */

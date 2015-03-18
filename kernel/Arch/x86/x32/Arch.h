@@ -224,7 +224,7 @@ _CRT_EXTERN TId_t ThreadingGetCurrentThreadId(void);
 _CRT_EXTERN Thread_t *ThreadingGetCurrentThread(Cpu_t cpu);
 
 /* Driver Interface */
-_CRT_EXTERN void drivers_init(void *args);
+_CRT_EXTERN void DriverManagerInit(void *Args);
 
 /* Utils Definitions */
 #define MIN(a,b) (((a)<(b))?(a):(b))
