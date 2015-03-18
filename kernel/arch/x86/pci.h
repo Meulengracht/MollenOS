@@ -264,7 +264,7 @@ _CRT_EXTERN int pci_device_get_irq(uint32_t bus, uint32_t device, uint32_t pin,
 									uint8_t *fixed);
 
 /* Decode PCI Device to String */
-_CRT_EXTERN char *pci_to_string(uint8_t class, uint8_t sub_class, uint8_t prog_if);
+_CRT_EXTERN char *PciToString(uint8_t Class, uint8_t SubClass, uint8_t Interface);
 
 /* Reads the vendor id at given location */
 _CRT_EXTERN uint16_t pci_read_vendor_id(const uint16_t bus, const uint16_t device, const uint16_t function);

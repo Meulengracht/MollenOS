@@ -25,11 +25,11 @@
 #include <LApic.h>
 #include <Multiboot.h>
 #include <Gdt.h>
-#include <thread.h>
-#include <scheduler.h>
+#include <Thread.h>
+#include <Scheduler.h>
 #include <Idt.h>
-#include <cpu.h>
-#include <exceptions.h>
+#include <Cpu.h>
+#include <Exceptions.h>
 
 #include <stddef.h>
 #include <stdio.h>
@@ -42,7 +42,7 @@ extern void mcore_entry(void*);
  * MCore project. All platform libs should call these 
  * whenever possible. */
 extern void HeapInit(void);
-extern void apic_print_debug_cpu(void);
+extern void ApicPrintCpuTicks(void);
 
 void init(Multiboot_t *BootInfo, uint32_t KernelSize)
 {
@@ -81,20 +81,20 @@ void init(Multiboot_t *BootInfo, uint32_t KernelSize)
 
 	/* Enable the APIC */
 	printf("    * APIC Initializing\n");
-	apic_init();
+	ApicBspInit();
 
 	/* Threading */
 	printf("  - Threading\n");
-	scheduler_init(0);
-	threading_init();
+	SchedulerInit(0);
+	ThreadingInit();
 
 	/* Setup Timers */
 	printf("    * Setting up local timer\n");
-	apic_timer_init();
+	ApicTimerInit();
 
 	/* Start out any extra cores */
 	printf("  - Booting Cores\n");
-	//cpu_ap_init();
+	//SmpInit();
 
 	/* Setup Full APICPA */
 	AcpiInitStage2();
@@ -106,7 +106,7 @@ void init(Multiboot_t *BootInfo, uint32_t KernelSize)
 
 	/* Drivers... Damn drivers.. */
 	printf("  - Initializing Drivers...\n");
-	threading_create_thread("DriverSetup", drivers_init, NULL, 0);
+	ThreadingCreateThread("DriverSetup", drivers_init, NULL, 0);
 
 	/* Done with setup!
 	 * This should be called on a new thread */

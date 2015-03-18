@@ -28,164 +28,164 @@
 */
 
 /* Includes */
-#include <arch.h>
-#include <scheduler.h>
-#include <list.h>
-#include <heap.h>
+#include <Arch.h>
+#include <Scheduler.h>
+#include <List.h>
+#include <Heap.h>
 #include <stdio.h>
 
 /* Globals */
-scheduler_t *glb_schedulers[64];
-list_t *sleep_queue = NULL;
-volatile uint32_t glb_scheduler_enabled = 0;
+Scheduler_t *GlbSchedulers[64];
+list_t *SleepQueue = NULL;
+volatile uint32_t GlbSchedulerEnabled = 0;
 
 /* Init */
-void scheduler_init(cpu_t cpu)
+void SchedulerInit(Cpu_t cpu)
 {
 	int i;
-	scheduler_t *scheduler;
+	Scheduler_t *scheduler;
 
 	/* Is this BSP setting up? */
 	if (cpu == 0)
 	{
 		/* Null out stuff */
 		for (i = 0; i < 64; i++)
-			glb_schedulers[i] = NULL;
+			GlbSchedulers[i] = NULL;
 
 		/* Allocate Sleep */
-		sleep_queue = list_create(LIST_SAFE);
+		SleepQueue = list_create(LIST_SAFE);
 	}
 
 	/* Allocate a scheduler */
-	scheduler = (scheduler_t*)kmalloc(sizeof(scheduler_t));
+	scheduler = (Scheduler_t*)kmalloc(sizeof(Scheduler_t));
 
 	/* Initialize all queues (Lock-Less) */
 	for (i = 0; i < MCORE_SCHEDULER_LEVELS; i++)
-		scheduler->queues[i] = list_create(LIST_NORMAL);
+		scheduler->Queues[i] = list_create(LIST_NORMAL);
 
 	/* Reset boost timer */
-	scheduler->boost_timer = 0;
-	scheduler->num_threads = 0;
+	scheduler->BoostTimer = 0;
+	scheduler->NumThreads = 0;
 
 	/* Reset lock */
-	spinlock_reset(&scheduler->lock);
+	SpinlockReset(&scheduler->Lock);
 
 	/* Enable */
-	glb_schedulers[cpu] = scheduler;
-	glb_scheduler_enabled = 1;
+	GlbSchedulers[cpu] = scheduler;
+	GlbSchedulerEnabled = 1;
 }
 
 /* Boost ALL threads to priority queue 0 */
-void scheduler_boost(scheduler_t *scheduler)
+void SchedulerBoost(Scheduler_t *Scheduler)
 {
 	int i = 0;
 	list_node_t *node;
-	thread_t *t;
-
+	Thread_t *thread;
+	
 	/* Step 1. Loop through all queues, pop their elements and append them to queue 0
 	 * Reset time-slices */
 	for (i = 1; i < MCORE_SCHEDULER_LEVELS; i++)
 	{
-		if (scheduler->queues[i]->length > 0)
+		if (Scheduler->Queues[i]->length > 0)
 		{
-			node = list_pop_front(scheduler->queues[i]);
+			node = list_pop_front(Scheduler->Queues[i]);
 
 			while (node != NULL)
 			{
 				/* Reset timeslice */
-				t = (thread_t*)node->data;
-				t->time_slice = MCORE_INITIAL_TIMESLICE;
-				t->priority = 0;
+				thread = (Thread_t*)node->data;
+				thread->TimeSlice = MCORE_INITIAL_TIMESLICE;
+				thread->Priority = 0;
 
-				list_append(scheduler->queues[0], node);
-				node = list_pop_front(scheduler->queues[i]);
+				list_append(Scheduler->Queues[0], node);
+				node = list_pop_front(Scheduler->Queues[i]);
 			}
 		}
 	}
 }
 
 /* Add a thread */
-void scheduler_ready_thread(list_node_t *node)
+void SchedulerReadyThread(list_node_t *Node)
 {
 	/* Add task to a queue based on its priority */
-	thread_t *t = (thread_t*)node->data;
-	cpu_t index = 0;
+	Thread_t *t = (Thread_t*)Node->data;
+	Cpu_t index = 0;
 	uint32_t i = 0;
 	
 	/* Step 1. New thread? :) */
-	if (t->priority == -1)
+	if (t->Priority == -1)
 	{
 		/* Reduce priority */
-		t->priority = 0;
+		t->Priority = 0;
 
 		/* Recalculate time-slice */
-		t->time_slice = MCORE_INITIAL_TIMESLICE;
+		t->TimeSlice = MCORE_INITIAL_TIMESLICE;
 	}
 
 	/* Step 2. Find the least used CPU */
-	if (t->cpu_id == 0xFF)
+	if (t->CpuId == 0xFF)
 	{
 		/* Yea, broadcast thread 
 		 * Locate the least used CPU 
 		 * TODO */
-		while (glb_schedulers[i] != NULL)
+		while (GlbSchedulers[i] != NULL)
 		{
-			if (glb_schedulers[i]->num_threads < glb_schedulers[index]->num_threads)
+			if (GlbSchedulers[i]->NumThreads < GlbSchedulers[index]->NumThreads)
 				index = i;
 
 			i++;
 		}
 
 		/* Now lock the cpu at that core for now */
-		t->cpu_id = index;
+		t->CpuId = index;
 	}
 	else
 	{
 		/* Add it to appropriate list */
-		index = t->cpu_id;
+		index = t->CpuId;
 	}
 
 	/* Get lock */
-	spinlock_acquire(&glb_schedulers[index]->lock);
+	SpinlockAcquire(&GlbSchedulers[index]->Lock);
 
 	/* Append */
-	list_append(glb_schedulers[index]->queues[t->priority], node);
-	glb_schedulers[index]->num_threads++;
+	list_append(GlbSchedulers[index]->Queues[t->Priority], Node);
+	GlbSchedulers[index]->NumThreads++;
 
 	/* Release lock */
-	spinlock_release(&glb_schedulers[index]->lock);
+	SpinlockRelease(&GlbSchedulers[index]->Lock);
 
 	/* Wakeup CPU if sleeping */
-	if (threading_get_current_thread(t->cpu_id)->flags & 0x20)
-		lapic_send_ipi((uint8_t)t->cpu_id, INTERRUPT_YIELD);
+	if (threading_get_current_thread(t->CpuId)->Flags & 0x20)
+		ApicSendIpi((uint8_t)t->CpuId, INTERRUPT_YIELD);
 }
 
 /* Make a thread enter sleep */
-void scheduler_sleep_thread(addr_t *resource)
+void SchedulerSleepThread(Addr_t *Resource)
 {
 	/* Mark current thread for sleep and get its queue_node */
-	interrupt_status_t int_state = interrupt_disable();
+	IntStatus_t int_state = InterruptDisable();
 	list_node_t *t_node = threading_enter_sleep();
-	thread_t *t = (thread_t*)t_node->data;
+	Thread_t *t = (Thread_t*)t_node->data;
 
 	/* Add to list */
-	t->sleep_resource = resource;
-	list_append(sleep_queue, t_node);
+	t->SleepResource = Resource;
+	list_append(SleepQueue, t_node);
 
 	/* Restore interrupts */
-	interrupt_set_state(int_state);
+	InterruptRestoreState(int_state);
 }
 
 /* Wake up a thread sleeping */
-int scheduler_wakeup_one(addr_t *resource)
+int SchedulerWakeupOneThread(Addr_t *Resource)
 {
 	/* Find first thread matching resource */
 	list_node_t *match = NULL;
-	foreach(i, sleep_queue)
+	foreach(i, SleepQueue)
 	{
-		thread_t *t = (thread_t*)i->data;
+		Thread_t *t = (Thread_t*)i->data;
 
-		if (t->sleep_resource == resource)
+		if (t->SleepResource == Resource)
 		{
 			match = i;
 			break;
@@ -194,13 +194,13 @@ int scheduler_wakeup_one(addr_t *resource)
 
 	if (match != NULL)
 	{
-		thread_t *t = (thread_t*)match->data;
-		list_remove_by_node(sleep_queue, match);
+		Thread_t *t = (Thread_t*)match->data;
+		list_remove_by_node(SleepQueue, match);
 
 		/* Grant it top priority */
-		t->priority = -1;
+		t->Priority = -1;
 
-		scheduler_ready_thread(match);
+		SchedulerReadyThread(match);
 		return 1;
 	}
 	else
@@ -208,74 +208,74 @@ int scheduler_wakeup_one(addr_t *resource)
 }
 
 /* Wake up a all threads sleeping */
-void scheduler_wakeup_all(addr_t *resource)
+void SchedulerWakeupAllThreads(Addr_t *Resource)
 {
 	while (1)
 	{
-		if (!scheduler_wakeup_one(resource))
+		if (!SchedulerWakeupOneThread(Resource))
 			break;
 	}
 }
 
 /* Schedule */
-list_node_t *scheduler_schedule(cpu_t cpu, list_node_t *node, int preemptive)
+list_node_t *SchedulerGetNextTask(Cpu_t cpu, list_node_t *Node, int PreEmptive)
 {
 	int i;
 	list_node_t *next = NULL;
-	thread_t *t;
+	Thread_t *t;
 	uint32_t time_slice;
 
 	/* Sanity */
-	if (glb_scheduler_enabled == 0 || glb_schedulers[cpu] == NULL)
-		return node;
+	if (GlbSchedulerEnabled == 0 || GlbSchedulers[cpu] == NULL)
+		return Node;
 
 	/* Get the time delta */
-	if (node != NULL)
+	if (Node != NULL)
 	{
-		t = (thread_t*)node->data;
-		time_slice = t->time_slice;
+		t = (Thread_t*)Node->data;
+		time_slice = t->TimeSlice;
 
 		/* Increase its priority */
-		if (preemptive != 0
-			&& t->priority < MCORE_SYSTEM_QUEUE) /* Must be below 60, 60 is highest normal queue */
+		if (PreEmptive != 0
+			&& t->Priority < MCORE_SYSTEM_QUEUE) /* Must be below 60, 60 is highest normal queue */
 		{
 			/* Reduce priority */
-			t->priority++;
+			t->Priority++;
 
 			/* Recalculate time-slice */
-			t->time_slice = (t->priority * 2) + MCORE_INITIAL_TIMESLICE;
+			t->TimeSlice = (t->Priority * 2) + MCORE_INITIAL_TIMESLICE;
 		}
 
 		/* Schedúle */
-		scheduler_ready_thread(node);
+		SchedulerReadyThread(Node);
 	}
 	else
 		time_slice = MCORE_INITIAL_TIMESLICE;
 
 	/* Acquire Lock */
-	spinlock_acquire_nint(&glb_schedulers[cpu]->lock);
+	SpinlockAcquireNoInt(&GlbSchedulers[cpu]->Lock);
 
 	/* Step 3. Boost??? */
-	glb_schedulers[cpu]->boost_timer += time_slice;
+	GlbSchedulers[cpu]->BoostTimer += time_slice;
 
-	if (glb_schedulers[cpu]->boost_timer >= MCORE_SCHEDULER_BOOST_MS)
+	if (GlbSchedulers[cpu]->BoostTimer >= MCORE_SCHEDULER_BOOST_MS)
 	{
-		scheduler_boost(glb_schedulers[cpu]);
+		SchedulerBoost(GlbSchedulers[cpu]);
 
-		glb_schedulers[cpu]->boost_timer = 0;
+		GlbSchedulers[cpu]->BoostTimer = 0;
 	}
 
 	/* Step 4. Get next node */
 	for (i = 0; i < MCORE_SCHEDULER_LEVELS; i++)
 	{
 		/* Do we even have any nodes in here ? */
-		if (glb_schedulers[cpu]->queues[i]->length > 0)
+		if (GlbSchedulers[cpu]->Queues[i]->length > 0)
 		{
-			next = list_pop_front(glb_schedulers[cpu]->queues[i]);
+			next = list_pop_front(GlbSchedulers[cpu]->Queues[i]);
 
 			if (next != NULL)
 			{
-				glb_schedulers[cpu]->num_threads--;
+				GlbSchedulers[cpu]->NumThreads--;
 				goto done;
 			}
 		}
@@ -285,7 +285,7 @@ list_node_t *scheduler_schedule(cpu_t cpu, list_node_t *node, int preemptive)
 done:
 
 	/* Release Lock */
-	spinlock_release_nint(&glb_schedulers[cpu]->lock);
+	SpinlockReleaseNoInt(&GlbSchedulers[cpu]->Lock);
 
 	/* Return */
 	return next;

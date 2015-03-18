@@ -20,67 +20,68 @@
 */
 
 /* Includes */
-#include <arch.h>
+#include <Arch.h>
 #include <assert.h>
-#include <scheduler.h>
-#include <thread.h>
-#include <memory.h>
-#include <list.h>
-#include <lapic.h>
-#include <heap.h>
-#include <gdt.h>
+#include <Scheduler.h>
+#include <Thread.h>
+#include <Memory.h>
+#include <List.h>
+#include <LApic.h>
+#include <Heap.h>
+#include <Gdt.h>
+#include <Mutex.h>
 #include <string.h>
 #include <stdio.h>
 
 /* Globals */
-list_t *threads = NULL;
-list_t *zombies = NULL;
-volatile tid_t glb_thread_id = 0;
-volatile list_node_t *glb_current_threads[64];
-volatile list_node_t *glb_idle_threads[64];
-volatile uint8_t glb_threading_enabled = 0;
-spinlock_t glb_thread_lock;
+list_t *GlbThreads = NULL;
+list_t *GlbZombieThreads = NULL;
+volatile TId_t GlbThreadId = 0;
+volatile list_node_t *GlbCurrentThreads[64];
+volatile list_node_t *GlbIdleThreads[64];
+volatile uint8_t GlbThreadingEnabled = 0;
+Mutex_t GlbThreadLock;
 
 /* Externs */
-extern volatile uint32_t timer_quantum;
+extern volatile uint32_t GlbTimerQuantum;
 extern uint32_t memory_get_cr3(void);
-extern void save_fpu(addr_t *buffer);
+extern void save_fpu(Addr_t *buffer);
 extern void set_ts(void);
 extern void _yield(void);
-extern void enter_thread(registers_t *regs);
+extern void enter_thread(Registers_t *regs);
 
 /* The YIELD handler */
-int threading_yield(void *args)
+int ThreadingYield(void *Args)
 {
 	/* Get registers */
-	registers_t *regs = NULL;
+	Registers_t *regs = NULL;
 	uint32_t time_slice = 20;
 	uint32_t task_priority = 0;
-	cpu_t cpu = get_cpu();
+	Cpu_t cpu = ApicGetCpu();
 
 	/* Send EOI */
-	apic_send_eoi();
+	ApicSendEoi();
 
 	/* Switch Task */ 
-	regs = (void*)threading_switch((registers_t*)args, 0, &time_slice, &task_priority);
+	regs = (void*)threading_switch((Registers_t*)Args, 0, &time_slice, &task_priority);
 
 	/* If we just got hold of idle task, well fuck it disable timer
 	* untill we get another task */
-	if (!(threading_get_current_thread(cpu)->flags & X86_THREAD_IDLE))
+	if (!(ThreadingGetCurrentThread(cpu)->Flags & X86_THREAD_IDLE))
 	{
 		/* Set Task Priority */
-		apic_set_task_priority(61 - task_priority);
+		ApicSetTaskPriority(61 - task_priority);
 
 		/* Reset Timer Tick */
-		apic_write_local(LAPIC_INITIAL_COUNT, timer_quantum * time_slice);
+		ApicWriteLocal(LAPIC_INITIAL_COUNT, GlbTimerQuantum * time_slice);
 
 		/* Re-enable timer in one-shot mode */
-		apic_write_local(LAPIC_TIMER_VECTOR, INTERRUPT_TIMER);		//0x20000 - Periodic
+		ApicWriteLocal(LAPIC_TIMER_VECTOR, INTERRUPT_TIMER);		//0x20000 - Periodic
 	}
 	else
 	{
-		apic_write_local(LAPIC_TIMER_VECTOR, 0x10000);
-		apic_set_task_priority(0);
+		ApicWriteLocal(LAPIC_TIMER_VECTOR, 0x10000);
+		ApicSetTaskPriority(0);
 	}
 
 	/* Enter new thread */
@@ -92,182 +93,175 @@ int threading_yield(void *args)
 
 /* Initialization 
  * Creates the main thread */
-void threading_init(void)
+void ThreadingInit(void)
 {
-	thread_t *init;
+	Thread_t *init;
 	list_node_t *node;
 
 	/* Create threading list */
-	threads = list_create(LIST_SAFE);
-	zombies = list_create(LIST_SAFE);
-	glb_thread_id = 0;
+	GlbThreads = list_create(LIST_SAFE);
+	GlbZombieThreads = list_create(LIST_SAFE);
+	GlbThreadId = 0;
 
 	/* Setup initial thread */
-	init = (thread_t*)kmalloc(sizeof(thread_t));
-	init->name = strdup("Idle");
-	init->fpu_buffer = kmalloc_a(0x1000);
-	init->priority = 60;
-	init->flags = X86_THREAD_FPU_INITIALISED | X86_THREAD_USEDFPU | X86_THREAD_CPU_BOUND | X86_THREAD_IDLE;
-	init->time_slice = MCORE_IDLE_TIMESLICE;
-	init->parent_id = 0xDEADBEEF;
-	init->thread_id = glb_thread_id;
-	init->cpu_id = 0;
-	init->context = NULL;
-	init->user_context = NULL;
-	init->cr3 = memory_get_cr3();
-	init->page_dir = memory_get_current_pdir(0);
-	init->func = NULL;
-	init->args = NULL;
-	init->sleep_resource = NULL;
+	init = (Thread_t*)kmalloc(sizeof(Thread_t));
+	init->Name = strdup("Idle");
+	init->FpuBuffer = kmalloc_a(0x1000);
+	init->Priority = 60;
+	init->Flags = X86_THREAD_FPU_INITIALISED | X86_THREAD_USEDFPU | X86_THREAD_CPU_BOUND | X86_THREAD_IDLE;
+	init->TimeSlice = MCORE_IDLE_TIMESLICE;
+	init->ParentId = 0xDEADBEEF;
+	init->ThreadId = GlbThreadId;
+	init->CpuId = 0;
+	init->Context = NULL;
+	init->UserContext = NULL;
+	init->Cr3 = memory_get_cr3();
+	init->PageDirectory = MmVirtualGetCurrentDirectory(0);
+	init->Func = NULL;
+	init->Args = NULL;
+	init->SleepResource = NULL;
 
 	/* Reset lock */
-	spinlock_reset(&glb_thread_lock);
+	MutexConstruct(&GlbThreadLock);
 
 	/* Memset the buffer */
-	memset(init->fpu_buffer, 0, 0x1000);
+	memset(init->FpuBuffer, 0, 0x1000);
 
 	/* Create a node for the scheduler */
-	node = list_create_node(glb_thread_id, init);
-	glb_current_threads[0] = node;
-	glb_idle_threads[0] = node;
-
+	node = list_create_node(GlbThreadId, init);
+	GlbCurrentThreads[0] = node;
+	GlbIdleThreads[0] = node;
 
 	/* Create a node for the thread-list */
-	node = list_create_node(glb_thread_id, init);
-	list_append(threads, node);
+	node = list_create_node(GlbThreadId, init);
+	list_append(GlbThreads, node);
 
 	/* Increase Id */
-	glb_thread_id++;
+	GlbThreadId++;
 
 	/* Install Yield */
-	interrupt_install_soft(INTERRUPT_YIELD, threading_yield, NULL);
+	InterruptInstallIdtOnly(INTERRUPT_YIELD, ThreadingYield, NULL);
 
 	/* Enable */
-	glb_threading_enabled = 1;
+	GlbThreadingEnabled = 1;
 }
 
 /* Initialises AP task */
-void threading_ap_init(void)
+void ThreadingApInit(void)
 {
-	cpu_t cpu;
-	thread_t *init;
+	Cpu_t cpu;
+	Thread_t *init;
 	list_node_t *node;
 
-	/* Acquire Lock */
-	spinlock_acquire_nint(&glb_thread_lock);
-
 	/* Setup initial thread */
-	cpu = get_cpu();
-	init = (thread_t*)kmalloc(sizeof(thread_t));
-	init->name = strdup("ApIdle");
-	init->fpu_buffer = kmalloc_a(0x1000);
-	init->priority = 60;
-	init->flags = X86_THREAD_FPU_INITIALISED | X86_THREAD_USEDFPU | X86_THREAD_CPU_BOUND | X86_THREAD_IDLE;
-	init->time_slice = MCORE_IDLE_TIMESLICE;
-	init->parent_id = 0xDEADBEEF;
-	init->thread_id = glb_thread_id;
-	init->cpu_id = cpu;
-	init->context = NULL;
-	init->user_context = NULL;
-	init->cr3 = memory_get_cr3();
-	init->page_dir = memory_get_current_pdir(cpu);
-	init->func = NULL;
-	init->args = NULL;
-	init->sleep_resource = NULL;
+	cpu = ApicGetCpu();
+	init = (Thread_t*)kmalloc(sizeof(Thread_t));
+	init->Name = strdup("ApIdle");
+	init->FpuBuffer = kmalloc_a(0x1000);
+	init->Priority = 60;
+	init->Flags = X86_THREAD_FPU_INITIALISED | X86_THREAD_USEDFPU | X86_THREAD_CPU_BOUND | X86_THREAD_IDLE;
+	init->TimeSlice = MCORE_IDLE_TIMESLICE;
+	init->ParentId = 0xDEADBEEF;
+	init->ThreadId = GlbThreadId;
+	init->CpuId = cpu;
+	init->Context = NULL;
+	init->UserContext = NULL;
+	init->Cr3 = memory_get_cr3(); 
+	init->PageDirectory = MmVirtualGetCurrentDirectory(cpu);
+	init->Func = NULL;
+	init->Args = NULL;
+	init->SleepResource = NULL;
 
 	/* Memset the buffer */
-	memset(init->fpu_buffer, 0, 0x1000);
+	memset(init->FpuBuffer, 0, 0x1000);
 
 	/* Create a node for the scheduler */
-	node = list_create_node(glb_thread_id, init);
-	glb_current_threads[cpu] = node;
-	glb_idle_threads[cpu] = node;
+	node = list_create_node(GlbThreadId, init);
+	GlbCurrentThreads[cpu] = node;
+	GlbIdleThreads[cpu] = node;
 
 	/* Create a node for the thread list */
-	node = list_create_node(glb_thread_id, init);
-	list_append(threads, node);
+	node = list_create_node(GlbThreadId, init);
+	list_append(GlbThreads, node);
 
 	/* Increase Id */
-	glb_thread_id++;
-
-	/* Release */
-	spinlock_release_nint(&glb_thread_lock);
+	GlbThreadId++;
 }
 
 /* Get Current Thread */
-thread_t *threading_get_current_thread(cpu_t cpu)
+Thread_t *ThreadingGetCurrentThread(Cpu_t cpu)
 {
 	/* Get thread */
-	return (thread_t*)glb_current_threads[cpu]->data;
+	return (Thread_t*)GlbCurrentThreads[cpu]->data;
 }
 
 /* Get Current Scheduler(!!!) Node */
-list_node_t *threading_get_current_node(cpu_t cpu)
+list_node_t *ThreadingGetCurrentNode(Cpu_t cpu)
 {
 	/* Get thread */
-	return (list_node_t*)glb_current_threads[cpu];
+	return (list_node_t*)GlbCurrentThreads[cpu];
 }
 
-tid_t threading_get_thread_id(void)
+TId_t ThreadingGetCurrentThreadId(void)
 {
-	cpu_t cpu = get_cpu();
+	Cpu_t cpu = ApicGetCpu();
 
-	if (glb_thread_id == 0)
+	if (GlbThreadId == 0)
 		return 0;
 	else
-		return threading_get_current_thread(cpu)->thread_id;
+		return ThreadingGetCurrentThread(cpu)->ThreadId;
 }
 
 /* Marks current thread for sleep */
-void *threading_enter_sleep(void)
+void *ThreadingEnterSleep(void)
 {
-	cpu_t cpu = get_cpu();
-	thread_t *t = threading_get_current_thread(cpu);
-	t->flags |= X86_THREAD_ENTER_SLEEP;
-	return threading_get_current_node(cpu);
+	Cpu_t cpu = ApicGetCpu();
+	Thread_t *t = ThreadingGetCurrentThread(cpu);
+	t->Flags |= X86_THREAD_ENTER_SLEEP;
+	return ThreadingGetCurrentNode(cpu);
 }
 
 /* Set Current List Node */
-void threading_set_current_node(cpu_t cpu, list_node_t *node)
+void ThreadingUpdateCurrent(Cpu_t cpu, list_node_t *Node)
 {
-	glb_current_threads[cpu] = node;
+	GlbCurrentThreads[cpu] = Node;
 }
 
 /* Cleanup a thread */
-void threading_cleanup_thread(thread_t *thread)
+void ThreadingCleanupThread(Thread_t *Thread)
 {
-	_CRT_UNUSED(thread);
+	_CRT_UNUSED(Thread);
 }
 
 /* Prints threads */
-void threading_debug(void)
+void ThreadingDebugPrint(void)
 {
-	foreach(i, threads)
+	foreach(i, GlbThreads)
 	{
-		thread_t *t = i->data;
+		Thread_t *t = (Thread_t*)i->data;
 		printf("Thread %u (%s) - Flags %u, Priority %u, Timeslice %u\n",
-			t->thread_id, t->name, t->flags, t->priority, t->time_slice);
+			t->ThreadId, t->Name, t->Flags, t->Priority, t->TimeSlice);
 	}
 }
 
 /* This is actually every thread entry point, 
  * It makes sure to handle ALL threads terminating */
-void threading_start(void)
+void ThreadingEntryPoint(void)
 {
-	thread_t *t;
-	cpu_t cpu;
+	Thread_t *t;
+	Cpu_t cpu;
 
 	/* Get cpu */
-	cpu = get_cpu();
+	cpu = ApicGetCpu();
 
 	/* Get current thread */
-	t = threading_get_current_thread(cpu);
+	t = ThreadingGetCurrentThread(cpu);
 
 	/* Call entry point */
-	t->func(t->args);
+	t->Func(t->Args);
 
 	/* IF WE REACH THIS POINT THREAD IS DONE! */
-	t->flags |= X86_THREAD_FINISHED;
+	t->Flags |= X86_THREAD_FINISHED;
 
 	/* Yield */
 	_yield();
@@ -277,168 +271,174 @@ void threading_start(void)
 }
 
 /* Create a new thread */
-tid_t threading_create_thread(char *name, thread_entry function, void *args, int flags)
+TId_t ThreadingCreateThread(char *Name, ThreadEntry_t Function, void *Args, int Flags)
 {
-	thread_t *t, *parent;
-	cpu_t cpu;
+	Thread_t *t, *parent;
+	Cpu_t cpu;
 	list_node_t *node;
 
-	/* Get spinlock */
-	spinlock_acquire(&glb_thread_lock);
+	/* Get mutex */
+	MutexLock(&GlbThreadLock);
 
 	/* Get cpu */
-	cpu = get_cpu();
-	parent = threading_get_current_thread(cpu);
+	cpu = ApicGetCpu();
+	parent = ThreadingGetCurrentThread(cpu);
 
 	/* Allocate a new thread structure */
-	t = (thread_t*)kmalloc(sizeof(thread_t));
+	t = (Thread_t*)kmalloc(sizeof(Thread_t));
 
 	/* Setup */
-	t->name = strdup(name);
-	t->func = function;
-	t->args = args;
-	t->context = context_create((addr_t)threading_start);
-	t->user_context = NULL;
+	t->Name = strdup(Name);
+	t->Func = Function;
+	t->Args = Args;
+	t->Context = ContextCreate((Addr_t)ThreadingEntryPoint);
+	t->UserContext = NULL;
 
 	/* If we are CPU bound :/ */
-	if (flags & THREADING_CPUBOUND)
+	if (Flags & THREADING_CPUBOUND)
 	{
-		t->flags = X86_THREAD_CPU_BOUND;
-		t->cpu_id = cpu;
+		t->Flags = X86_THREAD_CPU_BOUND;
+		t->CpuId = cpu;
 	}
 	else
 	{
 		/* Select the low bearing CPU */
-		t->flags = 0;
-		t->cpu_id = 0xFF;
+		t->Flags = 0;
+		t->CpuId = 0xFF;
 	}
 
-	t->parent_id = parent->thread_id;
-	t->thread_id = glb_thread_id;
-	t->sleep_resource = NULL;
+	t->ParentId = parent->ThreadId;
+	t->ThreadId = GlbThreadId;
+	t->SleepResource = NULL;
 
 	/* Scheduler Related */
-	t->priority = -1;
-	t->time_slice = MCORE_INITIAL_TIMESLICE;
+	t->Priority = -1;
+	t->TimeSlice = MCORE_INITIAL_TIMESLICE;
 	
 	/* Memory */
-	t->cr3 = memory_get_cr3();
-	t->page_dir = memory_get_current_pdir(cpu);
+	t->Cr3 = memory_get_cr3(); 
+	t->PageDirectory = MmVirtualGetCurrentDirectory(cpu);
 
 	/* FPU */
-	t->fpu_buffer = (addr_t*)kmalloc_a(0x1000);
+	t->FpuBuffer = (Addr_t*)kmalloc_a(0x1000);
 
 	/* Memset the buffer */
-	memset(t->fpu_buffer, 0, 0x1000);
+	memset(t->FpuBuffer, 0, 0x1000);
 
 	/* Increase id */
-	glb_thread_id++;
+	GlbThreadId++;
 
 	/* Release lock */
-	spinlock_release(&glb_thread_lock);
+	MutexUnlock(&GlbThreadLock);
 
 	/* Append it to list & scheduler */
-	node = list_create_node(t->thread_id, t);
-	list_append(threads, node);
+	node = list_create_node(t->ThreadId, t);
+	list_append(GlbThreads, node);
 
 	/* Ready */
-	node = list_create_node(t->thread_id, t);
-	scheduler_ready_thread(node);
+	node = list_create_node(t->ThreadId, t);
+	SchedulerReadyThread(node);
 
-	return t->thread_id;
+	return t->ThreadId;
 }
 
 /* Task Switch occurs here */
-registers_t *threading_switch(registers_t *regs, int preemptive, uint32_t *time_slice, uint32_t *task_priority)
+Registers_t *ThreadingSwitch(Registers_t *Regs, int PreEmptive, uint32_t *TimeSlice, 
+							 uint32_t *TaskPriority)
 {
-	cpu_t cpu;
-	thread_t *t;
+	Cpu_t cpu;
+	Thread_t *t;
 	list_node_t *node;
 
 	/* Sanity */
-	if (glb_threading_enabled == 0)
-		return regs;
+	if (GlbThreadingEnabled == 0)
+		return Regs;
 
 	/* Get CPU */
-	cpu = get_cpu();
+	cpu = ApicGetCpu();
 
 	/* Get thread */
-	t = threading_get_current_thread(cpu);
+	t = ThreadingGetCurrentThread(cpu);
 
 	/* What the fuck?? */
-	assert(t != NULL && regs != NULL);
+	assert(t != NULL && Regs != NULL);
 
 	/* Save FPU/MMX/SSE State */
-	if (t->flags & X86_THREAD_USEDFPU)
-		save_fpu(t->fpu_buffer);
+	if (t->Flags & X86_THREAD_USEDFPU)
+		save_fpu(t->FpuBuffer);
 
 	/* Save stack */
-	if (t->flags & X86_THREAD_USERMODE)
-		t->user_context = regs;
+	if (t->Flags & X86_THREAD_USERMODE)
+		t->UserContext = Regs;
 	else
-		t->context = regs;
+		t->Context = Regs;
 
 	/* Get a new task! */
-	node = threading_get_current_node(cpu);
+	node = ThreadingGetCurrentNode(cpu);
 
 	/* Unless this one is done.. */
-	if (t->flags & X86_THREAD_FINISHED || t->flags & X86_THREAD_IDLE
-		|| t->flags & X86_THREAD_ENTER_SLEEP)
+	if (t->Flags & X86_THREAD_FINISHED || t->Flags & X86_THREAD_IDLE
+		|| t->Flags & X86_THREAD_ENTER_SLEEP)
 	{
 		/* Someone should really kill those zombies :/ */
-		if (t->flags & X86_THREAD_FINISHED)
+		if (t->Flags & X86_THREAD_FINISHED)
 		{
-			list_node_t *n = list_get_data_by_id(threads, t->thread_id, 0);
-			list_remove_by_node(threads, n);
-			list_append(zombies, n);
+			/* Get thread node */
+			list_node_t *n = list_get_data_by_id(GlbThreads, t->ThreadId, 0);
+			
+			/* Remove it */
+			list_remove_by_node(GlbThreads, n);
+
+			/* Append to reaper list */
+			list_append(GlbZombieThreads, n);
 		}
 
 		/* Remove flag so it does not happen again */
-		if (t->flags & X86_THREAD_ENTER_SLEEP)
-			t->flags &= ~(X86_THREAD_ENTER_SLEEP);
+		if (t->Flags & X86_THREAD_ENTER_SLEEP)
+			t->Flags &= ~(X86_THREAD_ENTER_SLEEP);
 
-		node = scheduler_schedule(cpu, NULL, preemptive);
+		node = SchedulerGetNextTask(cpu, NULL, PreEmptive);
 	}
 	else
 	{
 		/* Yea we dont schedule idle tasks :-) */
-		node = scheduler_schedule(cpu, node, preemptive);
+		node = SchedulerGetNextTask(cpu, node, PreEmptive);
 	}
 
 	/* Sanity */
 	if (node == NULL)
-		node = (list_node_t*)glb_idle_threads[cpu];
+		node = (list_node_t*)GlbIdleThreads[cpu];
 
 	/* Update current */
-	threading_set_current_node(cpu, node);
-	t = threading_get_current_thread(cpu);
+	ThreadingUpdateCurrent(cpu, node);
+	t = ThreadingGetCurrentThread(cpu);
 
 	/* Update user variables */
-	*time_slice = t->time_slice;
-	*task_priority = t->priority;
+	*TimeSlice = t->TimeSlice;
+	*TaskPriority = t->Priority;
 
 	/* Update Addressing Space */
-	memory_switch_directory(cpu, (page_directory_t*)t->page_dir, t->cr3);
+	MmVirtualSwitchPageDirectory(cpu, (PageDirectory_t*)t->PageDirectory, t->Cr3);
 
 	/* Set TSS */
-	gdt_update_tss(cpu, (addr_t)t->context);
+	TssUpdateStack(cpu, (Addr_t)t->Context);
 
 	/* Finish Transition */
-	if (t->flags & X86_THREAD_TRANSITION)
+	if (t->Flags & X86_THREAD_TRANSITION)
 	{
-		t->flags &= ~X86_THREAD_TRANSITION;
-		t->flags |= X86_THREAD_USERMODE;
+		t->Flags &= ~X86_THREAD_TRANSITION;
+		t->Flags |= X86_THREAD_USERMODE;
 	}
 
 	/* Clear FPU/MMX/SSE */
-	t->flags &= ~X86_THREAD_USEDFPU;
+	t->Flags &= ~X86_THREAD_USEDFPU;
 
 	/* Set TS bit in CR0 */
 	set_ts();
 
 	/* Return new stack */
-	if (t->flags & X86_THREAD_USERMODE)
-		return t->user_context;
+	if (t->Flags & X86_THREAD_USERMODE)
+		return t->UserContext;
 	else
-		return t->context;
+		return t->Context;
 }

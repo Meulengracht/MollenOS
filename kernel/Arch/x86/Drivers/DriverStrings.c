@@ -20,21 +20,21 @@
 */
 
 /* Includes */
-#include <arch.h>
-#include <pci.h>
+#include <Arch.h>
+#include <Pci.h>
 #include <stddef.h>
 #include <stdio.h>
 #include <limits.h>
 
 /* Decode PCI Device to String */
-char *pci_to_string(uint8_t class, uint8_t sub_class, uint8_t prog_if)
+char *PciToString(uint8_t Class, uint8_t SubClass, uint8_t Interface)
 {
-	switch (class)
+	switch (Class)
 	{
 		/* Device was built prior definition of the class code field */
 	case 0:
 	{
-		switch (sub_class)
+		switch (SubClass)
 		{
 		case 0:
 		{
@@ -56,7 +56,7 @@ char *pci_to_string(uint8_t class, uint8_t sub_class, uint8_t prog_if)
 	/* Mass Storage Controller */
 	case 1:
 	{
-		switch (sub_class)
+		switch (SubClass)
 		{
 		case 0:
 		{
@@ -86,7 +86,7 @@ char *pci_to_string(uint8_t class, uint8_t sub_class, uint8_t prog_if)
 		case 5:
 		{
 			/* ATA */
-			if (prog_if == 0x20)
+			if (Interface == 0x20)
 				return "ATA Controller (Single DMA)";
 			else
 				return "ATA Controller (Chained DMA)";
@@ -95,7 +95,7 @@ char *pci_to_string(uint8_t class, uint8_t sub_class, uint8_t prog_if)
 		case 6:
 		{
 			/* AHCI */
-			if (prog_if == 0x0)
+			if (Interface == 0x0)
 				return "Serial ATA (Vendor Specific Interface)";
 			else
 				return "Serial ATA (AHCI 1.0)";
@@ -121,7 +121,7 @@ char *pci_to_string(uint8_t class, uint8_t sub_class, uint8_t prog_if)
 	/* Network Controller */
 	case 2:
 	{
-		switch (sub_class)
+		switch (SubClass)
 		{
 		case 0:
 		{
@@ -173,11 +173,11 @@ char *pci_to_string(uint8_t class, uint8_t sub_class, uint8_t prog_if)
 	/* Display Controller */
 	case 3:
 	{
-		switch (sub_class)
+		switch (SubClass)
 		{
 		case 0:
 		{
-			if (prog_if == 0x0)
+			if (Interface == 0x0)
 				return "VGA-Compatible Controller";
 			else
 				return "8512-Compatible Controller";
@@ -208,7 +208,7 @@ char *pci_to_string(uint8_t class, uint8_t sub_class, uint8_t prog_if)
 	/* Multimedia Controller */
 	case 4:
 	{
-		switch (sub_class)
+		switch (SubClass)
 		{
 		case 0:
 		{
@@ -245,7 +245,7 @@ char *pci_to_string(uint8_t class, uint8_t sub_class, uint8_t prog_if)
 	/* Memory Controller */
 	case 5:
 	{
-		switch (sub_class)
+		switch (SubClass)
 		{
 		case 0:
 		{
@@ -272,7 +272,7 @@ char *pci_to_string(uint8_t class, uint8_t sub_class, uint8_t prog_if)
 	/* Bridge Device */
 	case 6:
 	{
-		switch (sub_class)
+		switch (SubClass)
 		{
 		case 0:
 		{
@@ -296,7 +296,7 @@ char *pci_to_string(uint8_t class, uint8_t sub_class, uint8_t prog_if)
 
 		case 4:
 		{
-			if (prog_if == 0x0)
+			if (Interface == 0x0)
 				return "PCI-to-PCI Bridge";
 			else
 				return "PCI-to-PCI Bridge (Subtractive Decode)";
@@ -324,7 +324,7 @@ char *pci_to_string(uint8_t class, uint8_t sub_class, uint8_t prog_if)
 
 		case 9:
 		{
-			if (prog_if == 0x40)
+			if (Interface == 0x40)
 				return "PCI-to-PCI Bridge (Semi-Transparent, Primary)";
 			else
 				return "PCI-to-PCI Bridge (Semi-Transparent, Secondary)";
@@ -350,11 +350,11 @@ char *pci_to_string(uint8_t class, uint8_t sub_class, uint8_t prog_if)
 	/* Simple Communication Controllers */
 	case 7:
 	{
-		switch (sub_class)
+		switch (SubClass)
 		{
 		case 0:
 		{
-			switch (prog_if)
+			switch (Interface)
 			{
 			case 0:
 			{
@@ -400,7 +400,7 @@ char *pci_to_string(uint8_t class, uint8_t sub_class, uint8_t prog_if)
 
 		case 1:
 		{
-			switch (prog_if)
+			switch (Interface)
 			{
 			case 0:
 			{
@@ -441,7 +441,7 @@ char *pci_to_string(uint8_t class, uint8_t sub_class, uint8_t prog_if)
 
 		case 3:
 		{
-			switch (prog_if)
+			switch (Interface)
 			{
 			case 0:
 			{
@@ -500,11 +500,11 @@ char *pci_to_string(uint8_t class, uint8_t sub_class, uint8_t prog_if)
 	/* Base System Peripherals */
 	case 8:
 	{
-		switch (sub_class)
+		switch (SubClass)
 		{
 		case 0:
 		{
-			switch (prog_if)
+			switch (Interface)
 			{
 			case 0:
 			{
@@ -540,7 +540,7 @@ char *pci_to_string(uint8_t class, uint8_t sub_class, uint8_t prog_if)
 
 		case 1:
 		{
-			switch (prog_if)
+			switch (Interface)
 			{
 			case 0:
 			{
@@ -566,7 +566,7 @@ char *pci_to_string(uint8_t class, uint8_t sub_class, uint8_t prog_if)
 
 		case 2:
 		{
-			switch (prog_if)
+			switch (Interface)
 			{
 			case 0:
 			{
@@ -592,7 +592,7 @@ char *pci_to_string(uint8_t class, uint8_t sub_class, uint8_t prog_if)
 
 		case 3:
 		{
-			if (prog_if == 0x0)
+			if (Interface == 0x0)
 				return "Generic RTC Controller";
 			else
 				return "ISA RTC Controller";
@@ -618,7 +618,7 @@ char *pci_to_string(uint8_t class, uint8_t sub_class, uint8_t prog_if)
 	/* Input Devices */
 	case 9:
 	{
-		switch (sub_class)
+		switch (SubClass)
 		{
 		case 0:
 		{
@@ -642,7 +642,7 @@ char *pci_to_string(uint8_t class, uint8_t sub_class, uint8_t prog_if)
 
 		case 4:
 		{
-			if (prog_if == 0x0)
+			if (Interface == 0x0)
 				return "Gameport Controller (Generic)";
 			else
 				return "Gameport Contrlller (Legacy)";
@@ -663,7 +663,7 @@ char *pci_to_string(uint8_t class, uint8_t sub_class, uint8_t prog_if)
 	/* Docking Stations */
 	case 10:
 	{
-		if (sub_class == 0x0)
+		if (SubClass == 0x0)
 			return "Generic Docking Station";
 		else
 			return "Other Docking Station";
@@ -672,7 +672,7 @@ char *pci_to_string(uint8_t class, uint8_t sub_class, uint8_t prog_if)
 	/* Processors */
 	case 11:
 	{
-		switch (sub_class)
+		switch (SubClass)
 		{
 		case 0:
 		{
@@ -719,11 +719,11 @@ char *pci_to_string(uint8_t class, uint8_t sub_class, uint8_t prog_if)
 	/* Serial Bus Controllers */
 	case 12:
 	{
-		switch (sub_class)
+		switch (SubClass)
 		{
 		case 0:
 		{
-			if (prog_if == 0x0)
+			if (Interface == 0x0)
 				return "IEEE 1394 Controller (FireWire)";
 			else
 				return "IEEE 1394 Controller (1394 OpenHCI Spec)";
@@ -741,7 +741,7 @@ char *pci_to_string(uint8_t class, uint8_t sub_class, uint8_t prog_if)
 
 		case 3:
 		{
-			switch (prog_if)
+			switch (Interface)
 			{
 			case 0:
 			{
@@ -797,7 +797,7 @@ char *pci_to_string(uint8_t class, uint8_t sub_class, uint8_t prog_if)
 
 		case 7:
 		{
-			switch (prog_if)
+			switch (Interface)
 			{
 			case 0:
 			{
@@ -846,7 +846,7 @@ char *pci_to_string(uint8_t class, uint8_t sub_class, uint8_t prog_if)
 	/* Wireless Controllers */
 	case 13:
 	{
-		switch (sub_class)
+		switch (SubClass)
 		{
 		case 0:
 		{
@@ -898,11 +898,11 @@ char *pci_to_string(uint8_t class, uint8_t sub_class, uint8_t prog_if)
 	/* Intelligent I/O Controllers */
 	case 14:
 	{
-		switch (sub_class)
+		switch (SubClass)
 		{
 		case 0:
 		{
-			if (prog_if == 0x0)
+			if (Interface == 0x0)
 				return "Message FIFO";
 			else
 				return "I20 Architecture";
@@ -923,7 +923,7 @@ char *pci_to_string(uint8_t class, uint8_t sub_class, uint8_t prog_if)
 	/* Satellite Communication Controllers */
 	case 15:
 	{
-		switch (sub_class)
+		switch (SubClass)
 		{
 		case 1:
 		{
@@ -960,7 +960,7 @@ char *pci_to_string(uint8_t class, uint8_t sub_class, uint8_t prog_if)
 	/* Encryption/Decryption Controllers */
 	case 16:
 	{
-		switch (sub_class)
+		switch (SubClass)
 		{
 		case 0:
 		{
@@ -987,7 +987,7 @@ char *pci_to_string(uint8_t class, uint8_t sub_class, uint8_t prog_if)
 	/* Data Acquisition and Signal Processing Controllers */
 	case 17:
 	{
-		switch (sub_class)
+		switch (SubClass)
 		{
 		case 0:
 		{

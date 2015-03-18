@@ -51,7 +51,7 @@
     </CustomBuild>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="..\..\Arch\x86\x32\Boot\ApInit.c" />
+    <ClCompile Include="..\..\Arch\x86\x32\Boot\Smp.c" />
     <ClCompile Include="..\..\Arch\x86\Init\Cpu.c" />
     <ClCompile Include="..\..\Arch\x86\Init\Main.c" />
     <ClCompile Include="..\..\Arch\x86\Components\Acpi.c" />

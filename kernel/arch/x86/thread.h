@@ -39,11 +39,13 @@
 #define X86_THREAD_EFLAGS			0x202
 
 /* Prototypes */
-_CRT_EXTERN void threading_init(void);
-_CRT_EXTERN void threading_ap_init(void);
-_CRT_EXTERN Registers_t *threading_switch(Registers_t *regs, int preemptive, uint32_t *time_slice, uint32_t *task_priority);
+_CRT_EXTERN void ThreadingInit(void);
+_CRT_EXTERN void ThreadingApInit(void);
 
+/* Switches active thread */
+_CRT_EXTERN Registers_t *ThreadingSwitch(Registers_t *Regs, int PreEmptive,
+										 uint32_t *TimeSlice, uint32_t *TaskPriority);
 /* Context Manipulation */
-_CRT_EXTERN Registers_t *context_create(Addr_t eip);
+_CRT_EXTERN Registers_t *ContextCreate(Addr_t Eip);
 
 #endif // !_MCORE_THREAD_H_

@@ -32,9 +32,9 @@
 #include <SysTimers.h>
 
 /* Globals */
-volatile uint8_t bootstrap_cpu_id = 0;
-volatile uint32_t timer_ticks[64];
-volatile uint32_t timer_quantum = 0;
+volatile uint8_t GlbBootstrapCpuId = 0;
+volatile uint32_t GlbTimerTicks[64];
+volatile uint32_t GlbTimerQuantum = 0;
 
 /* Externs */
 extern volatile Addr_t local_apic_addr;
@@ -44,45 +44,45 @@ extern list_t *acpi_nodes;
 extern void enter_thread(Registers_t *regs);
 
 /* Primary CPU Timer IRQ */
-int apic_timer_handler(void *args)
+int ApicTimerHandler(void *Args)
 {
 	/* Get registers */
-	registers_t *regs = NULL;
+	Registers_t *regs = NULL;
 	uint32_t time_slice = 20;
 	uint32_t task_priority = 0;
-	cpu_t cpu = get_cpu();
+	Cpu_t cpu = ApicGetCpu();
 
 	/* Uh oh */
-	if (apic_read_local(LAPIC_CURRENT_COUNT) != 0
-		|| apic_read_local(LAPIC_TIMER_VECTOR) & 0x10000)
+	if (ApicReadLocal(LAPIC_CURRENT_COUNT) != 0
+		|| ApicReadLocal(LAPIC_TIMER_VECTOR) & 0x10000)
 		return X86_IRQ_NOT_HANDLED;
 
 	/* Increase timer_ticks */
-	timer_ticks[cpu]++;
+	GlbTimerTicks[cpu]++;
 
 	/* Send EOI */
-	apic_send_eoi();
+	ApicSendEoi();
 
 	/* Switch Task */
-	regs = threading_switch((registers_t*)args, 1, &time_slice, &task_priority);
+	regs = threading_switch((Registers_t*)Args, 1, &time_slice, &task_priority);
 
 	/* If we just got hold of idle task, well fuck it disable timer 
 	 * untill we get another task */
-	if (!(threading_get_current_thread(cpu)->flags & X86_THREAD_IDLE))
+	if (!(threading_get_current_thread(cpu)->Flags & X86_THREAD_IDLE))
 	{
 		/* Set Task Priority */
-		apic_set_task_priority(61 - task_priority);
+		ApicSetTaskPriority(61 - task_priority);
 
 		/* Reset Timer Tick */
-		apic_write_local(LAPIC_INITIAL_COUNT, timer_quantum * time_slice);
+		ApicWriteLocal(LAPIC_INITIAL_COUNT, GlbTimerQuantum * time_slice);
 
 		/* Re-enable timer in one-shot mode */
-		apic_write_local(LAPIC_TIMER_VECTOR, INTERRUPT_TIMER);		//0x20000 - Periodic
+		ApicWriteLocal(LAPIC_TIMER_VECTOR, INTERRUPT_TIMER);		//0x20000 - Periodic
 	}
 	else
 	{
-		apic_write_local(LAPIC_TIMER_VECTOR, 0x10000);
-		apic_set_task_priority(0);
+		ApicWriteLocal(LAPIC_TIMER_VECTOR, 0x10000);
+		ApicSetTaskPriority(0);
 	}
 	
 	/* Enter new thread */
@@ -93,17 +93,20 @@ int apic_timer_handler(void *args)
 }
 
 /* Spurious handler */
-int apic_spurious_handler(void *args)
+int ApicSpuriousHandler(void *Args)
 {
-	args = args;
+	/* Unused */
+	_CRT_UNUSED(Args);
+
+	/* Yay, we handled it ... */
 	return X86_IRQ_HANDLED;
 }
 
 /* This function redirects a IO Apic */
-void apic_setup_ioapic(void *data, int n)
+void ApicSetupIoApic(void *Data, int n)
 {
 	/* Cast Data */
-	ACPI_MADT_IO_APIC *ioapic = (ACPI_MADT_IO_APIC*)data;
+	ACPI_MADT_IO_APIC *ioapic = (ACPI_MADT_IO_APIC*)Data;
 	uint32_t io_entries, i, j;
 	uint8_t io_apic_num = (uint8_t)n; 
 	uint64_t io_entry_flags = 0;
@@ -111,13 +114,13 @@ void apic_setup_ioapic(void *data, int n)
 	printf("    * Redirecting I/O Apic %u\n", ioapic->Id);
 
 	/* Make sure address is mapped */
-	if (!memory_getmap(NULL, ioapic->Address))
-		memory_map(NULL, ioapic->Address, ioapic->Address, 0);
+	if (!MmVirtualGetMapping(NULL, ioapic->Address))
+		MmVirtualMap(NULL, ioapic->Address, ioapic->Address, 0);
 
 	/* Maximum Redirection Entry—RO. This field contains the entry number (0 being the lowest
 	 * entry) of the highest entry in the I/O Redirection Table. The value is equal to the number of
 	 * interrupt input pins for the IOAPIC minus one. The range of values is 0 through 239. */
-	io_entries = apic_read_io(io_apic_num, 1);
+	io_entries = ApicIoRead(io_apic_num, 1);
 	io_entries >>= 16;
 	io_entries &= 0xFF;
 
@@ -160,11 +163,11 @@ void apic_setup_ioapic(void *data, int n)
 	{
 		/* ex: we map io apic interrupts 0 - 23 to irq 32 - 55 */
 		/* So when interrupts 0 - 23 gets raised, they point to 32 - 55 in IDT */
-		apic_write_entry_io(io_apic_num, (0x10 + (j * 2)), (io_entry_flags | (0x20 + i)));
+		ApicWriteIoEntry(io_apic_num, (0x10 + (j * 2)), (io_entry_flags | (0x20 + i)));
 	}
 }
 
-void apic_init(void)
+void ApicBspInit(void)
 {
 	/* Inititalize & Remap PIC. WE HAVE TO DO THIS :( */
 	
@@ -196,21 +199,21 @@ void apic_init(void)
 	outb(0x23, 0x1);
 
 	/* Setup Local Apic */
-	lapic_init();
+	ApicLocalInit();
 
 	/* Now! Setup I/O Apics */
-	list_execute_on_id(acpi_nodes, apic_setup_ioapic, ACPI_MADT_TYPE_IO_APIC);
+	list_execute_on_id(acpi_nodes, ApicSetupIoApic, ACPI_MADT_TYPE_IO_APIC);
 
 	/* Install spurious handlers */
-	interrupt_install_soft(INTERRUPT_SPURIOUS7, apic_spurious_handler, NULL);
-	interrupt_install_soft(INTERRUPT_SPURIOUS, apic_spurious_handler, NULL);
+	InterruptInstallIdtOnly(INTERRUPT_SPURIOUS7, ApicSpuriousHandler, NULL);
+	InterruptInstallIdtOnly(INTERRUPT_SPURIOUS, ApicSpuriousHandler, NULL);
 
 	/* Done! Enable interrupts */
 	printf("    * Enabling interrupts...\n");
-	interrupt_enable();
+	InterruptEnable();
 
 	/* Kickstart things */
-	apic_send_eoi();
+	ApicSendEoi();
 
 	/* We install our timer here, we need it later on 
 	 * TODO check for HPET first, then use RTC if it does not exist */
@@ -219,76 +222,76 @@ void apic_init(void)
 }
 
 /* Enable/Config LAPIC */
-void lapic_init(void)
+void ApicLocalInit(void)
 {
 	/* Vars */
 	uint32_t bsp_apic = 0;
 
 	/* Set destination format register to flat model */
-	apic_write_local(LAPIC_DEST_FORMAT, 0xF0000000);
+	ApicWriteLocal(LAPIC_DEST_FORMAT, 0xF0000000);
 
 	/* Set bits 31-24 for all cores to be in Group 1 in logical destination register */
-	apic_write_local(LAPIC_LOGICAL_DEST, 0xFF000000);
+	ApicWriteLocal(LAPIC_LOGICAL_DEST, 0xFF000000);
 
 	/* Reset register states */
-	apic_write_local(LAPIC_ERROR_REGISTER, 0x10000);
-	apic_write_local(LAPIC_LINT0_REGISTER, 0x10000);
-	apic_write_local(LAPIC_LINT1_REGISTER, 0x10000);
-	apic_write_local(LAPIC_PERF_MONITOR, 0x10000);
-	apic_write_local(LAPIC_THERMAL_SENSOR, 0x10000);
-	apic_write_local(LAPIC_TIMER_VECTOR, 0x10000);
+	ApicWriteLocal(LAPIC_ERROR_REGISTER, 0x10000);
+	ApicWriteLocal(LAPIC_LINT0_REGISTER, 0x10000);
+	ApicWriteLocal(LAPIC_LINT1_REGISTER, 0x10000);
+	ApicWriteLocal(LAPIC_PERF_MONITOR, 0x10000);
+	ApicWriteLocal(LAPIC_THERMAL_SENSOR, 0x10000);
+	ApicWriteLocal(LAPIC_TIMER_VECTOR, 0x10000);
 
 	/* Enable local apic */
 	/* Install Spurious vector */
-	apic_write_local(LAPIC_SPURIOUS_REG, 0x100 | INTERRUPT_SPURIOUS);	// Set bit 8 in SVR.
+	ApicWriteLocal(LAPIC_SPURIOUS_REG, 0x100 | INTERRUPT_SPURIOUS);	// Set bit 8 in SVR.
 
 	/* Set initial task priority */
-	apic_set_task_priority(0);
+	ApicSetTaskPriority(0);
 
 	/* Get bootstrap CPU */
-	bsp_apic = apic_read_local(0x20);
+	bsp_apic = ApicReadLocal(0x20);
 	bsp_apic >>= 24;
-	bootstrap_cpu_id = (uint8_t)(bsp_apic & 0xFF);
+	GlbBootstrapCpuId = (uint8_t)(bsp_apic & 0xFF);
 }
 
 /* Enable/Config AP LAPIC */
-void lapic_ap_init(void)
+void ApicApInit(void)
 {
 	/* Set destination format register to flat model */
-	apic_write_local(LAPIC_DEST_FORMAT, 0xF0000000);
+	ApicWriteLocal(LAPIC_DEST_FORMAT, 0xF0000000);
 
 	/* Set bits 31-24 for all cores to be in Group 1 in logical destination register */
-	apic_write_local(LAPIC_LOGICAL_DEST, 0xFF000000);
+	ApicWriteLocal(LAPIC_LOGICAL_DEST, 0xFF000000);
 
 	/* Reset register states */
-	apic_write_local(LAPIC_ERROR_REGISTER, 0x10000);
-	apic_write_local(LAPIC_LINT0_REGISTER, 0x10000);
-	apic_write_local(LAPIC_LINT1_REGISTER, 0x10000);
-	apic_write_local(LAPIC_PERF_MONITOR, 0x10000);
-	apic_write_local(LAPIC_THERMAL_SENSOR, 0x10000);
-	apic_write_local(LAPIC_TIMER_VECTOR, 0x10000);
+	ApicWriteLocal(LAPIC_ERROR_REGISTER, 0x10000);
+	ApicWriteLocal(LAPIC_LINT0_REGISTER, 0x10000);
+	ApicWriteLocal(LAPIC_LINT1_REGISTER, 0x10000);
+	ApicWriteLocal(LAPIC_PERF_MONITOR, 0x10000);
+	ApicWriteLocal(LAPIC_THERMAL_SENSOR, 0x10000);
+	ApicWriteLocal(LAPIC_TIMER_VECTOR, 0x10000);
 
 	/* Enable local apic */
 	/* Install Spurious vector */
-	apic_write_local(LAPIC_SPURIOUS_REG, 0x100 | INTERRUPT_SPURIOUS);	// Set bit 8 in SVR.
+	ApicWriteLocal(LAPIC_SPURIOUS_REG, 0x100 | INTERRUPT_SPURIOUS);	// Set bit 8 in SVR.
 
 	/* Set initial task priority */
-	apic_set_task_priority(0);
+	ApicSetTaskPriority(0);
 
 	/* Set divider */
-	apic_write_local(LAPIC_DIVIDE_REGISTER, LAPIC_DIVIDER_1);
+	ApicWriteLocal(LAPIC_DIVIDE_REGISTER, LAPIC_DIVIDER_1);
 
 	/* Setup timer */
-	apic_write_local(LAPIC_INITIAL_COUNT, timer_quantum * 20);
+	ApicWriteLocal(LAPIC_INITIAL_COUNT, GlbTimerQuantum * 20);
 
 	/* Enable timer in one-shot mode */
-	apic_write_local(LAPIC_TIMER_VECTOR, INTERRUPT_TIMER);		//0x20000 - Periodic
+	ApicWriteLocal(LAPIC_TIMER_VECTOR, INTERRUPT_TIMER);		//0x20000 - Periodic
 }
 
 /* Send APIC Interrupt to a core */
-void lapic_send_ipi(uint8_t cpu_destination, uint8_t irq_vector)
+void ApicSendIpi(uint8_t CpuTarget, uint8_t IrqVector)
 {
-	if (cpu_destination == 0xFF)
+	if (CpuTarget == 0xFF)
 	{
 		/* Broadcast */
 	}
@@ -325,32 +328,32 @@ void lapic_send_ipi(uint8_t cpu_destination, uint8_t irq_vector)
 		 * Fixed Delivery
 		 * Edge Sensitive
 		 * Active High */
-		int_setup = cpu_destination;
+		int_setup = CpuTarget;
 		int_setup <<= 56;
 		int_setup |= (1 << 14);
-		int_setup |= irq_vector;
+		int_setup |= IrqVector;
 
 		/* Write upper 32 bits to ICR1 */
-		apic_write_local(0x310, (uint32_t)((int_setup >> 32) & 0xFFFFFFFF));
+		ApicWriteLocal(0x310, (uint32_t)((int_setup >> 32) & 0xFFFFFFFF));
 
 		/* Write lower 32 bits to ICR0 */
-		apic_write_local(0x300, (uint32_t)(int_setup & 0xFFFFFFFF));
+		ApicWriteLocal(0x300, (uint32_t)(int_setup & 0xFFFFFFFF));
 	}
 }
 
 /* Enable PIT & Local Apic */
-void apic_timer_init(void)
+void ApicTimerInit(void)
 {
 	/* Vars */
 	uint32_t divisor = 1193180 / 4;	/* 4 Hertz = 250 ms */
 	uint8_t temp = 0;
 	uint32_t lapic_ticks = 0;
 	
-	memset((void*)timer_ticks, 0, sizeof(timer_ticks));
+	memset((void*)GlbTimerTicks, 0, sizeof(GlbTimerTicks));
 
 	/* Setup initial local apic timer registers */
-	apic_write_local(LAPIC_TIMER_VECTOR, 0x2);
-	apic_write_local(LAPIC_DIVIDE_REGISTER, LAPIC_DIVIDER_1);
+	ApicWriteLocal(LAPIC_TIMER_VECTOR, 0x2);
+	ApicWriteLocal(LAPIC_DIVIDE_REGISTER, LAPIC_DIVIDER_1);
 
 	/* Enable PIT Channel 2 */
 	outb(0x63, (uint8_t)(inb(0x61) & 0xFD | 1));
@@ -363,7 +366,7 @@ void apic_timer_init(void)
 	temp = inb(0x61) & 0xFE;
 	
 	/* Start counters! */
-	apic_write_local(LAPIC_INITIAL_COUNT, 0xFFFFFFFF); /* Set counter to -1 */
+	ApicWriteLocal(LAPIC_INITIAL_COUNT, 0xFFFFFFFF); /* Set counter to -1 */
 
 	outb(0x61, temp);								//gate low
 	outb(0x61, temp | 1);							//gate high
@@ -372,149 +375,153 @@ void apic_timer_init(void)
 	while (!(inb(0x61) & 0x20));
 
 	/* Stop counter! */
-	apic_write_local(LAPIC_TIMER_VECTOR, 0x10000);
+	ApicWriteLocal(LAPIC_TIMER_VECTOR, 0x10000);
 
 	/* Calculate bus frequency */
-	lapic_ticks = (0xFFFFFFFF - apic_read_local(LAPIC_CURRENT_COUNT));
+	lapic_ticks = (0xFFFFFFFF - ApicReadLocal(LAPIC_CURRENT_COUNT));
 	printf("    * Ticks: %u\n", lapic_ticks);
-	timer_quantum = ((lapic_ticks * 4) / 1000) + 1;
+	GlbTimerQuantum = ((lapic_ticks * 4) / 1000) + 1;
 
 	/* We want a minimum of ca 400, this is to ensure on "slow"
 	 * computers we atleast get a few ms of processing power */
-	if (timer_quantum < 400)
-		timer_quantum = 400;
+	if (GlbTimerQuantum < 400)
+		GlbTimerQuantum = 400;
 
-	printf("    * Quantum: %u\n", timer_quantum);
+	printf("    * Quantum: %u\n", GlbTimerQuantum);
 
 	/* Install Interrupt */
-	interrupt_install_broadcast(0, INTERRUPT_TIMER, apic_timer_handler, NULL);
+	InterruptInstallBroadcast(0, INTERRUPT_TIMER, ApicTimerHandler, NULL);
 
 	/* Reset Timer Tick */
-	apic_write_local(LAPIC_INITIAL_COUNT, timer_quantum * 20);
+	ApicWriteLocal(LAPIC_INITIAL_COUNT, GlbTimerQuantum * 20);
 
 	/* Re-enable timer in one-shot mode */
-	apic_write_local(LAPIC_TIMER_VECTOR, INTERRUPT_TIMER);		//0x20000 - Periodic
+	ApicWriteLocal(LAPIC_TIMER_VECTOR, INTERRUPT_TIMER);		//0x20000 - Periodic
 
 	/* Reset divider to make sure */
-	apic_write_local(LAPIC_DIVIDE_REGISTER, LAPIC_DIVIDER_1);
+	ApicWriteLocal(LAPIC_DIVIDE_REGISTER, LAPIC_DIVIDER_1);
 }
 
 /* Read / Write to local apic registers */
-uint32_t apic_read_local(uint32_t reg)
+uint32_t ApicReadLocal(uint32_t Register)
 {
-	return (uint32_t)(*(volatile addr_t*)(local_apic_addr + reg));
+	return (uint32_t)(*(volatile Addr_t*)(local_apic_addr + Register));
 }
 
-void apic_write_local(uint32_t reg, uint32_t value)
+void ApicWriteLocal(uint32_t Register, uint32_t Value)
 {
-	(*(volatile addr_t*)(local_apic_addr + reg)) = value;
+	(*(volatile Addr_t*)(local_apic_addr + Register)) = Value;
 }
 
 /* Shortcut, set task priority register */
-void apic_set_task_priority(uint32_t priority)
+void ApicSetTaskPriority(uint32_t Priority)
 {
 	/* Write it to local apic */
-	apic_write_local(0x80, priority);
+	ApicWriteLocal(0x80, Priority);
 }
 
-uint32_t apic_get_task_priority(void)
+uint32_t ApicGetTaskPriority(void)
 {
 	/* Write it to local apic */
-	return (apic_read_local(0x80) & 0xFF);
+	return (ApicReadLocal(0x80) & 0xFF);
 }
 
 /* Shortcut, send EOI */
-void apic_send_eoi(void)
+void ApicSendEoi(void)
 {
 	/* Dummy read for dodgy pentium cpus */
-	apic_read_local(0x30);
+	ApicReadLocal(0x30);
 
 	/* Send EOI to local apic */
-	apic_write_local(LAPIC_INTERRUPT_ACK, 0);
+	ApicWriteLocal(LAPIC_INTERRUPT_ACK, 0);
 }
 
 /* Read / Write to io apic registers */
-void apic_set_register_io(ACPI_MADT_IO_APIC *io, uint32_t reg)
+void ApicSetIoRegister(ACPI_MADT_IO_APIC *io, uint32_t Register)
 {
 	/* Set register */
-	(*(volatile addr_t*)(io->Address)) = (uint32_t)reg;
+	(*(volatile Addr_t*)(io->Address)) = (uint32_t)Register;
 }
 
-uint32_t apic_read_io(uint8_t ioapic, uint32_t reg)
+/* Read from Io Apic register */
+uint32_t ApicIoRead(uint8_t IoApic, uint32_t Register)
 {
 	/* Get the correct IO APIC address */
 	ACPI_MADT_IO_APIC *io =
-		(ACPI_MADT_IO_APIC*)list_get_data_by_id(acpi_nodes, ACPI_MADT_TYPE_IO_APIC, ioapic);
+		(ACPI_MADT_IO_APIC*)list_get_data_by_id(acpi_nodes, ACPI_MADT_TYPE_IO_APIC, IoApic);
 
 	/* Sanity */
 	assert(io != NULL);
 
 	/* Select register */
-	apic_set_register_io(io, reg);
+	ApicSetIoRegister(io, Register);
 
 	/* Read */
-	return *(volatile addr_t*)(io->Address + 0x10);
+	return *(volatile Addr_t*)(io->Address + 0x10);
 }
 
-void apic_write_io(uint8_t ioapic, uint32_t reg, uint32_t data)
+/* Write to Io Apic register */
+void ApicIoWrite(uint8_t IoApic, uint32_t Register, uint32_t Data)
 {
 	/* Get the correct IO APIC address */
 	ACPI_MADT_IO_APIC *io =
-		(ACPI_MADT_IO_APIC*)list_get_data_by_id(acpi_nodes, ACPI_MADT_TYPE_IO_APIC, ioapic);
+		(ACPI_MADT_IO_APIC*)list_get_data_by_id(acpi_nodes, ACPI_MADT_TYPE_IO_APIC, IoApic);
 
 	/* Sanity */
 	assert(io != NULL);
 
 	/* Select register */
-	apic_set_register_io(io, reg);
+	ApicSetIoRegister(io, Register);
 
 	/* Write */
-	*(volatile addr_t*)(io->Address + 0x10) = data;
+	*(volatile Addr_t*)(io->Address + 0x10) = Data;
 }
 
-void apic_write_entry_io(uint8_t ioapic, uint32_t reg, uint64_t data)
+/* Insert a 64 bit entry into the Io Apic Intr */
+void ApicWriteIoEntry(uint8_t IoApic, uint32_t Register, uint64_t Data)
 {
 	/* Get the correct IO APIC address */
 	ACPI_MADT_IO_APIC *io =
-		(ACPI_MADT_IO_APIC*)list_get_data_by_id(acpi_nodes, ACPI_MADT_TYPE_IO_APIC, ioapic);
+		(ACPI_MADT_IO_APIC*)list_get_data_by_id(acpi_nodes, ACPI_MADT_TYPE_IO_APIC, IoApic);
 
 	/* Sanity */
 	assert(io != NULL);
 
 	/* Select register */
-	apic_set_register_io(io, reg + 1);
+	ApicSetIoRegister(io, Register + 1);
 
 	/* Write lower data */
-	(*(volatile addr_t*)(io->Address + 0x10)) = (uint32_t)(data >> 32);
+	(*(volatile Addr_t*)(io->Address + 0x10)) = (uint32_t)(Data >> 32);
 	
 	/* Reselect, write upper */
-	apic_set_register_io(io, reg);
-	(*(volatile addr_t*)(io->Address + 0x10)) = (uint32_t)(data & 0xFFFFFFFF);
+	ApicSetIoRegister(io, Register);
+	(*(volatile Addr_t*)(io->Address + 0x10)) = (uint32_t)(Data & 0xFFFFFFFF);
 }
 
-uint64_t apic_read_entry_io(uint8_t ioapic, uint32_t reg)
+/* Retrieve a 64 bit entry from the Io Apic Intr */
+uint64_t ApicReadIoEntry(uint8_t IoApic, uint32_t Register)
 {
 	uint32_t lo, hi;
 	uint64_t val;
 
 	/* Get the correct IO APIC address */
 	ACPI_MADT_IO_APIC *io =
-		(ACPI_MADT_IO_APIC*)list_get_data_by_id(acpi_nodes, ACPI_MADT_TYPE_IO_APIC, ioapic);
+		(ACPI_MADT_IO_APIC*)list_get_data_by_id(acpi_nodes, ACPI_MADT_TYPE_IO_APIC, IoApic);
 
 	/* Sanity */
 	assert(io != NULL);
 
 	/* Select register */
-	apic_set_register_io(io, reg);
+	ApicSetIoRegister(io, Register);
 
 	/* Read high word */
-	hi = *(volatile addr_t*)(io->Address + 0x10);
+	hi = *(volatile Addr_t*)(io->Address + 0x10);
 
 	/* Select next register */
-	apic_set_register_io(io, reg + 1);
+	ApicSetIoRegister(io, Register + 1);
 
 	/* Read low word */
-	lo = *(volatile addr_t*)(io->Address + 0x10);
+	lo = *(volatile Addr_t*)(io->Address + 0x10);
 
 	/* Build */
 	val = hi;
@@ -524,18 +531,19 @@ uint64_t apic_read_entry_io(uint8_t ioapic, uint32_t reg)
 }
 
 /* Get cpu id */
-cpu_t get_cpu(void)
+Cpu_t ApicGetCpu(void)
 {
 	/* Sanity */
 	if (num_cpus <= 1)
 		return 0;
 	else
-		return (apic_read_local(LAPIC_PROCESSOR_ID) >> 24) & 0xFF;
+		return (ApicReadLocal(LAPIC_PROCESSOR_ID) >> 24) & 0xFF;
 }
 
-void apic_print_debug_cpu(void)
+/* Debug Method -> Print ticks for current CPU */
+void ApicPrintCpuTicks(void)
 {
 	int i;
 	for (i = 0; i < (int)glb_cpus_booted; i++)
-		printf("Cpu %u Ticks: %u\n", i, timer_ticks[i]);
+		printf("Cpu %u Ticks: %u\n", i, GlbTimerTicks[i]);
 }

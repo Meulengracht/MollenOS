@@ -66,14 +66,10 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="..\..\Arch\x86\x32\Boot\ApInit.c" />
-    <ClCompile Include="..\..\Arch\x86\Components\Context.c" />
-    <ClCompile Include="..\..\Arch\x86\Components\Thread.c" />
     <ClCompile Include="..\..\Arch\x86\Drivers\Cmos\Cmos.c" />
     <ClCompile Include="..\..\Arch\x86\Drivers\Cmos\Rtc.c" />
     <ClCompile Include="..\..\Arch\x86\Drivers\DriverManager.c" />
     <ClCompile Include="..\..\Arch\x86\Drivers\DriverPci.c" />
-    <ClCompile Include="..\..\Arch\x86\Drivers\DriverStrings.c" />
     <ClCompile Include="..\..\Arch\x86\Drivers\Timers\Hpet\Hpet.c" />
     <ClCompile Include="..\..\Arch\x86\Drivers\Timers\TimerManager.c" />
     <ClCompile Include="..\..\Arch\x86\Drivers\Usb\Ehci\Ehci.c" />
@@ -122,10 +118,20 @@
     <ClCompile Include="..\..\Arch\x86\Components\Apic.c">
       <Filter>Components</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\Arch\x86\Components\Thread.c">
+      <Filter>Threading</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Arch\x86\Components\Context.c">
+      <Filter>Threading</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Arch\x86\x32\Boot\Smp.c">
+      <Filter>Components</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Arch\x86\Drivers\DriverStrings.c">
+      <Filter>Drivers</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <CustomBuild Include="..\..\Arch\x86\Components\Portio.asm" />
-    <CustomBuild Include="..\..\Arch\x86\Components\Threading.asm" />
     <CustomBuild Include="..\..\Arch\x86\x32\Memory\MmPaging.asm">
       <Filter>Memory</Filter>
     </CustomBuild>
@@ -140,6 +146,12 @@
     </CustomBuild>
     <CustomBuild Include="..\..\Arch\x86\Components\_Spinlock.asm">
       <Filter>Components\Locks</Filter>
+    </CustomBuild>
+    <CustomBuild Include="..\..\Arch\x86\Components\Threading.asm">
+      <Filter>Threading</Filter>
+    </CustomBuild>
+    <CustomBuild Include="..\..\Arch\x86\Components\Portio.asm">
+      <Filter>Components</Filter>
     </CustomBuild>
   </ItemGroup>
 </Project>

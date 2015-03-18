@@ -34,15 +34,15 @@
 
 /* Externs */
 extern list_t *acpi_nodes;
-extern volatile uint8_t bootstrap_cpu_id;
-extern cpu_info_t boot_cpu_info;
+extern volatile uint8_t GlbBootstrapCpuId;
+extern CpuObject_t boot_cpu_info;
 
 /* Globals */
-spinlock_t glb_boot_lock;
-volatile uint32_t glb_cpus_booted = 1;
+Spinlock_t GlbApLock;
+volatile uint32_t GlbCpusBooted = 1;
 
 /* Trampoline Code */
-unsigned char trampoline_code[] = {
+unsigned char TrampolineCode[] = {
 	0xE9, 0xC4, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x10,
 	0xEF, 0xBE, 0xAD, 0xDE, 0x00, 0x20, 0x00, 0x00, 0x9C, 0x1E, 0x06,
 	0x57, 0x56, 0xFA, 0x31, 0xC0, 0x8E, 0xC0, 0xF7, 0xD0, 0x8E, 0xD8,
@@ -74,83 +74,77 @@ unsigned char trampoline_code[] = {
 };
 
 /* Entry for AP Cores */
-void ap_entry(void)
+void SmpApEntry(void)
 {
-	cpu_t cpu;
+	Cpu_t cpu;
 
 	/* Disable interrupts */
-	interrupt_disable();
-
-	/* Increament Boot Count */
-	glb_cpus_booted++;
+	InterruptDisable();
 
 	/* Install GDT, IDT */
-	gdt_install();
-	idt_install();
-
-	/* Shared, need lock */
-	spinlock_acquire_nint(&glb_boot_lock);
-	
-	/* TSS */
-	gdt_install_tss();
-
-	/* Memory */
-	cpu = get_cpu();
-	memory_install_paging(cpu);
+	GdtInstall();
+	IdtInstall();
 
 	/* Enable FPU */
-	if (boot_cpu_info.edx_features & CPUID_FEAT_EDX_FPU)
-		enable_fpu();
+	if (boot_cpu_info.EdxFeatures & CPUID_FEAT_EDX_FPU)
+		CpuEnableFpu();
 
 	/* Enable SSE */
-	if (boot_cpu_info.edx_features & CPUID_FEAT_EDX_SSE)
-		enable_sse();
+	if (boot_cpu_info.EdxFeatures & CPUID_FEAT_EDX_SSE)
+		CpuEnableSse();
+	
+	/* TSS */
+	GdtInstallTss();
+
+	/* Memory */
+	cpu = ApicGetCpu();
+	MmVirtualInstallPaging(cpu);
+
+	/* Increament Boot Count - Signal that we are ok */
+	GlbCpusBooted++;
 
 	/* Setup Scheduler */
-	scheduler_init(cpu);
+	SchedulerInit(cpu);
 
 	/* Setup local apic */
-	lapic_ap_init();
+	ApicApInit();
 
 	/* Create idle task */
-	threading_ap_init();
-
-	/* Done with shared */
-	spinlock_release_nint(&glb_boot_lock);
+	ThreadingApInit();
 
 	/* Enable ints */
-	interrupt_enable();
+	InterruptEnable();
 
 	/* Enter HALT loop */
 	while (1)
-		idle();
+		Idle();
 }
 
 /* Disable MSVC warning */
 #pragma warning(disable:4054)
 
 /* Setup Trampoline Code */
-void cpu_ap_setup(void)
+void SmpApSetup(void)
 {
 	/* Set AP entry point */
-	addr_t ApEntry = (addr_t)(addr_t*)ap_entry;
+	Addr_t ApEntry = (Addr_t)(Addr_t*)SmpApEntry;
 
 	/* Edit Trampoline Code */
-	memcpy((char*)trampoline_code + 0xB, &ApEntry, sizeof(ApEntry));
+	memcpy((char*)TrampolineCode + 0xB, &ApEntry, sizeof(ApEntry));
 
 	/* Now copy it to memory */
-	memcpy((void*)TRAMPOLINE_CODE_MEM, (char*)trampoline_code, 0x132);
+	memcpy((void*)TRAMPOLINE_CODE_MEM, (char*)TrampolineCode, 0x132);
 }
 
 /* Initialize a Core */
-void cpu_start_core(void *data, int n)
+void SmpBootCore(void *data, int n)
 {
 	ACPI_MADT_LOCAL_APIC *core = (ACPI_MADT_LOCAL_APIC*)data;
 	uint32_t cpu_apic_id = core->Id;
 	volatile uint32_t cpu_result = 0;
 
 	/* Dont boot bootstrap cpu */
-	if (bootstrap_cpu_id == core->Id)
+	if (GlbBootstrapCpuId == core->Id)
 		return;
 
 	/* Move cpu apic id to upper 8 bits */
@@ -158,45 +152,42 @@ void cpu_start_core(void *data, int n)
 	cpu_apic_id <<= 24;
 
 	/* Set destination to that cpu */
-	apic_write_local(0x310, cpu_apic_id); /* Upper 32 bits of CMD register */
+	ApicWriteLocal(0x310, cpu_apic_id); /* Upper 32 bits of CMD register */
 
 	/* Now send INIT IPI command (0x4500) */
-	apic_write_local(0x300, 0x4500);
+	ApicWriteLocal(0x300, 0x4500);
 
 	/* Verify startup */
 	printf("..");
-	cpu_result = apic_read_local(0x300);
+	cpu_result = ApicReadLocal(0x300);
 	while (cpu_result & 0x1000)
 	{
 		clock_stall(1);
-		cpu_result = apic_read_local(0x300);
+		cpu_result = ApicReadLocal(0x300);
 	}
 	printf("..");
 
 	/* Send INIT SIPI command (0x4600) */
-	apic_write_local(0x300, 0x4600 | 0x5);  /* Vector 5, code is located at 0x5000 */
+	ApicWriteLocal(0x300, 0x4600 | 0x5);  /* Vector 5, code is located at 0x5000 */
 
 	/* Verify startup 
 	 * It should have a timeout of 200 ms, 
 	 * then resend SIPI */
-	cpu_result = apic_read_local(0x300);
+	cpu_result = ApicReadLocal(0x300);
 	while (cpu_result & 0x1000)
 	{
 		clock_stall(1);
-		cpu_result = apic_read_local(0x300);
+		cpu_result = ApicReadLocal(0x300);
 	}
 	printf(" booted!\n");
 }
 
 /* Go through ACPI nodes */
-void cpu_ap_init(void)
+void SmpInit(void)
 {
 	/* Setup AP Code */
-	cpu_ap_setup();
-
-	/* Initialise Spinlock */
-	spinlock_reset(&glb_boot_lock);
+	SmpApSetup();
 
 	/* Start each CPU */
-	list_execute_on_id(acpi_nodes, cpu_start_core, ACPI_MADT_TYPE_LOCAL_APIC);
+	list_execute_on_id(acpi_nodes, SmpBootCore, ACPI_MADT_TYPE_LOCAL_APIC);
 }

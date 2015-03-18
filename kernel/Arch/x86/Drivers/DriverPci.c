@@ -20,8 +20,8 @@
 */
 
 /* Includes */
-#include <arch.h>
-#include <pci.h>
+#include <Arch.h>
+#include <Pci.h>
 #include <stddef.h>
 #include <stdio.h>
 #include <limits.h>

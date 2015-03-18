@@ -20,95 +20,95 @@
 */
 
 /* Includes */
-#include <arch.h>
-#include <scheduler.h>
-#include <thread.h>
-#include <memory.h>
-#include <gdt.h>
-#include <heap.h>
+#include <Arch.h>
+#include <Scheduler.h>
+#include <Thread.h>
+#include <Memory.h>
+#include <Gdt.h>
+#include <Heap.h>
 #include <string.h>
 #include <stdio.h>
 
-registers_t *context_create(addr_t eip)
+Registers_t *ContextCreate(Addr_t Eip)
 {
-	registers_t *context;
-	addr_t context_location;
+	Registers_t *context;
+	Addr_t context_location;
 
 	/* Allocate a new context */
-	context_location = (addr_t)kmalloc_a(0x1000) + 0x1000 - 0x4 - sizeof(registers_t);
-	context = (registers_t*)context_location;
+	context_location = (Addr_t)kmalloc_a(0x1000) + 0x1000 - 0x4 - sizeof(Registers_t);
+	context = (Registers_t*)context_location;
 
 	/* Set Segments */
-	context->ds = X86_KERNEL_DATA_SEGMENT;
-	context->fs = X86_KERNEL_DATA_SEGMENT;
-	context->es = X86_KERNEL_DATA_SEGMENT;
-	context->gs = X86_KERNEL_DATA_SEGMENT;
+	context->Ds = X86_KERNEL_DATA_SEGMENT;
+	context->Fs = X86_KERNEL_DATA_SEGMENT;
+	context->Es = X86_KERNEL_DATA_SEGMENT;
+	context->Gs = X86_KERNEL_DATA_SEGMENT;
 
 	/* Initialize Registers */
-	context->eax = 0;
-	context->ebx = 0;
-	context->ecx = 0;
-	context->edx = 0;
-	context->esi = 0;
-	context->edi = 0;
-	context->ebp = (context_location + sizeof(registers_t));
-	context->esp = 0;
+	context->Eax = 0;
+	context->Ebx = 0;
+	context->Ecx = 0;
+	context->Edx = 0;
+	context->Esi = 0;
+	context->Edi = 0;
+	context->Ebp = (context_location + sizeof(Registers_t));
+	context->Esp = 0;
 
 	/* Set NULL */
-	context->irq = 0;
-	context->error_code = 0;
+	context->Irq = 0;
+	context->ErrorCode = 0;
 
 	/* Set Entry */
-	context->eip = eip;
-	context->eflags = X86_THREAD_EFLAGS;
-	context->cs = X86_KERNEL_CODE_SEGMENT;
+	context->Eip = Eip;
+	context->Eflags = X86_THREAD_EFLAGS;
+	context->Cs = X86_KERNEL_CODE_SEGMENT;
 
 	/* Null user stuff */
-	context->user_esp = 0;
-	context->user_ss = 0;
-	context->user_arg = 0;
+	context->UserEsp = 0;
+	context->UserSs = 0;
+	context->UserArg = 0;
 
 	return context;
 }
 
-registers_t *context_user_create(addr_t eip, addr_t *args)
+Registers_t *ContextUserCreate(Addr_t Eip, Addr_t *Args)
 {
-	registers_t *context;
-	addr_t context_location;
+	Registers_t *context;
+	Addr_t context_location;
 
 	/* Allocate a new context */
-	context_location = (addr_t)kmalloc_a(0x1000) + 0x1000 - 0x4 - sizeof(registers_t);
-	context = (registers_t*)context_location;
+	context_location = (Addr_t)kmalloc_a(0x1000) + 0x1000 - 0x4 - sizeof(Registers_t);
+	context = (Registers_t*)context_location;
 
 	/* Set Segments */
-	context->ds = X86_GDT_USER_DATA + 0x03;
-	context->fs = X86_GDT_USER_DATA + 0x03;
-	context->es = X86_GDT_USER_DATA + 0x03;
-	context->gs = X86_GDT_USER_DATA + 0x03;
+	context->Ds = X86_GDT_USER_DATA + 0x03;
+	context->Fs = X86_GDT_USER_DATA + 0x03;
+	context->Es = X86_GDT_USER_DATA + 0x03;
+	context->Gs = X86_GDT_USER_DATA + 0x03;
 
 	/* Initialize Registers */
-	context->eax = 0;
-	context->ebx = 0;
-	context->ecx = 0;
-	context->edx = 0;
-	context->esi = 0;
-	context->edi = 0;
-	context->ebp = (context_location + sizeof(registers_t));
-	context->esp = 0;
+	context->Eax = 0;
+	context->Ebx = 0;
+	context->Ecx = 0;
+	context->Edx = 0;
+	context->Esi = 0;
+	context->Edi = 0;
+	context->Ebp = (context_location + sizeof(Registers_t));
+	context->Esp = 0;
 
 	/* Set NULL */
-	context->irq = 0;
-	context->error_code = 0;
+	context->Irq = 0;
+	context->ErrorCode = 0;
 
 	/* Set Entry */
-	context->eip = eip;
-	context->eflags = X86_THREAD_EFLAGS;
-	context->cs = X86_USER_CODE_SEGMENT + 0x03;
+	context->Eip = Eip;
+	context->Eflags = X86_THREAD_EFLAGS;
+	context->Cs = X86_USER_CODE_SEGMENT + 0x03;
 
 	/* Null user stuff */
-	context->user_esp = (addr_t)&context->user_esp;
-	context->user_ss = X86_GDT_USER_DATA + 0x03;
-	context->user_arg = (addr_t)args;
+	context->UserEsp = (Addr_t)&context->UserEsp;
+	context->UserSs = X86_GDT_USER_DATA + 0x03;
+	context->UserArg = (Addr_t)Args;
 
 	return context;
 }

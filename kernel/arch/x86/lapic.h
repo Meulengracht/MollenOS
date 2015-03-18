@@ -113,35 +113,35 @@ input.
 /* LAPIC Prototypes */
 
 /* Initialisers */
-_CRT_EXTERN void apic_init(void);
-_CRT_EXTERN void apic_timer_init(void);
+_CRT_EXTERN void ApicBspInit(void);
+_CRT_EXTERN void ApicTimerInit(void);
+_CRT_EXTERN void ApicLocalInit(void);
 
 _CRT_EXTERN void AcpiInitStage1(void);
 _CRT_EXTERN void AcpiInitStage2(void);
 
 /* Read/Write to local apic */
-_CRT_EXTERN uint32_t apic_read_local(uint32_t reg);
-_CRT_EXTERN void apic_write_local(uint32_t reg, uint32_t value);
+_CRT_EXTERN uint32_t ApicReadLocal(uint32_t Register);
+_CRT_EXTERN void ApicWriteLocal(uint32_t Register, uint32_t Value);
 
 /* Read/Write to io apic */
-_CRT_EXTERN uint32_t apic_read_io(uint8_t ioapic, uint32_t reg);
-_CRT_EXTERN void apic_write_io(uint8_t ioapic, uint32_t reg, uint32_t data);
-_CRT_EXTERN void apic_write_entry_io(uint8_t ioapic, uint32_t reg, uint64_t data);
-_CRT_EXTERN uint64_t apic_read_entry_io(uint8_t ioapic, uint32_t reg);
+_CRT_EXTERN uint32_t ApicIoRead(uint8_t IoApic, uint32_t Register);
+_CRT_EXTERN void ApicIoWrite(uint8_t IoApic, uint32_t Register, uint32_t Data);
+_CRT_EXTERN void ApicWriteIoEntry(uint8_t IoApic, uint32_t Register, uint64_t Data);
+_CRT_EXTERN uint64_t ApicReadIoEntry(uint8_t IoApic, uint32_t Register);
 
 /* Set Task Priority */
-_CRT_EXTERN void apic_set_task_priority(uint32_t priority);
-_CRT_EXTERN uint32_t apic_get_task_priority(void);
+_CRT_EXTERN void ApicSetTaskPriority(uint32_t Priority);
+_CRT_EXTERN uint32_t ApicGetTaskPriority(void);
 
 /* Send EOI */
-_CRT_EXTERN void apic_send_eoi(void);
+_CRT_EXTERN void ApicSendEoi(void);
 
 /* Send APIC Interrupt to a core */
-_CRT_EXTERN void lapic_send_ipi(uint8_t cpu_destination, uint8_t irq_vector);
+_CRT_EXTERN void ApicSendIpi(uint8_t CpuTarget, uint8_t IrqVector);
 
 /* Call this on AP */
-_CRT_EXTERN void lapic_ap_init(void);
-_CRT_EXTERN void lapic_init(void);
+_CRT_EXTERN void ApicApInit(void);
 
 #endif // !_X86_LAPIC_H_
 

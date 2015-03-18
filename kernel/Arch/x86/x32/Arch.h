@@ -209,19 +209,19 @@ _CRT_EXTERN IntStatus_t InterruptSaveState(void);
 _CRT_EXTERN IntStatus_t InterruptRestoreState(IntStatus_t state);
 
 /* Utils */
-_CRT_EXTERN Cpu_t get_cpu(void);
-_CRT_EXTERN void lapic_send_ipi(uint8_t cpu_destination, uint8_t irq_vector);
+_CRT_EXTERN Cpu_t ApicGetCpu(void);
+_CRT_EXTERN void ApicSendIpi(uint8_t CpuTarget, uint8_t IrqVector);
 //_CRT_EXTERN void stall_ms(size_t ms);
 _CRT_EXTERN void clock_stall(uint32_t ms);
-_CRT_EXTERN void idle(void);
+_CRT_EXTERN void Idle(void);
 
 /* Threading - Flags -> Look above for flags  */
-_CRT_EXTERN TId_t threading_create_thread(char *name, ThreadEntry_t function, void *args, int flags);
-_CRT_EXTERN void *threading_enter_sleep(void);
+_CRT_EXTERN TId_t ThreadingCreateThread(char *Name, ThreadEntry_t Function, void *Args, int Flags);
+_CRT_EXTERN void *ThreadingEnterSleep(void);
 _CRT_EXTERN void threading_kill_thread(TId_t thread_id);
-_CRT_EXTERN int threading_yield(void *args);
-_CRT_EXTERN TId_t threading_get_thread_id(void);
-_CRT_EXTERN Thread_t *threading_get_current_thread(Cpu_t cpu);
+_CRT_EXTERN int ThreadingYield(void *Args);
+_CRT_EXTERN TId_t ThreadingGetCurrentThreadId(void);
+_CRT_EXTERN Thread_t *ThreadingGetCurrentThread(Cpu_t cpu);
 
 /* Driver Interface */
 _CRT_EXTERN void drivers_init(void *args);

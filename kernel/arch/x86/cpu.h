@@ -121,8 +121,7 @@ typedef struct _CpuObject
 
 /* CPU Prototypes */
 extern void CpuBspInit(void);
-extern void CpuApSetup(void);
-extern void CpuApInit(void);
+extern void SmpInit(void);
 
 /* These three are located in boot.asm */
 extern void CpuEnableSse(void);

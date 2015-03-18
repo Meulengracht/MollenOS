@@ -152,7 +152,7 @@ void MmVirtualMap(void *PageDirectory, PhysAddr_t PhysicalAddr, VirtAddr_t Virtu
 	if (pdir == NULL)
 	{
 		/* Get CPU */
-		pdir = (PageDirectory_t*)CurrentPageDirectories[get_cpu()];
+		pdir = (PageDirectory_t*)CurrentPageDirectories[ApicGetCpu()];
 	}
 
 	/* Sanity */
@@ -223,7 +223,7 @@ void MmVirtualUnmap(void *PageDirectory, VirtAddr_t VirtualAddr)
 	if (pdir == NULL)
 	{
 		/* Get CPU */
-		pdir = (PageDirectory_t*)CurrentPageDirectories[get_cpu()];
+		pdir = (PageDirectory_t*)CurrentPageDirectories[ApicGetCpu()];
 	}
 
 	/* Sanity */
@@ -262,7 +262,7 @@ void MmVirtualUnmap(void *PageDirectory, VirtAddr_t VirtualAddr)
 	ptable->Pages[PAGE_TABLE_INDEX(VirtualAddr)] = 0;
 
 	/* Release memory */
-	physmem_free_block(phys);
+	MmPhysicalFreeBlock(phys);
 
 	/* Release mutex */
 	MutexUnlock(&pdir->pMutex);
@@ -286,7 +286,7 @@ PhysAddr_t MmVirtualGetMapping(void *PageDirectory, VirtAddr_t VirtualAddr)
 	if (pdir == NULL)
 	{
 		/* Get CPU */
-		pdir = (PageDirectory_t*)CurrentPageDirectories[get_cpu()];
+		pdir = (PageDirectory_t*)CurrentPageDirectories[ApicGetCpu()];
 	}
 
 	/* Sanity */
@@ -362,14 +362,14 @@ void MmVirtualInitialMap(PhysAddr_t PhysicalAddr, VirtAddr_t VirtualAddr)
 }
 
 /* Map system memory */
-VirtAddr_t MmVirtualMapSysMemory(PhysAddr_t PhysicalAddr, int Pages)
+VirtAddr_t *MmVirtualMapSysMemory(PhysAddr_t PhysicalAddr, int Pages)
 {
 	int i;
 	Cpu_t cpu;
 	VirtAddr_t ret = 0;
 
 	/* Get cpu */
-	cpu = get_cpu();
+	cpu = ApicGetCpu();
 
 	/* Acquire Lock */
 	MutexLock(&VmMutex);
