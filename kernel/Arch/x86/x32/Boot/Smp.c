@@ -22,6 +22,7 @@
 #include <Arch.h>
 #include <Acpi.h>
 #include <LApic.h>
+#include <SysTimers.h>
 #include <Gdt.h>
 #include <Thread.h>
 #include <Scheduler.h>
@@ -100,22 +101,19 @@ void SmpApEntry(void)
 	cpu = ApicGetCpu();
 	MmVirtualInstallPaging(cpu);
 
+	/* Setup apic */
+	ApicApInit();
+
+	/* Setup Threading */
+	SchedulerInit(cpu);
+	ThreadingApInit();
+
 	/* Increament Boot Count - Signal that we are ok */
 	GlbCpusBooted++;
 
-	/* Setup Scheduler */
-	SchedulerInit(cpu);
-
-	/* Setup local apic */
-	ApicApInit();
-
-	/* Create idle task */
-	ThreadingApInit();
-
-	/* Enable ints */
+	/* Dont ever go out of this function */
 	InterruptEnable();
 
-	/* Enter HALT loop */
 	while (1)
 		Idle();
 }
@@ -137,48 +135,89 @@ void SmpApSetup(void)
 }
 
 /* Initialize a Core */
-void SmpBootCore(void *data, int n)
+void SmpBootCore(void *Data, int n)
 {
-	ACPI_MADT_LOCAL_APIC *core = (ACPI_MADT_LOCAL_APIC*)data;
-	uint32_t cpu_apic_id = core->Id;
+	/* Get cpu structure */
+	ACPI_MADT_LOCAL_APIC *Core = (ACPI_MADT_LOCAL_APIC*)Data;
+	uint32_t ApicId = Core->Id;
 	volatile uint32_t cpu_result = 0;
+	uint32_t TimeOut = 0;
 
 	/* Dont boot bootstrap cpu */
-	if (GlbBootstrapCpuId == core->Id)
+	if (GlbBootstrapCpuId == Core->Id)
 		return;
 
 	/* Move cpu apic id to upper 8 bits */
-	printf("    * Booting core %u", cpu_apic_id);
-	cpu_apic_id <<= 24;
+	printf("    * Booting Core %u", ApicId);
+	ApicId <<= 24;
 
 	/* Set destination to that cpu */
-	ApicWriteLocal(0x310, cpu_apic_id); /* Upper 32 bits of CMD register */
+	ApicWriteLocal(LAPIC_ICR_HI, ApicId);
 
 	/* Now send INIT IPI command (0x4500) */
-	ApicWriteLocal(0x300, 0x4500);
+	ApicWriteLocal(LAPIC_ICR_LO, 0x4500);
 
-	/* Verify startup */
+	/* Verify startup (timeout 200 ms) */
 	printf("..");
-	cpu_result = ApicReadLocal(0x300);
-	while (cpu_result & 0x1000)
+	cpu_result = ApicReadLocal(LAPIC_ICR_LO);
+	while ((cpu_result & 0x1000)
+				&& TimeOut < 200)
 	{
-		clock_stall(1);
-		cpu_result = ApicReadLocal(0x300);
+		StallMs(1);
+		cpu_result = ApicReadLocal(LAPIC_ICR_LO);
+		TimeOut++;
 	}
 	printf("..");
 
+	if (TimeOut == 200)
+	{
+		/* Failed */
+		printf(" failed to boot!\n");
+		return;
+	}
+
 	/* Send INIT SIPI command (0x4600) */
-	ApicWriteLocal(0x300, 0x4600 | 0x5);  /* Vector 5, code is located at 0x5000 */
+	ApicWriteLocal(LAPIC_ICR_LO, 0x4600 | 0x5);  /* Vector 5, code is located at 0x5000 */
 
 	/* Verify startup 
 	 * It should have a timeout of 200 ms, 
 	 * then resend SIPI */
-	cpu_result = ApicReadLocal(0x300);
-	while (cpu_result & 0x1000)
+	TimeOut = 0;
+	cpu_result = ApicReadLocal(LAPIC_ICR_LO);
+	while ((cpu_result & 0x1000)
+				&& TimeOut < 200)
 	{
-		clock_stall(1);
-		cpu_result = ApicReadLocal(0x300);
+		StallMs(1);
+		cpu_result = ApicReadLocal(LAPIC_ICR_LO);
+		TimeOut++;
 	}
+
+	if (TimeOut == 200)
+	{
+		/* Failed, first resend SIPI */
+
+		/* Send INIT SIPI command (0x4600) */
+		ApicWriteLocal(LAPIC_ICR_LO, 0x4600 | 0x5);  /* Vector 5, code is located at 0x5000 */
+
+		/* Verify Startup */
+		TimeOut = 0;
+		cpu_result = ApicReadLocal(LAPIC_ICR_LO);
+		while ((cpu_result & 0x1000)
+			&& TimeOut < 200)
+		{
+			StallMs(1);
+			cpu_result = ApicReadLocal(LAPIC_ICR_LO);
+			TimeOut++;
+		}
+
+		if (TimeOut == 200)
+		{
+			/* Failed */
+			printf(" failed to boot!\n");
+			return;
+		}
+	}
+
 	printf(" booted!\n");
 }
 

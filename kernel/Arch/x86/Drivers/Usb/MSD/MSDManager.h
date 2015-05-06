@@ -55,6 +55,6 @@
 /* Prototypes */
 
 /* Initialise Driver for a MSD */
-_CRT_EXTERN void usb_msd_initialise(usb_hc_device_t *device, uint32_t iface);
+_CRT_EXTERN void usb_msd_initialise(UsbHcDevice_t *device, uint32_t iface);
 
 #endif // !X86_USB_MSD_H_

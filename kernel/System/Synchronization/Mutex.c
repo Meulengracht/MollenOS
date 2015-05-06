@@ -53,12 +53,13 @@ void MutexConstruct(Mutex_t *Mutex)
 void MutexDestruct(Mutex_t *Mutex)
 {
 	/* Wake all remaining tasks waiting for this mutex */
+	_CRT_UNUSED(Mutex);
 }
 
 void MutexLock(Mutex_t *Mutex)
 {
 	/* If this thread already holds the mutex, increase ref count */
-	if (Mutex->Blocks != 0 && Mutex->Blocker == threading_get_thread_id())
+	if (Mutex->Blocks != 0 && Mutex->Blocker == ThreadingGetCurrentThreadId())
 	{
 		Mutex->Blocks++;
 		return;
@@ -70,7 +71,7 @@ void MutexLock(Mutex_t *Mutex)
 	SpinlockAcquire(&Mutex->Lock);
 
 	Mutex->Blocks = 1;
-	Mutex->Blocker = threading_get_thread_id();
+	Mutex->Blocker = ThreadingGetCurrentThreadId();
 }
 
 void MutexUnlock(Mutex_t *Mutex)

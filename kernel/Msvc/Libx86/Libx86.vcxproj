@@ -51,6 +51,11 @@
     </CustomBuild>
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="..\..\Arch\x86\Drivers\Timers\Pit\Pit.c" />
+    <ClCompile Include="..\..\Arch\x86\Drivers\Usb\Ehci\Ehci.c" />
+    <ClCompile Include="..\..\Arch\x86\Drivers\Usb\Ohci\Ohci.c" />
+    <ClCompile Include="..\..\Arch\x86\Drivers\Usb\UsbCore.c" />
+    <ClCompile Include="..\..\Arch\x86\Drivers\Usb\UsbFunctions.c" />
     <ClCompile Include="..\..\Arch\x86\x32\Boot\Smp.c" />
     <ClCompile Include="..\..\Arch\x86\Init\Cpu.c" />
     <ClCompile Include="..\..\Arch\x86\Init\Main.c" />
@@ -72,15 +77,12 @@
     <ClCompile Include="..\..\Arch\x86\Drivers\DriverStrings.c" />
     <ClCompile Include="..\..\Arch\x86\Drivers\Timers\Hpet\Hpet.c" />
     <ClCompile Include="..\..\Arch\x86\Drivers\Timers\TimerManager.c" />
-    <ClCompile Include="..\..\Arch\x86\Drivers\Usb\Ehci\Ehci.c" />
-    <ClCompile Include="..\..\Arch\x86\Drivers\Usb\HID\HIDManager.c" />
-    <ClCompile Include="..\..\Arch\x86\Drivers\Usb\MSD\MSDManager.c" />
-    <ClCompile Include="..\..\Arch\x86\Drivers\Usb\Ohci\Ohci.c" />
-    <ClCompile Include="..\..\Arch\x86\Drivers\Usb\Uhci\Uhci.c" />
-    <ClCompile Include="..\..\Arch\x86\Drivers\Usb\UsbCore.c" />
-    <ClCompile Include="..\..\Arch\x86\Drivers\Usb\UsbFunctions.c" />
     <ClCompile Include="..\..\Arch\x86\x32\Memory\MmPhysical.c" />
     <ClCompile Include="..\..\Arch\x86\x32\Memory\MmVirtual.c" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\..\Arch\x86\Drivers\Usb\Ehci\Ehci.h" />
+    <ClInclude Include="..\..\Arch\x86\Drivers\Usb\Ohci\Ohci.h" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <ProjectGuid>{17145F88-DAEA-496B-A91F-2A78ED5673CC}</ProjectGuid>
@@ -137,7 +139,7 @@
       <Optimization>MaxSpeed</Optimization>
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>false</IntrinsicFunctions>
-      <PreprocessorDefinitions>MOLLENOS</PreprocessorDefinitions>
+      <PreprocessorDefinitions>MOLLENOS;_X86_32</PreprocessorDefinitions>
       <SDLCheck>
       </SDLCheck>
       <TreatWarningAsError>true</TreatWarningAsError>

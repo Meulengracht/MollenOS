@@ -120,8 +120,8 @@ void ExceptionEntry(Registers_t *regs)
 	{
 		/* Device Not Available */
 		/* This happens if FPU needs to be restored OR initialized */
-		cpu = get_cpu();
-		t = threading_get_current_thread(cpu);
+		cpu = ApicGetCpu();
+		t = ThreadingGetCurrentThread(cpu);
 
 		/* If it is NULL shit has gone down */
 		if (t != NULL)
@@ -157,7 +157,7 @@ void ExceptionEntry(Registers_t *regs)
 	else if (regs->Irq == 14)
 	{
 		printf("CR2 Address: 0x%x... Faulty Address: 0x%x\n", __getcr2(), regs->Eip);
-		idle();
+		Idle();
 	}
 
 	if (fixed == 0)
@@ -171,7 +171,28 @@ void ExceptionEntry(Registers_t *regs)
 		/* Print it */
 		//printf("Disassembly of 0x%x:\n%s", regs->eip, instructions);
 
-		idle();
+		Idle();
+	}
+}
+
+//EBP is passed to the exception handler by the CPU
+void printStackTrace(unsigned int ebp)
+{
+	unsigned int *stackPosition = (unsigned int *)ebp;
+
+	while (stackPosition != 0)
+	{
+		//methodLocation is the dereference of EIP
+		//(which is itself just above EBP on the stack)
+		unsigned int methodLocation = *(stackPosition + 1);
+
+		//You can look methodLocation up to get a method name
+		printf("0x%x", methodLocation);
+		if (*stackPosition != 0)
+			printf("\n");
+		//Keep derefencing EBP until we reach 0. If you infinite 
+		//loop here, make certain you set EBP to zero in the assembly stub
+		stackPosition = (unsigned int *)(*stackPosition);
 	}
 }
 

@@ -21,103 +21,153 @@
 */
 
 /* Includes */
-#include <arch.h>
+#include <Arch.h>
 #include <acpi.h>
-#include <drivers\clock\clock.h>
+
+#include <Mutex.h>
+#include <Drivers\Cmos\Cmos.h>
+
+
+/* Mutex */
+Mutex_t *GlbCmosLock = NULL;
 
 /* Helpers, I/O */
-uint8_t clock_read_register(uint8_t reg)
+uint8_t CmosReadRegister(uint8_t Register)
 {
-	/* Select Register */
-	outb(X86_CMOS_IO_SELECT, reg);
+	/* Vars */
+	uint8_t Tmp = 0, RetValue;
+
+	/* Sanity */
+	if (GlbCmosLock == NULL)
+		CmosInit();
+
+	/* Acquire Mutex */
+	MutexLock(GlbCmosLock);
+
+	/* Keep NMI if disabled */
+	Tmp = inb(X86_CMOS_IO_SELECT) & X86_CMOS_NMI_BIT;
+
+	/* Select Register (but do not change NMI) */
+	outb(X86_CMOS_IO_SELECT, (Tmp | (Register & X86_CMOS_ALLBITS_NONMI)));
 
 	/* Get Data */
-	return inb(X86_CMOS_IO_DATA);
+	RetValue = inb(X86_CMOS_IO_DATA);
+
+	/* Unlock */
+	MutexUnlock(GlbCmosLock);
+
+	/* Done */
+	return RetValue;
 }
 
-void clock_write_register(uint8_t reg, uint8_t data)
+void CmosWriteRegister(uint8_t Register, uint8_t Data)
 {
-	/* Select Register */
-	outb(X86_CMOS_IO_SELECT, reg);
+	/* Vars */
+	uint8_t Tmp = 0;
 
-	/* Send Data */
-	outb(X86_CMOS_IO_DATA, data);
+	/* Sanity */
+	if (GlbCmosLock == NULL)
+		CmosInit();
+
+	/* Acquire Mutex */
+	MutexLock(GlbCmosLock);
+
+	/* Keep NMI if disabled */
+	Tmp = inb(X86_CMOS_IO_SELECT) & X86_CMOS_NMI_BIT;
+
+	/* Select Register (but do not change NMI) */
+	outb(X86_CMOS_IO_SELECT, (Tmp | (Register & X86_CMOS_ALLBITS_NONMI)));
+
+	/* Write Data */
+	outb(X86_CMOS_IO_DATA, Data);
+
+	/* Unlock */
+	MutexUnlock(GlbCmosLock);
+}
+
+/* Call this before any calls to Cmos */
+void CmosInit(void)
+{
+	/* Init lock */
+	GlbCmosLock = MutexCreate();
 }
 
 /* Gets current time and stores it in a time structure */
-void clock_get_time(tm *t)
+void CmosGetTime(tm *TimeStructure)
 {
-	int osec, n;
-	uint8_t century = 0;
+	int oSec, n;
+	uint8_t Century = 0;
 
 	/* Do we support century? */
 	if (AcpiGbl_FADT.Century != 0)
-		century = clock_read_register(AcpiGbl_FADT.Century);
+		Century = CmosReadRegister(AcpiGbl_FADT.Century);
 
 	/* Get Clock (Stable, thats why we loop) */
-	while (clock_read_register(X86_CMOS_REGISTER_SECONDS) != t->tm_sec
-		|| clock_read_register(X86_CMOS_REGISTER_MINUTES) != t->tm_min
-		|| clock_read_register(X86_CMOS_REGISTER_HOURS) != t->tm_hour
-		|| clock_read_register(X86_CMOS_REGISTER_DAYS) != t->tm_mday
-		|| clock_read_register(X86_CMOS_REGISTER_MONTHS) != t->tm_mon
-		|| clock_read_register(X86_CMOS_REGISTER_YEARS) != t->tm_year)
+	while (CmosReadRegister(X86_CMOS_REGISTER_SECONDS) != TimeStructure->tm_sec
+		|| CmosReadRegister(X86_CMOS_REGISTER_MINUTES) != TimeStructure->tm_min
+		|| CmosReadRegister(X86_CMOS_REGISTER_HOURS) != TimeStructure->tm_hour
+		|| CmosReadRegister(X86_CMOS_REGISTER_DAYS) != TimeStructure->tm_mday
+		|| CmosReadRegister(X86_CMOS_REGISTER_MONTHS) != TimeStructure->tm_mon
+		|| CmosReadRegister(X86_CMOS_REGISTER_YEARS) != TimeStructure->tm_year)
 	{
-		osec = -1;
+		oSec = -1;
 		n = 0;
 
 		/* Update Seconds */
 		while (n < 2)
 		{
 			/* Clock update in progress? */
-			if (clock_read_register(X86_CMOS_REGISTER_STATUS_A) & X86_CMOSA_UPDATE_IN_PROG) 
+			if (CmosReadRegister(X86_CMOS_REGISTER_STATUS_A) & X86_CMOSA_UPDATE_IN_PROG)
 				continue;
 
-			t->tm_sec = clock_read_register(X86_CMOS_REGISTER_SECONDS);
-			if (t->tm_sec != osec) 
+			TimeStructure->tm_sec = CmosReadRegister(X86_CMOS_REGISTER_SECONDS);
+			if (TimeStructure->tm_sec != oSec)
 			{
 				/* Seconds changed.  First from -1, then because the
 				* clock ticked, which is what we're waiting for to
 				* get a precise reading.
 				*/
-				osec = t->tm_sec;
+				oSec = TimeStructure->tm_sec;
 				n++;
 			}
 
 		}
 
 		/* Read the other registers. */
-		t->tm_min = clock_read_register(X86_CMOS_REGISTER_MINUTES);
-		t->tm_hour = clock_read_register(X86_CMOS_REGISTER_HOURS);
-		t->tm_mday = clock_read_register(X86_CMOS_REGISTER_DAYS);
-		t->tm_mon = clock_read_register(X86_CMOS_REGISTER_MONTHS);
-		t->tm_year = clock_read_register(X86_CMOS_REGISTER_YEARS);
+		TimeStructure->tm_min = CmosReadRegister(X86_CMOS_REGISTER_MINUTES);
+		TimeStructure->tm_hour = CmosReadRegister(X86_CMOS_REGISTER_HOURS);
+		TimeStructure->tm_mday = CmosReadRegister(X86_CMOS_REGISTER_DAYS);
+		TimeStructure->tm_mon = CmosReadRegister(X86_CMOS_REGISTER_MONTHS);
+		TimeStructure->tm_year = CmosReadRegister(X86_CMOS_REGISTER_YEARS);
 	}
 
 	/* Convert Time Format? */
-	if (!(clock_read_register(X86_CMOS_REGISTER_STATUS_B) & X86_CMOSB_BCD_FORMAT))
+	if (!(CmosReadRegister(X86_CMOS_REGISTER_STATUS_B) & X86_CMOSB_BCD_FORMAT))
 	{
 		/* Convert BCD to binary (default RTC mode). */
-		t->tm_year = X86_CMOS_BCD_TO_DEC(t->tm_year);
-		t->tm_mon = X86_CMOS_BCD_TO_DEC(t->tm_mon);
-		t->tm_mday = X86_CMOS_BCD_TO_DEC(t->tm_mday);
-		t->tm_hour = X86_CMOS_BCD_TO_DEC(t->tm_hour);
-		t->tm_min = X86_CMOS_BCD_TO_DEC(t->tm_min);
-		t->tm_sec = X86_CMOS_BCD_TO_DEC(t->tm_sec);
+		TimeStructure->tm_year = X86_CMOS_BCD_TO_DEC(TimeStructure->tm_year);
+		TimeStructure->tm_mon = X86_CMOS_BCD_TO_DEC(TimeStructure->tm_mon);
+		TimeStructure->tm_mday = X86_CMOS_BCD_TO_DEC(TimeStructure->tm_mday);
+		TimeStructure->tm_hour = X86_CMOS_BCD_TO_DEC(TimeStructure->tm_hour);
+		TimeStructure->tm_min = X86_CMOS_BCD_TO_DEC(TimeStructure->tm_min);
+		TimeStructure->tm_sec = X86_CMOS_BCD_TO_DEC(TimeStructure->tm_sec);
 
 		/* Convert Century */
-		if (century != 0)
-			century = X86_CMOS_BCD_TO_DEC(century);
+		if (Century != 0)
+			Century = X86_CMOS_BCD_TO_DEC(Century);
 	}
 
 	/* Counts from 0. */
-	t->tm_mon--;
+	TimeStructure->tm_mon--;
 
 	/* Correct the year */
-	if (century != 0) {
-		t->tm_year += century * 100;
-	}
-	else {
-		t->tm_year += (X86_CMOS_CURRENT_YEAR / 100) * 100;
-		if (t->tm_year < X86_CMOS_CURRENT_YEAR) t->tm_year += 100;
+	if (Century != 0) 
+		TimeStructure->tm_year += Century * 100;
+	else 
+	{
+		TimeStructure->tm_year += (X86_CMOS_CURRENT_YEAR / 100) * 100;
+		
+		if (TimeStructure->tm_year < X86_CMOS_CURRENT_YEAR) 
+			TimeStructure->tm_year += 100;
 	}
 }

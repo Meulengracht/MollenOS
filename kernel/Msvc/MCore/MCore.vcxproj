@@ -60,7 +60,7 @@
     <IncludePath>..\..\Arch;..\..\..\clib\include;..\..\Include</IncludePath>
     <LibraryWPath />
     <LibraryPath>..\..\..\clib\build;..\..\build</LibraryPath>
-    <OutDir>..\..\..\build\</OutDir>
+    <OutDir>..\..\build\</OutDir>
     <TargetExt>.mos</TargetExt>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">

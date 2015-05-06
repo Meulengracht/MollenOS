@@ -30,60 +30,61 @@
 extern void _yield(void);
 
 /* Creates an semaphore */
-semaphore_t *semaphore_create(int value)
+Semaphore_t *SemaphoreCreate(int Value)
 {
-	semaphore_t *semaphore;
+	Semaphore_t *Semaphore;
 
 	/* Sanity */
-	assert(value >= 0);
+	assert(Value >= 0);
 
 	/* Allocate */
-	semaphore = (semaphore_t*)kmalloc(sizeof(semaphore_t));
-	semaphore->value = value;
-	semaphore->creator = threading_get_thread_id();
-	spinlock_reset(&semaphore->lock);
+	Semaphore = (Semaphore_t*)kmalloc(sizeof(Semaphore_t));
+	Semaphore->Value = Value;
+	Semaphore->Creator = ThreadingGetCurrentThreadId();
+	SpinlockReset(&Semaphore->Lock);
 
-	return semaphore;
+	return Semaphore;
 }
 
-void semaphore_destroy(semaphore_t *sem)
+void SemaphoreDestroy(Semaphore_t *Semaphore)
 {
 	/* Wake up all */
-	scheduler_wakeup_all((addr_t*)sem);
+	SchedulerWakeupAllThreads((Addr_t*)Semaphore);
 
 	/* Free it */
-	kfree(sem);
+	kfree(Semaphore);
 }
 
 /* Acquire Lock */
-void semaphore_P(semaphore_t *sem)
+void SemaphoreP(Semaphore_t *Semaphore)
 {
 	/* Lock */
-	spinlock_acquire(&sem->lock);
+	SpinlockAcquire(&Semaphore->Lock);
 
-	sem->value--;
-	if (sem->value < 0) 
+	Semaphore->Value--;
+	if (Semaphore->Value < 0)
 	{
 		/* Important to release lock before we do this */
-		spinlock_release(&sem->lock);
-		scheduler_sleep_thread((addr_t*)sem);
+		SpinlockRelease(&Semaphore->Lock);
+		SchedulerSleepThread((Addr_t*)Semaphore);
+		
 		_yield();
 	}
 	else
-		spinlock_release(&sem->lock);
+		SpinlockRelease(&Semaphore->Lock);
 }
 
 /* Release Lock */
-void semaphore_V(semaphore_t *sem)
+void SemaphoreV(Semaphore_t *Semaphore)
 {
 	/* Lock */
-	spinlock_acquire(&sem->lock);
+	SpinlockAcquire(&Semaphore->Lock);
 
 	/* Do Magic */
-	sem->value++;
-	if (sem->value <= 0)
-		scheduler_wakeup_one((addr_t*)sem);
+	Semaphore->Value++;
+	if (Semaphore->Value <= 0)
+		SchedulerWakeupOneThread((Addr_t*)Semaphore);
 
 	/* Release */
-	spinlock_release(&sem->lock);
+	SpinlockRelease(&Semaphore->Lock);
 }

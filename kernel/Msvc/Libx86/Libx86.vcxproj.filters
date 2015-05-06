@@ -28,20 +28,11 @@
     <Filter Include="Drivers\Usb">
       <UniqueIdentifier>{7aac0147-c0dc-4843-86d7-c798578a964c}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Drivers\Clock">
-      <UniqueIdentifier>{27f21261-2ecf-4a21-a56b-b2becadd0c3e}</UniqueIdentifier>
-    </Filter>
     <Filter Include="Drivers\Usb\Controllers">
       <UniqueIdentifier>{4811c3b9-82db-4592-8068-be8db75a95ee}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Drivers\Usb\Controllers\OHCI">
-      <UniqueIdentifier>{4973448b-314e-47e9-b1df-7312d7f22af7}</UniqueIdentifier>
-    </Filter>
     <Filter Include="Drivers\Usb\Controllers\UHCI">
       <UniqueIdentifier>{8fbe3912-0905-4210-baf3-170774b84d40}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Drivers\Usb\Controllers\EHCI">
-      <UniqueIdentifier>{4c03b94c-dfa8-44e1-9c7c-65ecd81c054b}</UniqueIdentifier>
     </Filter>
     <Filter Include="Drivers\Usb\MSD">
       <UniqueIdentifier>{b8fbf389-bba1-4212-9148-299c7d2489a8}</UniqueIdentifier>
@@ -52,9 +43,6 @@
     <Filter Include="Drivers\Timers">
       <UniqueIdentifier>{6e3df768-4732-455d-9fc8-43db57acd982}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Drivers\Timers\HPET">
-      <UniqueIdentifier>{4104b72c-8b5d-4bd2-8c25-0108cd6074b8}</UniqueIdentifier>
-    </Filter>
     <Filter Include="Components\Locks">
       <UniqueIdentifier>{af9ed2db-f31c-4c62-9fd6-d7765903d1b4}</UniqueIdentifier>
     </Filter>
@@ -64,19 +52,26 @@
     <Filter Include="Drivers\Usb\HID">
       <UniqueIdentifier>{6e984708-f491-453e-b086-a4f35f98bf31}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Drivers\Timers\Hpet">
+      <UniqueIdentifier>{4104b72c-8b5d-4bd2-8c25-0108cd6074b8}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Drivers\Timers\Rtc">
+      <UniqueIdentifier>{6fb21095-d051-4463-aa1d-1591c12f93d5}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Drivers\Cmos">
+      <UniqueIdentifier>{27f21261-2ecf-4a21-a56b-b2becadd0c3e}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Drivers\Timers\Pit">
+      <UniqueIdentifier>{fd512464-737b-4ed9-8e93-974e5be62436}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Drivers\Usb\Controllers\Ehci">
+      <UniqueIdentifier>{4c03b94c-dfa8-44e1-9c7c-65ecd81c054b}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Drivers\Usb\Controllers\Ohci">
+      <UniqueIdentifier>{4973448b-314e-47e9-b1df-7312d7f22af7}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="..\..\Arch\x86\Drivers\Cmos\Cmos.c" />
-    <ClCompile Include="..\..\Arch\x86\Drivers\Cmos\Rtc.c" />
-    <ClCompile Include="..\..\Arch\x86\Drivers\Timers\Hpet\Hpet.c" />
-    <ClCompile Include="..\..\Arch\x86\Drivers\Timers\TimerManager.c" />
-    <ClCompile Include="..\..\Arch\x86\Drivers\Usb\Ehci\Ehci.c" />
-    <ClCompile Include="..\..\Arch\x86\Drivers\Usb\HID\HIDManager.c" />
-    <ClCompile Include="..\..\Arch\x86\Drivers\Usb\MSD\MSDManager.c" />
-    <ClCompile Include="..\..\Arch\x86\Drivers\Usb\Ohci\Ohci.c" />
-    <ClCompile Include="..\..\Arch\x86\Drivers\Usb\Uhci\Uhci.c" />
-    <ClCompile Include="..\..\Arch\x86\Drivers\Usb\UsbCore.c" />
-    <ClCompile Include="..\..\Arch\x86\Drivers\Usb\UsbFunctions.c" />
     <ClCompile Include="..\..\Arch\x86\Components\Video.c">
       <Filter>Components\Video</Filter>
     </ClCompile>
@@ -134,6 +129,33 @@
     <ClCompile Include="..\..\Arch\x86\Drivers\DriverManager.c">
       <Filter>Drivers</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\Arch\x86\Drivers\Timers\TimerManager.c">
+      <Filter>Drivers\Timers</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Arch\x86\Drivers\Timers\Hpet\Hpet.c">
+      <Filter>Drivers\Timers\Hpet</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Arch\x86\Drivers\Cmos\Rtc.c">
+      <Filter>Drivers\Timers\Rtc</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Arch\x86\Drivers\Cmos\Cmos.c">
+      <Filter>Drivers\Cmos</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Arch\x86\Drivers\Timers\Pit\Pit.c">
+      <Filter>Drivers\Timers\Pit</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Arch\x86\Drivers\Usb\Ehci\Ehci.c">
+      <Filter>Drivers\Usb\Controllers\Ehci</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Arch\x86\Drivers\Usb\UsbCore.c">
+      <Filter>Drivers\Usb</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Arch\x86\Drivers\Usb\UsbFunctions.c">
+      <Filter>Drivers\Usb</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Arch\x86\Drivers\Usb\Ohci\Ohci.c">
+      <Filter>Drivers\Usb\Controllers\Ohci</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <CustomBuild Include="..\..\Arch\x86\x32\Memory\MmPaging.asm">
@@ -157,5 +179,13 @@
     <CustomBuild Include="..\..\Arch\x86\Components\Portio.asm">
       <Filter>Components</Filter>
     </CustomBuild>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\..\Arch\x86\Drivers\Usb\Ehci\Ehci.h">
+      <Filter>Drivers\Usb\Controllers\Ehci</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Arch\x86\Drivers\Usb\Ohci\Ohci.h">
+      <Filter>Drivers\Usb\Controllers\Ohci</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

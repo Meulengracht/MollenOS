@@ -44,6 +44,7 @@ extern list_t *acpi_nodes;
 
 /* Globals */
 IrqEntry_t IrqTable[X86_IDT_DESCRIPTORS][X86_MAX_HANDLERS_PER_INTERRUPT];
+uint32_t IrqIsaTable[X86_NUM_ISA_INTERRUPTS];
 
 /* Parses Intiflags for Polarity */
 uint32_t InterruptGetPolarity(uint16_t IntiFlags, uint8_t IrqSource)
@@ -98,6 +99,8 @@ void InterruptInstallBase(uint32_t Irq, uint32_t IdtEntry, uint64_t ApicEntry, I
 {
 	/* Determine Correct Irq */
 	uint32_t i_irq = Irq;
+	uint64_t i_apic = ApicEntry;
+	IoApic_t *IoApic;
 
 	/* Sanity */
 	assert(Irq < X86_IDT_DESCRIPTORS);
@@ -110,12 +113,17 @@ void InterruptInstallBase(uint32_t Irq, uint32_t IdtEntry, uint64_t ApicEntry, I
 
 		while (io_redirect != NULL)
 		{
-			/* Do we need to redirect? 
-			 * TODO Extract Trigger mode & Polarity if redirect is
-			 * avail */
+			/* Do we need to redirect? */
 			if (io_redirect->SourceIrq == Irq)
 			{
+				/* Redirect */
 				i_irq = io_redirect->GlobalIrq;
+
+				/* Re-adjust trigger & polarity */
+				i_apic &= ~(0x8000 | 0x2000);
+				i_apic |= (InterruptGetPolarity(io_redirect->IntiFlags, 0) << 13);
+				i_apic |= (InterruptGetTrigger(io_redirect->IntiFlags, 0) << 15);
+
 				break;
 			}
 
@@ -125,14 +133,22 @@ void InterruptInstallBase(uint32_t Irq, uint32_t IdtEntry, uint64_t ApicEntry, I
 		}
 	}
 
-	/* Install into table */
-	InterruptInstallIdtOnly(IdtEntry, Callback, Args);
+	/* Isa? */
+	if (i_irq < X86_NUM_ISA_INTERRUPTS)
+		InterruptAllocateISA(i_irq);
 
-	/* Do ACPI */
-	/* TODO!!!! FIND CORRECT APIC IO if multiple */
+	/* Install into table */
+	InterruptInstallIdtOnly(i_irq, IdtEntry, Callback, Args);
+
+	/* Get correct Io Apic */
+	IoApic = ApicGetIoFromGsi(i_irq);
+
+	/* Allocate it if ISA */
+	if (i_irq < 16)
+		IrqIsaTable[i_irq] = 1;
 
 	/* i_irq is the initial irq */
-	apic_write_entry_io(0, (0x10 + (i_irq * 2)), ApicEntry);
+	ApicWriteIoEntry(IoApic, i_irq, i_apic);
 }
 
 /* Install a normal, lowest priority interrupt */
@@ -140,7 +156,7 @@ void InterruptInstallISA(uint32_t Irq, uint32_t IdtEntry, IrqHandler_t Callback,
 {
 	uint64_t apic_flags = 0;
 
-	apic_flags = 0xFF00000000000000;	/* Target all groups */
+	apic_flags = 0x0F00000000000000;	/* Target all groups */
 	apic_flags |= 0x100;				/* Lowest Priority */
 	apic_flags |= 0x800;				/* Logical Destination Mode */
 
@@ -156,16 +172,23 @@ void InterruptInstallISA(uint32_t Irq, uint32_t IdtEntry, IrqHandler_t Callback,
 	InterruptInstallBase(Irq, IdtEntry, apic_flags, Callback, Args);
 }
 
-/* Install a broadcast, global interupt */
-void InterruptInstallBroadcast(uint32_t Irq, uint32_t IdtEntry, IrqHandler_t Callback, void *Args)
+/* Install shared interrupt */
+void InterruptInstallShared(uint32_t Irq, uint32_t IdtEntry, IrqHandler_t Callback, void *Args)
 {
-	uint64_t apic_flags = 0;
+	/* Setup APIC flags */
+	uint64_t apic_flags = 0x0F00000000000000;	/* Target all cpu groups */
+	apic_flags |= 0x100;						/* Lowest Priority */
+	apic_flags |= 0x800;						/* Logical Destination Mode */
+	apic_flags |= (1 << 13);					/* Set Polarity */
+	apic_flags |= (1 << 15);					/* Set Trigger Mode */
 
-	apic_flags = 0xFF00000000000000;	/* Target all groups */
-	apic_flags |= 0x800;				/* Logical Destination Mode */
-	apic_flags |= IdtEntry;				/* Interrupt Vector */
+	/* Set IDT Vector */
+	apic_flags |= IdtEntry;
 
-	InterruptInstallBase(Irq, IdtEntry, apic_flags, Callback, Args);
+	if (IrqTable[IdtEntry][0].Installed)
+		InterruptInstallIdtOnly(Irq, IdtEntry, Callback, Args);
+	else
+		InterruptInstallBase(Irq, IdtEntry, apic_flags, Callback, Args);
 }
 
 /* Install a pci interrupt */
@@ -183,7 +206,7 @@ void InterruptInstallPci(PciDevice_t *PciDevice, IrqHandler_t Callback, void *Ar
 	pin--;
 
 	/* Get Interrupt Information */
-	result = pci_device_get_irq(PciDevice->Bus, PciDevice->Device, pin,
+	result = PciDeviceGetIrq(PciDevice->Bus, PciDevice->Device, pin,
 		&trigger_mode, &polarity, &shareable, &fixed);
 
 	/* If no routing exists use the interrupt_line */
@@ -192,7 +215,7 @@ void InterruptInstallPci(PciDevice_t *PciDevice, IrqHandler_t Callback, void *Ar
 		io_entry = PciDevice->Header->InterruptLine;
 		idt_entry += PciDevice->Header->InterruptLine;
 
-		apic_flags = 0xFF00000000000000;	/* Target all groups */
+		apic_flags = 0x0F00000000000000;	/* Target all groups */
 		apic_flags |= 0x100;				/* Lowest Priority */
 		apic_flags |= 0x800;				/* Logical Destination Mode */
 	}
@@ -202,12 +225,12 @@ void InterruptInstallPci(PciDevice_t *PciDevice, IrqHandler_t Callback, void *Ar
 		pin = PciDevice->Header->InterruptPin;
 
 		/* Update PCI Interrupt Line */
-		pci_write_byte(
+		PciWriteByte(
 			(const uint16_t)PciDevice->Bus, (const uint16_t)PciDevice->Device,
 			(const uint16_t)PciDevice->Function, 0x3C, (uint8_t)io_entry);
 
 		/* Setup APIC flags */
-		apic_flags = 0xFF00000000000000;			/* Target all groups */
+		apic_flags = 0x0F00000000000000;			/* Target all groups */
 		apic_flags |= 0x100;						/* Lowest Priority */
 		apic_flags |= 0x800;						/* Logical Destination Mode */
 		apic_flags |= ((polarity & 0x1) << 13);		/* Set Polarity */
@@ -241,14 +264,14 @@ void InterruptInstallPci(PciDevice_t *PciDevice, IrqHandler_t Callback, void *Ar
 	apic_flags |= idt_entry;
 
 	if (IrqTable[idt_entry][0].Installed)
-		InterruptInstallIdtOnly(idt_entry, Callback, Args);
+		InterruptInstallIdtOnly(io_entry, idt_entry, Callback, Args);
 	else
 		InterruptInstallBase(io_entry, idt_entry, apic_flags, Callback, Args);
 }
 
 /* Install only the interrupt handler, 
  *  this should be used for software interrupts */
-void InterruptInstallIdtOnly(uint32_t IdtEntry, IrqHandler_t Callback, void *Args)
+void InterruptInstallIdtOnly(uint32_t Gsi, uint32_t IdtEntry, IrqHandler_t Callback, void *Args)
 {
 	/* Install into table */
 	int i;
@@ -257,13 +280,14 @@ void InterruptInstallIdtOnly(uint32_t IdtEntry, IrqHandler_t Callback, void *Arg
 	/* Find a free interrupt */
 	for (i = 0; i < X86_MAX_HANDLERS_PER_INTERRUPT; i++)
 	{
-		if (IrqTable[IdtEntry][i].Installed)
+		if (IrqTable[IdtEntry][i].Installed != 0)
 			continue;
-	
+
 		/* Install it */
 		IrqTable[IdtEntry][i].Function = Callback;
 		IrqTable[IdtEntry][i].Data = Args;
 		IrqTable[IdtEntry][i].Installed = 1;
+		IrqTable[IdtEntry][i].Gsi = Gsi;
 		found = 1;
 		break;
 	}
@@ -272,12 +296,73 @@ void InterruptInstallIdtOnly(uint32_t IdtEntry, IrqHandler_t Callback, void *Arg
 	assert(found != 0);
 }
 
+/* Allocate ISA Interrupt */
+OsStatus_t InterruptAllocateISA(uint32_t Irq)
+{
+	/* Sanity */
+	if (Irq > 15)
+		return OS_STATUS_FAIL;
+
+	/* Allocate if free */
+	if (IrqIsaTable[Irq] != 1)
+	{
+		IrqIsaTable[Irq] = 1;
+		return OS_STATUS_OK;
+	}
+	
+	/* Damn */
+	return OS_STATUS_FAIL;
+}
+
+/* Check Irq Status */
+uint32_t InterruptIrqCount(uint32_t Irq)
+{
+	/* Vars */
+	uint32_t i, RetVal = 0;
+
+	/* Sanity */
+	if (Irq < X86_NUM_ISA_INTERRUPTS)
+		return IrqIsaTable[Irq];
+
+	/* Iterate */
+	for (i = 0; i < X86_MAX_HANDLERS_PER_INTERRUPT; i++)
+	{
+		if (IrqTable[32 + Irq][i].Installed == 1)
+			RetVal++;
+	}
+
+	/* Done */
+	return RetVal;
+}
+
+/* Allocate Shareable Interrupt */
+uint32_t InterruptAllocatePCI(uint32_t Irqs[], uint32_t Count)
+{
+	/* Vars */
+	uint32_t i;
+	uint32_t BestIrq = 0xFFFFFFFF;
+
+	/* Iterate */
+	for (i = 0; i < Count; i++)
+	{
+		/* Check count */
+		uint32_t iCount = InterruptIrqCount(Irqs[i]);
+
+		/* Is it better? */
+		if (iCount < BestIrq)
+			BestIrq = iCount;
+	}
+
+	/* Done */
+	return BestIrq;
+}
+
 /* The common entry point for interrupts */
 void InterruptEntry(Registers_t *regs)
 {
 	/* Determine Irq */
 	int i, res = 0;
-	int calls = 0;
+	uint32_t gsi = 0xFFFFFFFF;
 	uint32_t irq = regs->Irq + 0x20;
 
 	/* Get handler(s) */
@@ -292,14 +377,19 @@ void InterruptEntry(Registers_t *regs)
 			else
 				res = IrqTable[irq][i].Function(IrqTable[irq][i].Data);
 
-			if (res != X86_IRQ_NOT_HANDLED)
-				calls++;
+			/* Only one device could make interrupt */
+			if (res == X86_IRQ_HANDLED)
+			{
+				gsi = IrqTable[irq][i].Gsi;
+				break;
+			}
 		}
 	}
 
 	/* Send EOI (if not spurious) */
-	if (irq != INTERRUPT_SPURIOUS7 && irq != INTERRUPT_SPURIOUS)
-		apic_send_eoi();
+	if (irq != INTERRUPT_SPURIOUS7
+		&& irq != INTERRUPT_SPURIOUS)
+		ApicSendEoi(gsi, irq);
 }
 
 /* Disables interrupts and returns
@@ -360,6 +450,11 @@ void InterruptInit(void)
 
 	/* Null out interrupt table */
 	memset((void*)&IrqTable, 0, sizeof(IrqTable));
+	memset((void*)&IrqIsaTable, 0, sizeof(IrqIsaTable));
+
+	/* Pre-allocate some of the interrupts */
+	IrqIsaTable[7] = 1; //Spurious
+	IrqIsaTable[9] = 1; //SCI Interrupt
 
 	/* Setup Stuff */
 	for (i = 0; i < X86_IDT_DESCRIPTORS; i++)

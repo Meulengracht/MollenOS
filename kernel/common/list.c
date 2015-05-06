@@ -41,7 +41,7 @@ list_t *list_create(int attributes)
 
 	/* Do we use a lock? */
 	if (attributes & LIST_SAFE)
-		spinlock_reset(&list->lock);
+		SpinlockReset(&list->lock);
 
 	return list;
 }
@@ -72,7 +72,7 @@ void list_insert_front(list_t *list, list_node_t *node)
 
 	/* Get lock */
 	if (list->attributes & LIST_SAFE)
-		spinlock_acquire(&list->lock);
+		SpinlockAcquire(&list->lock);
 
 	/* Empty list  ? */
 	if (list->head == NULL || list->tailp == NULL)
@@ -94,7 +94,7 @@ void list_insert_front(list_t *list, list_node_t *node)
 
 	/* Release Lock */
 	if (list->attributes & LIST_SAFE)
-		spinlock_release(&list->lock);
+		SpinlockRelease(&list->lock);
 }
 
 /* Appends a node at the end of this list. */
@@ -106,7 +106,7 @@ void list_append(list_t *list, list_node_t *node)
 
 	/* Get lock */
 	if (list->attributes & LIST_SAFE)
-		spinlock_acquire(&list->lock);
+		SpinlockAcquire(&list->lock);
 
 	/* Empty list ? */
 	if (list->head == NULL || list->tailp == NULL)
@@ -128,7 +128,7 @@ void list_append(list_t *list, list_node_t *node)
 
 	/* Release Lock */
 	if (list->attributes & LIST_SAFE)
-		spinlock_release(&list->lock);
+		SpinlockRelease(&list->lock);
 }
 
 /* Removes a node from this list. */
@@ -144,7 +144,7 @@ void list_remove_by_node(list_t *list, list_node_t* node)
 
 	/* Get lock */
 	if (list->attributes & LIST_SAFE)
-		spinlock_acquire(&list->lock);
+		SpinlockAcquire(&list->lock);
 
 	/* Loop and locate */
 	_foreach(i, list)
@@ -180,7 +180,7 @@ void list_remove_by_node(list_t *list, list_node_t* node)
 
 	/* Release Lock */
 	if (list->attributes & LIST_SAFE)
-		spinlock_release(&list->lock);
+		SpinlockRelease(&list->lock);
 }
 
 /* Removes a node from START of list. */
@@ -196,7 +196,7 @@ list_node_t *list_pop_front(list_t *list)
 
 	/* Get lock */
 	if (list->attributes & LIST_SAFE)
-		spinlock_acquire(&list->lock);
+		SpinlockAcquire(&list->lock);
 
 	/* Sanity */
 	if (list->head != NULL)
@@ -217,7 +217,7 @@ list_node_t *list_pop_front(list_t *list)
 
 	/* Release Lock */
 	if (list->attributes & LIST_SAFE)
-		spinlock_release(&list->lock);
+		SpinlockRelease(&list->lock);
 
 	/* Return */
 	return curr;

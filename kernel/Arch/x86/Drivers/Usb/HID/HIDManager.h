@@ -265,6 +265,6 @@ typedef struct _usb_hid_driver
 /* Prototypes */
 
 /* Initialise Driver for a HID */
-_CRT_EXTERN void usb_hid_initialise(usb_hc_device_t *device, uint32_t iface);
+_CRT_EXTERN void usb_hid_initialise(UsbHcDevice_t *device, uint32_t iface);
 
 #endif // !X86_USB_HID_H_

@@ -20,32 +20,34 @@
 */
 
 /* Includes */
-#include <arch.h>
-#include <lapic.h>
+#include <Arch.h>
+#include <LApic.h>
 #include <assert.h>
-#include <memory.h>
-#include <scheduler.h>
-#include <heap.h>
-#include <list.h>
+#include <Memory.h>
+#include <Scheduler.h>
+#include <Heap.h>
+#include <List.h>
 #include <stdio.h>
 #include <string.h>
+#include <SysTimers.h>
 
-#include <drivers\usb\usb.h>
-#include <drivers\usb\ehci\ehci.h>
+#include <Drivers\Usb\Usb.h>
+#include <Drivers\Usb\Ehci\Ehci.h>
 
 /* Globals */
-volatile uint32_t glb_ehci_id = 0;
+volatile uint32_t GlbEhciId = 0;
 
 /* Initialise Controller from PCI */
-void ehci_init(pci_driver_t *device)
+void EhciInit(PciDevice_t *PciDevice)
 {
-	volatile ehci_capability_registers_t *cap_registers;
-	volatile ehci_operational_registers_t *op_registers;
-	uint32_t eecp;
+	volatile EchiCapabilityRegisters_t *CapRegs;
+	volatile EchiOperationalRegisters_t *OpRegs;
+	uint32_t Eecp;
 	uint32_t cmd;
+	uint32_t To;
 
 	/* Enable memory io and bus mastering, keep interrupts disabled */
-	pci_write_word((const uint16_t)device->bus, (const uint16_t)device->device, (const uint16_t)device->function, 0x4, 0x0406);
+	PciWriteWord((const uint16_t)PciDevice->Bus, (const uint16_t)PciDevice->Device, (const uint16_t)PciDevice->Function, 0x4, 0x0406);
 
 	/* Pci Registers 
 	 * BAR0 - Usb Base Registers 
@@ -56,93 +58,104 @@ void ehci_init(pci_driver_t *device)
 	 * ???? + 4 - Usb Legacy Support Control And Status Register
 	 * The above means ???? = EECP. EECP Offset in PCI space where
 	 * we can find the above registers */
-	cap_registers = (ehci_capability_registers_t*)memory_map_system_memory(device->header->bar0, 1);
-	cmd = eecp = ((cap_registers->cparams >> 8) & 0xFF);
+	CapRegs = (EchiCapabilityRegisters_t*)MmVirtualMapSysMemory(PciDevice->Header->Bar0, 1);
+	cmd = Eecp = ((CapRegs->CParams >> 8) & 0xFF);
 
 	/* Two cases, if EECP is valid we do additional steps */
-	if (eecp >= 0x40)
+	if (Eecp >= 0x40)
 	{
-		uint8_t semaphore = 0;
-		uint8_t cap_id = 0;
-		uint8_t failed = 0;
-		uint32_t timeout = 0;
+		uint8_t Semaphore = 0;
+		uint8_t CapId = 0;
+		uint8_t Failed = 0;
+		uint32_t Timeout = 0;
 
 		/* Get the extended capability register 
 		 * We read the second byte, because it contains 
 		 * the BIOS Semaphore */
-		failed = 0;
-		cap_id = pci_read_byte((uint16_t)device->bus, (uint16_t)device->device, (uint16_t)device->function, eecp);
-		semaphore = pci_read_byte((uint16_t)device->bus, (uint16_t)device->device, (uint16_t)device->function, eecp + 0x2);
+		Failed = 0;
+		CapId = PciReadByte((uint16_t)PciDevice->Bus, (uint16_t)PciDevice->Device, (uint16_t)PciDevice->Function, Eecp);
+		Semaphore = PciReadByte((uint16_t)PciDevice->Bus, (uint16_t)PciDevice->Device, (uint16_t)PciDevice->Function, Eecp + 0x2);
 
 		/* Is it BIOS owned? First bit in second byte */
-		if (semaphore & 0x1)
+		if (Semaphore & 0x1)
 		{
 			/* Request for my hat back :/ 
 			 * Third byte contains the OS Semaphore */
-			pci_write_byte((uint16_t)device->bus, (uint16_t)device->device, (uint16_t)device->function, eecp + 0x3, 0x1);
+			PciWriteByte((uint16_t)PciDevice->Bus, (uint16_t)PciDevice->Device, (uint16_t)PciDevice->Function, Eecp + 0x3, 0x1);
 
 			/* Now we wait for the hat to return */
-			timeout = 0;
-			semaphore = pci_read_byte((uint16_t)device->bus, (uint16_t)device->device, (uint16_t)device->function, eecp + 0x2);
-			while ((timeout < 1000) && (semaphore & 0x1))
+			Timeout = 0;
+			Semaphore = PciReadByte((uint16_t)PciDevice->Bus, (uint16_t)PciDevice->Device, (uint16_t)PciDevice->Function, Eecp + 0x2);
+			while ((Timeout < 1000) && (Semaphore & 0x1))
 			{
-				clock_stall(5);
-				semaphore = pci_read_byte((uint16_t)device->bus, (uint16_t)device->device, (uint16_t)device->function, eecp + 0x2);
-				timeout++;
+				StallMs(1);
+				Semaphore = PciReadByte((uint16_t)PciDevice->Bus, (uint16_t)PciDevice->Device, (uint16_t)PciDevice->Function, Eecp + 0x2);
+				Timeout++;
 			}
 
 			/* Sanity */
-			if (timeout == 1000)
-				failed = 1;
+			if (Timeout == 1000)
+				Failed = 1;
 
 			/* Now, we wait for OS semaphore to be 1 */
-			if (!failed)
+			if (!Failed)
 			{
-				timeout = 0;
-				semaphore = pci_read_byte((uint16_t)device->bus, (uint16_t)device->device, (uint16_t)device->function, eecp + 0x3);
-				while ((timeout < 1000) && (!(semaphore & 0x1)))
+				Timeout = 0;
+				Semaphore = PciReadByte((uint16_t)PciDevice->Bus, (uint16_t)PciDevice->Device, (uint16_t)PciDevice->Function, Eecp + 0x3);
+				while ((Timeout < 1000) && (!(Semaphore & 0x1)))
 				{
-					clock_stall(1);
-					semaphore = pci_read_byte((uint16_t)device->bus, (uint16_t)device->device, (uint16_t)device->function, eecp + 0x3);
-					timeout++;
+					StallMs(1);
+					Semaphore = PciReadByte((uint16_t)PciDevice->Bus, (uint16_t)PciDevice->Device, (uint16_t)PciDevice->Function, Eecp + 0x3);
+					Timeout++;
 				}
 
 				/* Sanity */
-				if (timeout == 1000)
-					failed = 1;
+				if (Timeout == 1000)
+					Failed = 1;
 			}
 			
 			/* Disable SMI by setting all lower 16 bits to 0 of EECP+4 */
-			if (cap_id & 1)
-				pci_write_dword((uint16_t)device->bus, (uint16_t)device->device, (uint16_t)device->function, eecp + 0x4, 0x0000);
+			if (CapId & 1)
+				PciWriteDword((uint16_t)PciDevice->Bus, (uint16_t)PciDevice->Device, (uint16_t)PciDevice->Function, Eecp + 0x4, 0x0000);
 		}
 	}
 
 	/* Now we are almost done 
 	 * Get operational registers */
-	op_registers = (ehci_operational_registers_t*)((addr_t)cap_registers + cap_registers->length);
+	OpRegs = (EchiOperationalRegisters_t*)((Addr_t)CapRegs + CapRegs->Length);
 	
 	/* Stop scheduler */
-	cmd = op_registers->usb_command;
+	cmd = OpRegs->UsbCommand;
 	cmd &= ~(0x30);
-	op_registers->usb_command = cmd;
+	OpRegs->UsbCommand = cmd;
 
 	/* Wait for stop */
-	while (op_registers->usb_status & 0xC000)
-		clock_stall(5);
+	To = 0;
+	while (OpRegs->UsbStatus & 0xC000 
+		&& To < 100)
+	{
+		StallMs(5);
+		To++;
+	}
+		
 
 	/* Stop controller */
-	cmd = op_registers->usb_command;
+	cmd = OpRegs->UsbCommand;
 	cmd &= ~(0x1);
-	op_registers->usb_command = cmd;
-	op_registers->usb_intr = 0;
+	OpRegs->UsbCommand = cmd;
+	OpRegs->UsbIntr = 0;
 
 	/* Wait for stop */
-	while (!(op_registers->usb_status & 0x1000))
-		clock_stall(5);
+	To = 0;
+	while (!(OpRegs->UsbStatus & 0x1000)
+		&& To < 100)
+	{
+		StallMs(5);
+		To++;
+	}
 
 	/* Clear Configured Flag */
-	op_registers->config_flag = 0;
+	OpRegs->ConfigFlag = 0;
 
 	/* Now everything is routed to companion controllers */
 }

@@ -34,8 +34,8 @@
 
 /* Drivers */
 //#include <drivers\usb\uhci\uhci.h>
-//#include <drivers\usb\ohci\ohci.h>
-//#include <drivers\usb\ehci\ehci.h>
+#include <Drivers\Usb\Ohci\Ohci.h>
+#include <Drivers\Usb\Ehci\Ehci.h>
 
 /* Prototypes */
 void PciCheckFunction(list_t *Bridge, uint8_t Bus, uint8_t Device, uint8_t Function);
@@ -1114,7 +1114,7 @@ void DriverDisableEhci(void *Data, int n)
 				if (driver->Header->Interface == 0x20)
 				{
 					/* Initialise Controller */
-					//ehci_init(driver);
+					EhciInit(driver);
 				}
 			}
 		}
@@ -1174,7 +1174,7 @@ void DriverSetupCallback(void *Data, int n)
 					else if (driver->Header->Interface == 0x10)
 					{
 						/* Initialise Controller */
-						//ohci_init(driver);
+						OhciInit(driver);
 					}
 				}
 			}
@@ -1200,13 +1200,15 @@ void DriverManagerInit(void *Args)
 	printf("    * Enumerating PCI Space\n");
 	PciAcpiEnumerate();
 
-	/* Special Step for EHCI Controllers 
-	 * This is untill I know OHCI and UHCI works perfectly! */
+	/* Debug */
+	printf("    * Device Enumeration Done!\n");
+
+	/* Special Step for EHCI Controllers
+	* This is untill I know OHCI and UHCI works perfectly! */
 	list_execute_all(GlbPciDevices, DriverDisableEhci);
+
+	printf("Installing Drivers\n");
 
 	/* Now, for each driver we have available install it */
 	list_execute_all(GlbPciDevices, DriverSetupCallback);
-
-	/* Debug */
-	printf("    * Device Enumeration Done!\n");
 }

@@ -124,6 +124,7 @@
 #else
 #include "..\Arch\x86\x32\Arch.h"
 #include "..\Arch\x86\Memory.h"
+#include "..\Arch\x86\SysTimers.h"
 #endif
 
 /* Shared */
@@ -485,7 +486,7 @@ ACPI_STATUS AcpiOsRemoveInterruptHandler(
 void AcpiOsStall(UINT32 Microseconds)
 {
 	/* Stall OS */
-	clock_stall(Microseconds + 1);
+	StallMs(Microseconds + 1);
 }
 
 /******************************************************************************
@@ -504,7 +505,7 @@ void AcpiOsSleep(UINT64 Milliseconds)
 {
 	/* TODO */
 	/* Add 10ms to account for clock tick granularity */
-	clock_stall(Milliseconds + 1);
+	StallMs(Milliseconds + 1);
 	//Sleep(((unsigned long)Milliseconds) + 10);
 	return;
 }
@@ -534,17 +535,17 @@ ACPI_STATUS AcpiOsReadPciConfiguration(
 	{
 		case 8:
 		{
-			*Value = pci_read_byte(PciId->Bus, PciId->Device, PciId->Function, Register);
+			*Value = PciReadByte(PciId->Bus, PciId->Device, PciId->Function, Register);
 		} break;
 
 		case 16:
 		{
-			*Value = pci_read_word(PciId->Bus, PciId->Device, PciId->Function, Register);
+			*Value = PciReadWord(PciId->Bus, PciId->Device, PciId->Function, Register);
 		} break;
 
 		case 32:
 		{
-			*Value = pci_read_dword(PciId->Bus, PciId->Device, PciId->Function, Register);
+			*Value = PciReadDword(PciId->Bus, PciId->Device, PciId->Function, Register);
 		} break;
 
 		default:
@@ -579,17 +580,17 @@ ACPI_STATUS AcpiOsWritePciConfiguration(
 	{
 		case 8:
 		{
-			pci_write_byte(PciId->Bus, PciId->Device, PciId->Function, Register, (UINT8)Value);
+			PciWriteByte(PciId->Bus, PciId->Device, PciId->Function, Register, (UINT8)Value);
 		} break;
 
 		case 16:
 		{
-			pci_write_word(PciId->Bus, PciId->Device, PciId->Function, Register, (UINT16)Value);
+			PciWriteWord(PciId->Bus, PciId->Device, PciId->Function, Register, (UINT16)Value);
 		} break;
 
 		case 32:
 		{
-			pci_write_dword(PciId->Bus, PciId->Device, PciId->Function, Register, (UINT32)Value);
+			PciWriteDword(PciId->Bus, PciId->Device, PciId->Function, Register, (UINT32)Value);
 		} break;
 
 		default:
@@ -812,7 +813,7 @@ void                    *Info)
 
 ACPI_THREAD_ID AcpiOsGetThreadId(void)
 {
-	return threading_get_thread_id() + 1;
+	return ThreadingGetCurrentThreadId() + 1;
 }
 
 
@@ -946,7 +947,7 @@ UINT32              MaxUnits,
 UINT32              InitialUnits,
 ACPI_HANDLE         *OutHandle)
 {
-	*OutHandle = (void*)semaphore_create(InitialUnits);
+	*OutHandle = (void*)SemaphoreCreate(InitialUnits);
 	return (AE_OK);
 }
 
@@ -954,7 +955,7 @@ ACPI_STATUS
 AcpiOsDeleteSemaphore(
 ACPI_HANDLE         Handle)
 {
-	semaphore_destroy(Handle);
+	SemaphoreDestroy(Handle);
 	return (AE_OK);
 }
 

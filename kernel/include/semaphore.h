@@ -24,28 +24,28 @@
 #define _MCORE_SEMAPHORE_H_
 
 /* Includes */
-#include <arch.h>
+#include <Arch.h>
 #include <crtdefs.h>
 #include <stdint.h>
 
 /* Structures */
-typedef struct _semaphore 
+typedef struct _Semaphore 
 {
 	/* Spinlock */
-	spinlock_t lock;
+	Spinlock_t Lock;
 
 	/* Value */
-	volatile int value;
+	volatile int Value;
 
 	/* Semaphore Creator */
-	tid_t creator;
+	TId_t Creator;
 
-} semaphore_t;
+} Semaphore_t;
 
 /* Prototypes */
-_CRT_EXTERN semaphore_t *semaphore_create(int value);
-_CRT_EXTERN void semaphore_destroy(semaphore_t *sem);
-_CRT_EXTERN void semaphore_P(semaphore_t *sem);
-_CRT_EXTERN void semaphore_V(semaphore_t *sem);
+_CRT_EXTERN Semaphore_t *SemaphoreCreate(int Value);
+_CRT_EXTERN void SemaphoreDestroy(Semaphore_t *Semaphore);
+_CRT_EXTERN void SemaphoreP(Semaphore_t *Semaphore);
+_CRT_EXTERN void SemaphoreV(Semaphore_t *Semaphore);
 
 #endif // !_MCORE_SEMAPHORE_H_

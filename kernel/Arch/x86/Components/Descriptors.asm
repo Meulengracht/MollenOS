@@ -36,7 +36,7 @@ _GdtInstall:
 	push eax
 
 	; Install GDT
-	lgdt [_gdt_ptr]
+	lgdt [_Gdtptr]
 
 	; Jump into correct descriptor
 	xor eax, eax
@@ -88,7 +88,7 @@ _TssInstall:
 ; index
 _IdtInstall:
 	; Install IDT
-	lidt [_idt_ptr]
+	lidt [_Idtptr]
 
 	; Return
 	ret 

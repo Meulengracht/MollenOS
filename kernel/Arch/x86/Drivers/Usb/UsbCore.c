@@ -20,215 +20,216 @@
 */
 
 /* Includes */
-#include <arch.h>
-#include <drivers\usb\usb.h>
-#include <drivers\usb\hid\hid_manager.h>
-#include <drivers\usb\msd\msd_manager.h>
-#include <semaphore.h>
-#include <heap.h>
-#include <list.h>
+#include <Arch.h>
+#include <Drivers\Usb\Usb.h>
+#include <Drivers\Usb\HID\HIDManager.h>
+#include <Drivers\Usb\MSD\MSDManager.h>
+#include <Semaphore.h>
+#include <SysTimers.h>
+#include <Heap.h>
+#include <List.h>
 #include <stdio.h>
 #include <string.h>
 
 /* Globals */
-list_t *glb_usb_controllers = NULL;
-list_t *glb_usb_devices = NULL;
-list_t *glb_usb_events = NULL;
-semaphore_t *glb_event_lock = NULL;
-volatile uint32_t glb_initialized = 0;
-volatile uint32_t glb_usb_id = 0;
+list_t *GlbUsbControllers = NULL;
+list_t *GlbUsbDevices = NULL;
+list_t *GlbUsbEvents = NULL;
+Semaphore_t *GlbEventLock = NULL;
+volatile uint32_t GlbUsbInitialized = 0;
+volatile uint32_t GlbUsbControllerId = 0;
 
 /* Prototypes */
-void usb_core_event_handler(void*);
-void usb_device_setup(usb_hc_t *hc, int port);
-void usb_device_destroy(usb_hc_t *hc, int port);
-usb_hc_port_t *usb_create_port(int port);
+void UsbEventHandler(void*);
+void UsbDeviceSetup(UsbHc_t *Hc, int Port);
+void UsbDeviceDestroy(UsbHc_t *Hc, int Port);
+UsbHcPort_t *UsbPortCreate(int Port);
 
 /* Gets called once a USB controller is registreret */
-void usb_core_init(void)
+void UsbCoreInit(void)
 {
-	glb_initialized = 0xDEADBEEF;
-	glb_usb_devices = list_create(LIST_SAFE);
-	glb_usb_controllers = list_create(LIST_SAFE);
-	glb_usb_events = list_create(LIST_SAFE);
-	glb_usb_id = 0;
+	GlbUsbInitialized = 0xDEADBEEF;
+	GlbUsbDevices = list_create(LIST_SAFE);
+	GlbUsbControllers = list_create(LIST_SAFE);
+	GlbUsbEvents = list_create(LIST_SAFE);
+	GlbUsbControllerId = 0;
 
 	/* Initialize Event Semaphore */
-	glb_event_lock = semaphore_create(0);
+	GlbEventLock = SemaphoreCreate(0);
 
 	/* Start Event Thread */
-	threading_create_thread("UsbEventHandler", usb_core_event_handler, NULL, 0);
+	ThreadingCreateThread("UsbEventHandler", UsbEventHandler, NULL, 0);
 }
 
 /* Registrate an OHCI/UHCI/EHCI/XHCI controller */
-usb_hc_t *usb_init_controller(void *controller_data, uint32_t controller_type, uint32_t controller_ports)
+UsbHc_t *UsbInitController(void *Data, uint32_t Type, uint32_t Ports)
 {
-	usb_hc_t *usb_controller;
+	UsbHc_t *Controller;
 
 	/* Allocate Resources */
-	usb_controller = (usb_hc_t*)kmalloc(sizeof(usb_hc_t));
-	memset(usb_controller, 0, sizeof(usb_hc_t));
+	Controller = (UsbHc_t*)kmalloc(sizeof(UsbHc_t));
+	memset(Controller, 0, sizeof(UsbHc_t));
 
-	usb_controller->hc = controller_data;
-	usb_controller->type = controller_type;
-	usb_controller->num_ports = controller_ports;
+	Controller->Hc = Data;
+	Controller->Type = Type;
+	Controller->NumPorts = Ports;
 
-	return usb_controller;
+	return Controller;
 }
 
-uint32_t usb_register_controller(usb_hc_t *controller)
+uint32_t UsbRegisterController(UsbHc_t *Controller)
 {
-	uint32_t id;
+	uint32_t Id;
 
 	/* First call? */
-	if (glb_initialized != 0xDEADBEEF)
+	if (GlbUsbInitialized != 0xDEADBEEF)
 	{
 		/* Oh shit, put hat on quick! */
-		usb_core_init();
+		UsbCoreInit();
 	}
 
 	/* Get id */
-	id = glb_usb_id;
-	glb_usb_id++;
+	Id = GlbUsbControllerId;
+	GlbUsbControllerId++;
 
 	/* Add to list */
-	list_append(glb_usb_controllers, list_create_node(id, controller));
+	list_append(GlbUsbControllers, list_create_node(Id, Controller));
 
-	return id;
+	return Id;
 }
 
 /* Create Event */
-void usb_event_create(usb_hc_t *hc, int port, uint32_t type)
+void UsbEventCreate(UsbHc_t *Hc, int Port, uint32_t Type)
 {
-	usb_event_t *event;
+	UsbEvent_t *Event;
 
 	/* Allocate */
-	event = (usb_event_t*)kmalloc(sizeof(usb_event_t));
-	event->controller = hc;
-	event->port = port;
-	event->type = type;
+	Event = (UsbEvent_t*)kmalloc(sizeof(UsbEvent_t));
+	Event->Controller = Hc;
+	Event->Port = Port;
+	Event->Type = Type;
 
 	/* Append */
-	list_append(glb_usb_events, list_create_node((int)type, event));
+	list_append(GlbUsbEvents, list_create_node((int)Type, Event));
 
 	/* Signal */
-	semaphore_V(glb_event_lock);
+	SemaphoreV(GlbEventLock);
 }
 
 /* Device Connected */
-void usb_device_setup(usb_hc_t *hc, int port)
+void UsbDeviceSetup(UsbHc_t *Hc, int Port)
 {
-	usb_hc_device_t *device;
+	UsbHcDevice_t *Device;
 	int i;
 
 	/* Make sure we have the port allocated */
-	if (hc->ports[port] == NULL)
-		hc->ports[port] = usb_create_port(port);
+	if (Hc->Ports[Port] == NULL)
+		Hc->Ports[Port] = UsbPortCreate(Port);
 
 	/* Create a device */
-	device = (usb_hc_device_t*)kmalloc(sizeof(usb_hc_device_t));
-	device->hcd = hc;
-	device->port = (uint8_t)port;
-	device->num_endpoints = 1;
+	Device = (UsbHcDevice_t*)kmalloc(sizeof(UsbHcDevice_t));
+	Device->HcDriver = Hc;
+	Device->Port = (uint8_t)Port;
+	Device->NumEndpoints = 1;
 
-	device->num_interfaces = 0;
+	Device->NumInterfaces = 0;
 	for (i = 0; i < X86_USB_CORE_MAX_IF; i++)
-		device->interfaces[i] = NULL;
+		Device->Interfaces[i] = NULL;
 	
 	/* Initial Address must be 0 */
-	device->address = 0;
+	Device->Address = 0;
 
 	/* Allocate control endpoint */
 	for (i = 0; i < 1; i++)
 	{
-		device->endpoints[i] = (usb_hc_endpoint_t*)kmalloc(sizeof(usb_hc_endpoint_t));
-		device->endpoints[i]->address = 0;
-		device->endpoints[i]->type = X86_USB_EP_TYPE_CONTROL;
-		device->endpoints[i]->toggle = 0;
-		device->endpoints[i]->bandwidth = 1;
-		device->endpoints[i]->max_packet_size = 64;
-		device->endpoints[i]->direction = X86_USB_EP_DIRECTION_BOTH;
-		device->endpoints[i]->interval = 0;
+		Device->Endpoints[i] = (UsbHcEndpoint_t*)kmalloc(sizeof(UsbHcEndpoint_t));
+		Device->Endpoints[i]->Address = 0;
+		Device->Endpoints[i]->Type = X86_USB_EP_TYPE_CONTROL;
+		Device->Endpoints[i]->Toggle = 0;
+		Device->Endpoints[i]->Bandwidth = 1;
+		Device->Endpoints[i]->MaxPacketSize = 64;
+		Device->Endpoints[i]->Direction = X86_USB_EP_DIRECTION_BOTH;
+		Device->Endpoints[i]->Interval = 0;
 	}
 
 	/* Bind it */
-	hc->ports[port]->device = device;
+	Hc->Ports[Port]->Device = Device;
 
 	/* Allow 100 ms for insertion to complete */
-	clock_stall(100);
+	StallMs(100);
 
 	/* Setup Port */
-	hc->port_setup(hc->hc, hc->ports[port]);
+	Hc->PortSetup(Hc->Hc, Hc->Ports[Port]);
 
 	/* Set Device Address (Just bind it to the port number + 1 (never set address 0) ) */
-	if (!usb_function_set_address(hc, port, (uint32_t)(port + 1)))
+	if (!UsbFunctionSetAddress(Hc, Port, (uint32_t)(Port + 1)))
 	{
 		/* Try again */
-		if (!usb_function_set_address(hc, port, (uint32_t)(port + 1)))
+		if (!UsbFunctionSetAddress(Hc, Port, (uint32_t)(Port + 1)))
 		{
-			printf("USB_Handler: (Set_Address) Failed to setup port %u\n", port);
+			printf("USB_Handler: (Set_Address) Failed to setup port %u\n", Port);
 			return;
 		}
 	}
 
 	/* After SetAddress device is allowed 2 ms recovery */
-	clock_stall(2);
+	StallMs(2);
 
 	/* Get Device Descriptor */
-	if (!usb_function_get_device_descriptor(hc, port))
+	if (!UsbFunctionGetDeviceDescriptor(Hc, Port))
 	{
 		/* Try Again */
-		if (!usb_function_get_device_descriptor(hc, port))
+		if (!UsbFunctionGetDeviceDescriptor(Hc, Port))
 		{
-			printf("USB_Handler: (Get_Device_Desc) Failed to setup port %u\n", port);
+			printf("USB_Handler: (Get_Device_Desc) Failed to setup port %u\n", Port);
 			return;
 		}
 	}
 	
 	/* Get Config Descriptor */
-	if (!usb_function_get_config_descriptor(hc, port))
+	if (!UsbFunctionGetConfigDescriptor(Hc, Port))
 	{
 		/* Try Again */
-		if (!usb_function_get_config_descriptor(hc, port))
+		if (!UsbFunctionGetConfigDescriptor(Hc, Port))
 		{
-			printf("USB_Handler: (Get_Config_Desc) Failed to setup port %u\n", port);
+			printf("USB_Handler: (Get_Config_Desc) Failed to setup port %u\n", Port);
 			return;
 		}
 	}
 
 	/* Set Configuration */
-	if (!usb_function_set_configuration(hc, port, hc->ports[port]->device->configuration))
+	if (!UsbFunctionSetConfiguration(Hc, Port, Hc->Ports[Port]->Device->Configuration))
 	{
 		/* Try Again */
-		if (!usb_function_set_configuration(hc, port, hc->ports[port]->device->configuration))
+		if (!UsbFunctionSetConfiguration(Hc, Port, Hc->Ports[Port]->Device->Configuration))
 		{
-			printf("USB_Handler: (Set_Configuration) Failed to setup port %u\n", port);
+			printf("USB_Handler: (Set_Configuration) Failed to setup port %u\n", Port);
 			return;
 		}
 	}
 
 	/* Go through interfaces and add them */
-	for (i = 0; i < (int)hc->ports[port]->device->num_interfaces; i++)
+	for (i = 0; i < (int)Hc->Ports[Port]->Device->NumInterfaces; i++)
 	{
 		/* We want to support Hubs, HIDs and MSDs*/
-		uint32_t iface = (uint32_t)i;
+		//uint32_t iface = (uint32_t)i;
 
 		/* Is this an HID Interface? :> */
-		if (hc->ports[port]->device->interfaces[i]->class_code == X86_USB_CLASS_HID)
+		if (Hc->Ports[Port]->Device->Interfaces[i]->Class == X86_USB_CLASS_HID)
 		{
 			/* Registrate us with HID Manager */
-			usb_hid_initialise(hc->ports[port]->device, iface);
+			//usb_hid_initialise(Hc->Ports[Port]->Device, iface);
 		}
 
 		/* Is this an MSD Interface? :> */
-		if (hc->ports[port]->device->interfaces[i]->class_code == X86_USB_CLASS_MSD)
+		if (Hc->Ports[Port]->Device->Interfaces[i]->Class == X86_USB_CLASS_MSD)
 		{
 			/* Registrate us with MSD Manager */
-			usb_msd_initialise(hc->ports[port]->device, iface);
+			//usb_msd_initialise(Hc->Ports[Port]->Device, iface);
 		}
 
 		/* Is this an HUB Interface? :> */
-		if (hc->ports[port]->device->interfaces[i]->class_code == X86_USB_CLASS_HUB)
+		if (Hc->Ports[Port]->Device->Interfaces[i]->Class == X86_USB_CLASS_HUB)
 		{
 			/* Protocol specifies usb interface (high or low speed) */
 
@@ -237,35 +238,35 @@ void usb_device_setup(usb_hc_t *hc, int port)
 	}
 
 	/* Done */
-	printf("OHCI: Setup of port %u done!\n", port);
+	printf("UsbCore: Setup of port %u done!\n", Port);
 }
 
-void usb_device_destroy(usb_hc_t *hc, int port)
+void UsbDeviceDestroy(UsbHc_t *Hc, int Port)
 {
 	/* Destroy device */
-	hc = hc;
-	port = port;
+	_CRT_UNUSED(Hc);
+	_CRT_UNUSED(Port);
 }
 
 /* Ports */
-usb_hc_port_t *usb_create_port(int port)
+UsbHcPort_t *UsbPortCreate(int Port)
 {
-	usb_hc_port_t *hc_port;
+	UsbHcPort_t *HcPort;
 
 	/* Allocate Resources */
-	hc_port = kmalloc(sizeof(usb_hc_port_t));
+	HcPort = kmalloc(sizeof(UsbHcPort_t));
 
 	/* Get Port Status */
-	hc_port->id = port;
+	HcPort->Id = Port;
 
 	/* Done */
-	return hc_port;
+	return HcPort;
 }
 
 /* USB Events */
-void usb_core_event_handler(void *args)
+void UsbEventHandler(void *args)
 {
-	usb_event_t *event;
+	UsbEvent_t *Event;
 	list_node_t *node;
 
 	/* Unused */
@@ -274,64 +275,64 @@ void usb_core_event_handler(void *args)
 	while (1)
 	{
 		/* Acquire Semaphore */
-		semaphore_P(glb_event_lock);
+		SemaphoreP(GlbEventLock);
 
 		/* Pop Event */
-		node = list_pop_front(glb_usb_events);
+		node = list_pop_front(GlbUsbEvents);
 
 		/* Sanity */
 		if (node == NULL)
 			continue;
 
-		event = (usb_event_t*)node->data;
+		Event = (UsbEvent_t*)node->data;
 
 		/* Again, sanity */
-		if (event == NULL)
+		if (Event == NULL)
 			continue;
 
 		/* Handle Event */
-		switch (event->type)
+		switch (Event->Type)
 		{
 			case X86_USB_EVENT_CONNECTED:
 			{
 				/* Setup Device */
-				usb_device_setup(event->controller, event->port);
+				UsbDeviceSetup(Event->Controller, Event->Port);
 
 			} break;
 
 			case X86_USB_EVENT_DISCONNECTED:
 			{
 				/* Destroy Device */
-				usb_device_destroy(event->controller, event->port);
+				UsbDeviceDestroy(Event->Controller, Event->Port);
 
 			} break;
 
 			case X86_USB_EVENT_ROOTHUB_CHECK:
 			{
 				/* Check Ports for Activity */
-				event->controller->root_hub_check(event->controller->hc);
+				Event->Controller->RootHubCheck(Event->Controller->Hc);
 
 			} break;
 
 			default:
 			{
-				printf("Unhandled Event: %u on port %i\n", event->type, event->port);
+				printf("Unhandled Event: %u on port %i\n", Event->Type, Event->Port);
 			} break;
 		}
 	}
 }
 
 /* Gets */
-usb_hc_t *usb_get_hcd(uint32_t controller_id)
+UsbHc_t *UsbGetHcd(uint32_t ControllerId)
 {
-	return (usb_hc_t*)list_get_data_by_id(glb_usb_controllers, controller_id, 0);
+	return (UsbHc_t*)list_get_data_by_id(GlbUsbControllers, ControllerId, 0);
 }
 
-usb_hc_port_t *usb_get_port(usb_hc_t *controller, int port)
+UsbHcPort_t *UsbGetPort(UsbHc_t *Controller, int Port)
 {
 	/* Sanity */
-	if (controller == NULL || port >= (int)controller->num_ports)
+	if (Controller == NULL || Port >= (int)Controller->NumPorts)
 		return NULL;
 
-	return controller->ports[port];
+	return Controller->Ports[Port];
 }

@@ -263,7 +263,7 @@ int VideoPutCharText(int Character)
 }
 
 /* PutChar Wrapper */
-OsStatus_t video_putchar(int Character)
+int VideoPutChar(int Character)
 {
 	if (gfx_info.GraphicMode == 0 || gfx_info.GraphicMode == 1)
 		VideoPutCharText(Character);
@@ -271,5 +271,5 @@ OsStatus_t video_putchar(int Character)
 		VideoPutCharVesa(Character);
 
 	/* Done */
-	return OS_STATUS_OK;
+	return Character;
 }

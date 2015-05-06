@@ -30,6 +30,7 @@
 #include <Idt.h>
 #include <Cpu.h>
 #include <Exceptions.h>
+#include <SysTimers.h>
 
 #include <stddef.h>
 #include <stdio.h>
@@ -79,14 +80,20 @@ void init(Multiboot_t *BootInfo, uint32_t KernelSize)
 	printf("  - Initializing ACPI Systems\n");
 	AcpiInitStage1();
 
-	/* Enable the APIC */
-	printf("    * APIC Initializing\n");
-	ApicBspInit();
-
 	/* Threading */
 	printf("  - Threading\n");
 	SchedulerInit(0);
 	ThreadingInit();
+
+	/* Setup IoApic and disable Pic */
+	printf("    * APIC Initializing\n");
+	ApicBspInit();
+
+	/* Setup Full APICPA */
+	AcpiInitStage2();
+
+	/* Finish */
+	ApicLocalFinish();
 
 	/* Setup Timers */
 	printf("    * Setting up local timer\n");
@@ -94,10 +101,7 @@ void init(Multiboot_t *BootInfo, uint32_t KernelSize)
 
 	/* Start out any extra cores */
 	printf("  - Booting Cores\n");
-	//SmpInit();
-
-	/* Setup Full APICPA */
-	AcpiInitStage2();
+	SmpInit();
 
 	/* From this point, we should start seperate threads and
 	 * let this thread die out, because initial system setup

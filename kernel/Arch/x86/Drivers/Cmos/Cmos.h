@@ -46,6 +46,8 @@
 #define X86_CMOS_CURRENT_YEAR		2014
 
 /* Bits */
+#define X86_CMOS_NMI_BIT			0x80
+#define X86_CMOS_ALLBITS_NONMI		0x7F
 #define X86_CMOSX_BIT_DISABLE_NMI	0x80
 #define X86_CMOSA_UPDATE_IN_PROG	0x80
 #define X86_CMOSB_BCD_FORMAT		0x04
@@ -59,14 +61,16 @@
 #define X86_CMOS_RTC_IRQ			0x08
 
 /* Prototypes */
-_CRT_EXTERN uint8_t clock_read_register(uint8_t reg);
-_CRT_EXTERN void clock_write_register(uint8_t reg, uint8_t data);
+_CRT_EXTERN void CmosInit(void);
+_CRT_EXTERN uint8_t CmosReadRegister(uint8_t Register);
+_CRT_EXTERN void CmosWriteRegister(uint8_t Register, uint8_t Data);
 
-_CRT_EXTERN void clock_get_time(tm *t);
-_CRT_EXTERN uint64_t clock_get_clocks(void);
-_CRT_EXTERN void clock_stall(uint32_t ms);
-_CRT_EXTERN void clock_stall_noint(uint32_t ms);
+_CRT_EXTERN void CmosGetTime(tm *TimeStructure);
+_CRT_EXTERN uint64_t RtcGetClocks(void);
+_CRT_EXTERN void RtcSleep(uint32_t MilliSeconds);
+_CRT_EXTERN void RtcStall(uint32_t MilliSeconds);
 
-_CRT_EXTERN void clock_init(void);
+/* Rtc Functions */
+_CRT_EXTERN OsStatus_t RtcInit(void);
 
 #endif // !_X86_CMOS_RTC_H_

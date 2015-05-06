@@ -36,18 +36,18 @@
 
 /* Capability Registers */
 #pragma pack(push, 1)
-typedef struct _ehci_capability_registers
+typedef struct _EchiCapabilityRegisters
 {
 	/* Capability Registers Length 
 	 * We add this offset to the Usb Base
 	 * to get operational registers */
-	uint8_t length;
+	uint8_t Length;
 
 	/* Reserved */
-	uint8_t reserved;
+	uint8_t Reserved;
 
 	/* Interface Version Number */
-	uint16_t version;
+	uint16_t Version;
 
 	/* Structural Parameters 
 	 * Bits 0-3: Port Count (max of 15 ports) 
@@ -60,7 +60,7 @@ typedef struct _ehci_capability_registers
 	 * Bits 17-19: Reserved
 	 * Bits 20-23: Debug Port Number 
 	 * Bits 24-31: Reserved */
-	uint32_t sparams;
+	uint32_t SParams;
 
 	/* Capability Parameters 
 	 * Bits 0: 64 Bit Capability if set (Use 64 bit data structures instead of 32 bit)! 
@@ -70,52 +70,52 @@ typedef struct _ehci_capability_registers
 	 * Bits 4-7: Isochronous Scheduling Threshold
 	 * Bits 8-15: Extended Capability Pointer, EECP. If a value is above 0x40 its a valid offset into pci-space. 
 	 * Bits 16-31: Reserved */
-	uint32_t cparams;
+	uint32_t CParams;
 
 	/* Companion Port Route Description */
-	uint64_t port_route;
+	uint64_t PortRouting;
 
-} ehci_capability_registers_t;
+} EchiCapabilityRegisters_t;
 #pragma pack(pop)
 
 /* Operational Registers */
 #pragma pack(push, 1)
-typedef struct _echi_operational_registers
+typedef struct _EchiOperationalRegisters
 {
 	/* USB Command Register */
-	uint32_t usb_command;
+	uint32_t UsbCommand;
 
 	/* USB Status Register */
-	uint32_t usb_status;
+	uint32_t UsbStatus;
 
 	/* USB Interrupt Register */
-	uint32_t usb_intr;
+	uint32_t UsbIntr;
 
 	/* Frame Index */
-	uint32_t frame_index;
+	uint32_t FrameIndex;
 
 	/* 4G Segment Selector */
-	uint32_t segment_selector;
+	uint32_t SegmentSelector;
 
 	/* Frame List Base Address */
-	uint32_t frame_list_addr;
+	uint32_t FrameListAddr;
 
 	/* Next Asynchronous List Address */
-	uint32_t next_asynclist_addr;
+	uint32_t NextAsyncListAddr;
 
 	/* Reserved */
-	uint8_t reserved[(0x40 - 0x1C)];
+	uint8_t Reserved[(0x40 - 0x1C)];
 
 	/* Configured Flag Register */
-	uint32_t config_flag;
+	uint32_t ConfigFlag;
 
 	/* Port Status Registers */
-	uint32_t ports[X86_EHCI_MAX_PORTS];
+	uint32_t Ports[X86_EHCI_MAX_PORTS];
 
-} ehci_operational_registers_t;
+} EchiOperationalRegisters_t;
 #pragma pack(pop)
 
 /* Prototypes */
-_CRT_EXTERN void ehci_init(pci_driver_t *device);
+_CRT_EXTERN void EhciInit(PciDevice_t *PciDevice);
 
 #endif

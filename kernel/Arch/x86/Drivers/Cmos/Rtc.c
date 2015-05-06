@@ -21,127 +21,144 @@
 */
 
 /* Includes */
-#include <arch.h>
-#include <lapic.h>
-#include <drivers\clock\clock.h>
-#include <timers.h>
+#include <Arch.h>
+#include <LApic.h>
+#include <Drivers\Cmos\Cmos.h>
+#include <Timers.h>
 #include <stddef.h>
 #include <stdio.h>
 
 /* Externs */
-extern volatile uint32_t timer_quantum;
+extern volatile uint32_t GlbTimerQuantum;
 extern void rdtsc(uint64_t *value);
 extern void _yield(void);
 
 /* Globals */
-volatile uint32_t glb_alarm_tick = 0;
-volatile uint64_t glb_ns_counter = 0;
-uint32_t glb_ns_step = 0;
-spinlock_t stall_lock;
+volatile uint32_t GlbRtcAlarmTicks = 0;
+volatile uint64_t GlbRtcNsCounter = 0;
+uint32_t GlbRtcNsTick = 0;
 
 /* The Clock Handler */
-int clock_irq_handler(void *data)
+int RtcIrqHandler(void *Data)
 {
 	/* Unused */
-	_CRT_UNUSED(data);
+	_CRT_UNUSED(Data);
 
 	/* Update Peroidic Tick Counter */
-	glb_ns_counter += glb_ns_step;
+	GlbRtcNsCounter += GlbRtcNsTick;
 
-	/* Apply Timer Time (roughly 2 ms) */
-	timers_apply_time(2);
+	/* Apply Timer Time (roughly 1 ms) */
+	timers_apply_time(1);
 
 	/* Acknowledge Irq 8 by reading register C */
-	clock_read_register(X86_CMOS_REGISTER_STATUS_C);
+	CmosReadRegister(X86_CMOS_REGISTER_STATUS_C);
 
 	return X86_IRQ_HANDLED;
 }
 
 /* Initialization */
-void clock_init(void)
+OsStatus_t RtcInit(void)
 {
-	interrupt_status_t int_state;
-	uint8_t state_b = 0;
-	uint8_t rate = 0x07; /* must be between 3 and 15 */
+	IntStatus_t IntrState;
+	uint8_t StateB = 0;
+	uint8_t Rate = 0x08; /* must be between 3 and 15 */
 
-	/* Ms is 1.95, 512 ints per sec */
+	/* Ms is .97, 1024 ints per sec */
 	/* Frequency = 32768 >> (rate-1), 15 = 2, 14 = 4, 13 = 8/s (125 ms) */
-	glb_ns_step = 1950;
-	glb_ns_counter = 0;
-	glb_alarm_tick = 0;
-
-	/* Reset lock */
-	spinlock_reset(&stall_lock);
+	GlbRtcNsTick = 976;
+	GlbRtcNsCounter = 0;
+	GlbRtcAlarmTicks = 0;
 
 	/* Disable IRQ's for this duration */
-	int_state = interrupt_disable();
+	IntrState = InterruptDisable();
 
 	/* Disable RTC Irq */
-	state_b = clock_read_register(X86_CMOS_REGISTER_STATUS_B);
-	state_b &= ~(0x70);
-	clock_write_register(X86_CMOS_REGISTER_STATUS_B, state_b);
-
+	StateB = CmosReadRegister(X86_CMOS_REGISTER_STATUS_B);
+	StateB &= ~(0x70);
+	CmosWriteRegister(X86_CMOS_REGISTER_STATUS_B, StateB);
+	
 	/* Update state_b */
-	state_b = clock_read_register(X86_CMOS_REGISTER_STATUS_B);
+	StateB = CmosReadRegister(X86_CMOS_REGISTER_STATUS_B);
 
 	/* Install ISA IRQ Handler using normal install function */
-	interrupt_install(X86_CMOS_RTC_IRQ, INTERRUPT_RTC, clock_irq_handler, NULL);
+	InterruptInstallISA(X86_CMOS_RTC_IRQ, INTERRUPT_RTC, RtcIrqHandler, NULL);
 
 	/* Set Frequency */
-	clock_write_register(X86_CMOS_REGISTER_STATUS_A, 0x20 | rate);
+	CmosWriteRegister(X86_CMOS_REGISTER_STATUS_A, 0x20 | Rate);
 
 	/* Clear pending interrupt */
-	clock_read_register(X86_CMOS_REGISTER_STATUS_C);
+	CmosReadRegister(X86_CMOS_REGISTER_STATUS_C);
 
 	/* Enable Periodic Interrupts */
-	state_b = clock_read_register(X86_CMOS_REGISTER_STATUS_B);
-	state_b |= X86_CMOSB_RTC_PERIODIC;
-	clock_write_register(X86_CMOS_REGISTER_STATUS_B, state_b);
+	StateB = CmosReadRegister(X86_CMOS_REGISTER_STATUS_B);
+	StateB |= X86_CMOSB_RTC_PERIODIC;
+	CmosWriteRegister(X86_CMOS_REGISTER_STATUS_B, StateB);
 
 	/* Done, reenable interrupts */
-	interrupt_set_state(int_state);
+	InterruptRestoreState(IntrState);
 
 	/* Clear pending interrupt again */
-	clock_read_register(X86_CMOS_REGISTER_STATUS_C);
+	CmosReadRegister(X86_CMOS_REGISTER_STATUS_C);
+
+	/* Done */
+	return OS_STATUS_OK;
 }
 
 /* Rtc Ticks */
-uint64_t clock_get_clocks(void)
+uint64_t RtcGetClocks(void)
 {
-	return glb_ns_counter;
+	return GlbRtcNsCounter;
 }
 
 /* Stall for ms */
-void clock_stall(uint32_t ms)
+void RtcStallBackup(uint32_t MilliSeconds)
 {
-	uint64_t ticks = (ms * 1000) + clock_get_clocks();
+	uint64_t RdTicks = 0;
+	uint64_t TickEnd = 0;
+
+	/* Read Time Stamp Counter */
+	rdtsc(&RdTicks);
+
+	/* Calculate ticks */
+	TickEnd = RdTicks + (MilliSeconds * GlbTimerQuantum);
+
+	/* Wait */
+	while (TickEnd > RdTicks)
+		rdtsc(&RdTicks);
+}
+
+/* Sleep for ms */
+void RtcSleep(uint32_t MilliSeconds)
+{
+	/* Calculate TickEnd in NanoSeconds */
+	uint64_t TickEnd = (MilliSeconds * 1000) + RtcGetClocks();
 
 	/* If glb_clock_tick is 0, RTC failure */
-	if (clock_get_clocks() == 0)
+	if (RtcGetClocks() == 0)
 	{
-		printf("Tried to use RTC while having a failure :/\n");
-		clock_stall_noint(ms);
+		RtcStallBackup(MilliSeconds);
 		return;
 	}
 
 	/* While */
-	while (ticks >= clock_get_clocks())
+	while (TickEnd >= RtcGetClocks())
 		_yield();
 }
 
 /* Stall for ms */
-void clock_stall_noint(uint32_t ms)
+void RtcStall(uint32_t MilliSeconds)
 {
-	uint64_t rd_ticks = 0;
-	uint64_t ticks = 0;
+	/* Calculate TickEnd in NanoSeconds */
+	uint64_t TickEnd = (MilliSeconds * 1000) + RtcGetClocks();
 
-	/* Read Time Stamp Counter */
-	rdtsc(&rd_ticks);
+	/* If glb_clock_tick is 0, RTC failure */
+	if (RtcGetClocks() == 0)
+	{
+		RtcStallBackup(MilliSeconds);
+		return;
+	}
 
-	/* Calculate ticks */
-	ticks = rd_ticks + (ms * timer_quantum);
-
-	/* Wait */
-	while (ticks > rd_ticks)
-		rdtsc(&rd_ticks);
+	/* While */
+	while (TickEnd >= RtcGetClocks())
+		_asm nop;
 }

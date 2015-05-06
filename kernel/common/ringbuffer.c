@@ -36,7 +36,7 @@ ringbuffer_t *ringbuffer_create(size_t size)
 	ringbuffer->length = size;
 
 	/* Reset lock */
-	spinlock_reset(&ringbuffer->lock);
+	SpinlockReset(&ringbuffer->lock);
 
 	return ringbuffer;
 }
@@ -89,7 +89,7 @@ int ringbuffer_write(ringbuffer_t *ringbuffer, size_t size, uint8_t *buffer)
 		return -1;
 
 	/* Acquire lock */
-	spinlock_acquire(&ringbuffer->lock);
+	SpinlockAcquire(&ringbuffer->lock);
 
 	/* Only write while buffer is available */
 	while (1)
@@ -115,14 +115,14 @@ int ringbuffer_write(ringbuffer_t *ringbuffer, size_t size, uint8_t *buffer)
 			/* No, sleep time :( */
 
 			/* Release lock */
-			spinlock_release(&ringbuffer->lock);
+			SpinlockRelease(&ringbuffer->lock);
 		}
 		else
 			break;
 	}
 
 	/* Release lock */
-	spinlock_release(&ringbuffer->lock);
+	SpinlockRelease(&ringbuffer->lock);
 
 	/* Done */
 	return 0;
@@ -138,7 +138,7 @@ int ringbuffer_read(ringbuffer_t *ringbuffer, size_t size, uint8_t *buffer)
 		return -1;
 
 	/* Acquire lock */
-	spinlock_acquire(&ringbuffer->lock);
+	SpinlockAcquire(&ringbuffer->lock);
 
 	while (1)
 	{
@@ -163,14 +163,14 @@ int ringbuffer_read(ringbuffer_t *ringbuffer, size_t size, uint8_t *buffer)
 			/* No, sleep time :( */
 
 			/* Release lock */
-			spinlock_release(&ringbuffer->lock);
+			SpinlockRelease(&ringbuffer->lock);
 		}
 		else
 			break;
 	}
 	
 	/* Release lock */
-	spinlock_release(&ringbuffer->lock);
+	SpinlockRelease(&ringbuffer->lock);
 
 	/* Done */
 	return 0;

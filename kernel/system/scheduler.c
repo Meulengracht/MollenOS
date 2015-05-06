@@ -156,7 +156,7 @@ void SchedulerReadyThread(list_node_t *Node)
 	SpinlockRelease(&GlbSchedulers[index]->Lock);
 
 	/* Wakeup CPU if sleeping */
-	if (threading_get_current_thread(t->CpuId)->Flags & 0x20)
+	if (ThreadingGetCurrentThread(t->CpuId)->Flags & 0x20)
 		ApicSendIpi((uint8_t)t->CpuId, INTERRUPT_YIELD);
 }
 
@@ -165,7 +165,7 @@ void SchedulerSleepThread(Addr_t *Resource)
 {
 	/* Mark current thread for sleep and get its queue_node */
 	IntStatus_t int_state = InterruptDisable();
-	list_node_t *t_node = threading_enter_sleep();
+	list_node_t *t_node = ThreadingEnterSleep();
 	Thread_t *t = (Thread_t*)t_node->data;
 
 	/* Add to list */

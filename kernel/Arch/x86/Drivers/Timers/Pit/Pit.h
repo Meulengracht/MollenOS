@@ -1,6 +1,6 @@
 /* MollenOS
 *
-* Copyright 2011 - 2014, Philip Meulengracht
+* Copyright 2011 - 2015, Philip Meulengracht
 *
 * This program is free software : you can redistribute it and / or modify
 * it under the terms of the GNU General Public License as published by
@@ -16,10 +16,10 @@
 * along with this program.If not, see <http://www.gnu.org/licenses/>.
 *
 *
-* MollenOS x86-32 Timer Manager Header
+* MollenOS x86-32 Pit Header
 */
-#ifndef _X86_TIMER_MANAGER_
-#define _X86_TIMER_MANAGER_
+#ifndef _X86_PIT_
+#define _X86_PIT_
 
 
 /* Includes */
@@ -27,13 +27,25 @@
 #include <crtdefs.h>
 #include <stdint.h>
 
-/* Prototypes */
-_CRT_EXTERN void TimerManagerInit(void);
+/* Definitions */
+#define	X86_PIT_REGISTER_COUNTER0		0x40
+#define X86_PIT_REGISTER_COMMAND		0x43
 
-/* Sleep, Stall, etc */
-_CRT_EXTERN void SleepMs(uint32_t MilliSeconds);
-_CRT_EXTERN void StallMs(uint32_t MilliSeconds);
-_CRT_EXTERN void SleepNs(uint32_t NanoSeconds);
-_CRT_EXTERN void StallNs(uint32_t NanoSeconds);
+#define X86_PIT_COMMAND_SQUAREWAVEGEN	0x6
+#define	X86_PIT_COMMAND_RL_DATA			0x30
+
+#define	X86_PIT_COMMAND_COUNTER_0		0
+#define	X86_PIT_COMMAND_COUNTER_1		0x40
+#define	X86_PIT_COMMAND_COUNTER_2		0x80
+
+#define X86_PIT_IRQ						0x0
+
+/* Prototypes */
+_CRT_EXTERN OsStatus_t PitInit(void);
+
+/* Sleepy Functions */
+_CRT_EXTERN uint64_t PitGetClocks(void);
+_CRT_EXTERN void PitSleep(uint32_t MilliSeconds);
+_CRT_EXTERN void PitStall(uint32_t MilliSeconds);
 
 #endif

@@ -97,194 +97,194 @@
 
 /* Structures */
 #pragma pack(push, 1)
-typedef struct _usb_packet
+typedef struct _UsbPacket
 {
 	/* Request Direction (Bit 7: 1 -> IN, 0 - OUT) 
 	 *                   (Bit 0-4: 0 -> Device, 1 -> Interface, 2 -> Endpoint, 3 -> Other, 4... Reserved) */
-	uint8_t direction;
+	uint8_t Direction;
 
 	/* Request Type (see above) */
-	uint8_t type;
+	uint8_t Type;
 
 	/* Request Value */
-	uint8_t value_low;
-	uint8_t value_high;
+	uint8_t ValueLo;
+	uint8_t ValueHi;
 
 	/* Request Index */
-	uint16_t index;
+	uint16_t Index;
 
 	/* Length */
-	uint16_t length;
+	uint16_t Length;
 
-} usb_packet_t;
+} UsbPacket_t;
 #pragma pack(pop)
 
 #pragma pack(push, 1)
-typedef struct _usb_device_descriptor
+typedef struct _UsbDeviceDescriptor
 {
 	/* Descriptor Length (Bytes) */
-	uint8_t length;
+	uint8_t Length;
 
 	/* Descriptor Type */
-	uint8_t type;
+	uint8_t Type;
 
 	/* USB Release Number in Binary-Coded Decimal (i.e, 2.10 is expressed as 210h) */
-	uint16_t usb_rn_bcd;
+	uint16_t UsbRnBcd;
 
 	/* USB Class Code (USB-IF) */
-	uint8_t class_code;
+	uint8_t Class;
 
 	/* Usb Subclass Code (USB-IF) */
-	uint8_t subclass_code;
+	uint8_t Subclass;
 
 	/* Device Protocol Code (USB-IF) */
-	uint8_t protocol_code;
+	uint8_t Protocol;
 
 	/* Max packet size for endpoing zero (8, 16, 32, or 64 are the only valid options) */
-	uint8_t max_packet_size;
+	uint8_t MaxPacketSize;
 
 	/* Vendor Id */
-	uint16_t vendor_id;
+	uint16_t VendorId;
 
 	/* Product Id */
-	uint16_t product_id;
+	uint16_t ProductId;
 
 	/* Device Release Number in Binary-Coded Decimal (i.e, 2.10 is expressed as 210h) */
-	uint16_t device_rn_bcd;
+	uint16_t DeviceRnBcd;
 
 	/* String Descriptor Indexes */
-	uint8_t str_index_manufactor;
-	uint8_t str_index_product;
-	uint8_t str_index_serial_num;
+	uint8_t StrIndexManufactor;
+	uint8_t StrIndexProduct;
+	uint8_t StrIndexSerialNum;
 
 	/* Number of Configuration */
-	uint8_t num_configurations;
+	uint8_t NumConfigurations;
 
-} usb_device_descriptor_t;
+} UsbDeviceDescriptor_t;
 #pragma pack(pop)
 
 #pragma pack(push, 1)
-typedef struct _usb_config_descriptor
+typedef struct _UsbConfigDescriptor
 {
 	/* Descriptor Length (Bytes) */
-	uint8_t length;
+	uint8_t Length;
 
 	/* Descriptor Type */
-	uint8_t type;
+	uint8_t Type;
 
 	/* The total combined length in bytes of all
 	 * the descriptors returned with the request
 	 * for this CONFIGURATION descriptor */
-	uint16_t total_length;
+	uint16_t TotalLength;
 
 	/* Number of Interfaces */
-	uint8_t num_interfaces;
+	uint8_t NumInterfaces;
 
 	/* Configuration */
-	uint8_t configuration_value;
+	uint8_t ConfigurationValue;
 
 	/* String Index */
-	uint8_t	str_index_configuration;
+	uint8_t	StrIndexConfiguration;
 
 	/* Attributes 
 	 * Bit 6: 0 - Selfpowered, 1 - Local Power Source 
 	 * Bit 7: 1 - Remote Wakeup Support */
-	uint8_t attributes;
+	uint8_t Attributes;
 
 	/* Power Consumption 
 	 * Expressed in units of 2mA (i.e., a value of 50 in this field indicates 100mA) */
-	uint8_t max_power_consumption;
+	uint8_t MaxPowerConsumption;
 
-} usb_config_descriptor_t;
+} UsbConfigDescriptor_t;
 #pragma pack(pop)
 
 #pragma pack(push, 1)
-typedef struct _usb_interface_descriptor
+typedef struct _UsbInterfaceDescriptor
 {
 	/* Descriptor Length (Bytes) */
-	uint8_t length;
+	uint8_t Length;
 
 	/* Descriptor Type */
-	uint8_t type;
+	uint8_t Type;
 
 	/* Number of Interface */
-	uint8_t num_interface;
+	uint8_t NumInterface;
 
 	/* Alternative Setting */
-	uint8_t alternative_setting;
+	uint8_t AlternativeSetting;
 
 	/* Number of Endpoints other than endpoint zero */
-	uint8_t num_endpoints;
+	uint8_t NumEndpoints;
 	
 	/* USB Class Code (USB-IF) */
-	uint8_t class_code;
+	uint8_t Class;
 
 	/* Usb Subclass Code (USB-IF) */
-	uint8_t subclass_code;
+	uint8_t Subclass;
 
 	/* Device Protocol Code (USB-IF) */
-	uint8_t protocol_code;
+	uint8_t Protocol;
 
 	/* String Index */
-	uint8_t str_index_interface;
+	uint8_t StrIndexInterface;
 
-} usb_interface_descriptor_t;
+} UsbInterfaceDescriptor_t;
 #pragma pack(pop)
 
 #pragma pack(push, 1)
-typedef struct _usb_endpoint_descriptor
+typedef struct _UsbEndpointDescriptor
 {
 	/* Descriptor Length (Bytes) */
-	uint8_t length;
+	uint8_t Length;
 
 	/* Descriptor Type */
-	uint8_t type;
+	uint8_t Type;
 
 	/* Address 
 	 * Bits 0-3: Endpoint Number
 	 * Bit 7: 1 - In, 0 - Out */
-	uint8_t address;
+	uint8_t Address;
 
 	/* Attributes 
 	 * Bits 0-1: Xfer Type (00 control, 01 isosync, 10 bulk, 11 interrupt) 
 	 * Bits 2-3: Sync Type (00 no sync, 01 async, 10 adaptive, 11 sync) 
 	 * Bits 4-5: Usage Type (00 data, 01 feedback) */
-	uint8_t attributes;
+	uint8_t Attributes;
 
 	/* Maximum Packet Size (Bits 0-10) (Bits 11-15: 0) */
-	uint16_t max_packet_size;
+	uint16_t MaxPacketSize;
 
 	/* Interval */
-	uint8_t interval;
+	uint8_t Interval;
 
-} usb_endpoint_descriptor_t;
+} UsbEndpointDescriptor_t;
 #pragma pack(pop)
 
 /* The Abstract Usb Endpoint */
-typedef struct _usb_hc_endpoint
+typedef struct _UsbHcEndpoint
 {
 	/* Type */
-	uint32_t type;
+	uint32_t Type;
 
 	/* Address */
-	uint32_t address;
+	uint32_t Address;
 
 	/* Direction (IN, OUT) */
-	uint32_t direction;
+	uint32_t Direction;
 
 	/* Max Packet Size (Always 64 bytes, almost) */
-	uint32_t max_packet_size;
+	uint32_t MaxPacketSize;
 
 	/* Bandwidth */
-	uint32_t bandwidth;
+	uint32_t Bandwidth;
 
 	/* Data Toggle */
-	uint32_t toggle;
+	uint32_t Toggle;
 
 	/* Poll Interval */
-	uint32_t interval;
+	uint32_t Interval;
 
-} usb_hc_endpoint_t;
+} UsbHcEndpoint_t;
 
 #define X86_USB_EP_DIRECTION_IN		0x0
 #define X86_USB_EP_DIRECTION_OUT	0x1
@@ -296,87 +296,91 @@ typedef struct _usb_hc_endpoint
 #define X86_USB_EP_TYPE_INTERRUPT	0x3
 
 /* The Abstract Usb Interface */
-typedef struct _usb_hc_interface
+typedef struct _UsbHcInterface
 {
 	/* Interface Type */
-	uint32_t id;
-	uint32_t class_code;
-	uint32_t subclass_code;
-	uint32_t protocol_code;
+	uint32_t Id;
+	uint32_t Class;
+	uint32_t Subclass;
+	uint32_t Protocol;
 
 	/* Ep Numbers */
-	uint32_t endpoints;
+	uint32_t Endpoints;
 
-} usb_hc_interface_t;
+} UsbHcInterface_t;
 
 /* The Abstract Device */
 #pragma pack(push, 1)
-typedef struct _usb_hc_device
+typedef struct _UsbHcDevice
 {
 	/* Device Information */
-	uint8_t class_code;
-	uint8_t subclass_code;
-	uint8_t protocol_code;
-	uint16_t vendor_id;
-	uint16_t product_id;
-	uint8_t num_configurations;
-	uint16_t config_max_length;
-	uint16_t max_power_consumption;
-	uint8_t configuration;
+	uint8_t Class;
+	uint8_t Subclass;
+	uint8_t Protocol;
+
+	/* Device Id's */
+	uint16_t VendorId;
+	uint16_t ProductId;
+
+	/* Configuration */
+	uint8_t NumConfigurations;
+	uint16_t ConfigMaxLength;
+	uint16_t MaxPowerConsumption;
+	uint8_t Configuration;
 
 	/* String Ids */
-	uint8_t str_index_product;
-	uint8_t str_index_manufactor;
-	uint8_t str_index_sn;
+	uint8_t StrIndexProduct;
+	uint8_t StrIndexManufactor;
+	uint8_t StrIndexSerialNum;
 
-	/* Host Driver (usb_hc_t) & Port Number */
-	void *hcd;
-	uint8_t port;
+	/* Host Driver (UsbHc_t) & Port Number */
+	void *HcDriver;
+	uint8_t Port;
 
 	/* Device Address */
-	uint32_t address;
+	uint32_t Address;
 
 	/* Device Descriptors (Config,Interface,Endpoint,Hid,etc) */
-	void *descriptors;
-	uint32_t descriptors_length;
+	void *Descriptors;
+	uint32_t DescriptorsLength;
 
 	/* Device Interfaces */
-	uint32_t num_interfaces;
-	struct _usb_hc_interface *interfaces[X86_USB_CORE_MAX_IF];
+	uint32_t NumInterfaces;
+	UsbHcInterface_t *Interfaces[X86_USB_CORE_MAX_IF];
 
 	/* Device Endpoints */
-	uint32_t num_endpoints;
-	struct _usb_hc_endpoint *endpoints[X86_USB_CORE_MAX_EP];
+	uint32_t NumEndpoints;
+	UsbHcEndpoint_t *Endpoints[X86_USB_CORE_MAX_EP];
 
 	/* Driver Data */
-	void *driver_data;
+	void *DriverData;
 
-} usb_hc_device_t;
+} UsbHcDevice_t;
 #pragma pack(pop)
 
 /* The Abstract Transaction 
  * A request consists of several transactions */
-typedef struct _usb_hc_transaction
+typedef struct _UsbHcTransaction
 {
 	/* Type */
-	uint32_t type;
+	uint32_t Type;
 
 	/* A Transfer Descriptor Ptr */
-	void *transfer_descriptor;
+	void *TransferDescriptor;
 
 	/* Transfer Descriptor Buffer */
-	void *transfer_buffer;
+	void *TransferBuffer;
 
 	/* Target/Source Buffer */
-	void *io_buffer;
+	void *IoBuffer;
 
 	/* Target/Source Buffer Length */
-	size_t io_length;
+	size_t IoLength;
 
 	/* Next Transaction */
-	struct _usb_hc_transaction *link;
+	struct _UsbHcTransaction *Link;
 
-} usb_hc_transaction_t;
+} UsbHcTransaction_t;
 
 /* Types */
 #define X86_USB_TRANSACTION_SETUP	1
@@ -384,38 +388,40 @@ typedef struct _usb_hc_transaction
 #define X86_USB_TRANSACTION_OUT		3
 
 /* The Abstract Transfer Request */
-typedef struct _usb_hc_request
+typedef struct _UsbHcRequest
 {
 	/* Bulk or Control? */
-	uint32_t type;
-	uint32_t lowspeed;
+	uint32_t Type;
+	uint32_t LowSpeed;
 
 	/* Transfer Specific Information */
-	void *data;
-	struct _usb_hc_device *device;
+	void *Data;
+	UsbHcDevice_t *Device;
 
 	/* Endpoint */
-	uint32_t endpoint;
+	uint32_t Endpoint;
 
 	/* Length */
-	uint32_t length;
+	uint32_t Length;
 
 	/* Transaction Information */
-	uint32_t token_bytes;
-	uint32_t toggle;
-	void *io_buffer;
-	size_t io_length;
+	uint32_t TokenBytes;
+	uint32_t Toggle;
+
+	/* Buffer Information */
+	void *IoBuffer;
+	size_t IoLength;
 
 	/* Packet */
-	struct _usb_packet packet;
+	UsbPacket_t Packet;
 
 	/* The Transaction List */
-	struct _usb_hc_transaction *transactions;
+	UsbHcTransaction_t *Transactions;
 
 	/* Is it done? */
-	uint32_t completed;
+	uint32_t Completed;
 
-} usb_hc_request_t;
+} UsbHcRequest_t;
 
 /* Type Definitions */
 #define X86_USB_REQUEST_TYPE_CONTROL	0x0
@@ -423,72 +429,71 @@ typedef struct _usb_hc_request
 #define X86_USB_REQUEST_TYPE_INTERRUPT	0x2
 #define X86_USB_REQUEST_TYPE_ISOCHR		0x3
 
-
 /* The Abstract Port */
-typedef struct _usb_hc_port
+typedef struct _UsbHcPort
 {
 	/* Port Number */
-	uint32_t id;
+	uint32_t Id;
 
 	/* Connection Status */
-	uint32_t connected;
+	uint32_t Connected;
 
 	/* Enabled Status */
-	uint32_t enabled;
+	uint32_t Enabled;
 
 	/* Speed */
-	uint32_t full_speed;
+	uint32_t FullSpeed;
 
 	/* Device Connected */
-	struct _usb_hc_device *device;
+	UsbHcDevice_t *Device;
 
-} usb_hc_port_t;
+} UsbHcPort_t;
 
 /* The Abstract Controller */
-typedef struct _usb_hc
+typedef struct _UsbHc
 {
 	/* Controller Type */
-	uint32_t type;
+	uint32_t Type;
 
 	/* Controller Data */
-	void *hc;
+	void *Hc;
 
 	/* Controller Info */
-	uint32_t num_ports;
+	uint32_t NumPorts;
 
 	/* Ports */
-	struct _usb_hc_port *ports[X86_USB_CORE_MAX_PORTS];
+	UsbHcPort_t *Ports[X86_USB_CORE_MAX_PORTS];
 
 	/* Port Functions */
-	void (*root_hub_check)(void *);
-	void (*port_setup)(void *, usb_hc_port_t *);
+	void (*RootHubCheck)(void*);
+	void (*PortSetup)(void*, UsbHcPort_t*);
 
 	/* Transaction Functions */
-	void (*transaction_init)(void*, struct _usb_hc_request*);
-	struct _usb_hc_transaction *(*transaction_setup)(void*, struct _usb_hc_request*);
-	struct _usb_hc_transaction *(*transaction_in)(void*, struct _usb_hc_request*);
-	struct _usb_hc_transaction *(*transaction_out)(void*, struct _usb_hc_request*);
-	void (*transaction_send)(void*, struct _usb_hc_request*);
+	void (*TransactionInit)(void*, UsbHcRequest_t*);
+	UsbHcTransaction_t *(*TransactionSetup)(void*, UsbHcRequest_t*);
+	UsbHcTransaction_t *(*TransactionIn)(void*, UsbHcRequest_t*);
+	UsbHcTransaction_t *(*TransactionOut)(void*, UsbHcRequest_t*);
+	void (*TransactionSend)(void*, UsbHcRequest_t*);
 
 	/* Install Interrupt EP */
-	void (*install_interrupt)(void*, struct _usb_hc_device*, struct _usb_hc_endpoint*, 
-		void*, size_t, void(*callback)(void*, size_t), void*);
+	void (*InstallInterrupt)(void*, UsbHcDevice_t*, UsbHcEndpoint_t*,
+		void*, size_t, void(*Callback)(void*, size_t), void*);
 
-} usb_hc_t;
+} UsbHc_t;
 
 /* Usb Event */
-typedef struct _usb_event
+typedef struct _UsbEvent
 {
 	/* Event Type */
-	uint32_t type;
+	uint32_t Type;
 
 	/* Controller */
-	struct _usb_hc *controller;
+	UsbHc_t *Controller;
 
 	/* Port */
-	int port;
+	int Port;
 
-} usb_event_t;
+} UsbEvent_t;
 
 /* Event Types */
 #define X86_USB_EVENT_CONNECTED		0
@@ -499,35 +504,35 @@ typedef struct _usb_event
 /* Prototypes */
 
 /* Returns an controller ID for used with identification */
-_CRT_EXTERN usb_hc_t *usb_init_controller(void *controller_data, uint32_t controller_type, uint32_t controller_ports);
-_CRT_EXTERN uint32_t usb_register_controller(usb_hc_t *controller);
+_CRT_EXTERN UsbHc_t *UsbInitController(void *Data, uint32_t Type, uint32_t Ports);
+_CRT_EXTERN uint32_t UsbRegisterController(UsbHc_t *Controller);
 
 /* Transfer Utilities */
-_CRT_EXTERN void usb_transaction_init(usb_hc_t *hc, usb_hc_request_t *dev_request, uint32_t type,
-										usb_hc_device_t *device, uint32_t endpoint, uint32_t max_length);
-_CRT_EXTERN void usb_transaction_setup(usb_hc_t *hc, usb_hc_request_t *dev_request, uint32_t packet_size);
-_CRT_EXTERN void usb_transaction_in(usb_hc_t *hc, usb_hc_request_t *dev_request, uint32_t handshake, void *buffer, uint32_t length);
-_CRT_EXTERN void usb_transaction_out(usb_hc_t *hc, usb_hc_request_t *dev_request, uint32_t handshake, void *buffer, uint32_t length);
-_CRT_EXTERN void usb_transaction_send(usb_hc_t *hc, usb_hc_request_t *dev_request);
+_CRT_EXTERN void UsbTransactionInit(UsbHc_t *Hc, UsbHcRequest_t *Request, uint32_t Type,
+										UsbHcDevice_t *Device, uint32_t Endpoint, uint32_t MaxLength);
+_CRT_EXTERN void UsbTransactionSetup(UsbHc_t *Hc, UsbHcRequest_t *Request, uint32_t PacketSize);
+_CRT_EXTERN void UsbTransactionIn(UsbHc_t *Hc, UsbHcRequest_t *Request, uint32_t Handshake, void *Buffer, uint32_t Length);
+_CRT_EXTERN void UsbTransactionOut(UsbHc_t *Hc, UsbHcRequest_t *Request, uint32_t Handshake, void *Buffer, uint32_t Length);
+_CRT_EXTERN void UsbTransactionSend(UsbHc_t *Hc, UsbHcRequest_t *Request);
 
 /* Functions */
-_CRT_EXTERN int usb_function_set_address(usb_hc_t *hc, int port, uint32_t address);
-_CRT_EXTERN int usb_function_get_device_descriptor(usb_hc_t *hc, int port);
-_CRT_EXTERN int usb_function_get_config_descriptor(usb_hc_t *hc, int port);
-_CRT_EXTERN int usb_function_set_configuration(usb_hc_t *hc, int port, uint32_t configuration);
-_CRT_EXTERN int usb_function_get_descriptor(usb_hc_t *hc, int port, void *buffer, uint8_t direction,
-											uint8_t descriptor_type, uint8_t descriptor_subtype, 
-											uint8_t descriptor_index, uint16_t descriptor_length);
+_CRT_EXTERN int UsbFunctionSetAddress(UsbHc_t *Hc, int Port, uint32_t Address);
+_CRT_EXTERN int UsbFunctionGetDeviceDescriptor(UsbHc_t *Hc, int Port);
+_CRT_EXTERN int UsbFunctionGetConfigDescriptor(UsbHc_t *Hc, int Port);
+_CRT_EXTERN int UsbFunctionSetConfiguration(UsbHc_t *Hc, int Port, uint32_t Configuration);
+_CRT_EXTERN int UsbFunctionGetDescriptor(UsbHc_t *Hc, int Port, void *Buffer, uint8_t Direction,
+											uint8_t DescriptorType, uint8_t SubType, 
+											uint8_t DescriptorIndex, uint16_t DescriptorLength);
 /* Send packet */
-_CRT_EXTERN int usb_function_send_packet(usb_hc_t *hc, int port, void *buffer, uint8_t request_type,
-											uint8_t request, uint8_t value_high, uint8_t value_low, 
-											uint16_t index, uint16_t length);
+_CRT_EXTERN int UsbFunctionSendPacket(UsbHc_t *Hc, int Port, void *Buffer, uint8_t RequestType,
+											uint8_t Request, uint8_t ValueHi, uint8_t ValueLo, 
+											uint16_t Index, uint16_t Length);
 
 /* Events */
-_CRT_EXTERN void usb_event_create(usb_hc_t *hc, int port, uint32_t type);
+_CRT_EXTERN void UsbEventCreate(UsbHc_t *Hc, int Port, uint32_t Type);
 
 /* Gets */
-_CRT_EXTERN usb_hc_t *usb_get_hcd(uint32_t controller_id);
-_CRT_EXTERN usb_hc_port_t *usb_get_port(usb_hc_t *controller, int port);
+_CRT_EXTERN UsbHc_t *UsbGetHcd(uint32_t ControllerId);
+_CRT_EXTERN UsbHcPort_t *UsbGetPort(UsbHc_t *Controller, int Port);
 
 #endif // !X86_USB_H_

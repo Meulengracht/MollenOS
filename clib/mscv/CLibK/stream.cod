@@ -43,7 +43,7 @@ PUBLIC	__real@4024000000000000
 PUBLIC	__real@43e0000000000000
 EXTRN	__finite:PROC
 EXTRN	__isnan:PROC
-EXTRN	_video_putchar:PROC
+EXTRN	_VideoPutChar:PROC
 EXTRN	__CIlog10:PROC
 EXTRN	__CIpow:PROC
 EXTRN	__aulldvrm:PROC
@@ -2751,10 +2751,10 @@ $LN2@streamout_:
 ; 85   : #ifndef LIBC_KERNEL
 ; 86   : 		return putchar(c);
 ; 87   : #else
-; 88   : 		return video_putchar(c);
+; 88   : 		return VideoPutChar(c);
 
   00026	ff 75 10	 push	 DWORD PTR _c$[ebp]
-  00029	e8 00 00 00 00	 call	 _video_putchar
+  00029	e8 00 00 00 00	 call	 _VideoPutChar
   0002e	83 c4 04	 add	 esp, 4
   00031	5e		 pop	 esi
 

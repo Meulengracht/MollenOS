@@ -51,6 +51,24 @@ struct _acpi_osc
 	ACPI_BUFFER retval;
 };
 
+/* OSI Stuff */
+#define OSI_STRING_LENGTH_MAX 64        /* arbitrary */
+#define OSI_STRING_ENTRIES_MAX 16       /* arbitrary */
+
+typedef struct _OsiSetupEntry 
+{
+	char String[OSI_STRING_LENGTH_MAX];
+	uint8_t Enable;
+} OsiSetupEntry_t;
+
+static OsiSetupEntry_t OsiSetupEntries[OSI_STRING_ENTRIES_MAX] =
+{
+	{"Module Device", 1},
+	{"Processor Device", 1},
+	{"3.0 _SCP Extensions", 1},
+	{"Processor Aggregator Device", 1},
+};
+
 /* ACPICA Stuff */
 #define ACPI_MAX_INIT_TABLES 16
 static ACPI_TABLE_DESC TableArray[ACPI_MAX_INIT_TABLES];
@@ -62,6 +80,7 @@ char *osc_uuid_str = "33DB4D5B-1FF7-401C-9657-7441C03DD766";
 list_t *acpi_nodes = NULL;
 volatile Addr_t local_apic_addr = 0;
 volatile uint32_t num_cpus = 0;
+volatile uint32_t GlbNumIoApics = 0;
 
 /* Fixed Event Handlers */
 UINT32 AcpiShutdownHandler(void *Context)
@@ -131,8 +150,14 @@ void AcpiEventHandler(UINT32 EventType, ACPI_HANDLE Device, UINT32 EventNumber, 
 /* Interface Handlers */
 UINT32 AcpiOsi(ACPI_STRING InterfaceName, UINT32 Supported)
 {
-	if (InterfaceName != NULL)
-		return Supported;
+	if (!strcmp("Darwin", InterfaceName))
+	{
+		/* Apple firmware will behave poorly if it receives positive
+		 * answers to "Darwin" and any other OS. Respond positively
+		 * to Darwin and then disable all other vendor strings. */
+		AcpiUpdateInterfaces(ACPI_DISABLE_ALL_VENDOR_STRINGS);
+		Supported = ACPI_UINT32_MAX;
+	}
 
 	return Supported;
 }
@@ -285,6 +310,79 @@ void AcpiCheckBusOscSupport(void)
 	}
 }
 
+/* Enable or Disable OSI Interface */
+void AcpiOsiSetup(char *OsiStr)
+{
+	OsiSetupEntry_t *osi;
+	uint8_t Enable = 1;
+	int i;
+
+	if (*OsiStr == '!')
+	{
+		/* Go to next char */
+		OsiStr++;
+		
+		/* Disable all interfaces */
+		if (*OsiStr == '*')
+		{
+			/* Update*/
+			AcpiUpdateInterfaces(ACPI_DISABLE_ALL_STRINGS);
+			
+			for (i = 0; i < OSI_STRING_ENTRIES_MAX; i++) 
+			{
+				osi = &OsiSetupEntries[i];
+				osi->Enable = 0;
+			}
+			
+			return;
+		}
+
+		Enable = 0;
+	}
+	
+	for (i = 0; i < OSI_STRING_ENTRIES_MAX; i++) 
+	{
+		osi = &OsiSetupEntries[i];
+		if (!strcmp(osi->String, OsiStr)) 
+		{
+			osi->Enable = Enable;
+			break;
+		}
+		else if (osi->String[0] == '\0') 
+		{
+			osi->Enable = Enable;
+			strncpy(osi->String, OsiStr, OSI_STRING_LENGTH_MAX);
+			break;
+		}
+	}
+}
+
+/* Install OSI Interfaces */
+void AcpiOsiInstall(void)
+{
+	/* Variables */
+	ACPI_STATUS Status;
+	int i;
+	OsiSetupEntry_t *osi;
+	char *str;
+
+	/* Install ALL OSI Interfaces */
+	for (i = 0; i < OSI_STRING_ENTRIES_MAX; i++)
+	{
+		osi = &OsiSetupEntries[i];
+		str = osi->String;
+
+		if (*str == '\0')
+			break;
+
+		if (osi->Enable)
+			Status = AcpiInstallInterface(str);
+		else {
+			Status = AcpiRemoveInterface(str);
+		}
+	}
+}
+
 /* Enumerate MADT Entries */
 void AcpiEnumarateMADT(void *start, void *end)
 {
@@ -332,6 +430,9 @@ void AcpiEnumarateMADT(void *start, void *end)
 			list_append(acpi_nodes, list_create_node(ACPI_MADT_TYPE_IO_APIC, apic_node));
 
 			printf("      > Found IO-APIC: %u\n", apic->Id);
+
+			/* Increase Count */
+			GlbNumIoApics++;
 
 		} break;
 
@@ -430,10 +531,11 @@ void AcpiInitStage1(void)
 	/* Get Local Apic Address */
 	local_apic_addr = madt->Address;
 	num_cpus = 0;
+	GlbNumIoApics = 0;
 
 	/* Identity map it in */
 	if (!MmVirtualGetMapping(NULL, local_apic_addr))
-		MmVirtualMap(NULL, local_apic_addr, local_apic_addr, 0);
+		MmVirtualMap(NULL, local_apic_addr, local_apic_addr, 0x10);
 
 	/* Enumerate MADT */
 	AcpiEnumarateMADT((void*)((Addr_t)madt + sizeof(ACPI_TABLE_MADT)), (void*)((Addr_t)madt + madt->Header.Length));
@@ -450,9 +552,23 @@ void AcpiInitStage2(void)
 	ACPI_STATUS Status;
 	ACPI_OBJECT arg1;
 	ACPI_OBJECT_LIST args;
+	
+	/* Debug */
+	printf("  - Acpica Stage 2 Starting\n");
+
+	/* Debug */
+	printf("    * Initializing OSI\n");
+	
+	/* Install OSL Handler */
+	Status = AcpiInstallInterfaceHandler(AcpiOsi);
+
+	/* We fake Windows 7 */
+	AcpiOsiSetup("Windows 2009");
+
+	/* Install */
+	AcpiOsiInstall();
 
 	/* Initialize the ACPICA subsystem */
-	printf("  - Acpica Stage 2 Starting\n");
 	printf("    * Initializing subsystems\n");
 	Status = AcpiInitializeSubsystem();
 	if (ACPI_FAILURE(Status))
@@ -501,9 +617,6 @@ void AcpiInitStage2(void)
 		printf("    * FAILED LoadTables, %u!\n", Status);
 		for (;;);
 	}
-
-	/* Install OSL Handler */
-	AcpiInstallInterfaceHandler(AcpiOsi);
 
 	/* Initialize the ACPI hardware */
 	printf("    * Enabling subsystems\n");

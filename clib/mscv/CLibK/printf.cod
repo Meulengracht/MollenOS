@@ -17,9 +17,9 @@ _BSS	SEGMENT
 _glb_printf_init DD 01H DUP (?)
 _BSS	ENDS
 PUBLIC	_printf
-EXTRN	_spinlock_reset:PROC
-EXTRN	_spinlock_acquire:PROC
-EXTRN	_spinlock_release:PROC
+EXTRN	_SpinlockReset:PROC
+EXTRN	_SpinlockAcquire:PROC
+EXTRN	_SpinlockRelease:PROC
 EXTRN	_streamout:PROC
 ; Function compile flags: /Ogtp
 ; File c:\users\philip\documents\github\mollenos\clib\src\stdio\printf.c
@@ -62,10 +62,10 @@ $LN2@printf:
   00018	74 17		 je	 SHORT $LN1@printf
 
 ; 74   : 	{
-; 75   : 		spinlock_reset(&glb_printf_lock);
+; 75   : 		SpinlockReset(&glb_printf_lock);
 
   0001a	68 00 00 00 00	 push	 OFFSET _glb_printf_lock
-  0001f	e8 00 00 00 00	 call	 _spinlock_reset
+  0001f	e8 00 00 00 00	 call	 _SpinlockReset
   00024	83 c4 04	 add	 esp, 4
 
 ; 76   : 		glb_printf_init = 0xDEADBEEF;
@@ -77,11 +77,11 @@ $LN1@printf:
 ; 77   : 	}
 ; 78   : 
 ; 79   : 	/* Acquire Lock */
-; 80   : 	spinlock_acquire(&glb_printf_lock);
+; 80   : 	SpinlockAcquire(&glb_printf_lock);
 
   00031	56		 push	 esi
   00032	68 00 00 00 00	 push	 OFFSET _glb_printf_lock
-  00037	e8 00 00 00 00	 call	 _spinlock_acquire
+  00037	e8 00 00 00 00	 call	 _SpinlockAcquire
 
 ; 81   : 
 ; 82   : 	/* Do the deed */
@@ -98,11 +98,11 @@ $LN1@printf:
 ; 85   : 	va_end(args);
 ; 86   : 
 ; 87   : 	/* Release */
-; 88   : 	spinlock_release(&glb_printf_lock);
+; 88   : 	SpinlockRelease(&glb_printf_lock);
 
   0004f	68 00 00 00 00	 push	 OFFSET _glb_printf_lock
   00054	8b f0		 mov	 esi, eax
-  00056	e8 00 00 00 00	 call	 _spinlock_release
+  00056	e8 00 00 00 00	 call	 _SpinlockRelease
   0005b	83 c4 18	 add	 esp, 24			; 00000018H
 
 ; 89   : 

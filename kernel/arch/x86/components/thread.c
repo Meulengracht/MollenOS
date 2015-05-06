@@ -60,10 +60,10 @@ int ThreadingYield(void *Args)
 	Cpu_t cpu = ApicGetCpu();
 
 	/* Send EOI */
-	ApicSendEoi();
+	ApicSendEoi(0, INTERRUPT_YIELD);
 
 	/* Switch Task */ 
-	regs = (void*)threading_switch((Registers_t*)Args, 0, &time_slice, &task_priority);
+	regs = (void*)ThreadingSwitch((Registers_t*)Args, 0, &time_slice, &task_priority);
 
 	/* If we just got hold of idle task, well fuck it disable timer
 	* untill we get another task */
@@ -140,7 +140,7 @@ void ThreadingInit(void)
 	GlbThreadId++;
 
 	/* Install Yield */
-	InterruptInstallIdtOnly(INTERRUPT_YIELD, ThreadingYield, NULL);
+	InterruptInstallIdtOnly(0xFFFFFFFF, INTERRUPT_YIELD, ThreadingYield, NULL);
 
 	/* Enable */
 	GlbThreadingEnabled = 1;
@@ -205,6 +205,11 @@ list_node_t *ThreadingGetCurrentNode(Cpu_t cpu)
 TId_t ThreadingGetCurrentThreadId(void)
 {
 	Cpu_t cpu = ApicGetCpu();
+
+	/* If it's during startup phase for cpu's 
+	 * we have to take precautions */
+	if (GlbCurrentThreads[cpu] == NULL)
+		return (TId_t)cpu;
 
 	if (GlbThreadId == 0)
 		return 0;

@@ -45,14 +45,14 @@ int printf(const char *format, ...)
 
 #else
 
-#include <arch.h>
+#include <Arch.h>
 #include <stdio.h>
 #include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
 
 /* Lock */
-spinlock_t glb_printf_lock;
+Spinlock_t glb_printf_lock;
 volatile uint32_t glb_printf_init = 0;
 
 /* Directly call */
@@ -72,12 +72,12 @@ int printf(const char *format, ...)
 	//Init
 	if (glb_printf_init != 0xDEADBEEF)
 	{
-		spinlock_reset(&glb_printf_lock);
+		SpinlockReset(&glb_printf_lock);
 		glb_printf_init = 0xDEADBEEF;
 	}
 
 	/* Acquire Lock */
-	spinlock_acquire(&glb_printf_lock);
+	SpinlockAcquire(&glb_printf_lock);
 
 	/* Do the deed */
 	va_start(args, format);
@@ -85,7 +85,7 @@ int printf(const char *format, ...)
 	va_end(args);
 
 	/* Release */
-	spinlock_release(&glb_printf_lock);
+	SpinlockRelease(&glb_printf_lock);
 
 	return result;
 }

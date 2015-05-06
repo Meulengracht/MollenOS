@@ -74,6 +74,10 @@ typedef struct _IrqEntry
 
 	/* Whether it's installed or not */
 	uint32_t Installed;
+
+	/* Pin */
+	uint32_t Gsi;
+
 } IrqEntry_t;
 
 /* X86-32 Context */
@@ -164,7 +168,7 @@ _CRT_EXTERN void __CRTDECL outl(uint16_t port, uint32_t data);
 
 /* Video */
 _CRT_EXTERN OsStatus_t VideoInit(void *BootInfo);
-_CRT_EXTERN OsStatus_t VideoPutChar(int Character);
+_CRT_EXTERN int VideoPutChar(int Character);
 
 /* Spinlock */
 _CRT_EXTERN void SpinlockReset(Spinlock_t *Spinlock);
@@ -199,9 +203,11 @@ _CRT_EXTERN PhysAddr_t MmVirtualGetMapping(void *PageDirectory, VirtAddr_t Virtu
 
 /* Interrupt Interface */
 _CRT_EXTERN void InterruptInit(void);
+_CRT_EXTERN OsStatus_t InterruptAllocateISA(uint32_t Irq);
 _CRT_EXTERN void InterruptInstallISA(uint32_t Irq, uint32_t IdtEntry, IrqHandler_t Callback, void *Args);
-_CRT_EXTERN void InterruptInstallBroadcast(uint32_t Irq, uint32_t IdtEntry, IrqHandler_t Callback, void *Args);
-_CRT_EXTERN void InterruptInstallIdtOnly(uint32_t IdtEntry, IrqHandler_t Callback, void *Args);
+_CRT_EXTERN void InterruptInstallIdtOnly(uint32_t Gsi, uint32_t IdtEntry, IrqHandler_t Callback, void *Args);
+_CRT_EXTERN void InterruptInstallShared(uint32_t Irq, uint32_t IdtEntry, IrqHandler_t Callback, void *Args);
+_CRT_EXTERN uint32_t InterruptAllocatePCI(uint32_t Irqs[], uint32_t Count);
 
 _CRT_EXTERN IntStatus_t InterruptDisable(void);
 _CRT_EXTERN IntStatus_t InterruptEnable(void);
@@ -211,8 +217,6 @@ _CRT_EXTERN IntStatus_t InterruptRestoreState(IntStatus_t state);
 /* Utils */
 _CRT_EXTERN Cpu_t ApicGetCpu(void);
 _CRT_EXTERN void ApicSendIpi(uint8_t CpuTarget, uint8_t IrqVector);
-//_CRT_EXTERN void stall_ms(size_t ms);
-_CRT_EXTERN void clock_stall(uint32_t ms);
 _CRT_EXTERN void Idle(void);
 
 /* Threading - Flags -> Look above for flags  */
@@ -248,7 +252,9 @@ _CRT_EXTERN void DriverManagerInit(void *Args);
 
 /* Architecture Locked Interrupts */
 #define INTERRUPT_TIMER					0xF0
+#define INTERRUPT_HPET_TIMERS			0xEC
 #define INTERRUPT_RTC					0xEC
+#define INTERRUPT_PIT					0xEC
 #define INTERRUPT_PCI_PIN_3				0xE8
 #define INTERRUPT_PCI_PIN_2				0xE4
 #define INTERRUPT_PCI_PIN_1				0xE0
@@ -258,5 +264,19 @@ _CRT_EXTERN void DriverManagerInit(void *Args);
 #define INTERRUPT_SPURIOUS				0x7F
 #define INTERRUPT_SYSCALL				0x80
 #define INTERRUPT_YIELD					0x81
+#define INTERRUPT_LVTERROR				0x82
+
+/* Free ISA interrupts */
+#define INTERRUPT_FREE0					0x3
+#define INTERRUPT_FREE1					0x4
+#define INTERRUPT_FREE2					0x5
+
+
+/* Time Stuff */
+#define FSEC_PER_NSEC   1000000L
+#define NSEC_PER_MSEC   1000L
+#define MSEC_PER_SEC    1000L
+#define NSEC_PER_SEC    1000000000L
+#define FSEC_PER_SEC    1000000000000000LL
 
 #endif // !_MCORE_X86_ARCH_

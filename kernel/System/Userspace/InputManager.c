@@ -20,9 +20,9 @@
 */
 
 /* Includes */
-#include <arch.h>
-#include <input_manager.h>
-#include <ringbuffer.h>
+#include <Arch.h>
+#include <InputManager.h>
+#include <RingBuffer.h>
 #include <stddef.h>
 
 /* Globals */

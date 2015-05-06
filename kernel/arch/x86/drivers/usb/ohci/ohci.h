@@ -25,7 +25,7 @@
 /* Includes */
 #include <crtdefs.h>
 #include <stdint.h>
-#include <pci.h>
+#include <Pci.h>
 
 /* Definitions */
 #define X86_OHCI_STRUCT_ALIGN		32
@@ -34,7 +34,7 @@
 /* Structures */
 
 /* Must be 16 byte aligned */
-typedef struct _o_endpoint_desc
+typedef struct _OhciEndpointDescriptor
 {
 	/* Flags 
 	 * Bits 0 - 6: Usb Address of Function
@@ -46,34 +46,34 @@ typedef struct _o_endpoint_desc
 	 * Bits 16-26: Maximum Packet Size per data packet.
 	 * Bits 27-31: Type -> 0000 (Control), 0001 (Bulk), 0010 (Interrupt) 0011 (Isoc).
 	 */
-	uint32_t flags;
+	uint32_t Flags;
 
 	/* TD Queue Tail Pointer
 	 * Lower 4 bits not used 
 	 * If tail == head, no TD will be used 
 	 * We queue to the TAIL, always! */
-	uint32_t tail_ptr;
+	uint32_t TailPtr;
 
 	/* TD Queue Head Pointer 
 	 * Bits 0: Halted. Indicates that processing of a TD has failed. 
 	 * Bits 1: Carry Bit: When a TD is retired this bit is set to last data toggle value.
 	 * Bits 2:3 Must be 0. */
-	uint32_t head_ptr;
+	uint32_t HeadPtr;
 
 	/* Next EP Descriptor
 	 * Lower 4 bits not used */
-	uint32_t next_ed;
+	uint32_t NextED;
 
 	/* Next EP Descriptor (Virtual) */
-	uint32_t next_ed_virt;
+	uint32_t NextEDVirtual;
 
 	/* HCD Defined Data */
-	uint32_t hcd_data;
+	uint32_t HcdData;
 
 	/* Padding to 32 bytes */
-	uint32_t padding[2];
+	uint32_t Padding[2];
 
-} ohci_endpoint_desc_t;
+} OhciEndpointDescriptor_t;
 
 /* Bit Defintions */
 #define X86_OHCI_EP_ADDR_BITS		0x7F
@@ -92,7 +92,7 @@ typedef struct _o_endpoint_desc
 
 /* Must be 16 byte aligned 
  * General Transfer Descriptor */
-typedef struct _o_gtransfer_desc
+typedef struct _OhciGTransferDescriptor
 {
 	/* Flags
 	 * Bits 0-17:  DONT TOUCH.
@@ -103,23 +103,23 @@ typedef struct _o_gtransfer_desc
 	 * Bits 26-27: Error Count. Updated each transmission that fails. It is 0 on success.
 	 * Bits 28-31: Condition Code, if error count is 2 and it fails a third time, this contains error code.
 	 * */
-	uint32_t flags;
+	uint32_t Flags;
 
 	/* Current Buffer Pointer 
 	 * Size must always be lower than the Maximum Packet Size at the endpoint */
-	uint32_t cbp;
+	uint32_t Cbp;
 
 	/* Next TD 
 	 * Lower 4 bits must be 0 (aka 16 byte aligned) */
-	uint32_t next_td;
+	uint32_t NextTD;
 
 	/* Buffer End 
 	 * This is the next 4K page address that can be 
 	 * accessed in case of a page boundary crossing 
 	 * while using cbp */
-	uint32_t buffer_end;
+	uint32_t BufferEnd;
 
-} ohci_gtransfer_desc_t;
+} OhciGTransferDescriptor_t;
 
 /* Transfer Definitions */
 #define X86_OHCI_TRANSFER_END_OF_LIST		0x1
@@ -133,7 +133,7 @@ typedef struct _o_gtransfer_desc
 
 /* Must be 32 byte aligned
  * Isochronous Transfer Descriptor */
-typedef struct _o_itransfer_desc
+typedef struct _OhciITransferDescriptor
 {
 	/* Flags
 	 * Bits 0-15:	Starting Frame of transaction.
@@ -143,55 +143,55 @@ typedef struct _o_itransfer_desc
 	 * Bits 27:		Reserved
 	 * Bits 28-31:	Condition Code (Error Code)
 	 * */
-	uint32_t flags;
+	uint32_t Flags;
 
 	/* Buffer Page 0 
 	 * shall point to first byte of data buffer */
-	uint32_t bp0;
+	uint32_t Bp0;
 
 	/* Next TD
 	* Lower 4 bits must be 0 (aka 16 byte aligned) */
-	uint32_t next_td;
+	uint32_t NextTD;
 
 	/* Buffer End
 	* This is the next 4K page address that can be
 	* accessed in case of a page boundary crossing
 	* while using cbp */
-	uint32_t buffer_end;
+	uint32_t BufferEnd;
 
 	/* Offsets 
 	 * Bits 0-10:	Packet Size on IN-transmissions 
 	 * Bits 11:		0 Field
 	 * Bits 12-15:	Condition Code (Error Code) */
-	uint16_t offsets[8];
+	uint16_t Offsets[8];
 
-} ohci_itransfer_desc_t;
+} OhciITransferDescriptor_t;
 
 /* Host Controller Communcations Area 
  * must be 256-byte aligned */
-typedef struct _o_hcca
+typedef struct _OhciHCCA
 {
 	/* Interrupt Table 
 	 * 32 pointers to interrupt ed's */
-	uint32_t interrupt_table[32];
+	uint32_t InterruptTable[32];
 
 	/* Current Frame Number */
-	uint16_t current_frame;
+	uint16_t CurrentFrame;
 
 	/* It is 0 */
-	uint16_t pad1;
+	uint16_t Pad1;
 
 	/* Which head is done, it gets set to this pointer at end of frame
 	 * and generates an interrupt */
-	uint32_t head_done;
+	uint32_t HeadDone;
 
 	/* Reserved for HC */
-	uint8_t reserved[116];
+	uint8_t Reserved[116];
 
-} ohci_hcca_t;
+} OhciHCCA_t;
 
 /* Register Space */
-typedef struct _o_registers
+typedef struct _OhciRegisters
 {
 	uint32_t	HcRevision;
 	uint32_t	HcControl;
@@ -220,8 +220,7 @@ typedef struct _o_registers
 	uint32_t	HcRhStatus;
 	uint32_t	HcRhPortStatus[15];
 
-} ohci_registers_t;
-
+} OhciRegisters_t;
 
 /* Bit Defintions */
 #define X86_OHCI_REVISION			0x10
@@ -289,24 +288,24 @@ typedef struct _o_registers
 #define X86_OHCI_PORT_RESET_EVENT		(1 << 20)
 
 /* Interrupt Transfer Callback Structure */
-typedef struct _o_periodic_callback
+typedef struct _OhciPeridoicCallback
 {
 	/* Buffer */
-	void *buffer;
+	void *Buffer;
 
 	/* Byte Count */
-	size_t bytes;
+	size_t Bytes;
 
 	/* Callback */
-	void (*callback)(void*, size_t);
+	void (*Callback)(void*, size_t);
 
 	/* Callback arguments */
-	void *args;
+	void *Args;
 
 	/* TD Head */
-	uint32_t td_index;
+	uint32_t TDIndex;
 
-} ohci_periodic_callback_t;
+} OhciPeridoicCallback_t;
 
 /* Pool Definitions */
 #define X86_OHCI_POOL_NUM_ED			50
@@ -316,87 +315,86 @@ typedef struct _o_periodic_callback
 #define X86_OHCI_INDEX_TYPE_BULK		0x02
 
 /* Interrupt Table */
-typedef struct _o_intr_table
+typedef struct _OhciIntrTable
 {
 	/* 32 Ep's */
-	ohci_endpoint_desc_t ms16[16];
-	ohci_endpoint_desc_t ms8[8];
-	ohci_endpoint_desc_t ms4[4];
-	ohci_endpoint_desc_t ms2[2];
-	ohci_endpoint_desc_t ms1[1];
-	ohci_endpoint_desc_t stop;
+	OhciEndpointDescriptor_t Ms16[16];
+	OhciEndpointDescriptor_t Ms8[8];
+	OhciEndpointDescriptor_t Ms4[4];
+	OhciEndpointDescriptor_t Ms2[2];
+	OhciEndpointDescriptor_t Ms1[1];
+	OhciEndpointDescriptor_t Stop;
 
-} ohci_interrupt_table_t;
+} OhciIntrTable_t;
 
 /* Controller Structure */
-typedef struct _o_controller
+typedef struct _OhciController
 {
 	/* Id */
-	uint32_t id;
-	uint32_t hcd_id;
+	uint32_t Id;
+	uint32_t HcdId;
 
 	/* Lock */
-	spinlock_t lock;
+	Spinlock_t Lock;
 
 	/* Pci Header */
-	pci_driver_t *pci_info;
+	PciDevice_t *PciDevice;
 
 	/* Register Space (Physical) */
-	uint32_t control_space;
-	uint32_t hcca_space;
+	uint32_t ControlSpace;
+	uint32_t HccaSpace;
 
 	/* Registers */
-	volatile ohci_registers_t *registers;
-	volatile ohci_hcca_t *hcca;
+	volatile OhciRegisters_t *Registers;
+	volatile OhciHCCA_t *HCCA;
 
 	/* ED Pool */
-	ohci_endpoint_desc_t *ed_pool[X86_OHCI_POOL_NUM_ED];
+	OhciEndpointDescriptor_t *EDPool[X86_OHCI_POOL_NUM_ED];
 
 	/* TD Pool */
-	ohci_gtransfer_desc_t *td_pool[X86_OHCI_POOL_NUM_TD];
-	addr_t td_pool_phys[X86_OHCI_POOL_NUM_TD];
-	addr_t *td_pool_buffers[X86_OHCI_POOL_NUM_TD];
+	OhciGTransferDescriptor_t *TDPool[X86_OHCI_POOL_NUM_TD];
+	Addr_t TDPoolPhys[X86_OHCI_POOL_NUM_TD];
+	Addr_t *TDPoolBuffers[X86_OHCI_POOL_NUM_TD];
 
 	/* Pool Indices */
-	uint32_t ed_index;
-	uint32_t td_index;
+	uint32_t EDIndex;
+	uint32_t TDIndex;
 
 	/* Interrupt Table & List */
-	ohci_interrupt_table_t *itable;
-	ohci_endpoint_desc_t *ed32[32];
-	uint32_t i32;
-	uint32_t i16;
-	uint32_t i8;
-	uint32_t i4;
-	uint32_t i2;
+	OhciIntrTable_t *IntrTable;
+	OhciEndpointDescriptor_t *ED32[32];
+	uint32_t I32;
+	uint32_t I16;
+	uint32_t I8;
+	uint32_t I4;
+	uint32_t I2;
 
 	/* Power */
-	uint32_t power_mode;
-	uint32_t power_on_delay_ms;
+	uint32_t PowerMode;
+	uint32_t PowerOnDelayMs;
 
 	/* Port Count */
-	uint32_t ports;
+	uint32_t Ports;
 
 	/* Transaction Queue */
-	uint32_t transactions_waiting_control;
-	uint32_t transactions_waiting_bulk;
-	addr_t transaction_queue_control;
-	addr_t transaction_queue_bulk;
+	uint32_t TransactionsWaitingControl;
+	uint32_t TransactionsWaitingBulk;
+	Addr_t TransactionQueueControl;
+	Addr_t TransactionQueueBulk;
 
 	/* Transaction List 
 	 * Contains transactions
 	 * in progress */
-	void *transactions_list;
+	void *TransactionList;
 
-} ohci_controller_t;
+} OhciController_t;
 
 /* Power Mode Flags */
 #define X86_OHCI_POWER_ALWAYS_ON		0
 #define X86_OHCI_POWER_PORT_CONTROLLED	1
 #define X86_OHCI_POWER_PORT_GLOBAL		2
 
-
 /* Prototypes */
-_CRT_EXTERN void ohci_init(pci_driver_t *device);
+_CRT_EXTERN void OhciInit(PciDevice_t *Device);
 
 #endif // !_X86_USB_OHCI_H_
