@@ -219,7 +219,7 @@ ACPI_STATUS AcpiOsTerminate(void)
 
 ACPI_PHYSICAL_ADDRESS AcpiOsGetRootPointer(void)
 {
-	ACPI_SIZE Ret;
+	ACPI_PHYSICAL_ADDRESS Ret;
 	AcpiFindRootPointer(&Ret);
 	return Ret;
 }
@@ -892,6 +892,64 @@ void AcpiOsVprintf(const char *Fmt, va_list Args)
 
 /******************************************************************************
 *
+* FUNCTION:    AcpiOsGetLine
+*
+* PARAMETERS:  Buffer              - Where to return the command line
+*              BufferLength        - Maximum length of Buffer
+*              BytesRead           - Where the actual byte count is returned
+*
+* RETURN:      Status and actual bytes read
+*
+* DESCRIPTION: Formatted input with argument list pointer
+*
+*****************************************************************************/
+
+ACPI_STATUS
+AcpiOsGetLine(
+char                    *Buffer,
+UINT32                  BufferLength,
+UINT32                  *BytesRead)
+{
+	int                     Temp = EOF;
+	UINT32                  i;
+
+
+	for (i = 0;; i++)
+	{
+		if (i >= BufferLength)
+		{
+			return (AE_BUFFER_OVERFLOW);
+		}
+
+		/*
+		if ((Temp = getchar()) == EOF)
+		{
+			return (AE_ERROR);
+		}
+		 */
+		if (!Temp || Temp == '\n')
+		{
+			break;
+		}
+
+		Buffer[i] = (char)Temp;
+	}
+
+	/* Null terminate the buffer */
+
+	Buffer[i] = 0;
+
+	/* Return the number of bytes in the string */
+
+	if (BytesRead)
+	{
+		*BytesRead = i;
+	}
+	return (AE_OK);
+}
+
+/******************************************************************************
+*
 * FUNCTION:    Spinlock interfaces
 *
 * DESCRIPTION: Map these interfaces to semaphore interfaces
@@ -1068,4 +1126,24 @@ void AcpiOsRedirectOutput(void *Destination)
 void AcpiOsWaitEventsComplete(void)
 {
 	return;
+}
+
+/* Stubs for the disassembler */
+#include "include\acdisasm.h"
+void
+MpSaveGpioInfo(
+ACPI_PARSE_OBJECT       *Op,
+AML_RESOURCE            *Resource,
+UINT32                  PinCount,
+UINT16                  *PinList,
+char                    *DeviceName)
+{
+}
+
+void
+MpSaveSerialInfo(
+ACPI_PARSE_OBJECT       *Op,
+AML_RESOURCE            *Resource,
+char                    *DeviceName)
+{
 }

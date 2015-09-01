@@ -118,12 +118,9 @@
 #include "acdispat.h"
 #include "acnamesp.h"
 #include "acdebug.h"
-#include "acdisasm.h"
 #include "acparser.h"
 #include "acpredef.h"
 
-
-#ifdef ACPI_DEBUGGER
 
 #define _COMPONENT          ACPI_CA_DEBUGGER
         ACPI_MODULE_NAME    ("dbmethod")
@@ -151,6 +148,7 @@ AcpiDbSetMethodBreakpoint (
     ACPI_PARSE_OBJECT       *Op)
 {
     UINT32                  Address;
+    UINT32                  AmlOffset;
 
 
     if (!Op)
@@ -161,11 +159,13 @@ AcpiDbSetMethodBreakpoint (
 
     /* Get and verify the breakpoint address */
 
-    Address = ACPI_STRTOUL (Location, NULL, 16);
-    if (Address <= Op->Common.AmlOffset)
+    Address = strtoul (Location, NULL, 16);
+    AmlOffset = (UINT32) ACPI_PTR_DIFF (Op->Common.Aml,
+                    WalkState->ParserState.AmlStart);
+    if (Address <= AmlOffset)
     {
         AcpiOsPrintf ("Breakpoint %X is beyond current address %X\n",
-            Address, Op->Common.AmlOffset);
+            Address, AmlOffset);
     }
 
     /* Save breakpoint in current walk */
@@ -246,7 +246,7 @@ AcpiDbSetMethodData (
         return;
     }
 
-    Value = ACPI_STRTOUL (ValueArg, NULL, 16);
+    Value = strtoul (ValueArg, NULL, 16);
 
     if (Type == 'N')
     {
@@ -268,7 +268,7 @@ AcpiDbSetMethodData (
 
     /* Get the index and value */
 
-    Index = ACPI_STRTOUL (IndexArg, NULL, 16);
+    Index = strtoul (IndexArg, NULL, 16);
 
     WalkState = AcpiDsGetCurrentWalkState (AcpiGbl_CurrentWalkList);
     if (!WalkState)
@@ -296,12 +296,13 @@ AcpiDbSetMethodData (
 
         if (Index > ACPI_METHOD_MAX_ARG)
         {
-            AcpiOsPrintf ("Arg%u - Invalid argument name\n", Index);
+            AcpiOsPrintf ("Arg%u - Invalid argument name\n",
+                Index);
             goto Cleanup;
         }
 
-        Status = AcpiDsStoreObjectToLocal (ACPI_REFCLASS_ARG, Index, ObjDesc,
-                    WalkState);
+        Status = AcpiDsStoreObjectToLocal (ACPI_REFCLASS_ARG,
+            Index, ObjDesc, WalkState);
         if (ACPI_FAILURE (Status))
         {
             goto Cleanup;
@@ -310,7 +311,7 @@ AcpiDbSetMethodData (
         ObjDesc = WalkState->Arguments[Index].Object;
 
         AcpiOsPrintf ("Arg%u: ", Index);
-        AcpiDmDisplayInternalObject (ObjDesc, WalkState);
+        AcpiDbDisplayInternalObject (ObjDesc, WalkState);
         break;
 
     case 'L':
@@ -319,12 +320,13 @@ AcpiDbSetMethodData (
 
         if (Index > ACPI_METHOD_MAX_LOCAL)
         {
-            AcpiOsPrintf ("Local%u - Invalid local variable name\n", Index);
+            AcpiOsPrintf ("Local%u - Invalid local variable name\n",
+                Index);
             goto Cleanup;
         }
 
-        Status = AcpiDsStoreObjectToLocal (ACPI_REFCLASS_LOCAL, Index, ObjDesc,
-                    WalkState);
+        Status = AcpiDsStoreObjectToLocal (ACPI_REFCLASS_LOCAL,
+            Index, ObjDesc, WalkState);
         if (ACPI_FAILURE (Status))
         {
             goto Cleanup;
@@ -333,7 +335,7 @@ AcpiDbSetMethodData (
         ObjDesc = WalkState->LocalVariables[Index].Object;
 
         AcpiOsPrintf ("Local%u: ", Index);
-        AcpiDmDisplayInternalObject (ObjDesc, WalkState);
+        AcpiDbDisplayInternalObject (ObjDesc, WalkState);
         break;
 
     default:
@@ -376,10 +378,12 @@ AcpiDbDisassembleAml (
 
     if (Statements)
     {
-        NumStatements = ACPI_STRTOUL (Statements, NULL, 0);
+        NumStatements = strtoul (Statements, NULL, 0);
     }
 
+#ifdef ACPI_DISASSEMBLER
     AcpiDmDisassemble (NULL, Op, NumStatements);
+#endif
 }
 
 
@@ -422,7 +426,7 @@ AcpiDbDisassembleMethod (
 
     ObjDesc = Method->Object;
 
-    Op = AcpiPsCreateScopeOp ();
+    Op = AcpiPsCreateScopeOp (ObjDesc->Method.AmlStart);
     if (!Op)
     {
         return (AE_NO_MEMORY);
@@ -462,13 +466,16 @@ AcpiDbDisassembleMethod (
     WalkState->ParseFlags |= ACPI_PARSE_DISASSEMBLE;
 
     Status = AcpiPsParseAml (WalkState);
+
+#ifdef ACPI_DISASSEMBLER
     (void) AcpiDmParseDeferredOps (Op);
 
     /* Now we can disassemble the method */
 
-    AcpiGbl_DbOpt_verbose = FALSE;
+    AcpiGbl_DmOpt_Verbose = FALSE;
     AcpiDmDisassemble (NULL, Op, 0);
-    AcpiGbl_DbOpt_verbose = TRUE;
+    AcpiGbl_DmOpt_Verbose = TRUE;
+#endif
 
     AcpiPsDeleteParseTree (Op);
 
@@ -479,5 +486,3 @@ AcpiDbDisassembleMethod (
     AcpiUtReleaseOwnerId (&ObjDesc->Method.OwnerId);
     return (AE_OK);
 }
-
-#endif /* ACPI_DEBUGGER */

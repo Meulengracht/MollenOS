@@ -169,6 +169,8 @@
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="..\..\acpica\common\ahids.c" />
+    <ClCompile Include="..\..\acpica\common\ahuuids.c" />
     <ClCompile Include="..\..\acpica\debugger\dbcmds.c" />
     <ClCompile Include="..\..\acpica\debugger\dbconvert.c" />
     <ClCompile Include="..\..\acpica\debugger\dbdisply.c" />
@@ -178,6 +180,7 @@
     <ClCompile Include="..\..\acpica\debugger\dbinput.c" />
     <ClCompile Include="..\..\acpica\debugger\dbmethod.c" />
     <ClCompile Include="..\..\acpica\debugger\dbnames.c" />
+    <ClCompile Include="..\..\acpica\debugger\dbobject.c" />
     <ClCompile Include="..\..\acpica\debugger\dbstats.c" />
     <ClCompile Include="..\..\acpica\debugger\dbtest.c" />
     <ClCompile Include="..\..\acpica\debugger\dbutils.c" />
@@ -186,7 +189,6 @@
     <ClCompile Include="..\..\acpica\disassembler\dmcstyle.c" />
     <ClCompile Include="..\..\acpica\disassembler\dmdeferred.c" />
     <ClCompile Include="..\..\acpica\disassembler\dmnames.c" />
-    <ClCompile Include="..\..\acpica\disassembler\dmobject.c" />
     <ClCompile Include="..\..\acpica\disassembler\dmopcode.c" />
     <ClCompile Include="..\..\acpica\disassembler\dmresrc.c" />
     <ClCompile Include="..\..\acpica\disassembler\dmresrcl.c" />
@@ -194,6 +196,7 @@
     <ClCompile Include="..\..\acpica\disassembler\dmresrcs.c" />
     <ClCompile Include="..\..\acpica\disassembler\dmutils.c" />
     <ClCompile Include="..\..\acpica\disassembler\dmwalk.c" />
+    <ClCompile Include="..\..\acpica\dispatcher\dsdebug.c" />
     <ClCompile Include="..\..\acpica\namespace\nsaccess.c" />
     <ClCompile Include="..\..\acpica\namespace\nsalloc.c" />
     <ClCompile Include="..\..\acpica\namespace\nsarguments.c" />
@@ -692,7 +695,6 @@
     <ClCompile Include="..\..\acpica\utilities\utalloc.c" />
     <ClCompile Include="..\..\acpica\utilities\utbuffer.c" />
     <ClCompile Include="..\..\acpica\utilities\utcache.c" />
-    <ClCompile Include="..\..\acpica\utilities\utclib.c" />
     <ClCompile Include="..\..\acpica\utilities\utcopy.c" />
     <ClCompile Include="..\..\acpica\utilities\utdebug.c" />
     <ClCompile Include="..\..\acpica\utilities\utdecode.c" />
@@ -709,6 +711,7 @@
     <ClCompile Include="..\..\acpica\utilities\utmath.c" />
     <ClCompile Include="..\..\acpica\utilities\utmisc.c" />
     <ClCompile Include="..\..\acpica\utilities\utmutex.c" />
+    <ClCompile Include="..\..\acpica\utilities\utnonansi.c" />
     <ClCompile Include="..\..\acpica\utilities\utobject.c" />
     <ClCompile Include="..\..\acpica\utilities\utosi.c" />
     <ClCompile Include="..\..\acpica\utilities\utownerid.c" />

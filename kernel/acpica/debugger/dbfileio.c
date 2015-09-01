@@ -119,13 +119,12 @@
 #include "acdebug.h"
 #include "actables.h"
 
-#if (defined ACPI_DEBUGGER || defined ACPI_DISASSEMBLER)
 
 #define _COMPONENT          ACPI_CA_DEBUGGER
         ACPI_MODULE_NAME    ("dbfileio")
 
-#ifdef ACPI_DEBUGGER
 
+#ifdef ACPI_DEBUGGER
 /*******************************************************************************
  *
  * FUNCTION:    AcpiDbCloseDebugFile
@@ -150,7 +149,8 @@ AcpiDbCloseDebugFile (
        fclose (AcpiGbl_DebugFile);
        AcpiGbl_DebugFile = NULL;
        AcpiGbl_DbOutputToFile = FALSE;
-       AcpiOsPrintf ("Debug output file %s closed\n", AcpiGbl_DbDebugFilename);
+       AcpiOsPrintf ("Debug output file %s closed\n",
+            AcpiGbl_DbDebugFilename);
     }
 #endif
 }
@@ -184,7 +184,7 @@ AcpiDbOpenDebugFile (
     }
 
     AcpiOsPrintf ("Debug output file %s opened\n", Name);
-    ACPI_STRNCPY (AcpiGbl_DbDebugFilename, Name,
+    strncpy (AcpiGbl_DbDebugFilename, Name,
         sizeof (AcpiGbl_DbDebugFilename));
     AcpiGbl_DbOutputToFile = TRUE;
 
@@ -217,12 +217,12 @@ AeLocalLoadTable (
     ACPI_TABLE_HEADER       *Table)
 {
     ACPI_STATUS             Status = AE_OK;
-/*    ACPI_TABLE_DESC         TableInfo; */
 
 
     ACPI_FUNCTION_TRACE (AeLocalLoadTable);
-#if 0
 
+#if 0
+/*    ACPI_TABLE_DESC         TableInfo; */
 
     if (!Table)
     {
@@ -288,7 +288,8 @@ AeLocalLoadTable (
 ACPI_STATUS
 AcpiDbGetTableFromFile (
     char                    *Filename,
-    ACPI_TABLE_HEADER       **ReturnTable)
+    ACPI_TABLE_HEADER       **ReturnTable,
+    BOOLEAN                 MustBeAmlFile)
 {
 #ifdef ACPI_APPLICATION
     ACPI_STATUS             Status;
@@ -302,9 +303,18 @@ AcpiDbGetTableFromFile (
         return (Status);
     }
 
-#ifdef ACPI_DATA_TABLE_DISASSEMBLY
-    IsAmlTable = AcpiUtIsAmlTable (Table);
-#endif
+    if (MustBeAmlFile)
+    {
+        IsAmlTable = AcpiUtIsAmlTable (Table);
+        if (!IsAmlTable)
+        {
+            ACPI_EXCEPTION ((AE_INFO, AE_OK,
+                "Input for -e is not an AML table: "
+                "\"%4.4s\" (must be DSDT/SSDT)",
+                Table->Signature));
+            return (AE_TYPE);
+        }
+    }
 
     if (IsAmlTable)
     {
@@ -344,5 +354,3 @@ AcpiDbGetTableFromFile (
 #endif  /* ACPI_APPLICATION */
     return (AE_OK);
 }
-
-#endif  /* ACPI_DEBUGGER */

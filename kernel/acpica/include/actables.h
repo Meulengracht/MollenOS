@@ -142,8 +142,9 @@ AcpiTbScanMemoryForRsdp (
  * tbdata - table data structure management
  */
 ACPI_STATUS
-AcpiTbGetNextRootIndex (
-    UINT32                  *TableIndex);
+AcpiTbGetNextTableDescriptor (
+    UINT32                  *TableIndex,
+    ACPI_TABLE_DESC         **TableDesc);
 
 void
 AcpiTbInitTableDescriptor (
@@ -245,14 +246,6 @@ AcpiTbInstallStandardTable (
     BOOLEAN                 Override,
     UINT32                  *TableIndex);
 
-ACPI_STATUS
-AcpiTbStoreTable (
-    ACPI_PHYSICAL_ADDRESS   Address,
-    ACPI_TABLE_HEADER       *Table,
-    UINT32                  Length,
-    UINT8                   Flags,
-    UINT32                  *TableIndex);
-
 void
 AcpiTbUninstallTable (
     ACPI_TABLE_DESC        *TableDesc);
@@ -315,18 +308,30 @@ AcpiTbCopyDsdt (
 
 void
 AcpiTbInstallTableWithOverride (
-    UINT32                  TableIndex,
     ACPI_TABLE_DESC         *NewTableDesc,
-    BOOLEAN                 Override);
+    BOOLEAN                 Override,
+    UINT32                  *TableIndex);
 
 ACPI_STATUS
 AcpiTbInstallFixedTable (
     ACPI_PHYSICAL_ADDRESS   Address,
     char                    *Signature,
-    UINT32                  TableIndex);
+    UINT32                  *TableIndex);
 
 ACPI_STATUS
 AcpiTbParseRootTable (
     ACPI_PHYSICAL_ADDRESS   RsdpAddress);
+
+BOOLEAN
+AcpiIsValidSignature (
+    char                    *Signature);
+
+
+/*
+ * tbxfload
+ */
+ACPI_STATUS
+AcpiTbLoadNamespace (
+    void);
 
 #endif /* __ACTABLES_H__ */

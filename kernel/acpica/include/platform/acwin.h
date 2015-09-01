@@ -8,7 +8,7 @@
  *
  * 1. Copyright Notice
  *
- * Some or all of this work - Copyright (c) 1999 - 2014, Intel Corp.
+ * Some or all of this work - Copyright (c) 1999 - 2015, Intel Corp.
  * All rights reserved.
  *
  * 2. License
@@ -122,7 +122,6 @@
 #ifdef _MSC_VER
 #include "acmsvc.h"
 #endif
-
 /*! [End] no source code translation !*/
 
 #define ACPI_MACHINE_WIDTH      32

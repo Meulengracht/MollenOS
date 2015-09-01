@@ -35,7 +35,7 @@
 #include <stdio.h>
 
 /* Globals */
-Scheduler_t *GlbSchedulers[64];
+Scheduler_t *GlbSchedulers[MCORE_MAX_SCHEDULERS];
 list_t *SleepQueue = NULL;
 volatile uint32_t GlbSchedulerEnabled = 0;
 
@@ -49,7 +49,7 @@ void SchedulerInit(Cpu_t cpu)
 	if (cpu == 0)
 	{
 		/* Null out stuff */
-		for (i = 0; i < 64; i++)
+		for (i = 0; i < MCORE_MAX_SCHEDULERS; i++)
 			GlbSchedulers[i] = NULL;
 
 		/* Allocate Sleep */
@@ -156,7 +156,7 @@ void SchedulerReadyThread(list_node_t *Node)
 	SpinlockRelease(&GlbSchedulers[index]->Lock);
 
 	/* Wakeup CPU if sleeping */
-	if (ThreadingGetCurrentThread(t->CpuId)->Flags & 0x20)
+	if (ThreadingIsCurrentTaskIdle(t->CpuId) != 0)
 		ApicSendIpi((uint8_t)t->CpuId, INTERRUPT_YIELD);
 }
 
@@ -261,7 +261,6 @@ list_node_t *SchedulerGetNextTask(Cpu_t cpu, list_node_t *Node, int PreEmptive)
 	if (GlbSchedulers[cpu]->BoostTimer >= MCORE_SCHEDULER_BOOST_MS)
 	{
 		SchedulerBoost(GlbSchedulers[cpu]);
-
 		GlbSchedulers[cpu]->BoostTimer = 0;
 	}
 

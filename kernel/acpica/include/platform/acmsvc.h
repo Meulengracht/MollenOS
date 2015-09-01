@@ -8,7 +8,7 @@
  *
  * 1. Copyright Notice
  *
- * Some or all of this work - Copyright (c) 1999 - 2014, Intel Corp.
+ * Some or all of this work - Copyright (c) 1999 - 2015, Intel Corp.
  * All rights reserved.
  *
  * 2. License
@@ -116,6 +116,14 @@
 #ifndef __ACMSVC_H__
 #define __ACMSVC_H__
 
+/* Note: do not include any C library headers here */
+
+/*
+ * Note: MSVC project files should define ACPI_DEBUGGER and ACPI_DISASSEMBLER
+ * as appropriate to enable editor functions like "Find all references".
+ * The editor isn't smart enough to dig through the include files to find
+ * out if these are actually defined.
+ */
 
 /*
  * Map low I/O functions for MS. This allows us to disable MS language
@@ -128,7 +136,6 @@
 #define stat            _stat
 #define fstat           _fstat
 #define mkdir           _mkdir
-#define strlwr          _strlwr
 #define O_RDONLY        _O_RDONLY
 #define O_BINARY        _O_BINARY
 #define O_CREAT         _O_CREAT
@@ -219,10 +226,9 @@
 #endif
 
 
-/* Debug support. Must be last in this file, do not move. */
-#undef _DEBUG
+/* Debug support. */
+
 #ifdef _DEBUG
-#include <crtdbg.h>
 
 /*
  * Debugging memory corruption issues with windows:
@@ -231,9 +237,31 @@
  * This can quickly localize the memory corruption.
  */
 #define ACPI_DEBUG_INITIALIZE() \
-    _CrtSetDbgFlag (_CRTDBG_CHECK_ALWAYS_DF | \
-        _CRTDBG_ALLOC_MEM_DF | _CRTDBG_CHECK_CRT_DF | \
-        _CrtSetDbgFlag(_CRTDBG_REPORT_FLAG))
+    _CrtSetDbgFlag (\
+        _CRTDBG_CHECK_ALWAYS_DF | \
+        _CRTDBG_ALLOC_MEM_DF | \
+        _CRTDBG_DELAY_FREE_MEM_DF | \
+        _CRTDBG_LEAK_CHECK_DF | \
+        _CrtSetDbgFlag(_CRTDBG_REPORT_FLAG));
+
+#if 0
+/*
+ * _CrtSetBreakAlloc can be used to set a breakpoint at a particular
+ * memory leak, add to the macro above.
+ */
+Detected memory leaks!
+Dumping objects ->
+..\..\source\os_specific\service_layers\oswinxf.c(701) : {937} normal block at 0x002E9190, 40 bytes long.
+ Data: <                > 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+
+_CrtSetBreakAlloc (937);
+#endif
+
+#endif
+
+#if _MSC_VER > 1200 /* Versions above VC++ 6 */
+#define COMPILER_VA_MACRO               1
+#else
 #endif
 
 #endif /* __ACMSVC_H__ */

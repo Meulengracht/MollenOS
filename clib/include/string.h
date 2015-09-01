@@ -81,6 +81,7 @@ extern		float strtof(const char *s, char **sret);
 extern		long double strtold(const char *s, char **sret);
 extern		long strtol(const char *nptr, char **endptr, int base);
 extern		__int64 strtoi64(const char *nptr, char **endptr, int base);
+extern		unsigned long strtoul(const char *nptr, char **endptr, int base);
 extern		unsigned long long strtoull(const char *nptr, char **endptr, int base);
 
 

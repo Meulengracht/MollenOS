@@ -217,6 +217,16 @@ TId_t ThreadingGetCurrentThreadId(void)
 		return ThreadingGetCurrentThread(cpu)->ThreadId;
 }
 
+/* Is current thread idle task? */
+int ThreadingIsCurrentTaskIdle(Cpu_t cpu)
+{
+	/* Has flag? */
+	if (ThreadingGetCurrentThread(cpu)->Flags & X86_THREAD_IDLE)
+		return 1;
+	else
+		return 0;
+}
+
 /* Marks current thread for sleep */
 void *ThreadingEnterSleep(void)
 {

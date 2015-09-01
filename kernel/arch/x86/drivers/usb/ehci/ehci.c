@@ -138,7 +138,6 @@ void EhciInit(PciDevice_t *PciDevice)
 		To++;
 	}
 		
-
 	/* Stop controller */
 	cmd = OpRegs->UsbCommand;
 	cmd &= ~(0x1);

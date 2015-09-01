@@ -117,7 +117,6 @@
 #include "accommon.h"
 #include "acdebug.h"
 
-#ifdef ACPI_DEBUGGER
 
 #define _COMPONENT          ACPI_CA_DEBUGGER
         ACPI_MODULE_NAME    ("dbconvert")
@@ -149,7 +148,7 @@ AcpiDbHexCharToValue (
 
     /* Digit must be ascii [0-9a-fA-F] */
 
-    if (!ACPI_IS_XDIGIT (HexChar))
+    if (!isxdigit (HexChar))
     {
         return (AE_BAD_HEX_CONSTANT);
     }
@@ -160,7 +159,7 @@ AcpiDbHexCharToValue (
     }
     else
     {
-        Value = (UINT8) (ACPI_TOUPPER (HexChar) - 0x37);
+        Value = (UINT8) (toupper (HexChar) - 0x37);
     }
 
     *ReturnValue = Value;
@@ -378,7 +377,7 @@ AcpiDbConvertToObject (
 
         Object->Type = ACPI_TYPE_STRING;
         Object->String.Pointer = String;
-        Object->String.Length = (UINT32) ACPI_STRLEN (String);
+        Object->String.Length = (UINT32) strlen (String);
         break;
 
     case ACPI_TYPE_BUFFER:
@@ -543,7 +542,7 @@ AcpiDbDumpPldBuffer (
 
     /* The two bit-packed buffers should match */
 
-    if (ACPI_MEMCMP (NewBuffer, BufferDesc->Buffer.Pointer,
+    if (memcmp (NewBuffer, BufferDesc->Buffer.Pointer,
         BufferDesc->Buffer.Length))
     {
         AcpiOsPrintf ("Converted _PLD buffer does not compare. New:\n");
@@ -600,5 +599,3 @@ AcpiDbDumpPldBuffer (
     ACPI_FREE (PldInfo);
     ACPI_FREE (NewBuffer);
 }
-
-#endif /* ACPI_DEBUGGER */

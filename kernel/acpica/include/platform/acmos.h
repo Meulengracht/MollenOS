@@ -125,6 +125,9 @@
 
 /*! [End] no source code translation !*/
 
+/* Includes */
+#include <string.h>
+
 //#define ACPI_CACHE_T                ACPI_MEMORY_LIST
 //#define ACPI_USE_LOCAL_CACHE        1
 

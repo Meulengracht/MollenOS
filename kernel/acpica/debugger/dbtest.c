@@ -119,7 +119,6 @@
 #include "acnamesp.h"
 #include "acpredef.h"
 
-#ifdef ACPI_DEBUGGER
 
 #define _COMPONENT          ACPI_CA_DEBUGGER
         ACPI_MODULE_NAME    ("dbtest")
@@ -196,8 +195,8 @@ static ACPI_DB_ARGUMENT_INFO    AcpiDbTestTypes [] =
  * used to read and write the various namespace objects. The point
  * is to force the AML interpreter do all of the work.
  */
-#define                     ACPI_DB_READ_METHOD     "\\_T98"
-#define                     ACPI_DB_WRITE_METHOD    "\\_T99"
+#define ACPI_DB_READ_METHOD     "\\_T98"
+#define ACPI_DB_WRITE_METHOD    "\\_T99"
 
 static ACPI_HANDLE          ReadHandle = NULL;
 static ACPI_HANDLE          WriteHandle = NULL;
@@ -355,7 +354,7 @@ AcpiDbTestAllObjects (
     /* Walk the entire namespace, testing each supported named data object */
 
     (void) AcpiWalkNamespace (ACPI_TYPE_ANY, ACPI_ROOT_OBJECT,
-                ACPI_UINT32_MAX, AcpiDbTestOneObject, NULL, NULL, NULL);
+        ACPI_UINT32_MAX, AcpiDbTestOneObject, NULL, NULL, NULL);
 }
 
 
@@ -718,7 +717,7 @@ AcpiDbTestBufferType (
      * count is not an integral number of bytes. Zero out the
      * unused bits.
      */
-    ACPI_MEMSET (Buffer, BUFFER_FILL_VALUE, ByteLength);
+    memset (Buffer, BUFFER_FILL_VALUE, ByteLength);
     ExtraBits = BitLength % 8;
     if (ExtraBits)
     {
@@ -743,7 +742,7 @@ AcpiDbTestBufferType (
         goto Exit;
     }
 
-    if (ACPI_MEMCMP (Temp2->Buffer.Pointer, Buffer, ByteLength))
+    if (memcmp (Temp2->Buffer.Pointer, Buffer, ByteLength))
     {
         AcpiOsPrintf (" MISMATCH 2: New buffer value");
     }
@@ -767,7 +766,8 @@ AcpiDbTestBufferType (
         goto Exit;
     }
 
-    if (ACPI_MEMCMP (Temp1->Buffer.Pointer, Temp3->Buffer.Pointer, ByteLength))
+    if (memcmp (Temp1->Buffer.Pointer,
+            Temp3->Buffer.Pointer, ByteLength))
     {
         AcpiOsPrintf (" MISMATCH 3: While restoring original buffer");
     }
@@ -823,7 +823,7 @@ AcpiDbTestStringType (
     /* Write a new value */
 
     WriteValue.Type = ACPI_TYPE_STRING;
-    WriteValue.String.Length = ACPI_STRLEN (ValueToWrite);
+    WriteValue.String.Length = strlen (ValueToWrite);
     WriteValue.String.Pointer = ValueToWrite;
 
     Status = AcpiDbWriteToObject (Node, &WriteValue);
@@ -840,7 +840,7 @@ AcpiDbTestStringType (
         goto Exit;
     }
 
-    if (ACPI_STRCMP (Temp2->String.Pointer, ValueToWrite))
+    if (strcmp (Temp2->String.Pointer, ValueToWrite))
     {
         AcpiOsPrintf (" MISMATCH 2: %s, expecting %s",
             Temp2->String.Pointer, ValueToWrite);
@@ -848,7 +848,7 @@ AcpiDbTestStringType (
 
     /* Write back the original value */
 
-    WriteValue.String.Length = ACPI_STRLEN (Temp1->String.Pointer);
+    WriteValue.String.Length = strlen (Temp1->String.Pointer);
     WriteValue.String.Pointer = Temp1->String.Pointer;
 
     Status = AcpiDbWriteToObject (Node, &WriteValue);
@@ -865,7 +865,7 @@ AcpiDbTestStringType (
         goto Exit;
     }
 
-    if (ACPI_STRCMP (Temp1->String.Pointer, Temp3->String.Pointer))
+    if (strcmp (Temp1->String.Pointer, Temp3->String.Pointer))
     {
         AcpiOsPrintf (" MISMATCH 3: %s, expecting %s",
             Temp3->String.Pointer, Temp1->String.Pointer);
@@ -919,7 +919,8 @@ AcpiDbReadFromObject (
     ReturnObj.Length  = ACPI_ALLOCATE_BUFFER;
 
     AcpiGbl_MethodExecuting = TRUE;
-    Status = AcpiEvaluateObject (ReadHandle, NULL, &ParamObjects, &ReturnObj);
+    Status = AcpiEvaluateObject (ReadHandle, NULL,
+        &ParamObjects, &ReturnObj);
     AcpiGbl_MethodExecuting = FALSE;
 
     if (ACPI_FAILURE (Status))
@@ -957,8 +958,8 @@ AcpiDbReadFromObject (
 
         AcpiOsPrintf (" Unsupported return object type, %s",
             AcpiUtGetTypeName (RetValue->Type));
-        AcpiOsFree (ReturnObj.Pointer);
 
+        AcpiOsFree (ReturnObj.Pointer);
         return (AE_TYPE);
     }
 
@@ -998,7 +999,7 @@ AcpiDbWriteToObject (
 
     /* Copy the incoming user parameter */
 
-    ACPI_MEMCPY (&Params[1], Value, sizeof (ACPI_OBJECT));
+    memcpy (&Params[1], Value, sizeof (ACPI_OBJECT));
 
     ParamObjects.Count = 2;
     ParamObjects.Pointer = Params;
@@ -1042,13 +1043,14 @@ AcpiDbEvaluateAllPredefinedNames (
 
     if (CountArg)
     {
-        Info.MaxCount = ACPI_STRTOUL (CountArg, NULL, 0);
+        Info.MaxCount = strtoul (CountArg, NULL, 0);
     }
 
     /* Search all nodes in namespace */
 
-    (void) AcpiWalkNamespace (ACPI_TYPE_ANY, ACPI_ROOT_OBJECT, ACPI_UINT32_MAX,
-                AcpiDbEvaluateOnePredefinedName, NULL, (void *) &Info, NULL);
+    (void) AcpiWalkNamespace (ACPI_TYPE_ANY, ACPI_ROOT_OBJECT,
+        ACPI_UINT32_MAX, AcpiDbEvaluateOnePredefinedName, NULL,
+        (void *) &Info, NULL);
 
     AcpiOsPrintf ("Evaluated %u predefined names in the namespace\n", Info.Count);
 }
@@ -1148,8 +1150,10 @@ AcpiDbEvaluateOnePredefinedName (
 
             case ACPI_TYPE_STRING:
 
-                ThisParam->String.Pointer = "This is the default argument string";
-                ThisParam->String.Length = ACPI_STRLEN (ThisParam->String.Pointer);
+                ThisParam->String.Pointer =
+                    "This is the default argument string";
+                ThisParam->String.Length =
+                    strlen (ThisParam->String.Pointer);
                 break;
 
             case ACPI_TYPE_BUFFER:
@@ -1188,7 +1192,8 @@ AcpiDbEvaluateOnePredefinedName (
 
     Status = AcpiEvaluateObject (Node, NULL, &ParamObjects, &ReturnObj);
 
-    AcpiOsPrintf ("%-32s returned %s\n", Pathname, AcpiFormatException (Status));
+    AcpiOsPrintf ("%-32s returned %s\n",
+        Pathname, AcpiFormatException (Status));
     AcpiGbl_MethodExecuting = FALSE;
     ACPI_FREE (Pathname);
 
@@ -1206,5 +1211,3 @@ AcpiDbEvaluateOnePredefinedName (
 
     return (Status);
 }
-
-#endif /* ACPI_DEBUGGER */

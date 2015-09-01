@@ -49,6 +49,9 @@
     <Filter Include="Source Files\Executer">
       <UniqueIdentifier>{96af6bce-5c40-40f3-bfb1-99d182bfdd24}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Source Files\Common">
+      <UniqueIdentifier>{28530ab2-5f2b-4a80-82f7-45072737878d}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\acpica\dispatcher\dsargs.c">
@@ -303,111 +306,6 @@
     <ClCompile Include="..\..\acpica\oslmos.c">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\acpica\utilities\utaddress.c">
-      <Filter>Source Files\Utilities</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\acpica\utilities\utalloc.c">
-      <Filter>Source Files\Utilities</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\acpica\utilities\utbuffer.c">
-      <Filter>Source Files\Utilities</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\acpica\utilities\utcache.c">
-      <Filter>Source Files\Utilities</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\acpica\utilities\utclib.c">
-      <Filter>Source Files\Utilities</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\acpica\utilities\utcopy.c">
-      <Filter>Source Files\Utilities</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\acpica\utilities\utdebug.c">
-      <Filter>Source Files\Utilities</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\acpica\utilities\utdecode.c">
-      <Filter>Source Files\Utilities</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\acpica\utilities\utdelete.c">
-      <Filter>Source Files\Utilities</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\acpica\utilities\uterror.c">
-      <Filter>Source Files\Utilities</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\acpica\utilities\uteval.c">
-      <Filter>Source Files\Utilities</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\acpica\utilities\utexcep.c">
-      <Filter>Source Files\Utilities</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\acpica\utilities\utfileio.c">
-      <Filter>Source Files\Utilities</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\acpica\utilities\utglobal.c">
-      <Filter>Source Files\Utilities</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\acpica\utilities\uthex.c">
-      <Filter>Source Files\Utilities</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\acpica\utilities\utids.c">
-      <Filter>Source Files\Utilities</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\acpica\utilities\utinit.c">
-      <Filter>Source Files\Utilities</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\acpica\utilities\utlock.c">
-      <Filter>Source Files\Utilities</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\acpica\utilities\utmath.c">
-      <Filter>Source Files\Utilities</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\acpica\utilities\utmisc.c">
-      <Filter>Source Files\Utilities</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\acpica\utilities\utmutex.c">
-      <Filter>Source Files\Utilities</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\acpica\utilities\utobject.c">
-      <Filter>Source Files\Utilities</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\acpica\utilities\utosi.c">
-      <Filter>Source Files\Utilities</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\acpica\utilities\utownerid.c">
-      <Filter>Source Files\Utilities</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\acpica\utilities\utpredef.c">
-      <Filter>Source Files\Utilities</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\acpica\utilities\utprint.c">
-      <Filter>Source Files\Utilities</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\acpica\utilities\utresrc.c">
-      <Filter>Source Files\Utilities</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\acpica\utilities\utstate.c">
-      <Filter>Source Files\Utilities</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\acpica\utilities\utstring.c">
-      <Filter>Source Files\Utilities</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\acpica\utilities\uttrack.c">
-      <Filter>Source Files\Utilities</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\acpica\utilities\utuuid.c">
-      <Filter>Source Files\Utilities</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\acpica\utilities\utxface.c">
-      <Filter>Source Files\Utilities</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\acpica\utilities\utxferror.c">
-      <Filter>Source Files\Utilities</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\acpica\utilities\utxfinit.c">
-      <Filter>Source Files\Utilities</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\acpica\utilities\utxfmutex.c">
-      <Filter>Source Files\Utilities</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\acpica\debugger\dbcmds.c">
       <Filter>Source Files\Debugger</Filter>
     </ClCompile>
@@ -567,9 +465,6 @@
     <ClCompile Include="..\..\acpica\disassembler\dmnames.c">
       <Filter>Source Files\Disassembler</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\acpica\disassembler\dmobject.c">
-      <Filter>Source Files\Disassembler</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\acpica\disassembler\dmopcode.c">
       <Filter>Source Files\Disassembler</Filter>
     </ClCompile>
@@ -590,6 +485,123 @@
     </ClCompile>
     <ClCompile Include="..\..\acpica\disassembler\dmwalk.c">
       <Filter>Source Files\Disassembler</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\acpica\debugger\dbobject.c">
+      <Filter>Source Files\Debugger</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\acpica\dispatcher\dsdebug.c">
+      <Filter>Source Files\Dispatcher</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\acpica\utilities\utaddress.c">
+      <Filter>Source Files\Utilities</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\acpica\utilities\utalloc.c">
+      <Filter>Source Files\Utilities</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\acpica\utilities\utbuffer.c">
+      <Filter>Source Files\Utilities</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\acpica\utilities\utcache.c">
+      <Filter>Source Files\Utilities</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\acpica\utilities\utcopy.c">
+      <Filter>Source Files\Utilities</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\acpica\utilities\utdebug.c">
+      <Filter>Source Files\Utilities</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\acpica\utilities\utdecode.c">
+      <Filter>Source Files\Utilities</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\acpica\utilities\utdelete.c">
+      <Filter>Source Files\Utilities</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\acpica\utilities\uterror.c">
+      <Filter>Source Files\Utilities</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\acpica\utilities\uteval.c">
+      <Filter>Source Files\Utilities</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\acpica\utilities\utexcep.c">
+      <Filter>Source Files\Utilities</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\acpica\utilities\utfileio.c">
+      <Filter>Source Files\Utilities</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\acpica\utilities\utglobal.c">
+      <Filter>Source Files\Utilities</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\acpica\utilities\uthex.c">
+      <Filter>Source Files\Utilities</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\acpica\utilities\utids.c">
+      <Filter>Source Files\Utilities</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\acpica\utilities\utinit.c">
+      <Filter>Source Files\Utilities</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\acpica\utilities\utlock.c">
+      <Filter>Source Files\Utilities</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\acpica\utilities\utmath.c">
+      <Filter>Source Files\Utilities</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\acpica\utilities\utmisc.c">
+      <Filter>Source Files\Utilities</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\acpica\utilities\utmutex.c">
+      <Filter>Source Files\Utilities</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\acpica\utilities\utnonansi.c">
+      <Filter>Source Files\Utilities</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\acpica\utilities\utobject.c">
+      <Filter>Source Files\Utilities</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\acpica\utilities\utosi.c">
+      <Filter>Source Files\Utilities</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\acpica\utilities\utownerid.c">
+      <Filter>Source Files\Utilities</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\acpica\utilities\utpredef.c">
+      <Filter>Source Files\Utilities</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\acpica\utilities\utprint.c">
+      <Filter>Source Files\Utilities</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\acpica\utilities\utresrc.c">
+      <Filter>Source Files\Utilities</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\acpica\utilities\utstate.c">
+      <Filter>Source Files\Utilities</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\acpica\utilities\utstring.c">
+      <Filter>Source Files\Utilities</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\acpica\utilities\uttrack.c">
+      <Filter>Source Files\Utilities</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\acpica\utilities\utuuid.c">
+      <Filter>Source Files\Utilities</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\acpica\utilities\utxface.c">
+      <Filter>Source Files\Utilities</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\acpica\utilities\utxferror.c">
+      <Filter>Source Files\Utilities</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\acpica\utilities\utxfinit.c">
+      <Filter>Source Files\Utilities</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\acpica\utilities\utxfmutex.c">
+      <Filter>Source Files\Utilities</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\acpica\common\ahids.c">
+      <Filter>Source Files\Common</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\acpica\common\ahuuids.c">
+      <Filter>Source Files\Common</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>

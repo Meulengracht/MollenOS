@@ -117,8 +117,6 @@
 #include "accommon.h"
 #include "acdebug.h"
 
-#ifdef ACPI_DEBUGGER
-
 #define _COMPONENT          ACPI_CA_DEBUGGER
         ACPI_MODULE_NAME    ("dbhistry")
 
@@ -164,7 +162,7 @@ AcpiDbAddToHistory (
 
     /* Put command into the next available slot */
 
-    CmdLen = (UINT16) ACPI_STRLEN (CommandLine);
+    CmdLen = (UINT16) strlen (CommandLine);
     if (!CmdLen)
     {
         return;
@@ -172,8 +170,9 @@ AcpiDbAddToHistory (
 
     if (AcpiGbl_HistoryBuffer[AcpiGbl_NextHistoryIndex].Command != NULL)
     {
-        BufferLen = (UINT16) ACPI_STRLEN (
+        BufferLen = (UINT16) strlen (
             AcpiGbl_HistoryBuffer[AcpiGbl_NextHistoryIndex].Command);
+
         if (CmdLen > BufferLen)
         {
             AcpiOsFree (AcpiGbl_HistoryBuffer[AcpiGbl_NextHistoryIndex].
@@ -188,7 +187,7 @@ AcpiDbAddToHistory (
             AcpiOsAllocate (CmdLen + 1);
     }
 
-    ACPI_STRCPY (AcpiGbl_HistoryBuffer[AcpiGbl_NextHistoryIndex].Command,
+    strcpy (AcpiGbl_HistoryBuffer[AcpiGbl_NextHistoryIndex].Command,
         CommandLine);
 
     AcpiGbl_HistoryBuffer[AcpiGbl_NextHistoryIndex].CmdNum =
@@ -289,7 +288,7 @@ AcpiDbGetFromHistory (
 
     else
     {
-        CmdNum = ACPI_STRTOUL (CommandNumArg, NULL, 0);
+        CmdNum = strtoul (CommandNumArg, NULL, 0);
     }
 
     return (AcpiDbGetHistoryByIndex (CmdNum));
@@ -341,5 +340,3 @@ AcpiDbGetHistoryByIndex (
     AcpiOsPrintf ("Invalid history number: %u\n", HistoryIndex);
     return (NULL);
 }
-
-#endif /* ACPI_DEBUGGER */
