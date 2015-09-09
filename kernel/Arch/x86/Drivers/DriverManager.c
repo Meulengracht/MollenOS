@@ -22,7 +22,7 @@
 
 /* Includes */
 #include <Arch.h>
-
+#include <Mutex.h>
 #include <assert.h>
 #include <acpi.h>
 #include <Pci.h>
@@ -79,18 +79,21 @@ void PciCheckFunction(list_t *Bridge, uint8_t Bus, uint8_t Device, uint8_t Funct
 	 * Ignore the spam of device_id 0x7a0 in VMWare*/
 	if (Pcs->DeviceId != 0x7a0)
 	{
+#ifdef X86_PCI_DIAGNOSE
 		printf("    * [%d:%d:%d][%d:%d:%d] Vendor 0x%x, Device 0x%x : %s\n",
 			Pcs->Class, Pcs->Subclass, Pcs->Interface,
 			Bus, Device, Function,
 			Pcs->VendorId, Pcs->DeviceId,
 			PciToString(Pcs->Class, Pcs->Subclass, Pcs->Interface));
+#endif
 	}
 
 	/* Do some disabling */
 	if ((Pcs->Class != 0x06) && (Pcs->Class != 0x03))
 	{
 		/* Disable Device untill further notice */
-		PciWriteWord((const uint16_t)Bus, (const uint16_t)Device, (const uint16_t)Function, 0x04, 0x0400);
+		uint16_t PciSettings = PciReadWord((const uint16_t)Bus, (const uint16_t)Device, (const uint16_t)Function, 0x04);
+		PciWriteWord((const uint16_t)Bus, (const uint16_t)Device, (const uint16_t)Function, 0x04, PciSettings | 0x0400);
 	}
 	
 	/* Add to list */
@@ -169,13 +172,17 @@ void PciEnumerate(void)
 	if ((HeaderType & 0x80) == 0)
 	{
 		/* Single PCI host controller */
+#ifdef X86_PCI_DIAGNOSE
 		printf("    * Single Bus Present\n");
+#endif
 		PciCheckBus(GlbPciDevices, 0);
 	}
 	else 
 	{
 		/* Multiple PCI host controllers */
+#ifdef X86_PCI_DIAGNOSE
 		printf("    * Multi Bus Present\n");
+#endif
 		for (Function = 0; Function < 8; Function++)
 		{
 			if (PciReadVendorId(0, 0, Function) != 0xFFFF)
@@ -1082,20 +1089,27 @@ void PciAcpiEnumerate(void)
  * their companion controllers */
 void DriverDisableEhci(void *Data, int n)
 {
-	PciDevice_t *driver = (PciDevice_t*)Data;
-	list_t *sub_bus;
-	n = n;
+	PciDevice_t *Driver = (PciDevice_t*)Data;
+	list_t *SubBusList;
 
-	switch (driver->Type)
+	/* Unused */
+	_CRT_UNUSED(n);
+
+	/* Check type */
+	switch (Driver->Type)
 	{
 	case X86_PCI_TYPE_BRIDGE:
 	{
-		/* Get bus list */
-		sub_bus = (list_t*)driver->Children;
+		/* Sanity */
+		if (Driver->Children != NULL)
+		{
+			/* Get bus list */
+			SubBusList = (list_t*)Driver->Children;
 
-		/* Install drivers on that bus */
-		list_execute_all(sub_bus, DriverDisableEhci);
-
+			/* Install drivers on that bus */
+			list_execute_all(SubBusList, DriverDisableEhci);
+		}
+		
 	} break;
 
 	case X86_PCI_TYPE_DEVICE:
@@ -1103,18 +1117,18 @@ void DriverDisableEhci(void *Data, int n)
 		/* Get driver */
 
 		/* Serial Bus Comms */
-		if (driver->Header->Class == 0x0C)
+		if (Driver->Header->Class == 0x0C)
 		{
 			/* Usb? */
-			if (driver->Header->Subclass == 0x03)
+			if (Driver->Header->Subclass == 0x03)
 			{
 				/* Controller Type? */
 
 				/* UHCI -> 0. OHCI -> 0x10. EHCI -> 0x20. xHCI -> 0x30 */
-				if (driver->Header->Interface == 0x20)
+				if (Driver->Header->Interface == 0x20)
 				{
 					/* Initialise Controller */
-					EhciInit(driver);
+					EhciInit(Driver);
 				}
 			}
 		}
@@ -1141,13 +1155,6 @@ void DriverSetupCallback(void *Data, int n)
 		{
 			/* Get bus list */
 			sub_bus = (list_t*)driver->Children;
-
-			/* Sanity */
-			if (sub_bus == NULL || sub_bus->length == 0)
-			{
-				/* Something is up */
-				break;
-			}
 
 			/* Install drivers on that bus */
 			list_execute_all(sub_bus, DriverSetupCallback);
@@ -1197,17 +1204,19 @@ void DriverManagerInit(void *Args)
 	_CRT_UNUSED(Args);
 
 	/* Start out by enumerating devices */
+#ifdef X86_PCI_DIAGNOSE
 	printf("    * Enumerating PCI Space\n");
+#endif
 	PciAcpiEnumerate();
 
 	/* Debug */
+#ifdef X86_PCI_DIAGNOSE
 	printf("    * Device Enumeration Done!\n");
+#endif
 
 	/* Special Step for EHCI Controllers
 	* This is untill I know OHCI and UHCI works perfectly! */
 	list_execute_all(GlbPciDevices, DriverDisableEhci);
-
-	printf("Installing Drivers\n");
 
 	/* Now, for each driver we have available install it */
 	list_execute_all(GlbPciDevices, DriverSetupCallback);

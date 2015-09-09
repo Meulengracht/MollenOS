@@ -133,7 +133,9 @@ OsStatus_t HpetComparatorStart(uint32_t Comparator, uint32_t Periodic, uint32_t 
 	Delta = GlbHpetFrequency / Freq;
 	Now += (uint32_t)Delta;
 
+#ifdef X86_HPET_DIAGNOSE
 	printf("Delta 0x%x, Frequency 0x%x\n", (uint32_t)Delta, (uint32_t)GlbHpetFrequency);
+#endif
 
 	/* Find a free interrupt */
 	for (Itr2 = 0; Itr2 < 32; Itr2++)
@@ -153,7 +155,9 @@ OsStatus_t HpetComparatorStart(uint32_t Comparator, uint32_t Periodic, uint32_t 
 					HpetTimerHandler, GlbHpetTimers[Comparator]);
 
 				/* Debug */
+#ifdef X86_HPET_DIAGNOSE
 				printf("Allocated interrupt %u for timer %u\n", (uint32_t)Itr2, Comparator);
+#endif
 
 				/* Go on to next */
 				break;
@@ -171,7 +175,9 @@ OsStatus_t HpetComparatorStart(uint32_t Comparator, uint32_t Periodic, uint32_t 
 						HpetTimerHandler, GlbHpetTimers[Comparator]);
 
 					/* Debug */
+#ifdef X86_HPET_DIAGNOSE
 					printf("Allocated interrupt %u for timer %u\n", (uint32_t)Itr2, Comparator);
+#endif
 
 					/* Go on to next */
 					break;
@@ -191,7 +197,9 @@ OsStatus_t HpetComparatorStart(uint32_t Comparator, uint32_t Periodic, uint32_t 
 
 	/* Update Irq */
 	Temp = HpetRead32(X86_HPET_TIMER_REGISTER_CONFIG(Comparator));
+#ifdef X86_HPET_DIAGNOSE
 	printf("Old TimerInfo: 0x%x\n", Temp);
+#endif
 	Temp |= ((uint32_t)Itr2 << 9) | X86_HPET_TIMER_CONFIG_IRQENABLED
 		 |   X86_HPET_TIMER_CONFIG_SET_CMP_VALUE;
 
@@ -201,12 +209,18 @@ OsStatus_t HpetComparatorStart(uint32_t Comparator, uint32_t Periodic, uint32_t 
 	if (Periodic == 1)
 		Temp |= X86_HPET_TIMER_CONFIG_PERIODIC;
 
+#ifdef X86_HPET_DIAGNOSE
 	printf("New TimerInfo: 0x%x\n", Temp);
+#endif
 	HpetWrite32(X86_HPET_TIMER_REGISTER_CONFIG(Comparator), Temp);
+#ifdef X86_HPET_DIAGNOSE
 	printf("New TimeEnd: 0x%x\n", Now);
+#endif
 	HpetWrite32(X86_HPET_TIMER_REGISTER_COMPARATOR(Comparator), Now);
 
+#ifdef X86_HPET_DIAGNOSE
 	printf("New Delta: 0x%x\n", (uint32_t)Delta);
+#endif
 
 	/*
 	 * HPET on AMD 81xx needs a second write (with HPET_TN_SETVAL
@@ -252,7 +266,9 @@ OsStatus_t HpetComparatorSetup(uint32_t Comparator)
 	uint32_t TimerIrqMap = HpetRead32(X86_HPET_TIMER_REGISTER_CONFIG(Comparator) + 4);
 
 	/* Debug */
+#ifdef X86_HPET_DIAGNOSE
 	printf("Timer %u, IrqMap 0x%x, Info 0x%x\n", Comparator, TimerIrqMap, TimerInfo);
+#endif
 
 	/* Disable Timer */
 	TimerInfo &= ~(X86_HPET_TIMER_CONFIG_IRQENABLED | X86_HPET_TIMER_CONFIG_FSBMODE | X86_HPET_TIMER_CONFIG_POLARITY);
@@ -273,7 +289,10 @@ OsStatus_t HpetComparatorSetup(uint32_t Comparator)
 		TimerInfo |= X86_HPET_TIMER_CONFIG_32BITMODE;
 
 	HpetWrite32(X86_HPET_TIMER_REGISTER_CONFIG(Comparator), TimerInfo);
+
+#ifdef X86_HPET_DIAGNOSE
 	printf("New TimerInfo: 0x%x \n", TimerInfo);
+#endif
 
 	return OS_STATUS_OK;
 }
@@ -284,7 +303,7 @@ OsStatus_t HpetSetup(void *AcpiTable)
 	/* Cast to table */
 	ACPI_TABLE_HPET *Hpet = (ACPI_TABLE_HPET*)AcpiTable;
 	uint8_t Itr = 0;
-	uint32_t Temp = 0;
+	volatile uint32_t Temp = 0;
 	IntStatus_t IntState;
 
 	/* Sanity */
@@ -294,7 +313,9 @@ OsStatus_t HpetSetup(void *AcpiTable)
 	/* Disable Interrupts */
 	IntState = InterruptDisable();
 
+#ifdef X86_HPET_DIAGNOSE
 	printf("Setting up Hpet\n");
+#endif
 
 	/* Save base address */
 	GlbHpetBaseAddressType = Hpet->Address.SpaceId;
@@ -306,18 +327,22 @@ OsStatus_t HpetSetup(void *AcpiTable)
 	/* Reset counter */
 	GlbHpetCounter = 0;
 
+#ifdef X86_HPET_DIAGNOSE
 	printf("Base Address: 0x%x, Address Type: 0x%x\n",
 		GlbHpetBaseAddress, GlbHpetBaseAddressType);
+#endif
 
 	/* Map sys memory */
 	if (GlbHpetBaseAddressType == 0)
 		GlbHpetBaseAddress = (Addr_t)MmVirtualMapSysMemory(GlbHpetBaseAddress, 1);
 
 	/* Get period,  Upper 32 bits */
-	uint32_t ClockPeriod = HpetRead32(X86_HPET_REGISTER_CAP_ID + 4);
-
+	volatile uint32_t ClockPeriod = HpetRead32(X86_HPET_REGISTER_CAP_ID + 4);
+	
+#ifdef X86_HPET_DIAGNOSE
 	printf("Base Address: 0x%x, Clock Period: 0x%x, Min Tick: 0x%x\n",
 		(uint32_t)GlbHpetBaseAddress, ClockPeriod, GlbHpetMinimumTick);
+#endif
 
 	/* AMD SB700 Systems initialise HPET on first register access,
 	 * wait for it to setup HPET, its config register reads 0xFFFFFFFF meanwhile */
@@ -340,7 +365,9 @@ OsStatus_t HpetSetup(void *AcpiTable)
 	GlbHpetTimerCount = (uint8_t)(((HpetRead32(X86_HPET_REGISTER_CAP_ID) & X86_HPET_CAP_TIMERCOUNT) >> 8) & 0x1F);
 
 	/* Debug */
+#ifdef X86_HPET_DIAGNOSE
 	printf("Hpet Timer Count: %u\n", (uint32_t)GlbHpetTimerCount);
+#endif
 
 	/* Sanity check this */
 	if (ClockPeriod > X86_HPET_MAXTICK || ClockPeriod == 0 || GlbHpetTimerCount == 0)
@@ -355,7 +382,9 @@ OsStatus_t HpetSetup(void *AcpiTable)
 	/* Now all sanity checks are in place, we can configure it */
 	/* Step 1: Halt Timer & Disable legacy */
 	Temp = HpetRead32(X86_HPET_REGISTER_CONFIG);
+#ifdef X86_HPET_DIAGNOSE
 	printf("Original Hpet Config 0x%x\n", Temp);
+#endif
 	Temp &= ~(X86_HPET_CONFIG_ENABLED);
 	HpetWrite32(X86_HPET_REGISTER_CONFIG, Temp);
 

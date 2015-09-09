@@ -236,6 +236,17 @@ typedef struct _PciDeviceInformation
 
 } PciDeviceInformation_t;
 
+/* More defines */
+#define X86_PCI_COMMAND_PORTIO		0x1
+#define X86_PCI_COMMAND_MMIO		0x2
+#define X86_PCI_COMMAND_BUSMASTER	0x4
+#define X86_PCI_COMMAND_SPECIALCYC	0x8
+#define X86_PCI_COMMAND_MEMWRITE	0x10
+#define X86_PCI_COMMAND_VGAPALET	0x20
+#define X86_PCI_COMMAND_PARRITYERR	0x40
+#define X86_PCI_COMMAND_SERRENABLE	0x100
+#define X86_PCI_COMMAND_FASTBTB		0x200
+#define X86_PCI_COMMAND_INTDISABLE	0x400
 
 /* Prototypes */
 

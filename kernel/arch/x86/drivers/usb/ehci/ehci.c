@@ -43,11 +43,11 @@ void EhciInit(PciDevice_t *PciDevice)
 	volatile EchiCapabilityRegisters_t *CapRegs;
 	volatile EchiOperationalRegisters_t *OpRegs;
 	uint32_t Eecp;
-	uint32_t cmd;
-	uint32_t To;
+	volatile uint32_t cmd;
 
 	/* Enable memory io and bus mastering, keep interrupts disabled */
-	PciWriteWord((const uint16_t)PciDevice->Bus, (const uint16_t)PciDevice->Device, (const uint16_t)PciDevice->Function, 0x4, 0x0406);
+	uint16_t PciCommand = PciReadWord((const uint16_t)PciDevice->Bus, (const uint16_t)PciDevice->Device, (const uint16_t)PciDevice->Function, 0x4);
+	PciWriteWord((const uint16_t)PciDevice->Bus, (const uint16_t)PciDevice->Device, (const uint16_t)PciDevice->Function, 0x4, (PciCommand & ~(0x400)) | 0x2 | 0x4);
 
 	/* Pci Registers 
 	 * BAR0 - Usb Base Registers 
@@ -64,59 +64,53 @@ void EhciInit(PciDevice_t *PciDevice)
 	/* Two cases, if EECP is valid we do additional steps */
 	if (Eecp >= 0x40)
 	{
-		uint8_t Semaphore = 0;
-		uint8_t CapId = 0;
+		volatile uint8_t Semaphore = 0;
+		volatile uint8_t CapId = 0;
 		uint8_t Failed = 0;
-		uint32_t Timeout = 0;
+		volatile uint8_t NextEecp = 0;
 
 		/* Get the extended capability register 
 		 * We read the second byte, because it contains 
 		 * the BIOS Semaphore */
 		Failed = 0;
-		CapId = PciReadByte((uint16_t)PciDevice->Bus, (uint16_t)PciDevice->Device, (uint16_t)PciDevice->Function, Eecp);
-		Semaphore = PciReadByte((uint16_t)PciDevice->Bus, (uint16_t)PciDevice->Device, (uint16_t)PciDevice->Function, Eecp + 0x2);
-
-		/* Is it BIOS owned? First bit in second byte */
-		if (Semaphore & 0x1)
+		while (1)
 		{
-			/* Request for my hat back :/ 
-			 * Third byte contains the OS Semaphore */
-			PciWriteByte((uint16_t)PciDevice->Bus, (uint16_t)PciDevice->Device, (uint16_t)PciDevice->Function, Eecp + 0x3, 0x1);
+			/* Get Id */
+			CapId = PciReadByte((uint16_t)PciDevice->Bus, (uint16_t)PciDevice->Device, (uint16_t)PciDevice->Function, Eecp);
 
-			/* Now we wait for the hat to return */
-			Timeout = 0;
-			Semaphore = PciReadByte((uint16_t)PciDevice->Bus, (uint16_t)PciDevice->Device, (uint16_t)PciDevice->Function, Eecp + 0x2);
-			while ((Timeout < 1000) && (Semaphore & 0x1))
-			{
-				StallMs(1);
-				Semaphore = PciReadByte((uint16_t)PciDevice->Bus, (uint16_t)PciDevice->Device, (uint16_t)PciDevice->Function, Eecp + 0x2);
-				Timeout++;
-			}
+			/* Legacy Support? */
+			if (CapId == 0x01)
+				break;
+
+			/* No, get next Eecp */
+			NextEecp = PciReadByte((uint16_t)PciDevice->Bus, (uint16_t)PciDevice->Device, (uint16_t)PciDevice->Function, Eecp + 0x1);
 
 			/* Sanity */
-			if (Timeout == 1000)
-				Failed = 1;
+			if (NextEecp == 0x00)
+				break;
+			else
+				Eecp = NextEecp;
+		}
+		
+		/* Only continue if Id == 0x01 */
+		if (CapId == 0x01)
+		{
+			Semaphore = PciReadByte((uint16_t)PciDevice->Bus, (uint16_t)PciDevice->Device, (uint16_t)PciDevice->Function, Eecp + 0x2);
 
-			/* Now, we wait for OS semaphore to be 1 */
-			if (!Failed)
+			/* Is it BIOS owned? First bit in second byte */
+			if (Semaphore & 0x1)
 			{
-				Timeout = 0;
-				Semaphore = PciReadByte((uint16_t)PciDevice->Bus, (uint16_t)PciDevice->Device, (uint16_t)PciDevice->Function, Eecp + 0x3);
-				while ((Timeout < 1000) && (!(Semaphore & 0x1)))
-				{
-					StallMs(1);
-					Semaphore = PciReadByte((uint16_t)PciDevice->Bus, (uint16_t)PciDevice->Device, (uint16_t)PciDevice->Function, Eecp + 0x3);
-					Timeout++;
-				}
+				/* Request for my hat back :/
+				* Third byte contains the OS Semaphore */
+				PciWriteByte((uint16_t)PciDevice->Bus, (uint16_t)PciDevice->Device, (uint16_t)PciDevice->Function, Eecp + 0x3, 0x1);
 
-				/* Sanity */
-				if (Timeout == 1000)
-					Failed = 1;
+				/* Now we wait for the bios to release semaphore */
+				WaitForCondition((PciReadByte((uint16_t)PciDevice->Bus, (uint16_t)PciDevice->Device, (uint16_t)PciDevice->Function, Eecp + 0x2) & 0x1) == 0, 250, 10, "USB_EHCI: Failed to release BIOS Semaphore\n");
+				WaitForCondition((PciReadByte((uint16_t)PciDevice->Bus, (uint16_t)PciDevice->Device, (uint16_t)PciDevice->Function, Eecp + 0x3) & 0x1) == 1, 250, 10, "USB_EHCI: Failed to set OS Semaphore\n");
 			}
-			
+
 			/* Disable SMI by setting all lower 16 bits to 0 of EECP+4 */
-			if (CapId & 1)
-				PciWriteDword((uint16_t)PciDevice->Bus, (uint16_t)PciDevice->Device, (uint16_t)PciDevice->Function, Eecp + 0x4, 0x0000);
+			PciWriteDword((uint16_t)PciDevice->Bus, (uint16_t)PciDevice->Device, (uint16_t)PciDevice->Function, Eecp + 0x4, 0x0000);
 		}
 	}
 
@@ -126,17 +120,11 @@ void EhciInit(PciDevice_t *PciDevice)
 	
 	/* Stop scheduler */
 	cmd = OpRegs->UsbCommand;
-	cmd &= ~(0x30);
+	cmd &= ~(0x10 | 0x20);
 	OpRegs->UsbCommand = cmd;
 
 	/* Wait for stop */
-	To = 0;
-	while (OpRegs->UsbStatus & 0xC000 
-		&& To < 100)
-	{
-		StallMs(5);
-		To++;
-	}
+	WaitForCondition((OpRegs->UsbStatus & 0xC000) == 0, 250, 10, "USB_EHCI: Failed to stop scheduler\n");
 		
 	/* Stop controller */
 	cmd = OpRegs->UsbCommand;
@@ -145,13 +133,7 @@ void EhciInit(PciDevice_t *PciDevice)
 	OpRegs->UsbIntr = 0;
 
 	/* Wait for stop */
-	To = 0;
-	while (!(OpRegs->UsbStatus & 0x1000)
-		&& To < 100)
-	{
-		StallMs(5);
-		To++;
-	}
+	WaitForCondition((OpRegs->UsbStatus & 0x1000) != 0, 250, 10, "USB_EHCI: Failed to stop controller\n");
 
 	/* Clear Configured Flag */
 	OpRegs->ConfigFlag = 0;

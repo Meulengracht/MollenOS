@@ -22,6 +22,7 @@
 /* Includes */
 #include <Arch.h>
 #include <Pci.h>
+#include <Mutex.h>
 #include <stddef.h>
 #include <stdio.h>
 #include <limits.h>
@@ -38,7 +39,7 @@ uint32_t PciReadDword(const uint16_t Bus, const uint16_t Device,
 		| (Register & 0xFC));
 
 	/* Read Data */
-	return inl(X86_PCI_DATA + (Register & 3));
+	return inl(X86_PCI_DATA);
 }
 
 uint16_t PciReadWord(const uint16_t Bus, const uint16_t Device,
@@ -52,7 +53,7 @@ uint16_t PciReadWord(const uint16_t Bus, const uint16_t Device,
 		| (Register & 0xFC));
 
 	/* Read Data */
-	return inw(X86_PCI_DATA + (Register & 3));
+	return inw(X86_PCI_DATA + (Register & 0x2));
 }
 
 uint8_t PciReadByte(const uint16_t Bus, const uint16_t Device,
@@ -66,7 +67,7 @@ uint8_t PciReadByte(const uint16_t Bus, const uint16_t Device,
 		| (Register & 0xFC));
 
 	/* Read Data */
-	return inb(X86_PCI_DATA + (Register & 3));
+	return inb(X86_PCI_DATA + (Register & 0x3));
 }
 
 /* Write functions */
@@ -95,7 +96,7 @@ void PciWriteWord(const uint16_t Bus, const uint16_t Device,
 		| (Register & 0xFC));
 
 	/* Write DATA */
-	outw(X86_PCI_DATA, Value);
+	outw(X86_PCI_DATA + (Register & 0x2), Value);
 }
 
 void PciWriteByte(const uint16_t Bus, const uint16_t Device,
@@ -111,6 +112,7 @@ void PciWriteByte(const uint16_t Bus, const uint16_t Device,
 	/* Write DATA */
 	outb(X86_PCI_DATA + (Register & 0x03), Value);
 }
+
 
 /* Reads the vendor id at given location */
 uint16_t PciReadVendorId(const uint16_t Bus, const uint16_t Device, const uint16_t Function)

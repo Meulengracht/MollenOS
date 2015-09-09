@@ -100,6 +100,9 @@ void InterruptInstallBase(uint32_t Irq, uint32_t IdtEntry, uint64_t ApicEntry, I
 	/* Determine Correct Irq */
 	uint32_t i_irq = Irq;
 	uint64_t i_apic = ApicEntry;
+	uint64_t CheckApicEntry = 0;
+	uint32_t upper = 0;
+	uint32_t lower = 0;
 	IoApic_t *IoApic;
 
 	/* Sanity */
@@ -137,18 +140,35 @@ void InterruptInstallBase(uint32_t Irq, uint32_t IdtEntry, uint64_t ApicEntry, I
 	if (i_irq < X86_NUM_ISA_INTERRUPTS)
 		InterruptAllocateISA(i_irq);
 
-	/* Install into table */
-	InterruptInstallIdtOnly(i_irq, IdtEntry, Callback, Args);
-
 	/* Get correct Io Apic */
 	IoApic = ApicGetIoFromGsi(i_irq);
+
+	/* If Apic Entry is located, we need to adjust */
+	CheckApicEntry = ApicReadIoEntry(IoApic, 0x10 + (2 * i_irq));
+	lower = (uint32_t)(CheckApicEntry & 0xFFFFFFFF);
+	upper = (uint32_t)((CheckApicEntry >> 32) & 0xFFFFFFFF);
+
+	/* Sanity, we can't just override */
+	if (!(lower & 0x10000))
+	{
+		/* Retrieve Idt */
+		uint32_t eIdtEntry = (uint32_t)(CheckApicEntry & 0xFF);
+
+		/* Install into table */
+		InterruptInstallIdtOnly(i_irq, eIdtEntry, Callback, Args);
+	}
+	else
+	{
+		/* Install into table */
+		InterruptInstallIdtOnly(i_irq, IdtEntry, Callback, Args);
+
+		/* i_irq is the initial irq */
+		ApicWriteIoEntry(IoApic, i_irq, i_apic);
+	}
 
 	/* Allocate it if ISA */
 	if (i_irq < 16)
 		IrqIsaTable[i_irq] = 1;
-
-	/* i_irq is the initial irq */
-	ApicWriteIoEntry(IoApic, i_irq, i_apic);
 }
 
 /* Install a normal, lowest priority interrupt */
@@ -233,8 +253,17 @@ void InterruptInstallPci(PciDevice_t *PciDevice, IrqHandler_t Callback, void *Ar
 		apic_flags = 0x0F00000000000000;			/* Target all groups */
 		apic_flags |= 0x100;						/* Lowest Priority */
 		apic_flags |= 0x800;						/* Logical Destination Mode */
-		apic_flags |= ((polarity & 0x1) << 13);		/* Set Polarity */
-		apic_flags |= ((trigger_mode & 0x1) << 15);	/* Set Trigger Mode */
+
+		if (io_entry >= X86_NUM_ISA_INTERRUPTS)
+		{
+			apic_flags |= (1 << 13);				/* Set Polarity */
+			apic_flags |= (1 << 15);				/* Set Trigger Mode */
+		}
+		else
+		{
+			apic_flags |= ((polarity & 0x1) << 13);		/* Set Polarity */
+			apic_flags |= ((trigger_mode & 0x1) << 15);	/* Set Trigger Mode */
+		}
 
 		switch (pin)
 		{

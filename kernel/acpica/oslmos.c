@@ -838,9 +838,8 @@ ACPI_OSD_EXEC_CALLBACK  Function,
 void                    *Context)
 {
 	/* TODO */
-	printf("Tried to execute handler type %u\n", (UINT32)Type);
-	//_beginthread(Function, (unsigned)0, Context);
-	return (0);
+	ThreadingCreateThread("Acpica Function", Function, Context, 0);
+	return (AE_OK);
 }
 
 /******************************************************************************
@@ -887,7 +886,10 @@ void AcpiOsVprintf(const char *Fmt, va_list Args)
 
 	/* Format To Buffer */
 	vsprintf(Buffer, Fmt, Args);
+
+#ifdef X86_ACPICA_DIAGNOSE
 	printf(Buffer);
+#endif
 }
 
 /******************************************************************************

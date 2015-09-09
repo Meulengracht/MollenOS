@@ -25,6 +25,7 @@
 #include <stdio.h>
 
 /* Timer Drivers */
+#include <Cpu.h>
 #include <Drivers\Cmos\Cmos.h>
 #include <Drivers\Timers\Pit\Pit.h>
 #include <Drivers\Timers\Hpet\Hpet.h>
@@ -33,6 +34,8 @@
 uint32_t GlbTimerMode = 0;
 
 /* Externs */
+extern CpuObject_t boot_cpu_info;
+extern volatile uint32_t GlbTimerQuantum;
 extern void rdtsc(volatile uint64_t *value);
 
 /* Enter Fallback Mode */
@@ -86,6 +89,28 @@ void TimerManagerInit(void)
 	GlbTimerMode = 1;
 }
 
+/* Stall-No-Int */
+void DelayMs(uint32_t MilliSeconds)
+{
+	/* Keep value in this */
+	volatile uint64_t Counter = 0;
+	volatile uint64_t TimeOut = 0;
+	volatile uint64_t CpuFrequency = GlbTimerQuantum * 1000;
+
+	/* Sanity */
+	if (!(boot_cpu_info.EdxFeatures & CPUID_FEAT_EDX_TSC))
+	{
+		printf("DELAY CALLED AND RDTSC IS NOT SUPPORTED WTF");
+		Idle();
+	}
+
+	/* Use rdtsc for this */
+	rdtsc(&Counter);
+	TimeOut = Counter + (uint64_t)(((MilliSeconds / 1000)) * CpuFrequency);
+
+	while (Counter < TimeOut) { rdtsc(&Counter);  }
+}
+
 /* Sleep function */
 void SleepMs(uint32_t MilliSeconds)
 {
@@ -97,21 +122,7 @@ void SleepMs(uint32_t MilliSeconds)
 	else if (GlbTimerMode == 1)
 		HpetSleep(MilliSeconds); /* Hpet */
 	else
-	{
-		/* This most likely is called by Acpi */
-		volatile uint64_t RdTicks = 0;
-		uint64_t TickEnd = 0;
-
-		/* Read Time Stamp Counter */
-		rdtsc(&RdTicks);
-
-		/* Calculate ticks */
-		TickEnd = RdTicks + (MilliSeconds * 1000);
-
-		/* Wait */
-		while (TickEnd > RdTicks)
-			rdtsc(&RdTicks);
-	}
+		DelayMs(MilliSeconds);
 }
 
 void SleepNs(uint32_t NanoSeconds)
@@ -132,21 +143,7 @@ void StallMs(uint32_t MilliSeconds)
 	else if (GlbTimerMode == 1)
 		HpetStall(MilliSeconds); /* Hpet */
 	else
-	{
-		/* This most likely is called by Acpi */
-		volatile uint64_t RdTicks = 0;
-		uint64_t TickEnd = 0;
-
-		/* Read Time Stamp Counter */
-		rdtsc(&RdTicks);
-
-		/* Calculate ticks */
-		TickEnd = RdTicks + (MilliSeconds * 1000);
-
-		/* Wait */
-		while (TickEnd > RdTicks)
-			rdtsc(&RdTicks);
-	}
+		DelayMs(MilliSeconds);
 }
 
 void StallNs(uint32_t NanoSeconds)

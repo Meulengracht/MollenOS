@@ -24,6 +24,7 @@
 #include <Idt.h>
 #include <thread.h>
 #include <gdt.h>
+#include <Video.h>
 #include <string.h>
 #include <stdio.h>
 #include <stddef.h>
@@ -37,6 +38,7 @@ extern void clear_ts(void);
 
 /* Extern Thread */
 extern Thread_t *threading_get_current_thread(Cpu_t cpu);
+extern Graphics_t gfx_info;
 extern Cpu_t get_cpu(void);
 
 void ExceptionsInit(void)
@@ -113,7 +115,12 @@ void ExceptionEntry(Registers_t *regs)
 	Thread_t *t;
 	Cpu_t cpu;
 	uint32_t fixed = 0;
+	char strArray[4];
 	//char *instructions = NULL;
+	strArray[0] = 0;
+	strArray[1] = 0;
+	strArray[2] = 0;
+	strArray[3] = 0;
 
 	/* Determine Irq */
 	if (regs->Irq == 7)
@@ -156,12 +163,29 @@ void ExceptionEntry(Registers_t *regs)
 	}
 	else if (regs->Irq == 14)
 	{
+		/* Convert */
+		itoa(regs->Irq, strArray, 10);
+
+		/* Debug print */
+		VideoPutCharAtLocationVesa((int)strArray[0], 0, (gfx_info.BytesPerScanLine - 16) / 4);
+		VideoPutCharAtLocationVesa((int)strArray[1], 0, (gfx_info.BytesPerScanLine - 12) / 4);
+		VideoPutCharAtLocationVesa((int)strArray[2], 0, (gfx_info.BytesPerScanLine - 8) / 4);
+
+		/* Odd */
 		printf("CR2 Address: 0x%x... Faulty Address: 0x%x\n", __getcr2(), regs->Eip);
 		Idle();
 	}
 
 	if (fixed == 0)
 	{
+		/* Convert */
+		itoa(regs->Irq, strArray, 10);
+
+		/* Debug print */
+		VideoPutCharAtLocationVesa((int)strArray[0], 0, (gfx_info.BytesPerScanLine - 16) / 4);
+		VideoPutCharAtLocationVesa((int)strArray[1], 0, (gfx_info.BytesPerScanLine - 12) / 4);
+		VideoPutCharAtLocationVesa((int)strArray[2], 0, (gfx_info.BytesPerScanLine - 8) / 4);
+
 		printf("Exception Handler! Irq %u, Error Code: %u, Faulty Address: 0x%x\n",
 			regs->Irq, regs->ErrorCode, regs->Eip);
 

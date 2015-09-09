@@ -38,6 +38,11 @@ typedef int(*IrqHandler_t)(void*);
 #define X86_IRQ_NOT_HANDLED			(int)0x0
 #define X86_IRQ_HANDLED				(int)0x1
 
+/* Diagnostics */
+//#define X86_ACPICA_DIAGNOSE
+//#define X86_HPET_DIAGNOSE
+//#define X86_PCI_DIAGNOSE
+
 typedef struct _x86_Spinlock
 {
 	/* The lock itself */

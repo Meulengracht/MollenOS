@@ -304,7 +304,7 @@ void OhciPortsCheck(OhciController_t *Controller)
  * and starts a init thread */
 void OhciInit(PciDevice_t *Device)
 {
-	uint16_t pci_command;
+	uint16_t PciCommand;
 	OhciController_t *Controller = NULL;
 	
 	/* Allocate Resources for this Controller */
@@ -313,8 +313,8 @@ void OhciInit(PciDevice_t *Device)
 	Controller->Id = GlbOhciControllerId;
 
 	/* Enable memory and Bus mastering */
-	pci_command = PciReadWord((const uint16_t)Device->Bus, (const uint16_t)Device->Device, (const uint16_t)Device->Function, 0x4);
-	PciWriteWord((const uint16_t)Device->Bus, (const uint16_t)Device->Device, (const uint16_t)Device->Function, 0x4, pci_command | 0x6);
+	PciCommand = PciReadWord((const uint16_t)Device->Bus, (const uint16_t)Device->Device, (const uint16_t)Device->Function, 0x4);
+	PciWriteWord((const uint16_t)Device->Bus, (const uint16_t)Device->Device, (const uint16_t)Device->Function, 0x4, (PciCommand & ~(0x400)) | 0x2 | 0x4);
 
 	/* Get location of Registers */
 	Controller->ControlSpace = Device->Header->Bar0;
@@ -647,8 +647,8 @@ void OhciSetup(OhciController_t *Controller)
 	Controller->Registers->HcFmInterval = fmint;
 
 	/* Controller is now running! */
-	printf("OHCI: Controller %u Started, Control 0x%x\n",
-		Controller->Id, Controller->Registers->HcControl);
+	printf("OHCI: Controller %u Started, Control 0x%x, Ints 0x%x\n",
+		Controller->Id, Controller->Registers->HcControl, Controller->Registers->HcInterruptEnable);
 
 	/* Check Power Mode */
 	if (Controller->Registers->HcRhDescriptorA & (1 << 9))
@@ -728,7 +728,7 @@ void OhciSetup(OhciController_t *Controller)
 	/* Setup Ports */
 	for (i = 0; i < (int)Controller->Ports; i++)
 	{
-		int p = i;
+//		int p = i;
 
 		/* Make sure power is on */
 		if (!(Controller->Registers->HcRhPortStatus[i] & X86_OHCI_PORT_POWER_ENABLE))
@@ -741,8 +741,8 @@ void OhciSetup(OhciController_t *Controller)
 		}
 
 		/* Check if Port is connected */
-		if (Controller->Registers->HcRhPortStatus[i] & X86_OHCI_PORT_CONNECTED)
-			UsbEventCreate(UsbGetHcd(Controller->HcdId), p, X86_USB_EVENT_CONNECTED);
+		//if (Controller->Registers->HcRhPortStatus[i] & X86_OHCI_PORT_CONNECTED)
+			//UsbEventCreate(UsbGetHcd(Controller->HcdId), p, X86_USB_EVENT_CONNECTED);
 	}
 
 	/* Now we can enable hub events (and clear interrupts) */
@@ -1562,6 +1562,8 @@ void OhciProcessDoneQueue(OhciController_t *Controller, Addr_t done_head)
 				/* Restart TD */
 				interrupt_td->Cbp = interrupt_td->BufferEnd - 0x200 + 1;
 				interrupt_td->Flags |= X86_OHCI_TRANSFER_BUF_NOCC;
+				
+				/* Toggle TD D bit!??!??! */
 
 				/* Reset EP */
 				ep->HeadPtr = Controller->TDPoolPhys[cb_info->TDIndex];
@@ -1710,7 +1712,7 @@ int OhciInterruptHandler(void *data)
 	}
 
 	/* Debug */
-	//printf("OHCI: Controller %u Interrupt: 0x%x\n", Controller->HcdId, intr_state);
+	printf("OHCI: Controller %u Interrupt: 0x%x\n", Controller->HcdId, intr_state);
 
 	/* Disable Interrupts */
 	Controller->Registers->HcInterruptDisable = (uint32_t)X86_OHCI_INTR_MASTER_INTR;
@@ -1743,7 +1745,7 @@ int OhciInterruptHandler(void *data)
 		printf("OHCI %u: Resume Detected\n", Controller->Id);
 
 		/* We must wait 20 ms before putting Controller to Operational */
-		//clock_stall_noint(2000);
+		DelayMs(20);
 		OhciSetMode(Controller, X86_OHCI_CTRL_USB_WORKING);
 
 		/* Acknowledge Interrupt */
@@ -1776,7 +1778,7 @@ int OhciInterruptHandler(void *data)
 	}
 
 	/* Root Hub Status Change
-	* Do a Port status check */
+	 * Do a Port status check */
 	if (intr_state & X86_OHCI_INTR_ROOT_HUB_EVENT)
 	{
 		/* Port does not matter here */

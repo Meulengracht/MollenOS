@@ -25,7 +25,9 @@
 /* Includes */
 #include <Arch.h>
 #include <crtdefs.h>
+#include <stddef.h>
 #include <stdint.h>
+#include <stdio.h>
 
 /* Prototypes */
 _CRT_EXTERN void TimerManagerInit(void);
@@ -35,5 +37,18 @@ _CRT_EXTERN void SleepMs(uint32_t MilliSeconds);
 _CRT_EXTERN void StallMs(uint32_t MilliSeconds);
 _CRT_EXTERN void SleepNs(uint32_t NanoSeconds);
 _CRT_EXTERN void StallNs(uint32_t NanoSeconds);
+
+/* Stall-No-Int */
+_CRT_EXTERN void DelayMs(uint32_t MilliSeconds);
+
+/* Tools */
+#define WaitForCondition(condition, runs, wait, message, ...)\
+    for (unsigned int timeout_ = 0; !(condition); timeout_++) {\
+        if (timeout_ >= runs) {\
+             printf(message, __VA_ARGS__);\
+             break;\
+		        }\
+        StallMs(wait);\
+	    }
 
 #endif

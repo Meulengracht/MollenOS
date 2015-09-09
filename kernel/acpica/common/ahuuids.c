@@ -115,6 +115,7 @@
 
 #include "acpi.h"
 #include "accommon.h"
+#include "acutils.h"
 #include "acuuid.h"
 
 #define _COMPONENT          ACPI_UTILITIES

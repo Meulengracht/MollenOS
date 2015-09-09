@@ -127,4 +127,7 @@ typedef struct _Terminal
 } TTY_t;
 #pragma pack(pop)
 
+/* Base write */
+_CRT_EXTERN void VideoPutCharAtLocationVesa(int Character, int CursorY, int CursorX);
+
 #endif // !_X86_VIDEO_

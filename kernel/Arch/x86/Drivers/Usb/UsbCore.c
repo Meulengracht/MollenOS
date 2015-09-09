@@ -159,9 +159,11 @@ void UsbDeviceSetup(UsbHc_t *Hc, int Port)
 	StallMs(100);
 
 	/* Setup Port */
+	printf("USB_SETUP> Setting up Port..\n");
 	Hc->PortSetup(Hc->Hc, Hc->Ports[Port]);
 
 	/* Set Device Address (Just bind it to the port number + 1 (never set address 0) ) */
+	printf("USB_SETUP> Assigning address %u to device\n", (uint32_t)(Port + 1));
 	if (!UsbFunctionSetAddress(Hc, Port, (uint32_t)(Port + 1)))
 	{
 		/* Try again */
@@ -176,6 +178,7 @@ void UsbDeviceSetup(UsbHc_t *Hc, int Port)
 	StallMs(2);
 
 	/* Get Device Descriptor */
+	printf("USB_SETUP> Retrieving Descriptor..\n");
 	if (!UsbFunctionGetDeviceDescriptor(Hc, Port))
 	{
 		/* Try Again */
@@ -296,6 +299,7 @@ void UsbEventHandler(void *args)
 			case X86_USB_EVENT_CONNECTED:
 			{
 				/* Setup Device */
+				printf("Setting up Port %i\n", Event->Port);
 				UsbDeviceSetup(Event->Controller, Event->Port);
 
 			} break;

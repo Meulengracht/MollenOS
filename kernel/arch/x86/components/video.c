@@ -115,14 +115,36 @@ OsStatus_t VideoInit(void *BootInfo)
 	return OS_STATUS_OK;
 }
 
-/* Write a character in VESA mode */
-int VideoPutCharVesa(int Character)
+/* Base write */
+void VideoPutCharAtLocationVesa(int Character, int CursorY, int CursorX)
 {
 	/* Decls */
 	uint32_t *video_ptr;
 	uint8_t *ch_ptr;
 	uint32_t row, i;
 
+	/* Calculate video offset */
+	video_ptr = (uint32_t*)(gfx_info.VideoAddr + ((CursorY * gfx_info.BytesPerScanLine)
+		+ (CursorX * (gfx_info.BitsPerPixel / 8))));
+	ch_ptr = (uint8_t*)&x86Font8x16[Character * 16];
+
+	for (row = 0; row < 16; row++)
+	{
+		uint8_t data = ch_ptr[row];
+		uint32_t _;
+
+		for (i = 0; i < 8; i++)
+			video_ptr[i] = (data >> (7 - i)) & 1 ? 0xFFFFFFFF : 0;
+
+		_ = (uint32_t)video_ptr;
+		_ += gfx_info.BytesPerScanLine;
+		video_ptr = (uint32_t*)_;
+	}
+}
+
+/* Write a character in VESA mode */
+int VideoPutCharVesa(int Character)
+{
 	/* Get spinlock */
 	SpinlockAcquire(&term.Lock);
 
@@ -145,23 +167,8 @@ int VideoPutCharVesa(int Character)
 		/* Default */
 		default:
 		{
-			/* Calculate video offset */
-			video_ptr = (uint32_t*)(gfx_info.VideoAddr + ((term.CursorY * gfx_info.BytesPerScanLine)
-				+ (term.CursorX * (gfx_info.BitsPerPixel / 8))));
-			ch_ptr = (uint8_t*)&x86Font8x16[Character * 16];
-
-			for (row = 0; row < 16; row++)
-			{
-				uint8_t data = ch_ptr[row];
-				uint32_t _;
-
-				for (i = 0; i < 8; i++)
-					video_ptr[i] = (data >> (7 - i)) & 1 ? 0xFFFFFFFF : 0;
-
-				_ = (uint32_t)video_ptr;
-				_ += gfx_info.BytesPerScanLine;
-				video_ptr = (uint32_t*)_;
-			}
+			/* Print */
+			VideoPutCharAtLocationVesa(Character, term.CursorY, term.CursorX);
 
 			/* Increase position */
 			term.CursorX += 10;
