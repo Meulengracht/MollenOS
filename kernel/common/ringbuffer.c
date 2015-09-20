@@ -19,158 +19,158 @@
 * MollenOS Common - Ring Buffer Implementation
 */
 
-#include <ringbuffer.h>
+#include <RingBuffer.h>
 #include <heap.h>
 #include <stddef.h>
 
-/* Initialise a new ring buffer */
-ringbuffer_t *ringbuffer_create(size_t size)
+/* Initialise a new ring Buffer */
+RingBuffer_t *RingBufferCreate(size_t Size)
 {
 	/* Allocate */
-	ringbuffer_t *ringbuffer = (ringbuffer_t*)kmalloc(sizeof(ringbuffer_t));
-	ringbuffer->buffer = (uint8_t*)kmalloc(size);
+	RingBuffer_t *RingBuffer = (RingBuffer_t*)kmalloc(sizeof(RingBuffer_t));
+	RingBuffer->Buffer = (uint8_t*)kmalloc(Size);
 	
 	/* Setup rest */
-	ringbuffer->index_write = 0;
-	ringbuffer->index_read = 0;
-	ringbuffer->length = size;
+	RingBuffer->IndexWrite = 0;
+	RingBuffer->IndexRead = 0;
+	RingBuffer->Length = Size;
 
-	/* Reset lock */
-	SpinlockReset(&ringbuffer->lock);
+	/* Reset Lock */
+	SpinlockReset(&RingBuffer->Lock);
 
-	return ringbuffer;
+	return RingBuffer;
 }
 
-/* Destroy Ringbuffer */
-void ringbuffer_destroy(ringbuffer_t *ringbuffer)
+/* Destroy RingBuffer */
+void RingBufferDestroy(RingBuffer_t *RingBuffer)
 {
 	/* Free stuff */
-	kfree(ringbuffer->buffer);
-	kfree(ringbuffer);
+	kfree(RingBuffer->Buffer);
+	kfree(RingBuffer);
 }
 
 /* How many bytes are ready for usage */
-int ringbuffer_data_available(ringbuffer_t *ringbuffer)
+int RingBufferSpaceAvailable(RingBuffer_t *RingBuffer)
 {
 	/* If read_index == write_index then we have no of data ready hihi */
-	if (ringbuffer->index_read == ringbuffer->index_write)
-		return (int)(ringbuffer->length - 1);
+	if (RingBuffer->IndexRead == RingBuffer->IndexWrite)
+		return (int)(RingBuffer->Length - 1);
 
 	/* If read index is higher than write, we have wrapped around */
-	if (ringbuffer->index_read > ringbuffer->index_write)
-		return (int)(ringbuffer->index_read - ringbuffer->index_write - 1);
+	if (RingBuffer->IndexRead > RingBuffer->IndexWrite)
+		return (int)(RingBuffer->IndexRead - RingBuffer->IndexWrite - 1);
 
 	/* Otherwise we haven't wrapped, just return difference */
-	return (int)((ringbuffer->length - ringbuffer->index_write) + ringbuffer->index_read - 1);
+	return (int)((RingBuffer->Length - RingBuffer->IndexWrite) + RingBuffer->IndexRead - 1);
 }
 
 /* How many bytes are ready to be read */
-size_t ringbuffer_size(ringbuffer_t *ringbuffer)
+size_t RingBufferSize(RingBuffer_t *RingBuffer)
 {
 	/* Check if they are equal */
-	if (ringbuffer->index_read == ringbuffer->index_write)
+	if (RingBuffer->IndexRead == RingBuffer->IndexWrite)
 		return 0;
 
 	/* If read index is above write, it has wrapped */
-	if (ringbuffer->index_read > ringbuffer->index_write)
-		return ((ringbuffer->length - ringbuffer->index_read) + ringbuffer->index_write);
+	if (RingBuffer->IndexRead > RingBuffer->IndexWrite)
+		return ((RingBuffer->Length - RingBuffer->IndexRead) + RingBuffer->IndexWrite);
 
 	/* Else its simple, subtract */
-	return (ringbuffer->index_write - ringbuffer->index_read);
+	return (RingBuffer->IndexWrite - RingBuffer->IndexRead);
 }
 
-/* Write to buffer */
-int ringbuffer_write(ringbuffer_t *ringbuffer, size_t size, uint8_t *buffer)
+/* Write to Buffer */
+int RingBufferWrite(RingBuffer_t *RingBuffer, size_t SrcLength, uint8_t *Source)
 {
-	size_t bytes_written = 0;
+	size_t BytesWritten = 0;
 
 	/* Sanity */
-	if (ringbuffer == NULL)
+	if (RingBuffer == NULL)
 		return -1;
 
-	/* Acquire lock */
-	SpinlockAcquire(&ringbuffer->lock);
+	/* Acquire Lock */
+	SpinlockAcquire(&RingBuffer->Lock);
 
-	/* Only write while buffer is available */
+	/* Only write while Buffer is available */
 	while (1)
 	{
-		while (ringbuffer_data_available(ringbuffer) > 0 && bytes_written < size)
+		while (RingBufferSpaceAvailable(RingBuffer) > 0 && BytesWritten < SrcLength)
 		{
 			/* Write byte */
-			ringbuffer->buffer[ringbuffer->index_write] = buffer[bytes_written];
+			RingBuffer->Buffer[RingBuffer->IndexWrite] = Source[BytesWritten];
 
 			/* Increase */
-			ringbuffer->index_write++;
+			RingBuffer->IndexWrite++;
 
 			/* Do we have to wrap around? */
-			if (ringbuffer->index_write == ringbuffer->length)
-				ringbuffer->index_write = 0;
+			if (RingBuffer->IndexWrite == RingBuffer->Length)
+				RingBuffer->IndexWrite = 0;
 
-			bytes_written++;
+			BytesWritten++;
 		}
 
 		/* Did we write all data? :/ */
-		if (bytes_written < size)
+		if (BytesWritten < SrcLength)
 		{
 			/* No, sleep time :( */
 
-			/* Release lock */
-			SpinlockRelease(&ringbuffer->lock);
+			/* Release Lock */
+			SpinlockRelease(&RingBuffer->Lock);
 		}
 		else
 			break;
 	}
 
-	/* Release lock */
-	SpinlockRelease(&ringbuffer->lock);
+	/* Release Lock */
+	SpinlockRelease(&RingBuffer->Lock);
 
 	/* Done */
 	return 0;
 }
 
-/* Read data from buffer */
-int ringbuffer_read(ringbuffer_t *ringbuffer, size_t size, uint8_t *buffer)
+/* Read data from Buffer */
+int RingBufferRead(RingBuffer_t *RingBuffer, size_t DestLength, uint8_t *Destination)
 {
-	size_t bytes_read = 0;
+	size_t BytesRead = 0;
 
 	/* Sanity */
-	if (ringbuffer == NULL)
+	if (RingBuffer == NULL)
 		return -1;
 
-	/* Acquire lock */
-	SpinlockAcquire(&ringbuffer->lock);
+	/* Acquire Lock */
+	SpinlockAcquire(&RingBuffer->Lock);
 
 	while (1)
 	{
-		while (ringbuffer_size(ringbuffer) > 0 && bytes_read < size)
+		while (RingBufferSize(RingBuffer) > 0 && BytesRead < DestLength)
 		{
 			/* Read */
-			buffer[bytes_read] = ringbuffer->buffer[ringbuffer->index_read];
+			Destination[BytesRead] = RingBuffer->Buffer[RingBuffer->IndexRead];
 
 			/* Increament */
-			ringbuffer->index_read++;
+			RingBuffer->IndexRead++;
 
 			/* Do we have to wrap around? */
-			if (ringbuffer->index_write == ringbuffer->length)
-				ringbuffer->index_write = 0;
+			if (RingBuffer->IndexWrite == RingBuffer->Length)
+				RingBuffer->IndexWrite = 0;
 
-			bytes_read++;
+			BytesRead++;
 		}
 
 		/* Did we write all data? :/ */
-		if (bytes_read < size)
+		if (BytesRead < DestLength)
 		{
 			/* No, sleep time :( */
 
-			/* Release lock */
-			SpinlockRelease(&ringbuffer->lock);
+			/* Release Lock */
+			SpinlockRelease(&RingBuffer->Lock);
 		}
 		else
 			break;
 	}
 	
-	/* Release lock */
-	SpinlockRelease(&ringbuffer->lock);
+	/* Release Lock */
+	SpinlockRelease(&RingBuffer->Lock);
 
 	/* Done */
 	return 0;

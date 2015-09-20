@@ -51,6 +51,9 @@
     </CustomBuild>
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="..\..\Arch\x86\Drivers\Ps2\Keyboard\Ps2Keyboard.c" />
+    <ClCompile Include="..\..\Arch\x86\Drivers\Ps2\Mouse\Ps2Mouse.c" />
+    <ClCompile Include="..\..\Arch\x86\Drivers\Ps2\Ps2.c" />
     <ClCompile Include="..\..\Arch\x86\Drivers\Timers\Pit\Pit.c" />
     <ClCompile Include="..\..\Arch\x86\Drivers\Usb\Ehci\Ehci.c" />
     <ClCompile Include="..\..\Arch\x86\Drivers\Usb\Ohci\Ohci.c" />
@@ -81,6 +84,10 @@
     <ClCompile Include="..\..\Arch\x86\x32\Memory\MmVirtual.c" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="..\..\Arch\x86\Drivers\Driver.h" />
+    <ClInclude Include="..\..\Arch\x86\Drivers\Ps2\Keyboard\Ps2Keyboard.h" />
+    <ClInclude Include="..\..\Arch\x86\Drivers\Ps2\Mouse\Ps2Mouse.h" />
+    <ClInclude Include="..\..\Arch\x86\Drivers\Ps2\Ps2.h" />
     <ClInclude Include="..\..\Arch\x86\Drivers\Usb\Ehci\Ehci.h" />
     <ClInclude Include="..\..\Arch\x86\Drivers\Usb\Ohci\Ohci.h" />
   </ItemGroup>

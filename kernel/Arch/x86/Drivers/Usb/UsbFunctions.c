@@ -67,8 +67,8 @@ void UsbTransactionSetup(UsbHc_t *Hc, UsbHcRequest_t *Request, uint32_t PacketSi
 	UsbHcTransaction_t *Transaction;
 
 	/* Set toggle and token-bytes */
-	Request->Toggle = 0;
 	Request->TokenBytes = PacketSize;
+	Request->Device->Endpoints[Request->Endpoint]->Toggle = 0;
 
 	/* Perform it */
 	Transaction = Hc->TransactionSetup(Hc->Hc, Request);
@@ -77,7 +77,7 @@ void UsbTransactionSetup(UsbHc_t *Hc, UsbHcRequest_t *Request, uint32_t PacketSi
 	Transaction->Type = X86_USB_TRANSACTION_SETUP;
 	UsbTransactionAppend(Request, Transaction);
 
-	/* Toggle Goggle*/
+	/* Toggle Goggle */
 	Request->Device->Endpoints[Request->Endpoint]->Toggle = 1;
 }
 
@@ -86,23 +86,32 @@ void UsbTransactionIn(UsbHc_t *Hc, UsbHcRequest_t *Request, uint32_t Handshake, 
 {
 	/* Get length */
 	UsbHcTransaction_t *Transaction;
-	uint32_t FixedLen = MIN(Request->Length, Length);
-	uint32_t RemainingLen = Length - FixedLen;
-	uint32_t TransfersLeft = RemainingLen / Request->Length;
+	uint32_t FixedLen = MIN(Request->Length, Length); /* Either it's maxpacket size or remaining len */
+	int32_t RemainingLen = Length - FixedLen;
+	uint32_t TransfersLeft = 0;
 
-	/* Fix transfers */
-	if (RemainingLen % Request->Length)
-		TransfersLeft++;
-
+	/* Sanity */
+	if (RemainingLen <= 0)
+	{
+		RemainingLen = 0;
+		TransfersLeft = 0;
+	}
+	else
+	{
+		TransfersLeft = RemainingLen / Request->Length;
+		
+		/* Fix transfers */
+		if (RemainingLen % Request->Length)
+			TransfersLeft++;
+	}
+	
 	/* Set request io buffer */
 	Request->IoBuffer = Buffer;
 	Request->IoLength = FixedLen;
 
+	/* Sanity, ACK */
 	if (Handshake)
 		Request->Device->Endpoints[Request->Endpoint]->Toggle = 1;
-
-	/* Get toggle */
-	Request->Toggle = Request->Device->Endpoints[Request->Endpoint]->Toggle;
 
 	/* Perform */
 	Transaction = Hc->TransactionIn(Hc->Hc, Request);
@@ -128,21 +137,30 @@ void UsbTransactionOut(UsbHc_t *Hc, UsbHcRequest_t *Request, uint32_t Handshake,
 	UsbHcTransaction_t *Transaction;
 	uint32_t FixedLen = MIN(Request->Length, Length);
 	uint32_t RemainingLen = Length - FixedLen;
-	uint32_t TransfersLeft = RemainingLen / Request->Length;
+	uint32_t TransfersLeft = 0;
 
-	/* Fix transfers */
-	if (RemainingLen % Request->Length)
-		TransfersLeft++;
+	/* Sanity */
+	if (RemainingLen <= 0)
+	{
+		RemainingLen = 0;
+		TransfersLeft = 0;
+	}
+	else
+	{
+		TransfersLeft = RemainingLen / Request->Length;
+
+		/* Fix transfers */
+		if (RemainingLen % Request->Length)
+			TransfersLeft++;
+	}
 
 	/* Set request io buffer */
 	Request->IoBuffer = Buffer;
 	Request->IoLength = FixedLen;
 
+	/* Sanity, ACK packet */
 	if (Handshake)
 		Request->Device->Endpoints[Request->Endpoint]->Toggle = 1;
-
-	/* Get toggle */
-	Request->Toggle = Request->Device->Endpoints[Request->Endpoint]->Toggle;
 
 	/* Perform */
 	Transaction = Hc->TransactionOut(Hc->Hc, Request);
@@ -197,8 +215,8 @@ int UsbFunctionSetAddress(UsbHc_t *Hc, int Port, uint32_t Address)
 	Request.LowSpeed = (Hc->Ports[Port]->FullSpeed == 0) ? 1 : 0;
 	Request.Packet.Direction = 0;
 	Request.Packet.Type = X86_USB_REQ_SET_ADDR;
-	Request.Packet.ValueHi = 0;
 	Request.Packet.ValueLo = (Address & 0xFF);
+	Request.Packet.ValueHi = 0;
 	Request.Packet.Index = 0;
 	Request.Packet.Length = 0;		/* We do not want data */
 
@@ -331,8 +349,6 @@ int UsbFunctionGetConfigDescriptor(UsbHc_t *Hc, int Port)
 		return 0;
 	
 	/* Step 2. Get FULL descriptor */
-	printf("OHCI_Handler: (Get_Config_Desc) Configuration Length: 0x%x\n",
-		Hc->Ports[Port]->Device->ConfigMaxLength);
 	Buffer = kmalloc(Hc->Ports[Port]->Device->ConfigMaxLength);
 	
 	/* Init transfer */

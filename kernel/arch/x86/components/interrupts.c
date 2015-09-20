@@ -165,10 +165,6 @@ void InterruptInstallBase(uint32_t Irq, uint32_t IdtEntry, uint64_t ApicEntry, I
 		/* i_irq is the initial irq */
 		ApicWriteIoEntry(IoApic, i_irq, i_apic);
 	}
-
-	/* Allocate it if ISA */
-	if (i_irq < 16)
-		IrqIsaTable[i_irq] = 1;
 }
 
 /* Install a normal, lowest priority interrupt */

@@ -26,51 +26,51 @@
 #include <stddef.h>
 
 /* Globals */
-ringbuffer_t *pointer_pipe = NULL;
-ringbuffer_t *button_pipe = NULL;
-volatile uint32_t glb_im_initialized = 0;
+RingBuffer_t *PointerEventPipe = NULL;
+RingBuffer_t *ButtonEventPipe = NULL;
+volatile uint32_t GlbImInitialized = 0;
 
 /* Initialise Input Manager */
-void input_manager_init(void)
+void ImInit(void)
 {
 	/* Allocate Pipes */
-	pointer_pipe = ringbuffer_create(0x1000);
-	button_pipe = ringbuffer_create(0x1000);
+	PointerEventPipe = RingBufferCreate(0x1000);
+	ButtonEventPipe = RingBufferCreate(0x1000);
 
 	/* Set initialized */
-	glb_im_initialized = 0xDEADBEEF;
+	GlbImInitialized = 1;
 }
 
 /* Write data to pointer pipe */
-void input_manager_send_pointer_data(input_pointer_data_t *data)
+void InputManagerCreatePointerEvent(ImPointerEvent_t *Event)
 {
-	input_pointer_data_t not_recycle_bin;
+	ImPointerEvent_t NotRecycleBin;
 
 	/* Sanity */
-	if (glb_im_initialized != 0xDEADBEEF)
-		input_manager_init();
+	if (GlbImInitialized != 1)
+		ImInit();
 
 	/* Force space in buffer */
-	while (ringbuffer_size(pointer_pipe) < sizeof(input_pointer_data_t))
-		ringbuffer_read(pointer_pipe, sizeof(input_pointer_data_t), (uint8_t*)&not_recycle_bin);
+	while (RingBufferSpaceAvailable(PointerEventPipe) < sizeof(ImPointerEvent_t))
+		RingBufferRead(PointerEventPipe, sizeof(ImPointerEvent_t), (uint8_t*)&NotRecycleBin);
 
 	/* Write data to pipe */
-	ringbuffer_write(pointer_pipe, sizeof(input_pointer_data_t), (uint8_t*)data);
+	RingBufferWrite(PointerEventPipe, sizeof(ImPointerEvent_t), (uint8_t*)Event);
 }
 
 /* Write data to button pipe */
-void input_manager_send_button_data(input_button_data_t *data)
+void InputManagerCreateButtonEvent(ImButtonEvent_t *Event)
 {
-	input_button_data_t not_recycle_bin;
+	ImButtonEvent_t NotRecycleBin;
 
 	/* Sanity */
-	if (glb_im_initialized != 0xDEADBEEF)
-		input_manager_init();
+	if (GlbImInitialized != 1)
+		ImInit();
 
 	/* Force space in buffer */
-	while (ringbuffer_size(button_pipe) < sizeof(input_button_data_t))
-		ringbuffer_read(button_pipe, sizeof(input_button_data_t), (uint8_t*)&not_recycle_bin);
+	while (RingBufferSpaceAvailable(ButtonEventPipe) < sizeof(ImButtonEvent_t))
+		RingBufferRead(ButtonEventPipe, sizeof(ImButtonEvent_t), (uint8_t*)&NotRecycleBin);
 
 	/* Write data to pipe */
-	ringbuffer_write(button_pipe, sizeof(input_button_data_t), (uint8_t*)data);
+	RingBufferWrite(ButtonEventPipe, sizeof(ImButtonEvent_t), (uint8_t*)Event);
 }

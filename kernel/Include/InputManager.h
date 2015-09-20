@@ -27,20 +27,20 @@
 #include <stdint.h>
 
 /* Structures */
-typedef struct _im_pointer_data
+typedef struct _ImPointerEvent
 {
 	/* Pointer Type */
-	uint32_t type;
+	uint32_t Type;
 
 	/* Axis Data 
 	 * Must be relative */
-	int32_t x_relative;
-	int32_t y_relative;
-	int32_t z_relative;
+	int32_t xRelative;
+	int32_t yRelative;
+	int32_t zRelative;
 
 	/* Rotation Data */
 
-} input_pointer_data_t;
+} ImPointerEvent_t;
 
 /* Input Types */
 #define MCORE_INPUT_TYPE_UNKNOWN	0x0
@@ -51,25 +51,33 @@ typedef struct _im_pointer_data
 #define MCORE_INPUT_TYPE_GAMEPAD	0x5
 #define MCORE_INPUT_TYPE_OTHER		0x6
 
-typedef struct _im_button_data
+typedef struct _ImButtonEvent
 {
 	/* Button Type */
-	uint32_t type;
+	uint32_t Type;
 
 	/* Button Data (Keycode) */
-	uint32_t data;
+	uint32_t Data;
 
 	/* Button State (Press / Release) */
-	uint32_t state;
+	uint32_t State;
 
-} input_button_data_t;
+} ImButtonEvent_t;
+
+/* Event Types */
+#define MCORE_INPUT_LEFT_MOUSEBUTTON	0x1
+#define MCORE_INPUT_RIGHT_MOUSEBUTTON	0x2
+#define MCORE_INPUT_MIDDLE_MOUSEBUTTON	0x4
+
+#define MCORE_INPUT_BUTTON_RELEASED		0x0
+#define MCORE_INPUT_BUTTON_CLICKED		0x1
 
 /* Prototypes */
 
 /* Write data to pointer pipe */
-_CRT_EXTERN void input_manager_send_pointer_data(input_pointer_data_t *data);
+_CRT_EXTERN void InputManagerCreatePointerEvent(ImPointerEvent_t *Event);
 
 /* Write data to button pipe */
-_CRT_EXTERN void input_manager_send_button_data(input_button_data_t *data);
+_CRT_EXTERN void InputManagerCreateButtonEvent(ImButtonEvent_t *Event);
 
 #endif // !_MCORE_INPUT_MANAGER_H_

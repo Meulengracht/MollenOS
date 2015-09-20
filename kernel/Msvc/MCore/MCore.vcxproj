@@ -20,6 +20,7 @@
     <ClCompile Include="..\..\System\Synchronization\Semaphore.c" />
     <ClCompile Include="..\..\System\Timers.c" />
     <ClCompile Include="..\..\System\Userspace\InputManager.c" />
+    <ClCompile Include="..\..\System\Userspace\ScancodeSets\ScancodeSet2.c" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <ProjectGuid>{E1811ABC-D002-44D1-8581-2ACF9C1DD0F9}</ProjectGuid>

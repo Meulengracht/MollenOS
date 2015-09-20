@@ -70,6 +70,15 @@
     <Filter Include="Drivers\Usb\Controllers\Ohci">
       <UniqueIdentifier>{4973448b-314e-47e9-b1df-7312d7f22af7}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Drivers\Ps2">
+      <UniqueIdentifier>{adc61251-d2ac-409b-958c-d83d853132fa}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Drivers\Ps2\Mouse">
+      <UniqueIdentifier>{17a04910-5195-458b-b027-8dd3c6dea99d}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Drivers\Ps2\Keyboard">
+      <UniqueIdentifier>{b706c61e-e16f-4955-9a7b-0add6a719a74}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\Arch\x86\Components\Video.c">
@@ -156,6 +165,15 @@
     <ClCompile Include="..\..\Arch\x86\Drivers\Usb\Ohci\Ohci.c">
       <Filter>Drivers\Usb\Controllers\Ohci</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\Arch\x86\Drivers\Ps2\Ps2.c">
+      <Filter>Drivers\Ps2</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Arch\x86\Drivers\Ps2\Mouse\Ps2Mouse.c">
+      <Filter>Drivers\Ps2\Mouse</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Arch\x86\Drivers\Ps2\Keyboard\Ps2Keyboard.c">
+      <Filter>Drivers\Ps2\Keyboard</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <CustomBuild Include="..\..\Arch\x86\x32\Memory\MmPaging.asm">
@@ -186,6 +204,18 @@
     </ClInclude>
     <ClInclude Include="..\..\Arch\x86\Drivers\Usb\Ohci\Ohci.h">
       <Filter>Drivers\Usb\Controllers\Ohci</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Arch\x86\Drivers\Ps2\Ps2.h">
+      <Filter>Drivers\Ps2</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Arch\x86\Drivers\Ps2\Mouse\Ps2Mouse.h">
+      <Filter>Drivers\Ps2\Mouse</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Arch\x86\Drivers\Driver.h">
+      <Filter>Drivers</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Arch\x86\Drivers\Ps2\Keyboard\Ps2Keyboard.h">
+      <Filter>Drivers\Ps2\Keyboard</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

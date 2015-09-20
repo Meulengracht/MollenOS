@@ -34,6 +34,7 @@
 /* Structures */
 
 /* Must be 16 byte aligned */
+#pragma pack(push, 1)
 typedef struct _OhciEndpointDescriptor
 {
 	/* Flags 
@@ -74,15 +75,16 @@ typedef struct _OhciEndpointDescriptor
 	uint32_t Padding[2];
 
 } OhciEndpointDescriptor_t;
+#pragma pack(pop)
 
 /* Bit Defintions */
 #define X86_OHCI_EP_ADDR_BITS		0x7F
 #define X86_OHCI_EP_EP_NUM_BITS		0xF
 #define X86_OHCI_EP_PACKET_BITS		0x3FF
 #define X86_OHCI_EP_EP_NUM(n)		(n << 7)
-#define X86_OHCI_EP_PID_TD			0
 #define X86_OHCI_EP_PID_OUT			(1 << 11)
 #define X86_OHCI_EP_PID_IN			(1 << 12)
+#define X86_OHCI_EP_PID_TD			(X86_OHCI_EP_PID_OUT | X86_OHCI_EP_PID_IN)
 #define X86_OHCI_EP_LOWSPEED(n)		(n << 13)
 #define X86_OHCI_EP_SKIP			0x4000
 #define X86_OHCI_EP_ISOCHRONOUS		(1 << 15)
@@ -92,6 +94,7 @@ typedef struct _OhciEndpointDescriptor
 
 /* Must be 16 byte aligned 
  * General Transfer Descriptor */
+#pragma pack(push, 1)
 typedef struct _OhciGTransferDescriptor
 {
 	/* Flags
@@ -120,6 +123,7 @@ typedef struct _OhciGTransferDescriptor
 	uint32_t BufferEnd;
 
 } OhciGTransferDescriptor_t;
+#pragma pack(pop)
 
 /* Transfer Definitions */
 #define X86_OHCI_TRANSFER_END_OF_LIST		0x1
@@ -237,6 +241,11 @@ typedef struct _OhciRegisters
 #define X86_OHCI_CTRL_USB_WORKING	0x80
 #define X86_OHCI_CTRL_USB_SUSPEND	0xC0
 
+#define X86_OHCI_FI					0x2edf
+#define X86_OHCI_FI_MASK			0x3fff
+#define X86_OHCI_GETFSMP(fi)		((fi >> 16) & 0x7FFF)
+#define X86_OHCI_FSMP(fi)			(0x7fff & ((6 * ((fi) - 210)) / 7))
+
 /* Bits 0 and 1 */
 #define X86_OHCI_CTRL_SRATIO_BITS		(1 << 0) | (1 << 1)
 
@@ -308,11 +317,14 @@ typedef struct _OhciPeridoicCallback
 } OhciPeridoicCallback_t;
 
 /* Pool Definitions */
+#define X86_OHCI_POOL_CONTROL_EDS		25
+#define X86_OHCI_POOL_BULK_EDS			49
 #define X86_OHCI_POOL_NUM_ED			50
 #define X86_OHCI_POOL_NUM_TD			100
 
 #define X86_OHCI_INDEX_TYPE_CONTROL		0x01
 #define X86_OHCI_INDEX_TYPE_BULK		0x02
+#define X86_OHCI_INDEX_TYPE_INTERRUPT	0x03
 
 /* Interrupt Table */
 typedef struct _OhciIntrTable
@@ -353,11 +365,13 @@ typedef struct _OhciController
 
 	/* TD Pool */
 	OhciGTransferDescriptor_t *TDPool[X86_OHCI_POOL_NUM_TD];
+	OhciGTransferDescriptor_t *NullTd;
 	Addr_t TDPoolPhys[X86_OHCI_POOL_NUM_TD];
 	Addr_t *TDPoolBuffers[X86_OHCI_POOL_NUM_TD];
 
 	/* Pool Indices */
-	uint32_t EDIndex;
+	uint32_t EDIndexControl;
+	uint32_t EDIndexBulk;
 	uint32_t TDIndex;
 
 	/* Interrupt Table & List */

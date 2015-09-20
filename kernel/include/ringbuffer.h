@@ -28,38 +28,41 @@
 #include <stdint.h>
 
 /* Structure */
-typedef struct _ringbuffer
+typedef struct _RingBuffer
 {
 	/* The buffer */
-	uint8_t *buffer;
+	uint8_t *Buffer;
 
 	/* Length of buffer */
-	size_t length;
+	size_t Length;
 
 	/* Index */
-	uint32_t index_write;
-	uint32_t index_read;
+	uint32_t IndexWrite;
+	uint32_t IndexRead;
 
 	/* Lock */
-	Spinlock_t lock;
+	Spinlock_t Lock;
 
-} ringbuffer_t;
+} RingBuffer_t;
 
 /* Prototypes */
 
 /* Initialise a new ring buffer */
-_CRT_EXTERN ringbuffer_t *ringbuffer_create(size_t size);
+_CRT_EXTERN RingBuffer_t *RingBufferCreate(size_t Size);
 
 /* Destroy Ringbuffer */
-_CRT_EXTERN void ringbuffer_destroy(ringbuffer_t *ringbuffer);
+_CRT_EXTERN void RingBufferDestroy(RingBuffer_t *RingBuffer);
 
 /* Write to buffer */
-_CRT_EXTERN int ringbuffer_write(ringbuffer_t *ringbuffer, size_t size, uint8_t *buffer);
+_CRT_EXTERN int RingBufferWrite(RingBuffer_t *RingBuffer, size_t SrcLength, uint8_t *Source);
 
 /* Read from buffer */
-_CRT_EXTERN int ringbuffer_read(ringbuffer_t *ringbuffer, size_t size, uint8_t *buffer);
+_CRT_EXTERN int RingBufferRead(RingBuffer_t *RingBuffer, size_t DestLength, uint8_t *Destination);
 
-/* How many bytes are available in buffer */
-_CRT_EXTERN size_t ringbuffer_size(ringbuffer_t *ringbuffer);
+/* How many bytes are available in buffer to be read */
+_CRT_EXTERN size_t RingBufferSize(RingBuffer_t *RingBuffer);
+
+/* How many bytes are ready for usage */
+_CRT_EXTERN int RingBufferSpaceAvailable(RingBuffer_t *RingBuffer);
 
 #endif // !_MCORE_RINGBUFFER_H_

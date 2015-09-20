@@ -42,6 +42,7 @@ typedef int(*IrqHandler_t)(void*);
 //#define X86_ACPICA_DIAGNOSE
 //#define X86_HPET_DIAGNOSE
 //#define X86_PCI_DIAGNOSE
+//#define _OHCI_DIAGNOSTICS_
 
 typedef struct _x86_Spinlock
 {
@@ -265,6 +266,9 @@ _CRT_EXTERN void DriverManagerInit(void *Args);
 #define INTERRUPT_PCI_PIN_2				0xE4
 #define INTERRUPT_PCI_PIN_1				0xE0
 #define INTERRUPT_PCI_PIN_0				0xDC
+
+#define INTERRUPT_PS2_PORT2				0xD4
+#define INTERRUPT_PS2_PORT1				0xD0
 
 #define INTERRUPT_SPURIOUS7				0x27
 #define INTERRUPT_SPURIOUS				0x7F

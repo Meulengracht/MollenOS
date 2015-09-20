@@ -406,7 +406,6 @@ typedef struct _UsbHcRequest
 
 	/* Transaction Information */
 	uint32_t TokenBytes;
-	uint32_t Toggle;
 
 	/* Buffer Information */
 	void *IoBuffer;

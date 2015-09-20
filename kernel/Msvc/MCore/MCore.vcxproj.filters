@@ -16,6 +16,9 @@
     <Filter Include="Systems\Synchronization">
       <UniqueIdentifier>{ed808d43-58c2-4e5f-a44d-ddd1d6bc7dab}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Systems\Userspace\ScancodeSets">
+      <UniqueIdentifier>{886f504c-ba41-44f9-abf9-203089502fd0}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\Common\List.c">
@@ -44,6 +47,9 @@
     </ClCompile>
     <ClCompile Include="..\..\System\Timers.c">
       <Filter>Systems</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\System\Userspace\ScancodeSets\ScancodeSet2.c">
+      <Filter>Systems\Userspace\ScancodeSets</Filter>
     </ClCompile>
   </ItemGroup>
 </Project>

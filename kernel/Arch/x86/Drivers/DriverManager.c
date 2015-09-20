@@ -37,6 +37,9 @@
 #include <Drivers\Usb\Ohci\Ohci.h>
 #include <Drivers\Usb\Ehci\Ehci.h>
 
+/* Legacy Drivers */
+#include <Drivers\Ps2\Ps2.h>
+
 /* Prototypes */
 void PciCheckFunction(list_t *Bridge, uint8_t Bus, uint8_t Device, uint8_t Function);
 void PciCheckDevice(list_t *Bridge, uint8_t Bus, uint8_t Device);
@@ -1220,4 +1223,7 @@ void DriverManagerInit(void *Args)
 
 	/* Now, for each driver we have available install it */
 	list_execute_all(GlbPciDevices, DriverSetupCallback);
+
+	/* Setup Fixed Devices */
+	Ps2Init();
 }

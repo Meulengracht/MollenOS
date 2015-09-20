@@ -47,8 +47,17 @@ _CRT_EXTERN void DelayMs(uint32_t MilliSeconds);
         if (timeout_ >= runs) {\
              printf(message, __VA_ARGS__);\
              break;\
-		        }\
+								        }\
         StallMs(wait);\
-	    }
+				    }
+#define WaitForConditionWithFault(fault, condition, runs, wait)\
+	fault = 0; \
+    for (unsigned int timeout_ = 0; !(condition); timeout_++) {\
+        if (timeout_ >= runs) {\
+			 fault = 1; \
+             break;\
+						        }\
+        StallMs(wait);\
+			    }
 
 #endif
