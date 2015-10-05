@@ -27,6 +27,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <InputManager.h>
+#include <DeviceManager.h>
 
 /* Ps Mouse Irq */
 int Ps2MouseIrqHandler(void *Args)
@@ -124,4 +125,7 @@ void Ps2MouseInit(int Port)
 
 	/* Ack */
 	Response = Ps2ReadData(0);
+
+	/* Create device in upper layer */
+	DmCreateDevice("Ps2-Mouse", MCORE_DEVICE_TYPE_INPUT, Ps2Dev);
 }

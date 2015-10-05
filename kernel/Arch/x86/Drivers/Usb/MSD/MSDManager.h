@@ -23,6 +23,8 @@
 #define X86_USB_MSD_H_
 
 /* Includes */
+#include <Drivers\Usb\Usb.h>
+#include <DeviceManager.h>
 #include <crtdefs.h>
 
 /* Definitions */
@@ -49,12 +51,76 @@
 #define X86_USB_MSD_REQUEST_RESET			0xFF /* Bulk Only MSD */
 
 /* Structures */
+#pragma pack(push, 1)
+typedef struct _MsdCommandBlockWrap
+{
+	/* Cbw Signature 
+	 * Must Contain 0x43425355 (little-endian) */
+	uint32_t Signature;
 
+	/* Cbw Tag */
+	uint32_t Tag;
 
+	/* Data Transfer Length */
+	uint32_t DataLen;
+
+	/* Flags */
+	uint8_t Flags;
+
+	/* LUN - Bits 0:3 */
+	uint8_t Lun;
+
+	/* Length of this - Bits 0:4 */
+	uint8_t Length;
+
+	/* Data */
+	uint8_t CommandBytes[16];
+
+} MsdCommandBlockWrap_t;
+#pragma pack(pop)
+
+#pragma pack(push, 1)
+typedef struct _MsdCommandBlockWrapUFI
+{
+	/* Data */
+	uint8_t CommandBytes[12];
+
+} MsdCommandBlockWrapUFI_t;
+#pragma pack(pop)
+
+typedef struct _MsdDevice
+{
+	/* Id's */
+	uint32_t Interface;
+	DevId_t DeviceId; 
+
+	/* Is UFI ? */
+	uint32_t IsUFI;
+
+	/* Disk Stats */
+	uint32_t SectorsPerCylinder;
+	uint32_t AlignedAccess;
+	uint32_t SectorSize;
+
+	/* Usb Data */
+	UsbHcDevice_t *UsbDevice;
+	UsbHcEndpoint_t *EpIn;
+	UsbHcEndpoint_t *EpOut;
+	UsbHcEndpoint_t *EpInterrupt;
+
+} MsdDevice_t;
+
+/* Structure Definitions */
+#define X86_USB_MSD_CBW_SIGNATURE		0x43425355
+#define X86_USB_MSD_TAG_SIGNATURE		0xB00B1E00
+#define X86_USB_MSD_CBW_LUN(Lun)		(Lun & 0x7)
+#define X86_USB_MSD_CBW_LEN(Len)		(Len & 0xF)
+#define X86_USB_MSD_CBW_IN				0x80
+#define X86_USB_MSD_CBW_OUT				0x0
 
 /* Prototypes */
 
 /* Initialise Driver for a MSD */
-_CRT_EXTERN void usb_msd_initialise(UsbHcDevice_t *device, uint32_t iface);
+_CRT_EXTERN void UsbMsdInit(UsbHcDevice_t *UsbDevice, uint32_t InterfaceIndex);
 
 #endif // !X86_USB_MSD_H_

@@ -84,16 +84,24 @@
 #define X86_USB_REQ_GET_INTERFACE	0x0A
 #define X86_USB_REQ_SET_INTERFACE	0x0B
 #define X86_USB_REQ_SYNC_FRAME		0x0C
+#define X86_USB_REQ_RESET_IF		0xFF
 
 /* Descriptor Types */
-#define X86_USB_DESC_TYPE_DEVICE	0x01
-#define X86_USB_DESC_TYPE_CONFIG	0x02
-#define X86_USB_DESC_TYPE_STRING	0x03
-#define X86_USB_DESC_TYPE_INTERFACE	0x04 //Interface
-#define X86_USB_DESC_TYPE_ENDP		0x05
-#define X86_USB_DESC_TYPE_DEV_QAL	0x06 //DEVICE QUALIFIER
-#define X86_USB_DESC_TYPE_OSC		0x07 //Other Speed Config
-#define X86_USB_DESC_TYPE_IF_PWR	0x08	//Interface Power
+#define X86_USB_DESC_TYPE_DEVICE		0x01
+#define X86_USB_DESC_TYPE_CONFIG		0x02
+#define X86_USB_DESC_TYPE_STRING		0x03
+#define X86_USB_DESC_TYPE_INTERFACE		0x04 //Interface
+#define X86_USB_DESC_TYPE_ENDP			0x05
+#define X86_USB_DESC_TYPE_DEV_QAL		0x06 //DEVICE QUALIFIER
+#define X86_USB_DESC_TYPE_OSC			0x07 //Other Speed Config
+#define X86_USB_DESC_TYPE_INTERFACE_PWR	0x08	//Interface Power
+#define X86_USB_DESC_TYPE_OTG			0x09
+#define X86_USB_DESC_TYPE_DEBUG			0x0A
+#define X86_USB_DESC_TYPE_INTERFACE_ASC	0x0B
+#define X86_USB_DESC_TYPE_BOS			0x0F
+#define X86_USB_DESC_DEV_CAPS			0x10
+#define X86_USB_DESC_SSPEED_EP_CPN		0x30
+#define X86_USB_DESC_SSPEED_ISO_EP_CPN	0x31
 
 /* Structures */
 #pragma pack(push, 1)
@@ -260,6 +268,48 @@ typedef struct _UsbEndpointDescriptor
 } UsbEndpointDescriptor_t;
 #pragma pack(pop)
 
+#pragma pack(push, 1)
+typedef struct _UsbStringDescriptor
+{
+	/* Descriptor Length (Bytes) */
+	uint8_t Length;
+
+	/* Descriptor Type (3) */
+	uint8_t Type;
+
+	/* Data */
+	uint16_t WString[10];
+
+} UsbStringDescriptor_t;
+#pragma pack(pop)
+
+/* Types of String */
+#define X86_USB_LANGUAGE_ARABIC		0x401
+#define X86_USB_LANGUAGE_CHINESE	0x404
+#define X86_USB_LANGUAGE_GERMAN		0x407
+#define X86_USB_LANGUAGE_ENGLISH	0x409
+#define X86_USB_LANGUAGE_SPANISH	0x40A
+#define X86_USB_LANGUAGE_FRENCH		0x40C
+#define X86_USB_LANGUAGE_ITALIAN	0x410
+#define X86_USB_LANGUAGE_JAPANESE	0x411
+#define X86_USB_LANGUAGE_PORTUGUESE	0x416
+#define X86_USB_LANGUAGE_RUSSIAN	0x419
+
+#pragma pack(push, 1)
+typedef struct _UsbUnicodeStringDescriptor
+{
+	/* Descriptor Length (Bytes) 2 + 2 * numUnicodeCharacters */
+	uint8_t Length;
+
+	/* Descriptor Type (3) */
+	uint8_t Type;
+
+	/* Data */
+	uint8_t String[60];
+
+} UsbUnicodeStringDescriptor_t;
+#pragma pack(pop)
+
 /* The Abstract Usb Endpoint */
 typedef struct _UsbHcEndpoint
 {
@@ -284,6 +334,9 @@ typedef struct _UsbHcEndpoint
 	/* Poll Interval */
 	uint32_t Interval;
 
+	/* Interrupt Data */
+	void *AttachedData;
+
 } UsbHcEndpoint_t;
 
 #define X86_USB_EP_DIRECTION_IN		0x0
@@ -305,7 +358,10 @@ typedef struct _UsbHcInterface
 	uint32_t Protocol;
 
 	/* Ep Numbers */
-	uint32_t Endpoints;
+	uint32_t NumEndpoints;
+
+	/* Ep's */
+	UsbHcEndpoint_t **Endpoints;
 
 } UsbHcInterface_t;
 
@@ -326,6 +382,7 @@ typedef struct _UsbHcDevice
 	uint8_t NumConfigurations;
 	uint16_t ConfigMaxLength;
 	uint16_t MaxPowerConsumption;
+	uint16_t MaxPacketSize;
 	uint8_t Configuration;
 
 	/* String Ids */
@@ -348,11 +405,11 @@ typedef struct _UsbHcDevice
 	uint32_t NumInterfaces;
 	UsbHcInterface_t *Interfaces[X86_USB_CORE_MAX_IF];
 
-	/* Device Endpoints */
-	uint32_t NumEndpoints;
-	UsbHcEndpoint_t *Endpoints[X86_USB_CORE_MAX_EP];
+	/* Control Endpoint */
+	UsbHcEndpoint_t *CtrlEndpoint;
 
 	/* Driver Data */
+	void (*Destroy)(void*);
 	void *DriverData;
 
 } UsbHcDevice_t;
@@ -387,6 +444,23 @@ typedef struct _UsbHcTransaction
 #define X86_USB_TRANSACTION_IN		2
 #define X86_USB_TRANSACTION_OUT		3
 
+/* The Abstract Usb Callback */
+typedef struct _UsbInterruptCallback
+{
+	/* Buffer */
+	void *Buffer;
+
+	/* Byte Count */
+	size_t Bytes;
+
+	/* Callback */
+	void(*Callback)(void*, size_t);
+
+	/* Callback arguments */
+	void *Args;
+
+} UsbInterruptCallback_t;
+
 /* The Abstract Transfer Request */
 typedef struct _UsbHcRequest
 {
@@ -399,7 +473,7 @@ typedef struct _UsbHcRequest
 	UsbHcDevice_t *Device;
 
 	/* Endpoint */
-	uint32_t Endpoint;
+	UsbHcEndpoint_t *Endpoint;
 
 	/* Length */
 	uint32_t Length;
@@ -413,6 +487,9 @@ typedef struct _UsbHcRequest
 
 	/* Packet */
 	UsbPacket_t Packet;
+
+	/* Any callback associated? */
+	UsbInterruptCallback_t *Callback;
 
 	/* The Transaction List */
 	UsbHcTransaction_t *Transactions;
@@ -473,10 +550,7 @@ typedef struct _UsbHc
 	UsbHcTransaction_t *(*TransactionIn)(void*, UsbHcRequest_t*);
 	UsbHcTransaction_t *(*TransactionOut)(void*, UsbHcRequest_t*);
 	void (*TransactionSend)(void*, UsbHcRequest_t*);
-
-	/* Install Interrupt EP */
-	void (*InstallInterrupt)(void*, UsbHcDevice_t*, UsbHcEndpoint_t*,
-		void*, size_t, void(*Callback)(void*, size_t), void*);
+	void (*TransactionDestroy)(void*, UsbHcRequest_t*);
 
 } UsbHc_t;
 
@@ -508,17 +582,19 @@ _CRT_EXTERN uint32_t UsbRegisterController(UsbHc_t *Controller);
 
 /* Transfer Utilities */
 _CRT_EXTERN void UsbTransactionInit(UsbHc_t *Hc, UsbHcRequest_t *Request, uint32_t Type,
-										UsbHcDevice_t *Device, uint32_t Endpoint, uint32_t MaxLength);
+								    UsbHcDevice_t *Device, UsbHcEndpoint_t *Endpoint, uint32_t MaxLength);
 _CRT_EXTERN void UsbTransactionSetup(UsbHc_t *Hc, UsbHcRequest_t *Request, uint32_t PacketSize);
 _CRT_EXTERN void UsbTransactionIn(UsbHc_t *Hc, UsbHcRequest_t *Request, uint32_t Handshake, void *Buffer, uint32_t Length);
 _CRT_EXTERN void UsbTransactionOut(UsbHc_t *Hc, UsbHcRequest_t *Request, uint32_t Handshake, void *Buffer, uint32_t Length);
 _CRT_EXTERN void UsbTransactionSend(UsbHc_t *Hc, UsbHcRequest_t *Request);
+_CRT_EXTERN void UsbTransactionDestroy(UsbHc_t *Hc, UsbHcRequest_t *Request);
 
 /* Functions */
 _CRT_EXTERN int UsbFunctionSetAddress(UsbHc_t *Hc, int Port, uint32_t Address);
 _CRT_EXTERN int UsbFunctionGetDeviceDescriptor(UsbHc_t *Hc, int Port);
 _CRT_EXTERN int UsbFunctionGetConfigDescriptor(UsbHc_t *Hc, int Port);
 _CRT_EXTERN int UsbFunctionSetConfiguration(UsbHc_t *Hc, int Port, uint32_t Configuration);
+_CRT_EXTERN int UsbFunctionGetStringDescriptor(UsbHc_t *Hc, int Port);
 _CRT_EXTERN int UsbFunctionGetDescriptor(UsbHc_t *Hc, int Port, void *Buffer, uint8_t Direction,
 											uint8_t DescriptorType, uint8_t SubType, 
 											uint8_t DescriptorIndex, uint16_t DescriptorLength);

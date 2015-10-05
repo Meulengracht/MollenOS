@@ -479,14 +479,14 @@ ACPI_STATUS AcpiOsRemoveInterruptHandler(
 *
 * RETURN:      None. Blocks until stall is completed.
 *
-* DESCRIPTION: Sleep at microsecond granularity
+* DESCRIPTION: Sleep at microsecond granularity (1 Milli = 1000 Micro)
 *
 *****************************************************************************/
 
 void AcpiOsStall(UINT32 Microseconds)
 {
 	/* Stall OS */
-	StallMs(Microseconds + 1);
+	StallMs((Microseconds / 1000) + 1);
 }
 
 /******************************************************************************
@@ -503,9 +503,8 @@ void AcpiOsStall(UINT32 Microseconds)
 
 void AcpiOsSleep(UINT64 Milliseconds)
 {
-	/* TODO */
-	/* Add 10ms to account for clock tick granularity */
-	StallMs(Milliseconds + 1);
+	/* Sleep this thread */
+	StallMs(Milliseconds);
 	//Sleep(((unsigned long)Milliseconds) + 10);
 	return;
 }
@@ -837,8 +836,10 @@ ACPI_EXECUTE_TYPE       Type,
 ACPI_OSD_EXEC_CALLBACK  Function,
 void                    *Context)
 {
-	/* TODO */
+	/* Spawn Thread */
 	ThreadingCreateThread("Acpica Function", Function, Context, 0);
+
+	/* Done */
 	return (AE_OK);
 }
 

@@ -70,9 +70,10 @@ typedef struct _OhciEndpointDescriptor
 
 	/* HCD Defined Data */
 	uint32_t HcdData;
+	uint32_t HcdData1;
 
-	/* Padding to 32 bytes */
-	uint32_t Padding[2];
+	/* Bit Flags */
+	uint32_t HcdFlags;
 
 } OhciEndpointDescriptor_t;
 #pragma pack(pop)
@@ -91,6 +92,7 @@ typedef struct _OhciEndpointDescriptor
 #define X86_OHCI_EP_PACKET_SIZE(n)	(n << 16)
 #define X86_OHCI_EP_TYPE(n)			(n << 27)
 
+#define X86_OHCI_ED_ALLOCATED		(1 << 0)
 
 /* Must be 16 byte aligned 
  * General Transfer Descriptor */
@@ -98,7 +100,7 @@ typedef struct _OhciEndpointDescriptor
 typedef struct _OhciGTransferDescriptor
 {
 	/* Flags
-	 * Bits 0-17:  DONT TOUCH.
+	 * Bits 0-17:  Available
 	 * Bits 18:    If 0, Requires the data to be recieved from an endpoint to exactly fill buffer
 	 * Bits 19-20: Direction, 00 = Setup (to ep), 01 = OUT (to ep), 10 = IN (from ep)
 	 * Bits 21-23: Interrupt delay count for this TD. This means the HC can delay interrupt a specific amount of frames after TD completion.
@@ -127,6 +129,7 @@ typedef struct _OhciGTransferDescriptor
 
 /* Transfer Definitions */
 #define X86_OHCI_TRANSFER_END_OF_LIST		0x1
+#define X86_OHCI_TD_ALLOCATED				(1 << 17)
 #define X86_OHCI_TRANSFER_BUF_ROUNDING		(1 << 18)
 #define X86_OHCI_TRANSFER_BUF_PID_SETUP		0
 #define X86_OHCI_TRANSFER_BUF_PID_OUT		(1 << 19)
@@ -325,6 +328,7 @@ typedef struct _OhciPeridoicCallback
 #define X86_OHCI_INDEX_TYPE_CONTROL		0x01
 #define X86_OHCI_INDEX_TYPE_BULK		0x02
 #define X86_OHCI_INDEX_TYPE_INTERRUPT	0x03
+#define X86_OHCI_INDEX_TYPE_ISOCHRONOUS	0x04
 
 /* Interrupt Table */
 typedef struct _OhciIntrTable
@@ -370,8 +374,6 @@ typedef struct _OhciController
 	Addr_t *TDPoolBuffers[X86_OHCI_POOL_NUM_TD];
 
 	/* Pool Indices */
-	uint32_t EDIndexControl;
-	uint32_t EDIndexBulk;
 	uint32_t TDIndex;
 
 	/* Interrupt Table & List */

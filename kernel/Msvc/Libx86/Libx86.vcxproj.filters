@@ -34,9 +34,6 @@
     <Filter Include="Drivers\Usb\Controllers\UHCI">
       <UniqueIdentifier>{8fbe3912-0905-4210-baf3-170774b84d40}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Drivers\Usb\MSD">
-      <UniqueIdentifier>{b8fbf389-bba1-4212-9148-299c7d2489a8}</UniqueIdentifier>
-    </Filter>
     <Filter Include="Drivers\Usb\Controllers\XHCI">
       <UniqueIdentifier>{2efff2a4-618a-4755-9fe2-33e542ffe20a}</UniqueIdentifier>
     </Filter>
@@ -78,6 +75,9 @@
     </Filter>
     <Filter Include="Drivers\Ps2\Keyboard">
       <UniqueIdentifier>{b706c61e-e16f-4955-9a7b-0add6a719a74}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Drivers\Usb\Msd">
+      <UniqueIdentifier>{4405698f-3b87-4358-9cf8-c58d6de40e91}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>
@@ -174,6 +174,9 @@
     <ClCompile Include="..\..\Arch\x86\Drivers\Ps2\Keyboard\Ps2Keyboard.c">
       <Filter>Drivers\Ps2\Keyboard</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\Arch\x86\Drivers\Usb\Msd\MsdManager.c">
+      <Filter>Drivers\Usb\Msd</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <CustomBuild Include="..\..\Arch\x86\x32\Memory\MmPaging.asm">
@@ -211,11 +214,11 @@
     <ClInclude Include="..\..\Arch\x86\Drivers\Ps2\Mouse\Ps2Mouse.h">
       <Filter>Drivers\Ps2\Mouse</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\Arch\x86\Drivers\Driver.h">
-      <Filter>Drivers</Filter>
-    </ClInclude>
     <ClInclude Include="..\..\Arch\x86\Drivers\Ps2\Keyboard\Ps2Keyboard.h">
       <Filter>Drivers\Ps2\Keyboard</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Arch\x86\Drivers\Usb\MSD\MsdManager.h">
+      <Filter>Drivers\Usb\Msd</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

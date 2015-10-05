@@ -16,22 +16,104 @@
 * along with this program.If not, see <http://www.gnu.org/licenses/>.
 *
 *
-* MollenOS X86-32 USB Core MSD Driver
+* MollenOS X86 USB Core MSD Driver
 */
 
 /* Includes */
-#include <arch.h>
-#include <drivers\usb\usb.h>
-#include <drivers\usb\msd\msd_manager.h>
-#include <semaphore.h>
-#include <heap.h>
-#include <list.h>
+#include <Arch.h>
+#include <Drivers\Usb\Msd\MsdManager.h>
+#include <Semaphore.h>
+#include <Heap.h>
+#include <List.h>
+
 #include <stdio.h>
 #include <string.h>
 
+/* Prototypes */
+void UsbMsdDestroy(void *UsbDevice);
+
 /* Initialise Driver for a MSD */
-void usb_msd_initialise(usb_hc_device_t *device, uint32_t iface)
+void UsbMsdInit(UsbHcDevice_t *UsbDevice, uint32_t InterfaceIndex)
 {
-	_CRT_UNUSED(device);
-	_CRT_UNUSED(iface);
+	/* Allocate */
+	MsdDevice_t *DevData = (MsdDevice_t*)kmalloc(sizeof(MsdDevice_t));
+	uint32_t i;
+
+	/* Debug */
+	printf("Msd Device Detected\n");
+
+	/* Sanity */
+	if (UsbDevice->Interfaces[InterfaceIndex]->Subclass == X86_USB_MSD_SUBCLASS_FLOPPY)
+		DevData->IsUFI = 1;
+	else
+		DevData->IsUFI = 0;
+
+	/* Set */
+	DevData->UsbDevice = UsbDevice;
+	DevData->Interface = InterfaceIndex;
+
+	/* Locate neccessary endpoints */
+	for (i = 0; i < UsbDevice->Interfaces[InterfaceIndex]->NumEndpoints; i++)
+	{
+		/* Interrupt? */
+		if (UsbDevice->Interfaces[InterfaceIndex]->Endpoints[i]->Type == X86_USB_EP_TYPE_INTERRUPT)
+			DevData->EpInterrupt = UsbDevice->Interfaces[InterfaceIndex]->Endpoints[i];
+		
+		/* Bulk? */
+		if (UsbDevice->Interfaces[InterfaceIndex]->Endpoints[i]->Type == X86_USB_EP_TYPE_BULK)
+		{
+			/* In or out? */
+			if (UsbDevice->Interfaces[InterfaceIndex]->Endpoints[i]->Direction == X86_USB_EP_DIRECTION_IN)
+				DevData->EpIn = UsbDevice->Interfaces[InterfaceIndex]->Endpoints[i];
+			else if (UsbDevice->Interfaces[InterfaceIndex]->Endpoints[i]->Direction == X86_USB_EP_DIRECTION_OUT)
+				DevData->EpOut = UsbDevice->Interfaces[InterfaceIndex]->Endpoints[i];
+		}
+	}
+
+	/* Sanity Ep's */
+	if (DevData->EpIn == NULL
+		|| DevData->EpOut == NULL)
+	{
+		printf("Msd is missing either in or out endpoint\n");
+		kfree(DevData);
+		return;
+	}
+
+	/* Reset Toggles */
+	DevData->EpIn->Toggle = 0;
+	DevData->EpOut->Toggle = 0;
+
+	/* Save Data */
+	UsbDevice->Destroy = UsbMsdDestroy;
+	UsbDevice->DriverData = (void*)DevData;
+
+	/* Test & Setup Disk */
+
+	/* Reset Bulk */
+	if (DevData->IsUFI == 0)
+	{
+		/* Send control packet */
+		UsbFunctionSendPacket((UsbHc_t*)UsbDevice->HcDriver, UsbDevice->Port,
+			NULL, X86_USB_REQ_TARGET_CLASS | X86_USB_REQ_TARGET_INTERFACE,
+			X86_USB_MSD_REQUEST_RESET, 0, 0, (uint16_t)InterfaceIndex, 0);
+	}
+
+	/* Send Inquiry */
+
+	/* Register Us */
+	DevData->DeviceId =
+		DmCreateDevice("Usb Disk Drive", MCORE_DEVICE_TYPE_STORAGE, (void*)DevData);
+}
+
+/* Cleanup */
+void UsbMsdDestroy(void *UsbDevice)
+{
+	/* Cast */
+	UsbHcDevice_t *Dev = (UsbHcDevice_t*)UsbDevice;
+	MsdDevice_t *DevData = (MsdDevice_t*)Dev->DriverData;
+
+	/* Free Data */
+
+	/* Unregister Us */
+	DmDestroyDevice(DevData->DeviceId);
 }

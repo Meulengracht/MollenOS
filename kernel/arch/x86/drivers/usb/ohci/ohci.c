@@ -19,8 +19,11 @@
 * MollenOS X86-32 USB OHCI Controller Driver
 * Todo:
 * Isochronous Support
+* Support multiple td's per interrupt (NumTd = ceil(Size / MaxBytes))
+* Support uninstall of interrupts
+* Cleanup of unplugged ports etc
+* Linux has a periodic timer event that checks if all finished td's has generated a interrupt to make sure
 * Stability (Only tested on emulators and one real hardware pc).
-* Multiple Transfers per interrupt (should be easy)
 */
 
 /* Includes */
@@ -49,16 +52,14 @@ int OhciInterruptHandler(void *data);
 void OhciReset(OhciController_t *Controller);
 void OhciSetup(OhciController_t *Controller);
 
-uint32_t OhciAllocateTd(OhciController_t *Controller);
+Addr_t OhciAllocateTd(OhciController_t *Controller, uint32_t Type);
 
 void OhciTransactionInit(void *Controller, UsbHcRequest_t *Request);
 UsbHcTransaction_t *OhciTransactionSetup(void *Controller, UsbHcRequest_t *Request);
 UsbHcTransaction_t *OhciTransactionIn(void *Controller, UsbHcRequest_t *Request);
 UsbHcTransaction_t *OhciTransactionOut(void *Controller, UsbHcRequest_t *Request);
 void OhciTransactionSend(void *Controller, UsbHcRequest_t *Request);
-
-void OhciInstallInterrupt(void *Controller, UsbHcDevice_t *Device, UsbHcEndpoint_t *Endpoint,
-	void *InBuffer, size_t InBytes, void(*Callback)(void*, size_t), void *Arg);
+void OhciTransactionDestroy(void *Controller, UsbHcRequest_t *Request);
 
 /* Error Codes */
 static const int _Balance[] = { 0, 8, 4, 12, 2, 10, 6, 14, 1, 9, 5, 13, 3, 11, 7, 15 };
@@ -319,9 +320,11 @@ void OhciInit(PciDevice_t *Device)
 	InterruptInstallPci(Device, OhciInterruptHandler, Controller);
 
 	/* Debug */
+#ifdef _OHCI_DIAGNOSTICS_
 	printf("OHCI - Id %u, bar0: 0x%x (0x%x), dma: 0x%x\n", 
 		Controller->Id, Controller->ControlSpace,
 		(Addr_t)Controller->Registers, Controller->HccaSpace);
+#endif
 
 	/* Reset Controller */
 	OhciSetup(Controller);
@@ -343,8 +346,6 @@ void OhciInitQueues(OhciController_t *Controller)
 	Controller->NullTd->Flags = 0;
 
 	/* Initialise ED Pool */
-	Controller->EDIndexControl = 0;
-	Controller->EDIndexBulk = X86_OHCI_POOL_CONTROL_EDS;
 	for (i = 0; i < X86_OHCI_POOL_NUM_ED; i++)
 	{
 		/* Allocate */
@@ -358,6 +359,7 @@ void OhciInitQueues(OhciController_t *Controller)
 		Controller->EDPool[i]->NextED = 0;
 		
 		/* Set to skip and valid null Td */
+		Controller->EDPool[i]->HcdFlags = 0;
 		Controller->EDPool[i]->Flags = X86_OHCI_EP_SKIP;
 		Controller->EDPool[i]->HeadPtr = 
 			(Controller->EDPool[i]->TailPtr = MmVirtualGetMapping(NULL, (Addr_t)Controller->NullTd)) | 0x1;
@@ -660,8 +662,10 @@ void OhciSetup(OhciController_t *Controller)
 	Controller->Registers->HcControl = Temp | X86_OHCI_CTRL_ALL_LISTS | X86_OHCI_CTRL_REMOTE_WAKE;
 
 	/* Controller is now running! */
+#ifdef _OHCI_DIAGNOSTICS_
 	printf("OHCI: Controller %u Started, Control 0x%x, Ints 0x%x, FmInterval 0x%x\n",
 		Controller->Id, Controller->Registers->HcControl, Controller->Registers->HcInterruptEnable, Controller->Registers->HcFmInterval);
+#endif
 
 	/* Check Power Mode */
 	if (Controller->Registers->HcRhDescriptorA & (1 << 9))
@@ -718,8 +722,10 @@ void OhciSetup(OhciController_t *Controller)
 
 	Controller->PowerOnDelayMs = TempValue;
 
+#ifdef _OHCI_DIAGNOSTICS_
 	printf("OHCI: Ports %u (power Mode %u, power delay %u)\n", 
 		Controller->Ports, Controller->PowerMode, TempValue);
+#endif
 
 	/* Setup HCD */
 	HcCtrl = UsbInitController((void*)Controller, X86_USB_TYPE_OHCI, Controller->Ports);
@@ -734,7 +740,7 @@ void OhciSetup(OhciController_t *Controller)
 	HcCtrl->TransactionIn = OhciTransactionIn;
 	HcCtrl->TransactionOut = OhciTransactionOut;
 	HcCtrl->TransactionSend = OhciTransactionSend;
-	HcCtrl->InstallInterrupt = OhciInstallInterrupt;
+	HcCtrl->TransactionDestroy = OhciTransactionDestroy;
 
 	Controller->HcdId = UsbRegisterController(HcCtrl);
 
@@ -875,24 +881,37 @@ void OhciReset(OhciController_t *Controller)
 }
 
 /* ED Functions */
-uint32_t OhciAllocateEp(OhciController_t *Controller, uint32_t Type)
+Addr_t OhciAllocateEp(OhciController_t *Controller, uint32_t Type)
 {
-	uint32_t cIndex = 0;
+	Addr_t cIndex = 0;
+	int i;
 
 	/* Pick a QH */
 	SpinlockAcquire(&Controller->Lock);
 
 	/* Grap it, locked operation */
-	if (Type == X86_USB_REQUEST_TYPE_CONTROL)
+	if (Type == X86_USB_REQUEST_TYPE_CONTROL
+		|| Type == X86_USB_REQUEST_TYPE_BULK)
 	{
-		cIndex = Controller->EDIndexControl;
-		Controller->EDIndexControl++;
+		/* Grap Index */
+		for (i = 0; i < X86_OHCI_POOL_NUM_ED; i++)
+		{
+			/* Sanity */
+			if (Controller->EDPool[i]->HcdFlags & X86_OHCI_ED_ALLOCATED)
+				continue;
 
-		/* cIndex Sanity */
-		if (Controller->EDIndexControl == (X86_OHCI_POOL_CONTROL_EDS - 1))
-			Controller->EDIndexControl = 0;
+			/* Yay!! */
+			Controller->EDPool[i]->HcdFlags |= X86_OHCI_ED_ALLOCATED;
+			cIndex = (Addr_t)i;
+			break;
+		}
+
+		/* Sanity */
+		if (i == 50)
+			kernel_panic("USB_OHCI::WTF RAN OUT OF EDS\n");
 	}
-	else if (Type == X86_OHCI_INDEX_TYPE_INTERRUPT)
+	else if (Type == X86_USB_REQUEST_TYPE_INTERRUPT
+		|| Type == X86_USB_REQUEST_TYPE_ISOCHR)
 	{
 		/* Allocate */
 		Addr_t aSpace = (Addr_t)kmalloc(sizeof(OhciEndpointDescriptor_t) + X86_OHCI_STRUCT_ALIGN);
@@ -900,15 +919,6 @@ uint32_t OhciAllocateEp(OhciController_t *Controller, uint32_t Type)
 
 		/* Zero it out */
 		memset((void*)cIndex, 0, sizeof(OhciEndpointDescriptor_t));
-	}
-	else
-	{
-		cIndex = Controller->EDIndexBulk;
-		Controller->EDIndexBulk++;
-
-		/* cIndex Sanity */
-		if (Controller->EDIndexBulk == X86_OHCI_POOL_BULK_EDS)
-			Controller->EDIndexBulk = X86_OHCI_POOL_CONTROL_EDS;
 	}
 
 	/* Release Lock */
@@ -920,30 +930,39 @@ uint32_t OhciAllocateEp(OhciController_t *Controller, uint32_t Type)
 void OhciEpInit(OhciEndpointDescriptor_t *Ed, UsbHcTransaction_t *FirstTd, uint32_t Type,
 	uint32_t Address, uint32_t Endpoint, uint32_t PacketSize, uint32_t LowSpeed)
 {
-	/* Set Head & Tail Td */
-	if ((Addr_t)FirstTd == X86_OHCI_TRANSFER_END_OF_LIST)
+	/* Setup Flags 
+	 * HighSpeed Bulk/Control/Interrupt */
+	if (Type == X86_USB_REQUEST_TYPE_BULK
+		|| Type == X86_USB_REQUEST_TYPE_CONTROL)
 	{
-		Ed->HeadPtr = X86_OHCI_TRANSFER_END_OF_LIST;
-		Ed->TailPtr = 0;
+		/* Set Head & Tail Td */
+		if ((Addr_t)FirstTd->TransferDescriptor == X86_OHCI_TRANSFER_END_OF_LIST)
+		{
+			Ed->HeadPtr = X86_OHCI_TRANSFER_END_OF_LIST;
+			Ed->TailPtr = 0;
+		}
+		else
+		{
+			Addr_t FirstTdAddr = (Addr_t)FirstTd->TransferDescriptor;
+			Addr_t LastTd = 0;
+
+			/* Get tail */
+			UsbHcTransaction_t *FirstLink = FirstTd;
+			while (FirstLink->Link)
+				FirstLink = FirstLink->Link;
+			LastTd = (Addr_t)FirstLink->TransferDescriptor;
+
+			Ed->TailPtr = MmVirtualGetMapping(NULL, (Addr_t)LastTd);
+			Ed->HeadPtr = MmVirtualGetMapping(NULL, (Addr_t)FirstTdAddr) | 0x1;
+		}
 	}
 	else
 	{
-		Addr_t FirstTdAddr = (Addr_t)FirstTd->TransferDescriptor;
-		Addr_t LastTd = 0;
-
-		/* Get tail */
-		UsbHcTransaction_t *FirstLink = FirstTd;
-		while (FirstLink->Link)
-			FirstLink = FirstLink->Link;
-		LastTd = (Addr_t)FirstLink->TransferDescriptor;
-
-		Ed->TailPtr = MmVirtualGetMapping(NULL, (Addr_t)LastTd);
-		Ed->HeadPtr = MmVirtualGetMapping(NULL, (Addr_t)FirstTdAddr) | 0x1;
+		Ed->HeadPtr = MmVirtualGetMapping(NULL, (VirtAddr_t)FirstTd->TransferDescriptor);
+		Ed->TailPtr = 0;
 	}
-		
-		
-	/* Setup Flags 
-	 * HighSpeed Bulk/Control/Interrupt */
+
+	/* Shared flags */
 	Ed->Flags = X86_OHCI_EP_SKIP;
 	Ed->Flags |= (Address & X86_OHCI_EP_ADDR_BITS);
 	Ed->Flags |= X86_OHCI_EP_EP_NUM((Endpoint & X86_OHCI_EP_EP_NUM_BITS));
@@ -951,43 +970,74 @@ void OhciEpInit(OhciEndpointDescriptor_t *Ed, UsbHcTransaction_t *FirstTd, uint3
 	Ed->Flags |= X86_OHCI_EP_LOWSPEED(LowSpeed);
 	Ed->Flags |= X86_OHCI_EP_PACKET_SIZE((PacketSize & X86_OHCI_EP_PACKET_BITS));
 	Ed->Flags |= X86_OHCI_EP_TYPE((Type & 0xF));
+
+	/* Add for IsoChro */
+	if (Type == X86_USB_REQUEST_TYPE_ISOCHR)
+		Ed->Flags |= X86_OHCI_EP_ISOCHRONOUS;
 }
 
-/* Td Functions */
-uint32_t OhciAllocateTd(OhciController_t *Controller)
+/* Td Functions 
+ * Todo: Iso & Int */
+Addr_t OhciAllocateTd(OhciController_t *Controller, uint32_t Type)
 {
-	int32_t cIndex = -1;
+	int i;
+	Addr_t cIndex = 0xFFFF;
 	OhciGTransferDescriptor_t *Td;
 
 	/* Pick a QH */
 	SpinlockAcquire(&Controller->Lock);
 
-	/* Grap it, locked operation */
-	while (cIndex == -1)
+	/* Sanity */
+	if (Type == X86_USB_REQUEST_TYPE_CONTROL
+		|| Type == X86_USB_REQUEST_TYPE_BULK)
 	{
-		Td = Controller->TDPool[Controller->TDIndex];
-
-		if (!(Td->Flags & X86_OHCI_TRANSFER_BUF_NOCC))
+		/* Grap it, locked operation */
+		for (i = 0; i < X86_OHCI_POOL_NUM_TD; i++)
 		{
-			/* Done! */
-			cIndex = Controller->TDIndex;
-			Td->Flags |= X86_OHCI_TRANSFER_BUF_NOCC;
+			/* Sanity */
+			if (Controller->TDPool[i]->Flags & X86_OHCI_TD_ALLOCATED)
+				continue;
+
+			/* Yay!! */
+			Controller->TDPool[i]->Flags |= X86_OHCI_TD_ALLOCATED;
+			cIndex = (Addr_t)i;
+			break;
 		}
 
-		Controller->TDIndex++;
+		/* Sanity */
+		if (i == X86_OHCI_POOL_NUM_TD)
+			kernel_panic("USB_OHCI::WTF ran out of TD's!!!!\n");
+	}
+	else if (Type == X86_USB_REQUEST_TYPE_INTERRUPT)
+	{
+		/* Allocate a new */
+		Td = (OhciGTransferDescriptor_t*)OhciAlign(((Addr_t)kmalloc(sizeof(OhciGTransferDescriptor_t) + X86_OHCI_STRUCT_ALIGN)), X86_OHCI_STRUCT_ALIGN_BITS, X86_OHCI_STRUCT_ALIGN);
 
-		/* cIndex Sanity */
-		if (Controller->TDIndex == X86_OHCI_POOL_NUM_TD)
-			Controller->TDIndex = 0;
+		/* Null it */
+		memset((void*)Td, 0, sizeof(OhciGTransferDescriptor_t));
+
+		/* Set as index */
+		cIndex = (Addr_t)Td;
+	}
+	else
+	{
+		/* Allocate iDescriptor */
+		OhciITransferDescriptor_t *iTd = (OhciITransferDescriptor_t*)OhciAlign(((Addr_t)kmalloc(sizeof(OhciITransferDescriptor_t) + X86_OHCI_STRUCT_ALIGN)), X86_OHCI_STRUCT_ALIGN_BITS, X86_OHCI_STRUCT_ALIGN);
+	
+		/* Null it */
+		memset((void*)iTd, 0, sizeof(OhciITransferDescriptor_t));
+
+		/* Set as index */
+		cIndex = (Addr_t)iTd;
 	}
 
 	/* Release Lock */
 	SpinlockRelease(&Controller->Lock);
 
-	return (uint32_t)cIndex;
+	return cIndex;
 }
 
-OhciGTransferDescriptor_t *OhciTdSetup(OhciController_t *Controller, 
+OhciGTransferDescriptor_t *OhciTdSetup(OhciController_t *Controller, uint32_t Type, 
 	Addr_t NextTD, uint32_t Toggle, uint8_t RequestDirection,
 	uint8_t RequestType, uint8_t RequestValueLo, uint8_t RequestValueHi, uint16_t RequestIndex,
 	uint16_t RequestLength, void **TDBuffer)
@@ -996,10 +1046,10 @@ OhciGTransferDescriptor_t *OhciTdSetup(OhciController_t *Controller,
 	OhciGTransferDescriptor_t *Td;
 	Addr_t TdPhys;
 	void *Buffer;
-	uint32_t TDIndex;
+	Addr_t TDIndex;
 
 	/* Allocate a Td */
-	TDIndex = OhciAllocateTd(Controller);
+	TDIndex = OhciAllocateTd(Controller, Type);
 
 	/* Grab a Td and a Buffer */
 	Td = Controller->TDPool[TDIndex];
@@ -1008,12 +1058,12 @@ OhciGTransferDescriptor_t *OhciTdSetup(OhciController_t *Controller,
 	
 	/* EOL ? */
 	if (NextTD == X86_OHCI_TRANSFER_END_OF_LIST)
-		Td->NextTD = X86_OHCI_TRANSFER_END_OF_LIST;
+		Td->NextTD = 0;
 	else	/* Get physical Address of NextTD and set NextTD to that */
 		Td->NextTD = MmVirtualGetMapping(NULL, (VirtAddr_t)NextTD); 
 
 	/* Setup the Td for a SETUP Td */
-	Td->Flags = 0;
+	Td->Flags = X86_OHCI_TD_ALLOCATED;
 	Td->Flags |= X86_OHCI_TRANSFER_BUF_ROUNDING;
 	Td->Flags |= X86_OHCI_TRANSFER_BUF_PID_SETUP;
 	Td->Flags |= X86_OHCI_TRANSFER_BUF_NO_INTERRUPT;
@@ -1038,22 +1088,53 @@ OhciGTransferDescriptor_t *OhciTdSetup(OhciController_t *Controller,
 	return Td;
 }
 
-OhciGTransferDescriptor_t *OhciTdIo(OhciController_t *Controller,
+OhciGTransferDescriptor_t *OhciTdIo(OhciController_t *Controller, uint32_t Type,
 	Addr_t NextTD, uint32_t Toggle, uint32_t pid, 
 	uint32_t Length, void **TDBuffer)
 {
 	OhciGTransferDescriptor_t *Td;
+	OhciITransferDescriptor_t *iTd;
 	Addr_t TdPhys;
 	void *Buffer;
-	uint32_t TDIndex;
+	Addr_t TDIndex;
 
 	/* Allocate a Td */
-	TDIndex = OhciAllocateTd(Controller);
+	TDIndex = OhciAllocateTd(Controller, Type);
 
-	/* Grab a Td and a Buffer */
-	Td = Controller->TDPool[TDIndex];
-	Buffer = Controller->TDPoolBuffers[TDIndex];
-	TdPhys = Controller->TDPoolPhys[TDIndex];
+	/* Sanity */
+	if (Type == X86_USB_REQUEST_TYPE_CONTROL
+		|| Type == X86_USB_REQUEST_TYPE_BULK)
+	{
+		/* Grab a Td and a Buffer */
+		Td = Controller->TDPool[TDIndex];
+		Buffer = Controller->TDPoolBuffers[TDIndex];
+		TdPhys = Controller->TDPoolPhys[TDIndex];
+	}
+	else if (Type == X86_USB_REQUEST_TYPE_INTERRUPT)
+	{
+		/* Cast */
+		Td = (OhciGTransferDescriptor_t*)TDIndex;
+
+		/* Allocate a buffer */
+		Buffer = (void*)kmalloc_a(0x1000);
+
+		/* Get physical of td */
+		TdPhys = (Addr_t)MmVirtualGetMapping(NULL, (VirtAddr_t)Td);
+	}
+	else
+	{
+		/* Cast */
+		iTd = (OhciITransferDescriptor_t*)TDIndex;
+
+		/* Allocate a buffer */
+		Buffer = (void*)kmalloc_a(0x1000);
+
+		/* Get physical of td */
+		TdPhys = (Addr_t)MmVirtualGetMapping(NULL, (VirtAddr_t)iTd);
+
+		/* Todo */
+		kernel_panic("OHCI: Isochronous support is lacking!");
+	}
 
 	/* EOL ? */
 	if (NextTD == X86_OHCI_TRANSFER_END_OF_LIST)
@@ -1062,7 +1143,7 @@ OhciGTransferDescriptor_t *OhciTdIo(OhciController_t *Controller,
 		Td->NextTD = MmVirtualGetMapping(NULL, (VirtAddr_t)NextTD);
 
 	/* Setup the Td for a IO Td */
-	Td->Flags = 0;
+	Td->Flags = X86_OHCI_TD_ALLOCATED;
 	Td->Flags |= X86_OHCI_TRANSFER_BUF_ROUNDING;
 	Td->Flags |= pid;
 	Td->Flags |= X86_OHCI_TRANSFER_BUF_NO_INTERRUPT;
@@ -1092,12 +1173,22 @@ OhciGTransferDescriptor_t *OhciTdIo(OhciController_t *Controller,
 /* This one prepaires an ED */
 void OhciTransactionInit(void *Controller, UsbHcRequest_t *Request)
 {
+	/* Vars */
 	OhciController_t *Ctrl = (OhciController_t*)Controller;
-	uint32_t Temp;
+	Addr_t Temp;
 
+	/* Allocate an EP */
 	Temp = OhciAllocateEp(Ctrl, Request->Type);
-	Ctrl->EDPool[Temp]->Flags |= X86_OHCI_EP_SKIP;
-	Request->Data = Ctrl->EDPool[Temp];
+
+	/* We allocate new ep descriptors for Iso & Int */
+	if (Request->Type == X86_USB_REQUEST_TYPE_CONTROL
+		|| Request->Type == X86_USB_REQUEST_TYPE_BULK)
+	{
+		Ctrl->EDPool[Temp]->Flags |= X86_OHCI_EP_SKIP;
+		Request->Data = Ctrl->EDPool[Temp];
+	}
+	else
+		Request->Data = (void*)Temp;
 
 	/* Set as not Completed for start */
 	Request->Completed = 0;
@@ -1116,8 +1207,8 @@ UsbHcTransaction_t *OhciTransactionSetup(void *Controller, UsbHcRequest_t *Reque
 	Transaction->Link = NULL;
 
 	/* Create the Td */
-	Transaction->TransferDescriptor = (void*)OhciTdSetup(Ctrl, X86_OHCI_TRANSFER_END_OF_LIST, 
-		Request->Device->Endpoints[Request->Endpoint]->Toggle, Request->Packet.Direction, Request->Packet.Type,
+	Transaction->TransferDescriptor = (void*)OhciTdSetup(Ctrl, Request->Type, X86_OHCI_TRANSFER_END_OF_LIST,
+		Request->Endpoint->Toggle, Request->Packet.Direction, Request->Packet.Type,
 		Request->Packet.ValueLo, Request->Packet.ValueHi, Request->Packet.Index, 
 		Request->Packet.Length, &Transaction->TransferBuffer);
 
@@ -1150,8 +1241,8 @@ UsbHcTransaction_t *OhciTransactionIn(void *Controller, UsbHcRequest_t *Request)
 	Transaction->Link = NULL;
 
 	/* Setup Td */
-	Transaction->TransferDescriptor = (void*)OhciTdIo(Ctrl, X86_OHCI_TRANSFER_END_OF_LIST,
-		Request->Device->Endpoints[Request->Endpoint]->Toggle, 
+	Transaction->TransferDescriptor = (void*)OhciTdIo(Ctrl, Request->Type, X86_OHCI_TRANSFER_END_OF_LIST,
+		Request->Endpoint->Toggle,
 		X86_OHCI_TRANSFER_BUF_PID_IN, Request->IoLength,
 		&Transaction->TransferBuffer);
 
@@ -1184,8 +1275,8 @@ UsbHcTransaction_t *OhciTransactionOut(void *Controller, UsbHcRequest_t *Request
 	Transaction->Link = NULL;
 
 	/* Setup Td */
-	Transaction->TransferDescriptor = (void*)OhciTdIo(Ctrl, X86_OHCI_TRANSFER_END_OF_LIST,
-		Request->Device->Endpoints[Request->Endpoint]->Toggle, 
+	Transaction->TransferDescriptor = (void*)OhciTdIo(Ctrl, Request->Type, X86_OHCI_TRANSFER_END_OF_LIST,
+		Request->Endpoint->Toggle,
 		X86_OHCI_TRANSFER_BUF_PID_OUT, Request->IoLength,
 		&Transaction->TransferBuffer);
 
@@ -1226,8 +1317,15 @@ void OhciTransactionSend(void *Controller, UsbHcRequest_t *Request)
 	/* Set as not Completed for start */
 	Request->Completed = 0;
 
-	/* Add dummy Td to end */
-	UsbTransactionOut(UsbGetHcd(Ctrl->HcdId), Request, 1, NULL, 0);
+	/* Dont do this for other */
+	if (Request->Type == X86_USB_REQUEST_TYPE_CONTROL
+		|| Request->Type == X86_USB_REQUEST_TYPE_BULK)
+	{
+		/* Add dummy Td to end */
+		UsbTransactionOut(UsbGetHcd(Ctrl->HcdId), Request, 1, NULL, 0);
+	}
+	else
+		((OhciEndpointDescriptor_t*)Request->Data)->HcdData1 = (uint32_t)Request->Callback;
 
 	/* Iterate and set last to INT */
 	Transaction = Request->Transactions;
@@ -1236,7 +1334,6 @@ void OhciTransactionSend(void *Controller, UsbHcRequest_t *Request)
 #ifdef _OHCI_DIAGNOSTICS_
 		printf("Td (Addr 0x%x) Flags 0x%x, Cbp 0x%x, BufferEnd 0x%x, Next Td 0x%x\n", MmVirtualGetMapping(NULL, (VirtAddr_t)Td), Td->Flags, Td->Cbp, Td->BufferEnd, Td->NextTD);
 #endif
-
 		/* Next */
 		Transaction = Transaction->Link;
 	}
@@ -1246,11 +1343,13 @@ void OhciTransactionSend(void *Controller, UsbHcRequest_t *Request)
 	Td = (OhciGTransferDescriptor_t*)Transaction->TransferDescriptor;
 	Td->Flags &= ~(X86_OHCI_TRANSFER_BUF_NO_INTERRUPT);
 #endif
-	
-	/* Setup an ED for this */
+
+	/* Save transaciton list */
 	((OhciEndpointDescriptor_t*)Request->Data)->HcdData = (uint32_t)Request->Transactions;
+
+	/* Initialize the allocated ED */
 	OhciEpInit(Request->Data, Request->Transactions, Request->Type,
-		Request->Device->Address, Request->Endpoint, Request->Length, Request->LowSpeed);
+		Request->Device->Address, Request->Endpoint->Address, Request->Length, Request->LowSpeed);
 
 	/* Now lets try the Transaction */
 	SpinlockAcquire(&Ctrl->Lock);
@@ -1293,9 +1392,6 @@ void OhciTransactionSend(void *Controller, UsbHcRequest_t *Request)
 
 			/* Increase */
 			Ctrl->TransactionsWaitingControl++;
-
-			/* Release spinlock */
-			SpinlockRelease(&Ctrl->Lock);
 		}
 		else
 		{
@@ -1305,9 +1401,6 @@ void OhciTransactionSend(void *Controller, UsbHcRequest_t *Request)
 
 			/* Increase */
 			Ctrl->TransactionsWaitingControl++;
-
-			/* Release spinlock */
-			SpinlockRelease(&Ctrl->Lock);
 
 			/* Set Lists Filled (Enable Them) */
 			Ctrl->Registers->HcCommandStatus |= X86_OHCI_CMD_TDACTIVE_CTRL;
@@ -1335,9 +1428,6 @@ void OhciTransactionSend(void *Controller, UsbHcRequest_t *Request)
 
 			/* Increase */
 			Ctrl->TransactionsWaitingBulk++;
-
-			/* Release spinlock */
-			SpinlockRelease(&Ctrl->Lock);
 		}
 		else
 		{
@@ -1348,12 +1438,101 @@ void OhciTransactionSend(void *Controller, UsbHcRequest_t *Request)
 			/* Increase */
 			Ctrl->TransactionsWaitingBulk++;
 
-			/* Release spinlock */
-			SpinlockRelease(&Ctrl->Lock);
-
 			/* Set Lists Filled (Enable Them) */
 			Ctrl->Registers->HcCommandStatus |= X86_OHCI_CMD_TDACTIVE_BULK;
 		}
+	}
+	else
+	{
+		/* DISABLE SCHEDULLER!!! */
+		Ctrl->Registers->HcControl &= ~(X86_OCHI_CTRL_PERIODIC_LIST | X86_OHCI_CTRL_ISOCHRONOUS_LIST);
+
+		/* Iso / Interrupt */
+		OhciEndpointDescriptor_t *IEd;
+		uint32_t Period = 32;
+
+		/* Calculate period */
+		for (; (Period >= Request->Endpoint->Interval) && (Period > 0);)
+			Period >>= 1;
+
+		if (Period == 1)
+		{
+			/* Isochronous List */
+			IEd = &Ctrl->IntrTable->Ms1[0];
+		}
+		else if (Period == 2)
+		{
+			IEd = &Ctrl->IntrTable->Ms2[Ctrl->I2];
+
+			/* Increase i2 */
+			Ctrl->I2++;
+			if (Ctrl->I2 == 2)
+				Ctrl->I2 = 0;
+		}
+		else if (Period == 4)
+		{
+			IEd = &Ctrl->IntrTable->Ms4[Ctrl->I4];
+
+			/* Increase i4 */
+			Ctrl->I4++;
+			if (Ctrl->I4 == 4)
+				Ctrl->I4 = 0;
+		}
+		else if (Period == 8)
+		{
+			IEd = &Ctrl->IntrTable->Ms8[Ctrl->I8];
+
+			/* Increase i8 */
+			Ctrl->I8++;
+			if (Ctrl->I8 == 8)
+				Ctrl->I8 = 0;
+		}
+		else if (Period == 16)
+		{
+			IEd = &Ctrl->IntrTable->Ms16[Ctrl->I16];
+
+			/* Increase i16 */
+			Ctrl->I16++;
+			if (Ctrl->I16 == 16)
+				Ctrl->I16 = 0;
+		}
+		else
+		{
+			/* 32 */
+			IEd = Ctrl->ED32[Ctrl->I32];
+
+			/* Insert it */
+			((OhciEndpointDescriptor_t*)Request->Data)->NextEDVirtual = (Addr_t)IEd;
+			((OhciEndpointDescriptor_t*)Request->Data)->NextED = MmVirtualGetMapping(NULL, (VirtAddr_t)IEd);
+
+			/* Make int-table point to this */
+			Ctrl->HCCA->InterruptTable[Ctrl->I32] = EdAddress;
+			Ctrl->ED32[Ctrl->I32] = (OhciEndpointDescriptor_t*)Request->Data;
+
+			/* Increase i32 */
+			Ctrl->I32++;
+			if (Ctrl->I32 == 32)
+				Ctrl->I32 = 0;
+		}
+
+		/* Sanity */
+		if (Period != 32)
+		{
+			/* Insert it */
+			((OhciEndpointDescriptor_t*)Request->Data)->NextEDVirtual = IEd->NextEDVirtual;
+			((OhciEndpointDescriptor_t*)Request->Data)->NextED = IEd->NextED;
+			IEd->NextED = EdAddress;
+			IEd->NextEDVirtual = (Addr_t)((OhciEndpointDescriptor_t*)Request->Data);
+		}		
+
+		/* ENABLE SCHEDULEER */
+		Ctrl->Registers->HcControl |= X86_OCHI_CTRL_PERIODIC_LIST | X86_OHCI_CTRL_ISOCHRONOUS_LIST;
+
+		/* Done */
+		SpinlockRelease(&Ctrl->Lock);
+
+		/* Skip this */
+		return;
 	}
 	
 	/* Wait for interrupt */
@@ -1374,7 +1553,13 @@ void OhciTransactionSend(void *Controller, UsbHcRequest_t *Request)
 	printf("Current Control 0x%x, Current Cmd 0x%x\n",
 		Ctrl->Registers->HcControl, Ctrl->Registers->HcCommandStatus);
 #else
+	/* Sleep Us */
 	SchedulerSleepThread((Addr_t*)Request->Data);
+	
+	/* Release spinlock at latest possible */
+	SpinlockRelease(&Ctrl->Lock);
+
+	/* Yield us */
 	_yield();
 #endif
 
@@ -1435,169 +1620,54 @@ void OhciTransactionSend(void *Controller, UsbHcRequest_t *Request)
 #endif
 }
 
-/* Install an Interrupt Endpoint */
-void OhciInstallInterrupt(void *Controller, UsbHcDevice_t *Device, UsbHcEndpoint_t *Endpoint,
-	void *InBuffer, size_t InBytes, void(*Callback)(void*, size_t), void *Arg)
+/* This one cleans up */
+void OhciTransactionDestroy(void *Controller, UsbHcRequest_t *Request)
 {
-	UsbHc_t *Hcd = Device->HcDriver;
-	OhciController_t *Ctrl = (OhciController_t*)Controller;
-	OhciEndpointDescriptor_t *Ed = NULL, *iep = NULL;
-	OhciGTransferDescriptor_t *Td = NULL;
-	void *TDBuffer = NULL;
-	uint32_t period = 32;
-	uint32_t i;
-	uint32_t LowSpeed = (Hcd->Ports[Device->Port]->FullSpeed == 1) ? 0 : 1;
-	OhciPeridoicCallback_t *cb_info = (OhciPeridoicCallback_t*)kmalloc(sizeof(OhciPeridoicCallback_t));
+	UsbHcTransaction_t *Transaction = Request->Transactions;
+	_CRT_UNUSED(Controller);
 
-	/* Calculate period */
-	for (; (period >= Endpoint->Interval) && (period > 0);)
-		period >>= 1;
-
-	/* Grab an Ed */
-	Ed = (OhciEndpointDescriptor_t*)OhciAllocateEp(Ctrl, X86_OHCI_INDEX_TYPE_INTERRUPT);
-
-	/* Get Td(s) */
-	i = OhciAllocateTd(Ctrl);
-	Td = Ctrl->TDPool[i];
-	TDBuffer = Ctrl->TDPoolBuffers[i];
-
-	/* Setup CB Information */
-	cb_info->Buffer = InBuffer;
-	cb_info->Bytes = InBytes;
-	cb_info->Callback = Callback;
-	cb_info->Args = Arg;
-	cb_info->TDIndex = i;
-
-	if (Endpoint->Bandwidth > 1)
+	/* Unallocate Ed */
+	if (Request->Type == X86_USB_REQUEST_TYPE_BULK
+		|| Request->Type == X86_USB_REQUEST_TYPE_CONTROL)
 	{
-		/* Oh god support this :( */
-	}
+		/* Iterate and reset */
+		while (Transaction)
+		{
+			/* Cast */
+			OhciGTransferDescriptor_t *Td = 
+				(OhciGTransferDescriptor_t*)Transaction->TransferDescriptor;
 
-	/* Setup Td */
-	Td->Flags = 0;
-	Td->Flags |= X86_OHCI_TRANSFER_BUF_ROUNDING;
-	Td->Flags |= X86_OHCI_TRANSFER_BUF_PID_IN;
-	Td->Flags |= ((Endpoint->Toggle & 0x1) << 24);
-	Td->Flags |= X86_OHCI_TRANSFER_BUF_TD_TOGGLE;
-	Td->Flags |= X86_OHCI_TRANSFER_BUF_NOCC;
+			/* Memset */
+			memset((void*)Td, 0, sizeof(OhciGTransferDescriptor_t));
 
-	Td->NextTD = 0x1;
+			/* Next */
+			Transaction = Transaction->Link;
+		}
 
-	Td->Cbp = MmVirtualGetMapping(NULL, (VirtAddr_t)TDBuffer);
-	Td->BufferEnd = Td->Cbp + 0x200 - 1;
-
-	/* Setup Ed */
-	Ed->HeadPtr = MmVirtualGetMapping(NULL, (VirtAddr_t)Td);
-	Ed->TailPtr = 0;
-	Ed->HcdData = (uint32_t)cb_info;
-
-	Ed->Flags = (Device->Address & X86_OHCI_EP_ADDR_BITS); /* Device Address */
-	Ed->Flags |= X86_OHCI_EP_EP_NUM((Endpoint->Address & X86_OHCI_EP_EP_NUM_BITS));
-	Ed->Flags |= X86_OHCI_EP_LOWSPEED(LowSpeed); /* Device Speed */
-	Ed->Flags |= X86_OHCI_EP_PACKET_SIZE((Endpoint->MaxPacketSize & X86_OHCI_EP_PACKET_BITS));
-	Ed->Flags |= X86_OHCI_EP_TYPE(2);
-
-	/* Add transfer */
-	list_append(Ctrl->TransactionList, list_create_node(0, Ed));
-
-	/* Ok, queue it
-	 * Lock & stop ints */
-	SpinlockAcquire(&Ctrl->Lock);
-
-	if (period == 1)
-	{
-		iep = &Ctrl->IntrTable->Ms1[0];
-
-		/* Insert it */
-		Ed->NextEDVirtual = iep->NextEDVirtual;
-		Ed->NextED = iep->NextED;
-		iep->NextED = MmVirtualGetMapping(NULL, (VirtAddr_t)Ed);
-		iep->NextEDVirtual = (uint32_t)Ed;
-	}
-	else if (period == 2)
-	{
-		iep = &Ctrl->IntrTable->Ms2[Ctrl->I2];
-
-		/* Insert it */
-		Ed->NextEDVirtual = iep->NextEDVirtual;
-		Ed->NextED = iep->NextED;
-		iep->NextED = MmVirtualGetMapping(NULL, (VirtAddr_t)Ed);
-		iep->NextEDVirtual = (uint32_t)Ed;
-
-		/* Increase i2 */
-		Ctrl->I2++;
-		if (Ctrl->I2 == 2)
-			Ctrl->I2 = 0;
-	}
-	else if (period == 4)
-	{
-		iep = &Ctrl->IntrTable->Ms4[Ctrl->I4];
-
-		/* Insert it */
-		Ed->NextEDVirtual = iep->NextEDVirtual;
-		Ed->NextED = iep->NextED;
-		iep->NextED = MmVirtualGetMapping(NULL, (VirtAddr_t)Ed);
-		iep->NextEDVirtual = (uint32_t)Ed;
-
-		/* Increase i4 */
-		Ctrl->I4++;
-		if (Ctrl->I4 == 4)
-			Ctrl->I4 = 0;
-	}
-	else if (period == 8)
-	{
-		iep = &Ctrl->IntrTable->Ms8[Ctrl->I8];
-
-		/* Insert it */
-		Ed->NextEDVirtual = iep->NextEDVirtual;
-		Ed->NextED = iep->NextED;
-		iep->NextED = MmVirtualGetMapping(NULL, (VirtAddr_t)Ed);
-		iep->NextEDVirtual = (uint32_t)Ed;
-
-		/* Increase i8 */
-		Ctrl->I8++;
-		if (Ctrl->I8 == 8)
-			Ctrl->I8 = 0;
-	}
-	else if (period == 16)
-	{
-		iep = &Ctrl->IntrTable->Ms16[Ctrl->I16];
-
-		/* Insert it */
-		Ed->NextEDVirtual = iep->NextEDVirtual;
-		Ed->NextED = iep->NextED;
-		iep->NextED = MmVirtualGetMapping(NULL, (VirtAddr_t)Ed);
-		iep->NextEDVirtual = (uint32_t)Ed;
-
-		/* Increase i16 */
-		Ctrl->I16++;
-		if (Ctrl->I16 == 16)
-			Ctrl->I16 = 0;
+		/* Reset the ED */
+		memset(Request->Data, 0, sizeof(OhciEndpointDescriptor_t));
 	}
 	else
 	{
-		/* 32 */
-		iep = Ctrl->ED32[Ctrl->I32];
+		/* Iterate transactions and free buffers & td's */
+		while (Transaction)
+		{
+			/* Cast */
+			OhciGTransferDescriptor_t *Td =
+				(OhciGTransferDescriptor_t*)Transaction->TransferDescriptor;
 
-		/* Insert it */
-		Ed->NextEDVirtual = (Addr_t)iep;
-		Ed->NextED = MmVirtualGetMapping(NULL, (VirtAddr_t)iep);
+			/* Get buffer... & free */
 
-		/* Make int-table point to this */
-		Ctrl->HCCA->InterruptTable[Ctrl->I32] = MmVirtualGetMapping(NULL, (VirtAddr_t)Ed);
-		Ctrl->ED32[Ctrl->I32] = Ed;
+			/* free td */
+			kfree((void*)Td);
 
-		/* Increase i32 */
-		Ctrl->I32++;
-		if (Ctrl->I32 == 32)
-			Ctrl->I32 = 0;
+			/* Next */
+			Transaction = Transaction->Link;
+		}
+
+		/* Free it */
+		kfree(Request->Data);
 	}
-
-	/* Done */
-	SpinlockRelease(&Ctrl->Lock);
-
-	/* Enable Queue in case it was disabled */
-	Ctrl->Registers->HcControl |= X86_OCHI_CTRL_PERIODIC_LIST;
 }
 
 /* Process Done Queue */
@@ -1717,7 +1787,6 @@ void OhciProcessDoneQueue(OhciController_t *Controller, Addr_t done_head)
 
 				/* Start queue */
 				Controller->Registers->HcCommandStatus |= X86_OHCI_CMD_TDACTIVE_CTRL;
-				Controller->Registers->HcControl |= X86_OHCI_CTRL_CONTROL_LIST;
 			}
 
 			/* Reset control queue */
@@ -1738,7 +1807,6 @@ void OhciProcessDoneQueue(OhciController_t *Controller, Addr_t done_head)
 
 				/* Start queue */
 				Controller->Registers->HcCommandStatus |= X86_OHCI_CMD_TDACTIVE_BULK;
-				Controller->Registers->HcControl |= X86_OHCI_CTRL_BULK_LIST;
 			}
 
 			/* Reset control queue */
@@ -1836,7 +1904,7 @@ int OhciInterruptHandler(void *data)
 	}
 
 	/* Frame Overflow
-	* Happens when it rolls over from 0xFFFF to 0 */
+	 * Happens when it rolls over from 0xFFFF to 0 */
 	if (intr_state & X86_OHCI_INTR_FRAME_OVERFLOW)
 	{
 		/* Acknowledge Interrupt */
@@ -1845,7 +1913,7 @@ int OhciInterruptHandler(void *data)
 	}
 
 	/* Why yes, yes it was, wake up the Td handler thread
-	* if it was head_done_writeback */
+	 * if it was head_done_writeback */
 	if (intr_state & X86_OHCI_INTR_HEAD_DONE)
 	{
 		/* Wuhu, handle this! */

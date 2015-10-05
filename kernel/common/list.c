@@ -183,6 +183,58 @@ void list_remove_by_node(list_t *list, list_node_t* node)
 		SpinlockRelease(&list->lock);
 }
 
+/* Removes a node from this list by its id. */
+void list_remove_by_id(list_t *list, int id)
+{
+	/* Traverse the list to find the next pointer of the
+	* node that comes before the one to be removed. */
+	list_node_t *i = NULL, *prev = NULL;
+
+	/* Sanity */
+	if (list == NULL || list->head == NULL)
+		return;
+
+	/* Get lock */
+	if (list->attributes & LIST_SAFE)
+		SpinlockAcquire(&list->lock);
+
+	/* Loop and locate */
+	_foreach(i, list)
+	{
+		/* Did we find a match? */
+		if (i->identifier == id)
+		{
+			/* Two cases, either its first element or not */
+			if (prev == NULL)
+				list->head = i->link; /* We are removing first node */
+			else
+				prev->link = i->link; /* Make previous point to the next node after this */
+
+			/* Do we have to update tail? */
+			if (list->tailp == i)
+			{
+				if (prev == NULL)
+					list->head = list->tailp = NULL;
+				else
+					list->tailp = prev;
+			}
+
+			/* Free node, but not data! */
+			kfree(i);
+
+			/* Done */
+			break;
+		}
+
+		/* Update previous */
+		prev = i;
+	}
+
+	/* Release Lock */
+	if (list->attributes & LIST_SAFE)
+		SpinlockRelease(&list->lock);
+}
+
 /* Removes a node from START of list. */
 list_node_t *list_pop_front(list_t *list)
 {

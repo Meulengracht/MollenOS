@@ -27,6 +27,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <InputManager.h>
+#include <DeviceManager.h>
 
 /* Scansets */
 #include <ScancodeSets\ScancodeSet2.h>
@@ -100,14 +101,14 @@ void Ps2KeyboardInit(int Port, int Translation)
 	
 	/* Select command */
 	Ps2WriteData(X86_PS2_CMD_SET_SCANCODE);
-	Response = Ps2ReadData(1);
+	Response = Ps2ReadData(0);
 
 	if (Port == 2)
 		Ps2SendCommand(X86_PS2_CMD_SELECT_PORT2);
 
 	/* Send value */
 	Ps2WriteData(0x2);
-	Response = Ps2ReadData(1);
+	Response = Ps2ReadData(0);
 
 	if (Response == 0xFA)
 		Ps2Dev->ScancodeSet = 2;
@@ -118,7 +119,7 @@ void Ps2KeyboardInit(int Port, int Translation)
 	Ps2WriteData(Translation ? 0x65 : 0x25);
 
 	/* Ack */
-	Response = Ps2ReadData(1);
+	Response = Ps2ReadData(0);
 
 	/* Enable scan, 0xF4 */
 	if (Port == 2)
@@ -126,5 +127,8 @@ void Ps2KeyboardInit(int Port, int Translation)
 	Ps2WriteData(0xF4);
 
 	/* Ack */
-	Response = Ps2ReadData(1);
+	Response = Ps2ReadData(0);
+
+	/* Create device in upper layer */
+	DmCreateDevice("Ps2-Keyboard", MCORE_DEVICE_TYPE_INPUT, Ps2Dev);
 }

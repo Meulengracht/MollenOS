@@ -23,7 +23,7 @@
 #include <Arch.h>
 #include <Drivers\Usb\Usb.h>
 #include <Drivers\Usb\HID\HIDManager.h>
-#include <Drivers\Usb\MSD\MSDManager.h>
+#include <Drivers\Usb\Msd\MsdManager.h>
 #include <Semaphore.h>
 #include <SysTimers.h>
 #include <Heap.h>
@@ -126,11 +126,16 @@ void UsbDeviceSetup(UsbHc_t *Hc, int Port)
 	if (Hc->Ports[Port] == NULL)
 		Hc->Ports[Port] = UsbPortCreate(Port);
 
+	/* Sanity */
+	if (Hc->Ports[Port]->Connected
+		&& Hc->Ports[Port]->Device != NULL)
+		return;
+
 	/* Create a device */
 	Device = (UsbHcDevice_t*)kmalloc(sizeof(UsbHcDevice_t));
 	Device->HcDriver = Hc;
 	Device->Port = (uint8_t)Port;
-	Device->NumEndpoints = 1;
+	Device->Destroy = NULL;
 
 	Device->NumInterfaces = 0;
 	for (i = 0; i < X86_USB_CORE_MAX_IF; i++)
@@ -140,17 +145,14 @@ void UsbDeviceSetup(UsbHc_t *Hc, int Port)
 	Device->Address = 0;
 
 	/* Allocate control endpoint */
-	for (i = 0; i < 1; i++)
-	{
-		Device->Endpoints[i] = (UsbHcEndpoint_t*)kmalloc(sizeof(UsbHcEndpoint_t));
-		Device->Endpoints[i]->Address = 0;
-		Device->Endpoints[i]->Type = X86_USB_EP_TYPE_CONTROL;
-		Device->Endpoints[i]->Toggle = 0;
-		Device->Endpoints[i]->Bandwidth = 1;
-		Device->Endpoints[i]->MaxPacketSize = 64;
-		Device->Endpoints[i]->Direction = X86_USB_EP_DIRECTION_BOTH;
-		Device->Endpoints[i]->Interval = 0;
-	}
+	Device->CtrlEndpoint = (UsbHcEndpoint_t*)kmalloc(sizeof(UsbHcEndpoint_t));
+	Device->CtrlEndpoint->Address = 0;
+	Device->CtrlEndpoint->Type = X86_USB_EP_TYPE_CONTROL;
+	Device->CtrlEndpoint->Toggle = 0;
+	Device->CtrlEndpoint->Bandwidth = 1;
+	Device->CtrlEndpoint->MaxPacketSize = 64;
+	Device->CtrlEndpoint->Direction = X86_USB_EP_DIRECTION_BOTH;
+	Device->CtrlEndpoint->Interval = 0;
 
 	/* Bind it */
 	Hc->Ports[Port]->Device = Device;
@@ -161,7 +163,7 @@ void UsbDeviceSetup(UsbHc_t *Hc, int Port)
 	/* Sanity */
 	if (Hc->Ports[Port]->Connected != 1
 		&& Hc->Ports[Port]->Enabled != 1)
-		return;
+		goto DevError;
 
 	/* Set Device Address (Just bind it to the port number + 1 (never set address 0) ) */
 	if (!UsbFunctionSetAddress(Hc, Port, (uint32_t)(Port + 1)))
@@ -170,7 +172,7 @@ void UsbDeviceSetup(UsbHc_t *Hc, int Port)
 		if (!UsbFunctionSetAddress(Hc, Port, (uint32_t)(Port + 1)))
 		{
 			printf("USB_Handler: (Set_Address) Failed to setup port %u\n", Port);
-			return;
+			goto DevError;
 		}
 	}
 
@@ -184,7 +186,7 @@ void UsbDeviceSetup(UsbHc_t *Hc, int Port)
 		if (!UsbFunctionGetDeviceDescriptor(Hc, Port))
 		{
 			printf("USB_Handler: (Get_Device_Desc) Failed to setup port %u\n", Port);
-			return;
+			goto DevError;
 		}
 	}
 	
@@ -195,7 +197,7 @@ void UsbDeviceSetup(UsbHc_t *Hc, int Port)
 		if (!UsbFunctionGetConfigDescriptor(Hc, Port))
 		{
 			printf("USB_Handler: (Get_Config_Desc) Failed to setup port %u\n", Port);
-			return;
+			goto DevError;
 		}
 	}
 
@@ -206,7 +208,7 @@ void UsbDeviceSetup(UsbHc_t *Hc, int Port)
 		if (!UsbFunctionSetConfiguration(Hc, Port, Hc->Ports[Port]->Device->Configuration))
 		{
 			printf("USB_Handler: (Set_Configuration) Failed to setup port %u\n", Port);
-			return;
+			goto DevError;
 		}
 	}
 
@@ -214,7 +216,7 @@ void UsbDeviceSetup(UsbHc_t *Hc, int Port)
 	for (i = 0; i < (int)Hc->Ports[Port]->Device->NumInterfaces; i++)
 	{
 		/* We want to support Hubs, HIDs and MSDs*/
-		//uint32_t iface = (uint32_t)i;
+		uint32_t IfIndex = (uint32_t)i;
 
 		/* Is this an HID Interface? :> */
 		if (Hc->Ports[Port]->Device->Interfaces[i]->Class == X86_USB_CLASS_HID)
@@ -227,7 +229,7 @@ void UsbDeviceSetup(UsbHc_t *Hc, int Port)
 		if (Hc->Ports[Port]->Device->Interfaces[i]->Class == X86_USB_CLASS_MSD)
 		{
 			/* Registrate us with MSD Manager */
-			//usb_msd_initialise(Hc->Ports[Port]->Device, iface);
+			UsbMsdInit(Hc->Ports[Port]->Device, IfIndex);
 		}
 
 		/* Is this an HUB Interface? :> */
@@ -241,13 +243,65 @@ void UsbDeviceSetup(UsbHc_t *Hc, int Port)
 
 	/* Done */
 	printf("UsbCore: Setup of port %u done!\n", Port);
+	return;
+
+DevError:
+	/* Free Control Endpoint */
+	kfree(Device->CtrlEndpoint);
+
+	/* Free Interfaces */
+	for (i = 0; i < (int)Device->NumInterfaces; i++)
+	{
+		/* Free Endpoints */
+		if (Device->Interfaces[i]->Endpoints != NULL)
+			kfree(Device->Interfaces[i]->Endpoints);
+
+		/* Free the Interface */
+		kfree(Device->Interfaces[i]);
+	}
+
+	/* Free Descriptor Buffer */
+	if (Device->Descriptors != NULL)
+		kfree(Device->Descriptors);
+
+	/* Free base */
+	kfree(Device);
 }
 
+/* Device Disconnected */
 void UsbDeviceDestroy(UsbHc_t *Hc, int Port)
 {
-	/* Destroy device */
-	_CRT_UNUSED(Hc);
-	_CRT_UNUSED(Port);
+	/* Shortcut */
+	UsbHcDevice_t *Device = Hc->Ports[Port]->Device;
+	int i;
+
+	/* Notify Driver */
+	if (Device->Destroy != NULL)
+		Device->Destroy((void*)Device);
+
+	/* Free Interfaces */
+	for (i = 0; i < (int)Device->NumInterfaces; i++)
+	{
+		/* Free Endpoints */
+		if (Device->Interfaces[i]->Endpoints != NULL)
+			kfree(Device->Interfaces[i]->Endpoints);
+
+		/* Free the Interface */
+		kfree(Device->Interfaces[i]);
+	}
+
+	/* Free Descriptor Buffer */
+	if (Device->Descriptors != NULL)
+		kfree(Device->Descriptors);
+
+	/* Free base */
+	kfree(Device);
+
+	/* Update Port */
+	Hc->Ports[Port]->Connected = 0;
+	Hc->Ports[Port]->Enabled = 0;
+	Hc->Ports[Port]->FullSpeed = 0;
+	Hc->Ports[Port]->Device = NULL;
 }
 
 /* Ports */
@@ -260,6 +314,9 @@ UsbHcPort_t *UsbPortCreate(int Port)
 
 	/* Get Port Status */
 	HcPort->Id = Port;
+	HcPort->Connected = 0;
+	HcPort->Device = NULL;
+	HcPort->Enabled = 0;
 
 	/* Done */
 	return HcPort;
@@ -306,6 +363,7 @@ void UsbEventHandler(void *args)
 			case X86_USB_EVENT_DISCONNECTED:
 			{
 				/* Destroy Device */
+				printf("Destroying Port %i\n", Event->Port);
 				UsbDeviceDestroy(Event->Controller, Event->Port);
 
 			} break;

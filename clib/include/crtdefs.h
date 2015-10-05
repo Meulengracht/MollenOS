@@ -34,7 +34,11 @@
 #endif
 
 #ifndef _CRT_EXTERN
+#ifdef _CRT_DYNAMIC
 #define _CRT_EXTERN extern
+#else
+#define _CRT_EXTERN
+#endif
 #endif
 
 #ifndef _W64
