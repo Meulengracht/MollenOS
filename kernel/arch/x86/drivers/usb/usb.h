@@ -31,11 +31,6 @@
 #define X86_USB_CORE_MAX_IF		4
 #define X86_USB_CORE_MAX_EP		16
 
-#define X86_USB_TYPE_OHCI		0
-#define X86_USB_TYPE_UHCI		1
-#define X86_USB_TYPE_EHCI		2
-#define X86_USB_TYPE_XHCI		3
-
 /* Usb Devices Class Codes */
 #define X86_USB_CLASS_IF			0x00	/* Get from Interface */
 #define X86_USB_CLASS_AUDIO			0x01
@@ -71,6 +66,9 @@
 #define X86_USB_REQ_TARGET_INTERFACE	0x1
 #define X86_USB_REQ_TARGET_ENDPOINT		0x2
 #define X86_USB_REQ_TARGET_OTHER		0x3
+
+/* Features */
+#define X86_USB_ENDPOINT_HALT		0x0
 
 /* Packet Request Types */
 #define X86_USB_REQ_GET_STATUS		0x00
@@ -415,12 +413,21 @@ typedef struct _UsbHcDevice
 } UsbHcDevice_t;
 #pragma pack(pop)
 
+/* Transactin Type */
+typedef enum _UsbTransactionType
+{
+	SetupTransaction,
+	InTransaction,
+	OutTransaction
+
+} UsbTransactionType_t;
+
 /* The Abstract Transaction 
  * A request consists of several transactions */
 typedef struct _UsbHcTransaction
 {
 	/* Type */
-	uint32_t Type;
+	UsbTransactionType_t Type;
 
 	/* A Transfer Descriptor Ptr */
 	void *TransferDescriptor;
@@ -439,11 +446,6 @@ typedef struct _UsbHcTransaction
 
 } UsbHcTransaction_t;
 
-/* Types */
-#define X86_USB_TRANSACTION_SETUP	1
-#define X86_USB_TRANSACTION_IN		2
-#define X86_USB_TRANSACTION_OUT		3
-
 /* The Abstract Usb Callback */
 typedef struct _UsbInterruptCallback
 {
@@ -461,11 +463,33 @@ typedef struct _UsbInterruptCallback
 
 } UsbInterruptCallback_t;
 
+/* Transfer Types */
+typedef enum _UsbTransferType
+{
+	ControlTransfer,
+	BulkTransfer,
+	InterruptTransfer,
+	IsochronousTransfer
+
+} UsbTransferType_t;
+
+/* Transfer Status */
+typedef enum _UsbTransferStatus
+{
+	TransferNotProcessed,
+	TransferFinished,
+	TransferStalled,
+	TransferNotResponding,
+	TransferInvalidToggles,
+	TransferInvalidData
+
+} UsbTransferStatus_t;
+
 /* The Abstract Transfer Request */
 typedef struct _UsbHcRequest
 {
 	/* Bulk or Control? */
-	uint32_t Type;
+	UsbTransferType_t Type;
 	uint32_t LowSpeed;
 
 	/* Transfer Specific Information */
@@ -474,9 +498,6 @@ typedef struct _UsbHcRequest
 
 	/* Endpoint */
 	UsbHcEndpoint_t *Endpoint;
-
-	/* Length */
-	uint32_t Length;
 
 	/* Transaction Information */
 	uint32_t TokenBytes;
@@ -495,15 +516,9 @@ typedef struct _UsbHcRequest
 	UsbHcTransaction_t *Transactions;
 
 	/* Is it done? */
-	uint32_t Completed;
+	UsbTransferStatus_t Status;
 
 } UsbHcRequest_t;
-
-/* Type Definitions */
-#define X86_USB_REQUEST_TYPE_CONTROL	0x0
-#define X86_USB_REQUEST_TYPE_BULK		0x1
-#define X86_USB_REQUEST_TYPE_INTERRUPT	0x2
-#define X86_USB_REQUEST_TYPE_ISOCHR		0x3
 
 /* The Abstract Port */
 typedef struct _UsbHcPort
@@ -525,11 +540,21 @@ typedef struct _UsbHcPort
 
 } UsbHcPort_t;
 
+/* Controller Type */
+typedef enum _UsbControllerType
+{
+	OhciController,
+	UhciController,
+	EhciController,
+	XhciController
+
+} UsbControllerType_t;
+
 /* The Abstract Controller */
 typedef struct _UsbHc
 {
 	/* Controller Type */
-	uint32_t Type;
+	UsbControllerType_t Type;
 
 	/* Controller Data */
 	void *Hc;
@@ -554,11 +579,21 @@ typedef struct _UsbHc
 
 } UsbHc_t;
 
+/* Usb Event Types */
+typedef enum _UsbEventType
+{
+	HcdConnectedEvent,
+	HcdDisconnectedEvent,
+	HcdTransferEvent,
+	HcdRootHubEvent
+
+} UsbEventType_t;
+
 /* Usb Event */
 typedef struct _UsbEvent
 {
 	/* Event Type */
-	uint32_t Type;
+	UsbEventType_t Type;
 
 	/* Controller */
 	UsbHc_t *Controller;
@@ -568,21 +603,15 @@ typedef struct _UsbEvent
 
 } UsbEvent_t;
 
-/* Event Types */
-#define X86_USB_EVENT_CONNECTED		0
-#define X86_USB_EVENT_DISCONNECTED	1
-#define X86_USB_EVENT_TRANSFER		2
-#define X86_USB_EVENT_ROOTHUB_CHECK	3
-
 /* Prototypes */
 
 /* Returns an controller ID for used with identification */
-_CRT_EXTERN UsbHc_t *UsbInitController(void *Data, uint32_t Type, uint32_t Ports);
+_CRT_EXTERN UsbHc_t *UsbInitController(void *Data, UsbControllerType_t Type, uint32_t Ports);
 _CRT_EXTERN uint32_t UsbRegisterController(UsbHc_t *Controller);
 
 /* Transfer Utilities */
 _CRT_EXTERN void UsbTransactionInit(UsbHc_t *Hc, UsbHcRequest_t *Request, uint32_t Type,
-								    UsbHcDevice_t *Device, UsbHcEndpoint_t *Endpoint, uint32_t MaxLength);
+								    UsbHcDevice_t *Device, UsbHcEndpoint_t *Endpoint);
 _CRT_EXTERN void UsbTransactionSetup(UsbHc_t *Hc, UsbHcRequest_t *Request, uint32_t PacketSize);
 _CRT_EXTERN void UsbTransactionIn(UsbHc_t *Hc, UsbHcRequest_t *Request, uint32_t Handshake, void *Buffer, uint32_t Length);
 _CRT_EXTERN void UsbTransactionOut(UsbHc_t *Hc, UsbHcRequest_t *Request, uint32_t Handshake, void *Buffer, uint32_t Length);
@@ -590,21 +619,26 @@ _CRT_EXTERN void UsbTransactionSend(UsbHc_t *Hc, UsbHcRequest_t *Request);
 _CRT_EXTERN void UsbTransactionDestroy(UsbHc_t *Hc, UsbHcRequest_t *Request);
 
 /* Functions */
-_CRT_EXTERN int UsbFunctionSetAddress(UsbHc_t *Hc, int Port, uint32_t Address);
-_CRT_EXTERN int UsbFunctionGetDeviceDescriptor(UsbHc_t *Hc, int Port);
-_CRT_EXTERN int UsbFunctionGetConfigDescriptor(UsbHc_t *Hc, int Port);
-_CRT_EXTERN int UsbFunctionSetConfiguration(UsbHc_t *Hc, int Port, uint32_t Configuration);
-_CRT_EXTERN int UsbFunctionGetStringDescriptor(UsbHc_t *Hc, int Port);
-_CRT_EXTERN int UsbFunctionGetDescriptor(UsbHc_t *Hc, int Port, void *Buffer, uint8_t Direction,
+_CRT_EXTERN UsbTransferStatus_t UsbFunctionSetAddress(UsbHc_t *Hc, int Port, uint32_t Address);
+_CRT_EXTERN UsbTransferStatus_t UsbFunctionGetDeviceDescriptor(UsbHc_t *Hc, int Port);
+_CRT_EXTERN UsbTransferStatus_t UsbFunctionGetConfigDescriptor(UsbHc_t *Hc, int Port);
+_CRT_EXTERN UsbTransferStatus_t UsbFunctionSetConfiguration(UsbHc_t *Hc, int Port, uint32_t Configuration);
+_CRT_EXTERN UsbTransferStatus_t UsbFunctionGetStringDescriptor(UsbHc_t *Hc, int Port);
+_CRT_EXTERN UsbTransferStatus_t UsbFunctionGetDescriptor(UsbHc_t *Hc, int Port, void *Buffer, uint8_t Direction,
 											uint8_t DescriptorType, uint8_t SubType, 
 											uint8_t DescriptorIndex, uint16_t DescriptorLength);
+_CRT_EXTERN UsbTransferStatus_t UsbFunctionClearFeature(UsbHc_t *Hc, int Port,
+										uint8_t Target, uint16_t Index, uint16_t Feature);
+_CRT_EXTERN UsbTransferStatus_t UsbFunctionSetFeature(UsbHc_t *Hc, int Port,
+									  uint8_t Target, uint16_t Index, uint16_t Feature);
+
 /* Send packet */
-_CRT_EXTERN int UsbFunctionSendPacket(UsbHc_t *Hc, int Port, void *Buffer, uint8_t RequestType,
+_CRT_EXTERN UsbTransferStatus_t UsbFunctionSendPacket(UsbHc_t *Hc, int Port, void *Buffer, uint8_t RequestType,
 											uint8_t Request, uint8_t ValueHi, uint8_t ValueLo, 
 											uint16_t Index, uint16_t Length);
 
 /* Events */
-_CRT_EXTERN void UsbEventCreate(UsbHc_t *Hc, int Port, uint32_t Type);
+_CRT_EXTERN void UsbEventCreate(UsbHc_t *Hc, int Port, UsbEventType_t Type);
 
 /* Gets */
 _CRT_EXTERN UsbHc_t *UsbGetHcd(uint32_t ControllerId);

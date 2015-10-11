@@ -62,7 +62,7 @@ void UsbCoreInit(void)
 }
 
 /* Registrate an OHCI/UHCI/EHCI/XHCI controller */
-UsbHc_t *UsbInitController(void *Data, uint32_t Type, uint32_t Ports)
+UsbHc_t *UsbInitController(void *Data, UsbControllerType_t Type, uint32_t Ports)
 {
 	UsbHc_t *Controller;
 
@@ -99,7 +99,7 @@ uint32_t UsbRegisterController(UsbHc_t *Controller)
 }
 
 /* Create Event */
-void UsbEventCreate(UsbHc_t *Hc, int Port, uint32_t Type)
+void UsbEventCreate(UsbHc_t *Hc, int Port, UsbEventType_t Type)
 {
 	UsbEvent_t *Event;
 
@@ -166,10 +166,10 @@ void UsbDeviceSetup(UsbHc_t *Hc, int Port)
 		goto DevError;
 
 	/* Set Device Address (Just bind it to the port number + 1 (never set address 0) ) */
-	if (!UsbFunctionSetAddress(Hc, Port, (uint32_t)(Port + 1)))
+	if (UsbFunctionSetAddress(Hc, Port, (uint32_t)(Port + 1)) != TransferFinished)
 	{
 		/* Try again */
-		if (!UsbFunctionSetAddress(Hc, Port, (uint32_t)(Port + 1)))
+		if (UsbFunctionSetAddress(Hc, Port, (uint32_t)(Port + 1)) != TransferFinished)
 		{
 			printf("USB_Handler: (Set_Address) Failed to setup port %u\n", Port);
 			goto DevError;
@@ -180,10 +180,10 @@ void UsbDeviceSetup(UsbHc_t *Hc, int Port)
 	StallMs(2);
 
 	/* Get Device Descriptor */
-	if (!UsbFunctionGetDeviceDescriptor(Hc, Port))
+	if (UsbFunctionGetDeviceDescriptor(Hc, Port) != TransferFinished)
 	{
 		/* Try Again */
-		if (!UsbFunctionGetDeviceDescriptor(Hc, Port))
+		if (UsbFunctionGetDeviceDescriptor(Hc, Port) != TransferFinished)
 		{
 			printf("USB_Handler: (Get_Device_Desc) Failed to setup port %u\n", Port);
 			goto DevError;
@@ -191,10 +191,10 @@ void UsbDeviceSetup(UsbHc_t *Hc, int Port)
 	}
 	
 	/* Get Config Descriptor */
-	if (!UsbFunctionGetConfigDescriptor(Hc, Port))
+	if (UsbFunctionGetConfigDescriptor(Hc, Port) != TransferFinished)
 	{
 		/* Try Again */
-		if (!UsbFunctionGetConfigDescriptor(Hc, Port))
+		if (UsbFunctionGetConfigDescriptor(Hc, Port) != TransferFinished)
 		{
 			printf("USB_Handler: (Get_Config_Desc) Failed to setup port %u\n", Port);
 			goto DevError;
@@ -202,10 +202,10 @@ void UsbDeviceSetup(UsbHc_t *Hc, int Port)
 	}
 
 	/* Set Configuration */
-	if (!UsbFunctionSetConfiguration(Hc, Port, Hc->Ports[Port]->Device->Configuration))
+	if (UsbFunctionSetConfiguration(Hc, Port, Hc->Ports[Port]->Device->Configuration) != TransferFinished)
 	{
 		/* Try Again */
-		if (!UsbFunctionSetConfiguration(Hc, Port, Hc->Ports[Port]->Device->Configuration))
+		if (UsbFunctionSetConfiguration(Hc, Port, Hc->Ports[Port]->Device->Configuration) != TransferFinished)
 		{
 			printf("USB_Handler: (Set_Configuration) Failed to setup port %u\n", Port);
 			goto DevError;
@@ -352,7 +352,7 @@ void UsbEventHandler(void *args)
 		/* Handle Event */
 		switch (Event->Type)
 		{
-			case X86_USB_EVENT_CONNECTED:
+			case HcdConnectedEvent:
 			{
 				/* Setup Device */
 				printf("Setting up Port %i\n", Event->Port);
@@ -360,7 +360,7 @@ void UsbEventHandler(void *args)
 
 			} break;
 
-			case X86_USB_EVENT_DISCONNECTED:
+			case HcdDisconnectedEvent:
 			{
 				/* Destroy Device */
 				printf("Destroying Port %i\n", Event->Port);
@@ -368,7 +368,7 @@ void UsbEventHandler(void *args)
 
 			} break;
 
-			case X86_USB_EVENT_ROOTHUB_CHECK:
+			case HcdRootHubEvent:
 			{
 				/* Check Ports for Activity */
 				Event->Controller->RootHubCheck(Event->Controller->Hc);

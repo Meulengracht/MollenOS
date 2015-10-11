@@ -19,9 +19,7 @@
 * MollenOS X86-32 USB OHCI Controller Driver
 * Todo:
 * Isochronous Support
-* Support multiple td's per interrupt (NumTd = ceil(Size / MaxBytes))
 * Support uninstall of interrupts
-* Cleanup of unplugged ports etc
 * Linux has a periodic timer event that checks if all finished td's has generated a interrupt to make sure
 * Stability (Only tested on emulators and one real hardware pc).
 */
@@ -222,7 +220,7 @@ void OhciPortCheck(OhciController_t *Controller, uint32_t Port)
 				return;
 
 			/* Disconnect */
-			UsbEventCreate(HcCtrl, Port, X86_USB_EVENT_DISCONNECTED);
+			UsbEventCreate(HcCtrl, Port, HcdDisconnectedEvent);
 		}
 
 		/* If Device is enabled, and powered, set it up */
@@ -240,7 +238,7 @@ void OhciPortCheck(OhciController_t *Controller, uint32_t Port)
 			}
 
 			/* Register Device */
-			UsbEventCreate(HcCtrl, Port, X86_USB_EVENT_CONNECTED);
+			UsbEventCreate(HcCtrl, Port, HcdConnectedEvent);
 		}
 	}
 
@@ -728,7 +726,7 @@ void OhciSetup(OhciController_t *Controller)
 #endif
 
 	/* Setup HCD */
-	HcCtrl = UsbInitController((void*)Controller, X86_USB_TYPE_OHCI, Controller->Ports);
+	HcCtrl = UsbInitController((void*)Controller, OhciController, Controller->Ports);
 
 	/* Port Functions */
 	HcCtrl->RootHubCheck = OhciPortsCheck;
@@ -758,7 +756,7 @@ void OhciSetup(OhciController_t *Controller)
 
 		/* Check if Port is connected */
 		if (Controller->Registers->HcRhPortStatus[i] & X86_OHCI_PORT_CONNECTED)
-			UsbEventCreate(UsbGetHcd(Controller->HcdId), p, X86_USB_EVENT_CONNECTED);
+			UsbEventCreate(UsbGetHcd(Controller->HcdId), p, HcdConnectedEvent);
 	}
 
 	/* Now we can enable hub events (and clear interrupts) */
@@ -881,7 +879,7 @@ void OhciReset(OhciController_t *Controller)
 }
 
 /* ED Functions */
-Addr_t OhciAllocateEp(OhciController_t *Controller, uint32_t Type)
+Addr_t OhciAllocateEp(OhciController_t *Controller, UsbTransferType_t Type)
 {
 	Addr_t cIndex = 0;
 	int i;
@@ -890,8 +888,8 @@ Addr_t OhciAllocateEp(OhciController_t *Controller, uint32_t Type)
 	SpinlockAcquire(&Controller->Lock);
 
 	/* Grap it, locked operation */
-	if (Type == X86_USB_REQUEST_TYPE_CONTROL
-		|| Type == X86_USB_REQUEST_TYPE_BULK)
+	if (Type == ControlTransfer
+		|| Type == BulkTransfer)
 	{
 		/* Grap Index */
 		for (i = 0; i < X86_OHCI_POOL_NUM_ED; i++)
@@ -910,8 +908,8 @@ Addr_t OhciAllocateEp(OhciController_t *Controller, uint32_t Type)
 		if (i == 50)
 			kernel_panic("USB_OHCI::WTF RAN OUT OF EDS\n");
 	}
-	else if (Type == X86_USB_REQUEST_TYPE_INTERRUPT
-		|| Type == X86_USB_REQUEST_TYPE_ISOCHR)
+	else if (Type == InterruptTransfer
+		|| Type == IsochronousTransfer)
 	{
 		/* Allocate */
 		Addr_t aSpace = (Addr_t)kmalloc(sizeof(OhciEndpointDescriptor_t) + X86_OHCI_STRUCT_ALIGN);
@@ -927,13 +925,13 @@ Addr_t OhciAllocateEp(OhciController_t *Controller, uint32_t Type)
 	return cIndex;
 }
 
-void OhciEpInit(OhciEndpointDescriptor_t *Ed, UsbHcTransaction_t *FirstTd, uint32_t Type,
+void OhciEpInit(OhciEndpointDescriptor_t *Ed, UsbHcTransaction_t *FirstTd, UsbTransferType_t Type,
 	uint32_t Address, uint32_t Endpoint, uint32_t PacketSize, uint32_t LowSpeed)
 {
 	/* Setup Flags 
 	 * HighSpeed Bulk/Control/Interrupt */
-	if (Type == X86_USB_REQUEST_TYPE_BULK
-		|| Type == X86_USB_REQUEST_TYPE_CONTROL)
+	if (Type == ControlTransfer
+		|| Type == BulkTransfer)
 	{
 		/* Set Head & Tail Td */
 		if ((Addr_t)FirstTd->TransferDescriptor == X86_OHCI_TRANSFER_END_OF_LIST)
@@ -967,18 +965,18 @@ void OhciEpInit(OhciEndpointDescriptor_t *Ed, UsbHcTransaction_t *FirstTd, uint3
 	Ed->Flags |= (Address & X86_OHCI_EP_ADDR_BITS);
 	Ed->Flags |= X86_OHCI_EP_EP_NUM((Endpoint & X86_OHCI_EP_EP_NUM_BITS));
 	Ed->Flags |= X86_OHCI_EP_PID_TD; /* Get PID from Td */
-	Ed->Flags |= X86_OHCI_EP_LOWSPEED(LowSpeed);
+	Ed->Flags |= X86_OHCI_EP_LOWSPEED(LowSpeed); /* Problem!! */
 	Ed->Flags |= X86_OHCI_EP_PACKET_SIZE((PacketSize & X86_OHCI_EP_PACKET_BITS));
-	Ed->Flags |= X86_OHCI_EP_TYPE((Type & 0xF));
+	Ed->Flags |= X86_OHCI_EP_TYPE(((uint32_t)Type & 0xF));
 
 	/* Add for IsoChro */
-	if (Type == X86_USB_REQUEST_TYPE_ISOCHR)
+	if (Type == IsochronousTransfer)
 		Ed->Flags |= X86_OHCI_EP_ISOCHRONOUS;
 }
 
 /* Td Functions 
  * Todo: Iso & Int */
-Addr_t OhciAllocateTd(OhciController_t *Controller, uint32_t Type)
+Addr_t OhciAllocateTd(OhciController_t *Controller, UsbTransferType_t Type)
 {
 	int i;
 	Addr_t cIndex = 0xFFFF;
@@ -988,8 +986,8 @@ Addr_t OhciAllocateTd(OhciController_t *Controller, uint32_t Type)
 	SpinlockAcquire(&Controller->Lock);
 
 	/* Sanity */
-	if (Type == X86_USB_REQUEST_TYPE_CONTROL
-		|| Type == X86_USB_REQUEST_TYPE_BULK)
+	if (Type == ControlTransfer
+		|| Type == BulkTransfer)
 	{
 		/* Grap it, locked operation */
 		for (i = 0; i < X86_OHCI_POOL_NUM_TD; i++)
@@ -1008,7 +1006,7 @@ Addr_t OhciAllocateTd(OhciController_t *Controller, uint32_t Type)
 		if (i == X86_OHCI_POOL_NUM_TD)
 			kernel_panic("USB_OHCI::WTF ran out of TD's!!!!\n");
 	}
-	else if (Type == X86_USB_REQUEST_TYPE_INTERRUPT)
+	else if (Type == InterruptTransfer)
 	{
 		/* Allocate a new */
 		Td = (OhciGTransferDescriptor_t*)OhciAlign(((Addr_t)kmalloc(sizeof(OhciGTransferDescriptor_t) + X86_OHCI_STRUCT_ALIGN)), X86_OHCI_STRUCT_ALIGN_BITS, X86_OHCI_STRUCT_ALIGN);
@@ -1037,7 +1035,7 @@ Addr_t OhciAllocateTd(OhciController_t *Controller, uint32_t Type)
 	return cIndex;
 }
 
-OhciGTransferDescriptor_t *OhciTdSetup(OhciController_t *Controller, uint32_t Type, 
+OhciGTransferDescriptor_t *OhciTdSetup(OhciController_t *Controller, UsbTransferType_t Type,
 	Addr_t NextTD, uint32_t Toggle, uint8_t RequestDirection,
 	uint8_t RequestType, uint8_t RequestValueLo, uint8_t RequestValueHi, uint16_t RequestIndex,
 	uint16_t RequestLength, void **TDBuffer)
@@ -1088,7 +1086,7 @@ OhciGTransferDescriptor_t *OhciTdSetup(OhciController_t *Controller, uint32_t Ty
 	return Td;
 }
 
-OhciGTransferDescriptor_t *OhciTdIo(OhciController_t *Controller, uint32_t Type,
+OhciGTransferDescriptor_t *OhciTdIo(OhciController_t *Controller, UsbTransferType_t Type,
 	Addr_t NextTD, uint32_t Toggle, uint32_t pid, 
 	uint32_t Length, void **TDBuffer)
 {
@@ -1102,15 +1100,14 @@ OhciGTransferDescriptor_t *OhciTdIo(OhciController_t *Controller, uint32_t Type,
 	TDIndex = OhciAllocateTd(Controller, Type);
 
 	/* Sanity */
-	if (Type == X86_USB_REQUEST_TYPE_CONTROL
-		|| Type == X86_USB_REQUEST_TYPE_BULK)
+	if (Type == ControlTransfer || Type == BulkTransfer)
 	{
 		/* Grab a Td and a Buffer */
 		Td = Controller->TDPool[TDIndex];
 		Buffer = Controller->TDPoolBuffers[TDIndex];
 		TdPhys = Controller->TDPoolPhys[TDIndex];
 	}
-	else if (Type == X86_USB_REQUEST_TYPE_INTERRUPT)
+	else if (Type == InterruptTransfer)
 	{
 		/* Cast */
 		Td = (OhciGTransferDescriptor_t*)TDIndex;
@@ -1181,8 +1178,8 @@ void OhciTransactionInit(void *Controller, UsbHcRequest_t *Request)
 	Temp = OhciAllocateEp(Ctrl, Request->Type);
 
 	/* We allocate new ep descriptors for Iso & Int */
-	if (Request->Type == X86_USB_REQUEST_TYPE_CONTROL
-		|| Request->Type == X86_USB_REQUEST_TYPE_BULK)
+	if (Request->Type == ControlTransfer
+		|| Request->Type == BulkTransfer)
 	{
 		Ctrl->EDPool[Temp]->Flags |= X86_OHCI_EP_SKIP;
 		Request->Data = Ctrl->EDPool[Temp];
@@ -1191,7 +1188,7 @@ void OhciTransactionInit(void *Controller, UsbHcRequest_t *Request)
 		Request->Data = (void*)Temp;
 
 	/* Set as not Completed for start */
-	Request->Completed = 0;
+	Request->Status = TransferNotProcessed;
 }
 
 /* This one prepaires an setup Td */
@@ -1306,7 +1303,7 @@ void OhciTransactionSend(void *Controller, UsbHcRequest_t *Request)
 	/* Wuhu */
 	UsbHcTransaction_t *Transaction = Request->Transactions;
 	OhciController_t *Ctrl = (OhciController_t*)Controller;
-	int Completed = 1;
+	UsbTransferStatus_t Completed;
 	OhciGTransferDescriptor_t *Td = NULL;
 	uint32_t CondCode;
 	Addr_t EdAddress;
@@ -1315,14 +1312,19 @@ void OhciTransactionSend(void *Controller, UsbHcRequest_t *Request)
 	EdAddress = MmVirtualGetMapping(NULL, (VirtAddr_t)Request->Data);
 
 	/* Set as not Completed for start */
-	Request->Completed = 0;
+	Request->Status = TransferNotProcessed;
 
 	/* Dont do this for other */
-	if (Request->Type == X86_USB_REQUEST_TYPE_CONTROL
-		|| Request->Type == X86_USB_REQUEST_TYPE_BULK)
+	if (Request->Type == ControlTransfer
+		|| Request->Type == BulkTransfer)
 	{
-		/* Add dummy Td to end */
-		UsbTransactionOut(UsbGetHcd(Ctrl->HcdId), Request, 1, NULL, 0);
+		/* Add dummy Td to end 
+		 * But we have to keep the endpoint toggle */
+		CondCode = Request->Endpoint->Toggle;
+		UsbTransactionOut(UsbGetHcd(Ctrl->HcdId), Request, 
+			(Request->Type == ControlTransfer) ? 1 : 0, NULL, 0);
+		Request->Endpoint->Toggle = CondCode;
+		CondCode = 0;
 	}
 	else
 		((OhciEndpointDescriptor_t*)Request->Data)->HcdData1 = (uint32_t)Request->Callback;
@@ -1349,13 +1351,14 @@ void OhciTransactionSend(void *Controller, UsbHcRequest_t *Request)
 
 	/* Initialize the allocated ED */
 	OhciEpInit(Request->Data, Request->Transactions, Request->Type,
-		Request->Device->Address, Request->Endpoint->Address, Request->Length, Request->LowSpeed);
+		Request->Device->Address, Request->Endpoint->Address, 
+		Request->Endpoint->MaxPacketSize, Request->LowSpeed);
 
 	/* Now lets try the Transaction */
 	SpinlockAcquire(&Ctrl->Lock);
 
 	/* Set true */
-	Completed = 1;
+	Completed = TransferFinished;
 
 	/* Add this Transaction to list */
 	list_append(Ctrl->TransactionList, list_create_node(0, Request->Data));
@@ -1370,7 +1373,7 @@ void OhciTransactionSend(void *Controller, UsbHcRequest_t *Request)
 #endif
 
 	/* Add them to list */
-	if (Request->Type == X86_USB_REQUEST_TYPE_CONTROL)
+	if (Request->Type == ControlTransfer)
 	{
 		if (Ctrl->TransactionsWaitingControl > 0)
 		{
@@ -1406,7 +1409,7 @@ void OhciTransactionSend(void *Controller, UsbHcRequest_t *Request)
 			Ctrl->Registers->HcCommandStatus |= X86_OHCI_CMD_TDACTIVE_CTRL;
 		}
 	}
-	else if (Request->Type == X86_USB_REQUEST_TYPE_BULK)
+	else if (Request->Type == BulkTransfer)
 	{
 		if (Ctrl->TransactionsWaitingBulk > 0)
 		{
@@ -1577,11 +1580,23 @@ void OhciTransactionSend(void *Controller, UsbHcRequest_t *Request)
 #ifdef _OHCI_DIAGNOSTICS_
 		printf("Td Flags 0x%x, Cbp 0x%x, BufferEnd 0x%x, Td Condition Code %u (%s)\n", Td->Flags, Td->Cbp, Td->BufferEnd, CondCode, OhciErrorMessages[CondCode]);
 #endif
-
-		if (CondCode == 0 && Completed == 1)
-			Completed = 1;
+			
+		if (CondCode == 0 && Completed == TransferFinished)
+			Completed = TransferFinished;
 		else
-			Completed = 0;
+		{
+			if (CondCode == 4)
+				Completed = TransferStalled;
+			else if (CondCode == 3)
+				Completed = TransferInvalidToggles;
+			else if (CondCode == 5)
+				Completed = TransferNotResponding;
+			else {
+				printf("OHCI: Error: 0x%x (%s)\n", CondCode, OhciErrorMessages[CondCode]);
+				Completed = TransferInvalidData;
+			}
+			break;
+		}
 
 		Transaction = Transaction->Link;
 	}
@@ -1593,7 +1608,7 @@ void OhciTransactionSend(void *Controller, UsbHcRequest_t *Request)
 #endif
 
 	/* Lets see... */
-	if (Completed)
+	if (Completed == TransferFinished)
 	{
 		/* Build Buffer */
 		Transaction = Request->Transactions;
@@ -1610,10 +1625,10 @@ void OhciTransactionSend(void *Controller, UsbHcRequest_t *Request)
 			/* Next Link */
 			Transaction = Transaction->Link;
 		}
-
-		/* Set as Completed */
-		Request->Completed = 1;
 	}
+	
+	/* Update Status */
+	Request->Status = Completed;
 
 #ifdef _OHCI_DIAGNOSTICS_
 	for (;;);
@@ -1627,8 +1642,8 @@ void OhciTransactionDestroy(void *Controller, UsbHcRequest_t *Request)
 	_CRT_UNUSED(Controller);
 
 	/* Unallocate Ed */
-	if (Request->Type == X86_USB_REQUEST_TYPE_BULK
-		|| Request->Type == X86_USB_REQUEST_TYPE_CONTROL)
+	if (Request->Type == ControlTransfer
+		|| Request->Type == BulkTransfer)
 	{
 		/* Iterate and reset */
 		while (Transaction)
@@ -1745,9 +1760,13 @@ void OhciProcessDoneQueue(OhciController_t *Controller, Addr_t done_head)
 					else
 					{
 						/* Error :/ */
-						OhciGTransferDescriptor_t *Td = (OhciGTransferDescriptor_t*)t_list->TransferDescriptor;
+						OhciGTransferDescriptor_t *Td = 
+							(OhciGTransferDescriptor_t*)t_list->TransferDescriptor;
+						
 						uint32_t CondCode = (Td->Flags & 0xF0000000) >> 28;
-						printf("FAILURE: Td Flags 0x%x, Td Condition Code %u (%s)\n", Td->Flags, CondCode, OhciErrorMessages[CondCode]);
+						printf("FAILURE: Td Flags 0x%x, Td Condition Code %u (%s)\n",
+							Td->Flags, CondCode, OhciErrorMessages[CondCode]);
+						
 						n = 0xBEEFDEAD;
 						break;
 					}
@@ -1932,7 +1951,7 @@ int OhciInterruptHandler(void *data)
 	if (intr_state & X86_OHCI_INTR_ROOT_HUB_EVENT)
 	{
 		/* Port does not matter here */
-		UsbEventCreate(UsbGetHcd(Controller->HcdId), 0, X86_USB_EVENT_ROOTHUB_CHECK);
+		UsbEventCreate(UsbGetHcd(Controller->HcdId), 0, HcdRootHubEvent);
 
 		/* Acknowledge Interrupt */
 		Controller->Registers->HcInterruptStatus = X86_OHCI_INTR_ROOT_HUB_EVENT;

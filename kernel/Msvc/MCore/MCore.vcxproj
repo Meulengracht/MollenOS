@@ -24,7 +24,6 @@
     <ClCompile Include="..\..\System\Userspace\ScancodeSets\ScancodeSet2.c" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\..\Include\Common.h" />
     <ClInclude Include="..\..\Include\DeviceManager.h" />
     <ClInclude Include="..\..\Include\Heap.h" />
     <ClInclude Include="..\..\Include\InputManager.h" />

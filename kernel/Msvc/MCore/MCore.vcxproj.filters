@@ -62,9 +62,6 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\..\Include\Common.h">
-      <Filter>Includes</Filter>
-    </ClInclude>
     <ClInclude Include="..\..\Include\Heap.h">
       <Filter>Includes</Filter>
     </ClInclude>

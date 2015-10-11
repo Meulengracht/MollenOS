@@ -220,5 +220,8 @@
     <ClInclude Include="..\..\Arch\x86\Drivers\Usb\MSD\MsdManager.h">
       <Filter>Drivers\Usb\Msd</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\Arch\x86\Drivers\Usb\Usb.h">
+      <Filter>Drivers\Usb</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>
