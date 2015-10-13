@@ -329,25 +329,25 @@ void *list_get_data_by_id(list_t *list, int id, int n)
 
 /* Go through members and execute a function 
  * on each member matching the given id */
-void list_execute_on_id(list_t *list, void(*func)(void*, int), int id)
+void ListExecuteOnId(list_t *List, void(*Function)(void*, int, void*), int Id, void *UserData)
 {
-	list_node_t *i;
-	int n = 0;
+	list_node_t *Node;
+	int Itr = 0;
 
 	/* Sanity */
-	if (list == NULL || list->head == NULL || list->length == 0)
+	if (List == NULL || List->head == NULL || List->length == 0)
 		return;
 
-	_foreach(i, list)
+	_foreach(Node, List)
 	{
 		/* Check */
-		if (i->identifier == id)
+		if (Node->identifier == Id)
 		{
 			/* Execute */
-			func(i->data, n);
+			Function(Node->data, Itr, UserData);
 
 			/* Increase */
-			n++;
+			Itr++;
 		}
 	}
 }

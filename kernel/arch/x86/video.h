@@ -114,6 +114,8 @@ typedef struct _Terminal
 	uint32_t CursorY;
 
 	/* Cursor Limits */
+	uint32_t CursorStartX;
+	uint32_t CursorStartY;
 	uint32_t CursorLimitX;
 	uint32_t CursorLimitY;
 	
@@ -128,6 +130,6 @@ typedef struct _Terminal
 #pragma pack(pop)
 
 /* Base write */
-_CRT_EXTERN void VideoPutCharAtLocationVesa(int Character, int CursorY, int CursorX);
+_CRT_EXTERN void VideoPutCharAtLocationVesa(int Character, int CursorY, int CursorX, uint32_t FgColor, uint32_t BgColor);
 
 #endif // !_X86_VIDEO_

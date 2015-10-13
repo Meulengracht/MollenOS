@@ -130,5 +130,5 @@ void Ps2KeyboardInit(int Port, int Translation)
 	Response = Ps2ReadData(0);
 
 	/* Create device in upper layer */
-	DmCreateDevice("Ps2-Keyboard", MCORE_DEVICE_TYPE_INPUT, Ps2Dev);
+	DmCreateDevice("Ps2-Keyboard", DeviceInput, Ps2Dev);
 }

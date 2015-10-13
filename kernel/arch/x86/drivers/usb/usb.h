@@ -431,6 +431,7 @@ typedef struct _UsbHcTransaction
 
 	/* A Transfer Descriptor Ptr */
 	void *TransferDescriptor;
+	void *TransferDescriptorCopy;
 
 	/* Transfer Descriptor Buffer */
 	void *TransferBuffer;
@@ -449,14 +450,8 @@ typedef struct _UsbHcTransaction
 /* The Abstract Usb Callback */
 typedef struct _UsbInterruptCallback
 {
-	/* Buffer */
-	void *Buffer;
-
-	/* Byte Count */
-	size_t Bytes;
-
 	/* Callback */
-	void(*Callback)(void*, size_t);
+	void(*Callback)(void*);
 
 	/* Callback arguments */
 	void *Args;

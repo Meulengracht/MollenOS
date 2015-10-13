@@ -27,29 +27,42 @@
 #include <stdint.h>
 
 /* Definitions */
-typedef unsigned int tmid_t;
-typedef void(*timer_handler_t)(void*);
+typedef unsigned int TmId_t;
+typedef void(*TimerHandler_t)(void*);
+
+/* Timer Type */
+typedef enum _MCoreTimerType
+{
+	TimerSingleShot,
+	TimerPeriodic
+} MCoreTimerType_t;
 
 /* Structures */
-typedef struct _mcore_timer
+typedef struct _MCoreTimer
 {
 	/* Callback */
-	timer_handler_t callback;
+	TimerHandler_t Callback;
 
 	/* Argument for callback */
-	void *argument;
+	void *Args;
+
+	/* Type */
+	MCoreTimerType_t Type;
 
 	/* Periode MS */
-	uint32_t ms;
+	uint32_t PeriodicMs;
 
 	/* Counter */
-	volatile int32_t ms_left;
+	volatile int32_t MsLeft;
 
-} timer_t;
+} MCoreTimer_t;
 
 /* Prototypes */
-_CRT_EXTERN tmid_t timers_create_periodic(timer_handler_t callback, void *arg, uint32_t ms);
-_CRT_EXTERN void timers_apply_time(uint32_t ms);
+_CRT_EXTERN TmId_t TimersCreateTimer(TimerHandler_t Callback, 
+	void *Args, MCoreTimerType_t Type, uint32_t Timeout);
+
+/* Should be called by a periodic timer, but only one! */
+_CRT_EXTERN void TimersApplyMs(uint32_t Ms);
 
 #endif // !_MCORE_TIMERS_H_
 

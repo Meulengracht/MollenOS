@@ -76,21 +76,23 @@ void UsbMsdDestroy(void *UsbDevice);
 void UsbMsdReset(MsdDevice_t *Device);
 void UsbMsdGetMaxLUN(MsdDevice_t *Device);
 void UsbMsdReadyDevice(MsdDevice_t *Device);
-void UsbMsdReadCapacity(MsdDevice_t *Device);
+void UsbMsdReadCapacity(MsdDevice_t *Device, MCoreStorageDevice_t *sDevice);
 
 /* In / Out */
 UsbTransferStatus_t UsbMsdSendSCSICommandIn(uint8_t ScsiCommand, MsdDevice_t *Device,
 	uint64_t SectorLBA, void *Buffer, uint32_t DataLength);
+
+/* Read & Write for MSD's */
+int UsbMsdReadSectors(void *DevData, uint64_t SectorLBA, void *Buffer, uint32_t BufferLength);
+int UsbMsdWriteSectors(void *DevData, uint64_t SectorLBA, void *Buffer, uint32_t BufferLength);
 
 /* Initialise Driver for a MSD */
 void UsbMsdInit(UsbHcDevice_t *UsbDevice, uint32_t InterfaceIndex)
 {
 	/* Allocate */
 	MsdDevice_t *DevData = (MsdDevice_t*)kmalloc(sizeof(MsdDevice_t));
+	MCoreStorageDevice_t *StorageData = (MCoreStorageDevice_t*)kmalloc(sizeof(MCoreStorageDevice_t));
 	uint32_t i;
-
-	/* Debug */
-	printf("Msd Device Detected\n");
 
 	/* Sanity */
 	if (UsbDevice->Interfaces[InterfaceIndex]->Subclass == X86_USB_MSD_SUBCLASS_FLOPPY)
@@ -99,15 +101,34 @@ void UsbMsdInit(UsbHcDevice_t *UsbDevice, uint32_t InterfaceIndex)
 		DevData->IsUFI = 0;
 
 	/* Set */
+	StorageData->DiskData = DevData;
+	StorageData->SectorSize = 512;
+	StorageData->SectorCount = 0;
+
+	/* Depends if floppy */
+	if (!DevData->IsUFI)
+	{
+		StorageData->AlignedAccess = 0;
+		StorageData->SectorsPerCylinder = 64;
+	}
+	else
+	{
+		StorageData->AlignedAccess = 1;
+		StorageData->SectorsPerCylinder = 18;
+	}
+
+	/* Set functions */
+	StorageData->Read = UsbMsdReadSectors;
+	StorageData->Write = UsbMsdWriteSectors;
+
 	DevData->UsbDevice = UsbDevice;
 	DevData->Interface = InterfaceIndex;
 	DevData->EpIn = NULL;
 	DevData->EpOut = NULL;
 	DevData->EpInterrupt = NULL;
-	DevData->SectorSize = 512;
 	DevData->LUNCount = 0;
-	DevData->SectorCount = 0; 
 	DevData->IsReady = 0;
+	DevData->SectorSize = 512;
 
 	/* Locate neccessary endpoints */
 	for (i = 0; i < UsbDevice->Interfaces[InterfaceIndex]->NumEndpoints; i++)
@@ -142,7 +163,7 @@ void UsbMsdInit(UsbHcDevice_t *UsbDevice, uint32_t InterfaceIndex)
 
 	/* Save Data */
 	UsbDevice->Destroy = UsbMsdDestroy;
-	UsbDevice->DriverData = (void*)DevData;
+	UsbDevice->DriverData = (void*)StorageData;
 
 	/* Test & Setup Disk */
 
@@ -186,15 +207,15 @@ void UsbMsdInit(UsbHcDevice_t *UsbDevice, uint32_t InterfaceIndex)
 	/* Read Capabilities 10
 	 * If it returns 0xFFFFFFFF 
 	 * Use Read Capabilities 16 */
-	UsbMsdReadCapacity(DevData);
+	UsbMsdReadCapacity(DevData, StorageData);
 
 	/* Debug */
 	printf("MSD SectorCount: 0x%x, SectorSize: 0x%x\n", 
-		(uint32_t)DevData->SectorCount, DevData->SectorSize);
+		(uint32_t)StorageData->SectorCount, StorageData->SectorSize);
 
 	/* Register Us */
 	DevData->DeviceId =
-		DmCreateDevice("Usb Disk Drive", MCORE_DEVICE_TYPE_STORAGE, (void*)DevData);
+		DmCreateDevice("Usb Disk Drive", DeviceStorage, (void*)StorageData);
 }
 
 /* Cleanup */
@@ -202,13 +223,15 @@ void UsbMsdDestroy(void *UsbDevice)
 {
 	/* Cast */
 	UsbHcDevice_t *Dev = (UsbHcDevice_t*)UsbDevice;
-	MsdDevice_t *DevData = (MsdDevice_t*)Dev->DriverData;
+	MCoreStorageDevice_t *StorageData = (MCoreStorageDevice_t*)Dev->DriverData;
+	MsdDevice_t *Device = (MsdDevice_t*)StorageData->DiskData;
 
 	/* Unregister Us */
-	DmDestroyDevice(DevData->DeviceId);
+	DmDestroyDevice(Device->DeviceId);
 	
 	/* Free Data */
-	kfree(DevData);
+	kfree(StorageData);
+	kfree(Device);
 }
 
 /* Msd Specific Requests */
@@ -728,7 +751,7 @@ void UsbMsdReadyDevice(MsdDevice_t *Device)
 	if (ResponseCode >= 0x70 && ResponseCode <= 0x73)
 	{
 		/* Yay ! */
-		printf("Sense Status: %s", SenseKeys[SenseKey]);
+		printf("Sense Status: %s\n", SenseKeys[SenseKey]);
 	}
 	else
 	{
@@ -743,7 +766,7 @@ void UsbMsdReadyDevice(MsdDevice_t *Device)
 }
 
 /* Read Capacity of a device */
-void UsbMsdReadCapacity(MsdDevice_t *Device)
+void UsbMsdReadCapacity(MsdDevice_t *Device, MCoreStorageDevice_t *sDevice)
 {
 	/* Buffer to store data */
 	uint32_t CapBuffer[2];
@@ -766,21 +789,26 @@ void UsbMsdReadCapacity(MsdDevice_t *Device)
 			return;
 
 		/* Reverse Byte Order */
-		Device->SectorCount = rev64(ExtendedCaps.SectorCount) + 1;
-		Device->SectorSize = rev32(ExtendedCaps.SectorSize);
+		sDevice->SectorCount = rev64(ExtendedCaps.SectorCount) + 1;
+		sDevice->SectorSize = rev32(ExtendedCaps.SectorSize);
+		Device->SectorSize = sDevice->SectorSize;
 
 		/* Done */
 		return;
 	}
 
 	/* Reverse Byte Order */
-	Device->SectorCount = (uint64_t)rev32(CapBuffer[0]) + 1;
-	Device->SectorSize = rev32(CapBuffer[1]);
+	sDevice->SectorCount = (uint64_t)rev32(CapBuffer[0]) + 1;
+	sDevice->SectorSize = rev32(CapBuffer[1]);
+	Device->SectorSize = sDevice->SectorSize;
 }
 
 /* Read & Write Sectors */
-int UsbMsdReadSectors(MsdDevice_t *Device, uint64_t SectorLBA, void *Buffer, uint32_t BufferLength)
+int UsbMsdReadSectors(void *DevData, uint64_t SectorLBA, void *Buffer, uint32_t BufferLength)
 {
+	/* Cast */
+	MsdDevice_t *Device = (MsdDevice_t*)DevData;
+
 	/* Store result */
 	UsbTransferStatus_t Result;
 
@@ -794,8 +822,11 @@ int UsbMsdReadSectors(MsdDevice_t *Device, uint64_t SectorLBA, void *Buffer, uin
 		return 0;
 }
 
-int UsbMsdWriteSectors(MsdDevice_t *Device, uint64_t SectorLBA, void *Buffer, uint32_t BufferLength)
+int UsbMsdWriteSectors(void *DevData, uint64_t SectorLBA, void *Buffer, uint32_t BufferLength)
 {
+	/* Cast */
+	MsdDevice_t *Device = (MsdDevice_t*)DevData;
+
 	/* Store result */
 	UsbTransferStatus_t Result;
 

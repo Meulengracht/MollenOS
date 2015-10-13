@@ -69,8 +69,7 @@ typedef struct _OhciEndpointDescriptor
 	uint32_t NextEDVirtual;
 
 	/* HCD Defined Data */
-	uint32_t HcdData;
-	uint32_t HcdData1;
+	uint32_t HcdData[2];
 
 	/* Bit Flags */
 	uint32_t HcdFlags;
@@ -299,26 +298,6 @@ typedef struct _OhciRegisters
 #define X86_OHCI_PORT_OVR_CURRENT_EVENT	(1 << 19)
 #define X86_OHCI_PORT_RESET_EVENT		(1 << 20)
 
-/* Interrupt Transfer Callback Structure */
-typedef struct _OhciPeridoicCallback
-{
-	/* Buffer */
-	void *Buffer;
-
-	/* Byte Count */
-	size_t Bytes;
-
-	/* Callback */
-	void (*Callback)(void*, size_t);
-
-	/* Callback arguments */
-	void *Args;
-
-	/* TD Head */
-	uint32_t TDIndex;
-
-} OhciPeridoicCallback_t;
-
 /* Pool Definitions */
 #define X86_OHCI_POOL_CONTROL_EDS		25
 #define X86_OHCI_POOL_BULK_EDS			49
@@ -372,9 +351,6 @@ typedef struct _OhciController
 	OhciGTransferDescriptor_t *NullTd;
 	Addr_t TDPoolPhys[X86_OHCI_POOL_NUM_TD];
 	Addr_t *TDPoolBuffers[X86_OHCI_POOL_NUM_TD];
-
-	/* Pool Indices */
-	uint32_t TDIndex;
 
 	/* Interrupt Table & List */
 	OhciIntrTable_t *IntrTable;

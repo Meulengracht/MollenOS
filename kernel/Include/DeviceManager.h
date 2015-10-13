@@ -30,11 +30,17 @@
 typedef int DevId_t;
 
 /* Device Types */
-#define MCORE_DEVICE_TYPE_CPU			0x1
-#define MCORE_DEVICE_TYPE_APIC			0x2
-#define MCORE_DEVICE_TYPE_INPUT			0x3
-#define MCORE_DEVICE_TYPE_TIMER			0x4
-#define MCORE_DEVICE_TYPE_STORAGE		0x5
+typedef enum _DeviceType
+{
+	DeviceCpu,
+	DeviceApic,
+	DeviceCmos,
+	DeviceTimer,
+	DeviceInput,
+	DeviceStorage,
+	DeviceVideo
+
+} DeviceType_t;
 
 /* Structures */
 typedef struct _MCoreDevice
@@ -46,7 +52,7 @@ typedef struct _MCoreDevice
 	DevId_t Id;
 
 	/* Type */
-	uint32_t Type;
+	DeviceType_t Type;
 
 	/* Device Data */
 	void *Data;
@@ -56,11 +62,28 @@ typedef struct _MCoreDevice
 
 } MCoreDevice_t;
 
+/* Storage Device */
+typedef struct _MCoreStorageDevice
+{
+	/* Disk Stats */
+	uint64_t SectorCount;
+	uint32_t SectorsPerCylinder;
+	uint32_t AlignedAccess;
+	uint32_t SectorSize;
+
+	/* Disk Data */
+	void *DiskData;
+
+	/* Functions */
+	int (*Read)(void *Data, uint64_t LBA, void *Buffer, uint32_t BufferLength);
+	int (*Write)(void *Data, uint64_t LBA, void *Buffer, uint32_t BufferLength);
+
+} MCoreStorageDevice_t;
 
 /* Prototypes */
 _CRT_EXTERN void DmInit(void);
 
-_CRT_EXTERN DevId_t DmCreateDevice(char *Name, uint32_t Type, void *Data);
+_CRT_EXTERN DevId_t DmCreateDevice(char *Name, DeviceType_t Type, void *Data);
 _CRT_EXTERN void DmDestroyDevice(DevId_t DeviceId);
 
 #endif //_MCORE_DRIVER_MANAGER_H_

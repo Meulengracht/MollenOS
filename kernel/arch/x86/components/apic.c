@@ -190,7 +190,7 @@ int ApicErrorHandler(void *Args)
 }
 
 /* This function redirects a IO Apic */
-void ApicSetupIoApic(void *Data, int n)
+void ApicSetupIoApic(void *Data, int n, void *UserData)
 {
 	/* Cast Data */
 	ACPI_MADT_IO_APIC *ioapic = (ACPI_MADT_IO_APIC*)Data;
@@ -352,7 +352,7 @@ void ApicBspInit(void)
 	if (GlbNumIoApics != 0)
 	{
 		GlbIoApics = list_create(LIST_NORMAL);
-		list_execute_on_id(acpi_nodes, ApicSetupIoApic, ACPI_MADT_TYPE_IO_APIC);
+		ListExecuteOnId(acpi_nodes, ApicSetupIoApic, ACPI_MADT_TYPE_IO_APIC, NULL);
 	}	
 }
 
@@ -573,15 +573,70 @@ void ApicApInit(void)
 }
 
 /* Send APIC Interrupt to a core */
+void ApicSendIpiLoop(void *ApicInfo, int n, void *IrqVector)
+{
+	/* Cast */
+	ACPI_MADT_LOCAL_APIC *Core = (ACPI_MADT_LOCAL_APIC*)ApicInfo;
+
+	uint32_t tVector = *(uint32_t*)IrqVector;
+	uint32_t IpiLow = 0;
+	uint32_t IpiHigh = 0;
+
+	/* Structure of IO Entry Register:
+	* Bits 0 - 7: Interrupt Vector that will be raised (Valid ranges are from 0x10 - 0xFE) - Read/Write
+	* Bits 8 - 10: Delivery Mode. - Read / Write
+	*      - 000: Fixed Delivery, deliver interrupt to all cores listed in destination.
+	*      - 001: Lowest Priority, deliver interrupt to a core running lowest priority.
+	*      - 010: System Management Interrupt, must be edge triggered.
+	*      - 011: Reserved
+	*      - 100: NMI, deliver the interrupt to NMI signal of all cores, must be edge triggered.
+	*      - 101: INIT (Init Core)
+	*      - 110: SIPI (Start-Up)
+	*      - 111: ExtINT, Like fixed, requires edge triggered.
+	* Bit 11: Destination Mode, determines how the destination is interpreted. 0 means
+	*                           phyiscal mode (we use apic id), 1 means logical mode (we use set of processors).
+	* Bit 12: Delivery Status of the interrupt, read only. 0 = IDLE, 1 = Send Pending
+	* Bit 13: Not used
+	* Bit 14: Used for INIT mode aswell (1 = Assert, 0 = Deassert)
+	* Bit 15: Trigger Mode, read / write, 1 = Level sensitive, 0 = Edge sensitive.
+	* Bit 16-17: Reserved
+	* Bits 18-19: Destination Shorthand: 00 - Destination Field, 01 - Self, 10 - All, 11 - All others than self.
+	* Bits 56 - 63: Destination Field, if destination mode is physical, bits 56:59 should contain
+	*                                   an apic id. If it is logical, bits 56:63 defines a set of
+	*                                   processors that is the destination
+	* */
+
+	/* Setup flags
+	* Physical Destination
+	* Fixed Delivery
+	* Edge Sensitive
+	* Active High */
+	IpiLow |= tVector;
+	IpiLow |= (1 << 14);
+
+	/* Setup Destination */
+	IpiHigh |= ((Core->Id << 24));
+
+	/* Write upper 32 bits to ICR1 */
+	ApicWriteLocal(0x310, IpiHigh);
+
+	/* Write lower 32 bits to ICR0 */
+	ApicWriteLocal(0x300, IpiLow);
+}
+
 void ApicSendIpi(uint8_t CpuTarget, uint8_t IrqVector)
 {
 	if (CpuTarget == 0xFF)
 	{
+		uint32_t tVector = (uint32_t)IrqVector;
+
 		/* Broadcast */
+		ListExecuteOnId(acpi_nodes, ApicSendIpiLoop, ACPI_MADT_TYPE_LOCAL_APIC, &tVector);
 	}
 	else
 	{
-		uint64_t int_setup = 0;
+		uint32_t IpiLow = 0;
+		uint32_t IpiHigh = 0;
 
 		/* Structure of IO Entry Register:
 		* Bits 0 - 7: Interrupt Vector that will be raised (Valid ranges are from 0x10 - 0xFE) - Read/Write
@@ -612,16 +667,17 @@ void ApicSendIpi(uint8_t CpuTarget, uint8_t IrqVector)
 		 * Fixed Delivery
 		 * Edge Sensitive
 		 * Active High */
-		int_setup = CpuTarget;
-		int_setup <<= 56;
-		int_setup |= (1 << 14);
-		int_setup |= IrqVector;
+		IpiLow |= IrqVector;
+		IpiLow |= (1 << 14);
+
+		/* Setup Destination */
+		IpiHigh |= ((CpuTarget << 24));
 
 		/* Write upper 32 bits to ICR1 */
-		ApicWriteLocal(0x310, (uint32_t)((int_setup >> 32) & 0xFFFFFFFF));
+		ApicWriteLocal(0x310, IpiHigh);
 
 		/* Write lower 32 bits to ICR0 */
-		ApicWriteLocal(0x300, (uint32_t)(int_setup & 0xFFFFFFFF));
+		ApicWriteLocal(0x300, IpiLow);
 	}
 }
 

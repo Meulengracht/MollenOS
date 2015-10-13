@@ -19,9 +19,6 @@
     <Filter Include="Interrupts">
       <UniqueIdentifier>{11123936-825e-45b2-be98-5fa6e60d0e19}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Memory">
-      <UniqueIdentifier>{8e1fa0a3-90b8-4f07-8fa1-a03aab0134c7}</UniqueIdentifier>
-    </Filter>
     <Filter Include="Threading">
       <UniqueIdentifier>{d5a4e472-8069-4770-86ad-04971f2e9ccb}</UniqueIdentifier>
     </Filter>
@@ -31,9 +28,6 @@
     <Filter Include="Drivers\Usb\Controllers">
       <UniqueIdentifier>{4811c3b9-82db-4592-8068-be8db75a95ee}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Drivers\Usb\Controllers\UHCI">
-      <UniqueIdentifier>{8fbe3912-0905-4210-baf3-170774b84d40}</UniqueIdentifier>
-    </Filter>
     <Filter Include="Drivers\Usb\Controllers\XHCI">
       <UniqueIdentifier>{2efff2a4-618a-4755-9fe2-33e542ffe20a}</UniqueIdentifier>
     </Filter>
@@ -42,12 +36,6 @@
     </Filter>
     <Filter Include="Components\Locks">
       <UniqueIdentifier>{af9ed2db-f31c-4c62-9fd6-d7765903d1b4}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Drivers\Usb\Sata">
-      <UniqueIdentifier>{a73a6be5-2173-4862-bf10-9eb78df4c84e}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Drivers\Usb\HID">
-      <UniqueIdentifier>{6e984708-f491-453e-b086-a4f35f98bf31}</UniqueIdentifier>
     </Filter>
     <Filter Include="Drivers\Timers\Hpet">
       <UniqueIdentifier>{4104b72c-8b5d-4bd2-8c25-0108cd6074b8}</UniqueIdentifier>
@@ -78,6 +66,15 @@
     </Filter>
     <Filter Include="Drivers\Usb\Msd">
       <UniqueIdentifier>{4405698f-3b87-4358-9cf8-c58d6de40e91}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Drivers\Usb\Controllers\Uhci">
+      <UniqueIdentifier>{640232d3-4834-4d5d-a5ae-9a39c65ba196}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Memory">
+      <UniqueIdentifier>{8e1fa0a3-90b8-4f07-8fa1-a03aab0134c7}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Drivers\Usb\Hid">
+      <UniqueIdentifier>{64e692b6-62bc-4b3a-b112-3326fa644254}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>
@@ -222,6 +219,9 @@
     </ClInclude>
     <ClInclude Include="..\..\Arch\x86\Drivers\Usb\Usb.h">
       <Filter>Drivers\Usb</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Arch\x86\Drivers\Usb\Uhci\Uhci.h">
+      <Filter>Drivers\Usb\Controllers\Uhci</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

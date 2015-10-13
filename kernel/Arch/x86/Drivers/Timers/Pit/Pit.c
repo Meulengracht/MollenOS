@@ -40,7 +40,7 @@ int PitIrqHandler(void *Data)
 	GlbPitCounter++;
 
 	/* Apply Timer Time (roughly 1 ms) */
-	timers_apply_time(1);
+	TimersApplyMs(1);
 
 	return X86_IRQ_HANDLED;
 }

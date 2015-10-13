@@ -99,7 +99,7 @@ int HpetTimerHandler(void *Args)
 		GlbHpetCounter++;
 
 		/* Apply time (1ms) */
-		timers_apply_time(1);
+		TimersApplyMs(1);
 
 		/* If we are not periodic restart us */
 		if (Timer->Periodic != 1)

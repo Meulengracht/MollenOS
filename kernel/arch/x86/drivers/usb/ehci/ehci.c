@@ -45,9 +45,11 @@ void EhciInit(PciDevice_t *PciDevice)
 	uint32_t Eecp;
 	volatile uint32_t cmd;
 
-	/* Enable memory io and bus mastering, keep interrupts disabled */
-	uint16_t PciCommand = PciReadWord((const uint16_t)PciDevice->Bus, (const uint16_t)PciDevice->Device, (const uint16_t)PciDevice->Function, 0x4);
-	PciWriteWord((const uint16_t)PciDevice->Bus, (const uint16_t)PciDevice->Device, (const uint16_t)PciDevice->Function, 0x4, (PciCommand & ~(0x400)) | 0x2 | 0x4);
+	/* Enable memory io and bus mastering, remove interrupts disabled */
+	uint16_t PciCommand = PciReadWord((const uint16_t)PciDevice->Bus, (const uint16_t)PciDevice->Device, 
+		(const uint16_t)PciDevice->Function, 0x4);
+	PciWriteWord((const uint16_t)PciDevice->Bus, (const uint16_t)PciDevice->Device, 
+		(const uint16_t)PciDevice->Function, 0x4, (PciCommand & ~(0x400)) | 0x2 | 0x4);
 
 	/* Pci Registers 
 	 * BAR0 - Usb Base Registers 

@@ -233,6 +233,7 @@ _CRT_EXTERN int ThreadingYield(void *Args);
 _CRT_EXTERN TId_t ThreadingGetCurrentThreadId(void);
 _CRT_EXTERN Thread_t *ThreadingGetCurrentThread(Cpu_t cpu);
 _CRT_EXTERN int ThreadingIsCurrentTaskIdle(Cpu_t cpu);
+_CRT_EXTERN void ThreadingWakeCpu(Cpu_t Cpu);
 
 /* Driver Interface */
 _CRT_EXTERN void DriverManagerInit(void *Args);

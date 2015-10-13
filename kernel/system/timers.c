@@ -26,64 +26,84 @@
 #include <list.h>
 
 /* Globals */
-list_t *glb_timers = NULL;
-volatile tmid_t glb_timer_ids = 0;
-volatile uint32_t glb_timers_initialized = 0;
+list_t *GlbTimers = NULL;
+volatile TmId_t GlbTimerIds = 0;
+uint32_t GlbTimersInitialized = 0;
 
 /* Init */
-void timers_init(void)
+void TimersInit(void)
 {
 	/* Create list */
-	glb_timers = list_create(LIST_SAFE);
-	glb_timers_initialized = 0xDEADBEEF;
-	glb_timer_ids = 0;
+	GlbTimers = list_create(LIST_SAFE);
+	GlbTimersInitialized = 1;
+	GlbTimerIds = 0;
 }
 
-tmid_t timers_create_periodic(timer_handler_t callback, void *arg, uint32_t ms)
+TmId_t TimersCreateTimer(TimerHandler_t Callback,
+	void *Args, MCoreTimerType_t Type, uint32_t Timeout)
 {
-	timer_t *timer;
-	tmid_t id;
+	MCoreTimer_t *TimerInfo;
+	TmId_t Id;
 
 	/* Sanity */
-	if (glb_timers_initialized != 0xDEADBEEF)
-		timers_init();
+	if (GlbTimersInitialized != 1)
+		TimersInit();
 
 	/* Allocate */
-	timer = (timer_t*)kmalloc(sizeof(timer_t));
-	timer->callback = callback;
-	timer->argument = arg;
-	timer->ms = ms;
-	timer->ms_left = ms;
+	TimerInfo = (MCoreTimer_t*)kmalloc(sizeof(MCoreTimer_t));
+	TimerInfo->Callback = Callback;
+	TimerInfo->Args = Args;
+	TimerInfo->Type = Type;
+	TimerInfo->PeriodicMs = Timeout;
+	TimerInfo->MsLeft = Timeout;
 
 	/* Append to list */
-	list_append(glb_timers, list_create_node(glb_timer_ids, timer));
+	list_append(GlbTimers, list_create_node(GlbTimerIds, TimerInfo));
 
 	/* Increase */
-	id = glb_timer_ids;
-	glb_timer_ids++;
+	Id = GlbTimerIds;
+	GlbTimerIds++;
 
-	return id;
+	return Id;
 }
 
 /* This should be called by only ONE periodic irq */
-void timers_apply_time(uint32_t ms)
+void TimersApplyMs(uint32_t Ms)
 {
 	list_node_t *i;
 
 	/* Sanity */
-	if (glb_timers_initialized != 0xDEADBEEF)
+	if (GlbTimersInitialized != 1)
 		return;
 
-	_foreach(i, glb_timers)
+	_foreach(i, GlbTimers)
 	{
-		timer_t *timer = (timer_t*)i->data;
-		timer->ms_left -= ms;
+		/* Cast */
+		MCoreTimer_t *Timer = (MCoreTimer_t*)i->data;
+
+		/* Decreament */
+		Timer->MsLeft -= Ms;
 
 		/* Pop timer? */
-		if (timer->ms_left <= 0)
+		if (Timer->MsLeft <= 0)
 		{
-			timer->callback(timer->argument);
-			timer->ms_left = (int32_t)timer->ms;
+			/* Yay! Pop! */
+			Timer->Callback(Timer->Args);
+
+			/* Restart? */
+			if (Timer->Type == TimerPeriodic)
+				Timer->MsLeft = (int32_t)Timer->PeriodicMs;
+			else
+			{
+				/* Remove */
+				list_remove_by_node(GlbTimers, i);
+
+				/* Free timer */
+				kfree(Timer);
+
+				/* Free node */
+				kfree(i);
+			}
 		}
 	}
 }

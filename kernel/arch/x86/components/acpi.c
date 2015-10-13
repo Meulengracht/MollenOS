@@ -655,6 +655,7 @@ void AcpiInitStage2(void)
 	AcpiInstallGlobalEventHandler(AcpiEventHandler, NULL);
 	//AcpiInstallFixedEventHandler(ACPI_EVENT_POWER_BUTTON, acpi_shutdown, NULL);
 	//AcpiInstallFixedEventHandler(ACPI_EVENT_SLEEP_BUTTON, acpi_sleep, NULL);
+	//ACPI_BUTTON_TYPE_LID
 
 	printf("    * Acpica Stage 2 Started\n");
 }

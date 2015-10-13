@@ -135,7 +135,7 @@ void SmpApSetup(void)
 }
 
 /* Initialize a Core */
-void SmpBootCore(void *Data, int n)
+void SmpBootCore(void *Data, int n, void *UserData)
 {
 	/* Get cpu structure */
 	ACPI_MADT_LOCAL_APIC *Core = (ACPI_MADT_LOCAL_APIC*)Data;
@@ -228,5 +228,5 @@ void SmpInit(void)
 	SmpApSetup();
 
 	/* Start each CPU */
-	list_execute_on_id(acpi_nodes, SmpBootCore, ACPI_MADT_TYPE_LOCAL_APIC);
+	ListExecuteOnId(acpi_nodes, SmpBootCore, ACPI_MADT_TYPE_LOCAL_APIC, NULL);
 }

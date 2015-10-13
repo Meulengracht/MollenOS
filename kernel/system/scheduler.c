@@ -157,7 +157,7 @@ void SchedulerReadyThread(list_node_t *Node)
 
 	/* Wakeup CPU if sleeping */
 	if (ThreadingIsCurrentTaskIdle(t->CpuId) != 0)
-		ApicSendIpi((uint8_t)t->CpuId, INTERRUPT_YIELD);
+		ThreadingWakeCpu(t->CpuId);
 }
 
 /* Make a thread enter sleep */

@@ -127,5 +127,5 @@ void Ps2MouseInit(int Port)
 	Response = Ps2ReadData(0);
 
 	/* Create device in upper layer */
-	DmCreateDevice("Ps2-Mouse", MCORE_DEVICE_TYPE_INPUT, Ps2Dev);
+	DmCreateDevice("Ps2-Mouse", DeviceInput, Ps2Dev);
 }

@@ -271,16 +271,11 @@ typedef struct _MsdDevice
 	uint32_t Interface;
 	DevId_t DeviceId; 
 
-	/* Is UFI ? */
+	/* Msd Information */
 	uint32_t IsUFI;
-
-	/* Disk Stats */
 	uint32_t IsReady;
-	uint64_t SectorCount;
-	uint32_t SectorsPerCylinder;
-	uint32_t AlignedAccess;
-	uint32_t SectorSize; 
 	uint32_t LUNCount;
+	uint32_t SectorSize;
 
 	/* Usb Data */
 	UsbHcDevice_t *UsbDevice;
@@ -304,9 +299,5 @@ typedef struct _MsdDevice
 
 /* Initialise Driver for a MSD */
 _CRT_EXTERN void UsbMsdInit(UsbHcDevice_t *UsbDevice, uint32_t InterfaceIndex);
-
-/* Read & Write for MSD's */
-_CRT_EXTERN int UsbMsdReadSectors(MsdDevice_t *Device, uint64_t SectorLBA, void *Buffer, uint32_t BufferLength);
-_CRT_EXTERN int UsbMsdWriteSectors(MsdDevice_t *Device, uint64_t SectorLBA, void *Buffer, uint32_t BufferLength);
 
 #endif // !X86_USB_MSD_H_

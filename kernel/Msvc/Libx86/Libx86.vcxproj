@@ -103,6 +103,7 @@
     <ClInclude Include="..\..\Arch\x86\Drivers\Usb\Ehci\Ehci.h" />
     <ClInclude Include="..\..\Arch\x86\Drivers\Usb\MSD\MsdManager.h" />
     <ClInclude Include="..\..\Arch\x86\Drivers\Usb\Ohci\Ohci.h" />
+    <ClInclude Include="..\..\Arch\x86\Drivers\Usb\Uhci\Uhci.h" />
     <ClInclude Include="..\..\Arch\x86\Drivers\Usb\Usb.h" />
   </ItemGroup>
   <PropertyGroup Label="Globals">

@@ -16,7 +16,7 @@
 * along with this program.If not, see <http://www.gnu.org/licenses/>.
 *
 *
-* MollenOS X86-32 USB OHCI Controller Driver
+* MollenOS X86-32 USB UHCI Controller Driver
 */
 
 #ifndef _X86_USB_UHCI_H_
@@ -25,7 +25,8 @@
 /* Includes */
 #include <crtdefs.h>
 #include <stdint.h>
-#include <pci.h>
+#include <Pci.h>
+#include <Arch.h>
 
 /* Definitions */
 #define X86_UHCI_MAX_PORTS				7
@@ -84,16 +85,18 @@
 #define X86_UHCI_PORT_SUSPEND			0x1000
 
 /* Structures */
+#define X86_UHCI_STRUCT_ALIGN		32
+#define X86_UHCI_STRUCT_ALIGN_BITS	0x1F
 
 /* Must be 16 byte aligned */
-typedef struct _u_transfer_descriptor
+typedef struct _UhciTransferDescriptor
 {
 	/* Link Pointer 
 	 * Bit 0: If set, this field is invalid 
 	 * Bit 1: 1 = QH, 0 = TD.
 	 * Bit 2: 1 = Depth, 0 = Breadth.
 	 * Bit 3: Must be 0 */
-	uint32_t link_ptr;
+	uint32_t LinkPtr;
 
 	/* Control & Status 
 	 * Bit 0-10: Actual Length (Bytes Transfered)
@@ -111,7 +114,7 @@ typedef struct _u_transfer_descriptor
 	 * Bit 27-28: Error Count
 	 * Bit 29: Short Packet Detection
 	 * Bit 30-31: Reserved */
-	uint32_t control;
+	uint32_t Flags;
 
 	/* Packet Header
 	* Bit 0-7: PID. IN (0x69), OUT (E1), SETUP (2D) 
@@ -120,15 +123,15 @@ typedef struct _u_transfer_descriptor
 	* Bit 19: Data Toggle
 	* Bit 20: Reserved
 	* Bit 21-31: Maximum Length */
-	uint32_t header;
+	uint32_t Header;
 
 	/* Buffer Pointer */
-	uint32_t buffer;
+	uint32_t Buffer;
 
 	/* 4 Dwords for software use */
-	uint32_t usable[4];
+	uint32_t Reserved[4];
 
-} uhci_transfer_desc_t;
+} UhciTransferDescriptor_t;
 
 /* Link bit switches */
 #define X86_UHCI_TD_LINK_INVALID		0x1
@@ -155,38 +158,38 @@ typedef struct _u_transfer_descriptor
 #define X86_UHCI_TD_MAX_LEN(n)			((n & 0x7FF) << 21)
 
 /* Queue Head, 16 byte align */
-typedef struct _u_queue_head
+typedef struct _UhciQueueHead
 {
 	/* Queue Head Link Pointer 
 	* Bit 0 - Terminate if set
 	* Bit 1 - 1 = QH, 0 = TD */
-	uint32_t link_ptr;
+	uint32_t HeadPtr;
 
 	/* Queue Element Link Pointer
 	 * Bit 0 - Terminate if set
 	 * Bit 1 - 1 = QH, 0 = TD */
-	uint32_t head_ptr;
+	uint32_t ElementPtr;
 
 	/* Controller Driver Specific 
 	 * Bit 0: If set, this is in use 
 	 * Bit 1-7: Pool Number
 	 * Bit 8-15: Queue Head Index 
 	 * Bit 16-17: Queue Head Type (00 Control, 01 Bulk, 10 Interrupt, 11 Isochronous) */
-	uint32_t flags;
+	uint32_t Flags;
 
 	/* Driver Data */
-	uint32_t hcd_data;
+	uint32_t HcdData;
 
 	/* Virtual Address of next QH */
-	uint32_t link;
+	uint32_t NextHeadVirt;
 
 	/* Virtual Address of TD Head */
-	uint32_t head;
+	uint32_t TdHeadVirt;
 
 	/* Padding */
-	uint32_t padding[2];
+	uint32_t Padding[2];
 
-} uhci_queue_head_t;
+} UhciQueueHead_t;
 
 /* Flag bit switches */
 #define X86_UHCI_QH_ACTIVE				0x1
@@ -208,17 +211,18 @@ typedef struct _u_queue_head
 #define X86_UHCI_POOL_NULL				10
 
 #pragma pack(push, 1)
-typedef struct _u_controller
+/* Controller Structure */
+typedef struct _UhciController
 {
 	/* Id */
-	uint32_t id;
-	uint32_t hcd_id;
+	uint32_t Id;
+	uint32_t HcdId;
 
 	/* Lock */
-	spinlock_t lock;
+	Spinlock_t Lock;
 
 	/* Pci Header */
-	pci_driver_t *pci_info;
+	PciDevice_t *PciDevice;
 
 	/* I/O Registers */
 	uint16_t io_base;
@@ -227,34 +231,30 @@ typedef struct _u_controller
 	uint32_t initialized;
 
 	/* Frame List */
-	void *frame_list;
-	addr_t frame_list_phys;
+	void *FrameList;
+	Addr_t FrameListPhys;
 
 	/* TD Pool */
-	uhci_transfer_desc_t *td_pool[X86_UHCI_POOL_NUM_TD];
-	addr_t td_pool_phys[X86_UHCI_POOL_NUM_TD];
-	addr_t *td_pool_buffers[X86_UHCI_POOL_NUM_TD];
+	UhciTransferDescriptor_t *TdPool[X86_UHCI_POOL_NUM_TD];
+	Addr_t TdPoolPhys[X86_UHCI_POOL_NUM_TD];
+	Addr_t *TdPoolBuffers[X86_UHCI_POOL_NUM_TD];
 
 	/* QH Pool */
-	uhci_queue_head_t *qh_pool[X86_UHCI_POOL_NUM_QH];
-	addr_t qh_pool_phys[X86_UHCI_POOL_NUM_QH];
-
-	/* Pool Indices */
-	uint32_t td_index;
-	uint32_t qh_index;
+	UhciQueueHead_t *QhPool[X86_UHCI_POOL_NUM_QH];
+	Addr_t QhPoolPhys[X86_UHCI_POOL_NUM_QH];
 
 	/* Port Count */
-	uint32_t ports;
+	uint32_t NumPorts;
 
 	/* Transaction List
 	* Contains transactions
 	* in progress */
-	void *transactions_list;
+	void *TransactionList;
 
-} uhci_controller_t;
+} UhciController_t;
 #pragma pack(pop)
 
 /* Prototypes */
-_CRT_EXTERN void uhci_init(pci_driver_t *device);
+_CRT_EXTERN void UhciInit(PciDevice_t *Device);
 
 #endif // !_X86_USB_UHCI_H

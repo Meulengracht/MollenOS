@@ -180,7 +180,6 @@ _irq_common:
 %macro irq_error 1
 	global _irq_handler%1
 	_irq_handler%1:
-		xchg bx, bx
 		push %1
 		jmp _exception_common
 %endmacro

@@ -38,7 +38,7 @@ extern void clear_ts(void);
 
 /* Extern Thread */
 extern Thread_t *threading_get_current_thread(Cpu_t cpu);
-extern Graphics_t gfx_info;
+extern Graphics_t GfxInformation;
 extern Cpu_t get_cpu(void);
 
 void ExceptionsInit(void)
@@ -166,11 +166,6 @@ void ExceptionEntry(Registers_t *regs)
 		/* Convert */
 		itoa(regs->Irq, strArray, 10);
 
-		/* Debug print */
-		VideoPutCharAtLocationVesa((int)strArray[0], 0, (gfx_info.BytesPerScanLine - 16) / 4);
-		VideoPutCharAtLocationVesa((int)strArray[1], 0, (gfx_info.BytesPerScanLine - 12) / 4);
-		VideoPutCharAtLocationVesa((int)strArray[2], 0, (gfx_info.BytesPerScanLine - 8) / 4);
-
 		/* Odd */
 		printf("CR2 Address: 0x%x... Faulty Address: 0x%x\n", __getcr2(), regs->Eip);
 		Idle();
@@ -180,11 +175,6 @@ void ExceptionEntry(Registers_t *regs)
 	{
 		/* Convert */
 		itoa(regs->Irq, strArray, 10);
-
-		/* Debug print */
-		VideoPutCharAtLocationVesa((int)strArray[0], 0, (gfx_info.BytesPerScanLine - 16) / 4);
-		VideoPutCharAtLocationVesa((int)strArray[1], 0, (gfx_info.BytesPerScanLine - 12) / 4);
-		VideoPutCharAtLocationVesa((int)strArray[2], 0, (gfx_info.BytesPerScanLine - 8) / 4);
 
 		printf("Exception Handler! Irq %u, Error Code: %u, Faulty Address: 0x%x\n",
 			regs->Irq, regs->ErrorCode, regs->Eip);

@@ -54,26 +54,26 @@ extern void enter_thread(Registers_t *regs);
 int ThreadingYield(void *Args)
 {
 	/* Get registers */
-	Registers_t *regs = NULL;
-	uint32_t time_slice = 20;
-	uint32_t task_priority = 0;
-	Cpu_t cpu = ApicGetCpu();
+	Registers_t *Regs = NULL;
+	uint32_t TimeSlice = 20;
+	uint32_t TaskPriority = 0;
+	Cpu_t CurrCpu = ApicGetCpu();
 
 	/* Send EOI */
 	ApicSendEoi(0, INTERRUPT_YIELD);
 
 	/* Switch Task */ 
-	regs = (void*)ThreadingSwitch((Registers_t*)Args, 0, &time_slice, &task_priority);
+	Regs = (void*)ThreadingSwitch((Registers_t*)Args, 0, &TimeSlice, &TaskPriority);
 
 	/* If we just got hold of idle task, well fuck it disable timer
 	* untill we get another task */
-	if (!(ThreadingGetCurrentThread(cpu)->Flags & X86_THREAD_IDLE))
+	if (!(ThreadingGetCurrentThread(CurrCpu)->Flags & X86_THREAD_IDLE))
 	{
 		/* Set Task Priority */
-		ApicSetTaskPriority(61 - task_priority);
+		ApicSetTaskPriority(61 - TaskPriority);
 
 		/* Reset Timer Tick */
-		ApicWriteLocal(LAPIC_INITIAL_COUNT, GlbTimerQuantum * time_slice);
+		ApicWriteLocal(LAPIC_INITIAL_COUNT, GlbTimerQuantum * TimeSlice);
 
 		/* Re-enable timer in one-shot mode */
 		ApicWriteLocal(LAPIC_TIMER_VECTOR, INTERRUPT_TIMER);		//0x20000 - Periodic
@@ -85,7 +85,7 @@ int ThreadingYield(void *Args)
 	}
 
 	/* Enter new thread */
-	enter_thread(regs);
+	enter_thread(Regs);
 
 	/* Never reached */
 	return X86_IRQ_HANDLED;
@@ -225,6 +225,22 @@ int ThreadingIsCurrentTaskIdle(Cpu_t cpu)
 		return 1;
 	else
 		return 0;
+}
+
+/* Wake's up CPU */
+void ThreadingWakeCpu(Cpu_t Cpu)
+{
+	/* Are we on this cpu? */
+	if (Cpu == ApicGetCpu())
+	{
+		/* Reset Timer Tick */
+		ApicWriteLocal(LAPIC_INITIAL_COUNT, GlbTimerQuantum);
+
+		/* Re-enable timer in one-shot mode */
+		ApicWriteLocal(LAPIC_TIMER_VECTOR, INTERRUPT_TIMER);
+	}
+	else
+		ApicSendIpi((uint8_t)Cpu, INTERRUPT_YIELD);
 }
 
 /* Marks current thread for sleep */

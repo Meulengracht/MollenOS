@@ -48,7 +48,7 @@ int RtcIrqHandler(void *Data)
 	GlbRtcNsCounter += GlbRtcNsTick;
 
 	/* Apply Timer Time (roughly 1 ms) */
-	timers_apply_time(1);
+	TimersApplyMs(1);
 
 	/* Acknowledge Irq 8 by reading register C */
 	CmosReadRegister(X86_CMOS_REGISTER_STATUS_C);

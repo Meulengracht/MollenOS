@@ -38,7 +38,7 @@ Mutex_t VmMutex;
 
 /* Externs */
 extern volatile uint32_t num_cpus;
-extern Graphics_t gfx_info;
+extern Graphics_t GfxInformation;
 extern SysMemMapping_t SysMappings[32];
 extern void memory_set_paging(int enable);
 extern void memory_load_cr3(Addr_t pda);
@@ -441,8 +441,8 @@ void MmVirtualInit(void)
 
 	/* VIDEO MEMORY (WITH FILL) */
 	printf("      > Mapping video memory to 0x%x\n", MEMORY_LOCATION_VIDEO);
-	MmVirtualIdentityMapMemoryRange(KernelPageDirectory, gfx_info.VideoAddr,
-		MEMORY_LOCATION_VIDEO, (gfx_info.BytesPerScanLine * gfx_info.ResY), 1, PAGE_USER);
+	MmVirtualIdentityMapMemoryRange(KernelPageDirectory, GfxInformation.VideoAddr,
+		MEMORY_LOCATION_VIDEO, (GfxInformation.BytesPerScanLine * GfxInformation.ResY), 1, PAGE_USER);
 
 	/* Now, tricky, map reserved memory regions */
 
@@ -478,7 +478,7 @@ void MmVirtualInit(void)
 	}
 
 	/* Modify Video Address */
-	gfx_info.VideoAddr = MEMORY_LOCATION_VIDEO;
+	GfxInformation.VideoAddr = MEMORY_LOCATION_VIDEO;
 
 	/* Enable paging */
 	MmVirtualSwitchPageDirectory(0, KernelPageDirectory, (Addr_t)KernelPageDirectory);

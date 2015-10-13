@@ -275,6 +275,10 @@ void UsbDeviceDestroy(UsbHc_t *Hc, int Port)
 	UsbHcDevice_t *Device = Hc->Ports[Port]->Device;
 	int i;
 
+	/* Sanity */
+	if (Device == NULL)
+		return;
+
 	/* Notify Driver */
 	if (Device->Destroy != NULL)
 		Device->Destroy((void*)Device);
