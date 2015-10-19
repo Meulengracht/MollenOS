@@ -26,6 +26,9 @@
 #include <Arch.h>
 #include <stdint.h>
 
+/* Definitions */
+#define STD_VIDEO_MEMORY		0xB8000
+
 /* This is the VBE Graphic Information
 * Descriptor which we have setup in
 * the bootloader */
@@ -103,33 +106,7 @@ typedef struct _Graphics
 } Graphics_t;
 #pragma pack(pop)
 
-
-/* The Graphic Terminal structure we save
-* in the kernel. */
-#pragma pack(push, 1)
-typedef struct _Terminal
-{
-	/* Cursor Position */
-	uint32_t CursorX;
-	uint32_t CursorY;
-
-	/* Cursor Limits */
-	uint32_t CursorStartX;
-	uint32_t CursorStartY;
-	uint32_t CursorLimitX;
-	uint32_t CursorLimitY;
-	
-	/* Colors */
-	uint32_t FgColor;
-	uint32_t BgColor;
-
-	/* TTY Spinlock */
-	Spinlock_t Lock;
-
-} TTY_t;
-#pragma pack(pop)
-
-/* Base write */
-_CRT_EXTERN void VideoPutCharAtLocationVesa(int Character, int CursorY, int CursorX, uint32_t FgColor, uint32_t BgColor);
+/* Video */
+_CRT_EXTERN void _VideoSetup(void *VideoInfo, void *BootInfo);
 
 #endif // !_X86_VIDEO_

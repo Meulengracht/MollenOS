@@ -22,7 +22,6 @@
 
 /* Includes */
 #include <Arch.h>
-#include <LApic.h>
 #include <Drivers\Cmos\Cmos.h>
 #include <Timers.h>
 #include <stddef.h>

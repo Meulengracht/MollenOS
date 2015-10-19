@@ -16,13 +16,14 @@
 * along with this program.If not, see <http://www.gnu.org/licenses/>.
 *
 *
-* MollenOS x86-32 ACPI Interface (Uses ACPICA)
+* MollenOS x86 ACPI Interface (Uses ACPICA)
 */
 
 #include <Arch.h>
 #include <assert.h>
 #include <acpi.h>
 #include <stdio.h>
+#include <Apic.h>
 #include <Heap.h>
 #include <List.h>
 
@@ -70,17 +71,11 @@ static OsiSetupEntry_t OsiSetupEntries[OSI_STRING_ENTRIES_MAX] =
 };
 
 /* ACPICA Stuff */
-#define ACPI_MAX_INIT_TABLES 16
-static ACPI_TABLE_DESC TableArray[ACPI_MAX_INIT_TABLES];
 extern void AcpiUtConvertStringToUuid(char*, UINT8*);
 
 /* Global ACPI Information */
 char *sb_uuid_str = "0811B06E-4A27-44F9-8D60-3CBBC22E7B48";
 char *osc_uuid_str = "33DB4D5B-1FF7-401C-9657-7441C03DD766";
-list_t *acpi_nodes = NULL;
-volatile Addr_t local_apic_addr = 0;
-volatile uint32_t num_cpus = 0;
-volatile uint32_t GlbNumIoApics = 0;
 
 /* Fixed Event Handlers */
 UINT32 AcpiShutdownHandler(void *Context)
@@ -109,9 +104,6 @@ UINT32 AcpiShutdownHandler(void *Context)
 
 UINT32 AcpiSleepHandler(void *Context)
 {
-
-
-
 	//AcpiEnterSleepState
 	return AE_OK;
 }
@@ -383,171 +375,9 @@ void AcpiOsiInstall(void)
 	}
 }
 
-/* Enumerate MADT Entries */
-void AcpiEnumarateMADT(void *start, void *end)
-{
-	ACPI_SUBTABLE_HEADER *entry;
-
-	for (entry = (ACPI_SUBTABLE_HEADER*)start; (void *)entry < end;)
-	{
-		/* Avoid an infinite loop if we hit a bogus entry. */
-		if (entry->Length < sizeof(ACPI_SUBTABLE_HEADER))
-			return;
-
-		switch (entry->Type)
-		{
-			/* Processor Core */
-		case ACPI_MADT_TYPE_LOCAL_APIC:
-		{
-			/* Cast to correct structure */
-			ACPI_MADT_LOCAL_APIC *cpu_node = (ACPI_MADT_LOCAL_APIC*)kmalloc(sizeof(ACPI_MADT_LOCAL_APIC));
-			ACPI_MADT_LOCAL_APIC *cpu = (ACPI_MADT_LOCAL_APIC*)entry;
-
-			/* Now we have it allocated aswell, copy info */
-			memcpy(cpu_node, cpu, sizeof(ACPI_MADT_LOCAL_APIC));
-
-			/* Insert it into list */
-			list_append(acpi_nodes, list_create_node(ACPI_MADT_TYPE_LOCAL_APIC, cpu_node));
-
-			printf("      > Found CPU: %u (Flags 0x%x)\n", cpu->Id, cpu->LapicFlags);
-
-			/* Increase CPU count */
-			num_cpus++;
-
-		} break;
-
-		/* IO Apic */
-		case ACPI_MADT_TYPE_IO_APIC:
-		{
-			/* Cast to correct structure */
-			ACPI_MADT_IO_APIC *apic_node = (ACPI_MADT_IO_APIC*)kmalloc(sizeof(ACPI_MADT_IO_APIC));
-			ACPI_MADT_IO_APIC *apic = (ACPI_MADT_IO_APIC*)entry;
-
-			/* Now we have it allocated aswell, copy info */
-			memcpy(apic_node, apic, sizeof(ACPI_MADT_IO_APIC));
-
-			/* Insert it into list */
-			list_append(acpi_nodes, list_create_node(ACPI_MADT_TYPE_IO_APIC, apic_node));
-
-			printf("      > Found IO-APIC: %u\n", apic->Id);
-
-			/* Increase Count */
-			GlbNumIoApics++;
-
-		} break;
-
-		/* Interrupt Overrides */
-		case ACPI_MADT_TYPE_INTERRUPT_OVERRIDE:
-		{
-			/* Cast to correct structure */
-			ACPI_MADT_INTERRUPT_OVERRIDE *io_node = (ACPI_MADT_INTERRUPT_OVERRIDE*)kmalloc(sizeof(ACPI_MADT_INTERRUPT_OVERRIDE));
-			ACPI_MADT_INTERRUPT_OVERRIDE *io_override = (ACPI_MADT_INTERRUPT_OVERRIDE*)entry;
-
-			/* Now we have it allocated aswell, copy info */
-			memcpy(io_node, io_override, sizeof(ACPI_MADT_INTERRUPT_OVERRIDE));
-
-			/* Insert it into list */
-			list_append(acpi_nodes, list_create_node(ACPI_MADT_TYPE_INTERRUPT_OVERRIDE, io_node));
-
-			printf("      > Found Interrupt Override: %u -> %u\n", io_override->SourceIrq, io_override->GlobalIrq);
-
-		} break;
-
-		/* Local APIC NMI Configuration */
-		case ACPI_MADT_TYPE_LOCAL_APIC_NMI:
-		{
-			/* Cast to correct structure */
-			ACPI_MADT_LOCAL_APIC_NMI *nmi_apic = (ACPI_MADT_LOCAL_APIC_NMI*)kmalloc(sizeof(ACPI_MADT_LOCAL_APIC_NMI));
-			ACPI_MADT_LOCAL_APIC_NMI *nmi_override = (ACPI_MADT_LOCAL_APIC_NMI*)entry;
-
-			/* Now we have it allocated aswell, copy info */
-			memcpy(nmi_apic, nmi_override, sizeof(ACPI_MADT_LOCAL_APIC_NMI));
-
-			/* Insert it into list */
-			list_append(acpi_nodes, list_create_node(ACPI_MADT_TYPE_LOCAL_APIC_NMI, nmi_apic));
-
-			printf("      > Found Local APIC NMI: LintN %u connected to CPU %u\n", nmi_override->Lint, nmi_override->ProcessorId);
-
-			/* Install */
-			if (nmi_override->ProcessorId == 0xFF)
-			{
-				/* Broadcast */
-			}
-			else
-			{
-				/* Set core LVT */
-			}
-
-		} break;
-
-		default:
-			printf("      > Found Type %u\n", entry->Type);
-			break;
-		}
-
-		/* Next */
-		entry = (ACPI_SUBTABLE_HEADER*)ACPI_ADD_PTR(ACPI_SUBTABLE_HEADER, entry, entry->Length);
-	}
-}
-
-/* Initializes Early Access 
- * and enumerates the APIC */
-void AcpiInitStage1(void)
-{
-	/* Vars */
-	ACPI_TABLE_MADT *madt = NULL;
-	ACPI_TABLE_HEADER *header = NULL;
-	ACPI_STATUS Status = 0;
-
-	/* Early Table Access */
-	Status = AcpiInitializeTables((ACPI_TABLE_DESC*)&TableArray, ACPI_MAX_INIT_TABLES, TRUE);
-
-	/* Sanity */
-	if (ACPI_FAILURE(Status))
-	{
-		printf("    * FAILED, %u!\n", Status);
-		for (;;);
-	}
-	
-	/* Debug */
-	printf("    * Acpica Stage 1 Started\n");
-
-	/* Get the table */
-	if (ACPI_FAILURE(AcpiGetTable(ACPI_SIG_MADT, 0, &header)))
-	{
-		/* Damn :( */
-		printf("    * APIC / ACPI FAILURE, APIC TABLE DOES NOT EXIST!\n");
-
-		/* Stall */
-		for (;;);
-	}
-
-	/* Cast */
-	madt = (ACPI_TABLE_MADT*)header;
-	
-	/* Create the list */
-	acpi_nodes = list_create(LIST_NORMAL);
-
-	/* Get Local Apic Address */
-	local_apic_addr = madt->Address;
-	num_cpus = 0;
-	GlbNumIoApics = 0;
-
-	/* Identity map it in */
-	if (!MmVirtualGetMapping(NULL, local_apic_addr))
-		MmVirtualMap(NULL, local_apic_addr, local_apic_addr, 0x10);
-
-	/* Enumerate MADT */
-	AcpiEnumarateMADT((void*)((Addr_t)madt + sizeof(ACPI_TABLE_MADT)), (void*)((Addr_t)madt + madt->Header.Length));
-
-	/* Enumerate SRAT */
-
-	/* Enumerate ECDT */
-}
-
 /* Initializes FULL access 
  * across ACPICA */
-void AcpiInitStage2(void)
+void AcpiSetupFull(void)
 {
 	ACPI_STATUS Status;
 	ACPI_OBJECT arg1;

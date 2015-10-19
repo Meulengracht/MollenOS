@@ -188,7 +188,7 @@ int MmSysMappingsContain(Addr_t Base, int Type)
 }
 
 /* Initialises the physical memory bitmap */
-OsStatus_t MmPhyiscalInit(void *BootInfo, uint32_t KernelSize)
+void MmPhyiscalInit(void *BootInfo, uint32_t KernelSize)
 {
 	/* Step 1. Set location of memory bitmap at 2mb */
 	Multiboot_t *mboot = (Multiboot_t*)BootInfo;
@@ -272,9 +272,6 @@ OsStatus_t MmPhyiscalInit(void *BootInfo, uint32_t KernelSize)
 
 	printf("      > Bitmap size: %u Bytes\n", MemoryBitmapSize);
 	printf("      > Memory in use %u Bytes\n", MemoryBlocksUsed * PAGE_SIZE);
-
-	/* Done */
-	return OS_STATUS_OK;
 }
 
 void MmPhysicalFreeBlock(PhysAddr_t Addr)

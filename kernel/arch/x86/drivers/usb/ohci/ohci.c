@@ -25,7 +25,6 @@
 
 /* Includes */
 #include <Arch.h>
-#include <LApic.h>
 #include <assert.h>
 #include <Memory.h>
 #include <Scheduler.h>
@@ -1717,7 +1716,7 @@ void OhciTransactionDestroy(void *Controller, UsbHcRequest_t *Request)
 		else if (Period == 16)
 			IEd = &Ctrl->IntrTable->Ms16[0];
 		else
-			IEd = &Ctrl->ED32[0];
+			IEd = Ctrl->ED32[0];
 
 		/* Iterate */
 		PrevIEd = NULL;

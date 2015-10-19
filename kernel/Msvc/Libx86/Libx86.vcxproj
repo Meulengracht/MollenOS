@@ -19,35 +19,7 @@
       <Command Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">nasm -f win32 -Xvc -o $(IntDir)\%(Filename).obj %(FullPath)</Command>
       <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">$(IntDir)\%(Filename).obj</Outputs>
     </CustomBuild>
-    <CustomBuild Include="..\..\Arch\x86\Components\Descriptors.asm">
-      <FileType>Document</FileType>
-      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">nasm -f win32 -Xvc -o $(IntDir)\%(Filename).obj %(FullPath)</Command>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">$(IntDir)\%(Filename).obj</Outputs>
-      <Command Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">nasm -f win32 -Xvc -o $(IntDir)\%(Filename).obj %(FullPath)</Command>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">$(IntDir)\%(Filename).obj</Outputs>
-    </CustomBuild>
-    <CustomBuild Include="..\..\Arch\x86\Components\Irq.asm">
-      <FileType>Document</FileType>
-      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">nasm -f win32 -Xvc -o $(IntDir)\%(Filename).obj %(FullPath)</Command>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">$(IntDir)\%(Filename).obj</Outputs>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">$(IntDir)\%(Filename).obj</Outputs>
-      <Command Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">nasm -f win32 -Xvc -o $(IntDir)\%(Filename).obj %(FullPath)</Command>
-    </CustomBuild>
     <CustomBuild Include="..\..\Arch\x86\Components\Portio.asm">
-      <FileType>Document</FileType>
-      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">nasm -f win32 -Xvc -o $(IntDir)\%(Filename).obj %(FullPath)</Command>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">$(IntDir)\%(Filename).obj</Outputs>
-      <Command Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">nasm -f win32 -Xvc -o $(IntDir)\%(Filename).obj %(FullPath)</Command>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">$(IntDir)\%(Filename).obj</Outputs>
-    </CustomBuild>
-    <CustomBuild Include="..\..\Arch\x86\Components\_Spinlock.asm">
-      <FileType>Document</FileType>
-      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">nasm -f win32 -Xvc -o $(IntDir)\%(Filename).obj %(FullPath)</Command>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">$(IntDir)\%(Filename).obj</Outputs>
-      <Command Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">nasm -f win32 -Xvc -o $(IntDir)\%(Filename).obj %(FullPath)</Command>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">$(IntDir)\%(Filename).obj</Outputs>
-    </CustomBuild>
-    <CustomBuild Include="..\..\Arch\x86\Components\Threading.asm">
       <FileType>Document</FileType>
       <Command Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">nasm -f win32 -Xvc -o $(IntDir)\%(Filename).obj %(FullPath)</Command>
       <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">$(IntDir)\%(Filename).obj</Outputs>
@@ -63,29 +35,32 @@
     </CustomBuild>
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="..\..\Arch\x86\Acpi\Acpi.c" />
+    <ClCompile Include="..\..\Arch\x86\Acpi\AcpiEnumerate.c" />
     <ClCompile Include="..\..\Arch\x86\Drivers\Ps2\Keyboard\Ps2Keyboard.c" />
     <ClCompile Include="..\..\Arch\x86\Drivers\Ps2\Mouse\Ps2Mouse.c" />
     <ClCompile Include="..\..\Arch\x86\Drivers\Ps2\Ps2.c" />
     <ClCompile Include="..\..\Arch\x86\Drivers\Timers\Pit\Pit.c" />
     <ClCompile Include="..\..\Arch\x86\Drivers\Usb\Ehci\Ehci.c" />
+    <ClCompile Include="..\..\Arch\x86\Drivers\Usb\Hid\HidManager.c" />
     <ClCompile Include="..\..\Arch\x86\Drivers\Usb\Msd\MsdManager.c" />
     <ClCompile Include="..\..\Arch\x86\Drivers\Usb\Ohci\Ohci.c" />
     <ClCompile Include="..\..\Arch\x86\Drivers\Usb\UsbCore.c" />
     <ClCompile Include="..\..\Arch\x86\Drivers\Usb\UsbFunctions.c" />
+    <ClCompile Include="..\..\Arch\x86\Interrupts\ApicHandlers.c" />
+    <ClCompile Include="..\..\Arch\x86\Interrupts\ApicHelpers.c" />
+    <ClCompile Include="..\..\Arch\x86\Interrupts\ApicInit.c" />
+    <ClCompile Include="..\..\Arch\x86\Interrupts\ApicIo.c" />
+    <ClCompile Include="..\..\Arch\x86\Interrupts\IntExceptions.c" />
+    <ClCompile Include="..\..\Arch\x86\Interrupts\IntFunctions.c" />
+    <ClCompile Include="..\..\Arch\x86\Interrupts\IntInit.c" />
+    <ClCompile Include="..\..\Arch\x86\Interrupts\Pic.c" />
     <ClCompile Include="..\..\Arch\x86\x32\Boot\Smp.c" />
     <ClCompile Include="..\..\Arch\x86\Init\Cpu.c" />
     <ClCompile Include="..\..\Arch\x86\Init\Main.c" />
-    <ClCompile Include="..\..\Arch\x86\Components\Acpi.c" />
-    <ClCompile Include="..\..\Arch\x86\Components\Apic.c" />
-    <ClCompile Include="..\..\Arch\x86\Components\Context.c" />
-    <ClCompile Include="..\..\Arch\x86\Components\Exceptions.c" />
-    <ClCompile Include="..\..\Arch\x86\Components\Gdt.c" />
-    <ClCompile Include="..\..\Arch\x86\Components\Idt.c" />
-    <ClCompile Include="..\..\Arch\x86\Components\Interrupts.c" />
     <ClCompile Include="..\..\Arch\x86\Components\Spinlock.c" />
     <ClCompile Include="..\..\Arch\x86\Components\Thread.c" />
     <ClCompile Include="..\..\Arch\x86\Components\Video.c" />
-    <ClCompile Include="..\..\Arch\x86\Components\VideoFont8x16.c" />
     <ClCompile Include="..\..\Arch\x86\Drivers\Cmos\Cmos.c" />
     <ClCompile Include="..\..\Arch\x86\Drivers\Cmos\Rtc.c" />
     <ClCompile Include="..\..\Arch\x86\Drivers\DriverManager.c" />
@@ -93,18 +68,56 @@
     <ClCompile Include="..\..\Arch\x86\Drivers\DriverStrings.c" />
     <ClCompile Include="..\..\Arch\x86\Drivers\Timers\Hpet\Hpet.c" />
     <ClCompile Include="..\..\Arch\x86\Drivers\Timers\TimerManager.c" />
+    <ClCompile Include="..\..\Arch\x86\x32\Context.c" />
+    <ClCompile Include="..\..\Arch\x86\x32\Gdt.c" />
+    <ClCompile Include="..\..\Arch\x86\x32\Idt.c" />
     <ClCompile Include="..\..\Arch\x86\x32\Memory\MmPhysical.c" />
     <ClCompile Include="..\..\Arch\x86\x32\Memory\MmVirtual.c" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="..\..\Arch\x86\Apic.h" />
+    <ClInclude Include="..\..\Arch\x86\Cpu.h" />
     <ClInclude Include="..\..\Arch\x86\Drivers\Ps2\Keyboard\Ps2Keyboard.h" />
     <ClInclude Include="..\..\Arch\x86\Drivers\Ps2\Mouse\Ps2Mouse.h" />
     <ClInclude Include="..\..\Arch\x86\Drivers\Ps2\Ps2.h" />
     <ClInclude Include="..\..\Arch\x86\Drivers\Usb\Ehci\Ehci.h" />
+    <ClInclude Include="..\..\Arch\x86\Drivers\Usb\HID\HidManager.h" />
     <ClInclude Include="..\..\Arch\x86\Drivers\Usb\MSD\MsdManager.h" />
     <ClInclude Include="..\..\Arch\x86\Drivers\Usb\Ohci\Ohci.h" />
     <ClInclude Include="..\..\Arch\x86\Drivers\Usb\Uhci\Uhci.h" />
     <ClInclude Include="..\..\Arch\x86\Drivers\Usb\Usb.h" />
+    <ClInclude Include="..\..\Arch\x86\Exceptions.h" />
+    <ClInclude Include="..\..\Arch\x86\Gdt.h" />
+    <ClInclude Include="..\..\Arch\x86\Interrupts.h" />
+    <ClInclude Include="..\..\Arch\x86\Memory.h" />
+    <ClInclude Include="..\..\Arch\x86\Multiboot.h" />
+    <ClInclude Include="..\..\Arch\x86\Pci.h" />
+    <ClInclude Include="..\..\Arch\x86\Pic.h" />
+    <ClInclude Include="..\..\Arch\x86\SysTimers.h" />
+    <ClInclude Include="..\..\Arch\x86\Thread.h" />
+    <ClInclude Include="..\..\Arch\x86\Video.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <CustomBuild Include="..\..\Arch\x86\x32\Descriptors.asm">
+      <FileType>Document</FileType>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">nasm -f win32 -Xvc -o $(IntDir)\%(Filename).obj %(FullPath)</Command>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">$(IntDir)\%(Filename).obj</Outputs>
+    </CustomBuild>
+    <CustomBuild Include="..\..\Arch\x86\x32\Irq.asm">
+      <FileType>Document</FileType>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">$(IntDir)\%(Filename).obj</Outputs>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">nasm -f win32 -Xvc -o $(IntDir)\%(Filename).obj %(FullPath)</Command>
+    </CustomBuild>
+    <CustomBuild Include="..\..\Arch\x86\x32\Threading.asm">
+      <FileType>Document</FileType>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">nasm -f win32 -Xvc -o $(IntDir)\%(Filename).obj %(FullPath)</Command>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">$(IntDir)\%(Filename).obj</Outputs>
+    </CustomBuild>
+    <CustomBuild Include="..\..\Arch\x86\x32\_Spinlock.asm">
+      <FileType>Document</FileType>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">nasm -f win32 -Xvc -o $(IntDir)\%(Filename).obj %(FullPath)</Command>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">$(IntDir)\%(Filename).obj</Outputs>
+    </CustomBuild>
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <ProjectGuid>{17145F88-DAEA-496B-A91F-2A78ED5673CC}</ProjectGuid>

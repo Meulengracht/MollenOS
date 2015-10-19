@@ -10,17 +10,8 @@
     <Filter Include="Drivers">
       <UniqueIdentifier>{43b531be-c840-4806-b4eb-48a5eb504b2f}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Components\Video">
-      <UniqueIdentifier>{24aa07f6-b326-490c-8a3c-bb076f36be3b}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Components\Descriptors">
-      <UniqueIdentifier>{4ca598f1-0554-4331-be1b-6c43e545d43a}</UniqueIdentifier>
-    </Filter>
     <Filter Include="Interrupts">
       <UniqueIdentifier>{11123936-825e-45b2-be98-5fa6e60d0e19}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Threading">
-      <UniqueIdentifier>{d5a4e472-8069-4770-86ad-04971f2e9ccb}</UniqueIdentifier>
     </Filter>
     <Filter Include="Drivers\Usb">
       <UniqueIdentifier>{7aac0147-c0dc-4843-86d7-c798578a964c}</UniqueIdentifier>
@@ -33,9 +24,6 @@
     </Filter>
     <Filter Include="Drivers\Timers">
       <UniqueIdentifier>{6e3df768-4732-455d-9fc8-43db57acd982}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Components\Locks">
-      <UniqueIdentifier>{af9ed2db-f31c-4c62-9fd6-d7765903d1b4}</UniqueIdentifier>
     </Filter>
     <Filter Include="Drivers\Timers\Hpet">
       <UniqueIdentifier>{4104b72c-8b5d-4bd2-8c25-0108cd6074b8}</UniqueIdentifier>
@@ -64,64 +52,46 @@
     <Filter Include="Drivers\Ps2\Keyboard">
       <UniqueIdentifier>{b706c61e-e16f-4955-9a7b-0add6a719a74}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Drivers\Usb\Msd">
-      <UniqueIdentifier>{4405698f-3b87-4358-9cf8-c58d6de40e91}</UniqueIdentifier>
-    </Filter>
     <Filter Include="Drivers\Usb\Controllers\Uhci">
       <UniqueIdentifier>{640232d3-4834-4d5d-a5ae-9a39c65ba196}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Memory">
-      <UniqueIdentifier>{8e1fa0a3-90b8-4f07-8fa1-a03aab0134c7}</UniqueIdentifier>
     </Filter>
     <Filter Include="Drivers\Usb\Hid">
       <UniqueIdentifier>{64e692b6-62bc-4b3a-b112-3326fa644254}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Drivers\Usb\Msd">
+      <UniqueIdentifier>{4405698f-3b87-4358-9cf8-c58d6de40e91}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="x32">
+      <UniqueIdentifier>{095c5231-400d-4c13-a6e8-2acb28c7ebcc}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="x64">
+      <UniqueIdentifier>{b58340b2-5ac6-4e01-a82a-8469c99fe286}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="x32\Memory">
+      <UniqueIdentifier>{8e1fa0a3-90b8-4f07-8fa1-a03aab0134c7}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="x32\Descriptors">
+      <UniqueIdentifier>{4ca598f1-0554-4331-be1b-6c43e545d43a}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="x32\Threading">
+      <UniqueIdentifier>{d5a4e472-8069-4770-86ad-04971f2e9ccb}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Includes">
+      <UniqueIdentifier>{df810496-32c7-4a8d-bc69-2434fc3c44bd}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Acpi">
+      <UniqueIdentifier>{9f0e9a9c-a460-430d-b158-8c383914884f}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="..\..\Arch\x86\Components\Video.c">
-      <Filter>Components\Video</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\Arch\x86\Components\VideoFont8x16.c">
-      <Filter>Components\Video</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\Arch\x86\x32\Memory\MmPhysical.c">
-      <Filter>Memory</Filter>
+      <Filter>x32\Memory</Filter>
     </ClCompile>
     <ClCompile Include="..\..\Arch\x86\x32\Memory\MmVirtual.c">
-      <Filter>Memory</Filter>
+      <Filter>x32\Memory</Filter>
     </ClCompile>
     <ClCompile Include="..\..\Arch\x86\Init\Main.c">
       <Filter>Startup</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\Arch\x86\Components\Gdt.c">
-      <Filter>Components\Descriptors</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\Arch\x86\Components\Idt.c">
-      <Filter>Components\Descriptors</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\Arch\x86\Init\Cpu.c">
-      <Filter>Components</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\Arch\x86\Components\Spinlock.c">
-      <Filter>Components\Locks</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\Arch\x86\Components\Exceptions.c">
-      <Filter>Interrupts</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\Arch\x86\Components\Interrupts.c">
-      <Filter>Interrupts</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\Arch\x86\Components\Acpi.c">
-      <Filter>Components</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\Arch\x86\Components\Apic.c">
-      <Filter>Components</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\Arch\x86\Components\Thread.c">
-      <Filter>Threading</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\Arch\x86\Components\Context.c">
-      <Filter>Threading</Filter>
     </ClCompile>
     <ClCompile Include="..\..\Arch\x86\x32\Boot\Smp.c">
       <Filter>Components</Filter>
@@ -174,28 +144,82 @@
     <ClCompile Include="..\..\Arch\x86\Drivers\Usb\Msd\MsdManager.c">
       <Filter>Drivers\Usb\Msd</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\Arch\x86\Drivers\Usb\Hid\HidManager.c">
+      <Filter>Drivers\Usb\Hid</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Arch\x86\Components\Video.c">
+      <Filter>Components</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Arch\x86\Init\Cpu.c">
+      <Filter>Components</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Arch\x86\Components\Spinlock.c">
+      <Filter>Components</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Arch\x86\Components\Thread.c">
+      <Filter>Components</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Arch\x86\x32\Gdt.c">
+      <Filter>x32\Descriptors</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Arch\x86\x32\Idt.c">
+      <Filter>x32\Descriptors</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Arch\x86\x32\Context.c">
+      <Filter>x32\Threading</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Arch\x86\Interrupts\IntExceptions.c">
+      <Filter>Interrupts</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Arch\x86\Interrupts\IntFunctions.c">
+      <Filter>Interrupts</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Arch\x86\Interrupts\IntInit.c">
+      <Filter>Interrupts</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Arch\x86\Interrupts\Pic.c">
+      <Filter>Interrupts</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Arch\x86\Interrupts\ApicIo.c">
+      <Filter>Interrupts</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Arch\x86\Interrupts\ApicHelpers.c">
+      <Filter>Interrupts</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Arch\x86\Interrupts\ApicInit.c">
+      <Filter>Interrupts</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Arch\x86\Interrupts\ApicHandlers.c">
+      <Filter>Interrupts</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Arch\x86\Acpi\Acpi.c">
+      <Filter>Acpi</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Arch\x86\Acpi\AcpiEnumerate.c">
+      <Filter>Acpi</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <CustomBuild Include="..\..\Arch\x86\x32\Memory\MmPaging.asm">
-      <Filter>Memory</Filter>
-    </CustomBuild>
-    <CustomBuild Include="..\..\Arch\x86\Components\Descriptors.asm">
-      <Filter>Components\Descriptors</Filter>
-    </CustomBuild>
-    <CustomBuild Include="..\..\Arch\x86\x32\Boot\Boot.asm">
-      <Filter>Startup</Filter>
-    </CustomBuild>
-    <CustomBuild Include="..\..\Arch\x86\Components\Irq.asm">
-      <Filter>Interrupts</Filter>
-    </CustomBuild>
-    <CustomBuild Include="..\..\Arch\x86\Components\_Spinlock.asm">
-      <Filter>Components\Locks</Filter>
-    </CustomBuild>
-    <CustomBuild Include="..\..\Arch\x86\Components\Threading.asm">
-      <Filter>Threading</Filter>
-    </CustomBuild>
     <CustomBuild Include="..\..\Arch\x86\Components\Portio.asm">
       <Filter>Components</Filter>
+    </CustomBuild>
+    <CustomBuild Include="..\..\Arch\x86\x32\Boot\Boot.asm">
+      <Filter>x32</Filter>
+    </CustomBuild>
+    <CustomBuild Include="..\..\Arch\x86\x32\Memory\MmPaging.asm">
+      <Filter>x32\Memory</Filter>
+    </CustomBuild>
+    <CustomBuild Include="..\..\Arch\x86\x32\_Spinlock.asm">
+      <Filter>x32</Filter>
+    </CustomBuild>
+    <CustomBuild Include="..\..\Arch\x86\x32\Irq.asm">
+      <Filter>x32</Filter>
+    </CustomBuild>
+    <CustomBuild Include="..\..\Arch\x86\x32\Threading.asm">
+      <Filter>x32\Threading</Filter>
+    </CustomBuild>
+    <CustomBuild Include="..\..\Arch\x86\x32\Descriptors.asm">
+      <Filter>x32\Descriptors</Filter>
     </CustomBuild>
   </ItemGroup>
   <ItemGroup>
@@ -222,6 +246,45 @@
     </ClInclude>
     <ClInclude Include="..\..\Arch\x86\Drivers\Usb\Uhci\Uhci.h">
       <Filter>Drivers\Usb\Controllers\Uhci</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Arch\x86\Drivers\Usb\HID\HidManager.h">
+      <Filter>Drivers\Usb\Hid</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Arch\x86\Cpu.h">
+      <Filter>Includes</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Arch\x86\Exceptions.h">
+      <Filter>Includes</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Arch\x86\Gdt.h">
+      <Filter>Includes</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Arch\x86\Memory.h">
+      <Filter>Includes</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Arch\x86\Multiboot.h">
+      <Filter>Includes</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Arch\x86\Pci.h">
+      <Filter>Includes</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Arch\x86\Pic.h">
+      <Filter>Includes</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Arch\x86\SysTimers.h">
+      <Filter>Includes</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Arch\x86\Thread.h">
+      <Filter>Includes</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Arch\x86\Video.h">
+      <Filter>Includes</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Arch\x86\Interrupts.h">
+      <Filter>Includes</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Arch\x86\Apic.h">
+      <Filter>Includes</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

@@ -16,7 +16,7 @@
 * along with this program.If not, see <http://www.gnu.org/licenses/>.
 *
 *
-* MollenOS Threads
+* MollenOS X86-32 Threads
 */
 
 #ifndef _X86_THREAD_H_
@@ -29,22 +29,15 @@
 /* Definitions */
 #define X86_THREAD_USEDFPU			0x1
 #define X86_THREAD_FPU_INITIALISED	0x2
-#define X86_THREAD_FINISHED			0x4
-#define X86_THREAD_CPU_BOUND		0x8
-#define X86_THREAD_USERMODE			0x10
-#define X86_THREAD_IDLE				0x20
-#define X86_THREAD_TRANSITION		0x40
-#define X86_THREAD_ENTER_SLEEP		0x80
 
 #define X86_THREAD_EFLAGS			0x202
 
 /* Prototypes */
-_CRT_EXTERN void ThreadingInit(void);
-_CRT_EXTERN void ThreadingApInit(void);
 
 /* Switches active thread */
-_CRT_EXTERN Registers_t *ThreadingSwitch(Registers_t *Regs, int PreEmptive,
+_CRT_EXTERN Registers_t *_ThreadingSwitch(Registers_t *Regs, int PreEmptive,
 										 uint32_t *TimeSlice, uint32_t *TaskPriority);
+
 /* Context Manipulation */
 _CRT_EXTERN Registers_t *ContextCreate(Addr_t Eip);
 

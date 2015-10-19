@@ -25,6 +25,7 @@
 
 /* Includes */
 #include <Arch.h>
+#include <Threading.h>
 #include <crtdefs.h>
 #include <stdint.h>
 

@@ -91,19 +91,9 @@ enum CpuFeatures{
 };
 
 /* CPU Structures */
-typedef struct _CpuObject
+typedef struct _x86CpuObject
 {
-	/* Names */
-	char CpuBrand[49];
-	char CpuManufacter[13];
-
-	/* Specs */
-	char CpuStepping;
-	char CpuModel;
-	char CpuFamily;
-	char CpuType;
-	char CpuCacheSize;
-	char CpuNumLogicalProessors;
+	/* Apic Id */
 	char CpuLApicId;
 
 	/* Padding */
@@ -117,15 +107,10 @@ typedef struct _CpuObject
 	uint32_t EcxFeatures;
 	uint32_t EdxFeatures;
 
-} CpuObject_t;
+} x86CpuObject_t;
 
 /* CPU Prototypes */
-extern void CpuBspInit(void);
-extern void SmpInit(void);
-
-/* These three are located in boot.asm */
-extern void CpuEnableSse(void);
-extern void CpuEnableFpu(void);
-extern void CpuId(uint32_t cpuid, uint32_t *eax, uint32_t *ebx, uint32_t *ecx, uint32_t *edx);
+_CRT_EXTERN void _CpuSetup(void *CpuData, void *BootInfo);
+_CRT_EXTERN void _SmpSetup(void);
 
 #endif // !_x86_CPU_H_

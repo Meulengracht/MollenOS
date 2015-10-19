@@ -23,8 +23,9 @@
 #define X86_USB_HID_H_
 
 /* Includes */
+#include <Drivers\Usb\Usb.h>
+#include <DeviceManager.h>
 #include <crtdefs.h>
-#include <stdint.h>
 
 /* Definitions */
 
@@ -113,91 +114,90 @@
 
 /* Structures */
 #pragma pack(push, 1)
-typedef struct _usb_hid_descriptor
+typedef struct _UsbHidDescriptor
 {
 	/* Length */
-	uint8_t length;
+	uint8_t Length;
 
 	/* Type */
-	uint8_t type;
+	uint8_t Type;
 
 	/* Numeric Version of HID */
-	uint16_t bcd_hid;
+	uint16_t BcdHid;
 
 	/* Country Code */
-	uint8_t country_code;
+	uint8_t CountryCode;
 
 	/* Number of Class Specific Descriptors */
-	uint8_t num_descriptors;
+	uint8_t NumDescriptors;
 
 	/* Class Descriptor Type */
-	uint8_t class_descriptor_type;
+	uint8_t ClassDescriptorType;
 
 	/* Class Descriptor Length */
-	uint16_t class_descriptor_length;
+	uint16_t ClassDescriptorLength;
 
-} usb_hid_descriptor_t;
+} UsbHidDescriptor_t;
 #pragma pack(pop)
 
 /* Report Structures */
 
 /* Collection Variables */
 #pragma pack(push, 1)
-typedef struct _usb_hid_report_global_stats
+typedef struct _UsbHidReportGlobalStats
 {
 	/* Usage Page */
-	uint32_t usage;
+	uint32_t Usage;
 
 	/* Logical Min/Max */
-	int32_t log_min;
-	int32_t log_max;
-	uint8_t has_log_min;
-	uint8_t has_log_max;
+	int32_t LogicalMin;
+	int32_t LogicalMax;
+	uint8_t HasLogicalMin;
+	uint8_t HasLogicalMax;
 
 	/* Physical Min/Max */
-	int32_t physical_min;
-	int32_t physical_max;
-	uint8_t has_phys_min;
-	uint8_t has_phys_max;
+	int32_t PhysicalMin;
+	int32_t PhysicalMax;
+	uint8_t HasPhysicalMin;
+	uint8_t HasPhysicalMax;
 
 	/* Unit Exponent & Unit */
-	int32_t unit_type;
-	int32_t unit_exponent;
+	int32_t UnitType;
+	int32_t UnitExponent;
 
 	/* Report Size / Id / Count */
-	uint32_t report_size;
-	uint32_t report_id;
-	uint32_t report_count;
+	uint32_t ReportSize;
+	uint32_t ReportId;
+	uint32_t ReportCount;
 
-} usb_report_global_stats_t;
+} UsbHidReportGlobalStats_t;
 #pragma pack(pop)
 
 /* Item Variables */
-typedef struct _usb_hid_report_item_stats
+typedef struct _UsbHidReportItemStats
 {
 	/* Usage(s) */
-	uint32_t usages[16];
+	uint32_t Usages[16];
 
 	/* Usage Min & Max */
-	uint32_t usage_min;
-	uint32_t usage_max;
+	uint32_t UsageMin;
+	uint32_t UsageMax;
 
 	/* Bit Offset */
-	uint32_t bit_offset;
+	uint32_t BitOffset;
 
-} usb_report_item_stats_t;
+} UsbHidReportItemStats_t;
 
 /* Input Item */
-typedef struct _usb_hid_report_input_item
+typedef struct _UsbHidReportInputItem
 {
 	/* Flags */
-	uint32_t flags;
+	uint32_t Flags;
 
 	/* Contains a local state */
-	struct
-		_usb_hid_report_item_stats stats;
+	UsbHidReportItemStats_t Stats;
 
-} usb_report_input_t;
+} UsbHidReportInputItem_t;
 
 /* Input Item Flags */
 #define X86_USB_REPORT_INPUT_TYPE_CONSTANT	0x0
@@ -206,24 +206,23 @@ typedef struct _usb_hid_report_input_item
 #define X86_USB_REPORT_INPUT_TYPE_ARRAY		0x3
 
 /* Collection Item */
-typedef struct _usb_hid_report_collection_item
+typedef struct _UsbHidReportCollectionItem
 {
 	/* Type */
-	uint32_t type;
-	uint32_t input_type;
+	uint32_t Type;
+	uint32_t InputType;
 
 	/* Data */
-	void *data;
+	void *Data;
 
 	/* Stats */
-	struct
-		_usb_hid_report_global_stats stats;
+	UsbHidReportGlobalStats_t Stats;
 
 	/* Link */
-	struct
-		_usb_hid_report_collection_item *link;
+	struct 
+		_UsbHidReportCollectionItem *Link;
 
-} usb_report_collection_item_t;
+} UsbHidReportCollectionItem_t;
 
 /* Collection Item Types */
 #define X86_USB_COLLECTION_TYPE_COLLECTION	0x0
@@ -232,39 +231,40 @@ typedef struct _usb_hid_report_collection_item
 #define X86_USB_COLLECTION_TYPE_FEATURE		0x3
 
 /* Collection (Contains a set of items) */
-typedef struct _usb_hid_report_collection
+typedef struct _UsbHidReportCollection
 {
-	/* Simply a linked list */
-
 	/* Childs */
-	struct
-		_usb_hid_report_collection_item *childs;
+	UsbHidReportCollectionItem_t *Childs;
 
 	/* Parent */
-	struct
-		_usb_hid_report_collection *parent;
+	struct 
+		_UsbHidReportCollection *NextParent;
 
-} usb_report_collection_t;
+} UsbHidReportCollection_t;
 
-typedef struct _usb_hid_driver
+typedef struct _HidDevice
 {
-	/* Endpoint in question */
-	void *endpoint;
+	/* Id's */
+	uint32_t Interface;
+	DevId_t DeviceId;
 
 	/* Report Data */
-	struct 
-		_usb_hid_report_collection *collection;
+	UsbHidReportCollection_t *Collection;
 
 	/* Input Buffers */
-	uint8_t *previous_data_buffer;
-	uint8_t *data_buffer;
+	uint8_t *DataBuffer;
+	uint8_t *PrevDataBuffer;
 
-} usb_hid_driver_t;
+	/* Usb Data */
+	UsbHcDevice_t *UsbDevice;
+	UsbHcEndpoint_t *EpInterrupt;
+
+} HidDevice_t;
 
 
 /* Prototypes */
 
 /* Initialise Driver for a HID */
-_CRT_EXTERN void usb_hid_initialise(UsbHcDevice_t *device, uint32_t iface);
+_CRT_EXTERN void UsbHidInit(UsbHcDevice_t *UsbDevice, uint32_t InterfaceIndex);
 
 #endif // !X86_USB_HID_H_

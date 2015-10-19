@@ -20,22 +20,82 @@
 */
 
 /* Includes */
-#include <arch.h>
-#include <heap.h>
+#include <revision.h>
+#include <MollenOS.h>
+#include <Arch.h>
+#include <Devices/Cpu.h>
+#include <Devices/Video.h>
+#include <DeviceManager.h>
+#include <Scheduler.h>
+#include <Threading.h>
+#include <Heap.h>
 #include <stdio.h>
 
-void mcore_entry(void *args)
-{
-	_CRT_UNUSED(args);
+/* We need these functions */
+extern void ThreadingDebugPrint(void);
 
-	/* Now, lets initialize the high-end systems */
-	printf("  - MCore Initializing...\n");
+/* Print Header Information */
+void PrintHeader(MCoreBootInfo_t *BootInfo)
+{
+	printf("MollenOS Operating System - Platform: %s - Version %i.%i.%i\n",
+		ARCHITECTURE_NAME, REVISION_MAJOR, REVISION_MINOR, REVISION_BUILD);
+	printf("Written by Philip Meulengracht, Copyright 2011-2014, All Rights Reserved.\n");
+	printf("Bootloader - %s\n", BootInfo->BootloaderName);
+	printf("VC Build %s - %s\n\n", BUILD_DATE, BUILD_TIME);
+}
+
+/* Shared Entry in MollenOS */
+void MCoreInitialize(MCoreBootInfo_t *BootInfo)
+{
+	/* We'll need these untill dynamic memory */
+	MCoreCpuDevice_t BootCpu;
+	MCoreVideoDevice_t BootVideo;
+
+	/* Initialize Cpu */
+	CpuInit(&BootCpu, BootInfo->ArchBootInfo);
+
+	/* Setup Video Boot */
+	VideoInit(&BootVideo, BootInfo);
+
+	/* Print Header */
+	PrintHeader(BootInfo);
+
+	/* Init HAL */
+	printf("  - Setting up base HAL\n");
+	BootInfo->InitHAL(BootInfo->ArchBootInfo);
+
+	/* Init the heap */
+	HeapInit();
+
+	/* Init post-heap systems */
+	DmInit();
+	DmCreateDevice("Processor", DeviceCpu, &BootCpu);
+	DmCreateDevice("BootVideo", DeviceVideo, &BootVideo);
+
+	/* Init Threading & Scheduler for boot cpu */
+	printf("  - Threading\n");
+	SchedulerInit(0);
+	ThreadingInit();
+
+	/* Init post-systems */
+	printf("  - Initializing Post Memory Systems\n");
+	BootInfo->InitPostSystems();
+
+	/* Start out any extra cores */
+	printf("  - Booting Cores\n");
+	_SmpSetup();
 
 	/* Virtual Filesystem */
-	while (1)
-		;
+
+	/* From this point, we should start seperate threads and
+	* let this thread die out, because initial system setup
+	* is now totally done, and the moment we start another
+	* thread, it will take over as this is the idle thread */
 
 	/* Drivers */
+	//printf("  - Initializing Drivers...\n");
+	//ThreadingCreateThread("DriverSetup", DriverManagerInit, NULL, 0);
 
 	/* Start the compositor */
+	//ThreadingDebugPrint();
 }

@@ -148,6 +148,9 @@ typedef struct _PageDirectory
 
 } PageDirectory_t;
 
+/* Init */
+_CRT_EXTERN void MmPhyiscalInit(void *BootInfo, uint32_t KernelSize);
+_CRT_EXTERN void MmVirtualInit(void);
 
 /* Hihi */
 _CRT_EXTERN VirtAddr_t *MmVirtualMapSysMemory(PhysAddr_t PhysicalAddr, int Pages);

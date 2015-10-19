@@ -19,58 +19,82 @@
 * MollenOS x86-32 CPU Setup
 */
 
+/* MollenOS */
+#include <Devices/Cpu.h>
+
 /* Includes */
 #include <Arch.h>
-#include <Cpu.h>
 #include <stdio.h>
 
 /* Globals */
-CpuObject_t boot_cpu_info;
+x86CpuObject_t GlbBootCpuInfo;
 
-void CpuBspInit(void)
+/* Externs */
+extern void __hlt(void);
+
+/* These three are located in boot.asm */
+extern void CpuEnableSse(void);
+extern void CpuEnableFpu(void);
+extern void CpuId(uint32_t CpuId, uint32_t *Eax, uint32_t *Ebx, uint32_t *Ecx, uint32_t *Edx);
+
+void _CpuSetup(void *CpuData, void *BootInfo)
 {
+	/* Cast */
+	MCoreCpuDevice_t *mCpu = (MCoreCpuDevice_t*)CpuData;
+	mCpu->Data = (void*)&GlbBootCpuInfo;
+	mCpu->Id = 0;
+
+	/* Not used */
+	_CRT_UNUSED(BootInfo);
+
 	/* Get CPUID Information */
 	uint32_t _eax, _ebx, _ecx, _edx;
-	char *cpu_brand = boot_cpu_info.CpuBrand;
-	char *cpu_vendor = boot_cpu_info.CpuManufacter;
+	char *cpu_brand = mCpu->Brand;
+	char *cpu_vendor = mCpu->Manufacter;
 
 	/* Get initial CPUID */
 	CpuId(0, &_eax, &_ebx, &_ecx, &_edx);
 
 	/* Set info */
-	boot_cpu_info.CpuIdLevel = _eax;
+	GlbBootCpuInfo.CpuIdLevel = _eax;
 	*(Addr_t*)(cpu_vendor + 0) = _ebx;
 	*(Addr_t*)(cpu_vendor + 4) = _edx;
 	*(Addr_t*)(cpu_vendor + 8) = _ecx;
 
 	/* Get next batch of CPUID if supported */
-	if (boot_cpu_info.CpuIdLevel >= 1)
+	if (GlbBootCpuInfo.CpuIdLevel >= 1)
 	{
 		/* Yay, one more batch */
 		CpuId(1, &_eax, &_ebx, &_ecx, &_edx);
 
 		/* Set info */
-		boot_cpu_info.EcxFeatures = _ecx;
-		boot_cpu_info.EdxFeatures = _edx;
+		GlbBootCpuInfo.EcxFeatures = _ecx;
+		GlbBootCpuInfo.EdxFeatures = _edx;
 
-		boot_cpu_info.CpuStepping = (char)(_eax & 0x0F);
-		boot_cpu_info.CpuModel = (char)((_eax >> 4) & 0x0F);
-		boot_cpu_info.CpuFamily = (char)((_eax >> 8) & 0x0F);
-		boot_cpu_info.CpuType = (char)((_eax >> 12) & 0x03);
+		/* Update Device */
+		mCpu->Stepping = (char)(_eax & 0x0F);
+		mCpu->Model = (char)((_eax >> 4) & 0x0F);
+		mCpu->Family = (char)((_eax >> 8) & 0x0F);
+		mCpu->Type = (char)((_eax >> 12) & 0x03);
+		
+		/* cache_line_size * 8 = size in bytes */
+		mCpu->CacheSize = (char)((_ebx >> 8) & 0xFF) * 8; 
 
-		boot_cpu_info.CpuCacheSize = (char)((_ebx >> 8) & 0xFF) * 8; /* cache_line_size * 8 = size in bytes */
-		boot_cpu_info.CpuNumLogicalProessors = (char)((_ebx >> 16) & 0xFF);    /* # logical cpu's per physical cpu */
-		boot_cpu_info.CpuLApicId = (char)((_ebx >> 24) & 0xFF);    /* Local APIC ID */
+		/* # logical cpu's per physical cpu */
+		mCpu->NumLogicalProessors = (char)((_ebx >> 16) & 0xFF);    
+		
+		/* Local APIC ID */
+		GlbBootCpuInfo.CpuLApicId = (char)((_ebx >> 24) & 0xFF);    
 	}
 
 	/* Check if cpu supports brand call */
 	CpuId(0x80000000, &_eax, &_ebx, &_ecx, &_edx);
 
 	/* Set info */
-	boot_cpu_info.CpuIdExtensions = _eax;
+	GlbBootCpuInfo.CpuIdExtensions = _eax;
 
 	/* Check for last cpuid batch */
-	if (boot_cpu_info.CpuIdExtensions >= 0x80000004)
+	if (GlbBootCpuInfo.CpuIdExtensions >= 0x80000004)
 	{
 		/* Yay! Get brand */
 		CpuId(0x80000002, &_eax, &_ebx, &_ecx, &_edx);
@@ -99,10 +123,16 @@ void CpuBspInit(void)
 	}
 
 	/* Enable FPU */
-	if (boot_cpu_info.EdxFeatures & CPUID_FEAT_EDX_FPU)
+	if (GlbBootCpuInfo.EdxFeatures & CPUID_FEAT_EDX_FPU)
 		CpuEnableFpu();
 
 	/* Enable SSE */
-	if (boot_cpu_info.EdxFeatures & CPUID_FEAT_EDX_SSE)
+	if (GlbBootCpuInfo.EdxFeatures & CPUID_FEAT_EDX_SSE)
 		CpuEnableSse();
+}
+
+/* Idles using HALT */
+void Idle(void)
+{
+	__hlt();
 }

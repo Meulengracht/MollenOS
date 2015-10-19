@@ -14,17 +14,24 @@
     <ClCompile Include="..\..\Common\List.c" />
     <ClCompile Include="..\..\Common\RingBuffer.c" />
     <ClCompile Include="..\..\Init\Entry.c" />
-    <ClCompile Include="..\..\System\DeviceManager.c" />
+    <ClCompile Include="..\..\System\Devices\DeviceCpu.c" />
+    <ClCompile Include="..\..\System\Devices\DeviceManager.c" />
+    <ClCompile Include="..\..\System\Devices\Fonts\VideoFont8x16.c" />
+    <ClCompile Include="..\..\System\Devices\DeviceVideo.c" />
     <ClCompile Include="..\..\System\Heap.c" />
     <ClCompile Include="..\..\System\Scheduler.c" />
     <ClCompile Include="..\..\System\Synchronization\Mutex.c" />
     <ClCompile Include="..\..\System\Synchronization\Semaphore.c" />
+    <ClCompile Include="..\..\System\Threading.c" />
     <ClCompile Include="..\..\System\Timers.c" />
     <ClCompile Include="..\..\System\Userspace\InputManager.c" />
     <ClCompile Include="..\..\System\Userspace\ScancodeSets\ScancodeSet2.c" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="..\..\Include\MollenOS.h" />
     <ClInclude Include="..\..\Include\DeviceManager.h" />
+    <ClInclude Include="..\..\Include\Devices\Cpu.h" />
+    <ClInclude Include="..\..\Include\Devices\Video.h" />
     <ClInclude Include="..\..\Include\Heap.h" />
     <ClInclude Include="..\..\Include\InputManager.h" />
     <ClInclude Include="..\..\Include\List.h" />
@@ -33,6 +40,7 @@
     <ClInclude Include="..\..\Include\ScancodeSets\ScancodeSet2.h" />
     <ClInclude Include="..\..\Include\Scheduler.h" />
     <ClInclude Include="..\..\Include\Semaphore.h" />
+    <ClInclude Include="..\..\Include\Threading.h" />
     <ClInclude Include="..\..\Include\Timers.h" />
     <ClInclude Include="..\..\Include\VirtualKeyCodes.h" />
   </ItemGroup>
@@ -72,7 +80,7 @@
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <GenerateManifest>false</GenerateManifest>
-    <IncludePath>..\..\Arch;..\..\..\clib\include;..\..\Include</IncludePath>
+    <IncludePath>..\..\acpica\include;..\..\Arch;..\..\..\clib\include;..\..\Include;..\..\Msvc\MCoreConfig</IncludePath>
     <LibraryWPath />
     <LibraryPath>..\..\..\clib\build;..\..\build</LibraryPath>
     <OutDir>..\..\build\</OutDir>

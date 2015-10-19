@@ -16,37 +16,42 @@
 * along with this program.If not, see <http://www.gnu.org/licenses/>.
 *
 *
-* MollenOS Synchronization
-* Semaphores
+* MollenOS Common Entry Point
 */
-
-#ifndef _MCORE_SEMAPHORE_H_
-#define _MCORE_SEMAPHORE_H_
+#ifndef _MCORE_H_
+#define _MCORE_H_
 
 /* Includes */
-#include <Arch.h>
-#include <Threading.h>
 #include <crtdefs.h>
 #include <stdint.h>
 
-/* Structures */
-typedef struct _Semaphore 
+/* Typedefs */
+typedef enum _OsResult
 {
-	/* Spinlock */
-	Spinlock_t Lock;
+	OsOk,
+	OsFail
+} OsResult_t;
 
-	/* Value */
-	volatile int Value;
+/* Definitions */
 
-	/* Semaphore Creator */
-	TId_t Creator;
+/* This structure is needed in order to
+* setup MCore */
+typedef struct _MCoreBootInfo
+{
+	/* Bootloader Name */
+	char *BootloaderName;
 
-} Semaphore_t;
+	/* Size of kernel in bytes */
+	uint32_t KernelSize;
 
-/* Prototypes */
-_CRT_EXTERN Semaphore_t *SemaphoreCreate(int Value);
-_CRT_EXTERN void SemaphoreDestroy(Semaphore_t *Semaphore);
-_CRT_EXTERN void SemaphoreP(Semaphore_t *Semaphore);
-_CRT_EXTERN void SemaphoreV(Semaphore_t *Semaphore);
+	/* Data that will be passed to setup functions */
+	void *ArchBootInfo;
 
-#endif // !_MCORE_SEMAPHORE_H_
+	/* Setup Functions */
+	void(*InitHAL)(void *ArchBootInfo);
+	void(*InitPostSystems)(void);
+
+} MCoreBootInfo_t;
+
+
+#endif //!_MCORE_BOOT_INFO_H_

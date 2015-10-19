@@ -21,7 +21,6 @@
 
 /* Includes */
 #include <Arch.h>
-#include <LApic.h>
 #include <assert.h>
 #include <Memory.h>
 #include <Scheduler.h>

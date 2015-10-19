@@ -22,7 +22,7 @@
 /* Includes */
 #include <Arch.h>
 #include <Drivers\Usb\Usb.h>
-#include <Drivers\Usb\HID\HIDManager.h>
+#include <Drivers\Usb\HID\HidManager.h>
 #include <Drivers\Usb\Msd\MsdManager.h>
 #include <Semaphore.h>
 #include <SysTimers.h>
@@ -222,7 +222,7 @@ void UsbDeviceSetup(UsbHc_t *Hc, int Port)
 		if (Hc->Ports[Port]->Device->Interfaces[i]->Class == X86_USB_CLASS_HID)
 		{
 			/* Registrate us with HID Manager */
-			//usb_hid_initialise(Hc->Ports[Port]->Device, iface);
+			UsbHidInit(Hc->Ports[Port]->Device, IfIndex);
 		}
 
 		/* Is this an MSD Interface? :> */

@@ -16,37 +16,39 @@
 * along with this program.If not, see <http://www.gnu.org/licenses/>.
 *
 *
-* MollenOS Synchronization
-* Semaphores
+* MollenOS X86-32 PIC (Programmable Interrupt Controller)
+*
 */
-
-#ifndef _MCORE_SEMAPHORE_H_
-#define _MCORE_SEMAPHORE_H_
 
 /* Includes */
 #include <Arch.h>
-#include <Threading.h>
-#include <crtdefs.h>
-#include <stdint.h>
+#include <Pic.h>
 
-/* Structures */
-typedef struct _Semaphore 
+/* Initializes and disables */
+void PicInit(void)
 {
-	/* Spinlock */
-	Spinlock_t Lock;
+	/* Inititalize & Remap PIC. WE HAVE TO DO THIS :( */
 
-	/* Value */
-	volatile int Value;
+	/* Send INIT (0x10) and IC4 (0x1) Commands*/
+	outb(0x20, 0x11);
+	outb(0xA0, 0x11);
 
-	/* Semaphore Creator */
-	TId_t Creator;
+	/* Remap primary PIC to 0x20 - 0x28 */
+	outb(0x21, 0x20);
 
-} Semaphore_t;
+	/* Remap Secondary PIC to 0x28 - 0x30 */
+	outb(0xA1, 0x28);
 
-/* Prototypes */
-_CRT_EXTERN Semaphore_t *SemaphoreCreate(int Value);
-_CRT_EXTERN void SemaphoreDestroy(Semaphore_t *Semaphore);
-_CRT_EXTERN void SemaphoreP(Semaphore_t *Semaphore);
-_CRT_EXTERN void SemaphoreV(Semaphore_t *Semaphore);
+	/* Send initialization words, they define
+	* which PIC connects to where */
+	outb(0x21, 0x04);
+	outb(0xA1, 0x02);
 
-#endif // !_MCORE_SEMAPHORE_H_
+	/* Enable i86 mode */
+	outb(0x21, 0x01);
+	outb(0xA1, 0x01);
+
+	/* Mask all irqs in PIC */
+	outb(0x21, 0xFF);
+	outb(0xA1, 0xFF);
+}

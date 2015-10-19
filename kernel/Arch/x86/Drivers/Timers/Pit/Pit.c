@@ -23,6 +23,7 @@
 #include <stddef.h>
 #include <Timers.h>
 #include <Drivers\Timers\Pit\Pit.h>
+#include <Interrupts.h>
 
 /* Globals */
 volatile uint64_t GlbPitCounter = 0;

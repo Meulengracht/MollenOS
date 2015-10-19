@@ -20,58 +20,42 @@
 */
 
 /* Includes */
+#include <MollenOS.h>
+#include <Devices/Video.h>
 #include <Arch.h>
 #include <Video.h>
 #include <Multiboot.h>
 #include <string.h>
+#include <stddef.h>
 
-/* Externs */
-extern const uint8_t x86Font8x16[];
+/* Externs (Import from MCore) */
+extern const uint8_t MCoreFont8x16[];
 
 /* We have no memory allocation system in place yet,
  * so we allocate some static memory */
-const char *GlbBootVideoWindowTitle = "MollenOS Boot Log";
 Graphics_t GfxInformation;
-TTY_t TtyInfo;
-
-/* Helper */
-int __abs(int i) {
-	return (i < 0 ? -i : i);
-}
 
 /* Draw Pixel */
-void VideoDrawPixel(uint32_t X, uint32_t Y, uint32_t Color)
+void _VideoDrawPixelVesa(void *VideoData, uint32_t X, uint32_t Y, uint32_t Color)
 {
 	/* Vars */
+	Graphics_t *Gfx = (Graphics_t*)VideoData;
 	uint32_t *VideoPtr;
 
 	/* Calculate video offset */
-	VideoPtr = (uint32_t*)(GfxInformation.VideoAddr + ((Y * GfxInformation.BytesPerScanLine)
-		+ (X * (GfxInformation.BitsPerPixel / 8))));
+	VideoPtr = (uint32_t*)(Gfx->VideoAddr + ((Y * Gfx->BytesPerScanLine)
+		+ (X * (Gfx->BitsPerPixel / 8))));
 
 	/* Set */
 	(*VideoPtr) = (0xFF000000 | Color);
 }
 
-/* Draw Line */
-void VideoDrawLine(uint32_t StartX, uint32_t StartY, uint32_t EndX, uint32_t EndY, uint32_t Color)
-{
-	int dx = __abs(EndX - StartX), sx = StartX < EndX ? 1 : -1;
-	int dy = __abs(EndY - StartY), sy = StartY < EndY ? 1 : -1;
-	int err = (dx > dy ? dx : -dy) / 2, e2;
-
-	for (;;) {
-		VideoDrawPixel(StartX, StartY, Color);
-		if (StartX == EndX && StartY == EndY) break;
-		e2 = err;
-		if (e2 >-dx) { err -= dy; StartX += sx; }
-		if (e2 < dy) { err += dx; StartY += sy; }
-	}
-}
-
 /* Base write */
-void VideoPutCharAtLocationVesa(int Character, int CursorY, int CursorX, uint32_t FgColor, uint32_t BgColor)
+void _VideoPutCharAtLocationVesa(void *VideoData, 
+	int Character, uint32_t CursorY, uint32_t CursorX, uint32_t FgColor, uint32_t BgColor)
 {
+	_CRT_UNUSED(VideoData);
+
 	/* Decls */
 	uint32_t *video_ptr;
 	uint8_t *ch_ptr;
@@ -80,7 +64,7 @@ void VideoPutCharAtLocationVesa(int Character, int CursorY, int CursorX, uint32_
 	/* Calculate video offset */
 	video_ptr = (uint32_t*)(GfxInformation.VideoAddr + ((CursorY * GfxInformation.BytesPerScanLine)
 		+ (CursorX * (GfxInformation.BitsPerPixel / 8))));
-	ch_ptr = (uint8_t*)&x86Font8x16[Character * 16];
+	ch_ptr = (uint8_t*)&MCoreFont8x16[Character * 16];
 
 	for (row = 0; row < 16; row++)
 	{
@@ -96,45 +80,176 @@ void VideoPutCharAtLocationVesa(int Character, int CursorY, int CursorX, uint32_
 	}
 }
 
-/* Draw Window */
-void VideoDrawBootTerminal(uint32_t X, uint32_t Y, uint32_t Width, uint32_t Height)
+/* Write a character in VESA mode */
+int _VideoPutCharVesa(void *VideoData, int Character)
 {
-	/* Title pointer */
-	uint32_t TitleStartX = X + (Width / 3);
-	uint32_t TitleStartY = Y + 8;
-	int i;
-	char *TitlePtr = (char*)GlbBootVideoWindowTitle;
+	MCoreVideoDevice_t *vDevice = (MCoreVideoDevice_t*)VideoData;
 
-	/* Draw Borders */
-	for (i = 0; i < 32; i++)
-		VideoDrawLine(X, Y + i, X + Width, Y + i, 0x7F8C8D);
-	VideoDrawLine(X, Y, X, Y + Height, 0x7F8C8D);
-	VideoDrawLine(X + Width, Y, X + Width, Y + Height, 0x7F8C8D);
-	VideoDrawLine(X, Y + Height, X + Width, Y + Height, 0x7F8C8D);
+	/* Get spinlock */
+	SpinlockAcquire(&vDevice->Lock);
 
-	/* Draw Title */
-	while (*TitlePtr)
+	/* Handle Special Characters */
+	switch (Character)
 	{
-		char Char = *TitlePtr;
-		VideoPutCharAtLocationVesa((int)Char, TitleStartY, TitleStartX, 0xD35400, 0x7F8C8D);
-		TitleStartX += 10;
+		/* New line */
+	case '\n':
+	{
+		vDevice->CursorX = vDevice->CursorStartX;
+		vDevice->CursorY += 16;
+	} break;
 
-		TitlePtr++;
+	/* Carriage Return */
+	case '\r':
+	{
+		vDevice->CursorX = vDevice->CursorStartX;
+	} break;
+
+	/* Default */
+	default:
+	{
+		/* Print */
+		vDevice->DrawCharacter(VideoData, 
+			Character, vDevice->CursorY, vDevice->CursorX, 0, 0xFFFFFFFF);
+
+		/* Increase position */
+		vDevice->CursorX += 10;
+	} break;
 	}
 
-	/* Define Virtual Borders */
-	TtyInfo.CursorX = TtyInfo.CursorStartX = X + 11;
-	TtyInfo.CursorLimitX = X + Width - 1;
-	TtyInfo.CursorY = TtyInfo.CursorStartY = Y + 33;
-	TtyInfo.CursorLimitY = Y + Height - 17;
+	/* Newline check */
+	if ((vDevice->CursorX + 10) >= vDevice->CursorLimitX)
+	{
+		vDevice->CursorX = vDevice->CursorStartX;
+		vDevice->CursorY += 16;
+	}
+
+	/* Do scroll check here */
+	if ((vDevice->CursorY + 16) >= vDevice->CursorLimitY)
+	{
+		/* Calculate video offset */
+		uint8_t *VideoPtr;
+		uint32_t BytesToCopy;
+		int i = 0;
+		int Lines = (vDevice->CursorLimitY - vDevice->CursorStartY);
+		VideoPtr = (uint8_t*)(GfxInformation.VideoAddr + ((vDevice->CursorStartY * GfxInformation.BytesPerScanLine)
+			+ (vDevice->CursorStartX * (GfxInformation.BitsPerPixel / 8))));
+		BytesToCopy = ((vDevice->CursorLimitX - vDevice->CursorStartX) * (GfxInformation.BitsPerPixel / 8));
+
+		/* Do a scroll */
+		for (i = 0; i < Lines; i++)
+		{
+			/* Copy a line up */
+			memcpy(VideoPtr, VideoPtr + (GfxInformation.BytesPerScanLine * 16), BytesToCopy);
+
+			/* Increament */
+			VideoPtr += GfxInformation.BytesPerScanLine;
+		}
+
+		/* Clear */
+		VideoPtr = (uint8_t*)(GfxInformation.VideoAddr + ((vDevice->CursorStartY * GfxInformation.BytesPerScanLine)
+			+ (vDevice->CursorStartX * (GfxInformation.BitsPerPixel / 8))));
+
+		for (i = 0; i < 16; i++)
+		{
+			/* Clear low line */
+			memset((uint8_t*)(VideoPtr + 
+				(GfxInformation.BytesPerScanLine * (vDevice->CursorLimitY - 16))),
+				0xFF, BytesToCopy);
+
+			/* Increament */
+			VideoPtr += GfxInformation.BytesPerScanLine;
+		}
+
+		//We scrolled, set it back one line.
+		vDevice->CursorY -= 16;
+	}
+
+	/* Release spinlock */
+	SpinlockRelease(&vDevice->Lock);
+
+	return Character;
+}
+
+/* Write a character in TEXT mode */
+int _VideoPutCharText(void *VideoData, int Character)
+{
+	MCoreVideoDevice_t *vDevice = (MCoreVideoDevice_t*)VideoData;
+	uint16_t attribute = (uint16_t)(vDevice->FgColor << 8);
+	uint16_t cursorLocation = 0;
+
+	/* Get spinlock */
+	SpinlockAcquire(&vDevice->Lock);
+
+	/* Check special characters */
+	if (Character == 0x08 && vDevice->CursorX)		//Backspace
+		vDevice->CursorX--;
+	else if (Character == 0x09)					//Tab
+		vDevice->CursorX = (uint32_t)((vDevice->CursorX + 8) & ~(8 - 1));
+	else if (Character == '\r')					//Carriage return
+		vDevice->CursorX = 0;				//New line
+	else if (Character == '\n') {
+		vDevice->CursorX = 0;
+		vDevice->CursorY++;
+	}
+	//Printable characters
+	else if (Character >= ' ')
+	{
+		uint16_t* location = (uint16_t*)GfxInformation.VideoAddr + 
+			(vDevice->CursorY * GfxInformation.ResX + vDevice->CursorX);
+		*location = (uint16_t)(Character | attribute);
+		vDevice->CursorX++;
+	}
+
+	//Go to new line?
+	if (vDevice->CursorX >= GfxInformation.ResX) {
+
+		vDevice->CursorX = 0;
+		vDevice->CursorY++;
+	}
+
+	//Scroll if at last line
+	if (vDevice->CursorY >= GfxInformation.ResY)
+	{
+		uint16_t attribute = (uint16_t)(vDevice->FgColor << 8);
+		uint16_t *vid_mem = (uint16_t*)GfxInformation.VideoAddr;
+		uint16_t i;
+
+		//Move display one line up
+		for (i = 0 * GfxInformation.ResX; i < (GfxInformation.ResY - 1) * GfxInformation.ResX; i++)
+			vid_mem[i] = vid_mem[i + GfxInformation.ResX];
+
+		//Clear last line
+		for (i = (GfxInformation.ResY - 1) * GfxInformation.ResX; i < (GfxInformation.ResY * GfxInformation.ResX); i++)
+			vid_mem[i] = (uint16_t)(attribute | ' ');
+
+		vDevice->CursorY = (GfxInformation.ResY - 1);
+	}
+
+	//Update HW Cursor
+	cursorLocation = (uint16_t)((vDevice->CursorY * GfxInformation.ResX) + vDevice->CursorX);
+
+	outb(0x3D4, 14);
+	outb(0x3D5, (uint8_t)(cursorLocation >> 8)); // Send the high byte.
+	outb(0x3D4, 15);
+	outb(0x3D5, (uint8_t)cursorLocation);      // Send the low byte.
+
+	/* Release spinlock */
+	SpinlockRelease(&vDevice->Lock);
+
+	return Character;
 }
 
 /* We read the multiboot header for video 
  * information and setup the terminal accordingly */
-OsStatus_t VideoInit(void *BootInfo)
+void _VideoSetup(void *VideoInfo, void *BootInfo)
 {
 	/* Cast */
-	Multiboot_t *mboot = (Multiboot_t*)BootInfo;
+	MCoreVideoDevice_t *vDevice = (MCoreVideoDevice_t*)VideoInfo;
+	MCoreBootInfo_t *mCoreBoot = (MCoreBootInfo_t*)BootInfo;
+	Multiboot_t *mboot = (Multiboot_t*)mCoreBoot->ArchBootInfo;
+
+	/* Save info */
+	vDevice->Data = (void*)&GfxInformation;
 
 	/* Do we have VESA or is this text mode? */
 	switch (mboot->VbeMode)
@@ -149,6 +264,20 @@ OsStatus_t VideoInit(void *BootInfo)
 			GfxInformation.GraphicMode = 0;
 			GfxInformation.VideoAddr = STD_VIDEO_MEMORY;
 
+			/* Set */
+			vDevice->Type = VideoTypeText;
+
+			/* Initialise the TTY structure */
+			vDevice->CursorLimitX = GfxInformation.ResX / 10;
+			vDevice->CursorLimitY = GfxInformation.ResY / 16;
+			vDevice->FgColor = (0 << 4) | (15 & 0x0F);
+			vDevice->BgColor = 0;
+
+			/* Set functions */
+			vDevice->DrawPixel = NULL;
+			vDevice->DrawCharacter = NULL;
+			vDevice->Put = _VideoPutCharText;
+
 		} break;
 		case 1:
 		{
@@ -160,12 +289,34 @@ OsStatus_t VideoInit(void *BootInfo)
 			GfxInformation.BytesPerScanLine = 2 * 80;
 			GfxInformation.VideoAddr = STD_VIDEO_MEMORY;
 
+			/* Set */
+			vDevice->Type = VideoTypeText;
+
+			/* Initialise the TTY structure */
+			vDevice->CursorLimitX = GfxInformation.ResX / 10;
+			vDevice->CursorLimitY = GfxInformation.ResY / 16;
+			vDevice->FgColor = (0 << 4) | (15 & 0x0F);
+			vDevice->BgColor = 0;
+
+			/* Set functions */
+			vDevice->DrawPixel = NULL;
+			vDevice->DrawCharacter = NULL;
+			vDevice->Put = _VideoPutCharText;
+
 		} break;
 		case 2:
 		{
 			/* This means VGA Mode */
 			//N/A
 
+			/* Set */
+			vDevice->Type = VideoTypeVGA;
+
+			/* Initialise the TTY structure */
+			vDevice->CursorLimitX = GfxInformation.ResX / 10;
+			vDevice->CursorLimitY = GfxInformation.ResY / 16;
+			vDevice->FgColor = (0 << 4) | (15 & 0x0F);
+			vDevice->BgColor = 0;
 		} break;
 
 		default:
@@ -193,194 +344,24 @@ OsStatus_t VideoInit(void *BootInfo)
 			GfxInformation.ReservedMaskSize = vbe->ModeInfo_ReservedMaskSize;
 			GfxInformation.GraphicMode = 3;
 
+			/* Set */
+			vDevice->Type = VideoTypeLFB;
+
 			/* Clear background */
-			memset((void*)GfxInformation.VideoAddr, 0xFF, (GfxInformation.BytesPerScanLine * GfxInformation.ResY));
+			memset((void*)GfxInformation.VideoAddr, 0xFF, 
+				(GfxInformation.BytesPerScanLine * GfxInformation.ResY));
+
+			/* Initialise the TTY structure */
+			vDevice->CursorLimitX = GfxInformation.ResX;
+			vDevice->CursorLimitY = GfxInformation.ResY;
+			vDevice->FgColor = 0;
+			vDevice->BgColor = 0xFFFFFFFF;
+
+			/* Set functions */
+			vDevice->DrawPixel = _VideoDrawPixelVesa;
+			vDevice->DrawCharacter = _VideoPutCharAtLocationVesa;
+			vDevice->Put = _VideoPutCharVesa;
 
 		} break;
 	}
-
-	/* Initialise the TTY structure */
-	TtyInfo.CursorX = 0;
-	TtyInfo.CursorY = 0;
-	TtyInfo.CursorStartX = 0;
-	TtyInfo.CursorStartY = 0;
-	TtyInfo.CursorLimitX = GfxInformation.ResX / 10;
-	TtyInfo.CursorLimitY = GfxInformation.ResY / 16;
-	TtyInfo.FgColor = (0 << 4) | (15 & 0x0F);
-	TtyInfo.BgColor = 0;
-
-	/* Draw boot terminal */
-	if (GfxInformation.GraphicMode == 3)
-		VideoDrawBootTerminal((GfxInformation.ResX / 2) - 290, (GfxInformation.ResY / 2) - 210, 580, 420);
-	
-	/* Prepare spinlock */
-	SpinlockReset(&TtyInfo.Lock);
-
-	/* Done */
-	return OS_STATUS_OK;
-}
-
-/* Write a character in VESA mode */
-int VideoPutCharVesa(int Character)
-{
-	/* Get spinlock */
-	SpinlockAcquire(&TtyInfo.Lock);
-
-	/* Handle Special Characters */
-	switch (Character)
-	{
-		/* New line */
-		case '\n':
-		{
-			TtyInfo.CursorX = TtyInfo.CursorStartX;
-			TtyInfo.CursorY += 16;
-		} break;
-
-		/* Carriage Return */
-		case '\r':
-		{
-			TtyInfo.CursorX = TtyInfo.CursorStartX;
-		} break;
-
-		/* Default */
-		default:
-		{
-			/* Print */
-			VideoPutCharAtLocationVesa(Character, TtyInfo.CursorY, TtyInfo.CursorX, 0, 0xFFFFFFFF);
-
-			/* Increase position */
-			TtyInfo.CursorX += 10;
-		} break;
-	}
-
-	/* Newline check */
-	if ((TtyInfo.CursorX + 10) >= TtyInfo.CursorLimitX)
-	{
-		TtyInfo.CursorX = TtyInfo.CursorStartX;
-		TtyInfo.CursorY += 16;
-	}
-
-	/* Do scroll check here */
-	if ((TtyInfo.CursorY + 16) >= TtyInfo.CursorLimitY)
-	{
-		/* Calculate video offset */
-		uint8_t *VideoPtr;
-		uint32_t BytesToCopy;
-		int i = 0;
-		int Lines = (TtyInfo.CursorLimitY - TtyInfo.CursorStartY);
-		VideoPtr = (uint8_t*)(GfxInformation.VideoAddr + ((TtyInfo.CursorStartY * GfxInformation.BytesPerScanLine)
-			+ (TtyInfo.CursorStartX * (GfxInformation.BitsPerPixel / 8))));
-		BytesToCopy = ((TtyInfo.CursorLimitX - TtyInfo.CursorStartX) * (GfxInformation.BitsPerPixel / 8));
-
-		/* Do a scroll */
-		for (i = 0; i < Lines; i++)
-		{
-			/* Copy a line up */
-			memcpy(VideoPtr, VideoPtr + (GfxInformation.BytesPerScanLine * 16), BytesToCopy);
-
-			/* Increament */
-			VideoPtr += GfxInformation.BytesPerScanLine;
-		}
-
-		/* Clear */
-		VideoPtr = (uint8_t*)(GfxInformation.VideoAddr + ((TtyInfo.CursorStartY * GfxInformation.BytesPerScanLine)
-			+ (TtyInfo.CursorStartX * (GfxInformation.BitsPerPixel / 8))));
-
-		for (i = 0; i < 16; i++)
-		{
-			/* Clear low line */
-			memset((uint8_t*)(VideoPtr + (GfxInformation.BytesPerScanLine * (TtyInfo.CursorLimitY - 16))),
-				0xFF, BytesToCopy);
-
-			/* Increament */
-			VideoPtr += GfxInformation.BytesPerScanLine;
-		}
-		
-		//We scrolled, set it back one line.
-		TtyInfo.CursorY -= 16;
-	}
-
-	/* Release spinlock */
-	SpinlockRelease(&TtyInfo.Lock);
-
-	return Character;
-}
-
-/* Write a character in TEXT mode */
-int VideoPutCharText(int Character)
-{
-	uint16_t attribute = (uint16_t)(TtyInfo.FgColor << 8);
-	uint16_t cursorLocation = 0;
-
-	/* Get spinlock */
-	SpinlockAcquire(&TtyInfo.Lock);
-
-	/* Check special characters */
-	if (Character == 0x08 && TtyInfo.CursorX)		//Backspace
-		TtyInfo.CursorX--;
-	else if (Character == 0x09)					//Tab
-		TtyInfo.CursorX = (uint32_t)((TtyInfo.CursorX + 8) & ~(8 - 1));
-	else if (Character == '\r')					//Carriage return
-		TtyInfo.CursorX = 0;				//New line
-	else if (Character == '\n') {
-		TtyInfo.CursorX = 0;
-		TtyInfo.CursorY++;
-	}
-	//Printable characters
-	else if (Character >= ' ')
-	{
-		uint16_t* location = (uint16_t*)GfxInformation.VideoAddr + (TtyInfo.CursorY * GfxInformation.ResX + TtyInfo.CursorX);
-		*location = (uint16_t)(Character | attribute);
-		TtyInfo.CursorX++;
-	}
-
-	//Go to new line?
-	if (TtyInfo.CursorX >= GfxInformation.ResX) {
-
-		TtyInfo.CursorX = 0;
-		TtyInfo.CursorY++;
-	}
-
-	//Scroll if at last line
-	if (TtyInfo.CursorY >= GfxInformation.ResY)
-	{
-		uint16_t attribute = (uint16_t)(TtyInfo.FgColor << 8);
-		uint16_t *vid_mem = (uint16_t*)GfxInformation.VideoAddr;
-		uint16_t i;
-
-		//Move display one line up
-		for (i = 0 * GfxInformation.ResX; i < (GfxInformation.ResY - 1) * GfxInformation.ResX; i++)
-			vid_mem[i] = vid_mem[i + GfxInformation.ResX];
-
-		//Clear last line
-		for (i = (GfxInformation.ResY - 1) * GfxInformation.ResX; i < (GfxInformation.ResY * GfxInformation.ResX); i++)
-			vid_mem[i] = (uint16_t)(attribute | ' ');
-
-		TtyInfo.CursorY = (GfxInformation.ResY - 1);
-	}
-
-	//Update HW Cursor
-	cursorLocation = (uint16_t)((TtyInfo.CursorY * GfxInformation.ResX) + TtyInfo.CursorX);
-
-	outb(0x3D4, 14);
-	outb(0x3D5, (uint8_t)(cursorLocation >> 8)); // Send the high byte.
-	outb(0x3D4, 15);
-	outb(0x3D5, (uint8_t)cursorLocation);      // Send the low byte.
-
-	/* Release spinlock */
-	SpinlockRelease(&TtyInfo.Lock);
-
-	return Character;
-}
-
-/* PutChar Wrapper */
-int VideoPutChar(int Character)
-{
-	if (GfxInformation.GraphicMode == 0 || GfxInformation.GraphicMode == 1)
-		VideoPutCharText(Character);
-	else
-		VideoPutCharVesa(Character);
-
-	/* Done */
-	return Character;
 }

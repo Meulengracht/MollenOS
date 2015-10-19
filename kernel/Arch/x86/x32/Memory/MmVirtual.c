@@ -37,7 +37,7 @@ volatile Addr_t GblReservedPtr = 0;
 Mutex_t VmMutex;
 
 /* Externs */
-extern volatile uint32_t num_cpus;
+extern volatile uint32_t GlbNumLogicalCpus;
 extern Graphics_t GfxInformation;
 extern SysMemMapping_t SysMappings[32];
 extern void memory_set_paging(int enable);
@@ -403,7 +403,7 @@ void MmVirtualInit(void)
 	PageTable_t *itable;
 
 	/* Allocate space */
-	num_cpus = 0;
+	GlbNumLogicalCpus = 0;
 	GblReservedPtr = MEMORY_LOCATION_RESERVED;
 
 	/* We need 3 pages for the page directory */

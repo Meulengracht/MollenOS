@@ -20,99 +20,93 @@
  */
 
 /* Includes */
-#include <revision.h>
+#include <MollenOS.h>
 #include <Arch.h>
-#include <LApic.h>
 #include <Multiboot.h>
+#include <Memory.h>
 #include <Gdt.h>
-#include <Thread.h>
-#include <Scheduler.h>
 #include <Idt.h>
-#include <Cpu.h>
-#include <Exceptions.h>
-#include <SysTimers.h>
-
+#include <Interrupts.h>
 #include <stddef.h>
 #include <stdio.h>
+#include <Apic.h>
+#include <SysTimers.h>
 
 /* Extern, this function is declared in the MCore project
  * and all platform libs should enter this function */
-extern void mcore_entry(void*);
+MCoreBootInfo_t x86BootInfo;
+extern void MCoreInitialize(MCoreBootInfo_t*);
 
-/* These functions are cross-platform and located in the
- * MCore project. All platform libs should call these 
- * whenever possible. */
-extern void HeapInit(void);
-extern void ApicPrintCpuTicks(void);
+/* Externs */
+extern x86CpuObject_t GlbBootCpuInfo;
 
-void init(Multiboot_t *BootInfo, uint32_t KernelSize)
+/* Enumerates the APIC */
+extern void AcpiEnumerate(void);
+
+/* Initializes FULL access
+* across ACPICA */
+extern void AcpiSetupFull(void);
+
+void InitAcpiAndApic(void)
 {
-	/* CPU Setup (Enable FPU, SSE, etc) */
-	CpuBspInit();
+	/* Initialize the APIC (if present) */
+	if (!(GlbBootCpuInfo.EdxFeatures & CPUID_FEAT_EDX_APIC))
+	{
+		/* Bail out */
+	}
 
-	/* Setup output device */
-	VideoInit(BootInfo);
+	/* Enumerate Acpi */
+	printf("  - Initializing ACPI Systems\n");
+	AcpiEnumerate();
 
-	/* Print MollenOS Header */
-	printf("MollenOS Operating System - Platform: %s - Version %i.%i.%i\n", 
-		ARCHITECTURE_NAME, REVISION_MAJOR, REVISION_MINOR, REVISION_BUILD);
-	printf("Written by Philip Meulengracht, Copyright 2011-2014, All Rights Reserved.\n");
-	printf("Bootloader - %s\n", (char*)BootInfo->BootLoaderName);
-	printf("VC Build %s - %s\n\n", BUILD_DATE, BUILD_TIME);
+	/* Init */
+	ApicInitBoot();
 
-	/* Setup base components */
-	printf("  - Setting up base components\n");
+	/* Setup Full APICPA */
+	AcpiSetupFull();
+
+	/* Setup Timers */
+	printf("    * Installing Timers...\n");
+	TimerManagerInit();
+
+	/* Init Apic Timers */
+	printf("    * Setting up local timer\n");
+	ApicTimerInit();
+}
+
+/* Used for initializing base components */
+void HALInit(void *BootInfo)
+{
+	_CRT_UNUSED(BootInfo);
+
+	/* Setup Gdt */
 	GdtInit();
+	
+	/* Setup Idt */
 	IdtInit();
-	ExceptionsInit();
+
+	/* Setup Interrupts */
 	InterruptInit();
 
 	/* Memory setup! */
 	printf("  - Setting up memory systems\n");
 	printf("    * Physical Memory Manager...\n");
-	MmPhyiscalInit(BootInfo, KernelSize);
+	MmPhyiscalInit(x86BootInfo.ArchBootInfo, x86BootInfo.KernelSize);
 	printf("    * Virtual Memory Manager...\n");
 	MmVirtualInit();
-	printf("    * Heap Memory Manager...\n");
-	HeapInit();
+}
 
-	/* Setup early ACPICA */
-	printf("  - Initializing ACPI Systems\n");
-	AcpiInitStage1();
+void init(Multiboot_t *BootInfo, uint32_t KernelSize)
+{
+	/* Setup Boot Info */
+	x86BootInfo.ArchBootInfo = (void*)BootInfo;
+	x86BootInfo.BootloaderName = (char*)BootInfo->BootLoaderName;
+	x86BootInfo.KernelSize = KernelSize;
+	
+	/* Setup Functions */
+	x86BootInfo.InitHAL = HALInit;
+	x86BootInfo.InitPostSystems = InitAcpiAndApic;
 
-	/* Threading */
-	printf("  - Threading\n");
-	SchedulerInit(0);
-	ThreadingInit();
-
-	/* Setup IoApic and disable Pic */
-	printf("    * APIC Initializing\n");
-	ApicBspInit();
-
-	/* Setup Full APICPA */
-	AcpiInitStage2();
-
-	/* Finish */
-	ApicLocalFinish();
-
-	/* Setup Timers */
-	printf("    * Setting up local timer\n");
-	ApicTimerInit();
-
-	/* Start out any extra cores */
-	printf("  - Booting Cores\n");
-	SmpInit();
-
-	/* From this point, we should start seperate threads and
-	 * let this thread die out, because initial system setup
-	 * is now totally done, and the moment we start another
-	 * thread, it will take over as this is the idle thread */
-
-	/* Drivers... Damn drivers.. */
-	printf("  - Initializing Drivers...\n");
-	ThreadingCreateThread("DriverSetup", DriverManagerInit, NULL, 0);
-
-	/* Done with setup!
-	 * This should be called on a new thread */
-	//threading_create_thread("SystemSetup", mcore_entry, NULL, 0);
+	/* Call Entry Point */
+	MCoreInitialize(&x86BootInfo);
 }

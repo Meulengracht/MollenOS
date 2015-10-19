@@ -24,7 +24,6 @@
 #include <Heap.h>
 #include <Memory.h>
 #include <Timers.h>
-#include <LApic.h>
 #include <Drivers\Timers\Hpet\Hpet.h>
 #include <stdio.h>
 

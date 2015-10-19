@@ -34,7 +34,7 @@
 uint32_t GlbTimerMode = 0;
 
 /* Externs */
-extern CpuObject_t boot_cpu_info;
+extern x86CpuObject_t GlbBootCpuInfo;
 extern volatile uint32_t GlbTimerQuantum;
 extern void rdtsc(volatile uint64_t *value);
 
@@ -98,7 +98,7 @@ void DelayMs(uint32_t MilliSeconds)
 	volatile uint64_t CpuFrequency = GlbTimerQuantum * 1000;
 
 	/* Sanity */
-	if (!(boot_cpu_info.EdxFeatures & CPUID_FEAT_EDX_TSC))
+	if (!(GlbBootCpuInfo.EdxFeatures & CPUID_FEAT_EDX_TSC))
 	{
 		printf("DELAY CALLED AND RDTSC IS NOT SUPPORTED WTF");
 		Idle();

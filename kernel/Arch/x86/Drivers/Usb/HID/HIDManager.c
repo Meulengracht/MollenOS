@@ -20,60 +20,62 @@
 */
 
 /* Includes */
-#include <arch.h>
-#include <drivers\usb\usb.h>
-#include <drivers\usb\hid\hid_manager.h>
-#include <input_manager.h>
-#include <semaphore.h>
-#include <heap.h>
-#include <list.h>
+#include <Arch.h>
+#include <Drivers\Usb\Hid\HidManager.h>
+#include <InputManager.h>
+#include <Semaphore.h>
+#include <Heap.h>
+#include <List.h>
+
 #include <stdio.h>
 #include <string.h>
 
 /* Prototypes */
-void usb_hid_parse_report_descriptor(usb_hid_driver_t *driver, uint8_t *report, uint32_t report_length);
-void usb_hid_callback(void *driver, size_t bytes);
+void UsbHidParseReportDescriptor(HidDevice_t *Device, uint8_t *ReportData, uint32_t ReportLength);
+void UsbHidCallback(void *Device);
 
 /* Collection List Helpers */
-void usb_hid_collection_insert_child(usb_report_collection_t *collection, 
-	usb_report_global_stats_t *stats, uint32_t hid_type, uint32_t type, void *data)
+void UsbHidCollectionInsertChild(UsbHidReportCollection_t *Collection, 
+	UsbHidReportGlobalStats_t *Stats, uint32_t HidType, uint32_t Type, void *Data)
 {
-	usb_report_collection_item_t *curr_child;
-	usb_report_collection_item_t *child =
-		(usb_report_collection_item_t*)kmalloc(sizeof(usb_report_collection_item_t));
-	child->type = type;
-	child->input_type = hid_type;
-	child->data = data;
-	memcpy((void*)(&child->stats), stats, sizeof(usb_report_global_stats_t));
-	child->link = NULL;
+	/* Prepare iterator vars */
+	UsbHidReportCollectionItem_t *CurrChild;
+
+	/* Allocate a new child */
+	UsbHidReportCollectionItem_t *Child =
+		(UsbHidReportCollectionItem_t*)kmalloc(sizeof(UsbHidReportCollectionItem_t));
+	Child->Type = Type;
+	Child->InputType = HidType;
+	Child->Data = Data;
+	memcpy((void*)(&Child->Stats), Stats, sizeof(UsbHidReportGlobalStats_t));
+	Child->Link = NULL;
 
 	/* Insert */
-	if (collection->childs == NULL)
-		collection->childs = child;
+	if (Collection->Childs == NULL)
+		Collection->Childs = Child;
 	else
 	{
-		curr_child = collection->childs;
+		CurrChild = Collection->Childs;
 
-		while (curr_child->link)
-			curr_child = curr_child->link;
-
-		curr_child->link = child;
+		while (CurrChild->Link)
+			CurrChild = CurrChild->Link;
+		CurrChild->Link = Child;
 	}
 }
 
 /* Extracts Bits from buffer */
-uint64_t usb_get_bits(uint8_t *buffer, uint32_t bit_offset, uint32_t bit_length)
+uint64_t UsbHidGetBits(uint8_t *Buffer, uint32_t BitOffset, uint32_t NumBits)
 {
 	uint64_t value = 0;
 	uint32_t i = 0;
-	uint32_t offset = bit_offset;
+	uint32_t offset = BitOffset;
 
-	while (i < bit_length)
+	while (i < NumBits)
 	{
-		uint8_t bits = ((offset % 8) + bit_length - i) < 8 ? bit_length % 8 : 8 - (offset % 8);
+		uint8_t bits = ((offset % 8) + NumBits - i) < 8 ? NumBits % 8 : 8 - (offset % 8);
 		
 		/* */
-		value |= ((buffer[offset / 8] >> (offset % 8)) & ((1 << bits) - 1)) << i;
+		value |= ((Buffer[offset / 8] >> (offset % 8)) & ((1 << bits) - 1)) << i;
 		
 		/* Skip to next set of bits */
 		i += bits;
@@ -87,199 +89,201 @@ uint64_t usb_get_bits(uint8_t *buffer, uint32_t bit_offset, uint32_t bit_length)
 }
 
 /* Initialise Driver for a HID */
-void usb_hid_initialise(usb_hc_device_t *device, uint32_t iface)
+void UsbHidInit(UsbHcDevice_t *UsbDevice, uint32_t InterfaceIndex)
 {
-	uint8_t *buf_ptr = (uint8_t*)device->descriptors;
-	uint32_t bytes_left = device->descriptors_length;
-	usb_hid_descriptor_t *hid_descriptor = NULL;
-	usb_hc_endpoint_t *hid_endpoint = NULL;
-	usb_hid_driver_t *driver_data = NULL;
-	usb_hc_t *hc = device->hcd;
-	uint8_t *report_descriptor = NULL;
-	uint32_t i, ep_itr;
+	/* Allocate device stuff */
+	HidDevice_t *DevData = (HidDevice_t*)kmalloc(sizeof(HidDevice_t));
+
+	/* Setup vars 
+	 * and prepare for a descriptor loop */
+	uint8_t *BufPtr = (uint8_t*)UsbDevice->Descriptors;
+	uint32_t BytesLeft = UsbDevice->DescriptorsLength;
+
+	/* Needed for parsing */
+	UsbHidDescriptor_t *HidDescriptor = NULL;
+	uint8_t *ReportDescriptor = NULL;
+	uint32_t i;
 
 	/* Locate the HID descriptor */
-	while (bytes_left > 0)
+	while (BytesLeft > 0)
 	{
 		/* Cast */
-		uint8_t length = *buf_ptr;
-		uint8_t type = *(buf_ptr + 1);
+		uint8_t Length = *BufPtr;
+		uint8_t Type = *(BufPtr + 1);
 
 		/* Is this a HID descriptor ? */
-		if (type == X86_USB_DESC_TYPE_HID)
+		if (Type == X86_USB_DESC_TYPE_HID
+			&& Length == sizeof(UsbHidDescriptor_t))
 		{
-			hid_descriptor = (usb_hid_descriptor_t*)buf_ptr;
-			printf("Report Descriptor Type: 0x%x, Length: 0x%x\n", 
-				hid_descriptor->class_descriptor_type, hid_descriptor->class_descriptor_length);
+			HidDescriptor = (UsbHidDescriptor_t*)BufPtr;
 			break;
 		}
 		else
 		{
-			buf_ptr += length;
-			bytes_left -= length;
+			BufPtr += Length;
+			BytesLeft -= Length;
 		}
 	}
 
 	/* Sanity */
-	if (hid_descriptor == NULL)
+	if (HidDescriptor == NULL)
 	{
 		printf("HID Descriptor did not exist.\n");
+		kfree(DevData);
 		return;
 	}
 
 	/* Locate interrupt IN endpoint 
 	 * We only check endpoints related to this
 	 * Interface */
-	for (i = 0, ep_itr = 1; i < device->num_interfaces; i++)
+	/* Locate neccessary endpoints */
+	for (i = 0; i < UsbDevice->Interfaces[InterfaceIndex]->NumEndpoints; i++)
 	{
-		if (i == iface)
-		{
-			uint32_t ep_max = ep_itr + device->interfaces[i]->endpoints;
-			
-			/* Ok, check endpoints */
-			for (; ep_itr < ep_max; ep_itr++)
-			{
-				if (device->endpoints[ep_itr]->type == X86_USB_EP_TYPE_INTERRUPT
-					&& device->endpoints[ep_itr]->direction == X86_USB_EP_DIRECTION_IN)
-				{
-					hid_endpoint = device->endpoints[ep_itr];
-					break;
-				}
-			}
-
-			/* Break */
-			break;
-		}
-		else
-			ep_itr += device->interfaces[i]->endpoints;
+		/* Interrupt? */
+		if (UsbDevice->Interfaces[InterfaceIndex]->Endpoints[i]->Type == X86_USB_EP_TYPE_INTERRUPT)
+			DevData->EpInterrupt = UsbDevice->Interfaces[InterfaceIndex]->Endpoints[i];
 	}
 
 	/* Sanity */
-	if (hid_endpoint == NULL)
+	if (DevData->EpInterrupt == NULL)
 	{
 		printf("HID Endpoint (In, Interrupt) did not exist.\n");
+		kfree(DevData);
 		return;
 	}
 
 
 	/* Get Report Descriptor */
-	report_descriptor = (uint8_t*)kmalloc(hid_descriptor->class_descriptor_length);
-	usb_function_get_descriptor(device->hcd, device->port, 
-		report_descriptor, X86_USB_REQ_DIRECTION_IN | X86_USB_REQ_TARGET_INTERFACE, 
-		hid_descriptor->class_descriptor_type,
-		0, 0, hid_descriptor->class_descriptor_length);	/* 0x81 means IN, Interface */
+	ReportDescriptor = (uint8_t*)kmalloc(HidDescriptor->ClassDescriptorLength);
+	if (UsbFunctionGetDescriptor((UsbHc_t*)UsbDevice->HcDriver, UsbDevice->Port,
+		ReportDescriptor, X86_USB_REQ_DIRECTION_IN | X86_USB_REQ_TARGET_INTERFACE,
+		HidDescriptor->ClassDescriptorType,
+		0, 0, HidDescriptor->ClassDescriptorLength) != TransferFinished)
+	{
+		printf("Failed to get Report Descriptor.\n");
+		kfree(ReportDescriptor);
+		kfree(DevData);
+		return;
+	}
 
 	/* Switch to Report Protocol (ONLY if we are in boot protocol) */
 
-	/* Allocate driver data */
-	driver_data = (usb_hid_driver_t*)kmalloc(sizeof(usb_hid_driver_t));
-	driver_data->previous_data_buffer = (uint8_t*)kmalloc(hid_endpoint->max_packet_size);
-	driver_data->data_buffer = (uint8_t*)kmalloc(hid_endpoint->max_packet_size);
-	driver_data->endpoint = hid_endpoint;
-	driver_data->collection = NULL;
+	/* Set driver data */
+	DevData->PrevDataBuffer = (uint8_t*)kmalloc(DevData->EpInterrupt->MaxPacketSize);
+	DevData->DataBuffer = (uint8_t*)kmalloc(DevData->EpInterrupt->MaxPacketSize);
+	DevData->Collection = NULL;
 
 	/* Memset Databuffers */
-	memset(driver_data->previous_data_buffer, 0, hid_endpoint->max_packet_size);
-	memset(driver_data->data_buffer, 0, hid_endpoint->max_packet_size);
+	memset(DevData->PrevDataBuffer, 0, DevData->EpInterrupt->MaxPacketSize);
+	memset(DevData->DataBuffer, 0, DevData->EpInterrupt->MaxPacketSize);
 
 	/* Parse Report Descriptor */
-	usb_hid_parse_report_descriptor(driver_data, report_descriptor, hid_descriptor->class_descriptor_length);
+	UsbHidParseReportDescriptor(DevData, ReportDescriptor, HidDescriptor->ClassDescriptorLength);
 
 	/* Set idle :) */
-	usb_function_send_packet(device->hcd, device->port, 0,
+	UsbFunctionSendPacket((UsbHc_t*)UsbDevice->HcDriver, UsbDevice->Port, 0,
 		X86_USB_REQ_TARGET_CLASS | X86_USB_REQ_TARGET_INTERFACE,
 		X86_USB_REQ_SET_IDLE, 0, 0, 0, 0);
 
 	/* Install Interrupt */
-	hc->install_interrupt(hc->hc, device, hid_endpoint, driver_data->data_buffer, 
-		hid_endpoint->max_packet_size, usb_hid_callback, driver_data);
+	//hc->install_interrupt(hc->hc, device, hid_endpoint, driver_data->data_buffer, 
+		//hid_endpoint->max_packet_size, usb_hid_callback, driver_data);
 }
 
 /* Parses the report descriptor and stores it as 
  * collection tree */
-void usb_hid_parse_report_descriptor(usb_hid_driver_t *driver, uint8_t *report, uint32_t report_length)
+void UsbHidParseReportDescriptor(HidDevice_t *Device, uint8_t *ReportData, uint32_t ReportLength)
 {
-	uint32_t i = 0, j = 0, depth = 0;
-	usb_report_collection_t *collection = NULL, *root_collection = NULL;
-	usb_report_global_stats_t global_stats = { 0 };
-	usb_report_item_stats_t item_stats = { 0 };
+	/* Iteration vars */
+	uint32_t i = 0, j = 0, Depth = 0;
+
+	/* Used for collection data */
+	UsbHidReportCollection_t *Collection = NULL, *RootCollection = NULL;
+	UsbHidReportGlobalStats_t GlobalStats = { 0 };
+	UsbHidReportItemStats_t ItemStats = { 0 };
+
+	/* Offsets */
 	uint32_t bit_offset = 0;
 	uint32_t current_type = MCORE_INPUT_TYPE_UNKNOWN;
 
 	/* Null Report Id */
-	global_stats.report_id = 0xFFFFFFFF;
+	GlobalStats.ReportId = 0xFFFFFFFF;
 
 	/* Loop through report */
-	for (i = 0; i < report_length; /* Increase Manually */)
+	for (i = 0; i < ReportLength; /* Increase Manually */)
 	{
 		/* Bits 0-1 (Must be either 0, 1, 2 or 4) 3 = 4*/
-		uint8_t size = report[i] & 0x03;
+		uint8_t Size = ReportData[i] & 0x03;
 
 		/* Bits 2-3 */
-		uint8_t type = report[i] & 0x0C;
+		uint8_t Type = ReportData[i] & 0x0C;
 
 		/* Bits 4-7 */
-		uint8_t tag = report[i] & 0xF0;
+		uint8_t Tag = ReportData[i] & 0xF0;
 
 		/* The packet */
-		uint32_t packet = 0;
+		uint32_t Packet = 0;
 
 		/* Size Fixup */
-		if (size == 3)
-			size++;
+		if (Size == 3)
+			Size++;
 
 		/* Get actual packet (The byte(s) after the header) */
-		if (size == 1)
-			packet = report[i + 1];
-		else if (size == 2)
-			packet = report[i + 1] | (uint32_t)((report[i + 2] << 8) & 0xFF00);
-		else if (size == 4)
-			packet = report[i + 1] | (uint32_t)((report[i + 2] << 8) & 0xFF00) 
-			| (uint32_t)((report[i + 3] << 16) & 0xFF0000) | (uint32_t)((report[i + 4] << 24) & 0xFF000000);
+		if (Size == 1)
+			Packet = ReportData[i + 1];
+		else if (Size == 2)
+			Packet = ReportData[i + 1] | (uint32_t)((ReportData[i + 2] << 8) & 0xFF00);
+		else if (Size == 4)
+			Packet = ReportData[i + 1] | (uint32_t)((ReportData[i + 2] << 8) & 0xFF00)
+			| (uint32_t)((ReportData[i + 3] << 16) & 0xFF0000) 
+			| (uint32_t)((ReportData[i + 4] << 24) & 0xFF000000);
 
 		/* Update Report Pointer */
-		i += (size + 1);
+		i += (Size + 1);
 
 		/* Sanity, the first item outside an collection should be an COLLECTION!! */
-		if (collection == NULL && type == X86_USB_REPORT_TYPE_MAIN && tag != X86_USB_REPORT_MAIN_TAG_COLLECTION)
+		if (Collection == NULL 
+			&& Type == X86_USB_REPORT_TYPE_MAIN 
+			&& Tag != X86_USB_REPORT_MAIN_TAG_COLLECTION)
 			continue;
 
 		/* Ok, we have 3 item groups. Main, Local & Global */
-		switch (type)
+		switch (Type)
 		{
 			/* Main Item */
 			case X86_USB_REPORT_TYPE_MAIN:
 			{
 				/* 5 Main Item Groups: Input, Output, Feature, Collection, EndCollection */
-				switch (tag)
+				switch (Tag)
 				{
 					/* Collection Item */
 					case X86_USB_REPORT_MAIN_TAG_COLLECTION:
 					{
 						/* Create a new collection and set parent */
-						usb_report_collection_t *next_collection = (usb_report_collection_t*)kmalloc(sizeof(usb_report_collection_t));
-						next_collection->childs = NULL;
-						next_collection->parent = NULL;
+						UsbHidReportCollection_t *NextCollection =
+							(UsbHidReportCollection_t*)kmalloc(sizeof(UsbHidReportCollection_t));
+						NextCollection->Childs = NULL;
+						NextCollection->NextParent = NULL;
 
-						if (collection == NULL)
+						if (Collection == NULL)
 						{
-							collection = next_collection;
+							Collection = NextCollection;
 						}
 						else
 						{
 							/* Set parent */
-							next_collection->parent = collection;
+							NextCollection->NextParent = Collection;
 
 							/* Create a child node */
-							usb_hid_collection_insert_child(collection, &global_stats, current_type, 
-								X86_USB_COLLECTION_TYPE_COLLECTION, next_collection);
+							UsbHidCollectionInsertChild(Collection, &GlobalStats, current_type,
+								X86_USB_COLLECTION_TYPE_COLLECTION, NextCollection);
 
 							/* Enter collection */
-							collection = next_collection;
+							Collection = NextCollection;
 						}
 
 						/* Increase Depth */
-						depth++;
+						Depth++;
 
 					} break;
 
@@ -287,112 +291,111 @@ void usb_hid_parse_report_descriptor(usb_hid_driver_t *driver, uint8_t *report, 
 					case X86_USB_REPORT_MAIN_TAG_ENDCOLLECTION:
 					{
 						/* Move up */
-						if (collection != NULL)
+						if (Collection != NULL)
 						{
 							/* If parent is null, root collection is done (save it) */
-							if (collection->parent != NULL)
-								root_collection = collection;
-								
-							collection = collection->parent;
+							if (Collection->NextParent != NULL)
+								RootCollection = Collection;
+							Collection = Collection->NextParent;
 						}
 
 						/* Decrease Depth */
-						depth--;
+						Depth--;
 
 					} break;
 
 					/* Input Item */
 					case X86_USB_REPORT_MAIN_TAG_INPUT:
 					{
-						usb_report_input_t *input_item =
-							(usb_report_input_t*)kmalloc(sizeof(usb_report_input_t));
+						UsbHidReportInputItem_t *InputItem =
+							(UsbHidReportInputItem_t*)kmalloc(sizeof(UsbHidReportInputItem_t));
 
 						/* What kind of input data? */
-						if (packet & 0x1)
-							input_item->flags = X86_USB_REPORT_INPUT_TYPE_CONSTANT;
+						if (Packet & 0x1)
+							InputItem->Flags = X86_USB_REPORT_INPUT_TYPE_CONSTANT;
 						else
 						{
 							/* This is data, not constant */
-							if (packet & 0x2)
+							if (Packet & 0x2)
 							{
 								/* Variable Input */
-								if (packet & 0x4)
-									input_item->flags = X86_USB_REPORT_INPUT_TYPE_RELATIVE; /* Data, Variable, Relative */
+								if (Packet & 0x4)
+									InputItem->Flags = X86_USB_REPORT_INPUT_TYPE_RELATIVE; /* Data, Variable, Relative */
 								else
-									input_item->flags = X86_USB_REPORT_INPUT_TYPE_ABSOLUTE; /* Data, Variable, Absolute */
+									InputItem->Flags = X86_USB_REPORT_INPUT_TYPE_ABSOLUTE; /* Data, Variable, Absolute */
 							}
 							else
-								input_item->flags = X86_USB_REPORT_INPUT_TYPE_ARRAY; /* Data, Array */
+								InputItem->Flags = X86_USB_REPORT_INPUT_TYPE_ARRAY; /* Data, Array */
 						}
 
 						/* Set local stats */
 						for (j = 0; j < 16; j++)
-							input_item->stats.usages[j] = item_stats.usages[j];
+							InputItem->Stats.Usages[j] = ItemStats.Usages[j];
 
-						input_item->stats.usage_min = item_stats.usage_min;
-						input_item->stats.usage_max = item_stats.usage_max;
-						input_item->stats.bit_offset = bit_offset;
+						InputItem->Stats.UsageMin = ItemStats.UsageMin;
+						InputItem->Stats.UsageMax = ItemStats.UsageMax;
+						InputItem->Stats.BitOffset = bit_offset;
 
 						/* Add to list */
-						usb_hid_collection_insert_child(collection, &global_stats, current_type,
-							X86_USB_COLLECTION_TYPE_INPUT, input_item);
+						UsbHidCollectionInsertChild(Collection, &GlobalStats, current_type,
+							X86_USB_COLLECTION_TYPE_INPUT, InputItem);
 
 						/* Increase Bitoffset Counter */
-						bit_offset += global_stats.report_count * global_stats.report_size;
+						bit_offset += GlobalStats.ReportCount * GlobalStats.ReportSize;
 						
 					} break;
 
 					/* Output Item */
 					case X86_USB_REPORT_MAIN_TAG_OUTPUT:
 					{
-						printf("%u: Output Item (%u)\n", depth, packet);
+						printf("%u: Output Item (%u)\n", Depth, Packet);
 					} break;
 
 					/* Feature Item */
 					case X86_USB_REPORT_MAIN_TAG_FEATURE:
 					{
-						printf("%u: Feature Item (%u)\n", depth, packet);
+						printf("%u: Feature Item (%u)\n", Depth, Packet);
 					} break;
 				}
 
 				/* Reset Local Stats */
 				for (j = 0; j < 16; j++)
-					item_stats.usages[j] = 0;
-				item_stats.usage_min = 0;
-				item_stats.usage_max = 0;
-				item_stats.bit_offset = 0;
+					ItemStats.Usages[j] = 0;
+				ItemStats.UsageMin = 0;
+				ItemStats.UsageMax = 0;
+				ItemStats.BitOffset = 0;
 
 			} break;
 
 			/* Global Item */
 			case X86_USB_REPORT_TYPE_GLOBAL:
 			{
-				switch (tag)
+				switch (Tag)
 				{
 					/* Usage Page */
 					case X86_USB_REPORT_GLOBAL_TAG_USAGE_PAGE:
 					{
-						global_stats.usage = packet;
+						GlobalStats.Usage = Packet;
 					} break;
 
 					/* Logical Min & Max */
 					case X86_USB_REPORT_GLOBAL_TAG_LOGICAL_MIN:
 					{
 						/* New pair of log */
-						if (global_stats.has_log_min != 0)
-							global_stats.has_log_max = 0;
+						if (GlobalStats.HasLogicalMin != 0)
+							GlobalStats.HasLogicalMax = 0;
 						
-						global_stats.log_min = (int32_t)packet;
-						global_stats.has_log_min = 1;
+						GlobalStats.LogicalMin = (int32_t)Packet;
+						GlobalStats.HasLogicalMin = 1;
 
-						if (global_stats.has_log_max != 0)
+						if (GlobalStats.HasLogicalMax != 0)
 						{
 							/* Make sure minimum value is less than max */
-							if ((int)(global_stats.log_min) >= (int)(global_stats.log_max))
+							if ((int)(GlobalStats.LogicalMin) >= (int)(GlobalStats.LogicalMax))
 							{
 								/* Sign it */
-								global_stats.log_min = ~(global_stats.log_min);
-								global_stats.log_min++;
+								GlobalStats.LogicalMin = ~(GlobalStats.LogicalMin);
+								GlobalStats.LogicalMin++;
 							}
 						}
 
@@ -400,20 +403,20 @@ void usb_hid_parse_report_descriptor(usb_hid_driver_t *driver, uint8_t *report, 
 					case X86_USB_REPORT_GLOBAL_TAG_LOGICAL_MAX:
 					{
 						/* New pair of log */
-						if (global_stats.has_log_max != 0)
-							global_stats.has_log_min = 0;
+						if (GlobalStats.HasLogicalMax != 0)
+							GlobalStats.HasLogicalMin = 0;
 
-						global_stats.log_max = (int32_t)packet;
-						global_stats.has_log_max = 1;
+						GlobalStats.LogicalMax = (int32_t)Packet;
+						GlobalStats.HasLogicalMax = 1;
 
-						if (global_stats.has_log_min != 0)
+						if (GlobalStats.HasLogicalMin != 0)
 						{
 							/* Make sure minimum value is less than max */
-							if ((int)(global_stats.log_min) >= (int)(global_stats.log_max))
+							if ((int)(GlobalStats.LogicalMin) >= (int)(GlobalStats.LogicalMax))
 							{
 								/* Sign it */
-								global_stats.log_min = ~(global_stats.log_min);
-								global_stats.log_min++;
+								GlobalStats.LogicalMin = ~(GlobalStats.LogicalMin);
+								GlobalStats.LogicalMin++;
 							}
 						}
 
@@ -423,20 +426,20 @@ void usb_hid_parse_report_descriptor(usb_hid_driver_t *driver, uint8_t *report, 
 					case X86_USB_REPORT_GLOBAL_TAG_PHYSICAL_MIN:
 					{
 						/* New pair of physical */
-						if (global_stats.has_phys_min != 0)
-							global_stats.has_phys_max = 0;
+						if (GlobalStats.HasPhysicalMin != 0)
+							GlobalStats.HasPhysicalMax = 0;
 
-						global_stats.physical_min = (int32_t)packet;
-						global_stats.has_phys_min = 1;
+						GlobalStats.PhysicalMin = (int32_t)Packet;
+						GlobalStats.HasPhysicalMin = 1;
 
-						if (global_stats.has_phys_max != 0)
+						if (GlobalStats.HasPhysicalMax != 0)
 						{
 							/* Make sure minimum value is less than max */
-							if ((int)(global_stats.physical_min) >= (int)(global_stats.physical_max))
+							if ((int)(GlobalStats.PhysicalMin) >= (int)(GlobalStats.PhysicalMax))
 							{
 								/* Sign it */
-								global_stats.physical_min = ~(global_stats.physical_min);
-								global_stats.physical_min++;
+								GlobalStats.PhysicalMin = ~(GlobalStats.PhysicalMin);
+								GlobalStats.PhysicalMin++;
 							}
 						}
 
@@ -444,31 +447,31 @@ void usb_hid_parse_report_descriptor(usb_hid_driver_t *driver, uint8_t *report, 
 					case X86_USB_REPORT_GLOBAL_TAG_PHYSICAL_MAX:
 					{
 						/* New pair of physical */
-						if (global_stats.has_phys_max != 0)
-							global_stats.has_phys_min = 0;
+						if (GlobalStats.HasPhysicalMax != 0)
+							GlobalStats.HasPhysicalMin = 0;
 
-						global_stats.physical_max = (int32_t)packet;
-						global_stats.has_phys_max = 1;
+						GlobalStats.PhysicalMax = (int32_t)Packet;
+						GlobalStats.HasPhysicalMax = 1;
 
-						if (global_stats.has_phys_min != 0)
+						if (GlobalStats.HasPhysicalMin != 0)
 						{
 							/* Make sure minimum value is less than max */
-							if ((int)(global_stats.physical_min) >= (int)(global_stats.physical_max))
+							if ((int)(GlobalStats.PhysicalMin) >= (int)(GlobalStats.PhysicalMax))
 							{
 								/* Sign it */
-								global_stats.physical_min = ~(global_stats.physical_min);
-								global_stats.physical_min++;
+								GlobalStats.PhysicalMin = ~(GlobalStats.PhysicalMin);
+								GlobalStats.PhysicalMin++;
 							}
 						}
 
 						/* Unit & Unit Exponent */
 						case X86_USB_REPORT_GLOBAL_TAG_UNIT_VALUE:
 						{
-							global_stats.unit_type = (int32_t)packet;
+							GlobalStats.UnitType = (int32_t)Packet;
 						} break;
 						case X86_USB_REPORT_GLOBAL_TAG_UNIT_EXPONENT:
 						{
-							global_stats.unit_exponent = (int32_t)packet;
+							GlobalStats.UnitExponent = (int32_t)Packet;
 						} break;
 
 					} break;
@@ -476,21 +479,21 @@ void usb_hid_parse_report_descriptor(usb_hid_driver_t *driver, uint8_t *report, 
 					/* Report Items */
 					case X86_USB_REPORT_GLOBAL_TAG_REPORT_ID:
 					{
-						global_stats.report_id = packet;
+						GlobalStats.ReportId = Packet;
 					} break;
 					case X86_USB_REPORT_GLOBAL_TAG_REPORT_COUNT:
 					{
-						global_stats.report_count = packet;
+						GlobalStats.ReportCount = Packet;
 					} break;
 					case X86_USB_REPORT_GLOBAL_TAG_REPORT_SIZE:
 					{
-						global_stats.report_size = packet;
+						GlobalStats.ReportSize = Packet;
 					} break;
 						
 					/* Unhandled */
 					default:
 					{
-						printf("%u: Global Item %u\n", depth, tag);
+						printf("%u: Global Item %u\n", Depth, Tag);
 					} break;
 				}
 
@@ -499,28 +502,28 @@ void usb_hid_parse_report_descriptor(usb_hid_driver_t *driver, uint8_t *report, 
 			/* Local Item */
 			case X86_USB_REPORT_TYPE_LOCAL:
 			{
-				switch (tag)
+				switch (Tag)
 				{
 					/* Usage */
 					case X86_USB_REPORT_GLOBAL_TAG_USAGE_PAGE:
 					{
-						if (packet == X86_USB_REPORT_USAGE_POINTER
-							|| packet == X86_USB_REPORT_USAGE_MOUSE)
+						if (Packet == X86_USB_REPORT_USAGE_POINTER
+							|| Packet == X86_USB_REPORT_USAGE_MOUSE)
 							current_type = MCORE_INPUT_TYPE_MOUSE;
-						else if (packet == X86_USB_REPORT_USAGE_KEYBOARD)
+						else if (Packet == X86_USB_REPORT_USAGE_KEYBOARD)
 							current_type = MCORE_INPUT_TYPE_KEYBOARD;
-						else if (packet == X86_USB_REPORT_USAGE_KEYPAD)
+						else if (Packet == X86_USB_REPORT_USAGE_KEYPAD)
 							current_type = MCORE_INPUT_TYPE_KEYPAD;
-						else if (packet == X86_USB_REPORT_USAGE_JOYSTICK)
+						else if (Packet == X86_USB_REPORT_USAGE_JOYSTICK)
 							current_type = MCORE_INPUT_TYPE_JOYSTICK;
-						else if (packet == X86_USB_REPORT_USAGE_GAMEPAD)
+						else if (Packet == X86_USB_REPORT_USAGE_GAMEPAD)
 							current_type = MCORE_INPUT_TYPE_GAMEPAD;
 
 						for (j = 0; j < 16; j++)
 						{
-							if (item_stats.usages[j] == 0)
+							if (ItemStats.Usages[j] == 0)
 							{
-								item_stats.usages[j] = packet;
+								ItemStats.Usages[j] = Packet;
 								break;
 							}
 						}
@@ -530,17 +533,17 @@ void usb_hid_parse_report_descriptor(usb_hid_driver_t *driver, uint8_t *report, 
 					/* Uage Min & Max */
 					case X86_USB_REPORT_LOCAL_TAG_USAGE_MIN:
 					{
-						item_stats.usage_min = packet;
+						ItemStats.UsageMin = Packet;
 					} break;
 					case X86_USB_REPORT_LOCAL_TAG_USAGE_MAX:
 					{
-						item_stats.usage_max = packet;
+						ItemStats.UsageMax = Packet;
 					} break;
 
 					/* Unhandled */
 					default:
 					{
-						printf("%u: Local Item %u\n", depth, tag);
+						printf("%u: Local Item %u\n", Depth, Tag);
 					} break;
 				}
 			} break;
@@ -548,57 +551,62 @@ void usb_hid_parse_report_descriptor(usb_hid_driver_t *driver, uint8_t *report, 
 	}
 
 	/* Save it in driver data */
-	driver->collection = (root_collection == NULL) ? collection : root_collection;
+	Device->Collection = (RootCollection == NULL) ? Collection : RootCollection;
 }
 
 /* Gives input data to an input item */
-void usb_hid_apply_input_data(usb_hid_driver_t *driver_data, usb_report_collection_item_t *input_item)
+void UsbHidApplyInputData(HidDevice_t *Device, UsbHidReportCollectionItem_t *CollectionItem)
 {
-	usb_report_input_t *input = (usb_report_input_t*)input_item->data;
-	input_pointer_data_t pointer_data = { 0 };
-	input_button_data_t button_data = { 0 };
-	uint64_t value = 0, old_value = 0;
-	uint32_t i, offset, length, usage;
+	/* Cast */
+	UsbHidReportInputItem_t *InputItem = (UsbHidReportInputItem_t*)CollectionItem->Data;
+
+	/* Need those for registrating events */
+	ImPointerEvent_t PointerData = { 0 };
+	ImButtonEvent_t ButtonData = { 0 };
+
+	/* And these for parsing */
+	uint64_t Value = 0, OldValue = 0;
+	uint32_t i, Offset, Length, Usage;
 
 	/* If we are constant, we are padding :D */
-	if (input->flags == X86_USB_REPORT_INPUT_TYPE_CONSTANT)
+	if (InputItem->Flags == X86_USB_REPORT_INPUT_TYPE_CONSTANT)
 		return;
 
 	/* If we have a valid ReportID, make sure this data is for us */
-	if (input_item->stats.report_id != 0xFFFFFFFF)
+	if (CollectionItem->Stats.ReportId != 0xFFFFFFFF)
 	{
 		/* The first byte is the report Id */
-		uint8_t report_id = driver_data->data_buffer[0];
+		uint8_t ReportId = Device->DataBuffer[0];
 
 		/* Sanity */
-		if (report_id != (uint8_t)input_item->stats.report_id)
+		if (ReportId != (uint8_t)CollectionItem->Stats.ReportId)
 			return;
 	}
 
 	/* Set type */
-	pointer_data.type = input_item->input_type;
-	button_data.type = input_item->input_type;
+	PointerData.Type = CollectionItem->InputType;
+	ButtonData.Type = CollectionItem->InputType;
 
 	/* Loop through report data */
-	offset = input->stats.bit_offset;
-	length = input_item->stats.report_size;
-	for (i = 0; i < input_item->stats.report_count; i++)
+	Offset = InputItem->Stats.BitOffset;
+	Length = CollectionItem->Stats.ReportSize;
+	for (i = 0; i < CollectionItem->Stats.ReportCount; i++)
 	{
 		/* Get bits in question! */
-		value = usb_get_bits(driver_data->data_buffer, offset, length);
-		old_value = 0;
+		Value = UsbHidGetBits(Device->DataBuffer, Offset, Length);
+		OldValue = 0;
 		
 		/* We cant expect this to be correct though, it might be 0 */
-		usage = input->stats.usages[i];
+		Usage = InputItem->Stats.Usages[i];
 
 		/* Holy shit i hate switches */
-		switch (input_item->stats.usage)
+		switch (CollectionItem->Stats.Usage)
 		{
 			/* Mouse, Keyboard etc */
 			case X86_USB_REPORT_USAGE_PAGE_GENERIC_PC:
 			{
 				/* Lets check sub-type (local usage) */
-				switch (usage)
+				switch (Usage)
 				{
 					/* Calculating Device Bounds 
 					 * Resolution = (Logical Maximum – Logical Minimum) / 
@@ -609,37 +617,37 @@ void usb_hid_apply_input_data(usb_hid_driver_t *driver_data, usb_report_collecti
 					/* X Axis Update */
 					case X86_USB_REPORT_USAGE_X_AXIS:
 					{
-						int64_t x_relative = (int64_t)value;
+						int64_t xRelative = (int64_t)Value;
 
 						/* Sanity */
-						if (value == 0)
+						if (Value == 0)
 							break;
 
 						/* Convert to relative if necessary */
-						if (input->flags == X86_USB_REPORT_INPUT_TYPE_ABSOLUTE)
+						if (InputItem->Flags == X86_USB_REPORT_INPUT_TYPE_ABSOLUTE)
 						{
 							/* Get last value */
-							old_value = usb_get_bits(driver_data->previous_data_buffer, offset, length);
-							x_relative = (int64_t)(value - old_value);
+							OldValue = UsbHidGetBits(Device->PrevDataBuffer, Offset, Length);
+							xRelative = (int64_t)(Value - OldValue);
 						}
 
 						/* Fix-up relative number */
-						if (x_relative > input_item->stats.log_max
-							&& input_item->stats.log_min < 0)
+						if (xRelative > CollectionItem->Stats.LogicalMax
+							&& CollectionItem->Stats.LogicalMin < 0)
 						{
 							/* This means we have to sign x_relative */
-							x_relative = (int64_t)(~((uint64_t)x_relative));
-							x_relative++;
+							xRelative = (int64_t)(~((uint64_t)xRelative));
+							xRelative++;
 						}
 
-						if (x_relative != 0)
+						if (xRelative != 0)
 						{
 							/* Add it */
-							pointer_data.x_relative = (int32_t)x_relative;
+							PointerData.xRelative = (int32_t)xRelative;
 
 							/* Now it epends on mouse, joystick or w/e */
 							printf("X-Change: %i (Original 0x%x, Old 0x%x)\n",
-								(int32_t)x_relative, (uint32_t)value, (uint32_t)old_value);
+								(int32_t)xRelative, (uint32_t)Value, (uint32_t)OldValue);
 						}
 
 					} break;
@@ -647,37 +655,37 @@ void usb_hid_apply_input_data(usb_hid_driver_t *driver_data, usb_report_collecti
 					/* Y Axis Update */
 					case X86_USB_REPORT_USAGE_Y_AXIS:
 					{
-						int64_t y_relative = (int64_t)value;
+						int64_t yRelative = (int64_t)Value;
 
 						/* Sanity */
-						if (value == 0)
+						if (Value == 0)
 							break;
 
 						/* Convert to relative if necessary */
-						if (input->flags == X86_USB_REPORT_INPUT_TYPE_ABSOLUTE)
+						if (InputItem->Flags == X86_USB_REPORT_INPUT_TYPE_ABSOLUTE)
 						{
 							/* Get last value */
-							old_value = usb_get_bits(driver_data->previous_data_buffer, offset, length);
-							y_relative = (int64_t)(value - old_value);
+							OldValue = UsbHidGetBits(Device->PrevDataBuffer, Offset, Length);
+							yRelative = (int64_t)(Value - OldValue);
 						}
 
 						/* Fix-up relative number */
-						if (y_relative > input_item->stats.log_max
-							&& input_item->stats.log_min < 0)
+						if (yRelative > CollectionItem->Stats.LogicalMax
+							&& CollectionItem->Stats.LogicalMin < 0)
 						{
 							/* This means we have to sign x_relative */
-							y_relative = (int64_t)(~((uint64_t)y_relative));
-							y_relative++;
+							yRelative = (int64_t)(~((uint64_t)yRelative));
+							yRelative++;
 						}
 
-						if (y_relative != 0)
+						if (yRelative != 0)
 						{
 							/* Add it */
-							pointer_data.y_relative = (int32_t)y_relative;
+							PointerData.yRelative = (int32_t)yRelative;
 
 							/* Now it epends on mouse, joystick or w/e */
 							printf("Y-Change: %i (Original 0x%x, Old 0x%x)\n",
-								(int32_t)y_relative, (uint32_t)value, (uint32_t)old_value);
+								(int32_t)yRelative, (uint32_t)Value, (uint32_t)OldValue);
 						}
 
 					} break;
@@ -685,37 +693,37 @@ void usb_hid_apply_input_data(usb_hid_driver_t *driver_data, usb_report_collecti
 					/* Z Axis Update */
 					case X86_USB_REPORT_USAGE_Z_AXIS:
 					{
-						int64_t z_relative = (int64_t)value;
+						int64_t zRelative = (int64_t)Value;
 
 						/* Sanity */
-						if (value == 0)
+						if (Value == 0)
 							break;
 
 						/* Convert to relative if necessary */
-						if (input->flags == X86_USB_REPORT_INPUT_TYPE_ABSOLUTE)
+						if (InputItem->Flags == X86_USB_REPORT_INPUT_TYPE_ABSOLUTE)
 						{
 							/* Get last value */
-							old_value = usb_get_bits(driver_data->previous_data_buffer, offset, length);
-							z_relative = (int64_t)(value - old_value);
+							OldValue = UsbHidGetBits(Device->PrevDataBuffer, Offset, Length);
+							zRelative = (int64_t)(Value - OldValue);
 						}
 
 						/* Fix-up relative number */
-						if (z_relative > input_item->stats.log_max
-							&& input_item->stats.log_min < 0)
+						if (zRelative > CollectionItem->Stats.LogicalMax
+							&& CollectionItem->Stats.LogicalMin < 0)
 						{
 							/* This means we have to sign x_relative */
-							z_relative = (int64_t)(~((uint64_t)z_relative));
-							z_relative++;
+							zRelative = (int64_t)(~((uint64_t)zRelative));
+							zRelative++;
 						}
 
-						if (z_relative != 0)
+						if (zRelative != 0)
 						{
 							/* Add it */
-							pointer_data.z_relative = (int32_t)z_relative;
+							PointerData.zRelative = (int32_t)zRelative;
 
 							/* Now it epends on mouse, joystick or w/e */
 							printf("Z-Change: %i (Original 0x%x, Old 0x%x)\n",
-								(int32_t)z_relative, (uint32_t)value, (uint32_t)old_value);
+								(int32_t)zRelative, (uint32_t)Value, (uint32_t)OldValue);
 						}
 
 					} break;
@@ -733,21 +741,21 @@ void usb_hid_apply_input_data(usb_hid_driver_t *driver_data, usb_report_collecti
 			case X86_USB_REPORT_USAGE_PAGE_BUTTON:
 			{
 				/* Determine if keystate has changed */
-				uint8_t keystate_changed = 0;
-				old_value = usb_get_bits(driver_data->previous_data_buffer, offset, length);
+				uint8_t KeystateChanged = 0;
+				OldValue = UsbHidGetBits(Device->PrevDataBuffer, Offset, Length);
 
-				if (value != old_value)
-					keystate_changed = 1;
+				if (Value != OldValue)
+					KeystateChanged = 1;
 				else
 					break;
 
 				/* Ok, so if we have multiple buttons (an array) 
 				 * we will use the logical min & max to find out which
 				 * button id this is */
-				printf("Button %u: %u\n", i, (uint32_t)value);
+				printf("Button %u: %u\n", i, (uint32_t)Value);
 
 				/* Keyboard, keypad, mouse, gamepad or joystick? */
-				switch (input_item->input_type)
+				switch (CollectionItem->InputType)
 				{
 					/* Mouse Button */
 					case MCORE_INPUT_TYPE_MOUSE:
@@ -788,18 +796,18 @@ void usb_hid_apply_input_data(usb_hid_driver_t *driver_data, usb_report_collecti
 			{
 				/* What kind of hat is this ? */
 				printf("Usage Page 0x%x (Input Type 0x%x), Usage 0x%x, Value 0x%x\n",
-					input_item->stats.usage, input_item->input_type, usage, (uint32_t)value);
+					CollectionItem->Stats.Usage, CollectionItem->InputType, Usage, (uint32_t)Value);
 			} break;
 		}
 
 		/* Increase offset */
-		offset += length;
+		Offset += Length;
 	}
 	
 	/* We send a report here */
-	if (pointer_data.x_relative != 0 ||
-		pointer_data.y_relative != 0 ||
-		pointer_data.z_relative != 0)
+	if (PointerData.xRelative != 0 ||
+		PointerData.yRelative != 0 ||
+		PointerData.zRelative != 0)
 	{
 		//input_manager_send_pointer_data(&pointer_data);
 	}
@@ -810,28 +818,29 @@ void usb_hid_apply_input_data(usb_hid_driver_t *driver_data, usb_report_collecti
 }
 
 /* Parses an subcollection, is recursive */
-int usb_hid_apply_collection_data(usb_hid_driver_t *driver_data, usb_report_collection_t *collection)
+int UsbHidApplyCollectionData(HidDevice_t *Device, UsbHidReportCollection_t *Collection)
 {
-	usb_report_collection_item_t *iterator = collection->childs;
-	int calls = 0;
+	/* Vars needed */
+	UsbHidReportCollectionItem_t *Itr = Collection->Childs;
+	int Calls = 0;
 	
 	/* Parse */
-	while (iterator)
+	while (Itr != NULL)
 	{
-		switch (iterator->type)
+		switch (Itr->Type)
 		{
 			/* Sub Collection */
 			case X86_USB_COLLECTION_TYPE_COLLECTION:
 			{
-				usb_report_collection_t *sub_collection 
-					= (usb_report_collection_t*)iterator->data;
+				UsbHidReportCollection_t *SubCollection
+					= (UsbHidReportCollection_t*)Itr->Data;
 
 				/* Sanity */
-				if (sub_collection == NULL)
+				if (SubCollection == NULL)
 					break;
 
 				/* Recall */
-				calls += usb_hid_apply_collection_data(driver_data, sub_collection);
+				Calls += UsbHidApplyCollectionData(Device, SubCollection);
 
 			} break;
 
@@ -839,10 +848,10 @@ int usb_hid_apply_collection_data(usb_hid_driver_t *driver_data, usb_report_coll
 			case X86_USB_COLLECTION_TYPE_INPUT:
 			{
 				/* Parse Input */
-				usb_hid_apply_input_data(driver_data, iterator);
+				UsbHidApplyInputData(Device, Itr);
 
 				/* Increase */
-				calls++;
+				Calls++;
 
 			} break;
 
@@ -851,32 +860,28 @@ int usb_hid_apply_collection_data(usb_hid_driver_t *driver_data, usb_report_coll
 		}
 
 		/* Next Item */
-		iterator = iterator->link;
-
-		/* Sanity */
-		if (iterator == NULL)
-			break;
+		Itr = Itr->Link;
 	}
 
-	return calls;
+	return Calls;
 }
 
 /* The callback for device-feedback */
-void usb_hid_callback(void *driver, size_t bytes)
+void UsbHidCallback(void *Device)
 {
-	usb_hid_driver_t *driver_data = (usb_hid_driver_t*)driver;
+	HidDevice_t *DevData = (HidDevice_t*)Device;
 
 	/* Sanity */
-	if (driver_data->collection == NULL)
+	if (DevData->Collection == NULL)
 		return;
 
 	/* Parse Collection (Recursively) */
-	if (!usb_hid_apply_collection_data(driver_data, driver_data->collection))
+	if (!UsbHidApplyCollectionData(DevData, DevData->Collection))
 	{
 		printf("No calls were made...\n");
 		return;
 	}
 
 	/* Now store this in old buffer */
-	memcpy(driver_data->previous_data_buffer, driver_data->data_buffer, bytes);
+	memcpy(DevData->PrevDataBuffer, DevData->DataBuffer, DevData->EpInterrupt->MaxPacketSize);
 }

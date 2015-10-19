@@ -80,7 +80,7 @@ void SchedulerBoost(Scheduler_t *Scheduler)
 {
 	int i = 0;
 	list_node_t *node;
-	Thread_t *thread;
+	MCoreThread_t *mThread;
 	
 	/* Step 1. Loop through all queues, pop their elements and append them to queue 0
 	 * Reset time-slices */
@@ -93,9 +93,9 @@ void SchedulerBoost(Scheduler_t *Scheduler)
 			while (node != NULL)
 			{
 				/* Reset timeslice */
-				thread = (Thread_t*)node->data;
-				thread->TimeSlice = MCORE_INITIAL_TIMESLICE;
-				thread->Priority = 0;
+				mThread = (MCoreThread_t*)node->data;
+				mThread->TimeSlice = MCORE_INITIAL_TIMESLICE;
+				mThread->Priority = 0;
 
 				list_append(Scheduler->Queues[0], node);
 				node = list_pop_front(Scheduler->Queues[i]);
@@ -108,22 +108,22 @@ void SchedulerBoost(Scheduler_t *Scheduler)
 void SchedulerReadyThread(list_node_t *Node)
 {
 	/* Add task to a queue based on its priority */
-	Thread_t *t = (Thread_t*)Node->data;
+	MCoreThread_t *mThread = (MCoreThread_t*)Node->data;
 	Cpu_t index = 0;
 	uint32_t i = 0;
 	
 	/* Step 1. New thread? :) */
-	if (t->Priority == -1)
+	if (mThread->Priority == -1)
 	{
 		/* Reduce priority */
-		t->Priority = 0;
+		mThread->Priority = 0;
 
 		/* Recalculate time-slice */
-		t->TimeSlice = MCORE_INITIAL_TIMESLICE;
+		mThread->TimeSlice = MCORE_INITIAL_TIMESLICE;
 	}
 
 	/* Step 2. Find the least used CPU */
-	if (t->CpuId == 0xFF)
+	if (mThread->CpuId == 0xFF)
 	{
 		/* Yea, broadcast thread 
 		 * Locate the least used CPU 
@@ -137,27 +137,27 @@ void SchedulerReadyThread(list_node_t *Node)
 		}
 
 		/* Now lock the cpu at that core for now */
-		t->CpuId = index;
+		mThread->CpuId = index;
 	}
 	else
 	{
 		/* Add it to appropriate list */
-		index = t->CpuId;
+		index = mThread->CpuId;
 	}
 
 	/* Get lock */
 	SpinlockAcquire(&GlbSchedulers[index]->Lock);
 
 	/* Append */
-	list_append(GlbSchedulers[index]->Queues[t->Priority], Node);
+	list_append(GlbSchedulers[index]->Queues[mThread->Priority], Node);
 	GlbSchedulers[index]->NumThreads++;
 
 	/* Release lock */
 	SpinlockRelease(&GlbSchedulers[index]->Lock);
 
 	/* Wakeup CPU if sleeping */
-	if (ThreadingIsCurrentTaskIdle(t->CpuId) != 0)
-		ThreadingWakeCpu(t->CpuId);
+	if (ThreadingIsCurrentTaskIdle(mThread->CpuId) != 0)
+		ThreadingWakeCpu(mThread->CpuId);
 }
 
 /* Make a thread enter sleep */
@@ -166,10 +166,10 @@ void SchedulerSleepThread(Addr_t *Resource)
 	/* Mark current thread for sleep and get its queue_node */
 	IntStatus_t int_state = InterruptDisable();
 	list_node_t *t_node = ThreadingEnterSleep();
-	Thread_t *t = (Thread_t*)t_node->data;
+	MCoreThread_t *mThread = (MCoreThread_t*)t_node->data;
 
 	/* Add to list */
-	t->SleepResource = Resource;
+	mThread->SleepResource = Resource;
 	list_append(SleepQueue, t_node);
 
 	/* Restore interrupts */
@@ -183,9 +183,9 @@ int SchedulerWakeupOneThread(Addr_t *Resource)
 	list_node_t *match = NULL;
 	foreach(i, SleepQueue)
 	{
-		Thread_t *t = (Thread_t*)i->data;
+		MCoreThread_t *mThread = (MCoreThread_t*)i->data;
 
-		if (t->SleepResource == Resource)
+		if (mThread->SleepResource == Resource)
 		{
 			match = i;
 			break;
@@ -194,11 +194,11 @@ int SchedulerWakeupOneThread(Addr_t *Resource)
 
 	if (match != NULL)
 	{
-		Thread_t *t = (Thread_t*)match->data;
+		MCoreThread_t *mThread = (MCoreThread_t*)match->data;
 		list_remove_by_node(SleepQueue, match);
 
 		/* Grant it top priority */
-		t->Priority = -1;
+		mThread->Priority = -1;
 
 		SchedulerReadyThread(match);
 		return 1;
@@ -222,7 +222,7 @@ list_node_t *SchedulerGetNextTask(Cpu_t cpu, list_node_t *Node, int PreEmptive)
 {
 	int i;
 	list_node_t *next = NULL;
-	Thread_t *t;
+	MCoreThread_t *mThread;
 	uint32_t time_slice;
 
 	/* Sanity */
@@ -232,18 +232,18 @@ list_node_t *SchedulerGetNextTask(Cpu_t cpu, list_node_t *Node, int PreEmptive)
 	/* Get the time delta */
 	if (Node != NULL)
 	{
-		t = (Thread_t*)Node->data;
-		time_slice = t->TimeSlice;
+		mThread = (MCoreThread_t*)Node->data;
+		time_slice = mThread->TimeSlice;
 
 		/* Increase its priority */
 		if (PreEmptive != 0
-			&& t->Priority < MCORE_SYSTEM_QUEUE) /* Must be below 60, 60 is highest normal queue */
+			&& mThread->Priority < MCORE_SYSTEM_QUEUE) /* Must be below 60, 60 is highest normal queue */
 		{
 			/* Reduce priority */
-			t->Priority++;
+			mThread->Priority++;
 
 			/* Recalculate time-slice */
-			t->TimeSlice = (t->Priority * 2) + MCORE_INITIAL_TIMESLICE;
+			mThread->TimeSlice = (mThread->Priority * 2) + MCORE_INITIAL_TIMESLICE;
 		}
 
 		/* Schedúle */

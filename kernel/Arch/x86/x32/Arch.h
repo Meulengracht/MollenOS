@@ -28,15 +28,9 @@
 
 /* Architecture Definitions */
 #define ARCHITECTURE_NAME		"x86-32"
-#define STD_VIDEO_MEMORY		0xB8000
 
-/* Architecture typedefs */
+/* Architecture Typedefs */
 typedef uint32_t IntStatus_t;
-typedef int(*IrqHandler_t)(void*);
-
-/* Irq Return Codes */
-#define X86_IRQ_NOT_HANDLED			(int)0x0
-#define X86_IRQ_HANDLED				(int)0x1
 
 /* Diagnostics */
 //#define X86_ACPICA_DIAGNOSE
@@ -62,29 +56,10 @@ typedef unsigned int Addr_t;
 typedef signed int SAddr_t;
 
 typedef unsigned int Cpu_t;
-typedef unsigned int TId_t;
-typedef void(*ThreadEntry_t)(void*);
 
 /* OsStatus Return Codes */
 #define OS_STATUS_OK			0
 #define OS_STATUS_FAIL			-1
-
-/* X86-32 Interrupt Entry */
-typedef struct _IrqEntry
-{
-	/* The Irq function */
-	IrqHandler_t Function;
-
-	/* Associated Data */
-	void *Data;
-
-	/* Whether it's installed or not */
-	uint32_t Installed;
-
-	/* Pin */
-	uint32_t Gsi;
-
-} IrqEntry_t;
 
 /* X86-32 Context */
 typedef struct _Registers
@@ -120,21 +95,10 @@ typedef struct _Registers
 } Registers_t;
 
 /* X86-32 Thread */
-typedef struct _Thread
+typedef struct _x86_Thread
 {
-	/* Name */
-	char *Name;
-
-	/* Information */
+	/* Flags */
 	uint32_t Flags;
-	uint32_t TimeSlice;
-	int32_t Priority;
-	Addr_t *SleepResource;
-
-	/* Ids */
-	TId_t ThreadId;
-	TId_t ParentId;
-	Cpu_t CpuId;
 
 	/* Context(s) */
 	Registers_t *Context;
@@ -147,21 +111,22 @@ typedef struct _Thread
 	Addr_t Cr3;
 	void *PageDirectory;
 
-	/* Entry point */
-	ThreadEntry_t Func;
-	void *Args;
-
-} Thread_t;
-
-/* X86-32 Threading Flags */
-#define THREADING_USERMODE		0x1
-#define THREADING_CPUBOUND		0x2
-#define THREADING_SYSTEMTHREAD	0x4
+} x86Thread_t;
 
 /* Architecture Prototypes, you should define 
  * as many as these as possible */
+#include "../Cpu.h"
+#include "../Video.h"
+#include "../Interrupts.h"
 
 /* Components */
+
+/* Threading */
+_CRT_EXTERN x86Thread_t *_ThreadInitBoot(void);
+_CRT_EXTERN x86Thread_t *_ThreadInitAp(Cpu_t Cpu);
+_CRT_EXTERN x86Thread_t *_ThreadInit(Addr_t EntryPoint);
+_CRT_EXTERN void _ThreadWakeUpCpu(Cpu_t Cpu);
+_CRT_EXTERN void _ThreadYield(void);
 
 /* Port IO */
 _CRT_EXTERN uint8_t __CRTDECL inb(uint16_t port);
@@ -171,10 +136,6 @@ _CRT_EXTERN uint32_t __CRTDECL inl(uint16_t port);
 _CRT_EXTERN void __CRTDECL outb(uint16_t port, uint8_t data);
 _CRT_EXTERN void __CRTDECL outw(uint16_t port, uint16_t data);
 _CRT_EXTERN void __CRTDECL outl(uint16_t port, uint32_t data);
-
-/* Video */
-_CRT_EXTERN OsStatus_t VideoInit(void *BootInfo);
-_CRT_EXTERN int VideoPutChar(int Character);
 
 /* Spinlock */
 _CRT_EXTERN void SpinlockReset(Spinlock_t *Spinlock);
@@ -197,43 +158,19 @@ _CRT_EXTERN void SpinlockReleaseNoInt(Spinlock_t *Spinlock);
 #endif
 
 /* Physical Memory */
-_CRT_EXTERN OsStatus_t MmPhyiscalInit(void *BootInfo, uint32_t KernelSize);
 _CRT_EXTERN PhysAddr_t MmPhysicalAllocateBlock(void);
 _CRT_EXTERN void MmPhysicalFreeBlock(PhysAddr_t Addr);
 
 /* Virtual Memory */
-_CRT_EXTERN void MmVirtualInit(void);
 _CRT_EXTERN void MmVirtualMap(void *PageDirectory, PhysAddr_t PhysicalAddr, VirtAddr_t VirtualAddr, uint32_t Flags);
 _CRT_EXTERN void MmVirtualUnmap(void *PageDirectory, VirtAddr_t VirtualAddr);
 _CRT_EXTERN PhysAddr_t MmVirtualGetMapping(void *PageDirectory, VirtAddr_t VirtualAddr);
-
-/* Interrupt Interface */
-_CRT_EXTERN void InterruptInit(void);
-_CRT_EXTERN OsStatus_t InterruptAllocateISA(uint32_t Irq);
-_CRT_EXTERN void InterruptInstallISA(uint32_t Irq, uint32_t IdtEntry, IrqHandler_t Callback, void *Args);
-_CRT_EXTERN void InterruptInstallIdtOnly(uint32_t Gsi, uint32_t IdtEntry, IrqHandler_t Callback, void *Args);
-_CRT_EXTERN void InterruptInstallShared(uint32_t Irq, uint32_t IdtEntry, IrqHandler_t Callback, void *Args);
-_CRT_EXTERN uint32_t InterruptAllocatePCI(uint32_t Irqs[], uint32_t Count);
-
-_CRT_EXTERN IntStatus_t InterruptDisable(void);
-_CRT_EXTERN IntStatus_t InterruptEnable(void);
-_CRT_EXTERN IntStatus_t InterruptSaveState(void);
-_CRT_EXTERN IntStatus_t InterruptRestoreState(IntStatus_t state);
 
 /* Utils */
 _CRT_EXTERN Cpu_t ApicGetCpu(void);
 _CRT_EXTERN void ApicSendIpi(uint8_t CpuTarget, uint8_t IrqVector);
 _CRT_EXTERN void Idle(void);
 
-/* Threading - Flags -> Look above for flags  */
-_CRT_EXTERN TId_t ThreadingCreateThread(char *Name, ThreadEntry_t Function, void *Args, int Flags);
-_CRT_EXTERN void *ThreadingEnterSleep(void);
-_CRT_EXTERN void threading_kill_thread(TId_t thread_id);
-_CRT_EXTERN int ThreadingYield(void *Args);
-_CRT_EXTERN TId_t ThreadingGetCurrentThreadId(void);
-_CRT_EXTERN Thread_t *ThreadingGetCurrentThread(Cpu_t cpu);
-_CRT_EXTERN int ThreadingIsCurrentTaskIdle(Cpu_t cpu);
-_CRT_EXTERN void ThreadingWakeCpu(Cpu_t Cpu);
 
 /* Driver Interface */
 _CRT_EXTERN void DriverManagerInit(void *Args);

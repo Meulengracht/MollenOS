@@ -62,7 +62,7 @@ _kentry:
 	;When we return from here, we just
 	;enter into an idle loop.
 	mov eax, 0x0000DEAD
-	
+
 	.idle:
 		hlt
 		jmp .idle

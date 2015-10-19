@@ -21,7 +21,7 @@
 
 #include <Arch.h>
 #include <Acpi.h>
-#include <LApic.h>
+#include <Apic.h>
 #include <SysTimers.h>
 #include <Gdt.h>
 #include <Thread.h>
@@ -34,9 +34,13 @@
 #include <List.h>
 
 /* Externs */
-extern list_t *acpi_nodes;
+extern list_t *GlbAcpiNodes;
 extern volatile uint8_t GlbBootstrapCpuId;
-extern CpuObject_t boot_cpu_info;
+extern x86CpuObject_t GlbBootCpuInfo;
+
+/* These two are located in boot.asm */
+extern void CpuEnableSse(void);
+extern void CpuEnableFpu(void);
 
 /* Globals */
 Spinlock_t GlbApLock;
@@ -77,7 +81,7 @@ unsigned char TrampolineCode[] = {
 /* Entry for AP Cores */
 void SmpApEntry(void)
 {
-	Cpu_t cpu;
+	Cpu_t Cpu;
 
 	/* Disable interrupts */
 	InterruptDisable();
@@ -87,26 +91,32 @@ void SmpApEntry(void)
 	IdtInstall();
 
 	/* Enable FPU */
-	if (boot_cpu_info.EdxFeatures & CPUID_FEAT_EDX_FPU)
+	if (GlbBootCpuInfo.EdxFeatures & CPUID_FEAT_EDX_FPU)
 		CpuEnableFpu();
 
 	/* Enable SSE */
-	if (boot_cpu_info.EdxFeatures & CPUID_FEAT_EDX_SSE)
+	if (GlbBootCpuInfo.EdxFeatures & CPUID_FEAT_EDX_SSE)
 		CpuEnableSse();
 	
 	/* TSS */
 	GdtInstallTss();
 
+	/* Get Apic Id */
+	Cpu = (ApicReadLocal(APIC_PROCESSOR_ID) >> 24) & 0xFF;
+
 	/* Memory */
-	cpu = ApicGetCpu();
-	MmVirtualInstallPaging(cpu);
+	MmVirtualInstallPaging(Cpu);
 
 	/* Setup apic */
-	ApicApInit();
+	printf("Cpu (%u) - 1\n", Cpu);
+	ApicInitAp();
+	printf("Cpu (%u) - 2\n", Cpu);
 
 	/* Setup Threading */
-	SchedulerInit(cpu);
+	SchedulerInit(Cpu);
+	printf("Cpu (%u) - 3\n", Cpu);
 	ThreadingApInit();
+	printf("Cpu (%u) - 4\n", Cpu);
 
 	/* Increament Boot Count - Signal that we are ok */
 	GlbCpusBooted++;
@@ -152,19 +162,19 @@ void SmpBootCore(void *Data, int n, void *UserData)
 	ApicId <<= 24;
 
 	/* Set destination to that cpu */
-	ApicWriteLocal(LAPIC_ICR_HI, ApicId);
+	ApicWriteLocal(APIC_ICR_HIGH, ApicId);
 
 	/* Now send INIT IPI command (0x4500) */
-	ApicWriteLocal(LAPIC_ICR_LO, 0x4500);
+	ApicWriteLocal(APIC_ICR_LOW, 0x4500);
 
 	/* Verify startup (timeout 200 ms) */
 	printf("..");
-	cpu_result = ApicReadLocal(LAPIC_ICR_LO);
+	cpu_result = ApicReadLocal(APIC_ICR_LOW);
 	while ((cpu_result & 0x1000)
 				&& TimeOut < 200)
 	{
 		StallMs(1);
-		cpu_result = ApicReadLocal(LAPIC_ICR_LO);
+		cpu_result = ApicReadLocal(APIC_ICR_LOW);
 		TimeOut++;
 	}
 	printf("..");
@@ -177,18 +187,18 @@ void SmpBootCore(void *Data, int n, void *UserData)
 	}
 
 	/* Send INIT SIPI command (0x4600) */
-	ApicWriteLocal(LAPIC_ICR_LO, 0x4600 | 0x5);  /* Vector 5, code is located at 0x5000 */
+	ApicWriteLocal(APIC_ICR_LOW, 0x4600 | 0x5);  /* Vector 5, code is located at 0x5000 */
 
 	/* Verify startup 
 	 * It should have a timeout of 200 ms, 
 	 * then resend SIPI */
 	TimeOut = 0;
-	cpu_result = ApicReadLocal(LAPIC_ICR_LO);
+	cpu_result = ApicReadLocal(APIC_ICR_LOW);
 	while ((cpu_result & 0x1000)
 				&& TimeOut < 200)
 	{
 		StallMs(1);
-		cpu_result = ApicReadLocal(LAPIC_ICR_LO);
+		cpu_result = ApicReadLocal(APIC_ICR_LOW);
 		TimeOut++;
 	}
 
@@ -197,16 +207,16 @@ void SmpBootCore(void *Data, int n, void *UserData)
 		/* Failed, first resend SIPI */
 
 		/* Send INIT SIPI command (0x4600) */
-		ApicWriteLocal(LAPIC_ICR_LO, 0x4600 | 0x5);  /* Vector 5, code is located at 0x5000 */
+		ApicWriteLocal(APIC_ICR_LOW, 0x4600 | 0x5);  /* Vector 5, code is located at 0x5000 */
 
 		/* Verify Startup */
 		TimeOut = 0;
-		cpu_result = ApicReadLocal(LAPIC_ICR_LO);
+		cpu_result = ApicReadLocal(APIC_ICR_LOW);
 		while ((cpu_result & 0x1000)
 			&& TimeOut < 200)
 		{
 			StallMs(1);
-			cpu_result = ApicReadLocal(LAPIC_ICR_LO);
+			cpu_result = ApicReadLocal(APIC_ICR_LOW);
 			TimeOut++;
 		}
 
@@ -222,11 +232,11 @@ void SmpBootCore(void *Data, int n, void *UserData)
 }
 
 /* Go through ACPI nodes */
-void SmpInit(void)
+void _SmpSetup(void)
 {
 	/* Setup AP Code */
 	SmpApSetup();
 
 	/* Start each CPU */
-	ListExecuteOnId(acpi_nodes, SmpBootCore, ACPI_MADT_TYPE_LOCAL_APIC, NULL);
+	ListExecuteOnId(GlbAcpiNodes, SmpBootCore, ACPI_MADT_TYPE_LOCAL_APIC, NULL);
 }

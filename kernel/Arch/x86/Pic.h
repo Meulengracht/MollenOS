@@ -16,37 +16,16 @@
 * along with this program.If not, see <http://www.gnu.org/licenses/>.
 *
 *
-* MollenOS Synchronization
-* Semaphores
+* MollenOS X86-32 PIC (Programmable Interrupt Controller)
+* 
 */
-
-#ifndef _MCORE_SEMAPHORE_H_
-#define _MCORE_SEMAPHORE_H_
+#ifndef _X86_PIC_H_
+#define _X86_PIC_H_
 
 /* Includes */
-#include <Arch.h>
-#include <Threading.h>
 #include <crtdefs.h>
-#include <stdint.h>
-
-/* Structures */
-typedef struct _Semaphore 
-{
-	/* Spinlock */
-	Spinlock_t Lock;
-
-	/* Value */
-	volatile int Value;
-
-	/* Semaphore Creator */
-	TId_t Creator;
-
-} Semaphore_t;
 
 /* Prototypes */
-_CRT_EXTERN Semaphore_t *SemaphoreCreate(int Value);
-_CRT_EXTERN void SemaphoreDestroy(Semaphore_t *Semaphore);
-_CRT_EXTERN void SemaphoreP(Semaphore_t *Semaphore);
-_CRT_EXTERN void SemaphoreV(Semaphore_t *Semaphore);
+_CRT_EXTERN void PicInit(void);
 
-#endif // !_MCORE_SEMAPHORE_H_
+#endif //!_X86_PIC_H_

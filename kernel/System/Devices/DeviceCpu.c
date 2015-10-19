@@ -16,37 +16,25 @@
 * along with this program.If not, see <http://www.gnu.org/licenses/>.
 *
 *
-* MollenOS Synchronization
-* Semaphores
+* MollenOS Cpu Device
 */
 
-#ifndef _MCORE_SEMAPHORE_H_
-#define _MCORE_SEMAPHORE_H_
-
-/* Includes */
+/* Include correct arch */
 #include <Arch.h>
-#include <Threading.h>
-#include <crtdefs.h>
-#include <stdint.h>
 
-/* Structures */
-typedef struct _Semaphore 
+/* CPU Includes */
+#include <Devices/Cpu.h>
+#include <string.h>
+
+/* CPU Structures */
+OsResult_t CpuInit(MCoreCpuDevice_t *OutData, void *BootInfo)
 {
-	/* Spinlock */
-	Spinlock_t Lock;
+	/* Clear */
+	memset((void*)OutData, 0, sizeof(MCoreCpuDevice_t));
 
-	/* Value */
-	volatile int Value;
+	/* Setup */
+	_CpuSetup((void*)OutData, BootInfo);
 
-	/* Semaphore Creator */
-	TId_t Creator;
-
-} Semaphore_t;
-
-/* Prototypes */
-_CRT_EXTERN Semaphore_t *SemaphoreCreate(int Value);
-_CRT_EXTERN void SemaphoreDestroy(Semaphore_t *Semaphore);
-_CRT_EXTERN void SemaphoreP(Semaphore_t *Semaphore);
-_CRT_EXTERN void SemaphoreV(Semaphore_t *Semaphore);
-
-#endif // !_MCORE_SEMAPHORE_H_
+	/* Done */
+	return OsOk;
+}
