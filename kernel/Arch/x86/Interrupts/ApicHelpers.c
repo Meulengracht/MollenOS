@@ -50,6 +50,14 @@ int ApicIsIntegrated(void)
 #endif
 }
 
+int ApicIsModern(void)
+{
+	if (ApicGetVersion() >= 0x14)
+		return 1;
+	else
+		return 0;
+}
+
 /* Get the max LVT */
 int ApicGetMaxLvt(void)
 {
@@ -262,10 +270,10 @@ void ApicSendIpi(uint8_t CpuTarget, uint8_t IrqVector)
 		IpiHigh |= ((CpuTarget << 24));
 
 		/* Write upper 32 bits to ICR1 */
-		ApicWriteLocal(0x310, IpiHigh);
+		ApicWriteLocal(APIC_ICR_HIGH, IpiHigh);
 
 		/* Write lower 32 bits to ICR0 */
-		ApicWriteLocal(0x300, IpiLow);
+		ApicWriteLocal(APIC_ICR_LOW, IpiLow);
 	}
 }
 

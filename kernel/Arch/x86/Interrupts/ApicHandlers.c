@@ -27,6 +27,7 @@
 #include <Thread.h>
 #include <Threading.h>
 #include <Interrupts.h>
+#include <stdio.h>
 
 /* Extenrn Vars */
 extern volatile uint32_t GlbTimerTicks[64];
@@ -44,11 +45,6 @@ int ApicTimerHandler(void *Args)
 	uint32_t TaskPriority = 0;
 	Cpu_t CurrCpu = ApicGetCpu();
 
-	/* Uh oh */
-	if (ApicReadLocal(APIC_CURRENT_COUNT) != 0
-		|| ApicReadLocal(APIC_TIMER_VECTOR) & 0x10000)
-		return X86_IRQ_NOT_HANDLED;
-
 	/* Increase timer_ticks */
 	GlbTimerTicks[CurrCpu]++;
 
@@ -65,16 +61,16 @@ int ApicTimerHandler(void *Args)
 		/* Set Task Priority */
 		ApicSetTaskPriority(61 - TaskPriority);
 
-		/* Reset Timer Tick */
+		/* Restart timer */
 		ApicWriteLocal(APIC_INITIAL_COUNT, GlbTimerQuantum * TimeSlice);
-
-		/* Re-enable timer in one-shot mode */
-		ApicWriteLocal(APIC_TIMER_VECTOR, INTERRUPT_TIMER);		//0x20000 - Periodic
 	}
 	else
 	{
-		ApicWriteLocal(APIC_TIMER_VECTOR, 0x10000);
+		/* Set low priority */
 		ApicSetTaskPriority(0);
+
+		/* Disable timer */
+		ApicWriteLocal(APIC_INITIAL_COUNT, 0);
 	}
 	
 	/* Enter new thread */

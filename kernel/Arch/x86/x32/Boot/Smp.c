@@ -108,15 +108,11 @@ void SmpApEntry(void)
 	MmVirtualInstallPaging(Cpu);
 
 	/* Setup apic */
-	printf("Cpu (%u) - 1\n", Cpu);
 	ApicInitAp();
-	printf("Cpu (%u) - 2\n", Cpu);
 
 	/* Setup Threading */
 	SchedulerInit(Cpu);
-	printf("Cpu (%u) - 3\n", Cpu);
-	ThreadingApInit();
-	printf("Cpu (%u) - 4\n", Cpu);
+	ThreadingApInit(Cpu);
 
 	/* Increament Boot Count - Signal that we are ok */
 	GlbCpusBooted++;
@@ -150,7 +146,6 @@ void SmpBootCore(void *Data, int n, void *UserData)
 	/* Get cpu structure */
 	ACPI_MADT_LOCAL_APIC *Core = (ACPI_MADT_LOCAL_APIC*)Data;
 	uint32_t ApicId = Core->Id;
-	volatile uint32_t cpu_result = 0;
 	uint32_t TimeOut = 0;
 
 	/* Dont boot bootstrap cpu */
@@ -168,18 +163,11 @@ void SmpBootCore(void *Data, int n, void *UserData)
 	ApicWriteLocal(APIC_ICR_LOW, 0x4500);
 
 	/* Verify startup (timeout 200 ms) */
+	TimeOut = 0;
 	printf("..");
-	cpu_result = ApicReadLocal(APIC_ICR_LOW);
-	while ((cpu_result & 0x1000)
-				&& TimeOut < 200)
-	{
-		StallMs(1);
-		cpu_result = ApicReadLocal(APIC_ICR_LOW);
-		TimeOut++;
-	}
+	WaitForConditionWithFault(TimeOut, ((ApicReadLocal(APIC_ICR_LOW) & 0x1000) == 0), 200, 1);
 	printf("..");
-
-	if (TimeOut == 200)
+	if (TimeOut == 1)
 	{
 		/* Failed */
 		printf(" failed to boot!\n");
@@ -193,16 +181,9 @@ void SmpBootCore(void *Data, int n, void *UserData)
 	 * It should have a timeout of 200 ms, 
 	 * then resend SIPI */
 	TimeOut = 0;
-	cpu_result = ApicReadLocal(APIC_ICR_LOW);
-	while ((cpu_result & 0x1000)
-				&& TimeOut < 200)
-	{
-		StallMs(1);
-		cpu_result = ApicReadLocal(APIC_ICR_LOW);
-		TimeOut++;
-	}
+	WaitForConditionWithFault(TimeOut, ((ApicReadLocal(APIC_ICR_LOW) & 0x1000) == 0), 200, 1);
 
-	if (TimeOut == 200)
+	if (TimeOut == 1)
 	{
 		/* Failed, first resend SIPI */
 
@@ -211,16 +192,8 @@ void SmpBootCore(void *Data, int n, void *UserData)
 
 		/* Verify Startup */
 		TimeOut = 0;
-		cpu_result = ApicReadLocal(APIC_ICR_LOW);
-		while ((cpu_result & 0x1000)
-			&& TimeOut < 200)
-		{
-			StallMs(1);
-			cpu_result = ApicReadLocal(APIC_ICR_LOW);
-			TimeOut++;
-		}
-
-		if (TimeOut == 200)
+		WaitForConditionWithFault(TimeOut, ((ApicReadLocal(APIC_ICR_LOW) & 0x1000) == 0), 200, 1);
+		if (TimeOut == 1)
 		{
 			/* Failed */
 			printf(" failed to boot!\n");

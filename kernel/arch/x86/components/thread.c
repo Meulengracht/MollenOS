@@ -33,7 +33,7 @@
 #include <stdio.h>
 
 /* Externs */
-extern volatile uint32_t GlbTimerQuantum;
+extern uint32_t GlbTimerQuantum;
 extern uint32_t memory_get_cr3(void);
 extern void save_fpu(Addr_t *buffer);
 extern void set_ts(void);
@@ -62,16 +62,16 @@ int ThreadingYield(void *Args)
 		/* Set Task Priority */
 		ApicSetTaskPriority(61 - TaskPriority);
 
-		/* Reset Timer Tick */
+		/* Restart timer */
 		ApicWriteLocal(APIC_INITIAL_COUNT, GlbTimerQuantum * TimeSlice);
-
-		/* Re-enable timer in one-shot mode */
-		ApicWriteLocal(APIC_TIMER_VECTOR, INTERRUPT_TIMER);		//0x20000 - Periodic
 	}
 	else
 	{
-		ApicWriteLocal(APIC_TIMER_VECTOR, 0x10000);
+		/* Set low priority */
 		ApicSetTaskPriority(0);
+
+		/* Disable timer */
+		ApicWriteLocal(APIC_INITIAL_COUNT, 0);
 	}
 
 	/* Enter new thread */
@@ -133,14 +133,14 @@ void _ThreadWakeUpCpu(Cpu_t Cpu)
 	/* Are we on this cpu? */
 	if (Cpu == ApicGetCpu())
 	{
-		/* Reset Timer Tick */
-		ApicWriteLocal(APIC_INITIAL_COUNT, GlbTimerQuantum * 10);
-
-		/* Re-enable timer in one-shot mode */
-		ApicWriteLocal(APIC_TIMER_VECTOR, INTERRUPT_TIMER);		//0x20000 - Periodic
+		/* Start timer */
+		ApicWriteLocal(APIC_INITIAL_COUNT, GlbTimerQuantum);
 	}
 	else
+	{
+		/* Send an IPI to the cpu */
 		ApicSendIpi((uint8_t)Cpu, INTERRUPT_YIELD);
+	}
 }
 
 /* Yield current thread */

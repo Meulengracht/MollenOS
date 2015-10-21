@@ -69,25 +69,40 @@ void ApicSetupLvt(Cpu_t Cpu, int Lvt)
 				if (ApicNmi->Lint == Lvt)
 				{
 					/* Set */
-					Temp = 0x400;
+					Temp = APIC_NMI_ROUTE;
 					Temp |= (InterruptGetPolarity(ApicNmi->IntiFlags, 0) << 13);
 					Temp |= (InterruptGetTrigger(ApicNmi->IntiFlags, 0) << 15);
-				}
 
-				/* Done */
-				break;
+					/* Done */
+					break;
+				}
 			}
 		}
 	}
 
-	/* Sanity */
+	/* Sanity - LVT 0 Default */
+	if (Temp == 0
+		&& Lvt == 0)
+	{
+		/* Lets see */
+		Temp = APIC_EXTINT_ROUTE;
+	}
+
+	/* Sanity - LVT 1 Default */
 	if (Temp == 0
 		&& Lvt == 1)
 	{
-		Temp = 0x400;
-		if (!ApicIsIntegrated()) /* Set level triggered */
+		/* Setup to NMI */
+		Temp = APIC_NMI_ROUTE;
+
+		/* Set level triggered */
+		if (!ApicIsIntegrated()) 
 			Temp |= 0x8000;
 	}
+
+	/* Sanity, only BP gets LVT */
+	if (Cpu != GlbBootstrapCpuId)
+		Temp |= APIC_MASKED;
 
 	/* Write */
 	if (Lvt == 1)
@@ -96,21 +111,11 @@ void ApicSetupLvt(Cpu_t Cpu, int Lvt)
 		ApicWriteLocal(APIC_LINT0_REGISTER, Temp);
 }
 
-/* Setup Apic on Bsp */
-void ApicInitBoot(void)
+/* Shared Apic Init */
+void ApicInitialSetup(Cpu_t Cpu)
 {
-	/* Vars */
-	uint32_t BspApicId = 0;
 	uint32_t Temp = 0;
-	int MaxLvt = 0;
 	int i = 0, j = 0;
-
-	/* Disable IMCR if present (to-do..) */
-	outb(0x22, 0x70);
-	outb(0x23, 0x1);
-
-	/* Get Apic Id */
-	BspApicId = (ApicReadLocal(APIC_PROCESSOR_ID) >> 24) & 0xFF;
 
 	/* Disable ESR */
 #ifdef _X86_32
@@ -124,13 +129,16 @@ void ApicInitBoot(void)
 #endif
 
 	/* Set perf monitor to NMI */
-	ApicWriteLocal(APIC_PERF_MONITOR, 0x400);
+	ApicWriteLocal(APIC_PERF_MONITOR, APIC_NMI_ROUTE);
 
 	/* Set destination format register to flat model */
 	ApicWriteLocal(APIC_DEST_FORMAT, 0xFFFFFFFF);
 
 	/* Set our cpu id */
-	ApicWriteLocal(APIC_LOGICAL_DEST, (ApicGetCpuMask(BspApicId) << 24));
+	ApicWriteLocal(APIC_LOGICAL_DEST, (ApicGetCpuMask(Cpu) << 24));
+
+	/* Set initial task priority to accept all */
+	ApicSetTaskPriority(0);
 
 	/* Clear interrupt registers ISR, IRR */
 	for (i = 8 - 1; i >= 0; i--)
@@ -142,13 +150,81 @@ void ApicInitBoot(void)
 				ApicSendEoi(0, 0);
 		}
 	}
+}
 
-	/* Set initial task priority to accept all */
-	ApicSetTaskPriority(0);
+/* Shared Apic Init ESR */
+void ApicSetupESR(void)
+{
+	int MaxLvt = 0;
+	uint32_t Temp = 0;
 
-	/* Install Apic Handlers */
-	InterruptInstallIdtOnly(0xFFFFFFFF, INTERRUPT_SPURIOUS7, ApicSpuriousHandler, NULL);
-	InterruptInstallIdtOnly(0xFFFFFFFF, INTERRUPT_SPURIOUS, ApicSpuriousHandler, NULL);
+	/* Sanity */
+	if (!ApicIsIntegrated())
+		return;
+
+	/* Setup ESR */
+	MaxLvt = ApicGetMaxLvt();
+
+	/* Sanity */
+	if (MaxLvt > 3)
+		ApicWriteLocal(APIC_ESR, 0);
+	Temp = ApicReadLocal(APIC_ESR);
+
+	/* Enable sending errors */
+	ApicWriteLocal(APIC_ERROR_REGISTER, INTERRUPT_LVTERROR);
+
+	/* Clear errors after enabling */
+	if (MaxLvt > 3)
+		ApicWriteLocal(APIC_ESR, 0);
+}
+
+/* Resets Local Apic */
+void ApicClear(void)
+{
+	int MaxLvt = 0;
+	uint32_t Temp = 0;
+
+	/* Get Max LVT */
+	MaxLvt = ApicGetMaxLvt();
+
+	/* Mask error lvt */
+	if (MaxLvt >= 3)
+		ApicWriteLocal(APIC_ERROR_REGISTER, INTERRUPT_LVTERROR | APIC_MASKED);
+
+	/* Mask these before deasserting */
+	Temp = ApicReadLocal(APIC_TIMER_VECTOR);
+	ApicWriteLocal(APIC_TIMER_VECTOR, Temp | APIC_MASKED);
+	Temp = ApicReadLocal(APIC_LINT0_REGISTER);
+	ApicWriteLocal(APIC_LINT0_REGISTER, Temp | APIC_MASKED);
+	Temp = ApicReadLocal(APIC_LINT1_REGISTER);
+	ApicWriteLocal(APIC_LINT1_REGISTER, Temp | APIC_MASKED);
+	if (MaxLvt >= 4) {
+		Temp = ApicReadLocal(APIC_PERF_MONITOR);
+		ApicWriteLocal(APIC_PERF_MONITOR, Temp | APIC_MASKED);
+	}
+
+	/* Clean out APIC */
+	ApicWriteLocal(APIC_TIMER_VECTOR, APIC_MASKED);
+	ApicWriteLocal(APIC_LINT0_REGISTER, APIC_MASKED);
+	ApicWriteLocal(APIC_LINT1_REGISTER, APIC_MASKED);
+	if (MaxLvt >= 3)
+		ApicWriteLocal(APIC_ERROR_REGISTER, APIC_MASKED);
+	if (MaxLvt >= 4)
+		ApicWriteLocal(APIC_PERF_MONITOR, APIC_MASKED);
+
+	/* Integrated APIC (!82489DX) ? */
+	if (ApicIsIntegrated()) {
+		if (MaxLvt > 3)
+			/* Clear ESR due to Pentium errata 3AP and 11AP */
+			ApicWriteLocal(APIC_ESR, 0);
+		ApicReadLocal(APIC_ESR);
+	}
+}
+
+/* Enables the Local Aic */
+void ApicEnable(void)
+{
+	uint32_t Temp = 0;
 
 	/* Enable local apic */
 	Temp = ApicReadLocal(APIC_SPURIOUS_REG);
@@ -166,51 +242,51 @@ void ApicInitBoot(void)
 
 	/* Enable! */
 	ApicWriteLocal(APIC_SPURIOUS_REG, Temp);
+}
 
-	/* Setup LVT0 to Virtual Wire Mode */
-	Temp = ApicReadLocal(APIC_LINT0_REGISTER) & 0x10000;
-	if (Temp == 0)
-		Temp |= 0x700;
-	else
-		Temp |= (0x10000 | 0x700);
-	ApicWriteLocal(APIC_LINT0_REGISTER, Temp);
+/* Setup Apic on Bsp */
+void ApicInitBoot(void)
+{
+	/* Vars */
+	uint32_t BspApicId = 0;
+	uint32_t Temp = 0;
+	int i = 0, j = 0;
 
-	/* Now LVT1 ONLY IF ACPI tells us about it */
-	ApicSetupLvt(BspApicId, 1);
+	/* Disable IMCR if present (to-do..) */
+	outb(0x22, 0x70);
+	outb(0x23, 0x1);
+
+	/* Get Apic Id */
+	BspApicId = (ApicReadLocal(APIC_PROCESSOR_ID) >> 24) & 0xFF;
 
 	/* Get bootstrap CPU */
 	GlbBootstrapCpuId = (uint8_t)BspApicId;
 
-	/* Sanity */
-	if (!ApicIsIntegrated())
-		goto Skip;
+	/* Initial Setup */
+	ApicInitialSetup(BspApicId);
 
-	/* Setup ESR */
-	MaxLvt = ApicGetMaxLvt();
-
-	/* Sanity */
-	if (MaxLvt > 3)
-		ApicWriteLocal(APIC_ESR, 0);
-	Temp = ApicReadLocal(APIC_ESR);
-
-	/* Install Interrupt Vector */
+	/* Install Apic Handlers */
+	InterruptInstallIdtOnly(0xFFFFFFFF, INTERRUPT_SPURIOUS7, ApicSpuriousHandler, NULL);
+	InterruptInstallIdtOnly(0xFFFFFFFF, INTERRUPT_SPURIOUS, ApicSpuriousHandler, NULL);
 	InterruptInstallIdtOnly(0xFFFFFFFF, INTERRUPT_LVTERROR, ApicErrorHandler, NULL);
 
-	/* Enable sending errors */
-	ApicWriteLocal(APIC_ERROR_REGISTER, INTERRUPT_LVTERROR);
+	/* Enable the LAPIC */
+	ApicEnable();
 
-	/* Clear errors after enabling */
-	if (MaxLvt > 3)
-		ApicWriteLocal(APIC_ESR, 0);
+	/* Setup LVT0 & LVT1 */
+	ApicSetupLvt(BspApicId, 0);
+	ApicSetupLvt(BspApicId, 1);
+
+	/* Finish */
+	ApicSetupESR();
 
 #ifdef _X86_32
 	/* Disable Apic Timer */
 	Temp = ApicReadLocal(APIC_TIMER_VECTOR);
-	Temp |= (0x10000 | INTERRUPT_TIMER);
+	Temp |= (APIC_MASKED | INTERRUPT_TIMER);
 	ApicWriteLocal(APIC_TIMER_VECTOR, Temp);
 #endif
 
-Skip:
 	/* Done! Enable interrupts */
 	printf("    * Enabling interrupts...\n");
 	InterruptEnable();
@@ -228,64 +304,18 @@ void ApicInitAp(void)
 	int i = 0, j = 0;
 	ApicApId = (ApicReadLocal(APIC_PROCESSOR_ID) >> 24) & 0xFF;
 
-	/* Disable ESR */
-#ifdef _X86_32
-	if (ApicIsIntegrated())
-	{
-		ApicWriteLocal(APIC_ESR, 0);
-		ApicWriteLocal(APIC_ESR, 0);
-		ApicWriteLocal(APIC_ESR, 0);
-		ApicWriteLocal(APIC_ESR, 0);
-	}
-#endif
+	/* Initial Setup */
+	ApicInitialSetup(ApicApId);
 
-	/* Set perf monitor to NMI */
-	ApicWriteLocal(APIC_PERF_MONITOR, 0x400);
-
-	/* Set destination format register to flat model */
-	ApicWriteLocal(APIC_DEST_FORMAT, 0xFFFFFFFF);
-
-	/* Set our cpu id */
-	ApicWriteLocal(APIC_LOGICAL_DEST, (ApicGetCpuMask(ApicApId) << 24));
-
-	/* Set initial task priority */
-	ApicSetTaskPriority(0);
-
-	/* Clear interrupt registers ISR, IRR */
-	for (i = 8 - 1; i >= 0; i--)
-	{
-		Temp = ApicReadLocal(0x100 + i * 0x10);
-		for (j = 31; j >= 0; j--)
-		{
-			if (Temp & (1 << j))
-				ApicSendEoi(0, 0);
-		}
-	}
-
-	/* Enable local apic */
-	Temp = ApicReadLocal(APIC_SPURIOUS_REG);
-	Temp &= ~(0x000FF);
-	Temp |= 0x100;
-
-#ifdef _X86_32
-	/* This reduces some problems with to fast
-	* interrupt mask/unmask */
-	Temp &= ~(0x200);
-#endif
-
-	/* Set spurious vector */
-	Temp |= INTERRUPT_SPURIOUS;
-
-	/* Enable! */
-	ApicWriteLocal(APIC_SPURIOUS_REG, Temp);
+	/* Enable the LAPIC */
+	ApicEnable();
 
 	/* Setup LVT0 and LVT1 */
-	Temp = ApicReadLocal(APIC_LINT0_REGISTER) & 0x10000;
-	Temp |= (0x10000 | 0x700);
-	ApicWriteLocal(APIC_LINT0_REGISTER, Temp);
-
-	/* Now LVT1 ONLY IF ACPI tells us about it */
+	ApicSetupLvt(ApicApId, 0);
 	ApicSetupLvt(ApicApId, 1);
+
+	/* Finish */
+	ApicSetupESR();
 
 	/* Set divider */
 	ApicWriteLocal(APIC_DIVIDE_REGISTER, APIC_TIMER_DIVIDER_1);
@@ -315,11 +345,6 @@ void ApicTimerInit(void)
 	ApicWriteLocal(APIC_TIMER_VECTOR, INTERRUPT_TIMER);
 	ApicWriteLocal(APIC_DIVIDE_REGISTER, APIC_TIMER_DIVIDER_1);
 
-	/* Repeat */
-	ApicWriteLocal(APIC_LINT0_REGISTER, 0x8000 | 0x700);
-	ApicWriteLocal(APIC_LINT1_REGISTER, 0x400);
-	ApicWriteLocal(APIC_PERF_MONITOR, 0x400);
-
 	/* Start counters! */
 	ApicWriteLocal(APIC_INITIAL_COUNT, 0xFFFFFFFF); /* Set counter to -1 */
 
@@ -341,12 +366,12 @@ void ApicTimerInit(void)
 
 	printf("    * Quantum: %u\n", GlbTimerQuantum);
 
+	/* Reset divider to make sure */
+	ApicWriteLocal(APIC_DIVIDE_REGISTER, APIC_TIMER_DIVIDER_1);
+
 	/* Reset Timer Tick */
 	ApicWriteLocal(APIC_INITIAL_COUNT, GlbTimerQuantum * 20);
 
 	/* Re-enable timer in one-shot mode */
 	ApicWriteLocal(APIC_TIMER_VECTOR, INTERRUPT_TIMER);		//0x20000 - Periodic
-
-	/* Reset divider to make sure */
-	ApicWriteLocal(APIC_DIVIDE_REGISTER, APIC_TIMER_DIVIDER_1);
 }

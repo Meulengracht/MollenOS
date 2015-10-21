@@ -93,8 +93,8 @@ void MCoreInitialize(MCoreBootInfo_t *BootInfo)
 	* thread, it will take over as this is the idle thread */
 
 	/* Drivers */
-	//printf("  - Initializing Drivers...\n");
-	//ThreadingCreateThread("DriverSetup", DriverManagerInit, NULL, 0);
+	printf("  - Initializing Drivers...\n");
+	ThreadingCreateThread("DriverSetup", DriverManagerInit, NULL, 0);
 
 	/* Start the compositor */
 	//ThreadingDebugPrint();

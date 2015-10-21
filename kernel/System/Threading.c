@@ -87,14 +87,12 @@ void ThreadingInit(void)
 }
 
 /* Initialises AP task */
-void ThreadingApInit(void)
+void ThreadingApInit(Cpu_t Cpu)
 {
-	Cpu_t Cpu;
 	MCoreThread_t *Init;
 	list_node_t *Node;
 
 	/* Setup initial thread */
-	Cpu = ApicGetCpu();
 	Init = (MCoreThread_t*)kmalloc(sizeof(MCoreThread_t));
 	Init->Name = strdup("ApIdle");
 	Init->Priority = 60;
