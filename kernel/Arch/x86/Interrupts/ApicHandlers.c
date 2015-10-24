@@ -84,6 +84,7 @@ int ApicTimerHandler(void *Args)
 int ApicSpuriousHandler(void *Args)
 {
 	/* Unused */
+	//Registers_t* mRegs = (Registers_t*)Args;
 	_CRT_UNUSED(Args);
 
 	/* Yay, we handled it ... */
@@ -94,6 +95,7 @@ int ApicSpuriousHandler(void *Args)
 int ApicErrorHandler(void *Args)
 {
 	/* Unused */
+	//Registers_t* mRegs = (Registers_t*)Args;
 	_CRT_UNUSED(Args);
 
 	/* Yay, we handled it ... */

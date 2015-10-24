@@ -809,7 +809,8 @@ void UsbHidApplyInputData(HidDevice_t *Device, UsbHidReportCollectionItem_t *Col
 		PointerData.yRelative != 0 ||
 		PointerData.zRelative != 0)
 	{
-		//input_manager_send_pointer_data(&pointer_data);
+		/* Register data */
+		InputManagerCreatePointerEvent(&PointerData);
 	}
 
 	/* printf("Input Item (%u): Report Offset %u, Report Size %u, Report Count %u (Minimum %i, Maximmum %i)\n",

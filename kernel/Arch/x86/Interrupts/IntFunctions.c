@@ -27,6 +27,7 @@
 #include <acpi.h>
 #include <Apic.h>
 #include <assert.h>
+#include <stdio.h>
 
 /* Internal Defines */
 #define EFLAGS_INTERRUPT_FLAG (1 << 9)
@@ -162,7 +163,7 @@ void InterruptInstallBase(uint32_t Irq, uint32_t IdtEntry, uint64_t ApicEntry, I
 	}
 }
 
-/* Install a normal, lowest priority interrupt */
+/* ISA Interrupts will go to BSP */
 void InterruptInstallISA(uint32_t Irq, uint32_t IdtEntry, IrqHandler_t Callback, void *Args)
 {
 	uint64_t apic_flags = 0;
@@ -405,6 +406,9 @@ void InterruptEntry(Registers_t *regs)
 			}
 		}
 	}
+
+	if (res == 0)
+		printf("Unhandled Irq 0x%x\n", irq);
 
 	/* Send EOI (if not spurious) */
 	if (irq != INTERRUPT_SPURIOUS7

@@ -147,6 +147,7 @@ void SmpBootCore(void *Data, int n, void *UserData)
 	ACPI_MADT_LOCAL_APIC *Core = (ACPI_MADT_LOCAL_APIC*)Data;
 	uint32_t ApicId = Core->Id;
 	uint32_t TimeOut = 0;
+	volatile uint32_t TargetCpuCount = GlbCpusBooted + 1;
 
 	/* Dont boot bootstrap cpu */
 	if (GlbBootstrapCpuId == Core->Id)
@@ -165,7 +166,7 @@ void SmpBootCore(void *Data, int n, void *UserData)
 	/* Verify startup (timeout 200 ms) */
 	TimeOut = 0;
 	printf("..");
-	WaitForConditionWithFault(TimeOut, ((ApicReadLocal(APIC_ICR_LOW) & 0x1000) == 0), 200, 1);
+	WaitForConditionWithFault(TimeOut, ((ApicReadLocal(APIC_ICR_LOW) & APIC_ICR_BUSY) == 0), 200, 1);
 	printf("..");
 	if (TimeOut == 1)
 	{
@@ -181,7 +182,7 @@ void SmpBootCore(void *Data, int n, void *UserData)
 	 * It should have a timeout of 200 ms, 
 	 * then resend SIPI */
 	TimeOut = 0;
-	WaitForConditionWithFault(TimeOut, ((ApicReadLocal(APIC_ICR_LOW) & 0x1000) == 0), 200, 1);
+	WaitForConditionWithFault(TimeOut, GlbCpusBooted == TargetCpuCount, 200, 1);
 
 	if (TimeOut == 1)
 	{
@@ -192,7 +193,7 @@ void SmpBootCore(void *Data, int n, void *UserData)
 
 		/* Verify Startup */
 		TimeOut = 0;
-		WaitForConditionWithFault(TimeOut, ((ApicReadLocal(APIC_ICR_LOW) & 0x1000) == 0), 200, 1);
+		WaitForConditionWithFault(TimeOut, GlbCpusBooted == TargetCpuCount, 1000, 1);
 		if (TimeOut == 1)
 		{
 			/* Failed */

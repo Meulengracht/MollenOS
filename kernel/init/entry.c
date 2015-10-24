@@ -28,8 +28,13 @@
 #include <DeviceManager.h>
 #include <Scheduler.h>
 #include <Threading.h>
+#include <Vfs\Vfs.h>
 #include <Heap.h>
 #include <stdio.h>
+
+/* Globals */
+MCoreCpuDevice_t BootCpu = { 0 };
+MCoreVideoDevice_t BootVideo = { 0 };
 
 /* We need these functions */
 extern void ThreadingDebugPrint(void);
@@ -44,13 +49,10 @@ void PrintHeader(MCoreBootInfo_t *BootInfo)
 	printf("VC Build %s - %s\n\n", BUILD_DATE, BUILD_TIME);
 }
 
-/* Shared Entry in MollenOS */
+/* Shared Entry in MollenOS
+ * */
 void MCoreInitialize(MCoreBootInfo_t *BootInfo)
 {
-	/* We'll need these untill dynamic memory */
-	MCoreCpuDevice_t BootCpu;
-	MCoreVideoDevice_t BootVideo;
-
 	/* Initialize Cpu */
 	CpuInit(&BootCpu, BootInfo->ArchBootInfo);
 
@@ -82,10 +84,11 @@ void MCoreInitialize(MCoreBootInfo_t *BootInfo)
 	BootInfo->InitPostSystems();
 
 	/* Start out any extra cores */
-	printf("  - Booting Cores\n");
-	_SmpSetup();
+	printf("  - Initializing SMP\n");
+	CpuInitSmp(BootInfo->ArchBootInfo);
 
 	/* Virtual Filesystem */
+	VfsInit();
 
 	/* From this point, we should start seperate threads and
 	* let this thread die out, because initial system setup
@@ -96,6 +99,7 @@ void MCoreInitialize(MCoreBootInfo_t *BootInfo)
 	printf("  - Initializing Drivers...\n");
 	ThreadingCreateThread("DriverSetup", DriverManagerInit, NULL, 0);
 
-	/* Start the compositor */
-	//ThreadingDebugPrint();
+	/* Enter Idle Loop */
+	while (1)
+		Idle();
 }

@@ -21,6 +21,7 @@
 */
 
 /* Includes */
+#include <DeviceManager.h>
 #include <List.h>
 #include <Apic.h>
 #include <string.h>
@@ -32,6 +33,7 @@ extern list_t *GlbIoApics;
 extern list_t *GlbAcpiNodes;
 extern volatile uint32_t GlbTimerTicks[64];
 extern volatile uint32_t GlbCpusBooted;
+extern x86CpuObject_t GlbBootCpuInfo;
 
 /* Get the version of the local apic */
 uint32_t ApicGetVersion(void)
@@ -165,7 +167,17 @@ void ApicSendEoi(uint32_t Gsi, uint32_t Vector)
 
 		/* Now restore it */
 		ApicWriteIoEntry(IoApic, Pin, Entry1);
+
+		/* Also */
+		ApicWriteLocal(APIC_INTERRUPT_ACK, Vector);
 	}
+}
+
+/* Wait for ICR to get idle */
+void ApicWaitForIcr(void)
+{
+	while (ApicReadLocal(APIC_ICR_LOW) & APIC_ICR_BUSY)
+		;
 }
 
 /* Send APIC Interrupt to a core */
@@ -208,16 +220,26 @@ void ApicSendIpiLoop(void *ApicInfo, int n, void *IrqVector)
 	* Edge Sensitive
 	* Active High */
 	IpiLow |= tVector;
+	IpiLow |= (1 << 11);
 	IpiLow |= (1 << 14);
 
 	/* Setup Destination */
-	IpiHigh |= ((Core->Id << 24));
+	IpiHigh |= ((ApicGetCpuMask(Core->Id) << 24));
+
+	/* Wait */
+	ApicWaitForIcr();
+
+	/* Disable interrupts */
+	IntStatus_t IntStatus = InterruptDisable();
 
 	/* Write upper 32 bits to ICR1 */
-	ApicWriteLocal(0x310, IpiHigh);
+	ApicWriteLocal(APIC_ICR_HIGH, IpiHigh);
 
 	/* Write lower 32 bits to ICR0 */
-	ApicWriteLocal(0x300, IpiLow);
+	ApicWriteLocal(APIC_ICR_LOW, IpiLow);
+
+	/* Enable */
+	InterruptRestoreState(IntStatus);
 }
 
 void ApicSendIpi(uint8_t CpuTarget, uint8_t IrqVector)
@@ -259,22 +281,47 @@ void ApicSendIpi(uint8_t CpuTarget, uint8_t IrqVector)
 		* */
 
 		/* Setup flags
-		* Physical Destination
+		* Logical Destination
 		* Fixed Delivery
-		* Edge Sensitive
-		* Active High */
+		* Edge Sensitive */
 		IpiLow |= IrqVector;
+		IpiLow |= (1 << 11);
 		IpiLow |= (1 << 14);
 
 		/* Setup Destination */
-		IpiHigh |= ((CpuTarget << 24));
+		IpiHigh |= ((ApicGetCpuMask(CpuTarget) << 24));
+
+		/* Wait */
+		ApicWaitForIcr();
+
+		/* Disable interrupts */
+		IntStatus_t IntStatus = InterruptDisable();
 
 		/* Write upper 32 bits to ICR1 */
 		ApicWriteLocal(APIC_ICR_HIGH, IpiHigh);
 
 		/* Write lower 32 bits to ICR0 */
 		ApicWriteLocal(APIC_ICR_LOW, IpiLow);
+
+		/* Enable */
+		InterruptRestoreState(IntStatus);
 	}
+}
+
+/* Sync arb id's */
+void ApicSyncArbIds(void)
+{
+	/* Not needed on AMD and not supported on P4 */
+
+	/* Wait */
+	ApicWaitForIcr();
+
+	/* Sync Arb id's */
+	ApicWriteLocal(APIC_ICR_HIGH, 0);
+	ApicWriteLocal(APIC_ICR_LOW, 0x80000 | 0x8000 | 0x500);
+	
+	/* Wait */
+	ApicWaitForIcr();
 }
 
 /* Get cpu id */

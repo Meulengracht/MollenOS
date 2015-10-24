@@ -24,6 +24,7 @@
 
 /* Includes */
 #include <Drivers\Usb\Usb.h>
+#include <Devices\Disk.h>
 #include <DeviceManager.h>
 #include <crtdefs.h>
 

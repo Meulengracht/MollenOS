@@ -57,33 +57,13 @@ typedef struct _MCoreDevice
 	/* Device Data */
 	void *Data;
 
-	/* Device Lock */
-	Mutex_t *Lock;
-
 } MCoreDevice_t;
-
-/* Storage Device */
-typedef struct _MCoreStorageDevice
-{
-	/* Disk Stats */
-	uint64_t SectorCount;
-	uint32_t SectorsPerCylinder;
-	uint32_t AlignedAccess;
-	uint32_t SectorSize;
-
-	/* Disk Data */
-	void *DiskData;
-
-	/* Functions */
-	int (*Read)(void *Data, uint64_t LBA, void *Buffer, uint32_t BufferLength);
-	int (*Write)(void *Data, uint64_t LBA, void *Buffer, uint32_t BufferLength);
-
-} MCoreStorageDevice_t;
 
 /* Prototypes */
 _CRT_EXTERN void DmInit(void);
 
 _CRT_EXTERN DevId_t DmCreateDevice(char *Name, DeviceType_t Type, void *Data);
+_CRT_EXTERN void *DmGetDevice(DeviceType_t Type);
 _CRT_EXTERN void DmDestroyDevice(DevId_t DeviceId);
 
 #endif //_MCORE_DRIVER_MANAGER_H_

@@ -31,11 +31,15 @@
 #define APIC_TIMER_DIVIDER_16	0x3
 #define APIC_TIMER_DIVIDER_128	0xA
 
+#define APIC_TIMER_ONESHOT		0x0
+#define APIC_TIMER_PERIODIC		0x20000
+
 #define APIC_PRIORITY_MASK		0xFF
 
 #define APIC_NMI_ROUTE			0x400
 #define APIC_EXTINT_ROUTE		0x700
 #define APIC_MASKED				0x10000
+#define APIC_ICR_BUSY			0x1000
 
 #define APIC_PROCESSOR_ID		0x20
 #define APIC_VERSION			0x30
@@ -79,7 +83,7 @@ typedef struct _IoApic
 	uint32_t PinCount;
 
 	/* Base Address */
-	uint32_t BaseAddress;
+	volatile uint32_t BaseAddress;
 
 } IoApic_t;
 
@@ -88,6 +92,7 @@ _CRT_EXTERN void ApicInitBoot(void);
 _CRT_EXTERN void ApicInitAp(void);
 _CRT_EXTERN void ApicInitBootFinalize(void);
 _CRT_EXTERN void ApicTimerInit(void);
+_CRT_EXTERN void ApicReloadTimer(uint32_t Quantum);
 
 /* IO Functions */
 

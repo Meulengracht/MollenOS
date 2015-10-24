@@ -38,3 +38,16 @@ OsResult_t CpuInit(MCoreCpuDevice_t *OutData, void *BootInfo)
 	/* Done */
 	return OsOk;
 }
+
+/* Setup SMP */
+OsResult_t CpuInitSmp(void *BootInfo)
+{
+	/* Unused for now */
+	_CRT_UNUSED(BootInfo);
+
+	/* Setup */
+	_SmpSetup();
+
+	/* Done */
+	return OsOk;
+}

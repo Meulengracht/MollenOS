@@ -34,6 +34,9 @@
     <Filter Include="Systems\Devices\Video">
       <UniqueIdentifier>{b5451050-12d1-48fc-95d2-d17ed531ed99}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Includes\Vfs">
+      <UniqueIdentifier>{0e80ab11-a5b7-4a43-9f37-0173341884dc}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\Common\List.c">
@@ -79,6 +82,9 @@
       <Filter>Systems\Devices</Filter>
     </ClCompile>
     <ClCompile Include="..\..\System\Threading.c">
+      <Filter>Systems</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\System\Vfs.c">
       <Filter>Systems</Filter>
     </ClCompile>
   </ItemGroup>
@@ -127,6 +133,15 @@
     </ClInclude>
     <ClInclude Include="..\..\Include\Threading.h">
       <Filter>Includes</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Include\Devices\Disk.h">
+      <Filter>Includes\Devices</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Include\Vfs\Partition.h">
+      <Filter>Includes\Vfs</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Include\Vfs\Vfs.h">
+      <Filter>Includes\Vfs</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

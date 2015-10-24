@@ -26,8 +26,10 @@
     <ClCompile Include="..\..\System\Timers.c" />
     <ClCompile Include="..\..\System\Userspace\InputManager.c" />
     <ClCompile Include="..\..\System\Userspace\ScancodeSets\ScancodeSet2.c" />
+    <ClCompile Include="..\..\System\Vfs.c" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="..\..\Include\Devices\Disk.h" />
     <ClInclude Include="..\..\Include\MollenOS.h" />
     <ClInclude Include="..\..\Include\DeviceManager.h" />
     <ClInclude Include="..\..\Include\Devices\Cpu.h" />
@@ -42,6 +44,8 @@
     <ClInclude Include="..\..\Include\Semaphore.h" />
     <ClInclude Include="..\..\Include\Threading.h" />
     <ClInclude Include="..\..\Include\Timers.h" />
+    <ClInclude Include="..\..\Include\Vfs\Partition.h" />
+    <ClInclude Include="..\..\Include\Vfs\Vfs.h" />
     <ClInclude Include="..\..\Include\VirtualKeyCodes.h" />
   </ItemGroup>
   <PropertyGroup Label="Globals">

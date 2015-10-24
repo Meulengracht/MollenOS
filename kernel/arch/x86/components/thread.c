@@ -53,7 +53,7 @@ int ThreadingYield(void *Args)
 	ApicSendEoi(0, INTERRUPT_YIELD);
 
 	/* Switch Task */ 
-	Regs = (void*)_ThreadingSwitch((Registers_t*)Args, 0, &TimeSlice, &TaskPriority);
+	Regs = _ThreadingSwitch((Registers_t*)Args, 0, &TimeSlice, &TaskPriority);
 
 	/* If we just got hold of idle task, well fuck it disable timer
 	* untill we get another task */
@@ -130,17 +130,8 @@ x86Thread_t *_ThreadInitAp(Cpu_t Cpu)
 /* Wake's up CPU */
 void _ThreadWakeUpCpu(Cpu_t Cpu)
 {
-	/* Are we on this cpu? */
-	if (Cpu == ApicGetCpu())
-	{
-		/* Start timer */
-		ApicWriteLocal(APIC_INITIAL_COUNT, GlbTimerQuantum);
-	}
-	else
-	{
-		/* Send an IPI to the cpu */
-		ApicSendIpi((uint8_t)Cpu, INTERRUPT_YIELD);
-	}
+	/* Send an IPI to the cpu */
+	ApicSendIpi((uint8_t)Cpu, INTERRUPT_YIELD);
 }
 
 /* Yield current thread */

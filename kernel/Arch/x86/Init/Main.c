@@ -109,4 +109,6 @@ void init(Multiboot_t *BootInfo, uint32_t KernelSize)
 
 	/* Call Entry Point */
 	MCoreInitialize(&x86BootInfo);
+
+	/* There is no return */
 }

@@ -23,6 +23,7 @@
 #include <List.h>
 #include <Heap.h>
 #include <DeviceManager.h>
+#include <Vfs\Vfs.h>
 #include <string.h>
 
 /* Globals */
@@ -30,7 +31,6 @@ uint32_t GlbDmInitialized = 0;
 DevId_t GlbDmIdentfier = 0;
 list_t *GlbDmDeviceList = NULL;
 Spinlock_t GlbDmLock;
-
 
 /* Setup */
 void DmInit(void)
@@ -51,10 +51,6 @@ DevId_t DmCreateDevice(char *Name, uint32_t Type, void *Data)
 	/* Allocate a new structure */
 	MCoreDevice_t *mDev = (MCoreDevice_t*)kmalloc(sizeof(MCoreDevice_t));
 
-	/* Sanity */
-	if (GlbDmInitialized != 1)
-		DmInit();
-
 	/* Grap lock */
 	SpinlockAcquire(&GlbDmLock);
 	
@@ -63,9 +59,6 @@ DevId_t DmCreateDevice(char *Name, uint32_t Type, void *Data)
 	mDev->Id = GlbDmIdentfier;
 	mDev->Type = Type;
 	mDev->Data = Data;
-
-	/* Setup mutex */
-	mDev->Lock = MutexCreate();
 
 	/* Increase */
 	GlbDmIdentfier++;
@@ -78,6 +71,18 @@ DevId_t DmCreateDevice(char *Name, uint32_t Type, void *Data)
 
 	/* Call some broadcast function so systems know a new device is avaiable
 	 * depending on the device type */
+	switch (Type)
+	{
+		/* Register with Vfs */
+		case DeviceStorage:
+		{
+			VfsRegisterDisk((MCoreStorageDevice_t*)Data);
+		} break;
+
+		/* No special actions */
+		default:
+			break;
+	}
 
 	/* Done */
 	return mDev->Id;
@@ -97,9 +102,20 @@ void DmDestroyDevice(DevId_t DeviceId)
 
 	/* Call some broadcast function so systems know a device is being removed
 	* depending on the device type */
+	switch (mDev->Type)
+	{
+		/* Register with Vfs */
+		case DeviceStorage:
+		{
+			VfsUnregisterDisk((MCoreStorageDevice_t*)mDev->Data);
+		} break;
+
+		/* No special actions */
+		default:
+			break;
+	}
 
 	/* Destroy lock & free name */
-	MutexDestruct(mDev->Lock);
 	kfree(mDev->Name);
 
 	/* Cleanup structure */

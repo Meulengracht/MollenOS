@@ -26,17 +26,22 @@
 #include <stddef.h>
 
 /* Externs */
-extern Addr_t GlbLocalApicAddress;
+extern volatile Addr_t GlbLocalApicAddress;
 
 /* Read / Write to local apic registers */
 uint32_t ApicReadLocal(uint32_t Register)
 {
+	/* Simply just read */
 	return (uint32_t)(*(volatile Addr_t*)(GlbLocalApicAddress + Register));
 }
 
 void ApicWriteLocal(uint32_t Register, uint32_t Value)
 {
+	/* Write */
 	(*(volatile Addr_t*)(GlbLocalApicAddress + Register)) = Value;
+
+	/* Re-read new value to sync */
+	Value = (*(volatile Addr_t*)(GlbLocalApicAddress + Register));
 }
 
 /* Read / Write to io apic registers */
