@@ -18,6 +18,7 @@
     <ClCompile Include="..\..\System\Devices\DeviceManager.c" />
     <ClCompile Include="..\..\System\Devices\Fonts\VideoFont8x16.c" />
     <ClCompile Include="..\..\System\Devices\DeviceVideo.c" />
+    <ClCompile Include="..\..\System\FileSystems\Mfs\Mfs.c" />
     <ClCompile Include="..\..\System\Heap.c" />
     <ClCompile Include="..\..\System\Scheduler.c" />
     <ClCompile Include="..\..\System\Synchronization\Mutex.c" />
@@ -30,6 +31,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\Include\Devices\Disk.h" />
+    <ClInclude Include="..\..\Include\FileSystems\Mfs.h" />
     <ClInclude Include="..\..\Include\MollenOS.h" />
     <ClInclude Include="..\..\Include\DeviceManager.h" />
     <ClInclude Include="..\..\Include\Devices\Cpu.h" />

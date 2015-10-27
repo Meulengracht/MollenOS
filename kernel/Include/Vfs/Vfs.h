@@ -31,13 +31,26 @@
 
 /* Definitions */
 
-/* Structures */
 
-/* Prototypes */
+/* Structures */
+typedef struct _MCoreFileSystem
+{
+	/* Identifier */
+
+	/* Flags */
+
+	/* Disk */
+	MCoreStorageDevice_t *Disk;
+
+	/* Functions */
+
+
+} MCoreFileSystem_t;
 
 /* Setup */
 _CRT_EXTERN void VfsInit(void);
 
+/* Register / Unregister */
 _CRT_EXTERN void VfsRegisterDisk(MCoreStorageDevice_t *Disk);
 _CRT_EXTERN void VfsUnregisterDisk(MCoreStorageDevice_t *Disk);
 

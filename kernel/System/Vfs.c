@@ -73,7 +73,7 @@ void VfsRegisterDisk(MCoreStorageDevice_t *Disk)
 	if (!ValidPT)
 	{
 		/* Only one global partition 
-		 * parse it */
+		 * parse FS type from it */
 	}
 
 	/* Done, Cleanup */

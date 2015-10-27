@@ -225,10 +225,10 @@ typedef struct _UhciController
 	PciDevice_t *PciDevice;
 
 	/* I/O Registers */
-	uint16_t io_base;
+	uint16_t IoBase;
 
 	/* State */
-	uint32_t initialized;
+	uint32_t Initialized;
 
 	/* Frame List */
 	void *FrameList;
