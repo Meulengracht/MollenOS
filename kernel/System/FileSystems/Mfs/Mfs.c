@@ -25,56 +25,53 @@
 /* Formats a drive with MollenOS FileSystem */
 void MfsFormatDrive(MCoreStorageDevice_t *Disk)
 {
-	/* Get drive metrics */
+	/* Get mfs metrics */
+	MfsMasterBucket_t MasterBucket;
 	uint32_t BucketSize = 0;
 	uint32_t ReservedSectors = 0;
+	
 	uint32_t BucketMapSize = 0;
-	uint32_t BucketBitMapSize = 0;
-	uint64_t BucketBitmapSector = 0;
 	uint64_t BucketMapSector = 0;
 	uint64_t Buckets = 0;
+	uint32_t ReservedBuckets = 0;
+	
 	uint64_t DriveSizeBytes = Disk->SectorCount * Disk->SectorSize;
 	uint64_t GigaByte = (1024 * 1024 * 1024);
 
 	/* Determine bucket size 
-	 * if <1gb = 4 Kb (8 sectors) 
-	 * If <8gb = 8 Kb (16 sectors)
-	 * If <32gb = 16 Kb (32 sectors) 
-	 * If > 64gb = 32 Kb (64 sectors)
-	 * If > 512gb = 64 Kb (128 sectors) */
+	 * if <1gb = 1 Kb (2 sectors) 
+	 * If <64gb = 4 Kb (8 sectors)
+	 * If >64gb = 8 Kb (16 sectors)
+	 * If >512gb = 16 Kb (32 sectors) */
 	if (DriveSizeBytes >= (512 * GigaByte))
-		BucketSize = 128;
-	else if (DriveSizeBytes >= (64 * GigaByte))
-		BucketSize = 64;
-	else if (DriveSizeBytes <= GigaByte)
-		BucketSize = 8;
-	else if (DriveSizeBytes <= (8 * GigaByte))
-		BucketSize = 16;
-	else
 		BucketSize = 32;
+	else if (DriveSizeBytes >= (64 * GigaByte))
+		BucketSize = 16;
+	else if (DriveSizeBytes <= GigaByte)
+		BucketSize = 2;
+	else
+		BucketSize = 8;
 
 	/* Get size of stage2-loader */
 
-	/* Setup Bucket-map 
+	/* Setup Bucket-list
 	 * SectorCount / BucketSize
-	 * Fill with 0
+	 * Each bucket must point to the next, 
+	 * untill we reach the end of buckets
 	 * Position at end of drive */
 	Buckets = Disk->SectorCount / BucketSize;
-	BucketMapSize = Buckets * 4;
+	BucketMapSize = Buckets * 4; /* One bucket descriptor is 4 bytes */
 	BucketMapSector = (Disk->SectorCount - (BucketMapSize / Disk->SectorSize));
-
-	/* Setup bucket-bitmap 
-	 * preeceeds the bucket-map 
-	 * contains allocation status */
-	BucketBitMapSize = Buckets / 8; 
-	BucketBitmapSector = BucketMapSector - (BucketBitMapSize / Disk->SectorSize) - 1;
-
+	ReservedBuckets = ((BucketMapSize / Disk->SectorSize) + 1) / BucketSize;
+	
 	/* Setup bucket-master & mirror 
 	 * Mirror will be preceeding the bucket-map 
 	 * Original will be following the reserved sectors */
+	MasterBucket.Magic = MFS_MAGIC;
 
+	/* Setup BootSector */
 
-	/* Write BootSector last with all params */
+	/* Write BootSector */
 }
 
 

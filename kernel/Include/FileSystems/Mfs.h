@@ -31,9 +31,9 @@
 /* Definitions */
 #define MFS_MAGIC			0x3153464D		/* 1FSM */
 
+#define MFS_END_OF_CHAIN	0xFFFFFFFF
 
 /* MFS Entry Flags */
-#define MFS_INDEXED			0x1
 #define MFS_SECURITY		0x2
 #define MFS_DIRECTORY		0x4
 #define MFS_SYSTEM			0x8
@@ -55,6 +55,8 @@ typedef struct _MfsBootRecord
 	/* Disk Stats */
 	uint8_t MediaType;
 	uint16_t SectorSize;
+	uint16_t SectorsPerTrack;
+	uint16_t HeadsPerCylinder;
 	uint64_t SectorCount;
 	
 	/* Mfs Stats */
@@ -67,7 +69,7 @@ typedef struct _MfsBootRecord
 	uint8_t BootLabel[8];
 
 	//512 - 48
-	uint8_t BootCode[464];
+	uint8_t BootCode[460];
 
 } MfsBootRecord_t;
 #pragma pack(pop)
@@ -76,8 +78,14 @@ typedef struct _MfsBootRecord
 #pragma pack(push, 1)
 typedef struct _MfsMasterBucket
 {
+	/* Magic */
+	uint32_t Magic;
+
 	/* Flags */
 	uint32_t Flags;
+
+	/* Pointer to first free index */
+	uint32_t FreeBucket;
 
 	/* Pointer to root directory */
 	uint32_t RootIndex;
@@ -88,7 +96,8 @@ typedef struct _MfsMasterBucket
 } MfsMasterBucket_t;
 #pragma pack(pop)
 
-/* The MFT-Entry 52 bytes */
+/* The MFT-Entry
+ * 1024 Bytes */
 typedef struct _MfsTableEntry
 {
 	/* Status */
@@ -97,39 +106,33 @@ typedef struct _MfsTableEntry
 	/* Type */
 	uint16_t Flags;
 
-	/* Index
-	 * Either points to start index
-	 * or start-bucket */
-	uint32_t DataIndex;
-	uint32_t NameIndex;
+	/* Index */
+	uint32_t StartBucket;
 
 	/* Stats */
-	uint32_t CreatedTime;
-	uint32_t CreatedDate;
+	uint64_t CreatedTime;
+	uint64_t CreatedDate;
 
-	uint32_t ModifiedTime;
-	uint32_t ModifedDate;
+	uint64_t ModifiedTime;
+	uint64_t ModifedDate;
 
-	uint32_t ReadTime;
-	uint32_t ReadDate;
+	uint64_t ReadTime;
+	uint64_t ReadDate;
 	
+	/* More interesting */
 	uint64_t Size;
 	uint64_t AllocatedSize;
 
+	/* Name Block */
+	uint8_t Name[400];
+
+	/* Security Block */
+	uint8_t SecurityBlock[64];
+
+	/* Opt Data Block */
+	uint8_t Data[480];
+
 } MfsTableEntry_t;
-
-/* The MFT Descriptor */
-typedef struct _MfsTableDescriptor
-{
-	/* Type */
-	uint8_t Type;
-
-	/* Length */
-	uint8_t Length;
-
-	/* Data */
-
-} MfsTableDescriptor_t;
 
 /* Format */
 _CRT_EXTERN void MfsFormatDrive(MCoreStorageDevice_t *Disk);
