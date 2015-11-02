@@ -1,0 +1,53 @@
+/* MollenOS
+*
+* Copyright 2011 - 2014, Philip Meulengracht
+*
+* This program is free software : you can redistribute it and / or modify
+* it under the terms of the GNU General Public License as published by
+* the Free Software Foundation ? , either version 3 of the License, or
+* (at your option) any later version.
+*
+* This program is distributed in the hope that it will be useful,
+* but WITHOUT ANY WARRANTY; without even the implied warranty of
+* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.See the
+* GNU General Public License for more details.
+*
+* You should have received a copy of the GNU General Public License
+* along with this program.If not, see <http://www.gnu.org/licenses/>.
+*
+*
+* MollenOS Cpu Device
+*/
+
+/* Include correct arch */
+#include <Arch.h>
+
+/* CPU Includes */
+#include <Devices/Cpu.h>
+#include <string.h>
+
+/* CPU Structures */
+OsResult_t CpuInit(MCoreCpuDevice_t *OutData, void *BootInfo)
+{
+	/* Clear */
+	memset((void*)OutData, 0, sizeof(MCoreCpuDevice_t));
+
+	/* Setup */
+	_CpuSetup((void*)OutData, BootInfo);
+
+	/* Done */
+	return OsOk;
+}
+
+/* Setup SMP */
+OsResult_t CpuInitSmp(void *BootInfo)
+{
+	/* Unused for now */
+	_CRT_UNUSED(BootInfo);
+
+	/* Setup */
+	_SmpSetup();
+
+	/* Done */
+	return OsOk;
+}

@@ -1,0 +1,162 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="Entry">
+      <UniqueIdentifier>{6fdb26a5-3e43-473f-b98f-b8f352ca2277}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Systems">
+      <UniqueIdentifier>{3bcea2c0-a650-46ec-b90d-fefe4ec8eedb}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Common">
+      <UniqueIdentifier>{11bf9b2b-b5e5-4840-a298-1874f32c35ba}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Systems\Userspace">
+      <UniqueIdentifier>{8246489b-b3ed-4f90-ad33-d8e78a9607da}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Systems\Synchronization">
+      <UniqueIdentifier>{ed808d43-58c2-4e5f-a44d-ddd1d6bc7dab}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Systems\Userspace\ScancodeSets">
+      <UniqueIdentifier>{886f504c-ba41-44f9-abf9-203089502fd0}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Includes">
+      <UniqueIdentifier>{81cd7e4a-fe41-497b-b8b9-348362f39bf7}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Includes\ScancodeSets">
+      <UniqueIdentifier>{905627d3-5411-4df5-827b-8a27ac18645c}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Systems\Devices">
+      <UniqueIdentifier>{95309756-6264-48ff-b7ce-0712c2be0aa9}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Includes\Devices">
+      <UniqueIdentifier>{4be81c73-69b8-4da0-b801-a1dc5c97a913}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Systems\Devices\Video">
+      <UniqueIdentifier>{b5451050-12d1-48fc-95d2-d17ed531ed99}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Includes\Vfs">
+      <UniqueIdentifier>{0e80ab11-a5b7-4a43-9f37-0173341884dc}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Systems\FileSystems">
+      <UniqueIdentifier>{eb1633e1-d847-4362-91ce-fb2bf434e117}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Systems\FileSystems\Mfs">
+      <UniqueIdentifier>{898543a6-cee0-490d-9f25-20d0ba1cadc7}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Includes\FileSystems">
+      <UniqueIdentifier>{f3c38385-55ea-4b15-88ce-235fb000301f}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="..\..\Common\List.c">
+      <Filter>Common</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Common\RingBuffer.c">
+      <Filter>Common</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Init\Entry.c">
+      <Filter>Entry</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\System\Userspace\InputManager.c">
+      <Filter>Systems\Userspace</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\System\Synchronization\Mutex.c">
+      <Filter>Systems\Synchronization</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\System\Synchronization\Semaphore.c">
+      <Filter>Systems\Synchronization</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\System\Heap.c">
+      <Filter>Systems</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\System\Scheduler.c">
+      <Filter>Systems</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\System\Timers.c">
+      <Filter>Systems</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\System\Userspace\ScancodeSets\ScancodeSet2.c">
+      <Filter>Systems\Userspace\ScancodeSets</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\System\Devices\DeviceManager.c">
+      <Filter>Systems\Devices</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\System\Devices\Fonts\VideoFont8x16.c">
+      <Filter>Systems\Devices\Video</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\System\Devices\DeviceVideo.c">
+      <Filter>Systems\Devices\Video</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\System\Devices\DeviceCpu.c">
+      <Filter>Systems\Devices</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\System\Threading.c">
+      <Filter>Systems</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\System\Vfs.c">
+      <Filter>Systems</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\System\FileSystems\Mfs\Mfs.c">
+      <Filter>Systems\FileSystems\Mfs</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\..\Include\Heap.h">
+      <Filter>Includes</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Include\InputManager.h">
+      <Filter>Includes</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Include\List.h">
+      <Filter>Includes</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Include\Mutex.h">
+      <Filter>Includes</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Include\RingBuffer.h">
+      <Filter>Includes</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Include\Scheduler.h">
+      <Filter>Includes</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Include\Semaphore.h">
+      <Filter>Includes</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Include\Timers.h">
+      <Filter>Includes</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Include\VirtualKeyCodes.h">
+      <Filter>Includes</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Include\ScancodeSets\ScancodeSet2.h">
+      <Filter>Includes\ScancodeSets</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Include\DeviceManager.h">
+      <Filter>Includes</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Include\Devices\Cpu.h">
+      <Filter>Includes\Devices</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Include\Devices\Video.h">
+      <Filter>Includes\Devices</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Include\MollenOS.h">
+      <Filter>Includes</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Include\Threading.h">
+      <Filter>Includes</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Include\Devices\Disk.h">
+      <Filter>Includes\Devices</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Include\Vfs\Partition.h">
+      <Filter>Includes\Vfs</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Include\Vfs\Vfs.h">
+      <Filter>Includes\Vfs</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Include\FileSystems\Mfs.h">
+      <Filter>Includes\FileSystems</Filter>
+    </ClInclude>
+  </ItemGroup>
+</Project>

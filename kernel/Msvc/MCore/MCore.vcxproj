@@ -1,0 +1,197 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" ToolsVersion="12.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|Win32">
+      <Configuration>Debug</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|Win32">
+      <Configuration>Release</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="..\..\Common\List.c" />
+    <ClCompile Include="..\..\Common\RingBuffer.c" />
+    <ClCompile Include="..\..\Init\Entry.c" />
+    <ClCompile Include="..\..\System\Devices\DeviceCpu.c" />
+    <ClCompile Include="..\..\System\Devices\DeviceManager.c" />
+    <ClCompile Include="..\..\System\Devices\Fonts\VideoFont8x16.c" />
+    <ClCompile Include="..\..\System\Devices\DeviceVideo.c" />
+    <ClCompile Include="..\..\System\FileSystems\Mfs\Mfs.c" />
+    <ClCompile Include="..\..\System\Heap.c" />
+    <ClCompile Include="..\..\System\Scheduler.c" />
+    <ClCompile Include="..\..\System\Synchronization\Mutex.c" />
+    <ClCompile Include="..\..\System\Synchronization\Semaphore.c" />
+    <ClCompile Include="..\..\System\Threading.c" />
+    <ClCompile Include="..\..\System\Timers.c" />
+    <ClCompile Include="..\..\System\Userspace\InputManager.c" />
+    <ClCompile Include="..\..\System\Userspace\ScancodeSets\ScancodeSet2.c" />
+    <ClCompile Include="..\..\System\Vfs.c" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\..\Include\Devices\Disk.h" />
+    <ClInclude Include="..\..\Include\FileSystems\Mfs.h" />
+    <ClInclude Include="..\..\Include\MollenOS.h" />
+    <ClInclude Include="..\..\Include\DeviceManager.h" />
+    <ClInclude Include="..\..\Include\Devices\Cpu.h" />
+    <ClInclude Include="..\..\Include\Devices\Video.h" />
+    <ClInclude Include="..\..\Include\Heap.h" />
+    <ClInclude Include="..\..\Include\InputManager.h" />
+    <ClInclude Include="..\..\Include\List.h" />
+    <ClInclude Include="..\..\Include\Mutex.h" />
+    <ClInclude Include="..\..\Include\RingBuffer.h" />
+    <ClInclude Include="..\..\Include\ScancodeSets\ScancodeSet2.h" />
+    <ClInclude Include="..\..\Include\Scheduler.h" />
+    <ClInclude Include="..\..\Include\Semaphore.h" />
+    <ClInclude Include="..\..\Include\Threading.h" />
+    <ClInclude Include="..\..\Include\Timers.h" />
+    <ClInclude Include="..\..\Include\Vfs\Partition.h" />
+    <ClInclude Include="..\..\Include\Vfs\Vfs.h" />
+    <ClInclude Include="..\..\Include\VirtualKeyCodes.h" />
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <ProjectGuid>{E1811ABC-D002-44D1-8581-2ACF9C1DD0F9}</ProjectGuid>
+    <Keyword>Win32Proj</Keyword>
+    <RootNamespace>MCore</RootNamespace>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <PlatformToolset>v120</PlatformToolset>
+    <WholeProgramOptimization>true</WholeProgramOptimization>
+    <CharacterSet>MultiByte</CharacterSet>
+    <UseOfMfc />
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <PlatformToolset>v120</PlatformToolset>
+    <WholeProgramOptimization>true</WholeProgramOptimization>
+    <CharacterSet>MultiByte</CharacterSet>
+    <UseOfMfc />
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <ImportGroup Label="ExtensionSettings">
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <PropertyGroup Label="UserMacros">
+    <NuGetPackageImportStamp>56f82426</NuGetPackageImportStamp>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <GenerateManifest>false</GenerateManifest>
+    <IncludePath>..\..\acpica\include;..\..\Arch;..\..\..\clib\include;..\..\Include;..\..\Msvc\MCoreConfig</IncludePath>
+    <LibraryWPath />
+    <LibraryPath>..\..\..\clib\build;..\..\build</LibraryPath>
+    <OutDir>..\..\build\</OutDir>
+    <TargetExt>.mos</TargetExt>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <GenerateManifest>false</GenerateManifest>
+    <IncludePath>..\..\Arch;..\..\..\clib\include;..\..\Include</IncludePath>
+    <LibraryWPath />
+    <LibraryPath>..\..\..\clib\build;..\..\build</LibraryPath>
+    <OutDir>..\..\..\build\</OutDir>
+    <TargetExt>.mos</TargetExt>
+  </PropertyGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <ClCompile>
+      <WarningLevel>EnableAllWarnings</WarningLevel>
+      <PrecompiledHeader>
+      </PrecompiledHeader>
+      <Optimization>MaxSpeed</Optimization>
+      <FunctionLevelLinking>true</FunctionLevelLinking>
+      <IntrinsicFunctions>false</IntrinsicFunctions>
+      <PreprocessorDefinitions>MOLLENOS;_X86_32</PreprocessorDefinitions>
+      <SDLCheck>
+      </SDLCheck>
+      <TreatWarningAsError>true</TreatWarningAsError>
+      <MultiProcessorCompilation>true</MultiProcessorCompilation>
+      <ExceptionHandling>false</ExceptionHandling>
+      <BufferSecurityCheck>false</BufferSecurityCheck>
+      <AssemblerOutput>All</AssemblerOutput>
+      <InlineFunctionExpansion>OnlyExplicitInline</InlineFunctionExpansion>
+      <RuntimeLibrary>MultiThreadedDebugDLL</RuntimeLibrary>
+      <DisableSpecificWarnings>4127</DisableSpecificWarnings>
+    </ClCompile>
+    <Link>
+      <SubSystem>Native</SubSystem>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <EnableCOMDATFolding>true</EnableCOMDATFolding>
+      <OptimizeReferences>true</OptimizeReferences>
+      <EntryPointSymbol>kentry</EntryPointSymbol>
+      <RandomizedBaseAddress>
+      </RandomizedBaseAddress>
+      <FixedBaseAddress>true</FixedBaseAddress>
+      <DataExecutionPrevention>
+      </DataExecutionPrevention>
+      <BaseAddress>0x100000</BaseAddress>
+      <AdditionalDependencies>CLibK.lib;Libx86.lib;acpica.lib</AdditionalDependencies>
+      <IgnoreAllDefaultLibraries>true</IgnoreAllDefaultLibraries>
+      <ImageHasSafeExceptionHandlers />
+      <GenerateMapFile>true</GenerateMapFile>
+      <MapExports>true</MapExports>
+      <SectionAlignment>
+      </SectionAlignment>
+      <Driver>Driver</Driver>
+    </Link>
+    <PostBuildEvent>
+      <Command>
+      </Command>
+    </PostBuildEvent>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <ClCompile>
+      <WarningLevel>EnableAllWarnings</WarningLevel>
+      <PrecompiledHeader>
+      </PrecompiledHeader>
+      <Optimization>Full</Optimization>
+      <FunctionLevelLinking>true</FunctionLevelLinking>
+      <IntrinsicFunctions>false</IntrinsicFunctions>
+      <PreprocessorDefinitions>MOLLENOS;_X86_32</PreprocessorDefinitions>
+      <SDLCheck>
+      </SDLCheck>
+      <TreatWarningAsError>true</TreatWarningAsError>
+      <MultiProcessorCompilation>true</MultiProcessorCompilation>
+      <ExceptionHandling>false</ExceptionHandling>
+      <BufferSecurityCheck>false</BufferSecurityCheck>
+      <AssemblerOutput>All</AssemblerOutput>
+      <InlineFunctionExpansion>OnlyExplicitInline</InlineFunctionExpansion>
+      <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
+      <DisableSpecificWarnings>4127</DisableSpecificWarnings>
+    </ClCompile>
+    <Link>
+      <SubSystem>Native</SubSystem>
+      <GenerateDebugInformation>false</GenerateDebugInformation>
+      <EnableCOMDATFolding>true</EnableCOMDATFolding>
+      <OptimizeReferences>true</OptimizeReferences>
+      <EntryPointSymbol>kentry</EntryPointSymbol>
+      <RandomizedBaseAddress>
+      </RandomizedBaseAddress>
+      <FixedBaseAddress>true</FixedBaseAddress>
+      <DataExecutionPrevention>
+      </DataExecutionPrevention>
+      <BaseAddress>0x100000</BaseAddress>
+      <AdditionalDependencies>CLibK.lib;Libx86.lib;acpica.lib</AdditionalDependencies>
+      <IgnoreAllDefaultLibraries>true</IgnoreAllDefaultLibraries>
+      <ImageHasSafeExceptionHandlers />
+      <GenerateMapFile>true</GenerateMapFile>
+      <MapExports>true</MapExports>
+      <SectionAlignment>
+      </SectionAlignment>
+      <Driver>Driver</Driver>
+    </Link>
+    <PostBuildEvent>
+      <Command>
+      </Command>
+    </PostBuildEvent>
+  </ItemDefinitionGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <ImportGroup Label="ExtensionTargets" />
+</Project>
