@@ -66,6 +66,40 @@ int MfsWriteSectors(MCoreFileSystem_t *Fs, uint64_t Sector, void *Buffer, uint32
 	return Result;
 }
 
+/* Get next bucket in chain 
+ * Todo: Have this in memory */
+/* Locate next bucket */
+uint32_t MfsGetNextBucket(MCoreFileSystem_t *Fs, uint32_t Bucket)
+{
+	/* Vars */
+	MfsData_t *mData = (MfsData_t*)Fs->FsData;
+
+	/* Calculate Index */
+	uint32_t SectorOffset = Bucket / (uint32_t)mData->BucketsPerSector;
+	uint32_t SectorIndex = Bucket % (uint32_t)mData->BucketsPerSector;
+
+	/* Read sector */
+	if (mData->BucketBufferOffset != SectorOffset)
+	{
+		/* Read */
+		if (MfsReadSectors(Fs, mData->BucketMapSector + SectorOffset, mData->BucketBuffer, 1) < 0)
+		{
+			/* Error */
+			printf("MFS_GETNEXTBUCKET: Error reading from disk\n");
+			return 0xFFFFFFFF;
+		}
+
+		/* Update */
+		mData->BucketBufferOffset = SectorOffset;
+	}
+	
+	/* Pointer to array */
+	uint8_t *BufPtr = (uint8_t*)mData->BucketBuffer;
+
+	/* Done */
+	return BufPtr[SectorIndex] | (BufPtr[SectorIndex + 1] << 8) 
+		| (BufPtr[SectorIndex + 2] << 16) | (BufPtr[SectorIndex + 3] << 24);
+}
 
 /* Locate Node */
 MfsFile_t *MfsLocateEntry(MCoreFileSystem_t *Fs, uint32_t DirBucket, MString_t *Path)
@@ -79,7 +113,7 @@ MfsFile_t *MfsLocateEntry(MCoreFileSystem_t *Fs, uint32_t DirBucket, MString_t *
 	/* Get token */
 	int IsEndOfPath = 0;
 	MString_t *Token = NULL;
-	int StrIndex = MStringFind(Path, (uint32_t)"/");
+	int StrIndex = MStringFind(Path, (uint32_t)'/');
 	if (StrIndex == -1
 		|| StrIndex == (int)(MStringLength(Path) - 1))
 	{
@@ -90,13 +124,22 @@ MfsFile_t *MfsLocateEntry(MCoreFileSystem_t *Fs, uint32_t DirBucket, MString_t *
 	else
 		Token = MStringSubString(Path, 0, StrIndex);
 
+	/* Allocate buffer for data */
+	void *EntryBuffer = kmalloc(mData->BucketSize * Fs->Disk->SectorSize);
+	 
 	/* Let's iterate */
 	while (!IsEnd)
 	{
 		/* Load bucket */
+		if (MfsReadSectors(Fs, mData->BucketSize * CurrentBucket, EntryBuffer, mData->BucketSize) < 0)
+		{
+			/* Error */
+			printf("MFS_LOCATEENTRY: Error reading from disk\n");
+			break;
+		}
 
 		/* Iterate buffer */
-		MfsTableEntry_t *Entry = (MfsTableEntry_t*)NULL;
+		MfsTableEntry_t *Entry = (MfsTableEntry_t*)EntryBuffer;
 		for (i = 0; i < (mData->BucketSize / 2); i++)
 		{
 			/* Sanity, end of table */
@@ -116,6 +159,34 @@ MfsFile_t *MfsLocateEntry(MCoreFileSystem_t *Fs, uint32_t DirBucket, MString_t *
 				/* Match */
 				if (!IsEndOfPath)
 				{
+					/* This should be a directory */
+					if (!(Entry->Flags & MFS_DIRECTORY))
+					{
+						/* Cleanup */
+						kfree(EntryBuffer);
+						MStringDestroy(NodeName);
+						MStringDestroy(Token);
+
+						/* Path not found ofc */
+						MfsFile_t *RetData = (MfsFile_t*)kmalloc(sizeof(MfsFile_t));
+						RetData->Status = VfsPathIsNotDirectory;
+						return RetData;
+					}
+
+					/* Sanity the bucket beforehand */
+					if (Entry->StartBucket == MFS_END_OF_CHAIN)
+					{
+						/* Cleanup */
+						kfree(EntryBuffer);
+						MStringDestroy(NodeName);
+						MStringDestroy(Token);
+
+						/* Path not found ofc */
+						MfsFile_t *RetData = (MfsFile_t*)kmalloc(sizeof(MfsFile_t));
+						RetData->Status = VfsPathNotFound;
+						return RetData;
+					}
+
 					/* Create a new sub-string with rest */
 					MString_t *RestOfPath = 
 						MStringSubString(Path, StrIndex + 1, 
@@ -125,6 +196,7 @@ MfsFile_t *MfsLocateEntry(MCoreFileSystem_t *Fs, uint32_t DirBucket, MString_t *
 					MfsFile_t *Ret = MfsLocateEntry(Fs, Entry->StartBucket, RestOfPath);
 
 					/* Cleanup */
+					kfree(EntryBuffer);
 					MStringDestroy(RestOfPath);
 					MStringDestroy(NodeName);
 					MStringDestroy(Token);
@@ -137,7 +209,20 @@ MfsFile_t *MfsLocateEntry(MCoreFileSystem_t *Fs, uint32_t DirBucket, MString_t *
 					/* Yay, proxy data, cleanup, done! */
 					MfsFile_t *Ret = (MfsFile_t*)kmalloc(sizeof(MfsFile_t));
 
+					/* Proxy */
+					Ret->Name = NodeName;
+					Ret->Flags = Entry->Flags;
+					Ret->Size = Entry->Size;
+					Ret->AllocatedSize = Entry->AllocatedSize;
+					Ret->DataBucket = Entry->StartBucket;
+					Ret->Status = VfsOk;
+
+					/* Save position */
+					Ret->DirBucket = CurrentBucket;
+					Ret->DirOffset = i;
+
 					/* Cleanup */
+					kfree(EntryBuffer);
 					MStringDestroy(Token);
 
 					/* Done */
@@ -155,7 +240,7 @@ MfsFile_t *MfsLocateEntry(MCoreFileSystem_t *Fs, uint32_t DirBucket, MString_t *
 		/* Get next bucket */
 		if (!IsEnd)
 		{
-			CurrentBucket = 0; //GetNextBucket();
+			CurrentBucket = MfsGetNextBucket(Fs, CurrentBucket);
 
 			if (CurrentBucket == MFS_END_OF_CHAIN)
 				IsEnd = 1;
@@ -163,6 +248,7 @@ MfsFile_t *MfsLocateEntry(MCoreFileSystem_t *Fs, uint32_t DirBucket, MString_t *
 	}
 
 	/* Cleanup */
+	kfree(EntryBuffer);
 	MStringDestroy(Token);
 	
 	/* If IsEnd is set, we couldn't find it 
@@ -174,21 +260,15 @@ MfsFile_t *MfsLocateEntry(MCoreFileSystem_t *Fs, uint32_t DirBucket, MString_t *
 
 /* Open File */
 VfsErrorCode_t MfsOpenFile(void *FsData, 
-	MCoreFile_t *Handle, char *Path, VfsFileFlags_t Flags)
+	MCoreFile_t *Handle, MString_t *Path, VfsFileFlags_t Flags)
 {
 	/* Cast */
 	MCoreFileSystem_t *Fs = (MCoreFileSystem_t*)FsData;
 	MfsData_t *mData = (MfsData_t*)Fs->FsData;
 	VfsErrorCode_t RetCode = VfsOk;
 
-	/* Convert path to UTF-8 */
-	MString_t *mPath = MStringCreate(Path, StrASCII);
-
 	/* This will be a recursive parse of path */
-	MfsFile_t *FileInfo = MfsLocateEntry(Fs, mData->RootIndex, mPath);
-
-	/* Destroy string */
-	MStringDestroy(mPath);
+	MfsFile_t *FileInfo = MfsLocateEntry(Fs, mData->RootIndex, Path);
 
 	/* Validate */
 	if (FileInfo->Status != VfsOk)
@@ -200,7 +280,11 @@ VfsErrorCode_t MfsOpenFile(void *FsData,
 	}
 
 	/* Fill out Handle */
+	Handle->Data = FileInfo;
 	Handle->Flags = Flags;
+	Handle->Position = 0;
+	Handle->Size = FileInfo->Size;
+	Handle->Name = FileInfo->Name;
 
 	/* Done */
 	return RetCode;
@@ -312,6 +396,10 @@ OsResult_t MfsInit(MCoreFileSystem_t *Fs)
 	/* Parse */
 	mData->RootIndex = Mb->RootIndex;
 	mData->FreeIndex = Mb->FreeBucket;
+
+	/* Setup buffer */
+	mData->BucketBuffer = kmalloc(Fs->Disk->SectorSize);
+	mData->BucketBufferOffset = 0xFFFFFFFF;
 
 	/* Setup Fs */
 	Fs->FsData = mData;

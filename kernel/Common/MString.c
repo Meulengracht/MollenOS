@@ -248,20 +248,32 @@ uint32_t Utf8GetNextChar(char *Str, int *Index)
 {
 	/* We'll need these to keep track */
 	uint32_t Character = 0;
-	int Size = 0;
+	int Size = 0, lIndex = *Index;
 
 	/* Iterate untill end of character */
-	while (Str[*Index] && !IsUTF8(Str[*Index])) {
+	while (Str[lIndex] && !IsUTF8(Str[lIndex])) {
 		/* Add and get next byte */
 		Character <<= 6;
-		Character += (unsigned char)Str[(*Index)++];
+		Character += (unsigned char)Str[lIndex++];
 		
 		/* Incr count */
 		Size++;
 	}
 
+	/* Sanity */
+	if (Size == 0
+		&& Str[lIndex])
+	{
+		Character = (uint32_t)Str[lIndex];
+		lIndex++;
+		Size++;
+	}
+
 	/* Modify by the UTF8 offset table */
 	Character -= GlbUtf8Offsets[Size - 1];
+
+	/* Update */
+	*Index = lIndex;
 
 	/* Done */
 	return Character;
@@ -447,6 +459,11 @@ int MStringFind(MString_t *String, uint32_t Character)
 	char *DataPtr = (char*)String->Data;
 	int i = 0;
 
+	/* Sanity */
+	if (String->Data == NULL
+		|| String->DataLength == 0)
+		return MSTRING_NOT_FOUND;
+
 	/* Iterate */
 	while (DataPtr[i]) {
 
@@ -609,29 +626,24 @@ uint32_t MStringCompare(MString_t *String1, MString_t *String2, uint32_t IgnoreC
 	return 1;
 }
 
-void MStringPrint(MString_t *String)
+void MStringToASCII(MString_t *String, void *Buffer)
 {
-	/* If we are in kernel library we MUST 
-	 * convert and dump UTF8 characters
-	 * as we can only print ANSI */
-	char TempBuffer[256];
+	/* State Vars */
 	char *DataPtr = (char*)String->Data;
+	char *OutB = (char*)Buffer;
 	int i = 0, j = 0, Count = 0;
-	uint32_t Value;
-
-	/* Zero out buffer */
-	memset(TempBuffer, 0, sizeof(TempBuffer));
+	uint32_t Value = 0;
 
 	while (DataPtr[i])
 	{
 		/* Easy */
 		if (DataPtr[i] < 0x80)
 		{
-			TempBuffer[j] = DataPtr[i];
+			OutB[j] = DataPtr[i];
 			j++;
 		}
 		/* Lead Byte? */
-		else if ((DataPtr[i] & 0xC0) == 0xC0) 
+		else if ((DataPtr[i] & 0xC0) == 0xC0)
 		{
 			/* Wtf, multiple leads? */
 			if (Count > 0)
@@ -654,7 +666,7 @@ void MStringPrint(MString_t *String)
 				return;
 			}
 		}
-		else 
+		else
 		{
 			Value <<= 6;
 			Value |= DataPtr[i] & 0x3f;
@@ -663,7 +675,7 @@ void MStringPrint(MString_t *String)
 				/* A single byte val we can handle */
 				if (Value <= 0xFF)
 				{
-					TempBuffer[j] = DataPtr[i];
+					OutB[j] = DataPtr[i];
 					j++;
 				}
 			}
@@ -672,7 +684,59 @@ void MStringPrint(MString_t *String)
 		/* Next byte */
 		i++;
 	}
+}
+
+void MStringPrint(MString_t *String)
+{
+	/* If we are in kernel library we MUST 
+	 * convert and dump UTF8 characters
+	 * as we can only print ANSI */
+	char TempBuffer[256];
+
+	/* Zero out buffer */
+	memset(TempBuffer, 0, sizeof(TempBuffer));
+
+	/* Convert */
+	MStringToASCII(String, TempBuffer);
 
 	/* So, now we can print */
 	printf("%s\n", TempBuffer);
+}
+
+/* MString Testing */
+void MStringTest(void)
+{
+	/* Create some string entries */
+	printf("Allocating new strings...\n");
+	MString_t *String1 = MStringCreate((void*)"St0/System/Sys32.mos", StrASCII);
+	MString_t *String2 = MStringCreate("This is a long string test, YAY!", StrASCII);
+
+	/* Do basic operations */
+	printf("Printing them\n");
+	MStringPrint(String1);
+	MStringPrint(String2);
+
+	printf("Length of first: %u - %u\n", MStringLength(String1), String1->DataLength);
+	printf("Length of second: %u - %u\n", MStringLength(String2), String2->DataLength);
+
+	/* Location */
+	printf("Looking for '/' in first: %i\n", MStringFind(String1, (uint32_t)'/'));
+	printf("Looking for x in second: %i\n", MStringFind(String2, (uint32_t)'x'));
+
+	/* Substrings */
+	printf("Creating substring of first\n");
+	MString_t *Sub1 = MStringSubString(String1, 3, 7);
+	MStringPrint(Sub1);
+	printf("Creating substring of second\n");
+	MString_t *Sub2 = MStringSubString(String2, 0, 12);
+	MStringPrint(Sub2);
+
+	/* Cleanup */
+	printf("Cleaning up substrings\n");
+	MStringDestroy(Sub1);
+	MStringDestroy(Sub2);
+
+	printf("Cleaning up originals\n");
+	MStringDestroy(String1);
+	MStringDestroy(String2);
 }

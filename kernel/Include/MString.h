@@ -59,6 +59,7 @@ _CRT_EXTERN MString_t *MStringSubString(MString_t *String, int Index, int Length
 /* Utilities */
 _CRT_EXTERN uint32_t MStringLength(MString_t *String);
 _CRT_EXTERN uint32_t MStringCompare(MString_t *String1, MString_t *String2, uint32_t IgnoreCase);
+_CRT_EXTERN void MStringToASCII(MString_t *String, void *Buffer);
 _CRT_EXTERN void MStringPrint(MString_t *String);
 
 /* Casing */

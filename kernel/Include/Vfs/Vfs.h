@@ -23,6 +23,7 @@
 
 /* Includes */
 #include <Devices/Disk.h>
+#include <MString.h>
 #include <Mutex.h>
 #include <crtdefs.h>
 #include <stdint.h>
@@ -36,7 +37,9 @@ typedef enum _VfsErrorCode
 	VfsOk,
 	VfsInvalidParameters,
 	VfsPathNotFound,
-	VfsAccessDenied
+	VfsAccessDenied,
+	VfsPathIsNotDirectory,
+	VfsDiskError
 } VfsErrorCode_t;
 
 /* File Flags */
@@ -64,7 +67,7 @@ typedef enum _VfsFileFlags
 typedef struct _MCoreFile
 {
 	/* Name of Node */
-	char *Name;
+	MString_t *Name;
 
 	/* Flags */
 	VfsFileFlags_t Flags;
@@ -77,6 +80,8 @@ typedef struct _MCoreFile
 	/* I/O Buffer */
 	void *iBuffer;
 	void *oBuffer;
+	uint32_t iBufferPosition;
+	uint32_t oBufferPosition;
 
 	/* FS-Specific Data */
 	void *Data;
@@ -110,7 +115,7 @@ typedef struct _MCoreFileSystem
 	OsResult_t (*Destory)(void *FsData, uint32_t Forced);
 
 	/* Handle Operations */
-	VfsErrorCode_t (*OpenFile)(void *FsData, MCoreFile_t *Handle, char *Path, VfsFileFlags_t Flags);
+	VfsErrorCode_t (*OpenFile)(void *FsData, MCoreFile_t *Handle, MString_t *Path, VfsFileFlags_t Flags);
 	VfsErrorCode_t (*CloseFile)(void *FsData, MCoreFile_t *Handle);
 	
 	/* File Operations */

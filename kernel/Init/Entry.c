@@ -38,6 +38,7 @@ MCoreVideoDevice_t BootVideo = { 0 };
 
 /* We need these functions */
 extern void ThreadingDebugPrint(void);
+extern void MStringTest(void);
 
 /* Print Header Information */
 void PrintHeader(MCoreBootInfo_t *BootInfo)

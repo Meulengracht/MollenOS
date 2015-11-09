@@ -37,11 +37,14 @@
 
 /* MFS Entry Flags */
 #define MFS_FILE			0x1
-#define MFS_SECURITY		0x2
+#define MFS_SECURITY		0x2		/* User must possess the right key to unlock */
 #define MFS_DIRECTORY		0x4
-#define MFS_SYSTEM			0x8
-#define MFS_HIDDEN			0x10
-#define MFS_LINK			0x20
+#define MFS_SYSTEM			0x8		/* Readable, nothing else */
+#define MFS_HIDDEN			0x10	/* Don't show */
+#define MFS_LINK			0x20	/* Link to another file */
+#define MFS_INLINE			0x40	/* Data is inlined */
+#define MFS_CHAINED			0x80	/* Means all buckets are adjacent */
+#define MFS_LOCKED			0x100	/* File is deep-locked */
 
 /* The MFS-MBR */
 #pragma pack(push, 1)
@@ -143,9 +146,12 @@ typedef struct _MfsTableEntry
 typedef struct _MfsFile
 {
 	/* Information */
+	MString_t *Name;
+	
 	uint32_t Flags;
 	uint32_t DataBucket;
 	uint64_t Size;
+	uint64_t AllocatedSize;
 
 	/* Location */
 	uint32_t DirBucket;
@@ -180,6 +186,10 @@ typedef struct _MfsData
 
 	uint32_t RootIndex;
 	uint32_t FreeIndex;
+
+	/* Bucket Buffer */
+	void *BucketBuffer;
+	uint32_t BucketBufferOffset;
 
 } MfsData_t;
 #pragma pack(pop)
