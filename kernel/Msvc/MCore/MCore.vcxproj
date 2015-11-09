@@ -12,6 +12,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\Common\List.c" />
+    <ClCompile Include="..\..\Common\MString.c" />
     <ClCompile Include="..\..\Common\RingBuffer.c" />
     <ClCompile Include="..\..\Init\Entry.c" />
     <ClCompile Include="..\..\System\Devices\DeviceCpu.c" />
@@ -39,6 +40,7 @@
     <ClInclude Include="..\..\Include\Heap.h" />
     <ClInclude Include="..\..\Include\InputManager.h" />
     <ClInclude Include="..\..\Include\List.h" />
+    <ClInclude Include="..\..\Include\MString.h" />
     <ClInclude Include="..\..\Include\Mutex.h" />
     <ClInclude Include="..\..\Include\RingBuffer.h" />
     <ClInclude Include="..\..\Include\ScancodeSets\ScancodeSet2.h" />

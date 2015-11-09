@@ -99,6 +99,9 @@
     <ClCompile Include="..\..\System\FileSystems\Mfs\Mfs.c">
       <Filter>Systems\FileSystems\Mfs</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\Common\MString.c">
+      <Filter>Common</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\Include\Heap.h">
@@ -157,6 +160,9 @@
     </ClInclude>
     <ClInclude Include="..\..\Include\FileSystems\Mfs.h">
       <Filter>Includes\FileSystems</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Include\MString.h">
+      <Filter>Includes</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

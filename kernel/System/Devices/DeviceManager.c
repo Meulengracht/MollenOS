@@ -107,7 +107,7 @@ void DmDestroyDevice(DevId_t DeviceId)
 		/* Register with Vfs */
 		case DeviceStorage:
 		{
-			VfsUnregisterDisk((MCoreStorageDevice_t*)mDev->Data);
+			VfsUnregisterDisk((MCoreStorageDevice_t*)mDev->Data, 1);
 		} break;
 
 		/* No special actions */

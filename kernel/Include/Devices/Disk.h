@@ -23,8 +23,10 @@
 
 /* Includes */
 #include <stdint.h>
+#include <Mutex.h>
 
 /* Storage Device */
+#pragma pack(push, 1)
 typedef struct _MCoreStorageDevice
 {
 	/* Disk Stats */
@@ -32,6 +34,9 @@ typedef struct _MCoreStorageDevice
 	uint32_t SectorsPerCylinder;
 	uint32_t AlignedAccess;
 	uint32_t SectorSize;
+
+	/* Lock */
+	Mutex_t *Lock;
 
 	/* Disk Data */
 	void *DiskData;
@@ -41,6 +46,6 @@ typedef struct _MCoreStorageDevice
 	int(*Write)(void *Data, uint64_t LBA, void *Buffer, uint32_t BufferLength);
 
 } MCoreStorageDevice_t;
-
+#pragma pack(pop)
 
 #endif //!_MCORE_DEVICE_DISK_H_

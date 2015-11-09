@@ -31,9 +31,12 @@
 /* Definitions */
 #define MFS_MAGIC			0x3153464D		/* 1FSM */
 
+#define MFS_OSDRIVE			0x1
+
 #define MFS_END_OF_CHAIN	0xFFFFFFFF
 
 /* MFS Entry Flags */
+#define MFS_FILE			0x1
 #define MFS_SECURITY		0x2
 #define MFS_DIRECTORY		0x4
 #define MFS_SYSTEM			0x8
@@ -134,8 +137,52 @@ typedef struct _MfsTableEntry
 
 } MfsTableEntry_t;
 
-/* Format */
-_CRT_EXTERN void MfsFormatDrive(MCoreStorageDevice_t *Disk);
+
+/* FileSystem File Data */
+#pragma pack(push, 1)
+typedef struct _MfsFile
+{
+	/* Information */
+	uint32_t Flags;
+	uint32_t DataBucket;
+	uint64_t Size;
+
+	/* Location */
+	uint32_t DirBucket;
+	uint32_t DirOffset;
+
+	/* Status */
+	VfsErrorCode_t Status;
+
+} MfsFile_t;
+#pragma pack(pop)
+
+/* FileSystem Data */
+#pragma pack(push, 1)
+typedef struct _MfsData
+{
+	/* Identifier */
+	char *VolumeLabel;
+
+	/* Mb Positions */
+	uint64_t MbSector;
+	uint64_t MbMirrorSector;
+
+	/* Information */
+	uint32_t BucketSize;
+	uint32_t Flags;
+	uint32_t Version;
+
+	uint64_t BucketCount;
+	uint64_t BucketMapSize;
+	uint64_t BucketMapSector;
+	uint64_t BucketsPerSector;
+
+	uint32_t RootIndex;
+	uint32_t FreeIndex;
+
+} MfsData_t;
+#pragma pack(pop)
 
 /* Initialize Fs */
 _CRT_EXTERN OsResult_t MfsInit(MCoreFileSystem_t *Fs);

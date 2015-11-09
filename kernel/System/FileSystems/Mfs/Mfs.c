@@ -21,64 +21,306 @@
 
 /* Includes */
 #include <FileSystems/Mfs.h>
+#include <MString.h>
+#include <Heap.h>
+#include <stdio.h>
+#include <string.h>
 
-/* Formats a drive with MollenOS FileSystem */
-void MfsFormatDrive(MCoreStorageDevice_t *Disk)
+/* Read Sectors Wrapper */
+int MfsReadSectors(MCoreFileSystem_t *Fs, uint64_t Sector, void *Buffer, uint32_t Count)
 {
-	/* Get mfs metrics */
-	MfsMasterBucket_t MasterBucket;
-	uint32_t BucketSize = 0;
-	uint32_t ReservedSectors = 0;
-	
-	uint32_t BucketMapSize = 0;
-	uint64_t BucketMapSector = 0;
-	uint64_t Buckets = 0;
-	uint32_t ReservedBuckets = 0;
-	
-	uint64_t DriveSizeBytes = Disk->SectorCount * Disk->SectorSize;
-	uint64_t GigaByte = (1024 * 1024 * 1024);
+	/* Keep */
+	int Result = 0;
 
-	/* Determine bucket size 
-	 * if <1gb = 1 Kb (2 sectors) 
-	 * If <64gb = 4 Kb (8 sectors)
-	 * If >64gb = 8 Kb (16 sectors)
-	 * If >512gb = 16 Kb (32 sectors) */
-	if (DriveSizeBytes >= (512 * GigaByte))
-		BucketSize = 32;
-	else if (DriveSizeBytes >= (64 * GigaByte))
-		BucketSize = 16;
-	else if (DriveSizeBytes <= GigaByte)
-		BucketSize = 2;
-	else
-		BucketSize = 8;
+	/* Lock Disk */
+	MutexLock(Fs->Disk->Lock);
 
-	/* Get size of stage2-loader */
+	/* Do the read */
+	Result = Fs->Disk->Read(Fs->Disk->DiskData,
+		Fs->SectorStart + Sector, Buffer, (Count * Fs->Disk->SectorSize));
 
-	/* Setup Bucket-list
-	 * SectorCount / BucketSize
-	 * Each bucket must point to the next, 
-	 * untill we reach the end of buckets
-	 * Position at end of drive */
-	Buckets = Disk->SectorCount / BucketSize;
-	BucketMapSize = Buckets * 4; /* One bucket descriptor is 4 bytes */
-	BucketMapSector = (Disk->SectorCount - (BucketMapSize / Disk->SectorSize));
-	ReservedBuckets = ((BucketMapSize / Disk->SectorSize) + 1) / BucketSize;
-	
-	/* Setup bucket-master & mirror 
-	 * Mirror will be preceeding the bucket-map 
-	 * Original will be following the reserved sectors */
-	MasterBucket.Magic = MFS_MAGIC;
+	/* Unlock disk */
+	MutexUnlock(Fs->Disk->Lock);
 
-	/* Setup BootSector */
-
-	/* Write BootSector */
+	/* Done! */
+	return Result;
 }
 
+/* Write Sectors Wrapper */
+int MfsWriteSectors(MCoreFileSystem_t *Fs, uint64_t Sector, void *Buffer, uint32_t Count)
+{
+	/* Keep */
+	int Result = 0;
+
+	/* Lock Disk */
+	MutexLock(Fs->Disk->Lock);
+
+	/* Do the read */
+	Result = Fs->Disk->Write(Fs->Disk->DiskData,
+		Fs->SectorStart + Sector, Buffer, (Count * Fs->Disk->SectorSize));
+
+	/* Unlock disk */
+	MutexUnlock(Fs->Disk->Lock);
+
+	/* Done! */
+	return Result;
+}
+
+
+/* Locate Node */
+MfsFile_t *MfsLocateEntry(MCoreFileSystem_t *Fs, uint32_t DirBucket, MString_t *Path)
+{
+	/* Vars */
+	MfsData_t *mData = (MfsData_t*)Fs->FsData;
+	uint32_t CurrentBucket = DirBucket;
+	int IsEnd = 0;
+	uint32_t i;
+
+	/* Get token */
+	int IsEndOfPath = 0;
+	MString_t *Token = NULL;
+	int StrIndex = MStringFind(Path, (uint32_t)"/");
+	if (StrIndex == -1
+		|| StrIndex == (int)(MStringLength(Path) - 1))
+	{
+		/* Set end, and token as rest of path */
+		IsEndOfPath = 1;
+		Token = Path;
+	}
+	else
+		Token = MStringSubString(Path, 0, StrIndex);
+
+	/* Let's iterate */
+	while (!IsEnd)
+	{
+		/* Load bucket */
+
+		/* Iterate buffer */
+		MfsTableEntry_t *Entry = (MfsTableEntry_t*)NULL;
+		for (i = 0; i < (mData->BucketSize / 2); i++)
+		{
+			/* Sanity, end of table */
+			if (Entry->Status == 0x0)
+			{
+				IsEnd = 1;
+				break;
+			}
+
+			/* Load UTF8 */
+			MString_t *NodeName = MStringCreate(Entry->Name, StrUTF8);
+
+			/* If we find a match, and we are at end 
+			 * we are done. Otherwise, go deeper */
+			if (MStringCompare(Token, NodeName, 1))
+			{
+				/* Match */
+				if (!IsEndOfPath)
+				{
+					/* Create a new sub-string with rest */
+					MString_t *RestOfPath = 
+						MStringSubString(Path, StrIndex + 1, 
+						(MStringLength(Path) - (StrIndex + 1)));
+
+					/* Go deeper */
+					MfsFile_t *Ret = MfsLocateEntry(Fs, Entry->StartBucket, RestOfPath);
+
+					/* Cleanup */
+					MStringDestroy(RestOfPath);
+					MStringDestroy(NodeName);
+					MStringDestroy(Token);
+
+					/* Done */
+					return Ret;
+				}
+				else
+				{
+					/* Yay, proxy data, cleanup, done! */
+					MfsFile_t *Ret = (MfsFile_t*)kmalloc(sizeof(MfsFile_t));
+
+					/* Cleanup */
+					MStringDestroy(Token);
+
+					/* Done */
+					return Ret;
+				}
+			}
+
+			/* Cleanup */
+			MStringDestroy(NodeName);
+
+			/* Go on to next */
+			Entry++;
+		}
+
+		/* Get next bucket */
+		if (!IsEnd)
+		{
+			CurrentBucket = 0; //GetNextBucket();
+
+			if (CurrentBucket == MFS_END_OF_CHAIN)
+				IsEnd = 1;
+		}
+	}
+
+	/* Cleanup */
+	MStringDestroy(Token);
+	
+	/* If IsEnd is set, we couldn't find it 
+	 * If IsEnd is not set, we should not be here... */
+	MfsFile_t *RetData = (MfsFile_t*)kmalloc(sizeof(MfsFile_t));
+	RetData->Status = VfsPathNotFound;
+	return RetData;
+}
+
+/* Open File */
+VfsErrorCode_t MfsOpenFile(void *FsData, 
+	MCoreFile_t *Handle, char *Path, VfsFileFlags_t Flags)
+{
+	/* Cast */
+	MCoreFileSystem_t *Fs = (MCoreFileSystem_t*)FsData;
+	MfsData_t *mData = (MfsData_t*)Fs->FsData;
+	VfsErrorCode_t RetCode = VfsOk;
+
+	/* Convert path to UTF-8 */
+	MString_t *mPath = MStringCreate(Path, StrASCII);
+
+	/* This will be a recursive parse of path */
+	MfsFile_t *FileInfo = MfsLocateEntry(Fs, mData->RootIndex, mPath);
+
+	/* Destroy string */
+	MStringDestroy(mPath);
+
+	/* Validate */
+	if (FileInfo->Status != VfsOk)
+	{
+		/* Cleanup */
+		RetCode = FileInfo->Status;
+		kfree(FileInfo);
+		return RetCode;
+	}
+
+	/* Fill out Handle */
+	Handle->Flags = Flags;
+
+	/* Done */
+	return RetCode;
+}
+
+/* Unload MFS Driver 
+ * If it's forced, we can't save
+ * stuff back to the disk :/ */
+OsResult_t MfsDestroy(void *FsData, uint32_t Forced)
+{
+	/* Cast */
+	MCoreFileSystem_t *Fs = (MCoreFileSystem_t*)FsData;
+	MfsData_t *mData = (MfsData_t*)Fs->FsData;
+
+	/* Sanity */
+	if (!Forced)
+	{
+
+	}
+
+	/* Free resources */
+	kfree(mData->VolumeLabel);
+	kfree(mData);
+
+	/* Done */
+	return OsOk;
+}
 
 /* Load Mfs Driver */
 OsResult_t MfsInit(MCoreFileSystem_t *Fs)
 {
+	/* Allocate structures */
+	void *TmpBuffer = (void*)kmalloc(Fs->Disk->SectorSize);
 	MfsBootRecord_t *BootRecord = NULL;
 
-	/* Load bootsector */
+	/* Read bootsector */
+	if (MfsReadSectors(Fs, 0, TmpBuffer, 1) < 0)
+	{
+		/* Error */
+		printf("MFS_INIT: Error reading from disk\n");
+		kfree(TmpBuffer);
+		return OsFail;
+	}
+
+	/* Cast */
+	BootRecord = (MfsBootRecord_t*)TmpBuffer;
+	
+	/* Validate Magic */
+	if (BootRecord->Magic != MFS_MAGIC)
+	{
+		printf("MFS_INIT: Invalid Magic 0x%x\n", BootRecord->Magic);
+		kfree(TmpBuffer);
+		return OsFail;
+	}
+
+	/* Validate Version */
+	if (BootRecord->Version != 0x1)
+	{
+		printf("MFS_INIT: Invalid Version\n");
+		kfree(TmpBuffer);
+		return OsFail;
+	}
+
+	/* Allocate */
+	MfsData_t *mData = (MfsData_t*)kmalloc(sizeof(MfsData_t));
+
+	/* Save some of the data */
+	mData->MbSector = BootRecord->MasterBucketSector;
+	mData->MbMirrorSector = BootRecord->MasterBucketMirror;
+	mData->Version = (uint32_t)BootRecord->Version;
+	mData->BucketSize = (uint32_t)BootRecord->SectorsPerBucket;
+	mData->Flags = (uint32_t)BootRecord->Flags;
+
+	/* Calculate the bucket-map sector */
+	mData->BucketCount = Fs->SectorCount / mData->BucketSize;
+	mData->BucketMapSize = mData->BucketCount * 4; /* One bucket descriptor is 4 bytes */
+	mData->BucketMapSector = (Fs->SectorCount - ((mData->BucketMapSize / Fs->Disk->SectorSize) + 1));
+	mData->BucketsPerSector = Fs->Disk->SectorSize / 4;
+
+	/* Copy the volume label over */
+	mData->VolumeLabel = (char*)kmalloc(8 + 1);
+	memset(mData->VolumeLabel, 0, 9);
+	memcpy(mData->VolumeLabel, BootRecord->BootLabel, 8);
+
+	/* Read the MB */
+	if (MfsReadSectors(Fs, mData->MbSector, TmpBuffer, 1) < 0)
+	{
+		/* Error */
+		printf("MFS_INIT: Error reading MB from disk\n");
+		kfree(TmpBuffer);
+		kfree(mData->VolumeLabel);
+		kfree(mData);
+		return OsFail;
+	}
+
+	/* Validate MB */
+	MfsMasterBucket_t *Mb = (MfsMasterBucket_t*)TmpBuffer;
+
+	/* Sanity */
+	if (Mb->Magic != MFS_MAGIC)
+	{
+		printf("MFS_INIT: Invalid MB-Magic 0x%x\n", Mb->Magic);
+		kfree(TmpBuffer);
+		kfree(mData->VolumeLabel);
+		kfree(mData);
+		return OsFail;
+	}
+
+	/* Parse */
+	mData->RootIndex = Mb->RootIndex;
+	mData->FreeIndex = Mb->FreeBucket;
+
+	/* Setup Fs */
+	Fs->FsData = mData;
+
+	/* Setup functions */
+	Fs->Destory = MfsDestroy;
+	Fs->OpenFile = MfsOpenFile;
+
+	/* Done, cleanup */
+	kfree(TmpBuffer);
+	return OsOk;
 }

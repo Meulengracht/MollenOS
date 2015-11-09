@@ -101,6 +101,7 @@ void UsbMsdInit(UsbHcDevice_t *UsbDevice, uint32_t InterfaceIndex)
 		DevData->IsUFI = 0;
 
 	/* Set */
+	StorageData->Lock = MutexCreate();
 	StorageData->DiskData = DevData;
 	StorageData->SectorSize = 512;
 	StorageData->SectorCount = 0;
@@ -230,6 +231,7 @@ void UsbMsdDestroy(void *UsbDevice)
 	DmDestroyDevice(Device->DeviceId);
 	
 	/* Free Data */
+	MutexDestruct(StorageData->Lock);
 	kfree(StorageData);
 	kfree(Device);
 }
