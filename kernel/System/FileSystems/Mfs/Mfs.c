@@ -27,43 +27,45 @@
 #include <string.h>
 
 /* Read Sectors Wrapper */
-int MfsReadSectors(MCoreFileSystem_t *Fs, uint64_t Sector, void *Buffer, uint32_t Count)
+DeviceRequestStatus_t MfsReadSectors(MCoreFileSystem_t *Fs, uint64_t Sector, void *Buffer, uint32_t Count)
 {
 	/* Keep */
-	int Result = 0;
+	MCoreDeviceRequest_t Request;
 
-	/* Lock Disk */
-	MutexLock(Fs->Disk->Lock);
-
-	/* Do the read */
-	Result = Fs->Disk->Read(Fs->Disk->DiskData,
-		Fs->SectorStart + Sector, Buffer, (Count * Fs->Disk->SectorSize));
-
-	/* Unlock disk */
-	MutexUnlock(Fs->Disk->Lock);
+	/* Setup request */
+	Request.Type = RequestRead;
+	Request.DeviceId = Fs->DiskId;
+	Request.IsAsync = 0;
+	Request.SectorLBA = Fs->SectorStart + Sector;
+	Request.Buffer = (uint8_t*)Buffer;
+	Request.Length = (Count * Fs->SectorSize);
+	
+	/* Perform */
+	DmCreateRequest(&Request);
 
 	/* Done! */
-	return Result;
+	return Request.Status;
 }
 
 /* Write Sectors Wrapper */
-int MfsWriteSectors(MCoreFileSystem_t *Fs, uint64_t Sector, void *Buffer, uint32_t Count)
+DeviceRequestStatus_t MfsWriteSectors(MCoreFileSystem_t *Fs, uint64_t Sector, void *Buffer, uint32_t Count)
 {
 	/* Keep */
-	int Result = 0;
+	MCoreDeviceRequest_t Request;
 
-	/* Lock Disk */
-	MutexLock(Fs->Disk->Lock);
+	/* Setup request */
+	Request.Type = RequestWrite;
+	Request.DeviceId = Fs->DiskId;
+	Request.IsAsync = 0;
+	Request.SectorLBA = Fs->SectorStart + Sector;
+	Request.Buffer = (uint8_t*)Buffer;
+	Request.Length = (Count * Fs->SectorSize);
 
-	/* Do the read */
-	Result = Fs->Disk->Write(Fs->Disk->DiskData,
-		Fs->SectorStart + Sector, Buffer, (Count * Fs->Disk->SectorSize));
-
-	/* Unlock disk */
-	MutexUnlock(Fs->Disk->Lock);
+	/* Perform */
+	DmCreateRequest(&Request);
 
 	/* Done! */
-	return Result;
+	return Request.Status;
 }
 
 /* Get next bucket in chain 
@@ -82,7 +84,7 @@ uint32_t MfsGetNextBucket(MCoreFileSystem_t *Fs, uint32_t Bucket)
 	if (mData->BucketBufferOffset != SectorOffset)
 	{
 		/* Read */
-		if (MfsReadSectors(Fs, mData->BucketMapSector + SectorOffset, mData->BucketBuffer, 1) < 0)
+		if (MfsReadSectors(Fs, mData->BucketMapSector + SectorOffset, mData->BucketBuffer, 1) != RequestOk)
 		{
 			/* Error */
 			printf("MFS_GETNEXTBUCKET: Error reading from disk\n");
@@ -125,13 +127,13 @@ MfsFile_t *MfsLocateEntry(MCoreFileSystem_t *Fs, uint32_t DirBucket, MString_t *
 		Token = MStringSubString(Path, 0, StrIndex);
 
 	/* Allocate buffer for data */
-	void *EntryBuffer = kmalloc(mData->BucketSize * Fs->Disk->SectorSize);
+	void *EntryBuffer = kmalloc(mData->BucketSize * Fs->SectorSize);
 	 
 	/* Let's iterate */
 	while (!IsEnd)
 	{
 		/* Load bucket */
-		if (MfsReadSectors(Fs, mData->BucketSize * CurrentBucket, EntryBuffer, mData->BucketSize) < 0)
+		if (MfsReadSectors(Fs, mData->BucketSize * CurrentBucket, EntryBuffer, mData->BucketSize) != RequestOk)
 		{
 			/* Error */
 			printf("MFS_LOCATEENTRY: Error reading from disk\n");
@@ -363,11 +365,11 @@ OsResult_t MfsDestroy(void *FsData, uint32_t Forced)
 OsResult_t MfsInit(MCoreFileSystem_t *Fs)
 {
 	/* Allocate structures */
-	void *TmpBuffer = (void*)kmalloc(Fs->Disk->SectorSize);
+	void *TmpBuffer = (void*)kmalloc(Fs->SectorSize);
 	MfsBootRecord_t *BootRecord = NULL;
 
 	/* Read bootsector */
-	if (MfsReadSectors(Fs, 0, TmpBuffer, 1) < 0)
+	if (MfsReadSectors(Fs, 0, TmpBuffer, 1) != RequestOk)
 	{
 		/* Error */
 		printf("MFS_INIT: Error reading from disk\n");
@@ -407,8 +409,8 @@ OsResult_t MfsInit(MCoreFileSystem_t *Fs)
 	/* Calculate the bucket-map sector */
 	mData->BucketCount = Fs->SectorCount / mData->BucketSize;
 	mData->BucketMapSize = mData->BucketCount * 4; /* One bucket descriptor is 4 bytes */
-	mData->BucketMapSector = (Fs->SectorCount - ((mData->BucketMapSize / Fs->Disk->SectorSize) + 1));
-	mData->BucketsPerSector = Fs->Disk->SectorSize / 4;
+	mData->BucketMapSector = (Fs->SectorCount - ((mData->BucketMapSize / Fs->SectorSize) + 1));
+	mData->BucketsPerSector = Fs->SectorSize / 4;
 
 	/* Copy the volume label over */
 	mData->VolumeLabel = (char*)kmalloc(8 + 1);
@@ -416,7 +418,7 @@ OsResult_t MfsInit(MCoreFileSystem_t *Fs)
 	memcpy(mData->VolumeLabel, BootRecord->BootLabel, 8);
 
 	/* Read the MB */
-	if (MfsReadSectors(Fs, mData->MbSector, TmpBuffer, 1) < 0)
+	if (MfsReadSectors(Fs, mData->MbSector, TmpBuffer, 1) != RequestOk)
 	{
 		/* Error */
 		printf("MFS_INIT: Error reading MB from disk\n");
@@ -444,7 +446,7 @@ OsResult_t MfsInit(MCoreFileSystem_t *Fs)
 	mData->FreeIndex = Mb->FreeBucket;
 
 	/* Setup buffer */
-	mData->BucketBuffer = kmalloc(Fs->Disk->SectorSize);
+	mData->BucketBuffer = kmalloc(Fs->SectorSize);
 	mData->BucketBufferOffset = 0xFFFFFFFF;
 
 	/* Setup Fs */

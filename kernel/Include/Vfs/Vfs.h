@@ -105,6 +105,7 @@ typedef struct _MCoreFileSystem
 	/* Information */
 	uint64_t SectorStart;
 	uint64_t SectorCount;
+	uint32_t SectorSize;
 
 	/* Lock */
 	Mutex_t *Lock;

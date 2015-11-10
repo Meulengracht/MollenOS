@@ -44,19 +44,31 @@ void VfsInit(void)
 }
 
 /* Partition table parser */
-int VfsParsePartitionTable(DevId_t DiskId, uint64_t SectorBase, uint64_t SectorCount)
+int VfsParsePartitionTable(DevId_t DiskId, uint64_t SectorBase, uint64_t SectorCount, uint32_t SectorSize)
 {
 	/* Allocate structures */
-	void *TmpBuffer = (void*)kmalloc(Disk->SectorSize);
+	void *TmpBuffer = (void*)kmalloc(SectorSize);
 	MCoreMasterBootRecord_t *Mbr = NULL;
+	MCoreDeviceRequest_t Request;
 	int PartitionCount = 0;
 	int i;
 
 	/* Read sector */
-	if (Disk->Read(Disk->DiskData, SectorBase, TmpBuffer, Disk->SectorSize) < 0)
+	Request.Type = RequestRead;
+	Request.DeviceId = DiskId;
+	Request.IsAsync = 0;
+	Request.SectorLBA = SectorBase;
+	Request.Buffer = (uint8_t*)TmpBuffer;
+	Request.Length = SectorSize;
+
+	/* Create */
+	DmCreateRequest(&Request);
+
+	/* Sanity */
+	if (Request.Status != RequestOk)
 	{
 		/* Error */
-		printf("VFS_REGISTERDISK: Error reading from disk\n");
+		printf("VFS_REGISTERDISK: Error reading from disk - 0x%x\n", Request.Status);
 		kfree(TmpBuffer);
 		return 0;
 	}
@@ -81,6 +93,7 @@ int VfsParsePartitionTable(DevId_t DiskId, uint64_t SectorBase, uint64_t SectorC
 			Fs->SectorStart = SectorBase + Mbr->Partitions[i].LbaSector;
 			Fs->SectorCount = Mbr->Partitions[i].LbaSize;
 			Fs->Id = GlbFileSystemId;
+			Fs->SectorSize = SectorSize;
 
 			/* Check extended partitions first */
 			if (Mbr->Partitions[i].Type == 0x05)
@@ -91,8 +104,8 @@ int VfsParsePartitionTable(DevId_t DiskId, uint64_t SectorBase, uint64_t SectorC
 				|| Mbr->Partitions[i].Type == 0xCF)
 			{
 				/* Extended - LBA */
-				PartitionCount += VfsParsePartitionTable(Disk,
-					SectorBase + Mbr->Partitions[i].LbaSector, Mbr->Partitions[i].LbaSize);
+				PartitionCount += VfsParsePartitionTable(DiskId,
+					SectorBase + Mbr->Partitions[i].LbaSector, Mbr->Partitions[i].LbaSize, SectorSize);
 			}
 			else if (Mbr->Partitions[i].Type == 0xEE)
 			{
@@ -188,10 +201,28 @@ int VfsParsePartitionTable(DevId_t DiskId, uint64_t SectorBase, uint64_t SectorC
 void VfsRegisterDisk(DevId_t DiskId)
 {
 	/* Query for disk stats */
+	char TmpBuffer[20];
+	MCoreDeviceRequest_t Request;
+	Request.Type = RequestQuery;
+	Request.DeviceId = DiskId;
+	Request.IsAsync = 0;
+	Request.Buffer = (uint8_t*)TmpBuffer;
+	Request.Length = 20;
 
+	/* Perform */
+	DmCreateRequest(&Request);
+
+	/* Well, well */
+	uint64_t SectorCount = (uint64_t)TmpBuffer[0] | ((uint64_t)TmpBuffer[1] << 8) 
+		| ((uint64_t)TmpBuffer[2] << 16) | ((uint64_t)TmpBuffer[3] << 24) 
+		| ((uint64_t)TmpBuffer[4] << 32) | ((uint64_t)TmpBuffer[5] << 40) 
+		| ((uint64_t)TmpBuffer[6] << 48) | ((uint64_t)TmpBuffer[7] << 56);
+
+	uint32_t SectorSize = (uint32_t)TmpBuffer[16] | ((uint32_t)TmpBuffer[17] << 8) 
+		| ((uint32_t)TmpBuffer[18] << 16) | ((uint32_t)TmpBuffer[19] << 24);
 
 	/* Sanity */
-	if (!VfsParsePartitionTable(DiskId, 0, Disk->SectorCount))
+	if (!VfsParsePartitionTable(DiskId, 0, SectorCount, SectorSize))
 	{
 		/* Only one global partition 
 		 * parse FS type from it */
@@ -202,7 +233,8 @@ void VfsRegisterDisk(DevId_t DiskId)
 		Fs->FsData = NULL;
 		Fs->Id = GlbFileSystemId;
 		Fs->SectorStart = 0;
-		Fs->SectorCount = Disk->SectorCount;
+		Fs->SectorCount = SectorCount;
+		Fs->SectorSize = SectorSize;
 
 		/* Now we have to detect the type of filesystem used
 		 * normally two types is used for full-partition 
