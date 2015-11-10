@@ -70,7 +70,6 @@ DeviceRequestStatus_t MfsWriteSectors(MCoreFileSystem_t *Fs, uint64_t Sector, vo
 
 /* Get next bucket in chain 
  * Todo: Have this in memory */
-/* Locate next bucket */
 uint32_t MfsGetNextBucket(MCoreFileSystem_t *Fs, uint32_t Bucket)
 {
 	/* Vars */
@@ -101,6 +100,99 @@ uint32_t MfsGetNextBucket(MCoreFileSystem_t *Fs, uint32_t Bucket)
 	/* Done */
 	return BufPtr[SectorIndex] | (BufPtr[SectorIndex + 1] << 8) 
 		| (BufPtr[SectorIndex + 2] << 16) | (BufPtr[SectorIndex + 3] << 24);
+}
+
+/* Set next bucket in chain 
+ * Todo: have this in memory */
+void MfsSetNextBucket(MCoreFileSystem_t *Fs, uint32_t Bucket, uint32_t NextBucket)
+{
+	/* Vars */
+	MfsData_t *mData = (MfsData_t*)Fs->FsData;
+
+	/* Calculate Index */
+	uint32_t SectorOffset = Bucket / (uint32_t)mData->BucketsPerSector;
+	uint32_t SectorIndex = Bucket % (uint32_t)mData->BucketsPerSector;
+
+	/* Read sector */
+	if (mData->BucketBufferOffset != SectorOffset)
+	{
+		/* Read */
+		if (MfsReadSectors(Fs, mData->BucketMapSector + SectorOffset, mData->BucketBuffer, 1) != RequestOk)
+		{
+			/* Error */
+			printf("MFS_SETNEXTBUCKET: Error reading from disk\n");
+			return;
+		}
+
+		/* Update */
+		mData->BucketBufferOffset = SectorOffset;
+	}
+
+	/* Pointer to array */
+	uint8_t *BufPtr = (uint8_t*)mData->BucketBuffer;
+
+	/* Edit */
+	BufPtr[SectorIndex * 4] = (uint8_t)(NextBucket & 0xFF);
+	BufPtr[SectorIndex * 4 + 1] = (uint8_t)((NextBucket >> 8) & 0xFF);
+	BufPtr[SectorIndex * 4 + 2] = (uint8_t)((NextBucket >> 16) & 0xFF);
+	BufPtr[SectorIndex * 4 + 3] = (uint8_t)((NextBucket >> 24) & 0xFF);
+
+	/* Write it back */
+	if (MfsWriteSectors(Fs, mData->BucketMapSector + SectorOffset, mData->BucketBuffer, 1) != RequestOk)
+	{
+		/* Error */
+		printf("MFS_SETNEXTBUCKET: Error writing to disk\n");
+	}
+}
+
+/* Allocates buckets */
+void MfsAllocateBucket(MCoreFileSystem_t *Fs, uint32_t NumBuckets)
+{
+	/* Vars */
+	MfsData_t *mData = (MfsData_t*)Fs->FsData;
+
+	/* We'll keep track */
+	uint32_t Counter = NumBuckets;
+	uint32_t BucketPtr = mData->FreeIndex;
+	uint32_t BucketPrevPtr = 0;
+
+	/* Iterate untill we are done */
+	while (Counter > 0)
+	{
+		/* Done */
+		BucketPrevPtr = BucketPtr;
+		BucketPtr = MfsGetNextBucket(Fs, BucketPtr);
+
+		/* Next */
+		Counter--;
+	}
+
+	/* Update BucketPrevPtr to 0xFFFFFFFF */
+	MfsSetNextBucket(Fs, BucketPrevPtr, MFS_END_OF_CHAIN);
+	mData->FreeIndex = BucketPtr;
+
+	/* Update MB */
+	uint8_t *MbBuffer = (uint8_t*)kmalloc(Fs->SectorSize);
+	memset((void*)MbBuffer, 0, Fs->SectorSize);
+	MfsMasterBucket_t *MbPtr = (MfsMasterBucket_t*)MbBuffer;
+	
+	/* Set data */
+	MbPtr->Magic = MFS_MAGIC;
+	MbPtr->Flags = mData->MbFlags;
+	MbPtr->RootIndex = mData->RootIndex;
+	MbPtr->FreeBucket = mData->FreeIndex;
+	MbPtr->BadBucketIndex = mData->BadIndex;
+
+	/* Write MB */
+	if (MfsWriteSectors(Fs, mData->MbSector, MbBuffer, 1) != RequestOk
+		|| MfsWriteSectors(Fs, mData->MbMirrorSector, MbBuffer, 1) != RequestOk)
+	{
+		/* Error */
+		printf("MFS_ALLOCATEBUCKET: Error writing to disk\n");
+	}
+
+	/* Done! */
+	kfree(MbBuffer);
 }
 
 /* Locate Node */
@@ -371,37 +463,25 @@ VfsErrorCode_t MfsReadFile(void *FsData, MCoreFile_t *Handle, void *Buffer, uint
 			/* Start out by copying remainder */
 			memcpy(BufPtr, (TempBuffer + bOffset), BytesLeft);
 			BytesCopied = BytesLeft;
-
-			/* Care for bucket-boundaries */
-			uint32_t NextBucket = MfsGetNextBucket(Fs, mFile->DataBucketPosition);
-
-			/* Sanity */
-			if (NextBucket == MFS_END_OF_CHAIN)
-			{
-				/* End of file... */
-				Handle->IsEOF = 1;
-				break;
-			}
-			
-			/* Set next */
-			mFile->DataBucketPosition = NextBucket;
 		}
 		else
 		{
 			/* Just copy */
 			memcpy(BufPtr, (TempBuffer + bOffset), BytesToRead);
 			BytesCopied = BytesToRead;
+		}
 
-			/* Are we at end ? */
-			if (BytesLeft == BytesToRead)
-			{
-				/* Go to next */
-				uint32_t NextBucket = MfsGetNextBucket(Fs, mFile->DataBucketPosition);
+		/* Switch to next bucket? */
+		if (BytesLeft >= BytesCopied)
+		{
+			/* Go to next */
+			uint32_t NextBucket = MfsGetNextBucket(Fs, mFile->DataBucketPosition);
 
-				/* Sanity */
-				if (NextBucket != MFS_END_OF_CHAIN)
-					mFile->DataBucketPosition = NextBucket;
-			}
+			/* Sanity */
+			if (NextBucket != MFS_END_OF_CHAIN)
+				mFile->DataBucketPosition = NextBucket;
+			else
+				Handle->IsEOF = 1;
 		}
 
 		/* Advance pointer(s) */
@@ -424,10 +504,140 @@ VfsErrorCode_t MfsReadFile(void *FsData, MCoreFile_t *Handle, void *Buffer, uint
 /* Write File */
 VfsErrorCode_t MfsWriteFile(void *FsData, MCoreFile_t *Handle, void *Buffer, uint32_t Size)
 {
-	_CRT_UNUSED(FsData);
-	_CRT_UNUSED(Handle);
-	_CRT_UNUSED(Buffer);
-	_CRT_UNUSED(Size);
+	/* Vars */
+	MCoreFileSystem_t *Fs = (MCoreFileSystem_t*)FsData;
+	MfsData_t *mData = (MfsData_t*)Fs->FsData;
+	MfsFile_t *mFile = (MfsFile_t*)Handle->Data;
+	uint8_t *BufPtr = (uint8_t*)Buffer;
+	VfsErrorCode_t RetCode = VfsOk;
+
+	/* Security Sanity */
+	if (!(Handle->Flags & Write))
+		return VfsAccessDenied;
+
+	/* BucketPtr for iterating */
+	uint32_t BytesToWrite = Size;
+
+	/* Make sure there is enough room */
+	if ((Handle->Position + Size) > mFile->AllocatedSize)
+	{
+		/* Well... Uhh */
+		
+		/* Allocate more */
+		uint64_t NumSectors = ((Handle->Position + Size) - mFile->AllocatedSize) / Fs->SectorSize;
+		if ((((Handle->Position + Size) - mFile->AllocatedSize) % Fs->SectorSize) > 0)
+			NumSectors++;
+
+		uint64_t NumBuckets = NumSectors / mData->BucketSize;
+		if ((NumSectors % mData->BucketSize) > 0)
+			NumBuckets++;
+
+		/* Allocate buckets */
+		uint32_t FreeBucket = mData->FreeIndex;
+		MfsAllocateBucket(Fs, (uint32_t)NumBuckets);
+
+		/* Get last bucket in chain */
+		uint32_t BucketPtr = mFile->DataBucket;
+		uint32_t BucketPrevPtr = 0;
+		while (BucketPtr != MFS_END_OF_CHAIN)
+		{
+			BucketPrevPtr = BucketPtr;
+			BucketPtr = MfsGetNextBucket(Fs, BucketPtr);
+		}
+
+		/* Update pointer */
+		MfsSetNextBucket(Fs, BucketPrevPtr, FreeBucket);
+
+		/* Adjust allocated size */
+		mFile->AllocatedSize += (NumBuckets * mData->BucketSize * Fs->SectorSize);
+	}
+
+	/* Allocate buffer for data */
+	uint8_t *TempBuffer = (uint8_t*)kmalloc(mData->BucketSize * Fs->SectorSize);
+
+	/* Keep reeeading */
+	while (BytesToWrite)
+	{
+		/* We have to calculate the offset into this buffer we must transfer data */
+		uint32_t bOffset = (uint32_t)(Handle->Position % (mData->BucketSize * Fs->SectorSize));
+		uint32_t BytesLeft = (mData->BucketSize * Fs->SectorSize) - bOffset;
+		uint32_t BytesCopied = 0;
+
+		/* Are we on a bucket boundary ?
+		 * and we need to write atleast an entire bucket */
+		if (bOffset == 0
+			&& BytesToWrite >= (mData->BucketSize * Fs->SectorSize))
+		{
+			/* Then we don't care about content */
+			memcpy(TempBuffer, BufPtr, (mData->BucketSize * Fs->SectorSize));
+			BytesCopied = (mData->BucketSize * Fs->SectorSize);
+		}
+		else
+		{
+			/* Means we are modifying */
+
+			/* Read the old bucket */
+			if (MfsReadSectors(Fs, mData->BucketSize * mFile->DataBucketPosition,
+				TempBuffer, mData->BucketSize) != RequestOk)
+			{
+				/* Error */
+				RetCode = VfsDiskError;
+				printf("MFS_WRITEFILE: Error reading from disk\n");
+				break;
+			}
+			
+			/* Buuuut, we have quite a few cases here 
+			 * Case 1 - We need to write less than what is left, easy */
+			if (BytesToWrite <= BytesLeft)
+			{
+				/* Write it */
+				memcpy((TempBuffer + bOffset), BufPtr, BytesToWrite);
+				BytesCopied = BytesToWrite;
+			}
+			else
+			{
+				/* Write whats left */
+				memcpy((TempBuffer + bOffset), BufPtr, BytesLeft);
+				BytesCopied = BytesLeft;
+			}
+		}
+
+		/* Write back bucket */
+		if (MfsWriteSectors(Fs, mData->BucketSize * mFile->DataBucketPosition,
+			TempBuffer, mData->BucketSize) != RequestOk)
+		{
+			/* Error */
+			RetCode = VfsDiskError;
+			printf("MFS_WRITEFILE: Error reading from disk\n");
+			break;
+		}
+
+		/* Switch to next bucket? */
+		if (BytesLeft >= BytesCopied)
+		{
+			/* Go to next */
+			uint32_t NextBucket = MfsGetNextBucket(Fs, mFile->DataBucketPosition);
+
+			/* Sanity */
+			if (NextBucket != MFS_END_OF_CHAIN)
+				mFile->DataBucketPosition = NextBucket;
+		}
+
+		/* Advance pointer(s) */
+		BufPtr += BytesCopied;
+		BytesToWrite -= BytesCopied;
+		Handle->Position += BytesCopied;
+	}
+
+	/* Sanity */
+	if (Handle->Position == Handle->Size)
+		Handle->IsEOF = 1;
+
+	/* Cleanup */
+	kfree(TempBuffer);
+
+	/* Done! */
+	return RetCode;
 }
 
 /* Delete File */
@@ -435,6 +645,7 @@ VfsErrorCode_t MfsDeleteFile(void *FsData, MCoreFile_t *Handle)
 {
 	_CRT_UNUSED(FsData);
 	_CRT_UNUSED(Handle);
+	return VfsOk;
 }
 
 /* Query information */
@@ -442,6 +653,7 @@ VfsErrorCode_t MfsQuery(void *FsData, MCoreFile_t *Handle)
 {
 	_CRT_UNUSED(FsData);
 	_CRT_UNUSED(Handle);
+	return VfsOk;
 }
 
 /* Unload MFS Driver 
@@ -460,6 +672,7 @@ OsResult_t MfsDestroy(void *FsData, uint32_t Forced)
 	}
 
 	/* Free resources */
+	kfree(mData->BucketBuffer);
 	kfree(mData->VolumeLabel);
 	kfree(mData);
 
@@ -550,6 +763,8 @@ OsResult_t MfsInit(MCoreFileSystem_t *Fs)
 	/* Parse */
 	mData->RootIndex = Mb->RootIndex;
 	mData->FreeIndex = Mb->FreeBucket;
+	mData->BadIndex = Mb->BadBucketIndex;
+	mData->MbFlags = Mb->Flags;
 
 	/* Setup buffer */
 	mData->BucketBuffer = kmalloc(Fs->SectorSize);

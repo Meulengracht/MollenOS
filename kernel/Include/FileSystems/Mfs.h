@@ -140,7 +140,6 @@ typedef struct _MfsTableEntry
 
 } MfsTableEntry_t;
 
-
 /* FileSystem File Data */
 #pragma pack(push, 1)
 typedef struct _MfsFile
@@ -185,8 +184,11 @@ typedef struct _MfsData
 	uint64_t BucketMapSector;
 	uint64_t BucketsPerSector;
 
+	/* For easier restructuring */
 	uint32_t RootIndex;
 	uint32_t FreeIndex;
+	uint32_t BadIndex;
+	uint32_t MbFlags;
 
 	/* Bucket Buffer */
 	void *BucketBuffer;

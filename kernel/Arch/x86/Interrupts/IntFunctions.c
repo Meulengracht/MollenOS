@@ -168,7 +168,7 @@ void InterruptInstallISA(uint32_t Irq, uint32_t IdtEntry, IrqHandler_t Callback,
 {
 	uint64_t apic_flags = 0;
 
-	apic_flags = 0x0F00000000000000;	/* Target all groups */
+	apic_flags = 0x7F00000000000000;	/* Target all groups */
 	apic_flags |= 0x100;				/* Lowest Priority */
 	apic_flags |= 0x800;				/* Logical Destination Mode */
 
@@ -188,7 +188,7 @@ void InterruptInstallISA(uint32_t Irq, uint32_t IdtEntry, IrqHandler_t Callback,
 void InterruptInstallShared(uint32_t Irq, uint32_t IdtEntry, IrqHandler_t Callback, void *Args)
 {
 	/* Setup APIC flags */
-	uint64_t apic_flags = 0x0F00000000000000;	/* Target all cpu groups */
+	uint64_t apic_flags = 0x7F00000000000000;	/* Target all cpu groups */
 	apic_flags |= 0x100;						/* Lowest Priority */
 	apic_flags |= 0x800;						/* Logical Destination Mode */
 	apic_flags |= (1 << 13);					/* Set Polarity */
@@ -227,7 +227,7 @@ void InterruptInstallPci(PciDevice_t *PciDevice, IrqHandler_t Callback, void *Ar
 		io_entry = PciDevice->Header->InterruptLine;
 		idt_entry += PciDevice->Header->InterruptLine;
 
-		apic_flags = 0x0F00000000000000;	/* Target all groups */
+		apic_flags = 0x7F00000000000000;	/* Target all groups */
 		apic_flags |= 0x100;				/* Lowest Priority */
 		apic_flags |= 0x800;				/* Logical Destination Mode */
 	}
@@ -242,7 +242,7 @@ void InterruptInstallPci(PciDevice_t *PciDevice, IrqHandler_t Callback, void *Ar
 			(const uint16_t)PciDevice->Function, 0x3C, (uint8_t)io_entry);
 
 		/* Setup APIC flags */
-		apic_flags = 0x0F00000000000000;			/* Target all groups */
+		apic_flags = 0x7F00000000000000;			/* Target all groups */
 		apic_flags |= 0x100;						/* Lowest Priority */
 		apic_flags |= 0x800;						/* Logical Destination Mode */
 

@@ -149,8 +149,9 @@ void SmpBootCore(void *Data, int n, void *UserData)
 	uint32_t TimeOut = 0;
 	volatile uint32_t TargetCpuCount = GlbCpusBooted + 1;
 
-	/* Dont boot bootstrap cpu */
-	if (GlbBootstrapCpuId == Core->Id)
+	/* Dont boot bootstrap cpu or if we already have 8 cores running */
+	if (GlbBootstrapCpuId == Core->Id
+		|| GlbCpusBooted > 7)
 		return;
 
 	/* Move cpu apic id to upper 8 bits */
