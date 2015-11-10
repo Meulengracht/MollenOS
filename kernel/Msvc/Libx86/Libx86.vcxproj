@@ -37,6 +37,7 @@
   <ItemGroup>
     <ClCompile Include="..\..\Arch\x86\Acpi\Acpi.c" />
     <ClCompile Include="..\..\Arch\x86\Acpi\AcpiEnumerate.c" />
+    <ClCompile Include="..\..\Arch\x86\Components\Smp.c" />
     <ClCompile Include="..\..\Arch\x86\Drivers\Ps2\Keyboard\Ps2Keyboard.c" />
     <ClCompile Include="..\..\Arch\x86\Drivers\Ps2\Mouse\Ps2Mouse.c" />
     <ClCompile Include="..\..\Arch\x86\Drivers\Ps2\Ps2.c" />
@@ -55,7 +56,6 @@
     <ClCompile Include="..\..\Arch\x86\Interrupts\IntFunctions.c" />
     <ClCompile Include="..\..\Arch\x86\Interrupts\IntInit.c" />
     <ClCompile Include="..\..\Arch\x86\Interrupts\Pic.c" />
-    <ClCompile Include="..\..\Arch\x86\x32\Boot\Smp.c" />
     <ClCompile Include="..\..\Arch\x86\Init\Cpu.c" />
     <ClCompile Include="..\..\Arch\x86\Init\Main.c" />
     <ClCompile Include="..\..\Arch\x86\Components\Spinlock.c" />

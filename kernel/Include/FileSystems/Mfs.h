@@ -154,6 +154,7 @@ typedef struct _MfsFile
 	uint64_t AllocatedSize;
 
 	/* Location */
+	uint32_t DataBucketPosition;
 	uint32_t DirBucket;
 	uint32_t DirOffset;
 

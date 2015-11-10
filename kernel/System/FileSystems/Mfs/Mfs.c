@@ -217,6 +217,7 @@ MfsFile_t *MfsLocateEntry(MCoreFileSystem_t *Fs, uint32_t DirBucket, MString_t *
 					Ret->Size = Entry->Size;
 					Ret->AllocatedSize = Entry->AllocatedSize;
 					Ret->DataBucket = Entry->StartBucket;
+					Ret->DataBucketPosition = Entry->StartBucket;
 					Ret->Status = VfsOk;
 
 					/* Save position */
@@ -317,25 +318,130 @@ VfsErrorCode_t MfsCloseFile(void *FsData, MCoreFile_t *Handle)
 /* Read File */
 VfsErrorCode_t MfsReadFile(void *FsData, MCoreFile_t *Handle, void *Buffer, uint32_t Size)
 {
-	
+	/* Vars */
+	MCoreFileSystem_t *Fs = (MCoreFileSystem_t*)FsData;
+	MfsData_t *mData = (MfsData_t*)Fs->FsData;
+	MfsFile_t *mFile = (MfsFile_t*)Handle->Data;
+	uint8_t *BufPtr = (uint8_t*)Buffer;
+	VfsErrorCode_t RetCode = VfsOk;
+
+	/* Sanity */
+	if (Handle->IsEOF
+		|| Handle->Position == Handle->Size
+		|| Size == 0)
+		return RetCode;
+
+	/* Security Sanity */
+	if (!(Handle->Flags & Read))
+		return VfsAccessDenied;
+
+	/* BucketPtr for iterating */
+	uint32_t BytesToRead = Size;
+
+	/* Sanity */
+	if ((Handle->Position + Size) > Handle->Size)
+		BytesToRead = (uint32_t)(Handle->Size - Handle->Position);
+
+	/* Allocate buffer for data */
+	uint8_t *TempBuffer = (uint8_t*)kmalloc(mData->BucketSize * Fs->SectorSize);
+
+	/* Keep reeeading */
+	while (BytesToRead)
+	{
+		/* Read the bucket */
+		if (MfsReadSectors(Fs, mData->BucketSize * mFile->DataBucketPosition, 
+			TempBuffer, mData->BucketSize) != RequestOk)
+		{
+			/* Error */
+			RetCode = VfsDiskError;
+			printf("MFS_READFILE: Error reading from disk\n");
+			break;
+		}
+
+		/* We have to calculate the offset into this buffer we must transfer data */
+		uint32_t bOffset = (uint32_t)(Handle->Position % (mData->BucketSize * Fs->SectorSize));
+		uint32_t BytesLeft = (mData->BucketSize * Fs->SectorSize) - bOffset;
+		uint32_t BytesCopied = 0;
+
+		/* We have a few cases
+		 * Case 1: We have enough data here 
+		 * Case 2: We have to read more than is here */
+		if (BytesToRead > BytesLeft)
+		{
+			/* Start out by copying remainder */
+			memcpy(BufPtr, (TempBuffer + bOffset), BytesLeft);
+			BytesCopied = BytesLeft;
+
+			/* Care for bucket-boundaries */
+			uint32_t NextBucket = MfsGetNextBucket(Fs, mFile->DataBucketPosition);
+
+			/* Sanity */
+			if (NextBucket == MFS_END_OF_CHAIN)
+			{
+				/* End of file... */
+				Handle->IsEOF = 1;
+				break;
+			}
+			
+			/* Set next */
+			mFile->DataBucketPosition = NextBucket;
+		}
+		else
+		{
+			/* Just copy */
+			memcpy(BufPtr, (TempBuffer + bOffset), BytesToRead);
+			BytesCopied = BytesToRead;
+
+			/* Are we at end ? */
+			if (BytesLeft == BytesToRead)
+			{
+				/* Go to next */
+				uint32_t NextBucket = MfsGetNextBucket(Fs, mFile->DataBucketPosition);
+
+				/* Sanity */
+				if (NextBucket != MFS_END_OF_CHAIN)
+					mFile->DataBucketPosition = NextBucket;
+			}
+		}
+
+		/* Advance pointer(s) */
+		BufPtr += BytesCopied;
+		BytesToRead -= BytesCopied;
+		Handle->Position += BytesCopied;
+	}
+
+	/* Sanity */
+	if (Handle->Position == Handle->Size)
+		Handle->IsEOF = 1;
+
+	/* Cleanup */
+	kfree(TempBuffer);
+
+	/* Done! */
+	return RetCode;
 }
 
 /* Write File */
 VfsErrorCode_t MfsWriteFile(void *FsData, MCoreFile_t *Handle, void *Buffer, uint32_t Size)
 {
-
+	_CRT_UNUSED(FsData);
+	_CRT_UNUSED(Handle);
+	_CRT_UNUSED(Buffer);
+	_CRT_UNUSED(Size);
 }
 
 /* Delete File */
 VfsErrorCode_t MfsDeleteFile(void *FsData, MCoreFile_t *Handle)
 {
-	
+	_CRT_UNUSED(FsData);
+	_CRT_UNUSED(Handle);
 }
 
 /* Query information */
 VfsErrorCode_t MfsQuery(void *FsData, MCoreFile_t *Handle)
 {
-
+	_CRT_UNUSED(FsData);
+	_CRT_UNUSED(Handle);
 }
 
 /* Unload MFS Driver 

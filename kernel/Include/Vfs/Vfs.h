@@ -52,10 +52,11 @@ typedef enum _VfsFileFlags
 	/* Data Flags */
 	Binary	= 0x4,
 	NoBuffering = 0x8,
+	Append = 0x10,
 
 	/* Share Flags */
-	ReadShare	= 0x10,
-	WriteShare	= 0x20
+	ReadShare	= 0x20,
+	WriteShare	= 0x40
 
 } VfsFileFlags_t;
 
@@ -128,6 +129,7 @@ typedef struct _MCoreFileSystem
 	/* File Operations */
 	VfsErrorCode_t (*ReadFile)(void *FsData, MCoreFile_t *Handle, void *Buffer, uint32_t Size);
 	VfsErrorCode_t (*WriteFile)(void *FsData, MCoreFile_t *Handle, void *Buffer, uint32_t Size);
+	VfsErrorCode_t (*Seek)(void *FsData, MCoreFile_t *Handle, uint64_t Position);
 
 	/* Get's information about a node */
 	VfsErrorCode_t (*Query)(void *FsData, MCoreFile_t *Handle);

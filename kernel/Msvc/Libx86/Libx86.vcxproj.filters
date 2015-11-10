@@ -93,9 +93,6 @@
     <ClCompile Include="..\..\Arch\x86\Init\Main.c">
       <Filter>Startup</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\Arch\x86\x32\Boot\Smp.c">
-      <Filter>Components</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\Arch\x86\Drivers\DriverStrings.c">
       <Filter>Drivers</Filter>
     </ClCompile>
@@ -197,6 +194,9 @@
     </ClCompile>
     <ClCompile Include="..\..\Arch\x86\Acpi\AcpiEnumerate.c">
       <Filter>Acpi</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Arch\x86\Components\Smp.c">
+      <Filter>Components</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
