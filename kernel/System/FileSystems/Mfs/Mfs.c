@@ -290,6 +290,52 @@ VfsErrorCode_t MfsOpenFile(void *FsData,
 	return RetCode;
 }
 
+/* Close File 
+ * frees resources allocated */
+VfsErrorCode_t MfsCloseFile(void *FsData, MCoreFile_t *Handle)
+{
+	/* Not used */
+	_CRT_UNUSED(FsData);
+
+	/* Cast */
+	MfsFile_t *FileInfo = (MfsFile_t*)Handle->Data;
+	VfsErrorCode_t RetCode = VfsOk;
+
+	/* Sanity */
+	if (Handle->Data == NULL)
+		return RetCode;
+
+	/* Cleanup */
+	kfree(FileInfo);
+
+	/* Done */
+	return RetCode;
+}
+
+/* Read File */
+VfsErrorCode_t MfsReadFile(void *FsData, MCoreFile_t *Handle, void *Buffer, uint32_t Size)
+{
+	
+}
+
+/* Write File */
+VfsErrorCode_t MfsWriteFile(void *FsData, MCoreFile_t *Handle, void *Buffer, uint32_t Size)
+{
+
+}
+
+/* Delete File */
+VfsErrorCode_t MfsDeleteFile(void *FsData, MCoreFile_t *Handle)
+{
+	
+}
+
+/* Query information */
+VfsErrorCode_t MfsQuery(void *FsData, MCoreFile_t *Handle)
+{
+
+}
+
 /* Unload MFS Driver 
  * If it's forced, we can't save
  * stuff back to the disk :/ */
@@ -407,6 +453,11 @@ OsResult_t MfsInit(MCoreFileSystem_t *Fs)
 	/* Setup functions */
 	Fs->Destory = MfsDestroy;
 	Fs->OpenFile = MfsOpenFile;
+	Fs->CloseFile = MfsCloseFile;
+	Fs->ReadFile = MfsReadFile;
+	Fs->WriteFile = MfsWriteFile;
+	Fs->DeleteFile = MfsDeleteFile;
+	Fs->Query = MfsQuery;
 
 	/* Done, cleanup */
 	kfree(TmpBuffer);

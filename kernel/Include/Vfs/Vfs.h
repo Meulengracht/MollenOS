@@ -22,7 +22,7 @@
 #define _MCORE_VFS_H_
 
 /* Includes */
-#include <Devices/Disk.h>
+#include <DeviceManager.h>
 #include <MString.h>
 #include <Mutex.h>
 #include <crtdefs.h>
@@ -83,6 +83,9 @@ typedef struct _MCoreFile
 	uint32_t iBufferPosition;
 	uint32_t oBufferPosition;
 
+	/* The FS structure */
+	void *Fs;
+
 	/* FS-Specific Data */
 	void *Data;
 
@@ -94,6 +97,7 @@ typedef struct _MCoreFileSystem
 {
 	/* Identifier */
 	char *Identifier;
+	uint32_t Id;
 
 	/* Flags */
 	uint32_t Flags;
@@ -106,7 +110,7 @@ typedef struct _MCoreFileSystem
 	Mutex_t *Lock;
 
 	/* Disk */
-	MCoreStorageDevice_t *Disk;
+	DevId_t DiskId;
 
 	/* Filesystem-specific data */
 	void *FsData;
@@ -115,18 +119,14 @@ typedef struct _MCoreFileSystem
 	OsResult_t (*Destory)(void *FsData, uint32_t Forced);
 
 	/* Handle Operations */
+	VfsErrorCode_t (*CreateFile)(void *FsData, MString_t *Path);
 	VfsErrorCode_t (*OpenFile)(void *FsData, MCoreFile_t *Handle, MString_t *Path, VfsFileFlags_t Flags);
 	VfsErrorCode_t (*CloseFile)(void *FsData, MCoreFile_t *Handle);
+	VfsErrorCode_t (*DeleteFile)(void *FsData, MCoreFile_t *Handle);
 	
 	/* File Operations */
 	VfsErrorCode_t (*ReadFile)(void *FsData, MCoreFile_t *Handle, void *Buffer, uint32_t Size);
 	VfsErrorCode_t (*WriteFile)(void *FsData, MCoreFile_t *Handle, void *Buffer, uint32_t Size);
-	VfsErrorCode_t (*Seek)(void *FsData, MCoreFile_t *Handle, uint64_t Offset);
-	VfsErrorCode_t (*Flush)(void *FsData, MCoreFile_t *Handle);
-
-	/* Utility */
-	VfsErrorCode_t (*Delete)(void *FsData, MCoreFile_t *Handle);
-	VfsErrorCode_t (*Rename)(void *FsData, MCoreFile_t *Handle);
 
 	/* Get's information about a node */
 	VfsErrorCode_t (*Query)(void *FsData, MCoreFile_t *Handle);
@@ -138,7 +138,21 @@ typedef struct _MCoreFileSystem
 _CRT_EXTERN void VfsInit(void);
 
 /* Register / Unregister */
-_CRT_EXTERN void VfsRegisterDisk(MCoreStorageDevice_t *Disk);
-_CRT_EXTERN void VfsUnregisterDisk(MCoreStorageDevice_t *Disk, uint32_t Forced);
+_CRT_EXTERN void VfsRegisterDisk(DevId_t DiskId);
+_CRT_EXTERN void VfsUnregisterDisk(DevId_t DiskId, uint32_t Forced);
+
+/* Open & Close */
+_CRT_EXTERN VfsErrorCode_t VfsCreate(const char *Path);
+_CRT_EXTERN MCoreFile_t *VfsOpen(const char *Path, VfsFileFlags_t OpenFlags);
+_CRT_EXTERN VfsErrorCode_t VfsClose(MCoreFile_t *Handle);
+_CRT_EXTERN VfsErrorCode_t VfsDelete(MCoreFile_t *Handle);
+
+/* File Operations */
+_CRT_EXTERN VfsErrorCode_t VfsSeek(MCoreFile_t *Handle, uint64_t Offset);
+_CRT_EXTERN VfsErrorCode_t VfsFlush(MCoreFile_t *Handle);
+
+/* Utilities */
+_CRT_EXTERN VfsErrorCode_t VfsRename(MCoreFile_t *Handle);
+_CRT_EXTERN VfsErrorCode_t VfsQuery(MCoreFile_t *Handle);
 
 #endif //!_MCORE_VFS_H_

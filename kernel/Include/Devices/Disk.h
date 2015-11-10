@@ -35,9 +35,6 @@ typedef struct _MCoreStorageDevice
 	uint32_t AlignedAccess;
 	uint32_t SectorSize;
 
-	/* Lock */
-	Mutex_t *Lock;
-
 	/* Disk Data */
 	void *DiskData;
 

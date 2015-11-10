@@ -330,7 +330,7 @@ UsbHcPort_t *UsbPortCreate(int Port)
 void UsbEventHandler(void *args)
 {
 	UsbEvent_t *Event;
-	list_node_t *node;
+	list_node_t *lNode;
 
 	/* Unused */
 	_CRT_UNUSED(args);
@@ -341,13 +341,17 @@ void UsbEventHandler(void *args)
 		SemaphoreP(GlbEventLock);
 
 		/* Pop Event */
-		node = list_pop_front(GlbUsbEvents);
+		lNode = list_pop_front(GlbUsbEvents);
 
 		/* Sanity */
-		if (node == NULL)
+		if (lNode == NULL)
 			continue;
 
-		Event = (UsbEvent_t*)node->data;
+		/* Cast */
+		Event = (UsbEvent_t*)lNode->data;
+
+		/* Free the node */
+		kfree(lNode);
 
 		/* Again, sanity */
 		if (Event == NULL)

@@ -20,17 +20,29 @@
 */
 
 /* Includes */
+#include <Semaphore.h>
+#include <Scheduler.h>
 #include <List.h>
 #include <Heap.h>
 #include <DeviceManager.h>
 #include <Vfs\Vfs.h>
 #include <string.h>
 
+/* Devices Capable of requests */
+#include <Devices\Disk.h>
+
 /* Globals */
 uint32_t GlbDmInitialized = 0;
 DevId_t GlbDmIdentfier = 0;
 list_t *GlbDmDeviceList = NULL;
-Spinlock_t GlbDmLock;
+Spinlock_t GlbDmLock; 
+
+/* Request Handler Vars */
+Semaphore_t *GlbDmEventLock = NULL;
+list_t *GlbDmEventQueue = NULL;
+
+/* Request Thread - Prototype */
+void DmRequestHandler(void *Args);
 
 /* Setup */
 void DmInit(void)
@@ -44,6 +56,164 @@ void DmInit(void)
 	/* Done */
 	GlbDmIdentfier = 0;
 	GlbDmInitialized = 1;
+}
+
+/* Starts the DeviceManager request thread */
+void DmStart(void)
+{
+	/* Create the signal & Request queue */
+	GlbDmEventLock = SemaphoreCreate(0);
+	GlbDmEventQueue = list_create(LIST_SAFE);
+
+	/* Spawn the thread */
+	ThreadingCreateThread("DeviceRequestHandler", DmRequestHandler, NULL, 0);
+}
+
+/* Create a request */
+void DmCreateRequest(MCoreDeviceRequest_t *Request)
+{
+	/* Append it to our request list */
+	list_append(GlbDmEventQueue, list_create_node(0, Request));
+
+	/* Notify request thread */
+	SemaphoreV(GlbDmEventLock);
+
+	/* We shall enter sleep meanwhile */
+	if (!Request->IsAsync)
+	{
+		SchedulerSleepThread((Addr_t*)Request);
+		_ThreadYield();
+	}
+}
+
+/* Request Thread */
+void DmRequestHandler(void *Args)
+{
+	/* Vars */
+	list_node_t *lNode;
+	MCoreDeviceRequest_t *Request;
+
+	/* Unused */
+	_CRT_UNUSED(Args);
+
+	while (1)
+	{
+		/* Acquire Semaphore */
+		SemaphoreP(GlbDmEventLock);
+
+		/* Pop Request */
+		lNode = list_pop_front(GlbDmEventQueue);
+
+		/* Sanity */
+		if (lNode == NULL)
+			continue;
+
+		/* Cast */
+		Request = (MCoreDeviceRequest_t*)lNode->data;
+
+		/* Free the node */
+		kfree(lNode);
+
+		/* Again, sanity */
+		if (Request == NULL)
+			continue;
+
+		/* Lookup Device */
+		MCoreDevice_t *Dev =
+			(MCoreDevice_t*)list_get_data_by_id(GlbDmDeviceList, Request->DeviceId, 0);
+
+		/* Sanity */
+		if (Dev == NULL)
+		{
+			/* Set status */
+			Request->Status = RequestDeviceIsRemoved;
+
+			/* We are done, wakeup */
+			if (!Request->IsAsync)
+				SchedulerWakeupOneThread((Addr_t*)Request);
+
+			/* Next! */
+			continue;
+		}
+
+		/* Set initial status */
+		Request->Status = RequestOk;
+
+		/* Handle Event */
+		switch (Request->Type)
+		{
+			/* Read from Device */
+			case RequestQuery:
+			{
+				/* Sanity type */
+				if (Dev->Type == DeviceStorage)
+				{
+					/* Cast again */
+					MCoreStorageDevice_t *Disk = (MCoreStorageDevice_t*)Dev->Data;
+
+					/* Validate buffer */
+					if (Request->Buffer == NULL
+						|| Request->Length < 20)
+						Request->Status = RequestInvalidParameters;
+					else
+					{
+						/* Copy the first 20 bytes that contains stats */
+						memcpy(Request->Buffer, Disk, 20);
+					}
+				}
+
+			} break;
+
+			/* Read from Device */
+			case RequestRead:
+			{
+				/* Sanity type */
+				if (Dev->Type == DeviceStorage)
+				{
+					/* Cast again */
+					MCoreStorageDevice_t *Disk = (MCoreStorageDevice_t*)Dev->Data;
+
+					/* Validate parameters */
+
+					/* Perform */
+					if (Disk->Read(Disk->DiskData, Request->SectorLBA, Request->Buffer, Request->Length) < 0)
+					{
+						/* Error */
+						Request->Status = RequestDeviceError;
+					}
+				}
+
+			} break;
+
+			/* Write to Device */
+			case RequestWrite:
+			{
+				/* Sanity type */
+				if (Dev->Type == DeviceStorage)
+				{
+					/* Cast again */
+					MCoreStorageDevice_t *Disk = (MCoreStorageDevice_t*)Dev->Data;
+
+					/* Validate parameters */
+
+					/* Perform */
+					if (Disk->Write(Disk->DiskData, Request->SectorLBA, Request->Buffer, Request->Length) < 0)
+					{
+						/* Error */
+						Request->Status = RequestDeviceError;
+					}
+				}
+
+			} break;
+
+			default:
+				break;
+		}
+
+		/* We are done, wakeup */
+		if (!Request->IsAsync)
+			SchedulerWakeupOneThread((Addr_t*)Request);
+	}
 }
 
 DevId_t DmCreateDevice(char *Name, uint32_t Type, void *Data)
@@ -76,7 +246,7 @@ DevId_t DmCreateDevice(char *Name, uint32_t Type, void *Data)
 		/* Register with Vfs */
 		case DeviceStorage:
 		{
-			VfsRegisterDisk((MCoreStorageDevice_t*)Data);
+			VfsRegisterDisk(mDev->Id);
 		} break;
 
 		/* No special actions */
@@ -107,7 +277,7 @@ void DmDestroyDevice(DevId_t DeviceId)
 		/* Register with Vfs */
 		case DeviceStorage:
 		{
-			VfsUnregisterDisk((MCoreStorageDevice_t*)mDev->Data, 1);
+			VfsUnregisterDisk(mDev->Id, 1);
 		} break;
 
 		/* No special actions */

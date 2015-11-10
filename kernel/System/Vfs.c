@@ -31,6 +31,7 @@
 
 /* Globals */
 list_t *GlbFileSystems = NULL;
+list_t *GlbOpenFiles = NULL;
 uint32_t GlbFileSystemId = 0;
 
 /* Initialize Vfs */
@@ -38,11 +39,12 @@ void VfsInit(void)
 {
 	/* Create lists */
 	GlbFileSystems = list_create(LIST_SAFE);
+	GlbOpenFiles = list_create(LIST_SAFE);
 	GlbFileSystemId = 0;
 }
 
 /* Partition table parser */
-int VfsParsePartitionTable(MCoreStorageDevice_t *Disk, uint64_t SectorBase, uint64_t SectorCount)
+int VfsParsePartitionTable(DevId_t DiskId, uint64_t SectorBase, uint64_t SectorCount)
 {
 	/* Allocate structures */
 	void *TmpBuffer = (void*)kmalloc(Disk->SectorSize);
@@ -74,10 +76,11 @@ int VfsParsePartitionTable(MCoreStorageDevice_t *Disk, uint64_t SectorBase, uint
 
 			/* Allocate a filesystem structure */
 			MCoreFileSystem_t *Fs = (MCoreFileSystem_t*)kmalloc(sizeof(MCoreFileSystem_t));
-			Fs->Disk = Disk;
+			Fs->DiskId = DiskId;
 			Fs->FsData = NULL;
 			Fs->SectorStart = SectorBase + Mbr->Partitions[i].LbaSector;
 			Fs->SectorCount = Mbr->Partitions[i].LbaSize;
+			Fs->Id = GlbFileSystemId;
 
 			/* Check extended partitions first */
 			if (Mbr->Partitions[i].Type == 0x05)
@@ -182,18 +185,22 @@ int VfsParsePartitionTable(MCoreStorageDevice_t *Disk, uint64_t SectorBase, uint
 
 /* Registers a disk with the VFS 
  * and parses all possible partiions */
-void VfsRegisterDisk(MCoreStorageDevice_t *Disk)
+void VfsRegisterDisk(DevId_t DiskId)
 {
+	/* Query for disk stats */
+
+
 	/* Sanity */
-	if (!VfsParsePartitionTable(Disk, 0, Disk->SectorCount))
+	if (!VfsParsePartitionTable(DiskId, 0, Disk->SectorCount))
 	{
 		/* Only one global partition 
 		 * parse FS type from it */
 
 		/* Allocate a filesystem structure */
 		MCoreFileSystem_t *Fs = (MCoreFileSystem_t*)kmalloc(sizeof(MCoreFileSystem_t));
-		Fs->Disk = Disk;
+		Fs->DiskId = DiskId;
 		Fs->FsData = NULL;
+		Fs->Id = GlbFileSystemId;
 		Fs->SectorStart = 0;
 		Fs->SectorCount = Disk->SectorCount;
 
@@ -223,7 +230,7 @@ void VfsRegisterDisk(MCoreStorageDevice_t *Disk)
 			Fs->Lock = MutexCreate();
 			
 			/* Add to list */
-			list_append(GlbFileSystems, list_create_node(GlbFileSystemId, Fs));
+			list_append(GlbFileSystems, list_create_node(DiskId, Fs));
 
 			/* Increament */
 			GlbFileSystemId++;
@@ -234,26 +241,35 @@ void VfsRegisterDisk(MCoreStorageDevice_t *Disk)
 }
 
 /* Unregisters a disk and all registered fs's 
- * on disk TODO (Cleanup of Nodes) */
-void VfsUnregisterDisk(MCoreStorageDevice_t *Disk, uint32_t Forced)
+ * on disk TODO
+ * Close all files currently open */
+void VfsUnregisterDisk(DevId_t DiskId, uint32_t Forced)
 {
-	/* Iterate fs's on this disk and cleanup */
-	foreach(FsNode, GlbFileSystems)
+	/* Need this for the iteration */
+	list_node_t *lNode;
+
+	/* Keep iterating untill no more FS's are present on disk */
+	lNode = list_get_node_by_id(GlbFileSystems, DiskId, 0);
+
+	while (lNode != NULL)
 	{
+		/* Remove it from list */
+		list_remove_by_node(GlbFileSystems, lNode);
+
 		/* Cast */
-		MCoreFileSystem_t *Fs = (MCoreFileSystem_t*)FsNode->data;
+		MCoreFileSystem_t *Fs = (MCoreFileSystem_t*)lNode->data;
 
-		/* Sanity */
-		if (Fs->Disk == Disk)
-		{
-			/* Ok, this FS is linked to disk, destroy it */
-			if (Fs->Destory(FsNode->data, Forced) != OsOk)
-				printf("VfsUnregisterDisk:: Failed to destroy filesystem\n");
+		/* Destruct the FS */
+		if (Fs->Destory(lNode->data, Forced) != OsOk)
+			printf("VfsUnregisterDisk:: Failed to destroy filesystem\n");
 
-			/* Free */
-			kfree(Fs->Identifier);
-			MutexDestruct(Fs->Lock);
-			kfree(Fs);
-		}
+		/* Free */
+		kfree(Fs->Identifier);
+		MutexDestruct(Fs->Lock);
+		kfree(Fs);
+		kfree(lNode);
+
+		/* Get next */
+		lNode = list_get_node_by_id(GlbFileSystems, DiskId, 0);
 	}
 }

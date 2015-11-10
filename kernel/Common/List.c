@@ -20,8 +20,8 @@
 */
 
 #include <assert.h>
-#include <list.h>
-#include <heap.h>
+#include <List.h>
+#include <Heap.h>
 #include <stdio.h>
 #include <stddef.h>
 

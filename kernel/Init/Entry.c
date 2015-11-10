@@ -88,7 +88,12 @@ void MCoreInitialize(MCoreBootInfo_t *BootInfo)
 	printf("  - Initializing SMP\n");
 	CpuInitSmp(BootInfo->ArchBootInfo);
 
+	/* Start the request handle */
+	printf("  - Initializing Device Requests\n");
+	DmStart();
+
 	/* Virtual Filesystem */
+	printf("  - Initializing VFS\n");
 	VfsInit();
 
 	/* From this point, we should start seperate threads and

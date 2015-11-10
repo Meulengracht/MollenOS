@@ -59,11 +59,55 @@ typedef struct _MCoreDevice
 
 } MCoreDevice_t;
 
+/* Device Requests */
+typedef enum _DeviceRequestType
+{
+	RequestQuery,
+	RequestRead,
+	RequestWrite
+
+} DeviceRequestType_t;
+
+typedef enum _DeviceRequestStatus
+{
+	RequestOk,
+	RequestInvalidParameters,
+	RequestDeviceError,
+	RequestDeviceIsRemoved
+
+} DeviceRequestStatus_t;
+
+#pragma pack(push, 1)
+typedef struct _MCoreDeviceRequest
+{
+	/* Request Type */
+	DeviceRequestType_t Type;
+	uint32_t IsAsync;
+
+	/* Device Id */
+	DevId_t DeviceId;
+
+	/* Data */
+	uint64_t SectorLBA;
+	uint8_t *Buffer;
+	uint32_t Length;
+
+	/* Result */
+	DeviceRequestStatus_t Status;
+
+} MCoreDeviceRequest_t;
+#pragma pack(pop)
+
 /* Prototypes */
 _CRT_EXTERN void DmInit(void);
+_CRT_EXTERN void DmStart(void);
 
+/* Setup of devices */
 _CRT_EXTERN DevId_t DmCreateDevice(char *Name, DeviceType_t Type, void *Data);
 _CRT_EXTERN void *DmGetDevice(DeviceType_t Type);
 _CRT_EXTERN void DmDestroyDevice(DevId_t DeviceId);
+
+/* Device Requests */
+_CRT_EXTERN void DmCreateRequest(MCoreDeviceRequest_t *Request);
 
 #endif //_MCORE_DRIVER_MANAGER_H_
