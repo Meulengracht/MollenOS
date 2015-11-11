@@ -1,0 +1,40 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio 2013
+VisualStudioVersion = 12.0.40629.0
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Usb", "Usb", "{F04E72EA-9EA3-492A-AC69-1197778D7260}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "Ohci", "Usb\Ohci\Ohci.vcxproj", "{5B870E7F-3EF4-4A5E-A79E-53DA4138E1AE}"
+	ProjectSection(ProjectDependencies) = postProject
+		{F70C9248-FEE4-4C76-9D28-69B2E4D73104} = {F70C9248-FEE4-4C76-9D28-69B2E4D73104}
+	EndProjectSection
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Controllers", "Controllers", "{3014FE17-5E93-4A8C-9273-D08A6124AC52}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "UsbCore", "Usb\UsbCore\UsbCore.vcxproj", "{F70C9248-FEE4-4C76-9D28-69B2E4D73104}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Win32 = Debug|Win32
+		Release|Win32 = Release|Win32
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{5B870E7F-3EF4-4A5E-A79E-53DA4138E1AE}.Debug|Win32.ActiveCfg = Debug|Win32
+		{5B870E7F-3EF4-4A5E-A79E-53DA4138E1AE}.Debug|Win32.Build.0 = Debug|Win32
+		{5B870E7F-3EF4-4A5E-A79E-53DA4138E1AE}.Release|Win32.ActiveCfg = Release|Win32
+		{5B870E7F-3EF4-4A5E-A79E-53DA4138E1AE}.Release|Win32.Build.0 = Release|Win32
+		{F70C9248-FEE4-4C76-9D28-69B2E4D73104}.Debug|Win32.ActiveCfg = Debug|Win32
+		{F70C9248-FEE4-4C76-9D28-69B2E4D73104}.Debug|Win32.Build.0 = Debug|Win32
+		{F70C9248-FEE4-4C76-9D28-69B2E4D73104}.Release|Win32.ActiveCfg = Release|Win32
+		{F70C9248-FEE4-4C76-9D28-69B2E4D73104}.Release|Win32.Build.0 = Release|Win32
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{5B870E7F-3EF4-4A5E-A79E-53DA4138E1AE} = {3014FE17-5E93-4A8C-9273-D08A6124AC52}
+		{3014FE17-5E93-4A8C-9273-D08A6124AC52} = {F04E72EA-9EA3-492A-AC69-1197778D7260}
+		{F70C9248-FEE4-4C76-9D28-69B2E4D73104} = {F04E72EA-9EA3-492A-AC69-1197778D7260}
+	EndGlobalSection
+EndGlobal
