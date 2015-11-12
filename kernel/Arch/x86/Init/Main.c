@@ -91,7 +91,7 @@ void HALInit(void *BootInfo)
 	/* Memory setup! */
 	printf("  - Setting up memory systems\n");
 	printf("    * Physical Memory Manager...\n");
-	MmPhyiscalInit(x86BootInfo.ArchBootInfo, x86BootInfo.KernelSize);
+	MmPhyiscalInit(x86BootInfo.ArchBootInfo, x86BootInfo.KernelSize, x86BootInfo.RamDiskSize);
 	printf("    * Virtual Memory Manager...\n");
 	MmVirtualInit();
 }
@@ -109,6 +109,4 @@ void init(Multiboot_t *BootInfo, uint32_t KernelSize)
 
 	/* Call Entry Point */
 	MCoreInitialize(&x86BootInfo);
-
-	/* There is no return */
 }

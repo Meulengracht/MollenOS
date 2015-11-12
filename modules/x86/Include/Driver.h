@@ -18,14 +18,11 @@
 #include <List.h>
 #include <Threading.h>
 #include <Semaphore.h>
+#include <Mutex.h>
 
 /* Structures */
 typedef struct _MCoreModuleDescriptor
 {
-	/* Information about 
-	 * the device that we want a driver for */
-	PciDevice_t *Device;
-
 	/* Functions Below */
 
 	/* Utilities */
@@ -46,6 +43,9 @@ typedef struct _MCoreModuleDescriptor
 	void (*MemPhysicalFreeBlock)(PhysAddr_t Addr);
 
 	/* I/O */
+	uint8_t (*PortReadByte)(uint16_t Port);
+	void (*PortWriteByte)(uint16_t Port, uint8_t Value);
+
 	uint16_t (*PciReadWord)(PciDevice_t *Device, uint32_t Register);
 	void (*PciWriteWord)(PciDevice_t *Device, uint32_t Register, uint16_t Value);
 
@@ -82,6 +82,12 @@ typedef struct _MCoreModuleDescriptor
 	void (*SemaphoreDestroy)(Semaphore_t *Semaphore);
 	void (*SemaphoreP)(Semaphore_t *Semaphore);
 	void (*SemaphoreV)(Semaphore_t *Semaphore);
+
+	/* Mutex */
+	Mutex_t *(*MutexCreate)(void);
+	void (*MutexConstruct)(Mutex_t *Mutex);
+	void (*MutexLock)(Mutex_t *Mutex);
+	void (*MutexUnlock)(Mutex_t *Mutex);
 
 } MCoreModuleDescriptor_t;
 

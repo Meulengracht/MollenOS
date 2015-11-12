@@ -21,6 +21,6 @@
 #include <stdint.h>
 
 /* Module Setup */
-MODULES_API void ModuleInit(MCoreModuleDescriptor_t *DriverDescriptor);
+MODULES_API void ModuleInit(MCoreModuleDescriptor_t *DriverDescriptor, void *DeviceData);
 
 #endif //!__MOLLENOS_MODULE__

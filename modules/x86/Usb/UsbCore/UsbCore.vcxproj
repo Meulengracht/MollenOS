@@ -102,9 +102,6 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClInclude Include="Module.h" />
-  </ItemGroup>
-  <ItemGroup>
     <ClCompile Include="UsbCore.c" />
     <ClCompile Include="UsbFunctions.c" />
   </ItemGroup>

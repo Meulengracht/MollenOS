@@ -21,7 +21,7 @@
 
 /* Includes */
 #include <UsbCore.h>
-#include "Module.h"
+#include <Module.h>
 
 /* Externs */
 extern MCoreModuleDescriptor_t *GlbDescriptor;

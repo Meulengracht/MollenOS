@@ -10,8 +10,12 @@
       <Platform>Win32</Platform>
     </ProjectConfiguration>
   </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="Cmos.c" />
+    <ClCompile Include="Rtc.c" />
+  </ItemGroup>
   <PropertyGroup Label="Globals">
-    <ProjectGuid>{5B870E7F-3EF4-4A5E-A79E-53DA4138E1AE}</ProjectGuid>
+    <ProjectGuid>{9EB61B2B-551E-45DC-911C-94067E544251}</ProjectGuid>
     <Keyword>Win32Proj</Keyword>
     <RootNamespace>Modules</RootNamespace>
   </PropertyGroup>
@@ -100,12 +104,6 @@
       <OptimizeReferences>true</OptimizeReferences>
     </Link>
   </ItemDefinitionGroup>
-  <ItemGroup>
-    <ClInclude Include="Ohci.h" />
-  </ItemGroup>
-  <ItemGroup>
-    <ClCompile Include="Modules.c" />
-  </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>

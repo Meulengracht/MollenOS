@@ -21,7 +21,7 @@
 
 /* Includes */
 #include <UsbCore.h>
-#include "Module.h"
+#include <Module.h>
 
 /* CLib */
 #include <string.h>
@@ -42,9 +42,10 @@ void UsbDeviceDestroy(UsbHc_t *Hc, int Port);
 UsbHcPort_t *UsbPortCreate(int Port);
 
 /* Entry point of a module */
-MODULES_API void ModuleInit(MCoreModuleDescriptor_t *DriverDescriptor)
+MODULES_API void ModuleInit(MCoreModuleDescriptor_t *DriverDescriptor, void *DeviceData)
 {
 	/* Save */
+	_CRT_UNUSED(DeviceData);
 	GlbDescriptor = DriverDescriptor;
 
 	/* Init */

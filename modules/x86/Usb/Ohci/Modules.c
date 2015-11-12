@@ -24,7 +24,7 @@
 */
 
 /* Includes */
-#include "Module.h"
+#include <Module.h>
 #include "Ohci.h"
 
 /* Additional Includes */
@@ -94,25 +94,26 @@ const char *OhciErrorMessages[] =
 };
 
 /* Entry point of a module */
-MODULES_API void ModuleInit(MCoreModuleDescriptor_t *DriverDescriptor)
+MODULES_API void ModuleInit(MCoreModuleDescriptor_t *DriverDescriptor, void *DeviceData)
 {
 	uint16_t PciCommand;
 	OhciController_t *Controller = NULL;
+	PciDevice_t *Device = (PciDevice_t*)DeviceData;
 
 	/* Save this */
 	GlbDescriptor = DriverDescriptor;
 
 	/* Allocate Resources for this Controller */
 	Controller = (OhciController_t*)GlbDescriptor->MemAlloc(sizeof(OhciController_t));
-	Controller->PciDevice = DriverDescriptor->Device;
+	Controller->PciDevice = Device;
 	Controller->Id = GlbOhciControllerId;
 
 	/* Enable memory and Bus mastering and clear interrupt disable */
-	PciCommand = GlbDescriptor->PciReadWord(DriverDescriptor->Device, 0x4);
-	GlbDescriptor->PciWriteWord(DriverDescriptor->Device, 0x4, (uint16_t)((PciCommand & ~(0x400)) | 0x2 | 0x4));
+	PciCommand = GlbDescriptor->PciReadWord(Device, 0x4);
+	GlbDescriptor->PciWriteWord(Device, 0x4, (uint16_t)((PciCommand & ~(0x400)) | 0x2 | 0x4));
 
 	/* Get location of Registers */
-	Controller->ControlSpace = DriverDescriptor->Device->Header->Bar0;
+	Controller->ControlSpace = Device->Header->Bar0;
 
 	/* Sanity */
 	if (Controller->ControlSpace == 0 || (Controller->ControlSpace & 0x1))
@@ -135,7 +136,7 @@ MODULES_API void ModuleInit(MCoreModuleDescriptor_t *DriverDescriptor)
 	memset((void*)Controller->HCCA, 0, 0x1000);
 
 	/* Install IRQ Handler */
-	GlbDescriptor->InterruptInstallPci(DriverDescriptor->Device, OhciInterruptHandler, Controller);
+	GlbDescriptor->InterruptInstallPci(Device, OhciInterruptHandler, Controller);
 
 	/* Debug */
 #ifdef _OHCI_DIAGNOSTICS_

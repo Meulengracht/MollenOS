@@ -147,7 +147,7 @@ typedef struct _MfsFile
 	/* Information */
 	MString_t *Name;
 	
-	uint32_t Flags;
+	uint16_t Flags;
 	uint32_t DataBucket;
 	uint64_t Size;
 	uint64_t AllocatedSize;

@@ -16,46 +16,43 @@
 * along with this program.If not, see <http://www.gnu.org/licenses/>.
 *
 *
-* MollenOS Common Entry Point
+* MollenOS MCore - MollenOS Module Manager
 */
-#ifndef _MCORE_H_
-#define _MCORE_H_
+#ifndef _MODULE_MANAGER_H_
+#define _MODULE_MANAGER_H_
 
 /* Includes */
+#include <Arch.h>
 #include <crtdefs.h>
 #include <stdint.h>
 
-/* Typedefs */
-typedef enum _OsResult
-{
-	OsOk,
-	OsFail
-} OsResult_t;
-
 /* Definitions */
 
-/* This structure is needed in order to
-* setup MCore */
-typedef struct _MCoreBootInfo
+
+/* Structures */
+typedef struct _MCoreModule
 {
-	/* Bootloader Name */
-	char *BootloaderName;
+	/* Module Name
+	* Also UTF-8 */
+	uint8_t ModuleName[64];
 
-	/* Size of kernel in bytes */
-	uint32_t KernelSize;
+	/* Device Type */
+	uint32_t DeviceType;
 
-	/* RamDisk Info */
-	uint32_t RamDiskAddr;
-	uint32_t RamDiskSize;
+	/* Device SubType */
+	uint32_t DeviceSubType;
 
-	/* Data that will be passed to setup functions */
-	void *ArchBootInfo;
+	/* Module Length */
+	uint32_t Length;
 
-	/* Setup Functions */
-	void(*InitHAL)(void *ArchBootInfo);
-	void(*InitPostSystems)(void);
-
-} MCoreBootInfo_t;
+} MCoreModule_t;
 
 
-#endif //!_MCORE_BOOT_INFO_H_
+/* Prototypes */
+_CRT_EXTERN void ModuleMgrInit(Addr_t RamDiskAddr, uint32_t RamDiskSize);
+
+_CRT_EXTERN MCoreModule_t *ModuleFind(uint32_t DeviceType, uint32_t DeviceSubType);
+_CRT_EXTERN void ModuleLoad(MCoreModule_t *Module);
+_CRT_EXTERN void ModuleUnload(MCoreModule_t *Module);
+
+#endif //!_MODULE_MANAGER_H_

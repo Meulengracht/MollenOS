@@ -23,7 +23,7 @@
 #define _X86_USB_OHCI_H_
 
 /* Includes */
-#include "Module.h"
+#include <Module.h>
 
 /* Definitions */
 #define X86_OHCI_STRUCT_ALIGN		32

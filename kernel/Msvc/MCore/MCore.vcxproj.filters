@@ -46,6 +46,12 @@
     <Filter Include="Includes\FileSystems">
       <UniqueIdentifier>{f3c38385-55ea-4b15-88ce-235fb000301f}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Systems\Modules">
+      <UniqueIdentifier>{d25a1bc3-f724-4473-a9f3-66fc27e009da}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Includes\Modules">
+      <UniqueIdentifier>{d05f1880-7a2d-4c35-974b-a9211c29d982}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\Common\List.c">
@@ -101,6 +107,12 @@
     </ClCompile>
     <ClCompile Include="..\..\Common\MString.c">
       <Filter>Common</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\System\Modules\ModuleManager.c">
+      <Filter>Systems\Modules</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\System\Modules\PeLoader.c">
+      <Filter>Systems\Modules</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -163,6 +175,15 @@
     </ClInclude>
     <ClInclude Include="..\..\Include\MString.h">
       <Filter>Includes</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Include\Modules\ModuleManager.h">
+      <Filter>Includes\Modules</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Include\Modules\RamDisk.h">
+      <Filter>Includes\Modules</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Include\Modules\PeLoader.h">
+      <Filter>Includes\Modules</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

@@ -26,6 +26,7 @@
 #include <Devices/Cpu.h>
 #include <Devices/Video.h>
 #include <DeviceManager.h>
+#include <Modules/ModuleManager.h>
 #include <Scheduler.h>
 #include <Threading.h>
 #include <Vfs\Vfs.h>
@@ -74,6 +75,9 @@ void MCoreInitialize(MCoreBootInfo_t *BootInfo)
 	DmInit();
 	DmCreateDevice("Processor", DeviceCpu, &BootCpu);
 	DmCreateDevice("BootVideo", DeviceVideo, &BootVideo);
+
+	/* Init ModuleManager */
+	ModuleMgrInit(BootInfo->RamDiskAddr, BootInfo->RamDiskSize);
 
 	/* Init Threading & Scheduler for boot cpu */
 	printf("  - Threading\n");

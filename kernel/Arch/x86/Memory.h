@@ -58,11 +58,6 @@
 /**********************************/
 /* Physical Memory Defs & Structs */
 /**********************************/
-#define PHYS_MM_KERNEL_LOCATION			0x100000
-
-/* 512 Kb for kernel */
-#define PHYS_MM_KERNEL_RESERVED			0x80000
-#define PHYS_MM_BITMAP_LOCATION			(PHYS_MM_KERNEL_LOCATION + PHYS_MM_KERNEL_RESERVED)
 
 /* Memory Map Structure */
 #pragma pack(push, 1)
@@ -149,7 +144,7 @@ typedef struct _PageDirectory
 } PageDirectory_t;
 
 /* Init */
-_CRT_EXTERN void MmPhyiscalInit(void *BootInfo, uint32_t KernelSize);
+_CRT_EXTERN void MmPhyiscalInit(void *BootInfo, uint32_t KernelSize, uint32_t RamDiskSize);
 _CRT_EXTERN void MmVirtualInit(void);
 
 /* Hihi */

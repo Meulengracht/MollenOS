@@ -195,6 +195,50 @@ void MfsAllocateBucket(MCoreFileSystem_t *Fs, uint32_t NumBuckets)
 	kfree(MbBuffer);
 }
 
+/* Updates a file entry */
+VfsErrorCode_t MfsUpdateEntry(MCoreFileSystem_t *Fs, MCoreFile_t *Handle)
+{
+	/* Cast */
+	MfsData_t *mData = (MfsData_t*)Fs->FsData;
+	MfsFile_t *mFile = (MfsFile_t*)Handle->Data;
+	VfsErrorCode_t RetCode = VfsOk;
+	uint32_t i;
+
+	/* Allocate buffer for data */
+	uint8_t *EntryBuffer = (uint8_t*)kmalloc(mData->BucketSize * Fs->SectorSize);
+
+	/* Read in the bucket of where the entry lies */
+	if (MfsReadSectors(Fs, mData->BucketSize * mFile->DirBucket, EntryBuffer, mData->BucketSize) != RequestOk)
+	{
+		RetCode = VfsDiskError;
+		goto Done;
+	}
+	
+	/* Cast */
+	MfsTableEntry_t *Iterator = (MfsTableEntry_t*)EntryBuffer;
+
+	/* Loop to correct entry */
+	for (i = 0; i < mFile->DirOffset; i++)
+		Iterator++;
+
+	/* Update Stats */
+	Iterator->AllocatedSize = mFile->AllocatedSize;
+	Iterator->Size = mFile->Size;
+	Iterator->StartBucket = mFile->DataBucket;
+	Iterator->Flags = mFile->Flags;
+
+	/* Update times when we support it */
+
+	/* Write it back */
+	if (MfsWriteSectors(Fs, mData->BucketSize * mFile->DirBucket, EntryBuffer, mData->BucketSize) != RequestOk)
+		RetCode = VfsDiskError;
+
+	/* Done! */
+Done:
+	kfree(EntryBuffer);
+	return RetCode;
+}
+
 /* Locate Node */
 MfsFile_t *MfsLocateEntry(MCoreFileSystem_t *Fs, uint32_t DirBucket, MString_t *Path)
 {
@@ -608,7 +652,7 @@ VfsErrorCode_t MfsWriteFile(void *FsData, MCoreFile_t *Handle, void *Buffer, uin
 		{
 			/* Error */
 			RetCode = VfsDiskError;
-			printf("MFS_WRITEFILE: Error reading from disk\n");
+			printf("MFS_WRITEFILE: Error writing to disk\n");
 			break;
 		}
 
@@ -629,12 +673,18 @@ VfsErrorCode_t MfsWriteFile(void *FsData, MCoreFile_t *Handle, void *Buffer, uin
 		Handle->Position += BytesCopied;
 	}
 
-	/* Sanity */
-	if (Handle->Position == Handle->Size)
-		Handle->IsEOF = 1;
-
 	/* Cleanup */
 	kfree(TempBuffer);
+
+	/* Sanity */
+	if (Handle->Position > Handle->Size)
+	{
+		Handle->Size = Handle->Position;
+		mFile->Size = Handle->Position;
+	}
+
+	/* Update entry */
+	MfsUpdateEntry(Fs, Handle);
 
 	/* Done! */
 	return RetCode;
@@ -645,6 +695,50 @@ VfsErrorCode_t MfsDeleteFile(void *FsData, MCoreFile_t *Handle)
 {
 	_CRT_UNUSED(FsData);
 	_CRT_UNUSED(Handle);
+	return VfsOk;
+}
+
+/* Seek in Handle */
+VfsErrorCode_t MfsSeek(void *FsData, MCoreFile_t *Handle, uint64_t Position)
+{
+	/* Vars */
+	MCoreFileSystem_t *Fs = (MCoreFileSystem_t*)FsData;
+	MfsData_t *mData = (MfsData_t*)Fs->FsData;
+	MfsFile_t *mFile = (MfsFile_t*)Handle->Data;
+
+	/* Sanity */
+	if (Handle->Position > Handle->Size)
+		return VfsInvalidParameters;
+
+	/* Do we cross a boundary? */
+	uint64_t OldBucketOffset = Handle->Position / (mData->BucketSize * Fs->SectorSize);
+	uint64_t NewBucketOffset = Position / (mData->BucketSize * Fs->SectorSize);
+
+	/* Lets see */
+	if (NewBucketOffset != OldBucketOffset)
+	{
+		/* Spool to correct bucket */
+		uint32_t BucketPtr = mFile->DataBucket;
+		while (NewBucketOffset != 0)
+		{
+			BucketPtr = MfsGetNextBucket(Fs, BucketPtr);
+
+			/* This should NOT happen */
+			if (BucketPtr == MFS_END_OF_CHAIN)
+				break;
+
+			/* Dec */
+			NewBucketOffset--;
+		}
+
+		/* Update bucket ptr */
+		mFile->DataBucketPosition = BucketPtr;
+	}
+	
+	/* Update pointer */
+	Handle->Position = Position;
+	
+	/* Done */
 	return VfsOk;
 }
 

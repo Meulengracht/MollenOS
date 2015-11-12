@@ -188,16 +188,13 @@ int MmSysMappingsContain(Addr_t Base, int Type)
 }
 
 /* Initialises the physical memory bitmap */
-void MmPhyiscalInit(void *BootInfo, uint32_t KernelSize)
+void MmPhyiscalInit(void *BootInfo, uint32_t KernelSize, uint32_t RamDiskSize)
 {
 	/* Step 1. Set location of memory bitmap at 2mb */
 	Multiboot_t *mboot = (Multiboot_t*)BootInfo;
 	MBootMemoryRegion_t *region = (MBootMemoryRegion_t*)mboot->MemoryMapAddr;
 	uint32_t i, j;
 	
-	/* We actually do not need the kernel size for anything */
-	_CRT_UNUSED(KernelSize);
-
 	/* Get information from multiboot struct */
 	MemorySize = mboot->MemoryHigh; /* This is how many blocks of 64 kb above 1 mb */
 	MemorySize += mboot->MemoryLow; /* This is in kilobytes ... */
@@ -207,7 +204,7 @@ void MmPhyiscalInit(void *BootInfo, uint32_t KernelSize)
 	assert((MemorySize / 1024 / 1024) >= 2);
 
 	/* Set storage variables */
-	MemoryBitmap = (Addr_t*)PHYS_MM_BITMAP_LOCATION;
+	MemoryBitmap = (Addr_t*)MEMORY_LOCATION_BITMAP;
 	MemoryBlocks = MemorySize / PAGE_SIZE;
 	MemoryBlocksUsed = MemoryBlocks + 1;
 	MemoryBitmapSize = (MemoryBlocks + 1) / 8; /* 8 blocks per byte, 32 per int */
@@ -255,6 +252,7 @@ void MmPhyiscalInit(void *BootInfo, uint32_t KernelSize)
 	}
 
 	/* Mark special regions as reserved */
+	MmMemoryMapSetBit(0);
 
 	/* 0x4000 - 0x6000 || Used for memory region & Trampoline-code */
 	MmMemoryMapSetBit(0x4000 / PAGE_SIZE);
@@ -264,11 +262,14 @@ void MmPhyiscalInit(void *BootInfo, uint32_t KernelSize)
 	/* 0x90000 - 0x9F000 || Kernel Stack */
 	MmAllocateRegion(0x90000, 0xF000);
 
-	/* 0x100000 - 0x180000 || Kernel Space */
-	MmAllocateRegion(PHYS_MM_KERNEL_LOCATION, PHYS_MM_KERNEL_RESERVED);
+	/* 0x100000 - KernelSize */
+	MmAllocateRegion(MEMORY_LOCATION_KERNEL, (KernelSize + PAGE_SIZE));
+
+	/* 0x200000 - RamDiskSize */
+	MmAllocateRegion(MEMORY_LOCATION_RAMDISK, (RamDiskSize + PAGE_SIZE));
 
 	/* 0x180000 - ?? || Bitmap Space */
-	MmAllocateRegion(PHYS_MM_BITMAP_LOCATION, MemoryBitmapSize);
+	MmAllocateRegion(MEMORY_LOCATION_BITMAP, MemoryBitmapSize);
 
 	printf("      > Bitmap size: %u Bytes\n", MemoryBitmapSize);
 	printf("      > Memory in use %u Bytes\n", MemoryBlocksUsed * PAGE_SIZE);

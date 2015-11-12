@@ -16,46 +16,56 @@
 * along with this program.If not, see <http://www.gnu.org/licenses/>.
 *
 *
-* MollenOS Common Entry Point
+* MollenOS MCore - MollenOS Module Manager
 */
-#ifndef _MCORE_H_
-#define _MCORE_H_
+#ifndef _RAMDISK_H_
+#define _RAMDISK_H_
 
 /* Includes */
 #include <crtdefs.h>
 #include <stdint.h>
 
-/* Typedefs */
-typedef enum _OsResult
-{
-	OsOk,
-	OsFail
-} OsResult_t;
-
 /* Definitions */
+#define RAMDISK_MAGIC			0x3144524D
 
-/* This structure is needed in order to
-* setup MCore */
-typedef struct _MCoreBootInfo
+#define RAMDISK_VERSION_1		0x01
+
+#define RAMDISK_ARCH_X86_32		0x08
+#define RAMDISK_ARCH_X86_64		0x10
+
+#define RAMDISK_FILE			0x1
+#define RAMDISK_DIRECTORY		0x2
+#define RAMDISK_MODULE			0x4
+
+/* Structures */
+typedef struct _MCoreRamDiskHeader
 {
-	/* Bootloader Name */
-	char *BootloaderName;
+	/* Magic */
+	uint32_t Magic;
 
-	/* Size of kernel in bytes */
-	uint32_t KernelSize;
+	/* Version */
+	uint32_t Version;
 
-	/* RamDisk Info */
-	uint32_t RamDiskAddr;
-	uint32_t RamDiskSize;
+	/* Architecture */
+	uint32_t Architecture;
 
-	/* Data that will be passed to setup functions */
-	void *ArchBootInfo;
+	/* File Count */
+	uint32_t FileCount;
 
-	/* Setup Functions */
-	void(*InitHAL)(void *ArchBootInfo);
-	void(*InitPostSystems)(void);
+} MCoreRamDiskHeader_t;
 
-} MCoreBootInfo_t;
+typedef struct _MCoreRamDiskFileHeader
+{
+	/* UTF-8 FileName
+	* Fixed-length */
+	uint8_t Filename[64];
 
+	/* File Type */
+	uint32_t Type;
 
-#endif //!_MCORE_BOOT_INFO_H_
+	/* Data Pointer */
+	uint32_t DataOffset;
+
+} MCoreRamDiskFileHeader_t;
+
+#endif //!_RAMDISK_H_

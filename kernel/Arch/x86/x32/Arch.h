@@ -118,6 +118,7 @@ typedef struct _x86_Thread
 #include "../Cpu.h"
 #include "../Video.h"
 #include "../Interrupts.h"
+#include "../../../../modules/x86/Include/Driver.h"
 
 /* Components */
 
@@ -182,13 +183,15 @@ _CRT_EXTERN void DriverManagerInit(void *Args);
 /* Architecture Memory Layout, this
  * gives you an idea how memory layout
  * is on the x86-32 platform in MollenOS */
-#define MEMORY_LOCATION_KERNEL			0x100000 /* Kernel Image Space: 256 kB */
-#define MEMORY_LOCATION_BITMAP			0x140000
+#define MEMORY_LOCATION_KERNEL			0x100000 /* Kernel Image Space: 1024 kB */
+#define MEMORY_LOCATION_RAMDISK			0x200000 /* RamDisk Image Space: 1024 kB */
+#define MEMORY_LOCATION_BITMAP			0x300000 /* Bitmap Space: 12 mB */
 
-#define MEMORY_LOCATION_HEAP			0x400000
+#define MEMORY_LOCATION_HEAP			0x1000000
 #define MEMORY_LOCATION_HEAP_END		0x4000000
 
 #define MEMORY_LOCATION_VIDEO			0x4000000
+#define MEMORY_LOCATION_MODULES			0x5000000
 
 #define MEMORY_LOCATION_SHM				0x9000000
 #define MEMORY_LOCATION_SHM_END			0x30000000

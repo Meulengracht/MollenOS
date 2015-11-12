@@ -11,12 +11,10 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="Ohci.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-  </ItemGroup>
-  <ItemGroup>
-    <ClCompile Include="Modules.c">
+    <ClCompile Include="Cmos.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Rtc.c">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
