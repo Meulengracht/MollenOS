@@ -68,15 +68,10 @@
 #define X86_CMOS_RTC_IRQ			0x08
 
 /* Prototypes */
-_CRT_EXTERN uint8_t CmosReadRegister(uint8_t Register);
-_CRT_EXTERN void CmosWriteRegister(uint8_t Register, uint8_t Data);
-
-_CRT_EXTERN void CmosGetTime(tm *TimeStructure);
-_CRT_EXTERN uint64_t RtcGetClocks(void);
-_CRT_EXTERN void RtcSleep(uint32_t MilliSeconds);
-_CRT_EXTERN void RtcStall(uint32_t MilliSeconds);
+_MODULE_API uint8_t CmosReadRegister(uint8_t Register);
+_MODULE_API void CmosWriteRegister(uint8_t Register, uint8_t Data);
 
 /* Rtc Functions */
-_CRT_EXTERN OsStatus_t RtcInit(void);
+_MODULE_API OsStatus_t RtcInit(void);
 
 #endif // !_X86_CMOS_RTC_H_

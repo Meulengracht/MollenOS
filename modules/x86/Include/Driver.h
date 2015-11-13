@@ -10,85 +10,32 @@
 /* Includes */
 #include <stdint.h>
 
-/* Arch Specific */
-#include <Arch.h>
-#include <x86/Pci.h>
+/* Definitions */
+#define kFuncKernelPanic		0
+#define kFuncDebugPrint			1
 
-/* MollenOS */
-#include <List.h>
-#include <Threading.h>
-#include <Semaphore.h>
-#include <Mutex.h>
+#define kFuncMemAlloc			2
+#define kFuncMemAllocAligned	3
+#define kFuncMemFree			4
 
-/* Structures */
-typedef struct _MCoreModuleDescriptor
-{
-	/* Functions Below */
+#define kFuncMemMapDeviceMem	5
+#define kFuncMemAllocDma		6
+#define kFuncMemGetMapping		7
+#define kFuncMemFreeDma			8
 
-	/* Utilities */
-	void (*KernelPanic)(const char *);
+#define kFuncStall				9
+#define kFuncSleep				10
 
-	/* Stdio */
-	int (*DebugPrint)(const char *format, ...);
+#define kFuncCreateThread		11
+#define kFuncYield				12
+#define kFuncSleepThread		13
+#define kFuncWakeThread			14
 
-	/* Heap */
-	void *(*MemAlloc)(size_t Size);
-	void *(*MemAllocAligned)(size_t Size);
-	void (*MemFree)(void *Addr);
+#define kFuncInstallIrqPci		15
+#define kFuncInstallIrqISA		16
 
-	/* Memory */
-	VirtAddr_t *(*MemMapSystemMemory)(PhysAddr_t PhysicalAddr, int Pages);
-	PhysAddr_t (*MemAllocDma)(void);
-	PhysAddr_t (*MemVirtualGetMapping)(void *PageDirectory, VirtAddr_t VirtualAddr);
-	void (*MemPhysicalFreeBlock)(PhysAddr_t Addr);
+#define kFuncRegisterDevice		17
+#define kFuncUnregisterDevice	18
 
-	/* I/O */
-	uint8_t (*PortReadByte)(uint16_t Port);
-	void (*PortWriteByte)(uint16_t Port, uint8_t Value);
 
-	uint16_t (*PciReadWord)(PciDevice_t *Device, uint32_t Register);
-	void (*PciWriteWord)(PciDevice_t *Device, uint32_t Register, uint16_t Value);
-
-	/* Timing */
-	void (*StallMs)(uint32_t MilliSeconds);
-	void (*DelayMs)(uint32_t MilliSeconds);
-
-	/* Threading */
-	TId_t (*CreateThread)(char *Name, ThreadEntry_t Function, void *Args, int Flags);
-	void (*Yield)(void);
-
-	/* Scheduling */
-	void (*SchedulerSleepThread)(Addr_t *Resource);
-	int (*SchedulerWakeupOneThread)(Addr_t *Resource);
-
-	/* Irqs */
-	void (*InterruptInstallPci)(PciDevice_t *PciDevice, IrqHandler_t Callback, void *Args);
-
-	/* List Functions */
-	list_t *(*ListCreate)(int Attributes);
-	list_node_t *(*ListCreateNode)(int Id, void *Data);
-	void (*ListAppend)(list_t *List, list_node_t *Node);
-	list_node_t *(*ListPopFront)(list_t *List);
-	void *(*ListGetDataById)(list_t *List, int Id, int n);
-	void (*ListRemoveByNode)(list_t *List, list_node_t* Node);
-
-	/* Spinlock */
-	void (*SpinlockReset)(Spinlock_t *Spinlock);
-	OsStatus_t (*SpinlockAcquire)(Spinlock_t *Spinlock);
-	void (*SpinlockRelease)(Spinlock_t *Spinlock);
-
-	/* Semaphore */
-	Semaphore_t *(*SemaphoreCreate)(int Value);
-	void (*SemaphoreDestroy)(Semaphore_t *Semaphore);
-	void (*SemaphoreP)(Semaphore_t *Semaphore);
-	void (*SemaphoreV)(Semaphore_t *Semaphore);
-
-	/* Mutex */
-	Mutex_t *(*MutexCreate)(void);
-	void (*MutexConstruct)(Mutex_t *Mutex);
-	void (*MutexLock)(Mutex_t *Mutex);
-	void (*MutexUnlock)(Mutex_t *Mutex);
-
-} MCoreModuleDescriptor_t;
-
-#endif //!__MOLLENOS_MODULE__
+#endif //!__MOLLENOS_DRIVER__

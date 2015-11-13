@@ -21,35 +21,117 @@
 */
 
 /* Includes */
+#include <Devices/Timer.h>
 #include <Module.h>
 #include <Cmos.h>
 
+/* Structures */
+#pragma pack(push, 1)
+typedef struct _RtcTimer
+{
+	/* Device Id */
+	DevId_t DeviceId;
+
+	/* Total Tick Count */
+	uint64_t NsCounter;
+
+	/* Alarm Tick Counter */
+	uint32_t AlarmTicks;
+
+	/* Step Value */
+	uint32_t NsTick;
+
+} RtcTimer_t;
+#pragma pack(pop)
+
 /* Externs */
 extern MCoreModuleDescriptor_t *GlbDescriptor;
-extern void rdtsc(uint64_t *value);
-extern void _yield(void);
-
-/* Globals */
-volatile uint32_t GlbRtcAlarmTicks = 0;
-volatile uint64_t GlbRtcNsCounter = 0;
-uint32_t GlbRtcNsTick = 0;
 
 /* The Clock Handler */
 int RtcIrqHandler(void *Data)
 {
-	/* Unused */
-	_CRT_UNUSED(Data);
+	/* Cast */
+	MCoreTimerDevice_t *TimerData = (MCoreTimerDevice_t*)Data;
+	RtcTimer_t *Rtc = (RtcTimer_t*)TimerData->TimerData;
 
 	/* Update Peroidic Tick Counter */
-	GlbRtcNsCounter += GlbRtcNsTick;
+	Rtc->NsCounter += Rtc->NsTick;
 
 	/* Apply Timer Time (roughly 1 ms) */
-	TimersApplyMs(1);
+	TimerData->ReportMs(1);
 
 	/* Acknowledge Irq 8 by reading register C */
 	CmosReadRegister(X86_CMOS_REGISTER_STATUS_C);
 
+	/* Done! */
 	return X86_IRQ_HANDLED;
+}
+
+/* Rtc Ticks */
+uint64_t RtcGetClocks(void *Data)
+{
+	/* Cast */
+	RtcTimer_t *Rtc = (RtcTimer_t*)Data;
+
+	/* Done */
+	return Rtc->NsCounter;
+}
+
+/* Stall for ms */
+void RtcStallBackup(void *Data, uint32_t MilliSeconds)
+{
+	/* Vars */
+	uint64_t RdTicks = 0;
+	uint64_t TickEnd = 0;
+
+	/* We don't use this */
+	_CRT_UNUSED(Data);
+
+	/* Read Time Stamp Counter */
+	GlbDescriptor->ReadTSC(&RdTicks);
+
+	/* Calculate ticks */
+	TickEnd = RdTicks + (MilliSeconds * 100000);
+
+	/* Wait */
+	while (TickEnd > RdTicks)
+		GlbDescriptor->ReadTSC(&RdTicks);
+}
+
+/* Sleep for ms */
+void RtcSleep(void *Data, uint32_t MilliSeconds)
+{
+	/* Calculate TickEnd in NanoSeconds */
+	uint64_t TickEnd = (MilliSeconds * 1000) + RtcGetClocks(Data);
+
+	/* If glb_clock_tick is 0, RTC failure */
+	if (RtcGetClocks(Data) == 0)
+	{
+		RtcStallBackup(Data, MilliSeconds);
+		return;
+	}
+
+	/* While */
+	while (TickEnd >= RtcGetClocks(Data))
+		GlbDescriptor->Yield();
+}
+
+/* Stall for ms */
+void RtcStall(void *Data, uint32_t MilliSeconds)
+{
+	/* Calculate TickEnd in NanoSeconds */
+	uint64_t TickEnd = (MilliSeconds * 1000) + RtcGetClocks(Data);
+
+	/* If glb_clock_tick is 0, RTC failure */
+	if (RtcGetClocks(Data) == 0)
+	{
+		RtcStallBackup(Data, MilliSeconds);
+		return;
+	}
+
+	/* While */
+	while (TickEnd >= RtcGetClocks(Data))
+		_asm nop;
 }
 
 /* Initialization */
@@ -58,15 +140,27 @@ OsStatus_t RtcInit(void)
 	IntStatus_t IntrState;
 	uint8_t StateB = 0;
 	uint8_t Rate = 0x08; /* must be between 3 and 15 */
+	MCoreTimerDevice_t *TimerData = NULL;
+	RtcTimer_t *Rtc = NULL;
+
+	/* Allocate */
+	Rtc = (RtcTimer_t*)GlbDescriptor->MemAlloc(sizeof(RtcTimer_t));
+	TimerData = (MCoreTimerDevice_t*)GlbDescriptor->MemAlloc(sizeof(MCoreTimerDevice_t));
 
 	/* Ms is .97, 1024 ints per sec */
 	/* Frequency = 32768 >> (rate-1), 15 = 2, 14 = 4, 13 = 8/s (125 ms) */
-	GlbRtcNsTick = 976;
-	GlbRtcNsCounter = 0;
-	GlbRtcAlarmTicks = 0;
+	Rtc->NsTick = 976;
+	Rtc->NsCounter = 0;
+	Rtc->AlarmTicks = 0;
+
+	/* Setup Timer Data */
+	TimerData->TimerData = Rtc;
+	TimerData->Stall = RtcStall;
+	TimerData->Sleep = RtcSleep;
+	TimerData->GetTicks = RtcGetClocks;
 
 	/* Disable IRQ's for this duration */
-	IntrState = InterruptDisable();
+	IntrState = GlbDescriptor->InterruptDisable();
 
 	/* Disable RTC Irq */
 	StateB = CmosReadRegister(X86_CMOS_REGISTER_STATUS_B);
@@ -77,7 +171,10 @@ OsStatus_t RtcInit(void)
 	StateB = CmosReadRegister(X86_CMOS_REGISTER_STATUS_B);
 
 	/* Install ISA IRQ Handler using normal install function */
-	InterruptInstallISA(X86_CMOS_RTC_IRQ, INTERRUPT_RTC, RtcIrqHandler, NULL);
+	GlbDescriptor->InterruptInstallISA(X86_CMOS_RTC_IRQ, INTERRUPT_RTC, RtcIrqHandler, TimerData);
+
+	/* Register us with OS so we can get our function interface */
+	Rtc->DeviceId = GlbDescriptor->DeviceRegister("Rtc Timer", DeviceTimer, TimerData);
 
 	/* Set Frequency */
 	CmosWriteRegister(X86_CMOS_REGISTER_STATUS_A, 0x20 | Rate);
@@ -91,70 +188,11 @@ OsStatus_t RtcInit(void)
 	CmosWriteRegister(X86_CMOS_REGISTER_STATUS_B, StateB);
 
 	/* Done, reenable interrupts */
-	InterruptRestoreState(IntrState);
+	GlbDescriptor->InterruptRestoreState(IntrState);
 
 	/* Clear pending interrupt again */
 	CmosReadRegister(X86_CMOS_REGISTER_STATUS_C);
 
 	/* Done */
 	return OS_STATUS_OK;
-}
-
-/* Rtc Ticks */
-uint64_t RtcGetClocks(void)
-{
-	return GlbRtcNsCounter;
-}
-
-/* Stall for ms */
-void RtcStallBackup(uint32_t MilliSeconds)
-{
-	uint64_t RdTicks = 0;
-	uint64_t TickEnd = 0;
-
-	/* Read Time Stamp Counter */
-	rdtsc(&RdTicks);
-
-	/* Calculate ticks */
-	TickEnd = RdTicks + (MilliSeconds * 100000);
-
-	/* Wait */
-	while (TickEnd > RdTicks)
-		rdtsc(&RdTicks);
-}
-
-/* Sleep for ms */
-void RtcSleep(uint32_t MilliSeconds)
-{
-	/* Calculate TickEnd in NanoSeconds */
-	uint64_t TickEnd = (MilliSeconds * 1000) + RtcGetClocks();
-
-	/* If glb_clock_tick is 0, RTC failure */
-	if (RtcGetClocks() == 0)
-	{
-		RtcStallBackup(MilliSeconds);
-		return;
-	}
-
-	/* While */
-	while (TickEnd >= RtcGetClocks())
-		_yield();
-}
-
-/* Stall for ms */
-void RtcStall(uint32_t MilliSeconds)
-{
-	/* Calculate TickEnd in NanoSeconds */
-	uint64_t TickEnd = (MilliSeconds * 1000) + RtcGetClocks();
-
-	/* If glb_clock_tick is 0, RTC failure */
-	if (RtcGetClocks() == 0)
-	{
-		RtcStallBackup(MilliSeconds);
-		return;
-	}
-
-	/* While */
-	while (TickEnd >= RtcGetClocks())
-		_asm nop;
 }

@@ -23,11 +23,16 @@
 #include <UsbCore.h>
 #include <Module.h>
 
+/* Kernel */
+#include <Timers.h>
+#include <Semaphore.h>
+#include <Heap.h>
+#include <List.h>
+
 /* CLib */
 #include <string.h>
 
 /* Globals */
-MCoreModuleDescriptor_t *GlbDescriptor = NULL;
 list_t *GlbUsbControllers = NULL;
 list_t *GlbUsbDevices = NULL;
 list_t *GlbUsbEvents = NULL;
@@ -42,24 +47,24 @@ void UsbDeviceDestroy(UsbHc_t *Hc, int Port);
 UsbHcPort_t *UsbPortCreate(int Port);
 
 /* Entry point of a module */
-MODULES_API void ModuleInit(MCoreModuleDescriptor_t *DriverDescriptor, void *DeviceData)
+MODULES_API void ModuleInit(Addr_t *FunctionTable, void *Data)
 {
 	/* Save */
-	_CRT_UNUSED(DeviceData);
-	GlbDescriptor = DriverDescriptor;
+	_CRT_UNUSED(Data);
+	GlbFunctionTable = FunctionTable;
 
 	/* Init */
 	GlbUsbInitialized = 0xDEADBEEF;
-	GlbUsbDevices = GlbDescriptor->ListCreate(LIST_SAFE);
-	GlbUsbControllers = GlbDescriptor->ListCreate(LIST_SAFE);
-	GlbUsbEvents = GlbDescriptor->ListCreate(LIST_SAFE);
+	GlbUsbDevices = list_create(LIST_SAFE);
+	GlbUsbControllers = list_create(LIST_SAFE);
+	GlbUsbEvents = list_create(LIST_SAFE);
 	GlbUsbControllerId = 0;
 
 	/* Initialize Event Semaphore */
-	GlbEventLock = GlbDescriptor->SemaphoreCreate(0);
+	GlbEventLock = SemaphoreCreate(0);
 
 	/* Start Event Thread */
-	GlbDescriptor->CreateThread("UsbEventHandler", UsbEventHandler, NULL, 0);
+	ThreadingCreateThread("UsbEventHandler", UsbEventHandler, NULL, 0);
 }
 
 /* Registrate an OHCI/UHCI/EHCI/XHCI controller */
@@ -68,16 +73,19 @@ UsbHc_t *UsbInitController(void *Data, UsbControllerType_t Type, uint32_t Ports)
 	UsbHc_t *Controller;
 
 	/* Allocate Resources */
-	Controller = (UsbHc_t*)GlbDescriptor->MemAlloc(sizeof(UsbHc_t));
+	Controller = (UsbHc_t*)kmalloc(sizeof(UsbHc_t));
 	memset(Controller, 0, sizeof(UsbHc_t));
 
+	/* Fill data */
 	Controller->Hc = Data;
 	Controller->Type = Type;
 	Controller->NumPorts = Ports;
 
+	/* Done! */
 	return Controller;
 }
 
+/* Unregistrate an OHCI/UHCI/EHCI/XHCI controller */
 uint32_t UsbRegisterController(UsbHc_t *Controller)
 {
 	uint32_t Id;
@@ -87,8 +95,9 @@ uint32_t UsbRegisterController(UsbHc_t *Controller)
 	GlbUsbControllerId++;
 
 	/* Add to list */
-	GlbDescriptor->ListAppend(GlbUsbControllers, GlbDescriptor->ListCreateNode(Id, Controller));
+	list_append(GlbUsbControllers, list_create_node(Id, Controller));
 
+	/* Done */
 	return Id;
 }
 
@@ -98,16 +107,16 @@ void UsbEventCreate(UsbHc_t *Hc, int Port, UsbEventType_t Type)
 	UsbEvent_t *Event;
 
 	/* Allocate */
-	Event = (UsbEvent_t*)GlbDescriptor->MemAlloc(sizeof(UsbEvent_t));
+	Event = (UsbEvent_t*)kmalloc(sizeof(UsbEvent_t));
 	Event->Controller = Hc;
 	Event->Port = Port;
 	Event->Type = Type;
 
 	/* Append */
-	GlbDescriptor->ListAppend(GlbUsbEvents, GlbDescriptor->ListCreateNode((int)Type, Event));
+	list_append(GlbUsbEvents, list_create_node((int)Type, Event));
 
 	/* Signal */
-	GlbDescriptor->SemaphoreV(GlbEventLock);
+	SemaphoreV(GlbEventLock);
 }
 
 /* Device Connected */
@@ -126,7 +135,7 @@ void UsbDeviceSetup(UsbHc_t *Hc, int Port)
 		return;
 
 	/* Create a device */
-	Device = (UsbHcDevice_t*)GlbDescriptor->MemAlloc(sizeof(UsbHcDevice_t));
+	Device = (UsbHcDevice_t*)kmalloc(sizeof(UsbHcDevice_t));
 	Device->HcDriver = Hc;
 	Device->Port = (uint8_t)Port;
 	Device->Destroy = NULL;
@@ -139,7 +148,7 @@ void UsbDeviceSetup(UsbHc_t *Hc, int Port)
 	Device->Address = 0;
 
 	/* Allocate control endpoint */
-	Device->CtrlEndpoint = (UsbHcEndpoint_t*)GlbDescriptor->MemAlloc(sizeof(UsbHcEndpoint_t));
+	Device->CtrlEndpoint = (UsbHcEndpoint_t*)kmalloc(sizeof(UsbHcEndpoint_t));
 	Device->CtrlEndpoint->Address = 0;
 	Device->CtrlEndpoint->Type = X86_USB_EP_TYPE_CONTROL;
 	Device->CtrlEndpoint->Toggle = 0;
@@ -165,13 +174,13 @@ void UsbDeviceSetup(UsbHc_t *Hc, int Port)
 		/* Try again */
 		if (UsbFunctionSetAddress(Hc, Port, (uint32_t)(Port + 1)) != TransferFinished)
 		{
-			GlbDescriptor->DebugPrint("USB_Handler: (Set_Address) Failed to setup port %u\n", Port);
+			DebugPrint("USB_Handler: (Set_Address) Failed to setup port %u\n", Port);
 			goto DevError;
 		}
 	}
 
 	/* After SetAddress device is allowed 2 ms recovery */
-	GlbDescriptor->StallMs(2);
+	StallMs(2);
 
 	/* Get Device Descriptor */
 	if (UsbFunctionGetDeviceDescriptor(Hc, Port) != TransferFinished)
@@ -179,7 +188,7 @@ void UsbDeviceSetup(UsbHc_t *Hc, int Port)
 		/* Try Again */
 		if (UsbFunctionGetDeviceDescriptor(Hc, Port) != TransferFinished)
 		{
-			GlbDescriptor->DebugPrint("USB_Handler: (Get_Device_Desc) Failed to setup port %u\n", Port);
+			DebugPrint("USB_Handler: (Get_Device_Desc) Failed to setup port %u\n", Port);
 			goto DevError;
 		}
 	}
@@ -190,7 +199,7 @@ void UsbDeviceSetup(UsbHc_t *Hc, int Port)
 		/* Try Again */
 		if (UsbFunctionGetConfigDescriptor(Hc, Port) != TransferFinished)
 		{
-			GlbDescriptor->DebugPrint("USB_Handler: (Get_Config_Desc) Failed to setup port %u\n", Port);
+			DebugPrint("USB_Handler: (Get_Config_Desc) Failed to setup port %u\n", Port);
 			goto DevError;
 		}
 	}
@@ -201,7 +210,7 @@ void UsbDeviceSetup(UsbHc_t *Hc, int Port)
 		/* Try Again */
 		if (UsbFunctionSetConfiguration(Hc, Port, Hc->Ports[Port]->Device->Configuration) != TransferFinished)
 		{
-			GlbDescriptor->DebugPrint("USB_Handler: (Set_Configuration) Failed to setup port %u\n", Port);
+			DebugPrint("USB_Handler: (Set_Configuration) Failed to setup port %u\n", Port);
 			goto DevError;
 		}
 	}
@@ -236,30 +245,30 @@ void UsbDeviceSetup(UsbHc_t *Hc, int Port)
 	}
 
 	/* Done */
-	GlbDescriptor->DebugPrint("UsbCore: Setup of port %u done!\n", Port);
+	DebugPrint("UsbCore: Setup of port %u done!\n", Port);
 	return;
 
 DevError:
 	/* Free Control Endpoint */
-	GlbDescriptor->MemFree(Device->CtrlEndpoint);
+	kfree(Device->CtrlEndpoint);
 
 	/* Free Interfaces */
 	for (i = 0; i < (int)Device->NumInterfaces; i++)
 	{
 		/* Free Endpoints */
 		if (Device->Interfaces[i]->Endpoints != NULL)
-			GlbDescriptor->MemFree(Device->Interfaces[i]->Endpoints);
+			kfree(Device->Interfaces[i]->Endpoints);
 
 		/* Free the Interface */
-		GlbDescriptor->MemFree(Device->Interfaces[i]);
+		kfree(Device->Interfaces[i]);
 	}
 
 	/* Free Descriptor Buffer */
 	if (Device->Descriptors != NULL)
-		GlbDescriptor->MemFree(Device->Descriptors);
+		kfree(Device->Descriptors);
 
 	/* Free base */
-	GlbDescriptor->MemFree(Device);
+	kfree(Device);
 }
 
 /* Device Disconnected */
@@ -282,18 +291,18 @@ void UsbDeviceDestroy(UsbHc_t *Hc, int Port)
 	{
 		/* Free Endpoints */
 		if (Device->Interfaces[i]->Endpoints != NULL)
-			GlbDescriptor->MemFree(Device->Interfaces[i]->Endpoints);
+			kfree(Device->Interfaces[i]->Endpoints);
 
 		/* Free the Interface */
-		GlbDescriptor->MemFree(Device->Interfaces[i]);
+		kfree(Device->Interfaces[i]);
 	}
 
 	/* Free Descriptor Buffer */
 	if (Device->Descriptors != NULL)
-		GlbDescriptor->MemFree(Device->Descriptors);
+		kfree(Device->Descriptors);
 
 	/* Free base */
-	GlbDescriptor->MemFree(Device);
+	kfree(Device);
 
 	/* Update Port */
 	Hc->Ports[Port]->Connected = 0;
@@ -308,7 +317,7 @@ UsbHcPort_t *UsbPortCreate(int Port)
 	UsbHcPort_t *HcPort;
 
 	/* Allocate Resources */
-	HcPort = GlbDescriptor->MemAlloc(sizeof(UsbHcPort_t));
+	HcPort = kmalloc(sizeof(UsbHcPort_t));
 
 	/* Get Port Status */
 	HcPort->Id = Port;
@@ -332,10 +341,10 @@ void UsbEventHandler(void *args)
 	while (1)
 	{
 		/* Acquire Semaphore */
-		GlbDescriptor->SemaphoreP(GlbEventLock);
+		SemaphoreP(GlbEventLock);
 
 		/* Pop Event */
-		lNode = GlbDescriptor->ListPopFront(GlbUsbEvents);
+		lNode = list_pop_front(GlbUsbEvents);
 
 		/* Sanity */
 		if (lNode == NULL)
@@ -345,7 +354,7 @@ void UsbEventHandler(void *args)
 		Event = (UsbEvent_t*)lNode->data;
 
 		/* Free the node */
-		GlbDescriptor->MemFree(lNode);
+		kfree(lNode);
 
 		/* Again, sanity */
 		if (Event == NULL)
@@ -357,7 +366,7 @@ void UsbEventHandler(void *args)
 			case HcdConnectedEvent:
 			{
 				/* Setup Device */
-				GlbDescriptor->DebugPrint("Setting up Port %i\n", Event->Port);
+				DebugPrint("Setting up Port %i\n", Event->Port);
 				UsbDeviceSetup(Event->Controller, Event->Port);
 
 			} break;
@@ -365,7 +374,7 @@ void UsbEventHandler(void *args)
 			case HcdDisconnectedEvent:
 			{
 				/* Destroy Device */
-				GlbDescriptor->DebugPrint("Destroying Port %i\n", Event->Port);
+				DebugPrint("Destroying Port %i\n", Event->Port);
 				UsbDeviceDestroy(Event->Controller, Event->Port);
 
 			} break;
@@ -379,7 +388,7 @@ void UsbEventHandler(void *args)
 
 			default:
 			{
-				GlbDescriptor->DebugPrint("Unhandled Event: %u on port %i\n", Event->Type, Event->Port);
+				DebugPrint("Unhandled Event: %u on port %i\n", Event->Type, Event->Port);
 			} break;
 		}
 	}
@@ -388,7 +397,7 @@ void UsbEventHandler(void *args)
 /* Gets */
 UsbHc_t *UsbGetHcd(uint32_t ControllerId)
 {
-	return (UsbHc_t*)GlbDescriptor->ListGetDataById(GlbUsbControllers, ControllerId, 0);
+	return (UsbHc_t*)list_get_data_by_id(GlbUsbControllers, ControllerId, 0);
 }
 
 UsbHcPort_t *UsbGetPort(UsbHc_t *Controller, int Port)

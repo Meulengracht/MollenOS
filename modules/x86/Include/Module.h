@@ -15,12 +15,18 @@
 #endif
 
 /* Includes */
+#include <Arch.h>
 #include <Driver.h>
 #include <crtdefs.h>
 #include <stddef.h>
 #include <stdint.h>
 
+/* Function Table */
+extern Addr_t *GlbFunctionTable;
+extern void DebugPrint(const char *Msg, ...);
+extern void StallMs(uint32_t Ms);
+
 /* Module Setup */
-MODULES_API void ModuleInit(MCoreModuleDescriptor_t *DriverDescriptor, void *DeviceData);
+MODULES_API void ModuleInit(Addr_t *FunctionTable, void *Data);
 
 #endif //!__MOLLENOS_MODULE__

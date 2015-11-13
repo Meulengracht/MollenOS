@@ -10,8 +10,14 @@
       <Platform>Win32</Platform>
     </ProjectConfiguration>
   </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="Pit.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="Pit.c" />
+  </ItemGroup>
   <PropertyGroup Label="Globals">
-    <ProjectGuid>{5B870E7F-3EF4-4A5E-A79E-53DA4138E1AE}</ProjectGuid>
+    <ProjectGuid>{11227538-EA75-455B-A6A1-6FA67748F828}</ProjectGuid>
     <Keyword>Win32Proj</Keyword>
     <RootNamespace>Modules</RootNamespace>
   </PropertyGroup>
@@ -58,7 +64,7 @@
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <WarningLevel>EnableAllWarnings</WarningLevel>
       <Optimization>Full</Optimization>
-      <PreprocessorDefinitions>MOLLENOS;_X86_32;MODULES_EXPORTS;</PreprocessorDefinitions>
+      <PreprocessorDefinitions>MOLLENOS;_X86_32;MODULES_EXPORTS</PreprocessorDefinitions>
       <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
       <TreatWarningAsError>true</TreatWarningAsError>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
@@ -73,7 +79,7 @@
     <Link>
       <SubSystem>Native</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalDependencies>CLibK.lib;UsbCore.lib</AdditionalDependencies>
+      <AdditionalDependencies>CLibK.lib</AdditionalDependencies>
       <IgnoreAllDefaultLibraries>true</IgnoreAllDefaultLibraries>
       <Driver>Driver</Driver>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
@@ -100,12 +106,6 @@
       <OptimizeReferences>true</OptimizeReferences>
     </Link>
   </ItemDefinitionGroup>
-  <ItemGroup>
-    <ClInclude Include="Ohci.h" />
-  </ItemGroup>
-  <ItemGroup>
-    <ClCompile Include="Ohci.c" />
-  </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>

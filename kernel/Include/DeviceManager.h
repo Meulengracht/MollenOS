@@ -34,8 +34,9 @@ typedef enum _DeviceType
 {
 	DeviceCpu,
 	DeviceApic,
-	DeviceCmos,
+	DeviceClock,
 	DeviceTimer,
+	DevicePerfTimer,
 	DeviceInput,
 	DeviceStorage,
 	DeviceVideo

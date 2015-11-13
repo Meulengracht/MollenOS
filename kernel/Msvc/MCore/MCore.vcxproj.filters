@@ -185,5 +185,11 @@
     <ClInclude Include="..\..\Include\Modules\PeLoader.h">
       <Filter>Includes\Modules</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\Include\Devices\Timer.h">
+      <Filter>Includes\Devices</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Include\Devices\Clock.h">
+      <Filter>Includes\Devices</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

@@ -62,7 +62,7 @@
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <WarningLevel>EnableAllWarnings</WarningLevel>
       <Optimization>Full</Optimization>
-      <PreprocessorDefinitions>MOLLENOS;_X86_32;MODULES_EXPORTS;</PreprocessorDefinitions>
+      <PreprocessorDefinitions>MOLLENOS;_X86_32;MODULES_EXPORTS;__CMOS</PreprocessorDefinitions>
       <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
       <TreatWarningAsError>true</TreatWarningAsError>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
@@ -77,7 +77,7 @@
     <Link>
       <SubSystem>Native</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalDependencies>CLibK.lib;UsbCore.lib</AdditionalDependencies>
+      <AdditionalDependencies>CLibK.lib</AdditionalDependencies>
       <IgnoreAllDefaultLibraries>true</IgnoreAllDefaultLibraries>
       <Driver>Driver</Driver>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>

@@ -23,6 +23,7 @@
 #include <Semaphore.h>
 #include <Scheduler.h>
 #include <List.h>
+#include <Timers.h>
 #include <Heap.h>
 #include <DeviceManager.h>
 #include <Vfs\Vfs.h>
@@ -30,6 +31,7 @@
 
 /* Devices Capable of requests */
 #include <Devices\Disk.h>
+#include <Devices\Timer.h>
 
 /* Globals */
 uint32_t GlbDmInitialized = 0;
@@ -243,10 +245,21 @@ DevId_t DmCreateDevice(char *Name, uint32_t Type, void *Data)
 	 * depending on the device type */
 	switch (Type)
 	{
+		/* Give access to timer */
+		case DeviceTimer:
+		{
+			/* Cast */
+			MCoreTimerDevice_t *Timer = (MCoreTimerDevice_t*)Data;
+			Timer->ReportMs = TimersApplyMs;
+
+		} break;
+
 		/* Register with Vfs */
 		case DeviceStorage:
 		{
+			/* Call */
 			VfsRegisterDisk(mDev->Id);
+
 		} break;
 
 		/* No special actions */

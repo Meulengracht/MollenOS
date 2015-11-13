@@ -23,8 +23,8 @@
 #include <UsbCore.h>
 #include <Module.h>
 
-/* Externs */
-extern MCoreModuleDescriptor_t *GlbDescriptor;
+/* Kernel */
+#include <Heap.h>
 
 /* Transaction List Functions */
 void UsbTransactionAppend(UsbHcRequest_t *Request, UsbHcTransaction_t *Transaction)
@@ -201,7 +201,7 @@ void UsbTransactionDestroy(UsbHc_t *Hc, UsbHcRequest_t *Request)
 		NextTransaction = Transaction->Link;
 
 		/* Free */
-		GlbDescriptor->MemFree(Transaction);
+		kfree(Transaction);
 
 		/* Set next */
 		Transaction = NextTransaction;
@@ -277,8 +277,8 @@ UsbTransferStatus_t UsbFunctionGetDeviceDescriptor(UsbHc_t *Hc, int Port)
 	/* Update Device Information */
 	if (Request.Status == TransferFinished)
 	{
-		GlbDescriptor->DebugPrint("USB Length 0x%x - Device Vendor Id & Product Id: 0x%x - 0x%x\n", DevInfo.Length, DevInfo.VendorId, DevInfo.ProductId);
-		GlbDescriptor->DebugPrint("Device Configurations 0x%x, Max Packet Size: 0x%x\n", DevInfo.NumConfigurations, DevInfo.MaxPacketSize);
+		DebugPrint("USB Length 0x%x - Device Vendor Id & Product Id: 0x%x - 0x%x\n", DevInfo.Length, DevInfo.VendorId, DevInfo.ProductId);
+		DebugPrint("Device Configurations 0x%x, Max Packet Size: 0x%x\n", DevInfo.NumConfigurations, DevInfo.MaxPacketSize);
 
 		Hc->Ports[Port]->Device->Class = DevInfo.Class;
 		Hc->Ports[Port]->Device->Subclass = DevInfo.Subclass;
@@ -362,7 +362,7 @@ UsbTransferStatus_t UsbFunctionGetConfigDescriptor(UsbHc_t *Hc, int Port)
 		return Request.Status;
 	
 	/* Step 2. Get FULL descriptor */
-	Buffer = GlbDescriptor->MemAlloc(Hc->Ports[Port]->Device->ConfigMaxLength);
+	Buffer = kmalloc(Hc->Ports[Port]->Device->ConfigMaxLength);
 	
 	/* Init transfer */
 	UsbTransactionInit(Hc, &Request, ControlTransfer,
@@ -418,12 +418,12 @@ UsbTransferStatus_t UsbFunctionGetConfigDescriptor(UsbHc_t *Hc, int Port)
 				/* Debug Print */
 				if (Hc->Ports[Port]->Device->Interfaces[Interface->NumInterface] == NULL)
 				{
-					GlbDescriptor->DebugPrint("Interface %u - Endpoints %u (Class %u, Subclass %u, Protocol %u)\n",
+					DebugPrint("Interface %u - Endpoints %u (Class %u, Subclass %u, Protocol %u)\n",
 						Interface->NumInterface, Interface->NumEndpoints, Interface->Class,
 						Interface->Subclass, Interface->Protocol);
 
 					/* Allocate */
-					UsbInterface = (UsbHcInterface_t*)GlbDescriptor->MemAlloc(sizeof(UsbHcInterface_t));
+					UsbInterface = (UsbHcInterface_t*)kmalloc(sizeof(UsbHcInterface_t));
 					UsbInterface->Id = Interface->NumInterface;
 					UsbInterface->NumEndpoints = Interface->NumEndpoints;
 					UsbInterface->Class = Interface->Class;
@@ -435,7 +435,7 @@ UsbTransferStatus_t UsbFunctionGetConfigDescriptor(UsbHc_t *Hc, int Port)
 
 					if (Interface->NumEndpoints != 0)
 						UsbInterface->Endpoints = 
-						(UsbHcEndpoint_t**)GlbDescriptor->MemAlloc(sizeof(UsbHcEndpoint_t*) * Interface->NumEndpoints);
+						(UsbHcEndpoint_t**)kmalloc(sizeof(UsbHcEndpoint_t*) * Interface->NumEndpoints);
 					else
 						UsbInterface->Endpoints = NULL;
 
@@ -453,14 +453,14 @@ UsbTransferStatus_t UsbFunctionGetConfigDescriptor(UsbHc_t *Hc, int Port)
 
 				/* Cast */
 				UsbEndpointDescriptor_t *Ep = (UsbEndpointDescriptor_t*)BufPtr;
-				UsbHcEndpoint_t *HcdEp = (UsbHcEndpoint_t*)GlbDescriptor->MemAlloc(sizeof(UsbHcEndpoint_t));
+				UsbHcEndpoint_t *HcdEp = (UsbHcEndpoint_t*)kmalloc(sizeof(UsbHcEndpoint_t));
 
 				/* Get Info */
 				uint32_t EpAddr = Ep->Address & 0xF;
 				uint32_t EpType = Ep->Attributes & 0x3;
 
 				/* Debug */
-				GlbDescriptor->DebugPrint("Endpoint %u - Attributes 0x%x (MaxPacketSize 0x%x)\n",
+				DebugPrint("Endpoint %u - Attributes 0x%x (MaxPacketSize 0x%x)\n",
 					Ep->Address, Ep->Attributes, Ep->MaxPacketSize);
 
 				/* Update Device */
@@ -488,7 +488,7 @@ UsbTransferStatus_t UsbFunctionGetConfigDescriptor(UsbHc_t *Hc, int Port)
 						/* Dummy Allocate */
 						Hc->Ports[Port]->Device->Interfaces[
 							Hc->Ports[Port]->Device->NumInterfaces - 1]->Endpoints =
-								(UsbHcEndpoint_t**)GlbDescriptor->MemAlloc(sizeof(UsbHcEndpoint_t*) * 16);
+								(UsbHcEndpoint_t**)kmalloc(sizeof(UsbHcEndpoint_t*) * 16);
 					}
 
 					/* Increament */
@@ -513,7 +513,7 @@ UsbTransferStatus_t UsbFunctionGetConfigDescriptor(UsbHc_t *Hc, int Port)
 	else
 	{
 		/* Cleanup */
-		GlbDescriptor->MemFree(Buffer);
+		kfree(Buffer);
 		Hc->Ports[Port]->Device->Descriptors = NULL;
 	}
 
