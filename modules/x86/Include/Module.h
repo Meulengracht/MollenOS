@@ -23,7 +23,12 @@
 
 /* Function Table */
 extern Addr_t *GlbFunctionTable;
-extern void DebugPrint(const char *Msg, ...);
+
+/* typedefs */
+typedef int (*__dprint)(const char *Msg, ...);
+
+/* Shared */
+#define DebugPrint(Msg, ...) ((__dprint)GlbFunctionTable[kFuncDebugPrint])(Msg, __VA_ARGS__)
 extern void StallMs(uint32_t Ms);
 
 /* Module Setup */
