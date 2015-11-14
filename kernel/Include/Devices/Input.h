@@ -16,32 +16,30 @@
 * along with this program.If not, see <http://www.gnu.org/licenses/>.
 *
 *
-* MollenOS MCore - Disk Device Descriptor
+* MollenOS MCore - Input Device Descriptor
 */
-#ifndef _MCORE_DEVICE_DISK_H_
-#define _MCORE_DEVICE_DISK_H_
+#ifndef _MCORE_DEVICE_INPUT_H_
+#define _MCORE_DEVICE_INPUT_H_
 
 /* Includes */
+#include <InputManager.h>
 #include <stdint.h>
 
 /* Storage Device */
 #pragma pack(push, 1)
-typedef struct _MCoreStorageDevice
+typedef struct _MCoreInputDevice
 {
-	/* Disk Stats */
-	uint64_t SectorCount;
-	uint32_t SectorsPerCylinder;
-	uint32_t AlignedAccess;
-	uint32_t SectorSize;
-
-	/* Disk Data */
-	void *DiskData;
+	/* Input Data */
+	void *InputData;
 
 	/* Functions */
-	int(*Read)(void *Data, uint64_t LBA, void *Buffer, uint32_t BufferLength);
-	int(*Write)(void *Data, uint64_t LBA, void *Buffer, uint32_t BufferLength);
+	int (*Read)(void *Data);
 
-} MCoreStorageDevice_t;
+	/* Reporting */
+	void(*ReportPointerEvent)(ImPointerEvent_t *Event);
+	void(*ReportButtonEvent)(ImButtonEvent_t *Event);
+
+} MCoreInputDevice_t;
 #pragma pack(pop)
 
-#endif //!_MCORE_DEVICE_DISK_H_
+#endif //!_MCORE_DEVICE_INPUT_H_

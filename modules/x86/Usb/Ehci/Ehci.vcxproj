@@ -11,7 +11,7 @@
     </ProjectConfiguration>
   </ItemGroup>
   <PropertyGroup Label="Globals">
-    <ProjectGuid>{F70C9248-FEE4-4C76-9D28-69B2E4D73104}</ProjectGuid>
+    <ProjectGuid>{6AD54F75-A2E1-40BF-84E2-B77420E8DC6A}</ProjectGuid>
     <Keyword>Win32Proj</Keyword>
     <RootNamespace>Modules</RootNamespace>
   </PropertyGroup>
@@ -58,7 +58,7 @@
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <WarningLevel>EnableAllWarnings</WarningLevel>
       <Optimization>Full</Optimization>
-      <PreprocessorDefinitions>MOLLENOS;_X86_32;MODULES_EXPORTS;__USBCORE</PreprocessorDefinitions>
+      <PreprocessorDefinitions>MOLLENOS;_X86_32;MODULES_EXPORTS;</PreprocessorDefinitions>
       <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
       <TreatWarningAsError>true</TreatWarningAsError>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
@@ -68,13 +68,13 @@
       <BufferSecurityCheck>false</BufferSecurityCheck>
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <AssemblerOutput>All</AssemblerOutput>
-      <DisableSpecificWarnings>4127</DisableSpecificWarnings>
       <InlineFunctionExpansion>Disabled</InlineFunctionExpansion>
+      <DisableSpecificWarnings>4127</DisableSpecificWarnings>
     </ClCompile>
     <Link>
       <SubSystem>Native</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalDependencies>CLibK.lib;Shared.lib</AdditionalDependencies>
+      <AdditionalDependencies>CLibK.lib;UsbCore.lib;Shared.lib</AdditionalDependencies>
       <IgnoreAllDefaultLibraries>true</IgnoreAllDefaultLibraries>
       <Driver>Driver</Driver>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
@@ -102,10 +102,10 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="Devices\UsbHid.c" />
-    <ClCompile Include="Devices\UsbMsd.c" />
-    <ClCompile Include="UsbCore.c" />
-    <ClCompile Include="UsbFunctions.c" />
+    <ClInclude Include="Ehci.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="Ehci.c" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

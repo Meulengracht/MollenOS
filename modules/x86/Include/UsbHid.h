@@ -23,7 +23,7 @@
 #define X86_USB_HID_H_
 
 /* Includes */
-#include <Drivers\Usb\Usb.h>
+#include <UsbCore.h>
 #include <DeviceManager.h>
 #include <crtdefs.h>
 

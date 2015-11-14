@@ -20,14 +20,17 @@
 */
 
 /* Includes */
-#include <Arch.h>
-#include <Drivers\Ps2\Ps2.h>
-#include <Drivers\Ps2\Keyboard\Ps2Keyboard.h>
+#include <Module.h>
 #include <Heap.h>
+#include <DeviceManager.h>
+#include <Devices/Input.h>
+
+#include "../Ps2.h"
+#include "Ps2Keyboard.h"
+
+/* CLib */
 #include <stdio.h>
 #include <string.h>
-#include <InputManager.h>
-#include <DeviceManager.h>
 
 /* Scansets */
 #include <ScancodeSets\ScancodeSet2.h>
@@ -36,7 +39,8 @@
 int Ps2KeyboadIrqHandler(void *Args)
 {
 	/* Get datastructure */
-	Ps2KeyboardDevice_t *Ps2Dev = (Ps2KeyboardDevice_t*)Args;
+	MCoreInputDevice_t *InputDev = (MCoreInputDevice_t*)Args;
+	Ps2KeyboardDevice_t *Ps2Dev = (Ps2KeyboardDevice_t*)InputDev->InputData;
 	uint8_t Scancode = 0;
 	ImButtonEvent_t bEvent;
 
@@ -70,7 +74,7 @@ int Ps2KeyboadIrqHandler(void *Args)
 		Ps2Dev->Buffer = 0;
 
 		/* Send */
-		InputManagerCreateButtonEvent(&bEvent);
+		InputDev->ReportButtonEvent(&bEvent);
 	}
 
 	/* Done! */
@@ -83,17 +87,24 @@ void Ps2KeyboardInit(int Port, int Translation)
 	uint8_t Response = 0;
 
 	/* Allocate Data Structure */
+	MCoreInputDevice_t *InputDev = (MCoreInputDevice_t*)kmalloc(sizeof(MCoreInputDevice_t));
 	Ps2KeyboardDevice_t *Ps2Dev = (Ps2KeyboardDevice_t*)kmalloc(sizeof(Ps2KeyboardDevice_t));
+	
 	memset(Ps2Dev, 0, sizeof(Ps2KeyboardDevice_t));
 	Ps2Dev->Port = Port;
 	Ps2Dev->Flags = 0;
 	Ps2Dev->Buffer = 0;
+	
+	InputDev->InputData = Ps2Dev;
+
+	/* Create device in upper layer */
+	Ps2Dev->Id = DmCreateDevice("Ps2-Keyboard", DeviceInput, InputDev);
 
 	/* Install Irq */
 	if (Port == 1)
-		InterruptInstallISA(X86_PS2_PORT1_INTERRUPT, INTERRUPT_PS2_PORT1, Ps2KeyboadIrqHandler, (void*)Ps2Dev);
+		InterruptInstallISA(X86_PS2_PORT1_INTERRUPT, INTERRUPT_PS2_PORT1, Ps2KeyboadIrqHandler, (void*)InputDev);
 	else
-		InterruptInstallISA(X86_PS2_PORT2_INTERRUPT, INTERRUPT_PS2_PORT2, Ps2KeyboadIrqHandler, (void*)Ps2Dev);
+		InterruptInstallISA(X86_PS2_PORT2_INTERRUPT, INTERRUPT_PS2_PORT2, Ps2KeyboadIrqHandler, (void*)InputDev);
 
 	/* Set scancode set to 2 */
 	if (Port == 2)
@@ -128,7 +139,4 @@ void Ps2KeyboardInit(int Port, int Translation)
 
 	/* Ack */
 	Response = Ps2ReadData(0);
-
-	/* Create device in upper layer */
-	DmCreateDevice("Ps2-Keyboard", DeviceInput, Ps2Dev);
 }

@@ -82,6 +82,9 @@ IntStatus_t InterruptIsDisabled(void)
 
 typedef void (*__irqinstallisa)(uint32_t Irq, uint32_t IdtEntry, IrqHandler_t Callback, void *Args);
 typedef void (*__irqinstallpci)(PciDevice_t *PciDevice, IrqHandler_t Callback, void *Args);
+typedef void (*__irqinstallidt)(uint32_t Gsi, uint32_t IdtEntry, IrqHandler_t Callback, void *Args);
+typedef void (*__irqinstallshared)(uint32_t Irq, uint32_t IdtEntry, IrqHandler_t Callback, void *Args);
+typedef OsStatus_t (*__irqallocisa)(uint32_t Irq);
 
 /* Install Irq for Legacy device */
 void InterruptInstallISA(uint32_t Irq, uint32_t IdtEntry, IrqHandler_t Callback, void *Args)
@@ -92,4 +95,19 @@ void InterruptInstallISA(uint32_t Irq, uint32_t IdtEntry, IrqHandler_t Callback,
 void InterruptInstallPci(PciDevice_t *PciDevice, IrqHandler_t Callback, void *Args)
 {
 	((__irqinstallpci)GlbFunctionTable[kFuncInstallIrqPci])(PciDevice, Callback, Args);
+}
+
+void InterruptInstallIdtOnly(uint32_t Gsi, uint32_t IdtEntry, IrqHandler_t Callback, void *Args)
+{
+	((__irqinstallidt)GlbFunctionTable[kFuncInstallIrqIdt])(Gsi, IdtEntry, Callback, Args);
+}
+
+void InterruptInstallShared(uint32_t Irq, uint32_t IdtEntry, IrqHandler_t Callback, void *Args)
+{
+	((__irqinstallshared)GlbFunctionTable[kFuncInstallIrqShared])(Irq, IdtEntry, Callback, Args);
+}
+
+OsStatus_t InterruptAllocateISA(uint32_t Irq)
+{
+	((__irqallocisa)GlbFunctionTable[kFuncAllocateIrqISA])(Irq);
 }

@@ -27,14 +27,18 @@
 #include "Hpet.h"
 #include <Heap.h>
 
+/* X86 */
+#include <x86\Memory.h>
+
 /* Structures */
 #pragma pack(push, 1)
-typedef struct _HpetTimer
+typedef struct _HpetManager
 {
-	/* Device Id */
-	DevId_t DeviceId;
 
-} HpetTimer_t;
+	/* List of timers */
+	Hpet_t **HpetTimers;
+
+} HpetManager_t;
 #pragma pack(pop)
 
 /* Globals */
@@ -47,6 +51,8 @@ volatile uint64_t GlbHpetCounter = 0;
 Hpet_t **GlbHpetTimers = NULL;
 
 /* Helpers */
+
+/* Read from Hpet */
 uint32_t HpetRead32(uint32_t Offset)
 {
 	if (GlbHpetBaseAddressType == ACPI_IO_RANGE)
@@ -64,6 +70,7 @@ uint32_t HpetRead32(uint32_t Offset)
 	}
 }
 
+/* Write to Hpet */
 void HpetWrite32(uint32_t Offset, uint32_t Value)
 {
 	if (GlbHpetBaseAddressType == ACPI_IO_RANGE)
@@ -81,11 +88,29 @@ void HpetWrite32(uint32_t Offset, uint32_t Value)
 	}
 }
 
+/* Stop main counter */
+void HpetStop(void)
+{
+	/* Disable main counter */
+	uint32_t Temp = HpetRead32(X86_HPET_REGISTER_CONFIG);
+	Temp &= ~X86_HPET_CONFIG_ENABLED;
+	HpetWrite32(X86_HPET_REGISTER_CONFIG, Temp);
+}
+
+/* Start main counter */
+void HpetStart(void)
+{
+	uint32_t Temp = HpetRead32(X86_HPET_REGISTER_CONFIG);
+	Temp |= X86_HPET_CONFIG_ENABLED;
+	HpetWrite32(X86_HPET_REGISTER_CONFIG, Temp);
+}
+
 /* Irq Handler */
 int HpetTimerHandler(void *Args)
 {
 	/* Cast */
-	Hpet_t *Timer = (Hpet_t*)Args;
+	MCoreTimerDevice_t *pTimer = (MCoreTimerDevice_t*)Args;
+	Hpet_t *Timer = (Hpet_t*)pTimer->TimerData;
 	uint32_t TimerBit = (1 << Timer->Id);
 
 	/* Did we even fire? (Shared Only) */
@@ -97,15 +122,15 @@ int HpetTimerHandler(void *Args)
 			HpetWrite32(X86_HPET_REGISTER_INTR, TimerBit);
 	}
 
-	/* If timer is not in periodic mode 
-	 * and is meant to be periodic, restart */
+	/* If timer is not in periodic mode
+	* and is meant to be periodic, restart */
 	if (Timer->Type == 1)
 	{
 		/* Inc Counter */
 		GlbHpetCounter++;
 
 		/* Apply time (1ms) */
-		TimersApplyMs(1);
+		pTimer->ReportMs(1);
 
 		/* If we are not periodic restart us */
 		if (Timer->Periodic != 1)
@@ -119,29 +144,24 @@ int HpetTimerHandler(void *Args)
 	return X86_IRQ_HANDLED;
 }
 
-/* Start Comparator */
-OsStatus_t HpetComparatorStart(uint32_t Comparator, uint32_t Periodic, uint32_t Freq)
+/* Allocate Interrupt */
+int HpetAllocateIrq(uint32_t Comparator, void *IrqData)
 {
-	/* Stop main counter */
-	uint32_t Now;
-	uint64_t Delta;
-	uint32_t Itr2;
+	uint32_t Itr, Itr2;
 
-	/* Disable main counter */
-	uint32_t Temp = HpetRead32(X86_HPET_REGISTER_CONFIG);
-	Temp &= ~X86_HPET_CONFIG_ENABLED;
-	HpetWrite32(X86_HPET_REGISTER_CONFIG, Temp);
+	/* Sanity */
+	if (GlbHpetTimers[Comparator]->Irq != 0xFFFFFFFF)
+		return -2;
 
-	/* Get now */
-	Now = HpetRead32(X86_HPET_REGISTER_COUNTER);
+	/* First of all, is MSI supported? */
+	if (GlbHpetTimers[Comparator]->MsiSupport)
+	{
+		/* Set MSI register to INTERRUPT_HPET_TIMERS */
 
-	/* We have the hertz of hpet and the fsec */
-	Delta = GlbHpetFrequency / Freq;
-	Now += (uint32_t)Delta;
-
-#ifdef X86_HPET_DIAGNOSE
-	printf("Delta 0x%x, Frequency 0x%x\n", (uint32_t)Delta, (uint32_t)GlbHpetFrequency);
-#endif
+		/* Install Irq handler */
+		//InterruptInstallIdtOnly(Itr2, INTERRUPT_HPET_TIMERS,
+			//HpetTimerHandler, IrqData);
+	}
 
 	/* Find a free interrupt */
 	for (Itr2 = 0; Itr2 < 32; Itr2++)
@@ -150,15 +170,32 @@ OsStatus_t HpetComparatorStart(uint32_t Comparator, uint32_t Periodic, uint32_t 
 		if (GlbHpetTimers[Comparator]->Map & (1 << Itr2))
 		{
 			/* Yes! */
+
+			/* If this is already allocated, we don't need 
+			 * to do any further work */
+			for (Itr = 0; Itr < GlbHpetTimerCount; Itr++)
+			{
+				if (GlbHpetTimers[Itr]->Irq == Itr2)
+				{
+					/* Yep.. yep.. */
+					GlbHpetTimers[Comparator]->Irq = Itr2;
+
+					/* Install only the soft */
+					InterruptInstallIdtOnly(Itr2, INTERRUPT_HPET_TIMERS, HpetTimerHandler, IrqData);
+
+					/* Done */
+					break;
+				}
+			}
+
 			if (Itr2 > 15)
 			{
 				/* Allocate PCI Interrupt */
-				GlbHpetTimers[Comparator]->Irq = (uint32_t)Itr2;
+				GlbHpetTimers[Comparator]->Irq = Itr2;
 
 				/* We want to get the least used irq *
 				* of the allowed irq's */
-				InterruptInstallShared((uint32_t)Itr2, INTERRUPT_HPET_TIMERS,
-					HpetTimerHandler, GlbHpetTimers[Comparator]);
+				InterruptInstallShared(Itr2, INTERRUPT_HPET_TIMERS, HpetTimerHandler, IrqData);
 
 				/* Debug */
 #ifdef X86_HPET_DIAGNOSE
@@ -174,11 +211,10 @@ OsStatus_t HpetComparatorStart(uint32_t Comparator, uint32_t Periodic, uint32_t 
 				if (InterruptAllocateISA(Itr2) == OS_STATUS_OK)
 				{
 					/* Save Irq */
-					GlbHpetTimers[Comparator]->Irq = (uint32_t)Itr2;
+					GlbHpetTimers[Comparator]->Irq = Itr2;
 
 					/* Install Irq */
-					InterruptInstallISA((uint32_t)Itr2, INTERRUPT_HPET_TIMERS,
-						HpetTimerHandler, GlbHpetTimers[Comparator]);
+					InterruptInstallISA(Itr2, INTERRUPT_HPET_TIMERS, HpetTimerHandler, IrqData);
 
 					/* Debug */
 #ifdef X86_HPET_DIAGNOSE
@@ -193,21 +229,50 @@ OsStatus_t HpetComparatorStart(uint32_t Comparator, uint32_t Periodic, uint32_t 
 	}
 
 	/* Sanity */
-	if (Itr2 == 32)
+	if (GlbHpetTimers[Comparator]->Irq == 0xFFFFFFFF)
 	{
 		/* Debug */
-		printf("Hpet Timer %u has invalid irqmap\n", Comparator);
-		return OS_STATUS_FAIL;
+		DebugPrint("Hpet Timer %u has invalid irqmap\n", Comparator);
+		return -1;
 	}
-		
+
+	/* Yay */
+	return 0;
+}
+
+/* Start Comparator */
+OsStatus_t HpetComparatorStart(uint32_t Comparator, uint32_t Periodic, uint32_t Freq, void *IrqData)
+{
+	/* Stop main counter */
+	uint32_t Now;
+	uint64_t Delta;
+	uint32_t Temp;
+
+	/* Disable main counter */
+	HpetStop();
+
+	/* Get now */
+	Now = HpetRead32(X86_HPET_REGISTER_COUNTER);
+
+	/* We have the hertz of hpet and the fsec */
+	Delta = GlbHpetFrequency / Freq;
+	Now += (uint32_t)Delta;
+
+#ifdef X86_HPET_DIAGNOSE
+	printf("Delta 0x%x, Frequency 0x%x\n", (uint32_t)Delta, (uint32_t)GlbHpetFrequency);
+#endif
+
+	/* Sanity */
+	if (GlbHpetTimers[Comparator]->Irq == 0xFFFFFFFF)
+		HpetAllocateIrq(Comparator, IrqData);
 
 	/* Update Irq */
 	Temp = HpetRead32(X86_HPET_TIMER_REGISTER_CONFIG(Comparator));
 #ifdef X86_HPET_DIAGNOSE
 	printf("Old TimerInfo: 0x%x\n", Temp);
 #endif
-	Temp |= ((uint32_t)Itr2 << 9) | X86_HPET_TIMER_CONFIG_IRQENABLED
-		 |   X86_HPET_TIMER_CONFIG_SET_CMP_VALUE;
+	Temp |= (GlbHpetTimers[Comparator]->Irq << 9) | X86_HPET_TIMER_CONFIG_IRQENABLED
+		 | X86_HPET_TIMER_CONFIG_SET_CMP_VALUE;
 
 	if (GlbHpetTimers[Comparator]->Irq > 15)
 		Temp |= X86_HPET_TIMER_CONFIG_POLARITY;
@@ -235,7 +300,8 @@ OsStatus_t HpetComparatorStart(uint32_t Comparator, uint32_t Periodic, uint32_t 
 	 * (See AMD-8111 HyperTransport I/O Hub Data Sheet,
 	 * Publication # 24674)
 	 */
-	HpetWrite32(X86_HPET_TIMER_REGISTER_COMPARATOR(Comparator), (uint32_t)Delta);
+	if (Periodic)
+		HpetWrite32(X86_HPET_TIMER_REGISTER_COMPARATOR(Comparator), (uint32_t)Delta);
 
 	/* If this is not the periodic shitcake then make sure that 
 	 * hpet has not already */
@@ -256,9 +322,7 @@ OsStatus_t HpetComparatorStart(uint32_t Comparator, uint32_t Periodic, uint32_t 
 	HpetWrite32(X86_HPET_REGISTER_INTR, (1 << Comparator));
 
 	/* Start main counter */
-	Temp = HpetRead32(X86_HPET_REGISTER_CONFIG);
-	Temp |= X86_HPET_CONFIG_ENABLED;
-	HpetWrite32(X86_HPET_REGISTER_CONFIG, Temp);
+	HpetStart();
 
 	/* Done */
 	return OS_STATUS_OK;
@@ -284,6 +348,7 @@ OsStatus_t HpetComparatorSetup(uint32_t Comparator)
 	GlbHpetTimers[Comparator]->Map = TimerIrqMap;
 	GlbHpetTimers[Comparator]->Active = 0;
 	GlbHpetTimers[Comparator]->Type = 0;
+	GlbHpetTimers[Comparator]->Irq = 0xFFFFFFFF;
 
 	if (TimerInfo & X86_HPET_TIMER_CONFIG_PERIODICSUPPORT)
 		GlbHpetTimers[Comparator]->Periodic = 1;
@@ -368,12 +433,12 @@ MODULES_API void ModuleInit(Addr_t *FunctionTable, void *Data)
 
 		/* Sanity */
 		if (Itr == 999)
-			return OS_STATUS_FAIL;
+			return;
 	}
 
 	/* Sanity */
 	if (ClockPeriod > X86_HPET_MAX_PERIOD || ClockPeriod < X86_HPET_MIN_PERIOD)
-		return OS_STATUS_FAIL;
+		return;
 
 	/* Get count of comparators */
 	GlbHpetTimerCount = (uint8_t)(((HpetRead32(X86_HPET_REGISTER_CAP_ID) & X86_HPET_CAP_TIMERCOUNT) >> 8) & 0x1F);
@@ -385,7 +450,7 @@ MODULES_API void ModuleInit(Addr_t *FunctionTable, void *Data)
 
 	/* Sanity check this */
 	if (ClockPeriod > X86_HPET_MAXTICK || ClockPeriod == 0 || GlbHpetTimerCount == 0)
-		return OS_STATUS_FAIL;
+		return;
 
 	/* Allocate */
 	GlbHpetTimers = (Hpet_t**)kmalloc(sizeof(Addr_t*) * GlbHpetTimerCount);
@@ -417,46 +482,65 @@ MODULES_API void ModuleInit(Addr_t *FunctionTable, void *Data)
 	/* Enable Interrupts before initializing the periodic */
 	InterruptRestoreState(IntState);
 
-	/* Make sure the Hpet is counting */
-
-
 	/* Setup main system timer 1 ms, this also starts the main counter */
+	uint32_t PeriodicInstalled = 0;
 	for (Itr = 0; Itr < GlbHpetTimerCount; Itr++)
 	{
 		/* Which one supported periodic? */
-		if (GlbHpetTimers[Itr]->Periodic == 1)
+		if (GlbHpetTimers[Itr]->Periodic == 1
+			&& !PeriodicInstalled)
 		{
+			/* Create */
+			MCoreTimerDevice_t *pTimer = 
+				(MCoreTimerDevice_t*)kmalloc(sizeof(MCoreTimerDevice_t));
+
+			/* Setup timer */
+			pTimer->TimerData = GlbHpetTimers[Itr];
+			pTimer->Sleep = HpetSleep;
+			pTimer->Stall = HpetStall;
+			pTimer->GetTicks = HpetGetClocks;
+
+			/* Set type */
 			GlbHpetTimers[Itr]->Type = 1;
-			HpetComparatorStart(Itr, 1, 1000);
-			break;
+			GlbHpetTimers[Itr]->DeviceId = DmCreateDevice("HPet Timer", DeviceTimer, pTimer);
+
+			/* Start it */
+			HpetComparatorStart(Itr, 1, 1000, pTimer);
+
+			/* Done! */
+			PeriodicInstalled = 1;
+		}
+		else
+		{
+			/* Create Perf */
 		}
 	}
 }
 
 /* Pit Ticks */
-uint64_t HpetGetClocks(void)
+uint64_t HpetGetClocks(void* Data)
 {
 	return GlbHpetCounter;
 }
 
 /* Sleep for ms */
-void HpetSleep(uint32_t MilliSeconds)
+void HpetSleep(void* Data, uint32_t MilliSeconds)
 {
 	/* Calculate TickEnd in NanoSeconds */
-	uint64_t TickEnd = MilliSeconds + HpetGetClocks();
+	uint64_t TickEnd = MilliSeconds + HpetGetClocks(Data);
 
 	/* While */
-	while (TickEnd >= HpetGetClocks())
-		_yield();
+	while (TickEnd >= HpetGetClocks(Data))
+		_ThreadYield();
 }
 
 /* Stall for ms */
-void HpetStall(uint32_t MilliSeconds)
+void HpetStall(void* Data, uint32_t MilliSeconds)
 {
 	/* Calculate TickEnd in NanoSeconds */
-	uint64_t TickEnd = MilliSeconds + HpetGetClocks();
+	uint64_t TickEnd = MilliSeconds + HpetGetClocks(Data);
 
 	/* While */
-	while (TickEnd > HpetGetClocks())
+	while (TickEnd > HpetGetClocks(Data))
 		_asm nop;
 }

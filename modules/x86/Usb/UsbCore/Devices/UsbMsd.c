@@ -20,14 +20,13 @@
 */
 
 /* Includes */
-#include <Arch.h>
-#include <Drivers\Usb\Msd\MsdManager.h>
+#include <Module.h>
+#include <UsbMsd.h>
 #include <Semaphore.h>
 #include <Heap.h>
 #include <List.h>
-#include <SysTimers.h>
+#include <Timers.h>
 
-#include <stdio.h>
 #include <string.h>
 
 /* Sense Codes */
@@ -152,7 +151,7 @@ void UsbMsdInit(UsbHcDevice_t *UsbDevice, uint32_t InterfaceIndex)
 	if (DevData->EpIn == NULL
 		|| DevData->EpOut == NULL)
 	{
-		printf("Msd is missing either in or out endpoint\n");
+		DebugPrint("Msd is missing either in or out endpoint\n");
 		kfree(DevData);
 		return;
 	}
@@ -175,7 +174,7 @@ void UsbMsdInit(UsbHcDevice_t *UsbDevice, uint32_t InterfaceIndex)
 	ScsiInquiry_t InquiryData;
 	if (UsbMsdSendSCSICommandIn(X86_SCSI_INQUIRY, DevData, 0, &InquiryData, sizeof(ScsiInquiry_t))
 		!= TransferFinished)
-		printf("Failed to execute Inquiry Command\n");
+		DebugPrint("Failed to execute Inquiry Command\n");
 
 	/* Send Test-Unit-Ready */
 	i = 3;
@@ -200,7 +199,7 @@ void UsbMsdInit(UsbHcDevice_t *UsbDevice, uint32_t InterfaceIndex)
 	/* Did we fail to ready device? */
 	if (!DevData->IsReady)
 	{
-		printf("Failed to ready MSD device\n");
+		DebugPrint("Failed to ready MSD device\n");
 		return;
 	}
 
@@ -210,12 +209,12 @@ void UsbMsdInit(UsbHcDevice_t *UsbDevice, uint32_t InterfaceIndex)
 	UsbMsdReadCapacity(DevData, StorageData);
 
 	/* Debug */
-	printf("MSD SectorCount: 0x%x, SectorSize: 0x%x\n", 
+	DebugPrint("MSD SectorCount: 0x%x, SectorSize: 0x%x\n",
 		(uint32_t)StorageData->SectorCount, StorageData->SectorSize);
 
 	/* Register Us */
 	DevData->DeviceId =
-		DmCreateDevice("Usb Disk Drive", DeviceStorage, (void*)StorageData);
+		DmCreateDevice("Usb Storage", DeviceStorage, (void*)StorageData);
 }
 
 /* Cleanup */
@@ -727,7 +726,7 @@ void UsbMsdReadyDevice(MsdDevice_t *Device)
 			!= TransferFinished)
 		{
 			/* Damn.. */
-			printf("Failed to test\n");
+			DebugPrint("Failed to test\n");
 			Device->IsReady = 0;
 			return;
 		}
@@ -738,7 +737,7 @@ void UsbMsdReadyDevice(MsdDevice_t *Device)
 		!= TransferFinished)
 	{
 		/* Damn.. */
-		printf("Failed to sense\n");
+		DebugPrint("Failed to sense\n");
 		Device->IsReady = 0;
 		return;
 	}
@@ -751,12 +750,12 @@ void UsbMsdReadyDevice(MsdDevice_t *Device)
 	if (ResponseCode >= 0x70 && ResponseCode <= 0x73)
 	{
 		/* Yay ! */
-		printf("Sense Status: %s\n", SenseKeys[SenseKey]);
+		DebugPrint("Sense Status: %s\n", SenseKeys[SenseKey]);
 	}
 	else
 	{
 		/* Damn.. */
-		printf("Invalid Response Code: 0x%x\n", ResponseCode);
+		DebugPrint("Invalid Response Code: 0x%x\n", ResponseCode);
 		Device->IsReady = 0;
 		return;
 	}

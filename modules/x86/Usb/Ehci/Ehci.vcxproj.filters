@@ -5,22 +5,19 @@
       <UniqueIdentifier>{4FC737F1-C7A5-4376-A066-2A32D752A2FF}</UniqueIdentifier>
       <Extensions>cpp;c;cc;cxx;def;odl;idl;hpj;bat;asm;asmx</Extensions>
     </Filter>
-    <Filter Include="Source Files\Devices">
-      <UniqueIdentifier>{a7d28fbe-61ea-4307-88cd-28512cff2477}</UniqueIdentifier>
+    <Filter Include="Header Files">
+      <UniqueIdentifier>{93995380-89BD-4b04-88EB-625FBE52EBFB}</UniqueIdentifier>
+      <Extensions>h;hh;hpp;hxx;hm;inl;inc;xsd</Extensions>
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="UsbCore.c">
+    <ClInclude Include="Ehci.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="Ehci.c">
       <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="UsbFunctions.c">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="Devices\UsbHid.c">
-      <Filter>Source Files\Devices</Filter>
-    </ClCompile>
-    <ClCompile Include="Devices\UsbMsd.c">
-      <Filter>Source Files\Devices</Filter>
     </ClCompile>
   </ItemGroup>
 </Project>

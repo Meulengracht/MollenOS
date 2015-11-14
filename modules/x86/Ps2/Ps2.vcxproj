@@ -11,13 +11,18 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="Pit.h" />
+    <ClInclude Include="Keyboard\Ps2Keyboard.h" />
+    <ClInclude Include="Mouse\Ps2Mouse.h" />
+    <ClInclude Include="Ps2.h" />
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="Pit.c" />
+    <ClCompile Include="Keyboard\Ps2Keyboard.c" />
+    <ClCompile Include="Mouse\Ps2Mouse.c" />
+    <ClCompile Include="Ps2.c" />
+    <ClCompile Include="ScancodeSets\ScancodeSet2.c" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
-    <ProjectGuid>{11227538-EA75-455B-A6A1-6FA67748F828}</ProjectGuid>
+    <ProjectGuid>{1EEC47B9-B62D-4F4B-BE51-AE1A2B588856}</ProjectGuid>
     <Keyword>Win32Proj</Keyword>
     <RootNamespace>Modules</RootNamespace>
   </PropertyGroup>
@@ -50,8 +55,8 @@
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <LinkIncremental>true</LinkIncremental>
     <TargetExt>.mod</TargetExt>
-    <IncludePath>..\..\..\..\clib\include;..\..\..\..\kernel\Arch;..\..\..\..\kernel\Include;..\..\Include</IncludePath>
-    <LibraryPath>..\..\..\..\clib\build;..\..\Build</LibraryPath>
+    <IncludePath>..\..\..\clib\include;..\..\..\kernel\Arch;..\..\..\kernel\Include;..\Include;..\..\..\kernel\acpica\include</IncludePath>
+    <LibraryPath>..\..\..\clib\build;..\Build</LibraryPath>
     <SourcePath />
     <GenerateManifest>false</GenerateManifest>
     <OutDir>$(SolutionDir)\Build\</OutDir>
@@ -79,7 +84,7 @@
     <Link>
       <SubSystem>Native</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalDependencies>CLibK.lib</AdditionalDependencies>
+      <AdditionalDependencies>CLibK.lib;Shared.lib</AdditionalDependencies>
       <IgnoreAllDefaultLibraries>true</IgnoreAllDefaultLibraries>
       <Driver>Driver</Driver>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>

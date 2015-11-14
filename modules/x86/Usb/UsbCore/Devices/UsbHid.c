@@ -20,14 +20,13 @@
 */
 
 /* Includes */
-#include <Arch.h>
-#include <Drivers\Usb\Hid\HidManager.h>
-#include <InputManager.h>
+#include <Module.h>
+#include <UsbHid.h>
+#include <Devices/Input.h>
 #include <Semaphore.h>
 #include <Heap.h>
 #include <List.h>
 
-#include <stdio.h>
 #include <string.h>
 
 /* Prototypes */
@@ -128,7 +127,7 @@ void UsbHidInit(UsbHcDevice_t *UsbDevice, uint32_t InterfaceIndex)
 	/* Sanity */
 	if (HidDescriptor == NULL)
 	{
-		printf("HID Descriptor did not exist.\n");
+		DebugPrint("HID Descriptor did not exist.\n");
 		kfree(DevData);
 		return;
 	}
@@ -147,7 +146,7 @@ void UsbHidInit(UsbHcDevice_t *UsbDevice, uint32_t InterfaceIndex)
 	/* Sanity */
 	if (DevData->EpInterrupt == NULL)
 	{
-		printf("HID Endpoint (In, Interrupt) did not exist.\n");
+		DebugPrint("HID Endpoint (In, Interrupt) did not exist.\n");
 		kfree(DevData);
 		return;
 	}
@@ -160,7 +159,7 @@ void UsbHidInit(UsbHcDevice_t *UsbDevice, uint32_t InterfaceIndex)
 		HidDescriptor->ClassDescriptorType,
 		0, 0, HidDescriptor->ClassDescriptorLength) != TransferFinished)
 	{
-		printf("Failed to get Report Descriptor.\n");
+		DebugPrint("Failed to get Report Descriptor.\n");
 		kfree(ReportDescriptor);
 		kfree(DevData);
 		return;
@@ -348,13 +347,13 @@ void UsbHidParseReportDescriptor(HidDevice_t *Device, uint8_t *ReportData, uint3
 					/* Output Item */
 					case X86_USB_REPORT_MAIN_TAG_OUTPUT:
 					{
-						printf("%u: Output Item (%u)\n", Depth, Packet);
+						DebugPrint("%u: Output Item (%u)\n", Depth, Packet);
 					} break;
 
 					/* Feature Item */
 					case X86_USB_REPORT_MAIN_TAG_FEATURE:
 					{
-						printf("%u: Feature Item (%u)\n", Depth, Packet);
+						DebugPrint("%u: Feature Item (%u)\n", Depth, Packet);
 					} break;
 				}
 
@@ -493,7 +492,7 @@ void UsbHidParseReportDescriptor(HidDevice_t *Device, uint8_t *ReportData, uint3
 					/* Unhandled */
 					default:
 					{
-						printf("%u: Global Item %u\n", Depth, Tag);
+						DebugPrint("%u: Global Item %u\n", Depth, Tag);
 					} break;
 				}
 
@@ -543,7 +542,7 @@ void UsbHidParseReportDescriptor(HidDevice_t *Device, uint8_t *ReportData, uint3
 					/* Unhandled */
 					default:
 					{
-						printf("%u: Local Item %u\n", Depth, Tag);
+						DebugPrint("%u: Local Item %u\n", Depth, Tag);
 					} break;
 				}
 			} break;
@@ -646,7 +645,7 @@ void UsbHidApplyInputData(HidDevice_t *Device, UsbHidReportCollectionItem_t *Col
 							PointerData.xRelative = (int32_t)xRelative;
 
 							/* Now it epends on mouse, joystick or w/e */
-							printf("X-Change: %i (Original 0x%x, Old 0x%x)\n",
+							DebugPrint("X-Change: %i (Original 0x%x, Old 0x%x)\n",
 								(int32_t)xRelative, (uint32_t)Value, (uint32_t)OldValue);
 						}
 
@@ -684,7 +683,7 @@ void UsbHidApplyInputData(HidDevice_t *Device, UsbHidReportCollectionItem_t *Col
 							PointerData.yRelative = (int32_t)yRelative;
 
 							/* Now it epends on mouse, joystick or w/e */
-							printf("Y-Change: %i (Original 0x%x, Old 0x%x)\n",
+							DebugPrint("Y-Change: %i (Original 0x%x, Old 0x%x)\n",
 								(int32_t)yRelative, (uint32_t)Value, (uint32_t)OldValue);
 						}
 
@@ -722,7 +721,7 @@ void UsbHidApplyInputData(HidDevice_t *Device, UsbHidReportCollectionItem_t *Col
 							PointerData.zRelative = (int32_t)zRelative;
 
 							/* Now it epends on mouse, joystick or w/e */
-							printf("Z-Change: %i (Original 0x%x, Old 0x%x)\n",
+							DebugPrint("Z-Change: %i (Original 0x%x, Old 0x%x)\n",
 								(int32_t)zRelative, (uint32_t)Value, (uint32_t)OldValue);
 						}
 
@@ -752,7 +751,7 @@ void UsbHidApplyInputData(HidDevice_t *Device, UsbHidReportCollectionItem_t *Col
 				/* Ok, so if we have multiple buttons (an array) 
 				 * we will use the logical min & max to find out which
 				 * button id this is */
-				printf("Button %u: %u\n", i, (uint32_t)Value);
+				DebugPrint("Button %u: %u\n", i, (uint32_t)Value);
 
 				/* Keyboard, keypad, mouse, gamepad or joystick? */
 				switch (CollectionItem->InputType)
@@ -795,7 +794,7 @@ void UsbHidApplyInputData(HidDevice_t *Device, UsbHidReportCollectionItem_t *Col
 			default:
 			{
 				/* What kind of hat is this ? */
-				printf("Usage Page 0x%x (Input Type 0x%x), Usage 0x%x, Value 0x%x\n",
+				DebugPrint("Usage Page 0x%x (Input Type 0x%x), Usage 0x%x, Value 0x%x\n",
 					CollectionItem->Stats.Usage, CollectionItem->InputType, Usage, (uint32_t)Value);
 			} break;
 		}
@@ -810,10 +809,10 @@ void UsbHidApplyInputData(HidDevice_t *Device, UsbHidReportCollectionItem_t *Col
 		PointerData.zRelative != 0)
 	{
 		/* Register data */
-		InputManagerCreatePointerEvent(&PointerData);
+		//InputManagerCreatePointerEvent(&PointerData);
 	}
 
-	/* printf("Input Item (%u): Report Offset %u, Report Size %u, Report Count %u (Minimum %i, Maximmum %i)\n",
+	/* DebugPrint("Input Item (%u): Report Offset %u, Report Size %u, Report Count %u (Minimum %i, Maximmum %i)\n",
 		input->stats.usages[0], input->stats.bit_offset, input_item->stats.report_size, input_item->stats.report_count,
 		input_item->stats.log_min, input_item->stats.log_max); */
 }
@@ -879,7 +878,7 @@ void UsbHidCallback(void *Device)
 	/* Parse Collection (Recursively) */
 	if (!UsbHidApplyCollectionData(DevData, DevData->Collection))
 	{
-		printf("No calls were made...\n");
+		DebugPrint("No calls were made...\n");
 		return;
 	}
 

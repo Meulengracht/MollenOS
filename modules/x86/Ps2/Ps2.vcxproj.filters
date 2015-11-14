@@ -8,15 +8,39 @@
     <Filter Include="Include Files">
       <UniqueIdentifier>{237b4c49-050d-48fb-8627-2ba819a3e3d2}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Source Files\ScancodeSets">
+      <UniqueIdentifier>{971de1ca-5236-4d8f-b4bd-a6692eaca3cc}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\Devices">
+      <UniqueIdentifier>{66302c89-5bce-4387-853c-866a9c236400}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Include Files\Devices">
+      <UniqueIdentifier>{72beef19-04ae-427e-a810-bfdd783bd4bd}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="Pit.h">
+    <ClInclude Include="Ps2.h">
       <Filter>Include Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Keyboard\Ps2Keyboard.h">
+      <Filter>Include Files\Devices</Filter>
+    </ClInclude>
+    <ClInclude Include="Mouse\Ps2Mouse.h">
+      <Filter>Include Files\Devices</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="Pit.c">
+    <ClCompile Include="Ps2.c">
       <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="ScancodeSets\ScancodeSet2.c">
+      <Filter>Source Files\ScancodeSets</Filter>
+    </ClCompile>
+    <ClCompile Include="Keyboard\Ps2Keyboard.c">
+      <Filter>Source Files\Devices</Filter>
+    </ClCompile>
+    <ClCompile Include="Mouse\Ps2Mouse.c">
+      <Filter>Source Files\Devices</Filter>
     </ClCompile>
   </ItemGroup>
 </Project>

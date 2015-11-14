@@ -35,22 +35,25 @@
 
 #define kFuncInstallIrqPci		17
 #define kFuncInstallIrqISA		18
+#define kFuncInstallIrqIdt		19
+#define kFuncInstallIrqShared	20
+#define kFuncAllocateIrqISA		21
 
-#define kFuncRegisterDevice		19
-#define kFuncUnregisterDevice	20
+#define kFuncRegisterDevice		22
+#define kFuncUnregisterDevice	23
 
-#define kFuncReadPciDevice		21
-#define kFuncWritePciDevice		22
+#define kFuncReadPciDevice		24
+#define kFuncWritePciDevice		25
 
-#define kFuncSemaphoreCreate	23
-#define kFuncSemaphoreV			24
-#define kFuncSemaphoreP			25
-#define kFuncSemaphoreDestroy	26
+#define kFuncSemaphoreCreate	26
+#define kFuncSemaphoreV			27
+#define kFuncSemaphoreP			28
+#define kFuncSemaphoreDestroy	29
 
-#define kFuncMutexCreate		27
-#define kFuncMutexConstruct		28
-#define kFuncMutexDestruct		29
-#define kFuncMutexLock			30
-#define kFuncMutexUnlock		31
+#define kFuncMutexCreate		30
+#define kFuncMutexConstruct		31
+#define kFuncMutexDestruct		32
+#define kFuncMutexLock			33
+#define kFuncMutexUnlock		34
 
 #endif //!__MOLLENOS_DRIVER__

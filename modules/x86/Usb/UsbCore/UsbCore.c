@@ -29,6 +29,10 @@
 #include <Heap.h>
 #include <List.h>
 
+/* Drivers */
+#include <UsbHid.h>
+#include <UsbMsd.h>
+
 /* CLib */
 #include <string.h>
 
@@ -219,20 +223,20 @@ void UsbDeviceSetup(UsbHc_t *Hc, int Port)
 	for (i = 0; i < (int)Hc->Ports[Port]->Device->NumInterfaces; i++)
 	{
 		/* We want to support Hubs, HIDs and MSDs*/
-		//uint32_t IfIndex = (uint32_t)i;
+		uint32_t IfIndex = (uint32_t)i;
 
 		/* Is this an HID Interface? :> */
 		if (Hc->Ports[Port]->Device->Interfaces[i]->Class == X86_USB_CLASS_HID)
 		{
 			/* Registrate us with HID Manager */
-			//UsbHidInit(Hc->Ports[Port]->Device, IfIndex);
+			UsbHidInit(Hc->Ports[Port]->Device, IfIndex);
 		}
 
 		/* Is this an MSD Interface? :> */
 		if (Hc->Ports[Port]->Device->Interfaces[i]->Class == X86_USB_CLASS_MSD)
 		{
 			/* Registrate us with MSD Manager */
-			//UsbMsdInit(Hc->Ports[Port]->Device, IfIndex);
+			UsbMsdInit(Hc->Ports[Port]->Device, IfIndex);
 		}
 
 		/* Is this an HUB Interface? :> */

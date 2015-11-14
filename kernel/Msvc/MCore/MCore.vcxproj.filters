@@ -191,5 +191,8 @@
     <ClInclude Include="..\..\Include\Devices\Clock.h">
       <Filter>Includes\Devices</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\Include\Devices\Input.h">
+      <Filter>Includes\Devices</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

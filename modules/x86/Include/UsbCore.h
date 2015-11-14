@@ -28,9 +28,9 @@
 
 /* Sanity */
 #ifdef __USBCORE
-#define _MODULE_API __declspec(dllexport)
+#define _USBCORE_API __declspec(dllexport)
 #else
-#define _MODULE_API __declspec(dllimport)
+#define _USBCORE_API __declspec(dllimport)
 #endif
 
 /* Definitions */
@@ -608,42 +608,42 @@ typedef struct _UsbEvent
 /* Prototypes */
 
 /* Returns an controller ID for used with identification */
-_MODULE_API UsbHc_t *UsbInitController(void *Data, UsbControllerType_t Type, uint32_t Ports);
-_MODULE_API uint32_t UsbRegisterController(UsbHc_t *Controller);
+_USBCORE_API UsbHc_t *UsbInitController(void *Data, UsbControllerType_t Type, uint32_t Ports);
+_USBCORE_API uint32_t UsbRegisterController(UsbHc_t *Controller);
 
 /* Transfer Utilities */
-_MODULE_API void UsbTransactionInit(UsbHc_t *Hc, UsbHcRequest_t *Request, uint32_t Type,
+_USBCORE_API void UsbTransactionInit(UsbHc_t *Hc, UsbHcRequest_t *Request, uint32_t Type,
 								    UsbHcDevice_t *Device, UsbHcEndpoint_t *Endpoint);
-_MODULE_API void UsbTransactionSetup(UsbHc_t *Hc, UsbHcRequest_t *Request, uint32_t PacketSize);
-_MODULE_API void UsbTransactionIn(UsbHc_t *Hc, UsbHcRequest_t *Request, uint32_t Handshake, void *Buffer, uint32_t Length);
-_MODULE_API void UsbTransactionOut(UsbHc_t *Hc, UsbHcRequest_t *Request, uint32_t Handshake, void *Buffer, uint32_t Length);
-_MODULE_API void UsbTransactionSend(UsbHc_t *Hc, UsbHcRequest_t *Request);
-_MODULE_API void UsbTransactionDestroy(UsbHc_t *Hc, UsbHcRequest_t *Request);
+_USBCORE_API void UsbTransactionSetup(UsbHc_t *Hc, UsbHcRequest_t *Request, uint32_t PacketSize);
+_USBCORE_API void UsbTransactionIn(UsbHc_t *Hc, UsbHcRequest_t *Request, uint32_t Handshake, void *Buffer, uint32_t Length);
+_USBCORE_API void UsbTransactionOut(UsbHc_t *Hc, UsbHcRequest_t *Request, uint32_t Handshake, void *Buffer, uint32_t Length);
+_USBCORE_API void UsbTransactionSend(UsbHc_t *Hc, UsbHcRequest_t *Request);
+_USBCORE_API void UsbTransactionDestroy(UsbHc_t *Hc, UsbHcRequest_t *Request);
 
 /* Functions */
-_MODULE_API UsbTransferStatus_t UsbFunctionSetAddress(UsbHc_t *Hc, int Port, uint32_t Address);
-_MODULE_API UsbTransferStatus_t UsbFunctionGetDeviceDescriptor(UsbHc_t *Hc, int Port);
-_MODULE_API UsbTransferStatus_t UsbFunctionGetConfigDescriptor(UsbHc_t *Hc, int Port);
-_MODULE_API UsbTransferStatus_t UsbFunctionSetConfiguration(UsbHc_t *Hc, int Port, uint32_t Configuration);
-_MODULE_API UsbTransferStatus_t UsbFunctionGetStringDescriptor(UsbHc_t *Hc, int Port);
-_MODULE_API UsbTransferStatus_t UsbFunctionGetDescriptor(UsbHc_t *Hc, int Port, void *Buffer, uint8_t Direction,
+_USBCORE_API UsbTransferStatus_t UsbFunctionSetAddress(UsbHc_t *Hc, int Port, uint32_t Address);
+_USBCORE_API UsbTransferStatus_t UsbFunctionGetDeviceDescriptor(UsbHc_t *Hc, int Port);
+_USBCORE_API UsbTransferStatus_t UsbFunctionGetConfigDescriptor(UsbHc_t *Hc, int Port);
+_USBCORE_API UsbTransferStatus_t UsbFunctionSetConfiguration(UsbHc_t *Hc, int Port, uint32_t Configuration);
+_USBCORE_API UsbTransferStatus_t UsbFunctionGetStringDescriptor(UsbHc_t *Hc, int Port);
+_USBCORE_API UsbTransferStatus_t UsbFunctionGetDescriptor(UsbHc_t *Hc, int Port, void *Buffer, uint8_t Direction,
 											uint8_t DescriptorType, uint8_t SubType, 
 											uint8_t DescriptorIndex, uint16_t DescriptorLength);
-_MODULE_API UsbTransferStatus_t UsbFunctionClearFeature(UsbHc_t *Hc, int Port,
+_USBCORE_API UsbTransferStatus_t UsbFunctionClearFeature(UsbHc_t *Hc, int Port,
 										uint8_t Target, uint16_t Index, uint16_t Feature);
-_MODULE_API UsbTransferStatus_t UsbFunctionSetFeature(UsbHc_t *Hc, int Port,
+_USBCORE_API UsbTransferStatus_t UsbFunctionSetFeature(UsbHc_t *Hc, int Port,
 									  uint8_t Target, uint16_t Index, uint16_t Feature);
 
 /* Send packet */
-_MODULE_API UsbTransferStatus_t UsbFunctionSendPacket(UsbHc_t *Hc, int Port, void *Buffer, uint8_t RequestType,
+_USBCORE_API UsbTransferStatus_t UsbFunctionSendPacket(UsbHc_t *Hc, int Port, void *Buffer, uint8_t RequestType,
 											uint8_t Request, uint8_t ValueHi, uint8_t ValueLo, 
 											uint16_t Index, uint16_t Length);
 
 /* Events */
-_MODULE_API void UsbEventCreate(UsbHc_t *Hc, int Port, UsbEventType_t Type);
+_USBCORE_API void UsbEventCreate(UsbHc_t *Hc, int Port, UsbEventType_t Type);
 
 /* Gets */
-_MODULE_API UsbHc_t *UsbGetHcd(uint32_t ControllerId);
-_MODULE_API UsbHcPort_t *UsbGetPort(UsbHc_t *Controller, int Port);
+_USBCORE_API UsbHc_t *UsbGetHcd(uint32_t ControllerId);
+_USBCORE_API UsbHcPort_t *UsbGetPort(UsbHc_t *Controller, int Port);
 
 #endif // !X86_USB_H_

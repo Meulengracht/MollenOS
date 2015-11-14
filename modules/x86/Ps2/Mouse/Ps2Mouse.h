@@ -23,6 +23,7 @@
 #define _X86_PS2_MOUSE_H_
 
 /* Includes */
+#include <DeviceManager.h>
 #include <stddef.h>
 
 /* Definitions */
@@ -34,6 +35,9 @@
 #pragma pack(push, 1)
 typedef struct _Ps2MouseDevice
 {
+	/* Id */
+	DevId_t Id;
+
 	/* Port */
 	int Port;
 

@@ -35,6 +35,7 @@
   <ItemGroup>
     <ClInclude Include="..\..\Include\Devices\Clock.h" />
     <ClInclude Include="..\..\Include\Devices\Disk.h" />
+    <ClInclude Include="..\..\Include\Devices\Input.h" />
     <ClInclude Include="..\..\Include\Devices\Timer.h" />
     <ClInclude Include="..\..\Include\FileSystems\Mfs.h" />
     <ClInclude Include="..\..\Include\Modules\ModuleManager.h" />

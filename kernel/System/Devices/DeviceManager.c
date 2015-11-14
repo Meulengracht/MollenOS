@@ -32,6 +32,7 @@
 /* Devices Capable of requests */
 #include <Devices\Disk.h>
 #include <Devices\Timer.h>
+#include <Devices\Input.h>
 
 /* Globals */
 uint32_t GlbDmInitialized = 0;
@@ -251,6 +252,16 @@ DevId_t DmCreateDevice(char *Name, uint32_t Type, void *Data)
 			/* Cast */
 			MCoreTimerDevice_t *Timer = (MCoreTimerDevice_t*)Data;
 			Timer->ReportMs = TimersApplyMs;
+
+		} break;
+
+		/* Give access to input */
+		case DeviceInput:
+		{
+			/* Cast */
+			MCoreInputDevice_t *Input = (MCoreInputDevice_t*)Data;
+			Input->ReportButtonEvent = InputManagerCreateButtonEvent;
+			Input->ReportPointerEvent = InputManagerCreatePointerEvent;
 
 		} break;
 

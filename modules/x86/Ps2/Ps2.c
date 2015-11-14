@@ -20,15 +20,14 @@
 */
 
 /* Includes */
-#include <Arch.h>
 #include <acpi.h>
-#include <Drivers\Ps2\Ps2.h>
-#include <SysTimers.h>
-#include <stdio.h>
+#include <Module.h>
+#include <Timers.h>
 
 /* Ps2 Drivers */
-#include <Drivers\Ps2\Keyboard\Ps2Keyboard.h>
-#include <Drivers\Ps2\Mouse\Ps2Mouse.h>
+#include "Ps2.h"
+#include "Keyboard\Ps2Keyboard.h"
+#include "Mouse\Ps2Mouse.h"
 
 /* Globals */
 uint32_t GlbPs2Exists = 0;
@@ -258,36 +257,35 @@ GetResponse:
 }
 
 /* Setup */
-void Ps2Init(void)
+MODULES_API void ModuleInit(Addr_t *FunctionTable, void *Data)
 {
 	ACPI_TABLE_FADT *Fadt = NULL;
-	ACPI_TABLE_HEADER *TabHeader = NULL;
 	uint8_t Temp = 0;
 	int rError = 0;
 	uint32_t DevId = 0;
 
-	/* Setup lock */
-	SpinlockReset(&GlbPs2Lock);
-
-	/* Step 1. Do we fucking exist? */
-	/* Get the table */
-	if (ACPI_FAILURE(AcpiGetTable(ACPI_SIG_FADT, 0, &TabHeader)))
-	{
-		/* Damn :( */
-		printf("    * APIC / ACPI FAILURE, FADT TABLE DOES NOT EXIST!\n");
-
-		/* Bail out */
-		return;
-	}
+	/* Save */
+	GlbFunctionTable = FunctionTable;
 
 	/* Cast */
-	Fadt = (ACPI_TABLE_FADT*)TabHeader;
+	Fadt = (ACPI_TABLE_FADT*)Data;
 
-	/* Bit 1 is 8042 */
-	if (!(Fadt->BootFlags & ACPI_FADT_8042))
-		return;
-	else
-		GlbPs2Exists = 1;
+	/* Sanity 
+	 * If there is no FADT, 
+	 * then the system is so old that
+	 * we can pretty much assume
+	 * there is a 8042 */
+	if (Data != NULL)
+	{
+		/* Bit 1 is 8042 */
+		if (!(Fadt->BootFlags & ACPI_FADT_8042))
+			return;
+		else
+			GlbPs2Exists = 1;
+	}
+
+	/* Setup lock */
+	SpinlockReset(&GlbPs2Lock);
 
 	/* Dummy reads, empty it's buffer */
 	Ps2ReadData(1);
@@ -320,7 +318,7 @@ void Ps2Init(void)
 	/* Perform Self Test */
 	if (rError == 1 || Ps2SelfTest())
 	{
-		printf("Ps2 Controller failed to initialize, giving up\n");
+		DebugPrint("Ps2 Controller failed to initialize, giving up\n");
 		return;
 	}
 
@@ -361,7 +359,7 @@ void Ps2Init(void)
 	/* Sanity */
 	if (rError == 1)
 	{
-		printf("Ps2 Controller failed to initialize, giving up\n");
+		DebugPrint("Ps2 Controller failed to initialize, giving up\n");
 		return;
 	}
 

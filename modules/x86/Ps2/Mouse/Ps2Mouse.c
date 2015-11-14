@@ -20,14 +20,16 @@
 */
 
 /* Includes */
-#include <Arch.h>
-#include <Drivers\Ps2\Ps2.h>
-#include <Drivers\Ps2\Mouse\Ps2Mouse.h>
+#include <Module.h>
 #include <Heap.h>
-#include <stdio.h>
-#include <string.h>
-#include <InputManager.h>
 #include <DeviceManager.h>
+#include <Devices/Input.h>
+
+#include "../Ps2.h"
+#include "Ps2Mouse.h"
+
+/* CLib */
+#include <string.h>
 
 /* Ps Mouse Irq */
 int Ps2MouseIrqHandler(void *Args)
@@ -36,7 +38,10 @@ int Ps2MouseIrqHandler(void *Args)
 	 * BUT we can only get one at the time..... -.- */
 	ImPointerEvent_t eData;
 	ImButtonEvent_t bData;
-	Ps2MouseDevice_t *Ps2Dev = (Ps2MouseDevice_t*)Args;
+
+	/* Cast */
+	MCoreInputDevice_t *InputDev = (MCoreInputDevice_t*)Args;
+	Ps2MouseDevice_t *Ps2Dev = (Ps2MouseDevice_t*)InputDev->InputData;
 
 	/* Lets see which byte */
 	switch (Ps2Dev->Index)
@@ -70,7 +75,7 @@ int Ps2MouseIrqHandler(void *Args)
 			eData.zRelative = 0;
 
 			/* Send! */
-			InputManagerCreatePointerEvent(&eData);
+			InputDev->ReportPointerEvent(&eData);
 
 			/* Check buttons */
 			if (Ps2Dev->Buffer[0] != Ps2Dev->MouseButtons)
@@ -81,7 +86,7 @@ int Ps2MouseIrqHandler(void *Args)
 				bData.State = 0;
 
 				/* Send */
-				InputManagerCreateButtonEvent(&bData);
+				InputDev->ReportButtonEvent(&bData);
 			}
 
 			/* Update */
@@ -100,15 +105,22 @@ void Ps2MouseInit(int Port)
 	uint8_t Response = 0;
 
 	/* Allocate Data Structure */
+	MCoreInputDevice_t *InputDev = (MCoreInputDevice_t*)kmalloc(sizeof(MCoreInputDevice_t));
 	Ps2MouseDevice_t *Ps2Dev = (Ps2MouseDevice_t*)kmalloc(sizeof(Ps2MouseDevice_t));
+	
 	memset(Ps2Dev, 0, sizeof(Ps2MouseDevice_t));
 	Ps2Dev->Port = Port;
 
+	InputDev->InputData = Ps2Dev;
+
+	/* Create device in upper layer */
+	Ps2Dev->Id = DmCreateDevice("Ps2-Mouse", DeviceInput, InputDev);
+
 	/* Install Irq */
 	if (Port == 1)
-		InterruptInstallISA(X86_PS2_PORT1_INTERRUPT, INTERRUPT_PS2_PORT1, Ps2MouseIrqHandler, (void*)Ps2Dev);
+		InterruptInstallISA(X86_PS2_PORT1_INTERRUPT, INTERRUPT_PS2_PORT1, Ps2MouseIrqHandler, (void*)InputDev);
 	else
-		InterruptInstallISA(X86_PS2_PORT2_INTERRUPT, INTERRUPT_PS2_PORT2, Ps2MouseIrqHandler, (void*)Ps2Dev);
+		InterruptInstallISA(X86_PS2_PORT2_INTERRUPT, INTERRUPT_PS2_PORT2, Ps2MouseIrqHandler, (void*)InputDev);
 
 	/* Set default settings on mouse, 0xF6 */
 	if (Port == 2)
@@ -125,7 +137,4 @@ void Ps2MouseInit(int Port)
 
 	/* Ack */
 	Response = Ps2ReadData(0);
-
-	/* Create device in upper layer */
-	DmCreateDevice("Ps2-Mouse", DeviceInput, Ps2Dev);
 }
