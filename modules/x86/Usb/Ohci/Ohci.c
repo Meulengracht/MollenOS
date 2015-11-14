@@ -96,8 +96,8 @@ MODULES_API void ModuleInit(Addr_t *FunctionTable, void *Data)
 	Controller->Id = GlbOhciControllerId;
 
 	/* Enable memory and Bus mastering and clear interrupt disable */
-	PciCommand = GlbDescriptor->PciReadWord(Device, 0x4);
-	GlbDescriptor->PciWriteWord(Device, 0x4, (uint16_t)((PciCommand & ~(0x400)) | 0x2 | 0x4));
+	PciCommand = (uint16_t)PciDeviceRead(Device, 0x4, 2);
+	PciDeviceWrite(Device, 0x4, (PciCommand & ~(0x400)) | 0x2 | 0x4, 2);
 
 	/* Get location of Registers */
 	Controller->ControlSpace = Device->Header->Bar0;
@@ -384,7 +384,7 @@ void OhciInitQueues(OhciController_t *Controller)
 		/* Allocate another page? */
 		if (BufAddr > BufAddrMax)
 		{
-			BufAddr = (Addr_t)kmallocAligned(0x1000);
+			BufAddr = (Addr_t)kmalloc_a(0x1000);
 			BufAddrMax = BufAddr + 0x1000 - 1;
 		}
 
@@ -1109,7 +1109,7 @@ OhciGTransferDescriptor_t *OhciTdIo(OhciController_t *Controller, UsbTransferTyp
 		Td = (OhciGTransferDescriptor_t*)TDIndex;
 
 		/* Allocate a buffer */
-		Buffer = (void*)kmallocAligned(0x1000);
+		Buffer = (void*)kmalloc_a(0x1000);
 	}
 	else
 	{
@@ -1117,7 +1117,7 @@ OhciGTransferDescriptor_t *OhciTdIo(OhciController_t *Controller, UsbTransferTyp
 		iTd = (OhciITransferDescriptor_t*)TDIndex;
 
 		/* Allocate a buffer */
-		Buffer = (void*)kmallocAligned(0x1000);
+		Buffer = (void*)kmalloc_a(0x1000);
 
 		/* Todo */
 		kernel_panic("OHCI: Isochronous support is lacking!");

@@ -78,10 +78,18 @@ IntStatus_t InterruptIsDisabled(void)
 }
 
 /* Typedefs */
-typedef void(*__irqinstallisa)(uint32_t Irq, uint32_t IdtEntry, IrqHandler_t Callback, void *Args);
+#include <x86\Pci.h>
+
+typedef void (*__irqinstallisa)(uint32_t Irq, uint32_t IdtEntry, IrqHandler_t Callback, void *Args);
+typedef void (*__irqinstallpci)(PciDevice_t *PciDevice, IrqHandler_t Callback, void *Args);
 
 /* Install Irq for Legacy device */
 void InterruptInstallISA(uint32_t Irq, uint32_t IdtEntry, IrqHandler_t Callback, void *Args)
 {
 	((__irqinstallisa)GlbFunctionTable[kFuncInstallIrqISA])(Irq, IdtEntry, Callback, Args);
+}
+
+void InterruptInstallPci(PciDevice_t *PciDevice, IrqHandler_t Callback, void *Args)
+{
+	((__irqinstallpci)GlbFunctionTable[kFuncInstallIrqPci])(PciDevice, Callback, Args);
 }

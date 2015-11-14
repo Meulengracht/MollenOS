@@ -113,6 +113,32 @@ void PciWriteByte(const uint16_t Bus, const uint16_t Device,
 	outb(X86_PCI_DATA + (Register & 0x03), Value);
 }
 
+/* Helpers */
+uint32_t PciDeviceRead(PciDevice_t *Device, uint32_t Register, uint32_t Length)
+{
+	if (Length == 1)
+		return (uint32_t)PciReadByte((const uint16_t)Device->Bus, 
+		(const uint16_t)Device->Device, (const uint16_t)Device->Function, Register);
+	else if (Length == 2)
+		return (uint32_t)PciReadWord((const uint16_t)Device->Bus, 
+		(const uint16_t)Device->Device, (const uint16_t)Device->Function, Register);
+	else
+		return PciReadDword((const uint16_t)Device->Bus, 
+		(const uint16_t)Device->Device, (const uint16_t)Device->Function, Register);
+}
+
+void PciDeviceWrite(PciDevice_t *Device, uint32_t Register, uint32_t Value, uint32_t Length)
+{
+	if (Length == 1)
+		PciWriteByte((const uint16_t)Device->Bus,
+		(const uint16_t)Device->Device, (const uint16_t)Device->Function, Register, (uint8_t)(Value & 0xFF));
+	else if (Length == 2)
+		PciWriteWord((const uint16_t)Device->Bus,
+		(const uint16_t)Device->Device, (const uint16_t)Device->Function, Register, (uint16_t)(Value & 0xFFFFF));
+	else
+		PciWriteDword((const uint16_t)Device->Bus,
+		(const uint16_t)Device->Device, (const uint16_t)Device->Function, Register, Value);
+}
 
 /* Reads the vendor id at given location */
 uint16_t PciReadVendorId(const uint16_t Bus, const uint16_t Device, const uint16_t Function)

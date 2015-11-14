@@ -257,6 +257,7 @@ _CRT_EXTERN uint16_t PciReadWord(const uint16_t Bus, const uint16_t Device,
 								 const uint16_t Function, const uint32_t Register);
 _CRT_EXTERN uint32_t PciReadDword(const uint16_t Bus, const uint16_t Device,
 								  const uint16_t Function, const uint32_t Register);
+_CRT_EXTERN uint32_t PciDeviceRead(PciDevice_t *Device, uint32_t Register, uint32_t Length);
 
 /* Write I/O */
 _CRT_EXTERN void PciWriteByte(const uint16_t Bus, const uint16_t Device,
@@ -265,6 +266,7 @@ _CRT_EXTERN void PciWriteWord(const uint16_t Bus, const uint16_t Device,
 							  const uint16_t Function, const uint32_t Register, uint16_t Value);
 _CRT_EXTERN void PciWriteDword(const uint16_t Bus, const uint16_t Device,
 							   const uint16_t Function, const uint32_t Register, uint32_t Value);
+_CRT_EXTERN void PciDeviceWrite(PciDevice_t *Device, uint32_t Register, uint32_t Value, uint32_t Length);
 
 /* Install PCI Interrupt */
 _CRT_EXTERN void InterruptInstallPci(PciDevice_t *PciDevice, IrqHandler_t Callback, void *Args);

@@ -37,3 +37,19 @@ void _ThreadYield(void)
 {
 	((__threadyield)GlbFunctionTable[kFuncYield])();
 }
+
+/* Scheduler */
+typedef void (*__schedsleepthread)(Addr_t *Resource);
+typedef int (*__schedwakeone)(Addr_t *Resource);
+
+/* Put a thread to sleep untill resource is free */
+void SchedulerSleepThread(Addr_t *Resource)
+{
+	((__schedsleepthread)GlbFunctionTable[kFuncSleepThread])(Resource);
+}
+
+/* Wake a thread on a resource */
+int SchedulerWakeupOneThread(Addr_t *Resource)
+{
+	return ((__schedwakeone)GlbFunctionTable[kFuncWakeThread])(Resource);
+}

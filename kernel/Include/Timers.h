@@ -72,6 +72,16 @@ _CRT_EXTERN void DelayMs(uint32_t MilliSeconds);
 
 
 /* Tools */
+#ifdef MODULES_EXPORTS
+#define WaitForCondition(condition, runs, wait, message, ...)\
+    for (unsigned int timeout_ = 0; !(condition); timeout_++) {\
+        if (timeout_ >= runs) {\
+             DebugPrint(message, __VA_ARGS__);\
+             break;\
+														        }\
+        StallMs(wait);\
+							    }
+#else
 #define WaitForCondition(condition, runs, wait, message, ...)\
     for (unsigned int timeout_ = 0; !(condition); timeout_++) {\
         if (timeout_ >= runs) {\
@@ -80,6 +90,7 @@ _CRT_EXTERN void DelayMs(uint32_t MilliSeconds);
 												        }\
         StallMs(wait);\
 						    }
+#endif
 #define WaitForConditionWithFault(fault, condition, runs, wait)\
 	fault = 0; \
     for (unsigned int timeout_ = 0; !(condition); timeout_++) {\

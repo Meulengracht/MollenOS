@@ -30,6 +30,7 @@ Addr_t *GlbFunctionTable = NULL;
 /* Typedefs */
 typedef void(*__kpanic)(const char *Msg);
 typedef void(*__stall)(uint32_t MilliSeconds);
+typedef void(*__delay)(uint32_t MilliSeconds);
 typedef void(*__readtsc)(uint64_t *val);
 
 void kernel_panic(const char *Msg)
@@ -40,6 +41,11 @@ void kernel_panic(const char *Msg)
 void StallMs(uint32_t MilliSeconds)
 {
 	((__stall)GlbFunctionTable[kFuncStall])(MilliSeconds);
+}
+
+void DelayMs(uint32_t MilliSeconds)
+{
+	((__delay)GlbFunctionTable[kFuncDelay])(MilliSeconds);
 }
 
 void ReadTSC(uint64_t *Value)
@@ -63,4 +69,22 @@ DevId_t DmCreateDevice(char *Name, DeviceType_t Type, void *Data)
 void DmDestroyDevice(DevId_t DeviceId)
 {
 	((__unregdevice)GlbFunctionTable[kFuncUnregisterDevice])(DeviceId);
+}
+
+/* Pci */
+#include <x86\Pci.h>
+
+typedef uint32_t (*__pciread)(PciDevice_t *Device, uint32_t Register, uint32_t Length);
+typedef void (*__pciwrite)(PciDevice_t *Device, uint32_t Register, uint32_t Value, uint32_t Length);
+
+/* Read from Pci Device */
+uint32_t PciDeviceRead(PciDevice_t *Device, uint32_t Register, uint32_t Length)
+{
+	return ((__pciread)GlbFunctionTable[kFuncReadPciDevice])(Device, Register, Length);
+}
+
+/* Write to pci device */
+void PciDeviceWrite(PciDevice_t *Device, uint32_t Register, uint32_t Value, uint32_t Length)
+{
+	((__pciwrite)GlbFunctionTable[kFuncWritePciDevice])(Device, Register, Value, Length);
 }

@@ -22,8 +22,10 @@
 /* Includes */
 #include <acpi.h>
 #include <Module.h>
+#include <DeviceManager.h>
 #include <Devices\Timer.h>
 #include "Hpet.h"
+#include <Heap.h>
 
 /* Structures */
 #pragma pack(push, 1)
@@ -34,9 +36,6 @@ typedef struct _HpetTimer
 
 } HpetTimer_t;
 #pragma pack(pop)
-
-/* Globals */
-MCoreModuleDescriptor_t *GlbDescriptor = NULL;
 
 /* Globals */
 Addr_t GlbHpetBaseAddress = 0;
@@ -111,7 +110,7 @@ int HpetTimerHandler(void *Args)
 		/* If we are not periodic restart us */
 		if (Timer->Periodic != 1)
 		{
-			printf("Philip implement retarting of non-peridoic timers please!");
+			DebugPrint("Philip implement retarting of non-peridoic timers please!");
 			for (;;);
 		}
 	}
@@ -305,25 +304,25 @@ OsStatus_t HpetComparatorSetup(uint32_t Comparator)
 }
 
 /* Entry point of a module */
-MODULES_API void ModuleInit(MCoreModuleDescriptor_t *DriverDescriptor, void *DeviceData)
+MODULES_API void ModuleInit(Addr_t *FunctionTable, void *Data)
 {
 	/* We need these */
 	MCoreTimerDevice_t *Timer = NULL;
-	ACPI_TABLE_HPET *Hpet = (ACPI_TABLE_HPET*)DeviceData;
+	ACPI_TABLE_HPET *Hpet = (ACPI_TABLE_HPET*)Data;
 	uint8_t Itr = 0;
 	volatile uint32_t Temp = 0;
 	IntStatus_t IntState;
 
 	/* Save */
-	GlbDescriptor = DriverDescriptor;
+	GlbFunctionTable = FunctionTable;
+
+	/* Sanity */
+	if (Data == NULL)
+		return;
 
 	/* Allocate */
 	//Pit = (PitTimer_t*)GlbDescriptor->MemAlloc(sizeof(PitTimer_t));
-	Timer = (MCoreTimerDevice_t*)GlbDescriptor->MemAlloc(sizeof(MCoreTimerDevice_t));
-
-	/* Sanity */
-	if (DeviceData == NULL)
-		return;
+	Timer = (MCoreTimerDevice_t*)kmalloc(sizeof(MCoreTimerDevice_t));
 
 	/* Disable Interrupts */
 	IntState = InterruptDisable();
@@ -433,7 +432,6 @@ MODULES_API void ModuleInit(MCoreModuleDescriptor_t *DriverDescriptor, void *Dev
 		}
 	}
 }
-
 
 /* Pit Ticks */
 uint64_t HpetGetClocks(void)
