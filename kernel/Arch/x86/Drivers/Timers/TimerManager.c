@@ -89,7 +89,7 @@ void TimerManagerInit(void)
 	GlbTimerMode = 1;
 }
 
-/* Stall-No-Int */
+/* Stall-No-Int (BACKUP) */
 void DelayMs(uint32_t MilliSeconds)
 {
 	/* Keep value in this */
@@ -111,44 +111,3 @@ void DelayMs(uint32_t MilliSeconds)
 	while (Counter < TimeOut) { rdtsc(&Counter);  }
 }
 
-/* Sleep function */
-void SleepMs(uint32_t MilliSeconds)
-{
-	/* Call correct */
-	if (GlbTimerMode == 3)
-		RtcSleep(MilliSeconds);
-	else if (GlbTimerMode == 2)
-		PitSleep(MilliSeconds);
-	else if (GlbTimerMode == 1)
-		HpetSleep(MilliSeconds); /* Hpet */
-	else
-		DelayMs(MilliSeconds);
-}
-
-void SleepNs(uint32_t NanoSeconds)
-{
-	/* Only Hpet supports this */
-	if (GlbTimerMode != 1)
-		SleepMs(1);
-}
-
-/* Stall functions */
-void StallMs(uint32_t MilliSeconds)
-{
-	/* Call correct */
-	if (GlbTimerMode == 3)
-		RtcStall(MilliSeconds);
-	else if (GlbTimerMode == 2)
-		PitStall(MilliSeconds);
-	else if (GlbTimerMode == 1)
-		HpetStall(MilliSeconds); /* Hpet */
-	else
-		DelayMs(MilliSeconds);
-}
-
-void StallNs(uint32_t NanoSeconds)
-{
-	/* Only Hpet supports this */
-	if (GlbTimerMode != 1)
-		StallMs(1);
-}

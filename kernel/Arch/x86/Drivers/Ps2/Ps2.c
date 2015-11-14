@@ -23,7 +23,7 @@
 #include <Arch.h>
 #include <acpi.h>
 #include <Drivers\Ps2\Ps2.h>
-#include <SysTimers.h>
+#include <Timers.h>
 #include <stdio.h>
 
 /* Ps2 Drivers */

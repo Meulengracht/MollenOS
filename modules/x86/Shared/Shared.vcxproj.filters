@@ -5,6 +5,9 @@
       <UniqueIdentifier>{4FC737F1-C7A5-4376-A066-2A32D752A2FF}</UniqueIdentifier>
       <Extensions>cpp;c;cc;cxx;def;odl;idl;hpj;bat;asm;asmx</Extensions>
     </Filter>
+    <Filter Include="Asm Files">
+      <UniqueIdentifier>{1157812b-9645-48aa-bd05-ad9d59b9d717}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Memory.c">
@@ -16,5 +19,28 @@
     <ClCompile Include="List.c">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="Spinlock.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Irq.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Threading.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Synchronization.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <CustomBuild Include="_Irq.asm">
+      <Filter>Asm Files</Filter>
+    </CustomBuild>
+    <CustomBuild Include="_Portio.asm">
+      <Filter>Asm Files</Filter>
+    </CustomBuild>
+    <CustomBuild Include="_Spinlock.asm">
+      <Filter>Asm Files</Filter>
+    </CustomBuild>
   </ItemGroup>
 </Project>

@@ -24,6 +24,7 @@
 
 /* Includes */
 #include <Module.h>
+#include <x86\Pci.h>
 
 /* Definitions */
 #define X86_OHCI_STRUCT_ALIGN		32

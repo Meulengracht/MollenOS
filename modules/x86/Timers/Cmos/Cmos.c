@@ -21,9 +21,13 @@
 */
 
 /* Includes */
+#include <DeviceManager.h>
 #include <Devices\Clock.h>
 #include <Module.h>
 #include <Cmos.h>
+
+/* Clib */
+#include <Heap.h>
 
 /* Structures */
 #pragma pack(push, 1)
@@ -40,7 +44,6 @@ typedef struct _CmosClock
 
 /* Mutex */
 Mutex_t *GlbCmosLock = NULL;
-MCoreModuleDescriptor_t *GlbDescriptor = NULL;
 
 /* Gets current time and stores it in a time structure */
 void CmosGetTime(void *Data, tm *TimeStructure)
@@ -126,23 +129,23 @@ void CmosGetTime(void *Data, tm *TimeStructure)
 }
 
 /* Entry point of a module */
-MODULES_API void ModuleInit(MCoreModuleDescriptor_t *DriverDescriptor, void *DeviceData)
+MODULES_API void ModuleInit(Addr_t *FunctionTable, void *Data)
 {
 	/* Vars */
 	MCoreClockDevice_t *Clock = NULL;
 	CmosClock_t *Cmos = NULL;
 
 	/* Init lock */
-	GlbDescriptor = DriverDescriptor;
-	GlbCmosLock = GlbDescriptor->MutexCreate();
+	GlbFunctionTable = FunctionTable;
+	GlbCmosLock = MutexCreate();
 
 	/* Allocate */
-	Cmos = (CmosClock_t*)GlbDescriptor->MemAlloc(sizeof(CmosClock_t));
-	Clock = (MCoreClockDevice_t*)GlbDescriptor->MemAlloc(sizeof(MCoreClockDevice_t));
+	Cmos = (CmosClock_t*)kmalloc(sizeof(CmosClock_t));
+	Clock = (MCoreClockDevice_t*)kmalloc(sizeof(MCoreClockDevice_t));
 
 	/* Set */
-	if (DeviceData != NULL)
-		Cmos->AcpiCentury = *(uint8_t*)DeviceData;
+	if (Data != NULL)
+		Cmos->AcpiCentury = *(uint8_t*)Data;
 	else
 		Cmos->AcpiCentury = 0;
 
@@ -151,7 +154,7 @@ MODULES_API void ModuleInit(MCoreModuleDescriptor_t *DriverDescriptor, void *Dev
 	Clock->GetTime = CmosGetTime;
 
 	/* Register */
-	Cmos->DeviceId = GlbDescriptor->DeviceRegister("CMOS Clock", DeviceClock, Cmos);
+	Cmos->DeviceId = DmCreateDevice("CMOS Clock", DeviceClock, Cmos);
 
 	/* Init Rtc */
 	RtcInit();
@@ -164,19 +167,19 @@ uint8_t CmosReadRegister(uint8_t Register)
 	uint8_t Tmp = 0, RetValue;
 
 	/* Acquire Mutex */
-	GlbDescriptor->MutexLock(GlbCmosLock);
+	MutexLock(GlbCmosLock);
 
 	/* Keep NMI if disabled */
-	Tmp = GlbDescriptor->PortReadByte(X86_CMOS_IO_SELECT) & X86_CMOS_NMI_BIT;
+	Tmp = inb(X86_CMOS_IO_SELECT) & X86_CMOS_NMI_BIT;
 
 	/* Select Register (but do not change NMI) */
-	GlbDescriptor->PortWriteByte(X86_CMOS_IO_SELECT, (Tmp | (Register & X86_CMOS_ALLBITS_NONMI)));
+	outb(X86_CMOS_IO_SELECT, (Tmp | (Register & X86_CMOS_ALLBITS_NONMI)));
 
 	/* Get Data */
-	RetValue = GlbDescriptor->PortReadByte(X86_CMOS_IO_DATA);
+	RetValue = inb(X86_CMOS_IO_DATA);
 
 	/* Unlock */
-	GlbDescriptor->MutexUnlock(GlbCmosLock);
+	MutexUnlock(GlbCmosLock);
 
 	/* Done */
 	return RetValue;
@@ -188,17 +191,17 @@ void CmosWriteRegister(uint8_t Register, uint8_t Data)
 	uint8_t Tmp = 0;
 
 	/* Acquire Mutex */
-	GlbDescriptor->MutexLock(GlbCmosLock);
+	MutexLock(GlbCmosLock);
 
 	/* Keep NMI if disabled */
-	Tmp = GlbDescriptor->PortReadByte(X86_CMOS_IO_SELECT) & X86_CMOS_NMI_BIT;
+	Tmp = inb(X86_CMOS_IO_SELECT) & X86_CMOS_NMI_BIT;
 
 	/* Select Register (but do not change NMI) */
-	GlbDescriptor->PortWriteByte(X86_CMOS_IO_SELECT, (Tmp | (Register & X86_CMOS_ALLBITS_NONMI)));
+	outb(X86_CMOS_IO_SELECT, (Tmp | (Register & X86_CMOS_ALLBITS_NONMI)));
 
 	/* Write Data */
-	GlbDescriptor->PortWriteByte(X86_CMOS_IO_DATA, Data);
+	outb(X86_CMOS_IO_DATA, Data);
 
 	/* Unlock */
-	GlbDescriptor->MutexUnlock(GlbCmosLock);
+	MutexUnlock(GlbCmosLock);
 }

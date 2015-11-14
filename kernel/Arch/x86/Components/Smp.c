@@ -22,7 +22,7 @@
 #include <Arch.h>
 #include <Acpi.h>
 #include <Apic.h>
-#include <SysTimers.h>
+#include <Timers.h>
 #include <Gdt.h>
 #include <Thread.h>
 #include <Scheduler.h>

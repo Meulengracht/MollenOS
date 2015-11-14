@@ -35,5 +35,5 @@ void *kmalloc(size_t sz)
 
 void kfree(void *p)
 {
-	return ((kMemFree)GlbFunctionTable[kFuncMemAlloc])(p);
+	((kMemFree)GlbFunctionTable[kFuncMemAlloc])(p);
 }

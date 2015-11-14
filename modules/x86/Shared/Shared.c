@@ -29,8 +29,38 @@ Addr_t *GlbFunctionTable = NULL;
 
 /* Typedefs */
 typedef void(*__kpanic)(const char *Msg);
+typedef void(*__stall)(uint32_t MilliSeconds);
+typedef void(*__readtsc)(uint64_t *val);
 
 void kernel_panic(const char *Msg)
 {
 	((__kpanic)GlbFunctionTable[kFuncKernelPanic])(Msg);
+}
+
+void StallMs(uint32_t MilliSeconds)
+{
+	((__stall)GlbFunctionTable[kFuncStall])(MilliSeconds);
+}
+
+void ReadTSC(uint64_t *Value)
+{
+	((__readtsc)GlbFunctionTable[kFuncReadTSC])(Value);
+}
+
+/* Devices */
+#include <DeviceManager.h>
+
+typedef DevId_t(*__regdevice)(char *Name, DeviceType_t Type, void *Data);
+typedef void (*__unregdevice)(DevId_t DeviceId);
+
+/* Register Device Wrapper */
+DevId_t DmCreateDevice(char *Name, DeviceType_t Type, void *Data)
+{
+	return ((__regdevice)GlbFunctionTable[kFuncRegisterDevice])(Name, Type, Data);
+}
+
+/* Unregister Device Wrapper */
+void DmDestroyDevice(DevId_t DeviceId)
+{
+	((__unregdevice)GlbFunctionTable[kFuncUnregisterDevice])(DeviceId);
 }

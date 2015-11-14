@@ -124,7 +124,6 @@
 #else
 #include "..\Arch\x86\x32\Arch.h"
 #include "..\Arch\x86\Memory.h"
-#include "..\Arch\x86\SysTimers.h"
 #endif
 
 /* Shared */
@@ -132,6 +131,7 @@
 
 #include <Heap.h>
 #include <Semaphore.h>
+#include <Timers.h>
 #include <stdio.h>
 
 #define _COMPONENT          ACPI_OS_SERVICES

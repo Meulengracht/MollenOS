@@ -20,9 +20,11 @@
 */
 
 /* Includes */
+#include <DeviceManager.h>
 #include <Devices\Timer.h>
 #include <Module.h>
 #include "Pit.h"
+#include <Heap.h>
 
 /* Structures */
 #pragma pack(push, 1)
@@ -39,9 +41,6 @@ typedef struct _PitTimer
 
 } PitTimer_t;
 #pragma pack(pop)
-
-/* Globals */
-MCoreModuleDescriptor_t *GlbDescriptor = NULL;
 
 /* The Pit Handler */
 int PitIrqHandler(void *Data)
@@ -61,7 +60,7 @@ int PitIrqHandler(void *Data)
 }
 
 /* Entry point of a module */
-MODULES_API void ModuleInit(MCoreModuleDescriptor_t *DriverDescriptor, void *DeviceData)
+MODULES_API void ModuleInit(Addr_t *FunctionTable, void *Data)
 {
 	/* We need these */
 	MCoreTimerDevice_t *Timer = NULL;
@@ -72,17 +71,17 @@ MODULES_API void ModuleInit(MCoreModuleDescriptor_t *DriverDescriptor, void *Dev
 	IntStatus_t IntrState;
 
 	/* Unused */
-	_CRT_UNUSED(DeviceData);
+	_CRT_UNUSED(Data);
 
 	/* Save */
-	GlbDescriptor = DriverDescriptor;
+	GlbFunctionTable = FunctionTable;
 
 	/* Allocate */
-	Pit = (PitTimer_t*)GlbDescriptor->MemAlloc(sizeof(PitTimer_t));
-	Timer = (MCoreTimerDevice_t*)GlbDescriptor->MemAlloc(sizeof(MCoreTimerDevice_t));
+	Pit = (PitTimer_t*)kmalloc(sizeof(PitTimer_t));
+	Timer = (MCoreTimerDevice_t*)kmalloc(sizeof(MCoreTimerDevice_t));
 
 	/* Disable IRQ's for this duration */
-	IntrState = GlbDescriptor->InterruptDisable();
+	IntrState = InterruptDisable();
 	Pit->PitCounter = 0;
 	Pit->Divisor = Divisor;
 
@@ -93,23 +92,23 @@ MODULES_API void ModuleInit(MCoreModuleDescriptor_t *DriverDescriptor, void *Dev
 	Timer->GetTicks = PitGetClocks;
 
 	/* Install Irq */
-	GlbDescriptor->InterruptInstallISA(X86_PIT_IRQ, INTERRUPT_PIT, PitIrqHandler, Timer);
+	InterruptInstallISA(X86_PIT_IRQ, INTERRUPT_PIT, PitIrqHandler, Timer);
 
 	/* We use counter 0, select counter 0 and configure it */
-	GlbDescriptor->PortWriteByte(X86_PIT_REGISTER_COMMAND,
+	outb(X86_PIT_REGISTER_COMMAND,
 		X86_PIT_COMMAND_SQUAREWAVEGEN |
 		X86_PIT_COMMAND_RL_DATA |
 		X86_PIT_COMMAND_COUNTER_0);
 
 	/* Set divisor */
-	GlbDescriptor->PortWriteByte(X86_PIT_REGISTER_COUNTER0, (uint8_t)(Divisor & 0xFF));
-	GlbDescriptor->PortWriteByte(X86_PIT_REGISTER_COUNTER0, (uint8_t)((Divisor >> 8) & 0xFF));
+	outb(X86_PIT_REGISTER_COUNTER0, (uint8_t)(Divisor & 0xFF));
+	outb(X86_PIT_REGISTER_COUNTER0, (uint8_t)((Divisor >> 8) & 0xFF));
 
 	/* Before enabling, register us */
-	Pit->DeviceId = GlbDescriptor->DeviceRegister("PIT Timer", DeviceTimer, Pit);
+	Pit->DeviceId = DmCreateDevice("PIT Timer", DeviceTimer, Pit);
 
 	/* Done, reenable interrupts */
-	GlbDescriptor->InterruptRestoreState(IntrState);
+	InterruptRestoreState(IntrState);
 }
 
 /* Pit Ticks */
@@ -130,7 +129,7 @@ void PitSleep(void *Data, uint32_t MilliSeconds)
 
 	/* While */
 	while (TickEnd >= PitGetClocks(Data))
-		GlbDescriptor->Yield();
+		_ThreadYield();
 }
 
 /* Stall for ms */

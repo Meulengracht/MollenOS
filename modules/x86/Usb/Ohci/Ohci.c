@@ -30,32 +30,19 @@
 /* Additional Includes */
 #include <UsbCore.h>
 #include <Scheduler.h>
+#include <Heap.h>
+#include <Timers.h>
+
+/* Better abstraction? Woah */
+#include <x86\Pci.h>
+#include <x86\Memory.h>
 
 /* CLib */
+#include <assert.h>
 #include <string.h>
 
 /* Globals */
-MCoreModuleDescriptor_t *GlbDescriptor = NULL;
 uint32_t GlbOhciControllerId = 0;
-
-/* Tools */
-#define WaitForCondition(condition, runs, wait, message, ...)\
-    for (unsigned int timeout_ = 0; !(condition); timeout_++) {\
-        if (timeout_ >= runs) {\
-             GlbDescriptor->DebugPrint(message, __VA_ARGS__);\
-             break;\
-										        }\
-        GlbDescriptor->StallMs(wait);\
-					    }
-#define WaitForConditionWithFault(fault, condition, runs, wait)\
-	fault = 0; \
-    for (unsigned int timeout_ = 0; !(condition); timeout_++) {\
-        if (timeout_ >= runs) {\
-			 fault = 1; \
-             break;\
-								        }\
-        GlbDescriptor->StallMs(wait);\
-				    }
 
 /* Prototypes */
 int OhciInterruptHandler(void *data);
@@ -94,17 +81,17 @@ const char *OhciErrorMessages[] =
 };
 
 /* Entry point of a module */
-MODULES_API void ModuleInit(MCoreModuleDescriptor_t *DriverDescriptor, void *DeviceData)
+MODULES_API void ModuleInit(Addr_t *FunctionTable, void *Data)
 {
 	uint16_t PciCommand;
 	OhciController_t *Controller = NULL;
-	PciDevice_t *Device = (PciDevice_t*)DeviceData;
+	PciDevice_t *Device = (PciDevice_t*)Data;
 
 	/* Save this */
-	GlbDescriptor = DriverDescriptor;
+	GlbFunctionTable = FunctionTable;
 
 	/* Allocate Resources for this Controller */
-	Controller = (OhciController_t*)GlbDescriptor->MemAlloc(sizeof(OhciController_t));
+	Controller = (OhciController_t*)kmalloc(sizeof(OhciController_t));
 	Controller->PciDevice = Device;
 	Controller->Id = GlbOhciControllerId;
 
@@ -119,7 +106,7 @@ MODULES_API void ModuleInit(MCoreModuleDescriptor_t *DriverDescriptor, void *Dev
 	if (Controller->ControlSpace == 0 || (Controller->ControlSpace & 0x1))
 	{
 		/* Yea, give me my hat back */
-		GlbDescriptor->MemFree(Controller);
+		kfree(Controller);
 		return;
 	}
 
@@ -127,16 +114,16 @@ MODULES_API void ModuleInit(MCoreModuleDescriptor_t *DriverDescriptor, void *Dev
 	GlbOhciControllerId++;
 
 	/* Memory map needed space */
-	Controller->Registers = (volatile OhciRegisters_t*)GlbDescriptor->MemMapSystemMemory(Controller->ControlSpace, 1);
-	Controller->HccaSpace = (uint32_t)GlbDescriptor->MemAllocDma();
+	Controller->Registers = (volatile OhciRegisters_t*)MmVirtualMapSysMemory(Controller->ControlSpace, 1);
+	Controller->HccaSpace = (uint32_t)MmPhysicalAllocateBlockDma();
 	Controller->HCCA = (volatile OhciHCCA_t*)Controller->HccaSpace;
-	GlbDescriptor->SpinlockReset(&Controller->Lock);
+	SpinlockReset(&Controller->Lock);
 
 	/* Memset HCCA Space */
 	memset((void*)Controller->HCCA, 0, 0x1000);
 
 	/* Install IRQ Handler */
-	GlbDescriptor->InterruptInstallPci(Device, OhciInterruptHandler, Controller);
+	InterruptInstallPci(Device, OhciInterruptHandler, Controller);
 
 	/* Debug */
 #ifdef _OHCI_DIAGNOSTICS_
@@ -205,7 +192,7 @@ void OhciPortReset(OhciController_t *Controller, uint32_t Port)
 		Controller->Registers->HcRhPortStatus[Port] = X86_OHCI_PORT_ENABLED;
 
 	/* Stall */
-	GlbDescriptor->StallMs(50);
+	StallMs(50);
 }
 
 /* Callbacks */
@@ -215,7 +202,7 @@ void OhciPortStatus(void *ControllerData, UsbHcPort_t *Port)
 	uint32_t Status;
 
 	/* Wait for power to stabilize */
-	GlbDescriptor->StallMs(Controller->PowerOnDelayMs);
+	StallMs(Controller->PowerOnDelayMs);
 
 	/* Reset Port */
 	OhciPortReset(Controller, Port->Id);
@@ -297,7 +284,7 @@ void OhciPortCheck(OhciController_t *Controller, uint32_t Port)
 			/* Sanity */
 			if (HcCtrl == NULL)
 			{
-				GlbDescriptor->DebugPrint("OHCI: Controller %u is zombie and is trying to register Ports!!\n", Controller->Id);
+				DebugPrint("OHCI: Controller %u is zombie and is trying to register Ports!!\n", Controller->Id);
 				return;
 			}
 
@@ -349,7 +336,7 @@ void OhciInitQueues(OhciController_t *Controller)
 	int i;
 
 	/* Create the NULL Td */
-	Controller->NullTd = (OhciGTransferDescriptor_t*)OhciAlign(((Addr_t)GlbDescriptor->MemAlloc(sizeof(OhciGTransferDescriptor_t) + X86_OHCI_STRUCT_ALIGN)), X86_OHCI_STRUCT_ALIGN_BITS, X86_OHCI_STRUCT_ALIGN);
+	Controller->NullTd = (OhciGTransferDescriptor_t*)OhciAlign(((Addr_t)kmalloc(sizeof(OhciGTransferDescriptor_t) + X86_OHCI_STRUCT_ALIGN)), X86_OHCI_STRUCT_ALIGN_BITS, X86_OHCI_STRUCT_ALIGN);
 	Controller->NullTd->BufferEnd = 0;
 	Controller->NullTd->Cbp = 0;
 	Controller->NullTd->NextTD = 0x0;
@@ -359,7 +346,7 @@ void OhciInitQueues(OhciController_t *Controller)
 	for (i = 0; i < X86_OHCI_POOL_NUM_ED; i++)
 	{
 		/* Allocate */
-		Addr_t aSpace = (Addr_t)GlbDescriptor->MemAlloc(sizeof(OhciEndpointDescriptor_t) + X86_OHCI_STRUCT_ALIGN);
+		Addr_t aSpace = (Addr_t)kmalloc(sizeof(OhciEndpointDescriptor_t) + X86_OHCI_STRUCT_ALIGN);
 		Controller->EDPool[i] = (OhciEndpointDescriptor_t*)OhciAlign(aSpace, X86_OHCI_STRUCT_ALIGN_BITS, X86_OHCI_STRUCT_ALIGN);
 
 		/* Zero it out */
@@ -372,17 +359,17 @@ void OhciInitQueues(OhciController_t *Controller)
 		Controller->EDPool[i]->HcdFlags = 0;
 		Controller->EDPool[i]->Flags = X86_OHCI_EP_SKIP;
 		Controller->EDPool[i]->HeadPtr =
-			(Controller->EDPool[i]->TailPtr = GlbDescriptor->MemVirtualGetMapping(NULL, (Addr_t)Controller->NullTd)) | 0x1;
+			(Controller->EDPool[i]->TailPtr = MmVirtualGetMapping(NULL, (Addr_t)Controller->NullTd)) | 0x1;
 	}
 
 	/* Initialise Bulk/Control Td Pool & Buffers */
-	BufAddr = (Addr_t)GlbDescriptor->MemAllocAligned(0x1000);
+	BufAddr = (Addr_t)kmalloc_a(0x1000);
 	BufAddrMax = BufAddr + 0x1000 - 1;
 
 	/* Allocate Pool of 100 Td's */
-	Pool = (Addr_t)GlbDescriptor->MemAlloc((sizeof(OhciGTransferDescriptor_t) * X86_OHCI_POOL_NUM_TD) + X86_OHCI_STRUCT_ALIGN);
+	Pool = (Addr_t)kmalloc((sizeof(OhciGTransferDescriptor_t) * X86_OHCI_POOL_NUM_TD) + X86_OHCI_STRUCT_ALIGN);
 	Pool = OhciAlign(Pool, X86_OHCI_STRUCT_ALIGN_BITS, X86_OHCI_STRUCT_ALIGN);
-	PoolPhys = GlbDescriptor->MemVirtualGetMapping(NULL, Pool);
+	PoolPhys = MmVirtualGetMapping(NULL, Pool);
 
 	/* Memset it */
 	memset((void*)Pool, 0, sizeof(OhciGTransferDescriptor_t) * X86_OHCI_POOL_NUM_TD);
@@ -397,13 +384,13 @@ void OhciInitQueues(OhciController_t *Controller)
 		/* Allocate another page? */
 		if (BufAddr > BufAddrMax)
 		{
-			BufAddr = (Addr_t)GlbDescriptor->MemAllocAligned(0x1000);
+			BufAddr = (Addr_t)kmallocAligned(0x1000);
 			BufAddrMax = BufAddr + 0x1000 - 1;
 		}
 
 		/* Setup Buffer */
 		Controller->TDPoolBuffers[i] = (Addr_t*)BufAddr;
-		Controller->TDPool[i]->Cbp = GlbDescriptor->MemVirtualGetMapping(NULL, BufAddr);
+		Controller->TDPool[i]->Cbp = MmVirtualGetMapping(NULL, BufAddr);
 		Controller->TDPool[i]->NextTD = 0x1;
 
 		/* Increase */
@@ -504,7 +491,7 @@ void OhciInitQueues(OhciController_t *Controller)
 	Controller->TransactionsWaitingControl = 0;
 	Controller->TransactionQueueBulk = 0;
 	Controller->TransactionQueueControl = 0;
-	Controller->TransactionList = GlbDescriptor->ListCreate(LIST_SAFE);
+	Controller->TransactionList = list_create(LIST_SAFE);
 }
 
 /* Take control of OHCI controller */
@@ -532,10 +519,11 @@ int OhciTakeControl(OhciController_t *Controller)
 
 			if (i != 0)
 			{
-				GlbDescriptor->DebugPrint("USB_OHCI: failed to clear routing bit\n");
-				GlbDescriptor->DebugPrint("USB_OHCI: SMM Won't give us the Controller, we're backing down >(\n");
-				GlbDescriptor->MemPhysicalFreeBlock(Controller->HccaSpace);
-				GlbDescriptor->MemFree(Controller);
+				DebugPrint("USB_OHCI: failed to clear routing bit\n");
+				DebugPrint("USB_OHCI: SMM Won't give us the Controller, we're backing down >(\n");
+				
+				MmPhysicalFreeBlock(Controller->HccaSpace);
+				kfree(Controller);
 				return -1;
 			}
 		}
@@ -549,7 +537,7 @@ int OhciTakeControl(OhciController_t *Controller)
 			OhciSetMode(Controller, X86_OHCI_CTRL_USB_WORKING);
 
 			/* Wait 10 ms */
-			GlbDescriptor->StallMs(10);
+			StallMs(10);
 		}
 	}
 	else
@@ -557,7 +545,7 @@ int OhciTakeControl(OhciController_t *Controller)
 		/* Cold Boot */
 
 		/* Wait 10 ms */
-		GlbDescriptor->StallMs(10);
+		StallMs(10);
 	}
 
 	return 0;
@@ -575,9 +563,9 @@ void OhciSetup(OhciController_t *Controller)
 	if (TempValue != X86_OHCI_REVISION
 		&& TempValue != 0x11)
 	{
-		GlbDescriptor->DebugPrint("OHCI Revision is wrong (0x%x), exiting :(\n", TempValue);
-		GlbDescriptor->MemPhysicalFreeBlock(Controller->HccaSpace);
-		GlbDescriptor->MemFree(Controller);
+		DebugPrint("OHCI Revision is wrong (0x%x), exiting :(\n", TempValue);
+		MmPhysicalFreeBlock(Controller->HccaSpace);
+		kfree(Controller);
 		return;
 	}
 
@@ -611,7 +599,7 @@ void OhciSetup(OhciController_t *Controller)
 
 	/* Perform a reset of HcCtrl Controller */
 	OhciSetMode(Controller, X86_OHCI_CTRL_USB_SUSPEND);
-	GlbDescriptor->StallMs(10);
+	StallMs(10);
 
 	/* Set bit 0 to Request reboot */
 	Temp = Controller->Registers->HcCommandStatus;
@@ -624,8 +612,8 @@ void OhciSetup(OhciController_t *Controller)
 	/* Sanity */
 	if (i != 0)
 	{
-		GlbDescriptor->DebugPrint("USB_OHCI: controller %u failed to reboot\n", Controller->HcdId);
-		GlbDescriptor->DebugPrint("USB_OHCI: Reset Timeout :(\n");
+		DebugPrint("USB_OHCI: controller %u failed to reboot\n", Controller->HcdId);
+		DebugPrint("USB_OHCI: Reset Timeout :(\n");
 		return;
 	}
 
@@ -672,7 +660,7 @@ void OhciSetup(OhciController_t *Controller)
 
 	/* Controller is now running! */
 #ifdef _OHCI_DIAGNOSTICS_
-	GlbDescriptor->DebugPrint("OHCI: Controller %u Started, Control 0x%x, Ints 0x%x, FmInterval 0x%x\n",
+	DebugPrint("OHCI: Controller %u Started, Control 0x%x, Ints 0x%x, FmInterval 0x%x\n",
 		Controller->Id, Controller->Registers->HcControl, Controller->Registers->HcInterruptEnable, Controller->Registers->HcFmInterval);
 #endif
 
@@ -732,7 +720,7 @@ void OhciSetup(OhciController_t *Controller)
 	Controller->PowerOnDelayMs = TempValue;
 
 #ifdef _OHCI_DIAGNOSTICS_
-	GlbDescriptor->DebugPrint("OHCI: Ports %u (power Mode %u, power delay %u)\n",
+	DebugPrint("OHCI: Ports %u (power Mode %u, power delay %u)\n",
 		Controller->Ports, Controller->PowerMode, TempValue);
 #endif
 
@@ -786,7 +774,7 @@ void OhciReset(OhciController_t *Controller)
 
 	/* Perform a reset of HcCtrl Controller */
 	OhciSetMode(Controller, X86_OHCI_CTRL_USB_SUSPEND);
-	GlbDescriptor->StallMs(200);
+	StallMs(200);
 
 	/* Okiiii, reset Controller, we need to save FmInterval */
 	FmInt = Controller->Registers->HcFmInterval;
@@ -800,14 +788,14 @@ void OhciReset(OhciController_t *Controller)
 	i = 0;
 	while ((i < 500) && Controller->Registers->HcCommandStatus & X86_OHCI_CMD_RESETCTRL)
 	{
-		GlbDescriptor->StallMs(1);
+		StallMs(1);
 		i++;
 	}
 
 	/* Sanity */
 	if (i == 500)
 	{
-		GlbDescriptor->DebugPrint("OHCI: Reset Timeout :(\n");
+		DebugPrint("OHCI: Reset Timeout :(\n");
 		return;
 	}
 
@@ -854,7 +842,7 @@ void OhciReset(OhciController_t *Controller)
 	Controller->Registers->HcFmInterval = FmInt;
 
 	/* Controller is now running! */
-	GlbDescriptor->DebugPrint("OHCI: Controller %u Started, Control 0x%x\n",
+	DebugPrint("OHCI: Controller %u Started, Control 0x%x\n",
 		Controller->Id, Controller->Registers->HcControl);
 
 	/* Check Power Mode */
@@ -896,7 +884,7 @@ Addr_t OhciAllocateEp(OhciController_t *Controller, UsbTransferType_t Type)
 	int i;
 
 	/* Pick a QH */
-	GlbDescriptor->SpinlockAcquire(&Controller->Lock);
+	SpinlockAcquire(&Controller->Lock);
 
 	/* Grap it, locked operation */
 	if (Type == ControlTransfer
@@ -917,13 +905,13 @@ Addr_t OhciAllocateEp(OhciController_t *Controller, UsbTransferType_t Type)
 
 		/* Sanity */
 		if (i == 50)
-			GlbDescriptor->KernelPanic("USB_OHCI::WTF RAN OUT OF EDS\n");
+			kernel_panic("USB_OHCI::WTF RAN OUT OF EDS\n");
 	}
 	else if (Type == InterruptTransfer
 		|| Type == IsochronousTransfer)
 	{
 		/* Allocate */
-		Addr_t aSpace = (Addr_t)GlbDescriptor->MemAlloc(sizeof(OhciEndpointDescriptor_t) + X86_OHCI_STRUCT_ALIGN);
+		Addr_t aSpace = (Addr_t)kmalloc(sizeof(OhciEndpointDescriptor_t) + X86_OHCI_STRUCT_ALIGN);
 		cIndex = OhciAlign(aSpace, X86_OHCI_STRUCT_ALIGN_BITS, X86_OHCI_STRUCT_ALIGN);
 
 		/* Zero it out */
@@ -931,7 +919,7 @@ Addr_t OhciAllocateEp(OhciController_t *Controller, UsbTransferType_t Type)
 	}
 
 	/* Release Lock */
-	GlbDescriptor->SpinlockRelease(&Controller->Lock);
+	SpinlockRelease(&Controller->Lock);
 
 	return cIndex;
 }
@@ -961,13 +949,13 @@ void OhciEpInit(OhciEndpointDescriptor_t *Ed, UsbHcTransaction_t *FirstTd, UsbTr
 				FirstLink = FirstLink->Link;
 			LastTd = (Addr_t)FirstLink->TransferDescriptor;
 
-			Ed->TailPtr = GlbDescriptor->MemVirtualGetMapping(NULL, (Addr_t)LastTd);
-			Ed->HeadPtr = GlbDescriptor->MemVirtualGetMapping(NULL, (Addr_t)FirstTdAddr) | 0x1;
+			Ed->TailPtr = MmVirtualGetMapping(NULL, (Addr_t)LastTd);
+			Ed->HeadPtr = MmVirtualGetMapping(NULL, (Addr_t)FirstTdAddr) | 0x1;
 		}
 	}
 	else
 	{
-		Ed->HeadPtr = GlbDescriptor->MemVirtualGetMapping(NULL, (VirtAddr_t)FirstTd->TransferDescriptor);
+		Ed->HeadPtr = MmVirtualGetMapping(NULL, (VirtAddr_t)FirstTd->TransferDescriptor);
 		Ed->TailPtr = 0;
 	}
 
@@ -993,7 +981,7 @@ Addr_t OhciAllocateTd(OhciController_t *Controller, UsbTransferType_t Type)
 	OhciGTransferDescriptor_t *Td;
 
 	/* Pick a QH */
-	GlbDescriptor->SpinlockAcquire(&Controller->Lock);
+	SpinlockAcquire(&Controller->Lock);
 
 	/* Sanity */
 	if (Type == ControlTransfer
@@ -1014,12 +1002,12 @@ Addr_t OhciAllocateTd(OhciController_t *Controller, UsbTransferType_t Type)
 
 		/* Sanity */
 		if (i == X86_OHCI_POOL_NUM_TD)
-			GlbDescriptor->KernelPanic("USB_OHCI::WTF ran out of TD's!!!!\n");
+			kernel_panic("USB_OHCI::WTF ran out of TD's!!!!\n");
 	}
 	else if (Type == InterruptTransfer)
 	{
 		/* Allocate a new */
-		Td = (OhciGTransferDescriptor_t*)OhciAlign(((Addr_t)GlbDescriptor->MemAlloc(sizeof(OhciGTransferDescriptor_t) + X86_OHCI_STRUCT_ALIGN)), X86_OHCI_STRUCT_ALIGN_BITS, X86_OHCI_STRUCT_ALIGN);
+		Td = (OhciGTransferDescriptor_t*)OhciAlign(((Addr_t)kmalloc(sizeof(OhciGTransferDescriptor_t) + X86_OHCI_STRUCT_ALIGN)), X86_OHCI_STRUCT_ALIGN_BITS, X86_OHCI_STRUCT_ALIGN);
 
 		/* Null it */
 		memset((void*)Td, 0, sizeof(OhciGTransferDescriptor_t));
@@ -1030,7 +1018,7 @@ Addr_t OhciAllocateTd(OhciController_t *Controller, UsbTransferType_t Type)
 	else
 	{
 		/* Allocate iDescriptor */
-		OhciITransferDescriptor_t *iTd = (OhciITransferDescriptor_t*)OhciAlign(((Addr_t)GlbDescriptor->MemAlloc(sizeof(OhciITransferDescriptor_t) + X86_OHCI_STRUCT_ALIGN)), X86_OHCI_STRUCT_ALIGN_BITS, X86_OHCI_STRUCT_ALIGN);
+		OhciITransferDescriptor_t *iTd = (OhciITransferDescriptor_t*)OhciAlign(((Addr_t)kmalloc(sizeof(OhciITransferDescriptor_t) + X86_OHCI_STRUCT_ALIGN)), X86_OHCI_STRUCT_ALIGN_BITS, X86_OHCI_STRUCT_ALIGN);
 
 		/* Null it */
 		memset((void*)iTd, 0, sizeof(OhciITransferDescriptor_t));
@@ -1040,7 +1028,7 @@ Addr_t OhciAllocateTd(OhciController_t *Controller, UsbTransferType_t Type)
 	}
 
 	/* Release Lock */
-	GlbDescriptor->SpinlockRelease(&Controller->Lock);
+	SpinlockRelease(&Controller->Lock);
 
 	return cIndex;
 }
@@ -1068,7 +1056,7 @@ OhciGTransferDescriptor_t *OhciTdSetup(OhciController_t *Controller, UsbTransfer
 	if (NextTD == X86_OHCI_TRANSFER_END_OF_LIST)
 		Td->NextTD = 0;
 	else	/* Get physical Address of NextTD and set NextTD to that */
-		Td->NextTD = GlbDescriptor->MemVirtualGetMapping(NULL, (VirtAddr_t)NextTD);
+		Td->NextTD = MmVirtualGetMapping(NULL, (VirtAddr_t)NextTD);
 
 	/* Setup the Td for a SETUP Td */
 	Td->Flags = X86_OHCI_TD_ALLOCATED;
@@ -1090,7 +1078,7 @@ OhciGTransferDescriptor_t *OhciTdSetup(OhciController_t *Controller, UsbTransfer
 	Packet->Length = RequestLength;
 
 	/* Set Td Buffer */
-	Td->Cbp = GlbDescriptor->MemVirtualGetMapping(NULL, (VirtAddr_t)Buffer);
+	Td->Cbp = MmVirtualGetMapping(NULL, (VirtAddr_t)Buffer);
 	Td->BufferEnd = Td->Cbp + sizeof(UsbPacket_t) - 1;
 
 	return Td;
@@ -1121,7 +1109,7 @@ OhciGTransferDescriptor_t *OhciTdIo(OhciController_t *Controller, UsbTransferTyp
 		Td = (OhciGTransferDescriptor_t*)TDIndex;
 
 		/* Allocate a buffer */
-		Buffer = (void*)GlbDescriptor->MemAllocAligned(0x1000);
+		Buffer = (void*)kmallocAligned(0x1000);
 	}
 	else
 	{
@@ -1129,17 +1117,17 @@ OhciGTransferDescriptor_t *OhciTdIo(OhciController_t *Controller, UsbTransferTyp
 		iTd = (OhciITransferDescriptor_t*)TDIndex;
 
 		/* Allocate a buffer */
-		Buffer = (void*)GlbDescriptor->MemAllocAligned(0x1000);
+		Buffer = (void*)kmallocAligned(0x1000);
 
 		/* Todo */
-		GlbDescriptor->KernelPanic("OHCI: Isochronous support is lacking!");
+		kernel_panic("OHCI: Isochronous support is lacking!");
 	}
 
 	/* EOL ? */
 	if (NextTD == X86_OHCI_TRANSFER_END_OF_LIST)
 		Td->NextTD = X86_OHCI_TRANSFER_END_OF_LIST;
 	else	/* Get physical Address of NextTD and set NextTD to that */
-		Td->NextTD = GlbDescriptor->MemVirtualGetMapping(NULL, (VirtAddr_t)NextTD);
+		Td->NextTD = MmVirtualGetMapping(NULL, (VirtAddr_t)NextTD);
 
 	/* Setup the Td for a IO Td */
 	Td->Flags = X86_OHCI_TD_ALLOCATED;
@@ -1155,7 +1143,7 @@ OhciGTransferDescriptor_t *OhciTdIo(OhciController_t *Controller, UsbTransferTyp
 	/* Bytes to transfer?? */
 	if (Length > 0)
 	{
-		Td->Cbp = GlbDescriptor->MemVirtualGetMapping(NULL, (VirtAddr_t)Buffer);
+		Td->Cbp = MmVirtualGetMapping(NULL, (VirtAddr_t)Buffer);
 		Td->BufferEnd = Td->Cbp + Length - 1;
 	}
 	else
@@ -1200,7 +1188,7 @@ UsbHcTransaction_t *OhciTransactionSetup(void *Controller, UsbHcRequest_t *Reque
 	UsbHcTransaction_t *Transaction;
 
 	/* Allocate Transaction */
-	Transaction = (UsbHcTransaction_t*)GlbDescriptor->MemAlloc(sizeof(UsbHcTransaction_t));
+	Transaction = (UsbHcTransaction_t*)kmalloc(sizeof(UsbHcTransaction_t));
 	Transaction->IoBuffer = 0;
 	Transaction->IoLength = 0;
 	Transaction->Link = NULL;
@@ -1221,7 +1209,7 @@ UsbHcTransaction_t *OhciTransactionSetup(void *Controller, UsbHcRequest_t *Reque
 			cTrans = cTrans->Link;
 
 		PrevTd = (OhciGTransferDescriptor_t*)cTrans->TransferDescriptor;
-		PrevTd->NextTD = GlbDescriptor->MemVirtualGetMapping(NULL, (VirtAddr_t)Transaction->TransferDescriptor);
+		PrevTd->NextTD = MmVirtualGetMapping(NULL, (VirtAddr_t)Transaction->TransferDescriptor);
 	}
 
 	return Transaction;
@@ -1234,7 +1222,7 @@ UsbHcTransaction_t *OhciTransactionIn(void *Controller, UsbHcRequest_t *Request)
 	UsbHcTransaction_t *Transaction;
 
 	/* Allocate Transaction */
-	Transaction = (UsbHcTransaction_t*)GlbDescriptor->MemAlloc(sizeof(UsbHcTransaction_t));
+	Transaction = (UsbHcTransaction_t*)kmalloc(sizeof(UsbHcTransaction_t));
 	Transaction->TransferDescriptorCopy = NULL;
 	Transaction->IoBuffer = Request->IoBuffer;
 	Transaction->IoLength = Request->IoLength;
@@ -1256,7 +1244,7 @@ UsbHcTransaction_t *OhciTransactionIn(void *Controller, UsbHcRequest_t *Request)
 			cTrans = cTrans->Link;
 
 		PrevTd = (OhciGTransferDescriptor_t*)cTrans->TransferDescriptor;
-		PrevTd->NextTD = GlbDescriptor->MemVirtualGetMapping(NULL, (VirtAddr_t)Transaction->TransferDescriptor);
+		PrevTd->NextTD = MmVirtualGetMapping(NULL, (VirtAddr_t)Transaction->TransferDescriptor);
 	}
 
 	/* We might need a copy */
@@ -1283,7 +1271,7 @@ UsbHcTransaction_t *OhciTransactionOut(void *Controller, UsbHcRequest_t *Request
 	UsbHcTransaction_t *Transaction;
 
 	/* Allocate Transaction */
-	Transaction = (UsbHcTransaction_t*)GlbDescriptor->MemAlloc(sizeof(UsbHcTransaction_t));
+	Transaction = (UsbHcTransaction_t*)kmalloc(sizeof(UsbHcTransaction_t));
 	Transaction->TransferDescriptorCopy = NULL;
 	Transaction->IoBuffer = 0;
 	Transaction->IoLength = 0;
@@ -1309,7 +1297,7 @@ UsbHcTransaction_t *OhciTransactionOut(void *Controller, UsbHcRequest_t *Request
 			cTrans = cTrans->Link;
 
 		PrevTd = (OhciGTransferDescriptor_t*)cTrans->TransferDescriptor;
-		PrevTd->NextTD = GlbDescriptor->MemVirtualGetMapping(NULL, (VirtAddr_t)Transaction->TransferDescriptor);
+		PrevTd->NextTD = MmVirtualGetMapping(NULL, (VirtAddr_t)Transaction->TransferDescriptor);
 	}
 
 	/* We might need a copy */
@@ -1341,7 +1329,7 @@ void OhciTransactionSend(void *Controller, UsbHcRequest_t *Request)
 	Addr_t EdAddress;
 
 	/* Get physical */
-	EdAddress = GlbDescriptor->MemVirtualGetMapping(NULL, (VirtAddr_t)Request->Data);
+	EdAddress = MmVirtualGetMapping(NULL, (VirtAddr_t)Request->Data);
 
 	/* Set as not Completed for start */
 	Request->Status = TransferNotProcessed;
@@ -1364,7 +1352,7 @@ void OhciTransactionSend(void *Controller, UsbHcRequest_t *Request)
 	while (Transaction->Link->Link)
 	{
 #ifdef _OHCI_DIAGNOSTICS_
-		printf("Td (Addr 0x%x) Flags 0x%x, Cbp 0x%x, BufferEnd 0x%x, Next Td 0x%x\n", GlbDescriptor->MemVirtualGetMapping(NULL, (VirtAddr_t)Td), Td->Flags, Td->Cbp, Td->BufferEnd, Td->NextTD);
+		printf("Td (Addr 0x%x) Flags 0x%x, Cbp 0x%x, BufferEnd 0x%x, Next Td 0x%x\n", MmVirtualGetMapping(NULL, (VirtAddr_t)Td), Td->Flags, Td->Cbp, Td->BufferEnd, Td->NextTD);
 #endif
 		/* Next */
 		Transaction = Transaction->Link;
@@ -1382,13 +1370,13 @@ void OhciTransactionSend(void *Controller, UsbHcRequest_t *Request)
 		Request->Endpoint->MaxPacketSize, Request->LowSpeed);
 
 	/* Now lets try the Transaction */
-	GlbDescriptor->SpinlockAcquire(&Ctrl->Lock);
+	SpinlockAcquire(&Ctrl->Lock);
 
 	/* Set true */
 	Completed = TransferFinished;
 
 	/* Add this Transaction to list */
-	GlbDescriptor->ListAppend((list_t*)Ctrl->TransactionList, GlbDescriptor->ListCreateNode(0, Request));
+	list_append((list_t*)Ctrl->TransactionList, list_create_node(0, Request));
 
 	/* Remove Skip */
 	((OhciEndpointDescriptor_t*)Request->Data)->Flags &= ~(X86_OHCI_EP_SKIP);
@@ -1533,7 +1521,7 @@ void OhciTransactionSend(void *Controller, UsbHcRequest_t *Request)
 
 			/* Insert it */
 			((OhciEndpointDescriptor_t*)Request->Data)->NextEDVirtual = (Addr_t)IEd;
-			((OhciEndpointDescriptor_t*)Request->Data)->NextED = GlbDescriptor->MemVirtualGetMapping(NULL, (VirtAddr_t)IEd);
+			((OhciEndpointDescriptor_t*)Request->Data)->NextED = MmVirtualGetMapping(NULL, (VirtAddr_t)IEd);
 
 			/* Make int-table point to this */
 			Ctrl->HCCA->InterruptTable[Ctrl->I32] = EdAddress;
@@ -1559,7 +1547,7 @@ void OhciTransactionSend(void *Controller, UsbHcRequest_t *Request)
 		Ctrl->Registers->HcControl |= X86_OCHI_CTRL_PERIODIC_LIST | X86_OHCI_CTRL_ISOCHRONOUS_LIST;
 
 		/* Done */
-		GlbDescriptor->SpinlockRelease(&Ctrl->Lock);
+		SpinlockRelease(&Ctrl->Lock);
 
 		/* Skip this */
 		return;
@@ -1584,13 +1572,13 @@ void OhciTransactionSend(void *Controller, UsbHcRequest_t *Request)
 		Ctrl->Registers->HcControl, Ctrl->Registers->HcCommandStatus);
 #else
 	/* Sleep Us */
-	GlbDescriptor->SchedulerSleepThread((Addr_t*)Request->Data);
+	SchedulerSleepThread((Addr_t*)Request->Data);
 
 	/* Release GlbDescriptor->Spinlock at latest possible */
-	GlbDescriptor->SpinlockRelease(&Ctrl->Lock);
+	SpinlockRelease(&Ctrl->Lock);
 
 	/* Yield us */
-	GlbDescriptor->Yield();
+	_ThreadYield();
 #endif
 
 
@@ -1619,7 +1607,7 @@ void OhciTransactionSend(void *Controller, UsbHcRequest_t *Request)
 			else if (CondCode == 5)
 				Completed = TransferNotResponding;
 			else {
-				GlbDescriptor->DebugPrint("OHCI: Error: 0x%x (%s)\n", CondCode, OhciErrorMessages[CondCode]);
+				DebugPrint("OHCI: Error: 0x%x (%s)\n", CondCode, OhciErrorMessages[CondCode]);
 				Completed = TransferInvalidData;
 			}
 			break;
@@ -1695,18 +1683,18 @@ void OhciTransactionDestroy(void *Controller, UsbHcRequest_t *Request)
 		while (Transaction)
 		{
 			/* free buffer */
-			GlbDescriptor->MemFree(Transaction->TransferBuffer);
+			kfree(Transaction->TransferBuffer);
 
 			/* free both TD's */
-			GlbDescriptor->MemFree((void*)Transaction->TransferDescriptor);
-			GlbDescriptor->MemFree((void*)Transaction->TransferDescriptorCopy);
+			kfree((void*)Transaction->TransferDescriptor);
+			kfree((void*)Transaction->TransferDescriptorCopy);
 
 			/* Next */
 			Transaction = Transaction->Link;
 		}
 
 		/* Unhook ED from the list it's in */
-		GlbDescriptor->SpinlockAcquire(&Ctrl->Lock);
+		SpinlockAcquire(&Ctrl->Lock);
 
 		/* DISABLE SCHEDULLER!!! */
 		Ctrl->Registers->HcControl &= ~(X86_OCHI_CTRL_PERIODIC_LIST | X86_OHCI_CTRL_ISOCHRONOUS_LIST);
@@ -1775,10 +1763,10 @@ void OhciTransactionDestroy(void *Controller, UsbHcRequest_t *Request)
 		Ctrl->Registers->HcControl |= X86_OCHI_CTRL_PERIODIC_LIST | X86_OHCI_CTRL_ISOCHRONOUS_LIST;
 
 		/* Done */
-		GlbDescriptor->SpinlockRelease(&Ctrl->Lock);
+		SpinlockRelease(&Ctrl->Lock);
 
 		/* Free it */
-		GlbDescriptor->MemFree(Request->Data);
+		kfree(Request->Data);
 	}
 }
 
@@ -1787,7 +1775,7 @@ void OhciReloadControlBulk(OhciController_t *Controller, UsbTransferType_t Trans
 {
 	/* So now, before waking up a sleeper we see if Transactions are pending
 	* if they are, we simply copy the queue over to the current */
-	GlbDescriptor->SpinlockAcquire(&Controller->Lock);
+	SpinlockAcquire(&Controller->Lock);
 
 	/* Any Controls waiting? */
 	if (TransferType == 0)
@@ -1795,7 +1783,7 @@ void OhciReloadControlBulk(OhciController_t *Controller, UsbTransferType_t Trans
 		if (Controller->TransactionsWaitingControl > 0)
 		{
 			/* Get physical of Ed */
-			Addr_t EdPhysical = GlbDescriptor->MemVirtualGetMapping(NULL, Controller->TransactionQueueControl);
+			Addr_t EdPhysical = MmVirtualGetMapping(NULL, Controller->TransactionQueueControl);
 
 			/* Set it */
 			Controller->Registers->HcControlHeadED =
@@ -1815,7 +1803,7 @@ void OhciReloadControlBulk(OhciController_t *Controller, UsbTransferType_t Trans
 		if (Controller->TransactionsWaitingBulk > 0)
 		{
 			/* Get physical of Ed */
-			Addr_t EdPhysical = GlbDescriptor->MemVirtualGetMapping(NULL, Controller->TransactionQueueBulk);
+			Addr_t EdPhysical = MmVirtualGetMapping(NULL, Controller->TransactionQueueBulk);
 
 			/* Add it to queue */
 			Controller->Registers->HcBulkHeadED =
@@ -1831,7 +1819,7 @@ void OhciReloadControlBulk(OhciController_t *Controller, UsbTransferType_t Trans
 	}
 
 	/* Done */
-	GlbDescriptor->SpinlockRelease(&Controller->Lock);
+	SpinlockRelease(&Controller->Lock);
 }
 
 /* Process Done Queue */
@@ -1861,7 +1849,7 @@ void OhciProcessDoneQueue(OhciController_t *Controller, Addr_t DoneHeadAddr)
 				(OhciGTransferDescriptor_t*)tList->TransferDescriptor;
 
 			/* Get physical of TD */
-			Addr_t TdPhysical = GlbDescriptor->MemVirtualGetMapping(NULL, (VirtAddr_t)Td);
+			Addr_t TdPhysical = MmVirtualGetMapping(NULL, (VirtAddr_t)Td);
 
 			/* Is it this one? */
 			if (DoneHeadAddr == TdPhysical)
@@ -1874,13 +1862,13 @@ void OhciProcessDoneQueue(OhciController_t *Controller, Addr_t DoneHeadAddr)
 					OhciReloadControlBulk(Controller, TransferType);
 
 					/* Wake a node */
-					GlbDescriptor->SchedulerWakeupOneThread((Addr_t*)Ed);
+					SchedulerWakeupOneThread((Addr_t*)Ed);
 
 					/* Remove from list */
-					GlbDescriptor->ListRemoveByNode(Transactions, Node);
+					list_remove_by_node(Transactions, Node);
 
 					/* Cleanup node */
-					GlbDescriptor->MemFree(Node);
+					kfree(Node);
 				}
 				else if (TransferType == InterruptTransfer)
 				{
@@ -1958,7 +1946,7 @@ int OhciInterruptHandler(void *data)
 	/* Fatal Error? */
 	if (intr_state & X86_OHCI_INTR_FATAL_ERROR)
 	{
-		GlbDescriptor->DebugPrint("OHCI %u: Fatal Error, resetting...\n", Controller->Id);
+		DebugPrint("OHCI %u: Fatal Error, resetting...\n", Controller->Id);
 		OhciReset(Controller);
 		return X86_IRQ_HANDLED;
 	}
@@ -1970,7 +1958,7 @@ int OhciInterruptHandler(void *data)
 	/* Scheduling Overrun? */
 	if (intr_state & X86_OHCI_INTR_SCHEDULING_OVRRN)
 	{
-		GlbDescriptor->DebugPrint("OHCI %u: Scheduling Overrun\n", Controller->Id);
+		DebugPrint("OHCI %u: Scheduling Overrun\n", Controller->Id);
 
 		/* Acknowledge Interrupt */
 		Controller->Registers->HcInterruptStatus = X86_OHCI_INTR_SCHEDULING_OVRRN;
@@ -1980,10 +1968,10 @@ int OhciInterruptHandler(void *data)
 	/* Resume Detection? */
 	if (intr_state & X86_OHCI_INTR_RESUME_DETECT)
 	{
-		GlbDescriptor->DebugPrint("OHCI %u: Resume Detected\n", Controller->Id);
+		DebugPrint("OHCI %u: Resume Detected\n", Controller->Id);
 
 		/* We must wait 20 ms before putting Controller to Operational */
-		GlbDescriptor->DelayMs(20);
+		DelayMs(20);
 		OhciSetMode(Controller, X86_OHCI_CTRL_USB_WORKING);
 
 		/* Acknowledge Interrupt */

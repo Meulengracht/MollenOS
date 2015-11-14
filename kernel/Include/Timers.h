@@ -61,6 +61,35 @@ typedef struct _MCoreTimer
 _CRT_EXTERN TmId_t TimersCreateTimer(TimerHandler_t Callback, 
 	void *Args, MCoreTimerType_t Type, uint32_t Timeout);
 
+/* Sleep, Stall, etc */
+_CRT_EXTERN void SleepMs(uint32_t MilliSeconds);
+_CRT_EXTERN void StallMs(uint32_t MilliSeconds);
+_CRT_EXTERN void SleepNs(uint32_t NanoSeconds);
+_CRT_EXTERN void StallNs(uint32_t NanoSeconds);
+
+/* Stall-No-Int */
+_CRT_EXTERN void DelayMs(uint32_t MilliSeconds);
+
+
+/* Tools */
+#define WaitForCondition(condition, runs, wait, message, ...)\
+    for (unsigned int timeout_ = 0; !(condition); timeout_++) {\
+        if (timeout_ >= runs) {\
+             printf(message, __VA_ARGS__);\
+             break;\
+												        }\
+        StallMs(wait);\
+						    }
+#define WaitForConditionWithFault(fault, condition, runs, wait)\
+	fault = 0; \
+    for (unsigned int timeout_ = 0; !(condition); timeout_++) {\
+        if (timeout_ >= runs) {\
+			 fault = 1; \
+             break;\
+										        }\
+        StallMs(wait);\
+					    }
+
 /* Should be called by a periodic timer, but only one! */
 _CRT_EXTERN void TimersApplyMs(uint32_t Ms);
 

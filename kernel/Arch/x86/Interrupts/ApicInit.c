@@ -25,12 +25,12 @@
 #include <Apic.h>
 #include <Acpi.h>
 #include <Interrupts.h>
-#include <stdio.h>
+#include <Timers.h>
 #include <Heap.h>
-#include <string.h>
 
-/* Drivers */
-#include <SysTimers.h>
+/* CLib */
+#include <stdio.h>
+#include <string.h>
 
 /* Globals */
 volatile uint32_t GlbTimerTicks[64];

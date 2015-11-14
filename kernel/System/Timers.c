@@ -20,10 +20,12 @@
 */
 
 /* Includes */
-#include <arch.h>
-#include <timers.h>
-#include <heap.h>
-#include <list.h>
+#include <DeviceManager.h>
+#include <Devices\Timer.h>
+#include <Arch.h>
+#include <Timers.h>
+#include <Heap.h>
+#include <List.h>
 
 /* Globals */
 list_t *GlbTimers = NULL;
@@ -65,6 +67,76 @@ TmId_t TimersCreateTimer(TimerHandler_t Callback,
 	GlbTimerIds++;
 
 	return Id;
+}
+
+/* Sleep function */
+void SleepMs(uint32_t MilliSeconds)
+{
+	/* Lookup */
+	MCoreDevice_t *tDevice = DmGetDevice(DeviceTimer);
+	MCoreTimerDevice_t *Timer = NULL;
+
+	/* Sanity */
+	if (tDevice == NULL)
+		DelayMs(MilliSeconds);
+
+	/* Cast */
+	Timer = (MCoreTimerDevice_t*)tDevice->Data;
+
+	/* Go */
+	Timer->Sleep(Timer->TimerData, MilliSeconds);
+}
+
+void SleepNs(uint32_t NanoSeconds)
+{
+	/* Lookup */
+	MCoreDevice_t *tDevice = DmGetDevice(DevicePerfTimer);
+	MCoreTimerDevice_t *Timer = NULL;
+
+	/* Sanity */
+	if (tDevice == NULL)
+		DelayMs((NanoSeconds / 1000) + 1);
+
+	/* Cast */
+	Timer = (MCoreTimerDevice_t*)tDevice->Data;
+
+	/* Go */
+	Timer->Sleep(Timer->TimerData, NanoSeconds);
+}
+
+/* Stall functions */
+void StallMs(uint32_t MilliSeconds)
+{
+	/* Lookup */
+	MCoreDevice_t *tDevice = DmGetDevice(DeviceTimer);
+	MCoreTimerDevice_t *Timer = NULL;
+
+	/* Sanity */
+	if (tDevice == NULL)
+		DelayMs(MilliSeconds);
+
+	/* Cast */
+	Timer = (MCoreTimerDevice_t*)tDevice->Data;
+
+	/* Go */
+	Timer->Stall(Timer->TimerData, MilliSeconds);
+}
+
+void StallNs(uint32_t NanoSeconds)
+{
+	/* Lookup */
+	MCoreDevice_t *tDevice = DmGetDevice(DevicePerfTimer);
+	MCoreTimerDevice_t *Timer = NULL;
+
+	/* Sanity */
+	if (tDevice == NULL)
+		DelayMs((NanoSeconds / 1000) + 1);
+
+	/* Cast */
+	Timer = (MCoreTimerDevice_t*)tDevice->Data;
+
+	/* Go */
+	Timer->Stall(Timer->TimerData, NanoSeconds);
 }
 
 /* This should be called by only ONE periodic irq */

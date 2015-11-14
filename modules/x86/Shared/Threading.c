@@ -16,20 +16,24 @@
 * along with this program.If not, see <http://www.gnu.org/licenses/>.
 *
 *
-* MollenOS x86-32 Timer Manager Header
+* MollenOS Module Shared Library
 */
-#ifndef _X86_TIMER_MANAGER_
-#define _X86_TIMER_MANAGER_
-
 
 /* Includes */
-#include <Arch.h>
-#include <crtdefs.h>
 #include <stddef.h>
-#include <stdint.h>
-#include <stdio.h>
+#include <Threading.h>
+#include <Module.h>
 
-/* Prototypes */
-_CRT_EXTERN void TimerManagerInit(void);
+/* Typedefs */
+typedef TId_t (*__createthread)(char *Name, ThreadEntry_t Function, void *Args, int Flags);
+typedef void (*__threadyield)(void);
 
-#endif
+TId_t ThreadingCreateThread(char *Name, ThreadEntry_t Function, void *Args, int Flags)
+{
+	return ((__createthread)GlbFunctionTable[kFuncCreateThread])(Name, Function, Args, Flags);
+}
+
+void _ThreadYield(void)
+{
+	((__threadyield)GlbFunctionTable[kFuncYield])();
+}

@@ -304,3 +304,20 @@ void DmDestroyDevice(DevId_t DeviceId)
 	/* Cleanup structure */
 	kfree(mDev);
 }
+
+MCoreDevice_t *DmGetDevice(DeviceType_t Type)
+{
+	/* Find! */
+	foreach(dNode, GlbDmDeviceList)
+	{
+		/* Cast */
+		MCoreDevice_t *mDev = (MCoreDevice_t*)dNode->data;
+
+		/* Sanity */
+		if (mDev->Type == Type)
+			return mDev;
+	}
+
+	/* Dammn */
+	return NULL;
+}

@@ -29,7 +29,6 @@ typedef int (*__dprint)(const char *Msg, ...);
 
 /* Shared */
 #define DebugPrint(Msg, ...) ((__dprint)GlbFunctionTable[kFuncDebugPrint])(Msg, __VA_ARGS__)
-extern void StallMs(uint32_t Ms);
 
 /* Module Setup */
 MODULES_API void ModuleInit(Addr_t *FunctionTable, void *Data);

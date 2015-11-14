@@ -25,7 +25,7 @@
 #include <Drivers\Usb\HID\HidManager.h>
 #include <Drivers\Usb\Msd\MsdManager.h>
 #include <Semaphore.h>
-#include <SysTimers.h>
+#include <Timers.h>
 #include <Heap.h>
 #include <List.h>
 #include <stdio.h>

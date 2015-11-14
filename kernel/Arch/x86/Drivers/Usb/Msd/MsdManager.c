@@ -25,7 +25,7 @@
 #include <Semaphore.h>
 #include <Heap.h>
 #include <List.h>
-#include <SysTimers.h>
+#include <Timers.h>
 
 #include <stdio.h>
 #include <string.h>

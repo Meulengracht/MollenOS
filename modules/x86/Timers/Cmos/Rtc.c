@@ -21,9 +21,16 @@
 */
 
 /* Includes */
+#include <DeviceManager.h>
 #include <Devices/Timer.h>
 #include <Module.h>
 #include <Cmos.h>
+
+/* CLib */
+#include <Heap.h>
+
+/* Externs */
+extern void ReadTSC(uint64_t *Value);
 
 /* Structures */
 #pragma pack(push, 1)
@@ -43,9 +50,6 @@ typedef struct _RtcTimer
 
 } RtcTimer_t;
 #pragma pack(pop)
-
-/* Externs */
-extern MCoreModuleDescriptor_t *GlbDescriptor;
 
 /* The Clock Handler */
 int RtcIrqHandler(void *Data)
@@ -88,14 +92,14 @@ void RtcStallBackup(void *Data, uint32_t MilliSeconds)
 	_CRT_UNUSED(Data);
 
 	/* Read Time Stamp Counter */
-	GlbDescriptor->ReadTSC(&RdTicks);
+	ReadTSC(&RdTicks);
 
 	/* Calculate ticks */
 	TickEnd = RdTicks + (MilliSeconds * 100000);
 
 	/* Wait */
 	while (TickEnd > RdTicks)
-		GlbDescriptor->ReadTSC(&RdTicks);
+		ReadTSC(&RdTicks);
 }
 
 /* Sleep for ms */
@@ -113,7 +117,7 @@ void RtcSleep(void *Data, uint32_t MilliSeconds)
 
 	/* While */
 	while (TickEnd >= RtcGetClocks(Data))
-		GlbDescriptor->Yield();
+		_ThreadYield();
 }
 
 /* Stall for ms */
@@ -144,8 +148,8 @@ OsStatus_t RtcInit(void)
 	RtcTimer_t *Rtc = NULL;
 
 	/* Allocate */
-	Rtc = (RtcTimer_t*)GlbDescriptor->MemAlloc(sizeof(RtcTimer_t));
-	TimerData = (MCoreTimerDevice_t*)GlbDescriptor->MemAlloc(sizeof(MCoreTimerDevice_t));
+	Rtc = (RtcTimer_t*)kmalloc(sizeof(RtcTimer_t));
+	TimerData = (MCoreTimerDevice_t*)kmalloc(sizeof(MCoreTimerDevice_t));
 
 	/* Ms is .97, 1024 ints per sec */
 	/* Frequency = 32768 >> (rate-1), 15 = 2, 14 = 4, 13 = 8/s (125 ms) */
@@ -160,7 +164,7 @@ OsStatus_t RtcInit(void)
 	TimerData->GetTicks = RtcGetClocks;
 
 	/* Disable IRQ's for this duration */
-	IntrState = GlbDescriptor->InterruptDisable();
+	IntrState = InterruptDisable();
 
 	/* Disable RTC Irq */
 	StateB = CmosReadRegister(X86_CMOS_REGISTER_STATUS_B);
@@ -171,10 +175,10 @@ OsStatus_t RtcInit(void)
 	StateB = CmosReadRegister(X86_CMOS_REGISTER_STATUS_B);
 
 	/* Install ISA IRQ Handler using normal install function */
-	GlbDescriptor->InterruptInstallISA(X86_CMOS_RTC_IRQ, INTERRUPT_RTC, RtcIrqHandler, TimerData);
+	InterruptInstallISA(X86_CMOS_RTC_IRQ, INTERRUPT_RTC, RtcIrqHandler, TimerData);
 
 	/* Register us with OS so we can get our function interface */
-	Rtc->DeviceId = GlbDescriptor->DeviceRegister("Rtc Timer", DeviceTimer, TimerData);
+	Rtc->DeviceId = DmCreateDevice("Rtc Timer", DeviceTimer, TimerData);
 
 	/* Set Frequency */
 	CmosWriteRegister(X86_CMOS_REGISTER_STATUS_A, 0x20 | Rate);
@@ -188,7 +192,7 @@ OsStatus_t RtcInit(void)
 	CmosWriteRegister(X86_CMOS_REGISTER_STATUS_B, StateB);
 
 	/* Done, reenable interrupts */
-	GlbDescriptor->InterruptRestoreState(IntrState);
+	InterruptRestoreState(IntrState);
 
 	/* Clear pending interrupt again */
 	CmosReadRegister(X86_CMOS_REGISTER_STATUS_C);

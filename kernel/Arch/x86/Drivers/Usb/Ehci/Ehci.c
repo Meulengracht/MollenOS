@@ -28,7 +28,7 @@
 #include <List.h>
 #include <stdio.h>
 #include <string.h>
-#include <SysTimers.h>
+#include <Timers.h>
 
 #include <Drivers\Usb\Usb.h>
 #include <Drivers\Usb\Ehci\Ehci.h>

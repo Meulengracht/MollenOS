@@ -25,17 +25,28 @@
 
 #define kFuncStall				9
 #define kFuncSleep				10
+#define kFuncReadTSC			11
 
-#define kFuncCreateThread		11
-#define kFuncYield				12
-#define kFuncSleepThread		13
-#define kFuncWakeThread			14
+#define kFuncCreateThread		12
+#define kFuncYield				13
+#define kFuncSleepThread		14
+#define kFuncWakeThread			15
 
-#define kFuncInstallIrqPci		15
-#define kFuncInstallIrqISA		16
+#define kFuncInstallIrqPci		16
+#define kFuncInstallIrqISA		17
 
-#define kFuncRegisterDevice		17
-#define kFuncUnregisterDevice	18
+#define kFuncRegisterDevice		18
+#define kFuncUnregisterDevice	19
 
+#define kFuncSemaphoreCreate	20
+#define kFuncSemaphoreV			21
+#define kFuncSemaphoreP			22
+#define kFuncSemaphoreDestroy	23
+
+#define kFuncMutexCreate		24
+#define kFuncMutexConstruct		25
+#define kFuncMutexDestruct		26
+#define kFuncMutexLock			27
+#define kFuncMutexUnlock		28
 
 #endif //!__MOLLENOS_DRIVER__
