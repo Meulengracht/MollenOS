@@ -21,6 +21,14 @@
     <ClCompile Include="Ps2.c" />
     <ClCompile Include="ScancodeSets\ScancodeSet2.c" />
   </ItemGroup>
+  <ItemGroup>
+    <None Include="Ps2.mdrv">
+      <DeploymentContent Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+      </DeploymentContent>
+      <FileType>Document</FileType>
+      <DeploymentContent>true</DeploymentContent>
+    </None>
+  </ItemGroup>
   <PropertyGroup Label="Globals">
     <ProjectGuid>{1EEC47B9-B62D-4F4B-BE51-AE1A2B588856}</ProjectGuid>
     <Keyword>Win32Proj</Keyword>

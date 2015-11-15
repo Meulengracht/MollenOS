@@ -1230,6 +1230,9 @@ namespace MfsTool
             /* Write files */
             WriteToMfs(mDisk, "MCore.mos", "System/Sys32.mos");
             //WriteToMfs(mDisk, "MCore64.mos", "System/Sys64.mos");
+
+            WriteToMfs(mDisk, "InitRd.mos", "System/InitRd32.mos");
+            //WriteToMfs(mDisk, "InitRd64.mos", "System/InitRd64.mos");
         }
 
         /* Entry */

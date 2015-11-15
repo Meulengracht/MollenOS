@@ -106,6 +106,9 @@
   <ItemGroup>
     <ClCompile Include="Ohci.c" />
   </ItemGroup>
+  <ItemGroup>
+    <None Include="Ohci.mdrv" />
+  </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>

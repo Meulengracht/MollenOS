@@ -16,6 +16,9 @@
   <ItemGroup>
     <ClCompile Include="Hpet.c" />
   </ItemGroup>
+  <ItemGroup>
+    <None Include="Hpet.mdrv" />
+  </ItemGroup>
   <PropertyGroup Label="Globals">
     <ProjectGuid>{FCABA8C2-C86C-4F2D-B859-3278C938151D}</ProjectGuid>
     <Keyword>Win32Proj</Keyword>

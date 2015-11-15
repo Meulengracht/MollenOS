@@ -43,4 +43,9 @@
       <Filter>Source Files\Devices</Filter>
     </ClCompile>
   </ItemGroup>
+  <ItemGroup>
+    <None Include="Ps2.mdrv">
+      <Filter>Source Files</Filter>
+    </None>
+  </ItemGroup>
 </Project>

@@ -16,6 +16,9 @@
   <ItemGroup>
     <ClCompile Include="Pit.c" />
   </ItemGroup>
+  <ItemGroup>
+    <None Include="Pit.mdrv" />
+  </ItemGroup>
   <PropertyGroup Label="Globals">
     <ProjectGuid>{11227538-EA75-455B-A6A1-6FA67748F828}</ProjectGuid>
     <Keyword>Win32Proj</Keyword>

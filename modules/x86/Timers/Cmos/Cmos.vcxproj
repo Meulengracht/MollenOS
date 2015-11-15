@@ -14,6 +14,9 @@
     <ClCompile Include="Cmos.c" />
     <ClCompile Include="Rtc.c" />
   </ItemGroup>
+  <ItemGroup>
+    <None Include="Cmos.mdrv" />
+  </ItemGroup>
   <PropertyGroup Label="Globals">
     <ProjectGuid>{9EB61B2B-551E-45DC-911C-94067E544251}</ProjectGuid>
     <Keyword>Win32Proj</Keyword>
