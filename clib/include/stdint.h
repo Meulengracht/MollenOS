@@ -120,7 +120,7 @@ typedef unsigned long long   uintmax_t;
 #define SIG_ATOMIC_MAX INT32_MAX
 
 #ifndef SIZE_MAX
-#ifdef _WIN64
+#if defined(_WIN64) || defined(_X86_64)
 #define SIZE_MAX _UI64_MAX
 #else
 #define SIZE_MAX UINT32_MAX

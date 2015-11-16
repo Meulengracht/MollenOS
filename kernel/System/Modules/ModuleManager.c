@@ -32,7 +32,7 @@ uint32_t GlbModMgrInitialized = 0;
 list_t *GlbModMgrModules = NULL;
 
 /* Loads the RD */
-void ModuleMgrInit(Addr_t RamDiskAddr, uint32_t RamDiskSize)
+void ModuleMgrInit(size_t RamDiskAddr, size_t RamDiskSize)
 {
 	/* Parse RamDisk */
 	MCoreRamDiskHeader_t *RdHeader = (MCoreRamDiskHeader_t*)RamDiskAddr;

@@ -257,7 +257,9 @@ void MmPhyiscalInit(void *BootInfo, uint32_t KernelSize, uint32_t RamDiskSize)
 	/* 0x4000 - 0x6000 || Used for memory region & Trampoline-code */
 	MmMemoryMapSetBit(0x4000 / PAGE_SIZE);
 	MmMemoryMapSetBit(0x5000 / PAGE_SIZE);
-	MemoryBlocksUsed += 2;
+	MmMemoryMapSetBit(0x9000 / PAGE_SIZE);
+	MmMemoryMapSetBit(0xA000 / PAGE_SIZE);
+	MemoryBlocksUsed += 4;
 
 	/* 0x90000 - 0x9F000 || Kernel Stack */
 	MmAllocateRegion(0x90000, 0xF000);

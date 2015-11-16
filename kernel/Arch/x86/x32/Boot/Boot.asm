@@ -22,7 +22,7 @@ bits 32
 segment .text
 
 ; Extern main function in C-code
-extern _init
+extern _InitX86
 
 ; Publics in this file
 global _kentry
@@ -57,7 +57,7 @@ _kentry:
 	push ebx
 
 	;Now call the init function
-	call _init
+	call _InitX86
 
 	;When we return from here, we just
 	;enter into an idle loop.

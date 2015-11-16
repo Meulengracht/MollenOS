@@ -42,11 +42,11 @@ typedef struct _MCoreBootInfo
 	char *BootloaderName;
 
 	/* Size of kernel in bytes */
-	uint32_t KernelSize;
+	size_t KernelSize;
 
 	/* RamDisk Info */
-	uint32_t RamDiskAddr;
-	uint32_t RamDiskSize;
+	size_t RamDiskAddr;
+	size_t RamDiskSize;
 
 	/* Data that will be passed to setup functions */
 	void *ArchBootInfo;
@@ -54,6 +54,7 @@ typedef struct _MCoreBootInfo
 	/* Setup Functions */
 	void(*InitHAL)(void *ArchBootInfo);
 	void(*InitPostSystems)(void);
+	void(*InitTimers)(void);
 
 } MCoreBootInfo_t;
 

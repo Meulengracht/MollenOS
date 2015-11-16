@@ -88,6 +88,14 @@ void MCoreInitialize(MCoreBootInfo_t *BootInfo)
 	printf("  - Initializing Post Memory Systems\n");
 	BootInfo->InitPostSystems();
 
+	/* Beyond this point we need timers 
+	 * and right now we have no timers,
+	 * and worst of all, timers are VERY 
+	 * arch-specific, so we let the underlying
+	 * architecture load them */
+	printf("  - Installing Timers...\n");
+	BootInfo->InitTimers();
+
 	/* Start out any extra cores */
 	printf("  - Initializing SMP\n");
 	CpuInitSmp(BootInfo->ArchBootInfo);

@@ -47,6 +47,7 @@ extern void AcpiEnumerate(void);
 * across ACPICA */
 extern void AcpiSetupFull(void);
 
+/* Inititalizes ACPI and the Apic */
 void InitAcpiAndApic(void)
 {
 	/* Initialize the APIC (if present) */
@@ -64,9 +65,12 @@ void InitAcpiAndApic(void)
 
 	/* Setup Full APICPA */
 	AcpiSetupFull();
+}
 
+/* Installs Timers */
+void InitTimers(void)
+{
 	/* Setup Timers */
-	printf("    * Installing Timers...\n");
 	TimerManagerInit();
 
 	/* Init Apic Timers */
@@ -96,16 +100,21 @@ void HALInit(void *BootInfo)
 	MmVirtualInit();
 }
 
-void init(Multiboot_t *BootInfo, uint32_t KernelSize)
+void InitX86(Multiboot_t *BootInfo, size_t KernelSize)
 {
 	/* Setup Boot Info */
 	x86BootInfo.ArchBootInfo = (void*)BootInfo;
 	x86BootInfo.BootloaderName = (char*)BootInfo->BootLoaderName;
+	
+	/* Setup Kern & Mod info */
 	x86BootInfo.KernelSize = KernelSize;
+	x86BootInfo.RamDiskAddr = BootInfo->ModuleAddr;
+	x86BootInfo.RamDiskSize = BootInfo->ModuleCount;
 	
 	/* Setup Functions */
 	x86BootInfo.InitHAL = HALInit;
 	x86BootInfo.InitPostSystems = InitAcpiAndApic;
+	x86BootInfo.InitTimers = InitTimers;
 
 	/* Call Entry Point */
 	MCoreInitialize(&x86BootInfo);

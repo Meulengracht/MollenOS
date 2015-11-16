@@ -22,7 +22,6 @@
 #define _MODULE_MANAGER_H_
 
 /* Includes */
-#include <Arch.h>
 #include <crtdefs.h>
 #include <stdint.h>
 
@@ -49,7 +48,7 @@ typedef struct _MCoreModule
 
 
 /* Prototypes */
-_CRT_EXTERN void ModuleMgrInit(Addr_t RamDiskAddr, uint32_t RamDiskSize);
+_CRT_EXTERN void ModuleMgrInit(size_t RamDiskAddr, size_t RamDiskSize);
 
 _CRT_EXTERN MCoreModule_t *ModuleFind(uint32_t DeviceType, uint32_t DeviceSubType);
 _CRT_EXTERN void ModuleLoad(MCoreModule_t *Module);

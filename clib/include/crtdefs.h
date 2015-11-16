@@ -270,14 +270,14 @@ extern "C" {
 #ifndef _SIZE_T_DEFINED
 #define _SIZE_T_DEFINED
 #undef size_t
-#ifdef _WIN64
+#if defined(_WIN64) || defined(_X86_64)
 #if defined(__GNUC__) && defined(__STRICT_ANSI__)
-  typedef unsigned int size_t __attribute__ ((mode (DI)));
+	typedef unsigned int size_t __attribute__ ((mode (DI)));
 #else
-  __MINGW_EXTENSION typedef unsigned __int64 size_t;
+	typedef unsigned long long size_t;
 #endif
 #else
-  typedef unsigned int size_t;
+	typedef unsigned int size_t;
 #endif
 #endif
 
@@ -286,14 +286,14 @@ extern "C" {
 #ifndef __intptr_t_defined
 #define __intptr_t_defined
 #undef intptr_t
-#ifdef _WIN64
+#if defined(_WIN64) || defined(_X86_64)
 #if defined(__GNUC__) && defined(__STRICT_ANSI__)
-  typedef int intptr_t __attribute__ ((mode (DI)));
+	typedef int intptr_t __attribute__ ((mode (DI)));
 #else
-  __MINGW_EXTENSION typedef __int64 intptr_t;
+	typedef long long intptr_t;
 #endif
 #else
-  typedef int intptr_t;
+	typedef int intptr_t;
 #endif
 #endif
 #endif
@@ -303,14 +303,14 @@ extern "C" {
 #ifndef __uintptr_t_defined
 #define __uintptr_t_defined
 #undef uintptr_t
-#ifdef _WIN64
+#if defined(_WIN64) || defined(_X86_64)
 #if defined(__GNUC__) && defined(__STRICT_ANSI__)
-  typedef unsigned int uintptr_t __attribute__ ((mode (DI)));
+	typedef unsigned int uintptr_t __attribute__ ((mode (DI)));
 #else
-  __MINGW_EXTENSION typedef unsigned __int64 uintptr_t;
+	typedef unsigned long long uintptr_t;
 #endif
 #else
-  typedef unsigned int uintptr_t;
+	typedef unsigned int uintptr_t;
 #endif
 #endif
 #endif
@@ -319,14 +319,14 @@ extern "C" {
 #define _PTRDIFF_T_DEFINED
 #ifndef _PTRDIFF_T_
 #undef ptrdiff_t
-#ifdef _WIN64
+#if defined(_WIN64) || defined(_X86_64)
 #if defined(__GNUC__) && defined(__STRICT_ANSI__)
-  typedef int ptrdiff_t __attribute__ ((mode (DI)));
+	typedef int ptrdiff_t __attribute__ ((mode (DI)));
 #else
-  __MINGW_EXTENSION typedef __int64 ptrdiff_t;
+	typedef long long ptrdiff_t;
 #endif
 #else
-  typedef int ptrdiff_t;
+	typedef int ptrdiff_t;
 #endif
 #endif
 #endif
