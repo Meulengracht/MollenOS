@@ -16,7 +16,7 @@
 * along with this program.If not, see <http://www.gnu.org/licenses/>.
 *
 *
-* MollenOS X86-32 PCI
+* MollenOS X86 PCI
 * Version 1. PCI Support Only (No PCI Express)
 */
 
