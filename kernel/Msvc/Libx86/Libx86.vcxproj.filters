@@ -7,59 +7,8 @@
     <Filter Include="Components">
       <UniqueIdentifier>{14b68f60-ab34-4c8c-af4e-a418705d061b}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Drivers">
-      <UniqueIdentifier>{43b531be-c840-4806-b4eb-48a5eb504b2f}</UniqueIdentifier>
-    </Filter>
     <Filter Include="Interrupts">
       <UniqueIdentifier>{11123936-825e-45b2-be98-5fa6e60d0e19}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Drivers\Usb">
-      <UniqueIdentifier>{7aac0147-c0dc-4843-86d7-c798578a964c}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Drivers\Usb\Controllers">
-      <UniqueIdentifier>{4811c3b9-82db-4592-8068-be8db75a95ee}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Drivers\Usb\Controllers\XHCI">
-      <UniqueIdentifier>{2efff2a4-618a-4755-9fe2-33e542ffe20a}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Drivers\Timers">
-      <UniqueIdentifier>{6e3df768-4732-455d-9fc8-43db57acd982}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Drivers\Timers\Hpet">
-      <UniqueIdentifier>{4104b72c-8b5d-4bd2-8c25-0108cd6074b8}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Drivers\Timers\Rtc">
-      <UniqueIdentifier>{6fb21095-d051-4463-aa1d-1591c12f93d5}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Drivers\Cmos">
-      <UniqueIdentifier>{27f21261-2ecf-4a21-a56b-b2becadd0c3e}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Drivers\Timers\Pit">
-      <UniqueIdentifier>{fd512464-737b-4ed9-8e93-974e5be62436}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Drivers\Usb\Controllers\Ehci">
-      <UniqueIdentifier>{4c03b94c-dfa8-44e1-9c7c-65ecd81c054b}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Drivers\Usb\Controllers\Ohci">
-      <UniqueIdentifier>{4973448b-314e-47e9-b1df-7312d7f22af7}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Drivers\Ps2">
-      <UniqueIdentifier>{adc61251-d2ac-409b-958c-d83d853132fa}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Drivers\Ps2\Mouse">
-      <UniqueIdentifier>{17a04910-5195-458b-b027-8dd3c6dea99d}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Drivers\Ps2\Keyboard">
-      <UniqueIdentifier>{b706c61e-e16f-4955-9a7b-0add6a719a74}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Drivers\Usb\Controllers\Uhci">
-      <UniqueIdentifier>{640232d3-4834-4d5d-a5ae-9a39c65ba196}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Drivers\Usb\Hid">
-      <UniqueIdentifier>{64e692b6-62bc-4b3a-b112-3326fa644254}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Drivers\Usb\Msd">
-      <UniqueIdentifier>{4405698f-3b87-4358-9cf8-c58d6de40e91}</UniqueIdentifier>
     </Filter>
     <Filter Include="x32">
       <UniqueIdentifier>{095c5231-400d-4c13-a6e8-2acb28c7ebcc}</UniqueIdentifier>
@@ -82,6 +31,9 @@
     <Filter Include="Acpi">
       <UniqueIdentifier>{9f0e9a9c-a460-430d-b158-8c383914884f}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Pci">
+      <UniqueIdentifier>{a256d2ba-7396-48a0-9948-d382c7db5085}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\Arch\x86\x32\Memory\MmPhysical.c">
@@ -92,57 +44,6 @@
     </ClCompile>
     <ClCompile Include="..\..\Arch\x86\Init\Main.c">
       <Filter>Startup</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\Arch\x86\Drivers\DriverStrings.c">
-      <Filter>Drivers</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\Arch\x86\Drivers\DriverPci.c">
-      <Filter>Drivers</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\Arch\x86\Drivers\DriverManager.c">
-      <Filter>Drivers</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\Arch\x86\Drivers\Timers\TimerManager.c">
-      <Filter>Drivers\Timers</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\Arch\x86\Drivers\Timers\Hpet\Hpet.c">
-      <Filter>Drivers\Timers\Hpet</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\Arch\x86\Drivers\Cmos\Rtc.c">
-      <Filter>Drivers\Timers\Rtc</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\Arch\x86\Drivers\Cmos\Cmos.c">
-      <Filter>Drivers\Cmos</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\Arch\x86\Drivers\Timers\Pit\Pit.c">
-      <Filter>Drivers\Timers\Pit</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\Arch\x86\Drivers\Usb\Ehci\Ehci.c">
-      <Filter>Drivers\Usb\Controllers\Ehci</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\Arch\x86\Drivers\Usb\UsbCore.c">
-      <Filter>Drivers\Usb</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\Arch\x86\Drivers\Usb\UsbFunctions.c">
-      <Filter>Drivers\Usb</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\Arch\x86\Drivers\Usb\Ohci\Ohci.c">
-      <Filter>Drivers\Usb\Controllers\Ohci</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\Arch\x86\Drivers\Ps2\Ps2.c">
-      <Filter>Drivers\Ps2</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\Arch\x86\Drivers\Ps2\Mouse\Ps2Mouse.c">
-      <Filter>Drivers\Ps2\Mouse</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\Arch\x86\Drivers\Ps2\Keyboard\Ps2Keyboard.c">
-      <Filter>Drivers\Ps2\Keyboard</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\Arch\x86\Drivers\Usb\Msd\MsdManager.c">
-      <Filter>Drivers\Usb\Msd</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\Arch\x86\Drivers\Usb\Hid\HidManager.c">
-      <Filter>Drivers\Usb\Hid</Filter>
     </ClCompile>
     <ClCompile Include="..\..\Arch\x86\Components\Video.c">
       <Filter>Components</Filter>
@@ -198,6 +99,27 @@
     <ClCompile Include="..\..\Arch\x86\Components\Smp.c">
       <Filter>Components</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\Arch\x86\Acpi\AcpiDevices.c">
+      <Filter>Acpi</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Arch\x86\Acpi\AcpiScan.c">
+      <Filter>Acpi</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Arch\x86\Pci\DriverManager.c">
+      <Filter>Pci</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Arch\x86\Pci\PciEnumerate.c">
+      <Filter>Pci</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Arch\x86\Pci\PciHelpers.c">
+      <Filter>Pci</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Arch\x86\Pci\PciStrings.c">
+      <Filter>Pci</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Arch\x86\Pci\PciIo.c">
+      <Filter>Pci</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <CustomBuild Include="..\..\Arch\x86\Components\Portio.asm">
@@ -223,33 +145,6 @@
     </CustomBuild>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\..\Arch\x86\Drivers\Usb\Ehci\Ehci.h">
-      <Filter>Drivers\Usb\Controllers\Ehci</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\Arch\x86\Drivers\Usb\Ohci\Ohci.h">
-      <Filter>Drivers\Usb\Controllers\Ohci</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\Arch\x86\Drivers\Ps2\Ps2.h">
-      <Filter>Drivers\Ps2</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\Arch\x86\Drivers\Ps2\Mouse\Ps2Mouse.h">
-      <Filter>Drivers\Ps2\Mouse</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\Arch\x86\Drivers\Ps2\Keyboard\Ps2Keyboard.h">
-      <Filter>Drivers\Ps2\Keyboard</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\Arch\x86\Drivers\Usb\MSD\MsdManager.h">
-      <Filter>Drivers\Usb\Msd</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\Arch\x86\Drivers\Usb\Usb.h">
-      <Filter>Drivers\Usb</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\Arch\x86\Drivers\Usb\Uhci\Uhci.h">
-      <Filter>Drivers\Usb\Controllers\Uhci</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\Arch\x86\Drivers\Usb\HID\HidManager.h">
-      <Filter>Drivers\Usb\Hid</Filter>
-    </ClInclude>
     <ClInclude Include="..\..\Arch\x86\Cpu.h">
       <Filter>Includes</Filter>
     </ClInclude>
@@ -271,9 +166,6 @@
     <ClInclude Include="..\..\Arch\x86\Pic.h">
       <Filter>Includes</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\Arch\x86\SysTimers.h">
-      <Filter>Includes</Filter>
-    </ClInclude>
     <ClInclude Include="..\..\Arch\x86\Thread.h">
       <Filter>Includes</Filter>
     </ClInclude>
@@ -284,6 +176,9 @@
       <Filter>Includes</Filter>
     </ClInclude>
     <ClInclude Include="..\..\Arch\x86\Apic.h">
+      <Filter>Includes</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Arch\x86\AcpiSys.h">
       <Filter>Includes</Filter>
     </ClInclude>
   </ItemGroup>

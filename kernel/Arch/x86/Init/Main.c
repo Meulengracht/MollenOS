@@ -30,7 +30,6 @@
 #include <stddef.h>
 #include <stdio.h>
 #include <Apic.h>
-#include <SysTimers.h>
 
 /* Extern, this function is declared in the MCore project
  * and all platform libs should enter this function */

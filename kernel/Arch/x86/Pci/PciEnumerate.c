@@ -22,17 +22,17 @@
 /* Includes */
 #include <List.h>
 #include <Pci.h>
+#include <Heap.h>
 
 /* Globals */
 list_t *GlbPciDevices = NULL;
-
 
 /* Check a function */
 /* For each function we create a 
  * pci_device and add it to the list */
 void PciCheckFunction(list_t *Bridge, uint8_t Bus, uint8_t Device, uint8_t Function)
 {
-	uint8_t sec_bus;
+	uint8_t SecondBus;
 	PciNativeHeader_t *Pcs;
 	PciDevice_t *PciDevice;
 
@@ -63,16 +63,16 @@ void PciCheckFunction(list_t *Bridge, uint8_t Bus, uint8_t Device, uint8_t Funct
 #endif
 	}
 
-	/* Do some disabling */
-	if ((Pcs->Class != 0x06) && (Pcs->Class != 0x03))
+	/* Do some disabling, but NOT on the video or bridge */
+	if ((Pcs->Class != PCI_DEVICE_CLASS_BRIDGE) && (Pcs->Class != PCI_DEVICE_CLASS_VIDEO))
 	{
 		/* Disable Device untill further notice */
-		uint16_t PciSettings = PciReadWord((const uint16_t)Bus, (const uint16_t)Device, (const uint16_t)Function, 0x04);
-		PciWriteWord((const uint16_t)Bus, (const uint16_t)Device, (const uint16_t)Function, 0x04, PciSettings | 0x0400);
+		uint16_t PciSettings = PciRead16(Bus, Device, Function, 0x04);
+		PciWrite16(Bus, Device, Function, 0x04, PciSettings | X86_PCI_COMMAND_INTDISABLE);
 	}
 	
 	/* Add to list */
-	if (Pcs->Class == 0x06 && Pcs->Subclass == 0x04)
+	if (Pcs->Class == PCI_DEVICE_CLASS_BRIDGE && Pcs->Subclass == PCI_DEVICE_SUBCLASS_PCI)
 	{
 		PciDevice->Type = X86_PCI_TYPE_BRIDGE;
 		list_append(Bridge, list_create_node(X86_PCI_TYPE_BRIDGE, PciDevice));
@@ -84,13 +84,13 @@ void PciCheckFunction(list_t *Bridge, uint8_t Bus, uint8_t Device, uint8_t Funct
 	}
 
 	/* Is this a secondary (PCI) bus */
-	if ((Pcs->Class == 0x06) && (Pcs->Subclass == 0x04))
+	if ((Pcs->Class == PCI_DEVICE_CLASS_BRIDGE) && (Pcs->Subclass == PCI_DEVICE_SUBCLASS_PCI))
 	{
 		/* Uh oh, this dude has children */
 		PciDevice->Children = list_create(LIST_SAFE);
 
-		sec_bus = PciReadSecondaryBusNumber(Bus, Device, Function);
-		PciCheckBus(PciDevice->Children, sec_bus);
+		SecondBus = PciReadSecondaryBusNumber(Bus, Device, Function);
+		PciCheckBus(PciDevice->Children, SecondBus);
 	}
 }
 
@@ -151,17 +151,11 @@ void PciEnumerate(void)
 	if ((HeaderType & 0x80) == 0)
 	{
 		/* Single PCI host controller */
-#ifdef X86_PCI_DIAGNOSE
-		printf("    * Single Bus Present\n");
-#endif
 		PciCheckBus(GlbPciDevices, 0);
 	}
 	else 
 	{
 		/* Multiple PCI host controllers */
-#ifdef X86_PCI_DIAGNOSE
-		printf("    * Multi Bus Present\n");
-#endif
 		for (Function = 0; Function < 8; Function++)
 		{
 			if (PciReadVendorId(0, 0, Function) != 0xFFFF)

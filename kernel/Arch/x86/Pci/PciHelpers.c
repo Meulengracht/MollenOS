@@ -16,140 +16,23 @@
 * along with this program.If not, see <http://www.gnu.org/licenses/>.
 *
 *
-* MollenOS X86-32 Driver PCI I/O
+* MollenOS X86 Driver PCI Helpers
 */
 
 /* Includes */
 #include <Arch.h>
 #include <Pci.h>
-#include <Mutex.h>
-#include <stddef.h>
-#include <stdio.h>
-#include <limits.h>
-
-/* PCI Interface I/O */
-uint32_t PciReadDword(const uint16_t Bus, const uint16_t Device,
-					  const uint16_t Function, const uint32_t Register)
-{
-	/* Select Bus/Device/Function/Register */
-	outl(X86_PCI_SELECT, 0x80000000
-		| (Bus << 16)
-		| (Device << 11)
-		| (Function << 8)
-		| (Register & 0xFC));
-
-	/* Read Data */
-	return inl(X86_PCI_DATA);
-}
-
-uint16_t PciReadWord(const uint16_t Bus, const uint16_t Device,
-					 const uint16_t Function, const uint32_t Register)
-{
-	/* Select Bus/Device/Function/Register */
-	outl(X86_PCI_SELECT, 0x80000000
-		| (Bus << 16)
-		| (Device << 11)
-		| (Function << 8)
-		| (Register & 0xFC));
-
-	/* Read Data */
-	return inw(X86_PCI_DATA + (Register & 0x2));
-}
-
-uint8_t PciReadByte(const uint16_t Bus, const uint16_t Device,
-					const uint16_t Function, const uint32_t Register)
-{
-	/* Select Bus/Device/Function/Register */
-	outl(X86_PCI_SELECT, 0x80000000
-		| (Bus << 16)
-		| (Device << 11)
-		| (Function << 8)
-		| (Register & 0xFC));
-
-	/* Read Data */
-	return inb(X86_PCI_DATA + (Register & 0x3));
-}
-
-/* Write functions */
-void PciWriteDword(const uint16_t Bus, const uint16_t Device,
-				   const uint16_t Function, const uint32_t Register, uint32_t Value)
-{
-	/* Select Bus/Device/Function/Register */
-	outl(X86_PCI_SELECT, 0x80000000
-		| (Bus << 16)
-		| (Device << 11)
-		| (Function << 8)
-		| (Register & 0xFC));
-
-	/* Write DATA */
-	outl(X86_PCI_DATA, Value);
-}
-
-void PciWriteWord(const uint16_t Bus, const uint16_t Device,
-				  const uint16_t Function, const uint32_t Register, uint16_t Value)
-{
-	/* Select Bus/Device/Function/Register */
-	outl(X86_PCI_SELECT, 0x80000000
-		| (Bus << 16)
-		| (Device << 11)
-		| (Function << 8)
-		| (Register & 0xFC));
-
-	/* Write DATA */
-	outw(X86_PCI_DATA + (Register & 0x2), Value);
-}
-
-void PciWriteByte(const uint16_t Bus, const uint16_t Device,
-				  const uint16_t Function, const uint32_t Register, uint8_t Value)
-{
-	/* Select Bus/Device/Function/Register */
-	outl(X86_PCI_SELECT, 0x80000000
-		| (Bus << 16)
-		| (Device << 11)
-		| (Function << 8)
-		| (Register & 0xFC));
-
-	/* Write DATA */
-	outb(X86_PCI_DATA + (Register & 0x03), Value);
-}
-
-/* Helpers */
-uint32_t PciDeviceRead(PciDevice_t *Device, uint32_t Register, uint32_t Length)
-{
-	if (Length == 1)
-		return (uint32_t)PciReadByte((const uint16_t)Device->Bus, 
-		(const uint16_t)Device->Device, (const uint16_t)Device->Function, Register);
-	else if (Length == 2)
-		return (uint32_t)PciReadWord((const uint16_t)Device->Bus, 
-		(const uint16_t)Device->Device, (const uint16_t)Device->Function, Register);
-	else
-		return PciReadDword((const uint16_t)Device->Bus, 
-		(const uint16_t)Device->Device, (const uint16_t)Device->Function, Register);
-}
-
-void PciDeviceWrite(PciDevice_t *Device, uint32_t Register, uint32_t Value, uint32_t Length)
-{
-	if (Length == 1)
-		PciWriteByte((const uint16_t)Device->Bus,
-		(const uint16_t)Device->Device, (const uint16_t)Device->Function, Register, (uint8_t)(Value & 0xFF));
-	else if (Length == 2)
-		PciWriteWord((const uint16_t)Device->Bus,
-		(const uint16_t)Device->Device, (const uint16_t)Device->Function, Register, (uint16_t)(Value & 0xFFFFF));
-	else
-		PciWriteDword((const uint16_t)Device->Bus,
-		(const uint16_t)Device->Device, (const uint16_t)Device->Function, Register, Value);
-}
 
 /* Reads the vendor id at given location */
-uint16_t PciReadVendorId(const uint16_t Bus, const uint16_t Device, const uint16_t Function)
+uint16_t PciReadVendorId(uint32_t Bus, uint32_t Device, uint32_t Function)
 {
 	/* Get the dword and parse the vendor and device ID */
-	uint32_t tmp = PciReadDword(Bus, Device, Function, 0);
+	uint32_t tmp = PciRead32(Bus, Device, Function, 0);
 	return (uint16_t)(tmp & 0xFFFF);
 }
 
 /* Reads a PCI header at given location */
-void PciReadFunction(PciNativeHeader_t *Pcs, const uint16_t Bus, const uint16_t Device, const uint16_t Function)
+void PciReadFunction(PciNativeHeader_t *Pcs, uint32_t Bus, uint32_t Device, uint32_t Function)
 {
 	/* Get the dword and parse the vendor and device ID */
 	uint16_t vendor = PciReadVendorId(Bus, Device, Function);
@@ -163,25 +46,24 @@ void PciReadFunction(PciNativeHeader_t *Pcs, const uint16_t Bus, const uint16_t 
 
 		for (i = 0; i < 64; i += 16)
 		{
-			*(uint32_t*)((size_t)Pcs + i) = PciReadDword(Bus, Device, Function, i);
-			*(uint32_t*)((size_t)Pcs + i + 4) = PciReadDword(Bus, Device, Function, i + 4);
-			*(uint32_t*)((size_t)Pcs + i + 8) = PciReadDword(Bus, Device, Function, i + 8);
-			*(uint32_t*)((size_t)Pcs + i + 12) = PciReadDword(Bus, Device, Function, i + 12);
+			*(uint32_t*)((size_t)Pcs + i) = PciRead32(Bus, Device, Function, i);
+			*(uint32_t*)((size_t)Pcs + i + 4) = PciRead32(Bus, Device, Function, i + 4);
+			*(uint32_t*)((size_t)Pcs + i + 8) = PciRead32(Bus, Device, Function, i + 8);
+			*(uint32_t*)((size_t)Pcs + i + 12) = PciRead32(Bus, Device, Function, i + 12);
 		}
 	}
 }
 
 /* Reads the base class at given location */
-uint8_t PciReadBaseClass(const uint16_t Bus, const uint16_t Device, const uint16_t Function)
+uint8_t PciReadBaseClass(uint32_t Bus, uint32_t Device, uint32_t Function)
 {
 	/* Get the dword and parse the vendor and device ID */
 	uint16_t vendor = PciReadVendorId(Bus, Device, Function);
 
 	if (vendor && vendor != 0xFFFF)
 	{
-		/* Valid device! Okay, so read the base_class
-		*/
-		uint32_t offset = PciReadDword(Bus, Device, Function, 0x08);
+		/* Valid device! Okay, so read the base_class */
+		uint32_t offset = PciRead32(Bus, Device, Function, 0x08);
 		return (uint8_t)((offset >> 24) & 0xFF);
 	}
 	else
@@ -189,16 +71,15 @@ uint8_t PciReadBaseClass(const uint16_t Bus, const uint16_t Device, const uint16
 }
 
 /* Reads the sub class at given location */
-uint8_t PciReadSubclass(const uint16_t Bus, const uint16_t Device, const uint16_t Function)
+uint8_t PciReadSubclass(uint32_t Bus, uint32_t Device, uint32_t Function)
 {
 	/* Get the dword and parse the vendor and device ID */
 	uint16_t vendor = PciReadVendorId(Bus, Device, Function);
 
 	if (vendor && vendor != 0xFFFF)
 	{
-		/* Valid device! Okay, so read the base_class
-		*/
-		uint32_t offset = PciReadDword(Bus, Device, Function, 0x08);
+		/* Valid device! Okay, so read the base_class */
+		uint32_t offset = PciRead32(Bus, Device, Function, 0x08);
 		return (uint8_t)((offset >> 16) & 0xFF);
 	}
 	else
@@ -206,16 +87,15 @@ uint8_t PciReadSubclass(const uint16_t Bus, const uint16_t Device, const uint16_
 }
 
 /* Reads the secondary bus number at given location */
-uint8_t PciReadSecondaryBusNumber(const uint16_t Bus, const uint16_t Device, const uint16_t Function)
+uint8_t PciReadSecondaryBusNumber(uint32_t Bus, uint32_t Device, uint32_t Function)
 {
 	/* Get the dword and parse the vendor and device ID */
 	uint16_t vendor = PciReadVendorId(Bus, Device, Function);
 
 	if (vendor && vendor != 0xFFFF)
 	{
-		/* Valid device! Okay, so read the base_class
-		*/
-		uint32_t offset = PciReadDword(Bus, Device, Function, 0x18);
+		/* Valid device! Okay, so read the base_class */
+		uint32_t offset = PciRead32(Bus, Device, Function, 0x18);
 		return (uint8_t)((offset >> 8) & 0xFF);
 	}
 	else
@@ -226,16 +106,15 @@ uint8_t PciReadSecondaryBusNumber(const uint16_t Bus, const uint16_t Device, con
 /* Bit 7 - MultiFunction, Lower 4 bits is type.
 * Type 0 is standard, Type 1 is PCI-PCI Bridge,
 * Type 2 is CardBus Bridge */
-uint8_t PciReadHeaderType(const uint16_t Bus, const uint16_t Device, const uint16_t Function)
+uint8_t PciReadHeaderType(uint32_t Bus, uint32_t Device, uint32_t Function)
 {
 	/* Get the dword and parse the vendor and device ID */
 	uint16_t vendor = PciReadVendorId(Bus, Device, Function);
 
 	if (vendor && vendor != 0xFFFF)
 	{
-		/* Valid device! Okay, so read the base_class
-		*/
-		uint32_t offset = PciReadDword(Bus, Device, Function, 0x0C);
+		/* Valid device! Okay, so read the base_class */
+		uint32_t offset = PciRead32(Bus, Device, Function, 0x0C);
 		return (uint8_t)((offset >> 16) & 0xFF);
 	}
 	else

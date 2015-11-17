@@ -32,22 +32,8 @@
 #include <stdio.h>
 #include <limits.h>
 
-/* Drivers */
-//#include <drivers\usb\uhci\uhci.h>
-#include <Drivers\Usb\Ohci\Ohci.h>
-#include <Drivers\Usb\Ehci\Ehci.h>
-
-/* Legacy Drivers */
-#include <Drivers\Ps2\Ps2.h>
-
-PciAcpiDevice_t *PciAddObject(ACPI_HANDLE Handle, ACPI_HANDLE Parent, uint32_t Type);
-
 /* Globals */
-list_t *GlbPciAcpiDevices = NULL;
 volatile uint32_t GlbBusCounter = 0;
-
-/* Extern */
-extern void ThreadingDebugPrint(void);
 
 /* This enumerates EHCI controllers and makes sure all routing goes to
  * their companion controllers */

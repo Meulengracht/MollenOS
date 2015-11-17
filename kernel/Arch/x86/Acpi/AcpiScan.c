@@ -21,25 +21,29 @@
 
 /* Includes */
 #include <Arch.h>
-#include <acpi.h>
+#include <AcpiSys.h>
 #include <List.h>
+#include <Heap.h>
+
+#include <stdio.h>
 
 /* Globals */
 list_t *GlbPciAcpiDevices = NULL;
+uint32_t GlbBusCounter = 0;
 
 /* Get Irq by Bus / Dev / Pin 
  * Returns -1 if no overrides exists */
-int AcpiDeviceGetIrq(uint32_t Bus, uint32_t Device, uint32_t Pin, 
+int32_t AcpiDeviceGetIrq(uint32_t Bus, uint32_t Device, uint32_t Pin, 
 					uint8_t *TriggerMode, uint8_t *Polarity, uint8_t *Shareable,
 					uint8_t *Fixed)
 {
 	/* Locate correct bus */
 	int n = 0;
-	PciAcpiDevice_t *Dev;
+	AcpiDevice_t *Dev;
 	
 	while (1)
 	{
-		Dev = (PciAcpiDevice_t*)list_get_data_by_id(GlbPciAcpiDevices, ACPI_BUS_ROOT_BRIDGE, n);
+		Dev = (AcpiDevice_t*)list_get_data_by_id(GlbPciAcpiDevices, ACPI_BUS_ROOT_BRIDGE, n);
 
 		if (Dev == NULL)
 			break;
@@ -74,16 +78,16 @@ int AcpiDeviceGetIrq(uint32_t Bus, uint32_t Device, uint32_t Pin,
 }
 
 /* Adds an object to the Acpi List */
-PciAcpiDevice_t *PciAddObject(ACPI_HANDLE Handle, ACPI_HANDLE Parent, uint32_t Type)
+AcpiDevice_t *PciAddObject(ACPI_HANDLE Handle, ACPI_HANDLE Parent, uint32_t Type)
 {
 	ACPI_STATUS Status;
-	PciAcpiDevice_t *Device;
+	AcpiDevice_t *Device;
 
 	/* Allocate Resources */
-	Device = (PciAcpiDevice_t*)kmalloc(sizeof(PciAcpiDevice_t));
+	Device = (AcpiDevice_t*)kmalloc(sizeof(AcpiDevice_t));
 
 	/* Memset */
-	memset(Device, 0, sizeof(PciAcpiDevice_t));
+	memset(Device, 0, sizeof(AcpiDevice_t));
 
 	/* Set handle */
 	Device->Handle = Handle;
@@ -181,10 +185,6 @@ PciAcpiDevice_t *PciAddObject(ACPI_HANDLE Handle, ACPI_HANDLE Parent, uint32_t T
 		/* First, we have to negiotiate OS Control */
 		//pci_negiotiate_os_control(device);
 
-		/* OK so actually we can get the bus number from this, and then SIMPLY
-		 * just use standard enumeration, wtf i did obviously fail at logic */
-		PciCheckBus(GlbPciDevices, (uint8_t)Device->Bus);
-
 		/* Save it root bridge list */
 		Device->Type = ACPI_BUS_ROOT_BRIDGE;
 		Device->Bus = GlbBusCounter;
@@ -205,7 +205,7 @@ PciAcpiDevice_t *PciAddObject(ACPI_HANDLE Handle, ACPI_HANDLE Parent, uint32_t T
 /* Scan Callback */
 ACPI_STATUS PciScanCallback(ACPI_HANDLE Handle, UINT32 Level, void *Context, void **ReturnValue)
 {
-	PciAcpiDevice_t *Device = NULL;
+	AcpiDevice_t *Device = NULL;
 	ACPI_STATUS Status = AE_OK;
 	ACPI_OBJECT_TYPE Type = 0;
 	ACPI_HANDLE Parent = (ACPI_HANDLE)Context;

@@ -21,7 +21,18 @@
 
 /* Includes */
 #include <Arch.h>
-#include <acpi.h>
+#include <AcpiSys.h>
+#include <Heap.h>
+#include <stdio.h>
+
+/* Internal Use */
+typedef struct _IrqResource
+{
+	/* Double Voids */
+	void *Device;
+	void *Table;
+
+} IrqResource_t;
 
 /* Video Backlight Capability Callback */
 ACPI_STATUS AcpiVideoBacklightCapCallback(ACPI_HANDLE Handle, UINT32 Level, void *Context, void **ReturnValue)
@@ -48,10 +59,10 @@ ACPI_STATUS AcpiVideoBacklightCapCallback(ACPI_HANDLE Handle, UINT32 Level, void
 
 /* Is this a video device? 
  * If it is, we also retrieve capabilities */
-ACPI_STATUS AcpiDeviceIsVideo(PciAcpiDevice_t *Device)
+ACPI_STATUS AcpiDeviceIsVideo(AcpiDevice_t *Device)
 {
 	ACPI_HANDLE NullHandle = NULL;
-	uint64_t video_features = 0;
+	uint64_t VidFeatures = 0;
 
 	/* Sanity */
 	if (Device == NULL)
@@ -60,26 +71,26 @@ ACPI_STATUS AcpiDeviceIsVideo(PciAcpiDevice_t *Device)
 	/* Does device support Video Switching */
 	if (ACPI_SUCCESS(AcpiGetHandle(Device->Handle, "_DOD", &NullHandle)) &&
 		ACPI_SUCCESS(AcpiGetHandle(Device->Handle, "_DOS", &NullHandle)))
-		video_features |= ACPI_VIDEO_SWITCHING;
+		VidFeatures |= ACPI_VIDEO_SWITCHING;
 
 	/* Does device support Video Rom? */
 	if (ACPI_SUCCESS(AcpiGetHandle(Device->Handle, "_ROM", &NullHandle)))
-		video_features |= ACPI_VIDEO_ROM;
+		VidFeatures |= ACPI_VIDEO_ROM;
 
 	/* Does device support configurable video head? */
 	if (ACPI_SUCCESS(AcpiGetHandle(Device->Handle, "_VPO", &NullHandle)) &&
 		ACPI_SUCCESS(AcpiGetHandle(Device->Handle, "_GPD", &NullHandle)) &&
 		ACPI_SUCCESS(AcpiGetHandle(Device->Handle, "_SPD", &NullHandle)))
-		video_features |= ACPI_VIDEO_POSTING;
+		VidFeatures |= ACPI_VIDEO_POSTING;
 
 	/* Only call this if it is a video device */
-	if (video_features != 0)
+	if (VidFeatures != 0)
 	{
 		AcpiWalkNamespace(ACPI_TYPE_DEVICE, Device->Handle, ACPI_UINT32_MAX,
-			PciVideoBacklightCapCallback, NULL, &video_features, NULL);
+			AcpiVideoBacklightCapCallback, NULL, &VidFeatures, NULL);
 
 		/* Update ONLY if video device */
-		Device->xFeatures = video_features;
+		Device->xFeatures |= VidFeatures;
 
 		return AE_OK;
 	}
@@ -89,7 +100,7 @@ ACPI_STATUS AcpiDeviceIsVideo(PciAcpiDevice_t *Device)
 
 /* Is this a docking device? 
  * If it has a _DCK method, yes */
-ACPI_STATUS AcpiDeviceIsDock(PciAcpiDevice_t *Device)
+ACPI_STATUS AcpiDeviceIsDock(AcpiDevice_t *Device)
 {
 	ACPI_HANDLE NullHandle = NULL;
 
@@ -102,17 +113,17 @@ ACPI_STATUS AcpiDeviceIsDock(PciAcpiDevice_t *Device)
 
 /* Is this a BAY (i.e cd-rom drive with a ejectable bay) 
  * We check several ACPI methods here */
-ACPI_STATUS AcpiDeviceIsBay(PciAcpiDevice_t *Device)
+ACPI_STATUS AcpiDeviceIsBay(AcpiDevice_t *Device)
 {
-	ACPI_STATUS status;
+	ACPI_STATUS Status;
 	ACPI_HANDLE ParentHandle = NULL;
 	ACPI_HANDLE NullHandle = NULL;
 
 	/* Sanity, make sure it is even ejectable */
-	status = AcpiGetHandle(Device->Handle, "_EJ0", &NullHandle);
+	Status = AcpiGetHandle(Device->Handle, "_EJ0", &NullHandle);
 
-	if (ACPI_FAILURE(status))
-		return status;
+	if (ACPI_FAILURE(Status))
+		return Status;
 
 	/* Fine, lets try to fuck it up, _GTF, _GTM, _STM and _SDD,
 	 * we choose you! */
@@ -123,10 +134,10 @@ ACPI_STATUS AcpiDeviceIsBay(PciAcpiDevice_t *Device)
 		return AE_OK;
 
 	/* Uh... ok... maybe we are sub-device of an ejectable parent */
-	status = AcpiGetParent(Device->Handle, &ParentHandle);
+	Status = AcpiGetParent(Device->Handle, &ParentHandle);
 
-	if (ACPI_FAILURE(status))
-		return status;
+	if (ACPI_FAILURE(Status))
+		return Status;
 
 	/* Now, lets try to fuck up parent ! */
 	if ((ACPI_SUCCESS(AcpiGetHandle(ParentHandle, "_GTF", &NullHandle))) ||
@@ -139,7 +150,7 @@ ACPI_STATUS AcpiDeviceIsBay(PciAcpiDevice_t *Device)
 }
 
 /* Get Memory Configuration Range */
-ACPI_STATUS AcpiDeviceGetMemConfigRange(PciAcpiDevice_t *Device)
+ACPI_STATUS AcpiDeviceGetMemConfigRange(AcpiDevice_t *Device)
 {
 	/* Unused */
 	_CRT_UNUSED(Device);
@@ -156,20 +167,20 @@ void AcpiDeviceSetDataCallback(ACPI_HANDLE Handle, void *Data)
 }
 
 /* Set Device Data */
-ACPI_STATUS AcpiDeviceAttachData(PciAcpiDevice_t *Device, uint32_t Type)
+ACPI_STATUS AcpiDeviceAttachData(AcpiDevice_t *Device, uint32_t Type)
 {
 	/* Store, unless its power/sleep buttons */
 	if ((Type != ACPI_BUS_TYPE_POWER) &&
 		(Type != ACPI_BUS_TYPE_SLEEP))
 	{
-		return AcpiAttachData(Device->Handle, PciDeviceSetDataCallback, (void*)Device);
+		return AcpiAttachData(Device->Handle, AcpiDeviceSetDataCallback, (void*)Device);
 	}
 
 	return AE_OK;
 }
 
 /* Gets Device Status */
-ACPI_STATUS AcpiDeviceGetStatus(PciAcpiDevice_t* Device)
+ACPI_STATUS AcpiDeviceGetStatus(AcpiDevice_t* Device)
 {
 	ACPI_STATUS Status = AE_OK;
 	ACPI_BUFFER Buffer;
@@ -202,7 +213,7 @@ ACPI_STATUS AcpiDeviceGetStatus(PciAcpiDevice_t* Device)
 }
 
 /* Gets Device Bus Number */
-ACPI_STATUS AcpiDeviceGetBusAndSegment(PciAcpiDevice_t* Device)
+ACPI_STATUS AcpiDeviceGetBusAndSegment(AcpiDevice_t* Device)
 {
 	ACPI_STATUS Status = AE_OK;
 	ACPI_BUFFER Buffer;
@@ -248,7 +259,7 @@ ACPI_STATUS AcpiDeviceGetBusAndSegment(PciAcpiDevice_t* Device)
 }
 
 /* Gets Device Name */
-ACPI_STATUS AcpiDeviceGetBusId(PciAcpiDevice_t *Device, uint32_t Type)
+ACPI_STATUS AcpiDeviceGetBusId(AcpiDevice_t *Device, uint32_t Type)
 {
 	ACPI_STATUS Status = AE_OK;
 	ACPI_BUFFER Buffer;
@@ -288,7 +299,7 @@ ACPI_STATUS AcpiDeviceGetBusId(PciAcpiDevice_t *Device, uint32_t Type)
 }
 
 /* Gets Device Features */
-ACPI_STATUS AcpiDeviceGetFeatures(PciAcpiDevice_t *Device)
+ACPI_STATUS AcpiDeviceGetFeatures(AcpiDevice_t *Device)
 {
 	ACPI_STATUS Status;
 	ACPI_HANDLE NullHandle = NULL;
@@ -385,8 +396,8 @@ ACPI_STATUS AcpiDeviceGetFeatures(PciAcpiDevice_t *Device)
 /* IRQ Routing Callback */
 ACPI_STATUS AcpiDeviceIrqRoutingCallback(ACPI_RESOURCE *Resource, void *Context)
 {
-	PciIrqResource_t *IrqResource = (PciIrqResource_t*)Context;
-	PciAcpiDevice_t *Device = (PciAcpiDevice_t*)IrqResource->Device;
+	IrqResource_t *IrqResource = (IrqResource_t*)Context;
+	AcpiDevice_t *Device = (AcpiDevice_t*)IrqResource->Device;
 	ACPI_PCI_ROUTING_TABLE *IrqTable = (ACPI_PCI_ROUTING_TABLE*)IrqResource->Table;
 
 	/* Normal IRQ Resource? */
@@ -400,11 +411,6 @@ ACPI_STATUS AcpiDeviceIrqRoutingCallback(ACPI_RESOURCE *Resource, void *Context)
 		Device->Routings->Trigger[offset] = Irq->Triggering;
 		Device->Routings->Shareable[offset] = Irq->Sharable;
 		Device->Routings->Interrupts[offset] = Irq->Interrupts[IrqTable->SourceIndex];
-
-		/* Debug */
-		printf("(Device %u - Pin: %u, Irq: %u) ",
-			(uint32_t)ACPI_HIWORD(ACPI_LODWORD(IrqTable->Address)),
-			IrqTable->Pin, Irq->Interrupts[IrqTable->SourceIndex]);
 	}
 	else if (Resource->Type == ACPI_RESOURCE_TYPE_EXTENDED_IRQ)
 	{
@@ -416,18 +422,13 @@ ACPI_STATUS AcpiDeviceIrqRoutingCallback(ACPI_RESOURCE *Resource, void *Context)
 		Device->Routings->Trigger[offset] = Irq->Triggering;
 		Device->Routings->Shareable[offset] = Irq->Sharable;
 		Device->Routings->Interrupts[offset] = Irq->Interrupts[IrqTable->SourceIndex];
-
-		/* Debug */
-		printf("(Device %u - Pin: %u, Irq: %u) ",
-			(uint32_t)ACPI_HIWORD(ACPI_LODWORD(IrqTable->Address)),
-			IrqTable->Pin, Irq->Interrupts[IrqTable->SourceIndex]);
 	}
 
 	return AE_OK;
 }
 
 /* Gets IRQ Routings */
-ACPI_STATUS AcpiDeviceGetIrqRoutings(PciAcpiDevice_t *Device)
+ACPI_STATUS AcpiDeviceGetIrqRoutings(AcpiDevice_t *Device)
 {
 	ACPI_STATUS Status;
 	ACPI_BUFFER aBuff;
@@ -466,7 +467,7 @@ ACPI_STATUS AcpiDeviceGetIrqRoutings(PciAcpiDevice_t *Device)
 		((char *)PciTable + PciTable->Length))
 	{
 		ACPI_HANDLE SourceHandle;
-		PciIrqResource_t IrqRes;
+		IrqResource_t IrqRes;
 
 		/* Wub, we have a routing */
 		if (*(char*)PciTable->Source == '\0')
@@ -509,7 +510,7 @@ done:
 }
 
 /* Gets Device Information */
-ACPI_STATUS AcpiDeviceGetHWInfo(PciAcpiDevice_t *Device, ACPI_HANDLE ParentHandle, uint32_t Type)
+ACPI_STATUS AcpiDeviceGetHWInfo(AcpiDevice_t *Device, ACPI_HANDLE ParentHandle, uint32_t Type)
 {
 	ACPI_STATUS Status;
 	ACPI_DEVICE_INFO *DeviceInfo;
