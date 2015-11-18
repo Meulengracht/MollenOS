@@ -109,5 +109,5 @@ void InterruptInstallShared(uint32_t Irq, uint32_t IdtEntry, IrqHandler_t Callba
 
 OsStatus_t InterruptAllocateISA(uint32_t Irq)
 {
-	((__irqallocisa)GlbFunctionTable[kFuncAllocateIrqISA])(Irq);
+	return ((__irqallocisa)GlbFunctionTable[kFuncAllocateIrqISA])(Irq);
 }

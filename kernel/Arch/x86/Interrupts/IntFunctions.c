@@ -24,7 +24,7 @@
 #include <List.h>
 #include <Idt.h>
 #include <Pci.h>
-#include <acpi.h>
+#include <AcpiSys.h>
 #include <Apic.h>
 #include <assert.h>
 #include <stdio.h>
@@ -218,7 +218,7 @@ void InterruptInstallPci(PciDevice_t *PciDevice, IrqHandler_t Callback, void *Ar
 	pin--;
 
 	/* Get Interrupt Information */
-	result = PciDeviceGetIrq(PciDevice->Bus, PciDevice->Device, pin,
+	result = AcpiDeviceGetIrq(PciDevice->Bus, PciDevice->Device, pin,
 		&trigger_mode, &polarity, &shareable, &fixed);
 
 	/* If no routing exists use the interrupt_line */
@@ -237,9 +237,7 @@ void InterruptInstallPci(PciDevice_t *PciDevice, IrqHandler_t Callback, void *Ar
 		pin = PciDevice->Header->InterruptPin;
 
 		/* Update PCI Interrupt Line */
-		PciWriteByte(
-			(const uint16_t)PciDevice->Bus, (const uint16_t)PciDevice->Device,
-			(const uint16_t)PciDevice->Function, 0x3C, (uint8_t)io_entry);
+		PciWrite8(PciDevice->Bus, PciDevice->Device, PciDevice->Function, 0x3C, (uint8_t)io_entry);
 
 		/* Setup APIC flags */
 		apic_flags = 0x7F00000000000000;			/* Target all groups */

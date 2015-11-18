@@ -27,6 +27,11 @@
 #include <crtdefs.h>
 #include <stdint.h>
 
+#ifndef __IRQHANDLER
+#define __IRQHANDLER
+typedef int(*IrqHandler_t)(void*);
+#endif
+
 /* Definitions */
 #define X86_PCI_SELECT		0xCF8
 #define X86_PCI_DATA		0xCFC
@@ -154,7 +159,7 @@ _CRT_EXTERN void PciWrite16(uint32_t Bus, uint32_t Device, uint32_t Function, ui
 _CRT_EXTERN void PciWrite32(uint32_t Bus, uint32_t Device, uint32_t Function, uint32_t Register, uint32_t Value);
 _CRT_EXTERN void PciDeviceWrite(PciDevice_t *Device, uint32_t Register, uint32_t Value, uint32_t Length);
 
-/* Install PCI Interrupt */
+/* Install Pci Interrupt */
 _CRT_EXTERN void InterruptInstallPci(PciDevice_t *PciDevice, IrqHandler_t Callback, void *Args);
 
 /* Decode PCI Device to String */

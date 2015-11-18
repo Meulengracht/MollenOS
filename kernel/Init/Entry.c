@@ -31,24 +31,20 @@
 #include <Threading.h>
 #include <Vfs\Vfs.h>
 #include <Heap.h>
-#include <stdio.h>
+#include <Log.h>
 
 /* Globals */
 MCoreCpuDevice_t BootCpu = { 0 };
 MCoreVideoDevice_t BootVideo = { 0 };
 
-/* We need these functions */
-extern void ThreadingDebugPrint(void);
-extern void MStringTest(void);
-
 /* Print Header Information */
 void PrintHeader(MCoreBootInfo_t *BootInfo)
 {
-	printf("MollenOS Operating System - Platform: %s - Version %i.%i.%i\n",
+	Log("MollenOS Operating System - Platform: %s - Version %i.%i.%i\n",
 		ARCHITECTURE_NAME, REVISION_MAJOR, REVISION_MINOR, REVISION_BUILD);
-	printf("Written by Philip Meulengracht, Copyright 2011-2014, All Rights Reserved.\n");
-	printf("Bootloader - %s\n", BootInfo->BootloaderName);
-	printf("VC Build %s - %s\n\n", BUILD_DATE, BUILD_TIME);
+	Log("Written by Philip Meulengracht, Copyright 2011-2014, All Rights Reserved.\n");
+	Log("Bootloader - %s\n", BootInfo->BootloaderName);
+	Log("VC Build %s - %s\n\n", BUILD_DATE, BUILD_TIME);
 }
 
 /* Shared Entry in MollenOS
@@ -61,11 +57,13 @@ void MCoreInitialize(MCoreBootInfo_t *BootInfo)
 	/* Setup Video Boot */
 	VideoInit(&BootVideo, BootInfo);
 
+	/* Now init log */
+	LogInit(LogConsole, LogLevel1);
+
 	/* Print Header */
 	PrintHeader(BootInfo);
 
 	/* Init HAL */
-	printf("  - Setting up base HAL\n");
 	BootInfo->InitHAL(BootInfo->ArchBootInfo);
 
 	/* Init the heap */
@@ -80,12 +78,14 @@ void MCoreInitialize(MCoreBootInfo_t *BootInfo)
 	ModuleMgrInit(BootInfo->RamDiskAddr, BootInfo->RamDiskSize);
 
 	/* Init Threading & Scheduler for boot cpu */
-	printf("  - Threading\n");
 	SchedulerInit(0);
 	ThreadingInit();
 
+	LogFatal("SYST", "End of kernel");
+	Idle();
+
 	/* Init post-systems */
-	printf("  - Initializing Post Memory Systems\n");
+	//printf("  - Initializing Post Memory Systems\n");
 	BootInfo->InitPostSystems();
 
 	/* Beyond this point we need timers 
@@ -93,19 +93,19 @@ void MCoreInitialize(MCoreBootInfo_t *BootInfo)
 	 * and worst of all, timers are VERY 
 	 * arch-specific, so we let the underlying
 	 * architecture load them */
-	printf("  - Installing Timers...\n");
+	//printf("  - Installing Timers...\n");
 	BootInfo->InitTimers();
 
 	/* Start out any extra cores */
-	printf("  - Initializing SMP\n");
+	//printf("  - Initializing SMP\n");
 	CpuInitSmp(BootInfo->ArchBootInfo);
 
 	/* Start the request handle */
-	printf("  - Initializing Device Requests\n");
+	//printf("  - Initializing Device Requests\n");
 	DmStart();
 
 	/* Virtual Filesystem */
-	printf("  - Initializing VFS\n");
+	//printf("  - Initializing VFS\n");
 	VfsInit();
 
 	/* From this point, we should start seperate threads and
@@ -114,8 +114,8 @@ void MCoreInitialize(MCoreBootInfo_t *BootInfo)
 	* thread, it will take over as this is the idle thread */
 
 	/* Drivers */
-	printf("  - Initializing Drivers...\n");
-	ThreadingCreateThread("DriverSetup", DriverManagerInit, NULL, 0);
+	//printf("  - Initializing Drivers...\n");
+	ThreadingCreateThread("DriverSetup", DevicesInit, NULL, 0);
 
 	/* Enter Idle Loop */
 	while (1)

@@ -89,3 +89,32 @@ void ModuleMgrInit(size_t RamDiskAddr, size_t RamDiskSize)
 	/* Done! */
 	GlbModMgrInitialized = 1;
 }
+
+/* Locate a module */
+MCoreModule_t *ModuleFind(uint32_t DeviceType, uint32_t DeviceSubType)
+{
+	foreach(mNode, GlbModMgrModules)
+	{
+		/* Cast */
+		MCoreModule_t *Module = (MCoreModule_t*)mNode->data;
+
+		/* Sanity */
+		if (Module->DeviceType == DeviceType
+			&& Module->DeviceSubType == DeviceSubType)
+			return Module;
+	}
+
+	/* Else return null, not found */
+	return NULL;
+}
+
+/* Load a Module */
+ModuleResult_t ModuleLoad(MCoreModule_t *Module, Addr_t *FunctionTable, void *Args)
+{
+	_CRT_UNUSED(Module);
+	_CRT_UNUSED(FunctionTable);
+	_CRT_UNUSED(Args);
+
+	/* Done! */
+	return ModuleOk;
+}

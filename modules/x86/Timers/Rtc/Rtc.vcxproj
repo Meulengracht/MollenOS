@@ -11,14 +11,13 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="Cmos.c" />
     <ClCompile Include="Rtc.c" />
   </ItemGroup>
   <ItemGroup>
-    <None Include="Cmos.mdrv" />
+    <None Include="Rtc.mdrv" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
-    <ProjectGuid>{9EB61B2B-551E-45DC-911C-94067E544251}</ProjectGuid>
+    <ProjectGuid>{6E045EEC-7B13-4155-A5EE-96266112E8CD}</ProjectGuid>
     <Keyword>Win32Proj</Keyword>
     <RootNamespace>Modules</RootNamespace>
   </PropertyGroup>
@@ -80,7 +79,7 @@
     <Link>
       <SubSystem>Native</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalDependencies>CLibK.lib;Shared.lib</AdditionalDependencies>
+      <AdditionalDependencies>CLibK.lib;Shared.lib;Cmos.lib</AdditionalDependencies>
       <IgnoreAllDefaultLibraries>true</IgnoreAllDefaultLibraries>
       <Driver>Driver</Driver>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>

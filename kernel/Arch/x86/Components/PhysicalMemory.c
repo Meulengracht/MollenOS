@@ -28,7 +28,7 @@
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
-#include <stdio.h>
+#include <Log.h>
 
 /* Globals */
 volatile Addr_t *MemoryBitmap = NULL;
@@ -131,10 +131,10 @@ int MmGetFreeMapBitHigh(void)
 }
 
 /* Frees a region of memory */
-void MmFreeRegion(uint32_t Base, size_t Size)
+void MmFreeRegion(Addr_t Base, size_t Size)
 {
 	int align = (int32_t)(Base / PAGE_SIZE);
-	int blocks = (int32_t)(Size / PAGE_SIZE);
+	size_t blocks = Size / PAGE_SIZE;
 	uint32_t i;
 
 	/* Block freeing loop */
@@ -150,10 +150,10 @@ void MmFreeRegion(uint32_t Base, size_t Size)
 }
 
 /* Allocate a region of memory */
-void MmAllocateRegion(uint32_t Base, size_t Size)
+void MmAllocateRegion(Addr_t Base, size_t Size)
 {
 	int align = (int32_t)(Base / PAGE_SIZE);
-	int blocks = (int32_t)(Size / PAGE_SIZE);
+	size_t blocks = Size / PAGE_SIZE;
 	uint32_t i;
 
 	for (i = Base; (blocks + 1) > 0; blocks--, i += PAGE_SIZE)
@@ -188,7 +188,7 @@ int MmSysMappingsContain(Addr_t Base, int Type)
 }
 
 /* Initialises the physical memory bitmap */
-void MmPhyiscalInit(void *BootInfo, uint32_t KernelSize, uint32_t RamDiskSize)
+void MmPhyiscalInit(void *BootInfo, size_t KernelSize, size_t RamDiskSize)
 {
 	/* Step 1. Set location of memory bitmap at 2mb */
 	Multiboot_t *mboot = (Multiboot_t*)BootInfo;
@@ -273,8 +273,9 @@ void MmPhyiscalInit(void *BootInfo, uint32_t KernelSize, uint32_t RamDiskSize)
 	/* 0x180000 - ?? || Bitmap Space */
 	MmAllocateRegion(MEMORY_LOCATION_BITMAP, MemoryBitmapSize);
 
-	printf("      > Bitmap size: %u Bytes\n", MemoryBitmapSize);
-	printf("      > Memory in use %u Bytes\n", MemoryBlocksUsed * PAGE_SIZE);
+	/* Debug */
+	LogInformation("PMEM", "Bitmap size: %u Bytes", MemoryBitmapSize);
+	LogInformation("PMEM", "Memory in use %u Bytes", MemoryBlocksUsed * PAGE_SIZE);
 }
 
 void MmPhysicalFreeBlock(PhysAddr_t Addr)
@@ -378,44 +379,4 @@ VirtAddr_t MmPhyiscalGetSysMappingVirtual(PhysAddr_t PhysicalAddr)
 	}
 
 	return 0;
-}
-
-/***************************
- * Physical Memory Manager
- * Testing Suite
- ***************************/
-void MmPhysicalTests(void)
-{
-	/* Phase 1, basic allocation and freeing */
-	PhysAddr_t i, addr1, addr2, addr3;
-
-	printf("\nPhysical Memory Testing initiated...\n");
-	printf("Initial Memory in use %u Bytes\n", MemoryBlocksUsed * PAGE_SIZE);
-
-	addr1 = MmPhysicalAllocateBlock();
-	addr2 = MmPhysicalAllocateBlock();
-	addr3 = MmPhysicalAllocateBlock();
-
-	printf("Alloc1: 0x%x, Alloc2: 0x%x, Alloc3: 0x%x\n", addr1, addr2, addr3);
-	printf("Freeing addr2 and allocating a new, then freeing rest\n");
-	MmPhysicalFreeBlock(addr2);
-	addr2 = MmPhysicalAllocateBlock();
-	MmPhysicalFreeBlock(addr1);
-	MmPhysicalFreeBlock(addr3);
-	printf("Alloc2: 0x%x\n", addr2);
-	MmPhysicalFreeBlock(addr2);
-
-	/* Try allocating laaaarge */
-	addr1 = MmPhysicalAllocateBlock();
-	printf("Large allocation start at: 0x%x\n", addr1);
-	for (i = 0; i < 1023; i++)
-		addr2 = MmPhysicalAllocateBlock();
-	printf("Large allocation end at: 0x%x\n", addr2);
-
-	/* Freeing laaaarge! */
-	printf("Freeing the large allocation!\n");
-	for (i = addr1; i <= addr2; i += PAGE_SIZE)
-		MmPhysicalFreeBlock(i);
-	printf("Done, testing is concluded\n");
-	printf("Final Memory in use %u Bytes\n", MemoryBlocksUsed * PAGE_SIZE);
 }

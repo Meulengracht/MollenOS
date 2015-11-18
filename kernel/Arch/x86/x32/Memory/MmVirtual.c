@@ -24,11 +24,11 @@
 #include <Video.h>
 #include <Memory.h>
 #include <Mutex.h>
+#include <Log.h>
 
 #include <assert.h>
 #include <stddef.h>
 #include <string.h>
-#include <stdio.h>
 
 /* Globals */
 PageDirectory_t *KernelPageDirectory = NULL;
@@ -192,7 +192,7 @@ void MmVirtualMap(void *PageDirectory, PhysAddr_t PhysicalAddr, VirtAddr_t Virtu
 	/* Now, lets map page! */
 	if (ptable->Pages[PAGE_TABLE_INDEX(VirtualAddr)] != 0)
 	{
-		printf("Trying to remap virtual 0x%x to physical 0x%x (original mapping 0x%x)\n",
+		LogFatal("VMEM", "Trying to remap virtual 0x%x to physical 0x%x (original mapping 0x%x)",
 			VirtualAddr, PhysicalAddr, ptable->Pages[PAGE_TABLE_INDEX(VirtualAddr)]);
 		for (;;);
 		return;
@@ -406,6 +406,9 @@ void MmVirtualInit(void)
 	GlbNumLogicalCpus = 0;
 	GblReservedPtr = MEMORY_LOCATION_RESERVED;
 
+	/* Info */
+	LogInformation("VMEM", "Initializing");
+
 	/* We need 3 pages for the page directory */
 	KernelPageDirectory = (PageDirectory_t*)MmPhysicalAllocateBlock();
 	MmPhysicalAllocateBlock(); MmPhysicalAllocateBlock();
@@ -430,24 +433,24 @@ void MmVirtualInit(void)
 	/* Map Memory Regions */
 
 	/* HEAP */
-	printf("      > Mapping heap region to 0x%x\n", MEMORY_LOCATION_HEAP);
+	LogInformation("VMEM", "Mapping heap region to 0x%x", MEMORY_LOCATION_HEAP);
 	MmVirtualIdentityMapMemoryRange(KernelPageDirectory, 0, MEMORY_LOCATION_HEAP,
 		(MEMORY_LOCATION_HEAP_END - MEMORY_LOCATION_HEAP), 0, 0);
 
 	/* SHARED MEMORY */
-	printf("      > Mapping shared memory region to 0x%x\n", MEMORY_LOCATION_SHM);
+	LogInformation("VMEM", "Mapping shared memory region to 0x%x", MEMORY_LOCATION_SHM);
 	MmVirtualIdentityMapMemoryRange(KernelPageDirectory, 0, MEMORY_LOCATION_SHM,
 		(MEMORY_LOCATION_SHM_END - MEMORY_LOCATION_SHM), 0, PAGE_USER);
 
 	/* VIDEO MEMORY (WITH FILL) */
-	printf("      > Mapping video memory to 0x%x\n", MEMORY_LOCATION_VIDEO);
+	LogInformation("VMEM", "Mapping video memory to 0x%x", MEMORY_LOCATION_VIDEO);
 	MmVirtualIdentityMapMemoryRange(KernelPageDirectory, GfxInformation.VideoAddr,
 		MEMORY_LOCATION_VIDEO, (GfxInformation.BytesPerScanLine * GfxInformation.ResY), 1, PAGE_USER);
 
 	/* Now, tricky, map reserved memory regions */
 
 	/* Step 1. Install a pagetable at MEMORY_LOCATION_RESERVED */
-	printf("      > Mapping reserved memory to 0x%x\n", MEMORY_LOCATION_RESERVED);
+	LogInformation("VMEM", "Mapping reserved memory to 0x%x", MEMORY_LOCATION_RESERVED);
 
 	/* Step 2. Map */
 	for (i = 0; i < 32; i++)

@@ -534,17 +534,17 @@ ACPI_STATUS AcpiOsReadPciConfiguration(
 	{
 		case 8:
 		{
-			*Value = PciReadByte(PciId->Bus, PciId->Device, PciId->Function, Register);
+			*Value = PciRead8(PciId->Bus, PciId->Device, PciId->Function, Register);
 		} break;
 
 		case 16:
 		{
-			*Value = PciReadWord(PciId->Bus, PciId->Device, PciId->Function, Register);
+			*Value = PciRead16(PciId->Bus, PciId->Device, PciId->Function, Register);
 		} break;
 
 		case 32:
 		{
-			*Value = PciReadDword(PciId->Bus, PciId->Device, PciId->Function, Register);
+			*Value = PciRead32(PciId->Bus, PciId->Device, PciId->Function, Register);
 		} break;
 
 		default:
@@ -579,17 +579,17 @@ ACPI_STATUS AcpiOsWritePciConfiguration(
 	{
 		case 8:
 		{
-			PciWriteByte(PciId->Bus, PciId->Device, PciId->Function, Register, (UINT8)Value);
+			PciWrite8(PciId->Bus, PciId->Device, PciId->Function, Register, (UINT8)Value);
 		} break;
 
 		case 16:
 		{
-			PciWriteWord(PciId->Bus, PciId->Device, PciId->Function, Register, (UINT16)Value);
+			PciWrite16(PciId->Bus, PciId->Device, PciId->Function, Register, (UINT16)Value);
 		} break;
 
 		case 32:
 		{
-			PciWriteDword(PciId->Bus, PciId->Device, PciId->Function, Register, (UINT32)Value);
+			PciWrite32(PciId->Bus, PciId->Device, PciId->Function, Register, (UINT32)Value);
 		} break;
 
 		default:

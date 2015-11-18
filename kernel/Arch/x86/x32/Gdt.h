@@ -55,85 +55,85 @@ typedef struct _GdtObject
 
 /* GDT Entry */
 #pragma pack(push, 1)
-typedef struct gdt_entry
+typedef struct _GdtEntry
 {
 	/* Limit 0:15 */
-	uint16_t limit_lo;
+	uint16_t LimitLow;
 
 	/* Base 0:15 */
-	uint16_t base_lo;
+	uint16_t BaseLow;
 
 	/* Base 16:23 */
-	uint8_t base_mid;
+	uint8_t BaseMid;
 
 	/* Access Flags */
-	uint8_t access;
+	uint8_t Access;
 
 	/* Limit high 0:3, Flags 4:7*/
-	uint8_t flags;
+	uint8_t Flags;
 
 	/* Base 24:31 */
-	uint8_t base_high;
+	uint8_t BaseHigh;
 
-} gdt_entry_t;
+} GdtEntry_t;
 #pragma pack(pop)
 
 /* TSS Entry */
 #pragma pack(push, 1)
-typedef struct tss_entry 
+typedef struct _TssEntry 
 {
 	/* Link to previous TSS */
-	uint32_t	prev_tss;
+	uint32_t	PreviousTSS;
 
 	/* Ring 0 */
-	uint32_t	esp0;
-	uint32_t	ss0;
+	uint32_t	Esp0;
+	uint32_t	Ss0;
 
 	/* Ring 1 */
-	uint32_t	esp1;
-	uint32_t	ss1;
+	uint32_t	Esp1;
+	uint32_t	Ss1;
 
 	/* Ring 2 */
-	uint32_t	esp2;
-	uint32_t	ss2;
+	uint32_t	Esp2;
+	uint32_t	Ss2;
 
 	/* Paging */
-	uint32_t	cr3;
+	uint32_t	Cr3;
 
 	/* State */
-	uint32_t	eip, eflags;
+	uint32_t	Eip, EFlags;
 
 	/* Registers */
-	uint32_t	eax, ecx, edx, ebx;
-	uint32_t	esp, ebp, esi, edi;
+	uint32_t	Eax, Ecx, Edx, Ebx;
+	uint32_t	Esp, Ebp, Esi, Edi;
 
 	/* Segments */
-	uint32_t	es;
-	uint32_t	cs;
-	uint32_t	ss;
-	uint32_t	ds;
-	uint32_t	fs;
-	uint32_t	gs;
+	uint32_t	Es;
+	uint32_t	Cs;
+	uint32_t	Ss;
+	uint32_t	Ds;
+	uint32_t	Fs;
+	uint32_t	Gs;
 
 	/* Misc */
-	uint32_t	ldt;
-	uint16_t	trap;
-	uint16_t	io_map;
-} tss_entry_t;
+	uint32_t	Ldt;
+	uint16_t	Trap;
+	uint16_t	IoMap;
+} TssEntry_t;
 #pragma pack(pop)
 
 /* GDT Prototypes */
-_CRT_EXTERN void gdt_init(void);
-_CRT_EXTERN void gdt_install_descriptor(uint32_t base, uint32_t limit,
-										uint8_t access, uint8_t grandularity);
+_CRT_EXTERN void GdtInit(void);
+_CRT_EXTERN void GdtInstallDescriptor(uint32_t Base, uint32_t Limit,
+									  uint8_t Access, uint8_t Grandularity);
 
 
 /* TSS Prototypes */
-_CRT_EXTERN void tss_install(uint32_t gdt_index);
-_CRT_EXTERN void gdt_update_tss(uint32_t cpu, uint32_t stack);
+_CRT_EXTERN void TssInstall(uint32_t GdtIndex);
+_CRT_EXTERN void TssUpdateStack(uint32_t Cpu, uint32_t Stack);
 
 /* Should be called by AP cores */
-_CRT_EXTERN void gdt_install(void);
-_CRT_EXTERN void gdt_install_tss(void);
+_CRT_EXTERN void GdtInstall(void);
+_CRT_EXTERN void GdtInstallTss(void);
 
 #endif // !_x86_GDT_H_

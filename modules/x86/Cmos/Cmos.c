@@ -155,9 +155,6 @@ MODULES_API void ModuleInit(Addr_t *FunctionTable, void *Data)
 
 	/* Register */
 	Cmos->DeviceId = DmCreateDevice("CMOS Clock", DeviceClock, Cmos);
-
-	/* Init Rtc */
-	RtcInit();
 }
 
 /* Helpers, I/O */

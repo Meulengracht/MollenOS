@@ -10,9 +10,6 @@
     <ClCompile Include="Cmos.c">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="Rtc.c">
-      <Filter>Source Files</Filter>
-    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <None Include="Cmos.mdrv">

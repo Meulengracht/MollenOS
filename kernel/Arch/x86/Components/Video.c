@@ -109,7 +109,7 @@ int _VideoPutCharVesa(void *VideoData, int Character)
 	{
 		/* Print */
 		vDevice->DrawCharacter(VideoData, 
-			Character, vDevice->CursorY, vDevice->CursorX, 0, 0xFFFFFFFF);
+			Character, vDevice->CursorY, vDevice->CursorX, vDevice->FgColor, vDevice->BgColor);
 
 		/* Increase position */
 		vDevice->CursorX += 10;

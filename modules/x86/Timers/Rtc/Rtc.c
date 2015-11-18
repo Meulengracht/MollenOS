@@ -138,14 +138,18 @@ void RtcStall(void *Data, uint32_t MilliSeconds)
 		_asm nop;
 }
 
-/* Initialization */
-OsStatus_t RtcInit(void)
+/* Entry point of a module */
+MODULES_API void ModuleInit(Addr_t *FunctionTable, void *Data)
 {
 	IntStatus_t IntrState;
 	uint8_t StateB = 0;
 	uint8_t Rate = 0x08; /* must be between 3 and 15 */
 	MCoreTimerDevice_t *TimerData = NULL;
 	RtcTimer_t *Rtc = NULL;
+
+	/* Save Table */
+	_CRT_UNUSED(Data);
+	GlbFunctionTable = FunctionTable;
 
 	/* Allocate */
 	Rtc = (RtcTimer_t*)kmalloc(sizeof(RtcTimer_t));
@@ -196,7 +200,4 @@ OsStatus_t RtcInit(void)
 
 	/* Clear pending interrupt again */
 	CmosReadRegister(X86_CMOS_REGISTER_STATUS_C);
-
-	/* Done */
-	return OS_STATUS_OK;
 }

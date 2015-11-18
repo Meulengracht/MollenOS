@@ -39,6 +39,8 @@
     <ClCompile Include="..\..\Arch\x86\Acpi\AcpiDevices.c" />
     <ClCompile Include="..\..\Arch\x86\Acpi\AcpiEnumerate.c" />
     <ClCompile Include="..\..\Arch\x86\Acpi\AcpiScan.c" />
+    <ClCompile Include="..\..\Arch\x86\Components\Devices.c" />
+    <ClCompile Include="..\..\Arch\x86\Components\PhysicalMemory.c" />
     <ClCompile Include="..\..\Arch\x86\Components\Smp.c" />
     <ClCompile Include="..\..\Arch\x86\Interrupts\ApicHandlers.c" />
     <ClCompile Include="..\..\Arch\x86\Interrupts\ApicHelpers.c" />
@@ -53,7 +55,6 @@
     <ClCompile Include="..\..\Arch\x86\Components\Spinlock.c" />
     <ClCompile Include="..\..\Arch\x86\Components\Thread.c" />
     <ClCompile Include="..\..\Arch\x86\Components\Video.c" />
-    <ClCompile Include="..\..\Arch\x86\Pci\DriverManager.c" />
     <ClCompile Include="..\..\Arch\x86\Pci\PciEnumerate.c" />
     <ClCompile Include="..\..\Arch\x86\Pci\PciHelpers.c" />
     <ClCompile Include="..\..\Arch\x86\Pci\PciIo.c" />
@@ -61,7 +62,6 @@
     <ClCompile Include="..\..\Arch\x86\x32\Context.c" />
     <ClCompile Include="..\..\Arch\x86\x32\Gdt.c" />
     <ClCompile Include="..\..\Arch\x86\x32\Idt.c" />
-    <ClCompile Include="..\..\Arch\x86\x32\Memory\MmPhysical.c" />
     <ClCompile Include="..\..\Arch\x86\x32\Memory\MmVirtual.c" />
   </ItemGroup>
   <ItemGroup>
@@ -134,7 +134,7 @@
     <NuGetPackageImportStamp>27414a97</NuGetPackageImportStamp>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
-    <OutDir>..\..\build\</OutDir>
+    <OutDir>..\..\Build\</OutDir>
     <IncludePath>..\..\acpica\include;..\..\Include;..\..\Msvc\MCoreConfig;..\..\..\clib\include;..\..\Arch\x86;..\..\Arch\x86\x32</IncludePath>
     <ReferencePath />
     <LibraryWPath />

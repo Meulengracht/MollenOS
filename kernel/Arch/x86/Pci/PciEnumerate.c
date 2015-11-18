@@ -27,6 +27,9 @@
 /* Globals */
 list_t *GlbPciDevices = NULL;
 
+/* Prototypes */
+void PciCheckBus(list_t *Bridge, uint8_t Bus);
+
 /* Check a function */
 /* For each function we create a 
  * pci_device and add it to the list */

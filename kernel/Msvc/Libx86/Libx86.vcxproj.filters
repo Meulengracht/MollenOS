@@ -36,9 +36,6 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="..\..\Arch\x86\x32\Memory\MmPhysical.c">
-      <Filter>x32\Memory</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\Arch\x86\x32\Memory\MmVirtual.c">
       <Filter>x32\Memory</Filter>
     </ClCompile>
@@ -105,9 +102,6 @@
     <ClCompile Include="..\..\Arch\x86\Acpi\AcpiScan.c">
       <Filter>Acpi</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\Arch\x86\Pci\DriverManager.c">
-      <Filter>Pci</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\Arch\x86\Pci\PciEnumerate.c">
       <Filter>Pci</Filter>
     </ClCompile>
@@ -119,6 +113,12 @@
     </ClCompile>
     <ClCompile Include="..\..\Arch\x86\Pci\PciIo.c">
       <Filter>Pci</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Arch\x86\Components\Devices.c">
+      <Filter>Components</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Arch\x86\Components\PhysicalMemory.c">
+      <Filter>Components</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
