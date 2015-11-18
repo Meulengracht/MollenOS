@@ -39,9 +39,9 @@ typedef enum _LogLevel
 } LogLevel_t;
 
 /* Colors */
-#define LOG_COLOR_INFORMATION		0xBDC3C7
+#define LOG_COLOR_INFORMATION		0x2ECC71
 #define LOG_COLOR_DEBUG				0x9B59B6
-#define LOG_COLOR_ERROR				0xC0392B
+#define LOG_COLOR_ERROR				0xFF392B
 #define LOG_COLOR_DEFAULT			0x0
 
 /* Functions */

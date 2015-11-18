@@ -78,8 +78,11 @@ void SleepMs(uint32_t MilliSeconds)
 
 	/* Sanity */
 	if (tDevice == NULL)
+	{
 		DelayMs(MilliSeconds);
-
+		return;
+	}
+	
 	/* Cast */
 	Timer = (MCoreTimerDevice_t*)tDevice->Data;
 
@@ -95,7 +98,10 @@ void SleepNs(uint32_t NanoSeconds)
 
 	/* Sanity */
 	if (tDevice == NULL)
+	{
 		DelayMs((NanoSeconds / 1000) + 1);
+		return;
+	}
 
 	/* Cast */
 	Timer = (MCoreTimerDevice_t*)tDevice->Data;
@@ -113,7 +119,10 @@ void StallMs(uint32_t MilliSeconds)
 
 	/* Sanity */
 	if (tDevice == NULL)
+	{
 		DelayMs(MilliSeconds);
+		return;
+	}
 
 	/* Cast */
 	Timer = (MCoreTimerDevice_t*)tDevice->Data;
@@ -130,7 +139,10 @@ void StallNs(uint32_t NanoSeconds)
 
 	/* Sanity */
 	if (tDevice == NULL)
+	{
 		DelayMs((NanoSeconds / 1000) + 1);
+		return;
+	}
 
 	/* Cast */
 	Timer = (MCoreTimerDevice_t*)tDevice->Data;

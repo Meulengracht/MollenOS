@@ -27,9 +27,9 @@
 #include <Interrupts.h>
 #include <Timers.h>
 #include <Heap.h>
+#include <Log.h>
 
 /* CLib */
-#include <stdio.h>
 #include <string.h>
 
 /* Globals */
@@ -124,7 +124,7 @@ void AcpiSetupIoApic(void *Data, int Nr, void *UserData)
 	uint8_t io_apic_num = (uint8_t)Nr;
 	IoApic_t *IoListEntry = NULL;
 
-	printf("    * Redirecting I/O Apic %u\n", ioapic->Id);
+	LogInformation("APIC", "Initializing I/O Apic %u", ioapic->Id);
 
 	/* Make sure address is mapped */
 	if (!MmVirtualGetMapping(NULL, ioapic->Address))
@@ -143,7 +143,7 @@ void AcpiSetupIoApic(void *Data, int Nr, void *UserData)
 	io_entries >>= 16;
 	io_entries &= 0xFF;
 
-	printf("    * IO Entries: %u\n", io_entries);
+	LogInformation("APIC", "Io Entries: %u", io_entries);
 
 	/* Fill rest of info */
 	IoListEntry->PinCount = io_entries + 1;
@@ -430,7 +430,7 @@ void ApicInitBoot(void)
 	ListExecuteOnId(GlbAcpiNodes, AcpiSetupIoApic, ACPI_MADT_TYPE_IO_APIC, NULL);
 
 	/* Done! Enable interrupts */
-	printf("    * Enabling interrupts...\n");
+	LogInformation("APIC", "Enabling Interrupts");
 	InterruptEnable();
 
 	/* Kickstart things */
@@ -490,7 +490,7 @@ void ApicTimerInit(void)
 
 	/* Calculate bus frequency */
 	TimerTicks = (0xFFFFFFFF - ApicReadLocal(APIC_CURRENT_COUNT));
-	printf("    * Ticks: %u\n", TimerTicks);
+	LogInformation("APIC", "Cpu Speed: %u Hz\n", TimerTicks);
 	GlbTimerQuantum = (TimerTicks / 100) + 1;
 
 	/* We want a minimum of ca 400, this is to ensure on "slow"
@@ -498,7 +498,7 @@ void ApicTimerInit(void)
 	if (GlbTimerQuantum < 400)
 		GlbTimerQuantum = 400;
 
-	printf("    * Quantum: %u\n", GlbTimerQuantum);
+	LogInformation("APIC", "Quantum: %u\n", GlbTimerQuantum);
 
 	/* Reset divider to make sure */
 	ApicReloadTimer(GlbTimerQuantum * 20);

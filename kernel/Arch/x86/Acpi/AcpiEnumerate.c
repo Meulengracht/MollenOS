@@ -25,7 +25,7 @@
 #include <Apic.h>
 #include <List.h>
 #include <Heap.h>
-#include <stdio.h>
+#include <Log.h>
 
 /* Globals */
 volatile Addr_t GlbLocalApicAddress = 0;
@@ -67,7 +67,8 @@ void AcpiEnumarateMADT(void *MadtStart, void *MadtEnd)
 				list_append(GlbAcpiNodes, list_create_node(ACPI_MADT_TYPE_LOCAL_APIC, CpuNode));
 
 				/* Debug */
-				printf("      > Found CPU: %u (Flags 0x%x)\n", AcpiCpu->Id, AcpiCpu->LapicFlags);
+				LogInformation("MADT", "Found CPU: %u (%s)", 
+					AcpiCpu->Id, (AcpiCpu->LapicFlags & 0x1) ? "Active" : "Inactive");
 
 				/* Increase CPU count */
 				GlbNumLogicalCpus++;
@@ -91,7 +92,7 @@ void AcpiEnumarateMADT(void *MadtStart, void *MadtEnd)
 			list_append(GlbAcpiNodes, list_create_node(ACPI_MADT_TYPE_IO_APIC, IoNode));
 
 			/* Debug */
-			printf("      > Found IO-APIC: %u\n", AcpiIoApic->Id);
+			LogInformation("MADT", "Found IO-APIC: %u", AcpiIoApic->Id);
 
 			/* Increase Count */
 			GlbNumIoApics++;
@@ -115,10 +116,6 @@ void AcpiEnumarateMADT(void *MadtStart, void *MadtEnd)
 			/* Insert it into list */
 			list_append(GlbAcpiNodes, list_create_node(ACPI_MADT_TYPE_INTERRUPT_OVERRIDE, OverrideNode));
 
-			/* Debug */
-			printf("      > Found Interrupt Override: %u -> %u\n", 
-				AcpiOverrideNode->SourceIrq, AcpiOverrideNode->GlobalIrq);
-
 		} break;
 
 		/* Local APIC NMI Configuration */
@@ -137,13 +134,10 @@ void AcpiEnumarateMADT(void *MadtStart, void *MadtEnd)
 			/* Insert it into list */
 			list_append(GlbAcpiNodes, list_create_node(ACPI_MADT_TYPE_LOCAL_APIC_NMI, NmiNode));
 
-			printf("      > Found Local APIC NMI: LintN %u connected to CPU %u\n", 
-				ApinNmi->Lint, ApinNmi->ProcessorId);
-
 		} break;
 
 		default:
-			printf("      > Found Type %u\n", MadtEntry->Type);
+			LogDebug("MADT", "Found Type %u", MadtEntry->Type);
 			break;
 		}
 
@@ -153,13 +147,26 @@ void AcpiEnumarateMADT(void *MadtStart, void *MadtEnd)
 	}
 }
 
+/* Enumerate SRAT Entries */
+void AcpiEnumerateSRAT(void *SratStart, void *SratEnd)
+{
+	_CRT_UNUSED(SratStart);
+	_CRT_UNUSED(SratEnd);
+}
+
 /* Initializes Early Access
 * and enumerates the APIC */
 void AcpiEnumerate(void)
 {
 	/* Vars */
 	ACPI_TABLE_MADT *MadtTable = NULL;
+	ACPI_TABLE_SRAT *SratTable = NULL;
+	ACPI_TABLE_SBST *BattTable = NULL;
+
 	ACPI_TABLE_HEADER *Header = NULL;
+	ACPI_TABLE_HEADER *Header2 = NULL;
+	ACPI_TABLE_HEADER *Header3 = NULL;
+
 	ACPI_STATUS Status = 0;
 
 	/* Early Table Access */
@@ -168,22 +175,24 @@ void AcpiEnumerate(void)
 	/* Sanity */
 	if (ACPI_FAILURE(Status))
 	{
-		printf("    * FAILED, %u!\n", Status);
+		LogFatal("ACPI", "AcpiInitializeTables, %u!", Status);
 		for (;;);
 	}
-
-	/* Debug */
-	printf("    * Acpica Enumeration Started\n");
 
 	/* Get the table */
 	if (ACPI_FAILURE(AcpiGetTable(ACPI_SIG_MADT, 0, &Header)))
 	{
 		/* Damn :( */
-		printf("    * APIC / ACPI FAILURE, APIC TABLE DOES NOT EXIST!\n");
+		LogFatal("ACPI", "Unable the locate the MADT Table");
+
+		/* On older pc's we should parse the MP table */
 
 		/* Stall */
 		for (;;);
 	}
+
+	/* Info */
+	LogInformation("ACPI", "Enumerating the MADT Table");
 
 	/* Cast */
 	MadtTable = (ACPI_TABLE_MADT*)Header;
@@ -204,7 +213,36 @@ void AcpiEnumerate(void)
 	AcpiEnumarateMADT((void*)((Addr_t)MadtTable + sizeof(ACPI_TABLE_MADT)), 
 		(void*)((Addr_t)MadtTable + MadtTable->Header.Length));
 
-	/* Enumerate SRAT */
+	/* Info */
+	LogInformation("ACPI", "Enumerating the SRAT Table");
 
-	/* Enumerate ECDT */
+	/* Enumerate SRAT */
+	if (ACPI_SUCCESS(AcpiGetTable(ACPI_SIG_SRAT, 0, &Header2)))
+	{
+		/* Cast */
+		SratTable = (ACPI_TABLE_SRAT*)Header2;
+
+		/* Gogo */
+		AcpiEnumerateSRAT((void*)((Addr_t)SratTable + sizeof(ACPI_TABLE_MADT)),
+			(void*)((Addr_t)SratTable + SratTable->Header.Length));
+	}
+	else
+		LogDebug("ACPI", "Unable the locate the SRAT Table");
+
+	/* Enumerate SBST */
+	
+	/* Info */
+	LogInformation("ACPI", "Parsing the SBST Table");
+
+	/* Enumerate SRAT */
+	if (ACPI_SUCCESS(AcpiGetTable(ACPI_SIG_SBST, 0, &Header3)))
+	{
+		/* Cast */
+		BattTable = (ACPI_TABLE_SBST*)Header2;
+
+		/* Gogo */
+		
+	}
+	else
+		LogDebug("ACPI", "Unable the locate the SBST Table");
 }

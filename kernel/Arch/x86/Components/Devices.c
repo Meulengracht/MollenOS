@@ -26,7 +26,7 @@
 #include <Pci.h>
 #include <Heap.h>
 #include <List.h>
-#include <stdio.h>
+#include <Log.h>
 
 /* The Function List */
 #include <../../../modules/x86/Include/Driver.h>
@@ -174,6 +174,7 @@ void DevicesInstall(void *Data, int n)
 #include <DeviceManager.h>
 #include <Mutex.h>
 #include <Semaphore.h>
+#include <stdio.h>
 
 extern void rdtsc(uint64_t *Value);
 
@@ -240,6 +241,9 @@ void DevicesInitTimers(void)
 	MCoreModule_t *Module = NULL;
 	ACPI_TABLE_HEADER *Header = NULL;
 
+	/* Information */
+	LogInformation("TIMR", "Initializing System Timers");
+
 	/* Setup Function table ? */
 	if (GlbFunctionTableInitialized != 1)
 		DevicesInitFunctionTable();
@@ -262,7 +266,6 @@ void DevicesInitTimers(void)
 		if (Module != NULL)
 			ModuleLoad(Module, GlbFunctionTable, (void*)Header);
 
-		
 		/* Done! */
 		return;
 	}
@@ -343,7 +346,7 @@ void DelayMs(uint32_t MilliSeconds)
 	/* Sanity */
 	if (!(GlbBootCpuInfo.EdxFeatures & CPUID_FEAT_EDX_TSC))
 	{
-		printf("DELAY CALLED AND RDTSC IS NOT SUPPORTED");
+		LogFatal("TIMR", "DelayMs() was called, but no TSC support in CPU.");
 		Idle();
 	}
 

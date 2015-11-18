@@ -134,7 +134,7 @@ int MmGetFreeMapBitHigh(void)
 void MmFreeRegion(Addr_t Base, size_t Size)
 {
 	int align = (int32_t)(Base / PAGE_SIZE);
-	size_t blocks = Size / PAGE_SIZE;
+	int32_t blocks = (int32_t)(Size / PAGE_SIZE);
 	uint32_t i;
 
 	/* Block freeing loop */
@@ -153,7 +153,7 @@ void MmFreeRegion(Addr_t Base, size_t Size)
 void MmAllocateRegion(Addr_t Base, size_t Size)
 {
 	int align = (int32_t)(Base / PAGE_SIZE);
-	size_t blocks = Size / PAGE_SIZE;
+	int32_t blocks = (int32_t)(Size / PAGE_SIZE);
 	uint32_t i;
 
 	for (i = Base; (blocks + 1) > 0; blocks--, i += PAGE_SIZE)
@@ -194,6 +194,10 @@ void MmPhyiscalInit(void *BootInfo, size_t KernelSize, size_t RamDiskSize)
 	Multiboot_t *mboot = (Multiboot_t*)BootInfo;
 	MBootMemoryRegion_t *region = (MBootMemoryRegion_t*)mboot->MemoryMapAddr;
 	uint32_t i, j;
+
+	/* Right now they are not used */
+	_CRT_UNUSED(KernelSize);
+	_CRT_UNUSED(RamDiskSize);
 	
 	/* Get information from multiboot struct */
 	MemorySize = mboot->MemoryHigh; /* This is how many blocks of 64 kb above 1 mb */
@@ -201,7 +205,7 @@ void MmPhyiscalInit(void *BootInfo, size_t KernelSize, size_t RamDiskSize)
 	MemorySize *= 1024;
 
 	/* Sanity, we need AT LEAST 2 mb to run! */
-	assert((MemorySize / 1024 / 1024) >= 2);
+	assert((MemorySize / 1024 / 1024) >= 4);
 
 	/* Set storage variables */
 	MemoryBitmap = (Addr_t*)MEMORY_LOCATION_BITMAP;
@@ -265,13 +269,13 @@ void MmPhyiscalInit(void *BootInfo, size_t KernelSize, size_t RamDiskSize)
 	MmAllocateRegion(0x90000, 0xF000);
 
 	/* 0x100000 - KernelSize */
-	MmAllocateRegion(MEMORY_LOCATION_KERNEL, (KernelSize + PAGE_SIZE));
+	MmAllocateRegion(MEMORY_LOCATION_KERNEL, 0x100000);
 
 	/* 0x200000 - RamDiskSize */
-	MmAllocateRegion(MEMORY_LOCATION_RAMDISK, (RamDiskSize + PAGE_SIZE));
+	MmAllocateRegion(MEMORY_LOCATION_RAMDISK, 0x100000);
 
-	/* 0x180000 - ?? || Bitmap Space */
-	MmAllocateRegion(MEMORY_LOCATION_BITMAP, MemoryBitmapSize);
+	/* 0x300000 - ?? || Bitmap Space */
+	MmAllocateRegion(MEMORY_LOCATION_BITMAP, (MemoryBitmapSize + PAGE_SIZE));
 
 	/* Debug */
 	LogInformation("PMEM", "Bitmap size: %u Bytes", MemoryBitmapSize);

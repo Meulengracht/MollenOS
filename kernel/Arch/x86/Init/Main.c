@@ -68,11 +68,11 @@ void InitAcpiAndApic(void)
 /* Installs Timers */
 void InitTimers(void)
 {
-	/* Info */
-	LogInformation("TIMR", "Initializing");
-
 	/* Setup Timers */
 	DevicesInitTimers();
+
+	LogFatal("SYST", "End of kernel");
+	Idle();
 
 	/* Init Apic Timers */
 	ApicTimerInit();
@@ -96,7 +96,7 @@ void HALInit(void *BootInfo)
 	InterruptInit();
 
 	/* Memory setup! */
-	LogInformation("HALX", "Prepairing Memory");
+	LogInformation("HALX", "Setting Up Memory");
 	MmPhyiscalInit(x86BootInfo.ArchBootInfo, x86BootInfo.KernelSize, x86BootInfo.RamDiskSize);
 	MmVirtualInit();
 }

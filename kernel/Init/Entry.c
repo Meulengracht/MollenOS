@@ -40,11 +40,11 @@ MCoreVideoDevice_t BootVideo = { 0 };
 /* Print Header Information */
 void PrintHeader(MCoreBootInfo_t *BootInfo)
 {
-	Log("MollenOS Operating System - Platform: %s - Version %i.%i.%i\n",
+	Log("MollenOS - Platform: %s - Version %i.%i.%i",
 		ARCHITECTURE_NAME, REVISION_MAJOR, REVISION_MINOR, REVISION_BUILD);
-	Log("Written by Philip Meulengracht, Copyright 2011-2014, All Rights Reserved.\n");
-	Log("Bootloader - %s\n", BootInfo->BootloaderName);
-	Log("VC Build %s - %s\n\n", BUILD_DATE, BUILD_TIME);
+	Log("Written by Philip Meulengracht, Copyright 2011-2015.");
+	Log("Bootloader - %s", BootInfo->BootloaderName);
+	Log("VC Build %s - %s\n", BUILD_DATE, BUILD_TIME);
 }
 
 /* Shared Entry in MollenOS
@@ -81,11 +81,7 @@ void MCoreInitialize(MCoreBootInfo_t *BootInfo)
 	SchedulerInit(0);
 	ThreadingInit();
 
-	LogFatal("SYST", "End of kernel");
-	Idle();
-
 	/* Init post-systems */
-	//printf("  - Initializing Post Memory Systems\n");
 	BootInfo->InitPostSystems();
 
 	/* Beyond this point we need timers 
@@ -93,8 +89,10 @@ void MCoreInitialize(MCoreBootInfo_t *BootInfo)
 	 * and worst of all, timers are VERY 
 	 * arch-specific, so we let the underlying
 	 * architecture load them */
-	//printf("  - Installing Timers...\n");
 	BootInfo->InitTimers();
+
+	LogFatal("SYST", "End of kernel");
+	Idle();
 
 	/* Start out any extra cores */
 	//printf("  - Initializing SMP\n");

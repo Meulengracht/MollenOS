@@ -25,7 +25,7 @@
 #include <Modules/PeLoader.h>
 #include <List.h>
 #include <Heap.h>
-#include <stdio.h>
+#include <Log.h>
 
 /* Globals */
 uint32_t GlbModMgrInitialized = 0;
@@ -42,11 +42,14 @@ void ModuleMgrInit(size_t RamDiskAddr, size_t RamDiskSize)
 		|| RamDiskSize == 0)
 		return;
 
+	/* Info */
+	LogInformation("MDMG", "Initializing");
+
 	/* Validate Members */
 	if (RdHeader->Magic != RAMDISK_MAGIC)
 	{
 		/* Error! */
-		printf("ModuleManager: Invalid Magic in Ramdisk - 0x%x\n", RdHeader->Magic);
+		LogFatal("MDMG", "Invalid Magic in Ramdisk - 0x%x", RdHeader->Magic);
 		return;
 	}
 
@@ -54,7 +57,7 @@ void ModuleMgrInit(size_t RamDiskAddr, size_t RamDiskSize)
 	if (RdHeader->Version != RAMDISK_VERSION_1)
 	{
 		/* Error! */
-		printf("ModuleManager: Invalid RamDisk Version - 0x%x\n", RdHeader->Version);
+		LogFatal("MDMG", "Invalid RamDisk Version - 0x%x", RdHeader->Version);
 		return;
 	}
 
@@ -86,6 +89,9 @@ void ModuleMgrInit(size_t RamDiskAddr, size_t RamDiskSize)
 		FileCount--;
 	}
 
+	/* Info */
+	LogInformation("MDMG", "Found %i Modules", GlbModMgrModules->length);
+
 	/* Done! */
 	GlbModMgrInitialized = 1;
 }
@@ -111,6 +117,17 @@ MCoreModule_t *ModuleFind(uint32_t DeviceType, uint32_t DeviceSubType)
 /* Load a Module */
 ModuleResult_t ModuleLoad(MCoreModule_t *Module, Addr_t *FunctionTable, void *Args)
 {
+	/* Information */
+	LogInformation("MDMG", "Loading Module %s", Module->ModuleName);
+
+	/* Parse & Relocate PE Module */
+
+	/* Get entry point */
+
+	/* Cast to function */
+
+	/* Call entry point */
+
 	_CRT_UNUSED(Module);
 	_CRT_UNUSED(FunctionTable);
 	_CRT_UNUSED(Args);

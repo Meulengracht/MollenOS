@@ -25,6 +25,7 @@
 #include <List.h>
 #include <Timers.h>
 #include <Heap.h>
+#include <Log.h>
 #include <DeviceManager.h>
 #include <Vfs\Vfs.h>
 #include <string.h>
@@ -277,6 +278,9 @@ DevId_t DmCreateDevice(char *Name, uint32_t Type, void *Data)
 		default:
 			break;
 	}
+
+	/* Info Log */
+	LogInformation("DRVM", "New Device: %s", Name);
 
 	/* Done */
 	return mDev->Id;
