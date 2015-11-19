@@ -200,7 +200,7 @@ void PeEnumerateExports(MCorePeFile_t *PeFile, PeDataDirectory_t *ExportDirector
 void PeLoadImports(MCorePeFile_t *PeFile, PeDataDirectory_t *ImportDirectory)
 {
 	/* Vars */
-	PeImportDirectory_t *ImportTable = NULL;
+	PeImportDescriptor_t *ImportDescriptor = NULL;
 
 	/* Sanity */
 	if (ImportDirectory->AddressRVA == 0
@@ -208,9 +208,17 @@ void PeLoadImports(MCorePeFile_t *PeFile, PeDataDirectory_t *ImportDirectory)
 		return;
 
 	/* Cast */
-	ImportTable = (PeImportDirectory_t*)(PeFile->BaseVirtual + ImportDirectory->AddressRVA);
+	ImportDescriptor = (PeImportDescriptor_t*)(PeFile->BaseVirtual + ImportDirectory->AddressRVA);
+
+	/* Iterate untill
+	 * we hit the null-descriptor */
+	while (ImportDescriptor->FirstThunk)
+	{
 
 
+		/* Next ! */
+		ImportDescriptor++;
+	}
 }
 
 /* Load Module into memory */

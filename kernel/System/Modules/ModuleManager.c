@@ -133,8 +133,12 @@ ModuleResult_t ModuleLoad(MCoreModule_t *Module, Addr_t *FunctionTable, void *Ar
 	if (Module->Descriptor != NULL)
 		return ModuleOk;
 
+	/* Calculate the file data address */
+	uint8_t *ModData = 
+		(uint8_t*)((Addr_t)Module->Header + sizeof(MCoreRamDiskModuleHeader_t));
+
 	/* Parse & Relocate PE Module */
-	Module->Descriptor = PeLoadModule(NULL);
+	Module->Descriptor = PeLoadModule(ModData);
 
 	/* Sanity */
 	if (Module->Descriptor == NULL)

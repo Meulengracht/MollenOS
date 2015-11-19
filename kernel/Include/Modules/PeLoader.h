@@ -437,6 +437,64 @@ typedef struct _PeImportDirectory
 
 } PeImportDirectory_t;
 
+/* The Import Descriptor */
+typedef struct _PeImportDescriptor
+{
+	/* Either it's the one,
+	 * or the second */
+	union {
+		uint32_t Attributes;
+
+		/* This is an RVA Address */
+		uint32_t OriginalFirstThumb;
+	} Variable;
+
+	/* DateTimeStamp 
+	 * if 0 == module not bound 
+	 * if -1 == image is bound */
+	uint32_t TimeStamp;
+
+	/* Forwarder Chain Id */
+	uint32_t ForwarderChainId;
+
+	/* Name - RVA Address */
+	uint32_t Name;
+
+	/* First Thunk - RVA Address */
+	uint32_t FirstThunk;
+
+} PeImportDescriptor_t;
+
+/* The Import By Name */
+#pragma pack(push, 1)
+typedef struct _PeImportName
+{
+	/* Possible Ordinal */
+	uint16_t Hint;
+
+	/* Null-Terminated name below this structure */
+	uint8_t Name[1];
+
+} PeImportName_t;
+#pragma pack(pop)
+
+/* The Thunk Descriptor */
+#pragma pack(push, 1)
+typedef struct _PeThunkDescriptor
+{
+	/* There are multiple ways of describing the data */
+	union {
+
+		/* Address */
+		uint32_t FunctionAddr;
+		uint32_t FunctionOrdinal;
+		uint32_t ForwardStrRVA;
+		PeImportName_t DataRVA;
+	} Thunk;
+
+} PeThunkDescriptor_t;
+#pragma pack(pop)
+
 /* An exported function */
 typedef struct _MCorePeExportFunction
 {
