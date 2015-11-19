@@ -68,4 +68,21 @@ typedef struct _MCoreRamDiskFileHeader
 
 } MCoreRamDiskFileHeader_t;
 
+typedef struct _MCoreRamDiskModuleHeader
+{
+	/* Module Name
+	* Also UTF-8 */
+	uint8_t ModuleName[64];
+
+	/* Device Type */
+	uint32_t DeviceType;
+
+	/* Device SubType */
+	uint32_t DeviceSubType;
+
+	/* Module Length */
+	uint32_t Length;
+
+} MCoreRamDiskModuleHeader_t;
+
 #endif //!_RAMDISK_H_

@@ -26,6 +26,10 @@
 #include <crtdefs.h>
 #include <stdint.h>
 
+/* Subsystems */
+#include <Modules/PeLoader.h>
+#include <Modules/RamDisk.h>
+
 /* Definitions */
 
 
@@ -39,18 +43,11 @@ typedef enum _ModuleResult
 /* Structures */
 typedef struct _MCoreModule
 {
-	/* Module Name
-	* Also UTF-8 */
-	uint8_t ModuleName[64];
+	/* The Descriptor */
+	MCoreRamDiskModuleHeader_t *Header;
 
-	/* Device Type */
-	uint32_t DeviceType;
-
-	/* Device SubType */
-	uint32_t DeviceSubType;
-
-	/* Module Length */
-	uint32_t Length;
+	/* File Information */
+	MCorePeFile_t *Descriptor;
 
 } MCoreModule_t;
 

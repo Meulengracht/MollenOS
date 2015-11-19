@@ -24,6 +24,7 @@
 
 /* Includes */
 #include <Arch.h>
+#include <List.h>
 #include <stdint.h>
 
 /* Definitions */
@@ -88,7 +89,7 @@
 #define PE_SECTION_DID				0xD /* Delay Import Descriptor */
 #define PE_SECTION_CLR				0xE /* CLR Runtime Header */
 
-#define PE_NUM_DIRECTORIES			0xF
+#define PE_NUM_DIRECTORIES			0x10
 
 #define PE_SECTION_NO_PADDING		0x00000008
 #define PE_SECTION_CODE				0x00000020
@@ -109,6 +110,23 @@
 
 /* If PE_SECTION_EXT_RELOC is set, then the actual relocation count 
  * is stored in the 32 bit virtual-address field of the first relocation entry */
+
+/* Relocation Types */
+#define PE_RELOCATION_ALIGN			0
+#define PE_RELOCATION_HIGH			1
+#define PE_RELOCATION_LOW			2
+#define PE_RELOCATION_HIGHLOW		3
+#define PE_RELOCATION_HIGHADJ		4
+
+/* Import Types */
+#define PE_IMPORT_CODE				0
+#define PE_IMPORT_DATA				1
+#define PE_IMPORT_CONST				2
+
+#define PE_IMPORT_NAME_ORDINAL		0
+#define PE_IMPORT_NAME				1
+#define PE_IMPORT_NAME_NOPREFIX		2
+#define PE_IMPORT_NAME_UNDECORATE	3
 
 /* Structures */
 #pragma pack(push, 1)
@@ -147,8 +165,8 @@ typedef struct _PeHeader
 #pragma pack(push, 1)
 typedef struct _PeDataDirectory
 {
-	/* Virtual Address */
-	uint32_t VirtualAddr;
+	/* RVA Address */
+	uint32_t AddressRVA;
 
 	/* Size */
 	uint32_t Size;
@@ -333,10 +351,10 @@ typedef struct _PeSectionHeader
 	uint32_t VirtualAddr;
 
 	/* File Size */
-	uint32_t SizeInFile;
+	uint32_t RawSize;
 
 	/* Location in File */
-	uint32_t PtrToFileData;
+	uint32_t RawAddr;
 
 	/* file Pointer to relocations */
 	uint32_t PtrToFileRelocations;
@@ -356,13 +374,96 @@ typedef struct _PeSectionHeader
 } PeSectionHeader_t;
 #pragma pack(pop)
 
+/* The Export Directory */
+typedef struct _PeExportDirectory
+{
+	/* Flags */
+	uint32_t Flags;
+
+	/* DateTime Stamp */
+	uint32_t TimeStamp;
+
+	/* Major / Minor */
+	uint16_t VersionMajor;
+	uint16_t VersionMinor;
+
+	/* Name of Dll */
+	uint32_t DllName;
+
+	/* Ordinal Start Nr */
+	uint32_t OrdinalBase;
+
+	/* Number of Entries */
+	uint32_t NumberOfFunctions;
+
+	/* Number of name pointers & ordinals */
+	uint32_t NumberOfOrdinals;
+
+	/* Address of the Export Table (RVA) */
+	uint32_t AddressOfFunctions;
+	uint32_t AddressOfNames;
+	uint32_t AddressOfOrdinals;
+
+} PeExportDirectory_t;
+
+/* The Import Directory */
+typedef struct _PeImportDirectory
+{
+	/* Signature 1 - Must be 0 */
+	uint16_t Signature1;
+
+	/* Signature 2 - Must be 0xFFFF */
+	uint16_t Signature2;
+
+	/* Structure Version */
+	uint16_t Version;
+
+	/* Machine */
+	uint16_t Machine;
+
+	/* DateTime Stamp */
+	uint32_t TimeStamp;
+
+	/* Size of Data */
+	uint32_t DataSize;
+
+	/* Ordinal Hint */
+	uint16_t Ordinal;
+
+	/* Flags 
+	 * Bits 0:1 - Import Type 
+	 * Bits 2:4 - Import Name Type */
+	uint16_t Flags;
+
+} PeImportDirectory_t;
+
+/* An exported function */
+typedef struct _MCorePeExportFunction
+{
+	/* Name */
+	char *Name;
+
+	/* Ordinal */
+	uint32_t Ordinal;
+
+	/* Address */
+	Addr_t Address;
+
+} MCorePeExportFunction_t;
+
 /* The PEFile */
 typedef struct _MCorePeFile
 {
 	/* Name ? */
 
+	/* Base Virtual */
+	Addr_t BaseVirtual;
+
 	/* Entry Point */
 	Addr_t EntryAddr;
+
+	/* Exported Functions */
+	list_t *ExportedFunctions;
 
 } MCorePeFile_t;
 
