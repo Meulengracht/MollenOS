@@ -56,13 +56,13 @@ int VfsParsePartitionTable(DevId_t DiskId, uint64_t SectorBase, uint64_t SectorC
 	/* Read sector */
 	Request.Type = RequestRead;
 	Request.DeviceId = DiskId;
-	Request.IsAsync = 0;
 	Request.SectorLBA = SectorBase;
 	Request.Buffer = (uint8_t*)TmpBuffer;
 	Request.Length = SectorSize;
 
-	/* Create */
+	/* Create & Wait */
 	DmCreateRequest(&Request);
+	DmWaitRequest(&Request);
 
 	/* Sanity */
 	if (Request.Status != RequestOk)
@@ -205,12 +205,12 @@ void VfsRegisterDisk(DevId_t DiskId)
 	MCoreDeviceRequest_t Request;
 	Request.Type = RequestQuery;
 	Request.DeviceId = DiskId;
-	Request.IsAsync = 0;
 	Request.Buffer = (uint8_t*)TmpBuffer;
 	Request.Length = 20;
 
 	/* Perform */
 	DmCreateRequest(&Request);
+	DmWaitRequest(&Request);
 
 	/* Well, well */
 	uint64_t SectorCount = (uint64_t)TmpBuffer[0] | ((uint64_t)TmpBuffer[1] << 8) 

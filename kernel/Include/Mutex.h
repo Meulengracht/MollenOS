@@ -38,10 +38,6 @@ typedef struct _Mutex
 	/* Total amout of blocking */
 	uint32_t Blocks;
 
-	/* Implemented using spinlock untill we have synchronization 
-	 * support in scheduler */
-	Spinlock_t Lock;
-
 } Mutex_t;
 
 /* Prototypes */

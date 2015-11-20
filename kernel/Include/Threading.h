@@ -48,10 +48,14 @@ typedef struct _MCoreThread
 	/* Name */
 	char *Name;
 
-	/* Information */
+	/* Thread Attributes */
 	uint32_t Flags;
+
+	/* Scheduler Information */
 	uint32_t TimeSlice;
 	int32_t Priority;
+	
+	/* Synchronization */
 	Addr_t *SleepResource;
 
 	/* Ids */

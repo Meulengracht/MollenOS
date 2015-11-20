@@ -163,17 +163,22 @@ void SchedulerReadyThread(list_node_t *Node)
 /* Make a thread enter sleep */
 void SchedulerSleepThread(Addr_t *Resource)
 {
+	/* Disable Interrupts 
+	 * This is a fragile operation */
+	IntStatus_t IntrState = InterruptDisable();
+
 	/* Mark current thread for sleep and get its queue_node */
-	IntStatus_t int_state = InterruptDisable();
-	list_node_t *t_node = ThreadingEnterSleep();
-	MCoreThread_t *mThread = (MCoreThread_t*)t_node->data;
+	list_node_t *tNode = ThreadingEnterSleep();
+
+	/* Cast, we need the thread */
+	MCoreThread_t *mThread = (MCoreThread_t*)tNode->data;
 
 	/* Add to list */
 	mThread->SleepResource = Resource;
-	list_append(SleepQueue, t_node);
+	list_append(SleepQueue, tNode);
 
 	/* Restore interrupts */
-	InterruptRestoreState(int_state);
+	InterruptRestoreState(IntrState);
 }
 
 /* Wake up a thread sleeping */

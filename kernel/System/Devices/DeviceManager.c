@@ -79,15 +79,24 @@ void DmCreateRequest(MCoreDeviceRequest_t *Request)
 	/* Append it to our request list */
 	list_append(GlbDmEventQueue, list_create_node(0, Request));
 
+	/* Set Pending */
+	Request->Status = RequestPending;
+
 	/* Notify request thread */
 	SemaphoreV(GlbDmEventLock);
+}
 
-	/* We shall enter sleep meanwhile */
-	if (!Request->IsAsync)
-	{
-		SchedulerSleepThread((Addr_t*)Request);
-		_ThreadYield();
-	}
+/* Wait for a request to complete */
+void DmWaitRequest(MCoreDeviceRequest_t *Request)
+{
+	/* Sanity, make sure request hasn't completed */
+	if (Request->Status != RequestPending
+		&& Request->Status != RequestInProgress)
+		return;
+
+	/* Otherwise wait */
+	SchedulerSleepThread((Addr_t*)Request);
+	_ThreadYield();
 }
 
 /* Request Thread */
@@ -133,15 +142,14 @@ void DmRequestHandler(void *Args)
 			Request->Status = RequestDeviceIsRemoved;
 
 			/* We are done, wakeup */
-			if (!Request->IsAsync)
-				SchedulerWakeupOneThread((Addr_t*)Request);
+			SchedulerWakeupOneThread((Addr_t*)Request);
 
 			/* Next! */
 			continue;
 		}
 
 		/* Set initial status */
-		Request->Status = RequestOk;
+		Request->Status = RequestInProgress;
 
 		/* Handle Event */
 		switch (Request->Type)
@@ -163,6 +171,9 @@ void DmRequestHandler(void *Args)
 					{
 						/* Copy the first 20 bytes that contains stats */
 						memcpy(Request->Buffer, Disk, 20);
+
+						/* Done */
+						Request->Status = RequestOk;
 					}
 				}
 
@@ -215,8 +226,7 @@ void DmRequestHandler(void *Args)
 		}
 
 		/* We are done, wakeup */
-		if (!Request->IsAsync)
-			SchedulerWakeupOneThread((Addr_t*)Request);
+		SchedulerWakeupOneThread((Addr_t*)Request);
 	}
 }
 

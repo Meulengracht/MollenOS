@@ -22,12 +22,9 @@
 
 /* Includes */
 #include <assert.h>
-#include <scheduler.h>
-#include <semaphore.h>
-#include <heap.h>
-
-/* Externs */
-extern void _yield(void);
+#include <Scheduler.h>
+#include <Semaphore.h>
+#include <Heap.h>
 
 /* Creates an semaphore */
 Semaphore_t *SemaphoreCreate(int Value)
@@ -66,9 +63,10 @@ void SemaphoreP(Semaphore_t *Semaphore)
 	{
 		/* Important to release lock before we do this */
 		SpinlockRelease(&Semaphore->Lock);
-		SchedulerSleepThread((Addr_t*)Semaphore);
 		
-		_yield();
+		/* Go to sleep */
+		SchedulerSleepThread((Addr_t*)Semaphore);
+		_ThreadYield();
 	}
 	else
 		SpinlockRelease(&Semaphore->Lock);
