@@ -465,19 +465,6 @@ typedef struct _PeImportDescriptor
 
 } PeImportDescriptor_t;
 
-/* The Import By Name */
-#pragma pack(push, 1)
-typedef struct _PeImportName
-{
-	/* Possible Ordinal */
-	uint16_t Hint;
-
-	/* Null-Terminated name below this structure */
-	uint8_t Name[1];
-
-} PeImportName_t;
-#pragma pack(pop)
-
 /* An exported function */
 typedef struct _MCorePeExportFunction
 {

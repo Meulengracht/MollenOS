@@ -233,6 +233,13 @@ void PeLoadModuleImports(MCorePeFile_t *PeFile, PeDataDirectory_t *ImportDirecto
 		if (Module->Descriptor == NULL)
 			ModuleLoad(Module, FunctionTable, NULL);
 
+		/* Sanity */
+		if (Module->Descriptor->ExportedFunctions == NULL)
+		{
+			LogFatal("PELD", "Module %s does not export anything", Name->Data);
+			return;
+		}
+
 		/* Calculate address to IAT */
 		uint32_t *Iat = (uint32_t*)(PeFile->BaseVirtual + ImportDescriptor->ImportAddressTable);
 
@@ -242,35 +249,50 @@ void PeLoadModuleImports(MCorePeFile_t *PeFile, PeDataDirectory_t *ImportDirecto
 			/* Get value */
 			uint32_t Value = *Iat;
 
+			/* We store the bound func */
+			MCorePeExportFunction_t *Func = NULL;
+
 			/* Is it an ordinal or a function name? */
 			if (Value & 0x1)
 			{
 				/* Yes, ordinal */
 				uint16_t Ordinal = (uint16_t)((Value >> 1) & 0xFFFF);
 
-				/* Sanity */
-				if (Module->Descriptor->ExportedFunctions == NULL)
-				{
-					LogFatal("PELD", "Module %s does not export anything", Name->Data);
-					return;
-				}
-
 				/* Locate Ordinal in loaded image */
-				MCorePeExportFunction_t *Func = 
-					(MCorePeExportFunction_t*)list_get_data_by_id(
+				Func = (MCorePeExportFunction_t*)list_get_data_by_id(
 					Module->Descriptor->ExportedFunctions, Ordinal, 0);
-
-				/* Sanity */
-				if (Func == NULL)
-				{
-					LogFatal("PELD", "Failed to locate ordinal %u", (uint32_t)Ordinal);
-					return;
-				}
 			}
 			else
 			{
-				/* Nah, pointer to function name */
+				/* Nah, pointer to function name, where two first bytes are hint? */
+				char *FuncName = (char*)(PeFile->BaseVirtual + Value + 2);
+
+				/* A little bit more tricky */
+				foreach(FuncNode, Module->Descriptor->ExportedFunctions)
+				{
+					/* Cast */
+					MCorePeExportFunction_t *pFunc =
+						(MCorePeExportFunction_t*)FuncNode->data;
+
+					/* Compare */
+					if (!strcmp(pFunc->Name, FuncName))
+					{
+						/* Found it */
+						Func = pFunc;
+						break;
+					}
+				}
 			}
+
+			/* Sanity */
+			if (Func == NULL)
+			{
+				LogFatal("PELD", "Failed to locate function");
+				return;
+			}
+
+			/* Now, overwrite the IAT Entry with the actual address */
+			*Iat = Func->Address;
 
 			/* Go to next */
 			Iat++;
