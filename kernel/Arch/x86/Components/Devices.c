@@ -302,9 +302,6 @@ void DevicesInit(void *Args)
 	/* Unused */
 	_CRT_UNUSED(Args);
 
-	/* Enumerate Acpi Space */
-	AcpiScan();
-
 	/* Enumerate Pci Space */
 	PciEnumerate();
 

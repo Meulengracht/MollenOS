@@ -446,7 +446,7 @@ typedef struct _PeImportDescriptor
 		uint32_t Attributes;
 
 		/* This is an RVA Address */
-		uint32_t OriginalFirstThumb;
+		uint32_t ImportLookupTable;
 	} Variable;
 
 	/* DateTimeStamp 
@@ -457,11 +457,11 @@ typedef struct _PeImportDescriptor
 	/* Forwarder Chain Id */
 	uint32_t ForwarderChainId;
 
-	/* Name - RVA Address */
-	uint32_t Name;
+	/* Module Name - RVA Address */
+	uint32_t ModuleName;
 
-	/* First Thunk - RVA Address */
-	uint32_t FirstThunk;
+	/* IAT - RVA Address */
+	uint32_t ImportAddressTable;
 
 } PeImportDescriptor_t;
 
@@ -476,23 +476,6 @@ typedef struct _PeImportName
 	uint8_t Name[1];
 
 } PeImportName_t;
-#pragma pack(pop)
-
-/* The Thunk Descriptor */
-#pragma pack(push, 1)
-typedef struct _PeThunkDescriptor
-{
-	/* There are multiple ways of describing the data */
-	union {
-
-		/* Address */
-		uint32_t FunctionAddr;
-		uint32_t FunctionOrdinal;
-		uint32_t ForwardStrRVA;
-		PeImportName_t DataRVA;
-	} Thunk;
-
-} PeThunkDescriptor_t;
 #pragma pack(pop)
 
 /* An exported function */
@@ -528,7 +511,7 @@ typedef struct _MCorePeFile
 /* Prototypes */
 
 /* Used exclusively for module loading */
-_CRT_EXTERN MCorePeFile_t *PeLoadModule(uint8_t *Buffer);
+_CRT_EXTERN MCorePeFile_t *PeLoadModule(uint8_t *Buffer, Addr_t *FunctionTable);
 
 /* Generic */
 _CRT_EXTERN MCorePeFile_t *PeLoadImage(void);

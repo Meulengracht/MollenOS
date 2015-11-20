@@ -21,7 +21,7 @@
 
 #include <Arch.h>
 #include <assert.h>
-#include <acpi.h>
+#include <AcpiSys.h>
 #include <Log.h>
 #include <Apic.h>
 #include <Heap.h>
@@ -76,6 +76,7 @@ extern void AcpiUtConvertStringToUuid(char*, UINT8*);
 /* Global ACPI Information */
 char *sb_uuid_str = "0811B06E-4A27-44F9-8D60-3CBBC22E7B48";
 char *osc_uuid_str = "33DB4D5B-1FF7-401C-9657-7441C03DD766";
+char *osc_batt_uuid_str = "F18FC78B-0F15-4978-B793-53F833A1D35B";
 
 /* Fixed Event Handlers */
 UINT32 AcpiShutdownHandler(void *Context)
@@ -384,6 +385,7 @@ void AcpiSetupFull(void)
 	ACPI_OBJECT_LIST args;
 
 	/* Debug */
+	LogInformation("ACPI", "Initializing");
 	LogInformation("ACPI", "Installing OSI Interface");
 	
 	/* Install OSL Handler */
@@ -486,4 +488,7 @@ void AcpiSetupFull(void)
 	//AcpiInstallFixedEventHandler(ACPI_EVENT_POWER_BUTTON, acpi_shutdown, NULL);
 	//AcpiInstallFixedEventHandler(ACPI_EVENT_SLEEP_BUTTON, acpi_sleep, NULL);
 	//ACPI_BUTTON_TYPE_LID
+
+	/* Enumerate Acpi Space */
+	AcpiScan();
 }

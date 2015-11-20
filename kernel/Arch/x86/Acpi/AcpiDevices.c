@@ -149,6 +149,53 @@ ACPI_STATUS AcpiDeviceIsBay(AcpiDevice_t *Device)
 	return AE_NOT_FOUND;
 }
 
+/* Is this a video device?
+* If it is, we also retrieve capabilities */
+ACPI_STATUS AcpiDeviceIsBattery(AcpiDevice_t *Device)
+{
+	ACPI_HANDLE NullHandle = NULL;
+	uint64_t BtFeatures = 0;
+
+	/* Sanity */
+	if (Device == NULL)
+		return AE_ABORT_METHOD;
+
+	/* Does device support extended battery infromation */
+	if (ACPI_SUCCESS(AcpiGetHandle(Device->Handle, "_BIF", &NullHandle)))
+	{
+		if (ACPI_SUCCESS(AcpiGetHandle(Device->Handle, "_BIX", &NullHandle)))
+			BtFeatures |= ACPI_BATTERY_EXTENDED;
+		else
+			BtFeatures |= ACPI_BATTERY_NORMAL;
+	}
+		
+
+	/* Does device support us querying battery */
+	if (ACPI_SUCCESS(AcpiGetHandle(Device->Handle, "_BST", &NullHandle)))
+		BtFeatures |= ACPI_BATTERY_QUERY;
+
+	/* Does device support querying of charge information */
+	if (ACPI_SUCCESS(AcpiGetHandle(Device->Handle, "_BTM", &NullHandle)) &&
+		ACPI_SUCCESS(AcpiGetHandle(Device->Handle, "_BCT", &NullHandle)))
+		BtFeatures |= ACPI_BATTERY_CHARGEINFO;
+
+	/* Does device support configurable capacity measurement */
+	if (ACPI_SUCCESS(AcpiGetHandle(Device->Handle, "_BMA", &NullHandle)) &&
+		ACPI_SUCCESS(AcpiGetHandle(Device->Handle, "_BMS", &NullHandle)))
+		BtFeatures |= ACPI_BATTERY_CAPMEAS;
+
+	/* Only call this if it is a video device */
+	if (BtFeatures != 0)
+	{
+		/* Update ONLY if video device */
+		Device->xFeatures |= BtFeatures;
+
+		return AE_OK;
+	}
+	else
+		return AE_NOT_FOUND;
+}
+
 /* Get Memory Configuration Range */
 ACPI_STATUS AcpiDeviceGetMemConfigRange(AcpiDevice_t *Device)
 {
@@ -562,32 +609,34 @@ ACPI_STATUS AcpiDeviceGetHWInfo(AcpiDevice_t *Device, ACPI_HANDLE ParentHandle, 
 				CidAdd = "DOCK";
 			else if (AcpiDeviceIsBay(Device) == AE_OK)
 				CidAdd = "BAY";
+			else if (AcpiDeviceIsBattery(Device) == AE_OK)
+				CidAdd = "BATT";
 			
 		} break;
 
 		case ACPI_BUS_SYSTEM:
-			Hid = "LNXSYBUS";
+			Hid = "MOSSBUS";
 			break;
 		case ACPI_BUS_TYPE_POWER:
-			Hid = "LNXPWRBN";
+			Hid = "MOSPWRBN";
 			break;
 		case ACPI_BUS_TYPE_PROCESSOR:
-			Hid = "LNXCPU";
+			Hid = "MOSCPU";
 			break;
 		case ACPI_BUS_TYPE_SLEEP:
-			Hid = "LNXSLPBN";
+			Hid = "MOSSLPBN";
 			break;
 		case ACPI_BUS_TYPE_THERMAL:
-			Hid = "LNXTHERM";
+			Hid = "MOSTHERM";
 			break;
 		case ACPI_BUS_TYPE_PWM:
-			Hid = "LNXPOWER";
+			Hid = "MOSPOWER";
 			break;
 	}
 
 	/* Fix for Root System Bus (\_SB) */
 	if (((ACPI_HANDLE)ParentHandle == ACPI_ROOT_OBJECT) && (Type == ACPI_BUS_TYPE_DEVICE))
-		Hid = "LNXSYSTM";
+		Hid = "MOSSYSTM";
 
 	/* Store HID and UID */
 	if (Hid)

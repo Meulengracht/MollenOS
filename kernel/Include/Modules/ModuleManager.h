@@ -23,6 +23,7 @@
 
 /* Includes */
 #include <Arch.h>
+#include <MString.h>
 #include <crtdefs.h>
 #include <stdint.h>
 
@@ -43,6 +44,9 @@ typedef enum _ModuleResult
 /* Structures */
 typedef struct _MCoreModule
 {
+	/* Name */
+	MString_t *Name;
+
 	/* The Descriptor */
 	MCoreRamDiskModuleHeader_t *Header;
 
@@ -56,6 +60,7 @@ typedef struct _MCoreModule
 _CRT_EXTERN void ModuleMgrInit(size_t RamDiskAddr, size_t RamDiskSize);
 
 _CRT_EXTERN MCoreModule_t *ModuleFind(uint32_t DeviceType, uint32_t DeviceSubType);
+_CRT_EXTERN MCoreModule_t *ModuleFindStr(MString_t *Module);
 _CRT_EXTERN ModuleResult_t ModuleLoad(MCoreModule_t *Module, Addr_t *FunctionTable, void *Args);
 _CRT_EXTERN void ModuleUnload(MCoreModule_t *Module);
 

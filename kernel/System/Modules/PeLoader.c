@@ -20,6 +20,7 @@
 */
 
 /* Includes */
+#include <Modules\ModuleManager.h>
 #include <Modules\PeLoader.h>
 #include <Log.h>
 #include <Heap.h>
@@ -196,8 +197,8 @@ void PeEnumerateExports(MCorePeFile_t *PeFile, PeDataDirectory_t *ExportDirector
 	}
 }
 
-/* Load Imports */
-void PeLoadImports(MCorePeFile_t *PeFile, PeDataDirectory_t *ImportDirectory)
+/* Load Imports for Kernel Module */
+void PeLoadModuleImports(MCorePeFile_t *PeFile, PeDataDirectory_t *ImportDirectory, Addr_t *FunctionTable)
 {
 	/* Vars */
 	PeImportDescriptor_t *ImportDescriptor = NULL;
@@ -212,9 +213,71 @@ void PeLoadImports(MCorePeFile_t *PeFile, PeDataDirectory_t *ImportDirectory)
 
 	/* Iterate untill
 	 * we hit the null-descriptor */
-	while (ImportDescriptor->FirstThunk)
+	while (ImportDescriptor->ImportAddressTable != 0)
 	{
+		/* Get name of module */
+		void *NamePtr = (void*)(PeFile->BaseVirtual + ImportDescriptor->ModuleName);
+		MString_t *Name = MStringCreate(NamePtr, StrUTF8);
 
+		/* Find Module */
+		MCoreModule_t *Module = ModuleFindStr(Name);
+
+		/* Sanity */
+		if (Module == NULL)
+		{
+			LogFatal("PELD", "Failed to locate module %s", Name->Data);
+			return;
+		}
+
+		/* Bind Module if it's not already */
+		if (Module->Descriptor == NULL)
+			ModuleLoad(Module, FunctionTable, NULL);
+
+		/* Calculate address to IAT */
+		uint32_t *Iat = (uint32_t*)(PeFile->BaseVirtual + ImportDescriptor->ImportAddressTable);
+
+		/* Iterate Import table for this module */
+		while (*Iat)
+		{
+			/* Get value */
+			uint32_t Value = *Iat;
+
+			/* Is it an ordinal or a function name? */
+			if (Value & 0x1)
+			{
+				/* Yes, ordinal */
+				uint16_t Ordinal = (uint16_t)((Value >> 1) & 0xFFFF);
+
+				/* Sanity */
+				if (Module->Descriptor->ExportedFunctions == NULL)
+				{
+					LogFatal("PELD", "Module %s does not export anything", Name->Data);
+					return;
+				}
+
+				/* Locate Ordinal in loaded image */
+				MCorePeExportFunction_t *Func = 
+					(MCorePeExportFunction_t*)list_get_data_by_id(
+					Module->Descriptor->ExportedFunctions, Ordinal, 0);
+
+				/* Sanity */
+				if (Func == NULL)
+				{
+					LogFatal("PELD", "Failed to locate ordinal %u", (uint32_t)Ordinal);
+					return;
+				}
+			}
+			else
+			{
+				/* Nah, pointer to function name */
+			}
+
+			/* Go to next */
+			Iat++;
+		}
+
+		/* Cleanup */
+		MStringDestroy(Name);
 
 		/* Next ! */
 		ImportDescriptor++;
@@ -222,7 +285,7 @@ void PeLoadImports(MCorePeFile_t *PeFile, PeDataDirectory_t *ImportDirectory)
 }
 
 /* Load Module into memory */
-MCorePeFile_t *PeLoadModule(uint8_t *Buffer)
+MCorePeFile_t *PeLoadModule(uint8_t *Buffer, Addr_t *FunctionTable)
 {
 	/* Headers */
 	PeHeader_t *BaseHeader = NULL;
@@ -308,7 +371,7 @@ MCorePeFile_t *PeLoadModule(uint8_t *Buffer)
 	PeEnumerateExports(PeInfo, &DirectoryPtr[PE_SECTION_EXPORT]);
 
 	/* Step 3. Load Imports */
-	PeLoadImports(PeInfo, &DirectoryPtr[PE_SECTION_IMPORT]);
+	PeLoadModuleImports(PeInfo, &DirectoryPtr[PE_SECTION_IMPORT], FunctionTable);
 
 	/* Done */
 	return PeInfo;

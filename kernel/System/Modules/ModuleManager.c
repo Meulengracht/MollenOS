@@ -86,6 +86,7 @@ void ModuleMgrInit(size_t RamDiskAddr, size_t RamDiskSize)
 			MCoreModule_t *Module = (MCoreModule_t*)kmalloc(sizeof(MCoreModule_t));
 
 			/* Set */
+			Module->Name = MStringCreate(ModuleHeader->ModuleName, StrUTF8);
 			Module->Header = ModuleHeader;
 			Module->Descriptor = NULL;
 
@@ -123,6 +124,23 @@ MCoreModule_t *ModuleFind(uint32_t DeviceType, uint32_t DeviceSubType)
 	return NULL;
 }
 
+/* Locate a module by string */
+MCoreModule_t *ModuleFindStr(MString_t *Module)
+{
+	foreach(mNode, GlbModMgrModules)
+	{
+		/* Cast */
+		MCoreModule_t *cModule = (MCoreModule_t*)mNode->data;
+
+		/* Sanity */
+		if (MStringCompare(Module, cModule->Name, 0))
+			return cModule;
+	}
+
+	/* Else return null, not found */
+	return NULL;
+}
+
 /* Load a Module */
 ModuleResult_t ModuleLoad(MCoreModule_t *Module, Addr_t *FunctionTable, void *Args)
 {
@@ -138,7 +156,7 @@ ModuleResult_t ModuleLoad(MCoreModule_t *Module, Addr_t *FunctionTable, void *Ar
 		(uint8_t*)((Addr_t)Module->Header + sizeof(MCoreRamDiskModuleHeader_t));
 
 	/* Parse & Relocate PE Module */
-	Module->Descriptor = PeLoadModule(ModData);
+	Module->Descriptor = PeLoadModule(ModData, FunctionTable);
 
 	/* Sanity */
 	if (Module->Descriptor == NULL)

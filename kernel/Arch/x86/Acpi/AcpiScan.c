@@ -24,8 +24,7 @@
 #include <AcpiSys.h>
 #include <List.h>
 #include <Heap.h>
-
-#include <stdio.h>
+#include <Log.h>
 
 /* Globals */
 list_t *GlbPciAcpiDevices = NULL;
@@ -113,7 +112,7 @@ AcpiDevice_t *PciAddObject(ACPI_HANDLE Handle, ACPI_HANDLE Parent, uint32_t Type
 
 			if (ACPI_FAILURE(Status))
 			{
-				printf("ACPI: Device %s failed its dynamic status check\n", Device->BusId);
+				LogDebug("ACPI", "Device %s failed its dynamic status check", Device->BusId);
 				kfree(Device);
 				return NULL;
 			}
@@ -122,7 +121,7 @@ AcpiDevice_t *PciAddObject(ACPI_HANDLE Handle, ACPI_HANDLE Parent, uint32_t Type
 			if (!(Device->Status & ACPI_STA_DEVICE_PRESENT) &&
 				!(Device->Status & ACPI_STA_DEVICE_FUNCTIONING))
 			{
-				printf("ACPI: Device %s is not present or functioning\n", Device->BusId);
+				LogDebug("ACPI", "Device %s is not present or functioning", Device->BusId);
 				kfree(Device);
 				return NULL;
 			}
@@ -139,7 +138,7 @@ AcpiDevice_t *PciAddObject(ACPI_HANDLE Handle, ACPI_HANDLE Parent, uint32_t Type
 	/* Make sure this call worked */
 	if (ACPI_FAILURE(Status))
 	{
-		printf("ACPI: Failed to retrieve object information about device %s\n", Device->BusId);
+		LogDebug("ACPI", "Failed to retrieve object information about device %s", Device->BusId);
 		kfree(Device);
 		return NULL;
 	}
@@ -165,18 +164,19 @@ AcpiDevice_t *PciAddObject(ACPI_HANDLE Handle, ACPI_HANDLE Parent, uint32_t Type
 		Device->Function = 0;
 	}
 
-	/* Here we would handle all kinds of shizzle */
-	/* printf("[%u:%u:%u]: %s (Name %s, Flags 0x%x)\n", device->bus,
-		device->dev, device->func, device->hid, device->bus_id, device->features); */
-
 	/* Does it contain routings */
 	if (Device->Features & X86_ACPI_FEATURE_PRT)
 	{
 		Status = AcpiDeviceGetIrqRoutings(Device);
 
 		if (ACPI_FAILURE(Status))
-			printf("ACPI: Failed to retrieve pci irq routings from device %s (%u)\n", Device->BusId, Status);
+			LogDebug("ACPI", "Failed to retrieve pci irq routings from device %s (%u)", Device->BusId, Status);
 	}
+
+	// EC: PNP0C09
+	// EC Batt: PNP0C0A
+	// Smart Battery Ctrl HID: ACPI0001
+	// Smart Battery HID: ACPI0002
 
 	/* Is this root bus? */
 	if (strncmp(Device->HID, "PNP0A03", 7) == 0 ||
@@ -255,7 +255,7 @@ ACPI_STATUS PciScanCallback(ACPI_HANDLE Handle, UINT32 Level, void *Context, voi
 	Device = PciAddObject(Handle, Parent, Type);
 	
 	/* Sanity */
-	if (!Device)
+	if (Device != NULL)
 	{
 		//acpi_scan_init_hotplug(device);
 	}
@@ -266,6 +266,9 @@ ACPI_STATUS PciScanCallback(ACPI_HANDLE Handle, UINT32 Level, void *Context, voi
 /* Scan the Acpi Devices */
 void AcpiScan(void)
 {
+	/* Log */
+	LogInformation("ACPI", "Scanning Bus");
+
 	/* Init list, this is "bus 0" */
 	GlbPciAcpiDevices = list_create(LIST_SAFE);
 

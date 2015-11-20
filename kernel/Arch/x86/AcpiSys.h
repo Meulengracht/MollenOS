@@ -65,6 +65,13 @@
 #define ACPI_VIDEO_BACKLIGHT	0x8
 #define ACPI_VIDEO_BRIGHTNESS	0x10
 
+/* Battery Features */
+#define ACPI_BATTERY_NORMAL		0x1
+#define ACPI_BATTERY_EXTENDED	0x2
+#define ACPI_BATTERY_QUERY		0x4
+#define ACPI_BATTERY_CHARGEINFO	0x8
+#define ACPI_BATTERY_CAPMEAS	0x10
+
 /* Structures */
 
 /* This doesn't fully support linked entries */
@@ -155,5 +162,6 @@ _CRT_EXTERN ACPI_STATUS AcpiDeviceGetHWInfo(AcpiDevice_t *Device, ACPI_HANDLE Pa
 _CRT_EXTERN ACPI_STATUS AcpiDeviceIsVideo(AcpiDevice_t *Device);
 _CRT_EXTERN ACPI_STATUS AcpiDeviceIsDock(AcpiDevice_t *Device);
 _CRT_EXTERN ACPI_STATUS AcpiDeviceIsBay(AcpiDevice_t *Device);
+_CRT_EXTERN ACPI_STATUS AcpiDeviceIsBattery(AcpiDevice_t *Device);
 
 #endif //!_X86_ACPI_SYSTEM_

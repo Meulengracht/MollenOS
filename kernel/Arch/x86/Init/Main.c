@@ -61,7 +61,6 @@ void InitAcpiAndApic(void)
 	ApicInitBoot();
 
 	/* Setup Full APICPA */
-	LogInformation("ACPI", "Initializing");
 	AcpiSetupFull();
 }
 
