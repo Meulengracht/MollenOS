@@ -353,17 +353,17 @@ MCorePeFile_t *PeLoadModule(uint8_t *Buffer, Addr_t *FunctionTable)
 	}
 
 	/* Load Optional Header */
-	OptHeader = (PeOptionalHeader_t*)(Buffer + sizeof(PeHeader_t));
+	OptHeader = (PeOptionalHeader_t*)(Buffer + DosHeader->PeAddr + sizeof(PeHeader_t));
 
 	/* We need to re-cast based on architecture */
 	if (OptHeader->Architecture == PE_ARCHITECTURE_32)
 	{
 		/* This is an 32 bit */
-		OptHeader32 = (PeOptionalHeader32_t*)(Buffer + sizeof(PeHeader_t));
+		OptHeader32 = (PeOptionalHeader32_t*)(Buffer + DosHeader->PeAddr + sizeof(PeHeader_t));
 		ImageBase = OptHeader32->BaseAddress;
 
 		/* Calc address of first section */
-		SectionAddr = (Addr_t)(Buffer + sizeof(PeHeader_t) + sizeof(PeOptionalHeader32_t));
+		SectionAddr = (Addr_t)(Buffer + DosHeader->PeAddr + sizeof(PeHeader_t) + sizeof(PeOptionalHeader32_t));
 
 		/* Set directory pointer */
 		DirectoryPtr = (PeDataDirectory_t*)&OptHeader32->Directories[0];
@@ -371,11 +371,11 @@ MCorePeFile_t *PeLoadModule(uint8_t *Buffer, Addr_t *FunctionTable)
 	else if (OptHeader->Architecture == PE_ARCHITECTURE_64)
 	{
 		/* 64 Bit! */
-		OptHeader64 = (PeOptionalHeader64_t*)(Buffer + sizeof(PeHeader_t));
+		OptHeader64 = (PeOptionalHeader64_t*)(Buffer + DosHeader->PeAddr + sizeof(PeHeader_t));
 		ImageBase = (Addr_t)OptHeader64->BaseAddress;
 
 		/* Calc address of first section */
-		SectionAddr = (Addr_t)(Buffer + sizeof(PeHeader_t) + sizeof(PeOptionalHeader64_t));
+		SectionAddr = (Addr_t)(Buffer + DosHeader->PeAddr + sizeof(PeHeader_t) + sizeof(PeOptionalHeader64_t));
 
 		/* Set directory pointer */
 		DirectoryPtr = (PeDataDirectory_t*)&OptHeader64->Directories[0];
