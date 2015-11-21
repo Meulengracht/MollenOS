@@ -264,10 +264,11 @@ void DevicesInitTimers(void)
 
 		/* Do we have the driver? */
 		if (Module != NULL)
-			ModuleLoad(Module, GlbFunctionTable, (void*)Header);
-
-		/* Done! */
-		return;
+		{
+			/* Cross fingers for the Hpet driver */
+			if (ModuleLoad(Module, GlbFunctionTable, (void*)Header) == ModuleOk)
+				return;
+		}
 	}
 
 	/* Damn.. 
@@ -278,10 +279,8 @@ void DevicesInitTimers(void)
 	if (Module != NULL)
 	{
 		/* Great, load driver */
-		ModuleLoad(Module, GlbFunctionTable, NULL);
-
-		/* Done! */
-		return;
+		if (ModuleLoad(Module, GlbFunctionTable, NULL) == ModuleOk)
+			return;
 	}
 		
 	/* Wtf? No PIT? 

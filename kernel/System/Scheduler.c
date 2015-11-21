@@ -186,6 +186,13 @@ int SchedulerWakeupOneThread(Addr_t *Resource)
 {
 	/* Find first thread matching resource */
 	list_node_t *match = NULL;
+
+	/* Sanity */
+	if (SleepQueue == NULL
+		|| GlbSchedulerEnabled < 1)
+		return 0;
+
+	/* Loop */
 	foreach(i, SleepQueue)
 	{
 		MCoreThread_t *mThread = (MCoreThread_t*)i->data;

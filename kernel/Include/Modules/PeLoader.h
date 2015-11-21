@@ -28,6 +28,8 @@
 #include <stdint.h>
 
 /* Definitions */
+#define MZ_MAGIC			0x5A4D
+
 #define PE_MAGIC			0x00004550
 
 #define PE_MACHINE_UNKNOWN	0x0
@@ -129,6 +131,61 @@
 #define PE_IMPORT_NAME_UNDECORATE	3
 
 /* Structures */
+#pragma pack(push, 1)
+typedef struct _MzHeader
+{
+	/* Signature */
+	uint16_t Signature;
+
+	/* Extra Bytes in last page */
+	uint16_t PageExtraBytes;
+
+	/* Number of whole Pages */
+	uint16_t NumPages;
+
+	/* Number of relocation entries */
+	uint16_t NumRelocations;
+
+	/* Header Size */
+	uint16_t HeaderSize;
+
+	/* Allocation Sizes */
+	uint16_t MinAllocation;
+	uint16_t MaxAllocation;
+
+	/* Stack Values */
+	uint16_t InitialSS;
+	uint16_t InitialSP;
+
+	/* Checksum */
+	uint16_t Checksum;
+
+	/* Code Values */
+	uint16_t InitialIP;
+	uint16_t InitialCS;
+
+	/* Relocation Table */
+	uint16_t RelocationTableAddr;
+
+	/* Overlay */
+	uint16_t Overlay;
+
+	/* Reserved */
+	uint16_t Reserved0[4];
+
+	/* Oem Information */
+	uint16_t OemId;
+	uint16_t OemInfo;
+
+	/* More Reserved */
+	uint16_t Reserved1[10];
+
+	/* Pe Header Address */
+	uint32_t PeAddr;
+
+} MzHeader_t;
+#pragma pack(pop)
+
 #pragma pack(push, 1)
 typedef struct _PeHeader
 {

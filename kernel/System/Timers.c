@@ -172,7 +172,7 @@ void TimersApplyMs(uint32_t Ms)
 		if (Timer->MsLeft <= 0)
 		{
 			/* Yay! Pop! */
-			Timer->Callback(Timer->Args);
+			ThreadingCreateThread("Timer Callback", Timer->Callback, Timer->Args, 0);
 
 			/* Restart? */
 			if (Timer->Type == TimerPeriodic)

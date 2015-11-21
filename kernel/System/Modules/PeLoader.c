@@ -310,6 +310,7 @@ void PeLoadModuleImports(MCorePeFile_t *PeFile, PeDataDirectory_t *ImportDirecto
 MCorePeFile_t *PeLoadModule(uint8_t *Buffer, Addr_t *FunctionTable)
 {
 	/* Headers */
+	MzHeader_t *DosHeader = NULL;
 	PeHeader_t *BaseHeader = NULL;
 	PeOptionalHeader_t *OptHeader = NULL;
 
@@ -324,7 +325,17 @@ MCorePeFile_t *PeLoadModule(uint8_t *Buffer, Addr_t *FunctionTable)
 	MCorePeFile_t *PeInfo = NULL;
 
 	/* Let's see */
-	BaseHeader = (PeHeader_t*)Buffer;
+	DosHeader = (MzHeader_t*)Buffer;
+
+	/* Validate */
+	if (DosHeader->Signature != MZ_MAGIC)
+	{
+		LogFatal("PELD", "Invalid MZ Signature 0x%x", BaseHeader->Magic);
+		return NULL;
+	}
+
+	/* Get Pe Header */
+	BaseHeader = (PeHeader_t*)(Buffer + DosHeader->PeAddr);
 
 	/* Validate */
 	if (BaseHeader->Magic != PE_MAGIC)
@@ -352,7 +363,7 @@ MCorePeFile_t *PeLoadModule(uint8_t *Buffer, Addr_t *FunctionTable)
 		ImageBase = OptHeader32->BaseAddress;
 
 		/* Calc address of first section */
-		SectionAddr = (Addr_t)(Buffer + sizeof(PeHeader_t) + sizeof(PeOptionalHeader64_t));
+		SectionAddr = (Addr_t)(Buffer + sizeof(PeHeader_t) + sizeof(PeOptionalHeader32_t));
 
 		/* Set directory pointer */
 		DirectoryPtr = (PeDataDirectory_t*)&OptHeader32->Directories[0];
