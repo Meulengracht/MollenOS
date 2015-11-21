@@ -39,14 +39,27 @@ Addr_t PeRelocateSections(MCorePeFile_t *PeFile, uint8_t *Data,
 	/* Cast to a pointer */
 	PeSectionHeader_t *Section = (PeSectionHeader_t*)SectionAddr;
 	Addr_t MemAddr = PeFile->BaseVirtual;
-	int32_t i;
+	uint32_t i, j;
 
 	/* Iterate */
-	for (i = 0; i < (int32_t)NumSections; i++)
+	for (i = 0; i < (uint32_t)NumSections; i++)
 	{
 		/* Calculate pointers */
 		uint8_t *FileBuffer = (uint8_t*)(Data + Section->RawAddr);
 		uint8_t *MemBuffer = (uint8_t*)(PeFile->BaseVirtual + Section->VirtualAddr);
+
+		/* Calculate pages needed */
+		uint32_t NumPages = (Section->VirtualSize / PAGE_SIZE);
+		if (Section->VirtualSize % PAGE_SIZE)
+			NumPages++;
+
+		/* Is it mapped ? */
+		for (j = 0; j < NumPages; j++)
+		{
+			if (!MmVirtualGetMapping(NULL, ((VirtAddr_t)MemBuffer + (j * PAGE_SIZE))))
+				MmVirtualMap(NULL, MmPhysicalAllocateBlock(), 
+				((VirtAddr_t)MemBuffer + (j * PAGE_SIZE)), 0);
+		}
 
 		/* Which kind of section is this */
 		if (Section->RawSize == 0
@@ -128,10 +141,6 @@ void PeFixRelocations(MCorePeFile_t *PeFile, PeDataDirectory_t *RelocDirectory, 
 			uint16_t Type = (RelocEntry >> 12);
 			uint16_t Value = RelocEntry & 0x0FFF;
 
-			/* Check Type */
-			if (Type == PE_RELOCATION_ALIGN)
-				continue;
-
 			/* 32 Bit Difference */
 			if (Type == PE_RELOCATION_HIGHLOW)
 			{
@@ -140,11 +149,14 @@ void PeFixRelocations(MCorePeFile_t *PeFile, PeDataDirectory_t *RelocDirectory, 
 				Addr_t Offset = (PeFile->BaseVirtual + PageRVA + Value);
 
 				/* Calculate Delta */
-				SAddr_t Delta = (SAddr_t)(PeFile->BaseVirtual - ImageBase);
+				Addr_t Delta = (Addr_t)(PeFile->BaseVirtual - ImageBase);
 
 				/* Update */
-				*((SAddr_t*)Offset) += Delta;
+				*((Addr_t*)Offset) += Delta;
 			}
+
+			/* Next */
+			rEntry++;
 		}
 
 		/* Adjust Ptr */
@@ -391,7 +403,7 @@ MCorePeFile_t *PeLoadModule(uint8_t *Buffer, Addr_t *FunctionTable)
 	
 	/* Set base information */
 	PeInfo->BaseVirtual = GlbModuleLoadAddr;
-	PeInfo->EntryAddr = GlbModuleLoadAddr + OptHeader->EntryPoint;
+	PeInfo->EntryAddr = 0;
 
 	/* Step 1. Relocate Sections */
 	GlbModuleLoadAddr = 
@@ -405,6 +417,25 @@ MCorePeFile_t *PeLoadModule(uint8_t *Buffer, Addr_t *FunctionTable)
 
 	/* Step 3. Load Imports */
 	PeLoadModuleImports(PeInfo, &DirectoryPtr[PE_SECTION_IMPORT], FunctionTable);
+
+	/* Step 4. Proxy ModuleInit to Entry Point */
+	if (PeInfo->ExportedFunctions != NULL)
+	{
+		/* Look for ModuleInit */
+		foreach(fNode, PeInfo->ExportedFunctions)
+		{
+			/* Cast */
+			MCorePeExportFunction_t *ExFunc =
+				(MCorePeExportFunction_t*)fNode->data;
+
+			/* Is it ? */
+			if (!strcmp(ExFunc->Name, "ModuleInit"))
+			{
+				PeInfo->EntryAddr = ExFunc->Address;
+				break;
+			}
+		}
+	}
 
 	/* Done */
 	return PeInfo;

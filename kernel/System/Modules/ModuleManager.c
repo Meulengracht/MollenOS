@@ -159,7 +159,8 @@ ModuleResult_t ModuleLoad(MCoreModule_t *Module, Addr_t *FunctionTable, void *Ar
 	Module->Descriptor = PeLoadModule(ModData, FunctionTable);
 
 	/* Sanity */
-	if (Module->Descriptor == NULL)
+	if (Module->Descriptor == NULL
+		|| Module->Descriptor->EntryAddr == 0)
 	{
 		LogFatal("MDMG", "Failed to load module");
 		return ModuleFailed;
