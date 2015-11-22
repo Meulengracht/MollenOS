@@ -55,7 +55,6 @@ typedef struct _MCoreModule
 
 } MCoreModule_t;
 
-
 /* Prototypes */
 _CRT_EXTERN void ModuleMgrInit(size_t RamDiskAddr, size_t RamDiskSize);
 

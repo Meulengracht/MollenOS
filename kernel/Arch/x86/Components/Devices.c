@@ -150,6 +150,14 @@ void DevicesInstall(void *Data, int n)
 
 	case X86_PCI_TYPE_DEVICE:
 	{
+		/* Sanity, We ignore EHCI */
+		if (PciDev->Header->Class == 0x0C
+			&& PciDev->Header->Subclass == 0x03
+			&& PciDev->Header->Interface == 0x20)
+		{
+			break;
+		}
+
 		/* Initialise Device */
 		Module = ModuleFind(
 			CreateModuleClass(PciDev->Header->Class, PciDev->Header->Subclass), 
@@ -181,6 +189,9 @@ extern void rdtsc(uint64_t *Value);
 /* Initialize Function Table */
 void DevicesInitFunctionTable(void)
 {
+	/* Information */
+	LogInformation("DEVS", "Initializing Function Table");
+
 	/* Allocate */
 	GlbFunctionTable = (Addr_t*)kmalloc(sizeof(Addr_t) * 100);
 
@@ -316,7 +327,7 @@ void DevicesInit(void *Args)
 	list_execute_all(GlbPciDevices, DevicesDisableEHCI);
 
 	/* Setup the rest */
-	//list_execute_all(GlbPciDevices, DevicesInstall);
+	list_execute_all(GlbPciDevices, DevicesInstall);
 
 	/* Setup Legacy Devices, those
 	* PciEnumerate does not detect */

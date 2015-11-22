@@ -40,6 +40,7 @@ volatile uint32_t GlbEhciId = 0;
 MODULES_API void ModuleInit(Addr_t *FunctionTable, void *Data)
 {
 	PciDevice_t *Device = (PciDevice_t*)Data;
+	UsbHc_t *Controller = NULL;
 	volatile EchiCapabilityRegisters_t *CapRegs;
 	volatile EchiOperationalRegisters_t *OpRegs;
 	uint32_t Eecp;
@@ -142,4 +143,5 @@ MODULES_API void ModuleInit(Addr_t *FunctionTable, void *Data)
 	OpRegs->ConfigFlag = 0;
 
 	/* Now everything is routed to companion controllers */
+	Controller = UsbInitController(NULL, EhciController, 2);
 }

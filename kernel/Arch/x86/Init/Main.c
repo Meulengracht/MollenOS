@@ -80,7 +80,7 @@ void HALInit(void *BootInfo)
 	_CRT_UNUSED(BootInfo);
 
 	/* Print */
-	LogInformation("HALX", "Initializing");
+	LogInformation("HAL0", "Initializing");
 
 	/* Setup Gdt */
 	GdtInit();
@@ -92,7 +92,7 @@ void HALInit(void *BootInfo)
 	InterruptInit();
 
 	/* Memory setup! */
-	LogInformation("HALX", "Setting Up Memory");
+	LogInformation("HAL0", "Setting Up Memory");
 	MmPhyiscalInit(x86BootInfo.ArchBootInfo, x86BootInfo.KernelSize, x86BootInfo.RamDiskSize);
 	MmVirtualInit();
 }

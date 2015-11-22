@@ -37,6 +37,8 @@
 #define RAMDISK_DIRECTORY		0x2
 #define RAMDISK_MODULE			0x4
 
+#define RAMDISK_MODULE_SHARED	0x1
+
 /* Structures */
 typedef struct _MCoreRamDiskHeader
 {
@@ -79,6 +81,9 @@ typedef struct _MCoreRamDiskModuleHeader
 
 	/* Device SubType */
 	uint32_t DeviceSubType;
+
+	/* Flags */
+	uint32_t Flags;
 
 	/* Module Length */
 	uint32_t Length;

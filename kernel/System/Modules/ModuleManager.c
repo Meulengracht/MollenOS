@@ -144,12 +144,29 @@ MCoreModule_t *ModuleFindStr(MString_t *Module)
 /* Load a Module */
 ModuleResult_t ModuleLoad(MCoreModule_t *Module, Addr_t *FunctionTable, void *Args)
 {
-	/* Information */
-	LogInformation("MDMG", "Loading Module %s", Module->Header->ModuleName);
-
 	/* Sanity */
 	if (Module->Descriptor != NULL)
-		return ModuleOk;
+	{
+		/* It is already loaded, 
+		 * The question is whether or 
+		 * not we should call constructor */
+		if (Module->Header->Flags & RAMDISK_MODULE_SHARED)
+			return ModuleOk;
+		else
+		{
+			/* Information */
+			LogInformation("MDMG", "Recycling Module %s", Module->Header->ModuleName);
+
+			/* Call entry point */
+			((ModuleEntryFunc)Module->Descriptor->EntryAddr)(FunctionTable, Args);
+
+			/* Done! */
+			return ModuleOk;
+		}
+	}
+
+	/* Information */
+	LogInformation("MDMG", "Loading Module %s", Module->Header->ModuleName);
 
 	/* Calculate the file data address */
 	uint8_t *ModData = 

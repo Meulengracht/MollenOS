@@ -87,6 +87,7 @@ void ExceptionEntry(Registers_t *regs)
 	{
 		/* Odd */
 		printf("CR2 Address: 0x%x... Faulty Address: 0x%x\n", __getcr2(), regs->Eip);
+		InterruptDisable();
 		Idle();
 	}
 
@@ -106,23 +107,34 @@ void ExceptionEntry(Registers_t *regs)
 }
 
 //EBP is passed to the exception handler by the CPU
-void printStackTrace(unsigned int ebp)
+void StackTrace(uint32_t MaxFrames)
 {
-	unsigned int *stackPosition = (unsigned int *)ebp;
+	/* Get stack position */
+	uint32_t *StackPtr = (uint32_t*)&MaxFrames;
+	uint32_t Itr = MaxFrames;
 
-	while (stackPosition != 0)
+	/* Run */
+	while (Itr != 0)
 	{
-		//methodLocation is the dereference of EIP
-		//(which is itself just above EBP on the stack)
-		unsigned int methodLocation = *(stackPosition + 1);
+		/* Get IP */
+		uint32_t Ip = StackPtr[2];
 
-		//You can look methodLocation up to get a method name
-		printf("0x%x", methodLocation);
-		if (*stackPosition != 0)
-			printf("\n");
-		//Keep derefencing EBP until we reach 0. If you infinite 
-		//loop here, make certain you set EBP to zero in the assembly stub
-		stackPosition = (unsigned int *)(*stackPosition);
+		/* Sanity */
+		if (Ip == 0)
+			break;
+
+		/* We could lookup */
+		printf("Call Stack: 0x%x\n", Ip);
+
+		/* Get argument pointer */
+		//uint32_t *ArgPtr = &StackPtr[0];
+
+		/* Unwind to next ebp */
+		StackPtr = (uint32_t*)StackPtr[1];
+		StackPtr--;
+
+		/* Dec */
+		Itr--;
 	}
 }
 
@@ -172,6 +184,8 @@ void printStackTrace(unsigned int ebp)
 void kernel_panic(const char *message)
 {
 	printf("ASSERT PANIC: %s\n", message);
-	printf("Fix this philip!\n");
+	printf("Thread %u!\n", ThreadingGetCurrentThreadId());
+	printf("Stack Trace:\n");
+	StackTrace(6);
 	for (;;);
 }

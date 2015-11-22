@@ -202,7 +202,7 @@ void PeEnumerateExports(MCorePeFile_t *PeFile, PeDataDirectory_t *ExportDirector
 		/* Setup */
 		ExFunc->Name = (char*)(PeFile->BaseVirtual + FunctionNamesPtr[i]);
 		ExFunc->Ordinal = FunctionOrdinalsPtr[i];
-		ExFunc->Address = (Addr_t)(PeFile->BaseVirtual + FunctionAddrPtr[ExFunc->Ordinal - ExportTable->OrdinalBase]);
+		ExFunc->Address = (Addr_t)(PeFile->BaseVirtual + FunctionAddrPtr[ExFunc->Ordinal]);
 
 		/* Add to list */
 		list_append(PeFile->ExportedFunctions, list_create_node(ExFunc->Ordinal, ExFunc));
@@ -466,9 +466,9 @@ MCorePeFile_t *PeLoadModule(uint8_t *Buffer, Addr_t *FunctionTable)
 	PeInfo = (MCorePeFile_t*)kmalloc(sizeof(MCorePeFile_t));
 	
 	/* Set base information */
+	PeInfo->Architecture = OptHeader->Architecture;
 	PeInfo->BaseVirtual = GlbModuleLoadAddr;
 	PeInfo->EntryAddr = 0;
-	PeInfo->Architecture = OptHeader->Architecture;
 
 	/* Step 1. Relocate Sections */
 	GlbModuleLoadAddr = 

@@ -161,6 +161,7 @@ namespace RdBuilder
                     /* Load Device Info */
                     uint DeviceClass = 0;
                     uint DeviceSubClass = 0;
+                    uint DeviceFlags = 0;
 
                     using (StreamReader diReader = new StreamReader(Path.GetDirectoryName(mFile) + "\\" + Path.GetFileNameWithoutExtension(mFile) + ".mdrv"))
                     {
@@ -185,6 +186,10 @@ namespace RdBuilder
                             /* Device SubClass ? */
                             if (Tokens[0].Trim().ToLower() == "subclass")
                                 DeviceSubClass = Convert.ToUInt32(Tokens[1].Trim().ToLower(), 16);
+                            
+                            /* Device Shared ? */
+                            if (Tokens[0].Trim().ToLower() == "shared")
+                                DeviceFlags = Convert.ToUInt32(Tokens[1].Trim().ToLower(), 10);
                         }
 
                         /* Cleanup */
@@ -202,6 +207,12 @@ namespace RdBuilder
                     rdWriter.WriteByte((Byte)((DeviceSubClass >> 8) & 0xFF));
                     rdWriter.WriteByte((Byte)((DeviceSubClass >> 16) & 0xFF));
                     rdWriter.WriteByte((Byte)((DeviceSubClass >> 24) & 0xFF));
+
+                    /* Write Driver Flags */
+                    rdWriter.WriteByte((Byte)(DeviceFlags & 0xFF));
+                    rdWriter.WriteByte((Byte)((DeviceFlags >> 8) & 0xFF));
+                    rdWriter.WriteByte((Byte)((DeviceFlags >> 16) & 0xFF));
+                    rdWriter.WriteByte((Byte)((DeviceFlags >> 24) & 0xFF));
 
                     /* Load file data */
                     Byte[] FileData = File.ReadAllBytes(mFile);

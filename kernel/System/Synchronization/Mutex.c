@@ -64,7 +64,7 @@ void MutexLock(Mutex_t *Mutex)
 	}
 
 	/* Wait for mutex to become free */
-	if (Mutex->Blocks != 0)
+	while (Mutex->Blocks != 0)
 	{
 		SchedulerSleepThread((Addr_t*)Mutex);
 		_ThreadYield();
