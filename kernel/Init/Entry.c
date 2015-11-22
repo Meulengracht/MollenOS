@@ -91,19 +91,13 @@ void MCoreInitialize(MCoreBootInfo_t *BootInfo)
 	 * architecture load them */
 	BootInfo->InitTimers();
 
-	LogFatal("SYST", "End of kernel");
-	Idle();
-
 	/* Start out any extra cores */
-	//printf("  - Initializing SMP\n");
 	CpuInitSmp(BootInfo->ArchBootInfo);
 
 	/* Start the request handle */
-	//printf("  - Initializing Device Requests\n");
 	DmStart();
 
 	/* Virtual Filesystem */
-	//printf("  - Initializing VFS\n");
 	VfsInit();
 
 	/* From this point, we should start seperate threads and
@@ -112,7 +106,6 @@ void MCoreInitialize(MCoreBootInfo_t *BootInfo)
 	* thread, it will take over as this is the idle thread */
 
 	/* Drivers */
-	//printf("  - Initializing Drivers...\n");
 	ThreadingCreateThread("DriverSetup", DevicesInit, NULL, 0);
 
 	/* Enter Idle Loop */

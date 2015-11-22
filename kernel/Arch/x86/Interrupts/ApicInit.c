@@ -490,7 +490,7 @@ void ApicTimerInit(void)
 
 	/* Calculate bus frequency */
 	TimerTicks = (0xFFFFFFFF - ApicReadLocal(APIC_CURRENT_COUNT));
-	LogInformation("APIC", "Cpu Speed: %u Hz\n", TimerTicks);
+	LogInformation("APIC", "Bus Speed: %u Hz", TimerTicks);
 	GlbTimerQuantum = (TimerTicks / 100) + 1;
 
 	/* We want a minimum of ca 400, this is to ensure on "slow"
@@ -498,7 +498,7 @@ void ApicTimerInit(void)
 	if (GlbTimerQuantum < 400)
 		GlbTimerQuantum = 400;
 
-	LogInformation("APIC", "Quantum: %u\n", GlbTimerQuantum);
+	LogInformation("APIC", "Quantum: %u", GlbTimerQuantum);
 
 	/* Reset divider to make sure */
 	ApicReloadTimer(GlbTimerQuantum * 20);

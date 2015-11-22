@@ -316,7 +316,7 @@ void DevicesInit(void *Args)
 	list_execute_all(GlbPciDevices, DevicesDisableEHCI);
 
 	/* Setup the rest */
-	list_execute_all(GlbPciDevices, DevicesInstall);
+	//list_execute_all(GlbPciDevices, DevicesInstall);
 
 	/* Setup Legacy Devices, those
 	* PciEnumerate does not detect */

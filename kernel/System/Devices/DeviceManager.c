@@ -65,6 +65,9 @@ void DmInit(void)
 /* Starts the DeviceManager request thread */
 void DmStart(void)
 {
+	/* Debug */
+	LogInformation("DRVM", "Starting Request Handler");
+
 	/* Create the signal & Request queue */
 	GlbDmEventLock = SemaphoreCreate(0);
 	GlbDmEventQueue = list_create(LIST_SAFE);

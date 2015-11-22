@@ -202,7 +202,7 @@ void PeEnumerateExports(MCorePeFile_t *PeFile, PeDataDirectory_t *ExportDirector
 		/* Setup */
 		ExFunc->Name = (char*)(PeFile->BaseVirtual + FunctionNamesPtr[i]);
 		ExFunc->Ordinal = FunctionOrdinalsPtr[i];
-		ExFunc->Address = (Addr_t)(PeFile->BaseVirtual + FunctionAddrPtr[ExFunc->Ordinal]);
+		ExFunc->Address = (Addr_t)(PeFile->BaseVirtual + FunctionAddrPtr[ExFunc->Ordinal - ExportTable->OrdinalBase]);
 
 		/* Add to list */
 		list_append(PeFile->ExportedFunctions, list_create_node(ExFunc->Ordinal, ExFunc));
@@ -252,62 +252,126 @@ void PeLoadModuleImports(MCorePeFile_t *PeFile, PeDataDirectory_t *ImportDirecto
 			return;
 		}
 
-		/* Calculate address to IAT */
-		uint32_t *Iat = (uint32_t*)(PeFile->BaseVirtual + ImportDescriptor->ImportAddressTable);
-
-		/* Iterate Import table for this module */
-		while (*Iat)
+		/* Calculate address to IAT 
+		 * These entries are 64 bit in PE32+ 
+		 * and 32 bit in PE32 */
+		if (PeFile->Architecture == PE_ARCHITECTURE_32)
 		{
-			/* Get value */
-			uint32_t Value = *Iat;
+			uint32_t *Iat = (uint32_t*)(PeFile->BaseVirtual + ImportDescriptor->ImportAddressTable);
 
-			/* We store the bound func */
-			MCorePeExportFunction_t *Func = NULL;
-
-			/* Is it an ordinal or a function name? */
-			if (Value & 0x1)
+			/* Iterate Import table for this module */
+			while (*Iat)
 			{
-				/* Yes, ordinal */
-				uint16_t Ordinal = (uint16_t)((Value >> 1) & 0xFFFF);
+				/* Get value */
+				uint32_t Value = *Iat;
 
-				/* Locate Ordinal in loaded image */
-				Func = (MCorePeExportFunction_t*)list_get_data_by_id(
-					Module->Descriptor->ExportedFunctions, Ordinal, 0);
-			}
-			else
-			{
-				/* Nah, pointer to function name, where two first bytes are hint? */
-				char *FuncName = (char*)(PeFile->BaseVirtual + Value + 2);
+				/* We store the bound func */
+				MCorePeExportFunction_t *Func = NULL;
 
-				/* A little bit more tricky */
-				foreach(FuncNode, Module->Descriptor->ExportedFunctions)
+				/* Is it an ordinal or a function name? */
+				if (Value & PE_IMPORT_ORDINAL_32)
 				{
-					/* Cast */
-					MCorePeExportFunction_t *pFunc =
-						(MCorePeExportFunction_t*)FuncNode->data;
+					/* Yes, ordinal */
+					uint16_t Ordinal = (uint16_t)(Value & 0xFFFF);
 
-					/* Compare */
-					if (!strcmp(pFunc->Name, FuncName))
+					/* Locate Ordinal in loaded image */
+					Func = (MCorePeExportFunction_t*)list_get_data_by_id(
+						Module->Descriptor->ExportedFunctions, Ordinal, 0);
+				}
+				else
+				{
+					/* Nah, pointer to function name, where two first bytes are hint? */
+					char *FuncName = (char*)(PeFile->BaseVirtual + (Value & PE_IMPORT_NAMEMASK) + 2);
+
+					/* A little bit more tricky */
+					foreach(FuncNode, Module->Descriptor->ExportedFunctions)
 					{
-						/* Found it */
-						Func = pFunc;
-						break;
+						/* Cast */
+						MCorePeExportFunction_t *pFunc =
+							(MCorePeExportFunction_t*)FuncNode->data;
+
+						/* Compare */
+						if (!strcmp(pFunc->Name, FuncName))
+						{
+							/* Found it */
+							Func = pFunc;
+							break;
+						}
 					}
 				}
-			}
 
-			/* Sanity */
-			if (Func == NULL)
+				/* Sanity */
+				if (Func == NULL)
+				{
+					LogFatal("PELD", "Failed to locate function");
+					return;
+				}
+
+				/* Now, overwrite the IAT Entry with the actual address */
+				*Iat = Func->Address;
+
+				/* Go to next */
+				Iat++;
+			}
+		}
+		else
+		{
+			uint64_t *Iat = (uint64_t*)(PeFile->BaseVirtual + ImportDescriptor->ImportAddressTable);
+
+			/* Iterate Import table for this module */
+			while (*Iat)
 			{
-				LogFatal("PELD", "Failed to locate function");
-				return;
+				/* Get value */
+				uint64_t Value = *Iat;
+
+				/* We store the bound func */
+				MCorePeExportFunction_t *Func = NULL;
+
+				/* Is it an ordinal or a function name? */
+				if (Value & PE_IMPORT_ORDINAL_64)
+				{
+					/* Yes, ordinal */
+					uint16_t Ordinal = (uint16_t)(Value & 0xFFFF);
+
+					/* Locate Ordinal in loaded image */
+					Func = (MCorePeExportFunction_t*)list_get_data_by_id(
+						Module->Descriptor->ExportedFunctions, Ordinal, 0);
+				}
+				else
+				{
+					/* Nah, pointer to function name, where two first bytes are hint? */
+					char *FuncName = (char*)(PeFile->BaseVirtual + (uint32_t)(Value & PE_IMPORT_NAMEMASK) + 2);
+
+					/* A little bit more tricky */
+					foreach(FuncNode, Module->Descriptor->ExportedFunctions)
+					{
+						/* Cast */
+						MCorePeExportFunction_t *pFunc =
+							(MCorePeExportFunction_t*)FuncNode->data;
+
+						/* Compare */
+						if (!strcmp(pFunc->Name, FuncName))
+						{
+							/* Found it */
+							Func = pFunc;
+							break;
+						}
+					}
+				}
+
+				/* Sanity */
+				if (Func == NULL)
+				{
+					LogFatal("PELD", "Failed to locate function");
+					return;
+				}
+
+				/* Now, overwrite the IAT Entry with the actual address */
+				*Iat = (uint64_t)Func->Address;
+
+				/* Go to next */
+				Iat++;
 			}
-
-			/* Now, overwrite the IAT Entry with the actual address */
-			*Iat = Func->Address;
-
-			/* Go to next */
-			Iat++;
 		}
 
 		/* Cleanup */
@@ -404,6 +468,7 @@ MCorePeFile_t *PeLoadModule(uint8_t *Buffer, Addr_t *FunctionTable)
 	/* Set base information */
 	PeInfo->BaseVirtual = GlbModuleLoadAddr;
 	PeInfo->EntryAddr = 0;
+	PeInfo->Architecture = OptHeader->Architecture;
 
 	/* Step 1. Relocate Sections */
 	GlbModuleLoadAddr = 

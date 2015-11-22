@@ -70,10 +70,6 @@ void InitTimers(void)
 	/* Setup Timers */
 	DevicesInitTimers();
 
-	LogFatal("SYST", "End of kernel");
-	InterruptDisable();
-	Idle();
-
 	/* Init Apic Timers */
 	ApicTimerInit();
 }

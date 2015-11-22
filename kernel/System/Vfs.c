@@ -25,6 +25,7 @@
 #include <List.h>
 #include <stdio.h>
 #include <string.h>
+#include <Log.h>
 
 /* FileSystems */
 #include <FileSystems/Mfs.h>
@@ -37,6 +38,9 @@ uint32_t GlbFileSystemId = 0;
 /* Initialize Vfs */
 void VfsInit(void)
 {
+	/* Debug */
+	LogInformation("VFSM", "Initializing");
+
 	/* Create lists */
 	GlbFileSystems = list_create(LIST_SAFE);
 	GlbOpenFiles = list_create(LIST_SAFE);

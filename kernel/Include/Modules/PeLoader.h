@@ -130,6 +130,10 @@
 #define PE_IMPORT_NAME_NOPREFIX		2
 #define PE_IMPORT_NAME_UNDECORATE	3
 
+#define PE_IMPORT_ORDINAL_32		0x80000000
+#define PE_IMPORT_NAMEMASK			0x7FFFFFFF
+#define PE_IMPORT_ORDINAL_64		0x8000000000000000
+
 /* Structures */
 #pragma pack(push, 1)
 typedef struct _MzHeader
@@ -508,7 +512,8 @@ typedef struct _PeImportDescriptor
 
 	/* DateTimeStamp 
 	 * if 0 == module not bound 
-	 * if -1 == image is bound */
+	 * This is set to 0 as long as 
+	 * the image is not bound */
 	uint32_t TimeStamp;
 
 	/* Forwarder Chain Id */
@@ -540,6 +545,9 @@ typedef struct _MCorePeExportFunction
 typedef struct _MCorePeFile
 {
 	/* Name ? */
+
+	/* Architecture */
+	uint32_t Architecture;
 
 	/* Base Virtual */
 	Addr_t BaseVirtual;
