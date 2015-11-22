@@ -21,8 +21,8 @@
 
 #include <Arch.h>
 #include <assert.h>
-#include <acpi.h>
-#include <stdio.h>
+#include <AcpiSys.h>
+#include <Log.h>
 #include <Apic.h>
 #include <Heap.h>
 #include <List.h>
@@ -76,6 +76,7 @@ extern void AcpiUtConvertStringToUuid(char*, UINT8*);
 /* Global ACPI Information */
 char *sb_uuid_str = "0811B06E-4A27-44F9-8D60-3CBBC22E7B48";
 char *osc_uuid_str = "33DB4D5B-1FF7-401C-9657-7441C03DD766";
+char *osc_batt_uuid_str = "F18FC78B-0F15-4978-B793-53F833A1D35B";
 
 /* Fixed Event Handlers */
 UINT32 AcpiShutdownHandler(void *Context)
@@ -113,9 +114,9 @@ UINT32 AcpiRebootHandler(void)
 	ACPI_STATUS status = AcpiReset();
 
 	if (ACPI_FAILURE(status))
-		printf("Reboot is unsupported\n");
+		Log("Reboot is unsupported\n");
 	else
-		printf("Reboot is in progress...\n");
+		Log("Reboot is in progress...\n");
 
 	/* Safety Catch */
 	for (;;);
@@ -127,7 +128,7 @@ void AcpiBusNotifyHandler(ACPI_HANDLE Device, UINT32 NotifyType, void *Context)
 	_CRT_UNUSED(Device);
 	_CRT_UNUSED(Context);
 
-	printf("ACPI_Notify: Type 0x%x\n", NotifyType);
+	Log("ACPI_Notify: Type 0x%x\n", NotifyType);
 }
 
 /* Global Event Handler */
@@ -136,7 +137,7 @@ void AcpiEventHandler(UINT32 EventType, ACPI_HANDLE Device, UINT32 EventNumber, 
 	_CRT_UNUSED(Device);
 	_CRT_UNUSED(Context);
 
-	printf("ACPI_Event: Type 0x%x, Number 0x%x\n", EventType, EventNumber);
+	Log("ACPI_Event: Type 0x%x, Number 0x%x\n", EventType, EventNumber);
 }
 
 /* Interface Handlers */
@@ -227,7 +228,7 @@ ACPI_STATUS AcpiRunOscRequest(ACPI_HANDLE device, struct _acpi_osc *osc)
 
 	if (query_status)
 	{
-		printf("OSC Query Failed, Status Word: 0x%x\n", query_status);
+		Log("OSC Query Failed, Status Word: 0x%x\n", query_status);
 		status = AE_ERROR;
 		goto fail;
 	}
@@ -382,12 +383,10 @@ void AcpiSetupFull(void)
 	ACPI_STATUS Status;
 	ACPI_OBJECT arg1;
 	ACPI_OBJECT_LIST args;
-	
-	/* Debug */
-	printf("  - Acpica Stage 2 Starting\n");
 
 	/* Debug */
-	printf("    * Initializing OSI\n");
+	LogInformation("ACPI", "Initializing");
+	LogInformation("ACPI", "Installing OSI Interface");
 	
 	/* Install OSL Handler */
 	Status = AcpiInstallInterfaceHandler(AcpiOsi);
@@ -399,21 +398,20 @@ void AcpiSetupFull(void)
 	AcpiOsiInstall();
 
 	/* Initialize the ACPICA subsystem */
-	printf("    * Initializing subsystems\n");
+	LogInformation("ACPI", "Installing Subsystems");
 	Status = AcpiInitializeSubsystem();
 	if (ACPI_FAILURE(Status))
 	{
-		printf("    * FAILED InititalizeSubsystem, %u!\n", Status);
+		LogFatal("ACPI", "Failed to initialize subsystems, %u!", Status);
 		for (;;);
 	}
 
 	/* Copy the root table list to dynamic memory */
-	printf("    * Reallocating tables\n");
+	LogInformation("ACPI", "Reallocating Tables");
 	Status = AcpiReallocateRootTable();
 	if (ACPI_FAILURE(Status))
 	{
-		/*  */
-		printf("    * FAILED AcpiReallocateRootTable, %u!\n", Status);
+		LogFatal("ACPI", "Failed AcpiReallocateRootTable, %u!", Status);
 		for (;;);
 	}
 
@@ -421,49 +419,50 @@ void AcpiSetupFull(void)
 	Status = AcpiInstallAddressSpaceHandler(ACPI_ROOT_OBJECT,
 		ACPI_ADR_SPACE_SYSTEM_MEMORY, ACPI_DEFAULT_HANDLER, NULL, NULL);
 	if (ACPI_FAILURE(Status)) {
-		printf("Could not initialise SystemMemory handler: %s\n",
+		LogDebug("ACPI", "Could not initialise SystemMemory handler, %s!", 
 			AcpiFormatException(Status));
 	}
 
 	Status = AcpiInstallAddressSpaceHandler(ACPI_ROOT_OBJECT,
 		ACPI_ADR_SPACE_SYSTEM_IO, ACPI_DEFAULT_HANDLER, NULL, NULL);
 	if (ACPI_FAILURE(Status)) {
-		printf("Could not initialise SystemIO handler: %s\n",
+		LogDebug("ACPI", "Could not initialise SystemIO handler, %s!",
 			AcpiFormatException(Status));
 	}
 
 	Status = AcpiInstallAddressSpaceHandler(ACPI_ROOT_OBJECT,
 		ACPI_ADR_SPACE_PCI_CONFIG, ACPI_DEFAULT_HANDLER, NULL, NULL);
 	if (ACPI_FAILURE(Status)) {
-		printf("Could not initialise PciConfig handler: %s\n",
+		LogDebug("ACPI", "Could not initialise PciConfig handler, %s!",
 			AcpiFormatException(Status));
 	}
 
 	/* Create the ACPI namespace from ACPI tables */
-	printf("    * Loading tables\n");
+	LogInformation("ACPI", "Loading Tables");
 	Status = AcpiLoadTables();
 	if (ACPI_FAILURE(Status))
 	{
-		printf("    * FAILED LoadTables, %u!\n", Status);
+		LogFatal("ACPI", "Failed LoadTables, %u!", Status);
 		for (;;);
 	}
 
 	/* Initialize the ACPI hardware */
-	printf("    * Enabling subsystems\n");
+	LogInformation("ACPI", "Enabling Subsystems");
 	Status = AcpiEnableSubsystem(ACPI_FULL_INITIALIZATION);
 	if (ACPI_FAILURE(Status))
 	{
-		printf("    * FAILED EnableSystem, %u!\n", Status);
+		LogFatal("ACPI", "Failed AcpiEnableSubsystem, %u!", Status);
+		for (;;);
 	}
 	
 	/* Probe for EC here */
 
 	/* Complete the ACPI namespace object initialization */
-	printf("    * Initializing objects\n");
+	LogInformation("ACPI", "Initializing Objects");
 	Status = AcpiInitializeObjects(ACPI_FULL_INITIALIZATION);
 	if (ACPI_FAILURE(Status))
 	{
-		printf("    * FAILED InitializeObjects, %u!\n", Status);
+		LogFatal("ACPI", "Failed AcpiInitializeObjects, %u!", Status);
 		for (;;);
 	}
 
@@ -478,6 +477,9 @@ void AcpiSetupFull(void)
 
 	AcpiEvaluateObject(ACPI_ROOT_OBJECT, "_PIC", &args, NULL);
 
+	/* Info */
+	LogInformation("ACPI", "Installing Event Handlers");
+
 	/* Install a notify handler */
 	AcpiInstallNotifyHandler(ACPI_ROOT_OBJECT, ACPI_SYSTEM_NOTIFY, AcpiBusNotifyHandler, NULL);
 
@@ -487,5 +489,6 @@ void AcpiSetupFull(void)
 	//AcpiInstallFixedEventHandler(ACPI_EVENT_SLEEP_BUTTON, acpi_sleep, NULL);
 	//ACPI_BUTTON_TYPE_LID
 
-	printf("    * Acpica Stage 2 Started\n");
+	/* Enumerate Acpi Space */
+	AcpiScan();
 }

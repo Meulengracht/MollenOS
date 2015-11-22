@@ -36,18 +36,12 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\Arch\x86\Acpi\Acpi.c" />
+    <ClCompile Include="..\..\Arch\x86\Acpi\AcpiDevices.c" />
     <ClCompile Include="..\..\Arch\x86\Acpi\AcpiEnumerate.c" />
+    <ClCompile Include="..\..\Arch\x86\Acpi\AcpiScan.c" />
+    <ClCompile Include="..\..\Arch\x86\Components\Devices.c" />
+    <ClCompile Include="..\..\Arch\x86\Components\PhysicalMemory.c" />
     <ClCompile Include="..\..\Arch\x86\Components\Smp.c" />
-    <ClCompile Include="..\..\Arch\x86\Drivers\Ps2\Keyboard\Ps2Keyboard.c" />
-    <ClCompile Include="..\..\Arch\x86\Drivers\Ps2\Mouse\Ps2Mouse.c" />
-    <ClCompile Include="..\..\Arch\x86\Drivers\Ps2\Ps2.c" />
-    <ClCompile Include="..\..\Arch\x86\Drivers\Timers\Pit\Pit.c" />
-    <ClCompile Include="..\..\Arch\x86\Drivers\Usb\Ehci\Ehci.c" />
-    <ClCompile Include="..\..\Arch\x86\Drivers\Usb\Hid\HidManager.c" />
-    <ClCompile Include="..\..\Arch\x86\Drivers\Usb\Msd\MsdManager.c" />
-    <ClCompile Include="..\..\Arch\x86\Drivers\Usb\Ohci\Ohci.c" />
-    <ClCompile Include="..\..\Arch\x86\Drivers\Usb\UsbCore.c" />
-    <ClCompile Include="..\..\Arch\x86\Drivers\Usb\UsbFunctions.c" />
     <ClCompile Include="..\..\Arch\x86\Interrupts\ApicHandlers.c" />
     <ClCompile Include="..\..\Arch\x86\Interrupts\ApicHelpers.c" />
     <ClCompile Include="..\..\Arch\x86\Interrupts\ApicInit.c" />
@@ -61,31 +55,19 @@
     <ClCompile Include="..\..\Arch\x86\Components\Spinlock.c" />
     <ClCompile Include="..\..\Arch\x86\Components\Thread.c" />
     <ClCompile Include="..\..\Arch\x86\Components\Video.c" />
-    <ClCompile Include="..\..\Arch\x86\Drivers\Cmos\Cmos.c" />
-    <ClCompile Include="..\..\Arch\x86\Drivers\Cmos\Rtc.c" />
-    <ClCompile Include="..\..\Arch\x86\Drivers\DriverManager.c" />
-    <ClCompile Include="..\..\Arch\x86\Drivers\DriverPci.c" />
-    <ClCompile Include="..\..\Arch\x86\Drivers\DriverStrings.c" />
-    <ClCompile Include="..\..\Arch\x86\Drivers\Timers\Hpet\Hpet.c" />
-    <ClCompile Include="..\..\Arch\x86\Drivers\Timers\TimerManager.c" />
+    <ClCompile Include="..\..\Arch\x86\Pci\PciEnumerate.c" />
+    <ClCompile Include="..\..\Arch\x86\Pci\PciHelpers.c" />
+    <ClCompile Include="..\..\Arch\x86\Pci\PciIo.c" />
+    <ClCompile Include="..\..\Arch\x86\Pci\PciStrings.c" />
     <ClCompile Include="..\..\Arch\x86\x32\Context.c" />
     <ClCompile Include="..\..\Arch\x86\x32\Gdt.c" />
     <ClCompile Include="..\..\Arch\x86\x32\Idt.c" />
-    <ClCompile Include="..\..\Arch\x86\x32\Memory\MmPhysical.c" />
     <ClCompile Include="..\..\Arch\x86\x32\Memory\MmVirtual.c" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="..\..\Arch\x86\AcpiSys.h" />
     <ClInclude Include="..\..\Arch\x86\Apic.h" />
     <ClInclude Include="..\..\Arch\x86\Cpu.h" />
-    <ClInclude Include="..\..\Arch\x86\Drivers\Ps2\Keyboard\Ps2Keyboard.h" />
-    <ClInclude Include="..\..\Arch\x86\Drivers\Ps2\Mouse\Ps2Mouse.h" />
-    <ClInclude Include="..\..\Arch\x86\Drivers\Ps2\Ps2.h" />
-    <ClInclude Include="..\..\Arch\x86\Drivers\Usb\Ehci\Ehci.h" />
-    <ClInclude Include="..\..\Arch\x86\Drivers\Usb\HID\HidManager.h" />
-    <ClInclude Include="..\..\Arch\x86\Drivers\Usb\MSD\MsdManager.h" />
-    <ClInclude Include="..\..\Arch\x86\Drivers\Usb\Ohci\Ohci.h" />
-    <ClInclude Include="..\..\Arch\x86\Drivers\Usb\Uhci\Uhci.h" />
-    <ClInclude Include="..\..\Arch\x86\Drivers\Usb\Usb.h" />
     <ClInclude Include="..\..\Arch\x86\Exceptions.h" />
     <ClInclude Include="..\..\Arch\x86\Gdt.h" />
     <ClInclude Include="..\..\Arch\x86\Interrupts.h" />
@@ -93,7 +75,6 @@
     <ClInclude Include="..\..\Arch\x86\Multiboot.h" />
     <ClInclude Include="..\..\Arch\x86\Pci.h" />
     <ClInclude Include="..\..\Arch\x86\Pic.h" />
-    <ClInclude Include="..\..\Arch\x86\SysTimers.h" />
     <ClInclude Include="..\..\Arch\x86\Thread.h" />
     <ClInclude Include="..\..\Arch\x86\Video.h" />
   </ItemGroup>
@@ -153,7 +134,7 @@
     <NuGetPackageImportStamp>27414a97</NuGetPackageImportStamp>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
-    <OutDir>..\..\build\</OutDir>
+    <OutDir>..\..\Build\</OutDir>
     <IncludePath>..\..\acpica\include;..\..\Include;..\..\Msvc\MCoreConfig;..\..\..\clib\include;..\..\Arch\x86;..\..\Arch\x86\x32</IncludePath>
     <ReferencePath />
     <LibraryWPath />

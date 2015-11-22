@@ -22,27 +22,36 @@
 #define _MODULE_MANAGER_H_
 
 /* Includes */
+#include <Arch.h>
+#include <MString.h>
 #include <crtdefs.h>
 #include <stdint.h>
+
+/* Subsystems */
+#include <Modules/PeLoader.h>
+#include <Modules/RamDisk.h>
 
 /* Definitions */
 
 
+/* Enums */
+typedef enum _ModuleResult
+{
+	ModuleOk,
+	ModuleFailed
+} ModuleResult_t;
+
 /* Structures */
 typedef struct _MCoreModule
 {
-	/* Module Name
-	* Also UTF-8 */
-	uint8_t ModuleName[64];
+	/* Name */
+	MString_t *Name;
 
-	/* Device Type */
-	uint32_t DeviceType;
+	/* The Descriptor */
+	MCoreRamDiskModuleHeader_t *Header;
 
-	/* Device SubType */
-	uint32_t DeviceSubType;
-
-	/* Module Length */
-	uint32_t Length;
+	/* File Information */
+	MCorePeFile_t *Descriptor;
 
 } MCoreModule_t;
 
@@ -51,7 +60,8 @@ typedef struct _MCoreModule
 _CRT_EXTERN void ModuleMgrInit(size_t RamDiskAddr, size_t RamDiskSize);
 
 _CRT_EXTERN MCoreModule_t *ModuleFind(uint32_t DeviceType, uint32_t DeviceSubType);
-_CRT_EXTERN void ModuleLoad(MCoreModule_t *Module);
+_CRT_EXTERN MCoreModule_t *ModuleFindStr(MString_t *Module);
+_CRT_EXTERN ModuleResult_t ModuleLoad(MCoreModule_t *Module, Addr_t *FunctionTable, void *Args);
 _CRT_EXTERN void ModuleUnload(MCoreModule_t *Module);
 
 #endif //!_MODULE_MANAGER_H_

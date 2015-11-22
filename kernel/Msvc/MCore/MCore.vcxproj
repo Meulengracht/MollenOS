@@ -21,6 +21,8 @@
     <ClCompile Include="..\..\System\Devices\DeviceVideo.c" />
     <ClCompile Include="..\..\System\FileSystems\Mfs\Mfs.c" />
     <ClCompile Include="..\..\System\Heap.c" />
+    <ClCompile Include="..\..\System\InputManager.c" />
+    <ClCompile Include="..\..\System\Log.c" />
     <ClCompile Include="..\..\System\Modules\ModuleManager.c" />
     <ClCompile Include="..\..\System\Modules\PeLoader.c" />
     <ClCompile Include="..\..\System\Scheduler.c" />
@@ -28,8 +30,6 @@
     <ClCompile Include="..\..\System\Synchronization\Semaphore.c" />
     <ClCompile Include="..\..\System\Threading.c" />
     <ClCompile Include="..\..\System\Timers.c" />
-    <ClCompile Include="..\..\System\Userspace\InputManager.c" />
-    <ClCompile Include="..\..\System\Userspace\ScancodeSets\ScancodeSet2.c" />
     <ClCompile Include="..\..\System\Vfs.c" />
   </ItemGroup>
   <ItemGroup>
@@ -38,6 +38,7 @@
     <ClInclude Include="..\..\Include\Devices\Input.h" />
     <ClInclude Include="..\..\Include\Devices\Timer.h" />
     <ClInclude Include="..\..\Include\FileSystems\Mfs.h" />
+    <ClInclude Include="..\..\Include\Log.h" />
     <ClInclude Include="..\..\Include\Modules\ModuleManager.h" />
     <ClInclude Include="..\..\Include\Modules\PeLoader.h" />
     <ClInclude Include="..\..\Include\Modules\RamDisk.h" />
@@ -51,7 +52,6 @@
     <ClInclude Include="..\..\Include\MString.h" />
     <ClInclude Include="..\..\Include\Mutex.h" />
     <ClInclude Include="..\..\Include\RingBuffer.h" />
-    <ClInclude Include="..\..\Include\ScancodeSets\ScancodeSet2.h" />
     <ClInclude Include="..\..\Include\Scheduler.h" />
     <ClInclude Include="..\..\Include\Semaphore.h" />
     <ClInclude Include="..\..\Include\Threading.h" />
@@ -99,7 +99,7 @@
     <IncludePath>..\..\acpica\include;..\..\Arch;..\..\..\clib\include;..\..\Include;..\..\Msvc\MCoreConfig</IncludePath>
     <LibraryWPath />
     <LibraryPath>..\..\..\clib\build;..\..\build</LibraryPath>
-    <OutDir>..\..\build\</OutDir>
+    <OutDir>..\..\Build\</OutDir>
     <TargetExt>.mos</TargetExt>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
@@ -142,7 +142,7 @@
       <DataExecutionPrevention>
       </DataExecutionPrevention>
       <BaseAddress>0x100000</BaseAddress>
-      <AdditionalDependencies>CLibK.lib;Libx86.lib;acpica.lib</AdditionalDependencies>
+      <AdditionalDependencies>CLibK.lib;Libx86.lib;Acpica.lib</AdditionalDependencies>
       <IgnoreAllDefaultLibraries>true</IgnoreAllDefaultLibraries>
       <ImageHasSafeExceptionHandlers />
       <GenerateMapFile>true</GenerateMapFile>

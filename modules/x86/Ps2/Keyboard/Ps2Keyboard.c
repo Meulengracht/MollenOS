@@ -33,7 +33,7 @@
 #include <string.h>
 
 /* Scansets */
-#include <ScancodeSets\ScancodeSet2.h>
+#include <ScancodeSet2.h>
 
 /* Irq Handler */
 int Ps2KeyboadIrqHandler(void *Args)

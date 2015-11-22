@@ -71,7 +71,4 @@
 _MODULE_API uint8_t CmosReadRegister(uint8_t Register);
 _MODULE_API void CmosWriteRegister(uint8_t Register, uint8_t Data);
 
-/* Rtc Functions */
-_MODULE_API OsStatus_t RtcInit(void);
-
 #endif // !_X86_CMOS_RTC_H_

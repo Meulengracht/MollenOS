@@ -71,6 +71,8 @@ typedef enum _DeviceRequestType
 
 typedef enum _DeviceRequestStatus
 {
+	RequestPending,
+	RequestInProgress,
 	RequestOk,
 	RequestInvalidParameters,
 	RequestDeviceError,
@@ -83,7 +85,6 @@ typedef struct _MCoreDeviceRequest
 {
 	/* Request Type */
 	DeviceRequestType_t Type;
-	uint32_t IsAsync;
 
 	/* Device Id */
 	DevId_t DeviceId;
@@ -110,5 +111,6 @@ _CRT_EXTERN void DmDestroyDevice(DevId_t DeviceId);
 
 /* Device Requests */
 _CRT_EXTERN void DmCreateRequest(MCoreDeviceRequest_t *Request);
+_CRT_EXTERN void DmWaitRequest(MCoreDeviceRequest_t *Request);
 
 #endif //_MCORE_DRIVER_MANAGER_H_

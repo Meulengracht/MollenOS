@@ -118,7 +118,6 @@ typedef struct _x86_Thread
 #include "../Cpu.h"
 #include "../Video.h"
 #include "../Interrupts.h"
-//#include "../../../../modules/x86/Include/Driver.h"
 
 /* Components */
 
@@ -172,9 +171,11 @@ _CRT_EXTERN Cpu_t ApicGetCpu(void);
 _CRT_EXTERN void ApicSendIpi(uint8_t CpuTarget, uint8_t IrqVector);
 _CRT_EXTERN void Idle(void);
 
+/* Initialises all available timers in system */
+_CRT_EXTERN void DevicesInitTimers(void);
 
-/* Driver Interface */
-_CRT_EXTERN void DriverManagerInit(void *Args);
+/* Initialises all available devices in system */
+_CRT_EXTERN void DevicesInit(void *Args);
 
 /* Utils Definitions */
 #define MIN(a,b) (((a)<(b))?(a):(b))

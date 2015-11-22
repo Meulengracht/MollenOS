@@ -28,9 +28,9 @@
 #include <Idt.h>
 #include <Interrupts.h>
 #include <stddef.h>
-#include <stdio.h>
 #include <Apic.h>
-#include <SysTimers.h>
+#include <AcpiSys.h>
+#include <Log.h>
 
 /* Extern, this function is declared in the MCore project
  * and all platform libs should enter this function */
@@ -40,24 +40,21 @@ extern void MCoreInitialize(MCoreBootInfo_t*);
 /* Externs */
 extern x86CpuObject_t GlbBootCpuInfo;
 
-/* Enumerates the APIC */
-extern void AcpiEnumerate(void);
-
-/* Initializes FULL access
-* across ACPICA */
-extern void AcpiSetupFull(void);
-
 /* Inititalizes ACPI and the Apic */
 void InitAcpiAndApic(void)
 {
+	/* Info */
+	LogInformation("APIC", "Initializing");
+
 	/* Initialize the APIC (if present) */
 	if (!(GlbBootCpuInfo.EdxFeatures & CPUID_FEAT_EDX_APIC))
 	{
 		/* Bail out */
+		LogFatal("APIC", "Not Present");
+		Idle();
 	}
 
 	/* Enumerate Acpi */
-	printf("  - Initializing ACPI Systems\n");
 	AcpiEnumerate();
 
 	/* Init */
@@ -71,10 +68,9 @@ void InitAcpiAndApic(void)
 void InitTimers(void)
 {
 	/* Setup Timers */
-	TimerManagerInit();
+	DevicesInitTimers();
 
 	/* Init Apic Timers */
-	printf("    * Setting up local timer\n");
 	ApicTimerInit();
 }
 
@@ -82,6 +78,9 @@ void InitTimers(void)
 void HALInit(void *BootInfo)
 {
 	_CRT_UNUSED(BootInfo);
+
+	/* Print */
+	LogInformation("HALX", "Initializing");
 
 	/* Setup Gdt */
 	GdtInit();
@@ -93,10 +92,8 @@ void HALInit(void *BootInfo)
 	InterruptInit();
 
 	/* Memory setup! */
-	printf("  - Setting up memory systems\n");
-	printf("    * Physical Memory Manager...\n");
+	LogInformation("HALX", "Setting Up Memory");
 	MmPhyiscalInit(x86BootInfo.ArchBootInfo, x86BootInfo.KernelSize, x86BootInfo.RamDiskSize);
-	printf("    * Virtual Memory Manager...\n");
 	MmVirtualInit();
 }
 

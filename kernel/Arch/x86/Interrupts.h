@@ -27,7 +27,10 @@
 #include <crtdefs.h>
 
 /* Definitions */
+#ifndef __IRQHANDLER
+#define __IRQHANDLER
 typedef int(*IrqHandler_t)(void*);
+#endif
 
 /* Irq Return Codes */
 #define X86_IRQ_NOT_HANDLED			(int)0x0
@@ -56,7 +59,7 @@ typedef struct _IrqEntry
 /* Prototypes */
 _CRT_EXTERN void InterruptInit(void);
 _CRT_EXTERN OsStatus_t InterruptAllocateISA(uint32_t Irq);
-_CRT_EXTERN void InterruptInstallISA(uint32_t Irq, uint32_t IdtEntry, IrqHandler_t Callback, void *Args);
+_CRT_EXTERN void InterruptInstallISA(uint32_t Irq, uint32_t IdtEntry, IrqHandler_t Callback, void *Args);/* Install PCI Interrupt */
 _CRT_EXTERN void InterruptInstallIdtOnly(uint32_t Gsi, uint32_t IdtEntry, IrqHandler_t Callback, void *Args);
 _CRT_EXTERN void InterruptInstallShared(uint32_t Irq, uint32_t IdtEntry, IrqHandler_t Callback, void *Args);
 _CRT_EXTERN uint32_t InterruptAllocatePCI(uint32_t Irqs[], uint32_t Count);

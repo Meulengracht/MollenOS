@@ -78,8 +78,11 @@ void SleepMs(uint32_t MilliSeconds)
 
 	/* Sanity */
 	if (tDevice == NULL)
+	{
 		DelayMs(MilliSeconds);
-
+		return;
+	}
+	
 	/* Cast */
 	Timer = (MCoreTimerDevice_t*)tDevice->Data;
 
@@ -95,7 +98,10 @@ void SleepNs(uint32_t NanoSeconds)
 
 	/* Sanity */
 	if (tDevice == NULL)
+	{
 		DelayMs((NanoSeconds / 1000) + 1);
+		return;
+	}
 
 	/* Cast */
 	Timer = (MCoreTimerDevice_t*)tDevice->Data;
@@ -113,7 +119,10 @@ void StallMs(uint32_t MilliSeconds)
 
 	/* Sanity */
 	if (tDevice == NULL)
+	{
 		DelayMs(MilliSeconds);
+		return;
+	}
 
 	/* Cast */
 	Timer = (MCoreTimerDevice_t*)tDevice->Data;
@@ -130,7 +139,10 @@ void StallNs(uint32_t NanoSeconds)
 
 	/* Sanity */
 	if (tDevice == NULL)
+	{
 		DelayMs((NanoSeconds / 1000) + 1);
+		return;
+	}
 
 	/* Cast */
 	Timer = (MCoreTimerDevice_t*)tDevice->Data;
@@ -160,7 +172,7 @@ void TimersApplyMs(uint32_t Ms)
 		if (Timer->MsLeft <= 0)
 		{
 			/* Yay! Pop! */
-			Timer->Callback(Timer->Args);
+			ThreadingCreateThread("Timer Callback", Timer->Callback, Timer->Args, 0);
 
 			/* Restart? */
 			if (Timer->Type == TimerPeriodic)

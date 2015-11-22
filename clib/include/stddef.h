@@ -9,6 +9,7 @@
 //Includes
 #include <stdint.h>
 #include <crtdefs.h>
+#include <vadefs.h>
 
 #define __STDC_VERSION__ 199901L
 

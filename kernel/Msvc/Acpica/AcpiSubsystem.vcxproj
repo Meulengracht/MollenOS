@@ -43,7 +43,7 @@
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup>
     <_ProjectFileVersion>10.0.40219.1</_ProjectFileVersion>
-    <OutDir Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">..\..\build\</OutDir>
+    <OutDir Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">..\..\Build\</OutDir>
     <IntDir Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">.\AcpiSubsystem\</IntDir>
     <OutDir Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">..\..\build\</OutDir>
     <IntDir Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">.\AcpiSubsystem\</IntDir>
@@ -63,7 +63,7 @@
     <ReferencePath />
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
-    <TargetName>acpica</TargetName>
+    <TargetName>Acpica</TargetName>
     <IncludePath>C:\Users\Philip\Documents\GitHub\MollenOS\clib\include;C:\Users\Philip\Documents\GitHub\MollenOS\kernel\arch;C:\Users\Philip\Documents\GitHub\MollenOS\kernel\include</IncludePath>
     <ReferencePath />
     <LibraryPath>C:\Users\Philip\Documents\GitHub\MollenOS\clib\build;C:\Users\Philip\Documents\GitHub\MollenOS\kernel\build</LibraryPath>

@@ -35,13 +35,15 @@ DeviceRequestStatus_t MfsReadSectors(MCoreFileSystem_t *Fs, uint64_t Sector, voi
 	/* Setup request */
 	Request.Type = RequestRead;
 	Request.DeviceId = Fs->DiskId;
-	Request.IsAsync = 0;
 	Request.SectorLBA = Fs->SectorStart + Sector;
 	Request.Buffer = (uint8_t*)Buffer;
 	Request.Length = (Count * Fs->SectorSize);
 	
-	/* Perform */
+	/* Create Request */
 	DmCreateRequest(&Request);
+
+	/* Wait */
+	DmWaitRequest(&Request);
 
 	/* Done! */
 	return Request.Status;
@@ -56,13 +58,15 @@ DeviceRequestStatus_t MfsWriteSectors(MCoreFileSystem_t *Fs, uint64_t Sector, vo
 	/* Setup request */
 	Request.Type = RequestWrite;
 	Request.DeviceId = Fs->DiskId;
-	Request.IsAsync = 0;
 	Request.SectorLBA = Fs->SectorStart + Sector;
 	Request.Buffer = (uint8_t*)Buffer;
 	Request.Length = (Count * Fs->SectorSize);
 
-	/* Perform */
+	/* Create */
 	DmCreateRequest(&Request);
+
+	/* Wait */
+	DmWaitRequest(&Request);
 
 	/* Done! */
 	return Request.Status;

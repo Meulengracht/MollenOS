@@ -23,6 +23,7 @@
 /* Includes */
 #include <Arch.h>
 #include <Mutex.h>
+#include <Scheduler.h>
 #include <Heap.h>
 #include <assert.h>
 
@@ -45,15 +46,12 @@ void MutexConstruct(Mutex_t *Mutex)
 	/* Reset */
 	Mutex->Blocker = 0;
 	Mutex->Blocks = 0;
-
-	/* Reset lock */
-	SpinlockReset(&Mutex->Lock);
 }
 
 void MutexDestruct(Mutex_t *Mutex)
 {
 	/* Wake all remaining tasks waiting for this mutex */
-	_CRT_UNUSED(Mutex);
+	SchedulerWakeupAllThreads((Addr_t*)Mutex);
 }
 
 void MutexLock(Mutex_t *Mutex)
@@ -66,10 +64,13 @@ void MutexLock(Mutex_t *Mutex)
 	}
 
 	/* Wait for mutex to become free */
-	//while (Mutex->Blocks != 0)
-	//	scheduler_blockCurrentTask(BL_SYNC, obj, 0);
-	SpinlockAcquire(&Mutex->Lock);
+	if (Mutex->Blocks != 0)
+	{
+		SchedulerSleepThread((Addr_t*)Mutex);
+		_ThreadYield();
+	}
 
+	/* Initialize */
 	Mutex->Blocks = 1;
 	Mutex->Blocker = ThreadingGetCurrentThreadId();
 }
@@ -82,7 +83,7 @@ void MutexUnlock(Mutex_t *Mutex)
 	/* Release one lock */
 	Mutex->Blocks--;
 
-	/* Release spinlock if we are blocking 0 times */
+	/* Are we done? */
 	if (Mutex->Blocks == 0)
-		SpinlockRelease(&Mutex->Lock);
+		SchedulerWakeupOneThread((Addr_t*)Mutex);
 }

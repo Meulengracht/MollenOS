@@ -21,11 +21,12 @@
 
 /* Includes */
 #include <Modules/ModuleManager.h>
-#include <Modules/RamDisk.h>
-#include <Modules/PeLoader.h>
 #include <List.h>
 #include <Heap.h>
-#include <stdio.h>
+#include <Log.h>
+
+/* Types */
+typedef void(*ModuleEntryFunc)(Addr_t *FunctionTable, void *Data);
 
 /* Globals */
 uint32_t GlbModMgrInitialized = 0;
@@ -42,11 +43,14 @@ void ModuleMgrInit(size_t RamDiskAddr, size_t RamDiskSize)
 		|| RamDiskSize == 0)
 		return;
 
+	/* Info */
+	LogInformation("MDMG", "Initializing");
+
 	/* Validate Members */
 	if (RdHeader->Magic != RAMDISK_MAGIC)
 	{
 		/* Error! */
-		printf("ModuleManager: Invalid Magic in Ramdisk - 0x%x\n", RdHeader->Magic);
+		LogFatal("MDMG", "Invalid Magic in Ramdisk - 0x%x", RdHeader->Magic);
 		return;
 	}
 
@@ -54,7 +58,7 @@ void ModuleMgrInit(size_t RamDiskAddr, size_t RamDiskSize)
 	if (RdHeader->Version != RAMDISK_VERSION_1)
 	{
 		/* Error! */
-		printf("ModuleManager: Invalid RamDisk Version - 0x%x\n", RdHeader->Version);
+		LogFatal("MDMG", "Invalid RamDisk Version - 0x%x", RdHeader->Version);
 		return;
 	}
 
@@ -75,7 +79,16 @@ void ModuleMgrInit(size_t RamDiskAddr, size_t RamDiskSize)
 		if (FilePtr->Type == RAMDISK_MODULE)
 		{
 			/* Get a pointer to the module header */
-			MCoreModule_t *Module = (MCoreModule_t*)(RamDiskAddr + FilePtr->DataOffset);
+			MCoreRamDiskModuleHeader_t *ModuleHeader = 
+				(MCoreRamDiskModuleHeader_t*)(RamDiskAddr + FilePtr->DataOffset);
+
+			/* Allocate a new module */
+			MCoreModule_t *Module = (MCoreModule_t*)kmalloc(sizeof(MCoreModule_t));
+
+			/* Set */
+			Module->Name = MStringCreate(ModuleHeader->ModuleName, StrUTF8);
+			Module->Header = ModuleHeader;
+			Module->Descriptor = NULL;
 
 			/* Add to list */
 			list_append(GlbModMgrModules, list_create_node(0, Module));
@@ -86,6 +99,76 @@ void ModuleMgrInit(size_t RamDiskAddr, size_t RamDiskSize)
 		FileCount--;
 	}
 
+	/* Info */
+	LogInformation("MDMG", "Found %i Modules", GlbModMgrModules->length);
+
 	/* Done! */
 	GlbModMgrInitialized = 1;
+}
+
+/* Locate a module */
+MCoreModule_t *ModuleFind(uint32_t DeviceType, uint32_t DeviceSubType)
+{
+	foreach(mNode, GlbModMgrModules)
+	{
+		/* Cast */
+		MCoreModule_t *Module = (MCoreModule_t*)mNode->data;
+
+		/* Sanity */
+		if (Module->Header->DeviceType == DeviceType
+			&& Module->Header->DeviceSubType == DeviceSubType)
+			return Module;
+	}
+
+	/* Else return null, not found */
+	return NULL;
+}
+
+/* Locate a module by string */
+MCoreModule_t *ModuleFindStr(MString_t *Module)
+{
+	foreach(mNode, GlbModMgrModules)
+	{
+		/* Cast */
+		MCoreModule_t *cModule = (MCoreModule_t*)mNode->data;
+
+		/* Sanity */
+		if (MStringCompare(Module, cModule->Name, 0))
+			return cModule;
+	}
+
+	/* Else return null, not found */
+	return NULL;
+}
+
+/* Load a Module */
+ModuleResult_t ModuleLoad(MCoreModule_t *Module, Addr_t *FunctionTable, void *Args)
+{
+	/* Information */
+	LogInformation("MDMG", "Loading Module %s", Module->Header->ModuleName);
+
+	/* Sanity */
+	if (Module->Descriptor != NULL)
+		return ModuleOk;
+
+	/* Calculate the file data address */
+	uint8_t *ModData = 
+		(uint8_t*)((Addr_t)Module->Header + sizeof(MCoreRamDiskModuleHeader_t));
+
+	/* Parse & Relocate PE Module */
+	Module->Descriptor = PeLoadModule(ModData, FunctionTable);
+
+	/* Sanity */
+	if (Module->Descriptor == NULL
+		|| Module->Descriptor->EntryAddr == 0)
+	{
+		LogFatal("MDMG", "Failed to load module");
+		return ModuleFailed;
+	}
+
+	/* Call entry point */
+	((ModuleEntryFunc)Module->Descriptor->EntryAddr)(FunctionTable, Args);
+
+	/* Done! */
+	return ModuleOk;
 }
