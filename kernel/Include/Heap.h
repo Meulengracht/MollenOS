@@ -26,7 +26,6 @@
 
 /* Includes */
 #include <Arch.h>
-#include <Mutex.h>
 #include <stdint.h>
 #include <crtdefs.h>
 
@@ -78,7 +77,7 @@ typedef struct _HeapBlock
 	size_t BytesFree;
 
 	/* Mutex */
-	Mutex_t Mutex;
+	Spinlock_t Lock;
 
 	/* Next in Linked List */
 	struct _HeapBlock *Link;

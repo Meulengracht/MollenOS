@@ -30,6 +30,7 @@
 /* Includes */
 #include <Arch.h>
 #include <Scheduler.h>
+#include <Threading.h>
 #include <List.h>
 #include <Heap.h>
 #include <stdio.h>

@@ -138,8 +138,8 @@ typedef struct _PageDirectory
 	 * Not seen by MMU */
 	uint32_t vTables[TABLES_PER_PDIR];
 
-	/* Spinlock */
-	Mutex_t pMutex;
+	/* Mutex */
+	Mutex_t Lock;
 
 } PageDirectory_t;
 

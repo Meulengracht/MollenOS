@@ -23,7 +23,6 @@
 #include <Heap.h>
 #include <Video.h>
 #include <Memory.h>
-#include <Mutex.h>
 #include <Log.h>
 
 #include <assert.h>
@@ -34,7 +33,9 @@
 PageDirectory_t *KernelPageDirectory = NULL;
 PageDirectory_t *CurrentPageDirectories[64];
 volatile Addr_t GblReservedPtr = 0;
-Mutex_t VmMutex;
+
+/* Lock */
+Spinlock_t VmLock;
 
 /* Externs */
 extern volatile uint32_t GlbNumLogicalCpus;
@@ -49,17 +50,17 @@ extern void memory_invalidate_addr(Addr_t pda);
 PageTable_t *MmVirtualCreatePageTable(void)
 {
 	/* Allocate a page table */
-	PhysAddr_t addr = MmPhysicalAllocateBlock();
-	PageTable_t *ptable = (PageTable_t*)addr;
+	PhysAddr_t pAddr = MmPhysicalAllocateBlock();
+	PageTable_t *pTable = (PageTable_t*)pAddr;
 
 	/* Sanity */
-	assert((PhysAddr_t)ptable > 0);
+	assert((PhysAddr_t)pTable > 0);
 
 	/* Zero it */
-	memset((void*)ptable, 0, sizeof(PageTable_t));
+	memset((void*)pTable, 0, sizeof(PageTable_t));
 
 	/* Done */
-	return ptable;
+	return pTable;
 }
 
 /* Identity maps an address range */
@@ -93,19 +94,19 @@ void MmVirtualIdentityMapMemoryRange(PageDirectory_t* PageDirectory,
 		i++, k++)
 	{
 		/* Initialize new page table */
-		PageTable_t *ptable = MmVirtualCreatePageTable();
+		PageTable_t *pTable = MmVirtualCreatePageTable();
 
 		/* Get addresses that match page table */
-		uint32_t current_phys = PhysStart + (k * TABLE_SPACE_SIZE);
-		uint32_t current_virt = VirtStart + (k * TABLE_SPACE_SIZE);
+		uint32_t CurrPhys = PhysStart + (k * TABLE_SPACE_SIZE);
+		uint32_t CurrVirt = VirtStart + (k * TABLE_SPACE_SIZE);
 
 		/* Fill it */
 		if (Fill != 0)
-			MmVirtualFillPageTable(ptable, current_phys, current_virt);
+			MmVirtualFillPageTable(pTable, CurrPhys, CurrVirt);
 
 		/* Install Table */
-		PageDirectory->pTables[i] = (PhysAddr_t)ptable | PAGE_PRESENT | PAGE_WRITE | Flags;
-		PageDirectory->vTables[i] = (Addr_t)ptable;
+		PageDirectory->pTables[i] = (PhysAddr_t)pTable | PAGE_PRESENT | PAGE_WRITE | Flags;
+		PageDirectory->vTables[i] = (Addr_t)pTable;
 	}
 }
 
@@ -158,8 +159,8 @@ void MmVirtualMap(void *PageDirectory, PhysAddr_t PhysicalAddr, VirtAddr_t Virtu
 	/* Sanity */
 	assert(pdir != NULL);
 
-	/* Get mutex */
-	MutexLock(&pdir->pMutex);
+	/* Get Spinlock */
+	MutexLock(&pdir->Lock);
 
 	/* Does page table exist? */
 	if (!(pdir->pTables[PAGE_DIRECTORY_INDEX(VirtualAddr)] & PAGE_PRESENT))
@@ -202,7 +203,7 @@ void MmVirtualMap(void *PageDirectory, PhysAddr_t PhysicalAddr, VirtAddr_t Virtu
 	ptable->Pages[PAGE_TABLE_INDEX(VirtualAddr)] = (PhysicalAddr & PAGE_MASK) | PAGE_PRESENT | PAGE_WRITE | Flags;
 
 	/* Release mutex */
-	MutexUnlock(&pdir->pMutex);
+	MutexUnlock(&pdir->Lock);
 
 	/* Invalidate Address */
 	if (PageDirectory == NULL)
@@ -230,7 +231,7 @@ void MmVirtualUnmap(void *PageDirectory, VirtAddr_t VirtualAddr)
 	assert(pdir != NULL);
 
 	/* Get mutex */
-	MutexLock(&pdir->pMutex);
+	MutexLock(&pdir->Lock);
 
 	/* Does page table exist? */
 	if (!(pdir->pTables[PAGE_DIRECTORY_INDEX(VirtualAddr)] & PAGE_PRESENT))
@@ -238,7 +239,7 @@ void MmVirtualUnmap(void *PageDirectory, VirtAddr_t VirtualAddr)
 		/* No... What the fuck? */
 		
 		/* Release mutex */
-		MutexUnlock(&pdir->pMutex);
+		MutexUnlock(&pdir->Lock);
 
 		/* Return */
 		return;
@@ -251,7 +252,7 @@ void MmVirtualUnmap(void *PageDirectory, VirtAddr_t VirtualAddr)
 	if (ptable->Pages[PAGE_TABLE_INDEX(VirtualAddr)] == 0)
 	{
 		/* Release mutex */
-		MutexUnlock(&pdir->pMutex);
+		MutexUnlock(&pdir->Lock);
 
 		/* Return */
 		return;
@@ -265,7 +266,7 @@ void MmVirtualUnmap(void *PageDirectory, VirtAddr_t VirtualAddr)
 	MmPhysicalFreeBlock(phys);
 
 	/* Release mutex */
-	MutexUnlock(&pdir->pMutex);
+	MutexUnlock(&pdir->Lock);
 
 	/* Invalidate Address */
 	if (PageDirectory == NULL)
@@ -293,7 +294,7 @@ PhysAddr_t MmVirtualGetMapping(void *PageDirectory, VirtAddr_t VirtualAddr)
 	assert(pdir != NULL);
 
 	/* Get mutex */
-	MutexLock(&pdir->pMutex);
+	MutexLock(&pdir->Lock);
 
 	/* Does page table exist? */
 	if (!(pdir->pTables[PAGE_DIRECTORY_INDEX(VirtualAddr)] & PAGE_PRESENT))
@@ -301,7 +302,7 @@ PhysAddr_t MmVirtualGetMapping(void *PageDirectory, VirtAddr_t VirtualAddr)
 		/* No... */
 
 		/* Release mutex */
-		MutexUnlock(&pdir->pMutex);
+		MutexUnlock(&pdir->Lock);
 
 		/* Return */
 		return phys;
@@ -317,7 +318,7 @@ PhysAddr_t MmVirtualGetMapping(void *PageDirectory, VirtAddr_t VirtualAddr)
 	phys = ptable->Pages[PAGE_TABLE_INDEX(VirtualAddr)] & PAGE_MASK;
 
 	/* Release mutex */
-	MutexUnlock(&pdir->pMutex);
+	MutexUnlock(&pdir->Lock);
 
 	/* Sanity */
 	if (phys == 0)
@@ -333,11 +334,11 @@ PhysAddr_t MmVirtualGetMapping(void *PageDirectory, VirtAddr_t VirtualAddr)
 * is used */
 void MmVirtualInitialMap(PhysAddr_t PhysicalAddr, VirtAddr_t VirtualAddr)
 {
-	PageDirectory_t *pdir = KernelPageDirectory;
-	PageTable_t *ptable = NULL;
+	PageDirectory_t *pDir = KernelPageDirectory;
+	PageTable_t *pTable = NULL;
 
 	/* Does page table exist? */
-	if (!(pdir->pTables[PAGE_DIRECTORY_INDEX(VirtualAddr)] & PAGE_PRESENT))
+	if (!(pDir->pTables[PAGE_DIRECTORY_INDEX(VirtualAddr)] & PAGE_PRESENT))
 	{
 		/* No... Create it */
 		PageTable_t *ntable = MmVirtualCreatePageTable();
@@ -346,33 +347,29 @@ void MmVirtualInitialMap(PhysAddr_t PhysicalAddr, VirtAddr_t VirtualAddr)
 		memset((void*)ntable, 0, sizeof(PageTable_t));
 
 		/* Install it */
-		pdir->pTables[PAGE_DIRECTORY_INDEX(VirtualAddr)] = (PhysAddr_t)ntable | PAGE_PRESENT | PAGE_WRITE;
-		pdir->vTables[PAGE_DIRECTORY_INDEX(VirtualAddr)] = (PhysAddr_t)ntable;
+		pDir->pTables[PAGE_DIRECTORY_INDEX(VirtualAddr)] = (PhysAddr_t)ntable | PAGE_PRESENT | PAGE_WRITE;
+		pDir->vTables[PAGE_DIRECTORY_INDEX(VirtualAddr)] = (PhysAddr_t)ntable;
 	}
 
 	/* Get it */
-	ptable = (PageTable_t*)pdir->vTables[PAGE_DIRECTORY_INDEX(VirtualAddr)];
+	pTable = (PageTable_t*)pDir->vTables[PAGE_DIRECTORY_INDEX(VirtualAddr)];
 
 	/* Now, lets map page! */
-	assert(ptable->Pages[PAGE_TABLE_INDEX(VirtualAddr)] == 0
+	assert(pTable->Pages[PAGE_TABLE_INDEX(VirtualAddr)] == 0
 		&& "Dont remap pages without freeing :(");
 
 	/* Map it */
-	ptable->Pages[PAGE_TABLE_INDEX(VirtualAddr)] = (PhysicalAddr & PAGE_MASK) | PAGE_PRESENT | PAGE_WRITE;
+	pTable->Pages[PAGE_TABLE_INDEX(VirtualAddr)] = (PhysicalAddr & PAGE_MASK) | PAGE_PRESENT | PAGE_WRITE;
 }
 
 /* Map system memory */
 VirtAddr_t *MmVirtualMapSysMemory(PhysAddr_t PhysicalAddr, int Pages)
 {
 	int i;
-	Cpu_t cpu;
 	VirtAddr_t ret = 0;
 
-	/* Get cpu */
-	cpu = ApicGetCpu();
-
 	/* Acquire Lock */
-	MutexLock(&VmMutex);
+	SpinlockAcquire(&VmLock);
 
 	/* This is the addr that we return */
 	ret = GblReservedPtr;
@@ -380,16 +377,16 @@ VirtAddr_t *MmVirtualMapSysMemory(PhysAddr_t PhysicalAddr, int Pages)
 	/* Map it */
 	for (i = 0; i < Pages; i++)
 	{
-		/* Call Map */
-		if (!MmVirtualGetMapping(MmVirtualGetCurrentDirectory(cpu), GblReservedPtr))
-			MmVirtualMap(MmVirtualGetCurrentDirectory(cpu), PhysicalAddr + (i * PAGE_SIZE), GblReservedPtr, 0);
+		/* Call Map on kernel directory */
+		if (!MmVirtualGetMapping(NULL, GblReservedPtr))
+			MmVirtualMap(NULL, PhysicalAddr + (i * PAGE_SIZE), GblReservedPtr, 0);
 
 		/* Increase */
 		GblReservedPtr += PAGE_SIZE;
 	}
 
 	/* Release */
-	MutexUnlock(&VmMutex);
+	SpinlockRelease(&VmLock);
 
 	/* Return converted address with correct offset */
 	return (VirtAddr_t*)(ret + (PhysicalAddr & ATTRIBUTE_MASK));
@@ -427,8 +424,8 @@ void MmVirtualInit(void)
 	KernelPageDirectory->vTables[0] = (Addr_t)itable;
 	
 	/* Init mutexes */
-	MutexConstruct(&KernelPageDirectory->pMutex);
-	MutexConstruct(&VmMutex);
+	MutexConstruct(&KernelPageDirectory->Lock);
+	SpinlockReset(&VmLock);
 
 	/* Map Memory Regions */
 

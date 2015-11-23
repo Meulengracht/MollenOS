@@ -23,20 +23,23 @@
 #include <Arch.h>
 #include <Memory.h>
 #include <Multiboot.h>
-#include <Mutex.h>
+#include <Log.h>
+
+/* CLib */
 #include <assert.h>
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
-#include <Log.h>
 
 /* Globals */
-volatile Addr_t *MemoryBitmap = NULL;
-volatile uint32_t MemoryBitmapSize = 0;
-volatile uint32_t MemoryBlocks = 0;
-volatile uint32_t MemoryBlocksUsed = 0;
-volatile uint32_t MemorySize = 0;
-Mutex_t MemoryLock;
+Addr_t *MemoryBitmap = NULL;
+uint32_t MemoryBitmapSize = 0;
+uint32_t MemoryBlocks = 0;
+uint32_t MemoryBlocksUsed = 0;
+uint32_t MemorySize = 0;
+
+/* Lock */
+Spinlock_t MemoryLock;
 
 /* Reserved Regions */
 SysMemMapping_t SysMappings[32];
@@ -197,7 +200,6 @@ void MmPhyiscalInit(void *BootInfo, size_t KernelSize, size_t RamDiskSize)
 
 	/* Right now they are not used */
 	_CRT_UNUSED(KernelSize);
-	_CRT_UNUSED(RamDiskSize);
 	
 	/* Get information from multiboot struct */
 	MemorySize = mboot->MemoryHigh; /* This is how many blocks of 64 kb above 1 mb */
@@ -220,8 +222,8 @@ void MmPhyiscalInit(void *BootInfo, size_t KernelSize, size_t RamDiskSize)
 	memset((void*)MemoryBitmap, 0xF, MemoryBitmapSize);
 	memset((void*)SysMappings, 0, sizeof(SysMappings));
 
-	/* Reset Mutex */
-	MutexConstruct(&MemoryLock);
+	/* Reset Spinlock */
+	SpinlockReset(&MemoryLock);
 
 	/* Let us make it possible to access 
 	 * the first page of memory, but not through normal means */
@@ -268,11 +270,13 @@ void MmPhyiscalInit(void *BootInfo, size_t KernelSize, size_t RamDiskSize)
 	/* 0x90000 - 0x9F000 || Kernel Stack */
 	MmAllocateRegion(0x90000, 0xF000);
 
-	/* 0x100000 - KernelSize */
+	/* 0x100000 - 0x200000 
+	 * Untill we know how much the kernel itself actually takes up 
+	 * after PE relocation */
 	MmAllocateRegion(MEMORY_LOCATION_KERNEL, 0x100000);
 
 	/* 0x200000 - RamDiskSize */
-	MmAllocateRegion(MEMORY_LOCATION_RAMDISK, 0x100000);
+	MmAllocateRegion(MEMORY_LOCATION_RAMDISK, (RamDiskSize + PAGE_SIZE));
 
 	/* 0x300000 - ?? || Bitmap Space */
 	MmAllocateRegion(MEMORY_LOCATION_BITMAP, (MemoryBitmapSize + PAGE_SIZE));
@@ -282,6 +286,7 @@ void MmPhyiscalInit(void *BootInfo, size_t KernelSize, size_t RamDiskSize)
 	LogInformation("PMEM", "Memory in use %u Bytes", MemoryBlocksUsed * PAGE_SIZE);
 }
 
+/* Free Physical Page */
 void MmPhysicalFreeBlock(PhysAddr_t Addr)
 {
 	/* Calculate Bit */
@@ -292,8 +297,8 @@ void MmPhysicalFreeBlock(PhysAddr_t Addr)
 		|| Addr < 0x200000)
 		return;
 
-	/* Lock Mutex */
-	MutexLock(&MemoryLock);
+	/* Get Spinlock */
+	SpinlockAcquire(&MemoryLock);
 
 	/* Sanity */
 	assert(MmMemoryMapTestBit(bit) != 0);
@@ -302,31 +307,33 @@ void MmPhysicalFreeBlock(PhysAddr_t Addr)
 	MmMemoryMapUnsetBit(bit);
 
 	/* Release Spinlock */
-	MutexUnlock(&MemoryLock);
+	SpinlockRelease(&MemoryLock);
 
 	/* Statistics */
 	if (MemoryBlocksUsed != 0)
 		MemoryBlocksUsed--;
 }
 
+/* Allocate Physical Page */
 PhysAddr_t MmPhysicalAllocateBlock(void)
 {
 	/* Get free bit */
 	int bit;
 
-	/* Get mutex */
-	MutexLock(&MemoryLock);
+	/* Get Spinlock */
+	SpinlockAcquire(&MemoryLock);
 
+	/* Get bit */
 	bit = MmGetFreeMapBitHigh();
+
+	/* Release Spinlock */
+	SpinlockRelease(&MemoryLock);
 
 	/* Sanity */
 	assert(bit != -1);
 
 	/* Set it */
 	MmMemoryMapSetBit(bit);
-
-	/* Release Spinlock */
-	MutexUnlock(&MemoryLock);
 
 	/* Statistics */
 	MemoryBlocksUsed++;
@@ -334,24 +341,26 @@ PhysAddr_t MmPhysicalAllocateBlock(void)
 	return (PhysAddr_t)(bit * PAGE_SIZE);
 }
 
+/* Allocate Physical Page below 1 mb */
 PhysAddr_t MmPhysicalAllocateBlockDma(void)
 {
 	/* Get free bit */
 	int bit;
 
-	/* Get spinlock */
-	MutexLock(&MemoryLock);
+	/* Get Spinlock */
+	SpinlockAcquire(&MemoryLock);
 
+	/* Get bit */
 	bit = MmGetFreeMapBitLow();
+
+	/* Release Spinlock */
+	SpinlockRelease(&MemoryLock);
 
 	/* Sanity */
 	assert(bit != -1);
 
 	/* Set it */
 	MmMemoryMapSetBit(bit);
-
-	/* Release Spinlock */
-	MutexUnlock(&MemoryLock);
 
 	/* Statistics */
 	MemoryBlocksUsed++;
