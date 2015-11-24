@@ -51,7 +51,7 @@ void Log(const char *Message, ...)
 	va_list ArgList;
 
 	/* Memset buffer */
-	memset(oBuffer, 0, sizeof(oBuffer));
+	memset(&oBuffer[0], 0, 512);
 
 	/* Format string */
 	va_start(ArgList, Message);
@@ -71,7 +71,7 @@ void LogInformation(const char *System, const char *Message, ...)
 	va_list ArgList;
 
 	/* Memset buffer */
-	memset(oBuffer, 0, sizeof(oBuffer));
+	memset(&oBuffer[0], 0, 512);
 
 	/* Format string */
 	va_start(ArgList, Message);
@@ -93,7 +93,7 @@ void LogDebug(const char *System, const char *Message, ...)
 	va_list ArgList;
 
 	/* Memset buffer */
-	memset(oBuffer, 0, sizeof(oBuffer));
+	memset(&oBuffer[0], 0, 512);
 
 	/* Format string */
 	va_start(ArgList, Message);
@@ -115,7 +115,7 @@ void LogFatal(const char *System, const char *Message, ...)
 	va_list ArgList;
 
 	/* Memset buffer */
-	memset(oBuffer, 0, sizeof(oBuffer));
+	memset(&oBuffer[0], 0, 512);
 
 	/* Format string */
 	va_start(ArgList, Message);

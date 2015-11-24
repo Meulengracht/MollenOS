@@ -31,12 +31,18 @@ extern volatile Addr_t GlbLocalApicAddress;
 /* Read / Write to local apic registers */
 uint32_t ApicReadLocal(uint32_t Register)
 {
+	/* Sanity */
+	assert(GlbLocalApicAddress != 0);
+
 	/* Simply just read */
 	return (uint32_t)(*(volatile Addr_t*)(GlbLocalApicAddress + Register));
 }
 
 void ApicWriteLocal(uint32_t Register, uint32_t Value)
 {
+	/* Sanity */
+	assert(GlbLocalApicAddress != 0);
+
 	/* Write */
 	(*(volatile Addr_t*)(GlbLocalApicAddress + Register)) = Value;
 

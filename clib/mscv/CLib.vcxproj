@@ -201,7 +201,7 @@
       </PrecompiledHeader>
       <WarningLevel>EnableAllWarnings</WarningLevel>
       <Optimization>MaxSpeed</Optimization>
-      <PreprocessorDefinitions>LIBC_KERNEL;_X86_32</PreprocessorDefinitions>
+      <PreprocessorDefinitions>MOLLENOS;LIBC_KERNEL;_X86_32</PreprocessorDefinitions>
       <SDLCheck>
       </SDLCheck>
       <CompileAsManaged>

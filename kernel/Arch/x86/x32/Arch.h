@@ -198,9 +198,6 @@ _CRT_EXTERN void DevicesInit(void *Args);
 #define MEMORY_LOCATION_VIDEO			0x4000000
 #define MEMORY_LOCATION_MODULES			0x5000000
 
-#define MEMORY_LOCATION_SHM				0x9000000
-#define MEMORY_LOCATION_SHM_END			0x30000000
-
 #define MEMORY_LOCATION_RESERVED		0xA0000000
 
 /* Architecture Locked Interrupts */

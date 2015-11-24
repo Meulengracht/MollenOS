@@ -81,9 +81,6 @@
     <ClCompile Include="..\..\Arch\x86\Interrupts\ApicHelpers.c">
       <Filter>Interrupts</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\Arch\x86\Interrupts\ApicInit.c">
-      <Filter>Interrupts</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\Arch\x86\Interrupts\ApicHandlers.c">
       <Filter>Interrupts</Filter>
     </ClCompile>
@@ -119,6 +116,9 @@
     </ClCompile>
     <ClCompile Include="..\..\Arch\x86\Components\PhysicalMemory.c">
       <Filter>Components</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Arch\x86\Interrupts\ApicInit.c">
+      <Filter>Interrupts</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>

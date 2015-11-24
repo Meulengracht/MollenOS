@@ -123,7 +123,7 @@ typedef struct _SysMemMapping
 typedef struct _PageTable
 {
 	/* Pages (Physical Bindings)
-	* Seen by MMU */
+	 * Seen by MMU */
 	uint32_t Pages[PAGES_PER_TABLE];
 
 } PageTable_t;

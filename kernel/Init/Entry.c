@@ -84,10 +84,6 @@ void MCoreInitialize(MCoreBootInfo_t *BootInfo)
 	/* Init post-systems */
 	BootInfo->InitPostSystems();
 
-	LogFatal("SYST", "End of Kernel");
-	InterruptDisable();
-	Idle();
-
 	/* Beyond this point we need timers 
 	 * and right now we have no timers,
 	 * and worst of all, timers are VERY 

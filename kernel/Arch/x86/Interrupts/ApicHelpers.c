@@ -33,6 +33,7 @@ extern list_t *GlbIoApics;
 extern list_t *GlbAcpiNodes;
 extern volatile uint32_t GlbTimerTicks[64];
 extern volatile uint32_t GlbCpusBooted;
+extern volatile Addr_t GlbLocalApicAddress;
 extern x86CpuObject_t GlbBootCpuInfo;
 
 /* Get the version of the local apic */
@@ -328,7 +329,7 @@ void ApicSyncArbIds(void)
 Cpu_t ApicGetCpu(void)
 {
 	/* Sanity */
-	if (GlbCpusBooted <= 1)
+	if (GlbLocalApicAddress == 0)
 		return 0;
 	else
 		return (ApicReadLocal(APIC_PROCESSOR_ID) >> 24) & 0xFF;

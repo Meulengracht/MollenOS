@@ -39,10 +39,10 @@ volatile Addr_t HeapMemHeaderMax = MEMORY_LOCATION_HEAP;
 CriticalSection_t HeapLock;
 
 /* Heap Statistics */
-volatile Addr_t HeapBytesAllocated = 0;
-volatile Addr_t HeapNumAllocs = 0;
-volatile Addr_t HeapNumFrees = 0;
-volatile Addr_t HeapNumPages = 0;
+Addr_t HeapBytesAllocated = 0;
+Addr_t HeapNumAllocs = 0;
+Addr_t HeapNumFrees = 0;
+Addr_t HeapNumPages = 0;
 
 /**************************************/
 /******* Heap Helper Functions ********/
@@ -345,7 +345,7 @@ Addr_t HeapAllocate(size_t Size, int Flags)
 }
 
 /* Map Pages */
-void HeapSanityPages(Addr_t Adress, size_t Size)
+void HeapSanityPages(Addr_t Address, size_t Size)
 {
 	/* Vars */
 	size_t Pages = Size / PAGE_SIZE;
@@ -356,15 +356,15 @@ void HeapSanityPages(Addr_t Adress, size_t Size)
 		Pages++;
 
 	/* Do we step across page boundary? */
-	if ((Adress & PAGE_MASK)
-		!= ((Adress + Size) & PAGE_MASK))
+	if ((Address & PAGE_MASK)
+		!= ((Address + Size - 1) & PAGE_MASK))
 		Pages++;
 
 	/* Map */
 	for (i = 0; i < Pages; i++)
 	{
-		if (!MmVirtualGetMapping(NULL, Adress + (i * PAGE_SIZE)))
-			MmVirtualMap(NULL, MmPhysicalAllocateBlock(), Adress + (i * PAGE_SIZE), 0);
+		if (!MmVirtualGetMapping(NULL, Address + (i * PAGE_SIZE)))
+			MmVirtualMap(NULL, MmPhysicalAllocateBlock(), Address + (i * PAGE_SIZE), 0);
 	}
 }
 

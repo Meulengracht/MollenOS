@@ -124,6 +124,7 @@ void AcpiSetupIoApic(void *Data, int Nr, void *UserData)
 	uint8_t io_apic_num = (uint8_t)Nr;
 	IoApic_t *IoListEntry = NULL;
 
+	/* Debug */
 	LogInformation("APIC", "Initializing I/O Apic %u", ioapic->Id);
 
 	/* Make sure address is mapped */

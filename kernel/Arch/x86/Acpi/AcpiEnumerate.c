@@ -201,13 +201,15 @@ void AcpiEnumerate(void)
 	GlbAcpiNodes = list_create(LIST_NORMAL);
 
 	/* Get Local Apic Address */
-	GlbLocalApicAddress = MadtTable->Address;
 	GlbNumLogicalCpus = 0;
 	GlbNumIoApics = 0;
 
 	/* Identity map it in */
-	if (!MmVirtualGetMapping(NULL, GlbLocalApicAddress))
-		MmVirtualMap(NULL, GlbLocalApicAddress, GlbLocalApicAddress, 0x10);
+	LogInformation("ACPI", "Local Apic Addr at 0x%x", MadtTable->Address);
+	MmVirtualMap(NULL, MadtTable->Address, MadtTable->Address, 0x10);
+
+	/* Now we can set it */
+	GlbLocalApicAddress = MadtTable->Address;
 
 	/* Enumerate MADT */
 	AcpiEnumarateMADT((void*)((Addr_t)MadtTable + sizeof(ACPI_TABLE_MADT)), 

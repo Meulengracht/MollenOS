@@ -52,7 +52,7 @@ void StackTrace(uint32_t MaxFrames)
 
 		/* We could lookup */
 		if (Ip >= MEMORY_LOCATION_MODULES
-			&& Ip < MEMORY_LOCATION_SHM)
+			&& Ip < (MEMORY_LOCATION_MODULES + 0x1000000))
 		{
 			/* Try to find the module */
 			MCoreModule_t *Module = ModuleFindAddress(Ip);

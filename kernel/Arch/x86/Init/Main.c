@@ -104,7 +104,17 @@ void InitX86(Multiboot_t *BootInfo, MCoreBootDescriptor *BootDescriptor)
 	x86BootInfo.BootloaderName = (char*)BootInfo->BootLoaderName;
 	
 	/* Setup Kern & Mod info */
-	memcpy((void*)&x86BootInfo.Descriptor, BootDescriptor, sizeof(MCoreBootDescriptor));
+	x86BootInfo.Descriptor.KernelAddress = BootDescriptor->KernelAddress;
+	x86BootInfo.Descriptor.KernelSize = BootDescriptor->KernelSize;
+
+	x86BootInfo.Descriptor.RamDiskAddress = BootDescriptor->RamDiskAddress;
+	x86BootInfo.Descriptor.RamDiskSize = BootDescriptor->RamDiskSize;
+
+	x86BootInfo.Descriptor.ExportsAddress = BootDescriptor->ExportsAddress;
+	x86BootInfo.Descriptor.ExportsSize = BootDescriptor->ExportsSize;
+
+	x86BootInfo.Descriptor.SymbolsAddress = BootDescriptor->SymbolsAddress;
+	x86BootInfo.Descriptor.SymbolsSize = BootDescriptor->SymbolsSize;
 	
 	/* Setup Functions */
 	x86BootInfo.InitHAL = HALInit;
