@@ -139,17 +139,6 @@ ACPI_MODULE_NAME("oslmos")
 
 /* Globals */
 volatile void *Acpi_RedirectionTarget = NULL;
-ACPI_OSD_HANDLER Acpi_ServiceRoutine;
-
-/* Irq Wrapper System */
-int acpica_interrupt_handler(void *args)
-{
-	/* Call it */
-	if (Acpi_ServiceRoutine != NULL)
-		Acpi_ServiceRoutine(args);
-
-	return X86_IRQ_HANDLED;
-}
 
 /******************************************************************************
 *
@@ -166,7 +155,6 @@ int acpica_interrupt_handler(void *args)
 ACPI_STATUS AcpiOsInitialize(void)
 {
 	/* Init */
-	Acpi_ServiceRoutine = NULL;
 	Acpi_RedirectionTarget = NULL;
 
 	return (AE_OK);
@@ -438,12 +426,9 @@ UINT32 AcpiOsInstallInterruptHandler(
 		ACPI_OSD_HANDLER        ServiceRoutine,
 		void                    *Context)
 {
-	if (Acpi_ServiceRoutine != NULL)
-		return (AE_ALREADY_ACQUIRED);
-
 	/* Install it */
-	Acpi_ServiceRoutine = ServiceRoutine;
-	InterruptInstallISA(InterruptNumber, 0x20 + InterruptNumber, acpica_interrupt_handler, Context);
+	InterruptInstallISA(InterruptNumber, INTERRUPT_ACPIBASE + InterruptNumber,
+		(ACPI_OSD_HANDLER)ServiceRoutine, Context);
 
 	/* Done */
 	return (AE_OK);
@@ -981,9 +966,9 @@ void AcpiOsDeleteLock(ACPI_SPINLOCK Handle)
 
 ACPI_CPU_FLAGS AcpiOsAcquireLock(ACPI_SPINLOCK Handle)
 {
-	/* Create lock */
+	/* Acquire lock */
 	SpinlockAcquire((Spinlock_t*)Handle);
-	return 0;
+	return AE_OK;
 }
 
 void AcpiOsReleaseLock(ACPI_SPINLOCK Handle, ACPI_CPU_FLAGS Flags)

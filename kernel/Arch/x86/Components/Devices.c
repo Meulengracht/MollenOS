@@ -26,10 +26,8 @@
 #include <Pci.h>
 #include <Heap.h>
 #include <List.h>
+#include <Timers.h>
 #include <Log.h>
-
-/* The Function List */
-#include <../../../modules/x86/Include/Driver.h>
 
 /* Definitions */
 #define DEVICES_LEGACY_ID		0x0000015A
@@ -44,10 +42,7 @@
 
 /* Extern the Pci Device List */
 extern list_t *GlbPciDevices;
-
-/* Globals */
-Addr_t *GlbFunctionTable = NULL;
-uint32_t GlbFunctionTableInitialized = 0;
+extern void rdtsc(uint64_t *Value);
 
 /* Helpers */
 uint32_t CreateModuleClass(uint8_t PciClass, uint8_t PciSubClass)
@@ -111,7 +106,7 @@ void DevicesDisableEHCI(void *Data, int n)
 
 					/* Do we have the driver? */
 					if (Module != NULL)
-						ModuleLoad(Module, GlbFunctionTable, Data);
+						ModuleLoad(Module, Data);
 				}
 			}
 		}
@@ -165,84 +160,13 @@ void DevicesInstall(void *Data, int n)
 
 		/* Do we have the driver? */
 		if (Module != NULL)
-			ModuleLoad(Module, GlbFunctionTable, Data);
+			ModuleLoad(Module, Data);
 
 	} break;
 
 	default:
 		break;
 	}
-}
-
-/* List of headers for the table */
-#include <assert.h>
-#include <Memory.h>
-#include <Timers.h>
-#include <Scheduler.h>
-#include <DeviceManager.h>
-#include <Mutex.h>
-#include <Semaphore.h>
-#include <stdio.h>
-
-extern void rdtsc(uint64_t *Value);
-
-/* Initialize Function Table */
-void DevicesInitFunctionTable(void)
-{
-	/* Information */
-	LogInformation("DEVS", "Initializing Function Table");
-
-	/* Allocate */
-	GlbFunctionTable = (Addr_t*)kmalloc(sizeof(Addr_t) * 100);
-
-	/* Set Functions */
-	GlbFunctionTable[kFuncKernelPanic] = (Addr_t)&kernel_panic;
-	GlbFunctionTable[kFuncDebugPrint] = (Addr_t)&printf;
-	
-	GlbFunctionTable[kFuncMemAlloc] = (Addr_t)&kmalloc;
-	GlbFunctionTable[kFuncMemAllocAligned] = (Addr_t)&kmalloc_a;
-	GlbFunctionTable[kFuncMemFree] = (Addr_t)&kfree;
-
-	GlbFunctionTable[kFuncMemMapDeviceMem] = (Addr_t)&MmVirtualMapSysMemory;
-	GlbFunctionTable[kFuncMemAllocDma] = (Addr_t)&MmPhysicalAllocateBlockDma;
-	GlbFunctionTable[kFuncMemGetMapping] = (Addr_t)&MmVirtualGetMapping;
-	GlbFunctionTable[kFuncMemFreeDma] = (Addr_t)&MmPhysicalFreeBlock;
-
-	GlbFunctionTable[kFuncStall] = (Addr_t)&StallMs;
-	GlbFunctionTable[kFuncSleep] = (Addr_t)&SleepNs;
-	GlbFunctionTable[kFuncDelay] = (Addr_t)&DelayMs;
-	GlbFunctionTable[kFuncReadTSC] = (Addr_t)&rdtsc;
-
-	GlbFunctionTable[kFuncCreateThread] = (Addr_t)&ThreadingCreateThread;
-	GlbFunctionTable[kFuncYield] = (Addr_t)&_ThreadYield;
-	GlbFunctionTable[kFuncSleepThread] = (Addr_t)&SchedulerSleepThread;
-	GlbFunctionTable[kFuncWakeThread] = (Addr_t)&SchedulerWakeupOneThread;
-
-	GlbFunctionTable[kFuncInstallIrqPci] = (Addr_t)&InterruptInstallPci;
-	GlbFunctionTable[kFuncInstallIrqISA] = (Addr_t)&InterruptInstallISA;
-	GlbFunctionTable[kFuncInstallIrqIdt] = (Addr_t)&InterruptInstallIdtOnly;
-	GlbFunctionTable[kFuncInstallIrqShared] = (Addr_t)&InterruptInstallShared;
-	GlbFunctionTable[kFuncAllocateIrqISA] = (Addr_t)&InterruptAllocateISA;
-
-	GlbFunctionTable[kFuncRegisterDevice] = (Addr_t)&DmCreateDevice;
-	GlbFunctionTable[kFuncUnregisterDevice] = (Addr_t)&DmDestroyDevice;
-
-	GlbFunctionTable[kFuncReadPciDevice] = (Addr_t)&PciDeviceRead;
-	GlbFunctionTable[kFuncWritePciDevice] = (Addr_t)&PciDeviceWrite;
-
-	GlbFunctionTable[kFuncSemaphoreCreate] = (Addr_t)&SemaphoreCreate;
-	GlbFunctionTable[kFuncSemaphoreV] = (Addr_t)&SemaphoreV;
-	GlbFunctionTable[kFuncSemaphoreP] = (Addr_t)&SemaphoreP;
-	GlbFunctionTable[kFuncSemaphoreDestroy] = (Addr_t)&SemaphoreDestroy;
-
-	GlbFunctionTable[kFuncMutexCreate] = (Addr_t)&MutexCreate;
-	GlbFunctionTable[kFuncMutexConstruct] = (Addr_t)&MutexConstruct;
-	GlbFunctionTable[kFuncMutexDestruct] = (Addr_t)&MutexDestruct;
-	GlbFunctionTable[kFuncMutexLock] = (Addr_t)&MutexLock;
-	GlbFunctionTable[kFuncMutexUnlock] = (Addr_t)&MutexUnlock;
-
-	/* Done! */
-	GlbFunctionTableInitialized = 1;
 }
 
 /* Initialises all available timers in system */
@@ -255,16 +179,12 @@ void DevicesInitTimers(void)
 	/* Information */
 	LogInformation("TIMR", "Initializing System Timers");
 
-	/* Setup Function table ? */
-	if (GlbFunctionTableInitialized != 1)
-		DevicesInitFunctionTable();
-
 	/* Step 1. Load the CMOS Clock */
 	Module = ModuleFind(DEVICES_LEGACY_ID, DEVICES_CMOS);
 
 	/* Do we have the driver? */
 	if (Module != NULL)
-		ModuleLoad(Module, GlbFunctionTable, &AcpiGbl_FADT.Century);
+		ModuleLoad(Module, &AcpiGbl_FADT.Century);
 
 	/* Step 2. Try to setup HPET 
 	 * I'd rather ignore the rest */
@@ -277,7 +197,7 @@ void DevicesInitTimers(void)
 		if (Module != NULL)
 		{
 			/* Cross fingers for the Hpet driver */
-			if (ModuleLoad(Module, GlbFunctionTable, (void*)Header) == ModuleOk)
+			if (ModuleLoad(Module, (void*)Header) == ModuleOk)
 				return;
 		}
 	}
@@ -290,7 +210,7 @@ void DevicesInitTimers(void)
 	if (Module != NULL)
 	{
 		/* Great, load driver */
-		if (ModuleLoad(Module, GlbFunctionTable, NULL) == ModuleOk)
+		if (ModuleLoad(Module, NULL) == ModuleOk)
 			return;
 	}
 		
@@ -300,24 +220,20 @@ void DevicesInitTimers(void)
 
 	/* Do we have the driver? */
 	if (Module != NULL)
-		ModuleLoad(Module, GlbFunctionTable, NULL);
+		ModuleLoad(Module, NULL);
 }
 
 /* Initialises all available devices in system */
 void DevicesInit(void *Args)
 {
 	/* Vars */
-	MCoreModule_t *Module = NULL;
+	//MCoreModule_t *Module = NULL;
 
 	/* Unused */
 	_CRT_UNUSED(Args);
 
 	/* Enumerate Pci Space */
 	PciEnumerate();
-
-	/* Setup Function table ? */
-	if (GlbFunctionTableInitialized != 1)
-		DevicesInitFunctionTable();
 
 	/* Now, setup drivers
 	 * since we have no EHCI
@@ -333,11 +249,11 @@ void DevicesInit(void *Args)
 	* PciEnumerate does not detect */
 
 	/* PS2 */
-	Module = ModuleFind(DEVICES_LEGACY_ID, DEVICES_PS2);
+	//Module = ModuleFind(DEVICES_LEGACY_ID, DEVICES_PS2);
 
 	/* Do we have the driver? */
-	if (Module != NULL)
-		ModuleLoad(Module, GlbFunctionTable, NULL);
+	//if (Module != NULL)
+		//ModuleLoad(Module, GlbFunctionTable, NULL);
 }
 
 /* Externs */

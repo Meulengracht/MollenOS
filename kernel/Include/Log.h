@@ -48,10 +48,10 @@ typedef enum _LogLevel
 _CRT_EXTERN void LogInit(LogTarget_t Output, LogLevel_t Level);
 
 /* The log functions */
-_CRT_EXTERN void Log(const char *Message, ...);
-_CRT_EXTERN void LogInformation(const char *System, const char *Message, ...);
-_CRT_EXTERN void LogDebug(const char *System, const char *Message, ...);
+_CRT_EXPORT void Log(const char *Message, ...);
+_CRT_EXPORT void LogInformation(const char *System, const char *Message, ...);
+_CRT_EXPORT void LogDebug(const char *System, const char *Message, ...);
 _CRT_EXTERN void LogModule(const char *Module, const char *Message, ...);
-_CRT_EXTERN void LogFatal(const char *System, const char *Message, ...);
+_CRT_EXPORT void LogFatal(const char *System, const char *Message, ...);
 
 #endif

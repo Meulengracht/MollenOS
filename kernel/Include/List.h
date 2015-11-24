@@ -68,30 +68,30 @@ typedef struct _list_main
 
 
 /* List Prototypes */
-_CRT_EXTERN list_t *list_create(int attributes);
+_CRT_EXPORT list_t *list_create(int attributes);
 _CRT_EXTERN void list_destroy(list_t *list);
 _CRT_EXTERN int list_length(list_t *list);
 
-_CRT_EXTERN list_node_t *list_create_node(int id, void *data);
+_CRT_EXPORT list_node_t *list_create_node(int id, void *data);
 
 _CRT_EXTERN void list_insert(list_t *list, list_node_t *node, int position);
 _CRT_EXTERN void list_insert_front(list_t *list, list_node_t *node);
-_CRT_EXTERN void list_append(list_t *list, list_node_t *node);
+_CRT_EXPORT void list_append(list_t *list, list_node_t *node);
 
-_CRT_EXTERN list_node_t *list_pop_front(list_t *list);
+_CRT_EXPORT list_node_t *list_pop_front(list_t *list);
 _CRT_EXTERN list_node_t *list_pop_back(list_t *list);
 
-_CRT_EXTERN int list_get_index_by_data(list_t *list, void *data);
-_CRT_EXTERN int list_get_index_by_id(list_t *list, int id);
+_CRT_EXPORT int list_get_index_by_data(list_t *list, void *data);
+_CRT_EXPORT int list_get_index_by_id(list_t *list, int id);
 _CRT_EXTERN int list_get_index_by_node(list_t *list, list_node_t *node);
 
 _CRT_EXTERN list_node_t *list_get_node_by_id(list_t *list, int id, int n);
-_CRT_EXTERN void *list_get_data_by_id(list_t *list, int id, int n);
+_CRT_EXPORT void *list_get_data_by_id(list_t *list, int id, int n);
 
 _CRT_EXTERN void ListExecuteOnId(list_t *List, void(*Function)(void*, int, void*), int Id, void *UserData);
 _CRT_EXTERN void list_execute_all(list_t *list, void(*func)(void*, int));
 
-_CRT_EXTERN void list_remove_by_node(list_t *list, list_node_t* node);
+_CRT_EXPORT void list_remove_by_node(list_t *list, list_node_t* node);
 _CRT_EXTERN void list_remove_by_index(list_t *list, int index);
 _CRT_EXTERN void list_remove_by_id(list_t *list, int id);
 

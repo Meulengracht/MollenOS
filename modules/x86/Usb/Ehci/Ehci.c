@@ -37,7 +37,7 @@
 volatile uint32_t GlbEhciId = 0;
 
 /* Entry point of a module */
-MODULES_API void ModuleInit(Addr_t *FunctionTable, void *Data)
+MODULES_API void ModuleInit(void *Data)
 {
 	PciDevice_t *Device = (PciDevice_t*)Data;
 	UsbHc_t *Controller = NULL;
@@ -45,9 +45,6 @@ MODULES_API void ModuleInit(Addr_t *FunctionTable, void *Data)
 	volatile EchiOperationalRegisters_t *OpRegs;
 	uint32_t Eecp;
 	volatile uint32_t cmd;
-
-	/* Save this */
-	GlbFunctionTable = FunctionTable;
 
 	/* Enable memory io and bus mastering, remove interrupts disabled */
 	uint16_t PciCommand = (uint16_t)PciDeviceRead(Device, 0x4, 2);

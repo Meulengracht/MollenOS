@@ -129,14 +129,13 @@ void CmosGetTime(void *Data, tm *TimeStructure)
 }
 
 /* Entry point of a module */
-MODULES_API void ModuleInit(Addr_t *FunctionTable, void *Data)
+MODULES_API void ModuleInit(void *Data)
 {
 	/* Vars */
 	MCoreClockDevice_t *Clock = NULL;
 	CmosClock_t *Cmos = NULL;
 
 	/* Init lock */
-	GlbFunctionTable = FunctionTable;
 	GlbCmosLock = MutexCreate();
 
 	/* Allocate */

@@ -11,15 +11,6 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="Irq.c" />
-    <ClCompile Include="List.c" />
-    <ClCompile Include="Memory.c" />
-    <ClCompile Include="Shared.c" />
-    <ClCompile Include="Spinlock.c" />
-    <ClCompile Include="Synchronization.c" />
-    <ClCompile Include="Threading.c" />
-  </ItemGroup>
-  <ItemGroup>
     <CustomBuild Include="_Irq.asm">
       <FileType>Document</FileType>
       <Command Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">nasm -f win32 -Xvc -o $(IntDir)\%(Filename).obj %(FullPath)</Command>

@@ -62,21 +62,22 @@ _CRT_EXTERN TmId_t TimersCreateTimer(TimerHandler_t Callback,
 	void *Args, MCoreTimerType_t Type, uint32_t Timeout);
 
 /* Sleep, Stall, etc */
-_CRT_EXTERN void SleepMs(uint32_t MilliSeconds);
-_CRT_EXTERN void StallMs(uint32_t MilliSeconds);
-_CRT_EXTERN void SleepNs(uint32_t NanoSeconds);
-_CRT_EXTERN void StallNs(uint32_t NanoSeconds);
+_CRT_EXPORT void SleepMs(uint32_t MilliSeconds);
+_CRT_EXPORT void StallMs(uint32_t MilliSeconds);
+_CRT_EXPORT void SleepNs(uint32_t NanoSeconds);
+_CRT_EXPORT void StallNs(uint32_t NanoSeconds);
 
 /* Stall-No-Int */
-_CRT_EXTERN void DelayMs(uint32_t MilliSeconds);
+_CRT_EXPORT void DelayMs(uint32_t MilliSeconds);
 
 
 /* Tools */
 #ifdef MODULES_EXPORTS
+#include <Log.h>
 #define WaitForCondition(condition, runs, wait, message, ...)\
     for (unsigned int timeout_ = 0; !(condition); timeout_++) {\
         if (timeout_ >= runs) {\
-             DebugPrint(message, __VA_ARGS__);\
+             Log(message, __VA_ARGS__);\
              break;\
 														        }\
         StallMs(wait);\

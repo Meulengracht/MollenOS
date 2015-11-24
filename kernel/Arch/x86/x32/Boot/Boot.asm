@@ -35,7 +35,7 @@ global _CpuId
 ; EAX - Multiboot Magic
 ; EBX - Contains address of the multiboot structure, but
 ;		it should be located in stack aswell.
-; EDX - Should contain size of the kernel file
+; EDX - Contains address of the mollenos boot structure
 
 _kentry:
 	;We disable interrupts, we have no IDT installed

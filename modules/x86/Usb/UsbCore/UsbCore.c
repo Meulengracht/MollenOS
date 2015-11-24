@@ -51,11 +51,10 @@ void UsbDeviceDestroy(UsbHc_t *Hc, int Port);
 UsbHcPort_t *UsbPortCreate(int Port);
 
 /* Entry point of a module */
-MODULES_API void ModuleInit(Addr_t *FunctionTable, void *Data)
+MODULES_API void ModuleInit(void *Data)
 {
 	/* Save */
 	_CRT_UNUSED(Data);
-	GlbFunctionTable = FunctionTable;
 
 	/* Init */
 	GlbUsbInitialized = 0xDEADBEEF;
@@ -178,7 +177,7 @@ void UsbDeviceSetup(UsbHc_t *Hc, int Port)
 		/* Try again */
 		if (UsbFunctionSetAddress(Hc, Port, (uint32_t)(Port + 1)) != TransferFinished)
 		{
-			DebugPrint("USB_Handler: (Set_Address) Failed to setup port %u\n", Port);
+			LogFatal("USBC", "USB_Handler: (Set_Address) Failed to setup port %u", Port);
 			goto DevError;
 		}
 	}
@@ -192,7 +191,7 @@ void UsbDeviceSetup(UsbHc_t *Hc, int Port)
 		/* Try Again */
 		if (UsbFunctionGetDeviceDescriptor(Hc, Port) != TransferFinished)
 		{
-			DebugPrint("USB_Handler: (Get_Device_Desc) Failed to setup port %u\n", Port);
+			LogFatal("USBC", "USB_Handler: (Get_Device_Desc) Failed to setup port %u", Port);
 			goto DevError;
 		}
 	}
@@ -203,7 +202,7 @@ void UsbDeviceSetup(UsbHc_t *Hc, int Port)
 		/* Try Again */
 		if (UsbFunctionGetConfigDescriptor(Hc, Port) != TransferFinished)
 		{
-			DebugPrint("USB_Handler: (Get_Config_Desc) Failed to setup port %u\n", Port);
+			LogFatal("USBC", "USB_Handler: (Get_Config_Desc) Failed to setup port %u", Port);
 			goto DevError;
 		}
 	}
@@ -214,7 +213,7 @@ void UsbDeviceSetup(UsbHc_t *Hc, int Port)
 		/* Try Again */
 		if (UsbFunctionSetConfiguration(Hc, Port, Hc->Ports[Port]->Device->Configuration) != TransferFinished)
 		{
-			DebugPrint("USB_Handler: (Set_Configuration) Failed to setup port %u\n", Port);
+			LogFatal("USBC", "USB_Handler: (Set_Configuration) Failed to setup port %u", Port);
 			goto DevError;
 		}
 	}
@@ -249,7 +248,7 @@ void UsbDeviceSetup(UsbHc_t *Hc, int Port)
 	}
 
 	/* Done */
-	DebugPrint("UsbCore: Setup of port %u done!\n", Port);
+	LogInformation("USBC", "UsbCore: Setup of port %u done!", Port);
 	return;
 
 DevError:
@@ -370,7 +369,7 @@ void UsbEventHandler(void *args)
 			case HcdConnectedEvent:
 			{
 				/* Setup Device */
-				DebugPrint("Setting up Port %i\n", Event->Port);
+				LogInformation("USBC", "Setting up Port %i", Event->Port);
 				UsbDeviceSetup(Event->Controller, Event->Port);
 
 			} break;
@@ -378,7 +377,7 @@ void UsbEventHandler(void *args)
 			case HcdDisconnectedEvent:
 			{
 				/* Destroy Device */
-				DebugPrint("Destroying Port %i\n", Event->Port);
+				LogInformation("USBC", "Destroying Port %i", Event->Port);
 				UsbDeviceDestroy(Event->Controller, Event->Port);
 
 			} break;
@@ -392,7 +391,7 @@ void UsbEventHandler(void *args)
 
 			default:
 			{
-				DebugPrint("Unhandled Event: %u on port %i\n", Event->Type, Event->Port);
+				LogInformation("USBC", "Unhandled Event: %u on port %i", Event->Type, Event->Port);
 			} break;
 		}
 	}

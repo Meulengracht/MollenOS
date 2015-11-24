@@ -25,6 +25,7 @@
 
 /* Kernel */
 #include <Heap.h>
+#include <Log.h>
 
 /* Transaction List Functions */
 void UsbTransactionAppend(UsbHcRequest_t *Request, UsbHcTransaction_t *Transaction)
@@ -277,8 +278,8 @@ UsbTransferStatus_t UsbFunctionGetDeviceDescriptor(UsbHc_t *Hc, int Port)
 	/* Update Device Information */
 	if (Request.Status == TransferFinished)
 	{
-		DebugPrint("USB Length 0x%x - Device Vendor Id & Product Id: 0x%x - 0x%x\n", DevInfo.Length, DevInfo.VendorId, DevInfo.ProductId);
-		DebugPrint("Device Configurations 0x%x, Max Packet Size: 0x%x\n", DevInfo.NumConfigurations, DevInfo.MaxPacketSize);
+		LogInformation("USBC", "USB Length 0x%x - Device Vendor Id & Product Id: 0x%x - 0x%x", DevInfo.Length, DevInfo.VendorId, DevInfo.ProductId);
+		LogInformation("USBC", "Device Configurations 0x%x, Max Packet Size: 0x%x", DevInfo.NumConfigurations, DevInfo.MaxPacketSize);
 
 		Hc->Ports[Port]->Device->Class = DevInfo.Class;
 		Hc->Ports[Port]->Device->Subclass = DevInfo.Subclass;
@@ -418,7 +419,7 @@ UsbTransferStatus_t UsbFunctionGetConfigDescriptor(UsbHc_t *Hc, int Port)
 				/* Debug Print */
 				if (Hc->Ports[Port]->Device->Interfaces[Interface->NumInterface] == NULL)
 				{
-					DebugPrint("Interface %u - Endpoints %u (Class %u, Subclass %u, Protocol %u)\n",
+					LogInformation("USBC", "Interface %u - Endpoints %u (Class %u, Subclass %u, Protocol %u)",
 						Interface->NumInterface, Interface->NumEndpoints, Interface->Class,
 						Interface->Subclass, Interface->Protocol);
 
@@ -460,7 +461,7 @@ UsbTransferStatus_t UsbFunctionGetConfigDescriptor(UsbHc_t *Hc, int Port)
 				uint32_t EpType = Ep->Attributes & 0x3;
 
 				/* Debug */
-				DebugPrint("Endpoint %u - Attributes 0x%x (MaxPacketSize 0x%x)\n",
+				LogFatal("USBC", "Endpoint %u - Attributes 0x%x (MaxPacketSize 0x%x)",
 					Ep->Address, Ep->Attributes, Ep->MaxPacketSize);
 
 				/* Update Device */

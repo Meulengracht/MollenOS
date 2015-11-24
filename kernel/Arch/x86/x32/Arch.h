@@ -46,6 +46,9 @@ typedef struct _x86_Spinlock
 	/* The INTR state */
 	IntStatus_t IntrState;
 
+	/* Lock Holder */
+	uint32_t Owner;
+
 } Spinlock_t;
 
 /* OS Typedefs */
@@ -126,7 +129,7 @@ _CRT_EXTERN x86Thread_t *_ThreadInitBoot(void);
 _CRT_EXTERN x86Thread_t *_ThreadInitAp(Cpu_t Cpu);
 _CRT_EXTERN x86Thread_t *_ThreadInit(Addr_t EntryPoint);
 _CRT_EXTERN void _ThreadWakeUpCpu(Cpu_t Cpu);
-_CRT_EXTERN void _ThreadYield(void);
+_CRT_EXPORT void _ThreadYield(void);
 
 /* Port IO */
 _CRT_EXTERN uint8_t __CRTDECL inb(uint16_t port);
@@ -139,10 +142,10 @@ _CRT_EXTERN void __CRTDECL outl(uint16_t port, uint32_t data);
 
 /* Spinlock */
 _CRT_EXTERN void SpinlockReset(Spinlock_t *Spinlock);
-_CRT_EXTERN OsStatus_t SpinlockAcquire(Spinlock_t *Spinlock);
-_CRT_EXTERN OsStatus_t SpinlockAcquireNoInt(Spinlock_t *Spinlock);
-_CRT_EXTERN void SpinlockRelease(Spinlock_t *Spinlock);
-_CRT_EXTERN void SpinlockReleaseNoInt(Spinlock_t *Spinlock);
+_CRT_EXPORT OsStatus_t SpinlockAcquire(Spinlock_t *Spinlock);
+_CRT_EXPORT OsStatus_t SpinlockAcquireNoInt(Spinlock_t *Spinlock);
+_CRT_EXPORT void SpinlockRelease(Spinlock_t *Spinlock);
+_CRT_EXPORT void SpinlockReleaseNoInt(Spinlock_t *Spinlock);
 
 /* Memory */
 #ifndef PAGE_SIZE
@@ -158,18 +161,19 @@ _CRT_EXTERN void SpinlockReleaseNoInt(Spinlock_t *Spinlock);
 #endif
 
 /* Physical Memory */
-_CRT_EXTERN PhysAddr_t MmPhysicalAllocateBlock(void);
-_CRT_EXTERN void MmPhysicalFreeBlock(PhysAddr_t Addr);
+_CRT_EXPORT PhysAddr_t MmPhysicalAllocateBlock(void);
+_CRT_EXPORT void MmPhysicalFreeBlock(PhysAddr_t Addr);
 
 /* Virtual Memory */
-_CRT_EXTERN void MmVirtualMap(void *PageDirectory, PhysAddr_t PhysicalAddr, VirtAddr_t VirtualAddr, uint32_t Flags);
-_CRT_EXTERN void MmVirtualUnmap(void *PageDirectory, VirtAddr_t VirtualAddr);
-_CRT_EXTERN PhysAddr_t MmVirtualGetMapping(void *PageDirectory, VirtAddr_t VirtualAddr);
+_CRT_EXPORT void MmVirtualMap(void *PageDirectory, PhysAddr_t PhysicalAddr, VirtAddr_t VirtualAddr, uint32_t Flags);
+_CRT_EXPORT void MmVirtualUnmap(void *PageDirectory, VirtAddr_t VirtualAddr);
+_CRT_EXPORT PhysAddr_t MmVirtualGetMapping(void *PageDirectory, VirtAddr_t VirtualAddr);
 
 /* Utils */
 _CRT_EXTERN Cpu_t ApicGetCpu(void);
 _CRT_EXTERN void ApicSendIpi(uint8_t CpuTarget, uint8_t IrqVector);
 _CRT_EXTERN void Idle(void);
+_CRT_EXPORT void kernel_panic(const char *str);
 
 /* Initialises all available timers in system */
 _CRT_EXTERN void DevicesInitTimers(void);
@@ -217,6 +221,7 @@ _CRT_EXTERN void DevicesInit(void *Args);
 #define INTERRUPT_SYSCALL				0x80
 #define INTERRUPT_YIELD					0x81
 #define INTERRUPT_LVTERROR				0x82
+#define INTERRUPT_ACPIBASE				0x90
 
 /* Free ISA interrupts */
 #define INTERRUPT_FREE0					0x3

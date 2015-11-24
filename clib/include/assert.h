@@ -5,7 +5,13 @@
 #ifndef _CLIB_ASSERT
 #define _CLIB_ASSERT
 
-extern void kernel_panic (const char* str);
+#ifdef MOLLENOS
+/* Includes */
+#include <crtdefs.h>
+_CRT_EXPORT void kernel_panic(const char* str);
+#else
+extern void kernel_panic(const char* str);
+#endif
 
 #define __symbol2value( x ) #x
 #define __symbol2string( x ) __symbol2value( x )

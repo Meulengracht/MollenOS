@@ -105,6 +105,9 @@
     <ClCompile Include="..\..\System\Log.c">
       <Filter>Systems</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\System\Synchronization\CriticalSection.c">
+      <Filter>Systems\Synchronization</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\Include\Heap.h">
@@ -183,6 +186,9 @@
       <Filter>Includes\Devices</Filter>
     </ClInclude>
     <ClInclude Include="..\..\Include\Log.h">
+      <Filter>Includes</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Include\CriticalSection.h">
       <Filter>Includes</Filter>
     </ClInclude>
   </ItemGroup>

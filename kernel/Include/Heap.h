@@ -26,13 +26,15 @@
 
 /* Includes */
 #include <Arch.h>
+#include <CriticalSection.h>
+
 #include <stdint.h>
 #include <crtdefs.h>
 
 /***************************
 Heap Management
 ***************************/
-#define MEMORY_STATIC_OFFSET	0x200000 /* Reserved Header Space */
+#define MEMORY_STATIC_OFFSET	0x400000 /* Reserved Header Space */
 #define HEAP_NORMAL_BLOCK		0x1000
 #define HEAP_LARGE_BLOCK		0x10000
 
@@ -76,9 +78,6 @@ typedef struct _HeapBlock
 	/* Stats */
 	size_t BytesFree;
 
-	/* Mutex */
-	Spinlock_t Lock;
-
 	/* Next in Linked List */
 	struct _HeapBlock *Link;
 
@@ -102,22 +101,22 @@ _CRT_EXTERN void HeapPrintStats(void);
 _CRT_EXTERN void HeapReap(void);
 
 //kMalloc Align and phys return
-_CRT_EXTERN void *kmalloc_ap(size_t sz, Addr_t *p);
+_CRT_EXPORT void *kmalloc_ap(size_t sz, Addr_t *p);
 
 //kMalloc return phys
-_CRT_EXTERN void *kmalloc_p(size_t sz, Addr_t *p);
+_CRT_EXPORT void *kmalloc_p(size_t sz, Addr_t *p);
 
 //kMalloc align
-_CRT_EXTERN void *kmalloc_a(size_t sz);
+_CRT_EXPORT void *kmalloc_a(size_t sz);
 
 //kMalloc
-_CRT_EXTERN void *kmalloc(size_t sz);
+_CRT_EXPORT void *kmalloc(size_t sz);
 
 //kFree
-_CRT_EXTERN void kfree(void *p);
+_CRT_EXPORT void kfree(void *p);
 
 //krealloc / reallocate
-_CRT_EXTERN void *kcalloc(size_t nmemb, size_t size);
-_CRT_EXTERN void *krealloc(void *ptr, size_t size);
+_CRT_EXPORT void *kcalloc(size_t nmemb, size_t size);
+_CRT_EXPORT void *krealloc(void *ptr, size_t size);
 
 #endif

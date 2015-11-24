@@ -26,6 +26,7 @@
 #include <Heap.h>
 #include <List.h>
 #include <Timers.h>
+#include <Log.h>
 
 #include <string.h>
 
@@ -151,7 +152,7 @@ void UsbMsdInit(UsbHcDevice_t *UsbDevice, uint32_t InterfaceIndex)
 	if (DevData->EpIn == NULL
 		|| DevData->EpOut == NULL)
 	{
-		DebugPrint("Msd is missing either in or out endpoint\n");
+		LogDebug("USBM", "Msd is missing either in or out endpoint");
 		kfree(DevData);
 		return;
 	}
@@ -174,7 +175,7 @@ void UsbMsdInit(UsbHcDevice_t *UsbDevice, uint32_t InterfaceIndex)
 	ScsiInquiry_t InquiryData;
 	if (UsbMsdSendSCSICommandIn(X86_SCSI_INQUIRY, DevData, 0, &InquiryData, sizeof(ScsiInquiry_t))
 		!= TransferFinished)
-		DebugPrint("Failed to execute Inquiry Command\n");
+		LogDebug("USBM", "Failed to execute Inquiry Command");
 
 	/* Send Test-Unit-Ready */
 	i = 3;
@@ -199,7 +200,7 @@ void UsbMsdInit(UsbHcDevice_t *UsbDevice, uint32_t InterfaceIndex)
 	/* Did we fail to ready device? */
 	if (!DevData->IsReady)
 	{
-		DebugPrint("Failed to ready MSD device\n");
+		LogDebug("USBM", "Failed to ready MSD device");
 		return;
 	}
 
@@ -209,7 +210,7 @@ void UsbMsdInit(UsbHcDevice_t *UsbDevice, uint32_t InterfaceIndex)
 	UsbMsdReadCapacity(DevData, StorageData);
 
 	/* Debug */
-	DebugPrint("MSD SectorCount: 0x%x, SectorSize: 0x%x\n",
+	LogDebug("USBM", "MSD SectorCount: 0x%x, SectorSize: 0x%x",
 		(uint32_t)StorageData->SectorCount, StorageData->SectorSize);
 
 	/* Register Us */
@@ -726,7 +727,7 @@ void UsbMsdReadyDevice(MsdDevice_t *Device)
 			!= TransferFinished)
 		{
 			/* Damn.. */
-			DebugPrint("Failed to test\n");
+			LogFatal("USBM", "Failed to test");
 			Device->IsReady = 0;
 			return;
 		}
@@ -737,7 +738,7 @@ void UsbMsdReadyDevice(MsdDevice_t *Device)
 		!= TransferFinished)
 	{
 		/* Damn.. */
-		DebugPrint("Failed to sense\n");
+		LogFatal("USBM", "Failed to sense");
 		Device->IsReady = 0;
 		return;
 	}
@@ -750,12 +751,12 @@ void UsbMsdReadyDevice(MsdDevice_t *Device)
 	if (ResponseCode >= 0x70 && ResponseCode <= 0x73)
 	{
 		/* Yay ! */
-		DebugPrint("Sense Status: %s\n", SenseKeys[SenseKey]);
+		LogDebug("USBM", "Sense Status: %s", SenseKeys[SenseKey]);
 	}
 	else
 	{
 		/* Damn.. */
-		DebugPrint("Invalid Response Code: 0x%x\n", ResponseCode);
+		LogDebug("USBM", "Invalid Response Code: 0x%x", ResponseCode);
 		Device->IsReady = 0;
 		return;
 	}

@@ -64,7 +64,7 @@ void MCoreInitialize(MCoreBootInfo_t *BootInfo)
 	PrintHeader(BootInfo);
 
 	/* Init HAL */
-	BootInfo->InitHAL(BootInfo->ArchBootInfo);
+	BootInfo->InitHAL(BootInfo->ArchBootInfo, &BootInfo->Descriptor);
 
 	/* Init the heap */
 	HeapInit();
@@ -75,7 +75,7 @@ void MCoreInitialize(MCoreBootInfo_t *BootInfo)
 	DmCreateDevice("BootVideo", DeviceVideo, &BootVideo);
 
 	/* Init ModuleManager */
-	ModuleMgrInit(BootInfo->RamDiskAddr, BootInfo->RamDiskSize);
+	ModuleMgrInit(&BootInfo->Descriptor);
 
 	/* Init Threading & Scheduler for boot cpu */
 	SchedulerInit(0);
@@ -83,6 +83,10 @@ void MCoreInitialize(MCoreBootInfo_t *BootInfo)
 
 	/* Init post-systems */
 	BootInfo->InitPostSystems();
+
+	LogFatal("SYST", "End of Kernel");
+	InterruptDisable();
+	Idle();
 
 	/* Beyond this point we need timers 
 	 * and right now we have no timers,
@@ -92,7 +96,7 @@ void MCoreInitialize(MCoreBootInfo_t *BootInfo)
 	BootInfo->InitTimers();
 
 	/* Start out any extra cores */
-	CpuInitSmp(BootInfo->ArchBootInfo);
+	//CpuInitSmp(BootInfo->ArchBootInfo);
 
 	/* Start the request handle */
 	DmStart();

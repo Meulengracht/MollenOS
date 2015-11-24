@@ -41,10 +41,10 @@ typedef struct _Mutex
 } Mutex_t;
 
 /* Prototypes */
-_CRT_EXTERN Mutex_t *MutexCreate(void);
-_CRT_EXTERN void MutexConstruct(Mutex_t *Mutex);
-_CRT_EXTERN void MutexDestruct(Mutex_t *Mutex);
-_CRT_EXTERN void MutexLock(Mutex_t *Mutex);
-_CRT_EXTERN void MutexUnlock(Mutex_t *Mutex);
+_CRT_EXPORT Mutex_t *MutexCreate(void);
+_CRT_EXPORT void MutexConstruct(Mutex_t *Mutex);
+_CRT_EXPORT void MutexDestruct(Mutex_t *Mutex);
+_CRT_EXPORT void MutexLock(Mutex_t *Mutex);
+_CRT_EXPORT void MutexUnlock(Mutex_t *Mutex);
 
 #endif // !_MCORE_MUTEX_H_

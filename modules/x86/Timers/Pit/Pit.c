@@ -60,7 +60,7 @@ int PitIrqHandler(void *Data)
 }
 
 /* Entry point of a module */
-MODULES_API void ModuleInit(Addr_t *FunctionTable, void *Data)
+MODULES_API void ModuleInit(void *Data)
 {
 	/* We need these */
 	MCoreTimerDevice_t *Timer = NULL;
@@ -72,9 +72,6 @@ MODULES_API void ModuleInit(Addr_t *FunctionTable, void *Data)
 
 	/* Unused */
 	_CRT_UNUSED(Data);
-
-	/* Save */
-	GlbFunctionTable = FunctionTable;
 
 	/* Allocate */
 	Pit = (PitTimer_t*)kmalloc(sizeof(PitTimer_t));

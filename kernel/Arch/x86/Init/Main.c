@@ -75,7 +75,7 @@ void InitTimers(void)
 }
 
 /* Used for initializing base components */
-void HALInit(void *BootInfo)
+void HALInit(void *BootInfo, MCoreBootDescriptor *Descriptor)
 {
 	_CRT_UNUSED(BootInfo);
 
@@ -93,20 +93,18 @@ void HALInit(void *BootInfo)
 
 	/* Memory setup! */
 	LogInformation("HAL0", "Setting Up Memory");
-	MmPhyiscalInit(x86BootInfo.ArchBootInfo, x86BootInfo.KernelSize, x86BootInfo.RamDiskSize);
+	MmPhyiscalInit(x86BootInfo.ArchBootInfo, Descriptor);
 	MmVirtualInit();
 }
 
-void InitX86(Multiboot_t *BootInfo, size_t KernelSize)
+void InitX86(Multiboot_t *BootInfo, MCoreBootDescriptor *BootDescriptor)
 {
 	/* Setup Boot Info */
 	x86BootInfo.ArchBootInfo = (void*)BootInfo;
 	x86BootInfo.BootloaderName = (char*)BootInfo->BootLoaderName;
 	
 	/* Setup Kern & Mod info */
-	x86BootInfo.KernelSize = KernelSize;
-	x86BootInfo.RamDiskAddr = BootInfo->ModuleAddr;
-	x86BootInfo.RamDiskSize = BootInfo->ModuleCount;
+	memcpy((void*)&x86BootInfo.Descriptor, BootDescriptor, sizeof(MCoreBootDescriptor));
 	
 	/* Setup Functions */
 	x86BootInfo.InitHAL = HALInit;

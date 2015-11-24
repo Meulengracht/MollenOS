@@ -24,6 +24,8 @@
 /* Heap Includes */
 #include <Arch.h>
 #include <Heap.h>
+
+/* CLib */
 #include <assert.h>
 #include <stddef.h>
 #include <string.h>
@@ -34,7 +36,7 @@ Heap_t *Heap = NULL;
 volatile Addr_t HeapMemStartData = MEMORY_LOCATION_HEAP + MEMORY_STATIC_OFFSET;
 volatile Addr_t HeapMemHeaderCurrent = MEMORY_LOCATION_HEAP;
 volatile Addr_t HeapMemHeaderMax = MEMORY_LOCATION_HEAP;
-Spinlock_t HeapLock;
+CriticalSection_t HeapLock;
 
 /* Heap Statistics */
 volatile Addr_t HeapBytesAllocated = 0;
@@ -163,9 +165,6 @@ HeapBlock_t *HeapCreateBlock(size_t Size, int Flags)
 	hBlock->Link = NULL;
 	hBlock->Nodes = hNode;
 
-	/* Setup Spinlock */
-	SpinlockReset(&hBlock->Lock);
-
 	/* Setup node */
 	hNode->Address = HeapMemStartData;
 	hNode->Link = NULL;
@@ -211,31 +210,25 @@ void HeapExpand(size_t Size, int ExpandType)
 /* Allocates <size> in a given <block> */
 Addr_t HeapAllocateSizeInBlock(HeapBlock_t *Block, size_t Size)
 {
-	HeapNode_t *current_node = Block->Nodes, *previous_node = NULL;
+	HeapNode_t *CurrNode = Block->Nodes, *PrevNode = NULL;
 	Addr_t return_addr = 0;
-	size_t pages = Size / PAGE_SIZE;
-	uint32_t i;
-
-	/* Make sure we map enough pages */
-	if (Size % PAGE_SIZE)
-		pages++;
 
 	/* Standard block allocation algorithm */
-	while (current_node)
+	while (CurrNode)
 	{
 		/* Check if free and large enough */
-		if (current_node->Allocated == 0
-			&& current_node->Length >= Size)
+		if (CurrNode->Allocated == 0
+			&& CurrNode->Length >= Size)
 		{
 			/* Allocate, two cases, either exact
 			 * match in size or we make a new header */
-			if (current_node->Length == Size
+			if (CurrNode->Length == Size
 				|| Block->Flags & BLOCK_VERY_LARGE)
 			{
 				/* Easy peasy, set allocated and
 				 * return */
-				current_node->Allocated = 1;
-				return_addr = current_node->Address;
+				CurrNode->Allocated = 1;
+				return_addr = CurrNode->Address;
 				Block->BytesFree -= Size;
 				break;
 			}
@@ -244,19 +237,19 @@ Addr_t HeapAllocateSizeInBlock(HeapBlock_t *Block, size_t Size)
 				/* Make new node */
 				/* Insert it before this */
 				HeapNode_t *node = (HeapNode_t*)HeapSAllocator(sizeof(HeapNode_t));
-				node->Address = current_node->Address;
+				node->Address = CurrNode->Address;
 				node->Allocated = 1;
 				node->Length = Size;
-				node->Link = current_node;
+				node->Link = CurrNode;
 				return_addr = node->Address;
 
 				/* Update current node stats */
-				current_node->Address = node->Address + Size;
-				current_node->Length -= Size;
+				CurrNode->Address = node->Address + Size;
+				CurrNode->Length -= Size;
 
 				/* Update previous */
-				if (previous_node != NULL)
-					previous_node->Link = node;
+				if (PrevNode != NULL)
+					PrevNode->Link = node;
 				else
 					Block->Nodes = node;
 
@@ -266,23 +259,8 @@ Addr_t HeapAllocateSizeInBlock(HeapBlock_t *Block, size_t Size)
 		}
 
 		/* Next node, search for a free */
-		previous_node = current_node;
-		current_node = current_node->Link;
-	}
-
-	if (return_addr != 0)
-	{
-		/* Do we step across page boundary? */
-		if ((return_addr & PAGE_MASK)
-			!= ((return_addr + Size) & PAGE_MASK))
-			pages++;
-
-		/* Map */
-		for (i = 0; i < pages; i++)
-		{
-			if (!MmVirtualGetMapping(NULL, return_addr + (i * PAGE_SIZE)))
-				MmVirtualMap(NULL, MmPhysicalAllocateBlock(), return_addr + (i * PAGE_SIZE), 0);
-		}
+		PrevNode = CurrNode;
+		CurrNode = CurrNode->Link;
 	}
 
 	/* Return Address */
@@ -366,6 +344,30 @@ Addr_t HeapAllocate(size_t Size, int Flags)
 	return HeapAllocate(Size, Flags);
 }
 
+/* Map Pages */
+void HeapSanityPages(Addr_t Adress, size_t Size)
+{
+	/* Vars */
+	size_t Pages = Size / PAGE_SIZE;
+	uint32_t i;
+
+	/* Sanity */
+	if (Size % PAGE_SIZE)
+		Pages++;
+
+	/* Do we step across page boundary? */
+	if ((Adress & PAGE_MASK)
+		!= ((Adress + Size) & PAGE_MASK))
+		Pages++;
+
+	/* Map */
+	for (i = 0; i < Pages; i++)
+	{
+		if (!MmVirtualGetMapping(NULL, Adress + (i * PAGE_SIZE)))
+			MmVirtualMap(NULL, MmPhysicalAllocateBlock(), Adress + (i * PAGE_SIZE), 0);
+	}
+}
+
 /* The real calls */
 
 /* Page align & return physical */
@@ -383,16 +385,19 @@ void *kmalloc_ap(size_t sz, Addr_t *p)
 		Flags = ALLOCATION_SPECIAL;
 
 	/* Lock */
-	SpinlockAcquire(&HeapLock);
+	CriticalSectionEnter(&HeapLock);
 
 	/* Do the call */
 	RetAddr = HeapAllocate(sz, Flags);
 
 	/* Release */
-	SpinlockRelease(&HeapLock);
+	CriticalSectionLeave(&HeapLock);
 
 	/* Sanity */
 	assert(RetAddr != 0);
+
+	/* Sanity Pages */
+	HeapSanityPages(RetAddr, sz);
 
 	/* Now, get physical mapping */
 	*p = MmVirtualGetMapping(NULL, RetAddr);
@@ -420,16 +425,19 @@ void *kmalloc_p(size_t sz, Addr_t *p)
 		Flags = ALLOCATION_SPECIAL;
 
 	/* Lock */
-	SpinlockAcquire(&HeapLock);
+	CriticalSectionEnter(&HeapLock);
 
 	/* Do the call */
 	RetAddr = HeapAllocate(sz, Flags);
 
 	/* Release */
-	SpinlockRelease(&HeapLock);
+	CriticalSectionLeave(&HeapLock);
 
 	/* Sanity */
 	assert(RetAddr != 0);
+
+	/* Sanity Pages */
+	HeapSanityPages(RetAddr, sz);
 
 	/* Get physical mapping */
 	*p = MmVirtualGetMapping(NULL, RetAddr);
@@ -453,16 +461,19 @@ void *kmalloc_a(size_t sz)
 		Flags = ALLOCATION_SPECIAL;
 
 	/* Lock */
-	SpinlockAcquire(&HeapLock);
+	CriticalSectionEnter(&HeapLock);
 
 	/* Do the call */
 	RetAddr = HeapAllocate(sz, Flags);
 
 	/* Release */
-	SpinlockRelease(&HeapLock);
+	CriticalSectionLeave(&HeapLock);
 
 	/* Sanity */
 	assert(RetAddr != 0);
+
+	/* Sanity Pages */
+	HeapSanityPages(RetAddr, sz);
 
 	/* Done */
 	return (void*)RetAddr;
@@ -487,16 +498,19 @@ void *kmalloc(size_t sz)
 		Flags = ALLOCATION_SPECIAL;
 
 	/* Lock */
-	SpinlockAcquire(&HeapLock);
+	CriticalSectionEnter(&HeapLock);
 
 	/* Do the call */
 	RetAddr = HeapAllocate(sz, Flags);
 
 	/* Release */
-	SpinlockRelease(&HeapLock);
+	CriticalSectionLeave(&HeapLock);
 
 	/* Sanity */
 	assert(RetAddr != 0);
+
+	/* Sanity Pages */
+	HeapSanityPages(RetAddr, sz);
 
 	/* Done */
 	return (void*)RetAddr;
@@ -505,70 +519,69 @@ void *kmalloc(size_t sz)
 /**************************************/
 /*********** Heap Freeing *************/
 /**************************************/
-/* Free in node */
 void HeapFreeAddressInNode(HeapBlock_t *Block, Addr_t Address)
 {
 	/* Vars */
-	HeapNode_t *current_node = Block->Nodes, *previous_node = NULL;
+	HeapNode_t *CurrNode = Block->Nodes, *PrevNode = NULL;
 
 	/* Standard block freeing algorithm */
-	while (current_node)
+	while (CurrNode != NULL)
 	{
 		/* Calculate end and start */
-		Addr_t start = current_node->Address;
-		Addr_t end = current_node->Address + current_node->Length - 1;
-		uint8_t merged = 0;
+		Addr_t aStart = CurrNode->Address;
+		Addr_t aEnd = CurrNode->Address + CurrNode->Length - 1;
+		uint32_t Merged = 0;
 
 		/* Check if address is a part of this node */
-		if (start <= Address && end >= Address)
+		if (aStart <= Address && aEnd >= Address)
 		{
 			/* Well, well, well. */
-			current_node->Allocated = 0;
-			Block->BytesFree += current_node->Length;
+			CurrNode->Allocated = 0;
+			Block->BytesFree += CurrNode->Length;
 
 			/* CHECK IF WE CAN MERGE!! */
 
 			/* Can we merge with previous? */
-			if (previous_node != NULL
-				&& previous_node->Allocated == 0)
+			if (PrevNode != NULL
+				&& PrevNode->Allocated == 0)
 			{
 				/* Add this length to previous */
-				previous_node->Length += current_node->Length;
+				PrevNode->Length += CurrNode->Length;
 
 				/* Remove this link (TODO SAVE HEADERS) */
-				previous_node->Link = current_node->Link;
-				merged = 1;
+				PrevNode->Link = CurrNode->Link;
+				Merged = 1;
 			}
 
 			/* Merge with next in list? */
 
 			/* Two cases, we already merged, or we did not */
-			if (merged)
+			if (Merged)
 			{
 				/* This link is dead, and now is previous */
-				if (previous_node->Link != NULL
-					&& previous_node->Link->Allocated == 0)
+				if (PrevNode->Link != NULL
+					&& PrevNode->Link->Allocated == 0)
 				{
 					/* Add length */
-					previous_node->Length += previous_node->Link->Length;
+					PrevNode->Length += PrevNode->Link->Length;
 
 					/* Remove the link (TODO SAVE HEADERS) */
-					current_node = previous_node->Link->Link;
-					previous_node->Link = current_node;
+					CurrNode = PrevNode->Link->Link;
+					PrevNode->Link = CurrNode;
 				}
 			}
 			else
 			{
-				/* We did not merget with previous, current is still alive! */
-				if (current_node->Link != NULL
-					&& current_node->Link->Allocated == 0)
+				/* We did not merge with previous, current is still alive! */
+				if (CurrNode->Link != NULL
+					&& CurrNode->Link->Allocated == 0)
 				{
 					/* Merge time! */
-					current_node->Length += current_node->Link->Length;
+					CurrNode->Length += CurrNode->Link->Length;
 
 					/* Remove then link (TODO SAVE HEADERS) */
-					previous_node = current_node->Link->Link;
-					current_node->Link = previous_node;
+					PrevNode = CurrNode->Link->Link;
+					CurrNode->Link = PrevNode;
 				}
 			}
 
@@ -576,8 +589,8 @@ void HeapFreeAddressInNode(HeapBlock_t *Block, Addr_t Address)
 		}
 
 		/* Next node, search for the allocated block */
-		previous_node = current_node;
-		current_node = current_node->Link;
+		PrevNode = CurrNode;
+		CurrNode = CurrNode->Link;
 	}
 }
 
@@ -593,10 +606,13 @@ void HeapFree(Addr_t Addr)
 	while (CurrBlock)
 	{
 		/* Correct block? */
-		if (!(CurrBlock->AddressStart > Addr
-			|| CurrBlock->AddressEnd < Addr))
+		if (CurrBlock->AddressStart <= Addr
+			&& CurrBlock->AddressEnd > Addr)
 		{
+			/* Yay, free */
 			HeapFreeAddressInNode(CurrBlock, Addr);
+
+			/* Done! */
 			return;
 		}
 		
@@ -612,13 +628,13 @@ void kfree(void *p)
 	assert(p != NULL); 
 
 	/* Lock */
-	SpinlockAcquire(&HeapLock);
+	CriticalSectionEnter(&HeapLock);
 
 	/* Free */
-	HeapFree((Addr_t)p);
+	//HeapFree((Addr_t)p);
 
 	/* Release */
-	SpinlockRelease(&HeapLock);
+	CriticalSectionLeave(&HeapLock);
 
 	/* Set NULL */
 	p = NULL;
@@ -638,7 +654,7 @@ void HeapInit(void)
 	HeapMemHeaderMax = MEMORY_LOCATION_HEAP;
 
 	/* Initiate the global spinlock */
-	SpinlockReset(&HeapLock);
+	CriticalSectionConstruct(&HeapLock);
 
 	/* Allocate the heap */
 	Heap = (Heap_t*)HeapSAllocator(sizeof(Heap_t));

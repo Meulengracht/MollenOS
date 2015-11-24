@@ -22,6 +22,8 @@
 /* Includes */
 #include <Threading.h>
 #include <Thread.h>
+#include <Modules/ModuleManager.h>
+#include <Log.h>
 #include <stdio.h>
 
 /* Extern Assembly */
@@ -29,6 +31,55 @@ extern uint32_t __getcr2(void);
 extern void init_fpu(void);
 extern void load_fpu(Addr_t *buffer);
 extern void clear_ts(void);
+extern void ThreadingDebugPrint(void);
+
+/* Our very own Cdecl x86 stack trace :-) */
+void StackTrace(uint32_t MaxFrames)
+{
+	/* Get stack position */
+	uint32_t *StackPtr = (uint32_t*)&MaxFrames;
+	uint32_t Itr = MaxFrames;
+
+	/* Run */
+	while (Itr != 0)
+	{
+		/* Get IP */
+		uint32_t Ip = StackPtr[2];
+
+		/* Sanity */
+		if (Ip == 0)
+			break;
+
+		/* We could lookup */
+		if (Ip >= MEMORY_LOCATION_MODULES
+			&& Ip < MEMORY_LOCATION_SHM)
+		{
+			/* Try to find the module */
+			MCoreModule_t *Module = ModuleFindAddress(Ip);
+
+			/* Sanity */
+			if (Module != NULL)
+			{
+				uint32_t Diff = Ip - Module->Descriptor->BaseVirtual;
+				LogInformation("CSTK", "%u - 0x%x (%s)",
+					MaxFrames - Itr, Diff, Module->Header->ModuleName);
+			}
+		}
+		else
+			LogInformation("CSTK", "%u - 0x%x", MaxFrames - Itr, Ip);
+
+
+		/* Get argument pointer */
+		//uint32_t *ArgPtr = &StackPtr[0];
+
+		/* Unwind to next ebp */
+		StackPtr = (uint32_t*)StackPtr[1];
+		StackPtr--;
+
+		/* Dec */
+		Itr--;
+	}
+}
 
 /* Common entry for all exceptions */
 void ExceptionEntry(Registers_t *regs)
@@ -87,8 +138,7 @@ void ExceptionEntry(Registers_t *regs)
 	{
 		/* Odd */
 		printf("CR2 Address: 0x%x... Faulty Address: 0x%x\n", __getcr2(), regs->Eip);
-		InterruptDisable();
-		Idle();
+		for (;;);
 	}
 
 	if (IssueFixed == 0)
@@ -103,38 +153,6 @@ void ExceptionEntry(Registers_t *regs)
 		//printf("Disassembly of 0x%x:\n%s", regs->eip, instructions);
 
 		Idle();
-	}
-}
-
-//EBP is passed to the exception handler by the CPU
-void StackTrace(uint32_t MaxFrames)
-{
-	/* Get stack position */
-	uint32_t *StackPtr = (uint32_t*)&MaxFrames;
-	uint32_t Itr = MaxFrames;
-
-	/* Run */
-	while (Itr != 0)
-	{
-		/* Get IP */
-		uint32_t Ip = StackPtr[2];
-
-		/* Sanity */
-		if (Ip == 0)
-			break;
-
-		/* We could lookup */
-		printf("Call Stack: 0x%x\n", Ip);
-
-		/* Get argument pointer */
-		//uint32_t *ArgPtr = &StackPtr[0];
-
-		/* Unwind to next ebp */
-		StackPtr = (uint32_t*)StackPtr[1];
-		StackPtr--;
-
-		/* Dec */
-		Itr--;
 	}
 }
 
@@ -181,11 +199,25 @@ void StackTrace(uint32_t MaxFrames)
 //	return instructions;
 //}
 
-void kernel_panic(const char *message)
+/* The kernel panic, spits out debug info */
+void kernel_panic(const char *Message)
 {
-	printf("ASSERT PANIC: %s\n", message);
-	printf("Thread %u!\n", ThreadingGetCurrentThreadId());
-	printf("Stack Trace:\n");
+	/* Get Cpu */
+	Cpu_t CurrCpu = ApicGetCpu();
+
+	/* Print */
+	LogFatal("SYST", Message);
+
+	/* Try to stack trace first */
 	StackTrace(6);
+
+	/* Log Thread Information */
+	LogFatal("SYST", "Thread %s - %u (Core %u)!", 
+		ThreadingGetCurrentThread(CurrCpu)->Name, 
+		ThreadingGetCurrentThreadId(), CurrCpu);
+	ThreadingDebugPrint();
+
+	/* Gooodbye */
+	InterruptDisable();
 	for (;;);
 }

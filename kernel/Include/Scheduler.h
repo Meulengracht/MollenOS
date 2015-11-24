@@ -65,8 +65,8 @@ _CRT_EXTERN void SchedulerInit(Cpu_t cpu);
 _CRT_EXTERN void SchedulerReadyThread(list_node_t *Node);
 _CRT_EXTERN list_node_t *SchedulerGetNextTask(Cpu_t cpu, list_node_t *Node, int PreEmptive);
 
-_CRT_EXTERN void SchedulerSleepThread(Addr_t *Resource);
-_CRT_EXTERN int SchedulerWakeupOneThread(Addr_t *Resource);
-_CRT_EXTERN void SchedulerWakeupAllThreads(Addr_t *Resource);
+_CRT_EXPORT void SchedulerSleepThread(Addr_t *Resource);
+_CRT_EXPORT int SchedulerWakeupOneThread(Addr_t *Resource);
+_CRT_EXPORT void SchedulerWakeupAllThreads(Addr_t *Resource);
 
 #endif // !_MCORE_SCHEDULER_H_

@@ -26,6 +26,7 @@
 #include <Devices\Timer.h>
 #include "Hpet.h"
 #include <Heap.h>
+#include <Log.h>
 
 /* X86 */
 #include <x86\Memory.h>
@@ -135,7 +136,7 @@ int HpetTimerHandler(void *Args)
 		/* If we are not periodic restart us */
 		if (Timer->Periodic != 1)
 		{
-			DebugPrint("Philip implement retarting of non-peridoic timers please!");
+			LogFatal("HPET", "Philip implement retarting of non-peridoic timers please!");
 			for (;;);
 		}
 	}
@@ -199,7 +200,7 @@ int HpetAllocateIrq(uint32_t Comparator, void *IrqData)
 
 				/* Debug */
 #ifdef X86_HPET_DIAGNOSE
-				printf("Allocated interrupt %u for timer %u\n", (uint32_t)Itr2, Comparator);
+				LogInformation("HPET", "Allocated interrupt %u for timer %u", (uint32_t)Itr2, Comparator);
 #endif
 
 				/* Go on to next */
@@ -218,7 +219,7 @@ int HpetAllocateIrq(uint32_t Comparator, void *IrqData)
 
 					/* Debug */
 #ifdef X86_HPET_DIAGNOSE
-					printf("Allocated interrupt %u for timer %u\n", (uint32_t)Itr2, Comparator);
+					LogInformation("HPET", "Allocated interrupt %u for timer %u", (uint32_t)Itr2, Comparator);
 #endif
 
 					/* Go on to next */
@@ -232,7 +233,7 @@ int HpetAllocateIrq(uint32_t Comparator, void *IrqData)
 	if (GlbHpetTimers[Comparator]->Irq == 0xFFFFFFFF)
 	{
 		/* Debug */
-		DebugPrint("Hpet Timer %u has invalid irqmap\n", Comparator);
+		LogInformation("HPET", "Hpet Timer %u has invalid irqmap", Comparator);
 		return -1;
 	}
 
@@ -259,7 +260,7 @@ OsStatus_t HpetComparatorStart(uint32_t Comparator, uint32_t Periodic, uint32_t 
 	Now += (uint32_t)Delta;
 
 #ifdef X86_HPET_DIAGNOSE
-	printf("Delta 0x%x, Frequency 0x%x\n", (uint32_t)Delta, (uint32_t)GlbHpetFrequency);
+	LogInformation("HPET", "Delta 0x%x, Frequency 0x%x", (uint32_t)Delta, (uint32_t)GlbHpetFrequency);
 #endif
 
 	/* Sanity */
@@ -269,7 +270,7 @@ OsStatus_t HpetComparatorStart(uint32_t Comparator, uint32_t Periodic, uint32_t 
 	/* Update Irq */
 	Temp = HpetRead32(X86_HPET_TIMER_REGISTER_CONFIG(Comparator));
 #ifdef X86_HPET_DIAGNOSE
-	printf("Old TimerInfo: 0x%x\n", Temp);
+	LogInformation("HPET", "Old TimerInfo: 0x%x", Temp);
 #endif
 	Temp |= (GlbHpetTimers[Comparator]->Irq << 9) | X86_HPET_TIMER_CONFIG_IRQENABLED
 		 | X86_HPET_TIMER_CONFIG_SET_CMP_VALUE;
@@ -281,16 +282,16 @@ OsStatus_t HpetComparatorStart(uint32_t Comparator, uint32_t Periodic, uint32_t 
 		Temp |= X86_HPET_TIMER_CONFIG_PERIODIC;
 
 #ifdef X86_HPET_DIAGNOSE
-	printf("New TimerInfo: 0x%x\n", Temp);
+	LogInformation("HPET", "New TimerInfo: 0x%x", Temp);
 #endif
 	HpetWrite32(X86_HPET_TIMER_REGISTER_CONFIG(Comparator), Temp);
 #ifdef X86_HPET_DIAGNOSE
-	printf("New TimeEnd: 0x%x\n", Now);
+	LogInformation("HPET", "New TimeEnd: 0x%x", Now);
 #endif
 	HpetWrite32(X86_HPET_TIMER_REGISTER_COMPARATOR(Comparator), Now);
 
 #ifdef X86_HPET_DIAGNOSE
-	printf("New Delta: 0x%x\n", (uint32_t)Delta);
+	LogInformation("HPET", "New Delta: 0x%x", (uint32_t)Delta);
 #endif
 
 	/*
@@ -337,7 +338,7 @@ OsStatus_t HpetComparatorSetup(uint32_t Comparator)
 
 	/* Debug */
 #ifdef X86_HPET_DIAGNOSE
-	printf("Timer %u, IrqMap 0x%x, Info 0x%x\n", Comparator, TimerIrqMap, TimerInfo);
+	LogInformation("HPET", "Timer %u, IrqMap 0x%x, Info 0x%x", Comparator, TimerIrqMap, TimerInfo);
 #endif
 
 	/* Disable Timer */
@@ -362,14 +363,14 @@ OsStatus_t HpetComparatorSetup(uint32_t Comparator)
 	HpetWrite32(X86_HPET_TIMER_REGISTER_CONFIG(Comparator), TimerInfo);
 
 #ifdef X86_HPET_DIAGNOSE
-	printf("New TimerInfo: 0x%x \n", TimerInfo);
+	LogInformation("HPET", "New TimerInfo: 0x%x", TimerInfo);
 #endif
 
 	return OS_STATUS_OK;
 }
 
 /* Entry point of a module */
-MODULES_API void ModuleInit(Addr_t *FunctionTable, void *Data)
+MODULES_API void ModuleInit(void *Data)
 {
 	/* We need these */
 	MCoreTimerDevice_t *Timer = NULL;
@@ -377,9 +378,6 @@ MODULES_API void ModuleInit(Addr_t *FunctionTable, void *Data)
 	uint8_t Itr = 0;
 	volatile uint32_t Temp = 0;
 	IntStatus_t IntState;
-
-	/* Save */
-	GlbFunctionTable = FunctionTable;
 
 	/* Sanity */
 	if (Data == NULL)
@@ -393,7 +391,7 @@ MODULES_API void ModuleInit(Addr_t *FunctionTable, void *Data)
 	IntState = InterruptDisable();
 
 #ifdef X86_HPET_DIAGNOSE
-	printf("Setting up Hpet\n");
+	LogInformation("HPET", "Setting up Hpet");
 #endif
 
 	/* Save base address */
@@ -407,7 +405,7 @@ MODULES_API void ModuleInit(Addr_t *FunctionTable, void *Data)
 	GlbHpetCounter = 0;
 
 #ifdef X86_HPET_DIAGNOSE
-	printf("Base Address: 0x%x, Address Type: 0x%x\n",
+	LogInformation("HPET", "Base Address: 0x%x, Address Type: 0x%x",
 		GlbHpetBaseAddress, GlbHpetBaseAddressType);
 #endif
 
@@ -419,7 +417,7 @@ MODULES_API void ModuleInit(Addr_t *FunctionTable, void *Data)
 	volatile uint32_t ClockPeriod = HpetRead32(X86_HPET_REGISTER_CAP_ID + 4);
 
 #ifdef X86_HPET_DIAGNOSE
-	printf("Base Address: 0x%x, Clock Period: 0x%x, Min Tick: 0x%x\n",
+	LogInformation("HPET", "Base Address: 0x%x, Clock Period: 0x%x, Min Tick: 0x%x",
 		(uint32_t)GlbHpetBaseAddress, ClockPeriod, GlbHpetMinimumTick);
 #endif
 
@@ -445,7 +443,7 @@ MODULES_API void ModuleInit(Addr_t *FunctionTable, void *Data)
 
 	/* Debug */
 #ifdef X86_HPET_DIAGNOSE
-	printf("Hpet Timer Count: %u\n", (uint32_t)GlbHpetTimerCount);
+	LogInformation("HPET", "Hpet Timer Count: %u", (uint32_t)GlbHpetTimerCount);
 #endif
 
 	/* Sanity check this */
@@ -462,7 +460,7 @@ MODULES_API void ModuleInit(Addr_t *FunctionTable, void *Data)
 	/* Step 1: Halt Timer & Disable legacy */
 	Temp = HpetRead32(X86_HPET_REGISTER_CONFIG);
 #ifdef X86_HPET_DIAGNOSE
-	printf("Original Hpet Config 0x%x\n", Temp);
+	LogInformation("HPET", "Original Hpet Config 0x%x", Temp);
 #endif
 	Temp &= ~(X86_HPET_CONFIG_ENABLED);
 	HpetWrite32(X86_HPET_REGISTER_CONFIG, Temp);

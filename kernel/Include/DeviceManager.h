@@ -105,9 +105,9 @@ _CRT_EXTERN void DmInit(void);
 _CRT_EXTERN void DmStart(void);
 
 /* Setup of devices */
-_CRT_EXTERN DevId_t DmCreateDevice(char *Name, DeviceType_t Type, void *Data);
-_CRT_EXTERN MCoreDevice_t *DmGetDevice(DeviceType_t Type);
-_CRT_EXTERN void DmDestroyDevice(DevId_t DeviceId);
+_CRT_EXPORT DevId_t DmCreateDevice(char *Name, DeviceType_t Type, void *Data);
+_CRT_EXPORT MCoreDevice_t *DmGetDevice(DeviceType_t Type);
+_CRT_EXPORT void DmDestroyDevice(DevId_t DeviceId);
 
 /* Device Requests */
 _CRT_EXTERN void DmCreateRequest(MCoreDeviceRequest_t *Request);

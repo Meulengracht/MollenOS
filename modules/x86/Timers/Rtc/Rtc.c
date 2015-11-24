@@ -23,14 +23,12 @@
 /* Includes */
 #include <DeviceManager.h>
 #include <Devices/Timer.h>
+#include <Timers.h>
 #include <Module.h>
 #include <Cmos.h>
 
 /* CLib */
 #include <Heap.h>
-
-/* Externs */
-extern void ReadTSC(uint64_t *Value);
 
 /* Structures */
 #pragma pack(push, 1)
@@ -81,27 +79,6 @@ uint64_t RtcGetClocks(void *Data)
 	return Rtc->NsCounter;
 }
 
-/* Stall for ms */
-void RtcStallBackup(void *Data, uint32_t MilliSeconds)
-{
-	/* Vars */
-	uint64_t RdTicks = 0;
-	uint64_t TickEnd = 0;
-
-	/* We don't use this */
-	_CRT_UNUSED(Data);
-
-	/* Read Time Stamp Counter */
-	ReadTSC(&RdTicks);
-
-	/* Calculate ticks */
-	TickEnd = RdTicks + (MilliSeconds * 100000);
-
-	/* Wait */
-	while (TickEnd > RdTicks)
-		ReadTSC(&RdTicks);
-}
-
 /* Sleep for ms */
 void RtcSleep(void *Data, uint32_t MilliSeconds)
 {
@@ -111,7 +88,7 @@ void RtcSleep(void *Data, uint32_t MilliSeconds)
 	/* If glb_clock_tick is 0, RTC failure */
 	if (RtcGetClocks(Data) == 0)
 	{
-		RtcStallBackup(Data, MilliSeconds);
+		DelayMs(MilliSeconds);
 		return;
 	}
 
@@ -129,7 +106,7 @@ void RtcStall(void *Data, uint32_t MilliSeconds)
 	/* If glb_clock_tick is 0, RTC failure */
 	if (RtcGetClocks(Data) == 0)
 	{
-		RtcStallBackup(Data, MilliSeconds);
+		DelayMs(MilliSeconds);
 		return;
 	}
 
@@ -139,7 +116,7 @@ void RtcStall(void *Data, uint32_t MilliSeconds)
 }
 
 /* Entry point of a module */
-MODULES_API void ModuleInit(Addr_t *FunctionTable, void *Data)
+MODULES_API void ModuleInit(void *Data)
 {
 	IntStatus_t IntrState;
 	uint8_t StateB = 0;
@@ -149,7 +126,6 @@ MODULES_API void ModuleInit(Addr_t *FunctionTable, void *Data)
 
 	/* Save Table */
 	_CRT_UNUSED(Data);
-	GlbFunctionTable = FunctionTable;
 
 	/* Allocate */
 	Rtc = (RtcTimer_t*)kmalloc(sizeof(RtcTimer_t));

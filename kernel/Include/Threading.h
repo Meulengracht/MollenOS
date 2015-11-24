@@ -76,11 +76,11 @@ typedef struct _MCoreThread
 _CRT_EXTERN void ThreadingInit(void);
 _CRT_EXTERN void ThreadingApInit(Cpu_t Cpu);
 
-_CRT_EXTERN TId_t ThreadingCreateThread(char *Name, ThreadEntry_t Function, void *Args, int Flags);
+_CRT_EXPORT TId_t ThreadingCreateThread(char *Name, ThreadEntry_t Function, void *Args, int Flags);
 _CRT_EXTERN void threading_kill_thread(TId_t thread_id);
 
 /* Sleep, Wake, etc */
-_CRT_EXTERN void *ThreadingEnterSleep(void);
+_CRT_EXPORT void *ThreadingEnterSleep(void);
 _CRT_EXTERN int ThreadingYield(void *Args);
 _CRT_EXTERN void ThreadingWakeCpu(Cpu_t Cpu);
 _CRT_EXTERN MCoreThread_t *ThreadingSwitch(Cpu_t Cpu, MCoreThread_t *Current, uint8_t PreEmptive);

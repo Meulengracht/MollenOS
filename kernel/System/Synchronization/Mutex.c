@@ -48,16 +48,22 @@ void MutexConstruct(Mutex_t *Mutex)
 	Mutex->Blocks = 0;
 }
 
+/* Destroys a mutex */
 void MutexDestruct(Mutex_t *Mutex)
 {
 	/* Wake all remaining tasks waiting for this mutex */
 	SchedulerWakeupAllThreads((Addr_t*)Mutex);
+
+	/* Free resources */
+	kfree(Mutex);
 }
 
+/* Get lock of mutex */
 void MutexLock(Mutex_t *Mutex)
 {
 	/* If this thread already holds the mutex, increase ref count */
-	if (Mutex->Blocks != 0 && Mutex->Blocker == ThreadingGetCurrentThreadId())
+	if (Mutex->Blocks != 0 
+		&& Mutex->Blocker == ThreadingGetCurrentThreadId())
 	{
 		Mutex->Blocks++;
 		return;
@@ -66,7 +72,10 @@ void MutexLock(Mutex_t *Mutex)
 	/* Wait for mutex to become free */
 	while (Mutex->Blocks != 0)
 	{
+		/* Wait for signal */
 		SchedulerSleepThread((Addr_t*)Mutex);
+
+		/* Yield */
 		_ThreadYield();
 	}
 
@@ -75,6 +84,7 @@ void MutexLock(Mutex_t *Mutex)
 	Mutex->Blocker = ThreadingGetCurrentThreadId();
 }
 
+/* Release lock of mutex */
 void MutexUnlock(Mutex_t *Mutex)
 {
 	/* Sanity */

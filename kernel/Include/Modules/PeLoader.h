@@ -134,6 +134,9 @@
 #define PE_IMPORT_NAMEMASK			0x7FFFFFFF
 #define PE_IMPORT_ORDINAL_64		0x8000000000000000
 
+/* The Kernel Module Name */
+#define PE_KERNEL_MODULE			"MCore.mos"
+
 /* Structures */
 #pragma pack(push, 1)
 typedef struct _MzHeader
@@ -562,8 +565,11 @@ typedef struct _MCorePeFile
 
 /* Prototypes */
 
+/* Load Kernel Exports */
+_CRT_EXTERN void PeLoadKernelExports(Addr_t KernelBase, Addr_t TableOffset);
+
 /* Used exclusively for module loading */
-_CRT_EXTERN MCorePeFile_t *PeLoadModule(uint8_t *Buffer, Addr_t *FunctionTable);
+_CRT_EXTERN MCorePeFile_t *PeLoadModule(uint8_t *Buffer);
 
 /* Generic */
 _CRT_EXTERN MCorePeFile_t *PeLoadImage(void);

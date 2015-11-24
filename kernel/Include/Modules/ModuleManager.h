@@ -22,6 +22,7 @@
 #define _MODULE_MANAGER_H_
 
 /* Includes */
+#include <MollenOS.h>
 #include <Arch.h>
 #include <MString.h>
 #include <crtdefs.h>
@@ -56,11 +57,14 @@ typedef struct _MCoreModule
 } MCoreModule_t;
 
 /* Prototypes */
-_CRT_EXTERN void ModuleMgrInit(size_t RamDiskAddr, size_t RamDiskSize);
+_CRT_EXTERN void ModuleMgrInit(MCoreBootDescriptor *BootDescriptor);
 
 _CRT_EXTERN MCoreModule_t *ModuleFind(uint32_t DeviceType, uint32_t DeviceSubType);
 _CRT_EXTERN MCoreModule_t *ModuleFindStr(MString_t *Module);
-_CRT_EXTERN ModuleResult_t ModuleLoad(MCoreModule_t *Module, Addr_t *FunctionTable, void *Args);
+_CRT_EXTERN ModuleResult_t ModuleLoad(MCoreModule_t *Module, void *Args);
 _CRT_EXTERN void ModuleUnload(MCoreModule_t *Module);
+
+/* Debugging */
+_CRT_EXTERN MCoreModule_t *ModuleFindAddress(Addr_t Address);
 
 #endif //!_MODULE_MANAGER_H_

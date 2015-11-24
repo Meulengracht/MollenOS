@@ -46,6 +46,7 @@ _SpinlockReset:
 	; Ok, we assume valid pointer, set it to 0
 	mov dword [ebx], 0
 	mov dword [ebx + 4], 0
+	mov dword [ebx + 8], 0xFFFFFFFF
 
 	; Release stack frame
 	.done:

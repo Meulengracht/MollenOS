@@ -21,6 +21,8 @@
 
 /* Includes */
 #include <Arch.h>
+#include <Threading.h>
+#include <assert.h>
 
 /* Externs to assembly */
 extern int _spinlock_acquire(Spinlock_t *Spinlock);
@@ -29,20 +31,33 @@ extern void _spinlock_release(Spinlock_t *Spinlock);
 /* Acquire Spinlock */
 OsStatus_t SpinlockAcquire(Spinlock_t *Spinlock)
 {
-	int result = 0;
+	/* Vars */
+	int AcqResult = 0;
+	IntStatus_t IrqState = 0;
 
-	/* Step 1. Acquire */
-	result = _spinlock_acquire(Spinlock);
+	/* Sanity */
+	assert(Spinlock->Owner != ThreadingGetCurrentThreadId());
 
-	/* Step 2. Disable interrupts */
-	Spinlock->IntrState = InterruptDisable();
+	/* Disable Interrupts */
+	IrqState = InterruptDisable();
 
-	return (result == 1) ? OS_STATUS_OK : OS_STATUS_FAIL;
+	/* Acquire */
+	AcqResult = _spinlock_acquire(Spinlock);
+
+	/* Set Owner & Save Irq State */
+	Spinlock->Owner = ThreadingGetCurrentThreadId();
+	Spinlock->IntrState = IrqState;
+
+	/* Done */
+	return (AcqResult == 1) ? OS_STATUS_OK : OS_STATUS_FAIL;
 }
 
 /* Release Spinlock */
 void SpinlockRelease(Spinlock_t *Spinlock)
 {
+	/* We are no longer the owner */
+	Spinlock->Owner = 0xFFFFFFFF;
+
 	/* Step 1. Release spinlock */
 	_spinlock_release(Spinlock);
 
@@ -53,11 +68,28 @@ void SpinlockRelease(Spinlock_t *Spinlock)
 /* Acquire Spinlock, no interrupts */
 OsStatus_t SpinlockAcquireNoInt(Spinlock_t *Spinlock)
 {
-	return _spinlock_acquire(Spinlock);
+	/* Vars */
+	int AcqResult = 0;
+
+	/* Sanity */
+	assert(Spinlock->Owner != ThreadingGetCurrentThreadId());
+
+	/* Acquire */
+	AcqResult = _spinlock_acquire(Spinlock);
+
+	/* Set Owner */
+	Spinlock->Owner = ThreadingGetCurrentThreadId();
+
+	/* Done */
+	return (AcqResult == 1) ? OS_STATUS_OK : OS_STATUS_FAIL;
 }
 
 /* Release spinlock, no interrupts */
 void SpinlockReleaseNoInt(Spinlock_t *Spinlock)
 {
+	/* We are no longer the owner */
+	Spinlock->Owner = 0xFFFFFFFF;
+
+	/* Step 1. Release spinlock */
 	_spinlock_release(Spinlock);
 }

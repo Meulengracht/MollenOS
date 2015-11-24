@@ -58,16 +58,16 @@ typedef struct _IrqEntry
 
 /* Prototypes */
 _CRT_EXTERN void InterruptInit(void);
-_CRT_EXTERN OsStatus_t InterruptAllocateISA(uint32_t Irq);
-_CRT_EXTERN void InterruptInstallISA(uint32_t Irq, uint32_t IdtEntry, IrqHandler_t Callback, void *Args);/* Install PCI Interrupt */
-_CRT_EXTERN void InterruptInstallIdtOnly(uint32_t Gsi, uint32_t IdtEntry, IrqHandler_t Callback, void *Args);
-_CRT_EXTERN void InterruptInstallShared(uint32_t Irq, uint32_t IdtEntry, IrqHandler_t Callback, void *Args);
-_CRT_EXTERN uint32_t InterruptAllocatePCI(uint32_t Irqs[], uint32_t Count);
+_CRT_EXPORT OsStatus_t InterruptAllocateISA(uint32_t Irq);
+_CRT_EXPORT void InterruptInstallISA(uint32_t Irq, uint32_t IdtEntry, IrqHandler_t Callback, void *Args);/* Install PCI Interrupt */
+_CRT_EXPORT void InterruptInstallIdtOnly(uint32_t Gsi, uint32_t IdtEntry, IrqHandler_t Callback, void *Args);
+_CRT_EXPORT void InterruptInstallShared(uint32_t Irq, uint32_t IdtEntry, IrqHandler_t Callback, void *Args);
+_CRT_EXPORT uint32_t InterruptAllocatePCI(uint32_t Irqs[], uint32_t Count);
 
-_CRT_EXTERN IntStatus_t InterruptDisable(void);
-_CRT_EXTERN IntStatus_t InterruptEnable(void);
-_CRT_EXTERN IntStatus_t InterruptSaveState(void);
-_CRT_EXTERN IntStatus_t InterruptRestoreState(IntStatus_t state);
+_CRT_EXPORT IntStatus_t InterruptDisable(void);
+_CRT_EXPORT IntStatus_t InterruptEnable(void);
+_CRT_EXPORT IntStatus_t InterruptSaveState(void);
+_CRT_EXPORT IntStatus_t InterruptRestoreState(IntStatus_t state);
 
 /* Helpers */
 _CRT_EXTERN uint32_t InterruptGetPolarity(uint16_t IntiFlags, uint8_t IrqSource);

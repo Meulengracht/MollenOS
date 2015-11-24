@@ -34,6 +34,28 @@ typedef enum _OsResult
 
 /* Definitions */
 
+/* This structure is passed by mBoot 
+ * in order to properly setup */
+typedef struct _MCoreBootDescriptor
+{
+	/* Kernel Information */
+	uint32_t KernelAddress;
+	uint32_t KernelSize;
+
+	/* Ramdisk Information */
+	uint32_t RamDiskAddress;
+	uint32_t RamDiskSize;
+
+	/* Exports */
+	uint32_t ExportsAddress;
+	uint32_t ExportsSize;
+
+	/* Symbols */
+	uint32_t SymbolsAddress;
+	uint32_t SymbolsSize;
+
+} MCoreBootDescriptor;
+
 /* This structure is needed in order to
 * setup MCore */
 typedef struct _MCoreBootInfo
@@ -41,18 +63,14 @@ typedef struct _MCoreBootInfo
 	/* Bootloader Name */
 	char *BootloaderName;
 
-	/* Size of kernel in bytes */
-	size_t KernelSize;
-
-	/* RamDisk Info */
-	size_t RamDiskAddr;
-	size_t RamDiskSize;
+	/* The boot descriptor */
+	MCoreBootDescriptor Descriptor;
 
 	/* Data that will be passed to setup functions */
 	void *ArchBootInfo;
 
 	/* Setup Functions */
-	void(*InitHAL)(void *ArchBootInfo);
+	void(*InitHAL)(void *ArchBootInfo, MCoreBootDescriptor *Descriptor);
 	void(*InitPostSystems)(void);
 	void(*InitTimers)(void);
 

@@ -81,14 +81,11 @@ const char *OhciErrorMessages[] =
 };
 
 /* Entry point of a module */
-MODULES_API void ModuleInit(Addr_t *FunctionTable, void *Data)
+MODULES_API void ModuleInit(void *Data)
 {
 	uint16_t PciCommand;
 	OhciController_t *Controller = NULL;
 	PciDevice_t *Device = (PciDevice_t*)Data;
-
-	/* Save this */
-	GlbFunctionTable = FunctionTable;
 
 	/* Allocate Resources for this Controller */
 	Controller = (OhciController_t*)kmalloc(sizeof(OhciController_t));
@@ -284,7 +281,7 @@ void OhciPortCheck(OhciController_t *Controller, uint32_t Port)
 			/* Sanity */
 			if (HcCtrl == NULL)
 			{
-				DebugPrint("OHCI: Controller %u is zombie and is trying to register Ports!!\n", Controller->Id);
+				LogDebug("OHCI", "Controller %u is zombie and is trying to register Ports!!", Controller->Id);
 				return;
 			}
 
@@ -519,8 +516,8 @@ int OhciTakeControl(OhciController_t *Controller)
 
 			if (i != 0)
 			{
-				DebugPrint("USB_OHCI: failed to clear routing bit\n");
-				DebugPrint("USB_OHCI: SMM Won't give us the Controller, we're backing down >(\n");
+				LogDebug("OHCI", "USB_OHCI: failed to clear routing bit");
+				LogDebug("OHCI", "USB_OHCI: SMM Won't give us the Controller, we're backing down >(");
 				
 				MmPhysicalFreeBlock(Controller->HccaSpace);
 				kfree(Controller);
@@ -563,7 +560,7 @@ void OhciSetup(OhciController_t *Controller)
 	if (TempValue != X86_OHCI_REVISION
 		&& TempValue != 0x11)
 	{
-		DebugPrint("OHCI Revision is wrong (0x%x), exiting :(\n", TempValue);
+		LogDebug("OHCI", "Revision is wrong (0x%x), exiting :(", TempValue);
 		MmPhysicalFreeBlock(Controller->HccaSpace);
 		kfree(Controller);
 		return;
@@ -612,8 +609,8 @@ void OhciSetup(OhciController_t *Controller)
 	/* Sanity */
 	if (i != 0)
 	{
-		DebugPrint("USB_OHCI: controller %u failed to reboot\n", Controller->HcdId);
-		DebugPrint("USB_OHCI: Reset Timeout :(\n");
+		LogDebug("OHCI", "controller %u failed to reboot", Controller->HcdId);
+		LogDebug("OHCI", "Reset Timeout :(");
 		return;
 	}
 
@@ -795,7 +792,7 @@ void OhciReset(OhciController_t *Controller)
 	/* Sanity */
 	if (i == 500)
 	{
-		DebugPrint("OHCI: Reset Timeout :(\n");
+		LogDebug("OHCI", "Reset Timeout :(");
 		return;
 	}
 
@@ -842,7 +839,7 @@ void OhciReset(OhciController_t *Controller)
 	Controller->Registers->HcFmInterval = FmInt;
 
 	/* Controller is now running! */
-	DebugPrint("OHCI: Controller %u Started, Control 0x%x\n",
+	LogDebug("OHCI", "Controller %u Started, Control 0x%x",
 		Controller->Id, Controller->Registers->HcControl);
 
 	/* Check Power Mode */
@@ -1607,7 +1604,7 @@ void OhciTransactionSend(void *Controller, UsbHcRequest_t *Request)
 			else if (CondCode == 5)
 				Completed = TransferNotResponding;
 			else {
-				DebugPrint("OHCI: Error: 0x%x (%s)\n", CondCode, OhciErrorMessages[CondCode]);
+				LogDebug("OHCI", "Error: 0x%x (%s)", CondCode, OhciErrorMessages[CondCode]);
 				Completed = TransferInvalidData;
 			}
 			break;
@@ -1946,7 +1943,7 @@ int OhciInterruptHandler(void *data)
 	/* Fatal Error? */
 	if (intr_state & X86_OHCI_INTR_FATAL_ERROR)
 	{
-		DebugPrint("OHCI %u: Fatal Error, resetting...\n", Controller->Id);
+		LogDebug("OHCI", "%u: Fatal Error, resetting...", Controller->Id);
 		OhciReset(Controller);
 		return X86_IRQ_HANDLED;
 	}
@@ -1958,7 +1955,7 @@ int OhciInterruptHandler(void *data)
 	/* Scheduling Overrun? */
 	if (intr_state & X86_OHCI_INTR_SCHEDULING_OVRRN)
 	{
-		DebugPrint("OHCI %u: Scheduling Overrun\n", Controller->Id);
+		LogDebug("OHCI", "%u: Scheduling Overrun", Controller->Id);
 
 		/* Acknowledge Interrupt */
 		Controller->Registers->HcInterruptStatus = X86_OHCI_INTR_SCHEDULING_OVRRN;
@@ -1968,7 +1965,7 @@ int OhciInterruptHandler(void *data)
 	/* Resume Detection? */
 	if (intr_state & X86_OHCI_INTR_RESUME_DETECT)
 	{
-		DebugPrint("OHCI %u: Resume Detected\n", Controller->Id);
+		LogDebug("OHCI", "%u: Resume Detected", Controller->Id);
 
 		/* We must wait 20 ms before putting Controller to Operational */
 		DelayMs(20);

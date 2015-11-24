@@ -26,6 +26,7 @@
 #include <Semaphore.h>
 #include <Heap.h>
 #include <List.h>
+#include <Log.h>
 
 #include <string.h>
 
@@ -127,7 +128,7 @@ void UsbHidInit(UsbHcDevice_t *UsbDevice, uint32_t InterfaceIndex)
 	/* Sanity */
 	if (HidDescriptor == NULL)
 	{
-		DebugPrint("HID Descriptor did not exist.\n");
+		LogFatal("USBH", "HID Descriptor did not exist.");
 		kfree(DevData);
 		return;
 	}
@@ -146,7 +147,7 @@ void UsbHidInit(UsbHcDevice_t *UsbDevice, uint32_t InterfaceIndex)
 	/* Sanity */
 	if (DevData->EpInterrupt == NULL)
 	{
-		DebugPrint("HID Endpoint (In, Interrupt) did not exist.\n");
+		LogFatal("USBH", "HID Endpoint (In, Interrupt) did not exist.");
 		kfree(DevData);
 		return;
 	}
@@ -159,7 +160,7 @@ void UsbHidInit(UsbHcDevice_t *UsbDevice, uint32_t InterfaceIndex)
 		HidDescriptor->ClassDescriptorType,
 		0, 0, HidDescriptor->ClassDescriptorLength) != TransferFinished)
 	{
-		DebugPrint("Failed to get Report Descriptor.\n");
+		LogFatal("USBH", "Failed to get Report Descriptor.");
 		kfree(ReportDescriptor);
 		kfree(DevData);
 		return;
@@ -347,13 +348,13 @@ void UsbHidParseReportDescriptor(HidDevice_t *Device, uint8_t *ReportData, uint3
 					/* Output Item */
 					case X86_USB_REPORT_MAIN_TAG_OUTPUT:
 					{
-						DebugPrint("%u: Output Item (%u)\n", Depth, Packet);
+						LogInformation("USBH", "%u: Output Item (%u)", Depth, Packet);
 					} break;
 
 					/* Feature Item */
 					case X86_USB_REPORT_MAIN_TAG_FEATURE:
 					{
-						DebugPrint("%u: Feature Item (%u)\n", Depth, Packet);
+						LogInformation("USBH", "%u: Feature Item (%u)", Depth, Packet);
 					} break;
 				}
 
@@ -492,7 +493,7 @@ void UsbHidParseReportDescriptor(HidDevice_t *Device, uint8_t *ReportData, uint3
 					/* Unhandled */
 					default:
 					{
-						DebugPrint("%u: Global Item %u\n", Depth, Tag);
+						LogInformation("USBH", "%u: Global Item %u", Depth, Tag);
 					} break;
 				}
 
@@ -542,7 +543,7 @@ void UsbHidParseReportDescriptor(HidDevice_t *Device, uint8_t *ReportData, uint3
 					/* Unhandled */
 					default:
 					{
-						DebugPrint("%u: Local Item %u\n", Depth, Tag);
+						LogInformation("USBH", "%u: Local Item %u", Depth, Tag);
 					} break;
 				}
 			} break;
@@ -645,7 +646,7 @@ void UsbHidApplyInputData(HidDevice_t *Device, UsbHidReportCollectionItem_t *Col
 							PointerData.xRelative = (int32_t)xRelative;
 
 							/* Now it epends on mouse, joystick or w/e */
-							DebugPrint("X-Change: %i (Original 0x%x, Old 0x%x)\n",
+							LogInformation("USBH", "X-Change: %i (Original 0x%x, Old 0x%x)",
 								(int32_t)xRelative, (uint32_t)Value, (uint32_t)OldValue);
 						}
 
@@ -683,7 +684,7 @@ void UsbHidApplyInputData(HidDevice_t *Device, UsbHidReportCollectionItem_t *Col
 							PointerData.yRelative = (int32_t)yRelative;
 
 							/* Now it epends on mouse, joystick or w/e */
-							DebugPrint("Y-Change: %i (Original 0x%x, Old 0x%x)\n",
+							LogInformation("USBH", "Y-Change: %i (Original 0x%x, Old 0x%x)",
 								(int32_t)yRelative, (uint32_t)Value, (uint32_t)OldValue);
 						}
 
@@ -721,7 +722,7 @@ void UsbHidApplyInputData(HidDevice_t *Device, UsbHidReportCollectionItem_t *Col
 							PointerData.zRelative = (int32_t)zRelative;
 
 							/* Now it epends on mouse, joystick or w/e */
-							DebugPrint("Z-Change: %i (Original 0x%x, Old 0x%x)\n",
+							LogInformation("USBH", "Z-Change: %i (Original 0x%x, Old 0x%x)",
 								(int32_t)zRelative, (uint32_t)Value, (uint32_t)OldValue);
 						}
 
@@ -751,7 +752,7 @@ void UsbHidApplyInputData(HidDevice_t *Device, UsbHidReportCollectionItem_t *Col
 				/* Ok, so if we have multiple buttons (an array) 
 				 * we will use the logical min & max to find out which
 				 * button id this is */
-				DebugPrint("Button %u: %u\n", i, (uint32_t)Value);
+				LogInformation("USBH", "Button %u: %u", i, (uint32_t)Value);
 
 				/* Keyboard, keypad, mouse, gamepad or joystick? */
 				switch (CollectionItem->InputType)
@@ -794,7 +795,7 @@ void UsbHidApplyInputData(HidDevice_t *Device, UsbHidReportCollectionItem_t *Col
 			default:
 			{
 				/* What kind of hat is this ? */
-				DebugPrint("Usage Page 0x%x (Input Type 0x%x), Usage 0x%x, Value 0x%x\n",
+				LogInformation("USBH", "Usage Page 0x%x (Input Type 0x%x), Usage 0x%x, Value 0x%x",
 					CollectionItem->Stats.Usage, CollectionItem->InputType, Usage, (uint32_t)Value);
 			} break;
 		}
@@ -878,7 +879,7 @@ void UsbHidCallback(void *Device)
 	/* Parse Collection (Recursively) */
 	if (!UsbHidApplyCollectionData(DevData, DevData->Collection))
 	{
-		DebugPrint("No calls were made...\n");
+		LogInformation("USBH", "No calls were made...");
 		return;
 	}
 

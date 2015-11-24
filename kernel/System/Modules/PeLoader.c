@@ -30,7 +30,56 @@
 
 /* Keep track of where to load 
  * the next module */
+list_t *GlbKernelExports = NULL;
 Addr_t GlbModuleLoadAddr = MEMORY_LOCATION_MODULES;
+
+/* Parse Kernel Exports */
+void PeLoadKernelExports(Addr_t KernelBase, Addr_t TableOffset)
+{
+	/* Vars */
+	PeExportDirectory_t *ExportTable = NULL;
+	uint32_t *FunctionNamesPtr = NULL;
+	uint16_t *FunctionOrdinalsPtr = NULL;
+	uint32_t *FunctionAddrPtr = NULL;
+	uint32_t i;
+
+	/* Sanity */
+	if (TableOffset == 0)
+		return;
+
+	/* Info */
+	LogInformation("PELD", "Loading Kernel Exports");
+
+	/* Init list */
+	GlbKernelExports = list_create(LIST_NORMAL);
+
+	/* Cast */
+	ExportTable = (PeExportDirectory_t*)(KernelBase + TableOffset);
+
+	/* Calculate addresses */
+	FunctionNamesPtr = (uint32_t*)(KernelBase + ExportTable->AddressOfNames);
+	FunctionOrdinalsPtr = (uint16_t*)(KernelBase + ExportTable->AddressOfOrdinals);
+	FunctionAddrPtr = (uint32_t*)(KernelBase + ExportTable->AddressOfFunctions); 
+
+	/* Iterate */
+	for (i = 0; i < ExportTable->NumberOfFunctions; i++)
+	{
+		/* Allocate a new entry */
+		MCorePeExportFunction_t *ExFunc =
+			(MCorePeExportFunction_t*)kmalloc(sizeof(MCorePeExportFunction_t));
+
+		/* Setup */
+		ExFunc->Name = (char*)(KernelBase + FunctionNamesPtr[i]);
+		ExFunc->Ordinal = FunctionOrdinalsPtr[i];
+		ExFunc->Address = (Addr_t)(KernelBase + FunctionAddrPtr[ExFunc->Ordinal]);
+
+		/* Add to list */
+		list_append(GlbKernelExports, list_create_node(ExFunc->Ordinal, ExFunc));
+	}
+
+	/* Info */
+	LogInformation("PELD", "Found %u Functions", GlbKernelExports->length);
+}
 
 /* Relocate Sections */
 Addr_t PeRelocateSections(MCorePeFile_t *PeFile, uint8_t *Data, 
@@ -210,7 +259,7 @@ void PeEnumerateExports(MCorePeFile_t *PeFile, PeDataDirectory_t *ExportDirector
 }
 
 /* Load Imports for Kernel Module */
-void PeLoadModuleImports(MCorePeFile_t *PeFile, PeDataDirectory_t *ImportDirectory, Addr_t *FunctionTable)
+void PeLoadModuleImports(MCorePeFile_t *PeFile, PeDataDirectory_t *ImportDirectory)
 {
 	/* Vars */
 	PeImportDescriptor_t *ImportDescriptor = NULL;
@@ -228,28 +277,45 @@ void PeLoadModuleImports(MCorePeFile_t *PeFile, PeDataDirectory_t *ImportDirecto
 	while (ImportDescriptor->ImportAddressTable != 0)
 	{
 		/* Get name of module */
-		void *NamePtr = (void*)(PeFile->BaseVirtual + ImportDescriptor->ModuleName);
-		MString_t *Name = MStringCreate(NamePtr, StrUTF8);
+		list_t *Exports = NULL;
+		char *NamePtr = (char*)(PeFile->BaseVirtual + ImportDescriptor->ModuleName);
 
-		/* Find Module */
-		MCoreModule_t *Module = ModuleFindStr(Name);
-
-		/* Sanity */
-		if (Module == NULL)
+		/* Is it the kernel module ? */
+		if (!strcmp(NamePtr, PE_KERNEL_MODULE))
 		{
-			LogFatal("PELD", "Failed to locate module %s", Name->Data);
-			return;
+			/* Yes, use the kernel */
+			Exports = GlbKernelExports;
 		}
-
-		/* Bind Module if it's not already */
-		if (Module->Descriptor == NULL)
-			ModuleLoad(Module, FunctionTable, NULL);
-
-		/* Sanity */
-		if (Module->Descriptor->ExportedFunctions == NULL)
+		else
 		{
-			LogFatal("PELD", "Module %s does not export anything", Name->Data);
-			return;
+			MString_t *Name = MStringCreate(NamePtr, StrUTF8);
+
+			/* Find Module */
+			MCoreModule_t *Module = ModuleFindStr(Name);
+
+			/* Sanity */
+			if (Module == NULL)
+			{
+				LogFatal("PELD", "Failed to locate module %s", Name->Data);
+				return;
+			}
+
+			/* Bind Module if it's not already */
+			if (Module->Descriptor == NULL)
+				ModuleLoad(Module, NULL);
+			
+			/* Sanity */
+			if (Module->Descriptor->ExportedFunctions == NULL)
+			{
+				LogFatal("PELD", "Module %s does not export anything", Name->Data);
+				return;
+			}
+
+			/* Cleanup */
+			MStringDestroy(Name);
+
+			/* Set */
+			Exports = Module->Descriptor->ExportedFunctions;
 		}
 
 		/* Calculate address to IAT 
@@ -275,8 +341,7 @@ void PeLoadModuleImports(MCorePeFile_t *PeFile, PeDataDirectory_t *ImportDirecto
 					uint16_t Ordinal = (uint16_t)(Value & 0xFFFF);
 
 					/* Locate Ordinal in loaded image */
-					Func = (MCorePeExportFunction_t*)list_get_data_by_id(
-						Module->Descriptor->ExportedFunctions, Ordinal, 0);
+					Func = (MCorePeExportFunction_t*)list_get_data_by_id(Exports, Ordinal, 0);
 				}
 				else
 				{
@@ -284,7 +349,7 @@ void PeLoadModuleImports(MCorePeFile_t *PeFile, PeDataDirectory_t *ImportDirecto
 					char *FuncName = (char*)(PeFile->BaseVirtual + (Value & PE_IMPORT_NAMEMASK) + 2);
 
 					/* A little bit more tricky */
-					foreach(FuncNode, Module->Descriptor->ExportedFunctions)
+					foreach(FuncNode, Exports)
 					{
 						/* Cast */
 						MCorePeExportFunction_t *pFunc =
@@ -334,8 +399,7 @@ void PeLoadModuleImports(MCorePeFile_t *PeFile, PeDataDirectory_t *ImportDirecto
 					uint16_t Ordinal = (uint16_t)(Value & 0xFFFF);
 
 					/* Locate Ordinal in loaded image */
-					Func = (MCorePeExportFunction_t*)list_get_data_by_id(
-						Module->Descriptor->ExportedFunctions, Ordinal, 0);
+					Func = (MCorePeExportFunction_t*)list_get_data_by_id(Exports, Ordinal, 0);
 				}
 				else
 				{
@@ -343,7 +407,7 @@ void PeLoadModuleImports(MCorePeFile_t *PeFile, PeDataDirectory_t *ImportDirecto
 					char *FuncName = (char*)(PeFile->BaseVirtual + (uint32_t)(Value & PE_IMPORT_NAMEMASK) + 2);
 
 					/* A little bit more tricky */
-					foreach(FuncNode, Module->Descriptor->ExportedFunctions)
+					foreach(FuncNode, Exports)
 					{
 						/* Cast */
 						MCorePeExportFunction_t *pFunc =
@@ -374,16 +438,13 @@ void PeLoadModuleImports(MCorePeFile_t *PeFile, PeDataDirectory_t *ImportDirecto
 			}
 		}
 
-		/* Cleanup */
-		MStringDestroy(Name);
-
 		/* Next ! */
 		ImportDescriptor++;
 	}
 }
 
 /* Load Module into memory */
-MCorePeFile_t *PeLoadModule(uint8_t *Buffer, Addr_t *FunctionTable)
+MCorePeFile_t *PeLoadModule(uint8_t *Buffer)
 {
 	/* Headers */
 	MzHeader_t *DosHeader = NULL;
@@ -481,7 +542,7 @@ MCorePeFile_t *PeLoadModule(uint8_t *Buffer, Addr_t *FunctionTable)
 	PeEnumerateExports(PeInfo, &DirectoryPtr[PE_SECTION_EXPORT]);
 
 	/* Step 3. Load Imports */
-	PeLoadModuleImports(PeInfo, &DirectoryPtr[PE_SECTION_IMPORT], FunctionTable);
+	PeLoadModuleImports(PeInfo, &DirectoryPtr[PE_SECTION_IMPORT]);
 
 	/* Step 4. Proxy ModuleInit to Entry Point */
 	if (PeInfo->ExportedFunctions != NULL)

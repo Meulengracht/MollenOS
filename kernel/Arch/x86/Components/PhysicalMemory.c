@@ -191,15 +191,12 @@ int MmSysMappingsContain(Addr_t Base, int Type)
 }
 
 /* Initialises the physical memory bitmap */
-void MmPhyiscalInit(void *BootInfo, size_t KernelSize, size_t RamDiskSize)
+void MmPhyiscalInit(void *BootInfo, MCoreBootDescriptor *Descriptor)
 {
 	/* Step 1. Set location of memory bitmap at 2mb */
 	Multiboot_t *mboot = (Multiboot_t*)BootInfo;
 	MBootMemoryRegion_t *region = (MBootMemoryRegion_t*)mboot->MemoryMapAddr;
 	uint32_t i, j;
-
-	/* Right now they are not used */
-	_CRT_UNUSED(KernelSize);
 	
 	/* Get information from multiboot struct */
 	MemorySize = mboot->MemoryHigh; /* This is how many blocks of 64 kb above 1 mb */
@@ -276,7 +273,7 @@ void MmPhyiscalInit(void *BootInfo, size_t KernelSize, size_t RamDiskSize)
 	MmAllocateRegion(MEMORY_LOCATION_KERNEL, 0x100000);
 
 	/* 0x200000 - RamDiskSize */
-	MmAllocateRegion(MEMORY_LOCATION_RAMDISK, (RamDiskSize + PAGE_SIZE));
+	MmAllocateRegion(MEMORY_LOCATION_RAMDISK, Descriptor->RamDiskSize + PAGE_SIZE);
 
 	/* 0x300000 - ?? || Bitmap Space */
 	MmAllocateRegion(MEMORY_LOCATION_BITMAP, (MemoryBitmapSize + PAGE_SIZE));

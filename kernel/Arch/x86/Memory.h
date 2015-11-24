@@ -52,8 +52,9 @@
 
 
 /* Includes */
+#include <MollenOS.h>
 #include <stdint.h>
-#include <Mutex.h>
+#include <CriticalSection.h>
 
 /**********************************/
 /* Physical Memory Defs & Structs */
@@ -138,18 +139,18 @@ typedef struct _PageDirectory
 	 * Not seen by MMU */
 	uint32_t vTables[TABLES_PER_PDIR];
 
-	/* Mutex */
-	Mutex_t Lock;
+	/* Lock */
+	CriticalSection_t Lock;
 
 } PageDirectory_t;
 
 /* Init */
-_CRT_EXTERN void MmPhyiscalInit(void *BootInfo, size_t KernelSize, size_t RamDiskSize);
+_CRT_EXTERN void MmPhyiscalInit(void *BootInfo, MCoreBootDescriptor *Descriptor);
 _CRT_EXTERN void MmVirtualInit(void);
 
 /* Hihi */
-_CRT_EXTERN VirtAddr_t *MmVirtualMapSysMemory(PhysAddr_t PhysicalAddr, int Pages);
-_CRT_EXTERN PhysAddr_t MmPhysicalAllocateBlockDma(void);
+_CRT_EXPORT VirtAddr_t *MmVirtualMapSysMemory(PhysAddr_t PhysicalAddr, int Pages);
+_CRT_EXPORT PhysAddr_t MmPhysicalAllocateBlockDma(void);
 _CRT_EXTERN PageDirectory_t *MmVirtualGetCurrentDirectory(Cpu_t cpu);
 _CRT_EXTERN void MmVirtualSwitchPageDirectory(Cpu_t cpu, PageDirectory_t* PageDirectory, PhysAddr_t Pdb);
 _CRT_EXTERN VirtAddr_t MmPhyiscalGetSysMappingVirtual(PhysAddr_t PhysicalAddr);

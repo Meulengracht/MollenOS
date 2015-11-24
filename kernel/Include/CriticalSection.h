@@ -17,11 +17,11 @@
 *
 *
 * MollenOS Synchronization
-* Semaphores
+* Critical Sections
 */
 
-#ifndef _MCORE_SEMAPHORE_H_
-#define _MCORE_SEMAPHORE_H_
+#ifndef _MCORE_CRITICAL_SECTION_
+#define _MCORE_CRITICAL_SECTION_
 
 /* Includes */
 #include <Arch.h>
@@ -30,23 +30,25 @@
 #include <stdint.h>
 
 /* Structures */
-typedef struct _Semaphore 
+typedef struct _CriticalSection
 {
+	/* Owner */
+	TId_t Owner;
+
+	/* References */
+	size_t References;
+
 	/* Spinlock */
 	Spinlock_t Lock;
 
-	/* Value */
-	volatile int Value;
-
-	/* Semaphore Creator */
-	TId_t Creator;
-
-} Semaphore_t;
+} CriticalSection_t;
 
 /* Prototypes */
-_CRT_EXPORT Semaphore_t *SemaphoreCreate(int Value);
-_CRT_EXPORT void SemaphoreDestroy(Semaphore_t *Semaphore);
-_CRT_EXPORT void SemaphoreP(Semaphore_t *Semaphore);
-_CRT_EXPORT void SemaphoreV(Semaphore_t *Semaphore);
+_CRT_EXPORT CriticalSection_t *CriticalSectionCreate(void);
+_CRT_EXPORT void CriticalSectionDestroy(CriticalSection_t *Section);
 
-#endif // !_MCORE_SEMAPHORE_H_
+_CRT_EXPORT void CriticalSectionConstruct(CriticalSection_t *Section);
+_CRT_EXPORT void CriticalSectionEnter(CriticalSection_t *Section);
+_CRT_EXPORT void CriticalSectionLeave(CriticalSection_t *Section);
+
+#endif

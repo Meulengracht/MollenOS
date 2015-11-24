@@ -23,6 +23,7 @@
 #include <acpi.h>
 #include <Module.h>
 #include <Timers.h>
+#include <Log.h>
 
 /* Ps2 Drivers */
 #include "Ps2.h"
@@ -257,15 +258,12 @@ GetResponse:
 }
 
 /* Setup */
-MODULES_API void ModuleInit(Addr_t *FunctionTable, void *Data)
+MODULES_API void ModuleInit(void *Data)
 {
 	ACPI_TABLE_FADT *Fadt = NULL;
 	uint8_t Temp = 0;
 	int rError = 0;
 	uint32_t DevId = 0;
-
-	/* Save */
-	GlbFunctionTable = FunctionTable;
 
 	/* Cast */
 	Fadt = (ACPI_TABLE_FADT*)Data;
@@ -318,7 +316,7 @@ MODULES_API void ModuleInit(Addr_t *FunctionTable, void *Data)
 	/* Perform Self Test */
 	if (rError == 1 || Ps2SelfTest())
 	{
-		DebugPrint("Ps2 Controller failed to initialize, giving up\n");
+		LogFatal("PS2C", "Ps2 Controller failed to initialize, giving up");
 		return;
 	}
 
@@ -359,7 +357,7 @@ MODULES_API void ModuleInit(Addr_t *FunctionTable, void *Data)
 	/* Sanity */
 	if (rError == 1)
 	{
-		DebugPrint("Ps2 Controller failed to initialize, giving up\n");
+		LogFatal("PS2C", "Ps2 Controller failed to initialize, giving up");
 		return;
 	}
 

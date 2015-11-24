@@ -26,25 +26,28 @@
 #include <Log.h>
 
 /* Types */
-typedef void(*ModuleEntryFunc)(Addr_t *FunctionTable, void *Data);
+typedef void(*ModuleEntryFunc)(void *Data);
 
 /* Globals */
 uint32_t GlbModMgrInitialized = 0;
 list_t *GlbModMgrModules = NULL;
 
 /* Loads the RD */
-void ModuleMgrInit(size_t RamDiskAddr, size_t RamDiskSize)
+void ModuleMgrInit(MCoreBootDescriptor *BootDescriptor)
 {
-	/* Parse RamDisk */
-	MCoreRamDiskHeader_t *RdHeader = (MCoreRamDiskHeader_t*)RamDiskAddr;
+	/* Get pointers */
+	MCoreRamDiskHeader_t *RdHeader = (MCoreRamDiskHeader_t*)BootDescriptor->RamDiskAddress;
 
 	/* Sanity */
-	if (RamDiskAddr == 0
-		|| RamDiskSize == 0)
+	if (BootDescriptor->RamDiskAddress == 0
+		|| BootDescriptor->RamDiskSize == 0)
 		return;
 
 	/* Info */
 	LogInformation("MDMG", "Initializing");
+
+	/* Parse Kernel Exports */
+	PeLoadKernelExports(BootDescriptor->KernelAddress, BootDescriptor->ExportsAddress);
 
 	/* Validate Members */
 	if (RdHeader->Magic != RAMDISK_MAGIC)
@@ -67,7 +70,7 @@ void ModuleMgrInit(size_t RamDiskAddr, size_t RamDiskSize)
 
 	/* Save Module-Count */
 	uint32_t FileCount = RdHeader->FileCount;
-	Addr_t RdPtr = RamDiskAddr + sizeof(MCoreRamDiskHeader_t);
+	Addr_t RdPtr = BootDescriptor->RamDiskAddress + sizeof(MCoreRamDiskHeader_t);
 
 	/* Point to first entry */
 	MCoreRamDiskFileHeader_t *FilePtr = (MCoreRamDiskFileHeader_t*)RdPtr;
@@ -80,7 +83,7 @@ void ModuleMgrInit(size_t RamDiskAddr, size_t RamDiskSize)
 		{
 			/* Get a pointer to the module header */
 			MCoreRamDiskModuleHeader_t *ModuleHeader = 
-				(MCoreRamDiskModuleHeader_t*)(RamDiskAddr + FilePtr->DataOffset);
+				(MCoreRamDiskModuleHeader_t*)(BootDescriptor->RamDiskAddress + FilePtr->DataOffset);
 
 			/* Allocate a new module */
 			MCoreModule_t *Module = (MCoreModule_t*)kmalloc(sizeof(MCoreModule_t));
@@ -141,8 +144,38 @@ MCoreModule_t *ModuleFindStr(MString_t *Module)
 	return NULL;
 }
 
+/* Locates a module by address and returns the diff */
+MCoreModule_t *ModuleFindAddress(Addr_t Address)
+{
+	/* Keep track */
+	Addr_t BestMatch = 0xFFFFFFFF;
+	MCoreModule_t *BestModule = NULL;
+
+	foreach(mNode, GlbModMgrModules)
+	{
+		/* Cast */
+		MCoreModule_t *Module = (MCoreModule_t*)mNode->data;
+
+		/* Sanity */
+		if (Module->Descriptor != NULL &&
+			Module->Descriptor->BaseVirtual <= Address)
+		{
+			/* Check delta */
+			if (Address - Module->Descriptor->BaseVirtual
+				< BestMatch)
+			{
+				BestModule = Module;
+				BestMatch = Address - Module->Descriptor->BaseVirtual;
+			}
+		}
+	}
+
+	/* Else return null, not found */
+	return BestModule;
+}
+
 /* Load a Module */
-ModuleResult_t ModuleLoad(MCoreModule_t *Module, Addr_t *FunctionTable, void *Args)
+ModuleResult_t ModuleLoad(MCoreModule_t *Module, void *Args)
 {
 	/* Sanity */
 	if (Module->Descriptor != NULL)
@@ -158,7 +191,7 @@ ModuleResult_t ModuleLoad(MCoreModule_t *Module, Addr_t *FunctionTable, void *Ar
 			LogInformation("MDMG", "Recycling Module %s", Module->Header->ModuleName);
 
 			/* Call entry point */
-			((ModuleEntryFunc)Module->Descriptor->EntryAddr)(FunctionTable, Args);
+			((ModuleEntryFunc)Module->Descriptor->EntryAddr)(Args);
 
 			/* Done! */
 			return ModuleOk;
@@ -173,7 +206,7 @@ ModuleResult_t ModuleLoad(MCoreModule_t *Module, Addr_t *FunctionTable, void *Ar
 		(uint8_t*)((Addr_t)Module->Header + sizeof(MCoreRamDiskModuleHeader_t));
 
 	/* Parse & Relocate PE Module */
-	Module->Descriptor = PeLoadModule(ModData, FunctionTable);
+	Module->Descriptor = PeLoadModule(ModData);
 
 	/* Sanity */
 	if (Module->Descriptor == NULL
@@ -184,7 +217,7 @@ ModuleResult_t ModuleLoad(MCoreModule_t *Module, Addr_t *FunctionTable, void *Ar
 	}
 
 	/* Call entry point */
-	((ModuleEntryFunc)Module->Descriptor->EntryAddr)(FunctionTable, Args);
+	((ModuleEntryFunc)Module->Descriptor->EntryAddr)(Args);
 
 	/* Done! */
 	return ModuleOk;
