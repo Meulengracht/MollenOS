@@ -227,7 +227,7 @@ void DevicesInitTimers(void)
 void DevicesInit(void *Args)
 {
 	/* Vars */
-	//MCoreModule_t *Module = NULL;
+	MCoreModule_t *Module = NULL;
 
 	/* Unused */
 	_CRT_UNUSED(Args);
@@ -249,11 +249,11 @@ void DevicesInit(void *Args)
 	* PciEnumerate does not detect */
 
 	/* PS2 */
-	//Module = ModuleFind(DEVICES_LEGACY_ID, DEVICES_PS2);
+	Module = ModuleFind(DEVICES_LEGACY_ID, DEVICES_PS2);
 
 	/* Do we have the driver? */
-	//if (Module != NULL)
-		//ModuleLoad(Module, GlbFunctionTable, NULL);
+	if (Module != NULL)
+		ModuleLoad(Module, NULL);
 }
 
 /* Externs */

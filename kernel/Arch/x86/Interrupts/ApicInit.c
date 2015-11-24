@@ -119,39 +119,46 @@ void ApicSetupLvt(Cpu_t Cpu, int Lvt)
 void AcpiSetupIoApic(void *Data, int Nr, void *UserData)
 {
 	/* Cast Data */
-	ACPI_MADT_IO_APIC *ioapic = (ACPI_MADT_IO_APIC*)Data;
-	uint32_t io_entries, i, j;
-	uint8_t io_apic_num = (uint8_t)Nr;
+	ACPI_MADT_IO_APIC *IoApic = (ACPI_MADT_IO_APIC*)Data;
+
+	/* Sanity */
+	if (IoApic == NULL)
+		return;
+
+	/* Vars */
+	uint32_t IoEntries, i, j;
+	uint32_t IoApicNum = (uint32_t)Nr;
 	IoApic_t *IoListEntry = NULL;
 
 	/* Debug */
-	LogInformation("APIC", "Initializing I/O Apic %u", ioapic->Id);
+	LogInformation("APIC", "Initializing I/O Apic %u", IoApic->Id);
 
 	/* Make sure address is mapped */
-	if (!MmVirtualGetMapping(NULL, ioapic->Address))
-		MmVirtualMap(NULL, ioapic->Address, ioapic->Address, 0);
+	if (!MmVirtualGetMapping(NULL, IoApic->Address))
+		MmVirtualMap(NULL, IoApic->Address, IoApic->Address, 0x10);
 
 	/* Allocate Entry */
 	IoListEntry = (IoApic_t*)kmalloc(sizeof(IoApic_t));
-	IoListEntry->GsiStart = ioapic->GlobalIrqBase;
-	IoListEntry->Id = ioapic->Id;
-	IoListEntry->BaseAddress = ioapic->Address;
+	IoListEntry->GsiStart = IoApic->GlobalIrqBase;
+	IoListEntry->Id = IoApic->Id;
+	IoListEntry->BaseAddress = IoApic->Address;
 
 	/* Maximum Redirection Entry—RO. This field contains the entry number (0 being the lowest
 	* entry) of the highest entry in the I/O Redirection Table. The value is equal to the number of
 	* interrupt input pins for the IOAPIC minus one. The range of values is 0 through 239. */
-	io_entries = ApicIoRead(IoListEntry, 1);
-	io_entries >>= 16;
-	io_entries &= 0xFF;
+	IoEntries = ApicIoRead(IoListEntry, 1);
+	IoEntries >>= 16;
+	IoEntries &= 0xFF;
 
-	LogInformation("APIC", "Io Entries: %u", io_entries);
+	/* Debug */
+	LogInformation("APIC", "Io Entries: %u", IoEntries);
 
 	/* Fill rest of info */
-	IoListEntry->PinCount = io_entries + 1;
+	IoListEntry->PinCount = IoEntries + 1;
 	IoListEntry->Version = 0;
 
 	/* Add to list */
-	list_append(GlbIoApics, list_create_node(ioapic->Id, IoListEntry));
+	list_append(GlbIoApics, list_create_node(IoApic->Id, IoListEntry));
 
 	/* Structure of IO Entry Register:
 	* Bits 0 - 7: Interrupt Vector that will be raised (Valid ranges are from 0x10 - 0xFE) - Read/Write
@@ -178,7 +185,7 @@ void AcpiSetupIoApic(void *Data, int Nr, void *UserData)
 	* */
 
 	/* Step 1 - find the i8259 connection */
-	for (i = 0; i <= io_entries; i++)
+	for (i = 0; i <= IoEntries; i++)
 	{
 		/* Read Entry */
 		uint64_t Entry = ApicReadIoEntry(IoListEntry, 0x10 + (2 * i));
@@ -188,7 +195,7 @@ void AcpiSetupIoApic(void *Data, int Nr, void *UserData)
 		{
 			/* We found it */
 			GlbIoApicI8259Pin = i;
-			GlbIoApicI8259Apic = (uint32_t)io_apic_num;
+			GlbIoApicI8259Apic = IoApicNum;
 
 			InterruptAllocateISA(i);
 			break;
@@ -196,7 +203,7 @@ void AcpiSetupIoApic(void *Data, int Nr, void *UserData)
 	}
 
 	/* Now clear interrupts */
-	for (i = ioapic->GlobalIrqBase, j = 0; j <= io_entries; i++, j++)
+	for (i = IoApic->GlobalIrqBase, j = 0; j <= IoEntries; i++, j++)
 	{
 		/* Do not clear SMI! */
 		uint64_t Entry = ApicReadIoEntry(IoListEntry, 0x10 + (2 * j));

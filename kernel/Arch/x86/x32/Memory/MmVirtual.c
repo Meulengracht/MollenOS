@@ -144,31 +144,21 @@ void MmVirtualInstallPaging(Cpu_t cpu)
  * memory address in a given page-directory 
  * If page-directory is NULL, current directory
  * is used */
-uint32_t GlbVirtualDebug = 0;
 void MmVirtualMap(void *PageDirectory, PhysAddr_t PhysicalAddr, VirtAddr_t VirtualAddr, uint32_t Flags)
 {
 	/* Vars */
 	PageDirectory_t *pdir = (PageDirectory_t*)PageDirectory;
 	PageTable_t *ptable = NULL;
-	
-	if (GlbVirtualDebug)
-		LogDebug("VMEM", "Map 0x%x to 0x%x", VirtualAddr, PhysicalAddr);
 
 	/* Determine page directory */
 	if (pdir == NULL)
 		pdir = (PageDirectory_t*)CurrentPageDirectories[ApicGetCpu()];
-
-	if (GlbVirtualDebug)
-		LogDebug("VMEM", "Acquired pDir");
 
 	/* Sanity */
 	assert(pdir != NULL);
 
 	/* Get lock */
 	CriticalSectionEnter(&pdir->Lock);
-
-	if (GlbVirtualDebug)
-		LogDebug("VMEM", "Acquired Lock");
 
 	/* Does page table exist? */
 	if (!(pdir->pTables[PAGE_DIRECTORY_INDEX(VirtualAddr)] & PAGE_PRESENT))
@@ -177,14 +167,8 @@ void MmVirtualMap(void *PageDirectory, PhysAddr_t PhysicalAddr, VirtAddr_t Virtu
 		Addr_t TablePhys = 0;
 		PageTable_t *nTable = NULL;
 
-		if (GlbVirtualDebug)
-			LogDebug("VMEM", "PageTable %u = NOT PRESENT", PAGE_DIRECTORY_INDEX(VirtualAddr));
-
 		/* Allocate new table */
 		nTable = (PageTable_t*)kmalloc_ap(PAGE_SIZE, &TablePhys);
-
-		if (GlbVirtualDebug)
-			LogDebug("VMEM", "Allocated new at 0x%x (Virt 0x%x)", TablePhys, (VirtAddr_t)nTable);
 
 		/* Sanity */
 		assert((Addr_t)nTable > 0);
@@ -204,9 +188,6 @@ void MmVirtualMap(void *PageDirectory, PhysAddr_t PhysicalAddr, VirtAddr_t Virtu
 	/* Get it */
 	ptable = (PageTable_t*)pdir->vTables[PAGE_DIRECTORY_INDEX(VirtualAddr)];
 
-	if (GlbVirtualDebug)
-		LogDebug("VMEM", "Updating Entry %u in PageTable", PAGE_DIRECTORY_INDEX(VirtualAddr));
-
 	/* Now, lets map page! */
 	if (ptable->Pages[PAGE_TABLE_INDEX(VirtualAddr)] != 0)
 	{
@@ -220,9 +201,6 @@ void MmVirtualMap(void *PageDirectory, PhysAddr_t PhysicalAddr, VirtAddr_t Virtu
 
 	/* Release lock */
 	CriticalSectionLeave(&pdir->Lock);
-
-	if (GlbVirtualDebug)
-		LogDebug("VMEM", "Released lock");
 
 	/* Invalidate Address */
 	if (PageDirectory == NULL)
@@ -303,47 +281,25 @@ PhysAddr_t MmVirtualGetMapping(void *PageDirectory, VirtAddr_t VirtualAddr)
 	PageTable_t *pTable = NULL;
 	PhysAddr_t PhysMap = 0;
 
-	if (GlbVirtualDebug)
-		LogDebug("VMEM", "GetMap: Acquiring pDir");
-
 	/* Determine page directory */
 	if (pDir == NULL)
 		pDir = (PageDirectory_t*)CurrentPageDirectories[ApicGetCpu()];
 
-	if (GlbVirtualDebug)
-		LogDebug("VMEM", "GetMap: Acquired pDir");
-
 	/* Sanity */
 	assert(pDir != NULL);
-
-	if (GlbVirtualDebug)
-		LogDebug("VMEM", "GetMap: Acquiring Lock");
 
 	/* Get mutex */
 	CriticalSectionEnter(&pDir->Lock);
 
-	if (GlbVirtualDebug)
-		LogDebug("VMEM", "GetMap: Lock Acquired");
-
 	/* Does page table exist? */
 	if (!(pDir->pTables[PAGE_DIRECTORY_INDEX(VirtualAddr)] & PAGE_PRESENT))
 	{
-		if (GlbVirtualDebug)
-			LogDebug("VMEM", "GetMap: Not Mapped in PageTable %u, releasing lock", 
-			PAGE_DIRECTORY_INDEX(VirtualAddr));
-
 		/* Release mutex */
 		CriticalSectionLeave(&pDir->Lock);
-
-		if (GlbVirtualDebug)
-			LogDebug("VMEM", "GetMap: lock released");
 
 		/* Return */
 		return PhysMap;
 	}
-
-	if (GlbVirtualDebug)
-		LogDebug("VMEM", "GetMap: Checking table %u", PAGE_DIRECTORY_INDEX(VirtualAddr));
 
 	/* Get it */
 	pTable = (PageTable_t*)pDir->vTables[PAGE_DIRECTORY_INDEX(VirtualAddr)];
@@ -354,14 +310,8 @@ PhysAddr_t MmVirtualGetMapping(void *PageDirectory, VirtAddr_t VirtualAddr)
 	/* Return mapping */
 	PhysMap = pTable->Pages[PAGE_TABLE_INDEX(VirtualAddr)] & PAGE_MASK;
 
-	if (GlbVirtualDebug)
-		LogDebug("VMEM", "GetMap: Returning addr 0x%x for 0x%x", PhysMap, VirtualAddr);
-
 	/* Release mutex */
 	CriticalSectionLeave(&pDir->Lock);
-
-	if (GlbVirtualDebug)
-		LogDebug("VMEM", "GetMap: lock released");
 
 	/* Sanity */
 	if (PhysMap == 0)

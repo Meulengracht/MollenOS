@@ -33,6 +33,12 @@
 
 /* Globals */
 Heap_t *Heap = NULL;
+
+/* Recyclers */
+HeapBlock_t *GlbHeapBlockRecycler = NULL;
+HeapNode_t *GlbHeapNodeRecycler = NULL;
+
+/* Memory Globals */
 volatile Addr_t HeapMemStartData = MEMORY_LOCATION_HEAP + MEMORY_STATIC_OFFSET;
 volatile Addr_t HeapMemHeaderCurrent = MEMORY_LOCATION_HEAP;
 volatile Addr_t HeapMemHeaderMax = MEMORY_LOCATION_HEAP;
@@ -154,8 +160,28 @@ void HeapPrintStats(void)
 HeapBlock_t *HeapCreateBlock(size_t Size, int Flags)
 {
 	/* Allocate a block & node */
-	HeapBlock_t *hBlock = (HeapBlock_t*)HeapSAllocator(sizeof(HeapBlock_t));
-	HeapNode_t *hNode = (HeapNode_t*)HeapSAllocator(sizeof(HeapNode_t));
+	HeapBlock_t *hBlock = NULL;
+	HeapNode_t *hNode = NULL;
+
+	/* Sanity Recycler */
+	if (GlbHeapBlockRecycler != NULL)
+	{
+		/* Pop */
+		hBlock = GlbHeapBlockRecycler;
+		GlbHeapBlockRecycler = GlbHeapBlockRecycler->Link;
+	}
+	else
+		hBlock = (HeapBlock_t*)HeapSAllocator(sizeof(HeapBlock_t));
+
+	/* Sanity Recycler */
+	if (GlbHeapNodeRecycler != NULL)
+	{
+		/* Pop */
+		hNode = GlbHeapNodeRecycler;
+		GlbHeapNodeRecycler = GlbHeapNodeRecycler->Link;
+	}
+	else
+		hNode = (HeapNode_t*)HeapSAllocator(sizeof(HeapNode_t));
 
 	/* Set Members */
 	hBlock->AddressStart = HeapMemStartData;
@@ -530,7 +556,6 @@ void HeapFreeAddressInNode(HeapBlock_t *Block, Addr_t Address)
 		/* Calculate end and start */
 		Addr_t aStart = CurrNode->Address;
 		Addr_t aEnd = CurrNode->Address + CurrNode->Length - 1;
-		uint32_t Merged = 0;
 
 		/* Check if address is a part of this node */
 		if (aStart <= Address && aEnd >= Address)
@@ -540,6 +565,9 @@ void HeapFreeAddressInNode(HeapBlock_t *Block, Addr_t Address)
 			Block->BytesFree += CurrNode->Length;
 
 			/* CHECK IF WE CAN MERGE!! */
+			if (PrevNode == NULL
+				&& CurrNode->Link == NULL)
+				return;
 
 			/* Can we merge with previous? */
 			if (PrevNode != NULL
@@ -548,43 +576,54 @@ void HeapFreeAddressInNode(HeapBlock_t *Block, Addr_t Address)
 				/* Add this length to previous */
 				PrevNode->Length += CurrNode->Length;
 
-				/* Remove this link (TODO SAVE HEADERS) */
+				/* Remove this link */
 				PrevNode->Link = CurrNode->Link;
-				Merged = 1;
-			}
+				
+				/* Recycle us */
+				CurrNode->Link = NULL;
+				CurrNode->Address = 0;
+				CurrNode->Length = 0;
 
-			/* Merge with next in list? */
-
-			/* Two cases, we already merged, or we did not */
-			if (Merged)
-			{
-				/* This link is dead, and now is previous */
-				if (PrevNode->Link != NULL
-					&& PrevNode->Link->Allocated == 0)
+				/* Sanity */
+				if (GlbHeapNodeRecycler == NULL)
+					GlbHeapNodeRecycler = CurrNode;
+				else
 				{
-					/* Add length */
-					PrevNode->Length += PrevNode->Link->Length;
-
-					/* Remove the link (TODO SAVE HEADERS) */
-					CurrNode = PrevNode->Link->Link;
-					PrevNode->Link = CurrNode;
+					/* Front-us */
+					CurrNode->Link = GlbHeapNodeRecycler;
+					GlbHeapNodeRecycler = CurrNode;
 				}
 			}
-			else
+			else if (CurrNode->Link != NULL
+				&& CurrNode->Link->Allocated == 0)
 			{
-				/* We did not merge with previous, current is still alive! */
-				if (CurrNode->Link != NULL
-					&& CurrNode->Link->Allocated == 0)
-				{
-					/* Merge time! */
-					CurrNode->Length += CurrNode->Link->Length;
+				/* We are root, move our data */
+				CurrNode->Link->Address = CurrNode->Address;
+				CurrNode->Link->Length += CurrNode->Length;
 
-					/* Remove then link (TODO SAVE HEADERS) */
-					PrevNode = CurrNode->Link->Link;
-					CurrNode->Link = PrevNode;
+				/* Discard us */
+				if (PrevNode == NULL)
+					Block->Nodes = CurrNode->Link;
+				else
+					PrevNode->Link = CurrNode->Link;
+
+				/* Recycle us */
+				CurrNode->Link = NULL;
+				CurrNode->Address = 0;
+				CurrNode->Length = 0;
+
+				/* Sanity */
+				if (GlbHeapNodeRecycler == NULL)
+					GlbHeapNodeRecycler = CurrNode;
+				else
+				{
+					/* Front-us */
+					CurrNode->Link = GlbHeapNodeRecycler;
+					GlbHeapNodeRecycler = CurrNode;
 				}
 			}
 
+			/* Done */
 			break;
 		}
 
@@ -631,7 +670,7 @@ void kfree(void *p)
 	CriticalSectionEnter(&HeapLock);
 
 	/* Free */
-	//HeapFree((Addr_t)p);
+	HeapFree((Addr_t)p);
 
 	/* Release */
 	CriticalSectionLeave(&HeapLock);
@@ -652,6 +691,10 @@ void HeapInit(void)
 	HeapMemStartData = MEMORY_LOCATION_HEAP + MEMORY_STATIC_OFFSET;
 	HeapMemHeaderCurrent = MEMORY_LOCATION_HEAP;
 	HeapMemHeaderMax = MEMORY_LOCATION_HEAP;
+
+	/* Set null */
+	GlbHeapBlockRecycler = NULL;
+	GlbHeapNodeRecycler = NULL;
 
 	/* Initiate the global spinlock */
 	CriticalSectionConstruct(&HeapLock);
