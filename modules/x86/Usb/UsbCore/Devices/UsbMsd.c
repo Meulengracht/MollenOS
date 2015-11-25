@@ -210,7 +210,7 @@ void UsbMsdInit(UsbHcDevice_t *UsbDevice, uint32_t InterfaceIndex)
 	UsbMsdReadCapacity(DevData, StorageData);
 
 	/* Debug */
-	LogDebug("USBM", "MSD SectorCount: 0x%x, SectorSize: 0x%x",
+	LogInformation("USBM", "MSD SectorCount: 0x%x, SectorSize: 0x%x",
 		(uint32_t)StorageData->SectorCount, StorageData->SectorSize);
 
 	/* Register Us */
@@ -751,12 +751,12 @@ void UsbMsdReadyDevice(MsdDevice_t *Device)
 	if (ResponseCode >= 0x70 && ResponseCode <= 0x73)
 	{
 		/* Yay ! */
-		LogDebug("USBM", "Sense Status: %s", SenseKeys[SenseKey]);
+		LogInformation("USBM", "Sense Status: %s", SenseKeys[SenseKey]);
 	}
 	else
 	{
 		/* Damn.. */
-		LogDebug("USBM", "Invalid Response Code: 0x%x", ResponseCode);
+		LogFatal("USBM", "Invalid Response Code: 0x%x", ResponseCode);
 		Device->IsReady = 0;
 		return;
 	}

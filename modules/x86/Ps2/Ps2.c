@@ -49,19 +49,19 @@ uint8_t Ps2ReadData(int Dummy)
 	uint8_t Response = 0;
 
 	/* Get lock, but don't disable interrupts, we need them for the timeout */
-	SpinlockAcquireNoInt(&GlbPs2Lock);
+	SpinlockAcquire(&GlbPs2Lock);
 
 	if (!Dummy)
 	{
 		int Error = 0;
 
 		/* Make sure output buffer is full */
-		WaitForConditionWithFault(Error, (Ps2ReadStatus() & X86_PS2_STATUS_OUTPUT_FULL) == 1, 100, 10);
+		DelayForConditionWithFault(Error, (Ps2ReadStatus() & X86_PS2_STATUS_OUTPUT_FULL) == 1, 100, 10);
 
 		if (Error)
 		{
 			/* Release */
-			SpinlockReleaseNoInt(&GlbPs2Lock);
+			SpinlockRelease(&GlbPs2Lock);
 
 			/* Return err */
 			return 0xFF;
@@ -72,7 +72,7 @@ uint8_t Ps2ReadData(int Dummy)
 	Response = inb(X86_PS2_DATA);
 
 	/* Release */
-	SpinlockReleaseNoInt(&GlbPs2Lock);
+	SpinlockRelease(&GlbPs2Lock);
 
 	/* Done */
 	return Response;

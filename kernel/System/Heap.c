@@ -237,7 +237,7 @@ void HeapExpand(size_t Size, int ExpandType)
 Addr_t HeapAllocateSizeInBlock(HeapBlock_t *Block, size_t Size)
 {
 	HeapNode_t *CurrNode = Block->Nodes, *PrevNode = NULL;
-	Addr_t return_addr = 0;
+	Addr_t RetAddr = 0;
 
 	/* Standard block allocation algorithm */
 	while (CurrNode)
@@ -254,7 +254,7 @@ Addr_t HeapAllocateSizeInBlock(HeapBlock_t *Block, size_t Size)
 				/* Easy peasy, set allocated and
 				 * return */
 				CurrNode->Allocated = 1;
-				return_addr = CurrNode->Address;
+				RetAddr = CurrNode->Address;
 				Block->BytesFree -= Size;
 				break;
 			}
@@ -262,22 +262,34 @@ Addr_t HeapAllocateSizeInBlock(HeapBlock_t *Block, size_t Size)
 			{
 				/* Make new node */
 				/* Insert it before this */
-				HeapNode_t *node = (HeapNode_t*)HeapSAllocator(sizeof(HeapNode_t));
-				node->Address = CurrNode->Address;
-				node->Allocated = 1;
-				node->Length = Size;
-				node->Link = CurrNode;
-				return_addr = node->Address;
+				HeapNode_t *hNode = NULL;
+
+				/* Sanity Recycler */
+				if (GlbHeapNodeRecycler != NULL)
+				{
+					/* Pop */
+					hNode = GlbHeapNodeRecycler;
+					GlbHeapNodeRecycler = GlbHeapNodeRecycler->Link;
+				}
+				else
+					hNode = (HeapNode_t*)HeapSAllocator(sizeof(HeapNode_t));
+
+				/* Fill */
+				hNode->Address = CurrNode->Address;
+				hNode->Allocated = 1;
+				hNode->Length = Size;
+				hNode->Link = CurrNode;
+				RetAddr = hNode->Address;
 
 				/* Update current node stats */
-				CurrNode->Address = node->Address + Size;
+				CurrNode->Address = hNode->Address + Size;
 				CurrNode->Length -= Size;
 
 				/* Update previous */
 				if (PrevNode != NULL)
-					PrevNode->Link = node;
+					PrevNode->Link = hNode;
 				else
-					Block->Nodes = node;
+					Block->Nodes = hNode;
 
 				break;
 			}
@@ -290,7 +302,7 @@ Addr_t HeapAllocateSizeInBlock(HeapBlock_t *Block, size_t Size)
 	}
 
 	/* Return Address */
-	return return_addr;
+	return RetAddr;
 }
 
 /* Finds a suitable block for allocation

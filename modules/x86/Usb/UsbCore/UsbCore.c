@@ -391,7 +391,7 @@ void UsbEventHandler(void *args)
 
 			default:
 			{
-				LogInformation("USBC", "Unhandled Event: %u on port %i", Event->Type, Event->Port);
+				LogFatal("USBC", "Unhandled Event: %u on port %i", Event->Type, Event->Port);
 			} break;
 		}
 	}

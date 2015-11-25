@@ -25,6 +25,7 @@
 /* Include */
 #include <crtdefs.h>
 #include <stdint.h>
+#include <Log.h>
 
 /* Definitions */
 typedef unsigned int TmId_t;
@@ -72,26 +73,15 @@ _CRT_EXPORT void DelayMs(uint32_t MilliSeconds);
 
 
 /* Tools */
-#ifdef MODULES_EXPORTS
-#include <Log.h>
 #define WaitForCondition(condition, runs, wait, message, ...)\
     for (unsigned int timeout_ = 0; !(condition); timeout_++) {\
         if (timeout_ >= runs) {\
              Log(message, __VA_ARGS__);\
              break;\
-														        }\
-        StallMs(wait);\
-							    }
-#else
-#define WaitForCondition(condition, runs, wait, message, ...)\
-    for (unsigned int timeout_ = 0; !(condition); timeout_++) {\
-        if (timeout_ >= runs) {\
-             printf(message, __VA_ARGS__);\
-             break;\
 												        }\
         StallMs(wait);\
 						    }
-#endif
+
 #define WaitForConditionWithFault(fault, condition, runs, wait)\
 	fault = 0; \
     for (unsigned int timeout_ = 0; !(condition); timeout_++) {\
@@ -101,6 +91,16 @@ _CRT_EXPORT void DelayMs(uint32_t MilliSeconds);
 										        }\
         StallMs(wait);\
 					    }
+
+#define DelayForConditionWithFault(fault, condition, runs, wait)\
+	fault = 0; \
+    for (unsigned int timeout_ = 0; !(condition); timeout_++) {\
+        if (timeout_ >= runs) {\
+			 fault = 1; \
+             break;\
+												        }\
+        DelayMs(wait);\
+						    }
 
 /* Should be called by a periodic timer, but only one! */
 _CRT_EXTERN void TimersApplyMs(uint32_t Ms);

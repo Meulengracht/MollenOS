@@ -461,7 +461,7 @@ UsbTransferStatus_t UsbFunctionGetConfigDescriptor(UsbHc_t *Hc, int Port)
 				uint32_t EpType = Ep->Attributes & 0x3;
 
 				/* Debug */
-				LogFatal("USBC", "Endpoint %u - Attributes 0x%x (MaxPacketSize 0x%x)",
+				LogInformation("USBC", "Endpoint %u - Attributes 0x%x (MaxPacketSize 0x%x)",
 					Ep->Address, Ep->Attributes, Ep->MaxPacketSize);
 
 				/* Update Device */
