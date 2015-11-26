@@ -117,6 +117,7 @@
 #include "accommon.h"
 #include "acdebug.h"
 
+
 #define _COMPONENT          ACPI_CA_DEBUGGER
         ACPI_MODULE_NAME    ("dbhistry")
 

@@ -1059,14 +1059,13 @@ typedef union acpi_object
 /*
  * List of objects, used as a parameter list for control method evaluation
  */
-#pragma pack(push, 1)
 typedef struct acpi_object_list
 {
     UINT32                          Count;
     ACPI_OBJECT                     *Pointer;
 
 } ACPI_OBJECT_LIST;
-#pragma pack(pop)
+
 
 /*
  * Miscellaneous common Data Structures used by the interfaces
@@ -1307,8 +1306,8 @@ UINT32 (*ACPI_INTERFACE_HANDLER) (
 #define ACPI_PCICLS_STRING_SIZE         7   /* Includes null terminator */
 
 
-/* Structures used for device/processor HID, UID, CID, and SUB */
-
+/* Structures used for device/processor HID, UID, CID */
+#pragma pack(push, 1)
 typedef struct acpi_pnp_device_id
 {
     UINT32                          Length;             /* Length of string + null */
@@ -1328,7 +1327,6 @@ typedef struct acpi_pnp_device_id_list
  * Structure returned from AcpiGetObjectInfo.
  * Optimized for both 32- and 64-bit builds
  */
-#pragma pack(push, 1)
 typedef struct acpi_device_info
 {
     UINT32                          InfoSize;           /* Size of info, including ID strings */
@@ -1343,12 +1341,10 @@ typedef struct acpi_device_info
     UINT64                          Address;            /* _ADR value */
     ACPI_PNP_DEVICE_ID              HardwareId;         /* _HID value */
     ACPI_PNP_DEVICE_ID              UniqueId;           /* _UID value */
-    ACPI_PNP_DEVICE_ID              SubsystemId;        /* _SUB value */
     ACPI_PNP_DEVICE_ID              ClassCode;          /* _CLS value */
     ACPI_PNP_DEVICE_ID_LIST         CompatibleIdList;   /* _CID list <must be last> */
 
 } ACPI_DEVICE_INFO;
-
 #pragma pack(pop)
 /* Values for Flags field above (AcpiGetObjectInfo) */
 
@@ -1360,13 +1356,12 @@ typedef struct acpi_device_info
 #define ACPI_VALID_ADR                  0x0002
 #define ACPI_VALID_HID                  0x0004
 #define ACPI_VALID_UID                  0x0008
-#define ACPI_VALID_SUB                  0x0010
 #define ACPI_VALID_CID                  0x0020
 #define ACPI_VALID_CLS                  0x0040
 #define ACPI_VALID_SXDS                 0x0100
 #define ACPI_VALID_SXWS                 0x0200
 
-/* Flags for _STA return value (CurrentStatus above) */
+/* Flags for _STA method */
 
 #define ACPI_STA_DEVICE_PRESENT         0x01
 #define ACPI_STA_DEVICE_ENABLED         0x02
@@ -1377,7 +1372,7 @@ typedef struct acpi_device_info
 
 
 /* Context structs for address space handlers */
-
+#pragma pack(push, 1)
 typedef struct acpi_pci_id
 {
     UINT16                          Segment;
@@ -1387,7 +1382,6 @@ typedef struct acpi_pci_id
 
 } ACPI_PCI_ID;
 
-#pragma pack(push, 1)
 typedef struct acpi_mem_space_context
 {
     UINT32                          Length;
@@ -1397,12 +1391,10 @@ typedef struct acpi_mem_space_context
     ACPI_SIZE                       MappedLength;
 
 } ACPI_MEM_SPACE_CONTEXT;
-#pragma pack(pop)
 
 /*
  * ACPI_MEMORY_LIST is used only if the ACPICA local cache is enabled
  */
-#pragma pack(push, 1)
 typedef struct acpi_memory_list
 {
     char                            *ListName;

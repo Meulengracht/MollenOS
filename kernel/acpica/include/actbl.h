@@ -459,6 +459,7 @@ enum AcpiPreferredPmProfiles
 /*
  * Internal table-related structures
  */
+#pragma pack(push, 1)
 typedef union acpi_name_union
 {
     UINT32                          Integer;
@@ -468,7 +469,7 @@ typedef union acpi_name_union
 
 
 /* Internal ACPI Table Descriptor. One per ACPI table. */
-#pragma pack(push, 1)
+
 typedef struct acpi_table_desc
 {
     ACPI_PHYSICAL_ADDRESS           Address;
@@ -480,7 +481,6 @@ typedef struct acpi_table_desc
 
 } ACPI_TABLE_DESC;
 #pragma pack(pop)
-
 /* Masks for Flags field above */
 
 #define ACPI_TABLE_ORIGIN_EXTERNAL_VIRTUAL  (0) /* Virtual address, external maintained */

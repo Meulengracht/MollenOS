@@ -979,7 +979,7 @@ void AcpiOsReleaseLock(ACPI_SPINLOCK Handle, ACPI_CPU_FLAGS Flags)
 
 /******************************************************************************
 *
-* FUNCTION:    Semaphore stub functions
+* FUNCTION:    Semaphore functions
 *
 * DESCRIPTION: Stub functions used for single-thread applications that do
 *              not require semaphore synchronization. Full implementations

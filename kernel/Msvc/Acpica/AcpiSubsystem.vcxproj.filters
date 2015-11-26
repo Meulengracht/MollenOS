@@ -525,9 +525,6 @@
     <ClCompile Include="..\..\acpica\utilities\utexcep.c">
       <Filter>Source Files\Utilities</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\acpica\utilities\utfileio.c">
-      <Filter>Source Files\Utilities</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\acpica\utilities\utglobal.c">
       <Filter>Source Files\Utilities</Filter>
     </ClCompile>
@@ -602,6 +599,9 @@
     </ClCompile>
     <ClCompile Include="..\..\acpica\common\ahuuids.c">
       <Filter>Source Files\Common</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\acpica\executer\extrace.c">
+      <Filter>Source Files\Executer</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>

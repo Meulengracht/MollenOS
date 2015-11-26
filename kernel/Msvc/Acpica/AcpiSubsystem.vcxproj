@@ -70,12 +70,12 @@
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
-      <Optimization>MinSpace</Optimization>
+      <Optimization>Full</Optimization>
       <InlineFunctionExpansion>OnlyExplicitInline</InlineFunctionExpansion>
-      <FavorSizeOrSpeed>Size</FavorSizeOrSpeed>
+      <FavorSizeOrSpeed>Neither</FavorSizeOrSpeed>
       <AdditionalIncludeDirectories>..\..\acpica\Include</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>ACPI_LIBRARY;NDEBUG;_GEN;DRIVER;PROCESSOR_ARCHITECTURE=x86;MOLLENOS;_KERNEL_API;_X86_32</PreprocessorDefinitions>
-      <StringPooling>false</StringPooling>
+      <StringPooling>true</StringPooling>
       <ExceptionHandling>
       </ExceptionHandling>
       <BasicRuntimeChecks>Default</BasicRuntimeChecks>
@@ -199,6 +199,7 @@
     <ClCompile Include="..\..\acpica\disassembler\dmutils.c" />
     <ClCompile Include="..\..\acpica\disassembler\dmwalk.c" />
     <ClCompile Include="..\..\acpica\dispatcher\dsdebug.c" />
+    <ClCompile Include="..\..\acpica\executer\extrace.c" />
     <ClCompile Include="..\..\acpica\namespace\nsaccess.c" />
     <ClCompile Include="..\..\acpica\namespace\nsalloc.c" />
     <ClCompile Include="..\..\acpica\namespace\nsarguments.c" />
@@ -704,7 +705,6 @@
     <ClCompile Include="..\..\acpica\utilities\uterror.c" />
     <ClCompile Include="..\..\acpica\utilities\uteval.c" />
     <ClCompile Include="..\..\acpica\utilities\utexcep.c" />
-    <ClCompile Include="..\..\acpica\utilities\utfileio.c" />
     <ClCompile Include="..\..\acpica\utilities\utglobal.c" />
     <ClCompile Include="..\..\acpica\utilities\uthex.c" />
     <ClCompile Include="..\..\acpica\utilities\utids.c" />

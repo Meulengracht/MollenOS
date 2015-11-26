@@ -133,6 +133,7 @@ typedef struct _OhciGTransferDescriptor
 #define X86_OHCI_TRANSFER_BUF_PID_OUT		(1 << 19)
 #define X86_OHCI_TRANSFER_BUF_PID_IN		(1 << 20)
 #define X86_OHCI_TRANSFER_BUF_NO_INTERRUPT	((1 << 21) | (1 << 22) | (1 << 23))
+#define X86_OHCI_TRANSFER_BUF_FRAMECOUNT(n)	((n & 0x7) << 24)
 #define X86_OHCI_TRANSFER_BUF_TD_TOGGLE		(1 << 25)
 #define X86_OHCI_TRANSFER_BUF_NOCC			((1 << 28) | (1 << 29) | (1 << 30) | (1 << 31))
 
@@ -165,8 +166,8 @@ typedef struct _OhciITransferDescriptor
 	uint32_t BufferEnd;
 
 	/* Offsets 
-	 * Bits 0-10:	Packet Size on IN-transmissions 
-	 * Bits 11:		0 Field
+	 * Bits 0-11:	Packet Size on IN-transmissions 
+	 * Bits 12:		CrossPage Field
 	 * Bits 12-15:	Condition Code (Error Code) */
 	uint16_t Offsets[8];
 

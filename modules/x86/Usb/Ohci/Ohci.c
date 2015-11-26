@@ -1082,7 +1082,7 @@ OhciGTransferDescriptor_t *OhciTdSetup(OhciController_t *Controller, UsbTransfer
 }
 
 OhciGTransferDescriptor_t *OhciTdIo(OhciController_t *Controller, UsbTransferType_t Type,
-	Addr_t NextTD, uint32_t Toggle, uint32_t pid,
+	Addr_t NextTD, UsbHcEndpoint_t *Endpoint, uint32_t pid,
 	uint32_t Length, void **TDBuffer)
 {
 	OhciGTransferDescriptor_t *Td = NULL;
@@ -1114,10 +1114,60 @@ OhciGTransferDescriptor_t *OhciTdIo(OhciController_t *Controller, UsbTransferTyp
 		iTd = (OhciITransferDescriptor_t*)TDIndex;
 
 		/* Allocate a buffer */
-		Buffer = (void*)kmalloc_a(0x1000);
+		Buffer = (void*)kmalloc_a(Length);
 
-		/* Todo */
-		kernel_panic("OHCI: Isochronous support is lacking!");
+		/* Calculate frame count */
+		uint32_t BufItr = 0;
+		uint32_t FrameItr = 0;
+		uint32_t Crossed = 0;
+		uint32_t FrameCount = Length / Endpoint->MaxPacketSize;
+		if (Length % Endpoint->MaxPacketSize)
+			FrameCount++;
+
+		/* IF framecount is > 8, nono */
+		if (FrameCount > 8)
+			FrameCount = 8;
+
+		/* Setup */
+		iTd->Flags = 0;
+		iTd->Flags |= X86_OHCI_TRANSFER_BUF_FRAMECOUNT(FrameCount - 1);
+		iTd->Flags |= X86_OHCI_TRANSFER_BUF_NOCC;
+
+		/* Buffer */
+		iTd->Bp0 = MmVirtualGetMapping(NULL, (VirtAddr_t)Buffer);
+		iTd->BufferEnd = iTd->Bp0 + Length - 1;
+
+		/* Setup offsets */
+		while (FrameCount)
+		{
+			/* Set offset 0 */
+			iTd->Offsets[FrameItr] = (BufItr & 0xFFF);
+			iTd->Offsets[FrameItr] = ((Crossed & 0x1) << 12);
+
+			/* Increase buffer */
+			BufItr += Endpoint->MaxPacketSize;
+
+			/* Sanity */
+			if (BufItr >= 0x1000)
+			{
+				/* Reduce, set crossed */
+				BufItr -= 0x1000;
+				Crossed = 1;
+			}
+
+			/* Set iterators */
+			FrameItr++;
+			FrameCount--;
+		}
+
+		/* EOL ? */
+		if (NextTD == X86_OHCI_TRANSFER_END_OF_LIST)
+			iTd->NextTD = X86_OHCI_TRANSFER_END_OF_LIST;
+		else	/* Get physical Address of NextTD and set NextTD to that */
+			iTd->NextTD = MmVirtualGetMapping(NULL, (VirtAddr_t)NextTD);
+
+		/* Done */
+		return;
 	}
 
 	/* EOL ? */
@@ -1133,7 +1183,7 @@ OhciGTransferDescriptor_t *OhciTdIo(OhciController_t *Controller, UsbTransferTyp
 	Td->Flags |= X86_OHCI_TRANSFER_BUF_NO_INTERRUPT;
 	Td->Flags |= X86_OHCI_TRANSFER_BUF_TD_TOGGLE;
 	Td->Flags |= X86_OHCI_TRANSFER_BUF_NOCC;
-	Td->Flags |= (Toggle << 24);
+	Td->Flags |= (Endpoint->Toggle << 24);
 
 	*TDBuffer = Buffer;
 
@@ -1227,7 +1277,7 @@ UsbHcTransaction_t *OhciTransactionIn(void *Controller, UsbHcRequest_t *Request)
 
 	/* Setup Td */
 	Transaction->TransferDescriptor = (void*)OhciTdIo(Ctrl, Request->Type, X86_OHCI_TRANSFER_END_OF_LIST,
-		Request->Endpoint->Toggle,
+		Request->Endpoint,
 		X86_OHCI_TRANSFER_BUF_PID_IN, Request->IoLength,
 		&Transaction->TransferBuffer);
 
@@ -1276,7 +1326,7 @@ UsbHcTransaction_t *OhciTransactionOut(void *Controller, UsbHcRequest_t *Request
 
 	/* Setup Td */
 	Transaction->TransferDescriptor = (void*)OhciTdIo(Ctrl, Request->Type, X86_OHCI_TRANSFER_END_OF_LIST,
-		Request->Endpoint->Toggle,
+		Request->Endpoint,
 		X86_OHCI_TRANSFER_BUF_PID_OUT, Request->IoLength,
 		&Transaction->TransferBuffer);
 
