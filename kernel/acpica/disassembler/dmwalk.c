@@ -119,6 +119,7 @@
 #include "amlcode.h"
 #include "acdebug.h"
 
+#if (defined ACPI_DEBUGGER || defined ACPI_DISASSEMBLER)
 
 #define _COMPONENT          ACPI_CA_DEBUGGER
         ACPI_MODULE_NAME    ("dmwalk")
@@ -1137,3 +1138,5 @@ AcpiDmAscendingOp (
 
     return (AE_OK);
 }
+
+#endif

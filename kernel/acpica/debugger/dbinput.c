@@ -121,6 +121,8 @@
 #include "acapps.h"
 #endif
 
+#if (defined ACPI_DEBUGGER || defined ACPI_DISASSEMBLER)
+
 #define _COMPONENT          ACPI_CA_DEBUGGER
         ACPI_MODULE_NAME    ("dbinput")
 
@@ -1430,3 +1432,5 @@ AcpiDbUserCommands (
 
     return (Status);
 }
+
+#endif

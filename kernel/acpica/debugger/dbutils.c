@@ -118,6 +118,7 @@
 #include "acnamesp.h"
 #include "acdebug.h"
 
+#if (defined ACPI_DEBUGGER || defined ACPI_DISASSEMBLER)
 
 #define _COMPONENT          ACPI_CA_DEBUGGER
         ACPI_MODULE_NAME    ("dbutils")
@@ -582,4 +583,6 @@ AcpiDbDumpBuffer (
     AcpiUtDebugDumpBuffer (ACPI_TO_POINTER (Address), 64, DB_BYTE_DISPLAY,
         ACPI_UINT32_MAX);
 }
+#endif
+
 #endif

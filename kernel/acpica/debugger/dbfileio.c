@@ -123,6 +123,8 @@
 #include "acapps.h"
 #endif
 
+#if (defined ACPI_DEBUGGER || defined ACPI_DISASSEMBLER)
+
 #define _COMPONENT          ACPI_CA_DEBUGGER
         ACPI_MODULE_NAME    ("dbfileio")
 
@@ -250,3 +252,5 @@ AcpiDbLoadTables (
 
     return (AE_OK);
 }
+
+#endif

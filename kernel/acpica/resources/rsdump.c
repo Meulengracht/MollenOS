@@ -247,7 +247,7 @@ AcpiRsDumpResourceList (
         }
 
         /* Dump the resource descriptor */
-
+#if (defined ACPI_DEBUGGER || defined ACPI_DISASSEMBLER)
         if (Type == ACPI_RESOURCE_TYPE_SERIAL_BUS)
         {
             AcpiRsDumpDescriptor (&ResourceList->Data,
@@ -259,7 +259,7 @@ AcpiRsDumpResourceList (
             AcpiRsDumpDescriptor (&ResourceList->Data,
                 AcpiGbl_DumpResourceDispatch[Type]);
         }
-
+#endif
         /* Point to the next resource structure */
 
         ResourceList = ACPI_NEXT_RESOURCE (ResourceList);
@@ -287,8 +287,10 @@ AcpiRsDumpIrqList (
     UINT8                   *RouteTable)
 {
     ACPI_PCI_ROUTING_TABLE  *PrtElement;
-    UINT8                   Count;
 
+#if (defined ACPI_DEBUGGER || defined ACPI_DISASSEMBLER)
+    UINT8                   Count;
+#endif
 
     ACPI_FUNCTION_ENTRY ();
 
@@ -303,7 +305,7 @@ AcpiRsDumpIrqList (
     PrtElement = ACPI_CAST_PTR (ACPI_PCI_ROUTING_TABLE, RouteTable);
 
     /* Dump all table elements, Exit on zero length element */
-
+#if (defined ACPI_DEBUGGER || defined ACPI_DISASSEMBLER)
     for (Count = 0; PrtElement->Length; Count++)
     {
         AcpiOsPrintf ("\n[%02X] PCI IRQ Routing Table Package\n", Count);
@@ -312,6 +314,7 @@ AcpiRsDumpIrqList (
         PrtElement = ACPI_ADD_PTR (ACPI_PCI_ROUTING_TABLE,
             PrtElement, PrtElement->Length);
     }
+#endif
 }
 
 
@@ -571,13 +574,15 @@ AcpiRsDumpAddressCommon (
     switch (Resource->Address.ResourceType)
     {
     case ACPI_MEMORY_RANGE:
-
+#if (defined ACPI_DEBUGGER || defined ACPI_DISASSEMBLER)
         AcpiRsDumpDescriptor (Resource, AcpiRsDumpMemoryFlags);
+#endif
         break;
 
     case ACPI_IO_RANGE:
-
+#if (defined ACPI_DEBUGGER || defined ACPI_DISASSEMBLER)
         AcpiRsDumpDescriptor (Resource, AcpiRsDumpIoFlags);
+#endif
         break;
 
     case ACPI_BUS_NUMBER_RANGE:
@@ -593,8 +598,9 @@ AcpiRsDumpAddressCommon (
     }
 
     /* Decode the general flags */
-
+#if (defined ACPI_DEBUGGER || defined ACPI_DISASSEMBLER)
     AcpiRsDumpDescriptor (Resource, AcpiRsDumpGeneralFlags);
+#endif
 }
 
 

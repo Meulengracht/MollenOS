@@ -118,6 +118,7 @@
 #include "acdebug.h"
 #include "acnamesp.h"
 
+#if (defined ACPI_DEBUGGER || defined ACPI_DISASSEMBLER)
 
 #define _COMPONENT          ACPI_CA_DEBUGGER
         ACPI_MODULE_NAME    ("dbstats")
@@ -628,3 +629,5 @@ AcpiDbDisplayStatistics (
     AcpiOsPrintf ("\n");
     return (AE_OK);
 }
+
+#endif

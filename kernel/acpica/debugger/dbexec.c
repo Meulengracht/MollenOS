@@ -118,6 +118,7 @@
 #include "acdebug.h"
 #include "acnamesp.h"
 
+#if (defined ACPI_DEBUGGER || defined ACPI_DISASSEMBLER)
 
 #define _COMPONENT          ACPI_CA_DEBUGGER
         ACPI_MODULE_NAME    ("dbexec")
@@ -910,3 +911,5 @@ CleanupAndExit:
     AcpiOsFree (AcpiGbl_DbMethodInfo.Threads);
     AcpiGbl_DbMethodInfo.Threads = NULL;
 }
+
+#endif

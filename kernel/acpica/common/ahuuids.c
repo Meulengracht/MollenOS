@@ -118,6 +118,8 @@
 #include "acutils.h"
 #include "acuuid.h"
 
+#if (defined ACPI_ASL_COMPILER || defined ACPI_EXEC_APP || defined ACPI_HELP_APP || defined ACPI_DISASSEMBLER)
+
 #define _COMPONENT          ACPI_UTILITIES
         ACPI_MODULE_NAME    ("ahuuids")
 
@@ -204,3 +206,5 @@ AcpiAhMatchUuid (
 
     return (NULL);
 }
+
+#endif
