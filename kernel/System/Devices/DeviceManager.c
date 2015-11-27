@@ -194,11 +194,10 @@ void DmRequestHandler(void *Args)
 					/* Validate parameters */
 
 					/* Perform */
-					if (Disk->Read(Disk->DiskData, Request->SectorLBA, Request->Buffer, Request->Length) < 0)
-					{
-						/* Error */
+					if (Disk->Read(Disk->DiskData, Request->SectorLBA, Request->Buffer, Request->Length) != 0)
 						Request->Status = RequestDeviceError;
-					}
+					else
+						Request->Status = RequestOk;
 				}
 
 			} break;
@@ -215,11 +214,10 @@ void DmRequestHandler(void *Args)
 					/* Validate parameters */
 
 					/* Perform */
-					if (Disk->Write(Disk->DiskData, Request->SectorLBA, Request->Buffer, Request->Length) < 0)
-					{
-						/* Error */
+					if (Disk->Write(Disk->DiskData, Request->SectorLBA, Request->Buffer, Request->Length) != 0)
 						Request->Status = RequestDeviceError;
-					}
+					else
+						Request->Status = RequestOk;
 				}
 
 			} break;

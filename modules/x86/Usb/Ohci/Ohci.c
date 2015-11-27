@@ -1167,7 +1167,7 @@ OhciGTransferDescriptor_t *OhciTdIo(OhciController_t *Controller, UsbTransferTyp
 			iTd->NextTD = MmVirtualGetMapping(NULL, (VirtAddr_t)NextTD);
 
 		/* Done */
-		return;
+		return (OhciGTransferDescriptor_t*)iTd;
 	}
 
 	/* EOL ? */

@@ -92,7 +92,7 @@ void MCoreInitialize(MCoreBootInfo_t *BootInfo)
 	BootInfo->InitTimers();
 
 	/* Start out any extra cores */
-	//CpuInitSmp(BootInfo->ArchBootInfo);
+	CpuInitSmp(BootInfo->ArchBootInfo);
 
 	/* Start the request handle */
 	DmStart();
