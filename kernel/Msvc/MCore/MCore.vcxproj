@@ -17,6 +17,7 @@
     <ClCompile Include="..\..\Init\Entry.c" />
     <ClCompile Include="..\..\System\Devices\DeviceCpu.c" />
     <ClCompile Include="..\..\System\Devices\DeviceManager.c" />
+    <ClCompile Include="..\..\System\Devices\Fonts\VideoFont6x12.c" />
     <ClCompile Include="..\..\System\Devices\Fonts\VideoFont8x16.c" />
     <ClCompile Include="..\..\System\Devices\DeviceVideo.c" />
     <ClCompile Include="..\..\System\FileSystems\Mfs\Mfs.c" />

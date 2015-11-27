@@ -108,6 +108,9 @@
     <ClCompile Include="..\..\System\Synchronization\CriticalSection.c">
       <Filter>Systems\Synchronization</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\System\Devices\Fonts\VideoFont6x12.c">
+      <Filter>Systems\Devices\Video</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\Include\Heap.h">
