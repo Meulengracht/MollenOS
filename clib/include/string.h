@@ -85,6 +85,10 @@ extern		unsigned long strtoul(const char *nptr, char **endptr, int base);
 extern		unsigned long long strtoull(const char *nptr, char **endptr, int base);
 
 
+//Wide-strings
+extern		size_t wcsnlen(const wchar_t * str, size_t count);
+
+
 #ifdef __cplusplus
 }
 #endif

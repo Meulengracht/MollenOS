@@ -74,7 +74,7 @@
       <InlineFunctionExpansion>OnlyExplicitInline</InlineFunctionExpansion>
       <FavorSizeOrSpeed>Neither</FavorSizeOrSpeed>
       <AdditionalIncludeDirectories>..\..\acpica\Include</AdditionalIncludeDirectories>
-      <PreprocessorDefinitions>ACPI_LIBRARY;NDEBUG;_GEN;DRIVER;PROCESSOR_ARCHITECTURE=x86;MOLLENOS;_KERNEL_API;_X86_32</PreprocessorDefinitions>
+      <PreprocessorDefinitions>ACPI_LIBRARY;NDEBUG;_GEN;DRIVER;PROCESSOR_ARCHITECTURE=x86;MOLLENOS;UNICODE;_KERNEL_API;_X86_32</PreprocessorDefinitions>
       <StringPooling>true</StringPooling>
       <ExceptionHandling>
       </ExceptionHandling>

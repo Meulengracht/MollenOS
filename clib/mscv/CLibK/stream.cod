@@ -44,6 +44,7 @@ PUBLIC	__real@4024000000000000
 PUBLIC	__real@43e0000000000000
 EXTRN	__finite:PROC
 EXTRN	__isnan:PROC
+EXTRN	_wcsnlen:PROC
 EXTRN	_VideoPutChar:PROC
 EXTRN	__CIlog10:PROC
 EXTRN	__CIpow:PROC
@@ -96,13 +97,13 @@ CONST	ENDS
 _TEXT	SEGMENT
 _buffer$ = -104						; size = 50
 _flags$1$ = -52						; size = 4
-tv726 = -52						; size = 4
+tv725 = -52						; size = 4
 _prefixlen$1$ = -48					; size = 4
-tv659 = -48						; size = 4
+tv658 = -48						; size = 4
 _prefix$ = -48						; size = 4
 _digits$1$ = -44					; size = 4
 _uLen$1 = -44						; size = 4
-tv595 = -40						; size = 8
+tv599 = -40						; size = 8
 _base$1$ = -36						; size = 4
 _val64$2$ = -32						; size = 4
 _string$ = -32						; size = 4
@@ -116,42 +117,42 @@ _string$1$ = -8						; size = 4
 _written_all$1$ = -4					; size = 4
 _out$ = 8						; size = 4
 _precision$2$ = 12					; size = 4
-tv724 = 12						; size = 4
-tv658 = 12						; size = 4
+tv723 = 12						; size = 4
+tv657 = 12						; size = 4
 _size$ = 12						; size = 4
 _format$ = 16						; size = 4
 _argptr$ = 20						; size = 4
 _streamout PROC						; COMDAT
 
-; 436  : {
+; 442  : {
 
   00000	55		 push	 ebp
   00001	8b ec		 mov	 ebp, esp
   00003	83 ec 68	 sub	 esp, 104		; 00000068H
 
-; 437  : 	static const char digits_l[] = "0123456789abcdef0x";
-; 438  : 	static const char digits_u[] = "0123456789ABCDEF0X";
-; 439  : 	static const char *_nullstring = "(null)";
-; 440  : 	char buffer[BUFFER_SIZE + 1];
-; 441  : 	uint32_t cnt = size;
+; 443  : 	static const char digits_l[] = "0123456789abcdef0x";
+; 444  : 	static const char digits_u[] = "0123456789ABCDEF0X";
+; 445  : 	static const char *_nullstring = "(null)";
+; 446  : 	char buffer[BUFFER_SIZE + 1];
+; 447  : 	uint32_t cnt = size;
 
   00006	8b 45 0c	 mov	 eax, DWORD PTR _size$[ebp]
 
-; 442  : 	char chr, *string;
-; 443  : 	STRING *nt_string;
-; 444  : 	const char *digits, *prefix;
-; 445  : 	int base, fieldwidth, precision, padding;
-; 446  : 	size_t prefixlen, len;
-; 447  : 	int written = 1, written_all = 0;
+; 448  : 	char chr, *string;
+; 449  : 	STRING *nt_string;
+; 450  : 	const char *digits, *prefix;
+; 451  : 	int base, fieldwidth, precision, padding;
+; 452  : 	size_t prefixlen, len;
+; 453  : 	int written = 1, written_all = 0;
 
   00009	ba 01 00 00 00	 mov	 edx, 1
   0000e	53		 push	 ebx
   0000f	56		 push	 esi
 
-; 448  : 	unsigned int flags;
-; 449  : 	unsigned __int64 val64;
-; 450  : 
-; 451  : 	buffer[BUFFER_SIZE] = '\0';
+; 454  : 	unsigned int flags;
+; 455  : 	unsigned __int64 val64;
+; 456  : 
+; 457  : 	buffer[BUFFER_SIZE] = '\0';
 
   00010	8b 75 10	 mov	 esi, DWORD PTR _format$[ebp]
   00013	57		 push	 edi
@@ -160,152 +161,152 @@ _streamout PROC						; COMDAT
   00019	89 55 e4	 mov	 DWORD PTR _written$4$[ebp], edx
   0001c	89 7d fc	 mov	 DWORD PTR _written_all$1$[ebp], edi
   0001f	c6 45 c9 00	 mov	 BYTE PTR _buffer$[ebp+49], 0
-$LN269@streamout:
+$LN271@streamout:
 
-; 455  : 	{
-; 456  : 		/* Get character and advance */
-; 457  : 		chr = *format++;
+; 461  : 	{
+; 462  : 		/* Get character and advance */
+; 463  : 		chr = *format++;
 
   00023	8a 06		 mov	 al, BYTE PTR [esi]
   00025	46		 inc	 esi
   00026	8b 5d 08	 mov	 ebx, DWORD PTR _out$[ebp]
 
-; 458  : 
-; 459  : 		/* Check for end of format string */
-; 460  : 		if (chr == '\0') 
+; 464  : 
+; 465  : 		/* Check for end of format string */
+; 466  : 		if (chr == '\0') 
 
   00029	84 c0		 test	 al, al
-  0002b	0f 84 a5 06 00
-	00		 je	 $LN117@streamout
+  0002b	0f 84 b5 06 00
+	00		 je	 $LN119@streamout
 
-; 461  : 			break;
-; 462  : 
-; 463  : 		/* Check for 'normal' character or double % */
-; 464  : 		if ((chr != ('%')) ||
-; 465  : 			(chr = *format++) == ('%'))
+; 467  : 			break;
+; 468  : 
+; 469  : 		/* Check for 'normal' character or double % */
+; 470  : 		if ((chr != ('%')) ||
+; 471  : 			(chr = *format++) == ('%'))
 
   00031	3c 25		 cmp	 al, 37			; 00000025H
-  00033	0f 85 ff 05 00
-	00		 jne	 $LN114@streamout
+  00033	0f 85 0f 06 00
+	00		 jne	 $LN116@streamout
   00039	8a 06		 mov	 al, BYTE PTR [esi]
   0003b	46		 inc	 esi
   0003c	88 45 f0	 mov	 BYTE PTR _chr$[ebp], al
   0003f	3c 25		 cmp	 al, 37			; 00000025H
-  00041	0f 84 f1 05 00
-	00		 je	 $LN114@streamout
+  00041	0f 84 01 06 00
+	00		 je	 $LN116@streamout
 
-; 515  : 			continue;
-; 516  : 		}
-; 517  : 
-; 518  : 		/* Handle flags-characters */
-; 519  : 		flags = 0;
+; 521  : 			continue;
+; 522  : 		}
+; 523  : 
+; 524  : 		/* Handle flags-characters */
+; 525  : 		flags = 0;
 
   00047	33 db		 xor	 ebx, ebx
   00049	8d a4 24 00 00
 	00 00		 npad	 7
-$LL102@streamout:
+$LL104@streamout:
 
-; 520  : 		while (1)
-; 521  : 		{
-; 522  : 			if (chr == ('-')) flags |= FLAG_ALIGN_LEFT;
+; 526  : 		while (1)
+; 527  : 		{
+; 528  : 			if (chr == ('-')) flags |= FLAG_ALIGN_LEFT;
 
   00050	3c 2d		 cmp	 al, 45			; 0000002dH
-  00052	75 0b		 jne	 SHORT $LN100@streamout
+  00052	75 0b		 jne	 SHORT $LN102@streamout
 
-; 527  : 			else break;
-; 528  : 			chr = *format++;
+; 533  : 			else break;
+; 534  : 			chr = *format++;
 
   00054	8a 06		 mov	 al, BYTE PTR [esi]
   00056	83 cb 01	 or	 ebx, 1
   00059	88 45 f0	 mov	 BYTE PTR _chr$[ebp], al
   0005c	46		 inc	 esi
 
-; 529  : 		}
+; 535  : 		}
 
-  0005d	eb f1		 jmp	 SHORT $LL102@streamout
-$LN100@streamout:
+  0005d	eb f1		 jmp	 SHORT $LL104@streamout
+$LN102@streamout:
 
-; 523  : 			else if (chr == ('+')) flags |= FLAG_FORCE_SIGN;
+; 529  : 			else if (chr == ('+')) flags |= FLAG_FORCE_SIGN;
 
   0005f	3c 2b		 cmp	 al, 43			; 0000002bH
-  00061	75 0b		 jne	 SHORT $LN98@streamout
+  00061	75 0b		 jne	 SHORT $LN100@streamout
 
-; 527  : 			else break;
-; 528  : 			chr = *format++;
+; 533  : 			else break;
+; 534  : 			chr = *format++;
 
   00063	8a 06		 mov	 al, BYTE PTR [esi]
   00065	83 cb 02	 or	 ebx, 2
   00068	88 45 f0	 mov	 BYTE PTR _chr$[ebp], al
   0006b	46		 inc	 esi
 
-; 529  : 		}
+; 535  : 		}
 
-  0006c	eb e2		 jmp	 SHORT $LL102@streamout
-$LN98@streamout:
+  0006c	eb e2		 jmp	 SHORT $LL104@streamout
+$LN100@streamout:
 
-; 524  : 			else if (chr == (' ')) flags |= FLAG_FORCE_SIGNSP;
+; 530  : 			else if (chr == (' ')) flags |= FLAG_FORCE_SIGNSP;
 
   0006e	3c 20		 cmp	 al, 32			; 00000020H
-  00070	75 0b		 jne	 SHORT $LN96@streamout
+  00070	75 0b		 jne	 SHORT $LN98@streamout
 
-; 527  : 			else break;
-; 528  : 			chr = *format++;
+; 533  : 			else break;
+; 534  : 			chr = *format++;
 
   00072	8a 06		 mov	 al, BYTE PTR [esi]
   00074	83 cb 04	 or	 ebx, 4
   00077	88 45 f0	 mov	 BYTE PTR _chr$[ebp], al
   0007a	46		 inc	 esi
 
-; 529  : 		}
+; 535  : 		}
 
-  0007b	eb d3		 jmp	 SHORT $LL102@streamout
-$LN96@streamout:
+  0007b	eb d3		 jmp	 SHORT $LL104@streamout
+$LN98@streamout:
 
-; 525  : 			else if (chr == ('0')) flags |= FLAG_PAD_ZERO;
+; 531  : 			else if (chr == ('0')) flags |= FLAG_PAD_ZERO;
 
   0007d	3c 30		 cmp	 al, 48			; 00000030H
-  0007f	75 0b		 jne	 SHORT $LN94@streamout
+  0007f	75 0b		 jne	 SHORT $LN96@streamout
 
-; 527  : 			else break;
-; 528  : 			chr = *format++;
+; 533  : 			else break;
+; 534  : 			chr = *format++;
 
   00081	8a 06		 mov	 al, BYTE PTR [esi]
   00083	83 cb 08	 or	 ebx, 8
   00086	88 45 f0	 mov	 BYTE PTR _chr$[ebp], al
   00089	46		 inc	 esi
 
-; 529  : 		}
+; 535  : 		}
 
-  0008a	eb c4		 jmp	 SHORT $LL102@streamout
-$LN94@streamout:
+  0008a	eb c4		 jmp	 SHORT $LL104@streamout
+$LN96@streamout:
 
-; 526  : 			else if (chr == ('#')) flags |= FLAG_SPECIAL;
+; 532  : 			else if (chr == ('#')) flags |= FLAG_SPECIAL;
 
   0008c	3c 23		 cmp	 al, 35			; 00000023H
-  0008e	75 0b		 jne	 SHORT $LN92@streamout
+  0008e	75 0b		 jne	 SHORT $LN94@streamout
 
-; 527  : 			else break;
-; 528  : 			chr = *format++;
+; 533  : 			else break;
+; 534  : 			chr = *format++;
 
   00090	8a 06		 mov	 al, BYTE PTR [esi]
   00092	83 cb 10	 or	 ebx, 16			; 00000010H
   00095	88 45 f0	 mov	 BYTE PTR _chr$[ebp], al
   00098	46		 inc	 esi
 
-; 529  : 		}
+; 535  : 		}
 
-  00099	eb b5		 jmp	 SHORT $LL102@streamout
-$LN92@streamout:
+  00099	eb b5		 jmp	 SHORT $LL104@streamout
+$LN94@streamout:
 
-; 530  : 
-; 531  : 		/* Handle field width modifier */
-; 532  : 		if (chr == ('*'))
+; 536  : 
+; 537  : 		/* Handle field width modifier */
+; 538  : 		if (chr == ('*'))
 
   0009b	3c 2a		 cmp	 al, 42			; 0000002aH
-  0009d	75 23		 jne	 SHORT $LN90@streamout
+  0009d	75 23		 jne	 SHORT $LN92@streamout
 
-; 533  : 		{
-; 534  : 			fieldwidth = va_arg(argptr, int);
+; 539  : 		{
+; 540  : 			fieldwidth = va_arg(argptr, int);
 
   0009f	8b 7d 14	 mov	 edi, DWORD PTR _argptr$[ebp]
   000a2	83 c7 04	 add	 edi, 4
@@ -313,96 +314,96 @@ $LN92@streamout:
   000a8	8b 4f fc	 mov	 ecx, DWORD PTR [edi-4]
   000ab	89 4d f4	 mov	 DWORD PTR _padding$2$[ebp], ecx
 
-; 535  : 			if (fieldwidth < 0)
+; 541  : 			if (fieldwidth < 0)
 
   000ae	85 c9		 test	 ecx, ecx
-  000b0	79 08		 jns	 SHORT $LN89@streamout
+  000b0	79 08		 jns	 SHORT $LN91@streamout
 
-; 536  : 			{
-; 537  : 				flags |= FLAG_ALIGN_LEFT;
+; 542  : 			{
+; 543  : 				flags |= FLAG_ALIGN_LEFT;
 
   000b2	83 cb 01	 or	 ebx, 1
 
-; 538  : 				fieldwidth = -fieldwidth;
+; 544  : 				fieldwidth = -fieldwidth;
 
   000b5	f7 d9		 neg	 ecx
   000b7	89 4d f4	 mov	 DWORD PTR _padding$2$[ebp], ecx
-$LN89@streamout:
+$LN91@streamout:
 
-; 539  : 			}
-; 540  : 			chr = *format++;
+; 545  : 			}
+; 546  : 			chr = *format++;
 
   000ba	8a 06		 mov	 al, BYTE PTR [esi]
   000bc	46		 inc	 esi
   000bd	88 45 f0	 mov	 BYTE PTR _chr$[ebp], al
 
-; 541  : 		}
-; 542  : 		else
+; 547  : 		}
+; 548  : 		else
 
-  000c0	eb 2e		 jmp	 SHORT $LN86@streamout
-$LN90@streamout:
+  000c0	eb 2e		 jmp	 SHORT $LN88@streamout
+$LN92@streamout:
 
-; 543  : 		{
-; 544  : 			fieldwidth = 0;
+; 549  : 		{
+; 550  : 			fieldwidth = 0;
 
   000c2	33 c9		 xor	 ecx, ecx
   000c4	89 4d f4	 mov	 DWORD PTR _padding$2$[ebp], ecx
 
-; 545  : 			while (chr >= ('0') && chr <= ('9'))
+; 551  : 			while (chr >= ('0') && chr <= ('9'))
 
   000c7	3c 30		 cmp	 al, 48			; 00000030H
-  000c9	7c 22		 jl	 SHORT $LN250@streamout
+  000c9	7c 22		 jl	 SHORT $LN252@streamout
   000cb	eb 03 8d 49 00	 npad	 5
-$LL87@streamout:
+$LL89@streamout:
   000d0	3c 39		 cmp	 al, 57			; 00000039H
-  000d2	7f 16		 jg	 SHORT $LN246@streamout
+  000d2	7f 16		 jg	 SHORT $LN248@streamout
 
-; 546  : 			{
-; 547  : 				fieldwidth = fieldwidth * 10 + (chr - ('0'));
+; 552  : 			{
+; 553  : 				fieldwidth = fieldwidth * 10 + (chr - ('0'));
 
   000d4	0f be c0	 movsx	 eax, al
   000d7	8d 0c 89	 lea	 ecx, DWORD PTR [ecx+ecx*4]
   000da	8d 49 e8	 lea	 ecx, DWORD PTR [ecx-24]
   000dd	8d 0c 48	 lea	 ecx, DWORD PTR [eax+ecx*2]
 
-; 548  : 				chr = *format++;
+; 554  : 				chr = *format++;
 
   000e0	8a 06		 mov	 al, BYTE PTR [esi]
   000e2	46		 inc	 esi
   000e3	88 45 f0	 mov	 BYTE PTR _chr$[ebp], al
   000e6	3c 30		 cmp	 al, 48			; 00000030H
-  000e8	7d e6		 jge	 SHORT $LL87@streamout
-$LN246@streamout:
+  000e8	7d e6		 jge	 SHORT $LL89@streamout
+$LN248@streamout:
   000ea	89 4d f4	 mov	 DWORD PTR _padding$2$[ebp], ecx
-$LN250@streamout:
+$LN252@streamout:
   000ed	8b 7d 14	 mov	 edi, DWORD PTR _argptr$[ebp]
-$LN86@streamout:
+$LN88@streamout:
 
-; 549  : 			}
-; 550  : 		}
-; 551  : 
-; 552  : 		/* Handle precision modifier */
-; 553  : 		if (chr == '.')
+; 555  : 			}
+; 556  : 		}
+; 557  : 
+; 558  : 		/* Handle precision modifier */
+; 559  : 		if (chr == '.')
 
   000f0	3c 2e		 cmp	 al, 46			; 0000002eH
-  000f2	75 43		 jne	 SHORT $LN85@streamout
+  000f2	75 43		 jne	 SHORT $LN87@streamout
 
-; 554  : 		{
-; 555  : 			chr = *format++;
+; 560  : 		{
+; 561  : 			chr = *format++;
 
   000f4	8a 06		 mov	 al, BYTE PTR [esi]
   000f6	46		 inc	 esi
   000f7	88 45 f0	 mov	 BYTE PTR _chr$[ebp], al
 
-; 556  : 
-; 557  : 			if (chr == ('*'))
+; 562  : 
+; 563  : 			if (chr == ('*'))
 
   000fa	3c 2a		 cmp	 al, 42			; 0000002aH
-  000fc	75 11		 jne	 SHORT $LN84@streamout
+  000fc	75 11		 jne	 SHORT $LN86@streamout
 
-; 558  : 			{
-; 559  : 				precision = va_arg(argptr, int);
-; 560  : 				chr = *format++;
+; 564  : 			{
+; 565  : 				precision = va_arg(argptr, int);
+; 566  : 				chr = *format++;
 
   000fe	8a 06		 mov	 al, BYTE PTR [esi]
   00100	83 c7 04	 add	 edi, 4
@@ -411,74 +412,74 @@ $LN86@streamout:
   00107	88 45 f0	 mov	 BYTE PTR _chr$[ebp], al
   0010a	8b 7f fc	 mov	 edi, DWORD PTR [edi-4]
 
-; 561  : 			}
-; 562  : 			else
+; 567  : 			}
+; 568  : 			else
 
-  0010d	eb 2b		 jmp	 SHORT $LN262@streamout
-$LN84@streamout:
+  0010d	eb 2b		 jmp	 SHORT $LN264@streamout
+$LN86@streamout:
 
-; 563  : 			{
-; 564  : 				precision = 0;
+; 569  : 			{
+; 570  : 				precision = 0;
 
   0010f	33 ff		 xor	 edi, edi
   00111	89 7d 0c	 mov	 DWORD PTR _precision$2$[ebp], edi
 
-; 565  : 				while (chr >= ('0') && chr <= ('9'))
+; 571  : 				while (chr >= ('0') && chr <= ('9'))
 
   00114	3c 30		 cmp	 al, 48			; 00000030H
-  00116	7c 28		 jl	 SHORT $LL79@streamout
-$LL82@streamout:
+  00116	7c 28		 jl	 SHORT $LL81@streamout
+$LL84@streamout:
   00118	3c 39		 cmp	 al, 57			; 00000039H
-  0011a	7f 24		 jg	 SHORT $LL79@streamout
+  0011a	7f 24		 jg	 SHORT $LL81@streamout
 
-; 566  : 				{
-; 567  : 					precision = precision * 10 + (chr - ('0'));
+; 572  : 				{
+; 573  : 					precision = precision * 10 + (chr - ('0'));
 
   0011c	0f be c0	 movsx	 eax, al
   0011f	8d 0c bf	 lea	 ecx, DWORD PTR [edi+edi*4]
   00122	8d 79 e8	 lea	 edi, DWORD PTR [ecx-24]
   00125	8d 3c 78	 lea	 edi, DWORD PTR [eax+edi*2]
 
-; 568  : 					chr = *format++;
+; 574  : 					chr = *format++;
 
   00128	8a 06		 mov	 al, BYTE PTR [esi]
   0012a	46		 inc	 esi
   0012b	89 7d 0c	 mov	 DWORD PTR _precision$2$[ebp], edi
   0012e	88 45 f0	 mov	 BYTE PTR _chr$[ebp], al
   00131	3c 30		 cmp	 al, 48			; 00000030H
-  00133	7d e3		 jge	 SHORT $LL82@streamout
+  00133	7d e3		 jge	 SHORT $LL84@streamout
 
-; 569  : 				}
-; 570  : 			}
+; 575  : 				}
+; 576  : 			}
 
-  00135	eb 09		 jmp	 SHORT $LL79@streamout
-$LN85@streamout:
+  00135	eb 09		 jmp	 SHORT $LL81@streamout
+$LN87@streamout:
 
-; 571  : 		}
-; 572  : 		else precision = -1;
+; 577  : 		}
+; 578  : 		else precision = -1;
 
   00137	83 cf ff	 or	 edi, -1
-$LN262@streamout:
+$LN264@streamout:
   0013a	89 7d 0c	 mov	 DWORD PTR _precision$2$[ebp], edi
   0013d	8d 49 00	 npad	 3
-$LL79@streamout:
+$LL81@streamout:
 
-; 573  : 
-; 574  : 		/* Handle argument size prefix */
-; 575  : 		do
-; 576  : 		{
-; 577  : 			if (chr == ('h')) flags |= FLAG_SHORT;
+; 579  : 
+; 580  : 		/* Handle argument size prefix */
+; 581  : 		do
+; 582  : 		{
+; 583  : 			if (chr == ('h')) flags |= FLAG_SHORT;
 
   00140	3c 68		 cmp	 al, 104			; 00000068H
-  00142	75 0e		 jne	 SHORT $LN76@streamout
+  00142	75 0e		 jne	 SHORT $LN78@streamout
 
-; 601  : 				{
-; 602  : 					flags |= FLAG_INTPTR;
-; 603  : 				}
-; 604  : 				else break;
-; 605  : 			}
-; 606  : 			else break;
-; 607  : 			chr = *format++;
+; 607  : 				{
+; 608  : 					flags |= FLAG_INTPTR;
+; 609  : 				}
+; 610  : 				else break;
+; 611  : 			}
+; 612  : 			else break;
+; 613  : 			chr = *format++;
 
   00144	8a 06		 mov	 al, BYTE PTR [esi]
   00146	81 cb 00 01 00
@@ -486,25 +487,25 @@ $LL79@streamout:
   0014c	88 45 f0	 mov	 BYTE PTR _chr$[ebp], al
   0014f	46		 inc	 esi
 
-; 608  : 		}
-; 609  : 		while (USE_MULTISIZE);
+; 614  : 		}
+; 615  : 		while (USE_MULTISIZE);
 
-  00150	eb ee		 jmp	 SHORT $LL79@streamout
-$LN76@streamout:
+  00150	eb ee		 jmp	 SHORT $LL81@streamout
+$LN78@streamout:
 
-; 578  : 			else if (chr == ('w')) flags |= FLAG_WIDECHAR;
+; 584  : 			else if (chr == ('w')) flags |= FLAG_WIDECHAR;
 
   00152	3c 77		 cmp	 al, 119			; 00000077H
-  00154	75 0e		 jne	 SHORT $LN74@streamout
-$LN67@streamout:
+  00154	75 0e		 jne	 SHORT $LN76@streamout
+$LN69@streamout:
 
-; 601  : 				{
-; 602  : 					flags |= FLAG_INTPTR;
-; 603  : 				}
-; 604  : 				else break;
-; 605  : 			}
-; 606  : 			else break;
-; 607  : 			chr = *format++;
+; 607  : 				{
+; 608  : 					flags |= FLAG_INTPTR;
+; 609  : 				}
+; 610  : 				else break;
+; 611  : 			}
+; 612  : 			else break;
+; 613  : 			chr = *format++;
 
   00156	8a 06		 mov	 al, BYTE PTR [esi]
   00158	81 cb 00 02 00
@@ -512,41 +513,41 @@ $LN67@streamout:
   0015e	88 45 f0	 mov	 BYTE PTR _chr$[ebp], al
   00161	46		 inc	 esi
 
-; 608  : 		}
-; 609  : 		while (USE_MULTISIZE);
+; 614  : 		}
+; 615  : 		while (USE_MULTISIZE);
 
-  00162	eb dc		 jmp	 SHORT $LL79@streamout
-$LN74@streamout:
+  00162	eb dc		 jmp	 SHORT $LL81@streamout
+$LN76@streamout:
 
-; 579  : 			else if (chr == ('L')) flags |= 0; // FIXME: long double
+; 585  : 			else if (chr == ('L')) flags |= 0; // FIXME: long double
 
   00164	3c 4c		 cmp	 al, 76			; 0000004cH
-  00166	74 73		 je	 SHORT $LN58@streamout
+  00166	74 73		 je	 SHORT $LN60@streamout
 
-; 580  : 			else if (chr == ('F')) flags |= 0; // FIXME: what is that?
+; 586  : 			else if (chr == ('F')) flags |= 0; // FIXME: what is that?
 
   00168	3c 46		 cmp	 al, 70			; 00000046H
-  0016a	74 6f		 je	 SHORT $LN58@streamout
+  0016a	74 6f		 je	 SHORT $LN60@streamout
 
-; 581  : 			else if (chr == ('l'))
+; 587  : 			else if (chr == ('l'))
 
   0016c	3c 6c		 cmp	 al, 108			; 0000006cH
-  0016e	75 13		 jne	 SHORT $LN68@streamout
+  0016e	75 13		 jne	 SHORT $LN70@streamout
 
-; 582  : 			{
-; 583  : 				/* Check if this is the 2nd 'l' in a row */
-; 584  : 				if (format[-2] == 'l') flags |= FLAG_INT64;
+; 588  : 			{
+; 589  : 				/* Check if this is the 2nd 'l' in a row */
+; 590  : 				if (format[-2] == 'l') flags |= FLAG_INT64;
 
   00170	38 46 fe	 cmp	 BYTE PTR [esi-2], al
-  00173	75 e1		 jne	 SHORT $LN67@streamout
+  00173	75 e1		 jne	 SHORT $LN69@streamout
 
-; 601  : 				{
-; 602  : 					flags |= FLAG_INTPTR;
-; 603  : 				}
-; 604  : 				else break;
-; 605  : 			}
-; 606  : 			else break;
-; 607  : 			chr = *format++;
+; 607  : 				{
+; 608  : 					flags |= FLAG_INTPTR;
+; 609  : 				}
+; 610  : 				else break;
+; 611  : 			}
+; 612  : 			else break;
+; 613  : 			chr = *format++;
 
   00175	8a 06		 mov	 al, BYTE PTR [esi]
   00177	81 cb 00 04 00
@@ -554,64 +555,64 @@ $LN74@streamout:
   0017d	88 45 f0	 mov	 BYTE PTR _chr$[ebp], al
   00180	46		 inc	 esi
 
-; 608  : 		}
-; 609  : 		while (USE_MULTISIZE);
+; 614  : 		}
+; 615  : 		while (USE_MULTISIZE);
 
-  00181	eb bd		 jmp	 SHORT $LL79@streamout
-$LN68@streamout:
+  00181	eb bd		 jmp	 SHORT $LL81@streamout
+$LN70@streamout:
 
-; 585  : 				else flags |= FLAG_LONG;
-; 586  : 			}
-; 587  : 			else if (chr == ('I'))
+; 591  : 				else flags |= FLAG_LONG;
+; 592  : 			}
+; 593  : 			else if (chr == ('I'))
 
   00183	3c 49		 cmp	 al, 73			; 00000049H
-  00185	75 5f		 jne	 SHORT $LN77@streamout
+  00185	75 5f		 jne	 SHORT $LN79@streamout
 
-; 588  : 			{
-; 589  : 				if (format[0] == ('3') && format[1] == ('2'))
+; 594  : 			{
+; 595  : 				if (format[0] == ('3') && format[1] == ('2'))
 
   00187	8a 0e		 mov	 cl, BYTE PTR [esi]
   00189	80 f9 33	 cmp	 cl, 51			; 00000033H
-  0018c	75 12		 jne	 SHORT $LN63@streamout
+  0018c	75 12		 jne	 SHORT $LN65@streamout
   0018e	80 7e 01 32	 cmp	 BYTE PTR [esi+1], 50	; 00000032H
-  00192	75 0c		 jne	 SHORT $LN63@streamout
+  00192	75 0c		 jne	 SHORT $LN65@streamout
 
-; 601  : 				{
-; 602  : 					flags |= FLAG_INTPTR;
-; 603  : 				}
-; 604  : 				else break;
-; 605  : 			}
-; 606  : 			else break;
-; 607  : 			chr = *format++;
+; 607  : 				{
+; 608  : 					flags |= FLAG_INTPTR;
+; 609  : 				}
+; 610  : 				else break;
+; 611  : 			}
+; 612  : 			else break;
+; 613  : 			chr = *format++;
 
   00194	8a 46 02	 mov	 al, BYTE PTR [esi+2]
   00197	83 c6 02	 add	 esi, 2
   0019a	88 45 f0	 mov	 BYTE PTR _chr$[ebp], al
   0019d	46		 inc	 esi
 
-; 608  : 		}
-; 609  : 		while (USE_MULTISIZE);
+; 614  : 		}
+; 615  : 		while (USE_MULTISIZE);
 
-  0019e	eb a0		 jmp	 SHORT $LL79@streamout
-$LN63@streamout:
+  0019e	eb a0		 jmp	 SHORT $LL81@streamout
+$LN65@streamout:
 
-; 590  : 				{
-; 591  : 					format += 2;
-; 592  : 				}
-; 593  : 				else if (format[0] == ('6') && format[1] == ('4'))
+; 596  : 				{
+; 597  : 					format += 2;
+; 598  : 				}
+; 599  : 				else if (format[0] == ('6') && format[1] == ('4'))
 
   001a0	80 f9 36	 cmp	 cl, 54			; 00000036H
-  001a3	75 18		 jne	 SHORT $LN61@streamout
+  001a3	75 18		 jne	 SHORT $LN63@streamout
   001a5	80 7e 01 34	 cmp	 BYTE PTR [esi+1], 52	; 00000034H
-  001a9	75 12		 jne	 SHORT $LN61@streamout
+  001a9	75 12		 jne	 SHORT $LN63@streamout
 
-; 601  : 				{
-; 602  : 					flags |= FLAG_INTPTR;
-; 603  : 				}
-; 604  : 				else break;
-; 605  : 			}
-; 606  : 			else break;
-; 607  : 			chr = *format++;
+; 607  : 				{
+; 608  : 					flags |= FLAG_INTPTR;
+; 609  : 				}
+; 610  : 				else break;
+; 611  : 			}
+; 612  : 			else break;
+; 613  : 			chr = *format++;
 
   001ab	8a 46 02	 mov	 al, BYTE PTR [esi+2]
   001ae	83 c6 02	 add	 esi, 2
@@ -620,62 +621,62 @@ $LN63@streamout:
   001b7	88 45 f0	 mov	 BYTE PTR _chr$[ebp], al
   001ba	46		 inc	 esi
 
-; 608  : 		}
-; 609  : 		while (USE_MULTISIZE);
+; 614  : 		}
+; 615  : 		while (USE_MULTISIZE);
 
-  001bb	eb 83		 jmp	 SHORT $LL79@streamout
-$LN61@streamout:
+  001bb	eb 83		 jmp	 SHORT $LL81@streamout
+$LN63@streamout:
 
-; 594  : 				{
-; 595  : 					format += 2;
-; 596  : 					flags |= FLAG_INT64;
-; 597  : 				}
-; 598  : 				else if (format[0] == ('x') || format[0] == ('X') ||
-; 599  : 					format[0] == ('d') || format[0] == ('i') ||
-; 600  : 					format[0] == ('u') || format[0] == ('o'))
+; 600  : 				{
+; 601  : 					format += 2;
+; 602  : 					flags |= FLAG_INT64;
+; 603  : 				}
+; 604  : 				else if (format[0] == ('x') || format[0] == ('X') ||
+; 605  : 					format[0] == ('d') || format[0] == ('i') ||
+; 606  : 					format[0] == ('u') || format[0] == ('o'))
 
   001bd	80 f9 78	 cmp	 cl, 120			; 00000078H
-  001c0	74 19		 je	 SHORT $LN58@streamout
+  001c0	74 19		 je	 SHORT $LN60@streamout
   001c2	80 f9 58	 cmp	 cl, 88			; 00000058H
-  001c5	74 14		 je	 SHORT $LN58@streamout
+  001c5	74 14		 je	 SHORT $LN60@streamout
   001c7	80 f9 64	 cmp	 cl, 100			; 00000064H
-  001ca	74 0f		 je	 SHORT $LN58@streamout
+  001ca	74 0f		 je	 SHORT $LN60@streamout
   001cc	80 f9 69	 cmp	 cl, 105			; 00000069H
-  001cf	74 0a		 je	 SHORT $LN58@streamout
+  001cf	74 0a		 je	 SHORT $LN60@streamout
   001d1	80 f9 75	 cmp	 cl, 117			; 00000075H
-  001d4	74 05		 je	 SHORT $LN58@streamout
+  001d4	74 05		 je	 SHORT $LN60@streamout
   001d6	80 f9 6f	 cmp	 cl, 111			; 0000006fH
-  001d9	75 0b		 jne	 SHORT $LN77@streamout
-$LN58@streamout:
+  001d9	75 0b		 jne	 SHORT $LN79@streamout
+$LN60@streamout:
 
-; 601  : 				{
-; 602  : 					flags |= FLAG_INTPTR;
-; 603  : 				}
-; 604  : 				else break;
-; 605  : 			}
-; 606  : 			else break;
-; 607  : 			chr = *format++;
+; 607  : 				{
+; 608  : 					flags |= FLAG_INTPTR;
+; 609  : 				}
+; 610  : 				else break;
+; 611  : 			}
+; 612  : 			else break;
+; 613  : 			chr = *format++;
 
   001db	8a 06		 mov	 al, BYTE PTR [esi]
   001dd	46		 inc	 esi
   001de	88 45 f0	 mov	 BYTE PTR _chr$[ebp], al
 
-; 608  : 		}
-; 609  : 		while (USE_MULTISIZE);
+; 614  : 		}
+; 615  : 		while (USE_MULTISIZE);
 
-  001e1	e9 5a ff ff ff	 jmp	 $LL79@streamout
-$LN77@streamout:
+  001e1	e9 5a ff ff ff	 jmp	 $LL81@streamout
+$LN79@streamout:
 
-; 610  : 
-; 611  : 		/* Handle the format specifier */
-; 612  : 		digits = digits_l;
-; 613  : 		string = &buffer[BUFFER_SIZE];
+; 616  : 
+; 617  : 		/* Handle the format specifier */
+; 618  : 		digits = digits_l;
+; 619  : 		string = &buffer[BUFFER_SIZE];
 
   001e6	8d 4d c9	 lea	 ecx, DWORD PTR _buffer$[ebp+49]
 
-; 614  : 		base = 10;
-; 615  : 		prefix = 0;
-; 616  : 		switch (chr)
+; 620  : 		base = 10;
+; 621  : 		prefix = 0;
+; 622  : 		switch (chr)
 
   001e9	0f be c0	 movsx	 eax, al
   001ec	89 4d f8	 mov	 DWORD PTR _string$1$[ebp], ecx
@@ -690,18 +691,18 @@ $LN77@streamout:
   00208	89 4d ec	 mov	 DWORD PTR _prefix$1$[ebp], ecx
   0020b	89 4d d0	 mov	 DWORD PTR _prefix$[ebp], ecx
   0020e	83 f8 37	 cmp	 eax, 55			; 00000037H
-  00211	0f 87 18 04 00
+  00211	0f 87 28 04 00
 	00		 ja	 $LN22@streamout
   00217	0f b6 80 00 00
-	00 00		 movzx	 eax, BYTE PTR $LN220@streamout[eax]
+	00 00		 movzx	 eax, BYTE PTR $LN222@streamout[eax]
   0021e	ff 24 85 00 00
-	00 00		 jmp	 DWORD PTR $LN272@streamout[eax*4]
-$LN53@streamout:
+	00 00		 jmp	 DWORD PTR $LN274@streamout[eax*4]
+$LN55@streamout:
 
-; 617  : 		{
-; 618  : 		case ('n'):
-; 619  : 			if (flags & FLAG_INT64)
-; 620  : 				*va_arg(argptr, __int64*) = written_all;
+; 623  : 		{
+; 624  : 		case ('n'):
+; 625  : 			if (flags & FLAG_INT64)
+; 626  : 				*va_arg(argptr, __int64*) = written_all;
 
   00225	8b 4d 14	 mov	 ecx, DWORD PTR _argptr$[ebp]
   00228	8b 7d fc	 mov	 edi, DWORD PTR _written_all$1$[ebp]
@@ -709,57 +710,57 @@ $LN53@streamout:
   0022e	89 4d 14	 mov	 DWORD PTR _argptr$[ebp], ecx
   00231	f7 c3 00 04 00
 	00		 test	 ebx, 1024		; 00000400H
-  00237	74 13		 je	 SHORT $LN52@streamout
+  00237	74 13		 je	 SHORT $LN54@streamout
   00239	8b 49 fc	 mov	 ecx, DWORD PTR [ecx-4]
   0023c	8b c7		 mov	 eax, edi
   0023e	99		 cdq
   0023f	89 01		 mov	 DWORD PTR [ecx], eax
   00241	89 51 04	 mov	 DWORD PTR [ecx+4], edx
   00244	8b 55 e4	 mov	 edx, DWORD PTR _written$4$[ebp]
-  00247	e9 82 04 00 00	 jmp	 $LN161@streamout
-$LN52@streamout:
+  00247	e9 92 04 00 00	 jmp	 $LN163@streamout
+$LN54@streamout:
 
-; 621  : 			else if (flags & FLAG_SHORT)
-; 622  : 				*va_arg(argptr, short*) = (short)written_all;
+; 627  : 			else if (flags & FLAG_SHORT)
+; 628  : 				*va_arg(argptr, short*) = (short)written_all;
 
   0024c	8b 41 fc	 mov	 eax, DWORD PTR [ecx-4]
   0024f	f7 c3 00 01 00
 	00		 test	 ebx, 256		; 00000100H
-  00255	74 08		 je	 SHORT $LN50@streamout
+  00255	74 08		 je	 SHORT $LN52@streamout
   00257	66 89 38	 mov	 WORD PTR [eax], di
 
-; 623  : 			else
+; 629  : 			else
 
-  0025a	e9 6f 04 00 00	 jmp	 $LN161@streamout
-$LN50@streamout:
+  0025a	e9 7f 04 00 00	 jmp	 $LN163@streamout
+$LN52@streamout:
 
-; 624  : 				*va_arg(argptr, int*) = written_all;
+; 630  : 				*va_arg(argptr, int*) = written_all;
 
   0025f	89 38		 mov	 DWORD PTR [eax], edi
 
-; 625  : 			continue;
+; 631  : 			continue;
 
-  00261	e9 68 04 00 00	 jmp	 $LN161@streamout
-$LN48@streamout:
+  00261	e9 78 04 00 00	 jmp	 $LN163@streamout
+$LN50@streamout:
 
-; 626  : 
-; 627  : 		case ('C'):
-; 628  : 		case ('c'):
-; 629  : 			string = buffer;
-; 630  : 			len = 1;
-; 631  : 
-; 632  : 			/* Get character */
-; 633  : 			uint32_t uChar = (uint32_t)va_arg(argptr, int);
+; 632  : 
+; 633  : 		case ('C'):
+; 634  : 		case ('c'):
+; 635  : 			string = buffer;
+; 636  : 			len = 1;
+; 637  : 
+; 638  : 			/* Get character */
+; 639  : 			uint32_t uChar = (uint32_t)va_arg(argptr, int);
 
   00266	8b 4d 14	 mov	 ecx, DWORD PTR _argptr$[ebp]
   00269	8d 45 98	 lea	 eax, DWORD PTR _buffer$[ebp]
   0026c	89 45 f8	 mov	 DWORD PTR _string$1$[ebp], eax
   0026f	83 c1 04	 add	 ecx, 4
 
-; 634  : 			uint32_t uLen = 0;
-; 635  : 
-; 636  : 			/* Stream it out */
-; 637  : 			StreamCharacterToUtf8(uChar, string, &uLen);
+; 640  : 			uint32_t uLen = 0;
+; 641  : 
+; 642  : 			/* Stream it out */
+; 643  : 			StreamCharacterToUtf8(uChar, string, &uLen);
 
   00272	8d 45 d4	 lea	 eax, DWORD PTR _uLen$1[ebp]
   00275	89 4d 14	 mov	 DWORD PTR _argptr$[ebp], ecx
@@ -771,33 +772,33 @@ $LN48@streamout:
   00284	ff 71 fc	 push	 DWORD PTR [ecx-4]
   00287	e8 00 00 00 00	 call	 _StreamCharacterToUtf8
 
-; 638  : 
-; 639  : 			/* Null terminate */
-; 640  : 			((char*)string)[uLen] = (char)('\0');
+; 644  : 
+; 645  : 			/* Null terminate */
+; 646  : 			((char*)string)[uLen] = (char)('\0');
 
   0028c	8b 7d d4	 mov	 edi, DWORD PTR _uLen$1[ebp]
   0028f	83 c4 0c	 add	 esp, 12			; 0000000cH
   00292	c6 44 3d 98 00	 mov	 BYTE PTR _buffer$[ebp+edi], 0
-$LN248@streamout:
+$LN250@streamout:
   00297	8b 4d 0c	 mov	 ecx, DWORD PTR _precision$2$[ebp]
-$LN129@streamout:
+$LN131@streamout:
 
-; 762  : 		}
-; 763  : 
-; 764  : 		/* Calculate padding */
-; 765  : 		prefixlen = prefix ? strlen(prefix) : 0;
+; 768  : 		}
+; 769  : 
+; 770  : 		/* Calculate padding */
+; 771  : 		prefixlen = prefix ? strlen(prefix) : 0;
 
   0029a	33 d2		 xor	 edx, edx
-$LN266@streamout:
+$LN268@streamout:
 
-; 766  : 		if (precision < 0) precision = 0;
+; 772  : 		if (precision < 0) precision = 0;
 
   0029c	33 c0		 xor	 eax, eax
   0029e	89 55 d0	 mov	 DWORD PTR _prefixlen$1$[ebp], edx
   002a1	85 c9		 test	 ecx, ecx
   002a3	0f 48 c8	 cmovs	 ecx, eax
 
-; 767  : 		padding = (int)(fieldwidth - len - prefixlen - precision);
+; 773  : 		padding = (int)(fieldwidth - len - prefixlen - precision);
 
   002a6	8b 45 f4	 mov	 eax, DWORD PTR _padding$2$[ebp]
   002a9	2b c2		 sub	 eax, edx
@@ -805,28 +806,28 @@ $LN266@streamout:
   002ae	2b c7		 sub	 eax, edi
   002b0	2b c1		 sub	 eax, ecx
 
-; 768  : 		if (padding < 0) padding = 0;
+; 774  : 		if (padding < 0) padding = 0;
 
   002b2	b9 00 00 00 00	 mov	 ecx, 0
   002b7	0f 48 c1	 cmovs	 eax, ecx
   002ba	89 45 f4	 mov	 DWORD PTR _padding$2$[ebp], eax
 
-; 769  : 
-; 770  : 		/* Optional left space padding */
-; 771  : 		if ((flags & (FLAG_ALIGN_LEFT | FLAG_PAD_ZERO)) == 0)
+; 775  : 
+; 776  : 		/* Optional left space padding */
+; 777  : 		if ((flags & (FLAG_ALIGN_LEFT | FLAG_PAD_ZERO)) == 0)
 
   002bd	f6 c3 09	 test	 bl, 9
   002c0	75 2e		 jne	 SHORT $LN16@streamout
 
-; 772  : 		{
-; 773  : 			for (; padding > 0; padding--)
+; 778  : 		{
+; 779  : 			for (; padding > 0; padding--)
 
   002c2	85 c0		 test	 eax, eax
   002c4	7e 2a		 jle	 SHORT $LN16@streamout
 $LL18@streamout:
 
-; 774  : 			{
-; 775  : 				if ((written = StreamOutCharacter(out, &cnt, (' '))) == 0) return -1;
+; 780  : 			{
+; 781  : 				if ((written = StreamOutCharacter(out, &cnt, (' '))) == 0) return -1;
 
   002c6	6a 20		 push	 32			; 00000020H
   002c8	8d 45 e8	 lea	 eax, DWORD PTR _cnt$[ebp]
@@ -835,10 +836,10 @@ $LL18@streamout:
   002cf	e8 00 00 00 00	 call	 _StreamOutCharacter
   002d4	83 c4 0c	 add	 esp, 12			; 0000000cH
   002d7	85 c0		 test	 eax, eax
-  002d9	0f 84 08 04 00
-	00		 je	 $LN150@streamout
+  002d9	0f 84 18 04 00
+	00		 je	 $LN152@streamout
 
-; 776  : 				written_all += written;
+; 782  : 				written_all += written;
 
   002df	01 45 fc	 add	 DWORD PTR _written_all$1$[ebp], eax
   002e2	8b 45 f4	 mov	 eax, DWORD PTR _padding$2$[ebp]
@@ -849,18 +850,18 @@ $LL18@streamout:
   002ed	8b 55 d0	 mov	 edx, DWORD PTR _prefixlen$1$[ebp]
 $LN16@streamout:
 
-; 777  : 			}
-; 778  : 		}
-; 779  : 
-; 780  : 		/* Optional prefix */
-; 781  : 		if (prefix)
+; 783  : 			}
+; 784  : 		}
+; 785  : 
+; 786  : 		/* Optional prefix */
+; 787  : 		if (prefix)
 
   002f0	8b 4d ec	 mov	 ecx, DWORD PTR _prefix$1$[ebp]
   002f3	85 c9		 test	 ecx, ecx
   002f5	74 1d		 je	 SHORT $LN14@streamout
 
-; 782  : 		{
-; 783  : 			written = streamout_string(out, &cnt, prefix, prefixlen);
+; 788  : 		{
+; 789  : 			written = streamout_string(out, &cnt, prefix, prefixlen);
 
   002f7	52		 push	 edx
   002f8	51		 push	 ecx
@@ -870,40 +871,40 @@ $LN16@streamout:
   00300	e8 00 00 00 00	 call	 _StreamOutString
   00305	83 c4 10	 add	 esp, 16			; 00000010H
 
-; 784  : 			if (written == -1) return -1;
+; 790  : 			if (written == -1) return -1;
 
   00308	83 f8 ff	 cmp	 eax, -1
-  0030b	0f 84 d6 03 00
-	00		 je	 $LN150@streamout
+  0030b	0f 84 e6 03 00
+	00		 je	 $LN152@streamout
 
-; 785  : 			written_all += written;
+; 791  : 			written_all += written;
 
   00311	01 45 fc	 add	 DWORD PTR _written_all$1$[ebp], eax
 $LN14@streamout:
 
-; 786  : 		}
-; 787  : 
-; 788  : 		/* Optional left '0' padding */
-; 789  : 		if ((flags & FLAG_ALIGN_LEFT) == 0) precision += padding;
+; 792  : 		}
+; 793  : 
+; 794  : 		/* Optional left '0' padding */
+; 795  : 		if ((flags & FLAG_ALIGN_LEFT) == 0) precision += padding;
 
   00314	8b c3		 mov	 eax, ebx
   00316	83 e0 01	 and	 eax, 1
-  00319	89 45 cc	 mov	 DWORD PTR tv726[ebp], eax
+  00319	89 45 cc	 mov	 DWORD PTR tv725[ebp], eax
   0031c	8b 45 0c	 mov	 eax, DWORD PTR _precision$2$[ebp]
-  0031f	75 03		 jne	 SHORT $LN141@streamout
+  0031f	75 03		 jne	 SHORT $LN143@streamout
   00321	03 45 f4	 add	 eax, DWORD PTR _padding$2$[ebp]
-$LN141@streamout:
+$LN143@streamout:
 
-; 790  : 		while (precision-- > 0)
+; 796  : 		while (precision-- > 0)
 
   00324	85 c0		 test	 eax, eax
-  00326	7e 27		 jle	 SHORT $LN156@streamout
+  00326	7e 27		 jle	 SHORT $LN158@streamout
 $LL11@streamout:
   00328	48		 dec	 eax
   00329	89 45 0c	 mov	 DWORD PTR _precision$2$[ebp], eax
 
-; 791  : 		{
-; 792  : 			if ((written = StreamOutCharacter(out, &cnt, ('0'))) == 0) return -1;
+; 797  : 		{
+; 798  : 			if ((written = StreamOutCharacter(out, &cnt, ('0'))) == 0) return -1;
 
   0032c	8d 45 e8	 lea	 eax, DWORD PTR _cnt$[ebp]
   0032f	6a 30		 push	 48			; 00000030H
@@ -912,22 +913,22 @@ $LL11@streamout:
   00335	e8 00 00 00 00	 call	 _StreamOutCharacter
   0033a	83 c4 0c	 add	 esp, 12			; 0000000cH
   0033d	85 c0		 test	 eax, eax
-  0033f	0f 84 a2 03 00
-	00		 je	 $LN150@streamout
+  0033f	0f 84 b2 03 00
+	00		 je	 $LN152@streamout
 
-; 793  : 			written_all += written;
+; 799  : 			written_all += written;
 
   00345	01 45 fc	 add	 DWORD PTR _written_all$1$[ebp], eax
   00348	8b 45 0c	 mov	 eax, DWORD PTR _precision$2$[ebp]
   0034b	85 c0		 test	 eax, eax
   0034d	7f d9		 jg	 SHORT $LL11@streamout
-$LN156@streamout:
+$LN158@streamout:
 
-; 794  : 		}
-; 795  : 
-; 796  : 		/* Output the string */
-; 797  : 		if (flags & FLAG_WIDECHAR)
-; 798  : 			written = StreamOutWString(out, &cnt, (wchar_t*)string, len);
+; 800  : 		}
+; 801  : 
+; 802  : 		/* Output the string */
+; 803  : 		if (flags & FLAG_WIDECHAR)
+; 804  : 			written = StreamOutWString(out, &cnt, (wchar_t*)string, len);
 
   0034f	8d 45 e8	 lea	 eax, DWORD PTR _cnt$[ebp]
   00352	57		 push	 edi
@@ -936,63 +937,63 @@ $LN156@streamout:
   00357	ff 75 08	 push	 DWORD PTR _out$[ebp]
   0035a	f7 c3 00 02 00
 	00		 test	 ebx, 512		; 00000200H
-  00360	0f 84 69 02 00
+  00360	0f 84 79 02 00
 	00		 je	 $LN8@streamout
   00366	e8 00 00 00 00	 call	 _StreamOutWString
   0036b	8b d0		 mov	 edx, eax
   0036d	89 55 e4	 mov	 DWORD PTR _written$4$[ebp], edx
 
-; 799  : 		else
+; 805  : 		else
 
-  00370	e9 64 02 00 00	 jmp	 $LN267@streamout
-$LN47@streamout:
+  00370	e9 74 02 00 00	 jmp	 $LN269@streamout
+$LN49@streamout:
 
-; 641  : 			len = (size_t)uLen;
-; 642  : 			
-; 643  : 			/* Done */
-; 644  : 			break;
-; 645  : 
-; 646  : 		case ('Z'):
-; 647  : 			nt_string = va_arg(argptr, void*);
+; 647  : 			len = (size_t)uLen;
+; 648  : 			
+; 649  : 			/* Done */
+; 650  : 			break;
+; 651  : 
+; 652  : 		case ('Z'):
+; 653  : 			nt_string = va_arg(argptr, void*);
 
   00375	8b 4d 14	 mov	 ecx, DWORD PTR _argptr$[ebp]
   00378	83 c1 04	 add	 ecx, 4
   0037b	89 4d 14	 mov	 DWORD PTR _argptr$[ebp], ecx
   0037e	8b 49 fc	 mov	 ecx, DWORD PTR [ecx-4]
 
-; 648  : 			if (nt_string && (string = nt_string->Buffer))
+; 654  : 			if (nt_string && (string = nt_string->Buffer))
 
   00381	85 c9		 test	 ecx, ecx
-  00383	74 52		 je	 SHORT $LN206@streamout
+  00383	74 52		 je	 SHORT $LN208@streamout
   00385	8b 41 04	 mov	 eax, DWORD PTR [ecx+4]
   00388	89 45 f8	 mov	 DWORD PTR _string$1$[ebp], eax
   0038b	85 c0		 test	 eax, eax
-  0038d	74 48		 je	 SHORT $LN206@streamout
+  0038d	74 48		 je	 SHORT $LN208@streamout
 
-; 649  : 			{
-; 650  : 				len = nt_string->Length;
+; 655  : 			{
+; 656  : 				len = nt_string->Length;
 
   0038f	0f b7 39	 movzx	 edi, WORD PTR [ecx]
 
-; 651  : 				if (flags & FLAG_WIDECHAR) len /= sizeof(wchar_t);
+; 657  : 				if (flags & FLAG_WIDECHAR) len /= sizeof(wchar_t);
 
   00392	f7 c3 00 02 00
 	00		 test	 ebx, 512		; 00000200H
   00398	0f 84 f9 fe ff
-	ff		 je	 $LN248@streamout
+	ff		 je	 $LN250@streamout
   0039e	d1 ef		 shr	 edi, 1
 
-; 652  : 				break;
+; 658  : 				break;
 
-  003a0	e9 f2 fe ff ff	 jmp	 $LN248@streamout
-$LN44@streamout:
+  003a0	e9 f2 fe ff ff	 jmp	 $LN250@streamout
+$LN46@streamout:
 
-; 653  : 			}
-; 654  : 			string = 0;
-; 655  : 			goto case_string;
-; 656  : 
-; 657  : 		case ('S'):
-; 658  : 			string = va_arg(argptr, void*);
+; 659  : 			}
+; 660  : 			string = 0;
+; 661  : 			goto case_string;
+; 662  : 
+; 663  : 		case ('S'):
+; 664  : 			string = va_arg(argptr, void*);
 
   003a5	8b 4d 14	 mov	 ecx, DWORD PTR _argptr$[ebp]
   003a8	83 c1 04	 add	 ecx, 4
@@ -1000,777 +1001,795 @@ $LN44@streamout:
   003ae	8b 41 fc	 mov	 eax, DWORD PTR [ecx-4]
   003b1	89 45 f8	 mov	 DWORD PTR _string$1$[ebp], eax
 
-; 659  : 			if (!(flags & FLAG_SHORT)) flags |= FLAG_WIDECHAR;
+; 665  : 			if (!(flags & FLAG_SHORT)) flags |= FLAG_WIDECHAR;
 
   003b4	f7 c3 00 01 00
 	00		 test	 ebx, 256		; 00000100H
-  003ba	75 17		 jne	 SHORT $case_string$273
+  003ba	75 17		 jne	 SHORT $case_string$275
   003bc	81 cb 00 02 00
 	00		 or	 ebx, 512		; 00000200H
 
-; 660  : 			goto case_string;
+; 666  : 			goto case_string;
 
-  003c2	eb 0f		 jmp	 SHORT $case_string$273
-$LN42@streamout:
+  003c2	eb 0f		 jmp	 SHORT $case_string$275
+$LN44@streamout:
 
-; 661  : 
-; 662  : 		case ('s'):
-; 663  : 			string = va_arg(argptr, void*);
+; 667  : 
+; 668  : 		case ('s'):
+; 669  : 			string = va_arg(argptr, void*);
 
   003c4	8b 4d 14	 mov	 ecx, DWORD PTR _argptr$[ebp]
   003c7	83 c1 04	 add	 ecx, 4
   003ca	89 4d 14	 mov	 DWORD PTR _argptr$[ebp], ecx
   003cd	8b 41 fc	 mov	 eax, DWORD PTR [ecx-4]
   003d0	89 45 f8	 mov	 DWORD PTR _string$1$[ebp], eax
-$case_string$273:
+$case_string$275:
 
-; 664  : 
-; 665  : case_string:
-; 666  : 			if (!string)
+; 670  : 
+; 671  : case_string:
+; 672  : 			if (!string)
 
   003d3	85 c0		 test	 eax, eax
-  003d5	75 0e		 jne	 SHORT $LN41@streamout
-$LN206@streamout:
+  003d5	75 0e		 jne	 SHORT $LN43@streamout
+$LN208@streamout:
 
-; 667  : 			{
-; 668  : 				string = (char*)_nullstring;
+; 673  : 			{
+; 674  : 				string = (char*)_nullstring;
 
   003d7	a1 00 00 00 00	 mov	 eax, DWORD PTR ?_nullstring@?1??streamout@@9@9
 
-; 669  : 				flags &= ~FLAG_WIDECHAR;
+; 675  : 				flags &= ~FLAG_WIDECHAR;
 
   003dc	81 e3 ff fd ff
 	ff		 and	 ebx, -513		; fffffdffH
   003e2	89 45 f8	 mov	 DWORD PTR _string$1$[ebp], eax
-$LN41@streamout:
+$LN43@streamout:
 
-; 670  : 			}
-; 671  : 
-; 672  : // 			if (flags & FLAG_WIDECHAR)
-; 673  : // 				len = wcsnlen((wchar_t*)string, (unsigned)precision);
-; 674  : // 			else
-; 675  : 				len = strlen((char*)string);
+; 676  : 			}
+; 677  : 
+; 678  :  			if (flags & FLAG_WIDECHAR)
 
-  003e5	8b f8		 mov	 edi, eax
-  003e7	8d 4f 01	 lea	 ecx, DWORD PTR [edi+1]
-  003ea	8d 9b 00 00 00
-	00		 npad	 6
-$LL221@streamout:
-  003f0	8a 07		 mov	 al, BYTE PTR [edi]
-  003f2	47		 inc	 edi
-  003f3	84 c0		 test	 al, al
-  003f5	75 f9		 jne	 SHORT $LL221@streamout
-  003f7	2b f9		 sub	 edi, ecx
+  003e5	f7 c3 00 02 00
+	00		 test	 ebx, 512		; 00000200H
+  003eb	74 13		 je	 SHORT $LN42@streamout
 
-; 676  : 			precision = 0;
+; 679  :  				len = wcsnlen((wchar_t*)string, (unsigned)precision);
+
+  003ed	57		 push	 edi
+  003ee	50		 push	 eax
+  003ef	e8 00 00 00 00	 call	 _wcsnlen
+  003f4	83 c4 08	 add	 esp, 8
+  003f7	8b f8		 mov	 edi, eax
+
+; 682  : 			precision = 0;
 
   003f9	33 c9		 xor	 ecx, ecx
 
-; 677  : 			break;
+; 683  : 			break;
 
-  003fb	e9 9a fe ff ff	 jmp	 $LN129@streamout
+  003fb	e9 9a fe ff ff	 jmp	 $LN131@streamout
+$LN42@streamout:
+
+; 680  :  			else
+; 681  : 				len = strlen((char*)string);
+
+  00400	8b f8		 mov	 edi, eax
+  00402	8d 4f 01	 lea	 ecx, DWORD PTR [edi+1]
+$LL223@streamout:
+  00405	8a 07		 mov	 al, BYTE PTR [edi]
+  00407	47		 inc	 edi
+  00408	84 c0		 test	 al, al
+  0040a	75 f9		 jne	 SHORT $LL223@streamout
+  0040c	2b f9		 sub	 edi, ecx
+
+; 682  : 			precision = 0;
+
+  0040e	33 c9		 xor	 ecx, ecx
+
+; 683  : 			break;
+
+  00410	e9 85 fe ff ff	 jmp	 $LN131@streamout
 $LN40@streamout:
 
-; 678  : 
-; 679  : 		case ('G'):
-; 680  : 		case ('E'):
-; 681  : 		case ('A'):
-; 682  : 		case ('g'):
-; 683  : 		case ('e'):
-; 684  : 		case ('a'):
-; 685  : 		case ('f'):
-; 686  : #ifdef _UNICODE
-; 687  : 			flags |= FLAG_WIDECHAR;
-; 688  : #else
-; 689  : 			flags &= ~FLAG_WIDECHAR;
-; 690  : #endif
-; 691  : 			/* Use external function, one for kernel one for user mode */
-; 692  : 			format_float(chr, flags, precision, &string, &prefix, &argptr);
+; 684  : 
+; 685  : 		case ('G'):
+; 686  : 		case ('E'):
+; 687  : 		case ('A'):
+; 688  : 		case ('g'):
+; 689  : 		case ('e'):
+; 690  : 		case ('a'):
+; 691  : 		case ('f'):
+; 692  : #ifdef _UNICODE
+; 693  : 			flags |= FLAG_WIDECHAR;
+; 694  : #else
+; 695  : 			flags &= ~FLAG_WIDECHAR;
+; 696  : #endif
+; 697  : 			/* Use external function, one for kernel one for user mode */
+; 698  : 			format_float(chr, flags, precision, &string, &prefix, &argptr);
 
-  00400	8d 45 14	 lea	 eax, DWORD PTR _argptr$[ebp]
-  00403	81 e3 ff fd ff
+  00415	8d 45 14	 lea	 eax, DWORD PTR _argptr$[ebp]
+  00418	81 e3 ff fd ff
 	ff		 and	 ebx, -513		; fffffdffH
-  00409	50		 push	 eax
-  0040a	8d 45 d0	 lea	 eax, DWORD PTR _prefix$[ebp]
-  0040d	50		 push	 eax
-  0040e	8d 45 e0	 lea	 eax, DWORD PTR _string$[ebp]
-  00411	50		 push	 eax
-  00412	57		 push	 edi
-  00413	53		 push	 ebx
-  00414	ff 75 f0	 push	 DWORD PTR _chr$[ebp]
-  00417	e8 00 00 00 00	 call	 _format_float
+  0041e	50		 push	 eax
+  0041f	8d 45 d0	 lea	 eax, DWORD PTR _prefix$[ebp]
+  00422	50		 push	 eax
+  00423	8d 45 e0	 lea	 eax, DWORD PTR _string$[ebp]
+  00426	50		 push	 eax
+  00427	57		 push	 edi
+  00428	53		 push	 ebx
+  00429	ff 75 f0	 push	 DWORD PTR _chr$[ebp]
+  0042c	e8 00 00 00 00	 call	 _format_float
 
-; 693  : 			len = strlen(string);
+; 699  : 			len = strlen(string);
 
-  0041c	8b 45 e0	 mov	 eax, DWORD PTR _string$[ebp]
-  0041f	83 c4 18	 add	 esp, 24			; 00000018H
-  00422	8b f8		 mov	 edi, eax
-  00424	89 45 f8	 mov	 DWORD PTR _string$1$[ebp], eax
-  00427	8d 4f 01	 lea	 ecx, DWORD PTR [edi+1]
-  0042a	8d 9b 00 00 00
-	00		 npad	 6
-$LL222@streamout:
-  00430	8a 07		 mov	 al, BYTE PTR [edi]
-  00432	47		 inc	 edi
-  00433	84 c0		 test	 al, al
-  00435	75 f9		 jne	 SHORT $LL222@streamout
+  00431	8b 45 e0	 mov	 eax, DWORD PTR _string$[ebp]
+  00434	83 c4 18	 add	 esp, 24			; 00000018H
+  00437	8b f8		 mov	 edi, eax
+  00439	89 45 f8	 mov	 DWORD PTR _string$1$[ebp], eax
+  0043c	8d 4f 01	 lea	 ecx, DWORD PTR [edi+1]
+  0043f	90		 npad	 1
+$LL224@streamout:
+  00440	8a 07		 mov	 al, BYTE PTR [edi]
+  00442	47		 inc	 edi
+  00443	84 c0		 test	 al, al
+  00445	75 f9		 jne	 SHORT $LL224@streamout
 
-; 694  : 			precision = 0;
-; 695  : 			break;
+; 700  : 			precision = 0;
+; 701  : 			break;
 
-  00437	8b 45 d0	 mov	 eax, DWORD PTR _prefix$[ebp]
-  0043a	2b f9		 sub	 edi, ecx
-  0043c	33 c9		 xor	 ecx, ecx
-  0043e	89 45 ec	 mov	 DWORD PTR _prefix$1$[ebp], eax
-  00441	e9 69 01 00 00	 jmp	 $LN54@streamout
+  00447	8b 45 d0	 mov	 eax, DWORD PTR _prefix$[ebp]
+  0044a	2b f9		 sub	 edi, ecx
+  0044c	33 c9		 xor	 ecx, ecx
+  0044e	89 45 ec	 mov	 DWORD PTR _prefix$1$[ebp], eax
+  00451	e9 69 01 00 00	 jmp	 $LN56@streamout
 $LN39@streamout:
 
-; 696  : 
-; 697  : 		case ('d'):
-; 698  : 		case ('i'):
-; 699  : 			val64 = (__int64)va_arg_f(argptr, flags);
+; 702  : 
+; 703  : 		case ('d'):
+; 704  : 		case ('i'):
+; 705  : 			val64 = (__int64)va_arg_f(argptr, flags);
 
-  00446	8b 4d 14	 mov	 ecx, DWORD PTR _argptr$[ebp]
-  00449	f7 c3 00 04 00
+  00456	8b 4d 14	 mov	 ecx, DWORD PTR _argptr$[ebp]
+  00459	f7 c3 00 04 00
 	00		 test	 ebx, 1024		; 00000400H
-  0044f	74 0d		 je	 SHORT $LN123@streamout
-  00451	8b 01		 mov	 eax, DWORD PTR [ecx]
-  00453	83 c1 08	 add	 ecx, 8
-  00456	89 4d 14	 mov	 DWORD PTR _argptr$[ebp], ecx
-  00459	8b 51 fc	 mov	 edx, DWORD PTR [ecx-4]
-  0045c	eb 18		 jmp	 SHORT $LN263@streamout
-$LN123@streamout:
-  0045e	83 c1 04	 add	 ecx, 4
-  00461	89 4d 14	 mov	 DWORD PTR _argptr$[ebp], ecx
-  00464	f7 c3 00 01 00
+  0045f	74 0d		 je	 SHORT $LN125@streamout
+  00461	8b 01		 mov	 eax, DWORD PTR [ecx]
+  00463	83 c1 08	 add	 ecx, 8
+  00466	89 4d 14	 mov	 DWORD PTR _argptr$[ebp], ecx
+  00469	8b 51 fc	 mov	 edx, DWORD PTR [ecx-4]
+  0046c	eb 18		 jmp	 SHORT $LN265@streamout
+$LN125@streamout:
+  0046e	83 c1 04	 add	 ecx, 4
+  00471	89 4d 14	 mov	 DWORD PTR _argptr$[ebp], ecx
+  00474	f7 c3 00 01 00
 	00		 test	 ebx, 256		; 00000100H
-  0046a	74 06		 je	 SHORT $LN121@streamout
-  0046c	0f bf 41 fc	 movsx	 eax, WORD PTR [ecx-4]
-  00470	eb 03		 jmp	 SHORT $LN122@streamout
-$LN121@streamout:
-  00472	8b 41 fc	 mov	 eax, DWORD PTR [ecx-4]
-$LN122@streamout:
-  00475	99		 cdq
-$LN263@streamout:
-  00476	89 55 e0	 mov	 DWORD PTR _val64$2$[ebp], edx
-  00479	89 45 e4	 mov	 DWORD PTR _val64$1$[ebp], eax
+  0047a	74 06		 je	 SHORT $LN123@streamout
+  0047c	0f bf 41 fc	 movsx	 eax, WORD PTR [ecx-4]
+  00480	eb 03		 jmp	 SHORT $LN124@streamout
+$LN123@streamout:
+  00482	8b 41 fc	 mov	 eax, DWORD PTR [ecx-4]
+$LN124@streamout:
+  00485	99		 cdq
+$LN265@streamout:
+  00486	89 55 e0	 mov	 DWORD PTR _val64$2$[ebp], edx
+  00489	89 45 e4	 mov	 DWORD PTR _val64$1$[ebp], eax
 
-; 700  : 
-; 701  : 			if ((__int64)val64 < 0)
+; 706  : 
+; 707  : 			if ((__int64)val64 < 0)
 
-  0047c	85 d2		 test	 edx, edx
-  0047e	7f 19		 jg	 SHORT $LN38@streamout
-  00480	7c 04		 jl	 SHORT $LN223@streamout
-  00482	85 c0		 test	 eax, eax
-  00484	73 13		 jae	 SHORT $LN38@streamout
-$LN223@streamout:
+  0048c	85 d2		 test	 edx, edx
+  0048e	7f 19		 jg	 SHORT $LN38@streamout
+  00490	7c 04		 jl	 SHORT $LN225@streamout
+  00492	85 c0		 test	 eax, eax
+  00494	73 13		 jae	 SHORT $LN38@streamout
+$LN225@streamout:
 
-; 702  : 			{
-; 703  : 				val64 = -(__int64)val64;
+; 708  : 			{
+; 709  : 				val64 = -(__int64)val64;
 
-  00486	f7 d8		 neg	 eax
+  00496	f7 d8		 neg	 eax
 
-; 704  : 				prefix = ("-");
+; 710  : 				prefix = ("-");
 
-  00488	c7 45 ec 00 00
+  00498	c7 45 ec 00 00
 	00 00		 mov	 DWORD PTR _prefix$1$[ebp], OFFSET ??_C@_01JOAMLHOP@?9?$AA@
-  0048f	83 d2 00	 adc	 edx, 0
-  00492	f7 da		 neg	 edx
-  00494	e9 97 00 00 00	 jmp	 $LN270@streamout
+  0049f	83 d2 00	 adc	 edx, 0
+  004a2	f7 da		 neg	 edx
+  004a4	e9 97 00 00 00	 jmp	 $LN272@streamout
 $LN38@streamout:
 
-; 705  : 			}
-; 706  : 			else if (flags & FLAG_FORCE_SIGN)
+; 711  : 			}
+; 712  : 			else if (flags & FLAG_FORCE_SIGN)
 
-  00499	f6 c3 02	 test	 bl, 2
-  0049c	74 0d		 je	 SHORT $LN36@streamout
+  004a9	f6 c3 02	 test	 bl, 2
+  004ac	74 0d		 je	 SHORT $LN36@streamout
 
-; 707  : 				prefix = ("+");
+; 713  : 				prefix = ("+");
 
-  0049e	b9 00 00 00 00	 mov	 ecx, OFFSET ??_C@_01MIFGBAGJ@?$CL?$AA@
-  004a3	89 4d ec	 mov	 DWORD PTR _prefix$1$[ebp], ecx
-  004a6	e9 8b 00 00 00	 jmp	 $case_number$274
+  004ae	b9 00 00 00 00	 mov	 ecx, OFFSET ??_C@_01MIFGBAGJ@?$CL?$AA@
+  004b3	89 4d ec	 mov	 DWORD PTR _prefix$1$[ebp], ecx
+  004b6	e9 8b 00 00 00	 jmp	 $case_number$276
 $LN36@streamout:
 
-; 708  : 			else if (flags & FLAG_FORCE_SIGNSP)
+; 714  : 			else if (flags & FLAG_FORCE_SIGNSP)
 
-  004ab	f6 c3 04	 test	 bl, 4
-  004ae	0f 84 82 00 00
-	00		 je	 $case_number$274
+  004bb	f6 c3 04	 test	 bl, 4
+  004be	0f 84 82 00 00
+	00		 je	 $case_number$276
 
-; 709  : 				prefix = (" ");
+; 715  : 				prefix = (" ");
 
-  004b4	b9 00 00 00 00	 mov	 ecx, OFFSET ??_C@_01CLKCMJKC@?5?$AA@
-  004b9	89 4d ec	 mov	 DWORD PTR _prefix$1$[ebp], ecx
+  004c4	b9 00 00 00 00	 mov	 ecx, OFFSET ??_C@_01CLKCMJKC@?5?$AA@
+  004c9	89 4d ec	 mov	 DWORD PTR _prefix$1$[ebp], ecx
 
-; 710  : 
-; 711  : 			goto case_number;
+; 716  : 
+; 717  : 			goto case_number;
 
-  004bc	eb 78		 jmp	 SHORT $case_number$274
+  004cc	eb 78		 jmp	 SHORT $case_number$276
 $LN33@streamout:
 
-; 712  : 
-; 713  : 		case ('o'):
-; 714  : 			base = 8;
+; 718  : 
+; 719  : 		case ('o'):
+; 720  : 			base = 8;
 
-  004be	c7 45 dc 08 00
+  004ce	c7 45 dc 08 00
 	00 00		 mov	 DWORD PTR _base$1$[ebp], 8
 
-; 715  : 			if (flags & FLAG_SPECIAL)
+; 721  : 			if (flags & FLAG_SPECIAL)
 
-  004c5	f6 c3 10	 test	 bl, 16			; 00000010H
-  004c8	74 35		 je	 SHORT $case_unsigned$275
+  004d5	f6 c3 10	 test	 bl, 16			; 00000010H
+  004d8	74 35		 je	 SHORT $case_unsigned$277
 
-; 716  : 			{
-; 717  : 				prefix = ("0");
+; 722  : 			{
+; 723  : 				prefix = ("0");
 
-  004ca	c7 45 ec 00 00
+  004da	c7 45 ec 00 00
 	00 00		 mov	 DWORD PTR _prefix$1$[ebp], OFFSET ??_C@_01GBGANLPD@0?$AA@
 
-; 718  : 				if (precision > 0) precision--;
+; 724  : 				if (precision > 0) precision--;
 
-  004d1	85 ff		 test	 edi, edi
-  004d3	7e 2a		 jle	 SHORT $case_unsigned$275
-  004d5	4f		 dec	 edi
+  004e1	85 ff		 test	 edi, edi
+  004e3	7e 2a		 jle	 SHORT $case_unsigned$277
+  004e5	4f		 dec	 edi
 
-; 719  : 			}
-; 720  : 			goto case_unsigned;
+; 725  : 			}
+; 726  : 			goto case_unsigned;
 
-  004d6	eb 27		 jmp	 SHORT $case_unsigned$275
+  004e6	eb 27		 jmp	 SHORT $case_unsigned$277
 $LN30@streamout:
 
-; 721  : 
-; 722  : 		case ('p'):
-; 723  : 			precision = 2 * sizeof(void*);
+; 727  : 
+; 728  : 		case ('p'):
+; 729  : 			precision = 2 * sizeof(void*);
 
-  004d8	bf 08 00 00 00	 mov	 edi, 8
+  004e8	bf 08 00 00 00	 mov	 edi, 8
 
-; 724  : 			flags &= ~FLAG_PAD_ZERO;
+; 730  : 			flags &= ~FLAG_PAD_ZERO;
 
-  004dd	83 e3 f7	 and	 ebx, -9			; fffffff7H
+  004ed	83 e3 f7	 and	 ebx, -9			; fffffff7H
 $LN29@streamout:
 
-; 725  : 			flags |= FLAG_INTPTR;
-; 726  : 			/* Fall through */
-; 727  : 
-; 728  : 		case ('X'):
-; 729  : 			digits = digits_u;
+; 731  : 			flags |= FLAG_INTPTR;
+; 732  : 			/* Fall through */
+; 733  : 
+; 734  : 		case ('X'):
+; 735  : 			digits = digits_u;
 
-  004e0	b8 00 00 00 00	 mov	 eax, OFFSET ?digits_u@?1??streamout@@9@9
-  004e5	89 45 d4	 mov	 DWORD PTR _digits$1$[ebp], eax
-  004e8	eb 03		 jmp	 SHORT $LN28@streamout
-$LN251@streamout:
-  004ea	8b 45 d4	 mov	 eax, DWORD PTR _digits$1$[ebp]
+  004f0	b8 00 00 00 00	 mov	 eax, OFFSET ?digits_u@?1??streamout@@9@9
+  004f5	89 45 d4	 mov	 DWORD PTR _digits$1$[ebp], eax
+  004f8	eb 03		 jmp	 SHORT $LN28@streamout
+$LN253@streamout:
+  004fa	8b 45 d4	 mov	 eax, DWORD PTR _digits$1$[ebp]
 $LN28@streamout:
 
-; 730  : 			/* Fall through */
-; 731  : 
-; 732  : 		case ('x'):
-; 733  : 			base = 16;
+; 736  : 			/* Fall through */
+; 737  : 
+; 738  : 		case ('x'):
+; 739  : 			base = 16;
 
-  004ed	c7 45 dc 10 00
+  004fd	c7 45 dc 10 00
 	00 00		 mov	 DWORD PTR _base$1$[ebp], 16 ; 00000010H
 
-; 734  : 			if (flags & FLAG_SPECIAL)
+; 740  : 			if (flags & FLAG_SPECIAL)
 
-  004f4	f6 c3 10	 test	 bl, 16			; 00000010H
-  004f7	74 06		 je	 SHORT $case_unsigned$275
+  00504	f6 c3 10	 test	 bl, 16			; 00000010H
+  00507	74 06		 je	 SHORT $case_unsigned$277
 
-; 735  : 			{
-; 736  : 				prefix = &digits[16];
+; 741  : 			{
+; 742  : 				prefix = &digits[16];
 
-  004f9	8d 48 10	 lea	 ecx, DWORD PTR [eax+16]
-  004fc	89 4d ec	 mov	 DWORD PTR _prefix$1$[ebp], ecx
-$case_unsigned$275:
+  00509	8d 48 10	 lea	 ecx, DWORD PTR [eax+16]
+  0050c	89 4d ec	 mov	 DWORD PTR _prefix$1$[ebp], ecx
+$case_unsigned$277:
 
-; 737  : 			}
-; 738  : 
-; 739  : 		case ('u'):
-; 740  : case_unsigned:
-; 741  : 			val64 = va_arg_fu(argptr, flags);
+; 743  : 			}
+; 744  : 
+; 745  : 		case ('u'):
+; 746  : case_unsigned:
+; 747  : 			val64 = va_arg_fu(argptr, flags);
 
-  004ff	8b 4d 14	 mov	 ecx, DWORD PTR _argptr$[ebp]
-  00502	f7 c3 00 04 00
+  0050f	8b 4d 14	 mov	 ecx, DWORD PTR _argptr$[ebp]
+  00512	f7 c3 00 04 00
 	00		 test	 ebx, 1024		; 00000400H
-  00508	74 0d		 je	 SHORT $LN127@streamout
-  0050a	8b 01		 mov	 eax, DWORD PTR [ecx]
-  0050c	83 c1 08	 add	 ecx, 8
-  0050f	89 4d 14	 mov	 DWORD PTR _argptr$[ebp], ecx
-  00512	8b 51 fc	 mov	 edx, DWORD PTR [ecx-4]
-  00515	eb 19		 jmp	 SHORT $LN270@streamout
-$LN127@streamout:
-  00517	83 c1 04	 add	 ecx, 4
-  0051a	89 4d 14	 mov	 DWORD PTR _argptr$[ebp], ecx
-  0051d	f7 c3 00 01 00
+  00518	74 0d		 je	 SHORT $LN129@streamout
+  0051a	8b 01		 mov	 eax, DWORD PTR [ecx]
+  0051c	83 c1 08	 add	 ecx, 8
+  0051f	89 4d 14	 mov	 DWORD PTR _argptr$[ebp], ecx
+  00522	8b 51 fc	 mov	 edx, DWORD PTR [ecx-4]
+  00525	eb 19		 jmp	 SHORT $LN272@streamout
+$LN129@streamout:
+  00527	83 c1 04	 add	 ecx, 4
+  0052a	89 4d 14	 mov	 DWORD PTR _argptr$[ebp], ecx
+  0052d	f7 c3 00 01 00
 	00		 test	 ebx, 256		; 00000100H
-  00523	74 06		 je	 SHORT $LN125@streamout
-  00525	0f b7 41 fc	 movzx	 eax, WORD PTR [ecx-4]
-  00529	eb 03		 jmp	 SHORT $LN265@streamout
-$LN125@streamout:
-  0052b	8b 41 fc	 mov	 eax, DWORD PTR [ecx-4]
-$LN265@streamout:
-  0052e	33 d2		 xor	 edx, edx
-$LN270@streamout:
-  00530	89 45 e4	 mov	 DWORD PTR _val64$1$[ebp], eax
-  00533	89 55 e0	 mov	 DWORD PTR _val64$2$[ebp], edx
-$case_number$274:
+  00533	74 06		 je	 SHORT $LN127@streamout
+  00535	0f b7 41 fc	 movzx	 eax, WORD PTR [ecx-4]
+  00539	eb 03		 jmp	 SHORT $LN267@streamout
+$LN127@streamout:
+  0053b	8b 41 fc	 mov	 eax, DWORD PTR [ecx-4]
+$LN267@streamout:
+  0053e	33 d2		 xor	 edx, edx
+$LN272@streamout:
+  00540	89 45 e4	 mov	 DWORD PTR _val64$1$[ebp], eax
+  00543	89 55 e0	 mov	 DWORD PTR _val64$2$[ebp], edx
+$case_number$276:
 
-; 742  : 
-; 743  : case_number:
-; 744  : 			flags &= ~FLAG_WIDECHAR;
+; 748  : 
+; 749  : case_number:
+; 750  : 			flags &= ~FLAG_WIDECHAR;
 
-  00536	81 e3 ff fd ff
+  00546	81 e3 ff fd ff
 	ff		 and	 ebx, -513		; fffffdffH
 
-; 745  : 			if (precision < 0) precision = 1;
+; 751  : 			if (precision < 0) precision = 1;
 
-  0053c	b9 01 00 00 00	 mov	 ecx, 1
-  00541	85 ff		 test	 edi, edi
-  00543	89 5d cc	 mov	 DWORD PTR _flags$1$[ebp], ebx
-  00546	0f 48 f9	 cmovs	 edi, ecx
+  0054c	b9 01 00 00 00	 mov	 ecx, 1
+  00551	85 ff		 test	 edi, edi
+  00553	89 5d cc	 mov	 DWORD PTR _flags$1$[ebp], ebx
+  00556	0f 48 f9	 cmovs	 edi, ecx
 
-; 746  : 
-; 747  : 			/* Gather digits in reverse order */
-; 748  : 			while (val64)
+; 752  : 
+; 753  : 			/* Gather digits in reverse order */
+; 754  : 			while (val64)
 
-  00549	0b c2		 or	 eax, edx
-  0054b	89 7d 0c	 mov	 DWORD PTR _precision$2$[ebp], edi
-  0054e	74 47		 je	 SHORT $LN23@streamout
-  00550	8b 45 dc	 mov	 eax, DWORD PTR _base$1$[ebp]
-  00553	8b 75 f8	 mov	 esi, DWORD PTR _string$1$[ebp]
-  00556	8b 5d e4	 mov	 ebx, DWORD PTR _val64$1$[ebp]
-  00559	99		 cdq
-  0055a	8b c8		 mov	 ecx, eax
-  0055c	8b c2		 mov	 eax, edx
-  0055e	8b 55 e0	 mov	 edx, DWORD PTR _val64$2$[ebp]
-  00561	89 4d d0	 mov	 DWORD PTR tv659[ebp], ecx
-  00564	89 45 0c	 mov	 DWORD PTR tv658[ebp], eax
+  00559	0b c2		 or	 eax, edx
+  0055b	89 7d 0c	 mov	 DWORD PTR _precision$2$[ebp], edi
+  0055e	74 47		 je	 SHORT $LN23@streamout
+  00560	8b 45 dc	 mov	 eax, DWORD PTR _base$1$[ebp]
+  00563	8b 75 f8	 mov	 esi, DWORD PTR _string$1$[ebp]
+  00566	8b 5d e4	 mov	 ebx, DWORD PTR _val64$1$[ebp]
+  00569	99		 cdq
+  0056a	8b c8		 mov	 ecx, eax
+  0056c	8b c2		 mov	 eax, edx
+  0056e	8b 55 e0	 mov	 edx, DWORD PTR _val64$2$[ebp]
+  00571	89 4d d0	 mov	 DWORD PTR tv658[ebp], ecx
+  00574	89 45 0c	 mov	 DWORD PTR tv657[ebp], eax
 $LL24@streamout:
 
-; 749  : 			{
-; 750  : 				*--string = digits[val64 % base];
+; 755  : 			{
+; 756  : 				*--string = digits[val64 % base];
 
-  00567	50		 push	 eax
-  00568	51		 push	 ecx
-  00569	52		 push	 edx
-  0056a	53		 push	 ebx
-  0056b	4e		 dec	 esi
-  0056c	e8 00 00 00 00	 call	 __aulldvrm
-  00571	89 5d dc	 mov	 DWORD PTR tv595[ebp+4], ebx
+  00577	50		 push	 eax
+  00578	51		 push	 ecx
+  00579	52		 push	 edx
+  0057a	53		 push	 ebx
+  0057b	4e		 dec	 esi
+  0057c	e8 00 00 00 00	 call	 __aulldvrm
+  00581	89 5d dc	 mov	 DWORD PTR tv599[ebp+4], ebx
 
-; 751  : 				val64 /= base;
-; 752  : 				precision--;
+; 757  : 				val64 /= base;
+; 758  : 				precision--;
 
-  00574	4f		 dec	 edi
-  00575	8b d8		 mov	 ebx, eax
-  00577	8b 45 d4	 mov	 eax, DWORD PTR _digits$1$[ebp]
-  0057a	8a 04 01	 mov	 al, BYTE PTR [ecx+eax]
-  0057d	8b 4d d0	 mov	 ecx, DWORD PTR tv659[ebp]
-  00580	88 06		 mov	 BYTE PTR [esi], al
-  00582	8b c3		 mov	 eax, ebx
-  00584	0b c2		 or	 eax, edx
-  00586	8b 45 0c	 mov	 eax, DWORD PTR tv658[ebp]
-  00589	75 dc		 jne	 SHORT $LL24@streamout
-  0058b	8b 5d cc	 mov	 ebx, DWORD PTR _flags$1$[ebp]
-  0058e	89 75 f8	 mov	 DWORD PTR _string$1$[ebp], esi
-  00591	8b 75 10	 mov	 esi, DWORD PTR _format$[ebp]
-  00594	89 7d 0c	 mov	 DWORD PTR _precision$2$[ebp], edi
+  00584	4f		 dec	 edi
+  00585	8b d8		 mov	 ebx, eax
+  00587	8b 45 d4	 mov	 eax, DWORD PTR _digits$1$[ebp]
+  0058a	8a 04 01	 mov	 al, BYTE PTR [ecx+eax]
+  0058d	8b 4d d0	 mov	 ecx, DWORD PTR tv658[ebp]
+  00590	88 06		 mov	 BYTE PTR [esi], al
+  00592	8b c3		 mov	 eax, ebx
+  00594	0b c2		 or	 eax, edx
+  00596	8b 45 0c	 mov	 eax, DWORD PTR tv657[ebp]
+  00599	75 dc		 jne	 SHORT $LL24@streamout
+  0059b	8b 5d cc	 mov	 ebx, DWORD PTR _flags$1$[ebp]
+  0059e	89 75 f8	 mov	 DWORD PTR _string$1$[ebp], esi
+  005a1	8b 75 10	 mov	 esi, DWORD PTR _format$[ebp]
+  005a4	89 7d 0c	 mov	 DWORD PTR _precision$2$[ebp], edi
 $LN23@streamout:
 
-; 753  : 			}
-; 754  : 
-; 755  : 			len = strlen(string);
+; 759  : 			}
+; 760  : 
+; 761  : 			len = strlen(string);
 
-  00597	8b 7d f8	 mov	 edi, DWORD PTR _string$1$[ebp]
-  0059a	8d 4f 01	 lea	 ecx, DWORD PTR [edi+1]
-  0059d	8d 49 00	 npad	 3
-$LL224@streamout:
-  005a0	8a 07		 mov	 al, BYTE PTR [edi]
-  005a2	47		 inc	 edi
-  005a3	84 c0		 test	 al, al
-  005a5	75 f9		 jne	 SHORT $LL224@streamout
-  005a7	8b 45 ec	 mov	 eax, DWORD PTR _prefix$1$[ebp]
-  005aa	2b f9		 sub	 edi, ecx
-  005ac	8b 4d 0c	 mov	 ecx, DWORD PTR _precision$2$[ebp]
-$LN54@streamout:
+  005a7	8b 7d f8	 mov	 edi, DWORD PTR _string$1$[ebp]
+  005aa	8d 4f 01	 lea	 ecx, DWORD PTR [edi+1]
+  005ad	8d 49 00	 npad	 3
+$LL226@streamout:
+  005b0	8a 07		 mov	 al, BYTE PTR [edi]
+  005b2	47		 inc	 edi
+  005b3	84 c0		 test	 al, al
+  005b5	75 f9		 jne	 SHORT $LL226@streamout
+  005b7	8b 45 ec	 mov	 eax, DWORD PTR _prefix$1$[ebp]
+  005ba	2b f9		 sub	 edi, ecx
+  005bc	8b 4d 0c	 mov	 ecx, DWORD PTR _precision$2$[ebp]
+$LN56@streamout:
 
-; 762  : 		}
-; 763  : 
-; 764  : 		/* Calculate padding */
-; 765  : 		prefixlen = prefix ? strlen(prefix) : 0;
+; 768  : 		}
+; 769  : 
+; 770  : 		/* Calculate padding */
+; 771  : 		prefixlen = prefix ? strlen(prefix) : 0;
 
-  005af	85 c0		 test	 eax, eax
-  005b1	0f 84 e3 fc ff
-	ff		 je	 $LN129@streamout
-  005b7	8b d0		 mov	 edx, eax
-  005b9	8d 42 01	 lea	 eax, DWORD PTR [edx+1]
-  005bc	89 45 0c	 mov	 DWORD PTR tv724[ebp], eax
-  005bf	90		 npad	 1
-$LL225@streamout:
-  005c0	8a 02		 mov	 al, BYTE PTR [edx]
-  005c2	42		 inc	 edx
-  005c3	84 c0		 test	 al, al
-  005c5	75 f9		 jne	 SHORT $LL225@streamout
-  005c7	2b 55 0c	 sub	 edx, DWORD PTR tv724[ebp]
-  005ca	e9 cd fc ff ff	 jmp	 $LN266@streamout
+  005bf	85 c0		 test	 eax, eax
+  005c1	0f 84 d3 fc ff
+	ff		 je	 $LN131@streamout
+  005c7	8b d0		 mov	 edx, eax
+  005c9	8d 42 01	 lea	 eax, DWORD PTR [edx+1]
+  005cc	89 45 0c	 mov	 DWORD PTR tv723[ebp], eax
+  005cf	90		 npad	 1
+$LL227@streamout:
+  005d0	8a 02		 mov	 al, BYTE PTR [edx]
+  005d2	42		 inc	 edx
+  005d3	84 c0		 test	 al, al
+  005d5	75 f9		 jne	 SHORT $LL227@streamout
+  005d7	2b 55 0c	 sub	 edx, DWORD PTR tv723[ebp]
+  005da	e9 bd fc ff ff	 jmp	 $LN268@streamout
 $LN8@streamout:
 
-; 800  : 			written = StreamOutString(out, &cnt, (char*)string, len);
+; 806  : 			written = StreamOutString(out, &cnt, (char*)string, len);
 
-  005cf	e8 00 00 00 00	 call	 _StreamOutString
-  005d4	8b d0		 mov	 edx, eax
-  005d6	89 45 e4	 mov	 DWORD PTR _written$4$[ebp], eax
-$LN267@streamout:
-  005d9	83 c4 10	 add	 esp, 16			; 00000010H
+  005df	e8 00 00 00 00	 call	 _StreamOutString
+  005e4	8b d0		 mov	 edx, eax
+  005e6	89 45 e4	 mov	 DWORD PTR _written$4$[ebp], eax
+$LN269@streamout:
+  005e9	83 c4 10	 add	 esp, 16			; 00000010H
 
-; 801  : 		if (written == -1) return -1;
+; 807  : 		if (written == -1) return -1;
 
-  005dc	83 fa ff	 cmp	 edx, -1
-  005df	0f 84 02 01 00
-	00		 je	 $LN150@streamout
+  005ec	83 fa ff	 cmp	 edx, -1
+  005ef	0f 84 02 01 00
+	00		 je	 $LN152@streamout
 
-; 802  : 		written_all += written;
+; 808  : 		written_all += written;
 
-  005e5	8b 7d fc	 mov	 edi, DWORD PTR _written_all$1$[ebp]
-  005e8	03 fa		 add	 edi, edx
+  005f5	8b 7d fc	 mov	 edi, DWORD PTR _written_all$1$[ebp]
+  005f8	03 fa		 add	 edi, edx
 
-; 803  : 
-; 804  : #if 0 && SUPPORT_FLOAT
-; 805  : 		/* Optional right '0' padding */
-; 806  : 		while (precision-- > 0)
-; 807  : 		{
-; 808  : 			if ((written = StreamOutCharacter(out, &cnt, ('0'))) == 0) return -1;
-; 809  : 			written_all += written;
-; 810  : 			len++;
-; 811  : 		}
-; 812  : #endif
-; 813  : 
-; 814  : 		/* Optional right padding */
-; 815  : 		if (flags & FLAG_ALIGN_LEFT)
+; 809  : 
+; 810  : #if 0 && SUPPORT_FLOAT
+; 811  : 		/* Optional right '0' padding */
+; 812  : 		while (precision-- > 0)
+; 813  : 		{
+; 814  : 			if ((written = StreamOutCharacter(out, &cnt, ('0'))) == 0) return -1;
+; 815  : 			written_all += written;
+; 816  : 			len++;
+; 817  : 		}
+; 818  : #endif
+; 819  : 
+; 820  : 		/* Optional right padding */
+; 821  : 		if (flags & FLAG_ALIGN_LEFT)
 
-  005ea	83 7d cc 00	 cmp	 DWORD PTR tv726[ebp], 0
-  005ee	89 7d fc	 mov	 DWORD PTR _written_all$1$[ebp], edi
-  005f1	0f 84 d7 00 00
-	00		 je	 $LN161@streamout
+  005fa	83 7d cc 00	 cmp	 DWORD PTR tv725[ebp], 0
+  005fe	89 7d fc	 mov	 DWORD PTR _written_all$1$[ebp], edi
+  00601	0f 84 d7 00 00
+	00		 je	 $LN163@streamout
 
-; 816  : 		{
-; 817  : 			while (padding-- > 0)
+; 822  : 		{
+; 823  : 			while (padding-- > 0)
 
-  005f7	8b 5d f4	 mov	 ebx, DWORD PTR _padding$2$[ebp]
-  005fa	85 db		 test	 ebx, ebx
-  005fc	0f 8e cc 00 00
-	00		 jle	 $LN161@streamout
+  00607	8b 5d f4	 mov	 ebx, DWORD PTR _padding$2$[ebp]
+  0060a	85 db		 test	 ebx, ebx
+  0060c	0f 8e cc 00 00
+	00		 jle	 $LN163@streamout
 $LL4@streamout:
 
-; 818  : 			{
-; 819  : 				if ((written = StreamOutCharacter(out, &cnt, (' '))) == 0) return -1;
+; 824  : 			{
+; 825  : 				if ((written = StreamOutCharacter(out, &cnt, (' '))) == 0) return -1;
 
-  00602	6a 20		 push	 32			; 00000020H
-  00604	8d 45 e8	 lea	 eax, DWORD PTR _cnt$[ebp]
-  00607	4b		 dec	 ebx
-  00608	50		 push	 eax
-  00609	ff 75 08	 push	 DWORD PTR _out$[ebp]
-  0060c	e8 00 00 00 00	 call	 _StreamOutCharacter
-  00611	8b d0		 mov	 edx, eax
-  00613	83 c4 0c	 add	 esp, 12			; 0000000cH
-  00616	89 55 e4	 mov	 DWORD PTR _written$4$[ebp], edx
-  00619	85 d2		 test	 edx, edx
-  0061b	0f 84 c6 00 00
-	00		 je	 $LN150@streamout
+  00612	6a 20		 push	 32			; 00000020H
+  00614	8d 45 e8	 lea	 eax, DWORD PTR _cnt$[ebp]
+  00617	4b		 dec	 ebx
+  00618	50		 push	 eax
+  00619	ff 75 08	 push	 DWORD PTR _out$[ebp]
+  0061c	e8 00 00 00 00	 call	 _StreamOutCharacter
+  00621	8b d0		 mov	 edx, eax
+  00623	83 c4 0c	 add	 esp, 12			; 0000000cH
+  00626	89 55 e4	 mov	 DWORD PTR _written$4$[ebp], edx
+  00629	85 d2		 test	 edx, edx
+  0062b	0f 84 c6 00 00
+	00		 je	 $LN152@streamout
 
-; 820  : 				written_all += written;
+; 826  : 				written_all += written;
 
-  00621	03 fa		 add	 edi, edx
-  00623	89 7d fc	 mov	 DWORD PTR _written_all$1$[ebp], edi
-  00626	85 db		 test	 ebx, ebx
-  00628	7f d8		 jg	 SHORT $LL4@streamout
+  00631	03 fa		 add	 edi, edx
+  00633	89 7d fc	 mov	 DWORD PTR _written_all$1$[ebp], edi
+  00636	85 db		 test	 ebx, ebx
+  00638	7f d8		 jg	 SHORT $LL4@streamout
 
-; 821  : 			}
-; 822  : 		}
-; 823  : 
-; 824  : 	}
+; 827  : 			}
+; 828  : 		}
+; 829  : 
+; 830  : 	}
 
-  0062a	e9 9f 00 00 00	 jmp	 $LN161@streamout
+  0063a	e9 9f 00 00 00	 jmp	 $LN163@streamout
 $LN22@streamout:
 
-; 756  : 			break;
-; 757  : 
-; 758  : 		default:
-; 759  : 			/* Treat anything else as a new character */
-; 760  : 			format--;
-; 761  : 			continue;
+; 762  : 			break;
+; 763  : 
+; 764  : 		default:
+; 765  : 			/* Treat anything else as a new character */
+; 766  : 			format--;
+; 767  : 			continue;
 
-  0062f	8b 7d fc	 mov	 edi, DWORD PTR _written_all$1$[ebp]
-  00632	4e		 dec	 esi
-  00633	e9 96 00 00 00	 jmp	 $LN161@streamout
-$LN114@streamout:
+  0063f	8b 7d fc	 mov	 edi, DWORD PTR _written_all$1$[ebp]
+  00642	4e		 dec	 esi
+  00643	e9 96 00 00 00	 jmp	 $LN163@streamout
+$LN116@streamout:
 
-; 466  : 		{
-; 467  : 			/* Sanity */
-; 468  : 			if (IsUTF8(chr))
+; 472  : 		{
+; 473  : 			/* Sanity */
+; 474  : 			if (IsUTF8(chr))
 
-  00638	8a c8		 mov	 cl, al
-  0063a	80 e1 c0	 and	 cl, 192			; 000000c0H
-  0063d	80 f9 80	 cmp	 cl, 128			; 00000080H
-  00640	75 6d		 jne	 SHORT $LN113@streamout
+  00648	8a c8		 mov	 cl, al
+  0064a	80 e1 c0	 and	 cl, 192			; 000000c0H
+  0064d	80 f9 80	 cmp	 cl, 128			; 00000080H
+  00650	75 6d		 jne	 SHORT $LN115@streamout
 
-; 469  : 			{
-; 470  : 				/* Build UTF-8 */
-; 471  : 				uint32_t uChar = (uint32_t)chr;
-; 472  : 				uint32_t Size = 0;
-; 473  : 
-; 474  : 				/* Iterate */
-; 475  : 				while (*format && IsUTF8(*format))
-
-  00642	8a 16		 mov	 dl, BYTE PTR [esi]
-  00644	33 db		 xor	 ebx, ebx
-  00646	0f be c8	 movsx	 ecx, al
-  00649	84 d2		 test	 dl, dl
-  0064b	74 1b		 je	 SHORT $LN247@streamout
-  0064d	8d 49 00	 npad	 3
-$LL112@streamout:
-  00650	8a c2		 mov	 al, dl
-  00652	24 c0		 and	 al, 192			; 000000c0H
-  00654	3c 80		 cmp	 al, 128			; 00000080H
-  00656	75 10		 jne	 SHORT $LN247@streamout
-
-; 476  : 				{
-; 477  : 					/* Move */
-; 478  : 					uChar <<= 6;
+; 475  : 			{
+; 476  : 				/* Build UTF-8 */
+; 477  : 				uint32_t uChar = (uint32_t)chr;
+; 478  : 				uint32_t Size = 0;
 ; 479  : 
-; 480  : 					/* Add */
-; 481  : 					uChar += (unsigned char)*format;
-; 482  : 
-; 483  : 					/* Inc */
-; 484  : 					Size++;
-; 485  : 					format++;
+; 480  : 				/* Iterate */
+; 481  : 				while (*format && IsUTF8(*format))
 
-  00658	46		 inc	 esi
-  00659	c1 e1 06	 shl	 ecx, 6
-  0065c	0f b6 c2	 movzx	 eax, dl
-  0065f	43		 inc	 ebx
-  00660	03 c8		 add	 ecx, eax
-  00662	8a 16		 mov	 dl, BYTE PTR [esi]
-  00664	84 d2		 test	 dl, dl
-  00666	75 e8		 jne	 SHORT $LL112@streamout
-$LN247@streamout:
+  00652	8a 16		 mov	 dl, BYTE PTR [esi]
+  00654	33 db		 xor	 ebx, ebx
+  00656	0f be c8	 movsx	 ecx, al
+  00659	84 d2		 test	 dl, dl
+  0065b	74 1b		 je	 SHORT $LN249@streamout
+  0065d	8d 49 00	 npad	 3
+$LL114@streamout:
+  00660	8a c2		 mov	 al, dl
+  00662	24 c0		 and	 al, 192			; 000000c0H
+  00664	3c 80		 cmp	 al, 128			; 00000080H
+  00666	75 10		 jne	 SHORT $LN249@streamout
 
-; 486  : 				}
-; 487  : 
-; 488  : 				/* Move */
-; 489  : 				uChar <<= 6;
+; 482  : 				{
+; 483  : 					/* Move */
+; 484  : 					uChar <<= 6;
+; 485  : 
+; 486  : 					/* Add */
+; 487  : 					uChar += (unsigned char)*format;
+; 488  : 
+; 489  : 					/* Inc */
+; 490  : 					Size++;
+; 491  : 					format++;
 
-  00668	c1 e1 06	 shl	 ecx, 6
+  00668	46		 inc	 esi
+  00669	c1 e1 06	 shl	 ecx, 6
+  0066c	0f b6 c2	 movzx	 eax, dl
+  0066f	43		 inc	 ebx
+  00670	03 c8		 add	 ecx, eax
+  00672	8a 16		 mov	 dl, BYTE PTR [esi]
+  00674	84 d2		 test	 dl, dl
+  00676	75 e8		 jne	 SHORT $LL114@streamout
+$LN249@streamout:
 
-; 490  : 
-; 491  : 				/* Add the last byte */
-; 492  : 				if (Size == 1)
+; 492  : 				}
+; 493  : 
+; 494  : 				/* Move */
+; 495  : 				uChar <<= 6;
 
-  0066b	83 fb 01	 cmp	 ebx, 1
-  0066e	75 08		 jne	 SHORT $LN110@streamout
+  00678	c1 e1 06	 shl	 ecx, 6
 
-; 493  : 					uChar |= (((unsigned char)*format) & 0x1F);
+; 496  : 
+; 497  : 				/* Add the last byte */
+; 498  : 				if (Size == 1)
 
-  00670	0f b6 06	 movzx	 eax, BYTE PTR [esi]
-  00673	83 e0 1f	 and	 eax, 31			; 0000001fH
-  00676	eb 18		 jmp	 SHORT $LN268@streamout
+  0067b	83 fb 01	 cmp	 ebx, 1
+  0067e	75 08		 jne	 SHORT $LN112@streamout
+
+; 499  : 					uChar |= (((unsigned char)*format) & 0x1F);
+
+  00680	0f b6 06	 movzx	 eax, BYTE PTR [esi]
+  00683	83 e0 1f	 and	 eax, 31			; 0000001fH
+  00686	eb 18		 jmp	 SHORT $LN270@streamout
+$LN112@streamout:
+
+; 500  : 				else if (Size == 2)
+
+  00688	83 fb 02	 cmp	 ebx, 2
+  0068b	75 08		 jne	 SHORT $LN110@streamout
+
+; 501  : 					uChar |= (((unsigned char)*format) & 0xF);
+
+  0068d	0f b6 06	 movzx	 eax, BYTE PTR [esi]
+  00690	83 e0 0f	 and	 eax, 15			; 0000000fH
+  00693	eb 0b		 jmp	 SHORT $LN270@streamout
 $LN110@streamout:
 
-; 494  : 				else if (Size == 2)
+; 502  : 				else if (Size == 3)
 
-  00678	83 fb 02	 cmp	 ebx, 2
-  0067b	75 08		 jne	 SHORT $LN108@streamout
+  00695	83 fb 03	 cmp	 ebx, 3
+  00698	75 08		 jne	 SHORT $LN108@streamout
 
-; 495  : 					uChar |= (((unsigned char)*format) & 0xF);
+; 503  : 					uChar |= (((unsigned char)*format) & 0x7);
 
-  0067d	0f b6 06	 movzx	 eax, BYTE PTR [esi]
-  00680	83 e0 0f	 and	 eax, 15			; 0000000fH
-  00683	eb 0b		 jmp	 SHORT $LN268@streamout
+  0069a	0f b6 06	 movzx	 eax, BYTE PTR [esi]
+  0069d	83 e0 07	 and	 eax, 7
+$LN270@streamout:
+  006a0	0b c8		 or	 ecx, eax
 $LN108@streamout:
 
-; 496  : 				else if (Size == 3)
+; 504  : 
+; 505  : 				/* Write the character to the stream */
+; 506  : 				if ((written = StreamOutCharacter(out, &cnt, uChar)) == 0)
 
-  00685	83 fb 03	 cmp	 ebx, 3
-  00688	75 08		 jne	 SHORT $LN106@streamout
+  006a2	8b 5d 08	 mov	 ebx, DWORD PTR _out$[ebp]
+  006a5	8d 45 e8	 lea	 eax, DWORD PTR _cnt$[ebp]
+  006a8	51		 push	 ecx
+  006a9	50		 push	 eax
+  006aa	53		 push	 ebx
+  006ab	e8 00 00 00 00	 call	 _StreamOutCharacter
+  006b0	8b d0		 mov	 edx, eax
+  006b2	83 c4 0c	 add	 esp, 12			; 0000000cH
+  006b5	89 55 e4	 mov	 DWORD PTR _written$4$[ebp], edx
+  006b8	85 d2		 test	 edx, edx
+  006ba	74 3b		 je	 SHORT $LN152@streamout
 
-; 497  : 					uChar |= (((unsigned char)*format) & 0x7);
+; 508  : 
+; 509  : 				/* Skip */
+; 510  : 				format++;
 
-  0068a	0f b6 06	 movzx	 eax, BYTE PTR [esi]
-  0068d	83 e0 07	 and	 eax, 7
-$LN268@streamout:
-  00690	0b c8		 or	 ecx, eax
-$LN106@streamout:
+  006bc	46		 inc	 esi
 
-; 498  : 
-; 499  : 				/* Write the character to the stream */
-; 500  : 				if ((written = StreamOutCharacter(out, &cnt, uChar)) == 0)
-
-  00692	8b 5d 08	 mov	 ebx, DWORD PTR _out$[ebp]
-  00695	8d 45 e8	 lea	 eax, DWORD PTR _cnt$[ebp]
-  00698	51		 push	 ecx
-  00699	50		 push	 eax
-  0069a	53		 push	 ebx
-  0069b	e8 00 00 00 00	 call	 _StreamOutCharacter
-  006a0	8b d0		 mov	 edx, eax
-  006a2	83 c4 0c	 add	 esp, 12			; 0000000cH
-  006a5	89 55 e4	 mov	 DWORD PTR _written$4$[ebp], edx
-  006a8	85 d2		 test	 edx, edx
-  006aa	74 3b		 je	 SHORT $LN150@streamout
-
-; 502  : 
-; 503  : 				/* Skip */
-; 504  : 				format++;
-
-  006ac	46		 inc	 esi
-
-; 505  : 			}
-; 506  : 			else
-
-  006ad	eb 1a		 jmp	 SHORT $LN103@streamout
-$LN113@streamout:
-
-; 507  : 			{
-; 508  : 				/* Write the character to the stream */
-; 509  : 				if ((written = StreamOutCharacter(out, &cnt, chr)) == 0)
-
-  006af	0f be c0	 movsx	 eax, al
-  006b2	50		 push	 eax
-  006b3	8d 45 e8	 lea	 eax, DWORD PTR _cnt$[ebp]
-  006b6	50		 push	 eax
-  006b7	53		 push	 ebx
-  006b8	e8 00 00 00 00	 call	 _StreamOutCharacter
-  006bd	8b d0		 mov	 edx, eax
-  006bf	89 45 e4	 mov	 DWORD PTR _written$4$[ebp], eax
-  006c2	83 c4 0c	 add	 esp, 12			; 0000000cH
-  006c5	85 d2		 test	 edx, edx
-  006c7	74 1e		 je	 SHORT $LN150@streamout
-$LN103@streamout:
-
-; 510  : 					return -1;
 ; 511  : 			}
-; 512  : 
-; 513  : 			/* Done */
-; 514  : 			written_all += written;
+; 512  : 			else
 
-  006c9	03 fa		 add	 edi, edx
-  006cb	89 7d fc	 mov	 DWORD PTR _written_all$1$[ebp], edi
-$LN161@streamout:
+  006bd	eb 1a		 jmp	 SHORT $LN105@streamout
+$LN115@streamout:
 
-; 452  : 
-; 453  : 	/* Iterate String */
-; 454  : 	while (written >= 0)
+; 513  : 			{
+; 514  : 				/* Write the character to the stream */
+; 515  : 				if ((written = StreamOutCharacter(out, &cnt, (uint32_t)chr)) == 0)
 
-  006ce	85 d2		 test	 edx, edx
-  006d0	0f 89 4d f9 ff
-	ff		 jns	 $LN269@streamout
-$LN117@streamout:
+  006bf	0f be c0	 movsx	 eax, al
+  006c2	50		 push	 eax
+  006c3	8d 45 e8	 lea	 eax, DWORD PTR _cnt$[ebp]
+  006c6	50		 push	 eax
+  006c7	53		 push	 ebx
+  006c8	e8 00 00 00 00	 call	 _StreamOutCharacter
+  006cd	8b d0		 mov	 edx, eax
+  006cf	89 45 e4	 mov	 DWORD PTR _written$4$[ebp], eax
+  006d2	83 c4 0c	 add	 esp, 12			; 0000000cH
+  006d5	85 d2		 test	 edx, edx
+  006d7	74 1e		 je	 SHORT $LN152@streamout
+$LN105@streamout:
 
-; 825  : 
-; 826  : 	if (written == -1) return -1;
+; 516  : 					return -1;
+; 517  : 			}
+; 518  : 
+; 519  : 			/* Done */
+; 520  : 			written_all += written;
 
-  006d6	83 c8 ff	 or	 eax, -1
-  006d9	3b d0		 cmp	 edx, eax
-  006db	0f 44 f8	 cmove	 edi, eax
-  006de	8b c7		 mov	 eax, edi
-  006e0	5f		 pop	 edi
-  006e1	5e		 pop	 esi
-  006e2	5b		 pop	 ebx
+  006d9	03 fa		 add	 edi, edx
+  006db	89 7d fc	 mov	 DWORD PTR _written_all$1$[ebp], edi
+$LN163@streamout:
 
-; 827  : 
-; 828  : 	return written_all;
-; 829  : }
+; 458  : 
+; 459  : 	/* Iterate String */
+; 460  : 	while (written >= 0)
 
-  006e3	8b e5		 mov	 esp, ebp
-  006e5	5d		 pop	 ebp
-  006e6	c3		 ret	 0
-$LN150@streamout:
-  006e7	5f		 pop	 edi
-  006e8	5e		 pop	 esi
+  006de	85 d2		 test	 edx, edx
+  006e0	0f 89 3d f9 ff
+	ff		 jns	 $LN271@streamout
+$LN119@streamout:
 
-; 501  : 					return -1;
+; 831  : 
+; 832  : 	if (written == -1) return -1;
 
-  006e9	83 c8 ff	 or	 eax, -1
-  006ec	5b		 pop	 ebx
+  006e6	83 c8 ff	 or	 eax, -1
+  006e9	3b d0		 cmp	 edx, eax
+  006eb	0f 44 f8	 cmove	 edi, eax
+  006ee	8b c7		 mov	 eax, edi
+  006f0	5f		 pop	 edi
+  006f1	5e		 pop	 esi
+  006f2	5b		 pop	 ebx
 
-; 827  : 
-; 828  : 	return written_all;
-; 829  : }
+; 833  : 
+; 834  : 	return written_all;
+; 835  : }
 
-  006ed	8b e5		 mov	 esp, ebp
-  006ef	5d		 pop	 ebp
-  006f0	c3		 ret	 0
-  006f1	8d 49 00	 npad	 3
-$LN272@streamout:
-  006f4	00 00 00 00	 DD	 $LN40@streamout
-  006f8	00 00 00 00	 DD	 $LN48@streamout
-  006fc	00 00 00 00	 DD	 $LN44@streamout
-  00700	00 00 00 00	 DD	 $LN29@streamout
-  00704	00 00 00 00	 DD	 $LN47@streamout
-  00708	00 00 00 00	 DD	 $LN39@streamout
-  0070c	00 00 00 00	 DD	 $LN53@streamout
-  00710	00 00 00 00	 DD	 $LN33@streamout
-  00714	00 00 00 00	 DD	 $LN30@streamout
-  00718	00 00 00 00	 DD	 $LN42@streamout
-  0071c	00 00 00 00	 DD	 $case_unsigned$275
-  00720	00 00 00 00	 DD	 $LN251@streamout
-  00724	00 00 00 00	 DD	 $LN22@streamout
-$LN220@streamout:
-  00728	00		 DB	 0
-  00729	0c		 DB	 12			; 0000000cH
-  0072a	01		 DB	 1
-  0072b	0c		 DB	 12			; 0000000cH
-  0072c	00		 DB	 0
-  0072d	0c		 DB	 12			; 0000000cH
-  0072e	00		 DB	 0
-  0072f	0c		 DB	 12			; 0000000cH
-  00730	0c		 DB	 12			; 0000000cH
-  00731	0c		 DB	 12			; 0000000cH
-  00732	0c		 DB	 12			; 0000000cH
-  00733	0c		 DB	 12			; 0000000cH
-  00734	0c		 DB	 12			; 0000000cH
-  00735	0c		 DB	 12			; 0000000cH
-  00736	0c		 DB	 12			; 0000000cH
-  00737	0c		 DB	 12			; 0000000cH
-  00738	0c		 DB	 12			; 0000000cH
+  006f3	8b e5		 mov	 esp, ebp
+  006f5	5d		 pop	 ebp
+  006f6	c3		 ret	 0
+$LN152@streamout:
+  006f7	5f		 pop	 edi
+  006f8	5e		 pop	 esi
+
+; 507  : 					return -1;
+
+  006f9	83 c8 ff	 or	 eax, -1
+  006fc	5b		 pop	 ebx
+
+; 833  : 
+; 834  : 	return written_all;
+; 835  : }
+
+  006fd	8b e5		 mov	 esp, ebp
+  006ff	5d		 pop	 ebp
+  00700	c3		 ret	 0
+  00701	8d 49 00	 npad	 3
+$LN274@streamout:
+  00704	00 00 00 00	 DD	 $LN40@streamout
+  00708	00 00 00 00	 DD	 $LN50@streamout
+  0070c	00 00 00 00	 DD	 $LN46@streamout
+  00710	00 00 00 00	 DD	 $LN29@streamout
+  00714	00 00 00 00	 DD	 $LN49@streamout
+  00718	00 00 00 00	 DD	 $LN39@streamout
+  0071c	00 00 00 00	 DD	 $LN55@streamout
+  00720	00 00 00 00	 DD	 $LN33@streamout
+  00724	00 00 00 00	 DD	 $LN30@streamout
+  00728	00 00 00 00	 DD	 $LN44@streamout
+  0072c	00 00 00 00	 DD	 $case_unsigned$277
+  00730	00 00 00 00	 DD	 $LN253@streamout
+  00734	00 00 00 00	 DD	 $LN22@streamout
+$LN222@streamout:
+  00738	00		 DB	 0
   00739	0c		 DB	 12			; 0000000cH
-  0073a	02		 DB	 2
+  0073a	01		 DB	 1
   0073b	0c		 DB	 12			; 0000000cH
-  0073c	0c		 DB	 12			; 0000000cH
+  0073c	00		 DB	 0
   0073d	0c		 DB	 12			; 0000000cH
-  0073e	0c		 DB	 12			; 0000000cH
-  0073f	03		 DB	 3
+  0073e	00		 DB	 0
+  0073f	0c		 DB	 12			; 0000000cH
   00740	0c		 DB	 12			; 0000000cH
-  00741	04		 DB	 4
+  00741	0c		 DB	 12			; 0000000cH
   00742	0c		 DB	 12			; 0000000cH
   00743	0c		 DB	 12			; 0000000cH
   00744	0c		 DB	 12			; 0000000cH
   00745	0c		 DB	 12			; 0000000cH
   00746	0c		 DB	 12			; 0000000cH
   00747	0c		 DB	 12			; 0000000cH
-  00748	00		 DB	 0
+  00748	0c		 DB	 12			; 0000000cH
   00749	0c		 DB	 12			; 0000000cH
-  0074a	01		 DB	 1
-  0074b	05		 DB	 5
-  0074c	00		 DB	 0
-  0074d	00		 DB	 0
-  0074e	00		 DB	 0
-  0074f	0c		 DB	 12			; 0000000cH
-  00750	05		 DB	 5
-  00751	0c		 DB	 12			; 0000000cH
+  0074a	02		 DB	 2
+  0074b	0c		 DB	 12			; 0000000cH
+  0074c	0c		 DB	 12			; 0000000cH
+  0074d	0c		 DB	 12			; 0000000cH
+  0074e	0c		 DB	 12			; 0000000cH
+  0074f	03		 DB	 3
+  00750	0c		 DB	 12			; 0000000cH
+  00751	04		 DB	 4
   00752	0c		 DB	 12			; 0000000cH
   00753	0c		 DB	 12			; 0000000cH
   00754	0c		 DB	 12			; 0000000cH
-  00755	06		 DB	 6
-  00756	07		 DB	 7
-  00757	08		 DB	 8
-  00758	0c		 DB	 12			; 0000000cH
+  00755	0c		 DB	 12			; 0000000cH
+  00756	0c		 DB	 12			; 0000000cH
+  00757	0c		 DB	 12			; 0000000cH
+  00758	00		 DB	 0
   00759	0c		 DB	 12			; 0000000cH
-  0075a	09		 DB	 9
-  0075b	0c		 DB	 12			; 0000000cH
-  0075c	0a		 DB	 10			; 0000000aH
-  0075d	0c		 DB	 12			; 0000000cH
-  0075e	0c		 DB	 12			; 0000000cH
-  0075f	0b		 DB	 11			; 0000000bH
+  0075a	01		 DB	 1
+  0075b	05		 DB	 5
+  0075c	00		 DB	 0
+  0075d	00		 DB	 0
+  0075e	00		 DB	 0
+  0075f	0c		 DB	 12			; 0000000cH
+  00760	05		 DB	 5
+  00761	0c		 DB	 12			; 0000000cH
+  00762	0c		 DB	 12			; 0000000cH
+  00763	0c		 DB	 12			; 0000000cH
+  00764	0c		 DB	 12			; 0000000cH
+  00765	06		 DB	 6
+  00766	07		 DB	 7
+  00767	08		 DB	 8
+  00768	0c		 DB	 12			; 0000000cH
+  00769	0c		 DB	 12			; 0000000cH
+  0076a	09		 DB	 9
+  0076b	0c		 DB	 12			; 0000000cH
+  0076c	0a		 DB	 10			; 0000000aH
+  0076d	0c		 DB	 12			; 0000000cH
+  0076e	0c		 DB	 12			; 0000000cH
+  0076f	0b		 DB	 11			; 0000000bH
 _streamout ENDP
 _TEXT	ENDS
 ; Function compile flags: /Ogtp
@@ -1814,30 +1833,30 @@ _prefix$ = 24						; size = 4
 _argptr$ = 28						; size = 4
 _format_float PROC					; COMDAT
 
-; 295  : {
+; 301  : {
 
   00000	55		 push	 ebp
   00001	8b ec		 mov	 ebp, esp
   00003	83 ec 30	 sub	 esp, 48			; 00000030H
   00006	53		 push	 ebx
 
-; 296  : 	static const char digits_l[] = ("0123456789abcdef0x");
-; 297  : 	static const char digits_u[] = ("0123456789ABCDEF0X");
-; 298  : 	static const char _nan[] = ("#QNAN");
-; 299  : 	static const char _infinity[] = ("#INF");
-; 300  : 	const char *digits = digits_l;
-; 301  : 	int exponent = 0, sign;
-; 302  : 	long double fpval, fpval2;
-; 303  : 	int padding = 0, num_digits, val32, base = 10;
+; 302  : 	static const char digits_l[] = ("0123456789abcdef0x");
+; 303  : 	static const char digits_u[] = ("0123456789ABCDEF0X");
+; 304  : 	static const char _nan[] = ("#QNAN");
+; 305  : 	static const char _infinity[] = ("#INF");
+; 306  : 	const char *digits = digits_l;
+; 307  : 	int exponent = 0, sign;
+; 308  : 	long double fpval, fpval2;
+; 309  : 	int padding = 0, num_digits, val32, base = 10;
 
   00007	33 db		 xor	 ebx, ebx
   00009	c7 45 f8 00 00
 	00 00		 mov	 DWORD PTR _digits$1$[ebp], OFFSET ?digits_l@?1??format_float@@9@9
   00010	89 5d e8	 mov	 DWORD PTR _padding$1$[ebp], ebx
 
-; 304  : 
-; 305  : 	/* Normalize the precision */
-; 306  : 	if (precision < 0) precision = 6;
+; 310  : 
+; 311  : 	/* Normalize the precision */
+; 312  : 	if (precision < 0) precision = 6;
 
   00013	8b 5d 10	 mov	 ebx, DWORD PTR _precision$[ebp]
   00016	89 5d fc	 mov	 DWORD PTR _precision$1$[ebp], ebx
@@ -1849,18 +1868,18 @@ _format_float PROC					; COMDAT
   00024	eb 10		 jmp	 SHORT $LN174@format_flo
 $LN37@format_flo:
 
-; 307  : 	else if (precision > 17)
+; 313  : 	else if (precision > 17)
 
   00026	83 fb 11	 cmp	 ebx, 17			; 00000011H
   00029	7e 11		 jle	 SHORT $LN35@format_flo
 
-; 308  : 	{
-; 309  : 		padding = precision - 17;
+; 314  : 	{
+; 315  : 		padding = precision - 17;
 
   0002b	83 c3 ef	 add	 ebx, -17		; ffffffefH
   0002e	89 5d e8	 mov	 DWORD PTR _padding$1$[ebp], ebx
 
-; 310  : 		precision = 17;
+; 316  : 		precision = 17;
 
   00031	bb 11 00 00 00	 mov	 ebx, 17			; 00000011H
 $LN174@format_flo:
@@ -1868,10 +1887,10 @@ $LN174@format_flo:
   00039	89 5d fc	 mov	 DWORD PTR _precision$1$[ebp], ebx
 $LN35@format_flo:
 
-; 311  : 	}
-; 312  : 
-; 313  : 	/* Get the float value and calculate the exponent */
-; 314  : 	fpval = va_arg_ffp(*argptr, flags);
+; 317  : 	}
+; 318  : 
+; 319  : 	/* Get the float value and calculate the exponent */
+; 320  : 	fpval = va_arg_ffp(*argptr, flags);
 
   0003c	8b 45 1c	 mov	 eax, DWORD PTR _argptr$[ebp]
   0003f	83 00 08	 add	 DWORD PTR [eax], 8
@@ -1879,7 +1898,7 @@ $LN35@format_flo:
   00044	dd 40 f8	 fld	 QWORD PTR [eax-8]
   00047	dd 55 e0	 fst	 QWORD PTR _fpval$1$[ebp]
 
-; 315  : 	exponent = get_exp((double)fpval);
+; 321  : 	exponent = get_exp((double)fpval);
 
   0004a	d9 ee		 fldz
   0004c	d9 c9		 fxch	 ST(1)
@@ -1903,7 +1922,7 @@ $LN43@format_flo:
   00072	83 c4 08	 add	 esp, 8
   00075	e8 00 00 00 00	 call	 __ftol2_sse
 
-; 316  : 	sign = fpval < 0 ? -1 : 1;
+; 322  : 	sign = fpval < 0 ? -1 : 1;
 
   0007a	dd 45 e0	 fld	 QWORD PTR _fpval$1$[ebp]
   0007d	8b f0		 mov	 esi, eax
@@ -1917,8 +1936,8 @@ $LN43@format_flo:
 	00 00		 mov	 DWORD PTR _sign$[ebp], 1
 $LN47@format_flo:
 
-; 317  : 
-; 318  : 	switch (chr)
+; 323  : 
+; 324  : 	switch (chr)
 
   00096	8b 45 08	 mov	 eax, DWORD PTR _chr$[ebp]
   00099	8b 7d 14	 mov	 edi, DWORD PTR _string$[ebp]
@@ -1933,16 +1952,16 @@ $LN47@format_flo:
 	00 00		 jmp	 DWORD PTR $LN179@format_flo[eax*4]
 $LN32@format_flo:
 
-; 319  : 	{
-; 320  : 	case ('G'):
-; 321  : 		digits = digits_u;
+; 325  : 	{
+; 326  : 	case ('G'):
+; 327  : 		digits = digits_u;
 
   000b9	c7 45 f8 00 00
 	00 00		 mov	 DWORD PTR _digits$1$[ebp], OFFSET ?digits_u@?1??format_float@@9@9
 $LN31@format_flo:
 
-; 322  : 	case ('g'):
-; 323  : 		if (precision > 0) precision--;
+; 328  : 	case ('g'):
+; 329  : 		if (precision > 0) precision--;
 
   000c0	85 db		 test	 ebx, ebx
   000c2	7e 07		 jle	 SHORT $LN30@format_flo
@@ -1951,7 +1970,7 @@ $LN31@format_flo:
   000c8	89 5d 10	 mov	 DWORD PTR _precision$[ebp], ebx
 $LN30@format_flo:
 
-; 324  : 		if (exponent < -4 || exponent >= precision) goto case_e;
+; 330  : 		if (exponent < -4 || exponent >= precision) goto case_e;
 
   000cb	83 fe fc	 cmp	 esi, -4			; fffffffcH
   000ce	0f 8c b5 00 00
@@ -1960,9 +1979,9 @@ $LN30@format_flo:
   000d6	0f 8d ad 00 00
 	00		 jge	 $case_e$180
 
-; 325  : 
-; 326  : 		/* Shift the decimal point and round */
-; 327  : 		fpval2 = round(sign * (double)fpval * pow(10., precision));
+; 331  : 
+; 332  : 		/* Shift the decimal point and round */
+; 333  : 		fpval2 = round(sign * (double)fpval * pow(10., precision));
 
   000dc	dd d8		 fstp	 ST(0)
   000de	db 45 10	 fild	 DWORD PTR _precision$[ebp]
@@ -1984,9 +2003,9 @@ $LN30@format_flo:
   00111	83 c4 08	 add	 esp, 8
   00114	dd 55 f0	 fst	 QWORD PTR _fpval2$1$[ebp]
 
-; 328  : 
-; 329  : 		/* Skip trailing zeroes */
-; 330  : 		while (precision && (unsigned __int64)fpval2 % 10 == 0)
+; 334  : 
+; 335  : 		/* Skip trailing zeroes */
+; 336  : 		while (precision && (unsigned __int64)fpval2 % 10 == 0)
 
   00117	85 db		 test	 ebx, ebx
   00119	0f 84 19 02 00
@@ -2026,9 +2045,9 @@ $LN85@format_flo:
   00162	0f 85 ce 01 00
 	00		 jne	 $LN135@format_flo
 
-; 331  : 		{
-; 332  : 			precision--;
-; 333  : 			fpval2 /= 10;
+; 337  : 		{
+; 338  : 			precision--;
+; 339  : 			fpval2 /= 10;
 
   00168	dd 05 00 00 00
 	00		 fld	 QWORD PTR __real@4024000000000000
@@ -2040,24 +2059,24 @@ $LN85@format_flo:
   00179	75 ac		 jne	 SHORT $LN139@format_flo
   0017b	dd d8		 fstp	 ST(0)
 
-; 334  : 		}
-; 335  : 		break;
+; 340  : 		}
+; 341  : 		break;
 
   0017d	e9 b6 01 00 00	 jmp	 $LN176@format_flo
 $LN25@format_flo:
 
-; 336  : 
-; 337  : 	case ('E'):
-; 338  : 		digits = digits_u;
+; 342  : 
+; 343  : 	case ('E'):
+; 344  : 		digits = digits_u;
 
   00182	c7 45 f8 00 00
 	00 00		 mov	 DWORD PTR _digits$1$[ebp], OFFSET ?digits_u@?1??format_float@@9@9
 $case_e$180:
 
-; 339  : 	case ('e'):
-; 340  : case_e:
-; 341  : 		/* Shift the decimal point and round */
-; 342  : 		fpval2 = round(sign * (double)fpval * pow(10., precision - exponent));
+; 345  : 	case ('e'):
+; 346  : case_e:
+; 347  : 		/* Shift the decimal point and round */
+; 348  : 		fpval2 = round(sign * (double)fpval * pow(10., precision - exponent));
 
   00189	db 45 f4	 fild	 DWORD PTR _sign$[ebp]
   0018c	8b c3		 mov	 eax, ebx
@@ -2080,9 +2099,9 @@ $case_e$180:
   001bf	e8 00 00 00 00	 call	 _floor
   001c4	dd 5d f0	 fstp	 QWORD PTR _fpval2$1$[ebp]
 
-; 343  : 
-; 344  : 		/* Compensate for changed exponent through rounding */
-; 345  : 		if (fpval2 >= (unsigned __int64)pow(10., precision + 1))
+; 349  : 
+; 350  : 		/* Compensate for changed exponent through rounding */
+; 351  : 		if (fpval2 >= (unsigned __int64)pow(10., precision + 1))
 
   001c7	8d 43 01	 lea	 eax, DWORD PTR [ebx+1]
   001ca	83 c4 08	 add	 esp, 8
@@ -2138,12 +2157,12 @@ $LN86@format_flo:
   00251	dd d8		 fstp	 ST(0)
   00253	72 39		 jb	 SHORT $LN23@format_flo
 
-; 346  : 		{
-; 347  : 			exponent++;
+; 352  : 		{
+; 353  : 			exponent++;
 
   00255	46		 inc	 esi
 
-; 348  : 			fpval2 = round(sign * (double)fpval * pow(10., precision - exponent));
+; 354  : 			fpval2 = round(sign * (double)fpval * pow(10., precision - exponent));
 
   00256	8b c3		 mov	 eax, ebx
   00258	2b c6		 sub	 eax, esi
@@ -2165,19 +2184,19 @@ $LN86@format_flo:
   0028b	83 c4 08	 add	 esp, 8
 $LN23@format_flo:
 
-; 349  : 		}
-; 350  : 
-; 351  : 		val32 = exponent >= 0 ? exponent : -exponent;
+; 355  : 		}
+; 356  : 
+; 357  : 		val32 = exponent >= 0 ? exponent : -exponent;
 
   0028e	8b c6		 mov	 eax, esi
   00290	99		 cdq
   00291	8b d8		 mov	 ebx, eax
 
-; 352  : 
-; 353  : 		// FIXME: handle length of exponent field:
-; 354  : 		// http://msdn.microsoft.com/de-de/library/0fatw238%28VS.80%29.aspx
-; 355  : 		num_digits = 3;
-; 356  : 		while (num_digits--)
+; 358  : 
+; 359  : 		// FIXME: handle length of exponent field:
+; 360  : 		// http://msdn.microsoft.com/de-de/library/0fatw238%28VS.80%29.aspx
+; 361  : 		num_digits = 3;
+; 362  : 		while (num_digits--)
 
   00293	b8 03 00 00 00	 mov	 eax, 3
   00298	33 da		 xor	 ebx, edx
@@ -2186,8 +2205,8 @@ $LN23@format_flo:
 $LL22@format_flo:
   002a0	48		 dec	 eax
 
-; 357  : 		{
-; 358  : 			*--(*string) = digits[val32 % 10];
+; 363  : 		{
+; 364  : 			*--(*string) = digits[val32 % 10];
 
   002a1	ff 0f		 dec	 DWORD PTR [edi]
   002a3	89 45 10	 mov	 DWORD PTR _num_digits$1$[ebp], eax
@@ -2204,7 +2223,7 @@ $LL22@format_flo:
   002c1	2b d8		 sub	 ebx, eax
   002c3	8a 04 13	 mov	 al, BYTE PTR [ebx+edx]
 
-; 359  : 			val32 /= 10;
+; 365  : 			val32 /= 10;
 
   002c6	8b d9		 mov	 ebx, ecx
   002c8	88 06		 mov	 BYTE PTR [esi], al
@@ -2212,19 +2231,19 @@ $LL22@format_flo:
   002cd	85 c0		 test	 eax, eax
   002cf	75 cf		 jne	 SHORT $LL22@format_flo
 
-; 360  : 		}
-; 361  : 
-; 362  : 		/* Sign for the exponent */
-; 363  : 		*--(*string) = (exponent >= 0 ? ('+') : ('-'));
+; 366  : 		}
+; 367  : 
+; 368  : 		/* Sign for the exponent */
+; 369  : 		*--(*string) = (exponent >= 0 ? ('+') : ('-'));
 
   002d1	ff 0f		 dec	 DWORD PTR [edi]
   002d3	39 45 ec	 cmp	 DWORD PTR _exponent$1$[ebp], eax
   002d6	8b 0f		 mov	 ecx, DWORD PTR [edi]
 
-; 364  : 
-; 365  : 		/* Add 'e' or 'E' separator */
-; 366  : 		*--(*string) = digits[0xe];
-; 367  : 		break;
+; 370  : 
+; 371  : 		/* Add 'e' or 'E' separator */
+; 372  : 		*--(*string) = digits[0xe];
+; 373  : 		break;
 
   002d8	8b 5d fc	 mov	 ebx, DWORD PTR _precision$1$[ebp]
   002db	0f 9c c0	 setl	 al
@@ -2238,23 +2257,23 @@ $LL22@format_flo:
   002f0	eb 48		 jmp	 SHORT $LN33@format_flo
 $LN103@format_flo:
 
-; 368  : 
-; 369  : 	case ('A'):
-; 370  : 		digits = digits_u;
+; 374  : 
+; 375  : 	case ('A'):
+; 376  : 		digits = digits_u;
 
   002f2	c7 45 f8 00 00
 	00 00		 mov	 DWORD PTR _digits$1$[ebp], OFFSET ?digits_u@?1??format_float@@9@9
 $LN102@format_flo:
   002f9	dd d8		 fstp	 ST(0)
 
-; 371  : 	case ('a'):
-; 372  : 		//            base = 16;
-; 373  : 		// FIXME: TODO
-; 374  : 
-; 375  : 	case ('f'):
-; 376  : 	default:
-; 377  : 		/* Shift the decimal point and round */
-; 378  : 		fpval2 = round(sign * (double)fpval * pow(10., precision));
+; 377  : 	case ('a'):
+; 378  : 		//            base = 16;
+; 379  : 		// FIXME: TODO
+; 380  : 
+; 381  : 	case ('f'):
+; 382  : 	default:
+; 383  : 		/* Shift the decimal point and round */
+; 384  : 		fpval2 = round(sign * (double)fpval * pow(10., precision));
 
   002fb	db 45 10	 fild	 DWORD PTR _precision$[ebp]
   002fe	dd 5d d0	 fstp	 QWORD PTR tv351[ebp]
@@ -2281,19 +2300,19 @@ $LN176@format_flo:
   00338	dd d8		 fstp	 ST(0)
 $LN33@format_flo:
 
-; 379  : 		break;
-; 380  : 	}
-; 381  : 
-; 382  : 	/* Handle sign */
-; 383  : 	if (fpval < 0)
+; 385  : 		break;
+; 386  : 	}
+; 387  : 
+; 388  : 	/* Handle sign */
+; 389  : 	if (fpval < 0)
 
   0033a	dd 45 e0	 fld	 QWORD PTR _fpval$1$[ebp]
   0033d	d9 ee		 fldz
   0033f	df f1		 fcomip	 ST(1)
   00341	76 0b		 jbe	 SHORT $LN18@format_flo
 
-; 384  : 	{
-; 385  : 		*prefix = ("-");
+; 390  : 	{
+; 391  : 		*prefix = ("-");
 
   00343	8b 45 18	 mov	 eax, DWORD PTR _prefix$[ebp]
   00346	c7 00 00 00 00
@@ -2301,14 +2320,14 @@ $LN33@format_flo:
   0034c	eb 1f		 jmp	 SHORT $LN14@format_flo
 $LN18@format_flo:
 
-; 386  : 	}
-; 387  : 	else if (flags & FLAG_FORCE_SIGN)
+; 392  : 	}
+; 393  : 	else if (flags & FLAG_FORCE_SIGN)
 
   0034e	8b 45 0c	 mov	 eax, DWORD PTR _flags$[ebp]
   00351	a8 02		 test	 al, 2
   00353	74 0b		 je	 SHORT $LN16@format_flo
 
-; 388  : 		*prefix = ("+");
+; 394  : 		*prefix = ("+");
 
   00355	8b 45 18	 mov	 eax, DWORD PTR _prefix$[ebp]
   00358	c7 00 00 00 00
@@ -2316,21 +2335,21 @@ $LN18@format_flo:
   0035e	eb 0d		 jmp	 SHORT $LN14@format_flo
 $LN16@format_flo:
 
-; 389  : 	else if (flags & FLAG_FORCE_SIGNSP)
+; 395  : 	else if (flags & FLAG_FORCE_SIGNSP)
 
   00360	a8 04		 test	 al, 4
   00362	74 09		 je	 SHORT $LN14@format_flo
 
-; 390  : 		*prefix = (" ");
+; 396  : 		*prefix = (" ");
 
   00364	8b 45 18	 mov	 eax, DWORD PTR _prefix$[ebp]
   00367	c7 00 00 00 00
 	00		 mov	 DWORD PTR [eax], OFFSET ??_C@_01CLKCMJKC@?5?$AA@
 $LN14@format_flo:
 
-; 391  : 
-; 392  : 	/* Handle special cases first */
-; 393  : 	if (_isnan((double)fpval))
+; 397  : 
+; 398  : 	/* Handle special cases first */
+; 399  : 	if (_isnan((double)fpval))
 
   0036d	83 ec 08	 sub	 esp, 8
   00370	dd 1c 24	 fstp	 QWORD PTR [esp]
@@ -2339,12 +2358,12 @@ $LN14@format_flo:
   0037b	85 c0		 test	 eax, eax
   0037d	74 26		 je	 SHORT $LN13@format_flo
 
-; 394  : 	{
-; 395  : 		(*string) -= sizeof(_nan) / sizeof(char) - 1;
+; 400  : 	{
+; 401  : 		(*string) -= sizeof(_nan) / sizeof(char) - 1;
 
   0037f	83 07 fb	 add	 DWORD PTR [edi], -5	; fffffffbH
 
-; 396  : 		strcpy((*string), _nan);
+; 402  : 		strcpy((*string), _nan);
 
   00382	b9 00 00 00 00	 mov	 ecx, OFFSET ?_nan@?1??format_float@@9@9
   00387	8b 17		 mov	 edx, DWORD PTR [edi]
@@ -2358,14 +2377,14 @@ $LL48@format_flo:
   0039a	84 c0		 test	 al, al
   0039c	75 f2		 jne	 SHORT $LL48@format_flo
 
-; 397  : 		fpval2 = 1;
+; 403  : 		fpval2 = 1;
 
   0039e	d9 e8		 fld1
   003a0	e9 ac 00 00 00	 jmp	 $LN177@format_flo
 $LN13@format_flo:
 
-; 398  : 	}
-; 399  : 	else if (!_finite((double)fpval))
+; 404  : 	}
+; 405  : 	else if (!_finite((double)fpval))
 
   003a5	dd 45 e0	 fld	 QWORD PTR _fpval$1$[ebp]
   003a8	83 ec 08	 sub	 esp, 8
@@ -2375,12 +2394,12 @@ $LN13@format_flo:
   003b6	85 c0		 test	 eax, eax
   003b8	75 1c		 jne	 SHORT $LN54@format_flo
 
-; 400  : 	{
-; 401  : 		(*string) -= sizeof(_infinity) / sizeof(char) - 1;
+; 406  : 	{
+; 407  : 		(*string) -= sizeof(_infinity) / sizeof(char) - 1;
 
   003ba	83 07 fc	 add	 DWORD PTR [edi], -4	; fffffffcH
 
-; 402  : 		strcpy((*string), _infinity);
+; 408  : 		strcpy((*string), _infinity);
 
   003bd	b9 00 00 00 00	 mov	 ecx, OFFSET ?_infinity@?1??format_float@@9@9
   003c2	8b 17		 mov	 edx, DWORD PTR [edi]
@@ -2392,19 +2411,19 @@ $LL49@format_flo:
   003ce	84 c0		 test	 al, al
   003d0	75 f2		 jne	 SHORT $LL49@format_flo
 
-; 403  : 		fpval2 = 1;
+; 409  : 		fpval2 = 1;
 
   003d2	d9 e8		 fld1
 
-; 404  : 	}
-; 405  : 	else
+; 410  : 	}
+; 411  : 	else
 
   003d4	eb 7b		 jmp	 SHORT $LN177@format_flo
 $LN54@format_flo:
 
-; 406  : 	{
-; 407  : 		/* Zero padding */
-; 408  : 		while (padding-- > 0) *--(*string) = ('0');
+; 412  : 	{
+; 413  : 		/* Zero padding */
+; 414  : 		while (padding-- > 0) *--(*string) = ('0');
 
   003d6	8b 4d e8	 mov	 ecx, DWORD PTR _padding$1$[ebp]
   003d9	85 c9		 test	 ecx, ecx
@@ -2419,21 +2438,21 @@ $LL9@format_flo:
   003ea	7f f4		 jg	 SHORT $LL9@format_flo
 $LN60@format_flo:
 
-; 409  : 
-; 410  : 		/* Digits after the decimal point */
-; 411  : 		num_digits = precision;
+; 415  : 
+; 416  : 		/* Digits after the decimal point */
+; 417  : 		num_digits = precision;
 
   003ec	89 5d 10	 mov	 DWORD PTR _num_digits$2$[ebp], ebx
 
-; 412  : 		while (num_digits-- > 0)
+; 418  : 		while (num_digits-- > 0)
 
   003ef	85 db		 test	 ebx, ebx
   003f1	7e 65		 jle	 SHORT $LN82@format_flo
   003f3	dd 45 f0	 fld	 QWORD PTR _fpval2$1$[ebp]
 $LN7@format_flo:
 
-; 413  : 		{
-; 414  : 			*--(*string) = digits[(unsigned __int64)fpval2 % 10];
+; 419  : 		{
+; 420  : 			*--(*string) = digits[(unsigned __int64)fpval2 % 10];
 
   003f6	ff 0f		 dec	 DWORD PTR [edi]
   003f8	d9 c0		 fld	 ST(0)
@@ -2468,7 +2487,7 @@ $LN87@format_flo:
   00435	e8 00 00 00 00	 call	 __aullrem
   0043a	8b 4d f8	 mov	 ecx, DWORD PTR _digits$1$[ebp]
 
-; 415  : 			fpval2 /= base;
+; 421  : 			fpval2 /= base;
 
   0043d	dc 35 00 00 00
 	00		 fdiv	 QWORD PTR __real@4024000000000000
@@ -2481,10 +2500,10 @@ $LN87@format_flo:
 $LN177@format_flo:
   00451	dd 5d f0	 fstp	 QWORD PTR _fpval2$1$[ebp]
 
-; 416  : 		}
-; 417  : 	}
-; 418  : 
-; 419  : 	if (precision > 0 || flags & FLAG_SPECIAL)
+; 422  : 		}
+; 423  : 	}
+; 424  : 
+; 425  : 	if (precision > 0 || flags & FLAG_SPECIAL)
 
   00454	85 db		 test	 ebx, ebx
   00456	7f 06		 jg	 SHORT $LN4@format_flo
@@ -2493,7 +2512,7 @@ $LN82@format_flo:
   0045c	74 07		 je	 SHORT $LN83@format_flo
 $LN4@format_flo:
 
-; 420  : 		*--(*string) = ('.');
+; 426  : 		*--(*string) = ('.');
 
   0045e	ff 0f		 dec	 DWORD PTR [edi]
   00460	8b 07		 mov	 eax, DWORD PTR [edi]
@@ -2524,11 +2543,11 @@ $LN88@format_flo:
   00495	13 d3		 adc	 edx, ebx
 $LN3@format_flo:
 
-; 421  : 
-; 422  : 	/* Digits before the decimal point */
-; 423  : 	do
-; 424  : 	{
-; 425  : 		*--(*string) = digits[(unsigned __int64)fpval2 % base];
+; 427  : 
+; 428  : 	/* Digits before the decimal point */
+; 429  : 	do
+; 430  : 	{
+; 431  : 		*--(*string) = digits[(unsigned __int64)fpval2 % base];
 
   00497	ff 0f		 dec	 DWORD PTR [edi]
   00499	8b 37		 mov	 esi, DWORD PTR [edi]
@@ -2538,13 +2557,13 @@ $LN3@format_flo:
   004a0	51		 push	 ecx
   004a1	e8 00 00 00 00	 call	 __aullrem
 
-; 426  : 		fpval2 /= base;
+; 432  : 		fpval2 /= base;
 
   004a6	dd 05 00 00 00
 	00		 fld	 QWORD PTR __real@4024000000000000
 
-; 427  : 	}
-; 428  : 	while ((unsigned __int64)fpval2);
+; 433  : 	}
+; 434  : 	while ((unsigned __int64)fpval2);
 
   004ac	33 db		 xor	 ebx, ebx
   004ae	de fa		 fdivp	 ST(2), ST(0)
@@ -2578,8 +2597,8 @@ $LN89@format_flo:
   004e7	dd d8		 fstp	 ST(0)
   004e9	5b		 pop	 ebx
 
-; 429  : 
-; 430  : }
+; 435  : 
+; 436  : }
 
   004ea	8b e5		 mov	 esp, ebp
   004ec	5d		 pop	 ebp
@@ -2644,19 +2663,19 @@ _iStream$ = 16						; size = 4
 _iLen$ = 20						; size = 4
 _StreamOutWString PROC					; COMDAT
 
-; 270  : {
+; 276  : {
 
   00000	55		 push	 ebp
   00001	8b ec		 mov	 ebp, esp
   00003	53		 push	 ebx
   00004	56		 push	 esi
 
-; 271  : 	/* Vars */
-; 272  : 	wchar_t Character;
-; 273  : 	int bWritten = 0;
-; 274  : 
-; 275  : 	/* Iterate count */
-; 276  : 	while (iLen--)
+; 277  : 	/* Vars */
+; 278  : 	wchar_t Character;
+; 279  : 	int bWritten = 0;
+; 280  : 
+; 281  : 	/* Iterate count */
+; 282  : 	while (iLen--)
 
   00005	8b 75 14	 mov	 esi, DWORD PTR _iLen$[ebp]
   00008	57		 push	 edi
@@ -2666,16 +2685,16 @@ _StreamOutWString PROC					; COMDAT
   0000f	8b 5d 10	 mov	 ebx, DWORD PTR _iStream$[ebp]
 $LL3@StreamOutW:
 
-; 277  : 	{
-; 278  : 		/* Get char */
-; 279  : 		Character = *iStream++;
+; 283  : 	{
+; 284  : 		/* Get char */
+; 285  : 		Character = *iStream++;
 
   00012	0f b7 03	 movzx	 eax, WORD PTR [ebx]
   00015	8d 5b 02	 lea	 ebx, DWORD PTR [ebx+2]
 
-; 280  : 
-; 281  : 		/* Just write it, this function will do neccessary conversions */
-; 282  : 		if (StreamOutCharacter(oStream, oLen, Character) == 0)
+; 286  : 
+; 287  : 		/* Just write it, this function will do neccessary conversions */
+; 288  : 		if (StreamOutCharacter(oStream, oLen, Character) == 0)
 
   00018	50		 push	 eax
   00019	ff 75 0c	 push	 DWORD PTR _oLen$[ebp]
@@ -2686,26 +2705,26 @@ $LL3@StreamOutW:
   00028	85 c0		 test	 eax, eax
   0002a	74 0c		 je	 SHORT $LN7@StreamOutW
 
-; 284  : 
-; 285  : 		/* Inc */
-; 286  : 		bWritten++;
+; 290  : 
+; 291  : 		/* Inc */
+; 292  : 		bWritten++;
 
   0002c	47		 inc	 edi
   0002d	85 f6		 test	 esi, esi
   0002f	75 e1		 jne	 SHORT $LL3@StreamOutW
 $LN8@StreamOutW:
 
-; 287  : 	}
-; 288  : 
-; 289  : 	/* Num of chars copied */
-; 290  : 	return bWritten;
+; 293  : 	}
+; 294  : 
+; 295  : 	/* Num of chars copied */
+; 296  : 	return bWritten;
 
   00031	8b c7		 mov	 eax, edi
   00033	5f		 pop	 edi
   00034	5e		 pop	 esi
   00035	5b		 pop	 ebx
 
-; 291  : }
+; 297  : }
 
   00036	5d		 pop	 ebp
   00037	c3		 ret	 0
@@ -2713,12 +2732,12 @@ $LN7@StreamOutW:
   00038	5f		 pop	 edi
   00039	5e		 pop	 esi
 
-; 283  : 			return -1;
+; 289  : 			return -1;
 
   0003a	83 c8 ff	 or	 eax, -1
   0003d	5b		 pop	 ebx
 
-; 291  : }
+; 297  : }
 
   0003e	5d		 pop	 ebp
   0003f	c3		 ret	 0
@@ -2728,7 +2747,7 @@ _TEXT	ENDS
 ; File c:\users\philip\documents\github\mollenos\clib\src\stdio\stream.c
 ;	COMDAT _StreamOutString
 _TEXT	SEGMENT
-_bWritten$1$ = -4					; size = 4
+_iLen$2$ = 8						; size = 4
 _oStream$ = 8						; size = 4
 _oLen$ = 12						; size = 4
 _iStream$ = 16						; size = 4
@@ -2739,9 +2758,6 @@ _StreamOutString PROC					; COMDAT
 
   00000	55		 push	 ebp
   00001	8b ec		 mov	 ebp, esp
-  00003	51		 push	 ecx
-  00004	53		 push	 ebx
-  00005	56		 push	 esi
 
 ; 190  : 	char Character;
 ; 191  : 	int bWritten = 0;
@@ -2749,300 +2765,282 @@ _StreamOutString PROC					; COMDAT
 ; 193  : 	/* Sanity */
 ; 194  : 	if (oStream)
 
-  00006	8b 75 08	 mov	 esi, DWORD PTR _oStream$[ebp]
-  00009	57		 push	 edi
-  0000a	33 ff		 xor	 edi, edi
-  0000c	89 7d fc	 mov	 DWORD PTR _bWritten$1$[ebp], edi
-  0000f	85 f6		 test	 esi, esi
-  00011	74 28		 je	 SHORT $LN21@StreamOutS
+  00003	8b 4d 08	 mov	 ecx, DWORD PTR _oStream$[ebp]
+  00006	53		 push	 ebx
+  00007	56		 push	 esi
+  00008	33 db		 xor	 ebx, ebx
+  0000a	57		 push	 edi
+  0000b	85 c9		 test	 ecx, ecx
+  0000d	74 40		 je	 SHORT $LN22@StreamOutS
 
 ; 195  : 	{
-; 196  : 		while (iLen--) {
+; 196  : 		while (iLen) {
 
-  00013	8b 55 14	 mov	 edx, DWORD PTR _iLen$[ebp]
-  00016	85 d2		 test	 edx, edx
-  00018	0f 84 df 00 00
-	00		 je	 $LN37@StreamOutS
-  0001e	8b 7d 10	 mov	 edi, DWORD PTR _iStream$[ebp]
-  00021	8b da		 mov	 ebx, edx
-$LL16@StreamOutS:
+  0000f	8b 75 14	 mov	 esi, DWORD PTR _iLen$[ebp]
+  00012	85 f6		 test	 esi, esi
+  00014	0f 84 e7 00 00
+	00		 je	 $LN12@StreamOutS
+  0001a	8b 7d 10	 mov	 edi, DWORD PTR _iStream$[ebp]
+  0001d	8d 49 00	 npad	 3
+$LL17@StreamOutS:
 
-; 197  : 			(**oStream++) = *iStream++;
+; 197  : 			Character = *iStream++;
 
-  00023	8b 0e		 mov	 ecx, DWORD PTR [esi]
-  00025	8d 76 04	 lea	 esi, DWORD PTR [esi+4]
-  00028	8a 07		 mov	 al, BYTE PTR [edi]
-  0002a	8d 7f 01	 lea	 edi, DWORD PTR [edi+1]
-  0002d	88 01		 mov	 BYTE PTR [ecx], al
-  0002f	4a		 dec	 edx
-  00030	75 f1		 jne	 SHORT $LL16@StreamOutS
+  00020	8a 07		 mov	 al, BYTE PTR [edi]
+  00022	8d 7f 01	 lea	 edi, DWORD PTR [edi+1]
 
-; 260  : 			}
-; 261  : 		}
-; 262  : 	}
-; 263  : 
-; 264  : 	/* Num of bytes copied */
-; 265  : 	return bWritten;
+; 198  : 			
+; 199  : 			/* Write the character to the stream */
+; 200  : 			if (StreamOutCharacter(oStream, oLen, (uint32_t)Character) == 0)
 
-  00032	5f		 pop	 edi
-  00033	5e		 pop	 esi
-  00034	8b c3		 mov	 eax, ebx
-  00036	5b		 pop	 ebx
+  00025	0f be c0	 movsx	 eax, al
+  00028	50		 push	 eax
+  00029	ff 75 0c	 push	 DWORD PTR _oLen$[ebp]
+  0002c	51		 push	 ecx
+  0002d	e8 00 00 00 00	 call	 _StreamOutCharacter
+  00032	83 c4 0c	 add	 esp, 12			; 0000000cH
+  00035	85 c0		 test	 eax, eax
+  00037	74 0e		 je	 SHORT $LN24@StreamOutS
 
-; 266  : }
+; 202  : 
+; 203  : 			/* Inc */
+; 204  : 			bWritten++;
 
-  00037	8b e5		 mov	 esp, ebp
-  00039	5d		 pop	 ebp
-  0003a	c3		 ret	 0
-$LN21@StreamOutS:
+  00039	8b 4d 08	 mov	 ecx, DWORD PTR _oStream$[ebp]
+  0003c	43		 inc	 ebx
 
-; 198  : 			*oLen--;
-; 199  : 			bWritten++;
-; 200  : 		}
-; 201  : 	}
-; 202  : 	else
-; 203  : 	{
-; 204  : 		/* Iterate chars */
-; 205  : 		while (iLen)
+; 205  : 			iLen--;
 
-  0003b	8b 5d 14	 mov	 ebx, DWORD PTR _iLen$[ebp]
-  0003e	85 db		 test	 ebx, ebx
-  00040	0f 84 b7 00 00
-	00		 je	 $LN37@StreamOutS
-  00046	8b 75 10	 mov	 esi, DWORD PTR _iStream$[ebp]
-  00049	8d a4 24 00 00
-	00 00		 npad	 7
+  0003d	4e		 dec	 esi
+  0003e	75 e0		 jne	 SHORT $LL17@StreamOutS
+
+; 266  : 			}
+; 267  : 		}
+; 268  : 	}
+; 269  : 
+; 270  : 	/* Num of bytes copied */
+; 271  : 	return bWritten;
+
+  00040	5f		 pop	 edi
+  00041	5e		 pop	 esi
+  00042	8b c3		 mov	 eax, ebx
+  00044	5b		 pop	 ebx
+
+; 272  : }
+
+  00045	5d		 pop	 ebp
+  00046	c3		 ret	 0
+$LN24@StreamOutS:
+  00047	5f		 pop	 edi
+  00048	5e		 pop	 esi
+
+; 201  : 				return -1;
+
+  00049	83 c8 ff	 or	 eax, -1
+  0004c	5b		 pop	 ebx
+
+; 272  : }
+
+  0004d	5d		 pop	 ebp
+  0004e	c3		 ret	 0
+$LN22@StreamOutS:
+
+; 206  : 		}
+; 207  : 	}
+; 208  : 	else
+; 209  : 	{
+; 210  : 		/* Iterate chars */
+; 211  : 		while (iLen)
+
+  0004f	8b 45 14	 mov	 eax, DWORD PTR _iLen$[ebp]
+  00052	89 45 08	 mov	 DWORD PTR _iLen$2$[ebp], eax
+  00055	85 c0		 test	 eax, eax
+  00057	0f 84 a4 00 00
+	00		 je	 $LN12@StreamOutS
+  0005d	8b 75 10	 mov	 esi, DWORD PTR _iStream$[ebp]
 $LL13@StreamOutS:
 
-; 206  : 		{
-; 207  : 			Character = *iStream++;
+; 212  : 		{
+; 213  : 			Character = *iStream++;
 
-  00050	8a 0e		 mov	 cl, BYTE PTR [esi]
-  00052	46		 inc	 esi
+  00060	8a 0e		 mov	 cl, BYTE PTR [esi]
+  00062	46		 inc	 esi
 
-; 208  : 			
-; 209  : 			/* Sanity */
-; 210  : 			if (IsUTF8(Character))
+; 214  : 			
+; 215  : 			/* Sanity */
+; 216  : 			if (IsUTF8(Character))
 
-  00053	8a c1		 mov	 al, cl
-  00055	24 c0		 and	 al, 192			; 000000c0H
-  00057	3c 80		 cmp	 al, 128			; 00000080H
+  00063	8a c1		 mov	 al, cl
+  00065	24 c0		 and	 al, 192			; 000000c0H
+  00067	3c 80		 cmp	 al, 128			; 00000080H
 
-; 211  : 			{
-; 212  : 				/* Build UTF-8 */
-; 213  : 				uint32_t uChar = (uint32_t)Character;
+; 217  : 			{
+; 218  : 				/* Build UTF-8 */
+; 219  : 				uint32_t uChar = (uint32_t)Character;
 
-  00059	0f be c1	 movsx	 eax, cl
-  0005c	75 6a		 jne	 SHORT $LN11@StreamOutS
+  00069	0f be c1	 movsx	 eax, cl
+  0006c	75 6d		 jne	 SHORT $LN11@StreamOutS
 
-; 214  : 				uint32_t Size = 0;
-; 215  : 
-; 216  : 				/* Iterate */
-; 217  : 				while (*iStream && IsUTF8(*iStream))
-
-  0005e	8a 16		 mov	 dl, BYTE PTR [esi]
-  00060	33 ff		 xor	 edi, edi
-  00062	84 d2		 test	 dl, dl
-  00064	74 1a		 je	 SHORT $LN35@StreamOutS
-$LL10@StreamOutS:
-  00066	8a ca		 mov	 cl, dl
-  00068	80 e1 c0	 and	 cl, 192			; 000000c0H
-  0006b	80 f9 80	 cmp	 cl, 128			; 00000080H
-  0006e	75 10		 jne	 SHORT $LN35@StreamOutS
-
-; 218  : 				{
-; 219  : 					/* Move */
-; 220  : 					uChar <<= 6;
+; 220  : 				uint32_t Size = 0;
 ; 221  : 
-; 222  : 					/* Add */
-; 223  : 					uChar += (unsigned char)*iStream;
-; 224  : 
-; 225  : 					/* Inc */
-; 226  : 					Size++;
-; 227  : 					iStream++;
+; 222  : 				/* Iterate */
+; 223  : 				while (*iStream && IsUTF8(*iStream))
 
-  00070	46		 inc	 esi
-  00071	c1 e0 06	 shl	 eax, 6
-  00074	0f b6 ca	 movzx	 ecx, dl
-  00077	47		 inc	 edi
-  00078	03 c1		 add	 eax, ecx
-  0007a	8a 16		 mov	 dl, BYTE PTR [esi]
-  0007c	84 d2		 test	 dl, dl
-  0007e	75 e6		 jne	 SHORT $LL10@StreamOutS
-$LN35@StreamOutS:
+  0006e	8a 16		 mov	 dl, BYTE PTR [esi]
+  00070	33 ff		 xor	 edi, edi
+  00072	84 d2		 test	 dl, dl
+  00074	74 1a		 je	 SHORT $LN36@StreamOutS
+$LL10@StreamOutS:
+  00076	8a ca		 mov	 cl, dl
+  00078	80 e1 c0	 and	 cl, 192			; 000000c0H
+  0007b	80 f9 80	 cmp	 cl, 128			; 00000080H
+  0007e	75 10		 jne	 SHORT $LN36@StreamOutS
 
-; 228  : 				}
-; 229  : 
-; 230  : 				/* Move */
-; 231  : 				uChar <<= 6;
+; 224  : 				{
+; 225  : 					/* Move */
+; 226  : 					uChar <<= 6;
+; 227  : 
+; 228  : 					/* Add */
+; 229  : 					uChar += (unsigned char)*iStream;
+; 230  : 
+; 231  : 					/* Inc */
+; 232  : 					Size++;
+; 233  : 					iStream++;
 
-  00080	c1 e0 06	 shl	 eax, 6
+  00080	46		 inc	 esi
+  00081	c1 e0 06	 shl	 eax, 6
+  00084	0f b6 ca	 movzx	 ecx, dl
+  00087	47		 inc	 edi
+  00088	03 c1		 add	 eax, ecx
+  0008a	8a 16		 mov	 dl, BYTE PTR [esi]
+  0008c	84 d2		 test	 dl, dl
+  0008e	75 e6		 jne	 SHORT $LL10@StreamOutS
+$LN36@StreamOutS:
 
-; 232  : 
-; 233  : 				/* Add the last byte */
-; 234  : 				if (Size == 1)
+; 234  : 				}
+; 235  : 
+; 236  : 				/* Move */
+; 237  : 				uChar <<= 6;
 
-  00083	83 ff 01	 cmp	 edi, 1
-  00086	75 08		 jne	 SHORT $LN8@StreamOutS
+  00090	c1 e0 06	 shl	 eax, 6
 
-; 235  : 					uChar |= (((unsigned char)*iStream) & 0x1F);
+; 238  : 
+; 239  : 				/* Add the last byte */
+; 240  : 				if (Size == 1)
 
-  00088	0f b6 0e	 movzx	 ecx, BYTE PTR [esi]
-  0008b	83 e1 1f	 and	 ecx, 31			; 0000001fH
-  0008e	eb 18		 jmp	 SHORT $LN38@StreamOutS
+  00093	83 ff 01	 cmp	 edi, 1
+  00096	75 08		 jne	 SHORT $LN8@StreamOutS
+
+; 241  : 					uChar |= (((unsigned char)*iStream) & 0x1F);
+
+  00098	0f b6 0e	 movzx	 ecx, BYTE PTR [esi]
+  0009b	83 e1 1f	 and	 ecx, 31			; 0000001fH
+  0009e	eb 18		 jmp	 SHORT $LN37@StreamOutS
 $LN8@StreamOutS:
 
-; 236  : 				else if (Size == 2)
+; 242  : 				else if (Size == 2)
 
-  00090	83 ff 02	 cmp	 edi, 2
-  00093	75 08		 jne	 SHORT $LN6@StreamOutS
+  000a0	83 ff 02	 cmp	 edi, 2
+  000a3	75 08		 jne	 SHORT $LN6@StreamOutS
 
-; 237  : 					uChar |= (((unsigned char)*iStream) & 0xF);
+; 243  : 					uChar |= (((unsigned char)*iStream) & 0xF);
 
-  00095	0f b6 0e	 movzx	 ecx, BYTE PTR [esi]
-  00098	83 e1 0f	 and	 ecx, 15			; 0000000fH
-  0009b	eb 0b		 jmp	 SHORT $LN38@StreamOutS
+  000a5	0f b6 0e	 movzx	 ecx, BYTE PTR [esi]
+  000a8	83 e1 0f	 and	 ecx, 15			; 0000000fH
+  000ab	eb 0b		 jmp	 SHORT $LN37@StreamOutS
 $LN6@StreamOutS:
 
-; 238  : 				else if (Size == 3)
+; 244  : 				else if (Size == 3)
 
-  0009d	83 ff 03	 cmp	 edi, 3
-  000a0	75 08		 jne	 SHORT $LN4@StreamOutS
+  000ad	83 ff 03	 cmp	 edi, 3
+  000b0	75 08		 jne	 SHORT $LN4@StreamOutS
 
-; 239  : 					uChar |= (((unsigned char)*iStream) & 0x7);
+; 245  : 					uChar |= (((unsigned char)*iStream) & 0x7);
 
-  000a2	0f b6 0e	 movzx	 ecx, BYTE PTR [esi]
-  000a5	83 e1 07	 and	 ecx, 7
-$LN38@StreamOutS:
-  000a8	0b c1		 or	 eax, ecx
+  000b2	0f b6 0e	 movzx	 ecx, BYTE PTR [esi]
+  000b5	83 e1 07	 and	 ecx, 7
+$LN37@StreamOutS:
+  000b8	0b c1		 or	 eax, ecx
 $LN4@StreamOutS:
 
-; 240  : 				Size++;
-; 241  : 
-; 242  : 				/* Write the character to the stream */
-; 243  : 				if (StreamOutCharacter(oStream, oLen, uChar) == 0)
+; 246  : 				Size++;
+; 247  : 
+; 248  : 				/* Write the character to the stream */
+; 249  : 				if (StreamOutCharacter(oStream, oLen, uChar) == 0)
 
-  000aa	50		 push	 eax
-  000ab	ff 75 0c	 push	 DWORD PTR _oLen$[ebp]
-  000ae	47		 inc	 edi
-  000af	6a 00		 push	 0
-  000b1	e8 00 00 00 00	 call	 _StreamOutCharacter
-  000b6	83 c4 0c	 add	 esp, 12			; 0000000cH
-  000b9	85 c0		 test	 eax, eax
-  000bb	74 36		 je	 SHORT $LN23@StreamOutS
+  000ba	50		 push	 eax
+  000bb	ff 75 0c	 push	 DWORD PTR _oLen$[ebp]
+  000be	47		 inc	 edi
+  000bf	6a 00		 push	 0
+  000c1	e8 00 00 00 00	 call	 _StreamOutCharacter
+  000c6	83 c4 0c	 add	 esp, 12			; 0000000cH
+  000c9	85 c0		 test	 eax, eax
+  000cb	0f 84 76 ff ff
+	ff		 je	 $LN24@StreamOutS
 
-; 245  : 
-; 246  : 				/* Skip */
-; 247  : 				bWritten += Size;
+; 250  : 					return -1;
+; 251  : 
+; 252  : 				/* Skip */
+; 253  : 				bWritten += Size;
+; 254  : 				iLen -= Size;
 
-  000bd	01 7d fc	 add	 DWORD PTR _bWritten$1$[ebp], edi
+  000d1	8b 4d 08	 mov	 ecx, DWORD PTR _iLen$2$[ebp]
+  000d4	03 df		 add	 ebx, edi
+  000d6	2b cf		 sub	 ecx, edi
 
-; 248  : 				iLen -= Size;
+; 255  : 				iStream++;
 
-  000c0	2b df		 sub	 ebx, edi
+  000d8	46		 inc	 esi
 
-; 249  : 				iStream++;
-; 250  : 			}
-; 251  : 			else
+; 256  : 			}
+; 257  : 			else
 
-  000c2	8b 7d fc	 mov	 edi, DWORD PTR _bWritten$1$[ebp]
-  000c5	46		 inc	 esi
-  000c6	eb 17		 jmp	 SHORT $LN2@StreamOutS
+  000d9	eb 1b		 jmp	 SHORT $LN38@StreamOutS
 $LN11@StreamOutS:
 
-; 252  : 			{
-; 253  : 				/* Write the character to the stream */
-; 254  : 				if (StreamOutCharacter(oStream, oLen, (uint32_t)Character) == 0)
+; 258  : 			{
+; 259  : 				/* Write the character to the stream */
+; 260  : 				if (StreamOutCharacter(oStream, oLen, (uint32_t)Character) == 0)
 
-  000c8	50		 push	 eax
-  000c9	ff 75 0c	 push	 DWORD PTR _oLen$[ebp]
-  000cc	6a 00		 push	 0
-  000ce	e8 00 00 00 00	 call	 _StreamOutCharacter
-  000d3	83 c4 0c	 add	 esp, 12			; 0000000cH
-  000d6	85 c0		 test	 eax, eax
-  000d8	74 19		 je	 SHORT $LN23@StreamOutS
+  000db	50		 push	 eax
+  000dc	ff 75 0c	 push	 DWORD PTR _oLen$[ebp]
+  000df	6a 00		 push	 0
+  000e1	e8 00 00 00 00	 call	 _StreamOutCharacter
+  000e6	83 c4 0c	 add	 esp, 12			; 0000000cH
+  000e9	85 c0		 test	 eax, eax
+  000eb	0f 84 56 ff ff
+	ff		 je	 $LN24@StreamOutS
 
-; 255  : 					return -1;
-; 256  : 
-; 257  : 				/* Inc */
-; 258  : 				bWritten++;
+; 261  : 					return -1;
+; 262  : 
+; 263  : 				/* Inc */
+; 264  : 				bWritten++;
+; 265  : 				iLen--;
 
-  000da	47		 inc	 edi
-
-; 259  : 				iLen--;
-
-  000db	4b		 dec	 ebx
-  000dc	89 7d fc	 mov	 DWORD PTR _bWritten$1$[ebp], edi
-$LN2@StreamOutS:
-
-; 198  : 			*oLen--;
-; 199  : 			bWritten++;
-; 200  : 		}
-; 201  : 	}
-; 202  : 	else
-; 203  : 	{
-; 204  : 		/* Iterate chars */
-; 205  : 		while (iLen)
-
-  000df	85 db		 test	 ebx, ebx
-  000e1	0f 85 69 ff ff
+  000f1	8b 4d 08	 mov	 ecx, DWORD PTR _iLen$2$[ebp]
+  000f4	43		 inc	 ebx
+  000f5	49		 dec	 ecx
+$LN38@StreamOutS:
+  000f6	89 4d 08	 mov	 DWORD PTR _iLen$2$[ebp], ecx
+  000f9	85 c9		 test	 ecx, ecx
+  000fb	0f 85 5f ff ff
 	ff		 jne	 $LL13@StreamOutS
+$LN12@StreamOutS:
+  00101	5f		 pop	 edi
+  00102	5e		 pop	 esi
 
-; 252  : 			{
-; 253  : 				/* Write the character to the stream */
-; 254  : 				if (StreamOutCharacter(oStream, oLen, (uint32_t)Character) == 0)
+; 266  : 			}
+; 267  : 		}
+; 268  : 	}
+; 269  : 
+; 270  : 	/* Num of bytes copied */
+; 271  : 	return bWritten;
 
-  000e7	8b 5d fc	 mov	 ebx, DWORD PTR _bWritten$1$[ebp]
+  00103	8b c3		 mov	 eax, ebx
+  00105	5b		 pop	 ebx
 
-; 260  : 			}
-; 261  : 		}
-; 262  : 	}
-; 263  : 
-; 264  : 	/* Num of bytes copied */
-; 265  : 	return bWritten;
+; 272  : }
 
-  000ea	8b c3		 mov	 eax, ebx
-  000ec	5f		 pop	 edi
-  000ed	5e		 pop	 esi
-  000ee	5b		 pop	 ebx
-
-; 266  : }
-
-  000ef	8b e5		 mov	 esp, ebp
-  000f1	5d		 pop	 ebp
-  000f2	c3		 ret	 0
-$LN23@StreamOutS:
-  000f3	5f		 pop	 edi
-  000f4	5e		 pop	 esi
-
-; 244  : 					return -1;
-
-  000f5	83 c8 ff	 or	 eax, -1
-  000f8	5b		 pop	 ebx
-
-; 266  : }
-
-  000f9	8b e5		 mov	 esp, ebp
-  000fb	5d		 pop	 ebp
-  000fc	c3		 ret	 0
-$LN37@StreamOutS:
-  000fd	5f		 pop	 edi
-  000fe	33 db		 xor	 ebx, ebx
-  00100	5e		 pop	 esi
-
-; 260  : 			}
-; 261  : 		}
-; 262  : 	}
-; 263  : 
-; 264  : 	/* Num of bytes copied */
-; 265  : 	return bWritten;
-
-  00101	8b c3		 mov	 eax, ebx
-  00103	5b		 pop	 ebx
-
-; 266  : }
-
-  00104	8b e5		 mov	 esp, ebp
   00106	5d		 pop	 ebp
   00107	c3		 ret	 0
 _StreamOutString ENDP
@@ -3194,7 +3192,7 @@ _StreamCharacterToUtf8 PROC				; COMDAT
   00021	77 0b		 ja	 SHORT $LN18@StreamChar
 
 ; 85   : 	{
-; 86   : 		TmpBuffer[0] = (char)Character;
+; 86   : 		TmpBuffer[0] = (char)(Character & 0xFF);
 
   00023	88 4d f4	 mov	 BYTE PTR _TmpBuffer$[ebp], cl
 

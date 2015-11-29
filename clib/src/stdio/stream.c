@@ -83,7 +83,7 @@ int StreamCharacterToUtf8(uint32_t Character, void* oBuffer, uint32_t *Length)
 
 	if (Character <= 0x7F)  /* 0XXX XXXX one byte */
 	{
-		TmpBuffer[0] = (char)Character;
+		TmpBuffer[0] = (char)(Character & 0xFF);
 		NumBytes = 1;
 	}
 	else if (Character <= 0x7FF)  /* 110X XXXX  two bytes */
@@ -193,10 +193,16 @@ static int StreamOutString(char **oStream, uint32_t *oLen, const char *iStream, 
 	/* Sanity */
 	if (oStream)
 	{
-		while (iLen--) {
-			(**oStream++) = *iStream++;
-			*oLen--;
+		while (iLen) {
+			Character = *iStream++;
+			
+			/* Write the character to the stream */
+			if (StreamOutCharacter(oStream, oLen, (uint32_t)Character) == 0)
+				return -1;
+
+			/* Inc */
 			bWritten++;
+			iLen--;
 		}
 	}
 	else
@@ -506,7 +512,7 @@ int _cdecl streamout(char **out, size_t size, const char *format, va_list argptr
 			else
 			{
 				/* Write the character to the stream */
-				if ((written = StreamOutCharacter(out, &cnt, chr)) == 0)
+				if ((written = StreamOutCharacter(out, &cnt, (uint32_t)chr)) == 0)
 					return -1;
 			}
 
@@ -669,9 +675,9 @@ case_string:
 				flags &= ~FLAG_WIDECHAR;
 			}
 
-// 			if (flags & FLAG_WIDECHAR)
-// 				len = wcsnlen((wchar_t*)string, (unsigned)precision);
-// 			else
+ 			if (flags & FLAG_WIDECHAR)
+ 				len = wcsnlen((wchar_t*)string, (unsigned)precision);
+ 			else
 				len = strlen((char*)string);
 			precision = 0;
 			break;

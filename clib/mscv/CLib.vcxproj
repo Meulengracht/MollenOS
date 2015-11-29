@@ -78,6 +78,7 @@
     <ClCompile Include="..\src\string\strtoul.c" />
     <ClCompile Include="..\src\string\strtoull.c" />
     <ClCompile Include="..\src\string\strxfrm.c" />
+    <ClCompile Include="..\src\string\wcsnlen.c" />
   </ItemGroup>
   <ItemGroup>
     <MASM Include="..\src\math\fabs.S">

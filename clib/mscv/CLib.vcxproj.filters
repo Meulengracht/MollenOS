@@ -231,6 +231,9 @@
     <ClCompile Include="..\crt\math.c">
       <Filter>Source\crt</Filter>
     </ClCompile>
+    <ClCompile Include="..\src\string\wcsnlen.c">
+      <Filter>Source\string</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <MASM Include="..\src\math\fabs.S">
