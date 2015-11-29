@@ -184,36 +184,110 @@ static int StreamOutCharacter(char **oStream, uint32_t *oLen, uint32_t Character
 	}
 }
 
-static int streamout_astring(char **out, uint32_t *cnt, const char *string, size_t count)
+/* Copyies a UTF-8 String to another */
+static int StreamOutString(char **oStream, uint32_t *oLen, const char *iStream, size_t iLen)
 {
-	char chr;
-	int written = 0;
+	char Character;
+	int bWritten = 0;
 
-	while (count--)
+	/* Sanity */
+	if (oStream)
 	{
-		chr = *string++;
-		if (StreamOutCharacter(out, cnt, chr) == 0) return -1;
-		written++;
+		while (iLen--) {
+			(**oStream++) = *iStream++;
+			*oLen--;
+			bWritten++;
+		}
 	}
-
-	return written;
-}
-
-static int streamout_wstring(char **out, uint32_t *cnt, const wchar_t *string, size_t count)
-{
-	wchar_t chr;
-	int written = 0;
-
-	while (count--)
+	else
 	{
-		chr = *string++;
+		/* Iterate chars */
+		while (iLen)
 		{
-			if (StreamOutCharacter(out, cnt, chr) == 0) return -1;
-			written++;
+			Character = *iStream++;
+			
+			/* Sanity */
+			if (IsUTF8(Character))
+			{
+				/* Build UTF-8 */
+				uint32_t uChar = (uint32_t)Character;
+				uint32_t Size = 0;
+
+				/* Iterate */
+				while (*iStream && IsUTF8(*iStream))
+				{
+					/* Move */
+					uChar <<= 6;
+
+					/* Add */
+					uChar += (unsigned char)*iStream;
+
+					/* Inc */
+					Size++;
+					iStream++;
+				}
+
+				/* Move */
+				uChar <<= 6;
+
+				/* Add the last byte */
+				if (Size == 1)
+					uChar |= (((unsigned char)*iStream) & 0x1F);
+				else if (Size == 2)
+					uChar |= (((unsigned char)*iStream) & 0xF);
+				else if (Size == 3)
+					uChar |= (((unsigned char)*iStream) & 0x7);
+				Size++;
+
+				/* Write the character to the stream */
+				if (StreamOutCharacter(oStream, oLen, uChar) == 0)
+					return -1;
+
+				/* Skip */
+				bWritten += Size;
+				iLen -= Size;
+				iStream++;
+			}
+			else
+			{
+				/* Write the character to the stream */
+				if (StreamOutCharacter(oStream, oLen, (uint32_t)Character) == 0)
+					return -1;
+
+				/* Inc */
+				bWritten++;
+				iLen--;
+			}
 		}
 	}
 
-	return written;
+	/* Num of bytes copied */
+	return bWritten;
+}
+
+/* Copies an U32 string to an UTF-8 */
+static int StreamOutWString(char **oStream, uint32_t *oLen, const wchar_t *iStream, size_t iLen)
+{
+	/* Vars */
+	wchar_t Character;
+	int bWritten = 0;
+
+	/* Iterate count */
+	while (iLen--)
+	{
+		/* Get char */
+		Character = *iStream++;
+
+		/* Just write it, this function will do neccessary conversions */
+		if (StreamOutCharacter(oStream, oLen, Character) == 0)
+			return -1;
+
+		/* Inc */
+		bWritten++;
+	}
+
+	/* Num of chars copied */
+	return bWritten;
 }
 
 void format_float(char chr, unsigned int flags, int precision,
@@ -355,7 +429,7 @@ case_e:
 
 }
 
-#define streamout_string streamout_astring
+#define streamout_string StreamOutString
 #define USE_MULTISIZE 1
 
 int _cdecl streamout(char **out, size_t size, const char *format, va_list argptr)
@@ -425,6 +499,9 @@ int _cdecl streamout(char **out, size_t size, const char *format, va_list argptr
 				/* Write the character to the stream */
 				if ((written = StreamOutCharacter(out, &cnt, uChar)) == 0)
 					return -1;
+
+				/* Skip */
+				format++;
 			}
 			else
 			{
@@ -718,9 +795,9 @@ case_number:
 
 		/* Output the string */
 		if (flags & FLAG_WIDECHAR)
-			written = streamout_wstring(out, &cnt, (wchar_t*)string, len);
+			written = StreamOutWString(out, &cnt, (wchar_t*)string, len);
 		else
-			written = streamout_astring(out, &cnt, (char*)string, len);
+			written = StreamOutString(out, &cnt, (char*)string, len);
 		if (written == -1) return -1;
 		written_all += written;
 
