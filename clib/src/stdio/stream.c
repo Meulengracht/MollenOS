@@ -548,23 +548,22 @@ int _cdecl streamout(char **out, size_t size, const char *format, va_list argptr
 			continue;
 
 		case ('C'):
-			if (!(flags & FLAG_SHORT)) flags |= FLAG_WIDECHAR;
-			goto case_char;
-
 		case ('c'):
-case_char:
 			string = buffer;
 			len = 1;
- 			if (flags & FLAG_WIDECHAR)
- 			{
- 				((wchar_t*)string)[0] = (wchar_t)va_arg(argptr, int);
- 				((wchar_t*)string)[1] = (wchar_t)('\0');
- 			}
- 			else
- 			{
-				((char*)string)[0] = (char)va_arg(argptr, int);
-				((char*)string)[1] = (char)('\0');
-			}
+
+			/* Get character */
+			uint32_t uChar = (uint32_t)va_arg(argptr, int);
+			uint32_t uLen = 0;
+
+			/* Stream it out */
+			StreamCharacterToUtf8(uChar, string, &uLen);
+
+			/* Null terminate */
+			((char*)string)[uLen] = (char)('\0');
+			len = (size_t)uLen;
+			
+			/* Done */
 			break;
 
 		case ('Z'):
