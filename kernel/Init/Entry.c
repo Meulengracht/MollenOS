@@ -94,7 +94,7 @@ void MCoreInitialize(MCoreBootInfo_t *BootInfo)
 	/* Start out any extra cores */
 	CpuInitSmp(BootInfo->ArchBootInfo);
 
-	/* Start the request handle */
+	/* Start the request handler */
 	DmStart();
 
 	/* Virtual Filesystem */

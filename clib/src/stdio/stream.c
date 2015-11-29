@@ -63,29 +63,123 @@ enum
 #define get_exp(f) (int)floor(f == 0 ? 0 : (f >= 0 ? log10(f) : log10(-f)))
 #define round(x) floor((x) + 0.5)
 
+/* Helpers */
+#define IsUTF8(Character) (((Character) & 0xC0) == 0x80)
+
 #ifdef LIBC_KERNEL
 extern int VideoPutChar(int Character);
 #endif
 
-//Putchar call
-static int streamout_char(char **out, uint32_t *cnt, int c)
+/* Encoding U32 back to UTF-8 */
+/* Converts a single char to UTF8 */
+int StreamCharacterToUtf8(uint32_t Character, void* oBuffer, uint32_t *Length)
+{
+	/* Encode Buffer */
+	char TmpBuffer[10] = { 0 };
+	char* BufPtr = &TmpBuffer[0];
+
+	uint32_t NumBytes = 0;
+	uint32_t Error = 0;
+
+	if (Character <= 0x7F)  /* 0XXX XXXX one byte */
+	{
+		TmpBuffer[0] = (char)Character;
+		NumBytes = 1;
+	}
+	else if (Character <= 0x7FF)  /* 110X XXXX  two bytes */
+	{
+		TmpBuffer[0] = (char)(0xC0 | (Character >> 6));
+		TmpBuffer[1] = (char)(0x80 | (Character & 0x3F));
+		NumBytes = 2;
+	}
+	else if (Character <= 0xFFFF)  /* 1110 XXXX  three bytes */
+	{
+		TmpBuffer[0] = (char)(0xE0 | (Character >> 12));
+		TmpBuffer[1] = (char)(0x80 | ((Character >> 6) & 0x3F));
+		TmpBuffer[2] = (char)(0x80 | (Character & 0x3F));
+		NumBytes = 3;
+
+		/* Sanity no special characters */
+		if (Character == 0xFFFE || Character == 0xFFFF)
+			Error = 1;
+	}
+	else if (Character <= 0x1FFFFF)  /* 1111 0XXX  four bytes */
+	{
+		TmpBuffer[0] = (char)(0xF0 | (Character >> 18));
+		TmpBuffer[1] = (char)(0x80 | ((Character >> 12) & 0x3F));
+		TmpBuffer[2] = (char)(0x80 | ((Character >> 6) & 0x3F));
+		TmpBuffer[3] = (char)(0x80 | (Character & 0x3F));
+		NumBytes = 4;
+
+		if (Character > 0x10FFFF)
+			Error = 1;
+	}
+	else if (Character <= 0x3FFFFFF)  /* 1111 10XX  five bytes */
+	{
+		TmpBuffer[0] = (char)(0xF8 | (Character >> 24));
+		TmpBuffer[1] = (char)(0x80 | (Character >> 18));
+		TmpBuffer[2] = (char)(0x80 | ((Character >> 12) & 0x3F));
+		TmpBuffer[3] = (char)(0x80 | ((Character >> 6) & 0x3F));
+		TmpBuffer[4] = (char)(0x80 | (Character & 0x3F));
+		NumBytes = 5;
+		Error = 1;
+	}
+	else if (Character <= 0x7FFFFFFF)  /* 1111 110X  six bytes */
+	{
+		TmpBuffer[0] = (char)(0xFC | (Character >> 30));
+		TmpBuffer[1] = (char)(0x80 | ((Character >> 24) & 0x3F));
+		TmpBuffer[2] = (char)(0x80 | ((Character >> 18) & 0x3F));
+		TmpBuffer[3] = (char)(0x80 | ((Character >> 12) & 0x3F));
+		TmpBuffer[4] = (char)(0x80 | ((Character >> 6) & 0x3F));
+		TmpBuffer[5] = (char)(0x80 | (Character & 0x3F));
+		NumBytes = 6;
+		Error = 1;
+	}
+	else
+		Error = 1;
+
+	/* Write buffer only if it's a valid byte sequence */
+	if (!Error && oBuffer != NULL)
+		memcpy(oBuffer, BufPtr, NumBytes);
+
+	/* We want the length */
+	*Length = NumBytes;
+
+	/* Sanity */
+	if (Error)
+		return -1;
+	else
+		return 0;
+}
+
+/* PutChar Wrapper 
+ * Supports UTF-8 && Unicode */
+static int StreamOutCharacter(char **oStream, uint32_t *oLen, uint32_t Character)
 {
 	/* Sanity */
-	if(*cnt == 0)
+	if (*oLen == 0)
 		return 0;
 
-	if (out) {
-		**out = (char)c;
-		++(*out);
-		*cnt -= 1;
-		return c;
+	/* Do we have a stream to write to? */
+	if (oStream) {
+		/* We cannot just copy an U32 character 
+		 * to stream like this, we must encode it back */
+		uint32_t uLen = 0;
+		StreamCharacterToUtf8(Character, *oStream, &uLen);
+		(*oStream) += uLen;
+		*oLen -= uLen;
+
+		/* Done ! */
+		return Character;
 	}
 	else 
 	{
+		/* These routines need the 
+		 * unicode-point */
 #ifndef LIBC_KERNEL
-		return putchar(c);
+		return putchar(Character);
 #else
-		return VideoPutChar(c);
+		return VideoPutChar(Character);
 #endif
 	}
 }
@@ -98,7 +192,7 @@ static int streamout_astring(char **out, uint32_t *cnt, const char *string, size
 	while (count--)
 	{
 		chr = *string++;
-		if (streamout_char(out, cnt, chr) == 0) return -1;
+		if (StreamOutCharacter(out, cnt, chr) == 0) return -1;
 		written++;
 	}
 
@@ -114,7 +208,7 @@ static int streamout_wstring(char **out, uint32_t *cnt, const wchar_t *string, s
 	{
 		chr = *string++;
 		{
-			if (streamout_char(out, cnt, chr) == 0) return -1;
+			if (StreamOutCharacter(out, cnt, chr) == 0) return -1;
 			written++;
 		}
 	}
@@ -282,24 +376,69 @@ int _cdecl streamout(char **out, size_t size, const char *format, va_list argptr
 
 	buffer[BUFFER_SIZE] = '\0';
 
+	/* Iterate String */
 	while (written >= 0)
 	{
+		/* Get character and advance */
 		chr = *format++;
 
 		/* Check for end of format string */
-		if (chr == '\0') break;
+		if (chr == '\0') 
+			break;
 
 		/* Check for 'normal' character or double % */
 		if ((chr != ('%')) ||
 			(chr = *format++) == ('%'))
 		{
-			/* Write the character to the stream */
-			if ((written = streamout_char(out, &cnt, chr)) == 0) return -1;
+			/* Sanity */
+			if (IsUTF8(chr))
+			{
+				/* Build UTF-8 */
+				uint32_t uChar = (uint32_t)chr;
+				uint32_t Size = 0;
+
+				/* Iterate */
+				while (*format && IsUTF8(*format))
+				{
+					/* Move */
+					uChar <<= 6;
+
+					/* Add */
+					uChar += (unsigned char)*format;
+
+					/* Inc */
+					Size++;
+					format++;
+				}
+
+				/* Move */
+				uChar <<= 6;
+
+				/* Add the last byte */
+				if (Size == 1)
+					uChar |= (((unsigned char)*format) & 0x1F);
+				else if (Size == 2)
+					uChar |= (((unsigned char)*format) & 0xF);
+				else if (Size == 3)
+					uChar |= (((unsigned char)*format) & 0x7);
+
+				/* Write the character to the stream */
+				if ((written = StreamOutCharacter(out, &cnt, uChar)) == 0)
+					return -1;
+			}
+			else
+			{
+				/* Write the character to the stream */
+				if ((written = StreamOutCharacter(out, &cnt, chr)) == 0)
+					return -1;
+			}
+
+			/* Done */
 			written_all += written;
 			continue;
 		}
 
-		/* Handle flags */
+		/* Handle flags-characters */
 		flags = 0;
 		while (1)
 		{
@@ -557,7 +696,7 @@ case_number:
 		{
 			for (; padding > 0; padding--)
 			{
-				if ((written = streamout_char(out, &cnt, (' '))) == 0) return -1;
+				if ((written = StreamOutCharacter(out, &cnt, (' '))) == 0) return -1;
 				written_all += written;
 			}
 		}
@@ -574,7 +713,7 @@ case_number:
 		if ((flags & FLAG_ALIGN_LEFT) == 0) precision += padding;
 		while (precision-- > 0)
 		{
-			if ((written = streamout_char(out, &cnt, ('0'))) == 0) return -1;
+			if ((written = StreamOutCharacter(out, &cnt, ('0'))) == 0) return -1;
 			written_all += written;
 		}
 
@@ -590,7 +729,7 @@ case_number:
 		/* Optional right '0' padding */
 		while (precision-- > 0)
 		{
-			if ((written = streamout_char(out, &cnt, ('0'))) == 0) return -1;
+			if ((written = StreamOutCharacter(out, &cnt, ('0'))) == 0) return -1;
 			written_all += written;
 			len++;
 		}
@@ -601,7 +740,7 @@ case_number:
 		{
 			while (padding-- > 0)
 			{
-				if ((written = streamout_char(out, &cnt, (' '))) == 0) return -1;
+				if ((written = StreamOutCharacter(out, &cnt, (' '))) == 0) return -1;
 				written_all += written;
 			}
 		}
