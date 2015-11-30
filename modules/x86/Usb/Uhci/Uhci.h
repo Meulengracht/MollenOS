@@ -23,10 +23,8 @@
 #define _X86_USB_UHCI_H_
 
 /* Includes */
-#include <crtdefs.h>
-#include <stdint.h>
-#include <Pci.h>
-#include <Arch.h>
+#include <Module.h>
+#include <x86\Pci.h>
 
 /* Definitions */
 #define X86_UHCI_MAX_PORTS				7
@@ -253,8 +251,5 @@ typedef struct _UhciController
 
 } UhciController_t;
 #pragma pack(pop)
-
-/* Prototypes */
-_CRT_EXTERN void UhciInit(PciDevice_t *Device);
 
 #endif // !_X86_USB_UHCI_H

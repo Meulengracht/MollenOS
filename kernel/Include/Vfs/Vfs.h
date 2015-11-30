@@ -36,6 +36,7 @@ typedef enum _VfsErrorCode
 {
 	VfsOk,
 	VfsInvalidParameters,
+	VfsInvalidPath,
 	VfsPathNotFound,
 	VfsAccessDenied,
 	VfsPathIsNotDirectory,
@@ -97,7 +98,7 @@ typedef struct _MCoreFile
 typedef struct _MCoreFileSystem
 {
 	/* Identifier */
-	char *Identifier;
+	MString_t *Identifier;
 	uint32_t Id;
 
 	/* Flags */
@@ -118,21 +119,21 @@ typedef struct _MCoreFileSystem
 	void *FsData;
 
 	/* Functions */
-	OsResult_t (*Destory)(void *FsData, uint32_t Forced);
+	OsResult_t (*Destory)(void *Fs, uint32_t Forced);
 
 	/* Handle Operations */
-	VfsErrorCode_t (*CreateFile)(void *FsData, MString_t *Path);
-	VfsErrorCode_t (*OpenFile)(void *FsData, MCoreFile_t *Handle, MString_t *Path, VfsFileFlags_t Flags);
-	VfsErrorCode_t (*CloseFile)(void *FsData, MCoreFile_t *Handle);
-	VfsErrorCode_t (*DeleteFile)(void *FsData, MCoreFile_t *Handle);
+	VfsErrorCode_t (*CreateFile)(void *Fs, MString_t *Path);
+	VfsErrorCode_t (*OpenFile)(void *Fs, MCoreFile_t *Handle, MString_t *Path, VfsFileFlags_t Flags);
+	VfsErrorCode_t (*CloseFile)(void *Fs, MCoreFile_t *Handle);
+	VfsErrorCode_t (*DeleteFile)(void *Fs, MCoreFile_t *Handle);
 	
 	/* File Operations */
-	VfsErrorCode_t (*ReadFile)(void *FsData, MCoreFile_t *Handle, void *Buffer, uint32_t Size);
-	VfsErrorCode_t (*WriteFile)(void *FsData, MCoreFile_t *Handle, void *Buffer, uint32_t Size);
-	VfsErrorCode_t (*Seek)(void *FsData, MCoreFile_t *Handle, uint64_t Position);
+	VfsErrorCode_t (*ReadFile)(void *Fs, MCoreFile_t *Handle, void *Buffer, uint32_t Size);
+	VfsErrorCode_t (*WriteFile)(void *Fs, MCoreFile_t *Handle, void *Buffer, uint32_t Size);
+	VfsErrorCode_t (*Seek)(void *Fs, MCoreFile_t *Handle, uint64_t Position);
 
 	/* Get's information about a node */
-	VfsErrorCode_t (*Query)(void *FsData, MCoreFile_t *Handle);
+	VfsErrorCode_t (*Query)(void *Fs, MCoreFile_t *Handle);
 
 } MCoreFileSystem_t;
 #pragma pack(pop)

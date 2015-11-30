@@ -26,6 +26,7 @@
 /* Includes */
 #include <MollenOS.h>
 #include <Arch.h>
+#include <MString.h>
 #include <List.h>
 #include <stdint.h>
 

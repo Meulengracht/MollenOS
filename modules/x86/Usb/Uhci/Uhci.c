@@ -24,56 +24,13 @@
 */
 
 /* Includes */
-#include <arch.h>
-#include <lapic.h>
-#include <assert.h>
-#include <memory.h>
-#include <timers.h>
-#include <scheduler.h>
-#include <heap.h>
-#include <list.h>
-#include <stdio.h>
-#include <string.h>
+#include <Module.h>
+#include "Uhci.h"
 
-#include <drivers\usb\usb.h>
-#include <drivers\usb\uhci\uhci.h>
-
-/* Uhci Devices Strings */
-static pci_dev_info_t uhci_devices_intel[] = {
-	{ 0x2412, "82801AA (ICH)" },
-	{ 0x2422, "82801AB (ICH0)" },
-	{ 0x2442, "82801BA/BAM (ICH2) USB-A" },
-	{ 0x2444, "82801BA/BAM (ICH2) USB-B" },
-	{ 0x2452, "82801E" },
-	{ 0x2482, "82801CA/CAM (ICH3) USB-A" },
-	{ 0x2484, "82801CA/CAM (ICH3) USB-B" },
-	{ 0x2487, "82801CA/CAM (ICH3) USB-C" },
-	{ 0x24c2, "82801DB (ICH4) USB-A" },
-	{ 0x24c4, "82801DB (ICH4) USB-B" },
-	{ 0x24c7, "82801DB (ICH4) USB-C" },
-	{ 0x24d2, "82801EB/ER (ICH5/ICH5R) USB-A" },
-	{ 0x24d4, "82801EB/ER (ICH5/ICH5R) USB-B" },
-	{ 0x24d7, "82801EB/ER (ICH5/ICH5R) USB-C" },
-	{ 0x24de, "82801EB/ER (ICH5/ICH5R) USB-D" },
-	{ 0x25a9, "6300ESB" },
-	{ 0x24aa, "6300ESB" },
-	{ 0x7020, "82371SB (PIIX3)" },
-	{ 0x7112, "82371AB/EB/MB (PIIX4)" },
-	{ 0x719a, "82443MX" },
-	{ 0x7602, "82372FB/82468GX (PIIX5)" },
-	{ 0, 0 }
-};
-
-static pci_dev_info_t uhci_devices_via[] = {
-	{ 0x3038, "VT83C572, VT6202" },
-	{ 0, 0 }
-};
+/* CLib */
 
 /* Globals */
 volatile uint32_t glb_uhci_id = 0;
-
-/* Externs */
-extern void _yield(void);
 
 /* Prototypes (Internal) */
 void uhci_init_queues(uhci_controller_t *controller);

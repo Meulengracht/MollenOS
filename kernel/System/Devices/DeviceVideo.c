@@ -70,7 +70,7 @@ void VideoDrawBootTerminal(MCoreVideoDevice_t *VideoDevice,
 	{
 		char Char = *TitlePtr;
 		VideoDevice->DrawCharacter(VideoDevice->Data, 
-			(int)Char, TitleStartY, TitleStartX, 0xD35400, 0x7F8C8D);
+			(int)Char, TitleStartY, TitleStartX, 0xFFFFFF, 0x7F8C8D);
 		TitleStartX += 10;
 
 		TitlePtr++;

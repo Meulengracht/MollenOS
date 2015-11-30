@@ -29,6 +29,8 @@
 /* Definitions */
 #define MSTRING_NOT_FOUND		-1
 
+#define MSTRING_BLOCK_SIZE		64
+
 /* String Types */
 typedef enum _MStringType
 {
@@ -44,7 +46,10 @@ typedef struct _MString
 	/* String Data
 	 * As UTF8 */
 	void *Data;
-	uint32_t DataLength;
+	
+	/* Length(s) */
+	uint32_t Length;
+	uint32_t MaxLength;
 
 } MString_t;
 
@@ -52,9 +57,25 @@ typedef struct _MString
 _CRT_EXTERN MString_t *MStringCreate(void *Data, MStringType_t DataType);
 _CRT_EXTERN void MStringDestroy(MString_t *String);
 
-/* Substring */
+/* Appends */
+_CRT_EXTERN void MStringAppendChar(MString_t *String, uint32_t Character);
+_CRT_EXTERN void MStringAppendChars(MString_t *String, const char *Chars);
+_CRT_EXTERN void MStringAppendString(MString_t *Destination, MString_t *String);
+
+_CRT_EXTERN void MStringAppendInt32(MString_t *String, int32_t Value);
+_CRT_EXTERN void MStringAppendUInt32(MString_t *String, uint32_t Value);
+_CRT_EXTERN void MStringAppendHex32(MString_t *String, uint32_t Value);
+
+_CRT_EXTERN void MStringAppendInt64(MString_t *String, int64_t Value);
+_CRT_EXTERN void MStringAppendUInt64(MString_t *String, uint64_t Value);
+_CRT_EXTERN void MStringAppendHex64(MString_t *String, uint64_t Value);
+
+/* String Manipulations */
 _CRT_EXTERN int MStringFind(MString_t *String, uint32_t Character);
+_CRT_EXTERN int MStringFindReverse(MString_t *String, uint32_t Character);
+_CRT_EXTERN uint32_t MStringGetCharAt(MString_t *String, int Index);
 _CRT_EXTERN MString_t *MStringSubString(MString_t *String, int Index, int Length);
+_CRT_EXTERN void MStringReplace(MString_t *String, const char *Old, const char *New);
 
 /* Utilities */
 _CRT_EXTERN uint32_t MStringLength(MString_t *String);

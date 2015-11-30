@@ -179,7 +179,7 @@ int VfsParsePartitionTable(DevId_t DiskId, uint64_t SectorBase, uint64_t SectorC
 				itoa(GlbFileSystemId, (IdentBuffer + 2), 10);
 
 				/* Construct the identifier */
-				Fs->Identifier = strdup((const char *)&IdentBuffer);
+				Fs->Identifier = MStringCreate(&IdentBuffer, StrASCII);
 
 				/* Setup last */
 				Fs->Lock = MutexCreate();
@@ -260,7 +260,7 @@ void VfsRegisterDisk(DevId_t DiskId)
 			itoa(GlbFileSystemId, (IdentBuffer + 2), 10);
 
 			/* Construct the identifier */
-			Fs->Identifier = strdup((const char *)&IdentBuffer);
+			Fs->Identifier = MStringCreate(&IdentBuffer, StrASCII);
 
 			/* Setup last */
 			Fs->Lock = MutexCreate();
@@ -300,7 +300,7 @@ void VfsUnregisterDisk(DevId_t DiskId, uint32_t Forced)
 			printf("VfsUnregisterDisk:: Failed to destroy filesystem\n");
 
 		/* Free */
-		kfree(Fs->Identifier);
+		MStringDestroy(Fs->Identifier);
 		MutexDestruct(Fs->Lock);
 		kfree(Fs);
 		kfree(lNode);
@@ -308,4 +308,128 @@ void VfsUnregisterDisk(DevId_t DiskId, uint32_t Forced)
 		/* Get next */
 		lNode = list_get_node_by_id(GlbFileSystems, DiskId, 0);
 	}
+}
+
+/* Vfs - Canonicalize Path 
+ * @Path - UTF-8 String */
+MString_t *VfsCanonicalizePath(const char *Path)
+{
+	/* Store result */
+	MString_t *AbsPath = MStringCreate(NULL, StrUTF8);
+	uint32_t Itr = 0;
+
+	/* Get working directory */
+	MString_t *Cwd = NULL;// ProcessGetWorkingDirectory();
+
+	/* Start by copying cwd over 
+	 * if Path is not absolute */
+	if (strchr(Path, ':') == NULL)
+	{
+		/* Unless Cwd is null, then we have a problem */
+		if (Cwd == NULL)
+		{
+			/* Fuck */
+			MStringDestroy(AbsPath);
+			return NULL;
+		}
+		//else
+		//MStringCopy(AbsPath, Cwd, -1);
+	}
+
+	/* Now, we have to resolve the path in Path */
+	while (Path[Itr])
+	{
+		/* What char is it ? */
+		if (Path[Itr] == '.'
+			&& (Path[Itr + 1] == '/' || Path[Itr + 1] == '\\'))
+		{
+			/* Ignore */
+			Itr += 2;
+			continue;
+		}
+		else if (Path[Itr] == '.'
+			&& Path[Itr + 1] == '.')
+		{
+			/* Go one directory back, if we are in one */
+			int Index = MStringFindReverse(AbsPath, '/');
+			if (MStringGetCharAt(AbsPath, Index - 1) != ':')
+			{
+				/* Build a new string */
+				MString_t *NewAbs = MStringSubString(AbsPath, 0, Index);
+				MStringDestroy(AbsPath);
+				AbsPath = NewAbs;
+			}
+		}
+		else
+		{
+			/* Copy over */
+			if (Path[Itr] == '\\')
+				MStringAppendChar(AbsPath, '/');
+			else
+				MStringAppendChar(AbsPath, Path[Itr]);
+		}
+
+		/* Increase */
+		Itr++;
+	}
+
+	/* Replace dublicate // with / */
+	MStringReplace(AbsPath, "//", "/");
+
+	/* Done! */
+	return AbsPath;
+}
+
+/* Vfs - Create File 
+ * @Path - UTF-8 String */
+VfsErrorCode_t VfsCreate(const char *Path)
+{
+	/* Vars */
+	VfsErrorCode_t ErrCode = VfsPathNotFound;
+	list_node_t *fNode = NULL;
+	MString_t *mPath = NULL;
+	MString_t *mIdent = NULL;
+	MString_t *mSubPath = NULL;
+	int Index = 0;
+
+	/* Sanity */
+	if (Path == NULL)
+		return VfsInvalidParameters;
+
+	/* Canonicalize Path */
+	mPath = VfsCanonicalizePath(Path);
+
+	/* Sanity */
+	if (mPath == NULL)
+		return VfsInvalidPath;
+
+	/* Get filesystem ident & sub-path */
+	Index = MStringFind(mPath, ':');
+	mIdent = MStringSubString(mPath, 0, Index);
+	mSubPath = MStringSubString(mPath, Index + 2, -1);
+
+	/* Iterate */
+	_foreach(fNode, GlbFileSystems)
+	{
+		/* Cast */
+		MCoreFileSystem_t *Fs = (MCoreFileSystem_t*)fNode->data;
+
+		/* Match? */
+		if (MStringCompare(mIdent, Fs->Identifier, 1))
+		{
+			/* Create */
+			ErrCode = Fs->CreateFile(Fs, mSubPath);
+
+			/* Done */
+			break;
+		}
+	}
+
+	/* Cleanup */
+	MStringDestroy(mSubPath);
+	MStringDestroy(mIdent);
+	MStringDestroy(mPath);
+
+	/* Damn */
+	return ErrCode;
 }

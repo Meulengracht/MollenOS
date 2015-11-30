@@ -301,6 +301,23 @@ MString_t *MStringCreate(void *Data, MStringType_t DataType)
 	MString_t *RetStr = (MString_t*)kmalloc(sizeof(MString_t));
 	uint32_t StrLength = 0;
 
+	/* Handle empty */
+	if (Data == NULL)
+	{
+		/* Allocate an empty string */
+		RetStr->Data = kmalloc(MSTRING_BLOCK_SIZE);
+
+		/* Memset */
+		memset(RetStr->Data, 0, MSTRING_BLOCK_SIZE);
+
+		/* Set rest */
+		RetStr->Length = 0;
+		RetStr->MaxLength = MSTRING_BLOCK_SIZE;
+
+		/* Done! */
+		return RetStr;
+	}
+
 	/* Sanity */
 	if (DataType == StrASCII
 		|| DataType == StrUTF8)
@@ -322,12 +339,16 @@ MString_t *MStringCreate(void *Data, MStringType_t DataType)
 			StrLength++;
 		}
 
+		/* Calculate Length */
+		uint32_t AllocLength = (StrLength / MSTRING_BLOCK_SIZE) + MSTRING_BLOCK_SIZE;
+
 		/* Allocate a buffer */
-		RetStr->Data = (void*)kmalloc(StrLength);
-		RetStr->DataLength = StrLength;
+		RetStr->Data = (void*)kmalloc(AllocLength);
+		RetStr->Length = StrLength;
+		RetStr->MaxLength = AllocLength;
 
 		/* Memset it */
-		memset(RetStr->Data, 0, StrLength);
+		memset(RetStr->Data, 0, AllocLength);
 
 		/* Convert */
 		if (DataType == StrASCII)
@@ -384,12 +405,16 @@ MString_t *MStringCreate(void *Data, MStringType_t DataType)
 			StrLength += 4;
 		}
 		
+		/* Calculate Length */
+		uint32_t AllocLength = (StrLength / MSTRING_BLOCK_SIZE) + MSTRING_BLOCK_SIZE;
+
 		/* Allocate a buffer */
-		RetStr->Data = (void*)kmalloc(StrLength);
-		RetStr->DataLength = StrLength;
+		RetStr->Data = (void*)kmalloc(AllocLength);
+		RetStr->Length = StrLength;
+		RetStr->MaxLength = AllocLength;
 
 		/* Memset it */
-		memset(RetStr->Data, 0, StrLength);
+		memset(RetStr->Data, 0, AllocLength);
 
 		if (DataType == StrUTF16)
 		{
@@ -451,7 +476,49 @@ void MStringDestroy(MString_t *String)
 	kfree(String);
 }
 
-/* Substring */
+/* Append Character */
+void MStringAppendChar(MString_t *String, uint32_t Character)
+{
+	/* Vars */
+	uint8_t *BufPtr = NULL;
+	uint32_t cLen = 0;
+	int Itr = 0;
+
+	/* Sanity */
+	if ((String->Length + Utf8CharBytesFromUCS(Character)) >= String->MaxLength)
+	{
+		/* Expand */
+		void *nDataBuffer = kmalloc(String->MaxLength + MSTRING_BLOCK_SIZE);
+		memset(nDataBuffer, 0, String->MaxLength + MSTRING_BLOCK_SIZE);
+
+		/* Copy old data over */
+		memcpy(nDataBuffer, String->Data, String->Length);
+
+		/* Free */
+		kfree(String->Data);
+
+		/* Set new */
+		String->Data = nDataBuffer;
+	}
+
+	/* Cast */
+	BufPtr = (uint8_t*)String->Data;
+
+	/* Loop to end of string */
+	while (BufPtr[Itr])
+		Itr++;
+
+	/* Append */
+	Utf8ConvertChar(Character, (void*)&BufPtr[Itr], &cLen);
+
+	/* Null-terminate */
+	BufPtr[Itr + cLen] = '\0';
+
+	/* Done? */
+	String->Length += cLen;
+}
+
+/* Find Occurence */
 int MStringFind(MString_t *String, uint32_t Character)
 {
 	/* Loop vars */
@@ -461,7 +528,7 @@ int MStringFind(MString_t *String, uint32_t Character)
 
 	/* Sanity */
 	if (String->Data == NULL
-		|| String->DataLength == 0)
+		|| String->Length == 0)
 		return MSTRING_NOT_FOUND;
 
 	/* Iterate */
@@ -483,16 +550,80 @@ int MStringFind(MString_t *String, uint32_t Character)
 	return MSTRING_NOT_FOUND;
 }
 
+/* Find Last Occurence */
+int MStringFindReverse(MString_t *String, uint32_t Character)
+{
+	/* Loop vars */
+	int Result = 0, LastOccurrence = MSTRING_NOT_FOUND;
+	char *DataPtr = (char*)String->Data;
+	int i = 0;
+
+	/* Sanity */
+	if (String->Data == NULL
+		|| String->Length == 0)
+		return LastOccurrence;
+
+	/* Iterate */
+	while (DataPtr[i]) {
+
+		/* Get next */
+		uint32_t CharIndex =
+			Utf8GetNextChar(DataPtr, &i);
+
+		/* Is it equal? */
+		if (CharIndex == Character)
+			LastOccurrence = Result;
+
+		/* Othewise, keep searching */
+		Result++;
+	}
+
+	/* No entry */
+	return LastOccurrence;
+}
+
+/* Get character at index */
+uint32_t MStringGetCharAt(MString_t *String, int Index)
+{
+	/* Loop vars */
+	char *DataPtr = (char*)String->Data;
+	int i = 0, itr = 0;
+
+	/* Sanity */
+	if (String->Data == NULL
+		|| String->Length == 0)
+		return 0;
+
+	/* Iterate */
+	while (DataPtr[i]) {
+
+		/* Get next */
+		uint32_t Character =
+			Utf8GetNextChar(DataPtr, &i);
+
+		/* Is it equal? */
+		if (itr == Index)
+			return Character;
+
+		/* Othewise, keep searching */
+		itr++;
+	}
+
+	/* No entry */
+	return 0;
+}
+
+/* Substring - Build Substring */
 MString_t *MStringSubString(MString_t *String, int Index, int Length)
 {
 	/* Sanity */
 	if (String->Data == NULL
-		|| String->DataLength == 0)
+		|| String->Length == 0)
 		return NULL;
 
 	/* More Sanity */
-	if (Index > (int)String->DataLength
-		|| ((Index + Length) > (int)String->DataLength))
+	if (Index > (int)String->Length
+		|| ((((Index + Length) > (int)String->Length)) && Length != -1))
 		return NULL;
 
 	/* Vars */
@@ -511,7 +642,8 @@ MString_t *MStringSubString(MString_t *String, int Index, int Length)
 
 		/* Sanity */
 		if (cIndex >= Index
-			&& cIndex < (Index + Length))
+			&& ((cIndex < (Index + Length))
+				|| Length == -1))
 		{
 			/* Lets count */
 			DataLength += (i - lasti);
@@ -526,11 +658,17 @@ MString_t *MStringSubString(MString_t *String, int Index, int Length)
 
 	/* Allocate */
 	MString_t *SubString = (MString_t*)kmalloc(sizeof(MString_t));
-	SubString->Data = kmalloc(DataLength);
-	SubString->DataLength = DataLength;
+
+	/* Calculate Length */
+	uint32_t AllocLength = (DataLength / MSTRING_BLOCK_SIZE) + MSTRING_BLOCK_SIZE;
+
+	/* Set */
+	SubString->Data = kmalloc(AllocLength);
+	SubString->Length = DataLength;
+	SubString->MaxLength = AllocLength;
 
 	/* Zero it */
-	memset(SubString->Data, 0, DataLength);
+	memset(SubString->Data, 0, AllocLength);
 
 	/* Now, iterate again, but copy data over */
 	void *NewDataPtr = SubString->Data;
@@ -549,7 +687,8 @@ MString_t *MStringSubString(MString_t *String, int Index, int Length)
 
 		/* Sanity */
 		if (cIndex >= Index
-			&& cIndex < (Index + Length))
+			&& ((cIndex < (Index + Length))
+			|| Length == -1))
 		{
 			/* Lets copy */
 			memcpy(NewDataPtr, (void*)&CharIndex, (i - lasti));
@@ -573,7 +712,7 @@ uint32_t MStringLength(MString_t *String)
 {
 	/* Sanity */
 	if (String->Data == NULL
-		|| String->DataLength == 0)
+		|| String->Length == 0)
 		return 0;
 
 	/* Loop vars */
@@ -688,19 +827,8 @@ void MStringToASCII(MString_t *String, void *Buffer)
 
 void MStringPrint(MString_t *String)
 {
-	/* If we are in kernel library we MUST 
-	 * convert and dump UTF8 characters
-	 * as we can only print ANSI */
-	char TempBuffer[256];
-
-	/* Zero out buffer */
-	memset(TempBuffer, 0, sizeof(TempBuffer));
-
-	/* Convert */
-	MStringToASCII(String, TempBuffer);
-
-	/* So, now we can print */
-	printf("%s\n", TempBuffer);
+	/* Simply just print it out*/
+	printf("%s\n", String->Data);
 }
 
 /* MString Testing */
@@ -716,8 +844,8 @@ void MStringTest(void)
 	MStringPrint(String1);
 	MStringPrint(String2);
 
-	printf("Length of first: %u - %u\n", MStringLength(String1), String1->DataLength);
-	printf("Length of second: %u - %u\n", MStringLength(String2), String2->DataLength);
+	printf("Length of first: %u - %u\n", MStringLength(String1), String1->Length);
+	printf("Length of second: %u - %u\n", MStringLength(String2), String2->Length);
 
 	/* Location */
 	printf("Looking for '/' in first: %i\n", MStringFind(String1, (uint32_t)'/'));
