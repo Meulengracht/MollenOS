@@ -72,7 +72,9 @@ _CRT_EXTERN void MStringAppendHex64(MString_t *String, uint64_t Value);
 
 /* String Manipulations */
 _CRT_EXTERN int MStringFind(MString_t *String, uint32_t Character);
+_CRT_EXTERN int MStringFindChars(MString_t *String, const char *Chars);
 _CRT_EXTERN int MStringFindReverse(MString_t *String, uint32_t Character);
+
 _CRT_EXTERN uint32_t MStringGetCharAt(MString_t *String, int Index);
 _CRT_EXTERN MString_t *MStringSubString(MString_t *String, int Index, int Length);
 _CRT_EXTERN void MStringReplace(MString_t *String, const char *Old, const char *New);

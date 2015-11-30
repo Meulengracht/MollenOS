@@ -244,7 +244,7 @@ uint32_t Utf8StringBytesFromUCS(uint32_t *UStr, size_t NumCharacters)
 }
 
 /* reads the next utf-8 sequence out of a string, updating an index */
-uint32_t Utf8GetNextChar(char *Str, int *Index)
+uint32_t Utf8GetNextChar(const char *Str, int *Index)
 {
 	/* We'll need these to keep track */
 	uint32_t Character = 0;
@@ -498,6 +498,7 @@ void MStringAppendChar(MString_t *String, uint32_t Character)
 		kfree(String->Data);
 
 		/* Set new */
+		String->MaxLength += MSTRING_BLOCK_SIZE;
 		String->Data = nDataBuffer;
 	}
 
@@ -541,6 +542,65 @@ int MStringFind(MString_t *String, uint32_t Character)
 		/* Is it equal? */
 		if (CharIndex == Character)
 			return Result;
+
+		/* Othewise, keep searching */
+		Result++;
+	}
+
+	/* No entry */
+	return MSTRING_NOT_FOUND;
+}
+
+/* Find String Occurence */
+int MStringFindChars(MString_t *String, const char *Chars)
+{
+	/* Loop vars */
+	int Result = 0;
+	char *DataPtr = (char*)String->Data;
+	int iSource = 0, iDest = 0;
+
+	/* Sanity */
+	if (String->Data == NULL
+		|| String->Length == 0)
+		return MSTRING_NOT_FOUND;
+
+	/* Iterate */
+	while (DataPtr[iSource]) {
+
+		/* Get next in source */
+		uint32_t SourceCharacter =
+			Utf8GetNextChar(DataPtr, &iSource);
+
+		/* Get first in dest */
+		iDest = 0;
+		uint32_t DestCharacter =
+			Utf8GetNextChar(Chars, &iDest);
+
+		/* Is it equal? */
+		if (SourceCharacter == DestCharacter)
+		{
+			/* Save pos */
+			int iTemp = iSource;
+
+			/* Validate */
+			while (DataPtr[iTemp] && Chars[iDest] &&
+				SourceCharacter == DestCharacter)
+			{ 
+				/* Get next */
+				SourceCharacter = Utf8GetNextChar(DataPtr, &iTemp);
+				DestCharacter = Utf8GetNextChar(DataPtr, &iDest);
+			}
+
+			/* Are they still equal? */
+			if (SourceCharacter == DestCharacter)
+			{
+				/* Sanity, only ok if we ran out of chars in Chars */
+				if (!Chars[iDest])
+					return Result;
+			}
+
+			/* No, no, not a match */
+		}
 
 		/* Othewise, keep searching */
 		Result++;
@@ -705,6 +765,104 @@ MString_t *MStringSubString(MString_t *String, int Index, int Length)
 
 	/* Done! */
 	return SubString;
+}
+
+/* Replace String Occurences */
+void MStringReplace(MString_t *String, const char *Old, const char *New)
+{
+	/* Vars */
+	uint8_t *TempBuffer = NULL, *TempPtr;
+	char *DataPtr = (char*)String->Data;
+	int iSource = 0, iDest = 0, iLast = 0;
+	size_t NewLen = strlen(New);
+
+	/* Sanity 
+	 * If no occurences, then forget it */
+	if (MStringFindChars(String, Old) == MSTRING_NOT_FOUND)
+		return;
+
+	/* We need a temporary buffer */
+	TempPtr = TempBuffer = (uint8_t*)kmalloc(1024);
+	memset(TempBuffer, 0, 1024);
+
+	/* Iterate */
+	while (DataPtr[iSource]) {
+
+		/* Save */
+		iLast = iSource;
+
+		/* Get next in source */
+		uint32_t SourceCharacter =
+			Utf8GetNextChar(DataPtr, &iSource);
+
+		/* Get first in dest */
+		iDest = 0;
+		uint32_t DestCharacter =
+			Utf8GetNextChar(Old, &iDest);
+
+		/* Is it equal? */
+		if (SourceCharacter == DestCharacter)
+		{
+			/* Save pos */
+			int iTemp = iSource;
+
+			/* Validate */
+			while (DataPtr[iTemp] && Old[iDest] &&
+				SourceCharacter == DestCharacter)
+			{
+				/* Get next */
+				SourceCharacter = Utf8GetNextChar(DataPtr, &iTemp);
+				DestCharacter = Utf8GetNextChar(DataPtr, &iDest);
+			}
+
+			/* Are they still equal? */
+			if (SourceCharacter == DestCharacter)
+			{
+				/* Sanity, only ok if we ran out of chars in Chars */
+				if (!Old[iDest])
+				{
+					/* Write new to temp buffer */
+					memcpy(TempBuffer, New, NewLen);
+					TempBuffer += NewLen;
+
+					/* continue */
+					continue;
+				}
+			}
+		}
+
+		/* Copy it */
+		memcpy(TempBuffer, &DataPtr[iLast], (iSource - iLast));
+		TempBuffer += (iSource - iLast);
+	}
+
+	/* Done! Reconstruct */
+	NewLen = strlen((const char*)TempPtr);
+
+	/* Sanity */
+	if (NewLen > String->MaxLength)
+	{
+		/* Calculate new alloc size */
+		uint32_t AllocSize = (NewLen / MSTRING_BLOCK_SIZE) + MSTRING_BLOCK_SIZE;
+
+		/* Expand */
+		void *nDataBuffer = kmalloc(AllocSize);
+		memset(nDataBuffer, 0, AllocSize);
+
+		/* Free */
+		kfree(String->Data);
+
+		/* Set new */
+		String->MaxLength = AllocSize;
+		String->Data = nDataBuffer;
+	}
+
+	/* Copy over */
+	memcpy(String->Data, TempPtr, NewLen);
+	String->Length = NewLen;
+
+	/* Free */
+	kfree(TempPtr);
 }
 
 /* Utilities */
