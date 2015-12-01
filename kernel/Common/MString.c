@@ -476,6 +476,83 @@ void MStringDestroy(MString_t *String)
 	kfree(String);
 }
 
+/* Copies some or all of string data */
+void MStringCopy(MString_t *Destination, MString_t *Source, int Length)
+{
+	/* Sanity */
+	if (Destination == NULL
+		|| Source == NULL
+		|| Source->Length == 0)
+		return;
+
+	/* If -1, copy all from source */
+	if (Length == -1)
+	{
+		/* Is destination large enough? */
+		if (Source->Length > Destination->MaxLength)
+		{
+			/* Expand */
+			void *nDataBuffer = kmalloc(Source->MaxLength);
+			memset(nDataBuffer, 0, Source->MaxLength);
+
+			/* Free */
+			if (Destination->Data != NULL)
+				kfree(Destination->Data);
+
+			/* Set new */
+			Destination->MaxLength = Source->MaxLength;
+			Destination->Data = nDataBuffer;
+		}
+
+		/* Copy */
+		memcpy(Destination->Data, Source->Data, Source->Length);
+	}
+	else
+	{
+		/* Calculate byte length to copy */
+		char *DataPtr = (char*)Source->Data;
+		int Count = Length, Index = 0;
+
+		/* Iterate */
+		while (DataPtr[Index] 
+			&& Count) {
+
+			/* Get next */
+			Utf8GetNextChar(DataPtr, &Index);
+
+
+			/* Othewise, keep searching */
+			Count--;
+		}
+
+		/* Is destination large enough? */
+		if ((uint32_t)Index > Destination->MaxLength)
+		{
+			/* Calc size to allocate */
+			uint32_t AllocSize = (Index / MSTRING_BLOCK_SIZE) + MSTRING_BLOCK_SIZE;
+
+			/* Expand */
+			void *nDataBuffer = kmalloc(AllocSize);
+			memset(nDataBuffer, 0, AllocSize);
+
+			/* Free */
+			if (Destination->Data != NULL)
+				kfree(Destination->Data);
+
+			/* Set new */
+			Destination->MaxLength = AllocSize;
+			Destination->Data = nDataBuffer;
+		}
+
+		/* Copy */
+		memcpy(Destination->Data, Source->Data, Index);
+
+		/* Null Terminate */
+		uint8_t *NullPtr = (uint8_t*)Destination->Data;
+		NullPtr[Index] = '\0';
+	}
+}
+
 /* Append Character */
 void MStringAppendChar(MString_t *String, uint32_t Character)
 {
