@@ -380,60 +380,6 @@ MString_t *VfsCanonicalizePath(const char *Path)
 	return AbsPath;
 }
 
-/* Vfs - Create File 
- * @Path - UTF-8 String */
-VfsErrorCode_t VfsCreate(const char *Path)
-{
-	/* Vars */
-	VfsErrorCode_t ErrCode = VfsPathNotFound;
-	list_node_t *fNode = NULL;
-	MString_t *mPath = NULL;
-	MString_t *mIdent = NULL;
-	MString_t *mSubPath = NULL;
-	int Index = 0;
-
-	/* Sanity */
-	if (Path == NULL)
-		return VfsInvalidParameters;
-
-	/* Canonicalize Path */
-	mPath = VfsCanonicalizePath(Path);
-
-	/* Sanity */
-	if (mPath == NULL)
-		return VfsInvalidPath;
-
-	/* Get filesystem ident & sub-path */
-	Index = MStringFind(mPath, ':');
-	mIdent = MStringSubString(mPath, 0, Index);
-	mSubPath = MStringSubString(mPath, Index + 2, -1);
-
-	/* Iterate */
-	_foreach(fNode, GlbFileSystems)
-	{
-		/* Cast */
-		MCoreFileSystem_t *Fs = (MCoreFileSystem_t*)fNode->data;
-
-		/* Match? */
-		if (MStringCompare(mIdent, Fs->Identifier, 1))
-		{
-			/* Create */
-			ErrCode = Fs->CreateFile(Fs, mSubPath);
-
-			/* Done */
-			break;
-		}
-	}
-
-	/* Cleanup */
-	MStringDestroy(mSubPath);
-	MStringDestroy(mIdent);
-	MStringDestroy(mPath);
-
-	/* Damn */
-	return ErrCode;
-}
-
 /* Vfs - Open File
 * @Path - UTF-8 String
 * @OpenFlags - Kind of Access */

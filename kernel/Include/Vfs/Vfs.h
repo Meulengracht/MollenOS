@@ -51,15 +51,19 @@ typedef enum _VfsFileFlags
 	/* Access Flags */
 	Read	= 0x1,
 	Write	= 0x2,
+
+	/* Utilities */
+	CreateIfNotExists = 0x4,
+	OverwriteIfExists = 0x8,
 	
 	/* Data Flags */
-	Binary	= 0x4,
-	NoBuffering = 0x8,
-	Append = 0x10,
+	Binary	= 0x10,
+	NoBuffering = 0x20,
+	Append = 0x40,
 
 	/* Share Flags */
-	ReadShare	= 0x20,
-	WriteShare	= 0x40
+	ReadShare	= 0x80,
+	WriteShare	= 0x100
 
 } VfsFileFlags_t;
 
@@ -125,7 +129,6 @@ typedef struct _MCoreFileSystem
 	OsResult_t (*Destory)(void *Fs, uint32_t Forced);
 
 	/* Handle Operations */
-	VfsErrorCode_t (*CreateFile)(void *Fs, MString_t *Path);
 	VfsErrorCode_t (*OpenFile)(void *Fs, MCoreFile_t *Handle, MString_t *Path, VfsFileFlags_t Flags);
 	VfsErrorCode_t (*CloseFile)(void *Fs, MCoreFile_t *Handle);
 	VfsErrorCode_t (*DeleteFile)(void *Fs, MCoreFile_t *Handle);
@@ -149,7 +152,6 @@ _CRT_EXTERN void VfsRegisterDisk(DevId_t DiskId);
 _CRT_EXTERN void VfsUnregisterDisk(DevId_t DiskId, uint32_t Forced);
 
 /* Open & Close */
-_CRT_EXTERN VfsErrorCode_t VfsCreate(const char *Path);
 _CRT_EXTERN MCoreFile_t *VfsOpen(const char *Path, VfsFileFlags_t OpenFlags);
 _CRT_EXTERN VfsErrorCode_t VfsClose(MCoreFile_t *Handle);
 _CRT_EXTERN VfsErrorCode_t VfsDelete(MCoreFile_t *Handle);
