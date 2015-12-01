@@ -27,6 +27,7 @@
 
 #include <RingBuffer.h>
 #include <MString.h>
+#include <Heap.h>
 
 /* Definitions */
 typedef unsigned int PId_t;
@@ -40,14 +41,18 @@ typedef struct _MCoreProcess
 	/* Name */
 	MString_t *Name;
 
-	/* Memory */
-
 	/* Working Directory */
 	MString_t *WorkingDirectory;
 
 	/* Pipes */
 	RingBuffer_t *iPipe;
 	RingBuffer_t *oPipe;
+
+	/* Heap */
+	Heap_t *Heap;
+
+	/* Arch Specific */
+	void *ArchData;
 
 } MCoreProcess_t;
 
@@ -63,10 +68,10 @@ typedef enum _ProcessRequestType
 /* Process Request State */
 typedef enum _ProcessRequestState
 {
-	RequestPending,
-	RequestInProgress,
-	RequestOk,
-	RequestFailed
+	ProcessRequestPending,
+	ProcessRequestInProgress,
+	ProcessRequestOk,
+	ProcessRequestFailed
 
 } ProcessRequestState_t;
 

@@ -58,7 +58,7 @@ typedef struct _HeapNode
 #define BLOCK_NORMAL			0x0
 #define BLOCK_LARGE				0x1
 #define BLOCK_VERY_LARGE		0x2
-#define AddrIsAligned(x) ((x & 0xFFF) == 0)
+#define AddrIsAligned(x)		((x & 0xFFF) == 0)
 
 #define ALLOCATION_NORMAL		0x0
 #define ALLOCATION_ALIGNED		0x1
@@ -89,6 +89,24 @@ typedef struct _HeapBlock
 /* A heap */
 typedef struct _HeapArea
 {
+	/* Info */
+	Addr_t MemStartData;
+	Addr_t MemHeaderCurrent;
+	Addr_t MemHeaderMax;
+
+	/* Stats */
+	size_t BytesAllocated;
+	size_t NumAllocs;
+	size_t NumFrees;
+	size_t NumPages;
+
+	/* Lock */
+	CriticalSection_t Lock;
+
+	/* Recyclers */
+	HeapBlock_t *BlockRecycler;
+	HeapNode_t *NodeRecycler;
+
 	/* Head of Node List */
 	struct _HeapBlock *Blocks;
 
@@ -97,7 +115,7 @@ typedef struct _HeapArea
 /* Initializer & Maintience */
 _CRT_EXTERN void HeapInit(void);
 _CRT_EXTERN uint32_t HeapGetCount(void);
-_CRT_EXTERN void HeapPrintStats(void);
+_CRT_EXTERN void HeapPrintStats(Heap_t *Heap);
 _CRT_EXTERN void HeapReap(void);
 
 //kMalloc Align and phys return

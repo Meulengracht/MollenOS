@@ -21,15 +21,16 @@
 
 /* Includes */
 #include <ProcessManager.h>
+#include <Vfs/Vfs.h>
 #include <Threading.h>
 #include <Semaphore.h>
 #include <Scheduler.h>
-#include <Heap.h>
 #include <List.h>
 #include <Log.h>
 
 /* Prototypes */
 void PmEventHandler(void *Args);
+PId_t PmCreateProcess(MString_t *Path, MString_t *Arguments);
 
 /* Globals */
 PId_t GlbProcessId = 0;
@@ -89,7 +90,7 @@ void PmEventHandler(void *Args)
 			continue;
 
 		/* Set initial */
-		Request->State = RequestInProgress;
+		Request->State = ProcessRequestInProgress;
 
 		/* Depends on request */
 		switch (Request->Type)
@@ -110,4 +111,36 @@ void PmEventHandler(void *Args)
 		/* Signal Completion */
 		SchedulerWakeupAllThreads((Addr_t*)Request);
 	}
+}
+
+/* Create Process */
+PId_t PmCreateProcess(MString_t *Path, MString_t *Arguments)
+{
+	/* Sanity */
+	if (Path == NULL
+		|| Arguments == NULL)
+		return 0xFFFFFFFF;
+
+	/* Does file exist? */
+	MCoreFile_t *File = VfsOpen(Path->Data, Read);
+	uint8_t *fBuffer = NULL;
+
+	/* Sanity */
+	if (File->Code != VfsOk)
+	{
+		VfsClose(File);
+		return 0xFFFFFFFF;
+	}
+
+	/* Allocate a buffer */
+	fBuffer = (uint8_t*)kmalloc((size_t)File->Size);
+
+	/* Read */
+	VfsRead(File, fBuffer, (size_t)File->Size);
+
+	/* Close */
+	VfsClose(File);
+
+	/* Create address space */
+
 }

@@ -32,28 +32,12 @@
 #include <stdio.h>
 
 /* Globals */
-Heap_t *Heap = NULL;
-
-/* Recyclers */
-HeapBlock_t *GlbHeapBlockRecycler = NULL;
-HeapNode_t *GlbHeapNodeRecycler = NULL;
-
-/* Memory Globals */
-volatile Addr_t HeapMemStartData = MEMORY_LOCATION_HEAP + MEMORY_STATIC_OFFSET;
-volatile Addr_t HeapMemHeaderCurrent = MEMORY_LOCATION_HEAP;
-volatile Addr_t HeapMemHeaderMax = MEMORY_LOCATION_HEAP;
-CriticalSection_t HeapLock;
-
-/* Heap Statistics */
-Addr_t HeapBytesAllocated = 0;
-Addr_t HeapNumAllocs = 0;
-Addr_t HeapNumFrees = 0;
-Addr_t HeapNumPages = 0;
+Heap_t KernelHeap = { 0 };
 
 /**************************************/
 /******* Heap Helper Functions ********/
 /**************************************/
-Addr_t *HeapSAllocator(size_t Size)
+Addr_t *HeapSAllocator(Heap_t *Heap, size_t Size)
 {
 	Addr_t *RetAddr;
 
@@ -61,29 +45,32 @@ Addr_t *HeapSAllocator(size_t Size)
 	assert(Size > 0);
 
 	/* Sanity */
-	if ((HeapMemHeaderCurrent + Size) >= HeapMemHeaderMax)
+	if ((Heap->MemHeaderCurrent + Size) >= Heap->MemHeaderMax)
 	{
 		/* Sanity */
-		if ((HeapMemHeaderMax + PAGE_SIZE) >= (MEMORY_LOCATION_HEAP + MEMORY_STATIC_OFFSET))
+		if ((Heap->MemHeaderMax + PAGE_SIZE) >= 
+			(MEMORY_LOCATION_HEAP + MEMORY_STATIC_OFFSET))
 		{
 			printf("HeapMgr: RAN OUT OF MEMORY\n");
 			for (;;);
 		}
 
 		/* Map */
-		MmVirtualMap(NULL, MmPhysicalAllocateBlock(), HeapMemHeaderMax, 0);
-		memset((void*)HeapMemHeaderMax, 0, PAGE_SIZE);
-		HeapMemHeaderMax += PAGE_SIZE;
+		MmVirtualMap(NULL, MmPhysicalAllocateBlock(), Heap->MemHeaderMax, 0);
+		memset((void*)Heap->MemHeaderMax, 0, PAGE_SIZE);
+		Heap->MemHeaderMax += PAGE_SIZE;
 	}
 
-	RetAddr = (Addr_t*)HeapMemHeaderCurrent;
-	HeapMemHeaderCurrent += Size;
+	/* Calc */
+	RetAddr = (Addr_t*)Heap->MemHeaderCurrent;
+	Heap->MemHeaderCurrent += Size;
 
+	/* Done! */
 	return RetAddr;
 }
 
 /* Appends block to end of block list */
-void HeapAppendBlockToList(HeapBlock_t *Block)
+void HeapAppendBlockToList(Heap_t *Heap, HeapBlock_t *Block)
 {
 	HeapBlock_t *CurrBlock;
 
@@ -116,7 +103,7 @@ Addr_t HeapAlignPageWithRoundup(Addr_t Address)
 }
 
 /* Prints stats of heap */
-void HeapPrintStats(void)
+void HeapPrintStats(Heap_t *Heap)
 {
 	HeapBlock_t *current_block, *previous_block;
 	uint32_t node_count = 0;
@@ -157,48 +144,48 @@ void HeapPrintStats(void)
 }
 
 /* Helper to allocate and create a block */
-HeapBlock_t *HeapCreateBlock(size_t Size, int Flags)
+HeapBlock_t *HeapCreateBlock(Heap_t *Heap, size_t Size, int Flags)
 {
 	/* Allocate a block & node */
 	HeapBlock_t *hBlock = NULL;
 	HeapNode_t *hNode = NULL;
 
 	/* Sanity Recycler */
-	if (GlbHeapBlockRecycler != NULL)
+	if (Heap->BlockRecycler != NULL)
 	{
 		/* Pop */
-		hBlock = GlbHeapBlockRecycler;
-		GlbHeapBlockRecycler = GlbHeapBlockRecycler->Link;
+		hBlock = Heap->BlockRecycler;
+		Heap->BlockRecycler = Heap->BlockRecycler->Link;
 	}
 	else
-		hBlock = (HeapBlock_t*)HeapSAllocator(sizeof(HeapBlock_t));
+		hBlock = (HeapBlock_t*)HeapSAllocator(Heap, sizeof(HeapBlock_t));
 
 	/* Sanity Recycler */
-	if (GlbHeapNodeRecycler != NULL)
+	if (Heap->NodeRecycler != NULL)
 	{
 		/* Pop */
-		hNode = GlbHeapNodeRecycler;
-		GlbHeapNodeRecycler = GlbHeapNodeRecycler->Link;
+		hNode = Heap->NodeRecycler;
+		Heap->NodeRecycler = Heap->NodeRecycler->Link;
 	}
 	else
-		hNode = (HeapNode_t*)HeapSAllocator(sizeof(HeapNode_t));
+		hNode = (HeapNode_t*)HeapSAllocator(Heap, sizeof(HeapNode_t));
 
 	/* Set Members */
-	hBlock->AddressStart = HeapMemStartData;
-	hBlock->AddressEnd = (HeapMemStartData + Size - 1);
+	hBlock->AddressStart = Heap->MemStartData;
+	hBlock->AddressEnd = (Heap->MemStartData + Size - 1);
 	hBlock->BytesFree = Size;
 	hBlock->Flags = Flags;
 	hBlock->Link = NULL;
 	hBlock->Nodes = hNode;
 
 	/* Setup node */
-	hNode->Address = HeapMemStartData;
+	hNode->Address = Heap->MemStartData;
 	hNode->Link = NULL;
 	hNode->Allocated = 0;
 	hNode->Length = Size;
 
 	/* Increament Address */
-	HeapMemStartData += Size;
+	Heap->MemStartData += Size;
 
 	/* Done! */
 	return hBlock;
@@ -207,26 +194,26 @@ HeapBlock_t *HeapCreateBlock(size_t Size, int Flags)
 /**************************************/
 /********** Heap Expansion  ***********/
 /**************************************/
-void HeapExpand(size_t Size, int ExpandType)
+void HeapExpand(Heap_t *Heap, size_t Size, int ExpandType)
 {
 	HeapBlock_t *hBlock;
 
 	/* Normal expansion? */
 	if (ExpandType == ALLOCATION_NORMAL)
-		hBlock = HeapCreateBlock(HEAP_NORMAL_BLOCK, BLOCK_NORMAL);
+		hBlock = HeapCreateBlock(Heap, HEAP_NORMAL_BLOCK, BLOCK_NORMAL);
 	else if (ExpandType & ALLOCATION_ALIGNED)
-		hBlock = HeapCreateBlock(HEAP_LARGE_BLOCK, BLOCK_LARGE);
+		hBlock = HeapCreateBlock(Heap, HEAP_LARGE_BLOCK, BLOCK_LARGE);
 	else
 	{
 		/* Page Align */
 		size_t nsize = HeapAlignPageWithRoundup(Size);
 
 		/* And allocate */
-		hBlock = HeapCreateBlock(nsize, BLOCK_VERY_LARGE);
+		hBlock = HeapCreateBlock(Heap, nsize, BLOCK_VERY_LARGE);
 	}
 	
 	/* Add it to list */
-	HeapAppendBlockToList(hBlock);
+	HeapAppendBlockToList(Heap, hBlock);
 }
 
 /**************************************/
@@ -234,7 +221,7 @@ void HeapExpand(size_t Size, int ExpandType)
 /**************************************/
 
 /* Allocates <size> in a given <block> */
-Addr_t HeapAllocateSizeInBlock(HeapBlock_t *Block, size_t Size)
+Addr_t HeapAllocateSizeInBlock(Heap_t *Heap, HeapBlock_t *Block, size_t Size)
 {
 	HeapNode_t *CurrNode = Block->Nodes, *PrevNode = NULL;
 	Addr_t RetAddr = 0;
@@ -265,14 +252,14 @@ Addr_t HeapAllocateSizeInBlock(HeapBlock_t *Block, size_t Size)
 				HeapNode_t *hNode = NULL;
 
 				/* Sanity Recycler */
-				if (GlbHeapNodeRecycler != NULL)
+				if (Heap->NodeRecycler != NULL)
 				{
 					/* Pop */
-					hNode = GlbHeapNodeRecycler;
-					GlbHeapNodeRecycler = GlbHeapNodeRecycler->Link;
+					hNode = Heap->NodeRecycler;
+					Heap->NodeRecycler = Heap->NodeRecycler->Link;
 				}
 				else
-					hNode = (HeapNode_t*)HeapSAllocator(sizeof(HeapNode_t));
+					hNode = (HeapNode_t*)HeapSAllocator(Heap, sizeof(HeapNode_t));
 
 				/* Fill */
 				hNode->Address = CurrNode->Address;
@@ -307,7 +294,7 @@ Addr_t HeapAllocateSizeInBlock(HeapBlock_t *Block, size_t Size)
 
 /* Finds a suitable block for allocation
  * and allocates in that block */
-Addr_t HeapAllocate(size_t Size, int Flags)
+Addr_t HeapAllocate(Heap_t *Heap, size_t Size, int Flags)
 {
 	/* Find a block that match our 
 	 * requirements */
@@ -324,7 +311,7 @@ Addr_t HeapAllocate(size_t Size, int Flags)
 		{
 			/* Try to make the allocation, THIS CAN 
 			 * FAIL */
-			Addr_t res = HeapAllocateSizeInBlock(current_block, Size);
+			Addr_t res = HeapAllocateSizeInBlock(Heap, current_block, Size);
 
 			/* Check if failed */
 			if (res != 0)
@@ -349,7 +336,7 @@ Addr_t HeapAllocate(size_t Size, int Flags)
 
 			/* Try to make the allocation, THIS CAN
 			* FAIL */
-			res = HeapAllocateSizeInBlock(current_block, a_size);
+			res = HeapAllocateSizeInBlock(Heap, current_block, a_size);
 
 			/* Check if failed */
 			if (res != 0)
@@ -363,7 +350,7 @@ Addr_t HeapAllocate(size_t Size, int Flags)
 		{
 			/* Try to make the allocation, THIS CAN
 			* FAIL */
-			Addr_t res = HeapAllocateSizeInBlock(current_block, Size);
+			Addr_t res = HeapAllocateSizeInBlock(Heap, current_block, Size);
 
 			/* Check if failed */
 			if (res != 0)
@@ -376,10 +363,10 @@ Addr_t HeapAllocate(size_t Size, int Flags)
 	}
 
 	/* If we reach here, expand and research */
-	HeapExpand(Size, Flags);
+	HeapExpand(Heap, Size, Flags);
 
 	/* Recursive Call */
-	return HeapAllocate(Size, Flags);
+	return HeapAllocate(Heap, Size, Flags);
 }
 
 /* Map Pages */
@@ -423,13 +410,13 @@ void *kmalloc_ap(size_t sz, Addr_t *p)
 		Flags = ALLOCATION_SPECIAL;
 
 	/* Lock */
-	CriticalSectionEnter(&HeapLock);
+	CriticalSectionEnter(&KernelHeap.Lock);
 
 	/* Do the call */
-	RetAddr = HeapAllocate(sz, Flags);
+	RetAddr = HeapAllocate(&KernelHeap, sz, Flags);
 
 	/* Release */
-	CriticalSectionLeave(&HeapLock);
+	CriticalSectionLeave(&KernelHeap.Lock);
 
 	/* Sanity */
 	assert(RetAddr != 0);
@@ -463,13 +450,13 @@ void *kmalloc_p(size_t sz, Addr_t *p)
 		Flags = ALLOCATION_SPECIAL;
 
 	/* Lock */
-	CriticalSectionEnter(&HeapLock);
+	CriticalSectionEnter(&KernelHeap.Lock);
 
 	/* Do the call */
-	RetAddr = HeapAllocate(sz, Flags);
+	RetAddr = HeapAllocate(&KernelHeap, sz, Flags);
 
 	/* Release */
-	CriticalSectionLeave(&HeapLock);
+	CriticalSectionLeave(&KernelHeap.Lock);
 
 	/* Sanity */
 	assert(RetAddr != 0);
@@ -499,13 +486,13 @@ void *kmalloc_a(size_t sz)
 		Flags = ALLOCATION_SPECIAL;
 
 	/* Lock */
-	CriticalSectionEnter(&HeapLock);
+	CriticalSectionEnter(&KernelHeap.Lock);
 
 	/* Do the call */
-	RetAddr = HeapAllocate(sz, Flags);
+	RetAddr = HeapAllocate(&KernelHeap, sz, Flags);
 
 	/* Release */
-	CriticalSectionLeave(&HeapLock);
+	CriticalSectionLeave(&KernelHeap.Lock);
 
 	/* Sanity */
 	assert(RetAddr != 0);
@@ -536,13 +523,13 @@ void *kmalloc(size_t sz)
 		Flags = ALLOCATION_SPECIAL;
 
 	/* Lock */
-	CriticalSectionEnter(&HeapLock);
+	CriticalSectionEnter(&KernelHeap.Lock);
 
 	/* Do the call */
-	RetAddr = HeapAllocate(sz, Flags);
+	RetAddr = HeapAllocate(&KernelHeap, sz, Flags);
 
 	/* Release */
-	CriticalSectionLeave(&HeapLock);
+	CriticalSectionLeave(&KernelHeap.Lock);
 
 	/* Sanity */
 	assert(RetAddr != 0);
@@ -557,7 +544,7 @@ void *kmalloc(size_t sz)
 /**************************************/
 /*********** Heap Freeing *************/
 /**************************************/
-void HeapFreeAddressInNode(HeapBlock_t *Block, Addr_t Address)
+void HeapFreeAddressInNode(Heap_t *Heap, HeapBlock_t *Block, Addr_t Address)
 {
 	/* Vars */
 	HeapNode_t *CurrNode = Block->Nodes, *PrevNode = NULL;
@@ -597,13 +584,13 @@ void HeapFreeAddressInNode(HeapBlock_t *Block, Addr_t Address)
 				CurrNode->Length = 0;
 
 				/* Sanity */
-				if (GlbHeapNodeRecycler == NULL)
-					GlbHeapNodeRecycler = CurrNode;
+				if (Heap->NodeRecycler == NULL)
+					Heap->NodeRecycler = CurrNode;
 				else
 				{
 					/* Front-us */
-					CurrNode->Link = GlbHeapNodeRecycler;
-					GlbHeapNodeRecycler = CurrNode;
+					CurrNode->Link = Heap->NodeRecycler;
+					Heap->NodeRecycler = CurrNode;
 				}
 			}
 			else if (CurrNode->Link != NULL
@@ -625,13 +612,13 @@ void HeapFreeAddressInNode(HeapBlock_t *Block, Addr_t Address)
 				CurrNode->Length = 0;
 
 				/* Sanity */
-				if (GlbHeapNodeRecycler == NULL)
-					GlbHeapNodeRecycler = CurrNode;
+				if (Heap->NodeRecycler == NULL)
+					Heap->NodeRecycler = CurrNode;
 				else
 				{
 					/* Front-us */
-					CurrNode->Link = GlbHeapNodeRecycler;
-					GlbHeapNodeRecycler = CurrNode;
+					CurrNode->Link = Heap->NodeRecycler;
+					Heap->NodeRecycler = CurrNode;
 				}
 			}
 
@@ -647,7 +634,7 @@ void HeapFreeAddressInNode(HeapBlock_t *Block, Addr_t Address)
 
 /* Finds the appropriate block
  * that should contain our node */
-void HeapFree(Addr_t Addr)
+void HeapFree(Heap_t *Heap, Addr_t Addr)
 {
 	/* Find a block that match our
 	* address */
@@ -661,7 +648,7 @@ void HeapFree(Addr_t Addr)
 			&& CurrBlock->AddressEnd > Addr)
 		{
 			/* Yay, free */
-			HeapFreeAddressInNode(CurrBlock, Addr);
+			HeapFreeAddressInNode(Heap, CurrBlock, Addr);
 
 			/* Done! */
 			return;
@@ -679,13 +666,13 @@ void kfree(void *p)
 	assert(p != NULL); 
 
 	/* Lock */
-	CriticalSectionEnter(&HeapLock);
+	CriticalSectionEnter(&KernelHeap.Lock);
 
 	/* Free */
-	HeapFree((Addr_t)p);
+	HeapFree(&KernelHeap, (Addr_t)p);
 
 	/* Release */
-	CriticalSectionLeave(&HeapLock);
+	CriticalSectionLeave(&KernelHeap.Lock);
 
 	/* Set NULL */
 	p = NULL;
@@ -699,28 +686,25 @@ void HeapInit(void)
 	/* Vars */
 	HeapBlock_t *NormBlock, *SpecBlock;
 
-	/* Just to be safe */
-	HeapMemStartData = MEMORY_LOCATION_HEAP + MEMORY_STATIC_OFFSET;
-	HeapMemHeaderCurrent = MEMORY_LOCATION_HEAP;
-	HeapMemHeaderMax = MEMORY_LOCATION_HEAP;
+	/* Reset */
+	KernelHeap.MemStartData = MEMORY_LOCATION_HEAP + MEMORY_STATIC_OFFSET;
+	KernelHeap.MemHeaderCurrent = MEMORY_LOCATION_HEAP;
+	KernelHeap.MemHeaderMax = MEMORY_LOCATION_HEAP;
 
 	/* Set null */
-	GlbHeapBlockRecycler = NULL;
-	GlbHeapNodeRecycler = NULL;
+	KernelHeap.BlockRecycler = NULL;
+	KernelHeap.NodeRecycler = NULL;
 
 	/* Initiate the global spinlock */
-	CriticalSectionConstruct(&HeapLock);
-
-	/* Allocate the heap */
-	Heap = (Heap_t*)HeapSAllocator(sizeof(Heap_t));
+	CriticalSectionConstruct(&KernelHeap.Lock);
 
 	/* Create a normal node */
-	NormBlock = HeapCreateBlock(HEAP_NORMAL_BLOCK, BLOCK_NORMAL);
-	SpecBlock = HeapCreateBlock(HEAP_LARGE_BLOCK, BLOCK_LARGE);
+	NormBlock = HeapCreateBlock(&KernelHeap, HEAP_NORMAL_BLOCK, BLOCK_NORMAL);
+	SpecBlock = HeapCreateBlock(&KernelHeap, HEAP_LARGE_BLOCK, BLOCK_LARGE);
 
 	/* Insert them */
 	NormBlock->Link = SpecBlock;
-	Heap->Blocks = NormBlock;
+	KernelHeap.Blocks = NormBlock;
 
 	/* Heap is now ready to use! */
 }
@@ -734,7 +718,7 @@ void heap_test(void)
 	uint32_t phys1 = 0, phys2 = 0, i = 0;
 	void *res1, *res2, *res3, *res4, *res5, *res6;
 
-	HeapPrintStats();
+	HeapPrintStats(&KernelHeap);
 
 	printf(" >> Performing small allocs & frees (a few)\n");
 	res1 = kmalloc(0x30);
@@ -744,7 +728,7 @@ void heap_test(void)
 	res5 = kmalloc(0x600);
 	res6 = kmalloc(0x3000);
 
-	HeapPrintStats();
+	HeapPrintStats(&KernelHeap);
 
 	printf(" Alloc1 (0x30): 0x%x, Alloc2 (0x50): 0x%x, Alloc3 (0x130): 0x%x, Alloc4 (0x180): 0x%x\n",
 		(uint32_t)res1, (uint32_t)res2, (uint32_t)res3, (uint32_t)res4);
@@ -755,7 +739,7 @@ void heap_test(void)
 	kfree(res2);
 	kfree(res3);
 
-	HeapPrintStats();
+	HeapPrintStats(&KernelHeap);
 
 	printf(" Re-allocing 5, 2 & 3\n");
 	res2 = kmalloc(0x90);
@@ -772,7 +756,7 @@ void heap_test(void)
 	kfree(res5);
 	kfree(res6);
 
-	HeapPrintStats();
+	HeapPrintStats(&KernelHeap);
 
 	printf(" Making special allocations (aligned & aligned /w phys)\n");
 	res1 = kmalloc_a(0x30);
@@ -796,7 +780,7 @@ void heap_test(void)
 	kfree(res5);
 	kfree(res6);
 
-	HeapPrintStats();
+	HeapPrintStats(&KernelHeap);
 
 	printf(" >> Performing allocations (150)\n");
 	
@@ -807,7 +791,7 @@ void heap_test(void)
 		kmalloc(0x3000);
 	}
 
-	HeapPrintStats();
+	HeapPrintStats(&KernelHeap);
 	
 	printf(" >> Performing allocs & frees (150)\n");
 	for (i = 0; i < 50; i++)

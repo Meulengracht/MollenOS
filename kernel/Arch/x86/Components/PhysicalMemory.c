@@ -16,7 +16,7 @@
 * along with this program.If not, see <http://www.gnu.org/licenses/>.
 *
 *
-* MollenOS x86-32 Physical Memory Manager
+* MollenOS x86 Physical Memory Manager
 */
 
 /* Includes */
