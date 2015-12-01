@@ -33,7 +33,7 @@
 #include <Modules/RamDisk.h>
 
 /* Definitions */
-
+#define MODULE_FILESYSTEM	0x01010101
 
 /* Enums */
 typedef enum _ModuleResult

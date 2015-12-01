@@ -20,7 +20,6 @@
     <ClCompile Include="..\..\System\Devices\Fonts\VideoFont6x12.c" />
     <ClCompile Include="..\..\System\Devices\Fonts\VideoFont8x16.c" />
     <ClCompile Include="..\..\System\Devices\DeviceVideo.c" />
-    <ClCompile Include="..\..\System\FileSystems\Mfs\Mfs.c" />
     <ClCompile Include="..\..\System\Heap.c" />
     <ClCompile Include="..\..\System\InputManager.c" />
     <ClCompile Include="..\..\System\Log.c" />
@@ -40,7 +39,6 @@
     <ClInclude Include="..\..\Include\Devices\Disk.h" />
     <ClInclude Include="..\..\Include\Devices\Input.h" />
     <ClInclude Include="..\..\Include\Devices\Timer.h" />
-    <ClInclude Include="..\..\Include\FileSystems\Mfs.h" />
     <ClInclude Include="..\..\Include\Log.h" />
     <ClInclude Include="..\..\Include\Modules\ModuleManager.h" />
     <ClInclude Include="..\..\Include\Modules\PeLoader.h" />

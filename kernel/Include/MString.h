@@ -54,12 +54,12 @@ typedef struct _MString
 } MString_t;
 
 /* Prototypes */
-_CRT_EXTERN MString_t *MStringCreate(void *Data, MStringType_t DataType);
-_CRT_EXTERN void MStringDestroy(MString_t *String);
-_CRT_EXTERN void MStringCopy(MString_t *Destination, MString_t *Source, int Length);
+_CRT_EXPORT MString_t *MStringCreate(void *Data, MStringType_t DataType);
+_CRT_EXPORT void MStringDestroy(MString_t *String);
+_CRT_EXPORT void MStringCopy(MString_t *Destination, MString_t *Source, int Length);
 
 /* Appends */
-_CRT_EXTERN void MStringAppendChar(MString_t *String, uint32_t Character);
+_CRT_EXPORT void MStringAppendChar(MString_t *String, uint32_t Character);
 _CRT_EXTERN void MStringAppendChars(MString_t *String, const char *Chars);
 _CRT_EXTERN void MStringAppendString(MString_t *Destination, MString_t *String);
 
@@ -72,19 +72,19 @@ _CRT_EXTERN void MStringAppendUInt64(MString_t *String, uint64_t Value);
 _CRT_EXTERN void MStringAppendHex64(MString_t *String, uint64_t Value);
 
 /* String Manipulations */
-_CRT_EXTERN int MStringFind(MString_t *String, uint32_t Character);
-_CRT_EXTERN int MStringFindChars(MString_t *String, const char *Chars);
-_CRT_EXTERN int MStringFindReverse(MString_t *String, uint32_t Character);
+_CRT_EXPORT int MStringFind(MString_t *String, uint32_t Character);
+_CRT_EXPORT int MStringFindChars(MString_t *String, const char *Chars);
+_CRT_EXPORT int MStringFindReverse(MString_t *String, uint32_t Character);
 
-_CRT_EXTERN uint32_t MStringGetCharAt(MString_t *String, int Index);
-_CRT_EXTERN MString_t *MStringSubString(MString_t *String, int Index, int Length);
-_CRT_EXTERN void MStringReplace(MString_t *String, const char *Old, const char *New);
+_CRT_EXPORT uint32_t MStringGetCharAt(MString_t *String, int Index);
+_CRT_EXPORT MString_t *MStringSubString(MString_t *String, int Index, int Length);
+_CRT_EXPORT void MStringReplace(MString_t *String, const char *Old, const char *New);
 
 /* Utilities */
-_CRT_EXTERN uint32_t MStringLength(MString_t *String);
-_CRT_EXTERN uint32_t MStringCompare(MString_t *String1, MString_t *String2, uint32_t IgnoreCase);
-_CRT_EXTERN void MStringToASCII(MString_t *String, void *Buffer);
-_CRT_EXTERN void MStringPrint(MString_t *String);
+_CRT_EXPORT uint32_t MStringLength(MString_t *String);
+_CRT_EXPORT uint32_t MStringCompare(MString_t *String1, MString_t *String2, uint32_t IgnoreCase);
+_CRT_EXPORT void MStringToASCII(MString_t *String, void *Buffer);
+_CRT_EXPORT void MStringPrint(MString_t *String);
 
 /* Casing */
 _CRT_EXTERN void MStringUpperCase(MString_t *String);

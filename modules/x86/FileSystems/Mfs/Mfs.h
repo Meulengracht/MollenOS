@@ -22,8 +22,8 @@
 #define _MFS_H_
 
 /* Includes */
-#include <MollenOS.h>
-#include <Vfs/Vfs.h>
+#include <Vfs\Vfs.h>
+#include <MString.h>
 #include <stdint.h>
 #include <crtdefs.h>
 #include <stddef.h>
@@ -196,8 +196,5 @@ typedef struct _MfsData
 
 } MfsData_t;
 #pragma pack(pop)
-
-/* Initialize Fs */
-_CRT_EXTERN OsResult_t MfsInit(MCoreFileSystem_t *Fs);
 
 #endif //!_MFS_H_

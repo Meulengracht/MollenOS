@@ -20,15 +20,12 @@
 */
 
 /* Includes */
+#include <Modules/ModuleManager.h>
 #include <Vfs/Vfs.h>
 #include <Heap.h>
 #include <List.h>
-#include <stdio.h>
 #include <string.h>
 #include <Log.h>
-
-/* FileSystems */
-#include <FileSystems/Mfs.h>
 
 /* Globals */
 list_t *GlbFileSystems = NULL;
@@ -52,6 +49,7 @@ int VfsParsePartitionTable(DevId_t DiskId, uint64_t SectorBase, uint64_t SectorC
 {
 	/* Allocate structures */
 	void *TmpBuffer = (void*)kmalloc(SectorSize);
+	MCoreModule_t *Module = NULL;
 	MCoreMasterBootRecord_t *Mbr = NULL;
 	MCoreDeviceRequest_t Request;
 	int PartitionCount = 0;
@@ -72,7 +70,7 @@ int VfsParsePartitionTable(DevId_t DiskId, uint64_t SectorBase, uint64_t SectorC
 	if (Request.Status != RequestOk)
 	{
 		/* Error */
-		printf("VFS_REGISTERDISK: Error reading from disk - 0x%x\n", Request.Status);
+		LogFatal("VFSM", "REGISTERDISK: Error reading from disk - 0x%x\n", Request.Status);
 		kfree(TmpBuffer);
 		return 0;
 	}
@@ -92,6 +90,7 @@ int VfsParsePartitionTable(DevId_t DiskId, uint64_t SectorBase, uint64_t SectorC
 
 			/* Allocate a filesystem structure */
 			MCoreFileSystem_t *Fs = (MCoreFileSystem_t*)kmalloc(sizeof(MCoreFileSystem_t));
+			Fs->State = VfsStateInit;
 			Fs->DiskId = DiskId;
 			Fs->FsData = NULL;
 			Fs->SectorStart = SectorBase + Mbr->Partitions[i].LbaSector;
@@ -120,7 +119,11 @@ int VfsParsePartitionTable(DevId_t DiskId, uint64_t SectorBase, uint64_t SectorC
 			else if (Mbr->Partitions[i].Type == 0x61)
 			{
 				/* MFS 1 */
-				MfsInit(Fs);
+				Module = ModuleFind(MODULE_FILESYSTEM, FILESYSTEM_MFS);
+
+				/* Load */
+				if (Module != NULL)
+					ModuleLoad(Module, Fs);
 			}
 
 			/* Check FAT */
@@ -168,7 +171,7 @@ int VfsParsePartitionTable(DevId_t DiskId, uint64_t SectorBase, uint64_t SectorC
 			}
 
 			/* Lastly */
-			if (Fs->FsData != NULL)
+			if (Fs->State != VfsStateActive)
 			{
 				/* Ready the buffer */
 				char IdentBuffer[8];
@@ -205,6 +208,7 @@ int VfsParsePartitionTable(DevId_t DiskId, uint64_t SectorBase, uint64_t SectorC
 void VfsRegisterDisk(DevId_t DiskId)
 {
 	/* Query for disk stats */
+	MCoreModule_t *Module = NULL;
 	char TmpBuffer[20];
 	MCoreDeviceRequest_t Request;
 	Request.Type = RequestQuery;
@@ -233,6 +237,7 @@ void VfsRegisterDisk(DevId_t DiskId)
 
 		/* Allocate a filesystem structure */
 		MCoreFileSystem_t *Fs = (MCoreFileSystem_t*)kmalloc(sizeof(MCoreFileSystem_t));
+		Fs->State = VfsStateInit;
 		Fs->DiskId = DiskId;
 		Fs->FsData = NULL;
 		Fs->Id = GlbFileSystemId;
@@ -243,13 +248,18 @@ void VfsRegisterDisk(DevId_t DiskId)
 		/* Now we have to detect the type of filesystem used
 		 * normally two types is used for full-partition 
 		 * MFS and FAT */
-		OsResult_t FsRes = MfsInit(Fs);
+		/* MFS 1 */
+		Module = ModuleFind(MODULE_FILESYSTEM, FILESYSTEM_MFS);
 
-		if (FsRes != OsOk)
+		/* Load */
+		if (Module != NULL)
+			ModuleLoad(Module, Fs);
+
+		if (Fs->State != VfsStateActive)
 			; //FatInit()
 
 		/* Lastly */
-		if (FsRes == OsOk)
+		if (Fs->State == VfsStateActive)
 		{
 			/* Ready the buffer */
 			char IdentBuffer[8];
@@ -297,7 +307,7 @@ void VfsUnregisterDisk(DevId_t DiskId, uint32_t Forced)
 
 		/* Destruct the FS */
 		if (Fs->Destory(lNode->data, Forced) != OsOk)
-			printf("VfsUnregisterDisk:: Failed to destroy filesystem\n");
+			LogFatal("VFSM", "UnregisterDisk:: Failed to destroy filesystem");
 
 		/* Free */
 		MStringDestroy(Fs->Identifier);

@@ -16,23 +16,23 @@
 * along with this program.If not, see <http://www.gnu.org/licenses/>.
 *
 *
-* MollenOS X86-32 USB UHCI Controller Driver
+* MollenOS USB UHCI Controller Driver
 */
 
-#ifndef _X86_USB_UHCI_H_
-#define _X86_USB_UHCI_H_
+#ifndef _USB_UHCI_H_
+#define _USB_UHCI_H_
 
 /* Includes */
 #include <Module.h>
 #include <x86\Pci.h>
 
 /* Definitions */
-#define X86_UHCI_MAX_PORTS				7
-#define X86_UHCI_STRUCT_ALIGN			16
-#define X86_UHCI_STRUCT_ALIGN_BITS		0xF
-#define X86_UHCI_NUM_FRAMES				1024
-#define X86_UHCI_USBLEG					0xC0
-#define X86_UHCI_USBRES_INTEL			0xC4
+#define UHCI_MAX_PORTS				7
+#define UHCI_STRUCT_ALIGN			16
+#define UHCI_STRUCT_ALIGN_BITS		0xF
+#define UHCI_NUM_FRAMES				1024
+#define UHCI_USBLEGEACY				0xC0
+#define UHCI_USBRES_INTEL			0xC4
 
 /* Registers */
 #define X86_UHCI_REGISTER_COMMAND		0x00

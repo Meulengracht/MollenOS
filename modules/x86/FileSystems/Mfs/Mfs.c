@@ -20,10 +20,14 @@
 */
 
 /* Includes */
-#include <FileSystems/Mfs.h>
+#include <Module.h>
+#include "Mfs.h"
+
 #include <MString.h>
 #include <Heap.h>
-#include <stdio.h>
+#include <Log.h>
+
+/* CLib */
 #include <string.h>
 
 /* Read Sectors Wrapper */
@@ -90,7 +94,7 @@ uint32_t MfsGetNextBucket(MCoreFileSystem_t *Fs, uint32_t Bucket)
 		if (MfsReadSectors(Fs, mData->BucketMapSector + SectorOffset, mData->BucketBuffer, 1) != RequestOk)
 		{
 			/* Error */
-			printf("MFS_GETNEXTBUCKET: Error reading from disk\n");
+			LogFatal("MFS1", "GETNEXTBUCKET: Error reading from disk");
 			return 0xFFFFFFFF;
 		}
 
@@ -124,7 +128,7 @@ void MfsSetNextBucket(MCoreFileSystem_t *Fs, uint32_t Bucket, uint32_t NextBucke
 		if (MfsReadSectors(Fs, mData->BucketMapSector + SectorOffset, mData->BucketBuffer, 1) != RequestOk)
 		{
 			/* Error */
-			printf("MFS_SETNEXTBUCKET: Error reading from disk\n");
+			LogFatal("MFS1", "SETNEXTBUCKET: Error reading from disk");
 			return;
 		}
 
@@ -145,7 +149,7 @@ void MfsSetNextBucket(MCoreFileSystem_t *Fs, uint32_t Bucket, uint32_t NextBucke
 	if (MfsWriteSectors(Fs, mData->BucketMapSector + SectorOffset, mData->BucketBuffer, 1) != RequestOk)
 	{
 		/* Error */
-		printf("MFS_SETNEXTBUCKET: Error writing to disk\n");
+		LogFatal("MFS1", "SETNEXTBUCKET: Error writing to disk");
 	}
 }
 
@@ -192,7 +196,7 @@ void MfsAllocateBucket(MCoreFileSystem_t *Fs, uint32_t NumBuckets)
 		|| MfsWriteSectors(Fs, mData->MbMirrorSector, MbBuffer, 1) != RequestOk)
 	{
 		/* Error */
-		printf("MFS_ALLOCATEBUCKET: Error writing to disk\n");
+		LogFatal("MFS1", "ALLOCATEBUCKET: Error writing to disk");
 	}
 
 	/* Done! */
@@ -276,7 +280,7 @@ MfsFile_t *MfsLocateEntry(MCoreFileSystem_t *Fs, uint32_t DirBucket, MString_t *
 		if (MfsReadSectors(Fs, mData->BucketSize * CurrentBucket, EntryBuffer, mData->BucketSize) != RequestOk)
 		{
 			/* Error */
-			printf("MFS_LOCATEENTRY: Error reading from disk\n");
+			LogFatal("MFS1", "LOCATEENTRY: Error reading from disk");
 			break;
 		}
 
@@ -498,7 +502,7 @@ size_t MfsReadFile(void *FsData, MCoreFile_t *Handle, uint8_t *Buffer, size_t Si
 		{
 			/* Error */
 			RetCode = VfsDiskError;
-			printf("MFS_READFILE: Error reading from disk\n");
+			LogFatal("MFS1", "READFILE: Error reading from disk");
 			break;
 		}
 
@@ -640,7 +644,7 @@ size_t MfsWriteFile(void *FsData, MCoreFile_t *Handle, uint8_t *Buffer, size_t S
 			{
 				/* Error */
 				RetCode = VfsDiskError;
-				printf("MFS_WRITEFILE: Error reading from disk\n");
+				LogFatal("MFS1", "WRITEFILE: Error reading from disk");
 				break;
 			}
 			
@@ -666,7 +670,7 @@ size_t MfsWriteFile(void *FsData, MCoreFile_t *Handle, uint8_t *Buffer, size_t S
 		{
 			/* Error */
 			RetCode = VfsDiskError;
-			printf("MFS_WRITEFILE: Error writing to disk\n");
+			LogFatal("MFS1", "WRITEFILE: Error writing to disk");
 			break;
 		}
 
@@ -790,10 +794,11 @@ OsResult_t MfsDestroy(void *FsData, uint32_t Forced)
 	return OsOk;
 }
 
-/* Load Mfs Driver */
-OsResult_t MfsInit(MCoreFileSystem_t *Fs)
+/* Entry point of a module */
+MODULES_API void ModuleInit(void *Data)
 {
 	/* Allocate structures */
+	MCoreFileSystem_t *Fs = (MCoreFileSystem_t*)Data;
 	void *TmpBuffer = (void*)kmalloc(Fs->SectorSize);
 	MfsBootRecord_t *BootRecord = NULL;
 
@@ -801,9 +806,10 @@ OsResult_t MfsInit(MCoreFileSystem_t *Fs)
 	if (MfsReadSectors(Fs, 0, TmpBuffer, 1) != RequestOk)
 	{
 		/* Error */
-		printf("MFS_INIT: Error reading from disk\n");
+		Fs->State = VfsStateFailed;
+		LogFatal("MFS1", "INIT: Error reading from disk");
 		kfree(TmpBuffer);
-		return OsFail;
+		return;
 	}
 
 	/* Cast */
@@ -812,17 +818,19 @@ OsResult_t MfsInit(MCoreFileSystem_t *Fs)
 	/* Validate Magic */
 	if (BootRecord->Magic != MFS_MAGIC)
 	{
-		printf("MFS_INIT: Invalid Magic 0x%x\n", BootRecord->Magic);
+		Fs->State = VfsStateFailed;
+		LogFatal("MFS1", "INIT: Invalid Magic 0x%x", BootRecord->Magic);
 		kfree(TmpBuffer);
-		return OsFail;
+		return;
 	}
 
 	/* Validate Version */
 	if (BootRecord->Version != 0x1)
 	{
-		printf("MFS_INIT: Invalid Version\n");
+		Fs->State = VfsStateFailed;
+		LogFatal("MFS1", "INIT: Invalid Version");
 		kfree(TmpBuffer);
-		return OsFail;
+		return;
 	}
 
 	/* Allocate */
@@ -850,11 +858,12 @@ OsResult_t MfsInit(MCoreFileSystem_t *Fs)
 	if (MfsReadSectors(Fs, mData->MbSector, TmpBuffer, 1) != RequestOk)
 	{
 		/* Error */
-		printf("MFS_INIT: Error reading MB from disk\n");
+		Fs->State = VfsStateFailed;
+		LogFatal("MFS1", "INIT: Error reading MB from disk");
 		kfree(TmpBuffer);
 		kfree(mData->VolumeLabel);
 		kfree(mData);
-		return OsFail;
+		return;
 	}
 
 	/* Validate MB */
@@ -863,11 +872,12 @@ OsResult_t MfsInit(MCoreFileSystem_t *Fs)
 	/* Sanity */
 	if (Mb->Magic != MFS_MAGIC)
 	{
-		printf("MFS_INIT: Invalid MB-Magic 0x%x\n", Mb->Magic);
+		Fs->State = VfsStateFailed;
+		LogFatal("MFS1", "INIT: Invalid MB-Magic 0x%x", Mb->Magic);
 		kfree(TmpBuffer);
 		kfree(mData->VolumeLabel);
 		kfree(mData);
-		return OsFail;
+		return;
 	}
 
 	/* Parse */
@@ -881,6 +891,7 @@ OsResult_t MfsInit(MCoreFileSystem_t *Fs)
 	mData->BucketBufferOffset = 0xFFFFFFFF;
 
 	/* Setup Fs */
+	Fs->State = VfsStateActive;
 	Fs->FsData = mData;
 
 	/* Setup functions */
@@ -894,5 +905,5 @@ OsResult_t MfsInit(MCoreFileSystem_t *Fs)
 
 	/* Done, cleanup */
 	kfree(TmpBuffer);
-	return OsOk;
+	return;
 }

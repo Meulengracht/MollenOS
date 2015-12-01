@@ -28,15 +28,6 @@
     <Filter Include="Includes\Vfs">
       <UniqueIdentifier>{0e80ab11-a5b7-4a43-9f37-0173341884dc}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Systems\FileSystems">
-      <UniqueIdentifier>{eb1633e1-d847-4362-91ce-fb2bf434e117}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Systems\FileSystems\Mfs">
-      <UniqueIdentifier>{898543a6-cee0-490d-9f25-20d0ba1cadc7}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Includes\FileSystems">
-      <UniqueIdentifier>{f3c38385-55ea-4b15-88ce-235fb000301f}</UniqueIdentifier>
-    </Filter>
     <Filter Include="Systems\Modules">
       <UniqueIdentifier>{d25a1bc3-f724-4473-a9f3-66fc27e009da}</UniqueIdentifier>
     </Filter>
@@ -86,9 +77,6 @@
     </ClCompile>
     <ClCompile Include="..\..\System\Vfs.c">
       <Filter>Systems</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\System\FileSystems\Mfs\Mfs.c">
-      <Filter>Systems\FileSystems\Mfs</Filter>
     </ClCompile>
     <ClCompile Include="..\..\Common\MString.c">
       <Filter>Common</Filter>
@@ -163,9 +151,6 @@
     </ClInclude>
     <ClInclude Include="..\..\Include\Vfs\Vfs.h">
       <Filter>Includes\Vfs</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\Include\FileSystems\Mfs.h">
-      <Filter>Includes\FileSystems</Filter>
     </ClInclude>
     <ClInclude Include="..\..\Include\MString.h">
       <Filter>Includes</Filter>

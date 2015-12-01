@@ -31,6 +31,10 @@
 /* Additional Vfs includes */
 #include <Vfs/Partition.h>
 
+/* Definitions */
+#define FILESYSTEM_FAT			0x00000000
+#define FILESYSTEM_MFS			0x00000008
+
 /* Error Codes for VFS Operations */
 typedef enum _VfsErrorCode
 {
@@ -43,7 +47,17 @@ typedef enum _VfsErrorCode
 	VfsPathIsNotDirectory,
 	VfsPathExists,
 	VfsDiskError
+
 } VfsErrorCode_t;
+
+/* VFS State Codes */
+typedef enum _VfsState
+{
+	VfsStateInit,
+	VfsStateFailed,
+	VfsStateActive
+
+} VfsState_t;
 
 /* File Flags */
 typedef enum _VfsFileFlags
@@ -109,6 +123,7 @@ typedef struct _MCoreFileSystem
 	uint32_t Id;
 
 	/* Flags */
+	VfsState_t State;
 	uint32_t Flags;
 
 	/* Information */
