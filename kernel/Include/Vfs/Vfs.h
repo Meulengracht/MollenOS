@@ -35,11 +35,13 @@
 typedef enum _VfsErrorCode
 {
 	VfsOk,
+	VfsDeleted,
 	VfsInvalidParameters,
 	VfsInvalidPath,
 	VfsPathNotFound,
 	VfsAccessDenied,
 	VfsPathIsNotDirectory,
+	VfsPathExists,
 	VfsDiskError
 } VfsErrorCode_t;
 
@@ -72,6 +74,7 @@ typedef struct _MCoreFile
 	MString_t *Name;
 
 	/* Flags */
+	VfsErrorCode_t Code;
 	VfsFileFlags_t Flags;
 	uint32_t IsEOF;
 
@@ -128,8 +131,8 @@ typedef struct _MCoreFileSystem
 	VfsErrorCode_t (*DeleteFile)(void *Fs, MCoreFile_t *Handle);
 	
 	/* File Operations */
-	VfsErrorCode_t (*ReadFile)(void *Fs, MCoreFile_t *Handle, void *Buffer, uint32_t Size);
-	VfsErrorCode_t (*WriteFile)(void *Fs, MCoreFile_t *Handle, void *Buffer, uint32_t Size);
+	size_t (*ReadFile)(void *Fs, MCoreFile_t *Handle, uint8_t *Buffer, size_t Size);
+	size_t (*WriteFile)(void *Fs, MCoreFile_t *Handle, uint8_t *Buffer, size_t Size);
 	VfsErrorCode_t (*Seek)(void *Fs, MCoreFile_t *Handle, uint64_t Position);
 
 	/* Get's information about a node */
@@ -152,6 +155,8 @@ _CRT_EXTERN VfsErrorCode_t VfsClose(MCoreFile_t *Handle);
 _CRT_EXTERN VfsErrorCode_t VfsDelete(MCoreFile_t *Handle);
 
 /* File Operations */
+_CRT_EXTERN size_t VfsRead(MCoreFile_t *Handle, uint8_t *Buffer, size_t Length);
+_CRT_EXTERN size_t VfsWrite(MCoreFile_t *Handle, uint8_t *Buffer, size_t Length);
 _CRT_EXTERN VfsErrorCode_t VfsSeek(MCoreFile_t *Handle, uint64_t Offset);
 _CRT_EXTERN VfsErrorCode_t VfsFlush(MCoreFile_t *Handle);
 

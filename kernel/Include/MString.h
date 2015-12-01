@@ -56,6 +56,7 @@ typedef struct _MString
 /* Prototypes */
 _CRT_EXTERN MString_t *MStringCreate(void *Data, MStringType_t DataType);
 _CRT_EXTERN void MStringDestroy(MString_t *String);
+_CRT_EXTERN void MStringCopy(MString_t *Destination, MString_t *Source, int Length);
 
 /* Appends */
 _CRT_EXTERN void MStringAppendChar(MString_t *String, uint32_t Character);

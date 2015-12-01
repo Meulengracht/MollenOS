@@ -332,8 +332,8 @@ MString_t *VfsCanonicalizePath(const char *Path)
 			MStringDestroy(AbsPath);
 			return NULL;
 		}
-		//else
-		//MStringCopy(AbsPath, Cwd, -1);
+		else
+			MStringCopy(AbsPath, Cwd, -1);
 	}
 
 	/* Now, we have to resolve the path in Path */
@@ -433,3 +433,209 @@ VfsErrorCode_t VfsCreate(const char *Path)
 	/* Damn */
 	return ErrCode;
 }
+
+/* Vfs - Open File
+* @Path - UTF-8 String
+* @OpenFlags - Kind of Access */
+MCoreFile_t *VfsOpen(const char *Path, VfsFileFlags_t OpenFlags)
+{
+	/* Vars */
+	MCoreFile_t *fRet = NULL;
+	list_node_t *fNode = NULL;
+	MString_t *mPath = NULL;
+	MString_t *mIdent = NULL;
+	MString_t *mSubPath = NULL;
+	int Index = 0;
+
+	/* Allocate */
+	fRet = (MCoreFile_t*)kmalloc(sizeof(MCoreFile_t));
+	fRet->Code = VfsOk;
+	fRet->Fs = NULL;
+
+	/* Sanity */
+	if (Path == NULL)
+	{
+		fRet->Code = VfsInvalidParameters;
+		return fRet;
+	}
+
+	/* Canonicalize Path */
+	mPath = VfsCanonicalizePath(Path);
+
+	/* Sanity */
+	if (mPath == NULL)
+	{
+		fRet->Code = VfsInvalidPath;
+		return fRet;
+	}
+
+	/* Get filesystem ident & sub-path */
+	Index = MStringFind(mPath, ':');
+	mIdent = MStringSubString(mPath, 0, Index);
+	mSubPath = MStringSubString(mPath, Index + 2, -1);
+
+	/* Iterate */
+	_foreach(fNode, GlbFileSystems)
+	{
+		/* Cast */
+		MCoreFileSystem_t *Fs = (MCoreFileSystem_t*)fNode->data;
+
+		/* Match? */
+		if (MStringCompare(mIdent, Fs->Identifier, 1))
+		{
+			/* Open */
+			fRet->Code = Fs->OpenFile(Fs, fRet, mSubPath, OpenFlags);
+
+			/* Sanity */
+			if (fRet->Code == VfsOk)
+			{
+				/* Set stuff */
+				fRet->Code = VfsOk;
+				fRet->Flags = OpenFlags;
+				fRet->Fs = Fs;
+
+				/* Append? */
+				if (OpenFlags & Append)
+					fRet->Code = Fs->Seek(Fs, fRet, fRet->Size);
+			}
+
+			/* Done */
+			break;
+		}
+	}
+
+	/* Cleanup */
+	MStringDestroy(mSubPath);
+	MStringDestroy(mIdent);
+	MStringDestroy(mPath);
+
+	/* Damn */
+	return fRet;
+}
+
+/* Vfs - Close File
+* @Handle - A valid file handle */
+VfsErrorCode_t VfsClose(MCoreFile_t *Handle)
+{
+	/* Vars */
+	VfsErrorCode_t ErrCode = VfsPathNotFound;
+	MCoreFileSystem_t *Fs = NULL;
+
+	/* Sanity */
+	if (Handle == NULL)
+		return VfsInvalidParameters;
+
+	/* Invalid Handle? */
+	if (Handle->Code != VfsOk
+		|| Handle->Fs == NULL)
+	{
+		kfree(Handle);
+		return VfsOk;
+	}
+
+	/* Deep Close */
+	Fs = (MCoreFileSystem_t*)Handle->Fs;
+	ErrCode = Fs->CloseFile(Handle->Fs, Handle);
+
+	/* Cleanup */
+	kfree(Handle);
+
+	/* Damn */
+	return ErrCode;
+}
+
+/* Vfs - Delete File
+* @Handle - A valid file handle */
+VfsErrorCode_t VfsDelete(MCoreFile_t *Handle)
+{
+	/* Vars */
+	VfsErrorCode_t ErrCode = VfsPathNotFound;
+	MCoreFileSystem_t *Fs = NULL;
+
+	/* Sanity */
+	if (Handle == NULL
+		|| Handle->Code != VfsOk)
+		return VfsInvalidParameters;
+
+	/* Deep Delete */
+	Fs = (MCoreFileSystem_t*)Handle->Fs;
+	ErrCode = Fs->DeleteFile(Handle->Fs, Handle);
+
+	/* Sanity */
+	if (ErrCode != VfsOk)
+		return ErrCode;
+
+	/* Done */
+	Handle->Code = VfsDeleted;
+	return VfsClose(Handle);
+}
+
+/* Vfs - Read File
+* @Handle - A valid file handle
+* @Buffer - A valid data buffer
+* @Length - How many bytes of data to read */
+size_t VfsRead(MCoreFile_t *Handle, uint8_t *Buffer, size_t Length)
+{
+	/* Vars */
+	size_t BytesRead = 0;
+	MCoreFileSystem_t *Fs = NULL;
+
+	/* Sanity */
+	if (Handle == NULL
+		|| Handle->Code != VfsOk)
+		return VfsInvalidParameters;
+
+	/* Deep Read */
+	Fs = (MCoreFileSystem_t*)Handle->Fs;
+	BytesRead = Fs->ReadFile(Fs, Handle, Buffer, Length);
+
+	/* Done */
+	return BytesRead;
+}
+
+/* Vfs - Write File
+* @Handle - A valid file handle
+* @Buffer - A valid data buffer
+* @Length - How many bytes of data to write */
+size_t VfsWrite(MCoreFile_t *Handle, uint8_t *Buffer, size_t Length)
+{
+	/* Vars */
+	size_t BytesWritten = 0;
+	MCoreFileSystem_t *Fs = NULL;
+
+	/* Sanity */
+	if (Handle == NULL
+		|| Handle->Code != VfsOk)
+		return VfsInvalidParameters;
+
+	/* Deep Read */
+	Fs = (MCoreFileSystem_t*)Handle->Fs;
+	BytesWritten = Fs->WriteFile(Fs, Handle, Buffer, Length);
+
+	/* Done */
+	return BytesWritten;
+}
+
+/* Vfs - Seek in File
+* @Handle - A valid file handle
+* @Offset - A valid file offset */
+VfsErrorCode_t VfsSeek(MCoreFile_t *Handle, uint64_t Offset)
+{
+	/* Vars */
+	VfsErrorCode_t ErrCode = VfsPathNotFound;
+	MCoreFileSystem_t *Fs = NULL;
+
+	/* Sanity */
+	if (Handle == NULL
+		|| Handle->Code != VfsOk)
+		return VfsInvalidParameters;
+
+	/* Deep Seek */
+	Fs = (MCoreFileSystem_t*)Handle->Fs;
+	ErrCode = Fs->Seek(Fs, Handle, (Handle->Position + Offset));
+
+	/* Done */
+	return ErrCode;
+}
+
+/* Flush, Rename, Query */

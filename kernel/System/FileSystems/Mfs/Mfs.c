@@ -456,31 +456,35 @@ VfsErrorCode_t MfsCloseFile(void *FsData, MCoreFile_t *Handle)
 }
 
 /* Read File */
-VfsErrorCode_t MfsReadFile(void *FsData, MCoreFile_t *Handle, void *Buffer, uint32_t Size)
+size_t MfsReadFile(void *FsData, MCoreFile_t *Handle, uint8_t *Buffer, size_t Size)
 {
 	/* Vars */
 	MCoreFileSystem_t *Fs = (MCoreFileSystem_t*)FsData;
 	MfsData_t *mData = (MfsData_t*)Fs->FsData;
 	MfsFile_t *mFile = (MfsFile_t*)Handle->Data;
-	uint8_t *BufPtr = (uint8_t*)Buffer;
+	uint8_t *BufPtr = Buffer;
 	VfsErrorCode_t RetCode = VfsOk;
 
 	/* Sanity */
 	if (Handle->IsEOF
 		|| Handle->Position == Handle->Size
 		|| Size == 0)
-		return RetCode;
+		return 0;
 
 	/* Security Sanity */
 	if (!(Handle->Flags & Read))
-		return VfsAccessDenied;
+	{
+		Handle->Code = VfsAccessDenied;
+		return 0;
+	}
 
 	/* BucketPtr for iterating */
-	uint32_t BytesToRead = Size;
+	size_t BytesToRead = Size;
+	size_t BytesRead = 0;
 
 	/* Sanity */
 	if ((Handle->Position + Size) > Handle->Size)
-		BytesToRead = (uint32_t)(Handle->Size - Handle->Position);
+		BytesToRead = (size_t)(Handle->Size - Handle->Position);
 
 	/* Allocate buffer for data */
 	uint8_t *TempBuffer = (uint8_t*)kmalloc(mData->BucketSize * Fs->SectorSize);
@@ -499,9 +503,9 @@ VfsErrorCode_t MfsReadFile(void *FsData, MCoreFile_t *Handle, void *Buffer, uint
 		}
 
 		/* We have to calculate the offset into this buffer we must transfer data */
-		uint32_t bOffset = (uint32_t)(Handle->Position % (mData->BucketSize * Fs->SectorSize));
-		uint32_t BytesLeft = (mData->BucketSize * Fs->SectorSize) - bOffset;
-		uint32_t BytesCopied = 0;
+		size_t bOffset = (size_t)(Handle->Position % (mData->BucketSize * Fs->SectorSize));
+		size_t BytesLeft = (mData->BucketSize * Fs->SectorSize) - bOffset;
+		size_t BytesCopied = 0;
 
 		/* We have a few cases
 		 * Case 1: We have enough data here 
@@ -533,6 +537,7 @@ VfsErrorCode_t MfsReadFile(void *FsData, MCoreFile_t *Handle, void *Buffer, uint
 		}
 
 		/* Advance pointer(s) */
+		BytesRead += BytesCopied;
 		BufPtr += BytesCopied;
 		BytesToRead -= BytesCopied;
 		Handle->Position += BytesCopied;
@@ -546,25 +551,30 @@ VfsErrorCode_t MfsReadFile(void *FsData, MCoreFile_t *Handle, void *Buffer, uint
 	kfree(TempBuffer);
 
 	/* Done! */
-	return RetCode;
+	Handle->Code = RetCode;
+	return BytesRead;
 }
 
 /* Write File */
-VfsErrorCode_t MfsWriteFile(void *FsData, MCoreFile_t *Handle, void *Buffer, uint32_t Size)
+size_t MfsWriteFile(void *FsData, MCoreFile_t *Handle, uint8_t *Buffer, size_t Size)
 {
 	/* Vars */
 	MCoreFileSystem_t *Fs = (MCoreFileSystem_t*)FsData;
 	MfsData_t *mData = (MfsData_t*)Fs->FsData;
 	MfsFile_t *mFile = (MfsFile_t*)Handle->Data;
-	uint8_t *BufPtr = (uint8_t*)Buffer;
+	uint8_t *BufPtr = Buffer;
 	VfsErrorCode_t RetCode = VfsOk;
 
 	/* Security Sanity */
 	if (!(Handle->Flags & Write))
-		return VfsAccessDenied;
+	{
+		Handle->Code = VfsAccessDenied;
+		return 0;
+	}
 
 	/* BucketPtr for iterating */
-	uint32_t BytesToWrite = Size;
+	size_t BytesWritten = 0;
+	size_t BytesToWrite = Size;
 
 	/* Make sure there is enough room */
 	if ((Handle->Position + Size) > mFile->AllocatedSize)
@@ -672,6 +682,7 @@ VfsErrorCode_t MfsWriteFile(void *FsData, MCoreFile_t *Handle, void *Buffer, uin
 		}
 
 		/* Advance pointer(s) */
+		BytesWritten += BytesCopied;
 		BufPtr += BytesCopied;
 		BytesToWrite -= BytesCopied;
 		Handle->Position += BytesCopied;
@@ -691,7 +702,8 @@ VfsErrorCode_t MfsWriteFile(void *FsData, MCoreFile_t *Handle, void *Buffer, uin
 	MfsUpdateEntry(Fs, Handle);
 
 	/* Done! */
-	return RetCode;
+	Handle->Code = RetCode;
+	return BytesWritten;
 }
 
 /* Delete File */
