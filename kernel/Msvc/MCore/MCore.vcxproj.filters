@@ -99,6 +99,9 @@
     <ClCompile Include="..\..\System\Devices\Fonts\VideoFont6x12.c">
       <Filter>Systems\Devices\Video</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\System\ProcessManager.c">
+      <Filter>Systems</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\Include\Heap.h">
@@ -177,6 +180,9 @@
       <Filter>Includes</Filter>
     </ClInclude>
     <ClInclude Include="..\..\Include\CriticalSection.h">
+      <Filter>Includes</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Include\ProcessManager.h">
       <Filter>Includes</Filter>
     </ClInclude>
   </ItemGroup>

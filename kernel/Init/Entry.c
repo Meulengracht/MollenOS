@@ -27,6 +27,7 @@
 #include <Devices/Video.h>
 #include <DeviceManager.h>
 #include <Modules/ModuleManager.h>
+#include <ProcessManager.h>
 #include <Scheduler.h>
 #include <Threading.h>
 #include <Vfs\Vfs.h>
@@ -99,6 +100,9 @@ void MCoreInitialize(MCoreBootInfo_t *BootInfo)
 
 	/* Virtual Filesystem */
 	VfsInit();
+
+	/* Process Manager */
+	PmInit();
 
 	/* From this point, we should start seperate threads and
 	* let this thread die out, because initial system setup

@@ -25,6 +25,7 @@
     <ClCompile Include="..\..\System\Log.c" />
     <ClCompile Include="..\..\System\Modules\ModuleManager.c" />
     <ClCompile Include="..\..\System\Modules\PeLoader.c" />
+    <ClCompile Include="..\..\System\ProcessManager.c" />
     <ClCompile Include="..\..\System\Scheduler.c" />
     <ClCompile Include="..\..\System\Synchronization\CriticalSection.c" />
     <ClCompile Include="..\..\System\Synchronization\Mutex.c" />
@@ -52,6 +53,7 @@
     <ClInclude Include="..\..\Include\List.h" />
     <ClInclude Include="..\..\Include\MString.h" />
     <ClInclude Include="..\..\Include\Mutex.h" />
+    <ClInclude Include="..\..\Include\ProcessManager.h" />
     <ClInclude Include="..\..\Include\RingBuffer.h" />
     <ClInclude Include="..\..\Include\Scheduler.h" />
     <ClInclude Include="..\..\Include\Semaphore.h" />

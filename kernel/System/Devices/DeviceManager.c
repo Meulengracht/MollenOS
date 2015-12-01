@@ -73,7 +73,7 @@ void DmStart(void)
 	GlbDmEventQueue = list_create(LIST_SAFE);
 
 	/* Spawn the thread */
-	ThreadingCreateThread("DeviceRequestHandler", DmRequestHandler, NULL, 0);
+	ThreadingCreateThread("Device Event Thread", DmRequestHandler, NULL, 0);
 }
 
 /* Create a request */
@@ -145,7 +145,7 @@ void DmRequestHandler(void *Args)
 			Request->Status = RequestDeviceIsRemoved;
 
 			/* We are done, wakeup */
-			SchedulerWakeupOneThread((Addr_t*)Request);
+			SchedulerWakeupAllThreads((Addr_t*)Request);
 
 			/* Next! */
 			continue;
@@ -227,7 +227,7 @@ void DmRequestHandler(void *Args)
 		}
 
 		/* We are done, wakeup */
-		SchedulerWakeupOneThread((Addr_t*)Request);
+		SchedulerWakeupAllThreads((Addr_t*)Request);
 	}
 }
 
