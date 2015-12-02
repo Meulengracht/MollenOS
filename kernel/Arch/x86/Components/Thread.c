@@ -34,7 +34,6 @@
 
 /* Externs */
 extern uint32_t GlbTimerQuantum;
-extern uint32_t memory_get_cr3(void);
 extern void save_fpu(Addr_t *buffer);
 extern void set_ts(void);
 extern void _yield(void);
@@ -105,7 +104,7 @@ x86Thread_t *_ThreadInitBoot(void)
 }
 
 /* Initialises AP task */
-x86Thread_t *_ThreadInitAp(Cpu_t Cpu)
+x86Thread_t *_ThreadInitAp(void)
 {
 	x86Thread_t *Init;
 

@@ -22,6 +22,7 @@
 /* Includes */
 #include <Arch.h>
 #include <AcpiSys.h>
+#include <Memory.h>
 #include <Apic.h>
 #include <List.h>
 #include <Heap.h>

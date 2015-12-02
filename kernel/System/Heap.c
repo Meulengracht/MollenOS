@@ -56,7 +56,7 @@ Addr_t *HeapSAllocator(Heap_t *Heap, size_t Size)
 		}
 
 		/* Map */
-		MmVirtualMap(NULL, MmPhysicalAllocateBlock(), Heap->MemHeaderMax, 0);
+		AddressSpaceMap(AddressSpaceGetCurrent(), Heap->MemHeaderMax);
 		memset((void*)Heap->MemHeaderMax, 0, PAGE_SIZE);
 		Heap->MemHeaderMax += PAGE_SIZE;
 	}
@@ -388,8 +388,8 @@ void HeapSanityPages(Addr_t Address, size_t Size)
 	/* Map */
 	for (i = 0; i < Pages; i++)
 	{
-		if (!MmVirtualGetMapping(NULL, Address + (i * PAGE_SIZE)))
-			MmVirtualMap(NULL, MmPhysicalAllocateBlock(), Address + (i * PAGE_SIZE), 0);
+		if (!AddressSpaceGetMap(AddressSpaceGetCurrent(), Address + (i * PAGE_SIZE)))
+			AddressSpaceMap(AddressSpaceGetCurrent(), Address + (i * PAGE_SIZE));
 	}
 }
 
@@ -425,7 +425,7 @@ void *kmalloc_ap(size_t sz, Addr_t *p)
 	HeapSanityPages(RetAddr, sz);
 
 	/* Now, get physical mapping */
-	*p = MmVirtualGetMapping(NULL, RetAddr);
+	*p = AddressSpaceGetMap(AddressSpaceGetCurrent(), RetAddr);
 
 	/* Done */
 	return (void*)RetAddr;
@@ -464,8 +464,8 @@ void *kmalloc_p(size_t sz, Addr_t *p)
 	/* Sanity Pages */
 	HeapSanityPages(RetAddr, sz);
 
-	/* Get physical mapping */
-	*p = MmVirtualGetMapping(NULL, RetAddr);
+	/* Now, get physical mapping */
+	*p = AddressSpaceGetMap(AddressSpaceGetCurrent(), RetAddr);
 
 	/* Done */
 	return (void*)RetAddr;

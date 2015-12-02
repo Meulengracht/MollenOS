@@ -82,7 +82,7 @@ void PeLoadKernelExports(Addr_t KernelBase, Addr_t TableOffset)
 }
 
 /* Relocate Sections */
-Addr_t PeRelocateSections(MCorePeFile_t *PeFile, uint8_t *Data, 
+Addr_t PeRelocateSections(MCorePeFile_t *PeFile, AddressSpace_t *AddrSpace, uint8_t *Data, 
 	Addr_t SectionAddr, uint16_t NumSections)
 {
 	/* Cast to a pointer */
@@ -105,9 +105,8 @@ Addr_t PeRelocateSections(MCorePeFile_t *PeFile, uint8_t *Data,
 		/* Is it mapped ? */
 		for (j = 0; j < NumPages; j++)
 		{
-			if (!MmVirtualGetMapping(NULL, ((VirtAddr_t)MemBuffer + (j * PAGE_SIZE))))
-				MmVirtualMap(NULL, MmPhysicalAllocateBlock(), 
-				((VirtAddr_t)MemBuffer + (j * PAGE_SIZE)), 0);
+			if (!AddressSpaceGetMap(AddrSpace, ((VirtAddr_t)MemBuffer + (j * PAGE_SIZE))))
+				AddressSpaceMap(AddrSpace, ((VirtAddr_t)MemBuffer + (j * PAGE_SIZE)));
 		}
 
 		/* Which kind of section is this */
@@ -532,8 +531,8 @@ MCorePeFile_t *PeLoadModule(uint8_t *Buffer)
 	PeInfo->EntryAddr = 0;
 
 	/* Step 1. Relocate Sections */
-	GlbModuleLoadAddr = 
-		PeRelocateSections(PeInfo, Buffer, SectionAddr, BaseHeader->NumSections);
+	GlbModuleLoadAddr = PeRelocateSections(PeInfo, AddressSpaceGetCurrent(), 
+		Buffer, SectionAddr, BaseHeader->NumSections);
 
 	/* Step 2. Fix Relocations */
 	PeFixRelocations(PeInfo, &DirectoryPtr[PE_SECTION_BASE_RELOCATION], ImageBase);

@@ -45,11 +45,19 @@ void ThreadingInit(void)
 {
 	MCoreThread_t *Init;
 	list_node_t *Node;
+	uint32_t Itr = 0;
 
 	/* Create threading list */
 	GlbThreads = list_create(LIST_SAFE);
 	GlbZombieThreads = list_create(LIST_SAFE);
 	GlbThreadId = 0;
+
+	/* Set all NULL */
+	for (Itr = 0; Itr < 64; Itr++)
+	{
+		GlbCurrentThreads[Itr] = NULL;
+		GlbIdleThreads[Itr] = NULL;
+	}
 
 	/* Setup initial thread */
 	Init = (MCoreThread_t*)kmalloc(sizeof(MCoreThread_t));
@@ -112,7 +120,7 @@ void ThreadingApInit(Cpu_t Cpu)
 	Init->AddrSpace = AddressSpaceCreate(ADDRESS_SPACE_KERNEL);
 
 	/* Create the threading data */
-	Init->ThreadData = _ThreadInitAp(Cpu);
+	Init->ThreadData = _ThreadInitAp();
 
 	/* Create a node for the scheduler */
 	Node = list_create_node(GlbThreadId, Init);
@@ -130,6 +138,12 @@ void ThreadingApInit(Cpu_t Cpu)
 /* Get Current Thread */
 MCoreThread_t *ThreadingGetCurrentThread(Cpu_t Cpu)
 {
+	/* Sanity */
+	if (GlbThreadingEnabled != 1
+		|| GlbCurrentThreads[Cpu] == NULL
+		|| GlbCurrentThreads[Cpu]->data == NULL)
+		return NULL;
+
 	/* Get thread */
 	return (MCoreThread_t*)GlbCurrentThreads[Cpu]->data;
 }

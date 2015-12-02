@@ -572,6 +572,6 @@ _CRT_EXTERN void PeLoadKernelExports(Addr_t KernelBase, Addr_t TableOffset);
 _CRT_EXTERN MCorePeFile_t *PeLoadModule(uint8_t *Buffer);
 
 /* Generic */
-_CRT_EXTERN MCorePeFile_t *PeLoadImage(void);
+_CRT_EXTERN MCorePeFile_t *PeLoadImage(uint8_t *Buffer);
 
 #endif //!__MCORE_PELOADER__

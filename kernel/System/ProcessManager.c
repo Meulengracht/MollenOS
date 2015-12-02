@@ -123,8 +123,10 @@ PId_t PmCreateProcess(MString_t *Path, MString_t *Arguments)
 
 	/* Does file exist? */
 	MCoreProcess_t *Process = NULL;
+	AddressSpace_t *KernelAddrSpace = NULL;
 	MCoreFile_t *File = VfsOpen(Path->Data, Read);
 	uint8_t *fBuffer = NULL;
+	IntStatus_t IntrState = 0;
 
 	/* Sanity */
 	if (File->Code != VfsOk)
@@ -152,17 +154,28 @@ PId_t PmCreateProcess(MString_t *Path, MString_t *Arguments)
 	/* Create address space */
 	Process->AddrSpace = AddressSpaceCreate(ADDRESS_SPACE_USER);
 
+	/* Get a reference to current */
+	KernelAddrSpace = AddressSpaceGetCurrent();
+
 	/* Disable Interrupts */
+	IntrState = InterruptDisable();
 
 	/* Switch to new address space */
+	AddressSpaceSwitch(Process->AddrSpace);
 
 	/* Load Executable */
+	//Process->Executable = PeLoadImage(fBuffer);
 
 	/* Switch to kernel address space */
+	AddressSpaceSwitch(KernelAddrSpace);
 
 	/* Enable Interrupts */
+	InterruptRestoreState(IntrState);
 
 	/* Unmap kernel space */
+	AddressSpaceReleaseKernel(Process->AddrSpace);
 
-	/* Load in Syscall Zone */
+	/* Map Syscall Handler */
+
+	/* Create the loader thread */
 }

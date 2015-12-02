@@ -32,6 +32,7 @@
 /* Globals */
 PageDirectory_t *KernelPageDirectory = NULL;
 PageDirectory_t *CurrentPageDirectories[64];
+AddressSpace_t KernelAddressSpace;
 volatile Addr_t GblReservedPtr = 0;
 
 /* Lock */
@@ -45,6 +46,7 @@ extern void memory_set_paging(int enable);
 extern void memory_load_cr3(Addr_t pda);
 extern void memory_reload_cr3(void);
 extern void memory_invalidate_addr(Addr_t pda);
+extern uint32_t memory_get_cr3(void);
 
 /* Create a page-table */
 PageTable_t *MmVirtualCreatePageTable(void)
@@ -471,4 +473,130 @@ void MmVirtualInit(void)
 	/* Enable paging */
 	MmVirtualSwitchPageDirectory(0, KernelPageDirectory, (Addr_t)KernelPageDirectory);
 	memory_set_paging(1);
+
+	/* Setup initial Address Space */
+	KernelAddressSpace.Flags = ADDRESS_SPACE_KERNEL;
+	KernelAddressSpace.Cr3 = (Addr_t)KernelPageDirectory;
+	KernelAddressSpace.PageDirectory = KernelPageDirectory;
+}
+
+/* Address Space Abstraction Layer
+ **********************************/
+AddressSpace_t *AddressSpaceCreate(uint32_t Flags)
+{
+	/* Allocate Structure */
+	AddressSpace_t *AddrSpace = (AddressSpace_t*)kmalloc(sizeof(AddressSpace_t));
+	Cpu_t CurrentCpu = ApicGetCpu();
+	uint32_t Itr = 0;
+
+	/* Save Flags */
+	AddrSpace->Flags = Flags;
+
+	/* Depends on what caller wants */
+	if (Flags & ADDRESS_SPACE_KERNEL)
+	{
+		/* Get kernel Space */
+		AddrSpace->Cr3 = (Addr_t)KernelPageDirectory;
+		AddrSpace->PageDirectory = KernelPageDirectory;
+	}
+	else if (Flags & ADDRESS_SPACE_INHERIT)
+	{
+		/* Get Current Space */
+		AddrSpace->Cr3 = memory_get_cr3();
+		AddrSpace->PageDirectory = MmVirtualGetCurrentDirectory(CurrentCpu);
+	}
+	else if (Flags & ADDRESS_SPACE_USER)
+	{
+		/* Create new */
+		Addr_t PhysAddr = 0;
+		PageDirectory_t *NewPd = (PageDirectory_t*)kmalloc_p(sizeof(PageDirectory_t), &PhysAddr);
+
+		/* Start out by resetting all */
+		memset(NewPd, 0, sizeof(PageDirectory_t));
+
+		/* Setup Lock */
+		CriticalSectionConstruct(&NewPd->Lock);
+
+		/* Map in kernel space */
+		for (Itr = 0; Itr < 512; Itr++)
+		{
+			NewPd->pTables[Itr] = KernelPageDirectory->pTables[Itr];
+			NewPd->vTables[Itr] = KernelPageDirectory->vTables[Itr];
+		}
+
+		/* Set */
+		AddrSpace->Cr3 = PhysAddr;
+		AddrSpace->PageDirectory = NewPd;
+	}
+	else
+		LogFatal("VMEM", "Invalid flags parsed in AddressSpaceCreate 0x%x", Flags);
+
+	/* Done */
+	return AddrSpace;
+}
+
+/* Destroy and release all resources */
+void AddressSpaceDestroy(AddressSpace_t *AddrSpace)
+{
+	_CRT_UNUSED(AddrSpace);
+}
+
+/* Get Current Address Space */
+AddressSpace_t *AddressSpaceGetCurrent(void)
+{
+	/* Get current thread */
+	Cpu_t CurrentCpu = ApicGetCpu();
+	MCoreThread_t *CurrThread = ThreadingGetCurrentThread(CurrentCpu);
+
+	/* Sanity */
+	if (CurrThread == NULL)
+		return &KernelAddressSpace;
+	else
+		return CurrThread->AddrSpace;
+}
+
+/* Switch to given address space */
+void AddressSpaceSwitch(AddressSpace_t *AddrSpace)
+{
+	/* Get current cpu */
+	Cpu_t CurrentCpu = ApicGetCpu();
+
+	/* Deep Call */
+	MmVirtualSwitchPageDirectory(CurrentCpu, AddrSpace->PageDirectory, AddrSpace->Cr3);
+}
+
+/* Unmaps kernel space from the given Address Space */
+void AddressSpaceReleaseKernel(AddressSpace_t *AddrSpace)
+{
+	/* Vars */
+	PageDirectory_t *Pd = (PageDirectory_t*)AddrSpace->PageDirectory;
+	uint32_t Itr = 0;
+
+	/* Now unmap */
+	for (Itr = 0; Itr < 512; Itr++)
+	{
+		Pd->pTables[Itr] = 0;
+		Pd->vTables[Itr] = 0;
+	}
+}
+
+/* Map a virtual address into the Address Space */
+void AddressSpaceMap(AddressSpace_t *AddrSpace, VirtAddr_t Address)
+{
+	/* Deep Call */
+	MmVirtualMap(AddrSpace->PageDirectory, MmPhysicalAllocateBlock(), Address, 0);
+}
+
+/* Unmaps a virtual page from an address space */
+void AddressSpaceUnmap(AddressSpace_t *AddrSpace, VirtAddr_t Address)
+{
+	/* Deep Call */
+	MmVirtualUnmap(AddrSpace->PageDirectory, Address);
+}
+
+/* Retrieves a physical mapping from an address space */
+PhysAddr_t AddressSpaceGetMap(AddressSpace_t *AddrSpace, VirtAddr_t Address)
+{
+	/* Deep Call */
+	return MmVirtualGetMapping(AddrSpace->PageDirectory, Address);
 }

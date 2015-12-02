@@ -24,6 +24,7 @@
 #include <List.h>
 #include <Apic.h>
 #include <Acpi.h>
+#include <Memory.h>
 #include <Interrupts.h>
 #include <Timers.h>
 #include <Heap.h>

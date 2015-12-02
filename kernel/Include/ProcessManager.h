@@ -25,6 +25,7 @@
 #include <crtdefs.h>
 #include <stdint.h>
 
+#include <Modules/PeLoader.h>
 #include <RingBuffer.h>
 #include <MString.h>
 #include <Heap.h>
@@ -54,8 +55,8 @@ typedef struct _MCoreProcess
 	/* Address Space */
 	AddressSpace_t *AddrSpace;
 
-	/* Arch Specific */
-	void *ArchData;
+	/* Executable */
+	MCorePeFile_t *Executable;
 
 } MCoreProcess_t;
 
@@ -87,8 +88,12 @@ typedef struct _MCoreProcessRequest
 	/* State */
 	ProcessRequestState_t State;
 
-	/* Data */
-	void *Data;
+	/* Creation Data */
+	MString_t *Path;
+	MString_t *Arguments;
+
+	/* Process Id */
+	PId_t ProcessId;
 
 } MCoreProcessRequest_t;
 

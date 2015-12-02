@@ -140,15 +140,16 @@ typedef struct _x86_Thread
 _CRT_EXTERN AddressSpace_t *AddressSpaceCreate(uint32_t Flags);
 _CRT_EXTERN void AddressSpaceDestroy(AddressSpace_t *AddrSpace);
 _CRT_EXTERN void AddressSpaceSwitch(AddressSpace_t *AddrSpace);
-_CRT_EXTERN void AddressSpaceGetCurrent(void);
+_CRT_EXTERN AddressSpace_t *AddressSpaceGetCurrent(void);
 
+_CRT_EXTERN void AddressSpaceReleaseKernel(AddressSpace_t *AddrSpace);
 _CRT_EXTERN void AddressSpaceMap(AddressSpace_t *AddrSpace, VirtAddr_t Address);
 _CRT_EXTERN void AddressSpaceUnmap(AddressSpace_t *AddrSpace, VirtAddr_t Address);
 _CRT_EXTERN PhysAddr_t AddressSpaceGetMap(AddressSpace_t *AddrSpace, VirtAddr_t Address);
 
 /* Threading */
 _CRT_EXTERN x86Thread_t *_ThreadInitBoot(void);
-_CRT_EXTERN x86Thread_t *_ThreadInitAp(Cpu_t Cpu);
+_CRT_EXTERN x86Thread_t *_ThreadInitAp(void);
 _CRT_EXTERN x86Thread_t *_ThreadInit(Addr_t EntryPoint);
 _CRT_EXTERN void _ThreadWakeUpCpu(Cpu_t Cpu);
 _CRT_EXPORT void _ThreadYield(void);
@@ -187,15 +188,6 @@ _CRT_EXTERN void DevicesInit(void *Args);
 #ifndef ATTRIBUTE_MASK
 #define ATTRIBUTE_MASK 0x00000FFF
 #endif
-
-/* Physical Memory */
-_CRT_EXPORT PhysAddr_t MmPhysicalAllocateBlock(void);
-_CRT_EXPORT void MmPhysicalFreeBlock(PhysAddr_t Addr);
-
-/* Virtual Memory */
-_CRT_EXPORT void MmVirtualMap(void *PageDirectory, PhysAddr_t PhysicalAddr, VirtAddr_t VirtualAddr, uint32_t Flags);
-_CRT_EXPORT void MmVirtualUnmap(void *PageDirectory, VirtAddr_t VirtualAddr);
-_CRT_EXPORT PhysAddr_t MmVirtualGetMapping(void *PageDirectory, VirtAddr_t VirtualAddr);
 
 /* Utils */
 _CRT_EXTERN Cpu_t ApicGetCpu(void);
