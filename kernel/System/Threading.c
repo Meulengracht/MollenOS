@@ -64,6 +64,9 @@ void ThreadingInit(void)
 	Init->Args = NULL;
 	Init->SleepResource = NULL;
 
+	/* Create Address Space */
+	Init->AddrSpace = AddressSpaceCreate(ADDRESS_SPACE_KERNEL);
+
 	/* Create thread-data */
 	Init->ThreadData = _ThreadInitBoot();
 
@@ -104,6 +107,9 @@ void ThreadingApInit(Cpu_t Cpu)
 	Init->Func = NULL;
 	Init->Args = NULL;
 	Init->SleepResource = NULL;
+
+	/* Create Address Space */
+	Init->AddrSpace = AddressSpaceCreate(ADDRESS_SPACE_KERNEL);
 
 	/* Create the threading data */
 	Init->ThreadData = _ThreadInitAp(Cpu);
@@ -278,6 +284,9 @@ TId_t ThreadingCreateThread(char *Name, ThreadEntry_t Function, void *Args, int 
 	/* Scheduler Related */
 	nThread->Priority = -1;
 	nThread->TimeSlice = MCORE_INITIAL_TIMESLICE;
+
+	/* Create Address Space */
+	nThread->AddrSpace = AddressSpaceCreate(ADDRESS_SPACE_INHERIT);
 
 	/* Create thread-data */
 	nThread->ThreadData = _ThreadInit((Addr_t)&ThreadingEntryPoint);

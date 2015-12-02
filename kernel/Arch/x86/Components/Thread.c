@@ -93,8 +93,6 @@ x86Thread_t *_ThreadInitBoot(void)
 	Init->Flags = X86_THREAD_FPU_INITIALISED | X86_THREAD_USEDFPU;
 	Init->Context = NULL;
 	Init->UserContext = NULL;
-	Init->Cr3 = memory_get_cr3();
-	Init->PageDirectory = MmVirtualGetCurrentDirectory(0);
 
 	/* Memset the buffer */
 	memset(Init->FpuBuffer, 0, 0x1000);
@@ -117,8 +115,6 @@ x86Thread_t *_ThreadInitAp(Cpu_t Cpu)
 	Init->Flags = X86_THREAD_FPU_INITIALISED | X86_THREAD_USEDFPU;
 	Init->Context = NULL;
 	Init->UserContext = NULL;
-	Init->Cr3 = memory_get_cr3();
-	Init->PageDirectory = MmVirtualGetCurrentDirectory(Cpu);
 
 	/* Memset the buffer */
 	memset(Init->FpuBuffer, 0, 0x1000);
@@ -157,10 +153,6 @@ x86Thread_t *_ThreadInit(Addr_t EntryPoint)
 	t->Context = ContextCreate((Addr_t)EntryPoint);
 	t->UserContext = NULL;
 	t->Flags = 0;
-	
-	/* Memory */
-	t->Cr3 = memory_get_cr3(); 
-	t->PageDirectory = MmVirtualGetCurrentDirectory(Cpu);
 
 	/* FPU */
 	t->FpuBuffer = (Addr_t*)kmalloc_a(0x1000);
@@ -216,7 +208,8 @@ Registers_t *_ThreadingSwitch(Registers_t *Regs, int PreEmptive, uint32_t *TimeS
 	*TaskPriority = mThread->Priority;
 
 	/* Update Addressing Space */
-	MmVirtualSwitchPageDirectory(Cpu, (PageDirectory_t*)tx86->PageDirectory, tx86->Cr3);
+	MmVirtualSwitchPageDirectory(Cpu, 
+		(PageDirectory_t*)mThread->AddrSpace->PageDirectory, mThread->AddrSpace->Cr3);
 
 	/* Set TSS */
 	TssUpdateStack(Cpu, (Addr_t)tx86->Context);

@@ -122,6 +122,7 @@ PId_t PmCreateProcess(MString_t *Path, MString_t *Arguments)
 		return 0xFFFFFFFF;
 
 	/* Does file exist? */
+	MCoreProcess_t *Process = NULL;
 	MCoreFile_t *File = VfsOpen(Path->Data, Read);
 	uint8_t *fBuffer = NULL;
 
@@ -141,6 +142,27 @@ PId_t PmCreateProcess(MString_t *Path, MString_t *Arguments)
 	/* Close */
 	VfsClose(File);
 
-	/* Create address space */
+	/* Allocate */
+	Process = (MCoreProcess_t*)kmalloc(sizeof(MCoreProcess_t));
 
+	/* Set initial */
+	Process->Id = GlbProcessId;
+	GlbProcessId++;
+
+	/* Create address space */
+	Process->AddrSpace = AddressSpaceCreate(ADDRESS_SPACE_USER);
+
+	/* Disable Interrupts */
+
+	/* Switch to new address space */
+
+	/* Load Executable */
+
+	/* Switch to kernel address space */
+
+	/* Enable Interrupts */
+
+	/* Unmap kernel space */
+
+	/* Load in Syscall Zone */
 }

@@ -64,6 +64,9 @@ typedef struct _MCoreThread
 	TId_t ParentId;
 	Cpu_t CpuId;
 
+	/* Address Space */
+	AddressSpace_t *AddrSpace;
+
 	/* Architecture Data */
 	void *ThreadData;
 

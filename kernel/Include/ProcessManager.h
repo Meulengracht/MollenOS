@@ -51,6 +51,9 @@ typedef struct _MCoreProcess
 	/* Heap */
 	Heap_t *Heap;
 
+	/* Address Space */
+	AddressSpace_t *AddrSpace;
+
 	/* Arch Specific */
 	void *ArchData;
 

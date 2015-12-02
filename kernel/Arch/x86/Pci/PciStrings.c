@@ -961,7 +961,7 @@ const char *PciToString(uint8_t Class, uint8_t SubClass, uint8_t Interface)
 		{
 		case 0:
 		{
-			return "Network and Computing Encrpytion/Decryption";
+			return "Network and Computing Encryption/Decryption";
 		} break;
 
 		case 0x10:
@@ -998,7 +998,7 @@ const char *PciToString(uint8_t Class, uint8_t SubClass, uint8_t Interface)
 
 		case 0x10:
 		{
-			return "Communications Syncrhonization Plus Time and Frequency Test/Measurment";
+			return "Communications Synchronization Plus Time and Frequency Test/Measurment";
 		} break;
 
 		case 0x20:

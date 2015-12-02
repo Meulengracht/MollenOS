@@ -31,6 +31,12 @@
 
 /* Architecture Typedefs */
 typedef uint32_t IntStatus_t;
+typedef int OsStatus_t;
+typedef unsigned int PhysAddr_t;
+typedef unsigned int VirtAddr_t;
+typedef unsigned int Addr_t;
+typedef signed int SAddr_t;
+typedef unsigned int Cpu_t;
 
 /* Diagnostics */
 //#define X86_ACPICA_DIAGNOSE
@@ -50,15 +56,6 @@ typedef struct _x86_Spinlock
 	uint32_t Owner;
 
 } Spinlock_t;
-
-/* OS Typedefs */
-typedef int OsStatus_t;
-typedef unsigned int PhysAddr_t;
-typedef unsigned int VirtAddr_t;
-typedef unsigned int Addr_t;
-typedef signed int SAddr_t;
-
-typedef unsigned int Cpu_t;
 
 /* OsStatus Return Codes */
 #define OS_STATUS_OK			0
@@ -97,6 +94,25 @@ typedef struct _Registers
 
 } Registers_t;
 
+/* X86-32 Address Space */
+typedef struct _AddressSpace
+{
+	/* Flags */
+	uint32_t Flags;
+
+	/* Physical Address of 
+	 * Paging Structure */
+	Addr_t Cr3;
+
+	/* The Page Directory */
+	void *PageDirectory;
+
+} AddressSpace_t;
+
+#define ADDRESS_SPACE_KERNEL		0x1
+#define ADDRESS_SPACE_INHERIT		0x2
+#define ADDRESS_SPACE_USER			0x4
+
 /* X86-32 Thread */
 typedef struct _x86_Thread
 {
@@ -110,10 +126,6 @@ typedef struct _x86_Thread
 	/* Math Buffer */
 	Addr_t *FpuBuffer;
 
-	/* Memory Space */
-	Addr_t Cr3;
-	void *PageDirectory;
-
 } x86Thread_t;
 
 /* Architecture Prototypes, you should define 
@@ -123,6 +135,16 @@ typedef struct _x86_Thread
 #include "../Interrupts.h"
 
 /* Components */
+
+/* Address Space */
+_CRT_EXTERN AddressSpace_t *AddressSpaceCreate(uint32_t Flags);
+_CRT_EXTERN void AddressSpaceDestroy(AddressSpace_t *AddrSpace);
+_CRT_EXTERN void AddressSpaceSwitch(AddressSpace_t *AddrSpace);
+_CRT_EXTERN void AddressSpaceGetCurrent(void);
+
+_CRT_EXTERN void AddressSpaceMap(AddressSpace_t *AddrSpace, VirtAddr_t Address);
+_CRT_EXTERN void AddressSpaceUnmap(AddressSpace_t *AddrSpace, VirtAddr_t Address);
+_CRT_EXTERN PhysAddr_t AddressSpaceGetMap(AddressSpace_t *AddrSpace, VirtAddr_t Address);
 
 /* Threading */
 _CRT_EXTERN x86Thread_t *_ThreadInitBoot(void);
@@ -146,6 +168,12 @@ _CRT_EXPORT OsStatus_t SpinlockAcquire(Spinlock_t *Spinlock);
 _CRT_EXPORT OsStatus_t SpinlockAcquireNoInt(Spinlock_t *Spinlock);
 _CRT_EXPORT void SpinlockRelease(Spinlock_t *Spinlock);
 _CRT_EXPORT void SpinlockReleaseNoInt(Spinlock_t *Spinlock);
+
+/* Initialises all available timers in system */
+_CRT_EXTERN void DevicesInitTimers(void);
+
+/* Initialises all available devices in system */
+_CRT_EXTERN void DevicesInit(void *Args);
 
 /* Memory */
 #ifndef PAGE_SIZE
@@ -175,12 +203,6 @@ _CRT_EXTERN void ApicSendIpi(uint8_t CpuTarget, uint8_t IrqVector);
 _CRT_EXTERN void Idle(void);
 _CRT_EXPORT void kernel_panic(const char *str);
 
-/* Initialises all available timers in system */
-_CRT_EXTERN void DevicesInitTimers(void);
-
-/* Initialises all available devices in system */
-_CRT_EXTERN void DevicesInit(void *Args);
-
 /* Utils Definitions */
 #define MIN(a,b) (((a)<(b))?(a):(b))
 #define MAX(a,b) (((a)>(b))?(a):(b))
@@ -192,13 +214,13 @@ _CRT_EXTERN void DevicesInit(void *Args);
 #define MEMORY_LOCATION_RAMDISK			0x200000 /* RamDisk Image Space: 1024 kB */
 #define MEMORY_LOCATION_BITMAP			0x300000 /* Bitmap Space: 12 mB */
 
-#define MEMORY_LOCATION_HEAP			0x1000000
+#define MEMORY_LOCATION_HEAP			0x1000000 /* Heap Space: 64 mB */
 #define MEMORY_LOCATION_HEAP_END		0x4000000
 
-#define MEMORY_LOCATION_VIDEO			0x4000000
-#define MEMORY_LOCATION_MODULES			0x5000000
+#define MEMORY_LOCATION_VIDEO			0x4000000 /* Video Space: 16 mB */
+#define MEMORY_LOCATION_MODULES			0x5000000 /* Module Space: 16 mB */
 
-#define MEMORY_LOCATION_RESERVED		0xA0000000
+#define MEMORY_LOCATION_RESERVED		0xA0000000 
 
 /* Architecture Locked Interrupts */
 #define INTERRUPT_TIMER					0xF0
