@@ -568,10 +568,13 @@ typedef struct _MCorePeFile
 /* Load Kernel Exports */
 _CRT_EXTERN void PeLoadKernelExports(Addr_t KernelBase, Addr_t TableOffset);
 
+/* Validate a buffer containing a PE */
+_CRT_EXTERN int PeValidate(uint8_t *Buffer);
+
 /* Used exclusively for module loading */
 _CRT_EXTERN MCorePeFile_t *PeLoadModule(uint8_t *Buffer);
 
 /* Generic */
-_CRT_EXTERN MCorePeFile_t *PeLoadImage(uint8_t *Buffer);
+_CRT_EXTERN MCorePeFile_t *PeLoadImage(uint8_t *Buffer, Addr_t BaseAddress);
 
 #endif //!__MCORE_PELOADER__

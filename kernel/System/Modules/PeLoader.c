@@ -81,6 +81,57 @@ void PeLoadKernelExports(Addr_t KernelBase, Addr_t TableOffset)
 	LogInformation("PELD", "Found %u Functions", GlbKernelExports->length);
 }
 
+/* Validate a buffer containing a PE */
+int PeValidate(uint8_t *Buffer)
+{
+	/* Headers */
+	MzHeader_t *DosHeader = NULL;
+	PeHeader_t *BaseHeader = NULL;
+	PeOptionalHeader_t *OptHeader = NULL;
+
+	/* Let's see */
+	DosHeader = (MzHeader_t*)Buffer;
+
+	/* Validate */
+	if (DosHeader->Signature != MZ_MAGIC)
+	{
+		LogFatal("PELD", "Invalid MZ Signature 0x%x", BaseHeader->Magic);
+		return 0;
+	}
+
+	/* Get Pe Header */
+	BaseHeader = (PeHeader_t*)(Buffer + DosHeader->PeAddr);
+
+	/* Validate */
+	if (BaseHeader->Magic != PE_MAGIC)
+	{
+		LogFatal("PELD", "Invalid PE File Magic 0x%x", BaseHeader->Magic);
+		return 0;
+	}
+
+	/* Validate Machine */
+	if (BaseHeader->Machine != PE_MACHINE_X32
+		&& BaseHeader->Machine != PE_MACHINE_X64)
+	{
+		LogFatal("PELD", "Unsupported Machine 0x%x", BaseHeader->Machine);
+		return 0;
+	}
+
+	/* Load Optional Header */
+	OptHeader = (PeOptionalHeader_t*)(Buffer + DosHeader->PeAddr + sizeof(PeHeader_t));
+
+	/* Validate Optional */
+	if (OptHeader->Architecture != PE_ARCHITECTURE_32
+		&& OptHeader->Architecture != PE_ARCHITECTURE_64)
+	{
+		LogFatal("PELD", "Unsupported Machine 0x%x", BaseHeader->Machine);
+		return 0;
+	}
+
+	/* Yay! Valid! */
+	return 1;
+}
+
 /* Relocate Sections */
 Addr_t PeRelocateSections(MCorePeFile_t *PeFile, AddressSpace_t *AddrSpace, uint8_t *Data, 
 	Addr_t SectionAddr, uint16_t NumSections)
@@ -460,33 +511,15 @@ MCorePeFile_t *PeLoadModule(uint8_t *Buffer)
 	PeDataDirectory_t *DirectoryPtr = NULL;
 	MCorePeFile_t *PeInfo = NULL;
 
+	/* Validate */
+	if (!PeValidate(Buffer))
+		return NULL;
+
 	/* Let's see */
 	DosHeader = (MzHeader_t*)Buffer;
 
-	/* Validate */
-	if (DosHeader->Signature != MZ_MAGIC)
-	{
-		LogFatal("PELD", "Invalid MZ Signature 0x%x", BaseHeader->Magic);
-		return NULL;
-	}
-
 	/* Get Pe Header */
 	BaseHeader = (PeHeader_t*)(Buffer + DosHeader->PeAddr);
-
-	/* Validate */
-	if (BaseHeader->Magic != PE_MAGIC)
-	{
-		LogFatal("PELD", "Invalid PE File Magic 0x%x", BaseHeader->Magic);
-		return NULL;
-	}
-
-	/* Validate Machine */
-	if (BaseHeader->Machine != PE_MACHINE_X32
-		&& BaseHeader->Machine != PE_MACHINE_X64)
-	{
-		LogFatal("PELD", "Unsupported Machine 0x%x", BaseHeader->Machine);
-		return NULL;
-	}
 
 	/* Load Optional Header */
 	OptHeader = (PeOptionalHeader_t*)(Buffer + DosHeader->PeAddr + sizeof(PeHeader_t));
@@ -515,11 +548,6 @@ MCorePeFile_t *PeLoadModule(uint8_t *Buffer)
 
 		/* Set directory pointer */
 		DirectoryPtr = (PeDataDirectory_t*)&OptHeader64->Directories[0];
-	}
-	else
-	{
-		LogFatal("PELD", "Unsupported Architecture in Optional 0x%x", OptHeader->Architecture);
-		return NULL;
 	}
 
 	/* Allocate data */
@@ -561,6 +589,88 @@ MCorePeFile_t *PeLoadModule(uint8_t *Buffer)
 			}
 		}
 	}
+
+	/* Done */
+	return PeInfo;
+}
+
+/* Load Executable into memory */
+MCorePeFile_t *PeLoadImage(uint8_t *Buffer, Addr_t BaseAddress)
+{
+	/* Headers */
+	MzHeader_t *DosHeader = NULL;
+	PeHeader_t *BaseHeader = NULL;
+	PeOptionalHeader_t *OptHeader = NULL;
+
+	/* Depends on Arch */
+	PeOptionalHeader32_t *OptHeader32 = NULL;
+	PeOptionalHeader64_t *OptHeader64 = NULL;
+
+	/* Vars */
+	Addr_t SectionAddr = 0;
+	Addr_t ImageBase = 0;
+	PeDataDirectory_t *DirectoryPtr = NULL;
+	MCorePeFile_t *PeInfo = NULL;
+
+	/* Validate */
+	if (!PeValidate(Buffer))
+		return NULL;
+
+	/* Let's see */
+	DosHeader = (MzHeader_t*)Buffer;
+
+	/* Get Pe Header */
+	BaseHeader = (PeHeader_t*)(Buffer + DosHeader->PeAddr);
+
+	/* Load Optional Header */
+	OptHeader = (PeOptionalHeader_t*)(Buffer + DosHeader->PeAddr + sizeof(PeHeader_t));
+
+	/* We need to re-cast based on architecture */
+	if (OptHeader->Architecture == PE_ARCHITECTURE_32)
+	{
+		/* This is an 32 bit */
+		OptHeader32 = (PeOptionalHeader32_t*)(Buffer + DosHeader->PeAddr + sizeof(PeHeader_t));
+		ImageBase = OptHeader32->BaseAddress;
+
+		/* Calc address of first section */
+		SectionAddr = (Addr_t)(Buffer + DosHeader->PeAddr + sizeof(PeHeader_t) + sizeof(PeOptionalHeader32_t));
+
+		/* Set directory pointer */
+		DirectoryPtr = (PeDataDirectory_t*)&OptHeader32->Directories[0];
+	}
+	else if (OptHeader->Architecture == PE_ARCHITECTURE_64)
+	{
+		/* 64 Bit! */
+		OptHeader64 = (PeOptionalHeader64_t*)(Buffer + DosHeader->PeAddr + sizeof(PeHeader_t));
+		ImageBase = (Addr_t)OptHeader64->BaseAddress;
+
+		/* Calc address of first section */
+		SectionAddr = (Addr_t)(Buffer + DosHeader->PeAddr + sizeof(PeHeader_t) + sizeof(PeOptionalHeader64_t));
+
+		/* Set directory pointer */
+		DirectoryPtr = (PeDataDirectory_t*)&OptHeader64->Directories[0];
+	}
+
+	/* Allocate data */
+	PeInfo = (MCorePeFile_t*)kmalloc(sizeof(MCorePeFile_t));
+
+	/* Set base information */
+	PeInfo->Architecture = OptHeader->Architecture;
+	PeInfo->BaseVirtual = BaseAddress;
+	PeInfo->EntryAddr = PeInfo->BaseVirtual + OptHeader->EntryPoint;
+
+	/* Step 1. Relocate Sections */
+	BaseAddress = PeRelocateSections(PeInfo, AddressSpaceGetCurrent(),
+		Buffer, SectionAddr, BaseHeader->NumSections);
+
+	/* Step 2. Fix Relocations */
+	PeFixRelocations(PeInfo, &DirectoryPtr[PE_SECTION_BASE_RELOCATION], ImageBase);
+
+	/* Step 2. Enumerate Exports */
+	PeEnumerateExports(PeInfo, &DirectoryPtr[PE_SECTION_EXPORT]);
+
+	/* Step 3. Load Imports */
+	
 
 	/* Done */
 	return PeInfo;

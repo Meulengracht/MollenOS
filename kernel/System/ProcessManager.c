@@ -144,6 +144,14 @@ PId_t PmCreateProcess(MString_t *Path, MString_t *Arguments)
 	/* Close */
 	VfsClose(File);
 
+	/* Validate File */
+	if (!PeValidate(fBuffer))
+	{
+		/* Bail Out */
+		kfree(fBuffer);
+		return 0xFFFFFFFF;
+	}
+
 	/* Allocate */
 	Process = (MCoreProcess_t*)kmalloc(sizeof(MCoreProcess_t));
 
