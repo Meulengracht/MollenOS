@@ -22,6 +22,7 @@
 /* Includes */
 #include <Modules\ModuleManager.h>
 #include <Modules\PeLoader.h>
+#include <Vfs/Vfs.h>
 #include <Log.h>
 #include <Heap.h>
 
@@ -557,6 +558,7 @@ MCorePeFile_t *PeLoadModule(uint8_t *Buffer)
 	PeInfo->Architecture = OptHeader->Architecture;
 	PeInfo->BaseVirtual = GlbModuleLoadAddr;
 	PeInfo->EntryAddr = 0;
+	PeInfo->LoadedLibraries = NULL;
 
 	/* Step 1. Relocate Sections */
 	GlbModuleLoadAddr = PeRelocateSections(PeInfo, AddressSpaceGetCurrent(), 
@@ -594,8 +596,235 @@ MCorePeFile_t *PeLoadModule(uint8_t *Buffer)
 	return PeInfo;
 }
 
+/* Resolve Library Dependency */
+list_t *PeResolveLibraryDependency(MCorePeFile_t *Parent, MCorePeFile_t *PeFile, MString_t *LibraryName, Addr_t *NextLoadAddress)
+{
+	/* Result */
+	MCorePeFile_t *ExportParent = Parent;
+	list_t *Exports = NULL;
+
+	/* Sanity */
+	if (ExportParent == NULL)
+		ExportParent = PeFile;
+
+	/* Find File */
+	foreach(lNode, ExportParent->LoadedLibraries)
+	{
+		/* Cast */
+		MCorePeFile_t *Library = (MCorePeFile_t*)lNode->data;
+
+		/* Did we find it ? */
+		if (MStringCompare(Library->Name, LibraryName, 1))
+		{
+			/* Yay */
+			Exports = Library->ExportedFunctions;
+
+			/* Done */
+			break;
+		}
+	}
+
+	/* Sanity */
+	if (Exports == NULL)
+	{
+		/* Resolve Library */
+		IntStatus_t IntrState = 0;
+
+		/* Enter kernel & enable ints */
+		AddressSpaceSwitch(AddressSpaceGetCurrent());
+		IntrState = InterruptEnable();
+
+		/* Now load file */
+		MCoreFile_t *lFile = VfsOpen(LibraryName->Data, Read);
+		uint8_t *fBuffer = (uint8_t*)kmalloc((size_t)lFile->Size);
+		MCorePeFile_t *Library = NULL;
+
+		/* Read all data */
+		VfsRead(lFile, fBuffer, (size_t)lFile->Size);
+
+		/* Cleanup */
+		VfsClose(lFile);
+
+		/* Reenter user & disable ints */
+		InterruptRestoreState(IntrState);
+		AddressSpaceSwitch(AddressSpaceGetCurrent());
+
+		/* Load */
+		Library = PeLoadImage(ExportParent, LibraryName, fBuffer, NextLoadAddress);
+
+		/* Cleanup Buffer */
+		kfree(fBuffer);
+
+		/* Import */
+		Exports = Library->ExportedFunctions;
+	}
+
+	/* Sanity Again */
+	if (Exports == NULL)
+		LogFatal("PELD", "Library %s was unable to be resolved", LibraryName->Data);
+
+	/* Done */
+	return Exports;
+}
+
+/* Load Imports for an Image */
+void PeLoadImageImports(MCorePeFile_t *Parent, MCorePeFile_t *PeFile, PeDataDirectory_t *ImportDirectory, Addr_t *NextImageBase)
+{
+	/* Vars */
+	PeImportDescriptor_t *ImportDescriptor = NULL;
+
+	/* Sanity */
+	if (ImportDirectory->AddressRVA == 0
+		|| ImportDirectory->Size == 0)
+		return;
+
+	/* Cast */
+	ImportDescriptor = (PeImportDescriptor_t*)(PeFile->BaseVirtual + ImportDirectory->AddressRVA);
+
+	/* Iterate untill
+	* we hit the null-descriptor */
+	while (ImportDescriptor->ImportAddressTable != 0)
+	{
+		/* Get name of module */
+		list_t *Exports = NULL;
+		char *NamePtr = (char*)(PeFile->BaseVirtual + ImportDescriptor->ModuleName);
+
+		/* Convert */
+		MString_t *Name = MStringCreate(NamePtr, StrUTF8);
+		
+		/* Resolve Library */
+		Exports = PeResolveLibraryDependency(Parent, PeFile, Name, NextImageBase);
+
+		/* Cleanup */
+		MStringDestroy(Name);
+
+		/* Calculate address to IAT
+		* These entries are 64 bit in PE32+
+		* and 32 bit in PE32 */
+		if (PeFile->Architecture == PE_ARCHITECTURE_32)
+		{
+			uint32_t *Iat = (uint32_t*)(PeFile->BaseVirtual + ImportDescriptor->ImportAddressTable);
+
+			/* Iterate Import table for this module */
+			while (*Iat)
+			{
+				/* Get value */
+				uint32_t Value = *Iat;
+
+				/* We store the bound func */
+				MCorePeExportFunction_t *Func = NULL;
+
+				/* Is it an ordinal or a function name? */
+				if (Value & PE_IMPORT_ORDINAL_32)
+				{
+					/* Yes, ordinal */
+					uint16_t Ordinal = (uint16_t)(Value & 0xFFFF);
+
+					/* Locate Ordinal in loaded image */
+					Func = (MCorePeExportFunction_t*)list_get_data_by_id(Exports, Ordinal, 0);
+				}
+				else
+				{
+					/* Nah, pointer to function name, where two first bytes are hint? */
+					char *FuncName = (char*)(PeFile->BaseVirtual + (Value & PE_IMPORT_NAMEMASK) + 2);
+
+					/* A little bit more tricky */
+					foreach(FuncNode, Exports)
+					{
+						/* Cast */
+						MCorePeExportFunction_t *pFunc =
+							(MCorePeExportFunction_t*)FuncNode->data;
+
+						/* Compare */
+						if (!strcmp(pFunc->Name, FuncName))
+						{
+							/* Found it */
+							Func = pFunc;
+							break;
+						}
+					}
+				}
+
+				/* Sanity */
+				if (Func == NULL)
+				{
+					LogFatal("PELD", "Failed to locate function");
+					return;
+				}
+
+				/* Now, overwrite the IAT Entry with the actual address */
+				*Iat = Func->Address;
+
+				/* Go to next */
+				Iat++;
+			}
+		}
+		else
+		{
+			uint64_t *Iat = (uint64_t*)(PeFile->BaseVirtual + ImportDescriptor->ImportAddressTable);
+
+			/* Iterate Import table for this module */
+			while (*Iat)
+			{
+				/* Get value */
+				uint64_t Value = *Iat;
+
+				/* We store the bound func */
+				MCorePeExportFunction_t *Func = NULL;
+
+				/* Is it an ordinal or a function name? */
+				if (Value & PE_IMPORT_ORDINAL_64)
+				{
+					/* Yes, ordinal */
+					uint16_t Ordinal = (uint16_t)(Value & 0xFFFF);
+
+					/* Locate Ordinal in loaded image */
+					Func = (MCorePeExportFunction_t*)list_get_data_by_id(Exports, Ordinal, 0);
+				}
+				else
+				{
+					/* Nah, pointer to function name, where two first bytes are hint? */
+					char *FuncName = (char*)(PeFile->BaseVirtual + (uint32_t)(Value & PE_IMPORT_NAMEMASK) + 2);
+
+					/* A little bit more tricky */
+					foreach(FuncNode, Exports)
+					{
+						/* Cast */
+						MCorePeExportFunction_t *pFunc =
+							(MCorePeExportFunction_t*)FuncNode->data;
+
+						/* Compare */
+						if (!strcmp(pFunc->Name, FuncName))
+						{
+							/* Found it */
+							Func = pFunc;
+							break;
+						}
+					}
+				}
+
+				/* Sanity */
+				if (Func == NULL)
+				{
+					LogFatal("PELD", "Failed to locate function");
+					return;
+				}
+
+				/* Now, overwrite the IAT Entry with the actual address */
+				*Iat = (uint64_t)Func->Address;
+
+				/* Go to next */
+				Iat++;
+			}
+		}
+
+		/* Next ! */
+		ImportDescriptor++;
+	}
+}
+
 /* Load Executable into memory */
-MCorePeFile_t *PeLoadImage(uint8_t *Buffer, Addr_t BaseAddress)
+MCorePeFile_t *PeLoadImage(MCorePeFile_t *Parent, MString_t *Name, uint8_t *Buffer, Addr_t *BaseAddress)
 {
 	/* Headers */
 	MzHeader_t *DosHeader = NULL;
@@ -655,12 +884,19 @@ MCorePeFile_t *PeLoadImage(uint8_t *Buffer, Addr_t BaseAddress)
 	PeInfo = (MCorePeFile_t*)kmalloc(sizeof(MCorePeFile_t));
 
 	/* Set base information */
+	PeInfo->Name = Name;
 	PeInfo->Architecture = OptHeader->Architecture;
-	PeInfo->BaseVirtual = BaseAddress;
-	PeInfo->EntryAddr = PeInfo->BaseVirtual + OptHeader->EntryPoint;
+	PeInfo->BaseVirtual = *BaseAddress;
+	PeInfo->LoadedLibraries = list_create(LIST_NORMAL);
+
+	/* Set Entry Point */
+	if (OptHeader->EntryPoint != 0)
+		PeInfo->EntryAddr = PeInfo->BaseVirtual + OptHeader->EntryPoint;
+	else
+		PeInfo->EntryAddr = 0;
 
 	/* Step 1. Relocate Sections */
-	BaseAddress = PeRelocateSections(PeInfo, AddressSpaceGetCurrent(),
+	*BaseAddress = PeRelocateSections(PeInfo, AddressSpaceGetCurrent(),
 		Buffer, SectionAddr, BaseHeader->NumSections);
 
 	/* Step 2. Fix Relocations */
@@ -669,8 +905,15 @@ MCorePeFile_t *PeLoadImage(uint8_t *Buffer, Addr_t BaseAddress)
 	/* Step 2. Enumerate Exports */
 	PeEnumerateExports(PeInfo, &DirectoryPtr[PE_SECTION_EXPORT]);
 
+	/* Before loading imports, add us to parent list of libraries 
+	 * so we might be reused, instead of reloaded */
+	if (Parent != NULL)
+		list_append(Parent->LoadedLibraries, list_create_node(0, PeInfo));
+
 	/* Step 3. Load Imports */
-	
+	//PeLoadImageImports(Parent, PeInfo, &DirectoryPtr[PE_SECTION_IMPORT], BaseAddress);
+
+	/* Step 4. Call entry points of loaded libraries (!?!?!?!?) */
 
 	/* Done */
 	return PeInfo;

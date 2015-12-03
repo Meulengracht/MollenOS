@@ -98,6 +98,14 @@ void PmEventHandler(void *Args)
 			/* Spawn Process */
 			case ProcessSpawn:
 			{
+				/* Deep Call */
+				Request->ProcessId = PmCreateProcess(Request->Path, Request->Arguments);
+
+				/* Sanity */
+				if (Request->ProcessId != 0xFFFFFFFF)
+					Request->State = ProcessRequestOk;
+				else
+					Request->State = ProcessRequestFailed;
 
 			} break;
 
@@ -126,6 +134,7 @@ PId_t PmCreateProcess(MString_t *Path, MString_t *Arguments)
 	AddressSpace_t *KernelAddrSpace = NULL;
 	MCoreFile_t *File = VfsOpen(Path->Data, Read);
 	uint8_t *fBuffer = NULL;
+	Addr_t BaseAddress = MEMORY_LOCATION_USER;
 	IntStatus_t IntrState = 0;
 
 	/* Sanity */
@@ -159,6 +168,9 @@ PId_t PmCreateProcess(MString_t *Path, MString_t *Arguments)
 	Process->Id = GlbProcessId;
 	GlbProcessId++;
 
+	/* Split path */
+	Process->Name = MStringSubString(Path, MStringFindReverse(Path, '/') + 1, -1);
+
 	/* Create address space */
 	Process->AddrSpace = AddressSpaceCreate(ADDRESS_SPACE_USER);
 
@@ -172,7 +184,7 @@ PId_t PmCreateProcess(MString_t *Path, MString_t *Arguments)
 	AddressSpaceSwitch(Process->AddrSpace);
 
 	/* Load Executable */
-	//Process->Executable = PeLoadImage(fBuffer);
+	Process->Executable = PeLoadImage(NULL, Process->Name, fBuffer, &BaseAddress);
 
 	/* Switch to kernel address space */
 	AddressSpaceSwitch(KernelAddrSpace);
@@ -182,6 +194,13 @@ PId_t PmCreateProcess(MString_t *Path, MString_t *Arguments)
 
 	/* Unmap kernel space */
 	AddressSpaceReleaseKernel(Process->AddrSpace);
+
+	/* Create a heap */
+	Process->Heap = HeapCreate(MEMORY_LOCATION_USER_HEAP);
+
+	/* Map in arguments */
+
+	/* Build pipes */
 
 	/* Map Syscall Handler */
 

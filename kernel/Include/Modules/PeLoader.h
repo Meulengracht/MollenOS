@@ -24,6 +24,7 @@
 
 /* Includes */
 #include <Arch.h>
+#include <MString.h>
 #include <List.h>
 #include <stdint.h>
 
@@ -548,6 +549,7 @@ typedef struct _MCorePeExportFunction
 typedef struct _MCorePeFile
 {
 	/* Name ? */
+	MString_t *Name;
 
 	/* Architecture */
 	uint32_t Architecture;
@@ -560,6 +562,9 @@ typedef struct _MCorePeFile
 
 	/* Exported Functions */
 	list_t *ExportedFunctions;
+
+	/* Loaded Libraries */
+	list_t *LoadedLibraries;
 
 } MCorePeFile_t;
 
@@ -575,6 +580,6 @@ _CRT_EXTERN int PeValidate(uint8_t *Buffer);
 _CRT_EXTERN MCorePeFile_t *PeLoadModule(uint8_t *Buffer);
 
 /* Generic */
-_CRT_EXTERN MCorePeFile_t *PeLoadImage(uint8_t *Buffer, Addr_t BaseAddress);
+_CRT_EXTERN MCorePeFile_t *PeLoadImage(MCorePeFile_t *Parent, MString_t *Name, uint8_t *Buffer, Addr_t *BaseAddress);
 
 #endif //!__MCORE_PELOADER__

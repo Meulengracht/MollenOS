@@ -210,9 +210,14 @@ _CRT_EXPORT void kernel_panic(const char *str);
 #define MEMORY_LOCATION_HEAP_END		0x4000000
 
 #define MEMORY_LOCATION_VIDEO			0x4000000 /* Video Space: 16 mB */
-#define MEMORY_LOCATION_MODULES			0x5000000 /* Module Space: 16 mB */
+#define MEMORY_LOCATION_MODULES			0x5000000 /* Module Space: 190~ mB */
 
-#define MEMORY_LOCATION_RESERVED		0xA0000000 
+#define MEMORY_LOCATION_RESERVED		0x10000000 /* Device Space: 756 mB */
+#define MEMORY_LOCATION_SHM				0x40000000 /* Shared Memory: 512 mB */
+
+#define MEMORY_LOCATION_USER_ARGS		0x60000000 /* Arg Space: 4 kB */
+#define MEMORY_LOCATION_USER			0x60001000 /* Image Space: 256 mB */
+#define MEMORY_LOCATION_USER_HEAP		0x70000000 /* Heap Space: 2256 mB */
 
 /* Architecture Locked Interrupts */
 #define INTERRUPT_TIMER					0xF0

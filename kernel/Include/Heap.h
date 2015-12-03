@@ -114,6 +114,7 @@ typedef struct _HeapArea
 
 /* Initializer & Maintience */
 _CRT_EXTERN void HeapInit(void);
+_CRT_EXTERN Heap_t *HeapCreate(Addr_t HeapAddress);
 _CRT_EXTERN uint32_t HeapGetCount(void);
 _CRT_EXTERN void HeapPrintStats(Heap_t *Heap);
 _CRT_EXTERN void HeapReap(void);

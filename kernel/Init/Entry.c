@@ -95,6 +95,8 @@ void MCoreInitialize(MCoreBootInfo_t *BootInfo)
 	/* Start out any extra cores */
 	CpuInitSmp(BootInfo->ArchBootInfo);
 
+	/* Setup Shared Memory */
+
 	/* Start the request handler */
 	DmStart();
 

@@ -709,6 +709,46 @@ void HeapInit(void)
 	/* Heap is now ready to use! */
 }
 
+/* Allocate & Create a custom heap */
+Heap_t *HeapCreate(Addr_t HeapAddress)
+{
+	/* Vars */
+	HeapBlock_t *NormBlock, *SpecBlock;
+
+	/* Allocate a heap on the heap
+	 * Heapception */
+	Heap_t *Heap = (Heap_t*)kmalloc(sizeof(Heap_t));
+
+	/* Reset */
+	Heap->MemStartData = HeapAddress + MEMORY_STATIC_OFFSET;
+	Heap->MemHeaderCurrent = HeapAddress;
+	Heap->MemHeaderMax = HeapAddress;
+
+	/* Set null */
+	Heap->BlockRecycler = NULL;
+	Heap->NodeRecycler = NULL;
+
+	/* Initiate the global spinlock */
+	CriticalSectionConstruct(&Heap->Lock);
+
+	/* Create a normal node */
+	NormBlock = HeapCreateBlock(Heap, HEAP_NORMAL_BLOCK, BLOCK_NORMAL);
+	SpecBlock = HeapCreateBlock(Heap, HEAP_LARGE_BLOCK, BLOCK_LARGE);
+
+	/* Insert them */
+	NormBlock->Link = SpecBlock;
+	Heap->Blocks = NormBlock;
+
+	/* Reset Stats */
+	Heap->BytesAllocated = 0;
+	Heap->NumAllocs = 0;
+	Heap->NumFrees = 0;
+	Heap->NumPages = 0;
+
+	/* Done */
+	return Heap;
+}
+
 /**************************************/
 /******** Heap Testing Suite  *********/
 /**************************************/
