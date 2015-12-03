@@ -95,6 +95,24 @@ typedef struct _PciNativeHeader
 
 } PciNativeHeader_t;
 
+/* The Bus Header */
+typedef struct _PciBus
+{
+	/* Address */
+	Addr_t IoAddr;
+
+	/* Type */
+	uint32_t IsExtended;
+
+	/* Pci Segment */
+	uint32_t Segment;
+
+	/* Bus Range */
+	uint32_t BusStart;
+	uint32_t BusEnd;
+
+} PciBus_t;
+
 /* The Driver Header */
 typedef struct _PciDevice
 {

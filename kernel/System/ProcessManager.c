@@ -136,6 +136,7 @@ PId_t PmCreateProcess(MString_t *Path, MString_t *Arguments)
 	uint8_t *fBuffer = NULL;
 	Addr_t BaseAddress = MEMORY_LOCATION_USER;
 	IntStatus_t IntrState = 0;
+	int Index = 0;
 
 	/* Sanity */
 	if (File->Code != VfsOk)
@@ -169,7 +170,9 @@ PId_t PmCreateProcess(MString_t *Path, MString_t *Arguments)
 	GlbProcessId++;
 
 	/* Split path */
-	Process->Name = MStringSubString(Path, MStringFindReverse(Path, '/') + 1, -1);
+	Index = MStringFindReverse(Path, '/');
+	Process->Name = MStringSubString(Path, Index + 1, -1);
+	Process->WorkingDirectory = MStringSubString(Path, 0, Index);
 
 	/* Create address space */
 	Process->AddrSpace = AddressSpaceCreate(ADDRESS_SPACE_USER);
@@ -204,5 +207,11 @@ PId_t PmCreateProcess(MString_t *Path, MString_t *Arguments)
 
 	/* Map Syscall Handler */
 
+	/* Add process to list */
+	list_append(GlbProcesses, list_create_node(Process->Id, Process));
+
 	/* Create the loader thread */
+
+	/* Done */
+	return Process->Id;
 }

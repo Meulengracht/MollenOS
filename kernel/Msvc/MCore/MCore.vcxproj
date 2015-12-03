@@ -57,6 +57,7 @@
     <ClInclude Include="..\..\Include\RingBuffer.h" />
     <ClInclude Include="..\..\Include\Scheduler.h" />
     <ClInclude Include="..\..\Include\Semaphore.h" />
+    <ClInclude Include="..\..\Include\Shm.h" />
     <ClInclude Include="..\..\Include\Threading.h" />
     <ClInclude Include="..\..\Include\Timers.h" />
     <ClInclude Include="..\..\Include\Vfs\Partition.h" />

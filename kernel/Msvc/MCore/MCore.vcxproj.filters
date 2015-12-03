@@ -185,5 +185,8 @@
     <ClInclude Include="..\..\Include\ProcessManager.h">
       <Filter>Includes</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\Include\Shm.h">
+      <Filter>Includes</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>
