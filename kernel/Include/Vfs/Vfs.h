@@ -35,6 +35,8 @@
 #define FILESYSTEM_FAT			0x00000000
 #define FILESYSTEM_MFS			0x00000008
 
+#define FILESYSTEM_INIT			"/System/MWinMgr.mxi"
+
 /* Error Codes for VFS Operations */
 typedef enum _VfsErrorCode
 {

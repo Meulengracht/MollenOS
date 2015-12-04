@@ -681,12 +681,56 @@ void kfree(void *p)
 /* Custom Allocation */
 void *umalloc(Heap_t *Heap, size_t Size)
 {
+	/* Vars */
+	Addr_t RetAddr;
+	int Flags = ALLOCATION_NORMAL;
 
+	/* Sanity */
+	assert(Size > 0);
+
+	/* Do aligned allocation´? */
+	if (Size >= 0x500)
+		Flags = ALLOCATION_ALIGNED;
+
+	/* Special Allocation? */
+	if (Size >= 0x3000)
+		Flags = ALLOCATION_SPECIAL;
+
+	/* Lock */
+	CriticalSectionEnter(&Heap->Lock);
+
+	/* Do the call */
+	RetAddr = HeapAllocate(Heap, Size, Flags);
+
+	/* Release */
+	CriticalSectionLeave(&Heap->Lock);
+
+	/* Sanity */
+	assert(RetAddr != 0);
+
+	/* Sanity Pages */
+	HeapSanityPages(RetAddr, Size);
+
+	/* Done */
+	return (void*)RetAddr;
 }
 
 void ufree(Heap_t *Heap, void *Ptr)
 {
+	/* Sanity */
+	assert(Ptr != NULL);
 
+	/* Lock */
+	CriticalSectionEnter(&Heap->Lock);
+
+	/* Free */
+	HeapFree(Heap, (Addr_t)Ptr);
+
+	/* Release */
+	CriticalSectionLeave(&Heap->Lock);
+
+	/* Set NULL */
+	Ptr = NULL;
 }
 
 /**************************************/

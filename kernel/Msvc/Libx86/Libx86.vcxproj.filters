@@ -34,6 +34,9 @@
     <Filter Include="Pci">
       <UniqueIdentifier>{a256d2ba-7396-48a0-9948-d382c7db5085}</UniqueIdentifier>
     </Filter>
+    <Filter Include="x32\Includes">
+      <UniqueIdentifier>{9f0f89a3-d2aa-4895-a9d2-4ec0cda5e967}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\Arch\x86\x32\Memory\MmVirtual.c">
@@ -180,6 +183,15 @@
     </ClInclude>
     <ClInclude Include="..\..\Arch\x86\AcpiSys.h">
       <Filter>Includes</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Arch\x86\x32\Arch.h">
+      <Filter>x32\Includes</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Arch\x86\x32\Gdt.h">
+      <Filter>x32\Includes</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Arch\x86\x32\Idt.h">
+      <Filter>x32\Includes</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

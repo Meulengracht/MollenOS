@@ -21,6 +21,7 @@
 
 /* Includes */
 #include <Modules/ModuleManager.h>
+#include <ProcessManager.h>
 #include <Vfs/Vfs.h>
 #include <Heap.h>
 #include <List.h>
@@ -31,6 +32,7 @@
 list_t *GlbFileSystems = NULL;
 list_t *GlbOpenFiles = NULL;
 uint32_t GlbFileSystemId = 0;
+uint32_t GlbVfsInitHasRun = 0;
 
 /* Initialize Vfs */
 void VfsInit(void)
@@ -42,6 +44,58 @@ void VfsInit(void)
 	GlbFileSystems = list_create(LIST_SAFE);
 	GlbOpenFiles = list_create(LIST_SAFE);
 	GlbFileSystemId = 0;
+	GlbVfsInitHasRun = 0;
+}
+
+/* Register fs */
+void VfsInstallFileSystem(MCoreFileSystem_t *Fs)
+{
+	/* Ready the buffer */
+	char IdentBuffer[8];
+	memset(IdentBuffer, 0, 8);
+
+	/* Copy the storage ident over */
+	strcpy(IdentBuffer, "St");
+	itoa(GlbFileSystemId, (IdentBuffer + 2), 10);
+
+	/* Construct the identifier */
+	Fs->Identifier = MStringCreate(&IdentBuffer, StrASCII);
+
+	/* Setup last */
+	Fs->Lock = MutexCreate();
+
+	/* Add to list */
+	list_append(GlbFileSystems, list_create_node(Fs->DiskId, Fs));
+
+	/* Increament */
+	GlbFileSystemId++;
+
+	/* Start init? */
+	if (Fs->Flags & VFS_MAIN_DRIVE
+		&& !GlbVfsInitHasRun)
+	{
+		/* Process Request */
+		MCoreProcessRequest_t ProcRequest;
+
+		/* Print */
+		LogInformation("VFSM", "Boot Drive Detected, Running Init");
+
+		/* Append init path */
+		MString_t *Path = MStringCreate(Fs->Identifier->Data, StrUTF8);
+		MStringAppendChars(Path, FILESYSTEM_INIT);
+
+		/* Create Request */
+		ProcRequest.Type = ProcessSpawn;
+		ProcRequest.Path = Path;
+		ProcRequest.Arguments = NULL;
+		ProcRequest.Cleanup = 1;
+
+		/* Send */
+		PmCreateRequest(&ProcRequest);
+
+		/* Set */
+		GlbVfsInitHasRun = 1;
+	}
 }
 
 /* Partition table parser */
@@ -172,27 +226,7 @@ int VfsParsePartitionTable(DevId_t DiskId, uint64_t SectorBase, uint64_t SectorC
 
 			/* Lastly */
 			if (Fs->State != VfsStateActive)
-			{
-				/* Ready the buffer */
-				char IdentBuffer[8];
-				memset(IdentBuffer, 0, 8);
-
-				/* Copy the storage ident over */
-				strcpy(IdentBuffer, "St");
-				itoa(GlbFileSystemId, (IdentBuffer + 2), 10);
-
-				/* Construct the identifier */
-				Fs->Identifier = MStringCreate(&IdentBuffer, StrASCII);
-
-				/* Setup last */
-				Fs->Lock = MutexCreate();
-
-				/* Add to list */
-				list_append(GlbFileSystems, list_create_node(GlbFileSystemId, Fs));
-
-				/* Increament */
-				GlbFileSystemId++;
-			}
+				VfsInstallFileSystem(Fs);
 			else
 				kfree(Fs);
 		}
@@ -240,6 +274,7 @@ void VfsRegisterDisk(DevId_t DiskId)
 		Fs->State = VfsStateInit;
 		Fs->DiskId = DiskId;
 		Fs->FsData = NULL;
+		Fs->Flags = 0;
 		Fs->Id = GlbFileSystemId;
 		Fs->SectorStart = 0;
 		Fs->SectorCount = SectorCount;
@@ -260,27 +295,7 @@ void VfsRegisterDisk(DevId_t DiskId)
 
 		/* Lastly */
 		if (Fs->State == VfsStateActive)
-		{
-			/* Ready the buffer */
-			char IdentBuffer[8];
-			memset(IdentBuffer, 0, 8);
-
-			/* Copy the storage ident over */
-			strcpy(IdentBuffer, "St");
-			itoa(GlbFileSystemId, (IdentBuffer + 2), 10);
-
-			/* Construct the identifier */
-			Fs->Identifier = MStringCreate(&IdentBuffer, StrASCII);
-
-			/* Setup last */
-			Fs->Lock = MutexCreate();
-			
-			/* Add to list */
-			list_append(GlbFileSystems, list_create_node(DiskId, Fs));
-
-			/* Increament */
-			GlbFileSystemId++;
-		}
+			VfsInstallFileSystem(Fs);
 		else
 			kfree(Fs);
 	}

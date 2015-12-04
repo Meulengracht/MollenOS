@@ -62,6 +62,7 @@ typedef struct _MCoreThread
 	/* Ids */
 	TId_t ThreadId;
 	TId_t ParentId;
+	uint32_t ProcessId;
 	Cpu_t CpuId;
 
 	/* Address Space */
@@ -82,6 +83,9 @@ _CRT_EXTERN void ThreadingApInit(Cpu_t Cpu);
 
 _CRT_EXPORT TId_t ThreadingCreateThread(char *Name, ThreadEntry_t Function, void *Args, int Flags);
 _CRT_EXTERN void threading_kill_thread(TId_t thread_id);
+
+/* Processes */
+_CRT_EXTERN void ThreadingEnterUserMode(void *ProcessInfo);
 
 /* Sleep, Wake, etc */
 _CRT_EXPORT void *ThreadingEnterSleep(void);

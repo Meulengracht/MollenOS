@@ -64,6 +64,11 @@ void InterruptInit(void)
 	/* Install Irqs */
 	InterruptInstallDefaultGates();
 
+	/* Override default gate with syscall */
+	IdtInstallDescriptor(INTERRUPT_SYSCALL,
+		(uint32_t)syscall_entry, X86_KERNEL_CODE_SEGMENT,
+		X86_IDT_RING3 | X86_IDT_PRESENT | X86_IDT_TRAP_GATE32);
+
 	/* Setup Pic */
 	PicInit();
 }

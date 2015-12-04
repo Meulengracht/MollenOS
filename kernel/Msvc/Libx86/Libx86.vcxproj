@@ -77,6 +77,9 @@
     <ClInclude Include="..\..\Arch\x86\Pic.h" />
     <ClInclude Include="..\..\Arch\x86\Thread.h" />
     <ClInclude Include="..\..\Arch\x86\Video.h" />
+    <ClInclude Include="..\..\Arch\x86\x32\Arch.h" />
+    <ClInclude Include="..\..\Arch\x86\x32\Gdt.h" />
+    <ClInclude Include="..\..\Arch\x86\x32\Idt.h" />
   </ItemGroup>
   <ItemGroup>
     <CustomBuild Include="..\..\Arch\x86\x32\Descriptors.asm">

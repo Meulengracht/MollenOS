@@ -79,7 +79,7 @@ _CRT_EXTERN void ShmInit(void);
 /* Allocate & Free Memory */
 _CRT_EXTERN Addr_t ShmAllocateForProcess(PId_t ProcessId, 
 	AddressSpace_t *AddrSpace, Addr_t Address, size_t Length);
-_CRT_EXTERN Addr_t ShmFreeForProcess(PId_t ProcessId, 
+_CRT_EXTERN void ShmFreeForProcess(PId_t ProcessId, 
 	AddressSpace_t *AddrSpace, Addr_t Address);
 
 

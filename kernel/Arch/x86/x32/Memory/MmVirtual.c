@@ -588,6 +588,15 @@ void AddressSpaceMap(AddressSpace_t *AddrSpace, VirtAddr_t Address, int UserMode
 		Address, UserMode != 0 ? PAGE_USER : 0);
 }
 
+/* Map a virtual address to a fixed physical page */
+void AddressSpaceMapFixed(AddressSpace_t *AddrSpace,
+	PhysAddr_t PhysicalAddr, VirtAddr_t VirtualAddr, int UserMode)
+{
+	/* Deep Call */
+	MmVirtualMap(AddrSpace->PageDirectory, PhysicalAddr,
+		VirtualAddr, UserMode != 0 ? PAGE_USER : 0);
+}
+
 /* Unmaps a virtual page from an address space */
 void AddressSpaceUnmap(AddressSpace_t *AddrSpace, VirtAddr_t Address)
 {

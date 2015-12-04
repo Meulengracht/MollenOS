@@ -163,6 +163,16 @@ x86Thread_t *_ThreadInit(Addr_t EntryPoint)
 	return t;
 }
 
+/* Setup Usermode */
+void _ThreadSetupUserMode(void *ThreadData, Addr_t EntryPoint, Addr_t ArgumentAddress)
+{
+	/* Cast */
+	x86Thread_t *t = (x86Thread_t*)ThreadData;
+
+	/* Create user-context */
+	t->UserContext = ContextUserCreate(EntryPoint, (Addr_t*)ArgumentAddress);
+}
+
 /* Task Switch occurs here */
 Registers_t *_ThreadingSwitch(Registers_t *Regs, int PreEmptive, uint32_t *TimeSlice, 
 							 uint32_t *TaskPriority)

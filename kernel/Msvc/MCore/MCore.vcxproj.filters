@@ -105,6 +105,9 @@
     <ClCompile Include="..\..\System\Shm.c">
       <Filter>Systems</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\System\Syscalls.c">
+      <Filter>Systems</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\Include\Heap.h">

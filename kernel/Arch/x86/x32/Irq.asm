@@ -24,6 +24,7 @@ segment .text
 ;Functions in this asm
 global _exception_common
 global _irq_common
+global _syscall_entry
 global ___cli
 global ___sti
 global ___hlt
@@ -33,6 +34,7 @@ global ___getcr2
 ;Externs, common entry points
 extern _ExceptionEntry
 extern _InterruptEntry
+extern _GlbSyscallTable
 
 ; void __cli(void)
 ; Disables interrupts
@@ -162,6 +164,57 @@ _irq_common:
 
 	; Cleanup IrqNum & IrqErrorCode from stack
 	add esp, 0x8
+
+	; Return
+	iret
+
+; Entrypoint for syscall 
+_syscall_entry:
+	
+	; Save Segments
+	push ds
+	push es
+	push fs
+	push gs
+
+	; Save Registers
+	pushad
+
+	; Switch to kernel segment
+	push eax
+	mov ax, 0x10
+	mov ds, ax
+	mov es, ax
+	mov fs, ax
+	mov gs, ax
+	pop eax
+
+	; Push args to stack
+	push edi
+	push esi
+	push edx
+	push ecx
+	push ebx
+
+	; Lookup Function
+	shl eax, 2
+	mov ebx, [_GlbSyscallTable]
+	mov ecx, [ebx + eax]
+	
+	; Call function
+	call ecx
+
+	; Cleanup
+	add esp, 20
+
+	; When we return, restore state
+	popad
+
+	; Restore segments
+	pop gs
+	pop fs
+	pop es
+	pop ds
 
 	; Return
 	iret

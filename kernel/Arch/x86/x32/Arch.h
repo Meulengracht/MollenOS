@@ -144,6 +144,8 @@ _CRT_EXTERN AddressSpace_t *AddressSpaceGetCurrent(void);
 
 _CRT_EXTERN void AddressSpaceReleaseKernel(AddressSpace_t *AddrSpace);
 _CRT_EXTERN void AddressSpaceMap(AddressSpace_t *AddrSpace, VirtAddr_t Address, int UserMode);
+_CRT_EXTERN void AddressSpaceMapFixed(AddressSpace_t *AddrSpace, 
+	PhysAddr_t PhysicalAddr, VirtAddr_t VirtualAddr, int UserMode);
 _CRT_EXTERN void AddressSpaceUnmap(AddressSpace_t *AddrSpace, VirtAddr_t Address);
 _CRT_EXTERN PhysAddr_t AddressSpaceGetMap(AddressSpace_t *AddrSpace, VirtAddr_t Address);
 
@@ -151,6 +153,7 @@ _CRT_EXTERN PhysAddr_t AddressSpaceGetMap(AddressSpace_t *AddrSpace, VirtAddr_t 
 _CRT_EXTERN x86Thread_t *_ThreadInitBoot(void);
 _CRT_EXTERN x86Thread_t *_ThreadInitAp(void);
 _CRT_EXTERN x86Thread_t *_ThreadInit(Addr_t EntryPoint);
+_CRT_EXTERN void _ThreadSetupUserMode(void *ThreadData, Addr_t EntryPoint, Addr_t ArgumentAddress);
 _CRT_EXTERN void _ThreadWakeUpCpu(Cpu_t Cpu);
 _CRT_EXPORT void _ThreadYield(void);
 

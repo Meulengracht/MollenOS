@@ -60,6 +60,19 @@ void PmInit(void)
 	ThreadingCreateThread("Process Event Thread", PmEventHandler, NULL, 0);
 }
 
+/* Create Request */
+void PmCreateRequest(MCoreProcessRequest_t *Request)
+{
+	/* Add to list */
+	list_append(GlbProcessRequests, list_create_node(0, Request));
+	
+	/* Set */
+	Request->State = ProcessRequestPending;
+
+	/* Signal */
+	SemaphoreV(GlbProcessEventLock);
+}
+
 /* Event Handler */
 void PmEventHandler(void *Args)
 {
@@ -120,6 +133,15 @@ void PmEventHandler(void *Args)
 			} break;
 		}
 
+		/* Cleanup? */
+		if (Request->Cleanup != 0)
+		{
+			if (Request->Path != NULL)
+				MStringDestroy(Request->Path);
+			if (Request->Arguments != NULL)
+				MStringDestroy(Request->Arguments);
+		}
+
 		/* Signal Completion */
 		SchedulerWakeupAllThreads((Addr_t*)Request);
 	}
@@ -131,29 +153,34 @@ void PmStartProcess(void *Args)
 	/* Cast */
 	MCoreProcess_t *Process = (MCoreProcess_t*)Args;
 
-	/* Switch Address Space */
-
-	/* Bind us to thread */
-
 	/* Go to user-land */
+	ThreadingEnterUserMode(Process);
+
+	/* Catch */
+	_ThreadYield();
+
+	/* SHOULD NEVER reach this point */
+	for (;;);
 }
 
 /* Create Process */
 PId_t PmCreateProcess(MString_t *Path, MString_t *Arguments)
 {
 	/* Sanity */
-	if (Path == NULL
-		|| Arguments == NULL)
+	if (Path == NULL)
 		return 0xFFFFFFFF;
 
 	/* Does file exist? */
 	MCoreProcess_t *Process = NULL;
 	AddressSpace_t *KernelAddrSpace = NULL;
-	MCoreFile_t *File = VfsOpen(Path->Data, Read);
+	MCoreFile_t *File = NULL;
 	uint8_t *fBuffer = NULL;
 	Addr_t BaseAddress = MEMORY_LOCATION_USER;
 	IntStatus_t IntrState = 0;
 	int Index = 0;
+
+	/* Open File */
+	File = VfsOpen(Path->Data, Read);
 
 	/* Sanity */
 	if (File->Code != VfsOk)
@@ -219,11 +246,15 @@ PId_t PmCreateProcess(MString_t *Path, MString_t *Arguments)
 	Process->Heap = HeapCreate(MEMORY_LOCATION_USER_HEAP, 1);
 
 	/* Map in arguments */
-	BaseAddress = ShmAllocateForProcess(Process->Id,
-		Process->AddrSpace, MEMORY_LOCATION_USER_ARGS, Arguments->Length);
+	if (Arguments != NULL && Arguments->Length != 0)
+	{
+		BaseAddress = ShmAllocateForProcess(Process->Id,
+			Process->AddrSpace, MEMORY_LOCATION_USER_ARGS, Arguments->Length);
 
-	/* Copy arguments */
-	memcpy((void*)BaseAddress, Arguments->Data, Arguments->Length);
+		/* Copy arguments */
+		memcpy((void*)BaseAddress, Arguments->Data, Arguments->Length);
+
+	}
 
 	/* Build pipes */
 	BaseAddress = ShmAllocateForProcess(Process->Id,

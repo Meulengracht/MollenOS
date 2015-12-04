@@ -91,6 +91,8 @@ _CRT_EXTERN void IdtInstallDescriptor(uint32_t IntNum, uint32_t Base,
 /* Should be called by AP cores */
 _CRT_EXTERN void IdtInstall(void);
 
+/* Syscall */
+_CRT_EXTERN void syscall_entry(void);
 
 /* IRQS */
 _CRT_EXTERN void irq_handler32(void); 

@@ -31,6 +31,7 @@
     <ClCompile Include="..\..\System\Synchronization\CriticalSection.c" />
     <ClCompile Include="..\..\System\Synchronization\Mutex.c" />
     <ClCompile Include="..\..\System\Synchronization\Semaphore.c" />
+    <ClCompile Include="..\..\System\Syscalls.c" />
     <ClCompile Include="..\..\System\Threading.c" />
     <ClCompile Include="..\..\System\Timers.c" />
     <ClCompile Include="..\..\System\Vfs.c" />

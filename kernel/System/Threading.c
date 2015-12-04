@@ -24,6 +24,7 @@
 #include <assert.h>
 #include <Scheduler.h>
 #include <Threading.h>
+#include <ProcessManager.h>
 #include <List.h>
 #include <Heap.h>
 #include <Mutex.h>
@@ -71,6 +72,7 @@ void ThreadingInit(void)
 	Init->Func = NULL;
 	Init->Args = NULL;
 	Init->SleepResource = NULL;
+	Init->ProcessId = 0xFFFFFFFF;
 
 	/* Create Address Space */
 	Init->AddrSpace = AddressSpaceCreate(ADDRESS_SPACE_KERNEL);
@@ -115,6 +117,7 @@ void ThreadingApInit(Cpu_t Cpu)
 	Init->Func = NULL;
 	Init->Args = NULL;
 	Init->SleepResource = NULL;
+	Init->ProcessId = 0xFFFFFFFF;
 
 	/* Create Address Space */
 	Init->AddrSpace = AddressSpaceCreate(ADDRESS_SPACE_KERNEL);
@@ -293,6 +296,7 @@ TId_t ThreadingCreateThread(char *Name, ThreadEntry_t Function, void *Args, int 
 
 	nThread->ParentId = tParent->ThreadId;
 	nThread->ThreadId = GlbThreadId;
+	nThread->ProcessId = 0xFFFFFFFF;
 	nThread->SleepResource = NULL;
 
 	/* Scheduler Related */
@@ -321,6 +325,31 @@ TId_t ThreadingCreateThread(char *Name, ThreadEntry_t Function, void *Args, int 
 
 	/* Done */
 	return nThread->ThreadId;
+}
+
+/* Enters Usermode */
+void ThreadingEnterUserMode(void *ProcessInfo)
+{
+	/* Sensitive */
+	MCoreProcess_t *Process = (MCoreProcess_t*)ProcessInfo;
+	IntStatus_t IntrState = InterruptDisable();
+	Cpu_t CurrentCpu = ApicGetCpu();
+	MCoreThread_t *cThread = ThreadingGetCurrentThread(CurrentCpu);
+
+	/* Update this thread */
+	cThread->ProcessId = Process->Id;
+	cThread->Flags |= THREADING_TRANSITION;
+	
+	/* Underlying Call */
+	_ThreadSetupUserMode(cThread->ThreadData,
+		Process->Executable->EntryAddr, MEMORY_LOCATION_USER_ARGS);
+
+	/* Switch Address Space */
+	cThread->AddrSpace = Process->AddrSpace;
+	AddressSpaceSwitch(Process->AddrSpace);
+
+	/* Done! */
+	InterruptRestoreState(IntrState);
 }
 
 /* Handles and switches thread from the current */

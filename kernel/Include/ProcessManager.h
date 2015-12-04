@@ -90,6 +90,9 @@ typedef struct _MCoreProcessRequest
 	/* State */
 	ProcessRequestState_t State;
 
+	/* Auto Cleanup? */
+	int Cleanup;
+
 	/* Creation Data */
 	MString_t *Path;
 	MString_t *Arguments;

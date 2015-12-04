@@ -596,6 +596,12 @@ void MStringAppendChar(MString_t *String, uint32_t Character)
 	String->Length += cLen;
 }
 
+/* Append Character String */
+void MStringAppendChars(MString_t *String, const char *Chars)
+{
+
+}
+
 /* Find Occurence */
 int MStringFind(MString_t *String, uint32_t Character)
 {

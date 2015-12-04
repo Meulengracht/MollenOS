@@ -187,7 +187,7 @@
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='CLib|Win32'">
     <OutDir>..\build\</OutDir>
-    <IncludePath>C:\Users\Phail\Documents\GitHub\MollenOS\clib\include</IncludePath>
+    <IncludePath>..\include</IncludePath>
     <ReferencePath />
     <LibraryPath />
     <LibraryWPath />

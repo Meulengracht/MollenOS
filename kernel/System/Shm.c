@@ -40,6 +40,13 @@ void ShmInit(void)
 Addr_t ShmAllocateForProcess(PId_t ProcessId,
 	AddressSpace_t *AddrSpace, Addr_t Address, size_t Length)
 {
+	/* Sanity, if page is already mapped 
+	 * we need to lookup that the requested range is free */
+	if (AddressSpaceGetMap(AddrSpace, Address))
+	{
+
+	}
+
 	/* Step 1. Allocate the memory on the heap */
 	Addr_t KernelAddr = (Addr_t)umalloc(GlbShmManager->Heap, Length);
 	
@@ -49,26 +56,76 @@ Addr_t ShmAllocateForProcess(PId_t ProcessId,
 
 	/* Step 3. Map it in the given address space */
 	if (!AddressSpaceGetMap(AddrSpace, Address))
-		AddressSpaceMap(AddrSpace, Address, 1);
+		AddressSpaceMapFixed(AddrSpace, PhysAddr, Address, 1);
 
-	/* Find it's node */
-	if (GlbShmManager->ProcessNodes == NULL)
+	/* Allocate the block */
+	MCoreShmBlock_t *pBlock = (MCoreShmBlock_t*)kmalloc(sizeof(MCoreShmBlock_t));
+
+	/* Setup */
+	pBlock->Allocated = 1;
+	pBlock->KernelAddress = KernelAddr;
+	pBlock->ProcAddress = Address;
+	pBlock->Link = NULL;
+	pBlock->Length = Length;
+
+	/* Iterate */
+	MCoreShmNode_t *CurrNode = GlbShmManager->ProcessNodes, *PrevNode = NULL;
+	while (CurrNode)
 	{
+		/* Match? */
+		if (CurrNode->ProcessId == ProcessId)
+		{
+			/* Yay */
+			MCoreShmBlock_t *CurrBlock = CurrNode->Blocks, *PrevBlock = NULL;
+			while (CurrBlock)
+			{
+				/* Next */
+				PrevBlock = CurrBlock;
+				CurrBlock = CurrBlock->Link;
+			}
 
+			/* Sanity */
+			if (PrevBlock == NULL)
+				CurrNode->Blocks = pBlock;
+			else
+				PrevBlock->Link = pBlock;
+
+			/* Done */
+			break;
+		}
+
+		/* Next */
+		PrevNode = CurrNode;
+		CurrNode = CurrNode->Link;
 	}
-	else
+
+	/* Sanity */
+	if (CurrNode == NULL)
 	{
-		/* Iterate */
+		/* Didn't exist */
+		MCoreShmNode_t *pNode = (MCoreShmNode_t*)kmalloc(sizeof(MCoreShmNode_t));
 
+		/* Set */
+		pNode->Link = NULL;
+		pNode->Blocks = pBlock;
+		pNode->ProcessId = ProcessId;
+
+		/* Update initial pointer */
+		if (PrevNode == NULL)
+			GlbShmManager->ProcessNodes = pNode;
+		else
+			PrevNode->Link = pNode;
 	}
 
-	return 0;
+	/* Done */
+	return KernelAddr;
 }
 
 /* Free Memory */
-Addr_t ShmFreeForProcess(PId_t ProcessId,
+void ShmFreeForProcess(PId_t ProcessId,
 	AddressSpace_t *AddrSpace, Addr_t Address)
 {
-
-	return 0;
+	_CRT_UNUSED(ProcessId);
+	_CRT_UNUSED(AddrSpace);
+	_CRT_UNUSED(Address);
 }
