@@ -1,6 +1,6 @@
 /* MollenOS
 *
-* Copyright 2011 - 2014, Philip Meulengracht
+* Copyright 2011 - 2016, Philip Meulengracht
 *
 * This program is free software : you can redistribute it and / or modify
 * it under the terms of the GNU General Public License as published by
@@ -31,6 +31,7 @@
 #include <Scheduler.h>
 #include <Threading.h>
 #include <Vfs\Vfs.h>
+#include <Shm.h>
 #include <Heap.h>
 #include <Log.h>
 
@@ -96,6 +97,7 @@ void MCoreInitialize(MCoreBootInfo_t *BootInfo)
 	CpuInitSmp(BootInfo->ArchBootInfo);
 
 	/* Setup Shared Memory */
+	ShmInit();
 
 	/* Start the request handler */
 	DmStart();

@@ -581,10 +581,11 @@ void AddressSpaceReleaseKernel(AddressSpace_t *AddrSpace)
 }
 
 /* Map a virtual address into the Address Space */
-void AddressSpaceMap(AddressSpace_t *AddrSpace, VirtAddr_t Address)
+void AddressSpaceMap(AddressSpace_t *AddrSpace, VirtAddr_t Address, int UserMode)
 {
 	/* Deep Call */
-	MmVirtualMap(AddrSpace->PageDirectory, MmPhysicalAllocateBlock(), Address, 0);
+	MmVirtualMap(AddrSpace->PageDirectory, MmPhysicalAllocateBlock(), 
+		Address, UserMode != 0 ? PAGE_USER : 0);
 }
 
 /* Unmaps a virtual page from an address space */

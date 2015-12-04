@@ -1,6 +1,6 @@
 /* MollenOS
 *
-* Copyright 2011 - 2014, Philip Meulengracht
+* Copyright 2011 - 2016, Philip Meulengracht
 *
 * This program is free software : you can redistribute it and / or modify
 * it under the terms of the GNU General Public License as published by
@@ -56,7 +56,7 @@ Addr_t *HeapSAllocator(Heap_t *Heap, size_t Size)
 		}
 
 		/* Map */
-		AddressSpaceMap(AddressSpaceGetCurrent(), Heap->MemHeaderMax);
+		AddressSpaceMap(AddressSpaceGetCurrent(), Heap->MemHeaderMax, Heap->IsUser);
 		memset((void*)Heap->MemHeaderMax, 0, PAGE_SIZE);
 		Heap->MemHeaderMax += PAGE_SIZE;
 	}
@@ -389,7 +389,7 @@ void HeapSanityPages(Addr_t Address, size_t Size)
 	for (i = 0; i < Pages; i++)
 	{
 		if (!AddressSpaceGetMap(AddressSpaceGetCurrent(), Address + (i * PAGE_SIZE)))
-			AddressSpaceMap(AddressSpaceGetCurrent(), Address + (i * PAGE_SIZE));
+			AddressSpaceMap(AddressSpaceGetCurrent(), Address + (i * PAGE_SIZE), 0);
 	}
 }
 
@@ -678,6 +678,17 @@ void kfree(void *p)
 	p = NULL;
 }
 
+/* Custom Allocation */
+void *umalloc(Heap_t *Heap, size_t Size)
+{
+
+}
+
+void ufree(Heap_t *Heap, void *Ptr)
+{
+
+}
+
 /**************************************/
 /******** Heap Initialization *********/
 /**************************************/
@@ -687,6 +698,7 @@ void HeapInit(void)
 	HeapBlock_t *NormBlock, *SpecBlock;
 
 	/* Reset */
+	KernelHeap.IsUser = 0;
 	KernelHeap.MemStartData = MEMORY_LOCATION_HEAP + MEMORY_STATIC_OFFSET;
 	KernelHeap.MemHeaderCurrent = MEMORY_LOCATION_HEAP;
 	KernelHeap.MemHeaderMax = MEMORY_LOCATION_HEAP;
@@ -710,7 +722,7 @@ void HeapInit(void)
 }
 
 /* Allocate & Create a custom heap */
-Heap_t *HeapCreate(Addr_t HeapAddress)
+Heap_t *HeapCreate(Addr_t HeapAddress, int UserHeap)
 {
 	/* Vars */
 	HeapBlock_t *NormBlock, *SpecBlock;
@@ -720,6 +732,7 @@ Heap_t *HeapCreate(Addr_t HeapAddress)
 	Heap_t *Heap = (Heap_t*)kmalloc(sizeof(Heap_t));
 
 	/* Reset */
+	Heap->IsUser = UserHeap;
 	Heap->MemStartData = HeapAddress + MEMORY_STATIC_OFFSET;
 	Heap->MemHeaderCurrent = HeapAddress;
 	Heap->MemHeaderMax = HeapAddress;

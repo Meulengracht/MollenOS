@@ -1,6 +1,6 @@
 /* MollenOS
 *
-* Copyright 2011 - 2014, Philip Meulengracht
+* Copyright 2011 - 2016, Philip Meulengracht
 *
 * This program is free software : you can redistribute it and / or modify
 * it under the terms of the GNU General Public License as published by
@@ -135,7 +135,7 @@ int PeValidate(uint8_t *Buffer)
 
 /* Relocate Sections */
 Addr_t PeRelocateSections(MCorePeFile_t *PeFile, AddressSpace_t *AddrSpace, uint8_t *Data, 
-	Addr_t SectionAddr, uint16_t NumSections)
+	Addr_t SectionAddr, uint16_t NumSections, int UserSpace)
 {
 	/* Cast to a pointer */
 	PeSectionHeader_t *Section = (PeSectionHeader_t*)SectionAddr;
@@ -158,7 +158,7 @@ Addr_t PeRelocateSections(MCorePeFile_t *PeFile, AddressSpace_t *AddrSpace, uint
 		for (j = 0; j < NumPages; j++)
 		{
 			if (!AddressSpaceGetMap(AddrSpace, ((VirtAddr_t)MemBuffer + (j * PAGE_SIZE))))
-				AddressSpaceMap(AddrSpace, ((VirtAddr_t)MemBuffer + (j * PAGE_SIZE)));
+				AddressSpaceMap(AddrSpace, ((VirtAddr_t)MemBuffer + (j * PAGE_SIZE)), UserSpace);
 		}
 
 		/* Which kind of section is this */
@@ -562,7 +562,7 @@ MCorePeFile_t *PeLoadModule(uint8_t *Buffer)
 
 	/* Step 1. Relocate Sections */
 	GlbModuleLoadAddr = PeRelocateSections(PeInfo, AddressSpaceGetCurrent(), 
-		Buffer, SectionAddr, BaseHeader->NumSections);
+		Buffer, SectionAddr, BaseHeader->NumSections, 0);
 
 	/* Step 2. Fix Relocations */
 	PeFixRelocations(PeInfo, &DirectoryPtr[PE_SECTION_BASE_RELOCATION], ImageBase);
@@ -897,7 +897,7 @@ MCorePeFile_t *PeLoadImage(MCorePeFile_t *Parent, MString_t *Name, uint8_t *Buff
 
 	/* Step 1. Relocate Sections */
 	*BaseAddress = PeRelocateSections(PeInfo, AddressSpaceGetCurrent(),
-		Buffer, SectionAddr, BaseHeader->NumSections);
+		Buffer, SectionAddr, BaseHeader->NumSections, 1);
 
 	/* Step 2. Fix Relocations */
 	PeFixRelocations(PeInfo, &DirectoryPtr[PE_SECTION_BASE_RELOCATION], ImageBase);

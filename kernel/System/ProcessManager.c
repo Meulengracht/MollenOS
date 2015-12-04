@@ -1,6 +1,6 @@
 /* MollenOS
 *
-* Copyright 2011 - 2014, Philip Meulengracht
+* Copyright 2011 - 2016, Philip Meulengracht
 *
 * This program is free software : you can redistribute it and / or modify
 * it under the terms of the GNU General Public License as published by
@@ -25,8 +25,12 @@
 #include <Threading.h>
 #include <Semaphore.h>
 #include <Scheduler.h>
+#include <Shm.h>
 #include <List.h>
 #include <Log.h>
+
+/* CLib */
+#include <string.h>
 
 /* Prototypes */
 void PmEventHandler(void *Args);
@@ -121,6 +125,19 @@ void PmEventHandler(void *Args)
 	}
 }
 
+/* Kickstarter function for Process */
+void PmStartProcess(void *Args)
+{
+	/* Cast */
+	MCoreProcess_t *Process = (MCoreProcess_t*)Args;
+
+	/* Switch Address Space */
+
+	/* Bind us to thread */
+
+	/* Go to user-land */
+}
+
 /* Create Process */
 PId_t PmCreateProcess(MString_t *Path, MString_t *Arguments)
 {
@@ -195,22 +212,48 @@ PId_t PmCreateProcess(MString_t *Path, MString_t *Arguments)
 	/* Enable Interrupts */
 	InterruptRestoreState(IntrState);
 
-	/* Unmap kernel space */
-	AddressSpaceReleaseKernel(Process->AddrSpace);
+	/* Cleanup file buffer */
+	kfree(fBuffer);
 
 	/* Create a heap */
-	Process->Heap = HeapCreate(MEMORY_LOCATION_USER_HEAP);
+	Process->Heap = HeapCreate(MEMORY_LOCATION_USER_HEAP, 1);
 
 	/* Map in arguments */
+	BaseAddress = ShmAllocateForProcess(Process->Id,
+		Process->AddrSpace, MEMORY_LOCATION_USER_ARGS, Arguments->Length);
+
+	/* Copy arguments */
+	memcpy((void*)BaseAddress, Arguments->Data, Arguments->Length);
 
 	/* Build pipes */
+	BaseAddress = ShmAllocateForProcess(Process->Id,
+		Process->AddrSpace, MEMORY_LOCATION_PIPE_IN, PROCESS_PIPE_SIZE);
 
-	/* Map Syscall Handler */
+	/* Save */
+	Process->iPipe = (RingBuffer_t*)BaseAddress;
+
+	/* Construct In */
+	RingBufferConstruct(Process->iPipe,
+		(uint8_t*)(BaseAddress + sizeof(RingBuffer_t)),
+		PROCESS_PIPE_SIZE - sizeof(RingBuffer_t));
+
+	/* Allocate Out */
+	BaseAddress = ShmAllocateForProcess(Process->Id,
+		Process->AddrSpace, MEMORY_LOCATION_PIPE_OUT, PROCESS_PIPE_SIZE);
+
+	/* Save */
+	Process->oPipe = (RingBuffer_t*)BaseAddress;
+
+	/* Construct In */
+	RingBufferConstruct(Process->oPipe,
+		(uint8_t*)(BaseAddress + sizeof(RingBuffer_t)),
+		PROCESS_PIPE_SIZE - sizeof(RingBuffer_t));
 
 	/* Add process to list */
 	list_append(GlbProcesses, list_create_node(Process->Id, Process));
 
 	/* Create the loader thread */
+	ThreadingCreateThread("Process", PmStartProcess, Process, 0);
 
 	/* Done */
 	return Process->Id;

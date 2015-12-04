@@ -1,6 +1,6 @@
 /* MollenOS
 *
-* Copyright 2011 - 2014, Philip Meulengracht
+* Copyright 2011 - 2016, Philip Meulengracht
 *
 * This program is free software : you can redistribute it and / or modify
 * it under the terms of the GNU General Public License as published by
@@ -49,6 +49,9 @@ typedef struct _RingBuffer
 
 /* Initialise a new ring buffer */
 _CRT_EXTERN RingBuffer_t *RingBufferCreate(size_t Size);
+
+/* Construct a new ring buffer */
+_CRT_EXTERN void RingBufferConstruct(RingBuffer_t *RingBuffer, uint8_t *Buffer, size_t BufferLength);
 
 /* Destroy Ringbuffer */
 _CRT_EXTERN void RingBufferDestroy(RingBuffer_t *RingBuffer);

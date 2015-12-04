@@ -1,6 +1,6 @@
 /* MollenOS
 *
-* Copyright 2011 - 2014, Philip Meulengracht
+* Copyright 2011 - 2016, Philip Meulengracht
 *
 * This program is free software : you can redistribute it and / or modify
 * it under the terms of the GNU General Public License as published by
@@ -94,6 +94,9 @@ typedef struct _HeapArea
 	Addr_t MemHeaderCurrent;
 	Addr_t MemHeaderMax;
 
+	/* UserHeap? */
+	int IsUser;
+
 	/* Stats */
 	size_t BytesAllocated;
 	size_t NumAllocs;
@@ -114,28 +117,24 @@ typedef struct _HeapArea
 
 /* Initializer & Maintience */
 _CRT_EXTERN void HeapInit(void);
-_CRT_EXTERN Heap_t *HeapCreate(Addr_t HeapAddress);
+_CRT_EXTERN Heap_t *HeapCreate(Addr_t HeapAddress, int UserHeap);
 _CRT_EXTERN uint32_t HeapGetCount(void);
 _CRT_EXTERN void HeapPrintStats(Heap_t *Heap);
 _CRT_EXTERN void HeapReap(void);
 
-//kMalloc Align and phys return
+/* Kernel Allocations */
 _CRT_EXPORT void *kmalloc_ap(size_t sz, Addr_t *p);
-
-//kMalloc return phys
 _CRT_EXPORT void *kmalloc_p(size_t sz, Addr_t *p);
-
-//kMalloc align
 _CRT_EXPORT void *kmalloc_a(size_t sz);
-
-//kMalloc
 _CRT_EXPORT void *kmalloc(size_t sz);
-
-//kFree
-_CRT_EXPORT void kfree(void *p);
-
-//krealloc / reallocate
 _CRT_EXPORT void *kcalloc(size_t nmemb, size_t size);
 _CRT_EXPORT void *krealloc(void *ptr, size_t size);
+
+/* Kernel Freeing */
+_CRT_EXPORT void kfree(void *p);
+
+/* Custom Allocation */
+_CRT_EXTERN void *umalloc(Heap_t *Heap, size_t Size);
+_CRT_EXTERN void ufree(Heap_t *Heap, void *Ptr);
 
 #endif

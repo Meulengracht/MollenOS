@@ -1,6 +1,6 @@
 /* MollenOS
 *
-* Copyright 2011 - 2014, Philip Meulengracht
+* Copyright 2011 - 2016, Philip Meulengracht
 *
 * This program is free software : you can redistribute it and / or modify
 * it under the terms of the GNU General Public License as published by
@@ -39,6 +39,21 @@ RingBuffer_t *RingBufferCreate(size_t Size)
 	SpinlockReset(&RingBuffer->Lock);
 
 	return RingBuffer;
+}
+
+/* Construct Ringbuffer */
+void RingBufferConstruct(RingBuffer_t *RingBuffer, uint8_t *Buffer, size_t BufferLength)
+{
+	/* Set buffer */
+	RingBuffer->Buffer = Buffer;
+
+	/* Setup rest */
+	RingBuffer->IndexWrite = 0;
+	RingBuffer->IndexRead = 0;
+	RingBuffer->Length = BufferLength;
+
+	/* Reset Lock */
+	SpinlockReset(&RingBuffer->Lock);
 }
 
 /* Destroy RingBuffer */

@@ -1,6 +1,6 @@
 /* MollenOS
 *
-* Copyright 2011 - 2014, Philip Meulengracht
+* Copyright 2011 - 2016, Philip Meulengracht
 *
 * This program is free software : you can redistribute it and / or modify
 * it under the terms of the GNU General Public License as published by
@@ -25,6 +25,7 @@
 /* Includes */
 #include <Arch.h>
 #include <ProcessManager.h>
+#include <Heap.h>
 #include <stdint.h>
 #include <crtdefs.h>
 
@@ -34,11 +35,15 @@
 /* Structures */
 typedef struct _MCoreShmBlock
 {
-	/* Address */
-	Addr_t Address;
+	/* Address(es) */
+	Addr_t KernelAddress;
+	Addr_t ProcAddress;
 
 	/* Length */
 	size_t Length;
+
+	/* Allocation Status */
+	int Allocated;
 
 	/* Link */
 	struct _MCoreShmBlock *Link;
@@ -60,18 +65,21 @@ typedef struct _MCoreShmNode
 
 typedef struct _MCoreShmManager
 {
+	/* The Heap */
+	Heap_t *Heap;
+
 	/* List of nodes */
-	MCoreShmNode_t *Nodes;
+	MCoreShmNode_t *ProcessNodes;
 
 } MCoreShmManager_t;
 
 /* Prototypes */
 _CRT_EXTERN void ShmInit(void);
 
-/* Allocate Memory */
-_CRT_EXTERN void ShmAllocateForProcess(PId_t ProcessId, 
+/* Allocate & Free Memory */
+_CRT_EXTERN Addr_t ShmAllocateForProcess(PId_t ProcessId, 
 	AddressSpace_t *AddrSpace, Addr_t Address, size_t Length);
-_CRT_EXTERN void ShmFreeForProcess(PId_t ProcessId, 
+_CRT_EXTERN Addr_t ShmFreeForProcess(PId_t ProcessId, 
 	AddressSpace_t *AddrSpace, Addr_t Address);
 
 

@@ -143,7 +143,7 @@ _CRT_EXTERN void AddressSpaceSwitch(AddressSpace_t *AddrSpace);
 _CRT_EXTERN AddressSpace_t *AddressSpaceGetCurrent(void);
 
 _CRT_EXTERN void AddressSpaceReleaseKernel(AddressSpace_t *AddrSpace);
-_CRT_EXTERN void AddressSpaceMap(AddressSpace_t *AddrSpace, VirtAddr_t Address);
+_CRT_EXTERN void AddressSpaceMap(AddressSpace_t *AddrSpace, VirtAddr_t Address, int UserMode);
 _CRT_EXTERN void AddressSpaceUnmap(AddressSpace_t *AddrSpace, VirtAddr_t Address);
 _CRT_EXTERN PhysAddr_t AddressSpaceGetMap(AddressSpace_t *AddrSpace, VirtAddr_t Address);
 
@@ -216,7 +216,9 @@ _CRT_EXPORT void kernel_panic(const char *str);
 #define MEMORY_LOCATION_SHM				0x40000000 /* Shared Memory: 512 mB */
 
 #define MEMORY_LOCATION_USER_ARGS		0x60000000 /* Arg Space: 4 kB */
-#define MEMORY_LOCATION_USER			0x60001000 /* Image Space: 256 mB */
+#define MEMORY_LOCATION_PIPE_IN			0x60001000
+#define MEMORY_LOCATION_PIPE_OUT		0x60003000
+#define MEMORY_LOCATION_USER			0x60010000 /* Image Space: 256~ mB */
 #define MEMORY_LOCATION_USER_HEAP		0x70000000 /* Heap Space: 2256 mB */
 
 /* Architecture Locked Interrupts */
