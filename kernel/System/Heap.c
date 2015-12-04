@@ -24,6 +24,7 @@
 /* Heap Includes */
 #include <Arch.h>
 #include <Heap.h>
+#include <Log.h>
 
 /* CLib */
 #include <assert.h>
@@ -49,9 +50,11 @@ Addr_t *HeapSAllocator(Heap_t *Heap, size_t Size)
 	{
 		/* Sanity */
 		if ((Heap->MemHeaderMax + PAGE_SIZE) >= 
-			(MEMORY_LOCATION_HEAP + MEMORY_STATIC_OFFSET))
+			(Heap->HeapBase + MEMORY_STATIC_OFFSET))
 		{
-			printf("HeapMgr: RAN OUT OF MEMORY\n");
+			LogFatal("HEAP", "OUT OF MEM, HeaderMax: 0x%x, HeaderCurrent 0x%x", 
+				Heap->MemHeaderMax, Heap->MemHeaderCurrent);
+			HeapPrintStats(Heap);
 			for (;;);
 		}
 
@@ -743,9 +746,10 @@ void HeapInit(void)
 
 	/* Reset */
 	KernelHeap.IsUser = 0;
-	KernelHeap.MemStartData = MEMORY_LOCATION_HEAP + MEMORY_STATIC_OFFSET;
-	KernelHeap.MemHeaderCurrent = MEMORY_LOCATION_HEAP;
-	KernelHeap.MemHeaderMax = MEMORY_LOCATION_HEAP;
+	KernelHeap.HeapBase = MEMORY_LOCATION_HEAP;
+	KernelHeap.MemStartData = KernelHeap.HeapBase + MEMORY_STATIC_OFFSET;
+	KernelHeap.MemHeaderCurrent = KernelHeap.HeapBase;
+	KernelHeap.MemHeaderMax = KernelHeap.HeapBase;
 
 	/* Set null */
 	KernelHeap.BlockRecycler = NULL;
@@ -777,6 +781,7 @@ Heap_t *HeapCreate(Addr_t HeapAddress, int UserHeap)
 
 	/* Reset */
 	Heap->IsUser = UserHeap;
+	Heap->HeapBase = HeapAddress;
 	Heap->MemStartData = HeapAddress + MEMORY_STATIC_OFFSET;
 	Heap->MemHeaderCurrent = HeapAddress;
 	Heap->MemHeaderMax = HeapAddress;

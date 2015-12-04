@@ -115,7 +115,7 @@
 #include <stdio.h>
 
 /* Helpers */
-#define IsUTF8(Character) (((Character) & 0xC0) != 0x80)
+#define IsUTF8(Character) (((Character) & 0xC0) == 0x80)
 
 /* Offset Table */
 uint32_t GlbUtf8Offsets[6] = {
@@ -251,7 +251,7 @@ uint32_t Utf8GetNextChar(const char *Str, int *Index)
 	int Size = 0, lIndex = *Index;
 
 	/* Iterate untill end of character */
-	while (Str[lIndex] && !IsUTF8(Str[lIndex])) {
+	while (Str[lIndex] && IsUTF8(Str[lIndex])) {
 		/* Add and get next byte */
 		Character <<= 6;
 		Character += (unsigned char)Str[lIndex++];
@@ -340,15 +340,15 @@ MString_t *MStringCreate(void *Data, MStringType_t DataType)
 		}
 
 		/* Calculate Length */
-		uint32_t AllocLength = (StrLength / MSTRING_BLOCK_SIZE) + MSTRING_BLOCK_SIZE;
+		uint32_t BlockCount = (StrLength / MSTRING_BLOCK_SIZE) + 1;
 
 		/* Allocate a buffer */
-		RetStr->Data = (void*)kmalloc(AllocLength);
+		RetStr->Data = (void*)kmalloc(BlockCount * MSTRING_BLOCK_SIZE);
 		RetStr->Length = StrLength;
-		RetStr->MaxLength = AllocLength;
+		RetStr->MaxLength = BlockCount * MSTRING_BLOCK_SIZE;
 
 		/* Memset it */
-		memset(RetStr->Data, 0, AllocLength);
+		memset(RetStr->Data, 0, BlockCount * MSTRING_BLOCK_SIZE);
 
 		/* Convert */
 		if (DataType == StrASCII)
@@ -406,15 +406,15 @@ MString_t *MStringCreate(void *Data, MStringType_t DataType)
 		}
 		
 		/* Calculate Length */
-		uint32_t AllocLength = (StrLength / MSTRING_BLOCK_SIZE) + MSTRING_BLOCK_SIZE;
+		uint32_t BlockCount = (StrLength / MSTRING_BLOCK_SIZE) + 1;
 
 		/* Allocate a buffer */
-		RetStr->Data = (void*)kmalloc(AllocLength);
+		RetStr->Data = (void*)kmalloc(BlockCount * MSTRING_BLOCK_SIZE);
 		RetStr->Length = StrLength;
-		RetStr->MaxLength = AllocLength;
+		RetStr->MaxLength = BlockCount * MSTRING_BLOCK_SIZE;
 
 		/* Memset it */
-		memset(RetStr->Data, 0, AllocLength);
+		memset(RetStr->Data, 0, BlockCount * MSTRING_BLOCK_SIZE);
 
 		if (DataType == StrUTF16)
 		{
@@ -529,18 +529,18 @@ void MStringCopy(MString_t *Destination, MString_t *Source, int Length)
 		if ((uint32_t)Index > Destination->MaxLength)
 		{
 			/* Calc size to allocate */
-			uint32_t AllocSize = (Index / MSTRING_BLOCK_SIZE) + MSTRING_BLOCK_SIZE;
+			uint32_t BlockCount = (Index / MSTRING_BLOCK_SIZE) + 1;
 
 			/* Expand */
-			void *nDataBuffer = kmalloc(AllocSize);
-			memset(nDataBuffer, 0, AllocSize);
+			void *nDataBuffer = kmalloc(BlockCount * MSTRING_BLOCK_SIZE);
+			memset(nDataBuffer, 0, BlockCount * MSTRING_BLOCK_SIZE);
 
 			/* Free */
 			if (Destination->Data != NULL)
 				kfree(Destination->Data);
 
 			/* Set new */
-			Destination->MaxLength = AllocSize;
+			Destination->MaxLength = BlockCount * MSTRING_BLOCK_SIZE;
 			Destination->Data = nDataBuffer;
 		}
 
@@ -599,7 +599,60 @@ void MStringAppendChar(MString_t *String, uint32_t Character)
 /* Append Character String */
 void MStringAppendChars(MString_t *String, const char *Chars)
 {
+	/* Threat it as it's ASCII */
+	uint8_t *BufPtr = NULL;
+	int Itr = 0, Index = 0;
 
+	/* Sanity */
+	if ((String->Length + strlen(Chars)) >= String->MaxLength)
+	{
+		/* Calculate */
+		size_t BlockCount = ((String->Length + strlen(Chars)) / MSTRING_BLOCK_SIZE) + 1;
+
+		/* Expand */
+		void *nDataBuffer = kmalloc(BlockCount * MSTRING_BLOCK_SIZE);
+		memset(nDataBuffer, 0, BlockCount * MSTRING_BLOCK_SIZE);
+
+		/* Copy old data over */
+		memcpy(nDataBuffer, String->Data, String->Length);
+
+		/* Free */
+		kfree(String->Data);
+
+		/* Set new */
+		String->MaxLength = BlockCount * MSTRING_BLOCK_SIZE;
+		String->Data = nDataBuffer;
+	}
+
+	/* Cast */
+	BufPtr = (uint8_t*)String->Data;
+
+	/* Loop to end of string */
+	while (BufPtr[Itr])
+		Itr++;
+
+	/* Iterate new string */
+	while (Chars[Index])
+	{
+		/* Get character width */
+		if (!IsUTF8(Chars[Index])) {
+			BufPtr[Itr++] = Chars[Index++];
+		}
+		else
+		{
+			/* Get next character */
+			uint32_t Character = Utf8GetNextChar(Chars, &Index);
+			uint32_t cLen = 0;
+			Utf8ConvertChar(Character, (void*)&BufPtr[Itr], &cLen);
+			Itr += cLen;
+		}
+	}
+
+	/* Null-terminate */
+	BufPtr[Itr] = '\0';
+
+	/* Increase */
+	String->Length += strlen(Chars);
 }
 
 /* Find Occurence */
@@ -803,15 +856,15 @@ MString_t *MStringSubString(MString_t *String, int Index, int Length)
 	MString_t *SubString = (MString_t*)kmalloc(sizeof(MString_t));
 
 	/* Calculate Length */
-	uint32_t AllocLength = (DataLength / MSTRING_BLOCK_SIZE) + MSTRING_BLOCK_SIZE;
+	uint32_t BlockCount = (DataLength / MSTRING_BLOCK_SIZE) + 1;
 
 	/* Set */
-	SubString->Data = kmalloc(AllocLength);
+	SubString->Data = kmalloc(BlockCount * MSTRING_BLOCK_SIZE);
 	SubString->Length = DataLength;
-	SubString->MaxLength = AllocLength;
+	SubString->MaxLength = BlockCount * MSTRING_BLOCK_SIZE;
 
 	/* Zero it */
-	memset(SubString->Data, 0, AllocLength);
+	memset(SubString->Data, 0, BlockCount * MSTRING_BLOCK_SIZE);
 
 	/* Now, iterate again, but copy data over */
 	void *NewDataPtr = SubString->Data;
@@ -926,17 +979,17 @@ void MStringReplace(MString_t *String, const char *Old, const char *New)
 	if (NewLen > String->MaxLength)
 	{
 		/* Calculate new alloc size */
-		uint32_t AllocSize = (NewLen / MSTRING_BLOCK_SIZE) + MSTRING_BLOCK_SIZE;
+		uint32_t BlockCount = (NewLen / MSTRING_BLOCK_SIZE) + 1;
 
 		/* Expand */
-		void *nDataBuffer = kmalloc(AllocSize);
-		memset(nDataBuffer, 0, AllocSize);
+		void *nDataBuffer = kmalloc(BlockCount * MSTRING_BLOCK_SIZE);
+		memset(nDataBuffer, 0, BlockCount * MSTRING_BLOCK_SIZE);
 
 		/* Free */
 		kfree(String->Data);
 
 		/* Set new */
-		String->MaxLength = AllocSize;
+		String->MaxLength = BlockCount * MSTRING_BLOCK_SIZE;
 		String->Data = nDataBuffer;
 	}
 
@@ -1077,7 +1130,7 @@ void MStringTest(void)
 {
 	/* Create some string entries */
 	printf("Allocating new strings...\n");
-	MString_t *String1 = MStringCreate((void*)"St0/System/Sys32.mos", StrASCII);
+	MString_t *String1 = MStringCreate("St0/System/Sys32.mos", StrASCII);
 	MString_t *String2 = MStringCreate("This is a long string test, YAY!", StrASCII);
 
 	/* Do basic operations */

@@ -116,6 +116,7 @@ void PmEventHandler(void *Args)
 			case ProcessSpawn:
 			{
 				/* Deep Call */
+				LogInformation("PROC", "Spawning %s", Request->Path->Data);
 				Request->ProcessId = PmCreateProcess(Request->Path, Request->Arguments);
 
 				/* Sanity */
@@ -180,6 +181,7 @@ PId_t PmCreateProcess(MString_t *Path, MString_t *Arguments)
 	int Index = 0;
 
 	/* Open File */
+	LogInformation("PROC", "Opening File");
 	File = VfsOpen(Path->Data, Read);
 
 	/* Sanity */
@@ -193,13 +195,15 @@ PId_t PmCreateProcess(MString_t *Path, MString_t *Arguments)
 	fBuffer = (uint8_t*)kmalloc((size_t)File->Size);
 
 	/* Read */
+	LogInformation("PROC", "Reading File, Size 0x%x", (size_t)File->Size);
 	VfsRead(File, fBuffer, (size_t)File->Size);
 
 	/* Close */
 	VfsClose(File);
 
 	/* Validate File */
-	if (!PeValidate(fBuffer))
+	if (!PeValidate(fBuffer)
+		|| PeValidate(fBuffer))
 	{
 		/* Bail Out */
 		kfree(fBuffer);

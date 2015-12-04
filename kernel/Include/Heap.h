@@ -90,6 +90,7 @@ typedef struct _HeapBlock
 typedef struct _HeapArea
 {
 	/* Info */
+	Addr_t HeapBase;
 	Addr_t MemStartData;
 	Addr_t MemHeaderCurrent;
 	Addr_t MemHeaderMax;
