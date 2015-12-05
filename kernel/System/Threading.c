@@ -352,6 +352,24 @@ void ThreadingEnterUserMode(void *ProcessInfo)
 	InterruptRestoreState(IntrState);
 }
 
+/* End all threads by process id */
+void ThreadingTerminateProcessThreads(uint32_t ProcessId)
+{
+	/* Iterate thread list */
+	foreach(tNode, GlbThreads)
+	{
+		/* Cast */
+		MCoreThread_t *Thread = (MCoreThread_t*)tNode->data;
+
+		/* Is it owned? */
+		if (Thread->ProcessId == ProcessId)
+		{
+			/* Mark finished */
+			Thread->Flags |= THREADING_FINISHED;
+		}
+	}
+}
+
 /* Handles and switches thread from the current */
 MCoreThread_t *ThreadingSwitch(Cpu_t Cpu, MCoreThread_t *Current, uint8_t PreEmptive)
 {

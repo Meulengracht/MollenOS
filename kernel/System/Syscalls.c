@@ -21,6 +21,8 @@
 
 /* Includes */
 #include <Arch.h>
+#include <ProcessManager.h>
+#include <Threading.h>
 #include <Log.h>
 
 /* Shorthand */
@@ -31,7 +33,22 @@
  ***********************/
 void ScProcessTerminate(int ExitCode)
 {
-	_CRT_UNUSED(ExitCode);
+	/* Disable interrupts */
+	IntStatus_t IntrState = InterruptDisable();
+	Cpu_t CurrentCpu = ApicGetCpu();
+	MCoreProcess_t *Process = PmGetProcess(ThreadingGetCurrentThread(CurrentCpu)->ProcessId);
+
+	/* Save return code */
+	Process->ReturnCode = ExitCode;
+
+	/* Terminate all threads used by process */
+	ThreadingTerminateProcessThreads(Process->Id);
+
+	/* Mark process for reaping */
+	PmTerminateProcess(Process);
+
+	/* Enable Interrupts */
+	InterruptRestoreState(IntrState);
 }
 
 void ScProcessYield(void)
@@ -55,8 +72,44 @@ Addr_t GlbSyscallTable[] =
 	/* Process Functions */
 	DefineSyscall(ScProcessTerminate),
 	DefineSyscall(ScProcessYield),
+	DefineSyscall(NoOperation),
+	DefineSyscall(NoOperation),
+	DefineSyscall(NoOperation),
+	DefineSyscall(NoOperation),
+	DefineSyscall(NoOperation),
+	DefineSyscall(NoOperation),
+	DefineSyscall(NoOperation),
+	DefineSyscall(NoOperation),
 
-	/* Not Defined */
+	/* Threading Functions */
+	DefineSyscall(NoOperation),
+	DefineSyscall(NoOperation),
+	DefineSyscall(NoOperation),
+	DefineSyscall(NoOperation),
+	DefineSyscall(NoOperation),
+	DefineSyscall(NoOperation),
+	DefineSyscall(NoOperation),
+	DefineSyscall(NoOperation),
+	DefineSyscall(NoOperation),
+	DefineSyscall(NoOperation),
+
+	/* IPC Functions */
+	DefineSyscall(NoOperation),
+	DefineSyscall(NoOperation),
+	DefineSyscall(NoOperation),
+	DefineSyscall(NoOperation),
+	DefineSyscall(NoOperation),
+	DefineSyscall(NoOperation),
+	DefineSyscall(NoOperation),
+	DefineSyscall(NoOperation),
+	DefineSyscall(NoOperation),
+	DefineSyscall(NoOperation),
+
+	/* Vfs Functions */
+	DefineSyscall(NoOperation),
+	DefineSyscall(NoOperation),
+	DefineSyscall(NoOperation),
+	DefineSyscall(NoOperation),
 	DefineSyscall(NoOperation),
 	DefineSyscall(NoOperation),
 	DefineSyscall(NoOperation),

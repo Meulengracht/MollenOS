@@ -60,6 +60,9 @@ typedef struct _MCoreProcess
 	/* Executable */
 	MCorePeFile_t *Executable;
 
+	/* Return Code */
+	int ReturnCode;
+
 } MCoreProcess_t;
 
 /* Process Request Type */
@@ -106,6 +109,7 @@ typedef struct _MCoreProcessRequest
 _CRT_EXTERN void PmInit(void);
 
 /* Process Functions */
+_CRT_EXTERN void PmTerminateProcess(MCoreProcess_t *Process);
 _CRT_EXTERN MCoreProcess_t *PmGetProcess(PId_t ProcessId);
 
 /* Requests */

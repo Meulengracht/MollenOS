@@ -38,7 +38,8 @@ PId_t PmCreateProcess(MString_t *Path, MString_t *Arguments);
 
 /* Globals */
 PId_t GlbProcessId = 0;
-list_t *GlbProcesses = NULL;
+list_t *GlbProcesses = NULL; 
+list_t *GlbZombieProcesses = NULL;
 list_t *GlbProcessRequests = NULL;
 Semaphore_t *GlbProcessEventLock = NULL;
 
@@ -53,6 +54,7 @@ void PmInit(void)
 
 	/* Create */
 	GlbProcesses = list_create(LIST_SAFE);
+	GlbZombieProcesses = list_create(LIST_SAFE);
 	GlbProcessRequests = list_create(LIST_SAFE);
 	GlbProcessEventLock = SemaphoreCreate(0);
 
@@ -285,11 +287,44 @@ PId_t PmCreateProcess(MString_t *Path, MString_t *Arguments)
 		PROCESS_PIPE_SIZE - sizeof(RingBuffer_t));
 
 	/* Add process to list */
-	list_append(GlbProcesses, list_create_node(Process->Id, Process));
+	list_append(GlbProcesses, list_create_node((int)Process->Id, Process));
 
 	/* Create the loader thread */
 	ThreadingCreateThread("Process", PmStartProcess, Process, 0);
 
 	/* Done */
 	return Process->Id;
+}
+
+/* Get Process */
+MCoreProcess_t *PmGetProcess(PId_t ProcessId)
+{
+	/* Iterate */
+	foreach(pNode, GlbProcesses)
+	{
+		/* Cast */
+		MCoreProcess_t *Process = (MCoreProcess_t*)pNode->data;
+
+		/* Found? */
+		if (Process->Id == ProcessId)
+			return Process;
+	}
+
+	/* Found? NO! */
+	return NULL;
+}
+
+/* End Process */
+void PmTerminateProcess(MCoreProcess_t *Process)
+{
+	/* Lookup node */
+	list_node_t *pNode = list_get_node_by_id(GlbProcesses, (int)Process->Id, 0);
+
+	/* Sanity */
+	if (pNode == NULL)
+		return;
+
+	/* Remove it, add to zombies */
+	list_remove_by_node(GlbProcesses, pNode);
+	list_append(GlbZombieProcesses, pNode);
 }
