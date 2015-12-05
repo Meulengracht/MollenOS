@@ -1233,6 +1233,8 @@ namespace MfsTool
 
             WriteToMfs(mDisk, "InitRd.mos", "System/InitRd32.mos");
             //WriteToMfs(mDisk, "InitRd64.mos", "System/InitRd64.mos");
+
+            WriteToMfs(mDisk, "MWingMgr.mxi", "System/MWingMgr.mxi");
         }
 
         /* Entry */

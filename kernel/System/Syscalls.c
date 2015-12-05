@@ -26,6 +26,20 @@
 /* Shorthand */
 #define DefineSyscall(_Sys) ((Addr_t)&_Sys)
 
+/***********************
+ * Process Functions   *
+ ***********************/
+void ScProcessTerminate(int ExitCode)
+{
+	_CRT_UNUSED(ExitCode);
+}
+
+void ScProcessYield(void)
+{
+	/* Deep Call */
+	_ThreadYield();
+}
+
 /* NoP */
 void NoOperation(void)
 {
@@ -37,6 +51,10 @@ Addr_t GlbSyscallTable[] =
 {
 	/* Kernel Log */
 	DefineSyscall(LogDebug),
+
+	/* Process Functions */
+	DefineSyscall(ScProcessTerminate),
+	DefineSyscall(ScProcessYield),
 
 	/* Not Defined */
 	DefineSyscall(NoOperation),

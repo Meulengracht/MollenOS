@@ -296,5 +296,11 @@
     <MASM Include="..\crt\llshr.S">
       <Filter>Source\crt</Filter>
     </MASM>
+    <MASM Include="..\crt\cstart.asm">
+      <Filter>Source\crt</Filter>
+    </MASM>
+    <MASM Include="..\crt\sstart.asm">
+      <Filter>Source\crt</Filter>
+    </MASM>
   </ItemGroup>
 </Project>

@@ -81,6 +81,8 @@
     <ClCompile Include="..\src\string\wcsnlen.c" />
   </ItemGroup>
   <ItemGroup>
+    <MASM Include="..\crt\cstart.asm" />
+    <MASM Include="..\crt\sstart.asm" />
     <MASM Include="..\src\math\fabs.S">
       <FileType>Document</FileType>
     </MASM>
