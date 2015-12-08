@@ -1192,7 +1192,7 @@ namespace MfsTool
             Buffer.BlockCopy(Mbr, 3, BootCode, 3, 49);
 
             /* Setup Flag to OS-DRIVE (0x1) */
-            Mbr[8] = 0x1;
+            BootCode[8] = 0x1;
 
             /* Write bootloader */
             Console.WriteLine("Writing BootCode");
@@ -1234,7 +1234,7 @@ namespace MfsTool
             WriteToMfs(mDisk, "InitRd.mos", "System/InitRd32.mos");
             //WriteToMfs(mDisk, "InitRd64.mos", "System/InitRd64.mos");
 
-            WriteToMfs(mDisk, "MWingMgr.mxi", "System/MWingMgr.mxi");
+            WriteToMfs(mDisk, "MWinMgr.mxi", "System/MWinMgr.mxi");
         }
 
         /* Entry */

@@ -71,44 +71,44 @@ Registers_t *ContextCreate(Addr_t Eip)
 	return context;
 }
 
-Registers_t *ContextUserCreate(Addr_t Eip, Addr_t *Args)
+Registers_t *ContextUserCreate(Addr_t StackStartAddr, Addr_t Eip, Addr_t *Args)
 {
-	Registers_t *context;
-	Addr_t context_location;
+	/* Context Ptr */
+	Registers_t *uContext;
 
 	/* Allocate a new context */
-	context_location = (Addr_t)kmalloc_a(0x1000) + 0x1000 - 0x4 - sizeof(Registers_t);
-	context = (Registers_t*)context_location;
+	uContext = (Registers_t*)(StackStartAddr - sizeof(Registers_t) - sizeof(Addr_t));
 
 	/* Set Segments */
-	context->Ds = X86_GDT_USER_DATA + 0x03;
-	context->Fs = X86_GDT_USER_DATA + 0x03;
-	context->Es = X86_GDT_USER_DATA + 0x03;
-	context->Gs = X86_GDT_USER_DATA + 0x03;
+	uContext->Ds = X86_GDT_USER_DATA + 0x03;
+	uContext->Fs = X86_GDT_USER_DATA + 0x03;
+	uContext->Es = X86_GDT_USER_DATA + 0x03;
+	uContext->Gs = X86_GDT_USER_DATA + 0x03;
 
 	/* Initialize Registers */
-	context->Eax = 0;
-	context->Ebx = 0;
-	context->Ecx = 0;
-	context->Edx = 0;
-	context->Esi = 0;
-	context->Edi = 0;
-	context->Ebp = (context_location + sizeof(Registers_t));
-	context->Esp = 0;
+	uContext->Eax = 0;
+	uContext->Ebx = 0;
+	uContext->Ecx = 0;
+	uContext->Edx = 0;
+	uContext->Esi = 0;
+	uContext->Edi = 0;
+	uContext->Ebp = (StackStartAddr - sizeof(Addr_t));
+	uContext->Esp = 0;
 
 	/* Set NULL */
-	context->Irq = 0;
-	context->ErrorCode = 0;
+	uContext->Irq = 0;
+	uContext->ErrorCode = 0;
 
 	/* Set Entry */
-	context->Eip = Eip;
-	context->Eflags = X86_THREAD_EFLAGS;
-	context->Cs = X86_USER_CODE_SEGMENT + 0x03;
+	uContext->Eip = Eip;
+	uContext->Eflags = X86_THREAD_EFLAGS;
+	uContext->Cs = X86_USER_CODE_SEGMENT + 0x03;
 
 	/* Null user stuff */
-	context->UserEsp = (Addr_t)&context->UserEsp;
-	context->UserSs = X86_GDT_USER_DATA + 0x03;
-	context->UserArg = (Addr_t)Args;
+	uContext->UserEsp = (Addr_t)&uContext->UserEsp;
+	uContext->UserSs = X86_GDT_USER_DATA + 0x03;
+	uContext->UserArg = (Addr_t)Args;
 
-	return context;
+	/* Done! */
+	return uContext;
 }

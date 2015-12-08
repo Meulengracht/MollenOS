@@ -136,6 +136,9 @@ void PmEventHandler(void *Args)
 			} break;
 		}
 
+		/* Signal Completion */
+		SchedulerWakeupAllThreads((Addr_t*)Request);
+
 		/* Cleanup? */
 		if (Request->Cleanup != 0)
 		{
@@ -143,10 +146,10 @@ void PmEventHandler(void *Args)
 				MStringDestroy(Request->Path);
 			if (Request->Arguments != NULL)
 				MStringDestroy(Request->Arguments);
-		}
 
-		/* Signal Completion */
-		SchedulerWakeupAllThreads((Addr_t*)Request);
+			/* Free */
+			kfree((void*)Request);
+		}
 	}
 }
 
@@ -183,7 +186,6 @@ PId_t PmCreateProcess(MString_t *Path, MString_t *Arguments)
 	int Index = 0;
 
 	/* Open File */
-	LogInformation("PROC", "Opening File");
 	File = VfsOpen(Path->Data, Read);
 
 	/* Sanity */
@@ -197,15 +199,13 @@ PId_t PmCreateProcess(MString_t *Path, MString_t *Arguments)
 	fBuffer = (uint8_t*)kmalloc((size_t)File->Size);
 
 	/* Read */
-	LogInformation("PROC", "Reading File, Size 0x%x", (size_t)File->Size);
 	VfsRead(File, fBuffer, (size_t)File->Size);
 
 	/* Close */
 	VfsClose(File);
 
 	/* Validate File */
-	if (!PeValidate(fBuffer)
-		|| PeValidate(fBuffer))
+	if (!PeValidate(fBuffer))
 	{
 		/* Bail Out */
 		kfree(fBuffer);
@@ -285,6 +285,12 @@ PId_t PmCreateProcess(MString_t *Path, MString_t *Arguments)
 	RingBufferConstruct(Process->oPipe,
 		(uint8_t*)(BaseAddress + sizeof(RingBuffer_t)),
 		PROCESS_PIPE_SIZE - sizeof(RingBuffer_t));
+
+	/* Map Stack */
+	BaseAddress = ShmAllocateForProcess(Process->Id,
+		Process->AddrSpace, MEMORY_LOCATION_USER_STACK & PAGE_MASK, PAGE_SIZE);
+	BaseAddress += (MEMORY_LOCATION_USER_STACK & ~(PAGE_MASK));
+	Process->StackStart = BaseAddress;
 
 	/* Add process to list */
 	list_append(GlbProcesses, list_create_node((int)Process->Id, Process));

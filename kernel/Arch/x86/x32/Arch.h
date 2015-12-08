@@ -153,7 +153,7 @@ _CRT_EXTERN PhysAddr_t AddressSpaceGetMap(AddressSpace_t *AddrSpace, VirtAddr_t 
 _CRT_EXTERN x86Thread_t *_ThreadInitBoot(void);
 _CRT_EXTERN x86Thread_t *_ThreadInitAp(void);
 _CRT_EXTERN x86Thread_t *_ThreadInit(Addr_t EntryPoint);
-_CRT_EXTERN void _ThreadSetupUserMode(void *ThreadData, Addr_t EntryPoint, Addr_t ArgumentAddress);
+_CRT_EXTERN void _ThreadSetupUserMode(void *ThreadData, Addr_t StackAddr, Addr_t EntryPoint, Addr_t ArgumentAddress);
 _CRT_EXTERN void _ThreadWakeUpCpu(Cpu_t Cpu);
 _CRT_EXPORT void _ThreadYield(void);
 
@@ -223,6 +223,7 @@ _CRT_EXPORT void kernel_panic(const char *str);
 #define MEMORY_LOCATION_PIPE_OUT		0x60003000
 #define MEMORY_LOCATION_USER			0x60010000 /* Image Space: 256~ mB */
 #define MEMORY_LOCATION_USER_HEAP		0x70000000 /* Heap Space: 2256 mB */
+#define MEMORY_LOCATION_USER_STACK		0xFFFFFFF0 /* Stack Space: 4 mB */
 
 /* Architecture Locked Interrupts */
 #define INTERRUPT_TIMER					0xF0

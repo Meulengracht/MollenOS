@@ -2,9 +2,7 @@
  * Terminate normally with cleanup, call all functions in atexit stack
  */
 
-#include <Syscalls.h>
 #include <stddef.h>
-#include <InitTerms.h>
 #include <stdlib.h>
 
 extern void MollenOSCleanup(int RetCode);

@@ -20,16 +20,18 @@ __mSrvCrt       proc    near
 				; Step 3. Call main
 				call	_main
 
-				; Step 4. Terminate with exit code
+				; Step 4. Cleanup CRT
+
+				; Step 5. Terminate with exit code
 				mov		ebx, eax
 				mov		eax, 1h
 				int		80h
 
-				; Step 5. Yield
+				; Step 6. Yield
 				mov		eax, 2h
 				int		80h
 
-				; Step 6. Catch Loop
+				; Step 7. Catch Loop
 Forever:
 					nop
 					jmp	Forever

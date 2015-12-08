@@ -75,7 +75,8 @@ void VfsInstallFileSystem(MCoreFileSystem_t *Fs)
 		&& !GlbVfsInitHasRun)
 	{
 		/* Process Request */
-		MCoreProcessRequest_t ProcRequest;
+		MCoreProcessRequest_t *ProcRequest
+			= (MCoreProcessRequest_t*)kmalloc(sizeof(MCoreProcessRequest_t));
 
 		/* Print */
 		LogInformation("VFSM", "Boot Drive Detected, Running Init");
@@ -85,13 +86,13 @@ void VfsInstallFileSystem(MCoreFileSystem_t *Fs)
 		MStringAppendChars(Path, FILESYSTEM_INIT);
 
 		/* Create Request */
-		ProcRequest.Type = ProcessSpawn;
-		ProcRequest.Path = Path;
-		ProcRequest.Arguments = NULL;
-		ProcRequest.Cleanup = 1;
+		ProcRequest->Type = ProcessSpawn;
+		ProcRequest->Path = Path;
+		ProcRequest->Arguments = NULL;
+		ProcRequest->Cleanup = 1;
 
 		/* Send */
-		PmCreateRequest(&ProcRequest);
+		PmCreateRequest(ProcRequest);
 
 		/* Set */
 		GlbVfsInitHasRun = 1;
@@ -225,7 +226,7 @@ int VfsParsePartitionTable(DevId_t DiskId, uint64_t SectorBase, uint64_t SectorC
 			}
 
 			/* Lastly */
-			if (Fs->State != VfsStateActive)
+			if (Fs->State == VfsStateActive)
 				VfsInstallFileSystem(Fs);
 			else
 				kfree(Fs);
@@ -250,18 +251,16 @@ void VfsRegisterDisk(DevId_t DiskId)
 	Request.Buffer = (uint8_t*)TmpBuffer;
 	Request.Length = 20;
 
+	/* Memset */
+	memset(TmpBuffer, 0, sizeof(TmpBuffer));
+
 	/* Perform */
 	DmCreateRequest(&Request);
 	DmWaitRequest(&Request);
 
 	/* Well, well */
-	uint64_t SectorCount = (uint64_t)TmpBuffer[0] | ((uint64_t)TmpBuffer[1] << 8) 
-		| ((uint64_t)TmpBuffer[2] << 16) | ((uint64_t)TmpBuffer[3] << 24) 
-		| ((uint64_t)TmpBuffer[4] << 32) | ((uint64_t)TmpBuffer[5] << 40) 
-		| ((uint64_t)TmpBuffer[6] << 48) | ((uint64_t)TmpBuffer[7] << 56);
-
-	uint32_t SectorSize = (uint32_t)TmpBuffer[16] | ((uint32_t)TmpBuffer[17] << 8) 
-		| ((uint32_t)TmpBuffer[18] << 16) | ((uint32_t)TmpBuffer[19] << 24);
+	uint64_t SectorCount = *(uint64_t*)&TmpBuffer[0];
+	uint32_t SectorSize = *(uint32_t*)&TmpBuffer[16];
 
 	/* Sanity */
 	if (!VfsParsePartitionTable(DiskId, 0, SectorCount, SectorSize))
@@ -399,7 +398,7 @@ MString_t *VfsCanonicalizePath(const char *Path)
 	}
 
 	/* Replace dublicate // with / */
-	MStringReplace(AbsPath, "//", "/");
+	//MStringReplace(AbsPath, "//", "/");
 
 	/* Done! */
 	return AbsPath;

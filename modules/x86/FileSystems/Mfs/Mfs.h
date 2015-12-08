@@ -106,37 +106,37 @@ typedef struct _MfsMasterBucket
  * 1024 Bytes */
 typedef struct _MfsTableEntry
 {
-	/* Status */
+	/* Status - 0x0 */
 	uint16_t Status;
 
-	/* Type */
+	/* Type - 0x2 */
 	uint16_t Flags;
 
-	/* Index */
+	/* Index - 0x4 */
 	uint32_t StartBucket;
 
-	/* Stats */
+	/* Stats - 0x8 */
 	uint64_t CreatedTime;
-	uint64_t CreatedDate;
+	uint64_t CreatedDate;  /* 0x10 */
 
-	uint64_t ModifiedTime;
-	uint64_t ModifedDate;
+	uint64_t ModifiedTime; /* 0x18 */
+	uint64_t ModifedDate;  /* 0x20 */
 
-	uint64_t ReadTime;
-	uint64_t ReadDate;
+	uint64_t ReadTime;	   /* 0x28 */
+	uint64_t ReadDate;	   /* 0x30 */
 	
 	/* More interesting */
-	uint64_t Size;
-	uint64_t AllocatedSize;
+	uint64_t Size;		   /* 0x38 */
+	uint64_t AllocatedSize; /* 0x40 */
 
-	/* Name Block */
+	/* Name Block 0x48 */
 	uint8_t Name[400];
 
 	/* Security Block */
 	uint8_t SecurityBlock[64];
 
 	/* Opt Data Block */
-	uint8_t Data[480];
+	uint8_t Data[488];
 
 } MfsTableEntry_t;
 

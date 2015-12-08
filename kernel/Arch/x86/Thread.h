@@ -40,6 +40,6 @@ _CRT_EXTERN Registers_t *_ThreadingSwitch(Registers_t *Regs, int PreEmptive,
 
 /* Context Manipulation */
 _CRT_EXTERN Registers_t *ContextCreate(Addr_t Eip);
-_CRT_EXTERN Registers_t *ContextUserCreate(Addr_t Eip, Addr_t *Args);
+_CRT_EXTERN Registers_t *ContextUserCreate(Addr_t StackStartAddr, Addr_t Eip, Addr_t *Args);
 
 #endif // !_MCORE_THREAD_H_

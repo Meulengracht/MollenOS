@@ -164,13 +164,13 @@ x86Thread_t *_ThreadInit(Addr_t EntryPoint)
 }
 
 /* Setup Usermode */
-void _ThreadSetupUserMode(void *ThreadData, Addr_t EntryPoint, Addr_t ArgumentAddress)
+void _ThreadSetupUserMode(void *ThreadData, Addr_t StackAddr, Addr_t EntryPoint, Addr_t ArgumentAddress)
 {
 	/* Cast */
 	x86Thread_t *t = (x86Thread_t*)ThreadData;
 
 	/* Create user-context */
-	t->UserContext = ContextUserCreate(EntryPoint, (Addr_t*)ArgumentAddress);
+	t->UserContext = ContextUserCreate(StackAddr, EntryPoint, (Addr_t*)ArgumentAddress);
 }
 
 /* Task Switch occurs here */

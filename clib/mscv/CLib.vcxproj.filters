@@ -28,6 +28,9 @@
     <Filter Include="Source\crt">
       <UniqueIdentifier>{93111976-39cc-46dc-ae42-4e5bc1b191ea}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Source\stdlib">
+      <UniqueIdentifier>{5815a8d1-566a-496e-9ca6-01425251df84}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\src\string\atof.c">
@@ -233,6 +236,15 @@
     </ClCompile>
     <ClCompile Include="..\src\string\wcsnlen.c">
       <Filter>Source\string</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\stdlib\abs.c">
+      <Filter>Source\stdlib</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\stdlib\div.c">
+      <Filter>Source\stdlib</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\stdlib\exit.c">
+      <Filter>Source\stdlib</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>

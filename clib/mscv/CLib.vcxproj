@@ -43,6 +43,9 @@
     <ClCompile Include="..\src\stdio\vprintf.c" />
     <ClCompile Include="..\src\stdio\vsnprintf.c" />
     <ClCompile Include="..\src\stdio\vsprintf.c" />
+    <ClCompile Include="..\src\stdlib\abs.c" />
+    <ClCompile Include="..\src\stdlib\div.c" />
+    <ClCompile Include="..\src\stdlib\exit.c" />
     <ClCompile Include="..\src\string\atof.c" />
     <ClCompile Include="..\src\string\atoi64.c" />
     <ClCompile Include="..\src\string\atol.c" />

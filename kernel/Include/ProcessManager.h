@@ -33,6 +33,8 @@
 /* Definitions */
 typedef unsigned int PId_t;
 
+#define PROCESS_STACK_INIT		0x1000
+#define PROCESS_STACK_MAX		(4 << 20)
 #define PROCESS_PIPE_SIZE		0x2000
 
 /* Structures */
@@ -59,6 +61,9 @@ typedef struct _MCoreProcess
 
 	/* Executable */
 	MCorePeFile_t *Executable;
+
+	/* Stack Start in Kernel */
+	Addr_t StackStart;
 
 	/* Return Code */
 	int ReturnCode;

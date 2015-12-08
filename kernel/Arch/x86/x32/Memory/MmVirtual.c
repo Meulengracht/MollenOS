@@ -48,6 +48,10 @@ extern void memory_reload_cr3(void);
 extern void memory_invalidate_addr(Addr_t pda);
 extern uint32_t memory_get_cr3(void);
 
+/* Extern these for their addresses */
+extern void exception_common(void);
+extern void irq_handler255(void);
+
 /* Create a page-table */
 PageTable_t *MmVirtualCreatePageTable(void)
 {
@@ -469,6 +473,32 @@ void MmVirtualInit(void)
 
 	/* Modify Video Address */
 	GfxInformation.VideoAddr = MEMORY_LOCATION_VIDEO;
+
+	/* Last step is to mark all the memory region 
+	 * where irq handlers reside for PAGE_USER 
+	 * so user-space threads etc can enter irq handlers 
+	 * and syscall */
+	Addr_t IrqStart = (Addr_t)&exception_common;
+	Addr_t IrqEnd = (Addr_t)&irq_handler255;
+
+	/* One or two pages? */
+	if ((IrqStart & PAGE_MASK) != (IrqEnd & PAGE_MASK)) {
+		/* Two Pages */
+		PageTable_t *pTableStart = 
+			(PageTable_t*)KernelPageDirectory->vTables[PAGE_DIRECTORY_INDEX(IrqStart)];
+		PageTable_t *pTableEnd = 
+			(PageTable_t*)KernelPageDirectory->vTables[PAGE_DIRECTORY_INDEX(IrqEnd)];
+
+		/* Pages */
+		pTableStart->Pages[PAGE_TABLE_INDEX(IrqStart)] |= PAGE_USER;
+		pTableEnd->Pages[PAGE_TABLE_INDEX(IrqEnd)] |= PAGE_USER;
+	}
+	else {
+		/* One Page */
+		PageTable_t *pTable = 
+			(PageTable_t*)KernelPageDirectory->vTables[PAGE_DIRECTORY_INDEX(IrqStart)];
+		pTable->Pages[PAGE_TABLE_INDEX(IrqStart)] |= PAGE_USER;
+	}
 
 	/* Enable paging */
 	MmVirtualSwitchPageDirectory(0, KernelPageDirectory, (Addr_t)KernelPageDirectory);

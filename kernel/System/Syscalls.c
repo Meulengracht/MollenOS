@@ -64,7 +64,7 @@ void NoOperation(void)
 }
 
 /* Syscall Table */
-Addr_t GlbSyscallTable[] =
+Addr_t GlbSyscallTable[51] =
 {
 	/* Kernel Log */
 	DefineSyscall(LogDebug),
@@ -82,6 +82,18 @@ Addr_t GlbSyscallTable[] =
 	DefineSyscall(NoOperation),
 
 	/* Threading Functions */
+	DefineSyscall(NoOperation),
+	DefineSyscall(NoOperation),
+	DefineSyscall(NoOperation),
+	DefineSyscall(NoOperation),
+	DefineSyscall(NoOperation),
+	DefineSyscall(NoOperation),
+	DefineSyscall(NoOperation),
+	DefineSyscall(NoOperation),
+	DefineSyscall(NoOperation),
+	DefineSyscall(NoOperation),
+
+	/* Memory Functions */
 	DefineSyscall(NoOperation),
 	DefineSyscall(NoOperation),
 	DefineSyscall(NoOperation),

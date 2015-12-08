@@ -341,7 +341,7 @@ void ThreadingEnterUserMode(void *ProcessInfo)
 	cThread->Flags |= THREADING_TRANSITION;
 	
 	/* Underlying Call */
-	_ThreadSetupUserMode(cThread->ThreadData,
+	_ThreadSetupUserMode(cThread->ThreadData, Process->StackStart,
 		Process->Executable->EntryAddr, MEMORY_LOCATION_USER_ARGS);
 
 	/* Switch Address Space */

@@ -91,7 +91,8 @@ uint32_t MfsGetNextBucket(MCoreFileSystem_t *Fs, uint32_t Bucket)
 	if (mData->BucketBufferOffset != SectorOffset)
 	{
 		/* Read */
-		if (MfsReadSectors(Fs, mData->BucketMapSector + SectorOffset, mData->BucketBuffer, 1) != RequestOk)
+		if (MfsReadSectors(Fs, mData->BucketMapSector + SectorOffset, 
+			mData->BucketBuffer, 1) != RequestOk)
 		{
 			/* Error */
 			LogFatal("MFS1", "GETNEXTBUCKET: Error reading from disk");
@@ -528,7 +529,7 @@ size_t MfsReadFile(void *FsData, MCoreFile_t *Handle, uint8_t *Buffer, size_t Si
 		}
 
 		/* Switch to next bucket? */
-		if (BytesLeft >= BytesCopied)
+		if (BytesLeft == BytesCopied)
 		{
 			/* Go to next */
 			uint32_t NextBucket = MfsGetNextBucket(Fs, mFile->DataBucketPosition);
@@ -842,6 +843,10 @@ MODULES_API void ModuleInit(void *Data)
 	mData->Version = (uint32_t)BootRecord->Version;
 	mData->BucketSize = (uint32_t)BootRecord->SectorsPerBucket;
 	mData->Flags = (uint32_t)BootRecord->Flags;
+
+	/* Boot Drive? */
+	if (BootRecord->Flags & MFS_OSDRIVE)
+		Fs->Flags |= VFS_MAIN_DRIVE;
 
 	/* Calculate the bucket-map sector */
 	mData->BucketCount = Fs->SectorCount / mData->BucketSize;
