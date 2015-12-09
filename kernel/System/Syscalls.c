@@ -51,18 +51,21 @@ PId_t ScProcessSpawn(void)
 	return Request.ProcessId;
 }
 
-void ScProcessJoin(PId_t ProcessId)
+int ScProcessJoin(PId_t ProcessId)
 {
 	/* Wait for process */
 	MCoreProcess_t *Process = PmGetProcess(ProcessId);
 
 	/* Sanity */
 	if (Process == NULL)
-		return;
+		return -1;
 
 	/* Sleep */
 	SchedulerSleepThread((Addr_t*)Process);
 	_ThreadYield();
+
+	/* Return the exit code */
+	return Process->ReturnCode;
 }
 
 void ScProcessTerminate(int ExitCode)

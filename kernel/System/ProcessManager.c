@@ -331,4 +331,7 @@ void PmTerminateProcess(MCoreProcess_t *Process)
 	/* Remove it, add to zombies */
 	list_remove_by_node(GlbProcesses, pNode);
 	list_append(GlbZombieProcesses, pNode);
+
+	/* Wake all that waits for this to finish */
+	SchedulerWakeupAllThreads((Addr_t*)pNode->data);
 }
