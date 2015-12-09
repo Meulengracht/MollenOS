@@ -143,10 +143,10 @@ _CRT_EXTERN void AddressSpaceSwitch(AddressSpace_t *AddrSpace);
 _CRT_EXTERN AddressSpace_t *AddressSpaceGetCurrent(void);
 
 _CRT_EXTERN void AddressSpaceReleaseKernel(AddressSpace_t *AddrSpace);
-_CRT_EXTERN void AddressSpaceMap(AddressSpace_t *AddrSpace, VirtAddr_t Address, int UserMode);
+_CRT_EXTERN void AddressSpaceMap(AddressSpace_t *AddrSpace, VirtAddr_t Address, size_t Size, int UserMode);
 _CRT_EXTERN void AddressSpaceMapFixed(AddressSpace_t *AddrSpace, 
-	PhysAddr_t PhysicalAddr, VirtAddr_t VirtualAddr, int UserMode);
-_CRT_EXTERN void AddressSpaceUnmap(AddressSpace_t *AddrSpace, VirtAddr_t Address);
+	PhysAddr_t PhysicalAddr, VirtAddr_t VirtualAddr, size_t Size, int UserMode);
+_CRT_EXTERN void AddressSpaceUnmap(AddressSpace_t *AddrSpace, VirtAddr_t Address, size_t Size);
 _CRT_EXTERN PhysAddr_t AddressSpaceGetMap(AddressSpace_t *AddrSpace, VirtAddr_t Address);
 
 /* Threading */

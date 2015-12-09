@@ -59,7 +59,7 @@ Addr_t *HeapSAllocator(Heap_t *Heap, size_t Size)
 		}
 
 		/* Map */
-		AddressSpaceMap(AddressSpaceGetCurrent(), Heap->MemHeaderMax, Heap->IsUser);
+		AddressSpaceMap(AddressSpaceGetCurrent(), Heap->MemHeaderMax, PAGE_SIZE, Heap->IsUser);
 		memset((void*)Heap->MemHeaderMax, 0, PAGE_SIZE);
 		Heap->MemHeaderMax += PAGE_SIZE;
 	}
@@ -392,7 +392,7 @@ void HeapSanityPages(Addr_t Address, size_t Size)
 	for (i = 0; i < Pages; i++)
 	{
 		if (!AddressSpaceGetMap(AddressSpaceGetCurrent(), Address + (i * PAGE_SIZE)))
-			AddressSpaceMap(AddressSpaceGetCurrent(), Address + (i * PAGE_SIZE), 0);
+			AddressSpaceMap(AddressSpaceGetCurrent(), Address + (i * PAGE_SIZE), PAGE_SIZE, 0);
 	}
 }
 

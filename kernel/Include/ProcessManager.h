@@ -56,8 +56,9 @@ typedef struct _MCoreProcess
 	/* Heap */
 	Heap_t *Heap;
 
-	/* Address Space */
-	AddressSpace_t *AddrSpace;
+	/* Startup Args */
+	uint8_t *fBuffer;
+	MString_t *Arguments;
 
 	/* Executable */
 	MCorePeFile_t *Executable;

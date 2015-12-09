@@ -31,7 +31,6 @@
 #include <Scheduler.h>
 #include <Threading.h>
 #include <Vfs\Vfs.h>
-#include <Shm.h>
 #include <Heap.h>
 #include <Log.h>
 
@@ -95,9 +94,6 @@ void MCoreInitialize(MCoreBootInfo_t *BootInfo)
 
 	/* Start out any extra cores */
 	CpuInitSmp(BootInfo->ArchBootInfo);
-
-	/* Setup Shared Memory */
-	ShmInit();
 
 	/* Start the request handler */
 	DmStart();

@@ -655,6 +655,47 @@ void MStringAppendChars(MString_t *String, const char *Chars)
 	String->Length += strlen(Chars);
 }
 
+/* Append MString to MString */
+void MStringAppendString(MString_t *Destination, MString_t *String)
+{
+	/* Luckily this is UTF8 */
+	uint8_t *BufPtr = NULL;
+
+	/* Sanity */
+	if ((Destination->Length + String->Length) >= Destination->MaxLength)
+	{
+		/* Calculate */
+		size_t BlockCount = ((Destination->Length + String->Length) / MSTRING_BLOCK_SIZE) + 1;
+
+		/* Expand */
+		void *nDataBuffer = kmalloc(BlockCount * MSTRING_BLOCK_SIZE);
+		memset(nDataBuffer, 0, BlockCount * MSTRING_BLOCK_SIZE);
+
+		/* Copy old data over */
+		memcpy(nDataBuffer, Destination->Data, Destination->Length);
+
+		/* Free */
+		kfree(Destination->Data);
+
+		/* Set new */
+		Destination->MaxLength = BlockCount * MSTRING_BLOCK_SIZE;
+		Destination->Data = nDataBuffer;
+	}
+
+	/* Cast */
+	BufPtr = (uint8_t*)Destination->Data;
+
+	/* Loop to end of string */
+	while (*BufPtr)
+		BufPtr++;
+
+	/* Copy */
+	memcpy(BufPtr, String->Data, String->Length);
+
+	/* Update Length */
+	Destination->Length += String->Length;
+}
+
 /* Find Occurence */
 int MStringFind(MString_t *String, uint32_t Character)
 {

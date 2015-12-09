@@ -304,7 +304,10 @@ TId_t ThreadingCreateThread(char *Name, ThreadEntry_t Function, void *Args, int 
 	nThread->TimeSlice = MCORE_INITIAL_TIMESLICE;
 
 	/* Create Address Space */
-	nThread->AddrSpace = AddressSpaceCreate(ADDRESS_SPACE_INHERIT);
+	if (Flags & THREADING_USERMODE)
+		nThread->AddrSpace = AddressSpaceCreate(ADDRESS_SPACE_USER);
+	else
+		nThread->AddrSpace = AddressSpaceCreate(ADDRESS_SPACE_INHERIT);
 
 	/* Create thread-data */
 	nThread->ThreadData = _ThreadInit((Addr_t)&ThreadingEntryPoint);
@@ -343,10 +346,6 @@ void ThreadingEnterUserMode(void *ProcessInfo)
 	/* Underlying Call */
 	_ThreadSetupUserMode(cThread->ThreadData, Process->StackStart,
 		Process->Executable->EntryAddr, MEMORY_LOCATION_USER_ARGS);
-
-	/* Switch Address Space */
-	cThread->AddrSpace = Process->AddrSpace;
-	AddressSpaceSwitch(Process->AddrSpace);
 
 	/* Done! */
 	InterruptRestoreState(IntrState);

@@ -548,7 +548,7 @@ AddressSpace_t *AddressSpaceCreate(uint32_t Flags)
 		CriticalSectionConstruct(&NewPd->Lock);
 
 		/* Map in kernel space */
-		for (Itr = 0; Itr < 512; Itr++)
+		for (Itr = 0; Itr < PAGE_DIRECTORY_INDEX(MEMORY_LOCATION_USER_ARGS) - 1; Itr++)
 		{
 			NewPd->pTables[Itr] = KernelPageDirectory->pTables[Itr];
 			NewPd->vTables[Itr] = KernelPageDirectory->vTables[Itr];
@@ -603,7 +603,7 @@ void AddressSpaceReleaseKernel(AddressSpace_t *AddrSpace)
 	uint32_t Itr = 0;
 
 	/* Now unmap */
-	for (Itr = 0; Itr < 512; Itr++)
+	for (Itr = 0; Itr < PAGE_DIRECTORY_INDEX(MEMORY_LOCATION_USER_ARGS) - 1; Itr++)
 	{
 		Pd->pTables[Itr] = 0;
 		Pd->vTables[Itr] = 0;
@@ -611,27 +611,48 @@ void AddressSpaceReleaseKernel(AddressSpace_t *AddrSpace)
 }
 
 /* Map a virtual address into the Address Space */
-void AddressSpaceMap(AddressSpace_t *AddrSpace, VirtAddr_t Address, int UserMode)
+void AddressSpaceMap(AddressSpace_t *AddrSpace, VirtAddr_t Address, size_t Size, int UserMode)
 {
+	/* Calculate num of pages */
+	size_t Itr = 0;
+	size_t PageCount = (Size / PAGE_SIZE);
+	if (Size % PAGE_SIZE)
+		PageCount++;
+
 	/* Deep Call */
-	MmVirtualMap(AddrSpace->PageDirectory, MmPhysicalAllocateBlock(), 
-		Address, UserMode != 0 ? PAGE_USER : 0);
+	for (Itr = 0; Itr < PageCount; Itr++)
+		MmVirtualMap(AddrSpace->PageDirectory, MmPhysicalAllocateBlock(), 
+			(Address + (Itr * PAGE_SIZE)), UserMode != 0 ? PAGE_USER : 0);
 }
 
 /* Map a virtual address to a fixed physical page */
 void AddressSpaceMapFixed(AddressSpace_t *AddrSpace,
-	PhysAddr_t PhysicalAddr, VirtAddr_t VirtualAddr, int UserMode)
+	PhysAddr_t PhysicalAddr, VirtAddr_t VirtualAddr, size_t Size, int UserMode)
 {
+	/* Calculate num of pages */
+	size_t Itr = 0;
+	size_t PageCount = (Size / PAGE_SIZE);
+	if (Size % PAGE_SIZE)
+		PageCount++;
+
 	/* Deep Call */
-	MmVirtualMap(AddrSpace->PageDirectory, PhysicalAddr,
-		VirtualAddr, UserMode != 0 ? PAGE_USER : 0);
+	for (Itr = 0; Itr < PageCount; Itr++)
+		MmVirtualMap(AddrSpace->PageDirectory, (PhysicalAddr + (Itr * PAGE_SIZE)),
+		(VirtualAddr + (Itr * PAGE_SIZE)), UserMode != 0 ? PAGE_USER : 0);
 }
 
 /* Unmaps a virtual page from an address space */
-void AddressSpaceUnmap(AddressSpace_t *AddrSpace, VirtAddr_t Address)
+void AddressSpaceUnmap(AddressSpace_t *AddrSpace, VirtAddr_t Address, size_t Size)
 {
+	/* Calculate num of pages */
+	size_t Itr = 0;
+	size_t PageCount = (Size / PAGE_SIZE);
+	if (Size % PAGE_SIZE)
+		PageCount++;
+
 	/* Deep Call */
-	MmVirtualUnmap(AddrSpace->PageDirectory, Address);
+	for (Itr = 0; Itr < PageCount; Itr++)
+		MmVirtualUnmap(AddrSpace->PageDirectory, (Address + (Itr * PAGE_SIZE)));
 }
 
 /* Retrieves a physical mapping from an address space */

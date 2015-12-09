@@ -134,7 +134,7 @@ int PeValidate(uint8_t *Buffer)
 }
 
 /* Relocate Sections */
-Addr_t PeRelocateSections(MCorePeFile_t *PeFile, AddressSpace_t *AddrSpace, uint8_t *Data, 
+Addr_t PeRelocateSections(MCorePeFile_t *PeFile, uint8_t *Data, 
 	Addr_t SectionAddr, uint16_t NumSections, int UserSpace)
 {
 	/* Cast to a pointer */
@@ -157,8 +157,10 @@ Addr_t PeRelocateSections(MCorePeFile_t *PeFile, AddressSpace_t *AddrSpace, uint
 		/* Is it mapped ? */
 		for (j = 0; j < NumPages; j++)
 		{
-			if (!AddressSpaceGetMap(AddrSpace, ((VirtAddr_t)MemBuffer + (j * PAGE_SIZE))))
-				AddressSpaceMap(AddrSpace, ((VirtAddr_t)MemBuffer + (j * PAGE_SIZE)), UserSpace);
+			if (!AddressSpaceGetMap(AddressSpaceGetCurrent(), 
+				((VirtAddr_t)MemBuffer + (j * PAGE_SIZE))))
+				AddressSpaceMap(AddressSpaceGetCurrent(), 
+				((VirtAddr_t)MemBuffer + (j * PAGE_SIZE)), PAGE_SIZE, UserSpace);
 		}
 
 		/* Which kind of section is this */
@@ -561,8 +563,8 @@ MCorePeFile_t *PeLoadModule(uint8_t *Buffer)
 	PeInfo->LoadedLibraries = NULL;
 
 	/* Step 1. Relocate Sections */
-	GlbModuleLoadAddr = PeRelocateSections(PeInfo, AddressSpaceGetCurrent(), 
-		Buffer, SectionAddr, BaseHeader->NumSections, 0);
+	GlbModuleLoadAddr = PeRelocateSections(PeInfo, Buffer, 
+		SectionAddr, BaseHeader->NumSections, 0);
 
 	/* Step 2. Fix Relocations */
 	PeFixRelocations(PeInfo, &DirectoryPtr[PE_SECTION_BASE_RELOCATION], ImageBase);
@@ -630,8 +632,7 @@ list_t *PeResolveLibraryDependency(MCorePeFile_t *Parent, MCorePeFile_t *PeFile,
 		/* Resolve Library */
 		IntStatus_t IntrState = 0;
 
-		/* Enter kernel & enable ints */
-		AddressSpaceSwitch(AddressSpaceGetCurrent());
+		/* Enable ints */
 		IntrState = InterruptEnable();
 
 		/* Now load file */
@@ -645,9 +646,8 @@ list_t *PeResolveLibraryDependency(MCorePeFile_t *Parent, MCorePeFile_t *PeFile,
 		/* Cleanup */
 		VfsClose(lFile);
 
-		/* Reenter user & disable ints */
+		/* Restore ints */
 		InterruptRestoreState(IntrState);
-		AddressSpaceSwitch(AddressSpaceGetCurrent());
 
 		/* Load */
 		Library = PeLoadImage(ExportParent, LibraryName, fBuffer, NextLoadAddress);
@@ -896,8 +896,8 @@ MCorePeFile_t *PeLoadImage(MCorePeFile_t *Parent, MString_t *Name, uint8_t *Buff
 		PeInfo->EntryAddr = 0;
 
 	/* Step 1. Relocate Sections */
-	*BaseAddress = PeRelocateSections(PeInfo, AddressSpaceGetCurrent(),
-		Buffer, SectionAddr, BaseHeader->NumSections, 1);
+	*BaseAddress = PeRelocateSections(PeInfo, Buffer, 
+		SectionAddr, BaseHeader->NumSections, 1);
 
 	/* Step 2. Fix Relocations */
 	PeFixRelocations(PeInfo, &DirectoryPtr[PE_SECTION_BASE_RELOCATION], ImageBase);

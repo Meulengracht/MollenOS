@@ -25,7 +25,6 @@
 #include <Threading.h>
 #include <Semaphore.h>
 #include <Scheduler.h>
-#include <Shm.h>
 #include <List.h>
 #include <Log.h>
 
@@ -73,6 +72,19 @@ void PmCreateRequest(MCoreProcessRequest_t *Request)
 
 	/* Signal */
 	SemaphoreV(GlbProcessEventLock);
+}
+
+/* Wait for request */
+void PmWaitRequest(MCoreProcessRequest_t *Request)
+{
+	/* Sanity, make sure request hasn't completed */
+	if (Request->State != ProcessRequestPending
+		&& Request->State != ProcessRequestInProgress)
+		return;
+
+	/* Otherwise wait */
+	SchedulerSleepThread((Addr_t*)Request);
+	_ThreadYield();
 }
 
 /* Event Handler */
@@ -157,7 +169,54 @@ void PmEventHandler(void *Args)
 void PmStartProcess(void *Args)
 {
 	/* Cast */
+	Addr_t BaseAddress = MEMORY_LOCATION_USER;
 	MCoreProcess_t *Process = (MCoreProcess_t*)Args;
+
+	/* Load Executable */
+	Process->Executable = 
+		PeLoadImage(NULL, Process->Name, Process->fBuffer, &BaseAddress);
+
+	/* Cleanup file buffer */
+	kfree(Process->fBuffer);
+
+	/* Create a heap */
+	Process->Heap = HeapCreate(MEMORY_LOCATION_USER_HEAP, 1);
+
+	/* Map in arguments */
+	AddressSpaceMap(AddressSpaceGetCurrent(), MEMORY_LOCATION_USER_ARGS, PAGE_SIZE, 1);
+
+	/* Copy arguments */
+	memcpy((void*)MEMORY_LOCATION_USER_ARGS,
+		Process->Arguments->Data, Process->Arguments->Length);
+
+	/* Map in pipes */
+	AddressSpaceMap(AddressSpaceGetCurrent(), MEMORY_LOCATION_PIPE_IN, PROCESS_PIPE_SIZE, 1);
+	AddressSpaceMap(AddressSpaceGetCurrent(), MEMORY_LOCATION_PIPE_OUT, PROCESS_PIPE_SIZE, 1);
+
+	/* Save */
+	Process->iPipe = (RingBuffer_t*)MEMORY_LOCATION_PIPE_IN;
+
+	/* Construct In */
+	RingBufferConstruct(Process->iPipe,
+		(uint8_t*)(BaseAddress + sizeof(RingBuffer_t)),
+		PROCESS_PIPE_SIZE - sizeof(RingBuffer_t));
+
+	/* Save */
+	Process->oPipe = (RingBuffer_t*)MEMORY_LOCATION_PIPE_OUT;
+
+	/* Construct In */
+	RingBufferConstruct(Process->oPipe,
+		(uint8_t*)(BaseAddress + sizeof(RingBuffer_t)),
+		PROCESS_PIPE_SIZE - sizeof(RingBuffer_t));
+
+	/* Map Stack */
+	BaseAddress = ((MEMORY_LOCATION_USER_STACK - 0x1) & PAGE_MASK);
+	AddressSpaceMap(AddressSpaceGetCurrent(), BaseAddress, PROCESS_STACK_INIT, 1);
+	BaseAddress += (MEMORY_LOCATION_USER_STACK & ~(PAGE_MASK));
+	Process->StackStart = BaseAddress;
+
+	/* Add process to list */
+	list_append(GlbProcesses, list_create_node((int)Process->Id, Process));
 
 	/* Go to user-land */
 	ThreadingEnterUserMode(Process);
@@ -172,18 +231,15 @@ void PmStartProcess(void *Args)
 /* Create Process */
 PId_t PmCreateProcess(MString_t *Path, MString_t *Arguments)
 {
+	/* Vars */
+	MCoreProcess_t *Process = NULL;
+	MCoreFile_t *File = NULL;
+	uint8_t *fBuffer = NULL;
+	int Index = 0;
+
 	/* Sanity */
 	if (Path == NULL)
 		return 0xFFFFFFFF;
-
-	/* Does file exist? */
-	MCoreProcess_t *Process = NULL;
-	AddressSpace_t *KernelAddrSpace = NULL;
-	MCoreFile_t *File = NULL;
-	uint8_t *fBuffer = NULL;
-	Addr_t BaseAddress = MEMORY_LOCATION_USER;
-	IntStatus_t IntrState = 0;
-	int Index = 0;
 
 	/* Open File */
 	File = VfsOpen(Path->Data, Read);
@@ -224,79 +280,21 @@ PId_t PmCreateProcess(MString_t *Path, MString_t *Arguments)
 	Process->Name = MStringSubString(Path, Index + 1, -1);
 	Process->WorkingDirectory = MStringSubString(Path, 0, Index);
 
-	/* Create address space */
-	Process->AddrSpace = AddressSpaceCreate(ADDRESS_SPACE_USER);
+	/* Save file buffer */
+	Process->fBuffer = fBuffer;
 
-	/* Get a reference to current */
-	KernelAddrSpace = AddressSpaceGetCurrent();
-
-	/* Disable Interrupts */
-	IntrState = InterruptDisable();
-
-	/* Switch to new address space */
-	AddressSpaceSwitch(Process->AddrSpace);
-
-	/* Load Executable */
-	Process->Executable = PeLoadImage(NULL, Process->Name, fBuffer, &BaseAddress);
-
-	/* Switch to kernel address space */
-	AddressSpaceSwitch(KernelAddrSpace);
-
-	/* Enable Interrupts */
-	InterruptRestoreState(IntrState);
-
-	/* Cleanup file buffer */
-	kfree(fBuffer);
-
-	/* Create a heap */
-	Process->Heap = HeapCreate(MEMORY_LOCATION_USER_HEAP, 1);
-
-	/* Map in arguments */
-	if (Arguments != NULL && Arguments->Length != 0)
-	{
-		BaseAddress = ShmAllocateForProcess(Process->Id,
-			Process->AddrSpace, MEMORY_LOCATION_USER_ARGS, Arguments->Length);
-
-		/* Copy arguments */
-		memcpy((void*)BaseAddress, Arguments->Data, Arguments->Length);
-
+	/* Save arguments */
+	if (Arguments != NULL
+		&& Arguments->Length != 0) {
+		Process->Arguments = MStringCreate(Path->Data, StrUTF8);
+		MStringAppendChar(Process->Arguments, ' ');
+		MStringAppendString(Process->Arguments, Arguments);
 	}
-
-	/* Build pipes */
-	BaseAddress = ShmAllocateForProcess(Process->Id,
-		Process->AddrSpace, MEMORY_LOCATION_PIPE_IN, PROCESS_PIPE_SIZE);
-
-	/* Save */
-	Process->iPipe = (RingBuffer_t*)BaseAddress;
-
-	/* Construct In */
-	RingBufferConstruct(Process->iPipe,
-		(uint8_t*)(BaseAddress + sizeof(RingBuffer_t)),
-		PROCESS_PIPE_SIZE - sizeof(RingBuffer_t));
-
-	/* Allocate Out */
-	BaseAddress = ShmAllocateForProcess(Process->Id,
-		Process->AddrSpace, MEMORY_LOCATION_PIPE_OUT, PROCESS_PIPE_SIZE);
-
-	/* Save */
-	Process->oPipe = (RingBuffer_t*)BaseAddress;
-
-	/* Construct In */
-	RingBufferConstruct(Process->oPipe,
-		(uint8_t*)(BaseAddress + sizeof(RingBuffer_t)),
-		PROCESS_PIPE_SIZE - sizeof(RingBuffer_t));
-
-	/* Map Stack */
-	BaseAddress = ShmAllocateForProcess(Process->Id,
-		Process->AddrSpace, MEMORY_LOCATION_USER_STACK & PAGE_MASK, PAGE_SIZE);
-	BaseAddress += (MEMORY_LOCATION_USER_STACK & ~(PAGE_MASK));
-	Process->StackStart = BaseAddress;
-
-	/* Add process to list */
-	list_append(GlbProcesses, list_create_node((int)Process->Id, Process));
+	else
+		Process->Arguments = MStringCreate(Path->Data, StrUTF8);
 
 	/* Create the loader thread */
-	ThreadingCreateThread("Process", PmStartProcess, Process, 0);
+	ThreadingCreateThread("Process", PmStartProcess, Process, THREADING_USERMODE);
 
 	/* Done */
 	return Process->Id;

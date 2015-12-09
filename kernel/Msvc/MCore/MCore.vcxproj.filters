@@ -102,9 +102,6 @@
     <ClCompile Include="..\..\System\ProcessManager.c">
       <Filter>Systems</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\System\Shm.c">
-      <Filter>Systems</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\System\Syscalls.c">
       <Filter>Systems</Filter>
     </ClCompile>
@@ -189,9 +186,6 @@
       <Filter>Includes</Filter>
     </ClInclude>
     <ClInclude Include="..\..\Include\ProcessManager.h">
-      <Filter>Includes</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\Include\Shm.h">
       <Filter>Includes</Filter>
     </ClInclude>
   </ItemGroup>

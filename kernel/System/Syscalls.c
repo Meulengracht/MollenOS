@@ -23,6 +23,7 @@
 #include <Arch.h>
 #include <ProcessManager.h>
 #include <Threading.h>
+#include <Scheduler.h>
 #include <Log.h>
 
 /* Shorthand */
@@ -31,6 +32,39 @@
 /***********************
  * Process Functions   *
  ***********************/
+PId_t ScProcessSpawn(void)
+{
+	/* Alloc on stack */
+	MCoreProcessRequest_t Request;
+
+	/* Setup */
+	Request.Type = ProcessSpawn;
+	Request.Cleanup = 0;
+	Request.Path = NULL;
+	Request.Arguments = NULL;
+	
+	/* Fire! */
+	PmCreateRequest(&Request);
+	PmWaitRequest(&Request);
+
+	/* Done */
+	return Request.ProcessId;
+}
+
+void ScProcessJoin(PId_t ProcessId)
+{
+	/* Wait for process */
+	MCoreProcess_t *Process = PmGetProcess(ProcessId);
+
+	/* Sanity */
+	if (Process == NULL)
+		return;
+
+	/* Sleep */
+	SchedulerSleepThread((Addr_t*)Process);
+	_ThreadYield();
+}
+
 void ScProcessTerminate(int ExitCode)
 {
 	/* Disable interrupts */
@@ -57,6 +91,20 @@ void ScProcessYield(void)
 	_ThreadYield();
 }
 
+/***********************
+* Threading Functions  *
+***********************/
+
+
+/***********************
+* Memory Functions     *
+***********************/
+
+
+/***********************
+* IPC Functions        *
+***********************/
+
 /* NoP */
 void NoOperation(void)
 {
@@ -72,8 +120,8 @@ Addr_t GlbSyscallTable[51] =
 	/* Process Functions */
 	DefineSyscall(ScProcessTerminate),
 	DefineSyscall(ScProcessYield),
-	DefineSyscall(NoOperation),
-	DefineSyscall(NoOperation),
+	DefineSyscall(ScProcessSpawn),
+	DefineSyscall(ScProcessJoin),
 	DefineSyscall(NoOperation),
 	DefineSyscall(NoOperation),
 	DefineSyscall(NoOperation),
