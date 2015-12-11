@@ -94,9 +94,6 @@ int Ps2WriteData(uint8_t Value)
 	/* If timeout happens */
 	int Error = 0;
 
-	/* Get lock, but don't disable interrupts, we need them for the timeout */
-	SpinlockAcquireNoInt(&GlbPs2Lock);
-
 	/* Make sure input buffer is empty */
 	WaitForConditionWithFault(Error, (Ps2ReadStatus() & X86_PS2_STATUS_INPUT_FULL) == 0, 100, 10);
 
@@ -104,15 +101,17 @@ int Ps2WriteData(uint8_t Value)
 	if (Error)
 	{
 		/* Release */
-		SpinlockReleaseNoInt(&GlbPs2Lock);
 		return Error;
 	}
+
+	/* Get lock, but don't disable interrupts, we need them for the timeout */
+	SpinlockAcquire(&GlbPs2Lock);
 		
 	/* Write */
 	outb(X86_PS2_DATA, Value);
 
 	/* Release */
-	SpinlockReleaseNoInt(&GlbPs2Lock);
+	SpinlockRelease(&GlbPs2Lock);
 
 	/* Done */
 	return Error;

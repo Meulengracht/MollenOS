@@ -138,6 +138,10 @@ void ExceptionEntry(Registers_t *regs)
 	{
 		/* Odd */
 		printf("CR2 Address: 0x%x... Faulty Address: 0x%x\n", __getcr2(), regs->Eip);
+
+		/* Try to stack trace first */
+		StackTrace(6);
+
 		for (;;);
 	}
 

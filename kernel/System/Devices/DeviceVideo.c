@@ -28,7 +28,7 @@
 #include <stddef.h>
 
 /* Video */
-const char *GlbBootVideoWindowTitle = "MollenOS Boot Log";
+const char *GlbBootVideoWindowTitle = "MollenOS Boot Console";
 MCoreVideoDevice_t *GlbVideoPtr = NULL;
 
 /* Draw Line */
@@ -53,24 +53,24 @@ void VideoDrawBootTerminal(MCoreVideoDevice_t *VideoDevice,
 	uint32_t X, uint32_t Y, uint32_t Width, uint32_t Height)
 {
 	/* Title pointer */
-	uint32_t TitleStartX = X + (Width / 3);
-	uint32_t TitleStartY = Y + 8;
+	uint32_t TitleStartX = X + 8 + 32 + 8;
+	uint32_t TitleStartY = Y + 18;
 	int i;
 	char *TitlePtr = (char*)GlbBootVideoWindowTitle;
 
 	/* Draw Borders */
-	for (i = 0; i < 32; i++)
-		VideoDrawLine(VideoDevice, X, Y + i, X + Width, Y + i, 0x7F8C8D);
-	VideoDrawLine(VideoDevice, X, Y, X, Y + Height, 0x7F8C8D);
-	VideoDrawLine(VideoDevice, X + Width, Y, X + Width, Y + Height, 0x7F8C8D);
-	VideoDrawLine(VideoDevice, X, Y + Height, X + Width, Y + Height, 0x7F8C8D);
+	for (i = 0; i < 48; i++)
+		VideoDrawLine(VideoDevice, X, Y + i, X + Width, Y + i, 0x2980B9);
+	VideoDrawLine(VideoDevice, X, Y, X, Y + Height, 0x2980B9);
+	VideoDrawLine(VideoDevice, X + Width, Y, X + Width, Y + Height, 0x2980B9);
+	VideoDrawLine(VideoDevice, X, Y + Height, X + Width, Y + Height, 0x2980B9);
 
 	/* Draw Title */
 	while (*TitlePtr)
 	{
 		char Char = *TitlePtr;
 		VideoDevice->DrawCharacter(VideoDevice->Data, 
-			(int)Char, TitleStartY, TitleStartX, 0xFFFFFF, 0x7F8C8D);
+			(int)Char, TitleStartY, TitleStartX, 0xFFFFFF, 0x2980B9);
 		TitleStartX += 10;
 
 		TitlePtr++;
@@ -79,7 +79,7 @@ void VideoDrawBootTerminal(MCoreVideoDevice_t *VideoDevice,
 	/* Define Virtual Borders */
 	VideoDevice->CursorX = VideoDevice->CursorStartX = X + 11;
 	VideoDevice->CursorLimitX = X + Width - 1;
-	VideoDevice->CursorY = VideoDevice->CursorStartY = Y + 33;
+	VideoDevice->CursorY = VideoDevice->CursorStartY = Y + 49;
 	VideoDevice->CursorLimitY = Y + Height - 17;
 }
 

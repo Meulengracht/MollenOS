@@ -377,41 +377,42 @@ uint32_t InterruptAllocatePCI(uint32_t Irqs[], uint32_t Count)
 }
 
 /* The common entry point for interrupts */
-void InterruptEntry(Registers_t *regs)
+void InterruptEntry(Registers_t *Regs)
 {
 	/* Determine Irq */
-	int i, res = 0;
-	uint32_t gsi = 0xFFFFFFFF;
-	uint32_t irq = regs->Irq + 0x20;
+	int Itr, Result = 0;
+	uint32_t Gsi = 0xFFFFFFFF;
+	uint32_t Irq = Regs->Irq + 0x20;
 
 	/* Get handler(s) */
-	for (i = 0; i < X86_MAX_HANDLERS_PER_INTERRUPT; i++)
+	for (Itr = 0; Itr < X86_MAX_HANDLERS_PER_INTERRUPT; Itr++)
 	{
-		if (IrqTable[irq][i].Installed)
+		if (IrqTable[Irq][Itr].Installed
+			&& IrqTable[Irq][Itr].Function != NULL)
 		{
 			/* If no args are specified we give access
 			* to registers */
-			if (IrqTable[irq][i].Data == NULL)
-				res = IrqTable[irq][i].Function((void*)regs);
+			if (IrqTable[Irq][Itr].Data == NULL)
+				Result = IrqTable[Irq][Itr].Function((void*)Regs);
 			else
-				res = IrqTable[irq][i].Function(IrqTable[irq][i].Data);
+				Result = IrqTable[Irq][Itr].Function(IrqTable[Irq][Itr].Data);
 
 			/* Only one device could make interrupt */
-			if (res == X86_IRQ_HANDLED)
+			if (Result == X86_IRQ_HANDLED)
 			{
-				gsi = IrqTable[irq][i].Gsi;
+				Gsi = IrqTable[Irq][Itr].Gsi;
 				break;
 			}
 		}
 	}
 
-	if (res == 0)
-		printf("Unhandled Irq 0x%x\n", irq);
+	if (Result == 0)
+		printf("Unhandled Irq 0x%x\n", Irq);
 
 	/* Send EOI (if not spurious) */
-	if (irq != INTERRUPT_SPURIOUS7
-		&& irq != INTERRUPT_SPURIOUS)
-		ApicSendEoi(gsi, irq);
+	if (Irq != INTERRUPT_SPURIOUS7
+		&& Irq != INTERRUPT_SPURIOUS)
+		ApicSendEoi(Gsi, Irq);
 }
 
 /* Disables interrupts and returns

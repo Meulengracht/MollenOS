@@ -169,9 +169,7 @@ _CRT_EXTERN void __CRTDECL outl(uint16_t port, uint32_t data);
 /* Spinlock */
 _CRT_EXTERN void SpinlockReset(Spinlock_t *Spinlock);
 _CRT_EXPORT OsStatus_t SpinlockAcquire(Spinlock_t *Spinlock);
-_CRT_EXPORT OsStatus_t SpinlockAcquireNoInt(Spinlock_t *Spinlock);
 _CRT_EXPORT void SpinlockRelease(Spinlock_t *Spinlock);
-_CRT_EXPORT void SpinlockReleaseNoInt(Spinlock_t *Spinlock);
 
 /* Initialises all available timers in system */
 _CRT_EXTERN void DevicesInitTimers(void);

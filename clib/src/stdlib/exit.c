@@ -5,8 +5,6 @@
 #include <stddef.h>
 #include <stdlib.h>
 
-extern void MollenOSCleanup(int RetCode);
-
 void exit(int status)
 {
 	/* Cleanup windows if any  */

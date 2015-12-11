@@ -266,7 +266,7 @@ list_node_t *SchedulerGetNextTask(Cpu_t cpu, list_node_t *Node, int PreEmptive)
 		time_slice = MCORE_INITIAL_TIMESLICE;
 
 	/* Acquire Lock */
-	SpinlockAcquireNoInt(&GlbSchedulers[cpu]->Lock);
+	SpinlockAcquire(&GlbSchedulers[cpu]->Lock);
 
 	/* Step 3. Boost??? */
 	GlbSchedulers[cpu]->BoostTimer += time_slice;
@@ -297,7 +297,7 @@ list_node_t *SchedulerGetNextTask(Cpu_t cpu, list_node_t *Node, int PreEmptive)
 done:
 
 	/* Release Lock */
-	SpinlockReleaseNoInt(&GlbSchedulers[cpu]->Lock);
+	SpinlockRelease(&GlbSchedulers[cpu]->Lock);
 
 	/* Return */
 	return next;

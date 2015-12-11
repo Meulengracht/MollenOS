@@ -64,32 +64,3 @@ void SpinlockRelease(Spinlock_t *Spinlock)
 	/* Step 2. Enable interrupts */
 	InterruptRestoreState(Spinlock->IntrState);
 }
-
-/* Acquire Spinlock, no interrupts */
-OsStatus_t SpinlockAcquireNoInt(Spinlock_t *Spinlock)
-{
-	/* Vars */
-	int AcqResult = 0;
-
-	/* Sanity */
-	assert(Spinlock->Owner != ThreadingGetCurrentThreadId());
-
-	/* Acquire */
-	AcqResult = _spinlock_acquire(Spinlock);
-
-	/* Set Owner */
-	Spinlock->Owner = ThreadingGetCurrentThreadId();
-
-	/* Done */
-	return (AcqResult == 1) ? OS_STATUS_OK : OS_STATUS_FAIL;
-}
-
-/* Release spinlock, no interrupts */
-void SpinlockReleaseNoInt(Spinlock_t *Spinlock)
-{
-	/* We are no longer the owner */
-	Spinlock->Owner = 0xFFFFFFFF;
-
-	/* Step 1. Release spinlock */
-	_spinlock_release(Spinlock);
-}

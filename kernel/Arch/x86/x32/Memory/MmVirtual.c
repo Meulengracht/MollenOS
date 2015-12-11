@@ -529,7 +529,7 @@ AddressSpace_t *AddressSpaceCreate(uint32_t Flags)
 		AddrSpace->Cr3 = (Addr_t)KernelPageDirectory;
 		AddrSpace->PageDirectory = KernelPageDirectory;
 	}
-	else if (Flags & ADDRESS_SPACE_INHERIT)
+	else if (Flags == ADDRESS_SPACE_INHERIT)
 	{
 		/* Get Current Space */
 		AddrSpace->Cr3 = memory_get_cr3();
@@ -548,10 +548,19 @@ AddressSpace_t *AddressSpaceCreate(uint32_t Flags)
 		CriticalSectionConstruct(&NewPd->Lock);
 
 		/* Map in kernel space */
-		for (Itr = 0; Itr < PAGE_DIRECTORY_INDEX(MEMORY_LOCATION_USER_ARGS) - 1; Itr++)
-		{
-			NewPd->pTables[Itr] = KernelPageDirectory->pTables[Itr];
-			NewPd->vTables[Itr] = KernelPageDirectory->vTables[Itr];
+		if (Flags & ADDRESS_SPACE_INHERIT) {
+			for (Itr = 0; Itr < 1023; Itr++)
+			{
+				NewPd->pTables[Itr] = KernelPageDirectory->pTables[Itr];
+				NewPd->vTables[Itr] = KernelPageDirectory->vTables[Itr];
+			}
+		}
+		else {
+			for (Itr = 0; Itr < PAGE_DIRECTORY_INDEX(MEMORY_LOCATION_USER_ARGS) - 1; Itr++)
+			{
+				NewPd->pTables[Itr] = KernelPageDirectory->pTables[Itr];
+				NewPd->vTables[Itr] = KernelPageDirectory->vTables[Itr];
+			}
 		}
 
 		/* Set */

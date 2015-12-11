@@ -68,7 +68,28 @@ int ScProcessJoin(PId_t ProcessId)
 	return Process->ReturnCode;
 }
 
-void ScProcessTerminate(int ExitCode)
+int ScProcessKill(PId_t ProcessId)
+{
+	/* Alloc on stack */
+	MCoreProcessRequest_t Request;
+
+	/* Setup */
+	Request.Type = ProcessKill;
+	Request.Cleanup = 0;
+	Request.ProcessId = ProcessId;
+
+	/* Fire! */
+	PmCreateRequest(&Request);
+	PmWaitRequest(&Request);
+
+	/* Return the exit code */
+	if (Request.State == ProcessRequestOk)
+		return 0;
+	else
+		return -1;
+}
+
+void ScProcessExit(int ExitCode)
 {
 	/* Disable interrupts */
 	IntStatus_t IntrState = InterruptDisable();
@@ -76,6 +97,7 @@ void ScProcessTerminate(int ExitCode)
 	MCoreProcess_t *Process = PmGetProcess(ThreadingGetCurrentThread(CurrentCpu)->ProcessId);
 
 	/* Save return code */
+	LogDebug("SYSC", "Process %s terminated with code %i", Process->Name->Data, ExitCode);
 	Process->ReturnCode = ExitCode;
 
 	/* Terminate all threads used by process */
@@ -108,6 +130,16 @@ void ScProcessYield(void)
 * IPC Functions        *
 ***********************/
 
+
+/***********************
+* VFS Functions        *
+***********************/
+
+
+
+
+
+
 /* NoP */
 void NoOperation(void)
 {
@@ -121,11 +153,11 @@ Addr_t GlbSyscallTable[51] =
 	DefineSyscall(LogDebug),
 
 	/* Process Functions */
-	DefineSyscall(ScProcessTerminate),
+	DefineSyscall(ScProcessExit),
 	DefineSyscall(ScProcessYield),
 	DefineSyscall(ScProcessSpawn),
 	DefineSyscall(ScProcessJoin),
-	DefineSyscall(NoOperation),
+	DefineSyscall(ScProcessKill),
 	DefineSyscall(NoOperation),
 	DefineSyscall(NoOperation),
 	DefineSyscall(NoOperation),

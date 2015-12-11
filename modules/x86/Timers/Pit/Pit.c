@@ -91,6 +91,9 @@ MODULES_API void ModuleInit(void *Data)
 	/* Install Irq */
 	InterruptInstallISA(X86_PIT_IRQ, INTERRUPT_PIT, PitIrqHandler, Timer);
 
+	/* Before enabling, register us */
+	Pit->DeviceId = DmCreateDevice("PIT Timer", DeviceTimer, Timer);
+
 	/* We use counter 0, select counter 0 and configure it */
 	outb(X86_PIT_REGISTER_COMMAND,
 		X86_PIT_COMMAND_SQUAREWAVEGEN |
@@ -101,9 +104,6 @@ MODULES_API void ModuleInit(void *Data)
 	outb(X86_PIT_REGISTER_COUNTER0, (uint8_t)(Divisor & 0xFF));
 	outb(X86_PIT_REGISTER_COUNTER0, (uint8_t)((Divisor >> 8) & 0xFF));
 
-	/* Before enabling, register us */
-	Pit->DeviceId = DmCreateDevice("PIT Timer", DeviceTimer, Pit);
-
 	/* Done, reenable interrupts */
 	InterruptRestoreState(IntrState);
 }
@@ -112,7 +112,7 @@ MODULES_API void ModuleInit(void *Data)
 uint64_t PitGetClocks(void *Data)
 {
 	/* Cast */
-	PitTimer_t *Pit = (PitTimer_t*)Data;
+	volatile PitTimer_t *Pit = (volatile PitTimer_t*)Data;
 
 	/* Return Val */
 	return Pit->PitCounter;

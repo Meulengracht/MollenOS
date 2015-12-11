@@ -143,6 +143,12 @@ MODULES_API void ModuleInit(void *Data)
 	TimerData->Sleep = RtcSleep;
 	TimerData->GetTicks = RtcGetClocks;
 
+	/* Install ISA IRQ Handler using normal install function */
+	InterruptInstallISA(X86_CMOS_RTC_IRQ, INTERRUPT_RTC, RtcIrqHandler, TimerData);
+
+	/* Register us with OS so we can get our function interface */
+	Rtc->DeviceId = DmCreateDevice("Rtc Timer", DeviceTimer, TimerData);
+
 	/* Disable IRQ's for this duration */
 	IntrState = InterruptDisable();
 
@@ -153,12 +159,6 @@ MODULES_API void ModuleInit(void *Data)
 	
 	/* Update state_b */
 	StateB = CmosReadRegister(X86_CMOS_REGISTER_STATUS_B);
-
-	/* Install ISA IRQ Handler using normal install function */
-	InterruptInstallISA(X86_CMOS_RTC_IRQ, INTERRUPT_RTC, RtcIrqHandler, TimerData);
-
-	/* Register us with OS so we can get our function interface */
-	Rtc->DeviceId = DmCreateDevice("Rtc Timer", DeviceTimer, TimerData);
 
 	/* Set Frequency */
 	CmosWriteRegister(X86_CMOS_REGISTER_STATUS_A, 0x20 | Rate);

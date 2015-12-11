@@ -31,6 +31,9 @@
     <Filter Include="Source\stdlib">
       <UniqueIdentifier>{5815a8d1-566a-496e-9ca6-01425251df84}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Source\os">
+      <UniqueIdentifier>{f37ed1ba-8073-431b-a175-b9803ceb872b}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\src\string\atof.c">
@@ -245,6 +248,9 @@
     </ClCompile>
     <ClCompile Include="..\src\stdlib\exit.c">
       <Filter>Source\stdlib</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\os\Syscalls.c">
+      <Filter>Source\os</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
