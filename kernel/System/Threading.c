@@ -281,13 +281,11 @@ TId_t ThreadingCreateThread(char *Name, ThreadEntry_t Function, void *Args, int 
 	nThread->Name = strdup(Name);
 	nThread->Func = Function;
 	nThread->Args = Args;
-	nThread->Flags = Flags;
+	nThread->Flags = (Flags & ~(THREADING_USERMODE));
 
 	/* If we are CPU bound :/ */
 	if (Flags & THREADING_CPUBOUND)
-	{
 		nThread->CpuId = Cpu;
-	}
 	else
 	{
 		/* Select the low bearing CPU */
