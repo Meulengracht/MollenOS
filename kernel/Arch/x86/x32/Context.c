@@ -80,10 +80,10 @@ Registers_t *ContextUserCreate(Addr_t StackStartAddr, Addr_t Eip, Addr_t *Args)
 	uContext = (Registers_t*)(StackStartAddr - sizeof(Registers_t) - sizeof(Addr_t));
 
 	/* Set Segments */
-	uContext->Ds = X86_GDT_USER_DATA + 0x03;
-	uContext->Fs = X86_GDT_USER_DATA + 0x03;
-	uContext->Es = X86_GDT_USER_DATA + 0x03;
-	uContext->Gs = X86_GDT_USER_DATA + 0x03;
+	uContext->Ds = X86_USER_DATA_SEGMENT + 0x03;
+	uContext->Fs = X86_USER_DATA_SEGMENT + 0x03;
+	uContext->Es = X86_USER_DATA_SEGMENT + 0x03;
+	uContext->Gs = X86_USER_DATA_SEGMENT + 0x03;
 
 	/* Initialize Registers */
 	uContext->Eax = 0;
@@ -106,7 +106,7 @@ Registers_t *ContextUserCreate(Addr_t StackStartAddr, Addr_t Eip, Addr_t *Args)
 
 	/* Null user stuff */
 	uContext->UserEsp = (Addr_t)&uContext->UserEsp;
-	uContext->UserSs = X86_GDT_USER_DATA + 0x03;
+	uContext->UserSs = X86_USER_DATA_SEGMENT + 0x03;
 	uContext->UserArg = (Addr_t)Args;
 
 	/* Done! */

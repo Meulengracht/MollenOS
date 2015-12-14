@@ -198,11 +198,10 @@ _syscall_entry:
 
 	; Lookup Function
 	shl eax, 2
-	mov ebx, [_GlbSyscallTable]
-	mov ecx, [ebx + eax]
+	mov ebx, [_GlbSyscallTable + eax]
 	
 	; Call function
-	call ecx
+	call ebx
 
 	; Cleanup
 	add esp, 20

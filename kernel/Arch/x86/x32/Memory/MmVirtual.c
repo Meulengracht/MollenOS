@@ -419,7 +419,7 @@ void MmVirtualInit(void)
 	memset((void*)KernelPageDirectory, 0, sizeof(PageDirectory_t));
 
 	/* Install it */
-	KernelPageDirectory->pTables[0] = (PhysAddr_t)itable | PAGE_PRESENT | PAGE_WRITE;
+	KernelPageDirectory->pTables[0] = (PhysAddr_t)itable | PAGE_USER | PAGE_PRESENT | PAGE_WRITE;
 	KernelPageDirectory->vTables[0] = (Addr_t)itable;
 	
 	/* Init mutexes */
@@ -539,7 +539,8 @@ AddressSpace_t *AddressSpaceCreate(uint32_t Flags)
 	{
 		/* Create new */
 		Addr_t PhysAddr = 0;
-		PageDirectory_t *NewPd = (PageDirectory_t*)kmalloc_p(sizeof(PageDirectory_t), &PhysAddr);
+		PageDirectory_t *NewPd = (PageDirectory_t*)kmalloc_ap(sizeof(PageDirectory_t), &PhysAddr);
+		PageDirectory_t *CurrPd = (PageDirectory_t*)AddressSpaceGetCurrent()->PageDirectory;
 
 		/* Start out by resetting all */
 		memset(NewPd, 0, sizeof(PageDirectory_t));
@@ -547,19 +548,22 @@ AddressSpace_t *AddressSpaceCreate(uint32_t Flags)
 		/* Setup Lock */
 		CriticalSectionConstruct(&NewPd->Lock);
 
-		/* Map in kernel space */
-		if (Flags & ADDRESS_SPACE_INHERIT) {
-			for (Itr = 0; Itr < 1023; Itr++)
-			{
+		/* Create shared mappings */
+		for (Itr = 0; Itr < 1024; Itr++)
+		{
+			/* Sanity - Kernel Mapping */
+			if (KernelPageDirectory->pTables[Itr]) {
 				NewPd->pTables[Itr] = KernelPageDirectory->pTables[Itr];
 				NewPd->vTables[Itr] = KernelPageDirectory->vTables[Itr];
+				continue;
 			}
-		}
-		else {
-			for (Itr = 0; Itr < PAGE_DIRECTORY_INDEX(MEMORY_LOCATION_USER_ARGS) - 1; Itr++)
-			{
-				NewPd->pTables[Itr] = KernelPageDirectory->pTables[Itr];
-				NewPd->vTables[Itr] = KernelPageDirectory->vTables[Itr];
+
+			/* Inherit? (Yet, never inherit last pagedir, thats where stack is) */
+			if (Flags & ADDRESS_SPACE_INHERIT
+				&& Itr != 1023
+				&& CurrPd->pTables[Itr]) {
+				NewPd->pTables[Itr] = CurrPd->pTables[Itr];
+				NewPd->vTables[Itr] = CurrPd->vTables[Itr];
 			}
 		}
 
