@@ -19,9 +19,6 @@
 * MollenOS Syscall Interface
 */
 
-/* Includes */
-
-
 /* Extern */
 extern int _syscall(int Function, int Arg0, int Arg1, int Arg2, int Arg3, int Arg4);
 

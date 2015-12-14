@@ -124,7 +124,15 @@ void ScProcessYield(void)
 /***********************
 * Memory Functions     *
 ***********************/
+Addr_t ScMemoryAllocate(size_t Size, int Flags)
+{
 
+}
+
+int ScMemoryFree(Addr_t Adress, size_t Length)
+{
+
+}
 
 /***********************
 * IPC Functions        *
@@ -177,8 +185,8 @@ Addr_t GlbSyscallTable[51] =
 	DefineSyscall(NoOperation),
 
 	/* Memory Functions */
-	DefineSyscall(NoOperation),
-	DefineSyscall(NoOperation),
+	DefineSyscall(ScMemoryAllocate),
+	DefineSyscall(ScMemoryFree),
 	DefineSyscall(NoOperation),
 	DefineSyscall(NoOperation),
 	DefineSyscall(NoOperation),

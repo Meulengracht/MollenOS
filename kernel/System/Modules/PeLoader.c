@@ -630,12 +630,6 @@ list_t *PeResolveLibraryDependency(MCorePeFile_t *Parent, MCorePeFile_t *PeFile,
 	if (Exports == NULL)
 	{
 		/* Resolve Library */
-		IntStatus_t IntrState = 0;
-
-		/* Enable ints */
-		IntrState = InterruptEnable();
-
-		/* Now load file */
 		MCoreFile_t *lFile = VfsOpen(LibraryName->Data, Read);
 		uint8_t *fBuffer = (uint8_t*)kmalloc((size_t)lFile->Size);
 		MCorePeFile_t *Library = NULL;
@@ -645,9 +639,6 @@ list_t *PeResolveLibraryDependency(MCorePeFile_t *Parent, MCorePeFile_t *PeFile,
 
 		/* Cleanup */
 		VfsClose(lFile);
-
-		/* Restore ints */
-		InterruptRestoreState(IntrState);
 
 		/* Load */
 		Library = PeLoadImage(ExportParent, LibraryName, fBuffer, NextLoadAddress);
@@ -911,7 +902,7 @@ MCorePeFile_t *PeLoadImage(MCorePeFile_t *Parent, MString_t *Name, uint8_t *Buff
 		list_append(Parent->LoadedLibraries, list_create_node(0, PeInfo));
 
 	/* Step 3. Load Imports */
-	//PeLoadImageImports(Parent, PeInfo, &DirectoryPtr[PE_SECTION_IMPORT], BaseAddress);
+	PeLoadImageImports(Parent, PeInfo, &DirectoryPtr[PE_SECTION_IMPORT], BaseAddress);
 
 	/* Step 4. Call entry points of loaded libraries (!?!?!?!?) */
 

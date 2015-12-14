@@ -234,13 +234,13 @@ _t2$1$ = -8						; size = 8
 tv1040 = -8						; size = 8
 _y1$ = -8						; size = 8
 _p_h$ = -8						; size = 8
-_s_h$2 = -8						; size = 8
 tv211 = -8						; size = 8
 tv204 = -8						; size = 8
 tv197 = -8						; size = 8
 tv192 = -8						; size = 8
 tv144 = -8						; size = 8
 tv141 = -8						; size = 8
+_s_h$2 = -8						; size = 8
 _ax$ = -8						; size = 8
 _x$ = 8							; size = 8
 _y$ = 16						; size = 8

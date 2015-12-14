@@ -23,7 +23,6 @@ _frexp	PROC						; COMDAT
 
   00000	55		 push	 ebp
   00001	8b ec		 mov	 ebp, esp
-  00003	8b 55 10	 mov	 edx, DWORD PTR _exptr$[ebp]
 
 ; 11   : 	union
 ; 12   : 	{
@@ -35,6 +34,7 @@ _frexp	PROC						; COMDAT
 ; 18   : 
 ; 19   : 	if(exptr != NULL)
 
+  00003	8b 55 10	 mov	 edx, DWORD PTR _exptr$[ebp]
   00006	8b 4d 0c	 mov	 ecx, DWORD PTR ___x$[ebp+4]
   00009	85 d2		 test	 edx, edx
   0000b	74 11		 je	 SHORT $LN1@frexp

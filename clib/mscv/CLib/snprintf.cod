@@ -11,14 +11,10 @@ INCLUDELIB OLDNAMES
 
 PUBLIC	_snprintf
 EXTRN	_streamout:PROC
-EXTRN	@__security_check_cookie@4:PROC
-EXTRN	___security_cookie:DWORD
 ; Function compile flags: /Ogtp
 ; File c:\users\philip\documents\github\mollenos\clib\src\stdio\snprintf.c
 ;	COMDAT _snprintf
 _TEXT	SEGMENT
-_str$GSCopy$ = -8					; size = 4
-__$ArrayPad$ = -4					; size = 4
 _str$ = 8						; size = 4
 _size$ = 12						; size = 4
 _format$ = 16						; size = 4
@@ -28,53 +24,44 @@ _snprintf PROC						; COMDAT
 
   00000	55		 push	 ebp
   00001	8b ec		 mov	 ebp, esp
-  00003	83 ec 08	 sub	 esp, 8
-  00006	a1 00 00 00 00	 mov	 eax, DWORD PTR ___security_cookie
-  0000b	33 c5		 xor	 eax, ebp
-  0000d	89 45 fc	 mov	 DWORD PTR __$ArrayPad$[ebp], eax
 
 ; 18   : 	va_list args;
 ; 19   : 
 ; 20   : 	if(format == NULL || str == NULL)
 
-  00010	8b 4d 10	 mov	 ecx, DWORD PTR _format$[ebp]
-  00013	8b 45 08	 mov	 eax, DWORD PTR _str$[ebp]
-  00016	89 45 f8	 mov	 DWORD PTR _str$GSCopy$[ebp], eax
-  00019	85 c9		 test	 ecx, ecx
-  0001b	74 26		 je	 SHORT $LN1@snprintf
-  0001d	85 c0		 test	 eax, eax
-  0001f	74 22		 je	 SHORT $LN1@snprintf
+  00003	8b 45 10	 mov	 eax, DWORD PTR _format$[ebp]
+  00006	85 c0		 test	 eax, eax
+  00008	74 1c		 je	 SHORT $LN1@snprintf
+  0000a	83 7d 08 00	 cmp	 DWORD PTR _str$[ebp], 0
+  0000e	74 16		 je	 SHORT $LN1@snprintf
 
-; 21   : 		return -1;
 ; 22   : 
 ; 23   : 	va_start( args, format );
 ; 24   : 	return streamout( &str, size, format, args );
 
-  00021	8d 45 14	 lea	 eax, DWORD PTR _format$[ebp+4]
-  00024	50		 push	 eax
-  00025	51		 push	 ecx
-  00026	ff 75 0c	 push	 DWORD PTR _size$[ebp]
-  00029	8d 45 f8	 lea	 eax, DWORD PTR _str$GSCopy$[ebp]
-  0002c	50		 push	 eax
-  0002d	e8 00 00 00 00	 call	 _streamout
-  00032	83 c4 10	 add	 esp, 16			; 00000010H
+  00010	8d 4d 14	 lea	 ecx, DWORD PTR _format$[ebp+4]
+  00013	51		 push	 ecx
+  00014	50		 push	 eax
+  00015	ff 75 0c	 push	 DWORD PTR _size$[ebp]
+  00018	8d 45 08	 lea	 eax, DWORD PTR _str$[ebp]
+  0001b	50		 push	 eax
+  0001c	e8 00 00 00 00	 call	 _streamout
+  00021	83 c4 10	 add	 esp, 16			; 00000010H
 
 ; 25   : }
 
-  00035	8b 4d fc	 mov	 ecx, DWORD PTR __$ArrayPad$[ebp]
-  00038	33 cd		 xor	 ecx, ebp
-  0003a	e8 00 00 00 00	 call	 @__security_check_cookie@4
-  0003f	8b e5		 mov	 esp, ebp
-  00041	5d		 pop	 ebp
-  00042	c3		 ret	 0
+  00024	5d		 pop	 ebp
+  00025	c3		 ret	 0
 $LN1@snprintf:
-  00043	8b 4d fc	 mov	 ecx, DWORD PTR __$ArrayPad$[ebp]
-  00046	83 c8 ff	 or	 eax, -1
-  00049	33 cd		 xor	 ecx, ebp
-  0004b	e8 00 00 00 00	 call	 @__security_check_cookie@4
-  00050	8b e5		 mov	 esp, ebp
-  00052	5d		 pop	 ebp
-  00053	c3		 ret	 0
+
+; 21   : 		return -1;
+
+  00026	83 c8 ff	 or	 eax, -1
+
+; 25   : }
+
+  00029	5d		 pop	 ebp
+  0002a	c3		 ret	 0
 _snprintf ENDP
 _TEXT	ENDS
 END

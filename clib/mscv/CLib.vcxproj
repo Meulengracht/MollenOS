@@ -31,6 +31,7 @@
     <ClCompile Include="..\src\math\sin.c" />
     <ClCompile Include="..\src\math\sinf.c" />
     <ClCompile Include="..\src\math\tanh.c" />
+    <ClCompile Include="..\src\os\Malloc.c" />
     <ClCompile Include="..\src\os\Syscalls.c" />
     <ClCompile Include="..\src\setjmp\setjmp.c" />
     <ClCompile Include="..\src\signal\signal.c" />
@@ -44,6 +45,7 @@
     <ClCompile Include="..\src\stdio\vprintf.c" />
     <ClCompile Include="..\src\stdio\vsnprintf.c" />
     <ClCompile Include="..\src\stdio\vsprintf.c" />
+    <ClCompile Include="..\src\stdlib\abort.c" />
     <ClCompile Include="..\src\stdlib\abs.c" />
     <ClCompile Include="..\src\stdlib\div.c" />
     <ClCompile Include="..\src\stdlib\exit.c" />
@@ -102,6 +104,7 @@
     <MASM Include="..\src\math\sqrt.S">
       <FileType>Document</FileType>
     </MASM>
+    <MASM Include="..\src\os\ScAsm32.asm" />
   </ItemGroup>
   <ItemGroup>
     <MASM Include="..\crt\alldvrm.S">
@@ -171,6 +174,7 @@
     <PlatformToolset>v120</PlatformToolset>
     <WholeProgramOptimization>false</WholeProgramOptimization>
     <CharacterSet>MultiByte</CharacterSet>
+    <UseOfMfc />
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
   <ImportGroup Label="ExtensionSettings">
@@ -252,8 +256,7 @@
       <Optimization>Full</Optimization>
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>false</IntrinsicFunctions>
-      <PreprocessorDefinitions>
-      </PreprocessorDefinitions>
+      <PreprocessorDefinitions>MOLLENOS</PreprocessorDefinitions>
       <SDLCheck>true</SDLCheck>
       <CompileAsManaged>
       </CompileAsManaged>
@@ -269,6 +272,7 @@
       <DisableSpecificWarnings>4706;4127;4100;4738</DisableSpecificWarnings>
       <InlineFunctionExpansion>OnlyExplicitInline</InlineFunctionExpansion>
       <BasicRuntimeChecks>Default</BasicRuntimeChecks>
+      <BufferSecurityCheck>false</BufferSecurityCheck>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>

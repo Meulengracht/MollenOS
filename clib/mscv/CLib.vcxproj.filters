@@ -252,6 +252,12 @@
     <ClCompile Include="..\src\os\Syscalls.c">
       <Filter>Source\os</Filter>
     </ClCompile>
+    <ClCompile Include="..\src\os\Malloc.c">
+      <Filter>Source\os</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\stdlib\abort.c">
+      <Filter>Source\stdlib</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <MASM Include="..\src\math\fabs.S">
@@ -319,6 +325,9 @@
     </MASM>
     <MASM Include="..\crt\sstart.asm">
       <Filter>Source\crt</Filter>
+    </MASM>
+    <MASM Include="..\src\os\ScAsm32.asm">
+      <Filter>Source\os</Filter>
     </MASM>
   </ItemGroup>
 </Project>

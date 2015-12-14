@@ -13,22 +13,14 @@
 * along with this program.If not, see <http://www.gnu.org/licenses/>.
 *
 *
-* MollenOS CLib - Exit Function (Exit normally with CRT Cleanup)
+* MollenOS CLib - Abort Function (Exit)
 */
 
 /* Includes */
-#include <os/Syscall.h>
 #include <stddef.h>
 #include <stdlib.h>
 
-/* Terminate */
-void exit(int status)
+void abort(void)
 {
-	/* Cleanup Crt */
-
-	/* Clean us up */
-	Syscall1(MOLLENOS_SYSCALL_TERMINATE, -1);
-
-	/* Yield */
-	Syscall0(MOLLENOS_SYSCALL_YIELD);
+	exit(-1);
 }
