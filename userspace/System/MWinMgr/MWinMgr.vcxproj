@@ -49,8 +49,8 @@
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <LinkIncremental>false</LinkIncremental>
-    <IncludePath>..\..\..\clib\include</IncludePath>
-    <LibraryPath>..\..\..\clib\build</LibraryPath>
+    <IncludePath>..\..\..\clib\include;..\..\Libraries\Includes\SDL\</IncludePath>
+    <LibraryPath>..\..\..\clib\build;..\..\Libraries\Lib\</LibraryPath>
     <TargetExt>.mxi</TargetExt>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
@@ -96,7 +96,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="MWingMgr.cpp" />
+    <ClCompile Include="MWinMgr.cpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
