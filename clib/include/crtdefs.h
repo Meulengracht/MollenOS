@@ -47,6 +47,9 @@
 #else
 #define _CRT_EXPORT __declspec(dllexport)
 #endif
+#ifndef _MOS_API
+#define _MOS_API
+#endif
 #endif
 
 #ifndef _W64

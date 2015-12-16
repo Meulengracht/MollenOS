@@ -316,7 +316,7 @@ void InterruptInstallIdtOnly(uint32_t Gsi, uint32_t IdtEntry, IrqHandler_t Callb
 }
 
 /* Allocate ISA Interrupt */
-OsStatus_t InterruptAllocateISA(uint32_t Irq)
+int InterruptAllocateISA(uint32_t Irq)
 {
 	/* Sanity */
 	if (Irq > 15)

@@ -34,6 +34,7 @@
 #include <Devices\Disk.h>
 #include <Devices\Timer.h>
 #include <Devices\Input.h>
+#include <Devices\Video.h>
 
 /* Globals */
 uint32_t GlbDmInitialized = 0;
@@ -179,6 +180,24 @@ void DmRequestHandler(void *Args)
 						Request->Status = RequestOk;
 					}
 				}
+				else if (Dev->Type == DeviceVideo)
+				{
+					/* Cast again */
+					MCoreVideoDevice_t *Video = (MCoreVideoDevice_t*)Dev->Data;
+
+					/* Validate buffer */
+					if (Request->Buffer == NULL
+						|| Request->Length < sizeof(MCoreVideoDescriptor_t))
+						Request->Status = RequestInvalidParameters;
+					else
+					{
+						/* Copy the descriptor */
+						memcpy(Request->Buffer, &Video->Info, sizeof(MCoreVideoDescriptor_t));
+
+						/* Done */
+						Request->Status = RequestOk;
+					}
+				}
 
 			} break;
 
@@ -272,8 +291,7 @@ DevId_t DmCreateDevice(char *Name, uint32_t Type, void *Data)
 		{
 			/* Cast */
 			MCoreInputDevice_t *Input = (MCoreInputDevice_t*)Data;
-			Input->ReportButtonEvent = InputManagerCreateButtonEvent;
-			Input->ReportPointerEvent = InputManagerCreatePointerEvent;
+			Input->ReportEvent = EmCreateEvent;
 
 		} break;
 

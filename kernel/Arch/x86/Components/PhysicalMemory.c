@@ -20,7 +20,7 @@
 */
 
 /* Includes */
-#include <Arch.h>
+#include "../../Arch.h"
 #include <Memory.h>
 #include <Multiboot.h>
 #include <Log.h>

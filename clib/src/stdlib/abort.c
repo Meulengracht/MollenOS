@@ -20,7 +20,11 @@
 #include <stddef.h>
 #include <stdlib.h>
 
+#ifndef LIBC_KERNEL
+
 void abort(void)
 {
 	exit(-1);
 }
+
+#endif

@@ -31,8 +31,10 @@
     <ClCompile Include="..\src\math\sin.c" />
     <ClCompile Include="..\src\math\sinf.c" />
     <ClCompile Include="..\src\math\tanh.c" />
+    <ClCompile Include="..\src\os\Devices.c" />
     <ClCompile Include="..\src\os\Malloc.c" />
     <ClCompile Include="..\src\os\Syscalls.c" />
+    <ClCompile Include="..\src\os\System.c" />
     <ClCompile Include="..\src\setjmp\setjmp.c" />
     <ClCompile Include="..\src\signal\signal.c" />
     <ClCompile Include="..\src\stdio\fprintf.c" />

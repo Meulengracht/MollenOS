@@ -56,8 +56,6 @@ extern void			srand(unsigned int seed);
 //              Memory Management (malloc, free)              //
 //------------------------------------------------------------//
 
-extern void			*VirtualAlloc(size_t Size);
-extern int			VirtualFree(void *ptr, size_t Size);
 extern void			*malloc(size_t);
 extern void			*realloc(void *, size_t);
 extern void			*calloc(size_t, size_t);

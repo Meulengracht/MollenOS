@@ -19,7 +19,8 @@
 * MollenOS x86-32 Virtual Memory Manager
 */
 
-#include <Arch.h>
+#include "../../Arch.h"
+#include <Devices/Video.h>
 #include <Heap.h>
 #include <Video.h>
 #include <Memory.h>
@@ -40,7 +41,7 @@ Spinlock_t VmLock;
 
 /* Externs */
 extern volatile uint32_t GlbNumLogicalCpus;
-extern Graphics_t GfxInformation;
+extern MCoreVideoDevice_t BootVideo;
 extern SysMemMapping_t SysMappings[32];
 extern void memory_set_paging(int enable);
 extern void memory_load_cr3(Addr_t pda);
@@ -435,8 +436,8 @@ void MmVirtualInit(void)
 
 	/* VIDEO MEMORY (WITH FILL) */
 	LogInformation("VMEM", "Mapping video memory to 0x%x", MEMORY_LOCATION_VIDEO);
-	MmVirtualIdentityMapMemoryRange(KernelPageDirectory, GfxInformation.VideoAddr,
-		MEMORY_LOCATION_VIDEO, (GfxInformation.BytesPerScanLine * GfxInformation.ResY), 1, PAGE_USER);
+	MmVirtualIdentityMapMemoryRange(KernelPageDirectory, BootVideo.Info.FrameBufferAddr,
+		MEMORY_LOCATION_VIDEO, (BootVideo.Info.BytesPerScanline * BootVideo.Info.Height), 1, PAGE_USER);
 
 	/* Now, tricky, map reserved memory regions */
 
@@ -472,7 +473,7 @@ void MmVirtualInit(void)
 	}
 
 	/* Modify Video Address */
-	GfxInformation.VideoAddr = MEMORY_LOCATION_VIDEO;
+	BootVideo.Info.FrameBufferAddr = MEMORY_LOCATION_VIDEO;
 
 	/* Last step is to mark all the memory region 
 	 * where irq handlers reside for PAGE_USER 

@@ -21,6 +21,8 @@
 #include <stddef.h>
 #include <stdlib.h>
 
+#ifndef LIBC_KERNEL
+
 /* Terminate */
 void exit(int status)
 {
@@ -32,3 +34,5 @@ void exit(int status)
 	/* Yield */
 	Syscall0(MOLLENOS_SYSCALL_YIELD);
 }
+
+#endif

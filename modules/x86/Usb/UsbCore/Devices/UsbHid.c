@@ -561,8 +561,15 @@ void UsbHidApplyInputData(HidDevice_t *Device, UsbHidReportCollectionItem_t *Col
 	UsbHidReportInputItem_t *InputItem = (UsbHidReportInputItem_t*)CollectionItem->Data;
 
 	/* Need those for registrating events */
-	ImPointerEvent_t PointerData = { 0 };
-	ImButtonEvent_t ButtonData = { 0 };
+	MCorePointerEvent_t PointerData = { 0 };
+	MCoreButtonEvent_t ButtonData = { 0 };
+
+	/* Set Headers */
+	ButtonData.Header.Type = EventInput;
+	ButtonData.Header.Length = sizeof(MCoreButtonEvent_t);
+
+	PointerData.Header.Type = EventInput;
+	PointerData.Header.Length = sizeof(MCorePointerEvent_t);
 
 	/* And these for parsing */
 	uint64_t Value = 0, OldValue = 0;

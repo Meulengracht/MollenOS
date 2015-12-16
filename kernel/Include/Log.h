@@ -28,7 +28,9 @@
 /* Definitions */
 typedef enum _LogTarget
 {
-	LogConsole
+	LogMemory,
+	LogConsole,
+	LogFile
 } LogTarget_t;
 
 typedef enum _LogLevel
@@ -46,6 +48,7 @@ typedef enum _LogLevel
 
 /* Functions */
 _CRT_EXTERN void LogInit(LogTarget_t Output, LogLevel_t Level);
+_CRT_EXTERN void LogRedirect(LogTarget_t Output);
 
 /* The log functions */
 _CRT_EXPORT void Log(const char *Message, ...);

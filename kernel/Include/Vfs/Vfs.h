@@ -70,16 +70,17 @@ typedef enum _VfsFileFlags
 
 	/* Utilities */
 	CreateIfNotExists = 0x4,
-	OverwriteIfExists = 0x8,
+	TruncateIfExists = 0x8,
+	FailIfExists = 0x10,
 	
 	/* Data Flags */
-	Binary	= 0x10,
-	NoBuffering = 0x20,
-	Append = 0x40,
+	Binary	= 0x20,
+	NoBuffering = 0x40,
+	Append = 0x80,
 
 	/* Share Flags */
-	ReadShare	= 0x80,
-	WriteShare	= 0x100
+	ReadShare	= 0x100,
+	WriteShare	= 0x200
 
 } VfsFileFlags_t;
 
@@ -180,7 +181,7 @@ _CRT_EXTERN VfsErrorCode_t VfsSeek(MCoreFile_t *Handle, uint64_t Offset);
 _CRT_EXTERN VfsErrorCode_t VfsFlush(MCoreFile_t *Handle);
 
 /* Utilities */
-_CRT_EXTERN VfsErrorCode_t VfsRename(MCoreFile_t *Handle);
 _CRT_EXTERN VfsErrorCode_t VfsQuery(MCoreFile_t *Handle);
+_CRT_EXTERN VfsErrorCode_t VfsMove(const char *Path, const char *NewPath, int Copy);
 
 #endif //!_MCORE_VFS_H_

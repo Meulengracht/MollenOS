@@ -16,19 +16,39 @@
 * along with this program.If not, see <http://www.gnu.org/licenses/>.
 *
 *
-* MollenOS Input Manager
+* MollenOS Event Manager
 */
 
-#ifndef _MCORE_INPUT_MANAGER_H_
-#define _MCORE_INPUT_MANAGER_H_
+#ifndef _MCORE_EVENT_MANAGER_H_
+#define _MCORE_EVENT_MANAGER_H_
 
 /* Includes */
+#include <ProcessManager.h>
 #include <crtdefs.h>
 #include <stdint.h>
 
 /* Structures */
-typedef struct _ImPointerEvent
+typedef enum _MCoreProcessEventType
 {
+	EventInput
+
+} MCoreProcessEventType_t;
+
+typedef struct _MCoreProcessEvent
+{
+	/* Type */
+	MCoreProcessEventType_t Type;
+
+	/* Length */
+	size_t Length;
+
+} MCoreProcessEvent_t;
+
+typedef struct _MCorePointerEvent
+{
+	/* Header */
+	MCoreProcessEvent_t Header;
+
 	/* Pointer Type */
 	uint32_t Type;
 
@@ -40,7 +60,7 @@ typedef struct _ImPointerEvent
 
 	/* Rotation Data */
 
-} ImPointerEvent_t;
+} MCorePointerEvent_t;
 
 /* Input Types */
 #define MCORE_INPUT_TYPE_UNKNOWN	0x0
@@ -51,8 +71,11 @@ typedef struct _ImPointerEvent
 #define MCORE_INPUT_TYPE_GAMEPAD	0x5
 #define MCORE_INPUT_TYPE_OTHER		0x6
 
-typedef struct _ImButtonEvent
+typedef struct _MCoreButtonEvent
 {
+	/* Header */
+	MCoreProcessEvent_t Header;
+
 	/* Button Type */
 	uint32_t Type;
 
@@ -62,7 +85,7 @@ typedef struct _ImButtonEvent
 	/* Button State (Press / Release) */
 	uint32_t State;
 
-} ImButtonEvent_t;
+} MCoreButtonEvent_t;
 
 /* Event Types */
 #define MCORE_INPUT_LEFT_MOUSEBUTTON	0x1
@@ -73,11 +96,9 @@ typedef struct _ImButtonEvent
 #define MCORE_INPUT_BUTTON_CLICKED		0x1
 
 /* Prototypes */
+_CRT_EXTERN void EmRegisterSystemTarget(PId_t ProcessId);
 
 /* Write data to pointer pipe */
-_CRT_EXTERN void InputManagerCreatePointerEvent(ImPointerEvent_t *Event);
-
-/* Write data to button pipe */
-_CRT_EXTERN void InputManagerCreateButtonEvent(ImButtonEvent_t *Event);
+_CRT_EXTERN void EmCreateEvent(MCoreProcessEvent_t *Event);
 
 #endif // !_MCORE_INPUT_MANAGER_H_

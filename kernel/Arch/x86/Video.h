@@ -72,40 +72,6 @@ typedef struct _VbeMode
 } VbeMode_t;
 #pragma pack(pop)
 
-/* The Graphic Info structure we save 
- * in the kernel. */
-#pragma pack(push, 1)
-typedef struct _Graphics
-{
-	//Graphics mode (Text, VGA, VESA, NATIVE)
-	uint8_t GraphicMode;
-
-	//Resolution
-	uint16_t ResX;
-	uint16_t ResY;
-
-	//Screen info
-	uint8_t BitsPerPixel;
-	uint16_t BytesPerScanLine;
-
-	//Video Address
-	uint32_t VideoAddr;
-	uint8_t DirectColorModeInfo;
-
-	//Info
-	uint8_t RedMaskSize;
-	uint8_t RedMaskPos;
-	uint8_t GreenMaskSize;
-	uint8_t GreenMaskPos;
-	uint8_t BlueMaskSize;
-	uint8_t BlueMaskPos;
-	uint8_t ReservedMaskSize;
-	uint8_t ReservedMaskPos;
-	uint16_t Attributes;
-
-} Graphics_t;
-#pragma pack(pop)
-
 /* Video */
 _CRT_EXTERN void _VideoSetup(void *VideoInfo, void *BootInfo);
 

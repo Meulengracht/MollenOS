@@ -258,6 +258,12 @@
     <ClCompile Include="..\src\stdlib\abort.c">
       <Filter>Source\stdlib</Filter>
     </ClCompile>
+    <ClCompile Include="..\src\os\Devices.c">
+      <Filter>Source\os</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\os\System.c">
+      <Filter>Source\os</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <MASM Include="..\src\math\fabs.S">

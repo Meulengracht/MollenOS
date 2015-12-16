@@ -40,7 +40,7 @@ void VideoDrawLine(MCoreVideoDevice_t *VideoDevice,
 	int err = (dx > dy ? dx : -dy) / 2, e2;
 
 	for (;;) {
-		VideoDevice->DrawPixel(VideoDevice->Data, StartX, StartY, Color);
+		VideoDevice->DrawPixel(VideoDevice, StartX, StartY, Color);
 		if (StartX == EndX && StartY == EndY) break;
 		e2 = err;
 		if (e2 >-dx) { err -= dy; StartX += sx; }
@@ -69,7 +69,7 @@ void VideoDrawBootTerminal(MCoreVideoDevice_t *VideoDevice,
 	while (*TitlePtr)
 	{
 		char Char = *TitlePtr;
-		VideoDevice->DrawCharacter(VideoDevice->Data, 
+		VideoDevice->DrawCharacter(VideoDevice, 
 			(int)Char, TitleStartY, TitleStartX, 0xFFFFFF, 0x2980B9);
 		TitleStartX += 10;
 

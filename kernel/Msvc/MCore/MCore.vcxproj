@@ -36,6 +36,7 @@
     <ClCompile Include="..\..\System\Vfs.c" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="..\..\Arch\Arch.h" />
     <ClInclude Include="..\..\Include\CriticalSection.h" />
     <ClInclude Include="..\..\Include\Devices\Clock.h" />
     <ClInclude Include="..\..\Include\Devices\Disk.h" />

@@ -58,7 +58,7 @@ typedef struct _IrqEntry
 
 /* Prototypes */
 _CRT_EXTERN void InterruptInit(void);
-_CRT_EXPORT OsStatus_t InterruptAllocateISA(uint32_t Irq);
+_CRT_EXPORT int InterruptAllocateISA(uint32_t Irq);
 _CRT_EXPORT void InterruptInstallISA(uint32_t Irq, uint32_t IdtEntry, IrqHandler_t Callback, void *Args);/* Install PCI Interrupt */
 _CRT_EXPORT void InterruptInstallIdtOnly(uint32_t Gsi, uint32_t IdtEntry, IrqHandler_t Callback, void *Args);
 _CRT_EXPORT void InterruptInstallShared(uint32_t Irq, uint32_t IdtEntry, IrqHandler_t Callback, void *Args);

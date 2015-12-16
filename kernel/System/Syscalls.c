@@ -126,12 +126,41 @@ void ScProcessYield(void)
 ***********************/
 Addr_t ScMemoryAllocate(size_t Size, int Flags)
 {
+	/* Locate Process */
+	Cpu_t CurrentCpu = ApicGetCpu();
+	MCoreProcess_t *Process = 
+		PmGetProcess(ThreadingGetCurrentThread(CurrentCpu)->ProcessId);
 
+	/* For now.. */
+	_CRT_UNUSED(Flags);
+
+	/* Sanity */
+	if (Process == NULL)
+		return (Addr_t)-1;
+
+	/* Call */
+	return (Addr_t)umalloc(Process->Heap, Size);
 }
 
-int ScMemoryFree(Addr_t Adress, size_t Length)
+int ScMemoryFree(Addr_t Address, size_t Length)
 {
+	/* Locate Process */
+	Cpu_t CurrentCpu = ApicGetCpu();
+	MCoreProcess_t *Process =
+		PmGetProcess(ThreadingGetCurrentThread(CurrentCpu)->ProcessId);
 
+	/* For now.. */
+	_CRT_UNUSED(Length);
+
+	/* Sanity */
+	if (Process == NULL)
+		return (Addr_t)-1;
+
+	/* Call */
+	ufree(Process->Heap, (void*)Address);
+
+	/* Done */
+	return 0;
 }
 
 /***********************
@@ -142,20 +171,175 @@ int ScMemoryFree(Addr_t Adress, size_t Length)
 /***********************
 * VFS Functions        *
 ***********************/
+#include <Vfs/Vfs.h>
+#include <stdio.h>
 
-
-
-
-
-
-/* NoP */
-void NoOperation(void)
+/* Open File */
+int ScVfsOpen(const char *Utf8, FILE *cData, VfsFileFlags_t OpenFlags)
 {
+	/* Sanity */
+	if (Utf8 == NULL || cData == NULL)
+		return -1;
 
+	/* Try */
+	MCoreFile_t *Handle = VfsOpen(Utf8, OpenFlags);
+
+	/* Done */
+	cData->_handle = (void*)Handle;
+	return 0 - (int)Handle->Code;
+}
+
+/* Close File */
+int ScVfsClose(FILE *cData)
+{
+	/* Sanity */
+	if (cData == NULL || cData->_handle == NULL)
+		return -1;
+
+	/* Deep Call */
+	return 0 - (int)VfsClose((MCoreFile_t*)cData->_handle);
+}
+
+/* Read File */
+int ScVfsRead(FILE *cData, uint8_t *Buffer, size_t Length)
+{
+	/* Sanity */
+	if (cData == NULL || cData->_handle == NULL
+		|| Buffer == NULL)
+		return -1;
+
+	/* More sanity */
+	if (Length == 0)
+		return 0;
+
+	/* Done */
+	return (int)VfsRead((MCoreFile_t*)cData->_handle, Buffer, Length);
+}
+
+/* Write File */
+int ScVfsWrite(FILE *cData, uint8_t *Buffer, size_t Length)
+{
+	/* Sanity */
+	if (cData == NULL || cData->_handle == NULL
+		|| Buffer == NULL)
+		return -1;
+
+	/* More sanity */
+	if (Length == 0)
+		return 0;
+
+	/* Done */
+	return (int)VfsWrite((MCoreFile_t*)cData->_handle, Buffer, Length);
+}
+
+/* Seek File */
+int ScVfsSeek(FILE *cData, size_t Position)
+{
+	/* Sanity */
+	if (cData == NULL || cData->_handle == NULL)
+		return -1;
+
+	/* Deep Call */
+	return VfsSeek((MCoreFile_t*)cData->_handle, (uint64_t)Position);
+}
+
+/* Delete File */
+int ScVfsDelete(FILE *cData)
+{
+	/* Sanity */
+	if (cData == NULL || cData->_handle == NULL)
+		return -1;
+
+	/* Deep Call */
+	return VfsDelete((MCoreFile_t*)cData->_handle);
+}
+
+/***********************
+* Device Functions     *
+***********************/
+#include <DeviceManager.h>
+
+/* Query Device Information */
+int ScDeviceQuery(DeviceType_t Type, uint8_t *Buffer, size_t BufferLength)
+{
+	/* Alloc on stack */
+	MCoreDeviceRequest_t Request;
+
+	/* Locate */
+	MCoreDevice_t *Device = DmGetDevice(Type);
+
+	/* Sanity */
+	if (Device == NULL)
+		return -1;
+
+	/* Setup */
+	Request.Type = RequestQuery;
+	Request.Buffer = Buffer;
+	Request.Length = BufferLength;
+	Request.DeviceId = Device->Id;
+	
+	/* Fire request */
+	DmCreateRequest(&Request);
+	DmWaitRequest(&Request);
+
+	/* Done! */
+	return (int)RequestOk - (int)Request.Status;
+}
+
+
+/***********************
+* System Functions     *
+***********************/
+#include <InputManager.h>
+
+/* This ends the boot sequence
+ * and thus redirects logging
+ * to the system log-file
+ * rather than the stdout */
+int ScEndBootSequence(void)
+{
+	/* Log it */
+	LogDebug("SYST", "Ending console session");
+
+	/* Redirect */
+	LogRedirect(LogFile);
+
+	/* Done */
+	return 0;
+}
+
+/* This registers the calling 
+ * process as the active window
+ * manager, and thus shall recieve
+ * all input messages */
+int ScRegisterWindowManager(void)
+{
+	/* Locate Process */
+	Cpu_t CurrentCpu = ApicGetCpu();
+	MCoreProcess_t *Process =
+		PmGetProcess(ThreadingGetCurrentThread(CurrentCpu)->ProcessId);
+
+	/* Sanity */
+	if (Process == NULL)
+		return -1;
+
+	/* Register Us */
+	EmRegisterSystemTarget(Process->Id);
+
+	/* Done */
+	return 0;
+}
+
+/* Empty Operation, mostly
+ * because the operation is
+ * reserved */
+int NoOperation(void)
+{
+	return 0;
 }
 
 /* Syscall Table */
-Addr_t GlbSyscallTable[51] =
+Addr_t GlbSyscallTable[71] =
 {
 	/* Kernel Log */
 	DefineSyscall(LogDebug),
@@ -197,7 +381,31 @@ Addr_t GlbSyscallTable[51] =
 	DefineSyscall(NoOperation),
 
 	/* IPC Functions */
+	DefineSyscall(NoOperation), //ReadMessage
+	DefineSyscall(NoOperation), //WriteMessage
+	DefineSyscall(NoOperation), //PeekMessage
 	DefineSyscall(NoOperation),
+	DefineSyscall(NoOperation),
+	DefineSyscall(NoOperation),
+	DefineSyscall(NoOperation),
+	DefineSyscall(NoOperation),
+	DefineSyscall(NoOperation),
+	DefineSyscall(NoOperation),
+
+	/* Vfs Functions */
+	DefineSyscall(ScVfsOpen),
+	DefineSyscall(ScVfsClose),
+	DefineSyscall(ScVfsRead),
+	DefineSyscall(ScVfsWrite),
+	DefineSyscall(ScVfsSeek),
+	DefineSyscall(NoOperation), //Flush
+	DefineSyscall(ScVfsDelete),
+	DefineSyscall(NoOperation), //Move/Copy
+	DefineSyscall(NoOperation), //Query
+	DefineSyscall(NoOperation),
+
+	/* Device Functions */
+	DefineSyscall(ScDeviceQuery),
 	DefineSyscall(NoOperation),
 	DefineSyscall(NoOperation),
 	DefineSyscall(NoOperation),
@@ -208,9 +416,9 @@ Addr_t GlbSyscallTable[51] =
 	DefineSyscall(NoOperation),
 	DefineSyscall(NoOperation),
 
-	/* Vfs Functions */
-	DefineSyscall(NoOperation),
-	DefineSyscall(NoOperation),
+	/* System Functions */
+	DefineSyscall(ScEndBootSequence),
+	DefineSyscall(ScRegisterWindowManager),
 	DefineSyscall(NoOperation),
 	DefineSyscall(NoOperation),
 	DefineSyscall(NoOperation),

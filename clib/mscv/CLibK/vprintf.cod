@@ -19,36 +19,36 @@ _format$ = 8						; size = 4
 _ap$ = 12						; size = 4
 _vprintf PROC						; COMDAT
 
-; 47   : {
+; 23   : {
 
   00000	55		 push	 ebp
   00001	8b ec		 mov	 ebp, esp
 
-; 48   : 	//Decl
-; 49   : 	int result = 0;
-; 50   : 
-; 51   : 	//Sanity
-; 52   : 	if (format == NULL)
+; 24   : 	//Decl
+; 25   : 	int result = 0;
+; 26   : 
+; 27   : 	//Sanity
+; 28   : 	if (format == NULL)
 
   00003	8b 45 08	 mov	 eax, DWORD PTR _format$[ebp]
   00006	85 c0		 test	 eax, eax
   00008	75 05		 jne	 SHORT $LN1@vprintf
 
-; 53   : 		return -1;
+; 29   : 		return -1;
 
   0000a	83 c8 ff	 or	 eax, -1
 
-; 57   : 
-; 58   : 	return result;
-; 59   : }
+; 33   : 
+; 34   : 	return result;
+; 35   : }
 
   0000d	5d		 pop	 ebp
   0000e	c3		 ret	 0
 $LN1@vprintf:
 
-; 54   : 
-; 55   : 	//sprintf
-; 56   : 	result = vsprintf(NULL, format, ap);
+; 30   : 
+; 31   : 	//sprintf
+; 32   : 	result = vsprintf(NULL, format, ap);
 
   0000f	ff 75 0c	 push	 DWORD PTR _ap$[ebp]
   00012	50		 push	 eax
@@ -56,9 +56,9 @@ $LN1@vprintf:
   00015	e8 00 00 00 00	 call	 _vsprintf
   0001a	83 c4 0c	 add	 esp, 12			; 0000000cH
 
-; 57   : 
-; 58   : 	return result;
-; 59   : }
+; 33   : 
+; 34   : 	return result;
+; 35   : }
 
   0001d	5d		 pop	 ebp
   0001e	c3		 ret	 0

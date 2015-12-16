@@ -36,10 +36,35 @@ typedef enum _MCoreVideoType
 
 } MCoreVideoType_t;
 
+typedef struct _MCoreVideoDescriptor
+{
+	/* Framebuffer */
+	Addr_t FrameBufferAddr;
+	
+	/* Mode Information */
+	size_t BytesPerScanline;
+	size_t Height;
+	size_t Width;
+	int Depth;
+
+	/* Pixel Information */
+	int RedPosition;
+	int BluePosition;
+	int GreenPosition;
+	int ReservedPosition;
+
+	int RedMask;
+	int BlueMask;
+	int GreenMask;
+	int ReservedMask;
+
+} MCoreVideoDescriptor_t;
+
 typedef struct _MCoreVideoDevice
 {
 	/* Type */
 	MCoreVideoType_t Type;
+	MCoreVideoDescriptor_t Info;
 
 	/* Cursor Position */
 	uint32_t CursorX;
@@ -57,9 +82,6 @@ typedef struct _MCoreVideoDevice
 
 	/* Spinlock */
 	Spinlock_t Lock;
-
-	/* Architecture Data */
-	void *Data;
 
 	/* Functions */
 	void (*DrawPixel)(void*, uint32_t, uint32_t, uint32_t);

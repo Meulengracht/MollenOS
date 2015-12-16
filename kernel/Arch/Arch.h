@@ -31,5 +31,46 @@
 #error "Unsupported Architecture :("
 #endif
 
+/* Includes */
+#include <crtdefs.h>
+
+/* Definitions */
+typedef int OsStatus_t;
+
+/* These must be implemented by 
+ * the underlying architecture */
+
+/***********************
+* Address Spaces       *
+* Used for abstracting *
+* the virtual memory   *
+***********************/
+#define ADDRESS_SPACE_KERNEL		0x1
+#define ADDRESS_SPACE_INHERIT		0x2
+#define ADDRESS_SPACE_USER			0x4
+
+_CRT_EXTERN AddressSpace_t *AddressSpaceCreate(uint32_t Flags);
+_CRT_EXTERN void AddressSpaceDestroy(AddressSpace_t *AddrSpace);
+_CRT_EXTERN void AddressSpaceSwitch(AddressSpace_t *AddrSpace);
+_CRT_EXTERN AddressSpace_t *AddressSpaceGetCurrent(void);
+
+_CRT_EXTERN void AddressSpaceReleaseKernel(AddressSpace_t *AddrSpace);
+_CRT_EXTERN void AddressSpaceMap(AddressSpace_t *AddrSpace, VirtAddr_t Address, size_t Size, int UserMode);
+_CRT_EXTERN void AddressSpaceMapFixed(AddressSpace_t *AddrSpace,
+	PhysAddr_t PhysicalAddr, VirtAddr_t VirtualAddr, size_t Size, int UserMode);
+_CRT_EXTERN void AddressSpaceUnmap(AddressSpace_t *AddrSpace, VirtAddr_t Address, size_t Size);
+_CRT_EXTERN PhysAddr_t AddressSpaceGetMap(AddressSpace_t *AddrSpace, VirtAddr_t Address);
+
+/***********************
+* Spinlock Interface   *
+***********************/
+_CRT_EXTERN void SpinlockReset(Spinlock_t *Spinlock);
+_CRT_EXPORT OsStatus_t SpinlockAcquire(Spinlock_t *Spinlock);
+_CRT_EXPORT void SpinlockRelease(Spinlock_t *Spinlock);
+
+/***********************
+* Device Interface     *
+***********************/
+_CRT_EXTERN void DevicesInit(void *Args);
 
 #endif

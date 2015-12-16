@@ -20,7 +20,7 @@
 */
 
 /* Includes */
-#include <Arch.h>
+#include "../Arch.h"
 #include <Threading.h>
 #include <assert.h>
 

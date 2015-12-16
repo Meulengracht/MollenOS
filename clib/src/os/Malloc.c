@@ -526,6 +526,11 @@ MAX_RELEASE_CHECK_RATE   default: 4095 unless not HAVE_MMAP
 #define DLMALLOC_VERSION 20806
 #endif /* DLMALLOC_VERSION */
 
+#ifdef LIBC_KERNEL
+void __MallocLibCEmpty(void)
+{
+}
+#else
 #ifndef DLMALLOC_EXPORT
 #define DLMALLOC_EXPORT extern
 #endif
@@ -6105,3 +6110,4 @@ int mspace_mallopt(int param_number, int value) {
   }
 
 */
+#endif

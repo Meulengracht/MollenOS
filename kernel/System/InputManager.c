@@ -26,51 +26,50 @@
 #include <stddef.h>
 
 /* Globals */
-RingBuffer_t *PointerEventPipe = NULL;
-RingBuffer_t *ButtonEventPipe = NULL;
-volatile uint32_t GlbImInitialized = 0;
+int GlbEmInitialized = 0;
+PId_t GlbEmWindowManager = 0;
 
-/* Initialise Input Manager */
-void ImInit(void)
+/* Initialise Event Manager */
+void EmInit(void)
 {
-	/* Allocate Pipes */
-	PointerEventPipe = RingBufferCreate(0x1000);
-	ButtonEventPipe = RingBufferCreate(0x1000);
-
 	/* Set initialized */
-	GlbImInitialized = 1;
+	GlbEmInitialized = 1;
+	GlbEmWindowManager = 0xFFFFFFFF;
+}
+
+/* Register */
+void EmRegisterSystemTarget(PId_t ProcessId)
+{
+	/* Sanity, NO OVERRIDES */
+	if (ProcessId != 0xFFFFFFFF
+		&& GlbEmWindowManager != 0xFFFFFFFF)
+		return;
+
+	/* Set */
+	GlbEmWindowManager = ProcessId;
 }
 
 /* Write data to pointer pipe */
-void InputManagerCreatePointerEvent(ImPointerEvent_t *Event)
+void EmCreateEvent(MCoreProcessEvent_t *Event)
 {
-	ImPointerEvent_t NotRecycleBin;
+	/* Temp Buffer */
+	uint8_t NotRecycleBin[64];
 
 	/* Sanity */
-	if (GlbImInitialized != 1)
-		ImInit();
+	if (GlbEmInitialized != 1)
+		EmInit();
 
-	/* Force space in buffer */
-	while (RingBufferSpaceAvailable(PointerEventPipe) < sizeof(ImPointerEvent_t))
-		RingBufferRead(PointerEventPipe, sizeof(ImPointerEvent_t), (uint8_t*)&NotRecycleBin);
-
-	/* Write data to pipe */
-	RingBufferWrite(PointerEventPipe, sizeof(ImPointerEvent_t), (uint8_t*)Event);
-}
-
-/* Write data to button pipe */
-void InputManagerCreateButtonEvent(ImButtonEvent_t *Event)
-{
-	ImButtonEvent_t NotRecycleBin;
-
-	/* Sanity */
-	if (GlbImInitialized != 1)
-		ImInit();
-
-	/* Force space in buffer */
-	while (RingBufferSpaceAvailable(ButtonEventPipe) < sizeof(ImButtonEvent_t))
-		RingBufferRead(ButtonEventPipe, sizeof(ImButtonEvent_t), (uint8_t*)&NotRecycleBin);
-
-	/* Write data to pipe */
-	RingBufferWrite(ButtonEventPipe, sizeof(ImButtonEvent_t), (uint8_t*)Event);
+	/* Sanity - More ! */
+	if (GlbEmWindowManager != 0xFFFFFFFF) 
+	{
+		/* Get process */
+		MCoreProcess_t *Process = PmGetProcess(GlbEmWindowManager);
+		
+		/* Force space in buffer */
+		while (RingBufferSpaceAvailable(Process->iPipe) < (int)(Event->Length))
+			RingBufferRead(Process->iPipe, Event->Length, (uint8_t*)&NotRecycleBin);
+		
+		/* Write data to pipe */
+		RingBufferWrite(Process->iPipe, Event->Length, (uint8_t*)Event);
+	}
 }

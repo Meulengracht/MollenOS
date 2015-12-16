@@ -29,7 +29,7 @@
 #include <string.h>
 
 /* Globals */
-LogTarget_t GlbLogTarget = LogConsole;
+LogTarget_t GlbLogTarget = LogMemory;
 LogLevel_t GlbLogLevel = LogLevel1;
 
 /* Externs */
@@ -41,6 +41,12 @@ void LogInit(LogTarget_t Output, LogLevel_t Level)
 	/* Save */
 	GlbLogTarget = Output;
 	GlbLogLevel = Level;
+}
+
+/* Switches target */
+void LogRedirect(LogTarget_t Output)
+{
+	GlbLogTarget = Output;
 }
 
 /* Raw Log */
@@ -59,8 +65,13 @@ void Log(const char *Message, ...)
 	va_end(ArgList);
 
 	/* Print it */
-	BootVideo.FgColor = LOG_COLOR_DEFAULT;
-	printf("%s\n", oBuffer);
+	if (GlbLogTarget == LogConsole) {
+		BootVideo.FgColor = LOG_COLOR_DEFAULT;
+		printf("%s\n", oBuffer);
+	}
+	else if (GlbLogTarget == LogFile) {
+
+	}
 }
 
 /* Output information to log */
@@ -79,10 +90,15 @@ void LogInformation(const char *System, const char *Message, ...)
 	va_end(ArgList);
 
 	/* Print System */
-	BootVideo.FgColor = LOG_COLOR_INFORMATION;
-	printf("[%s] ", System);
-	BootVideo.FgColor = LOG_COLOR_DEFAULT;
-	printf("%s\n", oBuffer);
+	if (GlbLogTarget == LogConsole) {
+		BootVideo.FgColor = LOG_COLOR_INFORMATION;
+		printf("[%s] ", System);
+		BootVideo.FgColor = LOG_COLOR_DEFAULT;
+		printf("%s\n", oBuffer);
+	}
+	else if (GlbLogTarget == LogFile) {
+
+	}
 }
 
 /* Output debug to log */
@@ -101,10 +117,15 @@ void LogDebug(const char *System, const char *Message, ...)
 	va_end(ArgList);
 
 	/* Print System */
-	BootVideo.FgColor = LOG_COLOR_DEBUG;
-	printf("[%s] ", System);
-	BootVideo.FgColor = LOG_COLOR_DEFAULT;
-	printf("%s\n", oBuffer);
+	if (GlbLogTarget == LogConsole) {
+		BootVideo.FgColor = LOG_COLOR_DEBUG;
+		printf("[%s] ", System);
+		BootVideo.FgColor = LOG_COLOR_DEFAULT;
+		printf("%s\n", oBuffer);
+	}
+	else if (GlbLogTarget == LogFile) {
+
+	}
 }
 
 /* Output Error to log */
@@ -123,8 +144,13 @@ void LogFatal(const char *System, const char *Message, ...)
 	va_end(ArgList);
 
 	/* Print System */
-	BootVideo.FgColor = LOG_COLOR_ERROR;
-	printf("[%s] ", System);
-	printf("%s\n", oBuffer);
-	BootVideo.FgColor = LOG_COLOR_DEFAULT;
+	if (GlbLogTarget == LogConsole) {
+		BootVideo.FgColor = LOG_COLOR_ERROR;
+		printf("[%s] ", System);
+		printf("%s\n", oBuffer);
+		BootVideo.FgColor = LOG_COLOR_DEFAULT;
+	}
+	else if (GlbLogTarget == LogFile) {
+
+	}
 }

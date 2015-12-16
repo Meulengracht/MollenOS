@@ -18,6 +18,11 @@
 *
 * MollenOS Syscall Interface
 */
+#ifdef LIBC_KERNEL
+void __SyscallLibCEmpty(void)
+{
+}
+#else
 
 /* Extern */
 extern int _syscall(int Function, int Arg0, int Arg1, int Arg2, int Arg3, int Arg4);
@@ -58,3 +63,5 @@ int Syscall5(int Function, int Arg0, int Arg1, int Arg2, int Arg3, int Arg4)
 	/* Deep Call */
 	return _syscall(Function, Arg0, Arg1, Arg2, Arg3, Arg4);
 }
+
+#endif

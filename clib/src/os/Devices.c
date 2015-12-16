@@ -16,29 +16,28 @@
 * along with this program.If not, see <http://www.gnu.org/licenses/>.
 *
 *
-* MollenOS MCore - Input Device Descriptor
+* MollenOS Device Interface
 */
-#ifndef _MCORE_DEVICE_INPUT_H_
-#define _MCORE_DEVICE_INPUT_H_
 
 /* Includes */
-#include <InputManager.h>
-#include <stdint.h>
+#include <os/MollenOS.h>
+#include <os/Syscall.h>
 
-/* Storage Device */
-#pragma pack(push, 1)
-typedef struct _MCoreInputDevice
+#ifdef LIBC_KERNEL
+void __DeviceLibCEmpty(void)
 {
-	/* Input Data */
-	void *InputData;
+}
+#else
 
-	/* Functions */
-	int (*Read)(void *Data);
+/* Query */
+int MollenOSDeviceQuery(MollenOSDeviceType_t Type, int Request, void *Buffer, size_t Length)
+{
+	/* Not used atm */
+	_CRT_UNUSED(Request);
 
-	/* Reporting */
-	void (*ReportEvent)(MCoreProcessEvent_t *Event);
+	/* Prep for syscall */
+	return Syscall3(MOLLENOS_SYSCALL_DEVQUERY, MOLLENOS_SYSCALL_PARAM(Type), 
+		MOLLENOS_SYSCALL_PARAM(Buffer), MOLLENOS_SYSCALL_PARAM(Length));
+}
 
-} MCoreInputDevice_t;
-#pragma pack(pop)
-
-#endif //!_MCORE_DEVICE_INPUT_H_
+#endif

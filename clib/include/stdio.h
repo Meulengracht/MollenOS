@@ -1,46 +1,47 @@
+/* MollenOS
+*
+* Copyright 2011 - 2016, Philip Meulengracht
+*
+* This program is free software : you can redistribute it and / or modify
+* it under the terms of the GNU General Public License as published by
+* the Free Software Foundation ? , either version 3 of the License, or
+* (at your option) any later version.
+*
+* This program is distributed in the hope that it will be useful,
+* but WITHOUT ANY WARRANTY; without even the implied warranty of
+* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.See the
+* GNU General Public License for more details.
+*
+* You should have received a copy of the GNU General Public License
+* along with this program.If not, see <http://www.gnu.org/licenses/>.
+*
+*
+* MollenOS C Library - Standard I/O
+*/
 
 #ifndef __STDIO_INC__
 #define __STDIO_INC__
 
+/* Includes */
 #include <stdint.h>
 #include <crtdefs.h>
 #include <stddef.h>
 #include <stdarg.h>
 
+/* C Guard */
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-//Defines
+/* Definitions */
 #define EOF				(-1)
 
+/* Seek Set(s) */
 #define SEEK_SET        0       /* Seek from beginning of file.  */
 #define SEEK_CUR        1       /* Seek from current position.  */
 #define SEEK_END        2       /* Set file pointer to EOF plus "offset" */
 
-#define FILE_READ				0x100
-#define FILE_WRITE				0x200
-#define FILE_BINARY				0x400
-#define FILE_APPEND				0x800
-#define FILE_PLUS				0x1000
-#define FILE_CREATE				0x2000
-
-typedef uint32_t FILE_FLAGS;
-
-#define MOS_FS_FILE					0x0
-#define MOS_FS_READONLY				0x1
-#define MOS_FS_HIDDEN				0x2
-#define MOS_FS_SYSFILE				0x4
-#define MOS_FS_DIRECTORY			0x10
-#define MOS_FS_ARCHIEVE				0x20
-#define MOS_FS_DEVICE				0x40
-#define MOS_FS_INVALID				0x80
-
-/* Extended Flags */
-#define MOS_FS_PROCESS				0x100
-#define MOS_FS_FILESYSTEM			0x200
-
-//Streams
+/* Standard I/O */
 #define stdout						NULL //0
 #define stdin						NULL //1
 #define	stderr						NULL //2
@@ -49,29 +50,17 @@ typedef uint32_t FILE_FLAGS;
 #define _IOLBF						0x2
 #define _IONBF						0x4
 
-//Error strings
+/* ErrNo */
 #define _MAX_ERRNO	127
 extern char *_errstrings[];
 
-//Structs
-#pragma pack(push, 1)
-typedef struct FileStream
+/* FileStream */
+typedef struct _cLibFileStream
 {
 	/* Internal OS Data */
 	void *_handle;
-	void *_buf;
-
-	/* Public Members */
-	uint64_t Size;
-	uint32_t Position;
-	uint32_t Flags;
-	uint32_t BlockSize;
-	uint8_t Drive;
-	uint8_t IsEndOfFile;
-	int32_t Error;
 
 } FILE, *PFILE;
-#pragma pack(pop)
 
 /* Operations on Files */
 extern int remove(const char * filename);

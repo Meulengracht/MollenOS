@@ -42,7 +42,11 @@ int Ps2KeyboadIrqHandler(void *Args)
 	MCoreInputDevice_t *InputDev = (MCoreInputDevice_t*)Args;
 	Ps2KeyboardDevice_t *Ps2Dev = (Ps2KeyboardDevice_t*)InputDev->InputData;
 	uint8_t Scancode = 0;
-	ImButtonEvent_t bEvent;
+	MCoreButtonEvent_t bEvent;
+
+	/* Set Header */
+	bEvent.Header.Type = EventInput;
+	bEvent.Header.Length = sizeof(MCoreButtonEvent_t);
 
 	/* Get scancode */
 	Scancode = Ps2ReadData(1);
@@ -74,7 +78,7 @@ int Ps2KeyboadIrqHandler(void *Args)
 		Ps2Dev->Buffer = 0;
 
 		/* Send */
-		InputDev->ReportButtonEvent(&bEvent);
+		InputDev->ReportEvent(&bEvent.Header);
 	}
 
 	/* Done! */

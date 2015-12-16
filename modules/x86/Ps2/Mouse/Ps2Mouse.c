@@ -36,8 +36,8 @@ int Ps2MouseIrqHandler(void *Args)
 {
 	/* We get 3 bytes describing the state
 	 * BUT we can only get one at the time..... -.- */
-	ImPointerEvent_t eData;
-	ImButtonEvent_t bData;
+	MCorePointerEvent_t eData;
+	MCoreButtonEvent_t bData;
 
 	/* Cast */
 	MCoreInputDevice_t *InputDev = (MCoreInputDevice_t*)Args;
@@ -74,8 +74,12 @@ int Ps2MouseIrqHandler(void *Args)
 			eData.yRelative = (int32_t)(Ps2Dev->Buffer[2] - ((Ps2Dev->Buffer[0] << 4) & 0x100));
 			eData.zRelative = 0;
 
+			/* Set header */
+			eData.Header.Type = EventInput;
+			eData.Header.Length = sizeof(MCorePointerEvent_t);
+
 			/* Send! */
-			InputDev->ReportPointerEvent(&eData);
+			InputDev->ReportEvent((MCoreProcessEvent_t*)&eData);
 
 			/* Check buttons */
 			if (Ps2Dev->Buffer[0] != Ps2Dev->MouseButtons)
@@ -85,8 +89,12 @@ int Ps2MouseIrqHandler(void *Args)
 				bData.Data = Ps2Dev->Buffer[0];
 				bData.State = 0;
 
+				/* Set headers */
+				bData.Header.Type = EventInput;
+				bData.Header.Length = sizeof(MCoreButtonEvent_t);
+
 				/* Send */
-				InputDev->ReportButtonEvent(&bData);
+				InputDev->ReportEvent((MCoreProcessEvent_t*)&bData);
 			}
 
 			/* Update */
