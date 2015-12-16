@@ -16,16 +16,18 @@ __syscall       proc    near
 
 				; Save
 				push ebx
+				push ecx
+				push edx
 				push esi
 				push edi
 
 				; Get params
-				mov eax, [ebp + 12 + 12]
-				mov ebx, [ebp + 16 + 12]
-				mov ecx, [ebp + 20 + 12]
-				mov edx, [ebp + 24 + 12]
-				mov esi, [ebp + 28 + 12]
-				mov edi, [ebp + 32 + 12]
+				mov eax, [ebp + 8]
+				mov ebx, [ebp + 12]
+				mov ecx, [ebp + 16]
+				mov edx, [ebp + 20]
+				mov esi, [ebp + 24]
+				mov edi, [ebp + 28]
 
 				; Syscall
 				int	80h
@@ -33,6 +35,8 @@ __syscall       proc    near
 				; Restore
 				pop edi
 				pop esi
+				pop edx
+				pop ecx
 				pop ebx
 
 				; Release stack frame

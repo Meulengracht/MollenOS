@@ -89,7 +89,7 @@ int ScProcessKill(PId_t ProcessId)
 		return -1;
 }
 
-void ScProcessExit(int ExitCode)
+int ScProcessExit(int ExitCode)
 {
 	/* Disable interrupts */
 	IntStatus_t IntrState = InterruptDisable();
@@ -108,12 +108,18 @@ void ScProcessExit(int ExitCode)
 
 	/* Enable Interrupts */
 	InterruptRestoreState(IntrState);
+
+	/* Done */
+	return 0;
 }
 
-void ScProcessYield(void)
+int ScProcessYield(void)
 {
 	/* Deep Call */
 	_ThreadYield();
+
+	/* Done */
+	return 0;
 }
 
 /***********************

@@ -29,10 +29,13 @@ void exit(int status)
 	/* Cleanup Crt */
 
 	/* Clean us up */
-	Syscall1(MOLLENOS_SYSCALL_TERMINATE, -1);
+	Syscall1(MOLLENOS_SYSCALL_TERMINATE, MOLLENOS_SYSCALL_PARAM(status));
 
 	/* Yield */
 	Syscall0(MOLLENOS_SYSCALL_YIELD);
+
+	/* Forever */
+	for (;;);
 }
 
 #endif

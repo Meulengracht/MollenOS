@@ -32,6 +32,7 @@
     <ClCompile Include="..\src\math\sinf.c" />
     <ClCompile Include="..\src\math\tanh.c" />
     <ClCompile Include="..\src\os\Devices.c" />
+    <ClCompile Include="..\src\os\Entry.c" />
     <ClCompile Include="..\src\os\Malloc.c" />
     <ClCompile Include="..\src\os\Syscalls.c" />
     <ClCompile Include="..\src\os\System.c" />
@@ -89,8 +90,6 @@
     <ClCompile Include="..\src\string\wcsnlen.c" />
   </ItemGroup>
   <ItemGroup>
-    <MASM Include="..\crt\cstart.asm" />
-    <MASM Include="..\crt\sstart.asm" />
     <MASM Include="..\src\math\fabs.S">
       <FileType>Document</FileType>
     </MASM>
@@ -258,8 +257,9 @@
       <Optimization>Full</Optimization>
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>false</IntrinsicFunctions>
-      <PreprocessorDefinitions>MOLLENOS</PreprocessorDefinitions>
-      <SDLCheck>true</SDLCheck>
+      <PreprocessorDefinitions>MOLLENOS;_X86_32</PreprocessorDefinitions>
+      <SDLCheck>
+      </SDLCheck>
       <CompileAsManaged>
       </CompileAsManaged>
       <TreatWarningAsError>true</TreatWarningAsError>

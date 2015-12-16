@@ -264,6 +264,9 @@
     <ClCompile Include="..\src\os\System.c">
       <Filter>Source\os</Filter>
     </ClCompile>
+    <ClCompile Include="..\src\os\Entry.c">
+      <Filter>Source\os</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <MASM Include="..\src\math\fabs.S">
@@ -324,12 +327,6 @@
       <Filter>Source\crt</Filter>
     </MASM>
     <MASM Include="..\crt\llshr.S">
-      <Filter>Source\crt</Filter>
-    </MASM>
-    <MASM Include="..\crt\cstart.asm">
-      <Filter>Source\crt</Filter>
-    </MASM>
-    <MASM Include="..\crt\sstart.asm">
       <Filter>Source\crt</Filter>
     </MASM>
     <MASM Include="..\src\os\ScAsm32.asm">
