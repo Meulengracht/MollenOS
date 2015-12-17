@@ -20,10 +20,13 @@
 */
 
 /* Includes */
+#include <ProcessManager.h>
 #include <Threading.h>
 #include <Thread.h>
 #include <Modules/ModuleManager.h>
 #include <Log.h>
+#include <Heap.h>
+#include "../Memory.h"
 #include <stdio.h>
 
 /* Extern Assembly */
@@ -136,13 +139,70 @@ void ExceptionEntry(Registers_t *regs)
 	}
 	else if (regs->Irq == 14)
 	{
-		/* Odd */
-		printf("CR2 Address: 0x%x... Faulty Address: 0x%x\n", __getcr2(), regs->Eip);
+		/* Get failed address */
+		Addr_t UnmappedAddr = (Addr_t)__getcr2();
 
-		/* Try to stack trace first */
-		StackTrace(6);
+		/* Kernel heap address? */
+		if (UnmappedAddr >= MEMORY_LOCATION_HEAP
+			&& UnmappedAddr < MEMORY_LOCATION_HEAP_END)
+		{
+			/* Yes, validate it in the heap */
+			if (!HeapValidateAddress(NULL, UnmappedAddr)) 
+			{
+				/* Map in in */
+				MmVirtualMap(NULL, MmPhysicalAllocateBlock(), (UnmappedAddr & PAGE_MASK), 0);
 
-		for (;;);
+				/* Issue is fixed */
+				IssueFixed = 1;
+			}
+		}
+
+		/* User heap address? */
+		else if (UnmappedAddr >= MEMORY_LOCATION_USER_HEAP
+			&& UnmappedAddr < MEMORY_LOCATION_USER_GUARD)
+		{
+			/* Get heap */
+			Cpu_t CurrentCpu = ApicGetCpu();
+			MCoreProcess_t *Process =
+				PmGetProcess(ThreadingGetCurrentThread(CurrentCpu)->ProcessId);
+
+			/* Sanity */
+			if (Process != NULL)
+			{
+				/* Yes, validate it in the heap */
+				if (!HeapValidateAddress(Process->Heap, UnmappedAddr))
+				{
+					/* Map in in */
+					MmVirtualMap(NULL, MmPhysicalAllocateBlock(), (UnmappedAddr & PAGE_MASK), PAGE_USER);
+
+					/* Issue is fixed */
+					IssueFixed = 1;
+				}
+			}
+		}
+
+		/* User stack address? */
+		else if (UnmappedAddr >= (MEMORY_LOCATION_USER_GUARD + PAGE_SIZE)
+			&& UnmappedAddr < MEMORY_LOCATION_USER_STACK)
+		{
+			/* Map in in */
+			MmVirtualMap(NULL, MmPhysicalAllocateBlock(), (UnmappedAddr & PAGE_MASK), PAGE_USER);
+
+			/* Issue is fixed */
+			IssueFixed = 1;
+		}
+		
+		/* Sanity */
+		if (IssueFixed == 0)
+		{
+			/* Odd */
+			printf("CR2 Address: 0x%x... Faulty Address: 0x%x\n", UnmappedAddr, regs->Eip);
+
+			/* Try to stack trace first */
+			StackTrace(6);
+
+			for (;;);
+		}
 	}
 
 	if (IssueFixed == 0)

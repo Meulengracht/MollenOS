@@ -169,6 +169,8 @@ void _mConCrt(void)
 
 	/* Init Crt */
 
+	/* Create Console */
+
 	/* Init Cmd */
 	ArgCount = ParseCommandLine((char*)MOLLENOS_ARGUMENT_ADDR, NULL);
 	Args = (char**)calloc(sizeof(char*), ArgCount + 1);

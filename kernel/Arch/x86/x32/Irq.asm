@@ -177,9 +177,6 @@ _syscall_entry:
 	push fs
 	push gs
 
-	; Save Registers
-	pushad
-
 	; Switch to kernel segment
 	push eax
 	mov ax, 0x10
@@ -205,9 +202,6 @@ _syscall_entry:
 
 	; Cleanup
 	add esp, 20
-
-	; When we return, restore state
-	popad
 
 	; Restore segments
 	pop gs

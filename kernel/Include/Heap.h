@@ -122,6 +122,7 @@ _CRT_EXTERN Heap_t *HeapCreate(Addr_t HeapAddress, int UserHeap);
 _CRT_EXTERN uint32_t HeapGetCount(void);
 _CRT_EXTERN void HeapPrintStats(Heap_t *Heap);
 _CRT_EXTERN void HeapReap(void);
+_CRT_EXTERN int HeapValidateAddress(Heap_t *Heap, Addr_t Address);
 
 /* Kernel Allocations */
 _CRT_EXPORT void *kmalloc_ap(size_t sz, Addr_t *p);

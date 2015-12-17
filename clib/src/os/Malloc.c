@@ -1667,7 +1667,7 @@ unsigned char _BitScanReverse(unsigned long *index, unsigned long mask);
 #ifndef WIN32
 #ifdef MOLLENOS
 #include <os/Syscall.h>
-/* Win32 MMAP via VirtualAlloc */
+/* MollenOS MMAP via Syscall */
 static FORCEINLINE void* mosmmap(size_t Size) {
 	void* ptr = (void*)Syscall2(MOLLENOS_SYSCALL_MEMALLOC, (int)Size, 0);
 	return (ptr != 0)? ptr: MFAIL;

@@ -681,7 +681,67 @@ void kfree(void *p)
 	p = NULL;
 }
 
-/* Custom Allocation */
+/**************************************/
+/*********** Heap Querying ************/
+/**************************************/
+HeapNode_t *HeapQueryAddressInNode(HeapBlock_t *Block, Addr_t Address)
+{
+	/* Vars */
+	HeapNode_t *CurrNode = Block->Nodes, *PrevNode = NULL;
+
+	/* Standard block freeing algorithm */
+	while (CurrNode != NULL)
+	{
+		/* Calculate end and start */
+		Addr_t aStart = CurrNode->Address;
+		Addr_t aEnd = CurrNode->Address + CurrNode->Length - 1;
+
+		/* Check if address is a part of this node */
+		if (aStart <= Address && aEnd >= Address)
+		{
+			/* Yay! */
+			return CurrNode;
+		}
+
+		/* Next node, search for the allocated block */
+		PrevNode = CurrNode;
+		CurrNode = CurrNode->Link;
+	}
+
+	/* Not found */
+	return NULL;
+}
+
+/* Finds the appropriate block
+* that should contain our node */
+HeapNode_t *HeapQuery(Heap_t *Heap, Addr_t Addr)
+{
+	/* Find a block that match our
+	* address */
+	HeapBlock_t *CurrBlock = Heap->Blocks;
+
+	/* Try to locate the block */
+	while (CurrBlock)
+	{
+		/* Correct block? */
+		if (CurrBlock->AddressStart <= Addr
+			&& CurrBlock->AddressEnd > Addr)
+		{
+			/* Done! */
+			return HeapQueryAddressInNode(CurrBlock, Addr);
+		}
+
+		/* Next Block */
+		CurrBlock = CurrBlock->Link;
+	}
+
+	/* Dayum */
+	return NULL;
+}
+
+/**************************************/
+/******* Heap User Allocation *********/
+/**************************************/
 void *umalloc(Heap_t *Heap, size_t Size)
 {
 	/* Vars */
@@ -710,9 +770,6 @@ void *umalloc(Heap_t *Heap, size_t Size)
 
 	/* Sanity */
 	assert(RetAddr != 0);
-
-	/* Sanity Pages */
-	HeapSanityPages(RetAddr, Size);
 
 	/* Done */
 	return (void*)RetAddr;
@@ -809,6 +866,32 @@ Heap_t *HeapCreate(Addr_t HeapAddress, int UserHeap)
 
 	/* Done */
 	return Heap;
+}
+
+/**************************************/
+/*****Ø***** Heap Utilities ***********/
+/**************************************/
+
+/* Heap Validation */
+int HeapValidateAddress(Heap_t *Heap, Addr_t Address)
+{
+	/* Vars */
+	Heap_t *pHeap = Heap;
+
+	/* Sanity */
+	if (pHeap == NULL)
+		pHeap = &KernelHeap;
+
+	/* Find Addr */
+	HeapNode_t *MemInfo = HeapQuery(Heap, Address);
+
+	/* Sanity */
+	if (MemInfo == NULL
+		|| !MemInfo->Allocated)
+		return -1;
+
+	/* Yay */
+	return 0;
 }
 
 /**************************************/

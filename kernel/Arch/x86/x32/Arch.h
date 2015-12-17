@@ -192,6 +192,7 @@ _CRT_EXPORT void kernel_panic(const char *str);
 #define MEMORY_LOCATION_USER			0x60010000 /* Image Space: 256~ mB */
 #define MEMORY_LOCATION_USER_HEAP		0x70000000 /* Heap Space: 2256 mB */
 #define MEMORY_LOCATION_USER_STACK		0xFFFFFFF0 /* Stack Space: 4 mB */
+#define MEMORY_LOCATION_USER_GUARD		0xFFC00000 
 
 /* Architecture Locked Interrupts */
 #define INTERRUPT_TIMER					0xF0
