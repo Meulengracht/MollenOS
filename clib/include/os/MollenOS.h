@@ -69,6 +69,7 @@ typedef struct _MollenOSVideoDescriptor
 _MOS_API int MollenOSDeviceQuery(MollenOSDeviceType_t Type, int Request, void *Buffer, size_t Length);
 
 /* System Misc Prototypes */
+_MOS_API void MollenOSSystemLog(const char *Message);
 _MOS_API int MollenOSEndBoot(void);
 _MOS_API int MollenOSRegisterWM(void);
 

@@ -25,6 +25,7 @@
 #include <Threading.h>
 #include <Scheduler.h>
 #include <Log.h>
+#include <string.h>
 
 /* Shorthand */
 #define DefineSyscall(_Sys) ((Addr_t)&_Sys)
@@ -278,15 +279,25 @@ int ScDeviceQuery(DeviceType_t Type, uint8_t *Buffer, size_t BufferLength)
 	if (Device == NULL)
 		return -1;
 
+	/* Allocate a proxy buffer */
+	uint8_t *Proxy = (uint8_t*)kmalloc(BufferLength);
+
 	/* Setup */
 	Request.Type = RequestQuery;
-	Request.Buffer = Buffer;
+	Request.Buffer = Proxy;
 	Request.Length = BufferLength;
 	Request.DeviceId = Device->Id;
 	
 	/* Fire request */
 	DmCreateRequest(&Request);
 	DmWaitRequest(&Request);
+
+	/* Sanity */
+	if (Request.Status == RequestOk)
+		memcpy(Buffer, Proxy, BufferLength);
+
+	/* Cleanup */
+	kfree(Proxy);
 
 	/* Done! */
 	return (int)RequestOk - (int)Request.Status;

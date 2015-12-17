@@ -20,6 +20,7 @@
 */
 
 /* Includes */
+#include <os/MollenOS.h>
 #include <SDL.h>
 
 /* Entry Point */
@@ -30,6 +31,7 @@ int main(int argc, char* argv[])
 
 	/* Init SDL (Full) */
 	if (SDL_Init(SDL_INIT_VIDEO) != 0){
+		MollenOSSystemLog(SDL_GetError());
 		return -1;
 	}
 

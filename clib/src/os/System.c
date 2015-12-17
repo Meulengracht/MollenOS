@@ -29,6 +29,15 @@ void __SystemLibCEmpty(void)
 }
 #else
 
+/* Const Message */
+const char *_SysTypeMessage = "CLIB";
+
+/* Write to sysout */
+void MollenOSSystemLog(const char *Message)
+{
+	Syscall2(0, MOLLENOS_SYSCALL_PARAM(_SysTypeMessage), MOLLENOS_SYSCALL_PARAM(Message));
+}
+
 /* End Boot Sequence */
 int MollenOSEndBoot(void)
 {

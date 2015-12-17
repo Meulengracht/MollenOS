@@ -656,7 +656,7 @@ void __MallocLibCEmpty(void)
 #define ABORT_ON_ASSERT_FAILURE 1
 #endif  /* ABORT_ON_ASSERT_FAILURE */
 #ifndef PROCEED_ON_ERROR
-#define PROCEED_ON_ERROR 0
+#define PROCEED_ON_ERROR 1
 #endif  /* PROCEED_ON_ERROR */
 
 #ifndef INSECURE
