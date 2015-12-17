@@ -407,6 +407,26 @@ namespace MfsTool
             MasterBucket[18] = (Byte)((BadBucketIndex >> 16) & 0xFF);
             MasterBucket[19] = (Byte)((BadBucketIndex >> 24) & 0xFF);
 
+            /* Setup bucketmap sector */
+            MasterBucket[20] = (Byte)(BucketMapSector & 0xFF);
+            MasterBucket[21] = (Byte)((BucketMapSector >> 8) & 0xFF);
+            MasterBucket[22] = (Byte)((BucketMapSector >> 16) & 0xFF);
+            MasterBucket[23] = (Byte)((BucketMapSector >> 24) & 0xFF);
+            MasterBucket[24] = (Byte)((BucketMapSector >> 32) & 0xFF);
+            MasterBucket[25] = (Byte)((BucketMapSector >> 40) & 0xFF);
+            MasterBucket[26] = (Byte)((BucketMapSector >> 48) & 0xFF);
+            MasterBucket[27] = (Byte)((BucketMapSector >> 56) & 0xFF);
+
+            /* Setup bucketmap size */
+            MasterBucket[29] = (Byte)(BucketMapSize & 0xFF);
+            MasterBucket[30] = (Byte)((BucketMapSize >> 8) & 0xFF);
+            MasterBucket[31] = (Byte)((BucketMapSize >> 16) & 0xFF);
+            MasterBucket[32] = (Byte)((BucketMapSize >> 24) & 0xFF);
+            MasterBucket[33] = (Byte)((BucketMapSize >> 32) & 0xFF);
+            MasterBucket[34] = (Byte)((BucketMapSize >> 40) & 0xFF);
+            MasterBucket[35] = (Byte)((BucketMapSize >> 48) & 0xFF);
+            MasterBucket[36] = (Byte)((BucketMapSize >> 56) & 0xFF);
+
             /* Seek */
             WriteDisk(mDisk, handle, (UInt64)MirrorMasterBucketSector, MasterBucket);
             WriteDisk(mDisk, handle, (UInt64)MasterBucketSector, MasterBucket);
@@ -1235,6 +1255,7 @@ namespace MfsTool
             //WriteToMfs(mDisk, "InitRd64.mos", "System/InitRd64.mos");
 
             WriteToMfs(mDisk, "MWinMgr.mxi", "System/MWinMgr.mxi");
+            WriteToMfs(mDisk, "SDL2.dll", "System/SDL2.dll");
         }
 
         /* Entry */

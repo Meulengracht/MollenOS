@@ -107,8 +107,7 @@ uint32_t MfsGetNextBucket(MCoreFileSystem_t *Fs, uint32_t Bucket)
 	uint8_t *BufPtr = (uint8_t*)mData->BucketBuffer;
 
 	/* Done */
-	return BufPtr[SectorIndex] | (BufPtr[SectorIndex + 1] << 8) 
-		| (BufPtr[SectorIndex + 2] << 16) | (BufPtr[SectorIndex + 3] << 24);
+	return *(uint32_t*)&BufPtr[SectorIndex * 4];
 }
 
 /* Set next bucket in chain 
@@ -141,13 +140,11 @@ void MfsSetNextBucket(MCoreFileSystem_t *Fs, uint32_t Bucket, uint32_t NextBucke
 	uint8_t *BufPtr = (uint8_t*)mData->BucketBuffer;
 
 	/* Edit */
-	BufPtr[SectorIndex * 4] = (uint8_t)(NextBucket & 0xFF);
-	BufPtr[SectorIndex * 4 + 1] = (uint8_t)((NextBucket >> 8) & 0xFF);
-	BufPtr[SectorIndex * 4 + 2] = (uint8_t)((NextBucket >> 16) & 0xFF);
-	BufPtr[SectorIndex * 4 + 3] = (uint8_t)((NextBucket >> 24) & 0xFF);
+	*(uint32_t*)&BufPtr[SectorIndex * 4] = NextBucket;
 
 	/* Write it back */
-	if (MfsWriteSectors(Fs, mData->BucketMapSector + SectorOffset, mData->BucketBuffer, 1) != RequestOk)
+	if (MfsWriteSectors(Fs, mData->BucketMapSector + SectorOffset, 
+		mData->BucketBuffer, 1) != RequestOk)
 	{
 		/* Error */
 		LogFatal("MFS1", "SETNEXTBUCKET: Error writing to disk");
@@ -515,7 +512,7 @@ size_t MfsReadFile(void *FsData, MCoreFile_t *Handle, uint8_t *Buffer, size_t Si
 		/* We have a few cases
 		 * Case 1: We have enough data here 
 		 * Case 2: We have to read more than is here */
-		if (BytesToRead > BytesLeft)
+		if (BytesToRead >= BytesLeft)
 		{
 			/* Start out by copying remainder */
 			memcpy(BufPtr, (TempBuffer + bOffset), BytesLeft);
@@ -546,6 +543,10 @@ size_t MfsReadFile(void *FsData, MCoreFile_t *Handle, uint8_t *Buffer, size_t Si
 		BufPtr += BytesCopied;
 		BytesToRead -= BytesCopied;
 		Handle->Position += BytesCopied;
+
+		/* Sanity */
+		if (Handle->IsEOF)
+			break;
 	}
 
 	/* Sanity */
@@ -850,8 +851,6 @@ MODULES_API void ModuleInit(void *Data)
 
 	/* Calculate the bucket-map sector */
 	mData->BucketCount = Fs->SectorCount / mData->BucketSize;
-	mData->BucketMapSize = mData->BucketCount * 4; /* One bucket descriptor is 4 bytes */
-	mData->BucketMapSector = (Fs->SectorCount - ((mData->BucketMapSize / Fs->SectorSize) + 1));
 	mData->BucketsPerSector = Fs->SectorSize / 4;
 
 	/* Copy the volume label over */
@@ -890,6 +889,8 @@ MODULES_API void ModuleInit(void *Data)
 	mData->FreeIndex = Mb->FreeBucket;
 	mData->BadIndex = Mb->BadBucketIndex;
 	mData->MbFlags = Mb->Flags;
+	mData->BucketMapSector = Mb->BucketMapSector;
+	mData->BucketMapSize = Mb->BucketMapSize;
 
 	/* Setup buffer */
 	mData->BucketBuffer = kmalloc(Fs->SectorSize);

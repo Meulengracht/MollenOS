@@ -99,6 +99,10 @@ typedef struct _MfsMasterBucket
 	/* List of bad buckets */
 	uint32_t BadBucketIndex;
 
+	/* Bucket Map Sector */
+	uint64_t BucketMapSector;
+	uint64_t BucketMapSize;
+
 } MfsMasterBucket_t;
 #pragma pack(pop)
 

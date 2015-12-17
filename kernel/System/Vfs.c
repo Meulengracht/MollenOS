@@ -343,7 +343,9 @@ MString_t *VfsCanonicalizePath(const char *Path)
 	uint32_t Itr = 0;
 
 	/* Get working directory */
-	MString_t *Cwd = NULL;// ProcessGetWorkingDirectory();
+	Cpu_t CurrentCpu = ApicGetCpu();
+	MCoreThread_t *cThread = ThreadingGetCurrentThread(CurrentCpu);
+	MString_t *Cwd = PmGetWorkingDirectory(cThread->ProcessId);
 
 	/* Start by copying cwd over 
 	 * if Path is not absolute */
@@ -356,13 +358,27 @@ MString_t *VfsCanonicalizePath(const char *Path)
 			MStringDestroy(AbsPath);
 			return NULL;
 		}
-		else
+		else {
+			/* Start in working directory */
 			MStringCopy(AbsPath, Cwd, -1);
-	}
 
+			/* Make sure the path ends on a '/' */
+			if (MStringGetCharAt(AbsPath, MStringLength(AbsPath) - 1) != '/')
+				MStringAppendChar(AbsPath, '/');
+		}
+	}
+	
 	/* Now, we have to resolve the path in Path */
 	while (Path[Itr])
 	{
+		/* Sanity */
+		if (Path[Itr] == '/'
+			&& Itr == 0)
+		{
+			Itr++;
+			continue;
+		}
+
 		/* What char is it ? */
 		if (Path[Itr] == '.'
 			&& (Path[Itr + 1] == '/' || Path[Itr + 1] == '\\'))

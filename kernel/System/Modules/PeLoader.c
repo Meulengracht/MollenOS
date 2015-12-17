@@ -689,6 +689,9 @@ void PeLoadImageImports(MCorePeFile_t *Parent, MCorePeFile_t *PeFile, PeDataDire
 		/* Cleanup */
 		MStringDestroy(Name);
 
+		if (Exports == NULL)
+			return;
+
 		/* Calculate address to IAT
 		* These entries are 64 bit in PE32+
 		* and 32 bit in PE32 */

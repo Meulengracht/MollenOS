@@ -171,6 +171,11 @@ void PmStartProcess(void *Args)
 	/* Cast */
 	Addr_t BaseAddress = MEMORY_LOCATION_USER;
 	MCoreProcess_t *Process = (MCoreProcess_t*)Args;
+	Cpu_t CurrentCpu = ApicGetCpu();
+	MCoreThread_t *cThread = ThreadingGetCurrentThread(CurrentCpu);
+
+	/* Update this thread */
+	cThread->ProcessId = Process->Id;
 
 	/* Load Executable */
 	Process->Executable = 
@@ -208,9 +213,6 @@ void PmStartProcess(void *Args)
 	AddressSpaceMap(AddressSpaceGetCurrent(), BaseAddress, PROCESS_STACK_INIT, 1);
 	BaseAddress += (MEMORY_LOCATION_USER_STACK & ~(PAGE_MASK));
 	Process->StackStart = BaseAddress;
-
-	/* Add process to list */
-	list_append(GlbProcesses, list_create_node((int)Process->Id, Process));
 
 	/* Go to user-land */
 	ThreadingEnterUserMode(Process);
@@ -287,6 +289,9 @@ PId_t PmCreateProcess(MString_t *Path, MString_t *Arguments)
 	else
 		Process->Arguments = MStringCreate(Path->Data, StrUTF8);
 
+	/* Add process to list */
+	list_append(GlbProcesses, list_create_node((int)Process->Id, Process));
+
 	/* Create the loader thread */
 	ThreadingCreateThread("Process", PmStartProcess, Process, THREADING_USERMODE);
 
@@ -306,6 +311,24 @@ MCoreProcess_t *PmGetProcess(PId_t ProcessId)
 		/* Found? */
 		if (Process->Id == ProcessId)
 			return Process;
+	}
+
+	/* Found? NO! */
+	return NULL;
+}
+
+/* Get the working directory */
+MString_t *PmGetWorkingDirectory(PId_t ProcessId)
+{
+	/* Iterate */
+	foreach(pNode, GlbProcesses)
+	{
+		/* Cast */
+		MCoreProcess_t *Process = (MCoreProcess_t*)pNode->data;
+
+		/* Found? */
+		if (Process->Id == ProcessId)
+			return Process->WorkingDirectory;
 	}
 
 	/* Found? NO! */
