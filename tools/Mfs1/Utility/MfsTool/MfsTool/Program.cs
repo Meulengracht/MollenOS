@@ -652,9 +652,9 @@ namespace MfsTool
 
                         /* Woah, parse */
                         int Len = 0;
-                        while (fBuffer[i + 72 + Len] != 0)
+                        while (fBuffer[i + 76 + Len] != 0)
                             Len++;
-                        String Name = System.Text.Encoding.UTF8.GetString(fBuffer, i + 72, Len);
+                        String Name = System.Text.Encoding.UTF8.GetString(fBuffer, i + 76, Len);
                         UInt16 Flags = BitConverter.ToUInt16(fBuffer, i + 2);
 
                         if (LookFor.Contains(".")
@@ -663,9 +663,10 @@ namespace MfsTool
                             /* Match */
                             MfsEntry nEntry = new MfsEntry();
                             nEntry.Name = Name;
-                            nEntry.Size = BitConverter.ToUInt64(fBuffer, i + 56);
-                            nEntry.AllocatedSize = BitConverter.ToUInt64(fBuffer, i + 64);
+                            nEntry.Size = BitConverter.ToUInt64(fBuffer, i + 60);
+                            nEntry.AllocatedSize = BitConverter.ToUInt64(fBuffer, i + 68);
                             nEntry.Bucket = BitConverter.ToUInt32(fBuffer, i + 4);
+                            nEntry.BucketLength = BitConverter.ToUInt32(fBuffer, i + 8);
 
                             nEntry.DirBucket = IteratorBucket;
                             nEntry.DirIndex = (uint)i;
@@ -678,7 +679,7 @@ namespace MfsTool
                             if (((MfsEntryFlags)Flags).HasFlag(MfsEntryFlags.MFS_DIRECTORY))
                                 Console.WriteLine("Dir: " + Name);
                             else
-                                Console.WriteLine("File: " + Name + " (" + BitConverter.ToUInt64(fBuffer, i + 56).ToString() + " Bytes)");
+                                Console.WriteLine("File: " + Name + " (" + BitConverter.ToUInt64(fBuffer, i + 60).ToString() + " Bytes)");
                         }
 
                         /* Next */
@@ -686,8 +687,9 @@ namespace MfsTool
                     }
 
                     /* Get next bucket */
+                    UInt32 DirBuckLength = 0;
                     if (End == 0)
-                        IteratorBucket = GetNextBucket(mDisk, hDisk, IteratorBucket);
+                        IteratorBucket = GetNextBucket(mDisk, hDisk, IteratorBucket, out DirBuckLength);
 
                     /* End of list? */
                     if (IteratorBucket == 0xFFFFFFFF)
@@ -721,9 +723,9 @@ namespace MfsTool
 
                         /* Woah, parse */
                         int Len = 0;
-                        while (fBuffer[i + 72 + Len] != 0)
+                        while (fBuffer[i + 76 + Len] != 0)
                             Len++;
-                        String Name = System.Text.Encoding.UTF8.GetString(fBuffer, i + 72, Len);
+                        String Name = System.Text.Encoding.UTF8.GetString(fBuffer, i + 76, Len);
                         UInt16 Flags = BitConverter.ToUInt16(fBuffer, i + 2);
 
                         if (Name.ToLower() == LookFor.ToLower())
@@ -738,9 +740,10 @@ namespace MfsTool
                             /* Match */
                             MfsEntry nEntry = new MfsEntry();
                             nEntry.Name = Name;
-                            nEntry.Size = BitConverter.ToUInt64(fBuffer, i + 56);
-                            nEntry.AllocatedSize = BitConverter.ToUInt64(fBuffer, i + 64);
+                            nEntry.Size = BitConverter.ToUInt64(fBuffer, i + 60);
+                            nEntry.AllocatedSize = BitConverter.ToUInt64(fBuffer, i + 68);
                             nEntry.Bucket = BitConverter.ToUInt32(fBuffer, i + 4);
+                            nEntry.BucketLength = BitConverter.ToUInt32(fBuffer, i + 8);
 
                             nEntry.DirBucket = IteratorBucket;
                             nEntry.DirIndex = (uint)i;
@@ -758,8 +761,9 @@ namespace MfsTool
                     }
 
                     /* Get next bucket */
+                    UInt32 DirBuckLength = 0;
                     if (End == 0)
-                        IteratorBucket = GetNextBucket(mDisk, hDisk, IteratorBucket);
+                        IteratorBucket = GetNextBucket(mDisk, hDisk, IteratorBucket, out DirBuckLength);
 
                     /* End of list? */
                     if (IteratorBucket == 0xFFFFFFFF)
@@ -808,9 +812,9 @@ namespace MfsTool
 
                         /* Woah, parse */
                         int Len = 0;
-                        while (fBuffer[i + 72 + Len] != 0)
+                        while (fBuffer[i + 76 + Len] != 0)
                             Len++;
-                        String Name = System.Text.Encoding.UTF8.GetString(fBuffer, i + 72, Len);
+                        String Name = System.Text.Encoding.UTF8.GetString(fBuffer, i + 76, Len);
                         UInt16 Flags = BitConverter.ToUInt16(fBuffer, i + 2);
 
                         if (Name.ToLower() == LookFor.ToLower())
@@ -821,8 +825,9 @@ namespace MfsTool
                     }
 
                     /* Get next bucket */
+                    UInt32 DirBucketLength = 0;
                     if (End == 0)
-                        IteratorBucket = GetNextBucket(mDisk, hDisk, IteratorBucket);
+                        IteratorBucket = GetNextBucket(mDisk, hDisk, IteratorBucket, out DirBucketLength);
 
                     /* End of list? */
                     if (IteratorBucket == 0xFFFFFFFF)
@@ -861,9 +866,9 @@ namespace MfsTool
 
                         /* Woah, parse */
                         int Len = 0;
-                        while (fBuffer[i + 72 + Len] != 0)
+                        while (fBuffer[i + 76 + Len] != 0)
                             Len++;
-                        String Name = System.Text.Encoding.UTF8.GetString(fBuffer, i + 72, Len);
+                        String Name = System.Text.Encoding.UTF8.GetString(fBuffer, i + 76, Len);
                         UInt16 Flags = BitConverter.ToUInt16(fBuffer, i + 2);
 
                         if (Name.ToLower() == LookFor.ToLower())
@@ -878,9 +883,10 @@ namespace MfsTool
                             /* Match */
                             MfsEntry nEntry = new MfsEntry();
                             nEntry.Name = Name;
-                            nEntry.Size = BitConverter.ToUInt64(fBuffer, i + 56);
-                            nEntry.AllocatedSize = BitConverter.ToUInt64(fBuffer, i + 64);
+                            nEntry.Size = BitConverter.ToUInt64(fBuffer, i + 60);
+                            nEntry.AllocatedSize = BitConverter.ToUInt64(fBuffer, i + 68);
                             nEntry.Bucket = BitConverter.ToUInt32(fBuffer, i + 4);
+                            nEntry.BucketLength = BitConverter.ToUInt32(fBuffer, i + 8);
 
                             nEntry.DirBucket = IteratorBucket;
                             nEntry.DirIndex = (uint)i;
@@ -917,6 +923,12 @@ namespace MfsTool
                                 fBuffer[i + 5] = (Byte)((nEntry.Bucket >> 8) & 0xFF);
                                 fBuffer[i + 6] = (Byte)((nEntry.Bucket >> 16) & 0xFF);
                                 fBuffer[i + 7] = (Byte)((nEntry.Bucket >> 24) & 0xFF);
+
+                                fBuffer[i + 8] = 0x01;
+                                fBuffer[i + 9] = 0x00;
+                                fBuffer[i + 10] = 0x00;
+                                fBuffer[i + 11] = 0x00;
+
                                 WriteDisk(mDisk, hDisk, Sector, fBuffer);
 
                                 /* Wipe bucket */
@@ -935,8 +947,9 @@ namespace MfsTool
                     }
 
                     /* Get next bucket */
+                    UInt32 DirBucketLength = 0;
                     if (End == 0)
-                        IteratorBucket = GetNextBucket(mDisk, hDisk, IteratorBucket);
+                        IteratorBucket = GetNextBucket(mDisk, hDisk, IteratorBucket, out DirBucketLength);
 
                     /* CAN not be end of list? */
                     if (IteratorBucket == 0xFFFFFFFF)
@@ -980,7 +993,7 @@ namespace MfsTool
         }
 
         /* Create entry in Mb */
-        static void CreateFileEntry(MfsDisk mDisk, SafeFileHandle hDisk, UInt16 Flags, UInt32 Bucket, Byte[] Data, String Name, UInt32 DirBucket)
+        static void CreateFileEntry(MfsDisk mDisk, SafeFileHandle hDisk, UInt16 Flags, UInt32 Bucket, UInt32 BucketLength, Byte[] Data, String Name, UInt32 DirBucket)
         {
             /* List files */
             UInt32 IteratorBucket = DirBucket;
@@ -1025,29 +1038,34 @@ namespace MfsTool
                         fBuffer[i + 6] = (Byte)((Bucket >> 16) & 0xFF);
                         fBuffer[i + 7] = (Byte)((Bucket >> 24) & 0xFF);
 
-                        /* Ignore time and date for now */
-                        fBuffer[i + 56] = (Byte)(DataLen & 0xFF);
-                        fBuffer[i + 57] = (Byte)((DataLen >> 8) & 0xFF);
-                        fBuffer[i + 58] = (Byte)((DataLen >> 16) & 0xFF);
-                        fBuffer[i + 59] = (Byte)((DataLen >> 24) & 0xFF);
-                        fBuffer[i + 60] = (Byte)((DataLen >> 32) & 0xFF);
-                        fBuffer[i + 61] = (Byte)((DataLen >> 40) & 0xFF);
-                        fBuffer[i + 62] = (Byte)((DataLen >> 48) & 0xFF);
-                        fBuffer[i + 63] = (Byte)((DataLen >> 56) & 0xFF);
+                        fBuffer[i + 8] = (Byte)(BucketLength & 0xFF);
+                        fBuffer[i + 9] = (Byte)((BucketLength >> 8) & 0xFF);
+                        fBuffer[i + 10] = (Byte)((BucketLength >> 16) & 0xFF);
+                        fBuffer[i + 11] = (Byte)((BucketLength >> 24) & 0xFF);
 
-                        fBuffer[i + 64] = (Byte)(AllocatedSize & 0xFF);
-                        fBuffer[i + 65] = (Byte)((AllocatedSize >> 8) & 0xFF);
-                        fBuffer[i + 66] = (Byte)((AllocatedSize >> 16) & 0xFF);
-                        fBuffer[i + 67] = (Byte)((AllocatedSize >> 24) & 0xFF);
-                        fBuffer[i + 68] = (Byte)((AllocatedSize >> 32) & 0xFF);
-                        fBuffer[i + 69] = (Byte)((AllocatedSize >> 40) & 0xFF);
-                        fBuffer[i + 70] = (Byte)((AllocatedSize >> 48) & 0xFF);
-                        fBuffer[i + 71] = (Byte)((AllocatedSize >> 56) & 0xFF);
+                        /* Ignore time and date for now */
+                        fBuffer[i + 60] = (Byte)(DataLen & 0xFF);
+                        fBuffer[i + 61] = (Byte)((DataLen >> 8) & 0xFF);
+                        fBuffer[i + 62] = (Byte)((DataLen >> 16) & 0xFF);
+                        fBuffer[i + 63] = (Byte)((DataLen >> 24) & 0xFF);
+                        fBuffer[i + 64] = (Byte)((DataLen >> 32) & 0xFF);
+                        fBuffer[i + 65] = (Byte)((DataLen >> 40) & 0xFF);
+                        fBuffer[i + 66] = (Byte)((DataLen >> 48) & 0xFF);
+                        fBuffer[i + 67] = (Byte)((DataLen >> 56) & 0xFF);
+
+                        fBuffer[i + 68] = (Byte)(AllocatedSize & 0xFF);
+                        fBuffer[i + 69] = (Byte)((AllocatedSize >> 8) & 0xFF);
+                        fBuffer[i + 70] = (Byte)((AllocatedSize >> 16) & 0xFF);
+                        fBuffer[i + 71] = (Byte)((AllocatedSize >> 24) & 0xFF);
+                        fBuffer[i + 72] = (Byte)((AllocatedSize >> 32) & 0xFF);
+                        fBuffer[i + 73] = (Byte)((AllocatedSize >> 40) & 0xFF);
+                        fBuffer[i + 74] = (Byte)((AllocatedSize >> 48) & 0xFF);
+                        fBuffer[i + 75] = (Byte)((AllocatedSize >> 56) & 0xFF);
 
                         /* Setup Name */
                         Byte[] NameData = System.Text.Encoding.UTF8.GetBytes(Name);
                         for (int j = 0; j < NameData.Length; j++)
-                            fBuffer[i + 72 + j] = NameData[j];
+                            fBuffer[i + 76 + j] = NameData[j];
 
                         /* Don't use rest for now */
                         WriteDisk(mDisk, hDisk, Sector, fBuffer);
@@ -1061,8 +1079,9 @@ namespace MfsTool
                 }
 
                 /* Get next bucket */
+                UInt32 DirBucketLength = 0;
                 if (End == 0)
-                    IteratorBucket = GetNextBucket(mDisk, hDisk, IteratorBucket);
+                    IteratorBucket = GetNextBucket(mDisk, hDisk, IteratorBucket, out DirBucketLength);
 
                 /* End of list? */
                 if (IteratorBucket == 0xFFFFFFFF)
@@ -1079,18 +1098,19 @@ namespace MfsTool
         }
 
         /* Fill bucketchain with data */
-        static void FillBucketChain(MfsDisk mDisk, SafeFileHandle hDisk, UInt32 Bucket, Byte[] Data)
+        static void FillBucketChain(MfsDisk mDisk, SafeFileHandle hDisk, UInt32 Bucket, UInt32 BucketLength, Byte[] Data)
         {
-            /* Alloc Buffer */
-            Byte[] Buffer = new Byte[mDisk.BucketSize * mDisk.BytesPerSector];
-
             /* Index */
             Int64 Index = 0;
             UInt32 BucketPtr = Bucket;
+            UInt32 BucketLengthItr = BucketLength;
 
             /* Iterate */
             while (Index < Data.LongLength)
             {
+                /* Alloc Buffer */
+                Byte[] Buffer = new Byte[(mDisk.BucketSize * mDisk.BytesPerSector) * BucketLengthItr];
+
                 /* Copy */
                 for (int i = 0; i < Buffer.Length; i++)
                 {
@@ -1108,7 +1128,7 @@ namespace MfsTool
                 WriteDisk(mDisk, hDisk, Sector, Buffer);
 
                 /* Get next bucket */
-                BucketPtr = GetNextBucket(mDisk, hDisk, BucketPtr);
+                BucketPtr = GetNextBucket(mDisk, hDisk, BucketPtr, out BucketLengthItr);
 
                 /* Sanity */
                 if (BucketPtr == 0xFFFFFFFF)
@@ -1198,7 +1218,7 @@ namespace MfsTool
 
                 /* Write Data */
                 Console.WriteLine("Updating Data");
-                FillBucketChain(mDisk, handle, nEntry.Bucket, FileData);
+                FillBucketChain(mDisk, handle, nEntry.Bucket, nEntry.BucketLength, FileData);
 
                 /* Update entry with new sizes, new dates, new times */
                 Byte[] fBuffer = ReadDisk(mDisk, handle, (nEntry.DirBucket * mDisk.BucketSize), mDisk.BucketSize);
@@ -1209,23 +1229,28 @@ namespace MfsTool
                 fBuffer[nEntry.DirIndex + 6] = (Byte)((nEntry.Bucket >> 16) & 0xFF);
                 fBuffer[nEntry.DirIndex + 7] = (Byte)((nEntry.Bucket >> 24) & 0xFF);
 
-                fBuffer[nEntry.DirIndex + 56] = (Byte)(FileData.LongLength & 0xFF);
-                fBuffer[nEntry.DirIndex + 57] = (Byte)((FileData.LongLength >> 8) & 0xFF);
-                fBuffer[nEntry.DirIndex + 58] = (Byte)((FileData.LongLength >> 16) & 0xFF);
-                fBuffer[nEntry.DirIndex + 59] = (Byte)((FileData.LongLength >> 24) & 0xFF);
-                fBuffer[nEntry.DirIndex + 60] = (Byte)((FileData.LongLength >> 32) & 0xFF);
-                fBuffer[nEntry.DirIndex + 61] = (Byte)((FileData.LongLength >> 40) & 0xFF);
-                fBuffer[nEntry.DirIndex + 62] = (Byte)((FileData.LongLength >> 48) & 0xFF);
-                fBuffer[nEntry.DirIndex + 63] = (Byte)((FileData.LongLength >> 56) & 0xFF);
+                fBuffer[nEntry.DirIndex + 8] = (Byte)(nEntry.BucketLength & 0xFF);
+                fBuffer[nEntry.DirIndex + 9] = (Byte)((nEntry.BucketLength >> 8) & 0xFF);
+                fBuffer[nEntry.DirIndex + 10] = (Byte)((nEntry.BucketLength >> 16) & 0xFF);
+                fBuffer[nEntry.DirIndex + 11] = (Byte)((nEntry.BucketLength >> 24) & 0xFF);
 
-                fBuffer[nEntry.DirIndex + 64] = (Byte)(nEntry.AllocatedSize & 0xFF);
-                fBuffer[nEntry.DirIndex + 65] = (Byte)((nEntry.AllocatedSize >> 8) & 0xFF);
-                fBuffer[nEntry.DirIndex + 66] = (Byte)((nEntry.AllocatedSize >> 16) & 0xFF);
-                fBuffer[nEntry.DirIndex + 67] = (Byte)((nEntry.AllocatedSize >> 24) & 0xFF);
-                fBuffer[nEntry.DirIndex + 68] = (Byte)((nEntry.AllocatedSize >> 32) & 0xFF);
-                fBuffer[nEntry.DirIndex + 69] = (Byte)((nEntry.AllocatedSize >> 40) & 0xFF);
-                fBuffer[nEntry.DirIndex + 70] = (Byte)((nEntry.AllocatedSize >> 48) & 0xFF);
-                fBuffer[nEntry.DirIndex + 71] = (Byte)((nEntry.AllocatedSize >> 56) & 0xFF);
+                fBuffer[nEntry.DirIndex + 60] = (Byte)(FileData.LongLength & 0xFF);
+                fBuffer[nEntry.DirIndex + 61] = (Byte)((FileData.LongLength >> 8) & 0xFF);
+                fBuffer[nEntry.DirIndex + 62] = (Byte)((FileData.LongLength >> 16) & 0xFF);
+                fBuffer[nEntry.DirIndex + 63] = (Byte)((FileData.LongLength >> 24) & 0xFF);
+                fBuffer[nEntry.DirIndex + 64] = (Byte)((FileData.LongLength >> 32) & 0xFF);
+                fBuffer[nEntry.DirIndex + 65] = (Byte)((FileData.LongLength >> 40) & 0xFF);
+                fBuffer[nEntry.DirIndex + 66] = (Byte)((FileData.LongLength >> 48) & 0xFF);
+                fBuffer[nEntry.DirIndex + 67] = (Byte)((FileData.LongLength >> 56) & 0xFF);
+
+                fBuffer[nEntry.DirIndex + 68] = (Byte)(nEntry.AllocatedSize & 0xFF);
+                fBuffer[nEntry.DirIndex + 69] = (Byte)((nEntry.AllocatedSize >> 8) & 0xFF);
+                fBuffer[nEntry.DirIndex + 70] = (Byte)((nEntry.AllocatedSize >> 16) & 0xFF);
+                fBuffer[nEntry.DirIndex + 71] = (Byte)((nEntry.AllocatedSize >> 24) & 0xFF);
+                fBuffer[nEntry.DirIndex + 72] = (Byte)((nEntry.AllocatedSize >> 32) & 0xFF);
+                fBuffer[nEntry.DirIndex + 73] = (Byte)((nEntry.AllocatedSize >> 40) & 0xFF);
+                fBuffer[nEntry.DirIndex + 74] = (Byte)((nEntry.AllocatedSize >> 48) & 0xFF);
+                fBuffer[nEntry.DirIndex + 75] = (Byte)((nEntry.AllocatedSize >> 56) & 0xFF);
 
                 /* Write back */
                 WriteDisk(mDisk, handle, (nEntry.DirBucket * mDisk.BucketSize), fBuffer);
@@ -1331,9 +1356,9 @@ namespace MfsTool
 
             /* Setup directories */
             Console.WriteLine("Creating system directories");
-            CreateFileEntry(mDisk, handle, (ushort)(MfsEntryFlags.MFS_DIRECTORY | MfsEntryFlags.MFS_SYSTEM), 0xFFFFFFFF, null, "Shared", RootBucket);
-            CreateFileEntry(mDisk, handle, (ushort)(MfsEntryFlags.MFS_DIRECTORY | MfsEntryFlags.MFS_SYSTEM), 0xFFFFFFFF, null, "Users", RootBucket);
-            CreateFileEntry(mDisk, handle, (ushort)(MfsEntryFlags.MFS_DIRECTORY | MfsEntryFlags.MFS_SYSTEM), 0xFFFFFFFF, null, "System", RootBucket);
+            CreateFileEntry(mDisk, handle, (ushort)(MfsEntryFlags.MFS_DIRECTORY | MfsEntryFlags.MFS_SYSTEM), 0xFFFFFFFF, 0, null, "Shared", RootBucket);
+            CreateFileEntry(mDisk, handle, (ushort)(MfsEntryFlags.MFS_DIRECTORY | MfsEntryFlags.MFS_SYSTEM), 0xFFFFFFFF, 0, null, "Users", RootBucket);
+            CreateFileEntry(mDisk, handle, (ushort)(MfsEntryFlags.MFS_DIRECTORY | MfsEntryFlags.MFS_SYSTEM), 0xFFFFFFFF, 0, null, "System", RootBucket);
             handle.Close();
 
             /* Write files */
@@ -1477,7 +1502,7 @@ namespace MfsTool
         public UInt64 Size;
         public UInt64 AllocatedSize;
         public UInt32 Bucket;
-
+        public UInt32 BucketLength;
 
         public UInt32 DirBucket;
         public UInt32 DirIndex;

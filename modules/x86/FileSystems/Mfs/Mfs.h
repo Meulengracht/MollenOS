@@ -118,29 +118,27 @@ typedef struct _MfsTableEntry
 
 	/* Index - 0x4 */
 	uint32_t StartBucket;
+	uint32_t StartLength;
 
-	/* Stats - 0x8 */
+	/* Stats - 0xC */
 	uint64_t CreatedTime;
-	uint64_t CreatedDate;  /* 0x10 */
+	uint64_t CreatedDate;  /* 0x14 */
 
-	uint64_t ModifiedTime; /* 0x18 */
-	uint64_t ModifedDate;  /* 0x20 */
+	uint64_t ModifiedTime; /* 0x1C */
+	uint64_t ModifedDate;  /* 0x24 */
 
-	uint64_t ReadTime;	   /* 0x28 */
-	uint64_t ReadDate;	   /* 0x30 */
+	uint64_t ReadTime;	   /* 0x2C */
+	uint64_t ReadDate;	   /* 0x34 */
 	
 	/* More interesting */
-	uint64_t Size;		   /* 0x38 */
-	uint64_t AllocatedSize; /* 0x40 */
+	uint64_t Size;		   /* 0x3C */
+	uint64_t AllocatedSize; /* 0x44 */
 
-	/* Name Block 0x48 */
-	uint8_t Name[400];
-
-	/* Security Block */
-	uint8_t SecurityBlock[64];
+	/* Name Block 0x4C */
+	uint8_t Name[440];
 
 	/* Opt Data Block */
-	uint8_t Data[488];
+	uint8_t Data[512];
 
 } MfsTableEntry_t;
 
