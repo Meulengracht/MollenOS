@@ -142,9 +142,9 @@ namespace MfsTool
         {
             /* Calculate Bucket Map */
             UInt64 Buckets = mDisk.TotalSectors / mDisk.BucketSize;
-            UInt64 BucketMapSize = Buckets * 4; /* One bucket descriptor is 4 bytes */
+            UInt64 BucketMapSize = Buckets * 8; /* One bucket descriptor is 8 bytes */
             UInt64 BucketMapSector = (mDisk.TotalSectors - ((BucketMapSize / mDisk.BytesPerSector) + 1));
-            UInt32 BucketsPerSector = mDisk.BytesPerSector / 4;
+            UInt32 BucketsPerSector = mDisk.BytesPerSector / 8;
 
             UInt64 Counter = NumBuckets;
             UInt32 BucketPtr = FreeBucketIndex;
@@ -152,6 +152,7 @@ namespace MfsTool
             while (Counter > 0)
             {
                 /* Which sector is the next bucket in? */
+                UInt32 FreeCount = 0;
                 UInt32 SectorOffset = BucketPtr / BucketsPerSector;
                 UInt32 SectorIndex = BucketPtr % BucketsPerSector;
 
@@ -160,13 +161,65 @@ namespace MfsTool
 
                 /* Done */
                 BucketPrevPtr = BucketPtr;
-                BucketPtr = BitConverter.ToUInt32(Sector, (int)(SectorIndex * 4));
+                BucketPtr = BitConverter.ToUInt32(Sector, (int)(SectorIndex * 8));
+                FreeCount = BitConverter.ToUInt32(Sector, (int)((SectorIndex * 8) + 4));
 
-                /* Next */
-                Counter--;
+                /* How many buckets? */
+                if (FreeCount > Counter)
+                {
+                    /* Calculate next free */
+                    UInt32 NextFreeBucket = BucketPrevPtr + (UInt32)Counter;
+                    UInt32 NextFreeCount = FreeCount - (UInt32)Counter;
+
+                    /* We have to adjust now, 
+                     * since we are taking only a chunk
+                     * of the available length */
+                    Sector[SectorIndex * 8] = (Byte)(NextFreeBucket & 0xFF);
+                    Sector[SectorIndex * 8 + 1] = (Byte)((NextFreeBucket >> 8) & 0xFF);
+                    Sector[SectorIndex * 8 + 2] = (Byte)((NextFreeBucket >> 16) & 0xFF);
+                    Sector[SectorIndex * 8 + 3] = (Byte)((NextFreeBucket >> 24) & 0xFF);
+                    Sector[SectorIndex * 8 + 4] = (Byte)(Counter & 0xFF);
+                    Sector[SectorIndex * 8 + 5] = (Byte)((Counter >> 8) & 0xFF);
+                    Sector[SectorIndex * 8 + 6] = (Byte)((Counter >> 16) & 0xFF);
+                    Sector[SectorIndex * 8 + 7] = (Byte)((Counter >> 24) & 0xFF);
+
+                    /* Write it back */
+                    WriteDisk(mDisk, hDisk, BucketMapSector + SectorOffset, Sector);
+
+                    /* Setup new block */
+                    SectorOffset = NextFreeBucket / BucketsPerSector;
+                    SectorIndex = NextFreeBucket % BucketsPerSector;
+
+                    /* Read */
+                    Sector = ReadDisk(mDisk, hDisk, BucketMapSector + SectorOffset, 1);
+
+                    /* Modify */
+                    Sector[SectorIndex * 8] = (Byte)(BucketPtr & 0xFF);
+                    Sector[SectorIndex * 8 + 1] = (Byte)((BucketPtr >> 8) & 0xFF);
+                    Sector[SectorIndex * 8 + 2] = (Byte)((BucketPtr >> 16) & 0xFF);
+                    Sector[SectorIndex * 8 + 3] = (Byte)((BucketPtr >> 24) & 0xFF);
+                    Sector[SectorIndex * 8 + 4] = (Byte)(NextFreeCount & 0xFF);
+                    Sector[SectorIndex * 8 + 5] = (Byte)((NextFreeCount >> 8) & 0xFF);
+                    Sector[SectorIndex * 8 + 6] = (Byte)((NextFreeCount >> 16) & 0xFF);
+                    Sector[SectorIndex * 8 + 7] = (Byte)((NextFreeCount >> 24) & 0xFF);
+
+                    /* Write it back */
+                    WriteDisk(mDisk, hDisk, BucketMapSector + SectorOffset, Sector);
+                    
+                    /* Done */
+                    return NextFreeBucket;
+                }
+                else
+                {
+                    /* We can just take the whole cake
+                     * no need to modify it's length */
+
+                    /* Next */
+                    Counter -= FreeCount;
+                }
             }
 
-            /* Update BucketPrevPtr to 0xfFFFFFFF */
+            /* Update BucketPrevPtr to 0xFFFFFFFF */
             UInt32 _SecOff = BucketPrevPtr / BucketsPerSector;
             UInt32 _SecInd = BucketPrevPtr % BucketsPerSector;
 
@@ -174,10 +227,10 @@ namespace MfsTool
             Byte[] _Sec = ReadDisk(mDisk, hDisk, BucketMapSector + _SecOff, 1);
 
             /* Modify Sector */
-            _Sec[_SecInd * 4] = 0xFF;
-            _Sec[_SecInd * 4 + 1] = 0xFF;
-            _Sec[_SecInd * 4 + 2] = 0xFF;
-            _Sec[_SecInd * 4 + 3] = 0xFF;
+            _Sec[_SecInd * 8] = 0xFF;
+            _Sec[_SecInd * 8 + 1] = 0xFF;
+            _Sec[_SecInd * 8 + 2] = 0xFF;
+            _Sec[_SecInd * 8 + 3] = 0xFF;
 
             /* Write it back */
             WriteDisk(mDisk, hDisk, BucketMapSector + _SecOff, _Sec);
@@ -187,15 +240,15 @@ namespace MfsTool
         }
 
         /* Locate next bucket */
-        static UInt32 GetNextBucket(MfsDisk mDisk, SafeFileHandle hDisk, UInt32 Bucket)
+        static UInt32 GetNextBucket(MfsDisk mDisk, SafeFileHandle hDisk, UInt32 Bucket, out UInt32 BucketLength)
         {
             /* Calculate Bucket Map */
             UInt64 Buckets = mDisk.TotalSectors / mDisk.BucketSize;
-            UInt64 BucketMapSize = Buckets * 4; /* One bucket descriptor is 4 bytes */
+            UInt64 BucketMapSize = Buckets * 8; /* One bucket descriptor is 8 bytes */
             UInt64 BucketMapSector = (mDisk.TotalSectors - ((BucketMapSize / mDisk.BytesPerSector) + 1));
 
             /* Calculate Index */
-            UInt32 BucketsPerSector = mDisk.BytesPerSector / 4;
+            UInt32 BucketsPerSector = mDisk.BytesPerSector / 8;
             UInt32 SectorOffset = Bucket / BucketsPerSector;
             UInt32 SectorIndex = Bucket % BucketsPerSector;
 
@@ -203,7 +256,8 @@ namespace MfsTool
             Byte[] Sector = ReadDisk(mDisk, hDisk, BucketMapSector + SectorOffset, 1);
 
             /* Done */
-            return BitConverter.ToUInt32(Sector, (int)(SectorIndex * 4));
+            BucketLength = BitConverter.ToUInt32(Sector, (int)((SectorIndex * 8) + 4));
+            return BitConverter.ToUInt32(Sector, (int)(SectorIndex * 8));
         }
 
         /* Update bucket ptr */
@@ -211,11 +265,11 @@ namespace MfsTool
         {
             /* Calculate Bucket Map */
             UInt64 Buckets = mDisk.TotalSectors / mDisk.BucketSize;
-            UInt64 BucketMapSize = Buckets * 4; /* One bucket descriptor is 4 bytes */
+            UInt64 BucketMapSize = Buckets * 8; /* One bucket descriptor is 8 bytes */
             UInt64 BucketMapSector = (mDisk.TotalSectors - ((BucketMapSize / mDisk.BytesPerSector) + 1));
 
             /* Calculate Index */
-            UInt32 BucketsPerSector = mDisk.BytesPerSector / 4;
+            UInt32 BucketsPerSector = mDisk.BytesPerSector / 8;
             UInt32 SectorOffset = Bucket / BucketsPerSector;
             UInt32 SectorIndex = Bucket % BucketsPerSector;
 
@@ -223,10 +277,10 @@ namespace MfsTool
             Byte[] Sector = ReadDisk(mDisk, hDisk, BucketMapSector + SectorOffset, 1);
 
             /* Edit */
-            Sector[SectorIndex * 4] = (Byte)(NextBucket & 0xFF);
-            Sector[SectorIndex * 4 + 1] = (Byte)((NextBucket >> 8) & 0xFF);
-            Sector[SectorIndex * 4 + 2] = (Byte)((NextBucket >> 16) & 0xFF);
-            Sector[SectorIndex * 4 + 3] = (Byte)((NextBucket >> 24) & 0xFF);
+            Sector[SectorIndex * 8] = (Byte)(NextBucket & 0xFF);
+            Sector[SectorIndex * 8 + 1] = (Byte)((NextBucket >> 8) & 0xFF);
+            Sector[SectorIndex * 8 + 2] = (Byte)((NextBucket >> 16) & 0xFF);
+            Sector[SectorIndex * 8 + 3] = (Byte)((NextBucket >> 24) & 0xFF);
 
             /* Write */
             WriteDisk(mDisk, hDisk, BucketMapSector + SectorOffset, Sector);
@@ -293,7 +347,7 @@ namespace MfsTool
              * untill we reach the end of buckets
              * Position at end of drive */
             Buckets = mDisk.TotalSectors / BucketSize;
-            BucketMapSize = Buckets * 4; /* One bucket descriptor is 4 bytes */
+            BucketMapSize = Buckets * 8; /* One bucket descriptor is 8 bytes */
             BucketMapSector = (mDisk.TotalSectors - ((BucketMapSize / mDisk.BytesPerSector) + 1));
             MirrorMasterBucketSector = BucketMapSector - 1;
 
@@ -305,6 +359,7 @@ namespace MfsTool
             Console.WriteLine("Bucket Map Size: " + BucketMapSize.ToString());
             Console.WriteLine("Bucket Map Sector: " + BucketMapSector.ToString());
             Console.WriteLine("Reserved Buckets: " + ReservedBuckets.ToString());
+            Console.WriteLine("Free BucketCount: " + ((Buckets - ReservedBuckets) - 1).ToString());
 
             /* Step 1 */
             Console.WriteLine("Writing BucketTable");
@@ -316,26 +371,44 @@ namespace MfsTool
             Byte[] SectorBuffer = new Byte[mDisk.BytesPerSector];
             UInt64 Iterator = 0;
             UInt64 Max = Buckets;
+            UInt64 FreeCount = (Buckets - ReservedBuckets) - 1;
+            UInt32 FreeBlockItr = 0x7FFFFFFF;
 
             while (Iterator < Max)
             {
                 /* Build sector buffer */
-                for (UInt64 i = 0; i < (mDisk.BytesPerSector / 4); i++)
+                for (UInt64 i = 0; i < (mDisk.BytesPerSector / 8); i++)
                 {
                     /* Sanity */
                     if (Iterator >= ((Max - ReservedBuckets) - 1))
                     {
-                        SectorBuffer[(i * 4)] = 0xFF;
-                        SectorBuffer[(i * 4) + 1] = 0xFF;
-                        SectorBuffer[(i * 4) + 2] = 0xFF;
-                        SectorBuffer[(i * 4) + 3] = 0xFF;
+                        SectorBuffer[(i * 8)] = 0xFF;
+                        SectorBuffer[(i * 8) + 1] = 0xFF;
+                        SectorBuffer[(i * 8) + 2] = 0xFF;
+                        SectorBuffer[(i * 8) + 3] = 0xFF;
+                        SectorBuffer[(i * 8) + 4] = 0x01;
+                        SectorBuffer[(i * 8) + 5] = 0x00;
+                        SectorBuffer[(i * 8) + 6] = 0x00;
+                        SectorBuffer[(i * 8) + 7] = 0x00;
                     }
                     else
                     {
-                        SectorBuffer[(i * 4)] = (Byte)((Iterator + 1) & 0xFF);
-                        SectorBuffer[(i * 4) + 1] = (Byte)(((Iterator + 1) >> 8) & 0xFF);
-                        SectorBuffer[(i * 4) + 2] = (Byte)(((Iterator + 1) >> 16) & 0xFF);
-                        SectorBuffer[(i * 4) + 3] = (Byte)(((Iterator + 1) >> 24) & 0xFF);
+                        SectorBuffer[(i * 8)] = 0xFF;
+                        SectorBuffer[(i * 8) + 1] = 0xFF;
+                        SectorBuffer[(i * 8) + 2] = 0xFF;
+                        SectorBuffer[(i * 8) + 3] = 0xFF;
+                        SectorBuffer[(i * 8) + 4] = (Byte)((FreeCount) & 0xFF);
+                        SectorBuffer[(i * 8) + 5] = (Byte)(((FreeCount) >> 8) & 0xFF);
+                        SectorBuffer[(i * 8) + 6] = (Byte)(((FreeCount) >> 16) & 0xFF);
+                        SectorBuffer[(i * 8) + 7] = (Byte)(((FreeCount) >> 24) & 0xFF);
+
+                        /* Decrease */
+                        FreeCount--;
+                        FreeBlockItr--;
+
+                        /* Sanity */
+                        if (FreeBlockItr == 0)
+                            FreeBlockItr = 0x7FFFFFFF;
                     }
 
                     /* Go to next */
@@ -368,6 +441,8 @@ namespace MfsTool
             BucketStartFree = AllocateBucket(mDisk, handle, BucketStartFree, 1);
             UInt32 BadBucketIndex = BucketStartFree;
             BucketStartFree = AllocateBucket(mDisk, handle, BucketStartFree, 1);
+            UInt32 JournalIndex = BucketStartFree;
+            BucketStartFree = AllocateBucket(mDisk, handle, BucketStartFree, 8);
             Console.WriteLine("First Free Bucket after initial: " + BucketStartFree.ToString());
 
             /* Write it to the two sectors */
@@ -407,25 +482,31 @@ namespace MfsTool
             MasterBucket[18] = (Byte)((BadBucketIndex >> 16) & 0xFF);
             MasterBucket[19] = (Byte)((BadBucketIndex >> 24) & 0xFF);
 
+            /* Setup Journal File Index */
+            MasterBucket[20] = (Byte)(JournalIndex & 0xFF);
+            MasterBucket[21] = (Byte)((JournalIndex >> 8) & 0xFF);
+            MasterBucket[22] = (Byte)((JournalIndex >> 16) & 0xFF);
+            MasterBucket[23] = (Byte)((JournalIndex >> 24) & 0xFF);
+
             /* Setup bucketmap sector */
-            MasterBucket[20] = (Byte)(BucketMapSector & 0xFF);
-            MasterBucket[21] = (Byte)((BucketMapSector >> 8) & 0xFF);
-            MasterBucket[22] = (Byte)((BucketMapSector >> 16) & 0xFF);
-            MasterBucket[23] = (Byte)((BucketMapSector >> 24) & 0xFF);
-            MasterBucket[24] = (Byte)((BucketMapSector >> 32) & 0xFF);
-            MasterBucket[25] = (Byte)((BucketMapSector >> 40) & 0xFF);
-            MasterBucket[26] = (Byte)((BucketMapSector >> 48) & 0xFF);
-            MasterBucket[27] = (Byte)((BucketMapSector >> 56) & 0xFF);
+            MasterBucket[24] = (Byte)(BucketMapSector & 0xFF);
+            MasterBucket[25] = (Byte)((BucketMapSector >> 8) & 0xFF);
+            MasterBucket[26] = (Byte)((BucketMapSector >> 16) & 0xFF);
+            MasterBucket[27] = (Byte)((BucketMapSector >> 24) & 0xFF);
+            MasterBucket[28] = (Byte)((BucketMapSector >> 32) & 0xFF);
+            MasterBucket[29] = (Byte)((BucketMapSector >> 40) & 0xFF);
+            MasterBucket[30] = (Byte)((BucketMapSector >> 48) & 0xFF);
+            MasterBucket[31] = (Byte)((BucketMapSector >> 56) & 0xFF);
 
             /* Setup bucketmap size */
-            MasterBucket[29] = (Byte)(BucketMapSize & 0xFF);
-            MasterBucket[30] = (Byte)((BucketMapSize >> 8) & 0xFF);
-            MasterBucket[31] = (Byte)((BucketMapSize >> 16) & 0xFF);
-            MasterBucket[32] = (Byte)((BucketMapSize >> 24) & 0xFF);
-            MasterBucket[33] = (Byte)((BucketMapSize >> 32) & 0xFF);
-            MasterBucket[34] = (Byte)((BucketMapSize >> 40) & 0xFF);
-            MasterBucket[35] = (Byte)((BucketMapSize >> 48) & 0xFF);
-            MasterBucket[36] = (Byte)((BucketMapSize >> 56) & 0xFF);
+            MasterBucket[32] = (Byte)(BucketMapSize & 0xFF);
+            MasterBucket[33] = (Byte)((BucketMapSize >> 8) & 0xFF);
+            MasterBucket[34] = (Byte)((BucketMapSize >> 16) & 0xFF);
+            MasterBucket[35] = (Byte)((BucketMapSize >> 24) & 0xFF);
+            MasterBucket[36] = (Byte)((BucketMapSize >> 32) & 0xFF);
+            MasterBucket[37] = (Byte)((BucketMapSize >> 40) & 0xFF);
+            MasterBucket[38] = (Byte)((BucketMapSize >> 48) & 0xFF);
+            MasterBucket[39] = (Byte)((BucketMapSize >> 56) & 0xFF);
 
             /* Seek */
             WriteDisk(mDisk, handle, (UInt64)MirrorMasterBucketSector, MasterBucket);
@@ -441,6 +522,13 @@ namespace MfsTool
 
             Console.WriteLine("Wiping Bad Bucket List");
             WriteDisk(mDisk, handle, (BadBucketIndex * BucketSize), Wipe);
+
+            Wipe = new Byte[(BucketSize * mDisk.BytesPerSector) * 8];
+            for (int i = 0; i < Wipe.Length; i++)
+                Wipe[i] = 0;
+
+            Console.WriteLine("Wiping Journal");
+            WriteDisk(mDisk, handle, (JournalIndex * BucketSize), Wipe);
 
             /* Step 3 */
             Console.WriteLine("Writing Mbr");
@@ -1082,10 +1170,11 @@ namespace MfsTool
                     /* Get last bucket in chain */
                     UInt32 BucketPtr = nEntry.Bucket;
                     UInt32 BucketPrevPtr = 0;
+                    UInt32 BucketLength = 0;
                     while (BucketPtr != 0xFFFFFFFF)
                     {
                         BucketPrevPtr = BucketPtr;
-                        BucketPtr = GetNextBucket(mDisk, handle, BucketPtr);
+                        BucketPtr = GetNextBucket(mDisk, handle, BucketPtr, out BucketLength);
                     }
 
                     /* Update pointer */
