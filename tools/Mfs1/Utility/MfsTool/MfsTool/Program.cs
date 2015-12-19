@@ -138,7 +138,7 @@ namespace MfsTool
         }
 
         /* Allocate a bucket */
-        static UInt32 AllocateBucket(MfsDisk mDisk, SafeFileHandle hDisk, UInt32 FreeBucketIndex, UInt64 NumBuckets)
+        static UInt32 AllocateBucket(MfsDisk mDisk, SafeFileHandle hDisk, UInt32 FreeBucketIndex, UInt64 NumBuckets, out UInt32 InitialSize)
         {
             /* Calculate Bucket Map */
             UInt64 Buckets = mDisk.TotalSectors / mDisk.BucketSize;
@@ -149,6 +149,7 @@ namespace MfsTool
             UInt64 Counter = NumBuckets;
             UInt32 BucketPtr = FreeBucketIndex;
             UInt32 BucketPrevPtr = 0;
+            UInt32 FirstFreeSize = 0;
             while (Counter > 0)
             {
                 /* Which sector is the next bucket in? */
@@ -171,13 +172,16 @@ namespace MfsTool
                     UInt32 NextFreeBucket = BucketPrevPtr + (UInt32)Counter;
                     UInt32 NextFreeCount = FreeCount - (UInt32)Counter;
 
+                    if (FirstFreeSize == 0)
+                        FirstFreeSize = (UInt32)Counter;
+
                     /* We have to adjust now, 
                      * since we are taking only a chunk
                      * of the available length */
-                    Sector[SectorIndex * 8] = (Byte)(NextFreeBucket & 0xFF);
-                    Sector[SectorIndex * 8 + 1] = (Byte)((NextFreeBucket >> 8) & 0xFF);
-                    Sector[SectorIndex * 8 + 2] = (Byte)((NextFreeBucket >> 16) & 0xFF);
-                    Sector[SectorIndex * 8 + 3] = (Byte)((NextFreeBucket >> 24) & 0xFF);
+                    Sector[SectorIndex * 8] = 0xFF;
+                    Sector[SectorIndex * 8 + 1] = 0xFF;
+                    Sector[SectorIndex * 8 + 2] = 0xFF;
+                    Sector[SectorIndex * 8 + 3] = 0xFF;
                     Sector[SectorIndex * 8 + 4] = (Byte)(Counter & 0xFF);
                     Sector[SectorIndex * 8 + 5] = (Byte)((Counter >> 8) & 0xFF);
                     Sector[SectorIndex * 8 + 6] = (Byte)((Counter >> 16) & 0xFF);
@@ -207,12 +211,15 @@ namespace MfsTool
                     WriteDisk(mDisk, hDisk, BucketMapSector + SectorOffset, Sector);
                     
                     /* Done */
+                    InitialSize = FirstFreeSize;
                     return NextFreeBucket;
                 }
                 else
                 {
                     /* We can just take the whole cake
                      * no need to modify it's length */
+                    if (FirstFreeSize == 0)
+                        FirstFreeSize = FreeCount;
 
                     /* Next */
                     Counter -= FreeCount;
@@ -234,8 +241,9 @@ namespace MfsTool
 
             /* Write it back */
             WriteDisk(mDisk, hDisk, BucketMapSector + _SecOff, _Sec);
-            
+
             /* Done */
+            InitialSize = FirstFreeSize;
             return BucketPtr;
         }
 
@@ -437,12 +445,13 @@ namespace MfsTool
                 BucketStartFree++;
 
             Console.WriteLine("First Free Bucket: " + BucketStartFree.ToString());
+            UInt32 InitialBucketSize = 0;
             UInt32 RootIndex = BucketStartFree;
-            BucketStartFree = AllocateBucket(mDisk, handle, BucketStartFree, 1);
+            BucketStartFree = AllocateBucket(mDisk, handle, BucketStartFree, 1, out InitialBucketSize);
             UInt32 BadBucketIndex = BucketStartFree;
-            BucketStartFree = AllocateBucket(mDisk, handle, BucketStartFree, 1);
+            BucketStartFree = AllocateBucket(mDisk, handle, BucketStartFree, 1, out InitialBucketSize);
             UInt32 JournalIndex = BucketStartFree;
-            BucketStartFree = AllocateBucket(mDisk, handle, BucketStartFree, 8);
+            BucketStartFree = AllocateBucket(mDisk, handle, BucketStartFree, 8, out InitialBucketSize);
             Console.WriteLine("First Free Bucket after initial: " + BucketStartFree.ToString());
 
             /* Write it to the two sectors */
@@ -781,6 +790,8 @@ namespace MfsTool
             String mPath = pPath;
             if (mPath.StartsWith("/"))
                 mPath = mPath.Substring(1, mPath.Length - 1);
+            if (mPath.EndsWith("/"))
+                mPath = mPath.Substring(0, mPath.Length - 1);
 
             /* Get token */
             int iDex = mPath.IndexOf("/");
@@ -788,10 +799,11 @@ namespace MfsTool
 
             /* EoP */
             if (String.IsNullOrEmpty(LookFor)
-                || LookFor.Contains("."))
+                || iDex == -1)
             {
                 /* List files */
                 UInt32 IteratorBucket = DirBucket;
+                UInt32 PrevItrBucket = 0;
                 int End = 0;
 
                 while (End == 0)
@@ -824,8 +836,13 @@ namespace MfsTool
                         i += 1023;
                     }
 
+                    /* Sanity */
+                    if (End == 1)
+                        break;
+
                     /* Get next bucket */
                     UInt32 DirBucketLength = 0;
+                    PrevItrBucket = IteratorBucket;
                     if (End == 0)
                         IteratorBucket = GetNextBucket(mDisk, hDisk, IteratorBucket, out DirBucketLength);
 
@@ -836,7 +853,7 @@ namespace MfsTool
 
                 /* We must reach this point */
                 MfsEntry nEntry = new MfsEntry();
-                nEntry.DirBucket = IteratorBucket;
+                nEntry.DirBucket = IteratorBucket == 0xFFFFFFFF ? PrevItrBucket : IteratorBucket;
                 nEntry.DirIndex = 0;
 
                 /* Done */
@@ -906,7 +923,8 @@ namespace MfsTool
 
                                 /* Allocate */
                                 nEntry.Bucket = FreeBucket;
-                                UInt32 NextFree = AllocateBucket(mDisk, hDisk, FreeBucket, 1);
+                                UInt32 InitialBucketSize = 0;
+                                UInt32 NextFree = AllocateBucket(mDisk, hDisk, FreeBucket, 1, out InitialBucketSize);
 
                                 /* Update Mb */
                                 Mb[8] = (Byte)(NextFree & 0xFF);
@@ -1071,7 +1089,7 @@ namespace MfsTool
                         WriteDisk(mDisk, hDisk, Sector, fBuffer);
 
                         /* Done */
-                        break;
+                        return;
                     }
 
                     /* Next */
@@ -1080,18 +1098,51 @@ namespace MfsTool
 
                 /* Get next bucket */
                 UInt32 DirBucketLength = 0;
+                UInt32 PrevDirBucket = IteratorBucket;
                 if (End == 0)
                     IteratorBucket = GetNextBucket(mDisk, hDisk, IteratorBucket, out DirBucketLength);
 
                 /* End of list? */
                 if (IteratorBucket == 0xFFFFFFFF)
                 {
+                    /* Read MBR */
+                    Console.WriteLine("Expanding directory");
+                    Byte[] Mbr = ReadDisk(mDisk, hDisk, 0, 1);
+
+                    /* Find MB Ptr */
+                    UInt64 MbSector = BitConverter.ToUInt64(Mbr, 28);
+                    UInt64 MbMirrorSector = BitConverter.ToUInt64(Mbr, 36);
+
+                    /* Find Root Ptr in MB */
+                    Byte[] Mb = ReadDisk(mDisk, hDisk, MbSector, 1);
+                    UInt32 FreeBucket = BitConverter.ToUInt32(Mb, 8);
+
                     /* Allocate bucket */
+                    Console.WriteLine("New bucket: " + FreeBucket.ToString());
+                    UInt32 NextFreeBucket = AllocateBucket(mDisk, hDisk, FreeBucket, 1, out DirBucketLength);
+                    Console.WriteLine("Next free bucket: " + NextFreeBucket.ToString());
 
                     /* Extend directory */
+                    SetNextBucket(mDisk, hDisk, PrevDirBucket, FreeBucket);
+
+                    /* Update Mb(s) */
+                    Mb[8] = (Byte)(NextFreeBucket & 0xFF);
+                    Mb[9] = (Byte)((NextFreeBucket >> 8) & 0xFF);
+                    Mb[10] = (Byte)((NextFreeBucket >> 16) & 0xFF);
+                    Mb[11] = (Byte)((NextFreeBucket >> 24) & 0xFF);
+                    WriteDisk(mDisk, hDisk, MbSector, Mb);
+                    WriteDisk(mDisk, hDisk, MbMirrorSector, Mb);
+
+                    /* Wipe the bucket */
+                    Byte[] Wipe = new Byte[mDisk.BucketSize * mDisk.BytesPerSector];
+                    for (int i = 0; i < Wipe.Length; i++)
+                        Wipe[i] = 0;
+
+                    Console.WriteLine("Wiping new bucket");
+                    WriteDisk(mDisk, hDisk, (FreeBucket * mDisk.BucketSize), Wipe);
 
                     /* Update IteratorBucket */
-                    End = 1;
+                    IteratorBucket = FreeBucket;
                 }
                     
             }
@@ -1185,7 +1236,8 @@ namespace MfsTool
 
                     /* Allocate buckets */
                     UInt32 StartBucket = FreeBucket;
-                    FreeBucket = AllocateBucket(mDisk, handle, FreeBucket, NumBuckets);
+                    UInt32 InitialBucketSize = 0;
+                    FreeBucket = AllocateBucket(mDisk, handle, FreeBucket, NumBuckets, out InitialBucketSize);
 
                     /* Get last bucket in chain */
                     UInt32 BucketPtr = nEntry.Bucket;
@@ -1277,13 +1329,9 @@ namespace MfsTool
                 /* Allocate a chain */
                 Console.WriteLine("Allocing " + NumBuckets.ToString() + " buckets, old free ptr " + FreeBucket.ToString());
                 UInt32 StartBucket = FreeBucket;
-                FreeBucket = AllocateBucket(mDisk, handle, FreeBucket, NumBuckets);
+                UInt32 InitialBucketSize = 0;
+                FreeBucket = AllocateBucket(mDisk, handle, FreeBucket, NumBuckets, out InitialBucketSize);
                 Console.WriteLine("Done, new free pointer " + FreeBucket.ToString());
-
-                /* Create entry */
-                Console.WriteLine("Creating entry in path");
-                CreateFileEntry(mDisk, handle, (ushort)(MfsEntryFlags.MFS_FILE | MfsEntryFlags.MFS_SYSTEM | MfsEntryFlags.MFS_SECURITY), StartBucket, FileData, Path.GetFileName(lPath), cInfo.DirBucket);
-                Console.WriteLine("Done");
 
                 /* Update MB */
                 Mb[8] = (Byte)(FreeBucket & 0xFF);
@@ -1295,9 +1343,15 @@ namespace MfsTool
                 WriteDisk(mDisk, handle, MbSector, Mb);
                 WriteDisk(mDisk, handle, MbMirrorSector, Mb);
 
+                /* Create entry */
+                Console.WriteLine("Creating entry in path");
+                CreateFileEntry(mDisk, handle, (ushort)(MfsEntryFlags.MFS_FILE | MfsEntryFlags.MFS_SYSTEM | MfsEntryFlags.MFS_SECURITY), 
+                    StartBucket, InitialBucketSize, FileData, Path.GetFileName(lPath), cInfo.DirBucket);
+                Console.WriteLine("Done");
+
                 /* Write Data */
                 Console.WriteLine("Writing Data");
-                FillBucketChain(mDisk, handle, StartBucket, FileData);
+                FillBucketChain(mDisk, handle, StartBucket, InitialBucketSize, FileData);
             }
 
             /* Done */
@@ -1355,21 +1409,40 @@ namespace MfsTool
             UInt32 RootBucket = BitConverter.ToUInt32(Mb, 12);
 
             /* Setup directories */
-            Console.WriteLine("Creating system directories");
-            CreateFileEntry(mDisk, handle, (ushort)(MfsEntryFlags.MFS_DIRECTORY | MfsEntryFlags.MFS_SYSTEM), 0xFFFFFFFF, 0, null, "Shared", RootBucket);
-            CreateFileEntry(mDisk, handle, (ushort)(MfsEntryFlags.MFS_DIRECTORY | MfsEntryFlags.MFS_SYSTEM), 0xFFFFFFFF, 0, null, "Users", RootBucket);
-            CreateFileEntry(mDisk, handle, (ushort)(MfsEntryFlags.MFS_DIRECTORY | MfsEntryFlags.MFS_SYSTEM), 0xFFFFFFFF, 0, null, "System", RootBucket);
+            String BaseRoot = "Hdd\\";
+            Console.WriteLine("Creating system file tree");
+            Console.WriteLine("Root: " + AppDomain.CurrentDomain.BaseDirectory + "Hdd\\");
+            String[] Dirs = Directory.GetDirectories("Hdd\\", "*", SearchOption.AllDirectories);
+
+            foreach (String pDir in Dirs)
+            {
+                String RelPath = pDir.Substring(BaseRoot.Length).Replace('\\', '/');
+                String DirToCreate = pDir.Split(Path.DirectorySeparatorChar).Last();
+                Console.WriteLine("Creating: " + RelPath + "  (" + DirToCreate + ")");
+
+                /* Find free entry */
+                MfsEntry mEntry = CreateRecursive(mDisk, handle, RootBucket, RelPath);
+
+                /* Create the entry */
+                CreateFileEntry(mDisk, handle, (ushort)(MfsEntryFlags.MFS_DIRECTORY | MfsEntryFlags.MFS_SYSTEM),
+                    0xFFFFFFFF, 0, null, DirToCreate, mEntry.DirBucket);
+            }
+
+            /* Cleanup */
             handle.Close();
 
-            /* Write files */
-            WriteToMfs(mDisk, "MCore.mos", "System/Sys32.mos");
-            //WriteToMfs(mDisk, "MCore64.mos", "System/Sys64.mos");
+            /* Setup files */
+            Console.WriteLine("Copying system files");
+            String[] Files = Directory.GetFiles("Hdd\\", "*.*", SearchOption.AllDirectories);
 
-            WriteToMfs(mDisk, "InitRd.mos", "System/InitRd32.mos");
-            //WriteToMfs(mDisk, "InitRd64.mos", "System/InitRd64.mos");
+            foreach (String pFile in Files)
+            {
+                String RelPath = pFile.Substring(BaseRoot.Length).Replace('\\', '/');
+                Console.WriteLine("Copying: " + RelPath);
 
-            WriteToMfs(mDisk, "MWinMgr.mxi", "System/MWinMgr.mxi");
-            WriteToMfs(mDisk, "SDL2.dll", "System/SDL2.dll");
+                /* Create */
+                WriteToMfs(mDisk, pFile, RelPath);
+            }
         }
 
         /* Entry */
