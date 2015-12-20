@@ -76,9 +76,40 @@ DeviceRequestStatus_t MfsWriteSectors(MCoreFileSystem_t *Fs, uint64_t Sector, vo
 	return Request.Status;
 }
 
+/* Update Mb */
+int MfsUpdateMb(MCoreFileSystem_t *Fs)
+{
+	/* Vars */
+	MfsData_t *mData = (MfsData_t*)Fs->FsData;
+	uint8_t *MbBuffer = (uint8_t*)kmalloc(Fs->SectorSize);
+	memset((void*)MbBuffer, 0, Fs->SectorSize);
+	MfsMasterBucket_t *MbPtr = (MfsMasterBucket_t*)MbBuffer;
+
+	/* Set data */
+	MbPtr->Magic = MFS_MAGIC;
+	MbPtr->Flags = mData->MbFlags;
+	MbPtr->RootIndex = mData->RootIndex;
+	MbPtr->FreeBucket = mData->FreeIndex;
+	MbPtr->BadBucketIndex = mData->BadIndex;
+
+	/* Write MB */
+	if (MfsWriteSectors(Fs, mData->MbSector, MbBuffer, 1) != RequestOk
+		|| MfsWriteSectors(Fs, mData->MbMirrorSector, MbBuffer, 1) != RequestOk)
+	{
+		/* Error */
+		LogFatal("MFS1", "UPDATEMB: Error writing to disk");
+		return -1;
+	}
+
+	/* Done! */
+	kfree(MbBuffer);
+	return 0;
+}
+
 /* Get next bucket in chain 
  * Todo: Have this in memory */
-uint32_t MfsGetNextBucket(MCoreFileSystem_t *Fs, uint32_t Bucket)
+int MfsGetNextBucket(MCoreFileSystem_t *Fs, 
+	uint32_t Bucket, uint32_t *NextBucket, uint32_t *BucketLength)
 {
 	/* Vars */
 	MfsData_t *mData = (MfsData_t*)Fs->FsData;
@@ -96,7 +127,7 @@ uint32_t MfsGetNextBucket(MCoreFileSystem_t *Fs, uint32_t Bucket)
 		{
 			/* Error */
 			LogFatal("MFS1", "GETNEXTBUCKET: Error reading from disk");
-			return 0xFFFFFFFF;
+			return -1;
 		}
 
 		/* Update */
@@ -107,12 +138,15 @@ uint32_t MfsGetNextBucket(MCoreFileSystem_t *Fs, uint32_t Bucket)
 	uint8_t *BufPtr = (uint8_t*)mData->BucketBuffer;
 
 	/* Done */
-	return *(uint32_t*)&BufPtr[SectorIndex * 4];
+	*NextBucket = *(uint32_t*)&BufPtr[SectorIndex * 8];
+	*BucketLength = *(uint32_t*)&BufPtr[SectorIndex * 8 + 4]; 
+	return 0;
 }
 
 /* Set next bucket in chain 
  * Todo: have this in memory */
-void MfsSetNextBucket(MCoreFileSystem_t *Fs, uint32_t Bucket, uint32_t NextBucket)
+int MfsSetNextBucket(MCoreFileSystem_t *Fs, 
+	uint32_t Bucket, uint32_t NextBucket, uint32_t BucketLength, int UpdateLength)
 {
 	/* Vars */
 	MfsData_t *mData = (MfsData_t*)Fs->FsData;
@@ -125,11 +159,12 @@ void MfsSetNextBucket(MCoreFileSystem_t *Fs, uint32_t Bucket, uint32_t NextBucke
 	if (mData->BucketBufferOffset != SectorOffset)
 	{
 		/* Read */
-		if (MfsReadSectors(Fs, mData->BucketMapSector + SectorOffset, mData->BucketBuffer, 1) != RequestOk)
+		if (MfsReadSectors(Fs, mData->BucketMapSector + SectorOffset, 
+			mData->BucketBuffer, 1) != RequestOk)
 		{
 			/* Error */
 			LogFatal("MFS1", "SETNEXTBUCKET: Error reading from disk");
-			return;
+			return -1;
 		}
 
 		/* Update */
@@ -140,7 +175,11 @@ void MfsSetNextBucket(MCoreFileSystem_t *Fs, uint32_t Bucket, uint32_t NextBucke
 	uint8_t *BufPtr = (uint8_t*)mData->BucketBuffer;
 
 	/* Edit */
-	*(uint32_t*)&BufPtr[SectorIndex * 4] = NextBucket;
+	*(uint32_t*)&BufPtr[SectorIndex * 8] = NextBucket;
+
+	/* Only update if neccessary */
+	if (UpdateLength)
+		*(uint32_t*)&BufPtr[SectorIndex * 8 + 4] = BucketLength;
 
 	/* Write it back */
 	if (MfsWriteSectors(Fs, mData->BucketMapSector + SectorOffset, 
@@ -148,11 +187,15 @@ void MfsSetNextBucket(MCoreFileSystem_t *Fs, uint32_t Bucket, uint32_t NextBucke
 	{
 		/* Error */
 		LogFatal("MFS1", "SETNEXTBUCKET: Error writing to disk");
+		return -1;
 	}
+
+	/* Done! */
+	return 0;
 }
 
 /* Allocates buckets */
-void MfsAllocateBucket(MCoreFileSystem_t *Fs, uint32_t NumBuckets)
+int MfsAllocateBucket(MCoreFileSystem_t *Fs, uint32_t NumBuckets, uint32_t *InitialBucketSize)
 {
 	/* Vars */
 	MfsData_t *mData = (MfsData_t*)Fs->FsData;
@@ -161,44 +204,61 @@ void MfsAllocateBucket(MCoreFileSystem_t *Fs, uint32_t NumBuckets)
 	uint32_t Counter = NumBuckets;
 	uint32_t BucketPtr = mData->FreeIndex;
 	uint32_t BucketPrevPtr = 0;
+	uint32_t FirstBucketSize = 0;
 
 	/* Iterate untill we are done */
 	while (Counter > 0)
 	{
-		/* Done */
-		BucketPrevPtr = BucketPtr;
-		BucketPtr = MfsGetNextBucket(Fs, BucketPtr);
+		/* Size storage */
+		uint32_t BucketLength = 0;
 
-		/* Next */
-		Counter--;
+		/* Deep Call */
+		BucketPrevPtr = BucketPtr;
+		if (MfsGetNextBucket(Fs, BucketPtr, &BucketPtr, &BucketLength))
+			return -1;
+
+		/* Sanity */
+		if (BucketLength > Counter)
+		{
+			/* Calculate next free */
+			uint32_t NextFreeBucket = BucketPrevPtr + Counter;
+			uint32_t NextFreeCount = BucketLength - Counter;
+
+			if (FirstBucketSize == 0)
+				FirstBucketSize = BucketLength;
+
+			/* We have to adjust now,
+			* since we are taking only a chunk
+			* of the available length */
+			if (MfsSetNextBucket(Fs, BucketPrevPtr, 0xFFFFFFFF, Counter, 1)
+				|| MfsSetNextBucket(Fs, NextFreeBucket, BucketPtr, NextFreeCount, 1))
+				return -1;
+
+			/* Update */
+			*InitialBucketSize = FirstBucketSize;
+			mData->FreeIndex = BucketPtr;
+
+			/* Done */
+			return MfsUpdateMb(Fs);
+		}
+		else
+		{
+			/* We can just take the whole cake
+			* no need to modify it's length */
+			if (FirstBucketSize == 0)
+				FirstBucketSize = BucketLength;
+
+			/* Next */
+			Counter -= BucketLength;
+		}
 	}
 
 	/* Update BucketPrevPtr to 0xFFFFFFFF */
-	MfsSetNextBucket(Fs, BucketPrevPtr, MFS_END_OF_CHAIN);
+	MfsSetNextBucket(Fs, BucketPrevPtr, MFS_END_OF_CHAIN, 0, 0);
 	mData->FreeIndex = BucketPtr;
 
 	/* Update MB */
-	uint8_t *MbBuffer = (uint8_t*)kmalloc(Fs->SectorSize);
-	memset((void*)MbBuffer, 0, Fs->SectorSize);
-	MfsMasterBucket_t *MbPtr = (MfsMasterBucket_t*)MbBuffer;
-	
-	/* Set data */
-	MbPtr->Magic = MFS_MAGIC;
-	MbPtr->Flags = mData->MbFlags;
-	MbPtr->RootIndex = mData->RootIndex;
-	MbPtr->FreeBucket = mData->FreeIndex;
-	MbPtr->BadBucketIndex = mData->BadIndex;
-
-	/* Write MB */
-	if (MfsWriteSectors(Fs, mData->MbSector, MbBuffer, 1) != RequestOk
-		|| MfsWriteSectors(Fs, mData->MbMirrorSector, MbBuffer, 1) != RequestOk)
-	{
-		/* Error */
-		LogFatal("MFS1", "ALLOCATEBUCKET: Error writing to disk");
-	}
-
-	/* Done! */
-	kfree(MbBuffer);
+	return MfsUpdateMb(Fs);
 }
 
 /* Updates a file entry */
@@ -214,7 +274,8 @@ VfsErrorCode_t MfsUpdateEntry(MCoreFileSystem_t *Fs, MCoreFile_t *Handle)
 	uint8_t *EntryBuffer = (uint8_t*)kmalloc(mData->BucketSize * Fs->SectorSize);
 
 	/* Read in the bucket of where the entry lies */
-	if (MfsReadSectors(Fs, mData->BucketSize * mFile->DirBucket, EntryBuffer, mData->BucketSize) != RequestOk)
+	if (MfsReadSectors(Fs, mData->BucketSize * mFile->DirBucket, 
+		EntryBuffer, mData->BucketSize) != RequestOk)
 	{
 		RetCode = VfsDiskError;
 		goto Done;
@@ -236,7 +297,8 @@ VfsErrorCode_t MfsUpdateEntry(MCoreFileSystem_t *Fs, MCoreFile_t *Handle)
 	/* Update times when we support it */
 
 	/* Write it back */
-	if (MfsWriteSectors(Fs, mData->BucketSize * mFile->DirBucket, EntryBuffer, mData->BucketSize) != RequestOk)
+	if (MfsWriteSectors(Fs, mData->BucketSize * mFile->DirBucket, 
+		EntryBuffer, mData->BucketSize) != RequestOk)
 		RetCode = VfsDiskError;
 
 	/* Done! */
@@ -275,7 +337,8 @@ MfsFile_t *MfsLocateEntry(MCoreFileSystem_t *Fs, uint32_t DirBucket, MString_t *
 	while (!IsEnd)
 	{
 		/* Load bucket */
-		if (MfsReadSectors(Fs, mData->BucketSize * CurrentBucket, EntryBuffer, mData->BucketSize) != RequestOk)
+		if (MfsReadSectors(Fs, mData->BucketSize * CurrentBucket, 
+			EntryBuffer, mData->BucketSize) != RequestOk)
 		{
 			/* Error */
 			LogFatal("MFS1", "LOCATEENTRY: Error reading from disk");
@@ -360,6 +423,8 @@ MfsFile_t *MfsLocateEntry(MCoreFileSystem_t *Fs, uint32_t DirBucket, MString_t *
 					Ret->AllocatedSize = Entry->AllocatedSize;
 					Ret->DataBucket = Entry->StartBucket;
 					Ret->DataBucketPosition = Entry->StartBucket;
+					Ret->InitialBucketLength = Entry->StartLength;
+					Ret->DataBucketLength = Entry->StartLength;
 					Ret->Status = VfsOk;
 
 					/* Save position */
@@ -385,7 +450,9 @@ MfsFile_t *MfsLocateEntry(MCoreFileSystem_t *Fs, uint32_t DirBucket, MString_t *
 		/* Get next bucket */
 		if (!IsEnd)
 		{
-			CurrentBucket = MfsGetNextBucket(Fs, CurrentBucket);
+			uint32_t Unused = 0;
+			if (MfsGetNextBucket(Fs, CurrentBucket, &CurrentBucket, &Unused))
+				IsEnd = 1;
 
 			if (CurrentBucket == MFS_END_OF_CHAIN)
 				IsEnd = 1;
@@ -488,15 +555,18 @@ size_t MfsReadFile(void *FsData, MCoreFile_t *Handle, uint8_t *Buffer, size_t Si
 	if ((Handle->Position + Size) > Handle->Size)
 		BytesToRead = (size_t)(Handle->Size - Handle->Position);
 
-	/* Allocate buffer for data */
-	uint8_t *TempBuffer = (uint8_t*)kmalloc(mData->BucketSize * Fs->SectorSize);
-
 	/* Keep reeeading */
 	while (BytesToRead)
 	{
+		/* Calculate buffer size */
+		size_t BucketSize = (mFile->DataBucketLength * (mData->BucketSize * Fs->SectorSize));
+
+		/* Allocate buffer for data */
+		uint8_t *TempBuffer = (uint8_t*)kmalloc(BucketSize);
+
 		/* Read the bucket */
 		if (MfsReadSectors(Fs, mData->BucketSize * mFile->DataBucketPosition, 
-			TempBuffer, mData->BucketSize) != RequestOk)
+			TempBuffer, (mData->BucketSize * mData->BucketSize)) != RequestOk)
 		{
 			/* Error */
 			RetCode = VfsDiskError;
@@ -505,8 +575,8 @@ size_t MfsReadFile(void *FsData, MCoreFile_t *Handle, uint8_t *Buffer, size_t Si
 		}
 
 		/* We have to calculate the offset into this buffer we must transfer data */
-		size_t bOffset = (size_t)(Handle->Position % (mData->BucketSize * Fs->SectorSize));
-		size_t BytesLeft = (mData->BucketSize * Fs->SectorSize) - bOffset;
+		size_t bOffset = (size_t)(Handle->Position % BucketSize);
+		size_t BytesLeft = BucketSize - bOffset;
 		size_t BytesCopied = 0;
 
 		/* We have a few cases
@@ -525,15 +595,24 @@ size_t MfsReadFile(void *FsData, MCoreFile_t *Handle, uint8_t *Buffer, size_t Si
 			BytesCopied = BytesToRead;
 		}
 
+		/* Done with buffer */
+		kfree(TempBuffer);
+
 		/* Switch to next bucket? */
 		if (BytesLeft == BytesCopied)
 		{
+			/* Vars */
+			uint32_t NextBucket = 0, BucketLength = 0;
+
 			/* Go to next */
-			uint32_t NextBucket = MfsGetNextBucket(Fs, mFile->DataBucketPosition);
+			if (MfsGetNextBucket(Fs, mFile->DataBucketPosition, &NextBucket, &BucketLength))
+				break;
 
 			/* Sanity */
-			if (NextBucket != MFS_END_OF_CHAIN)
+			if (NextBucket != MFS_END_OF_CHAIN) {
 				mFile->DataBucketPosition = NextBucket;
+				mFile->DataBucketLength = BucketLength;
+			}
 			else
 				Handle->IsEOF = 1;
 		}
@@ -552,9 +631,6 @@ size_t MfsReadFile(void *FsData, MCoreFile_t *Handle, uint8_t *Buffer, size_t Si
 	/* Sanity */
 	if (Handle->Position == Handle->Size)
 		Handle->IsEOF = 1;
-
-	/* Cleanup */
-	kfree(TempBuffer);
 
 	/* Done! */
 	Handle->Code = RetCode;
@@ -598,19 +674,21 @@ size_t MfsWriteFile(void *FsData, MCoreFile_t *Handle, uint8_t *Buffer, size_t S
 
 		/* Allocate buckets */
 		uint32_t FreeBucket = mData->FreeIndex;
-		MfsAllocateBucket(Fs, (uint32_t)NumBuckets);
+		uint32_t FreeLength = 0;
+		MfsAllocateBucket(Fs, (uint32_t)NumBuckets, &FreeLength);
 
 		/* Get last bucket in chain */
 		uint32_t BucketPtr = mFile->DataBucket;
 		uint32_t BucketPrevPtr = 0;
+		uint32_t BucketLength = 0;
 		while (BucketPtr != MFS_END_OF_CHAIN)
 		{
 			BucketPrevPtr = BucketPtr;
-			BucketPtr = MfsGetNextBucket(Fs, BucketPtr);
+			MfsGetNextBucket(Fs, BucketPtr, &BucketPtr, &BucketLength);
 		}
 
 		/* Update pointer */
-		MfsSetNextBucket(Fs, BucketPrevPtr, FreeBucket);
+		MfsSetNextBucket(Fs, BucketPrevPtr, FreeBucket, &FreeLength, 1);
 
 		/* Adjust allocated size */
 		mFile->AllocatedSize += (NumBuckets * mData->BucketSize * Fs->SectorSize);
@@ -680,7 +758,9 @@ size_t MfsWriteFile(void *FsData, MCoreFile_t *Handle, uint8_t *Buffer, size_t S
 		if (BytesLeft >= BytesCopied)
 		{
 			/* Go to next */
-			uint32_t NextBucket = MfsGetNextBucket(Fs, mFile->DataBucketPosition);
+			uint32_t NextBucket = 0;
+			uint32_t BucketLength = 0;
+			MfsGetNextBucket(Fs, mFile->DataBucketPosition, &NextBucket, &BucketLength);
 
 			/* Sanity */
 			if (NextBucket != MFS_END_OF_CHAIN)
@@ -731,30 +811,62 @@ VfsErrorCode_t MfsSeek(void *FsData, MCoreFile_t *Handle, uint64_t Position)
 	/* Sanity */
 	if (Handle->Position > Handle->Size)
 		return VfsInvalidParameters;
+	if (Handle->Size == 0)
+		return VfsOk;
 
-	/* Do we cross a boundary? */
-	uint64_t OldBucketOffset = Handle->Position / (mData->BucketSize * Fs->SectorSize);
-	uint64_t NewBucketOffset = Position / (mData->BucketSize * Fs->SectorSize);
+	/* Step 1, if the new position is in
+	 * initial bucket, we need to do no actual
+	 * seeking */
+	size_t InitialBucketMax = (mFile->InitialBucketLength * (mData->BucketSize * Fs->SectorSize));
 
 	/* Lets see */
-	if (NewBucketOffset != OldBucketOffset)
+	if (Position < InitialBucketMax) {
+		mFile->DataBucketPosition = mFile->DataBucket;
+		mFile->DataBucketLength = mFile->InitialBucketLength;
+	}
+	else
 	{
-		/* Spool to correct bucket */
-		uint32_t BucketPtr = mFile->DataBucket;
-		while (NewBucketOffset != 0)
+		/* Step 2. We might still get out easy
+		 * if we are setting a new position that's 
+		 * within the current bucket */
+
+		/* Do we cross a boundary? */
+		uint64_t OldBucketOffset = Handle->Position / (mData->BucketSize * Fs->SectorSize);
+		uint64_t NewBucketOffset = Position / (mData->BucketSize * Fs->SectorSize);
+
+		/* Lets see */
+		if (NewBucketOffset != OldBucketOffset)
 		{
-			BucketPtr = MfsGetNextBucket(Fs, BucketPtr);
+			/* Keep Track */
+			uint64_t PositionBoundLow = 0;
+			uint64_t PositionBoundHigh = InitialBucketMax;
 
-			/* This should NOT happen */
-			if (BucketPtr == MFS_END_OF_CHAIN)
-				break;
+			/* Spool to correct bucket */
+			uint32_t BucketPtr = mFile->DataBucket;
+			uint32_t BucketLength = mFile->InitialBucketLength;
+			while (1)
+			{
+				/* Sanity */
+				if (Position >= PositionBoundLow
+					&& Position < (PositionBoundLow + PositionBoundHigh))
+					break;
 
-			/* Dec */
-			NewBucketOffset--;
+				/* Get next */
+				if (MfsGetNextBucket(Fs, BucketPtr, &BucketPtr, &BucketLength))
+					break;
+
+				/* This should NOT happen */
+				if (BucketPtr == MFS_END_OF_CHAIN)
+					break;
+
+				/* Calc new bounds */
+				PositionBoundLow += PositionBoundHigh;
+				PositionBoundHigh = (BucketLength * (mData->BucketSize * Fs->SectorSize));
+			}
+
+			/* Update bucket ptr */
+			mFile->DataBucketPosition = BucketPtr;
 		}
-
-		/* Update bucket ptr */
-		mFile->DataBucketPosition = BucketPtr;
 	}
 	
 	/* Update pointer */
@@ -851,7 +963,7 @@ MODULES_API void ModuleInit(void *Data)
 
 	/* Calculate the bucket-map sector */
 	mData->BucketCount = Fs->SectorCount / mData->BucketSize;
-	mData->BucketsPerSector = Fs->SectorSize / 4;
+	mData->BucketsPerSector = Fs->SectorSize / 8;
 
 	/* Copy the volume label over */
 	mData->VolumeLabel = (char*)kmalloc(8 + 1);

@@ -99,7 +99,10 @@ typedef struct _MfsMasterBucket
 	/* List of bad buckets */
 	uint32_t BadBucketIndex;
 
-	/* Bucket Map Sector */
+	/* Journal Index */
+	uint32_t JournalIndex;
+
+	/* Bucket Map Sector & Size */
 	uint64_t BucketMapSector;
 	uint64_t BucketMapSize;
 
@@ -151,11 +154,13 @@ typedef struct _MfsFile
 	
 	uint16_t Flags;
 	uint32_t DataBucket;
+	uint32_t InitialBucketLength;
 	uint64_t Size;
 	uint64_t AllocatedSize;
 
 	/* Location */
 	uint32_t DataBucketPosition;
+	uint32_t DataBucketLength;
 	uint32_t DirBucket;
 	uint32_t DirOffset;
 
