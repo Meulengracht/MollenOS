@@ -111,6 +111,7 @@ typedef struct _MfsMasterBucket
 
 /* The MFT-Entry
  * 1024 Bytes */
+#pragma pack(push, 1)
 typedef struct _MfsTableEntry
 {
 	/* Status - 0x0 */
@@ -138,12 +139,13 @@ typedef struct _MfsTableEntry
 	uint64_t AllocatedSize; /* 0x44 */
 
 	/* Name Block 0x4C */
-	uint8_t Name[440];
+	uint8_t Name[436];
 
 	/* Opt Data Block */
 	uint8_t Data[512];
 
 } MfsTableEntry_t;
+#pragma pack(pop)
 
 /* FileSystem File Data */
 #pragma pack(push, 1)

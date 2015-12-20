@@ -497,6 +497,11 @@ VfsErrorCode_t MfsOpenFile(void *FsData,
 	Handle->Position = 0;
 	Handle->Size = FileInfo->Size;
 	Handle->Name = FileInfo->Name;
+	
+	if (Handle->Size == 0)
+		Handle->IsEOF = 1;
+	else
+		Handle->IsEOF = 0;
 
 	/* Done */
 	return RetCode;
@@ -565,8 +570,8 @@ size_t MfsReadFile(void *FsData, MCoreFile_t *Handle, uint8_t *Buffer, size_t Si
 		uint8_t *TempBuffer = (uint8_t*)kmalloc(BucketSize);
 
 		/* Read the bucket */
-		if (MfsReadSectors(Fs, mData->BucketSize * mFile->DataBucketPosition, 
-			TempBuffer, (mData->BucketSize * mData->BucketSize)) != RequestOk)
+		if (MfsReadSectors(Fs, (mData->BucketSize * mFile->DataBucketPosition), 
+			TempBuffer, (mFile->DataBucketLength * mData->BucketSize)) != RequestOk)
 		{
 			/* Error */
 			RetCode = VfsDiskError;
@@ -582,7 +587,7 @@ size_t MfsReadFile(void *FsData, MCoreFile_t *Handle, uint8_t *Buffer, size_t Si
 		/* We have a few cases
 		 * Case 1: We have enough data here 
 		 * Case 2: We have to read more than is here */
-		if (BytesToRead >= BytesLeft)
+		if (BytesToRead > BytesLeft)
 		{
 			/* Start out by copying remainder */
 			memcpy(BufPtr, (TempBuffer + bOffset), BytesLeft);
@@ -597,6 +602,12 @@ size_t MfsReadFile(void *FsData, MCoreFile_t *Handle, uint8_t *Buffer, size_t Si
 
 		/* Done with buffer */
 		kfree(TempBuffer);
+
+		/* Advance pointer(s) */
+		BytesRead += BytesCopied;
+		BufPtr += BytesCopied;
+		BytesToRead -= BytesCopied;
+		Handle->Position += BytesCopied;
 
 		/* Switch to next bucket? */
 		if (BytesLeft == BytesCopied)
@@ -616,12 +627,6 @@ size_t MfsReadFile(void *FsData, MCoreFile_t *Handle, uint8_t *Buffer, size_t Si
 			else
 				Handle->IsEOF = 1;
 		}
-
-		/* Advance pointer(s) */
-		BytesRead += BytesCopied;
-		BufPtr += BytesCopied;
-		BytesToRead -= BytesCopied;
-		Handle->Position += BytesCopied;
 
 		/* Sanity */
 		if (Handle->IsEOF)
@@ -688,7 +693,7 @@ size_t MfsWriteFile(void *FsData, MCoreFile_t *Handle, uint8_t *Buffer, size_t S
 		}
 
 		/* Update pointer */
-		MfsSetNextBucket(Fs, BucketPrevPtr, FreeBucket, &FreeLength, 1);
+		MfsSetNextBucket(Fs, BucketPrevPtr, FreeBucket, FreeLength, 1);
 
 		/* Adjust allocated size */
 		mFile->AllocatedSize += (NumBuckets * mData->BucketSize * Fs->SectorSize);
@@ -807,6 +812,7 @@ VfsErrorCode_t MfsSeek(void *FsData, MCoreFile_t *Handle, uint64_t Position)
 	MCoreFileSystem_t *Fs = (MCoreFileSystem_t*)FsData;
 	MfsData_t *mData = (MfsData_t*)Fs->FsData;
 	MfsFile_t *mFile = (MfsFile_t*)Handle->Data;
+	int ConstantLoop = 1;
 
 	/* Sanity */
 	if (Handle->Position > Handle->Size)
@@ -844,7 +850,7 @@ VfsErrorCode_t MfsSeek(void *FsData, MCoreFile_t *Handle, uint64_t Position)
 			/* Spool to correct bucket */
 			uint32_t BucketPtr = mFile->DataBucket;
 			uint32_t BucketLength = mFile->InitialBucketLength;
-			while (1)
+			while (ConstantLoop)
 			{
 				/* Sanity */
 				if (Position >= PositionBoundLow

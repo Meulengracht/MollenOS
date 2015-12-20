@@ -114,6 +114,7 @@
     <LibraryPath>..\..\..\clib\build;..\..\build</LibraryPath>
     <OutDir>..\..\..\build\</OutDir>
     <TargetExt>.mos</TargetExt>
+    <TargetName>Sys32</TargetName>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
