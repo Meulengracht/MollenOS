@@ -302,7 +302,7 @@ typedef struct _OhciRegisters
 #define X86_OHCI_POOL_CONTROL_EDS		25
 #define X86_OHCI_POOL_BULK_EDS			49
 #define X86_OHCI_POOL_NUM_ED			50
-#define X86_OHCI_POOL_NUM_TD			100
+#define X86_OHCI_POOL_NUM_TD			300
 
 #define X86_OHCI_INDEX_TYPE_CONTROL		0x01
 #define X86_OHCI_INDEX_TYPE_BULK		0x02

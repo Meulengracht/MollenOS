@@ -80,6 +80,12 @@ void DmStart(void)
 /* Create a request */
 void DmCreateRequest(MCoreDeviceRequest_t *Request)
 {
+	/* Sanity */
+	if (Request->Length > DEVICEMANAGER_MAX_IO_SIZE) {
+		Request->Status = RequestInvalidParameters;
+		return;
+	}
+
 	/* Append it to our request list */
 	list_append(GlbDmEventQueue, list_create_node(0, Request));
 

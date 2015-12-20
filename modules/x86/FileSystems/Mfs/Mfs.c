@@ -33,24 +33,53 @@
 /* Read Sectors Wrapper */
 DeviceRequestStatus_t MfsReadSectors(MCoreFileSystem_t *Fs, uint64_t Sector, void *Buffer, uint32_t Count)
 {
-	/* Keep */
-	MCoreDeviceRequest_t Request;
+	/* Sanity */
+	uint64_t SectorToRead = Fs->SectorStart + Sector;
+	uint8_t *BufferPointer = (uint8_t*)Buffer;
+	size_t BytesToRead = (Count * Fs->SectorSize);
+	size_t SectorsPerRequest = DEVICEMANAGER_MAX_IO_SIZE / Fs->SectorSize;
 
-	/* Setup request */
-	Request.Type = RequestRead;
-	Request.DeviceId = Fs->DiskId;
-	Request.SectorLBA = Fs->SectorStart + Sector;
-	Request.Buffer = (uint8_t*)Buffer;
-	Request.Length = (Count * Fs->SectorSize);
+	/* Split into blocks */
+	while (BytesToRead)
+	{
+		/* Keep */
+		MCoreDeviceRequest_t Request;
+
+		/* Setup request */
+		Request.Type = RequestRead;
+		Request.DeviceId = Fs->DiskId;
+		Request.SectorLBA = SectorToRead;
+		Request.Buffer = BufferPointer;
+
+		/* Make sure we don't read to much */
+		if (BytesToRead > (SectorsPerRequest * Fs->SectorSize))
+			Request.Length = SectorsPerRequest * Fs->SectorSize;
+		else
+			Request.Length = BytesToRead;
+
+		/* Create Request */
+		DmCreateRequest(&Request);
+
+		/* Wait */
+		DmWaitRequest(&Request);
+
+		/* Sanity */
+		if (Request.Status != RequestOk)
+			return Request.Status;
+
+		/* Increase */
+		if (BytesToRead > (SectorsPerRequest * Fs->SectorSize)) {
+			SectorToRead += SectorsPerRequest;
+			BufferPointer += SectorsPerRequest * Fs->SectorSize;
+			BytesToRead -= SectorsPerRequest * Fs->SectorSize;
+		}
+		else
+			break;
+	}
+
 	
-	/* Create Request */
-	DmCreateRequest(&Request);
-
-	/* Wait */
-	DmWaitRequest(&Request);
-
 	/* Done! */
-	return Request.Status;
+	return RequestOk;
 }
 
 /* Write Sectors Wrapper */

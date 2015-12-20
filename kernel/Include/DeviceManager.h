@@ -29,6 +29,9 @@
 /* Definitions */
 typedef int DevId_t;
 
+/* Erhhh, limitiations? */
+#define DEVICEMANAGER_MAX_IO_SIZE		(16 * 1024)
+
 /* Device Types */
 typedef enum _DeviceType
 {
