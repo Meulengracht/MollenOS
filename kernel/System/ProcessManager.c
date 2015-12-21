@@ -141,6 +141,26 @@ void PmEventHandler(void *Args)
 
 			} break;
 
+			/* Kill Process */
+			case ProcessKill:
+			{
+				/* Lookup process */
+				MCoreProcess_t *Process = PmGetProcess(Request->ProcessId);
+
+				/* Sanity */
+				if (Process != NULL)
+				{
+					/* Terminate all threads used by process */
+					ThreadingTerminateProcessThreads(Process->Id);
+
+					/* Mark process for reaping */
+					PmTerminateProcess(Process);
+				}
+				else
+					Request->State = ProcessRequestFailed;
+
+			} break;
+
 			/* Panic */
 			default:
 			{

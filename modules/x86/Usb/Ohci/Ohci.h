@@ -302,12 +302,23 @@ typedef struct _OhciRegisters
 #define X86_OHCI_POOL_CONTROL_EDS		25
 #define X86_OHCI_POOL_BULK_EDS			49
 #define X86_OHCI_POOL_NUM_ED			50
-#define X86_OHCI_POOL_NUM_TD			300
+#define OHCI_ENDPOINT_MIN_ALLOCATED		25
 
-#define X86_OHCI_INDEX_TYPE_CONTROL		0x01
-#define X86_OHCI_INDEX_TYPE_BULK		0x02
-#define X86_OHCI_INDEX_TYPE_INTERRUPT	0x03
-#define X86_OHCI_INDEX_TYPE_ISOCHRONOUS	0x04
+/* Endpoint Data */
+typedef struct _OhciEndpoint
+{
+	/* Td's allocated */
+	size_t TdsAllocated;
+
+	/* TD Pool */
+	OhciGTransferDescriptor_t **TDPool;
+	Addr_t *TDPoolPhysical;
+	Addr_t **TDPoolBuffers;
+
+	/* Lock */
+	Spinlock_t Lock;
+
+} OhciEndpoint_t;
 
 /* Interrupt Table */
 typedef struct _OhciIntrTable
@@ -345,12 +356,7 @@ typedef struct _OhciController
 
 	/* ED Pool */
 	OhciEndpointDescriptor_t *EDPool[X86_OHCI_POOL_NUM_ED];
-
-	/* TD Pool */
-	OhciGTransferDescriptor_t *TDPool[X86_OHCI_POOL_NUM_TD];
 	OhciGTransferDescriptor_t *NullTd;
-	Addr_t TDPoolPhys[X86_OHCI_POOL_NUM_TD];
-	Addr_t *TDPoolBuffers[X86_OHCI_POOL_NUM_TD];
 
 	/* Interrupt Table & List */
 	OhciIntrTable_t *IntrTable;

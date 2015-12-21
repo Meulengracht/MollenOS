@@ -92,6 +92,7 @@ void UsbMsdInit(UsbHcDevice_t *UsbDevice, uint32_t InterfaceIndex)
 	/* Allocate */
 	MsdDevice_t *DevData = (MsdDevice_t*)kmalloc(sizeof(MsdDevice_t));
 	MCoreStorageDevice_t *StorageData = (MCoreStorageDevice_t*)kmalloc(sizeof(MCoreStorageDevice_t));
+	UsbHc_t *UsbHcd = (UsbHc_t*)UsbDevice->HcDriver;
 	uint32_t i;
 
 	/* Sanity */
@@ -165,6 +166,10 @@ void UsbMsdInit(UsbHcDevice_t *UsbDevice, uint32_t InterfaceIndex)
 	UsbDevice->Destroy = UsbMsdDestroy;
 	UsbDevice->DriverData = (void*)StorageData;
 
+	/* Setup endpoints */
+	UsbHcd->EndpointSetup(UsbHcd->Hc, DevData->EpIn);
+	UsbHcd->EndpointSetup(UsbHcd->Hc, DevData->EpOut);
+
 	/* Test & Setup Disk */
 
 	/* Reset Bulk */
@@ -225,9 +230,14 @@ void UsbMsdDestroy(void *UsbDevice)
 	UsbHcDevice_t *Dev = (UsbHcDevice_t*)UsbDevice;
 	MCoreStorageDevice_t *StorageData = (MCoreStorageDevice_t*)Dev->DriverData;
 	MsdDevice_t *Device = (MsdDevice_t*)StorageData->DiskData;
+	UsbHc_t *UsbHcd = (UsbHc_t*)Dev->HcDriver;
 
 	/* Unregister Us */
 	DmDestroyDevice(Device->DeviceId);
+
+	/* Free endpoints */
+	UsbHcd->EndpointDestroy(UsbHcd->Hc, Device->EpIn);
+	UsbHcd->EndpointDestroy(UsbHcd->Hc, Device->EpOut);
 	
 	/* Free Data */
 	kfree(StorageData);

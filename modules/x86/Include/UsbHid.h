@@ -259,6 +259,9 @@ typedef struct _HidDevice
 	UsbHcDevice_t *UsbDevice;
 	UsbHcEndpoint_t *EpInterrupt;
 
+	/* The interrupt channel */
+	UsbHcRequest_t *InterruptChannel;
+
 } HidDevice_t;
 
 

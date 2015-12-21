@@ -435,8 +435,11 @@ MCoreFile_t *VfsOpen(const char *Path, VfsFileFlags_t OpenFlags)
 
 	/* Allocate */
 	fRet = (MCoreFile_t*)kmalloc(sizeof(MCoreFile_t));
+
+	/* Zero it */
+	memset((void*)fRet, 0, sizeof(MCoreFile_t));
+
 	fRet->Code = VfsOk;
-	fRet->Fs = NULL;
 
 	/* Sanity */
 	if (Path == NULL)

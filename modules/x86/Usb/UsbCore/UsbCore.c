@@ -159,6 +159,7 @@ void UsbDeviceSetup(UsbHc_t *Hc, int Port)
 	Device->CtrlEndpoint->MaxPacketSize = 64;
 	Device->CtrlEndpoint->Direction = X86_USB_EP_DIRECTION_BOTH;
 	Device->CtrlEndpoint->Interval = 0;
+	Device->CtrlEndpoint->AttachedData = NULL;
 
 	/* Bind it */
 	Hc->Ports[Port]->Device = Device;
@@ -170,6 +171,9 @@ void UsbDeviceSetup(UsbHc_t *Hc, int Port)
 	if (Hc->Ports[Port]->Connected != 1
 		&& Hc->Ports[Port]->Enabled != 1)
 		goto DevError;
+
+	/* Setup Endpoint */
+	Hc->EndpointSetup(Hc->Hc, Device->CtrlEndpoint);
 
 	/* Set Device Address (Just bind it to the port number + 1 (never set address 0) ) */
 	if (UsbFunctionSetAddress(Hc, Port, (uint32_t)(Port + 1)) != TransferFinished)
@@ -252,6 +256,9 @@ void UsbDeviceSetup(UsbHc_t *Hc, int Port)
 	return;
 
 DevError:
+	/* Destruct */
+	Hc->EndpointDestroy(Hc->Hc, Device->CtrlEndpoint);
+
 	/* Free Control Endpoint */
 	kfree(Device->CtrlEndpoint);
 
@@ -288,6 +295,12 @@ void UsbDeviceDestroy(UsbHc_t *Hc, int Port)
 	/* Notify Driver */
 	if (Device->Destroy != NULL)
 		Device->Destroy((void*)Device);
+
+	/* Destruct */
+	Hc->EndpointDestroy(Hc->Hc, Device->CtrlEndpoint);
+
+	/* Free Control Endpoint */
+	kfree(Device->CtrlEndpoint);
 
 	/* Free Interfaces */
 	for (i = 0; i < (int)Device->NumInterfaces; i++)
@@ -379,6 +392,14 @@ void UsbEventHandler(void *args)
 				/* Destroy Device */
 				LogInformation("USBC", "Destroying Port %i", Event->Port);
 				UsbDeviceDestroy(Event->Controller, Event->Port);
+
+			} break;
+
+			case HcdFatalEvent:
+			{
+				/* Reset Controller */
+				LogInformation("USBC", "Resetting Controller");
+				Event->Controller->Reset(Event->Controller->Hc);
 
 			} break;
 

@@ -339,7 +339,7 @@ typedef struct _UsbHcEndpoint
 	/* Poll Interval */
 	uint32_t Interval;
 
-	/* Interrupt Data */
+	/* Endpoint Data */
 	void *AttachedData;
 
 } UsbHcEndpoint_t;
@@ -568,8 +568,15 @@ typedef struct _UsbHc
 	UsbHcPort_t *Ports[X86_USB_CORE_MAX_PORTS];
 
 	/* Port Functions */
+	void(*PortSetup)(void*, UsbHcPort_t*);
+	
+	/* Endpoint Functions */
+	void (*EndpointSetup)(void*, UsbHcEndpoint_t*);
+	void (*EndpointDestroy)(void*, UsbHcEndpoint_t*);
+
+	/* Callback Functions */
 	void (*RootHubCheck)(void*);
-	void (*PortSetup)(void*, UsbHcPort_t*);
+	void (*Reset)(void*);
 
 	/* Transaction Functions */
 	void (*TransactionInit)(void*, UsbHcRequest_t*);
@@ -587,7 +594,8 @@ typedef enum _UsbEventType
 	HcdConnectedEvent,
 	HcdDisconnectedEvent,
 	HcdTransferEvent,
-	HcdRootHubEvent
+	HcdRootHubEvent,
+	HcdFatalEvent
 
 } UsbEventType_t;
 

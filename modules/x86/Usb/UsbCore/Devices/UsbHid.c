@@ -93,6 +93,7 @@ void UsbHidInit(UsbHcDevice_t *UsbDevice, uint32_t InterfaceIndex)
 {
 	/* Allocate device stuff */
 	HidDevice_t *DevData = (HidDevice_t*)kmalloc(sizeof(HidDevice_t));
+	UsbHc_t *UsbHcd = (UsbHc_t*)UsbDevice->HcDriver;
 
 	/* Setup vars 
 	 * and prepare for a descriptor loop */
@@ -152,7 +153,6 @@ void UsbHidInit(UsbHcDevice_t *UsbDevice, uint32_t InterfaceIndex)
 		return;
 	}
 
-
 	/* Get Report Descriptor */
 	ReportDescriptor = (uint8_t*)kmalloc(HidDescriptor->ClassDescriptorLength);
 	if (UsbFunctionGetDescriptor((UsbHc_t*)UsbDevice->HcDriver, UsbDevice->Port,
@@ -165,6 +165,18 @@ void UsbHidInit(UsbHcDevice_t *UsbDevice, uint32_t InterfaceIndex)
 		kfree(DevData);
 		return;
 	}
+
+	/* Initialise the EP */
+	UsbHcd->EndpointSetup(UsbHcd->Hc, DevData->EpInterrupt);
+
+	/* Allocate Interrupt Channel */
+	DevData->InterruptChannel = (UsbHcRequest_t*)kmalloc(sizeof(UsbHcRequest_t));
+	DevData->InterruptChannel->Callback = 
+		(UsbInterruptCallback_t*)kmalloc(sizeof(UsbInterruptCallback_t));
+
+	/* Setup Callback */
+	DevData->InterruptChannel->Callback->Callback = UsbHidCallback;
+	DevData->InterruptChannel->Callback->Args = UsbDevice;
 
 	/* Switch to Report Protocol (ONLY if we are in boot protocol) */
 
@@ -186,8 +198,11 @@ void UsbHidInit(UsbHcDevice_t *UsbDevice, uint32_t InterfaceIndex)
 		X86_USB_REQ_SET_IDLE, 0, 0, 0, 0);
 
 	/* Install Interrupt */
-	//hc->install_interrupt(hc->hc, device, hid_endpoint, driver_data->data_buffer, 
-		//hid_endpoint->max_packet_size, usb_hid_callback, driver_data);
+	UsbTransactionInit(UsbHcd, DevData->InterruptChannel, 
+		InterruptTransfer, UsbDevice, DevData->EpInterrupt);
+	UsbTransactionIn(UsbHcd, DevData->InterruptChannel, 0, 
+		DevData->DataBuffer, DevData->EpInterrupt->MaxPacketSize);
+	//UsbTransactionSend(UsbHcd, DevData->InterruptChannel);
 }
 
 /* Parses the report descriptor and stores it as 
