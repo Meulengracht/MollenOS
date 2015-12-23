@@ -52,6 +52,7 @@ _CRT_EXTERN void LogRedirect(LogTarget_t Output);
 
 /* The log functions */
 _CRT_EXPORT void Log(const char *Message, ...);
+_CRT_EXPORT void LogRaw(const char *Message, ...);
 _CRT_EXPORT void LogInformation(const char *System, const char *Message, ...);
 _CRT_EXPORT void LogDebug(const char *System, const char *Message, ...);
 _CRT_EXTERN void LogModule(const char *Module, const char *Message, ...);

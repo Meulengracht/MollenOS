@@ -134,6 +134,9 @@ void UsbHidInit(UsbHcDevice_t *UsbDevice, uint32_t InterfaceIndex)
 		return;
 	}
 
+	/* Zero structure */
+	memset(DevData, 0, sizeof(HidDevice_t));
+
 	/* Locate interrupt IN endpoint 
 	 * We only check endpoints related to this
 	 * Interface */
@@ -175,8 +178,9 @@ void UsbHidInit(UsbHcDevice_t *UsbDevice, uint32_t InterfaceIndex)
 		(UsbInterruptCallback_t*)kmalloc(sizeof(UsbInterruptCallback_t));
 
 	/* Setup Callback */
+	DevData->UsbDevice = UsbDevice;
 	DevData->InterruptChannel->Callback->Callback = UsbHidCallback;
-	DevData->InterruptChannel->Callback->Args = UsbDevice;
+	DevData->InterruptChannel->Callback->Args = DevData;
 
 	/* Switch to Report Protocol (ONLY if we are in boot protocol) */
 
@@ -202,7 +206,7 @@ void UsbHidInit(UsbHcDevice_t *UsbDevice, uint32_t InterfaceIndex)
 		InterruptTransfer, UsbDevice, DevData->EpInterrupt);
 	UsbTransactionIn(UsbHcd, DevData->InterruptChannel, 0, 
 		DevData->DataBuffer, DevData->EpInterrupt->MaxPacketSize);
-	//UsbTransactionSend(UsbHcd, DevData->InterruptChannel);
+	UsbTransactionSend(UsbHcd, DevData->InterruptChannel);
 }
 
 /* Parses the report descriptor and stores it as 
@@ -892,6 +896,7 @@ int UsbHidApplyCollectionData(HidDevice_t *Device, UsbHidReportCollection_t *Col
 /* The callback for device-feedback */
 void UsbHidCallback(void *Device)
 {
+	/* Vars */
 	HidDevice_t *DevData = (HidDevice_t*)Device;
 
 	/* Sanity */

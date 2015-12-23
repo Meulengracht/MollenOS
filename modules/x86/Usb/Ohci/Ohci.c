@@ -18,7 +18,6 @@
 *
 * MollenOS X86-32 USB OHCI Controller Driver
 * Todo:
-* Isochronous Support
 * Linux has a periodic timer event that checks if all finished td's has generated a interrupt to make sure
 * Stability (Only tested on emulators and one real hardware pc).
 */
@@ -745,6 +744,32 @@ void OhciSetup(OhciController_t *Controller)
 	Controller->Registers->HcInterruptEnable = X86_OHCI_INTR_ROOT_HUB_EVENT;
 }
 
+/* Try to visualize the IntrTable */
+void OhciVisualizeQueue(OhciController_t *Controller)
+{
+	/* For each of the 32 base's */
+	int i;
+
+	for (i = 0; i < 32; i++)
+	{
+		/* Get a base */
+		OhciEndpointDescriptor_t *EpPtr = Controller->ED32[i];
+
+		/* Keep going */
+		while (EpPtr)
+		{
+			/* Print */
+			LogRaw("0x%x -> ", (EpPtr->Flags & X86_OHCI_EP_SKIP));
+
+			/* Get next */
+			EpPtr = (OhciEndpointDescriptor_t*)EpPtr->NextEDVirtual;
+		}
+
+		/* Newline */
+		LogRaw("\n");
+	}
+}
+
 /* ED Functions */
 Addr_t OhciAllocateEp(OhciController_t *Controller, UsbTransferType_t Type)
 {
@@ -795,36 +820,25 @@ Addr_t OhciAllocateEp(OhciController_t *Controller, UsbTransferType_t Type)
 void OhciEpInit(OhciEndpointDescriptor_t *Ed, UsbHcTransaction_t *FirstTd, UsbTransferType_t Type,
 	uint32_t Address, uint32_t Endpoint, uint32_t PacketSize, uint32_t LowSpeed)
 {
-	/* Setup Flags
-	* HighSpeed Bulk/Control/Interrupt */
-	if (Type == ControlTransfer
-		|| Type == BulkTransfer)
+	/* Set Head & Tail Td */
+	if ((Addr_t)FirstTd->TransferDescriptor == X86_OHCI_TRANSFER_END_OF_LIST)
 	{
-		/* Set Head & Tail Td */
-		if ((Addr_t)FirstTd->TransferDescriptor == X86_OHCI_TRANSFER_END_OF_LIST)
-		{
-			Ed->HeadPtr = X86_OHCI_TRANSFER_END_OF_LIST;
-			Ed->TailPtr = 0;
-		}
-		else
-		{
-			Addr_t FirstTdAddr = (Addr_t)FirstTd->TransferDescriptor;
-			Addr_t LastTd = 0;
-
-			/* Get tail */
-			UsbHcTransaction_t *FirstLink = FirstTd;
-			while (FirstLink->Link)
-				FirstLink = FirstLink->Link;
-			LastTd = (Addr_t)FirstLink->TransferDescriptor;
-
-			Ed->TailPtr = MmVirtualGetMapping(NULL, (Addr_t)LastTd);
-			Ed->HeadPtr = MmVirtualGetMapping(NULL, (Addr_t)FirstTdAddr) | 0x1;
-		}
+		Ed->HeadPtr = X86_OHCI_TRANSFER_END_OF_LIST;
+		Ed->TailPtr = 0;
 	}
 	else
 	{
-		Ed->HeadPtr = MmVirtualGetMapping(NULL, (VirtAddr_t)FirstTd->TransferDescriptor);
-		Ed->TailPtr = 0;
+		Addr_t FirstTdAddr = (Addr_t)FirstTd->TransferDescriptor;
+		Addr_t LastTd = 0;
+
+		/* Get tail */
+		UsbHcTransaction_t *FirstLink = FirstTd;
+		while (FirstLink->Link)
+			FirstLink = FirstLink->Link;
+		LastTd = (Addr_t)FirstLink->TransferDescriptor;
+
+		Ed->TailPtr = MmVirtualGetMapping(NULL, (Addr_t)LastTd);
+		Ed->HeadPtr = MmVirtualGetMapping(NULL, (Addr_t)FirstTdAddr) | 0x1;
 	}
 
 	/* Shared flags */
@@ -1301,11 +1315,6 @@ UsbHcTransaction_t *OhciTransactionIn(void *Controller, UsbHcRequest_t *Request)
 		/* Allocate TD */
 		Transaction->TransferDescriptorCopy = 
 			(void*)OhciAllocateTd(Request->Endpoint->AttachedData, Request->Type);
-
-		/* Do an exact copy */
-		memcpy(Transaction->TransferDescriptorCopy, Transaction->TransferDescriptor,
-			(Request->Type == InterruptTransfer) ? sizeof(OhciGTransferDescriptor_t) :
-			sizeof(OhciITransferDescriptor_t));
 	}
 
 	/* Done */
@@ -1358,11 +1367,6 @@ UsbHcTransaction_t *OhciTransactionOut(void *Controller, UsbHcRequest_t *Request
 		/* Allocate TD */
 		Transaction->TransferDescriptorCopy = 
 			(void*)OhciAllocateTd(Request->Endpoint->AttachedData, Request->Type);
-
-		/* Do an exact copy */
-		memcpy(Transaction->TransferDescriptorCopy, Transaction->TransferDescriptor,
-			(Request->Type == InterruptTransfer) ? sizeof(OhciGTransferDescriptor_t) :
-			sizeof(OhciITransferDescriptor_t));
 	}
 
 	/* Done */
@@ -1376,35 +1380,36 @@ void OhciTransactionSend(void *Controller, UsbHcRequest_t *Request)
 	UsbHcTransaction_t *Transaction = Request->Transactions;
 	OhciController_t *Ctrl = (OhciController_t*)Controller;
 	UsbTransferStatus_t Completed;
+	OhciEndpointDescriptor_t *Ep = NULL;
 	OhciGTransferDescriptor_t *Td = NULL;
 	uint32_t CondCode;
 	Addr_t EdAddress;
 
+	/* Cast */
+	Ep = (OhciEndpointDescriptor_t*)Request->Data;
+
 	/* Get physical */
-	EdAddress = MmVirtualGetMapping(NULL, (VirtAddr_t)Request->Data);
+	EdAddress = MmVirtualGetMapping(NULL, (VirtAddr_t)Ep);
 
 	/* Set as not Completed for start */
 	Request->Status = TransferNotProcessed;
 
-	/* Dont do this for other */
-	if (Request->Type == ControlTransfer
-		|| Request->Type == BulkTransfer)
-	{
-		/* Add dummy Td to end
-		* But we have to keep the endpoint toggle */
-		CondCode = Request->Endpoint->Toggle;
-		UsbTransactionOut(UsbGetHcd(Ctrl->HcdId), Request,
-			(Request->Type == ControlTransfer) ? (uint32_t)1 : (uint32_t)0, NULL, (uint32_t)0);
-		Request->Endpoint->Toggle = CondCode;
-		CondCode = 0;
-	}
+	/* Add dummy Td to end
+	 * But we have to keep the endpoint toggle */
+	CondCode = Request->Endpoint->Toggle;
+	UsbTransactionOut(UsbGetHcd(Ctrl->HcdId), Request,
+		(Request->Type == ControlTransfer) ? (uint32_t)1 : (uint32_t)0, NULL, (uint32_t)0);
+	Request->Endpoint->Toggle = CondCode;
+	CondCode = 0;
 
 	/* Iterate and set last to INT */
 	Transaction = Request->Transactions;
-	while (Transaction->Link->Link)
+	while (Transaction->Link
+		&& Transaction->Link->Link)
 	{
 #ifdef _OHCI_DIAGNOSTICS_
-		printf("Td (Addr 0x%x) Flags 0x%x, Cbp 0x%x, BufferEnd 0x%x, Next Td 0x%x\n", MmVirtualGetMapping(NULL, (VirtAddr_t)Td), Td->Flags, Td->Cbp, Td->BufferEnd, Td->NextTD);
+		printf("Td (Addr 0x%x) Flags 0x%x, Cbp 0x%x, BufferEnd 0x%x, Next Td 0x%x\n", 
+			MmVirtualGetMapping(NULL, (VirtAddr_t)Td), Td->Flags, Td->Cbp, Td->BufferEnd, Td->NextTD);
 #endif
 		/* Next */
 		Transaction = Transaction->Link;
@@ -1417,7 +1422,7 @@ void OhciTransactionSend(void *Controller, UsbHcRequest_t *Request)
 #endif
 
 	/* Initialize the allocated ED */
-	OhciEpInit((OhciEndpointDescriptor_t*)Request->Data, Request->Transactions, Request->Type,
+	OhciEpInit(Ep, Request->Transactions, Request->Type,
 		Request->Device->Address, Request->Endpoint->Address,
 		Request->Endpoint->MaxPacketSize, Request->LowSpeed);
 
@@ -1431,8 +1436,8 @@ void OhciTransactionSend(void *Controller, UsbHcRequest_t *Request)
 	list_append((list_t*)Ctrl->TransactionList, list_create_node(0, Request));
 
 	/* Remove Skip */
-	((OhciEndpointDescriptor_t*)Request->Data)->Flags &= ~(X86_OHCI_EP_SKIP);
-	((OhciEndpointDescriptor_t*)Request->Data)->HeadPtr &= ~(0x1);
+	Ep->Flags &= ~(X86_OHCI_EP_SKIP);
+	Ep->HeadPtr &= ~(0x1);
 
 #ifdef _OHCI_DIAGNOSTICS_
 	printf("Ed Address 0x%x, Flags 0x%x, Ed Tail 0x%x, Ed Head 0x%x, Next 0x%x\n", EdAddress, ((OhciEndpointDescriptor_t*)Request->Data)->Flags,
@@ -1514,6 +1519,19 @@ void OhciTransactionSend(void *Controller, UsbHcRequest_t *Request)
 	}
 	else
 	{
+		/* Update saved copies, now all is prepaired */
+		Transaction = Request->Transactions;
+		while (Transaction)
+		{
+			/* Do an exact copy */
+			memcpy(Transaction->TransferDescriptorCopy, Transaction->TransferDescriptor,
+				(Request->Type == InterruptTransfer) ? sizeof(OhciGTransferDescriptor_t) :
+				sizeof(OhciITransferDescriptor_t));
+
+			/* Next */
+			Transaction = Transaction->Link;
+		}
+
 		/* DISABLE SCHEDULLER!!! */
 		Ctrl->Registers->HcControl &= ~(X86_OCHI_CTRL_PERIODIC_LIST | X86_OHCI_CTRL_ISOCHRONOUS_LIST);
 
@@ -1572,12 +1590,12 @@ void OhciTransactionSend(void *Controller, UsbHcRequest_t *Request)
 			IEd = Ctrl->ED32[Ctrl->I32];
 
 			/* Insert it */
-			((OhciEndpointDescriptor_t*)Request->Data)->NextEDVirtual = (Addr_t)IEd;
-			((OhciEndpointDescriptor_t*)Request->Data)->NextED = MmVirtualGetMapping(NULL, (VirtAddr_t)IEd);
+			Ep->NextEDVirtual = (Addr_t)IEd;
+			Ep->NextED = MmVirtualGetMapping(NULL, (VirtAddr_t)IEd);
 
 			/* Make int-table point to this */
 			Ctrl->HCCA->InterruptTable[Ctrl->I32] = EdAddress;
-			Ctrl->ED32[Ctrl->I32] = (OhciEndpointDescriptor_t*)Request->Data;
+			Ctrl->ED32[Ctrl->I32] = Ep;
 
 			/* Increase i32 */
 			Ctrl->I32++;
@@ -1589,10 +1607,11 @@ void OhciTransactionSend(void *Controller, UsbHcRequest_t *Request)
 		if (Period != 32)
 		{
 			/* Insert it */
-			((OhciEndpointDescriptor_t*)Request->Data)->NextEDVirtual = IEd->NextEDVirtual;
-			((OhciEndpointDescriptor_t*)Request->Data)->NextED = IEd->NextED;
+			Ep->NextEDVirtual = IEd->NextEDVirtual;
+			Ep->NextED = IEd->NextED;
+			
 			IEd->NextED = EdAddress;
-			IEd->NextEDVirtual = (Addr_t)((OhciEndpointDescriptor_t*)Request->Data);
+			IEd->NextEDVirtual = (Addr_t)Ep;
 		}
 
 		/* ENABLE SCHEDULEER */
@@ -1926,24 +1945,47 @@ void OhciProcessDoneQueue(OhciController_t *Controller, Addr_t DoneHeadAddr)
 					|| TransferType == IsochronousTransfer)
 				{
 					/* Re-Iterate */
-					UsbHcTransaction_t *lIterator =
-						(UsbHcTransaction_t*)HcRequest->Transactions;
+					UsbHcTransaction_t *lIterator = HcRequest->Transactions;
+
+					/* Copy data if not dummy */
 					while (lIterator)
 					{
-						/* Copy Data from transfer buffer to IoBuffer */
-						memcpy(lIterator->IoBuffer, lIterator->TransferBuffer, lIterator->IoLength);
+						/* Let's see */
+						if (lIterator->IoLength != 0)
+						{
+							/* Copy Data from transfer buffer to IoBuffer */
+							memcpy(lIterator->IoBuffer, lIterator->TransferBuffer, lIterator->IoLength);
+						}
+
+						/* Switch toggle */
+						if (TransferType == InterruptTransfer)
+						{
+							OhciGTransferDescriptor_t *__Td =
+								(OhciGTransferDescriptor_t*)lIterator->TransferDescriptorCopy;
+
+							/* If set */
+							if (__Td->Flags & (1 << 24))
+								__Td->Flags &= ~(1 << 24);
+							else
+								__Td->Flags |= (1 << 24);
+						}
 
 						/* Restart Td */
 						memcpy(lIterator->TransferDescriptor,
-							lIterator->TransferDescriptorCopy, sizeof(OhciGTransferDescriptor_t));
+							lIterator->TransferDescriptorCopy, 
+							TransferType == InterruptTransfer ? 
+							sizeof(OhciGTransferDescriptor_t) : sizeof(OhciITransferDescriptor_t));
+
+						/* Eh, next link */
+						lIterator = lIterator->Link;
 					}
 
 					/* Callback */
 					HcRequest->Callback->Callback(HcRequest->Callback->Args);
 
 					/* Restart Ed */
-					OhciEpInit(Ed, HcRequest->Transactions, TransferType, HcRequest->Device->Address,
-						HcRequest->Endpoint->Address, HcRequest->Endpoint->MaxPacketSize, HcRequest->LowSpeed);
+					Ed->HeadPtr = 
+						MmVirtualGetMapping(NULL, (VirtAddr_t)HcRequest->Transactions->TransferDescriptor);
 				}
 
 				/* Done */

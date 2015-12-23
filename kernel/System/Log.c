@@ -74,6 +74,31 @@ void Log(const char *Message, ...)
 	}
 }
 
+/* Raw Log */
+void LogRaw(const char *Message, ...)
+{
+	/* Output Buffer */
+	char oBuffer[512];
+	va_list ArgList;
+
+	/* Memset buffer */
+	memset(&oBuffer[0], 0, 512);
+
+	/* Format string */
+	va_start(ArgList, Message);
+	vsprintf(oBuffer, Message, ArgList);
+	va_end(ArgList);
+
+	/* Print it */
+	if (GlbLogTarget == LogConsole) {
+		BootVideo.FgColor = LOG_COLOR_DEFAULT;
+		printf("%s", oBuffer);
+	}
+	else if (GlbLogTarget == LogFile) {
+
+	}
+}
+
 /* Output information to log */
 void LogInformation(const char *System, const char *Message, ...)
 {
