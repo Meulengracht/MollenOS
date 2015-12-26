@@ -27,63 +27,99 @@
 #include <Module.h>
 #include "Uhci.h"
 
+#include <DeviceManager.h>
 #include <UsbCore.h>
 #include <Timers.h>
 #include <Heap.h>
+
+/* Needs abstraction */
+#include <x86\Memory.h>
+#include <x86\Pci.h>
 
 /* CLib */
 #include <string.h>
 
 /* Globals */
-volatile uint32_t GlbUhciId = 0;
+uint32_t GlbUhciId = 0;
 
 /* Prototypes (Internal) */
 void UhciInitQueues(UhciController_t *Controller);
 void UhciSetup(UhciController_t *Controller);
 int UhciInterruptHandler(void *Args);
 
-void uhci_port_reset(uhci_controller_t *controller, int port, int noint);
-void uhci_port_check(uhci_controller_t *controller, int port);
-void uhci_ports_check(void *data);
+/* Port Callbacks */
+void UhciPortSetup(void *Data, UsbHcPort_t *Port);
+void UhciPortsCheck(void *Data);
 
-void uhci_port_setup(void *data, usb_hc_port_t *port);
-
-void uhci_transaction_init(void *controller, usb_hc_request_t *request);
-usb_hc_transaction_t *uhci_transaction_setup(void *controller, usb_hc_request_t *request);
-usb_hc_transaction_t *uhci_transaction_in(void *controller, usb_hc_request_t *request);
-usb_hc_transaction_t *uhci_transaction_out(void *controller, usb_hc_request_t *request);
-void uhci_transaction_send(void *controller, usb_hc_request_t *request);
-
-void uhci_install_interrupt(void *controller, usb_hc_device_t *device, usb_hc_endpoint_t *endpoint,
-	void *in_buffer, size_t in_bytes, void(*callback)(void*, size_t), void *arg);
+/* Ep Callbacks */
+void UhciEndpointSetup(void *Controller, UsbHcEndpoint_t *Endpoint);
+void UhciEndpointDestroy(void *Controller, UsbHcEndpoint_t *Endpoint);
 
 /* Helpers */
 uint16_t UhciRead16(UhciController_t *Controller, uint16_t Register)
 {
-	/* Write new state */
-	return inw((Controller->IoBase + Register));
+	/* Acquire Lock */
+	SpinlockAcquire(&Controller->Lock);
+
+	/* Read */
+	uint16_t Value = inw((Controller->IoBase + Register));
+
+	/* Release */
+	SpinlockRelease(&Controller->Lock);
+
+	/* Done! */
+	return Value;
 }
 
 uint32_t UhciRead32(UhciController_t *Controller, uint16_t Register)
 {
-	return inl((Controller->IoBase + Register));
+	/* Acquire Lock */
+	SpinlockAcquire(&Controller->Lock);
+
+	/* Read */
+	uint32_t Value = inl((Controller->IoBase + Register));
+
+	/* Release */
+	SpinlockRelease(&Controller->Lock);
+
+	/* Done! */
+	return Value;
 }
 
-void UhciWrite8(UhciController_t *Controller, uint16_t Register, uint8_t value)
+void UhciWrite8(UhciController_t *Controller, uint16_t Register, uint8_t Value)
 {
+	/* Acquire Lock */
+	SpinlockAcquire(&Controller->Lock);
+
 	/* Write new state */
-	outb((Controller->IoBase + Register), value);
+	outb((Controller->IoBase + Register), Value);
+
+	/* Release */
+	SpinlockRelease(&Controller->Lock);
 }
 
-void UhciWrite16(UhciController_t *Controller, uint16_t Register, uint16_t value)
-{
+void UhciWrite16(UhciController_t *Controller, uint16_t Register, uint16_t Value)
+{ 
+	/* Acquire Lock */
+	SpinlockAcquire(&Controller->Lock);
+
 	/* Write new state */
-	outw((Controller->IoBase + Register), value);
+	outw((Controller->IoBase + Register), Value);
+
+	/* Release */
+	SpinlockRelease(&Controller->Lock);
 }
 
-void UhciWrite32(UhciController_t *Controller, uint16_t Register, uint32_t value)
+void UhciWrite32(UhciController_t *Controller, uint16_t Register, uint32_t Value)
 {
-	outl((Controller->IoBase + Register), value);
+	/* Acquire Lock */
+	SpinlockAcquire(&Controller->Lock);
+	
+	/* Write new state */
+	outl((Controller->IoBase + Register), Value);
+
+	/* Release */
+	SpinlockRelease(&Controller->Lock);
 }
 
 /* Entry point of a module */
@@ -98,7 +134,6 @@ MODULES_API void ModuleInit(void *Data)
 	Controller = (UhciController_t*)kmalloc(sizeof(UhciController_t));
 	Controller->PciDevice = Device;
 	Controller->Id = GlbUhciId;
-	Controller->Initialized = 0;
 
 	/* Setup Lock */
 	SpinlockReset(&Controller->Lock);
@@ -112,11 +147,11 @@ MODULES_API void ModuleInit(void *Data)
 	Controller->IoBase = (Device->Header->Bar4 & 0x0000FFFE);
 
 	/* Get DMA */
-	Controller->FrameListPhys = physmem_alloc_block_dma();
+	Controller->FrameListPhys = (Addr_t)MmPhysicalAllocateBlockDma();
 	Controller->FrameList = (void*)Controller->FrameListPhys;
 
 	/* Memset */
-	memset(Controller->FrameList, 0, 0x1000);
+	memset(Controller->FrameList, 0, PAGE_SIZE);
 
 	/* Install IRQ Handler */
 	InterruptInstallPci(Device, UhciInterruptHandler, Controller);
@@ -192,302 +227,287 @@ uint32_t UhciDetermineInterruptQh(UhciController_t *Controller, uint32_t Frame)
 
 	/* Determine index from first free bit 
 	 * 8 queues */
-	Index = 8 - UhciFFS(Frame | X86_UHCI_NUM_FRAMES);
+	Index = 8 - UhciFFS(Frame | UHCI_NUM_FRAMES);
 
 	/* Sanity */
 	if (Index < 2 || Index > 8)
-		Index = X86_UHCI_POOL_ASYNC;
+		Index = UHCI_POOL_ASYNC;
 
 	/* Return Phys */
-	return (Controller->QhPoolPhys[Index] | X86_UHCI_TD_LINK_QH);
+	return (Controller->QhPoolPhys[Index] | UHCI_TD_LINK_QH);
 }
 
 /* Start / Stop */
 void UhciStart(UhciController_t *Controller)
 {
 	/* Send run command */
-	uint16_t OldCmd = UhciRead16(Controller, X86_UHCI_REGISTER_COMMAND);
-	OldCmd |= X86_UHCI_CMD_RUN;
-	UhciWrite16(Controller, X86_UHCI_REGISTER_COMMAND, OldCmd);
+	uint16_t OldCmd = UhciRead16(Controller, UHCI_REGISTER_COMMAND);
+	OldCmd |= (UHCI_CMD_CONFIGFLAG | UHCI_CMD_RUN | UHCI_CMD_MAXPACKET64);
+	UhciWrite16(Controller, UHCI_REGISTER_COMMAND, OldCmd);
 
-	/* Wait for it to start */
-	//while (uhci_read16(controller, X86_UHCI_REGISTER_STATUS) & X86_UHCI_STATUS_HALTED);
+	/* Wait for it to start */	
+	OldCmd = 0;
+	WaitForConditionWithFault(OldCmd, 
+		(UhciRead16(Controller, UHCI_REGISTER_STATUS) & UHCI_STATUS_HALTED) == 0, 100, 10);
 }
 
 void UhciStop(UhciController_t *Controller)
 {
 	/* Send stop command */
-	uint16_t junk = uhci_read16(controller, X86_UHCI_REGISTER_COMMAND);
-	junk &= ~(X86_UHCI_CMD_RUN);
-	uhci_write16(controller, X86_UHCI_REGISTER_COMMAND, junk);
+	uint16_t OldCmd = UhciRead16(Controller, UHCI_REGISTER_COMMAND);
+	OldCmd &= ~(UHCI_CMD_RUN);
+	UhciWrite16(Controller, UHCI_REGISTER_COMMAND, OldCmd);
 }
 
+/* Resets the Controller */
+void UhciReset(UhciController_t *Controller)
+{
+	/* Vars */
+	uint16_t Temp = 0;
+
+	/* Write HCReset */
+	UhciWrite16(Controller, UHCI_REGISTER_COMMAND, UHCI_CMD_HCRESET);
+
+	/* Wait */
+	WaitForConditionWithFault(Temp, (UhciRead16(Controller, UHCI_REGISTER_COMMAND) & UHCI_CMD_HCRESET) == 0, 100, 10);
+
+	/* Sanity */
+	if (Temp == 1)
+		LogDebug("UHCI", "Reset signal is still active..");
+
+	/* Clear out to be safe */
+	UhciWrite16(Controller, UHCI_REGISTER_COMMAND, 0x0000);
+	UhciWrite16(Controller, UHCI_REGISTER_INTR, 0x0000);
+
+	/* Now re-configure it */
+	UhciWrite8(Controller, UHCI_REGISTER_SOFMOD, 64); /* Frame Length 1 ms */
+	UhciWrite32(Controller, UHCI_REGISTER_FRBASEADDR, Controller->FrameListPhys);
+	UhciWrite16(Controller, UHCI_REGISTER_FRNUM, (0 & 2047));
+
+	/* Enable interrupts */
+	UhciWrite16(Controller, UHCI_REGISTER_INTR,
+		(UHCI_INTR_TIMEOUT | UHCI_INTR_SHORT_PACKET
+		| UHCI_INTR_RESUME | UHCI_INTR_COMPLETION));
+
+	/* Start Controller */
+	UhciStart(Controller);
+}
+
+/* Initializes the Controller */
 void UhciSetup(UhciController_t *Controller)
 {
 	/* Vars */
-	UsbHc_t *Hc;
+	UsbHc_t *Hcd;
 	uint16_t PortsEnabled = 0;
 	uint16_t Temp = 0, i = 0;
 
-	/* Get legacy support */
-	Temp = (uint16_t)PciDeviceRead(Controller->PciDevice, UHCI_USBLEGEACY, 2);
-
 	/* Disable interrupts while configuring (and stop controller) */
-	UhciWrite16(Controller, X86_UHCI_REGISTER_COMMAND, 0x0000);
-	UhciWrite16(Controller, X86_UHCI_REGISTER_INTR, 0x0000);
+	UhciWrite16(Controller, UHCI_REGISTER_COMMAND, 0x0000);
+	UhciWrite16(Controller, UHCI_REGISTER_INTR, 0x0000);
 
 	/* Global Reset */
-	UhciWrite16(Controller, X86_UHCI_REGISTER_COMMAND, X86_UHCI_CMD_GRESET);
+	UhciWrite16(Controller, UHCI_REGISTER_COMMAND, UHCI_CMD_GRESET);
 	StallMs(100);
-	UhciWrite16(Controller, X86_UHCI_REGISTER_COMMAND, 0x0000);
+	UhciWrite16(Controller, UHCI_REGISTER_COMMAND, 0x0000);
 
-	/* HC Reset */
-	UhciWrite16(Controller, X86_UHCI_REGISTER_COMMAND, X86_UHCI_CMD_HCRESET);
+	/* Disable stuff again, we don't know what state is set after reset */
+	UhciWrite16(Controller, UHCI_REGISTER_COMMAND, 0x0000);
+	UhciWrite16(Controller, UHCI_REGISTER_INTR, 0x0000);
 
-	/* Recovery */
-	StallMs(1);
+	/* Setup Queues */
+	UhciInitQueues(Controller);
 
-	/* Wait for reset */
-	while (UhciRead16(Controller, X86_UHCI_REGISTER_COMMAND) & X86_UHCI_CMD_HCRESET)
-		clock_stall(20); 
+	/* Reset */
+	UhciWrite16(Controller, UHCI_REGISTER_COMMAND, UHCI_CMD_HCRESET);
 
-	/* Disable interrupts while configuring (and stop controller) */
-	uhci_write16(controller, X86_UHCI_REGISTER_COMMAND, 0x0000);
-	uhci_write16(controller, X86_UHCI_REGISTER_INTR, 0x0000);
+	/* Wait */
+	WaitForConditionWithFault(Temp, (UhciRead16(Controller, UHCI_REGISTER_COMMAND) & UHCI_CMD_HCRESET) == 0, 100, 10);
+
+	/* Sanity */
+	if (Temp == 1)
+		LogDebug("UHCI", "Reset signal is still active..");
+
+	/* Clear out to be safe */
+	UhciWrite16(Controller, UHCI_REGISTER_COMMAND, 0x0000);
+	UhciWrite16(Controller, UHCI_REGISTER_INTR, 0x0000);
+
+	/* Now re-configure it */
+	UhciWrite8(Controller, UHCI_REGISTER_SOFMOD, 64); /* Frame Length 1 ms */
+	UhciWrite32(Controller, UHCI_REGISTER_FRBASEADDR, Controller->FrameListPhys);
+	UhciWrite16(Controller, UHCI_REGISTER_FRNUM, (0 & 2047));
 
 	/* We get port count & 0 them */
-	for (i = 0; i < 8; i++)
+	for (i = 0; i <= UHCI_MAX_PORTS; i++)
 	{
-		temp = uhci_read16(controller, (X86_UHCI_REGISTER_PORT_BASE + (i * 2)));
+		Temp = UhciRead16(Controller, (UHCI_REGISTER_PORT_BASE + (i * 2)));
 
 		/* Is it a valid port? */
-		if (!(temp & X86_UHCI_PORT_RESERVED))
+		if (!(Temp & UHCI_PORT_RESERVED)
+			|| Temp == 0xFFFF)
 		{
 			/* This reserved bit must be 1 */
 			/* And we must have 2 ports atleast */
-			if (i > 1)
-				break;
+			break;
 		}
-
-		/* 0 It */
-		uhci_write16(controller, (X86_UHCI_REGISTER_PORT_BASE + (i * 2)), 0);
 	}
 
 	/* Ports are now i */
-	controller->ports = i;
-
-	/* Setup Framelist */
-	uhci_write32(controller, X86_UHCI_REGISTER_FRBASEADDR, controller->frame_list_phys);
-	uhci_write16(controller, X86_UHCI_REGISTER_FRNUM, 0);
-	uhci_write8(controller, X86_UHCI_REGISTER_SOFMOD, 64); /* Frame Length 1 ms */
-
-	/* Setup Queues */
-	uhci_init_queues(controller);
-
-	/* Turn on only if connected ports */
-	for (i = 0; i < controller->ports; i++)
-	{
-		temp = uhci_read16(controller, (X86_UHCI_REGISTER_PORT_BASE + (i * 2)));
-		
-		/* enabled? */
-		if (temp & X86_UHCI_PORT_CONNECT_STATUS)
-			enabled_ports++;
-	}
+	Controller->NumPorts = i;
 
 	/* Enable PCI Interrupts */
-	pci_write_word((const uint16_t)controller->pci_info->bus,
-		(const uint16_t)controller->pci_info->device,
-		(const uint16_t)controller->pci_info->function,
-		X86_UHCI_USBLEG, 0x2000);
+	PciDeviceWrite(Controller->PciDevice, UHCI_USBLEGEACY, 0x2000, 2);
 
 	/* If vendor is Intel we null out the intel register */
-	if (controller->pci_info->header->vendor_id == 0x8086)
-		pci_write_byte((const uint16_t)controller->pci_info->bus, (const uint16_t)controller->pci_info->device,
-		(const uint16_t)controller->pci_info->function, X86_UHCI_USBRES_INTEL, 0x00);
-
-	/* Now start and wait */
-	if (enabled_ports == 0)
-	{
-		controller->initialized = 2;
-		temp = (X86_UHCI_CMD_CF | X86_UHCI_CMD_MAXPACKET64);
-	}
-	else
-	{
-		controller->initialized = 1;
-		temp = (X86_UHCI_CMD_CF | X86_UHCI_CMD_RUN | X86_UHCI_CMD_MAXPACKET64);
-	}
-	
-	/* Start controller */
-	uhci_write16(controller, X86_UHCI_REGISTER_COMMAND, temp);
+	if (Controller->PciDevice->Header->VendorId == 0x8086)
+		PciDeviceWrite(Controller->PciDevice, UHCI_USBRES_INTEL, 0x00, 1);
 
 	/* Enable interrupts */
-	uhci_write16(controller, X86_UHCI_REGISTER_INTR, 
-		(X86_UHCI_INTR_TIMEOUT | X86_UHCI_INTR_SHORT_PACKET
-		| X86_UHCI_INTR_RESUME | X86_UHCI_INTR_COMPLETION));
+	UhciWrite16(Controller, UHCI_REGISTER_INTR,
+		(UHCI_INTR_TIMEOUT | UHCI_INTR_SHORT_PACKET
+		| UHCI_INTR_RESUME | UHCI_INTR_COMPLETION));
 
-	/* Give it a 10 ms */
-	clock_stall(10);
-
+	/* Start Controller */
+	UhciStart(Controller);
+	
 	/* Debug */
-	printf("UHCI %u: Port Count %u, Command Register 0x%x\n", controller->id,
-		controller->ports, uhci_read16(controller, X86_UHCI_REGISTER_COMMAND));
+	LogDebug("UHCI", "%u: Port Count %u, Command Register 0x%x", Controller->Id,
+		Controller->NumPorts, UhciRead16(Controller, UHCI_REGISTER_COMMAND));
 
 	/* Setup HCD */
-	hc = usb_init_controller((void*)controller, X86_USB_TYPE_UHCI, controller->ports);
+	Hcd = UsbInitController((void*)Controller, UhciController, Controller->NumPorts);
 
-	/* Port Functions */
-	hc->root_hub_check = uhci_ports_check;
-	hc->port_setup = uhci_port_setup;
+	/* Setup functions */
+	Hcd->RootHubCheck = UhciPortsCheck;
+	Hcd->PortSetup = UhciPortSetup;
+	Hcd->Reset = UhciReset;
+
+	/* Ep Functions */
+	Hcd->EndpointSetup = UhciEndpointSetup;
+	Hcd->EndpointDestroy = UhciEndpointDestroy;
 
 	/* Transaction Functions */
-	hc->transaction_init = uhci_transaction_init;
-	hc->transaction_setup = uhci_transaction_setup;
-	hc->transaction_in = uhci_transaction_in;
-	hc->transaction_out = uhci_transaction_out;
-	hc->transaction_send = uhci_transaction_send;
-	hc->install_interrupt = uhci_install_interrupt;
 
-	controller->hcd_id = usb_register_controller(hc);
+	/* Register it */
+	Controller->HcdId = UsbRegisterController(Hcd);
 
-	/* Install Periodic Check (WTF NO HUB INTERRUPTS!?)
+	/* Install Periodic Check (NO HUB INTERRUPTS!?)
 	 * Anyway this will initiate ports */
-	timers_create_periodic(uhci_ports_check, controller, 500);
+	//TimersCreateTimer(UhciPortsCheck, Controller, TimerPeriodic, 500);
 }
 
 /* Initialises Queue Heads & Interrupt Queeue */
-void uhci_init_queues(uhci_controller_t *controller)
+void UhciInitQueues(UhciController_t *Controller)
 {
-	uint32_t *fl_ptr = (uint32_t*)controller->frame_list;
-	addr_t buffer_address = 0, buffer_address_max = 0;
-	addr_t pool = 0, pool_phys = 0;
+	/* Setup Vars */
+	uint32_t *FrameListPtr = (uint32_t*)Controller->FrameList;
+	Addr_t Pool = 0, PoolPhysical = 0;
 	uint32_t i;
 
-	/* Setup Pools */
-	controller->td_index = 1;
-	controller->qh_index = 11;
-	
-	/* Buffer Iterator */
-	buffer_address = (addr_t)kmalloc_a(0x1000);
-	buffer_address_max = buffer_address + 0x1000 - 1;
+	/* Setup Null Td */
+	Pool = (Addr_t)kmalloc(sizeof(UhciTransferDescriptor_t) + UHCI_STRUCT_ALIGN);
+	Controller->NullTd = (UhciTransferDescriptor_t*)UhciAlign(Pool, UHCI_STRUCT_ALIGN_BITS, UHCI_STRUCT_ALIGN);
+	Controller->NullTdPhysical = MmVirtualGetMapping(NULL, (VirtAddr_t)Controller->NullTd);
 
-	/* Allocate one large block of cake for TD pool */
-	pool = (addr_t)kmalloc((sizeof(uhci_transfer_desc_t) * X86_UHCI_POOL_NUM_TD) + X86_UHCI_STRUCT_ALIGN);
-	pool = uhci_align(pool, X86_UHCI_STRUCT_ALIGN_BITS, X86_UHCI_STRUCT_ALIGN);
-	pool_phys = memory_getmap(NULL, pool);
-	memset((void*)pool, 0, sizeof(uhci_transfer_desc_t) * X86_UHCI_POOL_NUM_TD);
-	for (i = 0; i < X86_UHCI_POOL_NUM_TD; i++)
-	{
-		/* Allocate TD */
-		controller->td_pool[i] = (uhci_transfer_desc_t*)pool;
-		controller->td_pool_phys[i] = pool_phys;
+	/* Memset it */
+	memset((void*)Controller->NullTd, 0, sizeof(UhciTransferDescriptor_t));
 
-		/* Allocate Buffer */
+	/* Set link invalid */
+	Controller->NullTd->Header = UHCI_TD_PID_IN | UHCI_TD_DEVICE_ADDR(0x7F) | UHCI_TD_MAX_LEN(0x7FF);
+	Controller->NullTd->Link = UHCI_TD_LINK_END;
 
-		/* Allocate another page? */
-		if (buffer_address > buffer_address_max)
-		{
-			buffer_address = (addr_t)kmalloc_a(0x1000);
-			buffer_address_max = buffer_address + 0x1000 - 1;
-		}
+	/* Setup Qh Pool */
+	Pool = (Addr_t)kmalloc((sizeof(UhciQueueHead_t) * UHCI_POOL_NUM_QH) + UHCI_STRUCT_ALIGN);
+	Pool = UhciAlign(Pool, UHCI_STRUCT_ALIGN_BITS, UHCI_STRUCT_ALIGN);
+	PoolPhysical = (Addr_t)MmVirtualGetMapping(NULL, Pool);
 
-		/* Bind it to the new TD */
-		controller->td_pool_buffers[i] = (addr_t*)buffer_address;
-		controller->td_pool[i]->buffer = memory_getmap(NULL, buffer_address);
-		
-		/* Increase */
-		buffer_address += 0x200;
-		pool += sizeof(uhci_transfer_desc_t);
-		pool_phys += sizeof(uhci_transfer_desc_t);
-	}
+	/* Null out pool */
+	memset((void*)Pool, 0, sizeof(UhciQueueHead_t) * UHCI_POOL_NUM_QH);
 
-	/* Now its time for QH */
-	pool = (addr_t)kmalloc((sizeof(uhci_queue_head_t) * X86_UHCI_POOL_NUM_QH) + X86_UHCI_STRUCT_ALIGN);
-	pool = uhci_align(pool, X86_UHCI_STRUCT_ALIGN_BITS, X86_UHCI_STRUCT_ALIGN);
-	pool_phys = memory_getmap(NULL, pool);
-	memset((void*)pool, 0, sizeof(uhci_queue_head_t) * X86_UHCI_POOL_NUM_QH);
-	for (i = 0; i < X86_UHCI_POOL_NUM_QH; i++)
+	/* Set them up */
+	for (i = 0; i < UHCI_POOL_NUM_QH; i++)
 	{
 		/* Set QH */
-		controller->qh_pool[i] = (uhci_queue_head_t*)pool;
-		controller->qh_pool_phys[i] = pool_phys;
+		Controller->QhPool[i] = (UhciQueueHead_t*)Pool;
+		Controller->QhPoolPhys[i] = PoolPhysical;
 
 		/* Set its index */
-		controller->qh_pool[i]->flags = X86_UHCI_QH_INDEX(i);
+		Controller->QhPool[i]->Flags = UHCI_QH_INDEX(i);
 
 		/* Increase */
-		pool += sizeof(uhci_queue_head_t);
-		pool_phys += sizeof(uhci_queue_head_t);
+		Pool += sizeof(UhciQueueHead_t);
+		PoolPhysical += sizeof(UhciQueueHead_t);
 	}
 
 	/* Setup interrupt queues */
-	for (i = 2; i < X86_UHCI_POOL_ASYNC; i++)
+	for (i = 2; i < UHCI_POOL_ASYNC; i++)
 	{
 		/* Set QH Link */
-		controller->qh_pool[i]->link_ptr = (controller->qh_pool_phys[X86_UHCI_POOL_ASYNC] | X86_UHCI_TD_LINK_QH);
-		controller->qh_pool[i]->link = (uint32_t)controller->qh_pool[X86_UHCI_POOL_ASYNC];
+		Controller->QhPool[i]->Link = (Controller->QhPoolPhys[UHCI_POOL_ASYNC] | UHCI_TD_LINK_QH);
+		Controller->QhPool[i]->LinkVirtual = (uint32_t)Controller->QhPool[UHCI_POOL_ASYNC];
 
 		/* Disable TD List */
-		controller->qh_pool[i]->head_ptr = X86_UHCI_TD_LINK_INVALID;
-		controller->qh_pool[i]->head = 0;
+		Controller->QhPool[i]->Child = UHCI_TD_LINK_END;
+		Controller->QhPool[i]->ChildVirtual = 0;
 
 		/* Set in use */
-		controller->qh_pool[i]->flags |= (X86_UHCI_QH_SET_POOL_NUM(i) | X86_UHCI_QH_ACTIVE);
+		Controller->QhPool[i]->Flags |= (UHCI_QH_SET_POOL_NUM(i) | UHCI_QH_ACTIVE);
 	}
 	
 	/* Setup Iso Qh */
 
 	/* Setup async Qh */
-	controller->qh_pool[X86_UHCI_POOL_ASYNC]->link_ptr = X86_UHCI_TD_LINK_INVALID;
-	controller->qh_pool[X86_UHCI_POOL_ASYNC]->link = 0;
-	controller->qh_pool[X86_UHCI_POOL_ASYNC]->head_ptr = controller->td_pool_phys[X86_UHCI_POOL_NULL_TD];
-	controller->qh_pool[X86_UHCI_POOL_ASYNC]->head = (uint32_t)controller->td_pool[X86_UHCI_POOL_NULL_TD];
+	Controller->QhPool[UHCI_POOL_ASYNC]->Link = UHCI_TD_LINK_END;
+	Controller->QhPool[UHCI_POOL_ASYNC]->LinkVirtual = 0;
+	Controller->QhPool[UHCI_POOL_ASYNC]->Child = Controller->NullTdPhysical;
+	Controller->QhPool[UHCI_POOL_ASYNC]->ChildVirtual = (uint32_t)Controller->NullTd;
 
 	/* Setup null QH */
-	controller->qh_pool[X86_UHCI_POOL_NULL]->link_ptr = (controller->qh_pool_phys[X86_UHCI_POOL_NULL] | X86_UHCI_TD_LINK_QH);
-	controller->qh_pool[X86_UHCI_POOL_NULL]->link = (uint32_t)controller->qh_pool[X86_UHCI_POOL_NULL];
-	controller->qh_pool[X86_UHCI_POOL_NULL]->head_ptr = controller->td_pool_phys[X86_UHCI_POOL_NULL_TD];
-	controller->qh_pool[X86_UHCI_POOL_NULL]->head = (uint32_t)controller->td_pool[X86_UHCI_POOL_NULL_TD];
-
-	/* Make sure they have a NULL td */
-	controller->td_pool[X86_UHCI_POOL_NULL_TD]->control = 0;
-	controller->td_pool[X86_UHCI_POOL_NULL_TD]->header = 
-		(uint32_t)(X86_UHCI_TD_PID_IN | X86_UHCI_TD_DEVICE_ADDR(0x7F) | X86_UHCI_TD_MAX_LEN(0x7FF));
-	controller->td_pool[X86_UHCI_POOL_NULL_TD]->link_ptr = X86_UHCI_TD_LINK_INVALID;
+	Controller->QhPool[UHCI_POOL_NULL]->Link = (Controller->QhPoolPhys[UHCI_POOL_NULL] | UHCI_TD_LINK_QH | UHCI_TD_LINK_END);
+	Controller->QhPool[UHCI_POOL_NULL]->LinkVirtual = (uint32_t)Controller->QhPool[UHCI_POOL_NULL];
+	Controller->QhPool[UHCI_POOL_NULL]->Child = Controller->NullTdPhysical;
+	Controller->QhPool[UHCI_POOL_NULL]->ChildVirtual = (uint32_t)Controller->NullTd;
 
 	/* 1024 Entries 
 	 * Set all entries to the 8 interrupt queues, and we 
-	 * want them interleaved such that some queues get visited more than others x*/
-	for (i = 0; i < X86_UHCI_NUM_FRAMES; i++)
-		fl_ptr[i] = uhci_determine_intqh(controller, i);
+	 * want them interleaved such that some queues get visited more than others */
+	for (i = UHCI_POOL_ISOCHRONOUS + 1; i < UHCI_POOL_ASYNC; i++)
+		Controller->QhPool[i]->Link = Controller->QhPoolPhys[UHCI_POOL_ASYNC] | UHCI_TD_LINK_QH;
+	for (i = 0; i < UHCI_NUM_FRAMES; i++)
+		FrameListPtr[i] = UhciDetermineInterruptQh(Controller, i);
+
+	/* Terminate */
+	Controller->QhPool[UHCI_POOL_ASYNC]->Link |= UHCI_TD_LINK_END;
+	Controller->QhPool[UHCI_POOL_ASYNC]->LinkVirtual = 0;
+	Controller->QhPool[UHCI_POOL_ASYNC]->Child = Controller->NullTdPhysical;
+	Controller->QhPool[UHCI_POOL_ASYNC]->ChildVirtual = (uint32_t)Controller->NullTd;
 
 	/* Init transaction list */
-	controller->transactions_list = list_create(LIST_SAFE);
+	Controller->TransactionList = list_create(LIST_SAFE);
 }
 
 /* Ports */
-void uhci_port_reset(uhci_controller_t *controller, int port, int noint)
+void UhciPortReset(UhciController_t *Controller, uint32_t Port)
 {
-	uint16_t temp, i;
-	uint16_t offset = (X86_UHCI_REGISTER_PORT_BASE + ((uint16_t)port * 2));
-	_CRT_UNUSED(noint);
+	/* Calc */
+	uint16_t Temp, i;
+	uint16_t pOffset = (UHCI_REGISTER_PORT_BASE + ((uint16_t)Port * 2));
 
 	/* Step 1. Send reset signal */
-	temp = uhci_read16(controller, offset) & 0xFFF5;
-	uhci_write16(controller, offset, temp | X86_UHCI_PORT_RESET);
+	UhciWrite16(Controller, pOffset, UHCI_PORT_RESET);
 
 	/* Wait atlest 50 ms (per USB specification) */
-	clock_stall(60);
+	StallMs(60);
 
 	/* Now deassert reset signal */
-	temp = uhci_read16(controller, offset) & 0xFFF5;
-	uhci_write16(controller, offset, temp & ~X86_UHCI_PORT_RESET);
+	Temp = UhciRead16(Controller, pOffset);
+	UhciWrite16(Controller, pOffset, Temp & ~UHCI_PORT_RESET);
 
 	/* Recovery Wait */
-	clock_stall(10);
+	StallMs(10);
 
 	/* Step 2. Enable Port */
-	temp = uhci_read16(controller, offset) & 0xFFF5;
-	uhci_write16(controller, offset, temp | X86_UHCI_PORT_ENABLED);
+	Temp = UhciRead16(Controller, pOffset) & 0xFFF5;
+	UhciWrite16(Controller, pOffset, Temp | UHCI_PORT_ENABLED);
 
 	/* Wait for enable, with timeout */
 	i = 0;
@@ -497,188 +517,209 @@ void uhci_port_reset(uhci_controller_t *controller, int port, int noint)
 		i++;
 
 		/* Stall */
-		clock_stall(12);
+		StallMs(10);
 
 		/* Check status */
-		temp = uhci_read16(controller, offset);
+		Temp = UhciRead16(Controller, pOffset);
 
 		/* Is device still connected? */
-		if (!(temp & X86_UHCI_PORT_CONNECT_STATUS))
+		if (!(Temp & UHCI_PORT_CONNECT_STATUS))
 			return;
 
 		/* Has it raised any event bits? In that case clear'em */
-		if (temp & (X86_UHCI_PORT_CONNECT_EVENT | X86_UHCI_PORT_ENABLED_EVENT))
+		if (Temp & (UHCI_PORT_CONNECT_EVENT | UHCI_PORT_ENABLED_EVENT))
 		{
-			uhci_write16(controller, offset, (temp & 0xFFF5) | (X86_UHCI_PORT_CONNECT_EVENT | X86_UHCI_PORT_ENABLED_EVENT));
+			UhciWrite16(Controller, pOffset, Temp);
 			continue;
 		}
 
 		/* Done? */
-		if (temp & X86_UHCI_PORT_ENABLED)
+		if (Temp & UHCI_PORT_ENABLED)
 			break;
 	}
 
 	/* Sanity */
-	if (i == 1000)
+	if (i == 10)
 	{
-		printf("UHCI: Port Reset Failed!\n");
+		LogDebug("UHCI", "Port %u Reset Failed!", Port);
 		return;
 	}
 }
 
 /* Detect any port changes */
-void uhci_port_check(uhci_controller_t *controller, int port)
+void UhciPortCheck(UhciController_t *Controller, int Port)
 {
-	uint16_t pstatus = uhci_read16(controller, (X86_UHCI_REGISTER_PORT_BASE + ((uint16_t)port * 2)));
-	usb_hc_t *hc;
+	/* Get port status */
+	uint16_t pStatus = UhciRead16(Controller, (UHCI_REGISTER_PORT_BASE + ((uint16_t)Port * 2)));
+	UsbHc_t *Hcd;
 
-	/* Is device connected? :/ */
-	if (!(pstatus & X86_UHCI_PORT_CONNECT_STATUS))
+	/* Has there been a connection event? */
+	if (!(pStatus & UHCI_PORT_CONNECT_EVENT))
 		return;
 
-	/* Clear bits asap */
-	if ((pstatus & X86_UHCI_PORT_CONNECT_EVENT)
-		|| (pstatus & X86_UHCI_PORT_ENABLED_EVENT)
-		|| (pstatus & X86_UHCI_PORT_RESUME_DETECT))
-		uhci_write16(controller, (X86_UHCI_REGISTER_PORT_BASE + ((uint16_t)port * 2)), pstatus);
+	/* Clear connection event */
+	UhciWrite16(Controller, (UHCI_REGISTER_PORT_BASE + ((uint16_t)Port * 2)), UHCI_PORT_CONNECT_EVENT);
 
 	/* Get HCD data */
-	hc = usb_get_hcd(controller->hcd_id);
+	Hcd = UsbGetHcd(Controller->HcdId);
 
 	/* Sanity */
-	if (hc == NULL)
+	if (Hcd == NULL)
 		return;
 
-	/* Any connection changes? */
-	if (pstatus & X86_UHCI_PORT_CONNECT_EVENT)
+	/* Connect event? */
+	if (pStatus & UHCI_PORT_CONNECT_STATUS)
 	{
-		/* Connect event? */
-		if (pstatus & X86_UHCI_PORT_CONNECT_STATUS)
-		{
-			/* Connection Event */
-			usb_event_create(hc, port, X86_USB_EVENT_CONNECTED);
-		}
-		else
-		{
-			/* Disconnect Event */
-			usb_event_create(hc, port, X86_USB_EVENT_DISCONNECTED);
-		}
+		/* Connection Event */
+		UsbEventCreate(Hcd, Port, HcdConnectedEvent);
+	}
+	else
+	{
+		/* Disconnect Event */
+		UsbEventCreate(Hcd, Port, HcdDisconnectedEvent);
 	}
 }
 
 /* Go through ports */
-void uhci_ports_check(void *data)
+void UhciPortsCheck(void *Data)
 {
+	UhciController_t *Controller = (UhciController_t*)Data;
 	int i;
-	uhci_controller_t *controller = (uhci_controller_t*)data;
 
-	for (i = 0; i < (int)controller->ports; i++)
-		uhci_port_check(controller, i);
+	for (i = 0; i < (int)Controller->NumPorts; i++)
+		UhciPortCheck(Controller, i);
 }
 
 /* Gets port status */
-void uhci_port_setup(void *data, usb_hc_port_t *port)
+void UhciPortSetup(void *Data, UsbHcPort_t *Port)
 {
-	uhci_controller_t *controller = (uhci_controller_t*)data;
-	uint16_t pstatus = 0;
+	UhciController_t *Controller = (UhciController_t*)Data;
+	uint16_t pStatus = 0;
 
 	/* Reset Port */
-	uhci_port_reset(controller, (int)port->id, 0);
+	UhciPortReset(Controller, Port->Id);
 
 	/* Dump info */
-	pstatus = uhci_read16(controller, (X86_UHCI_REGISTER_PORT_BASE + ((uint16_t)port->id * 2)));
-	printf("UHCI %u.%u Status: 0x%x\n", controller->id, port->id, pstatus);
+	pStatus = UhciRead16(Controller, (UHCI_REGISTER_PORT_BASE + ((uint16_t)Port->Id * 2)));
+	LogDebug("UHCI", "UHCI %u.%u Status: 0x%x\n", Controller->Id, Port->Id, pStatus);
 
 	/* Is it connected? */
-	if (pstatus & X86_UHCI_PORT_CONNECT_STATUS)
-		port->connected = 1;
+	if (pStatus & UHCI_PORT_CONNECT_STATUS)
+		Port->Connected = 1;
 	else
-		port->connected = 0;
+		Port->Connected = 0;
 
 	/* Enabled? */
-	if (pstatus & X86_UHCI_PORT_ENABLED)
-		port->enabled = 1;
+	if (pStatus & UHCI_PORT_ENABLED)
+		Port->Enabled = 1;
 	else
-		port->enabled = 0;
+		Port->Enabled = 0;
 
 	/* Lowspeed? */
-	if (pstatus & X86_UHCI_PORT_LOWSPEED)
-		port->full_speed = 0;
+	if (pStatus & UHCI_PORT_LOWSPEED)
+		Port->FullSpeed = 0;
 	else
-		port->full_speed = 1;
+		Port->FullSpeed = 1;
 }
 
 /* QH Functions */
-uint32_t uhci_get_qh(uhci_controller_t *controller)
+Addr_t UhciAllocateQh(UhciController_t *Controller, UsbTransferType_t Type)
 {
-	interrupt_status_t int_state;
-	uint32_t index = 0;
-	uhci_queue_head_t *qh;
+	UhciQueueHead_t *Qh = NULL;
+	Addr_t cIndex = 0;
+	int i;
 
 	/* Pick a QH */
-	int_state = interrupt_disable();
-	spinlock_acquire(&controller->lock);
+	SpinlockAcquire(&Controller->Lock);
 
 	/* Grap it, locked operation */
-	while (!index)
+	if (Type == ControlTransfer
+		|| Type == BulkTransfer)
 	{
-		qh = controller->qh_pool[controller->qh_index];
-
-		if (!(qh->flags & X86_UHCI_QH_ACTIVE))
+		/* Grap Index */
+		for (i = UHCI_POOL_START; i < UHCI_POOL_NUM_QH; i++)
 		{
-			/* Done! */
-			index = controller->qh_index;
-			qh->flags |= X86_UHCI_QH_ACTIVE;
-		}
-		
-		controller->qh_index++;
+			/* Sanity */
+			if (Controller->QhPool[i]->Flags & UHCI_QH_ALLOCATED)
+				continue;
 
-		/* Index Sanity */
-		if (controller->qh_index == X86_UHCI_POOL_NUM_QH)
-			controller->qh_index = 11;
+			/* Yay!! */
+			Controller->QhPool[i]->Flags |= UHCI_QH_ALLOCATED;
+			cIndex = (Addr_t)i;
+			break;
+		}
+
+		/* Sanity */
+		if (i == UHCI_POOL_NUM_QH)
+			kernel_panic("USB_UHCI::WTF RAN OUT OF EDS\n");
+	}
+	else if (Type == InterruptTransfer
+		|| Type == IsochronousTransfer)
+	{
+		/* Allocate */
+		Addr_t aSpace = (Addr_t)kmalloc(sizeof(UhciQueueHead_t) + UHCI_STRUCT_ALIGN);
+		cIndex = UhciAlign(aSpace, UHCI_STRUCT_ALIGN_BITS, UHCI_STRUCT_ALIGN);
+
+		/* Zero it out */
+		memset((void*)cIndex, 0, sizeof(UhciQueueHead_t));
 	}
 
 	/* Release lock */
-	spinlock_release(&controller->lock);
-	interrupt_set_state(int_state);
+	SpinlockRelease(&Controller->Lock);
 
-	return index;
+	/* Done */
+	return cIndex;
 }
 
 /* TD Functions */
-uint32_t uhci_get_td(uhci_controller_t *controller)
+Addr_t OhciAllocateTd(UhciEndpoint_t *Ep, UsbTransferType_t Type)
 {
-	interrupt_status_t int_state;
-	uint32_t index = 0;
-	uhci_transfer_desc_t *td;
+	size_t i;
+	Addr_t cIndex = 0xFFFF;
+	UhciTransferDescriptor_t *Td;
 
 	/* Pick a QH */
-	int_state = interrupt_disable();
-	spinlock_acquire(&controller->lock);
+	SpinlockAcquire(&Ep->Lock);
 
-	/* Grap it, locked operation */
-	while (!index)
+	/* Sanity */
+	if (Type == ControlTransfer
+		|| Type == BulkTransfer)
 	{
-		td = controller->td_pool[controller->td_index];
-
-		if (!(td->control & X86_UHCI_TD_CTRL_ACTIVE))
+		/* Grap it, locked operation */
+		for (i = 0; i < Ep->TdsAllocated; i++)
 		{
-			/* Done! */
-			index = controller->td_index;
+			/* Sanity */
+			if (Ep->TDPool[i]->Flags & UHCI_TD_ACTIVE)
+				continue;
+
+			/* Yay!! */
+			Ep->TDPool[i]->Flags |= UHCI_TD_ACTIVE;
+			cIndex = (Addr_t)i;
+			break;
 		}
 
-		controller->td_index++;
+		/* Sanity */
+		if (i == Ep->TdsAllocated)
+			kernel_panic("USB_UHCI::WTF ran out of TD's!!!!\n");
+	}
+	else
+	{
+		/* Isochronous & Interrupt */
 
-		/* Index Sanity */
-		if (controller->td_index == X86_UHCI_POOL_NUM_TD)
-			controller->td_index = 1;
+		/* Allocate a new */
+		Td = (UhciTransferDescriptor_t*)UhciAlign(((Addr_t)kmalloc(sizeof(UhciTransferDescriptor_t) + UHCI_STRUCT_ALIGN)), UHCI_STRUCT_ALIGN_BITS, UHCI_STRUCT_ALIGN);
+
+		/* Null it */
+		memset((void*)Td, 0, sizeof(UhciTransferDescriptor_t));
+
+		/* Set as index */
+		cIndex = (Addr_t)Td;
 	}
 
-	/* Release lock */
-	spinlock_release(&controller->lock);
-	interrupt_set_state(int_state);
+	/* Release Lock */
+	SpinlockRelease(&Ep->Lock);
 
-	return index;
+	return cIndex;
 }
 
 /* Setup TD */
@@ -786,25 +827,153 @@ uhci_transfer_desc_t *uhci_td_io(uhci_controller_t *controller, addr_t next_td,
 	return td;
 }
 
+/* Endpoint Functions */
+void UhciEndpointSetup(void *Controller, UsbHcEndpoint_t *Endpoint)
+{
+	/* Cast */
+	UhciController_t *uCtrl = (UhciController_t*)Controller;
+	Addr_t BufAddr = 0, BufAddrMax = 0;
+	Addr_t Pool, PoolPhys;
+	size_t i;
+
+	/* Allocate a structure */
+	UhciEndpoint_t *uEp = (UhciEndpoint_t*)kmalloc(sizeof(UhciEndpoint_t));
+
+	/* Construct the lock */
+	SpinlockReset(&uEp->Lock);
+
+	/* Woah */
+	_CRT_UNUSED(uCtrl);
+
+	/* Now, we want to allocate some TD's
+	* but it largely depends on what kind of endpoint this is */
+	if (Endpoint->Type == X86_USB_EP_TYPE_CONTROL)
+		uEp->TdsAllocated = UHCI_ENDPOINT_MIN_ALLOCATED;
+	else if (Endpoint->Type == X86_USB_EP_TYPE_BULK)
+	{
+		/* Depends on the maximum transfer */
+		uEp->TdsAllocated = DEVICEMANAGER_MAX_IO_SIZE / Endpoint->MaxPacketSize;
+
+		/* Take in account control packets and other stuff */
+		uEp->TdsAllocated += UHCI_ENDPOINT_MIN_ALLOCATED;
+	}
+	else
+	{
+		/* We handle interrupt & iso dynamically
+		* we don't predetermine their sizes */
+		uEp->TdsAllocated = 0;
+		Endpoint->AttachedData = uEp;
+		return;
+	}
+
+	/* Now, we do the actual allocation */
+	uEp->TDPool = (UhciTransferDescriptor_t**)kmalloc(sizeof(UhciTransferDescriptor_t*) * uEp->TdsAllocated);
+	uEp->TDPoolBuffers = (Addr_t**)kmalloc(sizeof(Addr_t*) * uEp->TdsAllocated);
+	uEp->TDPoolPhysical = (Addr_t*)kmalloc(sizeof(Addr_t) * uEp->TdsAllocated);
+
+	/* Allocate a TD block */
+	Pool = (Addr_t)kmalloc((sizeof(UhciTransferDescriptor_t) * uEp->TdsAllocated) + UHCI_STRUCT_ALIGN);
+	Pool = OhciAlign(Pool, UHCI_STRUCT_ALIGN_BITS, UHCI_STRUCT_ALIGN);
+	PoolPhys = MmVirtualGetMapping(NULL, Pool);
+
+	/* Allocate buffers */
+	BufAddr = (Addr_t)kmalloc_a(PAGE_SIZE);
+	BufAddrMax = BufAddr + PAGE_SIZE - 1;
+
+	/* Memset it */
+	memset((void*)Pool, 0, sizeof(UhciTransferDescriptor_t) * uEp->TdsAllocated);
+
+	/* Iterate it */
+	for (i = 0; i < uEp->TdsAllocated; i++)
+	{
+		/* Set */
+		uEp->TDPool[i] = (UhciTransferDescriptor_t*)Pool;
+		uEp->TDPoolPhysical[i] = PoolPhys;
+
+		/* Allocate another page? */
+		if (BufAddr > BufAddrMax)
+		{
+			BufAddr = (Addr_t)kmalloc_a(PAGE_SIZE);
+			BufAddrMax = BufAddr + PAGE_SIZE - 1;
+		}
+
+		/* Setup Buffer */
+		uEp->TDPoolBuffers[i] = (Addr_t*)BufAddr;
+		uEp->TDPool[i]->Buffer = MmVirtualGetMapping(NULL, BufAddr);
+		uEp->TDPool[i]->Link = UHCI_TD_LINK_END;
+
+		/* Increase */
+		Pool += sizeof(UhciTransferDescriptor_t);
+		PoolPhys += sizeof(UhciTransferDescriptor_t);
+		BufAddr += Endpoint->MaxPacketSize;
+	}
+
+	/* Done! Save */
+	Endpoint->AttachedData = uEp;
+}
+
+void UhciEndpointDestroy(void *Controller, UsbHcEndpoint_t *Endpoint)
+{
+	/* Cast */
+	UhciController_t *uCtrl = (UhciController_t*)Controller;
+	UhciEndpoint_t *uEp = (UhciEndpoint_t*)Endpoint->AttachedData;
+
+	/* Sanity */
+	if (uEp == NULL)
+		return;
+
+	UhciTransferDescriptor_t *uTd = uEp->TDPool[0];
+	size_t i;
+
+	/* Woah */
+	_CRT_UNUSED(uCtrl);
+
+	/* Sanity */
+	if (uEp->TdsAllocated != 0)
+	{
+		/* Let's free all those resources */
+		for (i = 0; i < uEp->TdsAllocated; i++)
+		{
+			/* free buffer */
+			kfree(uEp->TDPoolBuffers[i]);
+		}
+
+		/* Free blocks */
+		kfree(uTd);
+		kfree(uEp->TDPoolBuffers);
+		kfree(uEp->TDPoolPhysical);
+		kfree(uEp->TDPool);
+	}
+
+	/* Free the descriptor */
+	kfree(uEp);
+}
+
 /* Transaction Functions */
-void uhci_transaction_init(void *controller, usb_hc_request_t *request)
+
+/* This one prepaires an ED */
+void UhciTransactionInit(void *Controller, UsbHcRequest_t *Request)
 {	
-	uhci_controller_t *ctrl = (uhci_controller_t*)controller;
-	uint32_t qh_index = 0;
+	/* Vars */
+	UhciController_t *Ctrl = (UhciController_t*)Controller;
+	Addr_t Temp = 0;
 
 	/* Get a QH */
-	qh_index = uhci_get_qh(ctrl);
-	request->data = (void*)ctrl->qh_pool[qh_index];
+	Temp = UhciAllocateQh(Ctrl, Request->Type);
 
-	/* Setup some of the QH metadata */
-	ctrl->qh_pool[qh_index]->head = 0;
-	ctrl->qh_pool[qh_index]->head_ptr = 0;
-	ctrl->qh_pool[qh_index]->link = 0;
-	ctrl->qh_pool[qh_index]->link_ptr = 0;
-	ctrl->qh_pool[qh_index]->hcd_data = 0;
+	/* We allocate new ep descriptors for Iso & Int */
+	if (Request->Type == ControlTransfer
+		|| Request->Type == BulkTransfer)
+	{
+		Ctrl->QhPool[Temp]->Link |= UHCI_TD_LINK_END;
+		Ctrl->QhPool[Temp]->Child |= UHCI_TD_LINK_END;
+		Request->Data = Ctrl->QhPool[Temp];
+	}
+	else
+		Request->Data = (void*)Temp;
 
-	/* Set as not completed for start */
-	request->completed = 0;
+	/* Set as not Completed for start */
+	Request->Status = TransferNotProcessed;
 }
 
 usb_hc_transaction_t *uhci_transaction_setup(void *controller, usb_hc_request_t *request)
@@ -1037,18 +1206,6 @@ void uhci_transaction_send(void *controller, usb_hc_request_t *request)
 		/* Set as completed */
 		request->completed = 1;
 	}
-}
-
-void uhci_install_interrupt(void *controller, usb_hc_device_t *device, usb_hc_endpoint_t *endpoint,
-	void *in_buffer, size_t in_bytes, void(*callback)(void*, size_t), void *arg)
-{
-	_CRT_UNUSED(controller);
-	_CRT_UNUSED(device);
-	_CRT_UNUSED(endpoint);
-	_CRT_UNUSED(in_buffer);
-	_CRT_UNUSED(in_bytes);
-	_CRT_UNUSED(callback);
-	_CRT_UNUSED(arg);
 }
 
 /* Interrupt Handler */
