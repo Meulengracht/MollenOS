@@ -55,6 +55,14 @@ void UhciPortsCheck(void *Data);
 void UhciEndpointSetup(void *Controller, UsbHcEndpoint_t *Endpoint);
 void UhciEndpointDestroy(void *Controller, UsbHcEndpoint_t *Endpoint);
 
+/* Transaction Prototypes */
+void UhciTransactionInit(void *Controller, UsbHcRequest_t *Request);
+UsbHcTransaction_t *UhciTransactionSetup(void *Controller, UsbHcRequest_t *Request);
+UsbHcTransaction_t *UhciTransactionIn(void *Controller, UsbHcRequest_t *Request);
+UsbHcTransaction_t *UhciTransactionOut(void *Controller, UsbHcRequest_t *Request);
+void UhciTransactionSend(void *Controller, UsbHcRequest_t *Request);
+void UhciTransactionDestroy(void *Controller, UsbHcRequest_t *Request);
+
 /* Helpers */
 uint16_t UhciRead16(UhciController_t *Controller, uint16_t Register)
 {
@@ -386,6 +394,12 @@ void UhciSetup(UhciController_t *Controller)
 	Hcd->EndpointDestroy = UhciEndpointDestroy;
 
 	/* Transaction Functions */
+	Hcd->TransactionInit = UhciTransactionInit;
+	Hcd->TransactionSetup = UhciTransactionSetup;
+	Hcd->TransactionIn = UhciTransactionIn;
+	Hcd->TransactionOut = UhciTransactionOut;
+	Hcd->TransactionSend = UhciTransactionSend;
+	Hcd->TransactionDestroy = UhciTransactionDestroy;
 
 	/* Register it */
 	Controller->HcdId = UsbRegisterController(Hcd);
@@ -723,108 +737,106 @@ Addr_t OhciAllocateTd(UhciEndpoint_t *Ep, UsbTransferType_t Type)
 }
 
 /* Setup TD */
-uhci_transfer_desc_t *uhci_td_setup(uhci_controller_t *controller, addr_t next_td,
-	uint32_t lowspeed, uint32_t device_addr, uint32_t ep_addr, uint32_t toggle, uint8_t request_direction,
-	uint8_t request_type, uint8_t request_value_low, uint8_t request_value_high, uint16_t request_index,
-	uint16_t request_length, void **td_buffer)
+UhciTransferDescriptor_t *UhciTdSetup(UhciEndpoint_t *Ep, UsbTransferType_t Type,
+	Addr_t NextTD, uint32_t Toggle, UsbPacket_t *pPacket, uint32_t DeviceAddr, 
+	uint32_t EpAddr, int LowSpeed, void **TDBuffer)
 {
-	uint32_t td_index;
-	void *buffer;
-	uhci_transfer_desc_t *td;
-	addr_t td_phys;
-	usb_packet_t *packet;
+	/* Vars */
+	UsbPacket_t *Packet;
+	UhciTransferDescriptor_t *Td;
+	Addr_t TdPhys;
+	void *Buffer;
+	Addr_t TDIndex;
 
-	/* Start out by grapping a TD */
-	td_index = uhci_get_td(controller);
-	buffer = controller->td_pool_buffers[td_index];
-	td = controller->td_pool[td_index];
-	td_phys = controller->td_pool_phys[td_index];
+	/* Allocate a Td */
+	TDIndex = OhciAllocateTd(Ep, Type);
 
-	/* Set link to next TD */
-	if (next_td == X86_UHCI_TD_LINK_INVALID)
-		td->link_ptr = X86_UHCI_TD_LINK_INVALID;
-	else
-		td->link_ptr = memory_getmap(NULL, (virtaddr_t)next_td);
+	/* Grab a Td and a Buffer */
+	Td = Ep->TDPool[TDIndex];
+	Buffer = Ep->TDPoolBuffers[TDIndex];
+	TdPhys = Ep->TDPoolPhysical[TDIndex];
+
+	/* EOL ? */
+	if (NextTD == UHCI_TD_LINK_END)
+		Td->Link = UHCI_TD_LINK_END;
+	else	/* Get physical Address of NextTD and set NextTD to that */
+		Td->Link = MmVirtualGetMapping(NULL, (VirtAddr_t)NextTD);
 
 	/* Setup TD Control Status */
-	td->control = 0;
-	td->control |= X86_UHCI_TD_CTRL_ACTIVE;
-	td->control |= X86_UHCI_TD_SET_ERR_CNT(3);
+	Td->Flags = UHCI_TD_ACTIVE;
+	Td->Flags |= UHCI_TD_SET_ERR_CNT(3);
 
-	if (lowspeed)
-		td->control |= X86_UHCI_TD_LOWSPEED;
+	if (LowSpeed)
+		Td->Flags |= UHCI_TD_LOWSPEED;
 
 	/* Setup TD Header Packet */
-	td->header = X86_UHCI_TD_PID_SETUP;
-	td->header |= X86_UHCI_TD_DEVICE_ADDR(device_addr);
-	td->header |= X86_UHCI_TD_EP_ADDR(ep_addr);
-	td->header |= X86_UHCI_TD_DATA_TOGGLE(toggle);
-	td->header |= X86_UHCI_TD_MAX_LEN((sizeof(usb_packet_t) - 1));
+	Td->Header = UHCI_TD_PID_SETUP;
+	Td->Header |= UHCI_TD_DEVICE_ADDR(DeviceAddr);
+	Td->Header |= UHCI_TD_EP_ADDR(EpAddr);
+	Td->Header |= UHCI_TD_DATA_TOGGLE(Toggle);
+	Td->Header |= UHCI_TD_MAX_LEN((sizeof(UsbPacket_t) - 1));
 
 	/* Setup SETUP packet */
-	*td_buffer = buffer;
-	packet = (usb_packet_t*)buffer;
-	packet->direction = request_direction;
-	packet->type = request_type;
-	packet->value_low = request_value_low;
-	packet->value_high = request_value_high;
-	packet->index = request_index;
-	packet->length = request_length;
+	*TDBuffer = Buffer;
+	memcpy(Buffer, (void*)pPacket, sizeof(UsbPacket_t));
 
 	/* Set buffer */
-	td->buffer = memory_getmap(NULL, (virtaddr_t)buffer);
+	Td->Buffer = MmVirtualGetMapping(NULL, (VirtAddr_t)Buffer);
 
 	/* Done */
-	return td;
+	return Td;
 }
 
 /* In/Out TD */
-uhci_transfer_desc_t *uhci_td_io(uhci_controller_t *controller, addr_t next_td,
-	uint32_t lowspeed, uint32_t device_addr, uint32_t ep_addr, uint32_t toggle, 
-	uint32_t pid, uint32_t length, void **td_buffer)
+UhciTransferDescriptor_t *UhciTdIo(UhciEndpoint_t *Ep, UsbTransferType_t Type,
+	Addr_t NextTD, uint32_t Toggle, uint32_t DeviceAddr, uint32_t EpAddr,
+	uint32_t PId, size_t Length, int LowSpeed, void **TDBuffer)
 {
-	uint32_t td_index;
-	void *buffer;
-	uhci_transfer_desc_t *td;
-	addr_t td_phys;
+	/* Vars */
+	UsbPacket_t *Packet;
+	UhciTransferDescriptor_t *Td;
+	Addr_t TdPhys;
+	void *Buffer;
+	Addr_t TDIndex;
 
-	/* Start out by grapping a TD */
-	td_index = uhci_get_td(controller);
-	buffer = controller->td_pool_buffers[td_index];
-	td = controller->td_pool[td_index];
-	td_phys = controller->td_pool_phys[td_index];
+	/* Allocate a Td */
+	TDIndex = OhciAllocateTd(Ep, Type);
 
-	/* Set link to next TD */
-	if (next_td == X86_UHCI_TD_LINK_INVALID)
-		td->link_ptr = X86_UHCI_TD_LINK_INVALID;
-	else
-		td->link_ptr = memory_getmap(NULL, (virtaddr_t)next_td);
+	/* Grab a Td and a Buffer */
+	Td = Ep->TDPool[TDIndex];
+	Buffer = Ep->TDPoolBuffers[TDIndex];
+	TdPhys = Ep->TDPoolPhysical[TDIndex];
+
+	/* EOL ? */
+	if (NextTD == UHCI_TD_LINK_END)
+		Td->Link = UHCI_TD_LINK_END;
+	else	/* Get physical Address of NextTD and set NextTD to that */
+		Td->Link = MmVirtualGetMapping(NULL, (VirtAddr_t)NextTD);
 
 	/* Setup TD Control Status */
-	td->control = 0;
-	td->control |= X86_UHCI_TD_CTRL_ACTIVE;
-	td->control |= X86_UHCI_TD_SET_ERR_CNT(3);
+	Td->Flags = UHCI_TD_ACTIVE;
+	Td->Flags |= UHCI_TD_SET_ERR_CNT(3);
 
-	if (lowspeed)
-		td->control |= X86_UHCI_TD_LOWSPEED;
+	if (LowSpeed)
+		Td->Flags |= UHCI_TD_LOWSPEED;
 
 	/* Setup TD Header Packet */
-	td->header = pid;
-	td->header |= X86_UHCI_TD_DEVICE_ADDR(device_addr);
-	td->header |= X86_UHCI_TD_EP_ADDR(ep_addr);
-	td->header |= X86_UHCI_TD_DATA_TOGGLE(toggle);
+	Td->Header = PId;
+	Td->Header |= UHCI_TD_DEVICE_ADDR(DeviceAddr);
+	Td->Header |= UHCI_TD_EP_ADDR(EpAddr);
+	Td->Header |= UHCI_TD_DATA_TOGGLE(Toggle);
 
-	if (length > 0)
-		td->header |= X86_UHCI_TD_MAX_LEN((length - 1));
+	if (Length > 0)
+		Td->Header |= UHCI_TD_MAX_LEN((Length - 1));
 	else
-		td->header |= X86_UHCI_TD_MAX_LEN(0x7FF);
+		Td->Header |= UHCI_TD_MAX_LEN(0x7FF);
 
 	/* Set buffer */
-	*td_buffer = buffer;
-	td->buffer = memory_getmap(NULL, (virtaddr_t)buffer);
+	*TDBuffer = Buffer;
+	Td->Buffer = MmVirtualGetMapping(NULL, (VirtAddr_t)Buffer);
 
 	/* Done */
-	return td;
+	return Td;
 }
 
 /* Endpoint Functions */
@@ -976,107 +988,147 @@ void UhciTransactionInit(void *Controller, UsbHcRequest_t *Request)
 	Request->Status = TransferNotProcessed;
 }
 
-usb_hc_transaction_t *uhci_transaction_setup(void *controller, usb_hc_request_t *request)
+/* This one prepaires an setup Td */
+UsbHcTransaction_t *UhciTransactionSetup(void *Controller, UsbHcRequest_t *Request)
 {
-	uhci_controller_t *ctrl = (uhci_controller_t*)controller;
-	usb_hc_transaction_t *transaction;
+	UhciController_t *Ctrl = (UhciController_t*)Controller;
+	UsbHcTransaction_t *Transaction;
 
-	/* Allocate transaction */
-	transaction = (usb_hc_transaction_t*)kmalloc(sizeof(usb_hc_transaction_t));
-	transaction->io_buffer = 0;
-	transaction->io_length = 0;
-	transaction->link = NULL;
+	/* Unused */
+	_CRT_UNUSED(Ctrl);
 
-	/* Create a setup TD */
-	transaction->transfer_descriptor = (void*)uhci_td_setup(ctrl, X86_UHCI_TD_LINK_INVALID, request->lowspeed,
-		request->device->address, request->endpoint, request->toggle, request->packet.direction, request->packet.type,
-		request->packet.value_low, request->packet.value_high, request->packet.index, request->packet.length,
-		&transaction->transfer_buffer);
+	/* Allocate Transaction */
+	Transaction = (UsbHcTransaction_t*)kmalloc(sizeof(UsbHcTransaction_t));
+	Transaction->IoBuffer = 0;
+	Transaction->IoLength = 0;
+	Transaction->Link = NULL;
 
-	/* If previous transaction */
-	if (request->transactions != NULL)
+	/* Create the Td */
+	Transaction->TransferDescriptor = (void*)UhciTdSetup(Request->Endpoint->AttachedData,
+		Request->Type, UHCI_TD_LINK_END, Request->Endpoint->Toggle, &Request->Packet, 
+		Request->Device->Address, Request->Endpoint->Address, 
+		(int)Request->LowSpeed, &Transaction->TransferBuffer);
+
+	/* If previous Transaction */
+	if (Request->Transactions != NULL)
 	{
-		uhci_transfer_desc_t *prev_td;
-		usb_hc_transaction_t *ctrans = request->transactions;
+		UhciTransferDescriptor_t *PrevTd;
+		UsbHcTransaction_t *cTrans = Request->Transactions;
 
-		while (ctrans->link)
-			ctrans = ctrans->link;
+		while (cTrans->Link)
+			cTrans = cTrans->Link;
 
-		prev_td = (uhci_transfer_desc_t*)ctrans->transfer_descriptor;
-		prev_td->link_ptr = (memory_getmap(NULL, (virtaddr_t)transaction->transfer_descriptor) | X86_UHCI_TD_LINK_DEPTH);
+		PrevTd = (UhciTransferDescriptor_t*)cTrans->TransferDescriptor;
+		PrevTd->Link = 
+			(MmVirtualGetMapping(NULL, (VirtAddr_t)Transaction->TransferDescriptor) | UHCI_TD_LINK_DEPTH);
 	}
 
-	return transaction;
+	return Transaction;
 }
 
-usb_hc_transaction_t *uhci_transaction_in(void *controller, usb_hc_request_t *request)
+/* This one prepaires an in Td */
+UsbHcTransaction_t *UhciTransactionIn(void *Controller, UsbHcRequest_t *Request)
 {
-	uhci_controller_t *ctrl = (uhci_controller_t*)controller;
-	usb_hc_transaction_t *transaction;
+	UhciController_t *Ctrl = (UhciController_t*)Controller;
+	UsbHcTransaction_t *Transaction;
 
-	/* Allocate transaction */
-	transaction = (usb_hc_transaction_t*)kmalloc(sizeof(usb_hc_transaction_t));
-	transaction->io_buffer = request->io_buffer;
-	transaction->io_length = request->io_length;
-	transaction->link = NULL;
+	/* Unused */
+	_CRT_UNUSED(Ctrl);
 
-	/* Create a In TD */
-	transaction->transfer_descriptor = (void*)uhci_td_io(ctrl, X86_UHCI_TD_LINK_INVALID, request->lowspeed,
-		request->device->address, request->endpoint, request->toggle, X86_UHCI_TD_PID_IN, request->io_length,
-		&transaction->transfer_buffer);
+	/* Allocate Transaction */
+	Transaction = (UsbHcTransaction_t*)kmalloc(sizeof(UsbHcTransaction_t));
+	Transaction->TransferDescriptorCopy = NULL;
+	Transaction->IoBuffer = Request->IoBuffer;
+	Transaction->IoLength = Request->IoLength;
+	Transaction->Link = NULL;
 
-	/* If previous transaction */
-	if (request->transactions != NULL)
+	/* Setup Td */
+	Transaction->TransferDescriptor = (void*)UhciTdIo(Request->Endpoint->AttachedData,
+		Request->Type, UHCI_TD_LINK_END, Request->Endpoint->Toggle,
+		Request->Device->Address, Request->Endpoint->Address, UHCI_TD_PID_IN, Request->IoLength,
+		(int)Request->LowSpeed, &Transaction->TransferBuffer);
+
+	/* If previous Transaction */
+	if (Request->Transactions != NULL)
 	{
-		uhci_transfer_desc_t *prev_td;
-		usb_hc_transaction_t *ctrans = request->transactions;
+		UhciTransferDescriptor_t *PrevTd;
+		UsbHcTransaction_t *cTrans = Request->Transactions;
 
-		while (ctrans->link)
-			ctrans = ctrans->link;
+		while (cTrans->Link)
+			cTrans = cTrans->Link;
 
-		prev_td = (uhci_transfer_desc_t*)ctrans->transfer_descriptor;
-		prev_td->link_ptr = (memory_getmap(NULL, (virtaddr_t)transaction->transfer_descriptor) | X86_UHCI_TD_LINK_DEPTH);
+		PrevTd = (UhciTransferDescriptor_t*)cTrans->TransferDescriptor;
+		PrevTd->Link =
+			(MmVirtualGetMapping(NULL, (VirtAddr_t)Transaction->TransferDescriptor) | UHCI_TD_LINK_DEPTH);
 	}
 
-	return transaction;
+	/* We might need a copy */
+	if (Request->Type == InterruptTransfer
+		|| Request->Type == IsochronousTransfer)
+	{
+		/* Allocate TD */
+		Transaction->TransferDescriptorCopy =
+			(void*)OhciAllocateTd(Request->Endpoint->AttachedData, Request->Type);
+	}
+
+	/* Done */
+	return Transaction;
 }
 
-usb_hc_transaction_t *uhci_transaction_out(void *controller, usb_hc_request_t *request)
+/* This one prepaires an out Td */
+UsbHcTransaction_t *UhciTransactionOut(void *Controller, UsbHcRequest_t *Request)
 {
-	uhci_controller_t *ctrl = (uhci_controller_t*)controller;
-	usb_hc_transaction_t *transaction;
+	UhciController_t *Ctrl = (UhciController_t*)Controller;
+	UsbHcTransaction_t *Transaction;
 
-	/* Allocate transaction */
-	transaction = (usb_hc_transaction_t*)kmalloc(sizeof(usb_hc_transaction_t));
-	transaction->io_buffer = 0;
-	transaction->io_length = 0;
-	transaction->link = NULL;
+	/* Unused */
+	_CRT_UNUSED(Ctrl);
 
-	/* Create a In TD */
-	transaction->transfer_descriptor = (void*)uhci_td_io(ctrl, X86_UHCI_TD_LINK_INVALID, request->lowspeed,
-		request->device->address, request->endpoint, request->toggle, X86_UHCI_TD_PID_OUT, request->io_length,
-		&transaction->transfer_buffer);
+	/* Allocate Transaction */
+	Transaction = (UsbHcTransaction_t*)kmalloc(sizeof(UsbHcTransaction_t));
+	Transaction->TransferDescriptorCopy = NULL;
+	Transaction->IoBuffer = 0;
+	Transaction->IoLength = 0;
+	Transaction->Link = NULL;
+
+	/* Setup Td */
+	Transaction->TransferDescriptor = (void*)UhciTdIo(Request->Endpoint->AttachedData,
+		Request->Type, UHCI_TD_LINK_END, Request->Endpoint->Toggle,
+		Request->Device->Address, Request->Endpoint->Address, UHCI_TD_PID_IN, Request->IoLength,
+		(int)Request->LowSpeed, &Transaction->TransferBuffer);
 
 	/* Copy Data */
-	if (request->io_buffer != NULL && request->io_length != 0)
-		memcpy(transaction->transfer_buffer, request->io_buffer, request->io_length);
+	if (Request->IoBuffer != NULL && Request->IoLength != 0)
+		memcpy(Transaction->TransferBuffer, Request->IoBuffer, Request->IoLength);
 
-	/* If previous transaction */
-	if (request->transactions != NULL)
+	/* If previous Transaction */
+	if (Request->Transactions != NULL)
 	{
-		uhci_transfer_desc_t *prev_td;
-		usb_hc_transaction_t *ctrans = request->transactions;
+		UhciTransferDescriptor_t *PrevTd;
+		UsbHcTransaction_t *cTrans = Request->Transactions;
 
-		while (ctrans->link)
-			ctrans = ctrans->link;
+		while (cTrans->Link)
+			cTrans = cTrans->Link;
 
-		prev_td = (uhci_transfer_desc_t*)ctrans->transfer_descriptor;
-		prev_td->link_ptr = (memory_getmap(NULL, (virtaddr_t)transaction->transfer_descriptor) | X86_UHCI_TD_LINK_DEPTH);
+		PrevTd = (UhciTransferDescriptor_t*)cTrans->TransferDescriptor;
+		PrevTd->Link =
+			(MmVirtualGetMapping(NULL, (VirtAddr_t)Transaction->TransferDescriptor) | UHCI_TD_LINK_DEPTH);
 	}
 
-	return transaction;
+	/* We might need a copy */
+	if (Request->Type == InterruptTransfer
+		|| Request->Type == IsochronousTransfer)
+	{
+		/* Allocate TD */
+		Transaction->TransferDescriptorCopy =
+			(void*)OhciAllocateTd(Request->Endpoint->AttachedData, Request->Type);
+	}
+
+	/* Done */
+	return Transaction;
 }
 
+/* This one queues the Transaction up for processing */
 void uhci_transaction_send(void *controller, usb_hc_request_t *request)
 {
 	/* Wuhu */

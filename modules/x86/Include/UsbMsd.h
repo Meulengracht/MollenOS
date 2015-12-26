@@ -32,6 +32,8 @@
 #define X86_SCSI_TEST_UNIT_READY		0x00
 #define X86_SCSI_REQUEST_SENSE			0x03
 #define X86_SCSI_FORMAT_UNIT			0x04
+#define X86_SCSI_READ_6					0x08
+#define X86_SCSI_WRITE_6				0x0A
 #define X86_SCSI_INQUIRY				0x12
 #define X86_SCSI_START_STOP_UNIT		0x1B
 #define X86_SCSI_SET_MEDIUM_REMOVAL		0x1E
@@ -58,6 +60,8 @@
 #define X86_SCSI_CLOSE_TRACK_SESSION	0x5B
 #define X86_SCSI_READ_BUFFER_CAPS		0x5C
 #define X86_SCSI_SEND_CUE_SHEET			0x5D
+#define X86_SCSI_READ_16				0x88
+#define X86_SCSI_WRITE_16				0x8A
 #define X86_SCSI_READ_CAPACITY_16		0x9E
 #define X86_SCSI_REPORT_LUNS			0xA0
 #define X86_SCSI_BLANK					0xA1
@@ -66,8 +70,8 @@
 #define X86_SCSI_REPORT_KEY				0xA4
 #define X86_SCSI_LOAD_UNLOAD_MEDIUM		0xA6
 #define X86_SCSI_SET_READAHEAD			0xA7
-#define X86_SCSI_READ_EXTENDED			0xA8
-#define X86_SCSI_WRITE_EXTENDED			0xAA
+#define X86_SCSI_READ_12				0xA8
+#define X86_SCSI_WRITE_12				0xAA
 #define X86_SCSI_READ_SERIAL			0xAB
 #define X86_SCSI_GET_PERFORMANCE		0xAC
 #define X86_SCSI_READ_DISC_STRUCT		0xAD
@@ -269,14 +273,15 @@ typedef struct _MsdCommandStatusWrap
 typedef struct _MsdDevice
 {
 	/* Id's */
-	uint32_t Interface;
+	int Interface;
 	DevId_t DeviceId; 
 
 	/* Msd Information */
-	uint32_t IsUFI;
-	uint32_t IsReady;
-	uint32_t LUNCount;
-	uint32_t SectorSize;
+	int IsUFI;
+	int IsReady;
+	int IsExtended;
+	size_t LUNCount;
+	size_t SectorSize;
 
 	/* Usb Data */
 	UsbHcDevice_t *UsbDevice;
