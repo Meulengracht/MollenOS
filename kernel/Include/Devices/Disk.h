@@ -30,16 +30,16 @@ typedef struct _MCoreStorageDevice
 {
 	/* Disk Stats */
 	uint64_t SectorCount;
-	uint32_t SectorsPerCylinder;
-	uint32_t AlignedAccess;
-	uint32_t SectorSize;
+	size_t SectorsPerCylinder;
+	int AlignedAccess;
+	size_t SectorSize;
 
 	/* Disk Data */
 	void *DiskData;
 
 	/* Functions */
-	int(*Read)(void *Data, uint64_t LBA, void *Buffer, uint32_t BufferLength);
-	int(*Write)(void *Data, uint64_t LBA, void *Buffer, uint32_t BufferLength);
+	int(*Read)(void *Data, uint64_t LBA, void *Buffer, size_t BufferLength);
+	int(*Write)(void *Data, uint64_t LBA, void *Buffer, size_t BufferLength);
 
 } MCoreStorageDevice_t;
 #pragma pack(pop)

@@ -363,7 +363,7 @@ typedef struct _UsbHcInterface
 	uint32_t Protocol;
 
 	/* Ep Numbers */
-	uint32_t NumEndpoints;
+	size_t NumEndpoints;
 
 	/* Ep's */
 	UsbHcEndpoint_t **Endpoints;

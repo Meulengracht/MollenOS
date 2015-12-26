@@ -80,20 +80,20 @@ void UsbMsdReadCapacity(MsdDevice_t *Device, MCoreStorageDevice_t *sDevice);
 
 /* In / Out */
 UsbTransferStatus_t UsbMsdSendSCSICommandIn(uint8_t ScsiCommand, MsdDevice_t *Device,
-	uint64_t SectorLBA, void *Buffer, uint32_t DataLength);
+	uint64_t SectorLBA, void *Buffer, size_t DataLength);
 
 /* Read & Write for MSD's */
-int UsbMsdReadSectors(void *DevData, uint64_t SectorLBA, void *Buffer, uint32_t BufferLength);
-int UsbMsdWriteSectors(void *DevData, uint64_t SectorLBA, void *Buffer, uint32_t BufferLength);
+int UsbMsdReadSectors(void *DevData, uint64_t SectorLBA, void *Buffer, size_t BufferLength);
+int UsbMsdWriteSectors(void *DevData, uint64_t SectorLBA, void *Buffer, size_t BufferLength);
 
 /* Initialise Driver for a MSD */
-void UsbMsdInit(UsbHcDevice_t *UsbDevice, uint32_t InterfaceIndex)
+void UsbMsdInit(UsbHcDevice_t *UsbDevice, int InterfaceIndex)
 {
 	/* Allocate */
 	MsdDevice_t *DevData = (MsdDevice_t*)kmalloc(sizeof(MsdDevice_t));
 	MCoreStorageDevice_t *StorageData = (MCoreStorageDevice_t*)kmalloc(sizeof(MCoreStorageDevice_t));
 	UsbHc_t *UsbHcd = (UsbHc_t*)UsbDevice->HcDriver;
-	uint32_t i;
+	size_t i;
 
 	/* Sanity */
 	if (UsbDevice->Interfaces[InterfaceIndex]->Subclass == X86_USB_MSD_SUBCLASS_FLOPPY)
@@ -217,7 +217,7 @@ void UsbMsdInit(UsbHcDevice_t *UsbDevice, uint32_t InterfaceIndex)
 
 	/* Debug */
 	LogInformation("USBM", "MSD SectorCount: 0x%x, SectorSize: 0x%x",
-		(uint32_t)StorageData->SectorCount, StorageData->SectorSize);
+		(size_t)StorageData->SectorCount, StorageData->SectorSize);
 
 	/* Register Us */
 	DevData->DeviceId =
@@ -301,7 +301,7 @@ void UsbMsdGetMaxLUN(MsdDevice_t *Device)
 	/* If no multiple LUNS are supported, device may STALL
 	* it says in the usbmassbulk spec */
 	if (Status == TransferFinished)
-		Device->LUNCount = (uint32_t)(MaxLuns & 0xF);
+		Device->LUNCount = (size_t)(MaxLuns & 0xF);
 	else if (Status == TransferStalled)
 		UsbMsdResetRecovery(Device);
 }
@@ -324,283 +324,283 @@ void UsbMsdBuildSCSICommand(uint8_t ScsiCommand,
 	switch (ScsiCommand)
 	{
 		/* Test Unit Ready - 6 */
-	case X86_SCSI_TEST_UNIT_READY:
-	{
-		/* Request goes OUT */
-		CmdBlock->Flags = X86_USB_MSD_CBW_OUT;
-		CmdBlock->Length = 6;
+		case X86_SCSI_TEST_UNIT_READY:
+		{
+			/* Request goes OUT */
+			CmdBlock->Flags = X86_USB_MSD_CBW_OUT;
+			CmdBlock->Length = 6;
 
-	} break;
+		} break;
 
-	/* Request Sense - 6 */
-	case X86_SCSI_REQUEST_SENSE:
-	{
-		/* Request goes IN */
-		CmdBlock->Flags = X86_USB_MSD_CBW_IN;
-		CmdBlock->Length = 6;
+		/* Request Sense - 6 */
+		case X86_SCSI_REQUEST_SENSE:
+		{
+			/* Request goes IN */
+			CmdBlock->Flags = X86_USB_MSD_CBW_IN;
+			CmdBlock->Length = 6;
 
-		/* Length of allocation */
-		CmdBlock->CommandBytes[4] = 18;
+			/* Length of allocation */
+			CmdBlock->CommandBytes[4] = 18;
 
-	} break;
+		} break;
 
-	/* Inquiry - 6 */
-	case X86_SCSI_INQUIRY:
-	{
-		/* Request goes IN */
-		CmdBlock->Flags = X86_USB_MSD_CBW_IN;
-		CmdBlock->Length = 6;
+		/* Inquiry - 6 */
+		case X86_SCSI_INQUIRY:
+		{
+			/* Request goes IN */
+			CmdBlock->Flags = X86_USB_MSD_CBW_IN;
+			CmdBlock->Length = 6;
 
-		/* Length of allocation */
-		CmdBlock->CommandBytes[4] = 36;
+			/* Length of allocation */
+			CmdBlock->CommandBytes[4] = 36;
 
-	} break;
+		} break;
 
-	/* Read Capacities - 10 */
-	case X86_SCSI_READ_CAPACITY:
-	{
-		/* Request goes IN */
-		CmdBlock->Flags = X86_USB_MSD_CBW_IN;
-		CmdBlock->Length = 10;
+		/* Read Capacities - 10 */
+		case X86_SCSI_READ_CAPACITY:
+		{
+			/* Request goes IN */
+			CmdBlock->Flags = X86_USB_MSD_CBW_IN;
+			CmdBlock->Length = 10;
 
-		/* Sector Lba */
-		CmdBlock->CommandBytes[2] = ((SectorLBA >> 24) & 0xFF);
-		CmdBlock->CommandBytes[3] = ((SectorLBA >> 16) & 0xFF);
-		CmdBlock->CommandBytes[4] = ((SectorLBA >> 8) & 0xFF);
-		CmdBlock->CommandBytes[5] = (SectorLBA & 0xFF);
+			/* Sector Lba */
+			CmdBlock->CommandBytes[2] = ((SectorLBA >> 24) & 0xFF);
+			CmdBlock->CommandBytes[3] = ((SectorLBA >> 16) & 0xFF);
+			CmdBlock->CommandBytes[4] = ((SectorLBA >> 8) & 0xFF);
+			CmdBlock->CommandBytes[5] = (SectorLBA & 0xFF);
 
-	} break;
+		} break;
 
-	/* Read Capacities - 16 */
-	case X86_SCSI_READ_CAPACITY_16:
-	{
-		/* Request goes IN */
-		CmdBlock->Flags = X86_USB_MSD_CBW_IN;
-		CmdBlock->Length = 16;
+		/* Read Capacities - 16 */
+		case X86_SCSI_READ_CAPACITY_16:
+		{
+			/* Request goes IN */
+			CmdBlock->Flags = X86_USB_MSD_CBW_IN;
+			CmdBlock->Length = 16;
 
-		/* Service Action */
-		CmdBlock->CommandBytes[1] = 0x10;
+			/* Service Action */
+			CmdBlock->CommandBytes[1] = 0x10;
 
-		/* Sector Lba */	
-		CmdBlock->CommandBytes[2] = ((SectorLBA >> 56) & 0xFF);
-		CmdBlock->CommandBytes[3] = ((SectorLBA >> 48) & 0xFF);
-		CmdBlock->CommandBytes[4] = ((SectorLBA >> 40) & 0xFF);
-		CmdBlock->CommandBytes[5] = ((SectorLBA >> 32) & 0xFF);
-		CmdBlock->CommandBytes[6] = ((SectorLBA >> 24) & 0xFF);
-		CmdBlock->CommandBytes[7] = ((SectorLBA >> 16) & 0xFF);
-		CmdBlock->CommandBytes[8] = ((SectorLBA >> 8) & 0xFF);
-		CmdBlock->CommandBytes[9] = (SectorLBA & 0xFF);
+			/* Sector Lba */	
+			CmdBlock->CommandBytes[2] = ((SectorLBA >> 56) & 0xFF);
+			CmdBlock->CommandBytes[3] = ((SectorLBA >> 48) & 0xFF);
+			CmdBlock->CommandBytes[4] = ((SectorLBA >> 40) & 0xFF);
+			CmdBlock->CommandBytes[5] = ((SectorLBA >> 32) & 0xFF);
+			CmdBlock->CommandBytes[6] = ((SectorLBA >> 24) & 0xFF);
+			CmdBlock->CommandBytes[7] = ((SectorLBA >> 16) & 0xFF);
+			CmdBlock->CommandBytes[8] = ((SectorLBA >> 8) & 0xFF);
+			CmdBlock->CommandBytes[9] = (SectorLBA & 0xFF);
 
-		/* Sector Count */
-		CmdBlock->CommandBytes[10] = ((DataLen << 24) & 0xFF);
-		CmdBlock->CommandBytes[11] = ((DataLen << 16) & 0xFF);
-		CmdBlock->CommandBytes[12] = ((DataLen << 8) & 0xFF);
-		CmdBlock->CommandBytes[13] = (DataLen & 0xFF);
-	}
+			/* Sector Count */
+			CmdBlock->CommandBytes[10] = ((DataLen << 24) & 0xFF);
+			CmdBlock->CommandBytes[11] = ((DataLen << 16) & 0xFF);
+			CmdBlock->CommandBytes[12] = ((DataLen << 8) & 0xFF);
+			CmdBlock->CommandBytes[13] = (DataLen & 0xFF);
+		}
 
-	/* Read - 6 */
-	case X86_SCSI_READ_6:
-	{
-		/* Calculate block count */
-		uint8_t NumSectors = (uint8_t)(DataLen / SectorSize);
-		if (DataLen % SectorSize)
-			NumSectors++;
+		/* Read - 6 */
+		case X86_SCSI_READ_6:
+		{
+			/* Calculate block count */
+			uint8_t NumSectors = (uint8_t)(DataLen / SectorSize);
+			if (DataLen % SectorSize)
+				NumSectors++;
 
-		/* Request goes IN */
-		CmdBlock->Flags = X86_USB_MSD_CBW_IN;
-		CmdBlock->Length = 6;
+			/* Request goes IN */
+			CmdBlock->Flags = X86_USB_MSD_CBW_IN;
+			CmdBlock->Length = 6;
 
-		/* Sector Lba */
-		CmdBlock->CommandBytes[1] = ((SectorLBA >> 16) & 0x1F);
-		CmdBlock->CommandBytes[2] = ((SectorLBA >> 8) & 0xFF);
-		CmdBlock->CommandBytes[3] = (SectorLBA & 0xFF);
+			/* Sector Lba */
+			CmdBlock->CommandBytes[1] = ((SectorLBA >> 16) & 0x1F);
+			CmdBlock->CommandBytes[2] = ((SectorLBA >> 8) & 0xFF);
+			CmdBlock->CommandBytes[3] = (SectorLBA & 0xFF);
 
-		/* Sector Count */
-		CmdBlock->CommandBytes[4] = NumSectors & 0xFF;
+			/* Sector Count */
+			CmdBlock->CommandBytes[4] = NumSectors & 0xFF;
 
-	} break;
+		} break;
 
-	/* Read - 10 */
-	case X86_SCSI_READ:
-	{
-		/* Calculate block count */
-		uint16_t NumSectors = (uint16_t)(DataLen / SectorSize);
-		if (DataLen % SectorSize)
-			NumSectors++;
+		/* Read - 10 */
+		case X86_SCSI_READ:
+		{
+			/* Calculate block count */
+			uint16_t NumSectors = (uint16_t)(DataLen / SectorSize);
+			if (DataLen % SectorSize)
+				NumSectors++;
 
-		/* Request goes IN */
-		CmdBlock->Flags = X86_USB_MSD_CBW_IN;
-		CmdBlock->Length = 10;
+			/* Request goes IN */
+			CmdBlock->Flags = X86_USB_MSD_CBW_IN;
+			CmdBlock->Length = 10;
 
-		/* Sector Lba */
-		CmdBlock->CommandBytes[2] = ((SectorLBA >> 24) & 0xFF);
-		CmdBlock->CommandBytes[3] = ((SectorLBA >> 16) & 0xFF);
-		CmdBlock->CommandBytes[4] = ((SectorLBA >> 8) & 0xFF);
-		CmdBlock->CommandBytes[5] = (SectorLBA & 0xFF);
+			/* Sector Lba */
+			CmdBlock->CommandBytes[2] = ((SectorLBA >> 24) & 0xFF);
+			CmdBlock->CommandBytes[3] = ((SectorLBA >> 16) & 0xFF);
+			CmdBlock->CommandBytes[4] = ((SectorLBA >> 8) & 0xFF);
+			CmdBlock->CommandBytes[5] = (SectorLBA & 0xFF);
 
-		/* Sector Count */
-		CmdBlock->CommandBytes[7] = ((NumSectors << 8) & 0xFF);
-		CmdBlock->CommandBytes[8] = (NumSectors & 0xFF);
+			/* Sector Count */
+			CmdBlock->CommandBytes[7] = ((NumSectors << 8) & 0xFF);
+			CmdBlock->CommandBytes[8] = (NumSectors & 0xFF);
 
-	} break;
+		} break;
 
-	/* Read - 12 */
-	case X86_SCSI_READ_12:
-	{
-		/* Calculate block count */
-		uint32_t NumSectors = (uint32_t)(DataLen / SectorSize);
-		if (DataLen % SectorSize)
-			NumSectors++;
+		/* Read - 12 */
+		case X86_SCSI_READ_12:
+		{
+			/* Calculate block count */
+			uint32_t NumSectors = (uint32_t)(DataLen / SectorSize);
+			if (DataLen % SectorSize)
+				NumSectors++;
 
-		/* Request goes IN */
-		CmdBlock->Flags = X86_USB_MSD_CBW_IN;
-		CmdBlock->Length = 12;
+			/* Request goes IN */
+			CmdBlock->Flags = X86_USB_MSD_CBW_IN;
+			CmdBlock->Length = 12;
 
-		/* Sector Lba */
-		CmdBlock->CommandBytes[2] = ((SectorLBA >> 24) & 0xFF);
-		CmdBlock->CommandBytes[3] = ((SectorLBA >> 16) & 0xFF);
-		CmdBlock->CommandBytes[4] = ((SectorLBA >> 8) & 0xFF);
-		CmdBlock->CommandBytes[5] = (SectorLBA & 0xFF);
+			/* Sector Lba */
+			CmdBlock->CommandBytes[2] = ((SectorLBA >> 24) & 0xFF);
+			CmdBlock->CommandBytes[3] = ((SectorLBA >> 16) & 0xFF);
+			CmdBlock->CommandBytes[4] = ((SectorLBA >> 8) & 0xFF);
+			CmdBlock->CommandBytes[5] = (SectorLBA & 0xFF);
 
-		/* Sector Count */
-		CmdBlock->CommandBytes[6] = ((NumSectors << 24) & 0xFF);
-		CmdBlock->CommandBytes[7] = ((NumSectors << 16) & 0xFF);
-		CmdBlock->CommandBytes[8] = ((NumSectors << 8) & 0xFF);
-		CmdBlock->CommandBytes[9] = (NumSectors & 0xFF);
+			/* Sector Count */
+			CmdBlock->CommandBytes[6] = ((NumSectors << 24) & 0xFF);
+			CmdBlock->CommandBytes[7] = ((NumSectors << 16) & 0xFF);
+			CmdBlock->CommandBytes[8] = ((NumSectors << 8) & 0xFF);
+			CmdBlock->CommandBytes[9] = (NumSectors & 0xFF);
 
-	} break;
+		} break;
 
-	/* Read - 16 */
-	case X86_SCSI_READ_16:
-	{
-		/* Calculate block count */
-		uint32_t NumSectors = (uint32_t)(DataLen / SectorSize);
-		if (DataLen % SectorSize)
-			NumSectors++;
+		/* Read - 16 */
+		case X86_SCSI_READ_16:
+		{
+			/* Calculate block count */
+			uint32_t NumSectors = (uint32_t)(DataLen / SectorSize);
+			if (DataLen % SectorSize)
+				NumSectors++;
 
-		/* Request goes IN */
-		CmdBlock->Flags = X86_USB_MSD_CBW_IN;
-		CmdBlock->Length = 16;
+			/* Request goes IN */
+			CmdBlock->Flags = X86_USB_MSD_CBW_IN;
+			CmdBlock->Length = 16;
 
-		/* Sector Lba */
-		CmdBlock->CommandBytes[2] = ((SectorLBA >> 56) & 0xFF);
-		CmdBlock->CommandBytes[3] = ((SectorLBA >> 48) & 0xFF);
-		CmdBlock->CommandBytes[4] = ((SectorLBA >> 40) & 0xFF);
-		CmdBlock->CommandBytes[5] = ((SectorLBA >> 32) & 0xFF);
-		CmdBlock->CommandBytes[6] = ((SectorLBA >> 24) & 0xFF);
-		CmdBlock->CommandBytes[7] = ((SectorLBA >> 16) & 0xFF);
-		CmdBlock->CommandBytes[8] = ((SectorLBA >> 8) & 0xFF);
-		CmdBlock->CommandBytes[9] = (SectorLBA & 0xFF);
+			/* Sector Lba */
+			CmdBlock->CommandBytes[2] = ((SectorLBA >> 56) & 0xFF);
+			CmdBlock->CommandBytes[3] = ((SectorLBA >> 48) & 0xFF);
+			CmdBlock->CommandBytes[4] = ((SectorLBA >> 40) & 0xFF);
+			CmdBlock->CommandBytes[5] = ((SectorLBA >> 32) & 0xFF);
+			CmdBlock->CommandBytes[6] = ((SectorLBA >> 24) & 0xFF);
+			CmdBlock->CommandBytes[7] = ((SectorLBA >> 16) & 0xFF);
+			CmdBlock->CommandBytes[8] = ((SectorLBA >> 8) & 0xFF);
+			CmdBlock->CommandBytes[9] = (SectorLBA & 0xFF);
 
-		/* Sector Count */
-		CmdBlock->CommandBytes[10] = ((NumSectors << 24) & 0xFF);
-		CmdBlock->CommandBytes[11] = ((NumSectors << 16) & 0xFF);
-		CmdBlock->CommandBytes[12] = ((NumSectors << 8) & 0xFF);
-		CmdBlock->CommandBytes[13] = (NumSectors & 0xFF);
+			/* Sector Count */
+			CmdBlock->CommandBytes[10] = ((NumSectors << 24) & 0xFF);
+			CmdBlock->CommandBytes[11] = ((NumSectors << 16) & 0xFF);
+			CmdBlock->CommandBytes[12] = ((NumSectors << 8) & 0xFF);
+			CmdBlock->CommandBytes[13] = (NumSectors & 0xFF);
 
-	} break;
+		} break;
 
-	/* Write - 6 */
-	case X86_SCSI_WRITE_6:
-	{
-		/* Calculate block count */
-		uint8_t NumSectors = (uint8_t)(DataLen / SectorSize);
-		if (DataLen % SectorSize)
-			NumSectors++;
+		/* Write - 6 */
+		case X86_SCSI_WRITE_6:
+		{
+			/* Calculate block count */
+			uint8_t NumSectors = (uint8_t)(DataLen / SectorSize);
+			if (DataLen % SectorSize)
+				NumSectors++;
 
-		/* Request goes IN */
-		CmdBlock->Flags = X86_USB_MSD_CBW_OUT;
-		CmdBlock->Length = 6;
+			/* Request goes IN */
+			CmdBlock->Flags = X86_USB_MSD_CBW_OUT;
+			CmdBlock->Length = 6;
 
-		/* Sector Lba */
-		CmdBlock->CommandBytes[1] = ((SectorLBA >> 16) & 0x1F);
-		CmdBlock->CommandBytes[2] = ((SectorLBA >> 8) & 0xFF);
-		CmdBlock->CommandBytes[3] = (SectorLBA & 0xFF);
+			/* Sector Lba */
+			CmdBlock->CommandBytes[1] = ((SectorLBA >> 16) & 0x1F);
+			CmdBlock->CommandBytes[2] = ((SectorLBA >> 8) & 0xFF);
+			CmdBlock->CommandBytes[3] = (SectorLBA & 0xFF);
 
-		/* Sector Count */
-		CmdBlock->CommandBytes[4] = NumSectors & 0xFF;
+			/* Sector Count */
+			CmdBlock->CommandBytes[4] = NumSectors & 0xFF;
 
-	} break;
+		} break;
 
-	/* Write - 10 */
-	case X86_SCSI_WRITE:
-	{
-		/* Calculate block count */
-		uint16_t NumSectors = (uint16_t)(DataLen / SectorSize);
-		if (DataLen % SectorSize)
-			NumSectors++;
+		/* Write - 10 */
+		case X86_SCSI_WRITE:
+		{
+			/* Calculate block count */
+			uint16_t NumSectors = (uint16_t)(DataLen / SectorSize);
+			if (DataLen % SectorSize)
+				NumSectors++;
 
-		/* Request goes IN */
-		CmdBlock->Flags = X86_USB_MSD_CBW_OUT;
-		CmdBlock->Length = 10;
+			/* Request goes IN */
+			CmdBlock->Flags = X86_USB_MSD_CBW_OUT;
+			CmdBlock->Length = 10;
 
-		/* Sector Lba */
-		CmdBlock->CommandBytes[2] = ((SectorLBA >> 24) & 0xFF);
-		CmdBlock->CommandBytes[3] = ((SectorLBA >> 16) & 0xFF);
-		CmdBlock->CommandBytes[4] = ((SectorLBA >> 8) & 0xFF);
-		CmdBlock->CommandBytes[5] = (SectorLBA & 0xFF);
+			/* Sector Lba */
+			CmdBlock->CommandBytes[2] = ((SectorLBA >> 24) & 0xFF);
+			CmdBlock->CommandBytes[3] = ((SectorLBA >> 16) & 0xFF);
+			CmdBlock->CommandBytes[4] = ((SectorLBA >> 8) & 0xFF);
+			CmdBlock->CommandBytes[5] = (SectorLBA & 0xFF);
 
-		/* Sector Count */
-		CmdBlock->CommandBytes[7] = ((NumSectors << 8) & 0xFF);
-		CmdBlock->CommandBytes[8] = (NumSectors & 0xFF);
+			/* Sector Count */
+			CmdBlock->CommandBytes[7] = ((NumSectors << 8) & 0xFF);
+			CmdBlock->CommandBytes[8] = (NumSectors & 0xFF);
 
-	} break;
+		} break;
 
-	/* Write - 12 */
-	case X86_SCSI_WRITE_12:
-	{
-		/* Calculate block count */
-		uint32_t NumSectors = (uint32_t)(DataLen / SectorSize);
-		if (DataLen % SectorSize)
-			NumSectors++;
+		/* Write - 12 */
+		case X86_SCSI_WRITE_12:
+		{
+			/* Calculate block count */
+			uint32_t NumSectors = (uint32_t)(DataLen / SectorSize);
+			if (DataLen % SectorSize)
+				NumSectors++;
 
-		/* Request goes IN */
-		CmdBlock->Flags = X86_USB_MSD_CBW_OUT;
-		CmdBlock->Length = 12;
+			/* Request goes IN */
+			CmdBlock->Flags = X86_USB_MSD_CBW_OUT;
+			CmdBlock->Length = 12;
 
-		/* Sector Lba */
-		CmdBlock->CommandBytes[2] = ((SectorLBA >> 24) & 0xFF);
-		CmdBlock->CommandBytes[3] = ((SectorLBA >> 16) & 0xFF);
-		CmdBlock->CommandBytes[4] = ((SectorLBA >> 8) & 0xFF);
-		CmdBlock->CommandBytes[5] = (SectorLBA & 0xFF);
+			/* Sector Lba */
+			CmdBlock->CommandBytes[2] = ((SectorLBA >> 24) & 0xFF);
+			CmdBlock->CommandBytes[3] = ((SectorLBA >> 16) & 0xFF);
+			CmdBlock->CommandBytes[4] = ((SectorLBA >> 8) & 0xFF);
+			CmdBlock->CommandBytes[5] = (SectorLBA & 0xFF);
 
-		/* Sector Count */
-		CmdBlock->CommandBytes[6] = ((NumSectors << 24) & 0xFF);
-		CmdBlock->CommandBytes[7] = ((NumSectors << 16) & 0xFF);
-		CmdBlock->CommandBytes[8] = ((NumSectors << 8) & 0xFF);
-		CmdBlock->CommandBytes[9] = (NumSectors & 0xFF);
+			/* Sector Count */
+			CmdBlock->CommandBytes[6] = ((NumSectors << 24) & 0xFF);
+			CmdBlock->CommandBytes[7] = ((NumSectors << 16) & 0xFF);
+			CmdBlock->CommandBytes[8] = ((NumSectors << 8) & 0xFF);
+			CmdBlock->CommandBytes[9] = (NumSectors & 0xFF);
 
-	} break;
+		} break;
 
-	/* Read - 16 */
-	case X86_SCSI_WRITE_16:
-	{
-		/* Calculate block count */
-		uint32_t NumSectors = (uint32_t)(DataLen / SectorSize);
-		if (DataLen % SectorSize)
-			NumSectors++;
+		/* Read - 16 */
+		case X86_SCSI_WRITE_16:
+		{
+			/* Calculate block count */
+			uint32_t NumSectors = (uint32_t)(DataLen / SectorSize);
+			if (DataLen % SectorSize)
+				NumSectors++;
 
-		/* Request goes IN */
-		CmdBlock->Flags = X86_USB_MSD_CBW_OUT;
-		CmdBlock->Length = 16;
+			/* Request goes IN */
+			CmdBlock->Flags = X86_USB_MSD_CBW_OUT;
+			CmdBlock->Length = 16;
 
-		/* Sector Lba */
-		CmdBlock->CommandBytes[2] = ((SectorLBA >> 56) & 0xFF);
-		CmdBlock->CommandBytes[3] = ((SectorLBA >> 48) & 0xFF);
-		CmdBlock->CommandBytes[4] = ((SectorLBA >> 40) & 0xFF);
-		CmdBlock->CommandBytes[5] = ((SectorLBA >> 32) & 0xFF);
-		CmdBlock->CommandBytes[6] = ((SectorLBA >> 24) & 0xFF);
-		CmdBlock->CommandBytes[7] = ((SectorLBA >> 16) & 0xFF);
-		CmdBlock->CommandBytes[8] = ((SectorLBA >> 8) & 0xFF);
-		CmdBlock->CommandBytes[9] = (SectorLBA & 0xFF);
+			/* Sector Lba */
+			CmdBlock->CommandBytes[2] = ((SectorLBA >> 56) & 0xFF);
+			CmdBlock->CommandBytes[3] = ((SectorLBA >> 48) & 0xFF);
+			CmdBlock->CommandBytes[4] = ((SectorLBA >> 40) & 0xFF);
+			CmdBlock->CommandBytes[5] = ((SectorLBA >> 32) & 0xFF);
+			CmdBlock->CommandBytes[6] = ((SectorLBA >> 24) & 0xFF);
+			CmdBlock->CommandBytes[7] = ((SectorLBA >> 16) & 0xFF);
+			CmdBlock->CommandBytes[8] = ((SectorLBA >> 8) & 0xFF);
+			CmdBlock->CommandBytes[9] = (SectorLBA & 0xFF);
 
-		/* Sector Count */
-		CmdBlock->CommandBytes[10] = ((NumSectors << 24) & 0xFF);
-		CmdBlock->CommandBytes[11] = ((NumSectors << 16) & 0xFF);
-		CmdBlock->CommandBytes[12] = ((NumSectors << 8) & 0xFF);
-		CmdBlock->CommandBytes[13] = (NumSectors & 0xFF);
+			/* Sector Count */
+			CmdBlock->CommandBytes[10] = ((NumSectors << 24) & 0xFF);
+			CmdBlock->CommandBytes[11] = ((NumSectors << 16) & 0xFF);
+			CmdBlock->CommandBytes[12] = ((NumSectors << 8) & 0xFF);
+			CmdBlock->CommandBytes[13] = (NumSectors & 0xFF);
 
-	} break;
+		} break;
 	}
 }
 
@@ -721,7 +721,7 @@ UsbTransferStatus_t UsbMsdSanityCsw(MsdDevice_t *Device, MsdCommandStatusWrap_t 
 
 /* Used for In / Control sends */
 UsbTransferStatus_t UsbMsdSendSCSICommandIn(uint8_t ScsiCommand, MsdDevice_t *Device,
-	uint64_t SectorLBA, void *Buffer, uint32_t DataLength)
+	uint64_t SectorLBA, void *Buffer, size_t DataLength)
 {
 	/* Vars we will need */
 	UsbHcRequest_t CtrlRequest;
@@ -801,7 +801,7 @@ UsbTransferStatus_t UsbMsdSendSCSICommandIn(uint8_t ScsiCommand, MsdDevice_t *De
 
 /* Used for Out sends */
 UsbTransferStatus_t UsbMsdSendSCSICommandOut(uint8_t ScsiCommand, MsdDevice_t *Device,
-	uint64_t SectorLBA, void *Buffer, uint32_t DataLength)
+	uint64_t SectorLBA, void *Buffer, size_t DataLength)
 {
 	/* Vars we will need */
 	UsbHcRequest_t DataRequest;
@@ -972,7 +972,7 @@ void UsbMsdReadCapacity(MsdDevice_t *Device, MCoreStorageDevice_t *sDevice)
 }
 
 /* Read & Write Sectors */
-int UsbMsdReadSectors(void *DevData, uint64_t SectorLBA, void *Buffer, uint32_t BufferLength)
+int UsbMsdReadSectors(void *DevData, uint64_t SectorLBA, void *Buffer, size_t BufferLength)
 {
 	/* Cast */
 	MsdDevice_t *Device = (MsdDevice_t*)DevData;
@@ -981,7 +981,8 @@ int UsbMsdReadSectors(void *DevData, uint64_t SectorLBA, void *Buffer, uint32_t 
 	UsbTransferStatus_t Result;
 
 	/* Send */
-	Result = UsbMsdSendSCSICommandIn(X86_SCSI_READ, Device, SectorLBA, Buffer, BufferLength);
+	Result = UsbMsdSendSCSICommandIn(Device->IsExtended == 0 ? X86_SCSI_READ : X86_SCSI_READ_16, 
+		Device, SectorLBA, Buffer, BufferLength);
 
 	/* Sanity */
 	if (Result != TransferFinished)
@@ -990,7 +991,7 @@ int UsbMsdReadSectors(void *DevData, uint64_t SectorLBA, void *Buffer, uint32_t 
 		return 0;
 }
 
-int UsbMsdWriteSectors(void *DevData, uint64_t SectorLBA, void *Buffer, uint32_t BufferLength)
+int UsbMsdWriteSectors(void *DevData, uint64_t SectorLBA, void *Buffer, size_t BufferLength)
 {
 	/* Cast */
 	MsdDevice_t *Device = (MsdDevice_t*)DevData;
@@ -999,7 +1000,8 @@ int UsbMsdWriteSectors(void *DevData, uint64_t SectorLBA, void *Buffer, uint32_t
 	UsbTransferStatus_t Result;
 
 	/* Send */
-	Result = UsbMsdSendSCSICommandOut(X86_SCSI_WRITE, Device, SectorLBA, Buffer, BufferLength);
+	Result = UsbMsdSendSCSICommandOut(Device->IsExtended == 0 ? X86_SCSI_WRITE : X86_SCSI_WRITE_16, 
+		Device, SectorLBA, Buffer, BufferLength);
 
 	/* Sanity */
 	if (Result != TransferFinished)
