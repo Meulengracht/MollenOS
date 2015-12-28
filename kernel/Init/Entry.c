@@ -48,7 +48,8 @@ void PrintHeader(MCoreBootInfo_t *BootInfo)
 	Log("VC Build %s - %s\n", BUILD_DATE, BUILD_TIME);
 }
 
-/* Shared Entry in MollenOS
+/* * 
+ * Shared Entry in MollenOS
  * */
 void MCoreInitialize(MCoreBootInfo_t *BootInfo)
 {

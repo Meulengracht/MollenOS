@@ -299,6 +299,23 @@ void UhciGetCurrentFrame(UhciController_t *Controller)
 	Controller->Frame += Diff;
 }
 
+/* Convert condition code to nr */
+int UhciConditionCodeToIndex(int ConditionCode)
+{
+	/* Vars */
+	int bCount = 0;
+	int Cc = ConditionCode;
+
+	/* Keep bit-shifting */
+	for (; Cc != 0;) {
+		bCount++;
+		Cc >>= 1;
+	}
+
+	/* Done */
+	return bCount;
+}
+
 /* Resets the Controller */
 void UhciReset(UhciController_t *Controller)
 {
@@ -1184,8 +1201,8 @@ void UhciTransactionSend(void *Controller, UsbHcRequest_t *Request)
 	UsbTransferStatus_t Completed;
 	UhciQueueHead_t *Qh = NULL;
 	UhciTransferDescriptor_t *Td = NULL;
-	uint32_t CondCode;
 	Addr_t QhAddress;
+	int CondCode;
 
 	/* Cast */
 	Qh = (UhciQueueHead_t*)Request->Data;
@@ -1324,7 +1341,7 @@ void UhciTransactionSend(void *Controller, UsbHcRequest_t *Request)
 	while (Transaction->Link)
 	{
 		Td = (UhciTransferDescriptor_t*)Transaction->TransferDescriptor;
-		CondCode = UHCI_TD_STATUS(Td->Flags);
+		CondCode = UhciConditionCodeToIndex(UHCI_TD_STATUS(Td->Flags));
 #ifdef _UHCI_DIAGNOSTICS_
 		LogDebug("UHCI", "Td Flags 0x%x, Header 0x%x, Buffer 0x%x, Td Condition Code %u (%s)", 
 			Td->Flags, Td->Header, Td->Buffer, CondCode, UhciErrorMessages[CondCode]);

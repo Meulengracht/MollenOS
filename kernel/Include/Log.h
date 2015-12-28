@@ -46,16 +46,25 @@ typedef enum _LogLevel
 #define LOG_COLOR_ERROR				0xFF392B
 #define LOG_COLOR_DEFAULT			0x0
 
+/* Default size to 4kb */
+#define LOG_INITIAL_SIZE			(1024 * 4)
+
+/* Log Types */
+#define LOG_TYPE_RAW				0x00
+#define LOG_TYPE_INFORMATION		0x01
+#define LOG_TYPE_DEBUG				0x02
+#define LOG_TYPE_FATAL				0x03
+
 /* Functions */
 _CRT_EXTERN void LogInit(LogTarget_t Output, LogLevel_t Level);
 _CRT_EXTERN void LogRedirect(LogTarget_t Output);
+_CRT_EXTERN void LogFlush(LogTarget_t Output);
 
 /* The log functions */
 _CRT_EXPORT void Log(const char *Message, ...);
 _CRT_EXPORT void LogRaw(const char *Message, ...);
 _CRT_EXPORT void LogInformation(const char *System, const char *Message, ...);
 _CRT_EXPORT void LogDebug(const char *System, const char *Message, ...);
-_CRT_EXTERN void LogModule(const char *Module, const char *Message, ...);
 _CRT_EXPORT void LogFatal(const char *System, const char *Message, ...);
 
 #endif
