@@ -31,6 +31,7 @@
 #define UHCI_STRUCT_ALIGN			16
 #define UHCI_STRUCT_ALIGN_BITS		0xF
 #define UHCI_NUM_FRAMES				1024
+#define UHCI_FRAME_MASK				2047
 #define UHCI_USBLEGEACY				0xC0
 #define UHCI_USBRES_INTEL			0xC4
 
@@ -140,8 +141,9 @@ typedef struct _UhciTransferDescriptor
 #define UHCI_TD_ISOCHRONOUS				0x2000000
 #define UHCI_TD_LOWSPEED				0x4000000
 #define UHCI_TD_SET_ERR_CNT(n)			((n & 0x3) << 27)
-#define UHCI_TD_ERROR_COUNT(n)			((n & 0x18000000) >> 27)
-#define UHCI_TD_STATUS(n)				((n & 0x7E0000) >> 17)
+
+#define UHCI_TD_ERROR_COUNT(n)			((n >> 27) & 0x3)
+#define UHCI_TD_STATUS(n)				((n >> 17) & 0x3F)
 
 /* Header bit switches */
 #define UHCI_TD_PID_SETUP			0x2D
@@ -173,9 +175,6 @@ typedef struct _UhciQueueHead
 	 * Bit 18: Allocation Status */
 	uint32_t Flags;
 
-	/* Driver Data */
-	uint32_t HcdData;
-
 	/* Virtual Address of next QH */
 	uint32_t LinkVirtual;
 
@@ -183,7 +182,7 @@ typedef struct _UhciQueueHead
 	uint32_t ChildVirtual;
 
 	/* Padding */
-	uint32_t Padding[2];
+	uint32_t Padding[3];
 
 } UhciQueueHead_t;
 
@@ -242,6 +241,7 @@ typedef struct _UhciController
 	/* Frame List */
 	void *FrameList;
 	Addr_t FrameListPhys;
+	uint32_t Frame;
 
 	/* Null Td */
 	UhciTransferDescriptor_t *NullTd;
