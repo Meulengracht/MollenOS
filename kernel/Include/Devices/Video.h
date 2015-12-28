@@ -91,6 +91,6 @@ typedef struct _MCoreVideoDevice
 } MCoreVideoDevice_t;
 
 /* Video Prototypes */
-_CRT_EXTERN OsResult_t VideoInit(MCoreVideoDevice_t *OutData, void *BootInfo);
+_CRT_EXTERN OsResult_t VideoBootInit(MCoreVideoDevice_t *BootVideo);
 
 #endif // !_x86_CPU_H_

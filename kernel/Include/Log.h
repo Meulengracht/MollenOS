@@ -48,6 +48,7 @@ typedef enum _LogLevel
 
 /* Default size to 4kb */
 #define LOG_INITIAL_SIZE			(1024 * 4)
+#define LOG_PREFFERED_SIZE			(1024 * 65)
 
 /* Log Types */
 #define LOG_TYPE_RAW				0x00
@@ -56,7 +57,8 @@ typedef enum _LogLevel
 #define LOG_TYPE_FATAL				0x03
 
 /* Functions */
-_CRT_EXTERN void LogInit(LogTarget_t Output, LogLevel_t Level);
+_CRT_EXTERN void LogInit(void);
+_CRT_EXTERN void LogUpgrade(size_t Size);
 _CRT_EXTERN void LogRedirect(LogTarget_t Output);
 _CRT_EXTERN void LogFlush(LogTarget_t Output);
 

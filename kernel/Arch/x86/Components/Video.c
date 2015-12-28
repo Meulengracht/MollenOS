@@ -21,12 +21,16 @@
 
 /* Includes */
 #include <MollenOS.h>
+#include <DeviceManager.h>
 #include <Devices/Video.h>
 #include "../Arch.h"
 #include <Video.h>
 #include <Multiboot.h>
 #include <string.h>
 #include <stddef.h>
+
+/* Globals */
+MCoreVideoDevice_t GlbBootVideo = { 0 };
 
 /* Externs (Import from MCore) */
 extern const uint8_t MCoreFontBitmaps[];
@@ -269,12 +273,11 @@ int _VideoPutCharText(void *VideoData, int Character)
 
 /* We read the multiboot header for video 
  * information and setup the terminal accordingly */
-void _VideoSetup(void *VideoInfo, void *BootInfo)
+void VideoInit(void *BootInfo)
 {
 	/* Cast */
-	MCoreVideoDevice_t *vDevice = (MCoreVideoDevice_t*)VideoInfo;
-	MCoreBootInfo_t *mCoreBoot = (MCoreBootInfo_t*)BootInfo;
-	Multiboot_t *mboot = (Multiboot_t*)mCoreBoot->ArchBootInfo;
+	MCoreVideoDevice_t *vDevice = &GlbBootVideo;
+	Multiboot_t *mboot = (Multiboot_t*)BootInfo;
 
 	/* Do we have VESA or is this text mode? */
 	switch (mboot->VbeMode)
@@ -384,4 +387,7 @@ void _VideoSetup(void *VideoInfo, void *BootInfo)
 
 		} break;
 	}
+
+	/* Register boot video */
+	DmRegisterBootVideo(vDevice);
 }

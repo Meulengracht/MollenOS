@@ -23,6 +23,7 @@
 #define _MCORE_DRIVER_MANAGER_H_
 
 /* Includes */
+#include <Devices/Video.h>
 #include <stdint.h>
 #include <Mutex.h>
 
@@ -106,6 +107,9 @@ typedef struct _MCoreDeviceRequest
 /* Prototypes */
 _CRT_EXTERN void DmInit(void);
 _CRT_EXTERN void DmStart(void);
+
+/* Boot Video */
+_CRT_EXTERN void DmRegisterBootVideo(MCoreVideoDevice_t *Video);
 
 /* Setup of devices */
 _CRT_EXPORT DevId_t DmCreateDevice(char *Name, DeviceType_t Type, void *Data);

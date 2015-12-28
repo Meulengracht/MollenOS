@@ -27,7 +27,8 @@
 #include <stdio.h>
 
 /* Globals */
-x86CpuObject_t GlbBootCpuInfo;
+MCoreCpuDevice_t GlbCpuDevice = { 0 };
+x86CpuObject_t GlbBootCpuInfo = { 0 };
 
 /* Externs */
 extern void __hlt(void);
@@ -37,20 +38,16 @@ extern void CpuEnableSse(void);
 extern void CpuEnableFpu(void);
 extern void CpuId(uint32_t CpuId, uint32_t *Eax, uint32_t *Ebx, uint32_t *Ecx, uint32_t *Edx);
 
-void _CpuSetup(void *CpuData, void *BootInfo)
+void CpuInit(void)
 {
 	/* Cast */
-	MCoreCpuDevice_t *mCpu = (MCoreCpuDevice_t*)CpuData;
-	mCpu->Data = (void*)&GlbBootCpuInfo;
-	mCpu->Id = 0;
-
-	/* Not used */
-	_CRT_UNUSED(BootInfo);
+	GlbCpuDevice.Data = (void*)&GlbBootCpuInfo;
+	GlbCpuDevice.Id = 0;
 
 	/* Get CPUID Information */
 	uint32_t _eax, _ebx, _ecx, _edx;
-	char *cpu_brand = mCpu->Brand;
-	char *cpu_vendor = mCpu->Manufacter;
+	char *cpu_brand = GlbCpuDevice.Brand;
+	char *cpu_vendor = GlbCpuDevice.Manufacter;
 
 	/* Get initial CPUID */
 	CpuId(0, &_eax, &_ebx, &_ecx, &_edx);
@@ -72,16 +69,16 @@ void _CpuSetup(void *CpuData, void *BootInfo)
 		GlbBootCpuInfo.EdxFeatures = _edx;
 
 		/* Update Device */
-		mCpu->Stepping = (char)(_eax & 0x0F);
-		mCpu->Model = (char)((_eax >> 4) & 0x0F);
-		mCpu->Family = (char)((_eax >> 8) & 0x0F);
-		mCpu->Type = (char)((_eax >> 12) & 0x03);
+		GlbCpuDevice.Stepping = (char)(_eax & 0x0F);
+		GlbCpuDevice.Model = (char)((_eax >> 4) & 0x0F);
+		GlbCpuDevice.Family = (char)((_eax >> 8) & 0x0F);
+		GlbCpuDevice.Type = (char)((_eax >> 12) & 0x03);
 		
 		/* cache_line_size * 8 = size in bytes */
-		mCpu->CacheSize = (char)((_ebx >> 8) & 0xFF) * 8; 
+		GlbCpuDevice.CacheSize = (char)((_ebx >> 8) & 0xFF) * 8;
 
 		/* # logical cpu's per physical cpu */
-		mCpu->NumLogicalProessors = (char)((_ebx >> 16) & 0xFF);    
+		GlbCpuDevice.NumLogicalProessors = (char)((_ebx >> 16) & 0xFF);
 		
 		/* Local APIC ID */
 		GlbBootCpuInfo.CpuLApicId = (char)((_ebx >> 24) & 0xFF);    

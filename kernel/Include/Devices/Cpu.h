@@ -47,7 +47,6 @@ typedef struct _MCoreCpuDevice
 } MCoreCpuDevice_t;
 
 /* CPU Prototypes */
-_CRT_EXTERN OsResult_t CpuInit(MCoreCpuDevice_t *OutData, void *BootInfo);
 _CRT_EXTERN OsResult_t CpuInitSmp(void *BootInfo);
 
 #endif // !_x86_CPU_H_

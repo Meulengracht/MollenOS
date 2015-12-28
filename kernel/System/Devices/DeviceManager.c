@@ -37,7 +37,8 @@
 #include <Devices\Video.h>
 
 /* Globals */
-uint32_t GlbDmInitialized = 0;
+MCoreVideoDevice_t *GlbDmBootVideo = NULL;
+int GlbDmInitialized = 0;
 DevId_t GlbDmIdentfier = 0;
 list_t *GlbDmDeviceList = NULL;
 Spinlock_t GlbDmLock; 
@@ -75,6 +76,10 @@ void DmStart(void)
 
 	/* Spawn the thread */
 	ThreadingCreateThread("Device Event Thread", DmRequestHandler, NULL, 0);
+
+	/* Is there a boot video? */
+	if (GlbDmBootVideo != NULL)
+		DmCreateDevice("BootVideo", DeviceVideo, GlbDmBootVideo);
 }
 
 /* Create a request */
@@ -370,4 +375,14 @@ MCoreDevice_t *DmGetDevice(DeviceType_t Type)
 
 	/* Dammn */
 	return NULL;
+}
+
+/* Boot Video */
+void DmRegisterBootVideo(MCoreVideoDevice_t *Video)
+{
+	/* Set it */
+	GlbDmBootVideo = Video;
+
+	/* Now set it up */
+	VideoBootInit(Video);
 }

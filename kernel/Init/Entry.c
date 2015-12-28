@@ -24,7 +24,6 @@
 #include <MollenOS.h>
 #include <Arch.h>
 #include <Devices/Cpu.h>
-#include <Devices/Video.h>
 #include <DeviceManager.h>
 #include <Modules/ModuleManager.h>
 #include <ProcessManager.h>
@@ -33,10 +32,6 @@
 #include <Vfs\Vfs.h>
 #include <Heap.h>
 #include <Log.h>
-
-/* Globals */
-MCoreCpuDevice_t BootCpu = { 0 };
-MCoreVideoDevice_t BootVideo = { 0 };
 
 /* Print Header Information */
 void PrintHeader(MCoreBootInfo_t *BootInfo)
@@ -53,14 +48,8 @@ void PrintHeader(MCoreBootInfo_t *BootInfo)
  * */
 void MCoreInitialize(MCoreBootInfo_t *BootInfo)
 {
-	/* Initialize Cpu */
-	CpuInit(&BootCpu, BootInfo->ArchBootInfo);
-
-	/* Setup Video Boot */
-	VideoInit(&BootVideo, BootInfo);
-
-	/* Now init log */
-	LogInit(LogConsole, LogLevel1);
+	/* Initialize Log */
+	LogInit();
 
 	/* Print Header */
 	PrintHeader(BootInfo);
@@ -73,8 +62,9 @@ void MCoreInitialize(MCoreBootInfo_t *BootInfo)
 
 	/* Init post-heap systems */
 	DmInit();
-	DmCreateDevice("Processor", DeviceCpu, &BootCpu);
-	DmCreateDevice("BootVideo", DeviceVideo, &BootVideo);
+
+	/* Upgrade the log */
+	LogUpgrade(LOG_PREFFERED_SIZE);
 
 	/* Init ModuleManager */
 	ModuleMgrInit(&BootInfo->Descriptor);

@@ -26,19 +26,6 @@
 #include <Devices/Cpu.h>
 #include <string.h>
 
-/* CPU Structures */
-OsResult_t CpuInit(MCoreCpuDevice_t *OutData, void *BootInfo)
-{
-	/* Clear */
-	memset((void*)OutData, 0, sizeof(MCoreCpuDevice_t));
-
-	/* Setup */
-	_CpuSetup((void*)OutData, BootInfo);
-
-	/* Done */
-	return OsOk;
-}
-
 /* Setup SMP */
 OsResult_t CpuInitSmp(void *BootInfo)
 {

@@ -77,7 +77,8 @@ void InitTimers(void)
 /* Used for initializing base components */
 void HALInit(void *BootInfo, MCoreBootDescriptor *Descriptor)
 {
-	_CRT_UNUSED(BootInfo);
+	/* Initialize Video */
+	VideoInit(BootInfo);
 
 	/* Print */
 	LogInformation("HAL0", "Initializing");
@@ -93,10 +94,11 @@ void HALInit(void *BootInfo, MCoreBootDescriptor *Descriptor)
 
 	/* Memory setup! */
 	LogInformation("HAL0", "Setting Up Memory");
-	MmPhyiscalInit(x86BootInfo.ArchBootInfo, Descriptor);
+	MmPhyiscalInit(BootInfo, Descriptor);
 	MmVirtualInit();
 }
 
+/* Median entry between the x86 */
 void InitX86(Multiboot_t *BootInfo, MCoreBootDescriptor *BootDescriptor)
 {
 	/* Setup Boot Info */
@@ -120,6 +122,9 @@ void InitX86(Multiboot_t *BootInfo, MCoreBootDescriptor *BootDescriptor)
 	x86BootInfo.InitHAL = HALInit;
 	x86BootInfo.InitPostSystems = InitAcpiAndApic;
 	x86BootInfo.InitTimers = InitTimers;
+
+	/* Initialize Cpu */
+	CpuInit();
 
 	/* Call Entry Point */
 	MCoreInitialize(&x86BootInfo);

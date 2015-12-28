@@ -21,6 +21,7 @@
 
 /* Includes */
 #include <Devices/Video.h>
+#include <Heap.h>
 #include <Log.h>
 
 /* CLib */
@@ -29,24 +30,53 @@
 #include <string.h>
 
 /* Globals */
+char GlbLogStatic[LOG_INITIAL_SIZE];
 LogTarget_t GlbLogTarget = LogMemory;
 LogLevel_t GlbLogLevel = LogLevel1;
-char GlbLog[LOG_INITIAL_SIZE];
+size_t GlbLogSize = 0;
+char *GlbLog = NULL;
 int GlbLogIndex = 0;
 
 /* Externs */
-extern MCoreVideoDevice_t BootVideo;
+extern MCoreVideoDevice_t GlbBootVideo;
 
-/* Instantiates the Log */
-void LogInit(LogTarget_t Output, LogLevel_t Level)
+/* Instantiates the Log
+ * with default params */
+void LogInit(void)
 {
 	/* Save */
-	GlbLogTarget = Output;
-	GlbLogLevel = Level;
+	GlbLogTarget = LogMemory;
+	GlbLogLevel = LogLevel1;
+
+	/* Set log ptr to initial */
+	GlbLog = &GlbLogStatic[0];
+	GlbLogSize = LOG_INITIAL_SIZE;
 
 	/* Clear out log */
-	memset(GlbLog, 0, LOG_INITIAL_SIZE);
+	memset(GlbLog, 0, GlbLogSize);
 	GlbLogIndex = 0;
+}
+
+/* Upgrades the log 
+ * with a larger buffer */
+void LogUpgrade(size_t Size)
+{
+	/* Allocate */
+	char *nBuffer = (char*)kmalloc(Size);
+
+	/* Zero it */
+	memset(nBuffer, 0, Size);
+
+	/* Copy current buffer */
+	memcpy(nBuffer, GlbLog, GlbLogIndex);
+
+	/* Free the old if not initial */
+	if (GlbLog != &GlbLogStatic[0])
+		kfree(GlbLog);
+
+	/* Update */
+	GlbLog = nBuffer;
+	GlbLogSize = Size;
 }
 
 /* Switches target */
@@ -68,14 +98,95 @@ void LogRedirect(LogTarget_t Output)
 /* Flushes the log */
 void LogFlush(LogTarget_t Output)
 {
-	_CRT_UNUSED(Output);
+	/* Valid flush targets are:
+	 * Console
+	 * File */
+	char TempBuffer[256];
+
+	if (Output == LogConsole)
+	{
+		/* Vars */
+		int Index = 0;
+
+		/* Iterate */
+		while (Index < GlbLogIndex)
+		{
+			/* Get header information */
+			char Type = GlbLog[Index];
+			char Length = GlbLog[Index + 1];
+
+			/* Zero buffer */
+			memset(TempBuffer, 0, 256);
+
+			/* What kind of line is this? */
+			if (Type == LOG_TYPE_RAW)
+			{
+				/* Copy data */
+				memcpy(TempBuffer, &GlbLog[Index + 2], (size_t)Length);
+
+				/* Flush it */
+				GlbBootVideo.FgColor = LOG_COLOR_DEFAULT;
+				printf("%s", TempBuffer);
+
+				/* Increase */
+				Index += 2 + Length;
+			}
+			else 
+			{
+				/* We have two chunks to print */
+				char *StartPtr = &GlbLog[Index + 2];
+				char *StartMsgPtr = strchr(StartPtr, ' ');
+				int HeaderLen = (int)StartMsgPtr - (int)StartPtr;
+
+				/* Copy */
+				memcpy(TempBuffer, StartPtr, HeaderLen);
+
+				/* Select Color */
+				if (Type == LOG_TYPE_INFORMATION)
+					GlbBootVideo.FgColor = LOG_COLOR_INFORMATION;
+				else if (Type == LOG_TYPE_DEBUG)
+					GlbBootVideo.FgColor = LOG_COLOR_DEBUG;
+				else if (Type == LOG_TYPE_FATAL)
+					GlbBootVideo.FgColor = LOG_COLOR_ERROR;
+
+				/* Print header */
+				printf("[%s] ", TempBuffer);
+
+				/* Clear */
+				memset(TempBuffer, 0, HeaderLen + 1);
+
+				/* Increament */
+				Index += 2 + HeaderLen + 1;
+
+				/* Copy data */
+				memcpy(TempBuffer, &GlbLog[Index], (size_t)Length);
+
+				/* Sanity */
+				if (Type != LOG_TYPE_FATAL)
+					GlbBootVideo.FgColor = LOG_COLOR_DEFAULT;
+
+				/* Finally, flush */
+				printf("%s", TempBuffer);
+
+				/* Restore */
+				GlbBootVideo.FgColor = LOG_COLOR_DEFAULT;
+
+				/* Increase again */
+				Index += Length;
+			}
+		}
+	}
+	else if (Output == LogFile)
+	{
+
+	}
 }
 
 /* Internal Log Print */
 void LogInternalPrint(int LogType, const char *Header, const char *Message)
 {
 	/* Log it into memory - if we have room */
-	if (GlbLogIndex + strlen(Message) < LOG_INITIAL_SIZE)
+	if (GlbLogIndex + strlen(Message) < GlbLogSize)
 	{
 		/* Write header */
 		GlbLog[GlbLogIndex] = (char)LogType;
@@ -86,7 +197,7 @@ void LogInternalPrint(int LogType, const char *Header, const char *Message)
 
 		if (LogType != LOG_TYPE_RAW)
 		{
-			/* Add System */
+			/* Add Header */
 			memcpy(&GlbLog[GlbLogIndex], Header, strlen(Header));
 			GlbLogIndex += strlen(Header);
 
@@ -115,11 +226,11 @@ void LogInternalPrint(int LogType, const char *Header, const char *Message)
 		{
 			/* Select Color */
 			if (LogType == LOG_TYPE_INFORMATION)
-				BootVideo.FgColor = LOG_COLOR_INFORMATION;
+				GlbBootVideo.FgColor = LOG_COLOR_INFORMATION;
 			else if (LogType == LOG_TYPE_DEBUG)
-				BootVideo.FgColor = LOG_COLOR_DEBUG;
+				GlbBootVideo.FgColor = LOG_COLOR_DEBUG;
 			else if (LogType == LOG_TYPE_FATAL)
-				BootVideo.FgColor = LOG_COLOR_ERROR;
+				GlbBootVideo.FgColor = LOG_COLOR_ERROR;
 
 			/* Print */
 			printf("[%s] ", Header);
@@ -127,7 +238,7 @@ void LogInternalPrint(int LogType, const char *Header, const char *Message)
 
 		/* Sanity */
 		if (LogType != LOG_TYPE_FATAL)
-			BootVideo.FgColor = LOG_COLOR_DEFAULT;
+			GlbBootVideo.FgColor = LOG_COLOR_DEFAULT;
 
 		/* Print */
 		if (LogType == LOG_TYPE_RAW)
@@ -136,7 +247,7 @@ void LogInternalPrint(int LogType, const char *Header, const char *Message)
 			printf("%s\n", Message);
 
 		/* Restore */
-		BootVideo.FgColor = LOG_COLOR_DEFAULT;
+		GlbBootVideo.FgColor = LOG_COLOR_DEFAULT;
 	}
 	else if (GlbLogTarget == LogFile) {
 

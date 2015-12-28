@@ -23,6 +23,9 @@
 #include <MollenOS.h>
 #include <Arch.h>
 #include <Devices\Video.h>
+#include <Log.h>
+
+/* CLib */
 #include <string.h>
 #include <math.h>
 #include <stddef.h>
@@ -84,22 +87,22 @@ void VideoDrawBootTerminal(MCoreVideoDevice_t *VideoDevice,
 }
 
 /* CPU Prototypes */
-OsResult_t VideoInit(MCoreVideoDevice_t *OutData, void *BootInfo)
+OsResult_t VideoBootInit(MCoreVideoDevice_t *BootVideo)
 {
 	/* Clear */
-	memset((void*)OutData, 0, sizeof(MCoreVideoDevice_t));
-	GlbVideoPtr = OutData;
-
-	/* Setup */
-	_VideoSetup(OutData, BootInfo);
+	GlbVideoPtr = BootVideo;
 
 	/* Draw boot terminal */
-	if (OutData->Type == VideoTypeLFB)
-		VideoDrawBootTerminal(OutData, (OutData->CursorLimitX / 2) - 325,
-		(OutData->CursorLimitY / 2) - 260, 650, 520);
+	if (BootVideo->Type == VideoTypeLFB)
+		VideoDrawBootTerminal(BootVideo, (BootVideo->CursorLimitX / 2) - 325,
+		(BootVideo->CursorLimitY / 2) - 260, 650, 520);
 
 	/* Reset lock */
-	SpinlockReset(&OutData->Lock);
+	SpinlockReset(&BootVideo->Lock);
+
+	/* Now we have a terminal, 
+	 * Redirect the log */
+	LogRedirect(LogConsole);
 
 	/* Done */
 	return OsOk;

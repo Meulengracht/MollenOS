@@ -41,7 +41,7 @@ Spinlock_t VmLock;
 
 /* Externs */
 extern volatile uint32_t GlbNumLogicalCpus;
-extern MCoreVideoDevice_t BootVideo;
+extern MCoreVideoDevice_t GlbBootVideo;
 extern SysMemMapping_t SysMappings[32];
 extern void memory_set_paging(int enable);
 extern void memory_load_cr3(Addr_t pda);
@@ -436,8 +436,9 @@ void MmVirtualInit(void)
 
 	/* VIDEO MEMORY (WITH FILL) */
 	LogInformation("VMEM", "Mapping video memory to 0x%x", MEMORY_LOCATION_VIDEO);
-	MmVirtualIdentityMapMemoryRange(KernelPageDirectory, BootVideo.Info.FrameBufferAddr,
-		MEMORY_LOCATION_VIDEO, (BootVideo.Info.BytesPerScanline * BootVideo.Info.Height), 1, PAGE_USER);
+	MmVirtualIdentityMapMemoryRange(KernelPageDirectory, GlbBootVideo.Info.FrameBufferAddr,
+		MEMORY_LOCATION_VIDEO, (GlbBootVideo.Info.BytesPerScanline * GlbBootVideo.Info.Height), 
+		1, PAGE_USER);
 
 	/* Now, tricky, map reserved memory regions */
 
@@ -473,7 +474,7 @@ void MmVirtualInit(void)
 	}
 
 	/* Modify Video Address */
-	BootVideo.Info.FrameBufferAddr = MEMORY_LOCATION_VIDEO;
+	GlbBootVideo.Info.FrameBufferAddr = MEMORY_LOCATION_VIDEO;
 
 	/* Last step is to mark all the memory region 
 	 * where irq handlers reside for PAGE_USER 
