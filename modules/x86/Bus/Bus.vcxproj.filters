@@ -16,13 +16,22 @@
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="Pci.c">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-  </ItemGroup>
-  <ItemGroup>
     <None Include="Bus.mdrv">
       <Filter>Source Files</Filter>
     </None>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="PciEnumerate.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="PciHelpers.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="PciIo.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="PciStrings.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
 </Project>

@@ -111,6 +111,6 @@ typedef struct _x86CpuObject
 
 /* CPU Prototypes */
 _CRT_EXTERN void CpuInit(void);
-_CRT_EXTERN void _SmpSetup(void);
+_CRT_EXTERN void CpuSmpInit(void);
 
 #endif // !_x86_CPU_H_

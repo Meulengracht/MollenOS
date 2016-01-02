@@ -14,10 +14,13 @@
     <ClInclude Include="Pci.h" />
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="Pci.c" />
+    <None Include="Bus.mdrv" />
   </ItemGroup>
   <ItemGroup>
-    <None Include="Bus.mdrv" />
+    <ClCompile Include="PciEnumerate.c" />
+    <ClCompile Include="PciHelpers.c" />
+    <ClCompile Include="PciIo.c" />
+    <ClCompile Include="PciStrings.c" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <ProjectGuid>{8E272DC1-20EE-4659-8745-E01838BD0F76}</ProjectGuid>
@@ -53,8 +56,8 @@
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <LinkIncremental>true</LinkIncremental>
     <TargetExt>.mod</TargetExt>
-    <IncludePath>..\..\..\..\clib\include;..\..\..\..\kernel\Arch;..\..\..\..\kernel\Include;..\..\Include</IncludePath>
-    <LibraryPath>..\..\..\..\clib\build;..\..\Build;..\..\..\..\kernel\Build</LibraryPath>
+    <IncludePath>..\..\..\clib\include;..\..\..\kernel\Arch;..\..\..\kernel\Include;..\..\Include;..\..\..\kernel\acpica\include</IncludePath>
+    <LibraryPath>..\..\..\clib\build;..\..\Build;..\..\..\kernel\Build</LibraryPath>
     <SourcePath />
     <GenerateManifest>false</GenerateManifest>
     <OutDir>$(SolutionDir)\Build\</OutDir>

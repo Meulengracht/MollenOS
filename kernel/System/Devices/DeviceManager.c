@@ -37,7 +37,7 @@
 #include <Devices\Video.h>
 
 /* Globals */
-MCoreVideoDevice_t *GlbDmBootVideo = NULL;
+MCoreDevice_t *GlbDmBootVideo = NULL;
 int GlbDmInitialized = 0;
 DevId_t GlbDmIdentfier = 0;
 list_t *GlbDmDeviceList = NULL;
@@ -79,7 +79,7 @@ void DmStart(void)
 
 	/* Is there a boot video? */
 	if (GlbDmBootVideo != NULL)
-		DmCreateDevice("BootVideo", DeviceVideo, GlbDmBootVideo);
+		DmCreateDevice("Boot-Video", GlbDmBootVideo);
 }
 
 /* Create a request */
@@ -261,19 +261,14 @@ void DmRequestHandler(void *Args)
 	}
 }
 
-DevId_t DmCreateDevice(char *Name, uint32_t Type, void *Data)
+DevId_t DmCreateDevice(char *Name, MCoreDevice_t *Device)
 {
-	/* Allocate a new structure */
-	MCoreDevice_t *mDev = (MCoreDevice_t*)kmalloc(sizeof(MCoreDevice_t));
-
 	/* Grap lock */
 	SpinlockAcquire(&GlbDmLock);
 	
 	/* Set name and data */
-	mDev->Name = strdup(Name);
-	mDev->Id = GlbDmIdentfier;
-	mDev->Type = Type;
-	mDev->Data = Data;
+	Device->Name = strdup(Name);
+	Device->Id = GlbDmIdentfier;
 
 	/* Increase */
 	GlbDmIdentfier++;
@@ -282,17 +277,17 @@ DevId_t DmCreateDevice(char *Name, uint32_t Type, void *Data)
 	SpinlockRelease(&GlbDmLock);
 
 	/* Add to list */
-	list_append(GlbDmDeviceList, list_create_node(mDev->Id, (void*)mDev));
+	list_append(GlbDmDeviceList, list_create_node(Device->Id, (void*)Device));
 
 	/* Call some broadcast function so systems know a new device is avaiable
 	 * depending on the device type */
-	switch (Type)
+	switch (Device->Type)
 	{
 		/* Give access to timer */
 		case DeviceTimer:
 		{
 			/* Cast */
-			MCoreTimerDevice_t *Timer = (MCoreTimerDevice_t*)Data;
+			MCoreTimerDevice_t *Timer = (MCoreTimerDevice_t*)Device->Data;
 			Timer->ReportMs = TimersApplyMs;
 
 		} break;
@@ -301,7 +296,7 @@ DevId_t DmCreateDevice(char *Name, uint32_t Type, void *Data)
 		case DeviceInput:
 		{
 			/* Cast */
-			MCoreInputDevice_t *Input = (MCoreInputDevice_t*)Data;
+			MCoreInputDevice_t *Input = (MCoreInputDevice_t*)Device->Data;
 			Input->ReportEvent = EmCreateEvent;
 
 		} break;
@@ -310,7 +305,7 @@ DevId_t DmCreateDevice(char *Name, uint32_t Type, void *Data)
 		case DeviceStorage:
 		{
 			/* Call */
-			VfsRegisterDisk(mDev->Id);
+			VfsRegisterDisk(Device->Id);
 
 		} break;
 
@@ -323,7 +318,7 @@ DevId_t DmCreateDevice(char *Name, uint32_t Type, void *Data)
 	LogInformation("DRVM", "New Device: %s", Name);
 
 	/* Done */
-	return mDev->Id;
+	return Device->Id;
 }
 
 void DmDestroyDevice(DevId_t DeviceId)
@@ -378,11 +373,11 @@ MCoreDevice_t *DmGetDevice(DeviceType_t Type)
 }
 
 /* Boot Video */
-void DmRegisterBootVideo(MCoreVideoDevice_t *Video)
+void DmRegisterBootVideo(MCoreDevice_t *Video)
 {
 	/* Set it */
 	GlbDmBootVideo = Video;
 
 	/* Now set it up */
-	VideoBootInit(Video);
+	VideoBootInit((MCoreVideoDevice_t*)Video->Data);
 }

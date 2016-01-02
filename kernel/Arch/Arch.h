@@ -90,17 +90,17 @@ typedef struct _DeviceIoSpace
 
 /* Functions */
 _CRT_EXTERN void IoSpaceInit(void);
-_CRT_EXTERN DeviceIoSpace_t *IoSpaceCreate(int Type, Addr_t PhysicalBase, size_t Size);
-_CRT_EXTERN void IoSpaceDestroy(DeviceIoSpace_t *IoSpace);
+_CRT_EXPORT DeviceIoSpace_t *IoSpaceCreate(int Type, Addr_t PhysicalBase, size_t Size);
+_CRT_EXPORT void IoSpaceDestroy(DeviceIoSpace_t *IoSpace);
 
-_CRT_EXTERN size_t IoSpaceRead(DeviceIoSpace_t *IoSpace, size_t Offset, size_t Length);
-_CRT_EXTERN void IoSpaceWrite(DeviceIoSpace_t *IoSpace, size_t Offset, size_t Value, size_t Length);
+_CRT_EXPORT size_t IoSpaceRead(DeviceIoSpace_t *IoSpace, size_t Offset, size_t Length);
+_CRT_EXPORT void IoSpaceWrite(DeviceIoSpace_t *IoSpace, size_t Offset, size_t Value, size_t Length);
 _CRT_EXTERN Addr_t IoSpaceValidate(Addr_t Address);
 
 /***********************
 * Spinlock Interface   *
 ***********************/
-_CRT_EXTERN void SpinlockReset(Spinlock_t *Spinlock);
+_CRT_EXPORT void SpinlockReset(Spinlock_t *Spinlock);
 _CRT_EXPORT OsStatus_t SpinlockAcquire(Spinlock_t *Spinlock);
 _CRT_EXPORT void SpinlockRelease(Spinlock_t *Spinlock);
 

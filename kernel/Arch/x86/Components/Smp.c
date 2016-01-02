@@ -207,7 +207,7 @@ void SmpBootCore(void *Data, int n, void *UserData)
 }
 
 /* Go through ACPI nodes */
-void _SmpSetup(void)
+void CpuSmpInit(void)
 {
 	/* Setup AP Code */
 	SmpApSetup();

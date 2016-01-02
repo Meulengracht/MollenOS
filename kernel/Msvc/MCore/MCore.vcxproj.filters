@@ -69,9 +69,6 @@
     <ClCompile Include="..\..\System\Devices\DeviceVideo.c">
       <Filter>Systems\Devices\Video</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\System\Devices\DeviceCpu.c">
-      <Filter>Systems\Devices</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\System\Threading.c">
       <Filter>Systems</Filter>
     </ClCompile>

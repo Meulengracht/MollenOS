@@ -1,6 +1,6 @@
 /* MollenOS
 *
-* Copyright 2011 - 2014, Philip Meulengracht
+* Copyright 2011 - 2016, Philip Meulengracht
 *
 * This program is free software : you can redistribute it and / or modify
 * it under the terms of the GNU General Public License as published by
@@ -53,7 +53,7 @@ typedef struct _McfgEntry
 list_t *GlbPciDevices = NULL;
 
 /* Prototypes */
-void PciCheckBus(list_t *Bridge, uint8_t Bus);
+void PciCheckBus(list_t *Bridge, PciBus_t *Bus, uint8_t BusNo);
 
 /* Check a function */
 /* For each function we create a 
@@ -123,7 +123,7 @@ void PciCheckFunction(list_t *Bridge, uint8_t Bus, uint8_t Device, uint8_t Funct
 }
 
 /* Check a device */
-void PciCheckDevice(list_t *Bridge, uint8_t Bus, uint8_t Device)
+void PciCheckDevice(list_t *Bridge, PciBus_t *Bus, uint8_t BusNo, uint8_t Device)
 {
 	uint8_t Function = 0;
 	uint16_t VendorId = 0;
@@ -154,12 +154,12 @@ void PciCheckDevice(list_t *Bridge, uint8_t Bus, uint8_t Device)
 }
 
 /* Check a bus */
-void PciCheckBus(list_t *Bridge, uint8_t Bus)
+void PciCheckBus(list_t *Bridge, PciBus_t *Bus, uint8_t BusNo)
 {
 	uint8_t Device;
 
 	for (Device = 0; Device < 32; Device++)
-		PciCheckDevice(Bridge, Bus, Device);
+		PciCheckDevice(Bridge, Bus, BusNo, Device);
 }
 
 /* First of all, devices exists on TWO different
@@ -167,21 +167,16 @@ void PciCheckBus(list_t *Bridge, uint8_t Bus)
 MODULES_API void ModuleInit(void *Data)
 {
 	/* We need these */
-	ACPI_TABLE_MCFG *McfgTable = NULL;
-	ACPI_TABLE_HEADER *Header = NULL;
-	uint8_t Function;
-	uint8_t Bus;
+	ACPI_TABLE_MCFG *McfgTable = (ACPI_TABLE_MCFG*)Data;
+	uint32_t Function;
+	uint8_t BusNo;
 	uint8_t HeaderType;
 
 	/* Init list, this is "bus 0" */
 	GlbPciDevices = list_create(LIST_SAFE);
 
 	/* Pci Express */
-#ifdef PCI_EXPRESS
-	if (ACPI_SUCCESS(AcpiGetTable(ACPI_SIG_MCFG, 0, &Header)))
-#else
-	if (Header != NULL && McfgTable != NULL)
-#endif
+	if (McfgTable != NULL)
 	{
 		/* Woah, there exists Pci Express Controllers */
 		uint32_t EntryCount = (McfgTable->Header.Length - sizeof(ACPI_TABLE_MCFG) / sizeof(McfgEntry_t));
@@ -198,13 +193,19 @@ MODULES_API void ModuleInit(void *Data)
 			int PageCount = (1024 * 1024 * 256) / PAGE_SIZE;
 
 			/* Memory Map 256 MB!!!!! Oh fucking god */
-			Bus->IoAddr = (Addr_t)MmVirtualMapSysMemory((Addr_t)Entry->BaseAddress, PageCount);
+			Bus->IoSpace = IoSpaceCreate(DEVICE_IO_SPACE_MMIO, (Addr_t)Entry->BaseAddress, PageCount);
 			Bus->IsExtended = 1;
 			Bus->BusStart = Entry->StartBus;
 			Bus->BusEnd = Entry->EndBus;
 			Bus->Segment = Entry->SegmentGroup;
 
 			/* Enumerate devices */
+			for (Function = Bus->BusStart; Function <= Bus->BusEnd; Function++)
+			{
+				/* Check bus */
+				BusNo = Function;
+				PciCheckBus(GlbPciDevices, Bus, BusNo);
+			}
 
 			/* Next */
 			Entry++;
@@ -212,13 +213,23 @@ MODULES_API void ModuleInit(void *Data)
 	}
 	else
 	{
+		/* Allocate entry */
+		PciBus_t *Bus = (PciBus_t*)kmalloc(sizeof(PciBus_t));
+
+		/* Setup */
+		Bus->BusStart = 0;
+		Bus->BusEnd = 7;
+		Bus->IoSpace = IoSpaceCreate(DEVICE_IO_SPACE_IO, X86_PCI_SELECT, 8);
+		Bus->IsExtended = 0;
+		Bus->Segment = 0;
+
 		/* Pci Legacy */
 		HeaderType = PciReadHeaderType(0, 0, 0);
 
 		if ((HeaderType & 0x80) == 0)
 		{
 			/* Single PCI host controller */
-			PciCheckBus(GlbPciDevices, 0);
+			PciCheckBus(GlbPciDevices, Bus, 0);
 		}
 		else
 		{
@@ -229,8 +240,8 @@ MODULES_API void ModuleInit(void *Data)
 					break;
 
 				/* Check bus */
-				Bus = Function;
-				PciCheckBus(GlbPciDevices, Bus);
+				BusNo = Function;
+				PciCheckBus(GlbPciDevices, Bus, BusNo);
 			}
 		}
 	}

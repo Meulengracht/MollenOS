@@ -1,6 +1,6 @@
 /* MollenOS
 *
-* Copyright 2011 - 2014, Philip Meulengracht
+* Copyright 2011 - 2016, Philip Meulengracht
 *
 * This program is free software : you can redistribute it and / or modify
 * it under the terms of the GNU General Public License as published by
@@ -16,8 +16,7 @@
 * along with this program.If not, see <http://www.gnu.org/licenses/>.
 *
 *
-* MollenOS X86 PCI
-* Version 1. PCI Support Only (No PCI Express)
+* MollenOS X86 PCI / PCIe Driver
 */
 
 #ifndef _X86_PCI_H_
@@ -99,8 +98,8 @@ typedef struct _PciNativeHeader
 /* The Bus Header */
 typedef struct _PciBus
 {
-	/* Address */
-	Addr_t IoAddr;
+	/* Io Space */
+	DeviceIoSpace_t *IoSpace;
 
 	/* Type */
 	uint32_t IsExtended;
@@ -119,6 +118,9 @@ typedef struct _PciDevice
 {
 	/* Type */
 	uint32_t Type;
+
+	/* Bus Io */
+	PciBus_t *PciBus;
 
 	/* Location */
 	uint32_t Bus;
@@ -163,9 +165,6 @@ typedef struct _PciDevice
 
 /* Prototypes */
 
-/* Initializor */
-_CRT_EXTERN void PciEnumerate(void);
-
 /* Read I/O */
 _CRT_EXTERN uint8_t PciRead8(uint32_t Bus, uint32_t Device, uint32_t Function, uint32_t Register);
 _CRT_EXTERN uint16_t PciRead16(uint32_t Bus, uint32_t Device, uint32_t Function, uint32_t Register);
@@ -177,9 +176,6 @@ _CRT_EXTERN void PciWrite8(uint32_t Bus, uint32_t Device, uint32_t Function, uin
 _CRT_EXTERN void PciWrite16(uint32_t Bus, uint32_t Device, uint32_t Function, uint32_t Register, uint16_t Value);
 _CRT_EXTERN void PciWrite32(uint32_t Bus, uint32_t Device, uint32_t Function, uint32_t Register, uint32_t Value);
 _CRT_EXPORT void PciDeviceWrite(PciDevice_t *Device, uint32_t Register, uint32_t Value, uint32_t Length);
-
-/* Install Pci Interrupt */
-_CRT_EXPORT void InterruptInstallPci(PciDevice_t *PciDevice, IrqHandler_t Callback, void *Args);
 
 /* Decode PCI Device to String */
 _CRT_EXTERN const char *PciToString(uint8_t Class, uint8_t SubClass, uint8_t Interface);

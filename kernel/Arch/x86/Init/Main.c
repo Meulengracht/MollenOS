@@ -72,6 +72,9 @@ void InitTimers(void)
 
 	/* Init Apic Timers */
 	ApicTimerInit();
+
+	/* Boot Cores */
+	CpuSmpInit();
 }
 
 /* Used for initializing base components */

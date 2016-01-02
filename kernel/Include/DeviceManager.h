@@ -28,6 +28,7 @@
 #include <Mutex.h>
 
 /* Definitions */
+typedef unsigned DevInfo_t;
 typedef int DevId_t;
 
 /* Erhhh, limitiations? */
@@ -39,6 +40,7 @@ typedef enum _DeviceType
 	DeviceCpu,
 	DeviceCpuCore,
 	DeviceController,
+	DeviceBus,
 	DeviceClock,
 	DeviceTimer,
 	DevicePerfTimer,
@@ -98,14 +100,31 @@ typedef struct _MCoreDevice
 	/* Name */
 	char *Name;
 
-	/* System Id */
-	DevId_t Id;
+	/* Device 
+	 * Information 
+	 * Used to match with
+	 * a driver */
+	DevInfo_t VendorId;
+	DevInfo_t DeviceId;
+	DevInfo_t ManufactorId;
+	DevInfo_t Class;
+	DevInfo_t Subclass;
+	DevInfo_t Protocol;
 
 	/* Type */
 	DeviceType_t Type;
 
+	/* System Id */
+	DevId_t Id;
+
 	/* Driver */
 	MCoreDriver_t Driver;
+
+	/* Bus Information */
+	void *BusInformation;
+
+	/* Additional Data */
+	void *Data;
 
 } MCoreDevice_t;
 
@@ -135,10 +154,10 @@ _CRT_EXTERN void DmInit(void);
 _CRT_EXTERN void DmStart(void);
 
 /* Boot Video */
-_CRT_EXTERN void DmRegisterBootVideo(MCoreVideoDevice_t *Video);
+_CRT_EXTERN void DmRegisterBootVideo(MCoreDevice_t *Video);
 
 /* Setup of devices */
-_CRT_EXPORT DevId_t DmCreateDevice(char *Name, DeviceType_t Type, void *Data);
+_CRT_EXPORT DevId_t DmCreateDevice(char *Name, MCoreDevice_t *Device);
 _CRT_EXPORT MCoreDevice_t *DmGetDevice(DeviceType_t Type);
 _CRT_EXPORT void DmDestroyDevice(DevId_t DeviceId);
 

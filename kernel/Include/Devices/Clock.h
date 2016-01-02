@@ -29,9 +29,6 @@
 #pragma pack(push, 1)
 typedef struct _MCoreClockDevice
 {
-	/* Clock Data */
-	void *ClockData;
-
 	/* Functions */
 	void(*GetTime)(void *Data, tm *time);
 

@@ -30,7 +30,9 @@
 #include <stddef.h>
 
 /* Globals */
+MCoreDevice_t GlbBootVideoDevice = { 0 };
 MCoreVideoDevice_t GlbBootVideo = { 0 };
+const char *GlbBootDriverName = "VESA Video Device";
 
 /* Externs (Import from MCore) */
 extern const uint8_t MCoreFontBitmaps[];
@@ -388,6 +390,15 @@ void VideoInit(void *BootInfo)
 		} break;
 	}
 
+	/* Setup structure */
+	GlbBootVideoDevice.Type = DeviceVideo;
+	GlbBootVideoDevice.BusInformation = NULL;
+	GlbBootVideoDevice.Data = vDevice;
+	GlbBootVideoDevice.Driver.Name = (char*)GlbBootDriverName;
+	GlbBootVideoDevice.Driver.Version = 1;
+	GlbBootVideoDevice.Driver.Status = DriverActive;
+	GlbBootVideoDevice.Driver.Data = NULL;
+
 	/* Register boot video */
-	DmRegisterBootVideo(vDevice);
+	DmRegisterBootVideo(&GlbBootVideoDevice);
 }
