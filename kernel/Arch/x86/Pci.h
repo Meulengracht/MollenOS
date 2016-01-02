@@ -24,6 +24,7 @@
 #define _X86_PCI_H_
 
 /* Includes */
+#include "../Arch.h"
 #include <crtdefs.h>
 #include <stdint.h>
 
@@ -99,7 +100,7 @@ typedef struct _PciNativeHeader
 typedef struct _PciBus
 {
 	/* Address */
-	Addr_t IoAddr;
+	DeviceIoSpace_t *IoSpace;
 
 	/* Type */
 	uint32_t IsExtended;

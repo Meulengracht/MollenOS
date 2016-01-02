@@ -20,6 +20,7 @@
 */
 
 /* Includes */
+#include "../Arch.h"
 #include <ProcessManager.h>
 #include <Threading.h>
 #include <Thread.h>
@@ -142,8 +143,24 @@ void ExceptionEntry(Registers_t *regs)
 		/* Get failed address */
 		Addr_t UnmappedAddr = (Addr_t)__getcr2();
 
+		/* Driver Address? */
+		if (UnmappedAddr >= MEMORY_LOCATION_RESERVED
+			&& UnmappedAddr < MEMORY_LOCATION_USER_ARGS)
+		{
+			/* .. Probably, lets check */
+			Addr_t Physical = IoSpaceValidate(UnmappedAddr);
+			if (Physical != 0)
+			{
+				/* Map it */
+				MmVirtualMap(NULL, (Physical & PAGE_MASK), (UnmappedAddr & PAGE_MASK), 0);
+
+				/* Issue is fixed */
+				IssueFixed = 1;
+			}
+		}
+
 		/* Kernel heap address? */
-		if (UnmappedAddr >= MEMORY_LOCATION_HEAP
+		else if (UnmappedAddr >= MEMORY_LOCATION_HEAP
 			&& UnmappedAddr < MEMORY_LOCATION_HEAP_END)
 		{
 			/* Yes, validate it in the heap */

@@ -73,6 +73,9 @@ _CRT_EXTERN PhysAddr_t AddressSpaceGetMap(AddressSpace_t *AddrSpace, VirtAddr_t 
 /* Structures */
 typedef struct _DeviceIoSpace
 {
+	/* Id */
+	int Id;
+
 	/* Type */
 	int Type;
 
@@ -86,11 +89,13 @@ typedef struct _DeviceIoSpace
 } DeviceIoSpace_t;
 
 /* Functions */
+_CRT_EXTERN void IoSpaceInit(void);
 _CRT_EXTERN DeviceIoSpace_t *IoSpaceCreate(int Type, Addr_t PhysicalBase, size_t Size);
 _CRT_EXTERN void IoSpaceDestroy(DeviceIoSpace_t *IoSpace);
 
 _CRT_EXTERN size_t IoSpaceRead(DeviceIoSpace_t *IoSpace, size_t Offset, size_t Length);
 _CRT_EXTERN void IoSpaceWrite(DeviceIoSpace_t *IoSpace, size_t Offset, size_t Value, size_t Length);
+_CRT_EXTERN Addr_t IoSpaceValidate(Addr_t Address);
 
 /***********************
 * Spinlock Interface   *

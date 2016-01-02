@@ -66,6 +66,9 @@ void MCoreInitialize(MCoreBootInfo_t *BootInfo)
 	/* Upgrade the log */
 	LogUpgrade(LOG_PREFFERED_SIZE);
 
+	/* Initialize IoSpaces early */
+	IoSpaceInit();
+
 	/* Init ModuleManager */
 	ModuleMgrInit(&BootInfo->Descriptor);
 

@@ -363,33 +363,24 @@ void MmVirtualInitialMap(PhysAddr_t PhysicalAddr, VirtAddr_t VirtualAddr)
 }
 
 /* Map system memory */
-VirtAddr_t *MmVirtualMapSysMemory(PhysAddr_t PhysicalAddr, int Pages)
+VirtAddr_t *MmReserveMemory(int Pages)
 {
-	int i;
-	VirtAddr_t ret = 0;
+	VirtAddr_t RetAddr = 0;
 
 	/* Acquire Lock */
 	SpinlockAcquire(&VmLock);
 
 	/* This is the addr that we return */
-	ret = GblReservedPtr;
+	RetAddr = GblReservedPtr;
 
-	/* Map it */
-	for (i = 0; i < Pages; i++)
-	{
-		/* Call Map on kernel directory */
-		if (!MmVirtualGetMapping(NULL, GblReservedPtr))
-			MmVirtualMap(NULL, PhysicalAddr + (i * PAGE_SIZE), GblReservedPtr, 0);
-
-		/* Increase */
-		GblReservedPtr += PAGE_SIZE;
-	}
+	/* Increase */
+	GblReservedPtr += (PAGE_SIZE * Pages);
 
 	/* Release */
 	SpinlockRelease(&VmLock);
 
-	/* Return converted address with correct offset */
-	return (VirtAddr_t*)(ret + (PhysicalAddr & ATTRIBUTE_MASK));
+	/* Return address */
+	return (VirtAddr_t*)RetAddr;
 }
 
 /* Creates a page directory and loads it */

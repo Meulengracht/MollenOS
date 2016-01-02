@@ -195,7 +195,7 @@ void PciEnumerate(void)
 			int PageCount = (1024 * 1024 * 256) / PAGE_SIZE;
 
 			/* Memory Map 256 MB!!!!! Oh fucking god */
-			Bus->IoAddr = (Addr_t)MmVirtualMapSysMemory((Addr_t)Entry->BaseAddress, PageCount);
+			Bus->IoSpace = IoSpaceCreate(DEVICE_IO_SPACE_MMIO, (Addr_t)Entry->BaseAddress, PageCount);
 			Bus->IsExtended = 1;
 			Bus->BusStart = Entry->StartBus;
 			Bus->BusEnd = Entry->EndBus;

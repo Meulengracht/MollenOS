@@ -19,11 +19,14 @@
 * MollenOS X86 Pci Driver
 */
 
+/* Arch */
+#include <x86\AcpiSys.h>
+#include <x86\Memory.h>
+
 /* Includes */
+#include <Module.h>
+#include "Pci.h"
 #include <List.h>
-#include <AcpiSys.h>
-#include <Memory.h>
-#include <Pci.h>
 #include <Heap.h>
 
 /* The MCFG Entry */
@@ -161,7 +164,7 @@ void PciCheckBus(list_t *Bridge, uint8_t Bus)
 
 /* First of all, devices exists on TWO different
  * busses. PCI and PCI Express. */
-void PciEnumerate(void)
+MODULES_API void ModuleInit(void *Data)
 {
 	/* We need these */
 	ACPI_TABLE_MCFG *McfgTable = NULL;

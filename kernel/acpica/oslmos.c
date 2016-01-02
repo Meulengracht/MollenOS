@@ -312,7 +312,7 @@ void *AcpiOsMapMemory(
 { 
 	/* Vars */
 	Addr_t Acpi_Mapping = MmPhyiscalGetSysMappingVirtual(Where);
-	uint32_t Acpi_Pages = (Length / 0x1000) + ((Length % 0x1000) != 0 ? 1 : 0);
+	uint32_t Acpi_Pages = (Length / PAGE_SIZE) + ((Length % PAGE_SIZE) != 0 ? 1 : 0);
 
 	/* We should handle the case where it crosses a page boundary :o */
 	if (Acpi_Pages == 1)
@@ -333,7 +333,16 @@ void *AcpiOsMapMemory(
 		else
 		{
 			/* Sigh... Imap it and hope stuff do not break :(((( */
-			return (void*)MmVirtualMapSysMemory(Where, Acpi_Pages);
+			Addr_t ReservedMem = MmReserveMemory(Acpi_Pages);
+			int i = 0;
+
+			/* Map it in */
+			for (; i < Acpi_Pages; i++) {
+				if (!MmVirtualGetMapping(NULL, ReservedMem + (i * PAGE_SIZE)))
+					MmVirtualMap(NULL, (Where & PAGE_MASK) + (i * PAGE_SIZE), ReservedMem + (i * PAGE_SIZE), 0);
+			}
+
+			return (void*)(ReservedMem + (Where & ATTRIBUTE_MASK));
 		}
 	}
 

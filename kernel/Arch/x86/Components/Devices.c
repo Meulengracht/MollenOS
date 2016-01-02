@@ -258,8 +258,22 @@ void DevicesInit(void *Args)
 		ModuleLoad(Module, NULL);
 }
 
+/* Globals */
+list_t *GlbIoSpaces = NULL;
+int GlbIoSpaceInitialized = 0;
+int GlbIoSpaceId = 0;
+
 /* Externs */
 extern x86CpuObject_t GlbBootCpuInfo;
+
+/* Init Io Spaces */
+void IoSpaceInit(void)
+{
+	/* Create list */
+	GlbIoSpaces = list_create(LIST_NORMAL);
+	GlbIoSpaceInitialized = 1;
+	GlbIoSpaceId = 0;
+}
 
 /* Device Io Space */
 DeviceIoSpace_t *IoSpaceCreate(int Type, Addr_t PhysicalBase, size_t Size)
@@ -268,6 +282,8 @@ DeviceIoSpace_t *IoSpaceCreate(int Type, Addr_t PhysicalBase, size_t Size)
 	DeviceIoSpace_t *IoSpace = (DeviceIoSpace_t*)kmalloc(sizeof(DeviceIoSpace_t));
 
 	/* Setup */
+	IoSpace->Id = GlbIoSpaceId;
+	GlbIoSpaceId++;
 	IoSpace->Type = Type;
 	IoSpace->PhysicalBase = PhysicalBase;
 	IoSpace->VirtualBase = 0;
@@ -282,8 +298,12 @@ DeviceIoSpace_t *IoSpaceCreate(int Type, Addr_t PhysicalBase, size_t Size)
 			PageCount++;
 
 		/* Map it */
-		IoSpace->VirtualBase = MmVirtualMapSysMemory(PhysicalBase, PageCount);
+		IoSpace->VirtualBase = (Addr_t)MmReserveMemory(PageCount);
 	}
+
+	/* Add to list */
+	list_append(GlbIoSpaces, 
+		list_create_node(IoSpace->Id, (void*)IoSpace));
 	
 	/* Done! */
 	return IoSpace;
@@ -304,6 +324,9 @@ void IoSpaceDestroy(DeviceIoSpace_t *IoSpace)
 		for (i = 0; i < PageCount; i++)
 			MmVirtualUnmap(NULL, IoSpace->VirtualBase + (i * PAGE_SIZE));
 	}
+
+	/* Remove from list */
+	list_remove_by_id(GlbIoSpaces, IoSpace->Id);
 
 	/* Free */
 	kfree(IoSpace);
@@ -411,6 +434,29 @@ void IoSpaceWrite(DeviceIoSpace_t *IoSpace, size_t Offset, size_t Value, size_t 
 			break;
 		}
 	}
+}
+
+/* Validate Address */
+Addr_t IoSpaceValidate(Addr_t Address)
+{
+	/* Iterate and check */
+	foreach(ioNode, GlbIoSpaces)
+	{
+		/* Cast */
+		DeviceIoSpace_t *IoSpace = 
+			(DeviceIoSpace_t*)ioNode->data;
+
+		/* Let's see */
+		if (Address >= IoSpace->VirtualBase
+			&& Address < (IoSpace->VirtualBase + IoSpace->Size)) {
+			/* Calc offset page */
+			Addr_t Offset = (Address - IoSpace->VirtualBase);
+			return IoSpace->PhysicalBase + Offset;
+		}
+	}
+
+	/* Damn */
+	return 0;
 }
 
 /* Backup Timer, Should always be provided */
