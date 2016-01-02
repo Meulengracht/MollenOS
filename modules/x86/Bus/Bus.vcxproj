@@ -11,16 +11,16 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="Pit.h" />
+    <ClInclude Include="Pci.h" />
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="Pit.c" />
+    <ClCompile Include="Pci.c" />
   </ItemGroup>
   <ItemGroup>
-    <None Include="Pit.mdrv" />
+    <None Include="Bus.mdrv" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
-    <ProjectGuid>{11227538-EA75-455B-A6A1-6FA67748F828}</ProjectGuid>
+    <ProjectGuid>{8E272DC1-20EE-4659-8745-E01838BD0F76}</ProjectGuid>
     <Keyword>Win32Proj</Keyword>
     <RootNamespace>Modules</RootNamespace>
   </PropertyGroup>
@@ -67,7 +67,7 @@
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <WarningLevel>EnableAllWarnings</WarningLevel>
       <Optimization>Full</Optimization>
-      <PreprocessorDefinitions>MOLLENOS;_X86_32;MODULES_EXPORTS</PreprocessorDefinitions>
+      <PreprocessorDefinitions>MOLLENOS;_X86_32;MODULES_EXPORTS;</PreprocessorDefinitions>
       <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
       <TreatWarningAsError>true</TreatWarningAsError>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
@@ -82,7 +82,7 @@
     <Link>
       <SubSystem>Native</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalDependencies>CLibK.lib;Shared.lib;MCore.lib</AdditionalDependencies>
+      <AdditionalDependencies>CLibK.lib;UsbCore.lib;Shared.lib;MCore.lib</AdditionalDependencies>
       <IgnoreAllDefaultLibraries>true</IgnoreAllDefaultLibraries>
       <Driver>Driver</Driver>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>

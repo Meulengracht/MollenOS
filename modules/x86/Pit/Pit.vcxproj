@@ -10,8 +10,17 @@
       <Platform>Win32</Platform>
     </ProjectConfiguration>
   </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="Pit.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="Pit.c" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="Pit.mdrv" />
+  </ItemGroup>
   <PropertyGroup Label="Globals">
-    <ProjectGuid>{6AD54F75-A2E1-40BF-84E2-B77420E8DC6A}</ProjectGuid>
+    <ProjectGuid>{11227538-EA75-455B-A6A1-6FA67748F828}</ProjectGuid>
     <Keyword>Win32Proj</Keyword>
     <RootNamespace>Modules</RootNamespace>
   </PropertyGroup>
@@ -44,8 +53,8 @@
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <LinkIncremental>true</LinkIncremental>
     <TargetExt>.mod</TargetExt>
-    <IncludePath>..\..\..\..\clib\include;..\..\..\..\kernel\Arch;..\..\..\..\kernel\Include;..\..\Include</IncludePath>
-    <LibraryPath>..\..\..\..\clib\build;..\..\Build;..\..\..\..\kernel\Build</LibraryPath>
+    <IncludePath>..\..\..\clib\include;..\..\..\kernel\Arch;..\..\..\kernel\Include;..\..\Include</IncludePath>
+    <LibraryPath>..\..\..\clib\build;..\..\Build;..\..\..\kernel\Build</LibraryPath>
     <SourcePath />
     <GenerateManifest>false</GenerateManifest>
     <OutDir>$(SolutionDir)\Build\</OutDir>
@@ -58,7 +67,7 @@
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <WarningLevel>EnableAllWarnings</WarningLevel>
       <Optimization>Full</Optimization>
-      <PreprocessorDefinitions>MOLLENOS;_X86_32;MODULES_EXPORTS;</PreprocessorDefinitions>
+      <PreprocessorDefinitions>MOLLENOS;_X86_32;MODULES_EXPORTS</PreprocessorDefinitions>
       <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
       <TreatWarningAsError>true</TreatWarningAsError>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
@@ -69,12 +78,11 @@
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <AssemblerOutput>All</AssemblerOutput>
       <InlineFunctionExpansion>Disabled</InlineFunctionExpansion>
-      <DisableSpecificWarnings>4127</DisableSpecificWarnings>
     </ClCompile>
     <Link>
       <SubSystem>Native</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalDependencies>CLibK.lib;UsbCore.lib;Shared.lib;MCore.lib</AdditionalDependencies>
+      <AdditionalDependencies>CLibK.lib;Shared.lib;MCore.lib</AdditionalDependencies>
       <IgnoreAllDefaultLibraries>true</IgnoreAllDefaultLibraries>
       <Driver>Driver</Driver>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
@@ -101,15 +109,6 @@
       <OptimizeReferences>true</OptimizeReferences>
     </Link>
   </ItemDefinitionGroup>
-  <ItemGroup>
-    <ClInclude Include="Ehci.h" />
-  </ItemGroup>
-  <ItemGroup>
-    <ClCompile Include="Ehci.c" />
-  </ItemGroup>
-  <ItemGroup>
-    <None Include="Ehci.mdrv" />
-  </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>

@@ -11,7 +11,7 @@
     </ProjectConfiguration>
   </ItemGroup>
   <PropertyGroup Label="Globals">
-    <ProjectGuid>{F70C9248-FEE4-4C76-9D28-69B2E4D73104}</ProjectGuid>
+    <ProjectGuid>{5B870E7F-3EF4-4A5E-A79E-53DA4138E1AE}</ProjectGuid>
     <Keyword>Win32Proj</Keyword>
     <RootNamespace>Modules</RootNamespace>
   </PropertyGroup>
@@ -44,8 +44,8 @@
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <LinkIncremental>true</LinkIncremental>
     <TargetExt>.mod</TargetExt>
-    <IncludePath>..\..\..\..\clib\include;..\..\..\..\kernel\Arch;..\..\..\..\kernel\Include;..\..\Include</IncludePath>
-    <LibraryPath>..\..\..\..\clib\build;..\..\Build;..\..\..\..\kernel\Build</LibraryPath>
+    <IncludePath>..\..\..\clib\include;..\..\..\kernel\Arch;..\..\..\kernel\Include;..\..\Include</IncludePath>
+    <LibraryPath>..\..\..\clib\build;..\..\Build;..\..\..\kernel\Build</LibraryPath>
     <SourcePath />
     <GenerateManifest>false</GenerateManifest>
     <OutDir>$(SolutionDir)\Build\</OutDir>
@@ -58,7 +58,7 @@
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <WarningLevel>EnableAllWarnings</WarningLevel>
       <Optimization>Full</Optimization>
-      <PreprocessorDefinitions>MOLLENOS;_X86_32;MODULES_EXPORTS;__USBCORE</PreprocessorDefinitions>
+      <PreprocessorDefinitions>MOLLENOS;_X86_32;MODULES_EXPORTS;</PreprocessorDefinitions>
       <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
       <TreatWarningAsError>true</TreatWarningAsError>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
@@ -68,13 +68,12 @@
       <BufferSecurityCheck>false</BufferSecurityCheck>
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <AssemblerOutput>All</AssemblerOutput>
-      <DisableSpecificWarnings>4127</DisableSpecificWarnings>
       <InlineFunctionExpansion>Disabled</InlineFunctionExpansion>
     </ClCompile>
     <Link>
       <SubSystem>Native</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalDependencies>CLibK.lib;Shared.lib;MCore.lib</AdditionalDependencies>
+      <AdditionalDependencies>CLibK.lib;UsbCore.lib;Shared.lib;MCore.lib</AdditionalDependencies>
       <IgnoreAllDefaultLibraries>true</IgnoreAllDefaultLibraries>
       <Driver>Driver</Driver>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
@@ -102,10 +101,13 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="Devices\UsbHid.c" />
-    <ClCompile Include="Devices\UsbMsd.c" />
-    <ClCompile Include="UsbCore.c" />
-    <ClCompile Include="UsbFunctions.c" />
+    <ClInclude Include="Ohci.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="Ohci.c" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="Ohci.mdrv" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

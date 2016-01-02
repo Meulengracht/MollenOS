@@ -11,7 +11,7 @@
     </ProjectConfiguration>
   </ItemGroup>
   <PropertyGroup Label="Globals">
-    <ProjectGuid>{5B870E7F-3EF4-4A5E-A79E-53DA4138E1AE}</ProjectGuid>
+    <ProjectGuid>{6AD54F75-A2E1-40BF-84E2-B77420E8DC6A}</ProjectGuid>
     <Keyword>Win32Proj</Keyword>
     <RootNamespace>Modules</RootNamespace>
   </PropertyGroup>
@@ -44,8 +44,8 @@
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <LinkIncremental>true</LinkIncremental>
     <TargetExt>.mod</TargetExt>
-    <IncludePath>..\..\..\..\clib\include;..\..\..\..\kernel\Arch;..\..\..\..\kernel\Include;..\..\Include</IncludePath>
-    <LibraryPath>..\..\..\..\clib\build;..\..\Build;..\..\..\..\kernel\Build</LibraryPath>
+    <IncludePath>..\..\..\clib\include;..\..\..\kernel\Arch;..\..\..\kernel\Include;..\..\Include</IncludePath>
+    <LibraryPath>..\..\..\clib\build;..\..\Build;..\..\..\kernel\Build</LibraryPath>
     <SourcePath />
     <GenerateManifest>false</GenerateManifest>
     <OutDir>$(SolutionDir)\Build\</OutDir>
@@ -69,6 +69,7 @@
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <AssemblerOutput>All</AssemblerOutput>
       <InlineFunctionExpansion>Disabled</InlineFunctionExpansion>
+      <DisableSpecificWarnings>4127</DisableSpecificWarnings>
     </ClCompile>
     <Link>
       <SubSystem>Native</SubSystem>
@@ -101,13 +102,13 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClInclude Include="Ohci.h" />
+    <ClInclude Include="Ehci.h" />
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="Ohci.c" />
+    <ClCompile Include="Ehci.c" />
   </ItemGroup>
   <ItemGroup>
-    <None Include="Ohci.mdrv" />
+    <None Include="Ehci.mdrv" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

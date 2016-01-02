@@ -38,7 +38,7 @@ void PrintHeader(MCoreBootInfo_t *BootInfo)
 {
 	Log("MollenOS - Platform: %s - Version %i.%i.%i",
 		ARCHITECTURE_NAME, REVISION_MAJOR, REVISION_MINOR, REVISION_BUILD);
-	Log("Written by Philip Meulengracht, Copyright 2011-2015.");
+	Log("Written by Philip Meulengracht, Copyright 2011-2016.");
 	Log("Bootloader - %s", BootInfo->BootloaderName);
 	Log("VC Build %s - %s\n", BUILD_DATE, BUILD_TIME);
 }
@@ -60,7 +60,7 @@ void MCoreInitialize(MCoreBootInfo_t *BootInfo)
 	/* Init the heap */
 	HeapInit();
 
-	/* Init post-heap systems */
+	/* Init the device manager */
 	DmInit();
 
 	/* Upgrade the log */
@@ -100,7 +100,8 @@ void MCoreInitialize(MCoreBootInfo_t *BootInfo)
 	* is now totally done, and the moment we start another
 	* thread, it will take over as this is the idle thread */
 
-	/* Drivers */
+	/* Drivers 
+	 * Start the bus driver */
 	ThreadingCreateThread("DriverSetup", DevicesInit, NULL, 0);
 
 	/* Enter Idle Loop */

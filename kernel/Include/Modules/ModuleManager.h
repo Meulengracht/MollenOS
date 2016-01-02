@@ -34,6 +34,7 @@
 
 /* Definitions */
 #define MODULE_FILESYSTEM	0x01010101
+#define MODULE_BUS			0x02020202
 
 /* Enums */
 typedef enum _ModuleResult

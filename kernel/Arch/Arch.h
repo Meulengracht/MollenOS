@@ -55,11 +55,42 @@ _CRT_EXTERN void AddressSpaceSwitch(AddressSpace_t *AddrSpace);
 _CRT_EXTERN AddressSpace_t *AddressSpaceGetCurrent(void);
 
 _CRT_EXTERN void AddressSpaceReleaseKernel(AddressSpace_t *AddrSpace);
-_CRT_EXTERN void AddressSpaceMap(AddressSpace_t *AddrSpace, VirtAddr_t Address, size_t Size, int UserMode);
+_CRT_EXTERN void AddressSpaceMap(AddressSpace_t *AddrSpace, 
+	VirtAddr_t Address, size_t Size, int UserMode);
 _CRT_EXTERN void AddressSpaceMapFixed(AddressSpace_t *AddrSpace,
 	PhysAddr_t PhysicalAddr, VirtAddr_t VirtualAddr, size_t Size, int UserMode);
 _CRT_EXTERN void AddressSpaceUnmap(AddressSpace_t *AddrSpace, VirtAddr_t Address, size_t Size);
 _CRT_EXTERN PhysAddr_t AddressSpaceGetMap(AddressSpace_t *AddrSpace, VirtAddr_t Address);
+
+/***********************
+* Device Io Spaces     *
+* Used for abstracting *
+* device addressing    *
+***********************/
+#define DEVICE_IO_SPACE_IO		0x1
+#define DEVICE_IO_SPACE_MMIO	0x2
+
+/* Structures */
+typedef struct _DeviceIoSpace
+{
+	/* Type */
+	int Type;
+
+	/* Base */
+	Addr_t PhysicalBase;
+	Addr_t VirtualBase;
+
+	/* Size */
+	size_t Size;
+
+} DeviceIoSpace_t;
+
+/* Functions */
+_CRT_EXTERN DeviceIoSpace_t *IoSpaceCreate(int Type, Addr_t PhysicalBase, size_t Size);
+_CRT_EXTERN void IoSpaceDestroy(DeviceIoSpace_t *IoSpace);
+
+_CRT_EXTERN size_t IoSpaceRead(DeviceIoSpace_t *IoSpace, size_t Offset, size_t Length);
+_CRT_EXTERN void IoSpaceWrite(DeviceIoSpace_t *IoSpace, size_t Offset, size_t Value, size_t Length);
 
 /***********************
 * Spinlock Interface   *

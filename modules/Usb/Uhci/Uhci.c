@@ -551,7 +551,7 @@ void UhciInitQueues(UhciController_t *Controller)
 void UhciPortReset(UhciController_t *Controller, uint32_t Port)
 {
 	/* Calc */
-	uint16_t Temp, i;
+	uint16_t Temp;
 	uint16_t pOffset = (UHCI_REGISTER_PORT_BASE + ((uint16_t)Port * 2));
 
 	/* Step 1. Send reset signal */
@@ -564,48 +564,33 @@ void UhciPortReset(UhciController_t *Controller, uint32_t Port)
 	Temp = UhciRead16(Controller, pOffset);
 	UhciWrite16(Controller, pOffset, Temp & ~UHCI_PORT_RESET);
 
-	/* Recovery Wait */
-	StallMs(10);
+	/* Recovery Wait (We should wait for CSC) */
+	Temp = 0;
+	WaitForConditionWithFault(Temp,
+		(UhciRead16(Controller, pOffset) & UHCI_PORT_CONNECT_EVENT), 100, 4);
+
+	/* Even if it fails, try to enable anyway */
 
 	/* Step 2. Enable Port */
-	Temp = UhciRead16(Controller, pOffset) & 0xFFF5;
+	Temp = UhciRead16(Controller, pOffset);
 	UhciWrite16(Controller, pOffset, Temp | UHCI_PORT_ENABLED);
 
 	/* Wait for enable, with timeout */
-	i = 0;
-	while (i < 10)
-	{
-		/* Increase */
-		i++;
-
-		/* Stall */
-		StallMs(10);
-
-		/* Check status */
-		Temp = UhciRead16(Controller, pOffset);
-
-		/* Is device still connected? */
-		if (!(Temp & UHCI_PORT_CONNECT_STATUS))
-			return;
-
-		/* Has it raised any event bits? In that case clear'em */
-		if (Temp & (UHCI_PORT_CONNECT_EVENT | UHCI_PORT_ENABLED_EVENT))
-		{
-			UhciWrite16(Controller, pOffset, Temp);
-			continue;
-		}
-
-		/* Done? */
-		if (Temp & UHCI_PORT_ENABLED)
-			break;
-	}
+	Temp = 0;
+	WaitForConditionWithFault(Temp,
+		(UhciRead16(Controller, pOffset) & UHCI_PORT_ENABLED), 100, 2);
 
 	/* Sanity */
-	if (i == 10)
+	if (Temp)
 	{
-		LogDebug("UHCI", "Port %u Reset Failed!", Port);
+		LogDebug("UHCI", "Port %u Reset time-out!", Port);
 		return;
 	}
+
+	/* Clear any connection event bits */
+	Temp = UhciRead16(Controller, pOffset);
+	if (Temp & (UHCI_PORT_CONNECT_EVENT | UHCI_PORT_ENABLED_EVENT))
+		UhciWrite16(Controller, pOffset, Temp);
 }
 
 /* Detect any port changes */

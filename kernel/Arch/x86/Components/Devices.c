@@ -22,6 +22,8 @@
 
 /* Includes */
 #include <Modules/ModuleManager.h>
+#include "../Arch.h"
+#include <Memory.h>
 #include <AcpiSys.h>
 #include <Pci.h>
 #include <Heap.h>
@@ -258,6 +260,158 @@ void DevicesInit(void *Args)
 
 /* Externs */
 extern x86CpuObject_t GlbBootCpuInfo;
+
+/* Device Io Space */
+DeviceIoSpace_t *IoSpaceCreate(int Type, Addr_t PhysicalBase, size_t Size)
+{
+	/* Allocate */
+	DeviceIoSpace_t *IoSpace = (DeviceIoSpace_t*)kmalloc(sizeof(DeviceIoSpace_t));
+
+	/* Setup */
+	IoSpace->Type = Type;
+	IoSpace->PhysicalBase = PhysicalBase;
+	IoSpace->VirtualBase = 0;
+	IoSpace->Size = Size;
+
+	/* Map it in (if needed) */
+	if (Type == DEVICE_IO_SPACE_MMIO) 
+	{
+		/* Calculate number of pages to map in */
+		int PageCount = Size / PAGE_SIZE;
+		if (Size % PAGE_SIZE)
+			PageCount++;
+
+		/* Map it */
+		IoSpace->VirtualBase = MmVirtualMapSysMemory(PhysicalBase, PageCount);
+	}
+	
+	/* Done! */
+	return IoSpace;
+}
+
+/* Cleanup Io Space */
+void IoSpaceDestroy(DeviceIoSpace_t *IoSpace)
+{
+	/* Sanity */
+	if (IoSpace->Type == DEVICE_IO_SPACE_MMIO)
+	{
+		/* Calculate number of pages to ummap */
+		int i, PageCount = IoSpace->Size / PAGE_SIZE;
+		if (IoSpace->Size % PAGE_SIZE)
+			PageCount++;
+
+		/* Unmap them */
+		for (i = 0; i < PageCount; i++)
+			MmVirtualUnmap(NULL, IoSpace->VirtualBase + (i * PAGE_SIZE));
+	}
+
+	/* Free */
+	kfree(IoSpace);
+}
+
+/* Read from device space */
+size_t IoSpaceRead(DeviceIoSpace_t *IoSpace, size_t Offset, size_t Length)
+{
+	/* Result */
+	size_t Result = 0;
+
+	/* Sanity */
+	if (IoSpace->Type == DEVICE_IO_SPACE_IO)
+	{
+		/* Calculate final address */
+		uint16_t IoPort = (uint16_t)IoSpace->PhysicalBase + (uint16_t)Offset;
+
+		switch (Length) {
+		case 1:
+			Result = inb(IoPort);
+			break;
+		case 2:
+			Result = inw(IoPort);
+			break;
+		case 4:
+			Result = inl(IoPort);
+			break;
+		default:
+			break;
+		}
+	}
+	else if (IoSpace->Type == DEVICE_IO_SPACE_MMIO)
+	{
+		/* Calculat final address */
+		Addr_t MmAddr = IoSpace->VirtualBase + Offset;
+
+		switch (Length) {
+		case 1:
+			Result = *(uint8_t*)MmAddr;
+			break;
+		case 2:
+			Result = *(uint16_t*)MmAddr;
+			break;
+		case 4:
+			Result = *(uint32_t*)MmAddr;
+			break;
+#ifdef _X86_64
+		case 8:
+			Result = *(uint64_t*)MmAddr;
+			break;
+#endif
+		default:
+			break;
+		}
+	}
+
+	/* Done! */
+	return Result;
+}
+
+/* Write to device space */
+void IoSpaceWrite(DeviceIoSpace_t *IoSpace, size_t Offset, size_t Value, size_t Length)
+{
+	/* Sanity */
+	if (IoSpace->Type == DEVICE_IO_SPACE_IO)
+	{
+		/* Calculate final address */
+		uint16_t IoPort = (uint16_t)IoSpace->PhysicalBase + (uint16_t)Offset;
+
+		switch (Length) {
+		case 1:
+			outb(IoPort, (uint8_t)(Value & 0xFF));
+			break;
+		case 2:
+			outw(IoPort, (uint16_t)(Value & 0xFFFF));
+			break;
+		case 4:
+			outl(IoPort, (uint32_t)(Value & 0xFFFFFFFF));
+			break;
+		default:
+			break;
+		}
+	}
+	else if (IoSpace->Type == DEVICE_IO_SPACE_MMIO)
+	{
+		/* Calculat final address */
+		Addr_t MmAddr = IoSpace->VirtualBase + Offset;
+
+		switch (Length) {
+		case 1:
+			*(uint8_t*)MmAddr = (uint8_t)(Value & 0xFF);
+			break;
+		case 2:
+			*(uint16_t*)MmAddr = (uint16_t)(Value & 0xFFFF);
+			break;
+		case 4:
+			*(uint32_t*)MmAddr = (uint32_t)(Value & 0xFFFFFFFF);
+			break;
+#ifdef _X86_64
+		case 8:
+			*(uint64_t*)MmAddr = (uint64_t)(Value & 0xFFFFFFFFFFFFFFFF);
+			break;
+#endif
+		default:
+			break;
+		}
+	}
+}
 
 /* Backup Timer, Should always be provided */
 void DelayMs(uint32_t MilliSeconds)

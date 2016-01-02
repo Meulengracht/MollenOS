@@ -37,7 +37,8 @@ typedef int DevId_t;
 typedef enum _DeviceType
 {
 	DeviceCpu,
-	DeviceApic,
+	DeviceCpuCore,
+	DeviceController,
 	DeviceClock,
 	DeviceTimer,
 	DevicePerfTimer,
@@ -47,24 +48,6 @@ typedef enum _DeviceType
 
 } DeviceType_t;
 
-/* Structures */
-typedef struct _MCoreDevice
-{
-	/* Name */
-	char *Name;
-
-	/* System Id */
-	DevId_t Id;
-
-	/* Type */
-	DeviceType_t Type;
-
-	/* Device Data */
-	void *Data;
-
-} MCoreDevice_t;
-
-/* Device Requests */
 typedef enum _DeviceRequestType
 {
 	RequestQuery,
@@ -84,6 +67,49 @@ typedef enum _DeviceRequestStatus
 
 } DeviceRequestStatus_t;
 
+typedef enum _DriverStatus
+{
+	DriverNone,
+	DriverLoaded,
+	DriverActive,
+	DriverStopped
+
+} DriverStatus_t;
+
+/* Structures */
+typedef struct _MCoreDriver
+{
+	/* Name */
+	char *Name;
+
+	/* Version */
+	int Version;
+
+	/* Status */
+	DriverStatus_t Status;
+
+	/* Data */
+	void *Data;
+
+} MCoreDriver_t;
+
+typedef struct _MCoreDevice
+{
+	/* Name */
+	char *Name;
+
+	/* System Id */
+	DevId_t Id;
+
+	/* Type */
+	DeviceType_t Type;
+
+	/* Driver */
+	MCoreDriver_t Driver;
+
+} MCoreDevice_t;
+
+/* Device Requests */
 #pragma pack(push, 1)
 typedef struct _MCoreDeviceRequest
 {
@@ -96,7 +122,7 @@ typedef struct _MCoreDeviceRequest
 	/* Data */
 	uint64_t SectorLBA;
 	uint8_t *Buffer;
-	uint32_t Length;
+	size_t Length;
 
 	/* Result */
 	DeviceRequestStatus_t Status;
