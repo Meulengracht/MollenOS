@@ -37,6 +37,7 @@ typedef int DevId_t;
 /* Device Types */
 typedef enum _DeviceType
 {
+	DeviceUnknown,
 	DeviceCpu,
 	DeviceCpuCore,
 	DeviceController,
@@ -106,10 +107,9 @@ typedef struct _MCoreDevice
 	 * a driver */
 	DevInfo_t VendorId;
 	DevInfo_t DeviceId;
-	DevInfo_t ManufactorId;
 	DevInfo_t Class;
 	DevInfo_t Subclass;
-	DevInfo_t Protocol;
+	DevInfo_t Interface;
 
 	/* Type */
 	DeviceType_t Type;

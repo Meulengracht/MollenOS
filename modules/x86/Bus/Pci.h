@@ -32,6 +32,13 @@
 typedef int(*IrqHandler_t)(void*);
 #endif
 
+/* Sanity */
+#ifdef __X86_PCI
+#define _PCIBUS_API __declspec(dllexport)
+#else
+#define _PCIBUS_API __declspec(dllimport)
+#endif
+
 /* Definitions */
 #define X86_PCI_SELECT		0xCF8
 #define X86_PCI_DATA		0xCFC
@@ -166,16 +173,16 @@ typedef struct _PciDevice
 /* Prototypes */
 
 /* Read I/O */
-_CRT_EXTERN uint8_t PciRead8(uint32_t Bus, uint32_t Device, uint32_t Function, uint32_t Register);
-_CRT_EXTERN uint16_t PciRead16(uint32_t Bus, uint32_t Device, uint32_t Function, uint32_t Register);
-_CRT_EXTERN uint32_t PciRead32(uint32_t Bus, uint32_t Device, uint32_t Function, uint32_t Register);
-_CRT_EXPORT uint32_t PciDeviceRead(PciDevice_t *Device, uint32_t Register, uint32_t Length);
+_CRT_EXTERN uint8_t PciRead8(PciBus_t *BusIo, uint32_t Bus, uint32_t Device, uint32_t Function, uint32_t Register);
+_CRT_EXTERN uint16_t PciRead16(PciBus_t *BusIo, uint32_t Bus, uint32_t Device, uint32_t Function, uint32_t Register);
+_CRT_EXTERN uint32_t PciRead32(PciBus_t *BusIo, uint32_t Bus, uint32_t Device, uint32_t Function, uint32_t Register);
+_PCIBUS_API uint32_t PciDeviceRead(PciDevice_t *Device, uint32_t Register, uint32_t Length);
 
 /* Write I/O */
-_CRT_EXTERN void PciWrite8(uint32_t Bus, uint32_t Device, uint32_t Function, uint32_t Register, uint8_t Value);
-_CRT_EXTERN void PciWrite16(uint32_t Bus, uint32_t Device, uint32_t Function, uint32_t Register, uint16_t Value);
-_CRT_EXTERN void PciWrite32(uint32_t Bus, uint32_t Device, uint32_t Function, uint32_t Register, uint32_t Value);
-_CRT_EXPORT void PciDeviceWrite(PciDevice_t *Device, uint32_t Register, uint32_t Value, uint32_t Length);
+_CRT_EXTERN void PciWrite8(PciBus_t *BusIo, uint32_t Bus, uint32_t Device, uint32_t Function, uint32_t Register, uint8_t Value);
+_CRT_EXTERN void PciWrite16(PciBus_t *BusIo, uint32_t Bus, uint32_t Device, uint32_t Function, uint32_t Register, uint16_t Value);
+_CRT_EXTERN void PciWrite32(PciBus_t *BusIo, uint32_t Bus, uint32_t Device, uint32_t Function, uint32_t Register, uint32_t Value);
+_PCIBUS_API void PciDeviceWrite(PciDevice_t *Device, uint32_t Register, uint32_t Value, uint32_t Length);
 
 /* Decode PCI Device to String */
 _CRT_EXTERN const char *PciToString(uint8_t Class, uint8_t SubClass, uint8_t Interface);
@@ -183,12 +190,12 @@ _CRT_EXTERN const char *PciToString(uint8_t Class, uint8_t SubClass, uint8_t Int
 /* Helpers */
 
 /* Reads the vendor id at given location */
-_CRT_EXTERN uint16_t PciReadVendorId(uint32_t Bus, uint32_t Device, uint32_t Function);
-_CRT_EXTERN void PciReadFunction(PciNativeHeader_t *Pcs, uint32_t Bus, uint32_t Device, uint32_t Function);
+_CRT_EXTERN uint16_t PciReadVendorId(PciBus_t *BusIo, uint32_t Bus, uint32_t Device, uint32_t Function);
+_CRT_EXTERN void PciReadFunction(PciNativeHeader_t *Pcs, PciBus_t *BusIo, uint32_t Bus, uint32_t Device, uint32_t Function);
 
-_CRT_EXTERN uint8_t PciReadBaseClass(uint32_t Bus, uint32_t Device, uint32_t Function);
-_CRT_EXTERN uint8_t PciReadSubclass(uint32_t Bus, uint32_t Device, uint32_t Function);
-_CRT_EXTERN uint8_t PciReadSecondaryBusNumber(uint32_t Bus, uint32_t Device, uint32_t Function);
-_CRT_EXTERN uint8_t PciReadHeaderType(uint32_t Bus, uint32_t Device, uint32_t Function);
+_CRT_EXTERN uint8_t PciReadBaseClass(PciBus_t *BusIo, uint32_t Bus, uint32_t Device, uint32_t Function);
+_CRT_EXTERN uint8_t PciReadSubclass(PciBus_t *BusIo, uint32_t Bus, uint32_t Device, uint32_t Function);
+_CRT_EXTERN uint8_t PciReadSecondaryBusNumber(PciBus_t *BusIo, uint32_t Bus, uint32_t Device, uint32_t Function);
+_CRT_EXTERN uint8_t PciReadHeaderType(PciBus_t *BusIo, uint32_t Bus, uint32_t Device, uint32_t Function);
 
 #endif // !_X86_PCI_H_

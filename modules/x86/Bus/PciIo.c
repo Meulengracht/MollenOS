@@ -51,7 +51,7 @@ uint16_t PciRead16(PciBus_t *BusIo,
 	uint32_t Bus, uint32_t Device, uint32_t Function, uint32_t Register)
 {
 	if (BusIo->IsExtended) {
-		return IoSpaceRead(BusIo->IoSpace,
+		return (uint16_t)IoSpaceRead(BusIo->IoSpace,
 			((Bus << 20) | (Device << 15)
 			| (Function << 12)
 			| Register), 2);
@@ -73,7 +73,7 @@ uint16_t PciRead16(PciBus_t *BusIo,
 uint8_t PciRead8(PciBus_t *BusIo, uint32_t Bus, uint32_t Device, uint32_t Function, uint32_t Register)
 {
 	if (BusIo->IsExtended) {
-		return IoSpaceRead(BusIo->IoSpace,
+		return (uint8_t)IoSpaceRead(BusIo->IoSpace,
 			((Bus << 20) | (Device << 15)
 			| (Function << 12)
 			| Register), 1);
@@ -96,7 +96,7 @@ uint8_t PciRead8(PciBus_t *BusIo, uint32_t Bus, uint32_t Device, uint32_t Functi
 void PciWrite32(PciBus_t *BusIo, uint32_t Bus, uint32_t Device, uint32_t Function, uint32_t Register, uint32_t Value)
 {
 	if (BusIo->IsExtended) {
-		return IoSpaceWrite(BusIo->IoSpace,
+		IoSpaceWrite(BusIo->IoSpace,
 			((Bus << 20) | (Device << 15)
 			| (Function << 12)
 			| Register), Value, 4);
@@ -118,7 +118,7 @@ void PciWrite32(PciBus_t *BusIo, uint32_t Bus, uint32_t Device, uint32_t Functio
 void PciWrite16(PciBus_t *BusIo, uint32_t Bus, uint32_t Device, uint32_t Function, uint32_t Register, uint16_t Value)
 {
 	if (BusIo->IsExtended) {
-		return IoSpaceWrite(BusIo->IoSpace,
+		IoSpaceWrite(BusIo->IoSpace,
 			((Bus << 20) | (Device << 15)
 			| (Function << 12)
 			| Register), Value, 2);
@@ -140,7 +140,7 @@ void PciWrite16(PciBus_t *BusIo, uint32_t Bus, uint32_t Device, uint32_t Functio
 void PciWrite8(PciBus_t *BusIo, uint32_t Bus, uint32_t Device, uint32_t Function, uint32_t Register, uint8_t Value)
 {
 	if (BusIo->IsExtended) {
-		return IoSpaceWrite(BusIo->IoSpace,
+		IoSpaceWrite(BusIo->IoSpace,
 			((Bus << 20) | (Device << 15)
 			| (Function << 12)
 			| Register), Value, 1);

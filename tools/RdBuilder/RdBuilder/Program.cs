@@ -19,28 +19,28 @@ namespace RdBuilder
 
             /* Get architecture */
             String Arch = "";
-            if (args != null && args.Length >= 1 && args[0].Length > 1 && ((int)args[0][0] == 45 || (int)args[0][0] == 47))
-            {
-                switch (args[0].Substring(1).ToLower())
-                {
-                    case "arch":
-                        {
-                            /* Sanity */
-                            if (args.Length < 2)
-                            {
-                                /* Default to x86 */
-                                Arch = "x86";
-                            }
-                            else
-                                Arch = args[1];
-                        } break;
-                }
-            }
-            else
-            {
-                /* Default to x86 */
-                Arch = "x86";
-            }
+//            if (args != null && args.Length >= 1 && args[0].Length > 1 && ((int)args[0][0] == 45 || (int)args[0][0] == 47))
+//            {
+//                switch (args[0].Substring(1).ToLower())
+//                {
+//                    case "arch":
+//                        {
+//                            /* Sanity */
+//                            if (args.Length < 2)
+//                            {
+//                                /* Default to x86 */
+//                                Arch = "x86";
+//                            }
+//                            else
+//                                Arch = args[1];
+//                        } break;
+//                }
+//            }
+//            else
+//            {
+//                /* Default to x86 */
+//                Arch = "x86";
+//            }
  
             /* Get a list of all *.mod */
             String[] lFiles = Directory.GetFiles(Arch + "/Build/", "*.mod");
