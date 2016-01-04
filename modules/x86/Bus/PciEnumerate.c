@@ -29,6 +29,7 @@
 #include "Pci.h"
 #include <List.h>
 #include <Heap.h>
+#include <Log.h>
 
 /* The MCFG Entry */
 #pragma pack(push, 1)
@@ -55,6 +56,128 @@ list_t *GlbPciDevices = NULL;
 
 /* Prototypes */
 void PciCheckBus(list_t *Bridge, PciBus_t *Bus, uint8_t BusNo);
+
+/* Validate size */
+uint64_t PciValidateBarSize(uint64_t Base, uint64_t MaxBase, uint64_t Mask)
+{
+	/* Find the significant bits */
+	uint64_t Size = Mask & MaxBase;
+
+	/* Sanity */
+	if (!Size)
+		return 0;
+
+	/* Calc correct size */
+	Size = (Size & ~(Size - 1)) - 1;
+
+	/* Sanitize the base */
+	if (Base == MaxBase && ((Base | Size) & Mask) != Mask)
+		return 0;
+
+	/* Done! */
+	return Size;
+}
+
+/* Read IO Areas */
+void PciReadBars(PciBus_t *Bus, MCoreDevice_t *Device, uint32_t HeaderType)
+{
+	/* Sanity */
+	int Count = (HeaderType & 0x1) == 0x1 ? 2 : 6;
+	int i;
+
+	/* Iterate */
+	for (i = 0; i < Count; i++)
+	{
+		/* Vars */
+		uint32_t Offset = 0x10 + (i << 2);
+		uint32_t Space32, Size32, Mask32;
+		uint64_t Space64, Size64, Mask64;
+
+		/* Calc initial mask */
+		Mask32 = (HeaderType & 0x1) == 0x1 ? ~0x7FF : 0xFFFFFFFF;
+
+		/* Read */
+		Space32 = PciRead32(Bus, Device->Bus, Device->Device, Device->Function, Offset);
+		PciWrite32(Bus, Device->Bus, Device->Device, Device->Function, Offset, Space32 | Mask32);
+		Size32 = PciRead32(Bus, Device->Bus, Device->Device, Device->Function, Offset);
+		PciWrite32(Bus, Device->Bus, Device->Device, Device->Function, Offset, Space32);
+
+		/* Sanity */
+		if (Size32 == 0xFFFFFFFF)
+			Size32 = 0;
+		if (Space32 == 0xFFFFFFFF)
+			Space32 = 0;
+
+		/* Io? */
+		if (Space32 & 0x1) 
+		{
+			/* Modify mask */
+			Mask64 = 0xFFFC;
+			Size64 = Size32;
+			Space64 = Space32 & 0xFFFC;
+
+			/* Correct the size */
+			Size64 = PciValidateBarSize(Space64, Size64, Mask64);
+
+			/* Sanity */
+			if (Space64 != 0
+				&& Size64 != 0)
+				Device->IoSpaces[i] = IoSpaceCreate(DEVICE_IO_SPACE_IO, (Addr_t)Space64, (size_t)Size64);
+		}
+
+		/* Memory, 64 bit or 32 bit? */
+		else if (Space32 & 0x4) {
+
+			/* 64 Bit */
+			Space64 = Space32 & 0xFFFFFFF0;
+			Size64 = Size32 & 0xFFFFFFF0;
+			Mask64 = 0xFFFFFFFFFFFFFFF0;
+			
+			/* Calculate new offset */
+			i++;
+			Offset = 0x10 + (i << 2);
+
+			/* Read */
+			Space32 = PciRead32(Bus, Device->Bus, Device->Device, Device->Function, Offset);
+			PciWrite32(Bus, Device->Bus, Device->Device, Device->Function, Offset, 0xFFFFFFFF);
+			Size32 = PciRead32(Bus, Device->Bus, Device->Device, Device->Function, Offset);
+			PciWrite32(Bus, Device->Bus, Device->Device, Device->Function, Offset, Space32);
+
+			/* Add */
+			Space64 |= ((uint64_t)Space32 << 32);
+			Size64 |= ((uint64_t)Size32 << 32);
+
+			/* Sanity */
+			if (sizeof(Addr_t) < 8
+				&& Space64 > SIZE_MAX) {
+				LogFatal("PCIE", "Found 64 bit device with 64 bit address, can't use it in 32 bit mode");
+				return;
+			}
+
+			/* Correct the size */
+			Size64 = PciValidateBarSize(Space64, Size64, Mask64);
+
+			/* Create */
+			if (Space64 != 0
+				&& Size64 != 0)
+				Device->IoSpaces[i] = IoSpaceCreate(DEVICE_IO_SPACE_IO, (Addr_t)Space64, (size_t)Size64);
+		}
+		else {
+			/* Set mask */
+			Space64 = Space32 & 0xFFFFFFF0;
+			Size64 = Size32 & 0xFFFFFFF0;
+			Mask64 = 0xFFFFFFF0;
+
+			/* Correct the size */
+			Size64 = PciValidateBarSize(Space64, Size64, Mask64);
+
+			/* Create */
+			if (Space64 != 0
+				&& Size64 != 0)
+				Device->IoSpaces[i] = IoSpaceCreate(DEVICE_IO_SPACE_IO, (Addr_t)Space64, (size_t)Size64);
+		}
+	}
+}
 
 /* Check a function */
 /* For each function we create a 
@@ -96,7 +219,8 @@ void PciCheckFunction(list_t *Bridge, PciBus_t *BusIo, uint8_t Bus, uint8_t Devi
 	}
 
 	/* Do some disabling, but NOT on the video or bridge */
-	if ((Pcs->Class != PCI_DEVICE_CLASS_BRIDGE) && (Pcs->Class != PCI_DEVICE_CLASS_VIDEO))
+	if ((Pcs->Class != PCI_DEVICE_CLASS_BRIDGE) 
+		&& (Pcs->Class != PCI_DEVICE_CLASS_VIDEO))
 	{
 		/* Disable Device untill further notice */
 		uint16_t PciSettings = PciRead16(BusIo, Bus, Device, Function, 0x04);
@@ -108,6 +232,13 @@ void PciCheckFunction(list_t *Bridge, PciBus_t *BusIo, uint8_t Bus, uint8_t Devi
 	{
 		PciDevice->Type = X86_PCI_TYPE_BRIDGE;
 		list_append(Bridge, list_create_node(X86_PCI_TYPE_BRIDGE, PciDevice));
+
+		/* Uh oh, this dude has children */
+		PciDevice->Children = list_create(LIST_SAFE);
+
+		/* Get secondary bus no and iterate */
+		SecondBus = PciReadSecondaryBusNumber(BusIo, Bus, Device, Function);
+		PciCheckBus(PciDevice->Children, BusIo, SecondBus);
 	}
 	else
 	{
@@ -117,6 +248,7 @@ void PciCheckFunction(list_t *Bridge, PciBus_t *BusIo, uint8_t Bus, uint8_t Devi
 
 		/* Register device with the OS */
 		mDevice = (MCoreDevice_t*)kmalloc(sizeof(MCoreDevice_t));
+		memset(mDevice, 0, sizeof(MCoreDevice_t));
 		
 		/* Setup information */
 		mDevice->VendorId = Pcs->VendorId;
@@ -124,6 +256,15 @@ void PciCheckFunction(list_t *Bridge, PciBus_t *BusIo, uint8_t Bus, uint8_t Devi
 		mDevice->Class = Pcs->Class;
 		mDevice->Subclass = Pcs->Subclass;
 		mDevice->Interface = Pcs->Interface;
+
+		mDevice->Segment = (DevInfo_t)BusIo->Segment;
+		mDevice->Bus = Bus;
+		mDevice->Device = Device;
+		mDevice->Function = Function;
+
+		mDevice->IrqLine = -1;
+		mDevice->IrqPin = (int)Pcs->InterruptPin;
+		mDevice->IrqAvailable[0] = Pcs->InterruptLine;
 
 		/* Type */
 		mDevice->Type = DeviceUnknown;
@@ -138,18 +279,11 @@ void PciCheckFunction(list_t *Bridge, PciBus_t *BusIo, uint8_t Bus, uint8_t Devi
 		mDevice->Driver.Data = NULL;
 		mDevice->Driver.Status = DriverNone;
 
+		/* Read Bars */
+		PciReadBars(BusIo, mDevice, Pcs->HeaderType);
+
 		/* Register */
 		DmCreateDevice((char*)PciToString(Pcs->Class, Pcs->Subclass, Pcs->Interface), mDevice);
-	}
-
-	/* Is this a secondary (PCI) bus */
-	if ((Pcs->Class == PCI_DEVICE_CLASS_BRIDGE) && (Pcs->Subclass == PCI_DEVICE_SUBCLASS_PCI))
-	{
-		/* Uh oh, this dude has children */
-		PciDevice->Children = list_create(LIST_SAFE);
-
-		SecondBus = PciReadSecondaryBusNumber(BusIo, Bus, Device, Function);
-		PciCheckBus(PciDevice->Children, BusIo, SecondBus);
 	}
 }
 
@@ -220,11 +354,8 @@ MODULES_API void ModuleInit(void *Data)
 			/* Allocate entry */
 			PciBus_t *Bus = (PciBus_t*)kmalloc(sizeof(PciBus_t));
 
-			/* Get size, which is the rest of the bytes */
-			int PageCount = (1024 * 1024 * 256) / PAGE_SIZE;
-
 			/* Memory Map 256 MB!!!!! Oh fucking god */
-			Bus->IoSpace = IoSpaceCreate(DEVICE_IO_SPACE_MMIO, (Addr_t)Entry->BaseAddress, PageCount);
+			Bus->IoSpace = IoSpaceCreate(DEVICE_IO_SPACE_MMIO, (Addr_t)Entry->BaseAddress, (1024 * 1024 * 256));
 			Bus->IsExtended = 1;
 			Bus->BusStart = Entry->StartBus;
 			Bus->BusEnd = Entry->EndBus;

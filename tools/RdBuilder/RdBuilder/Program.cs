@@ -43,7 +43,7 @@ namespace RdBuilder
 //            }
  
             /* Get a list of all *.mod */
-            String[] lFiles = Directory.GetFiles(Arch + "/Build/", "*.mod");
+            String[] lFiles = Directory.GetFiles(Arch + "Build/", "*.mod");
 
             /* Iterate */
             Console.WriteLine("Drivers Found:");

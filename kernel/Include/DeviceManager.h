@@ -33,6 +33,8 @@ typedef int DevId_t;
 
 /* Erhhh, limitiations? */
 #define DEVICEMANAGER_MAX_IO_SIZE		(16 * 1024)
+#define DEVICEMANAGER_MAX_IRQS			8
+#define DEVICEMANAGER_MAX_IOSPACES		6
 
 /* Device Types */
 typedef enum _DeviceType
@@ -98,6 +100,9 @@ typedef struct _MCoreDriver
 
 typedef struct _MCoreDevice
 {
+	/* System Id */
+	DevId_t Id;
+
 	/* Name */
 	char *Name;
 
@@ -114,8 +119,19 @@ typedef struct _MCoreDevice
 	/* Type */
 	DeviceType_t Type;
 
-	/* System Id */
-	DevId_t Id;
+	/* Bus Location */
+	DevInfo_t Segment;
+	DevInfo_t Bus;
+	DevInfo_t Device;
+	DevInfo_t Function;
+
+	/* Irq Information */
+	int IrqLine;
+	int IrqPin;
+	int IrqAvailable[DEVICEMANAGER_MAX_IRQS];
+
+	/* I/O Spaces */
+	DeviceIoSpace_t *IoSpaces[DEVICEMANAGER_MAX_IOSPACES];
 
 	/* Driver */
 	MCoreDriver_t Driver;
