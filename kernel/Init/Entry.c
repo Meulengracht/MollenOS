@@ -101,7 +101,7 @@ void MCoreInitialize(MCoreBootInfo_t *BootInfo)
 
 	/* Drivers 
 	 * Start the bus driver */
-	ThreadingCreateThread("DriverSetup", DevicesInit, NULL, 0);
+	//ThreadingCreateThread("DriverSetup", DevicesInit, NULL, 0);
 
 	/* Enter Idle Loop */
 	while (1)

@@ -25,9 +25,10 @@
 #include <Devices\Clock.h>
 #include <Module.h>
 #include <Cmos.h>
+#include <Heap.h>
 
 /* Clib */
-#include <Heap.h>
+#include <string.h>
 
 /* Structures */
 #pragma pack(push, 1)
@@ -43,6 +44,7 @@ typedef struct _CmosClock
 #pragma pack(pop)
 
 /* Mutex */
+const char *GlbCmosDriverName = "MollenOS CMOS Driver";
 Mutex_t *GlbCmosLock = NULL;
 
 /* Gets current time and stores it in a time structure */
@@ -132,6 +134,7 @@ void CmosGetTime(void *Data, tm *TimeStructure)
 MODULES_API void ModuleInit(void *Data)
 {
 	/* Vars */
+	MCoreDevice_t *Device = NULL;
 	MCoreClockDevice_t *Clock = NULL;
 	CmosClock_t *Cmos = NULL;
 
@@ -139,21 +142,42 @@ MODULES_API void ModuleInit(void *Data)
 	GlbCmosLock = MutexCreate();
 
 	/* Allocate */
+	Device = (MCoreDevice_t*)kmalloc(sizeof(MCoreDevice_t));
 	Cmos = (CmosClock_t*)kmalloc(sizeof(CmosClock_t));
 	Clock = (MCoreClockDevice_t*)kmalloc(sizeof(MCoreClockDevice_t));
 
-	/* Set */
+	/* Setup Cmos object */
 	if (Data != NULL)
 		Cmos->AcpiCentury = *(uint8_t*)Data;
 	else
 		Cmos->AcpiCentury = 0;
 
 	/* Setup Clock */
-	Clock->ClockData = Cmos;
 	Clock->GetTime = CmosGetTime;
 
+	/* Setup device */
+	memset(Device, 0, sizeof(MCoreDevice_t));
+
+	/* Setup information */
+	Device->VendorId = 0x8086;
+	Device->DeviceId = 0x0;
+	Device->Class = DEVICEMANAGER_LEGACY_CLASS;
+
+	Device->IrqLine = -1;
+	Device->IrqPin = -1;
+
+	/* Type */
+	Device->Type = DeviceClock;
+	Device->Data = Clock;
+
+	/* Initial */
+	Device->Driver.Name = (char*)GlbCmosDriverName;
+	Device->Driver.Version = 1;
+	Device->Driver.Data = Cmos;
+	Device->Driver.Status = DriverActive;
+
 	/* Register */
-	Cmos->DeviceId = DmCreateDevice("CMOS Clock", DeviceClock, Cmos);
+	Cmos->DeviceId = DmCreateDevice("CMOS Clock", Device);
 }
 
 /* Helpers, I/O */

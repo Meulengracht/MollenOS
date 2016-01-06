@@ -63,6 +63,7 @@ int PitIrqHandler(void *Data)
 MODULES_API void ModuleInit(void *Data)
 {
 	/* We need these */
+	MCoreDevice_t *Device = NULL;
 	MCoreTimerDevice_t *Timer = NULL;
 	PitTimer_t *Pit = NULL;
 
@@ -74,6 +75,7 @@ MODULES_API void ModuleInit(void *Data)
 	_CRT_UNUSED(Data);
 
 	/* Allocate */
+	Device = (MCoreDevice_t*)kmalloc(sizeof(MCoreDevice_t));
 	Pit = (PitTimer_t*)kmalloc(sizeof(PitTimer_t));
 	Timer = (MCoreTimerDevice_t*)kmalloc(sizeof(MCoreTimerDevice_t));
 

@@ -12,8 +12,5 @@
     <CustomBuild Include="_Portio.asm">
       <Filter>Asm Files</Filter>
     </CustomBuild>
-    <CustomBuild Include="_Spinlock.asm">
-      <Filter>Asm Files</Filter>
-    </CustomBuild>
   </ItemGroup>
 </Project>

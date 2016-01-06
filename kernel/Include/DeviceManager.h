@@ -23,6 +23,7 @@
 #define _MCORE_DRIVER_MANAGER_H_
 
 /* Includes */
+#include "../Arch/Arch.h"
 #include <Devices/Video.h>
 #include <stdint.h>
 #include <Mutex.h>
@@ -30,6 +31,9 @@
 /* Definitions */
 typedef unsigned DevInfo_t;
 typedef int DevId_t;
+
+#define DEVICEMANAGER_LEGACY_CLASS		0x0000015A
+#define DEVICEMANAGER_ACPI_CLASS		0x0000AC71
 
 /* Erhhh, limitiations? */
 #define DEVICEMANAGER_MAX_IO_SIZE		(16 * 1024)
