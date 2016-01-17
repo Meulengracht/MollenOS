@@ -22,37 +22,8 @@ bits 32
 segment .text
 
 ;Functions in this asm
-global _SpinlockReset
 global __spinlock_acquire
 global __spinlock_release
-
-; void SpinlockReset(Spinlock_t *Spinlock)
-; We null the lock
-_SpinlockReset:
-	; Stack Frame
-	push ebp
-	mov ebp, esp
-
-	; Save stuff
-	push ebx
-
-	; Get address of lock
-	mov ebx, dword [ebp + 8]
-
-	; Sanity
-	test ebx, ebx
-	je .done
-
-	; Ok, we assume valid pointer, set it to 0
-	mov dword [ebx], 0
-	mov dword [ebx + 4], 0
-	mov dword [ebx + 8], 0xFFFFFFFF
-
-	; Release stack frame
-	.done:
-	pop ebx
-	pop ebp
-	ret 
 
 ; int spinlock_acquire(spinlock_t *spinlock)
 ; We wait for the spinlock to become free

@@ -35,12 +35,18 @@
 /* Scansets */
 #include <ScancodeSet2.h>
 
+/* Globals */
+const char *GlbPs2KeyboardDriverName = "MollenOS PS2-Keyboard Driver";
+
 /* Irq Handler */
 int Ps2KeyboadIrqHandler(void *Args)
 {
 	/* Get datastructure */
-	MCoreInputDevice_t *InputDev = (MCoreInputDevice_t*)Args;
-	Ps2KeyboardDevice_t *Ps2Dev = (Ps2KeyboardDevice_t*)InputDev->InputData;
+	MCoreDevice_t *mDev = (MCoreDevice_t*)Args;
+	MCoreInputDevice_t *InputDev = (MCoreInputDevice_t*)mDev->Data;
+	Ps2KeyboardDevice_t *Ps2Dev = (Ps2KeyboardDevice_t*)mDev->Driver.Data;
+
+	/* Vars */
 	uint8_t Scancode = 0;
 	MCoreButtonEvent_t bEvent;
 
@@ -78,7 +84,8 @@ int Ps2KeyboadIrqHandler(void *Args)
 		Ps2Dev->Buffer = 0;
 
 		/* Send */
-		InputDev->ReportEvent(&bEvent.Header);
+		if (InputDev->ReportEvent != NULL)
+			InputDev->ReportEvent(&bEvent.Header);
 	}
 
 	/* Done! */
@@ -91,24 +98,51 @@ void Ps2KeyboardInit(int Port, int Translation)
 	uint8_t Response = 0;
 
 	/* Allocate Data Structure */
+	MCoreDevice_t *Device = (MCoreDevice_t*)kmalloc(sizeof(MCoreDevice_t));
 	MCoreInputDevice_t *InputDev = (MCoreInputDevice_t*)kmalloc(sizeof(MCoreInputDevice_t));
 	Ps2KeyboardDevice_t *Ps2Dev = (Ps2KeyboardDevice_t*)kmalloc(sizeof(Ps2KeyboardDevice_t));
 	
+	/* Setup ps2 driver data */
 	memset(Ps2Dev, 0, sizeof(Ps2KeyboardDevice_t));
 	Ps2Dev->Port = Port;
 	Ps2Dev->Flags = 0;
 	Ps2Dev->Buffer = 0;
-	
-	InputDev->InputData = Ps2Dev;
+
+	/* Setup device data */
+	memset(Device, 0, sizeof(MCoreDevice_t));
+
+	/* Setup information */
+	Device->VendorId = 0x8086;
+	Device->DeviceId = 0x0;
+	Device->Class = DEVICEMANAGER_LEGACY_CLASS;
+	Device->Subclass = 0x00000010;
+
+	/* Irq information */
+	if (Port == 1)
+		Device->IrqLine = X86_PS2_PORT1_INTERRUPT;
+	else
+		Device->IrqLine = X86_PS2_PORT2_INTERRUPT;
+
+	Device->IrqPin = -1;
+
+	/* Type */
+	Device->Type = DeviceInput;
+	Device->Data = InputDev;
+
+	/* Initial */
+	Device->Driver.Name = (char*)GlbPs2KeyboardDriverName;
+	Device->Driver.Version = 1;
+	Device->Driver.Data = Ps2Dev;
+	Device->Driver.Status = DriverActive;
 
 	/* Create device in upper layer */
-	Ps2Dev->Id = DmCreateDevice("Ps2-Keyboard", DeviceInput, InputDev);
+	Ps2Dev->Id = DmCreateDevice("Ps2-Keyboard", Device);
 
 	/* Install Irq */
 	if (Port == 1)
-		InterruptInstallISA(X86_PS2_PORT1_INTERRUPT, INTERRUPT_PS2_PORT1, Ps2KeyboadIrqHandler, (void*)InputDev);
+		InterruptInstallISA(X86_PS2_PORT1_INTERRUPT, INTERRUPT_PS2_PORT1, Ps2KeyboadIrqHandler, Device);
 	else
-		InterruptInstallISA(X86_PS2_PORT2_INTERRUPT, INTERRUPT_PS2_PORT2, Ps2KeyboadIrqHandler, (void*)InputDev);
+		InterruptInstallISA(X86_PS2_PORT2_INTERRUPT, INTERRUPT_PS2_PORT2, Ps2KeyboadIrqHandler, Device);
 
 	/* Set scancode set to 2 */
 	if (Port == 2)

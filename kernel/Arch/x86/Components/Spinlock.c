@@ -64,3 +64,15 @@ void SpinlockRelease(Spinlock_t *Spinlock)
 	/* Step 2. Enable interrupts */
 	InterruptRestoreState(Spinlock->IntrState);
 }
+
+void SpinlockReset(Spinlock_t *Spinlock)
+{
+	/* Sanity */
+	if (Spinlock == NULL)
+		return;
+
+	/* Reset */
+	Spinlock->IntrState = 0;
+	Spinlock->Lock = 0;
+	Spinlock->Owner = 0xFFFFFFFF;
+}

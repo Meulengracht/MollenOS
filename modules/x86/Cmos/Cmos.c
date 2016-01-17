@@ -48,13 +48,14 @@ const char *GlbCmosDriverName = "MollenOS CMOS Driver";
 Mutex_t *GlbCmosLock = NULL;
 
 /* Gets current time and stores it in a time structure */
-void CmosGetTime(void *Data, tm *TimeStructure)
+void CmosGetTime(void *Device, tm *TimeStructure)
 {
 	int oSec, n;
 	uint8_t Century = 0;
 
 	/* Cast */
-	CmosClock_t *Cmos = (CmosClock_t*)Data;
+	MCoreDevice_t *mDev = (MCoreDevice_t*)Device;
+	CmosClock_t *Cmos = (CmosClock_t*)mDev->Driver.Data;
 
 	/* Do we support century? */
 	if (Cmos->AcpiCentury != 0)

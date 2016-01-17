@@ -28,16 +28,13 @@
 #pragma pack(push, 1)
 typedef struct _MCoreTimerDevice
 {
-	/* Timer Data */
-	void *TimerData;
-
 	/* Functions */
-	void (*Stall)(void *Data, uint32_t MilliSeconds);
-	void (*Sleep)(void *Data, uint32_t MilliSeconds);
-	uint64_t (*GetTicks)(void *Data);
+	void (*Stall)(void *Device, size_t MilliSeconds);
+	void (*Sleep)(void *Device, size_t MilliSeconds);
+	uint64_t (*GetTicks)(void *Device);
 
 	/* Report, can be used by the driver */
-	void (*ReportMs)(uint32_t Ms);
+	void (*ReportMs)(size_t Ms);
 
 } MCoreTimerDevice_t;
 #pragma pack(pop)

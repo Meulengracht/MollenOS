@@ -259,6 +259,7 @@ GetResponse:
 /* Setup */
 MODULES_API void ModuleInit(void *Data)
 {
+	/* Vars */
 	ACPI_TABLE_FADT *Fadt = NULL;
 	uint8_t Temp = 0;
 	int rError = 0;
@@ -280,6 +281,8 @@ MODULES_API void ModuleInit(void *Data)
 		else
 			GlbPs2Exists = 1;
 	}
+
+	/* So, assume Ps2 Controller is present */
 
 	/* Setup lock */
 	SpinlockReset(&GlbPs2Lock);

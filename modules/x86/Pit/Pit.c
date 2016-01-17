@@ -26,6 +26,9 @@
 #include "Pit.h"
 #include <Heap.h>
 
+/* CLib */
+#include <string.h>
+
 /* Structures */
 #pragma pack(push, 1)
 typedef struct _PitTimer
@@ -42,18 +45,23 @@ typedef struct _PitTimer
 } PitTimer_t;
 #pragma pack(pop)
 
+/* Globals */
+const char *GlbPitDriverName = "MollenOS PIT Driver";
+
 /* The Pit Handler */
 int PitIrqHandler(void *Data)
 {
 	/* Cast */
-	MCoreTimerDevice_t *Timer = (MCoreTimerDevice_t*)Data;
-	PitTimer_t *Pit = (PitTimer_t*)Timer->TimerData;
+	MCoreDevice_t *tDevice = (MCoreDevice_t*)Data;
+	MCoreTimerDevice_t *Timer = (MCoreTimerDevice_t*)tDevice->Data;
+	PitTimer_t *Pit = (PitTimer_t*)tDevice->Driver.Data;
 
 	/* Update Peroidic Tick Counter */
 	Pit->PitCounter++;
 
 	/* Apply Timer Time (roughly 1 ms) */
-	Timer->ReportMs(1);
+	if (Timer->ReportMs != NULL)
+		Timer->ReportMs(1);
 
 	/* Done */
 	return X86_IRQ_HANDLED;
@@ -79,22 +87,46 @@ MODULES_API void ModuleInit(void *Data)
 	Pit = (PitTimer_t*)kmalloc(sizeof(PitTimer_t));
 	Timer = (MCoreTimerDevice_t*)kmalloc(sizeof(MCoreTimerDevice_t));
 
-	/* Disable IRQ's for this duration */
-	IntrState = InterruptDisable();
+	/* Setup Pit object */
 	Pit->PitCounter = 0;
 	Pit->Divisor = Divisor;
 
 	/* Setup Timer */
-	Timer->TimerData = Pit;
+	Timer->ReportMs = NULL;
 	Timer->Sleep = PitSleep;
 	Timer->Stall = PitStall;
 	Timer->GetTicks = PitGetClocks;
 
-	/* Install Irq */
-	InterruptInstallISA(X86_PIT_IRQ, INTERRUPT_PIT, PitIrqHandler, Timer);
+	/* Setup device */
+	memset(Device, 0, sizeof(MCoreDevice_t));
+
+	/* Setup information */
+	Device->VendorId = 0x8086;
+	Device->DeviceId = 0x0;
+	Device->Class = DEVICEMANAGER_LEGACY_CLASS; 
+	Device->Subclass = 0x00000018;
+
+	Device->IrqLine = X86_PIT_IRQ;
+	Device->IrqPin = -1;
+
+	/* Type */
+	Device->Type = DeviceTimer;
+	Device->Data = Timer;
+
+	/* Initial */
+	Device->Driver.Name = (char*)GlbPitDriverName;
+	Device->Driver.Version = 1;
+	Device->Driver.Data = Pit;
+	Device->Driver.Status = DriverActive;
 
 	/* Before enabling, register us */
-	Pit->DeviceId = DmCreateDevice("PIT Timer", DeviceTimer, Timer);
+	Pit->DeviceId = DmCreateDevice("PIT Timer", Device);
+
+	/* Install Irq */
+	InterruptInstallISA(X86_PIT_IRQ, INTERRUPT_PIT, PitIrqHandler, Device);
+
+	/* Disable IRQ's for this duration */
+	IntrState = InterruptDisable();
 
 	/* We use counter 0, select counter 0 and configure it */
 	outb(X86_PIT_REGISTER_COMMAND,
@@ -111,33 +143,34 @@ MODULES_API void ModuleInit(void *Data)
 }
 
 /* Pit Ticks */
-uint64_t PitGetClocks(void *Data)
+uint64_t PitGetClocks(void *Device)
 {
 	/* Cast */
-	volatile PitTimer_t *Pit = (volatile PitTimer_t*)Data;
+	MCoreDevice_t *tDevice = (MCoreDevice_t*)Device;
+	PitTimer_t *Pit = (PitTimer_t*)tDevice->Driver.Data;
 
 	/* Return Val */
 	return Pit->PitCounter;
 }
 
 /* Sleep for ms */
-void PitSleep(void *Data, uint32_t MilliSeconds)
+void PitSleep(void *Device, size_t MilliSeconds)
 {
 	/* Calculate TickEnd in NanoSeconds */
-	uint64_t TickEnd = MilliSeconds + PitGetClocks(Data);
+	uint64_t TickEnd = MilliSeconds + PitGetClocks(Device);
 
 	/* While */
-	while (TickEnd >= PitGetClocks(Data))
+	while (TickEnd > PitGetClocks(Device))
 		_ThreadYield();
 }
 
 /* Stall for ms */
-void PitStall(void *Data, uint32_t MilliSeconds)
+void PitStall(void *Device, size_t MilliSeconds)
 {
 	/* Calculate TickEnd in NanoSeconds */
-	uint64_t TickEnd = MilliSeconds + PitGetClocks(Data);
+	uint64_t TickEnd = MilliSeconds + PitGetClocks(Device);
 
 	/* While */
-	while (TickEnd > PitGetClocks(Data))
+	while (TickEnd > PitGetClocks(Device))
 		_asm nop;
 }

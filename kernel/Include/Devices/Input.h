@@ -29,11 +29,8 @@
 #pragma pack(push, 1)
 typedef struct _MCoreInputDevice
 {
-	/* Input Data */
-	void *InputData;
-
 	/* Functions */
-	int (*Read)(void *Data);
+	int (*Read)(void *Device);
 
 	/* Reporting */
 	void (*ReportEvent)(MCoreProcessEvent_t *Event);

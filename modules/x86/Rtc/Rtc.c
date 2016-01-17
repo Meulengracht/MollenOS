@@ -26,9 +26,10 @@
 #include <Timers.h>
 #include <Module.h>
 #include <Cmos.h>
+#include <Heap.h>
 
 /* CLib */
-#include <Heap.h>
+#include <string.h>
 
 /* Structures */
 #pragma pack(push, 1)
@@ -49,18 +50,23 @@ typedef struct _RtcTimer
 } RtcTimer_t;
 #pragma pack(pop)
 
+/* Globals */
+const char *GlbRtcDriverName = "MollenOS RTC Driver";
+
 /* The Clock Handler */
-int RtcIrqHandler(void *Data)
+int RtcIrqHandler(void *DevData)
 {
 	/* Cast */
-	MCoreTimerDevice_t *TimerData = (MCoreTimerDevice_t*)Data;
-	RtcTimer_t *Rtc = (RtcTimer_t*)TimerData->TimerData;
+	MCoreDevice_t *tDevice = (MCoreDevice_t*)DevData;
+	MCoreTimerDevice_t *Timer = (MCoreTimerDevice_t*)tDevice->Data;
+	RtcTimer_t *Rtc = (RtcTimer_t*)tDevice->Driver.Data;
 
 	/* Update Peroidic Tick Counter */
 	Rtc->NsCounter += Rtc->NsTick;
 
 	/* Apply Timer Time (roughly 1 ms) */
-	TimerData->ReportMs(1);
+	if (Timer->ReportMs != NULL)
+		Timer->ReportMs(1);
 
 	/* Acknowledge Irq 8 by reading register C */
 	CmosReadRegister(X86_CMOS_REGISTER_STATUS_C);
@@ -70,64 +76,70 @@ int RtcIrqHandler(void *Data)
 }
 
 /* Rtc Ticks */
-uint64_t RtcGetClocks(void *Data)
+uint64_t RtcGetClocks(void *Device)
 {
 	/* Cast */
-	RtcTimer_t *Rtc = (RtcTimer_t*)Data;
+	MCoreDevice_t *tDevice = (MCoreDevice_t*)Device;
+	RtcTimer_t *Rtc = (RtcTimer_t*)tDevice->Driver.Data;
 
 	/* Done */
 	return Rtc->NsCounter;
 }
 
 /* Sleep for ms */
-void RtcSleep(void *Data, uint32_t MilliSeconds)
+void RtcSleep(void *Device, size_t MilliSeconds)
 {
 	/* Calculate TickEnd in NanoSeconds */
-	uint64_t TickEnd = (MilliSeconds * 1000) + RtcGetClocks(Data);
+	uint64_t TickEnd = (MilliSeconds * 1000) + RtcGetClocks(Device);
 
 	/* If glb_clock_tick is 0, RTC failure */
-	if (RtcGetClocks(Data) == 0)
+	if (RtcGetClocks(Device) == 0)
 	{
 		DelayMs(MilliSeconds);
 		return;
 	}
 
 	/* While */
-	while (TickEnd >= RtcGetClocks(Data))
+	while (TickEnd >= RtcGetClocks(Device))
 		_ThreadYield();
 }
 
 /* Stall for ms */
-void RtcStall(void *Data, uint32_t MilliSeconds)
+void RtcStall(void *Device, size_t MilliSeconds)
 {
 	/* Calculate TickEnd in NanoSeconds */
-	uint64_t TickEnd = (MilliSeconds * 1000) + RtcGetClocks(Data);
+	uint64_t TickEnd = (MilliSeconds * 1000) + RtcGetClocks(Device);
 
 	/* If glb_clock_tick is 0, RTC failure */
-	if (RtcGetClocks(Data) == 0)
+	if (RtcGetClocks(Device) == 0)
 	{
 		DelayMs(MilliSeconds);
 		return;
 	}
 
 	/* While */
-	while (TickEnd >= RtcGetClocks(Data))
+	while (TickEnd >= RtcGetClocks(Device))
 		_asm nop;
 }
 
 /* Entry point of a module */
 MODULES_API void ModuleInit(void *Data)
 {
+	/* Vars */
 	IntStatus_t IntrState;
 	uint8_t StateB = 0;
 	uint8_t Rate = 0x08; /* must be between 3 and 15 */
+	
+	/* Data pointers */
+	MCoreDevice_t *Device = NULL;
 	MCoreTimerDevice_t *TimerData = NULL;
 	RtcTimer_t *Rtc = NULL;
 
-	/* Save Table */
+	/* Unused */
 	_CRT_UNUSED(Data);
 
 	/* Allocate */
+	Device = (MCoreDevice_t*)kmalloc(sizeof(MCoreDevice_t));
 	Rtc = (RtcTimer_t*)kmalloc(sizeof(RtcTimer_t));
 	TimerData = (MCoreTimerDevice_t*)kmalloc(sizeof(MCoreTimerDevice_t));
 
@@ -138,16 +150,37 @@ MODULES_API void ModuleInit(void *Data)
 	Rtc->AlarmTicks = 0;
 
 	/* Setup Timer Data */
-	TimerData->TimerData = Rtc;
 	TimerData->Stall = RtcStall;
 	TimerData->Sleep = RtcSleep;
 	TimerData->GetTicks = RtcGetClocks;
 
-	/* Install ISA IRQ Handler using normal install function */
-	InterruptInstallISA(X86_CMOS_RTC_IRQ, INTERRUPT_RTC, RtcIrqHandler, TimerData);
+	/* Setup device */
+	memset(Device, 0, sizeof(MCoreDevice_t));
+
+	/* Setup information */
+	Device->VendorId = 0x8086;
+	Device->DeviceId = 0x0;
+	Device->Class = DEVICEMANAGER_LEGACY_CLASS;
+	Device->Subclass = 0x00000020;
+
+	Device->IrqLine = X86_CMOS_RTC_IRQ;
+	Device->IrqPin = -1;
+
+	/* Type */
+	Device->Type = DeviceTimer;
+	Device->Data = TimerData;
+
+	/* Initial */
+	Device->Driver.Name = (char*)GlbRtcDriverName;
+	Device->Driver.Version = 1;
+	Device->Driver.Data = Rtc;
+	Device->Driver.Status = DriverActive;
 
 	/* Register us with OS so we can get our function interface */
-	Rtc->DeviceId = DmCreateDevice("Rtc Timer", DeviceTimer, TimerData);
+	Rtc->DeviceId = DmCreateDevice("Rtc Timer", Device);
+
+	/* Install ISA IRQ Handler using normal install function */
+	InterruptInstallISA(X86_CMOS_RTC_IRQ, INTERRUPT_RTC, RtcIrqHandler, TimerData);
 
 	/* Disable IRQ's for this duration */
 	IntrState = InterruptDisable();

@@ -87,7 +87,7 @@ void SleepMs(uint32_t MilliSeconds)
 	Timer = (MCoreTimerDevice_t*)tDevice->Data;
 
 	/* Go */
-	Timer->Sleep(Timer->TimerData, MilliSeconds);
+	Timer->Sleep(tDevice, MilliSeconds);
 }
 
 void SleepNs(uint32_t NanoSeconds)
@@ -107,7 +107,7 @@ void SleepNs(uint32_t NanoSeconds)
 	Timer = (MCoreTimerDevice_t*)tDevice->Data;
 
 	/* Go */
-	Timer->Sleep(Timer->TimerData, NanoSeconds);
+	Timer->Sleep(tDevice, NanoSeconds);
 }
 
 /* Stall functions */
@@ -128,7 +128,7 @@ void StallMs(uint32_t MilliSeconds)
 	Timer = (MCoreTimerDevice_t*)tDevice->Data;
 
 	/* Go */
-	Timer->Stall(Timer->TimerData, MilliSeconds);
+	Timer->Stall(tDevice, MilliSeconds);
 }
 
 void StallNs(uint32_t NanoSeconds)
@@ -148,7 +148,7 @@ void StallNs(uint32_t NanoSeconds)
 	Timer = (MCoreTimerDevice_t*)tDevice->Data;
 
 	/* Go */
-	Timer->Stall(Timer->TimerData, NanoSeconds);
+	Timer->Stall(tDevice, NanoSeconds);
 }
 
 /* This should be called by only ONE periodic irq */

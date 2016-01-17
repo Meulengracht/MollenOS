@@ -31,6 +31,9 @@
 /* CLib */
 #include <string.h>
 
+/* Globals */
+const char *GlbPs2MouseDriverName = "MollenOS PS2-Mouse Driver";
+
 /* Ps Mouse Irq */
 int Ps2MouseIrqHandler(void *Args)
 {
@@ -39,9 +42,10 @@ int Ps2MouseIrqHandler(void *Args)
 	MCorePointerEvent_t eData;
 	MCoreButtonEvent_t bData;
 
-	/* Cast */
-	MCoreInputDevice_t *InputDev = (MCoreInputDevice_t*)Args;
-	Ps2MouseDevice_t *Ps2Dev = (Ps2MouseDevice_t*)InputDev->InputData;
+	/* Get datastructure */
+	MCoreDevice_t *mDev = (MCoreDevice_t*)Args;
+	MCoreInputDevice_t *InputDev = (MCoreInputDevice_t*)mDev->Data;
+	Ps2MouseDevice_t *Ps2Dev = (Ps2MouseDevice_t*)mDev->Driver.Data;
 
 	/* Lets see which byte */
 	switch (Ps2Dev->Index)
@@ -79,7 +83,8 @@ int Ps2MouseIrqHandler(void *Args)
 			eData.Header.Length = sizeof(MCorePointerEvent_t);
 
 			/* Send! */
-			InputDev->ReportEvent((MCoreProcessEvent_t*)&eData);
+			if (InputDev->ReportEvent != NULL)
+				InputDev->ReportEvent((MCoreProcessEvent_t*)&eData);
 
 			/* Check buttons */
 			if (Ps2Dev->Buffer[0] != Ps2Dev->MouseButtons)
@@ -94,7 +99,8 @@ int Ps2MouseIrqHandler(void *Args)
 				bData.Header.Length = sizeof(MCoreButtonEvent_t);
 
 				/* Send */
-				InputDev->ReportEvent((MCoreProcessEvent_t*)&bData);
+				if (InputDev->ReportEvent != NULL)
+					InputDev->ReportEvent((MCoreProcessEvent_t*)&bData);
 			}
 
 			/* Update */
@@ -110,19 +116,47 @@ int Ps2MouseIrqHandler(void *Args)
 /* Setup */
 void Ps2MouseInit(int Port)
 {
+	/* Vars */
 	uint8_t Response = 0;
 
 	/* Allocate Data Structure */
+	MCoreDevice_t *Device = (MCoreDevice_t*)kmalloc(sizeof(MCoreDevice_t));
 	MCoreInputDevice_t *InputDev = (MCoreInputDevice_t*)kmalloc(sizeof(MCoreInputDevice_t));
 	Ps2MouseDevice_t *Ps2Dev = (Ps2MouseDevice_t*)kmalloc(sizeof(Ps2MouseDevice_t));
 	
+	/* Setup ps2 device struct */
 	memset(Ps2Dev, 0, sizeof(Ps2MouseDevice_t));
 	Ps2Dev->Port = Port;
 
-	InputDev->InputData = Ps2Dev;
+	/* Setup device data */
+	memset(Device, 0, sizeof(MCoreDevice_t));
+
+	/* Setup information */
+	Device->VendorId = 0x8086;
+	Device->DeviceId = 0x0;
+	Device->Class = DEVICEMANAGER_LEGACY_CLASS;
+	Device->Subclass = 0x00000010;
+
+	/* Irq information */
+	if (Port == 1)
+		Device->IrqLine = X86_PS2_PORT1_INTERRUPT;
+	else
+		Device->IrqLine = X86_PS2_PORT2_INTERRUPT;
+
+	Device->IrqPin = -1;
+
+	/* Type */
+	Device->Type = DeviceInput;
+	Device->Data = InputDev;
+
+	/* Initial */
+	Device->Driver.Name = (char*)GlbPs2MouseDriverName;
+	Device->Driver.Version = 1;
+	Device->Driver.Data = Ps2Dev;
+	Device->Driver.Status = DriverActive;
 
 	/* Create device in upper layer */
-	Ps2Dev->Id = DmCreateDevice("Ps2-Mouse", DeviceInput, InputDev);
+	Ps2Dev->Id = DmCreateDevice("Ps2-Mouse", Device);
 
 	/* Install Irq */
 	if (Port == 1)
