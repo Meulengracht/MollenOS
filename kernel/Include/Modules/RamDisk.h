@@ -76,6 +76,12 @@ typedef struct _MCoreRamDiskModuleHeader
 	* Also UTF-8 */
 	uint8_t ModuleName[64];
 
+	/* Vendor Id */
+	uint32_t VendorId;
+
+	/* Device Id */
+	uint32_t DeviceId;
+
 	/* Device Type */
 	uint32_t DeviceType;
 

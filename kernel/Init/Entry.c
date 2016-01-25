@@ -47,6 +47,9 @@ void PrintHeader(MCoreBootInfo_t *BootInfo)
  * */
 void MCoreInitialize(MCoreBootInfo_t *BootInfo)
 {
+	/* Vars */
+	MCoreModule_t *BusModule = NULL;
+
 	/* Initialize Log */
 	LogInit();
 
@@ -97,11 +100,18 @@ void MCoreInitialize(MCoreBootInfo_t *BootInfo)
 	/* From this point, we should start seperate threads and
 	* let this thread die out, because initial system setup
 	* is now totally done, and the moment we start another
-	* thread, it will take over as this is the idle thread */
+	* thread, it will take over as this is the idle thread 
+	* ThreadingCreateThread("DriverSetup", DevicesInit, NULL, 0); */
 
 	/* Drivers 
 	 * Start the bus driver */
-	//ThreadingCreateThread("DriverSetup", DevicesInit, NULL, 0);
+	BusModule = ModuleFind(MODULE_BUS, 0);
+
+	/* Sanity */
+	if (BusModule == NULL)
+		LogFatal("SYST", "Failed to locate bus module in initrd, which means system will have no further functionality.");
+	else
+		ModuleLoad(BusModule, NULL);
 
 	/* Enter Idle Loop */
 	while (1)

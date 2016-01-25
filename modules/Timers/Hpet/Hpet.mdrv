@@ -1,4 +1,6 @@
 #Driver Information
+VendorId = 00008086
+DeviceId = 00000000
 Class = 0000AC71
 SubClass = 00000008
 Shared = 0

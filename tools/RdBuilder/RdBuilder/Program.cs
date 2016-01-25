@@ -159,6 +159,8 @@ namespace RdBuilder
                     rdWriter.Write(NameData, 0, NameData.Length);
 
                     /* Load Device Info */
+                    uint VendorId = 0;
+                    uint DeviceId = 0;
                     uint DeviceClass = 0;
                     uint DeviceSubClass = 0;
                     uint DeviceFlags = 0;
@@ -179,6 +181,14 @@ namespace RdBuilder
                             if (Tokens.Length != 2)
                                 continue;
 
+                            /* Vendor Id ? */
+                            if (Tokens[0].Trim().ToLower() == "vendorid")
+                                VendorId = Convert.ToUInt32(Tokens[1].Trim().ToLower(), 16);
+
+                            /* Device Id ? */
+                            if (Tokens[0].Trim().ToLower() == "deviceid")
+                                DeviceId = Convert.ToUInt32(Tokens[1].Trim().ToLower(), 16);
+
                             /* Device Class ? */
                             if (Tokens[0].Trim().ToLower() == "class")
                                 DeviceClass = Convert.ToUInt32(Tokens[1].Trim().ToLower(), 16);
@@ -195,6 +205,18 @@ namespace RdBuilder
                         /* Cleanup */
                         diReader.Close();
                     }
+
+                    /* Write Vendor Id */
+                    rdWriter.WriteByte((Byte)(VendorId & 0xFF));
+                    rdWriter.WriteByte((Byte)((VendorId >> 8) & 0xFF));
+                    rdWriter.WriteByte((Byte)((VendorId >> 16) & 0xFF));
+                    rdWriter.WriteByte((Byte)((VendorId >> 24) & 0xFF));
+
+                    /* Write Driver Id */
+                    rdWriter.WriteByte((Byte)(DeviceId & 0xFF));
+                    rdWriter.WriteByte((Byte)((DeviceId >> 8) & 0xFF));
+                    rdWriter.WriteByte((Byte)((DeviceId >> 16) & 0xFF));
+                    rdWriter.WriteByte((Byte)((DeviceId >> 24) & 0xFF));
 
                     /* Write Driver Class */
                     rdWriter.WriteByte((Byte)(DeviceClass & 0xFF));

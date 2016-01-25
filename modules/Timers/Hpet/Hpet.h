@@ -16,7 +16,7 @@
 * along with this program.If not, see <http://www.gnu.org/licenses/>.
 *
 *
-* MollenOS x86-32 HPET Header
+* MollenOS ACPI - HPET Driver
 */
 #ifndef _X86_HPET_
 #define _X86_HPET_
@@ -108,8 +108,8 @@ typedef struct _HpetObject
 } Hpet_t;
 
 /* Sleep & Stall */
-_CRT_EXTERN uint64_t HpetGetClocks(void* Data);
-_CRT_EXTERN void HpetSleep(void* Data, uint32_t MilliSeconds);
-_CRT_EXTERN void HpetStall(void* Data, uint32_t MilliSeconds);
+_CRT_EXTERN uint64_t HpetGetClocks(void* Device);
+_CRT_EXTERN void HpetSleep(void* Device, size_t MilliSeconds);
+_CRT_EXTERN void HpetStall(void* Device, size_t MilliSeconds);
 
 #endif

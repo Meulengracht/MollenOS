@@ -43,50 +43,28 @@ typedef struct _HpetManager
 #pragma pack(pop)
 
 /* Globals */
-Addr_t GlbHpetBaseAddress = 0;
-uint32_t GlbHpetBaseAddressType = 0;
+DeviceIoSpace_t *GlbHpetBaseAddress = NULL;
 uint32_t GlbHpetMinimumTick = 0;
 uint8_t GlbHpetTimerCount = 0;
 uint64_t GlbHpetFrequency = 0;
 volatile uint64_t GlbHpetCounter = 0;
 Hpet_t **GlbHpetTimers = NULL;
+const char *GlbHpetDriverName = "MollenOS ACPI HPET Driver";
 
 /* Helpers */
 
 /* Read from Hpet */
 uint32_t HpetRead32(uint32_t Offset)
 {
-	if (GlbHpetBaseAddressType == ACPI_IO_RANGE)
-	{
-		uint16_t ioPort = (uint16_t)GlbHpetBaseAddress;
-		ioPort += (uint16_t)Offset;
-
-		/* Done */
-		return inl(ioPort);
-	}
-	else
-	{
-		/* Done */
-		return *(volatile Addr_t*)(GlbHpetBaseAddress + (Offset));
-	}
+	/* Deep Call */
+	return IoSpaceRead(GlbHpetBaseAddress, Offset, 4);
 }
 
 /* Write to Hpet */
 void HpetWrite32(uint32_t Offset, uint32_t Value)
 {
-	if (GlbHpetBaseAddressType == ACPI_IO_RANGE)
-	{
-		uint16_t ioPort = (uint16_t)GlbHpetBaseAddress;
-		ioPort += (uint16_t)Offset;
-
-		/* Build response */
-		outl(ioPort, Value);
-	}
-	else
-	{
-		/* Build response */
-		*(volatile Addr_t*)(GlbHpetBaseAddress + (Offset)) = Value;
-	}
+	/* Deep Call */
+	IoSpaceWrite(GlbHpetBaseAddress, Offset, Value, 4);
 }
 
 /* Stop main counter */
@@ -110,8 +88,11 @@ void HpetStart(void)
 int HpetTimerHandler(void *Args)
 {
 	/* Cast */
-	MCoreTimerDevice_t *pTimer = (MCoreTimerDevice_t*)Args;
-	Hpet_t *Timer = (Hpet_t*)pTimer->TimerData;
+	MCoreDevice_t *DevTimer = (MCoreDevice_t*)Args;
+	MCoreTimerDevice_t *pTimer = (MCoreTimerDevice_t*)DevTimer->Data;
+	Hpet_t *Timer = (Hpet_t*)DevTimer->Driver.Data;
+
+	/* Vars */
 	uint32_t TimerBit = (1 << Timer->Id);
 
 	/* Did we even fire? (Shared Only) */
@@ -131,7 +112,8 @@ int HpetTimerHandler(void *Args)
 		GlbHpetCounter++;
 
 		/* Apply time (1ms) */
-		pTimer->ReportMs(1);
+		if (pTimer->ReportMs != NULL)
+			pTimer->ReportMs(1);
 
 		/* If we are not periodic restart us */
 		if (Timer->Periodic != 1)
@@ -373,7 +355,6 @@ OsStatus_t HpetComparatorSetup(uint32_t Comparator)
 MODULES_API void ModuleInit(void *Data)
 {
 	/* We need these */
-	MCoreTimerDevice_t *Timer = NULL;
 	ACPI_TABLE_HPET *Hpet = (ACPI_TABLE_HPET*)Data;
 	uint8_t Itr = 0;
 	volatile uint32_t Temp = 0;
@@ -383,10 +364,6 @@ MODULES_API void ModuleInit(void *Data)
 	if (Data == NULL)
 		return;
 
-	/* Allocate */
-	//Pit = (PitTimer_t*)GlbDescriptor->MemAlloc(sizeof(PitTimer_t));
-	Timer = (MCoreTimerDevice_t*)kmalloc(sizeof(MCoreTimerDevice_t));
-
 	/* Disable Interrupts */
 	IntState = InterruptDisable();
 
@@ -395,8 +372,10 @@ MODULES_API void ModuleInit(void *Data)
 #endif
 
 	/* Save base address */
-	GlbHpetBaseAddressType = Hpet->Address.SpaceId;
-	GlbHpetBaseAddress = (Addr_t)Hpet->Address.Address;
+	if (Hpet->Address.SpaceId == 0)
+		GlbHpetBaseAddress = IoSpaceCreate(DEVICE_IO_SPACE_MMIO, (Addr_t)Hpet->Address.Address, PAGE_SIZE);
+	else
+		GlbHpetBaseAddress = IoSpaceCreate(DEVICE_IO_SPACE_IO, (Addr_t)Hpet->Address.Address, 512);
 
 	/* Save minimum tick */
 	GlbHpetMinimumTick = Hpet->MinimumTick;
@@ -409,10 +388,6 @@ MODULES_API void ModuleInit(void *Data)
 		GlbHpetBaseAddress, GlbHpetBaseAddressType);
 #endif
 
-	/* Map sys memory */
-	if (GlbHpetBaseAddressType == 0)
-		GlbHpetBaseAddress = (Addr_t)MmVirtualMapSysMemory(GlbHpetBaseAddress, 1);
-
 	/* Get period,  Upper 32 bits */
 	volatile uint32_t ClockPeriod = HpetRead32(X86_HPET_REGISTER_CAP_ID + 4);
 
@@ -423,14 +398,14 @@ MODULES_API void ModuleInit(void *Data)
 
 	/* AMD SB700 Systems initialise HPET on first register access,
 	* wait for it to setup HPET, its config register reads 0xFFFFFFFF meanwhile */
-	for (Itr = 0; Itr < 1000; Itr++)
+	for (Itr = 0; Itr < 10000; Itr++)
 	{
 		/* Read */
 		if (HpetRead32(X86_HPET_REGISTER_CONFIG) != 0xFFFFFFFF)
 			break;
 
 		/* Sanity */
-		if (Itr == 999)
+		if (Itr == 9999)
 			return;
 	}
 
@@ -488,22 +463,55 @@ MODULES_API void ModuleInit(void *Data)
 		if (GlbHpetTimers[Itr]->Periodic == 1
 			&& !PeriodicInstalled)
 		{
-			/* Create */
-			MCoreTimerDevice_t *pTimer = 
-				(MCoreTimerDevice_t*)kmalloc(sizeof(MCoreTimerDevice_t));
+			/* Setup device */
+			MCoreDevice_t *pDevice = (MCoreDevice_t*)kmalloc(sizeof(MCoreDevice_t));
+			MCoreTimerDevice_t *pTimer = (MCoreTimerDevice_t*)kmalloc(sizeof(MCoreTimerDevice_t));
+			memset(pDevice, 0, sizeof(MCoreDevice_t));
+			int IrqItr = 0, DevIrqItr = 0;
+
+			/* Setup information */
+			pDevice->VendorId = 0x8086;
+			pDevice->DeviceId = 0x0;
+			pDevice->Class = DEVICEMANAGER_ACPI_CLASS;
+			pDevice->Subclass = 0x00000008;
+
+			/* Setup Irq's */
+			pDevice->IrqLine = -1;
+			pDevice->IrqPin = -1;
+
+			/* Get a list of avail irqs */
+			for (IrqItr = 0; IrqItr < 32; IrqItr++)
+			{
+				/* Can we allocate an interrupt for this? */
+				if (GlbHpetTimers[Itr]->Map & (1 << IrqItr))
+					pDevice->IrqAvailable[DevIrqItr++] = IrqItr;
+
+				/* Do we have enough? */
+				if (DevIrqItr == DEVICEMANAGER_MAX_IRQS)
+					break;
+			}
+
+			/* Type */
+			pDevice->Type = DeviceTimer;
+			pDevice->Data = pTimer;
+
+			/* Initial */
+			pDevice->Driver.Name = (char*)GlbHpetDriverName;
+			pDevice->Driver.Version = 1;
+			pDevice->Driver.Data = GlbHpetTimers[Itr];
+			pDevice->Driver.Status = DriverActive;
 
 			/* Setup timer */
-			pTimer->TimerData = GlbHpetTimers[Itr];
 			pTimer->Sleep = HpetSleep;
 			pTimer->Stall = HpetStall;
 			pTimer->GetTicks = HpetGetClocks;
 
 			/* Set type */
 			GlbHpetTimers[Itr]->Type = 1;
-			GlbHpetTimers[Itr]->DeviceId = DmCreateDevice("HPet Timer", DeviceTimer, pTimer);
+			GlbHpetTimers[Itr]->DeviceId = DmCreateDevice("HPet Timer", pDevice);
 
 			/* Start it */
-			HpetComparatorStart(Itr, 1, 1000, pTimer);
+			HpetComparatorStart(Itr, 1, 1000, pDevice);
 
 			/* Done! */
 			PeriodicInstalled = 1;
@@ -516,29 +524,34 @@ MODULES_API void ModuleInit(void *Data)
 }
 
 /* Pit Ticks */
-uint64_t HpetGetClocks(void* Data)
+uint64_t HpetGetClocks(void* Device)
 {
+	/* Not used */
+	_CRT_UNUSED(Device);
+
+	/* Return global counter 
+	 * since there is only one HPET-periodic */
 	return GlbHpetCounter;
 }
 
 /* Sleep for ms */
-void HpetSleep(void* Data, uint32_t MilliSeconds)
+void HpetSleep(void* Device, size_t MilliSeconds)
 {
 	/* Calculate TickEnd in NanoSeconds */
-	uint64_t TickEnd = MilliSeconds + HpetGetClocks(Data);
+	uint64_t TickEnd = MilliSeconds + HpetGetClocks(Device);
 
 	/* While */
-	while (TickEnd >= HpetGetClocks(Data))
+	while (TickEnd >= HpetGetClocks(Device))
 		_ThreadYield();
 }
 
 /* Stall for ms */
-void HpetStall(void* Data, uint32_t MilliSeconds)
+void HpetStall(void* Device, size_t MilliSeconds)
 {
 	/* Calculate TickEnd in NanoSeconds */
-	uint64_t TickEnd = MilliSeconds + HpetGetClocks(Data);
+	uint64_t TickEnd = MilliSeconds + HpetGetClocks(Device);
 
 	/* While */
-	while (TickEnd > HpetGetClocks(Data))
+	while (TickEnd > HpetGetClocks(Device))
 		_asm nop;
 }
