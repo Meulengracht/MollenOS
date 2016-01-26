@@ -34,12 +34,9 @@ typedef struct _MCoreStorageDevice
 	int AlignedAccess;
 	size_t SectorSize;
 
-	/* Disk Data */
-	void *DiskData;
-
 	/* Functions */
-	int(*Read)(void *Data, uint64_t LBA, void *Buffer, size_t BufferLength);
-	int(*Write)(void *Data, uint64_t LBA, void *Buffer, size_t BufferLength);
+	int(*Read)(void *Device, uint64_t LBA, void *Buffer, size_t BufferLength);
+	int(*Write)(void *Device, uint64_t LBA, void *Buffer, size_t BufferLength);
 
 } MCoreStorageDevice_t;
 #pragma pack(pop)

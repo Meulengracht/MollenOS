@@ -11,9 +11,6 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="Pci.h" />
-  </ItemGroup>
-  <ItemGroup>
     <None Include="Bus.mdrv" />
   </ItemGroup>
   <ItemGroup>

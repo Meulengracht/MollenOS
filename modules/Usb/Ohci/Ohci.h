@@ -24,7 +24,6 @@
 
 /* Includes */
 #include <Module.h>
-#include <x86\Pci.h>
 
 /* Definitions */
 #define X86_OHCI_STRUCT_ALIGN		32
@@ -343,11 +342,7 @@ typedef struct _OhciController
 	/* Lock */
 	Spinlock_t Lock;
 
-	/* Pci Header */
-	PciDevice_t *PciDevice;
-
 	/* Register Space (Physical) */
-	uint32_t ControlSpace;
 	uint32_t HccaSpace;
 
 	/* Registers */

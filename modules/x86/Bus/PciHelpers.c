@@ -21,7 +21,7 @@
 
 /* Includes */
 #include <Arch.h>
-#include "Pci.h"
+#include <Pci.h>
 
 /* Reads the vendor id at given location */
 uint16_t PciReadVendorId(PciBus_t *BusIo, uint32_t Bus, uint32_t Device, uint32_t Function)

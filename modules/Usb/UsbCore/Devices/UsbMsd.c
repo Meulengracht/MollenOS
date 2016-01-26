@@ -51,6 +51,8 @@ const char* SenseKeys[] =
 	"Undefined"
 };
 
+const char *GlbUsbMsdDriverName = "MollenOS Usb MSD Driver";
+
 uint32_t rev32(uint32_t dword)
 {
 	return ((dword >> 24) & 0x000000FF) 
@@ -83,13 +85,14 @@ UsbTransferStatus_t UsbMsdSendSCSICommandIn(uint8_t ScsiCommand, MsdDevice_t *De
 	uint64_t SectorLBA, void *Buffer, size_t DataLength);
 
 /* Read & Write for MSD's */
-int UsbMsdReadSectors(void *DevData, uint64_t SectorLBA, void *Buffer, size_t BufferLength);
-int UsbMsdWriteSectors(void *DevData, uint64_t SectorLBA, void *Buffer, size_t BufferLength);
+int UsbMsdReadSectors(void *mDevice, uint64_t SectorLBA, void *Buffer, size_t BufferLength);
+int UsbMsdWriteSectors(void *mDevice, uint64_t SectorLBA, void *Buffer, size_t BufferLength);
 
 /* Initialise Driver for a MSD */
 void UsbMsdInit(UsbHcDevice_t *UsbDevice, int InterfaceIndex)
 {
 	/* Allocate */
+	MCoreDevice_t *mDevice = (MCoreDevice_t*)kmalloc(sizeof(MCoreDevice_t));
 	MsdDevice_t *DevData = (MsdDevice_t*)kmalloc(sizeof(MsdDevice_t));
 	MCoreStorageDevice_t *StorageData = (MCoreStorageDevice_t*)kmalloc(sizeof(MCoreStorageDevice_t));
 	UsbHc_t *UsbHcd = (UsbHc_t*)UsbDevice->HcDriver;
@@ -102,7 +105,6 @@ void UsbMsdInit(UsbHcDevice_t *UsbDevice, int InterfaceIndex)
 		DevData->IsUFI = 0;
 
 	/* Set */
-	StorageData->DiskData = DevData;
 	StorageData->SectorSize = 512;
 	StorageData->SectorCount = 0;
 
@@ -156,6 +158,7 @@ void UsbMsdInit(UsbHcDevice_t *UsbDevice, int InterfaceIndex)
 	{
 		LogDebug("USBM", "Msd is missing either in or out endpoint");
 		kfree(DevData);
+		kfree(mDevice);
 		return;
 	}
 
@@ -165,7 +168,7 @@ void UsbMsdInit(UsbHcDevice_t *UsbDevice, int InterfaceIndex)
 
 	/* Save Data */
 	UsbDevice->Destroy = UsbMsdDestroy;
-	UsbDevice->DriverData = (void*)StorageData;
+	UsbDevice->DriverData = (void*)mDevice;
 
 	/* Setup endpoints */
 	UsbHcd->EndpointSetup(UsbHcd->Hc, DevData->EpIn);
@@ -219,9 +222,32 @@ void UsbMsdInit(UsbHcDevice_t *UsbDevice, int InterfaceIndex)
 	LogInformation("USBM", "MSD SectorCount: 0x%x, SectorSize: 0x%x",
 		(size_t)StorageData->SectorCount, StorageData->SectorSize);
 
+	/* Setup device */
+	memset(mDevice, 0, sizeof(MCoreDevice_t));
+
+	/* Setup information */
+	mDevice->VendorId = 0x8086;
+	mDevice->DeviceId = 0x0;
+	mDevice->Class = DEVICEMANAGER_LEGACY_CLASS;
+	mDevice->Subclass = 0x00000018;
+
+	mDevice->IrqLine = -1;
+	mDevice->IrqPin = -1;
+	mDevice->IrqAvailable[0] = -1;
+	mDevice->IrqHandler = NULL;
+
+	/* Type */
+	mDevice->Type = DeviceStorage;
+	mDevice->Data = StorageData;
+
+	/* Initial */
+	mDevice->Driver.Name = (char*)GlbUsbMsdDriverName;
+	mDevice->Driver.Version = 1;
+	mDevice->Driver.Data = DevData;
+	mDevice->Driver.Status = DriverActive;
+
 	/* Register Us */
-	DevData->DeviceId =
-		DmCreateDevice("Usb Storage", DeviceStorage, (void*)StorageData);
+	DevData->DeviceId = DmCreateDevice("Usb Storage", mDevice);
 }
 
 /* Cleanup */
@@ -229,8 +255,8 @@ void UsbMsdDestroy(void *UsbDevice)
 {
 	/* Cast */
 	UsbHcDevice_t *Dev = (UsbHcDevice_t*)UsbDevice;
-	MCoreStorageDevice_t *StorageData = (MCoreStorageDevice_t*)Dev->DriverData;
-	MsdDevice_t *Device = (MsdDevice_t*)StorageData->DiskData;
+	MCoreDevice_t *mDevice = (MCoreDevice_t*)Dev->DriverData;
+	MsdDevice_t *Device = (MsdDevice_t*)mDevice->Driver.Data;
 	UsbHc_t *UsbHcd = (UsbHc_t*)Dev->HcDriver;
 
 	/* Unregister Us */
@@ -241,8 +267,8 @@ void UsbMsdDestroy(void *UsbDevice)
 	UsbHcd->EndpointDestroy(UsbHcd->Hc, Device->EpOut);
 	
 	/* Free Data */
-	kfree(StorageData);
-	kfree(Device);
+	kfree(mDevice->Data);
+	kfree(mDevice->Driver.Data);
 }
 
 /* Msd Specific Requests */
@@ -972,17 +998,18 @@ void UsbMsdReadCapacity(MsdDevice_t *Device, MCoreStorageDevice_t *sDevice)
 }
 
 /* Read & Write Sectors */
-int UsbMsdReadSectors(void *DevData, uint64_t SectorLBA, void *Buffer, size_t BufferLength)
+int UsbMsdReadSectors(void *mDevice, uint64_t SectorLBA, void *Buffer, size_t BufferLength)
 {
 	/* Cast */
-	MsdDevice_t *Device = (MsdDevice_t*)DevData;
+	MCoreDevice_t *Device = (MCoreDevice_t*)mDevice;
+	MsdDevice_t *MsdData = (MsdDevice_t*)Device->Driver.Data;
 
 	/* Store result */
 	UsbTransferStatus_t Result;
 
 	/* Send */
-	Result = UsbMsdSendSCSICommandIn(Device->IsExtended == 0 ? X86_SCSI_READ : X86_SCSI_READ_16, 
-		Device, SectorLBA, Buffer, BufferLength);
+	Result = UsbMsdSendSCSICommandIn(MsdData->IsExtended == 0 ? X86_SCSI_READ : X86_SCSI_READ_16,
+		MsdData, SectorLBA, Buffer, BufferLength);
 
 	/* Sanity */
 	if (Result != TransferFinished)
@@ -991,17 +1018,18 @@ int UsbMsdReadSectors(void *DevData, uint64_t SectorLBA, void *Buffer, size_t Bu
 		return 0;
 }
 
-int UsbMsdWriteSectors(void *DevData, uint64_t SectorLBA, void *Buffer, size_t BufferLength)
+int UsbMsdWriteSectors(void *mDevice, uint64_t SectorLBA, void *Buffer, size_t BufferLength)
 {
 	/* Cast */
-	MsdDevice_t *Device = (MsdDevice_t*)DevData;
+	MCoreDevice_t *Device = (MCoreDevice_t*)mDevice;
+	MsdDevice_t *MsdData = (MsdDevice_t*)Device->Driver.Data;
 
 	/* Store result */
 	UsbTransferStatus_t Result;
 
 	/* Send */
-	Result = UsbMsdSendSCSICommandOut(Device->IsExtended == 0 ? X86_SCSI_WRITE : X86_SCSI_WRITE_16, 
-		Device, SectorLBA, Buffer, BufferLength);
+	Result = UsbMsdSendSCSICommandOut(MsdData->IsExtended == 0 ? X86_SCSI_WRITE : X86_SCSI_WRITE_16,
+		MsdData, SectorLBA, Buffer, BufferLength);
 
 	/* Sanity */
 	if (Result != TransferFinished)

@@ -149,13 +149,13 @@ _CRT_EXTERN void MmPhyiscalInit(void *BootInfo, MCoreBootDescriptor *Descriptor)
 _CRT_EXTERN void MmVirtualInit(void);
 
 /* Physical Memory */
-_CRT_EXPORT PhysAddr_t MmPhysicalAllocateBlock(void);
-_CRT_EXPORT void MmPhysicalFreeBlock(PhysAddr_t Addr);
+_CRT_EXTERN PhysAddr_t MmPhysicalAllocateBlock(void);
+_CRT_EXTERN void MmPhysicalFreeBlock(PhysAddr_t Addr);
 
 /* Virtual Memory */
-_CRT_EXPORT void MmVirtualMap(void *PageDirectory, PhysAddr_t PhysicalAddr, VirtAddr_t VirtualAddr, uint32_t Flags);
-_CRT_EXPORT void MmVirtualUnmap(void *PageDirectory, VirtAddr_t VirtualAddr);
-_CRT_EXPORT PhysAddr_t MmVirtualGetMapping(void *PageDirectory, VirtAddr_t VirtualAddr);
+_CRT_EXTERN void MmVirtualMap(void *PageDirectory, PhysAddr_t PhysicalAddr, VirtAddr_t VirtualAddr, uint32_t Flags);
+_CRT_EXTERN void MmVirtualUnmap(void *PageDirectory, VirtAddr_t VirtualAddr);
+_CRT_EXTERN PhysAddr_t MmVirtualGetMapping(void *PageDirectory, VirtAddr_t VirtualAddr);
 
 /* Hihi */
 _CRT_EXTERN VirtAddr_t *MmReserveMemory(int Pages);

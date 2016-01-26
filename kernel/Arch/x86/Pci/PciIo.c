@@ -102,24 +102,3 @@ void PciWrite8(uint32_t Bus, uint32_t Device, uint32_t Function, uint32_t Regist
 	/* Write DATA */
 	outb(X86_PCI_DATA + (Register & 0x03), Value);
 }
-
-/* Helpers */
-uint32_t PciDeviceRead(PciDevice_t *Device, uint32_t Register, uint32_t Length)
-{
-	if (Length == 1)
-		return (uint32_t)PciRead8(Device->Bus, Device->Device, Device->Function, Register);
-	else if (Length == 2)
-		return (uint32_t)PciRead16(Device->Bus, Device->Device, Device->Function, Register);
-	else
-		return PciRead32(Device->Bus, Device->Device, Device->Function, Register);
-}
-
-void PciDeviceWrite(PciDevice_t *Device, uint32_t Register, uint32_t Value, uint32_t Length)
-{
-	if (Length == 1)
-		PciWrite8(Device->Bus, Device->Device, Device->Function, Register, (uint8_t)(Value & 0xFF));
-	else if (Length == 2)
-		PciWrite16(Device->Bus, Device->Device, Device->Function, Register, (uint16_t)(Value & 0xFFFFF));
-	else
-		PciWrite32(Device->Bus, Device->Device, Device->Function, Register, Value);
-}

@@ -21,7 +21,7 @@
 
 /* Includes */
 #include <Arch.h>
-#include "Pci.h"
+#include <Pci.h>
 
 /* PCI Interface I/O */
 uint32_t PciRead32(PciBus_t *BusIo, 

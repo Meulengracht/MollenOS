@@ -68,7 +68,7 @@ _CRT_EXPORT Addr_t AddressSpaceMap(AddressSpace_t *AddrSpace,
 _CRT_EXPORT void AddressSpaceMapFixed(AddressSpace_t *AddrSpace,
 	PhysAddr_t PhysicalAddr, VirtAddr_t VirtualAddr, size_t Size, int Flags);
 _CRT_EXPORT void AddressSpaceUnmap(AddressSpace_t *AddrSpace, VirtAddr_t Address, size_t Size);
-_CRT_EXTERN PhysAddr_t AddressSpaceGetMap(AddressSpace_t *AddrSpace, VirtAddr_t Address);
+_CRT_EXPORT PhysAddr_t AddressSpaceGetMap(AddressSpace_t *AddrSpace, VirtAddr_t Address);
 
 /***********************
 * Device Io Spaces     *

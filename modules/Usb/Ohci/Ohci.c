@@ -32,10 +32,7 @@
 #include <Heap.h>
 #include <Timers.h>
 #include <DeviceManager.h>
-
-/* Better abstraction? Woah */
-#include <x86\Pci.h>
-#include <x86\Memory.h>
+#include <Pci.h>
 
 /* CLib */
 #include <assert.h>
@@ -64,6 +61,7 @@ void OhciTransactionSend(void *Controller, UsbHcRequest_t *Request);
 void OhciTransactionDestroy(void *Controller, UsbHcRequest_t *Request);
 
 /* Error Codes */
+const char *GlbOhciDriverName = "MollenOS OHCI Driver";
 static const int _Balance[] = { 0, 8, 4, 12, 2, 10, 6, 14, 1, 9, 5, 13, 3, 11, 7, 15 };
 const char *OhciErrorMessages[] =
 {
@@ -88,26 +86,25 @@ const char *OhciErrorMessages[] =
 /* Entry point of a module */
 MODULES_API void ModuleInit(void *Data)
 {
+	/* Cast & Vars */
+	MCoreDevice_t *mDevice = (MCoreDevice_t*)Data;
 	uint16_t PciCommand;
 	OhciController_t *Controller = NULL;
-	PciDevice_t *Device = (PciDevice_t*)Data;
 
 	/* Allocate Resources for this Controller */
 	Controller = (OhciController_t*)kmalloc(sizeof(OhciController_t));
-	Controller->PciDevice = Device;
 	Controller->Id = GlbOhciControllerId;
 
 	/* Enable memory and Bus mastering and clear interrupt disable */
-	PciCommand = (uint16_t)PciDeviceRead(Device, 0x4, 2);
-	PciDeviceWrite(Device, 0x4, (PciCommand & ~(0x400)) | 0x2 | 0x4, 2);
-
-	/* Get location of Registers */
-	Controller->ControlSpace = Device->Header->Bar0;
+	PciCommand = (uint16_t)PciDeviceRead(mDevice->BusInformation, 0x4, 2);
+	PciDeviceWrite(mDevice->BusInformation, 0x4, (PciCommand & ~(0x400)) | 0x2 | 0x4, 2);
 
 	/* Sanity */
-	if (Controller->ControlSpace == 0 || (Controller->ControlSpace & 0x1))
+	if (mDevice->IoSpaces[0] == NULL 
+		|| (mDevice->IoSpaces[0]->Type != DEVICE_IO_SPACE_MMIO))
 	{
 		/* Yea, give me my hat back */
+		LogFatal("OHCI", "Invalid memory space!");
 		kfree(Controller);
 		return;
 	}
@@ -116,16 +113,36 @@ MODULES_API void ModuleInit(void *Data)
 	GlbOhciControllerId++;
 
 	/* Memory map needed space */
-	Controller->Registers = (volatile OhciRegisters_t*)MmVirtualMapSysMemory(Controller->ControlSpace, 1);
-	Controller->HccaSpace = (uint32_t)MmPhysicalAllocateBlockDma();
+	Controller->Registers = 
+		(volatile OhciRegisters_t*)mDevice->IoSpaces[0]->VirtualBase;
+	Controller->HccaSpace = 
+		(uint32_t)AddressSpaceMap(AddressSpaceGetCurrent(), 0, 0x1000, ADDRESS_SPACE_FLAG_LOWMEM);
 	Controller->HCCA = (volatile OhciHCCA_t*)Controller->HccaSpace;
+	
+	/* Reset Lock */
 	SpinlockReset(&Controller->Lock);
 
 	/* Memset HCCA Space */
 	memset((void*)Controller->HCCA, 0, 0x1000);
 
-	/* Install IRQ Handler */
-	InterruptInstallPci(Device, OhciInterruptHandler, Controller);
+	/* Setup driver information */
+	mDevice->Driver.Name = (char*)GlbOhciDriverName;
+	mDevice->Driver.Data = Controller;
+	mDevice->Driver.Version = 1;
+	mDevice->Driver.Status = DriverActive;
+
+	/* Allocate Irq */
+	mDevice->IrqAvailable[0] = -1;
+	mDevice->IrqHandler = OhciInterruptHandler;
+
+	/* Register us for an irq */
+	if (DmRequestResource(mDevice, ResourceIrq)) {
+		
+		/* Damnit! */
+		LogFatal("OHCI", "Failed to allocate irq for use, bailing out!");
+		kfree(Controller);
+		return;
+	}
 
 	/* Debug */
 #ifdef _OHCI_DIAGNOSTICS_
@@ -360,7 +377,8 @@ void OhciInitQueues(OhciController_t *Controller)
 		Controller->EDPool[i]->HcdFlags = 0;
 		Controller->EDPool[i]->Flags = X86_OHCI_EP_SKIP;
 		Controller->EDPool[i]->HeadPtr =
-			(Controller->EDPool[i]->TailPtr = MmVirtualGetMapping(NULL, (Addr_t)Controller->NullTd)) | 0x1;
+			(Controller->EDPool[i]->TailPtr = 
+				AddressSpaceGetMap(AddressSpaceGetCurrent(), (Addr_t)Controller->NullTd)) | 0x1;
 	}
 
 	/* Setup Interrupt Table
@@ -486,7 +504,7 @@ int OhciTakeControl(OhciController_t *Controller)
 				LogDebug("OHCI", "USB_OHCI: failed to clear routing bit");
 				LogDebug("OHCI", "USB_OHCI: SMM Won't give us the Controller, we're backing down >(");
 				
-				MmPhysicalFreeBlock(Controller->HccaSpace);
+				AddressSpaceUnmap(AddressSpaceGetCurrent(), Controller->HccaSpace, PAGE_SIZE);
 				kfree(Controller);
 				return -1;
 			}
@@ -617,7 +635,7 @@ void OhciSetup(OhciController_t *Controller)
 		&& TempValue != 0x11)
 	{
 		LogDebug("OHCI", "Revision is wrong (0x%x), exiting :(", TempValue);
-		MmPhysicalFreeBlock(Controller->HccaSpace);
+		AddressSpaceUnmap(AddressSpaceGetCurrent(), Controller->HccaSpace, PAGE_SIZE);
 		kfree(Controller);
 		return;
 	}
@@ -836,9 +854,9 @@ void OhciEpInit(OhciEndpointDescriptor_t *Ed, UsbHcTransaction_t *FirstTd, UsbTr
 		while (FirstLink->Link)
 			FirstLink = FirstLink->Link;
 		LastTd = (Addr_t)FirstLink->TransferDescriptor;
-
-		Ed->TailPtr = MmVirtualGetMapping(NULL, (Addr_t)LastTd);
-		Ed->HeadPtr = MmVirtualGetMapping(NULL, (Addr_t)FirstTdAddr) | 0x1;
+		
+		Ed->TailPtr = AddressSpaceGetMap(AddressSpaceGetCurrent(), (Addr_t)LastTd);
+		Ed->HeadPtr = AddressSpaceGetMap(AddressSpaceGetCurrent(), (Addr_t)FirstTdAddr) | 0x1;
 	}
 
 	/* Shared flags */
@@ -938,7 +956,7 @@ OhciGTransferDescriptor_t *OhciTdSetup(OhciEndpoint_t *Ep, UsbTransferType_t Typ
 	if (NextTD == X86_OHCI_TRANSFER_END_OF_LIST)
 		Td->NextTD = 0;
 	else	/* Get physical Address of NextTD and set NextTD to that */
-		Td->NextTD = MmVirtualGetMapping(NULL, (VirtAddr_t)NextTD);
+		Td->NextTD = AddressSpaceGetMap(AddressSpaceGetCurrent(), (VirtAddr_t)NextTD);
 
 	/* Setup the Td for a SETUP Td */
 	Td->Flags = X86_OHCI_TD_ALLOCATED;
@@ -960,7 +978,7 @@ OhciGTransferDescriptor_t *OhciTdSetup(OhciEndpoint_t *Ep, UsbTransferType_t Typ
 	Packet->Length = RequestLength;
 
 	/* Set Td Buffer */
-	Td->Cbp = MmVirtualGetMapping(NULL, (VirtAddr_t)Buffer);
+	Td->Cbp = AddressSpaceGetMap(AddressSpaceGetCurrent(), (VirtAddr_t)Buffer);
 	Td->BufferEnd = Td->Cbp + sizeof(UsbPacket_t) - 1;
 
 	return Td;
@@ -1019,7 +1037,7 @@ OhciGTransferDescriptor_t *OhciTdIo(OhciEndpoint_t *OhciEp, UsbTransferType_t Ty
 		iTd->Flags |= X86_OHCI_TRANSFER_BUF_NOCC;
 
 		/* Buffer */
-		iTd->Bp0 = MmVirtualGetMapping(NULL, (VirtAddr_t)Buffer);
+		iTd->Bp0 = AddressSpaceGetMap(AddressSpaceGetCurrent(), (VirtAddr_t)Buffer);
 		iTd->BufferEnd = iTd->Bp0 + Length - 1;
 
 		/* Setup offsets */
@@ -1049,7 +1067,7 @@ OhciGTransferDescriptor_t *OhciTdIo(OhciEndpoint_t *OhciEp, UsbTransferType_t Ty
 		if (NextTD == X86_OHCI_TRANSFER_END_OF_LIST)
 			iTd->NextTD = X86_OHCI_TRANSFER_END_OF_LIST;
 		else	/* Get physical Address of NextTD and set NextTD to that */
-			iTd->NextTD = MmVirtualGetMapping(NULL, (VirtAddr_t)NextTD);
+			iTd->NextTD = AddressSpaceGetMap(AddressSpaceGetCurrent(), (VirtAddr_t)NextTD);
 
 		/* Done */
 		return (OhciGTransferDescriptor_t*)iTd;
@@ -1059,7 +1077,7 @@ OhciGTransferDescriptor_t *OhciTdIo(OhciEndpoint_t *OhciEp, UsbTransferType_t Ty
 	if (NextTD == X86_OHCI_TRANSFER_END_OF_LIST)
 		Td->NextTD = X86_OHCI_TRANSFER_END_OF_LIST;
 	else	/* Get physical Address of NextTD and set NextTD to that */
-		Td->NextTD = MmVirtualGetMapping(NULL, (VirtAddr_t)NextTD);
+		Td->NextTD = AddressSpaceGetMap(AddressSpaceGetCurrent(), (VirtAddr_t)NextTD);
 
 	/* Setup the Td for a IO Td */
 	Td->Flags = X86_OHCI_TD_ALLOCATED;
@@ -1075,7 +1093,7 @@ OhciGTransferDescriptor_t *OhciTdIo(OhciEndpoint_t *OhciEp, UsbTransferType_t Ty
 	/* Bytes to transfer?? */
 	if (Length > 0)
 	{
-		Td->Cbp = MmVirtualGetMapping(NULL, (VirtAddr_t)Buffer);
+		Td->Cbp = AddressSpaceGetMap(AddressSpaceGetCurrent(), (VirtAddr_t)Buffer);
 		Td->BufferEnd = Td->Cbp + Length - 1;
 	}
 	else
@@ -1134,7 +1152,7 @@ void OhciEndpointSetup(void *Controller, UsbHcEndpoint_t *Endpoint)
 	/* Allocate a TD block */
 	Pool = (Addr_t)kmalloc((sizeof(OhciGTransferDescriptor_t) * oEp->TdsAllocated) + X86_OHCI_STRUCT_ALIGN);
 	Pool = OhciAlign(Pool, X86_OHCI_STRUCT_ALIGN_BITS, X86_OHCI_STRUCT_ALIGN);
-	PoolPhys = MmVirtualGetMapping(NULL, Pool);
+	PoolPhys = AddressSpaceGetMap(AddressSpaceGetCurrent(), Pool);
 
 	/* Allocate buffers */
 	BufAddr = (Addr_t)kmalloc_a(PAGE_SIZE);
@@ -1159,7 +1177,7 @@ void OhciEndpointSetup(void *Controller, UsbHcEndpoint_t *Endpoint)
 
 		/* Setup Buffer */
 		oEp->TDPoolBuffers[i] = (Addr_t*)BufAddr;
-		oEp->TDPool[i]->Cbp = MmVirtualGetMapping(NULL, BufAddr);
+		oEp->TDPool[i]->Cbp = AddressSpaceGetMap(AddressSpaceGetCurrent(), BufAddr);
 		oEp->TDPool[i]->NextTD = 0x1;
 
 		/* Increase */
@@ -1267,7 +1285,7 @@ UsbHcTransaction_t *OhciTransactionSetup(void *Controller, UsbHcRequest_t *Reque
 			cTrans = cTrans->Link;
 
 		PrevTd = (OhciGTransferDescriptor_t*)cTrans->TransferDescriptor;
-		PrevTd->NextTD = MmVirtualGetMapping(NULL, (VirtAddr_t)Transaction->TransferDescriptor);
+		PrevTd->NextTD = AddressSpaceGetMap(AddressSpaceGetCurrent(), (VirtAddr_t)Transaction->TransferDescriptor);
 	}
 
 	return Transaction;
@@ -1305,7 +1323,7 @@ UsbHcTransaction_t *OhciTransactionIn(void *Controller, UsbHcRequest_t *Request)
 			cTrans = cTrans->Link;
 
 		PrevTd = (OhciGTransferDescriptor_t*)cTrans->TransferDescriptor;
-		PrevTd->NextTD = MmVirtualGetMapping(NULL, (VirtAddr_t)Transaction->TransferDescriptor);
+		PrevTd->NextTD = AddressSpaceGetMap(AddressSpaceGetCurrent(), (VirtAddr_t)Transaction->TransferDescriptor);
 	}
 
 	/* We might need a copy */
@@ -1357,7 +1375,7 @@ UsbHcTransaction_t *OhciTransactionOut(void *Controller, UsbHcRequest_t *Request
 			cTrans = cTrans->Link;
 
 		PrevTd = (OhciGTransferDescriptor_t*)cTrans->TransferDescriptor;
-		PrevTd->NextTD = MmVirtualGetMapping(NULL, (VirtAddr_t)Transaction->TransferDescriptor);
+		PrevTd->NextTD = AddressSpaceGetMap(AddressSpaceGetCurrent(), (VirtAddr_t)Transaction->TransferDescriptor);
 	}
 
 	/* We might need a copy */
@@ -1389,7 +1407,7 @@ void OhciTransactionSend(void *Controller, UsbHcRequest_t *Request)
 	Ep = (OhciEndpointDescriptor_t*)Request->Data;
 
 	/* Get physical */
-	EdAddress = MmVirtualGetMapping(NULL, (VirtAddr_t)Ep);
+	EdAddress = AddressSpaceGetMap(AddressSpaceGetCurrent(), (VirtAddr_t)Ep);
 
 	/* Set as not Completed for start */
 	Request->Status = TransferNotProcessed;
@@ -1409,7 +1427,7 @@ void OhciTransactionSend(void *Controller, UsbHcRequest_t *Request)
 	{
 #ifdef _OHCI_DIAGNOSTICS_
 		printf("Td (Addr 0x%x) Flags 0x%x, Cbp 0x%x, BufferEnd 0x%x, Next Td 0x%x\n", 
-			MmVirtualGetMapping(NULL, (VirtAddr_t)Td), Td->Flags, Td->Cbp, Td->BufferEnd, Td->NextTD);
+			AddressSpaceGetMap(AddressSpaceGetCurrent(), (VirtAddr_t)Td), Td->Flags, Td->Cbp, Td->BufferEnd, Td->NextTD);
 #endif
 		/* Next */
 		Transaction = Transaction->Link;
@@ -1591,7 +1609,7 @@ void OhciTransactionSend(void *Controller, UsbHcRequest_t *Request)
 
 			/* Insert it */
 			Ep->NextEDVirtual = (Addr_t)IEd;
-			Ep->NextED = MmVirtualGetMapping(NULL, (VirtAddr_t)IEd);
+			Ep->NextED = AddressSpaceGetMap(AddressSpaceGetCurrent(), (VirtAddr_t)IEd);
 
 			/* Make int-table point to this */
 			Ctrl->HCCA->InterruptTable[Ctrl->I32] = EdAddress;
@@ -1854,7 +1872,7 @@ void OhciReloadControlBulk(OhciController_t *Controller, UsbTransferType_t Trans
 		if (Controller->TransactionsWaitingControl > 0)
 		{
 			/* Get physical of Ed */
-			Addr_t EdPhysical = MmVirtualGetMapping(NULL, Controller->TransactionQueueControl);
+			Addr_t EdPhysical = AddressSpaceGetMap(AddressSpaceGetCurrent(), Controller->TransactionQueueControl);
 
 			/* Set it */
 			Controller->Registers->HcControlHeadED =
@@ -1874,7 +1892,7 @@ void OhciReloadControlBulk(OhciController_t *Controller, UsbTransferType_t Trans
 		if (Controller->TransactionsWaitingBulk > 0)
 		{
 			/* Get physical of Ed */
-			Addr_t EdPhysical = MmVirtualGetMapping(NULL, Controller->TransactionQueueBulk);
+			Addr_t EdPhysical = AddressSpaceGetMap(AddressSpaceGetCurrent(), Controller->TransactionQueueBulk);
 
 			/* Add it to queue */
 			Controller->Registers->HcBulkHeadED =
@@ -1920,7 +1938,7 @@ void OhciProcessDoneQueue(OhciController_t *Controller, Addr_t DoneHeadAddr)
 				(OhciGTransferDescriptor_t*)tList->TransferDescriptor;
 
 			/* Get physical of TD */
-			Addr_t TdPhysical = MmVirtualGetMapping(NULL, (VirtAddr_t)Td);
+			Addr_t TdPhysical = AddressSpaceGetMap(AddressSpaceGetCurrent(), (VirtAddr_t)Td);
 
 			/* Is it this one? */
 			if (DoneHeadAddr == TdPhysical)
@@ -1985,7 +2003,7 @@ void OhciProcessDoneQueue(OhciController_t *Controller, Addr_t DoneHeadAddr)
 
 					/* Restart Ed */
 					Ed->HeadPtr = 
-						MmVirtualGetMapping(NULL, (VirtAddr_t)HcRequest->Transactions->TransferDescriptor);
+						AddressSpaceGetMap(AddressSpaceGetCurrent(), (VirtAddr_t)HcRequest->Transactions->TransferDescriptor);
 				}
 
 				/* Done */
@@ -2004,7 +2022,9 @@ void OhciProcessDoneQueue(OhciController_t *Controller, Addr_t DoneHeadAddr)
 int OhciInterruptHandler(void *data)
 {
 	/* Vars */
-	OhciController_t *Controller = (OhciController_t*)data;
+	MCoreDevice_t *mDevice = (MCoreDevice_t*)data;
+	OhciController_t *Controller = 
+		(OhciController_t*)mDevice->Driver.Data;
 	uint32_t IntrState = 0;
 
 	/* Is this our interrupt ? */

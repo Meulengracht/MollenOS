@@ -167,12 +167,10 @@ typedef struct _PciDevice
 _CRT_EXTERN uint8_t PciRead8(uint32_t Bus, uint32_t Device, uint32_t Function, uint32_t Register);
 _CRT_EXTERN uint16_t PciRead16(uint32_t Bus, uint32_t Device, uint32_t Function, uint32_t Register);
 _CRT_EXTERN uint32_t PciRead32(uint32_t Bus, uint32_t Device, uint32_t Function, uint32_t Register);
-_CRT_EXPORT uint32_t PciDeviceRead(PciDevice_t *Device, uint32_t Register, uint32_t Length);
 
 /* Write I/O */
 _CRT_EXTERN void PciWrite8(uint32_t Bus, uint32_t Device, uint32_t Function, uint32_t Register, uint8_t Value);
 _CRT_EXTERN void PciWrite16(uint32_t Bus, uint32_t Device, uint32_t Function, uint32_t Register, uint16_t Value);
 _CRT_EXTERN void PciWrite32(uint32_t Bus, uint32_t Device, uint32_t Function, uint32_t Register, uint32_t Value);
-_CRT_EXPORT void PciDeviceWrite(PciDevice_t *Device, uint32_t Register, uint32_t Value, uint32_t Length);
 
 #endif // !_X86_PCI_H_

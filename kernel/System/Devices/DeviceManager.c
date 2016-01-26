@@ -224,7 +224,7 @@ void DmRequestHandler(void *Args)
 					/* Validate parameters */
 
 					/* Perform */
-					if (Disk->Read(Disk->DiskData, Request->SectorLBA, Request->Buffer, Request->Length) != 0)
+					if (Disk->Read(Dev, Request->SectorLBA, Request->Buffer, Request->Length) != 0)
 						Request->Status = RequestDeviceError;
 					else
 						Request->Status = RequestOk;
@@ -244,7 +244,7 @@ void DmRequestHandler(void *Args)
 					/* Validate parameters */
 
 					/* Perform */
-					if (Disk->Write(Disk->DiskData, Request->SectorLBA, Request->Buffer, Request->Length) != 0)
+					if (Disk->Write(Dev, Request->SectorLBA, Request->Buffer, Request->Length) != 0)
 						Request->Status = RequestDeviceError;
 					else
 						Request->Status = RequestOk;

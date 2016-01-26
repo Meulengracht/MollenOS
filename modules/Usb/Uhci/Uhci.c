@@ -32,10 +32,7 @@
 #include <UsbCore.h>
 #include <Timers.h>
 #include <Heap.h>
-
-/* Needs abstraction */
-#include <x86\Memory.h>
-#include <x86\Pci.h>
+#include <Pci.h>
 
 /* CLib */
 #include <string.h>

@@ -24,14 +24,12 @@
 #include "Ehci.h"
 
 /* Additional Includes */
+#include <DeviceManager.h>
 #include <UsbCore.h>
 #include <Scheduler.h>
 #include <Heap.h>
 #include <Timers.h>
-
-/* Better abstraction? Woah */
-#include <x86\Pci.h>
-#include <x86\Memory.h>
+#include <Pci.h>
 
 /* Globals */
 volatile uint32_t GlbEhciId = 0;
@@ -39,7 +37,7 @@ volatile uint32_t GlbEhciId = 0;
 /* Entry point of a module */
 MODULES_API void ModuleInit(void *Data)
 {
-	PciDevice_t *Device = (PciDevice_t*)Data;
+	MCoreDevice_t *mDev = (MCoreDevice_t*)Data;
 	UsbHc_t *Controller = NULL;
 	volatile EchiCapabilityRegisters_t *CapRegs;
 	volatile EchiOperationalRegisters_t *OpRegs;
@@ -47,8 +45,8 @@ MODULES_API void ModuleInit(void *Data)
 	volatile uint32_t cmd;
 
 	/* Enable memory io and bus mastering, remove interrupts disabled */
-	uint16_t PciCommand = (uint16_t)PciDeviceRead(Device, 0x4, 2);
-	PciDeviceWrite(Device, 0x4, (PciCommand & ~(0x400)) | 0x2 | 0x4, 2);
+	uint16_t PciCommand = (uint16_t)PciDeviceRead(mDev->BusInformation, 0x4, 2);
+	PciDeviceWrite(mDev->BusInformation, 0x4, (PciCommand & ~(0x400)) | 0x2 | 0x4, 2);
 
 	/* Pci Registers 
 	 * BAR0 - Usb Base Registers 
@@ -59,7 +57,7 @@ MODULES_API void ModuleInit(void *Data)
 	 * ???? + 4 - Usb Legacy Support Control And Status Register
 	 * The above means ???? = EECP. EECP Offset in PCI space where
 	 * we can find the above registers */
-	CapRegs = (EchiCapabilityRegisters_t*)MmVirtualMapSysMemory(Device->Header->Bar0, 1);
+	CapRegs = (EchiCapabilityRegisters_t*)mDev->IoSpaces[0]->VirtualBase;
 	cmd = Eecp = ((CapRegs->CParams >> 8) & 0xFF);
 
 	/* Two cases, if EECP is valid we do additional steps */
@@ -77,14 +75,14 @@ MODULES_API void ModuleInit(void *Data)
 		while (1)
 		{
 			/* Get Id */
-			CapId = (uint8_t)PciDeviceRead(Device, Eecp, 1);
+			CapId = (uint8_t)PciDeviceRead(mDev->BusInformation, Eecp, 1);
 
 			/* Legacy Support? */
 			if (CapId == 0x01)
 				break;
 
 			/* No, get next Eecp */
-			NextEecp = (uint8_t)PciDeviceRead(Device, Eecp + 0x1, 1);
+			NextEecp = (uint8_t)PciDeviceRead(mDev->BusInformation, Eecp + 0x1, 1);
 
 			/* Sanity */
 			if (NextEecp == 0x00)
@@ -96,22 +94,22 @@ MODULES_API void ModuleInit(void *Data)
 		/* Only continue if Id == 0x01 */
 		if (CapId == 0x01)
 		{
-			Semaphore = (uint8_t)PciDeviceRead(Device, Eecp + 0x2, 1);
+			Semaphore = (uint8_t)PciDeviceRead(mDev->BusInformation, Eecp + 0x2, 1);
 
 			/* Is it BIOS owned? First bit in second byte */
 			if (Semaphore & 0x1)
 			{
 				/* Request for my hat back :/
 				* Third byte contains the OS Semaphore */
-				PciDeviceWrite(Device, Eecp + 0x3, 0x1, 1);
+				PciDeviceWrite(mDev->BusInformation, Eecp + 0x3, 0x1, 1);
 
 				/* Now we wait for the bios to release semaphore */
-				WaitForCondition((PciDeviceRead(Device, Eecp + 0x2, 1) & 0x1) == 0, 250, 10, "USB_EHCI: Failed to release BIOS Semaphore\n");
-				WaitForCondition((PciDeviceRead(Device, Eecp + 0x3, 1) & 0x1) == 1, 250, 10, "USB_EHCI: Failed to set OS Semaphore\n");
+				WaitForCondition((PciDeviceRead(mDev->BusInformation, Eecp + 0x2, 1) & 0x1) == 0, 250, 10, "USB_EHCI: Failed to release BIOS Semaphore\n");
+				WaitForCondition((PciDeviceRead(mDev->BusInformation, Eecp + 0x3, 1) & 0x1) == 1, 250, 10, "USB_EHCI: Failed to set OS Semaphore\n");
 			}
 
 			/* Disable SMI by setting all lower 16 bits to 0 of EECP+4 */
-			PciDeviceWrite(Device, Eecp + 0x4, 0x0000, 2);
+			PciDeviceWrite(mDev->BusInformation, Eecp + 0x4, 0x0000, 2);
 		}
 	}
 

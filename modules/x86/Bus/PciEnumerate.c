@@ -21,12 +21,11 @@
 
 /* Arch */
 #include <x86\AcpiSys.h>
-#include <x86\Memory.h>
 
 /* Includes */
 #include <DeviceManager.h>
 #include <Module.h>
-#include "Pci.h"
+#include <Pci.h>
 #include <List.h>
 #include <Heap.h>
 #include <Log.h>
