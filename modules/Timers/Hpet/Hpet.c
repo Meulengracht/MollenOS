@@ -124,104 +124,8 @@ int HpetTimerHandler(void *Args)
 	return X86_IRQ_HANDLED;
 }
 
-/* Allocate Interrupt */
-int HpetAllocateIrq(uint32_t Comparator, void *IrqData)
-{
-	uint32_t Itr, Itr2;
-
-	/* Sanity */
-	if (GlbHpetTimers[Comparator]->Irq != 0xFFFFFFFF)
-		return -2;
-
-	/* First of all, is MSI supported? */
-	if (GlbHpetTimers[Comparator]->MsiSupport)
-	{
-		/* Set MSI register to INTERRUPT_HPET_TIMERS */
-
-		/* Install Irq handler */
-		//InterruptInstallIdtOnly(Itr2, INTERRUPT_HPET_TIMERS,
-			//HpetTimerHandler, IrqData);
-	}
-
-	/* Find a free interrupt */
-	for (Itr2 = 0; Itr2 < 32; Itr2++)
-	{
-		/* Can we allocate an interrupt for this? */
-		if (GlbHpetTimers[Comparator]->Map & (1 << Itr2))
-		{
-			/* Yes! */
-
-			/* If this is already allocated, we don't need 
-			 * to do any further work */
-			for (Itr = 0; Itr < GlbHpetTimerCount; Itr++)
-			{
-				if (GlbHpetTimers[Itr]->Irq == Itr2)
-				{
-					/* Yep.. yep.. */
-					GlbHpetTimers[Comparator]->Irq = Itr2;
-
-					/* Install only the soft */
-					InterruptInstallIdtOnly(Itr2, INTERRUPT_HPET_TIMERS, HpetTimerHandler, IrqData);
-
-					/* Done */
-					break;
-				}
-			}
-
-			if (Itr2 > 15)
-			{
-				/* Allocate PCI Interrupt */
-				GlbHpetTimers[Comparator]->Irq = Itr2;
-
-				/* We want to get the least used irq *
-				* of the allowed irq's */
-				InterruptInstallShared(Itr2, INTERRUPT_HPET_TIMERS, HpetTimerHandler, IrqData);
-
-				/* Debug */
-#ifdef X86_HPET_DIAGNOSE
-				LogInformation("HPET", "Allocated interrupt %u for timer %u", (uint32_t)Itr2, Comparator);
-#endif
-
-				/* Go on to next */
-				break;
-			}
-			else
-			{
-				/* Allocate ISA Interrupt */
-				if (InterruptAllocateISA(Itr2) == OS_STATUS_OK)
-				{
-					/* Save Irq */
-					GlbHpetTimers[Comparator]->Irq = Itr2;
-
-					/* Install Irq */
-					InterruptInstallISA(Itr2, INTERRUPT_HPET_TIMERS, HpetTimerHandler, IrqData);
-
-					/* Debug */
-#ifdef X86_HPET_DIAGNOSE
-					LogInformation("HPET", "Allocated interrupt %u for timer %u", (uint32_t)Itr2, Comparator);
-#endif
-
-					/* Go on to next */
-					break;
-				}
-			}
-		}
-	}
-
-	/* Sanity */
-	if (GlbHpetTimers[Comparator]->Irq == 0xFFFFFFFF)
-	{
-		/* Debug */
-		LogInformation("HPET", "Hpet Timer %u has invalid irqmap", Comparator);
-		return -1;
-	}
-
-	/* Yay */
-	return 0;
-}
-
 /* Start Comparator */
-OsStatus_t HpetComparatorStart(uint32_t Comparator, uint32_t Periodic, uint32_t Freq, void *IrqData)
+OsStatus_t HpetComparatorStart(uint32_t Comparator, uint32_t Periodic, uint32_t Freq, MCoreDevice_t *Device)
 {
 	/* Stop main counter */
 	uint32_t Now;
@@ -243,8 +147,40 @@ OsStatus_t HpetComparatorStart(uint32_t Comparator, uint32_t Periodic, uint32_t 
 #endif
 
 	/* Sanity */
-	if (GlbHpetTimers[Comparator]->Irq == 0xFFFFFFFF)
-		HpetAllocateIrq(Comparator, IrqData);
+	if (GlbHpetTimers[Comparator]->Irq == 0xFFFFFFFF) {
+		/* Irq has not been allocated yet 
+		 * Get device interface and allocate one */
+		int IrqItr = 0, DevIrqItr = 0;
+		
+		/* Get a list of avail irqs */
+		for (IrqItr = 0; IrqItr < 32; IrqItr++)
+		{
+			/* Can we allocate an interrupt for this? */
+			if (GlbHpetTimers[Comparator]->Map & (1 << IrqItr))
+				Device->IrqAvailable[DevIrqItr++] = IrqItr;
+
+			/* Do we have enough? */
+			if (DevIrqItr == DEVICEMANAGER_MAX_IRQS)
+				break;
+		}
+
+		/* End of list */
+		if (DevIrqItr != DEVICEMANAGER_MAX_IRQS)
+			Device->IrqAvailable[DevIrqItr] = -1;
+
+		Device->IrqHandler = HpetTimerHandler;
+
+		/* Register us for an irq */
+		if (DmRequestResource(Device, ResourceIrq)) {
+			LogFatal("HPET", "Failed to allocate irq for use, bailing out!");
+
+			/* Done */
+			return OS_STATUS_FAIL;
+		}
+
+		/* Update */
+		GlbHpetTimers[Comparator]->Irq = Device->IrqLine;
+	}
 
 	/* Update Irq */
 	Temp = HpetRead32(X86_HPET_TIMER_REGISTER_CONFIG(Comparator));
@@ -464,7 +400,6 @@ MODULES_API void ModuleInit(void *Data)
 			MCoreDevice_t *pDevice = (MCoreDevice_t*)kmalloc(sizeof(MCoreDevice_t));
 			MCoreTimerDevice_t *pTimer = (MCoreTimerDevice_t*)kmalloc(sizeof(MCoreTimerDevice_t));
 			memset(pDevice, 0, sizeof(MCoreDevice_t));
-			int IrqItr = 0, DevIrqItr = 0;
 
 			/* Setup information */
 			pDevice->VendorId = 0x8086;
@@ -475,19 +410,7 @@ MODULES_API void ModuleInit(void *Data)
 			/* Setup Irq's */
 			pDevice->IrqLine = -1;
 			pDevice->IrqPin = -1;
-
-			/* Get a list of avail irqs */
-			for (IrqItr = 0; IrqItr < 32; IrqItr++)
-			{
-				/* Can we allocate an interrupt for this? */
-				if (GlbHpetTimers[Itr]->Map & (1 << IrqItr))
-					pDevice->IrqAvailable[DevIrqItr++] = IrqItr;
-
-				/* Do we have enough? */
-				if (DevIrqItr == DEVICEMANAGER_MAX_IRQS)
-					break;
-			}
-
+			
 			/* Type */
 			pDevice->Type = DeviceTimer;
 			pDevice->Data = pTimer;
