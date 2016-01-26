@@ -42,135 +42,6 @@
 #define DEVICES_PIT				0x00000018
 #define DEVICES_RTC				0x00000020
 
-/* Extern the Pci Device List */
-extern list_t *GlbPciDevices;
-extern void rdtsc(uint64_t *Value);
-
-/* Helpers */
-uint32_t CreateModuleClass(uint8_t PciClass, uint8_t PciSubClass)
-{
-	return (uint32_t)(0 | (PciClass << 16) | PciSubClass);
-}
-
-uint32_t CreateModuleSubClass(uint8_t Interface, uint8_t Protocol)
-{
-	return (uint32_t)(0 | (Interface << 16) | Protocol);
-}
-
-/* This enumerates EHCI controllers and makes sure all routing goes to
-* their companion controllers */
-void DevicesDisableEHCI(void *Data, int n)
-{
-	/* Vars */
-	PciDevice_t *Driver = (PciDevice_t*)Data;
-	list_t *SubBusList;
-
-	/* Needed for loading */
-	MCoreModule_t *Module = NULL;
-
-	/* Unused */
-	_CRT_UNUSED(n);
-
-	/* Check type */
-	switch (Driver->Type)
-	{
-	case X86_PCI_TYPE_BRIDGE:
-	{
-		/* Sanity */
-		if (Driver->Children != NULL)
-		{
-			/* Get bus list */
-			SubBusList = (list_t*)Driver->Children;
-
-			/* Iterate Deeper */
-			list_execute_all(SubBusList, DevicesDisableEHCI);
-		}
-
-	} break;
-
-	case X86_PCI_TYPE_DEVICE:
-	{
-		/* Get driver */
-
-		/* Serial Bus Comms */
-		if (Driver->Header->Class == 0x0C)
-		{
-			/* Usb? */
-			if (Driver->Header->Subclass == 0x03)
-			{
-				/* Controller Type? */
-
-				/* UHCI -> 0. OHCI -> 0x10. EHCI -> 0x20. xHCI -> 0x30 */
-				if (Driver->Header->Interface == 0x20)
-				{
-					/* Initialise Controller */
-					Module = ModuleFind(0x000C0003, 0x00200000);
-
-					/* Do we have the driver? */
-					if (Module != NULL)
-						ModuleLoad(Module, Data);
-				}
-			}
-		}
-
-	} break;
-
-	default:
-		break;
-	}
-}
-
-/* This installs a driver for each device present (if we have a driver!) */
-void DevicesInstall(void *Data, int n)
-{
-	/* Vars */
-	PciDevice_t *PciDev = (PciDevice_t*)Data;
-	list_t *SubBus;
-
-	/* Needed for loading */
-	MCoreModule_t *Module = NULL;
-
-	/* We dont really use 'n' */
-	_CRT_UNUSED(n);
-
-	switch (PciDev->Type)
-	{
-	case X86_PCI_TYPE_BRIDGE:
-	{
-		/* Get bus list */
-		SubBus = (list_t*)PciDev->Children;
-
-		/* Install drivers on that bus */
-		list_execute_all(SubBus, DevicesInstall);
-
-	} break;
-
-	case X86_PCI_TYPE_DEVICE:
-	{
-		/* Sanity, We ignore EHCI */
-		if (PciDev->Header->Class == 0x0C
-			&& PciDev->Header->Subclass == 0x03
-			&& PciDev->Header->Interface == 0x20)
-		{
-			break;
-		}
-
-		/* Initialise Device */
-		Module = ModuleFind(
-			CreateModuleClass(PciDev->Header->Class, PciDev->Header->Subclass), 
-			CreateModuleSubClass(PciDev->Header->Interface, 0));
-
-		/* Do we have the driver? */
-		if (Module != NULL)
-			ModuleLoad(Module, Data);
-
-	} break;
-
-	default:
-		break;
-	}
-}
-
 /* Initialises all available timers in system */
 void DevicesInitTimers(void)
 {
@@ -223,32 +94,6 @@ void DevicesInitTimers(void)
 	/* Do we have the driver? */
 	if (Module != NULL)
 		ModuleLoad(Module, NULL);
-}
-
-/* Initialises all available devices in system */
-void DevicesInit(void *Args)
-{
-	/* Vars */
-	MCoreModule_t *Module = NULL;
-
-	/* Unused */
-	_CRT_UNUSED(Args);
-
-	/* Enumerate Pci Space */
-	PciEnumerate();
-
-	/* Now, setup drivers
-	 * since we have no EHCI
-	 * driver, but still would
-	 * like usb functionality,
-	 * we must make sure we disable these */
-	list_execute_all(GlbPciDevices, DevicesDisableEHCI);
-
-	/* Setup the rest */
-	list_execute_all(GlbPciDevices, DevicesInstall);
-
-	/* Setup Legacy Devices, those
-	* PciEnumerate does not detect */
 
 	/* PS2 */
 	Module = ModuleFind(DEVICES_LEGACY_ID, DEVICES_PS2);
@@ -256,6 +101,7 @@ void DevicesInit(void *Args)
 	/* Do we have the driver? */
 	if (Module != NULL)
 		ModuleLoad(Module, NULL);
+
 }
 
 /* Globals */
@@ -339,6 +185,12 @@ size_t IoSpaceRead(DeviceIoSpace_t *IoSpace, size_t Offset, size_t Length)
 	size_t Result = 0;
 
 	/* Sanity */
+	if ((Offset + Length) > IoSpace->Size) {
+		LogFatal("SYST", "Invalid access to resource, %u exceeds the allocated io-space", (Offset + Length));
+		return 0;
+	}
+
+	/* Sanity */
 	if (IoSpace->Type == DEVICE_IO_SPACE_IO)
 	{
 		/* Calculate final address */
@@ -390,6 +242,12 @@ size_t IoSpaceRead(DeviceIoSpace_t *IoSpace, size_t Offset, size_t Length)
 /* Write to device space */
 void IoSpaceWrite(DeviceIoSpace_t *IoSpace, size_t Offset, size_t Value, size_t Length)
 {
+	/* Sanity */
+	if ((Offset + Length) > IoSpace->Size) {
+		LogFatal("SYST", "Invalid access to resource, %u exceeds the allocated io-space", (Offset + Length));
+		return;
+	}
+
 	/* Sanity */
 	if (IoSpace->Type == DEVICE_IO_SPACE_IO)
 	{
@@ -460,6 +318,8 @@ Addr_t IoSpaceValidate(Addr_t Address)
 }
 
 /* Backup Timer, Should always be provided */
+extern void rdtsc(uint64_t *Value);
+
 void DelayMs(uint32_t MilliSeconds)
 {
 	/* Keep value in this */

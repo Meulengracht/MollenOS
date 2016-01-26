@@ -57,6 +57,12 @@ typedef enum _DeviceType
 
 } DeviceType_t;
 
+typedef enum _DeviceResourceType
+{
+	ResourceIrq
+
+} DeviceResourceType_t;
+
 typedef enum _DeviceRequestType
 {
 	RequestQuery,
@@ -133,6 +139,7 @@ typedef struct _MCoreDevice
 	int IrqLine;
 	int IrqPin;
 	int IrqAvailable[DEVICEMANAGER_MAX_IRQS];
+	IrqHandler_t IrqHandler;
 
 	/* I/O Spaces */
 	DeviceIoSpace_t *IoSpaces[DEVICEMANAGER_MAX_IOSPACES];
@@ -177,6 +184,7 @@ _CRT_EXTERN void DmStart(void);
 _CRT_EXTERN void DmRegisterBootVideo(MCoreDevice_t *Video);
 
 /* Setup of devices */
+_CRT_EXPORT int DmRequestResource(MCoreDevice_t *Device, DeviceResourceType_t ResourceType);
 _CRT_EXPORT DevId_t DmCreateDevice(char *Name, MCoreDevice_t *Device);
 _CRT_EXPORT MCoreDevice_t *DmGetDevice(DeviceType_t Type);
 _CRT_EXPORT void DmDestroyDevice(DevId_t DeviceId);

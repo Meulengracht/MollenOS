@@ -31,11 +31,11 @@
     <Filter Include="Acpi">
       <UniqueIdentifier>{9f0e9a9c-a460-430d-b158-8c383914884f}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Pci">
-      <UniqueIdentifier>{a256d2ba-7396-48a0-9948-d382c7db5085}</UniqueIdentifier>
-    </Filter>
     <Filter Include="x32\Includes">
       <UniqueIdentifier>{9f0f89a3-d2aa-4895-a9d2-4ec0cda5e967}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Pci">
+      <UniqueIdentifier>{8b69d971-0f41-4d61-8b7c-d46b710d101c}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>
@@ -102,18 +102,6 @@
     <ClCompile Include="..\..\Arch\x86\Acpi\AcpiScan.c">
       <Filter>Acpi</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\Arch\x86\Pci\PciEnumerate.c">
-      <Filter>Pci</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\Arch\x86\Pci\PciHelpers.c">
-      <Filter>Pci</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\Arch\x86\Pci\PciStrings.c">
-      <Filter>Pci</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\Arch\x86\Pci\PciIo.c">
-      <Filter>Pci</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\Arch\x86\Components\Devices.c">
       <Filter>Components</Filter>
     </ClCompile>
@@ -122,6 +110,9 @@
     </ClCompile>
     <ClCompile Include="..\..\Arch\x86\Interrupts\ApicInit.c">
       <Filter>Interrupts</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Arch\x86\Pci\PciIo.c">
+      <Filter>Pci</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>

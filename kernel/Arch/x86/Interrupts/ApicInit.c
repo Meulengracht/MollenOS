@@ -386,7 +386,7 @@ void ApicReloadTimer(uint32_t Quantum)
 {
 	/* Setup timer */
 	ApicWriteLocal(APIC_INITIAL_COUNT, Quantum);
-	ApicWriteLocal(APIC_TIMER_VECTOR, APIC_TIMER_ONESHOT | INTERRUPT_TIMER);
+	ApicWriteLocal(APIC_TIMER_VECTOR, APIC_TIMER_ONESHOT | INTERRUPT_LAPIC);
 
 	/* Set divider */
 	ApicWriteLocal(APIC_DIVIDE_REGISTER, APIC_TIMER_DIVIDER_1);
@@ -430,7 +430,7 @@ void ApicInitBoot(void)
 #ifdef _X86_32
 	/* Disable Apic Timer */
 	Temp = ApicReadLocal(APIC_TIMER_VECTOR);
-	Temp |= (APIC_MASKED | INTERRUPT_TIMER);
+	Temp |= (APIC_MASKED | INTERRUPT_LAPIC);
 	ApicWriteLocal(APIC_TIMER_VECTOR, Temp);
 #endif
 
@@ -482,10 +482,10 @@ void ApicTimerInit(void)
 	memset((void*)GlbTimerTicks, 0, sizeof(GlbTimerTicks));
 
 	/* Install Interrupt */
-	InterruptInstallIdtOnly(0xFFFFFFFF, INTERRUPT_TIMER, ApicTimerHandler, NULL);
+	InterruptInstallIdtOnly(0xFFFFFFFF, INTERRUPT_LAPIC, ApicTimerHandler, NULL);
 
 	/* Setup initial local apic timer registers */
-	ApicWriteLocal(APIC_TIMER_VECTOR, INTERRUPT_TIMER);
+	ApicWriteLocal(APIC_TIMER_VECTOR, INTERRUPT_LAPIC);
 	ApicWriteLocal(APIC_DIVIDE_REGISTER, APIC_TIMER_DIVIDER_1);
 
 	/* Start counters! */

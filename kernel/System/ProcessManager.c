@@ -208,14 +208,14 @@ void PmStartProcess(void *Args)
 	Process->Heap = HeapCreate(MEMORY_LOCATION_USER_HEAP, 1);
 
 	/* Map in arguments */
-	AddressSpaceMap(AddressSpaceGetCurrent(), MEMORY_LOCATION_USER_ARGS, PAGE_SIZE, 1);
+	AddressSpaceMap(AddressSpaceGetCurrent(), MEMORY_LOCATION_USER_ARGS, PAGE_SIZE, ADDRESS_SPACE_FLAG_USER);
 
 	/* Copy arguments */
 	memcpy((void*)MEMORY_LOCATION_USER_ARGS,
 		Process->Arguments->Data, Process->Arguments->Length);
 
 	/* Map in pipes */
-	AddressSpaceMap(AddressSpaceGetCurrent(), MEMORY_LOCATION_PIPE_OUT, PROCESS_PIPE_SIZE, 1);
+	AddressSpaceMap(AddressSpaceGetCurrent(), MEMORY_LOCATION_PIPE_OUT, PROCESS_PIPE_SIZE, ADDRESS_SPACE_FLAG_USER);
 
 	/* Create in */
 	Process->iPipe = RingBufferCreate(PROCESS_PIPE_SIZE);
@@ -230,7 +230,7 @@ void PmStartProcess(void *Args)
 
 	/* Map Stack */
 	BaseAddress = ((MEMORY_LOCATION_USER_STACK - 0x1) & PAGE_MASK);
-	AddressSpaceMap(AddressSpaceGetCurrent(), BaseAddress, PROCESS_STACK_INIT, 1);
+	AddressSpaceMap(AddressSpaceGetCurrent(), BaseAddress, PROCESS_STACK_INIT, ADDRESS_SPACE_FLAG_USER);
 	BaseAddress += (MEMORY_LOCATION_USER_STACK & ~(PAGE_MASK));
 	Process->StackStart = BaseAddress;
 

@@ -159,7 +159,7 @@ _CRT_EXPORT PhysAddr_t MmVirtualGetMapping(void *PageDirectory, VirtAddr_t Virtu
 
 /* Hihi */
 _CRT_EXTERN VirtAddr_t *MmReserveMemory(int Pages);
-_CRT_EXPORT PhysAddr_t MmPhysicalAllocateBlockDma(void);
+_CRT_EXTERN PhysAddr_t MmPhysicalAllocateBlockDma(void);
 _CRT_EXTERN PageDirectory_t *MmVirtualGetCurrentDirectory(Cpu_t cpu);
 _CRT_EXTERN void MmVirtualSwitchPageDirectory(Cpu_t cpu, PageDirectory_t* PageDirectory, PhysAddr_t Pdb);
 _CRT_EXTERN VirtAddr_t MmPhyiscalGetSysMappingVirtual(PhysAddr_t PhysicalAddr);

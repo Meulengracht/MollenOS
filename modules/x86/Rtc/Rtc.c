@@ -165,6 +165,8 @@ MODULES_API void ModuleInit(void *Data)
 
 	Device->IrqLine = X86_CMOS_RTC_IRQ;
 	Device->IrqPin = -1;
+	Device->IrqAvailable[0] = -1;
+	Device->IrqHandler = RtcIrqHandler;
 
 	/* Type */
 	Device->Type = DeviceTimer;
@@ -176,11 +178,21 @@ MODULES_API void ModuleInit(void *Data)
 	Device->Driver.Data = Rtc;
 	Device->Driver.Status = DriverActive;
 
+	/* Register us for an irq */
+	if (DmRequestResource(Device, ResourceIrq)) {
+		LogFatal("RTC0", "Failed to allocate irq for use, bailing out!");
+
+		/* Cleanup */
+		kfree(TimerData);
+		kfree(Rtc);
+		kfree(Device);
+
+		/* Done */
+		return;
+	}
+
 	/* Register us with OS so we can get our function interface */
 	Rtc->DeviceId = DmCreateDevice("Rtc Timer", Device);
-
-	/* Install ISA IRQ Handler using normal install function */
-	InterruptInstallISA(X86_CMOS_RTC_IRQ, INTERRUPT_RTC, RtcIrqHandler, TimerData);
 
 	/* Disable IRQ's for this duration */
 	IntrState = InterruptDisable();

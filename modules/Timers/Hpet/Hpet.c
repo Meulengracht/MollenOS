@@ -28,9 +28,6 @@
 #include <Heap.h>
 #include <Log.h>
 
-/* X86 */
-#include <x86\Memory.h>
-
 /* Structures */
 #pragma pack(push, 1)
 typedef struct _HpetManager
@@ -537,18 +534,18 @@ uint64_t HpetGetClocks(void* Device)
 /* Sleep for ms */
 void HpetSleep(void* Device, size_t MilliSeconds)
 {
-	/* Calculate TickEnd in NanoSeconds */
+	/* Calculate TickEnd in mSeconds */
 	uint64_t TickEnd = MilliSeconds + HpetGetClocks(Device);
 
 	/* While */
-	while (TickEnd >= HpetGetClocks(Device))
+	while (TickEnd > HpetGetClocks(Device))
 		_ThreadYield();
 }
 
 /* Stall for ms */
 void HpetStall(void* Device, size_t MilliSeconds)
 {
-	/* Calculate TickEnd in NanoSeconds */
+	/* Calculate TickEnd in mSeconds */
 	uint64_t TickEnd = MilliSeconds + HpetGetClocks(Device);
 
 	/* While */

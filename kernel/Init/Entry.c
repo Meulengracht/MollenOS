@@ -100,8 +100,7 @@ void MCoreInitialize(MCoreBootInfo_t *BootInfo)
 	/* From this point, we should start seperate threads and
 	* let this thread die out, because initial system setup
 	* is now totally done, and the moment we start another
-	* thread, it will take over as this is the idle thread 
-	* ThreadingCreateThread("DriverSetup", DevicesInit, NULL, 0); */
+	* thread, it will take over as this is the idle thread */
 
 	/* Drivers 
 	 * Start the bus driver */

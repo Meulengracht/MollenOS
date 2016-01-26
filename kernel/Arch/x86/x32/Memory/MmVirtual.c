@@ -83,7 +83,7 @@ void MmVirtualFillPageTable(PageTable_t *pTable, PhysAddr_t PhysStart, VirtAddr_
 		i++, phys += PAGE_SIZE, virt += PAGE_SIZE)
 	{
 		/* Create Entry */
-		uint32_t page = phys | PAGE_PRESENT | PAGE_WRITE;
+		uint32_t page = phys | PAGE_PRESENT | PAGE_WRITE | PAGE_SYSTEM_MAP;
 
 		/* Set it at correct offset */
 		pTable->Pages[PAGE_TABLE_INDEX(virt)] = page;
@@ -112,7 +112,7 @@ void MmVirtualIdentityMapMemoryRange(PageDirectory_t* PageDirectory,
 			MmVirtualFillPageTable(pTable, CurrPhys, CurrVirt);
 
 		/* Install Table */
-		PageDirectory->pTables[i] = (PhysAddr_t)pTable | PAGE_PRESENT | PAGE_WRITE | Flags;
+		PageDirectory->pTables[i] = (PhysAddr_t)pTable | PAGE_SYSTEM_MAP | PAGE_PRESENT | PAGE_WRITE | Flags;
 		PageDirectory->vTables[i] = (Addr_t)pTable;
 	}
 }
@@ -220,61 +220,66 @@ void MmVirtualMap(void *PageDirectory, PhysAddr_t PhysicalAddr, VirtAddr_t Virtu
 * is used */
 void MmVirtualUnmap(void *PageDirectory, VirtAddr_t VirtualAddr)
 {
-	PageDirectory_t *pdir = (PageDirectory_t*)PageDirectory;
-	PageTable_t *ptable = NULL;
+	PageDirectory_t *pDir = (PageDirectory_t*)PageDirectory;
+	PageTable_t *pTable = NULL;
 	PhysAddr_t phys = 0;
 
-	/* Determine page directory */
-	if (pdir == NULL)
-	{
-		/* Get CPU */
-		pdir = (PageDirectory_t*)CurrentPageDirectories[ApicGetCpu()];
-	}
+	/* Determine page directory 
+	 * if pDir is null we get for current cpu */
+	if (pDir == NULL)
+		pDir = (PageDirectory_t*)CurrentPageDirectories[ApicGetCpu()];
 
 	/* Sanity */
-	assert(pdir != NULL);
+	assert(pDir != NULL);
 
 	/* Get mutex */
-	CriticalSectionEnter(&pdir->Lock);
+	CriticalSectionEnter(&pDir->Lock);
 
-	/* Does page table exist? */
-	if (!(pdir->pTables[PAGE_DIRECTORY_INDEX(VirtualAddr)] & PAGE_PRESENT))
+	/* Does page table exist? 
+	 * or is a system table, we can't unmap these! */
+	if (!(pDir->pTables[PAGE_DIRECTORY_INDEX(VirtualAddr)] & PAGE_PRESENT))
 	{
 		/* No... What the fuck? */
 		
 		/* Release mutex */
-		CriticalSectionLeave(&pdir->Lock);
+		CriticalSectionLeave(&pDir->Lock);
 
 		/* Return */
 		return;
 	}
 
 	/* Get it */
-	ptable = (PageTable_t*)pdir->vTables[PAGE_DIRECTORY_INDEX(VirtualAddr)];
+	pTable = (PageTable_t*)pDir->vTables[PAGE_DIRECTORY_INDEX(VirtualAddr)];
 
 	/* Sanity */
-	if (ptable->Pages[PAGE_TABLE_INDEX(VirtualAddr)] == 0)
+	if (pTable->Pages[PAGE_TABLE_INDEX(VirtualAddr)] == 0)
 	{
 		/* Release mutex */
-		CriticalSectionLeave(&pdir->Lock);
+		CriticalSectionLeave(&pDir->Lock);
 
 		/* Return */
 		return;
 	}
 
-	/* Do it */
-	phys = ptable->Pages[PAGE_TABLE_INDEX(VirtualAddr)];
-	ptable->Pages[PAGE_TABLE_INDEX(VirtualAddr)] = 0;
+	/* System memory? Just free the page, don't unmap */
+	if (pTable->Pages[PAGE_TABLE_INDEX(VirtualAddr)] & PAGE_SYSTEM_MAP)
+		MmPhysicalFreeBlock(pTable->Pages[PAGE_TABLE_INDEX(VirtualAddr)] & PAGE_MASK);
+	else
+	{
+		/* Do it */
+		phys = pTable->Pages[PAGE_TABLE_INDEX(VirtualAddr)];
+		pTable->Pages[PAGE_TABLE_INDEX(VirtualAddr)] = 0;
 
-	/* Release memory */
-	MmPhysicalFreeBlock(phys);
+		/* Release memory */
+		MmPhysicalFreeBlock(phys);
 
-	/* Release mutex */
-	CriticalSectionLeave(&pdir->Lock);
+		/* Release mutex */
+		CriticalSectionLeave(&pDir->Lock);
 
-	/* Invalidate Address */
-	if (PageDirectory == NULL)
-		memory_invalidate_addr(VirtualAddr);
+		/* Invalidate Address */
+		if (PageDirectory == NULL)
+			memory_invalidate_addr(VirtualAddr);
+	}
 }
 
 /* Gets a physical memory address from a virtual
@@ -411,7 +416,7 @@ void MmVirtualInit(void)
 	memset((void*)KernelPageDirectory, 0, sizeof(PageDirectory_t));
 
 	/* Install it */
-	KernelPageDirectory->pTables[0] = (PhysAddr_t)itable | PAGE_USER | PAGE_PRESENT | PAGE_WRITE;
+	KernelPageDirectory->pTables[0] = (PhysAddr_t)itable | PAGE_USER | PAGE_PRESENT | PAGE_WRITE | PAGE_SYSTEM_MAP;
 	KernelPageDirectory->vTables[0] = (Addr_t)itable;
 	
 	/* Init mutexes */
@@ -505,7 +510,7 @@ void MmVirtualInit(void)
 
 /* Address Space Abstraction Layer
  **********************************/
-AddressSpace_t *AddressSpaceCreate(uint32_t Flags)
+AddressSpace_t *AddressSpaceCreate(int Flags)
 {
 	/* Allocate Structure */
 	AddressSpace_t *AddrSpace = (AddressSpace_t*)kmalloc(sizeof(AddressSpace_t));
@@ -616,35 +621,69 @@ void AddressSpaceReleaseKernel(AddressSpace_t *AddrSpace)
 	}
 }
 
-/* Map a virtual address into the Address Space */
-void AddressSpaceMap(AddressSpace_t *AddrSpace, VirtAddr_t Address, size_t Size, int UserMode)
+/* Map a virtual address into the Address Space 
+ * Returns the base physical address */
+Addr_t AddressSpaceMap(AddressSpace_t *AddrSpace, VirtAddr_t Address, size_t Size, int Flags)
 {
 	/* Calculate num of pages */
+	Addr_t RetAddr = 0;
+	uint32_t AllocFlags = 0;
 	size_t Itr = 0;
 	size_t PageCount = (Size / PAGE_SIZE);
 	if (Size % PAGE_SIZE)
 		PageCount++;
 
+	/* Add flags */
+	if (Flags & ADDRESS_SPACE_FLAG_USER)
+		AllocFlags |= PAGE_USER;
+	if (Flags & ADDRESS_SPACE_FLAG_NOCACHE)
+		AllocFlags |= PAGE_CACHE_DISABLE;
+
+	/* Dma request? */
+	if (Flags & ADDRESS_SPACE_FLAG_LOWMEM) {
+		return MmPhysicalAllocateBlockDma();
+	}
+
 	/* Deep Call */
-	for (Itr = 0; Itr < PageCount; Itr++)
-		MmVirtualMap(AddrSpace->PageDirectory, MmPhysicalAllocateBlock(), 
-			(Address + (Itr * PAGE_SIZE)), UserMode != 0 ? PAGE_USER : 0);
+	for (Itr = 0; Itr < PageCount; Itr++) 
+	{
+		/* Alloc physical page */
+		Addr_t PhysBlock = MmPhysicalAllocateBlock();
+
+		/* Sanity */
+		if (RetAddr == 0)
+			RetAddr = PhysBlock;
+
+		/* Do the actual map */
+		MmVirtualMap(AddrSpace->PageDirectory, PhysBlock,
+			(Address + (Itr * PAGE_SIZE)), AllocFlags);
+	}
+
+	/* Done */
+	return RetAddr;
 }
 
 /* Map a virtual address to a fixed physical page */
 void AddressSpaceMapFixed(AddressSpace_t *AddrSpace,
-	PhysAddr_t PhysicalAddr, VirtAddr_t VirtualAddr, size_t Size, int UserMode)
+	PhysAddr_t PhysicalAddr, VirtAddr_t VirtualAddr, size_t Size, int Flags)
 {
 	/* Calculate num of pages */
+	uint32_t AllocFlags = 0;
 	size_t Itr = 0;
 	size_t PageCount = (Size / PAGE_SIZE);
 	if (Size % PAGE_SIZE)
 		PageCount++;
 
+	/* Add flags */
+	if (Flags & ADDRESS_SPACE_FLAG_USER)
+		AllocFlags |= PAGE_USER;
+	if (Flags & ADDRESS_SPACE_FLAG_NOCACHE)
+		AllocFlags |= PAGE_CACHE_DISABLE;
+
 	/* Deep Call */
 	for (Itr = 0; Itr < PageCount; Itr++)
 		MmVirtualMap(AddrSpace->PageDirectory, (PhysicalAddr + (Itr * PAGE_SIZE)),
-		(VirtualAddr + (Itr * PAGE_SIZE)), UserMode != 0 ? PAGE_USER : 0);
+		(VirtualAddr + (Itr * PAGE_SIZE)), AllocFlags);
 }
 
 /* Unmaps a virtual page from an address space */

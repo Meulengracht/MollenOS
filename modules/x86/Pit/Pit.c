@@ -25,6 +25,7 @@
 #include <Module.h>
 #include "Pit.h"
 #include <Heap.h>
+#include <Log.h>
 
 /* CLib */
 #include <string.h>
@@ -108,6 +109,8 @@ MODULES_API void ModuleInit(void *Data)
 
 	Device->IrqLine = X86_PIT_IRQ;
 	Device->IrqPin = -1;
+	Device->IrqAvailable[0] = -1;
+	Device->IrqHandler = PitIrqHandler;
 
 	/* Type */
 	Device->Type = DeviceTimer;
@@ -119,11 +122,21 @@ MODULES_API void ModuleInit(void *Data)
 	Device->Driver.Data = Pit;
 	Device->Driver.Status = DriverActive;
 
+	/* Register us for an irq */
+	if (DmRequestResource(Device, ResourceIrq)) {
+		LogFatal("PIT0", "Failed to allocate irq for use, bailing out!");
+
+		/* Cleanup */
+		kfree(Timer);
+		kfree(Pit);
+		kfree(Device);
+
+		/* Done */
+		return;
+	}
+
 	/* Before enabling, register us */
 	Pit->DeviceId = DmCreateDevice("PIT Timer", Device);
-
-	/* Install Irq */
-	InterruptInstallISA(X86_PIT_IRQ, INTERRUPT_PIT, PitIrqHandler, Device);
 
 	/* Disable IRQ's for this duration */
 	IntrState = InterruptDisable();

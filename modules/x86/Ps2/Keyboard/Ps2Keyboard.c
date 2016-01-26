@@ -24,6 +24,7 @@
 #include <Heap.h>
 #include <DeviceManager.h>
 #include <Devices/Input.h>
+#include <Log.h>
 
 #include "../Ps2.h"
 #include "Ps2Keyboard.h"
@@ -124,6 +125,8 @@ void Ps2KeyboardInit(int Port, int Translation)
 		Device->IrqLine = X86_PS2_PORT2_INTERRUPT;
 
 	Device->IrqPin = -1;
+	Device->IrqAvailable[0] = -1;
+	Device->IrqHandler = Ps2KeyboadIrqHandler;
 
 	/* Type */
 	Device->Type = DeviceInput;
@@ -135,14 +138,21 @@ void Ps2KeyboardInit(int Port, int Translation)
 	Device->Driver.Data = Ps2Dev;
 	Device->Driver.Status = DriverActive;
 
+	/* Register us for an irq */
+	if (DmRequestResource(Device, ResourceIrq)) {
+		LogFatal("PS2K", "Failed to allocate irq for use, bailing out!");
+
+		/* Cleanup */
+		kfree(InputDev);
+		kfree(Ps2Dev);
+		kfree(Device);
+
+		/* Done */
+		return;
+	}
+
 	/* Create device in upper layer */
 	Ps2Dev->Id = DmCreateDevice("Ps2-Keyboard", Device);
-
-	/* Install Irq */
-	if (Port == 1)
-		InterruptInstallISA(X86_PS2_PORT1_INTERRUPT, INTERRUPT_PS2_PORT1, Ps2KeyboadIrqHandler, Device);
-	else
-		InterruptInstallISA(X86_PS2_PORT2_INTERRUPT, INTERRUPT_PS2_PORT2, Ps2KeyboadIrqHandler, Device);
 
 	/* Set scancode set to 2 */
 	if (Port == 2)

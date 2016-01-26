@@ -59,7 +59,8 @@ Addr_t *HeapSAllocator(Heap_t *Heap, size_t Size)
 		}
 
 		/* Map */
-		AddressSpaceMap(AddressSpaceGetCurrent(), Heap->MemHeaderMax, PAGE_SIZE, Heap->IsUser);
+		AddressSpaceMap(AddressSpaceGetCurrent(), Heap->MemHeaderMax, PAGE_SIZE, 
+			(Heap->IsUser == 1) ? ADDRESS_SPACE_FLAG_USER : 0);
 		memset((void*)Heap->MemHeaderMax, 0, PAGE_SIZE);
 		Heap->MemHeaderMax += PAGE_SIZE;
 	}

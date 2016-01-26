@@ -195,17 +195,10 @@ _CRT_EXPORT void kernel_panic(const char *str);
 #define MEMORY_LOCATION_USER_GUARD		0xFFC00000 
 
 /* Architecture Locked Interrupts */
-#define INTERRUPT_TIMER					0xF0
-#define INTERRUPT_HPET_TIMERS			0xEC
-#define INTERRUPT_RTC					0xEC
-#define INTERRUPT_PIT					0xEC
-#define INTERRUPT_PCI_PIN_3				0xE8
-#define INTERRUPT_PCI_PIN_2				0xE4
-#define INTERRUPT_PCI_PIN_1				0xE0
-#define INTERRUPT_PCI_PIN_0				0xDC
-
-#define INTERRUPT_PS2_PORT2				0xD4
-#define INTERRUPT_PS2_PORT1				0xD0
+#define INTERRUPT_LAPIC					0xF0
+#define INTERRUPT_PIN_BASE				0xE0
+#define INTERRUPT_DEVICE_BASE			0xD0
+#define INTERRUPT_TIMER_BASE			0xA0		/* Allow up to 32 ints */
 
 #define INTERRUPT_SPURIOUS7				0x27
 #define INTERRUPT_SPURIOUS				0x7F

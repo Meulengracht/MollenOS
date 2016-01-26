@@ -321,6 +321,24 @@ DevId_t DmCreateDevice(char *Name, MCoreDevice_t *Device)
 	return Device->Id;
 }
 
+/* Request resource for device */
+int DmRequestResource(MCoreDevice_t *Device, DeviceResourceType_t ResourceType)
+{
+	/* Sanity */
+	if (Device == NULL)
+		return -1;
+
+	/* What kind of resource is requested? */
+	if (ResourceType == ResourceIrq)
+	{
+		/* Request underlying Arch to get us an interrupt */
+		return DeviceAllocateInterrupt(Device);
+	}
+
+	/* Eh, not supported */
+	return -2;
+}
+
 void DmDestroyDevice(DevId_t DeviceId)
 {
 	/* Lookup */

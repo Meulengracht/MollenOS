@@ -20,12 +20,16 @@
 */
 
 /* Includes */
+#include <DeviceManager.h>
 #include <Interrupts.h>
 #include <List.h>
 #include <Idt.h>
 #include <Pci.h>
 #include <AcpiSys.h>
 #include <Apic.h>
+#include <Log.h>
+
+/* CLib */
 #include <assert.h>
 #include <stdio.h>
 
@@ -184,110 +188,6 @@ void InterruptInstallISA(uint32_t Irq, uint32_t IdtEntry, IrqHandler_t Callback,
 	InterruptInstallBase(Irq, IdtEntry, apic_flags, Callback, Args);
 }
 
-/* Install shared interrupt */
-void InterruptInstallShared(uint32_t Irq, uint32_t IdtEntry, IrqHandler_t Callback, void *Args)
-{
-	/* Setup APIC flags */
-	uint64_t apic_flags = 0x7F00000000000000;	/* Target all cpu groups */
-	apic_flags |= 0x100;						/* Lowest Priority */
-	apic_flags |= 0x800;						/* Logical Destination Mode */
-	apic_flags |= (1 << 13);					/* Set Polarity */
-	apic_flags |= (1 << 15);					/* Set Trigger Mode */
-
-	/* Set IDT Vector */
-	apic_flags |= IdtEntry;
-
-	if (IrqTable[IdtEntry][0].Installed)
-		InterruptInstallIdtOnly(Irq, IdtEntry, Callback, Args);
-	else
-		InterruptInstallBase(Irq, IdtEntry, apic_flags, Callback, Args);
-}
-
-/* Install a pci interrupt */
-void InterruptInstallPci(PciDevice_t *PciDevice, IrqHandler_t Callback, void *Args)
-{
-	uint64_t apic_flags = 0;
-	int result;
-	uint8_t trigger_mode = 0, polarity = 0, shareable = 0;
-	uint32_t io_entry = 0;
-	uint32_t idt_entry = 0x20;
-	uint32_t pin = PciDevice->Header->InterruptPin;
-	uint8_t fixed = 0;
-	
-	/* Pin is not 0 indexed from PCI info */
-	pin--;
-
-	/* Get Interrupt Information */
-	result = AcpiDeviceGetIrq(PciDevice->Bus, PciDevice->Device, pin,
-		&trigger_mode, &polarity, &shareable, &fixed);
-
-	/* If no routing exists use the interrupt_line */
-	if (result == -1)
-	{
-		io_entry = PciDevice->Header->InterruptLine;
-		idt_entry += PciDevice->Header->InterruptLine;
-
-		apic_flags = 0x7F00000000000000;	/* Target all groups */
-		apic_flags |= 0x100;				/* Lowest Priority */
-		apic_flags |= 0x800;				/* Logical Destination Mode */
-	}
-	else
-	{
-		io_entry = (uint32_t)result;
-		pin = PciDevice->Header->InterruptPin;
-
-		/* Update PCI Interrupt Line */
-		PciWrite8(PciDevice->Bus, PciDevice->Device, PciDevice->Function, 0x3C, (uint8_t)io_entry);
-
-		/* Setup APIC flags */
-		apic_flags = 0x7F00000000000000;			/* Target all groups */
-		apic_flags |= 0x100;						/* Lowest Priority */
-		apic_flags |= 0x800;						/* Logical Destination Mode */
-
-		if (io_entry >= X86_NUM_ISA_INTERRUPTS)
-		{
-			apic_flags |= (1 << 13);				/* Set Polarity */
-			apic_flags |= (1 << 15);				/* Set Trigger Mode */
-		}
-		else
-		{
-			apic_flags |= ((polarity & 0x1) << 13);		/* Set Polarity */
-			apic_flags |= ((trigger_mode & 0x1) << 15);	/* Set Trigger Mode */
-		}
-
-		switch (pin)
-		{
-			case 0:
-			{
-				idt_entry = INTERRUPT_PCI_PIN_0;
-			} break;
-			case 1:
-			{
-				idt_entry = INTERRUPT_PCI_PIN_1;
-			} break;
-			case 2:
-			{
-				idt_entry = INTERRUPT_PCI_PIN_2;
-			} break;
-			case 3:
-			{
-				idt_entry = INTERRUPT_PCI_PIN_3;
-			} break;
-
-			default:
-				break;
-		}
-	}
-	
-	/* Set IDT Vector */
-	apic_flags |= idt_entry;
-
-	if (IrqTable[idt_entry][0].Installed)
-		InterruptInstallIdtOnly(io_entry, idt_entry, Callback, Args);
-	else
-		InterruptInstallBase(io_entry, idt_entry, apic_flags, Callback, Args);
-}
-
 /* Install only the interrupt handler, 
  *  this should be used for software interrupts */
 void InterruptInstallIdtOnly(uint32_t Gsi, uint32_t IdtEntry, IrqHandler_t Callback, void *Args)
@@ -334,14 +234,14 @@ int InterruptAllocateISA(uint32_t Irq)
 }
 
 /* Check Irq Status */
-uint32_t InterruptIrqCount(uint32_t Irq)
+int InterruptIrqCount(int Irq)
 {
 	/* Vars */
-	uint32_t i, RetVal = 0;
+	int i, RetVal = 0;
 
 	/* Sanity */
 	if (Irq < X86_NUM_ISA_INTERRUPTS)
-		return IrqIsaTable[Irq];
+		return IrqIsaTable[Irq] == 1 ? -1 : 0;
 
 	/* Iterate */
 	for (i = 0; i < X86_MAX_HANDLERS_PER_INTERRUPT; i++)
@@ -350,22 +250,33 @@ uint32_t InterruptIrqCount(uint32_t Irq)
 			RetVal++;
 	}
 
+	if (RetVal == X86_MAX_HANDLERS_PER_INTERRUPT)
+		return -1;
+
 	/* Done */
 	return RetVal;
 }
 
 /* Allocate Shareable Interrupt */
-uint32_t InterruptAllocatePCI(uint32_t Irqs[], uint32_t Count)
+int InterruptFindBest(int Irqs[], int Count)
 {
 	/* Vars */
-	uint32_t i;
-	uint32_t BestIrq = 0xFFFFFFFF;
+	int i;
+	int BestIrq = -1;
 
 	/* Iterate */
 	for (i = 0; i < Count; i++)
 	{
+		/* Sanity? */
+		if (Irqs[i] == -1)
+			break;
+
 		/* Check count */
-		uint32_t iCount = InterruptIrqCount(Irqs[i]);
+		int iCount = InterruptIrqCount(Irqs[i]);
+
+		/* Sanity - Unusable */
+		if (iCount == -1)
+			continue;
 
 		/* Is it better? */
 		if (iCount < BestIrq)
@@ -374,6 +285,153 @@ uint32_t InterruptAllocatePCI(uint32_t Irqs[], uint32_t Count)
 
 	/* Done */
 	return BestIrq;
+}
+
+/* Allocate interrupt for device */
+int DeviceAllocateInterrupt(void *mCoreDevice)
+{
+	/* Cast */
+	MCoreDevice_t *Device = (MCoreDevice_t*)mCoreDevice;
+
+	/* Setup initial Apic Flags */
+	uint64_t ApicFlags = 0x7F00000000000000;	/* Target all cpu groups */
+
+	/* Determine what kind of interrupt is needed */
+	if (Device->IrqLine == -1
+		&& Device->IrqPin == -1)
+	{
+		/* Choose from available irq's */
+		Device->IrqLine = InterruptFindBest(Device->IrqAvailable, DEVICEMANAGER_MAX_IRQS);
+	}
+	
+	/* Now actually do the allocation */
+	if (Device->IrqLine < X86_NUM_ISA_INTERRUPTS
+		&& Device->IrqPin == -1)
+	{
+		/* Request of a ISA interrupt */
+		int IdtEntry = INTERRUPT_DEVICE_BASE + Device->IrqLine;
+
+		/* Sanity */
+		if (IrqIsaTable[Device->IrqLine] == 1) {
+			LogFatal("SYST", "Interrupt %u is already allocated!!", Device->IrqLine);
+			return -1;
+		}
+
+		ApicFlags |= 0x100;				/* Lowest Priority */
+		ApicFlags |= 0x800;				/* Logical Destination Mode */
+
+		/* We have one ACPI Special Case */
+		if (Device->IrqLine == AcpiGbl_FADT.SciInterrupt)
+		{
+			ApicFlags |= 0x2000;			/* Active Low */
+			ApicFlags |= 0x8000;			/* Level Sensitive */
+		}
+
+		ApicFlags |= IdtEntry;
+
+		/* Install */
+		InterruptInstallBase(Device->IrqLine, IdtEntry, ApicFlags, Device->IrqHandler, Device);
+
+		/* Done! */
+		return 0;
+	}
+	else if (Device->IrqLine >= X86_NUM_ISA_INTERRUPTS
+		&& Device->IrqPin == -1)
+	{
+		/* Setup APIC flags */
+		int IdtEntry = 0;
+		ApicFlags |= 0x100;						/* Lowest Priority */
+		ApicFlags |= 0x800;						/* Logical Destination Mode */
+		ApicFlags |= (1 << 13);					/* Set Polarity */
+		ApicFlags |= (1 << 15);					/* Set Trigger Mode */
+
+		if (Device->Type == DeviceTimer)
+			IdtEntry = INTERRUPT_TIMER_BASE + Device->IrqLine;
+		else
+			IdtEntry = INTERRUPT_DEVICE_BASE + Device->IrqLine;
+
+		/* Set IDT Vector */
+		ApicFlags |= IdtEntry;
+
+		/* Is there already a handler? */
+		if (IrqTable[IdtEntry][0].Installed)
+			InterruptInstallIdtOnly(Device->IrqLine, IdtEntry, Device->IrqHandler, Device);
+		else
+			InterruptInstallBase(Device->IrqLine, IdtEntry, ApicFlags, Device->IrqHandler, Device);
+
+		/* Done */
+		return 0;
+	}
+	else if (Device->IrqPin != -1)
+	{
+		/* Vars, we need ACPI to determine a pin interrupt */
+		int DidExist = 0, ReducedPin = Device->IrqPin;
+
+		/* For irq information */
+		uint8_t IrqTriggerMode = 0, IrqPolarity = 0;
+		uint8_t IrqShareable = 0, Fixed = 0;
+
+		/* Idt, Irq entry */
+		int IrqLine = 0;
+		int IdtEntry = INTERRUPT_DEVICE_BASE;
+
+		/* Pin is not 0 indexed from PCI info */
+		ReducedPin--;
+
+		/* Get Interrupt Information */
+		DidExist = AcpiDeviceGetIrq(Device->Bus, Device->Device, ReducedPin,
+			&IrqTriggerMode, &IrqPolarity, &IrqShareable, &Fixed);
+
+		/* If no routing exists use the interrupt_line */
+		if (DidExist == -1)
+		{
+			IrqLine = Device->IrqLine;
+			IdtEntry += Device->IrqLine;
+
+			ApicFlags |= 0x100;				/* Lowest Priority */
+			ApicFlags |= 0x800;				/* Logical Destination Mode */
+		}
+		else
+		{
+			IrqLine = (uint32_t)DidExist;
+
+			/* Update PCI Interrupt Line */
+			PciWrite8(Device->Bus, Device->Device, Device->Function, 0x3C, (uint8_t)IrqLine);
+
+			/* Setup APIC flags */
+			ApicFlags |= 0x100;						/* Lowest Priority */
+			ApicFlags |= 0x800;						/* Logical Destination Mode */
+
+			/* Both trigger and polarity is either fixed or set by the
+			 * information we extracted earlier */
+			if (IrqLine >= X86_NUM_ISA_INTERRUPTS)
+			{
+				ApicFlags |= (1 << 13);
+				ApicFlags |= (1 << 15);
+			}
+			else
+			{
+				ApicFlags |= ((IrqPolarity & 0x1) << 13);		/* Set Polarity */
+				ApicFlags |= ((IrqTriggerMode & 0x1) << 15);	/* Set Trigger Mode */
+			}
+
+			/* Calculate idt */
+			IdtEntry = INTERRUPT_PIN_BASE + ReducedPin;
+		}
+
+		/* Set IDT Vector */
+		ApicFlags |= IdtEntry;
+
+		if (IrqTable[IdtEntry][0].Installed)
+			InterruptInstallIdtOnly(IrqLine, IdtEntry, Device->IrqHandler, Device);
+		else
+			InterruptInstallBase(IrqLine, IdtEntry, ApicFlags, Device->IrqHandler, Device);
+
+		/* Done */
+		return 0;
+	}
+	else
+		return -4;
 }
 
 /* The common entry point for interrupts */

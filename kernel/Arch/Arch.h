@@ -45,21 +45,29 @@ typedef int OsStatus_t;
 * Used for abstracting *
 * the virtual memory   *
 ***********************/
+
+/* Address Space Flags */
 #define ADDRESS_SPACE_KERNEL		0x1
 #define ADDRESS_SPACE_INHERIT		0x2
 #define ADDRESS_SPACE_USER			0x4
 
-_CRT_EXTERN AddressSpace_t *AddressSpaceCreate(uint32_t Flags);
+/* Allocation Flags */
+#define ADDRESS_SPACE_FLAG_USER			0x1
+#define ADDRESS_SPACE_FLAG_LOWMEM		0x2
+#define ADDRESS_SPACE_FLAG_RESERVE		0x4
+#define ADDRESS_SPACE_FLAG_NOCACHE		0x8
+
+_CRT_EXTERN AddressSpace_t *AddressSpaceCreate(int Flags);
 _CRT_EXTERN void AddressSpaceDestroy(AddressSpace_t *AddrSpace);
 _CRT_EXTERN void AddressSpaceSwitch(AddressSpace_t *AddrSpace);
-_CRT_EXTERN AddressSpace_t *AddressSpaceGetCurrent(void);
+_CRT_EXPORT AddressSpace_t *AddressSpaceGetCurrent(void);
 
 _CRT_EXTERN void AddressSpaceReleaseKernel(AddressSpace_t *AddrSpace);
-_CRT_EXTERN void AddressSpaceMap(AddressSpace_t *AddrSpace, 
-	VirtAddr_t Address, size_t Size, int UserMode);
-_CRT_EXTERN void AddressSpaceMapFixed(AddressSpace_t *AddrSpace,
-	PhysAddr_t PhysicalAddr, VirtAddr_t VirtualAddr, size_t Size, int UserMode);
-_CRT_EXTERN void AddressSpaceUnmap(AddressSpace_t *AddrSpace, VirtAddr_t Address, size_t Size);
+_CRT_EXPORT Addr_t AddressSpaceMap(AddressSpace_t *AddrSpace, 
+	VirtAddr_t Address, size_t Size, int Flags);
+_CRT_EXPORT void AddressSpaceMapFixed(AddressSpace_t *AddrSpace,
+	PhysAddr_t PhysicalAddr, VirtAddr_t VirtualAddr, size_t Size, int Flags);
+_CRT_EXPORT void AddressSpaceUnmap(AddressSpace_t *AddrSpace, VirtAddr_t Address, size_t Size);
 _CRT_EXTERN PhysAddr_t AddressSpaceGetMap(AddressSpace_t *AddrSpace, VirtAddr_t Address);
 
 /***********************
@@ -107,6 +115,6 @@ _CRT_EXPORT void SpinlockRelease(Spinlock_t *Spinlock);
 /***********************
 * Device Interface     *
 ***********************/
-_CRT_EXTERN void DevicesInit(void *Args);
+_CRT_EXTERN int DeviceAllocateInterrupt(void *mCoreDevice);
 
 #endif

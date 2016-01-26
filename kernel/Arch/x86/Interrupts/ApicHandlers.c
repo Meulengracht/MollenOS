@@ -49,7 +49,7 @@ int ApicTimerHandler(void *Args)
 	GlbTimerTicks[CurrCpu]++;
 
 	/* Send EOI */
-	ApicSendEoi(0, INTERRUPT_TIMER);
+	ApicSendEoi(0, INTERRUPT_LAPIC);
 
 	/* Switch Task */
 	Regs = _ThreadingSwitch((Registers_t*)Args, 1, &TimeSlice, &TaskPriority);

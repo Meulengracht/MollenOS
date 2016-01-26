@@ -163,9 +163,6 @@ typedef struct _PciDevice
 
 /* Prototypes */
 
-/* Initializor */
-_CRT_EXTERN void PciEnumerate(void);
-
 /* Read I/O */
 _CRT_EXTERN uint8_t PciRead8(uint32_t Bus, uint32_t Device, uint32_t Function, uint32_t Register);
 _CRT_EXTERN uint16_t PciRead16(uint32_t Bus, uint32_t Device, uint32_t Function, uint32_t Register);
@@ -177,22 +174,5 @@ _CRT_EXTERN void PciWrite8(uint32_t Bus, uint32_t Device, uint32_t Function, uin
 _CRT_EXTERN void PciWrite16(uint32_t Bus, uint32_t Device, uint32_t Function, uint32_t Register, uint16_t Value);
 _CRT_EXTERN void PciWrite32(uint32_t Bus, uint32_t Device, uint32_t Function, uint32_t Register, uint32_t Value);
 _CRT_EXPORT void PciDeviceWrite(PciDevice_t *Device, uint32_t Register, uint32_t Value, uint32_t Length);
-
-/* Install Pci Interrupt */
-_CRT_EXPORT void InterruptInstallPci(PciDevice_t *PciDevice, IrqHandler_t Callback, void *Args);
-
-/* Decode PCI Device to String */
-_CRT_EXTERN const char *PciToString(uint8_t Class, uint8_t SubClass, uint8_t Interface);
-
-/* Helpers */
-
-/* Reads the vendor id at given location */
-_CRT_EXTERN uint16_t PciReadVendorId(uint32_t Bus, uint32_t Device, uint32_t Function);
-_CRT_EXTERN void PciReadFunction(PciNativeHeader_t *Pcs, uint32_t Bus, uint32_t Device, uint32_t Function);
-
-_CRT_EXTERN uint8_t PciReadBaseClass(uint32_t Bus, uint32_t Device, uint32_t Function);
-_CRT_EXTERN uint8_t PciReadSubclass(uint32_t Bus, uint32_t Device, uint32_t Function);
-_CRT_EXTERN uint8_t PciReadSecondaryBusNumber(uint32_t Bus, uint32_t Device, uint32_t Function);
-_CRT_EXTERN uint8_t PciReadHeaderType(uint32_t Bus, uint32_t Device, uint32_t Function);
 
 #endif // !_X86_PCI_H_

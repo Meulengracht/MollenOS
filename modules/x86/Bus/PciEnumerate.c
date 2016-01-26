@@ -160,7 +160,7 @@ void PciReadBars(PciBus_t *Bus, MCoreDevice_t *Device, uint32_t HeaderType)
 			/* Create */
 			if (Space64 != 0
 				&& Size64 != 0)
-				Device->IoSpaces[i] = IoSpaceCreate(DEVICE_IO_SPACE_IO, (Addr_t)Space64, (size_t)Size64);
+				Device->IoSpaces[i] = IoSpaceCreate(DEVICE_IO_SPACE_MMIO, (Addr_t)Space64, (size_t)Size64);
 		}
 		else {
 			/* Set mask */
@@ -174,7 +174,7 @@ void PciReadBars(PciBus_t *Bus, MCoreDevice_t *Device, uint32_t HeaderType)
 			/* Create */
 			if (Space64 != 0
 				&& Size64 != 0)
-				Device->IoSpaces[i] = IoSpaceCreate(DEVICE_IO_SPACE_IO, (Addr_t)Space64, (size_t)Size64);
+				Device->IoSpaces[i] = IoSpaceCreate(DEVICE_IO_SPACE_MMIO, (Addr_t)Space64, (size_t)Size64);
 		}
 	}
 }
@@ -228,7 +228,8 @@ void PciCheckFunction(list_t *Bridge, PciBus_t *BusIo, uint8_t Bus, uint8_t Devi
 	}
 	
 	/* Add to list */
-	if (Pcs->Class == PCI_DEVICE_CLASS_BRIDGE && Pcs->Subclass == PCI_DEVICE_SUBCLASS_PCI)
+	if (Pcs->Class == PCI_DEVICE_CLASS_BRIDGE 
+		&& Pcs->Subclass == PCI_DEVICE_SUBCLASS_PCI)
 	{
 		PciDevice->Type = X86_PCI_TYPE_BRIDGE;
 		list_append(Bridge, list_create_node(X86_PCI_TYPE_BRIDGE, PciDevice));
@@ -282,6 +283,34 @@ void PciCheckFunction(list_t *Bridge, PciBus_t *BusIo, uint8_t Bus, uint8_t Devi
 		/* Read Bars */
 		PciReadBars(BusIo, mDevice, Pcs->HeaderType);
 
+		/* PCI - IDE Bar Fixup 
+		 * From experience ide-bars don't always show up (ex: Oracle VM)
+		 * but only the initial 4 bars don't, the BM bar 
+		 * always seem to show up */
+		if (Pcs->Class == 0x01
+			&& Pcs->Subclass == 0x01) 
+		{
+			/* Let's see */
+			if ((Pcs->Interface & 0x1) == 0)
+			{
+				/* Controller 1 */
+				if (mDevice->IoSpaces[0] == NULL)
+					mDevice->IoSpaces[0] = IoSpaceCreate(DEVICE_IO_SPACE_IO, 0x1F0, 8);
+				if (mDevice->IoSpaces[1] == NULL)
+					mDevice->IoSpaces[1] = IoSpaceCreate(DEVICE_IO_SPACE_IO, 0x3F6, 1);
+			}
+
+			/* Again, let's see */
+			if ((Pcs->Interface & 0x4) == 0)
+			{
+				/* Controller 2 */
+				if (mDevice->IoSpaces[2] == NULL)
+					mDevice->IoSpaces[2] = IoSpaceCreate(DEVICE_IO_SPACE_IO, 0x170, 8);
+				if (mDevice->IoSpaces[3] == NULL)
+					mDevice->IoSpaces[3] = IoSpaceCreate(DEVICE_IO_SPACE_IO, 0x376, 1);
+			}
+		}
+
 		/* Register */
 		DmCreateDevice((char*)PciToString(Pcs->Class, Pcs->Subclass, Pcs->Interface), mDevice);
 	}
@@ -321,8 +350,10 @@ void PciCheckDevice(list_t *Bridge, PciBus_t *Bus, uint8_t BusNo, uint8_t Device
 /* Check a bus */
 void PciCheckBus(list_t *Bridge, PciBus_t *Bus, uint8_t BusNo)
 {
+	/* Vars */
 	uint8_t Device;
 
+	/* Iterate devices on bus */
 	for (Device = 0; Device < 32; Device++)
 		PciCheckDevice(Bridge, Bus, BusNo, Device);
 }

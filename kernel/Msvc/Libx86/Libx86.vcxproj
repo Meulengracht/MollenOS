@@ -55,10 +55,7 @@
     <ClCompile Include="..\..\Arch\x86\Components\Spinlock.c" />
     <ClCompile Include="..\..\Arch\x86\Components\Thread.c" />
     <ClCompile Include="..\..\Arch\x86\Components\Video.c" />
-    <ClCompile Include="..\..\Arch\x86\Pci\PciEnumerate.c" />
-    <ClCompile Include="..\..\Arch\x86\Pci\PciHelpers.c" />
     <ClCompile Include="..\..\Arch\x86\Pci\PciIo.c" />
-    <ClCompile Include="..\..\Arch\x86\Pci\PciStrings.c" />
     <ClCompile Include="..\..\Arch\x86\x32\Context.c" />
     <ClCompile Include="..\..\Arch\x86\x32\Gdt.c" />
     <ClCompile Include="..\..\Arch\x86\x32\Idt.c" />

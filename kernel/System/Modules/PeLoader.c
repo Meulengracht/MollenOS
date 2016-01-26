@@ -160,7 +160,8 @@ Addr_t PeRelocateSections(MCorePeFile_t *PeFile, uint8_t *Data,
 			if (!AddressSpaceGetMap(AddressSpaceGetCurrent(), 
 				((VirtAddr_t)MemBuffer + (j * PAGE_SIZE))))
 				AddressSpaceMap(AddressSpaceGetCurrent(), 
-				((VirtAddr_t)MemBuffer + (j * PAGE_SIZE)), PAGE_SIZE, UserSpace);
+				((VirtAddr_t)MemBuffer + (j * PAGE_SIZE)), PAGE_SIZE, 
+				(UserSpace == 1) ? ADDRESS_SPACE_FLAG_USER : 0);
 		}
 
 		/* Which kind of section is this */
