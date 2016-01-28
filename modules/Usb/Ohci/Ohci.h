@@ -24,6 +24,7 @@
 
 /* Includes */
 #include <Module.h>
+#include <DeviceManager.h>
 
 /* Definitions */
 #define X86_OHCI_STRUCT_ALIGN		32
@@ -338,6 +339,9 @@ typedef struct _OhciController
 	/* Id */
 	uint32_t Id;
 	uint32_t HcdId;
+
+	/* Device */
+	MCoreDevice_t *Device;
 
 	/* Lock */
 	Spinlock_t Lock;

@@ -31,7 +31,6 @@
 #include <Scheduler.h>
 #include <Heap.h>
 #include <Timers.h>
-#include <DeviceManager.h>
 #include <Pci.h>
 
 /* CLib */
@@ -90,21 +89,27 @@ MODULES_API void ModuleInit(void *Data)
 	MCoreDevice_t *mDevice = (MCoreDevice_t*)Data;
 	uint16_t PciCommand;
 	OhciController_t *Controller = NULL;
+	DeviceIoSpace_t *IoBase = NULL;
 
 	/* Allocate Resources for this Controller */
 	Controller = (OhciController_t*)kmalloc(sizeof(OhciController_t));
+	Controller->Device = mDevice;
 	Controller->Id = GlbOhciControllerId;
 
-	/* Enable memory and Bus mastering and clear interrupt disable */
-	PciCommand = (uint16_t)PciDeviceRead(mDevice->BusInformation, 0x4, 2);
-	PciDeviceWrite(mDevice->BusInformation, 0x4, (PciCommand & ~(0x400)) | 0x2 | 0x4, 2);
+	/* Get I/O Base */
+	for (PciCommand = 0; PciCommand < DEVICEMANAGER_MAX_IOSPACES; PciCommand++) {
+		if (mDevice->IoSpaces[PciCommand] != NULL
+			&& mDevice->IoSpaces[PciCommand]->Type == DEVICE_IO_SPACE_MMIO) {
+			IoBase = mDevice->IoSpaces[PciCommand];
+			break;
+		}
+	}
 
 	/* Sanity */
-	if (mDevice->IoSpaces[0] == NULL 
-		|| (mDevice->IoSpaces[0]->Type != DEVICE_IO_SPACE_MMIO))
+	if (IoBase == NULL)
 	{
 		/* Yea, give me my hat back */
-		LogFatal("OHCI", "Invalid memory space!");
+		LogFatal("OHCI", "No memory space found for controller!");
 		kfree(Controller);
 		return;
 	}
@@ -114,22 +119,16 @@ MODULES_API void ModuleInit(void *Data)
 
 	/* Memory map needed space */
 	Controller->Registers = 
-		(volatile OhciRegisters_t*)mDevice->IoSpaces[0]->VirtualBase;
+		(volatile OhciRegisters_t*)IoBase->VirtualBase;
 	Controller->HccaSpace = 
-		(uint32_t)AddressSpaceMap(AddressSpaceGetCurrent(), 0, 0x1000, ADDRESS_SPACE_FLAG_LOWMEM);
+		(uint32_t)AddressSpaceMap(AddressSpaceGetCurrent(), 0, PAGE_SIZE, ADDRESS_SPACE_FLAG_LOWMEM);
 	Controller->HCCA = (volatile OhciHCCA_t*)Controller->HccaSpace;
 	
 	/* Reset Lock */
 	SpinlockReset(&Controller->Lock);
 
 	/* Memset HCCA Space */
-	memset((void*)Controller->HCCA, 0, 0x1000);
-
-	/* Setup driver information */
-	mDevice->Driver.Name = (char*)GlbOhciDriverName;
-	mDevice->Driver.Data = Controller;
-	mDevice->Driver.Version = 1;
-	mDevice->Driver.Status = DriverActive;
+	memset((void*)Controller->HCCA, 0, PAGE_SIZE);
 
 	/* Allocate Irq */
 	mDevice->IrqAvailable[0] = -1;
@@ -143,6 +142,16 @@ MODULES_API void ModuleInit(void *Data)
 		kfree(Controller);
 		return;
 	}
+
+	/* Enable memory and Bus mastering and clear interrupt disable */
+	PciCommand = (uint16_t)PciDeviceRead(mDevice->BusInformation, 0x4, 2);
+	PciDeviceWrite(mDevice->BusInformation, 0x4, (PciCommand & ~(0x400)) | 0x2 | 0x4, 2);
+
+	/* Setup driver information */
+	mDevice->Driver.Name = (char*)GlbOhciDriverName;
+	mDevice->Driver.Data = Controller;
+	mDevice->Driver.Version = 1;
+	mDevice->Driver.Status = DriverActive;
 
 	/* Debug */
 #ifdef _OHCI_DIAGNOSTICS_

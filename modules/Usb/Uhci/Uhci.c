@@ -27,7 +27,6 @@
 #include <Module.h>
 #include "Uhci.h"
 
-#include <DeviceManager.h>
 #include <Scheduler.h>
 #include <UsbCore.h>
 #include <Timers.h>
@@ -40,6 +39,7 @@
 /* Globals */
 uint32_t GlbUhciId = 0;
 
+const char *GlbUhciDriverName = "MollenOS UHCI Driver";
 const char *UhciErrorMessages[] =
 {
 	"No Error",
@@ -82,7 +82,7 @@ uint16_t UhciRead16(UhciController_t *Controller, uint16_t Register)
 	SpinlockAcquire(&Controller->Lock);
 
 	/* Read */
-	uint16_t Value = inw((Controller->IoBase + Register));
+	uint16_t Value = (uint16_t)IoSpaceRead(Controller->IoBase, Register, 2);
 
 	/* Release */
 	SpinlockRelease(&Controller->Lock);
@@ -97,7 +97,7 @@ uint32_t UhciRead32(UhciController_t *Controller, uint16_t Register)
 	SpinlockAcquire(&Controller->Lock);
 
 	/* Read */
-	uint32_t Value = inl((Controller->IoBase + Register));
+	uint32_t Value = (uint32_t)IoSpaceRead(Controller->IoBase, Register, 4);
 
 	/* Release */
 	SpinlockRelease(&Controller->Lock);
@@ -112,7 +112,7 @@ void UhciWrite8(UhciController_t *Controller, uint16_t Register, uint8_t Value)
 	SpinlockAcquire(&Controller->Lock);
 
 	/* Write new state */
-	outb((Controller->IoBase + Register), Value);
+	IoSpaceWrite(Controller->IoBase, Register, Value, 1);
 
 	/* Release */
 	SpinlockRelease(&Controller->Lock);
@@ -124,7 +124,7 @@ void UhciWrite16(UhciController_t *Controller, uint16_t Register, uint16_t Value
 	SpinlockAcquire(&Controller->Lock);
 
 	/* Write new state */
-	outw((Controller->IoBase + Register), Value);
+	IoSpaceWrite(Controller->IoBase, Register, Value, 2);
 
 	/* Release */
 	SpinlockRelease(&Controller->Lock);
@@ -136,7 +136,7 @@ void UhciWrite32(UhciController_t *Controller, uint16_t Register, uint32_t Value
 	SpinlockAcquire(&Controller->Lock);
 	
 	/* Write new state */
-	outl((Controller->IoBase + Register), Value);
+	IoSpaceWrite(Controller->IoBase, Register, Value, 4);
 
 	/* Release */
 	SpinlockRelease(&Controller->Lock);
@@ -146,36 +146,70 @@ void UhciWrite32(UhciController_t *Controller, uint16_t Register, uint32_t Value
 MODULES_API void ModuleInit(void *Data)
 {
 	/* Vars */
-	PciDevice_t *Device = (PciDevice_t*)Data;
+	MCoreDevice_t *mDevice = (MCoreDevice_t*)Data;
 	UhciController_t *Controller = NULL;
 	uint16_t PciCommand;
 
 	/* Allocate Resources for this controller */
 	Controller = (UhciController_t*)kmalloc(sizeof(UhciController_t));
-	Controller->PciDevice = Device;
 	Controller->Id = GlbUhciId;
 	Controller->Frame = 0;
+	Controller->IoBase = NULL;
 
 	/* Setup Lock */
 	SpinlockReset(&Controller->Lock);
 	GlbUhciId++;
 
-	/* Enable i/o and Bus mastering and clear interrupt disable */
-	PciCommand = (uint16_t)PciDeviceRead(Device, 0x4, 2);
-	PciDeviceWrite(Device, 0x4, (PciCommand & ~(0x400)) | 0x1 | 0x4, 2);
-
-	/* Get I/O Base from Bar4 */
-	Controller->IoBase = (Device->Header->Bar4 & 0x0000FFFE);
+	/* Get I/O Base */
+	for (PciCommand = 0; PciCommand < DEVICEMANAGER_MAX_IOSPACES; PciCommand++) {
+		if (mDevice->IoSpaces[PciCommand] != NULL
+			&& mDevice->IoSpaces[PciCommand]->Type == DEVICE_IO_SPACE_IO) {
+			Controller->IoBase = mDevice->IoSpaces[PciCommand];
+			break;
+		}
+	}
+	
+	/* Sanity */
+	if (Controller->IoBase == NULL)
+	{
+		/* Yea, give me my hat back */
+		LogFatal("OHCI", "Invalid memory space!");
+		kfree(Controller);
+		return;
+	}
 
 	/* Get DMA */
-	Controller->FrameListPhys = (Addr_t)MmPhysicalAllocateBlockDma();
-	Controller->FrameList = (void*)Controller->FrameListPhys;
+	Controller->FrameListPhys = 
+		(Addr_t)AddressSpaceMap(AddressSpaceGetCurrent(), 
+			0, PAGE_SIZE, ADDRESS_SPACE_FLAG_LOWMEM);
+	Controller->FrameList = 
+		(void*)Controller->FrameListPhys;
 
 	/* Memset */
 	memset(Controller->FrameList, 0, PAGE_SIZE);
 
-	/* Install IRQ Handler */
-	InterruptInstallPci(Device, UhciInterruptHandler, Controller);
+	/* Allocate Irq */
+	mDevice->IrqAvailable[0] = -1;
+	mDevice->IrqHandler = UhciInterruptHandler;
+
+	/* Register us for an irq */
+	if (DmRequestResource(mDevice, ResourceIrq)) {
+
+		/* Damnit! */
+		LogFatal("UHCI", "Failed to allocate irq for use, bailing out!");
+		kfree(Controller);
+		return;
+	}
+
+	/* Enable i/o and Bus mastering and clear interrupt disable */
+	PciCommand = (uint16_t)PciDeviceRead(mDevice->BusInformation, 0x4, 2);
+	PciDeviceWrite(mDevice->BusInformation, 0x4, (PciCommand & ~(0x400)) | 0x1 | 0x4, 2);
+
+	/* Setup driver information */
+	mDevice->Driver.Name = (char*)GlbUhciDriverName;
+	mDevice->Driver.Data = Controller;
+	mDevice->Driver.Version = 1;
+	mDevice->Driver.Status = DriverActive;
 
 	/* Reset Controller */
 	UhciSetup(Controller);
@@ -408,11 +442,11 @@ void UhciSetup(UhciController_t *Controller)
 	Controller->NumPorts = i;
 
 	/* Enable PCI Interrupts */
-	PciDeviceWrite(Controller->PciDevice, UHCI_USBLEGEACY, 0x2000, 2);
+	PciDeviceWrite(Controller->Device->BusInformation, UHCI_USBLEGEACY, 0x2000, 2);
 
 	/* If vendor is Intel we null out the intel register */
-	if (Controller->PciDevice->Header->VendorId == 0x8086)
-		PciDeviceWrite(Controller->PciDevice, UHCI_USBRES_INTEL, 0x00, 1);
+	if (Controller->Device->VendorId == 0x8086)
+		PciDeviceWrite(Controller->Device->BusInformation, UHCI_USBRES_INTEL, 0x00, 1);
 
 	/* Enable interrupts */
 	UhciWrite16(Controller, UHCI_REGISTER_INTR,
@@ -465,7 +499,8 @@ void UhciInitQueues(UhciController_t *Controller)
 	/* Setup Null Td */
 	Pool = (Addr_t)kmalloc(sizeof(UhciTransferDescriptor_t) + UHCI_STRUCT_ALIGN);
 	Controller->NullTd = (UhciTransferDescriptor_t*)UhciAlign(Pool, UHCI_STRUCT_ALIGN_BITS, UHCI_STRUCT_ALIGN);
-	Controller->NullTdPhysical = MmVirtualGetMapping(NULL, (VirtAddr_t)Controller->NullTd);
+	Controller->NullTdPhysical = 
+		AddressSpaceGetMap(AddressSpaceGetCurrent(), (VirtAddr_t)Controller->NullTd);
 
 	/* Memset it */
 	memset((void*)Controller->NullTd, 0, sizeof(UhciTransferDescriptor_t));
@@ -477,7 +512,7 @@ void UhciInitQueues(UhciController_t *Controller)
 	/* Setup Qh Pool */
 	Pool = (Addr_t)kmalloc((sizeof(UhciQueueHead_t) * UHCI_POOL_NUM_QH) + UHCI_STRUCT_ALIGN);
 	Pool = UhciAlign(Pool, UHCI_STRUCT_ALIGN_BITS, UHCI_STRUCT_ALIGN);
-	PoolPhysical = (Addr_t)MmVirtualGetMapping(NULL, Pool);
+	PoolPhysical = (Addr_t)AddressSpaceGetMap(AddressSpaceGetCurrent(), Pool);
 
 	/* Null out pool */
 	memset((void*)Pool, 0, sizeof(UhciQueueHead_t) * UHCI_POOL_NUM_QH);
@@ -728,7 +763,7 @@ void UhciQhInit(UhciController_t *Controller, UhciQueueHead_t *Qh, UsbHcTransact
 	}
 	else
 	{
-		Qh->Child = MmVirtualGetMapping(NULL, (Addr_t)FirstTd->TransferDescriptor);
+		Qh->Child = AddressSpaceGetMap(AddressSpaceGetCurrent(), (Addr_t)FirstTd->TransferDescriptor);
 		Qh->ChildVirtual = (uint32_t)FirstTd->TransferDescriptor;
 	}
 }
@@ -807,7 +842,7 @@ UhciTransferDescriptor_t *UhciTdSetup(UhciEndpoint_t *Ep, UsbTransferType_t Type
 	if (NextTD == UHCI_TD_LINK_END)
 		Td->Link = UHCI_TD_LINK_END;
 	else	/* Get physical Address of NextTD and set NextTD to that */
-		Td->Link = MmVirtualGetMapping(NULL, (VirtAddr_t)NextTD);
+		Td->Link = AddressSpaceGetMap(AddressSpaceGetCurrent(), (VirtAddr_t)NextTD);
 
 	/* Setup TD Control Status */
 	Td->Flags = UHCI_TD_ACTIVE;
@@ -828,7 +863,7 @@ UhciTransferDescriptor_t *UhciTdSetup(UhciEndpoint_t *Ep, UsbTransferType_t Type
 	memcpy(Buffer, (void*)pPacket, sizeof(UsbPacket_t));
 
 	/* Set buffer */
-	Td->Buffer = MmVirtualGetMapping(NULL, (VirtAddr_t)Buffer);
+	Td->Buffer = AddressSpaceGetMap(AddressSpaceGetCurrent(), (VirtAddr_t)Buffer);
 
 	/* Done */
 	return Td;
@@ -857,7 +892,7 @@ UhciTransferDescriptor_t *UhciTdIo(UhciEndpoint_t *Ep, UsbTransferType_t Type,
 	if (NextTD == UHCI_TD_LINK_END)
 		Td->Link = UHCI_TD_LINK_END;
 	else	/* Get physical Address of NextTD and set NextTD to that */
-		Td->Link = MmVirtualGetMapping(NULL, (VirtAddr_t)NextTD);
+		Td->Link = AddressSpaceGetMap(AddressSpaceGetCurrent(), (VirtAddr_t)NextTD);
 
 	/* Setup TD Control Status */
 	Td->Flags = UHCI_TD_ACTIVE;
@@ -879,7 +914,7 @@ UhciTransferDescriptor_t *UhciTdIo(UhciEndpoint_t *Ep, UsbTransferType_t Type,
 
 	/* Set buffer */
 	*TDBuffer = Buffer;
-	Td->Buffer = MmVirtualGetMapping(NULL, (VirtAddr_t)Buffer);
+	Td->Buffer = AddressSpaceGetMap(AddressSpaceGetCurrent(), (VirtAddr_t)Buffer);
 
 	/* Done */
 	return Td;
@@ -932,7 +967,7 @@ void UhciEndpointSetup(void *Controller, UsbHcEndpoint_t *Endpoint)
 	/* Allocate a TD block */
 	Pool = (Addr_t)kmalloc((sizeof(UhciTransferDescriptor_t) * uEp->TdsAllocated) + UHCI_STRUCT_ALIGN);
 	Pool = UhciAlign(Pool, UHCI_STRUCT_ALIGN_BITS, UHCI_STRUCT_ALIGN);
-	PoolPhys = MmVirtualGetMapping(NULL, Pool);
+	PoolPhys = AddressSpaceGetMap(AddressSpaceGetCurrent(), Pool);
 
 	/* Allocate buffers */
 	BufAddr = (Addr_t)kmalloc_a(PAGE_SIZE);
@@ -957,7 +992,7 @@ void UhciEndpointSetup(void *Controller, UsbHcEndpoint_t *Endpoint)
 
 		/* Setup Buffer */
 		uEp->TDPoolBuffers[i] = (Addr_t*)BufAddr;
-		uEp->TDPool[i]->Buffer = MmVirtualGetMapping(NULL, BufAddr);
+		uEp->TDPool[i]->Buffer = AddressSpaceGetMap(AddressSpaceGetCurrent(), BufAddr);
 		uEp->TDPool[i]->Link = UHCI_TD_LINK_END;
 
 		/* Increase */
@@ -1066,7 +1101,7 @@ UsbHcTransaction_t *UhciTransactionSetup(void *Controller, UsbHcRequest_t *Reque
 
 		PrevTd = (UhciTransferDescriptor_t*)cTrans->TransferDescriptor;
 		PrevTd->Link = 
-			(MmVirtualGetMapping(NULL, (VirtAddr_t)Transaction->TransferDescriptor) | UHCI_TD_LINK_DEPTH);
+			(AddressSpaceGetMap(AddressSpaceGetCurrent(), (VirtAddr_t)Transaction->TransferDescriptor) | UHCI_TD_LINK_DEPTH);
 	}
 
 	return Transaction;
@@ -1105,7 +1140,7 @@ UsbHcTransaction_t *UhciTransactionIn(void *Controller, UsbHcRequest_t *Request)
 
 		PrevTd = (UhciTransferDescriptor_t*)cTrans->TransferDescriptor;
 		PrevTd->Link =
-			(MmVirtualGetMapping(NULL, (VirtAddr_t)Transaction->TransferDescriptor) | UHCI_TD_LINK_DEPTH);
+			(AddressSpaceGetMap(AddressSpaceGetCurrent(), (VirtAddr_t)Transaction->TransferDescriptor) | UHCI_TD_LINK_DEPTH);
 	}
 
 	/* We might need a copy */
@@ -1158,7 +1193,7 @@ UsbHcTransaction_t *UhciTransactionOut(void *Controller, UsbHcRequest_t *Request
 
 		PrevTd = (UhciTransferDescriptor_t*)cTrans->TransferDescriptor;
 		PrevTd->Link =
-			(MmVirtualGetMapping(NULL, (VirtAddr_t)Transaction->TransferDescriptor) | UHCI_TD_LINK_DEPTH);
+			(AddressSpaceGetMap(AddressSpaceGetCurrent(), (VirtAddr_t)Transaction->TransferDescriptor) | UHCI_TD_LINK_DEPTH);
 	}
 
 	/* We might need a copy */
@@ -1190,7 +1225,7 @@ void UhciTransactionSend(void *Controller, UsbHcRequest_t *Request)
 	Qh = (UhciQueueHead_t*)Request->Data;
 
 	/* Get physical */
-	QhAddress = MmVirtualGetMapping(NULL, (VirtAddr_t)Qh);
+	QhAddress = AddressSpaceGetMap(AddressSpaceGetCurrent(), (VirtAddr_t)Qh);
 
 	/* Set as not Completed for start */
 	Request->Status = TransferNotProcessed;
@@ -1201,7 +1236,7 @@ void UhciTransactionSend(void *Controller, UsbHcRequest_t *Request)
 #ifdef _UHCI_DIAGNOSTICS_
 	Td = (UhciTransferDescriptor_t*)Transaction->TransferDescriptor;
 	LogDebug("UHCI", "Td (Addr 0x%x) Flags 0x%x, Buffer 0x%x, Header 0x%x, Next Td 0x%x",
-		MmVirtualGetMapping(NULL, (VirtAddr_t)Td), Td->Flags, Td->Buffer, Td->Header, Td->Link);
+		AddressSpaceGetMap(AddressSpaceGetCurrent(), (VirtAddr_t)Td), Td->Flags, Td->Buffer, Td->Header, Td->Link);
 #endif
 
 	while (Transaction->Link)
@@ -1212,7 +1247,7 @@ void UhciTransactionSend(void *Controller, UsbHcRequest_t *Request)
 #ifdef _UHCI_DIAGNOSTICS_
 		Td = (UhciTransferDescriptor_t*)Transaction->TransferDescriptor;
 		LogDebug("UHCI", "Td (Addr 0x%x) Flags 0x%x, Buffer 0x%x, Header 0x%x, Next Td 0x%x",
-			MmVirtualGetMapping(NULL, (VirtAddr_t)Td), Td->Flags, Td->Buffer, Td->Header, Td->Link);
+			AddressSpaceGetMap(AddressSpaceGetCurrent(), (VirtAddr_t)Td), Td->Flags, Td->Buffer, Td->Header, Td->Link);
 #endif
 	}
 

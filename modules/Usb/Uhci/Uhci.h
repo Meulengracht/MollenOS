@@ -24,7 +24,7 @@
 
 /* Includes */
 #include <Module.h>
-#include <x86\Pci.h>
+#include <DeviceManager.h>
 
 /* Definitions */
 #define UHCI_MAX_PORTS				7
@@ -229,14 +229,14 @@ typedef struct _UhciController
 	uint32_t Id;
 	uint32_t HcdId;
 
+	/* Device */
+	MCoreDevice_t *Device;
+
 	/* Lock */
 	Spinlock_t Lock;
 
-	/* Pci Header */
-	PciDevice_t *PciDevice;
-
 	/* I/O Registers */
-	uint16_t IoBase;
+	DeviceIoSpace_t *IoBase;
 
 	/* Frame List */
 	void *FrameList;
