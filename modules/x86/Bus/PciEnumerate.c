@@ -30,6 +30,9 @@
 #include <Heap.h>
 #include <Log.h>
 
+/* Definitions */
+#define RUN_EHCI_FIRST
+
 /* The MCFG Entry */
 #pragma pack(push, 1)
 typedef struct _McfgEntry
@@ -192,13 +195,28 @@ void PciReadBars(PciBus_t *Bus, MCoreDevice_t *Device, uint32_t HeaderType)
 /* Check a function */
 /* For each function we create a 
  * pci_device and add it to the list */
-void PciCheckFunction(list_t *Bridge, PciBus_t *BusIo, uint8_t Bus, uint8_t Device, uint8_t Function)
+void PciCheckFunction(list_t *Bridge, PciBus_t *BusIo, uint8_t Bus, uint8_t Device, uint8_t Function, uint8_t EhciFirst)
 {
 	/* Vars */
 	MCoreDevice_t *mDevice;
 	uint8_t SecondBus;
 	PciNativeHeader_t *Pcs;
 	PciDevice_t *PciDevice;
+
+	/* Sanity */
+	if (EhciFirst != 0)
+	{
+		/* Get Class/SubClass/Interface */
+		uint8_t Class = PciReadBaseClass(BusIo, Bus, Device, Function);
+		uint8_t SubClass = PciReadSubclass(BusIo, Bus, Device, Function);
+		uint8_t Interface = PciReadInterface(BusIo, Bus, Device, Function);
+
+		/* Is this an ehci? */
+		if (Class != 0x0C
+			|| SubClass != 0x03
+			|| Interface != 0x20)
+			return;
+	}
 
 	/* Allocate */
 	Pcs = (PciNativeHeader_t*)kmalloc(sizeof(PciNativeHeader_t));
@@ -306,7 +324,7 @@ void PciCheckFunction(list_t *Bridge, PciBus_t *BusIo, uint8_t Bus, uint8_t Devi
 				if (mDevice->IoSpaces[0] == NULL)
 					mDevice->IoSpaces[0] = IoSpaceCreate(DEVICE_IO_SPACE_IO, 0x1F0, 8);
 				if (mDevice->IoSpaces[1] == NULL)
-					mDevice->IoSpaces[1] = IoSpaceCreate(DEVICE_IO_SPACE_IO, 0x3F6, 1);
+					mDevice->IoSpaces[1] = IoSpaceCreate(DEVICE_IO_SPACE_IO, 0x3F6, 4);
 			}
 
 			/* Again, let's see */
@@ -316,7 +334,7 @@ void PciCheckFunction(list_t *Bridge, PciBus_t *BusIo, uint8_t Bus, uint8_t Devi
 				if (mDevice->IoSpaces[2] == NULL)
 					mDevice->IoSpaces[2] = IoSpaceCreate(DEVICE_IO_SPACE_IO, 0x170, 8);
 				if (mDevice->IoSpaces[3] == NULL)
-					mDevice->IoSpaces[3] = IoSpaceCreate(DEVICE_IO_SPACE_IO, 0x376, 1);
+					mDevice->IoSpaces[3] = IoSpaceCreate(DEVICE_IO_SPACE_IO, 0x376, 4);
 			}
 		}
 
@@ -326,7 +344,7 @@ void PciCheckFunction(list_t *Bridge, PciBus_t *BusIo, uint8_t Bus, uint8_t Devi
 }
 
 /* Check a device */
-void PciCheckDevice(list_t *Bridge, PciBus_t *Bus, uint8_t BusNo, uint8_t Device)
+void PciCheckDevice(list_t *Bridge, PciBus_t *Bus, uint8_t BusNo, uint8_t Device, uint8_t EhciFirst)
 {
 	uint8_t Function = 0;
 	uint16_t VendorId = 0;
@@ -340,7 +358,7 @@ void PciCheckDevice(list_t *Bridge, PciBus_t *Bus, uint8_t BusNo, uint8_t Device
 		return;
 
 	/* Check function 0 */
-	PciCheckFunction(Bridge, Bus, BusNo, Device, Function);
+	PciCheckFunction(Bridge, Bus, BusNo, Device, Function, EhciFirst);
 	HeaderType = PciReadHeaderType(Bus, BusNo, Device, Function);
 
 	/* Multi-function or single? */
@@ -351,7 +369,7 @@ void PciCheckDevice(list_t *Bridge, PciBus_t *Bus, uint8_t BusNo, uint8_t Device
 		{
 			/* Only check if valid vendor */
 			if (PciReadVendorId(Bus, BusNo, Device, Function) != 0xFFFF)
-				PciCheckFunction(Bridge, Bus, BusNo, Device, Function);
+				PciCheckFunction(Bridge, Bus, BusNo, Device, Function, EhciFirst);
 		}
 	}
 }
@@ -362,9 +380,15 @@ void PciCheckBus(list_t *Bridge, PciBus_t *Bus, uint8_t BusNo)
 	/* Vars */
 	uint8_t Device;
 
+#ifdef RUN_EHCI_FIRST
+	/* Find the ehci controllers first & init */
+	for (Device = 0; Device < 32; Device++)
+		PciCheckDevice(Bridge, Bus, BusNo, Device, 1);
+#endif
+
 	/* Iterate devices on bus */
 	for (Device = 0; Device < 32; Device++)
-		PciCheckDevice(Bridge, Bus, BusNo, Device);
+		PciCheckDevice(Bridge, Bus, BusNo, Device, 0);
 }
 
 /* First of all, devices exists on TWO different

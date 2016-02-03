@@ -87,6 +87,22 @@ uint8_t PciReadSubclass(PciBus_t *BusIo, uint32_t Bus, uint32_t Device, uint32_t
 		return 0xFF;
 }
 
+/* Reads the interface at given location */
+uint8_t PciReadInterface(PciBus_t *BusIo, uint32_t Bus, uint32_t Device, uint32_t Function)
+{
+	/* Get the dword and parse the vendor and device ID */
+	uint16_t vendor = PciReadVendorId(BusIo, Bus, Device, Function);
+
+	if (vendor && vendor != 0xFFFF)
+	{
+		/* Valid device! Okay, so read the base_class */
+		uint32_t offset = PciRead32(BusIo, Bus, Device, Function, 0x08);
+		return (uint8_t)((offset >> 8) & 0xFF);
+	}
+	else
+		return 0xFF;
+}
+
 /* Reads the secondary bus number at given location */
 uint8_t PciReadSecondaryBusNumber(PciBus_t *BusIo, uint32_t Bus, uint32_t Device, uint32_t Function)
 {

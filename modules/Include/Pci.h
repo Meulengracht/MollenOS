@@ -195,6 +195,7 @@ _CRT_EXTERN void PciReadFunction(PciNativeHeader_t *Pcs, PciBus_t *BusIo, uint32
 
 _CRT_EXTERN uint8_t PciReadBaseClass(PciBus_t *BusIo, uint32_t Bus, uint32_t Device, uint32_t Function);
 _CRT_EXTERN uint8_t PciReadSubclass(PciBus_t *BusIo, uint32_t Bus, uint32_t Device, uint32_t Function);
+_CRT_EXTERN uint8_t PciReadInterface(PciBus_t *BusIo, uint32_t Bus, uint32_t Device, uint32_t Function);
 _CRT_EXTERN uint8_t PciReadSecondaryBusNumber(PciBus_t *BusIo, uint32_t Bus, uint32_t Device, uint32_t Function);
 _CRT_EXTERN uint8_t PciReadHeaderType(PciBus_t *BusIo, uint32_t Bus, uint32_t Device, uint32_t Function);
 
