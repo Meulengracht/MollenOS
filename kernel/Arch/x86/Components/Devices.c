@@ -53,7 +53,7 @@ void DevicesInitTimers(void)
 	LogInformation("TIMR", "Initializing System Timers");
 
 	/* Step 1. Load the CMOS Clock */
-	Module = ModuleFind(DEVICES_LEGACY_ID, DEVICES_CMOS);
+	Module = ModuleFindGeneric(DEVICES_LEGACY_ID, DEVICES_CMOS);
 
 	/* Do we have the driver? */
 	if (Module != NULL)
@@ -64,7 +64,7 @@ void DevicesInitTimers(void)
 	if (ACPI_SUCCESS(AcpiGetTable(ACPI_SIG_HPET, 0, &Header)))
 	{
 		/* There is hope, we have Hpet header */
-		Module = ModuleFind(DEVICES_ACPI_ID, DEVICES_HPET);
+		Module = ModuleFindGeneric(DEVICES_ACPI_ID, DEVICES_HPET);
 
 		/* Do we have the driver? */
 		if (Module != NULL)
@@ -77,7 +77,7 @@ void DevicesInitTimers(void)
 
 	/* Damn.. 
 	 * Step 3. Initialize the PIT */
-	Module = ModuleFind(DEVICES_LEGACY_ID, DEVICES_PIT);
+	Module = ModuleFindGeneric(DEVICES_LEGACY_ID, DEVICES_PIT);
 
 	/* Do we have the driver? */
 	if (Module != NULL)
@@ -89,19 +89,18 @@ void DevicesInitTimers(void)
 		
 	/* Wtf? No PIT? 
 	 * Step 4. Last resort to the rtc-clock */
-	Module = ModuleFind(DEVICES_LEGACY_ID, DEVICES_RTC);
+	Module = ModuleFindGeneric(DEVICES_LEGACY_ID, DEVICES_RTC);
 
 	/* Do we have the driver? */
 	if (Module != NULL)
 		ModuleLoad(Module, NULL);
 
 	/* PS2 */
-	Module = ModuleFind(DEVICES_LEGACY_ID, DEVICES_PS2);
+	Module = ModuleFindGeneric(DEVICES_LEGACY_ID, DEVICES_PS2);
 
 	/* Do we have the driver? */
 	if (Module != NULL)
 		ModuleLoad(Module, NULL);
-
 }
 
 /* Globals */

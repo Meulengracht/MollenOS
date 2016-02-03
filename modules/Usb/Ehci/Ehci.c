@@ -45,8 +45,8 @@ MODULES_API void ModuleInit(void *Data)
 	volatile uint32_t cmd;
 
 	/* Enable memory io and bus mastering, remove interrupts disabled */
-	uint16_t PciCommand = (uint16_t)PciDeviceRead(mDev->BusInformation, 0x4, 2);
-	PciDeviceWrite(mDev->BusInformation, 0x4, (PciCommand & ~(0x400)) | 0x2 | 0x4, 2);
+	uint16_t PciCommand = (uint16_t)PciDeviceRead(mDev->BusDevice, 0x4, 2);
+	PciDeviceWrite(mDev->BusDevice, 0x4, (PciCommand & ~(0x400)) | 0x2 | 0x4, 2);
 
 	/* Pci Registers 
 	 * BAR0 - Usb Base Registers 
@@ -75,14 +75,14 @@ MODULES_API void ModuleInit(void *Data)
 		while (1)
 		{
 			/* Get Id */
-			CapId = (uint8_t)PciDeviceRead(mDev->BusInformation, Eecp, 1);
+			CapId = (uint8_t)PciDeviceRead(mDev->BusDevice, Eecp, 1);
 
 			/* Legacy Support? */
 			if (CapId == 0x01)
 				break;
 
 			/* No, get next Eecp */
-			NextEecp = (uint8_t)PciDeviceRead(mDev->BusInformation, Eecp + 0x1, 1);
+			NextEecp = (uint8_t)PciDeviceRead(mDev->BusDevice, Eecp + 0x1, 1);
 
 			/* Sanity */
 			if (NextEecp == 0x00)
@@ -94,22 +94,22 @@ MODULES_API void ModuleInit(void *Data)
 		/* Only continue if Id == 0x01 */
 		if (CapId == 0x01)
 		{
-			Semaphore = (uint8_t)PciDeviceRead(mDev->BusInformation, Eecp + 0x2, 1);
+			Semaphore = (uint8_t)PciDeviceRead(mDev->BusDevice, Eecp + 0x2, 1);
 
 			/* Is it BIOS owned? First bit in second byte */
 			if (Semaphore & 0x1)
 			{
 				/* Request for my hat back :/
 				* Third byte contains the OS Semaphore */
-				PciDeviceWrite(mDev->BusInformation, Eecp + 0x3, 0x1, 1);
+				PciDeviceWrite(mDev->BusDevice, Eecp + 0x3, 0x1, 1);
 
 				/* Now we wait for the bios to release semaphore */
-				WaitForCondition((PciDeviceRead(mDev->BusInformation, Eecp + 0x2, 1) & 0x1) == 0, 250, 10, "USB_EHCI: Failed to release BIOS Semaphore\n");
-				WaitForCondition((PciDeviceRead(mDev->BusInformation, Eecp + 0x3, 1) & 0x1) == 1, 250, 10, "USB_EHCI: Failed to set OS Semaphore\n");
+				WaitForCondition((PciDeviceRead(mDev->BusDevice, Eecp + 0x2, 1) & 0x1) == 0, 250, 10, "USB_EHCI: Failed to release BIOS Semaphore\n");
+				WaitForCondition((PciDeviceRead(mDev->BusDevice, Eecp + 0x3, 1) & 0x1) == 1, 250, 10, "USB_EHCI: Failed to set OS Semaphore\n");
 			}
 
 			/* Disable SMI by setting all lower 16 bits to 0 of EECP+4 */
-			PciDeviceWrite(mDev->BusInformation, Eecp + 0x4, 0x0000, 2);
+			PciDeviceWrite(mDev->BusDevice, Eecp + 0x4, 0x0000, 2);
 		}
 	}
 

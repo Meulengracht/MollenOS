@@ -97,7 +97,7 @@ uint32_t InterruptGetTrigger(uint16_t IntiFlags, uint8_t IrqSource)
 void InterruptInstallBase(uint32_t Irq, uint32_t IdtEntry, uint64_t ApicEntry, IrqHandler_t Callback, void *Args)
 {
 	/* Determine Correct Irq */
-	uint32_t i_irq = Irq;
+	uint32_t RealIrq = Irq;
 	uint64_t i_apic = ApicEntry;
 	uint64_t CheckApicEntry = 0;
 	uint32_t upper = 0;
@@ -120,7 +120,7 @@ void InterruptInstallBase(uint32_t Irq, uint32_t IdtEntry, uint64_t ApicEntry, I
 			if (io_redirect->SourceIrq == Irq)
 			{
 				/* Redirect */
-				i_irq = io_redirect->GlobalIrq;
+				RealIrq = io_redirect->GlobalIrq;
 
 				/* Re-adjust trigger & polarity */
 				i_apic &= ~(0x8000 | 0x2000);
@@ -137,14 +137,14 @@ void InterruptInstallBase(uint32_t Irq, uint32_t IdtEntry, uint64_t ApicEntry, I
 	}
 
 	/* Isa? */
-	if (i_irq < X86_NUM_ISA_INTERRUPTS)
-		InterruptAllocateISA(i_irq);
+	if (RealIrq < X86_NUM_ISA_INTERRUPTS)
+		InterruptAllocateISA(RealIrq);
 
 	/* Get correct Io Apic */
-	IoApic = ApicGetIoFromGsi(i_irq);
+	IoApic = ApicGetIoFromGsi(RealIrq);
 
 	/* If Apic Entry is located, we need to adjust */
-	CheckApicEntry = ApicReadIoEntry(IoApic, 0x10 + (2 * i_irq));
+	CheckApicEntry = ApicReadIoEntry(IoApic, 0x10 + (2 * RealIrq));
 	lower = (uint32_t)(CheckApicEntry & 0xFFFFFFFF);
 	upper = (uint32_t)((CheckApicEntry >> 32) & 0xFFFFFFFF);
 
@@ -155,15 +155,15 @@ void InterruptInstallBase(uint32_t Irq, uint32_t IdtEntry, uint64_t ApicEntry, I
 		uint32_t eIdtEntry = (uint32_t)(CheckApicEntry & 0xFF);
 
 		/* Install into table */
-		InterruptInstallIdtOnly(i_irq, eIdtEntry, Callback, Args);
+		InterruptInstallIdtOnly(RealIrq, eIdtEntry, Callback, Args);
 	}
 	else
 	{
 		/* Install into table */
-		InterruptInstallIdtOnly(i_irq, IdtEntry, Callback, Args);
+		InterruptInstallIdtOnly(RealIrq, IdtEntry, Callback, Args);
 
 		/* i_irq is the initial irq */
-		ApicWriteIoEntry(IoApic, i_irq, i_apic);
+		ApicWriteIoEntry(IoApic, RealIrq, i_apic);
 	}
 }
 

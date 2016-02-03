@@ -56,6 +56,17 @@ list_t *GlbPciDevices = NULL;
 /* Prototypes */
 void PciCheckBus(list_t *Bridge, PciBus_t *Bus, uint8_t BusNo);
 
+/* Create class information from dev */
+DevInfo_t PciToDevClass(uint32_t Class, uint32_t SubClass)
+{
+	return ((Class & 0xFFFF) << 16 | SubClass & 0xFFFF);
+}
+
+DevInfo_t PciToDevSubClass(uint32_t Interface)
+{
+	return ((Interface & 0xFFFF) << 16 | 0);
+}
+
 /* Validate size */
 uint64_t PciValidateBarSize(uint64_t Base, uint64_t MaxBase, uint64_t Mask)
 {
@@ -253,9 +264,8 @@ void PciCheckFunction(list_t *Bridge, PciBus_t *BusIo, uint8_t Bus, uint8_t Devi
 		/* Setup information */
 		mDevice->VendorId = Pcs->VendorId;
 		mDevice->DeviceId = Pcs->DeviceId;
-		mDevice->Class = Pcs->Class;
-		mDevice->Subclass = Pcs->Subclass;
-		mDevice->Interface = Pcs->Interface;
+		mDevice->Class = PciToDevClass(Pcs->Class, Pcs->Subclass);
+		mDevice->Subclass = PciToDevSubClass(Pcs->Interface);
 
 		mDevice->Segment = (DevInfo_t)BusIo->Segment;
 		mDevice->Bus = Bus;
@@ -271,7 +281,7 @@ void PciCheckFunction(list_t *Bridge, PciBus_t *BusIo, uint8_t Bus, uint8_t Devi
 		mDevice->Data = NULL;
 
 		/* Save bus information */
-		mDevice->BusInformation = PciDevice;
+		mDevice->BusDevice = PciDevice;
 
 		/* Initial */
 		mDevice->Driver.Name = NULL;

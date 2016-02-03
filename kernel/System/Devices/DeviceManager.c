@@ -20,6 +20,7 @@
 */
 
 /* Includes */
+#include <Modules\ModuleManager.h>
 #include <Semaphore.h>
 #include <Scheduler.h>
 #include <List.h>
@@ -252,12 +253,40 @@ void DmRequestHandler(void *Args)
 
 			} break;
 
+			/* Install Driver */
+			case RequestInstall:
+			{
+				/* Try to locate a vendor/device specific driver */
+				MCoreModule_t *Driver = ModuleFindSpecific(Dev->VendorId, Dev->DeviceId);
+
+				/* Did one exist? */
+				if (Driver != NULL) {
+					ModuleLoad(Driver, Dev);
+				}
+				else
+				{
+					/* Try to locate a generic driver 
+					 * which is always better than nothing */
+					Driver = ModuleFindGeneric(Dev->Class, Dev->Subclass);
+
+					/* Find one? */
+					if (Driver != NULL) {
+						ModuleLoad(Driver, Dev);
+					}
+				}
+
+			} break;
+
 			default:
 				break;
 		}
 
 		/* We are done, wakeup */
 		SchedulerWakeupAllThreads((Addr_t*)Request);
+
+		/* Clean up request if it was a install */
+		if (Request->Type == RequestInstall)
+			kfree(Request);
 	}
 }
 
@@ -309,6 +338,22 @@ DevId_t DmCreateDevice(char *Name, MCoreDevice_t *Device)
 
 		} break;
 
+		/* Unknown? Find a driver */
+		case DeviceUnknown:
+		{
+			/* Create a driver request */
+			MCoreDeviceRequest_t *Request = 
+				(MCoreDeviceRequest_t*)kmalloc(sizeof(MCoreDeviceRequest_t));
+
+			/* Setup */
+			Request->Type = RequestInstall;
+			Request->DeviceId = Device->Id;
+
+			/* Send request */
+			DmCreateRequest(Request);
+
+		} break;
+
 		/* No special actions */
 		default:
 			break;
@@ -339,6 +384,7 @@ int DmRequestResource(MCoreDevice_t *Device, DeviceResourceType_t ResourceType)
 	return -2;
 }
 
+/* Destroy device & cleanup resources */
 void DmDestroyDevice(DevId_t DeviceId)
 {
 	/* Lookup */
@@ -373,6 +419,7 @@ void DmDestroyDevice(DevId_t DeviceId)
 	kfree(mDev);
 }
 
+/* Find device data by id */
 MCoreDevice_t *DmGetDevice(DeviceType_t Type)
 {
 	/* Find! */

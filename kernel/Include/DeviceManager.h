@@ -67,7 +67,8 @@ typedef enum _DeviceRequestType
 {
 	RequestQuery,
 	RequestRead,
-	RequestWrite
+	RequestWrite,
+	RequestInstall
 
 } DeviceRequestType_t;
 
@@ -124,16 +125,9 @@ typedef struct _MCoreDevice
 	DevInfo_t DeviceId;
 	DevInfo_t Class;
 	DevInfo_t Subclass;
-	DevInfo_t Interface;
 
 	/* Type */
 	DeviceType_t Type;
-
-	/* Bus Location */
-	DevInfo_t Segment;
-	DevInfo_t Bus;
-	DevInfo_t Device;
-	DevInfo_t Function;
 
 	/* Irq Information */
 	int IrqLine;
@@ -147,8 +141,12 @@ typedef struct _MCoreDevice
 	/* Driver */
 	MCoreDriver_t Driver;
 
-	/* Bus Information */
-	void *BusInformation;
+	/* Bus Device & Information */
+	DevInfo_t Segment;
+	DevInfo_t Bus;
+	DevInfo_t Device;
+	DevInfo_t Function;
+	void *BusDevice;
 
 	/* Additional Data */
 	void *Data;

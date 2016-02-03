@@ -202,8 +202,8 @@ MODULES_API void ModuleInit(void *Data)
 	}
 
 	/* Enable i/o and Bus mastering and clear interrupt disable */
-	PciCommand = (uint16_t)PciDeviceRead(mDevice->BusInformation, 0x4, 2);
-	PciDeviceWrite(mDevice->BusInformation, 0x4, (PciCommand & ~(0x400)) | 0x1 | 0x4, 2);
+	PciCommand = (uint16_t)PciDeviceRead(mDevice->BusDevice, 0x4, 2);
+	PciDeviceWrite(mDevice->BusDevice, 0x4, (PciCommand & ~(0x400)) | 0x1 | 0x4, 2);
 
 	/* Setup driver information */
 	mDevice->Driver.Name = (char*)GlbUhciDriverName;
@@ -442,11 +442,11 @@ void UhciSetup(UhciController_t *Controller)
 	Controller->NumPorts = i;
 
 	/* Enable PCI Interrupts */
-	PciDeviceWrite(Controller->Device->BusInformation, UHCI_USBLEGEACY, 0x2000, 2);
+	PciDeviceWrite(Controller->Device->BusDevice, UHCI_USBLEGEACY, 0x2000, 2);
 
 	/* If vendor is Intel we null out the intel register */
 	if (Controller->Device->VendorId == 0x8086)
-		PciDeviceWrite(Controller->Device->BusInformation, UHCI_USBRES_INTEL, 0x00, 1);
+		PciDeviceWrite(Controller->Device->BusDevice, UHCI_USBRES_INTEL, 0x00, 1);
 
 	/* Enable interrupts */
 	UhciWrite16(Controller, UHCI_REGISTER_INTR,

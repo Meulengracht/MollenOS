@@ -60,7 +60,8 @@ typedef struct _MCoreModule
 /* Prototypes */
 _CRT_EXTERN void ModuleMgrInit(MCoreBootDescriptor *BootDescriptor);
 
-_CRT_EXTERN MCoreModule_t *ModuleFind(uint32_t DeviceType, uint32_t DeviceSubType);
+_CRT_EXTERN MCoreModule_t *ModuleFindSpecific(uint32_t VendorId, uint32_t DeviceId);
+_CRT_EXTERN MCoreModule_t *ModuleFindGeneric(uint32_t DeviceType, uint32_t DeviceSubType);
 _CRT_EXTERN MCoreModule_t *ModuleFindStr(MString_t *Module);
 _CRT_EXTERN ModuleResult_t ModuleLoad(MCoreModule_t *Module, void *Args);
 _CRT_EXTERN void ModuleUnload(MCoreModule_t *Module);

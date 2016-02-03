@@ -144,8 +144,8 @@ MODULES_API void ModuleInit(void *Data)
 	}
 
 	/* Enable memory and Bus mastering and clear interrupt disable */
-	PciCommand = (uint16_t)PciDeviceRead(mDevice->BusInformation, 0x4, 2);
-	PciDeviceWrite(mDevice->BusInformation, 0x4, (PciCommand & ~(0x400)) | 0x2 | 0x4, 2);
+	PciCommand = (uint16_t)PciDeviceRead(mDevice->BusDevice, 0x4, 2);
+	PciDeviceWrite(mDevice->BusDevice, 0x4, (PciCommand & ~(0x400)) | 0x2 | 0x4, 2);
 
 	/* Setup driver information */
 	mDevice->Driver.Name = (char*)GlbOhciDriverName;

@@ -109,8 +109,8 @@ void ModuleMgrInit(MCoreBootDescriptor *BootDescriptor)
 	GlbModMgrInitialized = 1;
 }
 
-/* Locate a module */
-MCoreModule_t *ModuleFind(uint32_t DeviceType, uint32_t DeviceSubType)
+/* Locate a generic module */
+MCoreModule_t *ModuleFindGeneric(uint32_t DeviceType, uint32_t DeviceSubType)
 {
 	foreach(mNode, GlbModMgrModules)
 	{
@@ -120,6 +120,24 @@ MCoreModule_t *ModuleFind(uint32_t DeviceType, uint32_t DeviceSubType)
 		/* Sanity */
 		if (Module->Header->DeviceType == DeviceType
 			&& Module->Header->DeviceSubType == DeviceSubType)
+			return Module;
+	}
+
+	/* Else return null, not found */
+	return NULL;
+}
+
+/* Locate a specific module */
+MCoreModule_t *ModuleFindSpecific(uint32_t VendorId, uint32_t DeviceId)
+{
+	foreach(mNode, GlbModMgrModules)
+	{
+		/* Cast */
+		MCoreModule_t *Module = (MCoreModule_t*)mNode->data;
+
+		/* Sanity */
+		if (Module->Header->VendorId == VendorId
+			&& Module->Header->DeviceId == DeviceId)
 			return Module;
 	}
 

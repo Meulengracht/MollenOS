@@ -174,7 +174,7 @@ int VfsParsePartitionTable(DevId_t DiskId, uint64_t SectorBase, uint64_t SectorC
 			else if (Mbr->Partitions[i].Type == 0x61)
 			{
 				/* MFS 1 */
-				Module = ModuleFind(MODULE_FILESYSTEM, FILESYSTEM_MFS);
+				Module = ModuleFindGeneric(MODULE_FILESYSTEM, FILESYSTEM_MFS);
 
 				/* Load */
 				if (Module != NULL)
@@ -283,7 +283,7 @@ void VfsRegisterDisk(DevId_t DiskId)
 		 * normally two types is used for full-partition 
 		 * MFS and FAT */
 		/* MFS 1 */
-		Module = ModuleFind(MODULE_FILESYSTEM, FILESYSTEM_MFS);
+		Module = ModuleFindGeneric(MODULE_FILESYSTEM, FILESYSTEM_MFS);
 
 		/* Load */
 		if (Module != NULL)

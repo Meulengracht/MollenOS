@@ -392,7 +392,7 @@ void VideoInit(void *BootInfo)
 
 	/* Setup structure */
 	GlbBootVideoDevice.Type = DeviceVideo;
-	GlbBootVideoDevice.BusInformation = NULL;
+	GlbBootVideoDevice.BusDevice = NULL;
 	GlbBootVideoDevice.Data = vDevice;
 	GlbBootVideoDevice.Driver.Name = (char*)GlbBootDriverName;
 	GlbBootVideoDevice.Driver.Version = 1;

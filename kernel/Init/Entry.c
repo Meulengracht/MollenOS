@@ -104,7 +104,7 @@ void MCoreInitialize(MCoreBootInfo_t *BootInfo)
 
 	/* Drivers 
 	 * Start the bus driver */
-	BusModule = ModuleFind(MODULE_BUS, 0);
+	BusModule = ModuleFindGeneric(MODULE_BUS, 0);
 
 	/* Sanity */
 	if (BusModule == NULL)
