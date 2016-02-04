@@ -30,7 +30,8 @@
 /* Structures */
 typedef enum _MCoreProcessEventType
 {
-	EventInput
+	EventInput,
+	EventGeneric
 
 } MCoreProcessEventType_t;
 

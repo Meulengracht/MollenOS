@@ -38,9 +38,26 @@ Semaphore_t *SemaphoreCreate(int Value)
 	Semaphore = (Semaphore_t*)kmalloc(sizeof(Semaphore_t));
 	Semaphore->Value = Value;
 	Semaphore->Creator = ThreadingGetCurrentThreadId();
+
+	/* Setup lock */
 	SpinlockReset(&Semaphore->Lock);
 
 	return Semaphore;
+}
+
+/* Constructs an semaphore */
+void SemaphoreConstruct(Semaphore_t *Semaphore, int Value)
+{
+	/* Sanity */
+	assert(Value >= 0);
+
+	/* Allocate */
+	Semaphore = (Semaphore_t*)kmalloc(sizeof(Semaphore_t));
+	Semaphore->Value = Value;
+	Semaphore->Creator = ThreadingGetCurrentThreadId();
+
+	/* Reset lock */
+	SpinlockReset(&Semaphore->Lock);
 }
 
 void SemaphoreDestroy(Semaphore_t *Semaphore)

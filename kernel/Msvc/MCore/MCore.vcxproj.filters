@@ -102,6 +102,9 @@
     <ClCompile Include="..\..\System\Syscalls.c">
       <Filter>Systems</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\System\Pipe.c">
+      <Filter>Systems</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\Include\Heap.h">
@@ -183,6 +186,9 @@
       <Filter>Includes</Filter>
     </ClInclude>
     <ClInclude Include="..\..\Arch\Arch.h">
+      <Filter>Includes</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Include\Pipe.h">
       <Filter>Includes</Filter>
     </ClInclude>
   </ItemGroup>

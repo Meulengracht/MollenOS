@@ -173,7 +173,72 @@ int ScMemoryFree(Addr_t Address, size_t Length)
 /***********************
 * IPC Functions        *
 ***********************/
+#include <InputManager.h>
 
+/* Get the top message for this process 
+ * without actually consuming it */
+int ScIpcPeek(uint8_t *MessageContainer, size_t MessageLength)
+{
+	/* Validation */
+	if (MessageContainer == NULL
+		|| MessageLength == 0)
+		return -1;
+
+	/* Get current process */
+	Cpu_t CurrentCpu = ApicGetCpu();
+	MCoreProcess_t *Process =
+		PmGetProcess(ThreadingGetCurrentThread(CurrentCpu)->ProcessId);
+
+	/* Should never happen this */
+	if (Process == NULL)
+		return -2;
+
+	/* Read */
+	return PipeRead(Process->Pipe, MessageLength, MessageContainer, 1);
+}
+
+/* Get the top message for this process
+ * and consume the message, if no message 
+ * is available, this function will block untill 
+ * a message is available */
+int ScIpcRead(uint8_t *MessageContainer, size_t MessageLength)
+{
+	/* Validation */
+	if (MessageContainer == NULL
+		|| MessageLength == 0)
+		return -1;
+
+	/* Get current process */
+	Cpu_t CurrentCpu = ApicGetCpu();
+	MCoreProcess_t *Process =
+		PmGetProcess(ThreadingGetCurrentThread(CurrentCpu)->ProcessId);
+
+	/* Should never happen this */
+	if (Process == NULL)
+		return -2;
+
+	/* Read */
+	return PipeRead(Process->Pipe, MessageLength, MessageContainer, 0);
+}
+
+/* Sends a message to another process */
+int ScIpcWrite(PId_t ProcessId, uint8_t *Message, size_t MessageLength)
+{
+	/* Validation */
+	if (Message == NULL
+		|| MessageLength == 0)
+		return -1;
+
+	/* Get current process */
+	MCoreProcess_t *Process = PmGetProcess(ProcessId);
+
+	/* Sanity */
+	if (Process == NULL)
+		return -1;
+
+	/* Write */
+	return PipeWrite(Process->Pipe, MessageLength, Message);
+}
 
 /***********************
 * VFS Functions        *
@@ -379,7 +444,6 @@ DefineSyscall(AddressSpaceMap), */
 /***********************
 * System Functions     *
 ***********************/
-#include <InputManager.h>
 
 /* This ends the boot sequence
  * and thus redirects logging
@@ -433,7 +497,7 @@ Addr_t GlbSyscallTable[91] =
 	/* Kernel Log */
 	DefineSyscall(LogDebug),
 
-	/* Process Functions */
+	/* Process Functions - 1*/
 	DefineSyscall(ScProcessExit),
 	DefineSyscall(ScProcessYield),
 	DefineSyscall(ScProcessSpawn),
@@ -445,7 +509,7 @@ Addr_t GlbSyscallTable[91] =
 	DefineSyscall(NoOperation),
 	DefineSyscall(NoOperation),
 
-	/* Threading Functions */
+	/* Threading Functions - 11 */
 	DefineSyscall(NoOperation),
 	DefineSyscall(NoOperation),
 	DefineSyscall(NoOperation),
@@ -457,7 +521,7 @@ Addr_t GlbSyscallTable[91] =
 	DefineSyscall(NoOperation),
 	DefineSyscall(NoOperation),
 
-	/* Memory Functions */
+	/* Memory Functions - 21 */
 	DefineSyscall(ScMemoryAllocate),
 	DefineSyscall(ScMemoryFree),
 	DefineSyscall(NoOperation),	//ScMemoryQuery
@@ -469,10 +533,10 @@ Addr_t GlbSyscallTable[91] =
 	DefineSyscall(NoOperation),
 	DefineSyscall(NoOperation),
 
-	/* IPC Functions */
-	DefineSyscall(NoOperation), //ReadMessage
-	DefineSyscall(NoOperation), //WriteMessage
-	DefineSyscall(NoOperation), //PeekMessage
+	/* IPC Functions - 31 */
+	DefineSyscall(ScIpcPeek),
+	DefineSyscall(ScIpcRead),
+	DefineSyscall(ScIpcWrite),
 	DefineSyscall(NoOperation),
 	DefineSyscall(NoOperation),
 	DefineSyscall(NoOperation),
@@ -481,7 +545,7 @@ Addr_t GlbSyscallTable[91] =
 	DefineSyscall(NoOperation),
 	DefineSyscall(NoOperation),
 
-	/* Vfs Functions */
+	/* Vfs Functions - 41 */
 	DefineSyscall(ScVfsOpen),
 	DefineSyscall(ScVfsClose),
 	DefineSyscall(ScVfsRead),
@@ -493,7 +557,7 @@ Addr_t GlbSyscallTable[91] =
 	DefineSyscall(NoOperation), //Query
 	DefineSyscall(NoOperation),
 
-	/* Device Functions */
+	/* Device Functions - 51 */
 	DefineSyscall(ScDeviceQuery),
 	DefineSyscall(NoOperation),
 	DefineSyscall(NoOperation),
@@ -505,7 +569,7 @@ Addr_t GlbSyscallTable[91] =
 	DefineSyscall(NoOperation),
 	DefineSyscall(NoOperation),
 
-	/* System Functions */
+	/* System Functions - 61 */
 	DefineSyscall(ScEndBootSequence),
 	DefineSyscall(ScRegisterWindowManager),
 	DefineSyscall(NoOperation),
@@ -517,7 +581,7 @@ Addr_t GlbSyscallTable[91] =
 	DefineSyscall(NoOperation),
 	DefineSyscall(NoOperation),
 
-	/* Driver Functions */
+	/* Driver Functions - 71 */
 	DefineSyscall(ScIoSpaceCreate),
 	DefineSyscall(ScIoSpaceRead),
 	DefineSyscall(ScIoSpaceWrite),

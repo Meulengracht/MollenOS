@@ -66,10 +66,10 @@ void EmCreateEvent(MCoreProcessEvent_t *Event)
 		MCoreProcess_t *Process = PmGetProcess(GlbEmWindowManager);
 		
 		/* Force space in buffer */
-		while (RingBufferSpaceAvailable(Process->iPipe) < (int)(Event->Length))
-			RingBufferRead(Process->iPipe, Event->Length, (uint8_t*)&NotRecycleBin);
+		while (PipeBytesLeft(Process->Pipe) < (int)(Event->Length))
+			PipeRead(Process->Pipe, Event->Length, (uint8_t*)&NotRecycleBin, 0);
 		
 		/* Write data to pipe */
-		RingBufferWrite(Process->iPipe, Event->Length, (uint8_t*)Event);
+		PipeWrite(Process->Pipe, Event->Length, (uint8_t*)Event);
 	}
 }

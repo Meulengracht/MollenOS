@@ -45,6 +45,7 @@ typedef struct _Semaphore
 
 /* Prototypes */
 _CRT_EXPORT Semaphore_t *SemaphoreCreate(int Value);
+_CRT_EXPORT void SemaphoreConstruct(Semaphore_t *Semaphore, int Value);
 _CRT_EXPORT void SemaphoreDestroy(Semaphore_t *Semaphore);
 _CRT_EXPORT void SemaphoreP(Semaphore_t *Semaphore);
 _CRT_EXPORT void SemaphoreV(Semaphore_t *Semaphore);

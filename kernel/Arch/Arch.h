@@ -71,6 +71,12 @@ _CRT_EXPORT void AddressSpaceUnmap(AddressSpace_t *AddrSpace, VirtAddr_t Address
 _CRT_EXPORT PhysAddr_t AddressSpaceGetMap(AddressSpace_t *AddrSpace, VirtAddr_t Address);
 
 /***********************
+* Threading            *
+* Used for abstracting *
+* arch specific thread *
+***********************/
+
+/***********************
 * Device Io Spaces     *
 * Used for abstracting *
 * device addressing    *

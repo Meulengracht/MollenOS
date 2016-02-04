@@ -26,7 +26,7 @@
 #include <stdint.h>
 
 #include <Modules/PeLoader.h>
-#include <RingBuffer.h>
+#include <Pipe.h>
 #include <MString.h>
 #include <Heap.h>
 
@@ -49,9 +49,8 @@ typedef struct _MCoreProcess
 	/* Working Directory */
 	MString_t *WorkingDirectory;
 
-	/* Pipes */
-	RingBuffer_t *iPipe;
-	RingBuffer_t *oPipe;
+	/* Pipe */
+	MCorePipe_t *Pipe;
 
 	/* Heap */
 	Heap_t *Heap;

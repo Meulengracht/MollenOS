@@ -214,19 +214,8 @@ void PmStartProcess(void *Args)
 	memcpy((void*)MEMORY_LOCATION_USER_ARGS,
 		Process->Arguments->Data, Process->Arguments->Length);
 
-	/* Map in pipes */
-	AddressSpaceMap(AddressSpaceGetCurrent(), MEMORY_LOCATION_PIPE_OUT, PROCESS_PIPE_SIZE, ADDRESS_SPACE_FLAG_USER);
-
 	/* Create in */
-	Process->iPipe = RingBufferCreate(PROCESS_PIPE_SIZE);
-
-	/* Save */
-	Process->oPipe = (RingBuffer_t*)MEMORY_LOCATION_PIPE_OUT;
-
-	/* Construct In */
-	RingBufferConstruct(Process->oPipe,
-		(uint8_t*)(BaseAddress + sizeof(RingBuffer_t)),
-		PROCESS_PIPE_SIZE - sizeof(RingBuffer_t));
+	Process->Pipe = PipeCreate(PROCESS_PIPE_SIZE);
 
 	/* Map Stack */
 	BaseAddress = ((MEMORY_LOCATION_USER_STACK - 0x1) & PAGE_MASK);

@@ -188,7 +188,6 @@ _CRT_EXPORT void kernel_panic(const char *str);
 #define MEMORY_LOCATION_RESERVED		0x10000000 /* Device Space: 1.256 mB */
 
 #define MEMORY_LOCATION_USER_ARGS		0x60000000 /* Arg Space: 4 kB */
-#define MEMORY_LOCATION_PIPE_OUT		0x60001000
 #define MEMORY_LOCATION_USER			0x60010000 /* Image Space: 256~ mB */
 #define MEMORY_LOCATION_USER_HEAP		0x70000000 /* Heap Space: 2256 mB */
 #define MEMORY_LOCATION_USER_STACK		0xFFFFFFF0 /* Stack Space: 4 mB */

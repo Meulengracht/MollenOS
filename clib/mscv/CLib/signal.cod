@@ -11,37 +11,37 @@ INCLUDELIB OLDNAMES
 
 _DATA	SEGMENT
 _signal_list DD	02H
-	DD	FLAT:$SG1622
-	DD	00H
-	DD	04H
 	DD	FLAT:$SG1623
 	DD	00H
-	DD	08H
+	DD	04H
 	DD	FLAT:$SG1624
 	DD	00H
-	DD	0bH
+	DD	08H
 	DD	FLAT:$SG1625
 	DD	00H
-	DD	0fH
+	DD	0bH
 	DD	FLAT:$SG1626
 	DD	00H
-	DD	015H
+	DD	0fH
 	DD	FLAT:$SG1627
 	DD	00H
-	DD	06H
+	DD	015H
 	DD	FLAT:$SG1628
 	DD	00H
-$SG1622	DB	'CTRL+C', 00H
+	DD	06H
+	DD	FLAT:$SG1629
+	DD	00H
+$SG1623	DB	'CTRL+C', 00H
 	ORG $+1
-$SG1623	DB	'Illegal instruction', 00H
-$SG1624	DB	'Floating-point exception', 00H
+$SG1624	DB	'Illegal instruction', 00H
+$SG1625	DB	'Floating-point exception', 00H
 	ORG $+3
-$SG1625	DB	'Illegal storage access', 00H
+$SG1626	DB	'Illegal storage access', 00H
 	ORG $+1
-$SG1626	DB	'Termination request', 00H
-$SG1627	DB	'CTRL+BREAK', 00H
+$SG1627	DB	'Termination request', 00H
+$SG1628	DB	'CTRL+BREAK', 00H
 	ORG $+1
-$SG1628	DB	'Abnormal termination', 00H
+$SG1629	DB	'Abnormal termination', 00H
 _DATA	ENDS
 PUBLIC	__default_handler
 PUBLIC	___pxcptinfoptrs
