@@ -292,6 +292,20 @@ extern "C" {
 #endif
 #endif
 
+#ifndef _SSIZE_T_DEFINED
+#define _SSIZE_T_DEFINED
+#undef ssize_t
+#if defined(_WIN64) || defined(_X86_64)
+#if defined(__GNUC__) && defined(__STRICT_ANSI__)
+	typedef signed int ssize_t __attribute__((mode(DI)));
+#else
+	typedef signed long long ssize_t;
+#endif
+#else
+	typedef signed int ssize_t;
+#endif
+#endif
+
 #ifndef _INTPTR_T_DEFINED
 #define _INTPTR_T_DEFINED
 #ifndef __intptr_t_defined

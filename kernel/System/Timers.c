@@ -29,8 +29,8 @@
 
 /* Globals */
 list_t *GlbTimers = NULL;
-volatile TmId_t GlbTimerIds = 0;
-uint32_t GlbTimersInitialized = 0;
+TmId_t GlbTimerIds = 0;
+int GlbTimersInitialized = 0;
 
 /* Init */
 void TimersInit(void)
@@ -42,7 +42,7 @@ void TimersInit(void)
 }
 
 TmId_t TimersCreateTimer(TimerHandler_t Callback,
-	void *Args, MCoreTimerType_t Type, uint32_t Timeout)
+	void *Args, MCoreTimerType_t Type, size_t Timeout)
 {
 	MCoreTimer_t *TimerInfo;
 	TmId_t Id;
@@ -57,7 +57,7 @@ TmId_t TimersCreateTimer(TimerHandler_t Callback,
 	TimerInfo->Args = Args;
 	TimerInfo->Type = Type;
 	TimerInfo->PeriodicMs = Timeout;
-	TimerInfo->MsLeft = Timeout;
+	TimerInfo->MsLeft = (ssize_t)Timeout;
 
 	/* Append to list */
 	list_append(GlbTimers, list_create_node(GlbTimerIds, TimerInfo));
@@ -70,7 +70,7 @@ TmId_t TimersCreateTimer(TimerHandler_t Callback,
 }
 
 /* Sleep function */
-void SleepMs(uint32_t MilliSeconds)
+void SleepMs(size_t MilliSeconds)
 {
 	/* Lookup */
 	MCoreDevice_t *tDevice = DmGetDevice(DeviceTimer);
@@ -90,7 +90,7 @@ void SleepMs(uint32_t MilliSeconds)
 	Timer->Sleep(tDevice, MilliSeconds);
 }
 
-void SleepNs(uint32_t NanoSeconds)
+void SleepNs(size_t NanoSeconds)
 {
 	/* Lookup */
 	MCoreDevice_t *tDevice = DmGetDevice(DevicePerfTimer);
@@ -111,7 +111,7 @@ void SleepNs(uint32_t NanoSeconds)
 }
 
 /* Stall functions */
-void StallMs(uint32_t MilliSeconds)
+void StallMs(size_t MilliSeconds)
 {
 	/* Lookup */
 	MCoreDevice_t *tDevice = DmGetDevice(DeviceTimer);
@@ -131,7 +131,7 @@ void StallMs(uint32_t MilliSeconds)
 	Timer->Stall(tDevice, MilliSeconds);
 }
 
-void StallNs(uint32_t NanoSeconds)
+void StallNs(size_t NanoSeconds)
 {
 	/* Lookup */
 	MCoreDevice_t *tDevice = DmGetDevice(DevicePerfTimer);
@@ -152,7 +152,7 @@ void StallNs(uint32_t NanoSeconds)
 }
 
 /* This should be called by only ONE periodic irq */
-void TimersApplyMs(uint32_t Ms)
+void TimersApplyMs(size_t Ms)
 {
 	list_node_t *i;
 
@@ -176,7 +176,7 @@ void TimersApplyMs(uint32_t Ms)
 
 			/* Restart? */
 			if (Timer->Type == TimerPeriodic)
-				Timer->MsLeft = (int32_t)Timer->PeriodicMs;
+				Timer->MsLeft = (ssize_t)Timer->PeriodicMs;
 			else
 			{
 				/* Remove */

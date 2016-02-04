@@ -51,25 +51,25 @@ typedef struct _MCoreTimer
 	MCoreTimerType_t Type;
 
 	/* Periode MS */
-	uint32_t PeriodicMs;
+	size_t PeriodicMs;
 
 	/* Counter */
-	volatile int32_t MsLeft;
+	volatile ssize_t MsLeft;
 
 } MCoreTimer_t;
 
 /* Prototypes */
 _CRT_EXTERN TmId_t TimersCreateTimer(TimerHandler_t Callback, 
-	void *Args, MCoreTimerType_t Type, uint32_t Timeout);
+	void *Args, MCoreTimerType_t Type, size_t Timeout);
 
 /* Sleep, Stall, etc */
-_CRT_EXPORT void SleepMs(uint32_t MilliSeconds);
-_CRT_EXPORT void StallMs(uint32_t MilliSeconds);
-_CRT_EXPORT void SleepNs(uint32_t NanoSeconds);
-_CRT_EXPORT void StallNs(uint32_t NanoSeconds);
+_CRT_EXPORT void SleepMs(size_t MilliSeconds);
+_CRT_EXPORT void StallMs(size_t MilliSeconds);
+_CRT_EXPORT void SleepNs(size_t NanoSeconds);
+_CRT_EXPORT void StallNs(size_t NanoSeconds);
 
 /* Stall-No-Int */
-_CRT_EXPORT void DelayMs(uint32_t MilliSeconds);
+_CRT_EXPORT void DelayMs(size_t MilliSeconds);
 
 
 /* Tools */
@@ -103,7 +103,7 @@ _CRT_EXPORT void DelayMs(uint32_t MilliSeconds);
 						    }
 
 /* Should be called by a periodic timer, but only one! */
-_CRT_EXTERN void TimersApplyMs(uint32_t Ms);
+_CRT_EXTERN void TimersApplyMs(size_t Ms);
 
 #endif // !_MCORE_TIMERS_H_
 
