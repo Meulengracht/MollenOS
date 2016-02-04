@@ -212,12 +212,4 @@ _CRT_EXPORT void kernel_panic(const char *str);
 #define INTERRUPT_FREE1					0x4
 #define INTERRUPT_FREE2					0x5
 
-
-/* Time Stuff */
-#define FSEC_PER_NSEC   1000000L
-#define NSEC_PER_MSEC   1000L
-#define MSEC_PER_SEC    1000L
-#define NSEC_PER_SEC    1000000000L
-#define FSEC_PER_SEC    1000000000000000LL
-
 #endif // !_MCORE_X86_ARCH_

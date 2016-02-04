@@ -190,7 +190,7 @@
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='CLibK|Win32'">
     <OutDir>..\build\</OutDir>
-    <IncludePath>C:\Users\Philip\Documents\GitHub\MollenOS\kernel\arch;C:\Users\Philip\Documents\GitHub\MollenOS\kernel\include;C:\Users\Philip\Documents\GitHub\MollenOS\clib\include</IncludePath>
+    <IncludePath>..\..\kernel\Include;..\..\kernel\arch;..\include</IncludePath>
     <ReferencePath />
     <LibraryPath />
     <LibraryWPath />

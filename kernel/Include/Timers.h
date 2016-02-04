@@ -31,6 +31,13 @@
 typedef unsigned int TmId_t;
 typedef void(*TimerHandler_t)(void*);
 
+/* Time Stuff */
+#define FSEC_PER_NSEC   1000000L
+#define NSEC_PER_MSEC   1000L
+#define MSEC_PER_SEC    1000L
+#define NSEC_PER_SEC    1000000000L
+#define FSEC_PER_SEC    1000000000000000LL
+
 /* Timer Type */
 typedef enum _MCoreTimerType
 {

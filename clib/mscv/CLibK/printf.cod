@@ -17,7 +17,7 @@ _BSS	SEGMENT
 _glb_printf_init DD 01H DUP (?)
 _BSS	ENDS
 PUBLIC	_printf
-EXTRN	_SpinlockReset:PROC
+EXTRN	__imp__SpinlockReset:PROC
 EXTRN	__imp__SpinlockAcquire:PROC
 EXTRN	__imp__SpinlockRelease:PROC
 EXTRN	_streamout:PROC
@@ -59,18 +59,19 @@ $LN2@printf:
 
   0000e	81 3d 00 00 00
 	00 ef be ad de	 cmp	 DWORD PTR _glb_printf_init, -559038737 ; deadbeefH
-  00018	74 17		 je	 SHORT $LN1@printf
+  00018	74 18		 je	 SHORT $LN1@printf
 
 ; 47   : 	{
 ; 48   : 		SpinlockReset(&glb_printf_lock);
 
   0001a	68 00 00 00 00	 push	 OFFSET _glb_printf_lock
-  0001f	e8 00 00 00 00	 call	 _SpinlockReset
-  00024	83 c4 04	 add	 esp, 4
+  0001f	ff 15 00 00 00
+	00		 call	 DWORD PTR __imp__SpinlockReset
+  00025	83 c4 04	 add	 esp, 4
 
 ; 49   : 		glb_printf_init = 0xDEADBEEF;
 
-  00027	c7 05 00 00 00
+  00028	c7 05 00 00 00
 	00 ef be ad de	 mov	 DWORD PTR _glb_printf_init, -559038737 ; deadbeefH
 $LN1@printf:
 
@@ -79,9 +80,9 @@ $LN1@printf:
 ; 52   : 	/* Acquire Lock */
 ; 53   : 	SpinlockAcquire(&glb_printf_lock);
 
-  00031	56		 push	 esi
-  00032	68 00 00 00 00	 push	 OFFSET _glb_printf_lock
-  00037	ff 15 00 00 00
+  00032	56		 push	 esi
+  00033	68 00 00 00 00	 push	 OFFSET _glb_printf_lock
+  00038	ff 15 00 00 00
 	00		 call	 DWORD PTR __imp__SpinlockAcquire
 
 ; 54   : 
@@ -89,34 +90,34 @@ $LN1@printf:
 ; 56   : 	va_start(args, format);
 ; 57   : 	result = streamout(NULL, 0x20000, format, args);
 
-  0003d	8d 45 0c	 lea	 eax, DWORD PTR _format$[ebp+4]
-  00040	50		 push	 eax
-  00041	ff 75 08	 push	 DWORD PTR _format$[ebp]
-  00044	68 00 00 02 00	 push	 131072			; 00020000H
-  00049	6a 00		 push	 0
-  0004b	e8 00 00 00 00	 call	 _streamout
+  0003e	8d 45 0c	 lea	 eax, DWORD PTR _format$[ebp+4]
+  00041	50		 push	 eax
+  00042	ff 75 08	 push	 DWORD PTR _format$[ebp]
+  00045	68 00 00 02 00	 push	 131072			; 00020000H
+  0004a	6a 00		 push	 0
+  0004c	e8 00 00 00 00	 call	 _streamout
 
 ; 58   : 	va_end(args);
 ; 59   : 
 ; 60   : 	/* Release */
 ; 61   : 	SpinlockRelease(&glb_printf_lock);
 
-  00050	68 00 00 00 00	 push	 OFFSET _glb_printf_lock
-  00055	8b f0		 mov	 esi, eax
-  00057	ff 15 00 00 00
+  00051	68 00 00 00 00	 push	 OFFSET _glb_printf_lock
+  00056	8b f0		 mov	 esi, eax
+  00058	ff 15 00 00 00
 	00		 call	 DWORD PTR __imp__SpinlockRelease
-  0005d	83 c4 18	 add	 esp, 24			; 00000018H
+  0005e	83 c4 18	 add	 esp, 24			; 00000018H
 
 ; 62   : 
 ; 63   : 	return result;
 
-  00060	8b c6		 mov	 eax, esi
-  00062	5e		 pop	 esi
+  00061	8b c6		 mov	 eax, esi
+  00063	5e		 pop	 esi
 
 ; 64   : }
 
-  00063	5d		 pop	 ebp
-  00064	c3		 ret	 0
+  00064	5d		 pop	 ebp
+  00065	c3		 ret	 0
 _printf	ENDP
 _TEXT	ENDS
 END
