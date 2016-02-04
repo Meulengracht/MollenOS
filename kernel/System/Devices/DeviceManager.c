@@ -34,7 +34,6 @@
 /* Devices Capable of requests */
 #include <Devices\Disk.h>
 #include <Devices\Timer.h>
-#include <Devices\Input.h>
 #include <Devices\Video.h>
 
 /* Globals */
@@ -318,15 +317,6 @@ DevId_t DmCreateDevice(char *Name, MCoreDevice_t *Device)
 			/* Cast */
 			MCoreTimerDevice_t *Timer = (MCoreTimerDevice_t*)Device->Data;
 			Timer->ReportMs = TimersApplyMs;
-
-		} break;
-
-		/* Give access to input */
-		case DeviceInput:
-		{
-			/* Cast */
-			MCoreInputDevice_t *Input = (MCoreInputDevice_t*)Device->Data;
-			Input->ReportEvent = EmCreateEvent;
 
 		} break;
 

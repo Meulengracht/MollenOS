@@ -21,6 +21,7 @@
 */
 
 /* Includes */
+#include <DeviceManager.h>
 #include <Modules/ModuleManager.h>
 #include "../Arch.h"
 #include <Memory.h>
@@ -32,11 +33,6 @@
 #include <Log.h>
 
 /* Definitions */
-#define DEVICES_LEGACY_ID		0x0000015A
-#define DEVICES_ACPI_ID			0x0000AC71
-
-#define DEVICES_HPET			0x00000008
-
 #define DEVICES_CMOS			0x00000000
 #define DEVICES_PS2				0x00000010
 #define DEVICES_PIT				0x00000018
@@ -53,7 +49,7 @@ void DevicesInitTimers(void)
 	LogInformation("TIMR", "Initializing System Timers");
 
 	/* Step 1. Load the CMOS Clock */
-	Module = ModuleFindGeneric(DEVICES_LEGACY_ID, DEVICES_CMOS);
+	Module = ModuleFindGeneric(DEVICEMANAGER_LEGACY_CLASS, DEVICES_CMOS);
 
 	/* Do we have the driver? */
 	if (Module != NULL)
@@ -64,7 +60,7 @@ void DevicesInitTimers(void)
 	if (ACPI_SUCCESS(AcpiGetTable(ACPI_SIG_HPET, 0, &Header)))
 	{
 		/* There is hope, we have Hpet header */
-		Module = ModuleFindGeneric(DEVICES_ACPI_ID, DEVICES_HPET);
+		Module = ModuleFindGeneric(DEVICEMANAGER_LEGACY_CLASS, DEVICEMANAGER_ACPI_HPET);
 
 		/* Do we have the driver? */
 		if (Module != NULL)
@@ -77,7 +73,7 @@ void DevicesInitTimers(void)
 
 	/* Damn.. 
 	 * Step 3. Initialize the PIT */
-	Module = ModuleFindGeneric(DEVICES_LEGACY_ID, DEVICES_PIT);
+	Module = ModuleFindGeneric(DEVICEMANAGER_LEGACY_CLASS, DEVICES_PIT);
 
 	/* Do we have the driver? */
 	if (Module != NULL)
@@ -89,14 +85,14 @@ void DevicesInitTimers(void)
 		
 	/* Wtf? No PIT? 
 	 * Step 4. Last resort to the rtc-clock */
-	Module = ModuleFindGeneric(DEVICES_LEGACY_ID, DEVICES_RTC);
+	Module = ModuleFindGeneric(DEVICEMANAGER_LEGACY_CLASS, DEVICES_RTC);
 
 	/* Do we have the driver? */
 	if (Module != NULL)
 		ModuleLoad(Module, NULL);
 
 	/* PS2 */
-	Module = ModuleFindGeneric(DEVICES_LEGACY_ID, DEVICES_PS2);
+	Module = ModuleFindGeneric(DEVICEMANAGER_LEGACY_CLASS, DEVICES_PS2);
 
 	/* Do we have the driver? */
 	if (Module != NULL)

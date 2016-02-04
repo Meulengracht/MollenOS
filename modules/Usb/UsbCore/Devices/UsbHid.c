@@ -22,7 +22,7 @@
 /* Includes */
 #include <Module.h>
 #include <UsbHid.h>
-#include <Devices/Input.h>
+#include <InputManager.h>
 #include <Semaphore.h>
 #include <Heap.h>
 #include <List.h>

@@ -303,6 +303,78 @@ int ScDeviceQuery(DeviceType_t Type, uint8_t *Buffer, size_t BufferLength)
 	return (int)RequestOk - (int)Request.Status;
 }
 
+/***********************
+* Driver Functions     *
+***********************/
+
+/* Create device io-space */
+DeviceIoSpace_t *ScIoSpaceCreate(int Type, Addr_t PhysicalBase, size_t Size)
+{
+	/* Vars */
+	DeviceIoSpace_t *IoSpace = NULL;
+
+	/* Sanitize params */
+
+	/* Validate process permissions */
+
+	/* Try to create io space */
+	IoSpace = IoSpaceCreate(Type, PhysicalBase, Size); /* Add owner to io-space */
+
+	/* If null, space is already claimed */
+
+	/* Done! */
+	return IoSpace;
+}
+
+/* Read from an existing io-space */
+size_t ScIoSpaceRead(DeviceIoSpace_t *IoSpace, size_t Offset, size_t Length)
+{
+	/* Sanitize params */
+
+	/* Validate process permissions */
+
+	/* Done */
+	return IoSpaceRead(IoSpace, Offset, Length);
+}
+
+/* Write to an existing io-space */
+int ScIoSpaceWrite(DeviceIoSpace_t *IoSpace, size_t Offset, size_t Value, size_t Length)
+{
+	/* Sanitize params */
+
+	/* Validate process permissions */
+
+	/* Write */
+	IoSpaceWrite(IoSpace, Offset, Value, Length);
+
+	/* Done! */
+	return 0;
+}
+
+/* Destroys an io-space */
+int ScIoSpaceDestroy(DeviceIoSpace_t *IoSpace)
+{
+	/* Sanitize params */
+
+	/* Validate process permissions */
+
+	/* Destroy */
+	IoSpaceDestroy(IoSpace);
+
+	/* Done! */
+	return 0;
+}
+
+/*
+DefineSyscall(DmCreateDevice),
+DefineSyscall(DmRequestResource),
+DefineSyscall(DmGetDevice),
+DefineSyscall(DmDestroyDevice),
+DefineSyscall(AddressSpaceGetCurrent),
+DefineSyscall(AddressSpaceGetMap),
+DefineSyscall(AddressSpaceMapFixed),
+DefineSyscall(AddressSpaceUnmap),
+DefineSyscall(AddressSpaceMap), */
 
 /***********************
 * System Functions     *
@@ -356,7 +428,7 @@ int NoOperation(void)
 }
 
 /* Syscall Table */
-Addr_t GlbSyscallTable[71] =
+Addr_t GlbSyscallTable[91] =
 {
 	/* Kernel Log */
 	DefineSyscall(LogDebug),
@@ -388,7 +460,7 @@ Addr_t GlbSyscallTable[71] =
 	/* Memory Functions */
 	DefineSyscall(ScMemoryAllocate),
 	DefineSyscall(ScMemoryFree),
-	DefineSyscall(NoOperation),
+	DefineSyscall(NoOperation),	//ScMemoryQuery
 	DefineSyscall(NoOperation),
 	DefineSyscall(NoOperation),
 	DefineSyscall(NoOperation),
@@ -437,6 +509,28 @@ Addr_t GlbSyscallTable[71] =
 	DefineSyscall(ScEndBootSequence),
 	DefineSyscall(ScRegisterWindowManager),
 	DefineSyscall(NoOperation),
+	DefineSyscall(NoOperation),
+	DefineSyscall(NoOperation),
+	DefineSyscall(NoOperation),
+	DefineSyscall(NoOperation),
+	DefineSyscall(NoOperation),
+	DefineSyscall(NoOperation),
+	DefineSyscall(NoOperation),
+
+	/* Driver Functions */
+	DefineSyscall(ScIoSpaceCreate),
+	DefineSyscall(ScIoSpaceRead),
+	DefineSyscall(ScIoSpaceWrite),
+	DefineSyscall(ScIoSpaceDestroy),
+	DefineSyscall(DmCreateDevice),
+	DefineSyscall(DmRequestResource),
+	DefineSyscall(DmGetDevice),
+	DefineSyscall(DmDestroyDevice),
+	DefineSyscall(AddressSpaceGetCurrent),
+	DefineSyscall(AddressSpaceGetMap),
+	DefineSyscall(AddressSpaceMapFixed),
+	DefineSyscall(AddressSpaceUnmap),
+	DefineSyscall(AddressSpaceMap),
 	DefineSyscall(NoOperation),
 	DefineSyscall(NoOperation),
 	DefineSyscall(NoOperation),

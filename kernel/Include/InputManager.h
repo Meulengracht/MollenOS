@@ -99,6 +99,6 @@ typedef struct _MCoreButtonEvent
 _CRT_EXTERN void EmRegisterSystemTarget(PId_t ProcessId);
 
 /* Write data to pointer pipe */
-_CRT_EXTERN void EmCreateEvent(MCoreProcessEvent_t *Event);
+_CRT_EXPORT void EmCreateEvent(MCoreProcessEvent_t *Event);
 
 #endif // !_MCORE_INPUT_MANAGER_H_

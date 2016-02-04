@@ -32,8 +32,12 @@
 typedef unsigned DevInfo_t;
 typedef int DevId_t;
 
+/* Fixed Classes */
 #define DEVICEMANAGER_LEGACY_CLASS		0x0000015A
 #define DEVICEMANAGER_ACPI_CLASS		0x0000AC71
+
+/* Fixed ACPI Sub Classes */
+#define DEVICEMANAGER_ACPI_HPET			0x00000008
 
 /* Erhhh, limitiations? */
 #define DEVICEMANAGER_MAX_IO_SIZE		(16 * 1024)

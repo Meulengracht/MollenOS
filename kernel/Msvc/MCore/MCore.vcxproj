@@ -39,7 +39,6 @@
     <ClInclude Include="..\..\Include\CriticalSection.h" />
     <ClInclude Include="..\..\Include\Devices\Clock.h" />
     <ClInclude Include="..\..\Include\Devices\Disk.h" />
-    <ClInclude Include="..\..\Include\Devices\Input.h" />
     <ClInclude Include="..\..\Include\Devices\Timer.h" />
     <ClInclude Include="..\..\Include\Log.h" />
     <ClInclude Include="..\..\Include\Modules\ModuleManager.h" />

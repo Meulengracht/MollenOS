@@ -151,8 +151,9 @@ void ExceptionEntry(Registers_t *regs)
 			Addr_t Physical = IoSpaceValidate(UnmappedAddr);
 			if (Physical != 0)
 			{
-				/* Map it */
-				MmVirtualMap(NULL, (Physical & PAGE_MASK), (UnmappedAddr & PAGE_MASK), 0);
+				/* Map it (disable caching for IoSpaces) */
+				MmVirtualMap(NULL, (Physical & PAGE_MASK), 
+					(UnmappedAddr & PAGE_MASK), PAGE_CACHE_DISABLE);
 
 				/* Issue is fixed */
 				IssueFixed = 1;
@@ -190,7 +191,8 @@ void ExceptionEntry(Registers_t *regs)
 				if (!HeapValidateAddress(Process->Heap, UnmappedAddr))
 				{
 					/* Map in in */
-					MmVirtualMap(NULL, MmPhysicalAllocateBlock(), (UnmappedAddr & PAGE_MASK), PAGE_USER);
+					MmVirtualMap(NULL, MmPhysicalAllocateBlock(), 
+						(UnmappedAddr & PAGE_MASK), PAGE_USER);
 
 					/* Issue is fixed */
 					IssueFixed = 1;

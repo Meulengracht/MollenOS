@@ -23,7 +23,7 @@
 #include <Module.h>
 #include <Heap.h>
 #include <DeviceManager.h>
-#include <Devices/Input.h>
+#include <InputManager.h>
 #include <Log.h>
 
 #include "../Ps2.h"
@@ -45,7 +45,6 @@ int Ps2MouseIrqHandler(void *Args)
 
 	/* Get datastructure */
 	MCoreDevice_t *mDev = (MCoreDevice_t*)Args;
-	MCoreInputDevice_t *InputDev = (MCoreInputDevice_t*)mDev->Data;
 	Ps2MouseDevice_t *Ps2Dev = (Ps2MouseDevice_t*)mDev->Driver.Data;
 
 	/* Lets see which byte */
@@ -84,8 +83,7 @@ int Ps2MouseIrqHandler(void *Args)
 			eData.Header.Length = sizeof(MCorePointerEvent_t);
 
 			/* Send! */
-			if (InputDev->ReportEvent != NULL)
-				InputDev->ReportEvent((MCoreProcessEvent_t*)&eData);
+			EmCreateEvent((MCoreProcessEvent_t*)&eData);
 
 			/* Check buttons */
 			if (Ps2Dev->Buffer[0] != Ps2Dev->MouseButtons)
@@ -100,8 +98,7 @@ int Ps2MouseIrqHandler(void *Args)
 				bData.Header.Length = sizeof(MCoreButtonEvent_t);
 
 				/* Send */
-				if (InputDev->ReportEvent != NULL)
-					InputDev->ReportEvent((MCoreProcessEvent_t*)&bData);
+				EmCreateEvent((MCoreProcessEvent_t*)&bData);
 			}
 
 			/* Update */
@@ -122,7 +119,6 @@ void Ps2MouseInit(int Port)
 
 	/* Allocate Data Structure */
 	MCoreDevice_t *Device = (MCoreDevice_t*)kmalloc(sizeof(MCoreDevice_t));
-	MCoreInputDevice_t *InputDev = (MCoreInputDevice_t*)kmalloc(sizeof(MCoreInputDevice_t));
 	Ps2MouseDevice_t *Ps2Dev = (Ps2MouseDevice_t*)kmalloc(sizeof(Ps2MouseDevice_t));
 	
 	/* Setup ps2 device struct */
@@ -150,7 +146,7 @@ void Ps2MouseInit(int Port)
 
 	/* Type */
 	Device->Type = DeviceInput;
-	Device->Data = InputDev;
+	Device->Data = NULL;
 
 	/* Initial */
 	Device->Driver.Name = (char*)GlbPs2MouseDriverName;
@@ -163,7 +159,6 @@ void Ps2MouseInit(int Port)
 		LogFatal("PS2M", "Failed to allocate irq for use, bailing out!");
 
 		/* Cleanup */
-		kfree(InputDev);
 		kfree(Ps2Dev);
 		kfree(Device);
 
