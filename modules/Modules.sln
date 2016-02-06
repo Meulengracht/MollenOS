@@ -83,6 +83,9 @@ EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Bus", "Bus", "{5EE231B4-9996-4D91-865D-3B1AF5A957D6}"
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "Bus", "x86\Bus\Bus.vcxproj", "{8E272DC1-20EE-4659-8745-E01838BD0F76}"
+	ProjectSection(ProjectDependencies) = postProject
+		{02E4AB8B-B7AB-49A7-A6EB-06B859E664F2} = {02E4AB8B-B7AB-49A7-A6EB-06B859E664F2}
+	EndProjectSection
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

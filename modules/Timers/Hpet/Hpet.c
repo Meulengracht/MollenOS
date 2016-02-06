@@ -24,6 +24,7 @@
 #include <Module.h>
 #include <DeviceManager.h>
 #include <Devices\Timer.h>
+#include <Timers.h>
 #include "Hpet.h"
 #include <Heap.h>
 #include <Log.h>

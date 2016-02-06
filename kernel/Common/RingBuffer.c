@@ -64,6 +64,27 @@ void RingBufferDestroy(RingBuffer_t *RingBuffer)
 	kfree(RingBuffer);
 }
 
+/* Helpers */
+void RingBufferIncreaseWrite(RingBuffer_t *RingBuffer)
+{
+	/* Increase */
+	RingBuffer->IndexWrite++;
+
+	/* Do we have to wrap around? */
+	if (RingBuffer->IndexWrite == RingBuffer->Length)
+		RingBuffer->IndexWrite = 0;
+}
+
+void RingBufferIncreaseRead(RingBuffer_t *RingBuffer)
+{
+	/* Increament */
+	RingBuffer->IndexRead++;
+
+	/* Do we have to wrap around? */
+	if (RingBuffer->IndexRead == RingBuffer->Length)
+		RingBuffer->IndexRead = 0;
+}
+
 /* How many bytes are ready for usage */
 int RingBufferSpaceAvailable(RingBuffer_t *RingBuffer)
 {
@@ -103,44 +124,33 @@ int RingBufferWrite(RingBuffer_t *RingBuffer, size_t SrcLength, uint8_t *Source)
 	if (RingBuffer == NULL)
 		return -1;
 
-	/* Acquire Lock */
-	SpinlockAcquire(&RingBuffer->Lock);
-
 	/* Only write while Buffer is available */
 	while (1)
 	{
+		/* Acquire Lock */
+		SpinlockAcquire(&RingBuffer->Lock);
+
 		while (RingBufferSpaceAvailable(RingBuffer) > 0 && BytesWritten < SrcLength)
 		{
 			/* Write byte */
 			RingBuffer->Buffer[RingBuffer->IndexWrite] = Source[BytesWritten];
 
 			/* Increase */
-			RingBuffer->IndexWrite++;
+			RingBufferIncreaseWrite(RingBuffer);
 
-			/* Do we have to wrap around? */
-			if (RingBuffer->IndexWrite == RingBuffer->Length)
-				RingBuffer->IndexWrite = 0;
-
+			/* Increase */
 			BytesWritten++;
 		}
 
-		/* Did we write all data? :/ */
-		if (BytesWritten < SrcLength)
-		{
-			/* No, sleep time :( */
+		/* Release Lock */
+		SpinlockRelease(&RingBuffer->Lock);
 
-			/* Release Lock */
-			SpinlockRelease(&RingBuffer->Lock);
-		}
-		else
-			break;
+		/* Break (for now) */
+		break;
 	}
 
-	/* Release Lock */
-	SpinlockRelease(&RingBuffer->Lock);
-
 	/* Done */
-	return 0;
+	return (int)BytesWritten;
 }
 
 /* Read data from Buffer */
@@ -152,41 +162,30 @@ int RingBufferRead(RingBuffer_t *RingBuffer, size_t DestLength, uint8_t *Destina
 	if (RingBuffer == NULL)
 		return -1;
 
-	/* Acquire Lock */
-	SpinlockAcquire(&RingBuffer->Lock);
-
 	while (1)
 	{
+		/* Acquire Lock */
+		SpinlockAcquire(&RingBuffer->Lock);
+
 		while (RingBufferSize(RingBuffer) > 0 && BytesRead < DestLength)
 		{
 			/* Read */
 			Destination[BytesRead] = RingBuffer->Buffer[RingBuffer->IndexRead];
 
 			/* Increament */
-			RingBuffer->IndexRead++;
+			RingBufferIncreaseRead(RingBuffer);
 
-			/* Do we have to wrap around? */
-			if (RingBuffer->IndexWrite == RingBuffer->Length)
-				RingBuffer->IndexWrite = 0;
-
+			/* Incr */
 			BytesRead++;
 		}
+		
+		/* Release Lock */
+		SpinlockRelease(&RingBuffer->Lock);
 
-		/* Did we write all data? :/ */
-		if (BytesRead < DestLength)
-		{
-			/* No, sleep time :( */
-
-			/* Release Lock */
-			SpinlockRelease(&RingBuffer->Lock);
-		}
-		else
-			break;
+		/* Break */
+		break;
 	}
-	
-	/* Release Lock */
-	SpinlockRelease(&RingBuffer->Lock);
 
 	/* Done */
-	return 0;
+	return (int)BytesRead;
 }

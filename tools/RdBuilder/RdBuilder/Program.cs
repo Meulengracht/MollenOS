@@ -262,10 +262,6 @@ namespace RdBuilder
 
             /* Info */
             Console.WriteLine("Done!");
-
-            /* Done */
-            while (true)
-                Thread.Sleep(10 * 1000);
         }
     }
 }
