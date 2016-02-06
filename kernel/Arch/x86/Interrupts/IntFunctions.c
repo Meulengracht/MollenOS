@@ -393,7 +393,8 @@ int DeviceAllocateInterrupt(void *mCoreDevice)
 		}
 		else
 		{
-			IrqLine = (uint32_t)DidExist;
+			/* Update */
+			Device->IrqLine = IrqLine = (uint32_t)DidExist;
 
 			/* Update PCI Interrupt Line */
 			PciWrite8(Device->Bus, Device->Device, Device->Function, 0x3C, (uint8_t)IrqLine);

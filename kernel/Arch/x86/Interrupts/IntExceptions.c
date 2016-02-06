@@ -215,7 +215,24 @@ void ExceptionEntry(Registers_t *regs)
 		if (IssueFixed == 0)
 		{
 			/* Odd */
-			printf("CR2 Address: 0x%x... Faulty Address: 0x%x\n", UnmappedAddr, regs->Eip);
+			printf("CR2 Address: 0x%x\n", UnmappedAddr);
+
+			/* We could lookup */
+			if (regs->Eip >= MEMORY_LOCATION_MODULES
+				&& regs->Eip < (MEMORY_LOCATION_MODULES + 0x1000000))
+			{
+				/* Try to find the module */
+				MCoreModule_t *Module = ModuleFindAddress(regs->Eip);
+
+				/* Sanity */
+				if (Module != NULL)
+				{
+					uint32_t Diff = regs->Eip - Module->Descriptor->BaseVirtual;
+					printf("Fauly Address: 0x%x (%s)\n", Diff, Module->Header->ModuleName);
+				}
+			}
+			else
+				printf("Faulty Address: 0x%x\n", regs->Eip);
 
 			/* Try to stack trace first */
 			StackTrace(6);

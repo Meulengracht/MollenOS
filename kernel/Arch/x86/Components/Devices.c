@@ -138,8 +138,15 @@ DeviceIoSpace_t *IoSpaceCreate(int Type, Addr_t PhysicalBase, size_t Size)
 		if (Size % PAGE_SIZE)
 			PageCount++;
 
-		/* Map it */
-		IoSpace->VirtualBase = (Addr_t)MmReserveMemory(PageCount);
+		/* Do we cross a page boundary? */
+		if (((PhysicalBase + Size) / PAGE_SIZE)
+			!= (PhysicalBase / PAGE_SIZE))
+			PageCount++;
+
+		/* Map it WITH the page offset */
+		IoSpace->VirtualBase = 
+			((Addr_t)MmReserveMemory(PageCount) 
+				+ (PhysicalBase & ATTRIBUTE_MASK));
 	}
 
 	/* Add to list */

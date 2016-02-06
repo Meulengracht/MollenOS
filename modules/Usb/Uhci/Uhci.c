@@ -52,7 +52,7 @@ const char *UhciErrorMessages[] =
 	"Active"
 };
 
-#define _UHCI_DIAGNOSTICS_
+#define UHCI_DIAGNOSTICS
 
 /* Prototypes (Internal) */
 void UhciInitQueues(UhciController_t *Controller);
@@ -155,6 +155,7 @@ MODULES_API void ModuleInit(void *Data)
 	Controller->Id = GlbUhciId;
 	Controller->Frame = 0;
 	Controller->IoBase = NULL;
+	Controller->Device = mDevice;
 
 	/* Setup Lock */
 	SpinlockReset(&Controller->Lock);
@@ -173,7 +174,7 @@ MODULES_API void ModuleInit(void *Data)
 	if (Controller->IoBase == NULL)
 	{
 		/* Yea, give me my hat back */
-		LogFatal("OHCI", "Invalid memory space!");
+		LogFatal("UHCI", "Invalid memory space!");
 		kfree(Controller);
 		return;
 	}
@@ -455,10 +456,6 @@ void UhciSetup(UhciController_t *Controller)
 
 	/* Start Controller */
 	UhciStart(Controller);
-	
-	/* Debug */
-	LogDebug("UHCI", "%u: Port Count %u, Command Register 0x%x", Controller->Id,
-		Controller->NumPorts, UhciRead16(Controller, UHCI_REGISTER_COMMAND));
 
 	/* Setup HCD */
 	Hcd = UsbInitController((void*)Controller, UhciController, Controller->NumPorts);
@@ -662,9 +659,11 @@ void UhciPortCheck(UhciController_t *Controller, int Port)
 /* Go through ports */
 void UhciPortsCheck(void *Data)
 {
+	/* Cast & Vars */
 	UhciController_t *Controller = (UhciController_t*)Data;
 	int i;
 
+	/* Iterate ports and check */
 	for (i = 0; i < (int)Controller->NumPorts; i++)
 		UhciPortCheck(Controller, i);
 }
@@ -1233,7 +1232,7 @@ void UhciTransactionSend(void *Controller, UsbHcRequest_t *Request)
 	/* Iterate and set last to generate interrupt */
 	Transaction = Request->Transactions;
 
-#ifdef _UHCI_DIAGNOSTICS_
+#ifdef UHCI_DIAGNOSTICS
 	Td = (UhciTransferDescriptor_t*)Transaction->TransferDescriptor;
 	LogDebug("UHCI", "Td (Addr 0x%x) Flags 0x%x, Buffer 0x%x, Header 0x%x, Next Td 0x%x",
 		AddressSpaceGetMap(AddressSpaceGetCurrent(), (VirtAddr_t)Td), Td->Flags, Td->Buffer, Td->Header, Td->Link);
@@ -1244,7 +1243,7 @@ void UhciTransactionSend(void *Controller, UsbHcRequest_t *Request)
 		/* Next */
 		Transaction = Transaction->Link;
 
-#ifdef _UHCI_DIAGNOSTICS_
+#ifdef UHCI_DIAGNOSTICS
 		Td = (UhciTransferDescriptor_t*)Transaction->TransferDescriptor;
 		LogDebug("UHCI", "Td (Addr 0x%x) Flags 0x%x, Buffer 0x%x, Header 0x%x, Next Td 0x%x",
 			AddressSpaceGetMap(AddressSpaceGetCurrent(), (VirtAddr_t)Td), Td->Flags, Td->Buffer, Td->Header, Td->Link);
@@ -1252,7 +1251,7 @@ void UhciTransactionSend(void *Controller, UsbHcRequest_t *Request)
 	}
 
 	/* Set last to generate IOC */
-#ifndef _UHCI_DIAGNOSTICS_
+#ifndef UHCI_DIAGNOSTICS
 	Td = (UhciTransferDescriptor_t*)Transaction->TransferDescriptor;
 	Td->Flags |= UHCI_TD_IOC;
 #endif
@@ -1270,7 +1269,7 @@ void UhciTransactionSend(void *Controller, UsbHcRequest_t *Request)
 	list_append((list_t*)Ctrl->TransactionList, list_create_node(0, Request));
 
 	/* Debug */
-#ifdef _UHCI_DIAGNOSTICS_
+#ifdef UHCI_DIAGNOSTICS
 	LogDebug("UHCI", "QH at 0x%x, FirstTd 0x%x, NextQh 0x%x", QhAddress, Qh->Child, Qh->Link);
 #endif
 
@@ -1337,7 +1336,7 @@ void UhciTransactionSend(void *Controller, UsbHcRequest_t *Request)
 	UhciStart(Ctrl);
 
 	/* Wait for interrupt */
-#ifndef _UHCI_DIAGNOSTICS_
+#ifndef UHCI_DIAGNOSTICS
 	
 	/* Sleep untill completion */
 	SchedulerSleepThread((Addr_t)Request->Data);
@@ -1351,7 +1350,7 @@ void UhciTransactionSend(void *Controller, UsbHcRequest_t *Request)
 #endif
 
 	/* Check Conditions (WithOUT dummy) */
-#ifdef _UHCI_DIAGNOSTICS_
+#ifdef UHCI_DIAGNOSTICS
 	LogDebug("UHCI", "Qh Next 0x%x, Qh Head 0x%x", Qh->Link, Qh->Child);
 #endif
 	Transaction = Request->Transactions;
@@ -1359,7 +1358,7 @@ void UhciTransactionSend(void *Controller, UsbHcRequest_t *Request)
 	{
 		Td = (UhciTransferDescriptor_t*)Transaction->TransferDescriptor;
 		CondCode = UhciConditionCodeToIndex(UHCI_TD_STATUS(Td->Flags));
-#ifdef _UHCI_DIAGNOSTICS_
+#ifdef UHCI_DIAGNOSTICS
 		LogDebug("UHCI", "Td Flags 0x%x, Header 0x%x, Buffer 0x%x, Td Condition Code %u (%s)", 
 			Td->Flags, Td->Header, Td->Buffer, CondCode, UhciErrorMessages[CondCode]);
 #endif
@@ -1407,7 +1406,7 @@ void UhciTransactionSend(void *Controller, UsbHcRequest_t *Request)
 	/* Update Status */
 	Request->Status = Completed;
 
-#ifdef _UHCI_DIAGNOSTICS_
+#ifdef UHCI_DIAGNOSTICS
 	for (;;);
 #endif
 }
@@ -1544,7 +1543,7 @@ int UhciInterruptHandler(void *Args)
 	if (!(IntrState & 0x1F))
 		return X86_IRQ_NOT_HANDLED;
 
-#ifdef _UHCI_DIAGNOSTICS_
+#ifdef UHCI_DIAGNOSTICS
 	/* Debug */
 	LogInformation("UHCI", "INTERRUPT Controller %u: 0x%x\n", Controller->Id, IntrState);
 #endif
