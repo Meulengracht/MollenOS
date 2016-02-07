@@ -99,7 +99,8 @@ typedef struct _UhciTransferDescriptor
 
 	/* Control & Status 
 	 * Bit 0-10: Actual Length (Bytes Transfered)
-	 * Bit 11-16: Reserved
+	 * Bit 11-15: Reserved
+	 * Bit 16: Reserved (1 on most controllers)
 	 * Bit 17: Bitstuff Error 
 	 * Bit 18: CRC/Timeout Error
 	 * Bit 19: NAK Recieved
@@ -127,7 +128,20 @@ typedef struct _UhciTransferDescriptor
 	/* Buffer Pointer */
 	uint32_t Buffer;
 
+	/* 4 Reserved dwords 
+	 * for software use */
+
+	/* HcdFlags 
+	 * Bit 0: Allocation status */
+	uint32_t HcdFlags;
+
+	/* Padding */
+	uint32_t Padding[3];
+
 } UhciTransferDescriptor_t;
+
+/* Hcd Flags */
+#define UHCI_TD_HCD_ALLOCATED			0x1
 
 /* Link bit switches */
 #define UHCI_TD_LINK_END				0x1
@@ -154,7 +168,9 @@ typedef struct _UhciTransferDescriptor
 #define UHCI_TD_DATA_TOGGLE(n)		(n << 19)
 #define UHCI_TD_MAX_LEN(n)			((n & 0x7FF) << 21)
 
-/* Queue Head, 16 byte align */
+/* Queue Head, 16 byte align 
+ * 8 Bytes used by HC 
+ * 24 Bytes used by HCD */
 typedef struct _UhciQueueHead
 {
 	/* Queue Head Link Pointer 
@@ -167,12 +183,16 @@ typedef struct _UhciQueueHead
 	 * Bit 1 - 1 = QH, 0 = TD */
 	uint32_t Child;
 
+
+	/* Everything below here is used by HCD
+	 * and is not seen by the controller
+	 */
+
 	/* Controller Driver Specific 
-	 * Bit 0: If set, this is in use 
+	 * Bit 0: Allocation status
 	 * Bit 1-7: Pool Number
 	 * Bit 8-15: Queue Head Index 
-	 * Bit 16-17: Queue Head Type (00 Control, 01 Bulk, 10 Interrupt, 11 Isochronous)
-	 * Bit 18: Allocation Status */
+	 * Bit 16-17: Queue Head Type (00 Control, 01 Bulk, 10 Interrupt, 11 Isochronous)*/
 	uint32_t Flags;
 
 	/* Virtual Address of next QH */
@@ -191,7 +211,6 @@ typedef struct _UhciQueueHead
 #define UHCI_QH_POOL_NUM(n)			((n & 0x7F) << 1)
 #define UHCI_QH_INDEX(n)			((n & 0xFF) << 8)
 #define UHCI_QH_TYPE(n)				((n & 0x3) << 16)
-#define UHCI_QH_ALLOCATED			(1 << 18)
 
 #define UHCI_QH_SET_POOL_NUM(n)		((n << 1) & 0xFE)	
 

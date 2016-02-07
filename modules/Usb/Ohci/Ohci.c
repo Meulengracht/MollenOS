@@ -203,8 +203,7 @@ void OhciStop(OhciController_t *Controller)
 	Controller->Registers->HcCommandStatus = Temp;
 }
 
-/* This resets a Port, this is only ever
-* called from an interrupt and thus we can't use StallMs :/ */
+/* This resets a Port */
 void OhciPortReset(OhciController_t *Controller, uint32_t Port)
 {
 	/* Set reset */
@@ -1777,20 +1776,6 @@ void OhciTransactionDestroy(void *Controller, UsbHcRequest_t *Request)
 	}
 	else
 	{
-		/* Iterate transactions and free buffers & td's */
-		while (Transaction)
-		{
-			/* free buffer */
-			kfree(Transaction->TransferBuffer);
-
-			/* free both TD's */
-			kfree((void*)Transaction->TransferDescriptor);
-			kfree((void*)Transaction->TransferDescriptorCopy);
-
-			/* Next */
-			Transaction = Transaction->Link;
-		}
-
 		/* Unhook ED from the list it's in */
 		SpinlockAcquire(&Ctrl->Lock);
 
@@ -1862,6 +1847,20 @@ void OhciTransactionDestroy(void *Controller, UsbHcRequest_t *Request)
 
 		/* Done */
 		SpinlockRelease(&Ctrl->Lock);
+
+		/* Iterate transactions and free buffers & td's */
+		while (Transaction)
+		{
+			/* free buffer */
+			kfree(Transaction->TransferBuffer);
+
+			/* free both TD's */
+			kfree((void*)Transaction->TransferDescriptor);
+			kfree((void*)Transaction->TransferDescriptorCopy);
+
+			/* Next */
+			Transaction = Transaction->Link;
+		}
 
 		/* Free it */
 		kfree(Request->Data);
