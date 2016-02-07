@@ -78,14 +78,8 @@ void UhciTransactionDestroy(void *Controller, UsbHcRequest_t *Request);
 /* Helpers */
 uint16_t UhciRead16(UhciController_t *Controller, uint16_t Register)
 {
-	/* Acquire Lock */
-	SpinlockAcquire(&Controller->Lock);
-
 	/* Read */
 	uint16_t Value = (uint16_t)IoSpaceRead(Controller->IoBase, Register, 2);
-
-	/* Release */
-	SpinlockRelease(&Controller->Lock);
 
 	/* Done! */
 	return Value;
@@ -93,14 +87,8 @@ uint16_t UhciRead16(UhciController_t *Controller, uint16_t Register)
 
 uint32_t UhciRead32(UhciController_t *Controller, uint16_t Register)
 {
-	/* Acquire Lock */
-	SpinlockAcquire(&Controller->Lock);
-
 	/* Read */
 	uint32_t Value = (uint32_t)IoSpaceRead(Controller->IoBase, Register, 4);
-
-	/* Release */
-	SpinlockRelease(&Controller->Lock);
 
 	/* Done! */
 	return Value;
@@ -108,38 +96,20 @@ uint32_t UhciRead32(UhciController_t *Controller, uint16_t Register)
 
 void UhciWrite8(UhciController_t *Controller, uint16_t Register, uint8_t Value)
 {
-	/* Acquire Lock */
-	SpinlockAcquire(&Controller->Lock);
-
 	/* Write new state */
 	IoSpaceWrite(Controller->IoBase, Register, Value, 1);
-
-	/* Release */
-	SpinlockRelease(&Controller->Lock);
 }
 
 void UhciWrite16(UhciController_t *Controller, uint16_t Register, uint16_t Value)
 { 
-	/* Acquire Lock */
-	SpinlockAcquire(&Controller->Lock);
-
 	/* Write new state */
 	IoSpaceWrite(Controller->IoBase, Register, Value, 2);
-
-	/* Release */
-	SpinlockRelease(&Controller->Lock);
 }
 
 void UhciWrite32(UhciController_t *Controller, uint16_t Register, uint32_t Value)
 {
-	/* Acquire Lock */
-	SpinlockAcquire(&Controller->Lock);
-	
 	/* Write new state */
 	IoSpaceWrite(Controller->IoBase, Register, Value, 4);
-
-	/* Release */
-	SpinlockRelease(&Controller->Lock);
 }
 
 /* Entry point of a module */
@@ -482,7 +452,7 @@ void UhciSetup(UhciController_t *Controller)
 
 	/* Install Periodic Check (NO HUB INTERRUPTS!?)
 	 * Anyway this will initiate ports */
-	//TimersCreateTimer(UhciPortsCheck, Controller, TimerPeriodic, 500);
+	TimersCreateTimer(UhciPortsCheck, Controller, TimerPeriodic, 500);
 }
 
 /* Initialises Queue Heads & Interrupt Queeue */
@@ -530,7 +500,7 @@ void UhciInitQueues(UhciController_t *Controller)
 	}
 
 	/* Setup interrupt queues */
-	for (i = 2; i < UHCI_POOL_ASYNC; i++)
+	for (i = UHCI_POOL_ISOCHRONOUS + 1; i < UHCI_POOL_ASYNC; i++)
 	{
 		/* Set QH Link */
 		Controller->QhPool[i]->Link = (Controller->QhPoolPhys[UHCI_POOL_ASYNC] | UHCI_TD_LINK_QH);
@@ -546,31 +516,32 @@ void UhciInitQueues(UhciController_t *Controller)
 	
 	/* Setup Iso Qh */
 
+	/* Setup null QH */
+	Controller->QhPool[UHCI_POOL_NULL]->Link = 
+		(Controller->QhPoolPhys[UHCI_POOL_NULL] | UHCI_TD_LINK_QH);
+	Controller->QhPool[UHCI_POOL_NULL]->LinkVirtual = 
+		(uint32_t)Controller->QhPool[UHCI_POOL_NULL];
+	Controller->QhPool[UHCI_POOL_NULL]->Child = Controller->NullTdPhysical;
+	Controller->QhPool[UHCI_POOL_NULL]->ChildVirtual = (uint32_t)Controller->NullTd;
+
 	/* Setup async Qh */
 	Controller->QhPool[UHCI_POOL_ASYNC]->Link = UHCI_TD_LINK_END;
 	Controller->QhPool[UHCI_POOL_ASYNC]->LinkVirtual = 0;
 	Controller->QhPool[UHCI_POOL_ASYNC]->Child = Controller->NullTdPhysical;
 	Controller->QhPool[UHCI_POOL_ASYNC]->ChildVirtual = (uint32_t)Controller->NullTd;
 
-	/* Setup null QH */
-	Controller->QhPool[UHCI_POOL_NULL]->Link = (Controller->QhPoolPhys[UHCI_POOL_NULL] | UHCI_TD_LINK_QH | UHCI_TD_LINK_END);
-	Controller->QhPool[UHCI_POOL_NULL]->LinkVirtual = (uint32_t)Controller->QhPool[UHCI_POOL_NULL];
-	Controller->QhPool[UHCI_POOL_NULL]->Child = Controller->NullTdPhysical;
-	Controller->QhPool[UHCI_POOL_NULL]->ChildVirtual = (uint32_t)Controller->NullTd;
-
-	/* 1024 Entries 
-	 * Set all entries to the 8 interrupt queues, and we 
-	 * want them interleaved such that some queues get visited more than others */
-	for (i = UHCI_POOL_ISOCHRONOUS + 1; i < UHCI_POOL_ASYNC; i++)
+	/* Set all queues to end in the async QH 
+	 * This way we handle iso & ints before bulk/control */
+	for (i = UHCI_POOL_ISOCHRONOUS + 1; i < UHCI_POOL_ASYNC; i++) {
 		Controller->QhPool[i]->Link = Controller->QhPoolPhys[UHCI_POOL_ASYNC] | UHCI_TD_LINK_QH;
+		Controller->QhPool[i]->LinkVirtual = (uint32_t)Controller->QhPoolPhys[UHCI_POOL_ASYNC];
+	}
+
+	/* 1024 Entries
+	* Set all entries to the 8 interrupt queues, and we
+	* want them interleaved such that some queues get visited more than others */
 	for (i = 0; i < UHCI_NUM_FRAMES; i++)
 		FrameListPtr[i] = UhciDetermineInterruptQh(Controller, i);
-
-	/* Terminate */
-	Controller->QhPool[UHCI_POOL_ASYNC]->Link |= UHCI_TD_LINK_END;
-	Controller->QhPool[UHCI_POOL_ASYNC]->LinkVirtual = 0;
-	Controller->QhPool[UHCI_POOL_ASYNC]->Child = Controller->NullTdPhysical;
-	Controller->QhPool[UHCI_POOL_ASYNC]->ChildVirtual = (uint32_t)Controller->NullTd;
 
 	/* Init transaction list */
 	Controller->TransactionList = list_create(LIST_SAFE);
@@ -634,7 +605,8 @@ void UhciPortCheck(UhciController_t *Controller, int Port)
 		return;
 
 	/* Clear connection event */
-	UhciWrite16(Controller, (UHCI_REGISTER_PORT_BASE + ((uint16_t)Port * 2)), UHCI_PORT_CONNECT_EVENT);
+	UhciWrite16(Controller, 
+		(UHCI_REGISTER_PORT_BASE + ((uint16_t)Port * 2)), UHCI_PORT_CONNECT_EVENT);
 
 	/* Get HCD data */
 	Hcd = UsbGetHcd(Controller->HcdId);
@@ -679,7 +651,7 @@ void UhciPortSetup(void *Data, UsbHcPort_t *Port)
 
 	/* Dump info */
 	pStatus = UhciRead16(Controller, (UHCI_REGISTER_PORT_BASE + ((uint16_t)Port->Id * 2)));
-	LogDebug("UHCI", "UHCI %u.%u Status: 0x%x\n", Controller->Id, Port->Id, pStatus);
+	LogDebug("UHCI", "UHCI %u.%u Status: 0x%x", Controller->Id, Port->Id, pStatus);
 
 	/* Is it connected? */
 	if (pStatus & UHCI_PORT_CONNECT_STATUS)
@@ -751,7 +723,7 @@ Addr_t UhciAllocateQh(UhciController_t *Controller, UsbTransferType_t Type)
 void UhciQhInit(UhciController_t *Controller, UhciQueueHead_t *Qh, UsbHcTransaction_t *FirstTd)
 {
 	/* Set link pointer */
-	Qh->Link = Controller->QhPoolPhys[UHCI_POOL_NULL] | UHCI_TD_LINK_DEPTH | UHCI_TD_LINK_QH;
+	Qh->Link = Controller->QhPoolPhys[UHCI_POOL_NULL] | UHCI_TD_LINK_DEPTH | UHCI_TD_LINK_QH | UHCI_TD_LINK_END;
 	Qh->LinkVirtual = (uint32_t)Controller->QhPool[UHCI_POOL_NULL];
 
 	/* Set Td list */
@@ -841,7 +813,7 @@ UhciTransferDescriptor_t *UhciTdSetup(UhciEndpoint_t *Ep, UsbTransferType_t Type
 	if (NextTD == UHCI_TD_LINK_END)
 		Td->Link = UHCI_TD_LINK_END;
 	else	/* Get physical Address of NextTD and set NextTD to that */
-		Td->Link = AddressSpaceGetMap(AddressSpaceGetCurrent(), (VirtAddr_t)NextTD);
+		Td->Link = AddressSpaceGetMap(AddressSpaceGetCurrent(), (VirtAddr_t)NextTD) | UHCI_TD_LINK_DEPTH;
 
 	/* Setup TD Control Status */
 	Td->Flags = UHCI_TD_ACTIVE;
@@ -1235,7 +1207,8 @@ void UhciTransactionSend(void *Controller, UsbHcRequest_t *Request)
 #ifdef UHCI_DIAGNOSTICS
 	Td = (UhciTransferDescriptor_t*)Transaction->TransferDescriptor;
 	LogDebug("UHCI", "Td (Addr 0x%x) Flags 0x%x, Buffer 0x%x, Header 0x%x, Next Td 0x%x",
-		AddressSpaceGetMap(AddressSpaceGetCurrent(), (VirtAddr_t)Td), Td->Flags, Td->Buffer, Td->Header, Td->Link);
+		AddressSpaceGetMap(AddressSpaceGetCurrent(), (VirtAddr_t)Td), 
+		Td->Flags, Td->Buffer, Td->Header, Td->Link);
 #endif
 
 	while (Transaction->Link)
@@ -1246,7 +1219,8 @@ void UhciTransactionSend(void *Controller, UsbHcRequest_t *Request)
 #ifdef UHCI_DIAGNOSTICS
 		Td = (UhciTransferDescriptor_t*)Transaction->TransferDescriptor;
 		LogDebug("UHCI", "Td (Addr 0x%x) Flags 0x%x, Buffer 0x%x, Header 0x%x, Next Td 0x%x",
-			AddressSpaceGetMap(AddressSpaceGetCurrent(), (VirtAddr_t)Td), Td->Flags, Td->Buffer, Td->Header, Td->Link);
+			AddressSpaceGetMap(AddressSpaceGetCurrent(), (VirtAddr_t)Td), 
+			Td->Flags, Td->Buffer, Td->Header, Td->Link);
 #endif
 	}
 
@@ -1285,16 +1259,12 @@ void UhciTransactionSend(void *Controller, UsbHcRequest_t *Request)
 
 		/* Iterate to end */
 		while (PrevQh->LinkVirtual != 0
-			&& PrevQh->LinkVirtual != (uint32_t)Ctrl->NullTd)
+			&& PrevQh->LinkVirtual != (uint32_t)Ctrl->QhPool[UHCI_POOL_NULL])
 			PrevQh = (UhciQueueHead_t*)PrevQh->LinkVirtual;
 
 		/* Insert */
 		PrevQh->Link = (QhAddress | UHCI_TD_LINK_QH);
 		PrevQh->LinkVirtual = (uint32_t)Qh;
-
-		/* Make sure we end in the NullTd */
-		Qh->Link = Ctrl->NullTdPhysical | UHCI_TD_LINK_QH;
-		Qh->LinkVirtual = (uint32_t)Ctrl->NullTd;
 	}
 	else if (Request->Type == InterruptTransfer)
 	{
@@ -1533,7 +1503,8 @@ void UhciProcessTransfers(UhciController_t *Controller)
 int UhciInterruptHandler(void *Args)
 {
 	/* Vars */
-	UhciController_t *Controller = (UhciController_t*)Args;
+	MCoreDevice_t *mDevice = (MCoreDevice_t*)Args;
+	UhciController_t *Controller = (UhciController_t*)mDevice->Driver.Data;
 	uint16_t IntrState = 0;
 
 	/* Get INTR state */

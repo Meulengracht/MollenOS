@@ -66,7 +66,7 @@ typedef struct _MCoreTimer
 } MCoreTimer_t;
 
 /* Prototypes */
-_CRT_EXTERN TmId_t TimersCreateTimer(TimerHandler_t Callback, 
+_CRT_EXPORT TmId_t TimersCreateTimer(TimerHandler_t Callback, 
 	void *Args, MCoreTimerType_t Type, size_t Timeout);
 
 /* Sleep, Stall, etc */
