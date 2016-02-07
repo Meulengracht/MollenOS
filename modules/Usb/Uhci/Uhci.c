@@ -564,33 +564,36 @@ void UhciPortReset(UhciController_t *Controller, uint32_t Port)
 	Temp = UhciRead16(Controller, pOffset);
 	UhciWrite16(Controller, pOffset, Temp & ~UHCI_PORT_RESET);
 
-	/* Recovery Wait (We should wait for CSC) */
+	/* Wait for CSC */
 	Temp = 0;
 	WaitForConditionWithFault(Temp,
-		(UhciRead16(Controller, pOffset) & UHCI_PORT_CONNECT_EVENT), 100, 4);
+		(UhciRead16(Controller, pOffset) & UHCI_PORT_CONNECT_STATUS), 10, 1);
 
 	/* Even if it fails, try to enable anyway */
+	if (Temp) {
+		LogDebug("UHCI", "Port failed to come online in a timely manner after reset...");
+	}
 
-	/* Step 2. Enable Port */
+	/* Step 2. Enable Port & clear event bits */
 	Temp = UhciRead16(Controller, pOffset);
-	UhciWrite16(Controller, pOffset, Temp | UHCI_PORT_ENABLED);
+	UhciWrite16(Controller, pOffset, 
+		Temp | UHCI_PORT_CONNECT_EVENT | UHCI_PORT_ENABLED_EVENT | UHCI_PORT_ENABLED);
 
 	/* Wait for enable, with timeout */
 	Temp = 0;
 	WaitForConditionWithFault(Temp,
-		(UhciRead16(Controller, pOffset) & UHCI_PORT_ENABLED), 100, 2);
+		(UhciRead16(Controller, pOffset) & UHCI_PORT_ENABLED), 25, 10);
 
 	/* Sanity */
-	if (Temp)
-	{
-		LogDebug("UHCI", "Port %u Reset time-out!", Port);
-		return;
+	if (Temp) {
+		LogDebug("UHCI", "Port %u enable time-out!", Port);
 	}
 
-	/* Clear any connection event bits */
-	Temp = UhciRead16(Controller, pOffset);
-	if (Temp & (UHCI_PORT_CONNECT_EVENT | UHCI_PORT_ENABLED_EVENT))
-		UhciWrite16(Controller, pOffset, Temp);
+	/* Wait 30 ms more 
+	 * I found this wait to be EXTREMELY 
+	 * crucical, otherwise devices would stall. 
+	 * because I accessed them to quickly after the reset */
+	StallMs(30);
 }
 
 /* Detect any port changes */
@@ -723,7 +726,7 @@ Addr_t UhciAllocateQh(UhciController_t *Controller, UsbTransferType_t Type)
 void UhciQhInit(UhciController_t *Controller, UhciQueueHead_t *Qh, UsbHcTransaction_t *FirstTd)
 {
 	/* Set link pointer */
-	Qh->Link = Controller->QhPoolPhys[UHCI_POOL_NULL] | UHCI_TD_LINK_DEPTH | UHCI_TD_LINK_QH | UHCI_TD_LINK_END;
+	Qh->Link = Controller->QhPoolPhys[UHCI_POOL_NULL] | UHCI_TD_LINK_QH;
 	Qh->LinkVirtual = (uint32_t)Controller->QhPool[UHCI_POOL_NULL];
 
 	/* Set Td list */
@@ -1072,7 +1075,8 @@ UsbHcTransaction_t *UhciTransactionSetup(void *Controller, UsbHcRequest_t *Reque
 
 		PrevTd = (UhciTransferDescriptor_t*)cTrans->TransferDescriptor;
 		PrevTd->Link = 
-			(AddressSpaceGetMap(AddressSpaceGetCurrent(), (VirtAddr_t)Transaction->TransferDescriptor) | UHCI_TD_LINK_DEPTH);
+			(AddressSpaceGetMap(AddressSpaceGetCurrent(), 
+			(VirtAddr_t)Transaction->TransferDescriptor) | UHCI_TD_LINK_DEPTH);
 	}
 
 	return Transaction;
@@ -1319,12 +1323,12 @@ void UhciTransactionSend(void *Controller, UsbHcRequest_t *Request)
 	StallMs(100);
 #endif
 
-	/* Check Conditions (WithOUT dummy) */
+	/* Check Conditions */
 #ifdef UHCI_DIAGNOSTICS
 	LogDebug("UHCI", "Qh Next 0x%x, Qh Head 0x%x", Qh->Link, Qh->Child);
 #endif
 	Transaction = Request->Transactions;
-	while (Transaction->Link)
+	while (Transaction)
 	{
 		Td = (UhciTransferDescriptor_t*)Transaction->TransferDescriptor;
 		CondCode = UhciConditionCodeToIndex(UHCI_TD_STATUS(Td->Flags));
@@ -1359,7 +1363,7 @@ void UhciTransactionSend(void *Controller, UsbHcRequest_t *Request)
 		/* Build Buffer */
 		Transaction = Request->Transactions;
 
-		while (Transaction->Link)
+		while (Transaction)
 		{
 			/* Copy Data? */
 			if (Transaction->IoBuffer != NULL && Transaction->IoLength != 0)
