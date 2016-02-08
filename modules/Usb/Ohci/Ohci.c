@@ -251,9 +251,9 @@ void OhciPortStatus(void *ControllerData, UsbHcPort_t *Port)
 
 	/* Is it full-speed? */
 	if (Status & X86_OHCI_PORT_LOW_SPEED)
-		Port->FullSpeed = 0;
+		Port->Speed = LowSpeed;
 	else
-		Port->FullSpeed = 1;
+		Port->Speed = FullSpeed;
 
 	/* Clear Connect Event */
 	if (Controller->Registers->HcRhPortStatus[Port->Id] & X86_OHCI_PORT_CONNECT_EVENT)
@@ -844,7 +844,7 @@ Addr_t OhciAllocateEp(OhciController_t *Controller, UsbTransferType_t Type)
 }
 
 void OhciEpInit(OhciEndpointDescriptor_t *Ed, UsbHcTransaction_t *FirstTd, UsbTransferType_t Type,
-	uint32_t Address, uint32_t Endpoint, uint32_t PacketSize, uint32_t LowSpeed)
+	size_t Address, size_t Endpoint, size_t PacketSize, UsbSpeed_t Speed)
 {
 	/* Set Head & Tail Td */
 	if ((Addr_t)FirstTd->TransferDescriptor == X86_OHCI_TRANSFER_END_OF_LIST)
@@ -872,7 +872,7 @@ void OhciEpInit(OhciEndpointDescriptor_t *Ed, UsbHcTransaction_t *FirstTd, UsbTr
 	Ed->Flags |= (Address & X86_OHCI_EP_ADDR_BITS);
 	Ed->Flags |= X86_OHCI_EP_EP_NUM((Endpoint & X86_OHCI_EP_EP_NUM_BITS));
 	Ed->Flags |= X86_OHCI_EP_PID_TD; /* Get PID from Td */
-	Ed->Flags |= X86_OHCI_EP_LOWSPEED(LowSpeed); /* Problem!! */
+	Ed->Flags |= X86_OHCI_EP_LOWSPEED((Speed == LowSpeed) ? 1 : 0); /* Problem!! */
 	Ed->Flags |= X86_OHCI_EP_PACKET_SIZE((PacketSize & X86_OHCI_EP_PACKET_BITS));
 	Ed->Flags |= X86_OHCI_EP_TYPE(((uint32_t)Type & 0xF));
 
@@ -942,7 +942,7 @@ Addr_t OhciAllocateTd(OhciEndpoint_t *Ep, UsbTransferType_t Type)
 }
 
 OhciGTransferDescriptor_t *OhciTdSetup(OhciEndpoint_t *Ep, UsbTransferType_t Type,
-	Addr_t NextTD, uint32_t Toggle, uint8_t RequestDirection,
+	Addr_t NextTD, size_t Toggle, uint8_t RequestDirection,
 	uint8_t RequestType, uint8_t RequestValueLo, uint8_t RequestValueHi, uint16_t RequestIndex,
 	uint16_t RequestLength, void **TDBuffer)
 {
@@ -994,7 +994,7 @@ OhciGTransferDescriptor_t *OhciTdSetup(OhciEndpoint_t *Ep, UsbTransferType_t Typ
 
 OhciGTransferDescriptor_t *OhciTdIo(OhciEndpoint_t *OhciEp, UsbTransferType_t Type,
 	Addr_t NextTD, UsbHcEndpoint_t *Endpoint, uint32_t pid,
-	uint32_t Length, void **TDBuffer)
+	size_t Length, void **TDBuffer)
 {
 	OhciGTransferDescriptor_t *Td = NULL;
 	OhciITransferDescriptor_t *iTd = NULL;
@@ -1133,9 +1133,9 @@ void OhciEndpointSetup(void *Controller, UsbHcEndpoint_t *Endpoint)
 
 	/* Now, we want to allocate some TD's 
 	 * but it largely depends on what kind of endpoint this is */
-	if (Endpoint->Type == X86_USB_EP_TYPE_CONTROL)
+	if (Endpoint->Type == EndpointControl)
 		oEp->TdsAllocated = OHCI_ENDPOINT_MIN_ALLOCATED;
-	else if (Endpoint->Type == X86_USB_EP_TYPE_BULK)
+	else if (Endpoint->Type == EndpointBulk)
 	{
 		/* Depends on the maximum transfer */
 		oEp->TdsAllocated = DEVICEMANAGER_MAX_IO_SIZE / Endpoint->MaxPacketSize;
@@ -1450,7 +1450,7 @@ void OhciTransactionSend(void *Controller, UsbHcRequest_t *Request)
 	/* Initialize the allocated ED */
 	OhciEpInit(Ep, Request->Transactions, Request->Type,
 		Request->Device->Address, Request->Endpoint->Address,
-		Request->Endpoint->MaxPacketSize, Request->LowSpeed);
+		Request->Endpoint->MaxPacketSize, Request->Speed);
 
 	/* Now lets try the Transaction */
 	SpinlockAcquire(&Ctrl->Lock);

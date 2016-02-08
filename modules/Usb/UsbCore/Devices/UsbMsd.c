@@ -138,16 +138,16 @@ void UsbMsdInit(UsbHcDevice_t *UsbDevice, int InterfaceIndex)
 	for (i = 0; i < UsbDevice->Interfaces[InterfaceIndex]->NumEndpoints; i++)
 	{
 		/* Interrupt? */
-		if (UsbDevice->Interfaces[InterfaceIndex]->Endpoints[i]->Type == X86_USB_EP_TYPE_INTERRUPT)
+		if (UsbDevice->Interfaces[InterfaceIndex]->Endpoints[i]->Type == EndpointInterrupt)
 			DevData->EpInterrupt = UsbDevice->Interfaces[InterfaceIndex]->Endpoints[i];
 
 		/* Bulk? */
-		if (UsbDevice->Interfaces[InterfaceIndex]->Endpoints[i]->Type == X86_USB_EP_TYPE_BULK)
+		if (UsbDevice->Interfaces[InterfaceIndex]->Endpoints[i]->Type == EndpointBulk)
 		{
 			/* In or out? */
-			if (UsbDevice->Interfaces[InterfaceIndex]->Endpoints[i]->Direction == X86_USB_EP_DIRECTION_IN)
+			if (UsbDevice->Interfaces[InterfaceIndex]->Endpoints[i]->Direction == USB_EP_DIRECTION_IN)
 				DevData->EpIn = UsbDevice->Interfaces[InterfaceIndex]->Endpoints[i];
-			else if (UsbDevice->Interfaces[InterfaceIndex]->Endpoints[i]->Direction == X86_USB_EP_DIRECTION_OUT)
+			else if (UsbDevice->Interfaces[InterfaceIndex]->Endpoints[i]->Direction == USB_EP_DIRECTION_OUT)
 				DevData->EpOut = UsbDevice->Interfaces[InterfaceIndex]->Endpoints[i];
 		}
 	}
@@ -279,7 +279,7 @@ void UsbMsdReset(MsdDevice_t *Device)
 
 	/* Send control packet - Interface Reset */
 	UsbFunctionSendPacket((UsbHc_t*)Device->UsbDevice->HcDriver, Device->UsbDevice->Port,
-		NULL, X86_USB_REQ_TARGET_CLASS | X86_USB_REQ_TARGET_INTERFACE,
+		NULL, USB_REQUEST_TARGET_CLASS | USB_REQUEST_TARGET_INTERFACE,
 		X86_USB_MSD_REQUEST_RESET, 0, 0, (uint16_t)Device->Interface, 0);
 
 	/* The value of the data toggle bits shall be preserved 
@@ -293,11 +293,11 @@ void UsbMsdResetRecovery(MsdDevice_t *Device)
 
 	/* Step 2 - Clear HALT features */
 	UsbFunctionClearFeature((UsbHc_t*)Device->UsbDevice->HcDriver,
-		Device->UsbDevice->Port, X86_USB_REQ_TARGET_ENDPOINT,
-		(uint16_t)Device->EpIn->Address, X86_USB_ENDPOINT_HALT);
+		Device->UsbDevice->Port, USB_REQUEST_TARGET_ENDPOINT,
+		(uint16_t)Device->EpIn->Address, USB_ENDPOINT_HALT);
 	UsbFunctionClearFeature((UsbHc_t*)Device->UsbDevice->HcDriver,
-		Device->UsbDevice->Port, X86_USB_REQ_TARGET_ENDPOINT,
-		(uint16_t)Device->EpOut->Address, X86_USB_ENDPOINT_HALT);
+		Device->UsbDevice->Port, USB_REQUEST_TARGET_ENDPOINT,
+		(uint16_t)Device->EpOut->Address, USB_ENDPOINT_HALT);
 
 	/* Set Configuration back to initial */
 	UsbFunctionSetConfiguration((UsbHc_t*)Device->UsbDevice->HcDriver,
@@ -321,7 +321,7 @@ void UsbMsdGetMaxLUN(MsdDevice_t *Device)
 
 	/* Send control packet - Interface Reset */
 	Status = UsbFunctionSendPacket((UsbHc_t*)Device->UsbDevice->HcDriver, Device->UsbDevice->Port,
-		&MaxLuns, X86_USB_REQ_DIRECTION_IN | X86_USB_REQ_TARGET_CLASS | X86_USB_REQ_TARGET_INTERFACE,
+		&MaxLuns, USB_REQUEST_DIR_IN | USB_REQUEST_TARGET_CLASS | USB_REQUEST_TARGET_INTERFACE,
 		X86_USB_MSD_REQUEST_RESET, 0, 0, (uint16_t)Device->Interface, 1);
 
 	/* If no multiple LUNS are supported, device may STALL
@@ -780,7 +780,7 @@ UsbTransferStatus_t UsbMsdSendSCSICommandIn(uint8_t ScsiCommand, MsdDevice_t *De
 		/* Send */
 		CtrlRequest.Status =
 			UsbFunctionSendPacket((UsbHc_t*)Device->UsbDevice->HcDriver, Device->UsbDevice->Port,
-			&UfiCommandBlock, X86_USB_REQ_TARGET_CLASS | X86_USB_REQ_TARGET_INTERFACE, 
+			&UfiCommandBlock, USB_REQUEST_TARGET_CLASS | USB_REQUEST_TARGET_INTERFACE,
 			0, 0, 0, (uint16_t)Device->Interface, sizeof(MsdCommandBlockWrapUFI_t));
 	}
 
@@ -865,7 +865,7 @@ UsbTransferStatus_t UsbMsdSendSCSICommandOut(uint8_t ScsiCommand, MsdDevice_t *D
 		/* Send Package */
 		DataRequest.Status =
 			UsbFunctionSendPacket((UsbHc_t*)Device->UsbDevice->HcDriver, Device->UsbDevice->Port,
-			&UfiCommandBlock, X86_USB_REQ_TARGET_CLASS | X86_USB_REQ_TARGET_INTERFACE,
+			&UfiCommandBlock, USB_REQUEST_TARGET_CLASS | USB_REQUEST_TARGET_INTERFACE,
 			0, 0, 0, (uint16_t)Device->Interface, sizeof(MsdCommandBlockWrapUFI_t));
 
 		/* Sanity */

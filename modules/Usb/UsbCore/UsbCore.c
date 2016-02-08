@@ -41,8 +41,8 @@ list_t *GlbUsbControllers = NULL;
 list_t *GlbUsbDevices = NULL;
 list_t *GlbUsbEvents = NULL;
 Semaphore_t *GlbEventLock = NULL;
-volatile uint32_t GlbUsbInitialized = 0;
-volatile uint32_t GlbUsbControllerId = 0;
+volatile int GlbUsbInitialized = 0;
+volatile int GlbUsbControllerId = 0;
 
 /* Prototypes */
 void UsbEventHandler(void*);
@@ -57,7 +57,7 @@ MODULES_API void ModuleInit(void *Data)
 	_CRT_UNUSED(Data);
 
 	/* Init */
-	GlbUsbInitialized = 0xDEADBEEF;
+	GlbUsbInitialized = 1;
 	GlbUsbDevices = list_create(LIST_SAFE);
 	GlbUsbControllers = list_create(LIST_SAFE);
 	GlbUsbEvents = list_create(LIST_SAFE);
@@ -71,7 +71,7 @@ MODULES_API void ModuleInit(void *Data)
 }
 
 /* Registrate an OHCI/UHCI/EHCI/XHCI controller */
-UsbHc_t *UsbInitController(void *Data, UsbControllerType_t Type, uint32_t Ports)
+UsbHc_t *UsbInitController(void *Data, UsbControllerType_t Type, size_t Ports)
 {
 	UsbHc_t *Controller;
 
@@ -89,9 +89,10 @@ UsbHc_t *UsbInitController(void *Data, UsbControllerType_t Type, uint32_t Ports)
 }
 
 /* Unregistrate an OHCI/UHCI/EHCI/XHCI controller */
-uint32_t UsbRegisterController(UsbHc_t *Controller)
+int UsbRegisterController(UsbHc_t *Controller)
 {
-	uint32_t Id;
+	/* Vars */
+	int Id;
 
 	/* Get id */
 	Id = GlbUsbControllerId;
@@ -125,6 +126,7 @@ void UsbEventCreate(UsbHc_t *Hc, int Port, UsbEventType_t Type)
 /* Device Connected */
 void UsbDeviceSetup(UsbHc_t *Hc, int Port)
 {
+	/* Vars */
 	UsbHcDevice_t *Device;
 	int i;
 
@@ -144,7 +146,7 @@ void UsbDeviceSetup(UsbHc_t *Hc, int Port)
 	Device->Destroy = NULL;
 
 	Device->NumInterfaces = 0;
-	for (i = 0; i < X86_USB_CORE_MAX_IF; i++)
+	for (i = 0; i < USB_MAX_INTERFACES; i++)
 		Device->Interfaces[i] = NULL;
 	
 	/* Initial Address must be 0 */
@@ -153,11 +155,11 @@ void UsbDeviceSetup(UsbHc_t *Hc, int Port)
 	/* Allocate control endpoint */
 	Device->CtrlEndpoint = (UsbHcEndpoint_t*)kmalloc(sizeof(UsbHcEndpoint_t));
 	Device->CtrlEndpoint->Address = 0;
-	Device->CtrlEndpoint->Type = X86_USB_EP_TYPE_CONTROL;
+	Device->CtrlEndpoint->Type = EndpointControl;
 	Device->CtrlEndpoint->Toggle = 0;
 	Device->CtrlEndpoint->Bandwidth = 1;
 	Device->CtrlEndpoint->MaxPacketSize = 64;
-	Device->CtrlEndpoint->Direction = X86_USB_EP_DIRECTION_BOTH;
+	Device->CtrlEndpoint->Direction = USB_EP_DIRECTION_BOTH;
 	Device->CtrlEndpoint->Interval = 0;
 	Device->CtrlEndpoint->AttachedData = NULL;
 
@@ -229,21 +231,21 @@ void UsbDeviceSetup(UsbHc_t *Hc, int Port)
 		uint32_t IfIndex = (uint32_t)i;
 
 		/* Is this an HID Interface? :> */
-		if (Hc->Ports[Port]->Device->Interfaces[i]->Class == X86_USB_CLASS_HID)
+		if (Hc->Ports[Port]->Device->Interfaces[i]->Class == USB_CLASS_HID)
 		{
 			/* Registrate us with HID Manager */
 			UsbHidInit(Hc->Ports[Port]->Device, IfIndex);
 		}
 
 		/* Is this an MSD Interface? :> */
-		if (Hc->Ports[Port]->Device->Interfaces[i]->Class == X86_USB_CLASS_MSD)
+		if (Hc->Ports[Port]->Device->Interfaces[i]->Class == USB_CLASS_MSD)
 		{
 			/* Registrate us with MSD Manager */
 			UsbMsdInit(Hc->Ports[Port]->Device, IfIndex);
 		}
 
 		/* Is this an HUB Interface? :> */
-		if (Hc->Ports[Port]->Device->Interfaces[i]->Class == X86_USB_CLASS_HUB)
+		if (Hc->Ports[Port]->Device->Interfaces[i]->Class == USB_CLASS_HUB)
 		{
 			/* Protocol specifies usb interface (high or low speed) */
 
@@ -323,7 +325,7 @@ void UsbDeviceDestroy(UsbHc_t *Hc, int Port)
 	/* Update Port */
 	Hc->Ports[Port]->Connected = 0;
 	Hc->Ports[Port]->Enabled = 0;
-	Hc->Ports[Port]->FullSpeed = 0;
+	Hc->Ports[Port]->Speed = LowSpeed;
 	Hc->Ports[Port]->Device = NULL;
 }
 
@@ -419,7 +421,7 @@ void UsbEventHandler(void *args)
 }
 
 /* Gets */
-UsbHc_t *UsbGetHcd(uint32_t ControllerId)
+UsbHc_t *UsbGetHcd(int ControllerId)
 {
 	return (UsbHc_t*)list_get_data_by_id(GlbUsbControllers, ControllerId, 0);
 }

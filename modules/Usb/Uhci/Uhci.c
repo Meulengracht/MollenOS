@@ -672,9 +672,9 @@ void UhciPortSetup(void *Data, UsbHcPort_t *Port)
 
 	/* Lowspeed? */
 	if (pStatus & UHCI_PORT_LOWSPEED)
-		Port->FullSpeed = 0;
+		Port->Speed = LowSpeed;
 	else
-		Port->FullSpeed = 1;
+		Port->Speed = FullSpeed;
 }
 
 /* QH Functions */
@@ -812,8 +812,8 @@ Addr_t OhciAllocateTd(UhciEndpoint_t *Ep, UsbTransferType_t Type)
 
 /* Setup TD */
 UhciTransferDescriptor_t *UhciTdSetup(UhciEndpoint_t *Ep, UsbTransferType_t Type,
-	Addr_t NextTD, uint32_t Toggle, UsbPacket_t *pPacket, uint32_t DeviceAddr, 
-	uint32_t EpAddr, int LowSpeed, void **TDBuffer)
+	Addr_t NextTD, size_t Toggle, UsbPacket_t *pPacket, size_t DeviceAddr,
+	size_t EpAddr, UsbSpeed_t Speed, void **TDBuffer)
 {
 	/* Vars */
 	UhciTransferDescriptor_t *Td;
@@ -839,7 +839,7 @@ UhciTransferDescriptor_t *UhciTdSetup(UhciEndpoint_t *Ep, UsbTransferType_t Type
 	Td->Flags = UHCI_TD_ACTIVE;
 	Td->Flags |= UHCI_TD_SET_ERR_CNT(3);
 
-	if (LowSpeed)
+	if (Speed == LowSpeed)
 		Td->Flags |= UHCI_TD_LOWSPEED;
 
 	/* Setup TD Header Packet */
@@ -862,8 +862,8 @@ UhciTransferDescriptor_t *UhciTdSetup(UhciEndpoint_t *Ep, UsbTransferType_t Type
 
 /* In/Out TD */
 UhciTransferDescriptor_t *UhciTdIo(UhciEndpoint_t *Ep, UsbTransferType_t Type,
-	Addr_t NextTD, uint32_t Toggle, uint32_t DeviceAddr, uint32_t EpAddr,
-	uint32_t PId, size_t Length, int LowSpeed, void **TDBuffer)
+	Addr_t NextTD, size_t Toggle, size_t DeviceAddr, size_t EpAddr,
+	uint32_t PId, size_t Length, UsbSpeed_t Speed, void **TDBuffer)
 {
 	/* Vars */
 	UhciTransferDescriptor_t *Td;
@@ -908,7 +908,7 @@ UhciTransferDescriptor_t *UhciTdIo(UhciEndpoint_t *Ep, UsbTransferType_t Type,
 	Td->Flags = UHCI_TD_ACTIVE;
 	Td->Flags |= UHCI_TD_SET_ERR_CNT(3);
 
-	if (LowSpeed)
+	if (Speed == LowSpeed)
 		Td->Flags |= UHCI_TD_LOWSPEED;
 
 	if (Type == IsochronousTransfer)
@@ -953,9 +953,9 @@ void UhciEndpointSetup(void *Controller, UsbHcEndpoint_t *Endpoint)
 
 	/* Now, we want to allocate some TD's
 	* but it largely depends on what kind of endpoint this is */
-	if (Endpoint->Type == X86_USB_EP_TYPE_CONTROL)
+	if (Endpoint->Type == EndpointControl)
 		uEp->TdsAllocated = UHCI_ENDPOINT_MIN_ALLOCATED;
-	else if (Endpoint->Type == X86_USB_EP_TYPE_BULK)
+	else if (Endpoint->Type == EndpointBulk)
 	{
 		/* Depends on the maximum transfer */
 		uEp->TdsAllocated = DEVICEMANAGER_MAX_IO_SIZE / Endpoint->MaxPacketSize;
@@ -1101,7 +1101,7 @@ UsbHcTransaction_t *UhciTransactionSetup(void *Controller, UsbHcRequest_t *Reque
 	Transaction->TransferDescriptor = (void*)UhciTdSetup(Request->Endpoint->AttachedData,
 		Request->Type, UHCI_TD_LINK_END, Request->Endpoint->Toggle, &Request->Packet, 
 		Request->Device->Address, Request->Endpoint->Address, 
-		(int)Request->LowSpeed, &Transaction->TransferBuffer);
+		Request->Speed, &Transaction->TransferBuffer);
 
 	/* If previous Transaction */
 	if (Request->Transactions != NULL)
@@ -1141,7 +1141,7 @@ UsbHcTransaction_t *UhciTransactionIn(void *Controller, UsbHcRequest_t *Request)
 	Transaction->TransferDescriptor = (void*)UhciTdIo(Request->Endpoint->AttachedData,
 		Request->Type, UHCI_TD_LINK_END, Request->Endpoint->Toggle,
 		Request->Device->Address, Request->Endpoint->Address, UHCI_TD_PID_IN, Request->IoLength,
-		(int)Request->LowSpeed, &Transaction->TransferBuffer);
+		Request->Speed, &Transaction->TransferBuffer);
 
 	/* If previous Transaction */
 	if (Request->Transactions != NULL)
@@ -1190,7 +1190,7 @@ UsbHcTransaction_t *UhciTransactionOut(void *Controller, UsbHcRequest_t *Request
 	Transaction->TransferDescriptor = (void*)UhciTdIo(Request->Endpoint->AttachedData,
 		Request->Type, UHCI_TD_LINK_END, Request->Endpoint->Toggle,
 		Request->Device->Address, Request->Endpoint->Address, UHCI_TD_PID_IN, Request->IoLength,
-		(int)Request->LowSpeed, &Transaction->TransferBuffer);
+		Request->Speed, &Transaction->TransferBuffer);
 
 	/* Copy Data */
 	if (Request->IoBuffer != NULL && Request->IoLength != 0)
@@ -1701,9 +1701,6 @@ int UhciInterruptHandler(void *Args)
 		/* Fatal Error 
 		 * Unschedule TDs and restart controller */
 		LogInformation("UHCI", "Processing Error :/ \n");
-
-		/* Reset Controller */
-		UsbEventCreate(UsbGetHcd(Controller->Id), 0, HcdFatalEvent);
 	}
 
 	/* Done! */

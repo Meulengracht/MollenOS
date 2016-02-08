@@ -55,7 +55,7 @@ void UsbTransactionInit(UsbHc_t *Hc, UsbHcRequest_t *Request, UsbTransferType_t 
 	Request->Data = NULL;
 	Request->Device = Device;
 	Request->Endpoint = Endpoint;
-	Request->LowSpeed = (Hc->Ports[Device->Port]->FullSpeed == 1) ? 0 : 1;
+	Request->Speed = Hc->Ports[Device->Port]->Speed;
 	Request->Transactions = NULL;
 
 	/* Perform */
@@ -63,7 +63,7 @@ void UsbTransactionInit(UsbHc_t *Hc, UsbHcRequest_t *Request, UsbTransferType_t 
 }
 
 /* The Setup Transaction */
-void UsbTransactionSetup(UsbHc_t *Hc, UsbHcRequest_t *Request, uint32_t PacketSize)
+void UsbTransactionSetup(UsbHc_t *Hc, UsbHcRequest_t *Request, size_t PacketSize)
 {
 	UsbHcTransaction_t *Transaction;
 
@@ -83,23 +83,23 @@ void UsbTransactionSetup(UsbHc_t *Hc, UsbHcRequest_t *Request, uint32_t PacketSi
 }
 
 /* The In Data Transaction */
-void UsbTransactionIn(UsbHc_t *Hc, UsbHcRequest_t *Request, uint32_t Handshake, void *Buffer, uint32_t Length)
+void UsbTransactionIn(UsbHc_t *Hc, UsbHcRequest_t *Request, int Handshake, void *Buffer, size_t Length)
 {
 	/* Get length */
 	UsbHcTransaction_t *Transaction;
 
 	/* Either it's maxpacket size or remaining len */
-	uint32_t FixedLen = 0;
+	size_t FixedLen = 0;
 
 	/* Sanity */
-	if (Request->Endpoint->Type == X86_USB_EP_TYPE_ISOCHRONOUS)
+	if (Request->Endpoint->Type == EndpointIsochronous)
 		FixedLen = MIN(0x2000, Length);
 	else
 		FixedLen = MIN(Request->Endpoint->MaxPacketSize, Length);
 
 	/* Calculate rest */
-	int32_t RemainingLen = Length - FixedLen;
-	uint32_t TransfersLeft = 0;
+	int RemainingLen = Length - FixedLen;
+	size_t TransfersLeft = 0;
 
 	/* Sanity */
 	if (RemainingLen <= 0)
@@ -136,24 +136,24 @@ void UsbTransactionIn(UsbHc_t *Hc, UsbHcRequest_t *Request, uint32_t Handshake, 
 
 	if (TransfersLeft > 0)
 		UsbTransactionIn(Hc, Request, Request->Endpoint->Toggle,
-		(void*)((uint32_t)Buffer + FixedLen), RemainingLen);
+		(void*)((size_t)Buffer + FixedLen), RemainingLen);
 }
 
 /* The Out Data Transaction */
-void UsbTransactionOut(UsbHc_t *Hc, UsbHcRequest_t *Request, uint32_t Handshake, void *Buffer, uint32_t Length)
+void UsbTransactionOut(UsbHc_t *Hc, UsbHcRequest_t *Request, int Handshake, void *Buffer, size_t Length)
 {
 	/* Get length */
 	UsbHcTransaction_t *Transaction;
-	uint32_t FixedLen = 0;
+	size_t FixedLen = 0;
 
 	/* Sanity */
-	if (Request->Endpoint->Type == X86_USB_EP_TYPE_ISOCHRONOUS)
+	if (Request->Endpoint->Type == EndpointIsochronous)
 		FixedLen = MIN(0x2000, Length);
 	else
 		FixedLen = MIN(Request->Endpoint->MaxPacketSize, Length);
 
-	int32_t RemainingLen = Length - FixedLen;
-	uint32_t TransfersLeft = 0;
+	int RemainingLen = Length - FixedLen;
+	size_t TransfersLeft = 0;
 
 	/* Sanity */
 	if (RemainingLen <= 0)
@@ -191,7 +191,7 @@ void UsbTransactionOut(UsbHc_t *Hc, UsbHcRequest_t *Request, uint32_t Handshake,
 	/* Check up on this ! !*/
 	if (TransfersLeft > 0)
 		UsbTransactionOut(Hc, Request, Request->Endpoint->Toggle,
-		(void*)((uint32_t)Buffer + FixedLen), RemainingLen);
+		(void*)((size_t)Buffer + FixedLen), RemainingLen);
 }
 
 /* Send to Device */
@@ -225,7 +225,7 @@ void UsbTransactionDestroy(UsbHc_t *Hc, UsbHcRequest_t *Request)
 }
 
 /* Set address of an usb device */
-UsbTransferStatus_t UsbFunctionSetAddress(UsbHc_t *Hc, int Port, uint32_t Address)
+UsbTransferStatus_t UsbFunctionSetAddress(UsbHc_t *Hc, int Port, size_t Address)
 {
 	UsbHcRequest_t Request;
 
@@ -234,8 +234,8 @@ UsbTransferStatus_t UsbFunctionSetAddress(UsbHc_t *Hc, int Port, uint32_t Addres
 		Hc->Ports[Port]->Device, Hc->Ports[Port]->Device->CtrlEndpoint);
 
 	/* Setup Packet */
-	Request.Packet.Direction = 0;
-	Request.Packet.Type = X86_USB_REQ_SET_ADDR;
+	Request.Packet.Direction = USB_REQUEST_DIR_OUT;
+	Request.Packet.Type = USB_REQUEST_SET_ADDR;
 	Request.Packet.ValueLo = (Address & 0xFF);
 	Request.Packet.ValueHi = 0;
 	Request.Packet.Index = 0;
@@ -263,6 +263,7 @@ UsbTransferStatus_t UsbFunctionSetAddress(UsbHc_t *Hc, int Port, uint32_t Addres
 /* Gets the device descriptor */
 UsbTransferStatus_t UsbFunctionGetDeviceDescriptor(UsbHc_t *Hc, int Port)
 {
+	/* Vars */
 	UsbDeviceDescriptor_t DevInfo;
 	UsbHcRequest_t Request;
 
@@ -271,9 +272,9 @@ UsbTransferStatus_t UsbFunctionGetDeviceDescriptor(UsbHc_t *Hc, int Port)
 		Hc->Ports[Port]->Device, Hc->Ports[Port]->Device->CtrlEndpoint);
 	
 	/* Setup Packet */
-	Request.Packet.Direction = 0x80;
-	Request.Packet.Type = X86_USB_REQ_GET_DESC;
-	Request.Packet.ValueHi = X86_USB_DESC_TYPE_DEVICE;
+	Request.Packet.Direction = USB_REQUEST_DIR_IN;
+	Request.Packet.Type = USB_REQUEST_GET_DESC;
+	Request.Packet.ValueHi = USB_DESC_TYPE_DEVICE;
 	Request.Packet.ValueLo = 0;
 	Request.Packet.Index = 0;
 	Request.Packet.Length = 0x12;		/* Max Descriptor Length is 18 bytes */
@@ -321,6 +322,7 @@ UsbTransferStatus_t UsbFunctionGetDeviceDescriptor(UsbHc_t *Hc, int Port)
 /* Gets the initial config descriptor */
 UsbTransferStatus_t UsbFunctionGetInitialConfigDescriptor(UsbHc_t *Hc, int Port)
 {
+	/* Vars */
 	UsbHcRequest_t Request;
 	UsbConfigDescriptor_t DevConfig;
 
@@ -331,9 +333,9 @@ UsbTransferStatus_t UsbFunctionGetInitialConfigDescriptor(UsbHc_t *Hc, int Port)
 		Hc->Ports[Port]->Device, Hc->Ports[Port]->Device->CtrlEndpoint);
 
 	/* Setup Packet */
-	Request.Packet.Direction = 0x80;
-	Request.Packet.Type = X86_USB_REQ_GET_DESC;
-	Request.Packet.ValueHi = X86_USB_DESC_TYPE_CONFIG;
+	Request.Packet.Direction = USB_REQUEST_DIR_IN;
+	Request.Packet.Type = USB_REQUEST_GET_DESC;
+	Request.Packet.ValueHi = USB_DESC_TYPE_CONFIG;
 	Request.Packet.ValueLo = 0;
 	Request.Packet.Index = 0;
 	Request.Packet.Length = sizeof(UsbConfigDescriptor_t);
@@ -369,6 +371,7 @@ UsbTransferStatus_t UsbFunctionGetInitialConfigDescriptor(UsbHc_t *Hc, int Port)
 /* Gets the config descriptor */
 UsbTransferStatus_t UsbFunctionGetConfigDescriptor(UsbHc_t *Hc, int Port)
 {
+	/* Vars */
 	UsbHcRequest_t Request;
 	void *Buffer;
 
@@ -385,9 +388,9 @@ UsbTransferStatus_t UsbFunctionGetConfigDescriptor(UsbHc_t *Hc, int Port)
 		Hc->Ports[Port]->Device, Hc->Ports[Port]->Device->CtrlEndpoint);
 
 	/* Setup Packet */
-	Request.Packet.Direction = 0x80;
-	Request.Packet.Type = X86_USB_REQ_GET_DESC;
-	Request.Packet.ValueHi = X86_USB_DESC_TYPE_CONFIG;
+	Request.Packet.Direction = USB_REQUEST_DIR_IN;
+	Request.Packet.Type = USB_REQUEST_GET_DESC;
+	Request.Packet.ValueHi = USB_DESC_TYPE_CONFIG;
 	Request.Packet.ValueLo = 0;
 	Request.Packet.Index = 0;
 	Request.Packet.Length = Hc->Ports[Port]->Device->ConfigMaxLength;
@@ -426,7 +429,7 @@ UsbTransferStatus_t UsbFunctionGetConfigDescriptor(UsbHc_t *Hc, int Port)
 
 			/* Is this an interface or endpoint? :O */
 			if (length == sizeof(UsbInterfaceDescriptor_t)
-				&& type == X86_USB_DESC_TYPE_INTERFACE)
+				&& type == USB_DESC_TYPE_INTERFACE)
 			{
 				UsbHcInterface_t *UsbInterface;
 				UsbInterfaceDescriptor_t *Interface = (UsbInterfaceDescriptor_t*)BufPtr;
@@ -461,7 +464,7 @@ UsbTransferStatus_t UsbFunctionGetConfigDescriptor(UsbHc_t *Hc, int Port)
 				}
 			}
 			else if (length == sizeof(UsbEndpointDescriptor_t)
-				&& type == X86_USB_DESC_TYPE_ENDP)
+				&& type == USB_DESC_TYPE_ENDPOINT)
 			{
 				/* Null Ep's ? ?*/
 				if (Hc->Ports[Port]->Device->NumInterfaces == 0)
@@ -472,8 +475,8 @@ UsbTransferStatus_t UsbFunctionGetConfigDescriptor(UsbHc_t *Hc, int Port)
 				UsbHcEndpoint_t *HcdEp = (UsbHcEndpoint_t*)kmalloc(sizeof(UsbHcEndpoint_t));
 
 				/* Get Info */
-				uint32_t EpAddr = Ep->Address & 0xF;
-				uint32_t EpType = Ep->Attributes & 0x3;
+				size_t EpAddr = Ep->Address & 0xF;
+				UsbHcEndpointType_T EpType = (UsbHcEndpointType_T)(Ep->Attributes & 0x3);
 
 				/* Debug */
 				LogInformation("USBC", "Endpoint %u - Attributes 0x%x (MaxPacketSize 0x%x)",
@@ -489,9 +492,9 @@ UsbTransferStatus_t UsbFunctionGetConfigDescriptor(UsbHc_t *Hc, int Port)
 
 				/* In or Out? */
 				if (Ep->Address & 0x80)
-					HcdEp->Direction = X86_USB_EP_DIRECTION_IN;
+					HcdEp->Direction = USB_EP_DIRECTION_IN;
 				else
-					HcdEp->Direction = X86_USB_EP_DIRECTION_OUT;
+					HcdEp->Direction = USB_EP_DIRECTION_OUT;
 
 				/* Sanity */
 				if (Hc->Ports[Port]->Device->Interfaces[
@@ -541,7 +544,7 @@ UsbTransferStatus_t UsbFunctionGetConfigDescriptor(UsbHc_t *Hc, int Port)
 }
 
 /* Set configuration of an usb device */
-UsbTransferStatus_t UsbFunctionSetConfiguration(UsbHc_t *Hc, int Port, uint32_t Configuration)
+UsbTransferStatus_t UsbFunctionSetConfiguration(UsbHc_t *Hc, int Port, size_t Configuration)
 {
 	UsbHcRequest_t Request;
 
@@ -550,8 +553,8 @@ UsbTransferStatus_t UsbFunctionSetConfiguration(UsbHc_t *Hc, int Port, uint32_t 
 		Hc->Ports[Port]->Device, Hc->Ports[Port]->Device->CtrlEndpoint);
 
 	/* Setup Packet */
-	Request.Packet.Direction = 0;
-	Request.Packet.Type = X86_USB_REQ_SET_CONFIG;
+	Request.Packet.Direction = USB_REQUEST_DIR_OUT;
+	Request.Packet.Type = USB_REQUEST_SET_CONFIG;
 	Request.Packet.ValueHi = 0;
 	Request.Packet.ValueLo = (Configuration & 0xFF);
 	Request.Packet.Index = 0;
@@ -584,9 +587,9 @@ UsbTransferStatus_t UsbFunctionGetStringDescriptor(UsbHc_t *Hc, int Port)
 		Hc->Ports[Port]->Device, Hc->Ports[Port]->Device->CtrlEndpoint);
 
 	/* Setup Packet */
-	Request.Packet.Direction = 0x80;
-	Request.Packet.Type = X86_USB_REQ_GET_DESC;
-	Request.Packet.ValueHi = X86_USB_DESC_TYPE_STRING;
+	Request.Packet.Direction = USB_REQUEST_DIR_IN;
+	Request.Packet.Type = USB_REQUEST_GET_DESC;
+	Request.Packet.ValueHi = USB_DESC_TYPE_STRING;
 	Request.Packet.ValueLo = 0;
 	Request.Packet.Index = 0;
 	Request.Packet.Length = sizeof(UsbStringDescriptor_t);
@@ -628,7 +631,7 @@ UsbTransferStatus_t UsbFunctionClearFeature(UsbHc_t *Hc, int Port,
 
 	/* Setup Packet */
 	Request.Packet.Direction = Target;
-	Request.Packet.Type = X86_USB_REQ_CLR_FEATURE;
+	Request.Packet.Type = USB_REQUEST_CLR_FEATURE;
 	Request.Packet.ValueHi = ((Feature >> 8) & 0xFF);
 	Request.Packet.ValueLo = (Feature & 0xFF);
 	Request.Packet.Index = Index;
@@ -661,7 +664,7 @@ UsbTransferStatus_t UsbFunctionSetFeature(UsbHc_t *Hc, int Port,
 
 	/* Setup Packet */
 	Request.Packet.Direction = Target;
-	Request.Packet.Type = X86_USB_REQ_SET_FEATURE;
+	Request.Packet.Type = USB_REQUEST_SET_FEATURE;
 	Request.Packet.ValueHi = ((Feature >> 8) & 0xFF);
 	Request.Packet.ValueLo = (Feature & 0xFF);
 	Request.Packet.Index = Index;
@@ -695,7 +698,7 @@ UsbTransferStatus_t UsbFunctionGetDescriptor(UsbHc_t *Hc, int Port, void *Buffer
 
 	/* Setup Packet */
 	Request.Packet.Direction = Direction;
-	Request.Packet.Type = X86_USB_REQ_GET_DESC;
+	Request.Packet.Type = USB_REQUEST_GET_DESC;
 	Request.Packet.ValueHi = DescriptorType;
 	Request.Packet.ValueLo = SubType;
 	Request.Packet.Index = DescriptorIndex;
@@ -744,7 +747,7 @@ UsbTransferStatus_t UsbFunctionSendPacket(UsbHc_t *Hc, int Port, void *Buffer, u
 	/* In/Out Transfer, we want to fill data */
 	if (Length != 0)
 	{
-		if (RequestType & X86_USB_REQ_DIRECTION_IN)
+		if (RequestType & USB_REQUEST_DIR_IN)
 		{
 			UsbTransactionIn(Hc, &DevRequest, 0, Buffer, Length);
 

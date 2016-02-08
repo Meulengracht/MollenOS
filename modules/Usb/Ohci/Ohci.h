@@ -338,7 +338,7 @@ typedef struct _OhciController
 {
 	/* Id */
 	uint32_t Id;
-	uint32_t HcdId;
+	int HcdId;
 
 	/* Device */
 	MCoreDevice_t *Device;

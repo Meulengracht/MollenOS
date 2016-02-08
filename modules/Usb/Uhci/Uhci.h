@@ -246,7 +246,7 @@ typedef struct _UhciController
 {
 	/* Id */
 	uint32_t Id;
-	uint32_t HcdId;
+	int HcdId;
 
 	/* Device */
 	MCoreDevice_t *Device;

@@ -16,7 +16,7 @@
 * along with this program.If not, see <http://www.gnu.org/licenses/>.
 *
 *
-* MollenOS X86-32 USB Core Driver
+* MollenOS USB Core Driver
 */
 
 #ifndef __MODULE_USBCORE__
@@ -34,79 +34,79 @@
 #endif
 
 /* Definitions */
-#define X86_USB_CORE_MAX_PORTS	16
-#define X86_USB_CORE_MAX_IF		4
-#define X86_USB_CORE_MAX_EP		16
+#define USB_MAX_PORTS			16
+#define USB_MAX_INTERFACES		4
+#define USB_MAX_ENDPOINTS		16
 
 /* Usb Devices Class Codes */
-#define X86_USB_CLASS_IF			0x00	/* Get from Interface */
-#define X86_USB_CLASS_AUDIO			0x01
-#define X86_USB_CLASS_CDC			0x02
-#define X86_USB_CLASS_HID			0x03
-#define X86_USB_CLASS_PHYSICAL		0x05
-#define X86_USB_CLASS_IMAGE			0x06
-#define X86_USB_CLASS_PRINTER		0x07
-#define X86_USB_CLASS_MSD			0x08
-#define X86_USB_CLASS_HUB			0x09
-#define X86_USB_CLASS_CDC_DATA		0x0A
-#define X86_USB_CLASS_SMART_CARD	0x0B
-#define X86_USB_CLASS_SECURITY		0x0D
-#define X86_USB_CLASS_VIDEO			0x0E
-#define X86_USB_CLASS_HEALTHCARE	0x0F
-#define X86_USB_CLASS_DIAGNOSIS		0xDC
-#define X86_USB_CLASS_WIRELESS		0xE0
-#define X86_USB_CLASS_MISC			0xEF
-#define X86_USB_CLASS_APP_SPECIFIC	0xFE
-#define X86_USB_CLASS_VENDOR_SPEC	0xFF
+#define USB_CLASS_INTERFACE		0x00	/* Get from Interface */
+#define USB_CLASS_AUDIO			0x01
+#define USB_CLASS_CDC			0x02
+#define USB_CLASS_HID			0x03
+#define USB_CLASS_PHYSICAL		0x05
+#define USB_CLASS_IMAGE			0x06
+#define USB_CLASS_PRINTER		0x07
+#define USB_CLASS_MSD			0x08
+#define USB_CLASS_HUB			0x09
+#define USB_CLASS_CDC_DATA		0x0A
+#define USB_CLASS_SMART_CARD	0x0B
+#define USB_CLASS_SECURITY		0x0D
+#define USB_CLASS_VIDEO			0x0E
+#define USB_CLASS_HEALTHCARE	0x0F
+#define USB_CLASS_DIAGNOSIS		0xDC
+#define USB_CLASS_WIRELESS		0xE0
+#define USB_CLASS_MISC			0xEF
+#define USB_CLASS_APP_SPECIFIC	0xFE
+#define USB_CLASS_VENDOR_SPEC	0xFF
 
 /* Packet Request Targets */
 
 /* Bit 7 */
-#define X86_USB_REQ_DIRECTION_IN		0x80
-#define X86_USB_REQ_DIRECTION_OUT		0x0
+#define USB_REQUEST_DIR_IN				0x80
+#define USB_REQUEST_DIR_OUT				0x0
 
 /* Bit 5-6 */
-#define X86_USB_REQ_TARGET_CLASS		0x20
+#define USB_REQUEST_TARGET_CLASS		0x20
 
 /* Bits 0-4 */
-#define X86_USB_REQ_TARGET_DEVICE		0x0
-#define X86_USB_REQ_TARGET_INTERFACE	0x1
-#define X86_USB_REQ_TARGET_ENDPOINT		0x2
-#define X86_USB_REQ_TARGET_OTHER		0x3
+#define USB_REQUEST_TARGET_DEVICE		0x0
+#define USB_REQUEST_TARGET_INTERFACE	0x1
+#define USB_REQUEST_TARGET_ENDPOINT		0x2
+#define USB_REQUEST_TARGET_OTHER		0x3
 
 /* Features */
-#define X86_USB_ENDPOINT_HALT		0x0
+#define USB_ENDPOINT_HALT			0x0
 
 /* Packet Request Types */
-#define X86_USB_REQ_GET_STATUS		0x00
-#define X86_USB_REQ_CLR_FEATURE		0x01
-#define X86_USB_REQ_SET_FEATURE		0x03
-#define X86_USB_REQ_SET_ADDR		0x05
-#define X86_USB_REQ_GET_DESC		0x06
-#define X86_USB_REQ_SET_DESC		0x07
-#define X86_USB_REQ_GET_CONFIG		0x08
-#define X86_USB_REQ_SET_CONFIG		0x09
-#define X86_USB_REQ_GET_INTERFACE	0x0A
-#define X86_USB_REQ_SET_INTERFACE	0x0B
-#define X86_USB_REQ_SYNC_FRAME		0x0C
-#define X86_USB_REQ_RESET_IF		0xFF
+#define USB_REQUEST_GET_STATUS		0x00
+#define USB_REQUEST_CLR_FEATURE		0x01
+#define USB_REQUEST_SET_FEATURE		0x03
+#define USB_REQUEST_SET_ADDR		0x05
+#define USB_REQUEST_GET_DESC		0x06
+#define USB_REQUEST_SET_DESC		0x07
+#define USB_REQUEST_GET_CONFIG		0x08
+#define USB_REQUEST_SET_CONFIG		0x09
+#define USB_REQUEST_GET_INTERFACE	0x0A
+#define USB_REQUEST_SET_INTERFACE	0x0B
+#define USB_REQUEST_SYNC_FRAME		0x0C
+#define USB_REQUEST_RESET_IF		0xFF
 
 /* Descriptor Types */
-#define X86_USB_DESC_TYPE_DEVICE		0x01
-#define X86_USB_DESC_TYPE_CONFIG		0x02
-#define X86_USB_DESC_TYPE_STRING		0x03
-#define X86_USB_DESC_TYPE_INTERFACE		0x04 //Interface
-#define X86_USB_DESC_TYPE_ENDP			0x05
-#define X86_USB_DESC_TYPE_DEV_QAL		0x06 //DEVICE QUALIFIER
-#define X86_USB_DESC_TYPE_OSC			0x07 //Other Speed Config
-#define X86_USB_DESC_TYPE_INTERFACE_PWR	0x08	//Interface Power
-#define X86_USB_DESC_TYPE_OTG			0x09
-#define X86_USB_DESC_TYPE_DEBUG			0x0A
-#define X86_USB_DESC_TYPE_INTERFACE_ASC	0x0B
-#define X86_USB_DESC_TYPE_BOS			0x0F
-#define X86_USB_DESC_DEV_CAPS			0x10
-#define X86_USB_DESC_SSPEED_EP_CPN		0x30
-#define X86_USB_DESC_SSPEED_ISO_EP_CPN	0x31
+#define USB_DESC_TYPE_DEVICE		0x01
+#define USB_DESC_TYPE_CONFIG		0x02
+#define USB_DESC_TYPE_STRING		0x03
+#define USB_DESC_TYPE_INTERFACE		0x04 //Interface
+#define USB_DESC_TYPE_ENDPOINT		0x05
+#define USB_DESC_TYPE_DEV_QAL		0x06 //DEVICE QUALIFIER
+#define USB_DESC_TYPE_OSC			0x07 //Other Speed Config
+#define USB_DESC_TYPE_INTERFACE_PWR	0x08	//Interface Power
+#define USB_DESC_TYPE_OTG			0x09
+#define USB_DESC_TYPE_DEBUG			0x0A
+#define USB_DESC_TYPE_INTERFACE_ASC	0x0B
+#define USB_DESC_TYPE_BOS			0x0F
+#define USB_DESC_DEV_CAPS			0x10
+#define USB_DESC_SSPEED_EP_CPN		0x30
+#define USB_DESC_SSPEED_ISO_EP_CPN	0x31
 
 /* Structures */
 #pragma pack(push, 1)
@@ -289,16 +289,16 @@ typedef struct _UsbStringDescriptor
 #pragma pack(pop)
 
 /* Types of String */
-#define X86_USB_LANGUAGE_ARABIC		0x401
-#define X86_USB_LANGUAGE_CHINESE	0x404
-#define X86_USB_LANGUAGE_GERMAN		0x407
-#define X86_USB_LANGUAGE_ENGLISH	0x409
-#define X86_USB_LANGUAGE_SPANISH	0x40A
-#define X86_USB_LANGUAGE_FRENCH		0x40C
-#define X86_USB_LANGUAGE_ITALIAN	0x410
-#define X86_USB_LANGUAGE_JAPANESE	0x411
-#define X86_USB_LANGUAGE_PORTUGUESE	0x416
-#define X86_USB_LANGUAGE_RUSSIAN	0x419
+#define USB_LANGUAGE_ARABIC		0x401
+#define USB_LANGUAGE_CHINESE	0x404
+#define USB_LANGUAGE_GERMAN		0x407
+#define USB_LANGUAGE_ENGLISH	0x409
+#define USB_LANGUAGE_SPANISH	0x40A
+#define USB_LANGUAGE_FRENCH		0x40C
+#define USB_LANGUAGE_ITALIAN	0x410
+#define USB_LANGUAGE_JAPANESE	0x411
+#define USB_LANGUAGE_PORTUGUESE	0x416
+#define USB_LANGUAGE_RUSSIAN	0x419
 
 #pragma pack(push, 1)
 typedef struct _UsbUnicodeStringDescriptor
@@ -315,52 +315,57 @@ typedef struct _UsbUnicodeStringDescriptor
 } UsbUnicodeStringDescriptor_t;
 #pragma pack(pop)
 
+/* Enumerations */
+typedef enum _UsbHcEndpointType
+{
+	EndpointControl			= 0,
+	EndpointIsochronous		= 1,
+	EndpointBulk			= 2,
+	EndpointInterrupt		= 3
+
+} UsbHcEndpointType_T;
+
 /* The Abstract Usb Endpoint */
 typedef struct _UsbHcEndpoint
 {
 	/* Type */
-	uint32_t Type;
+	UsbHcEndpointType_T Type;
 
 	/* Address */
-	uint32_t Address;
+	size_t Address;
 
 	/* Direction (IN, OUT) */
-	uint32_t Direction;
+	size_t Direction;
 
 	/* Max Packet Size (Always 64 bytes, almost) */
-	uint32_t MaxPacketSize;
+	size_t MaxPacketSize;
 
 	/* Bandwidth */
-	uint32_t Bandwidth;
+	size_t Bandwidth;
 
 	/* Data Toggle */
-	uint32_t Toggle;
+	size_t Toggle;
 
 	/* Poll Interval */
-	uint32_t Interval;
+	size_t Interval;
 
 	/* Endpoint Data */
 	void *AttachedData;
 
 } UsbHcEndpoint_t;
 
-#define X86_USB_EP_DIRECTION_IN		0x0
-#define X86_USB_EP_DIRECTION_OUT	0x1
-#define X86_USB_EP_DIRECTION_BOTH	0x2
-
-#define X86_USB_EP_TYPE_CONTROL		0x0
-#define X86_USB_EP_TYPE_ISOCHRONOUS	0x1
-#define X86_USB_EP_TYPE_BULK		0x2
-#define X86_USB_EP_TYPE_INTERRUPT	0x3
+#define USB_EP_DIRECTION_IN		0x0
+#define USB_EP_DIRECTION_OUT	0x1
+#define USB_EP_DIRECTION_BOTH	0x2
 
 /* The Abstract Usb Interface */
 typedef struct _UsbHcInterface
 {
 	/* Interface Type */
-	uint32_t Id;
-	uint32_t Class;
-	uint32_t Subclass;
-	uint32_t Protocol;
+	size_t Id;
+	size_t Class;
+	size_t Subclass;
+	size_t Protocol;
 
 	/* Ep Numbers */
 	size_t NumEndpoints;
@@ -397,18 +402,18 @@ typedef struct _UsbHcDevice
 
 	/* Host Driver (UsbHc_t) & Port Number */
 	void *HcDriver;
-	uint8_t Port;
+	size_t Port;
 
 	/* Device Address */
-	uint32_t Address;
+	size_t Address;
 
 	/* Device Descriptors (Config,Interface,Endpoint,Hid,etc) */
 	void *Descriptors;
-	uint32_t DescriptorsLength;
+	size_t DescriptorsLength;
 
 	/* Device Interfaces */
-	uint32_t NumInterfaces;
-	UsbHcInterface_t *Interfaces[X86_USB_CORE_MAX_IF];
+	size_t NumInterfaces;
+	UsbHcInterface_t *Interfaces[USB_MAX_INTERFACES];
 
 	/* Control Endpoint */
 	UsbHcEndpoint_t *CtrlEndpoint;
@@ -420,7 +425,7 @@ typedef struct _UsbHcDevice
 } UsbHcDevice_t;
 #pragma pack(pop)
 
-/* Transactin Type */
+/* Transaction Type */
 typedef enum _UsbTransactionType
 {
 	SetupTransaction,
@@ -487,12 +492,22 @@ typedef enum _UsbTransferStatus
 
 } UsbTransferStatus_t;
 
+/* Device Speed */
+typedef enum _UsbSpeed
+{
+	LowSpeed,		/* 1.0 / 1.1 */
+	FullSpeed,		/* 1.0 / 1.1 */
+	HighSpeed,		/* 2.0 */
+	SuperSpeed		/* 3.0 */
+
+} UsbSpeed_t;
+
 /* The Abstract Transfer Request */
 typedef struct _UsbHcRequest
 {
 	/* Bulk or Control? */
 	UsbTransferType_t Type;
-	uint32_t LowSpeed;
+	UsbSpeed_t Speed;
 
 	/* Transfer Specific Information */
 	void *Data;
@@ -502,7 +517,7 @@ typedef struct _UsbHcRequest
 	UsbHcEndpoint_t *Endpoint;
 
 	/* Transaction Information */
-	uint32_t TokenBytes;
+	size_t TokenBytes;
 
 	/* Buffer Information */
 	void *IoBuffer;
@@ -526,16 +541,16 @@ typedef struct _UsbHcRequest
 typedef struct _UsbHcPort
 {
 	/* Port Number */
-	uint32_t Id;
+	size_t Id;
 
 	/* Connection Status */
-	uint32_t Connected;
+	int Connected;
 
 	/* Enabled Status */
-	uint32_t Enabled;
+	int Enabled;
 
 	/* Speed */
-	uint32_t FullSpeed;
+	UsbSpeed_t Speed;
 
 	/* Device Connected */
 	UsbHcDevice_t *Device;
@@ -562,10 +577,10 @@ typedef struct _UsbHc
 	void *Hc;
 
 	/* Controller Info */
-	uint32_t NumPorts;
+	size_t NumPorts;
 
 	/* Ports */
-	UsbHcPort_t *Ports[X86_USB_CORE_MAX_PORTS];
+	UsbHcPort_t *Ports[USB_MAX_PORTS];
 
 	/* Port Functions */
 	void(*PortSetup)(void*, UsbHcPort_t*);
@@ -616,23 +631,23 @@ typedef struct _UsbEvent
 /* Prototypes */
 
 /* Returns an controller ID for used with identification */
-_USBCORE_API UsbHc_t *UsbInitController(void *Data, UsbControllerType_t Type, uint32_t Ports);
-_USBCORE_API uint32_t UsbRegisterController(UsbHc_t *Controller);
+_USBCORE_API UsbHc_t *UsbInitController(void *Data, UsbControllerType_t Type, size_t Ports);
+_USBCORE_API int UsbRegisterController(UsbHc_t *Controller);
 
 /* Transfer Utilities */
-_USBCORE_API void UsbTransactionInit(UsbHc_t *Hc, UsbHcRequest_t *Request, uint32_t Type,
+_USBCORE_API void UsbTransactionInit(UsbHc_t *Hc, UsbHcRequest_t *Request, UsbTransferType_t Type,
 								    UsbHcDevice_t *Device, UsbHcEndpoint_t *Endpoint);
-_USBCORE_API void UsbTransactionSetup(UsbHc_t *Hc, UsbHcRequest_t *Request, uint32_t PacketSize);
-_USBCORE_API void UsbTransactionIn(UsbHc_t *Hc, UsbHcRequest_t *Request, uint32_t Handshake, void *Buffer, uint32_t Length);
-_USBCORE_API void UsbTransactionOut(UsbHc_t *Hc, UsbHcRequest_t *Request, uint32_t Handshake, void *Buffer, uint32_t Length);
+_USBCORE_API void UsbTransactionSetup(UsbHc_t *Hc, UsbHcRequest_t *Request, size_t PacketSize);
+_USBCORE_API void UsbTransactionIn(UsbHc_t *Hc, UsbHcRequest_t *Request, int Handshake, void *Buffer, size_t Length);
+_USBCORE_API void UsbTransactionOut(UsbHc_t *Hc, UsbHcRequest_t *Request, int Handshake, void *Buffer, size_t Length);
 _USBCORE_API void UsbTransactionSend(UsbHc_t *Hc, UsbHcRequest_t *Request);
 _USBCORE_API void UsbTransactionDestroy(UsbHc_t *Hc, UsbHcRequest_t *Request);
 
 /* Functions */
-_USBCORE_API UsbTransferStatus_t UsbFunctionSetAddress(UsbHc_t *Hc, int Port, uint32_t Address);
+_USBCORE_API UsbTransferStatus_t UsbFunctionSetAddress(UsbHc_t *Hc, int Port, size_t Address);
 _USBCORE_API UsbTransferStatus_t UsbFunctionGetDeviceDescriptor(UsbHc_t *Hc, int Port);
 _USBCORE_API UsbTransferStatus_t UsbFunctionGetConfigDescriptor(UsbHc_t *Hc, int Port);
-_USBCORE_API UsbTransferStatus_t UsbFunctionSetConfiguration(UsbHc_t *Hc, int Port, uint32_t Configuration);
+_USBCORE_API UsbTransferStatus_t UsbFunctionSetConfiguration(UsbHc_t *Hc, int Port, size_t Configuration);
 _USBCORE_API UsbTransferStatus_t UsbFunctionGetStringDescriptor(UsbHc_t *Hc, int Port);
 _USBCORE_API UsbTransferStatus_t UsbFunctionGetDescriptor(UsbHc_t *Hc, int Port, void *Buffer, uint8_t Direction,
 											uint8_t DescriptorType, uint8_t SubType, 
@@ -651,7 +666,7 @@ _USBCORE_API UsbTransferStatus_t UsbFunctionSendPacket(UsbHc_t *Hc, int Port, vo
 _USBCORE_API void UsbEventCreate(UsbHc_t *Hc, int Port, UsbEventType_t Type);
 
 /* Gets */
-_USBCORE_API UsbHc_t *UsbGetHcd(uint32_t ControllerId);
+_USBCORE_API UsbHc_t *UsbGetHcd(int ControllerId);
 _USBCORE_API UsbHcPort_t *UsbGetPort(UsbHc_t *Controller, int Port);
 
-#endif // !X86_USB_H_
+#endif // !USB_H_

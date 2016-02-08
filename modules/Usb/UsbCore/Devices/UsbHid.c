@@ -144,7 +144,7 @@ void UsbHidInit(UsbHcDevice_t *UsbDevice, uint32_t InterfaceIndex)
 	for (i = 0; i < UsbDevice->Interfaces[InterfaceIndex]->NumEndpoints; i++)
 	{
 		/* Interrupt? */
-		if (UsbDevice->Interfaces[InterfaceIndex]->Endpoints[i]->Type == X86_USB_EP_TYPE_INTERRUPT)
+		if (UsbDevice->Interfaces[InterfaceIndex]->Endpoints[i]->Type == EndpointInterrupt)
 			DevData->EpInterrupt = UsbDevice->Interfaces[InterfaceIndex]->Endpoints[i];
 	}
 
@@ -159,7 +159,7 @@ void UsbHidInit(UsbHcDevice_t *UsbDevice, uint32_t InterfaceIndex)
 	/* Get Report Descriptor */
 	ReportDescriptor = (uint8_t*)kmalloc(HidDescriptor->ClassDescriptorLength);
 	if (UsbFunctionGetDescriptor((UsbHc_t*)UsbDevice->HcDriver, UsbDevice->Port,
-		ReportDescriptor, X86_USB_REQ_DIRECTION_IN | X86_USB_REQ_TARGET_INTERFACE,
+		ReportDescriptor, USB_REQUEST_DIR_IN | USB_REQUEST_TARGET_INTERFACE,
 		HidDescriptor->ClassDescriptorType,
 		0, 0, HidDescriptor->ClassDescriptorLength) != TransferFinished)
 	{
@@ -198,7 +198,7 @@ void UsbHidInit(UsbHcDevice_t *UsbDevice, uint32_t InterfaceIndex)
 
 	/* Set idle :) */
 	UsbFunctionSendPacket((UsbHc_t*)UsbDevice->HcDriver, UsbDevice->Port, 0,
-		X86_USB_REQ_TARGET_CLASS | X86_USB_REQ_TARGET_INTERFACE,
+		USB_REQUEST_TARGET_CLASS | USB_REQUEST_TARGET_INTERFACE,
 		X86_USB_REQ_SET_IDLE, 0, 0, 0, 0);
 
 	/* Install Interrupt */
