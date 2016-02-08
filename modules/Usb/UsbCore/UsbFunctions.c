@@ -89,13 +89,7 @@ void UsbTransactionIn(UsbHc_t *Hc, UsbHcRequest_t *Request, int Handshake, void 
 	UsbHcTransaction_t *Transaction;
 
 	/* Either it's maxpacket size or remaining len */
-	size_t FixedLen = 0;
-
-	/* Sanity */
-	if (Request->Endpoint->Type == EndpointIsochronous)
-		FixedLen = MIN(0x2000, Length);
-	else
-		FixedLen = MIN(Request->Endpoint->MaxPacketSize, Length);
+	size_t FixedLen = MIN(Request->Endpoint->MaxPacketSize, Length);
 
 	/* Calculate rest */
 	int RemainingLen = Length - FixedLen;
@@ -144,14 +138,9 @@ void UsbTransactionOut(UsbHc_t *Hc, UsbHcRequest_t *Request, int Handshake, void
 {
 	/* Get length */
 	UsbHcTransaction_t *Transaction;
-	size_t FixedLen = 0;
+	size_t FixedLen = MIN(Request->Endpoint->MaxPacketSize, Length);
 
-	/* Sanity */
-	if (Request->Endpoint->Type == EndpointIsochronous)
-		FixedLen = MIN(0x2000, Length);
-	else
-		FixedLen = MIN(Request->Endpoint->MaxPacketSize, Length);
-
+	/* Calculate rest */
 	int RemainingLen = Length - FixedLen;
 	size_t TransfersLeft = 0;
 

@@ -52,7 +52,7 @@ const char *UhciErrorMessages[] =
 	"Active"
 };
 
-#define UHCI_DIAGNOSTICS
+//#define UHCI_DIAGNOSTICS
 
 /* Prototypes (Internal) */
 void UhciInitQueues(UhciController_t *Controller);
@@ -452,7 +452,7 @@ void UhciSetup(UhciController_t *Controller)
 
 	/* Install Periodic Check (NO HUB INTERRUPTS!?)
 	 * Anyway this will initiate ports */
-	TimersCreateTimer(UhciPortsCheck, Controller, TimerPeriodic, 500);
+	TimersCreateTimer(UhciPortsCheck, Controller, TimerPeriodic, 1000);
 }
 
 /* Initialises Queue Heads & Interrupt Queeue */
@@ -711,8 +711,7 @@ Addr_t UhciAllocateQh(UhciController_t *Controller, UsbTransferType_t Type)
 		if (i == UHCI_POOL_NUM_QH)
 			kernel_panic("USB_UHCI::WTF RAN OUT OF QH's\n");
 	}
-	else if (Type == InterruptTransfer
-		|| Type == IsochronousTransfer)
+	else if (Type == InterruptTransfer)
 	{
 		/* Allocate */
 		Addr_t aSpace = (Addr_t)kmalloc(sizeof(UhciQueueHead_t) + UHCI_STRUCT_ALIGN);
@@ -724,6 +723,11 @@ Addr_t UhciAllocateQh(UhciController_t *Controller, UsbTransferType_t Type)
 		/* Setup flags */
 		((UhciQueueHead_t*)cIndex)->Flags =
 			UHCI_QH_ACTIVE | UHCI_QH_INDEX(0xFF) | UHCI_QH_TYPE((uint32_t)Type);
+	}
+	else
+	{
+		/* No QH for iso */
+		cIndex = 0;
 	}
 
 	/* Release lock */
@@ -881,21 +885,13 @@ UhciTransferDescriptor_t *UhciTdIo(UhciEndpoint_t *Ep, UsbTransferType_t Type,
 		Buffer = Ep->TDPoolBuffers[TDIndex];
 		TdPhys = Ep->TDPoolPhysical[TDIndex];
 	}
-	else if (Type == InterruptTransfer)
-	{
-		/* Cast */
-		Td = (UhciTransferDescriptor_t*)TDIndex;
-
-		/* Allocate a buffer */
-		Buffer = (void*)kmalloc_a(0x1000);
-	}
 	else
 	{
 		/* Cast */
 		Td = (UhciTransferDescriptor_t*)TDIndex;
 
 		/* Allocate a buffer */
-		Buffer = (void*)kmalloc_a(0x1000);
+		Buffer = (void*)kmalloc_a(PAGE_SIZE);
 	}
 
 	/* EOL ? */
@@ -1189,7 +1185,7 @@ UsbHcTransaction_t *UhciTransactionOut(void *Controller, UsbHcRequest_t *Request
 	/* Setup Td */
 	Transaction->TransferDescriptor = (void*)UhciTdIo(Request->Endpoint->AttachedData,
 		Request->Type, UHCI_TD_LINK_END, Request->Endpoint->Toggle,
-		Request->Device->Address, Request->Endpoint->Address, UHCI_TD_PID_IN, Request->IoLength,
+		Request->Device->Address, Request->Endpoint->Address, UHCI_TD_PID_OUT, Request->IoLength,
 		Request->Speed, &Transaction->TransferBuffer);
 
 	/* Copy Data */
@@ -1232,15 +1228,19 @@ void UhciTransactionSend(void *Controller, UsbHcRequest_t *Request)
 	UsbTransferStatus_t Completed;
 	UhciQueueHead_t *Qh = NULL;
 	UhciTransferDescriptor_t *Td = NULL;
-	Addr_t QhAddress;
+	Addr_t QhAddress = 0;
 	int CondCode;
 
-	/* Cast */
-	Qh = (UhciQueueHead_t*)Request->Data;
+	/* Sanity */
+	if (Request->Type != IsochronousTransfer)
+	{
+		/* Cast */
+		Qh = (UhciQueueHead_t*)Request->Data;
 
-	/* Get physical */
-	QhAddress = AddressSpaceGetMap(AddressSpaceGetCurrent(), (VirtAddr_t)Qh);
-
+		/* Get physical */
+		QhAddress = AddressSpaceGetMap(AddressSpaceGetCurrent(), (VirtAddr_t)Qh);
+	}
+	
 	/* Set as not Completed for start */
 	Request->Status = TransferNotProcessed;
 
@@ -1274,10 +1274,8 @@ void UhciTransactionSend(void *Controller, UsbHcRequest_t *Request)
 #endif
 
 	/* Initialize QH */
-	UhciQhInit(Ctrl, Qh, Request->Transactions);
-
-	/* Now lets try the Transaction */
-	SpinlockAcquire(&Ctrl->Lock);
+	if (Request->Type != IsochronousTransfer)
+		UhciQhInit(Ctrl, Qh, Request->Transactions);
 
 	/* Set true */
 	Completed = TransferFinished;
@@ -1287,8 +1285,12 @@ void UhciTransactionSend(void *Controller, UsbHcRequest_t *Request)
 
 	/* Debug */
 #ifdef UHCI_DIAGNOSTICS
-	LogDebug("UHCI", "QH at 0x%x, FirstTd 0x%x, NextQh 0x%x", QhAddress, Qh->Child, Qh->Link);
+	if (Request->Type != IsochronousTransfer)
+		LogDebug("UHCI", "QH at 0x%x, FirstTd 0x%x, NextQh 0x%x", QhAddress, Qh->Child, Qh->Link);
 #endif
+
+	/* Now lets try the Transaction */
+	SpinlockAcquire(&Ctrl->Lock);
 
 	/* Stop controller */
 	UhciStop(Ctrl);
@@ -1340,10 +1342,27 @@ void UhciTransactionSend(void *Controller, UsbHcRequest_t *Request)
 		/* Set link */
 		PrevQh->Link = QhAddress | UHCI_TD_LINK_QH;
 		PrevQh->LinkVirtual = (uint32_t)Qh;
+
+		/* Done! */
+		return;
 	}
 	else
 	{
 		/* Isochronous Transfer */
+
+		/* Get current frame */
+		//uint16_t CurrentFrame = UhciRead16(Ctrl, UHCI_REGISTER_FRNUM) & 0x7FF;
+
+		/* Calculate where to put it */
+		//CurrentFrame += 10;
+
+		/* Insert directly into the frame and link to the QH */
+
+		/* Fixup toggles ? */
+
+
+		/* Done! */
+		return;
 	}
 
 	/* Release lock */
@@ -1356,7 +1375,7 @@ void UhciTransactionSend(void *Controller, UsbHcRequest_t *Request)
 #ifndef UHCI_DIAGNOSTICS
 	
 	/* Sleep untill completion */
-	SchedulerSleepThread((Addr_t)Request->Data);
+	SchedulerSleepThread((Addr_t*)Request->Data);
 
 	/* Yield */
 	_ThreadYield();
@@ -1373,6 +1392,7 @@ void UhciTransactionSend(void *Controller, UsbHcRequest_t *Request)
 	Transaction = Request->Transactions;
 	while (Transaction)
 	{
+		/* Cast and get the transfer code */
 		Td = (UhciTransferDescriptor_t*)Transaction->TransferDescriptor;
 		CondCode = UhciConditionCodeToIndex(UHCI_TD_STATUS(Td->Flags));
 #ifdef UHCI_DIAGNOSTICS
@@ -1431,29 +1451,48 @@ void UhciTransactionSend(void *Controller, UsbHcRequest_t *Request)
 /* Cleans up transfers */
 void UhciTransactionDestroy(void *Controller, UsbHcRequest_t *Request)
 {
+	/* Cast, we need these */
 	UsbHcTransaction_t *Transaction = Request->Transactions;
 	UhciController_t *Ctrl = (UhciController_t*)Controller;
 
-	/* Unallocate Ed */
+	/* Lock controller */
+	SpinlockAcquire(&Ctrl->Lock);
+
+	/* Stop controller */
+	UhciStop(Ctrl);
+
+	/* Unallocate Qh */
 	if (Request->Type == ControlTransfer
 		|| Request->Type == BulkTransfer)
 	{
+		/* Cast Qh */
+		UhciQueueHead_t *Qh = (UhciQueueHead_t*)Request->Data;
+
+		/* Unlink Qh */
+		UhciQueueHead_t *PrevQh = Ctrl->QhPool[UHCI_POOL_ASYNC];
+
+		/* Iterate to end */
+		while (PrevQh->LinkVirtual != (uint32_t)Qh)
+			PrevQh = (UhciQueueHead_t*)PrevQh->LinkVirtual;
+
+		/* Sanity */
+		if (PrevQh->LinkVirtual != (uint32_t)Qh) {
+			LogDebug("UHCI", "Couldn't find Qh in frame-list");
+		}
+
+		/* Now skip */
+		PrevQh->Link = Qh->Link;
+		PrevQh->LinkVirtual = Qh->LinkVirtual;
+
 		/* Iterate and reset */
 		while (Transaction)
 		{
-			/* Cast */
-			UhciTransferDescriptor_t *Td =
-				(UhciTransferDescriptor_t*)Transaction->TransferDescriptor;
-
 			/* Memset */
-			memset((void*)Td, 0, sizeof(UhciTransferDescriptor_t));
+			memset(Transaction->TransferDescriptor, 0, sizeof(UhciTransferDescriptor_t));
 
 			/* Next */
 			Transaction = Transaction->Link;
 		}
-
-		/* Reset the Qh */
-		UhciQueueHead_t *Qh = (UhciQueueHead_t*)Request->Data;
 		
 		/* Invalidate links */
 		Qh->Child = 0;
@@ -1464,18 +1503,12 @@ void UhciTransactionDestroy(void *Controller, UsbHcRequest_t *Request)
 		/* Mark inactive */
 		Qh->Flags &= ~UHCI_QH_ACTIVE;
 	}
-	else
+	else if (Request->Type == InterruptTransfer)
 	{
 		/* Vars */
 		UhciQueueHead_t *TargetQh = (UhciQueueHead_t*)Request->Data;
 		UhciQueueHead_t *Qh = NULL, *PrevQh = NULL;
 		int Exponent, Queue;
-
-		/* Unhook Qh from the list it's in */
-		SpinlockAcquire(&Ctrl->Lock);
-
-		/* DISABLE SCHEDULLER!!! */
-		UhciStop(Ctrl);
 
 		/* Find the correct index we link into */
 		for (Exponent = 7; Exponent >= 0; --Exponent) {
@@ -1516,12 +1549,6 @@ void UhciTransactionDestroy(void *Controller, UsbHcRequest_t *Request)
 			} 
 		}
 
-		/* ENABLE SCHEDULEER */
-		UhciStart(Ctrl);
-
-		/* Done */
-		SpinlockRelease(&Ctrl->Lock);
-
 		/* Iterate transactions and free buffers & td's */
 		while (Transaction)
 		{
@@ -1539,6 +1566,32 @@ void UhciTransactionDestroy(void *Controller, UsbHcRequest_t *Request)
 		/* Free it */
 		kfree(Request->Data);
 	}
+	else
+	{
+		/* Get frame where it's linked */
+
+		/* Remove them and fixup toggles */
+
+		/* Iterate transactions and free buffers & td's */
+		while (Transaction)
+		{
+			/* free buffer */
+			kfree(Transaction->TransferBuffer);
+
+			/* free both TD's */
+			kfree((void*)Transaction->TransferDescriptor);
+			kfree((void*)Transaction->TransferDescriptorCopy);
+
+			/* Next */
+			Transaction = Transaction->Link;
+		}
+	}
+
+	/* Enable Controller */
+	UhciStart(Ctrl);
+
+	/* Done */
+	SpinlockRelease(&Ctrl->Lock);
 }
 
 /* Handles completions */
@@ -1553,9 +1606,6 @@ void UhciProcessTransfers(UhciController_t *Controller)
 	{
 		/* Cast UsbRequest */
 		UsbHcRequest_t *HcRequest = (UsbHcRequest_t*)Node->data;
-
-		/* Get transactions linked to his QH */
-		UhciQueueHead_t *Qh = (UhciQueueHead_t*)HcRequest->Data;
 
 		/* Get transaction list */
 		UsbHcTransaction_t *tList = (UsbHcTransaction_t*)HcRequest->Transactions;
@@ -1577,12 +1627,14 @@ void UhciProcessTransfers(UhciController_t *Controller)
 				break;
 			}
 
+			/* Set completed per default */
+			Completed = 1;
+
 			/* Error Transfer ?
 			 * No need to check rest */
 			if (CondCode != 0) {
 				LogDebug("UHCI", "Td Error: Td Flags 0x%x, Header 0x%x, Error Count: %i",
 					Td->Flags, Td->Header, ErrCount);
-				Completed = 1;
 				break;
 			}
 
@@ -1597,6 +1649,9 @@ void UhciProcessTransfers(UhciController_t *Controller)
 			if (HcRequest->Type == ControlTransfer
 				|| HcRequest->Type == BulkTransfer)
 			{
+				/* Get transactions linked to his QH */
+				UhciQueueHead_t *Qh = (UhciQueueHead_t*)HcRequest->Data;
+
 				/* Wake a node */
 				SchedulerWakeupOneThread((Addr_t*)Qh);
 
