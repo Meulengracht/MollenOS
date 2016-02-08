@@ -417,7 +417,7 @@ int DeviceAllocateInterrupt(void *mCoreDevice)
 			}
 
 			/* Calculate idt */
-			IdtEntry = INTERRUPT_PIN_BASE + ReducedPin;
+			IdtEntry += IrqLine;
 		}
 
 		/* Set IDT Vector */

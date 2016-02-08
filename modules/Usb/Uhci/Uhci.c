@@ -656,7 +656,10 @@ void UhciPortSetup(void *Data, UsbHcPort_t *Port)
 
 	/* Dump info */
 	pStatus = UhciRead16(Controller, (UHCI_REGISTER_PORT_BASE + ((uint16_t)Port->Id * 2)));
+
+#ifdef UHCI_DIAGNOSTICS
 	LogDebug("UHCI", "UHCI %u.%u Status: 0x%x", Controller->Id, Port->Id, pStatus);
+#endif
 
 	/* Is it connected? */
 	if (pStatus & UHCI_PORT_CONNECT_STATUS)
@@ -1479,29 +1482,31 @@ void UhciTransactionDestroy(void *Controller, UsbHcRequest_t *Request)
 		if (PrevQh->LinkVirtual != (uint32_t)Qh) {
 			LogDebug("UHCI", "Couldn't find Qh in frame-list");
 		}
-
-		/* Now skip */
-		PrevQh->Link = Qh->Link;
-		PrevQh->LinkVirtual = Qh->LinkVirtual;
-
-		/* Iterate and reset */
-		while (Transaction)
+		else 
 		{
-			/* Memset */
-			memset(Transaction->TransferDescriptor, 0, sizeof(UhciTransferDescriptor_t));
+			/* Now skip */
+			PrevQh->Link = Qh->Link;
+			PrevQh->LinkVirtual = Qh->LinkVirtual;
 
-			/* Next */
-			Transaction = Transaction->Link;
+			/* Iterate and reset */
+			while (Transaction)
+			{
+				/* Memset */
+				memset(Transaction->TransferDescriptor, 0, sizeof(UhciTransferDescriptor_t));
+
+				/* Next */
+				Transaction = Transaction->Link;
+			}
+
+			/* Invalidate links */
+			Qh->Child = 0;
+			Qh->ChildVirtual = 0;
+			Qh->Link = 0;
+			Qh->LinkVirtual = 0;
+
+			/* Mark inactive */
+			Qh->Flags &= ~UHCI_QH_ACTIVE;
 		}
-		
-		/* Invalidate links */
-		Qh->Child = 0;
-		Qh->ChildVirtual = 0;
-		Qh->Link = 0;
-		Qh->LinkVirtual = 0;
-
-		/* Mark inactive */
-		Qh->Flags &= ~UHCI_QH_ACTIVE;
 	}
 	else if (Request->Type == InterruptTransfer)
 	{
