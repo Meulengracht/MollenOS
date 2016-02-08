@@ -42,14 +42,31 @@ void PrintHeader(MCoreBootInfo_t *BootInfo)
 	Log("VC Build %s - %s\n", BUILD_DATE, BUILD_TIME);
 }
 
+/* The bus thread */
+void MCoreKickStartBus(void *Args)
+{
+	/* Vars */
+	MCoreModule_t *BusModule = NULL;
+
+	/* Unused */
+	_CRT_UNUSED(Args);
+
+	/* Drivers
+	* Start the bus driver */
+	BusModule = ModuleFindGeneric(MODULE_BUS, 0);
+
+	/* Sanity */
+	if (BusModule == NULL)
+		LogFatal("SYST", "Failed to locate bus module in initrd, which means system will have no further functionality.");
+	else
+		ModuleLoad(BusModule, NULL);
+}
+
 /* * 
  * Shared Entry in MollenOS
  * */
 void MCoreInitialize(MCoreBootInfo_t *BootInfo)
 {
-	/* Vars */
-	MCoreModule_t *BusModule = NULL;
-
 	/* Initialize Log */
 	LogInit();
 
@@ -101,17 +118,8 @@ void MCoreInitialize(MCoreBootInfo_t *BootInfo)
 	* let this thread die out, because initial system setup
 	* is now totally done, and the moment we start another
 	* thread, it will take over as this is the idle thread */
-
-	/* Drivers 
-	 * Start the bus driver */
-	BusModule = ModuleFindGeneric(MODULE_BUS, 0);
-
-	/* Sanity */
-	if (BusModule == NULL)
-		LogFatal("SYST", "Failed to locate bus module in initrd, which means system will have no further functionality.");
-	else
-		ModuleLoad(BusModule, NULL);
-
+	ThreadingCreateThread("Bus Enumeration", MCoreKickStartBus, NULL, 0);
+	
 	/* Enter Idle Loop */
 	while (1)
 		Idle();

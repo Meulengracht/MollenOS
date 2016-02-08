@@ -165,7 +165,7 @@ typedef struct _UhciTransferDescriptor
 #define UHCI_TD_PID_OUT				0xE1
 #define UHCI_TD_DEVICE_ADDR(n)		((n & 0x7F) << 8)
 #define UHCI_TD_EP_ADDR(n)			((n & 0xF) << 15)
-#define UHCI_TD_DATA_TOGGLE(n)		(n << 19)
+#define UHCI_TD_DATA_TOGGLE			(1 << 19)
 #define UHCI_TD_MAX_LEN(n)			((n & 0x7FF) << 21)
 
 /* Queue Head, 16 byte align 

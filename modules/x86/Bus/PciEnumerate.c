@@ -30,9 +30,6 @@
 #include <Heap.h>
 #include <Log.h>
 
-/* Definitions */
-#define RUN_EHCI_FIRST
-
 /* The MCFG Entry */
 #pragma pack(push, 1)
 typedef struct _McfgEntry
@@ -195,28 +192,12 @@ void PciReadBars(PciBus_t *Bus, MCoreDevice_t *Device, uint32_t HeaderType)
 /* Check a function */
 /* For each function we create a 
  * pci_device and add it to the list */
-void PciCheckFunction(list_t *Bridge, PciBus_t *BusIo, uint8_t Bus, uint8_t Device, uint8_t Function, uint8_t EhciFirst)
+void PciCheckFunction(list_t *Bridge, PciBus_t *BusIo, uint8_t Bus, uint8_t Device, uint8_t Function)
 {
 	/* Vars */
-	MCoreDevice_t *mDevice;
 	uint8_t SecondBus;
 	PciNativeHeader_t *Pcs;
 	PciDevice_t *PciDevice;
-
-	/* Sanity */
-	if (EhciFirst != 0)
-	{
-		/* Get Class/SubClass/Interface */
-		uint8_t Class = PciReadBaseClass(BusIo, Bus, Device, Function);
-		uint8_t SubClass = PciReadSubclass(BusIo, Bus, Device, Function);
-		uint8_t Interface = PciReadInterface(BusIo, Bus, Device, Function);
-
-		/* Is this an ehci? */
-		if (Class != 0x0C
-			|| SubClass != 0x03
-			|| Interface != 0x20)
-			return;
-	}
 
 	/* Allocate */
 	Pcs = (PciNativeHeader_t*)kmalloc(sizeof(PciNativeHeader_t));
@@ -274,77 +255,11 @@ void PciCheckFunction(list_t *Bridge, PciBus_t *BusIo, uint8_t Bus, uint8_t Devi
 		/* This is an device */
 		PciDevice->Type = X86_PCI_TYPE_DEVICE;
 		list_append(Bridge, list_create_node(X86_PCI_TYPE_DEVICE, PciDevice));
-
-		/* Register device with the OS */
-		mDevice = (MCoreDevice_t*)kmalloc(sizeof(MCoreDevice_t));
-		memset(mDevice, 0, sizeof(MCoreDevice_t));
-		
-		/* Setup information */
-		mDevice->VendorId = Pcs->VendorId;
-		mDevice->DeviceId = Pcs->DeviceId;
-		mDevice->Class = PciToDevClass(Pcs->Class, Pcs->Subclass);
-		mDevice->Subclass = PciToDevSubClass(Pcs->Interface);
-
-		mDevice->Segment = (DevInfo_t)BusIo->Segment;
-		mDevice->Bus = Bus;
-		mDevice->Device = Device;
-		mDevice->Function = Function;
-
-		mDevice->IrqLine = -1;
-		mDevice->IrqPin = (int)Pcs->InterruptPin;
-		mDevice->IrqAvailable[0] = Pcs->InterruptLine;
-
-		/* Type */
-		mDevice->Type = DeviceUnknown;
-		mDevice->Data = NULL;
-
-		/* Save bus information */
-		mDevice->BusDevice = PciDevice;
-
-		/* Initial */
-		mDevice->Driver.Name = NULL;
-		mDevice->Driver.Version = -1;
-		mDevice->Driver.Data = NULL;
-		mDevice->Driver.Status = DriverNone;
-
-		/* Read Bars */
-		PciReadBars(BusIo, mDevice, Pcs->HeaderType);
-
-		/* PCI - IDE Bar Fixup 
-		 * From experience ide-bars don't always show up (ex: Oracle VM)
-		 * but only the initial 4 bars don't, the BM bar 
-		 * always seem to show up */
-		if (Pcs->Class == 0x01
-			&& Pcs->Subclass == 0x01) 
-		{
-			/* Let's see */
-			if ((Pcs->Interface & 0x1) == 0)
-			{
-				/* Controller 1 */
-				if (mDevice->IoSpaces[0] == NULL)
-					mDevice->IoSpaces[0] = IoSpaceCreate(DEVICE_IO_SPACE_IO, 0x1F0, 8);
-				if (mDevice->IoSpaces[1] == NULL)
-					mDevice->IoSpaces[1] = IoSpaceCreate(DEVICE_IO_SPACE_IO, 0x3F6, 4);
-			}
-
-			/* Again, let's see */
-			if ((Pcs->Interface & 0x4) == 0)
-			{
-				/* Controller 2 */
-				if (mDevice->IoSpaces[2] == NULL)
-					mDevice->IoSpaces[2] = IoSpaceCreate(DEVICE_IO_SPACE_IO, 0x170, 8);
-				if (mDevice->IoSpaces[3] == NULL)
-					mDevice->IoSpaces[3] = IoSpaceCreate(DEVICE_IO_SPACE_IO, 0x376, 4);
-			}
-		}
-
-		/* Register */
-		DmCreateDevice((char*)PciToString(Pcs->Class, Pcs->Subclass, Pcs->Interface), mDevice);
 	}
 }
 
 /* Check a device */
-void PciCheckDevice(list_t *Bridge, PciBus_t *Bus, uint8_t BusNo, uint8_t Device, uint8_t EhciFirst)
+void PciCheckDevice(list_t *Bridge, PciBus_t *Bus, uint8_t BusNo, uint8_t Device)
 {
 	uint8_t Function = 0;
 	uint16_t VendorId = 0;
@@ -358,7 +273,7 @@ void PciCheckDevice(list_t *Bridge, PciBus_t *Bus, uint8_t BusNo, uint8_t Device
 		return;
 
 	/* Check function 0 */
-	PciCheckFunction(Bridge, Bus, BusNo, Device, Function, EhciFirst);
+	PciCheckFunction(Bridge, Bus, BusNo, Device, Function);
 	HeaderType = PciReadHeaderType(Bus, BusNo, Device, Function);
 
 	/* Multi-function or single? */
@@ -369,7 +284,7 @@ void PciCheckDevice(list_t *Bridge, PciBus_t *Bus, uint8_t BusNo, uint8_t Device
 		{
 			/* Only check if valid vendor */
 			if (PciReadVendorId(Bus, BusNo, Device, Function) != 0xFFFF)
-				PciCheckFunction(Bridge, Bus, BusNo, Device, Function, EhciFirst);
+				PciCheckFunction(Bridge, Bus, BusNo, Device, Function);
 		}
 	}
 }
@@ -380,15 +295,177 @@ void PciCheckBus(list_t *Bridge, PciBus_t *Bus, uint8_t BusNo)
 	/* Vars */
 	uint8_t Device;
 
-#ifdef RUN_EHCI_FIRST
-	/* Find the ehci controllers first & init */
-	for (Device = 0; Device < 32; Device++)
-		PciCheckDevice(Bridge, Bus, BusNo, Device, 1);
-#endif
-
 	/* Iterate devices on bus */
 	for (Device = 0; Device < 32; Device++)
-		PciCheckDevice(Bridge, Bus, BusNo, Device, 0);
+		PciCheckDevice(Bridge, Bus, BusNo, Device);
+}
+
+/* Disable EHCI Callback */
+void PciDisableEHCICallback(void *Data, int No)
+{
+	/* Cast */
+	PciDevice_t *PciDev = (PciDevice_t*)Data;
+
+	/* Bridge or device? */
+	if (PciDev->Type == X86_PCI_TYPE_BRIDGE) {
+		list_execute_all((list_t*)PciDev->Children, PciDisableEHCICallback);
+	}
+	else
+	{
+		/* Make sure this is an EHCI */
+		if (PciDev->Header->Class != 0x0C
+			|| PciDev->Header->Subclass != 0x03
+			|| PciDev->Header->Interface != 0x20)
+			return;
+
+		/* Register device with the OS */
+		MCoreDevice_t *mDevice = (MCoreDevice_t*)kmalloc(sizeof(MCoreDevice_t));
+		memset(mDevice, 0, sizeof(MCoreDevice_t));
+
+		/* Setup information */
+		mDevice->VendorId = PciDev->Header->VendorId;
+		mDevice->DeviceId = PciDev->Header->DeviceId;
+		mDevice->Class = PciToDevClass(PciDev->Header->Class, PciDev->Header->Subclass);
+		mDevice->Subclass = PciToDevSubClass(PciDev->Header->Interface);
+
+		mDevice->Segment = (DevInfo_t)PciDev->PciBus->Segment;
+		mDevice->Bus = PciDev->Bus;
+		mDevice->Device = PciDev->Device;
+		mDevice->Function = PciDev->Function;
+
+		mDevice->IrqLine = -1;
+		mDevice->IrqPin = (int)PciDev->Header->InterruptPin;
+		mDevice->IrqAvailable[0] = PciDev->Header->InterruptLine;
+
+		/* Type */
+		mDevice->Type = DeviceUnknown;
+		mDevice->Data = NULL;
+
+		/* Save bus information */
+		mDevice->BusDevice = PciDev;
+
+		/* Initial */
+		mDevice->Driver.Name = NULL;
+		mDevice->Driver.Version = -1;
+		mDevice->Driver.Data = NULL;
+		mDevice->Driver.Status = DriverNone;
+
+		/* Read Bars */
+		PciReadBars(PciDev->PciBus, mDevice, PciDev->Header->HeaderType);
+
+		/* PCI - IDE Bar Fixup
+		* From experience ide-bars don't always show up (ex: Oracle VM)
+		* but only the initial 4 bars don't, the BM bar
+		* always seem to show up */
+		if (PciDev->Header->Class == 0x01
+			&& PciDev->Header->Subclass == 0x01)
+		{
+			/* Let's see */
+			if ((PciDev->Header->Interface & 0x1) == 0)
+			{
+				/* Controller 1 */
+				if (mDevice->IoSpaces[0] == NULL)
+					mDevice->IoSpaces[0] = IoSpaceCreate(DEVICE_IO_SPACE_IO, 0x1F0, 8);
+				if (mDevice->IoSpaces[1] == NULL)
+					mDevice->IoSpaces[1] = IoSpaceCreate(DEVICE_IO_SPACE_IO, 0x3F6, 4);
+			}
+
+			/* Again, let's see */
+			if ((PciDev->Header->Interface & 0x4) == 0)
+			{
+				/* Controller 2 */
+				if (mDevice->IoSpaces[2] == NULL)
+					mDevice->IoSpaces[2] = IoSpaceCreate(DEVICE_IO_SPACE_IO, 0x170, 8);
+				if (mDevice->IoSpaces[3] == NULL)
+					mDevice->IoSpaces[3] = IoSpaceCreate(DEVICE_IO_SPACE_IO, 0x376, 4);
+			}
+		}
+
+		/* Register */
+		DmCreateDevice((char*)PciToString(PciDev->Header->Class,
+			PciDev->Header->Subclass, PciDev->Header->Interface), mDevice);
+	}
+}
+
+/* Install Driver Callback */
+void PciInstallDriverCallback(void *Data, int No)
+{
+	/* Cast */
+	PciDevice_t *PciDev = (PciDevice_t*)Data;
+
+	/* Bridge or device? */
+	if (PciDev->Type == X86_PCI_TYPE_BRIDGE) {
+		list_execute_all((list_t*)PciDev->Children, PciInstallDriverCallback);
+	}
+	else
+	{
+		/* Register device with the OS */
+		MCoreDevice_t *mDevice = (MCoreDevice_t*)kmalloc(sizeof(MCoreDevice_t));
+		memset(mDevice, 0, sizeof(MCoreDevice_t));
+
+		/* Setup information */
+		mDevice->VendorId = PciDev->Header->VendorId;
+		mDevice->DeviceId = PciDev->Header->DeviceId;
+		mDevice->Class = PciToDevClass(PciDev->Header->Class, PciDev->Header->Subclass);
+		mDevice->Subclass = PciToDevSubClass(PciDev->Header->Interface);
+
+		mDevice->Segment = (DevInfo_t)PciDev->PciBus->Segment;
+		mDevice->Bus = PciDev->Bus;
+		mDevice->Device = PciDev->Device;
+		mDevice->Function = PciDev->Function;
+
+		mDevice->IrqLine = -1;
+		mDevice->IrqPin = (int)PciDev->Header->InterruptPin;
+		mDevice->IrqAvailable[0] = PciDev->Header->InterruptLine;
+
+		/* Type */
+		mDevice->Type = DeviceUnknown;
+		mDevice->Data = NULL;
+
+		/* Save bus information */
+		mDevice->BusDevice = PciDev;
+
+		/* Initial */
+		mDevice->Driver.Name = NULL;
+		mDevice->Driver.Version = -1;
+		mDevice->Driver.Data = NULL;
+		mDevice->Driver.Status = DriverNone;
+
+		/* Read Bars */
+		PciReadBars(PciDev->PciBus, mDevice, PciDev->Header->HeaderType);
+
+		/* PCI - IDE Bar Fixup
+		* From experience ide-bars don't always show up (ex: Oracle VM)
+		* but only the initial 4 bars don't, the BM bar
+		* always seem to show up */
+		if (PciDev->Header->Class == 0x01
+			&& PciDev->Header->Subclass == 0x01)
+		{
+			/* Let's see */
+			if ((PciDev->Header->Interface & 0x1) == 0)
+			{
+				/* Controller 1 */
+				if (mDevice->IoSpaces[0] == NULL)
+					mDevice->IoSpaces[0] = IoSpaceCreate(DEVICE_IO_SPACE_IO, 0x1F0, 8);
+				if (mDevice->IoSpaces[1] == NULL)
+					mDevice->IoSpaces[1] = IoSpaceCreate(DEVICE_IO_SPACE_IO, 0x3F6, 4);
+			}
+
+			/* Again, let's see */
+			if ((PciDev->Header->Interface & 0x4) == 0)
+			{
+				/* Controller 2 */
+				if (mDevice->IoSpaces[2] == NULL)
+					mDevice->IoSpaces[2] = IoSpaceCreate(DEVICE_IO_SPACE_IO, 0x170, 8);
+				if (mDevice->IoSpaces[3] == NULL)
+					mDevice->IoSpaces[3] = IoSpaceCreate(DEVICE_IO_SPACE_IO, 0x376, 4);
+			}
+		}
+
+		/* Register */
+		DmCreateDevice((char*)PciToString(PciDev->Header->Class, 
+			PciDev->Header->Subclass, PciDev->Header->Interface), mDevice);
+	}
 }
 
 /* First of all, devices exists on TWO different
@@ -471,4 +548,13 @@ MODULES_API void ModuleInit(void *Data)
 			}
 		}
 	}
+
+	/* Step 1. Disable EHCI */
+	list_execute_all(GlbPciDevices, PciDisableEHCICallback);
+
+	/* Step 2. Install all other drivers */
+	list_execute_all(GlbPciDevices, PciInstallDriverCallback);
+
+	/* Step 3. Install PS2 if present */
+
 }

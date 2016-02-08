@@ -853,7 +853,6 @@ UhciTransferDescriptor_t *UhciTdSetup(UhciEndpoint_t *Ep, UsbTransferType_t Type
 	Td->Header = UHCI_TD_PID_SETUP;
 	Td->Header |= UHCI_TD_DEVICE_ADDR(DeviceAddr);
 	Td->Header |= UHCI_TD_EP_ADDR(EpAddr);
-	Td->Header |= UHCI_TD_DATA_TOGGLE(Toggle);
 	Td->Header |= UHCI_TD_MAX_LEN((sizeof(UsbPacket_t) - 1));
 
 	/* Setup SETUP packet */
@@ -917,7 +916,10 @@ UhciTransferDescriptor_t *UhciTdIo(UhciEndpoint_t *Ep, UsbTransferType_t Type,
 	Td->Header = PId;
 	Td->Header |= UHCI_TD_DEVICE_ADDR(DeviceAddr);
 	Td->Header |= UHCI_TD_EP_ADDR(EpAddr);
-	Td->Header |= UHCI_TD_DATA_TOGGLE(Toggle);
+
+	/* Toggle? */
+	if (Toggle)
+		Td->Header |= UHCI_TD_DATA_TOGGLE;
 
 	if (Length > 0)
 		Td->Header |= UHCI_TD_MAX_LEN((Length - 1));
@@ -1346,6 +1348,12 @@ void UhciTransactionSend(void *Controller, UsbHcRequest_t *Request)
 		PrevQh->Link = QhAddress | UHCI_TD_LINK_QH;
 		PrevQh->LinkVirtual = (uint32_t)Qh;
 
+		/* Release lock */
+		SpinlockRelease(&Ctrl->Lock);
+
+		/* Start controller */
+		UhciStart(Ctrl);
+
 		/* Done! */
 		return;
 	}
@@ -1688,10 +1696,10 @@ void UhciProcessTransfers(UhciController_t *Controller)
 							(UhciTransferDescriptor_t*)lIterator->TransferDescriptorCopy;
 
 						/* If set */
-						if (__Td->Header & (1 << 19))
-							__Td->Header &= ~(1 << 19);
+						if (__Td->Header & UHCI_TD_DATA_TOGGLE)
+							__Td->Header &= ~UHCI_TD_DATA_TOGGLE;
 						else
-							__Td->Header |= (1 << 19);
+							__Td->Header |= UHCI_TD_DATA_TOGGLE;
 					}
 
 					/* Restart Td */

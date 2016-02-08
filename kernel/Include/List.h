@@ -89,7 +89,7 @@ _CRT_EXTERN list_node_t *list_get_node_by_id(list_t *list, int id, int n);
 _CRT_EXPORT void *list_get_data_by_id(list_t *list, int id, int n);
 
 _CRT_EXTERN void ListExecuteOnId(list_t *List, void(*Function)(void*, int, void*), int Id, void *UserData);
-_CRT_EXTERN void list_execute_all(list_t *list, void(*func)(void*, int));
+_CRT_EXPORT void list_execute_all(list_t *list, void(*func)(void*, int));
 
 _CRT_EXPORT void list_remove_by_node(list_t *list, list_node_t* node);
 _CRT_EXTERN void list_remove_by_index(list_t *list, int index);
