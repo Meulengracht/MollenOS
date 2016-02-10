@@ -144,8 +144,10 @@ void UsbHidInit(UsbHcDevice_t *UsbDevice, uint32_t InterfaceIndex)
 	for (i = 0; i < UsbDevice->Interfaces[InterfaceIndex]->NumEndpoints; i++)
 	{
 		/* Interrupt? */
-		if (UsbDevice->Interfaces[InterfaceIndex]->Endpoints[i]->Type == EndpointInterrupt)
+		if (UsbDevice->Interfaces[InterfaceIndex]->Endpoints[i]->Type == EndpointInterrupt) {
 			DevData->EpInterrupt = UsbDevice->Interfaces[InterfaceIndex]->Endpoints[i];
+			break;
+		}
 	}
 
 	/* Sanity */
@@ -158,10 +160,11 @@ void UsbHidInit(UsbHcDevice_t *UsbDevice, uint32_t InterfaceIndex)
 
 	/* Get Report Descriptor */
 	ReportDescriptor = (uint8_t*)kmalloc(HidDescriptor->ClassDescriptorLength);
+	
 	if (UsbFunctionGetDescriptor((UsbHc_t*)UsbDevice->HcDriver, UsbDevice->Port,
 		ReportDescriptor, USB_REQUEST_DIR_IN | USB_REQUEST_TARGET_INTERFACE,
 		HidDescriptor->ClassDescriptorType,
-		0, 0, HidDescriptor->ClassDescriptorLength) != TransferFinished)
+		0, InterfaceIndex, HidDescriptor->ClassDescriptorLength) != TransferFinished)
 	{
 		LogFatal("USBH", "Failed to get Report Descriptor.");
 		kfree(ReportDescriptor);

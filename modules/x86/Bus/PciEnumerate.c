@@ -300,6 +300,77 @@ void PciCheckBus(list_t *Bridge, PciBus_t *Bus, uint8_t BusNo)
 		PciCheckDevice(Bridge, Bus, BusNo, Device);
 }
 
+/* Convert PciDevice to MCoreDevice */
+void PciCreateDeviceFromPci(PciDevice_t *PciDev)
+{
+	/* Register device with the OS */
+	MCoreDevice_t *mDevice = (MCoreDevice_t*)kmalloc(sizeof(MCoreDevice_t));
+	memset(mDevice, 0, sizeof(MCoreDevice_t));
+
+	/* Setup information */
+	mDevice->VendorId = PciDev->Header->VendorId;
+	mDevice->DeviceId = PciDev->Header->DeviceId;
+	mDevice->Class = PciToDevClass(PciDev->Header->Class, PciDev->Header->Subclass);
+	mDevice->Subclass = PciToDevSubClass(PciDev->Header->Interface);
+
+	mDevice->Segment = (DevInfo_t)PciDev->PciBus->Segment;
+	mDevice->Bus = PciDev->Bus;
+	mDevice->Device = PciDev->Device;
+	mDevice->Function = PciDev->Function;
+
+	mDevice->IrqLine = -1;
+	mDevice->IrqPin = (int)PciDev->Header->InterruptPin;
+	mDevice->IrqAvailable[0] = PciDev->Header->InterruptLine;
+
+	/* Type */
+	mDevice->Type = DeviceUnknown;
+	mDevice->Data = NULL;
+
+	/* Save bus information */
+	mDevice->BusDevice = PciDev;
+
+	/* Initial */
+	mDevice->Driver.Name = NULL;
+	mDevice->Driver.Version = -1;
+	mDevice->Driver.Data = NULL;
+	mDevice->Driver.Status = DriverNone;
+
+	/* Read Bars */
+	PciReadBars(PciDev->PciBus, mDevice, PciDev->Header->HeaderType);
+
+	/* PCI - IDE Bar Fixup
+	* From experience ide-bars don't always show up (ex: Oracle VM)
+	* but only the initial 4 bars don't, the BM bar
+	* always seem to show up */
+	if (PciDev->Header->Class == 0x01
+		&& PciDev->Header->Subclass == 0x01)
+	{
+		/* Let's see */
+		if ((PciDev->Header->Interface & 0x1) == 0)
+		{
+			/* Controller 1 */
+			if (mDevice->IoSpaces[0] == NULL)
+				mDevice->IoSpaces[0] = IoSpaceCreate(DEVICE_IO_SPACE_IO, 0x1F0, 8);
+			if (mDevice->IoSpaces[1] == NULL)
+				mDevice->IoSpaces[1] = IoSpaceCreate(DEVICE_IO_SPACE_IO, 0x3F6, 4);
+		}
+
+		/* Again, let's see */
+		if ((PciDev->Header->Interface & 0x4) == 0)
+		{
+			/* Controller 2 */
+			if (mDevice->IoSpaces[2] == NULL)
+				mDevice->IoSpaces[2] = IoSpaceCreate(DEVICE_IO_SPACE_IO, 0x170, 8);
+			if (mDevice->IoSpaces[3] == NULL)
+				mDevice->IoSpaces[3] = IoSpaceCreate(DEVICE_IO_SPACE_IO, 0x376, 4);
+		}
+	}
+
+	/* Register */
+	DmCreateDevice((char*)PciToString(PciDev->Header->Class,
+		PciDev->Header->Subclass, PciDev->Header->Interface), mDevice);
+}
+
 /* Disable EHCI Callback */
 void PciDisableEHCICallback(void *Data, int No)
 {
@@ -318,72 +389,8 @@ void PciDisableEHCICallback(void *Data, int No)
 			|| PciDev->Header->Interface != 0x20)
 			return;
 
-		/* Register device with the OS */
-		MCoreDevice_t *mDevice = (MCoreDevice_t*)kmalloc(sizeof(MCoreDevice_t));
-		memset(mDevice, 0, sizeof(MCoreDevice_t));
-
-		/* Setup information */
-		mDevice->VendorId = PciDev->Header->VendorId;
-		mDevice->DeviceId = PciDev->Header->DeviceId;
-		mDevice->Class = PciToDevClass(PciDev->Header->Class, PciDev->Header->Subclass);
-		mDevice->Subclass = PciToDevSubClass(PciDev->Header->Interface);
-
-		mDevice->Segment = (DevInfo_t)PciDev->PciBus->Segment;
-		mDevice->Bus = PciDev->Bus;
-		mDevice->Device = PciDev->Device;
-		mDevice->Function = PciDev->Function;
-
-		mDevice->IrqLine = -1;
-		mDevice->IrqPin = (int)PciDev->Header->InterruptPin;
-		mDevice->IrqAvailable[0] = PciDev->Header->InterruptLine;
-
-		/* Type */
-		mDevice->Type = DeviceUnknown;
-		mDevice->Data = NULL;
-
-		/* Save bus information */
-		mDevice->BusDevice = PciDev;
-
-		/* Initial */
-		mDevice->Driver.Name = NULL;
-		mDevice->Driver.Version = -1;
-		mDevice->Driver.Data = NULL;
-		mDevice->Driver.Status = DriverNone;
-
-		/* Read Bars */
-		PciReadBars(PciDev->PciBus, mDevice, PciDev->Header->HeaderType);
-
-		/* PCI - IDE Bar Fixup
-		* From experience ide-bars don't always show up (ex: Oracle VM)
-		* but only the initial 4 bars don't, the BM bar
-		* always seem to show up */
-		if (PciDev->Header->Class == 0x01
-			&& PciDev->Header->Subclass == 0x01)
-		{
-			/* Let's see */
-			if ((PciDev->Header->Interface & 0x1) == 0)
-			{
-				/* Controller 1 */
-				if (mDevice->IoSpaces[0] == NULL)
-					mDevice->IoSpaces[0] = IoSpaceCreate(DEVICE_IO_SPACE_IO, 0x1F0, 8);
-				if (mDevice->IoSpaces[1] == NULL)
-					mDevice->IoSpaces[1] = IoSpaceCreate(DEVICE_IO_SPACE_IO, 0x3F6, 4);
-			}
-
-			/* Again, let's see */
-			if ((PciDev->Header->Interface & 0x4) == 0)
-			{
-				/* Controller 2 */
-				if (mDevice->IoSpaces[2] == NULL)
-					mDevice->IoSpaces[2] = IoSpaceCreate(DEVICE_IO_SPACE_IO, 0x170, 8);
-				if (mDevice->IoSpaces[3] == NULL)
-					mDevice->IoSpaces[3] = IoSpaceCreate(DEVICE_IO_SPACE_IO, 0x376, 4);
-			}
-		}
-
-		/* Register */
-		DmCreateDevice((char*)PciToString(PciDev->Header->Class,
-			PciDev->Header->Subclass, PciDev->Header->Interface), mDevice);
+		/* Create device! */
+		PciCreateDeviceFromPci(PciDev);
 	}
 }
 
@@ -399,72 +406,8 @@ void PciInstallDriverCallback(void *Data, int No)
 	}
 	else
 	{
-		/* Register device with the OS */
-		MCoreDevice_t *mDevice = (MCoreDevice_t*)kmalloc(sizeof(MCoreDevice_t));
-		memset(mDevice, 0, sizeof(MCoreDevice_t));
-
-		/* Setup information */
-		mDevice->VendorId = PciDev->Header->VendorId;
-		mDevice->DeviceId = PciDev->Header->DeviceId;
-		mDevice->Class = PciToDevClass(PciDev->Header->Class, PciDev->Header->Subclass);
-		mDevice->Subclass = PciToDevSubClass(PciDev->Header->Interface);
-
-		mDevice->Segment = (DevInfo_t)PciDev->PciBus->Segment;
-		mDevice->Bus = PciDev->Bus;
-		mDevice->Device = PciDev->Device;
-		mDevice->Function = PciDev->Function;
-
-		mDevice->IrqLine = -1;
-		mDevice->IrqPin = (int)PciDev->Header->InterruptPin;
-		mDevice->IrqAvailable[0] = PciDev->Header->InterruptLine;
-
-		/* Type */
-		mDevice->Type = DeviceUnknown;
-		mDevice->Data = NULL;
-
-		/* Save bus information */
-		mDevice->BusDevice = PciDev;
-
-		/* Initial */
-		mDevice->Driver.Name = NULL;
-		mDevice->Driver.Version = -1;
-		mDevice->Driver.Data = NULL;
-		mDevice->Driver.Status = DriverNone;
-
-		/* Read Bars */
-		PciReadBars(PciDev->PciBus, mDevice, PciDev->Header->HeaderType);
-
-		/* PCI - IDE Bar Fixup
-		* From experience ide-bars don't always show up (ex: Oracle VM)
-		* but only the initial 4 bars don't, the BM bar
-		* always seem to show up */
-		if (PciDev->Header->Class == 0x01
-			&& PciDev->Header->Subclass == 0x01)
-		{
-			/* Let's see */
-			if ((PciDev->Header->Interface & 0x1) == 0)
-			{
-				/* Controller 1 */
-				if (mDevice->IoSpaces[0] == NULL)
-					mDevice->IoSpaces[0] = IoSpaceCreate(DEVICE_IO_SPACE_IO, 0x1F0, 8);
-				if (mDevice->IoSpaces[1] == NULL)
-					mDevice->IoSpaces[1] = IoSpaceCreate(DEVICE_IO_SPACE_IO, 0x3F6, 4);
-			}
-
-			/* Again, let's see */
-			if ((PciDev->Header->Interface & 0x4) == 0)
-			{
-				/* Controller 2 */
-				if (mDevice->IoSpaces[2] == NULL)
-					mDevice->IoSpaces[2] = IoSpaceCreate(DEVICE_IO_SPACE_IO, 0x170, 8);
-				if (mDevice->IoSpaces[3] == NULL)
-					mDevice->IoSpaces[3] = IoSpaceCreate(DEVICE_IO_SPACE_IO, 0x376, 4);
-			}
-		}
-
-		/* Register */
-		DmCreateDevice((char*)PciToString(PciDev->Header->Class, 
-			PciDev->Header->Subclass, PciDev->Header->Interface), mDevice);
+		/* Create device! */
+		PciCreateDeviceFromPci(PciDev);
 	}
 }
 
@@ -479,7 +422,7 @@ MODULES_API void ModuleInit(void *Data)
 	uint8_t HeaderType;
 
 	/* Init list, this is "bus 0" */
-	GlbPciDevices = list_create(LIST_SAFE);
+	GlbPciDevices = list_create(LIST_NORMAL);
 
 	/* Pci Express */
 	if (McfgTable != NULL)
