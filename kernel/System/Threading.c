@@ -321,7 +321,6 @@ TId_t ThreadingCreateThread(char *Name, ThreadEntry_t Function, void *Args, int 
 	list_append(GlbThreads, Node);
 
 	/* Ready */
-	Node = list_create_node(nThread->ThreadId, nThread);
 	SchedulerReadyThread(Node);
 
 	/* Done */
