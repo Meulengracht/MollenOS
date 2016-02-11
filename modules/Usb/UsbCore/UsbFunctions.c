@@ -16,7 +16,7 @@
 * along with this program.If not, see <http://www.gnu.org/licenses/>.
 *
 *
-* MollenOS X86 USB Functions Core Driver
+* MollenOS USB Functions Core Driver
 */
 
 /* Includes */

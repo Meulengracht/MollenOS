@@ -19,8 +19,8 @@
 * MollenOS X86-32 USB Core HID Driver
 */
 
-#ifndef X86_USB_HID_H_
-#define X86_USB_HID_H_
+#ifndef _USB_HID_H_
+#define _USB_HID_H_
 
 /* Includes */
 #include <UsbCore.h>
@@ -29,13 +29,23 @@
 
 /* Definitions */
 
+/* Codes */
+#define USB_HID_CLASS					0x3
+
+#define USB_HID_SUBCLASS_NONE			0x0
+#define USB_HID_SUBCLASS_BOOT			0x1
+
+#define USB_HID_PROTOCOL_NONE			0x0
+#define USB_HID_PROTOCOL_KEYBOARD		0x1
+#define USB_HID_PROTOCOL_MOUSE			0x2
+
 /* Class Specific bRequests */
-#define X86_USB_REQ_GET_REPORT			0x1
-#define X86_USB_REQ_GET_IDLE			0x2
-#define X86_USB_REQ_GET_PROTOCOL		0x3
-#define X86_USB_REQ_SET_REPORT			0x9
-#define X86_USB_REQ_SET_IDLE			0xA
-#define X86_USB_REQ_SET_PROTOCOL		0xB
+#define USB_HID_GET_REPORT				0x1
+#define USB_HID_GET_IDLE				0x2
+#define USB_HID_GET_PROTOCOL			0x3
+#define USB_HID_SET_REPORT				0x9
+#define USB_HID_SET_IDLE				0xA
+#define USB_HID_SET_PROTOCOL			0xB
 
 #define X86_USB_DESC_TYPE_HID			0x21
 #define X86_USB_DESC_TYPE_REPORT		0x22
@@ -268,6 +278,6 @@ typedef struct _HidDevice
 /* Prototypes */
 
 /* Initialise Driver for a HID */
-_CRT_EXTERN void UsbHidInit(UsbHcDevice_t *UsbDevice, uint32_t InterfaceIndex);
+_CRT_EXTERN void UsbHidInit(UsbHcDevice_t *UsbDevice, int InterfaceIndex);
 
 #endif // !X86_USB_HID_H_

@@ -535,8 +535,10 @@ void UhciInitQueues(UhciController_t *Controller)
 	/* Set all queues to end in the async QH 
 	 * This way we handle iso & ints before bulk/control */
 	for (i = UHCI_POOL_ISOCHRONOUS + 1; i < UHCI_POOL_ASYNC; i++) {
-		Controller->QhPool[i]->Link = Controller->QhPoolPhys[UHCI_POOL_ASYNC] | UHCI_TD_LINK_QH;
-		Controller->QhPool[i]->LinkVirtual = (uint32_t)Controller->QhPoolPhys[UHCI_POOL_ASYNC];
+		Controller->QhPool[i]->Link = 
+			Controller->QhPoolPhys[UHCI_POOL_ASYNC] | UHCI_TD_LINK_QH;
+		Controller->QhPool[i]->LinkVirtual = 
+			(uint32_t)Controller->QhPoolPhys[UHCI_POOL_ASYNC];
 	}
 
 	/* 1024 Entries
@@ -1337,6 +1339,26 @@ void UhciTransactionSend(void *Controller, UsbHcRequest_t *Request)
 		/* Set Qh Queue */
 		Qh->Flags |= UHCI_QH_POOL_NUM(Queue);
 
+		/* Iterate and set last to generate interrupt */
+		Transaction = Request->Transactions;
+		Td = (UhciTransferDescriptor_t*)Transaction->TransferDescriptor;
+		LogDebug("UHCI", "Td (Addr 0x%x) Flags 0x%x, Buffer 0x%x, Header 0x%x, Next Td 0x%x",
+			AddressSpaceGetMap(AddressSpaceGetCurrent(), (VirtAddr_t)Td),
+			Td->Flags, Td->Buffer, Td->Header, Td->Link);
+
+		while (Transaction->Link)
+		{
+			/* Next */
+			Transaction = Transaction->Link;
+
+			Td = (UhciTransferDescriptor_t*)Transaction->TransferDescriptor;
+			LogDebug("UHCI", "Td (Addr 0x%x) Flags 0x%x, Buffer 0x%x, Header 0x%x, Next Td 0x%x",
+				AddressSpaceGetMap(AddressSpaceGetCurrent(), (VirtAddr_t)Td),
+				Td->Flags, Td->Buffer, Td->Header, Td->Link);
+		}
+
+		LogDebug("UHCI", "Inserting into queue %i", Queue);
+
 		/* Iterate list */
 		PrevQh = Ctrl->QhPool[Queue];
 
@@ -1347,6 +1369,10 @@ void UhciTransactionSend(void *Controller, UsbHcRequest_t *Request)
 		/* Set link */
 		PrevQh->Link = QhAddress | UHCI_TD_LINK_QH;
 		PrevQh->LinkVirtual = (uint32_t)Qh;
+
+		LogDebug("UHCI", "Int Qh Link: 0x%x, Child: 0x%x", PrevQh->Link, PrevQh->Child);
+		LogDebug("UHCI", "New Qh (0x%x) Link: 0x%x, Child: 0x%x", 
+			QhAddress, Qh->Link, Qh->Child);
 
 		/* Release lock */
 		SpinlockRelease(&Ctrl->Lock);

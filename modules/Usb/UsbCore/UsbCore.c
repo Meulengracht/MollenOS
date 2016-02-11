@@ -287,12 +287,16 @@ DevError:
 void UsbDeviceDestroy(UsbHc_t *Hc, int Port)
 {
 	/* Shortcut */
-	UsbHcDevice_t *Device = Hc->Ports[Port]->Device;
+	UsbHcDevice_t *Device = NULL;
 	int i;
 
 	/* Sanity */
-	if (Device == NULL)
+	if (Hc->Ports[Port] == NULL
+		|| Hc->Ports[Port]->Device == NULL)
 		return;
+
+	/* Cast */
+	Device = Hc->Ports[Port]->Device;
 
 	/* Notify Driver */
 	if (Device->Destroy != NULL)

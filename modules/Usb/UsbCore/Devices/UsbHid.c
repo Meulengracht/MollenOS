@@ -89,7 +89,7 @@ uint64_t UsbHidGetBits(uint8_t *Buffer, uint32_t BitOffset, uint32_t NumBits)
 }
 
 /* Initialise Driver for a HID */
-void UsbHidInit(UsbHcDevice_t *UsbDevice, uint32_t InterfaceIndex)
+void UsbHidInit(UsbHcDevice_t *UsbDevice, int InterfaceIndex)
 {
 	/* Allocate device stuff */
 	HidDevice_t *DevData = (HidDevice_t*)kmalloc(sizeof(HidDevice_t));
@@ -98,12 +98,12 @@ void UsbHidInit(UsbHcDevice_t *UsbDevice, uint32_t InterfaceIndex)
 	/* Setup vars 
 	 * and prepare for a descriptor loop */
 	uint8_t *BufPtr = (uint8_t*)UsbDevice->Descriptors;
-	uint32_t BytesLeft = UsbDevice->DescriptorsLength;
+	size_t BytesLeft = UsbDevice->DescriptorsLength;
 
 	/* Needed for parsing */
 	UsbHidDescriptor_t *HidDescriptor = NULL;
 	uint8_t *ReportDescriptor = NULL;
-	uint32_t i;
+	size_t i;
 
 	/* Locate the HID descriptor */
 	while (BytesLeft > 0)
@@ -186,6 +186,11 @@ void UsbHidInit(UsbHcDevice_t *UsbDevice, uint32_t InterfaceIndex)
 	DevData->InterruptChannel->Callback->Args = DevData;
 
 	/* Switch to Report Protocol (ONLY if we are in boot protocol) */
+	if (UsbDevice->Interfaces[InterfaceIndex]->Class == USB_HID_SUBCLASS_BOOT) {
+		UsbFunctionSendPacket((UsbHc_t*)UsbDevice->HcDriver, UsbDevice->Port, 0,
+			USB_REQUEST_TARGET_CLASS | USB_REQUEST_TARGET_INTERFACE,
+			USB_HID_SET_PROTOCOL, 0, 1, (uint8_t)InterfaceIndex, 0);
+	}
 
 	/* Set driver data */
 	DevData->PrevDataBuffer = (uint8_t*)kmalloc(DevData->EpInterrupt->MaxPacketSize);
@@ -199,17 +204,18 @@ void UsbHidInit(UsbHcDevice_t *UsbDevice, uint32_t InterfaceIndex)
 	/* Parse Report Descriptor */
 	UsbHidParseReportDescriptor(DevData, ReportDescriptor, HidDescriptor->ClassDescriptorLength);
 
-	/* Set idle :) */
-	UsbFunctionSendPacket((UsbHc_t*)UsbDevice->HcDriver, UsbDevice->Port, 0,
-		USB_REQUEST_TARGET_CLASS | USB_REQUEST_TARGET_INTERFACE,
-		X86_USB_REQ_SET_IDLE, 0, 0, 0, 0);
-
 	/* Install Interrupt */
 	UsbTransactionInit(UsbHcd, DevData->InterruptChannel, 
 		InterruptTransfer, UsbDevice, DevData->EpInterrupt);
 	UsbTransactionIn(UsbHcd, DevData->InterruptChannel, 0, 
 		DevData->DataBuffer, DevData->EpInterrupt->MaxPacketSize);
 	UsbTransactionSend(UsbHcd, DevData->InterruptChannel);
+
+	/* Set idle :) */
+	/* We might have to set ValueHi to 500 ms for keyboards, but has to be tested */
+	UsbFunctionSendPacket((UsbHc_t*)UsbDevice->HcDriver, UsbDevice->Port, 0,
+		USB_REQUEST_TARGET_CLASS | USB_REQUEST_TARGET_INTERFACE,
+		USB_HID_SET_IDLE, 0, 0, (uint8_t)InterfaceIndex, 0);
 }
 
 /* Parses the report descriptor and stores it as 
