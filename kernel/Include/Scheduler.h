@@ -31,9 +31,11 @@
 #define _MCORE_SCHEDULER_H_
 
 /* Includes */
-#include <Arch.h>
 #include <crtdefs.h>
+
+#include <Arch.h>
 #include <List.h>
+#include <Threading.h>
 
 /* Definitions */
 #define MCORE_MAX_SCHEDULERS		64
@@ -46,14 +48,17 @@
 /* Structures */
 typedef struct _MCoreScheduler
 {
+	/* Thread List */
+	list_t *Threads;
+
 	/* Queues */
 	list_t *Queues[MCORE_SCHEDULER_LEVELS];
 
 	/* Boost Timer */
-	volatile uint32_t BoostTimer;
+	size_t BoostTimer;
 
 	/* Number of threads */
-	volatile uint32_t NumThreads;
+	int NumThreads;
 
 	/* Lock */
 	Spinlock_t Lock;
@@ -61,10 +66,18 @@ typedef struct _MCoreScheduler
 } Scheduler_t;
 
 /* Prototypes */
-_CRT_EXTERN void SchedulerInit(Cpu_t cpu);
-_CRT_EXTERN void SchedulerReadyThread(list_node_t *Node);
-_CRT_EXTERN list_node_t *SchedulerGetNextTask(Cpu_t cpu, list_node_t *Node, int PreEmptive);
+_CRT_EXTERN void SchedulerInit(Cpu_t Cpu);
 
+/* Ready a thread in the scheduler */
+_CRT_EXTERN void SchedulerReadyThread(MCoreThread_t *Thread);
+
+/* Remove a thread from scheduler */
+_CRT_EXTERN void SchedulerRemoveThread(MCoreThread_t *Thread);
+
+/* Schedule */
+_CRT_EXTERN MCoreThread_t *SchedulerGetNextTask(Cpu_t Cpu, MCoreThread_t *Thread, int PreEmptive);
+
+/* Sleep, Wake */
 _CRT_EXPORT void SchedulerSleepThread(Addr_t *Resource);
 _CRT_EXPORT int SchedulerWakeupOneThread(Addr_t *Resource);
 _CRT_EXPORT void SchedulerWakeupAllThreads(Addr_t *Resource);

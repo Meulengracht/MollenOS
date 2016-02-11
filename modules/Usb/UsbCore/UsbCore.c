@@ -67,7 +67,7 @@ MODULES_API void ModuleInit(void *Data)
 	GlbEventLock = SemaphoreCreate(0);
 
 	/* Start Event Thread */
-	ThreadingCreateThread("UsbEventHandler", UsbEventHandler, NULL, 0);
+	ThreadingCreateThread("Usb Event Thread", UsbEventHandler, NULL, 0);
 }
 
 /* Registrate an OHCI/UHCI/EHCI/XHCI controller */

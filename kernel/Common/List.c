@@ -63,6 +63,27 @@ list_node_t *list_create_node(int id, void *data)
 	return node;
 }
 
+/* Returns the length of the list */
+int list_length(list_t *list)
+{
+	/* Vars */
+	int RetVal = 0;
+
+	/* Get lock */
+	if (list->attributes & LIST_SAFE)
+		SpinlockAcquire(&list->lock);
+
+	/* Get */
+	RetVal = list->length;
+
+	/* Release Lock */
+	if (list->attributes & LIST_SAFE)
+		SpinlockRelease(&list->lock);
+
+	/* Done! */
+	return RetVal;
+}
+
 /* Inserts a node at the beginning of this list. */
 void list_insert_front(list_t *list, list_node_t *node)
 {

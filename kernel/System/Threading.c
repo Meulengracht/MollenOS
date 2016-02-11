@@ -16,7 +16,7 @@
 * along with this program.If not, see <http://www.gnu.org/licenses/>.
 *
 *
-* MollenOS X86-32 Threads
+* MollenOS Threads
 */
 
 /* Includes */
@@ -34,19 +34,20 @@
 /* Globals */
 list_t *GlbThreads = NULL;
 list_t *GlbZombieThreads = NULL;
-volatile TId_t GlbThreadId = 0;
-volatile list_node_t *GlbCurrentThreads[64];
-volatile list_node_t *GlbIdleThreads[64];
-volatile int GlbThreadingEnabled = 0;
+TId_t GlbThreadId = 0;
+list_node_t *GlbCurrentThreads[64];
+list_node_t *GlbIdleThreads[64];
+int GlbThreadingEnabled = 0;
 Mutex_t GlbThreadLock;
 
 /* Initialization
 * Creates the main thread */
 void ThreadingInit(void)
 {
+	/* Vars */
 	MCoreThread_t *Init;
 	list_node_t *Node;
-	uint32_t Itr = 0;
+	int Itr = 0;
 
 	/* Create threading list */
 	GlbThreads = list_create(LIST_SAFE);
@@ -83,13 +84,12 @@ void ThreadingInit(void)
 	/* Reset lock */
 	MutexConstruct(&GlbThreadLock);
 
-	/* Create a node for the scheduler */
+	/* Create a list node */
 	Node = list_create_node(GlbThreadId, Init);
 	GlbCurrentThreads[0] = Node;
 	GlbIdleThreads[0] = Node;
 
-	/* Create a node for the thread-list */
-	Node = list_create_node(GlbThreadId, Init);
+	/* append to thread list */
 	list_append(GlbThreads, Node);
 
 	/* Increase Id */
@@ -102,6 +102,7 @@ void ThreadingInit(void)
 /* Initialises AP task */
 void ThreadingApInit(Cpu_t Cpu)
 {
+	/* Vars */
 	MCoreThread_t *Init;
 	list_node_t *Node;
 
@@ -130,8 +131,7 @@ void ThreadingApInit(Cpu_t Cpu)
 	GlbCurrentThreads[Cpu] = Node;
 	GlbIdleThreads[Cpu] = Node;
 
-	/* Create a node for the thread list */
-	Node = list_create_node(GlbThreadId, Init);
+	/* Append to thread list */
 	list_append(GlbThreads, Node);
 
 	/* Increase Id */
@@ -143,9 +143,11 @@ MCoreThread_t *ThreadingGetCurrentThread(Cpu_t Cpu)
 {
 	/* Sanity */
 	if (GlbThreadingEnabled != 1
-		|| GlbCurrentThreads[Cpu] == NULL
-		|| GlbCurrentThreads[Cpu]->data == NULL)
+		|| GlbCurrentThreads[Cpu] == NULL)
 		return NULL;
+
+	/* This, this is important */
+	assert(GlbCurrentThreads[Cpu] != NULL);
 
 	/* Get thread */
 	return (MCoreThread_t*)GlbCurrentThreads[Cpu]->data;
@@ -161,6 +163,7 @@ list_node_t *ThreadingGetCurrentNode(Cpu_t Cpu)
 /* Get current threading id */
 TId_t ThreadingGetCurrentThreadId(void)
 {
+	/* Get current cpu */
 	Cpu_t Cpu = ApicGetCpu();
 
 	/* If it's during startup phase for cpu's
@@ -189,20 +192,6 @@ void ThreadingWakeCpu(Cpu_t Cpu)
 {
 	/* This is unfortunately arch-specific */
 	_ThreadWakeUpCpu(Cpu);
-}
-
-/* Marks current thread for sleep */
-void *ThreadingEnterSleep(void)
-{
-	/* Get current cpu */
-	Cpu_t Cpu = ApicGetCpu();
-	
-	/* Get current thread */
-	MCoreThread_t *cThread = ThreadingGetCurrentThread(Cpu);
-	cThread->Flags |= THREAIDNG_ENTER_SLEEP;
-
-	/* Return the node */
-	return ThreadingGetCurrentNode(Cpu);
 }
 
 /* Set Current List Node */
@@ -238,6 +227,7 @@ void ThreadingDebugPrint(void)
 * It makes sure to handle ALL threads terminating */
 void ThreadingEntryPoint(void)
 {
+	/* Vars */
 	MCoreThread_t *cThread;
 	Cpu_t Cpu;
 
@@ -263,9 +253,9 @@ void ThreadingEntryPoint(void)
 /* Create a new thread */
 TId_t ThreadingCreateThread(char *Name, ThreadEntry_t Function, void *Args, int Flags)
 {
+	/* Vars */
 	MCoreThread_t *nThread, *tParent;
 	Cpu_t Cpu;
-	list_node_t *Node;
 
 	/* Get mutex */
 	MutexLock(&GlbThreadLock);
@@ -317,11 +307,8 @@ TId_t ThreadingCreateThread(char *Name, ThreadEntry_t Function, void *Args, int 
 	MutexUnlock(&GlbThreadLock);
 
 	/* Append it to list & scheduler */
-	Node = list_create_node(nThread->ThreadId, nThread);
-	list_append(GlbThreads, Node);
-
-	/* Ready */
-	SchedulerReadyThread(Node);
+	list_append(GlbThreads, list_create_node(nThread->ThreadId, nThread));
+	SchedulerReadyThread(nThread);
 
 	/* Done */
 	return nThread->ThreadId;
@@ -370,46 +357,51 @@ void ThreadingTerminateProcessThreads(uint32_t ProcessId)
 MCoreThread_t *ThreadingSwitch(Cpu_t Cpu, MCoreThread_t *Current, uint8_t PreEmptive)
 {
 	/* We'll need these */
-	list_node_t *node;
+	MCoreThread_t *NextThread;
+	list_node_t *Node;
 
 	/* Get a new task! */
-	node = ThreadingGetCurrentNode(Cpu);
+	Node = ThreadingGetCurrentNode(Cpu);
 
 	/* Unless this one is done.. */
 	if (Current->Flags & THREADING_FINISHED || Current->Flags & THREADING_IDLE
-		|| Current->Flags & THREAIDNG_ENTER_SLEEP)
+		|| Current->Flags & THREADING_ENTER_SLEEP)
 	{
 		/* Someone should really kill those zombies :/ */
 		if (Current->Flags & THREADING_FINISHED)
 		{
-			/* Get thread node */
-			list_node_t *n = list_get_data_by_id(GlbThreads, Current->ThreadId, 0);
+			/* Deschedule it */
+			SchedulerRemoveThread(Current);
 
 			/* Remove it */
-			list_remove_by_node(GlbThreads, n);
+			list_remove_by_node(GlbThreads, Node);
 
 			/* Append to reaper list */
-			list_append(GlbZombieThreads, n);
+			list_append(GlbZombieThreads, Node);
 		}
 
 		/* Remove flag so it does not happen again */
-		if (Current->Flags & THREAIDNG_ENTER_SLEEP)
-			Current->Flags &= ~(THREAIDNG_ENTER_SLEEP);
+		if (Current->Flags & THREADING_ENTER_SLEEP)
+			Current->Flags &= ~(THREADING_ENTER_SLEEP);
 
-		node = SchedulerGetNextTask(Cpu, NULL, PreEmptive);
+		/* Get next thread without scheduling the current */
+		NextThread = SchedulerGetNextTask(Cpu, NULL, PreEmptive);
 	}
 	else
 	{
 		/* Yea we dont schedule idle tasks :-) */
-		node = SchedulerGetNextTask(Cpu, node, PreEmptive);
+		NextThread = SchedulerGetNextTask(Cpu, Current, PreEmptive);
 	}
 
 	/* Sanity */
-	if (node == NULL)
-		node = (list_node_t*)GlbIdleThreads[Cpu];
+	if (NextThread == NULL)
+		NextThread = (MCoreThread_t*)GlbIdleThreads[Cpu]->data;
+
+	/* Get node by thread */
+	Node = list_get_node_by_id(GlbThreads, NextThread->ThreadId, 0);
 
 	/* Update current */
-	ThreadingUpdateCurrent(Cpu, node);
+	ThreadingUpdateCurrent(Cpu, Node);
 
 	/* Done */
 	return ThreadingGetCurrentThread(Cpu);

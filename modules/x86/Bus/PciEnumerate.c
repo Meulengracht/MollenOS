@@ -406,6 +406,12 @@ void PciInstallDriverCallback(void *Data, int No)
 	}
 	else
 	{
+		/* Make sure this is NOT an EHCI */
+		if (PciDev->Header->Class == 0x0C
+			&& PciDev->Header->Subclass == 0x03
+			&& PciDev->Header->Interface == 0x20)
+			return;
+
 		/* Create device! */
 		PciCreateDeviceFromPci(PciDev);
 	}

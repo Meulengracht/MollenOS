@@ -135,6 +135,20 @@
 #define PE_IMPORT_NAMEMASK			0x7FFFFFFF
 #define PE_IMPORT_ORDINAL_64		0x8000000000000000
 
+/* Debug Types */
+#define PE_DEBUG_TYPE_UNKNOWN			0
+#define PE_DEBUG_TYPE_COFF			1
+#define PE_DEBUG_TYPE_PDB			2
+#define PE_DEBUG_TYPE_FPO			3
+#define PE_DEBUG_TYPE_DBG			4
+#define PE_DEBUG_TYPE_EXCEPTION			5
+#define PE_DEBUG_TYPE_FIXUP			6
+#define PE_DEBUG_TYPE_OMAP2SRC			7
+#define PE_DEBUG_TYPE_OMAP_FROM_SRC		8
+#define PE_DEBUG_TYPE_BORLAND			9
+#define PE_DEBUG_TYPE_RESERVED			10
+#define PE_DEBUG_TYPE_CLSID			11
+
 /* The Kernel Module Name */
 #define PE_KERNEL_MODULE			"MCore.mos"
 
@@ -437,6 +451,48 @@ typedef struct _PeSectionHeader
 	uint32_t Flags;
 
 } PeSectionHeader_t;
+#pragma pack(pop)
+
+/* The Debug Directory */
+typedef struct _PeDebugDirectory 
+{
+	/* Flags */
+	uint32_t Flags;
+	uint32_t TimeStamp;
+
+	/* Major / Minor */
+	uint16_t MajorVersion;
+	uint16_t MinorVersion;
+
+	/* Type */
+	uint32_t Type;
+
+	/* Size of debug data */
+	uint32_t SizeOfData;
+	
+	/* Pointers to data */
+	uint32_t AddressOfRawData;
+	uint32_t PointerToRawData;
+
+} PeDebugDirectory_t;
+
+/* The PDB Entry */
+#pragma pack(push, 1)
+typedef struct _PePdbInformation
+{
+	/* CodeView Signature */
+	uint32_t Signature;
+
+	/* PDB Guid */
+	uint8_t Guid[16];
+
+	/* Information Age */
+	uint32_t Age;
+
+	/* Null-termianted string to PDB */
+	char PdbFileName[1];
+
+} PePdbInformation_t;
 #pragma pack(pop)
 
 /* The Export Directory */

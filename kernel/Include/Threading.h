@@ -39,7 +39,7 @@ typedef unsigned int TId_t;
 #define THREADING_CPUBOUND		0x2
 #define THREADING_SYSTEMTHREAD	0x4
 #define THREADING_IDLE			0x8
-#define THREAIDNG_ENTER_SLEEP	0x10
+#define THREADING_ENTER_SLEEP	0x10
 #define THREADING_FINISHED		0x20
 #define THREADING_TRANSITION	0x40
 
@@ -50,11 +50,11 @@ typedef struct _MCoreThread
 	char *Name;
 
 	/* Thread Attributes */
-	uint32_t Flags;
+	int Flags;
 
 	/* Scheduler Information */
-	uint32_t TimeSlice;
-	int32_t Priority;
+	size_t TimeSlice;
+	int Priority;
 	
 	/* Synchronization */
 	Addr_t *SleepResource;
@@ -89,7 +89,6 @@ _CRT_EXTERN void ThreadingEnterUserMode(void *ProcessInfo);
 _CRT_EXTERN void ThreadingTerminateProcessThreads(uint32_t ProcessId);
 
 /* Sleep, Wake, etc */
-_CRT_EXPORT void *ThreadingEnterSleep(void);
 _CRT_EXTERN int ThreadingYield(void *Args);
 _CRT_EXTERN void ThreadingWakeCpu(Cpu_t Cpu);
 _CRT_EXTERN MCoreThread_t *ThreadingSwitch(Cpu_t Cpu, MCoreThread_t *Current, uint8_t PreEmptive);
@@ -100,5 +99,6 @@ _CRT_EXTERN MCoreThread_t *ThreadingGetCurrentThread(Cpu_t Cpu);
 _CRT_EXTERN list_node_t *ThreadingGetCurrentNode(Cpu_t Cpu);
 _CRT_EXTERN int ThreadingIsCurrentTaskIdle(Cpu_t Cpu);
 _CRT_EXTERN int ThreadingIsEnabled(void);
+_CRT_EXPORT void ThreadingDebugPrint(void);
 
 #endif

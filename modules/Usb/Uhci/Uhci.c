@@ -819,7 +819,7 @@ Addr_t OhciAllocateTd(UhciEndpoint_t *Ep, UsbTransferType_t Type)
 
 /* Setup TD */
 UhciTransferDescriptor_t *UhciTdSetup(UhciEndpoint_t *Ep, UsbTransferType_t Type,
-	Addr_t NextTD, size_t Toggle, UsbPacket_t *pPacket, size_t DeviceAddr,
+	Addr_t NextTD, UsbPacket_t *pPacket, size_t DeviceAddr,
 	size_t EpAddr, UsbSpeed_t Speed, void **TDBuffer)
 {
 	/* Vars */
@@ -1100,7 +1100,7 @@ UsbHcTransaction_t *UhciTransactionSetup(void *Controller, UsbHcRequest_t *Reque
 
 	/* Create the Td */
 	Transaction->TransferDescriptor = (void*)UhciTdSetup(Request->Endpoint->AttachedData,
-		Request->Type, UHCI_TD_LINK_END, Request->Endpoint->Toggle, &Request->Packet, 
+		Request->Type, UHCI_TD_LINK_END, &Request->Packet, 
 		Request->Device->Address, Request->Endpoint->Address, 
 		Request->Speed, &Transaction->TransferBuffer);
 
@@ -1662,11 +1662,8 @@ void UhciProcessTransfers(UhciController_t *Controller)
 			if (HcRequest->Type == ControlTransfer
 				|| HcRequest->Type == BulkTransfer)
 			{
-				/* Get transactions linked to his QH */
-				UhciQueueHead_t *Qh = (UhciQueueHead_t*)HcRequest->Data;
-
 				/* Wake a node */
-				SchedulerWakeupOneThread((Addr_t*)Qh);
+				SchedulerWakeupOneThread((Addr_t*)HcRequest->Data);
 
 				/* Remove from list */
 				list_remove_by_node(Transactions, Node);

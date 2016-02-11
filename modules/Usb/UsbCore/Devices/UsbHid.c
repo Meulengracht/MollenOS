@@ -164,7 +164,7 @@ void UsbHidInit(UsbHcDevice_t *UsbDevice, uint32_t InterfaceIndex)
 	if (UsbFunctionGetDescriptor((UsbHc_t*)UsbDevice->HcDriver, UsbDevice->Port,
 		ReportDescriptor, USB_REQUEST_DIR_IN | USB_REQUEST_TARGET_INTERFACE,
 		HidDescriptor->ClassDescriptorType,
-		0, InterfaceIndex, HidDescriptor->ClassDescriptorLength) != TransferFinished)
+		0, (uint8_t)InterfaceIndex, HidDescriptor->ClassDescriptorLength) != TransferFinished)
 	{
 		LogFatal("USBH", "Failed to get Report Descriptor.");
 		kfree(ReportDescriptor);
