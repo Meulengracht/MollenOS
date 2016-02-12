@@ -47,8 +47,8 @@
 #define USB_HID_SET_IDLE				0xA
 #define USB_HID_SET_PROTOCOL			0xB
 
-#define X86_USB_DESC_TYPE_HID			0x21
-#define X86_USB_DESC_TYPE_REPORT		0x22
+#define USB_DESCRIPTOR_TYPE_HID			0x21
+#define USB_DESCRIPTOR_TYPE_REPORT		0x22
 
 /* Report Definitions */
 #define X86_USB_REPORT_TYPE_MAIN		0x0

@@ -113,7 +113,7 @@ void UsbHidInit(UsbHcDevice_t *UsbDevice, int InterfaceIndex)
 		uint8_t Type = *(BufPtr + 1);
 
 		/* Is this a HID descriptor ? */
-		if (Type == X86_USB_DESC_TYPE_HID
+		if (Type == USB_DESCRIPTOR_TYPE_HID
 			&& Length == sizeof(UsbHidDescriptor_t))
 		{
 			HidDescriptor = (UsbHidDescriptor_t*)BufPtr;
@@ -211,7 +211,7 @@ void UsbHidInit(UsbHcDevice_t *UsbDevice, int InterfaceIndex)
 		DevData->DataBuffer, DevData->EpInterrupt->MaxPacketSize);
 	UsbTransactionSend(UsbHcd, DevData->InterruptChannel);
 
-	/* Set idle :) */
+	/* Set idle and silence the endpoint unless events */
 	/* We might have to set ValueHi to 500 ms for keyboards, but has to be tested */
 	UsbFunctionSendPacket((UsbHc_t*)UsbDevice->HcDriver, UsbDevice->Port, 0,
 		USB_REQUEST_TARGET_CLASS | USB_REQUEST_TARGET_INTERFACE,
@@ -220,10 +220,10 @@ void UsbHidInit(UsbHcDevice_t *UsbDevice, int InterfaceIndex)
 
 /* Parses the report descriptor and stores it as 
  * collection tree */
-void UsbHidParseReportDescriptor(HidDevice_t *Device, uint8_t *ReportData, uint32_t ReportLength)
+void UsbHidParseReportDescriptor(HidDevice_t *Device, uint8_t *ReportData, size_t ReportLength)
 {
 	/* Iteration vars */
-	uint32_t i = 0, j = 0, Depth = 0;
+	size_t i = 0, j = 0, Depth = 0;
 
 	/* Used for collection data */
 	UsbHidReportCollection_t *Collection = NULL, *RootCollection = NULL;
@@ -601,7 +601,7 @@ void UsbHidApplyInputData(HidDevice_t *Device, UsbHidReportCollectionItem_t *Col
 
 	/* And these for parsing */
 	uint64_t Value = 0, OldValue = 0;
-	uint32_t i, Offset, Length, Usage;
+	size_t i, Offset, Length, Usage;
 
 	/* If we are constant, we are padding :D */
 	if (InputItem->Flags == X86_USB_REPORT_INPUT_TYPE_CONSTANT)
