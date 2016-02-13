@@ -16,7 +16,7 @@
 * along with this program.If not, see <http://www.gnu.org/licenses/>.
 *
 *
-* MollenOS X86-32 USB Core Driver
+* MollenOS USB Core Driver
 */
 
 /* Includes */
@@ -128,7 +128,7 @@ void UsbDeviceSetup(UsbHc_t *Hc, int Port)
 {
 	/* Vars */
 	UsbHcDevice_t *Device;
-	int i;
+	int i, j;
 
 	/* Make sure we have the port allocated */
 	if (Hc->Ports[Port] == NULL)
@@ -143,7 +143,6 @@ void UsbDeviceSetup(UsbHc_t *Hc, int Port)
 	Device = (UsbHcDevice_t*)kmalloc(sizeof(UsbHcDevice_t));
 	Device->HcDriver = Hc;
 	Device->Port = (uint8_t)Port;
-	Device->Destroy = NULL;
 
 	Device->NumInterfaces = 0;
 	for (i = 0; i < USB_MAX_INTERFACES; i++)
@@ -268,8 +267,13 @@ DevError:
 	for (i = 0; i < (int)Device->NumInterfaces; i++)
 	{
 		/* Free Endpoints */
-		if (Device->Interfaces[i]->Endpoints != NULL)
-			kfree(Device->Interfaces[i]->Endpoints);
+		for (j = 0; j < USB_MAX_VERSIONS; j++) {
+			if (Device->Interfaces[i]->Versions[j] != NULL
+				&& Device->Interfaces[i]->Versions[j]->Endpoints != NULL)
+				kfree(Device->Interfaces[i]->Versions[j]->Endpoints);
+			if (Device->Interfaces[i]->Versions[j] != NULL)
+				kfree(Device->Interfaces[i]->Versions[j]);
+		}
 
 		/* Free the Interface */
 		kfree(Device->Interfaces[i]);
@@ -288,7 +292,7 @@ void UsbDeviceDestroy(UsbHc_t *Hc, int Port)
 {
 	/* Shortcut */
 	UsbHcDevice_t *Device = NULL;
-	int i;
+	int i, j;
 
 	/* Sanity */
 	if (Hc->Ports[Port] == NULL
@@ -298,9 +302,11 @@ void UsbDeviceDestroy(UsbHc_t *Hc, int Port)
 	/* Cast */
 	Device = Hc->Ports[Port]->Device;
 
-	/* Notify Driver */
-	if (Device->Destroy != NULL)
-		Device->Destroy((void*)Device);
+	/* Notify Driver(s) */
+	for (i = 0; i < (int)Device->NumInterfaces; i++) {
+		if (Device->Interfaces[i]->Destroy != NULL)
+			Device->Interfaces[i]->Destroy((void*)Device, i);
+	}
 
 	/* Destruct */
 	Hc->EndpointDestroy(Hc->Hc, Device->CtrlEndpoint);
@@ -312,8 +318,13 @@ void UsbDeviceDestroy(UsbHc_t *Hc, int Port)
 	for (i = 0; i < (int)Device->NumInterfaces; i++)
 	{
 		/* Free Endpoints */
-		if (Device->Interfaces[i]->Endpoints != NULL)
-			kfree(Device->Interfaces[i]->Endpoints);
+		for (j = 0; j < USB_MAX_VERSIONS; j++) {
+			if (Device->Interfaces[i]->Versions[j] != NULL 
+				&& Device->Interfaces[i]->Versions[j]->Endpoints != NULL)
+				kfree(Device->Interfaces[i]->Versions[j]->Endpoints);
+			if (Device->Interfaces[i]->Versions[j] != NULL)
+				kfree(Device->Interfaces[i]->Versions[j]);
+		}
 
 		/* Free the Interface */
 		kfree(Device->Interfaces[i]);

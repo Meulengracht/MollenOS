@@ -141,11 +141,11 @@ void UsbHidInit(UsbHcDevice_t *UsbDevice, int InterfaceIndex)
 	 * We only check endpoints related to this
 	 * Interface */
 	/* Locate neccessary endpoints */
-	for (i = 0; i < UsbDevice->Interfaces[InterfaceIndex]->NumEndpoints; i++)
+	for (i = 0; i < UsbDevice->Interfaces[InterfaceIndex]->Versions[0]->NumEndpoints; i++)
 	{
 		/* Interrupt? */
-		if (UsbDevice->Interfaces[InterfaceIndex]->Endpoints[i]->Type == EndpointInterrupt) {
-			DevData->EpInterrupt = UsbDevice->Interfaces[InterfaceIndex]->Endpoints[i];
+		if (UsbDevice->Interfaces[InterfaceIndex]->Versions[0]->Endpoints[i]->Type == EndpointInterrupt) {
+			DevData->EpInterrupt = UsbDevice->Interfaces[InterfaceIndex]->Versions[0]->Endpoints[i];
 			break;
 		}
 	}
@@ -158,9 +158,24 @@ void UsbHidInit(UsbHcDevice_t *UsbDevice, int InterfaceIndex)
 		return;
 	}
 
+	/* Switch to Report Protocol (ONLY if we are in boot protocol) */
+	if (UsbDevice->Interfaces[InterfaceIndex]->Class == USB_HID_SUBCLASS_BOOT) {
+		UsbFunctionSendPacket((UsbHc_t*)UsbDevice->HcDriver, UsbDevice->Port, 0,
+			USB_REQUEST_TARGET_CLASS | USB_REQUEST_TARGET_INTERFACE,
+			USB_HID_SET_PROTOCOL, 0, 1, (uint8_t)InterfaceIndex, 0);
+	}
+
+	/* Set idle and silence the endpoint unless events */
+	/* We might have to set ValueHi to 500 ms for keyboards, but has to be tested
+	* time is calculated in 4ms resolution, so 500ms = HiVal = 125 */
+
+	/* This request MAY stall, which means it's unsupported */
+	UsbFunctionSendPacket((UsbHc_t*)UsbDevice->HcDriver, UsbDevice->Port, NULL,
+		USB_REQUEST_TARGET_CLASS | USB_REQUEST_TARGET_INTERFACE,
+		USB_HID_SET_IDLE, 0, 0, (uint8_t)InterfaceIndex, 0);
+
 	/* Get Report Descriptor */
 	ReportDescriptor = (uint8_t*)kmalloc(HidDescriptor->ClassDescriptorLength);
-	
 	if (UsbFunctionGetDescriptor((UsbHc_t*)UsbDevice->HcDriver, UsbDevice->Port,
 		ReportDescriptor, USB_REQUEST_DIR_IN | USB_REQUEST_TARGET_INTERFACE,
 		HidDescriptor->ClassDescriptorType,
@@ -185,13 +200,6 @@ void UsbHidInit(UsbHcDevice_t *UsbDevice, int InterfaceIndex)
 	DevData->InterruptChannel->Callback->Callback = UsbHidCallback;
 	DevData->InterruptChannel->Callback->Args = DevData;
 
-	/* Switch to Report Protocol (ONLY if we are in boot protocol) */
-	if (UsbDevice->Interfaces[InterfaceIndex]->Class == USB_HID_SUBCLASS_BOOT) {
-		UsbFunctionSendPacket((UsbHc_t*)UsbDevice->HcDriver, UsbDevice->Port, 0,
-			USB_REQUEST_TARGET_CLASS | USB_REQUEST_TARGET_INTERFACE,
-			USB_HID_SET_PROTOCOL, 0, 1, (uint8_t)InterfaceIndex, 0);
-	}
-
 	/* Set driver data */
 	DevData->PrevDataBuffer = (uint8_t*)kmalloc(DevData->EpInterrupt->MaxPacketSize);
 	DevData->DataBuffer = (uint8_t*)kmalloc(DevData->EpInterrupt->MaxPacketSize);
@@ -204,19 +212,15 @@ void UsbHidInit(UsbHcDevice_t *UsbDevice, int InterfaceIndex)
 	/* Parse Report Descriptor */
 	UsbHidParseReportDescriptor(DevData, ReportDescriptor, HidDescriptor->ClassDescriptorLength);
 
+	/* Debug */
+	LogDebug("USBH", "Installing Interrupt Pipe");
+
 	/* Install Interrupt */
 	UsbTransactionInit(UsbHcd, DevData->InterruptChannel, 
 		InterruptTransfer, UsbDevice, DevData->EpInterrupt);
 	UsbTransactionIn(UsbHcd, DevData->InterruptChannel, 0, 
 		DevData->DataBuffer, DevData->EpInterrupt->MaxPacketSize);
 	UsbTransactionSend(UsbHcd, DevData->InterruptChannel);
-
-	/* Set idle and silence the endpoint unless events */
-	/* We might have to set ValueHi to 500 ms for keyboards, but has to be tested 
-	 * time is calculated in 4ms resolution, so 500ms = HiVal = 125 */
-	UsbFunctionSendPacket((UsbHc_t*)UsbDevice->HcDriver, UsbDevice->Port, 0,
-		USB_REQUEST_TARGET_CLASS | USB_REQUEST_TARGET_INTERFACE,
-		USB_HID_SET_IDLE, 0, 0, (uint8_t)InterfaceIndex, 0);
 }
 
 /* Parses the report descriptor and stores it as 

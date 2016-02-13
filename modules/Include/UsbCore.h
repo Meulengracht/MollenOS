@@ -35,7 +35,8 @@
 
 /* Definitions */
 #define USB_MAX_PORTS			16
-#define USB_MAX_INTERFACES		4
+#define USB_MAX_VERSIONS		4
+#define USB_MAX_INTERFACES		8
 #define USB_MAX_ENDPOINTS		16
 
 /* Usb Devices Class Codes */
@@ -337,7 +338,7 @@ typedef struct _UsbHcEndpoint
 	/* Direction (IN, OUT) */
 	size_t Direction;
 
-	/* Max Packet Size (Always 64 bytes, almost) */
+	/* Max Packet Size */
 	size_t MaxPacketSize;
 
 	/* Bandwidth */
@@ -358,6 +359,20 @@ typedef struct _UsbHcEndpoint
 #define USB_EP_DIRECTION_OUT	0x1
 #define USB_EP_DIRECTION_BOTH	0x2
 
+/* The Abstract Usb Interface Version */
+typedef struct _UsbHcInterfaceVersion
+{
+	/* Id */
+	int VersionId;
+
+	/* Ep Numbers */
+	size_t NumEndpoints;
+
+	/* Ep's */
+	UsbHcEndpoint_t **Endpoints;
+
+} UsbHcInterfaceVersion_t;
+
 /* The Abstract Usb Interface */
 typedef struct _UsbHcInterface
 {
@@ -367,11 +382,12 @@ typedef struct _UsbHcInterface
 	size_t Subclass;
 	size_t Protocol;
 
-	/* Ep Numbers */
-	size_t NumEndpoints;
+	/* Versions */
+	UsbHcInterfaceVersion_t *Versions[USB_MAX_VERSIONS];
 
-	/* Ep's */
-	UsbHcEndpoint_t **Endpoints;
+	/* Driver Data */
+	void(*Destroy)(void*, int);
+	void *DriverData;
 
 } UsbHcInterface_t;
 
@@ -417,10 +433,6 @@ typedef struct _UsbHcDevice
 
 	/* Control Endpoint */
 	UsbHcEndpoint_t *CtrlEndpoint;
-
-	/* Driver Data */
-	void (*Destroy)(void*);
-	void *DriverData;
 
 } UsbHcDevice_t;
 #pragma pack(pop)
@@ -488,7 +500,8 @@ typedef enum _UsbTransferStatus
 	TransferStalled,
 	TransferNotResponding,
 	TransferInvalidToggles,
-	TransferInvalidData
+	TransferInvalidData,
+	TransferNAK
 
 } UsbTransferStatus_t;
 

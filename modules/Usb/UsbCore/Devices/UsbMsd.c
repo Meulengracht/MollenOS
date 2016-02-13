@@ -72,7 +72,7 @@ uint64_t rev64(uint64_t qword)
 }
 
 /* Prototypes */
-void UsbMsdDestroy(void *UsbDevice);
+void UsbMsdDestroy(void *UsbDevice, int Interface);
 
 /* Msd Specific Requests */
 void UsbMsdReset(MsdDevice_t *Device);
@@ -135,20 +135,20 @@ void UsbMsdInit(UsbHcDevice_t *UsbDevice, int InterfaceIndex)
 	DevData->SectorSize = 512;
 
 	/* Locate neccessary endpoints */
-	for (i = 0; i < UsbDevice->Interfaces[InterfaceIndex]->NumEndpoints; i++)
+	for (i = 0; i < UsbDevice->Interfaces[InterfaceIndex]->Versions[0]->NumEndpoints; i++)
 	{
 		/* Interrupt? */
-		if (UsbDevice->Interfaces[InterfaceIndex]->Endpoints[i]->Type == EndpointInterrupt)
-			DevData->EpInterrupt = UsbDevice->Interfaces[InterfaceIndex]->Endpoints[i];
+		if (UsbDevice->Interfaces[InterfaceIndex]->Versions[0]->Endpoints[i]->Type == EndpointInterrupt)
+			DevData->EpInterrupt = UsbDevice->Interfaces[InterfaceIndex]->Versions[0]->Endpoints[i];
 
 		/* Bulk? */
-		if (UsbDevice->Interfaces[InterfaceIndex]->Endpoints[i]->Type == EndpointBulk)
+		if (UsbDevice->Interfaces[InterfaceIndex]->Versions[0]->Endpoints[i]->Type == EndpointBulk)
 		{
 			/* In or out? */
-			if (UsbDevice->Interfaces[InterfaceIndex]->Endpoints[i]->Direction == USB_EP_DIRECTION_IN)
-				DevData->EpIn = UsbDevice->Interfaces[InterfaceIndex]->Endpoints[i];
-			else if (UsbDevice->Interfaces[InterfaceIndex]->Endpoints[i]->Direction == USB_EP_DIRECTION_OUT)
-				DevData->EpOut = UsbDevice->Interfaces[InterfaceIndex]->Endpoints[i];
+			if (UsbDevice->Interfaces[InterfaceIndex]->Versions[0]->Endpoints[i]->Direction == USB_EP_DIRECTION_IN)
+				DevData->EpIn = UsbDevice->Interfaces[InterfaceIndex]->Versions[0]->Endpoints[i];
+			else if (UsbDevice->Interfaces[InterfaceIndex]->Versions[0]->Endpoints[i]->Direction == USB_EP_DIRECTION_OUT)
+				DevData->EpOut = UsbDevice->Interfaces[InterfaceIndex]->Versions[0]->Endpoints[i];
 		}
 	}
 
@@ -167,8 +167,8 @@ void UsbMsdInit(UsbHcDevice_t *UsbDevice, int InterfaceIndex)
 	DevData->EpOut->Toggle = 0;
 
 	/* Save Data */
-	UsbDevice->Destroy = UsbMsdDestroy;
-	UsbDevice->DriverData = (void*)mDevice;
+	UsbDevice->Interfaces[InterfaceIndex]->Destroy = UsbMsdDestroy;
+	UsbDevice->Interfaces[InterfaceIndex]->DriverData = (void*)mDevice;
 
 	/* Setup endpoints */
 	UsbHcd->EndpointSetup(UsbHcd->Hc, DevData->EpIn);
@@ -251,11 +251,11 @@ void UsbMsdInit(UsbHcDevice_t *UsbDevice, int InterfaceIndex)
 }
 
 /* Cleanup */
-void UsbMsdDestroy(void *UsbDevice)
+void UsbMsdDestroy(void *UsbDevice, int Interface)
 {
 	/* Cast */
 	UsbHcDevice_t *Dev = (UsbHcDevice_t*)UsbDevice;
-	MCoreDevice_t *mDevice = (MCoreDevice_t*)Dev->DriverData;
+	MCoreDevice_t *mDevice = (MCoreDevice_t*)Dev->Interfaces[Interface]->DriverData;
 	MsdDevice_t *Device = (MsdDevice_t*)mDevice->Driver.Data;
 	UsbHc_t *UsbHcd = (UsbHc_t*)Dev->HcDriver;
 

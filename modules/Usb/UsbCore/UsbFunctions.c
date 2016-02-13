@@ -27,6 +27,9 @@
 #include <Heap.h>
 #include <Log.h>
 
+/* CLib */
+#include <string.h>
+
 /* Transaction List Functions */
 void UsbTransactionAppend(UsbHcRequest_t *Request, UsbHcTransaction_t *Transaction)
 {
@@ -401,8 +404,9 @@ UsbTransferStatus_t UsbFunctionGetConfigDescriptor(UsbHc_t *Hc, int Port)
 	{
 		/* Iteration Vars */
 		uint8_t *BufPtr = (uint8_t*)Buffer;
-		int32_t BytesLeft = (int32_t)Hc->Ports[Port]->Device->ConfigMaxLength;
-		uint32_t EpIterator = 1;
+		int BytesLeft = (int)Hc->Ports[Port]->Device->ConfigMaxLength;
+		size_t EpIterator = 1;
+		int CurrentIfVersion = 0;
 		
 		/* Set Initial */
 		Hc->Ports[Port]->Device->NumInterfaces = 0;
@@ -420,37 +424,64 @@ UsbTransferStatus_t UsbFunctionGetConfigDescriptor(UsbHc_t *Hc, int Port)
 			if (length == sizeof(UsbInterfaceDescriptor_t)
 				&& type == USB_DESC_TYPE_INTERFACE)
 			{
-				UsbHcInterface_t *UsbInterface;
+				/* Vars */
 				UsbInterfaceDescriptor_t *Interface = (UsbInterfaceDescriptor_t*)BufPtr;
+				UsbHcInterface_t *UsbInterface;
+				UsbHcInterfaceVersion_t *UsbIfVersion;
 
-				/* Debug Print */
+				/* Sanity */
 				if (Hc->Ports[Port]->Device->Interfaces[Interface->NumInterface] == NULL)
 				{
-					LogInformation("USBC", "Interface %u - Endpoints %u (Class %u, Subclass %u, Protocol %u)",
-						Interface->NumInterface, Interface->NumEndpoints, Interface->Class,
-						Interface->Subclass, Interface->Protocol);
-
 					/* Allocate */
 					UsbInterface = (UsbHcInterface_t*)kmalloc(sizeof(UsbHcInterface_t));
+
+					/* Reset */
+					memset(UsbInterface, 0, sizeof(UsbHcInterface_t));
+
+					/* Setup */
 					UsbInterface->Id = Interface->NumInterface;
-					UsbInterface->NumEndpoints = Interface->NumEndpoints;
 					UsbInterface->Class = Interface->Class;
 					UsbInterface->Subclass = Interface->Subclass;
 					UsbInterface->Protocol = Interface->Protocol;
-
-					/* Allocate */
-					EpIterator = 0;
-
-					if (Interface->NumEndpoints != 0)
-						UsbInterface->Endpoints = 
-						(UsbHcEndpoint_t**)kmalloc(sizeof(UsbHcEndpoint_t*) * Interface->NumEndpoints);
-					else
-						UsbInterface->Endpoints = NULL;
 
 					/* Update Device */
 					Hc->Ports[Port]->Device->Interfaces[Hc->Ports[Port]->Device->NumInterfaces] = UsbInterface;
 					Hc->Ports[Port]->Device->NumInterfaces++;
 				}
+				else
+					UsbInterface = Hc->Ports[Port]->Device->Interfaces[Interface->NumInterface];
+
+				/* Sanity the Version */
+				if (UsbInterface->Versions[Interface->AlternativeSetting] == NULL)
+				{
+					/* Allocate */
+					UsbIfVersion = (UsbHcInterfaceVersion_t*)kmalloc(sizeof(UsbHcInterfaceVersion_t));
+
+					/* Reset */
+					memset(UsbIfVersion, 0, sizeof(UsbHcInterfaceVersion_t));
+
+					/* Debug */
+					LogInformation("USBC", "Interface %u.%u - Endpoints %u (Class %u, Subclass %u, Protocol %u)",
+						Interface->NumInterface, Interface->AlternativeSetting, Interface->NumEndpoints, Interface->Class,
+						Interface->Subclass, Interface->Protocol);
+
+					/* Setup */
+					UsbIfVersion->NumEndpoints = Interface->NumEndpoints;
+
+					/* Allocate */
+					CurrentIfVersion = Interface->AlternativeSetting;
+					EpIterator = 0;
+
+					if (UsbIfVersion->NumEndpoints != 0)
+						UsbIfVersion->Endpoints =
+							(UsbHcEndpoint_t**)kmalloc(sizeof(UsbHcEndpoint_t*) * Interface->NumEndpoints);
+					else
+						UsbIfVersion->Endpoints = NULL;
+
+					/* Update */
+					UsbInterface->Versions[Interface->AlternativeSetting] = UsbIfVersion;
+				}
+
 			}
 			else if (length == sizeof(UsbEndpointDescriptor_t)
 				&& type == USB_DESC_TYPE_ENDPOINT)
@@ -487,26 +518,31 @@ UsbTransferStatus_t UsbFunctionGetConfigDescriptor(UsbHc_t *Hc, int Port)
 
 				/* Sanity */
 				if (Hc->Ports[Port]->Device->Interfaces[
-					Hc->Ports[Port]->Device->NumInterfaces - 1]->NumEndpoints < (EpIterator + 1))
+					Hc->Ports[Port]->Device->NumInterfaces - 1]->
+						Versions[CurrentIfVersion]->NumEndpoints < (EpIterator + 1))
 				{
 					/* The fuck?? -.- */
 					if (Hc->Ports[Port]->Device->Interfaces[
-						Hc->Ports[Port]->Device->NumInterfaces - 1]->Endpoints == NULL)
+						Hc->Ports[Port]->Device->NumInterfaces - 1]->
+							Versions[CurrentIfVersion]->Endpoints == NULL)
 					{
 						/* Dummy Allocate */
 						Hc->Ports[Port]->Device->Interfaces[
-							Hc->Ports[Port]->Device->NumInterfaces - 1]->Endpoints =
+							Hc->Ports[Port]->Device->NumInterfaces - 1]->
+								Versions[CurrentIfVersion]->Endpoints =
 								(UsbHcEndpoint_t**)kmalloc(sizeof(UsbHcEndpoint_t*) * 16);
 					}
 
 					/* Increament */
 					Hc->Ports[Port]->Device->Interfaces[
-						Hc->Ports[Port]->Device->NumInterfaces - 1]->NumEndpoints++;
+						Hc->Ports[Port]->Device->NumInterfaces - 1]->
+							Versions[CurrentIfVersion]->NumEndpoints++;
 				}
 
 				/* Set */
 				Hc->Ports[Port]->Device->Interfaces[
-					Hc->Ports[Port]->Device->NumInterfaces - 1]->Endpoints[EpIterator] = HcdEp;
+					Hc->Ports[Port]->Device->NumInterfaces - 1]->
+						Versions[CurrentIfVersion]->Endpoints[EpIterator] = HcdEp;
 
 				/* Next */
 				EpIterator++;

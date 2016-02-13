@@ -1574,6 +1574,8 @@ void UhciTransactionSend(void *Controller, UsbHcRequest_t *Request)
 				Completed = TransferInvalidToggles;
 			else if (CondCode == 2)
 				Completed = TransferNotResponding;
+			else if (CondCode == 3)
+				Completed = TransferNAK;
 			else {
 				LogDebug("UHCI", "Error: 0x%x (%s)", CondCode, UhciErrorMessages[CondCode]);
 				Completed = TransferInvalidData;
@@ -1779,7 +1781,7 @@ void UhciProcessTransfers(UhciController_t *Controller)
 				(UhciTransferDescriptor_t*)tList->TransferDescriptor;
 
 			/* Get code */
-			int CondCode = UHCI_TD_STATUS(Td->Flags);
+			int CondCode = UhciConditionCodeToIndex(UHCI_TD_STATUS(Td->Flags));
 			int ErrCount = UHCI_TD_ERROR_COUNT(Td->Flags);
 
 			/* Sanity first */
@@ -1793,9 +1795,11 @@ void UhciProcessTransfers(UhciController_t *Controller)
 
 			/* Error Transfer ?
 			 * No need to check rest */
-			if (CondCode != 0) {
-				LogDebug("UHCI", "Td Error: Td Flags 0x%x, Header 0x%x, Error Count: %i",
-					Td->Flags, Td->Header, ErrCount);
+			if (CondCode != 0
+				&& CondCode != 3) {
+				if (HcRequest->Type == InterruptTransfer)
+					LogDebug("UHCI", "Td Error: Td Flags 0x%x, Header 0x%x, Error Count: %i",
+						Td->Flags, Td->Header, ErrCount);
 				break;
 			}
 
