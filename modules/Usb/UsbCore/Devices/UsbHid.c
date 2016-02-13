@@ -212,7 +212,8 @@ void UsbHidInit(UsbHcDevice_t *UsbDevice, int InterfaceIndex)
 	UsbTransactionSend(UsbHcd, DevData->InterruptChannel);
 
 	/* Set idle and silence the endpoint unless events */
-	/* We might have to set ValueHi to 500 ms for keyboards, but has to be tested */
+	/* We might have to set ValueHi to 500 ms for keyboards, but has to be tested 
+	 * time is calculated in 4ms resolution, so 500ms = HiVal = 125 */
 	UsbFunctionSendPacket((UsbHc_t*)UsbDevice->HcDriver, UsbDevice->Port, 0,
 		USB_REQUEST_TARGET_CLASS | USB_REQUEST_TARGET_INTERFACE,
 		USB_HID_SET_IDLE, 0, 0, (uint8_t)InterfaceIndex, 0);

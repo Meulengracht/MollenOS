@@ -16,7 +16,7 @@
 * along with this program.If not, see <http://www.gnu.org/licenses/>.
 *
 *
-* MollenOS X86-32 USB OHCI Controller Driver
+* MollenOS USB OHCI Controller Driver
 * Todo:
 * Linux has a periodic timer event that checks if all finished td's has generated a interrupt to make sure
 * Stability (Only tested on emulators and one real hardware pc).
@@ -1422,11 +1422,13 @@ void OhciTransactionSend(void *Controller, UsbHcRequest_t *Request)
 
 	/* Add dummy Td to end
 	 * But we have to keep the endpoint toggle */
-	CondCode = Request->Endpoint->Toggle;
-	UsbTransactionOut(UsbGetHcd(Ctrl->HcdId), Request,
-		(Request->Type == ControlTransfer) ? (uint32_t)1 : (uint32_t)0, NULL, (uint32_t)0);
-	Request->Endpoint->Toggle = CondCode;
-	CondCode = 0;
+	if (Request->Type != IsochronousTransfer) {
+		CondCode = Request->Endpoint->Toggle;
+		UsbTransactionOut(UsbGetHcd(Ctrl->HcdId), Request,
+			(Request->Type == ControlTransfer) ? (uint32_t)1 : (uint32_t)0, NULL, (uint32_t)0);
+		Request->Endpoint->Toggle = CondCode;
+		CondCode = 0;
+	}
 
 	/* Iterate and set last to INT */
 	Transaction = Request->Transactions;

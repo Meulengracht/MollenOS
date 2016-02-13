@@ -30,7 +30,7 @@ TssEntry_t TssDescriptors[X86_GDT_MAX_TSS];
 
 /* This keeps track of how many descriptors are installed 
  * its just easier this way. */
-volatile int32_t GblGdtIndex = 0;
+int GblGdtIndex = 0;
 
 void GdtInit(void)
 {
@@ -59,7 +59,7 @@ void GdtInit(void)
 	GdtInstall();
 
 	/* Install first TSS, for the boot core */
-	GdtInstallTss();
+	GdtInstallTss(0);
 }
 
 void GdtInstallDescriptor(uint32_t Base, uint32_t Limit,
@@ -87,37 +87,36 @@ void GdtInstallDescriptor(uint32_t Base, uint32_t Limit,
 	GblGdtIndex++;
 }
 
-void GdtInstallTss(void)
+void GdtInstallTss(Cpu_t Cpu)
 {
 	/* Get current CPU */
-	uint32_t cpu = 0;
-	uint32_t tss_index = GblGdtIndex;
+	int TssIndex = GblGdtIndex;
 
 	/* Get appropriate TSS */
-	uintptr_t base = (uintptr_t)&TssDescriptors[cpu];
-	uintptr_t limit = base + sizeof(TssEntry_t);
+	uint32_t tBase = (uint32_t)&TssDescriptors[Cpu];
+	uint32_t tLimit = tBase + sizeof(TssEntry_t);
 
 	/* Setup TSS */
-	TssDescriptors[cpu].Ss0 = 0x10;
-	TssDescriptors[cpu].Esp0 = 0;
+	TssDescriptors[Cpu].Ss0 = 0x10;
+	TssDescriptors[Cpu].Esp0 = 0;
 	
 	/* Zero out the descriptors */
-	TssDescriptors[cpu].Cs = 0x0b;
-	TssDescriptors[cpu].Ss = 0x13;
-	TssDescriptors[cpu].Ds = 0x13;
-	TssDescriptors[cpu].Es = 0x13;
-	TssDescriptors[cpu].Fs = 0x13;
-	TssDescriptors[cpu].Gs = 0x13;
-	TssDescriptors[cpu].IoMap = 0xFFFF;
+	TssDescriptors[Cpu].Cs = 0x0b;
+	TssDescriptors[Cpu].Ss = 0x13;
+	TssDescriptors[Cpu].Ds = 0x13;
+	TssDescriptors[Cpu].Es = 0x13;
+	TssDescriptors[Cpu].Fs = 0x13;
+	TssDescriptors[Cpu].Gs = 0x13;
+	TssDescriptors[Cpu].IoMap = 0xFFFF;
 
 	/* Install TSS */
-	GdtInstallDescriptor(base, limit, X86_GDT_TSS_ENTRY, 0x00);
+	GdtInstallDescriptor(tBase, tLimit, X86_GDT_TSS_ENTRY, 0x00);
 
 	/* Install into system */
-	TssInstall(tss_index);
+	TssInstall(TssIndex);
 }
 
-void TssUpdateStack(uint32_t Cpu, uint32_t Stack)
+void TssUpdateStack(Cpu_t Cpu, Addr_t Stack)
 {
 	/* Update Interrupt Stack */
 	TssDescriptors[Cpu].Esp0 = Stack;

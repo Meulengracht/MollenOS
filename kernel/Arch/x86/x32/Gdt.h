@@ -23,6 +23,7 @@
 #define _x86_GDT_H_
 
 /* GDT Includes */
+#include <Arch.h>
 #include <crtdefs.h>
 #include <stdint.h>
 
@@ -129,11 +130,11 @@ _CRT_EXTERN void GdtInstallDescriptor(uint32_t Base, uint32_t Limit,
 
 
 /* TSS Prototypes */
-_CRT_EXTERN void TssInstall(uint32_t GdtIndex);
-_CRT_EXTERN void TssUpdateStack(uint32_t Cpu, uint32_t Stack);
+_CRT_EXTERN void TssInstall(int GdtIndex);
+_CRT_EXTERN void TssUpdateStack(Cpu_t Cpu, Addr_t Stack);
 
 /* Should be called by AP cores */
 _CRT_EXTERN void GdtInstall(void);
-_CRT_EXTERN void GdtInstallTss(void);
+_CRT_EXTERN void GdtInstallTss(Cpu_t Cpu);
 
 #endif // !_x86_GDT_H_

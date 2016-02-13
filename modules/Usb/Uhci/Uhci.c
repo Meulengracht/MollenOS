@@ -122,9 +122,8 @@ MODULES_API void ModuleInit(void *Data)
 
 	/* Allocate Resources for this controller */
 	Controller = (UhciController_t*)kmalloc(sizeof(UhciController_t));
+	memset(Controller, 0, sizeof(UhciController_t));
 	Controller->Id = GlbUhciId;
-	Controller->Frame = 0;
-	Controller->IoBase = NULL;
 	Controller->Device = mDevice;
 
 	/* Setup Lock */
@@ -511,7 +510,7 @@ void UhciInitQueues(UhciController_t *Controller)
 		Controller->QhPool[i]->ChildVirtual = 0;
 
 		/* Set in use */
-		Controller->QhPool[i]->Flags |= (UHCI_QH_SET_POOL_NUM(i) | UHCI_QH_ACTIVE);
+		Controller->QhPool[i]->Flags |= (UHCI_QH_SET_QUEUE(i) | UHCI_QH_ACTIVE);
 	}
 	
 	/* Setup Iso Qh */
@@ -683,10 +682,10 @@ void UhciPortSetup(void *Data, UsbHcPort_t *Port)
 }
 
 /* QH Functions */
-Addr_t UhciAllocateQh(UhciController_t *Controller, UsbTransferType_t Type)
+UhciQueueHead_t *UhciAllocateQh(UhciController_t *Controller, UsbTransferType_t Type)
 {
 	/* Vars */
-	Addr_t cIndex = 0;
+	UhciQueueHead_t *Qh = NULL;
 	int i;
 
 	/* Pick a QH */
@@ -705,10 +704,11 @@ Addr_t UhciAllocateQh(UhciController_t *Controller, UsbTransferType_t Type)
 
 			/* First thing to do is setup flags */
 			Controller->QhPool[i]->Flags = 
-				UHCI_QH_ACTIVE | UHCI_QH_INDEX(i) | UHCI_QH_TYPE((uint32_t)Type);
+				UHCI_QH_ACTIVE | UHCI_QH_INDEX(i) | UHCI_QH_SET_QUEUE(UHCI_POOL_ASYNC)
+				| UHCI_QH_TYPE((uint32_t)Type) | UHCI_QH_BANDWIDTH_ALLOC;
 
 			/* Set index */
-			cIndex = (Addr_t)i;
+			Qh = Controller->QhPool[i];
 			break;
 		}
 
@@ -716,30 +716,27 @@ Addr_t UhciAllocateQh(UhciController_t *Controller, UsbTransferType_t Type)
 		if (i == UHCI_POOL_NUM_QH)
 			kernel_panic("USB_UHCI::WTF RAN OUT OF QH's\n");
 	}
-	else if (Type == InterruptTransfer)
-	{
-		/* Allocate */
-		Addr_t aSpace = (Addr_t)kmalloc(sizeof(UhciQueueHead_t) + UHCI_STRUCT_ALIGN);
-		cIndex = UhciAlign(aSpace, UHCI_STRUCT_ALIGN_BITS, UHCI_STRUCT_ALIGN);
-
-		/* Zero it out */
-		memset((void*)cIndex, 0, sizeof(UhciQueueHead_t));
-
-		/* Setup flags */
-		((UhciQueueHead_t*)cIndex)->Flags =
-			UHCI_QH_ACTIVE | UHCI_QH_INDEX(0xFF) | UHCI_QH_TYPE((uint32_t)Type);
-	}
 	else
 	{
-		/* No QH for iso */
-		cIndex = 0;
+		/* Iso & Int */
+
+		/* Allocate */
+		Addr_t aSpace = (Addr_t)kmalloc(sizeof(UhciQueueHead_t) + UHCI_STRUCT_ALIGN);
+		Qh = (UhciQueueHead_t*)UhciAlign(aSpace, UHCI_STRUCT_ALIGN_BITS, UHCI_STRUCT_ALIGN);
+
+		/* Zero it out */
+		memset((void*)Qh, 0, sizeof(UhciQueueHead_t));
+
+		/* Setup flags */
+		Qh->Flags =
+			UHCI_QH_ACTIVE | UHCI_QH_INDEX(0xFF) | UHCI_QH_TYPE((uint32_t)Type);
 	}
 
 	/* Release lock */
 	SpinlockRelease(&Controller->Lock);
 
 	/* Done */
-	return cIndex;
+	return Qh;
 }
 
 /* Initializes the Qh */
@@ -1058,6 +1055,101 @@ void UhciEndpointDestroy(void *Controller, UsbHcEndpoint_t *Endpoint)
 	kfree(uEp);
 }
 
+/* Bandwidth Functions */
+
+/* Find highest current load for a given Phase/Period 
+ * Used for calculating optimal bandwidth for a scheduler-queue */
+int UhciCalculateBandwidth(UhciController_t *Controller, int Phase, int Period)
+{
+	/* Get current load */
+	int HighestBw = Controller->Bandwidth[Phase];
+
+	/* Iterate and check the bandwidth */
+	for (Phase += Period; Phase < UHCI_BANDWIDTH_PHASES; Phase += Period)
+		HighestBw = MAX(HighestBw, Controller->Bandwidth[Phase]);
+
+	/* Done! */
+	return HighestBw;
+}
+
+/* Max 90% of the bandwidth in a queue can go to iso/int 
+ * thus we must make sure we don't go over that, this 
+ * calculates if there is enough "room" for our Qh */
+int UhciValidateBandwidth(UhciController_t *Controller, UhciQueueHead_t *Qh)
+{
+	/* Vars */
+	int MinimalBw = 0;
+
+	/* Find the optimal phase (unless it is already set) and get
+	 * its load value. */
+	if (Qh->Phase >= 0)
+		MinimalBw = UhciCalculateBandwidth(Controller, Qh->Phase, Qh->Period);
+	else 
+	{
+		/* Vars */
+		int Phase, Bandwidth;
+		int MaxPhase = MIN(UHCI_BANDWIDTH_PHASES, Qh->Period);
+
+		/* Set initial */
+		Qh->Phase = 0;
+		MinimalBw = UhciCalculateBandwidth(Controller, Qh->Phase, Qh->Period);
+
+		/* Iterate untill we locate the optimal phase */
+		for (Phase = 1; Phase < MaxPhase; ++Phase)
+		{
+			/* Get bandwidth for this phase & period */
+			Bandwidth = UhciCalculateBandwidth(Controller, Phase, Qh->Period);
+			
+			/* Sanity */
+			if (Bandwidth < MinimalBw) {
+				MinimalBw = Bandwidth;
+				Qh->Phase = (uint16_t)Phase;
+			}
+		}
+	}
+
+	/* Maximum allowable periodic bandwidth is 90%, or 900 us per frame */
+	if (MinimalBw + Qh->Bandwidth > 900)
+		return -1;
+	
+	/* Done, Ok! */
+	return 0;
+}
+
+/* Reserve Bandwidth */
+void UhciReserveBandwidth(UhciController_t *Controller, UhciQueueHead_t *Qh)
+{
+	/* Vars */
+	int Bandwidth = Qh->Bandwidth;
+	int i;
+
+	/* Iterate phase & period */
+	for (i = Qh->Phase; i < UHCI_BANDWIDTH_PHASES; i += Qh->Period) {
+		Controller->Bandwidth[i] += Bandwidth;
+		Controller->TotalBandwidth += Bandwidth;
+	}
+
+	/* Set allocated */
+	Qh->Flags |= UHCI_QH_BANDWIDTH_ALLOC;
+}
+
+/* Release Bandwidth */
+void UhciReleaseBandwidth(UhciController_t *Controller, UhciQueueHead_t *Qh)
+{
+	/* Vars */
+	int Bandwidth = Qh->Bandwidth;
+	int i;
+
+	/* Iterate and free */
+	for (i = Qh->Phase; i < UHCI_BANDWIDTH_PHASES; i += Qh->Period) {
+		Controller->Bandwidth[i] -= Bandwidth;
+		Controller->TotalBandwidth -= Bandwidth;
+	}
+	
+	/* Set not-allocated */
+	Qh->Flags &= ~(UHCI_QH_BANDWIDTH_ALLOC);
+}
+
 /* Transaction Functions */
 
 /* This one prepaires an ED */
@@ -1065,24 +1157,87 @@ void UhciTransactionInit(void *Controller, UsbHcRequest_t *Request)
 {	
 	/* Vars */
 	UhciController_t *Ctrl = (UhciController_t*)Controller;
-	Addr_t Temp = 0;
+	UhciQueueHead_t *Qh = NULL;
 
 	/* Get a QH */
-	Temp = UhciAllocateQh(Ctrl, Request->Type);
+	Qh = UhciAllocateQh(Ctrl, Request->Type);
 
-	/* We allocate new ep descriptors for Iso & Int */
-	if (Request->Type == ControlTransfer
-		|| Request->Type == BulkTransfer)
-	{
-		Ctrl->QhPool[Temp]->Link |= UHCI_TD_LINK_END;
-		Ctrl->QhPool[Temp]->Child |= UHCI_TD_LINK_END;
-		Request->Data = Ctrl->QhPool[Temp];
-	}
-	else
-		Request->Data = (void*)Temp;
+	/* Save it */
+	Request->Data = Qh;
 
 	/* Set as not Completed for start */
 	Request->Status = TransferNotProcessed;
+
+	/* Do we need to reserve bandwidth? */
+	if (Qh != NULL && 
+		!(Qh->Flags & UHCI_QH_BANDWIDTH_ALLOC))
+	{
+		/* Vars */
+		int Exponent, Queue, Run = 1;
+
+		/* Find the correct index we link into */
+		for (Exponent = 7; Exponent >= 0; --Exponent) {
+			if ((1 << Exponent) <= (int)Request->Endpoint->Interval)
+				break;
+		}
+
+		/* Sanity */
+		if (Exponent < 0) {
+			LogFatal("UHCI", "Invalid interval %u", Request->Endpoint->Interval);
+			Exponent = 0;
+		}
+
+		/* Make sure we have enough bandwidth for the transfer */
+		if (Exponent > 0) {
+			while (Run != 0 && --Exponent >= 0)
+			{
+				/* Now we can select a queue */
+				Queue = 9 - Exponent;
+
+				/* Set initial period */
+				Qh->Period = 1 << Exponent;
+
+				/* Set Qh Queue */
+				Qh->Flags = UHCI_QH_CLR_QUEUE(Qh->Flags);
+				Qh->Flags |= UHCI_QH_SET_QUEUE(Queue);
+
+				/* For now, interrupt phase is fixed by the layout
+				* of the QH lists. */
+				Qh->Phase = (Qh->Period / 2) & (UHCI_BANDWIDTH_PHASES - 1);
+
+				/* Check */
+				Run = UhciValidateBandwidth(Ctrl, Qh);
+			}
+		}
+		else
+		{
+			/* Now we can select a queue */
+			Queue = 9 - Exponent;
+
+			/* Set initial period */
+			Qh->Period = 1 << Exponent;
+
+			/* Set Qh Queue */
+			Qh->Flags = UHCI_QH_CLR_QUEUE(Qh->Flags);
+			Qh->Flags |= UHCI_QH_SET_QUEUE(Queue);
+
+			/* For now, interrupt phase is fixed by the layout
+			* of the QH lists. */
+			Qh->Phase = (Qh->Period / 2) & (UHCI_BANDWIDTH_PHASES - 1);
+
+			/* Check */
+			Run = UhciValidateBandwidth(Ctrl, Qh);
+		}
+
+		/* Sanity */
+		if (Run != 0) {
+			LogFatal("UHCI", "Had no room for the transfer in queueus");
+			return;
+		}
+
+		/* Reserve the bandwidth */
+		UhciReserveBandwidth(Ctrl, Qh);
+	}
 }
 
 /* This one prepaires an setup Td */
@@ -1238,41 +1393,35 @@ void UhciTransactionSend(void *Controller, UsbHcRequest_t *Request)
 	Addr_t QhAddress = 0;
 	int CondCode;
 
-	/* Sanity */
-	if (Request->Type != IsochronousTransfer)
-	{
-		/* Cast */
-		Qh = (UhciQueueHead_t*)Request->Data;
+	/* Cast */
+	Qh = (UhciQueueHead_t*)Request->Data;
 
-		/* Get physical */
-		QhAddress = AddressSpaceGetMap(AddressSpaceGetCurrent(), (VirtAddr_t)Qh);
-	}
+	/* Get physical */
+	QhAddress = AddressSpaceGetMap(AddressSpaceGetCurrent(), (VirtAddr_t)Qh);
 	
 	/* Set as not Completed for start */
 	Request->Status = TransferNotProcessed;
 
-	/* Iterate and set last to generate interrupt */
-	Transaction = Request->Transactions;
-
 #ifdef UHCI_DIAGNOSTICS
-	Td = (UhciTransferDescriptor_t*)Transaction->TransferDescriptor;
-	LogDebug("UHCI", "Td (Addr 0x%x) Flags 0x%x, Buffer 0x%x, Header 0x%x, Next Td 0x%x",
-		AddressSpaceGetMap(AddressSpaceGetCurrent(), (VirtAddr_t)Td), 
-		Td->Flags, Td->Buffer, Td->Header, Td->Link);
-#endif
-
+	Transaction = Request->Transactions;
 	while (Transaction->Link)
 	{
 		/* Next */
 		Transaction = Transaction->Link;
 
-#ifdef UHCI_DIAGNOSTICS
+
 		Td = (UhciTransferDescriptor_t*)Transaction->TransferDescriptor;
 		LogDebug("UHCI", "Td (Addr 0x%x) Flags 0x%x, Buffer 0x%x, Header 0x%x, Next Td 0x%x",
-			AddressSpaceGetMap(AddressSpaceGetCurrent(), (VirtAddr_t)Td), 
+			AddressSpaceGetMap(AddressSpaceGetCurrent(), (VirtAddr_t)Td),
 			Td->Flags, Td->Buffer, Td->Header, Td->Link);
-#endif
+
 	}
+#endif
+
+	/* Iterate and set last to generate interrupt */
+	Transaction = Request->Transactions;
+	while (Transaction->Link)
+		Transaction = Transaction->Link;
 
 	/* Set last to generate IOC */
 #ifndef UHCI_DIAGNOSTICS
@@ -1281,8 +1430,7 @@ void UhciTransactionSend(void *Controller, UsbHcRequest_t *Request)
 #endif
 
 	/* Initialize QH */
-	if (Request->Type != IsochronousTransfer)
-		UhciQhInit(Ctrl, Qh, Request->Transactions);
+	UhciQhInit(Ctrl, Qh, Request->Transactions);
 
 	/* Set true */
 	Completed = TransferFinished;
@@ -1320,26 +1468,11 @@ void UhciTransactionSend(void *Controller, UsbHcRequest_t *Request)
 	}
 	else if (Request->Type == InterruptTransfer)
 	{
+		/* Get queue */
 		UhciQueueHead_t *PrevQh = NULL;
-		int Exponent, Queue;
+		int Queue = UHCI_QT_GET_QUEUE(Qh->Flags);
 
-		/* Find the correct index we link into */
-		for (Exponent = 7; Exponent >= 0; --Exponent) {
-			if ((1 << Exponent) <= (int)Request->Endpoint->Interval)
-				break;
-		}
-
-		/* Sanity */
-		if (Exponent < 0)
-			Exponent = 0;
-
-		/* Now we can select a queue */
-		Queue = 9 - Exponent;
-
-		/* Set Qh Queue */
-		Qh->Flags |= UHCI_QH_POOL_NUM(Queue);
-
-		/* Iterate and set last to generate interrupt */
+		/* Iterate */
 		Transaction = Request->Transactions;
 		Td = (UhciTransferDescriptor_t*)Transaction->TransferDescriptor;
 		LogDebug("UHCI", "Td (Addr 0x%x) Flags 0x%x, Buffer 0x%x, Header 0x%x, Next Td 0x%x",
@@ -1357,8 +1490,6 @@ void UhciTransactionSend(void *Controller, UsbHcRequest_t *Request)
 				Td->Flags, Td->Buffer, Td->Header, Td->Link);
 		}
 
-		LogDebug("UHCI", "Inserting into queue %i", Queue);
-
 		/* Iterate list */
 		PrevQh = Ctrl->QhPool[Queue];
 
@@ -1369,10 +1500,6 @@ void UhciTransactionSend(void *Controller, UsbHcRequest_t *Request)
 		/* Set link */
 		PrevQh->Link = QhAddress | UHCI_TD_LINK_QH;
 		PrevQh->LinkVirtual = (uint32_t)Qh;
-
-		LogDebug("UHCI", "Int Qh Link: 0x%x, Child: 0x%x", PrevQh->Link, PrevQh->Child);
-		LogDebug("UHCI", "New Qh (0x%x) Link: 0x%x, Child: 0x%x", 
-			QhAddress, Qh->Link, Qh->Child);
 
 		/* Release lock */
 		SpinlockRelease(&Ctrl->Lock);
@@ -1462,7 +1589,6 @@ void UhciTransactionSend(void *Controller, UsbHcRequest_t *Request)
 	{
 		/* Build Buffer */
 		Transaction = Request->Transactions;
-
 		while (Transaction)
 		{
 			/* Copy Data? */
@@ -1547,20 +1673,7 @@ void UhciTransactionDestroy(void *Controller, UsbHcRequest_t *Request)
 		/* Vars */
 		UhciQueueHead_t *TargetQh = (UhciQueueHead_t*)Request->Data;
 		UhciQueueHead_t *Qh = NULL, *PrevQh = NULL;
-		int Exponent, Queue;
-
-		/* Find the correct index we link into */
-		for (Exponent = 7; Exponent >= 0; --Exponent) {
-			if ((1 << Exponent) <= (int)Request->Endpoint->Interval)
-				break;
-		}
-
-		/* Sanity */
-		if (Exponent < 0)
-			Exponent = 0;
-
-		/* Now we can select a queue */
-		Queue = 9 - Exponent;
+		int Queue = UHCI_QT_GET_QUEUE(Qh->Flags);
 
 		/* Iterate and find our Qh */
 		Qh = Ctrl->QhPool[Queue];
@@ -1588,6 +1701,9 @@ void UhciTransactionDestroy(void *Controller, UsbHcRequest_t *Request)
 			} 
 		}
 
+		/* Free bandwidth */
+		UhciReleaseBandwidth(Ctrl, Qh);
+
 		/* Iterate transactions and free buffers & td's */
 		while (Transaction)
 		{
@@ -1607,9 +1723,15 @@ void UhciTransactionDestroy(void *Controller, UsbHcRequest_t *Request)
 	}
 	else
 	{
+		/* Cast Qh */
+		UhciQueueHead_t *Qh = (UhciQueueHead_t*)Request->Data;
+
 		/* Get frame where it's linked */
 
 		/* Remove them and fixup toggles */
+
+		/* Free bandwidth */
+		UhciReleaseBandwidth(Ctrl, Qh);
 
 		/* Iterate transactions and free buffers & td's */
 		while (Transaction)

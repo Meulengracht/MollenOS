@@ -97,12 +97,12 @@ void SmpApEntry(void)
 	/* Enable SSE */
 	if (GlbBootCpuInfo.EdxFeatures & CPUID_FEAT_EDX_SSE)
 		CpuEnableSse();
-	
-	/* TSS */
-	GdtInstallTss();
 
 	/* Get Apic Id */
 	Cpu = (ApicReadLocal(APIC_PROCESSOR_ID) >> 24) & 0xFF;
+
+	/* TSS */
+	GdtInstallTss(Cpu);
 
 	/* Memory */
 	MmVirtualInstallPaging(Cpu);

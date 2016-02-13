@@ -54,7 +54,7 @@ _GdtInstall:
 	pop eax
 	ret 
 
-; void TssInstall(uint32_t gdt_index)
+; void TssInstall(int gdt_index)
 ; Load the given TSS descriptor
 ; index
 _TssInstall:

@@ -192,7 +192,8 @@ typedef struct _UhciQueueHead
 	 * Bit 0: Allocation status
 	 * Bit 1-7: Pool Number
 	 * Bit 8-15: Queue Head Index 
-	 * Bit 16-17: Queue Head Type (00 Control, 01 Bulk, 10 Interrupt, 11 Isochronous)*/
+	 * Bit 16-17: Queue Head Type (00 Control, 01 Bulk, 10 Interrupt, 11 Isochronous) 
+	 * Bit 18: Bandwidth allocated */
 	uint32_t Flags;
 
 	/* Virtual Address of next QH */
@@ -201,18 +202,25 @@ typedef struct _UhciQueueHead
 	/* Virtual Address of TD Head */
 	uint32_t ChildVirtual;
 
+	/* Bandwidth Specs */
+	uint16_t Phase;
+	uint16_t Period;
+	uint32_t Bandwidth;
+
 	/* Padding */
-	uint32_t Padding[3];
+	uint32_t Padding[1];
 
 } UhciQueueHead_t;
 
 /* Flag bit switches */
 #define UHCI_QH_ACTIVE				0x1
-#define UHCI_QH_POOL_NUM(n)			((n & 0x7F) << 1)
 #define UHCI_QH_INDEX(n)			((n & 0xFF) << 8)
 #define UHCI_QH_TYPE(n)				((n & 0x3) << 16)
+#define UHCI_QH_BANDWIDTH_ALLOC		(1 << 18)
 
-#define UHCI_QH_SET_POOL_NUM(n)		((n << 1) & 0xFE)	
+#define UHCI_QH_SET_QUEUE(n)		((n << 1) & 0xFE)	
+#define UHCI_QH_CLR_QUEUE(n)		(n & 0xFFFFFF01)
+#define UHCI_QT_GET_QUEUE(n)		((n & 0xFE) >> 1)
 
 /* Pool Definitions */
 #define UHCI_POOL_NUM_QH			60
@@ -223,6 +231,8 @@ typedef struct _UhciQueueHead
 #define UHCI_POOL_ASYNC				9
 #define UHCI_POOL_NULL				10
 #define UHCI_POOL_START				11
+
+#define UHCI_BANDWIDTH_PHASES		32
 
 /* Endpoint Data */
 typedef struct _UhciEndpoint
@@ -269,6 +279,10 @@ typedef struct _UhciController
 	/* QH Pool */
 	UhciQueueHead_t *QhPool[UHCI_POOL_NUM_QH];
 	Addr_t QhPoolPhys[UHCI_POOL_NUM_QH];
+
+	/* Scheduling Loads */
+	int Bandwidth[UHCI_BANDWIDTH_PHASES];
+	int TotalBandwidth;
 
 	/* Port Count */
 	uint32_t NumPorts;
