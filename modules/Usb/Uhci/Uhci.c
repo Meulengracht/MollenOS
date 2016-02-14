@@ -1273,7 +1273,7 @@ UsbHcTransaction_t *UhciTransactionSetup(void *Controller, UsbHcRequest_t *Reque
 		PrevTd = (UhciTransferDescriptor_t*)cTrans->TransferDescriptor;
 		PrevTd->Link = 
 			(AddressSpaceGetMap(AddressSpaceGetCurrent(), 
-			(VirtAddr_t)Transaction->TransferDescriptor) | UHCI_TD_LINK_DEPTH);
+				(VirtAddr_t)Transaction->TransferDescriptor) | UHCI_TD_LINK_DEPTH);
 	}
 
 	return Transaction;
@@ -1282,6 +1282,7 @@ UsbHcTransaction_t *UhciTransactionSetup(void *Controller, UsbHcRequest_t *Reque
 /* This one prepaires an in Td */
 UsbHcTransaction_t *UhciTransactionIn(void *Controller, UsbHcRequest_t *Request)
 {
+	/* Variables */
 	UhciController_t *Ctrl = (UhciController_t*)Controller;
 	UsbHcTransaction_t *Transaction;
 
@@ -1312,7 +1313,8 @@ UsbHcTransaction_t *UhciTransactionIn(void *Controller, UsbHcRequest_t *Request)
 
 		PrevTd = (UhciTransferDescriptor_t*)cTrans->TransferDescriptor;
 		PrevTd->Link =
-			(AddressSpaceGetMap(AddressSpaceGetCurrent(), (VirtAddr_t)Transaction->TransferDescriptor) | UHCI_TD_LINK_DEPTH);
+			(AddressSpaceGetMap(AddressSpaceGetCurrent(), 
+				(VirtAddr_t)Transaction->TransferDescriptor) | UHCI_TD_LINK_DEPTH);
 	}
 
 	/* We might need a copy */
@@ -1321,7 +1323,11 @@ UsbHcTransaction_t *UhciTransactionIn(void *Controller, UsbHcRequest_t *Request)
 	{
 		/* Allocate TD */
 		Transaction->TransferDescriptorCopy =
-			(void*)OhciAllocateTd(Request->Endpoint->AttachedData, Request->Type);
+			(void*)UhciAlign(((Addr_t)kmalloc(sizeof(UhciTransferDescriptor_t) + UHCI_STRUCT_ALIGN)), UHCI_STRUCT_ALIGN_BITS, UHCI_STRUCT_ALIGN);
+
+		/* Copy data */
+		memcpy(Transaction->TransferDescriptorCopy, 
+			Transaction->TransferDescriptor, sizeof(UhciTransferDescriptor_t));
 	}
 
 	/* Done */
@@ -1331,6 +1337,7 @@ UsbHcTransaction_t *UhciTransactionIn(void *Controller, UsbHcRequest_t *Request)
 /* This one prepaires an out Td */
 UsbHcTransaction_t *UhciTransactionOut(void *Controller, UsbHcRequest_t *Request)
 {
+	/* Vars */
 	UhciController_t *Ctrl = (UhciController_t*)Controller;
 	UsbHcTransaction_t *Transaction;
 
@@ -1374,7 +1381,11 @@ UsbHcTransaction_t *UhciTransactionOut(void *Controller, UsbHcRequest_t *Request
 	{
 		/* Allocate TD */
 		Transaction->TransferDescriptorCopy =
-			(void*)OhciAllocateTd(Request->Endpoint->AttachedData, Request->Type);
+			(void*)UhciAlign(((Addr_t)kmalloc(sizeof(UhciTransferDescriptor_t) + UHCI_STRUCT_ALIGN)), UHCI_STRUCT_ALIGN_BITS, UHCI_STRUCT_ALIGN);
+
+		/* Copy data */
+		memcpy(Transaction->TransferDescriptorCopy,
+			Transaction->TransferDescriptor, sizeof(UhciTransferDescriptor_t));
 	}
 
 	/* Done */
@@ -1409,12 +1420,10 @@ void UhciTransactionSend(void *Controller, UsbHcRequest_t *Request)
 		/* Next */
 		Transaction = Transaction->Link;
 
-
 		Td = (UhciTransferDescriptor_t*)Transaction->TransferDescriptor;
 		LogDebug("UHCI", "Td (Addr 0x%x) Flags 0x%x, Buffer 0x%x, Header 0x%x, Next Td 0x%x",
 			AddressSpaceGetMap(AddressSpaceGetCurrent(), (VirtAddr_t)Td),
 			Td->Flags, Td->Buffer, Td->Header, Td->Link);
-
 	}
 #endif
 
@@ -1494,7 +1503,7 @@ void UhciTransactionSend(void *Controller, UsbHcRequest_t *Request)
 		PrevQh = Ctrl->QhPool[Queue];
 
 		/* Insert */
-		Qh->Link = PrevQh->Link;
+		Qh->Link = PrevQh->Link | UHCI_TD_LINK_QH;
 		Qh->LinkVirtual = PrevQh->LinkVirtual;
 
 		/* Set link */
@@ -1886,7 +1895,7 @@ int UhciInterruptHandler(void *Args)
 
 #ifdef UHCI_DIAGNOSTICS
 	/* Debug */
-	LogInformation("UHCI", "INTERRUPT Controller %u: 0x%x\n", Controller->Id, IntrState);
+	LogInformation("UHCI", "INTERRUPT Controller %u: 0x%x", Controller->Id, IntrState);
 #endif
 
 	/* Clear Interrupt Bits :-) */
@@ -1917,7 +1926,7 @@ int UhciInterruptHandler(void *Args)
 	{
 		/* Fatal Error 
 		 * Unschedule TDs and restart controller */
-		LogInformation("UHCI", "Processing Error :/ \n");
+		LogInformation("UHCI", "Processing Error :/");
 	}
 
 	/* Done! */

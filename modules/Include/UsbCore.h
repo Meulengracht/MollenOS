@@ -675,6 +675,11 @@ _USBCORE_API UsbTransferStatus_t UsbFunctionSendPacket(UsbHc_t *Hc, int Port, vo
 											uint8_t Request, uint8_t ValueHi, uint8_t ValueLo, 
 											uint16_t Index, uint16_t Length);
 
+/* Interrupt Transfers */
+/* Install Interrupt Pipe */
+_USBCORE_API void UsbFunctionInstallPipe(UsbHc_t *Hc, UsbHcDevice_t *Device, UsbHcRequest_t *Request,
+											UsbHcEndpoint_t *Endpoint, void *Buffer, size_t Length);
+
 /* Events */
 _USBCORE_API void UsbEventCreate(UsbHc_t *Hc, int Port, UsbEventType_t Type);
 

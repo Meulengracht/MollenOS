@@ -155,6 +155,7 @@ typedef struct _UhciTransferDescriptor
 #define UHCI_TD_ISOCHRONOUS				0x2000000
 #define UHCI_TD_LOWSPEED				0x4000000
 #define UHCI_TD_SET_ERR_CNT(n)			((n & 0x3) << 27)
+#define UHCI_TD_SHORT_PACKET			(1 << 29)
 
 #define UHCI_TD_ERROR_COUNT(n)			((n >> 27) & 0x3)
 #define UHCI_TD_STATUS(n)				((n >> 17) & 0x3F)

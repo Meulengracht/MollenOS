@@ -31,7 +31,7 @@
 #include <string.h>
 
 /* Prototypes */
-void UsbHidParseReportDescriptor(HidDevice_t *Device, uint8_t *ReportData, uint32_t ReportLength);
+size_t UsbHidParseReportDescriptor(HidDevice_t *Device, uint8_t *ReportData, size_t ReportLength);
 void UsbHidCallback(void *Device);
 
 /* Collection List Helpers */
@@ -44,21 +44,29 @@ void UsbHidCollectionInsertChild(UsbHidReportCollection_t *Collection,
 	/* Allocate a new child */
 	UsbHidReportCollectionItem_t *Child =
 		(UsbHidReportCollectionItem_t*)kmalloc(sizeof(UsbHidReportCollectionItem_t));
+
+	/* Set items */
 	Child->Type = Type;
 	Child->InputType = HidType;
 	Child->Data = Data;
-	memcpy((void*)(&Child->Stats), Stats, sizeof(UsbHidReportGlobalStats_t));
 	Child->Link = NULL;
+
+	/* Make a copy of stats for this sub-group */
+	memcpy((void*)(&Child->Stats), Stats, sizeof(UsbHidReportGlobalStats_t));
 
 	/* Insert */
 	if (Collection->Childs == NULL)
 		Collection->Childs = Child;
 	else
 	{
+		/* Get a itr ptr */
 		CurrChild = Collection->Childs;
 
+		/* Loop to end */
 		while (CurrChild->Link)
 			CurrChild = CurrChild->Link;
+
+		/* Append */
 		CurrChild->Link = Child;
 	}
 }
@@ -99,6 +107,7 @@ void UsbHidInit(UsbHcDevice_t *UsbDevice, int InterfaceIndex)
 	 * and prepare for a descriptor loop */
 	uint8_t *BufPtr = (uint8_t*)UsbDevice->Descriptors;
 	size_t BytesLeft = UsbDevice->DescriptorsLength;
+	size_t ReportLength = 0;
 
 	/* Needed for parsing */
 	UsbHidDescriptor_t *HidDescriptor = NULL;
@@ -159,7 +168,7 @@ void UsbHidInit(UsbHcDevice_t *UsbDevice, int InterfaceIndex)
 	}
 
 	/* Switch to Report Protocol (ONLY if we are in boot protocol) */
-	if (UsbDevice->Interfaces[InterfaceIndex]->Class == USB_HID_SUBCLASS_BOOT) {
+	if (UsbDevice->Interfaces[InterfaceIndex]->Subclass == USB_HID_SUBCLASS_BOOT) {
 		UsbFunctionSendPacket((UsbHc_t*)UsbDevice->HcDriver, UsbDevice->Port, 0,
 			USB_REQUEST_TARGET_CLASS | USB_REQUEST_TARGET_INTERFACE,
 			USB_HID_SET_PROTOCOL, 0, 1, (uint8_t)InterfaceIndex, 0);
@@ -187,8 +196,18 @@ void UsbHidInit(UsbHcDevice_t *UsbDevice, int InterfaceIndex)
 		return;
 	}
 
+	/* Parse Report Descriptor */
+	DevData->Collection = NULL;
+	ReportLength = UsbHidParseReportDescriptor(DevData, 
+		ReportDescriptor, HidDescriptor->ClassDescriptorLength) + 1;
+
+	LogDebug("USBH", "Report total length: %u bytes", ReportLength);
+
 	/* Initialise the EP */
 	UsbHcd->EndpointSetup(UsbHcd->Hc, DevData->EpInterrupt);
+
+	/* Reset EP toggle */
+	DevData->EpInterrupt->Toggle = 0;
 
 	/* Allocate Interrupt Channel */
 	DevData->InterruptChannel = (UsbHcRequest_t*)kmalloc(sizeof(UsbHcRequest_t));
@@ -201,34 +220,162 @@ void UsbHidInit(UsbHcDevice_t *UsbDevice, int InterfaceIndex)
 	DevData->InterruptChannel->Callback->Args = DevData;
 
 	/* Set driver data */
-	DevData->PrevDataBuffer = (uint8_t*)kmalloc(DevData->EpInterrupt->MaxPacketSize);
-	DevData->DataBuffer = (uint8_t*)kmalloc(DevData->EpInterrupt->MaxPacketSize);
-	DevData->Collection = NULL;
+	DevData->PrevDataBuffer = (uint8_t*)kmalloc(ReportLength);
+	DevData->DataBuffer = (uint8_t*)kmalloc(ReportLength);
 
 	/* Memset Databuffers */
-	memset(DevData->PrevDataBuffer, 0, DevData->EpInterrupt->MaxPacketSize);
-	memset(DevData->DataBuffer, 0, DevData->EpInterrupt->MaxPacketSize);
+	memset(DevData->PrevDataBuffer, 0, ReportLength);
+	memset(DevData->DataBuffer, 0, ReportLength);
 
-	/* Parse Report Descriptor */
-	UsbHidParseReportDescriptor(DevData, ReportDescriptor, HidDescriptor->ClassDescriptorLength);
+	/* Some keyboards don't work before their LEDS are set. */
 
 	/* Debug */
 	LogDebug("USBH", "Installing Interrupt Pipe");
 
 	/* Install Interrupt */
-	UsbTransactionInit(UsbHcd, DevData->InterruptChannel, 
-		InterruptTransfer, UsbDevice, DevData->EpInterrupt);
-	UsbTransactionIn(UsbHcd, DevData->InterruptChannel, 0, 
-		DevData->DataBuffer, DevData->EpInterrupt->MaxPacketSize);
-	UsbTransactionSend(UsbHcd, DevData->InterruptChannel);
+	UsbFunctionInstallPipe(UsbHcd, UsbDevice, DevData->InterruptChannel,
+		DevData->EpInterrupt, DevData->DataBuffer, ReportLength);
+}
+
+/* Parses a global report item */
+void UsbHidParseGlobalItem(UsbHidReportGlobalStats_t *Stats, uint8_t Tag, uint32_t Value)
+{
+	switch (Tag)
+	{
+		/* Usage Page */
+		case USB_HID_GLOBAL_USAGE_PAGE:
+		{
+			Stats->Usage = Value;
+		} break;
+
+		/* Logical Min & Max */
+		case USB_HID_GLOBAL_LOGICAL_MIN:
+		{
+			/* New pair of log */
+			if (Stats->HasLogicalMin != 0)
+				Stats->HasLogicalMax = 0;
+
+			Stats->LogicalMin = (int32_t)Value;
+			Stats->HasLogicalMin = 1;
+
+			if (Stats->HasLogicalMax != 0)
+			{
+				/* Make sure minimum value is less than max */
+				if ((int)(Stats->LogicalMin) >= (int)(Stats->LogicalMax))
+				{
+					/* Sign it */
+					Stats->LogicalMin = ~(Stats->LogicalMin);
+					Stats->LogicalMin++;
+				}
+			}
+
+		} break;
+		case USB_HID_GLOBAL_LOGICAL_MAX:
+		{
+			/* New pair of log */
+			if (Stats->HasLogicalMax != 0)
+				Stats->HasLogicalMin = 0;
+
+			Stats->LogicalMax = (int32_t)Value;
+			Stats->HasLogicalMax = 1;
+
+			if (Stats->HasLogicalMin != 0)
+			{
+				/* Make sure minimum value is less than max */
+				if ((int)(Stats->LogicalMin) >= (int)(Stats->LogicalMax))
+				{
+					/* Sign it */
+					Stats->LogicalMin = ~(Stats->LogicalMin);
+					Stats->LogicalMin++;
+				}
+			}
+
+		} break;
+
+		/* Physical Min & Max */
+		case USB_HID_GLOBAL_PHYSICAL_MIN:
+		{
+			/* New pair of physical */
+			if (Stats->HasPhysicalMin != 0)
+				Stats->HasPhysicalMax = 0;
+
+			Stats->PhysicalMin = (int32_t)Value;
+			Stats->HasPhysicalMin = 1;
+
+			if (Stats->HasPhysicalMax != 0)
+			{
+				/* Make sure minimum value is less than max */
+				if ((int)(Stats->PhysicalMin) >= (int)(Stats->PhysicalMax))
+				{
+					/* Sign it */
+					Stats->PhysicalMin = ~(Stats->PhysicalMin);
+					Stats->PhysicalMin++;
+				}
+			}
+
+		} break;
+		case USB_HID_GLOBAL_PHYSICAL_MAX:
+		{
+			/* New pair of physical */
+			if (Stats->HasPhysicalMax != 0)
+				Stats->HasPhysicalMin = 0;
+
+			Stats->PhysicalMax = (int32_t)Value;
+			Stats->HasPhysicalMax = 1;
+
+			if (Stats->HasPhysicalMin != 0)
+			{
+				/* Make sure minimum value is less than max */
+				if ((int)(Stats->PhysicalMin) >= (int)(Stats->PhysicalMax))
+				{
+					/* Sign it */
+					Stats->PhysicalMin = ~(Stats->PhysicalMin);
+					Stats->PhysicalMin++;
+				}
+			}
+
+			/* Unit & Unit Exponent */
+		case USB_HID_GLOBAL_UNIT_VALUE:
+		{
+			Stats->UnitType = (int32_t)Value;
+		} break;
+		case USB_HID_GLOBAL_UNIT_EXPONENT:
+		{
+			Stats->UnitExponent = (int32_t)Value;
+		} break;
+
+		} break;
+
+		/* Report Items */
+		case USB_HID_GLOBAL_REPORT_ID:
+		{
+			Stats->ReportId = Value;
+		} break;
+		case USB_HID_GLOBAL_REPORT_COUNT:
+		{
+			Stats->ReportCount = Value;
+		} break;
+		case USB_HID_GLOBAL_REPORT_SIZE:
+		{
+			Stats->ReportSize = Value;
+		} break;
+
+		/* Unhandled */
+		default:
+		{
+			LogInformation("USBH", "Global Item %u", Tag);
+		} break;
+	}
 }
 
 /* Parses the report descriptor and stores it as 
  * collection tree */
-void UsbHidParseReportDescriptor(HidDevice_t *Device, uint8_t *ReportData, size_t ReportLength)
+size_t UsbHidParseReportDescriptor(HidDevice_t *Device, uint8_t *ReportData, size_t ReportLength)
 {
 	/* Iteration vars */
 	size_t i = 0, j = 0, Depth = 0;
+	size_t LongestReport = 0;
+	int ReportIdsUsed = 0;
 
 	/* Used for collection data */
 	UsbHidReportCollection_t *Collection = NULL, *RootCollection = NULL;
@@ -236,8 +383,8 @@ void UsbHidParseReportDescriptor(HidDevice_t *Device, uint8_t *ReportData, size_
 	UsbHidReportItemStats_t ItemStats = { 0 };
 
 	/* Offsets */
-	uint32_t bit_offset = 0;
-	uint32_t current_type = MCORE_INPUT_TYPE_UNKNOWN;
+	size_t BitOffset = 0;
+	int CurrentType = MCORE_INPUT_TYPE_UNKNOWN;
 
 	/* Null Report Id */
 	GlobalStats.ReportId = 0xFFFFFFFF;
@@ -276,40 +423,45 @@ void UsbHidParseReportDescriptor(HidDevice_t *Device, uint8_t *ReportData, size_
 
 		/* Sanity, the first item outside an collection should be an COLLECTION!! */
 		if (Collection == NULL 
-			&& Type == X86_USB_REPORT_TYPE_MAIN 
-			&& Tag != X86_USB_REPORT_MAIN_TAG_COLLECTION)
+			&& Type == USB_HID_REPORT_MAIN
+			&& Tag != USB_HID_MAIN_COLLECTION)
 			continue;
 
 		/* Ok, we have 3 item groups. Main, Local & Global */
 		switch (Type)
 		{
 			/* Main Item */
-			case X86_USB_REPORT_TYPE_MAIN:
+			case USB_HID_REPORT_MAIN:
 			{
 				/* 5 Main Item Groups: Input, Output, Feature, Collection, EndCollection */
 				switch (Tag)
 				{
 					/* Collection Item */
-					case X86_USB_REPORT_MAIN_TAG_COLLECTION:
+					case USB_HID_MAIN_COLLECTION:
 					{
 						/* Create a new collection and set parent */
 						UsbHidReportCollection_t *NextCollection =
 							(UsbHidReportCollection_t*)kmalloc(sizeof(UsbHidReportCollection_t));
-						NextCollection->Childs = NULL;
-						NextCollection->NextParent = NULL;
 
+						/* Set usage kind */
+						NextCollection->UsagePage = GlobalStats.Usage;
+						NextCollection->Usage = ItemStats.Usages[0];
+						
+						/* Set to null */
+						NextCollection->Childs = NULL;
+						NextCollection->Link = NULL;
+
+						/* Sanity */
 						if (Collection == NULL)
-						{
 							Collection = NextCollection;
-						}
 						else
 						{
 							/* Set parent */
-							NextCollection->NextParent = Collection;
+							NextCollection->Link = Collection;
 
 							/* Create a child node */
-							UsbHidCollectionInsertChild(Collection, &GlobalStats, current_type,
-								X86_USB_COLLECTION_TYPE_COLLECTION, NextCollection);
+							UsbHidCollectionInsertChild(Collection, &GlobalStats, CurrentType,
+								USB_HID_TYPE_COLLECTION, NextCollection);
 
 							/* Enter collection */
 							Collection = NextCollection;
@@ -321,15 +473,15 @@ void UsbHidParseReportDescriptor(HidDevice_t *Device, uint8_t *ReportData, size_
 					} break;
 
 					/* End of Collection Item */
-					case X86_USB_REPORT_MAIN_TAG_ENDCOLLECTION:
+					case USB_HID_MAIN_ENDCOLLECTION:
 					{
 						/* Move up */
 						if (Collection != NULL)
 						{
 							/* If parent is null, root collection is done (save it) */
-							if (Collection->NextParent != NULL)
+							if (Collection->Link != NULL)
 								RootCollection = Collection;
-							Collection = Collection->NextParent;
+							Collection = Collection->Link;
 						}
 
 						/* Decrease Depth */
@@ -338,7 +490,7 @@ void UsbHidParseReportDescriptor(HidDevice_t *Device, uint8_t *ReportData, size_
 					} break;
 
 					/* Input Item */
-					case X86_USB_REPORT_MAIN_TAG_INPUT:
+					case USB_HID_MAIN_INPUT:
 					{
 						UsbHidReportInputItem_t *InputItem =
 							(UsbHidReportInputItem_t*)kmalloc(sizeof(UsbHidReportInputItem_t));
@@ -367,27 +519,31 @@ void UsbHidParseReportDescriptor(HidDevice_t *Device, uint8_t *ReportData, size_
 
 						InputItem->Stats.UsageMin = ItemStats.UsageMin;
 						InputItem->Stats.UsageMax = ItemStats.UsageMax;
-						InputItem->Stats.BitOffset = bit_offset;
+						InputItem->Stats.BitOffset = BitOffset;
 
 						/* Add to list */
-						UsbHidCollectionInsertChild(Collection, &GlobalStats, current_type,
-							X86_USB_COLLECTION_TYPE_INPUT, InputItem);
+						UsbHidCollectionInsertChild(Collection, &GlobalStats, CurrentType,
+							USB_HID_TYPE_INPUT, InputItem);
 
 						/* Increase Bitoffset Counter */
-						bit_offset += GlobalStats.ReportCount * GlobalStats.ReportSize;
+						BitOffset += GlobalStats.ReportCount * GlobalStats.ReportSize;
+
+						/* Sanity */
+						if ((GlobalStats.ReportCount * GlobalStats.ReportSize) > LongestReport)
+							LongestReport = GlobalStats.ReportCount * GlobalStats.ReportSize;
 						
 					} break;
 
 					/* Output Item */
-					case X86_USB_REPORT_MAIN_TAG_OUTPUT:
+					case USB_HID_MAIN_OUTPUT:
 					{
-						LogInformation("USBH", "%u: Output Item (%u)", Depth, Packet);
+
 					} break;
 
 					/* Feature Item */
-					case X86_USB_REPORT_MAIN_TAG_FEATURE:
+					case USB_HID_MAIN_FEATURE:
 					{
-						LogInformation("USBH", "%u: Feature Item (%u)", Depth, Packet);
+
 					} break;
 				}
 
@@ -401,156 +557,36 @@ void UsbHidParseReportDescriptor(HidDevice_t *Device, uint8_t *ReportData, size_
 			} break;
 
 			/* Global Item */
-			case X86_USB_REPORT_TYPE_GLOBAL:
+			case USB_HID_REPORT_GLOBAL:
 			{
-				switch (Tag)
-				{
-					/* Usage Page */
-					case X86_USB_REPORT_GLOBAL_TAG_USAGE_PAGE:
-					{
-						GlobalStats.Usage = Packet;
-					} break;
+				/* Parse */
+				UsbHidParseGlobalItem(&GlobalStats, Tag, Packet);
 
-					/* Logical Min & Max */
-					case X86_USB_REPORT_GLOBAL_TAG_LOGICAL_MIN:
-					{
-						/* New pair of log */
-						if (GlobalStats.HasLogicalMin != 0)
-							GlobalStats.HasLogicalMax = 0;
-						
-						GlobalStats.LogicalMin = (int32_t)Packet;
-						GlobalStats.HasLogicalMin = 1;
-
-						if (GlobalStats.HasLogicalMax != 0)
-						{
-							/* Make sure minimum value is less than max */
-							if ((int)(GlobalStats.LogicalMin) >= (int)(GlobalStats.LogicalMax))
-							{
-								/* Sign it */
-								GlobalStats.LogicalMin = ~(GlobalStats.LogicalMin);
-								GlobalStats.LogicalMin++;
-							}
-						}
-
-					} break;
-					case X86_USB_REPORT_GLOBAL_TAG_LOGICAL_MAX:
-					{
-						/* New pair of log */
-						if (GlobalStats.HasLogicalMax != 0)
-							GlobalStats.HasLogicalMin = 0;
-
-						GlobalStats.LogicalMax = (int32_t)Packet;
-						GlobalStats.HasLogicalMax = 1;
-
-						if (GlobalStats.HasLogicalMin != 0)
-						{
-							/* Make sure minimum value is less than max */
-							if ((int)(GlobalStats.LogicalMin) >= (int)(GlobalStats.LogicalMax))
-							{
-								/* Sign it */
-								GlobalStats.LogicalMin = ~(GlobalStats.LogicalMin);
-								GlobalStats.LogicalMin++;
-							}
-						}
-
-					} break;
-
-					/* Physical Min & Max */
-					case X86_USB_REPORT_GLOBAL_TAG_PHYSICAL_MIN:
-					{
-						/* New pair of physical */
-						if (GlobalStats.HasPhysicalMin != 0)
-							GlobalStats.HasPhysicalMax = 0;
-
-						GlobalStats.PhysicalMin = (int32_t)Packet;
-						GlobalStats.HasPhysicalMin = 1;
-
-						if (GlobalStats.HasPhysicalMax != 0)
-						{
-							/* Make sure minimum value is less than max */
-							if ((int)(GlobalStats.PhysicalMin) >= (int)(GlobalStats.PhysicalMax))
-							{
-								/* Sign it */
-								GlobalStats.PhysicalMin = ~(GlobalStats.PhysicalMin);
-								GlobalStats.PhysicalMin++;
-							}
-						}
-
-					} break;
-					case X86_USB_REPORT_GLOBAL_TAG_PHYSICAL_MAX:
-					{
-						/* New pair of physical */
-						if (GlobalStats.HasPhysicalMax != 0)
-							GlobalStats.HasPhysicalMin = 0;
-
-						GlobalStats.PhysicalMax = (int32_t)Packet;
-						GlobalStats.HasPhysicalMax = 1;
-
-						if (GlobalStats.HasPhysicalMin != 0)
-						{
-							/* Make sure minimum value is less than max */
-							if ((int)(GlobalStats.PhysicalMin) >= (int)(GlobalStats.PhysicalMax))
-							{
-								/* Sign it */
-								GlobalStats.PhysicalMin = ~(GlobalStats.PhysicalMin);
-								GlobalStats.PhysicalMin++;
-							}
-						}
-
-						/* Unit & Unit Exponent */
-						case X86_USB_REPORT_GLOBAL_TAG_UNIT_VALUE:
-						{
-							GlobalStats.UnitType = (int32_t)Packet;
-						} break;
-						case X86_USB_REPORT_GLOBAL_TAG_UNIT_EXPONENT:
-						{
-							GlobalStats.UnitExponent = (int32_t)Packet;
-						} break;
-
-					} break;
-
-					/* Report Items */
-					case X86_USB_REPORT_GLOBAL_TAG_REPORT_ID:
-					{
-						GlobalStats.ReportId = Packet;
-					} break;
-					case X86_USB_REPORT_GLOBAL_TAG_REPORT_COUNT:
-					{
-						GlobalStats.ReportCount = Packet;
-					} break;
-					case X86_USB_REPORT_GLOBAL_TAG_REPORT_SIZE:
-					{
-						GlobalStats.ReportSize = Packet;
-					} break;
-						
-					/* Unhandled */
-					default:
-					{
-						LogInformation("USBH", "%u: Global Item %u", Depth, Tag);
-					} break;
-				}
+				/* Sanity */
+				if (GlobalStats.ReportId != 0xFFFFFFFF)
+					ReportIdsUsed = 1;
 
 			} break;
 
 			/* Local Item */
-			case X86_USB_REPORT_TYPE_LOCAL:
+			case USB_HID_REPORT_LOCAL:
 			{
 				switch (Tag)
 				{
 					/* Usage */
-					case X86_USB_REPORT_GLOBAL_TAG_USAGE_PAGE:
+					case USB_HID_LOCAL_USAGE:
 					{
 						if (Packet == X86_USB_REPORT_USAGE_POINTER
 							|| Packet == X86_USB_REPORT_USAGE_MOUSE)
-							current_type = MCORE_INPUT_TYPE_MOUSE;
+							CurrentType = MCORE_INPUT_TYPE_MOUSE;
 						else if (Packet == X86_USB_REPORT_USAGE_KEYBOARD)
-							current_type = MCORE_INPUT_TYPE_KEYBOARD;
+							CurrentType = MCORE_INPUT_TYPE_KEYBOARD;
 						else if (Packet == X86_USB_REPORT_USAGE_KEYPAD)
-							current_type = MCORE_INPUT_TYPE_KEYPAD;
+							CurrentType = MCORE_INPUT_TYPE_KEYPAD;
 						else if (Packet == X86_USB_REPORT_USAGE_JOYSTICK)
-							current_type = MCORE_INPUT_TYPE_JOYSTICK;
+							CurrentType = MCORE_INPUT_TYPE_JOYSTICK;
 						else if (Packet == X86_USB_REPORT_USAGE_GAMEPAD)
-							current_type = MCORE_INPUT_TYPE_GAMEPAD;
+							CurrentType = MCORE_INPUT_TYPE_GAMEPAD;
 
 						for (j = 0; j < 16; j++)
 						{
@@ -564,11 +600,11 @@ void UsbHidParseReportDescriptor(HidDevice_t *Device, uint8_t *ReportData, size_
 					} break;
 
 					/* Uage Min & Max */
-					case X86_USB_REPORT_LOCAL_TAG_USAGE_MIN:
+					case USB_HID_LOCAL_USAGE_MIN:
 					{
 						ItemStats.UsageMin = Packet;
 					} break;
-					case X86_USB_REPORT_LOCAL_TAG_USAGE_MAX:
+					case USB_HID_LOCAL_USAGE_MAX:
 					{
 						ItemStats.UsageMax = Packet;
 					} break;
@@ -585,6 +621,9 @@ void UsbHidParseReportDescriptor(HidDevice_t *Device, uint8_t *ReportData, size_
 
 	/* Save it in driver data */
 	Device->Collection = (RootCollection == NULL) ? Collection : RootCollection;
+
+	/* Done - Add one byte for the report id */
+	return DIVUP(LongestReport, 8) + ((ReportIdsUsed == 1) ? 1 : 0);
 }
 
 /* Gives input data to an input item */
@@ -871,7 +910,7 @@ int UsbHidApplyCollectionData(HidDevice_t *Device, UsbHidReportCollection_t *Col
 		switch (Itr->Type)
 		{
 			/* Sub Collection */
-			case X86_USB_COLLECTION_TYPE_COLLECTION:
+			case USB_HID_MAIN_COLLECTION:
 			{
 				UsbHidReportCollection_t *SubCollection
 					= (UsbHidReportCollection_t*)Itr->Data;
@@ -886,7 +925,7 @@ int UsbHidApplyCollectionData(HidDevice_t *Device, UsbHidReportCollection_t *Col
 			} break;
 
 			/* Input */
-			case X86_USB_COLLECTION_TYPE_INPUT:
+			case USB_HID_MAIN_INPUT:
 			{
 				/* Parse Input */
 				UsbHidApplyInputData(Device, Itr);

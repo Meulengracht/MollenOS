@@ -131,6 +131,7 @@ void UsbTransactionIn(UsbHc_t *Hc, UsbHcRequest_t *Request, int Handshake, void 
 	/* Toggle Goggle */
 	Request->Endpoint->Toggle = (Request->Endpoint->Toggle == 0) ? 1 : 0;
 
+	/* Do we need more transfers? */
 	if (TransfersLeft > 0)
 		UsbTransactionIn(Hc, Request, Request->Endpoint->Toggle,
 		(void*)((size_t)Buffer + FixedLen), RemainingLen);
@@ -678,6 +679,7 @@ UsbTransferStatus_t UsbFunctionClearFeature(UsbHc_t *Hc, int Port,
 	return Request.Status;
 }
 
+/* Set Feature */
 UsbTransferStatus_t UsbFunctionSetFeature(UsbHc_t *Hc, int Port,
 	uint8_t Target, uint16_t Index, uint16_t Feature)
 {
@@ -803,4 +805,18 @@ UsbTransferStatus_t UsbFunctionSendPacket(UsbHc_t *Hc, int Port, void *Buffer, u
 
 	/* Done! */
 	return DevRequest.Status;
+}
+
+/* Install Interrupt Pipe */
+void UsbFunctionInstallPipe(UsbHc_t *Hc, UsbHcDevice_t *Device, UsbHcRequest_t *Request, 
+	UsbHcEndpoint_t *Endpoint, void *Buffer, size_t Length)
+{
+	/* Setup Transfer */
+	UsbTransactionInit(Hc, Request, InterruptTransfer, Device, Endpoint);
+
+	/* Add in transfers */
+	UsbTransactionIn(Hc, Request, 0, Buffer, Length);
+
+	/* Initiate the transfers */
+	UsbTransactionSend(Hc, Request);
 }
