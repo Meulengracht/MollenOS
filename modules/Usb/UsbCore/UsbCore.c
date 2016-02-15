@@ -28,6 +28,7 @@
 #include <Semaphore.h>
 #include <Heap.h>
 #include <List.h>
+#include <Log.h>
 
 /* Drivers */
 #include <UsbHid.h>
@@ -84,6 +85,9 @@ UsbHc_t *UsbInitController(void *Data, UsbControllerType_t Type, size_t Ports)
 	Controller->Type = Type;
 	Controller->NumPorts = Ports;
 
+	/* Reserve address 0 */
+	Controller->AddressMap[0] |= 0x1;
+
 	/* Done! */
 	return Controller;
 }
@@ -123,11 +127,48 @@ void UsbEventCreate(UsbHc_t *Hc, int Port, UsbEventType_t Type)
 	SemaphoreV(GlbEventLock);
 }
 
+/* Reserve an Address */
+size_t UsbReserveAddress(UsbHc_t *Hc)
+{
+	/* Find first free bit */
+	size_t Itr = 0, Jtr = 0;
+
+	/* Check map */
+	for (; Itr < 4; Itr++) {
+		for (Jtr = 0; Jtr < 32; Jtr++) {
+			if (!(Hc->AddressMap[Itr] & (1 << Jtr))) {
+				Hc->AddressMap[Itr] |= (1 << Jtr);
+				return (Itr * 4) + Jtr;
+			}
+		}
+	}
+
+	/* Wtf? No address?! */
+	return 255;
+}
+
+/* Release an Address */
+void UsbReleaseAddress(UsbHc_t *Hc, size_t Address)
+{
+	/* Sanity */
+	if (Address == 0
+		|| Address > 127)
+		return;
+
+	/* Which map-part? */
+	size_t mSegment = (Address / 32);
+	size_t mOffset = (Address % 32);
+
+	/* Unset */
+	Hc->AddressMap[mSegment] &= ~(1 << mOffset);
+}
+
 /* Device Connected */
 void UsbDeviceSetup(UsbHc_t *Hc, int Port)
 {
 	/* Vars */
 	UsbHcDevice_t *Device;
+	size_t ReservedAddr;
 	int i, j;
 
 	/* Make sure we have the port allocated */
@@ -141,12 +182,13 @@ void UsbDeviceSetup(UsbHc_t *Hc, int Port)
 
 	/* Create a device */
 	Device = (UsbHcDevice_t*)kmalloc(sizeof(UsbHcDevice_t));
+
+	/* Reset structure */
+	memset(Device, 0, sizeof(UsbHcDevice_t));
+
+	/* Set Hc & Port */
 	Device->HcDriver = Hc;
 	Device->Port = (uint8_t)Port;
-
-	Device->NumInterfaces = 0;
-	for (i = 0; i < USB_MAX_INTERFACES; i++)
-		Device->Interfaces[i] = NULL;
 	
 	/* Initial Address must be 0 */
 	Device->Address = 0;
@@ -157,7 +199,7 @@ void UsbDeviceSetup(UsbHc_t *Hc, int Port)
 	Device->CtrlEndpoint->Type = EndpointControl;
 	Device->CtrlEndpoint->Toggle = 0;
 	Device->CtrlEndpoint->Bandwidth = 1;
-	Device->CtrlEndpoint->MaxPacketSize = 64;
+	Device->CtrlEndpoint->MaxPacketSize = 8;
 	Device->CtrlEndpoint->Direction = USB_EP_DIRECTION_BOTH;
 	Device->CtrlEndpoint->Interval = 0;
 	Device->CtrlEndpoint->AttachedData = NULL;
@@ -173,16 +215,35 @@ void UsbDeviceSetup(UsbHc_t *Hc, int Port)
 		&& Hc->Ports[Port]->Enabled != 1)
 		goto DevError;
 
+	/* Determine control size */
+	if (Hc->Ports[Port]->Speed == FullSpeed
+		|| Hc->Ports[Port]->Speed == HighSpeed) {
+		Device->CtrlEndpoint->MaxPacketSize = 64;
+	}
+	else if (Hc->Ports[Port]->Speed == SuperSpeed) {
+		Device->CtrlEndpoint->MaxPacketSize = 512;
+	}
+
 	/* Setup Endpoint */
 	Hc->EndpointSetup(Hc->Hc, Device->CtrlEndpoint);
 
-	/* Set Device Address (Just bind it to the port number + 1 (never set address 0) ) */
-	if (UsbFunctionSetAddress(Hc, Port, (uint32_t)(Port + 1)) != TransferFinished)
+	/* Allocate Address */
+	ReservedAddr = UsbReserveAddress(Hc);
+
+	/* Sanity */
+	if (ReservedAddr == 0
+		|| ReservedAddr > 127) {
+		LogFatal("USBC", "(UsbReserveAddress %u) Failed to setup port %i", ReservedAddr, Port);
+		goto DevError;
+	}
+
+	/* Set Device Address */
+	if (UsbFunctionSetAddress(Hc, Port, ReservedAddr) != TransferFinished)
 	{
 		/* Try again */
-		if (UsbFunctionSetAddress(Hc, Port, (uint32_t)(Port + 1)) != TransferFinished)
+		if (UsbFunctionSetAddress(Hc, Port, ReservedAddr) != TransferFinished)
 		{
-			LogFatal("USBC", "USB_Handler: (Set_Address) Failed to setup port %u", Port);
+			LogFatal("USBC", "(Set_Address) Failed to setup port %i", Port);
 			goto DevError;
 		}
 	}
@@ -196,7 +257,7 @@ void UsbDeviceSetup(UsbHc_t *Hc, int Port)
 		/* Try Again */
 		if (UsbFunctionGetDeviceDescriptor(Hc, Port) != TransferFinished)
 		{
-			LogFatal("USBC", "USB_Handler: (Get_Device_Desc) Failed to setup port %u", Port);
+			LogFatal("USBC", "(Get_Device_Desc) Failed to setup port %i", Port);
 			goto DevError;
 		}
 	}
@@ -207,7 +268,7 @@ void UsbDeviceSetup(UsbHc_t *Hc, int Port)
 		/* Try Again */
 		if (UsbFunctionGetConfigDescriptor(Hc, Port) != TransferFinished)
 		{
-			LogFatal("USBC", "USB_Handler: (Get_Config_Desc) Failed to setup port %u", Port);
+			LogFatal("USBC", "(Get_Config_Desc) Failed to setup port %i", Port);
 			goto DevError;
 		}
 	}
@@ -218,7 +279,7 @@ void UsbDeviceSetup(UsbHc_t *Hc, int Port)
 		/* Try Again */
 		if (UsbFunctionSetConfiguration(Hc, Port, Hc->Ports[Port]->Device->Configuration) != TransferFinished)
 		{
-			LogFatal("USBC", "USB_Handler: (Set_Configuration) Failed to setup port %u", Port);
+			LogFatal("USBC", "(Set_Configuration) Failed to setup port %i", Port);
 			goto DevError;
 		}
 	}
@@ -253,7 +314,7 @@ void UsbDeviceSetup(UsbHc_t *Hc, int Port)
 	}
 
 	/* Done */
-	LogInformation("USBC", "UsbCore: Setup of port %u done!", Port);
+	LogInformation("USBC", "Setup of port %i done!", Port);
 	return;
 
 DevError:
@@ -262,6 +323,9 @@ DevError:
 
 	/* Free Control Endpoint */
 	kfree(Device->CtrlEndpoint);
+
+	/* Free Address */
+	UsbReleaseAddress(Hc, Device->Address);
 
 	/* Free Interfaces */
 	for (i = 0; i < (int)Device->NumInterfaces; i++)
@@ -285,6 +349,12 @@ DevError:
 
 	/* Free base */
 	kfree(Device);
+
+	/* Update Port */
+	Hc->Ports[Port]->Connected = 0;
+	Hc->Ports[Port]->Enabled = 0;
+	Hc->Ports[Port]->Speed = LowSpeed;
+	Hc->Ports[Port]->Device = NULL;
 }
 
 /* Device Disconnected */
@@ -313,6 +383,9 @@ void UsbDeviceDestroy(UsbHc_t *Hc, int Port)
 
 	/* Free Control Endpoint */
 	kfree(Device->CtrlEndpoint);
+
+	/* Free Address */
+	UsbReleaseAddress(Hc, Device->Address);
 
 	/* Free Interfaces */
 	for (i = 0; i < (int)Device->NumInterfaces; i++)

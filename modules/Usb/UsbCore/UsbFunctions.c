@@ -105,13 +105,7 @@ void UsbTransactionIn(UsbHc_t *Hc, UsbHcRequest_t *Request, int Handshake, void 
 		TransfersLeft = 0;
 	}
 	else
-	{
-		TransfersLeft = RemainingLen / Request->Endpoint->MaxPacketSize;
-		
-		/* Fix transfers */
-		if (RemainingLen % Request->Endpoint->MaxPacketSize)
-			TransfersLeft++;
-	}
+		TransfersLeft = DIVUP(RemainingLen, Request->Endpoint->MaxPacketSize);
 	
 	/* Set request io buffer */
 	Request->IoBuffer = Buffer;
@@ -133,8 +127,7 @@ void UsbTransactionIn(UsbHc_t *Hc, UsbHcRequest_t *Request, int Handshake, void 
 
 	/* Do we need more transfers? */
 	if (TransfersLeft > 0)
-		UsbTransactionIn(Hc, Request, Request->Endpoint->Toggle,
-		(void*)((size_t)Buffer + FixedLen), RemainingLen);
+		UsbTransactionIn(Hc, Request, 0, (void*)((uint8_t*)Buffer + FixedLen), RemainingLen);
 }
 
 /* The Out Data Transaction */
@@ -155,13 +148,7 @@ void UsbTransactionOut(UsbHc_t *Hc, UsbHcRequest_t *Request, int Handshake, void
 		TransfersLeft = 0;
 	}
 	else
-	{
-		TransfersLeft = RemainingLen / Request->Endpoint->MaxPacketSize;
-
-		/* Fix transfers */
-		if (RemainingLen % Request->Endpoint->MaxPacketSize)
-			TransfersLeft++;
-	}
+		TransfersLeft = DIVUP(RemainingLen, Request->Endpoint->MaxPacketSize);
 
 	/* Set request io buffer */
 	Request->IoBuffer = Buffer;
@@ -183,8 +170,7 @@ void UsbTransactionOut(UsbHc_t *Hc, UsbHcRequest_t *Request, int Handshake, void
 
 	/* Check up on this ! !*/
 	if (TransfersLeft > 0)
-		UsbTransactionOut(Hc, Request, Request->Endpoint->Toggle,
-		(void*)((size_t)Buffer + FixedLen), RemainingLen);
+		UsbTransactionOut(Hc, Request, 0, (void*)((uint8_t*)Buffer + FixedLen), RemainingLen);
 }
 
 /* Send to Device */
@@ -484,7 +470,7 @@ UsbTransferStatus_t UsbFunctionGetConfigDescriptor(UsbHc_t *Hc, int Port)
 				}
 
 			}
-			else if (length == sizeof(UsbEndpointDescriptor_t)
+			else if ((length == 7 || length == 9)
 				&& type == USB_DESC_TYPE_ENDPOINT)
 			{
 				/* Null Ep's ? ?*/
@@ -497,11 +483,11 @@ UsbTransferStatus_t UsbFunctionGetConfigDescriptor(UsbHc_t *Hc, int Port)
 
 				/* Get Info */
 				size_t EpAddr = Ep->Address & 0xF;
-				UsbHcEndpointType_T EpType = (UsbHcEndpointType_T)(Ep->Attributes & 0x3);
+				UsbHcEndpointType_t EpType = (UsbHcEndpointType_t)(Ep->Attributes & 0x3);
 
 				/* Debug */
-				LogInformation("USBC", "Endpoint %u - Attributes 0x%x (MaxPacketSize 0x%x)",
-					Ep->Address, Ep->Attributes, Ep->MaxPacketSize);
+				LogInformation("USBC", "Endpoint %u (%s) - Attributes 0x%x (MaxPacketSize 0x%x)",
+					EpAddr, ((Ep->Address & 0x80) != 0 ? "IN" : "OUT"), Ep->Attributes, Ep->MaxPacketSize);
 
 				/* Update Device */
 				HcdEp->Address = EpAddr;
@@ -815,7 +801,10 @@ void UsbFunctionInstallPipe(UsbHc_t *Hc, UsbHcDevice_t *Device, UsbHcRequest_t *
 	UsbTransactionInit(Hc, Request, InterruptTransfer, Device, Endpoint);
 
 	/* Add in transfers */
-	UsbTransactionIn(Hc, Request, 0, Buffer, Length);
+	if (Endpoint->Direction == USB_EP_DIRECTION_IN)
+		UsbTransactionIn(Hc, Request, 0, Buffer, Length);
+	else
+		UsbTransactionOut(Hc, Request, 0, Buffer, Length);
 
 	/* Initiate the transfers */
 	UsbTransactionSend(Hc, Request);

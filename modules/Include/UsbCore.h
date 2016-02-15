@@ -271,6 +271,12 @@ typedef struct _UsbEndpointDescriptor
 	/* Interval */
 	uint8_t Interval;
 
+	/* OPTIONAL - bRefresh */
+	uint8_t Refresh;
+
+	/* OPTIONAL - bSyncAddress */
+	uint8_t SyncAddress;
+
 } UsbEndpointDescriptor_t;
 #pragma pack(pop)
 
@@ -324,13 +330,13 @@ typedef enum _UsbHcEndpointType
 	EndpointBulk			= 2,
 	EndpointInterrupt		= 3
 
-} UsbHcEndpointType_T;
+} UsbHcEndpointType_t;
 
 /* The Abstract Usb Endpoint */
 typedef struct _UsbHcEndpoint
 {
 	/* Type */
-	UsbHcEndpointType_T Type;
+	UsbHcEndpointType_t Type;
 
 	/* Address */
 	size_t Address;
@@ -591,6 +597,11 @@ typedef struct _UsbHc
 
 	/* Controller Info */
 	size_t NumPorts;
+
+	/* Address Map 
+	 * 4 x 32 bits = 128 possible addresses
+	 * which match the max in usb-spec */
+	uint32_t AddressMap[4];
 
 	/* Ports */
 	UsbHcPort_t *Ports[USB_MAX_PORTS];

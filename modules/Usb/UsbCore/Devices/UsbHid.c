@@ -114,7 +114,11 @@ void UsbHidInit(UsbHcDevice_t *UsbDevice, int InterfaceIndex)
 	uint8_t *ReportDescriptor = NULL;
 	size_t i;
 
-	/* Locate the HID descriptor */
+	/* Locate the HID descriptor 
+	 * TODO: there can be multiple 
+	 * hid descriptors, which means 
+	 * we must make sure our interface
+	 * has been "passed" before selecting */
 	while (BytesLeft > 0)
 	{
 		/* Cast */
@@ -230,7 +234,9 @@ void UsbHidInit(UsbHcDevice_t *UsbDevice, int InterfaceIndex)
 	/* Some keyboards don't work before their LEDS are set. */
 
 	/* Debug */
-	LogDebug("USBH", "Installing Interrupt Pipe");
+	LogDebug("USBH", "Installing Interrupt Pipe %u - %u - %u - %u", 
+		DevData->EpInterrupt->Address, DevData->EpInterrupt->Bandwidth,
+		DevData->EpInterrupt->Interval, DevData->EpInterrupt->MaxPacketSize);
 
 	/* Install Interrupt */
 	UsbFunctionInstallPipe(UsbHcd, UsbDevice, DevData->InterruptChannel,

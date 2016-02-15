@@ -523,13 +523,15 @@ void UhciInitQueues(UhciController_t *Controller)
 	Controller->QhPool[UHCI_POOL_NULL]->Child = Controller->NullTdPhysical;
 	Controller->QhPool[UHCI_POOL_NULL]->ChildVirtual = (uint32_t)Controller->NullTd;
 	Controller->QhPool[UHCI_POOL_NULL]->Flags |= UHCI_QH_ACTIVE;
+	Controller->QhPool[UHCI_POOL_NULL]->Flags |= UHCI_QH_SET_SORT(3);
 
 	/* Setup async Qh */
 	Controller->QhPool[UHCI_POOL_ASYNC]->Link = UHCI_TD_LINK_END;
 	Controller->QhPool[UHCI_POOL_ASYNC]->LinkVirtual = 0;
-	Controller->QhPool[UHCI_POOL_ASYNC]->Child = Controller->NullTdPhysical;
-	Controller->QhPool[UHCI_POOL_ASYNC]->ChildVirtual = (uint32_t)Controller->NullTd;
+	Controller->QhPool[UHCI_POOL_ASYNC]->Child = UHCI_TD_LINK_END;
+	Controller->QhPool[UHCI_POOL_ASYNC]->ChildVirtual = 0;
 	Controller->QhPool[UHCI_POOL_ASYNC]->Flags |= UHCI_QH_ACTIVE;
+	Controller->QhPool[UHCI_POOL_ASYNC]->Flags |= UHCI_QH_SET_SORT(0);
 
 	/* Set all queues to end in the async QH 
 	 * This way we handle iso & ints before bulk/control */
@@ -742,6 +744,9 @@ UhciQueueHead_t *UhciAllocateQh(UhciController_t *Controller, UsbTransferType_t 
 /* Initializes the Qh */
 void UhciQhInit(UhciController_t *Controller, UhciQueueHead_t *Qh, UsbHcTransaction_t *FirstTd)
 {
+	/* Clear Sort */
+	Qh->Flags = UHCI_QH_CLR_SORT(Qh->Flags);
+
 	/* Set link pointer */
 	Qh->Link = Controller->QhPoolPhys[UHCI_POOL_NULL] | UHCI_TD_LINK_QH;
 	Qh->LinkVirtual = (uint32_t)Controller->QhPool[UHCI_POOL_NULL];
@@ -1463,13 +1468,34 @@ void UhciTransactionSend(void *Controller, UsbHcRequest_t *Request)
 	if (Request->Type == ControlTransfer
 		|| Request->Type == BulkTransfer)
 	{
+		/* Set sort index */
+		if (Request->Type == ControlTransfer) {
+			if (Request->Speed == LowSpeed)
+				Qh->Flags |= UHCI_QH_SET_SORT(1);
+			else
+				Qh->Flags |= UHCI_QH_SET_SORT(2);
+		}
+		else
+			Qh->Flags |= UHCI_QH_SET_SORT(3);
+
 		/* Just append to async */
 		UhciQueueHead_t *PrevQh = Ctrl->QhPool[UHCI_POOL_ASYNC];
 
 		/* Iterate to end */
 		while (PrevQh->LinkVirtual != 0
-			&& PrevQh->LinkVirtual != (uint32_t)Ctrl->QhPool[UHCI_POOL_NULL])
+			&& PrevQh->LinkVirtual != (uint32_t)Ctrl->QhPool[UHCI_POOL_NULL]) {
+			
+			/* Get sort index */
+			int pIndex = UHCI_QH_GET_SORT(PrevQh->Flags);
+			int cIndex = UHCI_QH_GET_SORT(Qh->Flags);
+
+			/* If we encounter an sort index higher or equal, we can insert */
+			if (pIndex >= cIndex)
+				break;
+
+			/* Get next qh */
 			PrevQh = (UhciQueueHead_t*)PrevQh->LinkVirtual;
+		}
 
 		/* Insert */
 		PrevQh->Link = (QhAddress | UHCI_TD_LINK_QH);
@@ -1532,7 +1558,6 @@ void UhciTransactionSend(void *Controller, UsbHcRequest_t *Request)
 		/* Insert directly into the frame and link to the QH */
 
 		/* Fixup toggles ? */
-
 
 		/* Done! */
 		return;
@@ -1759,11 +1784,11 @@ void UhciTransactionDestroy(void *Controller, UsbHcRequest_t *Request)
 		}
 	}
 
-	/* Enable Controller */
-	UhciStart(Ctrl);
-
 	/* Done */
 	SpinlockRelease(&Ctrl->Lock);
+
+	/* Enable Controller */
+	UhciStart(Ctrl);
 }
 
 /* Handles completions */
