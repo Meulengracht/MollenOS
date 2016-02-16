@@ -516,22 +516,20 @@ void UhciInitQueues(UhciController_t *Controller)
 	/* Setup Iso Qh */
 
 	/* Setup null QH */
-	Controller->QhPool[UHCI_POOL_NULL]->Link = 
-		(Controller->QhPoolPhys[UHCI_POOL_NULL] | UHCI_TD_LINK_QH);
-	Controller->QhPool[UHCI_POOL_NULL]->LinkVirtual = 
-		(uint32_t)Controller->QhPool[UHCI_POOL_NULL];
-	Controller->QhPool[UHCI_POOL_NULL]->Child = Controller->NullTdPhysical;
-	Controller->QhPool[UHCI_POOL_NULL]->ChildVirtual = (uint32_t)Controller->NullTd;
-	Controller->QhPool[UHCI_POOL_NULL]->Flags |= UHCI_QH_ACTIVE;
-	Controller->QhPool[UHCI_POOL_NULL]->Flags |= UHCI_QH_SET_SORT(3);
+	Controller->QhPool[UHCI_POOL_FSBR]->Link =
+		(Controller->QhPoolPhys[UHCI_POOL_FSBR] | UHCI_TD_LINK_QH);
+	Controller->QhPool[UHCI_POOL_FSBR]->LinkVirtual =
+		(uint32_t)Controller->QhPool[UHCI_POOL_FSBR];
+	Controller->QhPool[UHCI_POOL_FSBR]->Child = Controller->NullTdPhysical;
+	Controller->QhPool[UHCI_POOL_FSBR]->ChildVirtual = (uint32_t)Controller->NullTd;
+	Controller->QhPool[UHCI_POOL_FSBR]->Flags |= UHCI_QH_ACTIVE;
 
 	/* Setup async Qh */
 	Controller->QhPool[UHCI_POOL_ASYNC]->Link = UHCI_TD_LINK_END;
 	Controller->QhPool[UHCI_POOL_ASYNC]->LinkVirtual = 0;
-	Controller->QhPool[UHCI_POOL_ASYNC]->Child = UHCI_TD_LINK_END;
-	Controller->QhPool[UHCI_POOL_ASYNC]->ChildVirtual = 0;
+	Controller->QhPool[UHCI_POOL_ASYNC]->Child = Controller->NullTdPhysical;
+	Controller->QhPool[UHCI_POOL_ASYNC]->ChildVirtual = (uint32_t)Controller->NullTd;
 	Controller->QhPool[UHCI_POOL_ASYNC]->Flags |= UHCI_QH_ACTIVE;
-	Controller->QhPool[UHCI_POOL_ASYNC]->Flags |= UHCI_QH_SET_SORT(0);
 
 	/* Set all queues to end in the async QH 
 	 * This way we handle iso & ints before bulk/control */
@@ -744,12 +742,9 @@ UhciQueueHead_t *UhciAllocateQh(UhciController_t *Controller, UsbTransferType_t 
 /* Initializes the Qh */
 void UhciQhInit(UhciController_t *Controller, UhciQueueHead_t *Qh, UsbHcTransaction_t *FirstTd)
 {
-	/* Clear Sort */
-	Qh->Flags = UHCI_QH_CLR_SORT(Qh->Flags);
-
 	/* Set link pointer */
-	Qh->Link = Controller->QhPoolPhys[UHCI_POOL_NULL] | UHCI_TD_LINK_QH;
-	Qh->LinkVirtual = (uint32_t)Controller->QhPool[UHCI_POOL_NULL];
+	Qh->Link = Controller->QhPoolPhys[UHCI_POOL_FSBR] | UHCI_TD_LINK_QH;
+	Qh->LinkVirtual = (uint32_t)Controller->QhPool[UHCI_POOL_FSBR];
 
 	/* Set Td list */
 	if ((Addr_t)FirstTd->TransferDescriptor == UHCI_TD_LINK_END)
@@ -803,7 +798,9 @@ Addr_t OhciAllocateTd(UhciEndpoint_t *Ep, UsbTransferType_t Type)
 		/* Isochronous & Interrupt */
 
 		/* Allocate a new */
-		Td = (UhciTransferDescriptor_t*)UhciAlign(((Addr_t)kmalloc(sizeof(UhciTransferDescriptor_t) + UHCI_STRUCT_ALIGN)), UHCI_STRUCT_ALIGN_BITS, UHCI_STRUCT_ALIGN);
+		Td = (UhciTransferDescriptor_t*)UhciAlign((
+			(Addr_t)kmalloc(sizeof(UhciTransferDescriptor_t) + UHCI_STRUCT_ALIGN)), 
+				UHCI_STRUCT_ALIGN_BITS, UHCI_STRUCT_ALIGN);
 
 		/* Null it */
 		memset((void*)Td, 0, sizeof(UhciTransferDescriptor_t));
@@ -823,12 +820,11 @@ Addr_t OhciAllocateTd(UhciEndpoint_t *Ep, UsbTransferType_t Type)
 
 /* Setup TD */
 UhciTransferDescriptor_t *UhciTdSetup(UhciEndpoint_t *Ep, UsbTransferType_t Type,
-	Addr_t NextTD, UsbPacket_t *pPacket, size_t DeviceAddr,
+	UsbPacket_t *pPacket, size_t DeviceAddr,
 	size_t EpAddr, UsbSpeed_t Speed, void **TDBuffer)
 {
 	/* Vars */
 	UhciTransferDescriptor_t *Td;
-	Addr_t TdPhys;
 	void *Buffer;
 	Addr_t TDIndex;
 
@@ -838,13 +834,9 @@ UhciTransferDescriptor_t *UhciTdSetup(UhciEndpoint_t *Ep, UsbTransferType_t Type
 	/* Grab a Td and a Buffer */
 	Td = Ep->TDPool[TDIndex];
 	Buffer = Ep->TDPoolBuffers[TDIndex];
-	TdPhys = Ep->TDPoolPhysical[TDIndex];
 
-	/* EOL ? */
-	if (NextTD == UHCI_TD_LINK_END)
-		Td->Link = UHCI_TD_LINK_END;
-	else	/* Get physical Address of NextTD and set NextTD to that */
-		Td->Link = AddressSpaceGetMap(AddressSpaceGetCurrent(), (VirtAddr_t)NextTD) | UHCI_TD_LINK_DEPTH;
+	/* Set Link */
+	Td->Link = UHCI_TD_LINK_END;
 
 	/* Setup TD Control Status */
 	Td->Flags = UHCI_TD_ACTIVE;
@@ -872,49 +864,45 @@ UhciTransferDescriptor_t *UhciTdSetup(UhciEndpoint_t *Ep, UsbTransferType_t Type
 
 /* In/Out TD */
 UhciTransferDescriptor_t *UhciTdIo(UhciEndpoint_t *Ep, UsbTransferType_t Type,
-	Addr_t NextTD, size_t Toggle, size_t DeviceAddr, size_t EpAddr,
+	size_t Toggle, size_t DeviceAddr, size_t EpAddr,
 	uint32_t PId, size_t Length, UsbSpeed_t Speed, void **TDBuffer)
 {
 	/* Vars */
 	UhciTransferDescriptor_t *Td;
-	Addr_t TdPhys;
 	void *Buffer;
 	Addr_t TDIndex;
 
 	/* Allocate a Td */
 	TDIndex = OhciAllocateTd(Ep, Type);
 
-	if (Type == ControlTransfer || Type == BulkTransfer)
-	{
-		/* Grab a Td and a Buffer */
+	/* Grab a buffer */
+	if (Type == ControlTransfer || Type == BulkTransfer) {
 		Td = Ep->TDPool[TDIndex];
 		Buffer = Ep->TDPoolBuffers[TDIndex];
-		TdPhys = Ep->TDPoolPhysical[TDIndex];
 	}
-	else
-	{
-		/* Cast */
+	else {
 		Td = (UhciTransferDescriptor_t*)TDIndex;
-
-		/* Allocate a buffer */
 		Buffer = (void*)kmalloc_a(PAGE_SIZE);
 	}
 
-	/* EOL ? */
-	if (NextTD == UHCI_TD_LINK_END)
-		Td->Link = UHCI_TD_LINK_END;
-	else	/* Get physical Address of NextTD and set NextTD to that */
-		Td->Link = AddressSpaceGetMap(AddressSpaceGetCurrent(), (VirtAddr_t)NextTD);
+	/* Set Link */
+	Td->Link = UHCI_TD_LINK_END;
 
 	/* Setup TD Control Status */
 	Td->Flags = UHCI_TD_ACTIVE;
 	Td->Flags |= UHCI_TD_SET_ERR_CNT(3);
 
+	/* Low speed transfer? */
 	if (Speed == LowSpeed)
 		Td->Flags |= UHCI_TD_LOWSPEED;
 
+	/* Isochronous TD? */
 	if (Type == IsochronousTransfer)
 		Td->Flags |= UHCI_TD_ISOCHRONOUS;
+
+	/* In transfer? */
+	if (PId == UHCI_TD_PID_IN)
+		Td->Flags |= UHCI_TD_SHORT_PACKET;
 
 	/* Setup TD Header Packet */
 	Td->Header = PId;
@@ -925,6 +913,7 @@ UhciTransferDescriptor_t *UhciTdIo(UhciEndpoint_t *Ep, UsbTransferType_t Type,
 	if (Toggle)
 		Td->Header |= UHCI_TD_DATA_TOGGLE;
 
+	/* Set Size */
 	if (Length > 0)
 		Td->Header |= UHCI_TD_MAX_LEN((Length - 1));
 	else
@@ -1248,6 +1237,7 @@ void UhciTransactionInit(void *Controller, UsbHcRequest_t *Request)
 /* This one prepaires an setup Td */
 UsbHcTransaction_t *UhciTransactionSetup(void *Controller, UsbHcRequest_t *Request)
 {
+	/* Vars */
 	UhciController_t *Ctrl = (UhciController_t*)Controller;
 	UsbHcTransaction_t *Transaction;
 
@@ -1262,25 +1252,11 @@ UsbHcTransaction_t *UhciTransactionSetup(void *Controller, UsbHcRequest_t *Reque
 
 	/* Create the Td */
 	Transaction->TransferDescriptor = (void*)UhciTdSetup(Request->Endpoint->AttachedData,
-		Request->Type, UHCI_TD_LINK_END, &Request->Packet, 
+		Request->Type, &Request->Packet, 
 		Request->Device->Address, Request->Endpoint->Address, 
 		Request->Speed, &Transaction->TransferBuffer);
 
-	/* If previous Transaction */
-	if (Request->Transactions != NULL)
-	{
-		UhciTransferDescriptor_t *PrevTd;
-		UsbHcTransaction_t *cTrans = Request->Transactions;
-
-		while (cTrans->Link)
-			cTrans = cTrans->Link;
-
-		PrevTd = (UhciTransferDescriptor_t*)cTrans->TransferDescriptor;
-		PrevTd->Link = 
-			(AddressSpaceGetMap(AddressSpaceGetCurrent(), 
-				(VirtAddr_t)Transaction->TransferDescriptor) | UHCI_TD_LINK_DEPTH);
-	}
-
+	/* Done! */
 	return Transaction;
 }
 
@@ -1303,7 +1279,7 @@ UsbHcTransaction_t *UhciTransactionIn(void *Controller, UsbHcRequest_t *Request)
 
 	/* Setup Td */
 	Transaction->TransferDescriptor = (void*)UhciTdIo(Request->Endpoint->AttachedData,
-		Request->Type, UHCI_TD_LINK_END, Request->Endpoint->Toggle,
+		Request->Type, Request->Endpoint->Toggle,
 		Request->Device->Address, Request->Endpoint->Address, UHCI_TD_PID_IN, Request->IoLength,
 		Request->Speed, &Transaction->TransferBuffer);
 
@@ -1358,7 +1334,7 @@ UsbHcTransaction_t *UhciTransactionOut(void *Controller, UsbHcRequest_t *Request
 
 	/* Setup Td */
 	Transaction->TransferDescriptor = (void*)UhciTdIo(Request->Endpoint->AttachedData,
-		Request->Type, UHCI_TD_LINK_END, Request->Endpoint->Toggle,
+		Request->Type, Request->Endpoint->Toggle,
 		Request->Device->Address, Request->Endpoint->Address, UHCI_TD_PID_OUT, Request->IoLength,
 		Request->Speed, &Transaction->TransferBuffer);
 
@@ -1461,39 +1437,23 @@ void UhciTransactionSend(void *Controller, UsbHcRequest_t *Request)
 	/* Now lets try the Transaction */
 	SpinlockAcquire(&Ctrl->Lock);
 
-	/* Stop controller */
-	UhciStop(Ctrl);
-
 	/* For Control & Bulk, we link into async list */
 	if (Request->Type == ControlTransfer
 		|| Request->Type == BulkTransfer)
 	{
-		/* Set sort index */
-		if (Request->Type == ControlTransfer) {
-			if (Request->Speed == LowSpeed)
-				Qh->Flags |= UHCI_QH_SET_SORT(1);
-			else
-				Qh->Flags |= UHCI_QH_SET_SORT(2);
-		}
-		else
-			Qh->Flags |= UHCI_QH_SET_SORT(3);
+		/* Stop controller */
+		UhciStop(Ctrl);
+
+		/* If it's a low-speed control, we append to async 
+		 * If it's a high-speed control, we insert at the front of the fsbr 
+		 * If it's a high-speed bulk, we append to fsbr */
 
 		/* Just append to async */
 		UhciQueueHead_t *PrevQh = Ctrl->QhPool[UHCI_POOL_ASYNC];
 
 		/* Iterate to end */
 		while (PrevQh->LinkVirtual != 0
-			&& PrevQh->LinkVirtual != (uint32_t)Ctrl->QhPool[UHCI_POOL_NULL]) {
-			
-			/* Get sort index */
-			int pIndex = UHCI_QH_GET_SORT(PrevQh->Flags);
-			int cIndex = UHCI_QH_GET_SORT(Qh->Flags);
-
-			/* If we encounter an sort index higher or equal, we can insert */
-			if (pIndex >= cIndex)
-				break;
-
-			/* Get next qh */
+			&& PrevQh->LinkVirtual != (uint32_t)Ctrl->QhPool[UHCI_POOL_FSBR]) {
 			PrevQh = (UhciQueueHead_t*)PrevQh->LinkVirtual;
 		}
 
@@ -1532,15 +1492,13 @@ void UhciTransactionSend(void *Controller, UsbHcRequest_t *Request)
 		Qh->Link = PrevQh->Link | UHCI_TD_LINK_QH;
 		Qh->LinkVirtual = PrevQh->LinkVirtual;
 
-		/* Set link */
+		/* Set link - Atomic operation 
+		 * We don't need to stop/start controller */
 		PrevQh->Link = QhAddress | UHCI_TD_LINK_QH;
 		PrevQh->LinkVirtual = (uint32_t)Qh;
 
 		/* Release lock */
 		SpinlockRelease(&Ctrl->Lock);
-
-		/* Start controller */
-		UhciStart(Ctrl);
 
 		/* Done! */
 		return;

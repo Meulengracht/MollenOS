@@ -194,8 +194,7 @@ typedef struct _UhciQueueHead
 	 * Bit 1-7: Pool Number
 	 * Bit 8-15: Queue Head Index 
 	 * Bit 16-17: Queue Head Type (00 Control, 01 Bulk, 10 Interrupt, 11 Isochronous) 
-	 * Bit 18: Bandwidth allocated 
-	 * Bit 19-20: Sort Index */
+	 * Bit 18: Bandwidth allocated */
 	uint32_t Flags;
 
 	/* Virtual Address of next QH */
@@ -224,10 +223,6 @@ typedef struct _UhciQueueHead
 #define UHCI_QH_CLR_QUEUE(n)		(n & 0xFFFFFF01)
 #define UHCI_QT_GET_QUEUE(n)		((n & 0xFE) >> 1)
 
-#define UHCI_QH_SET_SORT(n)			((n & 0x3) << 19)	
-#define UHCI_QH_CLR_SORT(n)			(n & ~(1 << 19 | 1 << 20))
-#define UHCI_QH_GET_SORT(n)			((n >> 19) & 0x3)
-
 /* Pool Definitions */
 #define UHCI_POOL_NUM_QH			60
 #define UHCI_ENDPOINT_MIN_ALLOCATED 25
@@ -235,7 +230,7 @@ typedef struct _UhciQueueHead
 #define UHCI_POOL_UNSCHEDULE		0
 #define UHCI_POOL_ISOCHRONOUS		1
 #define UHCI_POOL_ASYNC				9
-#define UHCI_POOL_NULL				10
+#define UHCI_POOL_FSBR				10
 #define UHCI_POOL_START				11
 
 #define UHCI_BANDWIDTH_PHASES		32

@@ -157,7 +157,8 @@ void UsbHidInit(UsbHcDevice_t *UsbDevice, int InterfaceIndex)
 	for (i = 0; i < UsbDevice->Interfaces[InterfaceIndex]->Versions[0]->NumEndpoints; i++)
 	{
 		/* Interrupt? */
-		if (UsbDevice->Interfaces[InterfaceIndex]->Versions[0]->Endpoints[i]->Type == EndpointInterrupt) {
+		if (UsbDevice->Interfaces[InterfaceIndex]->Versions[0]->Endpoints[i]->Type == EndpointInterrupt
+			&& UsbDevice->Interfaces[InterfaceIndex]->Versions[0]->Endpoints[i]->Direction == USB_EP_DIRECTION_IN) {
 			DevData->EpInterrupt = UsbDevice->Interfaces[InterfaceIndex]->Versions[0]->Endpoints[i];
 			break;
 		}
@@ -201,6 +202,7 @@ void UsbHidInit(UsbHcDevice_t *UsbDevice, int InterfaceIndex)
 	}
 
 	/* Parse Report Descriptor */
+	DevData->UsbDevice = UsbDevice;
 	DevData->Collection = NULL;
 	ReportLength = UsbHidParseReportDescriptor(DevData, 
 		ReportDescriptor, HidDescriptor->ClassDescriptorLength) + 1;
@@ -215,11 +217,11 @@ void UsbHidInit(UsbHcDevice_t *UsbDevice, int InterfaceIndex)
 
 	/* Allocate Interrupt Channel */
 	DevData->InterruptChannel = (UsbHcRequest_t*)kmalloc(sizeof(UsbHcRequest_t));
-	DevData->InterruptChannel->Callback = 
-		(UsbInterruptCallback_t*)kmalloc(sizeof(UsbInterruptCallback_t));
+	memset(DevData->InterruptChannel, 0, sizeof(UsbHcRequest_t));
 
 	/* Setup Callback */
-	DevData->UsbDevice = UsbDevice;
+	DevData->InterruptChannel->Callback =
+		(UsbInterruptCallback_t*)kmalloc(sizeof(UsbInterruptCallback_t));
 	DevData->InterruptChannel->Callback->Callback = UsbHidCallback;
 	DevData->InterruptChannel->Callback->Args = DevData;
 
