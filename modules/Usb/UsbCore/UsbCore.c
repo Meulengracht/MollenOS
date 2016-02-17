@@ -1,6 +1,6 @@
 /* MollenOS
 *
-* Copyright 2011 - 2014, Philip Meulengracht
+* Copyright 2011 - 2016, Philip Meulengracht
 *
 * This program is free software : you can redistribute it and / or modify
 * it under the terms of the GNU General Public License as published by
@@ -188,7 +188,7 @@ void UsbDeviceSetup(UsbHc_t *Hc, int Port)
 
 	/* Set Hc & Port */
 	Device->HcDriver = Hc;
-	Device->Port = (uint8_t)Port;
+	Device->Port = (size_t)Port;
 	
 	/* Initial Address must be 0 */
 	Device->Address = 0;

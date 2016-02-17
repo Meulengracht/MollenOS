@@ -24,5 +24,6 @@
 
 /* Module Setup */
 MODULES_API void ModuleInit(void *Data);
+//MODULES_API void ModuleDestroy(void *Data);
 
 #endif //!__MOLLENOS_MODULE__

@@ -1,6 +1,6 @@
 /* MollenOS Ohci Module
 *
-* Copyright 2011 - 2014, Philip Meulengracht
+* Copyright 2011 - 2016, Philip Meulengracht
 *
 * This program is free software : you can redistribute it and / or modify
 * it under the terms of the GNU General Public License as published by
@@ -2009,7 +2009,7 @@ void OhciProcessDoneQueue(OhciController_t *Controller, Addr_t DoneHeadAddr)
 					}
 
 					/* Callback */
-					HcRequest->Callback->Callback(HcRequest->Callback->Args);
+					HcRequest->Callback->Callback(HcRequest->Callback->Args, TransferFinished);
 
 					/* Restart Ed */
 					Ed->HeadPtr = 

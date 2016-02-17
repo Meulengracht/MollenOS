@@ -1,6 +1,6 @@
 /* MollenOS
 *
-* Copyright 2011 - 2014, Philip Meulengracht
+* Copyright 2011 - 2016, Philip Meulengracht
 *
 * This program is free software : you can redistribute it and / or modify
 * it under the terms of the GNU General Public License as published by
@@ -238,6 +238,9 @@ typedef struct _UhciQueueHead
 /* Endpoint Data */
 typedef struct _UhciEndpoint
 {
+	/* Max Packet Size */
+	size_t MaxPacketSize;
+
 	/* Td's allocated */
 	size_t TdsAllocated;
 

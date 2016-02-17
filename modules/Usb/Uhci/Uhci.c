@@ -1,6 +1,6 @@
 /* MollenOS
 *
-* Copyright 2011 - 2014, Philip Meulengracht
+* Copyright 2011 - 2016, Philip Meulengracht
 *
 * This program is free software : you can redistribute it and / or modify
 * it under the terms of the GNU General Public License as published by
@@ -16,11 +16,12 @@
 * along with this program.If not, see <http://www.gnu.org/licenses/>.
 *
 *
-* MollenOS X86-32 USB UHCI Controller Driver
+* MollenOS USB UHCI Controller Driver
 * Todo:
-* Fix the interrupt spam of HcHalted
-* Figure out how we can send transactions correctly
-* For gods sake make it work, and get some sleep
+* Isochronous Support
+* WHY DOES INTERRUPT TDS STALL
+* On short-packet transfers, we need to be able to fixup endpoint toggles
+* Finish the FSBR implementation, right now there is no guarantee of order ls/fs/bul
 */
 
 /* Includes */
@@ -78,20 +79,14 @@ void UhciTransactionDestroy(void *Controller, UsbHcRequest_t *Request);
 /* Helpers */
 uint16_t UhciRead16(UhciController_t *Controller, uint16_t Register)
 {
-	/* Read */
-	uint16_t Value = (uint16_t)IoSpaceRead(Controller->IoBase, Register, 2);
-
-	/* Done! */
-	return Value;
+	/* Deep Call! */
+	return (uint16_t)IoSpaceRead(Controller->IoBase, Register, 2);
 }
 
 uint32_t UhciRead32(UhciController_t *Controller, uint16_t Register)
 {
-	/* Read */
-	uint32_t Value = (uint32_t)IoSpaceRead(Controller->IoBase, Register, 4);
-
-	/* Done! */
-	return Value;
+	/* Deep Call! */
+	return (uint32_t)IoSpaceRead(Controller->IoBase, Register, 4);
 }
 
 void UhciWrite8(UhciController_t *Controller, uint16_t Register, uint8_t Value)
@@ -317,6 +312,31 @@ int UhciConditionCodeToIndex(int ConditionCode)
 	return bCount;
 }
 
+/* Determine transfer status from a td */
+UsbTransferStatus_t UhciGetTransferStatus(UhciTransferDescriptor_t *Td)
+{
+	/* Get condition index from flags */
+	UsbTransferStatus_t RetStatus = TransferFinished;
+	int CondCode = UhciConditionCodeToIndex(UHCI_TD_STATUS(Td->Flags));
+
+	/* Switch */
+	if (CondCode == 6)
+		RetStatus = TransferStalled;
+	else if (CondCode == 1)
+		RetStatus = TransferInvalidToggles;
+	else if (CondCode == 2)
+		RetStatus = TransferNotResponding;
+	else if (CondCode == 3)
+		RetStatus = TransferNAK;
+	else if (CondCode == 4)
+		RetStatus = TransferBabble;
+	else if (CondCode == 5)
+		RetStatus = TransferInvalidData;
+
+	/* Done! */
+	return RetStatus;
+}
+
 /* Resets the Controller */
 void UhciReset(UhciController_t *Controller)
 {
@@ -472,7 +492,7 @@ void UhciInitQueues(UhciController_t *Controller)
 	memset((void*)Controller->NullTd, 0, sizeof(UhciTransferDescriptor_t));
 
 	/* Set link invalid */
-	Controller->NullTd->Header = (uint32_t)(UHCI_TD_PID_IN | UHCI_TD_DEVICE_ADDR(0x7F) | UHCI_TD_MAX_LEN(0x7FF));
+	Controller->NullTd->Header = (uint32_t)(UHCI_TD_PID_OUT | UHCI_TD_DEVICE_ADDR(0x7F) | UHCI_TD_MAX_LEN(0x7FF));
 	Controller->NullTd->Link = UHCI_TD_LINK_END;
 
 	/* Setup Qh Pool */
@@ -747,16 +767,9 @@ void UhciQhInit(UhciController_t *Controller, UhciQueueHead_t *Qh, UsbHcTransact
 	Qh->LinkVirtual = (uint32_t)Controller->QhPool[UHCI_POOL_FSBR];
 
 	/* Set Td list */
-	if ((Addr_t)FirstTd->TransferDescriptor == UHCI_TD_LINK_END)
-	{
-		Qh->Child = UHCI_TD_LINK_END;
-		Qh->ChildVirtual = 0;
-	}
-	else
-	{
-		Qh->Child = AddressSpaceGetMap(AddressSpaceGetCurrent(), (Addr_t)FirstTd->TransferDescriptor);
-		Qh->ChildVirtual = (uint32_t)FirstTd->TransferDescriptor;
-	}
+	Qh->Child = AddressSpaceGetMap(AddressSpaceGetCurrent(), 
+		(Addr_t)FirstTd->TransferDescriptor);
+	Qh->ChildVirtual = (uint32_t)FirstTd->TransferDescriptor;
 }
 
 /* TD Functions */
@@ -900,8 +913,13 @@ UhciTransferDescriptor_t *UhciTdIo(UhciEndpoint_t *Ep, UsbTransferType_t Type,
 	if (Type == IsochronousTransfer)
 		Td->Flags |= UHCI_TD_ISOCHRONOUS;
 
-	/* In transfer? */
-	if (PId == UHCI_TD_PID_IN)
+	/* We set SPD on in transfers, but NOT on zero length */
+	if (Type == ControlTransfer) {
+		if (PId == UHCI_TD_PID_IN
+			&& Length > Ep->MaxPacketSize)
+			Td->Flags |= UHCI_TD_SHORT_PACKET;
+	}
+	else if (PId == UHCI_TD_PID_IN)
 		Td->Flags |= UHCI_TD_SHORT_PACKET;
 
 	/* Setup TD Header Packet */
@@ -941,6 +959,9 @@ void UhciEndpointSetup(void *Controller, UsbHcEndpoint_t *Endpoint)
 
 	/* Construct the lock */
 	SpinlockReset(&uEp->Lock);
+
+	/* Set initial info */
+	uEp->MaxPacketSize = Endpoint->MaxPacketSize;
 
 	/* Woah */
 	_CRT_UNUSED(uCtrl);
@@ -1390,21 +1411,21 @@ void UhciTransactionSend(void *Controller, UsbHcRequest_t *Request)
 
 	/* Get physical */
 	QhAddress = AddressSpaceGetMap(AddressSpaceGetCurrent(), (VirtAddr_t)Qh);
-	
+
 	/* Set as not Completed for start */
 	Request->Status = TransferNotProcessed;
 
 #ifdef UHCI_DIAGNOSTICS
 	Transaction = Request->Transactions;
-	while (Transaction->Link)
+	while (Transaction)
 	{
-		/* Next */
-		Transaction = Transaction->Link;
-
 		Td = (UhciTransferDescriptor_t*)Transaction->TransferDescriptor;
 		LogDebug("UHCI", "Td (Addr 0x%x) Flags 0x%x, Buffer 0x%x, Header 0x%x, Next Td 0x%x",
 			AddressSpaceGetMap(AddressSpaceGetCurrent(), (VirtAddr_t)Td),
 			Td->Flags, Td->Buffer, Td->Header, Td->Link);
+
+		/* Next */
+		Transaction = Transaction->Link;
 	}
 #endif
 
@@ -1441,9 +1462,6 @@ void UhciTransactionSend(void *Controller, UsbHcRequest_t *Request)
 	if (Request->Type == ControlTransfer
 		|| Request->Type == BulkTransfer)
 	{
-		/* Stop controller */
-		UhciStop(Ctrl);
-
 		/* If it's a low-speed control, we append to async 
 		 * If it's a high-speed control, we insert at the front of the fsbr 
 		 * If it's a high-speed bulk, we append to fsbr */
@@ -1489,7 +1507,7 @@ void UhciTransactionSend(void *Controller, UsbHcRequest_t *Request)
 		PrevQh = Ctrl->QhPool[Queue];
 
 		/* Insert */
-		Qh->Link = PrevQh->Link | UHCI_TD_LINK_QH;
+		Qh->Link = PrevQh->Link;
 		Qh->LinkVirtual = PrevQh->LinkVirtual;
 
 		/* Set link - Atomic operation 
@@ -1523,9 +1541,6 @@ void UhciTransactionSend(void *Controller, UsbHcRequest_t *Request)
 
 	/* Release lock */
 	SpinlockRelease(&Ctrl->Lock);
-
-	/* Start controller */
-	UhciStart(Ctrl);
 
 	/* Wait for interrupt */
 #ifndef UHCI_DIAGNOSTICS
@@ -1614,9 +1629,6 @@ void UhciTransactionDestroy(void *Controller, UsbHcRequest_t *Request)
 
 	/* Lock controller */
 	SpinlockAcquire(&Ctrl->Lock);
-
-	/* Stop controller */
-	UhciStop(Ctrl);
 
 	/* Unallocate Qh */
 	if (Request->Type == ControlTransfer
@@ -1744,9 +1756,6 @@ void UhciTransactionDestroy(void *Controller, UsbHcRequest_t *Request)
 
 	/* Done */
 	SpinlockRelease(&Ctrl->Lock);
-
-	/* Enable Controller */
-	UhciStart(Ctrl);
 }
 
 /* Handles completions */
@@ -1823,6 +1832,13 @@ void UhciProcessTransfers(UhciController_t *Controller)
 				/* Copy data if not dummy */
 				while (lIterator)
 				{
+					UhciTransferDescriptor_t *iTd =
+						(UhciTransferDescriptor_t*)lIterator->TransferDescriptor;
+
+					LogDebug("UHCI", "Td (Addr 0x%x) Flags 0x%x, Buffer 0x%x, Header 0x%x, Next Td 0x%x",
+						AddressSpaceGetMap(AddressSpaceGetCurrent(), (VirtAddr_t)iTd),
+						iTd->Flags, iTd->Buffer, iTd->Header, iTd->Link);
+
 					/* Let's see */
 					if (lIterator->IoLength != 0)
 					{
@@ -1852,7 +1868,7 @@ void UhciProcessTransfers(UhciController_t *Controller)
 				}
 
 				/* Callback */
-				HcRequest->Callback->Callback(HcRequest->Callback->Args);
+				//HcRequest->Callback->Callback(HcRequest->Callback->Args, TransferFinished);
 			}
 
 			/* Done */

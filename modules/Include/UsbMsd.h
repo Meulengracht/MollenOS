@@ -1,6 +1,6 @@
 /* MollenOS
 *
-* Copyright 2011 - 2014, Philip Meulengracht
+* Copyright 2011 - 2016, Philip Meulengracht
 *
 * This program is free software : you can redistribute it and / or modify
 * it under the terms of the GNU General Public License as published by
@@ -16,11 +16,11 @@
 * along with this program.If not, see <http://www.gnu.org/licenses/>.
 *
 *
-* MollenOS X86-32 USB Core MSD Driver
+* MollenOS USB Core MSD Driver
 */
 
-#ifndef X86_USB_MSD_H_
-#define X86_USB_MSD_H_
+#ifndef _USB_MSD_H_
+#define _USB_MSD_H_
 
 /* Includes */
 #include <UsbCore.h>

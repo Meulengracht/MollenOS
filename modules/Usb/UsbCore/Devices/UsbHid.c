@@ -1,6 +1,6 @@
 /* MollenOS
 *
-* Copyright 2011 - 2014, Philip Meulengracht
+* Copyright 2011 - 2016, Philip Meulengracht
 *
 * This program is free software : you can redistribute it and / or modify
 * it under the terms of the GNU General Public License as published by
@@ -16,7 +16,7 @@
 * along with this program.If not, see <http://www.gnu.org/licenses/>.
 *
 *
-* MollenOS X86-32 USB Core HID Driver
+* MollenOS USB Core HID Driver
 */
 
 /* Includes */
@@ -32,7 +32,7 @@
 
 /* Prototypes */
 size_t UsbHidParseReportDescriptor(HidDevice_t *Device, uint8_t *ReportData, size_t ReportLength);
-void UsbHidCallback(void *Device);
+void UsbHidCallback(void *Device, UsbTransferStatus_t Status);
 
 /* Collection List Helpers */
 void UsbHidCollectionInsertChild(UsbHidReportCollection_t *Collection, 
@@ -119,6 +119,7 @@ void UsbHidInit(UsbHcDevice_t *UsbDevice, int InterfaceIndex)
 	 * hid descriptors, which means 
 	 * we must make sure our interface
 	 * has been "passed" before selecting */
+	i = 0;
 	while (BytesLeft > 0)
 	{
 		/* Cast */
@@ -127,16 +128,22 @@ void UsbHidInit(UsbHcDevice_t *UsbDevice, int InterfaceIndex)
 
 		/* Is this a HID descriptor ? */
 		if (Type == USB_DESCRIPTOR_TYPE_HID
-			&& Length == sizeof(UsbHidDescriptor_t))
+			&& Length == sizeof(UsbHidDescriptor_t)
+			&& i == 1)
 		{
 			HidDescriptor = (UsbHidDescriptor_t*)BufPtr;
 			break;
 		}
-		else
-		{
-			BufPtr += Length;
-			BytesLeft -= Length;
+		else if (Type == USB_DESC_TYPE_INTERFACE
+			&& Length == sizeof(UsbInterfaceDescriptor_t)) {
+			UsbInterfaceDescriptor_t *_If = (UsbInterfaceDescriptor_t*)BufPtr;
+			if ((int)_If->NumInterface == InterfaceIndex)
+				i = 1;
 		}
+		
+		/* Next */
+		BufPtr += Length;
+		BytesLeft -= Length;
 	}
 
 	/* Sanity */
@@ -205,7 +212,7 @@ void UsbHidInit(UsbHcDevice_t *UsbDevice, int InterfaceIndex)
 	DevData->UsbDevice = UsbDevice;
 	DevData->Collection = NULL;
 	ReportLength = UsbHidParseReportDescriptor(DevData, 
-		ReportDescriptor, HidDescriptor->ClassDescriptorLength) + 1;
+		ReportDescriptor, HidDescriptor->ClassDescriptorLength);
 
 	LogDebug("USBH", "Report total length: %u bytes", ReportLength);
 
@@ -955,7 +962,7 @@ int UsbHidApplyCollectionData(HidDevice_t *Device, UsbHidReportCollection_t *Col
 }
 
 /* The callback for device-feedback */
-void UsbHidCallback(void *Device)
+void UsbHidCallback(void *Device, UsbTransferStatus_t Status)
 {
 	/* Vars */
 	HidDevice_t *DevData = (HidDevice_t*)Device;
@@ -963,6 +970,8 @@ void UsbHidCallback(void *Device)
 	/* Sanity */
 	if (DevData->Collection == NULL)
 		return;
+
+	_CRT_UNUSED(Status);
 
 	/* Parse Collection (Recursively) */
 	if (!UsbHidApplyCollectionData(DevData, DevData->Collection))

@@ -1,6 +1,6 @@
 /* MollenOS
 *
-* Copyright 2011 - 2014, Philip Meulengracht
+* Copyright 2011 - 2016, Philip Meulengracht
 *
 * This program is free software : you can redistribute it and / or modify
 * it under the terms of the GNU General Public License as published by
@@ -477,17 +477,6 @@ typedef struct _UsbHcTransaction
 
 } UsbHcTransaction_t;
 
-/* The Abstract Usb Callback */
-typedef struct _UsbInterruptCallback
-{
-	/* Callback */
-	void(*Callback)(void*);
-
-	/* Callback arguments */
-	void *Args;
-
-} UsbInterruptCallback_t;
-
 /* Transfer Types */
 typedef enum _UsbTransferType
 {
@@ -507,7 +496,8 @@ typedef enum _UsbTransferStatus
 	TransferNotResponding,
 	TransferInvalidToggles,
 	TransferInvalidData,
-	TransferNAK
+	TransferNAK,
+	TransferBabble
 
 } UsbTransferStatus_t;
 
@@ -520,6 +510,17 @@ typedef enum _UsbSpeed
 	SuperSpeed		/* 3.0 */
 
 } UsbSpeed_t;
+
+/* The Abstract Usb Callback */
+typedef struct _UsbInterruptCallback
+{
+	/* Callback */
+	void(*Callback)(void*, UsbTransferStatus_t);
+
+	/* Callback arguments */
+	void *Args;
+
+} UsbInterruptCallback_t;
 
 /* The Abstract Transfer Request */
 typedef struct _UsbHcRequest
