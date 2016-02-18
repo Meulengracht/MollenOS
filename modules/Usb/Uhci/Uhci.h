@@ -44,7 +44,6 @@
 #define UHCI_REGISTER_SOFMOD		0x0C
 #define UHCI_REGISTER_PORT_BASE		0x10
 
-
 /* Command bit switches */
 #define UHCI_CMD_RUN				0x1
 #define UHCI_CMD_HCRESET			0x2
@@ -161,13 +160,13 @@ typedef struct _UhciTransferDescriptor
 #define UHCI_TD_STATUS(n)				((n >> 17) & 0x3F)
 
 /* Header bit switches */
-#define UHCI_TD_PID_SETUP			0x2D
-#define UHCI_TD_PID_IN				0x69
-#define UHCI_TD_PID_OUT				0xE1
-#define UHCI_TD_DEVICE_ADDR(n)		((n & 0x7F) << 8)
-#define UHCI_TD_EP_ADDR(n)			((n & 0xF) << 15)
-#define UHCI_TD_DATA_TOGGLE			(1 << 19)
-#define UHCI_TD_MAX_LEN(n)			((n & 0x7FF) << 21)
+#define UHCI_TD_PID_SETUP				0x2D
+#define UHCI_TD_PID_IN					0x69
+#define UHCI_TD_PID_OUT					0xE1
+#define UHCI_TD_DEVICE_ADDR(n)			((n & 0x7F) << 8)
+#define UHCI_TD_EP_ADDR(n)				((n & 0xF) << 15)
+#define UHCI_TD_DATA_TOGGLE				(1 << 19)
+#define UHCI_TD_MAX_LEN(n)				((n & 0x7FF) << 21)
 
 /* Queue Head, 16 byte align 
  * 8 Bytes used by HC 
@@ -230,8 +229,15 @@ typedef struct _UhciQueueHead
 #define UHCI_POOL_UNSCHEDULE		0
 #define UHCI_POOL_ISOCHRONOUS		1
 #define UHCI_POOL_ASYNC				9
-#define UHCI_POOL_FSBR				10
-#define UHCI_POOL_START				11
+#define UHCI_POOL_NULL				10
+
+#define UHCI_POOL_LCTRL				11
+#define UHCI_POOL_FCTRL				12
+#define UHCI_POOL_FBULK				13
+#define UHCI_POOL_FSBR				UHCI_POOL_LCTRL
+
+/* Where shared alloc starts */
+#define UHCI_POOL_START				14
 
 #define UHCI_BANDWIDTH_PHASES		32
 

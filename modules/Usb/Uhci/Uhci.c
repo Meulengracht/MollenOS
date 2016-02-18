@@ -54,6 +54,7 @@ const char *UhciErrorMessages[] =
 };
 
 //#define UHCI_DIAGNOSTICS
+//#define UHCI_FSBR
 
 /* Prototypes (Internal) */
 void UhciInitQueues(UhciController_t *Controller);
@@ -492,7 +493,7 @@ void UhciInitQueues(UhciController_t *Controller)
 	memset((void*)Controller->NullTd, 0, sizeof(UhciTransferDescriptor_t));
 
 	/* Set link invalid */
-	Controller->NullTd->Header = (uint32_t)(UHCI_TD_PID_OUT | UHCI_TD_DEVICE_ADDR(0x7F) | UHCI_TD_MAX_LEN(0x7FF));
+	Controller->NullTd->Header = (uint32_t)(UHCI_TD_PID_IN | UHCI_TD_DEVICE_ADDR(0x7F) | UHCI_TD_MAX_LEN(0x7FF));
 	Controller->NullTd->Link = UHCI_TD_LINK_END;
 
 	/* Setup Qh Pool */
@@ -532,17 +533,15 @@ void UhciInitQueues(UhciController_t *Controller)
 		/* Set in use */
 		Controller->QhPool[i]->Flags |= (UHCI_QH_SET_QUEUE(i) | UHCI_QH_ACTIVE);
 	}
-	
-	/* Setup Iso Qh */
 
 	/* Setup null QH */
-	Controller->QhPool[UHCI_POOL_FSBR]->Link =
-		(Controller->QhPoolPhys[UHCI_POOL_FSBR] | UHCI_TD_LINK_QH);
-	Controller->QhPool[UHCI_POOL_FSBR]->LinkVirtual =
-		(uint32_t)Controller->QhPool[UHCI_POOL_FSBR];
-	Controller->QhPool[UHCI_POOL_FSBR]->Child = Controller->NullTdPhysical;
-	Controller->QhPool[UHCI_POOL_FSBR]->ChildVirtual = (uint32_t)Controller->NullTd;
-	Controller->QhPool[UHCI_POOL_FSBR]->Flags |= UHCI_QH_ACTIVE;
+	Controller->QhPool[UHCI_POOL_NULL]->Link =
+		(Controller->QhPoolPhys[UHCI_POOL_NULL] | UHCI_TD_LINK_QH);
+	Controller->QhPool[UHCI_POOL_NULL]->LinkVirtual =
+		(uint32_t)Controller->QhPool[UHCI_POOL_NULL];
+	Controller->QhPool[UHCI_POOL_NULL]->Child = Controller->NullTdPhysical;
+	Controller->QhPool[UHCI_POOL_NULL]->ChildVirtual = (uint32_t)Controller->NullTd;
+	Controller->QhPool[UHCI_POOL_NULL]->Flags |= UHCI_QH_ACTIVE;
 
 	/* Setup async Qh */
 	Controller->QhPool[UHCI_POOL_ASYNC]->Link = UHCI_TD_LINK_END;
@@ -557,7 +556,7 @@ void UhciInitQueues(UhciController_t *Controller)
 		Controller->QhPool[i]->Link = 
 			Controller->QhPoolPhys[UHCI_POOL_ASYNC] | UHCI_TD_LINK_QH;
 		Controller->QhPool[i]->LinkVirtual = 
-			(uint32_t)Controller->QhPoolPhys[UHCI_POOL_ASYNC];
+			(uint32_t)Controller->QhPool[UHCI_POOL_ASYNC];
 	}
 
 	/* 1024 Entries
@@ -702,7 +701,7 @@ void UhciPortSetup(void *Data, UsbHcPort_t *Port)
 }
 
 /* QH Functions */
-UhciQueueHead_t *UhciAllocateQh(UhciController_t *Controller, UsbTransferType_t Type)
+UhciQueueHead_t *UhciAllocateQh(UhciController_t *Controller, UsbTransferType_t Type, UsbSpeed_t Speed)
 {
 	/* Vars */
 	UhciQueueHead_t *Qh = NULL;
@@ -724,8 +723,18 @@ UhciQueueHead_t *UhciAllocateQh(UhciController_t *Controller, UsbTransferType_t 
 
 			/* First thing to do is setup flags */
 			Controller->QhPool[i]->Flags = 
-				UHCI_QH_ACTIVE | UHCI_QH_INDEX(i) | UHCI_QH_SET_QUEUE(UHCI_POOL_ASYNC)
+				UHCI_QH_ACTIVE | UHCI_QH_INDEX(i)
 				| UHCI_QH_TYPE((uint32_t)Type) | UHCI_QH_BANDWIDTH_ALLOC;
+
+			/* Set qh */
+			if (Speed == LowSpeed
+				&& Type == ControlTransfer)
+				Controller->QhPool[i]->Flags |= UHCI_QH_SET_QUEUE(UHCI_POOL_LCTRL);
+			else if (Speed == FullSpeed
+				&& Type == ControlTransfer)
+				Controller->QhPool[i]->Flags |= UHCI_QH_SET_QUEUE(UHCI_POOL_FCTRL);
+			else if (Type == BulkTransfer)
+				Controller->QhPool[i]->Flags |= UHCI_QH_SET_QUEUE(UHCI_POOL_FBULK);
 
 			/* Set index */
 			Qh = Controller->QhPool[i];
@@ -760,11 +769,11 @@ UhciQueueHead_t *UhciAllocateQh(UhciController_t *Controller, UsbTransferType_t 
 }
 
 /* Initializes the Qh */
-void UhciQhInit(UhciController_t *Controller, UhciQueueHead_t *Qh, UsbHcTransaction_t *FirstTd)
+void UhciQhInit(UhciQueueHead_t *Qh, UsbHcTransaction_t *FirstTd)
 {
 	/* Set link pointer */
-	Qh->Link = Controller->QhPoolPhys[UHCI_POOL_FSBR] | UHCI_TD_LINK_QH;
-	Qh->LinkVirtual = (uint32_t)Controller->QhPool[UHCI_POOL_FSBR];
+	Qh->Link = UHCI_TD_LINK_END;
+	Qh->LinkVirtual = 0;
 
 	/* Set Td list */
 	Qh->Child = AddressSpaceGetMap(AddressSpaceGetCurrent(), 
@@ -828,6 +837,7 @@ Addr_t OhciAllocateTd(UhciEndpoint_t *Ep, UsbTransferType_t Type)
 	/* Release Lock */
 	SpinlockRelease(&Ep->Lock);
 
+	/* Done! */
 	return cIndex;
 }
 
@@ -1175,7 +1185,7 @@ void UhciTransactionInit(void *Controller, UsbHcRequest_t *Request)
 	UhciQueueHead_t *Qh = NULL;
 
 	/* Get a QH */
-	Qh = UhciAllocateQh(Ctrl, Request->Type);
+	Qh = UhciAllocateQh(Ctrl, Request->Type, Request->Speed);
 
 	/* Save it */
 	Request->Data = Qh;
@@ -1400,11 +1410,15 @@ void UhciTransactionSend(void *Controller, UsbHcRequest_t *Request)
 	/* Wuhu */
 	UsbHcTransaction_t *Transaction = Request->Transactions;
 	UhciController_t *Ctrl = (UhciController_t*)Controller;
-	UsbTransferStatus_t Completed;
+	UsbTransferStatus_t Completed = TransferFinished;
 	UhciQueueHead_t *Qh = NULL;
 	UhciTransferDescriptor_t *Td = NULL;
 	Addr_t QhAddress = 0;
-	int CondCode;
+	int CondCode, Queue;
+
+	/*************************
+	 ****** SETUP PHASE ******
+	 *************************/
 
 	/* Cast */
 	Qh = (UhciQueueHead_t*)Request->Data;
@@ -1427,63 +1441,94 @@ void UhciTransactionSend(void *Controller, UsbHcRequest_t *Request)
 		/* Next */
 		Transaction = Transaction->Link;
 	}
-#endif
-
-	/* Iterate and set last to generate interrupt */
+#else
+	/* Iterate */
 	Transaction = Request->Transactions;
 	while (Transaction->Link)
 		Transaction = Transaction->Link;
 
-	/* Set last to generate IOC */
-#ifndef UHCI_DIAGNOSTICS
+	/* Set last TD with IOC */
 	Td = (UhciTransferDescriptor_t*)Transaction->TransferDescriptor;
 	Td->Flags |= UHCI_TD_IOC;
 #endif
 
 	/* Initialize QH */
-	UhciQhInit(Ctrl, Qh, Request->Transactions);
-
-	/* Set true */
-	Completed = TransferFinished;
+	UhciQhInit(Qh, Request->Transactions);
 
 	/* Add this Transaction to list */
 	list_append((list_t*)Ctrl->TransactionList, list_create_node(0, Request));
 
 	/* Debug */
 #ifdef UHCI_DIAGNOSTICS
-	if (Request->Type != IsochronousTransfer)
-		LogDebug("UHCI", "QH at 0x%x, FirstTd 0x%x, NextQh 0x%x", QhAddress, Qh->Child, Qh->Link);
+	LogDebug("UHCI", "QH at 0x%x, FirstTd 0x%x, NextQh 0x%x", QhAddress, Qh->Child, Qh->Link);
 #endif
+
+	/*************************
+	 **** LINKING PHASE ******
+	 *************************/
+
+	/* Get queue */
+	Queue = UHCI_QT_GET_QUEUE(Qh->Flags);
 
 	/* Now lets try the Transaction */
 	SpinlockAcquire(&Ctrl->Lock);
 
 	/* For Control & Bulk, we link into async list */
-	if (Request->Type == ControlTransfer
-		|| Request->Type == BulkTransfer)
+	if (Queue >= UHCI_POOL_ASYNC)
 	{
-		/* If it's a low-speed control, we append to async 
-		 * If it's a high-speed control, we insert at the front of the fsbr 
-		 * If it's a high-speed bulk, we append to fsbr */
-
 		/* Just append to async */
 		UhciQueueHead_t *PrevQh = Ctrl->QhPool[UHCI_POOL_ASYNC];
+		int PrevQueue = UHCI_QT_GET_QUEUE(PrevQh->Flags);
 
 		/* Iterate to end */
-		while (PrevQh->LinkVirtual != 0
-			&& PrevQh->LinkVirtual != (uint32_t)Ctrl->QhPool[UHCI_POOL_FSBR]) {
+		while (PrevQh->LinkVirtual != 0) 
+		{	
+			/* Get queue */
+			PrevQueue = UHCI_QT_GET_QUEUE(PrevQh->Flags);
+
+			/* Sanity */
+			if (PrevQueue <= Queue)
+				break;
+
+			/* Next! */
 			PrevQh = (UhciQueueHead_t*)PrevQh->LinkVirtual;
 		}
 
-		/* Insert */
+		/* Steal it's link */
+		Qh->Link = PrevQh->Link;
+		Qh->LinkVirtual = PrevQh->LinkVirtual;
+
+		/* Set link - Atomic operation
+		* We don't need to stop/start controller */
 		PrevQh->Link = (QhAddress | UHCI_TD_LINK_QH);
 		PrevQh->LinkVirtual = (uint32_t)Qh;
+
+#ifdef UHCI_FSBR
+		/* FSBR? */
+		if (PrevQueue < UHCI_POOL_FSBR
+			&& Queue >= UHCI_POOL_FSBR) {
+			/* Link NULL to fsbr */
+			Ctrl->QhPool[UHCI_POOL_NULL]->Link = (QhAddress | UHCI_TD_LINK_QH);
+			Ctrl->QhPool[UHCI_POOL_NULL]->LinkVirtual = (uint32_t)Qh;
+			
+			/* Link last QH to NULL */
+			PrevQh = Ctrl->QhPool[UHCI_POOL_ASYNC];
+			while (PrevQh->LinkVirtual != 0)
+				PrevQh = (UhciQueueHead_t*)PrevQh->LinkVirtual;
+			PrevQh->Link = (Ctrl->QhPoolPhys[UHCI_POOL_NULL] | UHCI_TD_LINK_QH);
+			PrevQh->LinkVirtual = (uint32_t)Ctrl->QhPool[UHCI_POOL_NULL];
+		}
+#endif
 	}
-	else if (Request->Type == InterruptTransfer)
+	else if (Queue != UHCI_POOL_ISOCHRONOUS
+		&& Queue < UHCI_POOL_ASYNC)
 	{
 		/* Get queue */
-		UhciQueueHead_t *PrevQh = NULL;
-		int Queue = UHCI_QT_GET_QUEUE(Qh->Flags);
+		UhciQueueHead_t *ItrQh = NULL, *PrevQh = NULL;
+		int NextQueue;
+
+		LogDebug("UHCI", "QH at 0x%x, FirstTd 0x%x, NextQh 0x%x", 
+			QhAddress, Qh->Child, Qh->Link);
 
 		/* Iterate */
 		Transaction = Request->Transactions;
@@ -1504,7 +1549,22 @@ void UhciTransactionSend(void *Controller, UsbHcRequest_t *Request)
 		}
 
 		/* Iterate list */
-		PrevQh = Ctrl->QhPool[Queue];
+		ItrQh = Ctrl->QhPool[Queue];
+
+		/* Iterate to end */
+		while (ItrQh)
+		{
+			/* Get next */
+			PrevQh = ItrQh;
+			ItrQh = (UhciQueueHead_t*)ItrQh->LinkVirtual;
+
+			/* Get queue of next */
+			NextQueue = UHCI_QT_GET_QUEUE(ItrQh->Flags);
+
+			/* Sanity */
+			if (Queue < NextQueue)
+				break;
+		}
 
 		/* Insert */
 		Qh->Link = PrevQh->Link;
@@ -1542,24 +1602,25 @@ void UhciTransactionSend(void *Controller, UsbHcRequest_t *Request)
 	/* Release lock */
 	SpinlockRelease(&Ctrl->Lock);
 
-	/* Wait for interrupt */
-#ifndef UHCI_DIAGNOSTICS
 	
-	/* Sleep untill completion */
+#ifndef UHCI_DIAGNOSTICS
+	/* Wait for interrupt */
 	SchedulerSleepThread((Addr_t*)Request->Data);
 
 	/* Yield */
 	_ThreadYield();
-
 #else
 	/* Wait */
 	StallMs(100);
-#endif
 
 	/* Check Conditions */
-#ifdef UHCI_DIAGNOSTICS
 	LogDebug("UHCI", "Qh Next 0x%x, Qh Head 0x%x", Qh->Link, Qh->Child);
 #endif
+
+	/*************************
+	 *** VALIDATION PHASE ****
+	 *************************/
+	
 	Transaction = Request->Transactions;
 	while (Transaction)
 	{
@@ -1602,10 +1663,7 @@ void UhciTransactionSend(void *Controller, UsbHcRequest_t *Request)
 		{
 			/* Copy Data? */
 			if (Transaction->IoBuffer != NULL && Transaction->IoLength != 0)
-			{
-				//printf("Buffer Copy 0x%x, Length 0x%x\n", Transaction->IoBuffer, Transaction->IoLength);
 				memcpy(Transaction->IoBuffer, Transaction->TransferBuffer, Transaction->IoLength);
-			}
 
 			/* Next Link */
 			Transaction = Transaction->Link;
@@ -1626,6 +1684,8 @@ void UhciTransactionDestroy(void *Controller, UsbHcRequest_t *Request)
 	/* Cast, we need these */
 	UsbHcTransaction_t *Transaction = Request->Transactions;
 	UhciController_t *Ctrl = (UhciController_t*)Controller;
+	UhciQueueHead_t *Qh = (UhciQueueHead_t*)Request->Data;
+	int Queue = UHCI_QT_GET_QUEUE(Qh->Flags);
 
 	/* Lock controller */
 	SpinlockAcquire(&Ctrl->Lock);
@@ -1634,9 +1694,6 @@ void UhciTransactionDestroy(void *Controller, UsbHcRequest_t *Request)
 	if (Request->Type == ControlTransfer
 		|| Request->Type == BulkTransfer)
 	{
-		/* Cast Qh */
-		UhciQueueHead_t *Qh = (UhciQueueHead_t*)Request->Data;
-
 		/* Unlink Qh */
 		UhciQueueHead_t *PrevQh = Ctrl->QhPool[UHCI_POOL_ASYNC];
 
@@ -1654,13 +1711,29 @@ void UhciTransactionDestroy(void *Controller, UsbHcRequest_t *Request)
 			PrevQh->Link = Qh->Link;
 			PrevQh->LinkVirtual = Qh->LinkVirtual;
 
-			/* Iterate and reset */
-			while (Transaction)
-			{
-				/* Memset */
-				memset(Transaction->TransferDescriptor, 0, sizeof(UhciTransferDescriptor_t));
+#ifdef UHCI_FSBR
+			/* Get */
+			int PrevQueue = UHCI_QT_GET_QUEUE(PrevQh->Flags);
 
-				/* Next */
+			/* Deactivate FSBR? */
+			if (PrevQueue < UHCI_POOL_FSBR
+				&& Queue >= UHCI_POOL_FSBR) {
+				/* Link NULL to the next in line */
+				Ctrl->QhPool[UHCI_POOL_NULL]->Link = Qh->Link;
+				Ctrl->QhPool[UHCI_POOL_NULL]->LinkVirtual = Qh->LinkVirtual;
+
+				/* Link last QH to NULL */
+				PrevQh = Ctrl->QhPool[UHCI_POOL_ASYNC];
+				while (PrevQh->LinkVirtual != 0)
+					PrevQh = (UhciQueueHead_t*)PrevQh->LinkVirtual;
+				PrevQh->Link = (Ctrl->QhPoolPhys[UHCI_POOL_NULL] | UHCI_TD_LINK_QH);
+				PrevQh->LinkVirtual = (uint32_t)Ctrl->QhPool[UHCI_POOL_NULL];
+			}
+#endif
+
+			/* Iterate and reset */
+			while (Transaction) {
+				memset(Transaction->TransferDescriptor, 0, sizeof(UhciTransferDescriptor_t));
 				Transaction = Transaction->Link;
 			}
 
@@ -1677,21 +1750,21 @@ void UhciTransactionDestroy(void *Controller, UsbHcRequest_t *Request)
 	else if (Request->Type == InterruptTransfer)
 	{
 		/* Vars */
-		UhciQueueHead_t *TargetQh = (UhciQueueHead_t*)Request->Data;
-		UhciQueueHead_t *Qh = NULL, *PrevQh = NULL;
-		int Queue = UHCI_QT_GET_QUEUE(Qh->Flags);
+		UhciQueueHead_t *ItrQh = NULL, *PrevQh = NULL;
 
 		/* Iterate and find our Qh */
-		Qh = Ctrl->QhPool[Queue];
-		while (Qh != TargetQh) {
-			PrevQh = Qh;
-			Qh = (UhciQueueHead_t*)Qh->LinkVirtual;
-
-			/* Sanity */
-			if (Qh == Ctrl->QhPool[UHCI_POOL_ASYNC]) {
-				Qh = NULL;
+		ItrQh = Ctrl->QhPool[Queue];
+		while (ItrQh != Qh) {
+			/* Validate we are not at the end */
+			if (ItrQh->LinkVirtual == (uint32_t)Ctrl->QhPool[UHCI_POOL_NULL]
+				|| ItrQh->LinkVirtual == 0) {
+				ItrQh = NULL;
 				break;
 			}
+
+			/* Next */
+			PrevQh = ItrQh;
+			ItrQh = (UhciQueueHead_t*)ItrQh->LinkVirtual;
 		}
 
 		/* If Qh is null, didn't exist */
@@ -1702,8 +1775,8 @@ void UhciTransactionDestroy(void *Controller, UsbHcRequest_t *Request)
 		{
 			/* If there is a previous (there should always be) */
 			if (PrevQh != NULL) {
-				PrevQh->Link = TargetQh->Link;
-				PrevQh->LinkVirtual = TargetQh->LinkVirtual;
+				PrevQh->Link = Qh->Link;
+				PrevQh->LinkVirtual = Qh->LinkVirtual;
 			} 
 		}
 
@@ -1732,10 +1805,6 @@ void UhciTransactionDestroy(void *Controller, UsbHcRequest_t *Request)
 		/* Cast Qh */
 		UhciQueueHead_t *Qh = (UhciQueueHead_t*)Request->Data;
 
-		/* Get frame where it's linked */
-
-		/* Remove them and fixup toggles */
-
 		/* Free bandwidth */
 		UhciReleaseBandwidth(Ctrl, Qh);
 
@@ -1752,6 +1821,9 @@ void UhciTransactionDestroy(void *Controller, UsbHcRequest_t *Request)
 			/* Next */
 			Transaction = Transaction->Link;
 		}
+
+		/* Free it */
+		kfree(Request->Data);
 	}
 
 	/* Done */
@@ -1832,13 +1904,6 @@ void UhciProcessTransfers(UhciController_t *Controller)
 				/* Copy data if not dummy */
 				while (lIterator)
 				{
-					UhciTransferDescriptor_t *iTd =
-						(UhciTransferDescriptor_t*)lIterator->TransferDescriptor;
-
-					LogDebug("UHCI", "Td (Addr 0x%x) Flags 0x%x, Buffer 0x%x, Header 0x%x, Next Td 0x%x",
-						AddressSpaceGetMap(AddressSpaceGetCurrent(), (VirtAddr_t)iTd),
-						iTd->Flags, iTd->Buffer, iTd->Header, iTd->Link);
-
 					/* Let's see */
 					if (lIterator->IoLength != 0)
 					{
@@ -1926,6 +1991,34 @@ int UhciInterruptHandler(void *Args)
 		/* Fatal Error 
 		 * Unschedule TDs and restart controller */
 		LogInformation("UHCI", "Processing Error :/");
+
+		/* Debug queue starting from ASYNC */
+		UhciQueueHead_t *QhItr = Controller->QhPool[UHCI_POOL_ASYNC], *pQh = NULL;
+		UhciTransferDescriptor_t *Td = NULL;
+
+		/* Sanity */
+		/* Iterate to end */
+		while (QhItr != NULL
+			&& QhItr != Controller->QhPool[UHCI_POOL_NULL]) {
+			LogInformation("UHCI", "Qh Link 0x%x, Child 0x%x",
+				QhItr->Link, QhItr->Child);
+			pQh = QhItr;
+			QhItr = (UhciQueueHead_t*)QhItr->LinkVirtual;
+		}
+
+		/* Spit out td's */
+		if (pQh != NULL)
+		{
+			Td = (UhciTransferDescriptor_t*)pQh->ChildVirtual;
+			LogInformation("UHCI", "Td Flags 0x%x, Header 0x%x, Link 0x%x",
+				Td->Flags, Td->Header, Td->Link);
+		}
+
+		if (QhItr != NULL)
+		{
+			LogInformation("UHCI", "Qh Link 0x%x, Child 0x%x",
+				QhItr->Link, QhItr->Child);
+		}
 	}
 
 	/* Done! */

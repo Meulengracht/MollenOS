@@ -27,3 +27,6 @@ xcopy /v /y kernel\Build\MCore.mos install\Hdd\System\Sys32.mos
 xcopy /v /y modules\InitRd.mos install\Hdd\System\InitRd32.mos
 xcopy /v /y boot\Stage1\MFS1\Stage1.bin install\Stage1.bin
 xcopy /v /y boot\Stage2\ssbl.stm install\ssbl.stm
+
+::Install MOS
+START "MOLLENOS INSTALLER" /D %~dp0\install /B /W "install\MfsTool.exe" -a

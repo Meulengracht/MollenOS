@@ -1446,7 +1446,7 @@ namespace MfsTool
         }
 
         /* Entry */
-        static void Main(string[] args)
+        static int Main(string[] args)
         {
             /* Print Header */
             Console.WriteLine("MFS Utility Software");
@@ -1459,6 +1459,11 @@ namespace MfsTool
             ManagementObjectSearcher res = new ManagementObjectSearcher(q);
             int Itr = 0;
             foreach (ManagementObject o in res.Get()) {
+                
+                /* Sanity */
+                if (o["Caption"].ToString().Contains("Samsung SSD"))
+                    continue;
+
                 Console.WriteLine(Itr.ToString() + ". " + o["Caption"] + " (DeviceID = " + o["DeviceID"] + ")");
                 
                 /* Create Object */
@@ -1471,6 +1476,32 @@ namespace MfsTool
 
                 Drives.Add(Itr, nDisk);
                 Itr++;
+            }
+
+            /* Automation? */
+            if (args != null && args.Length == 1 && args[0].Length > 1 
+                && ((int)args[0][0] == 45 || (int)args[0][0] == 47))
+            {
+                switch (args[0].Substring(1).ToLower())
+                {
+                    case "auto":
+                    case "a":
+                    {
+                        /* Ok, so we pick the first drive */
+                        if (Drives.Count == 0)
+                            return -1;
+
+                        /* Do the format */
+                        Format((MfsDisk)Drives[0]);
+
+                        /* Do the install */
+                        InstallMOS((MfsDisk)Drives[0]);
+
+                        /* Done */
+                        return 0;
+
+                    }
+                }
             }
 
             Console.WriteLine("\nAvailable Commands:");
@@ -1537,7 +1568,7 @@ namespace MfsTool
 
                         } break;
                     case "quit":
-                            return;
+                            return 0;
 
                     default:
                         break;
@@ -1546,6 +1577,10 @@ namespace MfsTool
                 /* Clean */
                 GC.Collect();
             }
+
+
+            /* No Err */
+            return 0;
         }
     }
 
