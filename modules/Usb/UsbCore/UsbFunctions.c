@@ -33,6 +33,7 @@
 /* Transaction List Functions */
 void UsbTransactionAppend(UsbHcRequest_t *Request, UsbHcTransaction_t *Transaction)
 {
+	/* Sanity */
 	if (Request->Transactions == NULL)
 		Request->Transactions = Transaction;
 	else
@@ -47,6 +48,9 @@ void UsbTransactionAppend(UsbHcRequest_t *Request, UsbHcTransaction_t *Transacti
 		Head->Link = Transaction;
 		Transaction->Link = NULL;
 	}
+
+	/* Update Counter */
+	Request->TransactionCount++;
 }
 
 /* Transaction Wrappers */
@@ -60,6 +64,7 @@ void UsbTransactionInit(UsbHc_t *Hc, UsbHcRequest_t *Request, UsbTransferType_t 
 	Request->Endpoint = Endpoint;
 	Request->Speed = Hc->Ports[Device->Port]->Speed;
 	Request->Transactions = NULL;
+	Request->TransactionCount = 0;
 
 	/* Perform */
 	Hc->TransactionInit(Hc->Hc, Request);

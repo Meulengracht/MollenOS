@@ -551,6 +551,7 @@ typedef struct _UsbHcRequest
 
 	/* The Transaction List */
 	UsbHcTransaction_t *Transactions;
+	int TransactionCount;
 
 	/* Is it done? */
 	UsbTransferStatus_t Status;

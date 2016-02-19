@@ -19,7 +19,6 @@
 * MollenOS USB UHCI Controller Driver
 * Todo:
 * Isochronous Support
-* WHY DOES INTERRUPT TDS STALL
 * On short-packet transfers, we need to be able to fixup endpoint toggles
 * Finish the FSBR implementation, right now there is no guarantee of order ls/fs/bul
 */
@@ -942,8 +941,13 @@ UhciTransferDescriptor_t *UhciTdIo(UhciEndpoint_t *Ep, UsbTransferType_t Type,
 		Td->Header |= UHCI_TD_DATA_TOGGLE;
 
 	/* Set Size */
-	if (Length > 0)
-		Td->Header |= UHCI_TD_MAX_LEN((Length - 1));
+	if (Length > 0) {
+		if (Length < Ep->MaxPacketSize
+			&& Type == InterruptTransfer)
+			Td->Header |= UHCI_TD_MAX_LEN((Ep->MaxPacketSize - 1));
+		else
+			Td->Header |= UHCI_TD_MAX_LEN((Length - 1));
+	}
 	else
 		Td->Header |= UHCI_TD_MAX_LEN(0x7FF);
 
@@ -1527,27 +1531,6 @@ void UhciTransactionSend(void *Controller, UsbHcRequest_t *Request)
 		UhciQueueHead_t *ItrQh = NULL, *PrevQh = NULL;
 		int NextQueue;
 
-		LogDebug("UHCI", "QH at 0x%x, FirstTd 0x%x, NextQh 0x%x", 
-			QhAddress, Qh->Child, Qh->Link);
-
-		/* Iterate */
-		Transaction = Request->Transactions;
-		Td = (UhciTransferDescriptor_t*)Transaction->TransferDescriptor;
-		LogDebug("UHCI", "Td (Addr 0x%x) Flags 0x%x, Buffer 0x%x, Header 0x%x, Next Td 0x%x",
-			AddressSpaceGetMap(AddressSpaceGetCurrent(), (VirtAddr_t)Td),
-			Td->Flags, Td->Buffer, Td->Header, Td->Link);
-
-		while (Transaction->Link)
-		{
-			/* Next */
-			Transaction = Transaction->Link;
-
-			Td = (UhciTransferDescriptor_t*)Transaction->TransferDescriptor;
-			LogDebug("UHCI", "Td (Addr 0x%x) Flags 0x%x, Buffer 0x%x, Header 0x%x, Next Td 0x%x",
-				AddressSpaceGetMap(AddressSpaceGetCurrent(), (VirtAddr_t)Td),
-				Td->Flags, Td->Buffer, Td->Header, Td->Link);
-		}
-
 		/* Iterate list */
 		ItrQh = Ctrl->QhPool[Queue];
 
@@ -1574,12 +1557,6 @@ void UhciTransactionSend(void *Controller, UsbHcRequest_t *Request)
 		 * We don't need to stop/start controller */
 		PrevQh->Link = QhAddress | UHCI_TD_LINK_QH;
 		PrevQh->LinkVirtual = (uint32_t)Qh;
-
-		/* Release lock */
-		SpinlockRelease(&Ctrl->Lock);
-
-		/* Done! */
-		return;
 	}
 	else
 	{
@@ -1594,14 +1571,15 @@ void UhciTransactionSend(void *Controller, UsbHcRequest_t *Request)
 		/* Insert directly into the frame and link to the QH */
 
 		/* Fixup toggles ? */
-
-		/* Done! */
-		return;
 	}
 
 	/* Release lock */
 	SpinlockRelease(&Ctrl->Lock);
 
+	/* Sanity */
+	if (Request->Type == InterruptTransfer
+		|| Request->Type == IsochronousTransfer)
+		return;
 	
 #ifndef UHCI_DIAGNOSTICS
 	/* Wait for interrupt */
@@ -1900,19 +1878,18 @@ void UhciProcessTransfers(UhciController_t *Controller)
 			{
 				/* Re-Iterate */
 				UsbHcTransaction_t *lIterator = HcRequest->Transactions;
+				int SwitchToggles = HcRequest->TransactionCount % 2;
 
 				/* Copy data if not dummy */
 				while (lIterator)
 				{
-					/* Let's see */
+					/* Copy Data from transfer buffer to IoBuffer */
 					if (lIterator->IoLength != 0)
-					{
-						/* Copy Data from transfer buffer to IoBuffer */
 						memcpy(lIterator->IoBuffer, lIterator->TransferBuffer, lIterator->IoLength);
-					}
 
-					/* Switch toggle */
-					if (HcRequest->Type == InterruptTransfer)
+					/* Switch toggle if not dividable by 2 */
+					if (HcRequest->Type == InterruptTransfer
+						&& SwitchToggles != 0)
 					{
 						UhciTransferDescriptor_t *__Td =
 							(UhciTransferDescriptor_t*)lIterator->TransferDescriptorCopy;
@@ -1933,7 +1910,7 @@ void UhciProcessTransfers(UhciController_t *Controller)
 				}
 
 				/* Callback */
-				//HcRequest->Callback->Callback(HcRequest->Callback->Args, TransferFinished);
+				HcRequest->Callback->Callback(HcRequest->Callback->Args, TransferFinished);
 			}
 
 			/* Done */
@@ -1991,34 +1968,6 @@ int UhciInterruptHandler(void *Args)
 		/* Fatal Error 
 		 * Unschedule TDs and restart controller */
 		LogInformation("UHCI", "Processing Error :/");
-
-		/* Debug queue starting from ASYNC */
-		UhciQueueHead_t *QhItr = Controller->QhPool[UHCI_POOL_ASYNC], *pQh = NULL;
-		UhciTransferDescriptor_t *Td = NULL;
-
-		/* Sanity */
-		/* Iterate to end */
-		while (QhItr != NULL
-			&& QhItr != Controller->QhPool[UHCI_POOL_NULL]) {
-			LogInformation("UHCI", "Qh Link 0x%x, Child 0x%x",
-				QhItr->Link, QhItr->Child);
-			pQh = QhItr;
-			QhItr = (UhciQueueHead_t*)QhItr->LinkVirtual;
-		}
-
-		/* Spit out td's */
-		if (pQh != NULL)
-		{
-			Td = (UhciTransferDescriptor_t*)pQh->ChildVirtual;
-			LogInformation("UHCI", "Td Flags 0x%x, Header 0x%x, Link 0x%x",
-				Td->Flags, Td->Header, Td->Link);
-		}
-
-		if (QhItr != NULL)
-		{
-			LogInformation("UHCI", "Qh Link 0x%x, Child 0x%x",
-				QhItr->Link, QhItr->Child);
-		}
 	}
 
 	/* Done! */
