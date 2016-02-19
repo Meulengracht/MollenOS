@@ -134,8 +134,11 @@ typedef struct _UhciTransferDescriptor
 	 * Bit 0: Allocation status */
 	uint32_t HcdFlags;
 
+	/* DMA */
+	uint32_t PhysicalAddr;
+
 	/* Padding */
-	uint32_t Padding[3];
+	uint32_t Padding[2];
 
 } UhciTransferDescriptor_t;
 

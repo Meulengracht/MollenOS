@@ -829,6 +829,9 @@ Addr_t OhciAllocateTd(UhciEndpoint_t *Ep, UsbTransferType_t Type)
 		/* Found one, set flags  */
 		Td->HcdFlags = UHCI_TD_HCD_ALLOCATED;
 
+		/* Store physical */
+		Td->PhysicalAddr = AddressSpaceGetMap(AddressSpaceGetCurrent(), (Addr_t)Td);
+
 		/* Set as index */
 		cIndex = (Addr_t)Td;
 	}
@@ -1877,7 +1880,9 @@ void UhciProcessTransfers(UhciController_t *Controller)
 			else
 			{
 				/* Re-Iterate */
+				UhciQueueHead_t *Qh = (UhciQueueHead_t*)HcRequest->Data;
 				UsbHcTransaction_t *lIterator = HcRequest->Transactions;
+				UhciTransferDescriptor_t *Td = (UhciTransferDescriptor_t*)lIterator->TransferDescriptor;
 				int SwitchToggles = HcRequest->TransactionCount % 2;
 
 				/* Copy data if not dummy */
@@ -1905,12 +1910,20 @@ void UhciProcessTransfers(UhciController_t *Controller)
 					memcpy(lIterator->TransferDescriptor,
 						lIterator->TransferDescriptorCopy, sizeof(UhciTransferDescriptor_t));
 
+					/* Restore IOC */
+					if (lIterator->Link == NULL)
+						((UhciTransferDescriptor_t*)
+							lIterator->TransferDescriptor)->Flags |= UHCI_TD_IOC;
+
 					/* Eh, next link */
 					lIterator = lIterator->Link;
 				}
 
 				/* Callback */
 				HcRequest->Callback->Callback(HcRequest->Callback->Args, TransferFinished);
+
+				/* Reinitilize Qh */
+				Qh->Child = Td->PhysicalAddr;
 			}
 
 			/* Done */
