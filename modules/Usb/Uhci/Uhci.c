@@ -19,7 +19,7 @@
 * MollenOS USB UHCI Controller Driver
 * Todo:
 * Isochronous Support
-* On short-packet transfers, we need to be able to fixup endpoint toggles
+* On short-packet/error transfers, we need to be able to fixup endpoint toggles
 * Finish the FSBR implementation, right now there is no guarantee of order ls/fs/bul
 */
 

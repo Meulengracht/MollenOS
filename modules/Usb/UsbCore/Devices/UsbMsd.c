@@ -202,7 +202,7 @@ void UsbMsdInit(UsbHcDevice_t *UsbDevice, int InterfaceIndex)
 			break; 
 
 		/* Fuck, try again soon */
-		StallMs(50);
+		StallMs(100);
 		i--;
 	}
 

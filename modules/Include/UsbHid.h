@@ -266,6 +266,7 @@ typedef struct _HidDevice
 	UsbHidReportCollection_t *Collection;
 
 	/* Input Buffers */
+	size_t DataLength;
 	uint8_t *DataBuffer;
 	uint8_t *PrevDataBuffer;
 

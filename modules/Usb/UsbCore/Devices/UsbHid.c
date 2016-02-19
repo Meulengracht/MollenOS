@@ -213,8 +213,7 @@ void UsbHidInit(UsbHcDevice_t *UsbDevice, int InterfaceIndex)
 	DevData->Collection = NULL;
 	ReportLength = UsbHidParseReportDescriptor(DevData, 
 		ReportDescriptor, HidDescriptor->ClassDescriptorLength);
-
-	LogDebug("USBH", "Report total length: %u bytes", ReportLength);
+	DevData->DataLength = ReportLength;
 
 	/* Initialise the EP */
 	UsbHcd->EndpointSetup(UsbHcd->Hc, DevData->EpInterrupt);
@@ -241,11 +240,6 @@ void UsbHidInit(UsbHcDevice_t *UsbDevice, int InterfaceIndex)
 	memset(DevData->DataBuffer, 0, ReportLength);
 
 	/* Some keyboards don't work before their LEDS are set. */
-
-	/* Debug */
-	LogDebug("USBH", "Installing Interrupt Pipe %u - %u - %u - %u", 
-		DevData->EpInterrupt->Address, DevData->EpInterrupt->Bandwidth,
-		DevData->EpInterrupt->Interval, DevData->EpInterrupt->MaxPacketSize);
 
 	/* Install Interrupt */
 	UsbFunctionInstallPipe(UsbHcd, UsbDevice, DevData->InterruptChannel,
@@ -688,7 +682,7 @@ void UsbHidApplyInputData(HidDevice_t *Device, UsbHidReportCollectionItem_t *Col
 	{
 		/* Get bits in question! */
 		Value = UsbHidGetBits(Device->DataBuffer, Offset, Length);
-		OldValue = 0;
+		OldValue = UsbHidGetBits(Device->PrevDataBuffer, Offset, Length);
 		
 		/* We cant expect this to be correct though, it might be 0 */
 		Usage = InputItem->Stats.Usages[i];
@@ -719,11 +713,7 @@ void UsbHidApplyInputData(HidDevice_t *Device, UsbHidReportCollectionItem_t *Col
 
 						/* Convert to relative if necessary */
 						if (InputItem->Flags == X86_USB_REPORT_INPUT_TYPE_ABSOLUTE)
-						{
-							/* Get last value */
-							OldValue = UsbHidGetBits(Device->PrevDataBuffer, Offset, Length);
 							xRelative = (int64_t)(Value - OldValue);
-						}
 
 						/* Fix-up relative number */
 						if (xRelative > CollectionItem->Stats.LogicalMax
@@ -757,11 +747,7 @@ void UsbHidApplyInputData(HidDevice_t *Device, UsbHidReportCollectionItem_t *Col
 
 						/* Convert to relative if necessary */
 						if (InputItem->Flags == X86_USB_REPORT_INPUT_TYPE_ABSOLUTE)
-						{
-							/* Get last value */
-							OldValue = UsbHidGetBits(Device->PrevDataBuffer, Offset, Length);
 							yRelative = (int64_t)(Value - OldValue);
-						}
 
 						/* Fix-up relative number */
 						if (yRelative > CollectionItem->Stats.LogicalMax
@@ -795,11 +781,7 @@ void UsbHidApplyInputData(HidDevice_t *Device, UsbHidReportCollectionItem_t *Col
 
 						/* Convert to relative if necessary */
 						if (InputItem->Flags == X86_USB_REPORT_INPUT_TYPE_ABSOLUTE)
-						{
-							/* Get last value */
-							OldValue = UsbHidGetBits(Device->PrevDataBuffer, Offset, Length);
 							zRelative = (int64_t)(Value - OldValue);
-						}
 
 						/* Fix-up relative number */
 						if (zRelative > CollectionItem->Stats.LogicalMax
@@ -836,7 +818,6 @@ void UsbHidApplyInputData(HidDevice_t *Device, UsbHidReportCollectionItem_t *Col
 			{
 				/* Determine if keystate has changed */
 				uint8_t KeystateChanged = 0;
-				OldValue = UsbHidGetBits(Device->PrevDataBuffer, Offset, Length);
 
 				if (Value != OldValue)
 					KeystateChanged = 1;
@@ -925,7 +906,7 @@ int UsbHidApplyCollectionData(HidDevice_t *Device, UsbHidReportCollection_t *Col
 		switch (Itr->Type)
 		{
 			/* Sub Collection */
-			case USB_HID_MAIN_COLLECTION:
+			case USB_HID_TYPE_COLLECTION:
 			{
 				UsbHidReportCollection_t *SubCollection
 					= (UsbHidReportCollection_t*)Itr->Data;
@@ -940,7 +921,7 @@ int UsbHidApplyCollectionData(HidDevice_t *Device, UsbHidReportCollection_t *Col
 			} break;
 
 			/* Input */
-			case USB_HID_MAIN_INPUT:
+			case USB_HID_TYPE_INPUT:
 			{
 				/* Parse Input */
 				UsbHidApplyInputData(Device, Itr);
@@ -968,18 +949,14 @@ void UsbHidCallback(void *Device, UsbTransferStatus_t Status)
 	HidDevice_t *DevData = (HidDevice_t*)Device;
 
 	/* Sanity */
-	if (DevData->Collection == NULL)
+	if (DevData->Collection == NULL
+		|| Status == TransferNAK)
 		return;
-
-	_CRT_UNUSED(Status);
 
 	/* Parse Collection (Recursively) */
 	if (!UsbHidApplyCollectionData(DevData, DevData->Collection))
-	{
-		LogInformation("USBH", "No calls were made...");
 		return;
-	}
 
 	/* Now store this in old buffer */
-	memcpy(DevData->PrevDataBuffer, DevData->DataBuffer, DevData->EpInterrupt->MaxPacketSize);
+	memcpy(DevData->PrevDataBuffer, DevData->DataBuffer, DevData->DataLength);
 }
