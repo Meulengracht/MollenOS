@@ -1832,6 +1832,36 @@ void UhciTransactionDestroy(void *Controller, UsbHcRequest_t *Request)
 	SpinlockRelease(&Ctrl->Lock);
 }
 
+/* Fixup toggles for a failed transaction */
+void UhciFixupToggles(UsbHcRequest_t *Request)
+{
+	/* Iterate */
+	UsbHcTransaction_t *lIterator = Request->Transactions;
+	int Toggle = 0;
+
+	/* Now we iterate untill it went wrong, storing
+	* the toggle-state, and when we reach the wrong
+	* we flip the toggle and set it to EP */
+	while (lIterator) {
+		/* Get td */
+		UhciTransferDescriptor_t *Td =
+			(UhciTransferDescriptor_t*)lIterator->TransferDescriptor;
+
+		/* Store toggle */
+		if (Td->Header & UHCI_TD_DATA_TOGGLE)
+			Toggle = 1;
+		else
+			Toggle = 0;
+
+		/* At the unproccessed? */
+		if (Td->Flags & UHCI_TD_ACTIVE)
+			break;
+	}
+
+	/* Update EP */
+	Request->Endpoint->Toggle = Toggle;
+}
+
 /* Processes a QH */
 void UhciProcessRequest(UhciController_t *Controller, list_node_t *Node, 
 	UsbHcRequest_t *Request, int FixupToggles)
@@ -1841,12 +1871,8 @@ void UhciProcessRequest(UhciController_t *Controller, list_node_t *Node,
 		|| Request->Type == BulkTransfer)
 	{
 		/* Perhaps we need to fixup toggles? */
-		if (Request->Type == BulkTransfer
-			&& FixupToggles) {
-
-			/* */
-
-		}
+		if (Request->Type == BulkTransfer && FixupToggles)
+			UhciFixupToggles(Request);
 
 		/* Wake a node */
 		SchedulerWakeupOneThread((Addr_t*)Request->Data);
@@ -1865,6 +1891,10 @@ void UhciProcessRequest(UhciController_t *Controller, list_node_t *Node,
 		UhciTransferDescriptor_t *Td = (UhciTransferDescriptor_t*)lIterator->TransferDescriptor;
 		int SwitchToggles = Request->TransactionCount % 2;
 
+		/* Fixup Toggles? */
+		if (FixupToggles)
+			UhciFixupToggles(Request);
+
 		/* Copy data if not dummy */
 		while (lIterator)
 		{
@@ -1873,16 +1903,18 @@ void UhciProcessRequest(UhciController_t *Controller, list_node_t *Node,
 				memcpy(lIterator->IoBuffer, lIterator->TransferBuffer, lIterator->IoLength);
 
 			/* Switch toggle if not dividable by 2 */
-			if (SwitchToggles != 0)
+			if (SwitchToggles
+				|| FixupToggles)
 			{
+				/* Cast TD */
 				UhciTransferDescriptor_t *__Td =
 					(UhciTransferDescriptor_t*)lIterator->TransferDescriptorCopy;
 
 				/* If set */
-				if (__Td->Header & UHCI_TD_DATA_TOGGLE)
-					__Td->Header &= ~UHCI_TD_DATA_TOGGLE;
-				else
-					__Td->Header |= UHCI_TD_DATA_TOGGLE;
+				__Td->Header = Request->Endpoint->Toggle;
+
+				/* Toggle */
+				Request->Endpoint->Toggle = (Request->Endpoint->Toggle == 0) ? 1 : 0;
 			}
 
 			/* Restart Td */
@@ -1907,12 +1939,7 @@ void UhciProcessRequest(UhciController_t *Controller, list_node_t *Node,
 	else
 	{
 		/* Re-Iterate */
-		UhciQueueHead_t *Qh = (UhciQueueHead_t*)Request->Data;
 		UsbHcTransaction_t *lIterator = Request->Transactions;
-
-		/* Get first td */
-		UhciTransferDescriptor_t *Td =
-			(UhciTransferDescriptor_t*)lIterator->TransferDescriptor;
 
 		/* Copy data if not dummy */
 		while (lIterator)
