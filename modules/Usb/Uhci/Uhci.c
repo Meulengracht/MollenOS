@@ -662,6 +662,8 @@ void UhciPortsCheck(void *Data)
 	/* Iterate ports and check */
 	for (i = 0; i < (int)Controller->NumPorts; i++)
 		UhciPortCheck(Controller, i);
+
+	/* Disable FSBR */
 }
 
 /* Gets port status */
@@ -731,9 +733,9 @@ UhciQueueHead_t *UhciAllocateQh(UhciController_t *Controller, UsbTransferType_t 
 				Controller->QhPool[i]->Flags |= UHCI_QH_SET_QUEUE(UHCI_POOL_LCTRL);
 			else if (Speed == FullSpeed
 				&& Type == ControlTransfer)
-				Controller->QhPool[i]->Flags |= UHCI_QH_SET_QUEUE(UHCI_POOL_FCTRL);
+				Controller->QhPool[i]->Flags |= UHCI_QH_SET_QUEUE(UHCI_POOL_FCTRL) | UHCI_QH_FSBR;
 			else if (Type == BulkTransfer)
-				Controller->QhPool[i]->Flags |= UHCI_QH_SET_QUEUE(UHCI_POOL_FBULK);
+				Controller->QhPool[i]->Flags |= UHCI_QH_SET_QUEUE(UHCI_POOL_FBULK) | UHCI_QH_FSBR;
 
 			/* Set index */
 			Qh = Controller->QhPool[i];
@@ -1566,14 +1568,33 @@ void UhciTransactionSend(void *Controller, UsbHcRequest_t *Request)
 		/* Isochronous Transfer */
 
 		/* Get current frame */
-		//uint16_t CurrentFrame = UhciRead16(Ctrl, UHCI_REGISTER_FRNUM) & 0x7FF;
+		UhciTransferDescriptor_t *InitialTd = NULL;
+		UhciTransferDescriptor_t *LastTd = NULL;
+		uint16_t CurrentFrame = UhciRead16(Ctrl, UHCI_REGISTER_FRNUM) & 0x7FF;
+		uint32_t *FramePtr = (uint32_t*)Ctrl->FrameList;
+
+		/* Reset Ptr */
+		Transaction = Request->Transactions;
+
+		/* Get initial TD */
+		InitialTd = (UhciTransferDescriptor_t*)Transaction->TransferDescriptor;
 
 		/* Calculate where to put it */
-		//CurrentFrame += 10;
+		CurrentFrame += 10;
+
+		/* Get last TD */
+		while (Transaction->Link)
+			Transaction = Transaction->Link;
+		LastTd = (UhciTransferDescriptor_t*)Transaction->TransferDescriptor;
+
+		/* Steal the current link */
+		LastTd->Link = FramePtr[CurrentFrame];
+
+		/* MemB */
+		Qh->Link = CurrentFrame;
 
 		/* Insert directly into the frame and link to the QH */
-
-		/* Fixup toggles ? */
+		FramePtr[CurrentFrame] = InitialTd->PhysicalAddr;
 	}
 
 	/* Release lock */
@@ -1811,12 +1832,121 @@ void UhciTransactionDestroy(void *Controller, UsbHcRequest_t *Request)
 	SpinlockRelease(&Ctrl->Lock);
 }
 
+/* Processes a QH */
+void UhciProcessRequest(UhciController_t *Controller, list_node_t *Node, 
+	UsbHcRequest_t *Request, int FixupToggles)
+{
+	/* What kind of transfer was this? */
+	if (Request->Type == ControlTransfer
+		|| Request->Type == BulkTransfer)
+	{
+		/* Perhaps we need to fixup toggles? */
+		if (Request->Type == BulkTransfer
+			&& FixupToggles) {
+
+			/* */
+
+		}
+
+		/* Wake a node */
+		SchedulerWakeupOneThread((Addr_t*)Request->Data);
+
+		/* Remove from list */
+		list_remove_by_node((list_t*)Controller->TransactionList, Node);
+
+		/* Cleanup node */
+		kfree(Node);
+	}
+	else if (Request->Type == InterruptTransfer)
+	{
+		/* Re-Iterate */
+		UhciQueueHead_t *Qh = (UhciQueueHead_t*)Request->Data;
+		UsbHcTransaction_t *lIterator = Request->Transactions;
+		UhciTransferDescriptor_t *Td = (UhciTransferDescriptor_t*)lIterator->TransferDescriptor;
+		int SwitchToggles = Request->TransactionCount % 2;
+
+		/* Copy data if not dummy */
+		while (lIterator)
+		{
+			/* Copy Data from transfer buffer to IoBuffer */
+			if (lIterator->IoLength != 0)
+				memcpy(lIterator->IoBuffer, lIterator->TransferBuffer, lIterator->IoLength);
+
+			/* Switch toggle if not dividable by 2 */
+			if (SwitchToggles != 0)
+			{
+				UhciTransferDescriptor_t *__Td =
+					(UhciTransferDescriptor_t*)lIterator->TransferDescriptorCopy;
+
+				/* If set */
+				if (__Td->Header & UHCI_TD_DATA_TOGGLE)
+					__Td->Header &= ~UHCI_TD_DATA_TOGGLE;
+				else
+					__Td->Header |= UHCI_TD_DATA_TOGGLE;
+			}
+
+			/* Restart Td */
+			memcpy(lIterator->TransferDescriptor,
+				lIterator->TransferDescriptorCopy, sizeof(UhciTransferDescriptor_t));
+
+			/* Restore IOC */
+			if (lIterator->Link == NULL)
+				((UhciTransferDescriptor_t*)
+				lIterator->TransferDescriptor)->Flags |= UHCI_TD_IOC;
+
+			/* Eh, next link */
+			lIterator = lIterator->Link;
+		}
+
+		/* Callback */
+		Request->Callback->Callback(Request->Callback->Args, TransferFinished);
+
+		/* Reinitilize Qh */
+		Qh->Child = Td->PhysicalAddr;
+	}
+	else
+	{
+		/* Re-Iterate */
+		UhciQueueHead_t *Qh = (UhciQueueHead_t*)Request->Data;
+		UsbHcTransaction_t *lIterator = Request->Transactions;
+
+		/* Get first td */
+		UhciTransferDescriptor_t *Td =
+			(UhciTransferDescriptor_t*)lIterator->TransferDescriptor;
+
+		/* Copy data if not dummy */
+		while (lIterator)
+		{
+			/* Copy Data from transfer buffer to IoBuffer */
+			if (lIterator->IoLength != 0)
+				memcpy(lIterator->IoBuffer, lIterator->TransferBuffer, lIterator->IoLength);
+
+			/* Restart Td */
+			memcpy(lIterator->TransferDescriptor,
+				lIterator->TransferDescriptorCopy, sizeof(UhciTransferDescriptor_t));
+
+			/* Restore IOC */
+			if (lIterator->Link == NULL)
+				((UhciTransferDescriptor_t*)
+				lIterator->TransferDescriptor)->Flags |= UHCI_TD_IOC;
+
+			/* Eh, next link */
+			lIterator = lIterator->Link;
+		}
+
+		/* Callback ?? needed */
+		//HcRequest->Callback->Callback(HcRequest->Callback->Args, TransferFinished);
+
+		/* Reschedule in next frame */
+	}
+}
+
 /* Handles completions */
 void UhciProcessTransfers(UhciController_t *Controller)
 {
 	/* Transaction is completed / Failed */
 	list_t *Transactions = (list_t*)Controller->TransactionList;
-	int Completed = 0;
+	int ProcessQh = 0;
 
 	/* Get transactions in progress and find the offender */
 	foreach(Node, Transactions)
@@ -1827,106 +1957,73 @@ void UhciProcessTransfers(UhciController_t *Controller)
 		/* Get transaction list */
 		UsbHcTransaction_t *tList = (UsbHcTransaction_t*)HcRequest->Transactions;
 
+		/* State variables */
+		int ShortTransfer = 0;
+		int ErrorTransfer = 0;
+		int FixupToggles = 0;
+		int Counter = 0;
+		ProcessQh = 0;
+
 		/* Loop through transactions */
 		while (tList)
 		{
+			/* Increament */
+			Counter++;
+
 			/* Cast Td */
 			UhciTransferDescriptor_t *Td = 
 				(UhciTransferDescriptor_t*)tList->TransferDescriptor;
 
 			/* Get code */
 			int CondCode = UhciConditionCodeToIndex(UHCI_TD_STATUS(Td->Flags));
-			int ErrCount = UHCI_TD_ERROR_COUNT(Td->Flags);
+			int BytesTransfered = UHCI_TD_ACT_LEN(Td->Flags);
+			int BytesRequest = UHCI_TD_GET_LEN(Td->Header);
 
 			/* Sanity first */
 			if (Td->Flags & UHCI_TD_ACTIVE) {
-				Completed = 0;
+
+				/* If it's the first TD, skip */
+				if (Counter == 1) {
+					ProcessQh = 0;
+					break;
+				}
+
+				/* Mark for processing */
+				ProcessQh = 1;
+
+				/* Fixup toggles? */
+				if (HcRequest->Type == BulkTransfer
+					|| HcRequest->Type == InterruptTransfer) {
+					if (ShortTransfer == 1 || ErrorTransfer == 1)
+						FixupToggles = 1;
+				}
+
+				/* Break */
 				break;
 			}
 
-			/* Set completed per default */
-			Completed = 1;
+			/* Set for processing per default */
+			ProcessQh = 1;
 
-			/* Error Transfer ?
-			 * No need to check rest */
-			if (CondCode != 0
-				&& CondCode != 3) {
-				if (HcRequest->Type == InterruptTransfer)
-					LogDebug("UHCI", "Td Error: Td Flags 0x%x, Header 0x%x, Error Count: %i",
-						Td->Flags, Td->Header, ErrCount);
-				break;
+			/* TD is not active 
+			 * this means it's been processed */
+			if (BytesTransfered != 0x7FF
+				&& BytesTransfered < BytesRequest) {
+				ShortTransfer = 1;
+			}
+
+			/* Error Transfer ? */
+			if (CondCode != 0 && CondCode != 3) {
+				ErrorTransfer = 1;
 			}
 
 			/* Get next transaction */
 			tList = tList->Link;
 		}
 
-		/* Was it a completed/failed transaction ? ? */
-		if (Completed)
-		{
-			/* What kind of transfer was this? */
-			if (HcRequest->Type == ControlTransfer
-				|| HcRequest->Type == BulkTransfer)
-			{
-				/* Wake a node */
-				SchedulerWakeupOneThread((Addr_t*)HcRequest->Data);
-
-				/* Remove from list */
-				list_remove_by_node(Transactions, Node);
-
-				/* Cleanup node */
-				kfree(Node);
-			}
-			else
-			{
-				/* Re-Iterate */
-				UhciQueueHead_t *Qh = (UhciQueueHead_t*)HcRequest->Data;
-				UsbHcTransaction_t *lIterator = HcRequest->Transactions;
-				UhciTransferDescriptor_t *Td = (UhciTransferDescriptor_t*)lIterator->TransferDescriptor;
-				int SwitchToggles = HcRequest->TransactionCount % 2;
-
-				/* Copy data if not dummy */
-				while (lIterator)
-				{
-					/* Copy Data from transfer buffer to IoBuffer */
-					if (lIterator->IoLength != 0)
-						memcpy(lIterator->IoBuffer, lIterator->TransferBuffer, lIterator->IoLength);
-
-					/* Switch toggle if not dividable by 2 */
-					if (HcRequest->Type == InterruptTransfer
-						&& SwitchToggles != 0)
-					{
-						UhciTransferDescriptor_t *__Td =
-							(UhciTransferDescriptor_t*)lIterator->TransferDescriptorCopy;
-
-						/* If set */
-						if (__Td->Header & UHCI_TD_DATA_TOGGLE)
-							__Td->Header &= ~UHCI_TD_DATA_TOGGLE;
-						else
-							__Td->Header |= UHCI_TD_DATA_TOGGLE;
-					}
-
-					/* Restart Td */
-					memcpy(lIterator->TransferDescriptor,
-						lIterator->TransferDescriptorCopy, sizeof(UhciTransferDescriptor_t));
-
-					/* Restore IOC */
-					if (lIterator->Link == NULL)
-						((UhciTransferDescriptor_t*)
-							lIterator->TransferDescriptor)->Flags |= UHCI_TD_IOC;
-
-					/* Eh, next link */
-					lIterator = lIterator->Link;
-				}
-
-				/* Callback */
-				HcRequest->Callback->Callback(HcRequest->Callback->Args, TransferFinished);
-
-				/* Reinitilize Qh */
-				Qh->Child = Td->PhysicalAddr;
-			}
-
-			/* Done */
+		/* Does Qh need processing? */
+		if (ProcessQh) {
+			UhciProcessRequest(Controller, Node, HcRequest, FixupToggles);
 			break;
 		}
 	}
@@ -1971,7 +2068,8 @@ int UhciInterruptHandler(void *Args)
 	/* Host Error */
 	if (IntrState & UHCI_STATUS_HOST_SYSERR)
 	{
-		/* Reset Controller */
+		/* Fatal Error
+		* Unschedule TDs and restart controller */
 		UsbEventCreate(UsbGetHcd(Controller->Id), 0, HcdFatalEvent);
 	}
 

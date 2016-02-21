@@ -158,6 +158,7 @@ typedef struct _UhciTransferDescriptor
 #define UHCI_TD_LOWSPEED				0x4000000
 #define UHCI_TD_SET_ERR_CNT(n)			((n & 0x3) << 27)
 #define UHCI_TD_SHORT_PACKET			(1 << 29)
+#define UHCI_TD_ACT_LEN(n)				(n & 0x7FF)
 
 #define UHCI_TD_ERROR_COUNT(n)			((n >> 27) & 0x3)
 #define UHCI_TD_STATUS(n)				((n >> 17) & 0x3F)
@@ -170,6 +171,7 @@ typedef struct _UhciTransferDescriptor
 #define UHCI_TD_EP_ADDR(n)				((n & 0xF) << 15)
 #define UHCI_TD_DATA_TOGGLE				(1 << 19)
 #define UHCI_TD_MAX_LEN(n)				((n & 0x7FF) << 21)
+#define UHCI_TD_GET_LEN(n)				((n >> 21) & 0x7FF)
 
 /* Queue Head, 16 byte align 
  * 8 Bytes used by HC 
@@ -196,7 +198,8 @@ typedef struct _UhciQueueHead
 	 * Bit 1-7: Pool Number
 	 * Bit 8-15: Queue Head Index 
 	 * Bit 16-17: Queue Head Type (00 Control, 01 Bulk, 10 Interrupt, 11 Isochronous) 
-	 * Bit 18: Bandwidth allocated */
+	 * Bit 18: Bandwidth allocated 
+	 * Bit 19: FSBR */
 	uint32_t Flags;
 
 	/* Virtual Address of next QH */
@@ -220,6 +223,7 @@ typedef struct _UhciQueueHead
 #define UHCI_QH_INDEX(n)			((n & 0xFF) << 8)
 #define UHCI_QH_TYPE(n)				((n & 0x3) << 16)
 #define UHCI_QH_BANDWIDTH_ALLOC		(1 << 18)
+#define UHCI_QH_FSBR				(1 << 19)
 
 #define UHCI_QH_SET_QUEUE(n)		((n << 1) & 0xFE)	
 #define UHCI_QH_CLR_QUEUE(n)		(n & 0xFFFFFF01)
@@ -237,7 +241,7 @@ typedef struct _UhciQueueHead
 #define UHCI_POOL_LCTRL				11
 #define UHCI_POOL_FCTRL				12
 #define UHCI_POOL_FBULK				13
-#define UHCI_POOL_FSBR				UHCI_POOL_LCTRL
+#define UHCI_POOL_FSBR				UHCI_POOL_FCTRL
 
 /* Where shared alloc starts */
 #define UHCI_POOL_START				14
