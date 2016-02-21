@@ -19,7 +19,6 @@
 * MollenOS USB UHCI Controller Driver
 * Todo:
 * Isochronous Support
-* On short-packet/error transfers, we need to be able to fixup endpoint toggles
 * Finish the FSBR implementation, right now there is no guarantee of order ls/fs/bul
 */
 
@@ -1931,7 +1930,8 @@ void UhciProcessRequest(UhciController_t *Controller, list_node_t *Node,
 		}
 
 		/* Callback */
-		Request->Callback->Callback(Request->Callback->Args, TransferFinished);
+		if (Request->Callback != NULL)
+			Request->Callback->Callback(Request->Callback->Args, TransferFinished);
 
 		/* Reinitilize Qh */
 		Qh->Child = Td->PhysicalAddr;
@@ -1962,9 +1962,10 @@ void UhciProcessRequest(UhciController_t *Controller, list_node_t *Node,
 		}
 
 		/* Callback ?? needed */
-		//HcRequest->Callback->Callback(HcRequest->Callback->Args, TransferFinished);
+		if (Request->Callback != NULL)
+			Request->Callback->Callback(Request->Callback->Args, TransferFinished);
 
-		/* Reschedule in next frame */
+		/* Reschedule */
 	}
 }
 

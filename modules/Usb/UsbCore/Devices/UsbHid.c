@@ -213,6 +213,12 @@ void UsbHidInit(UsbHcDevice_t *UsbDevice, int InterfaceIndex)
 	DevData->Collection = NULL;
 	ReportLength = UsbHidParseReportDescriptor(DevData, 
 		ReportDescriptor, HidDescriptor->ClassDescriptorLength);
+
+	/* Adjust if shorter than MPS */
+	if (ReportLength < DevData->EpInterrupt->MaxPacketSize)
+		ReportLength = DevData->EpInterrupt->MaxPacketSize;
+
+	/* Store length */
 	DevData->DataLength = ReportLength;
 
 	/* Initialise the EP */
