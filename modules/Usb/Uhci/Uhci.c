@@ -1909,8 +1909,12 @@ void UhciProcessRequest(UhciController_t *Controller, list_node_t *Node,
 				UhciTransferDescriptor_t *__Td =
 					(UhciTransferDescriptor_t*)lIterator->TransferDescriptorCopy;
 
+				/* Clear toggle */
+				__Td->Header &= ~UHCI_TD_DATA_TOGGLE;
+
 				/* If set */
-				__Td->Header = Request->Endpoint->Toggle;
+				if (Request->Endpoint->Toggle)
+					__Td->Header |= UHCI_TD_DATA_TOGGLE;
 
 				/* Toggle */
 				Request->Endpoint->Toggle = (Request->Endpoint->Toggle == 0) ? 1 : 0;
