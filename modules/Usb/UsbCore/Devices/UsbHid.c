@@ -250,6 +250,8 @@ void UsbHidInit(UsbHcDevice_t *UsbDevice, int InterfaceIndex)
 	/* Install Interrupt */
 	UsbFunctionInstallPipe(UsbHcd, UsbDevice, DevData->InterruptChannel,
 		DevData->EpInterrupt, DevData->DataBuffer, ReportLength);
+
+	/* Create MCore device */
 }
 
 /* Parses a global report item */
@@ -697,7 +699,7 @@ void UsbHidApplyInputData(HidDevice_t *Device, UsbHidReportCollectionItem_t *Col
 		switch (CollectionItem->Stats.Usage)
 		{
 			/* Mouse, Keyboard etc */
-			case X86_USB_REPORT_USAGE_PAGE_GENERIC_PC:
+			case USB_HID_USAGE_PAGE_GENERIC_PC:
 			{
 				/* Lets check sub-type (local usage) */
 				switch (Usage)
@@ -725,9 +727,9 @@ void UsbHidApplyInputData(HidDevice_t *Device, UsbHidReportCollectionItem_t *Col
 						if (xRelative > CollectionItem->Stats.LogicalMax
 							&& CollectionItem->Stats.LogicalMin < 0)
 						{
-							/* This means we have to sign x_relative */
-							xRelative = (int64_t)(~((uint64_t)xRelative));
-							xRelative++;
+							/* This means we have to sign extend x_relative */
+							if (xRelative & (int64_t)(1 << (Length - 1)))
+								xRelative -= (int64_t)(1 << Length);
 						}
 
 						if (xRelative != 0)
@@ -736,8 +738,9 @@ void UsbHidApplyInputData(HidDevice_t *Device, UsbHidReportCollectionItem_t *Col
 							PointerData.xRelative = (int32_t)xRelative;
 
 							/* Now it epends on mouse, joystick or w/e */
-							LogInformation("USBH", "X-Change: %i (Original 0x%x, Old 0x%x)",
-								(int32_t)xRelative, (uint32_t)Value, (uint32_t)OldValue);
+							LogInformation("USBH", "X-Change: %i (Original 0x%x, Old 0x%x, LogMax %i)",
+								(int32_t)xRelative, (uint32_t)Value, (uint32_t)OldValue, 
+								CollectionItem->Stats.LogicalMax);
 						}
 
 					} break;
@@ -759,9 +762,9 @@ void UsbHidApplyInputData(HidDevice_t *Device, UsbHidReportCollectionItem_t *Col
 						if (yRelative > CollectionItem->Stats.LogicalMax
 							&& CollectionItem->Stats.LogicalMin < 0)
 						{
-							/* This means we have to sign x_relative */
-							yRelative = (int64_t)(~((uint64_t)yRelative));
-							yRelative++;
+							/* This means we have to sign y_relative */
+							if (yRelative & (int64_t)(1 << (Length - 1)))
+								yRelative -= (int64_t)(1 << Length);
 						}
 
 						if (yRelative != 0)
@@ -794,8 +797,8 @@ void UsbHidApplyInputData(HidDevice_t *Device, UsbHidReportCollectionItem_t *Col
 							&& CollectionItem->Stats.LogicalMin < 0)
 						{
 							/* This means we have to sign x_relative */
-							zRelative = (int64_t)(~((uint64_t)zRelative));
-							zRelative++;
+							if (zRelative & (int64_t)(1 << (Length - 1)))
+								zRelative -= (int64_t)(1 << Length);
 						}
 
 						if (zRelative != 0)

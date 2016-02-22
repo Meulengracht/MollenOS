@@ -90,8 +90,8 @@
 #define USB_HID_LOCAL_DELIMITER			0xA0
 
 /* Report Usage Pages */
-#define X86_USB_REPORT_USAGE_PAGE_UNDEFINED		0x0
-#define X86_USB_REPORT_USAGE_PAGE_GENERIC_PC	0x1	/* Geneic Desktop (mouse etc) */
+#define USB_HID_USAGE_PAGE_UNKNOWN				0x0
+#define USB_HID_USAGE_PAGE_GENERIC_PC	0x1	/* Geneic Desktop (mouse etc) */
 #define X86_USB_REPORT_USAGE_PAGE_SIMULATION	0x2
 #define X86_USB_REPORT_USAGE_PAGE_VR			0x3
 #define X86_USB_REPORT_USAGE_PAGE_SPORT			0x4
