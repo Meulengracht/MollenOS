@@ -27,8 +27,8 @@
 #include "Uhci.h"
 
 #include <Scheduler.h>
-#include <UsbCore.h>
 #include <Timers.h>
+#include <UsbCore.h>
 #include <Heap.h>
 #include <Pci.h>
 
@@ -452,6 +452,7 @@ void UhciSetup(UhciController_t *Controller)
 	Hcd->RootHubCheck = UhciPortsCheck;
 	Hcd->PortSetup = UhciPortSetup;
 	Hcd->Reset = UhciReset;
+	Hcd->Watchdog = UhciPortsCheck;
 
 	/* Ep Functions */
 	Hcd->EndpointSetup = UhciEndpointSetup;
@@ -467,10 +468,6 @@ void UhciSetup(UhciController_t *Controller)
 
 	/* Register it */
 	Controller->HcdId = UsbRegisterController(Hcd);
-
-	/* Install Periodic Check (NO HUB INTERRUPTS!?)
-	 * Anyway this will initiate ports */
-	TimersCreateTimer(UhciPortsCheck, Controller, TimerPeriodic, 1000);
 }
 
 /* Initialises Queue Heads & Interrupt Queeue */

@@ -18,8 +18,9 @@
 *
 * MollenOS USB OHCI Controller Driver
 * Todo:
+* Isochronous Support
 * Linux has a periodic timer event that checks if all finished td's has generated a interrupt to make sure
-* Stability (Only tested on emulators and one real hardware pc).
+* Code Review
 */
 
 /* Includes */

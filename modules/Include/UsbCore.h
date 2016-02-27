@@ -38,6 +38,7 @@
 #define USB_MAX_VERSIONS		4
 #define USB_MAX_INTERFACES		8
 #define USB_MAX_ENDPOINTS		16
+#define USB_WATCHDOG_INTERVAL	1000
 
 /* Usb Devices Class Codes */
 #define USB_CLASS_INTERFACE		0x00	/* Get from Interface */
@@ -618,6 +619,7 @@ typedef struct _UsbHc
 	/* Callback Functions */
 	void (*RootHubCheck)(void*);
 	void (*Reset)(void*);
+	void (*Watchdog)(void*);
 
 	/* Transaction Functions */
 	void (*TransactionInit)(void*, UsbHcRequest_t*);

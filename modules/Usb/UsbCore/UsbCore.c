@@ -46,6 +46,7 @@ volatile int GlbUsbInitialized = 0;
 volatile int GlbUsbControllerId = 0;
 
 /* Prototypes */
+void UsbWatchdog(void*);
 void UsbEventHandler(void*);
 void UsbDeviceSetup(UsbHc_t *Hc, int Port);
 void UsbDeviceDestroy(UsbHc_t *Hc, int Port);
@@ -69,6 +70,9 @@ MODULES_API void ModuleInit(void *Data)
 
 	/* Start Event Thread */
 	ThreadingCreateThread("Usb Event Thread", UsbEventHandler, NULL, 0);
+
+	/* Install Usb Watchdog */
+	TimersCreateTimer(UsbWatchdog, NULL, TimerPeriodic, USB_WATCHDOG_INTERVAL);
 }
 
 /* Registrate an OHCI/UHCI/EHCI/XHCI controller */
@@ -433,6 +437,24 @@ UsbHcPort_t *UsbPortCreate(int Port)
 
 	/* Done */
 	return HcPort;
+}
+
+/* Usb Watchdog */
+void UsbWatchdog(void* Data)
+{
+	/* Unused */
+	_CRT_UNUSED(Data);
+
+	/* Iterate controllers */
+	foreach(Node, GlbUsbControllers)
+	{
+		/* Cast */
+		UsbHc_t *Controller = (UsbHc_t*)Node->data;
+
+		/* Invoke the controllers watchdog */
+		if (Controller->Watchdog != NULL)
+			Controller->Watchdog(Controller->Hc);
+	}
 }
 
 /* USB Events */

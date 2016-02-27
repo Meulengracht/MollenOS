@@ -30,9 +30,13 @@
 
 #include <string.h>
 
+/* GLobals */
+const char *GlbUsbHidDriverName = "MollenOS Usb HID Driver";
+
 /* Prototypes */
 size_t UsbHidParseReportDescriptor(HidDevice_t *Device, uint8_t *ReportData, size_t ReportLength);
 void UsbHidCallback(void *Device, UsbTransferStatus_t Status);
+void UsbHidDestroy(void *UsbDevice, int Interface);
 
 /* Collection List Helpers */
 void UsbHidCollectionInsertChild(UsbHidReportCollection_t *Collection, 
@@ -100,6 +104,7 @@ uint64_t UsbHidGetBits(uint8_t *Buffer, uint32_t BitOffset, uint32_t NumBits)
 void UsbHidInit(UsbHcDevice_t *UsbDevice, int InterfaceIndex)
 {
 	/* Allocate device stuff */
+	MCoreDevice_t *mDevice = (MCoreDevice_t*)kmalloc(sizeof(MCoreDevice_t));
 	HidDevice_t *DevData = (HidDevice_t*)kmalloc(sizeof(HidDevice_t));
 	UsbHc_t *UsbHcd = (UsbHc_t*)UsbDevice->HcDriver;
 
@@ -150,6 +155,7 @@ void UsbHidInit(UsbHcDevice_t *UsbDevice, int InterfaceIndex)
 	if (HidDescriptor == NULL)
 	{
 		LogFatal("USBH", "HID Descriptor did not exist.");
+		kfree(mDevice);
 		kfree(DevData);
 		return;
 	}
@@ -175,6 +181,7 @@ void UsbHidInit(UsbHcDevice_t *UsbDevice, int InterfaceIndex)
 	if (DevData->EpInterrupt == NULL)
 	{
 		LogFatal("USBH", "HID Endpoint (In, Interrupt) did not exist.");
+		kfree(mDevice);
 		kfree(DevData);
 		return;
 	}
@@ -203,16 +210,24 @@ void UsbHidInit(UsbHcDevice_t *UsbDevice, int InterfaceIndex)
 		0, (uint8_t)InterfaceIndex, HidDescriptor->ClassDescriptorLength) != TransferFinished)
 	{
 		LogFatal("USBH", "Failed to get Report Descriptor.");
+		kfree(mDevice);
 		kfree(ReportDescriptor);
 		kfree(DevData);
 		return;
 	}
+
+	/* Set cleanup function */
+	UsbDevice->Interfaces[InterfaceIndex]->Destroy = UsbHidDestroy;
+	UsbDevice->Interfaces[InterfaceIndex]->DriverData = mDevice;
 
 	/* Parse Report Descriptor */
 	DevData->UsbDevice = UsbDevice;
 	DevData->Collection = NULL;
 	ReportLength = UsbHidParseReportDescriptor(DevData, 
 		ReportDescriptor, HidDescriptor->ClassDescriptorLength);
+
+	/* Free the report descriptor, we don't need it anymore */
+	kfree(ReportDescriptor);
 
 	/* Adjust if shorter than MPS */
 	if (ReportLength < DevData->EpInterrupt->MaxPacketSize)
@@ -252,12 +267,60 @@ void UsbHidInit(UsbHcDevice_t *UsbDevice, int InterfaceIndex)
 		DevData->EpInterrupt, DevData->DataBuffer, ReportLength);
 
 	/* Create MCore device */
+	memset(mDevice, 0, sizeof(MCoreDevice_t));
+
+	/* Setup information */
+	mDevice->VendorId = 0x8086;
+	mDevice->DeviceId = 0x0;
+	mDevice->Class = DEVICEMANAGER_LEGACY_CLASS;
+	mDevice->Subclass = 0x00000018;
+
+	mDevice->IrqLine = -1;
+	mDevice->IrqPin = -1;
+	mDevice->IrqAvailable[0] = -1;
+	mDevice->IrqHandler = NULL;
+
+	/* Type */
+	mDevice->Type = DeviceInput;
+
+	/* Initial */
+	mDevice->Driver.Name = (char*)GlbUsbHidDriverName;
+	mDevice->Driver.Version = 1;
+	mDevice->Driver.Data = DevData;
+	mDevice->Driver.Status = DriverActive;
+
+	/* Register Us */
+	DevData->DeviceId = DmCreateDevice("Usb Input", mDevice);
 }
 
 /* Cleanup HID driver */
-void UsbHidDestroy()
+void UsbHidDestroy(void *UsbDevice, int Interface)
 {
+	/* Cast */
+	UsbHcDevice_t *Dev = (UsbHcDevice_t*)UsbDevice;
+	MCoreDevice_t *mDevice = 
+		(MCoreDevice_t*)Dev->Interfaces[Interface]->DriverData;
+	HidDevice_t *Device = (HidDevice_t*)mDevice->Driver.Data;
+	UsbHc_t *UsbHcd = (UsbHc_t*)Dev->HcDriver;
 
+	/* Destroy Channel */
+	UsbTransactionDestroy(UsbHcd, Device->InterruptChannel);
+
+	/* Unregister Us */
+	DmDestroyDevice(Device->DeviceId);
+
+	/* Free endpoints */
+	UsbHcd->EndpointDestroy(UsbHcd->Hc, Device->EpInterrupt);
+
+	/* Free Collections */
+
+	/* Free Data */
+	kfree(Device->DataBuffer);
+	kfree(Device->PrevDataBuffer);
+
+	/* Last cleanup */
+	kfree(mDevice->Data);
+	kfree(mDevice->Driver.Data);
 }
 
 /* Parses a global report item */
