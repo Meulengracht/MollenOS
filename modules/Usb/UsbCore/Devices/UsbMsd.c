@@ -94,22 +94,33 @@ void UsbMsdInit(UsbHcDevice_t *UsbDevice, int InterfaceIndex)
 	/* Allocate */
 	MCoreDevice_t *mDevice = (MCoreDevice_t*)kmalloc(sizeof(MCoreDevice_t));
 	MsdDevice_t *DevData = (MsdDevice_t*)kmalloc(sizeof(MsdDevice_t));
-	MCoreStorageDevice_t *StorageData = (MCoreStorageDevice_t*)kmalloc(sizeof(MCoreStorageDevice_t));
+	MCoreStorageDevice_t *StorageData = 
+		(MCoreStorageDevice_t*)kmalloc(sizeof(MCoreStorageDevice_t));
 	UsbHc_t *UsbHcd = (UsbHc_t*)UsbDevice->HcDriver;
 	size_t i;
 
+	/* Do we support the subclass? */
+	if (UsbDevice->Interfaces[InterfaceIndex]->Subclass != USB_MSD_SUBCLASS_SCSI
+		&& UsbDevice->Interfaces[InterfaceIndex]->Subclass != USB_MSD_SUBCLASS_FLOPPY
+		&& UsbDevice->Interfaces[InterfaceIndex]->Subclass != USB_MSD_SUBCLASS_ATAPI) {
+		LogDebug("USBM", "Unsupported MSD Subclass 0x%x", UsbDevice->Interfaces[InterfaceIndex]->Subclass);
+		return;
+	}
+
 	/* Sanity */
-	if (UsbDevice->Interfaces[InterfaceIndex]->Subclass == X86_USB_MSD_SUBCLASS_FLOPPY)
-		DevData->IsUFI = 1;
+	if (UsbDevice->Interfaces[InterfaceIndex]->Subclass == USB_MSD_SUBCLASS_FLOPPY)
+		DevData->Type = FloppyDrive;
+	else if (UsbDevice->Interfaces[InterfaceIndex]->Subclass == USB_MSD_SUBCLASS_ATAPI)
+		DevData->Type = DiskDrive;
 	else
-		DevData->IsUFI = 0;
+		DevData->Type = HardDrive;
 
 	/* Set */
 	StorageData->SectorSize = 512;
 	StorageData->SectorCount = 0;
 
 	/* Depends if floppy */
-	if (!DevData->IsUFI)
+	if (DevData->Type != FloppyDrive)
 	{
 		StorageData->AlignedAccess = 0;
 		StorageData->SectorsPerCylinder = 64;
@@ -177,7 +188,7 @@ void UsbMsdInit(UsbHcDevice_t *UsbDevice, int InterfaceIndex)
 	/* Test & Setup Disk */
 
 	/* Reset Bulk */
-	if (DevData->IsUFI == 0)
+	if (DevData->Type == HardDrive)
 		UsbMsdReset(DevData);
 
 	/* Send Inquiry */
@@ -188,7 +199,7 @@ void UsbMsdInit(UsbHcDevice_t *UsbDevice, int InterfaceIndex)
 
 	/* Send Test-Unit-Ready */
 	i = 3;
-	if (DevData->IsUFI)
+	if (DevData->Type != HardDrive)
 		i = 30;
 
 	while (DevData->IsReady == 0
@@ -247,7 +258,7 @@ void UsbMsdInit(UsbHcDevice_t *UsbDevice, int InterfaceIndex)
 	mDevice->Driver.Status = DriverActive;
 
 	/* Register Us */
-	DevData->DeviceId = DmCreateDevice("Usb Storage", mDevice);
+	DevData->DeviceId = DmCreateDevice((DevData->Type == HardDrive) ? "Usb Storage" : "Usb Drive", mDevice);
 }
 
 /* Cleanup */
@@ -280,7 +291,7 @@ void UsbMsdReset(MsdDevice_t *Device)
 	/* Send control packet - Interface Reset */
 	UsbFunctionSendPacket((UsbHc_t*)Device->UsbDevice->HcDriver, Device->UsbDevice->Port,
 		NULL, USB_REQUEST_TARGET_CLASS | USB_REQUEST_TARGET_INTERFACE,
-		X86_USB_MSD_REQUEST_RESET, 0, 0, (uint16_t)Device->Interface, 0);
+		USB_MSD_REQUEST_RESET, 0, 0, (uint16_t)Device->Interface, 0);
 
 	/* The value of the data toggle bits shall be preserved 
 	 * it says in the usbmassbulk spec */
@@ -322,14 +333,15 @@ void UsbMsdGetMaxLUN(MsdDevice_t *Device)
 	/* Send control packet - Interface Reset */
 	Status = UsbFunctionSendPacket((UsbHc_t*)Device->UsbDevice->HcDriver, Device->UsbDevice->Port,
 		&MaxLuns, USB_REQUEST_DIR_IN | USB_REQUEST_TARGET_CLASS | USB_REQUEST_TARGET_INTERFACE,
-		X86_USB_MSD_REQUEST_RESET, 0, 0, (uint16_t)Device->Interface, 1);
+		USB_MSD_REQUEST_RESET, 0, 0, (uint16_t)Device->Interface, 1);
 
 	/* If no multiple LUNS are supported, device may STALL
-	* it says in the usbmassbulk spec */
+	 * it says in the usbmassbulk spec 
+	 * but thats ok, it's not a functional stall */
 	if (Status == TransferFinished)
 		Device->LUNCount = (size_t)(MaxLuns & 0xF);
-	else if (Status == TransferStalled)
-		UsbMsdResetRecovery(Device);
+	else
+		Device->LUNCount = 0;
 }
 
 /* Scsi Helpers */
@@ -719,7 +731,7 @@ void UsbMsdBuildSCSICommandUFI(uint8_t ScsiCommand,
 UsbTransferStatus_t UsbMsdSanityCsw(MsdDevice_t *Device, MsdCommandStatusWrap_t *Csw)
 {
 	/* Start out by checking if a phase error occured, in that case we are screwed */
-	if (Csw->Status == X86_USB_MSD_CSW_PHASE_ERROR)
+	if (Csw->Status == USB_MSD_CSW_PHASE_ERROR)
 	{
 		/* Do a reset-recovery */
 		UsbMsdResetRecovery(Device);
@@ -729,7 +741,7 @@ UsbTransferStatus_t UsbMsdSanityCsw(MsdDevice_t *Device, MsdCommandStatusWrap_t 
 	}
 
 	/* Is Status ok? */
-	if (Csw->Status != X86_USB_MSD_CSW_OK)
+	if (Csw->Status != USB_MSD_CSW_OK)
 		return TransferInvalidData;
 
 	/* Is signature ok? */
@@ -755,7 +767,7 @@ UsbTransferStatus_t UsbMsdSendSCSICommandIn(uint8_t ScsiCommand, MsdDevice_t *De
 	MsdCommandStatusWrap_t StatusBlock;
 
 	/* Setup the Command Transfer */
-	if (!Device->IsUFI)
+	if (Device->Type == HardDrive)
 	{
 		/* Setup command */
 		MsdCommandBlockWrap_t CommandBlock;
@@ -804,7 +816,7 @@ UsbTransferStatus_t UsbMsdSendSCSICommandIn(uint8_t ScsiCommand, MsdDevice_t *De
 		UsbTransactionIn((UsbHc_t*)Device->UsbDevice->HcDriver, &DataRequest, 0, Buffer, DataLength);
 	
 	/* If it is not UFI, we need a status-response */
-	if (!Device->IsUFI)
+	if (Device->Type == HardDrive)
 		UsbTransactionIn((UsbHc_t*)Device->UsbDevice->HcDriver, &DataRequest, 
 		0, &StatusBlock, sizeof(MsdCommandStatusWrap_t));
 
@@ -819,7 +831,7 @@ UsbTransferStatus_t UsbMsdSendSCSICommandIn(uint8_t ScsiCommand, MsdDevice_t *De
 		return DataRequest.Status;
 
 	/* Sanity the CSW (only if is not UFI) */
-	if (!Device->IsUFI)
+	if (Device->Type == HardDrive)
 		return UsbMsdSanityCsw(Device, &StatusBlock);
 	else
 		return DataRequest.Status;
@@ -835,7 +847,7 @@ UsbTransferStatus_t UsbMsdSendSCSICommandOut(uint8_t ScsiCommand, MsdDevice_t *D
 	MsdCommandStatusWrap_t StatusBlock;
 
 	/* Sanity */
-	if (!Device->IsUFI)
+	if (Device->Type == HardDrive)
 	{
 		/* Setup command */
 		MsdCommandBlockWrap_t CommandBlock;
@@ -900,7 +912,7 @@ UsbTransferStatus_t UsbMsdSendSCSICommandOut(uint8_t ScsiCommand, MsdDevice_t *D
 		return StatusRequest.Status;
 
 	/* Sanity the CSW (only if is not UFI) */
-	if (!Device->IsUFI)
+	if (Device->Type == HardDrive)
 		return UsbMsdSanityCsw(Device, &StatusBlock);
 	else
 		return DataRequest.Status;
@@ -913,7 +925,7 @@ void UsbMsdReadyDevice(MsdDevice_t *Device)
 	ScsiSense_t SenseBlock;
 
 	/* We don't use TDR on UFI's */
-	if (Device->IsUFI == 0)
+	if (Device->Type == HardDrive)
 	{
 		/* Send the TDR */
 		if (UsbMsdSendSCSICommandIn(X86_SCSI_TEST_UNIT_READY, Device, 0, NULL, 0)
@@ -962,7 +974,7 @@ void UsbMsdReadyDevice(MsdDevice_t *Device)
 void UsbMsdReadCapacity(MsdDevice_t *Device, MCoreStorageDevice_t *sDevice)
 {
 	/* Buffer to store data */
-	uint32_t CapBuffer[2];
+	uint32_t CapBuffer[2] = { 0 };
 
 	/* Send Command */
 	if (UsbMsdSendSCSICommandIn(X86_SCSI_READ_CAPACITY, Device, 0, &CapBuffer, 8)
@@ -971,7 +983,7 @@ void UsbMsdReadCapacity(MsdDevice_t *Device, MCoreStorageDevice_t *sDevice)
 
 	/* We have to switch byte order, but first,
 	 * lets sanity */
-	if (CapBuffer[0] == 0xFFFFFFFF && !Device->IsUFI)
+	if (CapBuffer[0] == 0xFFFFFFFF)
 	{
 		/* CapBuffer16 */
 		ScsiExtendedCaps_t ExtendedCaps;

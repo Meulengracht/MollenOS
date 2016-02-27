@@ -319,7 +319,6 @@ void UsbHidDestroy(void *UsbDevice, int Interface)
 	kfree(Device->PrevDataBuffer);
 
 	/* Last cleanup */
-	kfree(mDevice->Data);
 	kfree(mDevice->Driver.Data);
 }
 

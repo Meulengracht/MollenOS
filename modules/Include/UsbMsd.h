@@ -187,25 +187,25 @@ typedef struct _ScsiExtendedCaps
 #pragma pack(pop)
 
 /* Subclasses */
-#define X86_USB_MSD_SUBCLASS_RBC		0x01
-#define X86_USB_MSD_SUBCLASS_ATAPI		0x02
-#define X86_USB_MSD_SUBCLASS_FLOPPY		0x04
-#define X86_USB_MSD_SUBCLASS_SCSI		0x06
-#define X86_USB_MSD_SUBCLASS_LSD_FS		0x07	/* This means we have to negotiate access before using SCSI */
-#define X86_USB_MSD_SUBCLASS_IEEE_1667	0x08
+#define USB_MSD_SUBCLASS_RBC			0x01
+#define USB_MSD_SUBCLASS_ATAPI			0x02
+#define USB_MSD_SUBCLASS_FLOPPY			0x04
+#define USB_MSD_SUBCLASS_SCSI			0x06
+#define USB_MSD_SUBCLASS_LSD_FS			0x07	/* This means we have to negotiate access before using SCSI */
+#define USB_MSD_SUBCLASS_IEEE_1667		0x08
 
 /* Protocols */
-#define X86_USB_MSD_PROTOCOL_CBI		0x00	/* Control/Bulk/Interrupt Transport (With Command Completion Interrupt) */
-#define X86_USB_MSD_PROTOCOL_CBI_NOINT	0x01	/* Control/Bulk/Interrupt Transport (With NO Command Completion Interrupt) */
-#define X86_USB_MSD_PROTOCOL_BULK_ONLY	0x50	/* Bulk Only Transfers */
-#define X86_USB_MSD_PROTOCOL_UAS		0x62	/* UAS */
+#define USB_MSD_PROTOCOL_CBI			0x00	/* Control/Bulk/Interrupt Transport (With Command Completion Interrupt) */
+#define USB_MSD_PROTOCOL_CBI_NOINT		0x01	/* Control/Bulk/Interrupt Transport (With NO Command Completion Interrupt) */
+#define USB_MSD_PROTOCOL_BULK_ONLY		0x50	/* Bulk Only Transfers */
+#define USB_MSD_PROTOCOL_UAS			0x62	/* UAS */
 
 /* bRequest Types */
-#define X86_USB_MSD_REQUEST_ADSC			0x00 /* Accept Device-Specific Command */
-#define X86_USB_MSD_REQUEST_GET_REQUESTS	0xFC
-#define X86_USB_MSD_REQUEST_PUT_REQUESTS	0xFD
-#define X86_USB_MSD_REQUEST_GET_MAX_LUN		0xFE
-#define X86_USB_MSD_REQUEST_RESET			0xFF /* Bulk Only MSD */
+#define USB_MSD_REQUEST_ADSC			0x00 /* Accept Device-Specific Command */
+#define USB_MSD_REQUEST_GET_REQUESTS	0xFC
+#define USB_MSD_REQUEST_PUT_REQUESTS	0xFD
+#define USB_MSD_REQUEST_GET_MAX_LUN		0xFE
+#define USB_MSD_REQUEST_RESET			0xFF /* Bulk Only MSD */
 
 /* Structures */
 #pragma pack(push, 1)
@@ -265,9 +265,18 @@ typedef struct _MsdCommandStatusWrap
 } MsdCommandStatusWrap_t;
 #pragma pack(pop)
 
-#define X86_USB_MSD_CSW_OK			0x0
-#define X86_USB_MSD_CSW_FAIL		0x1
-#define X86_USB_MSD_CSW_PHASE_ERROR	0x2
+#define USB_MSD_CSW_OK				0x0
+#define USB_MSD_CSW_FAIL			0x1
+#define USB_MSD_CSW_PHASE_ERROR		0x2
+
+/* Msd Type */
+typedef enum _MsdDeviceType
+{
+	FloppyDrive,
+	DiskDrive,
+	HardDrive
+
+} MsdDeviceType_t;
 
 #pragma pack(push, 1)
 typedef struct _MsdDevice
@@ -277,7 +286,7 @@ typedef struct _MsdDevice
 	DevId_t DeviceId; 
 
 	/* Msd Information */
-	int IsUFI;
+	MsdDeviceType_t Type;
 	int IsReady;
 	int IsExtended;
 	size_t LUNCount;
