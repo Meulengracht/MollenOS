@@ -1058,15 +1058,16 @@ void UhciEndpointDestroy(void *Controller, UsbHcEndpoint_t *Endpoint)
 	if (uEp == NULL)
 		return;
 
-	UhciTransferDescriptor_t *uTd = uEp->TDPool[0];
-	size_t i;
-
 	/* Woah */
 	_CRT_UNUSED(uCtrl);
 
 	/* Sanity */
 	if (uEp->TdsAllocated != 0)
 	{
+		/* Vars */
+		UhciTransferDescriptor_t *uTd = uEp->TDPool[0];
+		size_t i;
+
 		/* Let's free all those resources */
 		for (i = 0; i < uEp->TdsAllocated; i++)
 		{
@@ -1683,15 +1684,15 @@ void UhciTransactionDestroy(void *Controller, UsbHcRequest_t *Request)
 	UsbHcTransaction_t *Transaction = Request->Transactions;
 	UhciController_t *Ctrl = (UhciController_t*)Controller;
 	UhciQueueHead_t *Qh = (UhciQueueHead_t*)Request->Data;
-	int Queue = UHCI_QT_GET_QUEUE(Qh->Flags);
-
-	/* Lock controller */
-	SpinlockAcquire(&Ctrl->Lock);
+	list_node_t *Node = NULL;
 
 	/* Unallocate Qh */
 	if (Request->Type == ControlTransfer
 		|| Request->Type == BulkTransfer)
 	{
+		/* Lock controller */
+		SpinlockAcquire(&Ctrl->Lock);
+
 		/* Unlink Qh */
 		UhciQueueHead_t *PrevQh = Ctrl->QhPool[UHCI_POOL_ASYNC];
 
@@ -1744,11 +1745,15 @@ void UhciTransactionDestroy(void *Controller, UsbHcRequest_t *Request)
 			/* Mark inactive */
 			Qh->Flags &= ~UHCI_QH_ACTIVE;
 		}
+
+		/* Done */
+		SpinlockRelease(&Ctrl->Lock);
 	}
 	else if (Request->Type == InterruptTransfer)
 	{
 		/* Vars */
 		UhciQueueHead_t *ItrQh = NULL, *PrevQh = NULL;
+		int Queue = UHCI_QT_GET_QUEUE(Qh->Flags);
 
 		/* Iterate and find our Qh */
 		ItrQh = Ctrl->QhPool[Queue];
@@ -1775,7 +1780,7 @@ void UhciTransactionDestroy(void *Controller, UsbHcRequest_t *Request)
 			if (PrevQh != NULL) {
 				PrevQh->Link = Qh->Link;
 				PrevQh->LinkVirtual = Qh->LinkVirtual;
-			} 
+			}
 		}
 
 		/* Free bandwidth */
@@ -1797,6 +1802,18 @@ void UhciTransactionDestroy(void *Controller, UsbHcRequest_t *Request)
 
 		/* Free it */
 		kfree(Request->Data);
+
+		/* Remove from list */
+		_foreach(Node, ((list_t*)Ctrl->TransactionList)) {
+			if (Node->data == Request)
+				break;
+		}
+
+		/* Sanity */
+		if (Node != NULL) {
+			list_remove_by_node((list_t*)Ctrl->TransactionList, Node);
+			kfree(Node);
+		}
 	}
 	else
 	{
@@ -1822,10 +1839,19 @@ void UhciTransactionDestroy(void *Controller, UsbHcRequest_t *Request)
 
 		/* Free it */
 		kfree(Request->Data);
-	}
 
-	/* Done */
-	SpinlockRelease(&Ctrl->Lock);
+		/* Remove from list */
+		_foreach(Node, ((list_t*)Ctrl->TransactionList)) {
+			if (Node->data == Request)
+				break;
+		}
+
+		/* Sanity */
+		if (Node != NULL) {
+			list_remove_by_node((list_t*)Ctrl->TransactionList, Node);
+			kfree(Node);
+		}
+	}
 }
 
 /* Fixup toggles for a failed transaction */
@@ -1860,7 +1886,7 @@ void UhciFixupToggles(UsbHcRequest_t *Request)
 
 /* Processes a QH */
 void UhciProcessRequest(UhciController_t *Controller, list_node_t *Node, 
-	UsbHcRequest_t *Request, int FixupToggles)
+	UsbHcRequest_t *Request, int FixupToggles, int ErrorTransfer)
 {
 	/* What kind of transfer was this? */
 	if (Request->Type == ControlTransfer
@@ -1886,6 +1912,10 @@ void UhciProcessRequest(UhciController_t *Controller, list_node_t *Node,
 		UsbHcTransaction_t *lIterator = Request->Transactions;
 		UhciTransferDescriptor_t *Td = (UhciTransferDescriptor_t*)lIterator->TransferDescriptor;
 		int SwitchToggles = Request->TransactionCount % 2;
+
+		/* Sanity - Don't reload on error */
+		if (ErrorTransfer)
+			return;
 
 		/* Fixup Toggles? */
 		if (FixupToggles)
@@ -1935,7 +1965,8 @@ void UhciProcessRequest(UhciController_t *Controller, list_node_t *Node,
 			Request->Callback->Callback(Request->Callback->Args, TransferFinished);
 
 		/* Reinitilize Qh */
-		Qh->Child = Td->PhysicalAddr;
+		if (!ErrorTransfer)
+			Qh->Child = Td->PhysicalAddr;
 	}
 	else
 	{
@@ -2052,7 +2083,7 @@ void UhciProcessTransfers(UhciController_t *Controller)
 
 		/* Does Qh need processing? */
 		if (ProcessQh) {
-			UhciProcessRequest(Controller, Node, HcRequest, FixupToggles);
+			UhciProcessRequest(Controller, Node, HcRequest, FixupToggles, ErrorTransfer);
 			break;
 		}
 	}

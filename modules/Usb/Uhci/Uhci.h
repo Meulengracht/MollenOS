@@ -199,7 +199,8 @@ typedef struct _UhciQueueHead
 	 * Bit 8-15: Queue Head Index 
 	 * Bit 16-17: Queue Head Type (00 Control, 01 Bulk, 10 Interrupt, 11 Isochronous) 
 	 * Bit 18: Bandwidth allocated 
-	 * Bit 19: FSBR */
+	 * Bit 19: FSBR 
+	 * Bit 20: Unschedule */
 	uint32_t Flags;
 
 	/* Virtual Address of next QH */
@@ -224,6 +225,7 @@ typedef struct _UhciQueueHead
 #define UHCI_QH_TYPE(n)				((n & 0x3) << 16)
 #define UHCI_QH_BANDWIDTH_ALLOC		(1 << 18)
 #define UHCI_QH_FSBR				(1 << 19)
+#define UHCI_QH_UNSCHEDULE			(1 << 20)
 
 #define UHCI_QH_SET_QUEUE(n)		((n << 1) & 0xFE)	
 #define UHCI_QH_CLR_QUEUE(n)		(n & 0xFFFFFF01)
