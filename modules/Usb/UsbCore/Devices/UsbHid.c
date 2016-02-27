@@ -254,6 +254,12 @@ void UsbHidInit(UsbHcDevice_t *UsbDevice, int InterfaceIndex)
 	/* Create MCore device */
 }
 
+/* Cleanup HID driver */
+void UsbHidDestroy()
+{
+
+}
+
 /* Parses a global report item */
 void UsbHidParseGlobalItem(UsbHidReportGlobalStats_t *Stats, uint8_t Tag, uint32_t Value)
 {
