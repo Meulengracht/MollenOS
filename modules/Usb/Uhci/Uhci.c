@@ -18,7 +18,6 @@
 *
 * MollenOS USB UHCI Controller Driver
 * Todo:
-* Isochronous Support
 * Finish the FSBR implementation, right now there is no guarantee of order ls/fs/bul
 */
 
@@ -848,8 +847,8 @@ UhciTransferDescriptor_t *UhciTdSetup(UhciEndpoint_t *Ep, UsbTransferType_t Type
 {
 	/* Vars */
 	UhciTransferDescriptor_t *Td;
-	void *Buffer;
 	Addr_t TDIndex;
+	void *Buffer;
 
 	/* Allocate a Td */
 	TDIndex = OhciAllocateTd(Ep, Type);
@@ -1182,6 +1181,64 @@ void UhciReleaseBandwidth(UhciController_t *Controller, UhciQueueHead_t *Qh)
 }
 
 /* Transaction Functions */
+void UhciLinkIsochronousRequest(UhciController_t *Controller,
+	UsbHcRequest_t *Request, uint32_t Frame)
+{
+	/* Vars */
+	UsbHcTransaction_t *Transaction = Request->Transactions;
+	uint32_t *Frames = (uint32_t*)Controller->FrameList;
+	UhciTransferDescriptor_t *Td = NULL;
+	UhciQueueHead_t *Qh = NULL; 
+
+	/* Cast */
+	Qh = (UhciQueueHead_t*)Request->Data;
+
+	/* Iterate */
+	while (Transaction)
+	{
+		/* Get TD */
+		Td = (UhciTransferDescriptor_t*)Transaction->TransferDescriptor;
+
+		/* Calculate Frame */
+		Td->Frame = Frame;
+		Frame += UHCI_QT_GET_QUEUE(Qh->Flags);
+
+		/* Get previous */
+		Td->Link = Frames[Td->Frame];
+
+		/* Link it */
+		Frames[Td->Frame] = Td->PhysicalAddr;
+
+		/* Next! */
+		Transaction = Transaction->Link;
+	}
+}
+
+void UhciUnlinkIsochronousRequest(UhciController_t *Controller, UsbHcRequest_t *Request)
+{
+	/* Vars */
+	UsbHcTransaction_t *Transaction = Request->Transactions;
+	uint32_t *Frames = (uint32_t*)Controller->FrameList;
+	UhciTransferDescriptor_t *Td = NULL;
+	UhciQueueHead_t *Qh = NULL;
+
+	/* Cast */
+	Qh = (UhciQueueHead_t*)Request->Data;
+
+	/* Iterate */
+	while (Transaction)
+	{
+		/* Get TD */
+		Td = (UhciTransferDescriptor_t*)Transaction->TransferDescriptor;
+
+		/* Unlink */
+		if (Frames[Td->Frame] == Td->PhysicalAddr)
+			Frames[Td->Frame] = Td->Link;
+
+		/* Next! */
+		Transaction = Transaction->Link;
+	}
+}
 
 /* This one prepaires an ED */
 void UhciTransactionInit(void *Controller, UsbHcRequest_t *Request)
@@ -1472,6 +1529,7 @@ void UhciTransactionSend(void *Controller, UsbHcRequest_t *Request)
 	/*************************
 	 **** LINKING PHASE ******
 	 *************************/
+	UhciGetCurrentFrame(Ctrl);
 
 	/* Get queue */
 	Queue = UHCI_QT_GET_QUEUE(Qh->Flags);
@@ -1563,35 +1621,7 @@ void UhciTransactionSend(void *Controller, UsbHcRequest_t *Request)
 	else
 	{
 		/* Isochronous Transfer */
-
-		/* Get current frame */
-		UhciTransferDescriptor_t *InitialTd = NULL;
-		UhciTransferDescriptor_t *LastTd = NULL;
-		uint16_t CurrentFrame = UhciRead16(Ctrl, UHCI_REGISTER_FRNUM) & 0x7FF;
-		uint32_t *FramePtr = (uint32_t*)Ctrl->FrameList;
-
-		/* Reset Ptr */
-		Transaction = Request->Transactions;
-
-		/* Get initial TD */
-		InitialTd = (UhciTransferDescriptor_t*)Transaction->TransferDescriptor;
-
-		/* Calculate where to put it */
-		CurrentFrame += 10;
-
-		/* Get last TD */
-		while (Transaction->Link)
-			Transaction = Transaction->Link;
-		LastTd = (UhciTransferDescriptor_t*)Transaction->TransferDescriptor;
-
-		/* Steal the current link */
-		LastTd->Link = FramePtr[CurrentFrame];
-
-		/* MemB */
-		Qh->Link = CurrentFrame;
-
-		/* Insert directly into the frame and link to the QH */
-		FramePtr[CurrentFrame] = InitialTd->PhysicalAddr;
+		UhciLinkIsochronousRequest(Ctrl, Request, Ctrl->Frame + 10);
 	}
 
 	/* Release lock */
@@ -1685,6 +1715,9 @@ void UhciTransactionDestroy(void *Controller, UsbHcRequest_t *Request)
 	UhciController_t *Ctrl = (UhciController_t*)Controller;
 	UhciQueueHead_t *Qh = (UhciQueueHead_t*)Request->Data;
 	list_node_t *Node = NULL;
+
+	/* Update */
+	UhciGetCurrentFrame(Ctrl);
 
 	/* Unallocate Qh */
 	if (Request->Type == ControlTransfer
@@ -1819,6 +1852,9 @@ void UhciTransactionDestroy(void *Controller, UsbHcRequest_t *Request)
 	{
 		/* Cast Qh */
 		UhciQueueHead_t *Qh = (UhciQueueHead_t*)Request->Data;
+
+		/* Unlink */
+		UhciUnlinkIsochronousRequest(Ctrl, Request);
 
 		/* Free bandwidth */
 		UhciReleaseBandwidth(Ctrl, Qh);
@@ -1965,13 +2001,23 @@ void UhciProcessRequest(UhciController_t *Controller, list_node_t *Node,
 			Request->Callback->Callback(Request->Callback->Args, TransferFinished);
 
 		/* Reinitilize Qh */
-		if (!ErrorTransfer)
-			Qh->Child = Td->PhysicalAddr;
+		Qh->Child = Td->PhysicalAddr;
 	}
 	else
 	{
 		/* Re-Iterate */
+		UhciQueueHead_t *Qh = (UhciQueueHead_t*)Request->Data;
 		UsbHcTransaction_t *lIterator = Request->Transactions;
+
+		/* What to do on error transfer */
+		if (ErrorTransfer) 
+		{
+			/* Unschedule */
+			UhciUnlinkIsochronousRequest(Controller, Request);
+
+			/* Done for now */
+			return;
+		}
 
 		/* Copy data if not dummy */
 		while (lIterator)
@@ -1998,6 +2044,8 @@ void UhciProcessRequest(UhciController_t *Controller, list_node_t *Node,
 			Request->Callback->Callback(Request->Callback->Args, TransferFinished);
 
 		/* Reschedule */
+		UhciLinkIsochronousRequest(Controller, Request, 
+			Controller->Frame + UHCI_QT_GET_QUEUE(Qh->Flags));
 	}
 }
 
@@ -2007,6 +2055,9 @@ void UhciProcessTransfers(UhciController_t *Controller)
 	/* Transaction is completed / Failed */
 	list_t *Transactions = (list_t*)Controller->TransactionList;
 	int ProcessQh = 0;
+
+	/* Update frame */
+	UhciGetCurrentFrame(Controller);
 
 	/* Get transactions in progress and find the offender */
 	foreach(Node, Transactions)

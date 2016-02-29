@@ -88,12 +88,14 @@ MODULES_API void ModuleInit(void *Data)
 {
 	/* Cast & Vars */
 	MCoreDevice_t *mDevice = (MCoreDevice_t*)Data;
-	uint16_t PciCommand;
 	OhciController_t *Controller = NULL;
 	DeviceIoSpace_t *IoBase = NULL;
+	uint16_t PciCommand;
 
 	/* Allocate Resources for this Controller */
 	Controller = (OhciController_t*)kmalloc(sizeof(OhciController_t));
+	memset(Controller, 0, sizeof(OhciController_t));
+
 	Controller->Device = mDevice;
 	Controller->Id = GlbOhciControllerId;
 
@@ -121,8 +123,9 @@ MODULES_API void ModuleInit(void *Data)
 	/* Memory map needed space */
 	Controller->Registers = 
 		(volatile OhciRegisters_t*)IoBase->VirtualBase;
-	Controller->HccaSpace = 
-		(uint32_t)AddressSpaceMap(AddressSpaceGetCurrent(), 0, PAGE_SIZE, ADDRESS_SPACE_FLAG_LOWMEM);
+	
+	Controller->HccaSpace = AddressSpaceMap(AddressSpaceGetCurrent(), 
+			0, PAGE_SIZE, ADDRESS_SPACE_FLAG_LOWMEM);
 	Controller->HCCA = (volatile OhciHCCA_t*)Controller->HccaSpace;
 	
 	/* Reset Lock */
@@ -170,11 +173,12 @@ void OhciSetMode(OhciController_t *Controller, uint32_t Mode)
 {
 	/* First we clear the current Operation Mode */
 	uint32_t Val = Controller->Registers->HcControl;
-	Val = (Val & ~X86_OHCI_CTRL_USB_SUSPEND);
+	Val = (Val & ~OHCI_CONTROL_SUSPEND);
 	Val |= Mode;
 	Controller->Registers->HcControl = Val;
 }
 
+/* Aligns address (with roundup if alignment is set) */
 Addr_t OhciAlign(Addr_t Address, Addr_t AlignmentBitMask, Addr_t Alignment)
 {
 	Addr_t AlignedAddr = Address;
@@ -205,27 +209,29 @@ void OhciStop(OhciController_t *Controller)
 }
 
 /* This resets a Port */
-void OhciPortReset(OhciController_t *Controller, uint32_t Port)
+void OhciPortReset(OhciController_t *Controller, size_t Port)
 {
 	/* Set reset */
-	Controller->Registers->HcRhPortStatus[Port] = (X86_OHCI_PORT_RESET);
+	Controller->Registers->HcRhPortStatus[Port] = OHCI_PORT_RESET;
 
 	/* Wait with timeout */
-	WaitForCondition((Controller->Registers->HcRhPortStatus[Port] & X86_OHCI_PORT_RESET) == 0, 200, 10, "USB_OHCI: Failed to reset device on port %u\n", Port);
+	WaitForCondition((Controller->Registers->HcRhPortStatus[Port] & OHCI_PORT_RESET) == 0,
+		200, 10, "USB_OHCI: Failed to reset device on port %u\n", Port);
 
 	/* Set Enable */
-	if (Controller->PowerMode == X86_OHCI_POWER_PORT_CONTROLLED)
-		Controller->Registers->HcRhPortStatus[Port] = X86_OHCI_PORT_ENABLED | X86_OHCI_PORT_POWER_ENABLE;
+	if (Controller->PowerMode == OHCI_PWM_PORT_CONTROLLED)
+		Controller->Registers->HcRhPortStatus[Port] = OHCI_PORT_ENABLED | OHCI_PORT_POWER;
 	else
-		Controller->Registers->HcRhPortStatus[Port] = X86_OHCI_PORT_ENABLED;
+		Controller->Registers->HcRhPortStatus[Port] = OHCI_PORT_ENABLED;
 
-	/* Stall */
+	/* Delay before we make first transaction, it's important! */
 	StallMs(50);
 }
 
 /* Callbacks */
 void OhciPortStatus(void *ControllerData, UsbHcPort_t *Port)
 {
+	/* Cast Vars */
 	OhciController_t *Controller = (OhciController_t*)ControllerData;
 	uint32_t Status;
 
@@ -239,56 +245,57 @@ void OhciPortStatus(void *ControllerData, UsbHcPort_t *Port)
 	Status = Controller->Registers->HcRhPortStatus[Port->Id];
 
 	/* Is it connected? */
-	if (Status & X86_OHCI_PORT_CONNECTED)
+	if (Status & OHCI_PORT_CONNECTED)
 		Port->Connected = 1;
 	else
 		Port->Connected = 0;
 
 	/* Is it enabled? */
-	if (Status & X86_OHCI_PORT_ENABLED)
+	if (Status & OHCI_PORT_ENABLED)
 		Port->Enabled = 1;
 	else
 		Port->Enabled = 0;
 
 	/* Is it full-speed? */
-	if (Status & X86_OHCI_PORT_LOW_SPEED)
+	if (Status & OHCI_PORT_LOW_SPEED)
 		Port->Speed = LowSpeed;
 	else
 		Port->Speed = FullSpeed;
 
 	/* Clear Connect Event */
-	if (Controller->Registers->HcRhPortStatus[Port->Id] & X86_OHCI_PORT_CONNECT_EVENT)
-		Controller->Registers->HcRhPortStatus[Port->Id] = X86_OHCI_PORT_CONNECT_EVENT;
+	if (Controller->Registers->HcRhPortStatus[Port->Id] & OHCI_PORT_CONNECT_EVENT)
+		Controller->Registers->HcRhPortStatus[Port->Id] = OHCI_PORT_CONNECT_EVENT;
 
 	/* If Enable Event bit is set, clear it */
-	if (Controller->Registers->HcRhPortStatus[Port->Id] & X86_OHCI_PORT_ENABLE_EVENT)
-		Controller->Registers->HcRhPortStatus[Port->Id] = X86_OHCI_PORT_ENABLE_EVENT;
+	if (Controller->Registers->HcRhPortStatus[Port->Id] & OHCI_PORT_ENABLE_EVENT)
+		Controller->Registers->HcRhPortStatus[Port->Id] = OHCI_PORT_ENABLE_EVENT;
 
 	/* If Suspend Event is set, clear it */
-	if (Controller->Registers->HcRhPortStatus[Port->Id] & X86_OHCI_PORT_SUSPEND_EVENT)
-		Controller->Registers->HcRhPortStatus[Port->Id] = X86_OHCI_PORT_SUSPEND_EVENT;
+	if (Controller->Registers->HcRhPortStatus[Port->Id] & OHCI_PORT_SUSPEND_EVENT)
+		Controller->Registers->HcRhPortStatus[Port->Id] = OHCI_PORT_SUSPEND_EVENT;
 
 	/* If Over Current Event is set, clear it */
-	if (Controller->Registers->HcRhPortStatus[Port->Id] & X86_OHCI_PORT_OVR_CURRENT_EVENT)
-		Controller->Registers->HcRhPortStatus[Port->Id] = X86_OHCI_PORT_OVR_CURRENT_EVENT;
+	if (Controller->Registers->HcRhPortStatus[Port->Id] & OHCI_PORT_OVR_CURRENT_EVENT)
+		Controller->Registers->HcRhPortStatus[Port->Id] = OHCI_PORT_OVR_CURRENT_EVENT;
 
 	/* If reset bit is set, clear it */
-	if (Controller->Registers->HcRhPortStatus[Port->Id] & X86_OHCI_PORT_RESET_EVENT)
-		Controller->Registers->HcRhPortStatus[Port->Id] = X86_OHCI_PORT_RESET_EVENT;
+	if (Controller->Registers->HcRhPortStatus[Port->Id] & OHCI_PORT_RESET_EVENT)
+		Controller->Registers->HcRhPortStatus[Port->Id] = OHCI_PORT_RESET_EVENT;
 }
 
 /* Port Functions */
-void OhciPortCheck(OhciController_t *Controller, uint32_t Port)
+void OhciPortCheck(OhciController_t *Controller, int Port)
 {
+	/* Vars */
 	UsbHc_t *HcCtrl;
 
 	/* Was it connect event and not disconnect ? */
-	if (Controller->Registers->HcRhPortStatus[Port] & X86_OHCI_PORT_CONNECT_EVENT)
+	if (Controller->Registers->HcRhPortStatus[Port] & OHCI_PORT_CONNECT_EVENT)
 	{
 		/* Reset on Attach */
 		OhciPortReset(Controller, Port);
 
-		if (!(Controller->Registers->HcRhPortStatus[Port] & X86_OHCI_PORT_CONNECTED))
+		if (!(Controller->Registers->HcRhPortStatus[Port] & OHCI_PORT_CONNECTED))
 		{
 			/* Nah, disconnect event */
 			/* Get HCD data */
@@ -299,12 +306,12 @@ void OhciPortCheck(OhciController_t *Controller, uint32_t Port)
 				return;
 
 			/* Disconnect */
-			UsbEventCreate(HcCtrl, (int)Port, HcdDisconnectedEvent);
+			UsbEventCreate(HcCtrl, Port, HcdDisconnectedEvent);
 		}
 
 		/* If Device is enabled, and powered, set it up */
-		if ((Controller->Registers->HcRhPortStatus[Port] & X86_OHCI_PORT_ENABLED)
-			&& (Controller->Registers->HcRhPortStatus[Port] & X86_OHCI_PORT_POWER_ENABLE))
+		if ((Controller->Registers->HcRhPortStatus[Port] & OHCI_PORT_ENABLED)
+			&& (Controller->Registers->HcRhPortStatus[Port] & OHCI_PORT_POWER))
 		{
 			/* Get HCD data */
 			HcCtrl = UsbGetHcd(Controller->HcdId);
@@ -317,33 +324,35 @@ void OhciPortCheck(OhciController_t *Controller, uint32_t Port)
 			}
 
 			/* Register Device */
-			UsbEventCreate(HcCtrl, (int)Port, HcdConnectedEvent);
+			UsbEventCreate(HcCtrl, Port, HcdConnectedEvent);
 		}
 	}
 
 	/* Clear Connect Event */
-	if (Controller->Registers->HcRhPortStatus[Port] & X86_OHCI_PORT_CONNECT_EVENT)
-		Controller->Registers->HcRhPortStatus[Port] = X86_OHCI_PORT_CONNECT_EVENT;
+	if (Controller->Registers->HcRhPortStatus[Port] & OHCI_PORT_CONNECT_EVENT)
+		Controller->Registers->HcRhPortStatus[Port] = OHCI_PORT_CONNECT_EVENT;
 
 	/* If Enable Event bit is set, clear it */
-	if (Controller->Registers->HcRhPortStatus[Port] & X86_OHCI_PORT_ENABLE_EVENT)
-		Controller->Registers->HcRhPortStatus[Port] = X86_OHCI_PORT_ENABLE_EVENT;
+	if (Controller->Registers->HcRhPortStatus[Port] & OHCI_PORT_ENABLE_EVENT)
+		Controller->Registers->HcRhPortStatus[Port] = OHCI_PORT_ENABLE_EVENT;
 
 	/* If Suspend Event is set, clear it */
-	if (Controller->Registers->HcRhPortStatus[Port] & X86_OHCI_PORT_SUSPEND_EVENT)
-		Controller->Registers->HcRhPortStatus[Port] = X86_OHCI_PORT_SUSPEND_EVENT;
+	if (Controller->Registers->HcRhPortStatus[Port] & OHCI_PORT_SUSPEND_EVENT)
+		Controller->Registers->HcRhPortStatus[Port] = OHCI_PORT_SUSPEND_EVENT;
 
 	/* If Over Current Event is set, clear it */
-	if (Controller->Registers->HcRhPortStatus[Port] & X86_OHCI_PORT_OVR_CURRENT_EVENT)
-		Controller->Registers->HcRhPortStatus[Port] = X86_OHCI_PORT_OVR_CURRENT_EVENT;
+	if (Controller->Registers->HcRhPortStatus[Port] & OHCI_PORT_OVR_CURRENT_EVENT)
+		Controller->Registers->HcRhPortStatus[Port] = OHCI_PORT_OVR_CURRENT_EVENT;
 
 	/* If reset bit is set, clear it */
-	if (Controller->Registers->HcRhPortStatus[Port] & X86_OHCI_PORT_RESET_EVENT)
-		Controller->Registers->HcRhPortStatus[Port] = X86_OHCI_PORT_RESET_EVENT;
+	if (Controller->Registers->HcRhPortStatus[Port] & OHCI_PORT_RESET_EVENT)
+		Controller->Registers->HcRhPortStatus[Port] = OHCI_PORT_RESET_EVENT;
 }
 
+/* Port Check */
 void OhciPortsCheck(void *CtrlData)
 {
+	/* Vars & Cast */
 	OhciController_t *Controller = (OhciController_t*)CtrlData;
 	uint32_t i;
 
@@ -363,18 +372,22 @@ void OhciInitQueues(OhciController_t *Controller)
 	int i;
 
 	/* Create the NULL Td */
-	Controller->NullTd = (OhciGTransferDescriptor_t*)OhciAlign(((Addr_t)kmalloc(sizeof(OhciGTransferDescriptor_t) + X86_OHCI_STRUCT_ALIGN)), X86_OHCI_STRUCT_ALIGN_BITS, X86_OHCI_STRUCT_ALIGN);
+	Controller->NullTd = (OhciGTransferDescriptor_t*)
+		OhciAlign(((Addr_t)kmalloc(sizeof(OhciGTransferDescriptor_t) + OHCI_STRUCT_ALIGN)), 
+			OHCI_STRUCT_ALIGN_BITS, OHCI_STRUCT_ALIGN);
+
 	Controller->NullTd->BufferEnd = 0;
 	Controller->NullTd->Cbp = 0;
 	Controller->NullTd->NextTD = 0x0;
 	Controller->NullTd->Flags = 0;
 
 	/* Initialise ED Pool */
-	for (i = 0; i < X86_OHCI_POOL_NUM_ED; i++)
+	for (i = 0; i < OHCI_POOL_NUM_ED; i++)
 	{
 		/* Allocate */
-		Addr_t aSpace = (Addr_t)kmalloc(sizeof(OhciEndpointDescriptor_t) + X86_OHCI_STRUCT_ALIGN);
-		Controller->EDPool[i] = (OhciEndpointDescriptor_t*)OhciAlign(aSpace, X86_OHCI_STRUCT_ALIGN_BITS, X86_OHCI_STRUCT_ALIGN);
+		Addr_t aSpace = (Addr_t)kmalloc(sizeof(OhciEndpointDescriptor_t) + OHCI_STRUCT_ALIGN);
+		Controller->EDPool[i] = (OhciEndpointDescriptor_t*)
+			OhciAlign(aSpace, OHCI_STRUCT_ALIGN_BITS, OHCI_STRUCT_ALIGN);
 
 		/* Zero it out */
 		memset((void*)Controller->EDPool[i], 0, sizeof(OhciEndpointDescriptor_t));
@@ -384,7 +397,7 @@ void OhciInitQueues(OhciController_t *Controller)
 
 		/* Set to skip and valid null Td */
 		Controller->EDPool[i]->HcdFlags = 0;
-		Controller->EDPool[i]->Flags = X86_OHCI_EP_SKIP;
+		Controller->EDPool[i]->Flags = OHCI_EP_SKIP;
 		Controller->EDPool[i]->HeadPtr =
 			(Controller->EDPool[i]->TailPtr = 
 				AddressSpaceGetMap(AddressSpaceGetCurrent(), (Addr_t)Controller->NullTd)) | 0x1;
@@ -402,7 +415,7 @@ void OhciInitQueues(OhciController_t *Controller)
 	{
 		Controller->IntrTable->Ms16[i].NextED = EdLevel + ((i / 2) * sizeof(OhciEndpointDescriptor_t));
 		Controller->IntrTable->Ms16[i].NextEDVirtual = EdLevel + ((i / 2) * sizeof(OhciEndpointDescriptor_t));
-		Controller->IntrTable->Ms16[i].Flags = X86_OHCI_EP_SKIP;
+		Controller->IntrTable->Ms16[i].Flags = OHCI_EP_SKIP;
 	}
 
 	/* Second level (8 ms) */
@@ -411,7 +424,7 @@ void OhciInitQueues(OhciController_t *Controller)
 	{
 		Controller->IntrTable->Ms8[i].NextED = EdLevel + ((i / 2) * sizeof(OhciEndpointDescriptor_t));
 		Controller->IntrTable->Ms8[i].NextEDVirtual = EdLevel + ((i / 2) * sizeof(OhciEndpointDescriptor_t));
-		Controller->IntrTable->Ms8[i].Flags = X86_OHCI_EP_SKIP;
+		Controller->IntrTable->Ms8[i].Flags = OHCI_EP_SKIP;
 	}
 
 	/* Third level (4 ms) */
@@ -420,7 +433,7 @@ void OhciInitQueues(OhciController_t *Controller)
 	{
 		Controller->IntrTable->Ms4[i].NextED = EdLevel + ((i / 2) * sizeof(OhciEndpointDescriptor_t));
 		Controller->IntrTable->Ms4[i].NextEDVirtual = EdLevel + ((i / 2) * sizeof(OhciEndpointDescriptor_t));
-		Controller->IntrTable->Ms4[i].Flags = X86_OHCI_EP_SKIP;
+		Controller->IntrTable->Ms4[i].Flags = OHCI_EP_SKIP;
 	}
 
 	/* Fourth level (2 ms) */
@@ -429,13 +442,13 @@ void OhciInitQueues(OhciController_t *Controller)
 	{
 		Controller->IntrTable->Ms2[i].NextED = EdLevel + sizeof(OhciEndpointDescriptor_t);
 		Controller->IntrTable->Ms2[i].NextEDVirtual = EdLevel + sizeof(OhciEndpointDescriptor_t);
-		Controller->IntrTable->Ms2[i].Flags = X86_OHCI_EP_SKIP;
+		Controller->IntrTable->Ms2[i].Flags = OHCI_EP_SKIP;
 	}
 
 	/* Last level (1 ms) */
 	Controller->IntrTable->Ms1[0].NextED = 0;
 	Controller->IntrTable->Ms1[0].NextEDVirtual = 0;
-	Controller->IntrTable->Ms1[0].Flags = X86_OHCI_EP_SKIP;
+	Controller->IntrTable->Ms1[0].Flags = OHCI_EP_SKIP;
 
 	/* Setup HCCA */
 	for (i = 0; i < 32; i++)
@@ -492,21 +505,22 @@ int OhciTakeControl(OhciController_t *Controller)
 	uint32_t Temp, i;
 
 	/* Is SMM the bitch? */
-	if (Controller->Registers->HcControl & X86_OHCI_CTRL_INT_ROUTING)
+	if (Controller->Registers->HcControl & OHCI_CONTROL_IR)
 	{
 		/* Ok, SMM has control, now give me my hat back */
 		Temp = Controller->Registers->HcCommandStatus;
-		Temp |= X86_OHCI_CMD_OWNERSHIP;
+		Temp |= OHCI_COMMAND_OWNERSHIP;
 		Controller->Registers->HcCommandStatus = Temp;
 
 		/* Wait for InterruptRouting to clear */
-		WaitForConditionWithFault(i, (Controller->Registers->HcControl & X86_OHCI_CTRL_INT_ROUTING) == 0, 250, 10);
+		WaitForConditionWithFault(i, 
+			(Controller->Registers->HcControl & OHCI_CONTROL_IR) == 0, 250, 10);
 
 		if (i != 0)
 		{
 			/* Did not work, reset bit, try that */
-			Controller->Registers->HcControl &= ~X86_OHCI_CTRL_INT_ROUTING;
-			WaitForConditionWithFault(i, (Controller->Registers->HcControl & X86_OHCI_CTRL_INT_ROUTING) == 0, 250, 10);
+			Controller->Registers->HcControl &= ~OHCI_CONTROL_IR;
+			WaitForConditionWithFault(i, (Controller->Registers->HcControl & OHCI_CONTROL_IR) == 0, 250, 10);
 
 			if (i != 0)
 			{
@@ -519,13 +533,14 @@ int OhciTakeControl(OhciController_t *Controller)
 			}
 		}
 	}
+
 	/* Is BIOS the bitch?? */
-	else if (Controller->Registers->HcControl & X86_OHCI_CTRL_FSTATE_BITS)
+	else if (Controller->Registers->HcControl & OHCI_CONTROL_FSTATE_BITS)
 	{
-		if ((Controller->Registers->HcControl & X86_OHCI_CTRL_FSTATE_BITS) != X86_OHCI_CTRL_USB_WORKING)
+		if ((Controller->Registers->HcControl & OHCI_CONTROL_FSTATE_BITS) != OHCI_CONTROL_ACTIVE)
 		{
 			/* Resume Usb Operations */
-			OhciSetMode(Controller, X86_OHCI_CTRL_USB_WORKING);
+			OhciSetMode(Controller, OHCI_CONTROL_ACTIVE);
 
 			/* Wait 10 ms */
 			StallMs(10);
@@ -539,52 +554,50 @@ int OhciTakeControl(OhciController_t *Controller)
 		StallMs(10);
 	}
 
+	/* Done! */
 	return 0;
 }
 
 /* Reset Controller */
 void OhciReset(OhciController_t *Controller)
 {
+	/* Vars needed for reset procedure */
 	uint32_t TempValue, Temp, FmInt;
 	int i;
 
 	/* Step 4. Verify HcFmInterval and save it  */
 	FmInt = Controller->Registers->HcFmInterval;
 
-	/* Sanity */
-	if (X86_OHCI_GETFSMP(FmInt) == 0)
-	{
-		/* What the fuck OHCI */
-		FmInt |= X86_OHCI_FSMP(FmInt) << 16;
-	}
+	/* Sanity - What the fuck OHCI */
+	if (OHCI_FMINTERVAL_GETFSMP(FmInt) == 0)
+		FmInt |= OHCI_FMINTERVAL_FSMP(FmInt) << 16;
 
-	if ((FmInt & X86_OHCI_FI_MASK) == 0)
-	{
-		/* Really, BIOS?! */
-		FmInt |= X86_OHCI_FI;
-	}
+	/* Sanity interval once more */
+	if ((FmInt & OHCI_FMINTERVAL_FIMASK) == 0)
+		FmInt |= OHCI_FMINTERVAL_FI;
 
-	/* We should check here if HcControl has RemoteWakeup Connected and then set device to remote wake capable */
+	/* We should check here if HcControl has RemoteWakeup Connected 
+	 * and then set device to remote wake capable */
 
 	/* Disable All Interrupts */
-	Controller->Registers->HcInterruptDisable = (uint32_t)X86_OHCI_INTR_MASTER_INTR;
+	Controller->Registers->HcInterruptDisable = (uint32_t)OHCI_INTR_MASTER;
 
 	/* Perform a reset of HcCtrl Controller */
-	OhciSetMode(Controller, X86_OHCI_CTRL_USB_SUSPEND);
+	OhciSetMode(Controller, OHCI_CONTROL_SUSPEND);
 	StallMs(10);
 
 	/* Set bit 0 to Request reboot */
 	Temp = Controller->Registers->HcCommandStatus;
-	Temp |= X86_OHCI_CMD_RESETCTRL;
+	Temp |= OHCI_COMMAND_RESET;
 	Controller->Registers->HcCommandStatus = Temp;
 
 	/* Wait for reboot (takes maximum of 10 ms) */
-	WaitForConditionWithFault(i, (Controller->Registers->HcCommandStatus & X86_OHCI_CMD_RESETCTRL) == 0, 50, 1);
+	WaitForConditionWithFault(i, (Controller->Registers->HcCommandStatus & OHCI_COMMAND_RESET) == 0, 50, 1);
 
 	/* Sanity */
 	if (i != 0)
 	{
-		LogDebug("OHCI", "controller %u failed to reboot", Controller->HcdId);
+		LogDebug("OHCI", "Controller %u failed to reboot", Controller->HcdId);
 		LogDebug("OHCI", "Reset Timeout :(");
 		return;
 	}
@@ -614,34 +627,41 @@ void OhciReset(OhciController_t *Controller)
 		Controller->Registers->HcBulkCurrentED = 0;
 
 	/* Set HcEnableInterrupt to all except SOF and OC */
-	Controller->Registers->HcInterruptDisable = (X86_OHCI_INTR_SOF | X86_OHCI_INTR_ROOT_HUB_EVENT | X86_OHCI_INTR_OWNERSHIP_EVENT);
+	Controller->Registers->HcInterruptDisable = 
+		(OHCI_INTR_SOF | OHCI_INTR_ROOTHUB_EVENT | OHCI_INTR_OWNERSHIP_EVENT);
+
+	/* Clear INTR Status */
 	Controller->Registers->HcInterruptStatus = ~(uint32_t)0;
-	Controller->Registers->HcInterruptEnable = (X86_OHCI_INTR_SCHEDULING_OVRRN | X86_OHCI_INTR_HEAD_DONE |
-		X86_OHCI_INTR_RESUME_DETECT | X86_OHCI_INTR_FATAL_ERROR | X86_OHCI_INTR_FRAME_OVERFLOW | X86_OHCI_INTR_MASTER_INTR);
+
+	/* Set which interrupts we do want */
+	Controller->Registers->HcInterruptEnable = (OHCI_INTR_SCHEDULING_OVERRUN | OHCI_INTR_PROCESS_HEAD |
+		OHCI_INTR_RESUMEDETECT | OHCI_INTR_FATAL_ERROR | OHCI_INTR_FRAME_OVERFLOW | OHCI_INTR_MASTER);
 
 	/* Set HcPeriodicStart to a value that is 90% of FrameInterval in HcFmInterval */
-	TempValue = (FmInt & X86_OHCI_FI_MASK);
+	TempValue = (FmInt & OHCI_FMINTERVAL_FIMASK);
 	Controller->Registers->HcPeriodicStart = (TempValue / 10) * 9;
 
 	/* Clear Lists, Mode, Ratio and IR */
-	Temp = (Temp & ~(0x0000003C | X86_OHCI_CTRL_USB_SUSPEND | 0x3 | 0x100));
+	Temp = (Temp & ~(0x0000003C | OHCI_CONTROL_SUSPEND | 0x3 | 0x100));
 
 	/* Set Ratio (4:1) and Mode (Operational) */
-	Temp |= (0x3 | X86_OHCI_CTRL_USB_WORKING);
-	Controller->Registers->HcControl = Temp | X86_OHCI_CTRL_ALL_LISTS | X86_OHCI_CTRL_REMOTE_WAKE;
+	Temp |= (0x3 | OHCI_CONTROL_ACTIVE);
+	Controller->Registers->HcControl = Temp | 
+		OHCI_CONTROL_ENABLE_ALL | OHCI_CONTROL_REMOTEWAKE;
 }
 
 /* Resets the controllre to a working state from initial */
 void OhciSetup(OhciController_t *Controller)
 {
+	/* Vars needed for setup */
 	UsbHc_t *HcCtrl;
 	uint32_t TempValue = 0;
 	int i;
 
 	/* Step 1. Verify the Revision */
 	TempValue = (Controller->Registers->HcRevision & 0xFF);
-	if (TempValue != X86_OHCI_REVISION
-		&& TempValue != 0x11)
+	if (TempValue != OHCI_REVISION
+		&& TempValue != OHCI_REVISION_11)
 	{
 		LogDebug("OHCI", "Revision is wrong (0x%x), exiting :(", TempValue);
 		AddressSpaceUnmap(AddressSpaceGetCurrent(), Controller->HccaSpace, PAGE_SIZE);
@@ -668,8 +688,8 @@ void OhciSetup(OhciController_t *Controller)
 	/* Check Power Mode */
 	if (Controller->Registers->HcRhDescriptorA & (1 << 9))
 	{
-		Controller->PowerMode = X86_OHCI_POWER_ALWAYS_ON;
-		Controller->Registers->HcRhStatus = X86_OHCI_STATUS_POWER_ON;
+		Controller->PowerMode = OHCI_PWN_ALWAYS_ON;
+		Controller->Registers->HcRhStatus = OHCI_STATUS_POWER_ENABLED;
 		Controller->Registers->HcRhDescriptorB = 0;
 	}
 	else
@@ -680,15 +700,15 @@ void OhciSetup(OhciController_t *Controller)
 		{
 			/* This is favorable Mode
 			* (If this is supported we set power-mask so that all Ports control their own power) */
-			Controller->PowerMode = X86_OHCI_POWER_PORT_CONTROLLED;
+			Controller->PowerMode = OHCI_PWM_PORT_CONTROLLED;
 			Controller->Registers->HcRhDescriptorB = 0xFFFF0000;
 		}
 		else
 		{
 			/* Global Power Switch */
 			Controller->Registers->HcRhDescriptorB = 0;
-			Controller->Registers->HcRhStatus = X86_OHCI_STATUS_POWER_ON;
-			Controller->PowerMode = X86_OHCI_POWER_PORT_GLOBAL;
+			Controller->Registers->HcRhStatus = OHCI_STATUS_POWER_ENABLED;
+			Controller->PowerMode = OHCI_PWN_GLOBAL;
 		}
 	}
 
@@ -700,7 +720,7 @@ void OhciSetup(OhciController_t *Controller)
 		Controller->Ports = 15;
 
 	/* Set RhA */
-	Controller->Registers->HcRhDescriptorA &= ~(0x00000000 | X86_OHCI_DESCA_DEVICE_TYPE);
+	Controller->Registers->HcRhDescriptorA &= ~(0x00000000 | OHCI_DESCRIPTORA_DEVICETYPE);
 
 	/* Get Power On Delay
 	* PowerOnToPowerGoodTime (24 - 31)
@@ -755,20 +775,17 @@ void OhciSetup(OhciController_t *Controller)
 		int p = i;
 
 		/* Make sure power is on */
-		if (!(Controller->Registers->HcRhPortStatus[i] & X86_OHCI_PORT_POWER_ENABLE))
-		{
-			/* Powerup! */
-			Controller->Registers->HcRhPortStatus[i] = X86_OHCI_PORT_POWER_ENABLE;
-		}
+		if (!(Controller->Registers->HcRhPortStatus[i] & OHCI_PORT_POWER))
+			Controller->Registers->HcRhPortStatus[i] = OHCI_PORT_POWER;
 
 		/* Check if Port is connected */
-		if (Controller->Registers->HcRhPortStatus[i] & X86_OHCI_PORT_CONNECTED)
+		if (Controller->Registers->HcRhPortStatus[i] & OHCI_PORT_CONNECTED)
 			UsbEventCreate(UsbGetHcd(Controller->HcdId), p, HcdConnectedEvent);
 	}
 
 	/* Now we can enable hub events (and clear interrupts) */
 	Controller->Registers->HcInterruptStatus &= ~(uint32_t)0;
-	Controller->Registers->HcInterruptEnable = X86_OHCI_INTR_ROOT_HUB_EVENT;
+	Controller->Registers->HcInterruptEnable = OHCI_INTR_ROOTHUB_EVENT;
 }
 
 /* Try to visualize the IntrTable */
@@ -786,7 +803,7 @@ void OhciVisualizeQueue(OhciController_t *Controller)
 		while (EpPtr)
 		{
 			/* Print */
-			LogRaw("0x%x -> ", (EpPtr->Flags & X86_OHCI_EP_SKIP));
+			LogRaw("0x%x -> ", (EpPtr->Flags & OHCI_EP_SKIP));
 
 			/* Get next */
 			EpPtr = (OhciEndpointDescriptor_t*)EpPtr->NextEDVirtual;
@@ -798,9 +815,10 @@ void OhciVisualizeQueue(OhciController_t *Controller)
 }
 
 /* ED Functions */
-Addr_t OhciAllocateEp(OhciController_t *Controller, UsbTransferType_t Type)
+OhciEndpointDescriptor_t *OhciAllocateEp(OhciController_t *Controller, UsbTransferType_t Type)
 {
-	Addr_t cIndex = 0;
+	/* Vars */
+	OhciEndpointDescriptor_t *Ed = NULL;
 	int i;
 
 	/* Pick a QH */
@@ -811,15 +829,15 @@ Addr_t OhciAllocateEp(OhciController_t *Controller, UsbTransferType_t Type)
 		|| Type == BulkTransfer)
 	{
 		/* Grap Index */
-		for (i = 0; i < X86_OHCI_POOL_NUM_ED; i++)
+		for (i = 0; i < OHCI_POOL_NUM_ED; i++)
 		{
 			/* Sanity */
-			if (Controller->EDPool[i]->HcdFlags & X86_OHCI_ED_ALLOCATED)
+			if (Controller->EDPool[i]->HcdFlags & OHCI_ED_ALLOCATED)
 				continue;
 
 			/* Yay!! */
-			Controller->EDPool[i]->HcdFlags |= X86_OHCI_ED_ALLOCATED;
-			cIndex = (Addr_t)i;
+			Controller->EDPool[i]->HcdFlags = OHCI_ED_ALLOCATED;
+			Ed = Controller->EDPool[i];
 			break;
 		}
 
@@ -831,30 +849,33 @@ Addr_t OhciAllocateEp(OhciController_t *Controller, UsbTransferType_t Type)
 		|| Type == IsochronousTransfer)
 	{
 		/* Allocate */
-		Addr_t aSpace = (Addr_t)kmalloc(sizeof(OhciEndpointDescriptor_t) + X86_OHCI_STRUCT_ALIGN);
-		cIndex = OhciAlign(aSpace, X86_OHCI_STRUCT_ALIGN_BITS, X86_OHCI_STRUCT_ALIGN);
+		Addr_t aSpace = (Addr_t)kmalloc(sizeof(OhciEndpointDescriptor_t) + OHCI_STRUCT_ALIGN);
+		Ed = (OhciEndpointDescriptor_t*)OhciAlign(aSpace, OHCI_STRUCT_ALIGN_BITS, OHCI_STRUCT_ALIGN);
 
 		/* Zero it out */
-		memset((void*)cIndex, 0, sizeof(OhciEndpointDescriptor_t));
+		memset(Ed, 0, sizeof(OhciEndpointDescriptor_t));
 	}
 
 	/* Release Lock */
 	SpinlockRelease(&Controller->Lock);
 
-	return cIndex;
+	/* Done! */
+	return Ed;
 }
 
+/* Initialises an EP descriptor */
 void OhciEpInit(OhciEndpointDescriptor_t *Ed, UsbHcTransaction_t *FirstTd, UsbTransferType_t Type,
 	size_t Address, size_t Endpoint, size_t PacketSize, UsbSpeed_t Speed)
 {
 	/* Set Head & Tail Td */
-	if ((Addr_t)FirstTd->TransferDescriptor == X86_OHCI_TRANSFER_END_OF_LIST)
+	if ((Addr_t)FirstTd->TransferDescriptor == OHCI_LINK_END)
 	{
-		Ed->HeadPtr = X86_OHCI_TRANSFER_END_OF_LIST;
+		Ed->HeadPtr = OHCI_LINK_END;
 		Ed->TailPtr = 0;
 	}
 	else
 	{
+		/* Vars */
 		Addr_t FirstTdAddr = (Addr_t)FirstTd->TransferDescriptor;
 		Addr_t LastTd = 0;
 
@@ -864,30 +885,32 @@ void OhciEpInit(OhciEndpointDescriptor_t *Ed, UsbHcTransaction_t *FirstTd, UsbTr
 			FirstLink = FirstLink->Link;
 		LastTd = (Addr_t)FirstLink->TransferDescriptor;
 		
+		/* Get physical addresses */
 		Ed->TailPtr = AddressSpaceGetMap(AddressSpaceGetCurrent(), (Addr_t)LastTd);
-		Ed->HeadPtr = AddressSpaceGetMap(AddressSpaceGetCurrent(), (Addr_t)FirstTdAddr) | 0x1;
+		Ed->HeadPtr = AddressSpaceGetMap(AddressSpaceGetCurrent(), (Addr_t)FirstTdAddr) | OHCI_LINK_END;
 	}
 
 	/* Shared flags */
-	Ed->Flags = X86_OHCI_EP_SKIP;
-	Ed->Flags |= (Address & X86_OHCI_EP_ADDR_BITS);
-	Ed->Flags |= X86_OHCI_EP_EP_NUM((Endpoint & X86_OHCI_EP_EP_NUM_BITS));
-	Ed->Flags |= X86_OHCI_EP_PID_TD; /* Get PID from Td */
-	Ed->Flags |= X86_OHCI_EP_LOWSPEED((Speed == LowSpeed) ? 1 : 0); /* Problem!! */
-	Ed->Flags |= X86_OHCI_EP_PACKET_SIZE((PacketSize & X86_OHCI_EP_PACKET_BITS));
-	Ed->Flags |= X86_OHCI_EP_TYPE(((uint32_t)Type & 0xF));
+	Ed->Flags = OHCI_EP_SKIP;
+	Ed->Flags |= (Address & OHCI_EP_ADDRESS_MASK);
+	Ed->Flags |= OHCI_EP_ENDPOINT(Endpoint);
+	Ed->Flags |= OHCI_EP_INOUT_TD; /* Get PID from Td */
+	Ed->Flags |= OHCP_EP_LOWSPEED((Speed == LowSpeed) ? 1 : 0);
+	Ed->Flags |= OHCI_EP_MAXLEN(PacketSize);
+	Ed->Flags |= OHCI_EP_TYPE(Type);
 
 	/* Add for IsoChro */
 	if (Type == IsochronousTransfer)
-		Ed->Flags |= X86_OHCI_EP_ISOCHRONOUS;
+		Ed->Flags |= OHCI_EP_ISOCHRONOUS;
 }
 
 /* Td Functions */
 Addr_t OhciAllocateTd(OhciEndpoint_t *Ep, UsbTransferType_t Type)
 {
-	size_t i;
-	Addr_t cIndex = 0xFFFF;
+	/* Vars */
 	OhciGTransferDescriptor_t *Td;
+	Addr_t cIndex = 0;
+	size_t i;
 
 	/* Pick a QH */
 	SpinlockAcquire(&Ep->Lock);
@@ -900,11 +923,11 @@ Addr_t OhciAllocateTd(OhciEndpoint_t *Ep, UsbTransferType_t Type)
 		for (i = 0; i < Ep->TdsAllocated; i++)
 		{
 			/* Sanity */
-			if (Ep->TDPool[i]->Flags & X86_OHCI_TD_ALLOCATED)
+			if (Ep->TDPool[i]->Flags & OHCI_TD_ALLOCATED)
 				continue;
 
 			/* Yay!! */
-			Ep->TDPool[i]->Flags |= X86_OHCI_TD_ALLOCATED;
+			Ep->TDPool[i]->Flags |= OHCI_TD_ALLOCATED;
 			cIndex = (Addr_t)i;
 			break;
 		}
@@ -916,7 +939,7 @@ Addr_t OhciAllocateTd(OhciEndpoint_t *Ep, UsbTransferType_t Type)
 	else if (Type == InterruptTransfer)
 	{
 		/* Allocate a new */
-		Td = (OhciGTransferDescriptor_t*)OhciAlign(((Addr_t)kmalloc(sizeof(OhciGTransferDescriptor_t) + X86_OHCI_STRUCT_ALIGN)), X86_OHCI_STRUCT_ALIGN_BITS, X86_OHCI_STRUCT_ALIGN);
+		Td = (OhciGTransferDescriptor_t*)OhciAlign(((Addr_t)kmalloc(sizeof(OhciGTransferDescriptor_t) + OHCI_STRUCT_ALIGN)), OHCI_STRUCT_ALIGN_BITS, OHCI_STRUCT_ALIGN);
 
 		/* Null it */
 		memset((void*)Td, 0, sizeof(OhciGTransferDescriptor_t));
@@ -927,7 +950,7 @@ Addr_t OhciAllocateTd(OhciEndpoint_t *Ep, UsbTransferType_t Type)
 	else
 	{
 		/* Allocate iDescriptor */
-		OhciITransferDescriptor_t *iTd = (OhciITransferDescriptor_t*)OhciAlign(((Addr_t)kmalloc(sizeof(OhciITransferDescriptor_t) + X86_OHCI_STRUCT_ALIGN)), X86_OHCI_STRUCT_ALIGN_BITS, X86_OHCI_STRUCT_ALIGN);
+		OhciITransferDescriptor_t *iTd = (OhciITransferDescriptor_t*)OhciAlign(((Addr_t)kmalloc(sizeof(OhciITransferDescriptor_t) + OHCI_STRUCT_ALIGN)), OHCI_STRUCT_ALIGN_BITS, OHCI_STRUCT_ALIGN);
 
 		/* Null it */
 		memset((void*)iTd, 0, sizeof(OhciITransferDescriptor_t));
@@ -942,16 +965,14 @@ Addr_t OhciAllocateTd(OhciEndpoint_t *Ep, UsbTransferType_t Type)
 	return cIndex;
 }
 
-OhciGTransferDescriptor_t *OhciTdSetup(OhciEndpoint_t *Ep, UsbTransferType_t Type,
-	Addr_t NextTD, size_t Toggle, uint8_t RequestDirection,
-	uint8_t RequestType, uint8_t RequestValueLo, uint8_t RequestValueHi, uint16_t RequestIndex,
-	uint16_t RequestLength, void **TDBuffer)
+/* Setup TD */
+OhciGTransferDescriptor_t *OhciTdSetup(OhciEndpoint_t *Ep, UsbTransferType_t Type, 
+	UsbPacket_t *pPacket, void **TDBuffer)
 {
-	UsbPacket_t *Packet;
+	/* Vars */
 	OhciGTransferDescriptor_t *Td;
-	Addr_t TdPhys;
-	void *Buffer;
 	Addr_t TDIndex;
+	void *Buffer;
 
 	/* Allocate a Td */
 	TDIndex = OhciAllocateTd(Ep, Type);
@@ -959,32 +980,20 @@ OhciGTransferDescriptor_t *OhciTdSetup(OhciEndpoint_t *Ep, UsbTransferType_t Typ
 	/* Grab a Td and a Buffer */
 	Td = Ep->TDPool[TDIndex];
 	Buffer = Ep->TDPoolBuffers[TDIndex];
-	TdPhys = Ep->TDPoolPhysical[TDIndex];
 
-	/* EOL ? */
-	if (NextTD == X86_OHCI_TRANSFER_END_OF_LIST)
-		Td->NextTD = 0;
-	else	/* Get physical Address of NextTD and set NextTD to that */
-		Td->NextTD = AddressSpaceGetMap(AddressSpaceGetCurrent(), (VirtAddr_t)NextTD);
+	/* Set no link */
+	Td->NextTD = OHCI_LINK_END;
 
 	/* Setup the Td for a SETUP Td */
-	Td->Flags = X86_OHCI_TD_ALLOCATED;
-	Td->Flags |= X86_OHCI_TRANSFER_BUF_ROUNDING;
-	Td->Flags |= X86_OHCI_TRANSFER_BUF_PID_SETUP;
-	Td->Flags |= X86_OHCI_TRANSFER_BUF_NO_INTERRUPT;
-	Td->Flags |= (Toggle << 24);
-	Td->Flags |= X86_OHCI_TRANSFER_BUF_TD_TOGGLE;
-	Td->Flags |= X86_OHCI_TRANSFER_BUF_NOCC;
+	Td->Flags = OHCI_TD_ALLOCATED;
+	Td->Flags |= OHCI_TD_PID_SETUP;
+	Td->Flags |= OHCI_TD_NO_IOC;
+	Td->Flags |= OHCI_TD_TOGGLE_LOCAL;
+	Td->Flags |= OHCI_TD_ACTIVE;
 
 	/* Setup the SETUP Request */
 	*TDBuffer = Buffer;
-	Packet = (UsbPacket_t*)Buffer;
-	Packet->Direction = RequestDirection;
-	Packet->Type = RequestType;
-	Packet->ValueLo = RequestValueLo;
-	Packet->ValueHi = RequestValueHi;
-	Packet->Index = RequestIndex;
-	Packet->Length = RequestLength;
+	memcpy(Buffer, (void*)pPacket, sizeof(UsbPacket_t));
 
 	/* Set Td Buffer */
 	Td->Cbp = AddressSpaceGetMap(AddressSpaceGetCurrent(), (VirtAddr_t)Buffer);
@@ -994,47 +1003,39 @@ OhciGTransferDescriptor_t *OhciTdSetup(OhciEndpoint_t *Ep, UsbTransferType_t Typ
 }
 
 OhciGTransferDescriptor_t *OhciTdIo(OhciEndpoint_t *OhciEp, UsbTransferType_t Type,
-	Addr_t NextTD, UsbHcEndpoint_t *Endpoint, uint32_t pid,
-	size_t Length, void **TDBuffer)
+	UsbHcEndpoint_t *Endpoint, uint32_t PId, size_t Length, void **TDBuffer)
 {
+	/* Vars */
 	OhciGTransferDescriptor_t *Td = NULL;
 	OhciITransferDescriptor_t *iTd = NULL;
-	void *Buffer;
 	Addr_t TDIndex;
+	void *Buffer;
 
 	/* Allocate a Td */
 	TDIndex = OhciAllocateTd(OhciEp, Type);
 
 	/* Sanity */
-	if (Type == ControlTransfer || Type == BulkTransfer)
-	{
-		/* Grab a Td and a Buffer */
+	if (Type == ControlTransfer || Type == BulkTransfer){
 		Td = OhciEp->TDPool[TDIndex];
 		Buffer = OhciEp->TDPoolBuffers[TDIndex];
 	}
-	else if (Type == InterruptTransfer)
-	{
-		/* Cast */
+	else if (Type == InterruptTransfer) {
 		Td = (OhciGTransferDescriptor_t*)TDIndex;
-
-		/* Allocate a buffer */
-		Buffer = (void*)kmalloc_a(0x1000);
+		Buffer = (void*)kmalloc_a(PAGE_SIZE);
 	}
 	else
 	{
+		/* Calculate frame count */
+		uint32_t FrameCount = DIVUP(Length, Endpoint->MaxPacketSize);
+		uint32_t BufItr = 0;
+		uint32_t FrameItr = 0;
+		uint32_t Crossed = 0;
+
 		/* Cast */
 		iTd = (OhciITransferDescriptor_t*)TDIndex;
 
 		/* Allocate a buffer */
 		Buffer = (void*)kmalloc_a(Length);
-
-		/* Calculate frame count */
-		uint32_t BufItr = 0;
-		uint32_t FrameItr = 0;
-		uint32_t Crossed = 0;
-		uint32_t FrameCount = Length / Endpoint->MaxPacketSize;
-		if (Length % Endpoint->MaxPacketSize)
-			FrameCount++;
 
 		/* IF framecount is > 8, nono */
 		if (FrameCount > 8)
@@ -1042,8 +1043,8 @@ OhciGTransferDescriptor_t *OhciTdIo(OhciEndpoint_t *OhciEp, UsbTransferType_t Ty
 
 		/* Setup */
 		iTd->Flags = 0;
-		iTd->Flags |= X86_OHCI_TRANSFER_BUF_FRAMECOUNT(FrameCount - 1);
-		iTd->Flags |= X86_OHCI_TRANSFER_BUF_NOCC;
+		iTd->Flags |= OHCI_TD_FRAMECOUNT(FrameCount - 1);
+		iTd->Flags |= OHCI_TD_NO_IOC;
 
 		/* Buffer */
 		iTd->Bp0 = AddressSpaceGetMap(AddressSpaceGetCurrent(), (VirtAddr_t)Buffer);
@@ -1060,10 +1061,10 @@ OhciGTransferDescriptor_t *OhciTdIo(OhciEndpoint_t *OhciEp, UsbTransferType_t Ty
 			BufItr += Endpoint->MaxPacketSize;
 
 			/* Sanity */
-			if (BufItr >= 0x1000)
+			if (BufItr >= PAGE_SIZE)
 			{
 				/* Reduce, set crossed */
-				BufItr -= 0x1000;
+				BufItr -= PAGE_SIZE;
 				Crossed = 1;
 			}
 
@@ -1072,45 +1073,39 @@ OhciGTransferDescriptor_t *OhciTdIo(OhciEndpoint_t *OhciEp, UsbTransferType_t Ty
 			FrameCount--;
 		}
 
-		/* EOL ? */
-		if (NextTD == X86_OHCI_TRANSFER_END_OF_LIST)
-			iTd->NextTD = X86_OHCI_TRANSFER_END_OF_LIST;
-		else	/* Get physical Address of NextTD and set NextTD to that */
-			iTd->NextTD = AddressSpaceGetMap(AddressSpaceGetCurrent(), (VirtAddr_t)NextTD);
+		/* EOL */
+		iTd->NextTD = OHCI_LINK_END;
 
 		/* Done */
 		return (OhciGTransferDescriptor_t*)iTd;
 	}
 
-	/* EOL ? */
-	if (NextTD == X86_OHCI_TRANSFER_END_OF_LIST)
-		Td->NextTD = X86_OHCI_TRANSFER_END_OF_LIST;
-	else	/* Get physical Address of NextTD and set NextTD to that */
-		Td->NextTD = AddressSpaceGetMap(AddressSpaceGetCurrent(), (VirtAddr_t)NextTD);
+	/* EOL */
+	iTd->NextTD = OHCI_LINK_END;
 
 	/* Setup the Td for a IO Td */
-	Td->Flags = X86_OHCI_TD_ALLOCATED;
-	Td->Flags |= X86_OHCI_TRANSFER_BUF_ROUNDING;
-	Td->Flags |= pid;
-	Td->Flags |= X86_OHCI_TRANSFER_BUF_NO_INTERRUPT;
-	Td->Flags |= X86_OHCI_TRANSFER_BUF_TD_TOGGLE;
-	Td->Flags |= X86_OHCI_TRANSFER_BUF_NOCC;
+	Td->Flags = OHCI_TD_ALLOCATED;
+	Td->Flags |= OHCI_TD_SHORTPACKET;
+	Td->Flags |= PId;
+	Td->Flags |= OHCI_TD_NO_IOC;
+	Td->Flags |= OHCI_TD_TOGGLE_LOCAL;
+	Td->Flags |= OHCI_TD_ACTIVE;
 	Td->Flags |= (Endpoint->Toggle << 24);
 
+	/* Store buffer */
 	*TDBuffer = Buffer;
 
 	/* Bytes to transfer?? */
-	if (Length > 0)
-	{
+	if (Length > 0) {
 		Td->Cbp = AddressSpaceGetMap(AddressSpaceGetCurrent(), (VirtAddr_t)Buffer);
 		Td->BufferEnd = Td->Cbp + Length - 1;
 	}
-	else
-	{
+	else {
 		Td->Cbp = 0;
 		Td->BufferEnd = 0;
 	}
 
+	/* Done! */
 	return Td;
 }
 
@@ -1159,8 +1154,8 @@ void OhciEndpointSetup(void *Controller, UsbHcEndpoint_t *Endpoint)
 	oEp->TDPoolPhysical = (Addr_t*)kmalloc(sizeof(Addr_t) * oEp->TdsAllocated);
 
 	/* Allocate a TD block */
-	Pool = (Addr_t)kmalloc((sizeof(OhciGTransferDescriptor_t) * oEp->TdsAllocated) + X86_OHCI_STRUCT_ALIGN);
-	Pool = OhciAlign(Pool, X86_OHCI_STRUCT_ALIGN_BITS, X86_OHCI_STRUCT_ALIGN);
+	Pool = (Addr_t)kmalloc((sizeof(OhciGTransferDescriptor_t) * oEp->TdsAllocated) + OHCI_STRUCT_ALIGN);
+	Pool = OhciAlign(Pool, OHCI_STRUCT_ALIGN_BITS, OHCI_STRUCT_ALIGN);
 	PoolPhys = AddressSpaceGetMap(AddressSpaceGetCurrent(), Pool);
 
 	/* Allocate buffers */
@@ -1208,9 +1203,6 @@ void OhciEndpointDestroy(void *Controller, UsbHcEndpoint_t *Endpoint)
 	/* Sanity */
 	if (oEp == NULL)
 		return;
-	
-	OhciGTransferDescriptor_t *oTd = oEp->TDPool[0];
-	size_t i;
 
 	/* Woah */
 	_CRT_UNUSED(oCtrl);
@@ -1218,6 +1210,10 @@ void OhciEndpointDestroy(void *Controller, UsbHcEndpoint_t *Endpoint)
 	/* Sanity */
 	if (oEp->TdsAllocated != 0)
 	{
+		/* Vars */
+		OhciGTransferDescriptor_t *oTd = oEp->TDPool[0];
+		size_t i;
+
 		/* Let's free all those resources */
 		for (i = 0; i < oEp->TdsAllocated; i++)
 		{
@@ -1236,6 +1232,41 @@ void OhciEndpointDestroy(void *Controller, UsbHcEndpoint_t *Endpoint)
 	kfree(oEp);
 }
 
+/* Bandwidth Functions */
+int OhciCalculateQueue(OhciController_t *Controller, size_t Interval, uint32_t Bandwidth)
+{
+	/* Vars */
+	int	Queue = -1;
+	size_t i;
+
+	/* iso periods can be huge; iso tds specify frame numbers */
+	if (Interval > OHCI_BANDWIDTH_PHASES)
+		Interval = OHCI_BANDWIDTH_PHASES;
+
+	/* Find the least loaded queue */
+	for (i = 0; i < Interval; i++) {
+		if (Queue < 0 || Controller->Bandwidth[Queue] > Controller->Bandwidth[i]) {
+			int	j;
+
+			/* Usb 1.1 says 90% of one frame must be ISOC / INTR */
+			for (j = i; j < OHCI_BANDWIDTH_PHASES; j += Interval) {
+				if ((Controller->Bandwidth[j] + Bandwidth) > 900)
+					break;
+			}
+
+			/* Sanity */
+			if (j < OHCI_BANDWIDTH_PHASES)
+				continue;
+
+			/* Store */
+			Queue = i;
+		}
+	}
+
+	/* Done! */
+	return Queue;
+}
+
 /* Transaction Functions */
 
 /* This one prepaires an ED */
@@ -1243,20 +1274,21 @@ void OhciTransactionInit(void *Controller, UsbHcRequest_t *Request)
 {
 	/* Vars */
 	OhciController_t *Ctrl = (OhciController_t*)Controller;
-	Addr_t Temp;
+	OhciEndpointDescriptor_t *Ed = NULL;
 
 	/* Allocate an EP */
-	Temp = OhciAllocateEp(Ctrl, Request->Type);
+	Ed = OhciAllocateEp(Ctrl, Request->Type);
 
-	/* We allocate new ep descriptors for Iso & Int */
-	if (Request->Type == ControlTransfer
-		|| Request->Type == BulkTransfer)
-	{
-		Ctrl->EDPool[Temp]->Flags |= X86_OHCI_EP_SKIP;
-		Request->Data = Ctrl->EDPool[Temp];
-	}
-	else
-		Request->Data = (void*)Temp;
+	/* Mark it inactive for now */
+	Ed->Flags |= OHCI_EP_SKIP;
+
+	/* Calculate bus time */
+	Ed->Bandwidth =
+		(UsbCalculateBandwidth(Request->Speed, 
+		Request->Endpoint->Direction, Request->Type, Request->Endpoint->MaxPacketSize) / 1000);
+
+	/* Store */
+	Request->Data = Ed;
 
 	/* Set as not Completed for start */
 	Request->Status = TransferNotProcessed;
@@ -1265,6 +1297,7 @@ void OhciTransactionInit(void *Controller, UsbHcRequest_t *Request)
 /* This one prepaires an setup Td */
 UsbHcTransaction_t *OhciTransactionSetup(void *Controller, UsbHcRequest_t *Request)
 {
+	/* Vars */
 	OhciController_t *Ctrl = (OhciController_t*)Controller;
 	UsbHcTransaction_t *Transaction;
 
@@ -1279,30 +1312,16 @@ UsbHcTransaction_t *OhciTransactionSetup(void *Controller, UsbHcRequest_t *Reque
 
 	/* Create the Td */
 	Transaction->TransferDescriptor = (void*)OhciTdSetup(Request->Endpoint->AttachedData, 
-		Request->Type, X86_OHCI_TRANSFER_END_OF_LIST,
-		Request->Endpoint->Toggle, Request->Packet.Direction, Request->Packet.Type,
-		Request->Packet.ValueLo, Request->Packet.ValueHi, Request->Packet.Index,
-		Request->Packet.Length, &Transaction->TransferBuffer);
+		Request->Type, &Request->Packet, &Transaction->TransferBuffer);
 
-	/* If previous Transaction */
-	if (Request->Transactions != NULL)
-	{
-		OhciGTransferDescriptor_t *PrevTd;
-		UsbHcTransaction_t *cTrans = Request->Transactions;
-
-		while (cTrans->Link)
-			cTrans = cTrans->Link;
-
-		PrevTd = (OhciGTransferDescriptor_t*)cTrans->TransferDescriptor;
-		PrevTd->NextTD = AddressSpaceGetMap(AddressSpaceGetCurrent(), (VirtAddr_t)Transaction->TransferDescriptor);
-	}
-
+	/* Done */
 	return Transaction;
 }
 
 /* This one prepaires an in Td */
 UsbHcTransaction_t *OhciTransactionIn(void *Controller, UsbHcRequest_t *Request)
 {
+	/* Vars */
 	OhciController_t *Ctrl = (OhciController_t*)Controller;
 	UsbHcTransaction_t *Transaction;
 
@@ -1318,8 +1337,7 @@ UsbHcTransaction_t *OhciTransactionIn(void *Controller, UsbHcRequest_t *Request)
 
 	/* Setup Td */
 	Transaction->TransferDescriptor = (void*)OhciTdIo(Request->Endpoint->AttachedData, 
-		Request->Type, X86_OHCI_TRANSFER_END_OF_LIST, Request->Endpoint,
-		X86_OHCI_TRANSFER_BUF_PID_IN, Request->IoLength,
+		Request->Type, Request->Endpoint, OHCI_TD_PID_IN, Request->IoLength,
 		&Transaction->TransferBuffer);
 
 	/* If previous Transaction */
@@ -1332,7 +1350,8 @@ UsbHcTransaction_t *OhciTransactionIn(void *Controller, UsbHcRequest_t *Request)
 			cTrans = cTrans->Link;
 
 		PrevTd = (OhciGTransferDescriptor_t*)cTrans->TransferDescriptor;
-		PrevTd->NextTD = AddressSpaceGetMap(AddressSpaceGetCurrent(), (VirtAddr_t)Transaction->TransferDescriptor);
+		PrevTd->NextTD = AddressSpaceGetMap(AddressSpaceGetCurrent(), 
+			(VirtAddr_t)Transaction->TransferDescriptor);
 	}
 
 	/* We might need a copy */
@@ -1351,6 +1370,7 @@ UsbHcTransaction_t *OhciTransactionIn(void *Controller, UsbHcRequest_t *Request)
 /* This one prepaires an out Td */
 UsbHcTransaction_t *OhciTransactionOut(void *Controller, UsbHcRequest_t *Request)
 {
+	/* Vars */
 	OhciController_t *Ctrl = (OhciController_t*)Controller;
 	UsbHcTransaction_t *Transaction;
 
@@ -1366,8 +1386,7 @@ UsbHcTransaction_t *OhciTransactionOut(void *Controller, UsbHcRequest_t *Request
 
 	/* Setup Td */
 	Transaction->TransferDescriptor = (void*)OhciTdIo(Request->Endpoint->AttachedData, 
-		Request->Type, X86_OHCI_TRANSFER_END_OF_LIST, Request->Endpoint,
-		X86_OHCI_TRANSFER_BUF_PID_OUT, Request->IoLength,
+		Request->Type, Request->Endpoint, OHCI_TD_PID_OUT, Request->IoLength,
 		&Transaction->TransferBuffer);
 
 	/* Copy Data */
@@ -1392,7 +1411,7 @@ UsbHcTransaction_t *OhciTransactionOut(void *Controller, UsbHcRequest_t *Request
 		|| Request->Type == IsochronousTransfer)
 	{
 		/* Allocate TD */
-		Transaction->TransferDescriptorCopy = 
+		Transaction->TransferDescriptorCopy =
 			(void*)OhciAllocateTd(Request->Endpoint->AttachedData, Request->Type);
 	}
 
@@ -1406,11 +1425,15 @@ void OhciTransactionSend(void *Controller, UsbHcRequest_t *Request)
 	/* Wuhu */
 	UsbHcTransaction_t *Transaction = Request->Transactions;
 	OhciController_t *Ctrl = (OhciController_t*)Controller;
-	UsbTransferStatus_t Completed;
+	UsbTransferStatus_t Completed = TransferFinished;
 	OhciEndpointDescriptor_t *Ep = NULL;
 	OhciGTransferDescriptor_t *Td = NULL;
 	uint32_t CondCode;
 	Addr_t EdAddress;
+
+	/*************************
+	****** SETUP PHASE ******
+	*************************/
 
 	/* Cast */
 	Ep = (OhciEndpointDescriptor_t*)Request->Data;
@@ -1426,7 +1449,7 @@ void OhciTransactionSend(void *Controller, UsbHcRequest_t *Request)
 	if (Request->Type != IsochronousTransfer) {
 		CondCode = Request->Endpoint->Toggle;
 		UsbTransactionOut(UsbGetHcd(Ctrl->HcdId), Request,
-			(Request->Type == ControlTransfer) ? (uint32_t)1 : (uint32_t)0, NULL, (uint32_t)0);
+			(Request->Type == ControlTransfer) ? 1 : 0, NULL, 0);
 		Request->Endpoint->Toggle = CondCode;
 		CondCode = 0;
 	}
@@ -1447,7 +1470,7 @@ void OhciTransactionSend(void *Controller, UsbHcRequest_t *Request)
 	/* Retrieve Td */
 #ifndef _OHCI_DIAGNOSTICS_
 	Td = (OhciGTransferDescriptor_t*)Transaction->TransferDescriptor;
-	Td->Flags &= ~(X86_OHCI_TRANSFER_BUF_NO_INTERRUPT);
+	Td->Flags &= ~(OHCI_TD_NO_IOC);
 #endif
 
 	/* Initialize the allocated ED */
@@ -1455,23 +1478,24 @@ void OhciTransactionSend(void *Controller, UsbHcRequest_t *Request)
 		Request->Device->Address, Request->Endpoint->Address,
 		Request->Endpoint->MaxPacketSize, Request->Speed);
 
-	/* Now lets try the Transaction */
-	SpinlockAcquire(&Ctrl->Lock);
-
-	/* Set true */
-	Completed = TransferFinished;
-
 	/* Add this Transaction to list */
 	list_append((list_t*)Ctrl->TransactionList, list_create_node(0, Request));
 
 	/* Remove Skip */
-	Ep->Flags &= ~(X86_OHCI_EP_SKIP);
+	Ep->Flags &= ~(OHCI_EP_SKIP);
 	Ep->HeadPtr &= ~(0x1);
 
 #ifdef _OHCI_DIAGNOSTICS_
 	printf("Ed Address 0x%x, Flags 0x%x, Ed Tail 0x%x, Ed Head 0x%x, Next 0x%x\n", EdAddress, ((OhciEndpointDescriptor_t*)Request->Data)->Flags,
 		((OhciEndpointDescriptor_t*)Request->Data)->TailPtr, ((OhciEndpointDescriptor_t*)Request->Data)->HeadPtr, ((OhciEndpointDescriptor_t*)Request->Data)->NextED);
 #endif
+
+	/*************************
+	**** LINKING PHASE ******
+	*************************/
+	
+	/* Now lets try the Transaction */
+	SpinlockAcquire(&Ctrl->Lock);
 
 	/* Add them to list */
 	if (Request->Type == ControlTransfer)
@@ -1507,7 +1531,7 @@ void OhciTransactionSend(void *Controller, UsbHcRequest_t *Request)
 			Ctrl->TransactionsWaitingControl++;
 
 			/* Set Lists Filled (Enable Them) */
-			Ctrl->Registers->HcCommandStatus |= X86_OHCI_CMD_TDACTIVE_CTRL;
+			Ctrl->Registers->HcCommandStatus |= OHCI_COMMAND_CONTROL_ACTIVE;
 		}
 	}
 	else if (Request->Type == BulkTransfer)
@@ -1543,11 +1567,18 @@ void OhciTransactionSend(void *Controller, UsbHcRequest_t *Request)
 			Ctrl->TransactionsWaitingBulk++;
 
 			/* Set Lists Filled (Enable Them) */
-			Ctrl->Registers->HcCommandStatus |= X86_OHCI_CMD_TDACTIVE_BULK;
+			Ctrl->Registers->HcCommandStatus |= OHCI_COMMAND_BULK_ACTIVE;
 		}
 	}
 	else
 	{
+		/* Interrupt & Isochronous */
+
+		/* Vars */
+		OhciEndpointDescriptor_t *IEd = NULL;
+		uint32_t Period = 32;
+		int Queue = 0;
+
 		/* Update saved copies, now all is prepaired */
 		Transaction = Request->Transactions;
 		while (Transaction)
@@ -1561,12 +1592,17 @@ void OhciTransactionSend(void *Controller, UsbHcRequest_t *Request)
 			Transaction = Transaction->Link;
 		}
 
-		/* DISABLE SCHEDULLER!!! */
-		Ctrl->Registers->HcControl &= ~(X86_OCHI_CTRL_PERIODIC_LIST | X86_OHCI_CTRL_ISOCHRONOUS_LIST);
+		/* Find queue for this ED */
+		Queue = OhciCalculateQueue(Ctrl, Request->Endpoint->Interval, Ep->Bandwidth);
 
-		/* Iso / Interrupt */
-		OhciEndpointDescriptor_t *IEd;
-		uint32_t Period = 32;
+		/* Sanity */
+		assert(Queue >= 0);
+
+		/* Store */
+		Ep->HcdFlags |= OHCI_ED_SET_QUEUE(Queue);
+
+		/* DISABLE SCHEDULLER!!! */
+		Ctrl->Registers->HcControl &= ~(OHCI_CONTROL_PERIODIC_ACTIVE | OHCI_CONTROL_ISOC_ACTIVE);
 
 		/* Calculate period */
 		for (; (Period >= Request->Endpoint->Interval) && (Period > 0);)
@@ -1644,14 +1680,16 @@ void OhciTransactionSend(void *Controller, UsbHcRequest_t *Request)
 		}
 
 		/* ENABLE SCHEDULEER */
-		Ctrl->Registers->HcControl |= X86_OCHI_CTRL_PERIODIC_LIST | X86_OHCI_CTRL_ISOCHRONOUS_LIST;
-
-		/* Done */
-		SpinlockRelease(&Ctrl->Lock);
-
-		/* Skip this */
-		return;
+		Ctrl->Registers->HcControl |= OHCI_CONTROL_PERIODIC_ACTIVE | OHCI_CONTROL_ISOC_ACTIVE;
 	}
+
+	/* Release lock */
+	SpinlockRelease(&Ctrl->Lock);
+
+	/* Sanity */
+	if (Request->Type == InterruptTransfer
+		|| Request->Type == IsochronousTransfer)
+		return;
 
 	/* Wait for interrupt */
 #ifdef _OHCI_DIAGNOSTICS_
@@ -1671,16 +1709,16 @@ void OhciTransactionSend(void *Controller, UsbHcRequest_t *Request)
 	printf("Current Control 0x%x, Current Cmd 0x%x\n",
 		Ctrl->Registers->HcControl, Ctrl->Registers->HcCommandStatus);
 #else
-	/* Sleep Us */
+	/* Wait for interrupt */
 	SchedulerSleepThread((Addr_t*)Request->Data);
 
-	/* Release GlbDescriptor->Spinlock at latest possible */
-	SpinlockRelease(&Ctrl->Lock);
-
-	/* Yield us */
+	/* Yield */
 	_ThreadYield();
 #endif
 
+	/*************************
+	*** VALIDATION PHASE ****
+	*************************/
 
 	/* Check Conditions (WithOUT dummy) */
 #ifdef _OHCI_DIAGNOSTICS_
@@ -1690,8 +1728,9 @@ void OhciTransactionSend(void *Controller, UsbHcRequest_t *Request)
 	Transaction = Request->Transactions;
 	while (Transaction->Link)
 	{
+		/* Cast and get the transfer code */
 		Td = (OhciGTransferDescriptor_t*)Transaction->TransferDescriptor;
-		CondCode = (Td->Flags & 0xF0000000) >> 28;
+		CondCode = OHCI_TD_GET_CC(Td->Flags);
 #ifdef _OHCI_DIAGNOSTICS_
 		printf("Td Flags 0x%x, Cbp 0x%x, BufferEnd 0x%x, Td Condition Code %u (%s)\n", Td->Flags, Td->Cbp, Td->BufferEnd, CondCode, OhciErrorMessages[CondCode]);
 #endif
@@ -1704,6 +1743,8 @@ void OhciTransactionSend(void *Controller, UsbHcRequest_t *Request)
 				Completed = TransferStalled;
 			else if (CondCode == 3)
 				Completed = TransferInvalidToggles;
+			else if (CondCode == 2 || CondCode == 1)
+				Completed = TransferBabble;
 			else if (CondCode == 5)
 				Completed = TransferNotResponding;
 			else {
@@ -1732,10 +1773,7 @@ void OhciTransactionSend(void *Controller, UsbHcRequest_t *Request)
 		{
 			/* Copy Data? */
 			if (Transaction->IoBuffer != NULL && Transaction->IoLength != 0)
-			{
-				//printf("Buffer Copy 0x%x, Length 0x%x\n", Transaction->IoBuffer, Transaction->IoLength);
 				memcpy(Transaction->IoBuffer, Transaction->TransferBuffer, Transaction->IoLength);
-			}
 
 			/* Next Link */
 			Transaction = Transaction->Link;
@@ -1753,8 +1791,10 @@ void OhciTransactionSend(void *Controller, UsbHcRequest_t *Request)
 /* This one cleans up */
 void OhciTransactionDestroy(void *Controller, UsbHcRequest_t *Request)
 {
+	/* Vars */
 	UsbHcTransaction_t *Transaction = Request->Transactions;
 	OhciController_t *Ctrl = (OhciController_t*)Controller;
+	list_node_t *Node = NULL;
 
 	/* Unallocate Ed */
 	if (Request->Type == ControlTransfer
@@ -1783,7 +1823,7 @@ void OhciTransactionDestroy(void *Controller, UsbHcRequest_t *Request)
 		SpinlockAcquire(&Ctrl->Lock);
 
 		/* DISABLE SCHEDULLER!!! */
-		Ctrl->Registers->HcControl &= ~(X86_OCHI_CTRL_PERIODIC_LIST | X86_OHCI_CTRL_ISOCHRONOUS_LIST);
+		Ctrl->Registers->HcControl &= ~(OHCI_CONTROL_PERIODIC_ACTIVE | OHCI_CONTROL_ISOC_ACTIVE);
 
 		/* Iso / Interrupt */
 		OhciEndpointDescriptor_t *Ed = (OhciEndpointDescriptor_t*)Request->Data;
@@ -1846,7 +1886,7 @@ void OhciTransactionDestroy(void *Controller, UsbHcRequest_t *Request)
 		}
 
 		/* ENABLE SCHEDULEER */
-		Ctrl->Registers->HcControl |= X86_OCHI_CTRL_PERIODIC_LIST | X86_OHCI_CTRL_ISOCHRONOUS_LIST;
+		Ctrl->Registers->HcControl |= OHCI_CONTROL_PERIODIC_ACTIVE | OHCI_CONTROL_ISOC_ACTIVE;
 
 		/* Done */
 		SpinlockRelease(&Ctrl->Lock);
@@ -1867,6 +1907,18 @@ void OhciTransactionDestroy(void *Controller, UsbHcRequest_t *Request)
 
 		/* Free it */
 		kfree(Request->Data);
+
+		/* Remove from list */
+		_foreach(Node, ((list_t*)Ctrl->TransactionList)) {
+			if (Node->data == Request)
+				break;
+		}
+
+		/* Sanity */
+		if (Node != NULL) {
+			list_remove_by_node((list_t*)Ctrl->TransactionList, Node);
+			kfree(Node);
+		}
 	}
 }
 
@@ -1890,7 +1942,7 @@ void OhciReloadControlBulk(OhciController_t *Controller, UsbTransferType_t Trans
 				Controller->Registers->HcControlCurrentED = EdPhysical;
 
 			/* Start queue */
-			Controller->Registers->HcCommandStatus |= X86_OHCI_CMD_TDACTIVE_CTRL;
+			Controller->Registers->HcCommandStatus |= OHCI_COMMAND_CONTROL_ACTIVE;
 		}
 
 		/* Reset control queue */
@@ -1910,7 +1962,7 @@ void OhciReloadControlBulk(OhciController_t *Controller, UsbTransferType_t Trans
 				Controller->Registers->HcBulkCurrentED = EdPhysical;
 
 			/* Start queue */
-			Controller->Registers->HcCommandStatus |= X86_OHCI_CMD_TDACTIVE_BULK;
+			Controller->Registers->HcCommandStatus |= OHCI_COMMAND_BULK_ACTIVE;
 		}
 
 		/* Reset control queue */
@@ -2027,34 +2079,33 @@ void OhciProcessDoneQueue(OhciController_t *Controller, Addr_t DoneHeadAddr)
 	}
 }
 
-/* Interrupt Handler
-* Make sure that this Controller actually made the interrupt
-* as this interrupt will be shared with other OHCI's */
-int OhciInterruptHandler(void *data)
+/* Interrupt Handler */
+int OhciInterruptHandler(void *Args)
 {
 	/* Vars */
-	MCoreDevice_t *mDevice = (MCoreDevice_t*)data;
-	OhciController_t *Controller = 
-		(OhciController_t*)mDevice->Driver.Data;
+	MCoreDevice_t *mDevice = (MCoreDevice_t*)Args;
+	OhciController_t *Controller = (OhciController_t*)mDevice->Driver.Data;
 	uint32_t IntrState = 0;
 
 	/* Is this our interrupt ? */
 	if (Controller->HCCA->HeadDone != 0)
 	{
 		/* Acknowledge */
-		IntrState = X86_OHCI_INTR_HEAD_DONE;
+		IntrState = OHCI_INTR_PROCESS_HEAD;
 
 		if (Controller->HCCA->HeadDone & 0x1)
 		{
 			/* Get rest of interrupts, since head_done has halted */
-			IntrState |= (Controller->Registers->HcInterruptStatus & Controller->Registers->HcInterruptEnable);
+			IntrState |= (Controller->Registers->HcInterruptStatus 
+				& Controller->Registers->HcInterruptEnable);
 		}
 	}
 	else
 	{
 		/* Was it this Controller that made the interrupt?
 		* We only want the interrupts we have set as enabled */
-		IntrState = (Controller->Registers->HcInterruptStatus & Controller->Registers->HcInterruptEnable);
+		IntrState = (Controller->Registers->HcInterruptStatus 
+			& Controller->Registers->HcInterruptEnable);
 
 		/* Sanity */
 		if (IntrState == 0)
@@ -2062,10 +2113,10 @@ int OhciInterruptHandler(void *data)
 	}
 
 	/* Disable Interrupts */
-	Controller->Registers->HcInterruptDisable = (uint32_t)X86_OHCI_INTR_MASTER_INTR;
+	Controller->Registers->HcInterruptDisable = (uint32_t)OHCI_INTR_MASTER;
 
 	/* Fatal Error? */
-	if (IntrState & X86_OHCI_INTR_FATAL_ERROR)
+	if (IntrState & OHCI_INTR_FATAL_ERROR)
 	{
 		/* Port does not matter here */
 		UsbEventCreate(UsbGetHcd(Controller->HcdId), 0, HcdFatalEvent);
@@ -2075,83 +2126,84 @@ int OhciInterruptHandler(void *data)
 	}
 
 	/* Flag for end of frame Type interrupts */
-	if (IntrState & (X86_OHCI_INTR_SCHEDULING_OVRRN | X86_OHCI_INTR_HEAD_DONE
-		| X86_OHCI_INTR_SOF | X86_OHCI_INTR_FRAME_OVERFLOW))
-		IntrState |= X86_OHCI_INTR_MASTER_INTR;
+	if (IntrState & (OHCI_INTR_SCHEDULING_OVERRUN | OHCI_INTR_PROCESS_HEAD 
+		| OHCI_INTR_SOF | OHCI_INTR_FRAME_OVERFLOW))
+		IntrState |= OHCI_INTR_MASTER;
 
 	/* Scheduling Overrun? */
-	if (IntrState & X86_OHCI_INTR_SCHEDULING_OVRRN)
+	if (IntrState & OHCI_INTR_SCHEDULING_OVERRUN)
 	{
 		LogDebug("OHCI", "%u: Scheduling Overrun", Controller->Id);
 
 		/* Acknowledge Interrupt */
-		Controller->Registers->HcInterruptStatus = X86_OHCI_INTR_SCHEDULING_OVRRN;
-		IntrState = IntrState & ~(X86_OHCI_INTR_SCHEDULING_OVRRN);
+		Controller->Registers->HcInterruptStatus = OHCI_INTR_SCHEDULING_OVERRUN;
+		IntrState = IntrState & ~(OHCI_INTR_SCHEDULING_OVERRUN);
 	}
 
 	/* Resume Detection? */
-	if (IntrState & X86_OHCI_INTR_RESUME_DETECT)
+	if (IntrState & OHCI_INTR_RESUMEDETECT)
 	{
 		/* We must wait 20 ms before putting Controller to Operational */
 		DelayMs(20);
-		OhciSetMode(Controller, X86_OHCI_CTRL_USB_WORKING);
+		OhciSetMode(Controller, OHCI_CONTROL_ACTIVE);
 
 		/* Acknowledge Interrupt */
-		Controller->Registers->HcInterruptStatus = X86_OHCI_INTR_RESUME_DETECT;
-		IntrState = IntrState & ~(X86_OHCI_INTR_RESUME_DETECT);
+		Controller->Registers->HcInterruptStatus = OHCI_INTR_RESUMEDETECT;
+		IntrState = IntrState & ~(OHCI_INTR_RESUMEDETECT);
 	}
 
 	/* Frame Overflow
 	 * Happens when it rolls over from 0xFFFF to 0 */
-	if (IntrState & X86_OHCI_INTR_FRAME_OVERFLOW)
+	if (IntrState & OHCI_INTR_FRAME_OVERFLOW)
 	{
 		/* Acknowledge Interrupt */
-		Controller->Registers->HcInterruptStatus = X86_OHCI_INTR_FRAME_OVERFLOW;
-		IntrState = IntrState & ~(X86_OHCI_INTR_FRAME_OVERFLOW);
+		Controller->Registers->HcInterruptStatus = OHCI_INTR_FRAME_OVERFLOW;
+		IntrState = IntrState & ~(OHCI_INTR_FRAME_OVERFLOW);
 	}
 
 	/* Why yes, yes it was, wake up the Td handler thread
 	* if it was head_done_writeback */
-	if (IntrState & X86_OHCI_INTR_HEAD_DONE)
+	if (IntrState & OHCI_INTR_PROCESS_HEAD)
 	{
 		/* Wuhu, handle this! */
-		uint32_t td_address = (Controller->HCCA->HeadDone & ~(0x00000001));
+		uint32_t TdAddress = (Controller->HCCA->HeadDone & ~(0x00000001));
 
 		/* Call our processor */
-		OhciProcessDoneQueue(Controller, td_address);
+		OhciProcessDoneQueue(Controller, TdAddress);
 
 		/* Acknowledge Interrupt */
 		Controller->HCCA->HeadDone = 0;
-		Controller->Registers->HcInterruptStatus = X86_OHCI_INTR_HEAD_DONE;
-		IntrState = IntrState & ~(X86_OHCI_INTR_HEAD_DONE);
+		Controller->Registers->HcInterruptStatus = OHCI_INTR_PROCESS_HEAD;
+		IntrState = IntrState & ~(OHCI_INTR_PROCESS_HEAD);
 	}
 
 	/* Root Hub Status Change
 	* Do a Port Status check */
-	if (IntrState & X86_OHCI_INTR_ROOT_HUB_EVENT)
+	if (IntrState & OHCI_INTR_ROOTHUB_EVENT)
 	{
 		/* Port does not matter here */
 		UsbEventCreate(UsbGetHcd(Controller->HcdId), 0, HcdRootHubEvent);
 
 		/* Acknowledge Interrupt */
-		Controller->Registers->HcInterruptStatus = X86_OHCI_INTR_ROOT_HUB_EVENT;
-		IntrState = IntrState & ~(X86_OHCI_INTR_ROOT_HUB_EVENT);
+		Controller->Registers->HcInterruptStatus = OHCI_INTR_ROOTHUB_EVENT;
+		IntrState = IntrState & ~(OHCI_INTR_ROOTHUB_EVENT);
 	}
 
 	/* Start of Frame? */
-	if (IntrState & X86_OHCI_INTR_SOF)
+	if (IntrState & OHCI_INTR_SOF)
 	{
 		/* Acknowledge Interrupt */
-		Controller->Registers->HcInterruptStatus = X86_OHCI_INTR_SOF;
-		IntrState = IntrState & ~(X86_OHCI_INTR_SOF);
+		Controller->Registers->HcInterruptStatus = OHCI_INTR_SOF;
+		IntrState = IntrState & ~(OHCI_INTR_SOF);
 	}
 
 	/* Mask out remaining interrupts, we dont use them */
-	if (IntrState & ~(X86_OHCI_INTR_MASTER_INTR))
+	if (IntrState & ~(OHCI_INTR_MASTER))
 		Controller->Registers->HcInterruptDisable = IntrState;
 
 	/* Enable Interrupts */
-	Controller->Registers->HcInterruptEnable = (uint32_t)X86_OHCI_INTR_MASTER_INTR;
+	Controller->Registers->HcInterruptEnable = (uint32_t)OHCI_INTR_MASTER;
 
+	/* Done! */
 	return X86_IRQ_HANDLED;
 }

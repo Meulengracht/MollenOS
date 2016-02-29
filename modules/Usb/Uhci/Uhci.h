@@ -134,11 +134,12 @@ typedef struct _UhciTransferDescriptor
 	 * Bit 0: Allocation status */
 	uint32_t HcdFlags;
 
-	/* DMA */
+	/* Scheduling Information */
 	uint32_t PhysicalAddr;
+	uint32_t Frame;
 
 	/* Padding */
-	uint32_t Padding[2];
+	uint32_t Padding[1];
 
 } UhciTransferDescriptor_t;
 
@@ -247,7 +248,6 @@ typedef struct _UhciQueueHead
 
 /* Where shared alloc starts */
 #define UHCI_POOL_START				14
-
 #define UHCI_BANDWIDTH_PHASES		32
 
 /* Endpoint Data */
