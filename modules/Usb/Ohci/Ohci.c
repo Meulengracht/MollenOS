@@ -18,9 +18,8 @@
 *
 * MollenOS USB OHCI Controller Driver
 * Todo:
-* Isochronous Support
+* Bandwidth scheduling
 * Linux has a periodic timer event that checks if all finished td's has generated a interrupt to make sure
-* Code Review
 */
 
 /* Includes */
@@ -1577,7 +1576,7 @@ void OhciTransactionSend(void *Controller, UsbHcRequest_t *Request)
 		/* Vars */
 		OhciEndpointDescriptor_t *IEd = NULL;
 		uint32_t Period = 32;
-		int Queue = 0;
+		int Queue = 0, Index = 0;
 
 		/* Update saved copies, now all is prepaired */
 		Transaction = Request->Transactions;
@@ -1598,61 +1597,39 @@ void OhciTransactionSend(void *Controller, UsbHcRequest_t *Request)
 		/* Sanity */
 		assert(Queue >= 0);
 
-		/* Store */
-		Ep->HcdFlags |= OHCI_ED_SET_QUEUE(Queue);
-
 		/* DISABLE SCHEDULLER!!! */
 		Ctrl->Registers->HcControl &= ~(OHCI_CONTROL_PERIODIC_ACTIVE | OHCI_CONTROL_ISOC_ACTIVE);
 
 		/* Calculate period */
-		for (; (Period >= Request->Endpoint->Interval) && (Period > 0);)
-			Period >>= 1;
+		POW2(Request->Endpoint->Interval, Period);
 
+		/* Get correct period list */
 		if (Period == 1)
-		{
-			/* Isochronous List */
 			IEd = &Ctrl->IntrTable->Ms1[0];
-		}
-		else if (Period == 2)
-		{
+		else if (Period == 2) {
 			IEd = &Ctrl->IntrTable->Ms2[Ctrl->I2];
-
-			/* Increase i2 */
-			Ctrl->I2++;
-			if (Ctrl->I2 == 2)
-				Ctrl->I2 = 0;
+			Index = Ctrl->I2;
+			INCLIMIT(Ctrl->I2, 2);
 		}
-		else if (Period == 4)
-		{
+		else if (Period == 4) {
 			IEd = &Ctrl->IntrTable->Ms4[Ctrl->I4];
-
-			/* Increase i4 */
-			Ctrl->I4++;
-			if (Ctrl->I4 == 4)
-				Ctrl->I4 = 0;
+			Index = Ctrl->I4;
+			INCLIMIT(Ctrl->I4, 4);
 		}
-		else if (Period == 8)
-		{
+		else if (Period == 8) {
 			IEd = &Ctrl->IntrTable->Ms8[Ctrl->I8];
-
-			/* Increase i8 */
-			Ctrl->I8++;
-			if (Ctrl->I8 == 8)
-				Ctrl->I8 = 0;
+			Index = Ctrl->I8;
+			INCLIMIT(Ctrl->I8, 8);
 		}
-		else if (Period == 16)
-		{
+		else if (Period == 16) {
 			IEd = &Ctrl->IntrTable->Ms16[Ctrl->I16];
-
-			/* Increase i16 */
-			Ctrl->I16++;
-			if (Ctrl->I16 == 16)
-				Ctrl->I16 = 0;
+			Index = Ctrl->I16;
+			INCLIMIT(Ctrl->I16, 16);
 		}
-		else
-		{
+		else {
 			/* 32 */
 			IEd = Ctrl->ED32[Ctrl->I32];
+			Index = Ctrl->I32;
 
 			/* Insert it */
 			Ep->NextEDVirtual = (Addr_t)IEd;
@@ -1662,10 +1639,8 @@ void OhciTransactionSend(void *Controller, UsbHcRequest_t *Request)
 			Ctrl->HCCA->InterruptTable[Ctrl->I32] = EdAddress;
 			Ctrl->ED32[Ctrl->I32] = Ep;
 
-			/* Increase i32 */
-			Ctrl->I32++;
-			if (Ctrl->I32 == 32)
-				Ctrl->I32 = 0;
+			/* Inc & Done */
+			INCLIMIT(Ctrl->I32, 32);
 		}
 
 		/* Sanity */
@@ -1678,6 +1653,11 @@ void OhciTransactionSend(void *Controller, UsbHcRequest_t *Request)
 			IEd->NextED = EdAddress;
 			IEd->NextEDVirtual = (Addr_t)Ep;
 		}
+
+		/* Store ed info */
+		Ep->HcdFlags |= OHCI_ED_SET_QUEUE(Queue);
+		Ep->HcdFlags |= OHCI_ED_SET_PERIOD(Period);
+		Ep->HcdFlags |= OHCI_ED_SET_INDEX(Index);
 
 		/* ENABLE SCHEDULEER */
 		Ctrl->Registers->HcControl |= OHCI_CONTROL_PERIODIC_ACTIVE | OHCI_CONTROL_ISOC_ACTIVE;
@@ -1828,24 +1808,22 @@ void OhciTransactionDestroy(void *Controller, UsbHcRequest_t *Request)
 		/* Iso / Interrupt */
 		OhciEndpointDescriptor_t *Ed = (OhciEndpointDescriptor_t*)Request->Data;
 		OhciEndpointDescriptor_t *IEd, *PrevIEd;
-		uint32_t Period = 32;
+		uint32_t Period = OHCI_ED_GET_PERIOD(Ed->HcdFlags);
+		int Index = OHCI_ED_GET_INDEX(Ed->HcdFlags);
 
-		/* Calculate period */
-		for (; (Period >= Request->Endpoint->Interval) && (Period > 0);)
-			Period >>= 1;
-
+		/* Get correct queue */
 		if (Period == 1)
-			IEd = &Ctrl->IntrTable->Ms1[0];
+			IEd = &Ctrl->IntrTable->Ms1[Index];
 		else if (Period == 2)
-			IEd = &Ctrl->IntrTable->Ms2[0];
+			IEd = &Ctrl->IntrTable->Ms2[Index];
 		else if (Period == 4)
-			IEd = &Ctrl->IntrTable->Ms4[0];
+			IEd = &Ctrl->IntrTable->Ms4[Index];
 		else if (Period == 8)
-			IEd = &Ctrl->IntrTable->Ms8[0];
+			IEd = &Ctrl->IntrTable->Ms8[Index];
 		else if (Period == 16)
-			IEd = &Ctrl->IntrTable->Ms16[0];
+			IEd = &Ctrl->IntrTable->Ms16[Index];
 		else
-			IEd = Ctrl->ED32[0];
+			IEd = Ctrl->ED32[Index];
 
 		/* Iterate */
 		PrevIEd = NULL;
@@ -1874,8 +1852,8 @@ void OhciTransactionDestroy(void *Controller, UsbHcRequest_t *Request)
 				&& Period == 32)
 			{
 				/* Only special case for 32 period */
-				Ctrl->ED32[0] = (OhciEndpointDescriptor_t*)Ed->NextEDVirtual;
-				Ctrl->HCCA->InterruptTable[0] = Ed->NextED;
+				Ctrl->ED32[Index] = (OhciEndpointDescriptor_t*)Ed->NextEDVirtual;
+				Ctrl->HCCA->InterruptTable[Index] = Ed->NextED;
 			}
 			else if (PrevIEd != NULL)
 			{

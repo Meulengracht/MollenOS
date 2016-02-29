@@ -172,6 +172,8 @@ _CRT_EXPORT void kernel_panic(const char *str);
 #define MIN(a,b) (((a)<(b))?(a):(b))
 #define MAX(a,b) (((a)>(b))?(a):(b))
 #define DIVUP(a, b) ((a / b) + (((a % b) > 0) ? 1 : 0))
+#define POW2(a, out) for (; (a) && (out > 0);) out >>= 1;
+#define INCLIMIT(i, limit) i++; if (i == limit) i = 0;
 
 /* Architecture Memory Layout, this
  * gives you an idea how memory layout

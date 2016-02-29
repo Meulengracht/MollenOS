@@ -73,7 +73,9 @@ typedef struct _OhciEndpointDescriptor
 
 	/* Bit Flags 
 	 * Bit 0: Allocated
-	 * Bit 1-7: Queue Number */
+	 * Bit 1-7: Queue Number 
+	 * Bit 8-15: Period
+	 * Bit 16-23: Index */
 	uint32_t HcdFlags;
 
 } OhciEndpointDescriptor_t;
@@ -94,9 +96,18 @@ typedef struct _OhciEndpointDescriptor
 #define OHCI_EP_TYPE(n)				(((uint32_t)n & 0xF) << 27)
 
 #define OHCI_ED_ALLOCATED			(1 << 0)
+
 #define OHCI_ED_SET_QUEUE(n)		((n << 1) & 0xFE)	
 #define OHCI_ED_CLR_QUEUE(n)		(n & 0xFFFFFF01)
 #define OHCI_ED_GET_QUEUE(n)		((n & 0xFE) >> 1)
+
+#define OHCI_ED_SET_PERIOD(n)		((n << 8) & 0xFF00)	
+#define OHCI_ED_CLR_PERIOD(n)		(n & 0xFFFF00FF)
+#define OHCI_ED_GET_PERIOD(n)		((n & 0xFF00) >> 8)
+
+#define OHCI_ED_SET_INDEX(n)		((n << 16) & 0xFF0000)	
+#define OHCI_ED_CLR_INDEX(n)		(n & 0xFF00FFFF)
+#define OHCI_ED_GET_INDEX(n)		((n & 0xFF0000) >> 16)
 
 /* Must be 16 byte aligned 
  * General Transfer Descriptor */
@@ -237,20 +248,20 @@ typedef struct _OhciRegisters
 } OhciRegisters_t;
 
 /* Bit Defintions */
-#define OHCI_REVISION				0x10
-#define OHCI_REVISION_11			0x11
+#define OHCI_REVISION					0x10
+#define OHCI_REVISION_11				0x11
 
-#define OHCI_COMMAND_RESET			(1 << 0)
-#define OHCI_COMMAND_CONTROL_ACTIVE	(1 << 1)
-#define OHCI_COMMAND_BULK_ACTIVE	(1 << 2)
-#define OHCI_COMMAND_OWNERSHIP		(1 << 3)
+#define OHCI_COMMAND_RESET				(1 << 0)
+#define OHCI_COMMAND_CONTROL_ACTIVE		(1 << 1)
+#define OHCI_COMMAND_BULK_ACTIVE		(1 << 2)
+#define OHCI_COMMAND_OWNERSHIP			(1 << 3)
 
-#define X86_OHCI_CTRL_ENABLE_QUEUES	0x3C
+#define OHCI_CONTROL_ALL_QUEUES			0x3C
 
-#define X86_OHCI_CTRL_USB_RESET		0x0
-#define X86_OHCI_CTRL_USB_RESUME	0x40
-#define OHCI_CONTROL_ACTIVE			0x80
-#define OHCI_CONTROL_SUSPEND		0xC0
+#define OHCI_CONTROL_RESET				0x0
+#define OHCI_CONTROL_RESUME				0x40
+#define OHCI_CONTROL_ACTIVE				0x80
+#define OHCI_CONTROL_SUSPEND			0xC0
 
 #define OHCI_FMINTERVAL_FI				0x2EDF
 #define OHCI_FMINTERVAL_FIMASK			0x3FFF
@@ -278,14 +289,10 @@ typedef struct _OhciRegisters
 #define OHCI_INTR_OWNERSHIP_EVENT		0x40000000
 #define OHCI_INTR_MASTER				0x80000000
 
-#define X86_OHCI_MAX_PACKET_SIZE_BITS	0x7FFF0000
-#define X86_OHCI_FRMV_FRT				(1 << 31)
-
 #define OHCI_DESCRIPTORA_DEVICETYPE		(1 << 10)
 
 #define OHCI_STATUS_POWER_ENABLED		(1 << 16)
 
-#define X86_OHCI_PORT_DISABLE			0x1
 #define OHCI_PORT_CONNECTED				0x1
 #define OHCI_PORT_ENABLED				(1 << 1)
 #define OHCI_PORT_SUSPENDED				(1 << 2)
