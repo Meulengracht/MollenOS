@@ -208,7 +208,8 @@ void PmStartProcess(void *Args)
 	Process->Heap = HeapCreate(MEMORY_LOCATION_USER_HEAP, 1);
 
 	/* Map in arguments */
-	AddressSpaceMap(AddressSpaceGetCurrent(), MEMORY_LOCATION_USER_ARGS, PAGE_SIZE, ADDRESS_SPACE_FLAG_USER);
+	AddressSpaceMap(AddressSpaceGetCurrent(), 
+		MEMORY_LOCATION_USER_ARGS, PAGE_SIZE, ADDRESS_SPACE_FLAG_USER);
 
 	/* Copy arguments */
 	memcpy((void*)MEMORY_LOCATION_USER_ARGS,
@@ -362,8 +363,46 @@ void PmTerminateProcess(MCoreProcess_t *Process)
 	SchedulerWakeupAllThreads((Addr_t*)pNode->data);
 }
 
+/* Cleans a process and it's resources */
+void PmCleanupProcess(MCoreProcess_t *Process)
+{
+	/* Cleanup Strings */
+	MStringDestroy(Process->Name);
+	MStringDestroy(Process->Arguments);
+	MStringDestroy(Process->WorkingDirectory);
+
+	/* Destroy Pipe */
+	PipeDestroy(Process->Pipe);
+
+	/* Clean heap */
+	kfree(Process->Heap);
+
+	/* Cleanup executable data */
+	
+
+	/* Rest of memory is cleaned during 
+	 * address space cleanup */
+	kfree(Process);
+}
+
 /* Cleans up all the unused processes */
 void PmReapZombies(void)
 {
+	/* Reap untill list is empty */
+	list_node_t *tNode = list_pop_front(GlbZombieProcesses);
 
+	while (tNode != NULL)
+	{
+		/* Cast */
+		MCoreProcess_t *Process = (MCoreProcess_t*)tNode->data;
+
+		/* Clean it up */
+		PmCleanupProcess(Process);
+
+		/* Clean up rest */
+		kfree(tNode);
+
+		/* Get next node */
+		tNode = list_pop_front(GlbZombieProcesses);
+	}
 }

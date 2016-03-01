@@ -21,11 +21,18 @@
       <UniqueIdentifier>{1def7533-f2ed-4d8a-a93a-0d2af4fd75cc}</UniqueIdentifier>
       <Extensions>*.vgdbsettings</Extensions>
     </Filter>
-  </ItemGroup>
-  <ItemGroup>
-    <ClInclude Include="LibC.h">
-      <Filter>Header files</Filter>
-    </ClInclude>
+    <Filter Include="Header files\Std">
+      <UniqueIdentifier>{41a09a0b-7eb5-46b0-b700-b1f4fb43bbf3}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source files\String">
+      <UniqueIdentifier>{f1d07177-6879-4747-9a37-95b6450f8c1a}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source files\CType">
+      <UniqueIdentifier>{f5082106-dd91-45bf-88fe-31e39d1fec9c}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source files\String\Asm">
+      <UniqueIdentifier>{9e89d637-c383-49a8-9a9c-02357c380b9d}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <None Include="Makefile" />
@@ -41,10 +48,354 @@
     <None Include="LibC-Release.vgdbsettings">
       <Filter>VisualGDB settings</Filter>
     </None>
+    <None Include="..\..\include\module.modulemap">
+      <Filter>Header files\Std</Filter>
+    </None>
+    <None Include="..\..\..\src\string\memcpy_acc.s">
+      <Filter>Source files\String\Asm</Filter>
+    </None>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="LibC.c">
-      <Filter>Source files</Filter>
+    <ClInclude Include="..\..\include\__clang_cuda_cmath.h">
+      <Filter>Header files\Std</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\__clang_cuda_runtime_wrapper.h">
+      <Filter>Header files\Std</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\__stddef_max_align_t.h">
+      <Filter>Header files\Std</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\__wmmintrin_aes.h">
+      <Filter>Header files\Std</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\__wmmintrin_pclmul.h">
+      <Filter>Header files\Std</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\adxintrin.h">
+      <Filter>Header files\Std</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\altivec.h">
+      <Filter>Header files\Std</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\ammintrin.h">
+      <Filter>Header files\Std</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\arm_acle.h">
+      <Filter>Header files\Std</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\arm_neon.h">
+      <Filter>Header files\Std</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\avx2intrin.h">
+      <Filter>Header files\Std</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\avx512bwintrin.h">
+      <Filter>Header files\Std</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\avx512cdintrin.h">
+      <Filter>Header files\Std</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\avx512dqintrin.h">
+      <Filter>Header files\Std</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\avx512erintrin.h">
+      <Filter>Header files\Std</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\avx512fintrin.h">
+      <Filter>Header files\Std</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\avx512vlbwintrin.h">
+      <Filter>Header files\Std</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\avx512vldqintrin.h">
+      <Filter>Header files\Std</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\avx512vlintrin.h">
+      <Filter>Header files\Std</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\avxintrin.h">
+      <Filter>Header files\Std</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\bmi2intrin.h">
+      <Filter>Header files\Std</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\bmiintrin.h">
+      <Filter>Header files\Std</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\cpuid.h">
+      <Filter>Header files\Std</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\cuda_builtin_vars.h">
+      <Filter>Header files\Std</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\emmintrin.h">
+      <Filter>Header files\Std</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\f16cintrin.h">
+      <Filter>Header files\Std</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\float.h">
+      <Filter>Header files\Std</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\fma4intrin.h">
+      <Filter>Header files\Std</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\fmaintrin.h">
+      <Filter>Header files\Std</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\fxsrintrin.h">
+      <Filter>Header files\Std</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\htmintrin.h">
+      <Filter>Header files\Std</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\htmxlintrin.h">
+      <Filter>Header files\Std</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\ia32intrin.h">
+      <Filter>Header files\Std</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\immintrin.h">
+      <Filter>Header files\Std</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\Intrin.h">
+      <Filter>Header files\Std</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\inttypes.h">
+      <Filter>Header files\Std</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\iso646.h">
+      <Filter>Header files\Std</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\limits.h">
+      <Filter>Header files\Std</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\lzcntintrin.h">
+      <Filter>Header files\Std</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\mm_malloc.h">
+      <Filter>Header files\Std</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\mm3dnow.h">
+      <Filter>Header files\Std</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\mmintrin.h">
+      <Filter>Header files\Std</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\nmmintrin.h">
+      <Filter>Header files\Std</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\pkuintrin.h">
+      <Filter>Header files\Std</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\pmmintrin.h">
+      <Filter>Header files\Std</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\popcntintrin.h">
+      <Filter>Header files\Std</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\prfchwintrin.h">
+      <Filter>Header files\Std</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\rdseedintrin.h">
+      <Filter>Header files\Std</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\rtmintrin.h">
+      <Filter>Header files\Std</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\s390intrin.h">
+      <Filter>Header files\Std</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\shaintrin.h">
+      <Filter>Header files\Std</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\smmintrin.h">
+      <Filter>Header files\Std</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\stdalign.h">
+      <Filter>Header files\Std</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\stdarg.h">
+      <Filter>Header files\Std</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\stdatomic.h">
+      <Filter>Header files\Std</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\stdbool.h">
+      <Filter>Header files\Std</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\stddef.h">
+      <Filter>Header files\Std</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\stdint.h">
+      <Filter>Header files\Std</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\stdnoreturn.h">
+      <Filter>Header files\Std</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\tbmintrin.h">
+      <Filter>Header files\Std</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\tgmath.h">
+      <Filter>Header files\Std</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\tmmintrin.h">
+      <Filter>Header files\Std</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\unwind.h">
+      <Filter>Header files\Std</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\vadefs.h">
+      <Filter>Header files\Std</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\varargs.h">
+      <Filter>Header files\Std</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\vecintrin.h">
+      <Filter>Header files\Std</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\wmmintrin.h">
+      <Filter>Header files\Std</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\x86intrin.h">
+      <Filter>Header files\Std</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\xmmintrin.h">
+      <Filter>Header files\Std</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\xopintrin.h">
+      <Filter>Header files\Std</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\xsavecintrin.h">
+      <Filter>Header files\Std</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\xsaveintrin.h">
+      <Filter>Header files\Std</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\xsaveoptintrin.h">
+      <Filter>Header files\Std</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\xsavesintrin.h">
+      <Filter>Header files\Std</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\xtestintrin.h">
+      <Filter>Header files\Std</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\src\string\str-two-way.h">
+      <Filter>Source files\String</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="..\..\..\src\string\atof.c">
+      <Filter>Source files\String</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\src\string\atoi64.c">
+      <Filter>Source files\String</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\src\string\atol.c">
+      <Filter>Source files\String</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\src\string\itoa.c">
+      <Filter>Source files\String</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\src\string\memchr.c">
+      <Filter>Source files\String</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\src\string\memcmp.c">
+      <Filter>Source files\String</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\src\string\memcpy.c">
+      <Filter>Source files\String</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\src\string\memmove.c">
+      <Filter>Source files\String</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\src\string\memset.c">
+      <Filter>Source files\String</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\src\string\strcasecmp.c">
+      <Filter>Source files\String</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\src\string\strcat.c">
+      <Filter>Source files\String</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\src\string\strchr.c">
+      <Filter>Source files\String</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\src\string\strcmp.c">
+      <Filter>Source files\String</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\src\string\strcoll.c">
+      <Filter>Source files\String</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\src\string\strcpy.c">
+      <Filter>Source files\String</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\src\string\strcspn.c">
+      <Filter>Source files\String</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\src\string\strdup.c">
+      <Filter>Source files\String</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\src\string\strlen.c">
+      <Filter>Source files\String</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\src\string\strncasecmp.c">
+      <Filter>Source files\String</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\src\string\strncat.c">
+      <Filter>Source files\String</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\src\string\strncmp.c">
+      <Filter>Source files\String</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\src\string\strncpy.c">
+      <Filter>Source files\String</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\src\string\strpbrk.c">
+      <Filter>Source files\String</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\src\string\strrchr.c">
+      <Filter>Source files\String</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\src\string\strspn.c">
+      <Filter>Source files\String</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\src\string\strstr.c">
+      <Filter>Source files\String</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\src\string\strtod.c">
+      <Filter>Source files\String</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\src\string\strtof.c">
+      <Filter>Source files\String</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\src\string\strtoi64.c">
+      <Filter>Source files\String</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\src\string\strtok.c">
+      <Filter>Source files\String</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\src\string\strtol.c">
+      <Filter>Source files\String</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\src\string\strtold.c">
+      <Filter>Source files\String</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\src\string\strtoul.c">
+      <Filter>Source files\String</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\src\string\strtoull.c">
+      <Filter>Source files\String</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\src\string\strxfrm.c">
+      <Filter>Source files\String</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\src\string\wcsnlen.c">
+      <Filter>Source files\String</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\src\ctype\ctype.c">
+      <Filter>Source files\CType</Filter>
     </ClCompile>
   </ItemGroup>
 </Project>

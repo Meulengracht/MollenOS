@@ -174,7 +174,7 @@ void PitSleep(void *Device, size_t MilliSeconds)
 
 	/* While */
 	while (TickEnd > PitGetClocks(Device))
-		_ThreadYield();
+		IThreadYield();
 }
 
 /* Stall for ms */

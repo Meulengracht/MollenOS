@@ -1637,7 +1637,7 @@ void UhciTransactionSend(void *Controller, UsbHcRequest_t *Request)
 	SchedulerSleepThread((Addr_t*)Request->Data);
 
 	/* Yield */
-	_ThreadYield();
+	IThreadYield();
 #else
 	/* Wait */
 	StallMs(100);

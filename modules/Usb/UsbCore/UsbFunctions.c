@@ -688,7 +688,7 @@ UsbTransferStatus_t UsbFunctionGetStringDescriptor(UsbHc_t *Hc,
 	Request.Packet.Direction = USB_REQUEST_DIR_IN;
 	Request.Packet.Type = USB_REQUEST_GET_DESC;
 	Request.Packet.ValueHi = USB_DESC_TYPE_STRING;
-	Request.Packet.ValueLo = (uint16_t)StringIndex;
+	Request.Packet.ValueLo = (uint8_t)StringIndex;
 	Request.Packet.Index = (uint16_t)LanguageId;
 	Request.Packet.Length = 64;
 
@@ -708,7 +708,8 @@ UsbTransferStatus_t UsbFunctionGetStringDescriptor(UsbHc_t *Hc,
 	if (Request.Status == TransferFinished)
 	{
 		/* Convert to Utf8 */
-		size_t StringLength = (*((uint8_t*)TempBuffer + 1) - 2);
+		//size_t StringLength = (*((uint8_t*)TempBuffer + 1) - 2);
+		_CRT_UNUSED(StrBuffer);
 
 		/* Create a MString */
 	}

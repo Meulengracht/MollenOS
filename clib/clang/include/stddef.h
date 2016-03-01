@@ -87,7 +87,9 @@ typedef __SIZE_TYPE__ rsize_t;
 #define _WCHAR_T_DEFINED
 #endif
 #endif
+#ifndef __WCHAR_TYPE__
 typedef __WCHAR_TYPE__ wchar_t;
+#endif
 #endif
 #endif
 #undef __need_wchar_t

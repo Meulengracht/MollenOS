@@ -6,7 +6,7 @@ BINARYDIR := Release
 
 #Toolchain
 CC := C:/Users/Philip/Desktop/MollenOS/Bin/Compiler/bin/clang-cl.exe
-CXX := $(CC)
+CXX := C:/Users/Philip/Desktop/MollenOS/Bin/Compiler/bin/clang++.exe
 LD := C:/Users/Philip/Desktop/MollenOS/Bin/Compiler/bin/lld-link.exe
 AR := C:/Users/Philip/Desktop/MollenOS/Bin/Compiler/bin/llvm-ar.exe
 OBJCOPY := C:/Qt/Tools/mingw491_32/bin/objcopy.exe
@@ -20,8 +20,8 @@ ADDITIONAL_LINKER_INPUTS :=
 MACOS_FRAMEWORKS := 
 LINUX_PACKAGES := 
 
-CFLAGS := -O3
-CXXFLAGS := -O3
+CFLAGS := -O3 -target i686-win32 -ffreestanding -fno-builtin -nostdlib
+CXXFLAGS := -O3 -target i686-win32 -nostdinc++ -ffreestanding -fno-builtin -nostdlib
 ASFLAGS := 
 LDFLAGS := /MACHINE:X86 /SUBSYSTEM:NATIVE /NODEFAULTLIB /ENTRY:"LibCTest"
 COMMONFLAGS := 

@@ -101,7 +101,7 @@ void RtcSleep(void *Device, size_t MilliSeconds)
 
 	/* While */
 	while (TickEnd >= RtcGetClocks(Device))
-		_ThreadYield();
+		IThreadYield();
 }
 
 /* Stall for ms */

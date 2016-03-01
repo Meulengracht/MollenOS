@@ -3,10 +3,13 @@
  *     Copying
  */
 
+/* Includes */
 #include <string.h>
 #include <stdint.h>
 #include <internal/_string.h>
+#include <cpuid.h>
 
+/* Definitions CPUID */
 #define CPUID_FEAT_EDX_MMX      1 << 23
 #define CPUID_FEAT_EDX_SSE		1 << 25
 
@@ -14,129 +17,33 @@
 uint32_t CpuFeatEcx = 0;
 uint32_t CpuFeatEdx = 0;
 
+/* ASM Externs */
+extern void asm_memcpy_mmx(void *Dest, const void *Source, int Loops, int RemainingBytes);
+extern void asm_memcpy_sse(void *Dest, const void *Source, int Loops, int RemainingBytes);
+
 void* memcpy_sse(void *destination, const void *source, size_t count)
 {
-	/* Pointers */
-	uint32_t *Dest = (uint32_t*)destination;
-	uint32_t *Source = (uint32_t*)source;
-	
 	/* Loop Count */
 	uint32_t SseLoops = count / 16;
 	uint32_t mBytes = count % 16;
 
-	/* Assembly Train */
-	_asm 
-	{
-		/* Setup Registers / Loop Prologue */
-		pushad
-		mov		edi, [Dest]
-		mov		esi, [Source]
-		mov		ecx, [SseLoops]
-		test	ecx, ecx
-		je		SseRemain
-
-		/* Test if buffers are 16 byte aligned */
-		test si, 0xF
-		jne UnalignedLoop
-		test di, 0xF
-		jne UnalignedLoop
-
-	/* Aligned Loop */
-	AlignedLoop:
-		movaps	xmm0, [esi]
-		movaps	[edi], xmm0
-
-		/* Increase Pointers */
-		add esi, 16
-		add edi, 16
-
-		/* Loop Epilogue */
-		dec	ecx							      
-		jnz AlignedLoop
-		jmp	SseDone
+	/* Call asm */
+	asm_memcpy_sse(destination, source, SseLoops, mBytes);
 	
-	/* Unaligned Loop */
-	UnalignedLoop:
-		movups	xmm0, [esi]
-		movups	[edi], xmm0
-
-		/* Increase Pointers */
-		add esi, 16
-		add edi, 16
-
-		/* Loop Epilogue */
-		dec	ecx							      
-		jnz UnalignedLoop
-
-	SseDone:
-		/* Done, cleanup MMX */
-		emms
-
-		/* Remainders */
-	SseRemain:
-		mov ecx, [mBytes]
-		test ecx, ecx
-		je CpyDone
-
-		/* Esi and Edi are already setup */
-		rep movsb
-
-	CpyDone:
-		popad
-	}
-
+	/* Done */
 	return destination;
 }
 
 void* memcpy_mmx(void *destination, const void *source, size_t count)
 {
-	/* Pointers */
-	uint32_t *Dest = (uint32_t*)destination;
-	uint32_t *Source = (uint32_t*)source;
-
 	/* Loop Count */
 	uint32_t MmxLoops = count / 8;
 	uint32_t mBytes = count % 8;
 
-	/* Assembly Train */
-	_asm 
-	{
-		/* Setup Registers / Loop Prologue */
-		pushad
-		mov		edi, [Dest]
-		mov		esi, [Source]
-		mov		ecx, [MmxLoops]
-		test	ecx, ecx
-		je		MmxRemain
+	/* Call asm */
+	asm_memcpy_mmx(destination, source, MmxLoops, mBytes);
 
-	MmxLoop:
-		movq	mm0, [esi]
-		movq	[edi], mm0
-
-		/* Increase Pointers */
-		add esi, 8
-		add edi, 8
-
-		/* Loop Epilogue */
-		dec	ecx							      
-		jnz MmxLoop
-
-		/* Done, cleanup MMX */
-		emms
-
-		/* Remainders */
-	MmxRemain:
-		mov ecx, [mBytes]
-		test ecx, ecx
-		je MmxDone
-
-		/* Esi and Edi are already setup */
-		rep movsb
-
-	MmxDone:
-		popad
-	}
-
+	/* Done */
 	return destination;
 }
 
@@ -146,12 +53,8 @@ void* memcpy(void *destination, const void *source, size_t count)
 	/* Sanity */
 	if(CpuFeatEcx == 0 && CpuFeatEdx == 0)
 	{
-		_asm {
-			mov	eax, 1
-			cpuid
-			mov	[CpuFeatEcx], ecx
-			mov	[CpuFeatEdx], edx
-		}
+		int unused = 0;
+		__cpuid(1, unused, unused, CpuFeatEcx, CpuFeatEdx);
 	}
 
 	//Can we use SSE?

@@ -35,7 +35,7 @@ error:
 	$(error Invalid configuration, please check your inputs)
 endif
 
-SOURCEFILES := LibC.c
+SOURCEFILES := ../../../src/string/memcpy_acc.s ../../../src/ctype/ctype.c ../../../src/string/atof.c ../../../src/string/atoi64.c ../../../src/string/atol.c ../../../src/string/itoa.c ../../../src/string/memchr.c ../../../src/string/memcmp.c ../../../src/string/memcpy.c ../../../src/string/memmove.c ../../../src/string/memset.c ../../../src/string/strcasecmp.c ../../../src/string/strcat.c ../../../src/string/strchr.c ../../../src/string/strcmp.c ../../../src/string/strcoll.c ../../../src/string/strcpy.c ../../../src/string/strcspn.c ../../../src/string/strdup.c ../../../src/string/strlen.c ../../../src/string/strncasecmp.c ../../../src/string/strncat.c ../../../src/string/strncmp.c ../../../src/string/strncpy.c ../../../src/string/strpbrk.c ../../../src/string/strrchr.c ../../../src/string/strspn.c ../../../src/string/strstr.c ../../../src/string/strtod.c ../../../src/string/strtof.c ../../../src/string/strtoi64.c ../../../src/string/strtok.c ../../../src/string/strtol.c ../../../src/string/strtold.c ../../../src/string/strtoul.c ../../../src/string/strtoull.c ../../../src/string/strxfrm.c ../../../src/string/wcsnlen.c
 EXTERNAL_LIBS := 
 EXTERNAL_LIBS_COPIED := $(foreach lib, $(EXTERNAL_LIBS),$(BINARYDIR)/$(notdir $(lib)))
 
@@ -137,9 +137,10 @@ $(BINARYDIR)/$(TARGETNAME): $(all_objs) $(EXTERNAL_LIBS)
 	$(LD) /OUT:"$@" $(LDFLAGS) $(START_GROUP) $(all_objs) $(LIBRARY_LDFLAGS) $(END_GROUP)
 endif
 
+#$(LD) /DLL /OUT:"$@" $(LDFLAGS) $(START_GROUP) $(all_objs) $(LIBRARY_LDFLAGS) $(END_GROUP)
 ifeq ($(TARGETTYPE),SHARED)
 $(BINARYDIR)/$(TARGETNAME): $(all_objs) $(EXTERNAL_LIBS)
-	$(LD) /DLL /OUT:"$@" $(LDFLAGS) $(START_GROUP) $(all_objs) $(LIBRARY_LDFLAGS) $(END_GROUP)
+	$(LD) -shared -o $@ $(LDFLAGS) $(START_GROUP) $(all_objs) $(LIBRARY_LDFLAGS) $(END_GROUP)
 endif
 	
 ifeq ($(TARGETTYPE),STATIC)
@@ -167,10 +168,10 @@ $(BINARYDIR)/%.o : %.c $(all_make_files) |$(BINARYDIR)
 	$(CC) $(CFLAGS) -c $< -o $@ -MD 
 
 $(BINARYDIR)/%.o : %.S $(all_make_files) |$(BINARYDIR)
-	$(CC) $(CFLAGS) $(ASFLAGS) -c $< -o $@ -MD
+	$(AS) $(ASFLAGS) $< -o $@
 
 $(BINARYDIR)/%.o : %.s $(all_make_files) |$(BINARYDIR)
-	$(CC) $(CFLAGS) $(ASFLAGS) -c $< -o $@ -MD
+	$(AS) $(ASFLAGS) $< -o $@
 
 $(BINARYDIR)/%.o : %.cc $(all_make_files) |$(BINARYDIR)
 	$(CC) $(CFLAGS) $(CXXFLAGS) -c $< -o $@ -MD
@@ -179,3 +180,156 @@ $(BINARYDIR)/%.o : %.cxx $(all_make_files) |$(BINARYDIR)
 	$(CC) $(CFLAGS) $(CXXFLAGS) -c $< -o $@ -MD
 
 #VisualGDB: GeneratedRules				#<--- All lines below are auto-generated
+
+
+$(BINARYDIR)/memcpy_acc.o : ../../../src/string/memcpy_acc.s $(all_make_files) |$(BINARYDIR)
+	$(AS) $(ASFLAGS) $< -o $@
+
+
+$(BINARYDIR)/ctype.o : ../../../src/ctype/ctype.c $(all_make_files) |$(BINARYDIR)
+	$(CC) $(CFLAGS) -c $< -o $@ -MD 
+
+
+$(BINARYDIR)/atof.o : ../../../src/string/atof.c $(all_make_files) |$(BINARYDIR)
+	$(CC) $(CFLAGS) -c $< -o $@ -MD 
+
+
+$(BINARYDIR)/atoi64.o : ../../../src/string/atoi64.c $(all_make_files) |$(BINARYDIR)
+	$(CC) $(CFLAGS) -c $< -o $@ -MD 
+
+
+$(BINARYDIR)/atol.o : ../../../src/string/atol.c $(all_make_files) |$(BINARYDIR)
+	$(CC) $(CFLAGS) -c $< -o $@ -MD 
+
+
+$(BINARYDIR)/itoa.o : ../../../src/string/itoa.c $(all_make_files) |$(BINARYDIR)
+	$(CC) $(CFLAGS) -c $< -o $@ -MD 
+
+
+$(BINARYDIR)/memchr.o : ../../../src/string/memchr.c $(all_make_files) |$(BINARYDIR)
+	$(CC) $(CFLAGS) -c $< -o $@ -MD 
+
+
+$(BINARYDIR)/memcmp.o : ../../../src/string/memcmp.c $(all_make_files) |$(BINARYDIR)
+	$(CC) $(CFLAGS) -c $< -o $@ -MD 
+
+
+$(BINARYDIR)/memcpy.o : ../../../src/string/memcpy.c $(all_make_files) |$(BINARYDIR)
+	$(CC) $(CFLAGS) -c $< -o $@ -MD 
+
+
+$(BINARYDIR)/memmove.o : ../../../src/string/memmove.c $(all_make_files) |$(BINARYDIR)
+	$(CC) $(CFLAGS) -c $< -o $@ -MD 
+
+
+$(BINARYDIR)/memset.o : ../../../src/string/memset.c $(all_make_files) |$(BINARYDIR)
+	$(CC) $(CFLAGS) -c $< -o $@ -MD 
+
+
+$(BINARYDIR)/strcasecmp.o : ../../../src/string/strcasecmp.c $(all_make_files) |$(BINARYDIR)
+	$(CC) $(CFLAGS) -c $< -o $@ -MD 
+
+
+$(BINARYDIR)/strcat.o : ../../../src/string/strcat.c $(all_make_files) |$(BINARYDIR)
+	$(CC) $(CFLAGS) -c $< -o $@ -MD 
+
+
+$(BINARYDIR)/strchr.o : ../../../src/string/strchr.c $(all_make_files) |$(BINARYDIR)
+	$(CC) $(CFLAGS) -c $< -o $@ -MD 
+
+
+$(BINARYDIR)/strcmp.o : ../../../src/string/strcmp.c $(all_make_files) |$(BINARYDIR)
+	$(CC) $(CFLAGS) -c $< -o $@ -MD 
+
+
+$(BINARYDIR)/strcoll.o : ../../../src/string/strcoll.c $(all_make_files) |$(BINARYDIR)
+	$(CC) $(CFLAGS) -c $< -o $@ -MD 
+
+
+$(BINARYDIR)/strcpy.o : ../../../src/string/strcpy.c $(all_make_files) |$(BINARYDIR)
+	$(CC) $(CFLAGS) -c $< -o $@ -MD 
+
+
+$(BINARYDIR)/strcspn.o : ../../../src/string/strcspn.c $(all_make_files) |$(BINARYDIR)
+	$(CC) $(CFLAGS) -c $< -o $@ -MD 
+
+
+$(BINARYDIR)/strdup.o : ../../../src/string/strdup.c $(all_make_files) |$(BINARYDIR)
+	$(CC) $(CFLAGS) -c $< -o $@ -MD 
+
+
+$(BINARYDIR)/strlen.o : ../../../src/string/strlen.c $(all_make_files) |$(BINARYDIR)
+	$(CC) $(CFLAGS) -c $< -o $@ -MD 
+
+
+$(BINARYDIR)/strncasecmp.o : ../../../src/string/strncasecmp.c $(all_make_files) |$(BINARYDIR)
+	$(CC) $(CFLAGS) -c $< -o $@ -MD 
+
+
+$(BINARYDIR)/strncat.o : ../../../src/string/strncat.c $(all_make_files) |$(BINARYDIR)
+	$(CC) $(CFLAGS) -c $< -o $@ -MD 
+
+
+$(BINARYDIR)/strncmp.o : ../../../src/string/strncmp.c $(all_make_files) |$(BINARYDIR)
+	$(CC) $(CFLAGS) -c $< -o $@ -MD 
+
+
+$(BINARYDIR)/strncpy.o : ../../../src/string/strncpy.c $(all_make_files) |$(BINARYDIR)
+	$(CC) $(CFLAGS) -c $< -o $@ -MD 
+
+
+$(BINARYDIR)/strpbrk.o : ../../../src/string/strpbrk.c $(all_make_files) |$(BINARYDIR)
+	$(CC) $(CFLAGS) -c $< -o $@ -MD 
+
+
+$(BINARYDIR)/strrchr.o : ../../../src/string/strrchr.c $(all_make_files) |$(BINARYDIR)
+	$(CC) $(CFLAGS) -c $< -o $@ -MD 
+
+
+$(BINARYDIR)/strspn.o : ../../../src/string/strspn.c $(all_make_files) |$(BINARYDIR)
+	$(CC) $(CFLAGS) -c $< -o $@ -MD 
+
+
+$(BINARYDIR)/strstr.o : ../../../src/string/strstr.c $(all_make_files) |$(BINARYDIR)
+	$(CC) $(CFLAGS) -c $< -o $@ -MD 
+
+
+$(BINARYDIR)/strtod.o : ../../../src/string/strtod.c $(all_make_files) |$(BINARYDIR)
+	$(CC) $(CFLAGS) -c $< -o $@ -MD 
+
+
+$(BINARYDIR)/strtof.o : ../../../src/string/strtof.c $(all_make_files) |$(BINARYDIR)
+	$(CC) $(CFLAGS) -c $< -o $@ -MD 
+
+
+$(BINARYDIR)/strtoi64.o : ../../../src/string/strtoi64.c $(all_make_files) |$(BINARYDIR)
+	$(CC) $(CFLAGS) -c $< -o $@ -MD 
+
+
+$(BINARYDIR)/strtok.o : ../../../src/string/strtok.c $(all_make_files) |$(BINARYDIR)
+	$(CC) $(CFLAGS) -c $< -o $@ -MD 
+
+
+$(BINARYDIR)/strtol.o : ../../../src/string/strtol.c $(all_make_files) |$(BINARYDIR)
+	$(CC) $(CFLAGS) -c $< -o $@ -MD 
+
+
+$(BINARYDIR)/strtold.o : ../../../src/string/strtold.c $(all_make_files) |$(BINARYDIR)
+	$(CC) $(CFLAGS) -c $< -o $@ -MD 
+
+
+$(BINARYDIR)/strtoul.o : ../../../src/string/strtoul.c $(all_make_files) |$(BINARYDIR)
+	$(CC) $(CFLAGS) -c $< -o $@ -MD 
+
+
+$(BINARYDIR)/strtoull.o : ../../../src/string/strtoull.c $(all_make_files) |$(BINARYDIR)
+	$(CC) $(CFLAGS) -c $< -o $@ -MD 
+
+
+$(BINARYDIR)/strxfrm.o : ../../../src/string/strxfrm.c $(all_make_files) |$(BINARYDIR)
+	$(CC) $(CFLAGS) -c $< -o $@ -MD 
+
+
+$(BINARYDIR)/wcsnlen.o : ../../../src/string/wcsnlen.c $(all_make_files) |$(BINARYDIR)
+	$(CC) $(CFLAGS) -c $< -o $@ -MD 
+

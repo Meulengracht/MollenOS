@@ -6,13 +6,13 @@
 
 __int64 strtoi64(const char *nptr, char **endptr, int base)
 {
-	BOOL negative = FALSE;
+	bool negative = false;
 	__int64 ret = 0;
 
 	while(isspace((unsigned char)*nptr)) nptr++;
 
 	if(*nptr == '-') {
-		negative = TRUE;
+		negative = true;
 		nptr++;
 	} else if(*nptr == '+')
 		nptr++;

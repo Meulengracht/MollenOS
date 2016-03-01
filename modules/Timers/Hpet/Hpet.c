@@ -463,7 +463,7 @@ void HpetSleep(void* Device, size_t MilliSeconds)
 
 	/* While */
 	while (TickEnd > HpetGetClocks(Device))
-		_ThreadYield();
+		IThreadYield();
 }
 
 /* Stall for ms */

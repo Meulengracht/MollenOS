@@ -1693,7 +1693,7 @@ void OhciTransactionSend(void *Controller, UsbHcRequest_t *Request)
 	SchedulerSleepThread((Addr_t*)Request->Data);
 
 	/* Yield */
-	_ThreadYield();
+	IThreadYield();
 #endif
 
 	/*************************

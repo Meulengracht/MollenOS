@@ -115,4 +115,8 @@
 #define ULONG_LONG_MAX (__LONG_LONG_MAX__*2ULL+1ULL)
 #endif
 
+#define _I64_MIN (-9223372036854775807ll - 1)
+#define _I64_MAX 9223372036854775807ll
+#define _UI64_MAX 0xffffffffffffffffull
+
 #endif /* __CLANG_LIMITS_H */

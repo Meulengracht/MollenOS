@@ -132,7 +132,7 @@ void IThreadWakeCpu(Cpu_t Cpu)
 }
 
 /* Yield current thread */
-void IThreadYield(void)
+_CRT_EXPORT void IThreadYield(void)
 {
 	/* Call the extern */
 	_yield();
