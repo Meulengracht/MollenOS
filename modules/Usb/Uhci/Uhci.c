@@ -1950,8 +1950,14 @@ void UhciProcessRequest(UhciController_t *Controller, list_node_t *Node,
 		int SwitchToggles = Request->TransactionCount % 2;
 
 		/* Sanity - Don't reload on error */
-		if (ErrorTransfer)
+		if (ErrorTransfer) {
+			/* Callback - Inform the error */
+			if (Request->Callback != NULL)
+				Request->Callback->Callback(Request->Callback->Args, TransferStalled);
+
+			/* Done, don't reload */
 			return;
+		}
 
 		/* Fixup Toggles? */
 		if (FixupToggles)
@@ -2014,6 +2020,10 @@ void UhciProcessRequest(UhciController_t *Controller, list_node_t *Node,
 		{
 			/* Unschedule */
 			UhciUnlinkIsochronousRequest(Controller, Request);
+
+			/* Callback - Inform the error */
+			if (Request->Callback != NULL)
+				Request->Callback->Callback(Request->Callback->Args, TransferStalled);
 
 			/* Done for now */
 			return;

@@ -79,7 +79,7 @@ void ThreadingInit(void)
 	Init->AddrSpace = AddressSpaceCreate(ADDRESS_SPACE_KERNEL);
 
 	/* Create thread-data */
-	Init->ThreadData = _ThreadInitBoot();
+	Init->ThreadData = IThreadInitBoot();
 
 	/* Reset lock */
 	MutexConstruct(&GlbThreadLock);
@@ -124,7 +124,7 @@ void ThreadingApInit(Cpu_t Cpu)
 	Init->AddrSpace = AddressSpaceCreate(ADDRESS_SPACE_KERNEL);
 
 	/* Create the threading data */
-	Init->ThreadData = _ThreadInitAp();
+	Init->ThreadData = IThreadInitAp();
 
 	/* Create a node for the scheduler */
 	Node = list_create_node(GlbThreadId, Init);
@@ -191,7 +191,7 @@ int ThreadingIsCurrentTaskIdle(Cpu_t Cpu)
 void ThreadingWakeCpu(Cpu_t Cpu)
 {
 	/* This is unfortunately arch-specific */
-	_ThreadWakeUpCpu(Cpu);
+	IThreadWakeCpu(Cpu);
 }
 
 /* Set Current List Node */
@@ -203,7 +203,35 @@ void ThreadingUpdateCurrent(Cpu_t Cpu, list_node_t *Node)
 /* Cleanup a thread */
 void ThreadingCleanupThread(MCoreThread_t *Thread)
 {
-	_CRT_UNUSED(Thread);
+	/* Cleanup arch resources */
+	AddressSpaceDestroy(Thread->AddrSpace);
+	IThreadDestroy(Thread->ThreadData);
+
+	/* Cleanup structure */
+	kfree(Thread->Name);
+	kfree(Thread);
+}
+
+/* Cleans up all threads */
+void ThreadingReapZombies(void)
+{
+	/* Reap untill list is empty */
+	list_node_t *tNode = list_pop_front(GlbZombieThreads);
+
+	while (tNode != NULL)
+	{
+		/* Cast */
+		MCoreThread_t *Thread = (MCoreThread_t*)tNode->data;
+
+		/* Clean it up */
+		ThreadingCleanupThread(Thread);
+
+		/* Clean up rest */
+		kfree(tNode);
+
+		/* Get next node */
+		tNode = list_pop_front(GlbZombieThreads);
+	}
 }
 
 /* Is threading running? */
@@ -244,7 +272,7 @@ void ThreadingEntryPoint(void)
 	cThread->Flags |= THREADING_FINISHED;
 
 	/* Yield */
-	_ThreadYield();
+	IThreadYield();
 
 	/* Safety-Catch */
 	for (;;);
@@ -298,7 +326,7 @@ TId_t ThreadingCreateThread(char *Name, ThreadEntry_t Function, void *Args, int 
 		nThread->AddrSpace = AddressSpaceCreate(ADDRESS_SPACE_INHERIT);
 
 	/* Create thread-data */
-	nThread->ThreadData = _ThreadInit((Addr_t)&ThreadingEntryPoint);
+	nThread->ThreadData = IThreadInit((Addr_t)&ThreadingEntryPoint);
 
 	/* Increase id */
 	GlbThreadId++;
@@ -328,7 +356,7 @@ void ThreadingEnterUserMode(void *ProcessInfo)
 	cThread->Flags |= THREADING_TRANSITION;
 	
 	/* Underlying Call */
-	_ThreadSetupUserMode(cThread->ThreadData, Process->StackStart,
+	IThreadInitUserMode(cThread->ThreadData, Process->StackStart,
 		Process->Executable->EntryAddr, MEMORY_LOCATION_USER_ARGS);
 
 	/* Done! */

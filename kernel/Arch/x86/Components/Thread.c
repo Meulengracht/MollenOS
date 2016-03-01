@@ -82,8 +82,9 @@ int ThreadingYield(void *Args)
 
 /* Initialization 
  * Creates the main thread */
-x86Thread_t *_ThreadInitBoot(void)
+void *IThreadInitBoot(void)
 {
+	/* Vars */
 	x86Thread_t *Init;
 
 	/* Setup initial thread */
@@ -104,8 +105,9 @@ x86Thread_t *_ThreadInitBoot(void)
 }
 
 /* Initialises AP task */
-x86Thread_t *_ThreadInitAp(void)
+void *IThreadInitAp(void)
 {
+	/* Vars */
 	x86Thread_t *Init;
 
 	/* Setup initial thread */
@@ -123,22 +125,23 @@ x86Thread_t *_ThreadInitAp(void)
 }
 
 /* Wake's up CPU */
-void _ThreadWakeUpCpu(Cpu_t Cpu)
+void IThreadWakeCpu(Cpu_t Cpu)
 {
 	/* Send an IPI to the cpu */
 	ApicSendIpi((uint8_t)Cpu, INTERRUPT_YIELD);
 }
 
 /* Yield current thread */
-void _ThreadYield(void)
+void IThreadYield(void)
 {
 	/* Call the extern */
 	_yield();
 }
 
 /* Create a new thread */
-x86Thread_t *_ThreadInit(Addr_t EntryPoint)
+void *IThreadInit(Addr_t EntryPoint)
 {
+	/* Vars */
 	x86Thread_t *t;
 	Cpu_t Cpu;
 
@@ -163,8 +166,28 @@ x86Thread_t *_ThreadInit(Addr_t EntryPoint)
 	return t;
 }
 
+/* Frees thread resources */
+void IThreadDestroy(void *ThreadData)
+{
+	/* Cast */
+	x86Thread_t *Thread = (x86Thread_t*)ThreadData;
+
+	/* Cleanup Contexts */
+	kfree(Thread->Context);
+
+	/* Not all has user context */
+	if (Thread->UserContext != NULL)
+		kfree(Thread->UserContext);
+
+	/* Free fpu buffer */
+	kfree(Thread->FpuBuffer);
+
+	/* Free structure */
+	kfree(Thread);
+}
+
 /* Setup Usermode */
-void _ThreadSetupUserMode(void *ThreadData, Addr_t StackAddr, Addr_t EntryPoint, Addr_t ArgumentAddress)
+void IThreadInitUserMode(void *ThreadData, Addr_t StackAddr, Addr_t EntryPoint, Addr_t ArgumentAddress)
 {
 	/* Cast */
 	x86Thread_t *t = (x86Thread_t*)ThreadData;

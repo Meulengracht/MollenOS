@@ -708,7 +708,8 @@ _USBCORE_API UsbTransferStatus_t UsbFunctionSetAddress(UsbHc_t *Hc, int Port, si
 _USBCORE_API UsbTransferStatus_t UsbFunctionGetDeviceDescriptor(UsbHc_t *Hc, int Port);
 _USBCORE_API UsbTransferStatus_t UsbFunctionGetConfigDescriptor(UsbHc_t *Hc, int Port);
 _USBCORE_API UsbTransferStatus_t UsbFunctionSetConfiguration(UsbHc_t *Hc, int Port, size_t Configuration);
-_USBCORE_API UsbTransferStatus_t UsbFunctionGetStringDescriptor(UsbHc_t *Hc, int Port);
+_USBCORE_API UsbTransferStatus_t UsbFunctionGetStringLanguages(UsbHc_t *Hc, int Port);
+_USBCORE_API UsbTransferStatus_t UsbFunctionGetStringDescriptor(UsbHc_t *Hc, int Port, size_t LanguageId, size_t StringIndex, char *StrBuffer);
 _USBCORE_API UsbTransferStatus_t UsbFunctionGetDescriptor(UsbHc_t *Hc, int Port, void *Buffer, uint8_t Direction,
 											uint8_t DescriptorType, uint8_t SubType, 
 											uint8_t DescriptorIndex, uint16_t DescriptorLength);

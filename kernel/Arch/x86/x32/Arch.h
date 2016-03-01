@@ -129,14 +129,6 @@ typedef struct _x86_Thread
 #include "../Video.h"
 #include "../Interrupts.h"
 
-/* Threading */
-_CRT_EXTERN x86Thread_t *_ThreadInitBoot(void);
-_CRT_EXTERN x86Thread_t *_ThreadInitAp(void);
-_CRT_EXTERN x86Thread_t *_ThreadInit(Addr_t EntryPoint);
-_CRT_EXTERN void _ThreadSetupUserMode(void *ThreadData, Addr_t StackAddr, Addr_t EntryPoint, Addr_t ArgumentAddress);
-_CRT_EXTERN void _ThreadWakeUpCpu(Cpu_t Cpu);
-_CRT_EXPORT void _ThreadYield(void);
-
 /* Port IO */
 _CRT_EXTERN uint8_t __CRTDECL inb(uint16_t port);
 _CRT_EXTERN uint16_t __CRTDECL inw(uint16_t port);

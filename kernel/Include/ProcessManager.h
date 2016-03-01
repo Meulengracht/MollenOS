@@ -117,6 +117,7 @@ _CRT_EXTERN void PmInit(void);
 _CRT_EXTERN void PmTerminateProcess(MCoreProcess_t *Process);
 _CRT_EXTERN MCoreProcess_t *PmGetProcess(PId_t ProcessId);
 _CRT_EXTERN MString_t *PmGetWorkingDirectory(PId_t ProcessId);
+_CRT_EXTERN void PmReapZombies(void);
 
 /* Requests */
 _CRT_EXTERN void PmCreateRequest(MCoreProcessRequest_t *Request);

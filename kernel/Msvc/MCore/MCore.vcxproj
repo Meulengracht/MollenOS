@@ -19,6 +19,7 @@
     <ClCompile Include="..\..\System\Devices\Fonts\VideoFont6x12.c" />
     <ClCompile Include="..\..\System\Devices\Fonts\VideoFont8x16.c" />
     <ClCompile Include="..\..\System\Devices\DeviceVideo.c" />
+    <ClCompile Include="..\..\System\GarbageCollector.c" />
     <ClCompile Include="..\..\System\Heap.c" />
     <ClCompile Include="..\..\System\InputManager.c" />
     <ClCompile Include="..\..\System\Log.c" />

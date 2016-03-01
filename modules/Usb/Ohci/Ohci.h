@@ -151,6 +151,7 @@ typedef struct _OhciGTransferDescriptor
 #define OHCI_TD_PID_IN						(1 << 20)
 #define OHCI_TD_NO_IOC						((1 << 21) | (1 << 22) | (1 << 23))
 #define OHCI_TD_FRAMECOUNT(n)				((n & 0x7) << 24)
+#define OHCI_TD_TOGGLE						(1 << 24)
 #define OHCI_TD_TOGGLE_LOCAL				(1 << 25)
 #define OHCI_TD_ACTIVE						((1 << 28) | (1 << 29) | (1 << 30) | (1 << 31))
 

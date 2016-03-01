@@ -84,7 +84,7 @@ void PmWaitRequest(MCoreProcessRequest_t *Request)
 
 	/* Otherwise wait */
 	SchedulerSleepThread((Addr_t*)Request);
-	_ThreadYield();
+	IThreadYield();
 }
 
 /* Event Handler */
@@ -227,7 +227,7 @@ void PmStartProcess(void *Args)
 	ThreadingEnterUserMode(Process);
 
 	/* Catch */
-	_ThreadYield();
+	IThreadYield();
 
 	/* SHOULD NEVER reach this point */
 	for (;;);
@@ -360,4 +360,10 @@ void PmTerminateProcess(MCoreProcess_t *Process)
 
 	/* Wake all that waits for this to finish */
 	SchedulerWakeupAllThreads((Addr_t*)pNode->data);
+}
+
+/* Cleans up all the unused processes */
+void PmReapZombies(void)
+{
+
 }

@@ -105,6 +105,9 @@
     <ClCompile Include="..\..\System\Pipe.c">
       <Filter>Systems</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\System\GarbageCollector.c">
+      <Filter>Systems</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\Include\Heap.h">

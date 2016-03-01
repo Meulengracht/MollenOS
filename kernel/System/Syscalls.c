@@ -63,7 +63,7 @@ int ScProcessJoin(PId_t ProcessId)
 
 	/* Sleep */
 	SchedulerSleepThread((Addr_t*)Process);
-	_ThreadYield();
+	IThreadYield();
 
 	/* Return the exit code */
 	return Process->ReturnCode;
@@ -117,7 +117,7 @@ int ScProcessExit(int ExitCode)
 int ScProcessYield(void)
 {
 	/* Deep Call */
-	_ThreadYield();
+	IThreadYield();
 
 	/* Done */
 	return 0;

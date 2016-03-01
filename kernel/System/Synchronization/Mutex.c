@@ -76,7 +76,7 @@ void MutexLock(Mutex_t *Mutex)
 		SchedulerSleepThread((Addr_t*)Mutex);
 
 		/* Yield */
-		_ThreadYield();
+		IThreadYield();
 	}
 
 	/* Initialize */

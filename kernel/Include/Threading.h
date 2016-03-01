@@ -87,6 +87,7 @@ _CRT_EXTERN void threading_kill_thread(TId_t thread_id);
 /* Processes */
 _CRT_EXTERN void ThreadingEnterUserMode(void *ProcessInfo);
 _CRT_EXTERN void ThreadingTerminateProcessThreads(uint32_t ProcessId);
+_CRT_EXTERN void ThreadingReapZombies(void);
 
 /* Sleep, Wake, etc */
 _CRT_EXTERN int ThreadingYield(void *Args);

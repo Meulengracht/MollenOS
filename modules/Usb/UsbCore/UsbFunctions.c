@@ -629,8 +629,8 @@ UsbTransferStatus_t UsbFunctionSetConfiguration(UsbHc_t *Hc, int Port, size_t Co
 	return Request.Status;
 }
 
-/* Gets the device descriptor */
-UsbTransferStatus_t UsbFunctionGetStringDescriptor(UsbHc_t *Hc, int Port)
+/* Gets the device string language descriptors (Index 0) */
+UsbTransferStatus_t UsbFunctionGetStringLanguages(UsbHc_t *Hc, int Port)
 {
 	UsbStringDescriptor_t StringDesc;
 	UsbHcRequest_t Request;
@@ -663,6 +663,54 @@ UsbTransferStatus_t UsbFunctionGetStringDescriptor(UsbHc_t *Hc, int Port)
 	if (Request.Status == TransferFinished)
 	{
 		/* Build a list of available languages */
+	}
+
+	/* Cleanup */
+	UsbTransactionDestroy(Hc, &Request);
+
+	/* Done */
+	return Request.Status;
+}
+
+/* Gets a string descriptor */
+UsbTransferStatus_t UsbFunctionGetStringDescriptor(UsbHc_t *Hc, 
+	int Port, size_t LanguageId, size_t StringIndex, char *StrBuffer)
+{
+	/* Vars */
+	UsbHcRequest_t Request;
+	char TempBuffer[64];
+
+	/* Init transfer */
+	UsbTransactionInit(Hc, &Request, ControlTransfer,
+		Hc->Ports[Port]->Device, Hc->Ports[Port]->Device->CtrlEndpoint);
+
+	/* Setup Packet */
+	Request.Packet.Direction = USB_REQUEST_DIR_IN;
+	Request.Packet.Type = USB_REQUEST_GET_DESC;
+	Request.Packet.ValueHi = USB_DESC_TYPE_STRING;
+	Request.Packet.ValueLo = (uint16_t)StringIndex;
+	Request.Packet.Index = (uint16_t)LanguageId;
+	Request.Packet.Length = 64;
+
+	/* Setup Transfer */
+	UsbTransactionSetup(Hc, &Request, sizeof(UsbPacket_t));
+
+	/* In Transfer, we want to fill the descriptor */
+	UsbTransactionIn(Hc, &Request, 0, TempBuffer, 64);
+
+	/* Out Transfer, STATUS Stage */
+	UsbTransactionOut(Hc, &Request, 1, NULL, 0);
+
+	/* Send it */
+	UsbTransactionSend(Hc, &Request);
+
+	/* Update Device Information */
+	if (Request.Status == TransferFinished)
+	{
+		/* Convert to Utf8 */
+		size_t StringLength = (*((uint8_t*)TempBuffer + 1) - 2);
+
+		/* Create a MString */
 	}
 
 	/* Cleanup */

@@ -19,15 +19,15 @@
 * MollenOS USB EHCI Controller Driver
 */
 
-#ifndef _X86_USB_EHCI_H_
-#define _X86_USB_EHCI_H_
+#ifndef _USB_EHCI_H_
+#define _USB_EHCI_H_
 
 /* Includes */
 #include <crtdefs.h>
 #include <stdint.h>
 
 /* Definitions */
-#define X86_EHCI_MAX_PORTS		15
+#define EHCI_MAX_PORTS			15
 
 /* Structures */
 
@@ -109,7 +109,7 @@ typedef struct _EchiOperationalRegisters
 	uint32_t ConfigFlag;
 
 	/* Port Status Registers */
-	uint32_t Ports[X86_EHCI_MAX_PORTS];
+	uint32_t Ports[EHCI_MAX_PORTS];
 
 } EchiOperationalRegisters_t;
 #pragma pack(pop)

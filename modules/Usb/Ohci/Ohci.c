@@ -1974,12 +1974,9 @@ void OhciProcessDoneQueue(OhciController_t *Controller, Addr_t DoneHeadAddr)
 		/* Is it this? */
 		while (tList)
 		{
-			/* Get Td */
-			OhciGTransferDescriptor_t *Td =
-				(OhciGTransferDescriptor_t*)tList->TransferDescriptor;
-
 			/* Get physical of TD */
-			Addr_t TdPhysical = AddressSpaceGetMap(AddressSpaceGetCurrent(), (VirtAddr_t)Td);
+			Addr_t TdPhysical = AddressSpaceGetMap(AddressSpaceGetCurrent(), 
+				(VirtAddr_t)tList->TransferDescriptor);
 
 			/* Is it this one? */
 			if (DoneHeadAddr == TdPhysical)
@@ -2005,46 +2002,69 @@ void OhciProcessDoneQueue(OhciController_t *Controller, Addr_t DoneHeadAddr)
 				{
 					/* Re-Iterate */
 					UsbHcTransaction_t *lIterator = HcRequest->Transactions;
+					int SwitchToggles = HcRequest->TransactionCount % 2;
+					int ErrorTransfer = 0;
 
 					/* Copy data if not dummy */
 					while (lIterator)
 					{
-						/* Let's see */
-						if (lIterator->IoLength != 0)
+						/* Get Td */
+						OhciGTransferDescriptor_t *Td =
+							(OhciGTransferDescriptor_t*)lIterator->TransferDescriptor;
+						
+						/* Get condition-code */
+						int ConditionCode = OHCI_TD_GET_CC(Td->Flags);
+
+						/* Sanity */
+						if (ConditionCode != 0
+							|| ErrorTransfer)
+							ErrorTransfer = 1;
+						else
 						{
-							/* Copy Data from transfer buffer to IoBuffer */
-							memcpy(lIterator->IoBuffer, lIterator->TransferBuffer, lIterator->IoLength);
+							/* Let's see */
+							if (lIterator->IoLength != 0)
+								memcpy(lIterator->IoBuffer, lIterator->TransferBuffer, lIterator->IoLength);
+
+							/* Switch toggle */
+							if (TransferType == InterruptTransfer
+								&& SwitchToggles)
+							{
+								OhciGTransferDescriptor_t *__Td =
+									(OhciGTransferDescriptor_t*)lIterator->TransferDescriptorCopy;
+
+								/* Clear Toggle */
+								__Td->Flags &= ~OHCI_TD_TOGGLE;
+
+								/* Set it? */
+								if (HcRequest->Endpoint->Toggle)
+									__Td->Flags |= OHCI_TD_TOGGLE;
+
+								/* Switch toggle bit */
+								HcRequest->Endpoint->Toggle =
+									(HcRequest->Endpoint->Toggle == 1) ? 0 : 1;
+							}
+
+							/* Restart Td */
+							memcpy(lIterator->TransferDescriptor,
+								lIterator->TransferDescriptorCopy,
+								TransferType == InterruptTransfer ?
+								sizeof(OhciGTransferDescriptor_t) : sizeof(OhciITransferDescriptor_t));
 						}
-
-						/* Switch toggle */
-						if (TransferType == InterruptTransfer)
-						{
-							OhciGTransferDescriptor_t *__Td =
-								(OhciGTransferDescriptor_t*)lIterator->TransferDescriptorCopy;
-
-							/* If set */
-							if (__Td->Flags & (1 << 24))
-								__Td->Flags &= ~(1 << 24);
-							else
-								__Td->Flags |= (1 << 24);
-						}
-
-						/* Restart Td */
-						memcpy(lIterator->TransferDescriptor,
-							lIterator->TransferDescriptorCopy, 
-							TransferType == InterruptTransfer ? 
-							sizeof(OhciGTransferDescriptor_t) : sizeof(OhciITransferDescriptor_t));
 
 						/* Eh, next link */
 						lIterator = lIterator->Link;
 					}
 
 					/* Callback */
-					HcRequest->Callback->Callback(HcRequest->Callback->Args, TransferFinished);
+					if (HcRequest->Callback != NULL)
+						HcRequest->Callback->Callback(HcRequest->Callback->Args, 
+							ErrorTransfer == 1 ? TransferStalled : TransferFinished);
 
 					/* Restart Ed */
-					Ed->HeadPtr = 
-						AddressSpaceGetMap(AddressSpaceGetCurrent(), (VirtAddr_t)HcRequest->Transactions->TransferDescriptor);
+					if (!ErrorTransfer)
+						Ed->HeadPtr = 
+							AddressSpaceGetMap(AddressSpaceGetCurrent(), 
+								(VirtAddr_t)HcRequest->Transactions->TransferDescriptor);
 				}
 
 				/* Done */

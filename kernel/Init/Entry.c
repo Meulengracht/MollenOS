@@ -23,6 +23,7 @@
 #include <revision.h>
 #include <MollenOS.h>
 #include <Arch.h>
+#include <GarbageCollector.h>
 #include <DeviceManager.h>
 #include <Modules/ModuleManager.h>
 #include <ProcessManager.h>
@@ -104,6 +105,9 @@ void MCoreInitialize(MCoreBootInfo_t *BootInfo)
 	 * arch-specific, so we let the underlying
 	 * architecture load them */
 	BootInfo->InitTimers();
+
+	/* Initialize the GC */
+	GcInit();
 
 	/* Start the request handler */
 	DmStart();

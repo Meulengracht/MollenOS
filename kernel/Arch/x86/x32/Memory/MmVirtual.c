@@ -579,7 +579,14 @@ AddressSpace_t *AddressSpaceCreate(int Flags)
 /* Destroy and release all resources */
 void AddressSpaceDestroy(AddressSpace_t *AddrSpace)
 {
-	_CRT_UNUSED(AddrSpace);
+	/* Sanity */
+	if (AddrSpace->Flags & ADDRESS_SPACE_FLAG_USER)
+	{
+		/* Cleanup */
+	}
+
+	/* Free structure */
+	kfree(AddrSpace);
 }
 
 /* Get Current Address Space */

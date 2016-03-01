@@ -83,7 +83,7 @@ void SemaphoreP(Semaphore_t *Semaphore)
 		
 		/* Go to sleep */
 		SchedulerSleepThread((Addr_t*)Semaphore);
-		_ThreadYield();
+		IThreadYield();
 	}
 	else
 		SpinlockRelease(&Semaphore->Lock);

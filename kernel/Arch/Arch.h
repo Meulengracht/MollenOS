@@ -76,6 +76,18 @@ _CRT_EXPORT PhysAddr_t AddressSpaceGetMap(AddressSpace_t *AddrSpace, VirtAddr_t 
 * arch specific thread *
 ***********************/
 
+/* Functions */
+_CRT_EXTERN void *IThreadInitBoot(void);
+_CRT_EXTERN void *IThreadInitAp(void);
+
+_CRT_EXTERN void *IThreadInit(Addr_t EntryPoint);
+_CRT_EXTERN void IThreadDestroy(void *ThreadData);
+
+_CRT_EXTERN void IThreadInitUserMode(void *ThreadData, 
+	Addr_t StackAddr, Addr_t EntryPoint, Addr_t ArgumentAddress);
+_CRT_EXTERN void IThreadWakeCpu(Cpu_t Cpu);
+_CRT_EXPORT void IThreadYield(void);
+
 /***********************
 * Device Io Spaces     *
 * Used for abstracting *

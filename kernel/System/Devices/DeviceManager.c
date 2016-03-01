@@ -111,7 +111,7 @@ void DmWaitRequest(MCoreDeviceRequest_t *Request)
 
 	/* Otherwise wait */
 	SchedulerSleepThread((Addr_t*)Request);
-	_ThreadYield();
+	IThreadYield();
 }
 
 /* Request Thread */
