@@ -378,7 +378,7 @@ void PmCleanupProcess(MCoreProcess_t *Process)
 	kfree(Process->Heap);
 
 	/* Cleanup executable data */
-	
+	PeUnload(Process->Executable);
 
 	/* Rest of memory is cleaned during 
 	 * address space cleanup */

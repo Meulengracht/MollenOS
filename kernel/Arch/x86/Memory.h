@@ -99,17 +99,27 @@ typedef struct _SysMemMapping
 #define TABLE_SPACE_SIZE	0x400000
 #define DIRECTORY_SPACE_SIZE 0xFFFFFFFF
 
-/* Page Definitions */
+/* Shared PT/Page Definitions */
 #define PAGE_PRESENT		0x1
 #define PAGE_WRITE			0x2
 #define PAGE_USER			0x4
 #define PAGE_WRITETHROUGH	0x8
 #define PAGE_CACHE_DISABLE	0x10
 #define PAGE_ACCESSED		0x20
+
+/* Page Table Definitions */
+#define PAGETABLE_UNUSED	0x40
+#define PAGETABLE_4MB		0x80
+#define PAGETABLE_IGNORED	0x100
+
+/* Page Definitions */
 #define PAGE_DIRTY			0x40
-#define PAGE_RESERVED		0x80
+#define PAGE_UNUSED			0x80
 #define PAGE_GLOBAL			0x100
+
+/* MollenOS PT/Page Definitions */
 #define PAGE_SYSTEM_MAP		0x200
+#define PAGE_INHERITED		0x400
 
 /* Masks */
 #define PAGE_MASK			0xFFFFF000

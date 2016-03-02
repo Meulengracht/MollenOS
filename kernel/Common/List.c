@@ -46,6 +46,22 @@ list_t *list_create(int attributes)
 	return list;
 }
 
+/* Destroy list, freeing nodes (not data) */
+void list_destroy(list_t *list)
+{
+	/* Vars */
+	list_node_t *node = list_pop_front(list);
+
+	/* Keep freeing nodes */
+	while (node != NULL) {
+		kfree(node);
+		node = list_pop_front(list);
+	}
+
+	/* Free list */
+	kfree(list);
+}
+
 /* Create a new node */
 list_node_t *list_create_node(int id, void *data)
 {

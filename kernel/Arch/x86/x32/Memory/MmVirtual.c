@@ -560,7 +560,7 @@ AddressSpace_t *AddressSpaceCreate(int Flags)
 			if (Flags & ADDRESS_SPACE_INHERIT
 				&& Itr != 1023
 				&& CurrPd->pTables[Itr]) {
-				NewPd->pTables[Itr] = CurrPd->pTables[Itr];
+				NewPd->pTables[Itr] = CurrPd->pTables[Itr] | PAGE_INHERITED;
 				NewPd->vTables[Itr] = CurrPd->vTables[Itr];
 			}
 		}
@@ -582,7 +582,40 @@ void AddressSpaceDestroy(AddressSpace_t *AddrSpace)
 	/* Sanity */
 	if (AddrSpace->Flags & ADDRESS_SPACE_FLAG_USER)
 	{
-		/* Cleanup */
+		/* Vars */
+		PageDirectory_t *Pd = (PageDirectory_t*)AddrSpace->PageDirectory;
+		int i, j;
+
+		/* Iterate sections */
+		for (i = 0; i < 1024; i++)
+		{
+			/* Is there a page-table mapped here? */
+			if (Pd->pTables[i] == 0)
+				continue;
+
+			/* Is it a kernel page-table? Ignore it */
+			if (Pd->pTables[i] == KernelPageDirectory->pTables[i])
+				continue;
+
+			/* Is this an inherited page-table? 
+			 * We don't free our parents stuff */
+			if (Pd->pTables[i] & PAGE_INHERITED)
+				continue;
+
+			/* Ok, OUR user page-table, free everything in it */
+			PageTable_t *Pt = (PageTable_t*)Pd->vTables[i];
+
+			/* Iterate pages */
+			for (j = 0; j < 1024; j++)
+			{
+				/* Sanity */
+				if (Pt->Pages[i] != 0)
+					MmPhysicalFreeBlock(Pt->Pages[i] & PAGE_MASK);
+			}
+
+			/* Free page-table */
+			kfree(Pt);
+		}
 	}
 
 	/* Free structure */

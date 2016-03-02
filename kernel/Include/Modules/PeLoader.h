@@ -637,5 +637,6 @@ _CRT_EXTERN MCorePeFile_t *PeLoadModule(uint8_t *Buffer);
 
 /* Generic */
 _CRT_EXTERN MCorePeFile_t *PeLoadImage(MCorePeFile_t *Parent, MString_t *Name, uint8_t *Buffer, Addr_t *BaseAddress);
+_CRT_EXTERN void PeUnload(MCorePeFile_t *Executable);
 
 #endif //!__MCORE_PELOADER__

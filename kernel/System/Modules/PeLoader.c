@@ -913,3 +913,54 @@ MCorePeFile_t *PeLoadImage(MCorePeFile_t *Parent, MString_t *Name, uint8_t *Buff
 	/* Done */
 	return PeInfo;
 }
+
+/* Unload executables, all it's dependancies and free it's resources */
+void PeUnload(MCorePeFile_t *Executable)
+{
+	/* Vars */
+	list_node_t *Node;
+
+	/* Sanity */
+	if (Executable == NULL)
+		return;
+
+	/* Free Strings */
+	kfree(Executable->Name);
+
+	/* Cleanup exported functions */
+	if (Executable->ExportedFunctions != NULL)
+	{
+		/* Iterate */
+		_foreach(Node, Executable->ExportedFunctions)
+		{
+			/* Cast data */
+			MCorePeExportFunction_t *ExFunc = (MCorePeExportFunction_t*)Node->data;
+
+			/* Free struct */
+			kfree(ExFunc);
+		}
+
+		/* Destroy list */
+		list_destroy(Executable->ExportedFunctions);
+	}
+
+	/* Cleanup libraries */
+	if (Executable->LoadedLibraries != NULL)
+	{
+		/* Iterate */
+		_foreach(Node, Executable->LoadedLibraries)
+		{
+			/* Cast data */
+			MCorePeFile_t *Library = (MCorePeFile_t*)Node->data;
+
+			/* Cleanup that aswell */
+			PeUnload(Library);
+		}
+
+		/* Destroy list */
+		list_destroy(Executable->LoadedLibraries);
+	}
+
+	/* Free structure */
+	kfree(Executable);
+}
