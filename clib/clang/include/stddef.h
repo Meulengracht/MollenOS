@@ -64,6 +64,10 @@ typedef __SIZE_TYPE__ size_t;
 #undef __need_size_t
 #endif /*defined(__need_size_t) */
 
+#ifndef _MSC_VER
+#define _cdecl
+#endif
+
 #if defined(__need_STDDEF_H_misc)
 /* ISO9899:2011 7.20 (C11 Annex K): Define rsize_t if __STDC_WANT_LIB_EXT1__ is
  * enabled. */

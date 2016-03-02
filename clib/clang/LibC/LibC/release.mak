@@ -5,10 +5,11 @@
 BINARYDIR := Release
 
 #Toolchain
-CC := C:/Users/Philip/Desktop/MollenOS/Bin/Compiler/bin/clang-cl.exe
+CC := C:/Users/Philip/Desktop/MollenOS/Bin/Compiler/bin/clang.exe
 CXX := C:/Users/Philip/Desktop/MollenOS/Bin/Compiler/bin/clang++.exe
-LD := C:/Users/Philip/Desktop/MollenOS/Bin/Compiler/bin/lld-link.exe
+LD := C:/Users/Philip/Desktop/MollenOS/Bin/Compiler/bin/lld.exe
 AR := C:/Users/Philip/Desktop/MollenOS/Bin/Compiler/bin/llvm-ar.exe
+AS := C:/Users/Philip/AppData/Local/nasm/nasm.exe
 OBJCOPY := C:/Qt/Tools/mingw491_32/bin/objcopy.exe
 
 #Additional flags
@@ -20,10 +21,10 @@ ADDITIONAL_LINKER_INPUTS :=
 MACOS_FRAMEWORKS := 
 LINUX_PACKAGES := 
 
-CFLAGS := -O3 -target i686-win32 -ffreestanding -fno-builtin -nostdlib
-CXXFLAGS := -O3 -target i686-win32 -nostdinc++ -ffreestanding -fno-builtin -nostdlib
-ASFLAGS := 
-LDFLAGS := /MACHINE:X86 /SUBSYSTEM:NATIVE /NODEFAULTLIB /ENTRY:"LibCTest"
+CFLAGS := -O3 -target i686-none-elf -ffreestanding -fno-builtin -nostdlib -Wno-macro-redefined 
+CXXFLAGS := -O3 -target i686-none-elf -nostdinc++ -ffreestanding -fno-builtin -nostdlib -Wno-macro-redefined 
+ASFLAGS := -f elf32
+LDFLAGS := -flavor gnu
 COMMONFLAGS := 
 LINKER_SCRIPT := 
 

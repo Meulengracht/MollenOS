@@ -68,6 +68,10 @@
 #define _In_
 #endif
 
+#ifndef __MINGW_NOTHROW
+#define __MINGW_NOTHROW
+#endif
+
 #ifndef _Out_
 #define _Out_
 #endif

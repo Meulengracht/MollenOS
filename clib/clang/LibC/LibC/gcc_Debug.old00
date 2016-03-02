@@ -946,3 +946,8 @@
 #define i386 1
 #endif
 #endif
+
+// --- Include directories begin --- //
+//../../include
+// --- Include directories end --- //
+

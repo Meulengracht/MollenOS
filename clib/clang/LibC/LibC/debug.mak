@@ -21,8 +21,8 @@ ADDITIONAL_LINKER_INPUTS :=
 MACOS_FRAMEWORKS := 
 LINUX_PACKAGES := 
 
-CFLAGS := -O0 -target i686-none-elf -ffreestanding -fno-builtin -nostdlib -Wno-macro-redefined 
-CXXFLAGS := -O0 -target i686-none-elf -nostdinc++ -ffreestanding -fno-builtin -nostdlib -Wno-macro-redefined 
+CFLAGS := -O0 -target i686-none-elf -ffreestanding -fno-builtin -nostdlib -Wno-macro-redefined -DMOLLENOS -D_X86_32
+CXXFLAGS := -O0 -target i686-none-elf -nostdinc++ -ffreestanding -fno-builtin -nostdlib -Wno-macro-redefined -DMOLLENOS -D_X86_32
 ASFLAGS := -f elf32
 LDFLAGS := -flavor gnu
 # --stdlib=libc++ -lc++abi -lunwind

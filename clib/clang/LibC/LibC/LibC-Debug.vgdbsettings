@@ -134,7 +134,10 @@
   <UserDefinedVariables />
   <ImportedPropertySheets />
   <CodeSense>
-    <Enabled>Unknown</Enabled>
+    <Enabled>True</Enabled>
+    <CFLAGS />
+    <CXXFLAGS />
+    <ExternalSourceFileList />
     <ExtraSettings>
       <HideErrorsInSystemHeaders>true</HideErrorsInSystemHeaders>
     </ExtraSettings>

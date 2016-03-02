@@ -228,9 +228,6 @@
     <ClCompile Include="..\src\stdio\vsprintf.c">
       <Filter>Source\stdio</Filter>
     </ClCompile>
-    <ClCompile Include="..\src\setjmp\setjmp.c">
-      <Filter>Source\setjmp</Filter>
-    </ClCompile>
     <ClCompile Include="..\src\signal\signal.c">
       <Filter>Source\signal</Filter>
     </ClCompile>
@@ -332,5 +329,15 @@
     <MASM Include="..\src\os\ScAsm32.asm">
       <Filter>Source\os</Filter>
     </MASM>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="..\src\setjmp\setjmp_i386.s">
+      <Filter>Source\setjmp</Filter>
+    </None>
+  </ItemGroup>
+  <ItemGroup>
+    <CustomBuild Include="..\src\string\memcpy_acc.s">
+      <Filter>Source\string</Filter>
+    </CustomBuild>
   </ItemGroup>
 </Project>

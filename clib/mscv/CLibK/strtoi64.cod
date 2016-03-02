@@ -51,12 +51,12 @@ _TEXT	ENDS
 ; File c:\users\philip\documents\github\mollenos\clib\src\string\strtoi64.c
 ;	COMDAT _strtoi64
 _TEXT	SEGMENT
-tv165 = -12						; size = 4
+tv164 = -12						; size = 4
 tv135 = -12						; size = 4
-_negative$1$ = -8					; size = 4
-_ret$2$ = -4						; size = 4
-tv175 = 8						; size = 4
-tv164 = 8						; size = 4
+_ret$2$ = -8						; size = 4
+_negative$1$ = -1					; size = 1
+tv174 = 8						; size = 4
+tv163 = 8						; size = 4
 tv133 = 8						; size = 4
 _nptr$ = 8						; size = 4
 _endptr$ = 12						; size = 4
@@ -71,18 +71,18 @@ _strtoi64 PROC						; COMDAT
   00006	53		 push	 ebx
   00007	56		 push	 esi
 
-; 9    : 	BOOL negative = FALSE;
+; 9    : 	bool negative = false;
 ; 10   : 	__int64 ret = 0;
 ; 11   : 
 ; 12   : 	while(isspace((unsigned char)*nptr)) nptr++;
 
   00008	8b 75 08	 mov	 esi, DWORD PTR _nptr$[ebp]
-  0000b	33 c0		 xor	 eax, eax
-  0000d	89 45 f8	 mov	 DWORD PTR _negative$1$[ebp], eax
+  0000b	32 c0		 xor	 al, al
+  0000d	88 45 ff	 mov	 BYTE PTR _negative$1$[ebp], al
   00010	33 db		 xor	 ebx, ebx
   00012	57		 push	 edi
   00013	33 ff		 xor	 edi, edi
-  00015	89 5d fc	 mov	 DWORD PTR _ret$2$[ebp], ebx
+  00015	89 5d f8	 mov	 DWORD PTR _ret$2$[ebp], ebx
   00018	0f b6 06	 movzx	 eax, BYTE PTR [esi]
   0001b	f6 80 00 00 00
 	00 20		 test	 BYTE PTR __ctype[eax], 32 ; 00000020H
@@ -100,81 +100,81 @@ $LN24@strtoi64:
 
   00032	8a 06		 mov	 al, BYTE PTR [esi]
   00034	3c 2d		 cmp	 al, 45			; 0000002dH
-  00036	75 0a		 jne	 SHORT $LN23@strtoi64
+  00036	75 07		 jne	 SHORT $LN23@strtoi64
 
-; 15   : 		negative = TRUE;
+; 15   : 		negative = true;
 
-  00038	b8 01 00 00 00	 mov	 eax, 1
-  0003d	89 45 f8	 mov	 DWORD PTR _negative$1$[ebp], eax
+  00038	b0 01		 mov	 al, 1
+  0003a	88 45 ff	 mov	 BYTE PTR _negative$1$[ebp], al
 
 ; 16   : 		nptr++;
 
-  00040	eb 04		 jmp	 SHORT $LN52@strtoi64
+  0003d	eb 04		 jmp	 SHORT $LN52@strtoi64
 $LN23@strtoi64:
 
 ; 17   : 	} else if(*nptr == '+')
 
-  00042	3c 2b		 cmp	 al, 43			; 0000002bH
-  00044	75 01		 jne	 SHORT $LN21@strtoi64
+  0003f	3c 2b		 cmp	 al, 43			; 0000002bH
+  00041	75 01		 jne	 SHORT $LN21@strtoi64
 $LN52@strtoi64:
 
 ; 18   : 		nptr++;
 
-  00046	46		 inc	 esi
+  00043	46		 inc	 esi
 $LN21@strtoi64:
 
 ; 20   : 	if((base==0 || base==16) && *nptr=='0' && tolower(*(nptr+1))=='x') {
 
-  00047	8b 55 10	 mov	 edx, DWORD PTR _base$[ebp]
-  0004a	85 d2		 test	 edx, edx
-  0004c	74 05		 je	 SHORT $LN19@strtoi64
-  0004e	83 fa 10	 cmp	 edx, 16			; 00000010H
-  00051	75 23		 jne	 SHORT $LN20@strtoi64
+  00044	8b 55 10	 mov	 edx, DWORD PTR _base$[ebp]
+  00047	85 d2		 test	 edx, edx
+  00049	74 05		 je	 SHORT $LN19@strtoi64
+  0004b	83 fa 10	 cmp	 edx, 16			; 00000010H
+  0004e	75 23		 jne	 SHORT $LN20@strtoi64
 $LN19@strtoi64:
-  00053	80 3e 30	 cmp	 BYTE PTR [esi], 48	; 00000030H
-  00056	75 1e		 jne	 SHORT $LN20@strtoi64
+  00050	80 3e 30	 cmp	 BYTE PTR [esi], 48	; 00000030H
+  00053	75 1e		 jne	 SHORT $LN20@strtoi64
 ; File c:\users\philip\documents\github\mollenos\clib\include\ctype.h
 
 ; 62   :         return isupper(c) ? c - ('A' - 'a') : c;
 
-  00058	0f b6 46 01	 movzx	 eax, BYTE PTR [esi+1]
-  0005c	f6 80 00 00 00
+  00055	0f b6 46 01	 movzx	 eax, BYTE PTR [esi+1]
+  00059	f6 80 00 00 00
 	00 01		 test	 BYTE PTR __ctype[eax], 1
-  00063	74 03		 je	 SHORT $LN30@strtoi64
-  00065	83 c0 20	 add	 eax, 32			; 00000020H
+  00060	74 03		 je	 SHORT $LN30@strtoi64
+  00062	83 c0 20	 add	 eax, 32			; 00000020H
 $LN30@strtoi64:
 ; File c:\users\philip\documents\github\mollenos\clib\src\string\strtoi64.c
 
 ; 20   : 	if((base==0 || base==16) && *nptr=='0' && tolower(*(nptr+1))=='x') {
 
-  00068	3c 78		 cmp	 al, 120			; 00000078H
-  0006a	75 0a		 jne	 SHORT $LN20@strtoi64
+  00065	3c 78		 cmp	 al, 120			; 00000078H
+  00067	75 0a		 jne	 SHORT $LN20@strtoi64
 
 ; 21   : 		base = 16;
 
-  0006c	ba 10 00 00 00	 mov	 edx, 16			; 00000010H
+  00069	ba 10 00 00 00	 mov	 edx, 16			; 00000010H
 
 ; 22   : 		nptr += 2;
 
-  00071	83 c6 02	 add	 esi, 2
+  0006e	83 c6 02	 add	 esi, 2
 
 ; 23   : 	}
 ; 24   : 
 ; 25   : 	if(base == 0) {
 
-  00074	eb 11		 jmp	 SHORT $LN53@strtoi64
+  00071	eb 11		 jmp	 SHORT $LN53@strtoi64
 $LN20@strtoi64:
-  00076	85 d2		 test	 edx, edx
-  00078	75 10		 jne	 SHORT $LN17@strtoi64
+  00073	85 d2		 test	 edx, edx
+  00075	75 10		 jne	 SHORT $LN17@strtoi64
 
 ; 26   : 		if(*nptr=='0')
 
-  0007a	80 3e 30	 cmp	 BYTE PTR [esi], 48	; 00000030H
-  0007d	0f 95 c2	 setne	 dl
-  00080	8d 14 55 08 00
+  00077	80 3e 30	 cmp	 BYTE PTR [esi], 48	; 00000030H
+  0007a	0f 95 c2	 setne	 dl
+  0007d	8d 14 55 08 00
 	00 00		 lea	 edx, DWORD PTR [edx*2+8]
 $LN53@strtoi64:
-  00087	89 55 10	 mov	 DWORD PTR _base$[ebp], edx
+  00084	89 55 10	 mov	 DWORD PTR _base$[ebp], edx
 $LN17@strtoi64:
 
 ; 27   : 			base = 8;
@@ -184,194 +184,194 @@ $LN17@strtoi64:
 ; 31   : 
 ; 32   : 	while(*nptr) {
 
-  0008a	8a 06		 mov	 al, BYTE PTR [esi]
-  0008c	84 c0		 test	 al, al
-  0008e	0f 84 30 01 00
+  00087	8a 06		 mov	 al, BYTE PTR [esi]
+  00089	84 c0		 test	 al, al
+  0008b	0f 84 30 01 00
 	00		 je	 $LN51@strtoi64
 $LL15@strtoi64:
 ; File c:\users\philip\documents\github\mollenos\clib\include\ctype.h
 
 ; 62   :         return isupper(c) ? c - ('A' - 'a') : c;
 
-  00094	0f b6 c8	 movzx	 ecx, al
-  00097	f6 81 00 00 00
+  00091	0f b6 c8	 movzx	 ecx, al
+  00094	f6 81 00 00 00
 	00 01		 test	 BYTE PTR __ctype[ecx], 1
-  0009e	74 02		 je	 SHORT $LN34@strtoi64
-  000a0	04 20		 add	 al, 32			; 00000020H
+  0009b	74 02		 je	 SHORT $LN34@strtoi64
+  0009d	04 20		 add	 al, 32			; 00000020H
 $LN34@strtoi64:
 ; File c:\users\philip\documents\github\mollenos\clib\src\string\strtoi64.c
 
 ; 36   : 		if(isdigit((unsigned char)cur)) {
 
-  000a2	0f b6 c8	 movzx	 ecx, al
-  000a5	f6 81 00 00 00
+  0009f	0f b6 c8	 movzx	 ecx, al
+  000a2	f6 81 00 00 00
 	00 04		 test	 BYTE PTR __ctype[ecx], 4
-  000ac	74 13		 je	 SHORT $LN13@strtoi64
+  000a9	74 13		 je	 SHORT $LN13@strtoi64
 
 ; 37   : 			if(cur >= '0'+base)
 
-  000ae	0f be c8	 movsx	 ecx, al
-  000b1	8d 42 30	 lea	 eax, DWORD PTR [edx+48]
-  000b4	3b c8		 cmp	 ecx, eax
-  000b6	0f 8d 08 01 00
+  000ab	0f be c8	 movsx	 ecx, al
+  000ae	8d 42 30	 lea	 eax, DWORD PTR [edx+48]
+  000b1	3b c8		 cmp	 ecx, eax
+  000b3	0f 8d 08 01 00
 	00		 jge	 $LN51@strtoi64
 
 ; 38   : 				break;
 ; 39   : 			v = cur-'0';
 
-  000bc	8d 59 d0	 lea	 ebx, DWORD PTR [ecx-48]
+  000b9	8d 59 d0	 lea	 ebx, DWORD PTR [ecx-48]
 
 ; 40   : 		} else {
 
-  000bf	eb 19		 jmp	 SHORT $LN11@strtoi64
+  000bc	eb 19		 jmp	 SHORT $LN11@strtoi64
 $LN13@strtoi64:
 
 ; 41   : 			if(cur<'a' || cur>='a'+base-10)
 
-  000c1	3c 61		 cmp	 al, 97			; 00000061H
-  000c3	0f 8c fb 00 00
+  000be	3c 61		 cmp	 al, 97			; 00000061H
+  000c0	0f 8c fb 00 00
 	00		 jl	 $LN51@strtoi64
-  000c9	0f be c8	 movsx	 ecx, al
-  000cc	8d 42 57	 lea	 eax, DWORD PTR [edx+87]
-  000cf	3b c8		 cmp	 ecx, eax
-  000d1	0f 8d ed 00 00
+  000c6	0f be c8	 movsx	 ecx, al
+  000c9	8d 42 57	 lea	 eax, DWORD PTR [edx+87]
+  000cc	3b c8		 cmp	 ecx, eax
+  000ce	0f 8d ed 00 00
 	00		 jge	 $LN51@strtoi64
 
 ; 42   : 				break;
 ; 43   : 			v = cur-'a'+10;
 
-  000d7	8d 59 a9	 lea	 ebx, DWORD PTR [ecx-87]
+  000d4	8d 59 a9	 lea	 ebx, DWORD PTR [ecx-87]
 $LN11@strtoi64:
 
 ; 44   : 		}
 ; 45   : 
 ; 46   : 		if(negative)
 
-  000da	8b 45 f8	 mov	 eax, DWORD PTR _negative$1$[ebp]
-  000dd	85 c0		 test	 eax, eax
-  000df	74 02		 je	 SHORT $LN8@strtoi64
+  000d7	8a 45 ff	 mov	 al, BYTE PTR _negative$1$[ebp]
+  000da	84 c0		 test	 al, al
+  000dc	74 02		 je	 SHORT $LN8@strtoi64
 
 ; 47   : 			v = -v;
 
-  000e1	f7 db		 neg	 ebx
+  000de	f7 db		 neg	 ebx
 $LN8@strtoi64:
 
 ; 48   : 
 ; 49   : 		nptr++;
 
-  000e3	46		 inc	 esi
+  000e0	46		 inc	 esi
 
 ; 50   : 
 ; 51   : 		if(!negative && (ret > _I64_MAX / base || ret * base > _I64_MAX-v)) {
 
-  000e4	85 c0		 test	 eax, eax
-  000e6	8b c2		 mov	 eax, edx
-  000e8	99		 cdq
-  000e9	8b c8		 mov	 ecx, eax
-  000eb	8b c2		 mov	 eax, edx
-  000ed	50		 push	 eax
-  000ee	51		 push	 ecx
-  000ef	75 59		 jne	 SHORT $LN45@strtoi64
-  000f1	68 ff ff ff 7f	 push	 2147483647		; 7fffffffH
-  000f6	6a ff		 push	 -1
-  000f8	89 4d f4	 mov	 DWORD PTR tv135[ebp], ecx
-  000fb	89 45 08	 mov	 DWORD PTR tv133[ebp], eax
-  000fe	e8 00 00 00 00	 call	 __alldiv
-  00103	8b 4d fc	 mov	 ecx, DWORD PTR _ret$2$[ebp]
-  00106	3b ca		 cmp	 ecx, edx
-  00108	7f 36		 jg	 SHORT $LN47@strtoi64
-  0010a	7c 04		 jl	 SHORT $LN46@strtoi64
-  0010c	3b f8		 cmp	 edi, eax
-  0010e	77 30		 ja	 SHORT $LN47@strtoi64
+  000e1	84 c0		 test	 al, al
+  000e3	8b c2		 mov	 eax, edx
+  000e5	99		 cdq
+  000e6	8b c8		 mov	 ecx, eax
+  000e8	8b c2		 mov	 eax, edx
+  000ea	50		 push	 eax
+  000eb	51		 push	 ecx
+  000ec	75 59		 jne	 SHORT $LN45@strtoi64
+  000ee	68 ff ff ff 7f	 push	 2147483647		; 7fffffffH
+  000f3	6a ff		 push	 -1
+  000f5	89 4d f4	 mov	 DWORD PTR tv135[ebp], ecx
+  000f8	89 45 08	 mov	 DWORD PTR tv133[ebp], eax
+  000fb	e8 00 00 00 00	 call	 __alldiv
+  00100	8b 4d f8	 mov	 ecx, DWORD PTR _ret$2$[ebp]
+  00103	3b ca		 cmp	 ecx, edx
+  00105	7f 36		 jg	 SHORT $LN47@strtoi64
+  00107	7c 04		 jl	 SHORT $LN46@strtoi64
+  00109	3b f8		 cmp	 edi, eax
+  0010b	77 30		 ja	 SHORT $LN47@strtoi64
 $LN46@strtoi64:
-  00110	51		 push	 ecx
-  00111	57		 push	 edi
-  00112	ff 75 08	 push	 DWORD PTR tv133[ebp]
-  00115	ff 75 f4	 push	 DWORD PTR tv135[ebp]
-  00118	e8 00 00 00 00	 call	 __allmul
-  0011d	8b c8		 mov	 ecx, eax
-  0011f	89 55 08	 mov	 DWORD PTR tv175[ebp], edx
-  00122	8b c3		 mov	 eax, ebx
-  00124	99		 cdq
-  00125	8b da		 mov	 ebx, edx
-  00127	8b f8		 mov	 edi, eax
-  00129	83 ca ff	 or	 edx, -1
-  0012c	b8 ff ff ff 7f	 mov	 eax, 2147483647		; 7fffffffH
-  00131	2b d7		 sub	 edx, edi
-  00133	1b c3		 sbb	 eax, ebx
-  00135	39 45 08	 cmp	 DWORD PTR tv175[ebp], eax
-  00138	7c 5e		 jl	 SHORT $LN49@strtoi64
-  0013a	7f 04		 jg	 SHORT $LN47@strtoi64
-  0013c	3b ca		 cmp	 ecx, edx
-  0013e	76 58		 jbe	 SHORT $LN49@strtoi64
+  0010d	51		 push	 ecx
+  0010e	57		 push	 edi
+  0010f	ff 75 08	 push	 DWORD PTR tv133[ebp]
+  00112	ff 75 f4	 push	 DWORD PTR tv135[ebp]
+  00115	e8 00 00 00 00	 call	 __allmul
+  0011a	8b c8		 mov	 ecx, eax
+  0011c	89 55 08	 mov	 DWORD PTR tv174[ebp], edx
+  0011f	8b c3		 mov	 eax, ebx
+  00121	99		 cdq
+  00122	8b da		 mov	 ebx, edx
+  00124	8b f8		 mov	 edi, eax
+  00126	83 ca ff	 or	 edx, -1
+  00129	b8 ff ff ff 7f	 mov	 eax, 2147483647		; 7fffffffH
+  0012e	2b d7		 sub	 edx, edi
+  00130	1b c3		 sbb	 eax, ebx
+  00132	39 45 08	 cmp	 DWORD PTR tv174[ebp], eax
+  00135	7c 5e		 jl	 SHORT $LN49@strtoi64
+  00137	7f 04		 jg	 SHORT $LN47@strtoi64
+  00139	3b ca		 cmp	 ecx, edx
+  0013b	76 58		 jbe	 SHORT $LN49@strtoi64
 $LN47@strtoi64:
 
 ; 52   : 			ret = _I64_MAX;
 
-  00140	83 cf ff	 or	 edi, -1
-  00143	bb ff ff ff 7f	 mov	 ebx, 2147483647		; 7fffffffH
+  0013d	83 cf ff	 or	 edi, -1
+  00140	bb ff ff ff 7f	 mov	 ebx, 2147483647		; 7fffffffH
 
 ; 53   : 			*__errno() = ERANGE;
 
-  00148	eb 5f		 jmp	 SHORT $LN54@strtoi64
+  00145	eb 5f		 jmp	 SHORT $LN54@strtoi64
 $LN45@strtoi64:
 
 ; 54   : 		} else if(negative && (ret < _I64_MIN / base || ret * base < _I64_MIN-v)) {
 
-  0014a	68 00 00 00 80	 push	 -2147483648		; 80000000H
-  0014f	6a 00		 push	 0
-  00151	89 4d f4	 mov	 DWORD PTR tv165[ebp], ecx
-  00154	89 45 08	 mov	 DWORD PTR tv164[ebp], eax
-  00157	e8 00 00 00 00	 call	 __alldiv
-  0015c	8b 4d fc	 mov	 ecx, DWORD PTR _ret$2$[ebp]
-  0015f	3b ca		 cmp	 ecx, edx
-  00161	7c 3f		 jl	 SHORT $LN3@strtoi64
-  00163	7f 04		 jg	 SHORT $LN48@strtoi64
-  00165	3b f8		 cmp	 edi, eax
-  00167	72 39		 jb	 SHORT $LN3@strtoi64
+  00147	68 00 00 00 80	 push	 -2147483648		; 80000000H
+  0014c	6a 00		 push	 0
+  0014e	89 4d f4	 mov	 DWORD PTR tv164[ebp], ecx
+  00151	89 45 08	 mov	 DWORD PTR tv163[ebp], eax
+  00154	e8 00 00 00 00	 call	 __alldiv
+  00159	8b 4d f8	 mov	 ecx, DWORD PTR _ret$2$[ebp]
+  0015c	3b ca		 cmp	 ecx, edx
+  0015e	7c 3f		 jl	 SHORT $LN3@strtoi64
+  00160	7f 04		 jg	 SHORT $LN48@strtoi64
+  00162	3b f8		 cmp	 edi, eax
+  00164	72 39		 jb	 SHORT $LN3@strtoi64
 $LN48@strtoi64:
-  00169	51		 push	 ecx
-  0016a	57		 push	 edi
-  0016b	ff 75 08	 push	 DWORD PTR tv164[ebp]
-  0016e	ff 75 f4	 push	 DWORD PTR tv165[ebp]
-  00171	e8 00 00 00 00	 call	 __allmul
-  00176	8b c8		 mov	 ecx, eax
-  00178	89 55 08	 mov	 DWORD PTR tv175[ebp], edx
-  0017b	8b c3		 mov	 eax, ebx
-  0017d	99		 cdq
-  0017e	8b da		 mov	 ebx, edx
-  00180	8b f8		 mov	 edi, eax
-  00182	33 d2		 xor	 edx, edx
-  00184	b8 00 00 00 80	 mov	 eax, -2147483648	; 80000000H
-  00189	2b d7		 sub	 edx, edi
-  0018b	1b c3		 sbb	 eax, ebx
-  0018d	39 45 08	 cmp	 DWORD PTR tv175[ebp], eax
-  00190	7c 10		 jl	 SHORT $LN3@strtoi64
-  00192	7f 04		 jg	 SHORT $LN49@strtoi64
-  00194	3b ca		 cmp	 ecx, edx
-  00196	72 0a		 jb	 SHORT $LN3@strtoi64
+  00166	51		 push	 ecx
+  00167	57		 push	 edi
+  00168	ff 75 08	 push	 DWORD PTR tv163[ebp]
+  0016b	ff 75 f4	 push	 DWORD PTR tv164[ebp]
+  0016e	e8 00 00 00 00	 call	 __allmul
+  00173	8b c8		 mov	 ecx, eax
+  00175	89 55 08	 mov	 DWORD PTR tv174[ebp], edx
+  00178	8b c3		 mov	 eax, ebx
+  0017a	99		 cdq
+  0017b	8b da		 mov	 ebx, edx
+  0017d	8b f8		 mov	 edi, eax
+  0017f	33 d2		 xor	 edx, edx
+  00181	b8 00 00 00 80	 mov	 eax, -2147483648	; 80000000H
+  00186	2b d7		 sub	 edx, edi
+  00188	1b c3		 sbb	 eax, ebx
+  0018a	39 45 08	 cmp	 DWORD PTR tv174[ebp], eax
+  0018d	7c 10		 jl	 SHORT $LN3@strtoi64
+  0018f	7f 04		 jg	 SHORT $LN49@strtoi64
+  00191	3b ca		 cmp	 ecx, edx
+  00193	72 0a		 jb	 SHORT $LN3@strtoi64
 $LN49@strtoi64:
 
 ; 57   : 		} else
 ; 58   : 			ret = ret*base + v;
 
-  00198	03 f9		 add	 edi, ecx
-  0019a	13 5d 08	 adc	 ebx, DWORD PTR tv175[ebp]
-  0019d	89 5d fc	 mov	 DWORD PTR _ret$2$[ebp], ebx
-  001a0	eb 15		 jmp	 SHORT $LN2@strtoi64
+  00195	03 f9		 add	 edi, ecx
+  00197	13 5d 08	 adc	 ebx, DWORD PTR tv174[ebp]
+  0019a	89 5d f8	 mov	 DWORD PTR _ret$2$[ebp], ebx
+  0019d	eb 15		 jmp	 SHORT $LN2@strtoi64
 $LN3@strtoi64:
 
 ; 55   : 			ret = _I64_MIN;
 
-  001a2	33 ff		 xor	 edi, edi
-  001a4	bb 00 00 00 80	 mov	 ebx, -2147483648	; 80000000H
+  0019f	33 ff		 xor	 edi, edi
+  001a1	bb 00 00 00 80	 mov	 ebx, -2147483648	; 80000000H
 $LN54@strtoi64:
-  001a9	89 5d fc	 mov	 DWORD PTR _ret$2$[ebp], ebx
+  001a6	89 5d f8	 mov	 DWORD PTR _ret$2$[ebp], ebx
 
 ; 56   : 			*__errno() = ERANGE;
 
-  001ac	e8 00 00 00 00	 call	 ___errno
-  001b1	c7 00 22 00 00
+  001a9	e8 00 00 00 00	 call	 ___errno
+  001ae	c7 00 22 00 00
 	00		 mov	 DWORD PTR [eax], 34	; 00000022H
 $LN2@strtoi64:
 
@@ -382,10 +382,10 @@ $LN2@strtoi64:
 ; 31   : 
 ; 32   : 	while(*nptr) {
 
-  001b7	8a 06		 mov	 al, BYTE PTR [esi]
-  001b9	8b 55 10	 mov	 edx, DWORD PTR _base$[ebp]
-  001bc	84 c0		 test	 al, al
-  001be	0f 85 d0 fe ff
+  001b4	8a 06		 mov	 al, BYTE PTR [esi]
+  001b6	8b 55 10	 mov	 edx, DWORD PTR _base$[ebp]
+  001b9	84 c0		 test	 al, al
+  001bb	0f 85 d0 fe ff
 	ff		 jne	 $LL15@strtoi64
 $LN51@strtoi64:
 
@@ -393,33 +393,33 @@ $LN51@strtoi64:
 ; 60   : 
 ; 61   : 	if(endptr)
 
-  001c4	8b 45 0c	 mov	 eax, DWORD PTR _endptr$[ebp]
+  001c1	8b 45 0c	 mov	 eax, DWORD PTR _endptr$[ebp]
 
 ; 63   : 
 ; 64   : 	return ret;
 
-  001c7	8b d3		 mov	 edx, ebx
-  001c9	85 c0		 test	 eax, eax
-  001cb	74 02		 je	 SHORT $LN50@strtoi64
+  001c4	8b d3		 mov	 edx, ebx
+  001c6	85 c0		 test	 eax, eax
+  001c8	74 02		 je	 SHORT $LN50@strtoi64
 
 ; 62   : 		*endptr = (char*)nptr;
 
-  001cd	89 30		 mov	 DWORD PTR [eax], esi
+  001ca	89 30		 mov	 DWORD PTR [eax], esi
 $LN50@strtoi64:
 
 ; 63   : 
 ; 64   : 	return ret;
 
-  001cf	8b c7		 mov	 eax, edi
-  001d1	5f		 pop	 edi
-  001d2	5e		 pop	 esi
-  001d3	5b		 pop	 ebx
+  001cc	8b c7		 mov	 eax, edi
+  001ce	5f		 pop	 edi
+  001cf	5e		 pop	 esi
+  001d0	5b		 pop	 ebx
 
 ; 65   : }
 
-  001d4	8b e5		 mov	 esp, ebp
-  001d6	5d		 pop	 ebp
-  001d7	c3		 ret	 0
+  001d1	8b e5		 mov	 esp, ebp
+  001d3	5d		 pop	 ebp
+  001d4	c3		 ret	 0
 _strtoi64 ENDP
 _TEXT	ENDS
 END

@@ -554,6 +554,7 @@ void __MallocLibCEmpty(void)
 #define LACKS_SYS_PARAM_H
 #define LACKS_SYS_MMAN_H
 #define LACKS_FCNTL_H
+#define LACKS_SYS_TYPES_H
 #define LACKS_SCHED_H
 #ifndef MALLOC_FAILURE_ACTION
 #define MALLOC_FAILURE_ACTION

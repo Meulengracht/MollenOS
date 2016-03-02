@@ -7,7 +7,12 @@
 #include <string.h>
 #include <stdint.h>
 #include <internal/_string.h>
+
+#ifdef _MSC_VER
+#include <intrin.h>
+#else
 #include <cpuid.h>
+#endif
 
 /* Definitions CPUID */
 #define CPUID_FEAT_EDX_MMX      1 << 23
@@ -53,8 +58,14 @@ void* memcpy(void *destination, const void *source, size_t count)
 	/* Sanity */
 	if(CpuFeatEcx == 0 && CpuFeatEdx == 0)
 	{
+#ifdef _MSC_VER
+		int cpuinfo[4] = { 0 };
+		__cpuid(cpuinfo, 1);
+		CpuFeatEcx = cpuinfo[2];
+#else
 		int unused = 0;
 		__cpuid(1, unused, unused, CpuFeatEcx, CpuFeatEdx);
+#endif
 	}
 
 	//Can we use SSE?

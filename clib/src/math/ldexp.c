@@ -23,7 +23,7 @@ double ldexp (double value, int exp)
 
 #ifdef __GNUC__
 #if defined(__clang__)
-    asm ("fild %[exp]\n"
+    asm ("fildl %[exp]\n"
          "fscale\n"
          "fstp %%st(1)\n"
          : [result] "=t" (result)

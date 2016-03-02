@@ -33,6 +33,30 @@
     <Filter Include="Source files\String\Asm">
       <UniqueIdentifier>{9e89d637-c383-49a8-9a9c-02357c380b9d}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Source files\Stdlib">
+      <UniqueIdentifier>{6eacbb09-bf1d-4d4e-9298-d7dfef438a61}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source files\Stdio">
+      <UniqueIdentifier>{67f16a52-666e-4caf-bc53-75da6c41a0c5}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source files\Errno">
+      <UniqueIdentifier>{a1721530-badf-4cc8-a64e-25fc193fa999}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source files\Math">
+      <UniqueIdentifier>{297844d5-4fe9-4ca2-8dc3-839f22d44ca3}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source files\Signal">
+      <UniqueIdentifier>{57b3107e-0a21-431a-b2e4-db685d6ab67e}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source files\Setjmp">
+      <UniqueIdentifier>{966e5179-eedc-47fe-bd1a-0835d8be6f45}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source files\OS">
+      <UniqueIdentifier>{6e40c091-2ace-44e9-860c-09d878a87a3a}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source files\Math\X32">
+      <UniqueIdentifier>{3a1ec4d6-74a7-4fdb-aff0-0b00181dae91}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <None Include="Makefile" />
@@ -53,6 +77,27 @@
     </None>
     <None Include="..\..\..\src\string\memcpy_acc.s">
       <Filter>Source files\String\Asm</Filter>
+    </None>
+    <None Include="..\..\..\src\os\Syscall32.s">
+      <Filter>Source files\OS</Filter>
+    </None>
+    <None Include="..\..\..\src\setjmp\setjmp_i386.s">
+      <Filter>Source files\Setjmp</Filter>
+    </None>
+    <None Include="..\..\..\src\math\i386\_fabs.S">
+      <Filter>Source files\Math\X32</Filter>
+    </None>
+    <None Include="..\..\..\src\math\i386\_floor.S">
+      <Filter>Source files\Math\X32</Filter>
+    </None>
+    <None Include="..\..\..\src\math\i386\_log.S">
+      <Filter>Source files\Math\X32</Filter>
+    </None>
+    <None Include="..\..\..\src\math\i386\_log10.S">
+      <Filter>Source files\Math\X32</Filter>
+    </None>
+    <None Include="..\..\..\src\math\i386\_sqrt.S">
+      <Filter>Source files\Math\X32</Filter>
     </None>
   </ItemGroup>
   <ItemGroup>
@@ -396,6 +441,141 @@
     </ClCompile>
     <ClCompile Include="..\..\..\src\ctype\ctype.c">
       <Filter>Source files\CType</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\src\stdio\fprintf.c">
+      <Filter>Source files\Stdio</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\src\stdio\printf.c">
+      <Filter>Source files\Stdio</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\src\stdio\snprintf.c">
+      <Filter>Source files\Stdio</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\src\stdio\sprintf.c">
+      <Filter>Source files\Stdio</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\src\stdio\stream.c">
+      <Filter>Source files\Stdio</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\src\stdio\vasprintf.c">
+      <Filter>Source files\Stdio</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\src\stdio\vfprintf.c">
+      <Filter>Source files\Stdio</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\src\stdio\vprintf.c">
+      <Filter>Source files\Stdio</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\src\stdio\vsnprintf.c">
+      <Filter>Source files\Stdio</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\src\stdio\vsprintf.c">
+      <Filter>Source files\Stdio</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\src\stdlib\abort.c">
+      <Filter>Source files\Stdlib</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\src\stdlib\abs.c">
+      <Filter>Source files\Stdlib</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\src\stdlib\atoi.c">
+      <Filter>Source files\Stdlib</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\src\stdlib\atold.c">
+      <Filter>Source files\Stdlib</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\src\stdlib\bsearch.c">
+      <Filter>Source files\Stdlib</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\src\stdlib\div.c">
+      <Filter>Source files\Stdlib</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\src\stdlib\exit.c">
+      <Filter>Source files\Stdlib</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\src\stdlib\labs.c">
+      <Filter>Source files\Stdlib</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\src\stdlib\ldiv.c">
+      <Filter>Source files\Stdlib</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\src\stdlib\qsort.c">
+      <Filter>Source files\Stdlib</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\src\stdlib\rand.c">
+      <Filter>Source files\Stdlib</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\src\errno\errno.c">
+      <Filter>Source files\Errno</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\src\errno\errstrings.c">
+      <Filter>Source files\Errno</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\src\signal\signal.c">
+      <Filter>Source files\Signal</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\src\os\Devices.c">
+      <Filter>Source files\OS</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\src\os\Entry.c">
+      <Filter>Source files\OS</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\src\os\Malloc.c">
+      <Filter>Source files\OS</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\src\os\Syscalls.c">
+      <Filter>Source files\OS</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\src\os\System.c">
+      <Filter>Source files\OS</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\src\math\copysign.c">
+      <Filter>Source files\Math</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\src\math\cos.c">
+      <Filter>Source files\Math</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\src\math\cosf.c">
+      <Filter>Source files\Math</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\src\math\exp.c">
+      <Filter>Source files\Math</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\src\math\frexp.c">
+      <Filter>Source files\Math</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\src\math\hugeval.c">
+      <Filter>Source files\Math</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\src\math\isnan.c">
+      <Filter>Source files\Math</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\src\math\ldexp.c">
+      <Filter>Source files\Math</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\src\math\log.c">
+      <Filter>Source files\Math</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\src\math\log10.c">
+      <Filter>Source files\Math</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\src\math\modf.c">
+      <Filter>Source files\Math</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\src\math\pow.c">
+      <Filter>Source files\Math</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\src\math\scalbn.c">
+      <Filter>Source files\Math</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\src\math\sin.c">
+      <Filter>Source files\Math</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\src\math\sinf.c">
+      <Filter>Source files\Math</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\src\math\tanh.c">
+      <Filter>Source files\Math</Filter>
     </ClCompile>
   </ItemGroup>
 </Project>

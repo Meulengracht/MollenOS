@@ -36,7 +36,6 @@
     <ClCompile Include="..\src\os\Malloc.c" />
     <ClCompile Include="..\src\os\Syscalls.c" />
     <ClCompile Include="..\src\os\System.c" />
-    <ClCompile Include="..\src\setjmp\setjmp.c" />
     <ClCompile Include="..\src\signal\signal.c" />
     <ClCompile Include="..\src\stdio\fprintf.c" />
     <ClCompile Include="..\src\stdio\printf.c" />
@@ -155,6 +154,20 @@
     <MASM Include="..\crt\llshr.S">
       <FileType>Document</FileType>
     </MASM>
+  </ItemGroup>
+  <ItemGroup>
+    <CustomBuild Include="..\src\string\memcpy_acc.s">
+      <FileType>Document</FileType>
+      <Command Condition="'$(Configuration)|$(Platform)'=='CLibK|Win32'">nasm -f win32 -Xvc -o $(IntDir)\%(Filename).obj %(FullPath)</Command>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='CLibK|Win32'">$(IntDir)\%(Filename).obj</Outputs>
+    </CustomBuild>
+  </ItemGroup>
+  <ItemGroup>
+    <CustomBuild Include="..\src\setjmp\setjmp_i386.s">
+      <FileType>Document</FileType>
+      <Command Condition="'$(Configuration)|$(Platform)'=='CLibK|Win32'">nasm -f win32 -Xvc -o $(IntDir)\%(Filename).obj %(FullPath)</Command>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='CLibK|Win32'">$(IntDir)\%(Filename).obj</Outputs>
+    </CustomBuild>
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <ProjectGuid>{5F7F1D6B-FFEE-44E1-8DF5-00725A1A5461}</ProjectGuid>
