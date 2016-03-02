@@ -27,6 +27,8 @@
 #include <crtdefs.h>
 #include <stdint.h>
 
+#include <MString.h>
+
 /* Sanity */
 #ifdef __USBCORE
 #define _USBCORE_API __declspec(dllexport)
@@ -412,11 +414,17 @@ typedef struct _UsbHcInterfaceVersion
 /* The Abstract Usb Interface */
 typedef struct _UsbHcInterface
 {
+	/* Interface Name */
+	MString_t *Name;
+
 	/* Interface Type */
 	size_t Id;
 	size_t Class;
 	size_t Subclass;
 	size_t Protocol;
+
+	/* Strings */
+	size_t StrIndex;
 
 	/* Versions */
 	UsbHcInterfaceVersion_t *Versions[USB_MAX_VERSIONS];
@@ -432,6 +440,10 @@ typedef struct _UsbHcInterface
 typedef struct _UsbHcDevice
 {
 	/* Device Information */
+	MString_t *Name;
+	MString_t *Manufactor;
+	MString_t *SerialNumber;
+
 	uint8_t Class;
 	uint8_t Subclass;
 	uint8_t Protocol;
@@ -448,6 +460,8 @@ typedef struct _UsbHcDevice
 	uint8_t Configuration;
 
 	/* String Ids */
+	int NumLanguages;
+	uint16_t *Languages;
 	uint8_t StrIndexProduct;
 	uint8_t StrIndexManufactor;
 	uint8_t StrIndexSerialNum;

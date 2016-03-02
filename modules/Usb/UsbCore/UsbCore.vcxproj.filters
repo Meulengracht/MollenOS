@@ -8,6 +8,9 @@
     <Filter Include="Source Files\Devices">
       <UniqueIdentifier>{a7d28fbe-61ea-4307-88cd-28512cff2477}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Header Files">
+      <UniqueIdentifier>{557f4a0e-9fb4-4377-a13a-90ac01cedf65}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="UsbCore.c">
@@ -22,5 +25,10 @@
     <ClCompile Include="Devices\UsbMsd.c">
       <Filter>Source Files\Devices</Filter>
     </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\..\Include\UsbCore.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

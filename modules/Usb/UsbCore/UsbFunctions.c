@@ -247,6 +247,7 @@ long UsbCalculateBandwidth(UsbSpeed_t Speed, int Direction, UsbTransferType_t Ty
 /* Set address of an usb device */
 UsbTransferStatus_t UsbFunctionSetAddress(UsbHc_t *Hc, int Port, size_t Address)
 {
+	/* Vars */
 	UsbHcRequest_t Request;
 
 	/* Init transfer */
@@ -256,7 +257,7 @@ UsbTransferStatus_t UsbFunctionSetAddress(UsbHc_t *Hc, int Port, size_t Address)
 	/* Setup Packet */
 	Request.Packet.Direction = USB_REQUEST_DIR_OUT;
 	Request.Packet.Type = USB_REQUEST_SET_ADDR;
-	Request.Packet.ValueLo = (Address & 0xFF);
+	Request.Packet.ValueLo = (uint8_t)(Address & 0xFF);
 	Request.Packet.ValueHi = 0;
 	Request.Packet.Index = 0;
 	Request.Packet.Length = 0;		/* We do not want data */
@@ -471,6 +472,7 @@ UsbTransferStatus_t UsbFunctionGetConfigDescriptor(UsbHc_t *Hc, int Port)
 					UsbInterface->Class = Interface->Class;
 					UsbInterface->Subclass = Interface->Subclass;
 					UsbInterface->Protocol = Interface->Protocol;
+					UsbInterface->StrIndex = Interface->StrIndexInterface;
 
 					/* Update Device */
 					Hc->Ports[Port]->Device->Interfaces[Hc->Ports[Port]->Device->NumInterfaces] = UsbInterface;
@@ -632,6 +634,7 @@ UsbTransferStatus_t UsbFunctionSetConfiguration(UsbHc_t *Hc, int Port, size_t Co
 /* Gets the device string language descriptors (Index 0) */
 UsbTransferStatus_t UsbFunctionGetStringLanguages(UsbHc_t *Hc, int Port)
 {
+	/* Vars */
 	UsbStringDescriptor_t StringDesc;
 	UsbHcRequest_t Request;
 
@@ -663,6 +666,15 @@ UsbTransferStatus_t UsbFunctionGetStringLanguages(UsbHc_t *Hc, int Port)
 	if (Request.Status == TransferFinished)
 	{
 		/* Build a list of available languages */
+		Hc->Ports[Port]->Device->NumLanguages = (StringDesc.Length - 2) / 2;
+
+		/* Allocate List */
+		if (Hc->Ports[Port]->Device->NumLanguages > 0) {
+			uint16_t *LangList = (uint16_t*)kmalloc(2 * Hc->Ports[Port]->Device->NumLanguages);
+			int i;
+			for (i = 0; i < Hc->Ports[Port]->Device->NumLanguages; i++)
+				LangList[i] = StringDesc.WString[i];
+		}
 	}
 
 	/* Cleanup */

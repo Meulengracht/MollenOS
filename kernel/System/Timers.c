@@ -60,13 +60,31 @@ TmId_t TimersCreateTimer(TimerHandler_t Callback,
 	TimerInfo->MsLeft = (ssize_t)Timeout;
 
 	/* Append to list */
-	list_append(GlbTimers, list_create_node(GlbTimerIds, TimerInfo));
+	list_append(GlbTimers, list_create_node((int)GlbTimerIds, TimerInfo));
 
 	/* Increase */
 	Id = GlbTimerIds;
 	GlbTimerIds++;
 
+	/* Done */
 	return Id;
+}
+
+/* Destroys and removes a timer */
+void TimersDestroyTimer(TmId_t TimerId)
+{
+	/* Get node */
+	MCoreTimer_t *Timer = (MCoreTimer_t*)list_get_data_by_id(GlbTimers, (int)TimerId, 0);
+
+	/* Sanity */
+	if (Timer == NULL)
+		return;
+
+	/* Remove By Id */
+	list_remove_by_id(GlbTimers, (int)TimerId);
+
+	/* Free */
+	kfree(Timer);
 }
 
 /* Sleep function */

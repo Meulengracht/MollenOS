@@ -1084,12 +1084,22 @@ OhciGTransferDescriptor_t *OhciTdIo(OhciEndpoint_t *OhciEp, UsbTransferType_t Ty
 
 	/* Setup the Td for a IO Td */
 	Td->Flags = OHCI_TD_ALLOCATED;
-	Td->Flags |= OHCI_TD_SHORTPACKET;
 	Td->Flags |= PId;
 	Td->Flags |= OHCI_TD_NO_IOC;
 	Td->Flags |= OHCI_TD_TOGGLE_LOCAL;
 	Td->Flags |= OHCI_TD_ACTIVE;
-	Td->Flags |= (Endpoint->Toggle << 24);
+
+	/* Allow short packet? */
+	if (Type == ControlTransfer) {
+		if (PId == OHCI_TD_PID_IN && Length > 0)
+			Td->Flags |= OHCI_TD_SHORTPACKET;
+	}
+	else if (PId == OHCI_TD_PID_IN)
+		Td->Flags |= OHCI_TD_SHORTPACKET;
+
+	/* Toggle? */
+	if (Endpoint->Toggle)
+		Td->Flags |= OHCI_TD_TOGGLE;
 
 	/* Store buffer */
 	*TDBuffer = Buffer;

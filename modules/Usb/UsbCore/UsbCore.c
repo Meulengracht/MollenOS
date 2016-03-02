@@ -343,6 +343,10 @@ DevError:
 				kfree(Device->Interfaces[i]->Versions[j]);
 		}
 
+		/* Free the string if any */
+		if (Device->Interfaces[i]->Name != NULL)
+			kfree(Device->Interfaces[i]->Name);
+
 		/* Free the Interface */
 		kfree(Device->Interfaces[i]);
 	}
@@ -350,6 +354,17 @@ DevError:
 	/* Free Descriptor Buffer */
 	if (Device->Descriptors != NULL)
 		kfree(Device->Descriptors);
+
+	/* Free Languages / Strings */
+	if (Device->NumLanguages != 0)
+		kfree(Device->Languages);
+
+	if (Device->Name != NULL)
+		MStringDestroy(Device->Name);
+	if (Device->Manufactor != NULL)
+		MStringDestroy(Device->Manufactor);
+	if (Device->SerialNumber != NULL)
+		MStringDestroy(Device->SerialNumber);
 
 	/* Free base */
 	kfree(Device);
@@ -403,6 +418,10 @@ void UsbDeviceDestroy(UsbHc_t *Hc, int Port)
 				kfree(Device->Interfaces[i]->Versions[j]);
 		}
 
+		/* Free the string if any */
+		if (Device->Interfaces[i]->Name != NULL)
+			kfree(Device->Interfaces[i]->Name);
+
 		/* Free the Interface */
 		kfree(Device->Interfaces[i]);
 	}
@@ -410,6 +429,17 @@ void UsbDeviceDestroy(UsbHc_t *Hc, int Port)
 	/* Free Descriptor Buffer */
 	if (Device->Descriptors != NULL)
 		kfree(Device->Descriptors);
+
+	/* Free Languages / Strings */
+	if (Device->NumLanguages != 0)
+		kfree(Device->Languages);
+
+	if (Device->Name != NULL)
+		MStringDestroy(Device->Name);
+	if (Device->Manufactor != NULL)
+		MStringDestroy(Device->Manufactor);
+	if (Device->SerialNumber != NULL)
+		MStringDestroy(Device->SerialNumber);
 
 	/* Free base */
 	kfree(Device);

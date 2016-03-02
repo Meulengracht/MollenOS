@@ -924,8 +924,7 @@ UhciTransferDescriptor_t *UhciTdIo(UhciEndpoint_t *Ep, UsbTransferType_t Type,
 
 	/* We set SPD on in transfers, but NOT on zero length */
 	if (Type == ControlTransfer) {
-		if (PId == UHCI_TD_PID_IN
-			&& Length > Ep->MaxPacketSize)
+		if (PId == UHCI_TD_PID_IN && Length > 0)
 			Td->Flags |= UHCI_TD_SHORT_PACKET;
 	}
 	else if (PId == UHCI_TD_PID_IN)
