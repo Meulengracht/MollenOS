@@ -1017,7 +1017,7 @@ OhciGTransferDescriptor_t *OhciTdIo(OhciEndpoint_t *OhciEp, UsbTransferType_t Ty
 	TDIndex = OhciAllocateTd(OhciEp, Type);
 
 	/* Sanity */
-	if (Type == ControlTransfer || Type == BulkTransfer){
+	if (Type == ControlTransfer || Type == BulkTransfer) {
 		Td = OhciEp->TDPool[TDIndex];
 		Buffer = OhciEp->TDPoolBuffers[TDIndex];
 	}
@@ -1083,7 +1083,7 @@ OhciGTransferDescriptor_t *OhciTdIo(OhciEndpoint_t *OhciEp, UsbTransferType_t Ty
 	}
 
 	/* EOL */
-	iTd->NextTD = OHCI_LINK_END;
+	Td->NextTD = OHCI_LINK_END;
 
 	/* Setup the Td for a IO Td */
 	Td->Flags = OHCI_TD_ALLOCATED;
@@ -2029,9 +2029,11 @@ void OhciProcessDoneQueue(OhciController_t *Controller, Addr_t DoneHeadAddr)
 						int ConditionCode = OHCI_TD_GET_CC(Td->Flags);
 
 						/* Sanity */
-						if (ConditionCode != 0
-							|| ErrorTransfer)
+						if ((ConditionCode != 0 
+								&& ConditionCode != 15)
+							|| ErrorTransfer) {
 							ErrorTransfer = 1;
+						}
 						else
 						{
 							/* Let's see */

@@ -63,7 +63,7 @@ $LN1@ldexp:
 ; 23   : 
 ; 24   : #ifdef __GNUC__
 ; 25   : #if defined(__clang__)
-; 26   :     asm ("fild %[exp]\n"
+; 26   :     asm ("fildl %[exp]\n"
 ; 27   :          "fscale\n"
 ; 28   :          "fstp %%st(1)\n"
 ; 29   :          : [result] "=t" (result)

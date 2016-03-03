@@ -34,6 +34,7 @@ char GlbLogStatic[LOG_INITIAL_SIZE];
 LogTarget_t GlbLogTarget = LogMemory;
 LogLevel_t GlbLogLevel = LogLevel1;
 size_t GlbLogSize = 0;
+Spinlock_t GlbLogLock;
 char *GlbLog = NULL;
 int GlbLogIndex = 0;
 
@@ -55,6 +56,9 @@ void LogInit(void)
 	/* Clear out log */
 	memset(GlbLog, 0, GlbLogSize);
 	GlbLogIndex = 0;
+
+	/* Initialize Lock */
+	SpinlockReset(&GlbLogLock);
 }
 
 /* Upgrades the log 
@@ -185,6 +189,9 @@ void LogFlush(LogTarget_t Output)
 /* Internal Log Print */
 void LogInternalPrint(int LogType, const char *Header, const char *Message)
 {
+	/* Acquire Lock */
+	SpinlockAcquire(&GlbLogLock);
+
 	/* Log it into memory - if we have room */
 	if (GlbLogIndex + strlen(Message) < GlbLogSize)
 	{
@@ -252,6 +259,9 @@ void LogInternalPrint(int LogType, const char *Header, const char *Message)
 	else if (GlbLogTarget == LogFile) {
 
 	}
+
+	/* Release Lock */
+	SpinlockRelease(&GlbLogLock);
 }
 
 /* Raw Log */
