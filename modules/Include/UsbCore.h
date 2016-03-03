@@ -649,6 +649,12 @@ typedef struct _UsbHc
 	 * which match the max in usb-spec */
 	uint32_t AddressMap[4];
 
+	/* Transaction Split Behaviors */
+	int SplitControl;
+	int SplitBulk;
+	int SplitInterrupt;
+	int SplitIsochronous;
+
 	/* Ports */
 	UsbHcPort_t *Ports[USB_MAX_PORTS];
 

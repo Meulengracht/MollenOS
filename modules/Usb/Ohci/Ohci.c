@@ -747,6 +747,9 @@ void OhciSetup(OhciController_t *Controller)
 	/* Setup HCD */
 	HcCtrl = UsbInitController((void*)Controller, OhciController, Controller->Ports);
 
+	/* We don't want isochronous transfers splitted */
+	HcCtrl->SplitIsochronous = 0;
+
 	/* Port Functions */
 	HcCtrl->PortSetup = OhciPortStatus;
 
@@ -1024,8 +1027,8 @@ OhciGTransferDescriptor_t *OhciTdIo(OhciEndpoint_t *OhciEp, UsbTransferType_t Ty
 	}
 	else
 	{
-		/* Calculate frame count */
-		uint32_t FrameCount = DIVUP(Length, Endpoint->MaxPacketSize);
+		/* Calculate frame count - Maximum packet size is 1023 bytes */
+		uint32_t FrameCount = DIVUP(Length, 1023);
 		uint32_t BufItr = 0;
 		uint32_t FrameItr = 0;
 		uint32_t Crossed = 0;
@@ -1057,7 +1060,7 @@ OhciGTransferDescriptor_t *OhciTdIo(OhciEndpoint_t *OhciEp, UsbTransferType_t Ty
 			iTd->Offsets[FrameItr] = ((Crossed & 0x1) << 12);
 
 			/* Increase buffer */
-			BufItr += Endpoint->MaxPacketSize;
+			BufItr += 1023;
 
 			/* Sanity */
 			if (BufItr >= PAGE_SIZE)

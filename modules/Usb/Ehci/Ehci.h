@@ -96,11 +96,12 @@ typedef struct _EchiOperationalRegisters
 	/* 4G Segment Selector */
 	uint32_t SegmentSelector;
 
-	/* Frame List Base Address */
-	uint32_t FrameListAddr;
+	/* Periodic Frame List Base Address */
+	uint32_t PeriodicListAddr;
 
-	/* Next Asynchronous List Address */
-	uint32_t NextAsyncListAddr;
+	/* Asynchronous List Address 
+	 * Get's executed after Periodic List */
+	uint32_t AsyncListAddress;
 
 	/* Reserved */
 	uint8_t Reserved[(0x40 - 0x1C)];
