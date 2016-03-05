@@ -69,13 +69,15 @@ typedef struct _OhciEndpointDescriptor
 
 	/* Bandwidth */
 	uint32_t Bandwidth;
-	uint32_t Padding[1];
+	uint32_t Interval;
 
 	/* Bit Flags 
 	 * Bit 0: Allocated
 	 * Bit 1-7: Queue Number 
 	 * Bit 8-15: Period
-	 * Bit 16-23: Index */
+	 * Bit 16-23: Index 
+	 * Bit 24: Schedule 
+	 * Bit 25: Unschedule */
 	uint32_t HcdFlags;
 
 } OhciEndpointDescriptor_t;
@@ -96,6 +98,8 @@ typedef struct _OhciEndpointDescriptor
 #define OHCI_EP_TYPE(n)				(((uint32_t)n & 0xF) << 27)
 
 #define OHCI_ED_ALLOCATED			(1 << 0)
+#define OHCI_ED_SCHEDULE			(1 << 24)
+#define OHCI_ED_UNSCHEDULE			(1 << 25)
 
 #define OHCI_ED_SET_QUEUE(n)		((n << 1) & 0xFE)	
 #define OHCI_ED_CLR_QUEUE(n)		(n & 0xFFFFFF01)
@@ -328,19 +332,6 @@ typedef struct _OhciEndpoint
 
 } OhciEndpoint_t;
 
-/* Interrupt Table */
-typedef struct _OhciIntrTable
-{
-	/* 32 Ep's */
-	OhciEndpointDescriptor_t Ms16[16];
-	OhciEndpointDescriptor_t Ms8[8];
-	OhciEndpointDescriptor_t Ms4[4];
-	OhciEndpointDescriptor_t Ms2[2];
-	OhciEndpointDescriptor_t Ms1[1];
-	OhciEndpointDescriptor_t Stop;
-
-} OhciIntrTable_t;
-
 /* Controller Structure */
 typedef struct _OhciController
 {
@@ -366,13 +357,7 @@ typedef struct _OhciController
 	OhciGTransferDescriptor_t *NullTd;
 
 	/* Interrupt Table & List */
-	OhciIntrTable_t *IntrTable;
 	OhciEndpointDescriptor_t *ED32[32];
-	int I32;
-	int I16;
-	int I8;
-	int I4;
-	int I2;
 
 	/* Scheduling Loads */
 	int Bandwidth[OHCI_BANDWIDTH_PHASES];

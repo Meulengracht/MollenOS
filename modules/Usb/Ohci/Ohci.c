@@ -17,10 +17,10 @@
 *
 *
 * MollenOS USB OHCI Controller Driver
-* Todo:
-* Bandwidth scheduling
-* Linux has a periodic timer event that checks if all finished td's has generated a interrupt to make sure
 */
+
+/* Definitions */
+//#define _OHCI_DIAGNOSTICS_
 
 /* Includes */
 #include <Module.h>
@@ -367,7 +367,6 @@ void OhciPortsCheck(void *CtrlData)
 void OhciInitQueues(OhciController_t *Controller)
 {
 	/* Vars */
-	Addr_t EdLevel;
 	int i;
 
 	/* Create the NULL Td */
@@ -401,93 +400,6 @@ void OhciInitQueues(OhciController_t *Controller)
 			(Controller->EDPool[i]->TailPtr = 
 				AddressSpaceGetMap(AddressSpaceGetCurrent(), (Addr_t)Controller->NullTd)) | 0x1;
 	}
-
-	/* Setup Interrupt Table
-	* We simply use the DMA
-	* allocation */
-	Controller->IntrTable = (OhciIntrTable_t*)(Controller->HccaSpace + 512);
-
-	/* Setup first level */
-	EdLevel = Controller->HccaSpace + 512;
-	EdLevel += 16 * sizeof(OhciEndpointDescriptor_t);
-	for (i = 0; i < 16; i++)
-	{
-		Controller->IntrTable->Ms16[i].NextED = EdLevel + ((i / 2) * sizeof(OhciEndpointDescriptor_t));
-		Controller->IntrTable->Ms16[i].NextEDVirtual = EdLevel + ((i / 2) * sizeof(OhciEndpointDescriptor_t));
-		Controller->IntrTable->Ms16[i].Flags = OHCI_EP_SKIP;
-	}
-
-	/* Second level (8 ms) */
-	EdLevel += 8 * sizeof(OhciEndpointDescriptor_t);
-	for (i = 0; i < 8; i++)
-	{
-		Controller->IntrTable->Ms8[i].NextED = EdLevel + ((i / 2) * sizeof(OhciEndpointDescriptor_t));
-		Controller->IntrTable->Ms8[i].NextEDVirtual = EdLevel + ((i / 2) * sizeof(OhciEndpointDescriptor_t));
-		Controller->IntrTable->Ms8[i].Flags = OHCI_EP_SKIP;
-	}
-
-	/* Third level (4 ms) */
-	EdLevel += 4 * sizeof(OhciEndpointDescriptor_t);
-	for (i = 0; i < 4; i++)
-	{
-		Controller->IntrTable->Ms4[i].NextED = EdLevel + ((i / 2) * sizeof(OhciEndpointDescriptor_t));
-		Controller->IntrTable->Ms4[i].NextEDVirtual = EdLevel + ((i / 2) * sizeof(OhciEndpointDescriptor_t));
-		Controller->IntrTable->Ms4[i].Flags = OHCI_EP_SKIP;
-	}
-
-	/* Fourth level (2 ms) */
-	EdLevel += 2 * sizeof(OhciEndpointDescriptor_t);
-	for (i = 0; i < 2; i++)
-	{
-		Controller->IntrTable->Ms2[i].NextED = EdLevel + sizeof(OhciEndpointDescriptor_t);
-		Controller->IntrTable->Ms2[i].NextEDVirtual = EdLevel + sizeof(OhciEndpointDescriptor_t);
-		Controller->IntrTable->Ms2[i].Flags = OHCI_EP_SKIP;
-	}
-
-	/* Last level (1 ms) */
-	Controller->IntrTable->Ms1[0].NextED = 0;
-	Controller->IntrTable->Ms1[0].NextEDVirtual = 0;
-	Controller->IntrTable->Ms1[0].Flags = OHCI_EP_SKIP;
-
-	/* Setup HCCA */
-	for (i = 0; i < 32; i++)
-	{
-		/* 0 -> 0     16 -> 0
-		* 1 -> 8     17 -> 8
-		* 2 -> 4     18 -> 4
-		* 3 -> 12    19 -> 12
-		* 4 -> 2     20 -> 2
-		* 5 -> 10    21 -> 10
-		* 6 -> 6     22 -> 6
-		* 7 -> 14    23 -> 14
-		* 8 -> 1     24 -> 1
-		* 9 -> 9     25 -> 9
-		* 10 -> 5    26 -> 5
-		* 11 -> 13   27 -> 13
-		* 12 -> 3    28 -> 3
-		* 13 -> 11   29 -> 11
-		* 14 -> 7    30 -> 7
-		* 15 -> 15   31 -> 15 */
-		Controller->ED32[i] = (OhciEndpointDescriptor_t*)
-			((Controller->HccaSpace + 512) + (_Balance[i & 0xF] * sizeof(OhciEndpointDescriptor_t)));
-		Controller->HCCA->InterruptTable[i] =
-			((Controller->HccaSpace + 512) + (_Balance[i & 0xF] * sizeof(OhciEndpointDescriptor_t)));
-
-		/* This gives us the tree
-		* This means our 16 first ED's in the IntrTable are the buttom of the tree
-		*   0          1         2         3        4         5         6        7        8        9        10        11        12        13        15
-		*  / \        / \       / \       / \      / \       / \       / \      / \      / \      / \       / \       / \       / \       / \       / \
-		* 0  16      8  24     4  20     12 28    2  18     10 26     6  22    14 30    1  17    9  25     5  21     13 29     3  19     7  23     15 31
-		*/
-
-	}
-
-	/* Load Balancing */
-	Controller->I32 = 0;
-	Controller->I16 = 0;
-	Controller->I8 = 0;
-	Controller->I4 = 0;
-	Controller->I2 = 0;
 
 	/* Allocate a Transaction list */
 	Controller->TransactionsWaitingBulk = 0;
@@ -1279,6 +1191,190 @@ int OhciCalculateQueue(OhciController_t *Controller, size_t Interval, uint32_t B
 	return Queue;
 }
 
+/* Linking Functions */
+void OhciLinkGeneric(OhciController_t *Controller, UsbHcRequest_t *Request)
+{
+	/* Variables */
+	OhciEndpointDescriptor_t *Ep = (OhciEndpointDescriptor_t*)Request->Data;
+	Addr_t EdAddress = 0;
+
+	/* Get physical */
+	EdAddress = AddressSpaceGetMap(AddressSpaceGetCurrent(), (VirtAddr_t)Ep);
+
+	if (Request->Type == ControlTransfer)
+	{
+		if (Controller->TransactionsWaitingControl > 0)
+		{
+			/* Insert it */
+			if (Controller->TransactionQueueControl == 0)
+				Controller->TransactionQueueControl = (uint32_t)Request->Data;
+			else
+			{
+				OhciEndpointDescriptor_t *Ed = (OhciEndpointDescriptor_t*)Controller->TransactionQueueControl;
+
+				/* Find tail */
+				while (Ed->NextED)
+					Ed = (OhciEndpointDescriptor_t*)Ed->NextEDVirtual;
+
+				/* Insert it */
+				Ed->NextED = EdAddress;
+				Ed->NextEDVirtual = (Addr_t)Request->Data;
+			}
+
+			/* Increase */
+			Controller->TransactionsWaitingControl++;
+		}
+		else
+		{
+			/* Add it HcControl/BulkCurrentED */
+			Controller->Registers->HcControlHeadED =
+				Controller->Registers->HcControlCurrentED = EdAddress;
+
+			/* Increase */
+			Controller->TransactionsWaitingControl++;
+
+			/* Set Lists Filled (Enable Them) */
+			Controller->Registers->HcCommandStatus |= OHCI_COMMAND_CONTROL_ACTIVE;
+		}
+	}
+	else if (Request->Type == BulkTransfer)
+	{
+		if (Controller->TransactionsWaitingBulk > 0)
+		{
+			/* Insert it */
+			if (Controller->TransactionQueueBulk == 0)
+				Controller->TransactionQueueBulk = (Addr_t)Request->Data;
+			else
+			{
+				OhciEndpointDescriptor_t *Ed = (OhciEndpointDescriptor_t*)Controller->TransactionQueueBulk;
+
+				/* Find tail */
+				while (Ed->NextED)
+					Ed = (OhciEndpointDescriptor_t*)Ed->NextEDVirtual;
+
+				/* Insert it */
+				Ed->NextED = EdAddress;
+				Ed->NextEDVirtual = (uint32_t)Request->Data;
+			}
+
+			/* Increase */
+			Controller->TransactionsWaitingBulk++;
+		}
+		else
+		{
+			/* Add it HcControl/BulkCurrentED */
+			Controller->Registers->HcBulkHeadED =
+				Controller->Registers->HcBulkCurrentED = EdAddress;
+
+			/* Increase */
+			Controller->TransactionsWaitingBulk++;
+
+			/* Set Lists Filled (Enable Them) */
+			Controller->Registers->HcCommandStatus |= OHCI_COMMAND_BULK_ACTIVE;
+		}
+	}
+}
+
+void OhciLinkPeriodic(OhciController_t *Controller, UsbHcRequest_t *Request)
+{
+	/* Variables */
+	OhciEndpointDescriptor_t *Ep = (OhciEndpointDescriptor_t*)Request->Data;
+	Addr_t EdAddress = 0;
+	int Queue = 0, Index = 0;
+	int Period = 0, Exponent = 0;
+	int i;
+
+	/* Get physical */
+	EdAddress = AddressSpaceGetMap(AddressSpaceGetCurrent(), (VirtAddr_t)Ep);
+
+	/* Find queue for this ED */
+	Queue = OhciCalculateQueue(Controller, Request->Endpoint->Interval, Ep->Bandwidth);
+
+	/* Find the correct index we link into */
+	for (Exponent = 7; Exponent >= 0; --Exponent) {
+		if ((1 << Exponent) <= (int)Request->Endpoint->Interval)
+			break;
+	}
+
+	/* Calculate period */
+	Period = 1 << Exponent;
+
+	/* Sanity */
+	assert(Queue >= 0);
+
+	for (i = Queue; i < OHCI_BANDWIDTH_PHASES; i += (int)Ep->Interval)
+	{
+		/* Vars */
+		OhciEndpointDescriptor_t **PrevEd = &Controller->ED32[i];
+		OhciEndpointDescriptor_t *Here = *PrevEd;
+		uint32_t *PrevPtr = (uint32_t*)&Controller->HCCA->InterruptTable[i];
+
+		/* sorting each branch by period (slow before fast)
+		* lets us share the faster parts of the tree.
+		* (plus maybe: put interrupt eds before iso)
+		*/
+		while (Here && Ep != Here) {
+			if (Ep->Interval > Here->Interval)
+				break;
+			PrevEd = &((OhciEndpointDescriptor_t*)Here->NextEDVirtual);
+			PrevPtr = &Here->NextED;
+			Here = *PrevEd;
+		}
+		
+		/* Sanity */
+		if (Ep != Here) {
+			Ep->NextEDVirtual = (uint32_t)Here;
+			if (Here)
+				Ep->NextED = *PrevPtr;
+			/* MemB */
+			*PrevEd = Ep;
+			*PrevPtr = EdAddress;
+			/* MemB */
+		}
+
+		/* Increase */
+		Controller->Bandwidth[i] += Ep->Bandwidth;
+	}
+
+	/* Store ed info */
+	Ep->HcdFlags |= OHCI_ED_SET_QUEUE(Queue);
+	Ep->HcdFlags |= OHCI_ED_SET_PERIOD(Period);
+	Ep->HcdFlags |= OHCI_ED_SET_INDEX(Index);
+}
+
+/* Unlinking Functions */
+void OhciUnlinkPeriodic(OhciController_t *Controller, UsbHcRequest_t *Request)
+{
+	/* Cast */
+	OhciEndpointDescriptor_t *Ed = (OhciEndpointDescriptor_t*)Request->Data;
+	int Queue = OHCI_ED_GET_QUEUE(Ed->HcdFlags);
+	int i;
+
+	/* Iterate queues */
+	for (i = Queue; i < OHCI_BANDWIDTH_PHASES; i += (int)Ed->Interval) 
+	{
+		/* Vars */
+		OhciEndpointDescriptor_t *Temp;
+		OhciEndpointDescriptor_t **PrevEd = &Controller->ED32[i];
+		uint32_t *PrevPtr = (uint32_t*)&Controller->HCCA->InterruptTable[i];
+
+		/* Iterate til we find it */
+		while (*PrevEd && (Temp = *PrevEd) != Ed) {
+			PrevPtr = &Temp->NextED;
+			PrevEd = &((OhciEndpointDescriptor_t*)Temp->NextEDVirtual);
+		}
+
+		/* Sanity */
+		if (*PrevEd) {
+			*PrevPtr = Ed->NextED;
+			*PrevEd = (OhciEndpointDescriptor_t*)Ed->NextEDVirtual;
+		}
+
+		/* Decrease Bandwidth */
+		Controller->Bandwidth[i] -= Ed->Bandwidth;
+	}
+}
+
 /* Transaction Functions */
 
 /* This one prepaires an ED */
@@ -1298,6 +1394,7 @@ void OhciTransactionInit(void *Controller, UsbHcRequest_t *Request)
 	Ed->Bandwidth =
 		(UsbCalculateBandwidth(Request->Speed, 
 		Request->Endpoint->Direction, Request->Type, Request->Endpoint->MaxPacketSize) / 1000);
+	Ed->Interval = Request->Endpoint->Interval;
 
 	/* Store */
 	Request->Data = Ed;
@@ -1506,90 +1603,11 @@ void OhciTransactionSend(void *Controller, UsbHcRequest_t *Request)
 	**** LINKING PHASE ******
 	*************************/
 	
-	/* Now lets try the Transaction */
-	SpinlockAcquire(&Ctrl->Lock);
-
 	/* Add them to list */
-	if (Request->Type == ControlTransfer)
-	{
-		if (Ctrl->TransactionsWaitingControl > 0)
-		{
-			/* Insert it */
-			if (Ctrl->TransactionQueueControl == 0)
-				Ctrl->TransactionQueueControl = (uint32_t)Request->Data;
-			else
-			{
-				OhciEndpointDescriptor_t *Ed = (OhciEndpointDescriptor_t*)Ctrl->TransactionQueueControl;
-
-				/* Find tail */
-				while (Ed->NextED)
-					Ed = (OhciEndpointDescriptor_t*)Ed->NextEDVirtual;
-
-				/* Insert it */
-				Ed->NextED = EdAddress;
-				Ed->NextEDVirtual = (Addr_t)Request->Data;
-			}
-
-			/* Increase */
-			Ctrl->TransactionsWaitingControl++;
-		}
-		else
-		{
-			/* Add it HcControl/BulkCurrentED */
-			Ctrl->Registers->HcControlHeadED =
-				Ctrl->Registers->HcControlCurrentED = EdAddress;
-
-			/* Increase */
-			Ctrl->TransactionsWaitingControl++;
-
-			/* Set Lists Filled (Enable Them) */
-			Ctrl->Registers->HcCommandStatus |= OHCI_COMMAND_CONTROL_ACTIVE;
-		}
-	}
-	else if (Request->Type == BulkTransfer)
-	{
-		if (Ctrl->TransactionsWaitingBulk > 0)
-		{
-			/* Insert it */
-			if (Ctrl->TransactionQueueBulk == 0)
-				Ctrl->TransactionQueueBulk = (Addr_t)Request->Data;
-			else
-			{
-				OhciEndpointDescriptor_t *Ed = (OhciEndpointDescriptor_t*)Ctrl->TransactionQueueBulk;
-
-				/* Find tail */
-				while (Ed->NextED)
-					Ed = (OhciEndpointDescriptor_t*)Ed->NextEDVirtual;
-
-				/* Insert it */
-				Ed->NextED = EdAddress;
-				Ed->NextEDVirtual = (uint32_t)Request->Data;
-			}
-
-			/* Increase */
-			Ctrl->TransactionsWaitingBulk++;
-		}
-		else
-		{
-			/* Add it HcControl/BulkCurrentED */
-			Ctrl->Registers->HcBulkHeadED =
-				Ctrl->Registers->HcBulkCurrentED = EdAddress;
-
-			/* Increase */
-			Ctrl->TransactionsWaitingBulk++;
-
-			/* Set Lists Filled (Enable Them) */
-			Ctrl->Registers->HcCommandStatus |= OHCI_COMMAND_BULK_ACTIVE;
-		}
-	}
-	else
+	if (Request->Type == InterruptTransfer
+		|| Request->Type == IsochronousTransfer) 
 	{
 		/* Interrupt & Isochronous */
-
-		/* Vars */
-		OhciEndpointDescriptor_t *IEd = NULL;
-		uint32_t Period = 32;
-		int Queue = 0, Index = 0;
 
 		/* Update saved copies, now all is prepaired */
 		Transaction = Request->Transactions;
@@ -1603,81 +1621,14 @@ void OhciTransactionSend(void *Controller, UsbHcRequest_t *Request)
 			/* Next */
 			Transaction = Transaction->Link;
 		}
-
-		/* Find queue for this ED */
-		Queue = OhciCalculateQueue(Ctrl, Request->Endpoint->Interval, Ep->Bandwidth);
-
-		/* Sanity */
-		assert(Queue >= 0);
-
-		/* DISABLE SCHEDULLER!!! */
-		Ctrl->Registers->HcControl &= ~(OHCI_CONTROL_PERIODIC_ACTIVE | OHCI_CONTROL_ISOC_ACTIVE);
-
-		/* Calculate period */
-		POW2(Request->Endpoint->Interval, Period);
-
-		/* Get correct period list */
-		if (Period == 1)
-			IEd = &Ctrl->IntrTable->Ms1[0];
-		else if (Period == 2) {
-			IEd = &Ctrl->IntrTable->Ms2[Ctrl->I2];
-			Index = Ctrl->I2;
-			INCLIMIT(Ctrl->I2, 2);
-		}
-		else if (Period == 4) {
-			IEd = &Ctrl->IntrTable->Ms4[Ctrl->I4];
-			Index = Ctrl->I4;
-			INCLIMIT(Ctrl->I4, 4);
-		}
-		else if (Period == 8) {
-			IEd = &Ctrl->IntrTable->Ms8[Ctrl->I8];
-			Index = Ctrl->I8;
-			INCLIMIT(Ctrl->I8, 8);
-		}
-		else if (Period == 16) {
-			IEd = &Ctrl->IntrTable->Ms16[Ctrl->I16];
-			Index = Ctrl->I16;
-			INCLIMIT(Ctrl->I16, 16);
-		}
-		else {
-			/* 32 */
-			IEd = Ctrl->ED32[Ctrl->I32];
-			Index = Ctrl->I32;
-
-			/* Insert it */
-			Ep->NextEDVirtual = (Addr_t)IEd;
-			Ep->NextED = AddressSpaceGetMap(AddressSpaceGetCurrent(), (VirtAddr_t)IEd);
-
-			/* Make int-table point to this */
-			Ctrl->HCCA->InterruptTable[Ctrl->I32] = EdAddress;
-			Ctrl->ED32[Ctrl->I32] = Ep;
-
-			/* Inc & Done */
-			INCLIMIT(Ctrl->I32, 32);
-		}
-
-		/* Sanity */
-		if (Period != 32)
-		{
-			/* Insert it */
-			Ep->NextEDVirtual = IEd->NextEDVirtual;
-			Ep->NextED = IEd->NextED;
-			
-			IEd->NextED = EdAddress;
-			IEd->NextEDVirtual = (Addr_t)Ep;
-		}
-
-		/* Store ed info */
-		Ep->HcdFlags |= OHCI_ED_SET_QUEUE(Queue);
-		Ep->HcdFlags |= OHCI_ED_SET_PERIOD(Period);
-		Ep->HcdFlags |= OHCI_ED_SET_INDEX(Index);
-
-		/* ENABLE SCHEDULEER */
-		Ctrl->Registers->HcControl |= OHCI_CONTROL_PERIODIC_ACTIVE | OHCI_CONTROL_ISOC_ACTIVE;
 	}
 
-	/* Release lock */
-	SpinlockRelease(&Ctrl->Lock);
+	/* Mark for scheduling */
+	Ep->HcdFlags |= OHCI_ED_SCHEDULE;
+
+	/* Enable SOF, ED is not scheduled before */
+	Ctrl->Registers->HcInterruptStatus = OHCI_INTR_SOF;
+	Ctrl->Registers->HcInterruptEnable = OHCI_INTR_SOF;
 
 	/* Sanity */
 	if (Request->Type == InterruptTransfer
@@ -1812,75 +1763,21 @@ void OhciTransactionDestroy(void *Controller, UsbHcRequest_t *Request)
 	}
 	else
 	{
-		/* Unhook ED from the list it's in */
-		SpinlockAcquire(&Ctrl->Lock);
-
-		/* DISABLE SCHEDULLER!!! */
-		Ctrl->Registers->HcControl &= ~(OHCI_CONTROL_PERIODIC_ACTIVE | OHCI_CONTROL_ISOC_ACTIVE);
-
 		/* Iso / Interrupt */
+		
+		/* Cast */
 		OhciEndpointDescriptor_t *Ed = (OhciEndpointDescriptor_t*)Request->Data;
-		OhciEndpointDescriptor_t *IEd, *PrevIEd;
-		uint32_t Period = OHCI_ED_GET_PERIOD(Ed->HcdFlags);
-		int Index = OHCI_ED_GET_INDEX(Ed->HcdFlags);
 
-		/* Get correct queue */
-		if (Period == 1)
-			IEd = &Ctrl->IntrTable->Ms1[Index];
-		else if (Period == 2)
-			IEd = &Ctrl->IntrTable->Ms2[Index];
-		else if (Period == 4)
-			IEd = &Ctrl->IntrTable->Ms4[Index];
-		else if (Period == 8)
-			IEd = &Ctrl->IntrTable->Ms8[Index];
-		else if (Period == 16)
-			IEd = &Ctrl->IntrTable->Ms16[Index];
-		else
-			IEd = Ctrl->ED32[Index];
+		/* Mark for unscheduling */
+		Ed->HcdFlags |= OHCI_ED_UNSCHEDULE;
 
-		/* Iterate */
-		PrevIEd = NULL;
-		while (IEd != Ed)
-		{
-			/* Sanity */
-			if (IEd->NextED == 0
-				|| IEd->NextED == 0x1)
-			{
-				IEd = NULL;
-				break;
-			}
+		/* Enable SOF, ED is not scheduled before */
+		Ctrl->Registers->HcInterruptStatus = OHCI_INTR_SOF;
+		Ctrl->Registers->HcInterruptEnable = OHCI_INTR_SOF;
 
-			/* Save */
-			PrevIEd = IEd;
-
-			/* Go to next */
-			IEd = (OhciEndpointDescriptor_t*)IEd->NextEDVirtual;
-		}
-
-		/* Sanity */
-		if (IEd != NULL)
-		{
-			/* Either we are first, or we are not */
-			if (PrevIEd == NULL
-				&& Period == 32)
-			{
-				/* Only special case for 32 period */
-				Ctrl->ED32[Index] = (OhciEndpointDescriptor_t*)Ed->NextEDVirtual;
-				Ctrl->HCCA->InterruptTable[Index] = Ed->NextED;
-			}
-			else if (PrevIEd != NULL)
-			{
-				/* Make it skip over */
-				PrevIEd->NextED = Ed->NextED;
-				PrevIEd->NextEDVirtual = Ed->NextEDVirtual;
-			}
-		}
-
-		/* ENABLE SCHEDULEER */
-		Ctrl->Registers->HcControl |= OHCI_CONTROL_PERIODIC_ACTIVE | OHCI_CONTROL_ISOC_ACTIVE;
-
-		/* Done */
-		SpinlockRelease(&Ctrl->Lock);
+		/* Wait for it to happen */
+		SchedulerSleepThread((Addr_t*)Ed);
+		IThreadYield();
 
 		/* Iterate transactions and free buffers & td's */
 		while (Transaction)
@@ -1918,10 +1815,9 @@ void OhciReloadControlBulk(OhciController_t *Controller, UsbTransferType_t Trans
 {
 	/* So now, before waking up a sleeper we see if Transactions are pending
 	* if they are, we simply copy the queue over to the current */
-	SpinlockAcquire(&Controller->Lock);
 
 	/* Any Controls waiting? */
-	if (TransferType == 0)
+	if (TransferType == ControlTransfer)
 	{
 		if (Controller->TransactionsWaitingControl > 0)
 		{
@@ -1940,7 +1836,7 @@ void OhciReloadControlBulk(OhciController_t *Controller, UsbTransferType_t Trans
 		Controller->TransactionQueueControl = 0;
 		Controller->TransactionsWaitingControl = 0;
 	}
-	else if (TransferType == 1)
+	else if (TransferType == BulkTransfer)
 	{
 		/* Bulk */
 		if (Controller->TransactionsWaitingBulk > 0)
@@ -1960,9 +1856,6 @@ void OhciReloadControlBulk(OhciController_t *Controller, UsbTransferType_t Trans
 		Controller->TransactionQueueBulk = 0;
 		Controller->TransactionsWaitingBulk = 0;
 	}
-
-	/* Done */
-	SpinlockRelease(&Controller->Lock);
 }
 
 /* Process Done Queue */
@@ -2092,6 +1985,57 @@ void OhciProcessDoneQueue(OhciController_t *Controller, Addr_t DoneHeadAddr)
 	}
 }
 
+/* Process Transactions 
+ * This code unlinks / links 
+ * pending endpoint descriptors */
+void OhciProcessTransactions(OhciController_t *Controller)
+{
+	/* Get transaction list */
+	list_t *Transactions = (list_t*)Controller->TransactionList;
+
+	/* Iterate list */
+	foreach(Node, Transactions)
+	{
+		/* Cast UsbRequest */
+		UsbHcRequest_t *HcRequest = (UsbHcRequest_t*)Node->data;
+
+		/* Get Ed */
+		OhciEndpointDescriptor_t *Ed = (OhciEndpointDescriptor_t*)HcRequest->Data;
+
+		/* Has this Ed requested linkage? */
+		if (Ed->HcdFlags & OHCI_ED_SCHEDULE)
+		{
+			/* What kind of scheduling is requested? */
+			if (HcRequest->Type == ControlTransfer
+				|| HcRequest->Type == BulkTransfer) {
+				/* Link */
+				OhciLinkGeneric(Controller, HcRequest);
+			}
+			else {
+				/* Link */
+				OhciLinkPeriodic(Controller, HcRequest);
+
+				/* Make sure periodic list is active */
+				Controller->Registers->HcControl |= OHCI_CONTROL_PERIODIC_ACTIVE | OHCI_CONTROL_ISOC_ACTIVE;
+			}
+
+			/* Remove scheduling flag */
+			Ed->HcdFlags &= ~OHCI_ED_SCHEDULE;
+		}
+		else if (Ed->HcdFlags & OHCI_ED_UNSCHEDULE)
+		{
+			/* Only interrupt and isoc requests unscheduling */
+			OhciUnlinkPeriodic(Controller, HcRequest);
+
+			/* Remove unscheduling flag */
+			Ed->HcdFlags &= ~OHCI_ED_UNSCHEDULE;
+
+			/* Wake up process if anyone was waiting for us to unlink */
+			SchedulerWakeupOneThread((Addr_t*)HcRequest->Data);
+		}
+	}
+}
+
 /* Interrupt Handler */
 int OhciInterruptHandler(void *Args)
 {
@@ -2205,9 +2149,12 @@ int OhciInterruptHandler(void *Args)
 	/* Start of Frame? */
 	if (IntrState & OHCI_INTR_SOF)
 	{
-		/* Acknowledge Interrupt */
+		/* If this occured we have linking/unlinking to do! */
+		OhciProcessTransactions(Controller);
+
+		/* Acknowledge Interrupt 
+		 * - But mask this interrupt again */
 		Controller->Registers->HcInterruptStatus = OHCI_INTR_SOF;
-		IntrState = IntrState & ~(OHCI_INTR_SOF);
 	}
 
 	/* Mask out remaining interrupts, we dont use them */
