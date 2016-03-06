@@ -77,6 +77,25 @@ typedef struct _EchiCapabilityRegisters
 } EchiCapabilityRegisters_t;
 #pragma pack(pop)
 
+/* Bit Definitions */
+#define EHCI_SPARAM_PORTCOUNT(n)			(n & 0xF)
+#define EHCI_SPARAM_PPC						(1 << 4)
+#define EHCI_SPARAM_PORTROUTING				(1 << 7)
+
+/* Ports per companion controller */
+#define EHCI_SPARAM_CCPCOUNT(n)				((n >> 8) & 0xF)
+
+/* Number of companion controllers */
+#define EHCI_SPARAM_CCCOUNT(n)				((n >> 12) & 0xF)
+#define EHCI_SPARAM_PORTINDICATORS			(1 << 16)
+#define EHCI_SPARAM_DEBUGPORT(n)			((n >> 20) & 0xF)
+
+#define EHCI_CPARAM_64BIT					(1 << 0)
+#define EHCI_CPARAM_VARIABLEFRAMELIST		(1 << 1)
+#define EHCI_CPARAM_ASYNCPARK				(1 << 2)
+#define EHCI_CPARAM_ISOCTHRESHOLD(n)		((n >> 4) & 0xF)
+#define EHCI_CPARAM_EECP(n)					((n >> 8) & 0xFF)
+
 /* Operational Registers */
 #pragma pack(push, 1)
 typedef struct _EchiOperationalRegisters
@@ -114,5 +133,36 @@ typedef struct _EchiOperationalRegisters
 
 } EchiOperationalRegisters_t;
 #pragma pack(pop)
+
+
+/* The Controller */
+typedef struct _EhciController
+{
+	/* Id */
+	int Id;
+	int HcdId;
+
+	/* Device */
+	MCoreDevice_t *Device;
+
+	/* Lock */
+	Spinlock_t Lock;
+	
+	/* Registers */
+	volatile EchiCapabilityRegisters_t *CapRegisters;
+	volatile EchiOperationalRegisters_t *OpRegisters;
+
+	/* Port Count */
+	size_t Ports;
+
+	/* Transaction List
+	* Contains transactions
+	* in progress */
+	void *TransactionList;
+
+} EhciController_t;
+
+
+
 
 #endif
