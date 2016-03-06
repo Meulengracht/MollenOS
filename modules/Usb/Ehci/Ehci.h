@@ -29,6 +29,9 @@
 /* Definitions */
 #define EHCI_MAX_PORTS			15
 
+#define EHCI_STRUCT_ALIGN			32
+#define EHCI_STRUCT_ALIGN_BITS		0x1F
+
 /* Structures */
 
 /* EHCI Register Space */
@@ -134,6 +137,184 @@ typedef struct _EchiOperationalRegisters
 } EchiOperationalRegisters_t;
 #pragma pack(pop)
 
+/* Command Bits */
+#define EHCI_COMMAND_RUN				(1 << 0)
+#define EHCI_COMMAND_HCRESET			(1 << 1)
+#define EHCI_COMMAND_PERIODIC_ENABLE	(1 << 4)
+#define EHCI_COMMAND_ASYNC_ENABLE		(1 << 5)
+#define EHCI_COMMAND_IOC_ASYNC_DOORBELL	(1 << 6)
+#define EHCI_COMMAND_LIGHT_HCRESET		(1 << 7)
+
+/* Status Bits */
+#define EHCI_STATUS_PROCESS				(1 << 0)
+#define EHCI_STATUS_PROCESSERROR		(1 << 1)
+#define EHCI_STATUS_PORTCHANGE			(1 << 2)
+#define EHCI_STATUS_FLROLLOVER			(1 << 3)
+#define EHCI_STATUS_HOSTERROR			(1 << 4)
+#define EHCI_STATUS_ASYNC_DOORBELL		(1 << 5)
+
+#define EHCI_STATUS_HALTED				(1 << 12)
+#define EHCI_STATUS_RECLAMATION			(1 << 13)
+#define EHCI_STATUS_PERIODIC_ACTIVE		(1 << 14)
+#define EHCI_STATUS_ASYNC_ACTIVE		(1 << 15)
+
+/* INTR Bits */
+#define EHCI_INTR_PROCESS				(1 << 0)
+#define EHCI_INTR_PROCESSERROR			(1 << 1)
+#define EHCI_INTR_PORTCHANGE			(1 << 2)
+#define EHCI_INTR_FLROLLOVER			(1 << 3)
+#define EHCI_INTR_HOSTERROR				(1 << 4)
+#define EHCI_INTR_ASYNC_DOORBELL		(1 << 5)
+
+/* Port Command Bits */
+#define EHCI_PORT_CONNECTED				(1 << 0)
+#define EHCI_PORT_CONNECT_EVENT			(1 << 1)
+#define EHCI_PORT_ENABLED				(1 << 2)
+#define EHCI_PORT_ENABLE_EVENT			(1 << 3)
+
+#define EHCI_PORT_FORCERESUME			(1 << 6)
+#define EHCI_PORT_SUSPENDED				(1 << 7)
+#define EHCI_PORT_RESET					(1 << 8)
+
+#define EHCI_PORT_LINESTATUS(n)			((n >> 10) & 0x3)
+#define EHCI_LINESTATUS_RELEASE			0x1
+
+#define EHCI_PORT_POWER					(1 << 12)
+#define EHCI_PORT_OWNER					(1 << 13)
+
+/* Port Wake Bits */
+#define EHCI_PORT_CONNECT_WAKE			(1 << 20)
+#define EHCI_PORT_DISCONNECT_WAKE		(1 << 21)
+#define EHCI_PORT_OC_WAKE				(1 << 22)
+
+/* Link Bits */
+#define EHCI_LINK_END					(1 << 0)
+#define EHCI_LINK_iTD					0
+#define EHCI_LINK_QH					(1 << 1)
+#define EHCI_LINK_siTD					(2 << 1)
+#define EHCI_LINK_FSTN					(3 << 1)
+
+/* Isochronous Transfer Descriptor 
+ * Must be 32 byte aligned 
+ * 32 Bit Version */
+#pragma pack(push, 1)
+typedef struct _EhciIsocDescriptor32
+{
+	/* Link Pointer 
+	 * Bit 0: Terminate
+	 * Bit 1-2: Type
+	 * Bit 3-4: 0 */
+	uint32_t Link;
+
+	/* Transactions 
+	 * Bit 0-11: Transaction Offset
+	 * Bit 12-14: Page Selector 
+	 * Bit 15: Interrupt on Completion 
+	 * Bit 16-27: Transaction Length 
+	 * Bit 28-31: Condition Code (Status) */
+	uint16_t Transaction0[2];
+	uint16_t Transaction1[2];
+	uint16_t Transaction2[2];
+	uint16_t Transaction3[2];
+	uint16_t Transaction4[2];
+	uint16_t Transaction5[2];
+	uint16_t Transaction6[2];
+	uint16_t Transaction7[2];
+
+	/* Status & Bp0 
+	 * Bit 0-6: Device Address 
+	 * Bit 7: Reserved 
+	 * Bit 8-11: Endpoint Number 
+	 * Bit 12-31: Buffer Page */
+	uint32_t StatusAndBp0;
+
+	/* MaxPacketSize & Bp1 
+	 * Bit 0-10: Maximum Packet Size (max 400h)
+	 * Bit 11: Direction (0 = out, 1 = in) 
+	 * Bit 12-31: Buffer Page */
+	uint32_t MpsAndBp1;
+
+	/* Multi & Bp2
+	 * Bit 0-1: How many transactions per micro-frame should be executed
+	 * Bit 12-31: Buffer Page */
+	uint32_t MultAndBp2;
+
+	/* Bp3-6 
+	 * Bit 0-11: Reserved
+	 * Bit 12-31: Buffer Page */
+	uint32_t Bp3;
+	uint32_t Bp4;
+	uint32_t Bp5;
+	uint32_t Bp6;
+
+} EhciIsocDescriptor32_t;
+#pragma pack(pop)
+
+/* Isochronous Transfer Descriptor
+* Must be 32 byte aligned
+* 64 Bit Version */
+#pragma pack(push, 1)
+typedef struct _EhciIsocDescriptor64
+{
+	/* Reuse the 32 bit descriptor
+	 * Same information */
+	EhciIsocDescriptor32_t Header;
+
+	/* Extended buffer pages 
+	 * Their upper address bits */
+	uint32_t ExtBp0;
+	uint32_t ExtBp1;
+	uint32_t ExtBp2;
+	uint32_t ExtBp3;
+	uint32_t ExtBp4;
+	uint32_t ExtBp5;
+	uint32_t ExtBp6;
+
+} EhciIsocDescriptor64_t;
+#pragma pack(pop)
+
+/* iTD: Transaction Bits */
+#define EHCI_iTD_DEVADDR(n)				(n & 0x7F)
+#define EHCI_iTD_EPADDR(n)				((n & 0xF) << 8)
+#define EHCI_iTD_OFFSET(n)				(n & 0xFFF)
+#define EHCI_iTD_PAGE(n)				((n & 0x7) << 12)
+#define EHCI_iTD_IOC					(1 << 15)
+#define EHCI_iTD_LENGTH(n)				(n & 0xFFF)
+#define EHCI_iTD_ACTIVE					(1 << 15)
+#define EHCI_iTD_CC(n)					((n >> 12) & 0xF)
+
+#define EHCI_iTD_MPS(n)					(n & 0x7FF)
+#define EHCI_iTD_IN						(1 << 11);
+#define EHCI_iTD_OUT					0
+#define EHCI_iTD_BUFFER(n)				(n & 0xFFFFF000)
+#define EHCI_iTD_EXTBUFFER(n)			((n >> 32) & 0xFFFFFFFF)
+#define EHCI_iTD_TRANSACTIONCOUNT(n)	(n & 0x3)
+
+/* Split Isochronous Transfer Descriptor
+* Must be 32 byte aligned
+* 32 Bit Version */
+#pragma pack(push, 1)
+typedef struct _EhciSplitIsocDescriptor32
+{
+	/* Link Pointer
+	* Bit 0: Terminate
+	* Bit 1-2: Type
+	* Bit 3-4: 0 */
+	uint32_t Link;
+
+	/* Flags 
+	 * Bit 0-6: Device Address
+	 * Bit 7: Reserved
+	 * Bit 8-11: Endpoint Address 
+	 * Bit 12-15: Reserved
+	 * Bit 16-22: Hub Address
+	 * Bit 23: Reserved
+	 * Bit 24-30: Port Number
+	 * Bit 31: Direction */
+	uint32_t Flags;
+
+} EhciSplitIsocDescriptor32_t;
+#pragma pack(pop)
 
 /* The Controller */
 typedef struct _EhciController
@@ -161,8 +342,5 @@ typedef struct _EhciController
 	void *TransactionList;
 
 } EhciController_t;
-
-
-
 
 #endif

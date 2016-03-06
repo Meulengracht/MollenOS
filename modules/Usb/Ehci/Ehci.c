@@ -181,35 +181,34 @@ void EhciDisableLegacySupport(EhciController_t *Controller)
 void EhciSilence(EhciController_t *Controller)
 {
 	/* Vars */
-	uint32_t cmd;
+	uint32_t Temp;
 	int Fault = 0;
 
 	/* Stop scheduler */
-	cmd = Controller->OpRegisters->UsbCommand;
-	cmd &= ~(0x10 | 0x20);
-	Controller->OpRegisters->UsbCommand = cmd;
+	Temp = Controller->OpRegisters->UsbCommand;
+	Temp &= ~(EHCI_COMMAND_PERIODIC_ENABLE | EHCI_COMMAND_ASYNC_ENABLE);
+	Controller->OpRegisters->UsbCommand = Temp;
 
 	/* Wait for stop */
 	WaitForConditionWithFault(Fault, (Controller->OpRegisters->UsbStatus & 0xC000) == 0, 250, 10);
 
-	if (Fault)
-	{
+	/* Sanity */
+	if (Fault) {
 		LogFatal("EHCI", "Failed to stop scheduler, Cmd Register: 0x%x - Status: 0x%x",
 			Controller->OpRegisters->UsbCommand, Controller->OpRegisters->UsbStatus);
 	}
 
 	/* Stop controller */
-	cmd = Controller->OpRegisters->UsbCommand;
-	cmd &= ~(0x1);
-	Controller->OpRegisters->UsbCommand = cmd;
+	Temp = Controller->OpRegisters->UsbCommand;
+	Temp &= ~(EHCI_COMMAND_RUN);
+	Controller->OpRegisters->UsbCommand = Temp;
 	Controller->OpRegisters->UsbIntr = 0;
 
 	/* Wait for stop */
 	Fault = 0;
-	WaitForConditionWithFault(Fault, (Controller->OpRegisters->UsbStatus & 0x1000) != 0, 250, 10);
+	WaitForConditionWithFault(Fault, (Controller->OpRegisters->UsbStatus & EHCI_STATUS_HALTED) != 0, 250, 10);
 
-	if (Fault)
-	{
+	if (Fault) {
 		LogFatal("EHCI", "Failed to stop controller, Cmd Register: 0x%x - Status: 0x%x",
 			Controller->OpRegisters->UsbCommand, Controller->OpRegisters->UsbStatus);
 	}
