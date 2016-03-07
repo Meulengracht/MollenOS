@@ -283,7 +283,7 @@ typedef struct _EhciIsocDescriptor64
 #define EHCI_iTD_ACTIVE					(1 << 15)
 #define EHCI_iTD_CC(n)					((n >> 12) & 0xF)
 
-#define EHCI_iTD_MPS(n)					(n & 0x7FF)
+#define EHCI_iTD_MPS(n)					(MIN(1024, n))
 #define EHCI_iTD_IN						(1 << 11);
 #define EHCI_iTD_OUT					0
 #define EHCI_iTD_BUFFER(n)				(n & 0xFFFFF000)
@@ -313,8 +313,320 @@ typedef struct _EhciSplitIsocDescriptor32
 	 * Bit 31: Direction */
 	uint32_t Flags;
 
+	/* Frame Masks */
+	uint8_t FStartMask;
+	uint8_t FCompletionMask;
+
+	/* Reserved */
+	uint16_t Reserved;
+
+	/* Status
+	 * Bit 0-7: Status
+	 * Bit 8-15: µFrame Complete-split Progress Mask 
+	 * Bit 16-25: Transfer Length (max 3FFh)
+	 * Bit 26-29: Reserved
+	 * Bit 30: Page Select (0 = Bp0, 1 = Bp1)
+	 * Bit 31: IOC */
+	uint32_t Status;
+
+	/* Buffer Page 0 + Offset 
+	 * Bit 0-11: Current Offset 
+	 * Bit 12-31: Bp0 */
+	uint32_t Bp0AndOffset;
+
+	/* Buffer Page 1 + Info 
+	 * Bit 0-2: Transaction count, max val 6
+	 * Bit 3-4: Transaction Position, 
+	 * Bit 5-11: Reserved
+	 * Bit 12-31: Bp1 */
+	uint32_t Bp1AndInfo;
+
+	/* Back Pointer
+	 * Bit 0: Terminate 
+	 * Bit 1-4: Reserved */
+	uint32_t BackPointer;
+
 } EhciSplitIsocDescriptor32_t;
 #pragma pack(pop)
+
+/* Split Isochronous Transfer Descriptor
+* Must be 32 byte aligned
+* 64 Bit Version */
+#pragma pack(push, 1)
+typedef struct _EhciSplitIsocDescriptor64
+{
+	/* Reuse the 32 bit descriptor
+	* Same information */
+	EhciSplitIsocDescriptor32_t Header;
+
+	/* Extended buffer pages
+	* Their upper address bits */
+	uint32_t ExtBp0;
+	uint32_t ExtBp1;
+
+} EhciSplitIsocDescriptor64_t;
+#pragma pack(pop)
+
+/* siTD Bits */
+#define EHCI_siTD_DEVADDR(n)			(n & 0x7F)
+#define EHCI_siTD_EPADDR(n)				((n & 0xF) << 8)
+#define EHCI_siTD_HUBADDR(n)			((n & 0x7F) << 16)
+#define EHCI_siTD_PORT(n)				((n & 0x7F) << 24)
+#define EHCI_siTD_OUT					0
+#define EHCI_siTD_IN					(1 << 31)
+
+#define EHCI_siTD_SMASK(n)				(n & 0xFF)
+#define EHCI_siTD_CMASK(n)				((n & 0xFF) << 8)
+
+#define EHCI_siTD_ACTIVE				(1 << 7)
+#define EHCI_siTD_CC(n)					(n & 0xFF)
+#define EHCI_siTD_CSPMASK(n)			((n & 0xFF) << 8)
+#define EHCI_siTD_LENGTH(n)				((n & 0x3FF) << 16)
+#define EHCI_siTD_PAGE(n)				((n & 0x1) << 30)
+#define EHCI_siTD_IOC					(n << 31)
+
+#define EHCI_siTD_OFFSET(n)				(n & 0xFFF)
+#define EHCI_siTD_BUFFER(n)				(n & 0xFFFFF000)
+
+#define EHCI_siTD_TCOUNT(n)				(MIN(6, n) & 0x7)
+#define EHCI_siTD_POSITION_ALL			0
+#define EHCI_siTD_POSITION_BEGIN		(1 << 3)
+#define EHCI_siTD_POSITION_MID			(2 << 3)
+#define EHCI_siTD_POSITION_END			(3 << 3)
+
+/* Transfer Descriptor
+* Must be 32 byte aligned
+* 32 Bit Version */
+#pragma pack(push, 1)
+typedef struct _EhciTransferDescriptor32
+{
+	/* Link Pointer - Next TD
+	* Bit 0: Terminate */
+	uint32_t Link;
+
+	/* Alternative Link Pointer - Next TD
+	* Only used when a short packet is detected
+	* Then this link is executed instead (if set..)
+	* Bit 0: Terminate */
+	uint32_t AlternativeLink;
+
+	/* Flags 
+	 * Bit 0-7: Status
+	 * Bit 8-9: PID 
+	 * Bit 10-11: Error Count
+	 * Bit 12-14: Page Selector (0-4 value)
+	 * Bit 15: IOC */
+	uint16_t Flags;
+
+	/* Transfer Length
+	 * Bit 0-14: Length (Max Value 0x5000 (5 Pages))
+	 * Bit 15: Data Toggle */
+	uint16_t Length;
+
+	/* Buffer Page 0 + Offset 
+	 * Bit 0-11: Current Offset
+	 * Bit 12-31: Buffer Page */
+	uint32_t Bp0AndOffset;
+
+	/* Buffer Page 1-4 
+	 * Bit 0-11: Reserved
+	 * Bit 12-31: Buffer Page */
+	uint32_t Bp1;
+	uint32_t Bp2;
+	uint32_t Bp3;
+	uint32_t Bp4;
+
+} EhciTransferDescriptor32_t;
+#pragma pack(pop)
+
+/* Transfer Descriptor
+* Must be 32 byte aligned
+* 64 Bit Version */
+#pragma pack(push, 1)
+typedef struct _EhciTransferDescriptor64
+{
+	/* Reuse the 32 bit descriptor
+	* Same information */
+	EhciTransferDescriptor32_t Header;
+
+	/* Extended buffer pages
+	* Their upper address bits */
+	uint32_t ExtBp0;
+	uint32_t ExtBp1;
+	uint32_t ExtBp2;
+	uint32_t ExtBp3;
+	uint32_t ExtBp4;
+
+} EhciTransferDescriptor64_t;
+#pragma pack(pop)
+
+/* TD Bits */
+#define EHCI_TD_ACTIVE				(1 << 7)
+
+#define EHCI_TD_OUT					0
+#define EHCI_TD_IN					(1 << 8)
+#define EHCI_TD_SETUP				(1 << 9)
+#define EHCI_TD_ERRCOUNT			(3 << 10)
+#define EHCI_TD_PAGE(n)				(MIN(4, n) << 12)
+#define EHCI_TD_IOC					(1 << 15)
+
+#define EHCI_TD_LENGTH(n)			(MIN(20480, n))
+#define EHCI_TD_TOGGLE				(1 << 15)
+
+#define EHCI_TD_OFFSET(n)			(n & 0xFFF)
+#define EHCI_TD_BUFFER(n)			(n & 0xFFFFF000)
+#define EHCI_TD_EXTBUFFER(n)		((n >> 32) & 0xFFFFFFFF)
+
+#define EHCI_TD_CERR(n)				((n >> 10) & 0x3)
+#define EHCI_TD_CC(n)				(n & 0xFF)
+
+/* Queue Head
+* Must be 32 byte aligned
+* 32 Bit Version */
+#pragma pack(push, 1)
+typedef struct _EhciQueueHead32
+{
+	/* Queue Head Link Pointer 
+	 * Bit 0: Terminate
+	 * Bit 1-2: Type
+	 * Bit 3-4: Reserved */
+	uint32_t LinkPointer;
+
+	/* Flags 
+	 * Bit 0-6: Device Address
+	 * Bit 7: Inactivate on Next Transaction
+	 * Bit 8-11: Endpoint Number 
+	 * Bit 12-13: Endpoint Speed
+	 * Bit 14: Data Toggle Control
+	 * Bit 15: Head of Reclamation List Flag
+	 * Bit 16-26: Max Packet Length
+	 * Bit 27: Control Endpoint Flag
+	 * Bit 28-31: Nak Recount Load */
+	uint32_t Flags;
+
+	/* Frame Masks */
+	uint8_t FStartMask;
+	uint8_t FCompletionMask;
+
+	/* State 
+	 * Bit 0-6: Hub Address
+	 * Bit 7-13: Port Number
+	 * Bit 14-15: Multi */
+	uint16_t State;
+
+	/* Current TD Pointer 
+	 * Bit 0-4: Reserved */
+	uint32_t CurrentTD;
+
+	/* Next TD Pointer 
+	 * Bit 0: Terminate
+	 * Bit 1-4: Reserved */
+	uint32_t NextTD;
+
+	/* Alternative TD Pointer 
+	 * Bit 0: Terminate
+	 * Bit 1-4: NAK Count */
+	uint32_t NextAlternativeTD;
+
+	/* Status
+	* Bit 0-7: Status
+	* Bit 8-9: PID
+	* Bit 10-11: Error Count
+	* Bit 12-14: Page Selector (0-4 value)
+	* Bit 15: IOC */
+	uint16_t Status;
+
+	/* Transfer Length
+	* Bit 0-14: Length (Max Value 0x5000 (5 Pages))
+	* Bit 15: Data Toggle */
+	uint16_t Length;
+
+	/* Buffer Page 0 + Offset
+	* Bit 0-11: Current Offset
+	* Bit 12-31: Buffer Page */
+	uint32_t Bp0AndOffset;
+	
+	/* Buffer Page 1 + Completion Process Mask 
+	 * Bit 0-7: Completion Process Mask 
+	 * Bit 8-11: Reserved 
+	 * Bit 12-31: Buffer Page */
+	uint32_t Bp1;
+
+	/* Buffer Page 2 + FrameTag 
+	 * Bit 0-4: Frame Tag
+	 * Bit 5-11: S-Bytes
+	 * Bit 12-31: Buffer Page */
+	uint32_t Bp2;
+
+	/* Buffer Page 3-4
+	* Bit 0-11: Reserved
+	* Bit 12-31: Buffer Page */
+	uint32_t Bp3;
+	uint32_t Bp4;
+
+} EhciQueueHead32_t;
+#pragma pack(pop)
+
+/* Queue Head
+* Must be 32 byte aligned
+* 64 Bit Version */
+#pragma pack(push, 1)
+typedef struct _EhciQueueHead64
+{
+	/* Reuse the 32 bit descriptor
+	* Same information */
+	EhciQueueHead32_t Header;
+
+	/* Extended buffer pages
+	* Their upper address bits */
+	uint32_t ExtBp0;
+	uint32_t ExtBp1;
+	uint32_t ExtBp2;
+	uint32_t ExtBp3;
+	uint32_t ExtBp4;
+
+} EhciQueueHead64_t;
+#pragma pack(pop)
+
+/* QH Bits */
+#define EHCI_QH_DEVADDR(n)			(n & 0x7F)
+#define EHCI_QH_INVALIDATE_NEXT		(1 << 7)
+#define EHCI_QH_EPADDR(n)			((n & 0xF) << 8)
+#define EHCI_QH_LOWSPEED			(1 << 12)
+#define EHCI_QH_FULLSPEED			0
+#define EHCI_QH_HIGHSPEED			(1 << 13)
+#define EHCI_QH_DTC					(1 << 14)
+#define EHCI_QH_RECLAMATIONHEAD		(1 << 15)
+#define EHCI_QH_MAXLENGTH(n)		(MIN(1024, n) << 16)
+#define EHCI_QH_CONTROLEP			(1 << 27)
+#define EHCI_QH_RL(n)				((n & 0xF) << 28)
+
+#define EHCI_QH_HUBADDR(n)			(n & 0x7F)
+#define EHCI_QH_PORT(n)				((n & 0x7F) << 7)
+#define EHCI_QH_MULTIPLIER(n)		((n & 0x3) << 14)
+
+#define EHCI_QH_OFFSET(n)			(n & 0xFFF)
+#define EHCI_QH_BUFFER(n)			(n & 0xFFFFF000)
+#define EHCI_QH_EXTBUFFER(n)		((n >> 32) & 0xFFFFFFFF)
+
+/* Periodic Frame Span Traversal Node
+* Must be 32 byte aligned */
+#pragma pack(push, 1)
+typedef struct _EhciFSTN
+{
+	/* Normal Path Pointer 
+	* Bit 0: Terminate
+	* Bit 1-2: Type
+	* Bit 3-4: Reserved */
+	uint32_t PathPointer;
+
+	/* Back Path Link Pointer
+	* Bit 0: Terminate
+	* Bit 1-2: Type
+	* Bit 3-4: Reserved */
+	uint32_t BackPathPointer;
+
+} EhciFSTN_t;
 
 /* The Controller */
 typedef struct _EhciController
