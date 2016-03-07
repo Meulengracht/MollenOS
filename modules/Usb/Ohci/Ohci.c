@@ -17,6 +17,7 @@
 *
 *
 * MollenOS USB OHCI Controller Driver
+* Optimize the ED pool allocations
 */
 
 /* Definitions */

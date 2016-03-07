@@ -30,7 +30,6 @@
 #define EHCI_MAX_PORTS			15
 
 #define EHCI_STRUCT_ALIGN			32
-#define EHCI_STRUCT_ALIGN_BITS		0x1F
 
 /* Structures */
 
@@ -195,10 +194,9 @@ typedef struct _EchiOperationalRegisters
 #define EHCI_LINK_FSTN					(3 << 1)
 
 /* Isochronous Transfer Descriptor 
- * Must be 32 byte aligned 
- * 32 Bit Version */
+ * Must be 32 byte aligned */
 #pragma pack(push, 1)
-typedef struct _EhciIsocDescriptor32
+typedef struct _EhciIsocDescriptor
 {
 	/* Link Pointer 
 	 * Bit 0: Terminate
@@ -247,21 +245,8 @@ typedef struct _EhciIsocDescriptor32
 	uint32_t Bp5;
 	uint32_t Bp6;
 
-} EhciIsocDescriptor32_t;
-#pragma pack(pop)
-
-/* Isochronous Transfer Descriptor
-* Must be 32 byte aligned
-* 64 Bit Version */
-#pragma pack(push, 1)
-typedef struct _EhciIsocDescriptor64
-{
-	/* Reuse the 32 bit descriptor
-	 * Same information */
-	EhciIsocDescriptor32_t Header;
-
-	/* Extended buffer pages 
-	 * Their upper address bits */
+	/* Extended buffer pages
+	* Their upper address bits */
 	uint32_t ExtBp0;
 	uint32_t ExtBp1;
 	uint32_t ExtBp2;
@@ -270,7 +255,7 @@ typedef struct _EhciIsocDescriptor64
 	uint32_t ExtBp5;
 	uint32_t ExtBp6;
 
-} EhciIsocDescriptor64_t;
+} EhciIsocDescriptor_t;
 #pragma pack(pop)
 
 /* iTD: Transaction Bits */
@@ -291,10 +276,9 @@ typedef struct _EhciIsocDescriptor64
 #define EHCI_iTD_TRANSACTIONCOUNT(n)	(n & 0x3)
 
 /* Split Isochronous Transfer Descriptor
-* Must be 32 byte aligned
-* 32 Bit Version */
+* Must be 32 byte aligned */
 #pragma pack(push, 1)
-typedef struct _EhciSplitIsocDescriptor32
+typedef struct _EhciSplitIsocDescriptor
 {
 	/* Link Pointer
 	* Bit 0: Terminate
@@ -346,25 +330,12 @@ typedef struct _EhciSplitIsocDescriptor32
 	 * Bit 1-4: Reserved */
 	uint32_t BackPointer;
 
-} EhciSplitIsocDescriptor32_t;
-#pragma pack(pop)
-
-/* Split Isochronous Transfer Descriptor
-* Must be 32 byte aligned
-* 64 Bit Version */
-#pragma pack(push, 1)
-typedef struct _EhciSplitIsocDescriptor64
-{
-	/* Reuse the 32 bit descriptor
-	* Same information */
-	EhciSplitIsocDescriptor32_t Header;
-
 	/* Extended buffer pages
 	* Their upper address bits */
 	uint32_t ExtBp0;
 	uint32_t ExtBp1;
 
-} EhciSplitIsocDescriptor64_t;
+} EhciSplitIsocDescriptor_t;
 #pragma pack(pop)
 
 /* siTD Bits */
@@ -395,10 +366,9 @@ typedef struct _EhciSplitIsocDescriptor64
 #define EHCI_siTD_POSITION_END			(3 << 3)
 
 /* Transfer Descriptor
-* Must be 32 byte aligned
-* 32 Bit Version */
+* Must be 32 byte aligned */
 #pragma pack(push, 1)
-typedef struct _EhciTransferDescriptor32
+typedef struct _EhciTransferDescriptor
 {
 	/* Link Pointer - Next TD
 	* Bit 0: Terminate */
@@ -410,13 +380,15 @@ typedef struct _EhciTransferDescriptor32
 	* Bit 0: Terminate */
 	uint32_t AlternativeLink;
 
-	/* Flags 
-	 * Bit 0-7: Status
-	 * Bit 8-9: PID 
-	 * Bit 10-11: Error Count
-	 * Bit 12-14: Page Selector (0-4 value)
-	 * Bit 15: IOC */
-	uint16_t Flags;
+	/* Status */
+	uint8_t Status;
+
+	/* Token
+	* Bit 0-1: PID
+	* Bit 2-3: Error Count
+	* Bit 4-6: Page Selector (0-4 value)
+	* Bit 7: IOC */
+	uint8_t Token;
 
 	/* Transfer Length
 	 * Bit 0-14: Length (Max Value 0x5000 (5 Pages))
@@ -436,19 +408,6 @@ typedef struct _EhciTransferDescriptor32
 	uint32_t Bp3;
 	uint32_t Bp4;
 
-} EhciTransferDescriptor32_t;
-#pragma pack(pop)
-
-/* Transfer Descriptor
-* Must be 32 byte aligned
-* 64 Bit Version */
-#pragma pack(push, 1)
-typedef struct _EhciTransferDescriptor64
-{
-	/* Reuse the 32 bit descriptor
-	* Same information */
-	EhciTransferDescriptor32_t Header;
-
 	/* Extended buffer pages
 	* Their upper address bits */
 	uint32_t ExtBp0;
@@ -457,18 +416,19 @@ typedef struct _EhciTransferDescriptor64
 	uint32_t ExtBp3;
 	uint32_t ExtBp4;
 
-} EhciTransferDescriptor64_t;
+} EhciTransferDescriptor_t;
 #pragma pack(pop)
 
 /* TD Bits */
+#define EHCI_TD_HALTED				(1 << 6)
 #define EHCI_TD_ACTIVE				(1 << 7)
 
 #define EHCI_TD_OUT					0
-#define EHCI_TD_IN					(1 << 8)
-#define EHCI_TD_SETUP				(1 << 9)
-#define EHCI_TD_ERRCOUNT			(3 << 10)
-#define EHCI_TD_PAGE(n)				(MIN(4, n) << 12)
-#define EHCI_TD_IOC					(1 << 15)
+#define EHCI_TD_IN					(1 << 0)
+#define EHCI_TD_SETUP				(1 << 1)
+#define EHCI_TD_ERRCOUNT			(3 << 2)
+#define EHCI_TD_PAGE(n)				(MIN(4, n) << 4)
+#define EHCI_TD_IOC					(1 << 7)
 
 #define EHCI_TD_LENGTH(n)			(MIN(20480, n))
 #define EHCI_TD_TOGGLE				(1 << 15)
@@ -481,10 +441,9 @@ typedef struct _EhciTransferDescriptor64
 #define EHCI_TD_CC(n)				(n & 0xFF)
 
 /* Queue Head
-* Must be 32 byte aligned
-* 32 Bit Version */
+* Must be 32 byte aligned */
 #pragma pack(push, 1)
-typedef struct _EhciQueueHead32
+typedef struct _EhciQueueHead
 {
 	/* Queue Head Link Pointer 
 	 * Bit 0: Terminate
@@ -528,13 +487,15 @@ typedef struct _EhciQueueHead32
 	 * Bit 1-4: NAK Count */
 	uint32_t NextAlternativeTD;
 
-	/* Status
-	* Bit 0-7: Status
-	* Bit 8-9: PID
-	* Bit 10-11: Error Count
-	* Bit 12-14: Page Selector (0-4 value)
-	* Bit 15: IOC */
-	uint16_t Status;
+	/* Status */
+	uint8_t Status;
+
+	/* Token 
+	 * Bit 0-1: PID
+	 * Bit 2-3: Error Count
+	 * Bit 4-6: Page Selector (0-4 value)
+	 * Bit 7: IOC */
+	uint8_t Token;
 
 	/* Transfer Length
 	* Bit 0-14: Length (Max Value 0x5000 (5 Pages))
@@ -564,19 +525,6 @@ typedef struct _EhciQueueHead32
 	uint32_t Bp3;
 	uint32_t Bp4;
 
-} EhciQueueHead32_t;
-#pragma pack(pop)
-
-/* Queue Head
-* Must be 32 byte aligned
-* 64 Bit Version */
-#pragma pack(push, 1)
-typedef struct _EhciQueueHead64
-{
-	/* Reuse the 32 bit descriptor
-	* Same information */
-	EhciQueueHead32_t Header;
-
 	/* Extended buffer pages
 	* Their upper address bits */
 	uint32_t ExtBp0;
@@ -585,7 +533,11 @@ typedef struct _EhciQueueHead64
 	uint32_t ExtBp3;
 	uint32_t ExtBp4;
 
-} EhciQueueHead64_t;
+	/* 72 bytes 
+	 * Add 24 bytes for allocation easieness */
+	uint32_t Padding[6];
+
+} EhciQueueHead_t;
 #pragma pack(pop)
 
 /* QH Bits */
@@ -628,6 +580,14 @@ typedef struct _EhciFSTN
 
 } EhciFSTN_t;
 
+/* Pool Definitions */
+#define EHCI_POOL_NUM_QH				60
+#define EHCI_ENDPOINT_MIN_ALLOCATED		25
+
+/* Pool Indices */
+#define EHCI_POOL_QH_NULL				0
+#define EHCI_POOL_QH_ASYNC				1
+
 /* The Controller */
 typedef struct _EhciController
 {
@@ -645,6 +605,17 @@ typedef struct _EhciController
 	volatile EchiCapabilityRegisters_t *CapRegisters;
 	volatile EchiOperationalRegisters_t *OpRegisters;
 
+	/* Copy of SP/CP */
+	uint32_t SParameters;
+	uint32_t CParameters;
+
+	/* FrameList */
+	size_t FLength;
+	uint32_t *FrameList;
+
+	/* Pools */
+	EhciQueueHead_t *QhPool[EHCI_POOL_NUM_QH];
+
 	/* Port Count */
 	size_t Ports;
 
@@ -654,5 +625,9 @@ typedef struct _EhciController
 	void *TransactionList;
 
 } EhciController_t;
+
+/* Prototypes */
+_CRT_EXTERN void EhciInitializePeriodicScheduler(EhciController_t *Controller);
+_CRT_EXTERN void EhciInitializeAsyncScheduler(EhciController_t *Controller);
 
 #endif

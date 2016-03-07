@@ -19,6 +19,9 @@
 * MollenOS USB EHCI Controller Driver
 */
 
+/* Definitions */
+//#define EHCI_DISABLE
+
 /* Includes */
 #include <Module.h>
 #include "Ehci.h"
@@ -177,8 +180,8 @@ void EhciDisableLegacySupport(EhciController_t *Controller)
 	}
 }
 
-/* Silence Controller */
-void EhciSilence(EhciController_t *Controller)
+/* Stop Controller */
+void EhciHalt(EhciController_t *Controller)
 {
 	/* Vars */
 	uint32_t Temp;
@@ -198,11 +201,13 @@ void EhciSilence(EhciController_t *Controller)
 			Controller->OpRegisters->UsbCommand, Controller->OpRegisters->UsbStatus);
 	}
 
+	/* Clear remaining interrupts */
+	Controller->OpRegisters->UsbIntr = 0;
+
 	/* Stop controller */
 	Temp = Controller->OpRegisters->UsbCommand;
 	Temp &= ~(EHCI_COMMAND_RUN);
 	Controller->OpRegisters->UsbCommand = Temp;
-	Controller->OpRegisters->UsbIntr = 0;
 
 	/* Wait for stop */
 	Fault = 0;
@@ -212,10 +217,42 @@ void EhciSilence(EhciController_t *Controller)
 		LogFatal("EHCI", "Failed to stop controller, Cmd Register: 0x%x - Status: 0x%x",
 			Controller->OpRegisters->UsbCommand, Controller->OpRegisters->UsbStatus);
 	}
+}
+
+/* Silence Controller */
+void EhciSilence(EhciController_t *Controller)
+{
+	/* Halt Controller */
+	EhciHalt(Controller);
 
 	/* Clear Configured Flag */
 	Controller->OpRegisters->ConfigFlag = 0;
 }
+
+/* Reset Controller */
+void EhciReset(EhciController_t *Controller)
+{
+	/* Vars */
+	uint32_t Temp;
+	int Fault = 0;
+
+	/* Reset Controller */
+	Temp = Controller->OpRegisters->UsbCommand;
+	Temp |= EHCI_COMMAND_HCRESET;
+	Controller->OpRegisters->UsbCommand = Temp;
+
+	/* Wait for reset signal to deassert */
+	WaitForConditionWithFault(Fault, 
+		(Controller->OpRegisters->UsbCommand & EHCI_COMMAND_HCRESET) == 0, 250, 10);
+
+	if (Fault) {
+		LogDebug("EHCI", "Reset signal won't deassert, waiting one last long wait",
+			Controller->OpRegisters->UsbCommand, Controller->OpRegisters->UsbStatus);
+		StallMs(250);
+	}
+}
+
+/* Initialize */
 
 /* Setup EHCI */
 void EhciSetup(EhciController_t *Controller)
@@ -226,8 +263,30 @@ void EhciSetup(EhciController_t *Controller)
 	/* Disable Legacy Support */
 	EhciDisableLegacySupport(Controller);
 
+#ifdef EHCI_DISABLE
 	/* Silence Controller */
 	EhciSilence(Controller);
+#else
+	/* Save some read-only information */
+	Controller->Ports = EHCI_SPARAM_PORTCOUNT(Controller->CapRegisters->SParams);
+	Controller->SParameters = Controller->CapRegisters->SParams;
+	Controller->CParameters = Controller->CapRegisters->CParams;
+
+	/* Stop Controller */
+	EhciHalt(Controller);
+
+	/* Reset Controller */
+	EhciReset(Controller);
+
+	/* Instantiate some registers */
+	Controller->OpRegisters->SegmentSelector = 0;
+
+	/* Initialize Periodic Scheduler */
+	EhciInitializePeriodicScheduler(Controller);
+
+	/* Initialize Async Scheduler */
+	EhciInitializeAsyncScheduler(Controller);
+#endif
 
 	/* Now everything is routed to companion controllers */
 	HcCtrl = UsbInitController(Controller, EhciController, 2);
