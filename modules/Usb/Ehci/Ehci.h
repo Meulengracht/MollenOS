@@ -70,7 +70,11 @@ typedef struct _EchiCapabilityRegisters
 	 * Bits 3: Reserved
 	 * Bits 4-7: Isochronous Scheduling Threshold
 	 * Bits 8-15: Extended Capability Pointer, EECP. If a value is above 0x40 its a valid offset into pci-space. 
-	 * Bits 16-31: Reserved */
+	 * Bits 16: Hardware Prefect Capability
+	 * Bits 17: Link Power Management Capability
+	 * Bits 18: Per-Port Change Event Capability
+	 * Bits 19: 32-Frame Capability
+	 * Bits 20-31: Reserved */
 	uint32_t CParams;
 
 	/* Companion Port Route Description */
@@ -97,6 +101,9 @@ typedef struct _EchiCapabilityRegisters
 #define EHCI_CPARAM_ASYNCPARK				(1 << 2)
 #define EHCI_CPARAM_ISOCTHRESHOLD(n)		((n >> 4) & 0xF)
 #define EHCI_CPARAM_EECP(n)					((n >> 8) & 0xFF)
+#define EHCI_CPARAM_HWPREFECT				(1 << 16)
+#define EHCI_CPARAM_LINK_PWR				(1 << 17)
+#define EHCI_CPARAM_PERPORT_CHANGE			(1 << 18)
 
 /* Operational Registers */
 #pragma pack(push, 1)
@@ -139,10 +146,24 @@ typedef struct _EchiOperationalRegisters
 /* Command Bits */
 #define EHCI_COMMAND_RUN				(1 << 0)
 #define EHCI_COMMAND_HCRESET			(1 << 1)
+#define EHCI_COMMAND_LISTSIZE(n)		((n & 0x3) << 2)
 #define EHCI_COMMAND_PERIODIC_ENABLE	(1 << 4)
 #define EHCI_COMMAND_ASYNC_ENABLE		(1 << 5)
 #define EHCI_COMMAND_IOC_ASYNC_DOORBELL	(1 << 6)
 #define EHCI_COMMAND_LIGHT_HCRESET		(1 << 7)
+#define EHCI_COMMAND_PARK_COUNT(n)		((n & 0x3) << 8)
+#define EHCI_COMMAND_ASYNC_PARKMODE		(1 << 11)
+#define EHCI_COMMAND_PERIOD_PREFECTCH	(1 << 12)
+#define EHCI_COMMAND_ASYNC_PREFETCH		(1 << 13)
+#define EHCI_COMMAND_FULL_PREFETCH		(1 << 14)
+#define EHCI_COMMAND_PERPORT_ENABLE		(1 << 15)
+#define EHCI_COMMAND_INTR_THRESHOLD(n)	((n & 0xFF) << 16)
+#define EHCI_COMMAND_HI_RESUME(n)		((n & 0xF) << 23)
+
+#define EHCI_LISTSIZE_1024				0
+#define EHCI_LISTSIZE_512				1
+#define EHCI_LISTSIZE_256				2
+#define EHCI_LISTSIZE_32				3
 
 /* Status Bits */
 #define EHCI_STATUS_PROCESS				(1 << 0)
@@ -156,6 +177,7 @@ typedef struct _EchiOperationalRegisters
 #define EHCI_STATUS_RECLAMATION			(1 << 13)
 #define EHCI_STATUS_PERIODIC_ACTIVE		(1 << 14)
 #define EHCI_STATUS_ASYNC_ACTIVE		(1 << 15)
+#define EHCI_STATUS_PERPORTCHANGE(n)	(1 << (16 + n))
 
 /* INTR Bits */
 #define EHCI_INTR_PROCESS				(1 << 0)
@@ -164,6 +186,7 @@ typedef struct _EchiOperationalRegisters
 #define EHCI_INTR_FLROLLOVER			(1 << 3)
 #define EHCI_INTR_HOSTERROR				(1 << 4)
 #define EHCI_INTR_ASYNC_DOORBELL		(1 << 5)
+#define EHCI_INTR_PERPORTCHANGE(n)		(1 << (16 + n))
 
 /* Port Command Bits */
 #define EHCI_PORT_CONNECTED				(1 << 0)
@@ -420,6 +443,10 @@ typedef struct _EhciTransferDescriptor
 #pragma pack(pop)
 
 /* TD Bits */
+#define EHCI_TD_INCOMPLETE			(1 << 2)
+#define EHCI_TD_XACT				(1 << 3)
+#define EHCI_TD_BABBLE				(1 << 4)
+#define EHCI_TD_DATABUFERROR		(1 << 5)
 #define EHCI_TD_HALTED				(1 << 6)
 #define EHCI_TD_ACTIVE				(1 << 7)
 
@@ -535,7 +562,11 @@ typedef struct _EhciQueueHead
 
 	/* 72 bytes 
 	 * Add 24 bytes for allocation easieness */
-	uint32_t Padding[6];
+	uint32_t HcdFlags;
+	uint32_t PhysicalAddress;
+
+	/* Padding */
+	uint32_t Padding[4];
 
 } EhciQueueHead_t;
 #pragma pack(pop)
@@ -615,6 +646,7 @@ typedef struct _EhciController
 
 	/* Pools */
 	EhciQueueHead_t *QhPool[EHCI_POOL_NUM_QH];
+	EhciTransferDescriptor_t *TdAsync;
 
 	/* Port Count */
 	size_t Ports;
@@ -627,7 +659,6 @@ typedef struct _EhciController
 } EhciController_t;
 
 /* Prototypes */
-_CRT_EXTERN void EhciInitializePeriodicScheduler(EhciController_t *Controller);
-_CRT_EXTERN void EhciInitializeAsyncScheduler(EhciController_t *Controller);
+_CRT_EXTERN void EhciInitQueues(EhciController_t *Controller);
 
 #endif

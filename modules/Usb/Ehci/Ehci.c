@@ -203,6 +203,7 @@ void EhciHalt(EhciController_t *Controller)
 
 	/* Clear remaining interrupts */
 	Controller->OpRegisters->UsbIntr = 0;
+	Controller->OpRegisters->UsbStatus = (0x3F);
 
 	/* Stop controller */
 	Temp = Controller->OpRegisters->UsbCommand;
@@ -258,6 +259,7 @@ void EhciReset(EhciController_t *Controller)
 void EhciSetup(EhciController_t *Controller)
 {
 	/* Vars */
+	uint32_t Temp;
 	UsbHc_t *HcCtrl;
 
 	/* Disable Legacy Support */
@@ -278,14 +280,41 @@ void EhciSetup(EhciController_t *Controller)
 	/* Reset Controller */
 	EhciReset(Controller);
 
-	/* Instantiate some registers */
-	Controller->OpRegisters->SegmentSelector = 0;
+	/* Initialize Queues */
+	EhciInitQueues(Controller);
 
-	/* Initialize Periodic Scheduler */
-	EhciInitializePeriodicScheduler(Controller);
+	/* Build Command 
+	 * Irq Latency = 0 */
+	Temp = EHCI_COMMAND_INTR_THRESHOLD(0);
 
-	/* Initialize Async Scheduler */
-	EhciInitializeAsyncScheduler(Controller);
+	/* Support for PerPort events? */
+	if (Controller->CParameters & EHCI_CPARAM_PERPORT_CHANGE)
+		Temp |= EHCI_COMMAND_PERPORT_ENABLE;
+
+	/* Support for Park Mode? */
+	if (Controller->CParameters & EHCI_CPARAM_ASYNCPARK) {
+		Temp |= EHCI_COMMAND_ASYNC_PARKMODE;
+		Temp |= EHCI_COMMAND_PARK_COUNT(3);
+	}
+
+	/* Frame list support */
+	if (Controller->CParameters & EHCI_CPARAM_VARIABLEFRAMELIST)
+		Temp |= EHCI_COMMAND_LISTSIZE(EHCI_LISTSIZE_256);
+
+	/* 64 Bit ? */
+	if (Controller->CParameters & EHCI_CPARAM_64BIT)
+		Controller->OpRegisters->SegmentSelector = 0;
+
+	/* Start */
+	Temp |= EHCI_COMMAND_RUN;
+	Controller->OpRegisters->UsbCommand = Temp;
+
+	/* Set configured */
+	Controller->OpRegisters->ConfigFlag = 1;
+
+	/* Turn on interrupts */
+	Controller->OpRegisters->UsbIntr = (EHCI_INTR_PROCESS | EHCI_INTR_PROCESSERROR
+		| EHCI_INTR_PORTCHANGE | EHCI_INTR_HOSTERROR | EHCI_INTR_ASYNC_DOORBELL);
 #endif
 
 	/* Now everything is routed to companion controllers */

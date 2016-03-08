@@ -165,7 +165,7 @@ _CRT_EXPORT void kernel_panic(const char *str);
 #define MAX(a,b) (((a)>(b))?(a):(b))
 #define DIVUP(a, b) ((a / b) + (((a % b) > 0) ? 1 : 0))
 #define INCLIMIT(i, limit) i++; if (i == limit) i = 0;
-#define ALIGNVAL(Val, Alignment, Roundup) if (Val & (Alignment-1)) { Val &= ~(Alignment-1); if (Roundup) Val += Alignment; }
+#define ALIGN(Val, Alignment, Roundup) ((Val & (Alignment-1)) > 0 ? (Roundup == 1 ? ((Val + Alignment) & ~(Alignment-1)) : Val & ~(Alignment-1)) : Val)
 
 /* Architecture Memory Layout, this
  * gives you an idea how memory layout

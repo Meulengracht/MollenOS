@@ -35,9 +35,10 @@
 #include <string.h>
 
 /* Initialize the Periodic Scheduler */
-void EhciInitializePeriodicScheduler(EhciController_t *Controller)
+void EhciInitQueues(EhciController_t *Controller)
 {
 	/* Vars */
+	Addr_t pSpace = 0, Phys = 0;
 	int i;
 
 	/* The first thing we want to do is 
@@ -55,31 +56,28 @@ void EhciInitializePeriodicScheduler(EhciController_t *Controller)
 	for (i = 0; i < Controller->FLength; i++)
 		Controller->FrameList[i] = EHCI_LINK_END;
 
-	/* Write address */
-	Controller->OpRegisters->PeriodicListAddr = (uint32_t)Controller->FrameList;
-}
-
-/* Initialize the Async Scheduler */
-void EhciInitializeAsyncScheduler(EhciController_t *Controller)
-{
 	/* Allocate the Qh Pool */
-	Addr_t pSpace = (Addr_t)kmalloc((sizeof(EhciQueueHead_t) * EHCI_POOL_NUM_QH) + EHCI_STRUCT_ALIGN);
-	int i;
-	
+	pSpace = (Addr_t)kmalloc((sizeof(EhciQueueHead_t) * EHCI_POOL_NUM_QH) + EHCI_STRUCT_ALIGN);
+
 	/* Align with roundup */
-	ALIGNVAL(pSpace, EHCI_STRUCT_ALIGN, 1);
+	pSpace = ALIGN(pSpace, EHCI_STRUCT_ALIGN, 1);
 
 	/* Zero it out */
 	memset((void*)pSpace, 0, (sizeof(EhciQueueHead_t) * EHCI_POOL_NUM_QH));
 
+	/* Get physical */
+	Phys = AddressSpaceGetMap(AddressSpaceGetCurrent(), pSpace);
+
 	/* Initialise ED Pool */
 	for (i = 0; i < EHCI_POOL_NUM_QH; i++)
 	{
-		/* Allocate */
+		/* Set */
 		Controller->QhPool[i] = (EhciQueueHead_t*)pSpace;
+		Controller->QhPool[i]->PhysicalAddress = Phys;
 
 		/* Increament */
 		pSpace += sizeof(EhciQueueHead_t);
+		Phys += sizeof(EhciQueueHead_t);
 	}
 
 	/* Initialize Dummy */
@@ -87,12 +85,27 @@ void EhciInitializeAsyncScheduler(EhciController_t *Controller)
 	Controller->QhPool[EHCI_POOL_QH_NULL]->NextAlternativeTD = EHCI_LINK_END;
 	Controller->QhPool[EHCI_POOL_QH_NULL]->LinkPointer = EHCI_LINK_END;
 
+	/* Allocate the Async Dummy */
+	pSpace = (Addr_t)kmalloc(sizeof(EhciTransferDescriptor_t) + EHCI_STRUCT_ALIGN);
+	pSpace = ALIGN(pSpace, EHCI_STRUCT_ALIGN, 1);
+	Controller->TdAsync = (EhciTransferDescriptor_t*)pSpace;
+
+	/* Initialize the Async Dummy */
+	Controller->TdAsync->Status = EHCI_TD_HALTED;
+	Controller->TdAsync->Link = EHCI_LINK_END;
+	Controller->TdAsync->AlternativeLink = EHCI_LINK_END;
+
 	/* Initialize Async */
 	Controller->QhPool[EHCI_POOL_QH_ASYNC]->Flags = EHCI_QH_RECLAMATIONHEAD;
 	Controller->QhPool[EHCI_POOL_QH_ASYNC]->Status = EHCI_TD_HALTED;
 	Controller->QhPool[EHCI_POOL_QH_ASYNC]->NextTD = EHCI_LINK_END;
-
+	Controller->QhPool[EHCI_POOL_QH_ASYNC]->NextAlternativeTD =
+		AddressSpaceGetMap(AddressSpaceGetCurrent(), (VirtAddr_t)Controller->TdAsync);
 
 	/* Allocate Transaction List */
 	Controller->TransactionList = list_create(LIST_SAFE);
+
+	/* Write addresses */
+	Controller->OpRegisters->PeriodicListAddr = (uint32_t)Controller->FrameList;
+	Controller->OpRegisters->AsyncListAddress = (uint32_t)Controller->QhPool[EHCI_POOL_QH_ASYNC]->PhysicalAddress;
 }
