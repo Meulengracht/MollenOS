@@ -39,7 +39,7 @@ void EhciInitQueues(EhciController_t *Controller)
 {
 	/* Vars */
 	Addr_t pSpace = 0, Phys = 0;
-	int i;
+	size_t i;
 
 	/* The first thing we want to do is 
 	 * to determine the size of the frame list */
@@ -49,7 +49,7 @@ void EhciInitQueues(EhciController_t *Controller)
 		Controller->FLength = 1024;
 
 	/* Allocate the frame list */
-	Controller->FrameList = AddressSpaceMap(AddressSpaceGetCurrent(), 
+	Controller->FrameList = (uint32_t*)AddressSpaceMap(AddressSpaceGetCurrent(), 
 		0, (Controller->FLength * sizeof(uint32_t)), ADDRESS_SPACE_FLAG_LOWMEM);
 
 	/* Instantiate them all to nothing */

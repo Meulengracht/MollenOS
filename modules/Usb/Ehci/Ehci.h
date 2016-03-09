@@ -26,6 +26,9 @@
 #include <crtdefs.h>
 #include <stdint.h>
 
+#include <Module.h>
+#include <DeviceManager.h>
+
 /* Definitions */
 #define EHCI_MAX_PORTS			15
 
@@ -194,6 +197,7 @@ typedef struct _EchiOperationalRegisters
 #define EHCI_PORT_ENABLED				(1 << 2)
 #define EHCI_PORT_ENABLE_EVENT			(1 << 3)
 
+#define EHCI_PORT_OC_EVENT				(1 << 5)
 #define EHCI_PORT_FORCERESUME			(1 << 6)
 #define EHCI_PORT_SUSPENDED				(1 << 7)
 #define EHCI_PORT_RESET					(1 << 8)
@@ -202,7 +206,7 @@ typedef struct _EchiOperationalRegisters
 #define EHCI_LINESTATUS_RELEASE			0x1
 
 #define EHCI_PORT_POWER					(1 << 12)
-#define EHCI_PORT_OWNER					(1 << 13)
+#define EHCI_PORT_COMPANION_HC			(1 << 13)
 
 /* Port Wake Bits */
 #define EHCI_PORT_CONNECT_WAKE			(1 << 20)
@@ -610,6 +614,7 @@ typedef struct _EhciFSTN
 	uint32_t BackPathPointer;
 
 } EhciFSTN_t;
+#pragma pack(pop)
 
 /* Pool Definitions */
 #define EHCI_POOL_NUM_QH				60

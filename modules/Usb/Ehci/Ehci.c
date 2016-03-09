@@ -21,6 +21,7 @@
 
 /* Definitions */
 //#define EHCI_DISABLE
+#define EHCI_DIAGNOSTICS
 
 /* Includes */
 #include <Module.h>
@@ -42,6 +43,8 @@ int GlbEhciControllerId = 0;
 
 /* Prototypes */
 void EhciSetup(EhciController_t *Controller);
+void EhciPortSetup(void *cData, UsbHcPort_t *Port);
+void EhciPortScan(void *cData);
 
 /* Entry point of a module */
 MODULES_API void ModuleInit(void *Data)
@@ -93,16 +96,18 @@ MODULES_API void ModuleInit(void *Data)
 	mDevice->IrqHandler = NULL;
 
 	/* Register us for an irq */
-	//if (DmRequestResource(mDevice, ResourceIrq)) {
+#ifndef EHCI_DISABLE
+	if (DmRequestResource(mDevice, ResourceIrq)) {
 
 		/* Damnit! */
-	//	LogFatal("OHCI", "Failed to allocate irq for use, bailing out!");
-	//	kfree(Controller);
-	//	return;
-	//}
+		LogFatal("EHCI", "Failed to allocate irq for use, bailing out!");
+		kfree(Controller);
+		return;
+	}
+#endif
 
 	/* Enable memory io and bus mastering, remove interrupts disabled */
-	uint16_t PciCommand = (uint16_t)PciDeviceRead(mDevice->BusDevice, 0x4, 2);
+	PciCommand = (uint16_t)PciDeviceRead(mDevice->BusDevice, 0x4, 2);
 	PciDeviceWrite(mDevice->BusDevice, 0x4, (PciCommand & ~(0x400)) | 0x2 | 0x4, 2);
 
 	/* Setup Controller */
@@ -259,8 +264,9 @@ void EhciReset(EhciController_t *Controller)
 void EhciSetup(EhciController_t *Controller)
 {
 	/* Vars */
-	uint32_t Temp;
 	UsbHc_t *HcCtrl;
+	uint32_t Temp;
+	size_t i;
 
 	/* Disable Legacy Support */
 	EhciDisableLegacySupport(Controller);
@@ -283,6 +289,14 @@ void EhciSetup(EhciController_t *Controller)
 	/* Initialize Queues */
 	EhciInitQueues(Controller);
 
+	/* Reset */
+	Controller->OpRegisters->SegmentSelector = 0;
+	Controller->OpRegisters->FrameIndex = 0;
+
+	/* Set desired interrupts */
+	Controller->OpRegisters->UsbIntr = (EHCI_INTR_PROCESS | EHCI_INTR_PROCESSERROR
+		| EHCI_INTR_PORTCHANGE | EHCI_INTR_HOSTERROR | EHCI_INTR_ASYNC_DOORBELL);
+
 	/* Build Command 
 	 * Irq Latency = 0 */
 	Temp = EHCI_COMMAND_INTR_THRESHOLD(0);
@@ -301,22 +315,214 @@ void EhciSetup(EhciController_t *Controller)
 	if (Controller->CParameters & EHCI_CPARAM_VARIABLEFRAMELIST)
 		Temp |= EHCI_COMMAND_LISTSIZE(EHCI_LISTSIZE_256);
 
-	/* 64 Bit ? */
-	if (Controller->CParameters & EHCI_CPARAM_64BIT)
-		Controller->OpRegisters->SegmentSelector = 0;
-
 	/* Start */
 	Temp |= EHCI_COMMAND_RUN;
 	Controller->OpRegisters->UsbCommand = Temp;
 
 	/* Set configured */
 	Controller->OpRegisters->ConfigFlag = 1;
-
-	/* Turn on interrupts */
-	Controller->OpRegisters->UsbIntr = (EHCI_INTR_PROCESS | EHCI_INTR_PROCESSERROR
-		| EHCI_INTR_PORTCHANGE | EHCI_INTR_HOSTERROR | EHCI_INTR_ASYNC_DOORBELL);
 #endif
 
 	/* Now everything is routed to companion controllers */
 	HcCtrl = UsbInitController(Controller, EhciController, 2);
+
+	/* Port Functions */
+	HcCtrl->PortSetup = EhciPortSetup;
+	HcCtrl->RootHubCheck = EhciPortScan;
+
+	/* Reset/Resume */
+
+	/* Endpoint Functions */
+
+	/* Transaction Functions */
+
+	/* Register Controller */
+	Controller->HcdId = UsbRegisterController(HcCtrl);
+
+	/* Setup Ports */
+#ifndef EHCI_DISABLE
+	/* Now, controller is up and running
+	* and we should start doing port setups */
+
+	/* Iterate ports */
+	for (i = 0; i < Controller->Ports; i++) {
+
+		/* Is port connected? */
+		if (Controller->OpRegisters->Ports[i] & EHCI_PORT_CONNECTED) 
+		{
+			/* Is the port destined for other controllers?
+			 * Port must be in K-State */
+			if (EHCI_PORT_LINESTATUS(Controller->OpRegisters->Ports[i])
+				== EHCI_LINESTATUS_RELEASE) {
+				/* This is a low-speed device */
+				if (EHCI_SPARAM_CCCOUNT(Controller->SParameters) != 0)
+					Controller->OpRegisters->Ports[i] |= EHCI_PORT_COMPANION_HC;
+			}
+			else
+				UsbEventCreate(HcCtrl, (int)i, HcdConnectedEvent);
+		}
+	}
+#endif
+}
+
+/* Port Logic */
+int EhciPortReset(EhciController_t *Controller, size_t Port)
+{
+	/* Vars */
+	uint32_t Temp = 0;
+
+	/* Enable port power */
+	if (Controller->SParameters & EHCI_SPARAM_PPC) {
+		Controller->OpRegisters->Ports[Port] |= EHCI_PORT_POWER;
+
+		/* Wait for power */
+		StallMs(5);
+	}
+
+	/* We must set the port-reset and keep the signal asserted for atleast 50 ms
+	 * now, we are going to keep the signal alive for (much) longer due to 
+	 * some devices being slow af */
+	Temp = Controller->OpRegisters->Ports[Port];
+
+	/* The EHCI documentation says we should 
+	 * disable enabled and assert reset together */
+	Temp &= ~(EHCI_PORT_ENABLED);
+	Temp |= EHCI_PORT_RESET;
+
+	/* Write */
+	Controller->OpRegisters->Ports[Port] = Temp;
+
+	/* Wait */
+	StallMs(100);
+
+	/* Deassert signal */
+	Temp = Controller->OpRegisters->Ports[Port];
+	Temp &= ~(EHCI_PORT_RESET);
+	Controller->OpRegisters->Ports[Port] = Temp;
+
+	/* Wait for deassertion: 
+	 * The reset process is actually complete when software reads a zero in the PortReset bit */
+	Temp = 0;
+	WaitForConditionWithFault(Temp, (Controller->OpRegisters->Ports[Port] & EHCI_PORT_RESET) == 0, 250, 10);
+
+	/* Recovery */
+	StallMs(30);
+
+	/* Clear RWC */
+	Controller->OpRegisters->Ports[Port] |= (EHCI_PORT_CONNECT_EVENT | EHCI_PORT_ENABLE_EVENT | EHCI_PORT_OC_EVENT);
+
+	/* Now, if the port has a high-speed 
+	 * device, the enabled port is set */
+	if (!(Controller->OpRegisters->Ports[Port] & EHCI_PORT_ENABLED)) {
+		if (EHCI_SPARAM_CCCOUNT(Controller->SParameters) != 0)
+			Controller->OpRegisters->Ports[Port] |= EHCI_PORT_COMPANION_HC;
+		return -1;
+	}
+
+	/* Done! */
+	return 0;
+}
+
+/* Setup Port */
+void EhciPortSetup(void *cData, UsbHcPort_t *Port)
+{
+	/* Cast */
+	EhciController_t *Controller = (EhciController_t*)cData;
+	int RetVal = 0;
+
+	/* Step 1. Wait for power to stabilize */
+	StallMs(100);
+
+#ifdef EHCI_DIAGNOSTICS
+	/* Debug */
+	LogDebug("EHCI", "Port Pre-Reset: 0x%x", Controller->OpRegisters->Ports[Port->Id]);
+#endif
+
+	/* Step 2. Reset Port */
+	RetVal = EhciPortReset(Controller, Port->Id);
+
+#ifdef EHCI_DIAGNOSTICS
+	/* Debug */
+	LogDebug("EHCI", "Port Post-Reset: 0x%x", Controller->OpRegisters->Ports[Port->Id]);
+#endif
+
+	/* Evaluate the status of the reset */
+	if (RetVal) 
+	{
+		/* Not for us */
+		Port->Connected = 0;
+		Port->Enabled = 0;
+	}
+	else
+	{
+		/* High Speed */
+		uint32_t Status = Controller->OpRegisters->Ports[Port->Id];
+
+		/* Connected? */
+		if (Status & EHCI_PORT_CONNECTED)
+			Port->Connected = 1;
+
+		/* Enabled? */
+		if (Status & EHCI_PORT_ENABLED)
+			Port->Enabled = 1;
+
+		/* High Speed */
+		Port->Speed = HighSpeed;
+	}
+}
+
+/* Port Status Check */
+void EhciPortCheck(EhciController_t *Controller, size_t Port)
+{
+	/* Vars */
+	uint32_t Status = Controller->OpRegisters->Ports[Port];
+	UsbHc_t *HcCtrl;
+
+	/* Connection event? */
+	if (!(Status & EHCI_PORT_CONNECT_EVENT))
+		return;
+
+	/* Get HCD data */
+	HcCtrl = UsbGetHcd(Controller->HcdId);
+
+	/* Sanity */
+	if (HcCtrl == NULL)
+	{
+		LogDebug("EHCI", "Controller %u is zombie and is trying to give events!", Controller->Id);
+		return;
+	}
+
+	/* Connect or Disconnect? */
+	if (Status & EHCI_PORT_CONNECTED)
+	{
+		/* Ok, something happened
+		* but the port might not be for us */
+		if (EHCI_PORT_LINESTATUS(Status) == EHCI_LINESTATUS_RELEASE) {
+			/* This is a low-speed device */
+			if (EHCI_SPARAM_CCCOUNT(Controller->SParameters) != 0)
+				Controller->OpRegisters->Ports[Port] |= EHCI_PORT_COMPANION_HC;
+		}
+		else
+			UsbEventCreate(HcCtrl, (int)Port, HcdConnectedEvent);
+	}
+	else
+	{
+		/* Disconnect */
+		UsbEventCreate(HcCtrl, (int)Port, HcdDisconnectedEvent);
+	}
+}
+
+/* Root hub scan */
+void EhciPortScan(void *cData)
+{
+	/* Vars & Cast */
+	EhciController_t *Controller = (EhciController_t*)cData;
+	size_t i;
+
+	/* Go through Ports */
+	for (i = 0; i < Controller->Ports; i++)
+	{
+		/* Check íf Port has connected */
+		EhciPortCheck(Controller, i);
+	}
 }
