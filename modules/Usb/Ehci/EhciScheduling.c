@@ -44,7 +44,7 @@ void EhciInitQueues(EhciController_t *Controller)
 	/* The first thing we want to do is 
 	 * to determine the size of the frame list */
 	if (Controller->CParameters & EHCI_CPARAM_VARIABLEFRAMELIST)
-		Controller->FLength = 256; /* Default to shortest list */
+		Controller->FLength = 256; /* Default to shortest list (not 32 frames though) */
 	else
 		Controller->FLength = 1024;
 

@@ -39,12 +39,14 @@
 #include <string.h>
 
 /* Globals */
+const char *GlbEhciDriverName = "MollenOS EHCI Driver";
 int GlbEhciControllerId = 0;
 
 /* Prototypes */
 void EhciSetup(EhciController_t *Controller);
 void EhciPortSetup(void *cData, UsbHcPort_t *Port);
 void EhciPortScan(void *cData);
+int EhciInterruptHandler(void *Args);
 
 /* Entry point of a module */
 MODULES_API void ModuleInit(void *Data)
@@ -93,7 +95,7 @@ MODULES_API void ModuleInit(void *Data)
 
 	/* Allocate Irq */
 	mDevice->IrqAvailable[0] = -1;
-	mDevice->IrqHandler = NULL;
+	mDevice->IrqHandler = EhciInterruptHandler;
 
 	/* Register us for an irq */
 #ifndef EHCI_DISABLE
@@ -109,6 +111,12 @@ MODULES_API void ModuleInit(void *Data)
 	/* Enable memory io and bus mastering, remove interrupts disabled */
 	PciCommand = (uint16_t)PciDeviceRead(mDevice->BusDevice, 0x4, 2);
 	PciDeviceWrite(mDevice->BusDevice, 0x4, (PciCommand & ~(0x400)) | 0x2 | 0x4, 2);
+
+	/* Setup driver information */
+	mDevice->Driver.Name = (char*)GlbEhciDriverName;
+	mDevice->Driver.Data = Controller;
+	mDevice->Driver.Version = 1;
+	mDevice->Driver.Status = DriverActive;
 
 	/* Setup Controller */
 	EhciSetup(Controller);
@@ -258,7 +266,60 @@ void EhciReset(EhciController_t *Controller)
 	}
 }
 
-/* Initialize */
+/* Restart Controller */
+void EhciRestart(void *cData)
+{
+	/* Cast */
+	EhciController_t *Controller = (EhciController_t*)cData;
+	uint32_t Temp;
+
+	/* Start by stopping */
+	EhciHalt(Controller);
+
+	/* Unschedule everything */
+
+	/* Reset Controller */
+	EhciReset(Controller);
+
+	/* <reconfigure> */
+	Controller->OpRegisters->SegmentSelector = 0;
+	Controller->OpRegisters->FrameIndex = 0;
+
+	/* Set desired interrupts */
+	Controller->OpRegisters->UsbIntr = (EHCI_INTR_PROCESS | EHCI_INTR_PROCESSERROR
+		| EHCI_INTR_PORTCHANGE | EHCI_INTR_HOSTERROR | EHCI_INTR_ASYNC_DOORBELL);
+
+	/* Write addresses */
+	Controller->OpRegisters->PeriodicListAddr = 
+		(uint32_t)Controller->FrameList;
+	Controller->OpRegisters->AsyncListAddress = 
+		(uint32_t)Controller->QhPool[EHCI_POOL_QH_ASYNC]->PhysicalAddress;
+
+	/* Build Command
+	* Irq Latency = 0 */
+	Temp = EHCI_COMMAND_INTR_THRESHOLD(0);
+
+	/* Support for PerPort events? */
+	if (Controller->CParameters & EHCI_CPARAM_PERPORT_CHANGE)
+		Temp |= EHCI_COMMAND_PERPORT_ENABLE;
+
+	/* Support for Park Mode? */
+	if (Controller->CParameters & EHCI_CPARAM_ASYNCPARK) {
+		Temp |= EHCI_COMMAND_ASYNC_PARKMODE;
+		Temp |= EHCI_COMMAND_PARK_COUNT(3);
+	}
+
+	/* Frame list support */
+	if (Controller->CParameters & EHCI_CPARAM_VARIABLEFRAMELIST)
+		Temp |= EHCI_COMMAND_LISTSIZE(EHCI_LISTSIZE_256);
+
+	/* Start */
+	Temp |= EHCI_COMMAND_RUN;
+	Controller->OpRegisters->UsbCommand = Temp;
+
+	/* Set configured */
+	Controller->OpRegisters->ConfigFlag = 1;
+}
 
 /* Setup EHCI */
 void EhciSetup(EhciController_t *Controller)
@@ -274,6 +335,8 @@ void EhciSetup(EhciController_t *Controller)
 #ifdef EHCI_DISABLE
 	/* Silence Controller */
 	EhciSilence(Controller);
+
+	/* Now everything is routed to companion controllers */
 #else
 	/* Save some read-only information */
 	Controller->Ports = EHCI_SPARAM_PORTCOUNT(Controller->CapRegisters->SParams);
@@ -323,7 +386,7 @@ void EhciSetup(EhciController_t *Controller)
 	Controller->OpRegisters->ConfigFlag = 1;
 #endif
 
-	/* Now everything is routed to companion controllers */
+	/* Initalize Controller (HCD) */
 	HcCtrl = UsbInitController(Controller, EhciController, 2);
 
 	/* Port Functions */
@@ -331,10 +394,13 @@ void EhciSetup(EhciController_t *Controller)
 	HcCtrl->RootHubCheck = EhciPortScan;
 
 	/* Reset/Resume */
+	HcCtrl->Reset = EhciRestart;
 
 	/* Endpoint Functions */
 
+
 	/* Transaction Functions */
+
 
 	/* Register Controller */
 	Controller->HcdId = UsbRegisterController(HcCtrl);
@@ -525,4 +591,51 @@ void EhciPortScan(void *cData)
 		/* Check íf Port has connected */
 		EhciPortCheck(Controller, i);
 	}
+}
+
+/* Interrupt Handler */
+int EhciInterruptHandler(void *Args)
+{
+	/* Cast */
+	MCoreDevice_t *mDevice = (MCoreDevice_t*)Args;
+	EhciController_t *Controller = 
+		(EhciController_t*)mDevice->Driver.Data;
+
+	/* Calculate which interrupts we accept */
+	uint32_t IntrState =
+		(Controller->OpRegisters->UsbStatus & Controller->OpRegisters->UsbIntr);
+
+	/* Sanity */
+	if (IntrState == 0)
+		return X86_IRQ_NOT_HANDLED;
+
+	/* Debug */
+	LogDebug("EHCI", "Controller Interrupt %u: 0x%x",
+		Controller->HcdId, IntrState);
+
+	/* Ok, lets see */
+	if (IntrState & (EHCI_STATUS_PROCESS | EHCI_STATUS_PROCESSERROR)) {
+		/* Scan for completion/error */
+	}
+
+	/* Hub Change? */
+	if (IntrState & EHCI_STATUS_PORTCHANGE) {
+		UsbEventCreate(UsbGetHcd(Controller->HcdId), 0, HcdRootHubEvent);
+	}
+
+	/* Fatal Error? */
+	if (IntrState & EHCI_STATUS_HOSTERROR) {
+		UsbEventCreate(UsbGetHcd(Controller->HcdId), 0, HcdFatalEvent);
+	}
+
+	/* Doorbell? */
+	if (IntrState & EHCI_STATUS_ASYNC_DOORBELL) {
+
+	}
+
+	/* Acknowledge */
+	Controller->OpRegisters->UsbStatus = IntrState;
+
+	/* Done! */
+	return X86_IRQ_HANDLED;
 }

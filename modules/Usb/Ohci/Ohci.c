@@ -17,7 +17,6 @@
 *
 *
 * MollenOS USB OHCI Controller Driver
-* Optimize the ED pool allocations
 */
 
 /* Definitions */
@@ -368,6 +367,7 @@ void OhciPortsCheck(void *CtrlData)
 void OhciInitQueues(OhciController_t *Controller)
 {
 	/* Vars */
+	Addr_t aSpace = 0, NullPhys = 0;
 	int i;
 
 	/* Create the NULL Td */
@@ -380,16 +380,23 @@ void OhciInitQueues(OhciController_t *Controller)
 	Controller->NullTd->NextTD = 0x0;
 	Controller->NullTd->Flags = 0;
 
+	/* Get physical */
+	NullPhys = AddressSpaceGetMap(AddressSpaceGetCurrent(), (Addr_t)Controller->NullTd);
+
+	/* Allocate the ED pool */
+	aSpace = (Addr_t)kmalloc((sizeof(OhciEndpointDescriptor_t) * OHCI_POOL_NUM_ED) + OHCI_STRUCT_ALIGN);
+
+	/* Zero it out */
+	memset((void*)aSpace, 0, (sizeof(OhciEndpointDescriptor_t) * OHCI_POOL_NUM_ED) + OHCI_STRUCT_ALIGN);
+
+	/* Align it */
+	aSpace = ALIGN(aSpace, OHCI_STRUCT_ALIGN, 1);
+
 	/* Initialise ED Pool */
 	for (i = 0; i < OHCI_POOL_NUM_ED; i++)
 	{
 		/* Allocate */
-		Addr_t aSpace = (Addr_t)kmalloc(sizeof(OhciEndpointDescriptor_t) + OHCI_STRUCT_ALIGN);
-		Controller->EDPool[i] = (OhciEndpointDescriptor_t*)
-			OhciAlign(aSpace, OHCI_STRUCT_ALIGN_BITS, OHCI_STRUCT_ALIGN);
-
-		/* Zero it out */
-		memset((void*)Controller->EDPool[i], 0, sizeof(OhciEndpointDescriptor_t));
+		Controller->EDPool[i] = (OhciEndpointDescriptor_t*)aSpace;
 
 		/* Link to previous */
 		Controller->EDPool[i]->NextED = 0;
@@ -397,9 +404,11 @@ void OhciInitQueues(OhciController_t *Controller)
 		/* Set to skip and valid null Td */
 		Controller->EDPool[i]->HcdFlags = 0;
 		Controller->EDPool[i]->Flags = OHCI_EP_SKIP;
-		Controller->EDPool[i]->HeadPtr =
-			(Controller->EDPool[i]->TailPtr = 
-				AddressSpaceGetMap(AddressSpaceGetCurrent(), (Addr_t)Controller->NullTd)) | 0x1;
+		Controller->EDPool[i]->HeadPtr = 
+			(Controller->EDPool[i]->TailPtr = NullPhys) | 0x1;
+
+		/* Increase */
+		aSpace += sizeof(OhciEndpointDescriptor_t);
 	}
 
 	/* Allocate a Transaction list */

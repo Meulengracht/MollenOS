@@ -28,6 +28,7 @@
 
 #include <Module.h>
 #include <DeviceManager.h>
+#include <UsbCore.h>
 
 /* Definitions */
 #define EHCI_MAX_PORTS			15
@@ -665,5 +666,17 @@ typedef struct _EhciController
 
 /* Prototypes */
 _CRT_EXTERN void EhciInitQueues(EhciController_t *Controller);
+
+/* Endpoint Prototypes */
+_CRT_EXTERN void EhciEndpointSetup(void *Controller, UsbHcEndpoint_t *Endpoint);
+_CRT_EXTERN void EhciEndpointDestroy(void *Controller, UsbHcEndpoint_t *Endpoint);
+
+/* Transaction Prototypes */
+_CRT_EXTERN void EhciTransactionInit(void *Controller, UsbHcRequest_t *Request);
+_CRT_EXTERN UsbHcTransaction_t *EhciTransactionSetup(void *Controller, UsbHcRequest_t *Request);
+_CRT_EXTERN UsbHcTransaction_t *EhciTransactionIn(void *Controller, UsbHcRequest_t *Request);
+_CRT_EXTERN UsbHcTransaction_t *EhciTransactionOut(void *Controller, UsbHcRequest_t *Request);
+_CRT_EXTERN void EhciTransactionSend(void *Controller, UsbHcRequest_t *Request);
+_CRT_EXTERN void EhciTransactionDestroy(void *Controller, UsbHcRequest_t *Request);
 
 #endif
