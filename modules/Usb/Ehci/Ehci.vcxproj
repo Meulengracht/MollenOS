@@ -68,7 +68,7 @@
       <BufferSecurityCheck>false</BufferSecurityCheck>
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <AssemblerOutput>All</AssemblerOutput>
-      <InlineFunctionExpansion>Disabled</InlineFunctionExpansion>
+      <InlineFunctionExpansion>OnlyExplicitInline</InlineFunctionExpansion>
       <DisableSpecificWarnings>4127</DisableSpecificWarnings>
     </ClCompile>
     <Link>

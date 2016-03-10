@@ -200,6 +200,25 @@
 
 #define __crt_typefix(ctype)
 
+#ifdef _MSC_VER
+#ifdef _AMD64_
+#define MemoryBarrier __faststorefence
+#endif
+
+#ifdef _IA64_
+#define MemoryBarrier __mf
+#endif
+
+// x86
+__forceinline void
+MemoryBarrier (void)
+{
+    long Barrier;
+    __asm {
+        xchg Barrier, eax
+    }
+}
+#endif
 
 /** Deprecated ***************************************************************/
 

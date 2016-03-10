@@ -1336,10 +1336,16 @@ void OhciLinkPeriodic(OhciController_t *Controller, UsbHcRequest_t *Request)
 			Ep->NextEDVirtual = (uint32_t)Here;
 			if (Here)
 				Ep->NextED = *PrevPtr;
+
 			/* MemB */
+			MemoryBarrier();
+
+			/* Update */
 			*PrevEd = Ep;
 			*PrevPtr = EdAddress;
+			
 			/* MemB */
+			MemoryBarrier();
 		}
 
 		/* Increase */

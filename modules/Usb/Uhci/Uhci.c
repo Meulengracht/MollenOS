@@ -1205,6 +1205,9 @@ void UhciLinkIsochronousRequest(UhciController_t *Controller,
 		/* Get previous */
 		Td->Link = Frames[Td->Frame];
 
+		/* MemB */
+		MemoryBarrier();
+
 		/* Link it */
 		Frames[Td->Frame] = Td->PhysicalAddr;
 
@@ -1561,6 +1564,9 @@ void UhciTransactionSend(void *Controller, UsbHcRequest_t *Request)
 		Qh->Link = PrevQh->Link;
 		Qh->LinkVirtual = PrevQh->LinkVirtual;
 
+		/* Memory Barrier */
+		MemoryBarrier();
+
 		/* Set link - Atomic operation
 		* We don't need to stop/start controller */
 		PrevQh->Link = (QhAddress | UHCI_TD_LINK_QH);
@@ -1611,6 +1617,9 @@ void UhciTransactionSend(void *Controller, UsbHcRequest_t *Request)
 		/* Insert */
 		Qh->Link = PrevQh->Link;
 		Qh->LinkVirtual = PrevQh->LinkVirtual;
+
+		/* Memory Barrier */
+		MemoryBarrier();
 
 		/* Set link - Atomic operation 
 		 * We don't need to stop/start controller */
@@ -1742,6 +1751,9 @@ void UhciTransactionDestroy(void *Controller, UsbHcRequest_t *Request)
 			PrevQh->Link = Qh->Link;
 			PrevQh->LinkVirtual = Qh->LinkVirtual;
 
+			/* Memory Barrier */
+			MemoryBarrier();
+
 #ifdef UHCI_FSBR
 			/* Get */
 			int PrevQueue = UHCI_QT_GET_QUEUE(PrevQh->Flags);
@@ -1812,6 +1824,9 @@ void UhciTransactionDestroy(void *Controller, UsbHcRequest_t *Request)
 			if (PrevQh != NULL) {
 				PrevQh->Link = Qh->Link;
 				PrevQh->LinkVirtual = Qh->LinkVirtual;
+
+				/* Memory Barrier */
+				MemoryBarrier();
 			}
 		}
 
