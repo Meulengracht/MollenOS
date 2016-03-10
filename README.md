@@ -16,9 +16,7 @@ MollenOS supports a wide array of features and has implementation for VFS, Proce
     - ACPICA
     - MFS
     - HPET
-    - OHCI
-    - UHCI
-    - USB Stack
+    - USB Stack (OHCI, UHCI, EHCI)
     - USB MSD
     - USB HID
     - (x86) PCI/PCIe
