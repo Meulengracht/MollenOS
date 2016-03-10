@@ -472,6 +472,69 @@ typedef struct _EhciTransferDescriptor
 #define EHCI_TD_CERR(n)				((n >> 10) & 0x3)
 #define EHCI_TD_CC(n)				(n & 0xFF)
 
+/* Queue Head Overlay */
+#pragma pack(push, 1)
+typedef struct _EhciQueueHeadOverlay
+{
+	/* Next TD Pointer
+	* Bit 0: Terminate
+	* Bit 1-4: Reserved */
+	uint32_t NextTD;
+
+	/* Alternative TD Pointer
+	* Bit 0: Terminate
+	* Bit 1-4: NAK Count */
+	uint32_t NextAlternativeTD;
+
+	/* Status */
+	uint8_t Status;
+
+	/* Token
+	* Bit 0-1: PID
+	* Bit 2-3: Error Count
+	* Bit 4-6: Page Selector (0-4 value)
+	* Bit 7: IOC */
+	uint8_t Token;
+
+	/* Transfer Length
+	* Bit 0-14: Length (Max Value 0x5000 (5 Pages))
+	* Bit 15: Data Toggle */
+	uint16_t Length;
+
+	/* Buffer Page 0 + Offset
+	* Bit 0-11: Current Offset
+	* Bit 12-31: Buffer Page */
+	uint32_t Bp0AndOffset;
+
+	/* Buffer Page 1 + Completion Process Mask
+	* Bit 0-7: Completion Process Mask
+	* Bit 8-11: Reserved
+	* Bit 12-31: Buffer Page */
+	uint32_t Bp1;
+
+	/* Buffer Page 2 + FrameTag
+	* Bit 0-4: Frame Tag
+	* Bit 5-11: S-Bytes
+	* Bit 12-31: Buffer Page */
+	uint32_t Bp2;
+
+	/* Buffer Page 3-4
+	* Bit 0-11: Reserved
+	* Bit 12-31: Buffer Page */
+	uint32_t Bp3;
+	uint32_t Bp4;
+
+	/* Extended buffer pages
+	* Their upper address bits */
+	uint32_t ExtBp0;
+	uint32_t ExtBp1;
+	uint32_t ExtBp2;
+	uint32_t ExtBp3;
+	uint32_t ExtBp4;
+
+} EhciQueueHeadOverlay_t;
+#pragma pack(pop)
+
 /* Queue Head
 * Must be 32 byte aligned */
 #pragma pack(push, 1)
@@ -509,69 +572,23 @@ typedef struct _EhciQueueHead
 	 * Bit 0-4: Reserved */
 	uint32_t CurrentTD;
 
-	/* Next TD Pointer 
-	 * Bit 0: Terminate
-	 * Bit 1-4: Reserved */
-	uint32_t NextTD;
-
-	/* Alternative TD Pointer 
-	 * Bit 0: Terminate
-	 * Bit 1-4: NAK Count */
-	uint32_t NextAlternativeTD;
-
-	/* Status */
-	uint8_t Status;
-
-	/* Token 
-	 * Bit 0-1: PID
-	 * Bit 2-3: Error Count
-	 * Bit 4-6: Page Selector (0-4 value)
-	 * Bit 7: IOC */
-	uint8_t Token;
-
-	/* Transfer Length
-	* Bit 0-14: Length (Max Value 0x5000 (5 Pages))
-	* Bit 15: Data Toggle */
-	uint16_t Length;
-
-	/* Buffer Page 0 + Offset
-	* Bit 0-11: Current Offset
-	* Bit 12-31: Buffer Page */
-	uint32_t Bp0AndOffset;
-	
-	/* Buffer Page 1 + Completion Process Mask 
-	 * Bit 0-7: Completion Process Mask 
-	 * Bit 8-11: Reserved 
-	 * Bit 12-31: Buffer Page */
-	uint32_t Bp1;
-
-	/* Buffer Page 2 + FrameTag 
-	 * Bit 0-4: Frame Tag
-	 * Bit 5-11: S-Bytes
-	 * Bit 12-31: Buffer Page */
-	uint32_t Bp2;
-
-	/* Buffer Page 3-4
-	* Bit 0-11: Reserved
-	* Bit 12-31: Buffer Page */
-	uint32_t Bp3;
-	uint32_t Bp4;
-
-	/* Extended buffer pages
-	* Their upper address bits */
-	uint32_t ExtBp0;
-	uint32_t ExtBp1;
-	uint32_t ExtBp2;
-	uint32_t ExtBp3;
-	uint32_t ExtBp4;
+	/* Overlay, represents 
+	 * the current transaction state */
+	EhciQueueHeadOverlay_t Overlay;
 
 	/* 72 bytes 
 	 * Add 24 bytes for allocation easieness */
 	uint32_t HcdFlags;
 	uint32_t PhysicalAddress;
 
-	/* Padding */
-	uint32_t Padding[4];
+	/* Bandwidth */
+	uint16_t BusTime;
+	uint16_t Period;
+	uint16_t Bandwidth;
+	uint16_t Interval;
+
+	/* Padding */ 
+	uint32_t Padding[2];
 
 } EhciQueueHead_t;
 #pragma pack(pop)
@@ -597,6 +614,8 @@ typedef struct _EhciQueueHead
 #define EHCI_QH_BUFFER(n)			(n & 0xFFFFF000)
 #define EHCI_QH_EXTBUFFER(n)		((n >> 32) & 0xFFFFFFFF)
 
+#define EHCI_QH_ALLOCATED			(1 << 0)
+
 /* Periodic Frame Span Traversal Node
 * Must be 32 byte aligned */
 #pragma pack(push, 1)
@@ -617,13 +636,30 @@ typedef struct _EhciFSTN
 } EhciFSTN_t;
 #pragma pack(pop)
 
+/* Endpoint Data */
+typedef struct _EhciEndpoint
+{
+	/* Td's allocated */
+	size_t TdsAllocated;
+
+	/* TD Pool */
+	EhciTransferDescriptor_t **TDPool;
+	Addr_t *TDPoolPhysical;
+	Addr_t **TDPoolBuffers;
+
+	/* Lock */
+	Spinlock_t Lock;
+
+} EhciEndpoint_t;
+
 /* Pool Definitions */
 #define EHCI_POOL_NUM_QH				60
 #define EHCI_ENDPOINT_MIN_ALLOCATED		25
 
 /* Pool Indices */
 #define EHCI_POOL_QH_NULL				0
-#define EHCI_POOL_QH_ASYNC				1
+#define EHCI_POOL_QH_ISOC				1
+#define EHCI_POOL_QH_ASYNC				9
 
 /* The Controller */
 typedef struct _EhciController
@@ -649,10 +685,14 @@ typedef struct _EhciController
 	/* FrameList */
 	size_t FLength;
 	uint32_t *FrameList;
+	uint32_t *VirtualList;
 
 	/* Pools */
 	EhciQueueHead_t *QhPool[EHCI_POOL_NUM_QH];
 	EhciTransferDescriptor_t *TdAsync;
+
+	/* Bandwidth */
+
 
 	/* Port Count */
 	size_t Ports;
@@ -668,15 +708,15 @@ typedef struct _EhciController
 _CRT_EXTERN void EhciInitQueues(EhciController_t *Controller);
 
 /* Endpoint Prototypes */
-_CRT_EXTERN void EhciEndpointSetup(void *Controller, UsbHcEndpoint_t *Endpoint);
-_CRT_EXTERN void EhciEndpointDestroy(void *Controller, UsbHcEndpoint_t *Endpoint);
+_CRT_EXTERN void EhciEndpointSetup(void *cData, UsbHcEndpoint_t *Endpoint);
+_CRT_EXTERN void EhciEndpointDestroy(void *cData, UsbHcEndpoint_t *Endpoint);
 
 /* Transaction Prototypes */
-_CRT_EXTERN void EhciTransactionInit(void *Controller, UsbHcRequest_t *Request);
-_CRT_EXTERN UsbHcTransaction_t *EhciTransactionSetup(void *Controller, UsbHcRequest_t *Request);
-_CRT_EXTERN UsbHcTransaction_t *EhciTransactionIn(void *Controller, UsbHcRequest_t *Request);
-_CRT_EXTERN UsbHcTransaction_t *EhciTransactionOut(void *Controller, UsbHcRequest_t *Request);
-_CRT_EXTERN void EhciTransactionSend(void *Controller, UsbHcRequest_t *Request);
-_CRT_EXTERN void EhciTransactionDestroy(void *Controller, UsbHcRequest_t *Request);
+_CRT_EXTERN void EhciTransactionInit(void *cData, UsbHcRequest_t *Request);
+_CRT_EXTERN UsbHcTransaction_t *EhciTransactionSetup(void *cData, UsbHcRequest_t *Request);
+_CRT_EXTERN UsbHcTransaction_t *EhciTransactionIn(void *cData, UsbHcRequest_t *Request);
+_CRT_EXTERN UsbHcTransaction_t *EhciTransactionOut(void *cData, UsbHcRequest_t *Request);
+_CRT_EXTERN void EhciTransactionSend(void *cData, UsbHcRequest_t *Request);
+_CRT_EXTERN void EhciTransactionDestroy(void *cData, UsbHcRequest_t *Request);
 
 #endif

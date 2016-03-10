@@ -371,29 +371,6 @@ void PciCreateDeviceFromPci(PciDevice_t *PciDev)
 		PciDev->Header->Subclass, PciDev->Header->Interface), mDevice);
 }
 
-/* Disable EHCI Callback */
-void PciDisableEHCICallback(void *Data, int No)
-{
-	/* Cast */
-	PciDevice_t *PciDev = (PciDevice_t*)Data;
-
-	/* Bridge or device? */
-	if (PciDev->Type == X86_PCI_TYPE_BRIDGE) {
-		list_execute_all((list_t*)PciDev->Children, PciDisableEHCICallback);
-	}
-	else
-	{
-		/* Make sure this is an EHCI */
-		if (PciDev->Header->Class != 0x0C
-			|| PciDev->Header->Subclass != 0x03
-			|| PciDev->Header->Interface != 0x20)
-			return;
-
-		/* Create device! */
-		PciCreateDeviceFromPci(PciDev);
-	}
-}
-
 /* Install Driver Callback */
 void PciInstallDriverCallback(void *Data, int No)
 {
@@ -406,12 +383,6 @@ void PciInstallDriverCallback(void *Data, int No)
 	}
 	else
 	{
-		/* Make sure this is NOT an EHCI */
-		if (PciDev->Header->Class == 0x0C
-			&& PciDev->Header->Subclass == 0x03
-			&& PciDev->Header->Interface == 0x20)
-			return;
-
 		/* Create device! */
 		PciCreateDeviceFromPci(PciDev);
 	}
@@ -498,10 +469,7 @@ MODULES_API void ModuleInit(void *Data)
 		}
 	}
 
-	/* Step 1. Disable EHCI */
-	list_execute_all(GlbPciDevices, PciDisableEHCICallback);
-
-	/* Step 2. Install all other drivers */
+	/* Step 1. Enumerate bus */
 	list_execute_all(GlbPciDevices, PciInstallDriverCallback);
 
 	/* Step 3. Install PS2 if present */

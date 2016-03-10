@@ -170,22 +170,16 @@ void InterruptInstallBase(uint32_t Irq, uint32_t IdtEntry, uint64_t ApicEntry, I
 /* ISA Interrupts will go to BSP */
 void InterruptInstallISA(uint32_t Irq, uint32_t IdtEntry, IrqHandler_t Callback, void *Args)
 {
-	uint64_t apic_flags = 0;
+	/* Build APIC Flags */
+	uint64_t ApicFlags = 0;
 
-	apic_flags = 0x7F00000000000000;	/* Target all groups */
-	apic_flags |= 0x100;				/* Lowest Priority */
-	apic_flags |= 0x800;				/* Logical Destination Mode */
+	ApicFlags = 0x7F00000000000000;	/* Target all groups */
+	ApicFlags |= 0x100;				/* Lowest Priority */
+	ApicFlags |= 0x800;				/* Logical Destination Mode */
+	ApicFlags |= IdtEntry;			/* Interrupt Vector */
 
-	/* We have one ACPI Special Case */
-	if (Irq == AcpiGbl_FADT.SciInterrupt)
-	{
-		apic_flags |= 0x2000;			/* Active Low */
-		apic_flags |= 0x8000;			/* Level Sensitive */
-	}
-
-	apic_flags |= IdtEntry;			/* Interrupt Vector */
-
-	InterruptInstallBase(Irq, IdtEntry, apic_flags, Callback, Args);
+	/* Install to base */
+	InterruptInstallBase(Irq, IdtEntry, ApicFlags, Callback, Args);
 }
 
 /* Install only the interrupt handler, 
@@ -319,14 +313,6 @@ int DeviceAllocateInterrupt(void *mCoreDevice)
 
 		ApicFlags |= 0x100;				/* Lowest Priority */
 		ApicFlags |= 0x800;				/* Logical Destination Mode */
-
-		/* We have one ACPI Special Case */
-		if (Device->IrqLine == AcpiGbl_FADT.SciInterrupt)
-		{
-			ApicFlags |= 0x2000;			/* Active Low */
-			ApicFlags |= 0x8000;			/* Level Sensitive */
-		}
-
 		ApicFlags |= IdtEntry;
 
 		/* Install */

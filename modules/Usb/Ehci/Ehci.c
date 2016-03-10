@@ -397,10 +397,11 @@ void EhciSetup(EhciController_t *Controller)
 	HcCtrl->Reset = EhciRestart;
 
 	/* Endpoint Functions */
-
+	HcCtrl->EndpointSetup = EhciEndpointSetup;
+	HcCtrl->EndpointDestroy = EhciEndpointDestroy;
 
 	/* Transaction Functions */
-
+	HcCtrl->TransactionInit = EhciTransactionInit;
 
 	/* Register Controller */
 	Controller->HcdId = UsbRegisterController(HcCtrl);
@@ -424,8 +425,6 @@ void EhciSetup(EhciController_t *Controller)
 				if (EHCI_SPARAM_CCCOUNT(Controller->SParameters) != 0)
 					Controller->OpRegisters->Ports[i] |= EHCI_PORT_COMPANION_HC;
 			}
-			else
-				UsbEventCreate(HcCtrl, (int)i, HcdConnectedEvent);
 		}
 	}
 #endif

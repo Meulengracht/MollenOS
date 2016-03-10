@@ -1290,8 +1290,7 @@ void OhciLinkPeriodic(OhciController_t *Controller, UsbHcRequest_t *Request)
 	/* Variables */
 	OhciEndpointDescriptor_t *Ep = (OhciEndpointDescriptor_t*)Request->Data;
 	Addr_t EdAddress = 0;
-	int Queue = 0, Index = 0;
-	int Period = 0, Exponent = 0;
+	int Queue = 0;
 	int i;
 
 	/* Get physical */
@@ -1299,15 +1298,6 @@ void OhciLinkPeriodic(OhciController_t *Controller, UsbHcRequest_t *Request)
 
 	/* Find queue for this ED */
 	Queue = OhciCalculateQueue(Controller, Request->Endpoint->Interval, Ep->Bandwidth);
-
-	/* Find the correct index we link into */
-	for (Exponent = 7; Exponent >= 0; --Exponent) {
-		if ((1 << Exponent) <= (int)Request->Endpoint->Interval)
-			break;
-	}
-
-	/* Calculate period */
-	Period = 1 << Exponent;
 
 	/* Sanity */
 	assert(Queue >= 0);
@@ -1354,8 +1344,6 @@ void OhciLinkPeriodic(OhciController_t *Controller, UsbHcRequest_t *Request)
 
 	/* Store ed info */
 	Ep->HcdFlags |= OHCI_ED_SET_QUEUE(Queue);
-	Ep->HcdFlags |= OHCI_ED_SET_PERIOD(Period);
-	Ep->HcdFlags |= OHCI_ED_SET_INDEX(Index);
 }
 
 /* Unlinking Functions */

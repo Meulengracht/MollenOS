@@ -19,6 +19,7 @@
 * MollenOS USB UHCI Controller Driver
 * Todo:
 * Finish the FSBR implementation, right now there is no guarantee of order ls/fs/bul
+* The isochronous unlink/link needs improvements, it does not support multiple isocs in same frame
 */
 
 /* Includes */
