@@ -426,23 +426,20 @@ typedef struct _EhciTransferDescriptor
 	/* Buffer Page 0 + Offset 
 	 * Bit 0-11: Current Offset
 	 * Bit 12-31: Buffer Page */
-	uint32_t Bp0AndOffset;
-
-	/* Buffer Page 1-4 
-	 * Bit 0-11: Reserved
-	 * Bit 12-31: Buffer Page */
-	uint32_t Bp1;
-	uint32_t Bp2;
-	uint32_t Bp3;
-	uint32_t Bp4;
+	uint32_t Buffers[5];
 
 	/* Extended buffer pages
 	* Their upper address bits */
-	uint32_t ExtBp0;
-	uint32_t ExtBp1;
-	uint32_t ExtBp2;
-	uint32_t ExtBp3;
-	uint32_t ExtBp4;
+	uint32_t ExtBuffers[5];
+
+	/* 52 bytes, lets reach 64 */
+
+	/* HCD Flags */
+	uint32_t HcdFlags;
+	uint32_t PhysicalAddress;
+
+	/* Padding */
+	uint32_t Padding[1];
 
 } EhciTransferDescriptor_t;
 #pragma pack(pop)
@@ -471,6 +468,8 @@ typedef struct _EhciTransferDescriptor
 
 #define EHCI_TD_CERR(n)				((n >> 10) & 0x3)
 #define EHCI_TD_CC(n)				(n & 0xFF)
+
+#define EHCI_TD_ALLOCATED			(1 << 0)
 
 /* Queue Head Overlay */
 #pragma pack(push, 1)
@@ -641,11 +640,14 @@ typedef struct _EhciEndpoint
 {
 	/* Td's allocated */
 	size_t TdsAllocated;
+	size_t BuffersAllocated;
 
 	/* TD Pool */
 	EhciTransferDescriptor_t **TDPool;
-	Addr_t *TDPoolPhysical;
-	Addr_t **TDPoolBuffers;
+
+	/* Buffer Pool */
+	Addr_t **BufferPool;
+	int *BufferPoolStatus;
 
 	/* Lock */
 	Spinlock_t Lock;
@@ -654,7 +656,9 @@ typedef struct _EhciEndpoint
 
 /* Pool Definitions */
 #define EHCI_POOL_NUM_QH				60
-#define EHCI_ENDPOINT_MIN_ALLOCATED		25
+#define EHCI_POOL_TD_SIZE				15
+#define EHCI_POOL_BUFFER_MIN			5
+#define EHCI_POOL_BUFFER_ALLOCATED		1
 
 /* Pool Indices */
 #define EHCI_POOL_QH_NULL				0
@@ -718,5 +722,8 @@ _CRT_EXTERN UsbHcTransaction_t *EhciTransactionIn(void *cData, UsbHcRequest_t *R
 _CRT_EXTERN UsbHcTransaction_t *EhciTransactionOut(void *cData, UsbHcRequest_t *Request);
 _CRT_EXTERN void EhciTransactionSend(void *cData, UsbHcRequest_t *Request);
 _CRT_EXTERN void EhciTransactionDestroy(void *cData, UsbHcRequest_t *Request);
+
+/* Processing Functions */
+_CRT_EXTERN void EhciProcessTransactions(EhciController_t *Controller);
 
 #endif

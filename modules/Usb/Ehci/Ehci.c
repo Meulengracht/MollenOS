@@ -402,6 +402,14 @@ void EhciSetup(EhciController_t *Controller)
 
 	/* Transaction Functions */
 	HcCtrl->TransactionInit = EhciTransactionInit;
+	HcCtrl->TransactionSetup = EhciTransactionSetup;
+	HcCtrl->TransactionIn = EhciTransactionIn;
+	HcCtrl->TransactionOut = EhciTransactionOut;
+
+	/* Set override sizes */
+	HcCtrl->BulkOverride = (5 * PAGE_SIZE);
+	HcCtrl->InterruptOverride = (5 * PAGE_SIZE);
+	HcCtrl->IsocOverride = (3 * 1024);
 
 	/* Register Controller */
 	Controller->HcdId = UsbRegisterController(HcCtrl);

@@ -92,12 +92,6 @@ UsbHc_t *UsbInitController(void *Data, UsbControllerType_t Type, size_t Ports)
 	/* Reserve address 0 */
 	Controller->AddressMap[0] |= 0x1;
 
-	/* Set default split behaviour */
-	Controller->SplitControl = 1;
-	Controller->SplitBulk = 1;
-	Controller->SplitInterrupt = 1;
-	Controller->SplitIsochronous = 1;
-
 	/* Done! */
 	return Controller;
 }

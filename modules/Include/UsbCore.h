@@ -650,10 +650,10 @@ typedef struct _UsbHc
 	uint32_t AddressMap[4];
 
 	/* Transaction Split Behaviors */
-	int SplitControl;
-	int SplitBulk;
-	int SplitInterrupt;
-	int SplitIsochronous;
+	size_t ControlOverride;
+	size_t BulkOverride;
+	size_t InterruptOverride;
+	size_t IsocOverride;
 
 	/* Ports */
 	UsbHcPort_t *Ports[USB_MAX_PORTS];

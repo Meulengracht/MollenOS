@@ -669,8 +669,8 @@ void OhciSetup(OhciController_t *Controller)
 	/* Setup HCD */
 	HcCtrl = UsbInitController((void*)Controller, OhciController, Controller->Ports);
 
-	/* We don't want isochronous transfers splitted */
-	HcCtrl->SplitIsochronous = 0;
+	/* We want a max of two pages on isocs */
+	HcCtrl->IsocOverride = 2 * PAGE_SIZE;
 
 	/* Port Functions */
 	HcCtrl->PortSetup = OhciPortStatus;
@@ -954,6 +954,9 @@ OhciGTransferDescriptor_t *OhciTdIo(OhciEndpoint_t *OhciEp, UsbTransferType_t Ty
 		uint32_t BufItr = 0;
 		uint32_t FrameItr = 0;
 		uint32_t Crossed = 0;
+
+		/* If direction is out and mod 1023 is 0
+		 * add a zero-length frame */
 
 		/* Cast */
 		iTd = (OhciITransferDescriptor_t*)TDIndex;

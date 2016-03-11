@@ -97,18 +97,27 @@ void UsbTransactionIn(UsbHc_t *Hc, UsbHcRequest_t *Request, int Handshake, void 
 	UsbHcTransaction_t *Transaction;
 
 	/* Either it's maxpacket size or remaining len */
-	size_t FixedLen = MIN(Request->Endpoint->MaxPacketSize, Length);
+	size_t SplitSize = Request->Endpoint->MaxPacketSize;
+	size_t TransfersLeft = 0;
+	size_t FixedLen = 0;
+	int RemainingLen = 0;
 
-	/* Has controller asked for non-splitting? */
-	if ((Request->Type == ControlTransfer && !Hc->SplitControl)
-		|| (Request->Type == BulkTransfer && !Hc->SplitBulk)
-		|| (Request->Type == InterruptTransfer && !Hc->SplitInterrupt)
-		|| (Request->Type == IsochronousTransfer && !Hc->SplitIsochronous))
-		FixedLen = Length;
+	/* Has controller split size overrides? */
+	if (Request->Type == ControlTransfer && (Hc->ControlOverride != 0))
+		SplitSize = Hc->ControlOverride;
+	else if (Request->Type == BulkTransfer && (Hc->BulkOverride != 0))
+		SplitSize = Hc->BulkOverride;
+	else if (Request->Type == InterruptTransfer && (Hc->InterruptOverride != 0))
+		SplitSize = Hc->InterruptOverride;
+	else if (Request->Type == IsochronousTransfer && (Hc->IsocOverride != 0))
+		SplitSize = Hc->IsocOverride;
+
+	/* Update */
+	FixedLen = MIN(SplitSize, Length);
 
 	/* Calculate rest */
-	int RemainingLen = Length - FixedLen;
-	size_t TransfersLeft = 0;
+	RemainingLen = Length - FixedLen;
+	TransfersLeft = 0;
 
 	/* Sanity */
 	if (RemainingLen <= 0)
@@ -117,7 +126,7 @@ void UsbTransactionIn(UsbHc_t *Hc, UsbHcRequest_t *Request, int Handshake, void 
 		TransfersLeft = 0;
 	}
 	else
-		TransfersLeft = DIVUP(RemainingLen, Request->Endpoint->MaxPacketSize);
+		TransfersLeft = DIVUP(RemainingLen, SplitSize);
 	
 	/* Set request io buffer */
 	Request->IoBuffer = Buffer;
@@ -147,18 +156,29 @@ void UsbTransactionOut(UsbHc_t *Hc, UsbHcRequest_t *Request, int Handshake, void
 {
 	/* Get length */
 	UsbHcTransaction_t *Transaction;
-	size_t FixedLen = MIN(Request->Endpoint->MaxPacketSize, Length);
 
-	/* Has controller asked for non-splitting? */
-	if ((Request->Type == ControlTransfer && !Hc->SplitControl)
-		|| (Request->Type == BulkTransfer && !Hc->SplitBulk)
-		|| (Request->Type == InterruptTransfer && !Hc->SplitInterrupt)
-		|| (Request->Type == IsochronousTransfer && !Hc->SplitIsochronous))
-		FixedLen = Length;
+	/* Either it's maxpacket size or remaining len */
+	size_t SplitSize = Request->Endpoint->MaxPacketSize;
+	size_t TransfersLeft = 0;
+	size_t FixedLen = 0;
+	int RemainingLen = 0;
+
+	/* Has controller split size overrides? */
+	if (Request->Type == ControlTransfer && (Hc->ControlOverride != 0))
+		SplitSize = Hc->ControlOverride;
+	else if (Request->Type == BulkTransfer && (Hc->BulkOverride != 0))
+		SplitSize = Hc->BulkOverride;
+	else if (Request->Type == InterruptTransfer && (Hc->InterruptOverride != 0))
+		SplitSize = Hc->InterruptOverride;
+	else if (Request->Type == IsochronousTransfer && (Hc->IsocOverride != 0))
+		SplitSize = Hc->IsocOverride;
+
+	/* Update */
+	FixedLen = MIN(SplitSize, Length);
 
 	/* Calculate rest */
-	int RemainingLen = Length - FixedLen;
-	size_t TransfersLeft = 0;
+	RemainingLen = Length - FixedLen;
+	TransfersLeft = 0;
 
 	/* Sanity */
 	if (RemainingLen <= 0)
@@ -167,7 +187,7 @@ void UsbTransactionOut(UsbHc_t *Hc, UsbHcRequest_t *Request, int Handshake, void
 		TransfersLeft = 0;
 	}
 	else
-		TransfersLeft = DIVUP(RemainingLen, Request->Endpoint->MaxPacketSize);
+		TransfersLeft = DIVUP(RemainingLen, SplitSize);
 
 	/* Set request io buffer */
 	Request->IoBuffer = Buffer;
