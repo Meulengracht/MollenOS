@@ -222,6 +222,7 @@ typedef struct _EchiOperationalRegisters
 #define EHCI_LINK_QH					(1 << 1)
 #define EHCI_LINK_siTD					(2 << 1)
 #define EHCI_LINK_FSTN					(3 << 1)
+#define EHCI_LINK_TYPE(n)				((n >> 1) & 0x3)
 
 /* Isochronous Transfer Descriptor 
  * Must be 32 byte aligned */
@@ -593,17 +594,19 @@ typedef struct _EhciQueueHead
 	uint32_t HcdFlags;
 	uint32_t PhysicalAddress;
 
-	/* Bandwidth */
-	uint16_t BusTime;
-	uint16_t Period;
-	uint16_t Bandwidth;
-	uint16_t Interval;
-
 	/* Virtual Link */
 	uint32_t LinkPointerVirtual;
 
-	/* Padding */ 
-	uint32_t Padding[2];
+	/* Bandwidth */
+	uint16_t sFrame;
+	uint16_t Reserved;
+
+	uint16_t Interval;
+	uint16_t Period;
+
+	uint16_t Bandwidth;
+	uint8_t sMicroPeriod;
+	uint8_t sPeriod;
 
 } EhciQueueHead_t;
 #pragma pack(pop)
@@ -652,6 +655,21 @@ typedef struct _EhciFSTN
 } EhciFSTN_t;
 #pragma pack(pop)
 
+/* Generic Link Format 
+ * for iterating the 
+ * periodic list */
+typedef union {
+
+	/* Different Links */
+	EhciQueueHead_t *Qh;
+	EhciTransferDescriptor_t *Td;
+	EhciIsocDescriptor_t *iTd;
+	EhciSplitIsocDescriptor_t *siTd;
+	EhciFSTN_t *FSTN;
+	Addr_t Address;
+
+} EhciGenericLink_t;
+
 /* Endpoint Data */
 typedef struct _EhciEndpoint
 {
@@ -676,6 +694,7 @@ typedef struct _EhciEndpoint
 #define EHCI_POOL_TD_SIZE				15
 #define EHCI_POOL_BUFFER_MIN			5
 #define EHCI_POOL_BUFFER_ALLOCATED		1
+#define EHCI_BANDWIDTH_PHASES			64
 
 /* Pool Indices */
 #define EHCI_POOL_QH_NULL				0
@@ -712,6 +731,7 @@ typedef struct _EhciController
 	EhciTransferDescriptor_t *TdAsync;
 
 	/* Bandwidth */
+	int Bandwidth[EHCI_BANDWIDTH_PHASES];
 
 	/* Transactions */
 	int AsyncTransactions;

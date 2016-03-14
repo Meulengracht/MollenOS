@@ -321,6 +321,145 @@ void EhciDisableAsyncScheduler(EhciController_t *Controller)
 
 /* Link Functions */
 
+/* Get's a pointer to the next virtaul 
+ * link, only Qh's have this implemented 
+ * right now and will need modifications */
+EhciGenericLink_t *EhciNextGenericLink(EhciGenericLink_t *Link, uint32_t Type)
+{
+	switch (Type) {
+	case EHCI_LINK_QH:
+		return (EhciGenericLink_t*)&Link->Qh->LinkPointerVirtual;
+	case EHCI_LINK_FSTN:
+		return (EhciGenericLink_t*)&Link->FSTN->PathPointer;
+	case EHCI_LINK_iTD:
+		return (EhciGenericLink_t*)&Link->iTd->Link;
+	default:
+		return (EhciGenericLink_t*)&Link->siTd->Link;
+	}
+}
+
+/* This function links an interrupt Qh 
+ * into the schedule at Qh->sFrame 
+ * and every other Qh->Period */
+void EhciLinkPeriodicQh(EhciController_t *Controller, EhciQueueHead_t *Qh)
+{
+	/* Vars */
+	size_t Period = Qh->Period;
+	size_t i;
+
+	/* Sanity 
+	 * a minimum of every frame */
+	if (Period == 0)
+		Period = 1;
+
+	/* Iterate */
+	for (i = Qh->sFrame; i < Controller->FLength; i += Period) 
+	{
+		/* Virtual Pointer */
+		EhciGenericLink_t *pLink =
+			(EhciGenericLink_t*)&Controller->VirtualList[i];
+
+		/* Hardware Pointer */
+		uint32_t *pHw = &Controller->FrameList[i];
+
+		/* Lokals */
+		EhciGenericLink_t This = *pLink;
+		uint32_t Type = 0;
+
+		/* Iterate past isochronous tds */
+		while (This.Address) {
+			Type = EHCI_LINK_TYPE(*pHw);
+			if (Type == EHCI_LINK_QH)
+				break;
+
+			/* Next */
+			pLink = EhciNextGenericLink(pLink, Type);
+			pHw = &This.Address;
+			This = *pLink;
+		}
+
+		/* sorting each branch by period (slow-->fast)
+		 * enables sharing interior tree nodes */
+		while (This.Address && Qh != This.Qh) {
+			/* Sanity */
+			if (Qh->Period > This.Qh->Period)
+				break;
+
+			/* Move to next */
+			pLink = (EhciGenericLink_t*)&This.Qh->LinkPointerVirtual;
+			pHw = &This.Qh->LinkPointer;
+			This = *pLink;
+		}
+
+		/* link in this qh, unless some earlier pass did that */
+		if (Qh != This.Qh) 
+		{
+			/* Steal link */
+			Qh->LinkPointerVirtual = (uint32_t)This.Qh;
+			if (This.Qh)
+				Qh->LinkPointer = *pHw;
+
+			/* Memory Barrier */
+			MemoryBarrier();
+
+			/* Link it in */
+			pLink->Qh = Qh;
+			*pHw = (Qh->PhysicalAddress | EHCI_LINK_QH);
+		}
+	}
+}
+
+/* Generic unlink from periodic lsit 
+ * needs a bit more information as it
+ * is used for all formats */
+void EhciUnlinkPeriodic(EhciController_t *Controller, Addr_t Address, size_t Period, size_t sFrame)
+{
+	/* Vars */
+	size_t i;
+
+	/* Sanity
+	* a minimum of every frame */
+	if (Period == 0)
+		Period = 1;
+
+	/* We should mark Qh->Flags |= EHCI_QH_INVALIDATE_NEXT 
+	 * and wait for next frame */
+	/* Iterate */
+	for (i = sFrame; i < Controller->FLength; i += Period)
+	{
+		/* Virtual Pointer */
+		EhciGenericLink_t *pLink =
+			(EhciGenericLink_t*)&Controller->VirtualList[i];
+
+		/* Hardware Pointer */
+		uint32_t *pHw = &Controller->FrameList[i];
+
+		/* Lokals */
+		EhciGenericLink_t This = *pLink;
+		uint32_t Type = 0;
+
+		/* Find previous handle that points to our qh */
+		while (This.Address && This.Address != Address) 
+		{
+			/* Just keep going forward ! */
+			Type = EHCI_LINK_TYPE(*pHw);
+			pLink = EhciNextGenericLink(pLink, Type);
+			pHw = &This.Address;
+			This = *pLink;
+		}
+
+		/* Make sure we are not at end */
+		if (!This.Address)
+			return;
+
+		/* Update links */
+		Type = EHCI_LINK_TYPE(*pHw);
+		*pLink = *EhciNextGenericLink(&This, Type);
+
+		if (*(&This.Address) != EHCI_LINK_END)
+			*pHw = *(&This.Address);
+	}
+}
 
 /* Queue Functions */
 
@@ -393,6 +532,42 @@ EhciQueueHead_t *EhciAllocateQh(EhciController_t *Controller, UsbTransferType_t 
 
 	/* Done */
 	return Qh;
+}
+
+/* This initiates any 
+ * periodic scheduling 
+ * information that might be 
+ * needed */
+void EhciInititalizeQh(EhciController_t *Controller, UsbHcRequest_t *Request, EhciQueueHead_t *Qh)
+{
+	/* Get frame-count */
+	uint32_t TransactionsPerFrame = Request->Endpoint->Bandwidth;
+	uint32_t Bandwidth;
+
+	/* Calculate Bandwidth */
+	Qh->Bandwidth = (uint16_t)
+		NS_TO_US(UsbCalculateBandwidth(Request->Speed,
+		Request->Endpoint->Direction, Request->Type,
+		TransactionsPerFrame * Request->Endpoint->MaxPacketSize));
+	Qh->Interval = (uint16_t)Request->Endpoint->Interval;
+
+	if (Qh->Interval > 1
+		&& Qh->Interval < 8) {
+		Qh->Interval = 1;
+	}
+	else if (Qh->Interval >(Controller->FLength << 3)) {
+		Qh->Interval = (uint16_t)(Controller->FLength << 3);
+	}
+
+	/* Calculate period */
+	Qh->Period = Qh->Interval >> 3;
+
+	/* Get bandwidth period */
+	Bandwidth = MIN(EHCI_BANDWIDTH_PHASES, 1 << (Request->Endpoint->Interval - 1));
+
+	/* Allow the modified Interval to override */
+	Qh->sMicroPeriod = (uint8_t)MIN(Qh->Interval, Bandwidth);
+	Qh->sPeriod = (Qh->sMicroPeriod >> 3);
 }
 
 /* Transfer Descriptor Functions */
@@ -679,6 +854,65 @@ EhciTransferDescriptor_t *EhciTdIo(EhciController_t *Controller,
 	return Td;
 }
 
+
+/* Bandwidth Functions 
+ * --------------------
+ * Most of this bandwidth 
+ * calculation code is 
+ * taken from linux's source */
+
+/* This code validates an interrupt-QH 
+ * and makes sure there is enough room 
+ * for it's required period */
+int EhciBandwidthValidateQh(EhciController_t *Controller,
+	EhciQueueHead_t *Qh, size_t Frame, size_t MicroFrame)
+{
+	/* If we require more than 7 microframes
+	* we need FSTN support */
+	if (MicroFrame >= 8)
+		return -1;
+
+	/* Calculate the maximum microseconds
+	* that may already be allocated */
+	int MaxBandwidth = 100 - Qh->Bandwidth;
+
+	/* Iterate and check */
+	for (MicroFrame += (Frame << 3);
+		MicroFrame < EHCI_BANDWIDTH_PHASES;
+		MicroFrame += MaxBandwidth) {
+		if (Controller->Bandwidth[MicroFrame] > MaxBandwidth)
+			return 0;
+	}
+
+	/* Not valid */
+	return -1;
+}
+
+/* This function either allocates or deallocates 
+ * bandwidth in the controller for specified frames
+ * and microframes */
+void EhciControlBandwidth(EhciController_t *Controller,
+	EhciQueueHead_t *Qh, int Allocate)
+{
+	/* Vars */
+	size_t sMicroFrame;
+	size_t i;
+	int Bandwidth = Qh->Bandwidth;
+
+	/* Get micro-frame */
+	sMicroFrame = 0;// qh->ps.bw_phase << 3;
+
+	/* Deallocate? */
+	if (Allocate == 0) {
+		Bandwidth = -Bandwidth;
+	}
+
+	/* Iterate and allocate/deallocate */
+	for (i = sMicroFrame /*+ qh->ps.phase_uf */; 
+		i < EHCI_BANDWIDTH_PHASES; i += Qh->sMicroPeriod)
+		Controller->Bandwidth[i] += Bandwidth;
+}
+
 /* Transaction Functions */
 
 /* This one prepaires a QH */
@@ -696,36 +930,7 @@ void EhciTransactionInit(void *cData, UsbHcRequest_t *Request)
 
 		/* Calculate bus time */
 		if (Request->Type == InterruptTransfer)
-		{
-			/* Get frame-count */
-			uint32_t TransactionsPerFrame = Request->Endpoint->Bandwidth;
-			uint32_t Bandwidth;
-
-			/* Calculate Bandwidth */
-			Qh->BusTime = (uint16_t)
-				NS_TO_US(UsbCalculateBandwidth(Request->Speed, 
-					Request->Endpoint->Direction, Request->Type, 
-					TransactionsPerFrame * Request->Endpoint->MaxPacketSize));
-			Qh->Interval = (uint16_t)Request->Endpoint->Interval;
-
-			if (Qh->Interval > 1
-				&& Qh->Interval < 8) {
-				Qh->Interval = 1;
-			}
-			else if (Qh->Interval > (Controller->FLength << 3)) {
-				Qh->Interval = (uint16_t)(Controller->FLength << 3);
-			}
-
-			/* Calculate period */
-			Qh->Period = Qh->Interval >> 3;
-
-			/* Get bandwidth period */
-			Bandwidth = MIN(64, 1 << (Request->Endpoint->Interval - 1));
-
-			/* Allow the modified Interval to override */
-			//bw_uperiod = MIN(Qh->Interval, Bandwidth)
-			//bw_period = (bw_uperiod >> 3)
-		}
+			EhciInititalizeQh(Controller, Request, Qh);
 		
 		/* Initialize the Qh already */
 		Qh->Flags = EHCI_QH_DEVADDR(Request->Device->Address);
@@ -926,7 +1131,7 @@ void EhciTransactionSend(void *cData, UsbHcRequest_t *Request)
 
 	uint32_t CondCode;
 
-	/*************************
+	/************************
 	****** SETUP PHASE ******
 	*************************/
 	
@@ -1024,8 +1229,19 @@ void EhciTransactionSend(void *cData, UsbHcRequest_t *Request)
 	else
 	{
 		/* Periodic Scheduling */
-		LogFatal("EHCI", "Scheduling peridoic");
-		for (;;);
+		if (Request->Type == InterruptTransfer)
+		{
+			/* Allocate Bandwidth */
+
+
+			/* Link */
+			EhciLinkPeriodicQh(Controller, Qh);
+		}
+		else
+		{
+			LogFatal("EHCI", "Scheduling peridoic");
+			for (;;);
+		}
 	}
 
 	/* Release */
@@ -1213,6 +1429,42 @@ void EhciTransactionDestroy(void *cData, UsbHcRequest_t *Request)
 	else
 	{
 		/* Interrupt & Isoc */
+		if (Request->Type == InterruptTransfer)
+		{
+			/* Cast */
+			EhciQueueHead_t *Qh = (EhciQueueHead_t*)Request->Data;
+
+			/* Get lock */
+			SpinlockAcquire(&Controller->Lock);
+
+			/* Unlink */
+			EhciUnlinkPeriodic(Controller, (Addr_t)Qh, Qh->Period, Qh->sFrame);
+
+			/* Release lock */
+			SpinlockRelease(&Controller->Lock);
+
+			/* Mark Qh for unscheduling,
+			* otherwise we won't get waked up */
+			Qh->HcdFlags |= EHCI_QH_UNSCHEDULE;
+
+			/* Now we have to force a doorbell */
+			if (!Controller->BellIsRinging) {
+				Controller->BellIsRinging = 1;
+				Controller->OpRegisters->UsbCommand |= EHCI_COMMAND_IOC_ASYNC_DOORBELL;
+			}
+			else
+				Controller->BellReScan = 1;
+
+			/* Wait */
+			SchedulerSleepThread((Addr_t*)Request->Data);
+			IThreadYield();
+
+			/* Cleanup */
+		}
+		else
+		{
+			/* Isochronous */
+		}
 	}
 
 	/* Remove transaction from list */
