@@ -216,7 +216,7 @@ void UsbTransactionOut(UsbHc_t *Hc, UsbHcRequest_t *Request, int Handshake, void
 void UsbTransactionSend(UsbHc_t *Hc, UsbHcRequest_t *Request)
 {
 	/* Perform */
-	Hc->TransactionSend(Hc->Hc, Request);	
+	Hc->TransactionSend(Hc->Hc, Request);
 }
 
 /* Cleanup Transaction */

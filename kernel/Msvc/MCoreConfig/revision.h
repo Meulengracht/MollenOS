@@ -6,12 +6,12 @@
 #ifndef _REVISION_H_
 #define _REVISION_H_
 
-#define BUILD_DATE "10 March 2016"
-#define BUILD_TIME "18:18:54"
+#define BUILD_DATE "12 March 2016"
+#define BUILD_TIME "12:33:18"
 
 #define REVISION_MAJOR 0
 #define REVISION_MINOR 2
-#define REVISION_BUILD 2747
+#define REVISION_BUILD 2755
 
 #endif
 

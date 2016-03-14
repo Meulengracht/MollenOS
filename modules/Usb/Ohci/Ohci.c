@@ -1576,6 +1576,8 @@ void OhciTransactionSend(void *Controller, UsbHcRequest_t *Request)
 		&& Transaction->Link->Link)
 	{
 #ifdef _OHCI_DIAGNOSTICS_
+		Td = (OhciGTransferDescriptor_t*)Transaction->TransferDescriptor;
+
 		printf("Td (Addr 0x%x) Flags 0x%x, Cbp 0x%x, BufferEnd 0x%x, Next Td 0x%x\n", 
 			AddressSpaceGetMap(AddressSpaceGetCurrent(), (VirtAddr_t)Td), Td->Flags, Td->Cbp, Td->BufferEnd, Td->NextTD);
 #endif

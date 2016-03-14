@@ -19,10 +19,6 @@
 * MollenOS USB EHCI Controller Driver
 */
 
-/* Definitions */
-//#define EHCI_DISABLE
-#define EHCI_DIAGNOSTICS
-
 /* Includes */
 #include <Module.h>
 #include "Ehci.h"
@@ -405,6 +401,8 @@ void EhciSetup(EhciController_t *Controller)
 	HcCtrl->TransactionSetup = EhciTransactionSetup;
 	HcCtrl->TransactionIn = EhciTransactionIn;
 	HcCtrl->TransactionOut = EhciTransactionOut;
+	HcCtrl->TransactionSend = EhciTransactionSend;
+	HcCtrl->TransactionDestroy = EhciTransactionDestroy;
 
 	/* Set override sizes */
 	HcCtrl->BulkOverride = (5 * PAGE_SIZE);
@@ -478,9 +476,6 @@ int EhciPortReset(EhciController_t *Controller, size_t Port)
 	Temp = 0;
 	WaitForConditionWithFault(Temp, (Controller->OpRegisters->Ports[Port] & EHCI_PORT_RESET) == 0, 250, 10);
 
-	/* Recovery */
-	StallMs(30);
-
 	/* Clear RWC */
 	Controller->OpRegisters->Ports[Port] |= (EHCI_PORT_CONNECT_EVENT | EHCI_PORT_ENABLE_EVENT | EHCI_PORT_OC_EVENT);
 
@@ -491,6 +486,9 @@ int EhciPortReset(EhciController_t *Controller, size_t Port)
 			Controller->OpRegisters->Ports[Port] |= EHCI_PORT_COMPANION_HC;
 		return -1;
 	}
+
+	/* Recovery */
+	StallMs(30);
 
 	/* Done! */
 	return 0;
@@ -616,13 +614,10 @@ int EhciInterruptHandler(void *Args)
 	if (IntrState == 0)
 		return X86_IRQ_NOT_HANDLED;
 
-	/* Debug */
-	LogDebug("EHCI", "Controller Interrupt %u: 0x%x",
-		Controller->HcdId, IntrState);
-
 	/* Ok, lets see */
 	if (IntrState & (EHCI_STATUS_PROCESS | EHCI_STATUS_PROCESSERROR)) {
 		/* Scan for completion/error */
+		EhciProcessProgress(Controller);
 	}
 
 	/* Hub Change? */
@@ -637,7 +632,7 @@ int EhciInterruptHandler(void *Args)
 
 	/* Doorbell? */
 	if (IntrState & EHCI_STATUS_ASYNC_DOORBELL) {
-
+		EhciProcessTransactions(Controller);
 	}
 
 	/* Acknowledge */

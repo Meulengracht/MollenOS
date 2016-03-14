@@ -32,8 +32,10 @@
 
 /* Definitions */
 #define EHCI_MAX_PORTS			15
-
 #define EHCI_STRUCT_ALIGN			32
+
+//#define EHCI_DISABLE
+#define EHCI_DIAGNOSTICS
 
 /* Structures */
 
@@ -445,8 +447,14 @@ typedef struct _EhciTransferDescriptor
 #pragma pack(pop)
 
 /* TD Bits */
+#define EHCI_TD_PINGSTATE			(1 << 0)
+#define EHCI_TD_SPLITXACT			(1 << 1)
+
 #define EHCI_TD_INCOMPLETE			(1 << 2)
+
+/* CRC/Timeout, Bad PID */
 #define EHCI_TD_XACT				(1 << 3)
+
 #define EHCI_TD_BABBLE				(1 << 4)
 #define EHCI_TD_DATABUFERROR		(1 << 5)
 #define EHCI_TD_HALTED				(1 << 6)
@@ -470,6 +478,11 @@ typedef struct _EhciTransferDescriptor
 #define EHCI_TD_CC(n)				(n & 0xFF)
 
 #define EHCI_TD_ALLOCATED			(1 << 0)
+#define EHCI_TD_IBUF(n)				((n & 0xFF) << 8)
+#define EHCI_TD_JBUF(n)				((n & 0xF) << 16)
+
+#define EHCI_TD_GETIBUF(n)			((n >> 8) & 0xFF)
+#define EHCI_TD_GETJBUF(n)			((n >> 16) & 0xF)
 
 /* Queue Head Overlay */
 #pragma pack(push, 1)
@@ -586,6 +599,9 @@ typedef struct _EhciQueueHead
 	uint16_t Bandwidth;
 	uint16_t Interval;
 
+	/* Virtual Link */
+	uint32_t LinkPointerVirtual;
+
 	/* Padding */ 
 	uint32_t Padding[2];
 
@@ -614,6 +630,7 @@ typedef struct _EhciQueueHead
 #define EHCI_QH_EXTBUFFER(n)		((n >> 32) & 0xFFFFFFFF)
 
 #define EHCI_QH_ALLOCATED			(1 << 0)
+#define EHCI_QH_UNSCHEDULE			(1 << 1)
 
 /* Periodic Frame Span Traversal Node
 * Must be 32 byte aligned */
@@ -662,8 +679,7 @@ typedef struct _EhciEndpoint
 
 /* Pool Indices */
 #define EHCI_POOL_QH_NULL				0
-#define EHCI_POOL_QH_ISOC				1
-#define EHCI_POOL_QH_ASYNC				9
+#define EHCI_POOL_QH_ASYNC				1
 
 /* The Controller */
 typedef struct _EhciController
@@ -697,6 +713,9 @@ typedef struct _EhciController
 
 	/* Bandwidth */
 
+	/* Transactions */
+	int AsyncTransactions;
+	int BellIsRinging;
 
 	/* Port Count */
 	size_t Ports;
@@ -724,6 +743,7 @@ _CRT_EXTERN void EhciTransactionSend(void *cData, UsbHcRequest_t *Request);
 _CRT_EXTERN void EhciTransactionDestroy(void *cData, UsbHcRequest_t *Request);
 
 /* Processing Functions */
+_CRT_EXTERN void EhciProcessProgress(EhciController_t *Controller);
 _CRT_EXTERN void EhciProcessTransactions(EhciController_t *Controller);
 
 #endif
