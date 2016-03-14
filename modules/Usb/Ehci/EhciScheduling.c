@@ -285,8 +285,6 @@ int EhciConditionCodeToIndex(uint32_t ConditionCode)
 	return bCount;
 }
 
-/* Link Functions */
-
 /* Enables the async scheduler if it 
  * is not enabled already */
 void EhciEnableAsyncScheduler(EhciController_t *Controller)
@@ -320,6 +318,9 @@ void EhciDisableAsyncScheduler(EhciController_t *Controller)
 	Temp &= ~(EHCI_COMMAND_ASYNC_ENABLE);
 	Controller->OpRegisters->UsbCommand = Temp;
 }
+
+/* Link Functions */
+
 
 /* Queue Functions */
 
@@ -1159,6 +1160,8 @@ void EhciTransactionDestroy(void *cData, UsbHcRequest_t *Request)
 			Controller->BellIsRinging = 1;
 			Controller->OpRegisters->UsbCommand |= EHCI_COMMAND_IOC_ASYNC_DOORBELL;
 		}
+		else
+			Controller->BellReScan = 1;
 
 		/* Wait */
 		SchedulerSleepThread((Addr_t*)Request->Data);
@@ -1294,7 +1297,7 @@ int EhciScanQh(EhciController_t *Controller, UsbHcRequest_t *Request)
  * for transaction progress
  * this involves done/error 
  * transfers */
-void EhciProcessProgress(EhciController_t *Controller)
+void EhciProcessTransfers(EhciController_t *Controller)
 {
 	/* Transaction is completed / Failed */
 	list_t *Transactions = (list_t*)Controller->TransactionList;
@@ -1321,10 +1324,17 @@ void EhciProcessProgress(EhciController_t *Controller)
 /* Processes transfers 
  * This makes sure to schedule 
  * and/or unschedule transfers */
-void EhciProcessTransactions(EhciController_t *Controller)
+void EhciProcessDoorBell(EhciController_t *Controller)
 {
+	/* Vars */
+	list_node_t *Node = NULL;
+
+Scan:
+	/* Reset the rescan */
+	Controller->BellReScan = 0;
+
 	/* Iterate transactions */
-	foreach(Node, ((list_t*)Controller->TransactionList))
+	_foreach(Node, ((list_t*)Controller->TransactionList))
 	{
 		/* Cast */
 		UsbHcRequest_t *Request = (UsbHcRequest_t*)Node->data;
@@ -1343,6 +1353,13 @@ void EhciProcessTransactions(EhciController_t *Controller)
 			}
 		}
 	}
+
+	/* If someone has 
+	 * rung the bell while 
+	 * the door was opened, we 
+	 * should not close the door yet */
+	if (Controller->BellReScan != 0)
+		goto Scan;
 
 	/* Bell is no longer ringing */
 	Controller->BellIsRinging = 0;

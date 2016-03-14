@@ -716,6 +716,7 @@ typedef struct _EhciController
 	/* Transactions */
 	int AsyncTransactions;
 	int BellIsRinging;
+	int BellReScan;
 
 	/* Port Count */
 	size_t Ports;
@@ -743,7 +744,7 @@ _CRT_EXTERN void EhciTransactionSend(void *cData, UsbHcRequest_t *Request);
 _CRT_EXTERN void EhciTransactionDestroy(void *cData, UsbHcRequest_t *Request);
 
 /* Processing Functions */
-_CRT_EXTERN void EhciProcessProgress(EhciController_t *Controller);
-_CRT_EXTERN void EhciProcessTransactions(EhciController_t *Controller);
+_CRT_EXTERN void EhciProcessTransfers(EhciController_t *Controller);
+_CRT_EXTERN void EhciProcessDoorBell(EhciController_t *Controller);
 
 #endif

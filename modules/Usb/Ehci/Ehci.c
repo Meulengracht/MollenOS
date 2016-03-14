@@ -617,7 +617,7 @@ int EhciInterruptHandler(void *Args)
 	/* Ok, lets see */
 	if (IntrState & (EHCI_STATUS_PROCESS | EHCI_STATUS_PROCESSERROR)) {
 		/* Scan for completion/error */
-		EhciProcessProgress(Controller);
+		EhciProcessTransfers(Controller);
 	}
 
 	/* Hub Change? */
@@ -632,7 +632,7 @@ int EhciInterruptHandler(void *Args)
 
 	/* Doorbell? */
 	if (IntrState & EHCI_STATUS_ASYNC_DOORBELL) {
-		EhciProcessTransactions(Controller);
+		EhciProcessDoorBell(Controller);
 	}
 
 	/* Acknowledge */
