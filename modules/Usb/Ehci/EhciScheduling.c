@@ -320,6 +320,26 @@ void EhciDisableAsyncScheduler(EhciController_t *Controller)
 	Controller->OpRegisters->UsbCommand = Temp;
 }
 
+/* This functions rings the bell
+ * and waits for the door to open */
+void EhciRingDoorbell(EhciController_t *Controller, Addr_t *Data)
+{
+	/* Now we have to force a doorbell */
+	if (!Controller->BellIsRinging) {
+		Controller->BellIsRinging = 1;
+		Controller->OpRegisters->UsbCommand |= EHCI_COMMAND_IOC_ASYNC_DOORBELL;
+	}
+	else
+		Controller->BellReScan = 1;
+
+	/* Flush */
+	MemoryBarrier();
+
+	/* Wait */
+	SchedulerSleepThread(Data);
+	IThreadYield();
+}
+
 /* Link Functions */
 
 /* Get's a pointer to the next virtaul 
@@ -1389,19 +1409,7 @@ void EhciTransactionDestroy(void *cData, UsbHcRequest_t *Request)
 		Qh->HcdFlags |= EHCI_QH_UNSCHEDULE;
 
 		/* Now we have to force a doorbell */
-		if (!Controller->BellIsRinging) {
-			Controller->BellIsRinging = 1;
-			Controller->OpRegisters->UsbCommand |= EHCI_COMMAND_IOC_ASYNC_DOORBELL;
-		}
-		else
-			Controller->BellReScan = 1;
-
-		/* Flush */
-		MemoryBarrier();
-
-		/* Wait */
-		SchedulerSleepThread((Addr_t*)Request->Data);
-		IThreadYield();
+		EhciRingDoorbell(Controller, (Addr_t*)Request->Data);
 
 		/* Iterate and reset */
 		while (Transaction)
@@ -1471,16 +1479,7 @@ void EhciTransactionDestroy(void *cData, UsbHcRequest_t *Request)
 			Qh->HcdFlags |= EHCI_QH_UNSCHEDULE;
 
 			/* Now we have to force a doorbell */
-			if (!Controller->BellIsRinging) {
-				Controller->BellIsRinging = 1;
-				Controller->OpRegisters->UsbCommand |= EHCI_COMMAND_IOC_ASYNC_DOORBELL;
-			}
-			else
-				Controller->BellReScan = 1;
-
-			/* Wait */
-			SchedulerSleepThread((Addr_t*)Request->Data);
-			IThreadYield();
+			EhciRingDoorbell(Controller, (Addr_t*)Request->Data);
 
 			/* Iterate transactions and free buffers & td's */
 			while (Transaction)
@@ -1526,6 +1525,7 @@ int EhciScanQh(EhciController_t *Controller, UsbHcRequest_t *Request)
 {
 	/* Get transaction list */
 	UsbHcTransaction_t *tList = (UsbHcTransaction_t*)Request->Transactions;
+	EhciQueueHead_t *Qh = (EhciQueueHead_t*)Request->Data;
 
 	/* State variables */
 	int ShortTransfer = 0;
@@ -1535,6 +1535,10 @@ int EhciScanQh(EhciController_t *Controller, UsbHcRequest_t *Request)
 
 	/* For now... */
 	_CRT_UNUSED(Controller);
+
+	/* Sanitize the overlay */
+	if (Qh->Overlay.Status & EHCI_TD_ACTIVE)
+		return ProcessQh;
 
 	/* Loop through transactions */
 	while (tList)

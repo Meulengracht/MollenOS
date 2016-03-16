@@ -613,9 +613,6 @@ int EhciInterruptHandler(void *Args)
 	if (IntrState == 0)
 		return X86_IRQ_NOT_HANDLED;
 
-	LogDebug("EHCI", "Controller %i: Interrupt 0x%x",
-		Controller->HcdId, IntrState);
-
 	/* Ok, lets see */
 	if (IntrState & (EHCI_STATUS_PROCESS | EHCI_STATUS_PROCESSERROR)) {
 		/* Scan for completion/error */
