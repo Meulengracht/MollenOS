@@ -32,6 +32,7 @@
 #include <Log.h>
 
 /* CLib */
+#include <assert.h>
 #include <string.h>
 
 /* Globals */
@@ -439,7 +440,8 @@ void EhciUnlinkPeriodic(EhciController_t *Controller, Addr_t Address, size_t Per
 		uint32_t Type = 0;
 
 		/* Find previous handle that points to our qh */
-		while (This.Address && This.Address != Address) 
+		while (This.Address 
+			&& This.Address != Address) 
 		{
 			/* Just keep going forward ! */
 			Type = EHCI_LINK_TYPE(*pHw);
@@ -936,6 +938,9 @@ void EhciTransactionInit(void *cData, UsbHcRequest_t *Request)
 		Qh->Flags = EHCI_QH_DEVADDR(Request->Device->Address);
 		Qh->Flags |= EHCI_QH_EPADDR(Request->Endpoint->Address);
 		Qh->Flags |= EHCI_QH_DTC;
+
+		/* The thing with maxlength is 
+		 * that it needs to be MIN(TransferLength, MPS) */
 		Qh->Flags |= EHCI_QH_MAXLENGTH(Request->Endpoint->MaxPacketSize);
 
 		/* Now, set additionals depending on speed */
@@ -1151,7 +1156,7 @@ void EhciTransactionSend(void *cData, UsbHcRequest_t *Request)
 #ifdef EHCI_DIAGNOSTICS
 			Td = (EhciTransferDescriptor_t*)Transaction->TransferDescriptor;
 
-			LogInformation("EHCI", "Td (Addr 0x%x) Token 0x%x, Status 0x%x, Length 0x%x, Buffer 0x%x, Link 0x%x\n",
+			LogInformation("EHCI", "Td (Addr 0x%x) Token 0x%x, Status 0x%x, Length 0x%x, Buffer 0x%x, Link 0x%x",
 				Td->PhysicalAddress, (uint32_t)Td->Token, (
 				uint32_t)Td->Status, (uint32_t)Td->Length, Td->Buffers[0],
 				Td->Link);
@@ -1164,7 +1169,7 @@ void EhciTransactionSend(void *cData, UsbHcRequest_t *Request)
 			{
 				Td = (EhciTransferDescriptor_t*)Transaction->TransferDescriptor;
 
-				LogInformation("EHCI", "Td (Addr 0x%x) Token 0x%x, Status 0x%x, Length 0x%x, Buffer 0x%x, Link 0x%x\n",
+				LogInformation("EHCI", "Td (Addr 0x%x) Token 0x%x, Status 0x%x, Length 0x%x, Buffer 0x%x, Link 0x%x",
 					Td->PhysicalAddress, (uint32_t)Td->Token, (
 					uint32_t)Td->Status, (uint32_t)Td->Length, Td->Buffers[0],
 					Td->Link);
@@ -1180,11 +1185,16 @@ void EhciTransactionSend(void *cData, UsbHcRequest_t *Request)
 
 		/* Set Qh to point to first */
 		Td = (EhciTransferDescriptor_t*)Request->Transactions->TransferDescriptor;
+
+		/* Zero out overlay */
+		memset(&Qh->Overlay, 0, sizeof(EhciQueueHeadOverlay_t));
+
+		/* Set pointers accordingly */
 		Qh->Overlay.NextTD = Td->PhysicalAddress;
 		Qh->Overlay.NextAlternativeTD = EHCI_LINK_END;
 
 #ifdef EHCI_DIAGNOSTICS
-		LogInformation("EHCI", "Qh Address 0x%x, Flags 0x%x, State 0x%x, Current 0x%x, Next 0x%x\n",
+		LogInformation("EHCI", "Qh Address 0x%x, Flags 0x%x, State 0x%x, Current 0x%x, Next 0x%x",
 			Qh->PhysicalAddress, Qh->Flags, Qh->State, Qh->CurrentTD, Qh->Overlay.NextTD);
 #endif
 	}
@@ -1208,9 +1218,6 @@ void EhciTransactionSend(void *cData, UsbHcRequest_t *Request)
 	if (Request->Type == ControlTransfer
 		|| Request->Type == BulkTransfer)
 	{
-		/* Activate */
-		Qh->Overlay.Status = EHCI_TD_ACTIVE;
-
 		/* Get links of current */
 		Qh->LinkPointer = Controller->QhPool[EHCI_POOL_QH_ASYNC]->LinkPointer;
 		Qh->LinkPointerVirtual = Controller->QhPool[EHCI_POOL_QH_ASYNC]->LinkPointerVirtual;
@@ -1220,11 +1227,7 @@ void EhciTransactionSend(void *cData, UsbHcRequest_t *Request)
 
 		/* Insert at the start of queue */
 		Controller->QhPool[EHCI_POOL_QH_ASYNC]->LinkPointerVirtual = (uint32_t)Qh;
-		Controller->QhPool[EHCI_POOL_QH_ASYNC]->LinkPointer = Qh->PhysicalAddress;
-
-		/* Enable Async Scheduler */
-		Controller->AsyncTransactions++;
-		EhciEnableAsyncScheduler(Controller);
+		Controller->QhPool[EHCI_POOL_QH_ASYNC]->LinkPointer = Qh->PhysicalAddress | EHCI_LINK_QH;
 	}
 	else
 	{
@@ -1247,6 +1250,11 @@ void EhciTransactionSend(void *cData, UsbHcRequest_t *Request)
 	/* Release */
 	SpinlockRelease(&Controller->Lock);
 
+	/* Sanity */
+	if (Request->Type == InterruptTransfer
+		|| Request->Type == IsochronousTransfer)
+		return;
+
 #ifdef EHCI_DIAGNOSTICS
 	/* Sleep */
 	StallMs(5000);
@@ -1255,6 +1263,10 @@ void EhciTransactionSend(void *cData, UsbHcRequest_t *Request)
 	LogInformation("EHCI", "Qh Address 0x%x, Flags 0x%x, State 0x%x, Current 0x%x, Next 0x%x\n",
 		Qh->PhysicalAddress, Qh->Flags, Qh->State, Qh->CurrentTD, Qh->Overlay.NextTD);
 #else
+	/* Enable Async Scheduler */
+	Controller->AsyncTransactions++;
+	EhciEnableAsyncScheduler(Controller);
+
 	/* Wait for interrupt */
 	SchedulerSleepThread((Addr_t*)Request->Data);
 
@@ -1285,6 +1297,11 @@ void EhciTransactionSend(void *cData, UsbHcRequest_t *Request)
 			Completed = TransferFinished;
 		else
 		{
+			LogInformation("EHCI", "Td (Addr 0x%x) Token 0x%x, Status 0x%x, Length 0x%x, Buffer 0x%x, Link 0x%x",
+				Td->PhysicalAddress, (uint32_t)Td->Token,
+				(uint32_t)Td->Status, (uint32_t)Td->Length, Td->Buffers[0],
+				Td->Link);
+
 			if (CondCode == 4)
 				Completed = TransferNotResponding;
 			else if (CondCode == 5)
@@ -1379,6 +1396,9 @@ void EhciTransactionDestroy(void *cData, UsbHcRequest_t *Request)
 		else
 			Controller->BellReScan = 1;
 
+		/* Flush */
+		MemoryBarrier();
+
 		/* Wait */
 		SchedulerSleepThread((Addr_t*)Request->Data);
 		IThreadYield();
@@ -1440,6 +1460,9 @@ void EhciTransactionDestroy(void *cData, UsbHcRequest_t *Request)
 			/* Unlink */
 			EhciUnlinkPeriodic(Controller, (Addr_t)Qh, Qh->Period, Qh->sFrame);
 
+			/* Release Bandwidth */
+
+
 			/* Release lock */
 			SpinlockRelease(&Controller->Lock);
 
@@ -1459,7 +1482,22 @@ void EhciTransactionDestroy(void *cData, UsbHcRequest_t *Request)
 			SchedulerSleepThread((Addr_t*)Request->Data);
 			IThreadYield();
 
-			/* Cleanup */
+			/* Iterate transactions and free buffers & td's */
+			while (Transaction)
+			{
+				/* free buffer */
+				kfree(Transaction->TransferBuffer);
+
+				/* free both TD's */
+				kfree((void*)Transaction->TransferDescriptor);
+				kfree((void*)Transaction->TransferDescriptorCopy);
+
+				/* Next */
+				Transaction = Transaction->Link;
+			}
+
+			/* Free it */
+			kfree(Request->Data);
 		}
 		else
 		{

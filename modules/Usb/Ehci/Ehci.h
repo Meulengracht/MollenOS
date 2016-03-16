@@ -31,11 +31,11 @@
 #include <UsbCore.h>
 
 /* Definitions */
-#define EHCI_MAX_PORTS			15
+#define EHCI_MAX_PORTS				15
 #define EHCI_STRUCT_ALIGN			32
 
 //#define EHCI_DISABLE
-#define EHCI_DIAGNOSTICS
+//#define EHCI_DIAGNOSTICS
 
 /* Structures */
 
@@ -589,7 +589,7 @@ typedef struct _EhciQueueHead
 	 * the current transaction state */
 	EhciQueueHeadOverlay_t Overlay;
 
-	/* 72 bytes 
+	/* 68 bytes 
 	 * Add 24 bytes for allocation easieness */
 	uint32_t HcdFlags;
 	uint32_t PhysicalAddress;
@@ -598,6 +598,7 @@ typedef struct _EhciQueueHead
 	uint32_t LinkPointerVirtual;
 
 	/* Bandwidth */
+	uint32_t Padding;
 	uint16_t sFrame;
 	uint16_t Reserved;
 
@@ -658,7 +659,7 @@ typedef struct _EhciFSTN
 /* Generic Link Format 
  * for iterating the 
  * periodic list */
-typedef union {
+typedef union _EhciGenericLink {
 
 	/* Different Links */
 	EhciQueueHead_t *Qh;

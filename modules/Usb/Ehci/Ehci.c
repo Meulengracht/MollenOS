@@ -443,11 +443,13 @@ int EhciPortReset(EhciController_t *Controller, size_t Port)
 	uint32_t Temp = 0;
 
 	/* Enable port power */
-	if (Controller->SParameters & EHCI_SPARAM_PPC) {
+	if (Controller->SParameters & EHCI_SPARAM_PPC) 
+	{
+		/* Set bit */
 		Controller->OpRegisters->Ports[Port] |= EHCI_PORT_POWER;
 
 		/* Wait for power */
-		StallMs(5);
+		StallMs(20);
 	}
 
 	/* We must set the port-reset and keep the signal asserted for atleast 50 ms
@@ -486,9 +488,6 @@ int EhciPortReset(EhciController_t *Controller, size_t Port)
 			Controller->OpRegisters->Ports[Port] |= EHCI_PORT_COMPANION_HC;
 		return -1;
 	}
-
-	/* Recovery */
-	StallMs(30);
 
 	/* Done! */
 	return 0;
@@ -613,6 +612,9 @@ int EhciInterruptHandler(void *Args)
 	/* Sanity */
 	if (IntrState == 0)
 		return X86_IRQ_NOT_HANDLED;
+
+	LogDebug("EHCI", "Controller %i: Interrupt 0x%x",
+		Controller->HcdId, IntrState);
 
 	/* Ok, lets see */
 	if (IntrState & (EHCI_STATUS_PROCESS | EHCI_STATUS_PROCESSERROR)) {
