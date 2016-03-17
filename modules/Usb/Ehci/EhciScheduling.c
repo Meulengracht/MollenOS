@@ -104,6 +104,7 @@ void EhciInitQueues(EhciController_t *Controller)
 	Controller->QhPool[EHCI_POOL_QH_NULL]->Overlay.NextTD = EHCI_LINK_END;
 	Controller->QhPool[EHCI_POOL_QH_NULL]->Overlay.NextAlternativeTD = EHCI_LINK_END;
 	Controller->QhPool[EHCI_POOL_QH_NULL]->LinkPointer = EHCI_LINK_END;
+	Controller->QhPool[EHCI_POOL_QH_NULL]->HcdFlags = EHCI_QH_ALLOCATED;
 
 	/* Allocate the Async Dummy */
 	pSpace = (Addr_t)kmalloc(sizeof(EhciTransferDescriptor_t) + EHCI_STRUCT_ALIGN);
@@ -126,6 +127,7 @@ void EhciInitQueues(EhciController_t *Controller)
 	Controller->QhPool[EHCI_POOL_QH_ASYNC]->Overlay.NextTD = EHCI_LINK_END;
 	Controller->QhPool[EHCI_POOL_QH_ASYNC]->Overlay.NextAlternativeTD =
 		AddressSpaceGetMap(AddressSpaceGetCurrent(), (VirtAddr_t)Controller->TdAsync);
+	Controller->QhPool[EHCI_POOL_QH_ASYNC]->HcdFlags = EHCI_QH_ALLOCATED;
 
 	/* Allocate Transaction List */
 	Controller->TransactionList = list_create(LIST_SAFE);
@@ -1304,7 +1306,7 @@ void EhciTransactionSend(void *cData, UsbHcRequest_t *Request)
 	{
 		/* Cast and get the transfer code */
 		Td = (EhciTransferDescriptor_t*)Transaction->TransferDescriptor;
-		CondCode = EhciConditionCodeToIndex(Td->Status);
+		CondCode = EhciConditionCodeToIndex(Request->Speed == HighSpeed ? Td->Status & 0xFC : Td->Status);
 
 #ifdef EHCI_DIAGNOSTICS
 		LogInformation("EHCI", "Td (Addr 0x%x) Token 0x%x, Status 0x%x, Length 0x%x, Buffer 0x%x, Link 0x%x\n",
@@ -1317,10 +1319,13 @@ void EhciTransactionSend(void *cData, UsbHcRequest_t *Request)
 			Completed = TransferFinished;
 		else
 		{
-			LogInformation("EHCI", "Td (Addr 0x%x) Token 0x%x, Status 0x%x, Length 0x%x, Buffer 0x%x, Link 0x%x",
+			LogInformation("EHCI", "FX. Td (Addr 0x%x) Token 0x%x, Status 0x%x, Length 0x%x, Buffer 0x%x, Link 0x%x",
 				Td->PhysicalAddress, (uint32_t)Td->Token,
 				(uint32_t)Td->Status, (uint32_t)Td->Length, Td->Buffers[0],
 				Td->Link);
+
+			LogInformation("EHCI", "Qh Address 0x%x, Flags 0x%x, State 0x%x, Current 0x%x, Next 0x%x",
+				Qh->PhysicalAddress, Qh->Flags, Qh->State, Qh->Overlay.Status, Qh->Overlay.NextTD);
 
 			if (CondCode == 4)
 				Completed = TransferNotResponding;
@@ -1400,6 +1405,9 @@ void EhciTransactionDestroy(void *cData, UsbHcRequest_t *Request)
 		/* Now make sure PrevQh link skips over */
 		PrevQh->LinkPointer = Qh->LinkPointer;
 		PrevQh->LinkPointerVirtual = Qh->LinkPointerVirtual;
+
+		/* MemB */
+		MemoryBarrier();
 
 		/* Release lock */
 		SpinlockRelease(&Controller->Lock);
@@ -1525,7 +1533,6 @@ int EhciScanQh(EhciController_t *Controller, UsbHcRequest_t *Request)
 {
 	/* Get transaction list */
 	UsbHcTransaction_t *tList = (UsbHcTransaction_t*)Request->Transactions;
-	EhciQueueHead_t *Qh = (EhciQueueHead_t*)Request->Data;
 
 	/* State variables */
 	int ShortTransfer = 0;
@@ -1535,10 +1542,6 @@ int EhciScanQh(EhciController_t *Controller, UsbHcRequest_t *Request)
 
 	/* For now... */
 	_CRT_UNUSED(Controller);
-
-	/* Sanitize the overlay */
-	if (Qh->Overlay.Status & EHCI_TD_ACTIVE)
-		return ProcessQh;
 
 	/* Loop through transactions */
 	while (tList)
@@ -1558,8 +1561,11 @@ int EhciScanQh(EhciController_t *Controller, UsbHcRequest_t *Request)
 		if (Td->Status & EHCI_TD_ACTIVE) {
 
 			/* If it's not the first TD, skip */
-			if (Counter != 1) 
+			if (Counter > 1
+				&& (ShortTransfer || ErrorTransfer))
 				ProcessQh = 1;
+			else
+				ProcessQh = 0; /* No, only partially done without any errs */
 
 			/* Break */
 			break;
