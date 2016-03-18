@@ -845,12 +845,12 @@ EhciTransferDescriptor_t *EhciTdIo(EhciController_t *Controller,
 
 	/* Invalidate Links */
 	Td->Link = EHCI_LINK_END;
+	Td->AlternativeLink = EHCI_LINK_END;
 
-	/* Used on a short packet-ins */
-	if (PId == EHCI_TD_IN)
-		Td->AlternativeLink = Controller->TdAsync->PhysicalAddress;
-	else
-		Td->AlternativeLink = EHCI_LINK_END;
+	/* Short packet not ok? */
+	//if (Request->Flags & USB_SHORT_NOT_OK && PId == EHCI_TD_IN)
+	//	Td->AlternativeLink = Controller->TdAsync->PhysicalAddress;
+	_CRT_UNUSED(Controller);
 
 	/* Set Status */
 	Td->Status = EHCI_TD_ACTIVE;
@@ -1554,7 +1554,7 @@ int EhciScanQh(EhciController_t *Controller, UsbHcRequest_t *Request)
 			(EhciTransferDescriptor_t*)tList->TransferDescriptor;
 
 		/* Get code */
-		int CondCode = EhciConditionCodeToIndex(Td->Status);
+		int CondCode = EhciConditionCodeToIndex(Request->Speed == HighSpeed ? Td->Status & 0xFC : Td->Status);
 		int BytesLeft = Td->Length & 0x7FFF;
 
 		/* Sanity first */
