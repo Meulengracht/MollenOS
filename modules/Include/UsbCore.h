@@ -518,11 +518,15 @@ typedef struct _UsbHcTransaction
 
 	/* The actual Target/Source Buffer 
 	 * for this transaction */
-	void *IoBuffer;
+	void *Buffer;
 
-	/* The actual Target/Source Buffer length
+	/* The buffer length
 	 * requested for this transaction */
-	size_t IoLength;
+	size_t Length;
+
+	/* The actual bytes transferred 
+	 * during this transaction */
+	size_t ActualLength;
 
 	/* Next Transaction */
 	struct _UsbHcTransaction *Link;

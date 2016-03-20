@@ -1037,9 +1037,7 @@ UsbHcTransaction_t *EhciTransactionSetup(void *cData, UsbHcRequest_t *Request, U
 
 	/* Allocate Transaction */
 	Transaction = (UsbHcTransaction_t*)kmalloc(sizeof(UsbHcTransaction_t));
-	Transaction->IoBuffer = 0;
-	Transaction->IoLength = 0;
-	Transaction->Link = NULL;
+	memset(Transaction, 0, sizeof(UsbHcTransaction_t));
 
 	/* Create the Td */
 	Transaction->TransferDescriptor = (void*)EhciTdSetup(Request->Endpoint->AttachedData,
@@ -1060,10 +1058,11 @@ UsbHcTransaction_t *EhciTransactionIn(void *cData, UsbHcRequest_t *Request, void
 
 	/* Allocate Transaction */
 	Transaction = (UsbHcTransaction_t*)kmalloc(sizeof(UsbHcTransaction_t));
-	Transaction->TransferDescriptorCopy = NULL;
-	Transaction->IoBuffer = Buffer;
-	Transaction->IoLength = Length;
-	Transaction->Link = NULL;
+	memset(Transaction, 0, sizeof(UsbHcTransaction_t));
+	
+	/* Set Vars */
+	Transaction->Buffer = Buffer;
+	Transaction->Length = Length;
 
 	/* Setup Td */
 	Transaction->TransferDescriptor = (void*)EhciTdIo(Controller, Request->Endpoint->AttachedData,
@@ -1108,10 +1107,7 @@ UsbHcTransaction_t *EhciTransactionOut(void *cData, UsbHcRequest_t *Request, voi
 
 	/* Allocate Transaction */
 	Transaction = (UsbHcTransaction_t*)kmalloc(sizeof(UsbHcTransaction_t));
-	Transaction->TransferDescriptorCopy = NULL;
-	Transaction->IoBuffer = 0;
-	Transaction->IoLength = 0;
-	Transaction->Link = NULL;
+	memset(Transaction, 0, sizeof(UsbHcTransaction_t));
 
 	/* Setup Td */
 	Transaction->TransferDescriptor = (void*)EhciTdIo(Controller, Request->Endpoint->AttachedData,
@@ -1366,8 +1362,8 @@ void EhciTransactionSend(void *cData, UsbHcRequest_t *Request)
 		while (Transaction)
 		{
 			/* Copy Data? */
-			if (Transaction->IoBuffer != NULL && Transaction->IoLength != 0)
-				memcpy(Transaction->IoBuffer, Transaction->TransferBuffer, Transaction->IoLength);
+			if (Transaction->Buffer != NULL && Transaction->Length != 0)
+				memcpy(Transaction->Buffer, Transaction->TransferBuffer, Transaction->Length);
 
 			/* Next Link */
 			Transaction = Transaction->Link;

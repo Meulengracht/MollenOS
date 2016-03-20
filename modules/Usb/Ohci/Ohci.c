@@ -1422,9 +1422,7 @@ UsbHcTransaction_t *OhciTransactionSetup(void *Controller, UsbHcRequest_t *Reque
 
 	/* Allocate Transaction */
 	Transaction = (UsbHcTransaction_t*)kmalloc(sizeof(UsbHcTransaction_t));
-	Transaction->IoBuffer = 0;
-	Transaction->IoLength = 0;
-	Transaction->Link = NULL;
+	memset(Transaction, 0, sizeof(UsbHcTransaction_t));
 
 	/* Create the Td */
 	Transaction->TransferDescriptor = (void*)OhciTdSetup(Request->Endpoint->AttachedData, 
@@ -1446,10 +1444,11 @@ UsbHcTransaction_t *OhciTransactionIn(void *Controller, UsbHcRequest_t *Request,
 
 	/* Allocate Transaction */
 	Transaction = (UsbHcTransaction_t*)kmalloc(sizeof(UsbHcTransaction_t));
-	Transaction->TransferDescriptorCopy = NULL;
-	Transaction->IoBuffer = Buffer;
-	Transaction->IoLength = Length;
-	Transaction->Link = NULL;
+	memset(Transaction, 0, sizeof(UsbHcTransaction_t));
+
+	/* Set Vars */
+	Transaction->Buffer = Buffer;
+	Transaction->Length = Length;
 
 	/* Setup Td */
 	Transaction->TransferDescriptor = (void*)OhciTdIo(Request->Endpoint->AttachedData, 
@@ -1495,10 +1494,7 @@ UsbHcTransaction_t *OhciTransactionOut(void *Controller, UsbHcRequest_t *Request
 
 	/* Allocate Transaction */
 	Transaction = (UsbHcTransaction_t*)kmalloc(sizeof(UsbHcTransaction_t));
-	Transaction->TransferDescriptorCopy = NULL;
-	Transaction->IoBuffer = 0;
-	Transaction->IoLength = 0;
-	Transaction->Link = NULL;
+	memset(Transaction, 0, sizeof(UsbHcTransaction_t));
 
 	/* Setup Td */
 	Transaction->TransferDescriptor = (void*)OhciTdIo(Request->Endpoint->AttachedData, 
@@ -1725,8 +1721,8 @@ void OhciTransactionSend(void *Controller, UsbHcRequest_t *Request)
 		while (Transaction->Link)
 		{
 			/* Copy Data? */
-			if (Transaction->IoBuffer != NULL && Transaction->IoLength != 0)
-				memcpy(Transaction->IoBuffer, Transaction->TransferBuffer, Transaction->IoLength);
+			if (Transaction->Buffer != NULL && Transaction->Length != 0)
+				memcpy(Transaction->Buffer, Transaction->TransferBuffer, Transaction->Length);
 
 			/* Next Link */
 			Transaction = Transaction->Link;
@@ -1939,8 +1935,8 @@ void OhciProcessDoneQueue(OhciController_t *Controller, Addr_t DoneHeadAddr)
 						else
 						{
 							/* Let's see */
-							if (lIterator->IoLength != 0)
-								memcpy(lIterator->IoBuffer, lIterator->TransferBuffer, lIterator->IoLength);
+							if (lIterator->Length != 0)
+								memcpy(lIterator->Buffer, lIterator->TransferBuffer, lIterator->Length);
 
 							/* Switch toggle */
 							if (TransferType == InterruptTransfer

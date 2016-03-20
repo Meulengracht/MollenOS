@@ -1343,9 +1343,7 @@ UsbHcTransaction_t *UhciTransactionSetup(void *Controller, UsbHcRequest_t *Reque
 
 	/* Allocate Transaction */
 	Transaction = (UsbHcTransaction_t*)kmalloc(sizeof(UsbHcTransaction_t));
-	Transaction->IoBuffer = 0;
-	Transaction->IoLength = 0;
-	Transaction->Link = NULL;
+	memset(Transaction, 0, sizeof(UsbHcTransaction_t));
 
 	/* Create the Td */
 	Transaction->TransferDescriptor = (void*)UhciTdSetup(Request->Endpoint->AttachedData,
@@ -1369,10 +1367,11 @@ UsbHcTransaction_t *UhciTransactionIn(void *Controller, UsbHcRequest_t *Request,
 
 	/* Allocate Transaction */
 	Transaction = (UsbHcTransaction_t*)kmalloc(sizeof(UsbHcTransaction_t));
-	Transaction->TransferDescriptorCopy = NULL;
-	Transaction->IoBuffer = Buffer;
-	Transaction->IoLength = Length;
-	Transaction->Link = NULL;
+	memset(Transaction, 0, sizeof(UsbHcTransaction_t));
+
+	/* Set Vars */
+	Transaction->Buffer = Buffer;
+	Transaction->Length = Length;
 
 	/* Setup Td */
 	Transaction->TransferDescriptor = (void*)UhciTdIo(Request->Endpoint->AttachedData,
@@ -1424,10 +1423,7 @@ UsbHcTransaction_t *UhciTransactionOut(void *Controller, UsbHcRequest_t *Request
 
 	/* Allocate Transaction */
 	Transaction = (UsbHcTransaction_t*)kmalloc(sizeof(UsbHcTransaction_t));
-	Transaction->TransferDescriptorCopy = NULL;
-	Transaction->IoBuffer = 0;
-	Transaction->IoLength = 0;
-	Transaction->Link = NULL;
+	memset(Transaction, 0, sizeof(UsbHcTransaction_t));
 
 	/* Setup Td */
 	Transaction->TransferDescriptor = (void*)UhciTdIo(Request->Endpoint->AttachedData,
@@ -1700,8 +1696,8 @@ void UhciTransactionSend(void *Controller, UsbHcRequest_t *Request)
 		while (Transaction)
 		{
 			/* Copy Data? */
-			if (Transaction->IoBuffer != NULL && Transaction->IoLength != 0)
-				memcpy(Transaction->IoBuffer, Transaction->TransferBuffer, Transaction->IoLength);
+			if (Transaction->Buffer != NULL && Transaction->Length != 0)
+				memcpy(Transaction->Buffer, Transaction->TransferBuffer, Transaction->Length);
 
 			/* Next Link */
 			Transaction = Transaction->Link;
@@ -1982,8 +1978,8 @@ void UhciProcessRequest(UhciController_t *Controller, list_node_t *Node,
 		while (lIterator)
 		{
 			/* Copy Data from transfer buffer to IoBuffer */
-			if (lIterator->IoLength != 0)
-				memcpy(lIterator->IoBuffer, lIterator->TransferBuffer, lIterator->IoLength);
+			if (lIterator->Length != 0)
+				memcpy(lIterator->Buffer, lIterator->TransferBuffer, lIterator->Length);
 
 			/* Switch toggle if not dividable by 2 */
 			if (SwitchToggles
@@ -2048,8 +2044,8 @@ void UhciProcessRequest(UhciController_t *Controller, list_node_t *Node,
 		while (lIterator)
 		{
 			/* Copy Data from transfer buffer to IoBuffer */
-			if (lIterator->IoLength != 0)
-				memcpy(lIterator->IoBuffer, lIterator->TransferBuffer, lIterator->IoLength);
+			if (lIterator->Length != 0)
+				memcpy(lIterator->Buffer, lIterator->TransferBuffer, lIterator->Length);
 
 			/* Restart Td */
 			memcpy(lIterator->TransferDescriptor,
