@@ -216,6 +216,9 @@ typedef struct _EchiOperationalRegisters
 #define EHCI_PORT_DISCONNECT_WAKE		(1 << 21)
 #define EHCI_PORT_OC_WAKE				(1 << 22)
 
+/* Port Event Bits */
+#define EHCI_PORT_RWC					(EHCI_PORT_CONNECT_EVENT | EHCI_PORT_ENABLE_EVENT | EHCI_PORT_OC_EVENT)
+
 /* Link Bits */
 #define EHCI_LINK_END					(1 << 0)
 #define EHCI_LINK_iTD					0
@@ -758,9 +761,9 @@ _CRT_EXTERN void EhciEndpointDestroy(void *cData, UsbHcEndpoint_t *Endpoint);
 
 /* Transaction Prototypes */
 _CRT_EXTERN void EhciTransactionInit(void *cData, UsbHcRequest_t *Request);
-_CRT_EXTERN UsbHcTransaction_t *EhciTransactionSetup(void *cData, UsbHcRequest_t *Request);
-_CRT_EXTERN UsbHcTransaction_t *EhciTransactionIn(void *cData, UsbHcRequest_t *Request);
-_CRT_EXTERN UsbHcTransaction_t *EhciTransactionOut(void *cData, UsbHcRequest_t *Request);
+_CRT_EXTERN UsbHcTransaction_t *EhciTransactionSetup(void *cData, UsbHcRequest_t *Request, UsbPacket_t *Packet);
+_CRT_EXTERN UsbHcTransaction_t *EhciTransactionIn(void *cData, UsbHcRequest_t *Request, void *Buffer, size_t Length);
+_CRT_EXTERN UsbHcTransaction_t *EhciTransactionOut(void *cData, UsbHcRequest_t *Request, void *Buffer, size_t Length);
 _CRT_EXTERN void EhciTransactionSend(void *cData, UsbHcRequest_t *Request);
 _CRT_EXTERN void EhciTransactionDestroy(void *cData, UsbHcRequest_t *Request);
 

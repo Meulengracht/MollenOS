@@ -866,6 +866,12 @@ EhciTransferDescriptor_t *EhciTdIo(EhciController_t *Controller,
 	if (Request->Endpoint->Toggle)
 		Td->Length |= EHCI_TD_TOGGLE;
 
+	/* Calculate next toggle 
+	 * if transaction spans multiple transfers */
+	if (Length > 0
+		&& !(DIVUP(Length, Request->Endpoint->MaxPacketSize) % 2))
+		Request->Endpoint->Toggle ^= 0x1;
+
 	/* Store buffer */
 	*TDBuffer = Buffer;
 
@@ -1020,7 +1026,7 @@ void EhciTransactionInit(void *cData, UsbHcRequest_t *Request)
 /* This function prepares an Td with 
  * the token setup, only used for control
  * endpoints. */
-UsbHcTransaction_t *EhciTransactionSetup(void *cData, UsbHcRequest_t *Request)
+UsbHcTransaction_t *EhciTransactionSetup(void *cData, UsbHcRequest_t *Request, UsbPacket_t *Packet)
 {
 	/* Vars */
 	EhciController_t *Controller = (EhciController_t*)cData;
@@ -1037,7 +1043,7 @@ UsbHcTransaction_t *EhciTransactionSetup(void *cData, UsbHcRequest_t *Request)
 
 	/* Create the Td */
 	Transaction->TransferDescriptor = (void*)EhciTdSetup(Request->Endpoint->AttachedData,
-		&Request->Packet, &Transaction->TransferBuffer);
+		Packet, &Transaction->TransferBuffer);
 
 	/* Done */
 	return Transaction;
@@ -1046,7 +1052,7 @@ UsbHcTransaction_t *EhciTransactionSetup(void *cData, UsbHcRequest_t *Request)
 /* This function prepares an Td with the 
  * in-token and is used for control, bulk
  * interrupt and isochronous transfers */
-UsbHcTransaction_t *EhciTransactionIn(void *cData, UsbHcRequest_t *Request)
+UsbHcTransaction_t *EhciTransactionIn(void *cData, UsbHcRequest_t *Request, void *Buffer, size_t Length)
 {
 	/* Vars */
 	EhciController_t *Controller = (EhciController_t*)cData;
@@ -1055,13 +1061,13 @@ UsbHcTransaction_t *EhciTransactionIn(void *cData, UsbHcRequest_t *Request)
 	/* Allocate Transaction */
 	Transaction = (UsbHcTransaction_t*)kmalloc(sizeof(UsbHcTransaction_t));
 	Transaction->TransferDescriptorCopy = NULL;
-	Transaction->IoBuffer = Request->IoBuffer;
-	Transaction->IoLength = Request->IoLength;
+	Transaction->IoBuffer = Buffer;
+	Transaction->IoLength = Length;
 	Transaction->Link = NULL;
 
 	/* Setup Td */
 	Transaction->TransferDescriptor = (void*)EhciTdIo(Controller, Request->Endpoint->AttachedData,
-		Request, EHCI_TD_IN, Request->IoLength, &Transaction->TransferBuffer);
+		Request, EHCI_TD_IN, Length, &Transaction->TransferBuffer);
 
 	/* If previous Transaction */
 	if (Request->Transactions != NULL)
@@ -1094,7 +1100,7 @@ UsbHcTransaction_t *EhciTransactionIn(void *cData, UsbHcRequest_t *Request)
 /* This function prepares an Td with the
 * out-token and is used for control, bulk
 * interrupt and isochronous transfers */
-UsbHcTransaction_t *EhciTransactionOut(void *cData, UsbHcRequest_t *Request)
+UsbHcTransaction_t *EhciTransactionOut(void *cData, UsbHcRequest_t *Request, void *Buffer, size_t Length)
 {
 	/* Vars */
 	EhciController_t *Controller = (EhciController_t*)cData;
@@ -1109,11 +1115,11 @@ UsbHcTransaction_t *EhciTransactionOut(void *cData, UsbHcRequest_t *Request)
 
 	/* Setup Td */
 	Transaction->TransferDescriptor = (void*)EhciTdIo(Controller, Request->Endpoint->AttachedData,
-		Request, EHCI_TD_OUT, Request->IoLength, &Transaction->TransferBuffer);
+		Request, EHCI_TD_OUT, Length, &Transaction->TransferBuffer);
 
 	/* Copy Data */
-	if (Request->IoBuffer != NULL && Request->IoLength != 0)
-		memcpy(Transaction->TransferBuffer, Request->IoBuffer, Request->IoLength);
+	if (Buffer != NULL && Length != 0)
+		memcpy(Transaction->TransferBuffer, Buffer, Length);
 
 	/* If previous Transaction */
 	if (Request->Transactions != NULL)
@@ -1324,8 +1330,9 @@ void EhciTransactionSend(void *cData, UsbHcRequest_t *Request)
 				(uint32_t)Td->Status, (uint32_t)Td->Length, Td->Buffers[0],
 				Td->Link);
 
-			LogInformation("EHCI", "Qh Address 0x%x, Flags 0x%x, State 0x%x, Current 0x%x, Next 0x%x",
-				Qh->PhysicalAddress, Qh->Flags, Qh->State, Qh->Overlay.Status, Qh->Overlay.NextTD);
+			LogInformation("EHCI", "Qh Address 0x%x, Flags 0x%x, Token 0x%x, Status 0x%x, Current 0x%x, Next 0x%x",
+				Qh->PhysicalAddress, Qh->Flags, Qh->Overlay.Token, Qh->Overlay.Status, 
+				Qh->CurrentTD, Qh->Overlay.NextTD);
 
 			if (CondCode == 4)
 				Completed = TransferNotResponding;

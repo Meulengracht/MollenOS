@@ -53,9 +53,9 @@ void OhciEndpointDestroy(void *Controller, UsbHcEndpoint_t *Endpoint);
 
 /* Transaction Prototypes */
 void OhciTransactionInit(void *Controller, UsbHcRequest_t *Request);
-UsbHcTransaction_t *OhciTransactionSetup(void *Controller, UsbHcRequest_t *Request);
-UsbHcTransaction_t *OhciTransactionIn(void *Controller, UsbHcRequest_t *Request);
-UsbHcTransaction_t *OhciTransactionOut(void *Controller, UsbHcRequest_t *Request);
+UsbHcTransaction_t *OhciTransactionSetup(void *Controller, UsbHcRequest_t *Request, UsbPacket_t *Packet);
+UsbHcTransaction_t *OhciTransactionIn(void *Controller, UsbHcRequest_t *Request, void *Buffer, size_t Length);
+UsbHcTransaction_t *OhciTransactionOut(void *Controller, UsbHcRequest_t *Request, void *Buffer, size_t Length);
 void OhciTransactionSend(void *Controller, UsbHcRequest_t *Request);
 void OhciTransactionDestroy(void *Controller, UsbHcRequest_t *Request);
 
@@ -1411,7 +1411,7 @@ void OhciTransactionInit(void *Controller, UsbHcRequest_t *Request)
 }
 
 /* This one prepaires an setup Td */
-UsbHcTransaction_t *OhciTransactionSetup(void *Controller, UsbHcRequest_t *Request)
+UsbHcTransaction_t *OhciTransactionSetup(void *Controller, UsbHcRequest_t *Request, UsbPacket_t *Packet)
 {
 	/* Vars */
 	OhciController_t *Ctrl = (OhciController_t*)Controller;
@@ -1428,14 +1428,14 @@ UsbHcTransaction_t *OhciTransactionSetup(void *Controller, UsbHcRequest_t *Reque
 
 	/* Create the Td */
 	Transaction->TransferDescriptor = (void*)OhciTdSetup(Request->Endpoint->AttachedData, 
-		Request->Type, &Request->Packet, &Transaction->TransferBuffer);
+		Request->Type, Packet, &Transaction->TransferBuffer);
 
 	/* Done */
 	return Transaction;
 }
 
 /* This one prepaires an in Td */
-UsbHcTransaction_t *OhciTransactionIn(void *Controller, UsbHcRequest_t *Request)
+UsbHcTransaction_t *OhciTransactionIn(void *Controller, UsbHcRequest_t *Request, void *Buffer, size_t Length)
 {
 	/* Vars */
 	OhciController_t *Ctrl = (OhciController_t*)Controller;
@@ -1447,13 +1447,13 @@ UsbHcTransaction_t *OhciTransactionIn(void *Controller, UsbHcRequest_t *Request)
 	/* Allocate Transaction */
 	Transaction = (UsbHcTransaction_t*)kmalloc(sizeof(UsbHcTransaction_t));
 	Transaction->TransferDescriptorCopy = NULL;
-	Transaction->IoBuffer = Request->IoBuffer;
-	Transaction->IoLength = Request->IoLength;
+	Transaction->IoBuffer = Buffer;
+	Transaction->IoLength = Length;
 	Transaction->Link = NULL;
 
 	/* Setup Td */
 	Transaction->TransferDescriptor = (void*)OhciTdIo(Request->Endpoint->AttachedData, 
-		Request->Type, Request->Endpoint, OHCI_TD_PID_IN, Request->IoLength,
+		Request->Type, Request->Endpoint, OHCI_TD_PID_IN, Length,
 		&Transaction->TransferBuffer);
 
 	/* If previous Transaction */
@@ -1484,7 +1484,7 @@ UsbHcTransaction_t *OhciTransactionIn(void *Controller, UsbHcRequest_t *Request)
 }
 
 /* This one prepaires an out Td */
-UsbHcTransaction_t *OhciTransactionOut(void *Controller, UsbHcRequest_t *Request)
+UsbHcTransaction_t *OhciTransactionOut(void *Controller, UsbHcRequest_t *Request, void *Buffer, size_t Length)
 {
 	/* Vars */
 	OhciController_t *Ctrl = (OhciController_t*)Controller;
@@ -1502,12 +1502,12 @@ UsbHcTransaction_t *OhciTransactionOut(void *Controller, UsbHcRequest_t *Request
 
 	/* Setup Td */
 	Transaction->TransferDescriptor = (void*)OhciTdIo(Request->Endpoint->AttachedData, 
-		Request->Type, Request->Endpoint, OHCI_TD_PID_OUT, Request->IoLength,
+		Request->Type, Request->Endpoint, OHCI_TD_PID_OUT, Length,
 		&Transaction->TransferBuffer);
 
 	/* Copy Data */
-	if (Request->IoBuffer != NULL && Request->IoLength != 0)
-		memcpy(Transaction->TransferBuffer, Request->IoBuffer, Request->IoLength);
+	if (Buffer != NULL && Length != 0)
+		memcpy(Transaction->TransferBuffer, Buffer, Length);
 
 	/* If previous Transaction */
 	if (Request->Transactions != NULL)

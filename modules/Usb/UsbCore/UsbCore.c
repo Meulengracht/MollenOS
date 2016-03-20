@@ -557,6 +557,9 @@ void UsbEventHandler(void *args)
 				LogFatal("USBC", "Unhandled Event: %u on port %i", Event->Type, Event->Port);
 			} break;
 		}
+
+		/* Cleanup Event */
+		kfree(Event);
 	}
 }
 

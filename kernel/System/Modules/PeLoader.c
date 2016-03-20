@@ -140,6 +140,7 @@ Addr_t PeRelocateSections(MCorePeFile_t *PeFile, uint8_t *Data,
 	/* Cast to a pointer */
 	PeSectionHeader_t *Section = (PeSectionHeader_t*)SectionAddr;
 	Addr_t MemAddr = PeFile->BaseVirtual;
+	char TmpName[9];
 	uint32_t i, j;
 
 	/* Iterate */
@@ -150,17 +151,21 @@ Addr_t PeRelocateSections(MCorePeFile_t *PeFile, uint8_t *Data,
 		uint8_t *MemBuffer = (uint8_t*)(PeFile->BaseVirtual + Section->VirtualAddr);
 
 		/* Calculate pages needed */
-		uint32_t NumPages = (Section->VirtualSize / PAGE_SIZE);
-		if (Section->VirtualSize % PAGE_SIZE)
-			NumPages++;
+		uint32_t NumPages = DIVUP(Section->VirtualSize, PAGE_SIZE);
+
+		/* Copy Name */
+		memcpy(&TmpName[0], &Section->Name[0], 8);
+		TmpName[8] = 0;
 
 		/* Is it mapped ? */
 		for (j = 0; j < NumPages; j++)
 		{
-			if (!AddressSpaceGetMap(AddressSpaceGetCurrent(), 
-				((VirtAddr_t)MemBuffer + (j * PAGE_SIZE))))
-				AddressSpaceMap(AddressSpaceGetCurrent(), 
-				((VirtAddr_t)MemBuffer + (j * PAGE_SIZE)), PAGE_SIZE, 
+			/* Calculate Address */
+			Addr_t pAddr = (Addr_t)MemBuffer + (j * PAGE_SIZE);
+
+			/* Is it mapped? */
+			if (!AddressSpaceGetMap(AddressSpaceGetCurrent(), pAddr))
+				AddressSpaceMap(AddressSpaceGetCurrent(), pAddr, PAGE_SIZE,
 				(UserSpace == 1) ? ADDRESS_SPACE_FLAG_USER : 0);
 		}
 
@@ -218,20 +223,23 @@ void PeFixRelocations(MCorePeFile_t *PeFile, PeDataDirectory_t *RelocDirectory, 
 	while (BytesLeft > 0)
 	{
 		/* Get Page RVA */
-		uint32_t PageRVA = *RelocPtr;
+		uint32_t PageRVA = *RelocPtr++;
 		uint32_t BlockSize = 0;
 		uint32_t NumRelocs = 0;
-		RelocPtr++;
 
 		/* Get block size */
-		BlockSize = *RelocPtr;
-		RelocPtr++;
+		BlockSize = *RelocPtr++;
 
 		/* Decrease */
 		BytesLeft -= BlockSize;
 
 		/* Now, entries come */
-		NumRelocs = (BlockSize - 8) / sizeof(uint16_t);
+		if (BlockSize != 0)
+			NumRelocs = (BlockSize - 8) / sizeof(uint16_t);
+		else {
+			LogFatal("PELD", "Invalid relocation data, bailing");
+			break;
+		}
 
 		/* Create a pointer */
 		rEntry = (uint16_t*)RelocPtr;

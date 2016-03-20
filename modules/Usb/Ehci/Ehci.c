@@ -417,7 +417,19 @@ void EhciSetup(EhciController_t *Controller)
 	/* Now, controller is up and running
 	* and we should start doing port setups */
 
-	/* Iterate ports */
+	/* Step 1. Power On Ports */
+	if (Controller->SParameters & EHCI_SPARAM_PPC) {
+		for (i = 0; i < Controller->Ports; i++) {
+			uint32_t Temp = Controller->OpRegisters->Ports[i];
+			Temp |= EHCI_PORT_POWER;
+			Controller->OpRegisters->Ports[i] = Temp;
+		}
+	}
+
+	/* Wait 20 ms for power to stabilize */
+	StallMs(20);
+
+	/* Step 2. Iterate and release USB 1.1 Devices */
 	for (i = 0; i < Controller->Ports; i++) {
 
 		/* Is port connected? */
@@ -440,13 +452,17 @@ void EhciSetup(EhciController_t *Controller)
 int EhciPortReset(EhciController_t *Controller, size_t Port)
 {
 	/* Vars */
-	uint32_t Temp = 0;
+	uint32_t Temp = Controller->OpRegisters->Ports[Port];
 
 	/* Enable port power */
-	if (Controller->SParameters & EHCI_SPARAM_PPC) 
+	if (Controller->SParameters & EHCI_SPARAM_PPC
+		&& !(Temp & EHCI_PORT_POWER)) 
 	{
 		/* Set bit */
-		Controller->OpRegisters->Ports[Port] |= EHCI_PORT_POWER;
+		Temp |= EHCI_PORT_POWER;
+
+		/* Write back */
+		Controller->OpRegisters->Ports[Port] = Temp;
 
 		/* Wait for power */
 		StallMs(20);
@@ -455,7 +471,6 @@ int EhciPortReset(EhciController_t *Controller, size_t Port)
 	/* We must set the port-reset and keep the signal asserted for atleast 50 ms
 	 * now, we are going to keep the signal alive for (much) longer due to 
 	 * some devices being slow af */
-	Temp = Controller->OpRegisters->Ports[Port];
 
 	/* The EHCI documentation says we should 
 	 * disable enabled and assert reset together */
@@ -479,7 +494,7 @@ int EhciPortReset(EhciController_t *Controller, size_t Port)
 	WaitForConditionWithFault(Temp, (Controller->OpRegisters->Ports[Port] & EHCI_PORT_RESET) == 0, 250, 10);
 
 	/* Clear RWC */
-	Controller->OpRegisters->Ports[Port] |= (EHCI_PORT_CONNECT_EVENT | EHCI_PORT_ENABLE_EVENT | EHCI_PORT_OC_EVENT);
+	Controller->OpRegisters->Ports[Port] |= EHCI_PORT_RWC;
 
 	/* Now, if the port has a high-speed 
 	 * device, the enabled port is set */
@@ -551,6 +566,9 @@ void EhciPortCheck(EhciController_t *Controller, size_t Port)
 	/* Connection event? */
 	if (!(Status & EHCI_PORT_CONNECT_EVENT))
 		return;
+
+	/* Clear Event Bits */
+	Controller->OpRegisters->Ports[Port] = (Status | EHCI_PORT_RWC);
 
 	/* Get HCD data */
 	HcCtrl = UsbGetHcd(Controller->HcdId);

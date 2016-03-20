@@ -69,9 +69,9 @@ void UhciEndpointDestroy(void *Controller, UsbHcEndpoint_t *Endpoint);
 
 /* Transaction Prototypes */
 void UhciTransactionInit(void *Controller, UsbHcRequest_t *Request);
-UsbHcTransaction_t *UhciTransactionSetup(void *Controller, UsbHcRequest_t *Request);
-UsbHcTransaction_t *UhciTransactionIn(void *Controller, UsbHcRequest_t *Request);
-UsbHcTransaction_t *UhciTransactionOut(void *Controller, UsbHcRequest_t *Request);
+UsbHcTransaction_t *UhciTransactionSetup(void *Controller, UsbHcRequest_t *Request, UsbPacket_t *Packet);
+UsbHcTransaction_t *UhciTransactionIn(void *Controller, UsbHcRequest_t *Request, void *Buffer, size_t Length);
+UsbHcTransaction_t *UhciTransactionOut(void *Controller, UsbHcRequest_t *Request, void *Buffer, size_t Length);
 void UhciTransactionSend(void *Controller, UsbHcRequest_t *Request);
 void UhciTransactionDestroy(void *Controller, UsbHcRequest_t *Request);
 
@@ -1332,7 +1332,7 @@ void UhciTransactionInit(void *Controller, UsbHcRequest_t *Request)
 }
 
 /* This one prepaires an setup Td */
-UsbHcTransaction_t *UhciTransactionSetup(void *Controller, UsbHcRequest_t *Request)
+UsbHcTransaction_t *UhciTransactionSetup(void *Controller, UsbHcRequest_t *Request, UsbPacket_t *Packet)
 {
 	/* Vars */
 	UhciController_t *Ctrl = (UhciController_t*)Controller;
@@ -1349,7 +1349,7 @@ UsbHcTransaction_t *UhciTransactionSetup(void *Controller, UsbHcRequest_t *Reque
 
 	/* Create the Td */
 	Transaction->TransferDescriptor = (void*)UhciTdSetup(Request->Endpoint->AttachedData,
-		Request->Type, &Request->Packet, 
+		Request->Type, Packet, 
 		Request->Device->Address, Request->Endpoint->Address, 
 		Request->Speed, &Transaction->TransferBuffer);
 
@@ -1358,7 +1358,7 @@ UsbHcTransaction_t *UhciTransactionSetup(void *Controller, UsbHcRequest_t *Reque
 }
 
 /* This one prepaires an in Td */
-UsbHcTransaction_t *UhciTransactionIn(void *Controller, UsbHcRequest_t *Request)
+UsbHcTransaction_t *UhciTransactionIn(void *Controller, UsbHcRequest_t *Request, void *Buffer, size_t Length)
 {
 	/* Variables */
 	UhciController_t *Ctrl = (UhciController_t*)Controller;
@@ -1370,14 +1370,14 @@ UsbHcTransaction_t *UhciTransactionIn(void *Controller, UsbHcRequest_t *Request)
 	/* Allocate Transaction */
 	Transaction = (UsbHcTransaction_t*)kmalloc(sizeof(UsbHcTransaction_t));
 	Transaction->TransferDescriptorCopy = NULL;
-	Transaction->IoBuffer = Request->IoBuffer;
-	Transaction->IoLength = Request->IoLength;
+	Transaction->IoBuffer = Buffer;
+	Transaction->IoLength = Length;
 	Transaction->Link = NULL;
 
 	/* Setup Td */
 	Transaction->TransferDescriptor = (void*)UhciTdIo(Request->Endpoint->AttachedData,
 		Request->Type, Request->Endpoint->Toggle,
-		Request->Device->Address, Request->Endpoint->Address, UHCI_TD_PID_IN, Request->IoLength,
+		Request->Device->Address, Request->Endpoint->Address, UHCI_TD_PID_IN, Length,
 		Request->Speed, &Transaction->TransferBuffer);
 
 	/* If previous Transaction */
@@ -1413,7 +1413,7 @@ UsbHcTransaction_t *UhciTransactionIn(void *Controller, UsbHcRequest_t *Request)
 }
 
 /* This one prepaires an out Td */
-UsbHcTransaction_t *UhciTransactionOut(void *Controller, UsbHcRequest_t *Request)
+UsbHcTransaction_t *UhciTransactionOut(void *Controller, UsbHcRequest_t *Request, void *Buffer, size_t Length)
 {
 	/* Vars */
 	UhciController_t *Ctrl = (UhciController_t*)Controller;
@@ -1432,12 +1432,12 @@ UsbHcTransaction_t *UhciTransactionOut(void *Controller, UsbHcRequest_t *Request
 	/* Setup Td */
 	Transaction->TransferDescriptor = (void*)UhciTdIo(Request->Endpoint->AttachedData,
 		Request->Type, Request->Endpoint->Toggle,
-		Request->Device->Address, Request->Endpoint->Address, UHCI_TD_PID_OUT, Request->IoLength,
+		Request->Device->Address, Request->Endpoint->Address, UHCI_TD_PID_OUT, Length,
 		Request->Speed, &Transaction->TransferBuffer);
 
 	/* Copy Data */
-	if (Request->IoBuffer != NULL && Request->IoLength != 0)
-		memcpy(Transaction->TransferBuffer, Request->IoBuffer, Request->IoLength);
+	if (Buffer != NULL && Length != 0)
+		memcpy(Transaction->TransferBuffer, Buffer, Length);
 
 	/* If previous Transaction */
 	if (Request->Transactions != NULL)

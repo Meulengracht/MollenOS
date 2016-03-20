@@ -500,20 +500,28 @@ typedef enum _UsbTransactionType
  * A request consists of several transactions */
 typedef struct _UsbHcTransaction
 {
-	/* Type */
+	/* Transaction Type */
 	UsbTransactionType_t Type;
 
-	/* A Transfer Descriptor Ptr */
+	/* Transaction Descriptor,
+	 * this is controller specific 
+	 * for instance, OHCI/UHCI 
+	 * this might be a TransferDescriptor
+	 * while it can be other stuff in EHCI */
 	void *TransferDescriptor;
 	void *TransferDescriptorCopy;
 
-	/* Transfer Descriptor Buffer */
+	/* This is the temporary/proxy buffer
+	 * allocated for the transaction, this
+	 * insures we get page aligned transfers */
 	void *TransferBuffer;
 
-	/* Target/Source Buffer */
+	/* The actual Target/Source Buffer 
+	 * for this transaction */
 	void *IoBuffer;
 
-	/* Target/Source Buffer Length */
+	/* The actual Target/Source Buffer length
+	 * requested for this transaction */
 	size_t IoLength;
 
 	/* Next Transaction */
@@ -569,31 +577,28 @@ typedef struct _UsbInterruptCallback
 /* The Abstract Transfer Request */
 typedef struct _UsbHcRequest
 {
-	/* Bulk or Control? */
+	/* Transfer Type 
+	 * Ctrl, Bulk, Int, Isoc */
 	UsbTransferType_t Type;
+
+	/* Transfer Speed 
+	 * Low, Full, High, Super */
 	UsbSpeed_t Speed;
 
-	/* Transfer Specific Information */
-	void *Data;
+	/* Transfer Device/Endpoint 
+	 * For easy access */
 	UsbHcDevice_t *Device;
-
-	/* Endpoint */
 	UsbHcEndpoint_t *Endpoint;
 
-	/* Transaction Information */
-	size_t TokenBytes;
-
-	/* Buffer Information */
-	void *IoBuffer;
-	size_t IoLength;
-
-	/* Packet */
-	UsbPacket_t Packet;
+	/* Transfer specific information
+	 * this is usually a queue-head 
+	 * pointer - Controller Specific */
+	void *Data;
 
 	/* Any callback associated? */
 	UsbInterruptCallback_t *Callback;
 
-	/* The Transaction List */
+	/* Transaction list + count */
 	UsbHcTransaction_t *Transactions;
 	int TransactionCount;
 
@@ -672,9 +677,9 @@ typedef struct _UsbHc
 
 	/* Transaction Functions */
 	void (*TransactionInit)(void*, UsbHcRequest_t*);
-	UsbHcTransaction_t *(*TransactionSetup)(void*, UsbHcRequest_t*);
-	UsbHcTransaction_t *(*TransactionIn)(void*, UsbHcRequest_t*);
-	UsbHcTransaction_t *(*TransactionOut)(void*, UsbHcRequest_t*);
+	UsbHcTransaction_t *(*TransactionSetup)(void*, UsbHcRequest_t*, UsbPacket_t *Packet);
+	UsbHcTransaction_t *(*TransactionIn)(void*, UsbHcRequest_t*, void *Buffer, size_t Length);
+	UsbHcTransaction_t *(*TransactionOut)(void*, UsbHcRequest_t*, void *Buffer, size_t Length);
 	void (*TransactionSend)(void*, UsbHcRequest_t*);
 	void (*TransactionDestroy)(void*, UsbHcRequest_t*);
 
@@ -717,7 +722,7 @@ _USBCORE_API long UsbCalculateBandwidth(UsbSpeed_t Speed, int Direction, UsbTran
 /* Transfer Utilities */
 _USBCORE_API void UsbTransactionInit(UsbHc_t *Hc, UsbHcRequest_t *Request, UsbTransferType_t Type,
 								    UsbHcDevice_t *Device, UsbHcEndpoint_t *Endpoint);
-_USBCORE_API void UsbTransactionSetup(UsbHc_t *Hc, UsbHcRequest_t *Request, size_t PacketSize);
+_USBCORE_API void UsbTransactionSetup(UsbHc_t *Hc, UsbHcRequest_t *Request, UsbPacket_t *Packet);
 _USBCORE_API void UsbTransactionIn(UsbHc_t *Hc, UsbHcRequest_t *Request, int Handshake, void *Buffer, size_t Length);
 _USBCORE_API void UsbTransactionOut(UsbHc_t *Hc, UsbHcRequest_t *Request, int Handshake, void *Buffer, size_t Length);
 _USBCORE_API void UsbTransactionSend(UsbHc_t *Hc, UsbHcRequest_t *Request);
@@ -740,7 +745,7 @@ _USBCORE_API UsbTransferStatus_t UsbFunctionSetFeature(UsbHc_t *Hc, int Port,
 
 /* Send packet */
 _USBCORE_API UsbTransferStatus_t UsbFunctionSendPacket(UsbHc_t *Hc, int Port, void *Buffer, uint8_t RequestType,
-											uint8_t Request, uint8_t ValueHi, uint8_t ValueLo, 
+											uint8_t pRequest, uint8_t ValueHi, uint8_t ValueLo, 
 											uint16_t Index, uint16_t Length);
 
 /* Interrupt Transfers */
