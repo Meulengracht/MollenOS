@@ -75,7 +75,8 @@ void UsbTransactionSetup(UsbHc_t *Hc, UsbHcRequest_t *Request, UsbPacket_t *Pack
 {
 	UsbHcTransaction_t *Transaction;
 
-	/* Set toggle and token-bytes */
+	/* Set toggle to 0, all control transferts 
+	 * must have an initial toggle of 0 */
 	Request->Endpoint->Toggle = 0;
 
 	/* Perform it */
@@ -206,8 +207,28 @@ void UsbTransactionOut(UsbHc_t *Hc, UsbHcRequest_t *Request, int Handshake, void
 /* Send to Device */
 void UsbTransactionSend(UsbHc_t *Hc, UsbHcRequest_t *Request)
 {
+	/* Variables */
+	UsbHcTransaction_t *Transaction = Request->Transactions;
+
 	/* Perform */
 	Hc->TransactionSend(Hc->Hc, Request);
+
+	/* Copy data if neccessary */
+	if (Request->Status == TransferFinished)
+	{
+		while (Transaction)
+		{
+			/* Copy Data? */
+			if (Transaction->Type == InTransaction
+				&& Transaction->Buffer != NULL
+				&& Transaction->Length != 0) {
+				memcpy(Transaction->Buffer, Transaction->TransferBuffer, Transaction->Length);
+			}
+
+			/* Next Link */
+			Transaction = Transaction->Link;
+		}
+	}
 }
 
 /* Cleanup Transaction */

@@ -1688,22 +1688,6 @@ void UhciTransactionSend(void *Controller, UsbHcRequest_t *Request)
 		Transaction = Transaction->Link;
 	}
 
-	/* Lets see... */
-	if (Completed == TransferFinished)
-	{
-		/* Build Buffer */
-		Transaction = Request->Transactions;
-		while (Transaction)
-		{
-			/* Copy Data? */
-			if (Transaction->Buffer != NULL && Transaction->Length != 0)
-				memcpy(Transaction->Buffer, Transaction->TransferBuffer, Transaction->Length);
-
-			/* Next Link */
-			Transaction = Transaction->Link;
-		}
-	}
-
 	/* Update Status */
 	Request->Status = Completed;
 

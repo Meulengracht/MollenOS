@@ -1712,23 +1712,6 @@ void OhciTransactionSend(void *Controller, UsbHcRequest_t *Request)
 		Ctrl->Registers->HcFmNumber, Ctrl->Registers->HcFmInterval, Ctrl->Registers->HcFmRemaining);
 #endif
 
-	/* Lets see... */
-	if (Completed == TransferFinished)
-	{
-		/* Build Buffer */
-		Transaction = Request->Transactions;
-
-		while (Transaction->Link)
-		{
-			/* Copy Data? */
-			if (Transaction->Buffer != NULL && Transaction->Length != 0)
-				memcpy(Transaction->Buffer, Transaction->TransferBuffer, Transaction->Length);
-
-			/* Next Link */
-			Transaction = Transaction->Link;
-		}
-	}
-
 	/* Update Status */
 	Request->Status = Completed;
 

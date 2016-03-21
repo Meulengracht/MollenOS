@@ -176,7 +176,7 @@ void EhciEndpointSetup(void *cData, UsbHcEndpoint_t *Endpoint)
 	}
 
 	/* Set default - We should never need more 
-	 * than 15 td's */
+	 * than 15 td's ( 15 x 20k is a lot .. )*/
 	oEp->TdsAllocated = EHCI_POOL_TD_SIZE;
 
 	/* How many buffers should we allocate? */
@@ -1347,27 +1347,6 @@ void EhciTransactionSend(void *cData, UsbHcRequest_t *Request)
 
 		/* Next */
 		Transaction = Transaction->Link;
-	}
-
-	/*************************
-	 **** DATA XFER PHASE ****
-	 *************************/
-
-	/* Lets see... */
-	if (Completed == TransferFinished)
-	{
-		/* Build Buffer */
-		Transaction = Request->Transactions;
-
-		while (Transaction)
-		{
-			/* Copy Data? */
-			if (Transaction->Buffer != NULL && Transaction->Length != 0)
-				memcpy(Transaction->Buffer, Transaction->TransferBuffer, Transaction->Length);
-
-			/* Next Link */
-			Transaction = Transaction->Link;
-		}
 	}
 
 	/* Update Status */
