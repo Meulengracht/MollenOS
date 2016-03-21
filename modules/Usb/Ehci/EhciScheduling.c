@@ -1109,6 +1109,10 @@ UsbHcTransaction_t *EhciTransactionOut(void *cData, UsbHcRequest_t *Request, voi
 	Transaction = (UsbHcTransaction_t*)kmalloc(sizeof(UsbHcTransaction_t));
 	memset(Transaction, 0, sizeof(UsbHcTransaction_t));
 
+	/* Set Vars */
+	Transaction->Buffer = Buffer;
+	Transaction->Length = Length;
+
 	/* Setup Td */
 	Transaction->TransferDescriptor = (void*)EhciTdIo(Controller, Request->Endpoint->AttachedData,
 		Request, EHCI_TD_OUT, Length, &Transaction->TransferBuffer);
@@ -1215,11 +1219,11 @@ void EhciTransactionSend(void *cData, UsbHcRequest_t *Request)
 
 		/* Set pointers accordingly */
 		Qh->Overlay.NextTD = Td->PhysicalAddress;
-		Qh->Overlay.NextAlternativeTD = EHCI_LINK_END;
+Qh->Overlay.NextAlternativeTD = EHCI_LINK_END;
 
 #ifdef EHCI_DIAGNOSTICS
-		LogInformation("EHCI", "Qh Address 0x%x, Flags 0x%x, State 0x%x, Current 0x%x, Next 0x%x",
-			Qh->PhysicalAddress, Qh->Flags, Qh->State, Qh->CurrentTD, Qh->Overlay.NextTD);
+LogInformation("EHCI", "Qh Address 0x%x, Flags 0x%x, State 0x%x, Current 0x%x, Next 0x%x",
+	Qh->PhysicalAddress, Qh->Flags, Qh->State, Qh->CurrentTD, Qh->Overlay.NextTD);
 #endif
 	}
 	else
@@ -1297,7 +1301,7 @@ void EhciTransactionSend(void *cData, UsbHcRequest_t *Request)
 	/* Yield */
 	IThreadYield();
 #endif
-	
+
 	/*************************
 	*** VALIDATION PHASE ****
 	*************************/
@@ -1310,6 +1314,13 @@ void EhciTransactionSend(void *cData, UsbHcRequest_t *Request)
 		Td = (EhciTransferDescriptor_t*)Transaction->TransferDescriptor;
 		CondCode = EhciConditionCodeToIndex(Request->Speed == HighSpeed ? Td->Status & 0xFC : Td->Status);
 
+		/* Calculate length transferred */
+		if (Transaction->Buffer != NULL
+			&& Transaction->Length != 0) {
+			size_t BytesRemaining = Td->Length & 0x7FFF;
+			Transaction->ActualLength = Transaction->Length - BytesRemaining;
+		}
+
 #ifdef EHCI_DIAGNOSTICS
 		LogInformation("EHCI", "Td (Addr 0x%x) Token 0x%x, Status 0x%x, Length 0x%x, Buffer 0x%x, Link 0x%x\n",
 			Td->PhysicalAddress, (uint32_t)Td->Token,
@@ -1321,15 +1332,6 @@ void EhciTransactionSend(void *cData, UsbHcRequest_t *Request)
 			Completed = TransferFinished;
 		else
 		{
-			LogInformation("EHCI", "FX. Td (Addr 0x%x) Token 0x%x, Status 0x%x, Length 0x%x, Buffer 0x%x, Link 0x%x",
-				Td->PhysicalAddress, (uint32_t)Td->Token,
-				(uint32_t)Td->Status, (uint32_t)Td->Length, Td->Buffers[0],
-				Td->Link);
-
-			LogInformation("EHCI", "Qh Address 0x%x, Flags 0x%x, Token 0x%x, Status 0x%x, Current 0x%x, Next 0x%x",
-				Qh->PhysicalAddress, Qh->Flags, Qh->Overlay.Token, Qh->Overlay.Status, 
-				Qh->CurrentTD, Qh->Overlay.NextTD);
-
 			if (CondCode == 4)
 				Completed = TransferNotResponding;
 			else if (CondCode == 5)

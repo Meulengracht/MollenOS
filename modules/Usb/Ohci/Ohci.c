@@ -1496,6 +1496,10 @@ UsbHcTransaction_t *OhciTransactionOut(void *Controller, UsbHcRequest_t *Request
 	Transaction = (UsbHcTransaction_t*)kmalloc(sizeof(UsbHcTransaction_t));
 	memset(Transaction, 0, sizeof(UsbHcTransaction_t));
 
+	/* Set Vars */
+	Transaction->Buffer = Buffer;
+	Transaction->Length = Length;
+
 	/* Setup Td */
 	Transaction->TransferDescriptor = (void*)OhciTdIo(Request->Endpoint->AttachedData, 
 		Request->Type, Request->Endpoint, OHCI_TD_PID_OUT, Length,
@@ -1680,6 +1684,14 @@ void OhciTransactionSend(void *Controller, UsbHcRequest_t *Request)
 		/* Cast and get the transfer code */
 		Td = (OhciGTransferDescriptor_t*)Transaction->TransferDescriptor;
 		CondCode = OHCI_TD_GET_CC(Td->Flags);
+
+		/* Calculate length transferred 
+		 * Take into consideration the N-1 */
+		if (Transaction->Buffer != NULL
+			&& Transaction->Length != 0) {
+			Transaction->ActualLength = (Td->Cbp + 1) & 0xFFF;
+		}
+
 #ifdef _OHCI_DIAGNOSTICS_
 		printf("Td Flags 0x%x, Cbp 0x%x, BufferEnd 0x%x, Td Condition Code %u (%s)\n", Td->Flags, Td->Cbp, Td->BufferEnd, CondCode, OhciErrorMessages[CondCode]);
 #endif

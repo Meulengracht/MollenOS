@@ -1425,6 +1425,10 @@ UsbHcTransaction_t *UhciTransactionOut(void *Controller, UsbHcRequest_t *Request
 	Transaction = (UsbHcTransaction_t*)kmalloc(sizeof(UsbHcTransaction_t));
 	memset(Transaction, 0, sizeof(UsbHcTransaction_t));
 
+	/* Set Vars */
+	Transaction->Buffer = Buffer;
+	Transaction->Length = Length;
+
 	/* Setup Td */
 	Transaction->TransferDescriptor = (void*)UhciTdIo(Request->Endpoint->AttachedData,
 		Request->Type, Request->Endpoint->Toggle,
@@ -1661,6 +1665,14 @@ void UhciTransactionSend(void *Controller, UsbHcRequest_t *Request)
 		/* Cast and get the transfer code */
 		Td = (UhciTransferDescriptor_t*)Transaction->TransferDescriptor;
 		CondCode = UhciConditionCodeToIndex(UHCI_TD_STATUS(Td->Flags));
+
+		/* Calculate length transferred 
+		 * Take into consideration N-1 */
+		if (Transaction->Buffer != NULL
+			&& Transaction->Length != 0) {
+			Transaction->ActualLength = UHCI_TD_ACT_LEN(Td->Flags + 1);
+		}
+
 #ifdef UHCI_DIAGNOSTICS
 		LogDebug("UHCI", "Td Flags 0x%x, Header 0x%x, Buffer 0x%x, Td Condition Code %u (%s)", 
 			Td->Flags, Td->Header, Td->Buffer, CondCode, UhciErrorMessages[CondCode]);
