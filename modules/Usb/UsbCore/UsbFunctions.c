@@ -254,42 +254,6 @@ void UsbTransactionDestroy(UsbHc_t *Hc, UsbHcRequest_t *Request)
 	}
 }
 
-/* Calculates bus-time in nano-seconds (approximately) */
-long UsbCalculateBandwidth(UsbSpeed_t Speed, int Direction, UsbTransferType_t Type, size_t Length)
-{
-	/* Vars */
-	unsigned long Temp = 0;
-
-	/* Depends on device speed */
-	switch (Speed) {
-	case LowSpeed:
-		if (Direction == USB_EP_DIRECTION_IN) {
-			Temp = (67667L * (31L + 10L * BitTime(Length))) / 1000L;
-			return 64060L + (2 * BW_HUB_LS_SETUP) + BW_HOST_DELAY + Temp;
-		} else {
-			Temp = (66700L * (31L + 10L * BitTime(Length))) / 1000L;
-			return 64107L + (2 * BW_HUB_LS_SETUP) + BW_HOST_DELAY + Temp;
-		}
-	case FullSpeed:
-		if (Type == IsochronousTransfer) {
-			Temp = (8354L * (31L + 10L * BitTime(Length))) / 1000L;
-			return ((Direction == USB_EP_DIRECTION_IN) ? 7268L : 6265L) + BW_HOST_DELAY + Temp;
-		} else {
-			Temp = (8354L * (31L + 10L * BitTime(Length))) / 1000L;
-			return 9107L + BW_HOST_DELAY + Temp;
-		}
-	case SuperSpeed:
-	case HighSpeed:
-		if (Type == IsochronousTransfer)
-			Temp = HS_NSECS_ISO(Length);
-		else
-			Temp = HS_NSECS(Length);
-	}
-
-	/* Catch */
-	return Temp;
-}
-
 /* Set address of an usb device */
 UsbTransferStatus_t UsbFunctionSetAddress(UsbHc_t *Hc, int Port, size_t Address)
 {

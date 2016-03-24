@@ -106,9 +106,11 @@
     <ClCompile Include="Devices\UsbMsd.c" />
     <ClCompile Include="UsbCore.c" />
     <ClCompile Include="UsbFunctions.c" />
+    <ClCompile Include="UsbScheduler.c" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\Include\UsbCore.h" />
+    <ClInclude Include="..\..\Include\UsbScheduler.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

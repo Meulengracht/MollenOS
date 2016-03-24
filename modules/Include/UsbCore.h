@@ -113,34 +113,6 @@
 #define USB_DESC_SSPEED_EP_CPN		0x30
 #define USB_DESC_SSPEED_ISO_EP_CPN	0x31
 
-/* Generic bandwidth allocation constants/support */
-#define FRAME_TIME_USECS				1000L
-#define FRAME_TIME_BITS                 12000L
-#define FRAME_TIME_MAX_BITS_ALLOC       (90L * FRAME_TIME_BITS / 100L)
-#define FRAME_TIME_MAX_USECS_ALLOC      (90L * FRAME_TIME_USECS / 100L)
-
-#define BitTime(bytecount)				(7 * 8 * bytecount / 6)
-#define NS_TO_US(ns)					DIVUP(ns, 1000L)
-
-/* Full/low speed bandwidth allocation constants/support. */
-#define BW_HOST_DELAY   1000L
-#define BW_HUB_LS_SETUP 333L
-
-/*
- * Ceiling [nano/micro]seconds (typical) for that many bytes at high speed
- * ISO is a bit less, no ACK ... from USB 2.0 spec, 5.11.3 (and needed
- * to preallocate bandwidth)
- */
-#define USB2_HOST_DELAY 5       /* nsec, guess */
-#define HS_NSECS(bytes) (((55 * 8 * 2083) \
-        + (2083UL * (3 + BitTime(bytes))))/1000 \
-        + USB2_HOST_DELAY)
-#define HS_NSECS_ISO(bytes) (((38 * 8 * 2083) \
-        + (2083UL * (3 + BitTime(bytes))))/1000 \
-        + USB2_HOST_DELAY)
-#define HS_USECS(bytes)         NS_TO_US(HS_NSECS(bytes))
-#define HS_USECS_ISO(bytes)     NS_TO_US(HS_NSECS_ISO(bytes))
-
 /* Structures */
 #pragma pack(push, 1)
 typedef struct _UsbPacket
@@ -719,9 +691,6 @@ typedef struct _UsbEvent
 /* Returns an controller ID for used with identification */
 _USBCORE_API UsbHc_t *UsbInitController(void *Data, UsbControllerType_t Type, size_t Ports);
 _USBCORE_API int UsbRegisterController(UsbHc_t *Controller);
-
-/* Calculates bus-time in nano-seconds (approximately) */
-_USBCORE_API long UsbCalculateBandwidth(UsbSpeed_t Speed, int Direction, UsbTransferType_t Type, size_t Length);
 
 /* Transfer Utilities */
 _USBCORE_API void UsbTransactionInit(UsbHc_t *Hc, UsbHcRequest_t *Request, UsbTransferType_t Type,

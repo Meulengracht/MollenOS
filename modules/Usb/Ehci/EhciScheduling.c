@@ -24,8 +24,9 @@
 #include "Ehci.h"
 
 /* Additional Includes */
-#include <DeviceManager.h>
 #include <UsbCore.h>
+#include <UsbScheduler.h>
+#include <DeviceManager.h>
 #include <Scheduler.h>
 #include <Heap.h>
 #include <Timers.h>
@@ -696,13 +697,13 @@ Addr_t *EhciAllocateBuffers(EhciEndpoint_t *Ep, size_t Length, uint16_t *BufInfo
 	{
 		/* Interrupt & Isoc */
 		Buffer = kmalloc_a(PAGE_SIZE * NumPages);
-
-		/* Memset */
-		memset(Buffer, 0, PAGE_SIZE * NumPages);
 	}
 
 	/* Release */
 	SpinlockRelease(&Ep->Lock);
+
+	/* Memset */
+	memset(Buffer, 0, PAGE_SIZE * NumPages);
 
 	/* Update */
 	*BufInfo = bInfo;

@@ -25,9 +25,15 @@
     <ClCompile Include="Devices\UsbMsd.c">
       <Filter>Source Files\Devices</Filter>
     </ClCompile>
+    <ClCompile Include="UsbScheduler.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\Include\UsbCore.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Include\UsbScheduler.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
