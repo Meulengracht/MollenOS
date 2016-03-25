@@ -29,10 +29,12 @@
 #include <Module.h>
 #include <DeviceManager.h>
 #include <UsbCore.h>
+#include <UsbScheduler.h>
 
 /* Definitions */
 #define EHCI_MAX_PORTS				15
 #define EHCI_STRUCT_ALIGN			32
+#define EHCI_MAX_BANDWIDTH			800
 
 //#define EHCI_DISABLE
 //#define EHCI_DIAGNOSTICS
@@ -593,7 +595,7 @@ typedef struct _EhciQueueHead
 	EhciQueueHeadOverlay_t Overlay;
 
 	/* 68 bytes 
-	 * Add 24 bytes for allocation easieness */
+	 * Add 28 bytes for allocation easieness */
 	uint32_t HcdFlags;
 	uint32_t PhysicalAddress;
 
@@ -601,16 +603,10 @@ typedef struct _EhciQueueHead
 	uint32_t LinkPointerVirtual;
 
 	/* Bandwidth */
-	uint32_t Padding;
-	uint16_t sFrame;
-	uint16_t Reserved;
-
-	uint16_t Interval;
-	uint16_t Period;
-
-	uint16_t Bandwidth;
-	uint8_t sMicroPeriod;
-	uint8_t sPeriod;
+	uint32_t Interval;
+	uint32_t Bandwidth;
+	uint32_t sFrame;
+	uint32_t sMask;
 
 } EhciQueueHead_t;
 #pragma pack(pop)
@@ -698,7 +694,6 @@ typedef struct _EhciEndpoint
 #define EHCI_POOL_TD_SIZE				15
 #define EHCI_POOL_BUFFER_MIN			5
 #define EHCI_POOL_BUFFER_ALLOCATED		1
-#define EHCI_BANDWIDTH_PHASES			64
 
 /* Pool Indices */
 #define EHCI_POOL_QH_NULL				0
@@ -734,8 +729,8 @@ typedef struct _EhciController
 	EhciQueueHead_t *QhPool[EHCI_POOL_NUM_QH];
 	EhciTransferDescriptor_t *TdAsync;
 
-	/* Bandwidth */
-	int Bandwidth[EHCI_BANDWIDTH_PHASES];
+	/* Scheduler */
+	UsbScheduler_t *Scheduler;
 
 	/* Transactions */
 	int AsyncTransactions;

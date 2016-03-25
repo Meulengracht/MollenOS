@@ -83,12 +83,22 @@ typedef struct _UsbScheduler
 } UsbScheduler_t;
 
 /* Prototypes */
+
+/* Init, Destruct, set mask size 
+ * General Setup */
 _USBSCHED_API UsbScheduler_t *UsbSchedulerInit(size_t Size, size_t MaxBandwidth);
 _USBSCHED_API void UsbSchedulerDestroy(UsbScheduler_t *Schedule);
 _USBSCHED_API void UsbSchedulerSetMaskSize(UsbScheduler_t *Schedule, size_t Size);
+
+/* This function calculates the approx time a transfer 
+ * needs to spend on the bus in NS. */
 _USBSCHED_API long UsbCalculateBandwidth(UsbSpeed_t Speed, int Direction, UsbTransferType_t Type, size_t Length);
-_USBSCHED_API int UsbSchedulerValidate(UsbScheduler_t *Schedule, size_t Period, size_t Bandwidth, size_t Mask);
-_USBSCHED_API int UsbSchedulerReserveBandwidth(UsbScheduler_t *Schedule, size_t Period, size_t Bandwidth, size_t Mask);
-_USBSCHED_API int UsbSchedulerReleaseBandwidth(UsbScheduler_t *Schedule, size_t Period, size_t Bandwidth, size_t Mask);
+
+/* The actual meat of the scheduling */
+_USBSCHED_API int UsbSchedulerValidate(UsbScheduler_t *Schedule, size_t Period, size_t Bandwidth, size_t TransferCount);
+_USBSCHED_API int UsbSchedulerReserveBandwidth(UsbScheduler_t *Schedule, size_t Period, size_t Bandwidth, 
+												size_t TransferCount, size_t *StartFrame, size_t *FrameMask);
+_USBSCHED_API int UsbSchedulerReleaseBandwidth(UsbScheduler_t *Schedule, size_t Period, 
+												size_t Bandwidth, size_t StartFrame, size_t FrameMask);
 
 #endif //!__USB_SCHEDULER__

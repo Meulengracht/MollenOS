@@ -120,9 +120,10 @@ long UsbCalculateBandwidth(UsbSpeed_t Speed, int Direction, UsbTransferType_t Ty
  * room for the requested bandwidth 
  * Period => Is the actual frequency we want it occuring in ms
  * Bandwidth => Is the NS required for allocation */
-int UsbSchedulerValidate(UsbScheduler_t *Schedule, size_t Period, size_t Bandwidth, size_t Mask)
+int UsbSchedulerValidate(UsbScheduler_t *Schedule, size_t Period, size_t Bandwidth, size_t TransferCount)
 {
 	/* Vars */
+	int Locked = 0;
 	size_t i, j;
 
 	/* Sanitize period */
@@ -130,26 +131,52 @@ int UsbSchedulerValidate(UsbScheduler_t *Schedule, size_t Period, size_t Bandwid
 	if (Period > Schedule->Size) Period = Schedule->Size;
 
 	/* Iterate requested period */
-	for (i = 0; i < Schedule->Size; i += (Period * Schedule->MaskSize))
+	for (i = 0; i < Schedule->Size; )
 	{
 		/* Sanitize initial bandwidth */
-		if ((Schedule->Frames[i] + Bandwidth) > (Schedule->MaxBandwidth * Schedule->MaskSize))
-			return -1;
-
-		/* For EHCI we must support bandwidth masks 
-		 * instead of having a scheduler with multiple
-		 * levels, we have it flattened */
-		if (Mask != 0
-			&& Schedule->MaskSize != 1)
+		if ((Schedule->Frames[i] + Bandwidth) > (Schedule->MaxBandwidth * Schedule->MaskSize)) 
 		{
-			for (j = 0; i < Schedule->MaskSize; j++) {
-				if ((1 << j) & Mask) {
-					/* Validate Bandwidth on this mask */
-					if ((Schedule->Frames[i + j] + Bandwidth) > Schedule->MaxBandwidth)
-						return -1;
-				}
+			/* Try to validate on uneven frames 
+			 * if period is not 1 */
+
+			/* Sanity */
+			if (Period == 1
+				|| Locked == 1)
+				return -1;
+			else {
+				i += (1 * Schedule->MaskSize);
+				continue;
 			}
 		}
+
+		/* Yay */
+		Locked = 1;
+
+		/* For EHCI we must support bandwidth sizes 
+		 * instead of having a scheduler with multiple
+		 * levels, we have it flattened */
+		if (TransferCount > 1
+			&& Schedule->MaskSize > 1)
+		{
+			/* Vars 
+			 * We know the initial frame is free 
+			 * so we don't check it */
+			size_t FreeFrames = 1;
+
+			/* Find space in 'sub' schedule */
+			for (j = 1; j < Schedule->MaskSize; j++) {
+				/* Validate Bandwidth on this mask */
+				if ((Schedule->Frames[i + j] + Bandwidth) <= Schedule->MaxBandwidth)
+					FreeFrames++;
+			}
+
+			/* Sanity */
+			if (TransferCount > FreeFrames)
+				return -1;
+		}
+
+		/* Increase by period */
+		i += (Period * Schedule->MaskSize);
 	}
 
 	/* Done */
@@ -159,9 +186,11 @@ int UsbSchedulerValidate(UsbScheduler_t *Schedule, size_t Period, size_t Bandwid
 /* Reservate Bandwidth 
  * This function actually makes the reservation 
  * Validate Bandwith should have been called first */
-int UsbSchedulerReserveBandwidth(UsbScheduler_t *Schedule, size_t Period, size_t Bandwidth, size_t Mask)
+int UsbSchedulerReserveBandwidth(UsbScheduler_t *Schedule, size_t Period, size_t Bandwidth, 
+	size_t TransferCount, size_t *StartFrame, size_t *FrameMask)
 {
 	/* Vars */
+	size_t sMask = 0, sFrame = 0;
 	int RetVal = 0;
 	size_t i, j;
 
@@ -173,41 +202,90 @@ int UsbSchedulerReserveBandwidth(UsbScheduler_t *Schedule, size_t Period, size_t
 	SpinlockAcquire(&Schedule->Lock);
 
 	/* Validate (With Lock)! */
-	if (UsbSchedulerValidate(Schedule, Period, Bandwidth, Mask)) {
+	if (UsbSchedulerValidate(Schedule, Period, Bandwidth, TransferCount)) {
 		RetVal = -1;
 		goto GoOut;
 	}
 
 	/* Iterate requested period */
-	for (i = 0; i < Schedule->Size; i += (Period * Schedule->MaskSize))
+	for (i = 0; i < Schedule->Size; )
 	{
-		/* Allocate outer */
-		Schedule->Frames[i] += Bandwidth;
-
-		/* For EHCI we must support bandwidth masks
-		 * instead of having a scheduler with multiple
-		 * levels, we have it flattened */
-		if (Mask != 0
-			&& Schedule->MaskSize != 1)
+		/* Sanitize initial bandwidth */
+		if ((Schedule->Frames[i] + Bandwidth) > (Schedule->MaxBandwidth * Schedule->MaskSize))
 		{
-			for (j = 0; i < Schedule->MaskSize; j++) {
-				if ((1 << j) & Mask) {
-					Schedule->Frames[i + j] += Bandwidth;
+			/* Try to allocate on uneven frames
+			* if period is not 1 */
+
+			/* Sanity */
+			if (Period == 1
+				|| sFrame != 0)
+				return -1;
+			else {
+				i += (1 * Schedule->MaskSize);
+				continue;
+			}
+		}
+
+		/* Lock this frame-period */
+		sFrame = i;
+
+		/* For EHCI we must support bandwidth sizes
+		* instead of having a scheduler with multiple
+		* levels, we have it flattened */
+		if (TransferCount > 1
+			&& Schedule->MaskSize > 1)
+		{
+			/* Either we create a mask
+			 * or we allocate a mask */
+			if (sMask == 0)
+			{
+				/* Vars */
+				int Counter = TransferCount;
+
+				/* Find space in 'sub' schedule */
+				for (j = 1; j < Schedule->MaskSize && Counter; j++) {
+					if ((Schedule->Frames[i + j] + Bandwidth) <= Schedule->MaxBandwidth) {
+						Schedule->Frames[i + j] += Bandwidth;
+						sMask |= (1 << j);
+						Counter--;
+					}
+				}
+			}
+			else
+			{
+				/* Allocate bandwidth in 'sub' schedule */
+				for (j = 1; j < Schedule->MaskSize; j++) {
+					if (sMask & (1 << j)) {
+						Schedule->Frames[i + j] += Bandwidth;
+					}
 				}
 			}
 		}
+
+		/* Allocate outer */
+		Schedule->Frames[i] += Bandwidth;
+
+		/* Increase by period */
+		i += (Period * Schedule->MaskSize);
 	}
 
 GoOut:
 	/* Release lock */
 	SpinlockRelease(&Schedule->Lock);
 
+	/* Save parameters */
+	if (StartFrame != NULL)
+		*StartFrame = sFrame;
+	if (FrameMask != NULL)
+		*FrameMask = sMask;
+
 	/* Done */
 	return RetVal;
 }
 
 /* Release Bandwidth */
-int UsbSchedulerReleaseBandwidth(UsbScheduler_t *Schedule, size_t Period, size_t Bandwidth, size_t Mask)
+int UsbSchedulerReleaseBandwidth(UsbScheduler_t *Schedule, size_t Period, 
+	size_t Bandwidth, size_t StartFrame, size_t FrameMask)
 {
 	/* Vars */
 	int RetVal = 0;
@@ -221,20 +299,21 @@ int UsbSchedulerReleaseBandwidth(UsbScheduler_t *Schedule, size_t Period, size_t
 	SpinlockAcquire(&Schedule->Lock);
 
 	/* Iterate requested period */
-	for (i = 0; i < Schedule->Size; i += (Period * Schedule->MaskSize))
+	for (i = StartFrame; i < Schedule->Size; i += (Period * Schedule->MaskSize))
 	{
 		/* Allocate outer */
 		Schedule->Frames[i] -= MIN(Bandwidth, Schedule->Frames[i]);
 
-		/* For EHCI we must support bandwidth masks
+		/* For EHCI we must support bandwidth sizes
 		* instead of having a scheduler with multiple
 		* levels, we have it flattened */
-		if (Mask != 0
-			&& Schedule->MaskSize != 1)
+		if (FrameMask != 0
+			&& Schedule->MaskSize > 1)
 		{
-			for (j = 0; i < Schedule->MaskSize; j++) {
-				if ((1 << j) & Mask) {
-					Schedule->Frames[i + j] -= MIN(Bandwidth, Schedule->Frames[i + j]);
+			/* Free bandwidth in 'sub' schedule */
+			for (j = 1; j < Schedule->MaskSize; j++) {
+				if (FrameMask & (1 << j)) {
+					Schedule->Frames[i + j] += Bandwidth;
 				}
 			}
 		}

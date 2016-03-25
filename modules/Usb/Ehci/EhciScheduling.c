@@ -133,6 +133,10 @@ void EhciInitQueues(EhciController_t *Controller)
 	/* Allocate Transaction List */
 	Controller->TransactionList = list_create(LIST_SAFE);
 
+	/* Setup a bandwidth scheduler */
+	Controller->Scheduler = UsbSchedulerInit(Controller->FLength * 8, EHCI_MAX_BANDWIDTH);
+	UsbSchedulerSetMaskSize(Controller->Scheduler, 8);
+
 	/* Write addresses */
 	Controller->OpRegisters->PeriodicListAddr = 
 		(uint32_t)Controller->FrameList;
@@ -364,11 +368,11 @@ EhciGenericLink_t *EhciNextGenericLink(EhciGenericLink_t *Link, uint32_t Type)
 
 /* This function links an interrupt Qh 
  * into the schedule at Qh->sFrame 
- * and every other Qh->Period */
+ * and every other Qh->Interval */
 void EhciLinkPeriodicQh(EhciController_t *Controller, EhciQueueHead_t *Qh)
 {
 	/* Vars */
-	size_t Period = Qh->Period;
+	size_t Period = Qh->Interval;
 	size_t i;
 
 	/* Sanity 
@@ -406,7 +410,7 @@ void EhciLinkPeriodicQh(EhciController_t *Controller, EhciQueueHead_t *Qh)
 		 * enables sharing interior tree nodes */
 		while (This.Address && Qh != This.Qh) {
 			/* Sanity */
-			if (Qh->Period > This.Qh->Period)
+			if (Qh->Interval > This.Qh->Interval)
 				break;
 
 			/* Move to next */
@@ -567,32 +571,27 @@ void EhciInititalizeQh(EhciController_t *Controller, UsbHcRequest_t *Request, Eh
 {
 	/* Get frame-count */
 	uint32_t TransactionsPerFrame = Request->Endpoint->Bandwidth;
-	uint32_t Bandwidth;
 
 	/* Calculate Bandwidth */
 	Qh->Bandwidth = (uint16_t)
 		NS_TO_US(UsbCalculateBandwidth(Request->Speed,
 		Request->Endpoint->Direction, Request->Type,
 		TransactionsPerFrame * Request->Endpoint->MaxPacketSize));
-	Qh->Interval = (uint16_t)Request->Endpoint->Interval;
 
-	if (Qh->Interval > 1
-		&& Qh->Interval < 8) {
-		Qh->Interval = 1;
+	/* Calculate actual period */
+	if (Request->Speed == HighSpeed
+		|| (Request->Speed == FullSpeed && Request->Type == IsochronousTransfer))
+	{
+		/* Calculate period as 2^(Interval-1) */
+		Qh->Interval = (1 << Request->Endpoint->Interval);
 	}
-	else if (Qh->Interval >(Controller->FLength << 3)) {
-		Qh->Interval = (uint16_t)(Controller->FLength << 3);
-	}
+	else
+		Qh->Interval = Request->Endpoint->Interval;
 
-	/* Calculate period */
-	Qh->Period = Qh->Interval >> 3;
-
-	/* Get bandwidth period */
-	Bandwidth = MIN(EHCI_BANDWIDTH_PHASES, 1 << (Request->Endpoint->Interval - 1));
-
-	/* Allow the modified Interval to override */
-	Qh->sMicroPeriod = (uint8_t)MIN(Qh->Interval, Bandwidth);
-	Qh->sPeriod = (Qh->sMicroPeriod >> 3);
+	/* Validate Bandwidth */
+	if (UsbSchedulerValidate(Controller->Scheduler, Qh->Interval, Qh->Bandwidth, TransactionsPerFrame))
+		LogDebug("EHCI", "Couldn't allocate space in scheduler for params %u:%u", 
+			Qh->Interval, Qh->Bandwidth);
 }
 
 /* Transfer Descriptor Functions */
@@ -883,65 +882,6 @@ EhciTransferDescriptor_t *EhciTdIo(EhciController_t *Controller,
 
 	/* Done */
 	return Td;
-}
-
-
-/* Bandwidth Functions 
- * --------------------
- * Most of this bandwidth 
- * calculation code is 
- * taken from linux's source */
-
-/* This code validates an interrupt-QH 
- * and makes sure there is enough room 
- * for it's required period */
-int EhciBandwidthValidateQh(EhciController_t *Controller,
-	EhciQueueHead_t *Qh, size_t Frame, size_t MicroFrame)
-{
-	/* If we require more than 7 microframes
-	* we need FSTN support */
-	if (MicroFrame >= 8)
-		return -1;
-
-	/* Calculate the maximum microseconds
-	* that may already be allocated */
-	int MaxBandwidth = 100 - Qh->Bandwidth;
-
-	/* Iterate and check */
-	for (MicroFrame += (Frame << 3);
-		MicroFrame < EHCI_BANDWIDTH_PHASES;
-		MicroFrame += MaxBandwidth) {
-		if (Controller->Bandwidth[MicroFrame] > MaxBandwidth)
-			return 0;
-	}
-
-	/* Not valid */
-	return -1;
-}
-
-/* This function either allocates or deallocates 
- * bandwidth in the controller for specified frames
- * and microframes */
-void EhciControlBandwidth(EhciController_t *Controller,
-	EhciQueueHead_t *Qh, int Allocate)
-{
-	/* Vars */
-	size_t sMicroFrame;
-	size_t i;
-	int Bandwidth = Qh->Bandwidth;
-
-	/* Get micro-frame */
-	sMicroFrame = 0;// qh->ps.bw_phase << 3;
-
-	/* Deallocate? */
-	if (Allocate == 0) {
-		Bandwidth = -Bandwidth;
-	}
-
-	/* Iterate and allocate/deallocate */
-	for (i = sMicroFrame /*+ qh->ps.phase_uf */; 
-		i < EHCI_BANDWIDTH_PHASES; i += Qh->sMicroPeriod)
-		Controller->Bandwidth[i] += Bandwidth;
 }
 
 /* Transaction Functions */
@@ -1263,15 +1203,36 @@ LogInformation("EHCI", "Qh Address 0x%x, Flags 0x%x, State 0x%x, Current 0x%x, N
 		/* Periodic Scheduling */
 		if (Request->Type == InterruptTransfer)
 		{
-			/* Allocate Bandwidth */
+			/* Vars */
+			size_t StartFrame = 0, FrameMask = 0;
 
+			/* Allocate Bandwidth */
+			if (UsbSchedulerReserveBandwidth(Controller->Scheduler, Qh->Interval, Qh->Bandwidth,
+				Request->Endpoint->Bandwidth, &StartFrame, &FrameMask)) {
+				LogFatal("EHCI", "Failed to schedule Qh, lack of scheduler-space.");
+				return;
+			}
+
+			/* Store scheduling info */
+			Qh->sFrame = StartFrame;
+			Qh->sMask = FrameMask;
+
+			/* Set start mask of Qh */
+			Qh->FStartMask = (uint8_t)(FrameMask & 0xFF);
+
+			/* Set completion mask of Qh */
+			if (Request->Speed != HighSpeed) {
+
+			}
+			else
+				Qh->FCompletionMask = 0;
 
 			/* Link */
 			EhciLinkPeriodicQh(Controller, Qh);
 		}
 		else
 		{
-			LogFatal("EHCI", "Scheduling peridoic");
+			LogFatal("EHCI", "Scheduling isochronous");
 			for (;;);
 		}
 	}
@@ -1459,7 +1420,7 @@ void EhciTransactionDestroy(void *cData, UsbHcRequest_t *Request)
 			SpinlockAcquire(&Controller->Lock);
 
 			/* Unlink */
-			EhciUnlinkPeriodic(Controller, (Addr_t)Qh, Qh->Period, Qh->sFrame);
+			EhciUnlinkPeriodic(Controller, (Addr_t)Qh, Qh->Interval, Qh->sFrame);
 
 			/* Release Bandwidth */
 
