@@ -1160,11 +1160,11 @@ void EhciTransactionSend(void *cData, UsbHcRequest_t *Request)
 
 		/* Set pointers accordingly */
 		Qh->Overlay.NextTD = Td->PhysicalAddress;
-Qh->Overlay.NextAlternativeTD = EHCI_LINK_END;
+		Qh->Overlay.NextAlternativeTD = EHCI_LINK_END;
 
 #ifdef EHCI_DIAGNOSTICS
-LogInformation("EHCI", "Qh Address 0x%x, Flags 0x%x, State 0x%x, Current 0x%x, Next 0x%x",
-	Qh->PhysicalAddress, Qh->Flags, Qh->State, Qh->CurrentTD, Qh->Overlay.NextTD);
+		LogInformation("EHCI", "Qh Address 0x%x, Flags 0x%x, State 0x%x, Current 0x%x, Next 0x%x",
+			Qh->PhysicalAddress, Qh->Flags, Qh->State, Qh->CurrentTD, Qh->Overlay.NextTD);
 #endif
 	}
 	else
@@ -1205,10 +1205,16 @@ LogInformation("EHCI", "Qh Address 0x%x, Flags 0x%x, State 0x%x, Current 0x%x, N
 		{
 			/* Vars */
 			size_t StartFrame = 0, FrameMask = 0;
+			size_t EpBandwidth = Request->Endpoint->Bandwidth;
+
+			/* If we use completion masks
+			 * we'll need another transfer for start */
+			if (Request->Speed != HighSpeed)
+				EpBandwidth++;
 
 			/* Allocate Bandwidth */
 			if (UsbSchedulerReserveBandwidth(Controller->Scheduler, Qh->Interval, Qh->Bandwidth,
-				Request->Endpoint->Bandwidth, &StartFrame, &FrameMask)) {
+				EpBandwidth, &StartFrame, &FrameMask)) {
 				LogFatal("EHCI", "Failed to schedule Qh, lack of scheduler-space.");
 				return;
 			}
@@ -1218,21 +1224,34 @@ LogInformation("EHCI", "Qh Address 0x%x, Flags 0x%x, State 0x%x, Current 0x%x, N
 			Qh->sMask = FrameMask;
 
 			/* Set start mask of Qh */
-			Qh->FStartMask = (uint8_t)(FrameMask & 0xFF);
+			Qh->FStartMask = (uint8_t)FirstSetBit(FrameMask);
 
 			/* Set completion mask of Qh */
 			if (Request->Speed != HighSpeed) {
-
+				Qh->FCompletionMask = (uint8_t)(FrameMask & 0xFF);
+				Qh->FCompletionMask &= ~(1 << Qh->FStartMask);
 			}
 			else
 				Qh->FCompletionMask = 0;
+
+			/* Update saved copies, now all is prepaired */
+			Transaction = Request->Transactions;
+			while (Transaction)
+			{
+				/* Do an exact copy */
+				memcpy(Transaction->TransferDescriptorCopy, 
+					Transaction->TransferDescriptor, sizeof(EhciTransferDescriptor_t));
+
+				/* Next */
+				Transaction = Transaction->Link;
+			}
 
 			/* Link */
 			EhciLinkPeriodicQh(Controller, Qh);
 		}
 		else
 		{
-			LogFatal("EHCI", "Scheduling isochronous");
+			LogFatal("EHCI", "Scheduling Isochronous");
 			for (;;);
 		}
 	}
@@ -1423,17 +1442,11 @@ void EhciTransactionDestroy(void *cData, UsbHcRequest_t *Request)
 			EhciUnlinkPeriodic(Controller, (Addr_t)Qh, Qh->Interval, Qh->sFrame);
 
 			/* Release Bandwidth */
-
+			UsbSchedulerReleaseBandwidth(Controller->Scheduler, 
+				Qh->Interval, Qh->Bandwidth, Qh->sFrame, Qh->sMask);
 
 			/* Release lock */
 			SpinlockRelease(&Controller->Lock);
-
-			/* Mark Qh for unscheduling,
-			* otherwise we won't get waked up */
-			Qh->HcdFlags |= EHCI_QH_UNSCHEDULE;
-
-			/* Now we have to force a doorbell */
-			EhciRingDoorbell(Controller, (Addr_t*)Request->Data);
 
 			/* Iterate transactions and free buffers & td's */
 			while (Transaction)
@@ -1469,6 +1482,54 @@ void EhciTransactionDestroy(void *cData, UsbHcRequest_t *Request)
 		list_remove_by_node((list_t*)Controller->TransactionList, Node);
 		kfree(Node);
 	}
+}
+
+/* Restarts an interrupt QH 
+ * by resetting it to it's start state */
+void EhciRestartQh(EhciController_t *Controller, UsbHcRequest_t *Request)
+{
+	/* Get transaction list */
+	UsbHcTransaction_t *tList = (UsbHcTransaction_t*)Request->Transactions;
+	EhciQueueHead_t *Qh = (EhciQueueHead_t*)Request->Data;
+	EhciTransferDescriptor_t *Td = NULL, *TdCopy = NULL;
+
+	/* For now */
+	_CRT_UNUSED(Controller);
+
+	/* Iterate and reset 
+	 * Switch toggles if necessary ? */
+	while (tList)
+	{
+		/* Cast TD(s) */
+		TdCopy = (EhciTransferDescriptor_t*)tList->TransferDescriptorCopy;
+		Td = (EhciTransferDescriptor_t*)tList->TransferDescriptor;
+
+		/* Let's see */
+		if (tList->Length != 0
+			&& Td->Token & EHCI_TD_IN)
+			memcpy(tList->Buffer, tList->TransferBuffer, tList->Length);
+
+		/* Update Toggles */
+		TdCopy->Length &= ~(EHCI_TD_TOGGLE);
+		if (Td->Length & EHCI_TD_TOGGLE)
+			TdCopy->Length |= EHCI_TD_TOGGLE;
+
+		/* Reset */
+		memcpy(Td, TdCopy, sizeof(EhciTransferDescriptor_t));
+
+		/* Get next link */
+		tList = tList->Link;
+	}
+
+	/* Set Qh to point to first */
+	Td = (EhciTransferDescriptor_t*)Request->Transactions->TransferDescriptor;
+
+	/* Zero out overlay (BUT KEEP TOGGLE???) */
+	memset(&Qh->Overlay, 0, sizeof(EhciQueueHeadOverlay_t));
+
+	/* Set pointers accordingly */
+	Qh->Overlay.NextTD = Td->PhysicalAddress;
+	Qh->Overlay.NextAlternativeTD = EHCI_LINK_END;
 }
 
 /* Scans a QH for 
@@ -1561,9 +1622,21 @@ void EhciProcessTransfers(EhciController_t *Controller)
 		else
 			;
 
-		/* If it was processed, wake */
-		if (Processed)
-			SchedulerWakeupOneThread((Addr_t*)HcRequest->Data);
+		/* If it is to be processed, wake or process */
+		if (Processed) {
+			if (HcRequest->Type == InterruptTransfer) 
+			{
+				/* Restart the Qh */
+				EhciRestartQh(Controller, HcRequest);
+
+				/* Access Callback */
+				if (HcRequest->Callback != NULL)
+					HcRequest->Callback->Callback(HcRequest->Callback->Args,
+					Processed == 2 ? TransferStalled : TransferFinished);
+			}
+			else
+				SchedulerWakeupOneThread((Addr_t*)HcRequest->Data);
+		}
 	}
 }
 

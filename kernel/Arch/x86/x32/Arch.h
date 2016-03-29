@@ -167,6 +167,25 @@ _CRT_EXPORT void kernel_panic(const char *str);
 #define INCLIMIT(i, limit) i++; if (i == limit) i = 0;
 #define ALIGN(Val, Alignment, Roundup) ((Val & (Alignment-1)) > 0 ? (Roundup == 1 ? ((Val + Alignment) & ~(Alignment-1)) : Val & ~(Alignment-1)) : Val)
 
+/* Utils Functions */
+
+/* Get first available bit */
+static int FirstSetBit(size_t Value)
+{
+	/* Vars */
+	int bCount = 0;
+	size_t Cc = Value;
+
+	/* Keep bit-shifting */
+	for (; Cc != 0;) {
+		bCount++;
+		Cc >>= 1;
+	}
+
+	/* Done */
+	return bCount;
+}
+
 /* Architecture Memory Layout, this
  * gives you an idea how memory layout
  * is on the x86-32 platform in MollenOS */

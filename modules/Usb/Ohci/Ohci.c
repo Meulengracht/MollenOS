@@ -28,6 +28,7 @@
 
 /* Additional Includes */
 #include <UsbCore.h>
+#include <UsbScheduler.h>
 #include <Scheduler.h>
 #include <Heap.h>
 #include <Timers.h>
