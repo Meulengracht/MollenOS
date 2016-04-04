@@ -17,6 +17,9 @@
 *
 *
 * MollenOS USB EHCI Controller Driver
+* TODO:
+* - Isochronous Transport
+* - Transaction Translator Support
 */
 
 /* Includes */
@@ -1637,6 +1640,25 @@ void EhciProcessTransfers(EhciController_t *Controller)
 				if (HcRequest->Callback != NULL)
 					HcRequest->Callback->Callback(HcRequest->Callback->Args,
 					Processed == 2 ? TransferStalled : TransferFinished);
+
+				/* Renew data in out transfers */
+				UsbHcTransaction_t *tList = (UsbHcTransaction_t*)HcRequest->Transactions;
+
+				/* Iterate and reset */
+				while (tList)
+				{
+					/* Cast TD(s) */
+					EhciTransferDescriptor_t *Td = 
+						(EhciTransferDescriptor_t*)tList->TransferDescriptor;
+
+					/* Let's see */
+					if (tList->Length != 0
+						&& Td->Token & EHCI_TD_OUT)
+						memcpy(tList->TransferBuffer, tList->Buffer, tList->Length);
+
+					/* Get next link */
+					tList = tList->Link;
+				}
 			}
 			else
 				SchedulerWakeupOneThread((Addr_t*)HcRequest->Data);

@@ -158,6 +158,7 @@ void UsbTransactionOut(UsbHc_t *Hc, UsbHcRequest_t *Request, int Handshake, void
 	size_t TransfersLeft = 0;
 	size_t FixedLen = 0;
 	int RemainingLen = 0;
+	int AddZeroLength = 0;
 
 	/* Has controller split size overrides? */
 	if (Request->Type == ControlTransfer && (Hc->ControlOverride != 0))
@@ -179,8 +180,14 @@ void UsbTransactionOut(UsbHc_t *Hc, UsbHcRequest_t *Request, int Handshake, void
 	/* Sanity */
 	if (RemainingLen <= 0)
 	{
+		/* Update our variables */
 		RemainingLen = 0;
 		TransfersLeft = 0;
+
+		/* Will we need a ZLP? */
+		if (Request->Type == BulkTransfer
+			&& (Length % Request->Endpoint->MaxPacketSize) == 0)
+			AddZeroLength = 1;
 	}
 	else
 		TransfersLeft = DIVUP(RemainingLen, SplitSize);
@@ -202,6 +209,10 @@ void UsbTransactionOut(UsbHc_t *Hc, UsbHcRequest_t *Request, int Handshake, void
 	/* Check up on this ! !*/
 	if (TransfersLeft > 0)
 		UsbTransactionOut(Hc, Request, 0, (void*)((uint8_t*)Buffer + FixedLen), RemainingLen);
+
+	/* Add zero length */
+	if (AddZeroLength != 0)
+		UsbTransactionOut(Hc, Request, 0, NULL, 0);
 }
 
 /* Send to Device */

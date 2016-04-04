@@ -1930,8 +1930,10 @@ void OhciProcessDoneQueue(OhciController_t *Controller, Addr_t DoneHeadAddr)
 						}
 						else
 						{
-							/* Let's see */
-							if (lIterator->Length != 0)
+							/* Let's see 
+							 * Only copy data */
+							if (lIterator->Length != 0
+								&& Td->Flags & OHCI_TD_PID_IN)
 								memcpy(lIterator->Buffer, lIterator->TransferBuffer, lIterator->Length);
 
 							/* Switch toggle */
@@ -1968,6 +1970,25 @@ void OhciProcessDoneQueue(OhciController_t *Controller, Addr_t DoneHeadAddr)
 					if (HcRequest->Callback != NULL)
 						HcRequest->Callback->Callback(HcRequest->Callback->Args, 
 							ErrorTransfer == 1 ? TransferStalled : TransferFinished);
+
+					/* Restore data for 
+					 * out transfers */
+					lIterator = HcRequest->Transactions;
+					while (lIterator)
+					{
+						/* Get Td */
+						OhciGTransferDescriptor_t *Td =
+							(OhciGTransferDescriptor_t*)lIterator->TransferDescriptor;
+
+						/* Let's see
+						* Only copy data */
+						if (lIterator->Length != 0
+							&& Td->Flags & OHCI_TD_PID_OUT)
+							memcpy(lIterator->TransferBuffer, lIterator->Buffer, lIterator->Length);
+
+						/* Eh, next link */
+						lIterator = lIterator->Link;
+					}
 
 					/* Restart Ed */
 					if (!ErrorTransfer)

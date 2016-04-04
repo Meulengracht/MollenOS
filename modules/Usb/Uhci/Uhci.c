@@ -1973,8 +1973,14 @@ void UhciProcessRequest(UhciController_t *Controller, list_node_t *Node,
 		/* Copy data if not dummy */
 		while (lIterator)
 		{
-			/* Copy Data from transfer buffer to IoBuffer */
-			if (lIterator->Length != 0)
+			/* Get */
+			UhciTransferDescriptor_t *ppTd = 
+				(UhciTransferDescriptor_t*)lIterator->TransferDescriptor;
+
+			/* Copy Data from transfer buffer to IoBuffer 
+			 * Only on in-transfers though */
+			if (lIterator->Length != 0
+				&& (ppTd->Header & UHCI_TD_PID_IN))
 				memcpy(lIterator->Buffer, lIterator->TransferBuffer, lIterator->Length);
 
 			/* Switch toggle if not dividable by 2 */
@@ -2012,6 +2018,23 @@ void UhciProcessRequest(UhciController_t *Controller, list_node_t *Node,
 		/* Callback */
 		if (Request->Callback != NULL)
 			Request->Callback->Callback(Request->Callback->Args, TransferFinished);
+
+		/* Renew data if out transfer */
+		lIterator = Request->Transactions;
+		while (lIterator)
+		{
+			/* Get */
+			UhciTransferDescriptor_t *ppTd =
+				(UhciTransferDescriptor_t*)lIterator->TransferDescriptor;
+
+			/* Copy Data from IoBuffer to transfer buffer */
+			if (lIterator->Length != 0
+				&& (ppTd->Header & UHCI_TD_PID_OUT))
+				memcpy(lIterator->TransferBuffer, lIterator->Buffer, lIterator->Length);
+
+			/* Eh, next link */
+			lIterator = lIterator->Link;
+		}
 
 		/* Reinitilize Qh */
 		Qh->Child = Td->PhysicalAddr;
