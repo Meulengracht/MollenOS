@@ -313,7 +313,7 @@ int UsbSchedulerReleaseBandwidth(UsbScheduler_t *Schedule, size_t Period,
 			/* Free bandwidth in 'sub' schedule */
 			for (j = 1; j < Schedule->MaskSize; j++) {
 				if (FrameMask & (1 << j)) {
-					Schedule->Frames[i + j] += Bandwidth;
+					Schedule->Frames[i + j] -= Bandwidth;
 				}
 			}
 		}

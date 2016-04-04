@@ -1570,7 +1570,7 @@ int EhciScanQh(EhciController_t *Controller, UsbHcRequest_t *Request)
 			/* If it's not the first TD, skip */
 			if (Counter > 1
 				&& (ShortTransfer || ErrorTransfer))
-				ProcessQh = 1;
+				ProcessQh = (ErrorTransfer == 1) ? 2 : 1;
 			else
 				ProcessQh = 0; /* No, only partially done without any errs */
 
@@ -1595,6 +1595,10 @@ int EhciScanQh(EhciController_t *Controller, UsbHcRequest_t *Request)
 		/* Get next transaction */
 		tList = tList->Link;
 	}
+
+	/* Sanity */
+	if (ErrorTransfer)
+		ProcessQh = 2;
 
 	/* Done */
 	return ProcessQh;
