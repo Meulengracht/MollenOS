@@ -40,6 +40,12 @@
     <Filter Include="Source\os\Asm">
       <UniqueIdentifier>{c2a32414-f746-419e-85e5-4581122381ff}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Source\stdio\Printf">
+      <UniqueIdentifier>{368df858-6e08-49a7-9c04-288718864ea0}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source\stdio\File">
+      <UniqueIdentifier>{6dda5bb2-7d9e-4e05-998d-25f99c6add29}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\src\string\atof.c">
@@ -204,36 +210,6 @@
     <ClCompile Include="..\src\math\tanh.c">
       <Filter>Source\math</Filter>
     </ClCompile>
-    <ClCompile Include="..\src\stdio\fprintf.c">
-      <Filter>Source\stdio</Filter>
-    </ClCompile>
-    <ClCompile Include="..\src\stdio\printf.c">
-      <Filter>Source\stdio</Filter>
-    </ClCompile>
-    <ClCompile Include="..\src\stdio\snprintf.c">
-      <Filter>Source\stdio</Filter>
-    </ClCompile>
-    <ClCompile Include="..\src\stdio\sprintf.c">
-      <Filter>Source\stdio</Filter>
-    </ClCompile>
-    <ClCompile Include="..\src\stdio\stream.c">
-      <Filter>Source\stdio</Filter>
-    </ClCompile>
-    <ClCompile Include="..\src\stdio\vasprintf.c">
-      <Filter>Source\stdio</Filter>
-    </ClCompile>
-    <ClCompile Include="..\src\stdio\vfprintf.c">
-      <Filter>Source\stdio</Filter>
-    </ClCompile>
-    <ClCompile Include="..\src\stdio\vprintf.c">
-      <Filter>Source\stdio</Filter>
-    </ClCompile>
-    <ClCompile Include="..\src\stdio\vsnprintf.c">
-      <Filter>Source\stdio</Filter>
-    </ClCompile>
-    <ClCompile Include="..\src\stdio\vsprintf.c">
-      <Filter>Source\stdio</Filter>
-    </ClCompile>
     <ClCompile Include="..\src\signal\signal.c">
       <Filter>Source\signal</Filter>
     </ClCompile>
@@ -290,6 +266,39 @@
     </ClCompile>
     <ClCompile Include="..\src\stdlib\rand.c">
       <Filter>Source\stdlib</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\stdio\fprintf.c">
+      <Filter>Source\stdio\Printf</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\stdio\printf.c">
+      <Filter>Source\stdio\Printf</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\stdio\snprintf.c">
+      <Filter>Source\stdio\Printf</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\stdio\sprintf.c">
+      <Filter>Source\stdio\Printf</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\stdio\stream.c">
+      <Filter>Source\stdio\Printf</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\stdio\vasprintf.c">
+      <Filter>Source\stdio\Printf</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\stdio\vfprintf.c">
+      <Filter>Source\stdio\Printf</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\stdio\vprintf.c">
+      <Filter>Source\stdio\Printf</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\stdio\vsnprintf.c">
+      <Filter>Source\stdio\Printf</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\stdio\vsprintf.c">
+      <Filter>Source\stdio\Printf</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\stdio\fopen.c">
+      <Filter>Source\stdio\File</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
