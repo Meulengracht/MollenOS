@@ -14,7 +14,7 @@
 #ifndef LIBCXXABI_CONFIG_H
 #define LIBCXXABI_CONFIG_H
 
-#include <unistd.h>
+//#include <unistd.h>
 
 // Set this in the CXXFLAGS when you need it
 #if !defined(LIBCXXABI_HAS_NO_THREADS)

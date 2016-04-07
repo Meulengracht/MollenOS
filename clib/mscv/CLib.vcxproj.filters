@@ -34,6 +34,12 @@
     <Filter Include="Source\os">
       <UniqueIdentifier>{f37ed1ba-8073-431b-a175-b9803ceb872b}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Source\math\Asm">
+      <UniqueIdentifier>{12e48d7a-50f8-49e4-b10c-7ed6968e6be0}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source\os\Asm">
+      <UniqueIdentifier>{c2a32414-f746-419e-85e5-4581122381ff}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\src\string\atof.c">
@@ -264,23 +270,29 @@
     <ClCompile Include="..\src\os\Entry.c">
       <Filter>Source\os</Filter>
     </ClCompile>
+    <ClCompile Include="..\src\stdlib\atoi.c">
+      <Filter>Source\stdlib</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\stdlib\atold.c">
+      <Filter>Source\stdlib</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\stdlib\bsearch.c">
+      <Filter>Source\stdlib</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\stdlib\labs.c">
+      <Filter>Source\stdlib</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\stdlib\ldiv.c">
+      <Filter>Source\stdlib</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\stdlib\qsort.c">
+      <Filter>Source\stdlib</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\stdlib\rand.c">
+      <Filter>Source\stdlib</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <MASM Include="..\src\math\fabs.S">
-      <Filter>Source\math</Filter>
-    </MASM>
-    <MASM Include="..\src\math\floor.S">
-      <Filter>Source\math</Filter>
-    </MASM>
-    <MASM Include="..\src\math\log.S">
-      <Filter>Source\math</Filter>
-    </MASM>
-    <MASM Include="..\src\math\log10.S">
-      <Filter>Source\math</Filter>
-    </MASM>
-    <MASM Include="..\src\math\sqrt.S">
-      <Filter>Source\math</Filter>
-    </MASM>
     <MASM Include="..\crt\alldvrm.S">
       <Filter>Source\crt</Filter>
     </MASM>
@@ -326,18 +338,31 @@
     <MASM Include="..\crt\llshr.S">
       <Filter>Source\crt</Filter>
     </MASM>
-    <MASM Include="..\src\os\ScAsm32.asm">
-      <Filter>Source\os</Filter>
-    </MASM>
-  </ItemGroup>
-  <ItemGroup>
-    <None Include="..\src\setjmp\setjmp_i386.s">
-      <Filter>Source\setjmp</Filter>
-    </None>
   </ItemGroup>
   <ItemGroup>
     <CustomBuild Include="..\src\string\memcpy_acc.s">
       <Filter>Source\string</Filter>
+    </CustomBuild>
+    <CustomBuild Include="..\src\setjmp\setjmp_i386.s">
+      <Filter>Source\setjmp</Filter>
+    </CustomBuild>
+    <CustomBuild Include="..\src\math\i386\_sqrt.S">
+      <Filter>Source\math\Asm</Filter>
+    </CustomBuild>
+    <CustomBuild Include="..\src\math\i386\_fabs.S">
+      <Filter>Source\math\Asm</Filter>
+    </CustomBuild>
+    <CustomBuild Include="..\src\math\i386\_floor.S">
+      <Filter>Source\math\Asm</Filter>
+    </CustomBuild>
+    <CustomBuild Include="..\src\math\i386\_log.S">
+      <Filter>Source\math\Asm</Filter>
+    </CustomBuild>
+    <CustomBuild Include="..\src\math\i386\_log10.S">
+      <Filter>Source\math\Asm</Filter>
+    </CustomBuild>
+    <CustomBuild Include="..\src\os\Syscall32.s">
+      <Filter>Source\os\Asm</Filter>
     </CustomBuild>
   </ItemGroup>
 </Project>

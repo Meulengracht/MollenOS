@@ -49,8 +49,15 @@
     <ClCompile Include="..\src\stdio\vsprintf.c" />
     <ClCompile Include="..\src\stdlib\abort.c" />
     <ClCompile Include="..\src\stdlib\abs.c" />
+    <ClCompile Include="..\src\stdlib\atoi.c" />
+    <ClCompile Include="..\src\stdlib\atold.c" />
+    <ClCompile Include="..\src\stdlib\bsearch.c" />
     <ClCompile Include="..\src\stdlib\div.c" />
     <ClCompile Include="..\src\stdlib\exit.c" />
+    <ClCompile Include="..\src\stdlib\labs.c" />
+    <ClCompile Include="..\src\stdlib\ldiv.c" />
+    <ClCompile Include="..\src\stdlib\qsort.c" />
+    <ClCompile Include="..\src\stdlib\rand.c" />
     <ClCompile Include="..\src\string\atof.c" />
     <ClCompile Include="..\src\string\atoi64.c" />
     <ClCompile Include="..\src\string\atol.c" />
@@ -87,24 +94,6 @@
     <ClCompile Include="..\src\string\strtoull.c" />
     <ClCompile Include="..\src\string\strxfrm.c" />
     <ClCompile Include="..\src\string\wcsnlen.c" />
-  </ItemGroup>
-  <ItemGroup>
-    <MASM Include="..\src\math\fabs.S">
-      <FileType>Document</FileType>
-    </MASM>
-    <MASM Include="..\src\math\floor.S">
-      <FileType>Document</FileType>
-    </MASM>
-    <MASM Include="..\src\math\log.S">
-      <FileType>Document</FileType>
-    </MASM>
-    <MASM Include="..\src\math\log10.S">
-      <FileType>Document</FileType>
-    </MASM>
-    <MASM Include="..\src\math\sqrt.S">
-      <FileType>Document</FileType>
-    </MASM>
-    <MASM Include="..\src\os\ScAsm32.asm" />
   </ItemGroup>
   <ItemGroup>
     <MASM Include="..\crt\alldvrm.S">
@@ -164,6 +153,40 @@
   </ItemGroup>
   <ItemGroup>
     <CustomBuild Include="..\src\setjmp\setjmp_i386.s">
+      <FileType>Document</FileType>
+      <Command Condition="'$(Configuration)|$(Platform)'=='CLibK|Win32'">nasm -f win32 -Xvc -o $(IntDir)\%(Filename).obj %(FullPath)</Command>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='CLibK|Win32'">$(IntDir)\%(Filename).obj</Outputs>
+    </CustomBuild>
+  </ItemGroup>
+  <ItemGroup>
+    <CustomBuild Include="..\src\math\i386\_fabs.S">
+      <FileType>Document</FileType>
+      <Command Condition="'$(Configuration)|$(Platform)'=='CLibK|Win32'">nasm -f win32 -Xvc -o $(IntDir)\%(Filename).obj %(FullPath)</Command>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='CLibK|Win32'">$(IntDir)\%(Filename).obj</Outputs>
+    </CustomBuild>
+    <CustomBuild Include="..\src\math\i386\_floor.S">
+      <FileType>Document</FileType>
+      <Command Condition="'$(Configuration)|$(Platform)'=='CLibK|Win32'">nasm -f win32 -Xvc -o $(IntDir)\%(Filename).obj %(FullPath)</Command>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='CLibK|Win32'">$(IntDir)\%(Filename).obj</Outputs>
+    </CustomBuild>
+    <CustomBuild Include="..\src\math\i386\_log.S">
+      <FileType>Document</FileType>
+      <Command Condition="'$(Configuration)|$(Platform)'=='CLibK|Win32'">nasm -f win32 -Xvc -o $(IntDir)\%(Filename).obj %(FullPath)</Command>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='CLibK|Win32'">$(IntDir)\%(Filename).obj</Outputs>
+    </CustomBuild>
+    <CustomBuild Include="..\src\math\i386\_log10.S">
+      <FileType>Document</FileType>
+      <Command Condition="'$(Configuration)|$(Platform)'=='CLibK|Win32'">nasm -f win32 -Xvc -o $(IntDir)\%(Filename).obj %(FullPath)</Command>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='CLibK|Win32'">$(IntDir)\%(Filename).obj</Outputs>
+    </CustomBuild>
+    <CustomBuild Include="..\src\math\i386\_sqrt.S">
+      <FileType>Document</FileType>
+      <Command Condition="'$(Configuration)|$(Platform)'=='CLibK|Win32'">nasm -f win32 -Xvc -o $(IntDir)\%(Filename).obj %(FullPath)</Command>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='CLibK|Win32'">$(IntDir)\%(Filename).obj</Outputs>
+    </CustomBuild>
+  </ItemGroup>
+  <ItemGroup>
+    <CustomBuild Include="..\src\os\Syscall32.s">
       <FileType>Document</FileType>
       <Command Condition="'$(Configuration)|$(Platform)'=='CLibK|Win32'">nasm -f win32 -Xvc -o $(IntDir)\%(Filename).obj %(FullPath)</Command>
       <Outputs Condition="'$(Configuration)|$(Platform)'=='CLibK|Win32'">$(IntDir)\%(Filename).obj</Outputs>
@@ -301,6 +324,10 @@
       <TargetMachine Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">MachineX86</TargetMachine>
       <TargetMachine>MachineX86</TargetMachine>
     </Lib>
+    <CustomBuild>
+      <Outputs>$(IntDir)\%(Filename).obj</Outputs>
+      <Command>nasm -f win32 -Xvc -o $(IntDir)\%(Filename).obj %(FullPath)</Command>
+    </CustomBuild>
   </ItemDefinitionGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

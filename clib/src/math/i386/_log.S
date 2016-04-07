@@ -21,10 +21,10 @@ bits 32
 segment .text
 
 ;Functions in this asm
-global _log
+global _logf
 
 ; takes the logorithmic value in base 2
-_log:
+_logf:
 	; Stack Frame
 	push    ebp
 	mov     ebp, esp

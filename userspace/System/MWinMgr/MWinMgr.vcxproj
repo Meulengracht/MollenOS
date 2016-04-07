@@ -14,6 +14,7 @@
     <ProjectGuid>{9D87B19F-BD8D-475F-93C3-D7F01671AF63}</ProjectGuid>
     <Keyword>Win32Proj</Keyword>
     <RootNamespace>MWingMgr</RootNamespace>
+    <ProjectName>Sapphire</ProjectName>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
@@ -98,7 +99,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="MWinMgr.c" />
+    <ClCompile Include="Sapphire.c" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

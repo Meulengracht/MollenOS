@@ -1,0 +1,317 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="Make files">
+      <UniqueIdentifier>{fdee6093-cdec-4ab4-8a26-f45452d5315a}</UniqueIdentifier>
+      <Extensions>*.mak</Extensions>
+    </Filter>
+    <Filter Include="VisualGDB settings">
+      <UniqueIdentifier>{331ce020-cfab-4989-ae49-55114b7360a8}</UniqueIdentifier>
+      <Extensions>*.vgdbsettings</Extensions>
+    </Filter>
+    <Filter Include="Source">
+      <UniqueIdentifier>{13c0fabb-0f92-4c3f-bd1b-53ed24f1935d}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source\String">
+      <UniqueIdentifier>{870512bf-5a57-49e6-bfcb-51ebdb33fff5}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source\CType">
+      <UniqueIdentifier>{b518110c-cffc-4c12-9fab-032317bf5992}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source\Errno">
+      <UniqueIdentifier>{985ceafd-e29d-4712-b5c5-c205fc10c8be}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source\Math">
+      <UniqueIdentifier>{91d546cd-6a60-47ac-a52c-926cbdf65916}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source\SetJmp">
+      <UniqueIdentifier>{3009c2b5-71a0-4689-a919-e09c8357292c}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source\Stdlib">
+      <UniqueIdentifier>{b2b8fec5-46f1-41a5-a5a2-f93f8bca0897}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source\Stdio">
+      <UniqueIdentifier>{f63978e2-ea45-424c-bec0-376156022af1}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source\Math\Asm">
+      <UniqueIdentifier>{1ed96f96-464a-4036-9f02-7dc1be12e18b}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source\Signal">
+      <UniqueIdentifier>{7debad41-79a7-4ebd-9984-48ddb010ffa4}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="Makefile" />
+    <None Include="debug.mak">
+      <Filter>Make files</Filter>
+    </None>
+    <None Include="WindowsProject1-Debug.vgdbsettings">
+      <Filter>VisualGDB settings</Filter>
+    </None>
+    <None Include="release.mak">
+      <Filter>Make files</Filter>
+    </None>
+    <None Include="WindowsProject1-Release.vgdbsettings">
+      <Filter>VisualGDB settings</Filter>
+    </None>
+    <None Include="..\libc\src\string\memcpy_acc.s">
+      <Filter>Source\String</Filter>
+    </None>
+    <None Include="..\libc\src\setjmp\setjmp_i386.s">
+      <Filter>Source\SetJmp</Filter>
+    </None>
+    <None Include="src\math\i386\_fabs.S">
+      <Filter>Source\Math\Asm</Filter>
+    </None>
+    <None Include="src\math\i386\_floor.S">
+      <Filter>Source\Math\Asm</Filter>
+    </None>
+    <None Include="src\math\i386\_log.S">
+      <Filter>Source\Math\Asm</Filter>
+    </None>
+    <None Include="src\math\i386\_log10.S">
+      <Filter>Source\Math\Asm</Filter>
+    </None>
+    <None Include="src\math\i386\_sqrt.S">
+      <Filter>Source\Math\Asm</Filter>
+    </None>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="..\libc\src\string\atof.c">
+      <Filter>Source\String</Filter>
+    </ClCompile>
+    <ClCompile Include="..\libc\src\string\atoi64.c">
+      <Filter>Source\String</Filter>
+    </ClCompile>
+    <ClCompile Include="..\libc\src\string\atol.c">
+      <Filter>Source\String</Filter>
+    </ClCompile>
+    <ClCompile Include="..\libc\src\string\itoa.c">
+      <Filter>Source\String</Filter>
+    </ClCompile>
+    <ClCompile Include="..\libc\src\string\memchr.c">
+      <Filter>Source\String</Filter>
+    </ClCompile>
+    <ClCompile Include="..\libc\src\string\memcmp.c">
+      <Filter>Source\String</Filter>
+    </ClCompile>
+    <ClCompile Include="..\libc\src\string\memcpy.c">
+      <Filter>Source\String</Filter>
+    </ClCompile>
+    <ClCompile Include="..\libc\src\string\memmove.c">
+      <Filter>Source\String</Filter>
+    </ClCompile>
+    <ClCompile Include="..\libc\src\string\memset.c">
+      <Filter>Source\String</Filter>
+    </ClCompile>
+    <ClCompile Include="..\libc\src\string\strcasecmp.c">
+      <Filter>Source\String</Filter>
+    </ClCompile>
+    <ClCompile Include="..\libc\src\string\strcat.c">
+      <Filter>Source\String</Filter>
+    </ClCompile>
+    <ClCompile Include="..\libc\src\string\strchr.c">
+      <Filter>Source\String</Filter>
+    </ClCompile>
+    <ClCompile Include="..\libc\src\string\strcmp.c">
+      <Filter>Source\String</Filter>
+    </ClCompile>
+    <ClCompile Include="..\libc\src\string\strcoll.c">
+      <Filter>Source\String</Filter>
+    </ClCompile>
+    <ClCompile Include="..\libc\src\string\strcpy.c">
+      <Filter>Source\String</Filter>
+    </ClCompile>
+    <ClCompile Include="..\libc\src\string\strcspn.c">
+      <Filter>Source\String</Filter>
+    </ClCompile>
+    <ClCompile Include="..\libc\src\string\strdup.c">
+      <Filter>Source\String</Filter>
+    </ClCompile>
+    <ClCompile Include="..\libc\src\string\strlen.c">
+      <Filter>Source\String</Filter>
+    </ClCompile>
+    <ClCompile Include="..\libc\src\string\strncasecmp.c">
+      <Filter>Source\String</Filter>
+    </ClCompile>
+    <ClCompile Include="..\libc\src\string\strncat.c">
+      <Filter>Source\String</Filter>
+    </ClCompile>
+    <ClCompile Include="..\libc\src\string\strncmp.c">
+      <Filter>Source\String</Filter>
+    </ClCompile>
+    <ClCompile Include="..\libc\src\string\strncpy.c">
+      <Filter>Source\String</Filter>
+    </ClCompile>
+    <ClCompile Include="..\libc\src\string\strpbrk.c">
+      <Filter>Source\String</Filter>
+    </ClCompile>
+    <ClCompile Include="..\libc\src\string\strrchr.c">
+      <Filter>Source\String</Filter>
+    </ClCompile>
+    <ClCompile Include="..\libc\src\string\strspn.c">
+      <Filter>Source\String</Filter>
+    </ClCompile>
+    <ClCompile Include="..\libc\src\string\strstr.c">
+      <Filter>Source\String</Filter>
+    </ClCompile>
+    <ClCompile Include="..\libc\src\string\strtod.c">
+      <Filter>Source\String</Filter>
+    </ClCompile>
+    <ClCompile Include="..\libc\src\string\strtof.c">
+      <Filter>Source\String</Filter>
+    </ClCompile>
+    <ClCompile Include="..\libc\src\string\strtoi64.c">
+      <Filter>Source\String</Filter>
+    </ClCompile>
+    <ClCompile Include="..\libc\src\string\strtok.c">
+      <Filter>Source\String</Filter>
+    </ClCompile>
+    <ClCompile Include="..\libc\src\string\strtol.c">
+      <Filter>Source\String</Filter>
+    </ClCompile>
+    <ClCompile Include="..\libc\src\string\strtold.c">
+      <Filter>Source\String</Filter>
+    </ClCompile>
+    <ClCompile Include="..\libc\src\string\strtoul.c">
+      <Filter>Source\String</Filter>
+    </ClCompile>
+    <ClCompile Include="..\libc\src\string\strtoull.c">
+      <Filter>Source\String</Filter>
+    </ClCompile>
+    <ClCompile Include="..\libc\src\string\strxfrm.c">
+      <Filter>Source\String</Filter>
+    </ClCompile>
+    <ClCompile Include="..\libc\src\string\wcsnlen.c">
+      <Filter>Source\String</Filter>
+    </ClCompile>
+    <ClCompile Include="..\libc\src\ctype\ctype.c">
+      <Filter>Source\CType</Filter>
+    </ClCompile>
+    <ClCompile Include="..\libc\src\errno\errno.c">
+      <Filter>Source\Errno</Filter>
+    </ClCompile>
+    <ClCompile Include="..\libc\src\errno\errstrings.c">
+      <Filter>Source\Errno</Filter>
+    </ClCompile>
+    <ClCompile Include="..\libc\src\math\copysign.c">
+      <Filter>Source\Math</Filter>
+    </ClCompile>
+    <ClCompile Include="..\libc\src\math\cos.c">
+      <Filter>Source\Math</Filter>
+    </ClCompile>
+    <ClCompile Include="..\libc\src\math\cosf.c">
+      <Filter>Source\Math</Filter>
+    </ClCompile>
+    <ClCompile Include="..\libc\src\math\exp.c">
+      <Filter>Source\Math</Filter>
+    </ClCompile>
+    <ClCompile Include="..\libc\src\math\frexp.c">
+      <Filter>Source\Math</Filter>
+    </ClCompile>
+    <ClCompile Include="..\libc\src\math\hugeval.c">
+      <Filter>Source\Math</Filter>
+    </ClCompile>
+    <ClCompile Include="..\libc\src\math\isnan.c">
+      <Filter>Source\Math</Filter>
+    </ClCompile>
+    <ClCompile Include="..\libc\src\math\ldexp.c">
+      <Filter>Source\Math</Filter>
+    </ClCompile>
+    <ClCompile Include="..\libc\src\math\log.c">
+      <Filter>Source\Math</Filter>
+    </ClCompile>
+    <ClCompile Include="..\libc\src\math\log10.c">
+      <Filter>Source\Math</Filter>
+    </ClCompile>
+    <ClCompile Include="..\libc\src\math\modf.c">
+      <Filter>Source\Math</Filter>
+    </ClCompile>
+    <ClCompile Include="..\libc\src\math\pow.c">
+      <Filter>Source\Math</Filter>
+    </ClCompile>
+    <ClCompile Include="..\libc\src\math\scalbn.c">
+      <Filter>Source\Math</Filter>
+    </ClCompile>
+    <ClCompile Include="..\libc\src\math\sin.c">
+      <Filter>Source\Math</Filter>
+    </ClCompile>
+    <ClCompile Include="..\libc\src\math\sinf.c">
+      <Filter>Source\Math</Filter>
+    </ClCompile>
+    <ClCompile Include="..\libc\src\math\tanh.c">
+      <Filter>Source\Math</Filter>
+    </ClCompile>
+    <ClCompile Include="..\libc\src\stdlib\abort.c">
+      <Filter>Source\Stdlib</Filter>
+    </ClCompile>
+    <ClCompile Include="..\libc\src\stdlib\abs.c">
+      <Filter>Source\Stdlib</Filter>
+    </ClCompile>
+    <ClCompile Include="..\libc\src\stdlib\atoi.c">
+      <Filter>Source\Stdlib</Filter>
+    </ClCompile>
+    <ClCompile Include="..\libc\src\stdlib\atold.c">
+      <Filter>Source\Stdlib</Filter>
+    </ClCompile>
+    <ClCompile Include="..\libc\src\stdlib\bsearch.c">
+      <Filter>Source\Stdlib</Filter>
+    </ClCompile>
+    <ClCompile Include="..\libc\src\stdlib\div.c">
+      <Filter>Source\Stdlib</Filter>
+    </ClCompile>
+    <ClCompile Include="..\libc\src\stdlib\exit.c">
+      <Filter>Source\Stdlib</Filter>
+    </ClCompile>
+    <ClCompile Include="..\libc\src\stdlib\labs.c">
+      <Filter>Source\Stdlib</Filter>
+    </ClCompile>
+    <ClCompile Include="..\libc\src\stdlib\ldiv.c">
+      <Filter>Source\Stdlib</Filter>
+    </ClCompile>
+    <ClCompile Include="..\libc\src\stdlib\qsort.c">
+      <Filter>Source\Stdlib</Filter>
+    </ClCompile>
+    <ClCompile Include="..\libc\src\stdlib\rand.c">
+      <Filter>Source\Stdlib</Filter>
+    </ClCompile>
+    <ClCompile Include="src\stdio\fprintf.c">
+      <Filter>Source\Stdio</Filter>
+    </ClCompile>
+    <ClCompile Include="src\stdio\printf.c">
+      <Filter>Source\Stdio</Filter>
+    </ClCompile>
+    <ClCompile Include="src\stdio\snprintf.c">
+      <Filter>Source\Stdio</Filter>
+    </ClCompile>
+    <ClCompile Include="src\stdio\sprintf.c">
+      <Filter>Source\Stdio</Filter>
+    </ClCompile>
+    <ClCompile Include="src\stdio\stream.c">
+      <Filter>Source\Stdio</Filter>
+    </ClCompile>
+    <ClCompile Include="src\stdio\vasprintf.c">
+      <Filter>Source\Stdio</Filter>
+    </ClCompile>
+    <ClCompile Include="src\stdio\vfprintf.c">
+      <Filter>Source\Stdio</Filter>
+    </ClCompile>
+    <ClCompile Include="src\stdio\vprintf.c">
+      <Filter>Source\Stdio</Filter>
+    </ClCompile>
+    <ClCompile Include="src\stdio\vsnprintf.c">
+      <Filter>Source\Stdio</Filter>
+    </ClCompile>
+    <ClCompile Include="src\stdio\vsprintf.c">
+      <Filter>Source\Stdio</Filter>
+    </ClCompile>
+    <ClCompile Include="src\signal\signal.c">
+      <Filter>Source\Signal</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\libc\src\string\str-two-way.h">
+      <Filter>Source\String</Filter>
+    </ClInclude>
+  </ItemGroup>
+</Project>

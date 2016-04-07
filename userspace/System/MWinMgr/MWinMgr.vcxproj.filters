@@ -15,7 +15,7 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="MWinMgr.c">
+    <ClCompile Include="Sapphire.c">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
