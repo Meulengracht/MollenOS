@@ -62,25 +62,23 @@ typedef struct _cLibFileStream
 
 } FILE, *PFILE;
 
-/* Operations on Files */
-extern int remove(const char * filename);
 //Rename
 //tmpfile
 //tmpnam
 
 /* File Access */
+extern int fflags(const char * mode);
 extern int fclose(FILE * stream);
-extern int fflush(FILE * stream);
 extern FILE *fopen(const char * filename, const char * mode);
 extern FILE *freopen(const char * filename, const char * mode, FILE * stream);
-extern void setbuf (FILE * stream, char * buffer);
-extern int setvbuf(FILE * stream, char * buffer, int mode, size_t size);
+extern int remove(const char * filename);
+
+//extern void setbuf (FILE * stream, char * buffer);
+//extern int setvbuf(FILE * stream, char * buffer, int mode, size_t size);
+//extern int fflush(FILE * stream);
 
 /* Formatted IO */
 extern int fprintf(FILE * stream, const char * format, ...);
-extern int fscanf(FILE *stream, const char *format, ...);
-extern int scanf(const char *format, ...);
-extern int sscanf(char *out, const char *format, ...);
 extern int printf(const char *format, ...);
 extern int sprintf(char *str, const char *format, ...);
 extern int snprintf(char *str, size_t size, const char *format, ...);
@@ -90,6 +88,10 @@ extern int vfprintf(FILE *stream, const char *format, va_list ap);
 extern int vsprintf(char *str, const char *format, va_list ap);
 extern int vsnprintf(char *str, size_t size, const char *format, va_list ap);
 extern int vasprintf(char **ret, const char *format, va_list ap);
+
+//extern int fscanf(FILE *stream, const char *format, ...);
+//extern int scanf(const char *format, ...);
+//extern int sscanf(char *out, const char *format, ...);
 
 /* Character IO */
 extern int cflush(uint32_t color);

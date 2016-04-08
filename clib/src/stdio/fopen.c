@@ -26,16 +26,6 @@
 #include <stdlib.h>
 #include <os/Syscall.h>
 
-/* MollenOS VFS Flags */
-#define VFS_READ			0x1
-#define VFS_WRITE			0x2
-#define VFS_CREATE			0x4
-#define VFS_TRUNCATE		0x8
-#define VFS_FAILONEXISTS	0x10
-#define VFS_BINARY			0x20
-#define VFS_NOBUFFERING		0x40
-#define VFS_APPEND			0x80
-
 /* Information 
 "r"	read: Open file for input operations. The file must exist.
 "w"	write: Create an empty file for output operations. If a file with the same name already exists, its contents are discarded and the file is treated as a new empty file.
@@ -52,7 +42,6 @@ FILE *fopen(const char * filename, const char * mode)
 {
 	/* Variables */
 	int mFlags = 0;
-	int PlusConsumed = 1;
 	int RetVal = 0;
 
 	/* Sanity input */
@@ -62,41 +51,8 @@ FILE *fopen(const char * filename, const char * mode)
 		return NULL;
 	}
 
-	/* Convert mode to 
-	 * FileFlags */
-	/* Read modes first */
-	if (strchr(mode, 'r') != NULL) {
-		mFlags |= VFS_READ;
-		if (strchr(mode, '+') != NULL) {
-			mFlags |= VFS_WRITE;
-			PlusConsumed = 1;
-		}
-	}
-
-	/* Write modes */
-	if (strchr(mode, 'w') != NULL) {
-		mFlags |= VFS_WRITE | VFS_CREATE | VFS_TRUNCATE;
-		if (!PlusConsumed 
-			&& strchr(mode, '+') != NULL) {
-			mFlags |= VFS_READ;
-			PlusConsumed = 1;
-		}
-	}
-
-	/* Append modes */
-	if (strchr(mode, 'a') != NULL) {
-		mFlags |= VFS_APPEND | VFS_CREATE | VFS_WRITE;
-		if (!PlusConsumed 
-			&& strchr(mode, '+') != NULL) {
-			mFlags |= VFS_READ;
-			PlusConsumed = 1;
-		}
-	}
-
-	/* Specials */
-	if (strchr(mode, 'b') != NULL) {
-		mFlags |= VFS_BINARY;
-	}
+	/* Convert flags */
+	mFlags = fflags(mode);
 
 	/* Now allocate a structure */
 	FILE *fHandle = (FILE*)malloc(sizeof(FILE));
@@ -109,7 +65,7 @@ FILE *fopen(const char * filename, const char * mode)
 	/* Sanity */
 	if (RetVal) {
 		/* Error */
-		if (RetVal == -1) 
+		if (RetVal == -1)
 			_set_errno(EINVAL);
 		else if (RetVal == -2)
 			_set_errno(EINVAL);
