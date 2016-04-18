@@ -323,6 +323,33 @@ int MfsAllocateBucket(MCoreFileSystem_t *Fs, uint32_t NumBuckets, uint32_t *Init
 	return MfsUpdateMb(Fs);
 }
 
+/* Zero Bucket */
+int MfsZeroBucket(MCoreFileSystem_t *Fs, uint32_t Bucket, uint32_t NumBuckets)
+{
+	/* Vars */
+	MfsData_t *mData = (MfsData_t*)Fs->FsData;
+	uint64_t Sector = mData->BucketSize * Bucket;
+	uint32_t Count = mData->BucketSize * NumBuckets;
+
+	/* Allocate a null buffer */
+	void *NullBuffer = (void*)kmalloc(sizeof(Count * mData->BucketSize * Fs->SectorSize));
+	memset(NullBuffer, 0, sizeof(Count * mData->BucketSize * Fs->SectorSize));
+
+	/* Write it */
+	if (MfsReadSectors(Fs, Sector, NullBuffer, Count) != RequestOk) {
+		/* Error */
+		LogFatal("MFS1", "ZEROBUCKET: Error writing to disk");
+		kfree(NullBuffer);
+		return -1;
+	}
+
+	/* Cleanup */
+	kfree(NullBuffer);
+
+	/* Done! */
+	return 0;
+}
+
 /* Updates a file entry */
 VfsErrorCode_t MfsUpdateEntry(MCoreFileSystem_t *Fs, MCoreFile_t *Handle, int Delete)
 {
@@ -551,10 +578,248 @@ MfsFile_t *MfsLocateEntry(MCoreFileSystem_t *Fs, uint32_t DirBucket, MString_t *
 /* Create Node */
 MfsFile_t *MfsCreateEntry(MCoreFileSystem_t *Fs, uint32_t DirBucket, MString_t *Path)
 {
-	_CRT_UNUSED(Fs);
-	_CRT_UNUSED(DirBucket);
-	_CRT_UNUSED(Path);
-	return NULL;
+	/* Vars */
+	MfsData_t *mData = (MfsData_t*)Fs->FsData;
+	uint32_t CurrentBucket = DirBucket;
+	int IsEnd = 0;
+	uint32_t i;
+
+	/* Get token */
+	int IsEndOfPath = 0;
+	MString_t *Token = NULL;
+	int StrIndex = MStringFind(Path, (uint32_t)'/');
+	if (StrIndex == -1
+		|| StrIndex == (int)(MStringLength(Path) - 1))
+	{
+		/* Set end, and token as rest of path */
+		IsEndOfPath = 1;
+		Token = Path;
+	}
+	else
+		Token = MStringSubString(Path, 0, StrIndex);
+
+	/* Allocate buffer for data */
+	void *EntryBuffer = kmalloc(mData->BucketSize * Fs->SectorSize);
+
+	/* Let's iterate */
+	while (!IsEnd)
+	{
+		/* Load bucket */
+		if (MfsReadSectors(Fs, mData->BucketSize * CurrentBucket,
+			EntryBuffer, mData->BucketSize) != RequestOk)
+		{
+			/* Error */
+			LogFatal("MFS1", "CREATEENTRY: Error reading from disk");
+			break;
+		}
+
+		/* Iterate buffer */
+		MfsTableEntry_t *Entry = (MfsTableEntry_t*)EntryBuffer;
+		for (i = 0; i < (mData->BucketSize / 2); i++)
+		{
+			/* Have we reached end of table? */
+			if (Entry->Status == MFS_STATUS_END)
+			{
+				/* Yes we have, now two cases 
+				 * either this is ok or it is not ok */
+				if (IsEndOfPath) 
+				{
+					/* Save this location */
+					MfsFile_t *Ret = (MfsFile_t*)kmalloc(sizeof(MfsFile_t));
+					memset(Ret, 0, sizeof(MfsFile_t));
+
+					/* Save position for entry */
+					Ret->DirBucket = CurrentBucket;
+					Ret->DirOffset = i;
+					Ret->Status = VfsOk;
+
+					/* Cleanup */
+					kfree(EntryBuffer);
+					MStringDestroy(Token);
+
+					/* Done */
+					return Ret;
+				}
+				else {
+					/* Invalid Path */
+					IsEnd = 1;
+					break;
+				}
+			}
+
+			/* Sanity, deleted entry? */
+			if (Entry->Status == MFS_STATUS_DELETED)
+			{
+				if (IsEndOfPath) 
+				{
+					/* Save this location */
+					MfsFile_t *Ret = (MfsFile_t*)kmalloc(sizeof(MfsFile_t));
+					memset(Ret, 0, sizeof(MfsFile_t));
+
+					/* Save position for entry */
+					Ret->DirBucket = CurrentBucket;
+					Ret->DirOffset = i;
+					Ret->Status = VfsOk;
+
+					/* Cleanup */
+					kfree(EntryBuffer);
+					MStringDestroy(Token);
+
+					/* Done */
+					return Ret;
+				}
+				else {
+					/* Go on to next */
+					Entry++;
+					continue;
+				}
+			}
+
+			/* Load UTF8 */
+			MString_t *NodeName = MStringCreate(Entry->Name, StrUTF8);
+
+			/* If we find a match, and we are at end
+			* we are done. Otherwise, go deeper */
+			if (MStringCompare(Token, NodeName, 1))
+			{
+				/* Match */
+				if (!IsEndOfPath)
+				{
+					/* This should be a directory */
+					if (!(Entry->Flags & MFS_DIRECTORY))
+					{
+						/* Cleanup */
+						kfree(EntryBuffer);
+						MStringDestroy(NodeName);
+						MStringDestroy(Token);
+
+						/* Path not found ofc */
+						MfsFile_t *RetData = (MfsFile_t*)kmalloc(sizeof(MfsFile_t));
+						RetData->Status = VfsPathIsNotDirectory;
+						return RetData;
+					}
+
+					/* Sanity the bucket beforehand */
+					if (Entry->StartBucket == MFS_END_OF_CHAIN)
+					{
+						/* Vars */
+						uint32_t Unused = 0;
+
+						/* Allocate bucket for directory */
+						Entry->StartBucket = mData->FreeIndex;
+						Entry->StartLength = 1;
+						MfsAllocateBucket(Fs, 1, &Unused);
+
+						/* Write back buffer */
+						if (MfsWriteSectors(Fs, mData->BucketSize * CurrentBucket,
+							EntryBuffer, mData->BucketSize) != RequestOk)
+						{
+							/* Error */
+							LogFatal("MFS1", "CREATEENTRY: Error writing to disk");
+							
+							/* Cleanup */
+							kfree(EntryBuffer);
+							MStringDestroy(NodeName);
+							MStringDestroy(Token);
+
+							/* Path not found ofc */
+							MfsFile_t *RetData = (MfsFile_t*)kmalloc(sizeof(MfsFile_t));
+							RetData->Status = VfsDiskError;
+							return RetData;
+						}
+
+						/* Zero out new bucket */
+						MfsZeroBucket(Fs, Entry->StartBucket, 1);
+					}
+
+					/* Create a new sub-string with rest */
+					MString_t *RestOfPath =
+						MStringSubString(Path, StrIndex + 1,
+						(MStringLength(Path) - (StrIndex + 1)));
+
+					/* Go deeper */
+					MfsFile_t *Ret = MfsLocateEntry(Fs, Entry->StartBucket, RestOfPath);
+
+					/* Cleanup */
+					kfree(EntryBuffer);
+					MStringDestroy(RestOfPath);
+					MStringDestroy(NodeName);
+					MStringDestroy(Token);
+
+					/* Done */
+					return Ret;
+				}
+				else
+				{
+					/* File exists, return data */
+					MfsFile_t *Ret = (MfsFile_t*)kmalloc(sizeof(MfsFile_t));
+
+					/* Proxy */
+					Ret->Name = NodeName;
+					Ret->Flags = Entry->Flags;
+					Ret->Size = Entry->Size;
+					Ret->AllocatedSize = Entry->AllocatedSize;
+					Ret->DataBucket = Entry->StartBucket;
+					Ret->DataBucketPosition = Entry->StartBucket;
+					Ret->InitialBucketLength = Entry->StartLength;
+					Ret->DataBucketLength = Entry->StartLength;
+					Ret->Status = VfsPathExists;
+
+					/* Save position */
+					Ret->DirBucket = CurrentBucket;
+					Ret->DirOffset = i;
+
+					/* Cleanup */
+					kfree(EntryBuffer);
+					MStringDestroy(Token);
+
+					/* Done */
+					return Ret;
+				}
+			}
+
+			/* Cleanup */
+			MStringDestroy(NodeName);
+
+			/* Go on to next */
+			Entry++;
+		}
+
+		/* Get next bucket */
+		if (!IsEnd)
+		{
+			/* Get next bucket */
+			uint32_t Unused = 0;
+			uint32_t PrevBucket = CurrentBucket;
+			if (MfsGetNextBucket(Fs, CurrentBucket, &CurrentBucket, &Unused))
+				IsEnd = 1;
+
+			/* Expand Directory? */
+			if (CurrentBucket == MFS_END_OF_CHAIN) {
+				/* Allocate another bucket */
+				CurrentBucket = mData->FreeIndex;
+
+				/* Sanity */
+				if (MfsAllocateBucket(Fs, 1, &Unused)
+					|| MfsSetNextBucket(Fs, PrevBucket, CurrentBucket, 1, 1)) 
+				{
+					/* Error */
+					LogFatal("MFS1", "CREATEENTRY: Error expanding directory");
+					break;
+				}
+			}
+		}
+	}
+
+	/* Cleanup */
+	kfree(EntryBuffer);
+	MStringDestroy(Token);
+
+	/* If IsEnd is set, we couldn't find it
+	* If IsEnd is not set, we should not be here... */
+	MfsFile_t *RetData = (MfsFile_t*)kmalloc(sizeof(MfsFile_t));
+	RetData->Status = VfsPathNotFound;
+	return RetData;
 }
 
 /* Frees an entire chain of buckets 
