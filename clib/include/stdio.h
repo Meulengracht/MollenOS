@@ -52,13 +52,15 @@ extern "C" {
 
 /* ErrNo */
 #define _MAX_ERRNO	127
-extern char *_errstrings[];
+_CRT_EXTERN char *_errstrings[];
 
 /* FileStream */
 typedef struct _cLibFileStream
 {
 	/* Internal OS Data */
 	void *_handle;
+	int code;
+	int flags;
 
 } FILE, *PFILE;
 
@@ -67,63 +69,63 @@ typedef struct _cLibFileStream
 //tmpnam
 
 /* File Access */
-extern int fflags(const char * mode);
-extern int fclose(FILE * stream);
-extern FILE *fopen(const char * filename, const char * mode);
-extern FILE *freopen(const char * filename, const char * mode, FILE * stream);
-extern int remove(const char * filename);
+_CRT_EXTERN int fflags(const char * mode);
+_CRT_EXTERN int fclose(FILE * stream);
+_CRT_EXTERN FILE *fopen(const char * filename, const char * mode);
+_CRT_EXTERN FILE *freopen(const char * filename, const char * mode, FILE * stream);
+_CRT_EXTERN int remove(const char * filename);
 
 //extern void setbuf (FILE * stream, char * buffer);
 //extern int setvbuf(FILE * stream, char * buffer, int mode, size_t size);
 //extern int fflush(FILE * stream);
 
 /* Formatted IO */
-extern int fprintf(FILE * stream, const char * format, ...);
-extern int printf(const char *format, ...);
-extern int sprintf(char *str, const char *format, ...);
-extern int snprintf(char *str, size_t size, const char *format, ...);
-extern int vprintf(const char *format, va_list ap);
-extern int vnprintf(char *str, size_t size, const char *format, ...);
-extern int vfprintf(FILE *stream, const char *format, va_list ap);
-extern int vsprintf(char *str, const char *format, va_list ap);
-extern int vsnprintf(char *str, size_t size, const char *format, va_list ap);
-extern int vasprintf(char **ret, const char *format, va_list ap);
+_CRT_EXTERN int fprintf(FILE * stream, const char * format, ...);
+_CRT_EXTERN int printf(const char *format, ...);
+_CRT_EXTERN int sprintf(char *str, const char *format, ...);
+_CRT_EXTERN int snprintf(char *str, size_t size, const char *format, ...);
+_CRT_EXTERN int vprintf(const char *format, va_list ap);
+_CRT_EXTERN int vnprintf(char *str, size_t size, const char *format, ...);
+_CRT_EXTERN int vfprintf(FILE *stream, const char *format, va_list ap);
+_CRT_EXTERN int vsprintf(char *str, const char *format, va_list ap);
+_CRT_EXTERN int vsnprintf(char *str, size_t size, const char *format, va_list ap);
+_CRT_EXTERN int vasprintf(char **ret, const char *format, va_list ap);
 
 //extern int fscanf(FILE *stream, const char *format, ...);
 //extern int scanf(const char *format, ...);
 //extern int sscanf(char *out, const char *format, ...);
 
 /* Character IO */
-extern int cflush(uint32_t color);
-extern int fgetc(FILE * stream);
-extern int fputc(int character, FILE * stream);
-extern char *fgets(char * buf, int bsize, FILE * stream);
-extern int fputs(const char * str, FILE * stream);
-extern int getc(FILE *stream);
-extern int putc(int character, FILE * stream);
-extern int getchar(void);
-extern char *gets(char *sstr);
-extern int putchar(int character);
-extern int puts(char *sstr);
+_CRT_EXTERN int cflush(uint32_t color);
+_CRT_EXTERN int fgetc(FILE * stream);
+_CRT_EXTERN int fputc(int character, FILE * stream);
+_CRT_EXTERN char *fgets(char * buf, int bsize, FILE * stream);
+_CRT_EXTERN int fputs(const char * str, FILE * stream);
+_CRT_EXTERN int getc(FILE *stream);
+_CRT_EXTERN int putc(int character, FILE * stream);
+_CRT_EXTERN int getchar(void);
+_CRT_EXTERN char *gets(char *sstr);
+_CRT_EXTERN int putchar(int character);
+_CRT_EXTERN int puts(char *sstr);
 //int ungetc ( int character, FILE * stream );
 
 /* Direct IO */
-extern size_t fread(void * vptr, size_t size, size_t count, FILE * stream);
-extern size_t fwrite(const void * vptr, size_t size, size_t count, FILE * stream);
+_CRT_EXTERN size_t fread(void * vptr, size_t size, size_t count, FILE * stream);
+_CRT_EXTERN size_t fwrite(const void * vptr, size_t size, size_t count, FILE * stream);
 
 /* File Positioning */
 //int fgetpos ( FILE * stream, fpos_t * pos );
-extern int fseek(FILE * stream, long int offset, int origin);
+_CRT_EXTERN int fseek(FILE * stream, long int offset, int origin);
 //int fsetpos ( FILE * stream, const fpos_t * pos );
-extern long int ftell(FILE * stream);
-extern void rewind(FILE * stream);
-extern int feof(FILE * stream);
+_CRT_EXTERN long int ftell(FILE * stream);
+_CRT_EXTERN void rewind(FILE * stream);
+_CRT_EXTERN int feof(FILE * stream);
 
 /* Error Handling */
-extern void clearerr(FILE * stream);
-extern int ferror(FILE * stream);
-extern void perror(const char * str); //Print errorno
-extern char *strerror(int errnum); //Makes a string out of err no
+_CRT_EXTERN void clearerr(FILE * stream);
+_CRT_EXTERN int ferror(FILE * stream);
+_CRT_EXTERN void perror(const char * str); //Print errorno
+_CRT_EXTERN char *strerror(int errnum); //Makes a string out of err no
 
 #ifdef __cplusplus
 }

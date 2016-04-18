@@ -627,4 +627,28 @@ VfsErrorCode_t VfsSeek(MCoreFile_t *Handle, uint64_t Offset)
 	return ErrCode;
 }
 
-/* Flush, Rename, Query */
+/* Vfs - Query Handle 
+ * @Handle - A valid file handle 
+ * @Function - The query function 
+ * @Buffer - Where to store query results - vAddr
+ * @Length - Max length of data to store */
+VfsErrorCode_t VfsQuery(MCoreFile_t *Handle, VfsQueryFunction_t Function, void *Buffer, size_t Length)
+{
+	/* Vars */
+	VfsErrorCode_t ErrCode = VfsPathNotFound;
+	MCoreFileSystem_t *Fs = NULL;
+
+	/* Sanity */
+	if (Handle == NULL
+		|| Handle->Code != VfsOk)
+		return VfsInvalidParameters;
+
+	/* Deep Seek */
+	Fs = (MCoreFileSystem_t*)Handle->Fs;
+	ErrCode = Fs->Query(Fs, Handle, Function, Buffer, Length);
+
+	/* Done */
+	return ErrCode;
+}
+
+/* Flush, Rename */

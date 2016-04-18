@@ -84,6 +84,14 @@ typedef enum _VfsFileFlags
 
 } VfsFileFlags_t;
 
+/* Query Functions */
+typedef enum _VfsQueryFunctions
+{
+	QueryStats = 0,
+	QueryChildren
+
+} VfsQueryFunction_t;
+
 /* Definitions */
 #define VFS_MAIN_DRIVE		0x1
 
@@ -157,7 +165,7 @@ typedef struct _MCoreFileSystem
 	VfsErrorCode_t (*Seek)(void *Fs, MCoreFile_t *Handle, uint64_t Position);
 
 	/* Get's information about a node */
-	VfsErrorCode_t (*Query)(void *Fs, MCoreFile_t *Handle);
+	VfsErrorCode_t(*Query)(void *Fs, MCoreFile_t *Handle, VfsQueryFunction_t Function, void *Buffer, size_t Length);
 
 } MCoreFileSystem_t;
 #pragma pack(pop)
@@ -181,7 +189,7 @@ _CRT_EXTERN VfsErrorCode_t VfsSeek(MCoreFile_t *Handle, uint64_t Offset);
 _CRT_EXTERN VfsErrorCode_t VfsFlush(MCoreFile_t *Handle);
 
 /* Utilities */
-_CRT_EXTERN VfsErrorCode_t VfsQuery(MCoreFile_t *Handle);
+_CRT_EXTERN VfsErrorCode_t VfsQuery(MCoreFile_t *Handle, VfsQueryFunction_t Function, void *Buffer, size_t Length);
 _CRT_EXTERN VfsErrorCode_t VfsMove(const char *Path, const char *NewPath, int Copy);
 
 #endif //!_MCORE_VFS_H_

@@ -57,6 +57,8 @@ FILE *fopen(const char * filename, const char * mode)
 	/* Now allocate a structure */
 	FILE *fHandle = (FILE*)malloc(sizeof(FILE));
 	fHandle->_handle = NULL;
+	fHandle->code = 0;
+	fHandle->flags = mFlags;
 
 	/* Syscall */
 	RetVal = Syscall3(MOLLENOS_SYSCALL_VFSOPEN, MOLLENOS_SYSCALL_PARAM(filename),

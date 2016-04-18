@@ -41,8 +41,10 @@
     <ClCompile Include="..\src\stdio\fflags.c" />
     <ClCompile Include="..\src\stdio\fopen.c" />
     <ClCompile Include="..\src\stdio\fprintf.c" />
+    <ClCompile Include="..\src\stdio\fread.c" />
     <ClCompile Include="..\src\stdio\fremove.c" />
     <ClCompile Include="..\src\stdio\freopen.c" />
+    <ClCompile Include="..\src\stdio\fwrite.c" />
     <ClCompile Include="..\src\stdio\printf.c" />
     <ClCompile Include="..\src\stdio\snprintf.c" />
     <ClCompile Include="..\src\stdio\sprintf.c" />

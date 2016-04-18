@@ -33,6 +33,7 @@
 FILE *freopen(const char * filename, const char * mode, FILE * stream)
 {
 	/* Variables */
+	int mFlags = 0;
 	int RetVal = 0;
 
 	/* Sanity input */
@@ -50,9 +51,16 @@ FILE *freopen(const char * filename, const char * mode, FILE * stream)
 		/* Close existing handle */
 		RetVal = Syscall1(MOLLENOS_SYSCALL_VFSCLOSE, MOLLENOS_SYSCALL_PARAM(stream));
 
+		/* Convert flags */
+		mFlags = fflags(mode);
+
 		/* Syscall */
 		RetVal = Syscall3(MOLLENOS_SYSCALL_VFSOPEN, MOLLENOS_SYSCALL_PARAM(filename),
-			MOLLENOS_SYSCALL_PARAM(stream), MOLLENOS_SYSCALL_PARAM(fflags(mode)));
+			MOLLENOS_SYSCALL_PARAM(stream), MOLLENOS_SYSCALL_PARAM(mFlags));
+
+		/* Reset */
+		stream->code = 0;
+		stream->flags = mFlags;
 
 		/* Sanity */
 		if (RetVal) {

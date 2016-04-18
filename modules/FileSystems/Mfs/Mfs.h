@@ -35,6 +35,11 @@
 
 #define MFS_END_OF_CHAIN	0xFFFFFFFF
 
+/* MFS Entry Status Codes */
+#define MFS_STATUS_END		0x0
+#define MFS_STATUS_OK		0x1
+#define MFS_STATUS_DELETED	0x2
+
 /* MFS Entry Flags */
 #define MFS_FILE			0x1
 #define MFS_SECURITY		0x2		/* User must possess the right key to unlock */

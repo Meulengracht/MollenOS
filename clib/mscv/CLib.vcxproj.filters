@@ -312,6 +312,12 @@
     <ClCompile Include="..\src\stdio\fremove.c">
       <Filter>Source\stdio\File</Filter>
     </ClCompile>
+    <ClCompile Include="..\src\stdio\fread.c">
+      <Filter>Source\stdio\File</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\stdio\fwrite.c">
+      <Filter>Source\stdio\File</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <MASM Include="..\crt\alldvrm.S">
