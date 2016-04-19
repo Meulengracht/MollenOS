@@ -87,13 +87,61 @@ typedef enum _VfsFileFlags
 /* Query Functions */
 typedef enum _VfsQueryFunctions
 {
+	/* Functions - Fs Layer */
 	QueryStats = 0,
-	QueryChildren
+	QueryChildren,
+
+	/* Functions - Vfs Layer */
+	QueryGetAccess,
+	QuerySetAccess
 
 } VfsQueryFunction_t;
 
 /* Definitions */
 #define VFS_MAIN_DRIVE		0x1
+
+/* Vfs Query Function
+ * -- Structures */
+typedef struct _VQFileStats
+{
+	/* Size(s) */
+	uint64_t Size;
+	uint64_t SizeOnDisk;
+
+	/* RW-Position */
+	uint64_t Position;
+
+	/* Time-Info */
+
+	/* Perms & Flags */
+	int Access;
+	int Flags;
+
+} VQFileStats_t;
+
+/* Entries are dynamic in size */
+#pragma pack(push, 1)
+typedef struct _VQDirEntry
+{
+	/* Magic */
+	uint16_t Magic;
+
+	/* Entry length 
+	 * for whole structure */
+	uint16_t Length;
+
+	/* Size(s) */
+	uint64_t Size;
+	uint64_t SizeOnDisk;
+
+	/* Flags */
+	int Flags;
+
+	/* Name */
+	uint8_t Name[1];
+
+} VQDirEntry_t;
+#pragma pack(pop)
 
 /* Structures */
 #pragma pack(push, 1)

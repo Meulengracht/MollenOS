@@ -1416,11 +1416,48 @@ VfsErrorCode_t MfsSeek(void *FsData, MCoreFile_t *Handle, uint64_t Position)
 VfsErrorCode_t MfsQuery(void *FsData, MCoreFile_t *Handle, 
 	VfsQueryFunction_t Function, void *Buffer, size_t Length)
 {
-	_CRT_UNUSED(FsData);
-	_CRT_UNUSED(Handle);
-	_CRT_UNUSED(Function);
-	_CRT_UNUSED(Buffer);
-	_CRT_UNUSED(Length);
+	/* Vars & Casts */
+	MCoreFileSystem_t *Fs = (MCoreFileSystem_t*)FsData;
+	MfsFile_t *mFile = (MfsFile_t*)Handle->Data;
+
+	/* Unused */
+	_CRT_UNUSED(Fs);
+
+	/* Which function are we requesting? */
+	switch (Function) {
+
+		/* Get stats and information about an handle */
+		case QueryStats: 
+		{
+			/* Cast Handle */
+			VQFileStats_t *Stats = (VQFileStats_t*)Buffer;
+
+			/* Sanity length */
+			if (Length < sizeof(VQFileStats_t))
+				return VfsInvalidParameters;
+
+			/* Copy Stats */
+			Stats->Size = mFile->Size;
+			Stats->SizeOnDisk = mFile->AllocatedSize;
+			Stats->Position = Handle->Position;
+			Stats->Access = (int)Handle->Flags;
+
+			/* Should prolly convert this to a generic vfs format .. */
+			Stats->Flags = (int)mFile->Flags;
+
+		} break;
+
+		/* Get children of a node -> Must be a directory */
+		case QueryChildren: {
+
+		} break;
+
+		/* Ehhh */
+		default:
+			break;
+	}
+
+	/* Done! */
 	return VfsOk;
 }
 

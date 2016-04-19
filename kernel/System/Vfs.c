@@ -635,7 +635,7 @@ VfsErrorCode_t VfsSeek(MCoreFile_t *Handle, uint64_t Offset)
 VfsErrorCode_t VfsQuery(MCoreFile_t *Handle, VfsQueryFunction_t Function, void *Buffer, size_t Length)
 {
 	/* Vars */
-	VfsErrorCode_t ErrCode = VfsPathNotFound;
+	VfsErrorCode_t ErrCode = VfsOk;
 	MCoreFileSystem_t *Fs = NULL;
 
 	/* Sanity */
@@ -643,9 +643,44 @@ VfsErrorCode_t VfsQuery(MCoreFile_t *Handle, VfsQueryFunction_t Function, void *
 		|| Handle->Code != VfsOk)
 		return VfsInvalidParameters;
 
-	/* Deep Seek */
-	Fs = (MCoreFileSystem_t*)Handle->Fs;
-	ErrCode = Fs->Query(Fs, Handle, Function, Buffer, Length);
+	/* Handle VFS Queries that has no further need
+	 * for the underlying fs */
+	switch (Function) {
+
+		/* Handle Get Access mode */
+		case QueryGetAccess: {
+
+			/* Sanity buffer size */
+			if (Length < sizeof(int))
+				return VfsInvalidParameters;
+
+			/* Store it into the buffer */
+			*((int*)Buffer) = (int)Handle->Flags;
+
+		} break;
+
+		/* Handle Set Access mode */
+		case QuerySetAccess: {
+
+			/* Sanity buffer size */
+			if (Length < sizeof(int))
+				return VfsInvalidParameters;
+
+			/* Probably validate requested access flags .. */
+
+			/* Update access mode */
+			Handle->Flags = (VfsFileFlags_t)(*((int*)Buffer));
+
+		} break;
+
+		/* Redirect */
+		default: {
+			/* Deep Query */
+			Fs = (MCoreFileSystem_t*)Handle->Fs;
+			ErrCode = Fs->Query(Fs, Handle, Function, Buffer, Length);
+
+		} break;
+	}
 
 	/* Done */
 	return ErrCode;
