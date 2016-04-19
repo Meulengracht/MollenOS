@@ -35,6 +35,11 @@
 
 #define MFS_END_OF_CHAIN	0xFFFFFFFF
 
+/* MFS Update Entry Action Codes */
+#define MFS_ACTION_UPDATE	0x0
+#define MFS_ACTION_CREATE	0x1
+#define MFS_ACTION_DELETE	0x2
+
 /* MFS Entry Status Codes */
 #define MFS_STATUS_END		0x0
 #define MFS_STATUS_OK		0x1

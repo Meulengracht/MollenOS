@@ -18,7 +18,6 @@
 *
 * MollenOS MCore - MollenOS File System
 * TODO:
-* - Create
 * - Truncate
 * - Query
 * - Delete (Maybe a free-chain function)
@@ -36,8 +35,10 @@
 /* CLib */
 #include <string.h>
 
-/* Read Sectors Wrapper */
-DeviceRequestStatus_t MfsReadSectors(MCoreFileSystem_t *Fs, uint64_t Sector, void *Buffer, uint32_t Count)
+/* Read Sectors Wrapper 
+ * This makes sure to wrap our read requests 
+ * into maximum allowed blocks */
+DeviceRequestStatus_t MfsReadSectors(MCoreFileSystem_t *Fs, uint64_t Sector, void *Buffer, size_t Count)
 {
 	/* Sanity */
 	uint64_t SectorToRead = Fs->SectorStart + Sector;
@@ -87,8 +88,10 @@ DeviceRequestStatus_t MfsReadSectors(MCoreFileSystem_t *Fs, uint64_t Sector, voi
 	return RequestOk;
 }
 
-/* Write Sectors Wrapper */
-DeviceRequestStatus_t MfsWriteSectors(MCoreFileSystem_t *Fs, uint64_t Sector, void *Buffer, uint32_t Count)
+/* Write Sectors Wrapper
+* This makes sure to wrap our write requests
+* into maximum allowed blocks */
+DeviceRequestStatus_t MfsWriteSectors(MCoreFileSystem_t *Fs, uint64_t Sector, void *Buffer, size_t Count)
 {
 	/* Sanity */
 	uint64_t SectorToWrite = Fs->SectorStart + Sector;
@@ -138,7 +141,9 @@ DeviceRequestStatus_t MfsWriteSectors(MCoreFileSystem_t *Fs, uint64_t Sector, vo
 	return RequestOk;
 }
 
-/* Update Mb */
+/* Update Mb - Updates the 
+ * master-bucket and it's mirror 
+ * by writing the updated stats in our stored data */
 int MfsUpdateMb(MCoreFileSystem_t *Fs)
 {
 	/* Vars */
@@ -168,7 +173,8 @@ int MfsUpdateMb(MCoreFileSystem_t *Fs)
 	return 0;
 }
 
-/* Get next bucket in chain 
+/* Get next bucket in chain
+ * by looking up next pointer in bucket-map
  * Todo: Have this in memory */
 int MfsGetNextBucket(MCoreFileSystem_t *Fs, 
 	uint32_t Bucket, uint32_t *NextBucket, uint32_t *BucketLength)
@@ -206,6 +212,7 @@ int MfsGetNextBucket(MCoreFileSystem_t *Fs,
 }
 
 /* Set next bucket in chain 
+ * by looking up next pointer in bucket-map
  * Todo: have this in memory */
 int MfsSetNextBucket(MCoreFileSystem_t *Fs, 
 	uint32_t Bucket, uint32_t NextBucket, uint32_t BucketLength, int UpdateLength)
@@ -256,7 +263,9 @@ int MfsSetNextBucket(MCoreFileSystem_t *Fs,
 	return 0;
 }
 
-/* Allocates buckets */
+/* Allocates a number of buckets from the 
+ * bucket map, and returns the size of the first
+ * bucket-allocation */
 int MfsAllocateBucket(MCoreFileSystem_t *Fs, uint32_t NumBuckets, uint32_t *InitialBucketSize)
 {
 	/* Vars */
@@ -323,7 +332,26 @@ int MfsAllocateBucket(MCoreFileSystem_t *Fs, uint32_t NumBuckets, uint32_t *Init
 	return MfsUpdateMb(Fs);
 }
 
-/* Zero Bucket */
+/* Frees an entire chain of buckets
+ * that has been allocated for a file */
+int MfsFreeBuckets(MCoreFileSystem_t *Fs, uint32_t StartBucket, uint32_t StartLength)
+{
+	/* Sanity */
+	if (StartBucket == MFS_END_OF_CHAIN
+		|| StartLength == 0)
+		return -1;
+
+	/* For now.. */
+	_CRT_UNUSED(Fs);
+
+	/* Done! */
+	return 0;
+}
+
+/* Zero Bucket - Tool for 
+ * wiping a bucket, needed for directory
+ * expansion and allocation, as we need entries
+ * to be initially null */
 int MfsZeroBucket(MCoreFileSystem_t *Fs, uint32_t Bucket, uint32_t NumBuckets)
 {
 	/* Vars */
@@ -350,12 +378,13 @@ int MfsZeroBucket(MCoreFileSystem_t *Fs, uint32_t Bucket, uint32_t NumBuckets)
 	return 0;
 }
 
-/* Updates a file entry */
-VfsErrorCode_t MfsUpdateEntry(MCoreFileSystem_t *Fs, MCoreFile_t *Handle, int Delete)
+/* Updates a mfs entry in a directory 
+ * This is used when we modify size, name
+ * access times and flags for convenience */
+VfsErrorCode_t MfsUpdateEntry(MCoreFileSystem_t *Fs, MfsFile_t *Handle, int Action)
 {
 	/* Cast */
 	MfsData_t *mData = (MfsData_t*)Fs->FsData;
-	MfsFile_t *mFile = (MfsFile_t*)Handle->Data;
 	VfsErrorCode_t RetCode = VfsOk;
 	uint32_t i;
 
@@ -363,7 +392,7 @@ VfsErrorCode_t MfsUpdateEntry(MCoreFileSystem_t *Fs, MCoreFile_t *Handle, int De
 	uint8_t *EntryBuffer = (uint8_t*)kmalloc(mData->BucketSize * Fs->SectorSize);
 
 	/* Read in the bucket of where the entry lies */
-	if (MfsReadSectors(Fs, mData->BucketSize * mFile->DirBucket, 
+	if (MfsReadSectors(Fs, mData->BucketSize * Handle->DirBucket,
 		EntryBuffer, mData->BucketSize) != RequestOk)
 	{
 		RetCode = VfsDiskError;
@@ -374,27 +403,42 @@ VfsErrorCode_t MfsUpdateEntry(MCoreFileSystem_t *Fs, MCoreFile_t *Handle, int De
 	MfsTableEntry_t *Iterator = (MfsTableEntry_t*)EntryBuffer;
 
 	/* Loop to correct entry */
-	for (i = 0; i < mFile->DirOffset; i++)
+	for (i = 0; i < Handle->DirOffset; i++)
 		Iterator++;
 
 	/* Delete or modify? */
-	if (Delete != 0) {
+	if (Action == MFS_ACTION_DELETE) {
 		/* Clear out, set status deleted */
 		memset((void*)Iterator, 0, sizeof(MfsTableEntry_t));
 		Iterator->Status = MFS_STATUS_DELETED;
 	}
 	else {
+		/* Update Status? */
+		if (Action == MFS_ACTION_CREATE) {
+			/* Set Status */
+			Iterator->Status = MFS_STATUS_OK;
+
+			/* Set Name */
+			memcpy(&Iterator->Name[0], Handle->Name->Data, Handle->Name->Length);
+
+			/* Null datablock */
+			memset(&Iterator->Data[0], 0, 512);
+		}
+
 		/* Update Stats */
-		Iterator->AllocatedSize = mFile->AllocatedSize;
-		Iterator->Size = mFile->Size;
-		Iterator->StartBucket = mFile->DataBucket;
-		Iterator->Flags = mFile->Flags;
+		Iterator->Flags = Handle->Flags;
+		Iterator->StartBucket = Handle->DataBucket;
+		Iterator->StartLength = Handle->InitialBucketLength;
 
 		/* Update times when we support it */
+
+		/* Sizes */
+		Iterator->Size = Handle->Size;
+		Iterator->AllocatedSize = Handle->AllocatedSize;
 	}
 	
 	/* Write it back */
-	if (MfsWriteSectors(Fs, mData->BucketSize * mFile->DirBucket, 
+	if (MfsWriteSectors(Fs, mData->BucketSize * Handle->DirBucket,
 		EntryBuffer, mData->BucketSize) != RequestOk)
 		RetCode = VfsDiskError;
 
@@ -404,7 +448,9 @@ Done:
 	return RetCode;
 }
 
-/* Locate Node */
+/* This is our primary searcher function
+ * Given a path it validates and locates a 
+ * mfs-entry in a directory-path */
 MfsFile_t *MfsLocateEntry(MCoreFileSystem_t *Fs, uint32_t DirBucket, MString_t *Path)
 {
 	/* Vars */
@@ -575,8 +621,11 @@ MfsFile_t *MfsLocateEntry(MCoreFileSystem_t *Fs, uint32_t DirBucket, MString_t *
 	return RetData;
 }
 
-/* Create Node */
-MfsFile_t *MfsCreateEntry(MCoreFileSystem_t *Fs, uint32_t DirBucket, MString_t *Path)
+/* Very alike to the MfsLocateEntry
+ * except instead of locating a file entry
+ * it locates a free entry in the last token of
+ * the path, and validates the path as it goes */
+MfsFile_t *MfsFindFreeEntry(MCoreFileSystem_t *Fs, uint32_t DirBucket, MString_t *Path)
 {
 	/* Vars */
 	MfsData_t *mData = (MfsData_t*)Fs->FsData;
@@ -617,8 +666,10 @@ MfsFile_t *MfsCreateEntry(MCoreFileSystem_t *Fs, uint32_t DirBucket, MString_t *
 		MfsTableEntry_t *Entry = (MfsTableEntry_t*)EntryBuffer;
 		for (i = 0; i < (mData->BucketSize / 2); i++)
 		{
-			/* Have we reached end of table? */
-			if (Entry->Status == MFS_STATUS_END)
+			/* Have we reached end of table? 
+			 * Or perhaps a free entry? */
+			if (Entry->Status == MFS_STATUS_END
+				|| Entry->Status == MFS_STATUS_DELETED)
 			{
 				/* Yes we have, now two cases 
 				 * either this is ok or it is not ok */
@@ -628,33 +679,8 @@ MfsFile_t *MfsCreateEntry(MCoreFileSystem_t *Fs, uint32_t DirBucket, MString_t *
 					MfsFile_t *Ret = (MfsFile_t*)kmalloc(sizeof(MfsFile_t));
 					memset(Ret, 0, sizeof(MfsFile_t));
 
-					/* Save position for entry */
-					Ret->DirBucket = CurrentBucket;
-					Ret->DirOffset = i;
-					Ret->Status = VfsOk;
-
-					/* Cleanup */
-					kfree(EntryBuffer);
-					MStringDestroy(Token);
-
-					/* Done */
-					return Ret;
-				}
-				else {
-					/* Invalid Path */
-					IsEnd = 1;
-					break;
-				}
-			}
-
-			/* Sanity, deleted entry? */
-			if (Entry->Status == MFS_STATUS_DELETED)
-			{
-				if (IsEndOfPath) 
-				{
-					/* Save this location */
-					MfsFile_t *Ret = (MfsFile_t*)kmalloc(sizeof(MfsFile_t));
-					memset(Ret, 0, sizeof(MfsFile_t));
+					/* Init */
+					Ret->Name = Token;
 
 					/* Save position for entry */
 					Ret->DirBucket = CurrentBucket;
@@ -663,15 +689,21 @@ MfsFile_t *MfsCreateEntry(MCoreFileSystem_t *Fs, uint32_t DirBucket, MString_t *
 
 					/* Cleanup */
 					kfree(EntryBuffer);
-					MStringDestroy(Token);
 
 					/* Done */
 					return Ret;
 				}
 				else {
-					/* Go on to next */
-					Entry++;
-					continue;
+					if (Entry->Status == MFS_STATUS_END) {
+						/* Invalid Path */
+						IsEnd = 1;
+						break;
+					}
+					else {
+						/* Go on to next */
+						Entry++;
+						continue;
+					}
 				}
 			}
 
@@ -807,6 +839,9 @@ MfsFile_t *MfsCreateEntry(MCoreFileSystem_t *Fs, uint32_t DirBucket, MString_t *
 					LogFatal("MFS1", "CREATEENTRY: Error expanding directory");
 					break;
 				}
+
+				/* Zero out new bucket */
+				MfsZeroBucket(Fs, CurrentBucket, 1);
 			}
 		}
 	}
@@ -822,23 +857,44 @@ MfsFile_t *MfsCreateEntry(MCoreFileSystem_t *Fs, uint32_t DirBucket, MString_t *
 	return RetData;
 }
 
-/* Frees an entire chain of buckets 
- * that has been allocated for a file */
-int MfsFreeBuckets(MCoreFileSystem_t *Fs, uint32_t StartBucket, uint32_t StartLength) 
+/* Create entry in a directory bucket
+ * It internally calls MfsFindFreeEntry to
+ * find a viable entry and validate the path */
+MfsFile_t *MfsCreateEntry(MCoreFileSystem_t *Fs, uint32_t DirBucket, MString_t *Path, int Flags) 
 {
-	/* Sanity */
-	if (StartBucket == MFS_END_OF_CHAIN
-		|| StartLength == 0)
-		return -1;
+	/* Locate a free entry, and 
+	 * make sure file does not exist */
+	MfsFile_t *mEntry = MfsFindFreeEntry(Fs, DirBucket, Path);
 
-	/* For now.. */
-	_CRT_UNUSED(Fs);
+	/* Validate */
+	if (mEntry->Status != VfsOk) {
+		/* Either of two things happened 
+		 * 1) Path was invalid 
+		 * 2) File exists */
+		return mEntry;
+	}
+
+	/* Ok, initialize the entry 
+	 * we found a new one */
+	mEntry->DataBucket = MFS_END_OF_CHAIN;
+	mEntry->DataBucketPosition = MFS_END_OF_CHAIN;
+	mEntry->DataBucketLength = 0;
+	mEntry->InitialBucketLength = 0;
+	mEntry->Size = 0;
+	mEntry->AllocatedSize = 0;
+	mEntry->Flags = (uint16_t)Flags;
+
+	/* Write the entry back to the filesystem */
+	mEntry->Status = MfsUpdateEntry(Fs, mEntry, MFS_ACTION_CREATE);
 
 	/* Done! */
-	return 0;
+	return mEntry;
 }
 
-/* Open File */
+/* Open File - This function
+ * handles both the opening of files
+ * and creation of files depending on the
+ * given flags */
 VfsErrorCode_t MfsOpenFile(void *FsData, 
 	MCoreFile_t *Handle, MString_t *Path, VfsFileFlags_t Flags)
 {
@@ -850,7 +906,8 @@ VfsErrorCode_t MfsOpenFile(void *FsData,
 	/* This will be a recursive parse of path */
 	MfsFile_t *FileInfo = MfsLocateEntry(Fs, mData->RootIndex, Path);
 
-	/* So how should we handle this? */
+	/* Validation Phase
+	 * So how should we handle this? */
 	if (FileInfo->Status == VfsPathNotFound
 		&& Flags & CreateIfNotExists) 
 	{
@@ -858,12 +915,24 @@ VfsErrorCode_t MfsOpenFile(void *FsData,
 		kfree(FileInfo);
 
 		/* Try to create the file */
-		FileInfo = MfsCreateEntry(Fs, mData->RootIndex, Path);
-	}
+		FileInfo = MfsCreateEntry(Fs, mData->RootIndex, Path, MFS_FILE);
 
-	/* Validate */
-	if (FileInfo->Status != VfsOk)
+		/* Invalid path or path not found 
+		 * is enough cause for early break */
+		if (FileInfo->Status != VfsOk
+			&& FileInfo->Status != VfsPathExists) 
+		{
+			/* Store return code, cleanup */
+			RetCode = FileInfo->Status;
+			kfree(FileInfo);
+			return RetCode;
+		}
+	}
+	else if (FileInfo->Status != VfsOk)
 	{
+		/* This means we have tried to open 
+		 * a file normally - and it failed */
+
 		/* Cleanup */
 		RetCode = FileInfo->Status;
 		kfree(FileInfo);
@@ -871,17 +940,19 @@ VfsErrorCode_t MfsOpenFile(void *FsData,
 	}
 
 	/* File exists */
-	if (Flags & FailIfExists) {
-		FileInfo->Status = VfsPathExists;
-		RetCode = FileInfo->Status;
+	if (FileInfo->Status == VfsPathExists
+		&& (Flags & FailIfExists)) 
+	{
+		/* File already exists (and we didn't just create it)
+		 * and for some reason that is not ok */
+		RetCode = FileInfo->Status = VfsPathExists;
+		kfree(FileInfo);
+		return RetCode;
 	}
 
-	/* Update handle already */
-	Handle->Data = FileInfo;
-	Handle->Flags = Flags;
-
 	/* Post functions */
-	if (Flags & TruncateIfExists) 
+	if (FileInfo->Status == VfsPathExists
+		&& (Flags & TruncateIfExists))
 	{
 		/* Free */
 		int fRes = MfsFreeBuckets(Fs, FileInfo->DataBucket, FileInfo->InitialBucketLength);
@@ -895,11 +966,14 @@ VfsErrorCode_t MfsOpenFile(void *FsData,
 			FileInfo->Size = 0;
 			
 			/* Update Entry */
-			FileInfo->Status = MfsUpdateEntry(Fs, Handle, 0);
+			FileInfo->Status = MfsUpdateEntry(Fs, FileInfo, MFS_ACTION_UPDATE);
 		}
 	}
 
 	/* Fill out Handle */
+	Handle->Data = FileInfo;
+	Handle->Flags = Flags;
+
 	Handle->Position = 0;
 	Handle->Size = FileInfo->Size;
 	Handle->Name = FileInfo->Name;
@@ -915,7 +989,8 @@ VfsErrorCode_t MfsOpenFile(void *FsData,
 }
 
 /* Close File 
- * frees resources allocated */
+ * frees resources allocated by Open File
+ * and cleans up */
 VfsErrorCode_t MfsCloseFile(void *FsData, MCoreFile_t *Handle)
 {
 	/* Not used */
@@ -936,7 +1011,10 @@ VfsErrorCode_t MfsCloseFile(void *FsData, MCoreFile_t *Handle)
 	return RetCode;
 }
 
-/* Read File */
+/* Read File - Reads from a 
+ * given MCoreFile entry, the position
+ * is stored in our structures and thus not neccessary 
+ * File must be opened with read permissions */
 size_t MfsReadFile(void *FsData, MCoreFile_t *Handle, uint8_t *Buffer, size_t Size)
 {
 	/* Vars */
@@ -1049,7 +1127,10 @@ size_t MfsReadFile(void *FsData, MCoreFile_t *Handle, uint8_t *Buffer, size_t Si
 	return BytesRead;
 }
 
-/* Write File */
+/* Write File - Writes to a 
+ * given MCoreFile entry, the position
+ * is stored in our structures and thus not neccessary 
+ * File must be opened with write permissions */
 size_t MfsWriteFile(void *FsData, MCoreFile_t *Handle, uint8_t *Buffer, size_t Size)
 {
 	/* Vars */
@@ -1197,14 +1278,17 @@ size_t MfsWriteFile(void *FsData, MCoreFile_t *Handle, uint8_t *Buffer, size_t S
 	}
 
 	/* Update entry */
-	MfsUpdateEntry(Fs, Handle, 0);
+	MfsUpdateEntry(Fs, mFile, MFS_ACTION_UPDATE);
 
 	/* Done! */
 	Handle->Code = RetCode;
 	return BytesWritten;
 }
 
-/* Delete File */
+/* Delete File - Frees all 
+ * buckets associated with the file entry
+ * and <nulls> the entry in the directory it
+ * resides (marks it deleted) */
 VfsErrorCode_t MfsDeleteFile(void *FsData, MCoreFile_t *Handle)
 {
 	/* Cast */
@@ -1216,13 +1300,16 @@ VfsErrorCode_t MfsDeleteFile(void *FsData, MCoreFile_t *Handle)
 	MfsFreeBuckets(Fs, FileInfo->DataBucket, FileInfo->InitialBucketLength);
 
 	/* Step 2 - Mark entry deleted */
-	ErrCode = MfsUpdateEntry(Fs, Handle, 1);
+	ErrCode = MfsUpdateEntry(Fs, FileInfo, MFS_ACTION_DELETE);
 
 	/* Done! */
 	return ErrCode;
 }
 
-/* Seek in Handle */
+/* Seek - Sets the current position
+ * in a file, we must iterate through the
+ * bucket chain to reposition our bucket 
+ * iterator correctly as well */
 VfsErrorCode_t MfsSeek(void *FsData, MCoreFile_t *Handle, uint64_t Position)
 {
 	/* Vars */
@@ -1299,7 +1386,9 @@ VfsErrorCode_t MfsSeek(void *FsData, MCoreFile_t *Handle, uint64_t Position)
 	return VfsOk;
 }
 
-/* Query information */
+/* Query information - This function
+ * is used to query a file for information 
+ * or a directory for it's entries etc */
 VfsErrorCode_t MfsQuery(void *FsData, MCoreFile_t *Handle, 
 	VfsQueryFunction_t Function, void *Buffer, size_t Length)
 {
