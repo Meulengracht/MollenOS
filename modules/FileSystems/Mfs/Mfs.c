@@ -18,9 +18,7 @@
 *
 * MollenOS MCore - MollenOS File System
 * TODO:
-* - Truncate
 * - Query
-* - Delete (Maybe a free-chain function)
 * - General Improvements
 */
 
@@ -336,16 +334,42 @@ int MfsAllocateBucket(MCoreFileSystem_t *Fs, uint32_t NumBuckets, uint32_t *Init
  * that has been allocated for a file */
 int MfsFreeBuckets(MCoreFileSystem_t *Fs, uint32_t StartBucket, uint32_t StartLength)
 {
+	/* Vars */
+	uint32_t bIterator = StartBucket, bLength = 0, pIterator = 0;
+	MfsData_t *mData = (MfsData_t*)Fs->FsData;
+
 	/* Sanity */
 	if (StartBucket == MFS_END_OF_CHAIN
 		|| StartLength == 0)
 		return -1;
 
-	/* For now.. */
-	_CRT_UNUSED(Fs);
+	/* Essentially there is two algorithms we can deploy here
+	 * The quick one - Which is just to add the allocated bucket list
+	 * to the free and set the last allocated to point to the first free
+	 * OR there is the slow one that makes sure that buckets are <in order> as
+	 * they get freed, and gets inserted or extended correctly. This will reduce
+	 * fragmentation by A LOT */
+
+	/* So I'm already limited by time due to life, so i'll with the quick */
+
+	/* Step 1, iterate to the last bucket */
+	while (bIterator != MFS_END_OF_CHAIN) {
+		pIterator = bIterator;
+		if (MfsGetNextBucket(Fs, bIterator, &bIterator, &bLength)) {
+			return -1;
+		}
+	}
+
+	/* Ok, so now update the pointer to free list */
+	if (MfsSetNextBucket(Fs, pIterator, mData->FreeIndex, bLength, 0)) {
+		return -1;
+	}
+
+	/* Update initial free bucket */
+	mData->FreeIndex = StartBucket;
 
 	/* Done! */
-	return 0;
+	return MfsUpdateMb(Fs);
 }
 
 /* Zero Bucket - Tool for 
