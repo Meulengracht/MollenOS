@@ -50,9 +50,16 @@ extern "C" {
 #define _IOLBF						0x2
 #define _IONBF						0x4
 
+/* Set fpos_t to the arch-specific width */
+typedef size_t fpos_t;
+
 /* ErrNo */
 #define _MAX_ERRNO	127
 _CRT_EXTERN char *_errstrings[];
+
+/* The C-Library Error Codes */
+#define CLIB_EOF_CODE	0x1
+#define CLIB_SEEK_CODE	0x2
 
 /* FileStream */
 typedef struct _cLibFileStream
@@ -96,17 +103,17 @@ _CRT_EXTERN int vasprintf(char **ret, const char *format, va_list ap);
 //extern int sscanf(char *out, const char *format, ...);
 
 /* Character IO */
-_CRT_EXTERN int cflush(uint32_t color);
-_CRT_EXTERN int fgetc(FILE * stream);
-_CRT_EXTERN int fputc(int character, FILE * stream);
-_CRT_EXTERN char *fgets(char * buf, int bsize, FILE * stream);
-_CRT_EXTERN int fputs(const char * str, FILE * stream);
-_CRT_EXTERN int getc(FILE *stream);
-_CRT_EXTERN int putc(int character, FILE * stream);
-_CRT_EXTERN int getchar(void);
-_CRT_EXTERN char *gets(char *sstr);
 _CRT_EXTERN int putchar(int character);
-_CRT_EXTERN int puts(char *sstr);
+//_CRT_EXTERN int cflush(uint32_t color);
+//_CRT_EXTERN int fgetc(FILE * stream);
+//_CRT_EXTERN int fputc(int character, FILE * stream);
+//_CRT_EXTERN char *fgets(char * buf, int bsize, FILE * stream);
+//_CRT_EXTERN int fputs(const char * str, FILE * stream);
+//_CRT_EXTERN int getc(FILE *stream);
+//_CRT_EXTERN int putc(int character, FILE * stream);
+//_CRT_EXTERN int getchar(void);
+//_CRT_EXTERN char *gets(char *sstr);
+//_CRT_EXTERN int puts(char *sstr);
 //int ungetc ( int character, FILE * stream );
 
 /* Direct IO */
@@ -115,8 +122,8 @@ _CRT_EXTERN size_t fwrite(const void * vptr, size_t size, size_t count, FILE * s
 
 /* File Positioning */
 //int fgetpos ( FILE * stream, fpos_t * pos );
-_CRT_EXTERN int fseek(FILE * stream, long int offset, int origin);
 //int fsetpos ( FILE * stream, const fpos_t * pos );
+_CRT_EXTERN int fseek(FILE * stream, long int offset, int origin);
 _CRT_EXTERN long int ftell(FILE * stream);
 _CRT_EXTERN void rewind(FILE * stream);
 _CRT_EXTERN int feof(FILE * stream);

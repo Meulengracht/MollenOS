@@ -95,8 +95,17 @@ FILE *freopen(const char * filename, const char * mode, FILE * stream)
 	{
 		/* Switch access mode of file 
 		 * --- support query */
+		
+		/* Convert flags */
+		mFlags = fflags(mode);
 
+		/* Syscall */
+		RetVal = Syscall4(MOLLENOS_SYSCALL_VFSQUERY, MOLLENOS_SYSCALL_PARAM(stream), 
+			MOLLENOS_SYSCALL_PARAM(3), MOLLENOS_SYSCALL_PARAM(&mFlags), MOLLENOS_SYSCALL_PARAM(sizeof(mFlags)));
 
+		/* Store */
+		stream->code = 0;
+		stream->flags = mFlags;
 
 		/* Done */
 		return stream;

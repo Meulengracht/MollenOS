@@ -328,14 +328,14 @@ int ScVfsDelete(FILE *cData)
 
 /* Query information about 
  * a file handle or directory handle */
-int ScVfsQuery(MCoreFile_t *Handle, VfsQueryFunction_t Function, void *Buffer, size_t Length)
+int ScVfsQuery(FILE *cData, VfsQueryFunction_t Function, void *Buffer, size_t Length)
 {
 	/* Sanity */
-	if (Handle == NULL || Buffer == NULL)
+	if (cData == NULL || cData->_handle == NULL || Buffer == NULL)
 		return -1;
 
 	/* Redirect to Vfs */
-	return 0 - (int)VfsQuery(Handle, Function, Buffer, Length);
+	return 0 - (int)VfsQuery((MCoreFile_t*)cData->_handle, Function, Buffer, Length);
 }
 
 /***********************

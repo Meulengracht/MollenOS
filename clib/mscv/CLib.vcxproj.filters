@@ -46,6 +46,9 @@
     <Filter Include="Source\stdio\File">
       <UniqueIdentifier>{6dda5bb2-7d9e-4e05-998d-25f99c6add29}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Source\stdio\Error Handling">
+      <UniqueIdentifier>{66be516c-4e4a-4c96-937d-0924cdcaabee}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\src\string\atof.c">
@@ -316,6 +319,18 @@
       <Filter>Source\stdio\File</Filter>
     </ClCompile>
     <ClCompile Include="..\src\stdio\fwrite.c">
+      <Filter>Source\stdio\File</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\stdio\feof.c">
+      <Filter>Source\stdio\File</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\stdio\frewind.c">
+      <Filter>Source\stdio\File</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\stdio\fseek.c">
+      <Filter>Source\stdio\File</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\stdio\ftell.c">
       <Filter>Source\stdio\File</Filter>
     </ClCompile>
   </ItemGroup>
