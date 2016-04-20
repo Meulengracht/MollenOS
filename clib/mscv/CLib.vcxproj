@@ -37,9 +37,12 @@
     <ClCompile Include="..\src\os\Syscalls.c" />
     <ClCompile Include="..\src\os\System.c" />
     <ClCompile Include="..\src\signal\signal.c" />
+    <ClCompile Include="..\src\stdio\clearerr.c" />
     <ClCompile Include="..\src\stdio\fclose.c" />
     <ClCompile Include="..\src\stdio\feof.c" />
+    <ClCompile Include="..\src\stdio\ferror.c" />
     <ClCompile Include="..\src\stdio\fflags.c" />
+    <ClCompile Include="..\src\stdio\fgetpos.c" />
     <ClCompile Include="..\src\stdio\fopen.c" />
     <ClCompile Include="..\src\stdio\fprintf.c" />
     <ClCompile Include="..\src\stdio\fread.c" />
@@ -47,12 +50,16 @@
     <ClCompile Include="..\src\stdio\freopen.c" />
     <ClCompile Include="..\src\stdio\frewind.c" />
     <ClCompile Include="..\src\stdio\fseek.c" />
+    <ClCompile Include="..\src\stdio\fsetpos.c" />
     <ClCompile Include="..\src\stdio\ftell.c" />
     <ClCompile Include="..\src\stdio\fwrite.c" />
+    <ClCompile Include="..\src\stdio\perror.c" />
     <ClCompile Include="..\src\stdio\printf.c" />
     <ClCompile Include="..\src\stdio\snprintf.c" />
     <ClCompile Include="..\src\stdio\sprintf.c" />
+    <ClCompile Include="..\src\stdio\sscanf.c" />
     <ClCompile Include="..\src\stdio\stream.c" />
+    <ClCompile Include="..\src\stdio\strerror.c" />
     <ClCompile Include="..\src\stdio\vasprintf.c" />
     <ClCompile Include="..\src\stdio\vfprintf.c" />
     <ClCompile Include="..\src\stdio\vprintf.c" />
@@ -101,6 +108,7 @@
     <ClCompile Include="..\src\string\strtok.c" />
     <ClCompile Include="..\src\string\strtol.c" />
     <ClCompile Include="..\src\string\strtold.c" />
+    <ClCompile Include="..\src\string\strtoll.c" />
     <ClCompile Include="..\src\string\strtoul.c" />
     <ClCompile Include="..\src\string\strtoull.c" />
     <ClCompile Include="..\src\string\strxfrm.c" />

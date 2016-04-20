@@ -7,6 +7,7 @@
 
 char *_errstrings[] = 
 {
+	"No Error",
 	"Not super-user",
 	"No such file or directory",
 	"No such process",

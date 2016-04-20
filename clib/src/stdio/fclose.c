@@ -68,6 +68,10 @@ int fclose(FILE * stream)
 		/* Return */
 		return EOF;
 	}
-	else
-		return 0;
+	
+	/* Clear error */
+	_set_errno(EOK);
+
+	/* Done */
+	return 0;
 }

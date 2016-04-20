@@ -53,6 +53,7 @@ long int ftell(FILE * stream)
 	if (!RetVal) {
 		/* Now we can calculate */
 		fPos = *((long*)(&Buffer[16]));
+		_set_errno(EOK);
 		return fPos;
 	}
 

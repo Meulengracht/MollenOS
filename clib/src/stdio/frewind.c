@@ -40,4 +40,8 @@ void rewind(FILE * stream)
 	/* Seek to 0 */
 	RetVal = Syscall2(MOLLENOS_SYSCALL_VFSSEEK, 
 		MOLLENOS_SYSCALL_PARAM(stream), MOLLENOS_SYSCALL_PARAM(0));
+
+	/* Sanity */
+	if (stream->code == CLIB_OK_CODE)
+		_set_errno(EOK);
 }

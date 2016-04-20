@@ -88,8 +88,12 @@ FILE *freopen(const char * filename, const char * mode, FILE * stream)
 			free(stream);
 			return NULL;
 		}
-		else
-			return stream;
+		
+		/* Sanity */
+		_set_errno(EOK);
+
+		/* Done */
+		return stream;
 	}
 	else
 	{
@@ -106,6 +110,9 @@ FILE *freopen(const char * filename, const char * mode, FILE * stream)
 		/* Store */
 		stream->code = 0;
 		stream->flags = mFlags;
+
+		/* clear error */
+		_set_errno(EOK);
 
 		/* Done */
 		return stream;

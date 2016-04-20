@@ -79,6 +79,9 @@ int remove(const char * filename)
 		return errno;
 	}
 
+	/* Clear Error */
+	_set_errno(EOK);
+
 	/* Cleanup */
 	fclose(stream);
 	

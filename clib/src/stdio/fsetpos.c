@@ -16,7 +16,7 @@
 * along with this program.If not, see <http://www.gnu.org/licenses/>.
 *
 *
-* MollenOS C Library - File Seek
+* MollenOS C Library - File Set Position
 */
 
 /* Includes */
@@ -26,51 +26,23 @@
 #include <stdlib.h>
 #include <os/Syscall.h>
 
-/* The seek
- * Set the file position */
-int fseek(FILE * stream, long int offset, int origin)
+/* The fsetpos
+ * Restores the file position */
+int fsetpos(FILE * stream, const fpos_t * pos)
 {
 	/* Syscall Result */
 	int RetVal = 0;
-	long int SeekSpot = 0;
 
 	/* Sanity */
-	if (stream == NULL) {
+	if (stream == NULL
+		|| pos == NULL) {
 		_set_errno(EINVAL);
 		return -1;
 	}
 
-	/* Depends on origin */
-	if (origin == SEEK_SET)
-		SeekSpot = offset;
-	else {
-		/* We need current position / size */
-
-		/* Prepare a buffer */
-		long fPos = 0, fSize = 0;
-		char Buffer[64];
-		memset(Buffer, 0, sizeof(Buffer));
-
-		/* Syscall */
-		RetVal = Syscall4(MOLLENOS_SYSCALL_VFSQUERY, MOLLENOS_SYSCALL_PARAM(stream),
-			MOLLENOS_SYSCALL_PARAM(0), 
-			MOLLENOS_SYSCALL_PARAM(&Buffer[0]), 
-			MOLLENOS_SYSCALL_PARAM(sizeof(Buffer)));
-
-		/* Now we can calculate */
-		fPos = *((long*)(&Buffer[16]));
-		fSize = *((long*)(&Buffer[0]));
-
-		/* Lets see .. */
-		if (origin == SEEK_CUR)
-			SeekSpot = fPos + offset;
-		else
-			SeekSpot = fSize + offset;
-	}
-
 	/* Seek to 0 */
 	RetVal = Syscall2(MOLLENOS_SYSCALL_VFSSEEK,
-		MOLLENOS_SYSCALL_PARAM(stream), MOLLENOS_SYSCALL_PARAM(SeekSpot));
+		MOLLENOS_SYSCALL_PARAM(stream), MOLLENOS_SYSCALL_PARAM(*pos));
 
 	/* Sanity */
 	if (stream->code == CLIB_OK_CODE)

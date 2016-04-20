@@ -10,22 +10,22 @@ INCLUDELIB MSVCRT
 INCLUDELIB OLDNAMES
 
 _DATA	SEGMENT
-$SG2681	DB	'-', 00H
+$SG2710	DB	'-', 00H
 	ORG $+2
-$SG2684	DB	'+', 00H
+$SG2713	DB	'+', 00H
 	ORG $+2
-$SG2687	DB	' ', 00H
+$SG2716	DB	' ', 00H
 	ORG $+2
-?_nullstring@?1??streamout@@9@9 DD FLAT:$SG2726		; `streamout'::`2'::_nullstring
-$SG2726	DB	'(null)', 00H
+?_nullstring@?1??streamout@@9@9 DD FLAT:$SG2755		; `streamout'::`2'::_nullstring
+$SG2755	DB	'(null)', 00H
 	ORG $+1
-$SG2943	DB	'-', 00H
+$SG2972	DB	'-', 00H
 	ORG $+2
-$SG2946	DB	'+', 00H
+$SG2975	DB	'+', 00H
 	ORG $+2
-$SG2949	DB	' ', 00H
+$SG2978	DB	' ', 00H
 	ORG $+2
-$SG2953	DB	'0', 00H
+$SG2982	DB	'0', 00H
 _DATA	ENDS
 CONST	SEGMENT
 ?digits_l@?1??format_float@@9@9 DB '0123456789abcdef0x', 00H ; `format_float'::`2'::digits_l
@@ -1178,7 +1178,7 @@ $LN225@streamout:
 ; 710  : 				prefix = ("-");
 
   00498	c7 45 ec 00 00
-	00 00		 mov	 DWORD PTR _prefix$1$[ebp], OFFSET $SG2943
+	00 00		 mov	 DWORD PTR _prefix$1$[ebp], OFFSET $SG2972
   0049f	83 d2 00	 adc	 edx, 0
   004a2	f7 da		 neg	 edx
   004a4	e9 97 00 00 00	 jmp	 $LN272@streamout
@@ -1192,7 +1192,7 @@ $LN38@streamout:
 
 ; 713  : 				prefix = ("+");
 
-  004ae	b9 00 00 00 00	 mov	 ecx, OFFSET $SG2946
+  004ae	b9 00 00 00 00	 mov	 ecx, OFFSET $SG2975
   004b3	89 4d ec	 mov	 DWORD PTR _prefix$1$[ebp], ecx
   004b6	e9 8b 00 00 00	 jmp	 $case_number$276
 $LN36@streamout:
@@ -1205,7 +1205,7 @@ $LN36@streamout:
 
 ; 715  : 				prefix = (" ");
 
-  004c4	b9 00 00 00 00	 mov	 ecx, OFFSET $SG2949
+  004c4	b9 00 00 00 00	 mov	 ecx, OFFSET $SG2978
   004c9	89 4d ec	 mov	 DWORD PTR _prefix$1$[ebp], ecx
 
 ; 716  : 
@@ -1230,7 +1230,7 @@ $LN33@streamout:
 ; 723  : 				prefix = ("0");
 
   004da	c7 45 ec 00 00
-	00 00		 mov	 DWORD PTR _prefix$1$[ebp], OFFSET $SG2953
+	00 00		 mov	 DWORD PTR _prefix$1$[ebp], OFFSET $SG2982
 
 ; 724  : 				if (precision > 0) precision--;
 
@@ -2226,7 +2226,7 @@ $LN33@format_flo:
 
   00330	8b 45 18	 mov	 eax, DWORD PTR _prefix$[ebp]
   00333	c7 00 00 00 00
-	00		 mov	 DWORD PTR [eax], OFFSET $SG2681
+	00		 mov	 DWORD PTR [eax], OFFSET $SG2710
   00339	eb 1f		 jmp	 SHORT $LN14@format_flo
 $LN18@format_flo:
 
@@ -2241,7 +2241,7 @@ $LN18@format_flo:
 
   00342	8b 45 18	 mov	 eax, DWORD PTR _prefix$[ebp]
   00345	c7 00 00 00 00
-	00		 mov	 DWORD PTR [eax], OFFSET $SG2684
+	00		 mov	 DWORD PTR [eax], OFFSET $SG2713
   0034b	eb 0d		 jmp	 SHORT $LN14@format_flo
 $LN16@format_flo:
 
@@ -2254,7 +2254,7 @@ $LN16@format_flo:
 
   00351	8b 45 18	 mov	 eax, DWORD PTR _prefix$[ebp]
   00354	c7 00 00 00 00
-	00		 mov	 DWORD PTR [eax], OFFSET $SG2687
+	00		 mov	 DWORD PTR [eax], OFFSET $SG2716
 $LN14@format_flo:
 
 ; 397  : 

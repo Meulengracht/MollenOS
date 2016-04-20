@@ -16,7 +16,7 @@
 * along with this program.If not, see <http://www.gnu.org/licenses/>.
 *
 *
-* MollenOS C Library - File Write
+* MollenOS C Library - Print Error
 */
 
 /* Includes */
@@ -26,32 +26,25 @@
 #include <stdlib.h>
 #include <os/Syscall.h>
 
-/* The fwrite
-* writes to a file handle */
-size_t fwrite(const void * vptr, size_t size, size_t count, FILE * stream)
+/* The perror
+ * Interprets the value of errno as 
+ * an error message, and prints it to stderr */
+void perror(const char * str)
 {
-	/* Variables */
-	size_t BytesToWrite = count * size;
-	int RetVal = 0;
+	/* Temp format buffer */
+	char TmpBuffer[256];
+
+	/* Null it */
+	memset(TmpBuffer, 0, sizeof(TmpBuffer));
 
 	/* Sanity */
-	if (vptr == NULL
-		|| stream == NULL
-		|| BytesToWrite == 0)
-		return 0;
+	if (str != NULL) {
+		sprintf(TmpBuffer, "%s: %s\n", str, strerror(errno));
+	}
+	else {
+		sprintf(TmpBuffer, "%s\n", strerror(errno));
+	}
 
-	/* Syscall */
-	RetVal = Syscall3(MOLLENOS_SYSCALL_VFSWRITE, MOLLENOS_SYSCALL_PARAM(stream),
-		MOLLENOS_SYSCALL_PARAM(vptr), MOLLENOS_SYSCALL_PARAM(BytesToWrite));
-
-	/* No need to check return
-	* the syscall will set error code if any */
-	BytesToWrite = (size_t)RetVal;
-
-	/* Sanity */
-	if (stream->code == CLIB_OK_CODE)
-		_set_errno(EOK);
-
-	/* Gj */
-	return BytesToWrite;
+	/* Print */
+	printf(TmpBuffer);
 }

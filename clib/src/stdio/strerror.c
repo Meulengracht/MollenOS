@@ -16,7 +16,7 @@
 * along with this program.If not, see <http://www.gnu.org/licenses/>.
 *
 *
-* MollenOS C Library - File Write
+* MollenOS C Library - Error To String
 */
 
 /* Includes */
@@ -26,32 +26,19 @@
 #include <stdlib.h>
 #include <os/Syscall.h>
 
-/* The fwrite
-* writes to a file handle */
-size_t fwrite(const void * vptr, size_t size, size_t count, FILE * stream)
+/* The strerror
+ * converts an error code
+ * to a string representation */
+char *strerror(int errnum)
 {
-	/* Variables */
-	size_t BytesToWrite = count * size;
-	int RetVal = 0;
+	/* Sanitize upper bound */
+	if (errnum >= _MAX_ERRNO)
+		return _errstrings[126];
 
-	/* Sanity */
-	if (vptr == NULL
-		|| stream == NULL
-		|| BytesToWrite == 0)
-		return 0;
+	/* Sanitize lower bound */
+	if (errnum < 0)
+		return _errstrings[0];
 
-	/* Syscall */
-	RetVal = Syscall3(MOLLENOS_SYSCALL_VFSWRITE, MOLLENOS_SYSCALL_PARAM(stream),
-		MOLLENOS_SYSCALL_PARAM(vptr), MOLLENOS_SYSCALL_PARAM(BytesToWrite));
-
-	/* No need to check return
-	* the syscall will set error code if any */
-	BytesToWrite = (size_t)RetVal;
-
-	/* Sanity */
-	if (stream->code == CLIB_OK_CODE)
-		_set_errno(EOK);
-
-	/* Gj */
-	return BytesToWrite;
+	/* Yay */
+	return _errstrings[errnum];
 }

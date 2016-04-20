@@ -90,6 +90,10 @@ FILE *fopen(const char * filename, const char * mode)
 		free(fHandle);
 		return NULL;
 	}
-	else
-		return fHandle;
+	
+	/* Clear Error */
+	_set_errno(EOK);
+	
+	/* Done */
+	return fHandle;
 }

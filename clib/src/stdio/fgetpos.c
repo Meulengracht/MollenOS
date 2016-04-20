@@ -16,7 +16,7 @@
 * along with this program.If not, see <http://www.gnu.org/licenses/>.
 *
 *
-* MollenOS C Library - File Seek
+* MollenOS C Library - File Save Position
 */
 
 /* Includes */
@@ -26,56 +26,67 @@
 #include <stdlib.h>
 #include <os/Syscall.h>
 
-/* The seek
- * Set the file position */
-int fseek(FILE * stream, long int offset, int origin)
+/* The fgetpos
+ * Saves the file position */
+int fgetpos(FILE * stream, fpos_t * pos)
 {
 	/* Syscall Result */
 	int RetVal = 0;
-	long int SeekSpot = 0;
+	long fPos = 0;
+	char Buffer[64];
 
 	/* Sanity */
-	if (stream == NULL) {
+	if (stream == NULL
+		|| pos == NULL) {
 		_set_errno(EINVAL);
 		return -1;
 	}
 
-	/* Depends on origin */
-	if (origin == SEEK_SET)
-		SeekSpot = offset;
-	else {
-		/* We need current position / size */
+	/* Prepare a buffer */
+	memset(Buffer, 0, sizeof(Buffer));
 
-		/* Prepare a buffer */
-		long fPos = 0, fSize = 0;
-		char Buffer[64];
-		memset(Buffer, 0, sizeof(Buffer));
+	/* Syscall */
+	RetVal = Syscall4(MOLLENOS_SYSCALL_VFSQUERY, MOLLENOS_SYSCALL_PARAM(stream),
+		MOLLENOS_SYSCALL_PARAM(0),
+		MOLLENOS_SYSCALL_PARAM(&Buffer[0]),
+		MOLLENOS_SYSCALL_PARAM(sizeof(Buffer)));
 
-		/* Syscall */
-		RetVal = Syscall4(MOLLENOS_SYSCALL_VFSQUERY, MOLLENOS_SYSCALL_PARAM(stream),
-			MOLLENOS_SYSCALL_PARAM(0), 
-			MOLLENOS_SYSCALL_PARAM(&Buffer[0]), 
-			MOLLENOS_SYSCALL_PARAM(sizeof(Buffer)));
-
+	if (!RetVal) 
+	{
 		/* Now we can calculate */
 		fPos = *((long*)(&Buffer[16]));
-		fSize = *((long*)(&Buffer[0]));
 
-		/* Lets see .. */
-		if (origin == SEEK_CUR)
-			SeekSpot = fPos + offset;
-		else
-			SeekSpot = fSize + offset;
+		/* Store in buffer */
+		*pos = (fpos_t)fPos;
+
+		/* Clear err and return */
+		_set_errno(EOK);
+		return 0;
 	}
 
-	/* Seek to 0 */
-	RetVal = Syscall2(MOLLENOS_SYSCALL_VFSSEEK,
-		MOLLENOS_SYSCALL_PARAM(stream), MOLLENOS_SYSCALL_PARAM(SeekSpot));
+	/* Error */
+	if (RetVal == -1)
+		_set_errno(EINVAL);
+	else if (RetVal == -2)
+		_set_errno(EINVAL);
+	else if (RetVal == -3)
+		_set_errno(ENOENT);
+	else if (RetVal == -4)
+		_set_errno(ENOENT);
+	else if (RetVal == -5)
+		_set_errno(EACCES);
+	else if (RetVal == -6)
+		_set_errno(EISDIR);
+	else if (RetVal == -7)
+		_set_errno(EEXIST);
+	else if (RetVal == -8)
+		_set_errno(EIO);
+	else
+		_set_errno(EINVAL);
 
-	/* Sanity */
-	if (stream->code == CLIB_OK_CODE)
-		_set_errno(EOK);
+	/* Zero */
+	*pos = 0;
 
 	/* Done */
-	return RetVal;
+	return -1;
 }

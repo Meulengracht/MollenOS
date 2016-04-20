@@ -333,6 +333,30 @@
     <ClCompile Include="..\src\stdio\ftell.c">
       <Filter>Source\stdio\File</Filter>
     </ClCompile>
+    <ClCompile Include="..\src\stdio\clearerr.c">
+      <Filter>Source\stdio\Error Handling</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\stdio\ferror.c">
+      <Filter>Source\stdio\Error Handling</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\stdio\perror.c">
+      <Filter>Source\stdio\Error Handling</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\stdio\strerror.c">
+      <Filter>Source\stdio\Error Handling</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\stdio\fgetpos.c">
+      <Filter>Source\stdio\File</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\stdio\fsetpos.c">
+      <Filter>Source\stdio\File</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\stdio\sscanf.c">
+      <Filter>Source\stdio\Printf</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\string\strtoll.c">
+      <Filter>Source\string</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <MASM Include="..\crt\alldvrm.S">
