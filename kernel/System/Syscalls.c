@@ -326,6 +326,17 @@ int ScVfsDelete(FILE *cData)
 	return VfsDelete((MCoreFile_t*)cData->_handle);
 }
 
+/* Flush File */
+int ScVfsFlush(FILE *cData)
+{
+	/* Sanity */
+	if (cData == NULL || cData->_handle == NULL)
+		return -1;
+
+	/* Deep Call */
+	return VfsFlush((MCoreFile_t*)cData->_handle);
+}
+
 /* Query information about 
  * a file handle or directory handle */
 int ScVfsQuery(FILE *cData, VfsQueryFunction_t Function, void *Buffer, size_t Length)
@@ -563,7 +574,7 @@ Addr_t GlbSyscallTable[91] =
 	DefineSyscall(ScVfsRead),
 	DefineSyscall(ScVfsWrite),
 	DefineSyscall(ScVfsSeek),
-	DefineSyscall(NoOperation), //Flush
+	DefineSyscall(ScVfsFlush),
 	DefineSyscall(ScVfsDelete),
 	DefineSyscall(NoOperation), //Move/Copy
 	DefineSyscall(ScVfsQuery),

@@ -37,6 +37,8 @@
 
 #define FILESYSTEM_INIT			":/System/Sapphire.mxi"
 
+#define FILESYSTEM_IDENT_SYS	"%Sys%"
+
 /* Error Codes for VFS Operations */
 typedef enum _VfsErrorCode
 {

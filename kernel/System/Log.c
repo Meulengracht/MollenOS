@@ -23,6 +23,7 @@
 #include <Devices/Video.h>
 #include <Heap.h>
 #include <Log.h>
+#include <Vfs/Vfs.h>
 
 /* CLib */
 #include <stddef.h>
@@ -182,7 +183,81 @@ void LogFlush(LogTarget_t Output)
 	}
 	else if (Output == LogFile)
 	{
+		/* Open log file */
+		int Index = 0;
+		MCoreFile_t *LogFileHandle = VfsOpen(FILESYSTEM_IDENT_SYS ":/System/Log.txt",
+			Read | Write | TruncateIfExists | CreateIfNotExists);
 
+		/* Sanity */
+		if (LogFileHandle->Code != VfsOk) {
+			/* Switch back to console */
+			GlbLogTarget = LogConsole;
+			VfsClose(LogFileHandle);
+			LogFatal("SYST", "Failed to open/create system logfile");
+			return;
+		}
+
+		/* Iterate */
+		while (Index < GlbLogIndex)
+		{
+			/* Get header information */
+			char Type = GlbLog[Index];
+			char Length = GlbLog[Index + 1];
+
+			/* Zero buffer */
+			memset(TempBuffer, 0, 256);
+
+			/* What kind of line is this? */
+			if (Type == LOG_TYPE_RAW)
+			{
+				/* Copy data */
+				memcpy(TempBuffer, &GlbLog[Index + 2], (size_t)Length);
+
+				/* Write it to file */
+				VfsWrite(LogFileHandle, (uint8_t*)TempBuffer, Length);
+
+				/* Increase */
+				Index += 2 + Length;
+			}
+			else
+			{
+				/* We have two chunks to print */
+				char HeaderBuffer[16];
+				char *StartPtr = &GlbLog[Index + 2];
+				char *StartMsgPtr = strchr(StartPtr, ' ');
+				int HeaderLen = (int)StartMsgPtr - (int)StartPtr;
+
+				/* Reset header buffer */
+				memset(HeaderBuffer, 0, 16);
+
+				/* Copy */
+				memcpy(TempBuffer, StartPtr, HeaderLen);
+
+				/* Format header */
+				sprintf(HeaderBuffer, "[%s] ", TempBuffer);
+				
+				/* Write it to file */
+				VfsWrite(LogFileHandle, (uint8_t*)TempBuffer, HeaderLen + 3);
+
+				/* Clear */
+				memset(TempBuffer, 0, HeaderLen + 1);
+
+				/* Increament */
+				Index += 2 + HeaderLen + 1;
+
+				/* Copy data */
+				memcpy(TempBuffer, &GlbLog[Index], (size_t)Length);
+
+				/* Write it to file */
+				VfsWrite(LogFileHandle, (uint8_t*)TempBuffer, Length);
+
+				/* Increase again */
+				Index += Length;
+			}
+		}
+
+		/* Done, close file */
+		VfsClose(LogFileHandle);
 	}
 }
 

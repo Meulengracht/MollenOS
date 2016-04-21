@@ -340,6 +340,7 @@ MString_t *VfsCanonicalizePath(const char *Path)
 {
 	/* Store result */
 	MString_t *AbsPath = MStringCreate(NULL, StrUTF8);
+	list_node_t *fNode = NULL;
 	uint32_t Itr = 0;
 
 	/* Get working directory */
@@ -367,7 +368,7 @@ MString_t *VfsCanonicalizePath(const char *Path)
 				MStringAppendChar(AbsPath, '/');
 		}
 	}
-	
+
 	/* Now, we have to resolve the path in Path */
 	while (Path[Itr])
 	{
@@ -377,6 +378,33 @@ MString_t *VfsCanonicalizePath(const char *Path)
 		{
 			Itr++;
 			continue;
+		}
+
+		/* Identifier/Keyword? */
+		if (Path[Itr] == '%') 
+		{
+			/* Which kind of keyword? */
+			if ((Path[Itr + 1] == 'S' || Path[Itr + 1] == 's')
+				&& Path[Itr + 2] == 'y'
+				&& Path[Itr + 3] == 's'
+				&& Path[Itr + 4] == '%') 
+			{
+				/* Get boot drive identifer */
+				_foreach(fNode, GlbFileSystems)
+				{
+					/* Cast */
+					MCoreFileSystem_t *Fs = (MCoreFileSystem_t*)fNode->data;
+
+					/* Boot drive? */
+					if (Fs->Flags & VFS_MAIN_DRIVE) {
+						MStringAppendString(AbsPath, Fs->Identifier);
+					}
+				}
+
+				/* Skip */
+				Itr += 5;
+				continue;
+			}
 		}
 
 		/* What char is it ? */
@@ -435,10 +463,9 @@ MCoreFile_t *VfsOpen(const char *Path, VfsFileFlags_t OpenFlags)
 
 	/* Allocate */
 	fRet = (MCoreFile_t*)kmalloc(sizeof(MCoreFile_t));
-
-	/* Zero it */
 	memset((void*)fRet, 0, sizeof(MCoreFile_t));
 
+	/* Set initial code */
 	fRet->Code = VfsOk;
 
 	/* Sanity */
@@ -483,6 +510,13 @@ MCoreFile_t *VfsOpen(const char *Path, VfsFileFlags_t OpenFlags)
 				fRet->Flags = OpenFlags;
 				fRet->Fs = Fs;
 
+				/* Initialise buffering */
+				if (!fRet->Flags & NoBuffering) {
+					fRet->oBuffer = (void*)kmalloc(Fs->SectorSize);
+					memset(fRet->oBuffer, 0, Fs->SectorSize);
+					fRet->oBufferPosition = 0;
+				}
+
 				/* Append? */
 				if (OpenFlags & Append)
 					fRet->Code = Fs->Seek(Fs, fRet, fRet->Size);
@@ -514,10 +548,19 @@ VfsErrorCode_t VfsClose(MCoreFile_t *Handle)
 	if (Handle == NULL)
 		return VfsInvalidParameters;
 
-	/* Invalid Handle? */
-	if (Handle->Code != VfsOk
-		|| Handle->Fs == NULL)
+	/* Cleanup Buffers */
+	if (!Handle->Flags & NoBuffering) 
 	{
+		/* Flush them first */
+		VfsFlush(Handle);
+		
+		/* Cleanup */
+		if (Handle->oBuffer != NULL)
+			kfree(Handle->oBuffer);
+	}
+
+	/* Invalid Handle? */
+	if (Handle->Fs == NULL) {
 		kfree(Handle);
 		return VfsOk;
 	}
@@ -589,17 +632,69 @@ size_t VfsRead(MCoreFile_t *Handle, uint8_t *Buffer, size_t Length)
 size_t VfsWrite(MCoreFile_t *Handle, uint8_t *Buffer, size_t Length)
 {
 	/* Vars */
-	size_t BytesWritten = 0;
 	MCoreFileSystem_t *Fs = NULL;
+	size_t BytesWritten = 0;
+	int WriteToDisk = 0;
 
 	/* Sanity */
 	if (Handle == NULL
 		|| Handle->Code != VfsOk)
 		return VfsInvalidParameters;
 
-	/* Deep Read */
+	/* Get Fs */
 	Fs = (MCoreFileSystem_t*)Handle->Fs;
-	BytesWritten = Fs->WriteFile(Fs, Handle, Buffer, Length);
+
+	/* Write to buffer if we can */
+	if (!Handle->Flags & NoBuffering)
+	{
+		/* We have few cases to handle here */
+		size_t BytesAvailable = Fs->SectorSize - Handle->oBufferPosition;
+
+		/* Do we have enough room for the entire transaction? */
+		if (Length < BytesAvailable) {
+			memcpy(Handle->oBuffer, Buffer, Length);
+			Handle->oBufferPosition += Length;
+			BytesWritten = Length;
+		}
+		else
+		{
+			/* This is only really neccesary if we actually
+			 * used the buffer */
+			if (Handle->oBufferPosition != 0)
+			{
+				/* Allocate a temporary buffer big enough */
+				uint8_t *TempBuffer =
+					(uint8_t*)kmalloc(Handle->oBufferPosition + Length);
+
+				/* Copy data over */
+				memcpy(TempBuffer, Handle->oBuffer, Handle->oBufferPosition);
+				memcpy(TempBuffer + Handle->oBufferPosition, Buffer, Length);
+
+				/* Write to Disk */
+				BytesWritten = Fs->WriteFile(Fs, Handle,
+					TempBuffer, Handle->oBufferPosition + Length);
+
+				/* Sanity */
+				if (BytesWritten > Length)
+					BytesWritten = Length;
+
+				/* Free temporary buffer */
+				kfree(TempBuffer);
+
+				/* Reset index */
+				memset(Handle->oBuffer, 0, Fs->SectorSize);
+				Handle->oBufferPosition = 0;
+			}
+			else
+				WriteToDisk = 1;
+		}
+	}
+	else
+		WriteToDisk = 1;
+
+	/* Deep Write */
+	if (WriteToDisk)
+		BytesWritten = Fs->WriteFile(Fs, Handle, Buffer, Length);
 
 	/* Done */
 	return BytesWritten;
@@ -686,4 +781,35 @@ VfsErrorCode_t VfsQuery(MCoreFile_t *Handle, VfsQueryFunction_t Function, void *
 	return ErrCode;
 }
 
-/* Flush, Rename */
+/* Vfs - Flush Handle
+* @Handle - A valid file handle */
+VfsErrorCode_t VfsFlush(MCoreFile_t *Handle)
+{
+	/* Vars */
+	MCoreFileSystem_t *Fs = NULL;
+	size_t BytesWritten = 0;
+
+	/* Sanity */
+	if (Handle == NULL)
+		return VfsInvalidParameters;
+
+	/* Sanity */
+	if (Handle->Flags & NoBuffering
+		|| Handle->oBuffer == NULL
+		|| Handle->oBufferPosition == 0)
+		return VfsOk;
+
+	/* Cast */
+	Fs = (MCoreFileSystem_t*)Handle->Fs;
+
+	/* Write Buffer */
+	BytesWritten = Fs->WriteFile(Fs, Handle, Handle->oBuffer, Handle->oBufferPosition);
+
+	/* Sanity */
+	if (BytesWritten == Handle->oBufferPosition)
+		return VfsOk;
+	else
+		return VfsDiskError;
+}
+
+/* Rename */
