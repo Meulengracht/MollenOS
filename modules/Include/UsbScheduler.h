@@ -67,9 +67,10 @@
 typedef struct _UsbScheduler
 {
 	/* Scheduler Info */
-	size_t MaxBandwidth;
 	size_t Size;
 	size_t MaskSize;
+	size_t MaxBandwidth;
+	size_t MaxMaskBandwidth;
 
 	/* Stats */
 	size_t TotalBandwidth;
@@ -86,9 +87,8 @@ typedef struct _UsbScheduler
 
 /* Init, Destruct, set mask size 
  * General Setup */
-_USBSCHED_API UsbScheduler_t *UsbSchedulerInit(size_t Size, size_t MaxBandwidth);
+_USBSCHED_API UsbScheduler_t *UsbSchedulerInit(size_t Size, size_t MaxBandwidth, size_t MaskSize);
 _USBSCHED_API void UsbSchedulerDestroy(UsbScheduler_t *Schedule);
-_USBSCHED_API void UsbSchedulerSetMaskSize(UsbScheduler_t *Schedule, size_t Size);
 
 /* This function calculates the approx time a transfer 
  * needs to spend on the bus in NS. */

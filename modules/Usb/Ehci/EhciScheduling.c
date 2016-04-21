@@ -137,8 +137,7 @@ void EhciInitQueues(EhciController_t *Controller)
 	Controller->TransactionList = list_create(LIST_SAFE);
 
 	/* Setup a bandwidth scheduler */
-	Controller->Scheduler = UsbSchedulerInit(Controller->FLength * 8, EHCI_MAX_BANDWIDTH);
-	UsbSchedulerSetMaskSize(Controller->Scheduler, 8);
+	Controller->Scheduler = UsbSchedulerInit(Controller->FLength, EHCI_MAX_BANDWIDTH, 8);
 
 	/* Write addresses */
 	Controller->OpRegisters->PeriodicListAddr = 

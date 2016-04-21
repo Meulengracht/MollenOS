@@ -135,17 +135,18 @@ _CRT_EXTERN int vprintf(const char *format, va_list ap);
  *       Character IO          *
  *******************************/
 _CRT_EXTERN int putchar(int character);
-//_CRT_EXTERN int cflush(uint32_t color);
+//_CRT_EXTERN int getchar(void);
+//_CRT_EXTERN char *gets(char *sstr);
+//_CRT_EXTERN int puts(char *sstr);
+
 //_CRT_EXTERN int fgetc(FILE * stream);
 //_CRT_EXTERN int fputc(int character, FILE * stream);
 //_CRT_EXTERN char *fgets(char * buf, int bsize, FILE * stream);
 //_CRT_EXTERN int fputs(const char * str, FILE * stream);
-//_CRT_EXTERN int getc(FILE *stream);
-//_CRT_EXTERN int putc(int character, FILE * stream);
-//_CRT_EXTERN int getchar(void);
-//_CRT_EXTERN char *gets(char *sstr);
-//_CRT_EXTERN int puts(char *sstr);
-//int ungetc ( int character, FILE * stream );
+//_CRT_EXTERN int ungetc ( int character, FILE * stream );
+
+//#define getc(stream) fgetc(stream)
+//#define putc(c, stream) fputc(c, stream)
 
 /*******************************
  *         Direct IO           *

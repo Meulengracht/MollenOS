@@ -32,22 +32,34 @@
  * Instantiates a new scheduler with the given size
  * and max-bandwidth per period 
  * MaxBandwidth is usually either 800 or 900 */
-UsbScheduler_t *UsbSchedulerInit(size_t Size, size_t MaxBandwidth)
+UsbScheduler_t *UsbSchedulerInit(size_t Size, size_t MaxBandwidth, size_t MaskSize)
 {
 	/* Allocate a new instance 
 	 * and zero it out */
 	UsbScheduler_t *Schedule = (UsbScheduler_t*)kmalloc(sizeof(UsbScheduler_t));
 	memset(Schedule, 0, sizeof(UsbScheduler_t));
 
+	/* Sanity, if mask size is not 1 
+	 * we must allow for even more 
+	 * to allow both an 'overview' and their submembers */
+	if (MaskSize != 1)
+		MaskSize++;
+
 	/* Set members */
-	Schedule->Size = Size;
+	Schedule->Size = Size * MaskSize;
+	Schedule->MaskSize = MaskSize;
 	Schedule->MaxBandwidth = MaxBandwidth;
-	Schedule->MaskSize = 1;
+
+	/* Sanity */
+	if (MaskSize != 1)
+		Schedule->MaxMaskBandwidth = (MaxBandwidth * (MaskSize - 1));
+	else
+		Schedule->MaxMaskBandwidth = MaxBandwidth;
 	
 	/* Allocate frame list 
 	 * and make sure it's zero'd out */
-	Schedule->Frames = (size_t*)kmalloc(sizeof(size_t) * Size);
-	memset(Schedule->Frames, 0, sizeof(size_t) * Size);
+	Schedule->Frames = (size_t*)kmalloc(sizeof(size_t) * Schedule->Size);
+	memset(Schedule->Frames, 0, sizeof(size_t) * Schedule->Size);
 
 	/* Reset Lock */
 	SpinlockReset(&Schedule->Lock);
@@ -65,16 +77,6 @@ void UsbSchedulerDestroy(UsbScheduler_t *Schedule)
 
 	/* Free the base */
 	kfree(Schedule);
-}
-
-/* Set Mask Size 
- * Only really used for EHCI 
- * due to it's possibily to schedule micro-frames
- * and not only just frames */
-void UsbSchedulerSetMaskSize(UsbScheduler_t *Schedule, size_t Size)
-{
-	/* Store */
-	Schedule->MaskSize = Size;
 }
 
 /* Calculates bus-time in nano-seconds (approximately) */
@@ -134,7 +136,7 @@ int UsbSchedulerValidate(UsbScheduler_t *Schedule, size_t Period, size_t Bandwid
 	for (i = 0; i < Schedule->Size; )
 	{
 		/* Sanitize initial bandwidth */
-		if ((Schedule->Frames[i] + Bandwidth) > (Schedule->MaxBandwidth * Schedule->MaskSize)) 
+		if ((Schedule->Frames[i] + Bandwidth) > Schedule->MaxMaskBandwidth) 
 		{
 			/* Try to validate on uneven frames 
 			 * if period is not 1 */
@@ -211,7 +213,7 @@ int UsbSchedulerReserveBandwidth(UsbScheduler_t *Schedule, size_t Period, size_t
 	for (i = 0; i < Schedule->Size; )
 	{
 		/* Sanitize initial bandwidth */
-		if ((Schedule->Frames[i] + Bandwidth) > (Schedule->MaxBandwidth * Schedule->MaskSize))
+		if ((Schedule->Frames[i] + Bandwidth) > Schedule->MaxMaskBandwidth)
 		{
 			/* Try to allocate on uneven frames
 			* if period is not 1 */

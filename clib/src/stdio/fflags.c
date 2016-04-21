@@ -65,6 +65,9 @@ int fflags(const char * mode)
 			mFlags |= VFS_READ;
 			PlusConsumed = 1;
 		}
+		if (strchr(mode, 'x') != NULL) {
+			mFlags |= VFS_FAILONEXISTS;
+		}
 	}
 
 	/* Append modes */

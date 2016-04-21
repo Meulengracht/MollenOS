@@ -10,6 +10,7 @@ INCLUDELIB MSVCRT
 INCLUDELIB OLDNAMES
 
 PUBLIC	__errstrings
+PUBLIC	??_C@_08IKODGPEB@No?5Error?$AA@			; `string'
 PUBLIC	??_C@_0P@HDPBNLJJ@Not?5super?9user?$AA@		; `string'
 PUBLIC	??_C@_0BK@FMDHKPNF@No?5such?5file?5or?5directory?$AA@ ; `string'
 PUBLIC	??_C@_0BA@FKIAIBGA@No?5such?5process?$AA@	; `string'
@@ -679,8 +680,13 @@ CONST	ENDS
 CONST	SEGMENT
 ??_C@_0P@HDPBNLJJ@Not?5super?9user?$AA@ DB 'Not super-user', 00H ; `string'
 CONST	ENDS
+;	COMDAT ??_C@_08IKODGPEB@No?5Error?$AA@
+CONST	SEGMENT
+??_C@_08IKODGPEB@No?5Error?$AA@ DB 'No Error', 00H	; `string'
+CONST	ENDS
 _DATA	SEGMENT
-__errstrings DD	FLAT:??_C@_0P@HDPBNLJJ@Not?5super?9user?$AA@
+__errstrings DD	FLAT:??_C@_08IKODGPEB@No?5Error?$AA@
+	DD	FLAT:??_C@_0P@HDPBNLJJ@Not?5super?9user?$AA@
 	DD	FLAT:??_C@_0BK@FMDHKPNF@No?5such?5file?5or?5directory?$AA@
 	DD	FLAT:??_C@_0BA@FKIAIBGA@No?5such?5process?$AA@
 	DD	FLAT:??_C@_0BI@EAGLFFDI@Interrupted?5system?5call?$AA@
