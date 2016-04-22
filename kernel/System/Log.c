@@ -261,6 +261,9 @@ void LogFlush(LogTarget_t Output)
 
 		/* Done, close file */
 		VfsClose(LogFileHandle);
+
+		/* NOW it's ok to log to file */
+		GlbLogTarget = LogFile;
 	}
 }
 
