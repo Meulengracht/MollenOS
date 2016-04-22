@@ -48,7 +48,7 @@ int main(int argc, char* argv[])
 	}
 
 	/* Create renderer */
-	MainRenderer = SDL_CreateRenderer(MainWnd, -1, SDL_RENDERER_SOFTWARE);
+	MainRenderer = SDL_CreateRenderer(MainWnd, -1, SDL_RENDERER_SOFTWARE | SDL_RENDERER_TARGETTEXTURE);
 	if (MainRenderer == NULL) {
 		MollenOSSystemLog(SDL_GetError());
 		SDL_DestroyWindow(MainWnd);

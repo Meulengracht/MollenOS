@@ -747,7 +747,6 @@ void EhciDeallocateBuffers(EhciEndpoint_t *Ep, EhciTransferDescriptor_t *Td)
 size_t EhciTdFill(EhciTransferDescriptor_t *Td, Addr_t Buffer, size_t Length)
 {
 	/* Vars */
-	Addr_t Physical = 0;
 	size_t LengthRemaining = Length;
 	size_t Count = 0;
 	int i;
@@ -756,14 +755,14 @@ size_t EhciTdFill(EhciTransferDescriptor_t *Td, Addr_t Buffer, size_t Length)
 	if (Length == 0)
 		return 0;
 
-	/* Get physical */
-	Physical = AddressSpaceGetMap(AddressSpaceGetCurrent(), Buffer);
-
 	/* Iterate */
 	for (i = 0; LengthRemaining > 0 && i < 5; i++)
 	{
+		/* Get physical */
+		Addr_t Physical = AddressSpaceGetMap(AddressSpaceGetCurrent(), Buffer + (i * PAGE_SIZE));
+
 		/* Set buffer */
-		Td->Buffers[i] = EHCI_TD_BUFFER(Physical + Count);
+		Td->Buffers[i] = EHCI_TD_BUFFER(Physical);
 
 		/* Set extended? */
 		if (sizeof(Addr_t) > 4)
@@ -1122,6 +1121,7 @@ void EhciTransactionSend(void *cData, UsbHcRequest_t *Request)
 
 		/* Iterate and set last to INT */
 		Transaction = Request->Transactions;
+
 		while (Transaction->Link)
 		{
 #ifdef EHCI_DIAGNOSTICS
@@ -1134,7 +1134,6 @@ void EhciTransactionSend(void *cData, UsbHcRequest_t *Request)
 #endif
 			/* Next */
 			Transaction = Transaction->Link;
-
 #ifdef EHCI_DIAGNOSTICS
 			if (Transaction->Link == NULL)
 			{

@@ -28,17 +28,19 @@
 /* Definitons */
 typedef enum _MollenOSDeviceType
 {
-	DeviceCpu = 0,
-	DeviceApic = 1,
-	DeviceClock = 2,
-	DeviceTimer = 3,
-	DevicePerfTimer = 4,
-	DeviceInput = 5,
-	DeviceStorage = 6,
-	DeviceVideo = 7
+	DeviceUnknown = 0,
+	DeviceCpu,
+	DeviceCpuCore,
+	DeviceController,
+	DeviceBus,
+	DeviceClock,
+	DeviceTimer,
+	DevicePerfTimer,
+	DeviceInput,
+	DeviceStorage,
+	DeviceVideo
 
 } MollenOSDeviceType_t;
-
 
 /* Structures */
 typedef struct _MollenOSVideoDescriptor

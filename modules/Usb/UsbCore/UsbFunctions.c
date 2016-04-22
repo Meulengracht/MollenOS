@@ -184,8 +184,11 @@ void UsbTransactionOut(UsbHc_t *Hc, UsbHcRequest_t *Request, int Handshake, void
 		RemainingLen = 0;
 		TransfersLeft = 0;
 
-		/* Will we need a ZLP? */
+		/* Will we need a ZLP? 
+		 * But never, EVER do it on zero length transfers
+		 * otherwise it'll loop forever */
 		if (Request->Type == BulkTransfer
+			&& Length != 0
 			&& (Length % Request->Endpoint->MaxPacketSize) == 0)
 			AddZeroLength = 1;
 	}
@@ -209,9 +212,8 @@ void UsbTransactionOut(UsbHc_t *Hc, UsbHcRequest_t *Request, int Handshake, void
 	/* Check up on this ! !*/
 	if (TransfersLeft > 0)
 		UsbTransactionOut(Hc, Request, 0, (void*)((uint8_t*)Buffer + FixedLen), RemainingLen);
-
 	/* Add zero length */
-	if (AddZeroLength != 0)
+	else if (AddZeroLength != 0)
 		UsbTransactionOut(Hc, Request, 0, NULL, 0);
 }
 

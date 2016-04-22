@@ -47,7 +47,7 @@ typedef int DevId_t;
 /* Device Types */
 typedef enum _DeviceType
 {
-	DeviceUnknown,
+	DeviceUnknown = 0,
 	DeviceCpu,
 	DeviceCpuCore,
 	DeviceController,

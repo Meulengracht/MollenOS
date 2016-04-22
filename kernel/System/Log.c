@@ -183,6 +183,9 @@ void LogFlush(LogTarget_t Output)
 	}
 	else if (Output == LogFile)
 	{
+		/* Temporary set to console */
+		GlbLogTarget = LogConsole;
+
 		/* Open log file */
 		int Index = 0;
 		MCoreFile_t *LogFileHandle = VfsOpen(FILESYSTEM_IDENT_SYS ":/System/Log.txt",
