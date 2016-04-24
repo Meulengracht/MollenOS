@@ -856,16 +856,19 @@ UsbTransferStatus_t UsbMsdSendSCSICommandOut(uint8_t ScsiCommand, MsdDevice_t *D
 		/* Setup Transfer */
 		UsbTransactionInit((UsbHc_t*)Device->UsbDevice->HcDriver, &DataRequest, BulkTransfer,
 			Device->UsbDevice, Device->EpOut);
-		
-		/* Send CBW */
+
+		/* Send the Command Block */
 		UsbTransactionOut((UsbHc_t*)Device->UsbDevice->HcDriver, &DataRequest,
 			0, &CommandBlock, sizeof(MsdCommandBlockWrap_t));
 
-		/* Send Data */
-		UsbTransactionOut((UsbHc_t*)Device->UsbDevice->HcDriver, &DataRequest, 0, Buffer, DataLength);
+		/* Send the data */
+		UsbTransactionOut((UsbHc_t*)Device->UsbDevice->HcDriver, &DataRequest, 
+			0, Buffer, DataLength);
 
-		/* Gogo! */
+		/* Execute transaction */
 		UsbTransactionSend((UsbHc_t*)Device->UsbDevice->HcDriver, &DataRequest);
+
+		/* Cleanup */
 		UsbTransactionDestroy((UsbHc_t*)Device->UsbDevice->HcDriver, &DataRequest);
 	}
 	else
@@ -897,22 +900,32 @@ UsbTransferStatus_t UsbMsdSendSCSICommandOut(uint8_t ScsiCommand, MsdDevice_t *D
 
 	/* Sanity */
 	if (DataRequest.Status != TransferFinished)
+	{
+		/* Stall? */
+		if (DataRequest.Status == TransferStalled)
+			UsbMsdResetRecovery(Device);
+
+		/* Unfinished */
 		return DataRequest.Status;
+	}
 
 	/* Now we do the StatusTransfer */
 	UsbTransactionInit((UsbHc_t*)Device->UsbDevice->HcDriver, &StatusRequest, BulkTransfer,
 		Device->UsbDevice, Device->EpIn);
-	UsbTransactionOut((UsbHc_t*)Device->UsbDevice->HcDriver, &StatusRequest, 0, 
+
+	/* Read in status */
+	UsbTransactionIn((UsbHc_t*)Device->UsbDevice->HcDriver, &StatusRequest, 0, 
 		&StatusBlock, sizeof(MsdCommandStatusWrap_t));
+
+	/* Send it */
 	UsbTransactionSend((UsbHc_t*)Device->UsbDevice->HcDriver, &StatusRequest);
+
+	/* Cleanup */
 	UsbTransactionDestroy((UsbHc_t*)Device->UsbDevice->HcDriver, &StatusRequest);
 
-	/* Sanity */
-	if (StatusRequest.Status != TransferFinished)
-		return StatusRequest.Status;
-
 	/* Sanity the CSW (only if is not UFI) */
-	if (Device->Type == HardDrive)
+	if (StatusRequest.Status == TransferFinished
+		&& Device->Type == HardDrive)
 		return UsbMsdSanityCsw(Device, &StatusBlock);
 	else
 		return DataRequest.Status;

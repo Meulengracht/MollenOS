@@ -189,7 +189,7 @@ void UsbTransactionOut(UsbHc_t *Hc, UsbHcRequest_t *Request, int Handshake, void
 		 * otherwise it'll loop forever */
 		if (Request->Type == BulkTransfer
 			&& Length != 0
-			&& (Length % Request->Endpoint->MaxPacketSize) == 0)
+			&& (Length % SplitSize) == 0)
 			AddZeroLength = 1;
 	}
 	else

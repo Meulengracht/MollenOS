@@ -33,6 +33,9 @@ int main(int argc, char* argv[])
 	/* Init SDL (Main) */
 	SDL_SetMainReady();
 
+	/* End Boot */
+	MollenOSEndBoot();
+
 	/* Init SDL (Full) */
 	if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_EVENTS) != 0) {
 		MollenOSSystemLog(SDL_GetError());

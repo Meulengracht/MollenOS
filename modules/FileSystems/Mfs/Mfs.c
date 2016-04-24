@@ -794,7 +794,7 @@ MfsFile_t *MfsFindFreeEntry(MCoreFileSystem_t *Fs, uint32_t DirBucket, MString_t
 						(MStringLength(Path) - (StrIndex + 1)));
 
 					/* Go deeper */
-					MfsFile_t *Ret = MfsLocateEntry(Fs, Entry->StartBucket, RestOfPath);
+					MfsFile_t *Ret = MfsFindFreeEntry(Fs, Entry->StartBucket, RestOfPath);
 
 					/* Cleanup */
 					kfree(EntryBuffer);

@@ -193,10 +193,9 @@ void LogFlush(LogTarget_t Output)
 
 		/* Sanity */
 		if (LogFileHandle->Code != VfsOk) {
-			/* Switch back to console */
-			GlbLogTarget = LogConsole;
 			VfsClose(LogFileHandle);
-			LogFatal("SYST", "Failed to open/create system logfile");
+			LogFatal("SYST", "Failed to open/create system logfile: %u", 
+				(size_t)LogFileHandle->Code);
 			return;
 		}
 
