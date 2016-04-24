@@ -100,6 +100,7 @@ _CRT_EXTERN int fclose(FILE * stream);
 _CRT_EXTERN FILE *fopen(const char * filename, const char * mode);
 _CRT_EXTERN FILE *freopen(const char * filename, const char * mode, FILE * stream);
 _CRT_EXTERN int remove(const char * filename);
+_CRT_EXTERN int fflush(FILE * stream);
 
 //Rename
 //tmpfile
@@ -107,7 +108,6 @@ _CRT_EXTERN int remove(const char * filename);
 
 //extern void setbuf (FILE * stream, char * buffer);
 //extern int setvbuf(FILE * stream, char * buffer, int mode, size_t size);
-//extern int fflush(FILE * stream);
 
 /*******************************
  *       Formatted IO          *

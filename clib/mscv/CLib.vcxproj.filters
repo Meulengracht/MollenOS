@@ -357,6 +357,9 @@
     <ClCompile Include="..\src\string\strtoll.c">
       <Filter>Source\string</Filter>
     </ClCompile>
+    <ClCompile Include="..\src\stdio\fflush.c">
+      <Filter>Source\stdio\File</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <MASM Include="..\crt\alldvrm.S">

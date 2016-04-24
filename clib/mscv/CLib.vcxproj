@@ -42,6 +42,7 @@
     <ClCompile Include="..\src\stdio\feof.c" />
     <ClCompile Include="..\src\stdio\ferror.c" />
     <ClCompile Include="..\src\stdio\fflags.c" />
+    <ClCompile Include="..\src\stdio\fflush.c" />
     <ClCompile Include="..\src\stdio\fgetpos.c" />
     <ClCompile Include="..\src\stdio\fopen.c" />
     <ClCompile Include="..\src\stdio\fprintf.c" />
@@ -330,6 +331,7 @@
       <InlineFunctionExpansion>OnlyExplicitInline</InlineFunctionExpansion>
       <BasicRuntimeChecks>Default</BasicRuntimeChecks>
       <BufferSecurityCheck>false</BufferSecurityCheck>
+      <EnableEnhancedInstructionSet>NoExtensions</EnableEnhancedInstructionSet>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>

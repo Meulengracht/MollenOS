@@ -18,13 +18,11 @@ EXTRN	__ctype:BYTE
 ; File c:\users\philip\documents\github\mollenos\clib\src\string\strtoull.c
 ;	COMDAT _strtoull
 _TEXT	SEGMENT
-tv326 = -44						; size = 8
-_acc$ = -44						; size = 8
-tv182 = -36						; size = 4
-tv181 = -32						; size = 4
+tv184 = -36						; size = 4
+tv183 = -32						; size = 4
 _cutlim$1$ = -28					; size = 4
-_cutoff$2$ = -24					; size = 4
-tv173 = -20						; size = 4
+tv326 = -24						; size = 8
+_cutoff$2$ = -20					; size = 4
 _neg$1$ = -16						; size = 4
 _cutoff$1$ = -12					; size = 4
 _any$1$ = -8						; size = 4
@@ -38,7 +36,7 @@ _strtoull PROC						; COMDAT
 
   00000	55		 push	 ebp
   00001	8b ec		 mov	 ebp, esp
-  00003	83 ec 2c	 sub	 esp, 44			; 0000002cH
+  00003	83 ec 24	 sub	 esp, 36			; 00000024H
   00006	56		 push	 esi
 
 ; 17   :   const char *s = nptr;
@@ -162,187 +160,186 @@ $LN16@strtoull:
   0008a	51		 push	 ecx
   0008b	6a ff		 push	 -1
   0008d	6a ff		 push	 -1
-  0008f	89 4d dc	 mov	 DWORD PTR tv182[ebp], ecx
-  00092	89 45 e0	 mov	 DWORD PTR tv181[ebp], eax
+  0008f	89 4d dc	 mov	 DWORD PTR tv184[ebp], ecx
+  00092	89 45 e0	 mov	 DWORD PTR tv183[ebp], eax
   00095	e8 00 00 00 00	 call	 __aulldvrm
-  0009a	89 5d d8	 mov	 DWORD PTR tv326[ebp+4], ebx
-  0009d	0f 57 c0	 xorps	 xmm0, xmm0
-  000a0	8b 5d fc	 mov	 ebx, DWORD PTR _c$1$[ebp]
-  000a3	89 55 e8	 mov	 DWORD PTR _cutoff$2$[ebp], edx
+  0009a	89 5d ec	 mov	 DWORD PTR tv326[ebp+4], ebx
 
 ; 46   :   cutlim = (unsigned long long)ULLONG_MAX % (unsigned long long)base;
 ; 47   :   for (acc = 0, any = 0;; c = *s++)
 
-  000a6	33 d2		 xor	 edx, edx
-  000a8	66 0f 13 45 d4	 movlpd	 QWORD PTR _acc$[ebp], xmm0
-  000ad	8b 7d d8	 mov	 edi, DWORD PTR _acc$[ebp+4]
-  000b0	89 4d e4	 mov	 DWORD PTR _cutlim$1$[ebp], ecx
-  000b3	8b 4d d4	 mov	 ecx, DWORD PTR _acc$[ebp]
-  000b6	89 45 f4	 mov	 DWORD PTR _cutoff$1$[ebp], eax
-  000b9	89 55 f8	 mov	 DWORD PTR _any$1$[ebp], edx
-  000bc	c7 45 ec 37 00
-	00 00		 mov	 DWORD PTR tv173[ebp], 55 ; 00000037H
+  0009d	33 ff		 xor	 edi, edi
+  0009f	8b 5d fc	 mov	 ebx, DWORD PTR _c$1$[ebp]
+  000a2	89 4d e4	 mov	 DWORD PTR _cutlim$1$[ebp], ecx
+  000a5	33 c9		 xor	 ecx, ecx
+  000a7	89 55 ec	 mov	 DWORD PTR _cutoff$2$[ebp], edx
+  000aa	33 d2		 xor	 edx, edx
+  000ac	89 45 f4	 mov	 DWORD PTR _cutoff$1$[ebp], eax
+  000af	89 55 f8	 mov	 DWORD PTR _any$1$[ebp], edx
 $LL15@strtoull:
 
 ; 48   :   {
 ; 49   :     if (isdigit(c))
 
-  000c3	0f b6 c3	 movzx	 eax, bl
-  000c6	8a 80 00 00 00
+  000b2	0f b6 c3	 movzx	 eax, bl
+  000b5	8a 80 00 00 00
 	00		 mov	 al, BYTE PTR __ctype[eax]
-  000cc	a8 04		 test	 al, 4
-  000ce	74 05		 je	 SHORT $LN12@strtoull
+  000bb	a8 04		 test	 al, 4
+  000bd	74 05		 je	 SHORT $LN12@strtoull
 
 ; 50   :       c -= '0';
 
-  000d0	83 eb 30	 sub	 ebx, 48			; 00000030H
-  000d3	eb 11		 jmp	 SHORT $LN9@strtoull
+  000bf	83 eb 30	 sub	 ebx, 48			; 00000030H
+  000c2	eb 15		 jmp	 SHORT $LN9@strtoull
 $LN12@strtoull:
 
 ; 51   :     else if (isalpha(c))
 
-  000d5	a8 03		 test	 al, 3
-  000d7	74 69		 je	 SHORT $LN32@strtoull
+  000c4	a8 03		 test	 al, 3
+  000c6	74 70		 je	 SHORT $LN32@strtoull
 
 ; 52   :       c -= isupper(c) ? 'A' - 10 : 'a' - 10;
 
-  000d9	a8 01		 test	 al, 1
-  000db	b8 57 00 00 00	 mov	 eax, 87			; 00000057H
-  000e0	0f 45 45 ec	 cmovne	 eax, DWORD PTR tv173[ebp]
-  000e4	2b d8		 sub	 ebx, eax
+  000c8	24 01		 and	 al, 1
+  000ca	0f b6 c0	 movzx	 eax, al
+  000cd	f7 d8		 neg	 eax
+  000cf	1b c0		 sbb	 eax, eax
+  000d1	83 e0 e0	 and	 eax, -32		; ffffffe0H
+  000d4	83 c0 57	 add	 eax, 87			; 00000057H
+  000d7	2b d8		 sub	 ebx, eax
 $LN9@strtoull:
 
 ; 53   :     else
 ; 54   :       break;
 ; 55   :     if (c >= base)
 
-  000e6	3b 5d 10	 cmp	 ebx, DWORD PTR _base$[ebp]
-  000e9	7d 57		 jge	 SHORT $LN32@strtoull
+  000d9	3b 5d 10	 cmp	 ebx, DWORD PTR _base$[ebp]
+  000dc	7d 5a		 jge	 SHORT $LN32@strtoull
 
 ; 56   :       break;
 ; 57   :     if (any < 0 || acc > cutoff || (acc == cutoff && c > cutlim))
 
-  000eb	85 d2		 test	 edx, edx
-  000ed	78 47		 js	 SHORT $LN6@strtoull
-  000ef	8b 55 e8	 mov	 edx, DWORD PTR _cutoff$2$[ebp]
-  000f2	3b fa		 cmp	 edi, edx
-  000f4	77 40		 ja	 SHORT $LN6@strtoull
-  000f6	8b 45 f4	 mov	 eax, DWORD PTR _cutoff$1$[ebp]
-  000f9	72 04		 jb	 SHORT $LN37@strtoull
-  000fb	3b c8		 cmp	 ecx, eax
-  000fd	77 37		 ja	 SHORT $LN6@strtoull
+  000de	85 d2		 test	 edx, edx
+  000e0	78 47		 js	 SHORT $LN6@strtoull
+  000e2	8b 55 ec	 mov	 edx, DWORD PTR _cutoff$2$[ebp]
+  000e5	3b fa		 cmp	 edi, edx
+  000e7	77 40		 ja	 SHORT $LN6@strtoull
+  000e9	8b 45 f4	 mov	 eax, DWORD PTR _cutoff$1$[ebp]
+  000ec	72 04		 jb	 SHORT $LN37@strtoull
+  000ee	3b c8		 cmp	 ecx, eax
+  000f0	77 37		 ja	 SHORT $LN6@strtoull
 $LN37@strtoull:
-  000ff	3b c8		 cmp	 ecx, eax
-  00101	75 09		 jne	 SHORT $LN7@strtoull
-  00103	3b fa		 cmp	 edi, edx
-  00105	75 05		 jne	 SHORT $LN7@strtoull
-  00107	3b 5d e4	 cmp	 ebx, DWORD PTR _cutlim$1$[ebp]
-  0010a	7f 2a		 jg	 SHORT $LN6@strtoull
+  000f2	3b c8		 cmp	 ecx, eax
+  000f4	75 09		 jne	 SHORT $LN7@strtoull
+  000f6	3b fa		 cmp	 edi, edx
+  000f8	75 05		 jne	 SHORT $LN7@strtoull
+  000fa	3b 5d e4	 cmp	 ebx, DWORD PTR _cutlim$1$[ebp]
+  000fd	7f 2a		 jg	 SHORT $LN6@strtoull
 $LN7@strtoull:
 
 ; 59   :     else {
 ; 60   :       any = 1;
 ; 61   :       acc *= base;
 
-  0010c	57		 push	 edi
-  0010d	51		 push	 ecx
-  0010e	ff 75 e0	 push	 DWORD PTR tv181[ebp]
-  00111	c7 45 f8 01 00
+  000ff	57		 push	 edi
+  00100	51		 push	 ecx
+  00101	ff 75 e0	 push	 DWORD PTR tv183[ebp]
+  00104	c7 45 f8 01 00
 	00 00		 mov	 DWORD PTR _any$1$[ebp], 1
-  00118	ff 75 dc	 push	 DWORD PTR tv182[ebp]
-  0011b	e8 00 00 00 00	 call	 __allmul
-  00120	8b c8		 mov	 ecx, eax
-  00122	8b fa		 mov	 edi, edx
+  0010b	ff 75 dc	 push	 DWORD PTR tv184[ebp]
+  0010e	e8 00 00 00 00	 call	 __allmul
+  00113	8b c8		 mov	 ecx, eax
+  00115	8b fa		 mov	 edi, edx
 
 ; 62   :       acc += c;
 
-  00124	8b c3		 mov	 eax, ebx
-  00126	0f be 1e	 movsx	 ebx, BYTE PTR [esi]
-  00129	99		 cdq
-  0012a	03 c8		 add	 ecx, eax
-  0012c	13 fa		 adc	 edi, edx
-  0012e	ba 01 00 00 00	 mov	 edx, 1
-  00133	46		 inc	 esi
-  00134	eb 8d		 jmp	 SHORT $LL15@strtoull
+  00117	8b c3		 mov	 eax, ebx
+  00119	0f be 1e	 movsx	 ebx, BYTE PTR [esi]
+  0011c	99		 cdq
+  0011d	03 c8		 add	 ecx, eax
+  0011f	13 fa		 adc	 edi, edx
+  00121	ba 01 00 00 00	 mov	 edx, 1
+  00126	46		 inc	 esi
+  00127	eb 89		 jmp	 SHORT $LL15@strtoull
 $LN6@strtoull:
 
 ; 46   :   cutlim = (unsigned long long)ULLONG_MAX % (unsigned long long)base;
 ; 47   :   for (acc = 0, any = 0;; c = *s++)
 
-  00136	0f be 1e	 movsx	 ebx, BYTE PTR [esi]
+  00129	0f be 1e	 movsx	 ebx, BYTE PTR [esi]
 
 ; 58   :       any = -1;
 
-  00139	83 ca ff	 or	 edx, -1
-  0013c	89 55 f8	 mov	 DWORD PTR _any$1$[ebp], edx
-  0013f	46		 inc	 esi
-  00140	eb 81		 jmp	 SHORT $LL15@strtoull
+  0012c	83 ca ff	 or	 edx, -1
+  0012f	89 55 f8	 mov	 DWORD PTR _any$1$[ebp], edx
+  00132	46		 inc	 esi
+  00133	e9 7a ff ff ff	 jmp	 $LL15@strtoull
 $LN32@strtoull:
-  00142	5b		 pop	 ebx
+  00138	5b		 pop	 ebx
 
 ; 63   :     }
 ; 64   :   }
 ; 65   :   if (any < 0)
 
-  00143	85 d2		 test	 edx, edx
-  00145	79 16		 jns	 SHORT $LN4@strtoull
+  00139	85 d2		 test	 edx, edx
+  0013b	79 16		 jns	 SHORT $LN4@strtoull
 
 ; 66   :   {
 ; 67   :     acc = ULLONG_MAX;
 
-  00147	83 cf ff	 or	 edi, -1
+  0013d	83 cf ff	 or	 edi, -1
 
 ; 68   :     errno = ERANGE;
 
-  0014a	e8 00 00 00 00	 call	 ___errno
-  0014f	8b 55 f8	 mov	 edx, DWORD PTR _any$1$[ebp]
-  00152	83 c9 ff	 or	 ecx, -1
-  00155	c7 00 22 00 00
+  00140	e8 00 00 00 00	 call	 ___errno
+  00145	8b 55 f8	 mov	 edx, DWORD PTR _any$1$[ebp]
+  00148	83 c9 ff	 or	 ecx, -1
+  0014b	c7 00 22 00 00
 	00		 mov	 DWORD PTR [eax], 34	; 00000022H
-  0015b	eb 0d		 jmp	 SHORT $LN2@strtoull
+  00151	eb 0d		 jmp	 SHORT $LN2@strtoull
 $LN4@strtoull:
 
 ; 69   :   }
 ; 70   :   else if (neg)
 
-  0015d	83 7d f0 00	 cmp	 DWORD PTR _neg$1$[ebp], 0
-  00161	74 07		 je	 SHORT $LN2@strtoull
+  00153	83 7d f0 00	 cmp	 DWORD PTR _neg$1$[ebp], 0
+  00157	74 07		 je	 SHORT $LN2@strtoull
 
 ; 71   :     acc = 0-acc;
 
-  00163	f7 d9		 neg	 ecx
-  00165	83 d7 00	 adc	 edi, 0
-  00168	f7 df		 neg	 edi
+  00159	f7 d9		 neg	 ecx
+  0015b	83 d7 00	 adc	 edi, 0
+  0015e	f7 df		 neg	 edi
 $LN2@strtoull:
 
 ; 72   :   if (endptr != 0)
 
-  0016a	8b 45 0c	 mov	 eax, DWORD PTR _endptr$[ebp]
-  0016d	85 c0		 test	 eax, eax
-  0016f	74 0c		 je	 SHORT $LN38@strtoull
+  00160	8b 45 0c	 mov	 eax, DWORD PTR _endptr$[ebp]
+  00163	85 c0		 test	 eax, eax
+  00165	74 0c		 je	 SHORT $LN38@strtoull
 
 ; 73   :     *endptr = any ? (char *)((size_t)(s - 1)) : (char *)((size_t)nptr);
 
-  00171	85 d2		 test	 edx, edx
-  00173	8d 56 ff	 lea	 edx, DWORD PTR [esi-1]
-  00176	75 03		 jne	 SHORT $LN29@strtoull
-  00178	8b 55 08	 mov	 edx, DWORD PTR _nptr$[ebp]
+  00167	85 d2		 test	 edx, edx
+  00169	8d 56 ff	 lea	 edx, DWORD PTR [esi-1]
+  0016c	75 03		 jne	 SHORT $LN29@strtoull
+  0016e	8b 55 08	 mov	 edx, DWORD PTR _nptr$[ebp]
 $LN29@strtoull:
-  0017b	89 10		 mov	 DWORD PTR [eax], edx
+  00171	89 10		 mov	 DWORD PTR [eax], edx
 $LN38@strtoull:
 
 ; 74   :   return acc;
 
-  0017d	8b d7		 mov	 edx, edi
-  0017f	8b c1		 mov	 eax, ecx
-  00181	5f		 pop	 edi
-  00182	5e		 pop	 esi
+  00173	8b d7		 mov	 edx, edi
+  00175	8b c1		 mov	 eax, ecx
+  00177	5f		 pop	 edi
+  00178	5e		 pop	 esi
 
 ; 75   : }
 
-  00183	8b e5		 mov	 esp, ebp
-  00185	5d		 pop	 ebp
-  00186	c3		 ret	 0
+  00179	8b e5		 mov	 esp, ebp
+  0017b	5d		 pop	 ebp
+  0017c	c3		 ret	 0
 _strtoull ENDP
 _TEXT	ENDS
 END

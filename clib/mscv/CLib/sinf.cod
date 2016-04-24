@@ -10,13 +10,13 @@ INCLUDELIB MSVCRT
 INCLUDELIB OLDNAMES
 
 PUBLIC	_sinf
-EXTRN	__libm_sse2_sin_precise:PROC
+EXTRN	__CIsin:PROC
 EXTRN	__fltused:DWORD
 ; Function compile flags: /Ogtp
 ; File c:\users\philip\documents\github\mollenos\clib\src\math\sinf.c
 ;	COMDAT _sinf
 _TEXT	SEGMENT
-tv70 = 8						; size = 4
+tv72 = 8						; size = 4
 __X$ = 8						; size = 4
 _sinf	PROC						; COMDAT
 
@@ -24,20 +24,18 @@ _sinf	PROC						; COMDAT
 
   00000	55		 push	 ebp
   00001	8b ec		 mov	 ebp, esp
-  00003	f3 0f 10 45 08	 movss	 xmm0, DWORD PTR __X$[ebp]
 
 ; 12   : 	return ((float) sin ((double) _X));
 
-  00008	0f 5a c0	 cvtps2pd xmm0, xmm0
-  0000b	e8 00 00 00 00	 call	 __libm_sse2_sin_precise
-  00010	f2 0f 5a c0	 cvtsd2ss xmm0, xmm0
-  00014	f3 0f 11 45 08	 movss	 DWORD PTR tv70[ebp], xmm0
-  00019	d9 45 08	 fld	 DWORD PTR tv70[ebp]
+  00003	d9 45 08	 fld	 DWORD PTR __X$[ebp]
+  00006	e8 00 00 00 00	 call	 __CIsin
+  0000b	d9 5d 08	 fstp	 DWORD PTR tv72[ebp]
+  0000e	d9 45 08	 fld	 DWORD PTR tv72[ebp]
 
 ; 13   : }
 
-  0001c	5d		 pop	 ebp
-  0001d	c3		 ret	 0
+  00011	5d		 pop	 ebp
+  00012	c3		 ret	 0
 _sinf	ENDP
 _TEXT	ENDS
 END

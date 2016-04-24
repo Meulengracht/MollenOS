@@ -145,15 +145,18 @@ _memcpy	PROC						; COMDAT
 ; 60   : 	{
 ; 61   : #ifdef _MSC_VER
 ; 62   : 		int cpuinfo[4] = { 0 };
+
+  0001c	33 c0		 xor	 eax, eax
+
 ; 63   : 		__cpuid(cpuinfo, 1);
 
-  0001c	8d 7d f0	 lea	 edi, DWORD PTR _cpuinfo$1[ebp]
-  0001f	89 75 fc	 mov	 DWORD PTR _cpuinfo$1[ebp+12], esi
-  00022	b8 01 00 00 00	 mov	 eax, 1
-  00027	33 c9		 xor	 ecx, ecx
-  00029	0f a2		 cpuid
-  0002b	0f 57 c0	 xorps	 xmm0, xmm0
-  0002e	66 0f d6 45 f4	 movq	 QWORD PTR _cpuinfo$1[ebp+4], xmm0
+  0001e	8d 7d f0	 lea	 edi, DWORD PTR _cpuinfo$1[ebp]
+  00021	89 45 f4	 mov	 DWORD PTR _cpuinfo$1[ebp+4], eax
+  00024	33 c9		 xor	 ecx, ecx
+  00026	89 45 f8	 mov	 DWORD PTR _cpuinfo$1[ebp+8], eax
+  00029	89 45 fc	 mov	 DWORD PTR _cpuinfo$1[ebp+12], eax
+  0002c	b8 01 00 00 00	 mov	 eax, 1
+  00031	0f a2		 cpuid
   00033	89 07		 mov	 DWORD PTR [edi], eax
   00035	89 5f 04	 mov	 DWORD PTR [edi+4], ebx
   00038	89 4f 08	 mov	 DWORD PTR [edi+8], ecx
@@ -234,79 +237,75 @@ $LN9@memcpy:
 ; 85   : 		if (!TOO_SMALL(count) && !UNALIGNED (src, dst))
 
   00086	8b 75 10	 mov	 esi, DWORD PTR _count$[ebp]
-  00089	8b 7d 08	 mov	 edi, DWORD PTR _destination$[ebp]
-  0008c	8b c7		 mov	 eax, edi
+  00089	8b 5d 08	 mov	 ebx, DWORD PTR _destination$[ebp]
+  0008c	8b c3		 mov	 eax, ebx
   0008e	8b 55 0c	 mov	 edx, DWORD PTR _source$[ebp]
   00091	83 fe 10	 cmp	 esi, 16			; 00000010H
-  00094	72 52		 jb	 SHORT $LN17@memcpy
-  00096	8b cf		 mov	 ecx, edi
+  00094	72 4a		 jb	 SHORT $LN3@memcpy
+  00096	8b cb		 mov	 ecx, ebx
   00098	0b ca		 or	 ecx, edx
   0009a	f6 c1 03	 test	 cl, 3
-  0009d	75 49		 jne	 SHORT $LN17@memcpy
+  0009d	75 41		 jne	 SHORT $LN3@memcpy
 
 ; 86   : 		{
 ; 87   : 			aligned_dst = (long*)dst;
+
+  0009f	8b fe		 mov	 edi, esi
+  000a1	c1 ef 04	 shr	 edi, 4
+$LL6@memcpy:
+
 ; 88   : 			aligned_src = (long*)src;
 ; 89   : 
 ; 90   : 			/* Copy 4X long words at a time if possible.  */
 ; 91   : 			while (count >= BIGBLOCKSIZE)
-
-  0009f	8b da		 mov	 ebx, edx
-  000a1	2b df		 sub	 ebx, edi
-  000a3	8b fe		 mov	 edi, esi
-  000a5	c1 ef 04	 shr	 edi, 4
-$LL6@memcpy:
-
 ; 92   : 			{
 ; 93   : 				*aligned_dst++ = *aligned_src++;
 
-  000a8	8b 0a		 mov	 ecx, DWORD PTR [edx]
+  000a4	8b 0a		 mov	 ecx, DWORD PTR [edx]
 
 ; 94   : 				*aligned_dst++ = *aligned_src++;
 ; 95   : 				*aligned_dst++ = *aligned_src++;
 ; 96   : 				*aligned_dst++ = *aligned_src++;
 ; 97   : 				count -= BIGBLOCKSIZE;
 
-  000aa	83 ee 10	 sub	 esi, 16			; 00000010H
-  000ad	89 08		 mov	 DWORD PTR [eax], ecx
-  000af	8b 4c 03 04	 mov	 ecx, DWORD PTR [ebx+eax+4]
-  000b3	89 48 04	 mov	 DWORD PTR [eax+4], ecx
-  000b6	8b 4a 08	 mov	 ecx, DWORD PTR [edx+8]
-  000b9	89 48 08	 mov	 DWORD PTR [eax+8], ecx
-  000bc	8b 4a 0c	 mov	 ecx, DWORD PTR [edx+12]
-  000bf	83 c2 10	 add	 edx, 16			; 00000010H
-  000c2	89 48 0c	 mov	 DWORD PTR [eax+12], ecx
-  000c5	83 c0 10	 add	 eax, 16			; 00000010H
-  000c8	4f		 dec	 edi
-  000c9	75 dd		 jne	 SHORT $LL6@memcpy
+  000a6	83 ee 10	 sub	 esi, 16			; 00000010H
+  000a9	89 08		 mov	 DWORD PTR [eax], ecx
+  000ab	8b 4a 04	 mov	 ecx, DWORD PTR [edx+4]
+  000ae	89 48 04	 mov	 DWORD PTR [eax+4], ecx
+  000b1	8b 4a 08	 mov	 ecx, DWORD PTR [edx+8]
+  000b4	89 48 08	 mov	 DWORD PTR [eax+8], ecx
+  000b7	8b 4a 0c	 mov	 ecx, DWORD PTR [edx+12]
+  000ba	83 c2 10	 add	 edx, 16			; 00000010H
+  000bd	89 48 0c	 mov	 DWORD PTR [eax+12], ecx
+  000c0	83 c0 10	 add	 eax, 16			; 00000010H
+  000c3	4f		 dec	 edi
+  000c4	75 de		 jne	 SHORT $LL6@memcpy
 
 ; 98   : 			}
 ; 99   : 
 ; 100  : 			/* Copy one long word at a time if possible.  */
 ; 101  : 			while (count >= LITTLEBLOCKSIZE)
 
-  000cb	83 fe 04	 cmp	 esi, 4
-  000ce	72 15		 jb	 SHORT $LN3@memcpy
-  000d0	8b fe		 mov	 edi, esi
-  000d2	c1 ef 02	 shr	 edi, 2
+  000c6	83 fe 04	 cmp	 esi, 4
+  000c9	72 15		 jb	 SHORT $LN3@memcpy
+  000cb	8b fe		 mov	 edi, esi
+  000cd	c1 ef 02	 shr	 edi, 2
 $LL4@memcpy:
 
 ; 102  : 			{
 ; 103  : 				*aligned_dst++ = *aligned_src++;
 
-  000d5	8b 0a		 mov	 ecx, DWORD PTR [edx]
+  000d0	8b 0a		 mov	 ecx, DWORD PTR [edx]
 
 ; 104  : 				count -= LITTLEBLOCKSIZE;
 
-  000d7	83 ee 04	 sub	 esi, 4
-  000da	89 08		 mov	 DWORD PTR [eax], ecx
-  000dc	83 c2 04	 add	 edx, 4
-  000df	83 c0 04	 add	 eax, 4
-  000e2	4f		 dec	 edi
-  000e3	75 f0		 jne	 SHORT $LL4@memcpy
+  000d2	83 ee 04	 sub	 esi, 4
+  000d5	89 08		 mov	 DWORD PTR [eax], ecx
+  000d7	83 c2 04	 add	 edx, 4
+  000da	83 c0 04	 add	 eax, 4
+  000dd	4f		 dec	 edi
+  000de	75 f0		 jne	 SHORT $LL4@memcpy
 $LN3@memcpy:
-  000e5	8b 7d 08	 mov	 edi, DWORD PTR _destination$[ebp]
-$LN17@memcpy:
 
 ; 105  : 			}
 ; 106  : 
@@ -317,35 +316,34 @@ $LN17@memcpy:
 ; 111  : 
 ; 112  : 		while (count--)
 
-  000e8	85 f6		 test	 esi, esi
-  000ea	74 10		 je	 SHORT $LN20@memcpy
-  000ec	2b d0		 sub	 edx, eax
-  000ee	8b ff		 npad	 2
+  000e0	85 f6		 test	 esi, esi
+  000e2	74 0e		 je	 SHORT $LN20@memcpy
+  000e4	2b d0		 sub	 edx, eax
 $LL2@memcpy:
 
 ; 113  : 		*dst++ = *src++;
 
-  000f0	8a 0c 02	 mov	 cl, BYTE PTR [edx+eax]
-  000f3	8d 40 01	 lea	 eax, DWORD PTR [eax+1]
-  000f6	88 48 ff	 mov	 BYTE PTR [eax-1], cl
-  000f9	4e		 dec	 esi
-  000fa	75 f4		 jne	 SHORT $LL2@memcpy
+  000e6	8a 0c 02	 mov	 cl, BYTE PTR [edx+eax]
+  000e9	8d 40 01	 lea	 eax, DWORD PTR [eax+1]
+  000ec	88 48 ff	 mov	 BYTE PTR [eax-1], cl
+  000ef	4e		 dec	 esi
+  000f0	75 f4		 jne	 SHORT $LL2@memcpy
 $LN20@memcpy:
+  000f2	5f		 pop	 edi
+  000f3	5e		 pop	 esi
 
 ; 114  : 
 ; 115  : 		return destination;
 
-  000fc	8b c7		 mov	 eax, edi
-  000fe	5f		 pop	 edi
-  000ff	5e		 pop	 esi
-  00100	5b		 pop	 ebx
+  000f4	8b c3		 mov	 eax, ebx
+  000f6	5b		 pop	 ebx
 
 ; 116  : 	}
 ; 117  : }
 
-  00101	8b e5		 mov	 esp, ebp
-  00103	5d		 pop	 ebp
-  00104	c3		 ret	 0
+  000f7	8b e5		 mov	 esp, ebp
+  000f9	5d		 pop	 ebp
+  000fa	c3		 ret	 0
 _memcpy	ENDP
 _TEXT	ENDS
 END

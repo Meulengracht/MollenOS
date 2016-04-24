@@ -18,16 +18,15 @@ EXTRN	_strchr:PROC
 _TEXT	SEGMENT
 _shift_table$ = -1044					; size = 1024
 _haystack_len$2$ = -20					; size = 4
-tv721 = -16						; size = 4
-tv720 = -16						; size = 4
-_period$2$ = -12					; size = 4
-_period$ = -12						; size = 4
-_j$1$ = -8						; size = 4
-_haystack_len$4$ = -8					; size = 4
-_suffix$1$ = -4						; size = 4
+tv737 = -16						; size = 4
+tv736 = -16						; size = 4
+_suffix$1$ = -12					; size = 4
+_period$2$ = -8						; size = 4
+_period$ = -8						; size = 4
+_j$1$ = -4						; size = 4
+_haystack_len$4$ = -4					; size = 4
 _haystack$ = 8						; size = 4
 _haystack_len$ = 12					; size = 4
-tv719 = 16						; size = 4
 _needle$ = 16						; size = 4
 _needle_len$ = 20					; size = 4
 _two_way_long_needle PROC				; COMDAT
@@ -52,7 +51,7 @@ _two_way_long_needle PROC				; COMDAT
 ; 304  :   suffix = critical_factorization (needle, needle_len, &period);
 
   0000a	8b 5d 14	 mov	 ebx, DWORD PTR _needle_len$[ebp]
-  0000d	8d 45 f4	 lea	 eax, DWORD PTR _period$[ebp]
+  0000d	8d 45 f8	 lea	 eax, DWORD PTR _period$[ebp]
   00010	56		 push	 esi
   00011	57		 push	 edi
   00012	50		 push	 eax
@@ -72,7 +71,7 @@ _two_way_long_needle PROC				; COMDAT
   0001e	8d bd ec fb ff
 	ff		 lea	 edi, DWORD PTR _shift_table$[ebp]
   00024	b9 00 01 00 00	 mov	 ecx, 256		; 00000100H
-  00029	89 75 fc	 mov	 DWORD PTR _suffix$1$[ebp], esi
+  00029	89 75 f4	 mov	 DWORD PTR _suffix$1$[ebp], esi
   0002c	8b c3		 mov	 eax, ebx
   0002e	83 c4 0c	 add	 esp, 12			; 0000000cH
   00031	f3 ab		 rep stosd
@@ -104,46 +103,46 @@ $LN24@two_way_lo:
 ; 316  :      first.  */
 ; 317  :   if (CMP_FUNC (needle, needle + period, suffix) == 0)
 
-  00055	8b 55 f4	 mov	 edx, DWORD PTR _period$[ebp]
+  00055	8b 55 f8	 mov	 edx, DWORD PTR _period$[ebp]
   00058	8b cf		 mov	 ecx, edi
   0005a	03 d7		 add	 edx, edi
   0005c	83 ee 04	 sub	 esi, 4
-  0005f	72 11		 jb	 SHORT $LN73@two_way_lo
-$LL74@two_way_lo:
+  0005f	72 11		 jb	 SHORT $LN75@two_way_lo
+$LL76@two_way_lo:
   00061	8b 01		 mov	 eax, DWORD PTR [ecx]
   00063	3b 02		 cmp	 eax, DWORD PTR [edx]
-  00065	75 14		 jne	 SHORT $LN72@two_way_lo
+  00065	75 14		 jne	 SHORT $LN74@two_way_lo
   00067	83 c1 04	 add	 ecx, 4
   0006a	83 c2 04	 add	 edx, 4
   0006d	83 ee 04	 sub	 esi, 4
-  00070	73 ef		 jae	 SHORT $LL74@two_way_lo
-$LN73@two_way_lo:
+  00070	73 ef		 jae	 SHORT $LL76@two_way_lo
+$LN75@two_way_lo:
   00072	83 fe fc	 cmp	 esi, -4			; fffffffcH
-  00075	0f 84 1b 01 00
-	00		 je	 $LN71@two_way_lo
-$LN72@two_way_lo:
+  00075	0f 84 2a 01 00
+	00		 je	 $LN73@two_way_lo
+$LN74@two_way_lo:
   0007b	8a 01		 mov	 al, BYTE PTR [ecx]
   0007d	3a 02		 cmp	 al, BYTE PTR [edx]
   0007f	75 37		 jne	 SHORT $LN23@two_way_lo
   00081	83 fe fd	 cmp	 esi, -3			; fffffffdH
-  00084	0f 84 0c 01 00
-	00		 je	 $LN71@two_way_lo
+  00084	0f 84 1b 01 00
+	00		 je	 $LN73@two_way_lo
   0008a	8a 41 01	 mov	 al, BYTE PTR [ecx+1]
   0008d	3a 42 01	 cmp	 al, BYTE PTR [edx+1]
   00090	75 26		 jne	 SHORT $LN23@two_way_lo
   00092	83 fe fe	 cmp	 esi, -2			; fffffffeH
-  00095	0f 84 fb 00 00
-	00		 je	 $LN71@two_way_lo
+  00095	0f 84 0a 01 00
+	00		 je	 $LN73@two_way_lo
   0009b	8a 41 02	 mov	 al, BYTE PTR [ecx+2]
   0009e	3a 42 02	 cmp	 al, BYTE PTR [edx+2]
   000a1	75 15		 jne	 SHORT $LN23@two_way_lo
   000a3	83 fe ff	 cmp	 esi, -1
-  000a6	0f 84 ea 00 00
-	00		 je	 $LN71@two_way_lo
+  000a6	0f 84 f9 00 00
+	00		 je	 $LN73@two_way_lo
   000ac	8a 41 03	 mov	 al, BYTE PTR [ecx+3]
   000af	3a 42 03	 cmp	 al, BYTE PTR [edx+3]
-  000b2	0f 84 de 00 00
-	00		 je	 $LN71@two_way_lo
+  000b2	0f 84 ed 00 00
+	00		 je	 $LN73@two_way_lo
 $LN23@two_way_lo:
 
 ; 367  : 	    }
@@ -156,187 +155,198 @@ $LN23@two_way_lo:
 ; 374  :       size_t shift;
 ; 375  :       period = MAX (suffix, needle_len - suffix) + 1;
 
-  000b8	8b 55 fc	 mov	 edx, DWORD PTR _suffix$1$[ebp]
+  000b8	8b 4d f4	 mov	 ecx, DWORD PTR _suffix$1$[ebp]
   000bb	8b c3		 mov	 eax, ebx
-  000bd	2b c2		 sub	 eax, edx
-  000bf	8b ca		 mov	 ecx, edx
-  000c1	3b d0		 cmp	 edx, eax
-  000c3	0f 42 c8	 cmovb	 ecx, eax
+  000bd	2b c1		 sub	 eax, ecx
+  000bf	3b c8		 cmp	 ecx, eax
+  000c1	72 02		 jb	 SHORT $LN35@two_way_lo
+  000c3	8b c1		 mov	 eax, ecx
+$LN35@two_way_lo:
+  000c5	40		 inc	 eax
 
 ; 376  :       j = 0;
 
   000c6	33 f6		 xor	 esi, esi
-  000c8	8d 41 01	 lea	 eax, DWORD PTR [ecx+1]
-  000cb	89 45 f4	 mov	 DWORD PTR _period$2$[ebp], eax
+  000c8	89 45 f8	 mov	 DWORD PTR _period$2$[ebp], eax
 
 ; 377  :       while (AVAILABLE (haystack, haystack_len, j, needle_len))
 
-  000ce	8b c3		 mov	 eax, ebx
-  000d0	2b 45 0c	 sub	 eax, DWORD PTR _haystack_len$[ebp]
-  000d3	50		 push	 eax
-  000d4	8b 45 08	 mov	 eax, DWORD PTR _haystack$[ebp]
-  000d7	03 45 0c	 add	 eax, DWORD PTR _haystack_len$[ebp]
-  000da	56		 push	 esi
-  000db	50		 push	 eax
-  000dc	e8 00 00 00 00	 call	 _memchr
-  000e1	83 c4 0c	 add	 esp, 12			; 0000000cH
-  000e4	85 c0		 test	 eax, eax
-  000e6	0f 85 a1 00 00
-	00		 jne	 $LN70@two_way_lo
-  000ec	8d 64 24 00	 npad	 4
+  000cb	8b c3		 mov	 eax, ebx
+  000cd	2b 45 0c	 sub	 eax, DWORD PTR _haystack_len$[ebp]
+  000d0	50		 push	 eax
+  000d1	8b 45 08	 mov	 eax, DWORD PTR _haystack$[ebp]
+  000d4	03 45 0c	 add	 eax, DWORD PTR _haystack_len$[ebp]
+  000d7	56		 push	 esi
+  000d8	50		 push	 eax
+  000d9	e8 00 00 00 00	 call	 _memchr
+  000de	83 c4 0c	 add	 esp, 12			; 0000000cH
+  000e1	85 c0		 test	 eax, eax
+  000e3	0f 85 b3 00 00
+	00		 jne	 $LN72@two_way_lo
+  000e9	8d a4 24 00 00
+	00 00		 npad	 7
 $LL10@two_way_lo:
   000f0	8d 04 1e	 lea	 eax, DWORD PTR [esi+ebx]
-  000f3	89 45 f8	 mov	 DWORD PTR _haystack_len$4$[ebp], eax
+  000f3	89 45 fc	 mov	 DWORD PTR _haystack_len$4$[ebp], eax
   000f6	85 c0		 test	 eax, eax
-  000f8	0f 84 8f 00 00
-	00		 je	 $LN70@two_way_lo
+  000f8	0f 84 9e 00 00
+	00		 je	 $LN72@two_way_lo
 
 ; 378  : 	{
 ; 379  : 	  /* Check the last byte first; if it does not match, then
 ; 380  : 	     shift to the next possible match location.  */
 ; 381  : 	  shift = shift_table[CANON_ELEMENT (haystack[j + needle_len - 1])];
 
-  000fe	8b 4d 08	 mov	 ecx, DWORD PTR _haystack$[ebp]
-  00101	8d 04 0e	 lea	 eax, DWORD PTR [esi+ecx]
-  00104	0f b6 44 18 ff	 movzx	 eax, BYTE PTR [eax+ebx-1]
-  00109	8b 84 85 ec fb
+  000fe	8b 45 08	 mov	 eax, DWORD PTR _haystack$[ebp]
+  00101	03 c6		 add	 eax, esi
+  00103	0f b6 44 18 ff	 movzx	 eax, BYTE PTR [eax+ebx-1]
+  00108	8b 84 85 ec fb
 	ff ff		 mov	 eax, DWORD PTR _shift_table$[ebp+eax*4]
 
 ; 382  : 	  if (0 < shift)
 
-  00110	85 c0		 test	 eax, eax
-  00112	75 56		 jne	 SHORT $LN79@two_way_lo
+  0010f	85 c0		 test	 eax, eax
+  00111	74 04		 je	 SHORT $LN8@two_way_lo
 
 ; 383  : 	    {
 ; 384  : 	      j += shift;
+
+  00113	03 f0		 add	 esi, eax
+
 ; 385  : 	      continue;
+
+  00115	eb 64		 jmp	 SHORT $LN1@two_way_lo
+$LN8@two_way_lo:
+
 ; 386  : 	    }
 ; 387  : 	  /* Scan for matches in right half.  The last byte has
 ; 388  : 	     already been matched, by virtue of the shift table.  */
 ; 389  : 	  i = suffix;
 
-  00114	8b 45 fc	 mov	 eax, DWORD PTR _suffix$1$[ebp]
+  00117	8b 45 f4	 mov	 eax, DWORD PTR _suffix$1$[ebp]
 
 ; 390  : 	  while (i < needle_len - 1 && (CANON_ELEMENT (needle[i])
 ; 391  : 					== CANON_ELEMENT (haystack[i + j])))
 
-  00117	8d 53 ff	 lea	 edx, DWORD PTR [ebx-1]
-  0011a	3b d0		 cmp	 edx, eax
-  0011c	76 1b		 jbe	 SHORT $LN81@two_way_lo
-  0011e	03 ce		 add	 ecx, esi
-  00120	89 4d 10	 mov	 DWORD PTR tv719[ebp], ecx
-  00123	8b d9		 mov	 ebx, ecx
+  0011a	8d 53 ff	 lea	 edx, DWORD PTR [ebx-1]
+  0011d	8b c8		 mov	 ecx, eax
+  0011f	3b c2		 cmp	 eax, edx
+  00121	73 23		 jae	 SHORT $LN6@two_way_lo
+  00123	8b 7d 08	 mov	 edi, DWORD PTR _haystack$[ebp]
+  00126	8b 5d 10	 mov	 ebx, DWORD PTR _needle$[ebp]
+  00129	03 fe		 add	 edi, esi
+  0012b	eb 03 8d 49 00	 npad	 5
 $LL7@two_way_lo:
-  00125	8a 0c 38	 mov	 cl, BYTE PTR [eax+edi]
-  00128	3a 0c 03	 cmp	 cl, BYTE PTR [ebx+eax]
-  0012b	75 05		 jne	 SHORT $LN75@two_way_lo
+  00130	8a 04 19	 mov	 al, BYTE PTR [ecx+ebx]
+  00133	3a 04 0f	 cmp	 al, BYTE PTR [edi+ecx]
+  00136	75 05		 jne	 SHORT $LN77@two_way_lo
 
 ; 392  : 	    ++i;
 
-  0012d	40		 inc	 eax
-  0012e	3b c2		 cmp	 eax, edx
-  00130	72 f3		 jb	 SHORT $LL7@two_way_lo
-$LN75@two_way_lo:
-  00132	8b 5d 14	 mov	 ebx, DWORD PTR _needle_len$[ebp]
+  00138	41		 inc	 ecx
+  00139	3b ca		 cmp	 ecx, edx
+  0013b	72 f3		 jb	 SHORT $LL7@two_way_lo
+$LN77@two_way_lo:
+  0013d	8b 5d 14	 mov	 ebx, DWORD PTR _needle_len$[ebp]
+  00140	8b 7d 10	 mov	 edi, DWORD PTR _needle$[ebp]
+  00143	8b 45 f4	 mov	 eax, DWORD PTR _suffix$1$[ebp]
+$LN6@two_way_lo:
 
 ; 393  : 	  if (needle_len - 1 <= i)
 
-  00135	3b d0		 cmp	 edx, eax
-  00137	77 2d		 ja	 SHORT $LN5@two_way_lo
-$LN81@two_way_lo:
+  00146	3b d1		 cmp	 edx, ecx
+  00148	77 2c		 ja	 SHORT $LN5@two_way_lo
 
 ; 394  : 	    {
 ; 395  : 	      /* Scan for matches in left half.  */
 ; 396  : 	      i = suffix - 1;
 
-  00139	8b 4d fc	 mov	 ecx, DWORD PTR _suffix$1$[ebp]
-  0013c	49		 dec	 ecx
+  0014a	8d 48 ff	 lea	 ecx, DWORD PTR [eax-1]
 
 ; 397  : 	      while (i != SIZE_MAX && (CANON_ELEMENT (needle[i])
 ; 398  : 				       == CANON_ELEMENT (haystack[i + j])))
 
-  0013d	83 f9 ff	 cmp	 ecx, -1
-  00140	74 13		 je	 SHORT $LN45@two_way_lo
-  00142	8b 55 08	 mov	 edx, DWORD PTR _haystack$[ebp]
-  00145	03 d6		 add	 edx, esi
+  0014d	83 f9 ff	 cmp	 ecx, -1
+  00150	74 13		 je	 SHORT $LN47@two_way_lo
+  00152	8b 55 08	 mov	 edx, DWORD PTR _haystack$[ebp]
+  00155	03 d6		 add	 edx, esi
 $LL4@two_way_lo:
-  00147	8a 04 39	 mov	 al, BYTE PTR [ecx+edi]
-  0014a	3a 04 0a	 cmp	 al, BYTE PTR [edx+ecx]
-  0014d	75 12		 jne	 SHORT $LN3@two_way_lo
+  00157	8a 04 39	 mov	 al, BYTE PTR [ecx+edi]
+  0015a	3a 04 0a	 cmp	 al, BYTE PTR [edx+ecx]
+  0015d	75 12		 jne	 SHORT $LN3@two_way_lo
 
 ; 399  : 		--i;
 
-  0014f	49		 dec	 ecx
-  00150	83 f9 ff	 cmp	 ecx, -1
-  00153	75 f2		 jne	 SHORT $LL4@two_way_lo
-$LN45@two_way_lo:
+  0015f	49		 dec	 ecx
+  00160	83 f9 ff	 cmp	 ecx, -1
+  00163	75 f2		 jne	 SHORT $LL4@two_way_lo
+$LN47@two_way_lo:
 
 ; 400  : 	      if (i == SIZE_MAX)
 ; 401  : 		return (RETURN_TYPE) (haystack + j);
 
-  00155	8b 45 08	 mov	 eax, DWORD PTR _haystack$[ebp]
-  00158	5f		 pop	 edi
-  00159	03 c6		 add	 eax, esi
-  0015b	5e		 pop	 esi
-  0015c	5b		 pop	 ebx
+  00165	8b 45 08	 mov	 eax, DWORD PTR _haystack$[ebp]
+  00168	5f		 pop	 edi
+  00169	03 c6		 add	 eax, esi
+  0016b	5e		 pop	 esi
+  0016c	5b		 pop	 ebx
 
 ; 409  : }
 
-  0015d	8b e5		 mov	 esp, ebp
-  0015f	5d		 pop	 ebp
-  00160	c3		 ret	 0
+  0016d	8b e5		 mov	 esp, ebp
+  0016f	5d		 pop	 ebp
+  00170	c3		 ret	 0
 $LN3@two_way_lo:
 
 ; 402  : 	      j += period;
 
-  00161	03 75 f4	 add	 esi, DWORD PTR _period$2$[ebp]
+  00171	03 75 f8	 add	 esi, DWORD PTR _period$2$[ebp]
 
 ; 403  : 	    }
 ; 404  : 	  else
 
-  00164	eb 06		 jmp	 SHORT $LN1@two_way_lo
+  00174	eb 05		 jmp	 SHORT $LN1@two_way_lo
 $LN5@two_way_lo:
 
 ; 405  : 	    j += i - suffix + 1;
 
-  00166	2b 45 fc	 sub	 eax, DWORD PTR _suffix$1$[ebp]
-  00169	46		 inc	 esi
-$LN79@two_way_lo:
-  0016a	03 f0		 add	 esi, eax
+  00176	2b c8		 sub	 ecx, eax
+  00178	46		 inc	 esi
+  00179	03 f1		 add	 esi, ecx
 $LN1@two_way_lo:
 
 ; 377  :       while (AVAILABLE (haystack, haystack_len, j, needle_len))
 
-  0016c	8b c6		 mov	 eax, esi
-  0016e	2b 45 f8	 sub	 eax, DWORD PTR _haystack_len$4$[ebp]
-  00171	03 c3		 add	 eax, ebx
-  00173	50		 push	 eax
-  00174	8b 45 08	 mov	 eax, DWORD PTR _haystack$[ebp]
-  00177	03 45 f8	 add	 eax, DWORD PTR _haystack_len$4$[ebp]
-  0017a	6a 00		 push	 0
-  0017c	50		 push	 eax
-  0017d	e8 00 00 00 00	 call	 _memchr
-  00182	83 c4 0c	 add	 esp, 12			; 0000000cH
-  00185	85 c0		 test	 eax, eax
-  00187	0f 84 63 ff ff
+  0017b	8b c6		 mov	 eax, esi
+  0017d	2b 45 fc	 sub	 eax, DWORD PTR _haystack_len$4$[ebp]
+  00180	03 c3		 add	 eax, ebx
+  00182	50		 push	 eax
+  00183	8b 45 08	 mov	 eax, DWORD PTR _haystack$[ebp]
+  00186	03 45 fc	 add	 eax, DWORD PTR _haystack_len$4$[ebp]
+  00189	6a 00		 push	 0
+  0018b	50		 push	 eax
+  0018c	e8 00 00 00 00	 call	 _memchr
+  00191	83 c4 0c	 add	 esp, 12			; 0000000cH
+  00194	85 c0		 test	 eax, eax
+  00196	0f 84 54 ff ff
 	ff		 je	 $LL10@two_way_lo
-$LN70@two_way_lo:
-  0018d	5f		 pop	 edi
-  0018e	5e		 pop	 esi
+$LN72@two_way_lo:
+  0019c	5f		 pop	 edi
+  0019d	5e		 pop	 esi
 
 ; 406  : 	}
 ; 407  :     }
 ; 408  :   return NULL;
 
-  0018f	33 c0		 xor	 eax, eax
-  00191	5b		 pop	 ebx
+  0019e	33 c0		 xor	 eax, eax
+  001a0	5b		 pop	 ebx
 
 ; 409  : }
 
-  00192	8b e5		 mov	 esp, ebp
-  00194	5d		 pop	 ebp
-  00195	c3		 ret	 0
-$LN71@two_way_lo:
+  001a1	8b e5		 mov	 esp, ebp
+  001a3	5d		 pop	 ebp
+  001a4	c3		 ret	 0
+$LN73@two_way_lo:
 
 ; 318  :     {
 ; 319  :       /* Entire needle is periodic; a mismatch can only advance by the
@@ -347,50 +357,50 @@ $LN71@two_way_lo:
 ; 324  :       j = 0;
 ; 325  :       while (AVAILABLE (haystack, haystack_len, j, needle_len))
 
-  00196	8b c3		 mov	 eax, ebx
-  00198	33 ff		 xor	 edi, edi
-  0019a	2b 45 0c	 sub	 eax, DWORD PTR _haystack_len$[ebp]
-  0019d	33 f6		 xor	 esi, esi
-  0019f	50		 push	 eax
-  001a0	8b 45 08	 mov	 eax, DWORD PTR _haystack$[ebp]
-  001a3	03 45 0c	 add	 eax, DWORD PTR _haystack_len$[ebp]
-  001a6	57		 push	 edi
-  001a7	50		 push	 eax
-  001a8	89 7d f8	 mov	 DWORD PTR _j$1$[ebp], edi
-  001ab	e8 00 00 00 00	 call	 _memchr
-  001b0	83 c4 0c	 add	 esp, 12			; 0000000cH
-  001b3	85 c0		 test	 eax, eax
-  001b5	75 d6		 jne	 SHORT $LN70@two_way_lo
+  001a5	8b c3		 mov	 eax, ebx
+  001a7	33 ff		 xor	 edi, edi
+  001a9	2b 45 0c	 sub	 eax, DWORD PTR _haystack_len$[ebp]
+  001ac	33 f6		 xor	 esi, esi
+  001ae	50		 push	 eax
+  001af	8b 45 08	 mov	 eax, DWORD PTR _haystack$[ebp]
+  001b2	03 45 0c	 add	 eax, DWORD PTR _haystack_len$[ebp]
+  001b5	57		 push	 edi
+  001b6	50		 push	 eax
+  001b7	89 7d fc	 mov	 DWORD PTR _j$1$[ebp], edi
+  001ba	e8 00 00 00 00	 call	 _memchr
+  001bf	83 c4 0c	 add	 esp, 12			; 0000000cH
+  001c2	85 c0		 test	 eax, eax
+  001c4	75 d6		 jne	 SHORT $LN72@two_way_lo
 $LL22@two_way_lo:
-  001b7	8d 04 1f	 lea	 eax, DWORD PTR [edi+ebx]
-  001ba	89 45 ec	 mov	 DWORD PTR _haystack_len$2$[ebp], eax
-  001bd	85 c0		 test	 eax, eax
-  001bf	74 cc		 je	 SHORT $LN70@two_way_lo
+  001c6	8d 04 1f	 lea	 eax, DWORD PTR [edi+ebx]
+  001c9	89 45 ec	 mov	 DWORD PTR _haystack_len$2$[ebp], eax
+  001cc	85 c0		 test	 eax, eax
+  001ce	74 cc		 je	 SHORT $LN72@two_way_lo
 
 ; 326  : 	{
 ; 327  : 	  /* Check the last byte first; if it does not match, then
 ; 328  : 	     shift to the next possible match location.  */
 ; 329  : 	  shift = shift_table[CANON_ELEMENT (haystack[j + needle_len - 1])];
 
-  001c1	8b 45 08	 mov	 eax, DWORD PTR _haystack$[ebp]
-  001c4	03 c7		 add	 eax, edi
-  001c6	0f b6 44 18 ff	 movzx	 eax, BYTE PTR [eax+ebx-1]
-  001cb	8b 84 85 ec fb
+  001d0	8b 45 08	 mov	 eax, DWORD PTR _haystack$[ebp]
+  001d3	03 c7		 add	 eax, edi
+  001d5	0f b6 44 18 ff	 movzx	 eax, BYTE PTR [eax+ebx-1]
+  001da	8b 84 85 ec fb
 	ff ff		 mov	 eax, DWORD PTR _shift_table$[ebp+eax*4]
 
 ; 330  : 	  if (0 < shift)
 
-  001d2	85 c0		 test	 eax, eax
-  001d4	74 18		 je	 SHORT $LN20@two_way_lo
+  001e1	85 c0		 test	 eax, eax
+  001e3	74 18		 je	 SHORT $LN20@two_way_lo
 
 ; 331  : 	    {
 ; 332  : 	      if (memory && shift < period)
 
-  001d6	85 f6		 test	 esi, esi
-  001d8	74 0b		 je	 SHORT $LN19@two_way_lo
-  001da	8b 4d f4	 mov	 ecx, DWORD PTR _period$[ebp]
-  001dd	3b c1		 cmp	 eax, ecx
-  001df	73 04		 jae	 SHORT $LN19@two_way_lo
+  001e5	85 f6		 test	 esi, esi
+  001e7	74 0b		 je	 SHORT $LN19@two_way_lo
+  001e9	8b 4d f8	 mov	 ecx, DWORD PTR _period$[ebp]
+  001ec	3b c1		 cmp	 eax, ecx
+  001ee	73 04		 jae	 SHORT $LN19@two_way_lo
 
 ; 333  : 		{
 ; 334  : 		  /* Since needle is periodic, but the last period has
@@ -398,22 +408,22 @@ $LL22@two_way_lo:
 ; 336  : 		     after the mismatch.  */
 ; 337  : 		  shift = needle_len - period;
 
-  001e1	8b c3		 mov	 eax, ebx
-  001e3	2b c1		 sub	 eax, ecx
+  001f0	8b c3		 mov	 eax, ebx
+  001f2	2b c1		 sub	 eax, ecx
 $LN19@two_way_lo:
 
 ; 338  : 		}
 ; 339  : 	      memory = 0;
 
-  001e5	33 f6		 xor	 esi, esi
+  001f4	33 f6		 xor	 esi, esi
 
 ; 340  : 	      j += shift;
 
-  001e7	03 f8		 add	 edi, eax
+  001f6	03 f8		 add	 edi, eax
 
 ; 341  : 	      continue;
 
-  001e9	e9 83 00 00 00	 jmp	 $LN82@two_way_lo
+  001f8	e9 84 00 00 00	 jmp	 $LN81@two_way_lo
 $LN20@two_way_lo:
 
 ; 342  : 	    }
@@ -421,160 +431,162 @@ $LN20@two_way_lo:
 ; 344  : 	     already been matched, by virtue of the shift table.  */
 ; 345  : 	  i = MAX (suffix, memory);
 
-  001ee	8b 45 fc	 mov	 eax, DWORD PTR _suffix$1$[ebp]
+  001fd	8b 45 f4	 mov	 eax, DWORD PTR _suffix$1$[ebp]
+  00200	8b ce		 mov	 ecx, esi
+  00202	3b c6		 cmp	 eax, esi
+  00204	72 02		 jb	 SHORT $LN33@two_way_lo
+  00206	8b c8		 mov	 ecx, eax
+$LN33@two_way_lo:
 
 ; 346  : 	  while (i < needle_len - 1 && (CANON_ELEMENT (needle[i])
 ; 347  : 					== CANON_ELEMENT (haystack[i + j])))
 
-  001f1	8d 53 ff	 lea	 edx, DWORD PTR [ebx-1]
-  001f4	3b c6		 cmp	 eax, esi
-  001f6	8b c8		 mov	 ecx, eax
-  001f8	0f 42 ce	 cmovb	 ecx, esi
-  001fb	3b d1		 cmp	 edx, ecx
-  001fd	76 2b		 jbe	 SHORT $LN84@two_way_lo
-  001ff	8b 45 08	 mov	 eax, DWORD PTR _haystack$[ebp]
-  00202	8b 5d 10	 mov	 ebx, DWORD PTR _needle$[ebp]
-  00205	03 c7		 add	 eax, edi
-  00207	89 45 f0	 mov	 DWORD PTR tv721[ebp], eax
-  0020a	8b f8		 mov	 edi, eax
-  0020c	8d 64 24 00	 npad	 4
+  00208	8d 53 ff	 lea	 edx, DWORD PTR [ebx-1]
+  0020b	3b d1		 cmp	 edx, ecx
+  0020d	76 2b		 jbe	 SHORT $LN83@two_way_lo
+  0020f	8b 45 08	 mov	 eax, DWORD PTR _haystack$[ebp]
+  00212	03 c7		 add	 eax, edi
+  00214	8b 7d 10	 mov	 edi, DWORD PTR _needle$[ebp]
+  00217	89 45 f0	 mov	 DWORD PTR tv737[ebp], eax
+  0021a	8b d8		 mov	 ebx, eax
+  0021c	8d 64 24 00	 npad	 4
 $LL18@two_way_lo:
-  00210	8a 04 19	 mov	 al, BYTE PTR [ecx+ebx]
-  00213	3a 04 0f	 cmp	 al, BYTE PTR [edi+ecx]
-  00216	75 05		 jne	 SHORT $LN76@two_way_lo
+  00220	8a 04 39	 mov	 al, BYTE PTR [ecx+edi]
+  00223	3a 04 0b	 cmp	 al, BYTE PTR [ebx+ecx]
+  00226	75 05		 jne	 SHORT $LN78@two_way_lo
 
 ; 348  : 	    ++i;
 
-  00218	41		 inc	 ecx
-  00219	3b ca		 cmp	 ecx, edx
-  0021b	72 f3		 jb	 SHORT $LL18@two_way_lo
-$LN76@two_way_lo:
-  0021d	8b 7d f8	 mov	 edi, DWORD PTR _j$1$[ebp]
-  00220	8b 5d 14	 mov	 ebx, DWORD PTR _needle_len$[ebp]
-  00223	8b 45 fc	 mov	 eax, DWORD PTR _suffix$1$[ebp]
+  00228	41		 inc	 ecx
+  00229	3b ca		 cmp	 ecx, edx
+  0022b	72 f3		 jb	 SHORT $LL18@two_way_lo
+$LN78@two_way_lo:
+  0022d	8b 7d fc	 mov	 edi, DWORD PTR _j$1$[ebp]
+  00230	8b 5d 14	 mov	 ebx, DWORD PTR _needle_len$[ebp]
+  00233	8b 45 f4	 mov	 eax, DWORD PTR _suffix$1$[ebp]
 
 ; 349  : 	  if (needle_len - 1 <= i)
 
-  00226	3b d1		 cmp	 edx, ecx
-  00228	77 40		 ja	 SHORT $LN16@two_way_lo
-$LN84@two_way_lo:
+  00236	3b d1		 cmp	 edx, ecx
+  00238	77 40		 ja	 SHORT $LN16@two_way_lo
+$LN83@two_way_lo:
 
 ; 350  : 	    {
 ; 351  : 	      /* Scan for matches in left half.  */
 ; 352  : 	      i = suffix - 1;
 
-  0022a	8d 50 ff	 lea	 edx, DWORD PTR [eax-1]
+  0023a	8d 50 ff	 lea	 edx, DWORD PTR [eax-1]
 
 ; 353  : 	      while (memory < i + 1 && (CANON_ELEMENT (needle[i])
 ; 354  : 					== CANON_ELEMENT (haystack[i + j])))
 
-  0022d	8d 4a 01	 lea	 ecx, DWORD PTR [edx+1]
-  00230	3b f1		 cmp	 esi, ecx
-  00232	73 22		 jae	 SHORT $LN14@two_way_lo
-  00234	8b 45 08	 mov	 eax, DWORD PTR _haystack$[ebp]
-  00237	8b 5d 10	 mov	 ebx, DWORD PTR _needle$[ebp]
-  0023a	03 c7		 add	 eax, edi
-  0023c	89 45 f0	 mov	 DWORD PTR tv720[ebp], eax
-  0023f	8b f8		 mov	 edi, eax
+  0023d	8d 4a 01	 lea	 ecx, DWORD PTR [edx+1]
+  00240	3b f1		 cmp	 esi, ecx
+  00242	73 22		 jae	 SHORT $LN14@two_way_lo
+  00244	8b 45 08	 mov	 eax, DWORD PTR _haystack$[ebp]
+  00247	8b 5d 10	 mov	 ebx, DWORD PTR _needle$[ebp]
+  0024a	03 c7		 add	 eax, edi
+  0024c	89 45 f0	 mov	 DWORD PTR tv736[ebp], eax
+  0024f	8b f8		 mov	 edi, eax
 $LL15@two_way_lo:
-  00241	8a 44 0b ff	 mov	 al, BYTE PTR [ebx+ecx-1]
-  00245	3a 04 17	 cmp	 al, BYTE PTR [edi+edx]
-  00248	75 06		 jne	 SHORT $LN77@two_way_lo
+  00251	8a 44 0b ff	 mov	 al, BYTE PTR [ebx+ecx-1]
+  00255	3a 04 17	 cmp	 al, BYTE PTR [edi+edx]
+  00258	75 06		 jne	 SHORT $LN79@two_way_lo
 
 ; 355  : 		--i;
 
-  0024a	49		 dec	 ecx
-  0024b	4a		 dec	 edx
-  0024c	3b f1		 cmp	 esi, ecx
-  0024e	72 f1		 jb	 SHORT $LL15@two_way_lo
-$LN77@two_way_lo:
-  00250	8b 7d f8	 mov	 edi, DWORD PTR _j$1$[ebp]
-  00253	8b 5d 14	 mov	 ebx, DWORD PTR _needle_len$[ebp]
+  0025a	49		 dec	 ecx
+  0025b	4a		 dec	 edx
+  0025c	3b f1		 cmp	 esi, ecx
+  0025e	72 f1		 jb	 SHORT $LL15@two_way_lo
+$LN79@two_way_lo:
+  00260	8b 7d fc	 mov	 edi, DWORD PTR _j$1$[ebp]
+  00263	8b 5d 14	 mov	 ebx, DWORD PTR _needle_len$[ebp]
 $LN14@two_way_lo:
 
 ; 356  : 	      if (i + 1 < memory + 1)
 
-  00256	8d 4e 01	 lea	 ecx, DWORD PTR [esi+1]
-  00259	8d 42 01	 lea	 eax, DWORD PTR [edx+1]
-  0025c	3b c1		 cmp	 eax, ecx
-  0025e	72 3e		 jb	 SHORT $LN44@two_way_lo
+  00266	8d 4e 01	 lea	 ecx, DWORD PTR [esi+1]
+  00269	8d 42 01	 lea	 eax, DWORD PTR [edx+1]
+  0026c	3b c1		 cmp	 eax, ecx
+  0026e	72 3e		 jb	 SHORT $LN46@two_way_lo
 
 ; 358  : 	      /* No match, so remember how many repetitions of period
 ; 359  : 		 on the right half were scanned.  */
 ; 360  : 	      j += period;
 
-  00260	03 7d f4	 add	 edi, DWORD PTR _period$[ebp]
+  00270	03 7d f8	 add	 edi, DWORD PTR _period$[ebp]
 
 ; 361  : 	      memory = needle_len - period;
 
-  00263	8b f3		 mov	 esi, ebx
-  00265	2b 75 f4	 sub	 esi, DWORD PTR _period$[ebp]
+  00273	8b f3		 mov	 esi, ebx
+  00275	2b 75 f8	 sub	 esi, DWORD PTR _period$[ebp]
 
 ; 362  : 	    }
 ; 363  : 	  else
 
-  00268	eb 07		 jmp	 SHORT $LN82@two_way_lo
+  00278	eb 07		 jmp	 SHORT $LN81@two_way_lo
 $LN16@two_way_lo:
 
 ; 364  : 	    {
 ; 365  : 	      j += i - suffix + 1;
 
-  0026a	2b c8		 sub	 ecx, eax
-  0026c	47		 inc	 edi
-  0026d	03 f9		 add	 edi, ecx
+  0027a	2b c8		 sub	 ecx, eax
+  0027c	47		 inc	 edi
+  0027d	03 f9		 add	 edi, ecx
 
 ; 366  : 	      memory = 0;
 
-  0026f	33 f6		 xor	 esi, esi
-$LN82@two_way_lo:
+  0027f	33 f6		 xor	 esi, esi
+$LN81@two_way_lo:
 
 ; 364  : 	    {
 ; 365  : 	      j += i - suffix + 1;
 
-  00271	8b c7		 mov	 eax, edi
-  00273	89 7d f8	 mov	 DWORD PTR _j$1$[ebp], edi
-  00276	2b 45 ec	 sub	 eax, DWORD PTR _haystack_len$2$[ebp]
-  00279	03 c3		 add	 eax, ebx
-  0027b	50		 push	 eax
-  0027c	8b 45 08	 mov	 eax, DWORD PTR _haystack$[ebp]
-  0027f	03 45 ec	 add	 eax, DWORD PTR _haystack_len$2$[ebp]
-  00282	6a 00		 push	 0
-  00284	50		 push	 eax
-  00285	e8 00 00 00 00	 call	 _memchr
-  0028a	83 c4 0c	 add	 esp, 12			; 0000000cH
-  0028d	85 c0		 test	 eax, eax
-  0028f	0f 84 22 ff ff
+  00281	8b c7		 mov	 eax, edi
+  00283	89 7d fc	 mov	 DWORD PTR _j$1$[ebp], edi
+  00286	2b 45 ec	 sub	 eax, DWORD PTR _haystack_len$2$[ebp]
+  00289	03 c3		 add	 eax, ebx
+  0028b	50		 push	 eax
+  0028c	8b 45 08	 mov	 eax, DWORD PTR _haystack$[ebp]
+  0028f	03 45 ec	 add	 eax, DWORD PTR _haystack_len$2$[ebp]
+  00292	6a 00		 push	 0
+  00294	50		 push	 eax
+  00295	e8 00 00 00 00	 call	 _memchr
+  0029a	83 c4 0c	 add	 esp, 12			; 0000000cH
+  0029d	85 c0		 test	 eax, eax
+  0029f	0f 84 21 ff ff
 	ff		 je	 $LL22@two_way_lo
 
 ; 406  : 	}
 ; 407  :     }
 ; 408  :   return NULL;
 
-  00295	5f		 pop	 edi
-  00296	5e		 pop	 esi
-  00297	33 c0		 xor	 eax, eax
-  00299	5b		 pop	 ebx
+  002a5	5f		 pop	 edi
+  002a6	5e		 pop	 esi
+  002a7	33 c0		 xor	 eax, eax
+  002a9	5b		 pop	 ebx
 
 ; 409  : }
 
-  0029a	8b e5		 mov	 esp, ebp
-  0029c	5d		 pop	 ebp
-  0029d	c3		 ret	 0
-$LN44@two_way_lo:
+  002aa	8b e5		 mov	 esp, ebp
+  002ac	5d		 pop	 ebp
+  002ad	c3		 ret	 0
+$LN46@two_way_lo:
 
 ; 357  : 		return (RETURN_TYPE) (haystack + j);
 
-  0029e	8b 45 08	 mov	 eax, DWORD PTR _haystack$[ebp]
-  002a1	03 c7		 add	 eax, edi
-  002a3	5f		 pop	 edi
-  002a4	5e		 pop	 esi
-  002a5	5b		 pop	 ebx
+  002ae	8b 45 08	 mov	 eax, DWORD PTR _haystack$[ebp]
+  002b1	03 c7		 add	 eax, edi
+  002b3	5f		 pop	 edi
+  002b4	5e		 pop	 esi
+  002b5	5b		 pop	 ebx
 
 ; 409  : }
 
-  002a6	8b e5		 mov	 esp, ebp
-  002a8	5d		 pop	 ebp
-  002a9	c3		 ret	 0
+  002b6	8b e5		 mov	 esp, ebp
+  002b8	5d		 pop	 ebp
+  002b9	c3		 ret	 0
 _two_way_long_needle ENDP
 _TEXT	ENDS
 ; Function compile flags: /Ogtp
@@ -582,7 +594,7 @@ _TEXT	ENDS
 ;	COMDAT _two_way_short_needle
 _TEXT	SEGMENT
 _haystack_len$2$ = -20					; size = 4
-tv549 = -16						; size = 4
+tv565 = -16						; size = 4
 _haystack_len$4$ = -12					; size = 4
 _period$ = -12						; size = 4
 _j$1$ = -8						; size = 4
@@ -633,43 +645,43 @@ _two_way_short_needle PROC				; COMDAT
   00025	03 d3		 add	 edx, ebx
   00027	8b cb		 mov	 ecx, ebx
   00029	83 ef 04	 sub	 edi, 4
-  0002c	72 13		 jb	 SHORT $LN55@two_way_sh
+  0002c	72 13		 jb	 SHORT $LN57@two_way_sh
   0002e	8b ff		 npad	 2
-$LL56@two_way_sh:
+$LL58@two_way_sh:
   00030	8b 01		 mov	 eax, DWORD PTR [ecx]
   00032	3b 02		 cmp	 eax, DWORD PTR [edx]
-  00034	75 14		 jne	 SHORT $LN54@two_way_sh
+  00034	75 14		 jne	 SHORT $LN56@two_way_sh
   00036	83 c1 04	 add	 ecx, 4
   00039	83 c2 04	 add	 edx, 4
   0003c	83 ef 04	 sub	 edi, 4
-  0003f	73 ef		 jae	 SHORT $LL56@two_way_sh
-$LN55@two_way_sh:
+  0003f	73 ef		 jae	 SHORT $LL58@two_way_sh
+$LN57@two_way_sh:
   00041	83 ff fc	 cmp	 edi, -4			; fffffffcH
-  00044	0f 84 f6 00 00
-	00		 je	 $LN53@two_way_sh
-$LN54@two_way_sh:
+  00044	0f 84 f9 00 00
+	00		 je	 $LN55@two_way_sh
+$LN56@two_way_sh:
   0004a	8a 01		 mov	 al, BYTE PTR [ecx]
   0004c	3a 02		 cmp	 al, BYTE PTR [edx]
   0004e	75 37		 jne	 SHORT $LN20@two_way_sh
   00050	83 ff fd	 cmp	 edi, -3			; fffffffdH
-  00053	0f 84 e7 00 00
-	00		 je	 $LN53@two_way_sh
+  00053	0f 84 ea 00 00
+	00		 je	 $LN55@two_way_sh
   00059	8a 41 01	 mov	 al, BYTE PTR [ecx+1]
   0005c	3a 42 01	 cmp	 al, BYTE PTR [edx+1]
   0005f	75 26		 jne	 SHORT $LN20@two_way_sh
   00061	83 ff fe	 cmp	 edi, -2			; fffffffeH
-  00064	0f 84 d6 00 00
-	00		 je	 $LN53@two_way_sh
+  00064	0f 84 d9 00 00
+	00		 je	 $LN55@two_way_sh
   0006a	8a 41 02	 mov	 al, BYTE PTR [ecx+2]
   0006d	3a 42 02	 cmp	 al, BYTE PTR [edx+2]
   00070	75 15		 jne	 SHORT $LN20@two_way_sh
   00072	83 ff ff	 cmp	 edi, -1
-  00075	0f 84 c5 00 00
-	00		 je	 $LN53@two_way_sh
+  00075	0f 84 c8 00 00
+	00		 je	 $LN55@two_way_sh
   0007b	8a 41 03	 mov	 al, BYTE PTR [ecx+3]
   0007e	3a 42 03	 cmp	 al, BYTE PTR [edx+3]
-  00081	0f 84 b9 00 00
-	00		 je	 $LN53@two_way_sh
+  00081	0f 84 bc 00 00
+	00		 je	 $LN55@two_way_sh
 $LN20@two_way_sh:
 
 ; 245  : 	    }
@@ -681,158 +693,161 @@ $LN20@two_way_sh:
 ; 251  : 	 required, and any mismatch results in a maximal shift.  */
 ; 252  :       period = MAX (suffix, needle_len - suffix) + 1;
 
-  00087	8b 55 fc	 mov	 edx, DWORD PTR _suffix$1$[ebp]
+  00087	8b 4d fc	 mov	 ecx, DWORD PTR _suffix$1$[ebp]
   0008a	8b c6		 mov	 eax, esi
-  0008c	2b c2		 sub	 eax, edx
-  0008e	8b ca		 mov	 ecx, edx
-  00090	3b d0		 cmp	 edx, eax
-  00092	0f 42 c8	 cmovb	 ecx, eax
+  0008c	2b c1		 sub	 eax, ecx
+  0008e	3b c8		 cmp	 ecx, eax
+  00090	72 02		 jb	 SHORT $LN26@two_way_sh
+  00092	8b c1		 mov	 eax, ecx
+$LN26@two_way_sh:
+  00094	40		 inc	 eax
 
 ; 253  :       j = 0;
 
   00095	33 ff		 xor	 edi, edi
-  00097	8d 41 01	 lea	 eax, DWORD PTR [ecx+1]
-  0009a	89 45 10	 mov	 DWORD PTR _period$2$[ebp], eax
+  00097	89 45 10	 mov	 DWORD PTR _period$2$[ebp], eax
 
 ; 254  :       while (AVAILABLE (haystack, haystack_len, j, needle_len))
 
-  0009d	8b c6		 mov	 eax, esi
-  0009f	2b 45 0c	 sub	 eax, DWORD PTR _haystack_len$[ebp]
-  000a2	50		 push	 eax
-  000a3	8b 45 08	 mov	 eax, DWORD PTR _haystack$[ebp]
-  000a6	03 45 0c	 add	 eax, DWORD PTR _haystack_len$[ebp]
-  000a9	57		 push	 edi
-  000aa	50		 push	 eax
-  000ab	e8 00 00 00 00	 call	 _memchr
-  000b0	83 c4 0c	 add	 esp, 12			; 0000000cH
-  000b3	85 c0		 test	 eax, eax
-  000b5	0f 85 7c 00 00
+  0009a	8b c6		 mov	 eax, esi
+  0009c	2b 45 0c	 sub	 eax, DWORD PTR _haystack_len$[ebp]
+  0009f	50		 push	 eax
+  000a0	8b 45 08	 mov	 eax, DWORD PTR _haystack$[ebp]
+  000a3	03 45 0c	 add	 eax, DWORD PTR _haystack_len$[ebp]
+  000a6	57		 push	 edi
+  000a7	50		 push	 eax
+  000a8	e8 00 00 00 00	 call	 _memchr
+  000ad	83 c4 0c	 add	 esp, 12			; 0000000cH
+  000b0	85 c0		 test	 eax, eax
+  000b2	0f 85 82 00 00
 	00		 jne	 $LN8@two_way_sh
-  000bb	eb 03 8d 49 00	 npad	 5
 $LL9@two_way_sh:
-  000c0	8d 04 37	 lea	 eax, DWORD PTR [edi+esi]
-  000c3	89 45 f4	 mov	 DWORD PTR _haystack_len$4$[ebp], eax
-  000c6	85 c0		 test	 eax, eax
-  000c8	74 6d		 je	 SHORT $LN8@two_way_sh
+  000b8	8d 04 37	 lea	 eax, DWORD PTR [edi+esi]
+  000bb	89 45 f4	 mov	 DWORD PTR _haystack_len$4$[ebp], eax
+  000be	85 c0		 test	 eax, eax
+  000c0	74 78		 je	 SHORT $LN8@two_way_sh
 
 ; 255  : 	{
 ; 256  : 	  /* Scan for matches in right half.  */
 ; 257  : 	  i = suffix;
 
-  000ca	8b 45 fc	 mov	 eax, DWORD PTR _suffix$1$[ebp]
+  000c2	8b 45 fc	 mov	 eax, DWORD PTR _suffix$1$[ebp]
 
 ; 258  : 	  while (i < needle_len && (CANON_ELEMENT (needle[i])
 ; 259  : 				    == CANON_ELEMENT (haystack[i + j])))
 
-  000cd	3b c6		 cmp	 eax, esi
-  000cf	73 12		 jae	 SHORT $LN49@two_way_sh
-  000d1	8b 55 08	 mov	 edx, DWORD PTR _haystack$[ebp]
-  000d4	03 d7		 add	 edx, edi
+  000c5	3b c6		 cmp	 eax, esi
+  000c7	73 14		 jae	 SHORT $LN51@two_way_sh
+  000c9	8b 55 08	 mov	 edx, DWORD PTR _haystack$[ebp]
+  000cc	03 d7		 add	 edx, edi
+  000ce	8b ff		 npad	 2
 $LL7@two_way_sh:
-  000d6	8a 0c 18	 mov	 cl, BYTE PTR [eax+ebx]
-  000d9	3a 0c 02	 cmp	 cl, BYTE PTR [edx+eax]
-  000dc	75 2d		 jne	 SHORT $LN6@two_way_sh
+  000d0	8a 0c 18	 mov	 cl, BYTE PTR [eax+ebx]
+  000d3	3a 0c 02	 cmp	 cl, BYTE PTR [edx+eax]
+  000d6	75 32		 jne	 SHORT $LN6@two_way_sh
 
 ; 260  : 	    ++i;
 
-  000de	40		 inc	 eax
-  000df	3b c6		 cmp	 eax, esi
-  000e1	72 f3		 jb	 SHORT $LL7@two_way_sh
-$LN49@two_way_sh:
+  000d8	40		 inc	 eax
+  000d9	3b c6		 cmp	 eax, esi
+  000db	72 f3		 jb	 SHORT $LL7@two_way_sh
+$LN51@two_way_sh:
 
 ; 262  : 	    {
 ; 263  : 	      /* Scan for matches in left half.  */
 ; 264  : 	      i = suffix - 1;
 
-  000e3	8b 4d fc	 mov	 ecx, DWORD PTR _suffix$1$[ebp]
-  000e6	49		 dec	 ecx
+  000dd	8b 4d fc	 mov	 ecx, DWORD PTR _suffix$1$[ebp]
+  000e0	49		 dec	 ecx
 
 ; 265  : 	      while (i != SIZE_MAX && (CANON_ELEMENT (needle[i])
 ; 266  : 				       == CANON_ELEMENT (haystack[i + j])))
 
-  000e7	83 f9 ff	 cmp	 ecx, -1
-  000ea	74 13		 je	 SHORT $LN32@two_way_sh
-  000ec	8b 55 08	 mov	 edx, DWORD PTR _haystack$[ebp]
-  000ef	03 d7		 add	 edx, edi
+  000e1	83 f9 ff	 cmp	 ecx, -1
+  000e4	74 18		 je	 SHORT $LN34@two_way_sh
+  000e6	8b 55 08	 mov	 edx, DWORD PTR _haystack$[ebp]
+  000e9	03 d7		 add	 edx, edi
+  000eb	eb 03 8d 49 00	 npad	 5
 $LL4@two_way_sh:
-  000f1	8a 04 19	 mov	 al, BYTE PTR [ecx+ebx]
-  000f4	3a 04 0a	 cmp	 al, BYTE PTR [edx+ecx]
-  000f7	75 1e		 jne	 SHORT $LN3@two_way_sh
+  000f0	8a 04 19	 mov	 al, BYTE PTR [ecx+ebx]
+  000f3	3a 04 0a	 cmp	 al, BYTE PTR [edx+ecx]
+  000f6	75 1e		 jne	 SHORT $LN3@two_way_sh
 
 ; 267  : 		--i;
 
-  000f9	49		 dec	 ecx
-  000fa	83 f9 ff	 cmp	 ecx, -1
-  000fd	75 f2		 jne	 SHORT $LL4@two_way_sh
-$LN32@two_way_sh:
+  000f8	49		 dec	 ecx
+  000f9	83 f9 ff	 cmp	 ecx, -1
+  000fc	75 f2		 jne	 SHORT $LL4@two_way_sh
+$LN34@two_way_sh:
 
 ; 268  : 	      if (i == SIZE_MAX)
 ; 269  : 		return (RETURN_TYPE) (haystack + j);
 
-  000ff	8b 45 08	 mov	 eax, DWORD PTR _haystack$[ebp]
-  00102	03 c7		 add	 eax, edi
-  00104	5f		 pop	 edi
-  00105	5e		 pop	 esi
-  00106	5b		 pop	 ebx
+  000fe	8b 45 08	 mov	 eax, DWORD PTR _haystack$[ebp]
+  00101	03 c7		 add	 eax, edi
+  00103	5f		 pop	 edi
+  00104	5e		 pop	 esi
+  00105	5b		 pop	 ebx
 
 ; 277  : }
 
-  00107	8b e5		 mov	 esp, ebp
-  00109	5d		 pop	 ebp
-  0010a	c3		 ret	 0
+  00106	8b e5		 mov	 esp, ebp
+  00108	5d		 pop	 ebp
+  00109	c3		 ret	 0
 $LN6@two_way_sh:
 
 ; 261  : 	  if (needle_len <= i)
 
-  0010b	3b f0		 cmp	 esi, eax
-  0010d	76 d4		 jbe	 SHORT $LN49@two_way_sh
+  0010a	3b f0		 cmp	 esi, eax
+  0010c	76 cf		 jbe	 SHORT $LN51@two_way_sh
 
 ; 271  : 	    }
 ; 272  : 	  else
 ; 273  : 	    j += i - suffix + 1;
 
-  0010f	2b 45 fc	 sub	 eax, DWORD PTR _suffix$1$[ebp]
-  00112	47		 inc	 edi
-  00113	03 f8		 add	 edi, eax
-  00115	eb 03		 jmp	 SHORT $LN1@two_way_sh
+  0010e	2b 45 fc	 sub	 eax, DWORD PTR _suffix$1$[ebp]
+  00111	47		 inc	 edi
+  00112	03 f8		 add	 edi, eax
+  00114	eb 03		 jmp	 SHORT $LN1@two_way_sh
 $LN3@two_way_sh:
 
 ; 270  : 	      j += period;
 
-  00117	03 7d 10	 add	 edi, DWORD PTR _period$2$[ebp]
+  00116	03 7d 10	 add	 edi, DWORD PTR _period$2$[ebp]
 $LN1@two_way_sh:
 
 ; 254  :       while (AVAILABLE (haystack, haystack_len, j, needle_len))
 
-  0011a	8b c7		 mov	 eax, edi
-  0011c	2b 45 f4	 sub	 eax, DWORD PTR _haystack_len$4$[ebp]
-  0011f	03 c6		 add	 eax, esi
-  00121	50		 push	 eax
-  00122	8b 45 08	 mov	 eax, DWORD PTR _haystack$[ebp]
-  00125	03 45 f4	 add	 eax, DWORD PTR _haystack_len$4$[ebp]
-  00128	6a 00		 push	 0
-  0012a	50		 push	 eax
-  0012b	e8 00 00 00 00	 call	 _memchr
-  00130	83 c4 0c	 add	 esp, 12			; 0000000cH
-  00133	85 c0		 test	 eax, eax
-  00135	74 89		 je	 SHORT $LL9@two_way_sh
+  00119	8b c7		 mov	 eax, edi
+  0011b	2b 45 f4	 sub	 eax, DWORD PTR _haystack_len$4$[ebp]
+  0011e	03 c6		 add	 eax, esi
+  00120	50		 push	 eax
+  00121	8b 45 08	 mov	 eax, DWORD PTR _haystack$[ebp]
+  00124	03 45 f4	 add	 eax, DWORD PTR _haystack_len$4$[ebp]
+  00127	6a 00		 push	 0
+  00129	50		 push	 eax
+  0012a	e8 00 00 00 00	 call	 _memchr
+  0012f	83 c4 0c	 add	 esp, 12			; 0000000cH
+  00132	85 c0		 test	 eax, eax
+  00134	0f 84 7e ff ff
+	ff		 je	 $LL9@two_way_sh
 $LN8@two_way_sh:
-  00137	5f		 pop	 edi
-  00138	5e		 pop	 esi
+  0013a	5f		 pop	 edi
+  0013b	5e		 pop	 esi
 
 ; 274  : 	}
 ; 275  :     }
 ; 276  :   return NULL;
 
-  00139	33 c0		 xor	 eax, eax
-  0013b	5b		 pop	 ebx
+  0013c	33 c0		 xor	 eax, eax
+  0013e	5b		 pop	 ebx
 
 ; 277  : }
 
-  0013c	8b e5		 mov	 esp, ebp
-  0013e	5d		 pop	 ebp
-  0013f	c3		 ret	 0
-$LN53@two_way_sh:
+  0013f	8b e5		 mov	 esp, ebp
+  00141	5d		 pop	 ebp
+  00142	c3		 ret	 0
+$LN55@two_way_sh:
 
 ; 214  :     {
 ; 215  :       /* Entire needle is periodic; a mismatch can only advance by the
@@ -842,80 +857,80 @@ $LN53@two_way_sh:
 ; 219  :       j = 0;
 ; 220  :       while (AVAILABLE (haystack, haystack_len, j, needle_len))
 
-  00140	8b c6		 mov	 eax, esi
-  00142	33 ff		 xor	 edi, edi
-  00144	2b 45 0c	 sub	 eax, DWORD PTR _haystack_len$[ebp]
-  00147	50		 push	 eax
-  00148	8b 45 08	 mov	 eax, DWORD PTR _haystack$[ebp]
-  0014b	03 45 0c	 add	 eax, DWORD PTR _haystack_len$[ebp]
-  0014e	57		 push	 edi
-  0014f	50		 push	 eax
-  00150	89 7d f8	 mov	 DWORD PTR _j$1$[ebp], edi
-  00153	e8 00 00 00 00	 call	 _memchr
-  00158	83 c4 0c	 add	 esp, 12			; 0000000cH
-  0015b	85 c0		 test	 eax, eax
-  0015d	75 d8		 jne	 SHORT $LN8@two_way_sh
-  0015f	90		 npad	 1
+  00143	8b c6		 mov	 eax, esi
+  00145	33 db		 xor	 ebx, ebx
+  00147	2b 45 0c	 sub	 eax, DWORD PTR _haystack_len$[ebp]
+  0014a	33 ff		 xor	 edi, edi
+  0014c	50		 push	 eax
+  0014d	8b 45 08	 mov	 eax, DWORD PTR _haystack$[ebp]
+  00150	03 45 0c	 add	 eax, DWORD PTR _haystack_len$[ebp]
+  00153	53		 push	 ebx
+  00154	50		 push	 eax
+  00155	89 5d f8	 mov	 DWORD PTR _j$1$[ebp], ebx
+  00158	e8 00 00 00 00	 call	 _memchr
+  0015d	83 c4 0c	 add	 esp, 12			; 0000000cH
+  00160	85 c0		 test	 eax, eax
+  00162	75 d6		 jne	 SHORT $LN8@two_way_sh
 $LL19@two_way_sh:
-  00160	8b 55 f8	 mov	 edx, DWORD PTR _j$1$[ebp]
-  00163	8d 04 32	 lea	 eax, DWORD PTR [edx+esi]
-  00166	89 45 ec	 mov	 DWORD PTR _haystack_len$2$[ebp], eax
-  00169	85 c0		 test	 eax, eax
-  0016b	74 ca		 je	 SHORT $LN8@two_way_sh
+  00164	8d 04 33	 lea	 eax, DWORD PTR [ebx+esi]
+  00167	89 45 ec	 mov	 DWORD PTR _haystack_len$2$[ebp], eax
+  0016a	85 c0		 test	 eax, eax
+  0016c	74 cc		 je	 SHORT $LN8@two_way_sh
 
 ; 221  : 	{
 ; 222  : 	  /* Scan for matches in right half.  */
 ; 223  : 	  i = MAX (suffix, memory);
 
-  0016d	8b 45 fc	 mov	 eax, DWORD PTR _suffix$1$[ebp]
-  00170	3b c7		 cmp	 eax, edi
-  00172	8b c8		 mov	 ecx, eax
-  00174	0f 42 cf	 cmovb	 ecx, edi
+  0016e	8b 4d fc	 mov	 ecx, DWORD PTR _suffix$1$[ebp]
+  00171	3b cf		 cmp	 ecx, edi
+  00173	73 02		 jae	 SHORT $LN23@two_way_sh
+  00175	8b cf		 mov	 ecx, edi
+$LN23@two_way_sh:
 
 ; 224  : 	  while (i < needle_len && (CANON_ELEMENT (needle[i])
 ; 225  : 				    == CANON_ELEMENT (haystack[i + j])))
 
   00177	3b ce		 cmp	 ecx, esi
-  00179	73 20		 jae	 SHORT $LN50@two_way_sh
-  0017b	eb 03 8d 49 00	 npad	 5
+  00179	73 15		 jae	 SHORT $LN52@two_way_sh
+  0017b	8b 55 08	 mov	 edx, DWORD PTR _haystack$[ebp]
+  0017e	03 d3		 add	 edx, ebx
 $LL17@two_way_sh:
-  00180	8a 04 19	 mov	 al, BYTE PTR [ecx+ebx]
-  00183	8b 5d 08	 mov	 ebx, DWORD PTR _haystack$[ebp]
-  00186	8b 75 14	 mov	 esi, DWORD PTR _needle_len$[ebp]
-  00189	03 da		 add	 ebx, edx
-  0018b	3a 04 0b	 cmp	 al, BYTE PTR [ebx+ecx]
-  0018e	8b 5d 10	 mov	 ebx, DWORD PTR _needle$[ebp]
-  00191	75 71		 jne	 SHORT $LN16@two_way_sh
+  00180	8b 45 10	 mov	 eax, DWORD PTR _needle$[ebp]
+  00183	8a 04 01	 mov	 al, BYTE PTR [ecx+eax]
+  00186	3a 04 0a	 cmp	 al, BYTE PTR [edx+ecx]
+  00189	75 79		 jne	 SHORT $LN16@two_way_sh
 
 ; 226  : 	    ++i;
 
-  00193	41		 inc	 ecx
-  00194	3b ce		 cmp	 ecx, esi
-  00196	72 e8		 jb	 SHORT $LL17@two_way_sh
-$LN58@two_way_sh:
-  00198	8b 45 fc	 mov	 eax, DWORD PTR _suffix$1$[ebp]
-$LN50@two_way_sh:
+  0018b	41		 inc	 ecx
+  0018c	3b ce		 cmp	 ecx, esi
+  0018e	72 f0		 jb	 SHORT $LL17@two_way_sh
+$LN52@two_way_sh:
 
 ; 228  : 	    {
 ; 229  : 	      /* Scan for matches in left half.  */
 ; 230  : 	      i = suffix - 1;
 
-  0019b	8d 50 ff	 lea	 edx, DWORD PTR [eax-1]
+  00190	8b 55 fc	 mov	 edx, DWORD PTR _suffix$1$[ebp]
+  00193	4a		 dec	 edx
 
 ; 231  : 	      while (memory < i + 1 && (CANON_ELEMENT (needle[i])
 ; 232  : 					== CANON_ELEMENT (haystack[i + j])))
 
-  0019e	8d 4a 01	 lea	 ecx, DWORD PTR [edx+1]
-  001a1	3b f9		 cmp	 edi, ecx
-  001a3	73 1d		 jae	 SHORT $LN13@two_way_sh
-  001a5	8b 45 f8	 mov	 eax, DWORD PTR _j$1$[ebp]
-  001a8	03 45 08	 add	 eax, DWORD PTR _haystack$[ebp]
-  001ab	89 45 f0	 mov	 DWORD PTR tv549[ebp], eax
-  001ae	8b f0		 mov	 esi, eax
+  00194	8d 4a 01	 lea	 ecx, DWORD PTR [edx+1]
+  00197	3b f9		 cmp	 edi, ecx
+  00199	73 2a		 jae	 SHORT $LN13@two_way_sh
+  0019b	8b 45 08	 mov	 eax, DWORD PTR _haystack$[ebp]
+  0019e	8b 75 10	 mov	 esi, DWORD PTR _needle$[ebp]
+  001a1	03 c3		 add	 eax, ebx
+  001a3	89 45 f0	 mov	 DWORD PTR tv565[ebp], eax
+  001a6	8b d8		 mov	 ebx, eax
+  001a8	eb 06 8d 9b 00
+	00 00 00	 npad	 8
 $LL14@two_way_sh:
-  001b0	8a 44 0b ff	 mov	 al, BYTE PTR [ebx+ecx-1]
-  001b4	3a 04 16	 cmp	 al, BYTE PTR [esi+edx]
-  001b7	75 06		 jne	 SHORT $LN57@two_way_sh
+  001b0	8a 44 0e ff	 mov	 al, BYTE PTR [esi+ecx-1]
+  001b4	3a 04 13	 cmp	 al, BYTE PTR [ebx+edx]
+  001b7	75 06		 jne	 SHORT $LN59@two_way_sh
 
 ; 233  : 		--i;
 
@@ -923,36 +938,36 @@ $LL14@two_way_sh:
   001ba	4a		 dec	 edx
   001bb	3b f9		 cmp	 edi, ecx
   001bd	72 f1		 jb	 SHORT $LL14@two_way_sh
-$LN57@two_way_sh:
+$LN59@two_way_sh:
   001bf	8b 75 14	 mov	 esi, DWORD PTR _needle_len$[ebp]
+  001c2	8b 5d f8	 mov	 ebx, DWORD PTR _j$1$[ebp]
 $LN13@two_way_sh:
 
 ; 234  : 	      if (i + 1 < memory + 1)
 
-  001c2	8d 4a 01	 lea	 ecx, DWORD PTR [edx+1]
-  001c5	8d 47 01	 lea	 eax, DWORD PTR [edi+1]
-  001c8	3b c8		 cmp	 ecx, eax
-  001ca	72 46		 jb	 SHORT $LN31@two_way_sh
+  001c5	8d 4a 01	 lea	 ecx, DWORD PTR [edx+1]
+  001c8	8d 47 01	 lea	 eax, DWORD PTR [edi+1]
+  001cb	3b c8		 cmp	 ecx, eax
+  001cd	72 43		 jb	 SHORT $LN33@two_way_sh
 
 ; 236  : 	      /* No match, so remember how many repetitions of period
 ; 237  : 		 on the right half were scanned.  */
 ; 238  : 	      j += period;
 
-  001cc	8b 55 f8	 mov	 edx, DWORD PTR _j$1$[ebp]
+  001cf	03 5d f4	 add	 ebx, DWORD PTR _period$[ebp]
 
 ; 239  : 	      memory = needle_len - period;
 
-  001cf	8b fe		 mov	 edi, esi
-  001d1	03 55 f4	 add	 edx, DWORD PTR _period$[ebp]
+  001d2	8b fe		 mov	 edi, esi
   001d4	2b 7d f4	 sub	 edi, DWORD PTR _period$[ebp]
-$LN59@two_way_sh:
+$LN60@two_way_sh:
 
 ; 236  : 	      /* No match, so remember how many repetitions of period
 ; 237  : 		 on the right half were scanned.  */
 ; 238  : 	      j += period;
 
-  001d7	8b c2		 mov	 eax, edx
-  001d9	89 55 f8	 mov	 DWORD PTR _j$1$[ebp], edx
+  001d7	8b c3		 mov	 eax, ebx
+  001d9	89 5d f8	 mov	 DWORD PTR _j$1$[ebp], ebx
   001dc	2b 45 ec	 sub	 eax, DWORD PTR _haystack_len$2$[ebp]
   001df	03 c6		 add	 eax, esi
   001e1	50		 push	 eax
@@ -963,7 +978,7 @@ $LN59@two_way_sh:
   001eb	e8 00 00 00 00	 call	 _memchr
   001f0	83 c4 0c	 add	 esp, 12			; 0000000cH
   001f3	85 c0		 test	 eax, eax
-  001f5	0f 84 65 ff ff
+  001f5	0f 84 69 ff ff
 	ff		 je	 $LL19@two_way_sh
 
 ; 274  : 	}
@@ -985,7 +1000,7 @@ $LN16@two_way_sh:
 ; 227  : 	  if (needle_len <= i)
 
   00204	3b f1		 cmp	 esi, ecx
-  00206	76 90		 jbe	 SHORT $LN58@two_way_sh
+  00206	76 88		 jbe	 SHORT $LN52@two_way_sh
 
 ; 240  : 	    }
 ; 241  : 	  else
@@ -993,28 +1008,28 @@ $LN16@two_way_sh:
 ; 243  : 	      j += i - suffix + 1;
 
   00208	2b 4d fc	 sub	 ecx, DWORD PTR _suffix$1$[ebp]
-  0020b	42		 inc	 edx
-  0020c	03 d1		 add	 edx, ecx
+  0020b	43		 inc	 ebx
+  0020c	03 d9		 add	 ebx, ecx
 
 ; 244  : 	      memory = 0;
 
   0020e	33 ff		 xor	 edi, edi
-  00210	eb c5		 jmp	 SHORT $LN59@two_way_sh
-$LN31@two_way_sh:
+  00210	eb c5		 jmp	 SHORT $LN60@two_way_sh
+$LN33@two_way_sh:
 
 ; 235  : 		return (RETURN_TYPE) (haystack + j);
 
-  00212	8b 45 f8	 mov	 eax, DWORD PTR _j$1$[ebp]
-  00215	03 45 08	 add	 eax, DWORD PTR _haystack$[ebp]
-  00218	5f		 pop	 edi
-  00219	5e		 pop	 esi
-  0021a	5b		 pop	 ebx
+  00212	8b 45 08	 mov	 eax, DWORD PTR _haystack$[ebp]
+  00215	5f		 pop	 edi
+  00216	5e		 pop	 esi
+  00217	03 c3		 add	 eax, ebx
+  00219	5b		 pop	 ebx
 
 ; 277  : }
 
-  0021b	8b e5		 mov	 esp, ebp
-  0021d	5d		 pop	 ebp
-  0021e	c3		 ret	 0
+  0021a	8b e5		 mov	 esp, ebp
+  0021c	5d		 pop	 ebp
+  0021d	c3		 ret	 0
 _two_way_short_needle ENDP
 _TEXT	ENDS
 ; Function compile flags: /Ogtp

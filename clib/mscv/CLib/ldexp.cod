@@ -28,11 +28,13 @@ _ldexp	PROC						; COMDAT
   00000	55		 push	 ebp
   00001	8b ec		 mov	 ebp, esp
   00003	83 ec 10	 sub	 esp, 16			; 00000010H
-  00006	66 0f 6e 45 10	 movd	 xmm0, DWORD PTR _exp$[ebp]
 
 ; 11   :     register double result;
 ; 12   : #ifndef __GNUC__
 ; 13   :     register double __dy = (double)exp;
+
+  00006	db 45 10	 fild	 DWORD PTR _exp$[ebp]
+
 ; 14   : #endif
 ; 15   : 
 ; 16   :     /* Check for value correctness
@@ -40,21 +42,20 @@ _ldexp	PROC						; COMDAT
 ; 18   :      */
 ; 19   :     if (_isnan(value))
 
-  0000b	83 ec 08	 sub	 esp, 8
-  0000e	f3 0f e6 c0	 cvtdq2pd xmm0, xmm0
-  00012	f2 0f 11 45 f8	 movsd	 QWORD PTR ___dy$[ebp], xmm0
-  00017	f2 0f 10 45 08	 movsd	 xmm0, QWORD PTR _value$[ebp]
-  0001c	f2 0f 11 04 24	 movsd	 QWORD PTR [esp], xmm0
-  00021	e8 00 00 00 00	 call	 __isnan
-  00026	83 c4 08	 add	 esp, 8
-  00029	85 c0		 test	 eax, eax
-  0002b	74 0b		 je	 SHORT $LN1@ldexp
+  00009	83 ec 08	 sub	 esp, 8
+  0000c	dd 5d f8	 fstp	 QWORD PTR ___dy$[ebp]
+  0000f	dd 45 08	 fld	 QWORD PTR _value$[ebp]
+  00012	dd 1c 24	 fstp	 QWORD PTR [esp]
+  00015	e8 00 00 00 00	 call	 __isnan
+  0001a	83 c4 08	 add	 esp, 8
+  0001d	85 c0		 test	 eax, eax
+  0001f	74 0b		 je	 SHORT $LN1@ldexp
 
 ; 20   :     {
 ; 21   :         errno = EDOM;
 
-  0002d	e8 00 00 00 00	 call	 ___errno
-  00032	c7 00 21 00 00
+  00021	e8 00 00 00 00	 call	 ___errno
+  00026	c7 00 21 00 00
 	00		 mov	 DWORD PTR [eax], 33	; 00000021H
 $LN1@ldexp:
 
@@ -78,31 +79,31 @@ $LN1@ldexp:
 ; 39   :     {
 ; 40   :         fld __dy
 
-  00038	dd 45 f8	 fld	 QWORD PTR ___dy$[ebp]
+  0002c	dd 45 f8	 fld	 QWORD PTR ___dy$[ebp]
 
 ; 41   :         fld value
 
-  0003b	dd 45 08	 fld	 QWORD PTR _value$[ebp]
+  0002f	dd 45 08	 fld	 QWORD PTR _value$[ebp]
 
 ; 42   :         fscale
 
-  0003e	d9 fd		 fscale
+  00032	d9 fd		 fscale
 
 ; 43   :         fstp result
 
-  00040	dd 5d f0	 fstp	 QWORD PTR _result$[ebp]
+  00034	dd 5d f0	 fstp	 QWORD PTR _result$[ebp]
 
 ; 44   :     }
 ; 45   : #endif /* !__GNUC__ */
 ; 46   :     return result;
 
-  00043	dd 45 f0	 fld	 QWORD PTR _result$[ebp]
+  00037	dd 45 f0	 fld	 QWORD PTR _result$[ebp]
 
 ; 47   : }
 
-  00046	8b e5		 mov	 esp, ebp
-  00048	5d		 pop	 ebp
-  00049	c3		 ret	 0
+  0003a	8b e5		 mov	 esp, ebp
+  0003c	5d		 pop	 ebp
+  0003d	c3		 ret	 0
 _ldexp	ENDP
 _TEXT	ENDS
 END

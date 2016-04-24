@@ -15,7 +15,6 @@ EXTRN	__ctype:BYTE
 ; File c:\users\philip\documents\github\mollenos\clib\src\string\atoi64.c
 ;	COMDAT _atoi64
 _TEXT	SEGMENT
-_acc$ = -12						; size = 8
 _neg$1$ = -4						; size = 4
 _acc$1$ = 8						; size = 4
 _nptr$ = 8						; size = 4
@@ -25,47 +24,52 @@ _atoi64	PROC						; COMDAT
 
   00000	55		 push	 ebp
   00001	8b ec		 mov	 ebp, esp
-  00003	83 ec 0c	 sub	 esp, 12			; 0000000cH
+  00003	51		 push	 ecx
 
 ; 10   :   char *s = (char *)nptr;
 
-  00006	8b 4d 08	 mov	 ecx, DWORD PTR _nptr$[ebp]
-  00009	0f 57 c0	 xorps	 xmm0, xmm0
+  00004	8b 4d 08	 mov	 ecx, DWORD PTR _nptr$[ebp]
+  00007	53		 push	 ebx
+  00008	56		 push	 esi
 
 ; 11   :   __int64 acc = 0;
 
-  0000c	66 0f 13 45 f4	 movlpd	 QWORD PTR _acc$[ebp], xmm0
+  00009	33 f6		 xor	 esi, esi
+  0000b	33 db		 xor	 ebx, ebx
+  0000d	89 75 08	 mov	 DWORD PTR _acc$1$[ebp], esi
 
 ; 12   :   int neg = 0;
 
-  00011	c7 45 fc 00 00
-	00 00		 mov	 DWORD PTR _neg$1$[ebp], 0
+  00010	89 5d fc	 mov	 DWORD PTR _neg$1$[ebp], ebx
 
 ; 13   : 
 ; 14   :   if (nptr == NULL)
 
-  00018	85 c9		 test	 ecx, ecx
-  0001a	75 08		 jne	 SHORT $LN12@atoi64
+  00013	85 c9		 test	 ecx, ecx
+  00015	75 0a		 jne	 SHORT $LN12@atoi64
 
 ; 15   :     return 0;
 
-  0001c	33 c0		 xor	 eax, eax
-  0001e	33 d2		 xor	 edx, edx
+  00017	5e		 pop	 esi
+  00018	33 c0		 xor	 eax, eax
+  0001a	33 d2		 xor	 edx, edx
+  0001c	5b		 pop	 ebx
 
 ; 36   : }
 
-  00020	8b e5		 mov	 esp, ebp
-  00022	5d		 pop	 ebp
-  00023	c3		 ret	 0
+  0001d	8b e5		 mov	 esp, ebp
+  0001f	5d		 pop	 ebp
+  00020	c3		 ret	 0
 $LN12@atoi64:
 
 ; 16   : 
 ; 17   :   while(isspace((int)*s))
 
-  00024	0f b6 01	 movzx	 eax, BYTE PTR [ecx]
-  00027	f6 80 00 00 00
+  00021	0f b6 01	 movzx	 eax, BYTE PTR [ecx]
+  00024	f6 80 00 00 00
 	00 20		 test	 BYTE PTR __ctype[eax], 32 ; 00000020H
-  0002e	74 0e		 je	 SHORT $LN7@atoi64
+  0002b	74 11		 je	 SHORT $LN7@atoi64
+  0002d	8d 49 00	 npad	 3
 $LL8@atoi64:
   00030	0f b6 41 01	 movzx	 eax, BYTE PTR [ecx+1]
 
@@ -91,7 +95,7 @@ $LN7@atoi64:
 
 ; 22   :       s++;
 
-  0004b	eb 04		 jmp	 SHORT $LN21@atoi64
+  0004b	eb 04		 jmp	 SHORT $LN20@atoi64
 $LN6@atoi64:
 
 ; 23   :     }
@@ -99,7 +103,7 @@ $LN6@atoi64:
 
   0004d	3c 2b		 cmp	 al, 43			; 0000002bH
   0004f	75 01		 jne	 SHORT $LN13@atoi64
-$LN21@atoi64:
+$LN20@atoi64:
 
 ; 25   :     s++;
 
@@ -111,76 +115,70 @@ $LN13@atoi64:
 
   00052	8a 11		 mov	 dl, BYTE PTR [ecx]
   00054	0f b6 c2	 movzx	 eax, dl
-  00057	53		 push	 ebx
-  00058	8b 5d f8	 mov	 ebx, DWORD PTR _acc$[ebp+4]
-  0005b	56		 push	 esi
-  0005c	f6 80 00 00 00
+  00057	f6 80 00 00 00
 	00 04		 test	 BYTE PTR __ctype[eax], 4
-  00063	8b 75 f4	 mov	 esi, DWORD PTR _acc$[ebp]
-  00066	74 45		 je	 SHORT $LN2@atoi64
-  00068	89 75 08	 mov	 DWORD PTR _acc$1$[ebp], esi
-  0006b	57		 push	 edi
-  0006c	8d 64 24 00	 npad	 4
+  0005e	74 3e		 je	 SHORT $LN2@atoi64
+  00060	57		 push	 edi
 $LL3@atoi64:
 
 ; 28   :     {
 ; 29   :       acc = 10 * acc + ((int)*s - '0');
 
-  00070	0f be c2	 movsx	 eax, dl
+  00061	0f be c2	 movsx	 eax, dl
 
 ; 30   :       s++;
 
-  00073	8d 49 01	 lea	 ecx, DWORD PTR [ecx+1]
-  00076	83 e8 30	 sub	 eax, 48			; 00000030H
-  00079	99		 cdq
-  0007a	8b fa		 mov	 edi, edx
-  0007c	8b d6		 mov	 edx, esi
-  0007e	8b f3		 mov	 esi, ebx
-  00080	0f a4 d6 02	 shld	 esi, edx, 2
-  00084	c1 e2 02	 shl	 edx, 2
-  00087	01 55 08	 add	 DWORD PTR _acc$1$[ebp], edx
-  0008a	8b 55 08	 mov	 edx, DWORD PTR _acc$1$[ebp]
-  0008d	13 de		 adc	 ebx, esi
-  0008f	0f a4 d3 01	 shld	 ebx, edx, 1
-  00093	03 d2		 add	 edx, edx
-  00095	03 c2		 add	 eax, edx
-  00097	8a 11		 mov	 dl, BYTE PTR [ecx]
-  00099	8b f0		 mov	 esi, eax
-  0009b	0f b6 c2	 movzx	 eax, dl
-  0009e	13 df		 adc	 ebx, edi
-  000a0	89 75 08	 mov	 DWORD PTR _acc$1$[ebp], esi
-  000a3	f6 80 00 00 00
+  00064	8d 49 01	 lea	 ecx, DWORD PTR [ecx+1]
+  00067	83 e8 30	 sub	 eax, 48			; 00000030H
+  0006a	99		 cdq
+  0006b	8b fa		 mov	 edi, edx
+  0006d	8b d6		 mov	 edx, esi
+  0006f	8b f3		 mov	 esi, ebx
+  00071	0f a4 d6 02	 shld	 esi, edx, 2
+  00075	c1 e2 02	 shl	 edx, 2
+  00078	01 55 08	 add	 DWORD PTR _acc$1$[ebp], edx
+  0007b	8b 55 08	 mov	 edx, DWORD PTR _acc$1$[ebp]
+  0007e	13 de		 adc	 ebx, esi
+  00080	0f a4 d3 01	 shld	 ebx, edx, 1
+  00084	03 d2		 add	 edx, edx
+  00086	03 c2		 add	 eax, edx
+  00088	8a 11		 mov	 dl, BYTE PTR [ecx]
+  0008a	8b f0		 mov	 esi, eax
+  0008c	0f b6 c2	 movzx	 eax, dl
+  0008f	13 df		 adc	 ebx, edi
+  00091	89 75 08	 mov	 DWORD PTR _acc$1$[ebp], esi
+  00094	f6 80 00 00 00
 	00 04		 test	 BYTE PTR __ctype[eax], 4
-  000aa	75 c4		 jne	 SHORT $LL3@atoi64
-  000ac	5f		 pop	 edi
+  0009b	75 c4		 jne	 SHORT $LL3@atoi64
+  0009d	5f		 pop	 edi
 $LN2@atoi64:
 
 ; 31   :     }
 ; 32   : 
 ; 33   :   if (neg)
 
-  000ad	83 7d fc 00	 cmp	 DWORD PTR _neg$1$[ebp], 0
-  000b1	74 07		 je	 SHORT $LN1@atoi64
+  0009e	83 7d fc 00	 cmp	 DWORD PTR _neg$1$[ebp], 0
+  000a2	74 07		 je	 SHORT $LN1@atoi64
 
 ; 34   :     acc *= -1;
 
-  000b3	f7 de		 neg	 esi
-  000b5	83 d3 00	 adc	 ebx, 0
-  000b8	f7 db		 neg	 ebx
+  000a4	f7 de		 neg	 esi
+  000a6	83 d3 00	 adc	 ebx, 0
+  000a9	f7 db		 neg	 ebx
 $LN1@atoi64:
 
 ; 35   :   return acc;
 
-  000ba	8b c6		 mov	 eax, esi
-  000bc	8b d3		 mov	 edx, ebx
-  000be	5e		 pop	 esi
-  000bf	5b		 pop	 ebx
+  000ab	8b c6		 mov	 eax, esi
+  000ad	8b d3		 mov	 edx, ebx
+  000af	5e		 pop	 esi
+  000b0	5b		 pop	 ebx
 
 ; 36   : }
 
-  000c0	8b e5		 mov	 esp, ebp
-  000c2	5d		 pop	 ebp
-  000c3	c3		 ret	 0
+  000b1	8b e5		 mov	 esp, ebp
+  000b3	5d		 pop	 ebp
+  000b4	c3		 ret	 0
 _atoi64	ENDP
 _TEXT	ENDS
 END

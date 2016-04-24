@@ -16,40 +16,36 @@
 * along with this program.If not, see <http://www.gnu.org/licenses/>.
 *
 *
-* MollenOS C Library - SetJmp & LongJmp
+* MollenOS C Library - File Flush
 */
 
-#ifndef __SETJMP_INC__
-#define __SETJMP_INC__
-
 /* Includes */
-#include <crtdefs.h>
-#include <stdint.h>
+#include <stdio.h>
+#include <errno.h>
+#include <string.h>
+#include <stdlib.h>
+#include <os/Syscall.h>
 
-/* Definitions */
-#define _JBLEN  24
-#define _JBTYPE int
-typedef _JBTYPE jmp_buf[_JBLEN];
+/* The fflush
+ * Closes a file handle and frees
+ * resources associated */
+int fflush(FILE * stream)
+{
+	/* Variables */
+	int RetVal = 0;
 
-/* C++ Guard */
-#ifdef __cplusplus
-extern "C" {
-#endif
+	/* Sanity input */
+	if (stream == NULL) {
+		_set_errno(EINVAL);
+		return EOF;
+	}
 
-/* Prototypes */
+	/* Syscall */
+	RetVal = Syscall1(MOLLENOS_SYSCALL_VFSFLUSH, MOLLENOS_SYSCALL_PARAM(stream));
 
-/* The save in time -> jump */
-_CRT_EXTERN int _setjmp(jmp_buf env);
-_CRT_EXTERN int _setjmp3(jmp_buf env, int nb_args, ...);
+	/* Clear error */
+	_set_errno(EOK);
 
-/* Shorthand */
-#define setjmp(env) _setjmp(env)
-
-/* Restore time-state -> jmp */
-_CRT_EXTERN void longjmp(jmp_buf env, int value);
-
-#ifdef __cplusplus
+	/* Done */
+	return 0;
 }
-#endif
-
-#endif //!__SETJMP_INC__

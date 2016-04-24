@@ -81,7 +81,7 @@ $LL6@strpbrk:
   00034	eb 05		 jmp	 SHORT $LN23@strpbrk
 $LN14@strpbrk:
   00036	80 38 00	 cmp	 BYTE PTR [eax], 0
-  00039	75 0f		 jne	 SHORT $LN1@strpbrk
+  00039	75 11		 jne	 SHORT $LN1@strpbrk
 $LN23@strpbrk:
 
 ; 39   : 
@@ -101,24 +101,25 @@ $LN23@strpbrk:
 ; 53   : 
 ; 54   : 	if (*c == '\0')
 
-  00043	33 c9		 xor	 ecx, ecx
-  00045	38 08		 cmp	 BYTE PTR [eax], cl
-  00047	0f 44 f1	 cmove	 esi, ecx
+  00043	0f be 00	 movsx	 eax, BYTE PTR [eax]
+  00046	f7 d8		 neg	 eax
+  00048	1b c0		 sbb	 eax, eax
+  0004a	23 f0		 and	 esi, eax
 $LN1@strpbrk:
 
 ; 55   : 		s1 = NULL;
 ; 56   : 
 ; 57   : 	return (char *) s1;
 
-  0004a	5f		 pop	 edi
-  0004b	5b		 pop	 ebx
-  0004c	8b c6		 mov	 eax, esi
-  0004e	5e		 pop	 esi
+  0004c	5f		 pop	 edi
+  0004d	5b		 pop	 ebx
+  0004e	8b c6		 mov	 eax, esi
+  00050	5e		 pop	 esi
 
 ; 58   : }
 
-  0004f	5d		 pop	 ebp
-  00050	c3		 ret	 0
+  00051	5d		 pop	 ebp
+  00052	c3		 ret	 0
 _strpbrk ENDP
 _TEXT	ENDS
 END

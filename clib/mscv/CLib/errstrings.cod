@@ -11,19 +11,16 @@ INCLUDELIB OLDNAMES
 
 PUBLIC	__errstrings
 _BSS	SEGMENT
-$SG1744	DB	01H DUP (?)
 $SG1747	DB	01H DUP (?)
-$SG1748	DB	01H DUP (?)
-$SG1749	DB	01H DUP (?)
 $SG1750	DB	01H DUP (?)
 $SG1751	DB	01H DUP (?)
-$SG1756	DB	01H DUP (?)
+$SG1752	DB	01H DUP (?)
+$SG1753	DB	01H DUP (?)
+$SG1754	DB	01H DUP (?)
+$SG1759	DB	01H DUP (?)
 _BSS	ENDS
 _DATA	SEGMENT
-__errstrings DD	FLAT:$SG1635
-	DD	FLAT:$SG1636
-	DD	FLAT:$SG1637
-	DD	FLAT:$SG1638
+__errstrings DD	FLAT:$SG1638
 	DD	FLAT:$SG1639
 	DD	FLAT:$SG1640
 	DD	FLAT:$SG1641
@@ -148,217 +145,220 @@ __errstrings DD	FLAT:$SG1635
 	DD	FLAT:$SG1760
 	DD	FLAT:$SG1761
 	DD	FLAT:$SG1762
-$SG1635	DB	'No Error', 00H
+	DD	FLAT:$SG1763
+	DD	FLAT:$SG1764
+	DD	FLAT:$SG1765
+$SG1638	DB	'No Error', 00H
 	ORG $+3
-$SG1636	DB	'Not super-user', 00H
+$SG1639	DB	'Not super-user', 00H
 	ORG $+1
-$SG1637	DB	'No such file or directory', 00H
+$SG1640	DB	'No such file or directory', 00H
 	ORG $+2
-$SG1638	DB	'No such process', 00H
-$SG1639	DB	'Interrupted system call', 00H
-$SG1640	DB	'I/O error', 00H
+$SG1641	DB	'No such process', 00H
+$SG1642	DB	'Interrupted system call', 00H
+$SG1643	DB	'I/O error', 00H
 	ORG $+2
-$SG1641	DB	'No such device or address', 00H
+$SG1644	DB	'No such device or address', 00H
 	ORG $+2
-$SG1642	DB	'Arg list too long', 00H
+$SG1645	DB	'Arg list too long', 00H
 	ORG $+2
-$SG1643	DB	'Exec format error', 00H
+$SG1646	DB	'Exec format error', 00H
 	ORG $+2
-$SG1644	DB	'Bad file number', 00H
-$SG1645	DB	'No children', 00H
-$SG1646	DB	'No more processes', 00H
+$SG1647	DB	'Bad file number', 00H
+$SG1648	DB	'No children', 00H
+$SG1649	DB	'No more processes', 00H
 	ORG $+2
-$SG1647	DB	'Not enough core', 00H
-$SG1648	DB	'Permission denied', 00H
+$SG1650	DB	'Not enough core', 00H
+$SG1651	DB	'Permission denied', 00H
 	ORG $+2
-$SG1649	DB	'Bad address', 00H
-$SG1650	DB	'Block device required', 00H
+$SG1652	DB	'Bad address', 00H
+$SG1653	DB	'Block device required', 00H
 	ORG $+2
-$SG1651	DB	'Mount device busy', 00H
+$SG1654	DB	'Mount device busy', 00H
 	ORG $+2
-$SG1652	DB	'File exists', 00H
-$SG1653	DB	'Cross-device link', 00H
+$SG1655	DB	'File exists', 00H
+$SG1656	DB	'Cross-device link', 00H
 	ORG $+2
-$SG1654	DB	'No such device', 00H
+$SG1657	DB	'No such device', 00H
 	ORG $+1
-$SG1655	DB	'Not a directory', 00H
-$SG1656	DB	'Is a directory', 00H
+$SG1658	DB	'Not a directory', 00H
+$SG1659	DB	'Is a directory', 00H
 	ORG $+1
-$SG1657	DB	'Invalid argument', 00H
+$SG1660	DB	'Invalid argument', 00H
 	ORG $+3
-$SG1658	DB	'Too many open files in system', 00H
+$SG1661	DB	'Too many open files in system', 00H
 	ORG $+2
-$SG1659	DB	'Too many open files', 00H
-$SG1660	DB	'Not a typewriter', 00H
+$SG1662	DB	'Too many open files', 00H
+$SG1663	DB	'Not a typewriter', 00H
 	ORG $+3
-$SG1661	DB	'Text file busy', 00H
+$SG1664	DB	'Text file busy', 00H
 	ORG $+1
-$SG1662	DB	'File too large', 00H
+$SG1665	DB	'File too large', 00H
 	ORG $+1
-$SG1663	DB	'No space left on device', 00H
-$SG1664	DB	'Illegal seek', 00H
+$SG1666	DB	'No space left on device', 00H
+$SG1667	DB	'Illegal seek', 00H
 	ORG $+3
-$SG1665	DB	'Read only file system', 00H
+$SG1668	DB	'Read only file system', 00H
 	ORG $+2
-$SG1666	DB	'Too many links', 00H
+$SG1669	DB	'Too many links', 00H
 	ORG $+1
-$SG1667	DB	'Broken pipe', 00H
-$SG1668	DB	'Math arg out of domain of func', 00H
+$SG1670	DB	'Broken pipe', 00H
+$SG1671	DB	'Math arg out of domain of func', 00H
 	ORG $+1
-$SG1669	DB	'Math result not representable', 00H
+$SG1672	DB	'Math result not representable', 00H
 	ORG $+2
-$SG1670	DB	'No message of desired type', 00H
+$SG1673	DB	'No message of desired type', 00H
 	ORG $+1
-$SG1671	DB	'Identifier removed', 00H
+$SG1674	DB	'Identifier removed', 00H
 	ORG $+1
-$SG1672	DB	'Channel number out of range', 00H
-$SG1673	DB	'Level 2 not synchronized', 00H
+$SG1675	DB	'Channel number out of range', 00H
+$SG1676	DB	'Level 2 not synchronized', 00H
 	ORG $+3
-$SG1674	DB	'Level 3 halted', 00H
+$SG1677	DB	'Level 3 halted', 00H
 	ORG $+1
-$SG1675	DB	'Level 3 reset', 00H
+$SG1678	DB	'Level 3 reset', 00H
 	ORG $+2
-$SG1676	DB	'Link number out of range', 00H
+$SG1679	DB	'Link number out of range', 00H
 	ORG $+3
-$SG1677	DB	'Protocol driver not attached', 00H
+$SG1680	DB	'Protocol driver not attached', 00H
 	ORG $+3
-$SG1678	DB	'No CSI structure available', 00H
+$SG1681	DB	'No CSI structure available', 00H
 	ORG $+1
-$SG1679	DB	'Level 2 halted', 00H
+$SG1682	DB	'Level 2 halted', 00H
 	ORG $+1
-$SG1680	DB	'Deadlock condition', 00H
+$SG1683	DB	'Deadlock condition', 00H
 	ORG $+1
-$SG1681	DB	'No record locks available', 00H
+$SG1684	DB	'No record locks available', 00H
 	ORG $+2
-$SG1682	DB	'Invalid exchange', 00H
+$SG1685	DB	'Invalid exchange', 00H
 	ORG $+3
-$SG1683	DB	'Invalid request descriptor', 00H
+$SG1686	DB	'Invalid request descriptor', 00H
 	ORG $+1
-$SG1684	DB	'Exchange full', 00H
+$SG1687	DB	'Exchange full', 00H
 	ORG $+2
-$SG1685	DB	'No anode', 00H
+$SG1688	DB	'No anode', 00H
 	ORG $+3
-$SG1686	DB	'Invalid request code', 00H
+$SG1689	DB	'Invalid request code', 00H
 	ORG $+3
-$SG1687	DB	'Invalid slot', 00H
+$SG1690	DB	'Invalid slot', 00H
 	ORG $+3
-$SG1688	DB	'File locking deadlock error', 00H
-$SG1689	DB	'Bad font file fmt', 00H
+$SG1691	DB	'File locking deadlock error', 00H
+$SG1692	DB	'Bad font file fmt', 00H
 	ORG $+2
-$SG1690	DB	'Device not a stream', 00H
-$SG1691	DB	'No data (for no delay io)', 00H
+$SG1693	DB	'Device not a stream', 00H
+$SG1694	DB	'No data (for no delay io)', 00H
 	ORG $+2
-$SG1692	DB	'Timer expired', 00H
+$SG1695	DB	'Timer expired', 00H
 	ORG $+2
-$SG1693	DB	'Out of streams resources', 00H
+$SG1696	DB	'Out of streams resources', 00H
 	ORG $+3
-$SG1694	DB	'Machine is not on the network', 00H
+$SG1697	DB	'Machine is not on the network', 00H
 	ORG $+2
-$SG1695	DB	'Package not installed', 00H
+$SG1698	DB	'Package not installed', 00H
 	ORG $+2
-$SG1696	DB	'The object is remote', 00H
+$SG1699	DB	'The object is remote', 00H
 	ORG $+3
-$SG1697	DB	'The link has been severed', 00H
+$SG1700	DB	'The link has been severed', 00H
 	ORG $+2
-$SG1698	DB	'Advertise error', 00H
-$SG1699	DB	'Srmount error', 00H
+$SG1701	DB	'Advertise error', 00H
+$SG1702	DB	'Srmount error', 00H
 	ORG $+2
-$SG1700	DB	'Communication error on send', 00H
-$SG1701	DB	'Protocol error', 00H
+$SG1703	DB	'Communication error on send', 00H
+$SG1704	DB	'Protocol error', 00H
 	ORG $+1
-$SG1702	DB	'Multihop attempted', 00H
+$SG1705	DB	'Multihop attempted', 00H
 	ORG $+1
-$SG1703	DB	'Inode is remote (not really error)', 00H
+$SG1706	DB	'Inode is remote (not really error)', 00H
 	ORG $+1
-$SG1704	DB	'Cross mount point (not really error)', 00H
+$SG1707	DB	'Cross mount point (not really error)', 00H
 	ORG $+3
-$SG1705	DB	'Trying to read unreadable message', 00H
+$SG1708	DB	'Trying to read unreadable message', 00H
 	ORG $+2
-$SG1706	DB	'Inappropriate file type or format', 00H
+$SG1709	DB	'Inappropriate file type or format', 00H
 	ORG $+2
-$SG1707	DB	'Given log. name not unique', 00H
+$SG1710	DB	'Given log. name not unique', 00H
 	ORG $+1
-$SG1708	DB	'f.d. invalid for this operation', 00H
-$SG1709	DB	'Remote address changed', 00H
+$SG1711	DB	'f.d. invalid for this operation', 00H
+$SG1712	DB	'Remote address changed', 00H
 	ORG $+1
-$SG1710	DB	'Can''t access a needed shared lib', 00H
+$SG1713	DB	'Can''t access a needed shared lib', 00H
 	ORG $+3
-$SG1711	DB	'Accessing a corrupted shared lib', 00H
+$SG1714	DB	'Accessing a corrupted shared lib', 00H
 	ORG $+3
-$SG1712	DB	'.lib section in a.out corrupted', 00H
-$SG1713	DB	'Attempting to link in too many libs', 00H
-$SG1714	DB	'Attempting to exec a shared library', 00H
-$SG1715	DB	'Function not implemented', 00H
+$SG1715	DB	'.lib section in a.out corrupted', 00H
+$SG1716	DB	'Attempting to link in too many libs', 00H
+$SG1717	DB	'Attempting to exec a shared library', 00H
+$SG1718	DB	'Function not implemented', 00H
 	ORG $+3
-$SG1716	DB	'No more files', 00H
+$SG1719	DB	'No more files', 00H
 	ORG $+2
-$SG1717	DB	'Directory not empty', 00H
-$SG1718	DB	'File or path name too long', 00H
+$SG1720	DB	'Directory not empty', 00H
+$SG1721	DB	'File or path name too long', 00H
 	ORG $+1
-$SG1719	DB	'Too many symbolic links', 00H
-$SG1720	DB	'Operation not supported on transport endpoint', 00H
+$SG1722	DB	'Too many symbolic links', 00H
+$SG1723	DB	'Operation not supported on transport endpoint', 00H
 	ORG $+2
-$SG1721	DB	'Protocol family not supported', 00H
+$SG1724	DB	'Protocol family not supported', 00H
 	ORG $+2
-$SG1722	DB	'Connection reset by peer', 00H
+$SG1725	DB	'Connection reset by peer', 00H
 	ORG $+3
-$SG1723	DB	'No buffer space available', 00H
+$SG1726	DB	'No buffer space available', 00H
 	ORG $+2
-$SG1724	DB	'Address family not supported by protocol family', 00H
-$SG1725	DB	'Protocol wrong type for socket', 00H
+$SG1727	DB	'Address family not supported by protocol family', 00H
+$SG1728	DB	'Protocol wrong type for socket', 00H
 	ORG $+1
-$SG1726	DB	'Socket operation on non-socket', 00H
+$SG1729	DB	'Socket operation on non-socket', 00H
 	ORG $+1
-$SG1727	DB	'Protocol not available', 00H
+$SG1730	DB	'Protocol not available', 00H
 	ORG $+1
-$SG1728	DB	'Can''t send after socket shutdown', 00H
+$SG1731	DB	'Can''t send after socket shutdown', 00H
 	ORG $+3
-$SG1729	DB	'Connection refused', 00H
+$SG1732	DB	'Connection refused', 00H
 	ORG $+1
-$SG1730	DB	'Address already in use', 00H
+$SG1733	DB	'Address already in use', 00H
 	ORG $+1
-$SG1731	DB	'Connection aborted', 00H
+$SG1734	DB	'Connection aborted', 00H
 	ORG $+1
-$SG1732	DB	'Network is unreachable', 00H
+$SG1735	DB	'Network is unreachable', 00H
 	ORG $+1
-$SG1733	DB	'Network interface is not configured', 00H
-$SG1734	DB	'Connection timed out', 00H
+$SG1736	DB	'Network interface is not configured', 00H
+$SG1737	DB	'Connection timed out', 00H
 	ORG $+3
-$SG1735	DB	'Host is down', 00H
+$SG1738	DB	'Host is down', 00H
 	ORG $+3
-$SG1736	DB	'Host is unreachable', 00H
-$SG1737	DB	'Connection already in progress', 00H
+$SG1739	DB	'Host is unreachable', 00H
+$SG1740	DB	'Connection already in progress', 00H
 	ORG $+1
-$SG1738	DB	'Socket already connected', 00H
+$SG1741	DB	'Socket already connected', 00H
 	ORG $+3
-$SG1739	DB	'Destination address required', 00H
+$SG1742	DB	'Destination address required', 00H
 	ORG $+3
-$SG1740	DB	'Message too long', 00H
+$SG1743	DB	'Message too long', 00H
 	ORG $+3
-$SG1741	DB	'Unknown protocol', 00H
+$SG1744	DB	'Unknown protocol', 00H
 	ORG $+3
-$SG1742	DB	'Socket type not supported', 00H
+$SG1745	DB	'Socket type not supported', 00H
 	ORG $+2
-$SG1743	DB	'Address not available', 00H
+$SG1746	DB	'Address not available', 00H
 	ORG $+2
-$SG1745	DB	'Socket is already connected', 00H
-$SG1746	DB	'Socket is not connected', 00H
-$SG1752	DB	'Not supported', 00H
+$SG1748	DB	'Socket is already connected', 00H
+$SG1749	DB	'Socket is not connected', 00H
+$SG1755	DB	'Not supported', 00H
 	ORG $+2
-$SG1753	DB	'No medium (in tape drive)', 00H
+$SG1756	DB	'No medium (in tape drive)', 00H
 	ORG $+2
-$SG1754	DB	'No such host or network path', 00H
+$SG1757	DB	'No such host or network path', 00H
 	ORG $+3
-$SG1755	DB	'Filename exists with different case', 00H
-$SG1757	DB	'Value too large for defined data type', 00H
+$SG1758	DB	'Filename exists with different case', 00H
+$SG1760	DB	'Value too large for defined data type', 00H
 	ORG $+2
-$SG1758	DB	'Operation canceled', 00H
+$SG1761	DB	'Operation canceled', 00H
 	ORG $+1
-$SG1759	DB	'State not recoverable', 00H
+$SG1762	DB	'State not recoverable', 00H
 	ORG $+2
-$SG1760	DB	'Previous owner died', 00H
-$SG1761	DB	'Streams pipe error', 00H
+$SG1763	DB	'Previous owner died', 00H
+$SG1764	DB	'Streams pipe error', 00H
 	ORG $+1
-$SG1762	DB	'Operation would block', 00H
+$SG1765	DB	'Operation would block', 00H
 _DATA	ENDS
 END

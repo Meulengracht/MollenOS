@@ -48,6 +48,7 @@ _DATA	SEGMENT
 _sccsid	DB	'@(#)e_pow.c 1.5 04/04/22 SMI', 00H
 _DATA	ENDS
 PUBLIC	_pow
+PUBLIC	__real@0000000000000000
 PUBLIC	__real@01a56e1fc2f8f359
 PUBLIC	__real@3c971547652b82fe
 PUBLIC	__real@3e205c610ca86c39
@@ -79,21 +80,9 @@ PUBLIC	__real@4008000000000000
 PUBLIC	__real@4340000000000000
 PUBLIC	__real@7e37e43c8800759c
 PUBLIC	__real@bff0000000000000
-PUBLIC	__xmm@7fffffffffffffff7fffffffffffffff
-PUBLIC	__xmm@80000000000000008000000000000000
 EXTRN	_scalbn:PROC
-EXTRN	__libm_sse2_sqrt_precise:PROC
+EXTRN	__CIsqrt:PROC
 EXTRN	__fltused:DWORD
-;	COMDAT __xmm@80000000000000008000000000000000
-CONST	SEGMENT
-__xmm@80000000000000008000000000000000 DB 00H, 00H, 00H, 00H, 00H, 00H, 00H
-	DB	080H, 00H, 00H, 00H, 00H, 00H, 00H, 00H, 080H
-CONST	ENDS
-;	COMDAT __xmm@7fffffffffffffff7fffffffffffffff
-CONST	SEGMENT
-__xmm@7fffffffffffffff7fffffffffffffff DB 0ffH, 0ffH, 0ffH, 0ffH, 0ffH, 0ffH
-	DB	0ffH, 07fH, 0ffH, 0ffH, 0ffH, 0ffH, 0ffH, 0ffH, 0ffH, 07fH
-CONST	ENDS
 ;	COMDAT __real@bff0000000000000
 CONST	SEGMENT
 __real@bff0000000000000 DQ 0bff0000000000000r	; -1
@@ -218,31 +207,28 @@ CONST	ENDS
 CONST	SEGMENT
 __real@01a56e1fc2f8f359 DQ 001a56e1fc2f8f359r	; 1e-300
 CONST	ENDS
+;	COMDAT __real@0000000000000000
+CONST	SEGMENT
+__real@0000000000000000 DQ 00000000000000000r	; 0
+CONST	ENDS
 ; Function compile flags: /Ogtp
 ; File c:\users\philip\documents\github\mollenos\clib\src\math\pow.c
 ;	COMDAT _pow
 _TEXT	SEGMENT
-_n$1$ = -24						; size = 4
-_j$2$ = -24						; size = 4
-_j$1$ = -24						; size = 4
-_t_h$1 = -24						; size = 8
-_t1$ = -24						; size = 8
-_t$ = -24						; size = 8
-_z$ = -24						; size = 8
-_s$ = -16						; size = 8
-_t2$1$ = -8						; size = 8
-tv1040 = -8						; size = 8
-_y1$ = -8						; size = 8
-_p_h$ = -8						; size = 8
-tv211 = -8						; size = 8
-tv204 = -8						; size = 8
-tv197 = -8						; size = 8
-tv192 = -8						; size = 8
-tv144 = -8						; size = 8
-tv141 = -8						; size = 8
-_s_h$2 = -8						; size = 8
-_ax$ = -8						; size = 8
+_ss$1$ = -32						; size = 8
+_p_h$ = -24						; size = 8
+_s_h$1 = -24						; size = 8
+_t_h$2 = -16						; size = 8
+_ax$ = -16						; size = 8
+_s$1$ = -8						; size = 8
+_j$2$ = -4						; size = 4
+_j$1$ = -4						; size = 4
+_y1$ = 8						; size = 8
+_t1$ = 8						; size = 8
+_t$ = 8							; size = 8
+_z$ = 8							; size = 8
 _x$ = 8							; size = 8
+_n$ = 12						; size = 4
 _y$ = 16						; size = 8
 _pow	PROC						; COMDAT
 
@@ -250,7 +236,6 @@ _pow	PROC						; COMDAT
 
   00000	55		 push	 ebp
   00001	8b ec		 mov	 ebp, esp
-  00003	83 e4 f8	 and	 esp, -8			; fffffff8H
 
 ; 104  : 	double z,ax,z_h,z_l,p_h,p_l;
 ; 105  : 	double y1,t1,t2,r,s,t,u,v,w;
@@ -263,34 +248,37 @@ _pow	PROC						; COMDAT
 ; 112  : 	hy = __HI(y); ly = __LO(y);
 ; 113  : 	ix = hx&0x7fffffff;  iy = hy&0x7fffffff;
 
-  00006	8b 4d 0c	 mov	 ecx, DWORD PTR _x$[ebp+4]
-  00009	83 ec 18	 sub	 esp, 24			; 00000018H
-  0000c	8b d1		 mov	 edx, ecx
-  0000e	81 e2 ff ff ff
+  00003	8b 4d 0c	 mov	 ecx, DWORD PTR _x$[ebp+4]
+  00006	83 ec 20	 sub	 esp, 32			; 00000020H
+  00009	8b d1		 mov	 edx, ecx
+  0000b	81 e2 ff ff ff
 	7f		 and	 edx, 2147483647		; 7fffffffH
-  00014	56		 push	 esi
-  00015	57		 push	 edi
-  00016	8b 7d 14	 mov	 edi, DWORD PTR _y$[ebp+4]
-  00019	8b f7		 mov	 esi, edi
-  0001b	81 e6 ff ff ff
-	7f		 and	 esi, 2147483647		; 7fffffffH
+  00011	53		 push	 ebx
 
 ; 114  : 
 ; 115  :     /* y==zero: x**0 = 1 */
 ; 116  : 	if((iy|ly)==0) return one; 	
 
-  00021	8b c6		 mov	 eax, esi
-  00023	0b 45 10	 or	 eax, DWORD PTR _y$[ebp]
-  00026	75 08		 jne	 SHORT $LN60@pow
+  00012	8b 5d 10	 mov	 ebx, DWORD PTR _y$[ebp]
+  00015	56		 push	 esi
+  00016	57		 push	 edi
+  00017	8b 7d 14	 mov	 edi, DWORD PTR _y$[ebp+4]
+  0001a	8b f7		 mov	 esi, edi
+  0001c	81 e6 ff ff ff
+	7f		 and	 esi, 2147483647		; 7fffffffH
+  00022	8b c6		 mov	 eax, esi
+  00024	0b c3		 or	 eax, ebx
+  00026	75 09		 jne	 SHORT $LN60@pow
   00028	d9 e8		 fld1
+  0002a	5f		 pop	 edi
+  0002b	5e		 pop	 esi
+  0002c	5b		 pop	 ebx
 
 ; 306  : }
 
-  0002a	5f		 pop	 edi
-  0002b	5e		 pop	 esi
-  0002c	8b e5		 mov	 esp, ebp
-  0002e	5d		 pop	 ebp
-  0002f	c3		 ret	 0
+  0002d	8b e5		 mov	 esp, ebp
+  0002f	5d		 pop	 ebp
+  00030	c3		 ret	 0
 $LN60@pow:
 
 ; 117  : 
@@ -298,22 +286,22 @@ $LN60@pow:
 ; 119  : 	if(ix > 0x7ff00000 || ((ix==0x7ff00000)&&(lx!=0)) ||
 ; 120  : 	   iy > 0x7ff00000 || ((iy==0x7ff00000)&&(ly!=0))) 
 
-  00030	81 fa 00 00 f0
+  00031	81 fa 00 00 f0
 	7f		 cmp	 edx, 2146435072		; 7ff00000H
-  00036	0f 8f 8e 08 00
+  00037	0f 8f a0 06 00
 	00		 jg	 $LN58@pow
-  0003c	75 0a		 jne	 SHORT $LN57@pow
-  0003e	83 7d 08 00	 cmp	 DWORD PTR _x$[ebp], 0
-  00042	0f 85 82 08 00
+  0003d	75 0a		 jne	 SHORT $LN57@pow
+  0003f	83 7d 08 00	 cmp	 DWORD PTR _x$[ebp], 0
+  00043	0f 85 94 06 00
 	00		 jne	 $LN58@pow
 $LN57@pow:
-  00048	81 fe 00 00 f0
+  00049	81 fe 00 00 f0
 	7f		 cmp	 esi, 2146435072		; 7ff00000H
-  0004e	0f 8f 76 08 00
+  0004f	0f 8f 88 06 00
 	00		 jg	 $LN58@pow
-  00054	75 0a		 jne	 SHORT $LN59@pow
-  00056	83 7d 10 00	 cmp	 DWORD PTR _y$[ebp], 0
-  0005a	0f 85 6a 08 00
+  00055	75 08		 jne	 SHORT $LN59@pow
+  00057	85 db		 test	 ebx, ebx
+  00059	0f 85 7e 06 00
 	00		 jne	 $LN58@pow
 $LN59@pow:
 
@@ -324,82 +312,21 @@ $LN59@pow:
 ; 126  :      * yisint = 2	... y is an even int
 ; 127  :      */
 ; 128  : 	yisint  = 0;
+
+  0005f	33 db		 xor	 ebx, ebx
+
 ; 129  : 	if(hx<0) {	
 
-  00060	85 c9		 test	 ecx, ecx
-  00062	0f 89 80 00 00
-	00		 jns	 $LN80@pow
+  00061	85 c9		 test	 ecx, ecx
+  00063	79 0d		 jns	 SHORT $LN48@pow
 
 ; 130  : 	    if(iy>=0x43400000) yisint = 2; /* even integer y */
 
-  00068	81 fe 00 00 40
+  00065	81 fe 00 00 40
 	43		 cmp	 esi, 1128267776		; 43400000H
-  0006e	7c 07		 jl	 SHORT $LN55@pow
-  00070	b9 02 00 00 00	 mov	 ecx, 2
-  00075	eb 73		 jmp	 SHORT $LN48@pow
-$LN55@pow:
-
-; 131  : 	    else if(iy>=0x3ff00000) {
-
-  00077	81 fe 00 00 f0
-	3f		 cmp	 esi, 1072693248		; 3ff00000H
-  0007d	7c 69		 jl	 SHORT $LN80@pow
-
-; 132  : 		k = (iy>>20)-0x3ff;	   /* exponent */
-
-  0007f	8b c6		 mov	 eax, esi
-  00081	c1 f8 14	 sar	 eax, 20			; 00000014H
-  00084	2d ff 03 00 00	 sub	 eax, 1023		; 000003ffH
-
-; 133  : 		if(k>20) {
-
-  00089	83 f8 14	 cmp	 eax, 20			; 00000014H
-  0008c	7e 29		 jle	 SHORT $LN52@pow
-
-; 134  : 		    j = ly>>(52-k);
-
-  0008e	b9 34 00 00 00	 mov	 ecx, 52			; 00000034H
-  00093	2b c8		 sub	 ecx, eax
-  00095	8b 45 10	 mov	 eax, DWORD PTR _y$[ebp]
-  00098	d3 e8		 shr	 eax, cl
-  0009a	89 44 24 08	 mov	 DWORD PTR _j$1$[esp+32], eax
-
-; 135  : 		    if((j<<(52-k))== (int)ly) yisint = 2-(j&1);
-
-  0009e	d3 e0		 shl	 eax, cl
-  000a0	3b 45 10	 cmp	 eax, DWORD PTR _y$[ebp]
-  000a3	75 43		 jne	 SHORT $LN80@pow
-  000a5	8b 4c 24 08	 mov	 ecx, DWORD PTR _j$1$[esp+32]
-  000a9	b8 02 00 00 00	 mov	 eax, 2
-  000ae	83 e1 01	 and	 ecx, 1
-  000b1	2b c1		 sub	 eax, ecx
-
-; 136  : 		} else if(ly==0) {
-
-  000b3	8b c8		 mov	 ecx, eax
-  000b5	eb 33		 jmp	 SHORT $LN48@pow
-$LN52@pow:
-  000b7	83 7d 10 00	 cmp	 DWORD PTR _y$[ebp], 0
-  000bb	0f 85 19 01 00
-	00		 jne	 $LN76@pow
-
-; 137  : 		    j = iy>>(20-k);
-
-  000c1	b9 14 00 00 00	 mov	 ecx, 20			; 00000014H
-  000c6	2b c8		 sub	 ecx, eax
-  000c8	8b c6		 mov	 eax, esi
-  000ca	d3 f8		 sar	 eax, cl
-  000cc	89 44 24 08	 mov	 DWORD PTR _j$2$[esp+32], eax
-
-; 138  : 		    if((j<<(20-k))==iy) yisint = 2-(j&1);
-
-  000d0	d3 e0		 shl	 eax, cl
-  000d2	3b c6		 cmp	 eax, esi
-  000d4	75 20		 jne	 SHORT $LN77@pow
-  000d6	8b 4c 24 08	 mov	 ecx, DWORD PTR _j$2$[esp+32]
-  000da	b8 02 00 00 00	 mov	 eax, 2
-  000df	83 e1 01	 and	 ecx, 1
-  000e2	2b c1		 sub	 eax, ecx
+  0006b	7c 32		 jl	 SHORT $LN55@pow
+  0006d	bb 02 00 00 00	 mov	 ebx, 2
+$LN48@pow:
 
 ; 139  : 		}
 ; 140  : 	    }		
@@ -408,207 +335,248 @@ $LN52@pow:
 ; 143  :     /* special value of y */
 ; 144  : 	if(ly==0) { 	
 
-  000e4	8b c8		 mov	 ecx, eax
-  000e6	eb 10		 jmp	 SHORT $LN75@pow
-$LN80@pow:
-  000e8	33 c9		 xor	 ecx, ecx
-$LN48@pow:
-  000ea	83 7d 10 00	 cmp	 DWORD PTR _y$[ebp], 0
-  000ee	0f 85 e8 00 00
-	00		 jne	 $LN81@pow
-  000f4	eb 02		 jmp	 SHORT $LN75@pow
-$LN77@pow:
-  000f6	33 c9		 xor	 ecx, ecx
+  00072	83 7d 10 00	 cmp	 DWORD PTR _y$[ebp], 0
+  00076	0f 85 13 01 00
+	00		 jne	 $LN77@pow
 $LN75@pow:
 
 ; 145  : 	    if (iy==0x7ff00000) {	/* y is +-inf */
 
-  000f8	81 fe 00 00 f0
+  0007c	81 fe 00 00 f0
 	7f		 cmp	 esi, 2146435072		; 7ff00000H
-  000fe	75 7e		 jne	 SHORT $LN42@pow
+  00082	0f 85 b3 00 00
+	00		 jne	 $LN42@pow
 
 ; 146  : 	        if(((ix-0x3ff00000)|lx)==0)
 
-  00100	8d 82 00 00 10
+  00088	8d 82 00 00 10
 	c0		 lea	 eax, DWORD PTR [edx-1072693248]
-  00106	0b 45 08	 or	 eax, DWORD PTR _x$[ebp]
-  00109	75 0b		 jne	 SHORT $LN45@pow
+  0008e	0b 45 08	 or	 eax, DWORD PTR _x$[ebp]
+  00091	75 79		 jne	 SHORT $LN45@pow
 
 ; 147  : 		    return  y - y;	/* inf**+-1 is NaN */
 
-  0010b	dd 45 10	 fld	 QWORD PTR _y$[ebp]
-  0010e	dc e8		 fsub	 ST(0), ST(0)
+  00093	dd 45 10	 fld	 QWORD PTR _y$[ebp]
+  00096	5f		 pop	 edi
+  00097	5e		 pop	 esi
+  00098	dc e8		 fsub	 ST(0), ST(0)
+  0009a	5b		 pop	 ebx
 
 ; 306  : }
 
-  00110	5f		 pop	 edi
-  00111	5e		 pop	 esi
-  00112	8b e5		 mov	 esp, ebp
-  00114	5d		 pop	 ebp
-  00115	c3		 ret	 0
+  0009b	8b e5		 mov	 esp, ebp
+  0009d	5d		 pop	 ebp
+  0009e	c3		 ret	 0
+$LN55@pow:
+
+; 131  : 	    else if(iy>=0x3ff00000) {
+
+  0009f	81 fe 00 00 f0
+	3f		 cmp	 esi, 1072693248		; 3ff00000H
+  000a5	7c cb		 jl	 SHORT $LN48@pow
+
+; 132  : 		k = (iy>>20)-0x3ff;	   /* exponent */
+
+  000a7	8b c6		 mov	 eax, esi
+  000a9	c1 f8 14	 sar	 eax, 20			; 00000014H
+  000ac	2d ff 03 00 00	 sub	 eax, 1023		; 000003ffH
+
+; 133  : 		if(k>20) {
+
+  000b1	83 f8 14	 cmp	 eax, 20			; 00000014H
+  000b4	7e 25		 jle	 SHORT $LN52@pow
+
+; 134  : 		    j = ly>>(52-k);
+
+  000b6	b9 34 00 00 00	 mov	 ecx, 52			; 00000034H
+  000bb	2b c8		 sub	 ecx, eax
+  000bd	8b 45 10	 mov	 eax, DWORD PTR _y$[ebp]
+  000c0	d3 e8		 shr	 eax, cl
+  000c2	89 45 fc	 mov	 DWORD PTR _j$1$[ebp], eax
+
+; 135  : 		    if((j<<(52-k))== (int)ly) yisint = 2-(j&1);
+
+  000c5	d3 e0		 shl	 eax, cl
+  000c7	3b 45 10	 cmp	 eax, DWORD PTR _y$[ebp]
+  000ca	75 a6		 jne	 SHORT $LN48@pow
+  000cc	8b 45 fc	 mov	 eax, DWORD PTR _j$1$[ebp]
+  000cf	bb 02 00 00 00	 mov	 ebx, 2
+  000d4	83 e0 01	 and	 eax, 1
+  000d7	2b d8		 sub	 ebx, eax
+
+; 136  : 		} else if(ly==0) {
+
+  000d9	eb 97		 jmp	 SHORT $LN48@pow
+$LN52@pow:
+  000db	8b 4d 10	 mov	 ecx, DWORD PTR _y$[ebp]
+  000de	85 c9		 test	 ecx, ecx
+  000e0	0f 85 a9 00 00
+	00		 jne	 $LN77@pow
+
+; 137  : 		    j = iy>>(20-k);
+
+  000e6	b9 14 00 00 00	 mov	 ecx, 20			; 00000014H
+  000eb	2b c8		 sub	 ecx, eax
+  000ed	8b c6		 mov	 eax, esi
+  000ef	d3 f8		 sar	 eax, cl
+  000f1	89 45 fc	 mov	 DWORD PTR _j$2$[ebp], eax
+
+; 138  : 		    if((j<<(20-k))==iy) yisint = 2-(j&1);
+
+  000f4	d3 e0		 shl	 eax, cl
+  000f6	3b c6		 cmp	 eax, esi
+  000f8	75 82		 jne	 SHORT $LN75@pow
+  000fa	8b 45 fc	 mov	 eax, DWORD PTR _j$2$[ebp]
+  000fd	bb 02 00 00 00	 mov	 ebx, 2
+  00102	83 e0 01	 and	 eax, 1
+  00105	2b d8		 sub	 ebx, eax
+
+; 139  : 		}
+; 140  : 	    }		
+; 141  : 	} 
+; 142  : 
+; 143  :     /* special value of y */
+; 144  : 	if(ly==0) { 	
+
+  00107	e9 70 ff ff ff	 jmp	 $LN75@pow
 $LN45@pow:
 
 ; 148  : 	        else if (ix >= 0x3ff00000)/* (|x|>1)**+-inf = inf,0 */
 
-  00116	81 fa 00 00 f0
+  0010c	81 fa 00 00 f0
 	3f		 cmp	 edx, 1072693248		; 3ff00000H
-  0011c	7c 2c		 jl	 SHORT $LN43@pow
+  00112	7c 17		 jl	 SHORT $LN43@pow
 
 ; 149  : 		    return (hy>=0)? y: zero;
 
-  0011e	85 ff		 test	 edi, edi
-  00120	78 15		 js	 SHORT $LN63@pow
-  00122	f2 0f 10 45 10	 movsd	 xmm0, QWORD PTR _y$[ebp]
-  00127	f2 0f 11 44 24
-	18		 movsd	 QWORD PTR tv141[esp+32], xmm0
-  0012d	dd 44 24 18	 fld	 QWORD PTR tv141[esp+32]
+  00114	85 ff		 test	 edi, edi
+  00116	78 0a		 js	 SHORT $LN63@pow
+  00118	dd 45 10	 fld	 QWORD PTR _y$[ebp]
+  0011b	5f		 pop	 edi
+  0011c	5e		 pop	 esi
+  0011d	5b		 pop	 ebx
 
 ; 306  : }
 
-  00131	5f		 pop	 edi
-  00132	5e		 pop	 esi
-  00133	8b e5		 mov	 esp, ebp
-  00135	5d		 pop	 ebp
-  00136	c3		 ret	 0
+  0011e	8b e5		 mov	 esp, ebp
+  00120	5d		 pop	 ebp
+  00121	c3		 ret	 0
 $LN63@pow:
-  00137	0f 57 c0	 xorps	 xmm0, xmm0
 
 ; 149  : 		    return (hy>=0)? y: zero;
 
-  0013a	f2 0f 11 44 24
-	18		 movsd	 QWORD PTR tv141[esp+32], xmm0
-  00140	dd 44 24 18	 fld	 QWORD PTR tv141[esp+32]
+  00122	d9 ee		 fldz
+  00124	5f		 pop	 edi
+  00125	5e		 pop	 esi
+  00126	5b		 pop	 ebx
 
 ; 306  : }
 
-  00144	5f		 pop	 edi
-  00145	5e		 pop	 esi
-  00146	8b e5		 mov	 esp, ebp
-  00148	5d		 pop	 ebp
-  00149	c3		 ret	 0
+  00127	8b e5		 mov	 esp, ebp
+  00129	5d		 pop	 ebp
+  0012a	c3		 ret	 0
 $LN43@pow:
 
 ; 150  : 	        else			/* (|x|<1)**-,+inf = inf,0 */
 ; 151  : 		    return (hy<0)?-y: zero;
 
-  0014a	85 ff		 test	 edi, edi
-  0014c	79 1d		 jns	 SHORT $LN65@pow
-  0014e	f2 0f 10 45 10	 movsd	 xmm0, QWORD PTR _y$[ebp]
-  00153	66 0f 57 05 00
-	00 00 00	 xorpd	 xmm0, QWORD PTR __xmm@80000000000000008000000000000000
-  0015b	f2 0f 11 44 24
-	18		 movsd	 QWORD PTR tv144[esp+32], xmm0
-  00161	dd 44 24 18	 fld	 QWORD PTR tv144[esp+32]
+  0012b	85 ff		 test	 edi, edi
+  0012d	79 f3		 jns	 SHORT $LN63@pow
+  0012f	dd 45 10	 fld	 QWORD PTR _y$[ebp]
+  00132	5f		 pop	 edi
+  00133	5e		 pop	 esi
+  00134	d9 e0		 fchs
+  00136	5b		 pop	 ebx
 
 ; 306  : }
 
-  00165	5f		 pop	 edi
-  00166	5e		 pop	 esi
-  00167	8b e5		 mov	 esp, ebp
-  00169	5d		 pop	 ebp
-  0016a	c3		 ret	 0
-$LN65@pow:
-  0016b	0f 57 c0	 xorps	 xmm0, xmm0
-
-; 150  : 	        else			/* (|x|<1)**-,+inf = inf,0 */
-; 151  : 		    return (hy<0)?-y: zero;
-
-  0016e	f2 0f 11 44 24
-	18		 movsd	 QWORD PTR tv144[esp+32], xmm0
-  00174	dd 44 24 18	 fld	 QWORD PTR tv144[esp+32]
-
-; 306  : }
-
-  00178	5f		 pop	 edi
-  00179	5e		 pop	 esi
-  0017a	8b e5		 mov	 esp, ebp
-  0017c	5d		 pop	 ebp
-  0017d	c3		 ret	 0
+  00137	8b e5		 mov	 esp, ebp
+  00139	5d		 pop	 ebp
+  0013a	c3		 ret	 0
 $LN42@pow:
 
 ; 152  : 	    } 
 ; 153  : 	    if(iy==0x3ff00000) {	/* y is  +-1 */
 
-  0017e	81 fe 00 00 f0
+  0013b	81 fe 00 00 f0
 	3f		 cmp	 esi, 1072693248		; 3ff00000H
-  00184	75 18		 jne	 SHORT $LN39@pow
+  00141	75 1a		 jne	 SHORT $LN39@pow
 
 ; 154  : 		if(hy<0) return one/x; else return x;
 
-  00186	85 ff		 test	 edi, edi
-  00188	79 0b		 jns	 SHORT $LN40@pow
-  0018a	d9 e8		 fld1
-  0018c	dc 75 08	 fdiv	 QWORD PTR _x$[ebp]
+  00143	85 ff		 test	 edi, edi
+  00145	79 0c		 jns	 SHORT $LN40@pow
+  00147	d9 e8		 fld1
+  00149	dc 75 08	 fdiv	 QWORD PTR _x$[ebp]
+  0014c	5f		 pop	 edi
+  0014d	5e		 pop	 esi
+  0014e	5b		 pop	 ebx
 
 ; 306  : }
 
-  0018f	5f		 pop	 edi
-  00190	5e		 pop	 esi
-  00191	8b e5		 mov	 esp, ebp
-  00193	5d		 pop	 ebp
-  00194	c3		 ret	 0
+  0014f	8b e5		 mov	 esp, ebp
+  00151	5d		 pop	 ebp
+  00152	c3		 ret	 0
 $LN40@pow:
 
 ; 154  : 		if(hy<0) return one/x; else return x;
 
-  00195	dd 45 08	 fld	 QWORD PTR _x$[ebp]
+  00153	dd 45 08	 fld	 QWORD PTR _x$[ebp]
+  00156	5f		 pop	 edi
+  00157	5e		 pop	 esi
+  00158	5b		 pop	 ebx
 
 ; 306  : }
 
-  00198	5f		 pop	 edi
-  00199	5e		 pop	 esi
-  0019a	8b e5		 mov	 esp, ebp
-  0019c	5d		 pop	 ebp
-  0019d	c3		 ret	 0
+  00159	8b e5		 mov	 esp, ebp
+  0015b	5d		 pop	 ebp
+  0015c	c3		 ret	 0
 $LN39@pow:
 
 ; 155  : 	    }
 ; 156  : 	    if(hy==0x40000000) return x*x; /* y is  2 */
 
-  0019e	81 ff 00 00 00
+  0015d	81 ff 00 00 00
 	40		 cmp	 edi, 1073741824		; 40000000H
-  001a4	75 0b		 jne	 SHORT $LN38@pow
-  001a6	dd 45 08	 fld	 QWORD PTR _x$[ebp]
-  001a9	dc c8		 fmul	 ST(0), ST(0)
+  00163	75 0c		 jne	 SHORT $LN38@pow
+  00165	dd 45 08	 fld	 QWORD PTR _x$[ebp]
+  00168	5f		 pop	 edi
+  00169	5e		 pop	 esi
+  0016a	dc c8		 fmul	 ST(0), ST(0)
+  0016c	5b		 pop	 ebx
 
 ; 306  : }
 
-  001ab	5f		 pop	 edi
-  001ac	5e		 pop	 esi
-  001ad	8b e5		 mov	 esp, ebp
-  001af	5d		 pop	 ebp
-  001b0	c3		 ret	 0
+  0016d	8b e5		 mov	 esp, ebp
+  0016f	5d		 pop	 ebp
+  00170	c3		 ret	 0
 $LN38@pow:
 
 ; 157  : 	    if(hy==0x3fe00000) {	/* y is  0.5 */
 ; 158  : 		if(hx>=0)	/* x >= +0 */
 
-  001b1	8b 45 0c	 mov	 eax, DWORD PTR _x$[ebp+4]
-  001b4	81 ff 00 00 e0
+  00171	8b 4d 0c	 mov	 ecx, DWORD PTR _x$[ebp+4]
+  00174	81 ff 00 00 e0
 	3f		 cmp	 edi, 1071644672		; 3fe00000H
-  001ba	75 23		 jne	 SHORT $LN36@pow
-  001bc	85 c0		 test	 eax, eax
-  001be	78 1f		 js	 SHORT $LN36@pow
+  0017a	75 16		 jne	 SHORT $LN36@pow
+  0017c	85 c9		 test	 ecx, ecx
+  0017e	78 12		 js	 SHORT $LN36@pow
 
 ; 159  : 		return sqrt(x);	
 
-  001c0	f2 0f 10 45 08	 movsd	 xmm0, QWORD PTR _x$[ebp]
-  001c5	e8 00 00 00 00	 call	 __libm_sse2_sqrt_precise
-  001ca	f2 0f 11 44 24
-	18		 movsd	 QWORD PTR tv1040[esp+32], xmm0
-  001d0	dd 44 24 18	 fld	 QWORD PTR tv1040[esp+32]
+  00180	dd 45 08	 fld	 QWORD PTR _x$[ebp]
+  00183	e8 00 00 00 00	 call	 __CIsqrt
+  00188	5f		 pop	 edi
+  00189	5e		 pop	 esi
+  0018a	5b		 pop	 ebx
 
 ; 306  : }
 
-  001d4	5f		 pop	 edi
-  001d5	5e		 pop	 esi
-  001d6	8b e5		 mov	 esp, ebp
-  001d8	5d		 pop	 ebp
-  001d9	c3		 ret	 0
-$LN76@pow:
-  001da	33 c9		 xor	 ecx, ecx
-$LN81@pow:
-  001dc	8b 45 0c	 mov	 eax, DWORD PTR _x$[ebp+4]
+  0018b	8b e5		 mov	 esp, ebp
+  0018d	5d		 pop	 ebp
+  0018e	c3		 ret	 0
+$LN77@pow:
+  0018f	8b 4d 0c	 mov	 ecx, DWORD PTR _x$[ebp+4]
 $LN36@pow:
 
 ; 160  : 	    }
@@ -618,468 +586,387 @@ $LN36@pow:
 ; 164  :     /* special value of x */
 ; 165  : 	if(lx==0) {
 
-  001df	83 7d 08 00	 cmp	 DWORD PTR _x$[ebp], 0
-  001e3	f2 0f 10 5d 08	 movsd	 xmm3, QWORD PTR _x$[ebp]
-  001e8	66 0f 54 1d 00
-	00 00 00	 andpd	 xmm3, QWORD PTR __xmm@7fffffffffffffff7fffffffffffffff
-  001f0	f2 0f 11 5c 24
-	18		 movsd	 QWORD PTR _ax$[esp+32], xmm3
-  001f6	75 76		 jne	 SHORT $LN34@pow
+  00192	83 7d 08 00	 cmp	 DWORD PTR _x$[ebp], 0
+  00196	dd 45 08	 fld	 QWORD PTR _x$[ebp]
+  00199	d9 c0		 fld	 ST(0)
+  0019b	d9 e1		 fabs
+  0019d	dd 55 f0	 fst	 QWORD PTR _ax$[ebp]
+  001a0	75 4d		 jne	 SHORT $LN34@pow
 
 ; 166  : 	    if(ix==0x7ff00000||ix==0||ix==0x3ff00000){
 
-  001f8	81 fa 00 00 f0
+  001a2	81 fa 00 00 f0
 	7f		 cmp	 edx, 2146435072		; 7ff00000H
-  001fe	74 0c		 je	 SHORT $LN33@pow
-  00200	85 d2		 test	 edx, edx
-  00202	74 08		 je	 SHORT $LN33@pow
-  00204	81 fa 00 00 f0
+  001a8	74 0c		 je	 SHORT $LN90@pow
+  001aa	85 d2		 test	 edx, edx
+  001ac	74 08		 je	 SHORT $LN90@pow
+  001ae	81 fa 00 00 f0
 	3f		 cmp	 edx, 1072693248		; 3ff00000H
-  0020a	75 62		 jne	 SHORT $LN34@pow
-$LN33@pow:
+  001b4	75 39		 jne	 SHORT $LN34@pow
+$LN90@pow:
+  001b6	dd d9		 fstp	 ST(1)
 
 ; 167  : 		z = ax;			/*x is +-0,+-inf,+-1*/
-
-  0020c	f2 0f 11 5c 24
-	08		 movsd	 QWORD PTR _z$[esp+32], xmm3
-
 ; 168  : 		if(hy<0) z = one/z;	/* z = (1/|x|) */
 
-  00212	85 ff		 test	 edi, edi
-  00214	79 15		 jns	 SHORT $LN32@pow
-  00216	f2 0f 10 05 00
-	00 00 00	 movsd	 xmm0, QWORD PTR __real@3ff0000000000000
-  0021e	f2 0f 5e c3	 divsd	 xmm0, xmm3
-  00222	0f 28 d8	 movaps	 xmm3, xmm0
-  00225	f2 0f 11 5c 24
-	08		 movsd	 QWORD PTR _z$[esp+32], xmm3
+  001b8	85 ff		 test	 edi, edi
+  001ba	79 04		 jns	 SHORT $LN32@pow
+  001bc	d9 e8		 fld1
+  001be	de f1		 fdivrp	 ST(1), ST(0)
 $LN32@pow:
 
 ; 169  : 		if(hx<0) {
 
-  0022b	85 c0		 test	 eax, eax
-  0022d	79 35		 jns	 SHORT $LN28@pow
+  001c0	85 c9		 test	 ecx, ecx
+  001c2	0f 89 1b 05 00
+	00		 jns	 $LN61@pow
 
 ; 170  : 		    if(((ix-0x3ff00000)|yisint)==0) {
 
-  0022f	8d 82 00 00 10
+  001c8	8d 82 00 00 10
 	c0		 lea	 eax, DWORD PTR [edx-1072693248]
-  00235	0b c1		 or	 eax, ecx
-  00237	75 18		 jne	 SHORT $LN30@pow
+  001ce	0b c3		 or	 eax, ebx
+  001d0	75 0b		 jne	 SHORT $LN30@pow
 
 ; 171  : 			z = (z-z)/(z-z); /* (-1)**non-int is NaN */
 
-  00239	f2 0f 5c db	 subsd	 xmm3, xmm3
-  0023d	f2 0f 5e db	 divsd	 xmm3, xmm3
-
-; 173  : 			z = -z;		/* (x<0)**odd = -(|x|**odd) */
-
-  00241	f2 0f 11 5c 24
-	08		 movsd	 QWORD PTR _z$[esp+32], xmm3
-
-; 174  : 		}
-; 175  : 		return z;
-
-  00247	dd 44 24 08	 fld	 QWORD PTR _z$[esp+32]
+  001d2	dc e0		 fsubr	 ST(0), ST(0)
+  001d4	5f		 pop	 edi
+  001d5	5e		 pop	 esi
+  001d6	5b		 pop	 ebx
+  001d7	dc f8		 fdiv	 ST(0), ST(0)
 
 ; 306  : }
 
-  0024b	5f		 pop	 edi
-  0024c	5e		 pop	 esi
-  0024d	8b e5		 mov	 esp, ebp
-  0024f	5d		 pop	 ebp
-  00250	c3		 ret	 0
+  001d9	8b e5		 mov	 esp, ebp
+  001db	5d		 pop	 ebp
+  001dc	c3		 ret	 0
 $LN30@pow:
 
 ; 172  : 		    } else if(yisint==1) 
 
-  00251	83 f9 01	 cmp	 ecx, 1
-  00254	75 0e		 jne	 SHORT $LN28@pow
+  001dd	83 fb 01	 cmp	 ebx, 1
+  001e0	0f 85 fd 04 00
+	00		 jne	 $LN61@pow
 
 ; 173  : 			z = -z;		/* (x<0)**odd = -(|x|**odd) */
 
-  00256	66 0f 57 1d 00
-	00 00 00	 xorpd	 xmm3, QWORD PTR __xmm@80000000000000008000000000000000
-  0025e	f2 0f 11 5c 24
-	08		 movsd	 QWORD PTR _z$[esp+32], xmm3
-$LN28@pow:
-
-; 174  : 		}
-; 175  : 		return z;
-
-  00264	dd 44 24 08	 fld	 QWORD PTR _z$[esp+32]
+  001e6	5f		 pop	 edi
+  001e7	5e		 pop	 esi
+  001e8	d9 e0		 fchs
+  001ea	5b		 pop	 ebx
 
 ; 306  : }
 
-  00268	5f		 pop	 edi
-  00269	5e		 pop	 esi
-  0026a	8b e5		 mov	 esp, ebp
-  0026c	5d		 pop	 ebp
-  0026d	c3		 ret	 0
+  001eb	8b e5		 mov	 esp, ebp
+  001ed	5d		 pop	 ebp
+  001ee	c3		 ret	 0
 $LN34@pow:
 
+; 174  : 		}
+; 175  : 		return z;
 ; 176  : 	    }
 ; 177  : 	}
 ; 178  :     
 ; 179  : 	n = (hx>>31)+1;
 
-  0026e	c1 f8 1f	 sar	 eax, 31			; 0000001fH
-  00271	40		 inc	 eax
-  00272	89 44 24 08	 mov	 DWORD PTR _n$1$[esp+32], eax
+  001ef	c1 f9 1f	 sar	 ecx, 31			; 0000001fH
+  001f2	41		 inc	 ecx
 
 ; 180  : 
 ; 181  :     /* (x<0)**(non-int) is NaN */
 ; 182  : 	if((n|yisint)==0) return (x-x)/(x-x);
 
-  00276	0b c1		 or	 eax, ecx
-  00278	75 0d		 jne	 SHORT $LN27@pow
-  0027a	dd 45 08	 fld	 QWORD PTR _x$[ebp]
-  0027d	dc e8		 fsub	 ST(0), ST(0)
-  0027f	dc f8		 fdiv	 ST(0), ST(0)
+  001f3	8b c1		 mov	 eax, ecx
+  001f5	0b c3		 or	 eax, ebx
+  001f7	75 0d		 jne	 SHORT $LN103@pow
+  001f9	dd d8		 fstp	 ST(0)
+  001fb	dc e8		 fsub	 ST(0), ST(0)
+  001fd	5f		 pop	 edi
+  001fe	5e		 pop	 esi
+  001ff	5b		 pop	 ebx
+  00200	dc f8		 fdiv	 ST(0), ST(0)
 
 ; 306  : }
 
-  00281	5f		 pop	 edi
-  00282	5e		 pop	 esi
-  00283	8b e5		 mov	 esp, ebp
-  00285	5d		 pop	 ebp
-  00286	c3		 ret	 0
-$LN27@pow:
+  00202	8b e5		 mov	 esp, ebp
+  00204	5d		 pop	 ebp
+  00205	c3		 ret	 0
+$LN103@pow:
+  00206	dd d9		 fstp	 ST(1)
 
 ; 183  : 
 ; 184  : 	s = one; /* s (sign of result -ve**odd) = -1 else = 1 */
-
-  00287	f2 0f 10 35 00
-	00 00 00	 movsd	 xmm6, QWORD PTR __real@3ff0000000000000
-
 ; 185  : 	if((n|(yisint-1))==0) s = -one;/* (-ve)**(odd int) */
 
-  0028f	8d 41 ff	 lea	 eax, DWORD PTR [ecx-1]
-  00292	0b 44 24 08	 or	 eax, DWORD PTR _n$1$[esp+32]
-  00296	66 0f 28 ce	 movapd	 xmm1, xmm6
-  0029a	f2 0f 11 4c 24
-	10		 movsd	 QWORD PTR _s$[esp+32], xmm1
-  002a0	75 0e		 jne	 SHORT $LN26@pow
-  002a2	f2 0f 10 0d 00
-	00 00 00	 movsd	 xmm1, QWORD PTR __real@bff0000000000000
-  002aa	f2 0f 11 4c 24
-	10		 movsd	 QWORD PTR _s$[esp+32], xmm1
+  00208	8d 43 ff	 lea	 eax, DWORD PTR [ebx-1]
+  0020b	0b c1		 or	 eax, ecx
+  0020d	d9 e8		 fld1
+  0020f	d9 c0		 fld	 ST(0)
+  00211	dd 55 f8	 fst	 QWORD PTR _s$1$[ebp]
+  00214	75 0b		 jne	 SHORT $LN26@pow
+  00216	dd d8		 fstp	 ST(0)
+  00218	dd 05 00 00 00
+	00		 fld	 QWORD PTR __real@bff0000000000000
+  0021e	dd 55 f8	 fst	 QWORD PTR _s$1$[ebp]
 $LN26@pow:
 
 ; 186  : 
 ; 187  :     /* |y| is huge */
 ; 188  : 	if(iy>0x41e00000) { /* if |y| > 2**31 */
 
-  002b0	81 fe 00 00 e0
+  00221	d9 ee		 fldz
+  00223	81 fe 00 00 e0
 	41		 cmp	 esi, 1105199104		; 41e00000H
-  002b6	0f 8e 8e 01 00
-	00		 jle	 $LN25@pow
+  00229	0f 8e e6 00 00
+	00		 jle	 $LN109@pow
 
 ; 189  : 	    if(iy>0x43f00000){	/* if |y| > 2**64, must o/uflow */
 
-  002bc	81 fe 00 00 f0
+  0022f	81 fe 00 00 f0
 	43		 cmp	 esi, 1139802112		; 43f00000H
-  002c2	7e 6e		 jle	 SHORT $LN22@pow
+  00235	7e 3e		 jle	 SHORT $LN22@pow
 
 ; 190  : 		if(ix<=0x3fefffff) return (hy<0)? huge*huge:tiny*tiny;
 
-  002c4	81 fa ff ff ef
+  00237	dd d9		 fstp	 ST(1)
+  00239	dd da		 fstp	 ST(2)
+  0023b	dd d8		 fstp	 ST(0)
+  0023d	dd d8		 fstp	 ST(0)
+  0023f	81 fa ff ff ef
 	3f		 cmp	 edx, 1072693247		; 3fefffffH
-  002ca	7f 33		 jg	 SHORT $LN23@pow
-  002cc	85 ff		 test	 edi, edi
-  002ce	79 1c		 jns	 SHORT $LN67@pow
-  002d0	f2 0f 10 05 00
-	00 00 00	 movsd	 xmm0, QWORD PTR __real@7e37e43c8800759c
-  002d8	f2 0f 59 c0	 mulsd	 xmm0, xmm0
-  002dc	f2 0f 11 44 24
-	18		 movsd	 QWORD PTR tv192[esp+32], xmm0
-  002e2	dd 44 24 18	 fld	 QWORD PTR tv192[esp+32]
+  00245	7f 17		 jg	 SHORT $LN23@pow
+  00247	85 ff		 test	 edi, edi
+  00249	0f 89 d3 fe ff
+	ff		 jns	 $LN63@pow
+  0024f	dd 05 00 00 00
+	00		 fld	 QWORD PTR __real@7e37e43c8800759c
+  00255	5f		 pop	 edi
+  00256	5e		 pop	 esi
+  00257	dc c8		 fmul	 ST(0), ST(0)
+  00259	5b		 pop	 ebx
 
 ; 306  : }
 
-  002e6	5f		 pop	 edi
-  002e7	5e		 pop	 esi
-  002e8	8b e5		 mov	 esp, ebp
-  002ea	5d		 pop	 ebp
-  002eb	c3		 ret	 0
-$LN67@pow:
-  002ec	0f 57 c0	 xorps	 xmm0, xmm0
-
-; 190  : 		if(ix<=0x3fefffff) return (hy<0)? huge*huge:tiny*tiny;
-
-  002ef	f2 0f 11 44 24
-	18		 movsd	 QWORD PTR tv192[esp+32], xmm0
-  002f5	dd 44 24 18	 fld	 QWORD PTR tv192[esp+32]
-
-; 306  : }
-
-  002f9	5f		 pop	 edi
-  002fa	5e		 pop	 esi
-  002fb	8b e5		 mov	 esp, ebp
-  002fd	5d		 pop	 ebp
-  002fe	c3		 ret	 0
+  0025a	8b e5		 mov	 esp, ebp
+  0025c	5d		 pop	 ebp
+  0025d	c3		 ret	 0
 $LN23@pow:
 
 ; 191  : 		if(ix>=0x3ff00000) return (hy>0)? huge*huge:tiny*tiny;
 
-  002ff	85 ff		 test	 edi, edi
-  00301	7e 1c		 jle	 SHORT $LN69@pow
-  00303	f2 0f 10 05 00
-	00 00 00	 movsd	 xmm0, QWORD PTR __real@7e37e43c8800759c
-  0030b	f2 0f 59 c0	 mulsd	 xmm0, xmm0
-  0030f	f2 0f 11 44 24
-	18		 movsd	 QWORD PTR tv197[esp+32], xmm0
-  00315	dd 44 24 18	 fld	 QWORD PTR tv197[esp+32]
+  0025e	85 ff		 test	 edi, edi
+  00260	0f 8e bc fe ff
+	ff		 jle	 $LN63@pow
+  00266	dd 05 00 00 00
+	00		 fld	 QWORD PTR __real@7e37e43c8800759c
+  0026c	5f		 pop	 edi
+  0026d	5e		 pop	 esi
+  0026e	dc c8		 fmul	 ST(0), ST(0)
+  00270	5b		 pop	 ebx
 
 ; 306  : }
 
-  00319	5f		 pop	 edi
-  0031a	5e		 pop	 esi
-  0031b	8b e5		 mov	 esp, ebp
-  0031d	5d		 pop	 ebp
-  0031e	c3		 ret	 0
-$LN69@pow:
-  0031f	0f 57 c0	 xorps	 xmm0, xmm0
-
-; 191  : 		if(ix>=0x3ff00000) return (hy>0)? huge*huge:tiny*tiny;
-
-  00322	f2 0f 11 44 24
-	18		 movsd	 QWORD PTR tv197[esp+32], xmm0
-  00328	dd 44 24 18	 fld	 QWORD PTR tv197[esp+32]
-
-; 306  : }
-
-  0032c	5f		 pop	 edi
-  0032d	5e		 pop	 esi
-  0032e	8b e5		 mov	 esp, ebp
-  00330	5d		 pop	 ebp
-  00331	c3		 ret	 0
+  00271	8b e5		 mov	 esp, ebp
+  00273	5d		 pop	 ebp
+  00274	c3		 ret	 0
 $LN22@pow:
 
 ; 192  : 	    }
 ; 193  : 	/* over/underflow if x is not close to one */
 ; 194  : 	    if(ix<0x3fefffff) return (hy<0)? s*huge*huge:s*tiny*tiny;
 
-  00332	81 fa ff ff ef
+  00275	81 fa ff ff ef
 	3f		 cmp	 edx, 1072693247		; 3fefffffH
-  00338	7d 44		 jge	 SHORT $LN21@pow
-  0033a	85 ff		 test	 edi, edi
-  0033c	79 20		 jns	 SHORT $LN71@pow
-  0033e	f2 0f 59 0d 00
-	00 00 00	 mulsd	 xmm1, QWORD PTR __real@7e37e43c8800759c
-  00346	f2 0f 59 0d 00
-	00 00 00	 mulsd	 xmm1, QWORD PTR __real@7e37e43c8800759c
-  0034e	f2 0f 11 4c 24
-	18		 movsd	 QWORD PTR tv204[esp+32], xmm1
-  00354	dd 44 24 18	 fld	 QWORD PTR tv204[esp+32]
-
-; 306  : }
-
-  00358	5f		 pop	 edi
-  00359	5e		 pop	 esi
-  0035a	8b e5		 mov	 esp, ebp
-  0035c	5d		 pop	 ebp
-  0035d	c3		 ret	 0
+  0027b	7d 1b		 jge	 SHORT $LN21@pow
+  0027d	dd db		 fstp	 ST(3)
+  0027f	dd d9		 fstp	 ST(1)
+  00281	dd d9		 fstp	 ST(1)
+  00283	85 ff		 test	 edi, edi
+  00285	78 23		 js	 SHORT $LN173@pow
 $LN71@pow:
-
-; 192  : 	    }
-; 193  : 	/* over/underflow if x is not close to one */
-; 194  : 	    if(ix<0x3fefffff) return (hy<0)? s*huge*huge:s*tiny*tiny;
-
-  0035e	f2 0f 59 0d 00
-	00 00 00	 mulsd	 xmm1, QWORD PTR __real@01a56e1fc2f8f359
-  00366	f2 0f 59 0d 00
-	00 00 00	 mulsd	 xmm1, QWORD PTR __real@01a56e1fc2f8f359
-  0036e	f2 0f 11 4c 24
-	18		 movsd	 QWORD PTR tv204[esp+32], xmm1
-  00374	dd 44 24 18	 fld	 QWORD PTR tv204[esp+32]
+  00287	dd 05 00 00 00
+	00		 fld	 QWORD PTR __real@01a56e1fc2f8f359
+  0028d	dc c9		 fmul	 ST(1), ST(0)
+  0028f	5f		 pop	 edi
+  00290	5e		 pop	 esi
+  00291	5b		 pop	 ebx
+  00292	de c9		 fmulp	 ST(1), ST(0)
 
 ; 306  : }
 
-  00378	5f		 pop	 edi
-  00379	5e		 pop	 esi
-  0037a	8b e5		 mov	 esp, ebp
-  0037c	5d		 pop	 ebp
-  0037d	c3		 ret	 0
+  00294	8b e5		 mov	 esp, ebp
+  00296	5d		 pop	 ebp
+  00297	c3		 ret	 0
 $LN21@pow:
 
 ; 195  : 	    if(ix>0x3ff00000) return (hy>0)? s*huge*huge:s*tiny*tiny;
 
-  0037e	81 fa 00 00 f0
+  00298	81 fa 00 00 f0
 	3f		 cmp	 edx, 1072693248		; 3ff00000H
-  00384	7e 44		 jle	 SHORT $LN20@pow
-  00386	85 ff		 test	 edi, edi
-  00388	7e 20		 jle	 SHORT $LN73@pow
-  0038a	f2 0f 59 0d 00
-	00 00 00	 mulsd	 xmm1, QWORD PTR __real@7e37e43c8800759c
-  00392	f2 0f 59 0d 00
-	00 00 00	 mulsd	 xmm1, QWORD PTR __real@7e37e43c8800759c
-  0039a	f2 0f 11 4c 24
-	18		 movsd	 QWORD PTR tv211[esp+32], xmm1
-  003a0	dd 44 24 18	 fld	 QWORD PTR tv211[esp+32]
+  0029e	7e 1b		 jle	 SHORT $LN122@pow
+  002a0	dd db		 fstp	 ST(3)
+  002a2	dd d9		 fstp	 ST(1)
+  002a4	dd d9		 fstp	 ST(1)
+  002a6	85 ff		 test	 edi, edi
+  002a8	7e dd		 jle	 SHORT $LN71@pow
+$LN173@pow:
+  002aa	dd 05 00 00 00
+	00		 fld	 QWORD PTR __real@7e37e43c8800759c
+  002b0	dc c9		 fmul	 ST(1), ST(0)
+  002b2	5f		 pop	 edi
+  002b3	5e		 pop	 esi
+  002b4	5b		 pop	 ebx
+  002b5	de c9		 fmulp	 ST(1), ST(0)
 
 ; 306  : }
 
-  003a4	5f		 pop	 edi
-  003a5	5e		 pop	 esi
-  003a6	8b e5		 mov	 esp, ebp
-  003a8	5d		 pop	 ebp
-  003a9	c3		 ret	 0
-$LN73@pow:
-
-; 195  : 	    if(ix>0x3ff00000) return (hy>0)? s*huge*huge:s*tiny*tiny;
-
-  003aa	f2 0f 59 0d 00
-	00 00 00	 mulsd	 xmm1, QWORD PTR __real@01a56e1fc2f8f359
-  003b2	f2 0f 59 0d 00
-	00 00 00	 mulsd	 xmm1, QWORD PTR __real@01a56e1fc2f8f359
-  003ba	f2 0f 11 4c 24
-	18		 movsd	 QWORD PTR tv211[esp+32], xmm1
-  003c0	dd 44 24 18	 fld	 QWORD PTR tv211[esp+32]
-
-; 306  : }
-
-  003c4	5f		 pop	 edi
-  003c5	5e		 pop	 esi
-  003c6	8b e5		 mov	 esp, ebp
-  003c8	5d		 pop	 ebp
-  003c9	c3		 ret	 0
-$LN20@pow:
+  002b7	8b e5		 mov	 esp, ebp
+  002b9	5d		 pop	 ebp
+  002ba	c3		 ret	 0
+$LN122@pow:
+  002bb	dd d9		 fstp	 ST(1)
 
 ; 196  : 	/* now |1-x| is tiny <= 2**-20, suffice to compute 
 ; 197  : 	   log(x) by x-x^2/2+x^3/3-x^4/4 */
 ; 198  : 	    t = ax-one;		/* t has 20 trailing zeros */
+
+  002bd	d9 ca		 fxch	 ST(2)
+  002bf	d8 e1		 fsub	 ST(0), ST(1)
+
 ; 199  : 	    w = (t*t)*(0.5-t*(0.3333333333333333333333-t*0.25));
-
-  003ca	f2 0f 10 0d 00
-	00 00 00	 movsd	 xmm1, QWORD PTR __real@3fd5555555555555
-  003d2	f2 0f 5c de	 subsd	 xmm3, xmm6
-  003d6	66 0f 28 c3	 movapd	 xmm0, xmm3
-
 ; 200  : 	    u = ivln2_h*t;	/* ivln2_h has 21 sig. bits */
 
-  003da	66 0f 28 d3	 movapd	 xmm2, xmm3
-  003de	f2 0f 59 05 00
-	00 00 00	 mulsd	 xmm0, QWORD PTR __real@3fd0000000000000
+  002c1	dd 05 00 00 00
+	00		 fld	 QWORD PTR __real@3ff7154760000000
+  002c7	d8 c9		 fmul	 ST(0), ST(1)
 
 ; 201  : 	    v = t*ivln2_l-w*ivln2;
 
-  003e6	66 0f 28 eb	 movapd	 xmm5, xmm3
-  003ea	f2 0f 59 2d 00
-	00 00 00	 mulsd	 xmm5, QWORD PTR __real@3e54ae0bf85ddf44
-  003f2	f2 0f 59 15 00
-	00 00 00	 mulsd	 xmm2, QWORD PTR __real@3ff7154760000000
-  003fa	f2 0f 5c c8	 subsd	 xmm1, xmm0
-  003fe	f2 0f 10 05 00
-	00 00 00	 movsd	 xmm0, QWORD PTR __real@3fe0000000000000
-  00406	f2 0f 59 cb	 mulsd	 xmm1, xmm3
-  0040a	f2 0f 59 db	 mulsd	 xmm3, xmm3
-  0040e	f2 0f 5c c1	 subsd	 xmm0, xmm1
-  00412	f2 0f 59 c3	 mulsd	 xmm0, xmm3
-  00416	f2 0f 59 05 00
-	00 00 00	 mulsd	 xmm0, QWORD PTR __real@3ff71547652b82fe
-  0041e	f2 0f 5c e8	 subsd	 xmm5, xmm0
+  002c9	d9 c1		 fld	 ST(1)
+  002cb	dc 0d 00 00 00
+	00		 fmul	 QWORD PTR __real@3e54ae0bf85ddf44
+  002d1	d9 c2		 fld	 ST(2)
+  002d3	dc 0d 00 00 00
+	00		 fmul	 QWORD PTR __real@3fd0000000000000
+  002d9	dc 2d 00 00 00
+	00		 fsubr	 QWORD PTR __real@3fd5555555555555
+  002df	d8 cb		 fmul	 ST(0), ST(3)
+  002e1	dc 2d 00 00 00
+	00		 fsubr	 QWORD PTR __real@3fe0000000000000
+  002e7	d9 cb		 fxch	 ST(3)
+  002e9	dc c8		 fmul	 ST(0), ST(0)
+  002eb	de cb		 fmulp	 ST(3), ST(0)
+  002ed	d9 ca		 fxch	 ST(2)
+  002ef	dc 0d 00 00 00
+	00		 fmul	 QWORD PTR __real@3ff71547652b82fe
+  002f5	de ea		 fsubp	 ST(2), ST(0)
 
 ; 202  : 	    t1 = u+v;
 
-  00422	66 0f 28 c5	 movapd	 xmm0, xmm5
-  00426	f2 0f 58 c2	 addsd	 xmm0, xmm2
-  0042a	f2 0f 11 44 24
-	08		 movsd	 QWORD PTR _t1$[esp+32], xmm0
+  002f7	d9 c1		 fld	 ST(1)
+  002f9	d8 c1		 fadd	 ST(0), ST(1)
+  002fb	dd 5d 08	 fstp	 QWORD PTR _t1$[ebp]
 
 ; 203  : 	    __LO(t1) = 0;
 
-  00430	c7 44 24 08 00
-	00 00 00	 mov	 DWORD PTR _t1$[esp+32], 0
+  002fe	c7 45 08 00 00
+	00 00		 mov	 DWORD PTR _t1$[ebp], 0
 
 ; 204  : 	    t2 = v-(t1-u);
 
-  00438	f2 0f 10 7c 24
-	08		 movsd	 xmm7, QWORD PTR _t1$[esp+32]
-  0043e	0f 28 c7	 movaps	 xmm0, xmm7
-  00441	f2 0f 5c c2	 subsd	 xmm0, xmm2
+  00305	dd 45 08	 fld	 QWORD PTR _t1$[ebp]
+  00308	d9 c0		 fld	 ST(0)
+  0030a	de e2		 fsubrp	 ST(2), ST(0)
+  0030c	d9 ca		 fxch	 ST(2)
+  0030e	de e1		 fsubrp	 ST(1), ST(0)
 
 ; 205  : 	} else {
 
-  00445	e9 40 02 00 00	 jmp	 $LN91@pow
-$LN25@pow:
+  00310	e9 c0 01 00 00	 jmp	 $LN19@pow
+$LN109@pow:
 
 ; 206  : 	    double ss,s2,s_h,s_l,t_h,t_l;
 ; 207  : 	    n = 0;
 
-  0044a	33 c9		 xor	 ecx, ecx
+  00315	33 c9		 xor	 ecx, ecx
+  00317	dd d9		 fstp	 ST(1)
 
 ; 208  : 	/* take care subnormal number */
 ; 209  : 	    if(ix<0x00100000)
 
-  0044c	81 fa 00 00 10
+  00319	81 fa 00 00 10
 	00		 cmp	 edx, 1048576		; 00100000H
-  00452	7d 17		 jge	 SHORT $LN18@pow
+  0031f	7d 15		 jge	 SHORT $LN157@pow
 
 ; 210  : 		{ax *= two53; n -= 53; ix = __HI(ax); }
 
-  00454	f2 0f 59 1d 00
-	00 00 00	 mulsd	 xmm3, QWORD PTR __real@4340000000000000
-  0045c	b9 cb ff ff ff	 mov	 ecx, -53		; ffffffcbH
-  00461	f2 0f 11 5c 24
-	18		 movsd	 QWORD PTR _ax$[esp+32], xmm3
-  00467	8b 54 24 1c	 mov	 edx, DWORD PTR _ax$[esp+36]
+  00321	d9 ca		 fxch	 ST(2)
+  00323	b9 cb ff ff ff	 mov	 ecx, -53		; ffffffcbH
+  00328	dc 0d 00 00 00
+	00		 fmul	 QWORD PTR __real@4340000000000000
+  0032e	dd 5d f0	 fstp	 QWORD PTR _ax$[ebp]
+  00331	8b 55 f4	 mov	 edx, DWORD PTR _ax$[ebp+4]
+  00334	eb 02		 jmp	 SHORT $LN18@pow
+$LN157@pow:
+  00336	dd da		 fstp	 ST(2)
 $LN18@pow:
 
 ; 211  : 	    n  += ((ix)>>20)-0x3ff;
 
-  0046b	8b f2		 mov	 esi, edx
-  0046d	81 c1 01 fc ff
+  00338	8b c2		 mov	 eax, edx
+  0033a	81 c1 01 fc ff
 	ff		 add	 ecx, -1023		; fffffc01H
-  00473	c1 fe 14	 sar	 esi, 20			; 00000014H
+  00340	c1 f8 14	 sar	 eax, 20			; 00000014H
 
 ; 212  : 	    j  = ix&0x000fffff;
 
-  00476	81 e2 ff ff 0f
+  00343	81 e2 ff ff 0f
 	00		 and	 edx, 1048575		; 000fffffH
-  0047c	03 f1		 add	 esi, ecx
+  00349	03 c1		 add	 eax, ecx
 
 ; 213  : 	/* determine interval */
 ; 214  : 	    ix = j|0x3ff00000;		/* normalize ix */
 
-  0047e	8b ca		 mov	 ecx, edx
-  00480	81 c9 00 00 f0
+  0034b	8b ca		 mov	 ecx, edx
+  0034d	81 c9 00 00 f0
 	3f		 or	 ecx, 1072693248		; 3ff00000H
+  00353	89 45 0c	 mov	 DWORD PTR _n$[ebp], eax
 
 ; 215  : 	    if(j<=0x3988E) k=0;		/* |x|<sqrt(3/2) */
 
-  00486	81 fa 8e 98 03
+  00356	81 fa 8e 98 03
 	00		 cmp	 edx, 235662		; 0003988eH
-  0048c	7f 04		 jg	 SHORT $LN17@pow
-  0048e	33 d2		 xor	 edx, edx
-  00490	eb 18		 jmp	 SHORT $LN14@pow
+  0035c	7f 04		 jg	 SHORT $LN17@pow
+  0035e	33 d2		 xor	 edx, edx
+  00360	eb 1b		 jmp	 SHORT $LN14@pow
 $LN17@pow:
 
 ; 216  : 	    else if(j<0xBB67A) k=1;	/* |x|<sqrt(3)   */
 
-  00492	81 fa 7a b6 0b
+  00362	81 fa 7a b6 0b
 	00		 cmp	 edx, 767610		; 000bb67aH
-  00498	7d 07		 jge	 SHORT $LN15@pow
-  0049a	ba 01 00 00 00	 mov	 edx, 1
-  0049f	eb 09		 jmp	 SHORT $LN14@pow
+  00368	7d 07		 jge	 SHORT $LN15@pow
+  0036a	ba 01 00 00 00	 mov	 edx, 1
+  0036f	eb 0c		 jmp	 SHORT $LN14@pow
 $LN15@pow:
 
 ; 217  : 	    else {k=0;n+=1;ix -= 0x00100000;}
 
-  004a1	33 d2		 xor	 edx, edx
-  004a3	46		 inc	 esi
-  004a4	81 e9 00 00 10
+  00371	40		 inc	 eax
+  00372	33 d2		 xor	 edx, edx
+  00374	89 45 0c	 mov	 DWORD PTR _n$[ebp], eax
+  00377	81 e9 00 00 10
 	00		 sub	 ecx, 1048576		; 00100000H
 $LN14@pow:
 
 ; 218  : 	    __HI(ax) = ix;
+
+  0037d	89 4d f4	 mov	 DWORD PTR _ax$[ebp+4], ecx
+
 ; 219  : 
 ; 220  : 	/* compute ss = s_h+s_l = (x-1)/(x+1) or (x-1.5)/(x+1.5) */
 ; 221  : 	    u = ax-bp[k];		/* bp[0]=1.0, bp[1]=1.5 */
-
-  004aa	f2 0f 10 1c d5
-	00 00 00 00	 movsd	 xmm3, QWORD PTR _bp[edx*8]
-
 ; 222  : 	    v = one/(ax+bp[k]);
 ; 223  : 	    ss = u*v;
 ; 224  : 	    s_h = ss;
@@ -1088,302 +975,357 @@ $LN14@pow:
 ; 227  : 	    t_h = zero;
 ; 228  : 	    __HI(t_h)=((ix>>1)|0x20000000)+0x00080000+(k<<18); 
 
-  004b3	8d 42 02	 lea	 eax, DWORD PTR [edx+2]
-  004b6	89 4c 24 1c	 mov	 DWORD PTR _ax$[esp+36], ecx
-  004ba	66 0f 28 c3	 movapd	 xmm0, xmm3
-  004be	f2 0f 10 64 24
-	18		 movsd	 xmm4, QWORD PTR _ax$[esp+32]
-  004c4	66 0f 28 d6	 movapd	 xmm2, xmm6
-  004c8	f2 0f 58 c4	 addsd	 xmm0, xmm4
-  004cc	c1 e0 12	 shl	 eax, 18			; 00000012H
-  004cf	66 0f 28 fc	 movapd	 xmm7, xmm4
-  004d3	81 c9 00 00 00
+  00380	8d 42 02	 lea	 eax, DWORD PTR [edx+2]
+  00383	dd 45 f0	 fld	 QWORD PTR _ax$[ebp]
+  00386	81 c9 00 00 00
 	40		 or	 ecx, 1073741824		; 40000000H
-  004d9	f2 0f 5c fb	 subsd	 xmm7, xmm3
-  004dd	d1 f9		 sar	 ecx, 1
-  004df	03 c8		 add	 ecx, eax
-  004e1	f2 0f 5e d0	 divsd	 xmm2, xmm0
-  004e5	0f 57 c0	 xorps	 xmm0, xmm0
-  004e8	f2 0f 11 44 24
-	08		 movsd	 QWORD PTR _t_h$1[esp+32], xmm0
-  004ee	66 0f 28 f2	 movapd	 xmm6, xmm2
-  004f2	f2 0f 59 f7	 mulsd	 xmm6, xmm7
-  004f6	89 4c 24 0c	 mov	 DWORD PTR _t_h$1[esp+36], ecx
+  0038c	d9 c0		 fld	 ST(0)
+  0038e	d1 f9		 sar	 ecx, 1
+  00390	dc 24 d5 00 00
+	00 00		 fsub	 QWORD PTR _bp[edx*8]
+  00397	c1 e0 12	 shl	 eax, 18			; 00000012H
+  0039a	03 c8		 add	 ecx, eax
+  0039c	d9 c1		 fld	 ST(1)
+  0039e	dc 04 d5 00 00
+	00 00		 fadd	 QWORD PTR _bp[edx*8]
+  003a5	de fb		 fdivp	 ST(3), ST(0)
+  003a7	d9 c2		 fld	 ST(2)
+  003a9	d8 c9		 fmul	 ST(0), ST(1)
+  003ab	dd 55 e0	 fst	 QWORD PTR _ss$1$[ebp]
+  003ae	dd 55 e8	 fst	 QWORD PTR _s_h$1[ebp]
+  003b1	d9 cc		 fxch	 ST(4)
+  003b3	c7 45 e8 00 00
+	00 00		 mov	 DWORD PTR _s_h$1[ebp], 0
+  003ba	dd 5d f0	 fstp	 QWORD PTR _t_h$2[ebp]
+  003bd	89 4d f4	 mov	 DWORD PTR _t_h$2[ebp+4], ecx
 
 ; 229  : 	    t_l = ax - (t_h-bp[k]);
 ; 230  : 	    s_l = v*((u-s_h*t_h)-s_h*t_l);
 
-  004fa	f2 0f 10 4c 24
-	08		 movsd	 xmm1, QWORD PTR _t_h$1[esp+32]
-  00500	0f 28 c1	 movaps	 xmm0, xmm1
-  00503	f2 0f 5c cb	 subsd	 xmm1, xmm3
-  00507	f2 0f 11 74 24
-	18		 movsd	 QWORD PTR _s_h$2[esp+32], xmm6
-  0050d	c7 44 24 18 00
-	00 00 00	 mov	 DWORD PTR _s_h$2[esp+32], 0
-  00515	f2 0f 10 6c 24
-	18		 movsd	 xmm5, QWORD PTR _s_h$2[esp+32]
-  0051b	f2 0f 59 c5	 mulsd	 xmm0, xmm5
-  0051f	f2 0f 5c e1	 subsd	 xmm4, xmm1
+  003c0	dd 45 f0	 fld	 QWORD PTR _t_h$2[ebp]
+  003c3	d9 c0		 fld	 ST(0)
+  003c5	dd 45 e8	 fld	 QWORD PTR _s_h$1[ebp]
+  003c8	dc c9		 fmul	 ST(1), ST(0)
+  003ca	d9 cb		 fxch	 ST(3)
+  003cc	de e1		 fsubrp	 ST(1), ST(0)
+  003ce	d9 c9		 fxch	 ST(1)
+  003d0	dc 24 d5 00 00
+	00 00		 fsub	 QWORD PTR _bp[edx*8]
+  003d7	de eb		 fsubp	 ST(3), ST(0)
+  003d9	d9 ca		 fxch	 ST(2)
+  003db	d8 c9		 fmul	 ST(0), ST(1)
+  003dd	de ea		 fsubp	 ST(2), ST(0)
+  003df	d9 c9		 fxch	 ST(1)
+  003e1	de ca		 fmulp	 ST(2), ST(0)
 
 ; 231  : 	/* compute log(ax) */
 ; 232  : 	    s2 = ss*ss;
+
+  003e3	d9 c2		 fld	 ST(2)
+  003e5	d8 cb		 fmul	 ST(0), ST(3)
+
 ; 233  : 	    r = s2*s2*(L1+s2*(L2+s2*(L3+s2*(L4+s2*(L5+s2*L6)))));
+
+  003e7	dd 05 00 00 00
+	00		 fld	 QWORD PTR __real@3fca7e284a454eef
+  003ed	d8 c9		 fmul	 ST(0), ST(1)
+  003ef	dc 05 00 00 00
+	00		 fadd	 QWORD PTR __real@3fcd864a93c9db65
+  003f5	d8 c9		 fmul	 ST(0), ST(1)
+  003f7	dc 05 00 00 00
+	00		 fadd	 QWORD PTR __real@3fd17460a91d4101
+  003fd	d8 c9		 fmul	 ST(0), ST(1)
+  003ff	dc 05 00 00 00
+	00		 fadd	 QWORD PTR __real@3fd55555518f264d
+  00405	d8 c9		 fmul	 ST(0), ST(1)
+  00407	dc 05 00 00 00
+	00		 fadd	 QWORD PTR __real@3fdb6db6db6fabff
+  0040d	d8 c9		 fmul	 ST(0), ST(1)
+  0040f	dc 05 00 00 00
+	00		 fadd	 QWORD PTR __real@3fe3333333333303
+  00415	d9 c9		 fxch	 ST(1)
+  00417	dc c8		 fmul	 ST(0), ST(0)
+  00419	de c9		 fmulp	 ST(1), ST(0)
+
 ; 234  : 	    r += s_l*(s_h+ss);
+
+  0041b	d9 c1		 fld	 ST(1)
+  0041d	de c4		 faddp	 ST(4), ST(0)
+  0041f	d9 cb		 fxch	 ST(3)
+  00421	d8 ca		 fmul	 ST(0), ST(2)
+  00423	de c3		 faddp	 ST(3), ST(0)
+
 ; 235  : 	    s2  = s_h*s_h;
 
-  00523	0f 28 dd	 movaps	 xmm3, xmm5
-  00526	f2 0f 59 dd	 mulsd	 xmm3, xmm5
-  0052a	f2 0f 5c f8	 subsd	 xmm7, xmm0
-  0052e	f2 0f 59 e5	 mulsd	 xmm4, xmm5
-  00532	0f 28 c6	 movaps	 xmm0, xmm6
-  00535	f2 0f 59 c6	 mulsd	 xmm0, xmm6
-  00539	f2 0f 5c fc	 subsd	 xmm7, xmm4
-  0053d	f2 0f 59 fa	 mulsd	 xmm7, xmm2
-  00541	66 0f 28 d0	 movapd	 xmm2, xmm0
-  00545	f2 0f 59 15 00
-	00 00 00	 mulsd	 xmm2, QWORD PTR __real@3fca7e284a454eef
-  0054d	f2 0f 58 15 00
-	00 00 00	 addsd	 xmm2, QWORD PTR __real@3fcd864a93c9db65
-  00555	f2 0f 59 d0	 mulsd	 xmm2, xmm0
-  00559	f2 0f 58 15 00
-	00 00 00	 addsd	 xmm2, QWORD PTR __real@3fd17460a91d4101
-  00561	f2 0f 59 d0	 mulsd	 xmm2, xmm0
-  00565	f2 0f 58 15 00
-	00 00 00	 addsd	 xmm2, QWORD PTR __real@3fd55555518f264d
-  0056d	f2 0f 59 d0	 mulsd	 xmm2, xmm0
-  00571	f2 0f 58 15 00
-	00 00 00	 addsd	 xmm2, QWORD PTR __real@3fdb6db6db6fabff
-  00579	f2 0f 59 d0	 mulsd	 xmm2, xmm0
-  0057d	f2 0f 59 c0	 mulsd	 xmm0, xmm0
-  00581	f2 0f 58 15 00
-	00 00 00	 addsd	 xmm2, QWORD PTR __real@3fe3333333333303
-  00589	f2 0f 59 d0	 mulsd	 xmm2, xmm0
-  0058d	0f 28 c5	 movaps	 xmm0, xmm5
-  00590	f2 0f 58 c6	 addsd	 xmm0, xmm6
-  00594	f2 0f 59 c7	 mulsd	 xmm0, xmm7
-  00598	f2 0f 58 d0	 addsd	 xmm2, xmm0
+  00425	d9 c0		 fld	 ST(0)
+  00427	d8 c9		 fmul	 ST(0), ST(1)
 
 ; 236  : 	    t_h = 3.0+s2+r;
 
-  0059c	0f 28 c3	 movaps	 xmm0, xmm3
-  0059f	f2 0f 58 05 00
-	00 00 00	 addsd	 xmm0, QWORD PTR __real@4008000000000000
-  005a7	f2 0f 11 54 24
-	18		 movsd	 QWORD PTR _t2$1$[esp+32], xmm2
-  005ad	f2 0f 58 c2	 addsd	 xmm0, xmm2
-  005b1	f2 0f 11 44 24
-	08		 movsd	 QWORD PTR _t_h$1[esp+32], xmm0
+  00429	d9 c0		 fld	 ST(0)
+  0042b	dd 05 00 00 00
+	00		 fld	 QWORD PTR __real@4008000000000000
+  00431	dc c1		 fadd	 ST(1), ST(0)
+  00433	d9 c9		 fxch	 ST(1)
+  00435	d8 c5		 fadd	 ST(0), ST(5)
+  00437	dd 5d f0	 fstp	 QWORD PTR _t_h$2[ebp]
 
 ; 237  : 	    __LO(t_h) = 0;
 
-  005b7	c7 44 24 08 00
-	00 00 00	 mov	 DWORD PTR _t_h$1[esp+32], 0
+  0043a	c7 45 f0 00 00
+	00 00		 mov	 DWORD PTR _t_h$2[ebp], 0
 
 ; 238  : 	    t_l = r-((t_h-3.0)-s2);
 ; 239  : 	/* u+v = ss*(1+...) */
 ; 240  : 	    u = s_h*t_h;
 
-  005bf	f2 0f 10 54 24
-	08		 movsd	 xmm2, QWORD PTR _t_h$1[esp+32]
-  005c5	0f 28 c2	 movaps	 xmm0, xmm2
+  00441	dd 45 f0	 fld	 QWORD PTR _t_h$2[ebp]
+  00444	d9 c0		 fld	 ST(0)
+  00446	de cc		 fmulp	 ST(4), ST(0)
+  00448	d9 c0		 fld	 ST(0)
+  0044a	de e2		 fsubrp	 ST(2), ST(0)
+  0044c	d9 c9		 fxch	 ST(1)
+  0044e	de e2		 fsubrp	 ST(2), ST(0)
+  00450	d9 cc		 fxch	 ST(4)
+  00452	de e1		 fsubrp	 ST(1), ST(0)
 
 ; 241  : 	    v = s_l*t_h+t_l*ss;
 
-  005c8	f2 0f 59 fa	 mulsd	 xmm7, xmm2
-  005cc	f2 0f 5c 05 00
-	00 00 00	 subsd	 xmm0, QWORD PTR __real@4008000000000000
-  005d4	0f 28 e2	 movaps	 xmm4, xmm2
-  005d7	f2 0f 59 e5	 mulsd	 xmm4, xmm5
-  005db	f2 0f 10 6c 24
-	18		 movsd	 xmm5, QWORD PTR _t2$1$[esp+32]
-  005e1	f2 0f 5c c3	 subsd	 xmm0, xmm3
-  005e5	f2 0f 5c e8	 subsd	 xmm5, xmm0
-  005e9	f2 0f 59 ee	 mulsd	 xmm5, xmm6
-  005ed	f2 0f 58 ef	 addsd	 xmm5, xmm7
+  00454	dc 4d e0	 fmul	 QWORD PTR _ss$1$[ebp]
+  00457	d9 ca		 fxch	 ST(2)
+  00459	de cb		 fmulp	 ST(3), ST(0)
+  0045b	d9 c9		 fxch	 ST(1)
+  0045d	de c2		 faddp	 ST(2), ST(0)
 
 ; 242  : 	/* 2/(3log2)*(ss+...) */
 ; 243  : 	    p_h = u+v;
 
-  005f1	0f 28 c5	 movaps	 xmm0, xmm5
-  005f4	f2 0f 58 c4	 addsd	 xmm0, xmm4
-  005f8	f2 0f 11 44 24
-	18		 movsd	 QWORD PTR _p_h$[esp+32], xmm0
+  0045f	d9 c1		 fld	 ST(1)
+  00461	d8 c1		 fadd	 ST(0), ST(1)
+  00463	dd 5d e8	 fstp	 QWORD PTR _p_h$[ebp]
 
 ; 244  : 	    __LO(p_h) = 0;
 
-  005fe	c7 44 24 18 00
-	00 00 00	 mov	 DWORD PTR _p_h$[esp+32], 0
+  00466	c7 45 e8 00 00
+	00 00		 mov	 DWORD PTR _p_h$[ebp], 0
 
 ; 245  : 	    p_l = v-(p_h-u);
 ; 246  : 	    z_h = cp_h*p_h;		/* cp_h+cp_l = 2/(3*log2) */
 
-  00606	f2 0f 10 4c 24
-	18		 movsd	 xmm1, QWORD PTR _p_h$[esp+32]
-  0060c	0f 28 c1	 movaps	 xmm0, xmm1
-  0060f	0f 28 d9	 movaps	 xmm3, xmm1
-  00612	f2 0f 59 1d 00
-	00 00 00	 mulsd	 xmm3, QWORD PTR __real@3feec709e0000000
-  0061a	f2 0f 5c c4	 subsd	 xmm0, xmm4
+  0046d	dd 45 e8	 fld	 QWORD PTR _p_h$[ebp]
+  00470	dd 05 00 00 00
+	00		 fld	 QWORD PTR __real@3feec709e0000000
+  00476	d8 c9		 fmul	 ST(0), ST(1)
+  00478	d9 c1		 fld	 ST(1)
+  0047a	de e3		 fsubrp	 ST(3), ST(0)
+  0047c	d9 cb		 fxch	 ST(3)
+  0047e	de e2		 fsubrp	 ST(2), ST(0)
 
 ; 247  : 	    z_l = cp_l*p_h+p_l*cp+dp_l[k];
 
-  0061e	f2 0f 59 0d 00
-	00 00 00	 mulsd	 xmm1, QWORD PTR __real@3e3e2fe0145b01f5
-  00626	f2 0f 5c e8	 subsd	 xmm5, xmm0
-  0062a	f2 0f 59 2d 00
-	00 00 00	 mulsd	 xmm5, QWORD PTR __real@3feec709dc3a03fd
-  00632	f2 0f 5c e9	 subsd	 xmm5, xmm1
-  00636	66 0f 6e d6	 movd	 xmm2, esi
+  00480	d9 c9		 fxch	 ST(1)
+  00482	dc 0d 00 00 00
+	00		 fmul	 QWORD PTR __real@3feec709dc3a03fd
+  00488	d9 c9		 fxch	 ST(1)
+  0048a	dc 0d 00 00 00
+	00		 fmul	 QWORD PTR __real@3e3e2fe0145b01f5
+  00490	de e9		 fsubp	 ST(1), ST(0)
+  00492	dc 04 d5 00 00
+	00 00		 fadd	 QWORD PTR _dp_l[edx*8]
 
 ; 248  : 	/* log2(ax) = (ss+..)*2/(3*log2) = n + dp_h + z_h + z_l */
 ; 249  : 	    t = (double)n;
+
+  00499	db 45 0c	 fild	 DWORD PTR _n$[ebp]
+
 ; 250  : 	    t1 = (((z_h+z_l)+dp_h[k])+t);
 
-  0063a	f2 0f 10 0c d5
-	00 00 00 00	 movsd	 xmm1, QWORD PTR _dp_h[edx*8]
-  00643	f3 0f e6 d2	 cvtdq2pd xmm2, xmm2
-  00647	f2 0f 58 2c d5
-	00 00 00 00	 addsd	 xmm5, QWORD PTR _dp_l[edx*8]
-  00650	f2 0f 10 35 00
-	00 00 00	 movsd	 xmm6, QWORD PTR __real@3ff0000000000000
-  00658	0f 28 c5	 movaps	 xmm0, xmm5
-  0065b	f2 0f 58 c3	 addsd	 xmm0, xmm3
-  0065f	f2 0f 58 c1	 addsd	 xmm0, xmm1
-  00663	f2 0f 58 c2	 addsd	 xmm0, xmm2
-  00667	f2 0f 11 44 24
-	08		 movsd	 QWORD PTR _t1$[esp+32], xmm0
+  0049c	d9 c1		 fld	 ST(1)
+  0049e	d8 c3		 fadd	 ST(0), ST(3)
+  004a0	dc 04 d5 00 00
+	00 00		 fadd	 QWORD PTR _dp_h[edx*8]
+  004a7	d8 c1		 fadd	 ST(0), ST(1)
+  004a9	dd 5d 08	 fstp	 QWORD PTR _t1$[ebp]
 
 ; 251  : 	    __LO(t1) = 0;
 
-  0066d	c7 44 24 08 00
-	00 00 00	 mov	 DWORD PTR _t1$[esp+32], 0
+  004ac	c7 45 08 00 00
+	00 00		 mov	 DWORD PTR _t1$[ebp], 0
 
 ; 252  : 	    t2 = z_l-(((t1-t)-dp_h[k])-z_h);
 
-  00675	f2 0f 10 7c 24
-	08		 movsd	 xmm7, QWORD PTR _t1$[esp+32]
-  0067b	0f 28 c7	 movaps	 xmm0, xmm7
-  0067e	f2 0f 5c c2	 subsd	 xmm0, xmm2
-  00682	f2 0f 5c c1	 subsd	 xmm0, xmm1
-  00686	f2 0f 5c c3	 subsd	 xmm0, xmm3
-$LN91@pow:
-  0068a	f2 0f 5c e8	 subsd	 xmm5, xmm0
+  004b3	dd 45 08	 fld	 QWORD PTR _t1$[ebp]
+  004b6	d9 c0		 fld	 ST(0)
+  004b8	de e2		 fsubrp	 ST(2), ST(0)
+  004ba	d9 c9		 fxch	 ST(1)
+  004bc	dc 24 d5 00 00
+	00 00		 fsub	 QWORD PTR _dp_h[edx*8]
+  004c3	de e3		 fsubrp	 ST(3), ST(0)
+  004c5	d9 c9		 fxch	 ST(1)
+  004c7	de e2		 fsubrp	 ST(2), ST(0)
+  004c9	d9 e8		 fld1
+  004cb	d9 ee		 fldz
+  004cd	d9 cb		 fxch	 ST(3)
+  004cf	d9 c9		 fxch	 ST(1)
+  004d1	d9 ca		 fxch	 ST(2)
+  004d3	d9 c9		 fxch	 ST(1)
+$LN19@pow:
 
 ; 253  : 	}
 ; 254  : 
 ; 255  :     /* split up y into y1+y2 and compute (y1+y2)*(t1+t2) */
 ; 256  : 	y1  = y;
 
-  0068e	f2 0f 10 45 10	 movsd	 xmm0, QWORD PTR _y$[ebp]
-  00693	f2 0f 11 44 24
-	18		 movsd	 QWORD PTR _y1$[esp+32], xmm0
+  004d5	dd 45 10	 fld	 QWORD PTR _y$[ebp]
+  004d8	dd 55 08	 fst	 QWORD PTR _y1$[ebp]
 
 ; 257  : 	__LO(y1) = 0;
 ; 258  : 	p_l = (y-y1)*t1+y*t2;
 
-  00699	66 0f 28 e0	 movapd	 xmm4, xmm0
-  0069d	c7 44 24 18 00
-	00 00 00	 mov	 DWORD PTR _y1$[esp+32], 0
-  006a5	f2 0f 10 5c 24
-	18		 movsd	 xmm3, QWORD PTR _y1$[esp+32]
-  006ab	f2 0f 5c e3	 subsd	 xmm4, xmm3
+  004db	d9 c0		 fld	 ST(0)
+  004dd	c7 45 08 00 00
+	00 00		 mov	 DWORD PTR _y1$[ebp], 0
+  004e4	dd 45 08	 fld	 QWORD PTR _y1$[ebp]
+  004e7	dc e9		 fsub	 ST(1), ST(0)
+  004e9	d9 c9		 fxch	 ST(1)
+  004eb	d8 cc		 fmul	 ST(0), ST(4)
+  004ed	d9 cb		 fxch	 ST(3)
+  004ef	de ca		 fmulp	 ST(2), ST(0)
+  004f1	d9 ca		 fxch	 ST(2)
+  004f3	de c1		 faddp	 ST(1), ST(0)
 
 ; 259  : 	p_h = y1*t1;
 
-  006af	f2 0f 59 df	 mulsd	 xmm3, xmm7
-  006b3	f2 0f 59 e8	 mulsd	 xmm5, xmm0
-  006b7	f2 0f 59 e7	 mulsd	 xmm4, xmm7
-  006bb	f2 0f 58 e5	 addsd	 xmm4, xmm5
+  004f5	d9 c9		 fxch	 ST(1)
+  004f7	de ca		 fmulp	 ST(2), ST(0)
 
 ; 260  : 	z = p_l+p_h;
 
-  006bf	66 0f 28 cc	 movapd	 xmm1, xmm4
-  006c3	f2 0f 58 cb	 addsd	 xmm1, xmm3
-  006c7	f2 0f 11 4c 24
-	08		 movsd	 QWORD PTR _z$[esp+32], xmm1
+  004f9	d9 c0		 fld	 ST(0)
+  004fb	d8 c2		 fadd	 ST(0), ST(2)
+  004fd	dd 55 08	 fst	 QWORD PTR _z$[ebp]
 
 ; 261  : 	j = __HI(z);
 ; 262  : 	i = __LO(z);
 ; 263  : 	if (j>=0x40900000) {				/* z >= 1024 */
 
-  006cd	8b 7c 24 0c	 mov	 edi, DWORD PTR _z$[esp+36]
-  006d1	81 ff 00 00 90
+  00500	8b 7d 0c	 mov	 edi, DWORD PTR _z$[ebp+4]
+  00503	81 ff 00 00 90
 	40		 cmp	 edi, 1083179008		; 40900000H
-  006d7	7c 36		 jl	 SHORT $LN13@pow
+  00509	7c 40		 jl	 SHORT $LN13@pow
 
 ; 264  : 	    if(((j-0x40900000)|i)!=0)			/* if z > 1024 */
 
-  006d9	8d 87 00 00 70
+  0050b	8d 87 00 00 70
 	bf		 lea	 eax, DWORD PTR [edi-1083179008]
-  006df	0b 44 24 08	 or	 eax, DWORD PTR _z$[esp+32]
-  006e3	75 16		 jne	 SHORT $LN92@pow
+  00511	0b 45 08	 or	 eax, DWORD PTR _z$[ebp]
+  00514	74 1e		 je	 SHORT $LN12@pow
+  00516	dd d8		 fstp	 ST(0)
+$LN171@pow:
+  00518	dd d9		 fstp	 ST(1)
+  0051a	dd d8		 fstp	 ST(0)
+  0051c	dd d8		 fstp	 ST(0)
+  0051e	dd d8		 fstp	 ST(0)
 
 ; 265  : 		return s*huge*huge;			/* overflow */
-; 266  : 	    else {
-; 267  : 		if(p_l+ovt>z-p_h) return s*huge*huge;	/* overflow */
 
-  006e5	66 0f 28 c4	 movapd	 xmm0, xmm4
-  006e9	f2 0f 5c cb	 subsd	 xmm1, xmm3
-  006ed	f2 0f 58 05 00
-	00 00 00	 addsd	 xmm0, QWORD PTR __real@3c971547652b82fe
-  006f5	66 0f 2f c1	 comisd	 xmm0, xmm1
-  006f9	76 4c		 jbe	 SHORT $LN5@pow
-$LN92@pow:
-  006fb	dd 44 24 10	 fld	 QWORD PTR _s$[esp+32]
-  006ff	dd 05 00 00 00
+  00520	dd 05 00 00 00
 	00		 fld	 QWORD PTR __real@7e37e43c8800759c
-  00705	dc c9		 fmul	 ST(1), ST(0)
-  00707	de c9		 fmulp	 ST(1), ST(0)
+  00526	dd 45 f8	 fld	 QWORD PTR _s$1$[ebp]
+  00529	d8 c9		 fmul	 ST(0), ST(1)
+  0052b	5f		 pop	 edi
+  0052c	5e		 pop	 esi
+  0052d	5b		 pop	 ebx
+  0052e	de c9		 fmulp	 ST(1), ST(0)
 
 ; 306  : }
 
-  00709	5f		 pop	 edi
-  0070a	5e		 pop	 esi
-  0070b	8b e5		 mov	 esp, ebp
-  0070d	5d		 pop	 ebp
-  0070e	c3		 ret	 0
+  00530	8b e5		 mov	 esp, ebp
+  00532	5d		 pop	 ebp
+  00533	c3		 ret	 0
+$LN12@pow:
+
+; 266  : 	    else {
+; 267  : 		if(p_l+ovt>z-p_h) return s*huge*huge;	/* overflow */
+
+  00534	d9 c1		 fld	 ST(1)
+  00536	dc 05 00 00 00
+	00		 fadd	 QWORD PTR __real@3c971547652b82fe
+  0053c	d9 c9		 fxch	 ST(1)
+  0053e	d8 e3		 fsub	 ST(0), ST(3)
+  00540	de d9		 fcompp
+  00542	df e0		 fnstsw	 ax
+  00544	f6 c4 05	 test	 ah, 5
+  00547	7a 62		 jp	 SHORT $LN5@pow
+  00549	eb cd		 jmp	 SHORT $LN171@pow
 $LN13@pow:
 
 ; 268  : 	    }
 ; 269  : 	} else if((j&0x7fffffff)>=0x4090cc00 ) {	/* z <= -1075 */
 
-  0070f	8b c7		 mov	 eax, edi
-  00711	25 ff ff ff 7f	 and	 eax, 2147483647		; 7fffffffH
-  00716	3d 00 cc 90 40	 cmp	 eax, 1083231232		; 4090cc00H
-  0071b	7c 2a		 jl	 SHORT $LN5@pow
+  0054b	8b c7		 mov	 eax, edi
+  0054d	25 ff ff ff 7f	 and	 eax, 2147483647		; 7fffffffH
+  00552	3d 00 cc 90 40	 cmp	 eax, 1083231232		; 4090cc00H
+  00557	7c 50		 jl	 SHORT $LN149@pow
 
 ; 270  : 	    if(((j-0xc090cc00)|i)!=0) 		/* z < -1075 */
 
-  0071d	8d 87 00 34 6f
+  00559	8d 87 00 34 6f
 	3f		 lea	 eax, DWORD PTR [edi+1064252416]
-  00723	0b 44 24 08	 or	 eax, DWORD PTR _z$[esp+32]
-  00727	74 14		 je	 SHORT $LN7@pow
-$LN93@pow:
+  0055f	0b 45 08	 or	 eax, DWORD PTR _z$[ebp]
+  00562	74 1e		 je	 SHORT $LN7@pow
 
 ; 271  : 		return s*tiny*tiny;		/* underflow */
 
-  00729	dd 44 24 10	 fld	 QWORD PTR _s$[esp+32]
-  0072d	dd 05 00 00 00
+  00564	dd d8		 fstp	 ST(0)
+  00566	dd d9		 fstp	 ST(1)
+  00568	dd d8		 fstp	 ST(0)
+  0056a	dd d8		 fstp	 ST(0)
+  0056c	dd d8		 fstp	 ST(0)
+  0056e	dd 05 00 00 00
 	00		 fld	 QWORD PTR __real@01a56e1fc2f8f359
-  00733	dc c9		 fmul	 ST(1), ST(0)
-  00735	de c9		 fmulp	 ST(1), ST(0)
+  00574	dd 45 f8	 fld	 QWORD PTR _s$1$[ebp]
+  00577	d8 c9		 fmul	 ST(0), ST(1)
+  00579	5f		 pop	 edi
+  0057a	5e		 pop	 esi
+  0057b	5b		 pop	 ebx
+  0057c	de c9		 fmulp	 ST(1), ST(0)
 
 ; 306  : }
 
-  00737	5f		 pop	 edi
-  00738	5e		 pop	 esi
-  00739	8b e5		 mov	 esp, ebp
-  0073b	5d		 pop	 ebp
-  0073c	c3		 ret	 0
+  0057e	8b e5		 mov	 esp, ebp
+  00580	5d		 pop	 ebp
+  00581	c3		 ret	 0
 $LN7@pow:
 
 ; 272  : 	    else {
 ; 273  : 		if(p_l<=z-p_h) return s*tiny*tiny;	/* underflow */
 
-  0073d	f2 0f 5c cb	 subsd	 xmm1, xmm3
-  00741	66 0f 2f cc	 comisd	 xmm1, xmm4
-  00745	73 e2		 jae	 SHORT $LN93@pow
+  00582	d8 e2		 fsub	 ST(0), ST(2)
+  00584	d8 d9		 fcomp	 ST(1)
+  00586	df e0		 fnstsw	 ax
+  00588	f6 c4 01	 test	 ah, 1
+  0058b	75 1e		 jne	 SHORT $LN5@pow
+  0058d	dd d9		 fstp	 ST(1)
+  0058f	dd d8		 fstp	 ST(0)
+  00591	dd d8		 fstp	 ST(0)
+  00593	dd d8		 fstp	 ST(0)
+  00595	dd 05 00 00 00
+	00		 fld	 QWORD PTR __real@01a56e1fc2f8f359
+  0059b	dd 45 f8	 fld	 QWORD PTR _s$1$[ebp]
+  0059e	d8 c9		 fmul	 ST(0), ST(1)
+  005a0	5f		 pop	 edi
+  005a1	5e		 pop	 esi
+  005a2	5b		 pop	 ebx
+  005a3	de c9		 fmulp	 ST(1), ST(0)
+
+; 306  : }
+
+  005a5	8b e5		 mov	 esp, ebp
+  005a7	5d		 pop	 ebp
+  005a8	c3		 ret	 0
+$LN149@pow:
+  005a9	dd d8		 fstp	 ST(0)
 $LN5@pow:
 
 ; 274  : 	    }
@@ -1393,77 +1335,78 @@ $LN5@pow:
 ; 278  :      */
 ; 279  : 	i = j&0x7fffffff;
 
-  00747	8b cf		 mov	 ecx, edi
+  005ab	8b cf		 mov	 ecx, edi
 
 ; 280  : 	k = (i>>20)-0x3ff;
 ; 281  : 	n = 0;
 
-  00749	33 f6		 xor	 esi, esi
-  0074b	81 e1 ff ff ff
+  005ad	33 f6		 xor	 esi, esi
+  005af	81 e1 ff ff ff
 	7f		 and	 ecx, 2147483647		; 7fffffffH
 
 ; 282  : 	if(i>0x3fe00000) {		/* if |z| > 0.5, set n = [z+0.5] */
 
-  00751	81 f9 00 00 e0
+  005b5	81 f9 00 00 e0
 	3f		 cmp	 ecx, 1071644672		; 3fe00000H
-  00757	7e 5e		 jle	 SHORT $LN4@pow
+  005bb	7e 58		 jle	 SHORT $LN139@pow
 
 ; 283  : 	    n = j+(0x00100000>>(k+1));
 
-  00759	c1 f9 14	 sar	 ecx, 20			; 00000014H
-  0075c	be 00 00 10 00	 mov	 esi, 1048576		; 00100000H
-  00761	81 e9 fe 03 00
+  005bd	c1 f9 14	 sar	 ecx, 20			; 00000014H
+  005c0	be 00 00 10 00	 mov	 esi, 1048576		; 00100000H
+  005c5	81 e9 fe 03 00
 	00		 sub	 ecx, 1022		; 000003feH
 
 ; 284  : 	    k = ((n&0x7fffffff)>>20)-0x3ff;	/* new k for n */
 ; 285  : 	    t = zero;
 ; 286  : 	    __HI(t) = (n&~(0x000fffff>>k));
 
-  00767	b8 ff ff 0f 00	 mov	 eax, 1048575		; 000fffffH
-  0076c	d3 fe		 sar	 esi, cl
-  0076e	0f 57 c0	 xorps	 xmm0, xmm0
-  00771	03 f7		 add	 esi, edi
-  00773	f2 0f 11 44 24
-	08		 movsd	 QWORD PTR _t$[esp+32], xmm0
-  00779	8b d6		 mov	 edx, esi
-  0077b	c1 fa 14	 sar	 edx, 20			; 00000014H
-  0077e	81 e2 ff 07 00
+  005cb	b8 ff ff 0f 00	 mov	 eax, 1048575		; 000fffffH
+  005d0	d3 fe		 sar	 esi, cl
+  005d2	d9 cb		 fxch	 ST(3)
+  005d4	03 f7		 add	 esi, edi
+  005d6	8b d6		 mov	 edx, esi
+  005d8	c1 fa 14	 sar	 edx, 20			; 00000014H
+  005db	81 e2 ff 07 00
 	00		 and	 edx, 2047		; 000007ffH
-  00784	81 ea ff 03 00
+  005e1	81 ea ff 03 00
 	00		 sub	 edx, 1023		; 000003ffH
-  0078a	8b ca		 mov	 ecx, edx
-  0078c	d3 f8		 sar	 eax, cl
+  005e7	8b ca		 mov	 ecx, edx
+  005e9	d3 f8		 sar	 eax, cl
 
 ; 287  : 	    n = ((n&0x000fffff)|0x00100000)>>(20-k);
 
-  0078e	b9 14 00 00 00	 mov	 ecx, 20			; 00000014H
-  00793	f7 d0		 not	 eax
-  00795	2b ca		 sub	 ecx, edx
-  00797	23 c6		 and	 eax, esi
-  00799	81 e6 ff ff 0f
+  005eb	b9 14 00 00 00	 mov	 ecx, 20			; 00000014H
+  005f0	f7 d0		 not	 eax
+  005f2	2b ca		 sub	 ecx, edx
+  005f4	23 c6		 and	 eax, esi
+  005f6	81 e6 ff ff 0f
 	00		 and	 esi, 1048575		; 000fffffH
-  0079f	81 ce 00 00 10
+  005fc	81 ce 00 00 10
 	00		 or	 esi, 1048576		; 00100000H
-  007a5	89 44 24 0c	 mov	 DWORD PTR _t$[esp+36], eax
-  007a9	d3 fe		 sar	 esi, cl
+  00602	d3 fe		 sar	 esi, cl
+  00604	dd 5d 08	 fstp	 QWORD PTR _t$[ebp]
+  00607	89 45 0c	 mov	 DWORD PTR _t$[ebp+4], eax
 
 ; 288  : 	    if(j<0) n = -n;
 
-  007ab	85 ff		 test	 edi, edi
-  007ad	79 02		 jns	 SHORT $LN3@pow
-  007af	f7 de		 neg	 esi
+  0060a	85 ff		 test	 edi, edi
+  0060c	79 02		 jns	 SHORT $LN3@pow
+  0060e	f7 de		 neg	 esi
 $LN3@pow:
 
 ; 289  : 	    p_h -= t;
 
-  007b1	f2 0f 5c 5c 24
-	08		 subsd	 xmm3, QWORD PTR _t$[esp+32]
+  00610	dc 65 08	 fsub	 QWORD PTR _t$[ebp]
+  00613	eb 02		 jmp	 SHORT $LN4@pow
+$LN139@pow:
+  00615	dd db		 fstp	 ST(3)
 $LN4@pow:
 
 ; 290  : 	} 
 ; 291  : 	t = p_l+p_h;
 
-  007b7	66 0f 28 c4	 movapd	 xmm0, xmm4
+  00617	d9 c2		 fld	 ST(2)
 
 ; 292  : 	__LO(t) = 0;
 ; 293  : 	u = t*lg2_h;
@@ -1477,119 +1420,125 @@ $LN4@pow:
 ; 301  : 	j  = __HI(z);
 ; 302  : 	j += (n<<20);
 
-  007bb	8b ce		 mov	 ecx, esi
-  007bd	f2 0f 58 c3	 addsd	 xmm0, xmm3
-  007c1	c1 e1 14	 shl	 ecx, 20			; 00000014H
-  007c4	f2 0f 11 44 24
-	08		 movsd	 QWORD PTR _t$[esp+32], xmm0
-  007ca	c7 44 24 08 00
-	00 00 00	 mov	 DWORD PTR _t$[esp+32], 0
-  007d2	f2 0f 10 4c 24
-	08		 movsd	 xmm1, QWORD PTR _t$[esp+32]
-  007d8	0f 28 c1	 movaps	 xmm0, xmm1
-  007db	66 0f 28 d1	 movapd	 xmm2, xmm1
-  007df	f2 0f 59 0d 00
-	00 00 00	 mulsd	 xmm1, QWORD PTR __real@3e205c610ca86c39
-  007e7	f2 0f 5c c3	 subsd	 xmm0, xmm3
-  007eb	f2 0f 59 15 00
-	00 00 00	 mulsd	 xmm2, QWORD PTR __real@3fe62e4300000000
-  007f3	f2 0f 5c e0	 subsd	 xmm4, xmm0
-  007f7	f2 0f 59 25 00
-	00 00 00	 mulsd	 xmm4, QWORD PTR __real@3fe62e42fefa39ef
-  007ff	f2 0f 5c e1	 subsd	 xmm4, xmm1
-  00803	66 0f 28 dc	 movapd	 xmm3, xmm4
-  00807	f2 0f 58 da	 addsd	 xmm3, xmm2
-  0080b	0f 28 c3	 movaps	 xmm0, xmm3
-  0080e	f2 0f 5c c2	 subsd	 xmm0, xmm2
-  00812	f2 0f 5c e0	 subsd	 xmm4, xmm0
-  00816	0f 28 c3	 movaps	 xmm0, xmm3
-  00819	f2 0f 59 c3	 mulsd	 xmm0, xmm3
-  0081d	0f 28 c8	 movaps	 xmm1, xmm0
-  00820	f2 0f 59 0d 00
-	00 00 00	 mulsd	 xmm1, QWORD PTR __real@3e66376972bea4d0
-  00828	f2 0f 5c 0d 00
-	00 00 00	 subsd	 xmm1, QWORD PTR __real@3ebbbd41c5d26bf1
-  00830	f2 0f 59 c8	 mulsd	 xmm1, xmm0
-  00834	f2 0f 58 0d 00
-	00 00 00	 addsd	 xmm1, QWORD PTR __real@3f11566aaf25de2c
-  0083c	f2 0f 59 c8	 mulsd	 xmm1, xmm0
-  00840	f2 0f 5c 0d 00
-	00 00 00	 subsd	 xmm1, QWORD PTR __real@3f66c16c16bebd93
-  00848	f2 0f 59 c8	 mulsd	 xmm1, xmm0
-  0084c	f2 0f 58 0d 00
-	00 00 00	 addsd	 xmm1, QWORD PTR __real@3fc555555555553e
-  00854	f2 0f 59 c8	 mulsd	 xmm1, xmm0
-  00858	0f 28 c3	 movaps	 xmm0, xmm3
-  0085b	f2 0f 5c c1	 subsd	 xmm0, xmm1
-  0085f	0f 28 c8	 movaps	 xmm1, xmm0
-  00862	f2 0f 5c 05 00
-	00 00 00	 subsd	 xmm0, QWORD PTR __real@4000000000000000
-  0086a	f2 0f 59 cb	 mulsd	 xmm1, xmm3
-  0086e	f2 0f 5e c8	 divsd	 xmm1, xmm0
-  00872	66 0f 28 c4	 movapd	 xmm0, xmm4
-  00876	f2 0f 59 c3	 mulsd	 xmm0, xmm3
-  0087a	f2 0f 58 c4	 addsd	 xmm0, xmm4
-  0087e	f2 0f 5c c8	 subsd	 xmm1, xmm0
-  00882	f2 0f 5c cb	 subsd	 xmm1, xmm3
-  00886	f2 0f 5c f1	 subsd	 xmm6, xmm1
-  0088a	f2 0f 11 74 24
-	08		 movsd	 QWORD PTR _z$[esp+32], xmm6
-  00890	8b 44 24 0c	 mov	 eax, DWORD PTR _z$[esp+36]
-  00894	03 c1		 add	 eax, ecx
+  00619	8b ce		 mov	 ecx, esi
+  0061b	d8 c1		 fadd	 ST(0), ST(1)
+  0061d	c1 e1 14	 shl	 ecx, 20			; 00000014H
+  00620	dd 5d 08	 fstp	 QWORD PTR _t$[ebp]
+  00623	c7 45 08 00 00
+	00 00		 mov	 DWORD PTR _t$[ebp], 0
+  0062a	dd 45 08	 fld	 QWORD PTR _t$[ebp]
+  0062d	dd 05 00 00 00
+	00		 fld	 QWORD PTR __real@3fe62e4300000000
+  00633	d8 c9		 fmul	 ST(0), ST(1)
+  00635	d9 c1		 fld	 ST(1)
+  00637	de e3		 fsubrp	 ST(3), ST(0)
+  00639	d9 cc		 fxch	 ST(4)
+  0063b	de e2		 fsubrp	 ST(2), ST(0)
+  0063d	d9 c9		 fxch	 ST(1)
+  0063f	dc 0d 00 00 00
+	00		 fmul	 QWORD PTR __real@3fe62e42fefa39ef
+  00645	d9 c9		 fxch	 ST(1)
+  00647	dc 0d 00 00 00
+	00		 fmul	 QWORD PTR __real@3e205c610ca86c39
+  0064d	de e9		 fsubp	 ST(1), ST(0)
+  0064f	d9 c0		 fld	 ST(0)
+  00651	d8 c3		 fadd	 ST(0), ST(3)
+  00653	d9 c0		 fld	 ST(0)
+  00655	de e4		 fsubrp	 ST(4), ST(0)
+  00657	d9 c9		 fxch	 ST(1)
+  00659	de e3		 fsubrp	 ST(3), ST(0)
+  0065b	d9 c0		 fld	 ST(0)
+  0065d	d8 c9		 fmul	 ST(0), ST(1)
+  0065f	dd 05 00 00 00
+	00		 fld	 QWORD PTR __real@3e66376972bea4d0
+  00665	d8 c9		 fmul	 ST(0), ST(1)
+  00667	dc 25 00 00 00
+	00		 fsub	 QWORD PTR __real@3ebbbd41c5d26bf1
+  0066d	d8 c9		 fmul	 ST(0), ST(1)
+  0066f	dc 05 00 00 00
+	00		 fadd	 QWORD PTR __real@3f11566aaf25de2c
+  00675	d8 c9		 fmul	 ST(0), ST(1)
+  00677	dc 25 00 00 00
+	00		 fsub	 QWORD PTR __real@3f66c16c16bebd93
+  0067d	d8 c9		 fmul	 ST(0), ST(1)
+  0067f	dc 05 00 00 00
+	00		 fadd	 QWORD PTR __real@3fc555555555553e
+  00685	de c9		 fmulp	 ST(1), ST(0)
+  00687	d8 e9		 fsubr	 ST(0), ST(1)
+  00689	d9 c0		 fld	 ST(0)
+  0068b	d8 ca		 fmul	 ST(0), ST(2)
+  0068d	d9 c9		 fxch	 ST(1)
+  0068f	dc 25 00 00 00
+	00		 fsub	 QWORD PTR __real@4000000000000000
+  00695	de f9		 fdivp	 ST(1), ST(0)
+  00697	d9 c3		 fld	 ST(3)
+  00699	d8 ca		 fmul	 ST(0), ST(2)
+  0069b	de c4		 faddp	 ST(4), ST(0)
+  0069d	de e3		 fsubrp	 ST(3), ST(0)
+  0069f	de ea		 fsubp	 ST(2), ST(0)
+  006a1	de e1		 fsubrp	 ST(1), ST(0)
+  006a3	dd 55 08	 fst	 QWORD PTR _z$[ebp]
+  006a6	8b 45 0c	 mov	 eax, DWORD PTR _z$[ebp+4]
+  006a9	03 c1		 add	 eax, ecx
 
 ; 303  : 	if((j>>20)<=0) z = scalbn(z,n);	/* subnormal output */
 
-  00896	a9 00 00 f0 ff	 test	 eax, -1048576		; fff00000H
-  0089b	7f 1b		 jg	 SHORT $LN2@pow
-  0089d	56		 push	 esi
-  0089e	83 ec 08	 sub	 esp, 8
-  008a1	f2 0f 11 34 24	 movsd	 QWORD PTR [esp], xmm6
-  008a6	e8 00 00 00 00	 call	 _scalbn
+  006ab	a9 00 00 f0 ff	 test	 eax, -1048576		; fff00000H
+  006b0	7f 19		 jg	 SHORT $LN145@pow
+  006b2	56		 push	 esi
+  006b3	83 ec 08	 sub	 esp, 8
+  006b6	dd 1c 24	 fstp	 QWORD PTR [esp]
+  006b9	e8 00 00 00 00	 call	 _scalbn
 
 ; 305  : 	return s*z;
 
-  008ab	dc 4c 24 1c	 fmul	 QWORD PTR _s$[esp+44]
-  008af	83 c4 0c	 add	 esp, 12			; 0000000cH
+  006be	dc 4d f8	 fmul	 QWORD PTR _s$1$[ebp]
+  006c1	83 c4 0c	 add	 esp, 12			; 0000000cH
+  006c4	5f		 pop	 edi
+  006c5	5e		 pop	 esi
+  006c6	5b		 pop	 ebx
 
 ; 306  : }
 
-  008b2	5f		 pop	 edi
-  008b3	5e		 pop	 esi
-  008b4	8b e5		 mov	 esp, ebp
-  008b6	5d		 pop	 ebp
-  008b7	c3		 ret	 0
-$LN2@pow:
+  006c7	8b e5		 mov	 esp, ebp
+  006c9	5d		 pop	 ebp
+  006ca	c3		 ret	 0
+$LN145@pow:
+  006cb	dd d8		 fstp	 ST(0)
 
 ; 304  : 	else __HI(z) += (n<<20);
 
-  008b8	89 44 24 0c	 mov	 DWORD PTR _z$[esp+36], eax
-  008bc	dd 44 24 08	 fld	 QWORD PTR _z$[esp+32]
+  006cd	89 45 0c	 mov	 DWORD PTR _z$[ebp+4], eax
+  006d0	dd 45 08	 fld	 QWORD PTR _z$[ebp]
 
 ; 305  : 	return s*z;
 
-  008c0	dc 4c 24 10	 fmul	 QWORD PTR _s$[esp+32]
+  006d3	dc 4d f8	 fmul	 QWORD PTR _s$1$[ebp]
+  006d6	5f		 pop	 edi
+  006d7	5e		 pop	 esi
+  006d8	5b		 pop	 ebx
 
 ; 306  : }
 
-  008c4	5f		 pop	 edi
-  008c5	5e		 pop	 esi
-  008c6	8b e5		 mov	 esp, ebp
-  008c8	5d		 pop	 ebp
-  008c9	c3		 ret	 0
+  006d9	8b e5		 mov	 esp, ebp
+  006db	5d		 pop	 ebp
+  006dc	c3		 ret	 0
 $LN58@pow:
 
 ; 121  : 		return x+y;	
 
-  008ca	dd 45 08	 fld	 QWORD PTR _x$[ebp]
-  008cd	dc 45 10	 fadd	 QWORD PTR _y$[ebp]
+  006dd	dd 45 08	 fld	 QWORD PTR _x$[ebp]
+  006e0	dc 45 10	 fadd	 QWORD PTR _y$[ebp]
+$LN61@pow:
+  006e3	5f		 pop	 edi
+  006e4	5e		 pop	 esi
+  006e5	5b		 pop	 ebx
 
 ; 306  : }
 
-  008d0	5f		 pop	 edi
-  008d1	5e		 pop	 esi
-  008d2	8b e5		 mov	 esp, ebp
-  008d4	5d		 pop	 ebp
-  008d5	c3		 ret	 0
+  006e6	8b e5		 mov	 esp, ebp
+  006e8	5d		 pop	 ebp
+  006e9	c3		 ret	 0
 _pow	ENDP
 _TEXT	ENDS
 END
