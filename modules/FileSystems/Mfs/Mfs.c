@@ -1227,24 +1227,24 @@ size_t MfsWriteFile(void *FsData, MCoreFile_t *Handle, uint8_t *Buffer, size_t S
 	}
 
 	/* Allocate buffer for data */
-	uint8_t *TempBuffer = (uint8_t*)kmalloc(mData->BucketSize * Fs->SectorSize);
+	size_t BufSize = mData->BucketSize * Fs->SectorSize;
+	uint8_t *TempBuffer = (uint8_t*)kmalloc(BufSize);
 
-	/* Keep reeeading */
+	/* Keep wriiiting */
 	while (BytesToWrite)
 	{
 		/* We have to calculate the offset into this buffer we must transfer data */
-		size_t bOffset = (size_t)(Handle->Position % (mData->BucketSize * Fs->SectorSize));
-		size_t BytesLeft = (mData->BucketSize * Fs->SectorSize) - bOffset;
+		size_t bOffset = (size_t)(Handle->Position % (BufSize));
+		size_t BytesLeft = BufSize - bOffset;
 		size_t BytesCopied = 0;
 
 		/* Are we on a bucket boundary ?
 		 * and we need to write atleast an entire bucket */
-		if (bOffset == 0
-			&& BytesToWrite >= (mData->BucketSize * Fs->SectorSize))
+		if (bOffset == 0 && BytesToWrite >= BufSize)
 		{
 			/* Then we don't care about content */
-			memcpy(TempBuffer, BufPtr, (mData->BucketSize * Fs->SectorSize));
-			BytesCopied = (mData->BucketSize * Fs->SectorSize);
+			memcpy(TempBuffer, BufPtr, BufSize);
+			BytesCopied = BufSize;
 		}
 		else
 		{
@@ -1289,7 +1289,7 @@ size_t MfsWriteFile(void *FsData, MCoreFile_t *Handle, uint8_t *Buffer, size_t S
 		}
 
 		/* Switch to next bucket? */
-		if (BytesLeft >= BytesCopied)
+		if (BytesLeft == BytesCopied)
 		{
 			/* Go to next */
 			uint32_t NextBucket = 0;

@@ -511,7 +511,7 @@ MCoreFile_t *VfsOpen(const char *Path, VfsFileFlags_t OpenFlags)
 				fRet->Fs = Fs;
 
 				/* Initialise buffering */
-				if (!fRet->Flags & NoBuffering) {
+				if (!(fRet->Flags & NoBuffering)) {
 					fRet->oBuffer = (void*)kmalloc(Fs->SectorSize);
 					memset(fRet->oBuffer, 0, Fs->SectorSize);
 					fRet->oBufferPosition = 0;
@@ -549,7 +549,7 @@ VfsErrorCode_t VfsClose(MCoreFile_t *Handle)
 		return VfsInvalidParameters;
 
 	/* Cleanup Buffers */
-	if (!Handle->Flags & NoBuffering) 
+	if (!(Handle->Flags & NoBuffering)) 
 	{
 		/* Flush them first */
 		VfsFlush(Handle);
@@ -645,14 +645,15 @@ size_t VfsWrite(MCoreFile_t *Handle, uint8_t *Buffer, size_t Length)
 	Fs = (MCoreFileSystem_t*)Handle->Fs;
 
 	/* Write to buffer if we can */
-	if (!Handle->Flags & NoBuffering)
+	if (!(Handle->Flags & NoBuffering))
 	{
 		/* We have few cases to handle here */
 		size_t BytesAvailable = Fs->SectorSize - Handle->oBufferPosition;
 
 		/* Do we have enough room for the entire transaction? */
 		if (Length < BytesAvailable) {
-			memcpy(Handle->oBuffer, Buffer, Length);
+			uint8_t *bPtr = (uint8_t*)Handle->oBuffer;
+			memcpy((bPtr + Handle->oBufferPosition), Buffer, Length);
 			Handle->oBufferPosition += Length;
 			BytesWritten = Length;
 		}
@@ -794,7 +795,7 @@ VfsErrorCode_t VfsFlush(MCoreFile_t *Handle)
 		return VfsInvalidParameters;
 
 	/* Sanity */
-	if (Handle->Flags & NoBuffering
+	if ((Handle->Flags & NoBuffering)
 		|| Handle->oBuffer == NULL
 		|| Handle->oBufferPosition == 0)
 		return VfsOk;
