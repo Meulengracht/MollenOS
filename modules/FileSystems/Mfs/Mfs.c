@@ -20,6 +20,7 @@
 * TODO:
 * - Query
 * - General Improvements
+* - When directories are expanded their AllocatedSize is not updated
 */
 
 /* Includes */
@@ -764,6 +765,7 @@ MfsFile_t *MfsFindFreeEntry(MCoreFileSystem_t *Fs, uint32_t DirBucket, MString_t
 						/* Allocate bucket for directory */
 						Entry->StartBucket = mData->FreeIndex;
 						Entry->StartLength = 1;
+						Entry->AllocatedSize = mData->BucketSize * Fs->SectorSize;
 						MfsAllocateBucket(Fs, 1, &Unused);
 
 						/* Write back buffer */
@@ -1181,13 +1183,8 @@ size_t MfsWriteFile(void *FsData, MCoreFile_t *Handle, uint8_t *Buffer, size_t S
 		/* Well... Uhh */
 		
 		/* Allocate more */
-		uint64_t NumSectors = ((Handle->Position + Size) - mFile->AllocatedSize) / Fs->SectorSize;
-		if ((((Handle->Position + Size) - mFile->AllocatedSize) % Fs->SectorSize) > 0)
-			NumSectors++;
-
-		uint64_t NumBuckets = NumSectors / mData->BucketSize;
-		if ((NumSectors % mData->BucketSize) > 0)
-			NumBuckets++;
+		uint64_t NumSectors = DIVUP(((Handle->Position + Size) - mFile->AllocatedSize), Fs->SectorSize);
+		uint64_t NumBuckets = DIVUP(NumSectors, mData->BucketSize);
 
 		/* Allocate buckets */
 		uint32_t FreeBucket = mData->FreeIndex;
@@ -1196,19 +1193,37 @@ size_t MfsWriteFile(void *FsData, MCoreFile_t *Handle, uint8_t *Buffer, size_t S
 
 		/* Get last bucket in chain */
 		uint32_t BucketPtr = mFile->DataBucket;
-		uint32_t BucketPrevPtr = 0;
+		uint32_t BucketPrevPtr = mFile->DataBucket;
 		uint32_t BucketLength = 0;
-		while (BucketPtr != MFS_END_OF_CHAIN)
-		{
+
+		/* Iterate to last entry */
+		while (BucketPtr != MFS_END_OF_CHAIN) {
 			BucketPrevPtr = BucketPtr;
 			MfsGetNextBucket(Fs, BucketPtr, &BucketPtr, &BucketLength);
 		}
 
-		/* Update pointer */
-		MfsSetNextBucket(Fs, BucketPrevPtr, FreeBucket, FreeLength, 1);
-
 		/* Adjust allocated size */
 		mFile->AllocatedSize += (NumBuckets * mData->BucketSize * Fs->SectorSize);
+
+		/* Sanity -> First bucket?? */
+		if (BucketPrevPtr == MFS_END_OF_CHAIN) {
+			mFile->DataBucketPosition = mFile->DataBucket = FreeBucket;
+			mFile->InitialBucketLength = mFile->DataBucketLength = FreeLength;
+		}
+		else {
+			/* Update pointer */
+			MfsSetNextBucket(Fs, BucketPrevPtr, FreeBucket, FreeLength, 1);
+		}
+
+		/* Now, update entry on disk 
+		 * thats important if next steps fail */
+		RetCode = MfsUpdateEntry(Fs, mFile, MFS_ACTION_UPDATE);
+
+		/* Sanity */
+		if (RetCode != VfsOk) {
+			Handle->Code = RetCode;
+			return 0;
+		}
 	}
 
 	/* Allocate buffer for data */
@@ -1218,9 +1233,9 @@ size_t MfsWriteFile(void *FsData, MCoreFile_t *Handle, uint8_t *Buffer, size_t S
 	while (BytesToWrite)
 	{
 		/* We have to calculate the offset into this buffer we must transfer data */
-		uint32_t bOffset = (uint32_t)(Handle->Position % (mData->BucketSize * Fs->SectorSize));
-		uint32_t BytesLeft = (mData->BucketSize * Fs->SectorSize) - bOffset;
-		uint32_t BytesCopied = 0;
+		size_t bOffset = (size_t)(Handle->Position % (mData->BucketSize * Fs->SectorSize));
+		size_t BytesLeft = (mData->BucketSize * Fs->SectorSize) - bOffset;
+		size_t BytesCopied = 0;
 
 		/* Are we on a bucket boundary ?
 		 * and we need to write atleast an entire bucket */
@@ -1241,7 +1256,9 @@ size_t MfsWriteFile(void *FsData, MCoreFile_t *Handle, uint8_t *Buffer, size_t S
 			{
 				/* Error */
 				RetCode = VfsDiskError;
-				LogFatal("MFS1", "WRITEFILE: Error reading from disk");
+				LogFatal("MFS1", "WRITEFILE: Error reading from disk (sector 0x%x, count 0x%x)", 
+					(size_t)(mData->BucketSize * mFile->DataBucketPosition),
+					(size_t)(mData->BucketSize));
 				break;
 			}
 			
@@ -1302,7 +1319,7 @@ size_t MfsWriteFile(void *FsData, MCoreFile_t *Handle, uint8_t *Buffer, size_t S
 	}
 
 	/* Update entry */
-	MfsUpdateEntry(Fs, mFile, MFS_ACTION_UPDATE);
+	RetCode = MfsUpdateEntry(Fs, mFile, MFS_ACTION_UPDATE);
 
 	/* Done! */
 	Handle->Code = RetCode;
@@ -1439,7 +1456,7 @@ VfsErrorCode_t MfsQuery(void *FsData, MCoreFile_t *Handle,
 			/* Copy Stats */
 			Stats->Size = mFile->Size;
 			Stats->SizeOnDisk = mFile->AllocatedSize;
-			Stats->Position = Handle->Position;
+			Stats->Position = Handle->Position + Handle->oBufferPosition;
 			Stats->Access = (int)Handle->Flags;
 
 			/* Should prolly convert this to a generic vfs format .. */
