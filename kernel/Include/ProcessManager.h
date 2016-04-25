@@ -61,6 +61,7 @@ typedef struct _MCoreProcess
 
 	/* Executable */
 	MCorePeFile_t *Executable;
+	Addr_t NextBaseAddress;
 
 	/* Stack Start in Kernel */
 	Addr_t StackStart;

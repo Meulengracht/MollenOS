@@ -616,6 +616,9 @@ typedef struct _MCorePeFile
 	/* Entry Point */
 	Addr_t EntryAddr;
 
+	/* Stats */
+	int References;
+
 	/* Exported Functions */
 	list_t *ExportedFunctions;
 
@@ -637,6 +640,9 @@ _CRT_EXTERN MCorePeFile_t *PeLoadModule(uint8_t *Buffer);
 
 /* Generic */
 _CRT_EXTERN MCorePeFile_t *PeLoadImage(MCorePeFile_t *Parent, MString_t *Name, uint8_t *Buffer, Addr_t *BaseAddress);
+_CRT_EXTERN MCorePeFile_t *PeResolveLibrary(MCorePeFile_t *Parent, MCorePeFile_t *PeFile, MString_t *LibraryName, Addr_t *NextLoadAddress);
+_CRT_EXTERN void PeUnloadLibrary(MCorePeFile_t *Parent, MCorePeFile_t *Library);
+_CRT_EXTERN Addr_t PeResolveFunctionAddress(MCorePeFile_t *Library, const char *Function);
 _CRT_EXTERN void PeUnload(MCorePeFile_t *Executable);
 
 #endif //!__MCORE_PELOADER__

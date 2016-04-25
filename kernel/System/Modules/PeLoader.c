@@ -608,11 +608,11 @@ MCorePeFile_t *PeLoadModule(uint8_t *Buffer)
 }
 
 /* Resolve Library Dependency */
-list_t *PeResolveLibraryDependency(MCorePeFile_t *Parent, MCorePeFile_t *PeFile, MString_t *LibraryName, Addr_t *NextLoadAddress)
+MCorePeFile_t *PeResolveLibrary(MCorePeFile_t *Parent, MCorePeFile_t *PeFile, MString_t *LibraryName, Addr_t *NextLoadAddress)
 {
 	/* Result */
 	MCorePeFile_t *ExportParent = Parent;
-	list_t *Exports = NULL;
+	MCorePeFile_t *Exports = NULL;
 
 	/* Sanity */
 	if (ExportParent == NULL)
@@ -627,8 +627,11 @@ list_t *PeResolveLibraryDependency(MCorePeFile_t *Parent, MCorePeFile_t *PeFile,
 		/* Did we find it ? */
 		if (MStringCompare(Library->Name, LibraryName, 1))
 		{
+			/* Increase Ref Count */
+			Library->References++;
+
 			/* Yay */
-			Exports = Library->ExportedFunctions;
+			Exports = Library;
 
 			/* Done */
 			break;
@@ -656,7 +659,10 @@ list_t *PeResolveLibraryDependency(MCorePeFile_t *Parent, MCorePeFile_t *PeFile,
 		kfree(fBuffer);
 
 		/* Import */
-		Exports = Library->ExportedFunctions;
+		Exports = Library;
+
+		/* Add library to loaded libs */
+		list_append(ExportParent->LoadedLibraries, list_create_node(0, Library));
 	}
 
 	/* Sanity Again */
@@ -665,6 +671,28 @@ list_t *PeResolveLibraryDependency(MCorePeFile_t *Parent, MCorePeFile_t *PeFile,
 
 	/* Done */
 	return Exports;
+}
+
+/* Resolve Function in Library */
+Addr_t PeResolveFunctionAddress(MCorePeFile_t *Library, const char *Function)
+{
+	/* Get exports */
+	list_t *Exports = Library->ExportedFunctions;
+
+	/* Find File */
+	foreach(lNode, Exports)
+	{
+		/* Cast */
+		MCorePeExportFunction_t *exFunc = (MCorePeExportFunction_t*)lNode->data;
+
+		/* Did we find it ? */
+		if (!strcmp(exFunc->Name, Function)) {
+			return exFunc->Address;
+		}
+	}
+
+	/* Damn.. */
+	return 0;
 }
 
 /* Load Imports for an Image */
@@ -686,6 +714,7 @@ void PeLoadImageImports(MCorePeFile_t *Parent, MCorePeFile_t *PeFile, PeDataDire
 	while (ImportDescriptor->ImportAddressTable != 0)
 	{
 		/* Get name of module */
+		MCorePeFile_t *ResolvedLib = NULL;
 		list_t *Exports = NULL;
 		char *NamePtr = (char*)(PeFile->BaseVirtual + ImportDescriptor->ModuleName);
 
@@ -693,13 +722,17 @@ void PeLoadImageImports(MCorePeFile_t *Parent, MCorePeFile_t *PeFile, PeDataDire
 		MString_t *Name = MStringCreate(NamePtr, StrUTF8);
 		
 		/* Resolve Library */
-		Exports = PeResolveLibraryDependency(Parent, PeFile, Name, NextImageBase);
+		ResolvedLib = PeResolveLibrary(Parent, PeFile, Name, NextImageBase);
 
 		/* Cleanup */
 		MStringDestroy(Name);
 
-		if (Exports == NULL)
+		if (ResolvedLib == NULL
+			|| ResolvedLib->ExportedFunctions == NULL)
 			return;
+
+		/* Set list */
+		Exports = ResolvedLib->ExportedFunctions;
 
 		/* Calculate address to IAT
 		* These entries are 64 bit in PE32+
@@ -891,6 +924,7 @@ MCorePeFile_t *PeLoadImage(MCorePeFile_t *Parent, MString_t *Name, uint8_t *Buff
 	PeInfo->Architecture = OptHeader->Architecture;
 	PeInfo->BaseVirtual = *BaseAddress;
 	PeInfo->LoadedLibraries = list_create(LIST_NORMAL);
+	PeInfo->References = 1;
 
 	/* Set Entry Point */
 	if (OptHeader->EntryPoint != 0)
@@ -920,6 +954,42 @@ MCorePeFile_t *PeLoadImage(MCorePeFile_t *Parent, MString_t *Name, uint8_t *Buff
 
 	/* Done */
 	return PeInfo;
+}
+
+/* Unload dynamically loaded library 
+ * This only cleans up in the case there are no 
+ * more references */
+void PeUnloadLibrary(MCorePeFile_t *Parent, MCorePeFile_t *Library)
+{
+	/* Decrease reference count */
+	Library->References--;
+
+	/* Sanity */
+	if (Library->References <= 0) 
+	{
+		/* Remove it from list */
+		foreach(lNode, Parent->LoadedLibraries)
+		{
+			/* Cast */
+			MCorePeFile_t *lLib = (MCorePeFile_t*)lNode->data;
+
+			/* Did we find it ? */
+			if (lLib == Library)
+			{
+				/* Remove */
+				list_remove_by_node(Parent->LoadedLibraries, lNode);
+
+				/* Free node */
+				kfree(lNode);
+
+				/* Done */
+				break;
+			}
+		}
+
+		/* Unload it */
+		PeUnload(Library);
+	}
 }
 
 /* Unload executables, all it's dependancies and free it's resources */

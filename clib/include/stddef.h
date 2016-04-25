@@ -1,22 +1,39 @@
-/*
-
-
+/* MollenOS
+*
+* Copyright 2011 - 2016, Philip Meulengracht
+*
+* This program is free software : you can redistribute it and / or modify
+* it under the terms of the GNU General Public License as published by
+* the Free Software Foundation ? , either version 3 of the License, or
+* (at your option) any later version.
+*
+* This program is distributed in the hope that it will be useful,
+* but WITHOUT ANY WARRANTY; without even the implied warranty of
+* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.See the
+* GNU General Public License for more details.
+*
+* You should have received a copy of the GNU General Public License
+* along with this program.If not, see <http://www.gnu.org/licenses/>.
+*
+*
+* MollenOS C Library - Standard Definitions - C
 */
 
 #ifndef __STDDEF_INC__
 #define __STDDEF_INC__
 
-//Includes
+/* Includes */
 #include <stdint.h>
 #include <crtdefs.h>
 #include <vadefs.h>
 
+/* Define Lib-C standard */
 #define __STDC_VERSION__ 199901L
 
-//ptrdiff
+/* PTRDIFFT_T Definition */
 typedef signed int ptrdiff_t;
 
-
+/* Undefine NULL */
 #ifdef NULL
 #  undef NULL
 #endif
@@ -27,6 +44,21 @@ typedef signed int ptrdiff_t;
 #define NULL 0
 #else
 #define NULL ((void*)0)
+#endif
+#endif
+
+/* SIZE_T definitions */
+#ifndef _SIZE_T_DEFINED
+#define _SIZE_T_DEFINED
+#undef size_t
+#if defined(_WIN64) || defined(_X86_64)
+#if defined(__GNUC__) && defined(__STRICT_ANSI__)
+	typedef unsigned int size_t __attribute__ ((mode (DI)));
+#else
+	typedef unsigned long long size_t;
+#endif
+#else
+	typedef unsigned int size_t;
 #endif
 #endif
 

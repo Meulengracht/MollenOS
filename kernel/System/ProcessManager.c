@@ -200,6 +200,7 @@ void PmStartProcess(void *Args)
 	/* Load Executable */
 	Process->Executable = 
 		PeLoadImage(NULL, Process->Name, Process->fBuffer, &BaseAddress);
+	Process->NextBaseAddress = BaseAddress;
 
 	/* Cleanup file buffer */
 	kfree(Process->fBuffer);

@@ -123,6 +123,76 @@ int ScProcessYield(void)
 	return 0;
 }
 
+/**************************
+* Shared Object Functions *
+***************************/
+
+/* Load a shared object given a path 
+ * path must exists otherwise NULL is returned */
+void *ScSharedObjectLoad(const char *SharedObject)
+{
+	/* Locate Process */
+	Cpu_t CurrentCpu = ApicGetCpu();
+	MCoreProcess_t *Process =
+		PmGetProcess(ThreadingGetCurrentThread(CurrentCpu)->ProcessId);
+	Addr_t BaseAddress = 0;
+	
+	/* Vars for solving library */
+	void *Handle = NULL;
+
+	/* Sanity */
+	if (Process == NULL)
+		return NULL;
+
+	/* Construct a mstring */
+	MString_t *Path = MStringCreate((void*)SharedObject, StrUTF8);
+
+	/* Resolve Library */
+	BaseAddress = Process->NextBaseAddress;
+	Handle = PeResolveLibrary(Process->Executable, NULL, Path, &BaseAddress);
+	Process->NextBaseAddress = BaseAddress;
+
+	/* Cleanup Buffers */
+	MStringDestroy(Path);
+
+	/* Done */
+	return Handle;
+}
+
+/* Load a function-address given an shared object
+ * handle and a function name, function must exist
+ * otherwise null is returned */
+Addr_t ScSharedObjectGetFunction(void *Handle, const char *Function)
+{
+	/* Validate */
+	if (Handle == NULL
+		|| Function == NULL)
+		return 0;
+
+	/* Try to resolve function */
+	return PeResolveFunctionAddress((MCorePeFile_t*)Handle, Function);
+}
+
+/* Unloads a valid shared object handle
+ * returns 0 on success */
+int ScSharedObjectUnload(void *Handle)
+{
+	/* Locate Process */
+	Cpu_t CurrentCpu = ApicGetCpu();
+	MCoreProcess_t *Process =
+		PmGetProcess(ThreadingGetCurrentThread(CurrentCpu)->ProcessId);
+
+	/* Sanity */
+	if (Process == NULL)
+		return -1;
+
+	/* Do the unload */
+	PeUnloadLibrary(Process->Executable, (MCorePeFile_t*)Handle);
+
+	/* Done! */
+	return 0;
+}
+
 /***********************
 * Threading Functions  *
 ***********************/
@@ -528,9 +598,9 @@ Addr_t GlbSyscallTable[91] =
 	DefineSyscall(ScProcessKill),
 	DefineSyscall(NoOperation),
 	DefineSyscall(NoOperation),
-	DefineSyscall(NoOperation),
-	DefineSyscall(NoOperation),
-	DefineSyscall(NoOperation),
+	DefineSyscall(ScSharedObjectLoad),
+	DefineSyscall(ScSharedObjectGetFunction),
+	DefineSyscall(ScSharedObjectUnload),
 
 	/* Threading Functions - 11 */
 	DefineSyscall(NoOperation),
