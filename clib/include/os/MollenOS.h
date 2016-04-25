@@ -70,6 +70,11 @@ typedef struct _MollenOSVideoDescriptor
 /* Device Prototypes */
 _MOS_API int MollenOSDeviceQuery(MollenOSDeviceType_t Type, int Request, void *Buffer, size_t Length);
 
+/* Shared Object Prototypes */
+_MOS_API void *SharedObjectLoad(const char *SharedObject);
+_MOS_API void *SharedObjectGetFunction(void *Handle, const char *Function);
+_MOS_API void SharedObjectUnload(void *Handle);
+
 /* System Misc Prototypes */
 _MOS_API void MollenOSSystemLog(const char *Message);
 _MOS_API int MollenOSEndBoot(void);

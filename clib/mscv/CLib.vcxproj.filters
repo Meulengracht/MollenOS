@@ -360,6 +360,9 @@
     <ClCompile Include="..\src\stdio\fflush.c">
       <Filter>Source\stdio\File</Filter>
     </ClCompile>
+    <ClCompile Include="..\src\os\SharedObject.c">
+      <Filter>Source\os</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <MASM Include="..\crt\alldvrm.S">

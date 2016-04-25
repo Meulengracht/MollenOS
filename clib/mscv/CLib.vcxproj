@@ -34,6 +34,7 @@
     <ClCompile Include="..\src\os\Devices.c" />
     <ClCompile Include="..\src\os\Entry.c" />
     <ClCompile Include="..\src\os\Malloc.c" />
+    <ClCompile Include="..\src\os\SharedObject.c" />
     <ClCompile Include="..\src\os\Syscalls.c" />
     <ClCompile Include="..\src\os\System.c" />
     <ClCompile Include="..\src\signal\signal.c" />
