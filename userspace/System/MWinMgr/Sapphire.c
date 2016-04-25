@@ -21,7 +21,10 @@
 
 /* Includes */
 #include <os/MollenOS.h>
+
+/* UI Includes */
 #include <SDL.h>
+#include <SDL_image.h>
 
 /* Entry Point */
 int main(int argc, char* argv[])

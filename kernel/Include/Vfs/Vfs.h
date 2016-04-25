@@ -99,6 +99,32 @@ typedef enum _VfsQueryFunctions
 
 } VfsQueryFunction_t;
 
+/* Vfs Special Paths */
+typedef enum _VfsEnvironmentPaths
+{
+	/* The default */
+	PathCurrentWorkingDir = 0,
+
+	/* System Directories */
+	PathSystemBase,
+	PathSystemDirectory,
+
+	/* Shared Directories */
+	PathCommonBin,
+	PathCommonDocuments,
+	PathCommonInclude,
+	PathCommonLib,
+	PathCommonMedia,
+
+	/* User Directories */
+	PathUserBase,
+
+
+	/* Special Directory Count */
+	PathEnvironmentCount
+
+} VfsEnvironmentPath_t;
+
 /* Definitions */
 #define VFS_MAIN_DRIVE		0x1
 
@@ -237,6 +263,7 @@ _CRT_EXTERN size_t VfsRead(MCoreFile_t *Handle, uint8_t *Buffer, size_t Length);
 _CRT_EXTERN size_t VfsWrite(MCoreFile_t *Handle, uint8_t *Buffer, size_t Length);
 _CRT_EXTERN VfsErrorCode_t VfsSeek(MCoreFile_t *Handle, uint64_t Offset);
 _CRT_EXTERN VfsErrorCode_t VfsFlush(MCoreFile_t *Handle);
+_CRT_EXTERN MString_t *VfsResolveEnvironmentPath(VfsEnvironmentPath_t Base);
 
 /* Utilities */
 _CRT_EXTERN VfsErrorCode_t VfsQuery(MCoreFile_t *Handle, VfsQueryFunction_t Function, void *Buffer, size_t Length);

@@ -34,6 +34,22 @@ list_t *GlbOpenFiles = NULL;
 uint32_t GlbFileSystemId = 0;
 uint32_t GlbVfsInitHasRun = 0;
 
+/* Environment String Array */
+const char *GlbEnvironmentalPaths[] = {
+	"N/A",
+
+	":/",
+	":/System/",
+
+	":/Shared/Bin/",
+	":/Shared/Documents/",
+	":/Shared/Includes/",
+	":/Shared/Libraries/",
+	":/Shared/Media/",
+
+	":/Users/"
+};
+
 /* Initialize Vfs */
 void VfsInit(void)
 {
@@ -334,26 +350,71 @@ void VfsUnregisterDisk(DevId_t DiskId, uint32_t Forced)
 	}
 }
 
+/* Vfs - Resolve Environmental Path
+ * @Base - Environmental Path */
+MString_t *VfsResolveEnvironmentPath(VfsEnvironmentPath_t Base)
+{
+	/* Handle Special Case - 0 
+	 * Just return the current working directory */
+	if (Base == PathCurrentWorkingDir)  {
+		/* Get working directory */
+		Cpu_t CurrentCpu = ApicGetCpu();
+		MCoreThread_t *cThread = ThreadingGetCurrentThread(CurrentCpu);
+		return PmGetWorkingDirectory(cThread->ProcessId);
+	}
+
+	/* Otherwise we have to lookup in a string table */
+	MString_t *ResolvedPath = MStringCreate(NULL, StrUTF8);
+	list_node_t *fNode = NULL;
+	int pIndex = (int)Base;
+	int pFound = 0;
+
+	/* Get system path */
+	_foreach(fNode, GlbFileSystems)
+	{
+		/* Cast */
+		MCoreFileSystem_t *Fs = (MCoreFileSystem_t*)fNode->data;
+
+		/* Boot drive? */
+		if (Fs->Flags & VFS_MAIN_DRIVE) {
+			MStringAppendString(ResolvedPath, Fs->Identifier);
+			pFound = 1;
+			break;
+		}
+	}
+
+	/* Sanity */
+	if (!pFound) {
+		MStringDestroy(ResolvedPath);
+		return NULL;
+	}
+
+	/* Now append the special paths */
+	MStringAppendChars(ResolvedPath, GlbEnvironmentalPaths[pIndex]);
+
+	/* Done! */
+	return ResolvedPath;
+}
+
 /* Vfs - Canonicalize Path 
  * @Path - UTF-8 String */
-MString_t *VfsCanonicalizePath(const char *Path)
+MString_t *VfsCanonicalizePath(VfsEnvironmentPath_t Base, const char *Path)
 {
 	/* Store result */
 	MString_t *AbsPath = MStringCreate(NULL, StrUTF8);
 	list_node_t *fNode = NULL;
 	uint32_t Itr = 0;
 
-	/* Get working directory */
-	Cpu_t CurrentCpu = ApicGetCpu();
-	MCoreThread_t *cThread = ThreadingGetCurrentThread(CurrentCpu);
-	MString_t *Cwd = PmGetWorkingDirectory(cThread->ProcessId);
+	/* Get base directory */
+	MString_t *BasePath = VfsResolveEnvironmentPath(Base);
 
 	/* Start by copying cwd over 
-	 * if Path is not absolute */
-	if (strchr(Path, ':') == NULL)
+	 * if Path is not absolute or specifier */
+	if (strchr(Path, ':') == NULL
+		&& strchr(Path, '%') == NULL)
 	{
-		/* Unless Cwd is null, then we have a problem */
-		if (Cwd == NULL)
+		/* Unless Base is null, then we have a problem */
+		if (BasePath == NULL)
 		{
 			/* Fuck */
 			MStringDestroy(AbsPath);
@@ -361,7 +422,7 @@ MString_t *VfsCanonicalizePath(const char *Path)
 		}
 		else {
 			/* Start in working directory */
-			MStringCopy(AbsPath, Cwd, -1);
+			MStringCopy(AbsPath, BasePath, -1);
 
 			/* Make sure the path ends on a '/' */
 			if (MStringGetCharAt(AbsPath, MStringLength(AbsPath) - 1) != '/')
@@ -398,6 +459,7 @@ MString_t *VfsCanonicalizePath(const char *Path)
 					/* Boot drive? */
 					if (Fs->Flags & VFS_MAIN_DRIVE) {
 						MStringAppendString(AbsPath, Fs->Identifier);
+						break;
 					}
 				}
 
@@ -448,47 +510,22 @@ MString_t *VfsCanonicalizePath(const char *Path)
 	return AbsPath;
 }
 
-/* Vfs - Open File
-* @Path - UTF-8 String
-* @OpenFlags - Kind of Access */
-MCoreFile_t *VfsOpen(const char *Path, VfsFileFlags_t OpenFlags)
+/* Vfs - Reusable helper for the VfsOpen 
+ * @Handle - An pre-allocated handle
+ * @Path - The path to try to open */
+void VfsOpenInternal(MCoreFile_t *Handle, MString_t *Path, VfsFileFlags_t OpenFlags)
 {
-	/* Vars */
-	MCoreFile_t *fRet = NULL;
-	list_node_t *fNode = NULL;
-	MString_t *mPath = NULL;
-	MString_t *mIdent = NULL;
+	/* Variables needed */
 	MString_t *mSubPath = NULL;
+	list_node_t *fNode = NULL;
+	MString_t *mIdent = NULL;
+	MString_t *mPath = NULL;
 	int Index = 0;
 
-	/* Allocate */
-	fRet = (MCoreFile_t*)kmalloc(sizeof(MCoreFile_t));
-	memset((void*)fRet, 0, sizeof(MCoreFile_t));
-
-	/* Set initial code */
-	fRet->Code = VfsOk;
-
-	/* Sanity */
-	if (Path == NULL)
-	{
-		fRet->Code = VfsInvalidParameters;
-		return fRet;
-	}
-
-	/* Canonicalize Path */
-	mPath = VfsCanonicalizePath(Path);
-
-	/* Sanity */
-	if (mPath == NULL)
-	{
-		fRet->Code = VfsInvalidPath;
-		return fRet;
-	}
-
 	/* Get filesystem ident & sub-path */
-	Index = MStringFind(mPath, ':');
-	mIdent = MStringSubString(mPath, 0, Index);
-	mSubPath = MStringSubString(mPath, Index + 2, -1);
+	Index = MStringFind(Path, ':');
+	mIdent = MStringSubString(Path, 0, Index);
+	mSubPath = MStringSubString(Path, Index + 2, -1);
 
 	/* Iterate */
 	_foreach(fNode, GlbFileSystems)
@@ -500,26 +537,26 @@ MCoreFile_t *VfsOpen(const char *Path, VfsFileFlags_t OpenFlags)
 		if (MStringCompare(mIdent, Fs->Identifier, 1))
 		{
 			/* Open */
-			fRet->Code = Fs->OpenFile(Fs, fRet, mSubPath, OpenFlags);
+			Handle->Code = Fs->OpenFile(Fs, Handle, mSubPath, OpenFlags);
 
 			/* Sanity */
-			if (fRet->Code == VfsOk)
+			if (Handle->Code == VfsOk)
 			{
 				/* Set stuff */
-				fRet->Code = VfsOk;
-				fRet->Flags = OpenFlags;
-				fRet->Fs = Fs;
+				Handle->Code = VfsOk;
+				Handle->Flags = OpenFlags;
+				Handle->Fs = Fs;
 
 				/* Initialise buffering */
-				if (!(fRet->Flags & NoBuffering)) {
-					fRet->oBuffer = (void*)kmalloc(Fs->SectorSize);
-					memset(fRet->oBuffer, 0, Fs->SectorSize);
-					fRet->oBufferPosition = 0;
+				if (!(Handle->Flags & NoBuffering)) {
+					Handle->oBuffer = (void*)kmalloc(Fs->SectorSize);
+					memset(Handle->oBuffer, 0, Fs->SectorSize);
+					Handle->oBufferPosition = 0;
 				}
 
 				/* Append? */
 				if (OpenFlags & Append)
-					fRet->Code = Fs->Seek(Fs, fRet, fRet->Size);
+					Handle->Code = Fs->Seek(Fs, Handle, Handle->Size);
 			}
 
 			/* Done */
@@ -531,6 +568,89 @@ MCoreFile_t *VfsOpen(const char *Path, VfsFileFlags_t OpenFlags)
 	MStringDestroy(mSubPath);
 	MStringDestroy(mIdent);
 	MStringDestroy(mPath);
+}
+
+/* Vfs - Open File
+* @Path - UTF-8 String
+* @OpenFlags - Kind of Access */
+MCoreFile_t *VfsOpen(const char *Path, VfsFileFlags_t OpenFlags)
+{
+	/* Vars */
+	MCoreFile_t *fRet = NULL;
+	MString_t *mPath = NULL;
+	int i = 0;
+
+	/* Allocate */
+	fRet = (MCoreFile_t*)kmalloc(sizeof(MCoreFile_t));
+	memset((void*)fRet, 0, sizeof(MCoreFile_t));
+
+	/* Set initial code */
+	fRet->Code = VfsOk;
+
+	/* Sanity */
+	if (Path == NULL) {
+		fRet->Code = VfsInvalidParameters;
+		return fRet;
+	}
+
+	/* If path is not absolute or special, we 
+	 * must try all 'relative' possble paths... */
+	if (strchr(Path, ':') == NULL
+		&& strchr(Path, '%') == NULL) 
+	{
+		/* Now we loop through all possible locations
+		* of %PATH% */
+		for (i = 0; i < (int)PathEnvironmentCount; i++)
+		{
+			/* Which locations do we allow? */
+			if (i != (int)PathCurrentWorkingDir
+				&& i != (int)PathSystemDirectory
+				&& i != (int)PathCommonBin)
+				continue;
+
+			/* Canonicalize Path */
+			mPath = VfsCanonicalizePath((VfsEnvironmentPath_t)i, Path);
+
+			/* Sanity */
+			if (mPath == NULL) {
+				fRet->Code = VfsInvalidPath;
+				continue;
+			}
+
+			/* Try to open */
+			VfsOpenInternal(fRet, mPath, OpenFlags);
+
+			/* Cleanup path */
+			MStringDestroy(mPath);
+
+			/* Sanity */
+			if (fRet->Code == VfsOk)
+				break;
+
+			/* Reset it */
+			memset((void*)fRet, 0, sizeof(MCoreFile_t));
+		}
+	}
+	else
+	{
+		/* Handle it like a normal path 
+		 * since we gave an absolute */
+
+		/* Canonicalize Path */
+		mPath = VfsCanonicalizePath(PathCurrentWorkingDir, Path);
+
+		/* Sanity */
+		if (mPath == NULL) {
+			fRet->Code = VfsInvalidPath;
+			return fRet;
+		}
+
+		/* Try to open */
+		VfsOpenInternal(fRet, mPath, OpenFlags);
+
+		/* Cleanup path */
+		MStringDestroy(mPath);
+	}
 
 	/* Damn */
 	return fRet;
@@ -813,4 +933,14 @@ VfsErrorCode_t VfsFlush(MCoreFile_t *Handle)
 		return VfsDiskError;
 }
 
-/* Rename */
+/* Vfs - Move/Rename File
+ * @Path - A valid file path
+ * @NewPath - A valid file destination
+ * @Copy - Whether or not to move the file or copy it there */
+VfsErrorCode_t VfsMove(const char *Path, const char *NewPath, int Copy)
+{
+	_CRT_UNUSED(Path);
+	_CRT_UNUSED(NewPath);
+	_CRT_UNUSED(Copy);
+	return VfsOk;
+}
