@@ -419,6 +419,48 @@ int ScVfsQuery(FILE *cData, VfsQueryFunction_t Function, void *Buffer, size_t Le
 	return 0 - (int)VfsQuery((MCoreFile_t*)cData->_handle, Function, Buffer, Length);
 }
 
+/* The file move operation 
+ * this function copies Source -> destination
+ * or moves it, deleting the Source. */
+int ScVfsMove(const char *Source, const char *Destination, int Copy)
+{
+	/* Sanity */
+	if (Source == NULL || Destination == NULL)
+		return -1;
+
+	/* Redirect to Vfs */
+	return 0 - (int)VfsMove(Source, Destination, Copy);
+}
+
+/* Vfs - Resolve Environmental Path
+ * Resolves the environmental type
+ * to an valid absolute path */
+int ScVfsResolvePath(int EnvPath, char *StrBuffer)
+{
+	/* Result String */
+	MString_t *ResolvedPath = NULL;
+
+	/* Sanity */
+	if (EnvPath < 0 || EnvPath >= (int)PathEnvironmentCount)
+		EnvPath = 0;
+
+	/* Resolve it */
+	ResolvedPath = VfsResolveEnvironmentPath((VfsEnvironmentPath_t)EnvPath);
+
+	/* Sanity */
+	if (ResolvedPath == NULL)
+		return -1;
+
+	/* Copy it to user-buffer */
+	memcpy(StrBuffer, ResolvedPath->Data, ResolvedPath->Length);
+
+	/* Cleanup */
+	MStringDestroy(ResolvedPath);
+
+	/* Done! */
+	return 0;
+}
+
 /***********************
 * Device Functions     *
 ***********************/
@@ -646,9 +688,9 @@ Addr_t GlbSyscallTable[91] =
 	DefineSyscall(ScVfsSeek),
 	DefineSyscall(ScVfsFlush),
 	DefineSyscall(ScVfsDelete),
-	DefineSyscall(NoOperation), //Move/Copy
+	DefineSyscall(ScVfsMove),
 	DefineSyscall(ScVfsQuery),
-	DefineSyscall(NoOperation),
+	DefineSyscall(ScVfsResolvePath),
 
 	/* Device Functions - 51 */
 	DefineSyscall(ScDeviceQuery),
