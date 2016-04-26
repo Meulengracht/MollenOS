@@ -37,6 +37,9 @@ uint32_t GlbVfsInitHasRun = 0;
 /* Environment String Array */
 const char *GlbEnvironmentalPaths[] = {
 	"N/A",
+	
+	"N/A",
+	":/Shared/AppData/"
 
 	":/",
 	":/System/",
@@ -354,13 +357,19 @@ void VfsUnregisterDisk(DevId_t DiskId, uint32_t Forced)
  * @Base - Environmental Path */
 MString_t *VfsResolveEnvironmentPath(VfsEnvironmentPath_t Base)
 {
-	/* Handle Special Case - 0 
+	/* Handle Special Case - 0 & 1
 	 * Just return the current working directory */
-	if (Base == PathCurrentWorkingDir)  {
-		/* Get working directory */
+	if (Base == PathCurrentWorkingDir
+		|| Base == PathApplicationBase) 
+	{
+		/* Get current process */
 		Cpu_t CurrentCpu = ApicGetCpu();
 		MCoreThread_t *cThread = ThreadingGetCurrentThread(CurrentCpu);
-		return PmGetWorkingDirectory(cThread->ProcessId);
+
+		if (Base == PathCurrentWorkingDir)
+			return PmGetWorkingDirectory(cThread->ProcessId);
+		else
+			return PmGetBaseDirectory(cThread->ProcessId);
 	}
 
 	/* Otherwise we have to lookup in a string table */

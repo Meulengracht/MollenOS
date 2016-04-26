@@ -286,6 +286,7 @@ PId_t PmCreateProcess(MString_t *Path, MString_t *Arguments)
 	Index = MStringFindReverse(Path, '/');
 	Process->Name = MStringSubString(Path, Index + 1, -1);
 	Process->WorkingDirectory = MStringSubString(Path, 0, Index);
+	Process->BaseDirectory = MStringSubString(Path, 0, Index);
 
 	/* Save file buffer */
 	Process->fBuffer = fBuffer;
@@ -346,6 +347,24 @@ MString_t *PmGetWorkingDirectory(PId_t ProcessId)
 	return NULL;
 }
 
+/* Get the base directory */
+MString_t *PmGetBaseDirectory(PId_t ProcessId)
+{
+	/* Iterate */
+	foreach(pNode, GlbProcesses)
+	{
+		/* Cast */
+		MCoreProcess_t *Process = (MCoreProcess_t*)pNode->data;
+
+		/* Found? */
+		if (Process->Id == ProcessId)
+			return Process->BaseDirectory;
+	}
+
+	/* Found? NO! */
+	return NULL;
+}
+
 /* End Process */
 void PmTerminateProcess(MCoreProcess_t *Process)
 {
@@ -371,6 +390,7 @@ void PmCleanupProcess(MCoreProcess_t *Process)
 	MStringDestroy(Process->Name);
 	MStringDestroy(Process->Arguments);
 	MStringDestroy(Process->WorkingDirectory);
+	MStringDestroy(Process->BaseDirectory);
 
 	/* Destroy Pipe */
 	PipeDestroy(Process->Pipe);

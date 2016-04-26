@@ -26,6 +26,14 @@
 #include <crtdefs.h>
 
 /* Definitons */
+
+/* The max path to expect from mollenos 
+ * file/path operations */
+#ifndef MPATH_MAX
+#define MPATH_MAX		512
+#endif
+
+/* Enumerators */
 typedef enum _MollenOSDeviceType
 {
 	DeviceUnknown = 0,
@@ -41,6 +49,35 @@ typedef enum _MollenOSDeviceType
 	DeviceVideo
 
 } MollenOSDeviceType_t;
+
+/* Environment Paths */
+typedef enum _EnvironmentPaths
+{
+	/* The default */
+	PathCurrentWorkingDir = 0,
+
+	/* Application Paths */
+	PathApplicationBase,
+	PathApplicationData,
+
+	/* System Directories */
+	PathSystemBase,
+	PathSystemDirectory,
+
+	/* Shared Directories */
+	PathCommonBin,
+	PathCommonDocuments,
+	PathCommonInclude,
+	PathCommonLib,
+	PathCommonMedia,
+
+	/* User Directories */
+	PathUserBase,
+
+	/* Special Directory Count */
+	PathEnvironmentCount
+
+} EnvironmentPath_t;
 
 /* Structures */
 typedef struct _MollenOSVideoDescriptor
@@ -74,6 +111,9 @@ _MOS_API int MollenOSDeviceQuery(MollenOSDeviceType_t Type, int Request, void *B
 _MOS_API void *SharedObjectLoad(const char *SharedObject);
 _MOS_API void *SharedObjectGetFunction(void *Handle, const char *Function);
 _MOS_API void SharedObjectUnload(void *Handle);
+
+/* Environment Functions */
+_MOS_API void EnvironmentResolve(EnvironmentPath_t SpecialPath, char *StringBuffer);
 
 /* System Misc Prototypes */
 _MOS_API void MollenOSSystemLog(const char *Message);

@@ -33,6 +33,7 @@
     <ClCompile Include="..\src\math\tanh.c" />
     <ClCompile Include="..\src\os\Devices.c" />
     <ClCompile Include="..\src\os\Entry.c" />
+    <ClCompile Include="..\src\os\Environment.c" />
     <ClCompile Include="..\src\os\Malloc.c" />
     <ClCompile Include="..\src\os\SharedObject.c" />
     <ClCompile Include="..\src\os\Syscalls.c" />

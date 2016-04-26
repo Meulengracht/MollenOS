@@ -48,6 +48,7 @@ typedef struct _MCoreProcess
 
 	/* Working Directory */
 	MString_t *WorkingDirectory;
+	MString_t *BaseDirectory;
 
 	/* Pipe */
 	MCorePipe_t *Pipe;
@@ -118,6 +119,7 @@ _CRT_EXTERN void PmInit(void);
 _CRT_EXTERN void PmTerminateProcess(MCoreProcess_t *Process);
 _CRT_EXTERN MCoreProcess_t *PmGetProcess(PId_t ProcessId);
 _CRT_EXTERN MString_t *PmGetWorkingDirectory(PId_t ProcessId);
+_CRT_EXTERN MString_t *PmGetBaseDirectory(PId_t ProcessId);
 _CRT_EXTERN void PmReapZombies(void);
 
 /* Requests */

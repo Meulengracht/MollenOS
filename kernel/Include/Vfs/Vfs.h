@@ -105,6 +105,10 @@ typedef enum _VfsEnvironmentPaths
 	/* The default */
 	PathCurrentWorkingDir = 0,
 
+	/* Application Paths */
+	PathApplicationBase,
+	PathApplicationData,
+
 	/* System Directories */
 	PathSystemBase,
 	PathSystemDirectory,
@@ -118,7 +122,6 @@ typedef enum _VfsEnvironmentPaths
 
 	/* User Directories */
 	PathUserBase,
-
 
 	/* Special Directory Count */
 	PathEnvironmentCount
