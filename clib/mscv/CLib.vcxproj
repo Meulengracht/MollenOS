@@ -58,6 +58,7 @@
     <ClCompile Include="..\src\stdio\fwrite.c" />
     <ClCompile Include="..\src\stdio\perror.c" />
     <ClCompile Include="..\src\stdio\printf.c" />
+    <ClCompile Include="..\src\stdio\putchar.c" />
     <ClCompile Include="..\src\stdio\snprintf.c" />
     <ClCompile Include="..\src\stdio\sprintf.c" />
     <ClCompile Include="..\src\stdio\sscanf.c" />

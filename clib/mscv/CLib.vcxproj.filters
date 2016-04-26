@@ -49,6 +49,9 @@
     <Filter Include="Source\stdio\Error Handling">
       <UniqueIdentifier>{66be516c-4e4a-4c96-937d-0924cdcaabee}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Source\stdio\ConIo">
+      <UniqueIdentifier>{a426f54c-a095-4749-b7fd-2971bc4f7557}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\src\string\atof.c">
@@ -365,6 +368,9 @@
     </ClCompile>
     <ClCompile Include="..\src\os\Environment.c">
       <Filter>Source\os</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\stdio\putchar.c">
+      <Filter>Source\stdio\ConIo</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
