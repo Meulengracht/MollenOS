@@ -139,13 +139,13 @@ _CRT_EXTERN int putchar(int character);
 //_CRT_EXTERN char *gets(char *sstr);
 //_CRT_EXTERN int puts(char *sstr);
 
-//_CRT_EXTERN int fgetc(FILE * stream);
+_CRT_EXTERN int fgetc(FILE * stream);
 //_CRT_EXTERN int fputc(int character, FILE * stream);
-//_CRT_EXTERN char *fgets(char * buf, int bsize, FILE * stream);
+_CRT_EXTERN char *fgets(char * buf, size_t n, FILE * stream);
 //_CRT_EXTERN int fputs(const char * str, FILE * stream);
 //_CRT_EXTERN int ungetc ( int character, FILE * stream );
 
-//#define getc(stream) fgetc(stream)
+#define getc(stream) fgetc(stream)
 //#define putc(c, stream) fputc(c, stream)
 
 /*******************************

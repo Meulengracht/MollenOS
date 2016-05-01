@@ -165,8 +165,10 @@ typedef struct _MfsFile
 	MString_t *Name;
 	
 	uint16_t Flags;
+
 	uint32_t DataBucket;
 	uint32_t InitialBucketLength;
+	
 	uint64_t Size;
 	uint64_t AllocatedSize;
 
@@ -175,6 +177,10 @@ typedef struct _MfsFile
 	uint32_t DataBucketLength;
 	uint32_t DirBucket;
 	uint32_t DirOffset;
+
+	/* Variable bucket sizes 
+	 * is a pain in the butt */
+	uint64_t BucketByteBoundary;
 
 	/* Status */
 	VfsErrorCode_t Status;

@@ -26,7 +26,12 @@
 #include <Semaphore.h>
 #include <Heap.h>
 
-/* Creates an semaphore */
+/* Globals */
+list_t *GlbUserSemaphores = NULL;
+
+/* This method allocates and constructs
+ * a new semaphore handle. This is a kernel
+ * semaphore */
 Semaphore_t *SemaphoreCreate(int Value)
 {
 	Semaphore_t *Semaphore;
@@ -45,7 +50,36 @@ Semaphore_t *SemaphoreCreate(int Value)
 	return Semaphore;
 }
 
-/* Constructs an semaphore */
+/* This method allocates and constructs
+ * a new semaphore handle. This is a usermode
+ * semaphore */
+UserSemaphore_t *SemaphoreUserCreate(const char *Identifier, int Value)
+{
+	/* First of all, make sure there is no 
+	 * conflicting semaphores in system */
+	if (Identifier != NULL) {
+
+	}
+
+	/* Allocate a new semaphore */
+	UserSemaphore_t *Semaphore = (UserSemaphore_t*)kmalloc(sizeof(UserSemaphore_t));
+	Semaphore->Identifier = Identifier;
+
+	/* Construct */
+	SemaphoreConstruct(&Semaphore->Semaphore, Value);
+
+	/* Add to system list of semaphores if global */
+	if (Identifier != NULL) {
+
+	}
+
+	/* Done! */
+	return Semaphore;
+}
+
+/* This method constructs a new semaphore handle.
+ * Does not allocate any memory
+ * This is a kernel semaphore */
 void SemaphoreConstruct(Semaphore_t *Semaphore, int Value)
 {
 	/* Sanity */
@@ -60,6 +94,8 @@ void SemaphoreConstruct(Semaphore_t *Semaphore, int Value)
 	SpinlockReset(&Semaphore->Lock);
 }
 
+/* Destroys and frees a semaphore, releasing any
+ * resources associated with it */
 void SemaphoreDestroy(Semaphore_t *Semaphore)
 {
 	/* Wake up all */
@@ -69,7 +105,8 @@ void SemaphoreDestroy(Semaphore_t *Semaphore)
 	kfree(Semaphore);
 }
 
-/* Acquire Lock */
+/* Semaphore Wait
+ * Waits for the semaphore signal */
 void SemaphoreP(Semaphore_t *Semaphore)
 {
 	/* Lock */
@@ -89,7 +126,8 @@ void SemaphoreP(Semaphore_t *Semaphore)
 		SpinlockRelease(&Semaphore->Lock);
 }
 
-/* Release Lock */
+/* Semaphore Signal
+ * Signals the semaphore */
 void SemaphoreV(Semaphore_t *Semaphore)
 {
 	/* Lock */

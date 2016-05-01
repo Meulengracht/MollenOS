@@ -193,7 +193,8 @@ int MfsGetNextBucket(MCoreFileSystem_t *Fs,
 			mData->BucketBuffer, 1) != RequestOk)
 		{
 			/* Error */
-			LogFatal("MFS1", "GETNEXTBUCKET: Error reading from disk");
+			LogFatal("MFS1", "GETNEXTBUCKET: Error reading from disk (Bucket %u, Sector %u)",
+				Bucket, (size_t)(mData->BucketMapSector + SectorOffset));
 			return -1;
 		}
 
@@ -306,7 +307,7 @@ int MfsAllocateBucket(MCoreFileSystem_t *Fs, uint32_t NumBuckets, uint32_t *Init
 
 			/* Update */
 			*InitialBucketSize = FirstBucketSize;
-			mData->FreeIndex = BucketPtr;
+			mData->FreeIndex = NextFreeBucket;
 
 			/* Done */
 			return MfsUpdateMb(Fs);
@@ -602,6 +603,7 @@ MfsFile_t *MfsLocateEntry(MCoreFileSystem_t *Fs, uint32_t DirBucket, MString_t *
 					Ret->InitialBucketLength = Entry->StartLength;
 					Ret->DataBucketLength = Entry->StartLength;
 					Ret->Status = VfsOk;
+					Ret->BucketByteBoundary = 0;
 
 					/* Save position */
 					Ret->DirBucket = CurrentBucket;
@@ -822,6 +824,7 @@ MfsFile_t *MfsFindFreeEntry(MCoreFileSystem_t *Fs, uint32_t DirBucket, MString_t
 					Ret->InitialBucketLength = Entry->StartLength;
 					Ret->DataBucketLength = Entry->StartLength;
 					Ret->Status = VfsPathExists;
+					Ret->BucketByteBoundary = 0;
 
 					/* Save position */
 					Ret->DirBucket = CurrentBucket;
@@ -853,7 +856,8 @@ MfsFile_t *MfsFindFreeEntry(MCoreFileSystem_t *Fs, uint32_t DirBucket, MString_t
 				IsEnd = 1;
 
 			/* Expand Directory? */
-			if (CurrentBucket == MFS_END_OF_CHAIN) {
+			if (CurrentBucket == MFS_END_OF_CHAIN) 
+			{
 				/* Allocate another bucket */
 				CurrentBucket = mData->FreeIndex;
 
@@ -909,6 +913,7 @@ MfsFile_t *MfsCreateEntry(MCoreFileSystem_t *Fs, uint32_t DirBucket, MString_t *
 	mEntry->Size = 0;
 	mEntry->AllocatedSize = 0;
 	mEntry->Flags = (uint16_t)Flags;
+	mEntry->BucketByteBoundary = 0;
 
 	/* Write the entry back to the filesystem */
 	mEntry->Status = MfsUpdateEntry(Fs, mEntry, MFS_ACTION_CREATE);
@@ -1086,12 +1091,15 @@ size_t MfsReadFile(void *FsData, MCoreFile_t *Handle, uint8_t *Buffer, size_t Si
 		{
 			/* Error */
 			RetCode = VfsDiskError;
-			LogFatal("MFS1", "READFILE: Error reading from disk");
+			LogFatal("MFS1", "READFILE: Error reading sector %u from disk",
+				(size_t)(mData->BucketSize * mFile->DataBucketPosition));
+			LogFatal("MFS1", "Bucket Position %u, mFile Position %u, mFile Size %u",
+				mFile->DataBucketPosition, (size_t)Handle->Position, (size_t)Handle->Size);
 			break;
 		}
 
 		/* We have to calculate the offset into this buffer we must transfer data */
-		size_t bOffset = (size_t)(Handle->Position % BucketSize);
+		size_t bOffset = (size_t)(Handle->Position - mFile->BucketByteBoundary);
 		size_t BytesLeft = BucketSize - bOffset;
 		size_t BytesCopied = 0;
 
@@ -1134,6 +1142,10 @@ size_t MfsReadFile(void *FsData, MCoreFile_t *Handle, uint8_t *Buffer, size_t Si
 			if (NextBucket != MFS_END_OF_CHAIN) {
 				mFile->DataBucketPosition = NextBucket;
 				mFile->DataBucketLength = BucketLength;
+
+				/* Update bucket boundary */
+				mFile->BucketByteBoundary += 
+					(BucketLength * mData->BucketSize * Fs->SectorSize);
 			}
 			else
 				Handle->IsEOF = 1;
@@ -1178,7 +1190,8 @@ size_t MfsWriteFile(void *FsData, MCoreFile_t *Handle, uint8_t *Buffer, size_t S
 	size_t BytesToWrite = Size;
 
 	/* Make sure there is enough room */
-	if ((Handle->Position + Size) > mFile->AllocatedSize)
+	if ((Handle->Position + Size) > mFile->AllocatedSize
+		|| mFile->DataBucket == MFS_END_OF_CHAIN)
 	{
 		/* Well... Uhh */
 		
@@ -1360,7 +1373,7 @@ VfsErrorCode_t MfsSeek(void *FsData, MCoreFile_t *Handle, uint64_t Position)
 	int ConstantLoop = 1;
 
 	/* Sanity */
-	if (Handle->Position > Handle->Size)
+	if (Position > Handle->Size)
 		return VfsInvalidParameters;
 	if (Handle->Size == 0)
 		return VfsOk;
@@ -1374,6 +1387,7 @@ VfsErrorCode_t MfsSeek(void *FsData, MCoreFile_t *Handle, uint64_t Position)
 	if (Position < InitialBucketMax) {
 		mFile->DataBucketPosition = mFile->DataBucket;
 		mFile->DataBucketLength = mFile->InitialBucketLength;
+		mFile->BucketByteBoundary = 0;
 	}
 	else
 	{
@@ -1382,12 +1396,20 @@ VfsErrorCode_t MfsSeek(void *FsData, MCoreFile_t *Handle, uint64_t Position)
 		 * within the current bucket */
 
 		/* Do we cross a boundary? */
-		uint64_t OldBucketOffset = Handle->Position / (mData->BucketSize * Fs->SectorSize);
-		uint64_t NewBucketOffset = Position / (mData->BucketSize * Fs->SectorSize);
+		uint64_t OldBucketLow = mFile->BucketByteBoundary;
+		uint64_t OldBucketHigh = OldBucketLow +
+			(mFile->DataBucketLength * (mData->BucketSize * Fs->SectorSize)); 
 
-		/* Lets see */
-		if (NewBucketOffset != OldBucketOffset)
+		/* Are we still in the same current bucket? */
+		if (Position >= OldBucketLow
+			&& Position < OldBucketHigh) {
+			/* Do Nothing */
+		}
+		else
 		{
+			/* We need to do stuff... 
+			 * Start over.. */
+
 			/* Keep Track */
 			uint64_t PositionBoundLow = 0;
 			uint64_t PositionBoundHigh = InitialBucketMax;
@@ -1399,8 +1421,10 @@ VfsErrorCode_t MfsSeek(void *FsData, MCoreFile_t *Handle, uint64_t Position)
 			{
 				/* Sanity */
 				if (Position >= PositionBoundLow
-					&& Position < (PositionBoundLow + PositionBoundHigh))
+					&& Position < (PositionBoundLow + PositionBoundHigh)) {
+					mFile->BucketByteBoundary = PositionBoundLow;
 					break;
+				}
 
 				/* Get next */
 				if (MfsGetNextBucket(Fs, BucketPtr, &BucketPtr, &BucketLength))
@@ -1416,7 +1440,8 @@ VfsErrorCode_t MfsSeek(void *FsData, MCoreFile_t *Handle, uint64_t Position)
 			}
 
 			/* Update bucket ptr */
-			mFile->DataBucketPosition = BucketPtr;
+			if (BucketPtr != MFS_END_OF_CHAIN)
+				mFile->DataBucketPosition = BucketPtr;
 		}
 	}
 	

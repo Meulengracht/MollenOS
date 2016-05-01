@@ -32,7 +32,7 @@ long int ftell(FILE * stream)
 {
 	/* Syscall Result */
 	int RetVal = 0;	
-	long fPos = 0;
+	long int fPos = 0;
 	char Buffer[64];
 
 	/* Sanity */
@@ -52,7 +52,7 @@ long int ftell(FILE * stream)
 
 	if (!RetVal) {
 		/* Now we can calculate */
-		fPos = *((long*)(&Buffer[16]));
+		fPos = *((long int*)(&Buffer[16]));
 		_set_errno(EOK);
 		return fPos;
 	}

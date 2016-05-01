@@ -528,7 +528,6 @@ void VfsOpenInternal(MCoreFile_t *Handle, MString_t *Path, VfsFileFlags_t OpenFl
 	MString_t *mSubPath = NULL;
 	list_node_t *fNode = NULL;
 	MString_t *mIdent = NULL;
-	MString_t *mPath = NULL;
 	int Index = 0;
 
 	/* Get filesystem ident & sub-path */
@@ -576,7 +575,6 @@ void VfsOpenInternal(MCoreFile_t *Handle, MString_t *Path, VfsFileFlags_t OpenFl
 	/* Cleanup */
 	MStringDestroy(mSubPath);
 	MStringDestroy(mIdent);
-	MStringDestroy(mPath);
 }
 
 /* Vfs - Open File
@@ -951,5 +949,13 @@ VfsErrorCode_t VfsMove(const char *Path, const char *NewPath, int Copy)
 	_CRT_UNUSED(Path);
 	_CRT_UNUSED(NewPath);
 	_CRT_UNUSED(Copy);
+	return VfsOk;
+}
+
+/* Vfs - Create Directory Path 
+ * @Path - A valid file path */
+VfsErrorCode_t VfsCreatePath(const char *Path)
+{
+	_CRT_UNUSED(Path);
 	return VfsOk;
 }

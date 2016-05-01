@@ -625,7 +625,7 @@ MCorePeFile_t *PeResolveLibrary(MCorePeFile_t *Parent, MCorePeFile_t *PeFile, MS
 		MCorePeFile_t *Library = (MCorePeFile_t*)lNode->data;
 
 		/* Did we find it ? */
-		if (MStringCompare(Library->Name, LibraryName, 1))
+		if (MStringCompare(Library->Name, LibraryName, 1) == MSTRING_FULL_MATCH)
 		{
 			/* Increase Ref Count */
 			Library->References++;
@@ -718,14 +718,11 @@ void PeLoadImageImports(MCorePeFile_t *Parent, MCorePeFile_t *PeFile, PeDataDire
 		list_t *Exports = NULL;
 		char *NamePtr = (char*)(PeFile->BaseVirtual + ImportDescriptor->ModuleName);
 
-		/* Convert */
+		/* Convert -> Don't release this */
 		MString_t *Name = MStringCreate(NamePtr, StrUTF8);
 		
 		/* Resolve Library */
 		ResolvedLib = PeResolveLibrary(Parent, PeFile, Name, NextImageBase);
-
-		/* Cleanup */
-		MStringDestroy(Name);
 
 		if (ResolvedLib == NULL
 			|| ResolvedLib->ExportedFunctions == NULL)
@@ -749,6 +746,7 @@ void PeLoadImageImports(MCorePeFile_t *Parent, MCorePeFile_t *PeFile, PeDataDire
 
 				/* We store the bound func */
 				MCorePeExportFunction_t *Func = NULL;
+				char *FuncName = NULL;
 
 				/* Is it an ordinal or a function name? */
 				if (Value & PE_IMPORT_ORDINAL_32)
@@ -762,7 +760,7 @@ void PeLoadImageImports(MCorePeFile_t *Parent, MCorePeFile_t *PeFile, PeDataDire
 				else
 				{
 					/* Nah, pointer to function name, where two first bytes are hint? */
-					char *FuncName = (char*)(PeFile->BaseVirtual + (Value & PE_IMPORT_NAMEMASK) + 2);
+					FuncName = (char*)(PeFile->BaseVirtual + (Value & PE_IMPORT_NAMEMASK) + 2);
 
 					/* A little bit more tricky */
 					foreach(FuncNode, Exports)
@@ -784,7 +782,7 @@ void PeLoadImageImports(MCorePeFile_t *Parent, MCorePeFile_t *PeFile, PeDataDire
 				/* Sanity */
 				if (Func == NULL)
 				{
-					LogFatal("PELD", "Failed to locate function");
+					LogFatal("PELD", "Failed to locate function (%s)", FuncName);
 					return;
 				}
 

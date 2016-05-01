@@ -43,11 +43,43 @@ typedef struct _Semaphore
 
 } Semaphore_t;
 
+typedef struct _UserSemaphore
+{
+	/* Semaphore Identifier */
+	const char *Identifier;
+
+	/* Semaphore Data */
+	Semaphore_t Semaphore;
+
+} UserSemaphore_t;
+
 /* Prototypes */
+
+/* This method allocates and constructs
+ * a new semaphore handle. This is a kernel
+ * semaphore */
 _CRT_EXPORT Semaphore_t *SemaphoreCreate(int Value);
+
+/* This method allocates and constructs
+ * a new semaphore handle. This is a usermode
+ * semaphore */
+_CRT_EXTERN UserSemaphore_t *SemaphoreUserCreate(const char *Identifier, int Value);
+
+/* This method constructs a new semaphore handle. 
+ * Does not allocate any memory 
+ * This is a kernel semaphore */
 _CRT_EXPORT void SemaphoreConstruct(Semaphore_t *Semaphore, int Value);
+
+/* Destroys and frees a semaphore, releasing any
+ * resources associated with it */
 _CRT_EXPORT void SemaphoreDestroy(Semaphore_t *Semaphore);
+
+/* Semaphore Wait 
+ * Waits for the semaphore signal */
 _CRT_EXPORT void SemaphoreP(Semaphore_t *Semaphore);
+
+/* Semaphore Signal 
+ * Signals the semaphore */
 _CRT_EXPORT void SemaphoreV(Semaphore_t *Semaphore);
 
 #endif // !_MCORE_SEMAPHORE_H_

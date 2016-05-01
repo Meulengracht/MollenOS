@@ -627,7 +627,7 @@ int NoOperation(void)
 }
 
 /* Syscall Table */
-Addr_t GlbSyscallTable[91] =
+Addr_t GlbSyscallTable[111] =
 {
 	/* Kernel Log */
 	DefineSyscall(LogDebug),
@@ -691,8 +691,30 @@ Addr_t GlbSyscallTable[91] =
 	DefineSyscall(ScVfsMove),
 	DefineSyscall(ScVfsQuery),
 	DefineSyscall(ScVfsResolvePath),
+	DefineSyscall(NoOperation),
+	DefineSyscall(NoOperation),
+	DefineSyscall(NoOperation),
+	DefineSyscall(NoOperation),
+	DefineSyscall(NoOperation),
+	DefineSyscall(NoOperation),
+	DefineSyscall(NoOperation),
+	DefineSyscall(NoOperation),
+	DefineSyscall(NoOperation),
+	DefineSyscall(NoOperation),
 
-	/* Device Functions - 51 */
+	/* Timer Functions - 61 */
+	DefineSyscall(NoOperation),
+	DefineSyscall(NoOperation),
+	DefineSyscall(NoOperation),
+	DefineSyscall(NoOperation),
+	DefineSyscall(NoOperation),
+	DefineSyscall(NoOperation),
+	DefineSyscall(NoOperation),
+	DefineSyscall(NoOperation),
+	DefineSyscall(NoOperation),
+	DefineSyscall(NoOperation),
+
+	/* Device Functions - 71 */
 	DefineSyscall(ScDeviceQuery),
 	DefineSyscall(NoOperation),
 	DefineSyscall(NoOperation),
@@ -704,7 +726,7 @@ Addr_t GlbSyscallTable[91] =
 	DefineSyscall(NoOperation),
 	DefineSyscall(NoOperation),
 
-	/* System Functions - 61 */
+	/* System Functions - 81 */
 	DefineSyscall(ScEndBootSequence),
 	DefineSyscall(ScRegisterWindowManager),
 	DefineSyscall(NoOperation),
@@ -716,7 +738,7 @@ Addr_t GlbSyscallTable[91] =
 	DefineSyscall(NoOperation),
 	DefineSyscall(NoOperation),
 
-	/* Driver Functions - 71 */
+	/* Driver Functions - 91 */
 	DefineSyscall(ScIoSpaceCreate),
 	DefineSyscall(ScIoSpaceRead),
 	DefineSyscall(ScIoSpaceWrite),

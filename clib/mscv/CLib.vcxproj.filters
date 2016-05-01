@@ -372,6 +372,15 @@
     <ClCompile Include="..\src\stdio\putchar.c">
       <Filter>Source\stdio\ConIo</Filter>
     </ClCompile>
+    <ClCompile Include="..\src\os\Timer.c">
+      <Filter>Source\os</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\stdio\fgets.c">
+      <Filter>Source\stdio\File</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\stdio\fgetc.c">
+      <Filter>Source\stdio\File</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <MASM Include="..\crt\alldvrm.S">

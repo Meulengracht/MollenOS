@@ -29,6 +29,10 @@
 /* Definitions */
 #define MSTRING_NOT_FOUND		-1
 
+#define MSTRING_NO_MATCH		0
+#define MSTRING_FULL_MATCH		1
+#define MSTRING_PARTIAL_MATCH	2
+
 #define MSTRING_BLOCK_SIZE		64
 
 /* String Types */

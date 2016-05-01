@@ -266,10 +266,13 @@ _CRT_EXTERN size_t VfsRead(MCoreFile_t *Handle, uint8_t *Buffer, size_t Length);
 _CRT_EXTERN size_t VfsWrite(MCoreFile_t *Handle, uint8_t *Buffer, size_t Length);
 _CRT_EXTERN VfsErrorCode_t VfsSeek(MCoreFile_t *Handle, uint64_t Offset);
 _CRT_EXTERN VfsErrorCode_t VfsFlush(MCoreFile_t *Handle);
-_CRT_EXTERN MString_t *VfsResolveEnvironmentPath(VfsEnvironmentPath_t Base);
+
+/* Directory Operations */
+_CRT_EXTERN VfsErrorCode_t VfsCreatePath(const char *Path);
 
 /* Utilities */
 _CRT_EXTERN VfsErrorCode_t VfsQuery(MCoreFile_t *Handle, VfsQueryFunction_t Function, void *Buffer, size_t Length);
 _CRT_EXTERN VfsErrorCode_t VfsMove(const char *Path, const char *NewPath, int Copy);
+_CRT_EXTERN MString_t *VfsResolveEnvironmentPath(VfsEnvironmentPath_t Base);
 
 #endif //!_MCORE_VFS_H_

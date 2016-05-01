@@ -506,6 +506,9 @@ void MStringCopy(MString_t *Destination, MString_t *Source, int Length)
 
 		/* Copy */
 		memcpy(Destination->Data, Source->Data, Source->Length);
+
+		/* Update length */
+		Destination->Length = Source->Length;
 	}
 	else
 	{
@@ -1089,15 +1092,19 @@ uint32_t MStringCompare(MString_t *String1, MString_t *String2, uint32_t IgnoreC
 
 		/* Lets see */
 		if (First != Second)
-			return 0;
+			return MSTRING_NO_MATCH;
 	}
 
 	/* Sanity */
 	if (DataPtr1[i1] != DataPtr2[i2])
-		return 0;
+		return MSTRING_NO_MATCH;
+
+	/* Sanity - Length */
+	if (strlen(String1->Data) != strlen(String2->Data))
+		return MSTRING_PARTIAL_MATCH;
 
 	/* Done - Equal */
-	return 1;
+	return MSTRING_FULL_MATCH;
 }
 
 void MStringToASCII(MString_t *String, void *Buffer)
