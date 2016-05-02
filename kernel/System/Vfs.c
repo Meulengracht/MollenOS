@@ -553,13 +553,21 @@ void VfsOpenInternal(MCoreFile_t *Handle, MString_t *Path, VfsFileFlags_t OpenFl
 				/* Set stuff */
 				Handle->Code = VfsOk;
 				Handle->Flags = OpenFlags;
+				Handle->LastOp = 0;
 				Handle->Fs = Fs;
 
 				/* Initialise buffering */
-				if (!(Handle->Flags & NoBuffering)) {
+				if (!(Handle->Flags & NoBuffering)) 
+				{
+					/* Setup output buffer */
 					Handle->oBuffer = (void*)kmalloc(Fs->SectorSize);
 					memset(Handle->oBuffer, 0, Fs->SectorSize);
 					Handle->oBufferPosition = 0;
+
+					/* Setup input buffer */
+					Handle->iBuffer = (void*)kmalloc(Fs->SectorSize);
+					memset(Handle->iBuffer, 0, Fs->SectorSize);
+					Handle->iBufferPosition = 0;
 				}
 
 				/* Append? */
@@ -684,6 +692,8 @@ VfsErrorCode_t VfsClose(MCoreFile_t *Handle)
 		/* Cleanup */
 		if (Handle->oBuffer != NULL)
 			kfree(Handle->oBuffer);
+		if (Handle->iBuffer != NULL)
+			kfree(Handle->iBuffer);
 	}
 
 	/* Invalid Handle? */
@@ -736,17 +746,75 @@ VfsErrorCode_t VfsDelete(MCoreFile_t *Handle)
 size_t VfsRead(MCoreFile_t *Handle, uint8_t *Buffer, size_t Length)
 {
 	/* Vars */
-	size_t BytesRead = 0;
 	MCoreFileSystem_t *Fs = NULL;
+	size_t BytesRead = 0;
+	int ReadFromDisk = 1;
+
+	/* Intermediate Variables */
+	uint8_t *UserBuffer = Buffer;
+	size_t RequestBytesLeft = Length;
 
 	/* Sanity */
 	if (Handle == NULL
 		|| Handle->Code != VfsOk)
 		return VfsInvalidParameters;
 
-	/* Deep Read */
+	/* Sanity -> Flush if we wrote and now read */
+	if (Handle->LastOp & Write) {
+		VfsFlush(Handle);
+	}
+
+	/* Cast */
 	Fs = (MCoreFileSystem_t*)Handle->Fs;
-	BytesRead = Fs->ReadFile(Fs, Handle, Buffer, Length);
+
+	/* Buffering? */
+	if (!(Handle->Flags & NoBuffering)
+		&& Handle->iBufferRemaining != 0)
+	{
+		/* How many bytes are left in current buffer? */
+		size_t bIndex = Fs->SectorSize - Handle->iBufferRemaining;
+		uint8_t *bPtr = (uint8_t*)Handle->iBuffer;
+
+		/* Can we cover the entire op? */
+		if (Length <= Handle->iBufferRemaining)
+		{
+			/* Copy data from input buffer to buffer */
+			memcpy((bPtr + bIndex), UserBuffer, RequestBytesLeft);
+			Handle->iBufferRemaining -= RequestBytesLeft;
+			Handle->Position += RequestBytesLeft;
+			ReadFromDisk = 0;
+		}
+		else
+		{
+			/* Copy remainers to buffer and reduce */
+			memcpy((bPtr + bIndex), UserBuffer, Handle->iBufferRemaining);
+			UserBuffer += Handle->iBufferRemaining;
+			RequestBytesLeft -= Handle->iBufferRemaining;
+			Handle->Position += Handle->iBufferRemaining;
+			Handle->iBufferRemaining = 0;
+		}
+	}
+
+	/* Deep Read */
+	if (ReadFromDisk) 
+	{
+		/* Only do the read and nothing else if 
+		 * buffering is disabled */
+		if (!(Handle->Flags & NoBuffering))
+			BytesRead = Fs->ReadFile(Fs, Handle, UserBuffer, RequestBytesLeft);
+		else
+		{
+			/* Round up to nearest sector size */
+			size_t AdjustLength = RequestBytesLeft;
+			if (RequestBytesLeft % Fs->SectorSize)
+				AdjustLength += Fs->SectorSize - (RequestBytesLeft % Fs->SectorSize);
+
+
+		}
+	}
+
+	/* Save last op */
+	Handle->LastOp = Read;
 
 	/* Done */
 	return BytesRead;
@@ -767,6 +835,11 @@ size_t VfsWrite(MCoreFile_t *Handle, uint8_t *Buffer, size_t Length)
 	if (Handle == NULL
 		|| Handle->Code != VfsOk)
 		return VfsInvalidParameters;
+
+	/* Sanity -> Clear read buffer if we are writing */
+	if (Handle->LastOp & Read) {
+		VfsFlush(Handle);
+	}
 
 	/* Get Fs */
 	Fs = (MCoreFileSystem_t*)Handle->Fs;
@@ -824,6 +897,9 @@ size_t VfsWrite(MCoreFile_t *Handle, uint8_t *Buffer, size_t Length)
 	if (WriteToDisk)
 		BytesWritten = Fs->WriteFile(Fs, Handle, Buffer, Length);
 
+	/* Save last operation */
+	Handle->LastOp = Write;
+
 	/* Done */
 	return BytesWritten;
 }
@@ -842,9 +918,15 @@ VfsErrorCode_t VfsSeek(MCoreFile_t *Handle, uint64_t Offset)
 		|| Handle->Code != VfsOk)
 		return VfsInvalidParameters;
 
+	/* Flush buffers before seeking */
+	VfsFlush(Handle);
+
 	/* Deep Seek */
 	Fs = (MCoreFileSystem_t*)Handle->Fs;
 	ErrCode = Fs->Seek(Fs, Handle, (Handle->Position + Offset));
+
+	/* Clear last op */
+	Handle->LastOp = 0;
 
 	/* Done */
 	return ErrCode;
@@ -922,22 +1004,35 @@ VfsErrorCode_t VfsFlush(MCoreFile_t *Handle)
 		return VfsInvalidParameters;
 
 	/* Sanity */
-	if ((Handle->Flags & NoBuffering)
-		|| Handle->oBuffer == NULL
-		|| Handle->oBufferPosition == 0)
+	if ((Handle->Flags & NoBuffering))
 		return VfsOk;
 
 	/* Cast */
 	Fs = (MCoreFileSystem_t*)Handle->Fs;
 
-	/* Write Buffer */
-	BytesWritten = Fs->WriteFile(Fs, Handle, Handle->oBuffer, Handle->oBufferPosition);
+	/* Empty input buffer */
+	if (Handle->iBuffer != NULL
+		&& Handle->iBufferPosition != 0)
+	{
+		/* Reset */
+		memset(Handle->iBuffer, 0, Fs->SectorSize);
+		Handle->iBufferPosition = 0;
+	}
 
-	/* Sanity */
-	if (BytesWritten == Handle->oBufferPosition)
-		return VfsOk;
-	else
-		return VfsDiskError;
+	/* Empty output buffer */
+	if (Handle->oBuffer != NULL
+		&& Handle->oBufferPosition != 0) 
+	{
+		/* Write Buffer */
+		BytesWritten = Fs->WriteFile(Fs, Handle, Handle->oBuffer, Handle->oBufferPosition);
+
+		/* Sanity */
+		if (BytesWritten != Handle->oBufferPosition)
+			return VfsDiskError;
+	}
+
+	/* Done */
+	return VfsOk;
 }
 
 /* Vfs - Move/Rename File

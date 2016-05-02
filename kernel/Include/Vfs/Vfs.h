@@ -184,7 +184,8 @@ typedef struct _MCoreFile
 	/* Flags */
 	VfsErrorCode_t Code;
 	VfsFileFlags_t Flags;
-	uint32_t IsEOF;
+	VfsFileFlags_t LastOp;
+	int IsEOF;
 
 	/* Position & size */
 	uint64_t Position;
@@ -193,7 +194,7 @@ typedef struct _MCoreFile
 	/* I/O Buffer */
 	void *iBuffer;
 	void *oBuffer;
-	uint32_t iBufferPosition;
+	uint32_t iBufferRemaining;
 	uint32_t oBufferPosition;
 
 	/* The FS structure */
