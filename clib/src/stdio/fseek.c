@@ -26,13 +26,13 @@
 #include <stdlib.h>
 #include <os/Syscall.h>
 
-/* The seek
- * Set the file position */
-int fseek(FILE * stream, long int offset, int origin)
+/* The seeko
+ * Set the file position with off_t */
+int fseeko(FILE *stream, off_t offset, int origin)
 {
 	/* Syscall Result */
 	int RetVal = 0;
-	long int SeekSpot = 0;
+	off_t SeekSpot = 0;
 
 	/* Sanity */
 	if (stream == NULL) {
@@ -47,7 +47,8 @@ int fseek(FILE * stream, long int offset, int origin)
 		/* We need current position / size */
 
 		/* Prepare a buffer */
-		long fPos = 0, fSize = 0;
+		uint64_t fPos = 0, fSize = 0;
+		size_t CorrectedValue = (size_t)abs(offset);;
 		char Buffer[64];
 		memset(Buffer, 0, sizeof(Buffer));
 
@@ -58,14 +59,28 @@ int fseek(FILE * stream, long int offset, int origin)
 			MOLLENOS_SYSCALL_PARAM(sizeof(Buffer)));
 
 		/* Now we can calculate */
-		fPos = *((long*)(&Buffer[16]));
-		fSize = *((long*)(&Buffer[0]));
+		fPos = *((uint64_t*)(&Buffer[16]));
+		fSize = *((uint64_t*)(&Buffer[0]));
+
+		/* Sanity offset */
+		if ((size_t)fPos != fPos) {
+			errno = EOVERFLOW;
+			return -1;
+		}
 
 		/* Lets see .. */
-		if (origin == SEEK_CUR)
-			SeekSpot = fPos + offset;
-		else
-			SeekSpot = fSize + offset;
+		if (origin == SEEK_CUR) {
+			/* Handle negative */
+			if (offset < 0) {
+				SeekSpot = (off_t)fPos - CorrectedValue;
+			}
+			else {
+				SeekSpot = (off_t)fPos + CorrectedValue;
+			}
+		}
+		else {
+			SeekSpot = (off_t)fSize - CorrectedValue;
+		}
 	}
 
 	/* Seek to 0 */
@@ -78,4 +93,12 @@ int fseek(FILE * stream, long int offset, int origin)
 
 	/* Done */
 	return RetVal;
+}
+
+/* The seek
+ * Set the file position */
+int fseek(FILE * stream, long int offset, int origin)
+{
+	/* Deep call */
+	return fseeko(stream, offset, origin);
 }

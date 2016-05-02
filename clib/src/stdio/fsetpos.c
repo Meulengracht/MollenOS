@@ -30,24 +30,6 @@
  * Restores the file position */
 int fsetpos(FILE * stream, const fpos_t * pos)
 {
-	/* Syscall Result */
-	int RetVal = 0;
-
-	/* Sanity */
-	if (stream == NULL
-		|| pos == NULL) {
-		_set_errno(EINVAL);
-		return -1;
-	}
-
-	/* Seek to 0 */
-	RetVal = Syscall2(MOLLENOS_SYSCALL_VFSSEEK,
-		MOLLENOS_SYSCALL_PARAM(stream), MOLLENOS_SYSCALL_PARAM(*pos));
-
-	/* Sanity */
-	if (stream->code == CLIB_OK_CODE)
-		_set_errno(EOK);
-
-	/* Done */
-	return RetVal;
+	/* Utilize fseeko */
+	return (fseeko(stream, (off_t)*pos, SEEK_SET));
 }

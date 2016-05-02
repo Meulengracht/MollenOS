@@ -27,66 +27,15 @@
 #include <os/Syscall.h>
 
 /* The fgetpos
- * Saves the file position */
-int fgetpos(FILE * stream, fpos_t * pos)
+ * returns the current file position */
+int fgetpos(FILE *stream, fpos_t *pos)
 {
-	/* Syscall Result */
-	int RetVal = 0;
-	long fPos = 0;
-	char Buffer[64];
+	/* Hold return value */
+	int RetVal;
 
-	/* Sanity */
-	if (stream == NULL
-		|| pos == NULL) {
-		_set_errno(EINVAL);
-		return -1;
-	}
-
-	/* Prepare a buffer */
-	memset(Buffer, 0, sizeof(Buffer));
-
-	/* Syscall */
-	RetVal = Syscall4(MOLLENOS_SYSCALL_VFSQUERY, MOLLENOS_SYSCALL_PARAM(stream),
-		MOLLENOS_SYSCALL_PARAM(0),
-		MOLLENOS_SYSCALL_PARAM(&Buffer[0]),
-		MOLLENOS_SYSCALL_PARAM(sizeof(Buffer)));
-
-	if (!RetVal) 
-	{
-		/* Now we can calculate */
-		fPos = *((long*)(&Buffer[16]));
-
-		/* Store in buffer */
-		*pos = (fpos_t)fPos;
-
-		/* Clear err and return */
-		_set_errno(EOK);
-		return 0;
-	}
-
-	/* Error */
-	if (RetVal == -1)
-		_set_errno(EINVAL);
-	else if (RetVal == -2)
-		_set_errno(EINVAL);
-	else if (RetVal == -3)
-		_set_errno(ENOENT);
-	else if (RetVal == -4)
-		_set_errno(ENOENT);
-	else if (RetVal == -5)
-		_set_errno(EACCES);
-	else if (RetVal == -6)
-		_set_errno(EISDIR);
-	else if (RetVal == -7)
-		_set_errno(EEXIST);
-	else if (RetVal == -8)
-		_set_errno(EIO);
-	else
-		_set_errno(EINVAL);
-
-	/* Zero */
-	*pos = 0;
+	/* Utilize ftello */
+	RetVal = (*pos = ftello(stream)) == (fpos_t)-1;
 
 	/* Done */
-	return -1;
+	return RetVal;
 }

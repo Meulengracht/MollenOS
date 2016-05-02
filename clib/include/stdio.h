@@ -55,10 +55,24 @@ extern "C" {
 #define _IONBF						0x4
 
 /* Set fpos_t to the arch-specific width */
-#ifndef FPOS_T
-#define FPOS_T
-typedef size_t fpos_t;
+#ifndef FPOS_T_DEFINED
+#if _FILE_OFFSET_BITS==64
+	typedef uint64_t fpos_t;
+#else
+	typedef uint32_t fpos_t;
 #endif
+#define FPOS_T_DEFINED
+#endif
+
+/* Define off_t if not already */
+#ifndef OFF_T_DEFINED
+#if _FILE_OFFSET_BITS==64
+	typedef int64_t off_t;
+#else
+	typedef long int off_t;
+#endif
+#define OFF_T_DEFINED
+#endif 
 
 /* ErrNo Definitions 
  * Limits and extern 
@@ -163,6 +177,9 @@ _CRT_EXTERN int fseek(FILE * stream, long int offset, int origin);
 _CRT_EXTERN long int ftell(FILE * stream);
 _CRT_EXTERN void rewind(FILE * stream);
 _CRT_EXTERN int feof(FILE * stream);
+
+_CRT_EXTERN off_t ftello(FILE *stream);
+_CRT_EXTERN int fseeko(FILE *stream, off_t offset, int origin);
 
 /*******************************
  *       Error Handling        *

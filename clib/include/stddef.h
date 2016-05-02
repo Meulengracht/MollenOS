@@ -72,6 +72,11 @@ typedef signed int ptrdiff_t;
 
 #endif /* !offsetof */
 
+/* File Offset Bits */
+#ifndef _FILE_OFFSET_BITS
+#define _FILE_OFFSET_BITS 32
+#endif
+
 //Structures
 typedef struct Value64Bit
 {

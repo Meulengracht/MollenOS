@@ -26,18 +26,18 @@
 #include <stdlib.h>
 #include <os/Syscall.h>
 
-/* The ftell
- * Get the file position */
-long int ftell(FILE * stream)
+/* The ftello
+ * Get the file position with off_t */
+off_t ftello(FILE * stream)
 {
 	/* Syscall Result */
 	int RetVal = 0;	
-	long int fPos = 0;
+	off_t fPos = 0;
 	char Buffer[64];
 
 	/* Sanity */
 	if (stream == NULL) {
-		_set_errno(EINVAL);
+		_set_errno(ESPIPE);
 		return -1L;
 	}
 
@@ -52,7 +52,7 @@ long int ftell(FILE * stream)
 
 	if (!RetVal) {
 		/* Now we can calculate */
-		fPos = *((long int*)(&Buffer[16]));
+		fPos = *((off_t*)(&Buffer[16]));
 		_set_errno(EOK);
 		return fPos;
 	}
@@ -79,4 +79,24 @@ long int ftell(FILE * stream)
 
 	/* Done */
 	return -1L;
+}
+
+/* The ftell
+ * Get the file position */
+long ftell(FILE * stream)
+{ 
+	/* Vars */
+	off_t rOffset;
+
+	/* Get offset */
+	rOffset = ftello(stream);
+
+	/* Sanity offset */
+	if ((long)rOffset != rOffset) {
+		errno = EOVERFLOW;
+		return -1L;
+	}
+
+	/* Done! */
+	return rOffset;
 }
