@@ -36,7 +36,7 @@ int feof(FILE * stream)
 
 	/* Let's check, MOS 
 	 * keeps our errors updated */
-	if (stream->code & CLIB_EOF_CODE)
+	if (stream->status & CLIB_FCODE_EOF)
 		return 1;
 	else
 		return 0;

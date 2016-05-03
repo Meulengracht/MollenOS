@@ -1466,6 +1466,11 @@ VfsErrorCode_t MfsSeek(void *FsData, MCoreFile_t *Handle, MCoreFileInstance_t *I
 	
 	/* Update pointer */
 	Instance->Position = Position;
+
+	/* Set EOF */
+	if (Instance->Position == Handle->Size) {
+		Instance->IsEOF = 1;
+	}
 	
 	/* Done */
 	return VfsOk;

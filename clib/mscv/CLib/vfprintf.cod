@@ -10,9 +10,9 @@ INCLUDELIB MSVCRT
 INCLUDELIB OLDNAMES
 
 _DATA	SEGMENT
-$SG2016	DB	'r+', 00H
+$SG2017	DB	'r+', 00H
 	ORG $+1
-$SG2017	DB	'c:/system/mlog.txt', 00H
+$SG2018	DB	'c:/system/mlog.txt', 00H
 _DATA	ENDS
 PUBLIC	_vfprintf
 EXTRN	_fclose:PROC
@@ -115,8 +115,8 @@ $LN3@vfprintf:
 ; 25   : 		//Ok, writing to sys-log
 ; 26   : 		FILE *temp = fopen("c:/system/mlog.txt", "r+");
 
-  00065	68 00 00 00 00	 push	 OFFSET $SG2016
-  0006a	68 00 00 00 00	 push	 OFFSET $SG2017
+  00065	68 00 00 00 00	 push	 OFFSET $SG2017
+  0006a	68 00 00 00 00	 push	 OFFSET $SG2018
   0006f	e8 00 00 00 00	 call	 _fopen
   00074	8b f8		 mov	 edi, eax
   00076	83 c4 08	 add	 esp, 8

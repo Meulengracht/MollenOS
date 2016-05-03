@@ -24,20 +24,23 @@ ___tolower PROC						; COMDAT
   00000	55		 push	 ebp
   00001	8b ec		 mov	 ebp, esp
 
-; 62   :         return isupper(c) ? c - ('A' - 'a') : c;
+; 62   : 	return (isupper(c) && isalpha(c)) ? c - ('A' - 'a') : c;
 
   00003	8b 45 08	 mov	 eax, DWORD PTR _c$[ebp]
   00006	0f b6 c0	 movzx	 eax, al
-  00009	f6 80 00 00 00
-	00 01		 test	 BYTE PTR __ctype[eax], 1
-  00010	74 03		 je	 SHORT $LN4@tolower
-  00012	83 c0 20	 add	 eax, 32			; 00000020H
+  00009	8a 88 00 00 00
+	00		 mov	 cl, BYTE PTR __ctype[eax]
+  0000f	f6 c1 01	 test	 cl, 1
+  00012	74 08		 je	 SHORT $LN4@tolower
+  00014	f6 c1 03	 test	 cl, 3
+  00017	74 03		 je	 SHORT $LN4@tolower
+  00019	83 c0 20	 add	 eax, 32			; 00000020H
 $LN4@tolower:
 
 ; 63   : }
 
-  00015	5d		 pop	 ebp
-  00016	c3		 ret	 0
+  0001c	5d		 pop	 ebp
+  0001d	c3		 ret	 0
 ___tolower ENDP
 _TEXT	ENDS
 ; Function compile flags: /Ogtp
@@ -57,96 +60,105 @@ _strncasecmp PROC					; COMDAT
 
   00000	55		 push	 ebp
   00001	8b ec		 mov	 ebp, esp
+  00003	53		 push	 ebx
 
 ; 11   : 	const unsigned char *ucs1 = (const unsigned char *) s1;
 ; 12   : 	const unsigned char *ucs2 = (const unsigned char *) s2;
+
+  00004	8b 5d 0c	 mov	 ebx, DWORD PTR _s2$[ebp]
+  00007	56		 push	 esi
+
 ; 13   : 	int d = 0;
 ; 14   : 	for ( ; n != 0; n--)
 
-  00003	8b 55 10	 mov	 edx, DWORD PTR _n$[ebp]
-  00006	56		 push	 esi
-  00007	8b 75 08	 mov	 esi, DWORD PTR _s1$[ebp]
-  0000a	57		 push	 edi
-  0000b	8b 7d 0c	 mov	 edi, DWORD PTR _s2$[ebp]
-  0000e	85 d2		 test	 edx, edx
-  00010	74 37		 je	 SHORT $LN23@strncasecm
+  00008	8b 75 10	 mov	 esi, DWORD PTR _n$[ebp]
+  0000b	57		 push	 edi
+  0000c	8b 7d 08	 mov	 edi, DWORD PTR _s1$[ebp]
+  0000f	85 f6		 test	 esi, esi
+  00011	74 46		 je	 SHORT $LN23@strncasecm
 $LL5@strncasecm:
 ; File c:\users\philip\documents\github\mollenos\clib\include\ctype.h
 
-; 62   :         return isupper(c) ? c - ('A' - 'a') : c;
+; 62   : 	return (isupper(c) && isalpha(c)) ? c - ('A' - 'a') : c;
 
-  00012	0f b6 06	 movzx	 eax, BYTE PTR [esi]
-  00015	f6 80 00 00 00
-	00 01		 test	 BYTE PTR __ctype[eax], 1
-  0001c	74 03		 je	 SHORT $LN10@strncasecm
-  0001e	83 c0 20	 add	 eax, 32			; 00000020H
+  00013	0f b6 07	 movzx	 eax, BYTE PTR [edi]
+  00016	8a 88 00 00 00
+	00		 mov	 cl, BYTE PTR __ctype[eax]
+  0001c	f6 c1 01	 test	 cl, 1
+  0001f	74 08		 je	 SHORT $LN10@strncasecm
+  00021	f6 c1 03	 test	 cl, 3
+  00024	74 03		 je	 SHORT $LN10@strncasecm
+  00026	83 c0 20	 add	 eax, 32			; 00000020H
 $LN10@strncasecm:
 ; File c:\users\philip\documents\github\mollenos\clib\src\string\strncasecmp.c
 
 ; 16   : 		const int c1 = tolower(*ucs1++);
 
-  00021	0f b6 c8	 movzx	 ecx, al
-  00024	46		 inc	 esi
+  00029	0f b6 c8	 movzx	 ecx, al
+  0002c	47		 inc	 edi
 ; File c:\users\philip\documents\github\mollenos\clib\include\ctype.h
 
-; 62   :         return isupper(c) ? c - ('A' - 'a') : c;
+; 62   : 	return (isupper(c) && isalpha(c)) ? c - ('A' - 'a') : c;
 
-  00025	0f b6 07	 movzx	 eax, BYTE PTR [edi]
-  00028	f6 80 00 00 00
-	00 01		 test	 BYTE PTR __ctype[eax], 1
-  0002f	74 03		 je	 SHORT $LN14@strncasecm
-  00031	83 c0 20	 add	 eax, 32			; 00000020H
+  0002d	0f b6 03	 movzx	 eax, BYTE PTR [ebx]
+  00030	8a 90 00 00 00
+	00		 mov	 dl, BYTE PTR __ctype[eax]
+  00036	f6 c2 01	 test	 dl, 1
+  00039	74 08		 je	 SHORT $LN14@strncasecm
+  0003b	f6 c2 03	 test	 dl, 3
+  0003e	74 03		 je	 SHORT $LN14@strncasecm
+  00040	83 c0 20	 add	 eax, 32			; 00000020H
 $LN14@strncasecm:
 ; File c:\users\philip\documents\github\mollenos\clib\src\string\strncasecmp.c
 
 ; 17   : 		const int c2 = tolower(*ucs2++);
 
-  00034	0f b6 c0	 movzx	 eax, al
-  00037	47		 inc	 edi
+  00043	0f b6 c0	 movzx	 eax, al
+  00046	43		 inc	 ebx
 
 ; 18   : 		
 ; 19   : 		if (((d = c1 - c2) != 0) || (c2 == '\0'))
 
-  00038	2b c8		 sub	 ecx, eax
-  0003a	75 07		 jne	 SHORT $LN21@strncasecm
-  0003c	85 c0		 test	 eax, eax
-  0003e	74 03		 je	 SHORT $LN21@strncasecm
+  00047	2b c8		 sub	 ecx, eax
+  00049	75 07		 jne	 SHORT $LN21@strncasecm
+  0004b	85 c0		 test	 eax, eax
+  0004d	74 03		 je	 SHORT $LN21@strncasecm
 
-; 11   : 	const unsigned char *ucs1 = (const unsigned char *) s1;
-; 12   : 	const unsigned char *ucs2 = (const unsigned char *) s2;
 ; 13   : 	int d = 0;
 ; 14   : 	for ( ; n != 0; n--)
 
-  00040	4a		 dec	 edx
-  00041	75 cf		 jne	 SHORT $LL5@strncasecm
+  0004f	4e		 dec	 esi
+  00050	75 c1		 jne	 SHORT $LL5@strncasecm
 $LN21@strncasecm:
-  00043	5f		 pop	 edi
+  00052	5f		 pop	 edi
+  00053	5e		 pop	 esi
 
 ; 20   : 			break;
 ; 21   : 	}
 ; 22   : 	return d;
 
-  00044	8b c1		 mov	 eax, ecx
-  00046	5e		 pop	 esi
+  00054	8b c1		 mov	 eax, ecx
+  00056	5b		 pop	 ebx
 
 ; 23   : }
 
-  00047	5d		 pop	 ebp
-  00048	c3		 ret	 0
+  00057	5d		 pop	 ebp
+  00058	c3		 ret	 0
 $LN23@strncasecm:
-  00049	5f		 pop	 edi
+  00059	5f		 pop	 edi
+  0005a	5e		 pop	 esi
 
 ; 20   : 			break;
 ; 21   : 	}
 ; 22   : 	return d;
 
-  0004a	33 c0		 xor	 eax, eax
-  0004c	5e		 pop	 esi
+  0005b	33 c0		 xor	 eax, eax
+  0005d	5b		 pop	 ebx
 
 ; 23   : }
 
-  0004d	5d		 pop	 ebp
-  0004e	c3		 ret	 0
+  0005e	5d		 pop	 ebp
+  0005f	c3		 ret	 0
 _strncasecmp ENDP
 _TEXT	ENDS
 END

@@ -315,6 +315,47 @@ int ScIpcWrite(PId_t ProcessId, uint8_t *Message, size_t MessageLength)
 ***********************/
 #include <Vfs/Vfs.h>
 #include <stdio.h>
+#include <errno.h>
+
+/* Vfs Code to C-Library code, 
+ * used for c-library syscalls */
+int ScVfsConvertCodeAndSetStatus(MCoreFileInstance_t *Handle, FILE *cData, VfsErrorCode_t Code)
+{
+	/* Start out by converting error code */
+	if (Code == VfsOk)
+		cData->code = EOK;
+	else if (Code == VfsDeleted)
+		cData->code = ENOENT;
+	else if (Code == VfsInvalidParameters)
+		cData->code = EINVAL;
+	else if (Code == VfsInvalidPath 
+		     || Code == VfsPathNotFound)
+		cData->code = ENOENT;
+	else if (Code == VfsAccessDenied)
+		cData->code = EACCES;
+	else if (Code == VfsPathIsNotDirectory)
+		cData->code = EISDIR;
+	else if (Code == VfsPathExists)
+		cData->code = EEXIST;
+	else if (Code == VfsDiskError)
+		cData->code = EIO;
+	else
+		cData->code = EINVAL;
+
+	/* Update Status */
+	if (Handle != NULL) 
+	{
+		/* Reset */
+		cData->status = 0;
+
+		/* Check EOF */
+		if (Handle->IsEOF)
+			cData->status |= CLIB_FCODE_EOF;
+	}
+
+	/* Done */
+	return 0 - (int)Code;
+}
 
 /* Open File */
 int ScVfsOpen(const char *Utf8, FILE *cData, VfsFileFlags_t OpenFlags)
@@ -326,9 +367,11 @@ int ScVfsOpen(const char *Utf8, FILE *cData, VfsFileFlags_t OpenFlags)
 	/* Try */
 	MCoreFileInstance_t *Handle = VfsOpen(Utf8, OpenFlags);
 
-	/* Done */
+	/* Save handle */
 	cData->_handle = (void*)Handle;
-	return 0 - (int)Handle->Code;
+
+	/* Update status */
+	return ScVfsConvertCodeAndSetStatus(Handle, cData, Handle->Code);
 }
 
 /* Close File */
@@ -354,8 +397,15 @@ int ScVfsRead(FILE *cData, uint8_t *Buffer, size_t Length)
 	if (Length == 0)
 		return 0;
 
+	/* Do the read */
+	int bRead = (int)VfsRead((MCoreFileInstance_t*)cData->_handle, Buffer, Length);
+
+	/* Update Status */
+	ScVfsConvertCodeAndSetStatus((MCoreFileInstance_t*)cData->_handle, cData,
+		((MCoreFileInstance_t*)cData->_handle)->Code);
+
 	/* Done */
-	return (int)VfsRead((MCoreFileInstance_t*)cData->_handle, Buffer, Length);
+	return bRead;
 }
 
 /* Write File */
@@ -370,8 +420,15 @@ int ScVfsWrite(FILE *cData, uint8_t *Buffer, size_t Length)
 	if (Length == 0)
 		return 0;
 
+	/* Do the write */
+	int bWritten = (int)VfsWrite((MCoreFileInstance_t*)cData->_handle, Buffer, Length);
+
+	/* Update Status */
+	ScVfsConvertCodeAndSetStatus((MCoreFileInstance_t*)cData->_handle, cData,
+		((MCoreFileInstance_t*)cData->_handle)->Code);
+
 	/* Done */
-	return (int)VfsWrite((MCoreFileInstance_t*)cData->_handle, Buffer, Length);
+	return bWritten;
 }
 
 /* Seek File */
@@ -381,8 +438,11 @@ int ScVfsSeek(FILE *cData, size_t Position)
 	if (cData == NULL || cData->_handle == NULL)
 		return -1;
 
-	/* Deep Call */
-	return VfsSeek((MCoreFileInstance_t*)cData->_handle, (uint64_t)Position);
+	/* Seek in file */
+	VfsErrorCode_t ErrCode = VfsSeek((MCoreFileInstance_t*)cData->_handle, (uint64_t)Position);
+
+	/* Update Status */
+	return ScVfsConvertCodeAndSetStatus((MCoreFileInstance_t*)cData->_handle, cData, ErrCode);
 }
 
 /* Delete File */

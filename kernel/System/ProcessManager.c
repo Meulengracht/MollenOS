@@ -197,6 +197,9 @@ void PmStartProcess(void *Args)
 	/* Update this thread */
 	cThread->ProcessId = Process->Id;
 
+	/* Allocate a open file list */
+	Process->OpenFiles = list_create(LIST_NORMAL);
+
 	/* Load Executable */
 	Process->Executable = 
 		PeLoadImage(NULL, Process->Name, Process->fBuffer, &BaseAddress);
@@ -386,11 +389,27 @@ void PmTerminateProcess(MCoreProcess_t *Process)
 /* Cleans a process and it's resources */
 void PmCleanupProcess(MCoreProcess_t *Process)
 {
+	/* Vars */
+	list_node_t *fNode = NULL;
+
 	/* Cleanup Strings */
 	MStringDestroy(Process->Name);
 	MStringDestroy(Process->Arguments);
 	MStringDestroy(Process->WorkingDirectory);
 	MStringDestroy(Process->BaseDirectory);
+
+	/* Go through open files, cleanup all handles */
+	_foreach(fNode, Process->OpenFiles)
+	{
+		/* Cast */
+		MCoreFileInstance_t *fHandle = (MCoreFileInstance_t*)fNode->data;
+
+		/* Cleanup */
+		VfsClose(fHandle);
+	}
+
+	/* Destroy list */
+	list_destroy(Process->OpenFiles);
 
 	/* Destroy Pipe */
 	PipeDestroy(Process->Pipe);

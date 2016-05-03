@@ -59,6 +59,9 @@ char *fgets(char * buf, size_t n, FILE * stream)
 	if (p == buf || c == EOF)
 		return NULL;
 
+	/* Clear error */
+	_set_errno(EOK);
+
 	/* Done! */
 	return p;
 }

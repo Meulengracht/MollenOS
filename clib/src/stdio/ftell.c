@@ -93,7 +93,7 @@ long ftell(FILE * stream)
 
 	/* Sanity offset */
 	if ((long)rOffset != rOffset) {
-		errno = EOVERFLOW;
+		_set_errno(EOVERFLOW);
 		return -1L;
 	}
 

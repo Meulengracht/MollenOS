@@ -58,6 +58,7 @@ FILE *fopen(const char * filename, const char * mode)
 	FILE *fHandle = (FILE*)malloc(sizeof(FILE));
 	fHandle->_handle = NULL;
 	fHandle->code = 0;
+	fHandle->status = 0;
 	fHandle->flags = mFlags;
 
 	/* Syscall */

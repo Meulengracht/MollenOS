@@ -48,9 +48,8 @@ size_t fread(void * vptr, size_t size, size_t count, FILE * stream)
 	 * the syscall will set error code if any */
 	BytesToRead = (size_t)RetVal;
 
-	/* Sanity */
-	if (stream->code == CLIB_OK_CODE)
-		_set_errno(EOK);
+	/* Clear error */
+	_set_errno(EOK);
 
 	/* Gj */
 	return BytesToRead;

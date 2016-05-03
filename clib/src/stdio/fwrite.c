@@ -49,8 +49,7 @@ size_t fwrite(const void * vptr, size_t size, size_t count, FILE * stream)
 	BytesToWrite = (size_t)RetVal;
 
 	/* Sanity */
-	if (stream->code == CLIB_OK_CODE)
-		_set_errno(EOK);
+	_set_errno(EOK);
 
 	/* Gj */
 	return BytesToWrite;

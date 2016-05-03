@@ -29,6 +29,7 @@
 #include <Pipe.h>
 #include <MString.h>
 #include <Heap.h>
+#include <List.h>
 
 /* Definitions */
 typedef unsigned int PId_t;
@@ -49,6 +50,9 @@ typedef struct _MCoreProcess
 	/* Working Directory */
 	MString_t *WorkingDirectory;
 	MString_t *BaseDirectory;
+
+	/* Open Files */
+	list_t *OpenFiles;
 
 	/* Pipe */
 	MCorePipe_t *Pipe;

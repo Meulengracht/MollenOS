@@ -83,9 +83,7 @@ _CRT_EXTERN char *_errstrings[];
 /* The C-Library Error Codes 
  * These closely relate the the 
  * cLibFileStream->code member */
-#define CLIB_OK_CODE	0x0
-#define CLIB_EOF_CODE	0x1
-#define CLIB_SEEK_CODE	0x2
+#define CLIB_FCODE_EOF		0x1
 
 /*******************************
  *       File Structures       *
@@ -98,6 +96,10 @@ typedef struct _cLibFileStream
 	/* Status Code 
 	 * Updated by sysops */
 	int code;
+
+	/* Status Flags 
+	 * set by sysops */
+	int status;
 
 	/* Access Flags 
 	 * Used for shortcuts */

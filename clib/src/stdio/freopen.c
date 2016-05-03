@@ -60,6 +60,7 @@ FILE *freopen(const char * filename, const char * mode, FILE * stream)
 
 		/* Reset */
 		stream->code = 0;
+		stream->status = 0;
 		stream->flags = mFlags;
 
 		/* Sanity */
@@ -109,6 +110,7 @@ FILE *freopen(const char * filename, const char * mode, FILE * stream)
 
 		/* Store */
 		stream->code = 0;
+		stream->status = 0;
 		stream->flags = mFlags;
 
 		/* clear error */

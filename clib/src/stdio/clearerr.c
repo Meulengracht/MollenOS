@@ -36,5 +36,6 @@ void clearerr(FILE * stream)
 		return;
 
 	/* Clear out code */
-	stream->code = CLIB_OK_CODE;
+	stream->code = EOK;
+	stream->status = 0;
 }

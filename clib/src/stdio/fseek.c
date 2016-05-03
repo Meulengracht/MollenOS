@@ -48,7 +48,7 @@ int fseeko(FILE *stream, off_t offset, int origin)
 
 		/* Prepare a buffer */
 		uint64_t fPos = 0, fSize = 0;
-		size_t CorrectedValue = (size_t)abs(offset);;
+		off_t CorrectedValue = (off_t)abs(offset);;
 		char Buffer[64];
 		memset(Buffer, 0, sizeof(Buffer));
 
@@ -64,7 +64,7 @@ int fseeko(FILE *stream, off_t offset, int origin)
 
 		/* Sanity offset */
 		if ((size_t)fPos != fPos) {
-			errno = EOVERFLOW;
+			_set_errno(EOVERFLOW);
 			return -1;
 		}
 
@@ -87,9 +87,8 @@ int fseeko(FILE *stream, off_t offset, int origin)
 	RetVal = Syscall2(MOLLENOS_SYSCALL_VFSSEEK,
 		MOLLENOS_SYSCALL_PARAM(stream), MOLLENOS_SYSCALL_PARAM(SeekSpot));
 
-	/* Sanity */
-	if (stream->code == CLIB_OK_CODE)
-		_set_errno(EOK);
+	/* Clear error */
+	_set_errno(EOK);
 
 	/* Done */
 	return RetVal;
