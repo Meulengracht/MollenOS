@@ -240,7 +240,7 @@ PId_t PmCreateProcess(MString_t *Path, MString_t *Arguments)
 {
 	/* Vars */
 	MCoreProcess_t *Process = NULL;
-	MCoreFile_t *File = NULL;
+	MCoreFileInstance_t *File = NULL;
 	uint8_t *fBuffer = NULL;
 	int Index = 0;
 
@@ -259,10 +259,10 @@ PId_t PmCreateProcess(MString_t *Path, MString_t *Arguments)
 	}
 
 	/* Allocate a buffer */
-	fBuffer = (uint8_t*)kmalloc((size_t)File->Size);
+	fBuffer = (uint8_t*)kmalloc((size_t)File->File->Size);
 
 	/* Read */
-	VfsRead(File, fBuffer, (size_t)File->Size);
+	VfsRead(File, fBuffer, (size_t)File->File->Size);
 
 	/* Close */
 	VfsClose(File);

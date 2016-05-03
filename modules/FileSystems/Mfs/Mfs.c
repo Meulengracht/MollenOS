@@ -477,7 +477,7 @@ Done:
 /* This is our primary searcher function
  * Given a path it validates and locates a 
  * mfs-entry in a directory-path */
-MfsFile_t *MfsLocateEntry(MCoreFileSystem_t *Fs, uint32_t DirBucket, MString_t *Path)
+MfsFile_t *MfsLocateEntry(MCoreFileSystem_t *Fs, uint32_t DirBucket, MString_t *Path, VfsErrorCode_t *ErrCode)
 {
 	/* Vars */
 	MfsData_t *mData = (MfsData_t*)Fs->FsData;
@@ -552,9 +552,8 @@ MfsFile_t *MfsLocateEntry(MCoreFileSystem_t *Fs, uint32_t DirBucket, MString_t *
 						MStringDestroy(Token);
 
 						/* Path not found ofc */
-						MfsFile_t *RetData = (MfsFile_t*)kmalloc(sizeof(MfsFile_t));
-						RetData->Status = VfsPathIsNotDirectory;
-						return RetData;
+						*ErrCode = VfsPathIsNotDirectory;
+						return NULL;
 					}
 
 					/* Sanity the bucket beforehand */
@@ -566,9 +565,8 @@ MfsFile_t *MfsLocateEntry(MCoreFileSystem_t *Fs, uint32_t DirBucket, MString_t *
 						MStringDestroy(Token);
 
 						/* Path not found ofc */
-						MfsFile_t *RetData = (MfsFile_t*)kmalloc(sizeof(MfsFile_t));
-						RetData->Status = VfsPathNotFound;
-						return RetData;
+						*ErrCode = VfsPathNotFound;
+						return NULL;
 					}
 
 					/* Create a new sub-string with rest */
@@ -577,7 +575,7 @@ MfsFile_t *MfsLocateEntry(MCoreFileSystem_t *Fs, uint32_t DirBucket, MString_t *
 						(MStringLength(Path) - (StrIndex + 1)));
 
 					/* Go deeper */
-					MfsFile_t *Ret = MfsLocateEntry(Fs, Entry->StartBucket, RestOfPath);
+					MfsFile_t *Ret = MfsLocateEntry(Fs, Entry->StartBucket, RestOfPath, ErrCode);
 
 					/* Cleanup */
 					kfree(EntryBuffer);
@@ -599,11 +597,8 @@ MfsFile_t *MfsLocateEntry(MCoreFileSystem_t *Fs, uint32_t DirBucket, MString_t *
 					Ret->Size = Entry->Size;
 					Ret->AllocatedSize = Entry->AllocatedSize;
 					Ret->DataBucket = Entry->StartBucket;
-					Ret->DataBucketPosition = Entry->StartBucket;
 					Ret->InitialBucketLength = Entry->StartLength;
-					Ret->DataBucketLength = Entry->StartLength;
-					Ret->Status = VfsOk;
-					Ret->BucketByteBoundary = 0;
+					*ErrCode = VfsOk;
 
 					/* Save position */
 					Ret->DirBucket = CurrentBucket;
@@ -643,16 +638,15 @@ MfsFile_t *MfsLocateEntry(MCoreFileSystem_t *Fs, uint32_t DirBucket, MString_t *
 	
 	/* If IsEnd is set, we couldn't find it 
 	 * If IsEnd is not set, we should not be here... */
-	MfsFile_t *RetData = (MfsFile_t*)kmalloc(sizeof(MfsFile_t));
-	RetData->Status = VfsPathNotFound;
-	return RetData;
+	*ErrCode = VfsPathNotFound;
+	return NULL;
 }
 
 /* Very alike to the MfsLocateEntry
  * except instead of locating a file entry
  * it locates a free entry in the last token of
  * the path, and validates the path as it goes */
-MfsFile_t *MfsFindFreeEntry(MCoreFileSystem_t *Fs, uint32_t DirBucket, MString_t *Path)
+MfsFile_t *MfsFindFreeEntry(MCoreFileSystem_t *Fs, uint32_t DirBucket, MString_t *Path, VfsErrorCode_t *ErrCode)
 {
 	/* Vars */
 	MfsData_t *mData = (MfsData_t*)Fs->FsData;
@@ -712,7 +706,7 @@ MfsFile_t *MfsFindFreeEntry(MCoreFileSystem_t *Fs, uint32_t DirBucket, MString_t
 					/* Save position for entry */
 					Ret->DirBucket = CurrentBucket;
 					Ret->DirOffset = i;
-					Ret->Status = VfsOk;
+					*ErrCode = VfsOk;
 
 					/* Cleanup */
 					kfree(EntryBuffer);
@@ -753,9 +747,8 @@ MfsFile_t *MfsFindFreeEntry(MCoreFileSystem_t *Fs, uint32_t DirBucket, MString_t
 						MStringDestroy(Token);
 
 						/* Path not found ofc */
-						MfsFile_t *RetData = (MfsFile_t*)kmalloc(sizeof(MfsFile_t));
-						RetData->Status = VfsPathIsNotDirectory;
-						return RetData;
+						*ErrCode = VfsPathIsNotDirectory;
+						return NULL;
 					}
 
 					/* Sanity the bucket beforehand */
@@ -783,9 +776,8 @@ MfsFile_t *MfsFindFreeEntry(MCoreFileSystem_t *Fs, uint32_t DirBucket, MString_t
 							MStringDestroy(Token);
 
 							/* Path not found ofc */
-							MfsFile_t *RetData = (MfsFile_t*)kmalloc(sizeof(MfsFile_t));
-							RetData->Status = VfsDiskError;
-							return RetData;
+							*ErrCode = VfsDiskError;
+							return NULL;
 						}
 
 						/* Zero out new bucket */
@@ -798,7 +790,7 @@ MfsFile_t *MfsFindFreeEntry(MCoreFileSystem_t *Fs, uint32_t DirBucket, MString_t
 						(MStringLength(Path) - (StrIndex + 1)));
 
 					/* Go deeper */
-					MfsFile_t *Ret = MfsFindFreeEntry(Fs, Entry->StartBucket, RestOfPath);
+					MfsFile_t *Ret = MfsFindFreeEntry(Fs, Entry->StartBucket, RestOfPath, ErrCode);
 
 					/* Cleanup */
 					kfree(EntryBuffer);
@@ -820,11 +812,8 @@ MfsFile_t *MfsFindFreeEntry(MCoreFileSystem_t *Fs, uint32_t DirBucket, MString_t
 					Ret->Size = Entry->Size;
 					Ret->AllocatedSize = Entry->AllocatedSize;
 					Ret->DataBucket = Entry->StartBucket;
-					Ret->DataBucketPosition = Entry->StartBucket;
 					Ret->InitialBucketLength = Entry->StartLength;
-					Ret->DataBucketLength = Entry->StartLength;
-					Ret->Status = VfsPathExists;
-					Ret->BucketByteBoundary = 0;
+					*ErrCode = VfsPathExists;
 
 					/* Save position */
 					Ret->DirBucket = CurrentBucket;
@@ -882,22 +871,21 @@ MfsFile_t *MfsFindFreeEntry(MCoreFileSystem_t *Fs, uint32_t DirBucket, MString_t
 
 	/* If IsEnd is set, we couldn't find it
 	* If IsEnd is not set, we should not be here... */
-	MfsFile_t *RetData = (MfsFile_t*)kmalloc(sizeof(MfsFile_t));
-	RetData->Status = VfsPathNotFound;
-	return RetData;
+	*ErrCode = VfsPathNotFound;
+	return NULL;
 }
 
 /* Create entry in a directory bucket
  * It internally calls MfsFindFreeEntry to
  * find a viable entry and validate the path */
-MfsFile_t *MfsCreateEntry(MCoreFileSystem_t *Fs, uint32_t DirBucket, MString_t *Path, int Flags) 
+MfsFile_t *MfsCreateEntry(MCoreFileSystem_t *Fs, uint32_t DirBucket, MString_t *Path, int Flags, VfsErrorCode_t *ErrCode)
 {
 	/* Locate a free entry, and 
 	 * make sure file does not exist */
-	MfsFile_t *mEntry = MfsFindFreeEntry(Fs, DirBucket, Path);
+	MfsFile_t *mEntry = MfsFindFreeEntry(Fs, DirBucket, Path, ErrCode);
 
 	/* Validate */
-	if (mEntry->Status != VfsOk) {
+	if (*ErrCode != VfsOk) {
 		/* Either of two things happened 
 		 * 1) Path was invalid 
 		 * 2) File exists */
@@ -907,16 +895,13 @@ MfsFile_t *MfsCreateEntry(MCoreFileSystem_t *Fs, uint32_t DirBucket, MString_t *
 	/* Ok, initialize the entry 
 	 * we found a new one */
 	mEntry->DataBucket = MFS_END_OF_CHAIN;
-	mEntry->DataBucketPosition = MFS_END_OF_CHAIN;
-	mEntry->DataBucketLength = 0;
 	mEntry->InitialBucketLength = 0;
 	mEntry->Size = 0;
 	mEntry->AllocatedSize = 0;
 	mEntry->Flags = (uint16_t)Flags;
-	mEntry->BucketByteBoundary = 0;
 
 	/* Write the entry back to the filesystem */
-	mEntry->Status = MfsUpdateEntry(Fs, mEntry, MFS_ACTION_CREATE);
+	*ErrCode = MfsUpdateEntry(Fs, mEntry, MFS_ACTION_CREATE);
 
 	/* Done! */
 	return mEntry;
@@ -935,54 +920,40 @@ VfsErrorCode_t MfsOpenFile(void *FsData,
 	VfsErrorCode_t RetCode = VfsOk;
 
 	/* This will be a recursive parse of path */
-	MfsFile_t *FileInfo = MfsLocateEntry(Fs, mData->RootIndex, Path);
+	MfsFile_t *FileInfo = MfsLocateEntry(Fs, mData->RootIndex, Path, &RetCode);
 
 	/* Validation Phase
 	 * So how should we handle this? */
-	if (FileInfo->Status == VfsPathNotFound
+	if (RetCode == VfsPathNotFound
 		&& Flags & CreateIfNotExists) 
 	{
-		/* Cleanup */
-		kfree(FileInfo);
-
 		/* Try to create the file */
-		FileInfo = MfsCreateEntry(Fs, mData->RootIndex, Path, MFS_FILE);
+		FileInfo = MfsCreateEntry(Fs, mData->RootIndex, Path, MFS_FILE, &RetCode);
 
 		/* Invalid path or path not found 
 		 * is enough cause for early break */
-		if (FileInfo->Status != VfsOk
-			&& FileInfo->Status != VfsPathExists) 
-		{
-			/* Store return code, cleanup */
-			RetCode = FileInfo->Status;
-			kfree(FileInfo);
+		if (RetCode != VfsOk
+			&& RetCode != VfsPathExists) {
 			return RetCode;
 		}
 	}
-	else if (FileInfo->Status != VfsOk)
-	{
+	else if (RetCode != VfsOk) {
 		/* This means we have tried to open 
 		 * a file normally - and it failed */
-
-		/* Cleanup */
-		RetCode = FileInfo->Status;
-		kfree(FileInfo);
 		return RetCode;
 	}
 
 	/* File exists */
-	if (FileInfo->Status == VfsPathExists
-		&& (Flags & FailIfExists)) 
-	{
+	if (RetCode == VfsPathExists
+		&& (Flags & FailIfExists)) {
 		/* File already exists (and we didn't just create it)
 		 * and for some reason that is not ok */
-		RetCode = FileInfo->Status = VfsPathExists;
 		kfree(FileInfo);
 		return RetCode;
 	}
 
 	/* Post functions */
-	if (FileInfo->Status == VfsPathExists
+	if (RetCode == VfsPathExists
 		&& (Flags & TruncateIfExists))
 	{
 		/* Free */
@@ -993,27 +964,18 @@ VfsErrorCode_t MfsOpenFile(void *FsData,
 		{
 			/* Update Stats */
 			FileInfo->DataBucket = MFS_END_OF_CHAIN;
-			FileInfo->DataBucketLength = FileInfo->InitialBucketLength = 0;
+			FileInfo->InitialBucketLength = 0;
 			FileInfo->Size = 0;
 			
 			/* Update Entry */
-			FileInfo->Status = MfsUpdateEntry(Fs, FileInfo, MFS_ACTION_UPDATE);
+			RetCode = MfsUpdateEntry(Fs, FileInfo, MFS_ACTION_UPDATE);
 		}
 	}
 
 	/* Fill out Handle */
-	Handle->Data = FileInfo;
-	Handle->Flags = Flags;
-
-	Handle->Position = 0;
-	Handle->Size = FileInfo->Size;
 	Handle->Name = FileInfo->Name;
-	
-	/* Update EOF */
-	if (Handle->Size == 0)
-		Handle->IsEOF = 1;
-	else
-		Handle->IsEOF = 0;
+	Handle->Size = FileInfo->Size;
+	Handle->Data = FileInfo;
 
 	/* Done */
 	return RetCode;
@@ -1042,29 +1004,79 @@ VfsErrorCode_t MfsCloseFile(void *FsData, MCoreFile_t *Handle)
 	return RetCode;
 }
 
+/* Open Handle - This function
+ * initializes a new handle for a file entry 
+ * this means we can reuse MCoreFiles */
+void MfsOpenHandle(void *FsData, MCoreFile_t *Handle, MCoreFileInstance_t *Instance)
+{
+	/* Vars */
+	MfsFileInstance_t *mInstance = NULL;
+	MfsFile_t *FileInfo = NULL;
+
+	/* Sanity */
+	if (Handle == NULL
+		|| Instance == NULL)
+		return;
+
+	/* Cast */
+	FileInfo = (MfsFile_t*)Handle->Data;
+
+	/* Unused */
+	_CRT_UNUSED(FsData);
+
+	/* Allocate mFile instance */
+	mInstance = (MfsFileInstance_t*)kmalloc(sizeof(MfsFileInstance_t));
+
+	/* Setup */
+	mInstance->BucketByteBoundary = 0;
+	mInstance->DataBucketLength = FileInfo->InitialBucketLength;
+	mInstance->DataBucketPosition = FileInfo->DataBucket;
+}
+
+/* Close Handle - This function cleans
+ * up a previously allocated file instance handle */
+void MfsCloseHandle(void *FsData, MCoreFileInstance_t *Instance)
+{
+	/* Vars */
+	MfsFileInstance_t *mInstance = NULL;
+
+	/* Sanity */
+	if (Instance == NULL
+		|| Instance->Instance == NULL)
+		return;
+
+	/* Unused */
+	_CRT_UNUSED(FsData);
+
+	/* Cast */
+	mInstance = (MfsFileInstance_t*)Instance->Instance;
+
+	/* Cleanup */
+	kfree(mInstance);
+}
+
 /* Read File - Reads from a 
  * given MCoreFile entry, the position
  * is stored in our structures and thus not neccessary 
  * File must be opened with read permissions */
-size_t MfsReadFile(void *FsData, MCoreFile_t *Handle, uint8_t *Buffer, size_t Size)
+size_t MfsReadFile(void *FsData, MCoreFile_t *Handle, MCoreFileInstance_t *Instance, uint8_t *Buffer, size_t Size)
 {
 	/* Vars */
 	MCoreFileSystem_t *Fs = (MCoreFileSystem_t*)FsData;
+	MfsFileInstance_t *mInstance = (MfsFileInstance_t*)Instance->Instance;
 	MfsData_t *mData = (MfsData_t*)Fs->FsData;
-	MfsFile_t *mFile = (MfsFile_t*)Handle->Data;
 	uint8_t *BufPtr = Buffer;
 	VfsErrorCode_t RetCode = VfsOk;
 
 	/* Sanity */
-	if (Handle->IsEOF
-		|| Handle->Position == Handle->Size
+	if (Instance->IsEOF
+		|| Instance->Position == Handle->Size
 		|| Size == 0)
 		return 0;
 
 	/* Security Sanity */
-	if (!(Handle->Flags & Read))
-	{
-		Handle->Code = VfsAccessDenied;
+	if (!(Instance->Flags & Read)) {
+		Instance->Code = VfsAccessDenied;
 		return 0;
 	}
 
@@ -1073,39 +1085,39 @@ size_t MfsReadFile(void *FsData, MCoreFile_t *Handle, uint8_t *Buffer, size_t Si
 	size_t BytesRead = 0;
 
 	/* Sanity */
-	if ((Handle->Position + Size) > Handle->Size)
-		BytesToRead = (size_t)(Handle->Size - Handle->Position);
+	if ((Instance->Position + Size) > Handle->Size)
+		BytesToRead = (size_t)(Handle->Size - Instance->Position);
 
 	/* Debug */
 	if (Handle->Size > 1000000) {
 		LogDebug("MFS1", "Reading %u bytes at position %u",
-			BytesToRead, (size_t)Handle->Position);
+			BytesToRead, (size_t)Instance->Position);
 	}
 
 	/* Keep reeeading */
 	while (BytesToRead)
 	{
 		/* Calculate buffer size */
-		size_t BucketSize = (mFile->DataBucketLength * (mData->BucketSize * Fs->SectorSize));
+		size_t BucketSize = (mInstance->DataBucketLength * (mData->BucketSize * Fs->SectorSize));
 
 		/* Allocate buffer for data */
 		uint8_t *TempBuffer = (uint8_t*)kmalloc(BucketSize);
 
 		/* Read the bucket */
-		if (MfsReadSectors(Fs, (mData->BucketSize * mFile->DataBucketPosition), 
-			TempBuffer, (mFile->DataBucketLength * mData->BucketSize)) != RequestOk)
+		if (MfsReadSectors(Fs, (mData->BucketSize * mInstance->DataBucketPosition),
+			TempBuffer, (mInstance->DataBucketLength * mData->BucketSize)) != RequestOk)
 		{
 			/* Error */
 			RetCode = VfsDiskError;
 			LogFatal("MFS1", "READFILE: Error reading sector %u from disk",
-				(size_t)(mData->BucketSize * mFile->DataBucketPosition));
+				(size_t)(mData->BucketSize * mInstance->DataBucketPosition));
 			LogFatal("MFS1", "Bucket Position %u, mFile Position %u, mFile Size %u",
-				mFile->DataBucketPosition, (size_t)Handle->Position, (size_t)Handle->Size);
+				mInstance->DataBucketPosition, (size_t)Instance->Position, (size_t)Handle->Size);
 			break;
 		}
 
 		/* We have to calculate the offset into this buffer we must transfer data */
-		size_t bOffset = (size_t)(Handle->Position - mFile->BucketByteBoundary);
+		size_t bOffset = (size_t)(Instance->Position - mInstance->BucketByteBoundary);
 		size_t BytesLeft = BucketSize - bOffset;
 		size_t BytesCopied = 0;
 
@@ -1132,7 +1144,7 @@ size_t MfsReadFile(void *FsData, MCoreFile_t *Handle, uint8_t *Buffer, size_t Si
 		BytesRead += BytesCopied;
 		BufPtr += BytesCopied;
 		BytesToRead -= BytesCopied;
-		Handle->Position += BytesCopied;
+		Instance->Position += BytesCopied;
 
 		/* Switch to next bucket? */
 		if (BytesLeft == BytesCopied)
@@ -1141,33 +1153,33 @@ size_t MfsReadFile(void *FsData, MCoreFile_t *Handle, uint8_t *Buffer, size_t Si
 			uint32_t NextBucket = 0, BucketLength = 0;
 
 			/* Go to next */
-			if (MfsGetNextBucket(Fs, mFile->DataBucketPosition, &NextBucket, &BucketLength))
+			if (MfsGetNextBucket(Fs, mInstance->DataBucketPosition, &NextBucket, &BucketLength))
 				break;
 
 			/* Sanity */
 			if (NextBucket != MFS_END_OF_CHAIN) {
-				mFile->DataBucketPosition = NextBucket;
-				mFile->DataBucketLength = BucketLength;
+				mInstance->DataBucketPosition = NextBucket;
+				mInstance->DataBucketLength = BucketLength;
 
 				/* Update bucket boundary */
-				mFile->BucketByteBoundary += 
+				mInstance->BucketByteBoundary +=
 					(BucketLength * mData->BucketSize * Fs->SectorSize);
 			}
 			else
-				Handle->IsEOF = 1;
+				Instance->IsEOF = 1;
 		}
 
 		/* Sanity */
-		if (Handle->IsEOF)
+		if (Instance->IsEOF)
 			break;
 	}
 
 	/* Sanity */
-	if (Handle->Position == Handle->Size)
-		Handle->IsEOF = 1;
+	if (Instance->Position == Handle->Size)
+		Instance->IsEOF = 1;
 
 	/* Done! */
-	Handle->Code = RetCode;
+	Instance->Code = RetCode;
 	return BytesRead;
 }
 
@@ -1175,19 +1187,19 @@ size_t MfsReadFile(void *FsData, MCoreFile_t *Handle, uint8_t *Buffer, size_t Si
  * given MCoreFile entry, the position
  * is stored in our structures and thus not neccessary 
  * File must be opened with write permissions */
-size_t MfsWriteFile(void *FsData, MCoreFile_t *Handle, uint8_t *Buffer, size_t Size)
+size_t MfsWriteFile(void *FsData, MCoreFile_t *Handle, MCoreFileInstance_t *Instance, uint8_t *Buffer, size_t Size)
 {
 	/* Vars */
 	MCoreFileSystem_t *Fs = (MCoreFileSystem_t*)FsData;
+	MfsFileInstance_t *mInstance = (MfsFileInstance_t*)Instance->Instance;
 	MfsData_t *mData = (MfsData_t*)Fs->FsData;
 	MfsFile_t *mFile = (MfsFile_t*)Handle->Data;
 	uint8_t *BufPtr = Buffer;
 	VfsErrorCode_t RetCode = VfsOk;
 
 	/* Security Sanity */
-	if (!(Handle->Flags & Write))
-	{
-		Handle->Code = VfsAccessDenied;
+	if (!(Instance->Flags & Write)) {
+		Instance->Code = VfsAccessDenied;
 		return 0;
 	}
 
@@ -1196,13 +1208,13 @@ size_t MfsWriteFile(void *FsData, MCoreFile_t *Handle, uint8_t *Buffer, size_t S
 	size_t BytesToWrite = Size;
 
 	/* Make sure there is enough room */
-	if ((Handle->Position + Size) > mFile->AllocatedSize
+	if ((Instance->Position + Size) > mFile->AllocatedSize
 		|| mFile->DataBucket == MFS_END_OF_CHAIN)
 	{
 		/* Well... Uhh */
 		
 		/* Allocate more */
-		uint64_t NumSectors = DIVUP(((Handle->Position + Size) - mFile->AllocatedSize), Fs->SectorSize);
+		uint64_t NumSectors = DIVUP(((Instance->Position + Size) - mFile->AllocatedSize), Fs->SectorSize);
 		uint64_t NumBuckets = DIVUP(NumSectors, mData->BucketSize);
 
 		/* Allocate buckets */
@@ -1226,8 +1238,8 @@ size_t MfsWriteFile(void *FsData, MCoreFile_t *Handle, uint8_t *Buffer, size_t S
 
 		/* Sanity -> First bucket?? */
 		if (BucketPrevPtr == MFS_END_OF_CHAIN) {
-			mFile->DataBucketPosition = mFile->DataBucket = FreeBucket;
-			mFile->InitialBucketLength = mFile->DataBucketLength = FreeLength;
+			mInstance->DataBucketPosition = mFile->DataBucket = FreeBucket;
+			mFile->InitialBucketLength = mInstance->DataBucketLength = FreeLength;
 		}
 		else {
 			/* Update pointer */
@@ -1240,7 +1252,7 @@ size_t MfsWriteFile(void *FsData, MCoreFile_t *Handle, uint8_t *Buffer, size_t S
 
 		/* Sanity */
 		if (RetCode != VfsOk) {
-			Handle->Code = RetCode;
+			Instance->Code = RetCode;
 			return 0;
 		}
 	}
@@ -1253,7 +1265,7 @@ size_t MfsWriteFile(void *FsData, MCoreFile_t *Handle, uint8_t *Buffer, size_t S
 	while (BytesToWrite)
 	{
 		/* We have to calculate the offset into this buffer we must transfer data */
-		size_t bOffset = (size_t)(Handle->Position % (BufSize));
+		size_t bOffset = (size_t)(Instance->Position % (BufSize));
 		size_t BytesLeft = BufSize - bOffset;
 		size_t BytesCopied = 0;
 
@@ -1270,13 +1282,13 @@ size_t MfsWriteFile(void *FsData, MCoreFile_t *Handle, uint8_t *Buffer, size_t S
 			/* Means we are modifying */
 
 			/* Read the old bucket */
-			if (MfsReadSectors(Fs, mData->BucketSize * mFile->DataBucketPosition,
+			if (MfsReadSectors(Fs, mData->BucketSize * mInstance->DataBucketPosition,
 				TempBuffer, mData->BucketSize) != RequestOk)
 			{
 				/* Error */
 				RetCode = VfsDiskError;
 				LogFatal("MFS1", "WRITEFILE: Error reading from disk (sector 0x%x, count 0x%x)", 
-					(size_t)(mData->BucketSize * mFile->DataBucketPosition),
+					(size_t)(mData->BucketSize * mInstance->DataBucketPosition),
 					(size_t)(mData->BucketSize));
 				break;
 			}
@@ -1298,7 +1310,7 @@ size_t MfsWriteFile(void *FsData, MCoreFile_t *Handle, uint8_t *Buffer, size_t S
 		}
 
 		/* Write back bucket */
-		if (MfsWriteSectors(Fs, mData->BucketSize * mFile->DataBucketPosition,
+		if (MfsWriteSectors(Fs, mData->BucketSize * mInstance->DataBucketPosition,
 			TempBuffer, mData->BucketSize) != RequestOk)
 		{
 			/* Error */
@@ -1313,35 +1325,35 @@ size_t MfsWriteFile(void *FsData, MCoreFile_t *Handle, uint8_t *Buffer, size_t S
 			/* Go to next */
 			uint32_t NextBucket = 0;
 			uint32_t BucketLength = 0;
-			MfsGetNextBucket(Fs, mFile->DataBucketPosition, &NextBucket, &BucketLength);
+			MfsGetNextBucket(Fs, mInstance->DataBucketPosition, &NextBucket, &BucketLength);
 
 			/* Sanity */
 			if (NextBucket != MFS_END_OF_CHAIN)
-				mFile->DataBucketPosition = NextBucket;
+				mInstance->DataBucketPosition = NextBucket;
 		}
 
 		/* Advance pointer(s) */
 		BytesWritten += BytesCopied;
 		BufPtr += BytesCopied;
 		BytesToWrite -= BytesCopied;
-		Handle->Position += BytesCopied;
+		Instance->Position += BytesCopied;
 	}
 
 	/* Cleanup */
 	kfree(TempBuffer);
 
 	/* Sanity */
-	if (Handle->Position > Handle->Size)
+	if (Instance->Position > Handle->Size)
 	{
-		Handle->Size = Handle->Position;
-		mFile->Size = Handle->Position;
+		Handle->Size = Instance->Position;
+		mFile->Size = Instance->Position;
 	}
 
 	/* Update entry */
 	RetCode = MfsUpdateEntry(Fs, mFile, MFS_ACTION_UPDATE);
 
 	/* Done! */
-	Handle->Code = RetCode;
+	Instance->Code = RetCode;
 	return BytesWritten;
 }
 
@@ -1370,10 +1382,11 @@ VfsErrorCode_t MfsDeleteFile(void *FsData, MCoreFile_t *Handle)
  * in a file, we must iterate through the
  * bucket chain to reposition our bucket 
  * iterator correctly as well */
-VfsErrorCode_t MfsSeek(void *FsData, MCoreFile_t *Handle, uint64_t Position)
+VfsErrorCode_t MfsSeek(void *FsData, MCoreFile_t *Handle, MCoreFileInstance_t *Instance, uint64_t Position)
 {
 	/* Vars */
 	MCoreFileSystem_t *Fs = (MCoreFileSystem_t*)FsData;
+	MfsFileInstance_t *mInstance = (MfsFileInstance_t*)Instance->Instance;
 	MfsData_t *mData = (MfsData_t*)Fs->FsData;
 	MfsFile_t *mFile = (MfsFile_t*)Handle->Data;
 	int ConstantLoop = 1;
@@ -1391,9 +1404,9 @@ VfsErrorCode_t MfsSeek(void *FsData, MCoreFile_t *Handle, uint64_t Position)
 
 	/* Lets see */
 	if (Position < InitialBucketMax) {
-		mFile->DataBucketPosition = mFile->DataBucket;
-		mFile->DataBucketLength = mFile->InitialBucketLength;
-		mFile->BucketByteBoundary = 0;
+		mInstance->DataBucketPosition = mFile->DataBucket;
+		mInstance->DataBucketLength = mFile->InitialBucketLength;
+		mInstance->BucketByteBoundary = 0;
 	}
 	else
 	{
@@ -1402,9 +1415,9 @@ VfsErrorCode_t MfsSeek(void *FsData, MCoreFile_t *Handle, uint64_t Position)
 		 * within the current bucket */
 
 		/* Do we cross a boundary? */
-		uint64_t OldBucketLow = mFile->BucketByteBoundary;
+		uint64_t OldBucketLow = mInstance->BucketByteBoundary;
 		uint64_t OldBucketHigh = OldBucketLow +
-			(mFile->DataBucketLength * (mData->BucketSize * Fs->SectorSize)); 
+			(mInstance->DataBucketLength * (mData->BucketSize * Fs->SectorSize));
 
 		/* Are we still in the same current bucket? */
 		if (Position >= OldBucketLow
@@ -1428,7 +1441,7 @@ VfsErrorCode_t MfsSeek(void *FsData, MCoreFile_t *Handle, uint64_t Position)
 				/* Sanity */
 				if (Position >= PositionBoundLow
 					&& Position < (PositionBoundLow + PositionBoundHigh)) {
-					mFile->BucketByteBoundary = PositionBoundLow;
+					mInstance->BucketByteBoundary = PositionBoundLow;
 					break;
 				}
 
@@ -1447,12 +1460,12 @@ VfsErrorCode_t MfsSeek(void *FsData, MCoreFile_t *Handle, uint64_t Position)
 
 			/* Update bucket ptr */
 			if (BucketPtr != MFS_END_OF_CHAIN)
-				mFile->DataBucketPosition = BucketPtr;
+				mInstance->DataBucketPosition = BucketPtr;
 		}
 	}
 	
 	/* Update pointer */
-	Handle->Position = Position;
+	Instance->Position = Position;
 	
 	/* Done */
 	return VfsOk;
@@ -1462,7 +1475,7 @@ VfsErrorCode_t MfsSeek(void *FsData, MCoreFile_t *Handle, uint64_t Position)
  * is used to query a file for information 
  * or a directory for it's entries etc */
 VfsErrorCode_t MfsQuery(void *FsData, MCoreFile_t *Handle, 
-	VfsQueryFunction_t Function, void *Buffer, size_t Length)
+	MCoreFileInstance_t *Instance, VfsQueryFunction_t Function, void *Buffer, size_t Length)
 {
 	/* Vars & Casts */
 	MCoreFileSystem_t *Fs = (MCoreFileSystem_t*)FsData;
@@ -1487,8 +1500,8 @@ VfsErrorCode_t MfsQuery(void *FsData, MCoreFile_t *Handle,
 			/* Copy Stats */
 			Stats->Size = mFile->Size;
 			Stats->SizeOnDisk = mFile->AllocatedSize;
-			Stats->Position = Handle->Position + Handle->oBufferPosition;
-			Stats->Access = (int)Handle->Flags;
+			Stats->Position = Instance->Position + Instance->oBufferPosition;
+			Stats->Access = (int)Instance->Flags;
 
 			/* Should prolly convert this to a generic vfs format .. */
 			Stats->Flags = (int)mFile->Flags;
@@ -1638,12 +1651,18 @@ MODULES_API void ModuleInit(void *Data)
 	Fs->FsData = mData;
 
 	/* Setup functions */
-	Fs->Destory = MfsDestroy;
+	Fs->Destroy = MfsDestroy;
+	
 	Fs->OpenFile = MfsOpenFile;
 	Fs->CloseFile = MfsCloseFile;
+
+	Fs->OpenHandle = MfsOpenHandle;
+	Fs->CloseHandle = MfsCloseHandle;
+	
 	Fs->ReadFile = MfsReadFile;
 	Fs->WriteFile = MfsWriteFile;
 	Fs->DeleteFile = MfsDeleteFile;
+	
 	Fs->Query = MfsQuery;
 	Fs->Seek = MfsSeek;
 

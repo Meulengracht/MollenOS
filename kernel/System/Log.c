@@ -188,7 +188,7 @@ void LogFlush(LogTarget_t Output)
 
 		/* Open log file */
 		int Index = 0;
-		MCoreFile_t *LogFileHandle = VfsOpen(FILESYSTEM_IDENT_SYS ":/System/Log.txt",
+		MCoreFileInstance_t *LogFileHandle = VfsOpen(FILESYSTEM_IDENT_SYS ":/System/Log.txt",
 			Read | Write | TruncateIfExists | CreateIfNotExists);
 
 		/* Sanity */

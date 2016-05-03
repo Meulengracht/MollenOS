@@ -25,8 +25,11 @@
 #include <Vfs/Vfs.h>
 #include <Heap.h>
 #include <List.h>
-#include <string.h>
 #include <Log.h>
+
+/* CLib */
+#include <string.h>
+#include <ctype.h>
 
 /* Globals */
 list_t *GlbFileSystems = NULL;
@@ -64,6 +67,21 @@ void VfsInit(void)
 	GlbOpenFiles = list_create(LIST_SAFE);
 	GlbFileSystemId = 0;
 	GlbVfsInitHasRun = 0;
+}
+
+/* String Hash */
+size_t VfsHash(uint8_t *Str)
+{
+	/* Hash Seed */
+	size_t Hash = 5381;
+	int Char;
+
+	/* Hash */
+	while ((Char = tolower(*Str++)) != 0)
+		Hash = ((Hash << 5) + Hash) + Char; /* hash * 33 + c */
+
+	/* Done */
+	return Hash;
 }
 
 /* Register fs */
@@ -339,7 +357,7 @@ void VfsUnregisterDisk(DevId_t DiskId, uint32_t Forced)
 		MCoreFileSystem_t *Fs = (MCoreFileSystem_t*)lNode->data;
 
 		/* Destruct the FS */
-		if (Fs->Destory(lNode->data, Forced) != OsOk)
+		if (Fs->Destroy(lNode->data, Forced) != OsOk)
 			LogFatal("VFSM", "UnregisterDisk:: Failed to destroy filesystem");
 
 		/* Free */
@@ -519,16 +537,86 @@ MString_t *VfsCanonicalizePath(VfsEnvironmentPath_t Base, const char *Path)
 	return AbsPath;
 }
 
-/* Vfs - Reusable helper for the VfsOpen 
- * @Handle - An pre-allocated handle
- * @Path - The path to try to open */
-void VfsOpenInternal(MCoreFile_t *Handle, MString_t *Path, VfsFileFlags_t OpenFlags)
+/* Vfs - Reusable helper for the VfsOpen
+ * @Fs - The relevant filesystem
+ * @Instance - A pre-allocated handle that describes a file instance
+ * @fHandle - An pre-allocated handle that describes a file
+ * @OpenFlags - Open mode of file */
+void VfsOpenHandleInternal(MCoreFileSystem_t *Fs, 
+	MCoreFileInstance_t *Instance, MCoreFile_t *fHandle, VfsFileFlags_t OpenFlags)
+{
+	/* Create handle */
+	Fs->OpenHandle(Fs, fHandle, Instance);
+
+	/* Set stuff */
+	Instance->Code = VfsOk;
+	Instance->Flags = OpenFlags;
+	Instance->LastOp = 0;
+	Instance->File = fHandle;
+
+	/* Initialise buffering */
+	if (!(Instance->Flags & NoBuffering))
+	{
+		/* Setup output buffer */
+		Instance->oBuffer = (void*)kmalloc(Fs->SectorSize);
+		memset(Instance->oBuffer, 0, Fs->SectorSize);
+		Instance->oBufferPosition = 0;
+
+		/* Setup input buffer */
+		Instance->iBuffer = (void*)kmalloc(Fs->SectorSize);
+		memset(Instance->iBuffer, 0, Fs->SectorSize);
+		Instance->iBufferPosition = FILESYSTEM_IO_EMPTY;
+	}
+
+	/* Append? */
+	if (OpenFlags & Append)
+		Instance->Code = Fs->Seek(Fs, fHandle, Instance, fHandle->Size);
+
+	/* File locked? */
+	if (OpenFlags & Write)
+		fHandle->IsLocked = 1;
+}
+
+/* Vfs - Reusable helper for the VfsOpen
+* @Handle - An pre-allocated handle
+* @Path - The path to try to open */
+void VfsOpenInternal(MCoreFileInstance_t *Instance, MString_t *Path, VfsFileFlags_t OpenFlags)
 {
 	/* Variables needed */
 	MString_t *mSubPath = NULL;
 	list_node_t *fNode = NULL;
 	MString_t *mIdent = NULL;
 	int Index = 0;
+
+	/* Check Cache */
+	size_t PathHash = VfsHash(Path->Data);
+	list_node_t *pNode = list_get_node_by_id(GlbOpenFiles, (int)PathHash, 0);
+
+	/* Did it exist? */
+	if (pNode != NULL)
+	{
+		/* Get file-entry */
+		MCoreFile_t *fEntry = (MCoreFile_t*)pNode->data;
+
+		/* If file is locked, bad luck */
+		if (fEntry->IsLocked) {
+			Instance->Code = VfsAccessDenied;
+			return;
+		}
+
+		/* Ok ok, create a new handle
+		* since file is opened and exists */
+		MCoreFileSystem_t *Fs = (MCoreFileSystem_t*)fEntry->Fs;
+
+		/* Create handle */
+		VfsOpenHandleInternal(Fs, Instance, fEntry, OpenFlags);
+
+		/* Increase fEntry ref count */
+		fEntry->References++;
+
+		/* Done */
+		return;
+	}
 
 	/* Get filesystem ident & sub-path */
 	Index = MStringFind(Path, ':');
@@ -544,35 +632,26 @@ void VfsOpenInternal(MCoreFile_t *Handle, MString_t *Path, VfsFileFlags_t OpenFl
 		/* Match? */
 		if (MStringCompare(mIdent, Fs->Identifier, 1))
 		{
+			/* Allocate a new handle */
+			MCoreFile_t *fHandle = (MCoreFile_t*)kmalloc(sizeof(MCoreFile_t));
+			memset(fHandle, 0, sizeof(MCoreFile_t));
+
 			/* Open */
-			Handle->Code = Fs->OpenFile(Fs, Handle, mSubPath, OpenFlags);
+			Instance->Code = Fs->OpenFile(Fs, fHandle, mSubPath, OpenFlags);
 
 			/* Sanity */
-			if (Handle->Code == VfsOk)
+			if (Instance->Code == VfsOk)
 			{
-				/* Set stuff */
-				Handle->Code = VfsOk;
-				Handle->Flags = OpenFlags;
-				Handle->LastOp = 0;
-				Handle->Fs = Fs;
+				/* Set initial stuff */
+				fHandle->Fs = Fs;
+				fHandle->References = 1;
+				fHandle->Hash = PathHash;
 
-				/* Initialise buffering */
-				if (!(Handle->Flags & NoBuffering)) 
-				{
-					/* Setup output buffer */
-					Handle->oBuffer = (void*)kmalloc(Fs->SectorSize);
-					memset(Handle->oBuffer, 0, Fs->SectorSize);
-					Handle->oBufferPosition = 0;
+				/* Create handle */
+				VfsOpenHandleInternal(Fs, Instance, fHandle, OpenFlags);
 
-					/* Setup input buffer */
-					Handle->iBuffer = (void*)kmalloc(Fs->SectorSize);
-					memset(Handle->iBuffer, 0, Fs->SectorSize);
-					Handle->iBufferPosition = FILESYSTEM_IO_EMPTY;
-				}
-
-				/* Append? */
-				if (OpenFlags & Append)
-					Handle->Code = Fs->Seek(Fs, Handle, Handle->Size);
+				/* Add to list */
+				list_append(GlbOpenFiles, list_create_node((int)PathHash, fHandle));
 			}
 
 			/* Done */
@@ -588,16 +667,16 @@ void VfsOpenInternal(MCoreFile_t *Handle, MString_t *Path, VfsFileFlags_t OpenFl
 /* Vfs - Open File
 * @Path - UTF-8 String
 * @OpenFlags - Kind of Access */
-MCoreFile_t *VfsOpen(const char *Path, VfsFileFlags_t OpenFlags)
+MCoreFileInstance_t *VfsOpen(const char *Path, VfsFileFlags_t OpenFlags)
 {
 	/* Vars */
-	MCoreFile_t *fRet = NULL;
+	MCoreFileInstance_t *fRet = NULL;
 	MString_t *mPath = NULL;
 	int i = 0;
 
 	/* Allocate */
-	fRet = (MCoreFile_t*)kmalloc(sizeof(MCoreFile_t));
-	memset((void*)fRet, 0, sizeof(MCoreFile_t));
+	fRet = (MCoreFileInstance_t*)kmalloc(sizeof(MCoreFileInstance_t));
+	memset((void*)fRet, 0, sizeof(MCoreFileInstance_t));
 
 	/* Set initial code */
 	fRet->Code = VfsOk;
@@ -639,11 +718,14 @@ MCoreFile_t *VfsOpen(const char *Path, VfsFileFlags_t OpenFlags)
 			MStringDestroy(mPath);
 
 			/* Sanity */
-			if (fRet->Code == VfsOk)
+			if (fRet->Code == VfsInvalidPath
+				|| fRet->Code == VfsPathNotFound
+				|| fRet->Code == VfsPathIsNotDirectory) {
+				/* Reset, Continue */
+				memset((void*)fRet, 0, sizeof(MCoreFileInstance_t));
+			}
+			else
 				break;
-
-			/* Reset it */
-			memset((void*)fRet, 0, sizeof(MCoreFile_t));
 		}
 	}
 	else
@@ -673,7 +755,7 @@ MCoreFile_t *VfsOpen(const char *Path, VfsFileFlags_t OpenFlags)
 
 /* Vfs - Close File
 * @Handle - A valid file handle */
-VfsErrorCode_t VfsClose(MCoreFile_t *Handle)
+VfsErrorCode_t VfsClose(MCoreFileInstance_t *Handle)
 {
 	/* Vars */
 	VfsErrorCode_t ErrCode = VfsPathNotFound;
@@ -697,14 +779,37 @@ VfsErrorCode_t VfsClose(MCoreFile_t *Handle)
 	}
 
 	/* Invalid Handle? */
-	if (Handle->Fs == NULL) {
+	if (Handle->File == NULL
+		|| Handle->File->Fs == NULL) {
 		kfree(Handle);
 		return VfsOk;
 	}
 
-	/* Deep Close */
-	Fs = (MCoreFileSystem_t*)Handle->Fs;
-	ErrCode = Fs->CloseFile(Handle->Fs, Handle);
+	/* Cast */
+	Fs = (MCoreFileSystem_t*)Handle->File->Fs;
+
+	/* Close handle */
+	Fs->CloseHandle(Fs, Handle);
+
+	/* Reduce Ref count */
+	Handle->File->References--;
+
+	/* Last reference? */
+	if (Handle->File->References <= 0) 
+	{
+		/* Find node in open files */
+		list_node_t *pNode = list_get_node_by_id(GlbOpenFiles, (int)Handle->File->Hash, 0);
+
+		/* Deep Close */
+		ErrCode = Fs->CloseFile(Fs, Handle->File);
+		kfree(Handle->File);
+
+		/* Remove from list */
+		if (pNode != NULL) {
+			list_remove_by_node(GlbOpenFiles, pNode);
+			kfree(pNode);
+		}
+	}
 
 	/* Cleanup */
 	kfree(Handle);
@@ -715,7 +820,7 @@ VfsErrorCode_t VfsClose(MCoreFile_t *Handle)
 
 /* Vfs - Delete File
 * @Handle - A valid file handle */
-VfsErrorCode_t VfsDelete(MCoreFile_t *Handle)
+VfsErrorCode_t VfsDelete(MCoreFileInstance_t *Handle)
 {
 	/* Vars */
 	VfsErrorCode_t ErrCode = VfsPathNotFound;
@@ -727,8 +832,8 @@ VfsErrorCode_t VfsDelete(MCoreFile_t *Handle)
 		return VfsInvalidParameters;
 
 	/* Deep Delete */
-	Fs = (MCoreFileSystem_t*)Handle->Fs;
-	ErrCode = Fs->DeleteFile(Handle->Fs, Handle);
+	Fs = (MCoreFileSystem_t*)Handle->File->Fs;
+	ErrCode = Fs->DeleteFile(Fs, Handle->File);
 
 	/* Sanity */
 	if (ErrCode != VfsOk)
@@ -736,6 +841,8 @@ VfsErrorCode_t VfsDelete(MCoreFile_t *Handle)
 
 	/* Done */
 	Handle->Code = VfsDeleted;
+
+	/* Cleanup */
 	return VfsClose(Handle);
 }
 
@@ -743,7 +850,7 @@ VfsErrorCode_t VfsDelete(MCoreFile_t *Handle)
 * @Handle - A valid file handle
 * @Buffer - A valid data buffer
 * @Length - How many bytes of data to read */
-size_t VfsRead(MCoreFile_t *Handle, uint8_t *Buffer, size_t Length)
+size_t VfsRead(MCoreFileInstance_t *Handle, uint8_t *Buffer, size_t Length)
 {
 	/* Vars */
 	MCoreFileSystem_t *Fs = NULL;
@@ -765,7 +872,7 @@ size_t VfsRead(MCoreFile_t *Handle, uint8_t *Buffer, size_t Length)
 	}
 
 	/* Cast */
-	Fs = (MCoreFileSystem_t*)Handle->Fs;
+	Fs = (MCoreFileSystem_t*)Handle->File->Fs;
 
 	/* Buffering? */
 	if (!(Handle->Flags & NoBuffering)
@@ -815,7 +922,7 @@ size_t VfsRead(MCoreFile_t *Handle, uint8_t *Buffer, size_t Length)
 		/* Only do the read and nothing else if 
 		 * buffering is disabled */
 		if (Handle->Flags & NoBuffering)
-			BytesRead += Fs->ReadFile(Fs, Handle, UserBuffer, RequestBytesLeft);
+			BytesRead += Fs->ReadFile(Fs, Handle->File, Handle, UserBuffer, RequestBytesLeft);
 		else
 		{
 			/* Round up to nearest sector size */
@@ -828,7 +935,7 @@ size_t VfsRead(MCoreFile_t *Handle, uint8_t *Buffer, size_t Length)
 				uint8_t *iBuffer = (uint8_t*)Handle->iBuffer;
 
 				/* Read */
-				BytesRead += Fs->ReadFile(Fs, Handle, iBuffer, AdjustLength);
+				BytesRead += Fs->ReadFile(Fs, Handle->File, Handle, iBuffer, AdjustLength);
 
 				/* Copy into respective buffers */
 				memcpy(UserBuffer, iBuffer, RequestBytesLeft);
@@ -837,7 +944,7 @@ size_t VfsRead(MCoreFile_t *Handle, uint8_t *Buffer, size_t Length)
 				Handle->iBufferPosition = RequestBytesLeft;
 			}
 			else
-				BytesRead += Fs->ReadFile(Fs, Handle, UserBuffer, RequestBytesLeft);
+				BytesRead += Fs->ReadFile(Fs, Handle->File, Handle, UserBuffer, RequestBytesLeft);
 		}
 	}
 
@@ -852,7 +959,7 @@ size_t VfsRead(MCoreFile_t *Handle, uint8_t *Buffer, size_t Length)
 * @Handle - A valid file handle
 * @Buffer - A valid data buffer
 * @Length - How many bytes of data to write */
-size_t VfsWrite(MCoreFile_t *Handle, uint8_t *Buffer, size_t Length)
+size_t VfsWrite(MCoreFileInstance_t *Handle, uint8_t *Buffer, size_t Length)
 {
 	/* Vars */
 	MCoreFileSystem_t *Fs = NULL;
@@ -870,7 +977,7 @@ size_t VfsWrite(MCoreFile_t *Handle, uint8_t *Buffer, size_t Length)
 	}
 
 	/* Get Fs */
-	Fs = (MCoreFileSystem_t*)Handle->Fs;
+	Fs = (MCoreFileSystem_t*)Handle->File->Fs;
 
 	/* Write to buffer if we can */
 	if (!(Handle->Flags & NoBuffering))
@@ -900,7 +1007,7 @@ size_t VfsWrite(MCoreFile_t *Handle, uint8_t *Buffer, size_t Length)
 				memcpy(TempBuffer + Handle->oBufferPosition, Buffer, Length);
 
 				/* Write to Disk */
-				BytesWritten = Fs->WriteFile(Fs, Handle,
+				BytesWritten = Fs->WriteFile(Fs, Handle->File, Handle,
 					TempBuffer, Handle->oBufferPosition + Length);
 
 				/* Sanity */
@@ -923,7 +1030,7 @@ size_t VfsWrite(MCoreFile_t *Handle, uint8_t *Buffer, size_t Length)
 
 	/* Deep Write */
 	if (WriteToDisk)
-		BytesWritten = Fs->WriteFile(Fs, Handle, Buffer, Length);
+		BytesWritten = Fs->WriteFile(Fs, Handle->File, Handle, Buffer, Length);
 
 	/* Save last operation */
 	Handle->LastOp = Write;
@@ -935,7 +1042,7 @@ size_t VfsWrite(MCoreFile_t *Handle, uint8_t *Buffer, size_t Length)
 /* Vfs - Seek in File
 * @Handle - A valid file handle
 * @Offset - A valid file offset */
-VfsErrorCode_t VfsSeek(MCoreFile_t *Handle, uint64_t Offset)
+VfsErrorCode_t VfsSeek(MCoreFileInstance_t *Handle, uint64_t Offset)
 {
 	/* Vars */
 	VfsErrorCode_t ErrCode = VfsPathNotFound;
@@ -950,8 +1057,8 @@ VfsErrorCode_t VfsSeek(MCoreFile_t *Handle, uint64_t Offset)
 	VfsFlush(Handle);
 
 	/* Deep Seek */
-	Fs = (MCoreFileSystem_t*)Handle->Fs;
-	ErrCode = Fs->Seek(Fs, Handle, (Handle->Position + Offset));
+	Fs = (MCoreFileSystem_t*)Handle->File->Fs;
+	ErrCode = Fs->Seek(Fs, Handle->File, Handle, (Handle->Position + Offset));
 
 	/* Clear last op */
 	Handle->LastOp = 0;
@@ -965,7 +1072,7 @@ VfsErrorCode_t VfsSeek(MCoreFile_t *Handle, uint64_t Offset)
  * @Function - The query function 
  * @Buffer - Where to store query results - vAddr
  * @Length - Max length of data to store */
-VfsErrorCode_t VfsQuery(MCoreFile_t *Handle, VfsQueryFunction_t Function, void *Buffer, size_t Length)
+VfsErrorCode_t VfsQuery(MCoreFileInstance_t *Handle, VfsQueryFunction_t Function, void *Buffer, size_t Length)
 {
 	/* Vars */
 	VfsErrorCode_t ErrCode = VfsOk;
@@ -1009,8 +1116,8 @@ VfsErrorCode_t VfsQuery(MCoreFile_t *Handle, VfsQueryFunction_t Function, void *
 		/* Redirect */
 		default: {
 			/* Deep Query */
-			Fs = (MCoreFileSystem_t*)Handle->Fs;
-			ErrCode = Fs->Query(Fs, Handle, Function, Buffer, Length);
+			Fs = (MCoreFileSystem_t*)Handle->File->Fs;
+			ErrCode = Fs->Query(Fs, Handle->File, Handle, Function, Buffer, Length);
 
 		} break;
 	}
@@ -1021,7 +1128,7 @@ VfsErrorCode_t VfsQuery(MCoreFile_t *Handle, VfsQueryFunction_t Function, void *
 
 /* Vfs - Flush Handle
 * @Handle - A valid file handle */
-VfsErrorCode_t VfsFlush(MCoreFile_t *Handle)
+VfsErrorCode_t VfsFlush(MCoreFileInstance_t *Handle)
 {
 	/* Vars */
 	MCoreFileSystem_t *Fs = NULL;
@@ -1036,7 +1143,7 @@ VfsErrorCode_t VfsFlush(MCoreFile_t *Handle)
 		return VfsOk;
 
 	/* Cast */
-	Fs = (MCoreFileSystem_t*)Handle->Fs;
+	Fs = (MCoreFileSystem_t*)Handle->File->Fs;
 
 	/* Empty input buffer */
 	if (Handle->iBuffer != NULL
@@ -1052,7 +1159,7 @@ VfsErrorCode_t VfsFlush(MCoreFile_t *Handle)
 		&& Handle->oBufferPosition != 0) 
 	{
 		/* Write Buffer */
-		BytesWritten = Fs->WriteFile(Fs, Handle, Handle->oBuffer, Handle->oBufferPosition);
+		BytesWritten = Fs->WriteFile(Fs, Handle->File, Handle, Handle->oBuffer, Handle->oBufferPosition);
 
 		/* Sanity */
 		if (BytesWritten != Handle->oBufferPosition)

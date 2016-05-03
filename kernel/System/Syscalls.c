@@ -324,7 +324,7 @@ int ScVfsOpen(const char *Utf8, FILE *cData, VfsFileFlags_t OpenFlags)
 		return -1;
 
 	/* Try */
-	MCoreFile_t *Handle = VfsOpen(Utf8, OpenFlags);
+	MCoreFileInstance_t *Handle = VfsOpen(Utf8, OpenFlags);
 
 	/* Done */
 	cData->_handle = (void*)Handle;
@@ -339,7 +339,7 @@ int ScVfsClose(FILE *cData)
 		return -1;
 
 	/* Deep Call */
-	return 0 - (int)VfsClose((MCoreFile_t*)cData->_handle);
+	return 0 - (int)VfsClose((MCoreFileInstance_t*)cData->_handle);
 }
 
 /* Read File */
@@ -355,7 +355,7 @@ int ScVfsRead(FILE *cData, uint8_t *Buffer, size_t Length)
 		return 0;
 
 	/* Done */
-	return (int)VfsRead((MCoreFile_t*)cData->_handle, Buffer, Length);
+	return (int)VfsRead((MCoreFileInstance_t*)cData->_handle, Buffer, Length);
 }
 
 /* Write File */
@@ -371,7 +371,7 @@ int ScVfsWrite(FILE *cData, uint8_t *Buffer, size_t Length)
 		return 0;
 
 	/* Done */
-	return (int)VfsWrite((MCoreFile_t*)cData->_handle, Buffer, Length);
+	return (int)VfsWrite((MCoreFileInstance_t*)cData->_handle, Buffer, Length);
 }
 
 /* Seek File */
@@ -382,7 +382,7 @@ int ScVfsSeek(FILE *cData, size_t Position)
 		return -1;
 
 	/* Deep Call */
-	return VfsSeek((MCoreFile_t*)cData->_handle, (uint64_t)Position);
+	return VfsSeek((MCoreFileInstance_t*)cData->_handle, (uint64_t)Position);
 }
 
 /* Delete File */
@@ -393,7 +393,7 @@ int ScVfsDelete(FILE *cData)
 		return -1;
 
 	/* Deep Call */
-	return VfsDelete((MCoreFile_t*)cData->_handle);
+	return VfsDelete((MCoreFileInstance_t*)cData->_handle);
 }
 
 /* Flush File */
@@ -404,7 +404,7 @@ int ScVfsFlush(FILE *cData)
 		return -1;
 
 	/* Deep Call */
-	return VfsFlush((MCoreFile_t*)cData->_handle);
+	return VfsFlush((MCoreFileInstance_t*)cData->_handle);
 }
 
 /* Query information about 
@@ -416,7 +416,7 @@ int ScVfsQuery(FILE *cData, VfsQueryFunction_t Function, void *Buffer, size_t Le
 		return -1;
 
 	/* Redirect to Vfs */
-	return 0 - (int)VfsQuery((MCoreFile_t*)cData->_handle, Function, Buffer, Length);
+	return 0 - (int)VfsQuery((MCoreFileInstance_t*)cData->_handle, Function, Buffer, Length);
 }
 
 /* The file move operation 

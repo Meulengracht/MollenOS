@@ -59,11 +59,11 @@ extern unsigned char _ctype[];
 #define toascii(c) (((unsigned char)(c))&0x7f)
 
 __inline unsigned char __tolower(unsigned char c) {
-        return isupper(c) ? c - ('A' - 'a') : c;
+	return (isupper(c) && isalpha(c)) ? c - ('A' - 'a') : c;
 }
 
 __inline unsigned char __toupper(unsigned char c) {
-        return islower(c) ? c - ('a' - 'A') : c;
+	return (islower(c) && isalpha(c)) ? c - ('a' - 'A') : c;
 }
 
 /* Convert a character to lower case */

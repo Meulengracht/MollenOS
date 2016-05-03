@@ -185,20 +185,12 @@ typedef struct _MCoreFile
 	MString_t *Name;
 
 	/* Flags */
-	VfsErrorCode_t Code;
-	VfsFileFlags_t Flags;
-	VfsFileFlags_t LastOp;
-	int IsEOF;
+	size_t Hash;
+	int IsLocked;
+	int References;
 
-	/* Position & size */
-	uint64_t Position;
+	/* Position */
 	uint64_t Size;
-
-	/* I/O Buffer */
-	void *iBuffer;
-	void *oBuffer;
-	size_t iBufferPosition;
-	size_t oBufferPosition;
 
 	/* The FS structure */
 	void *Fs;
@@ -207,6 +199,36 @@ typedef struct _MCoreFile
 	void *Data;
 
 } MCoreFile_t;
+#pragma pack(pop)
+
+#pragma pack(push, 1)
+typedef struct _MCoreFileInstance
+{
+	/* Owner */
+	//PId_t Process;
+
+	/* Flags */
+	VfsErrorCode_t Code;
+	VfsFileFlags_t Flags;
+	VfsFileFlags_t LastOp;
+	int IsEOF;
+
+	/* Position */
+	uint64_t Position;
+
+	/* I/O Buffer */
+	void *iBuffer;
+	void *oBuffer;
+	size_t iBufferPosition;
+	size_t oBufferPosition;
+
+	/* Handle */
+	MCoreFile_t *File;
+
+	/* FS-Instance Handle */
+	void *Instance;
+
+} MCoreFileInstance_t;
 #pragma pack(pop)
 
 #pragma pack(push, 1)
@@ -235,20 +257,23 @@ typedef struct _MCoreFileSystem
 	void *FsData;
 
 	/* Functions */
-	OsResult_t (*Destory)(void *Fs, uint32_t Forced);
+	OsResult_t (*Destroy)(void *Fs, uint32_t Forced);
 
 	/* Handle Operations */
 	VfsErrorCode_t (*OpenFile)(void *Fs, MCoreFile_t *Handle, MString_t *Path, VfsFileFlags_t Flags);
 	VfsErrorCode_t (*CloseFile)(void *Fs, MCoreFile_t *Handle);
-	VfsErrorCode_t (*DeleteFile)(void *Fs, MCoreFile_t *Handle);
+
+	void (*OpenHandle)(void *Fs, MCoreFile_t *Handle, MCoreFileInstance_t *Instance);
+	void (*CloseHandle)(void *Fs, MCoreFileInstance_t *Instance);
 	
 	/* File Operations */
-	size_t (*ReadFile)(void *Fs, MCoreFile_t *Handle, uint8_t *Buffer, size_t Size);
-	size_t (*WriteFile)(void *Fs, MCoreFile_t *Handle, uint8_t *Buffer, size_t Size);
-	VfsErrorCode_t (*Seek)(void *Fs, MCoreFile_t *Handle, uint64_t Position);
+	size_t (*ReadFile)(void *Fs, MCoreFile_t *Handle, MCoreFileInstance_t *Instance, uint8_t *Buffer, size_t Size);
+	size_t (*WriteFile)(void *Fs, MCoreFile_t *Handle, MCoreFileInstance_t *Instance, uint8_t *Buffer, size_t Size);
+	VfsErrorCode_t (*Seek)(void *Fs, MCoreFile_t *Handle, MCoreFileInstance_t *Instance, uint64_t Position);
+	VfsErrorCode_t (*DeleteFile)(void *Fs, MCoreFile_t *Handle);
 
 	/* Get's information about a node */
-	VfsErrorCode_t(*Query)(void *Fs, MCoreFile_t *Handle, VfsQueryFunction_t Function, void *Buffer, size_t Length);
+	VfsErrorCode_t (*Query)(void *Fs, MCoreFile_t *Handle, MCoreFileInstance_t *Instance, VfsQueryFunction_t Function, void *Buffer, size_t Length);
 
 } MCoreFileSystem_t;
 #pragma pack(pop)
@@ -261,21 +286,21 @@ _CRT_EXTERN void VfsRegisterDisk(DevId_t DiskId);
 _CRT_EXTERN void VfsUnregisterDisk(DevId_t DiskId, uint32_t Forced);
 
 /* Open & Close */
-_CRT_EXTERN MCoreFile_t *VfsOpen(const char *Path, VfsFileFlags_t OpenFlags);
-_CRT_EXTERN VfsErrorCode_t VfsClose(MCoreFile_t *Handle);
-_CRT_EXTERN VfsErrorCode_t VfsDelete(MCoreFile_t *Handle);
+_CRT_EXTERN MCoreFileInstance_t *VfsOpen(const char *Path, VfsFileFlags_t OpenFlags);
+_CRT_EXTERN VfsErrorCode_t VfsClose(MCoreFileInstance_t *Handle);
+_CRT_EXTERN VfsErrorCode_t VfsDelete(MCoreFileInstance_t *Handle);
 
 /* File Operations */
-_CRT_EXTERN size_t VfsRead(MCoreFile_t *Handle, uint8_t *Buffer, size_t Length);
-_CRT_EXTERN size_t VfsWrite(MCoreFile_t *Handle, uint8_t *Buffer, size_t Length);
-_CRT_EXTERN VfsErrorCode_t VfsSeek(MCoreFile_t *Handle, uint64_t Offset);
-_CRT_EXTERN VfsErrorCode_t VfsFlush(MCoreFile_t *Handle);
+_CRT_EXTERN size_t VfsRead(MCoreFileInstance_t *Handle, uint8_t *Buffer, size_t Length);
+_CRT_EXTERN size_t VfsWrite(MCoreFileInstance_t *Handle, uint8_t *Buffer, size_t Length);
+_CRT_EXTERN VfsErrorCode_t VfsSeek(MCoreFileInstance_t *Handle, uint64_t Offset);
+_CRT_EXTERN VfsErrorCode_t VfsFlush(MCoreFileInstance_t *Handle);
 
 /* Directory Operations */
 _CRT_EXTERN VfsErrorCode_t VfsCreatePath(const char *Path);
 
 /* Utilities */
-_CRT_EXTERN VfsErrorCode_t VfsQuery(MCoreFile_t *Handle, VfsQueryFunction_t Function, void *Buffer, size_t Length);
+_CRT_EXTERN VfsErrorCode_t VfsQuery(MCoreFileInstance_t *Handle, VfsQueryFunction_t Function, void *Buffer, size_t Length);
 _CRT_EXTERN VfsErrorCode_t VfsMove(const char *Path, const char *NewPath, int Copy);
 _CRT_EXTERN MString_t *VfsResolveEnvironmentPath(VfsEnvironmentPath_t Base);
 

@@ -173,19 +173,24 @@ typedef struct _MfsFile
 	uint64_t AllocatedSize;
 
 	/* Location */
-	uint32_t DataBucketPosition;
-	uint32_t DataBucketLength;
 	uint32_t DirBucket;
 	uint32_t DirOffset;
 
-	/* Variable bucket sizes 
-	 * is a pain in the butt */
+} MfsFile_t;
+#pragma pack(pop)
+
+#pragma pack(push, 1)
+typedef struct _MfsFileInstance
+{
+	/* Information */
+	uint32_t DataBucketPosition;
+	uint32_t DataBucketLength;
+
+	/* Variable bucket sizes
+	* is a pain in the butt */
 	uint64_t BucketByteBoundary;
 
-	/* Status */
-	VfsErrorCode_t Status;
-
-} MfsFile_t;
+} MfsFileInstance_t;
 #pragma pack(pop)
 
 /* FileSystem Data */

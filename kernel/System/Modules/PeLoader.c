@@ -642,12 +642,12 @@ MCorePeFile_t *PeResolveLibrary(MCorePeFile_t *Parent, MCorePeFile_t *PeFile, MS
 	if (Exports == NULL)
 	{
 		/* Resolve Library */
-		MCoreFile_t *lFile = VfsOpen(LibraryName->Data, Read);
-		uint8_t *fBuffer = (uint8_t*)kmalloc((size_t)lFile->Size);
+		MCoreFileInstance_t *lFile = VfsOpen(LibraryName->Data, Read);
+		uint8_t *fBuffer = (uint8_t*)kmalloc((size_t)lFile->File->Size);
 		MCorePeFile_t *Library = NULL;
 
 		/* Read all data */
-		VfsRead(lFile, fBuffer, (size_t)lFile->Size);
+		VfsRead(lFile, fBuffer, (size_t)lFile->File->Size);
 
 		/* Cleanup */
 		VfsClose(lFile);
