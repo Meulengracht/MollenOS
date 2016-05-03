@@ -567,7 +567,7 @@ void VfsOpenInternal(MCoreFile_t *Handle, MString_t *Path, VfsFileFlags_t OpenFl
 					/* Setup input buffer */
 					Handle->iBuffer = (void*)kmalloc(Fs->SectorSize);
 					memset(Handle->iBuffer, 0, Fs->SectorSize);
-					Handle->iBufferPosition = 0;
+					Handle->iBufferPosition = FILESYSTEM_IO_EMPTY;
 				}
 
 				/* Append? */
@@ -769,29 +769,43 @@ size_t VfsRead(MCoreFile_t *Handle, uint8_t *Buffer, size_t Length)
 
 	/* Buffering? */
 	if (!(Handle->Flags & NoBuffering)
-		&& Handle->iBufferRemaining != 0)
+		&& Handle->iBufferPosition != FILESYSTEM_IO_EMPTY)
 	{
 		/* How many bytes are left in current buffer? */
-		size_t bIndex = Fs->SectorSize - Handle->iBufferRemaining;
+		size_t bRemaining = Fs->SectorSize - Handle->iBufferPosition;
 		uint8_t *bPtr = (uint8_t*)Handle->iBuffer;
 
 		/* Can we cover the entire op? */
-		if (Length <= Handle->iBufferRemaining)
+		if (RequestBytesLeft <= bRemaining)
 		{
 			/* Copy data from input buffer to buffer */
-			memcpy((bPtr + bIndex), UserBuffer, RequestBytesLeft);
-			Handle->iBufferRemaining -= RequestBytesLeft;
+			memcpy(UserBuffer, (bPtr + Handle->iBufferPosition), RequestBytesLeft);
+
+			/* Adjust how many bytes are left */
+			Handle->iBufferPosition += RequestBytesLeft;
 			Handle->Position += RequestBytesLeft;
+
+			/* Set bytes read and skip disk phase */
+			BytesRead = RequestBytesLeft;
 			ReadFromDisk = 0;
+
+			/* Sanity */
+			if (Length == bRemaining)
+				Handle->iBufferPosition = FILESYSTEM_IO_EMPTY;
 		}
 		else
 		{
 			/* Copy remainers to buffer and reduce */
-			memcpy((bPtr + bIndex), UserBuffer, Handle->iBufferRemaining);
-			UserBuffer += Handle->iBufferRemaining;
-			RequestBytesLeft -= Handle->iBufferRemaining;
-			Handle->Position += Handle->iBufferRemaining;
-			Handle->iBufferRemaining = 0;
+			memcpy(UserBuffer, (bPtr + Handle->iBufferPosition), bRemaining);
+
+			/* Adjust buffer and remaining length we have to read */
+			UserBuffer += bRemaining;
+			RequestBytesLeft -= bRemaining;
+			BytesRead = bRemaining;
+
+			/* Adjust position and reset ibuf remaining bytes */
+			Handle->iBufferPosition = FILESYSTEM_IO_EMPTY;
+			Handle->Position += bRemaining;
 		}
 	}
 
@@ -800,16 +814,30 @@ size_t VfsRead(MCoreFile_t *Handle, uint8_t *Buffer, size_t Length)
 	{
 		/* Only do the read and nothing else if 
 		 * buffering is disabled */
-		if (!(Handle->Flags & NoBuffering))
-			BytesRead = Fs->ReadFile(Fs, Handle, UserBuffer, RequestBytesLeft);
+		if (Handle->Flags & NoBuffering)
+			BytesRead += Fs->ReadFile(Fs, Handle, UserBuffer, RequestBytesLeft);
 		else
 		{
 			/* Round up to nearest sector size */
-			size_t AdjustLength = RequestBytesLeft;
-			if (RequestBytesLeft % Fs->SectorSize)
-				AdjustLength += Fs->SectorSize - (RequestBytesLeft % Fs->SectorSize);
+			size_t AdjustLength = MAX(Fs->SectorSize, RequestBytesLeft);
 
+			/* Alloc temp buffer ?? */
+			if (AdjustLength != RequestBytesLeft) 
+			{
+				/* Get buffer */
+				uint8_t *iBuffer = (uint8_t*)Handle->iBuffer;
 
+				/* Read */
+				BytesRead += Fs->ReadFile(Fs, Handle, iBuffer, AdjustLength);
+
+				/* Copy into respective buffers */
+				memcpy(UserBuffer, iBuffer, RequestBytesLeft);
+
+				/* Update new index */
+				Handle->iBufferPosition = RequestBytesLeft;
+			}
+			else
+				BytesRead += Fs->ReadFile(Fs, Handle, UserBuffer, RequestBytesLeft);
 		}
 	}
 
@@ -1004,7 +1032,7 @@ VfsErrorCode_t VfsFlush(MCoreFile_t *Handle)
 		return VfsInvalidParameters;
 
 	/* Sanity */
-	if ((Handle->Flags & NoBuffering))
+	if (Handle->Flags & NoBuffering)
 		return VfsOk;
 
 	/* Cast */
@@ -1012,11 +1040,11 @@ VfsErrorCode_t VfsFlush(MCoreFile_t *Handle)
 
 	/* Empty input buffer */
 	if (Handle->iBuffer != NULL
-		&& Handle->iBufferPosition != 0)
+		&& Handle->iBufferPosition != FILESYSTEM_IO_EMPTY)
 	{
 		/* Reset */
 		memset(Handle->iBuffer, 0, Fs->SectorSize);
-		Handle->iBufferPosition = 0;
+		Handle->iBufferPosition = FILESYSTEM_IO_EMPTY;
 	}
 
 	/* Empty output buffer */

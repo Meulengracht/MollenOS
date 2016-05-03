@@ -1076,6 +1076,12 @@ size_t MfsReadFile(void *FsData, MCoreFile_t *Handle, uint8_t *Buffer, size_t Si
 	if ((Handle->Position + Size) > Handle->Size)
 		BytesToRead = (size_t)(Handle->Size - Handle->Position);
 
+	/* Debug */
+	if (Handle->Size > 1000000) {
+		LogDebug("MFS1", "Reading %u bytes at position %u",
+			BytesToRead, (size_t)Handle->Position);
+	}
+
 	/* Keep reeeading */
 	while (BytesToRead)
 	{
