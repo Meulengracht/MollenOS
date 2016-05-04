@@ -32,7 +32,6 @@ off_t ftello(FILE * stream)
 {
 	/* Syscall Result */
 	int RetVal = 0;	
-	off_t fPos = 0;
 	char Buffer[64];
 
 	/* Sanity */
@@ -52,9 +51,9 @@ off_t ftello(FILE * stream)
 
 	if (!RetVal) {
 		/* Now we can calculate */
-		fPos = *((off_t*)(&Buffer[16]));
+		uint64_t fPosition = *((off_t*)(&Buffer[16]));
 		_set_errno(EOK);
-		return fPos;
+		return (off_t)fPosition;
 	}
 
 	/* Error */

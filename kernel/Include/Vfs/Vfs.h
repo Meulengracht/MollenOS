@@ -39,9 +39,6 @@
 
 #define FILESYSTEM_IDENT_SYS	"%Sys%"
 
-/* Flush Buffer Definitions */
-#define FILESYSTEM_IO_EMPTY		SIZET_MAX
-
 /* Error Codes for VFS Operations */
 typedef enum _VfsErrorCode
 {
@@ -217,9 +214,7 @@ typedef struct _MCoreFileInstance
 	uint64_t Position;
 
 	/* I/O Buffer */
-	void *iBuffer;
 	void *oBuffer;
-	size_t iBufferPosition;
 	size_t oBufferPosition;
 
 	/* Handle */

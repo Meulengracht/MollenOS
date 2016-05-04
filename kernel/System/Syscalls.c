@@ -432,7 +432,7 @@ int ScVfsWrite(FILE *cData, uint8_t *Buffer, size_t Length)
 }
 
 /* Seek File */
-int ScVfsSeek(FILE *cData, size_t Position)
+int ScVfsSeek(FILE *cData, off_t Position)
 {
 	/* Sanity */
 	if (cData == NULL || cData->_handle == NULL)

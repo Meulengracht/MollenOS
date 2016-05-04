@@ -48,7 +48,7 @@ int fseeko(FILE *stream, off_t offset, int origin)
 
 		/* Prepare a buffer */
 		uint64_t fPos = 0, fSize = 0;
-		off_t CorrectedValue = (off_t)abs(offset);;
+		off_t CorrectedValue = (off_t)abs(offset);
 		char Buffer[64];
 		memset(Buffer, 0, sizeof(Buffer));
 

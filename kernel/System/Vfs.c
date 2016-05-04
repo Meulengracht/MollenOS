@@ -561,11 +561,6 @@ void VfsOpenHandleInternal(MCoreFileSystem_t *Fs,
 		Instance->oBuffer = (void*)kmalloc(Fs->SectorSize);
 		memset(Instance->oBuffer, 0, Fs->SectorSize);
 		Instance->oBufferPosition = 0;
-
-		/* Setup input buffer */
-		Instance->iBuffer = (void*)kmalloc(Fs->SectorSize);
-		memset(Instance->iBuffer, 0, Fs->SectorSize);
-		Instance->iBufferPosition = FILESYSTEM_IO_EMPTY;
 	}
 
 	/* Append? */
@@ -774,8 +769,6 @@ VfsErrorCode_t VfsClose(MCoreFileInstance_t *Handle)
 		/* Cleanup */
 		if (Handle->oBuffer != NULL)
 			kfree(Handle->oBuffer);
-		if (Handle->iBuffer != NULL)
-			kfree(Handle->iBuffer);
 	}
 
 	/* Invalid Handle? */
@@ -855,11 +848,6 @@ size_t VfsRead(MCoreFileInstance_t *Handle, uint8_t *Buffer, size_t Length)
 	/* Vars */
 	MCoreFileSystem_t *Fs = NULL;
 	size_t BytesRead = 0;
-	int ReadFromDisk = 1;
-
-	/* Intermediate Variables */
-	uint8_t *UserBuffer = Buffer;
-	size_t RequestBytesLeft = Length;
 
 	/* Sanity */
 	if (Handle == NULL
@@ -874,79 +862,8 @@ size_t VfsRead(MCoreFileInstance_t *Handle, uint8_t *Buffer, size_t Length)
 	/* Cast */
 	Fs = (MCoreFileSystem_t*)Handle->File->Fs;
 
-	/* Buffering? */
-	if (!(Handle->Flags & NoBuffering)
-		&& Handle->iBufferPosition != FILESYSTEM_IO_EMPTY)
-	{
-		/* How many bytes are left in current buffer? */
-		size_t bRemaining = Fs->SectorSize - Handle->iBufferPosition;
-		uint8_t *bPtr = (uint8_t*)Handle->iBuffer;
-
-		/* Can we cover the entire op? */
-		if (RequestBytesLeft <= bRemaining)
-		{
-			/* Copy data from input buffer to buffer */
-			memcpy(UserBuffer, (bPtr + Handle->iBufferPosition), RequestBytesLeft);
-
-			/* Adjust how many bytes are left */
-			Handle->iBufferPosition += RequestBytesLeft;
-			Handle->Position += RequestBytesLeft;
-
-			/* Set bytes read and skip disk phase */
-			BytesRead = RequestBytesLeft;
-			ReadFromDisk = 0;
-
-			/* Sanity */
-			if (Length == bRemaining)
-				Handle->iBufferPosition = FILESYSTEM_IO_EMPTY;
-		}
-		else
-		{
-			/* Copy remainers to buffer and reduce */
-			memcpy(UserBuffer, (bPtr + Handle->iBufferPosition), bRemaining);
-
-			/* Adjust buffer and remaining length we have to read */
-			UserBuffer += bRemaining;
-			RequestBytesLeft -= bRemaining;
-			BytesRead = bRemaining;
-
-			/* Adjust position and reset ibuf remaining bytes */
-			Handle->iBufferPosition = FILESYSTEM_IO_EMPTY;
-			Handle->Position += bRemaining;
-		}
-	}
-
 	/* Deep Read */
-	if (ReadFromDisk) 
-	{
-		/* Only do the read and nothing else if 
-		 * buffering is disabled */
-		if (Handle->Flags & NoBuffering)
-			BytesRead += Fs->ReadFile(Fs, Handle->File, Handle, UserBuffer, RequestBytesLeft);
-		else
-		{
-			/* Round up to nearest sector size */
-			size_t AdjustLength = MAX(Fs->SectorSize, RequestBytesLeft);
-
-			/* Alloc temp buffer ?? */
-			if (AdjustLength != RequestBytesLeft) 
-			{
-				/* Get buffer */
-				uint8_t *iBuffer = (uint8_t*)Handle->iBuffer;
-
-				/* Read */
-				BytesRead += Fs->ReadFile(Fs, Handle->File, Handle, iBuffer, AdjustLength);
-
-				/* Copy into respective buffers */
-				memcpy(UserBuffer, iBuffer, RequestBytesLeft);
-
-				/* Update new index */
-				Handle->iBufferPosition = RequestBytesLeft;
-			}
-			else
-				BytesRead += Fs->ReadFile(Fs, Handle->File, Handle, UserBuffer, RequestBytesLeft);
-		}
-	}
+	BytesRead = Fs->ReadFile(Fs, Handle->File, Handle, Buffer, Length);
 
 	/* Save last op */
 	Handle->LastOp = Read;
@@ -1058,7 +975,7 @@ VfsErrorCode_t VfsSeek(MCoreFileInstance_t *Handle, uint64_t Offset)
 
 	/* Deep Seek */
 	Fs = (MCoreFileSystem_t*)Handle->File->Fs;
-	ErrCode = Fs->Seek(Fs, Handle->File, Handle, (Handle->Position + Offset));
+	ErrCode = Fs->Seek(Fs, Handle->File, Handle, Offset);
 
 	/* Clear last op */
 	Handle->LastOp = 0;
@@ -1139,20 +1056,12 @@ VfsErrorCode_t VfsFlush(MCoreFileInstance_t *Handle)
 		return VfsInvalidParameters;
 
 	/* Sanity */
-	if (Handle->Flags & NoBuffering)
+	if ((Handle->Flags & NoBuffering)
+		|| Handle->LastOp == 0)
 		return VfsOk;
 
 	/* Cast */
 	Fs = (MCoreFileSystem_t*)Handle->File->Fs;
-
-	/* Empty input buffer */
-	if (Handle->iBuffer != NULL
-		&& Handle->iBufferPosition != FILESYSTEM_IO_EMPTY)
-	{
-		/* Reset */
-		memset(Handle->iBuffer, 0, Fs->SectorSize);
-		Handle->iBufferPosition = FILESYSTEM_IO_EMPTY;
-	}
 
 	/* Empty output buffer */
 	if (Handle->oBuffer != NULL

@@ -1031,6 +1031,9 @@ void MfsOpenHandle(void *FsData, MCoreFile_t *Handle, MCoreFileInstance_t *Insta
 	mInstance->BucketByteBoundary = 0;
 	mInstance->DataBucketLength = FileInfo->InitialBucketLength;
 	mInstance->DataBucketPosition = FileInfo->DataBucket;
+
+	/* Set */
+	Instance->Instance = mInstance;
 }
 
 /* Close Handle - This function cleans
@@ -1087,12 +1090,6 @@ size_t MfsReadFile(void *FsData, MCoreFile_t *Handle, MCoreFileInstance_t *Insta
 	/* Sanity */
 	if ((Instance->Position + Size) > Handle->Size)
 		BytesToRead = (size_t)(Handle->Size - Instance->Position);
-
-	/* Debug */
-	if (Handle->Size > 1000000) {
-		LogDebug("MFS1", "Reading %u bytes at position %u",
-			BytesToRead, (size_t)Instance->Position);
-	}
 
 	/* Keep reeeading */
 	while (BytesToRead)
