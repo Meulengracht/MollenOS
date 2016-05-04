@@ -50,6 +50,7 @@
     <ClCompile Include="..\src\stdio\fgetpos.c" />
     <ClCompile Include="..\src\stdio\fgets.c" />
     <ClCompile Include="..\src\stdio\fopen.c" />
+    <ClCompile Include="..\src\stdio\fpeekc.c" />
     <ClCompile Include="..\src\stdio\fprintf.c" />
     <ClCompile Include="..\src\stdio\fread.c" />
     <ClCompile Include="..\src\stdio\fremove.c" />
@@ -58,6 +59,7 @@
     <ClCompile Include="..\src\stdio\fseek.c" />
     <ClCompile Include="..\src\stdio\fsetpos.c" />
     <ClCompile Include="..\src\stdio\ftell.c" />
+    <ClCompile Include="..\src\stdio\fungetc.c" />
     <ClCompile Include="..\src\stdio\fwrite.c" />
     <ClCompile Include="..\src\stdio\perror.c" />
     <ClCompile Include="..\src\stdio\printf.c" />
@@ -69,6 +71,7 @@
     <ClCompile Include="..\src\stdio\strerror.c" />
     <ClCompile Include="..\src\stdio\vasprintf.c" />
     <ClCompile Include="..\src\stdio\vfprintf.c" />
+    <ClCompile Include="..\src\stdio\vfscanf.c" />
     <ClCompile Include="..\src\stdio\vprintf.c" />
     <ClCompile Include="..\src\stdio\vsnprintf.c" />
     <ClCompile Include="..\src\stdio\vsprintf.c" />

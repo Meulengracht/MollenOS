@@ -145,7 +145,10 @@ _CRT_EXTERN int vfprintf(FILE *stream, const char *format, va_list ap);
 _CRT_EXTERN int printf(const char *format, ...);
 _CRT_EXTERN int vprintf(const char *format, va_list ap);
 //_CRT_EXTERN int scanf(const char *format, ...);
-//_CRT_EXTERN int vscanf ( const char * format, va_list arg );
+//_CRT_EXTERN int vscanf(const char * format, va_list arg);
+
+/* Helpers */
+_CRT_EXTERN int __svfscanf(FILE *fp, char const * fmt0, va_list ap);
 
 /*******************************
  *       Character IO          *
@@ -155,14 +158,17 @@ _CRT_EXTERN int putchar(int character);
 //_CRT_EXTERN char *gets(char *sstr);
 //_CRT_EXTERN int puts(char *sstr);
 
+_CRT_EXTERN int fpeekc(FILE * stream);
 _CRT_EXTERN int fgetc(FILE * stream);
 //_CRT_EXTERN int fputc(int character, FILE * stream);
 _CRT_EXTERN char *fgets(char * buf, size_t n, FILE * stream);
 //_CRT_EXTERN int fputs(const char * str, FILE * stream);
-//_CRT_EXTERN int ungetc ( int character, FILE * stream );
+_CRT_EXTERN int fungetc (int character, FILE * stream);
 
+#define peekc(stream) fpeekc(stream)
 #define getc(stream) fgetc(stream)
 //#define putc(c, stream) fputc(c, stream)
+#define ungetc(c, stream) fungetc(c, stream)
 
 /*******************************
  *         Direct IO           *
