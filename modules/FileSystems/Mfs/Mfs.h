@@ -190,6 +190,11 @@ typedef struct _MfsFileInstance
 	* is a pain in the butt */
 	uint64_t BucketByteBoundary;
 
+	/* Bucket Buffer 
+	 * Temporary buffer used for 
+	 * for read/write operations */
+	uint8_t *BucketBuffer;
+
 } MfsFileInstance_t;
 #pragma pack(pop)
 

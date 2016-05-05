@@ -200,11 +200,12 @@ void MmVirtualMap(void *PageDirectory, PhysAddr_t PhysicalAddr, VirtAddr_t Virtu
 	{
 		LogFatal("VMEM", "Trying to remap virtual 0x%x to physical 0x%x (original mapping 0x%x)",
 			VirtualAddr, PhysicalAddr, ptable->Pages[PAGE_TABLE_INDEX(VirtualAddr)]);
-		for (;;);
+		kernel_panic("This is not good");
 	}
 
 	/* Map it */
-	ptable->Pages[PAGE_TABLE_INDEX(VirtualAddr)] = (PhysicalAddr & PAGE_MASK) | PAGE_PRESENT | PAGE_WRITE | Flags;
+	ptable->Pages[PAGE_TABLE_INDEX(VirtualAddr)] = 
+		(PhysicalAddr & PAGE_MASK) | PAGE_PRESENT | PAGE_WRITE | Flags;
 
 	/* Release lock */
 	CriticalSectionLeave(&pdir->Lock);

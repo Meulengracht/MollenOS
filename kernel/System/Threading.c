@@ -246,7 +246,7 @@ void ThreadingDebugPrint(void)
 	foreach(i, GlbThreads)
 	{
 		MCoreThread_t *t = (MCoreThread_t*)i->data;
-		printf("Thread %u (%s) - Flags %u, Priority %u, Timeslice %u, Cpu: %u\n",
+		printf("Thread %u (%s) - Flags %i, Priority %i, Timeslice %u, Cpu: %u\n",
 			t->ThreadId, t->Name, t->Flags, t->Priority, t->TimeSlice, t->CpuId);
 	}
 }

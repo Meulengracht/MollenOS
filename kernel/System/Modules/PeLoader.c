@@ -96,7 +96,7 @@ int PeValidate(uint8_t *Buffer)
 	/* Validate */
 	if (DosHeader->Signature != MZ_MAGIC)
 	{
-		LogFatal("PELD", "Invalid MZ Signature 0x%x", BaseHeader->Magic);
+		LogFatal("PELD", "Invalid MZ Signature 0x%x", DosHeader->Signature);
 		return 0;
 	}
 

@@ -1010,6 +1010,8 @@ VfsErrorCode_t MfsCloseFile(void *FsData, MCoreFile_t *Handle)
 void MfsOpenHandle(void *FsData, MCoreFile_t *Handle, MCoreFileInstance_t *Instance)
 {
 	/* Vars */
+	MCoreFileSystem_t *Fs = (MCoreFileSystem_t*)FsData;
+	MfsData_t *mData = (MfsData_t*)Fs->FsData;
 	MfsFileInstance_t *mInstance = NULL;
 	MfsFile_t *FileInfo = NULL;
 
@@ -1021,9 +1023,6 @@ void MfsOpenHandle(void *FsData, MCoreFile_t *Handle, MCoreFileInstance_t *Insta
 	/* Cast */
 	FileInfo = (MfsFile_t*)Handle->Data;
 
-	/* Unused */
-	_CRT_UNUSED(FsData);
-
 	/* Allocate mFile instance */
 	mInstance = (MfsFileInstance_t*)kmalloc(sizeof(MfsFileInstance_t));
 
@@ -1031,6 +1030,9 @@ void MfsOpenHandle(void *FsData, MCoreFile_t *Handle, MCoreFileInstance_t *Insta
 	mInstance->BucketByteBoundary = 0;
 	mInstance->DataBucketLength = FileInfo->InitialBucketLength;
 	mInstance->DataBucketPosition = FileInfo->DataBucket;
+
+	/* Allocate */
+	mInstance->BucketBuffer = (uint8_t*)kmalloc((mData->BucketSize * Fs->SectorSize));
 
 	/* Set */
 	Instance->Instance = mInstance;
@@ -1054,6 +1056,9 @@ void MfsCloseHandle(void *FsData, MCoreFileInstance_t *Instance)
 	/* Cast */
 	mInstance = (MfsFileInstance_t*)Instance->Instance;
 
+	/* Free buffer */
+	kfree(mInstance->BucketBuffer);
+
 	/* Cleanup */
 	kfree(mInstance);
 }
@@ -1068,20 +1073,9 @@ size_t MfsReadFile(void *FsData, MCoreFile_t *Handle, MCoreFileInstance_t *Insta
 	MCoreFileSystem_t *Fs = (MCoreFileSystem_t*)FsData;
 	MfsFileInstance_t *mInstance = (MfsFileInstance_t*)Instance->Instance;
 	MfsData_t *mData = (MfsData_t*)Fs->FsData;
-	uint8_t *BufPtr = Buffer;
 	VfsErrorCode_t RetCode = VfsOk;
-
-	/* Sanity */
-	if (Instance->IsEOF
-		|| Instance->Position == Handle->Size
-		|| Size == 0)
-		return 0;
-
-	/* Security Sanity */
-	if (!(Instance->Flags & Read)) {
-		Instance->Code = VfsAccessDenied;
-		return 0;
-	}
+	uint8_t *BufPtr = Buffer;
+	uint64_t Position = Instance->Position;
 
 	/* BucketPtr for iterating */
 	size_t BytesToRead = Size;
@@ -1095,27 +1089,50 @@ size_t MfsReadFile(void *FsData, MCoreFile_t *Handle, MCoreFileInstance_t *Insta
 	while (BytesToRead)
 	{
 		/* Calculate buffer size */
-		size_t BucketSize = (mInstance->DataBucketLength * (mData->BucketSize * Fs->SectorSize));
+		uint64_t SectorLba = mData->BucketSize * mInstance->DataBucketPosition;
+		uint64_t bbOffset = Position - mInstance->BucketByteBoundary;
+		size_t SizeOfBucket = (mData->BucketSize * Fs->SectorSize);
+		size_t SizeOfThisBucket = (mInstance->DataBucketLength * SizeOfBucket);
+		size_t nBuckets = (size_t)(bbOffset / SizeOfBucket);
+		size_t AdjustedByteCount = 0;
 
 		/* Allocate buffer for data */
-		uint8_t *TempBuffer = (uint8_t*)kmalloc(BucketSize);
+		uint8_t *TransferBuffer = NULL;
+		size_t TransferSize = 0;
+
+		/* Determine optimal transfer buffer */
+		if (BytesToRead <= SizeOfBucket
+			|| SizeOfThisBucket == SizeOfBucket) {
+			/* Use ours */
+			TransferBuffer = mInstance->BucketBuffer;
+			TransferSize = mData->BucketSize;
+		}
+		else {
+			/* Find optimal size */
+			size_t BucketsNeeded = DIVUP(BytesToRead, SizeOfBucket);
+			TransferBuffer = (uint8_t*)kmalloc(BucketsNeeded * SizeOfBucket);
+			TransferSize = BucketsNeeded * mData->BucketSize;
+		}
+
+		/* Adjust SectorLba */
+		AdjustedByteCount = nBuckets * (mData->BucketSize * Fs->SectorSize);
+		SectorLba += nBuckets * mData->BucketSize;
 
 		/* Read the bucket */
-		if (MfsReadSectors(Fs, (mData->BucketSize * mInstance->DataBucketPosition),
-			TempBuffer, (mInstance->DataBucketLength * mData->BucketSize)) != RequestOk)
+		if (MfsReadSectors(Fs, SectorLba, TransferBuffer, TransferSize) != RequestOk)
 		{
 			/* Error */
 			RetCode = VfsDiskError;
 			LogFatal("MFS1", "READFILE: Error reading sector %u from disk",
 				(size_t)(mData->BucketSize * mInstance->DataBucketPosition));
 			LogFatal("MFS1", "Bucket Position %u, mFile Position %u, mFile Size %u",
-				mInstance->DataBucketPosition, (size_t)Instance->Position, (size_t)Handle->Size);
+				mInstance->DataBucketPosition, (size_t)Position, (size_t)Handle->Size);
 			break;
 		}
 
 		/* We have to calculate the offset into this buffer we must transfer data */
-		size_t bOffset = (size_t)(Instance->Position - mInstance->BucketByteBoundary);
-		size_t BytesLeft = BucketSize - bOffset;
+		size_t bOffset = (size_t)(Position - mInstance->BucketByteBoundary - AdjustedByteCount);
+		size_t BytesLeft = (TransferSize * Fs->SectorSize) - bOffset;
 		size_t BytesCopied = 0;
 
 		/* We have a few cases
@@ -1124,27 +1141,28 @@ size_t MfsReadFile(void *FsData, MCoreFile_t *Handle, MCoreFileInstance_t *Insta
 		if (BytesToRead > BytesLeft)
 		{
 			/* Start out by copying remainder */
-			memcpy(BufPtr, (TempBuffer + bOffset), BytesLeft);
+			memcpy(BufPtr, (TransferBuffer + bOffset), BytesLeft);
 			BytesCopied = BytesLeft;
 		}
 		else
 		{
 			/* Just copy */
-			memcpy(BufPtr, (TempBuffer + bOffset), BytesToRead);
+			memcpy(BufPtr, (TransferBuffer + bOffset), BytesToRead);
 			BytesCopied = BytesToRead;
 		}
 
 		/* Done with buffer */
-		kfree(TempBuffer);
+		if (TransferSize != SizeOfBucket)
+			kfree(TransferBuffer);
 
 		/* Advance pointer(s) */
 		BytesRead += BytesCopied;
 		BufPtr += BytesCopied;
 		BytesToRead -= BytesCopied;
-		Instance->Position += BytesCopied;
+		Position += BytesCopied;
 
 		/* Switch to next bucket? */
-		if (BytesLeft == BytesCopied)
+		if (Position == mInstance->BucketByteBoundary + SizeOfThisBucket)
 		{
 			/* Vars */
 			uint32_t NextBucket = 0, BucketLength = 0;
@@ -1172,7 +1190,7 @@ size_t MfsReadFile(void *FsData, MCoreFile_t *Handle, MCoreFileInstance_t *Insta
 	}
 
 	/* Sanity */
-	if (Instance->Position == Handle->Size)
+	if (Position >= Handle->Size)
 		Instance->IsEOF = 1;
 
 	/* Done! */

@@ -1117,29 +1117,32 @@ void MStringToASCII(MString_t *String, void *Buffer)
 
 	while (DataPtr[i])
 	{
+		/* Convert */
+		unsigned char uChar = (unsigned char)DataPtr[i];
+
 		/* Easy */
-		if (DataPtr[i] < 0x80)
+		if (uChar < 0x80)
 		{
 			OutB[j] = DataPtr[i];
 			j++;
 		}
 		/* Lead Byte? */
-		else if ((DataPtr[i] & 0xC0) == 0xC0)
+		else if ((uChar & 0xC0) == 0xC0)
 		{
 			/* Wtf, multiple leads? */
 			if (Count > 0)
 				return;
 
-			if ((DataPtr[i] & 0xF8) == 0xF0) {
-				Value = DataPtr[i] & 0x07;
+			if ((uChar & 0xF8) == 0xF0) {
+				Value = uChar & 0x07;
 				Count = 3;
 			}
-			else if ((DataPtr[i] & 0xF0) == 0xE0) {
-				Value = DataPtr[i] & 0x0f;
+			else if ((uChar & 0xF0) == 0xE0) {
+				Value = uChar & 0x0f;
 				Count = 2;
 			}
-			else if ((DataPtr[i] & 0xE0) == 0xC0) {
-				Value = DataPtr[i] & 0x1f;
+			else if ((uChar & 0xE0) == 0xC0) {
+				Value = uChar & 0x1f;
 				Count = 1;
 			}
 			else {
@@ -1150,7 +1153,7 @@ void MStringToASCII(MString_t *String, void *Buffer)
 		else
 		{
 			Value <<= 6;
-			Value |= DataPtr[i] & 0x3f;
+			Value |= uChar & 0x3f;
 			if (--Count <= 0) {
 
 				/* A single byte val we can handle */

@@ -854,6 +854,23 @@ size_t VfsRead(MCoreFileInstance_t *Handle, uint8_t *Buffer, size_t Length)
 		|| Handle->Code != VfsOk)
 		return VfsInvalidParameters;
 
+	/* Sanity */
+	if (Handle->IsEOF
+		|| Length == 0)
+		return 0;
+
+	/* EOF Sanity */
+	if (Handle->Position == Handle->File->Size) {
+		Handle->IsEOF = 1;
+		return 0;
+	}
+
+	/* Security Sanity */
+	if (!(Handle->Flags & Read)) {
+		Handle->Code = VfsAccessDenied;
+		return 0;
+	}
+
 	/* Sanity -> Flush if we wrote and now read */
 	if (Handle->LastOp & Write) {
 		VfsFlush(Handle);
@@ -865,7 +882,8 @@ size_t VfsRead(MCoreFileInstance_t *Handle, uint8_t *Buffer, size_t Length)
 	/* Deep Read */
 	BytesRead = Fs->ReadFile(Fs, Handle->File, Handle, Buffer, Length);
 
-	/* Save last op */
+	/* Update Position + Save last op */
+	Handle->Position += BytesRead;
 	Handle->LastOp = Read;
 
 	/* Done */
