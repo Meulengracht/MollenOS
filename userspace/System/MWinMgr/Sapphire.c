@@ -87,8 +87,7 @@ int main(int argc, char* argv[])
 	}
 
 	/* Create a window */
-	MainWnd = SDL_CreateWindow("Sapphire", SDL_WINDOWPOS_UNDEFINED, 
-		SDL_WINDOWPOS_UNDEFINED, 640, 480, SDL_WINDOW_SHOWN | SDL_WINDOW_FULLSCREEN);
+	MainWnd = SDL_CreateWindow("Sapphire", 0, 0, 640, 480, SDL_WINDOW_SHOWN | SDL_WINDOW_FULLSCREEN);
 	if (MainWnd == NULL) {
 		MollenOSSystemLog(SDL_GetError());
 		SDL_Quit();
