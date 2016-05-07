@@ -1152,7 +1152,7 @@ size_t MfsReadFile(void *FsData, MCoreFile_t *Handle, MCoreFileInstance_t *Insta
 		}
 
 		/* Done with buffer */
-		if (TransferSize != SizeOfBucket)
+		if (TransferSize != mData->BucketSize)
 			kfree(TransferBuffer);
 
 		/* Advance pointer(s) */

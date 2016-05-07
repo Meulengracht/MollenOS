@@ -42,10 +42,10 @@ void EventLoop(SDL_Renderer *Target)
 	}
 
 	/* Re-render screen */
-	//SDL_RenderCopy(Target, BgTexture, NULL, NULL);
+	SDL_RenderCopy(Target, BgImage, NULL, NULL);
 
 	/* Update */
-	//SDL_RenderPresent(Target);
+	SDL_RenderPresent(Target);
 
 	/* Loop waiting for ESC+Mouse_Button */
 	while (!bQuit) 

@@ -561,7 +561,7 @@ void HeapFreeAddressInNode(Heap_t *Heap, HeapBlock_t *Block, Addr_t Address)
 		Addr_t aEnd = CurrNode->Address + CurrNode->Length - 1;
 
 		/* Check if address is a part of this node */
-		if (aStart <= Address && aEnd >= Address)
+		if (Address >= aStart && Address < aEnd)
 		{
 			/* Well, well, well. */
 			CurrNode->Allocated = 0;

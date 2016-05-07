@@ -71,7 +71,7 @@ PageTable_t *MmVirtualCreatePageTable(void)
 }
 
 /* Identity maps an address range */
-void MmVirtualFillPageTable(PageTable_t *pTable, PhysAddr_t PhysStart, VirtAddr_t VirtStart)
+void MmVirtualFillPageTable(PageTable_t *pTable, PhysAddr_t PhysStart, VirtAddr_t VirtStart, uint32_t Flags)
 {
 	/* Iterators */
 	Addr_t phys, virt;
@@ -83,7 +83,7 @@ void MmVirtualFillPageTable(PageTable_t *pTable, PhysAddr_t PhysStart, VirtAddr_
 		i++, phys += PAGE_SIZE, virt += PAGE_SIZE)
 	{
 		/* Create Entry */
-		uint32_t page = phys | PAGE_PRESENT | PAGE_WRITE | PAGE_SYSTEM_MAP;
+		uint32_t page = phys | PAGE_PRESENT | PAGE_WRITE | PAGE_SYSTEM_MAP | Flags;
 
 		/* Set it at correct offset */
 		pTable->Pages[PAGE_TABLE_INDEX(virt)] = page;
@@ -109,10 +109,10 @@ void MmVirtualIdentityMapMemoryRange(PageDirectory_t* PageDirectory,
 
 		/* Fill it */
 		if (Fill != 0)
-			MmVirtualFillPageTable(pTable, CurrPhys, CurrVirt);
+			MmVirtualFillPageTable(pTable, CurrPhys, CurrVirt, Flags);
 
 		/* Install Table */
-		PageDirectory->pTables[i] = (PhysAddr_t)pTable | PAGE_SYSTEM_MAP | PAGE_PRESENT | PAGE_WRITE | Flags;
+		PageDirectory->pTables[i] = (PhysAddr_t)pTable | (PAGE_SYSTEM_MAP | PAGE_PRESENT | PAGE_WRITE | Flags);
 		PageDirectory->vTables[i] = (Addr_t)pTable;
 	}
 }
@@ -411,7 +411,7 @@ void MmVirtualInit(void)
 	itable = MmVirtualCreatePageTable();
 
 	/* Identity map only first 4 mB (THIS IS KERNEL ONLY) */
-	MmVirtualFillPageTable(itable, 0x1000, 0x1000);
+	MmVirtualFillPageTable(itable, 0x1000, 0x1000, 0);
 
 	/* Clear out page_directory */
 	memset((void*)KernelPageDirectory, 0, sizeof(PageDirectory_t));
