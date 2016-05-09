@@ -149,7 +149,7 @@
       <DataExecutionPrevention>
       </DataExecutionPrevention>
       <BaseAddress>0x100000</BaseAddress>
-      <AdditionalDependencies>CLibK.lib;Libx86.lib;Acpica.lib</AdditionalDependencies>
+      <AdditionalDependencies>CLibK.lib;LibCrt.lib;Libx86.lib;Acpica.lib</AdditionalDependencies>
       <IgnoreAllDefaultLibraries>true</IgnoreAllDefaultLibraries>
       <ImageHasSafeExceptionHandlers />
       <GenerateMapFile>true</GenerateMapFile>

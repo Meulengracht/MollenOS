@@ -47,7 +47,11 @@
 
 #ifndef _CRT_EXTERN
 #ifdef _CRT_DYNAMIC
-#define _CRT_EXTERN extern
+#ifdef _CRT_DLL
+#define _CRT_EXTERN __declspec(dllexport)
+#else
+#define _CRT_EXTERN __declspec(dllimport)
+#endif
 #else
 #define _CRT_EXTERN
 #endif
@@ -60,7 +64,7 @@
 #define _CRT_EXPORT __declspec(dllexport)
 #endif
 #ifndef _MOS_API
-#define _MOS_API
+#define _MOS_API _CRT_EXTERN
 #endif
 #endif
 

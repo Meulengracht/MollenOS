@@ -25,9 +25,6 @@
     <Filter Include="Source\setjmp">
       <UniqueIdentifier>{f2f965bb-d6e5-46e1-9d9f-3d240a1e9818}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Source\crt">
-      <UniqueIdentifier>{93111976-39cc-46dc-ae42-4e5bc1b191ea}</UniqueIdentifier>
-    </Filter>
     <Filter Include="Source\stdlib">
       <UniqueIdentifier>{5815a8d1-566a-496e-9ca6-01425251df84}</UniqueIdentifier>
     </Filter>
@@ -219,9 +216,6 @@
     <ClCompile Include="..\src\signal\signal.c">
       <Filter>Source\signal</Filter>
     </ClCompile>
-    <ClCompile Include="..\crt\math.c">
-      <Filter>Source\crt</Filter>
-    </ClCompile>
     <ClCompile Include="..\src\string\wcsnlen.c">
       <Filter>Source\string</Filter>
     </ClCompile>
@@ -247,9 +241,6 @@
       <Filter>Source\os</Filter>
     </ClCompile>
     <ClCompile Include="..\src\os\System.c">
-      <Filter>Source\os</Filter>
-    </ClCompile>
-    <ClCompile Include="..\src\os\Entry.c">
       <Filter>Source\os</Filter>
     </ClCompile>
     <ClCompile Include="..\src\stdlib\atoi.c">
@@ -390,53 +381,6 @@
     <ClCompile Include="..\src\stdio\fungetc.c">
       <Filter>Source\stdio\File</Filter>
     </ClCompile>
-  </ItemGroup>
-  <ItemGroup>
-    <MASM Include="..\crt\alldvrm.S">
-      <Filter>Source\crt</Filter>
-    </MASM>
-    <MASM Include="..\crt\aulldiv.S">
-      <Filter>Source\crt</Filter>
-    </MASM>
-    <MASM Include="..\crt\aulldvrm.S">
-      <Filter>Source\crt</Filter>
-    </MASM>
-    <MASM Include="..\crt\aullrem.S">
-      <Filter>Source\crt</Filter>
-    </MASM>
-    <MASM Include="..\crt\aullshr.S">
-      <Filter>Source\crt</Filter>
-    </MASM>
-    <MASM Include="..\crt\chkstk.S">
-      <Filter>Source\crt</Filter>
-    </MASM>
-    <MASM Include="..\crt\constants.S">
-      <Filter>Source\crt</Filter>
-    </MASM>
-    <MASM Include="..\crt\ftol.S">
-      <Filter>Source\crt</Filter>
-    </MASM>
-    <MASM Include="..\crt\ftol2.S">
-      <Filter>Source\crt</Filter>
-    </MASM>
-    <MASM Include="..\crt\ints.S">
-      <Filter>Source\crt</Filter>
-    </MASM>
-    <MASM Include="..\crt\lldiv.S">
-      <Filter>Source\crt</Filter>
-    </MASM>
-    <MASM Include="..\crt\llmul.S">
-      <Filter>Source\crt</Filter>
-    </MASM>
-    <MASM Include="..\crt\llrem.S">
-      <Filter>Source\crt</Filter>
-    </MASM>
-    <MASM Include="..\crt\llshl.S">
-      <Filter>Source\crt</Filter>
-    </MASM>
-    <MASM Include="..\crt\llshr.S">
-      <Filter>Source\crt</Filter>
-    </MASM>
   </ItemGroup>
   <ItemGroup>
     <CustomBuild Include="..\src\string\memcpy_acc.s">

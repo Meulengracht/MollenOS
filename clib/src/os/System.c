@@ -52,4 +52,20 @@ int MollenOSRegisterWM(void)
 	return Syscall0(MOLLENOS_SYSCALL_REGWM);
 }
 
+/* Get screen boundaries */
+void MollenOSGetScreenGeometry(Rect_t *Rectangle)
+{
+	/* Vars */
+	MollenOSVideoDescriptor_t VidDescriptor;
+
+	/* Do it */
+	MollenOSDeviceQuery(DeviceVideo, 0, &VidDescriptor, sizeof(MollenOSVideoDescriptor_t));
+
+	/* Save info */
+	Rectangle->x = 0;
+	Rectangle->y = 0;
+	Rectangle->w = VidDescriptor.Width;
+	Rectangle->h = VidDescriptor.Height;
+}
+
 #endif

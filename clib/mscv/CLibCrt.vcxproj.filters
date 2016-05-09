@@ -1,0 +1,67 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="Source">
+      <UniqueIdentifier>{4FC737F1-C7A5-4376-A066-2A32D752A2FF}</UniqueIdentifier>
+      <Extensions>cpp;c;cc;cxx;def;odl;idl;hpj;bat;asm;asmx</Extensions>
+    </Filter>
+    <Filter Include="Source\msvc">
+      <UniqueIdentifier>{5f73d9ff-75e0-4f7d-a161-0a58e97f770c}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="..\crt\Entry.c">
+      <Filter>Source</Filter>
+    </ClCompile>
+    <ClCompile Include="..\crt\msvc\math.c">
+      <Filter>Source\msvc</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <MASM Include="..\crt\msvc\alldvrm.S">
+      <Filter>Source\msvc</Filter>
+    </MASM>
+    <MASM Include="..\crt\msvc\aulldiv.S">
+      <Filter>Source\msvc</Filter>
+    </MASM>
+    <MASM Include="..\crt\msvc\aulldvrm.S">
+      <Filter>Source\msvc</Filter>
+    </MASM>
+    <MASM Include="..\crt\msvc\aullrem.S">
+      <Filter>Source\msvc</Filter>
+    </MASM>
+    <MASM Include="..\crt\msvc\aullshr.S">
+      <Filter>Source\msvc</Filter>
+    </MASM>
+    <MASM Include="..\crt\msvc\chkstk.S">
+      <Filter>Source\msvc</Filter>
+    </MASM>
+    <MASM Include="..\crt\msvc\constants.S">
+      <Filter>Source\msvc</Filter>
+    </MASM>
+    <MASM Include="..\crt\msvc\ftol.S">
+      <Filter>Source\msvc</Filter>
+    </MASM>
+    <MASM Include="..\crt\msvc\ftol2.S">
+      <Filter>Source\msvc</Filter>
+    </MASM>
+    <MASM Include="..\crt\msvc\ints.S">
+      <Filter>Source\msvc</Filter>
+    </MASM>
+    <MASM Include="..\crt\msvc\lldiv.S">
+      <Filter>Source\msvc</Filter>
+    </MASM>
+    <MASM Include="..\crt\msvc\llmul.S">
+      <Filter>Source\msvc</Filter>
+    </MASM>
+    <MASM Include="..\crt\msvc\llrem.S">
+      <Filter>Source\msvc</Filter>
+    </MASM>
+    <MASM Include="..\crt\msvc\llshl.S">
+      <Filter>Source\msvc</Filter>
+    </MASM>
+    <MASM Include="..\crt\msvc\llshr.S">
+      <Filter>Source\msvc</Filter>
+    </MASM>
+  </ItemGroup>
+</Project>

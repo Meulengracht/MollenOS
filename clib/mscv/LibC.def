@@ -1,0 +1,9 @@
+LIBRARY LibC
+EXPORTS
+_setjmp=_setjmp
+_setjmp3=_setjmp3
+longjmp=longjmp
+floor=floor
+memset=memset
+memcpy=memcpy
+_ctype=_ctype

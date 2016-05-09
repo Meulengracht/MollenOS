@@ -104,6 +104,16 @@ typedef struct _MollenOSVideoDescriptor
 
 } MollenOSVideoDescriptor_t;
 
+typedef struct _mRectangle
+{
+	/* Origin */
+	int x, y;
+
+	/* Size */
+	int h, w;
+
+} Rect_t;
+
 /* Device Prototypes */
 _MOS_API int MollenOSDeviceQuery(MollenOSDeviceType_t Type, int Request, void *Buffer, size_t Length);
 
@@ -114,6 +124,9 @@ _MOS_API void SharedObjectUnload(void *Handle);
 
 /* Environment Functions */
 _MOS_API void EnvironmentResolve(EnvironmentPath_t SpecialPath, char *StringBuffer);
+
+/* Screen Functions */
+_MOS_API void MollenOSGetScreenGeometry(Rect_t *Rectangle);
 
 /* System Misc Prototypes */
 _MOS_API void MollenOSSystemLog(const char *Message);

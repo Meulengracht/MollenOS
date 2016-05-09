@@ -16,6 +16,9 @@ PUBLIC	??_C@_0BH@FHLEKBIN@Illegal?5storage?5access?$AA@ ; `string'
 PUBLIC	??_C@_0BE@FPFDJFHC@Termination?5request?$AA@	; `string'
 PUBLIC	??_C@_0L@EKFNCKAB@CTRL?$CLBREAK?$AA@		; `string'
 PUBLIC	??_C@_0BF@MMAMBPEK@Abnormal?5termination?$AA@	; `string'
+_DATA	SEGMENT
+COMM	__errno:DWORD
+_DATA	ENDS
 ;	COMDAT ??_C@_0BF@MMAMBPEK@Abnormal?5termination?$AA@
 CONST	SEGMENT
 ??_C@_0BF@MMAMBPEK@Abnormal?5termination?$AA@ DB 'Abnormal termination', 00H ; `string'

@@ -11,10 +11,8 @@
     </ProjectConfiguration>
   </ItemGroup>
   <PropertyGroup Label="Globals">
-    <ProjectGuid>{9D87B19F-BD8D-475F-93C3-D7F01671AF63}</ProjectGuid>
-    <Keyword>Win32Proj</Keyword>
-    <RootNamespace>MWingMgr</RootNamespace>
-    <ProjectName>Sapphire</ProjectName>
+    <ProjectGuid>{3578DA71-2653-4272-8E81-BCE26C6E370A}</ProjectGuid>
+    <RootNamespace>CLibCrt</RootNamespace>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
@@ -22,10 +20,9 @@
     <UseDebugLibraries>true</UseDebugLibraries>
     <PlatformToolset>v120</PlatformToolset>
     <CharacterSet>MultiByte</CharacterSet>
-    <UseOfMfc />
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="Configuration">
-    <ConfigurationType>Application</ConfigurationType>
+    <ConfigurationType>StaticLibrary</ConfigurationType>
     <UseDebugLibraries>false</UseDebugLibraries>
     <PlatformToolset>v120</PlatformToolset>
     <WholeProgramOptimization>true</WholeProgramOptimization>
@@ -34,6 +31,7 @@
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
   <ImportGroup Label="ExtensionSettings">
+    <Import Project="$(VCTargetsPath)\BuildCustomizations\masm.props" />
   </ImportGroup>
   <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
@@ -42,66 +40,102 @@
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
-    <LinkIncremental>true</LinkIncremental>
-    <TargetExt>.mxi</TargetExt>
-    <IncludePath>..\..\..\clib\include</IncludePath>
-    <LibraryPath>..\..\..\clib\build</LibraryPath>
-  </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
-    <LinkIncremental>false</LinkIncremental>
-    <IncludePath>..\..\..\clib\include;..\..\Libraries\Includes\SDL\</IncludePath>
-    <LibraryPath>..\..\..\clib\build;..\..\Libraries\Lib\</LibraryPath>
-    <TargetExt>.mxi</TargetExt>
+    <OutDir>..\build\</OutDir>
+    <TargetName>LibCrt</TargetName>
+    <IncludePath>..\include</IncludePath>
+    <ReferencePath />
+    <LibraryPath />
+    <LibraryWPath />
+    <SourcePath />
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
-      <PrecompiledHeader>
-      </PrecompiledHeader>
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
-      <PreprocessorDefinitions>WIN32;_DEBUG;_CONSOLE;_LIB;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <MultiProcessorCompilation>true</MultiProcessorCompilation>
+      <SDLCheck>true</SDLCheck>
     </ClCompile>
     <Link>
-      <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <ClCompile>
-      <WarningLevel>Level3</WarningLevel>
-      <PrecompiledHeader>
-      </PrecompiledHeader>
-      <Optimization>MaxSpeed</Optimization>
+      <WarningLevel>EnableAllWarnings</WarningLevel>
+      <Optimization>Full</Optimization>
       <FunctionLevelLinking>true</FunctionLevelLinking>
-      <IntrinsicFunctions>true</IntrinsicFunctions>
-      <PreprocessorDefinitions>MOLLENOS;_CRT_DYNAMIC</PreprocessorDefinitions>
+      <IntrinsicFunctions>false</IntrinsicFunctions>
+      <SDLCheck>
+      </SDLCheck>
+      <TreatWarningAsError>true</TreatWarningAsError>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
-      <StringPooling>true</StringPooling>
+      <InlineFunctionExpansion>OnlyExplicitInline</InlineFunctionExpansion>
+      <WholeProgramOptimization>false</WholeProgramOptimization>
+      <PreprocessorDefinitions>MOLLENOS;_X86_32</PreprocessorDefinitions>
       <ExceptionHandling>false</ExceptionHandling>
       <BufferSecurityCheck>false</BufferSecurityCheck>
-      <AssemblerOutput>All</AssemblerOutput>
+      <EnableParallelCodeGeneration>true</EnableParallelCodeGeneration>
+      <EnableEnhancedInstructionSet>NoExtensions</EnableEnhancedInstructionSet>
     </ClCompile>
     <Link>
-      <SubSystem>Native</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
-      <AdditionalDependencies>LibC.lib;LibCrt.lib;SDL2.lib;SDL2_image.lib</AdditionalDependencies>
-      <IgnoreAllDefaultLibraries>true</IgnoreAllDefaultLibraries>
-      <GenerateMapFile>true</GenerateMapFile>
-      <MapExports>true</MapExports>
-      <EntryPointSymbol>_mSrvCrt</EntryPointSymbol>
-      <DataExecutionPrevention>false</DataExecutionPrevention>
-      <ImageHasSafeExceptionHandlers>false</ImageHasSafeExceptionHandlers>
-      <ShowProgress>LinkVerbose</ShowProgress>
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="Sapphire.c" />
+    <ClCompile Include="..\crt\Entry.c" />
+    <ClCompile Include="..\crt\msvc\math.c" />
+  </ItemGroup>
+  <ItemGroup>
+    <MASM Include="..\crt\msvc\alldvrm.S">
+      <FileType>Document</FileType>
+    </MASM>
+    <MASM Include="..\crt\msvc\aulldiv.S">
+      <FileType>Document</FileType>
+    </MASM>
+    <MASM Include="..\crt\msvc\aulldvrm.S">
+      <FileType>Document</FileType>
+    </MASM>
+    <MASM Include="..\crt\msvc\aullrem.S">
+      <FileType>Document</FileType>
+    </MASM>
+    <MASM Include="..\crt\msvc\aullshr.S">
+      <FileType>Document</FileType>
+    </MASM>
+    <MASM Include="..\crt\msvc\chkstk.S">
+      <FileType>Document</FileType>
+    </MASM>
+    <MASM Include="..\crt\msvc\constants.S">
+      <FileType>Document</FileType>
+    </MASM>
+    <MASM Include="..\crt\msvc\ftol.S">
+      <FileType>Document</FileType>
+    </MASM>
+    <MASM Include="..\crt\msvc\ftol2.S">
+      <FileType>Document</FileType>
+    </MASM>
+    <MASM Include="..\crt\msvc\ints.S">
+      <FileType>Document</FileType>
+    </MASM>
+    <MASM Include="..\crt\msvc\lldiv.S">
+      <FileType>Document</FileType>
+    </MASM>
+    <MASM Include="..\crt\msvc\llmul.S">
+      <FileType>Document</FileType>
+    </MASM>
+    <MASM Include="..\crt\msvc\llrem.S">
+      <FileType>Document</FileType>
+    </MASM>
+    <MASM Include="..\crt\msvc\llshl.S">
+      <FileType>Document</FileType>
+    </MASM>
+    <MASM Include="..\crt\msvc\llshr.S">
+      <FileType>Document</FileType>
+    </MASM>
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
+    <Import Project="$(VCTargetsPath)\BuildCustomizations\masm.targets" />
   </ImportGroup>
 </Project>

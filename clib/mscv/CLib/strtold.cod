@@ -24,7 +24,7 @@ _powten	DQ	04024000000000000r		; 10
 	DQ	075154fdd7f73bf3cr		; 1e+256
 	DQ	075154fdd7f73bf3cr		; 1e+256
 _DATA	ENDS
-PUBLIC	__strtold
+PUBLIC	_strtold
 PUBLIC	__real@0000000000000000
 PUBLIC	__real@3ff0000000000000
 PUBLIC	__real@4024000000000000
@@ -44,7 +44,7 @@ __real@0000000000000000 DQ 00000000000000000r	; 0
 CONST	ENDS
 ; Function compile flags: /Ogtp
 ; File c:\users\philip\documents\github\mollenos\clib\src\string\strtold.c
-;	COMDAT __strtold
+;	COMDAT _strtold
 _TEXT	SEGMENT
 tv356 = -12						; size = 8
 tv350 = -12						; size = 8
@@ -54,7 +54,7 @@ tv357 = 8						; size = 4
 tv351 = 8						; size = 4
 _s$ = 8							; size = 4
 _sret$ = 12						; size = 4
-__strtold PROC						; COMDAT
+_strtold PROC						; COMDAT
 
 ; 15   : {
 
@@ -467,6 +467,6 @@ $LN31@strtold:
   00174	8b e5		 mov	 esp, ebp
   00176	5d		 pop	 ebp
   00177	c3		 ret	 0
-__strtold ENDP
+_strtold ENDP
 _TEXT	ENDS
 END

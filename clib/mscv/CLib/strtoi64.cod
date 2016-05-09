@@ -9,6 +9,9 @@
 INCLUDELIB MSVCRT
 INCLUDELIB OLDNAMES
 
+_DATA	SEGMENT
+COMM	__errno:DWORD
+_DATA	ENDS
 PUBLIC	_strtoi64
 PUBLIC	___tolower
 EXTRN	___errno:PROC
@@ -22,12 +25,12 @@ _TEXT	SEGMENT
 _c$ = 8							; size = 1
 ___tolower PROC						; COMDAT
 
-; 61   : __inline unsigned char __tolower(unsigned char c) {
+; 65   : __inline unsigned char __tolower(unsigned char c) {
 
   00000	55		 push	 ebp
   00001	8b ec		 mov	 ebp, esp
 
-; 62   : 	return (isupper(c) && isalpha(c)) ? c - ('A' - 'a') : c;
+; 66   : 	return (isupper(c) && isalpha(c)) ? c - ('A' - 'a') : c;
 
   00003	8b 45 08	 mov	 eax, DWORD PTR _c$[ebp]
   00006	0f b6 c0	 movzx	 eax, al
@@ -40,7 +43,7 @@ ___tolower PROC						; COMDAT
   00019	83 c0 20	 add	 eax, 32			; 00000020H
 $LN4@tolower:
 
-; 63   : }
+; 67   : }
 
   0001c	5d		 pop	 ebp
   0001d	c3		 ret	 0
@@ -138,7 +141,7 @@ $LN19@strtoi64:
   00053	75 25		 jne	 SHORT $LN20@strtoi64
 ; File c:\users\philip\documents\github\mollenos\clib\include\ctype.h
 
-; 62   : 	return (isupper(c) && isalpha(c)) ? c - ('A' - 'a') : c;
+; 66   : 	return (isupper(c) && isalpha(c)) ? c - ('A' - 'a') : c;
 
   00055	0f b6 46 01	 movzx	 eax, BYTE PTR [esi+1]
   00059	8a 88 00 00 00
@@ -199,7 +202,7 @@ $LN17@strtoi64:
 $LL15@strtoi64:
 ; File c:\users\philip\documents\github\mollenos\clib\include\ctype.h
 
-; 62   : 	return (isupper(c) && isalpha(c)) ? c - ('A' - 'a') : c;
+; 66   : 	return (isupper(c) && isalpha(c)) ? c - ('A' - 'a') : c;
 
   000a0	0f b6 c8	 movzx	 ecx, al
   000a3	8a 89 00 00 00

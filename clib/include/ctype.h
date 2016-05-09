@@ -11,10 +11,14 @@
 #pragma warning (disable:4244)
 #endif
 
+/* CPP Guard */
 #ifdef __cplusplus
 extern "C"
 {
 #endif
+
+/* Includes */
+#include <crtdefs.h>
 
 #define _CTYPE_U      0x01    /* upper */
 #define _CTYPE_L      0x02    /* lower */
@@ -25,7 +29,7 @@ extern "C"
 #define _CTYPE_X      0x40    /* hex digit */
 #define _CTYPE_SP     0x80    /* hard space (0x20) */
 
-extern unsigned char _ctype[];
+_CRT_EXTERN unsigned char _ctype[];
 
 #define __ismask(x) (_ctype[(int)(unsigned char)(x)])
 

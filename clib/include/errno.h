@@ -22,17 +22,21 @@
 #ifndef __ERRNO_H__
 #define __ERRNO_H__
 
+/* CPP Guard */
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+/* Includes */
+#include <crtdefs.h>
 
 //errno_t
 typedef int error_t;
 
 #define errno (*__errno())
 #define _set_errno(err) (errno = err)
-extern int _errno;
-extern int *__errno (void);
+_CRT_EXTERN int _errno;
+_CRT_EXTERN int *__errno(void);
 
 /* Please don't use these variables directly.
    Use strerror instead. */

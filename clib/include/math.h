@@ -70,36 +70,36 @@ extern "C" {
 
 #ifndef _CRT_ABS_DEFINED
 #define _CRT_ABS_DEFINED
-		int __cdecl abs(int x);
-		long __cdecl labs(long x);
+		 _CRT_EXTERN int __cdecl abs(int x);
+		 _CRT_EXTERN long __cdecl labs(long x);
 #endif
 		double __cdecl acos(double x);
 		double __cdecl asin(double x);
 		double __cdecl atan(double x);
 		double __cdecl atan2(double y, double x);
-		double __cdecl cos(double x);
+		_CRT_EXTERN double __cdecl cos(double x);
 		#pragma intrinsic(cos)
 		double __cdecl cosh(double x);
 		#pragma intrinsic(cosh)
-		double __cdecl exp(double x);
+		_CRT_EXTERN double __cdecl exp(double x);
 		#pragma intrinsic(exp)
 		double __cdecl fabs(double x);
 		double __cdecl fmod(double x, double y);
-		double __cdecl log(double x);
+		_CRT_EXTERN double __cdecl log(double x);
 		#pragma intrinsic(log)
-		double __cdecl log10(double x);
+		_CRT_EXTERN double __cdecl log10(double x);
 		#pragma intrinsic(log10)
-		double __cdecl pow(double x, double y);
+		_CRT_EXTERN double __cdecl pow(double x, double y);
 		#pragma intrinsic(pow)
-		double __cdecl sin(double x);
+		_CRT_EXTERN double __cdecl sin(double x);
 		#pragma intrinsic(sin)
 		double __cdecl sinh(double x);
 		#pragma intrinsic(sinh)
-		double __cdecl sqrt(double x);
+		_CRT_EXTERN double __cdecl sqrt(double x);
 		double __cdecl tan(double x);
-		double __cdecl tanh(double x);
-		double __cdecl copysign(double x, double y);
-		double __cdecl scalbn (double x, int n);
+		_CRT_EXTERN double __cdecl tanh(double x);
+		_CRT_EXTERN double __cdecl copysign(double x, double y);
+		_CRT_EXTERN double __cdecl scalbn(double x, int n);
 #ifndef _CRT_MATHERR_DEFINED
 #define _CRT_MATHERR_DEFINED
 		int __cdecl _matherr(struct _exception *except);
@@ -107,7 +107,7 @@ extern "C" {
 
 #ifndef _CRT_ATOF_DEFINED
 #define _CRT_ATOF_DEFINED
-		 double __cdecl atof(const char *str);
+		_CRT_EXTERN double __cdecl atof(const char *str);
 		 double __cdecl _atof_l(const char *str ,_locale_t locale);
 #endif
 #ifndef _SIGN_DEFINED
@@ -117,14 +117,14 @@ extern "C" {
 #endif
 		 double __cdecl _cabs(struct _complex a);
 		 double __cdecl ceil(double x);
-		 double __cdecl floor(double x);
-		 double __cdecl frexp(double x, int *y);
+		 _CRT_EXTERN double __cdecl floor(double x);
+		 _CRT_EXTERN double __cdecl frexp(double x, int *y);
 		 double __cdecl _hypot(double x, double y);
 		 double __cdecl _j0(double x);
 		 double __cdecl _j1(double x);
 		 double __cdecl _jn(int x, double y);
 		 double __cdecl ldexp(double x, int y);
-		 double __cdecl modf(double x, double *y);
+		 _CRT_EXTERN double __cdecl modf(double x, double *y);
 		 double __cdecl _y0(double x);
 		 double __cdecl _y1(double x);
 		 double __cdecl _yn(int x, double y);

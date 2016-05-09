@@ -82,7 +82,7 @@
     <Link>
       <SubSystem>Native</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalDependencies>CLibK.lib;UsbCore.lib;Shared.lib;MCore.lib;Bus.lib</AdditionalDependencies>
+      <AdditionalDependencies>CLibK.lib;LibCrt.lib;UsbCore.lib;Shared.lib;MCore.lib;Bus.lib</AdditionalDependencies>
       <IgnoreAllDefaultLibraries>true</IgnoreAllDefaultLibraries>
       <Driver>Driver</Driver>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>

@@ -531,8 +531,14 @@ void __MallocLibCEmpty(void)
 {
 }
 #else
+#include <crtdefs.h>
+
 #ifndef DLMALLOC_EXPORT
+#ifdef MOLLENOS
+#define DLMALLOC_EXPORT _CRT_EXTERN
+#else
 #define DLMALLOC_EXPORT extern
+#endif
 #endif
 
 #ifndef WIN32
@@ -546,7 +552,6 @@ void __MallocLibCEmpty(void)
 #endif  /* WIN32 */
 
 #ifdef MOLLENOS
-#include <crtdefs.h>
 #define HAVE_MMAP 1
 #define HAVE_MORECORE 0
 #define LACKS_UNISTD_H

@@ -11,7 +11,6 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="..\crt\math.c" />
     <ClCompile Include="..\src\ctype\ctype.c" />
     <ClCompile Include="..\src\errno\errno.c" />
     <ClCompile Include="..\src\errno\errstrings.c" />
@@ -32,7 +31,6 @@
     <ClCompile Include="..\src\math\sinf.c" />
     <ClCompile Include="..\src\math\tanh.c" />
     <ClCompile Include="..\src\os\Devices.c" />
-    <ClCompile Include="..\src\os\Entry.c" />
     <ClCompile Include="..\src\os\Environment.c" />
     <ClCompile Include="..\src\os\Malloc.c" />
     <ClCompile Include="..\src\os\SharedObject.c" />
@@ -125,55 +123,6 @@
     <ClCompile Include="..\src\string\wcsnlen.c" />
   </ItemGroup>
   <ItemGroup>
-    <MASM Include="..\crt\alldvrm.S">
-      <FileType>Document</FileType>
-    </MASM>
-    <MASM Include="..\crt\aulldiv.S">
-      <FileType>Document</FileType>
-    </MASM>
-    <MASM Include="..\crt\aulldvrm.S">
-      <FileType>Document</FileType>
-    </MASM>
-    <MASM Include="..\crt\aullrem.S">
-      <FileType>Document</FileType>
-    </MASM>
-    <MASM Include="..\crt\aullshr.S">
-      <FileType>Document</FileType>
-    </MASM>
-    <MASM Include="..\crt\chkstk.S">
-      <FileType>Document</FileType>
-    </MASM>
-    <MASM Include="..\crt\constants.S">
-      <FileType>Document</FileType>
-    </MASM>
-    <MASM Include="..\crt\ftol.S">
-      <FileType>Document</FileType>
-    </MASM>
-    <MASM Include="..\crt\ftol2.S">
-      <FileType>Document</FileType>
-    </MASM>
-    <MASM Include="..\crt\ints.S">
-      <FileType>Document</FileType>
-    </MASM>
-  </ItemGroup>
-  <ItemGroup>
-    <MASM Include="..\crt\lldiv.S">
-      <FileType>Document</FileType>
-    </MASM>
-    <MASM Include="..\crt\llmul.S">
-      <FileType>Document</FileType>
-    </MASM>
-    <MASM Include="..\crt\llrem.S">
-      <FileType>Document</FileType>
-    </MASM>
-    <MASM Include="..\crt\llshl.S">
-      <FileType>Document</FileType>
-    </MASM>
-    <MASM Include="..\crt\llshr.S">
-      <FileType>Document</FileType>
-    </MASM>
-  </ItemGroup>
-  <ItemGroup>
     <CustomBuild Include="..\src\string\memcpy_acc.s">
       <FileType>Document</FileType>
       <Command Condition="'$(Configuration)|$(Platform)'=='CLibK|Win32'">nasm -f win32 -Xvc -o $(IntDir)\%(Filename).obj %(FullPath)</Command>
@@ -235,7 +184,7 @@
     <UseOfMfc />
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='CLib|Win32'" Label="Configuration">
-    <ConfigurationType>StaticLibrary</ConfigurationType>
+    <ConfigurationType>DynamicLibrary</ConfigurationType>
     <UseDebugLibraries>false</UseDebugLibraries>
     <PlatformToolset>v120</PlatformToolset>
     <WholeProgramOptimization>false</WholeProgramOptimization>
@@ -265,9 +214,10 @@
     <OutDir>..\build\</OutDir>
     <IncludePath>..\include</IncludePath>
     <ReferencePath />
-    <LibraryPath />
+    <LibraryPath>..\build\</LibraryPath>
     <LibraryWPath />
-    <TargetName>CLib</TargetName>
+    <TargetName>LibC</TargetName>
+    <GenerateManifest>false</GenerateManifest>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <TargetName>CLib</TargetName>
@@ -322,7 +272,7 @@
       <Optimization>Full</Optimization>
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>false</IntrinsicFunctions>
-      <PreprocessorDefinitions>MOLLENOS;_X86_32</PreprocessorDefinitions>
+      <PreprocessorDefinitions>MOLLENOS;_X86_32;_CRT_DYNAMIC;_CRT_DLL</PreprocessorDefinitions>
       <SDLCheck>
       </SDLCheck>
       <CompileAsManaged>
@@ -343,10 +293,16 @@
       <EnableEnhancedInstructionSet>NoExtensions</EnableEnhancedInstructionSet>
     </ClCompile>
     <Link>
-      <SubSystem>Windows</SubSystem>
+      <SubSystem>Native</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
+      <AdditionalDependencies>LibCrt.lib</AdditionalDependencies>
+      <IgnoreAllDefaultLibraries>true</IgnoreAllDefaultLibraries>
+      <ImageHasSafeExceptionHandlers>false</ImageHasSafeExceptionHandlers>
+      <GenerateMapFile>true</GenerateMapFile>
+      <MapExports>true</MapExports>
+      <ModuleDefinitionFile>LibC.def</ModuleDefinitionFile>
     </Link>
     <Lib>
       <SubSystem>Native</SubSystem>

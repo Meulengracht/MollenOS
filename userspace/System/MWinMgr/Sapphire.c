@@ -34,7 +34,7 @@ void EventLoop(SDL_Renderer *Target)
 	int bQuit = 0;
 
 	/* Load Background */
-	SDL_Surface *BgImage = IMG_LoadTexture(Target, "Themes/Default/GfxBg.png");
+	SDL_Texture *BgImage = IMG_LoadTexture(Target, "Themes/Default/GfxBg.png");
 
 	/* Sanity */
 	if (BgImage == NULL) {
@@ -76,6 +76,7 @@ int main(int argc, char* argv[])
 	/* Variables */
 	SDL_Window *MainWnd;
 	SDL_Renderer *MainRenderer;
+	Rect_t ScreenDims;
 
 	/* Init SDL (Main) */
 	SDL_SetMainReady();
@@ -86,8 +87,11 @@ int main(int argc, char* argv[])
 		return -1;
 	}
 
+	/* Get screen dimensions */
+	MollenOSGetScreenGeometry(&ScreenDims);
+
 	/* Create a window */
-	MainWnd = SDL_CreateWindow("Sapphire", 0, 0, 640, 480, SDL_WINDOW_SHOWN | SDL_WINDOW_FULLSCREEN);
+	MainWnd = SDL_CreateWindow("Sapphire", 0, 0, ScreenDims.w, ScreenDims.h, SDL_WINDOW_SHOWN | SDL_WINDOW_FULLSCREEN);
 	if (MainWnd == NULL) {
 		MollenOSSystemLog(SDL_GetError());
 		SDL_Quit();

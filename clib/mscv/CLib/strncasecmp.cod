@@ -19,12 +19,12 @@ _TEXT	SEGMENT
 _c$ = 8							; size = 1
 ___tolower PROC						; COMDAT
 
-; 61   : __inline unsigned char __tolower(unsigned char c) {
+; 65   : __inline unsigned char __tolower(unsigned char c) {
 
   00000	55		 push	 ebp
   00001	8b ec		 mov	 ebp, esp
 
-; 62   : 	return (isupper(c) && isalpha(c)) ? c - ('A' - 'a') : c;
+; 66   : 	return (isupper(c) && isalpha(c)) ? c - ('A' - 'a') : c;
 
   00003	8b 45 08	 mov	 eax, DWORD PTR _c$[ebp]
   00006	0f b6 c0	 movzx	 eax, al
@@ -37,7 +37,7 @@ ___tolower PROC						; COMDAT
   00019	83 c0 20	 add	 eax, 32			; 00000020H
 $LN4@tolower:
 
-; 63   : }
+; 67   : }
 
   0001c	5d		 pop	 ebp
   0001d	c3		 ret	 0
@@ -79,7 +79,7 @@ _strncasecmp PROC					; COMDAT
 $LL5@strncasecm:
 ; File c:\users\philip\documents\github\mollenos\clib\include\ctype.h
 
-; 62   : 	return (isupper(c) && isalpha(c)) ? c - ('A' - 'a') : c;
+; 66   : 	return (isupper(c) && isalpha(c)) ? c - ('A' - 'a') : c;
 
   00013	0f b6 07	 movzx	 eax, BYTE PTR [edi]
   00016	8a 88 00 00 00
@@ -98,7 +98,7 @@ $LN10@strncasecm:
   0002c	47		 inc	 edi
 ; File c:\users\philip\documents\github\mollenos\clib\include\ctype.h
 
-; 62   : 	return (isupper(c) && isalpha(c)) ? c - ('A' - 'a') : c;
+; 66   : 	return (isupper(c) && isalpha(c)) ? c - ('A' - 'a') : c;
 
   0002d	0f b6 03	 movzx	 eax, BYTE PTR [ebx]
   00030	8a 90 00 00 00

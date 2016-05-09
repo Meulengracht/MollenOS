@@ -11,7 +11,7 @@ static double powten[] =
 #endif
 };
 
-long double _strtold(const char *s, char **sret)
+long double strtold(const char *s, char **sret)
 {
 	double r;		/* result */
 	int e, ne;			/* exponent */
