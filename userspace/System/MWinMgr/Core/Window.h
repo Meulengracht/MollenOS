@@ -41,6 +41,13 @@ typedef struct _sWindow {
 
 	/* Window Z-Index */
 	int zIndex;
+
+	/* Window Dimensions */
+	SDL_Rect Dimensions;
+
+	/* Specials */
+	double Rotation;
+	SDL_RendererFlip Flip;
 	
 	/* The render surface */
 	SDL_Texture *Texture;
@@ -50,11 +57,19 @@ typedef struct _sWindow {
 
 /* Prototypes */
 
-
+/* Constructor 
+ * Allocates a new window of the given
+ * dimensions and initializes it */
+EXTERN Window_t *WindowCreate(int Id, Rect_t *Dimensions, SDL_Renderer *Renderer);
 
 /* Destructor
  * Cleans up and releases 
  * resources allocated */
 EXTERN void WindowDestroy(Window_t *Window);
+
+/* Render
+ * Renders the window to the 
+ * given renderer */
+EXTERN void WindowRender(Window_t *Window, SDL_Renderer *Renderer);
 
 #endif //!_SAPPHIRE_WINDOW_H_

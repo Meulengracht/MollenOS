@@ -59,10 +59,10 @@ void SceneDestroy(Scene_t *Scene)
 
 	/* Iterate through all nodes
 	 * and destroy windows */
-	foreach(sNode, Scene->Windows)
+	foreach(wNode, Scene->Windows)
 	{
 		/* Cast */
-		Window_t *Window = (Window_t*)sNode->data;
+		Window_t *Window = (Window_t*)wNode->data;
 
 		/* Destroy */
 		WindowDestroy(Window);
@@ -82,7 +82,15 @@ void SceneUpdate(Scene_t *Scene)
 	if (Scene == NULL)
 		return;
 	
+	/* Update windows */
+	foreach(wNode, Scene->Windows)
+	{
+		/* Cast */
+		Window_t *Window = (Window_t*)wNode->data;
 
+		/* Update window */
+
+	}
 }
 
 /* Render
@@ -94,5 +102,16 @@ void SceneRender(Scene_t *Scene, SDL_Renderer *Renderer)
 		|| Renderer == NULL)
 		return;
 
+	/* Start by rendering background */
+	SDL_RenderCopy(Renderer, Scene->Background, NULL, NULL);
 
+	/* Render windows */
+	foreach(wNode, Scene->Windows)
+	{
+		/* Cast */
+		Window_t *Window = (Window_t*)wNode->data;
+
+		/* Render window */
+		WindowRender(Window, Renderer);
+	}
 }

@@ -110,4 +110,7 @@ void SceneManagerRender(SDL_Renderer *Renderer)
 
 	/* Update Scene */
 	SceneRender(ActiveScene, Renderer);
+
+	/* Present Scene */
+	SDL_RenderPresent(Renderer);
 }

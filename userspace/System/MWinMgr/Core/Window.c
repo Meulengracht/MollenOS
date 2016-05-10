@@ -30,11 +30,36 @@
 #include <stdlib.h>
 
 
+/* Constructor
+ * Allocates a new window of the given
+ * dimensions and initializes it */
+Window_t *WindowCreate(int Id, Rect_t *Dimensions, SDL_Renderer *Renderer)
+{
+	/* Allocate a new window instance */
+	Window_t *Window = (Window_t*)malloc(sizeof(Window_t));
+	
+	/* Set initial stuff */
+	Window->Id = Id;
+	Window->Flip = SDL_FLIP_NONE;
+	Window->Rotation = 0.0;
+	Window->zIndex = 1000;
 
+	/* Convert dims */
+	Window->Dimensions.x = Dimensions->x;
+	Window->Dimensions.y = Dimensions->y;
+	Window->Dimensions.w = Dimensions->w;
+	Window->Dimensions.h = Dimensions->h;
+
+	/* Allocate a texture */
+	
+
+	/* Done */
+	return Window;
+}
 
 /* Destructor
-* Cleans up and releases
-* resources allocated */
+ * Cleans up and releases
+ * resources allocated */
 void WindowDestroy(Window_t *Window)
 {
 	/* Sanity */
@@ -44,4 +69,18 @@ void WindowDestroy(Window_t *Window)
 	/* Free resources */
 	SDL_DestroyTexture(Window->Texture);
 	free(Window);
+}
+
+/* Render
+ * Renders the window to the
+ * given renderer */
+void WindowRender(Window_t *Window, SDL_Renderer *Renderer)
+{
+	/* Sanity */
+	if (Window == NULL)
+		return;
+
+	/* Copy window texture to render */
+	SDL_RenderCopyEx(Renderer, Window->Texture, NULL, &Window->Dimensions, 
+		Window->Rotation, NULL, Window->Flip);
 }
