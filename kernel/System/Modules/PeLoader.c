@@ -646,6 +646,11 @@ MCorePeFile_t *PeResolveLibrary(MCorePeFile_t *Parent, MCorePeFile_t *PeFile, MS
 		uint8_t *fBuffer = (uint8_t*)kmalloc((size_t)lFile->File->Size);
 		MCorePeFile_t *Library = NULL;
 
+		/* Sanity */
+		if (lFile->Code != VfsOk) {
+			LogDebug("PELD", "Failed to load library %s", LibraryName->Data);
+		}
+
 		/* Read all data */
 		VfsRead(lFile, fBuffer, (size_t)lFile->File->Size);
 
@@ -662,7 +667,9 @@ MCorePeFile_t *PeResolveLibrary(MCorePeFile_t *Parent, MCorePeFile_t *PeFile, MS
 		Exports = Library;
 
 		/* Add library to loaded libs */
-		list_append(ExportParent->LoadedLibraries, list_create_node(0, Library));
+		if (Exports != NULL) {
+			list_append(ExportParent->LoadedLibraries, list_create_node(0, Library));
+		}
 	}
 
 	/* Sanity Again */

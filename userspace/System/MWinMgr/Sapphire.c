@@ -26,6 +26,9 @@
 #include <SDL.h>
 #include <SDL_image.h>
 
+/* Sapphire System */
+#include "Core/SceneManager.h"
+
 /* Sdl Event Loop */
 void EventLoop(SDL_Renderer *Target)
 {
@@ -33,19 +36,9 @@ void EventLoop(SDL_Renderer *Target)
 	SDL_Event sEvent;
 	int bQuit = 0;
 
-	/* Load Background */
-	SDL_Texture *BgImage = IMG_LoadTexture(Target, "Themes/Default/GfxBg.png");
-
-	/* Sanity */
-	if (BgImage == NULL) {
-		MollenOSSystemLog(SDL_GetError());
-	}
-
-	/* Re-render screen */
-	SDL_RenderCopy(Target, BgImage, NULL, NULL);
-
-	/* Update */
-	SDL_RenderPresent(Target);
+	/* Pre-Render */
+	SceneManagerUpdate();
+	SceneManagerRender(Target);
 
 	/* Loop waiting for ESC+Mouse_Button */
 	while (!bQuit) 
@@ -81,7 +74,7 @@ int main(int argc, char* argv[])
 	/* Init SDL (Main) */
 	SDL_SetMainReady();
 
-	/* Init SDL (Full) */
+	/* Init SDL (Video, Events) */
 	if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_EVENTS) != 0) {
 		MollenOSSystemLog(SDL_GetError());
 		return -1;
@@ -119,8 +112,14 @@ int main(int argc, char* argv[])
 	/* End Boot */
 	//MollenOSEndBoot();
 
+	/* Initialize Sapphire */
+	SceneManagerInit(MainRenderer, &ScreenDims);
+
 	/* Event Loop */
 	EventLoop(MainRenderer);
+
+	/* Destroy Sapphire */
+	SceneManagerDestruct();
 
 	/* Cleanup */
 	SDL_DestroyRenderer(MainRenderer);

@@ -99,7 +99,17 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="Common\List.c" />
+    <ClCompile Include="Core\Scene.c" />
+    <ClCompile Include="Core\SceneManager.c" />
+    <ClCompile Include="Core\Window.c" />
     <ClCompile Include="Sapphire.c" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="Common\List.h" />
+    <ClInclude Include="Core\Scene.h" />
+    <ClInclude Include="Core\SceneManager.h" />
+    <ClInclude Include="Core\Window.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

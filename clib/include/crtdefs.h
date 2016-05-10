@@ -57,6 +57,10 @@
 #endif
 #endif
 
+#ifndef EXTERN
+#define EXTERN
+#endif
+
 #ifdef MOLLENOS
 #ifndef _KERNEL_API
 #define _CRT_EXPORT __declspec(dllimport)
