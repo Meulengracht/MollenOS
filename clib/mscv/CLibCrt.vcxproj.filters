@@ -39,12 +39,6 @@
     <MASM Include="..\crt\msvc\constants.S">
       <Filter>Source\msvc</Filter>
     </MASM>
-    <MASM Include="..\crt\msvc\ftol.S">
-      <Filter>Source\msvc</Filter>
-    </MASM>
-    <MASM Include="..\crt\msvc\ftol2.S">
-      <Filter>Source\msvc</Filter>
-    </MASM>
     <MASM Include="..\crt\msvc\ints.S">
       <Filter>Source\msvc</Filter>
     </MASM>

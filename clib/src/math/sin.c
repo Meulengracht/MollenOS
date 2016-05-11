@@ -17,6 +17,8 @@ static double sin_sign_tbl[] = {1,-1,-1,1};
 #pragma function(sin)
 #endif
 
+#ifdef MATH_USE_C
+
 double sin(double x)
 {
     int quadrant;
@@ -91,6 +93,8 @@ double sin(double x)
 
     return result;
 }
+
+#endif
 
 #ifdef _MSC_VER
 #pragma function(sinh)

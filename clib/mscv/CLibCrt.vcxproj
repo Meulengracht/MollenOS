@@ -109,12 +109,6 @@
     <MASM Include="..\crt\msvc\constants.S">
       <FileType>Document</FileType>
     </MASM>
-    <MASM Include="..\crt\msvc\ftol.S">
-      <FileType>Document</FileType>
-    </MASM>
-    <MASM Include="..\crt\msvc\ftol2.S">
-      <FileType>Document</FileType>
-    </MASM>
     <MASM Include="..\crt\msvc\ints.S">
       <FileType>Document</FileType>
     </MASM>

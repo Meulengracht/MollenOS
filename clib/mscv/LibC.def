@@ -7,3 +7,6 @@ floor=floor
 memset=memset
 memcpy=memcpy
 _ctype=_ctype
+_ftol=_ftol
+_ftol2=_ftol2
+_ftol2_sse=_ftol2_sse

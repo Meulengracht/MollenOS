@@ -19,12 +19,12 @@ _x$ = 8							; size = 8
 _y$ = 16						; size = 8
 _copysign PROC						; COMDAT
 
-; 23   : {
+; 41   : {
 
   00000	55		 push	 ebp
   00001	8b ec		 mov	 ebp, esp
 
-; 24   : 	__HI(x) = (__HI(x)&0x7fffffff)|(__HI(y)&0x80000000);
+; 42   : 	__HI(x) = (__HI(x)&0x7fffffff)|(__HI(y)&0x80000000);
 
   00003	8b 4d 14	 mov	 ecx, DWORD PTR _y$[ebp+4]
   00006	33 4d 0c	 xor	 ecx, DWORD PTR _x$[ebp+4]
@@ -33,11 +33,11 @@ _copysign PROC						; COMDAT
   0000f	33 4d 14	 xor	 ecx, DWORD PTR _y$[ebp+4]
   00012	89 4d 0c	 mov	 DWORD PTR _x$[ebp+4], ecx
 
-; 25   : 	return x;
+; 43   : 	return x;
 
   00015	dd 45 08	 fld	 QWORD PTR _x$[ebp]
 
-; 26   : }
+; 44   : }
 
   00018	5d		 pop	 ebp
   00019	c3		 ret	 0

@@ -22,45 +22,34 @@
 #include <math.h>
 
 #ifdef _MSC_VER
-#pragma function(exp)
+#pragma function(fmod)
+#pragma warning(disable:4725)
 #endif
 
-double exp (double __x)
-{
-#ifdef __GNUC__
-  register double __value, __exponent;
-  __asm __volatile__
-    ("fldl2e                    # e^x = 2^(x * log2(e))\n\t"
-     "fmul      %%st(1)         # x * log2(e)\n\t"
-     "fst       %%st(1)\n\t"
-     "frndint                   # int(x * log2(e))\n\t"
-     "fxch\n\t"
-     "fsub      %%st(1)         # fract(x * log2(e))\n\t"
-     "f2xm1                     # 2^(fract(x * log2(e))) - 1\n\t"
-     : "=t" (__value), "=u" (__exponent) : "0" (__x));
-  __value += 1.0;
-  __asm __volatile__
-    ("fscale"
-     : "=t" (__value) : "0" (__value), "u" (__exponent));
 
-  return __value;
-#else
+#ifdef MATH_USE_C
+double fmod (double __x, double __y)
+{
   register double __val;
+#ifdef __GNUC__
+  __asm __volatile__
+    ("1:        fprem\n\t"
+     "fstsw     %%ax\n\t"
+     "sahf\n\t"
+     "jp        1b"
+     : "=t" (__val) : "0" (__x), "u" (__y) : "ax", "cc");
+#else
   __asm
   {
-    fld1                        // store 1.0 for later use
-    fld __x
-    fldl2e                      // e^x = 2^(x * log2(e))
-    fmul    st,st(1)            // x * log2(e)
-    fld     st(0)
-    frndint                     // int(x * log2(e))
-    fsub    st,st(1)            // fract(x * log2(e))
-    fxch
-    f2xm1                       // 2^(fract(x * log2(e))) - 1
-    fadd    st,st(3)            // + 1.0
-    fscale
-    fstp __val
+    fld     __y
+    fld     __x
+L1: fprem1
+    fstsw   ax
+    sahf
+    jp      L1
+    fstp    __val
   }
-  return __val;
 #endif /*__GNUC__*/
+  return __val;
 }
+#endif

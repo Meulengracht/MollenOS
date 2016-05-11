@@ -16,11 +16,11 @@ double _cdecl _CIpow(void)
 /*
  * @implemented
  */
-//double _cdecl _CItan(void)
-//{
-//	FPU_DOUBLE(x);
-//	return tan(x);
-//}
+double _cdecl _CItan(void)
+{
+	FPU_DOUBLE(x);
+	return tan(x);
+}
 
 /*
  * @implemented
@@ -52,38 +52,38 @@ double _cdecl _CItanh(void)
 /*
  * @implemented
  */
-//double _cdecl _CIasin(void)
-//{
-//	FPU_DOUBLE(x);
-//	return asin(x);
-//}
+double _cdecl _CIasin(void)
+{
+	FPU_DOUBLE(x);
+	return asin(x);
+}
 
 /*
  * @implemented
  */
-//double _cdecl _CIacos(void)
-//{
-//	FPU_DOUBLE(x);
-//	return acos(x);
-//}
+double _cdecl _CIacos(void)
+{
+	FPU_DOUBLE(x);
+	return acos(x);
+}
 
 /*
  * @implemented
  */
-//double _cdecl _CIatan(void)
-//{
-//	FPU_DOUBLE(x);
-//	return atan(x);
-//}
+double _cdecl _CIatan(void)
+{
+	FPU_DOUBLE(x);
+	return atan(x);
+}
 
 /*
  * @implemented
  */
-//double _cdecl _CIatan2(void)
-//{
-//	FPU_DOUBLES(x, y);
-//	return atan2(x, y);
-//}
+double _cdecl _CIatan2(void)
+{
+	FPU_DOUBLES(x, y);
+	return atan2(x, y);
+}
 
 /*
  * @implemented
@@ -106,11 +106,11 @@ double _cdecl _CIlog10(void)
 /*
  * @implemented
  */
-//double _cdecl _CIfmod(void)
-//{
-//	FPU_DOUBLES(x, y);
-//	return fmod(x, y);
-//}
+double _cdecl _CIfmod(void)
+{
+	FPU_DOUBLES(x, y);
+	return fmod(x, y);
+}
 
 /*
  * @implemented

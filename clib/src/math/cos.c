@@ -17,6 +17,8 @@ static double cos_sign_tbl[] = {1,-1,-1,1};
 #pragma function(cos)
 #endif
 
+#ifdef MATH_USE_C
+
 double cos(double x)
 {
     int quadrant;
@@ -91,6 +93,8 @@ double cos(double x)
 
     return result;
 }
+
+#endif
 
 #ifdef _MSC_VER
 #pragma function(cosh)

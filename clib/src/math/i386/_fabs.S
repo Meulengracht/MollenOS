@@ -23,7 +23,7 @@ segment .text
 ;Functions in this asm
 global _fabs
 
-; takes the logorithmic value in base 10
+; takes the absolute float value
 _fabs:
 	; Stack Frame
 	push    ebp
