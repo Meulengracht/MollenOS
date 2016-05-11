@@ -60,12 +60,18 @@ typedef struct _sWindow {
 /* Constructor 
  * Allocates a new window of the given
  * dimensions and initializes it */
-EXTERN Window_t *WindowCreate(int Id, Rect_t *Dimensions, SDL_Renderer *Renderer);
+EXTERN Window_t *WindowCreate(int Id, const char *Title, 
+	Rect_t *Dimensions, int Flags, SDL_Renderer *Renderer);
 
 /* Destructor
  * Cleans up and releases 
  * resources allocated */
 EXTERN void WindowDestroy(Window_t *Window);
+
+/* Update
+ * Updates all neccessary state and 
+ * buffers before rendering */
+EXTERN void WindowUpdate(Window_t *Window);
 
 /* Render
  * Renders the window to the 

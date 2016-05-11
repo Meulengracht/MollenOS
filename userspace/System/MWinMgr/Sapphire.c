@@ -53,13 +53,11 @@ void EventLoop(SDL_Renderer *Target)
 				break;
 		}
 
-		/* Re-render screen */
-		//SDL_RenderCopy(Target, BgTexture, NULL, NULL);
+		/* Update Scene */
+		SceneManagerUpdate();
 
-		/* Render Windows */
-
-		/* Update */
-		//SDL_RenderPresent(Target);
+		/* Render Scene */
+		SceneManagerRender(Target);
 	}
 }
 

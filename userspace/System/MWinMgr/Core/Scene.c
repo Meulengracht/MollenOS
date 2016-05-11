@@ -89,7 +89,7 @@ void SceneUpdate(Scene_t *Scene)
 		Window_t *Window = (Window_t*)wNode->data;
 
 		/* Update window */
-
+		WindowUpdate(Window);
 	}
 }
 

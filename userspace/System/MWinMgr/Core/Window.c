@@ -29,11 +29,11 @@
 #include <string.h>
 #include <stdlib.h>
 
-
 /* Constructor
  * Allocates a new window of the given
  * dimensions and initializes it */
-Window_t *WindowCreate(int Id, Rect_t *Dimensions, SDL_Renderer *Renderer)
+Window_t *WindowCreate(int Id, const char *Title, Rect_t *Dimensions, 
+	int Flags, SDL_Renderer *Renderer)
 {
 	/* Allocate a new window instance */
 	Window_t *Window = (Window_t*)malloc(sizeof(Window_t));
@@ -47,11 +47,12 @@ Window_t *WindowCreate(int Id, Rect_t *Dimensions, SDL_Renderer *Renderer)
 	/* Convert dims */
 	Window->Dimensions.x = Dimensions->x;
 	Window->Dimensions.y = Dimensions->y;
-	Window->Dimensions.w = Dimensions->w;
 	Window->Dimensions.h = Dimensions->h;
+	Window->Dimensions.w = Dimensions->w;
 
 	/* Allocate a texture */
-	
+	Window->Texture = SDL_CreateTexture(Renderer, SDL_PIXELFORMAT_RGBA8888, 
+		SDL_TEXTUREACCESS_STREAMING, Dimensions->w, Dimensions->h);
 
 	/* Done */
 	return Window;
@@ -69,6 +70,22 @@ void WindowDestroy(Window_t *Window)
 	/* Free resources */
 	SDL_DestroyTexture(Window->Texture);
 	free(Window);
+}
+
+/* Update
+ * Updates all neccessary state and
+ * buffers before rendering */
+void WindowUpdate(Window_t *Window)
+{
+	/* Sanity */
+	if (Window == NULL)
+		return;
+
+	//Lock Texture
+
+	//Modify pixels
+
+	//Unlock
 }
 
 /* Render
