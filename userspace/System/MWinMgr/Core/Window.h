@@ -48,6 +48,10 @@ typedef struct _sWindow {
 	/* Specials */
 	double Rotation;
 	SDL_RendererFlip Flip;
+
+	/* User-Backbuffer */
+	void *Backbuffer;
+	void *BackbufferHandle;
 	
 	/* The render surface */
 	SDL_Texture *Texture;
@@ -60,8 +64,7 @@ typedef struct _sWindow {
 /* Constructor 
  * Allocates a new window of the given
  * dimensions and initializes it */
-EXTERN Window_t *WindowCreate(int Id, const char *Title, 
-	Rect_t *Dimensions, int Flags, SDL_Renderer *Renderer);
+EXTERN Window_t *WindowCreate(int Id, Rect_t *Dimensions, int Flags, SDL_Renderer *Renderer);
 
 /* Destructor
  * Cleans up and releases 

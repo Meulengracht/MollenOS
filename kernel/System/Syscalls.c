@@ -255,13 +255,19 @@ Addr_t ScMemoryShare(IpcComm_t Target, Addr_t Address, size_t Size)
 	size_t NumBlocks, i;
 
 	/* Sanity */
-	if (Process == NULL)
+	if (Process == NULL
+		|| Address == 0
+		|| Size == 0)
 		return 0;
 
 	/* Start out by allocating memory 
 	 * in target process */
 	Addr_t Shm = BitmapAllocateAddress(Process->Shm, Size);
 	NumBlocks = DIVUP(Size, PAGE_SIZE);
+
+	/* Sanity */
+	if (Shm == 0)
+		return 0;
 
 	/* Now we have to transfer our physical mappings 
 	 * to their new virtual */
@@ -781,7 +787,7 @@ Addr_t GlbSyscallTable[111] =
 	/* Kernel Log */
 	DefineSyscall(LogDebug),
 
-	/* Process Functions - 1*/
+	/* Process Functions - 1 */
 	DefineSyscall(ScProcessExit),
 	DefineSyscall(ScProcessYield),
 	DefineSyscall(ScProcessSpawn),

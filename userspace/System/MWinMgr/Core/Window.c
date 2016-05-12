@@ -32,11 +32,12 @@
 /* Constructor
  * Allocates a new window of the given
  * dimensions and initializes it */
-Window_t *WindowCreate(int Id, const char *Title, Rect_t *Dimensions, 
-	int Flags, SDL_Renderer *Renderer)
+Window_t *WindowCreate(int Id, Rect_t *Dimensions, int Flags, SDL_Renderer *Renderer)
 {
 	/* Allocate a new window instance */
 	Window_t *Window = (Window_t*)malloc(sizeof(Window_t));
+	void *mPixels = NULL;
+	int mPitch = 0;
 	
 	/* Set initial stuff */
 	Window->Id = Id;
@@ -54,6 +55,19 @@ Window_t *WindowCreate(int Id, const char *Title, Rect_t *Dimensions,
 	Window->Texture = SDL_CreateTexture(Renderer, SDL_PIXELFORMAT_RGBA8888, 
 		SDL_TEXTUREACCESS_STREAMING, Dimensions->w, Dimensions->h);
 
+	/* Get texture information */
+	SDL_LockTexture(Window->Texture, NULL, &mPixels, &mPitch);
+
+	/* Allocate a user-backbuffer */
+	Window->Backbuffer = malloc(Dimensions->h * mPitch);
+	memset(Window->Backbuffer, 0, Dimensions->h * mPitch);
+
+	/* Copy pixels */
+	memcpy(mPixels, Window->Backbuffer, Dimensions->h * mPitch);
+
+	/* Unlock texture */
+	SDL_UnlockTexture(Window->Texture);
+
 	/* Done */
 	return Window;
 }
@@ -67,8 +81,11 @@ void WindowDestroy(Window_t *Window)
 	if (Window == NULL)
 		return;
 
-	/* Free resources */
+	/* Free sdl-stuff */
 	SDL_DestroyTexture(Window->Texture);
+
+	/* Free resources */
+	free(Window->Backbuffer);
 	free(Window);
 }
 
@@ -77,15 +94,22 @@ void WindowDestroy(Window_t *Window)
  * buffers before rendering */
 void WindowUpdate(Window_t *Window)
 {
+	/* Variables needed for update */
+	void *mPixels = NULL;
+	int mPitch = 0;
+
 	/* Sanity */
 	if (Window == NULL)
 		return;
 
-	//Lock Texture
+	/* Lock texture */
+	SDL_LockTexture(Window->Texture, NULL, &mPixels, &mPitch);
 
-	//Modify pixels
+	/* Copy pixels */
+	memcpy(mPixels, Window->Backbuffer, Window->Dimensions.h * mPitch);
 
-	//Unlock
+	/* Unlock texture */
+	SDL_UnlockTexture(Window->Texture);
 }
 
 /* Render

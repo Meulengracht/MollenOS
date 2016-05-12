@@ -73,6 +73,21 @@ void SceneDestroy(Scene_t *Scene)
 	free(Scene);
 }
 
+/* Add Window
+* Adds a newly created window to the
+* given scene. The window is not immediately
+* rendered before a call to Render */
+void SceneAddWindow(Scene_t *Scene, Window_t *Window)
+{
+	/* Sanity */
+	if (Scene == NULL
+		|| Window == NULL)
+		return;
+
+	/* Append window to scene */
+	list_append(Scene->Windows, list_create_node(Window->Id, Window));
+}
+
 /* Update
  * This updates any changes to windows
  * for this scene */

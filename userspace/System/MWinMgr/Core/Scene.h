@@ -33,6 +33,7 @@
 /* List -> Windows */
 #include <os/MollenOS.h>
 #include "../Common/List.h"
+#include "Window.h"
 
 /* Definitions */
 
@@ -65,6 +66,12 @@ EXTERN Scene_t *SceneCreate(int Id, Rect_t *Dimensions, SDL_Renderer *Renderer);
  * Cleans up all windows
  * and releases resources allocated */
 EXTERN void SceneDestroy(Scene_t *Scene);
+
+/* Add Window
+ * Adds a newly created window to the
+ * given scene. The window is not immediately
+ * rendered before a call to Render */
+EXTERN void SceneAddWindow(Scene_t *Scene, Window_t *Window);
 
 /* Update
  * This updates any changes to windows

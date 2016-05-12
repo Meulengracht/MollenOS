@@ -33,25 +33,32 @@
 void EventLoop(SDL_Renderer *Target)
 {
 	/* Vars */
-	SDL_Event sEvent;
+	MEventMessage_t Message;
 	int bQuit = 0;
 
+	/* Precreate a test window */
+	Rect_t WndSize;
+	Window_t *Test = NULL;
+
+	WndSize.x = 100;
+	WndSize.y = 100;
+	WndSize.w = 350;
+	WndSize.h = 200;
+
+	Test = WindowCreate(0, &WndSize, 0, Target);
+
 	/* Pre-Render */
+	SceneManagerAddWindow(Test);
 	SceneManagerUpdate();
 	SceneManagerRender(Target);
 
-	/* Loop waiting for ESC+Mouse_Button */
+	/* Loop forever */
 	while (!bQuit) 
 	{
-		/* Wait for event */
-		SDL_WaitEvent(&sEvent);
+		/* Wait for message */
+		MollenOSMessageWait(&Message);
 
-		/* Only handle quit events */
-		switch (sEvent.type) {
-			/* Exit Event */
-			case SDL_QUIT: 
-				break;
-		}
+		/* Handle Message */
 
 		/* Update Scene */
 		SceneManagerUpdate();

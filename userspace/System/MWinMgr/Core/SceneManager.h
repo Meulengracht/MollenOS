@@ -33,6 +33,7 @@
 /* List -> Scenes */
 #include <os/MollenOS.h>
 #include "../Common/List.h"
+#include "Window.h"
 
 /* Definitions */
 
@@ -57,9 +58,15 @@ typedef struct _sSceneManager {
 EXTERN void SceneManagerInit(SDL_Renderer *Renderer, Rect_t *ScreenDims);
 
 /* Destructor
-* Cleans up all scenes
-* and releases resources allocated */
+ * Cleans up all scenes
+ * and releases resources allocated */
 EXTERN void SceneManagerDestruct(void);
+
+/* Add Window 
+ * Adds a newly created window to the 
+ * current scene. The window is not immediately 
+ * rendered before a call to Render */
+EXTERN void SceneManagerAddWindow(Window_t *Window);
 
 /* Update 
  * This updates the current scene 

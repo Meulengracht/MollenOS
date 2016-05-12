@@ -148,4 +148,41 @@ int MollenOSMessageSend(IpcComm_t Target, void *Message, size_t MessageLength)
 	return RetVal;
 }
 
+/* Memory - Share
+ * This shares a piece of memory with the
+ * target process. The function returns NULL
+ * on failure to share the piece of memory
+ * otherwise it returns the new buffer handle
+ * that can be accessed by the other process */
+void *MollenOSMemoryShare(IpcComm_t Target, void *Buffer, size_t Size)
+{
+	/* Variables */
+	int RetVal = 0;
+
+	/* Syscall! */
+	RetVal = Syscall3(MOLLENOS_SYSCALL_MEMSHARE, MOLLENOS_SYSCALL_PARAM(Target),
+		MOLLENOS_SYSCALL_PARAM(Buffer), MOLLENOS_SYSCALL_PARAM(Size));
+
+	/* Done! */
+	return (void*)RetVal;
+}
+
+/* Memory - Unshare
+ * This takes a previous shared memory handle
+ * and unshares it again from the target process
+ * The function returns 0 if unshare was succesful,
+ * otherwise -1 */
+int MollenOSMemoryUnshare(IpcComm_t Target, void *MemoryHandle, size_t Size)
+{
+	/* Variables */
+	int RetVal = 0;
+
+	/* Syscall! */
+	RetVal = Syscall3(MOLLENOS_SYSCALL_MEMUNSHARE, MOLLENOS_SYSCALL_PARAM(Target),
+		MOLLENOS_SYSCALL_PARAM(MemoryHandle), MOLLENOS_SYSCALL_PARAM(Size));
+
+	/* Done! */
+	return RetVal;
+}
+
 #endif

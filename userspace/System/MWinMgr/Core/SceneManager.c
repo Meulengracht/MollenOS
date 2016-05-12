@@ -80,6 +80,23 @@ void SceneManagerDestruct(void)
 	free(GlbSceneManager);
 }
 
+/* Add Window
+ * Adds a newly created window to the
+ * current scene. The window is not immediately
+ * rendered before a call to Render */
+void SceneManagerAddWindow(Window_t *Window)
+{
+	/* Sanity */
+	if (GlbSceneManager == NULL)
+		return;
+
+	/* Get active scene (todo) */
+	Scene_t *ActiveScene = (Scene_t*)list_get_data_by_id(GlbSceneManager->Scenes, 0, 0);
+
+	/* Update Scene */
+	SceneAddWindow(ActiveScene, Window);
+}
+
 /* Update
  * This updates the current scene
  * and makes all neccessary changes to windows */

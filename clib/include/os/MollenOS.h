@@ -142,6 +142,25 @@ _MOS_API int MollenOSMessageWait(MEventMessage_t *Message);
 _MOS_API int MollenOSMessageSend(IpcComm_t Target, void *Message, size_t MessageLength);
 
 /***********************
+* Memory Prototypes
+***********************/
+
+/* Memory - Share 
+ * This shares a piece of memory with the 
+ * target process. The function returns NULL
+ * on failure to share the piece of memory
+ * otherwise it returns the new buffer handle
+ * that can be accessed by the other process */
+_MOS_API void *MollenOSMemoryShare(IpcComm_t Target, void *Buffer, size_t Size);
+
+/* Memory - Unshare 
+ * This takes a previous shared memory handle 
+ * and unshares it again from the target process
+ * The function returns 0 if unshare was succesful, 
+ * otherwise -1 */
+_MOS_API int MollenOSMemoryUnshare(IpcComm_t Target, void *MemoryHandle, size_t Size);
+
+/***********************
 * Device Prototypes
 ***********************/
 _MOS_API int MollenOSDeviceQuery(MollenOSDeviceType_t Type, int Request, void *Buffer, size_t Length);
