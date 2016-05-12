@@ -200,6 +200,9 @@ void PmStartProcess(void *Args)
 	/* Allocate a open file list */
 	Process->OpenFiles = list_create(LIST_NORMAL);
 
+	/* Save address space */
+	Process->AddressSpace = AddressSpaceGetCurrent();
+
 	/* Load Executable */
 	Process->Executable = 
 		PeLoadImage(NULL, Process->Name, Process->fBuffer, &BaseAddress);
@@ -210,6 +213,7 @@ void PmStartProcess(void *Args)
 
 	/* Create a heap */
 	Process->Heap = HeapCreate(MEMORY_LOCATION_USER_HEAP, 1);
+	Process->Shm = BitmapCreate(MEMORY_LOCATION_USER_SHM, MEMORY_LOCATION_USER_SHM_END, PAGE_SIZE);
 
 	/* Map in arguments */
 	AddressSpaceMap(AddressSpaceGetCurrent(), 
@@ -413,6 +417,9 @@ void PmCleanupProcess(MCoreProcess_t *Process)
 
 	/* Destroy Pipe */
 	PipeDestroy(Process->Pipe);
+
+	/* Destroy shared memory */
+	BitmapDestroy(Process->Shm);
 
 	/* Clean heap */
 	kfree(Process->Heap);

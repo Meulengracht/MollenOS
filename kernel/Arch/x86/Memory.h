@@ -28,7 +28,7 @@
 *  0x0              0xFFF          Unmapped to catch NULL pointers
 *  0x1000           0x100000       Pre kernel, bootloader, stage2, SMP Init code
 *  0x100000         0x400000       Kernel Space, PMM Bitmap, all pre-vmm allocs (3 MB)
-*  0x400000         0x4000000      Kernel Heap (62 MB)
+*  0x1000000        0x4000000      Kernel Heap (62 MB)
 *  0x4000000        0x8000000	   VESA LFB Buffer (64 MB)
 *  0x8000000        0x800F000      Kernel Stack (60 KB) 
 *  0x9000000        0x30000000     Shared Memory (600~ MB)
@@ -120,6 +120,7 @@ typedef struct _SysMemMapping
 /* MollenOS PT/Page Definitions */
 #define PAGE_SYSTEM_MAP		0x200
 #define PAGE_INHERITED		0x400
+#define PAGE_VIRTUAL		0x800
 
 /* Masks */
 #define PAGE_MASK			0xFFFFF000

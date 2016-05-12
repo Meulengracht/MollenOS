@@ -26,6 +26,7 @@
 #include <stdint.h>
 
 #include <Modules/PeLoader.h>
+#include <Bitmap.h>
 #include <Pipe.h>
 #include <MString.h>
 #include <Heap.h>
@@ -57,8 +58,12 @@ typedef struct _MCoreProcess
 	/* Pipe */
 	MCorePipe_t *Pipe;
 
-	/* Heap */
+	/* Address Space */
+	AddressSpace_t *AddressSpace;
+
+	/* Heap(s) */
 	Heap_t *Heap;
+	Bitmap_t *Shm;
 
 	/* Startup Args */
 	uint8_t *fBuffer;

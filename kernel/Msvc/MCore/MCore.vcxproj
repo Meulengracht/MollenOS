@@ -11,6 +11,7 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="..\..\Common\Bitmap.c" />
     <ClCompile Include="..\..\Common\List.c" />
     <ClCompile Include="..\..\Common\MString.c" />
     <ClCompile Include="..\..\Common\RingBuffer.c" />
@@ -38,6 +39,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\Arch\Arch.h" />
+    <ClInclude Include="..\..\Include\Bitmap.h" />
     <ClInclude Include="..\..\Include\CriticalSection.h" />
     <ClInclude Include="..\..\Include\Devices\Clock.h" />
     <ClInclude Include="..\..\Include\Devices\Disk.h" />

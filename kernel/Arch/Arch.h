@@ -56,6 +56,7 @@ typedef int OsStatus_t;
 #define ADDRESS_SPACE_FLAG_LOWMEM		0x2
 #define ADDRESS_SPACE_FLAG_RESERVE		0x4
 #define ADDRESS_SPACE_FLAG_NOCACHE		0x8
+#define ADDRESS_SPACE_FLAG_VIRTUAL		0x10
 
 _CRT_EXTERN AddressSpace_t *AddressSpaceCreate(int Flags);
 _CRT_EXTERN void AddressSpaceDestroy(AddressSpace_t *AddrSpace);

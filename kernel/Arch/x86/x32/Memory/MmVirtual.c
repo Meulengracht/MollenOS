@@ -272,7 +272,8 @@ void MmVirtualUnmap(void *PageDirectory, VirtAddr_t VirtualAddr)
 		pTable->Pages[PAGE_TABLE_INDEX(VirtualAddr)] = 0;
 
 		/* Release memory */
-		MmPhysicalFreeBlock(phys);
+		if (!(phys & PAGE_VIRTUAL))
+			MmPhysicalFreeBlock(phys);
 
 		/* Release mutex */
 		CriticalSectionLeave(&pDir->Lock);
@@ -610,6 +611,10 @@ void AddressSpaceDestroy(AddressSpace_t *AddrSpace)
 			for (j = 0; j < 1024; j++)
 			{
 				/* Sanity */
+				if (Pt->Pages[i] & PAGE_VIRTUAL)
+					continue;
+
+				/* Sanity */
 				if (Pt->Pages[i] != 0)
 					MmPhysicalFreeBlock(Pt->Pages[i] & PAGE_MASK);
 			}
@@ -679,6 +684,8 @@ Addr_t AddressSpaceMap(AddressSpace_t *AddrSpace, VirtAddr_t Address, size_t Siz
 		AllocFlags |= PAGE_USER;
 	if (Flags & ADDRESS_SPACE_FLAG_NOCACHE)
 		AllocFlags |= PAGE_CACHE_DISABLE;
+	if (Flags & ADDRESS_SPACE_FLAG_VIRTUAL)
+		AllocFlags |= PAGE_VIRTUAL;
 
 	/* Dma request? */
 	if (Flags & ADDRESS_SPACE_FLAG_LOWMEM) {
@@ -720,6 +727,8 @@ void AddressSpaceMapFixed(AddressSpace_t *AddrSpace,
 		AllocFlags |= PAGE_USER;
 	if (Flags & ADDRESS_SPACE_FLAG_NOCACHE)
 		AllocFlags |= PAGE_CACHE_DISABLE;
+	if (Flags & ADDRESS_SPACE_FLAG_VIRTUAL)
+		AllocFlags |= PAGE_VIRTUAL;
 
 	/* Deep Call */
 	for (Itr = 0; Itr < PageCount; Itr++)

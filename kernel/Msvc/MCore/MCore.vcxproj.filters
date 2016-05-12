@@ -108,6 +108,9 @@
     <ClCompile Include="..\..\System\GarbageCollector.c">
       <Filter>Systems</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\Common\Bitmap.c">
+      <Filter>Common</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\Include\Heap.h">
@@ -192,6 +195,9 @@
       <Filter>Includes</Filter>
     </ClInclude>
     <ClInclude Include="..\..\Include\Pipe.h">
+      <Filter>Includes</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Include\Bitmap.h">
       <Filter>Includes</Filter>
     </ClInclude>
   </ItemGroup>

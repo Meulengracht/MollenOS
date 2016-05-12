@@ -25,6 +25,8 @@
 #include <Threading.h>
 #include <Scheduler.h>
 #include <Log.h>
+#include <os/Ipc.h>
+
 #include <string.h>
 
 /* Shorthand */
@@ -235,6 +237,84 @@ int ScMemoryFree(Addr_t Address, size_t Length)
 
 	/* Call */
 	ufree(Process->Heap, (void*)Address);
+
+	/* Done */
+	return 0;
+}
+
+int ScMemoryQuery(void)
+{
+	return 0;
+}
+
+/* Share memory with a process */
+Addr_t ScMemoryShare(IpcComm_t Target, Addr_t Address, size_t Size)
+{
+	/* Locate Process */
+	MCoreProcess_t *Process = PmGetProcess(Target);
+	size_t NumBlocks, i;
+
+	/* Sanity */
+	if (Process == NULL)
+		return 0;
+
+	/* Start out by allocating memory 
+	 * in target process */
+	Addr_t Shm = BitmapAllocateAddress(Process->Shm, Size);
+	NumBlocks = DIVUP(Size, PAGE_SIZE);
+
+	/* Now we have to transfer our physical mappings 
+	 * to their new virtual */
+	for (i = 0; i < NumBlocks; i++) 
+	{
+		/* Adjust address */
+		Addr_t AdjustedAddr = Address + (i * PAGE_SIZE);
+		Addr_t AdjustedShm = Shm + (i * PAGE_SIZE);
+		Addr_t PhysicalAddr = 0;
+
+		/* The address MUST be mapped in ours */
+		if (!AddressSpaceGetMap(AddressSpaceGetCurrent(), AdjustedAddr))
+			AddressSpaceMap(AddressSpaceGetCurrent(), AdjustedAddr, PAGE_SIZE, ADDRESS_SPACE_FLAG_USER);
+	
+		/* Get physical mapping */
+		PhysicalAddr = AddressSpaceGetMap(AddressSpaceGetCurrent(), AdjustedAddr);
+
+		/* Map it directly into target process */
+		AddressSpaceMapFixed(Process->AddressSpace, PhysicalAddr, 
+			AdjustedShm, PAGE_SIZE, ADDRESS_SPACE_FLAG_USER | ADDRESS_SPACE_FLAG_VIRTUAL);
+	}
+
+	/* Done! */
+	return Shm;
+}
+
+/* Unshare memory with a process */
+int ScMemoryUnshare(IpcComm_t Target, Addr_t TranslatedAddress, size_t Size)
+{
+	/* Locate Process */
+	MCoreProcess_t *Process = PmGetProcess(Target);
+	size_t NumBlocks, i;
+
+	/* Sanity */
+	if (Process == NULL)
+		return -1;
+
+	/* Calculate */
+	NumBlocks = DIVUP(Size, PAGE_SIZE);
+
+	/* Start out by unmapping their 
+	 * memory in their address space */
+	for (i = 0; i < NumBlocks; i++)
+	{
+		/* Adjust address */
+		Addr_t AdjustedAddr = TranslatedAddress + (i * PAGE_SIZE);
+
+		/* Map it directly into target process */
+		AddressSpaceUnmap(Process->AddressSpace, AdjustedAddr, PAGE_SIZE);
+	}
+
+	/* Now unallocate it in their bitmap */
+	BitmapFreeAddress(Process->Shm, TranslatedAddress, Size);
 
 	/* Done */
 	return 0;
@@ -728,9 +808,9 @@ Addr_t GlbSyscallTable[111] =
 	/* Memory Functions - 21 */
 	DefineSyscall(ScMemoryAllocate),
 	DefineSyscall(ScMemoryFree),
-	DefineSyscall(NoOperation),	//ScMemoryQuery
-	DefineSyscall(NoOperation),
-	DefineSyscall(NoOperation),
+	DefineSyscall(ScMemoryQuery),
+	DefineSyscall(ScMemoryShare),
+	DefineSyscall(ScMemoryUnshare),
 	DefineSyscall(NoOperation),
 	DefineSyscall(NoOperation),
 	DefineSyscall(NoOperation),
