@@ -49,8 +49,8 @@ Just run the BuildAll.bat after you've modified it. It will as an end-step autom
 ### Installing MollenOS
 The installer is started automatically by BuildAll.bat at the end, and the installer will present you with the available disks in your system, in a numbered fashion. To format a disk with MFS type the following in the command-line:
 
-1. format [diskno] (Example: format 1)
-2. install [diskno] (Example: install 1)
+1. format disk_no (Example: format 1)
+2. install disk_no (Example: install 1)
 
 
 These two commands is all that is needed, when the program stops writing files to the disk, your disk is now setup for MollenOS
