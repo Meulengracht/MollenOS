@@ -60,7 +60,7 @@ Window_t *WindowCreate(int Id, Rect_t *Dimensions, int Flags, SDL_Renderer *Rend
 
 	/* Allocate a user-backbuffer */
 	Window->Backbuffer = malloc(Dimensions->h * mPitch);
-	memset(Window->Backbuffer, 0, Dimensions->h * mPitch);
+	memset(Window->Backbuffer, 0xFFFFFFFF, Dimensions->h * mPitch);
 
 	/* Copy pixels */
 	memcpy(mPixels, Window->Backbuffer, Dimensions->h * mPitch);

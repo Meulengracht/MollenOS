@@ -50,6 +50,9 @@ typedef struct _sScene {
 	/* Background */
 	SDL_Texture *Background;
 
+	/* Backbuffer */
+	SDL_Texture *Texture;
+
 	/* List of windows */
 	list_t *Windows;
 

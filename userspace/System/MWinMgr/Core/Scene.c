@@ -44,6 +44,13 @@ Scene_t *SceneCreate(int Id, Rect_t *Dimensions, SDL_Renderer *Renderer)
 	/* Load default background for this scene */
 	Scene->Background = IMG_LoadTexture(Renderer, "Themes/Default/GfxBg.png");
 
+	/* Allocate a texture */
+	Scene->Texture = SDL_CreateTexture(Renderer, SDL_PIXELFORMAT_RGBA8888,
+		SDL_TEXTUREACCESS_TARGET, Dimensions->w, Dimensions->h);
+
+	/* Set blend mode */
+	SDL_SetTextureBlendMode(Scene->Texture, SDL_BLENDMODE_BLEND);
+
 	/* Done! */
 	return Scene;
 }
@@ -67,6 +74,10 @@ void SceneDestroy(Scene_t *Scene)
 		/* Destroy */
 		WindowDestroy(Window);
 	}
+
+	/* Cleanup SDL */
+	SDL_DestroyTexture(Scene->Background);
+	SDL_DestroyTexture(Scene->Texture);
 
 	/* Cleanup */
 	list_destroy(Scene->Windows);
@@ -117,6 +128,9 @@ void SceneRender(Scene_t *Scene, SDL_Renderer *Renderer)
 		|| Renderer == NULL)
 		return;
 
+	/* Change render target to backbuffer */
+	SDL_SetRenderTarget(Renderer, Scene->Texture);
+
 	/* Start by rendering background */
 	SDL_RenderCopy(Renderer, Scene->Background, NULL, NULL);
 
@@ -129,4 +143,10 @@ void SceneRender(Scene_t *Scene, SDL_Renderer *Renderer)
 		/* Render window */
 		WindowRender(Window, Renderer);
 	}
+
+	/* Change target back to screen */
+	SDL_SetRenderTarget(Renderer, NULL);
+
+	/* Render */
+	SDL_RenderCopy(Renderer, Scene->Texture, NULL, NULL);
 }
