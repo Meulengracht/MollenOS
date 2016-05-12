@@ -48,11 +48,11 @@ int Ps2KeyboadIrqHandler(void *Args)
 
 	/* Vars */
 	uint8_t Scancode = 0;
-	MCoreButtonEvent_t bEvent;
+	MEventMessageInputButton_t bEvent;
 
 	/* Set Header */
 	bEvent.Header.Type = EventInput;
-	bEvent.Header.Length = sizeof(MCoreButtonEvent_t);
+	bEvent.Header.Length = sizeof(MEventMessageInputButton_t);
 
 	/* Get scancode */
 	Scancode = Ps2ReadData(1);
@@ -70,7 +70,7 @@ int Ps2KeyboadIrqHandler(void *Args)
 	{
 		/* Oh god actual scancode */
 		Ps2Dev->Buffer |= Scancode;
-		bEvent.Type = MCORE_INPUT_TYPE_KEYBOARD;
+		bEvent.Type = PointerKeyboard;
 		bEvent.State = 
 			((Ps2Dev->Flags & X86_PS2_KBD_FLAG_RELEASED) == 1) ? 
 							MCORE_INPUT_BUTTON_RELEASED : MCORE_INPUT_BUTTON_CLICKED;

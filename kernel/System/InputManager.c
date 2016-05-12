@@ -50,7 +50,7 @@ void EmRegisterSystemTarget(PId_t ProcessId)
 }
 
 /* Write data to pointer pipe */
-void EmCreateEvent(MCoreProcessEvent_t *Event)
+void EmCreateEvent(MEventMessageBase_t *Event)
 {
 	/* Temp Buffer */
 	uint8_t NotRecycleBin[64];
@@ -68,6 +68,9 @@ void EmCreateEvent(MCoreProcessEvent_t *Event)
 		/* Force space in buffer */
 		while (PipeBytesLeft(Process->Pipe) < (int)(Event->Length))
 			PipeRead(Process->Pipe, Event->Length, (uint8_t*)&NotRecycleBin, 0);
+
+		/* Set sender as system */
+		Event->Sender = 0;
 		
 		/* Write data to pipe */
 		PipeWrite(Process->Pipe, Event->Length, (uint8_t*)Event);

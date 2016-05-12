@@ -906,6 +906,10 @@ size_t VfsWrite(MCoreFileInstance_t *Handle, uint8_t *Buffer, size_t Length)
 		|| Handle->Code != VfsOk)
 		return VfsInvalidParameters;
 
+	/* Security Sanity */
+	if (!(Handle->Flags & Write))
+		return VfsAccessDenied;
+
 	/* Sanity -> Clear read buffer if we are writing */
 	if (Handle->LastOp & Read) {
 		VfsFlush(Handle);

@@ -22,8 +22,11 @@
 #ifndef __MOLLENOS_CLIB__
 #define __MOLLENOS_CLIB__
 
-/* Includes */
+/* C-Library - Includes */
 #include <crtdefs.h>
+
+/* OS - Includes */
+#include <os/Ipc.h>
 
 /* Definitons */
 
@@ -114,21 +117,55 @@ typedef struct _mRectangle
 
 } Rect_t;
 
-/* Device Prototypes */
+/***********************
+* IPC Prototypes
+***********************/
+
+/* IPC - Peek - NO BLOCK
+ * This returns -1 if there is no new messages
+ * in the message-queue, otherwise it returns 0
+ * and fills the base structures with information about
+ * the message */
+_MOS_API int MollenOSMessagePeek(MEventMessage_t *Message);
+
+/* IPC - Read/Wait - BLOCKING OP
+ * This returns -1 if something went wrong reading
+ * a message from the message queue, otherwise it returns 0
+ * and fills the structures with information about
+ * the message */
+_MOS_API int MollenOSMessageWait(MEventMessage_t *Message);
+
+/* IPC - Write
+ * Returns -1 if message failed to send
+ * Returns -2 if message-target didn't exist
+ * Returns 0 if message was sent correctly to target */
+_MOS_API int MollenOSMessageSend(IpcComm_t Target, void *Message, size_t MessageLength);
+
+/***********************
+* Device Prototypes
+***********************/
 _MOS_API int MollenOSDeviceQuery(MollenOSDeviceType_t Type, int Request, void *Buffer, size_t Length);
 
-/* Shared Object Prototypes */
+/***********************
+* Shared Library Prototypes
+***********************/
 _MOS_API void *SharedObjectLoad(const char *SharedObject);
 _MOS_API void *SharedObjectGetFunction(void *Handle, const char *Function);
 _MOS_API void SharedObjectUnload(void *Handle);
 
-/* Environment Functions */
+/***********************
+* Environment Prototypes
+***********************/
 _MOS_API void EnvironmentResolve(EnvironmentPath_t SpecialPath, char *StringBuffer);
 
-/* Screen Functions */
+/***********************
+* Screen Prototypes
+***********************/
 _MOS_API void MollenOSGetScreenGeometry(Rect_t *Rectangle);
 
-/* System Misc Prototypes */
+/***********************
+* System Misc Prototypes
+***********************/
 _MOS_API void MollenOSSystemLog(const char *Message);
 _MOS_API int MollenOSEndBoot(void);
 _MOS_API int MollenOSRegisterWM(void);

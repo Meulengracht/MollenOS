@@ -294,17 +294,26 @@ int ScIpcRead(uint8_t *MessageContainer, size_t MessageLength)
 /* Sends a message to another process */
 int ScIpcWrite(PId_t ProcessId, uint8_t *Message, size_t MessageLength)
 {
+	/* Vars */
+	Cpu_t CurrentCpu = ApicGetCpu();
+	MCoreProcess_t *Process = NULL;
+	IpcComm_t Sender = 0;
+
 	/* Validation */
 	if (Message == NULL
 		|| MessageLength == 0)
 		return -1;
 
 	/* Get current process */
-	MCoreProcess_t *Process = PmGetProcess(ProcessId);
+	Process = PmGetProcess(ProcessId);
+	Sender = ThreadingGetCurrentThread(CurrentCpu)->ProcessId;
 
 	/* Sanity */
 	if (Process == NULL)
-		return -1;
+		return -2;
+
+	/* Fill in sender */
+	((MEventMessageBase_t*)Message)->Sender = Sender;
 
 	/* Write */
 	return PipeWrite(Process->Pipe, MessageLength, Message);

@@ -22,6 +22,7 @@
 /* Includes */
 #include <os/MollenOS.h>
 #include <os/Syscall.h>
+#include <os/Ipc.h>
 
 #ifdef LIBC_KERNEL
 void __SystemLibCEmpty(void)
@@ -66,6 +67,85 @@ void MollenOSGetScreenGeometry(Rect_t *Rectangle)
 	Rectangle->y = 0;
 	Rectangle->w = VidDescriptor.Width;
 	Rectangle->h = VidDescriptor.Height;
+}
+
+/* IPC - Peek - NO BLOCK
+ * This returns -1 if there is no new messages
+ * in the message-queue, otherwise it returns 0 
+ * and fills the base structures with information about
+ * the message */
+int MollenOSMessagePeek(MEventMessage_t *Message)
+{
+	/* Variables */
+	int RetVal = 0;
+
+	/* Syscall! */
+	RetVal = Syscall2(MOLLENOS_SYSCALL_PEEKMSG, MOLLENOS_SYSCALL_PARAM(Message),
+		MOLLENOS_SYSCALL_PARAM(sizeof(MEventMessageBase_t)));
+
+	/* Sanity */
+	if (RetVal > 0)
+		return 0;
+	else
+		return -1;
+}
+
+/* IPC - Read/Wait - BLOCKING OP
+* This returns -1 if something went wrong reading
+* a message from the message queue, otherwise it returns 0
+* and fills the structures with information about
+* the message */
+int MollenOSMessageWait(MEventMessage_t *Message)
+{
+	/* Variables */
+	uint8_t *MsgPointer = (uint8_t*)Message;
+	int RetVal = 0;
+
+	/* Syscall! */
+	RetVal = Syscall2(MOLLENOS_SYSCALL_READMSG, MOLLENOS_SYSCALL_PARAM(MsgPointer),
+		MOLLENOS_SYSCALL_PARAM(sizeof(MEventMessageBase_t)));
+
+	/* Sanity */
+	if (RetVal > 0
+		&& RetVal == sizeof(MEventMessageBase_t))
+	{
+		/* Calculate some offsets */
+		size_t BytesRemaining = Message->Base.Length - sizeof(MEventMessageBase_t);
+		MsgPointer += RetVal;
+
+		/* Read rest of message */
+		RetVal += Syscall2(MOLLENOS_SYSCALL_READMSG, MOLLENOS_SYSCALL_PARAM(MsgPointer),
+			MOLLENOS_SYSCALL_PARAM(BytesRemaining));
+
+		/* Sanity */
+		if ((size_t)RetVal == Message->Base.Length)
+			return 0;
+		else
+			return -1;
+	}
+	else
+		return -1;
+}
+
+/* IPC - Write
+ * Returns -1 if message failed to send 
+ * Returns -2 if message-target didn't exist
+ * Returns 0 if message was sent correctly to target */
+int MollenOSMessageSend(IpcComm_t Target, void *Message, size_t MessageLength)
+{
+	/* Variables */
+	int RetVal = 0;
+
+	/* Syscall! */
+	RetVal = Syscall3(MOLLENOS_SYSCALL_READMSG, MOLLENOS_SYSCALL_PARAM(Target),
+		MOLLENOS_SYSCALL_PARAM(Message), MOLLENOS_SYSCALL_PARAM(MessageLength));
+
+	/* Sanity */
+	if (RetVal > 0)
+		return 0;
+
+	/* Done! */
+	return RetVal;
 }
 
 #endif

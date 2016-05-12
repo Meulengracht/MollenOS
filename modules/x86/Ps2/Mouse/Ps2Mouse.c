@@ -40,8 +40,8 @@ int Ps2MouseIrqHandler(void *Args)
 {
 	/* We get 3 bytes describing the state
 	 * BUT we can only get one at the time..... -.- */
-	MCorePointerEvent_t eData;
-	MCoreButtonEvent_t bData;
+	MEventMessageInputPointer_t eData;
+	MEventMessageInputButton_t bData;
 
 	/* Get datastructure */
 	MCoreDevice_t *mDev = (MCoreDevice_t*)Args;
@@ -73,32 +73,32 @@ int Ps2MouseIrqHandler(void *Args)
 			Ps2Dev->MouseY += (int32_t)(Ps2Dev->Buffer[2] - ((Ps2Dev->Buffer[0] << 4) & 0x100));
 
 			/* Redirect Mouse Pointer Data */
-			eData.Type = MCORE_INPUT_TYPE_MOUSE;
+			eData.Type = PointerMouse;
 			eData.xRelative = (int32_t)(Ps2Dev->Buffer[1] - ((Ps2Dev->Buffer[0] << 4) & 0x100));
 			eData.yRelative = (int32_t)(Ps2Dev->Buffer[2] - ((Ps2Dev->Buffer[0] << 4) & 0x100));
 			eData.zRelative = 0;
 
 			/* Set header */
 			eData.Header.Type = EventInput;
-			eData.Header.Length = sizeof(MCorePointerEvent_t);
+			eData.Header.Length = sizeof(MEventMessageInputPointer_t);
 
 			/* Send! */
-			EmCreateEvent((MCoreProcessEvent_t*)&eData);
+			EmCreateEvent((MEventMessageBase_t*)&eData);
 
 			/* Check buttons */
 			if (Ps2Dev->Buffer[0] != Ps2Dev->MouseButtons)
 			{
 				/* Setup */
-				bData.Type = MCORE_INPUT_TYPE_MOUSE;
+				bData.Type = PointerMouse;
 				bData.Data = Ps2Dev->Buffer[0];
 				bData.State = 0;
 
 				/* Set headers */
 				bData.Header.Type = EventInput;
-				bData.Header.Length = sizeof(MCoreButtonEvent_t);
+				bData.Header.Length = sizeof(MEventMessageInputButton_t);
 
 				/* Send */
-				EmCreateEvent((MCoreProcessEvent_t*)&bData);
+				EmCreateEvent((MEventMessageBase_t*)&bData);
 			}
 
 			/* Update */

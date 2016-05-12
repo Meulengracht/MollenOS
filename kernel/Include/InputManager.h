@@ -27,79 +27,13 @@
 #include <crtdefs.h>
 #include <stdint.h>
 
-/* Structures */
-typedef enum _MCoreProcessEventType
-{
-	EventInput,
-	EventGeneric
-
-} MCoreProcessEventType_t;
-
-typedef struct _MCoreProcessEvent
-{
-	/* Type */
-	MCoreProcessEventType_t Type;
-
-	/* Length */
-	size_t Length;
-
-} MCoreProcessEvent_t;
-
-typedef struct _MCorePointerEvent
-{
-	/* Header */
-	MCoreProcessEvent_t Header;
-
-	/* Pointer Type */
-	uint32_t Type;
-
-	/* Axis Data 
-	 * Must be relative */
-	int32_t xRelative;
-	int32_t yRelative;
-	int32_t zRelative;
-
-	/* Rotation Data */
-
-} MCorePointerEvent_t;
-
-/* Input Types */
-#define MCORE_INPUT_TYPE_UNKNOWN	0x0
-#define MCORE_INPUT_TYPE_MOUSE		0x1
-#define MCORE_INPUT_TYPE_KEYBOARD	0x2
-#define MCORE_INPUT_TYPE_KEYPAD		0x3
-#define MCORE_INPUT_TYPE_JOYSTICK	0x4
-#define MCORE_INPUT_TYPE_GAMEPAD	0x5
-#define MCORE_INPUT_TYPE_OTHER		0x6
-
-typedef struct _MCoreButtonEvent
-{
-	/* Header */
-	MCoreProcessEvent_t Header;
-
-	/* Button Type */
-	uint32_t Type;
-
-	/* Button Data (Keycode) */
-	uint32_t Data;
-
-	/* Button State (Press / Release) */
-	uint32_t State;
-
-} MCoreButtonEvent_t;
-
-/* Event Types */
-#define MCORE_INPUT_LEFT_MOUSEBUTTON	0x1
-#define MCORE_INPUT_RIGHT_MOUSEBUTTON	0x2
-#define MCORE_INPUT_MIDDLE_MOUSEBUTTON	0x4
-
-#define MCORE_INPUT_BUTTON_RELEASED		0x0
-#define MCORE_INPUT_BUTTON_CLICKED		0x1
+/* Include Ipc */
+#include <os/Ipc.h>
 
 /* Prototypes */
 _CRT_EXTERN void EmRegisterSystemTarget(PId_t ProcessId);
 
 /* Write data to pointer pipe */
-_CRT_EXPORT void EmCreateEvent(MCoreProcessEvent_t *Event);
+_CRT_EXPORT void EmCreateEvent(MEventMessageBase_t *Event);
 
 #endif // !_MCORE_INPUT_MANAGER_H_

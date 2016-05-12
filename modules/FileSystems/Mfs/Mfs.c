@@ -1209,14 +1209,9 @@ size_t MfsWriteFile(void *FsData, MCoreFile_t *Handle, MCoreFileInstance_t *Inst
 	MfsFileInstance_t *mInstance = (MfsFileInstance_t*)Instance->Instance;
 	MfsData_t *mData = (MfsData_t*)Fs->FsData;
 	MfsFile_t *mFile = (MfsFile_t*)Handle->Data;
-	uint8_t *BufPtr = Buffer;
 	VfsErrorCode_t RetCode = VfsOk;
-
-	/* Security Sanity */
-	if (!(Instance->Flags & Write)) {
-		Instance->Code = VfsAccessDenied;
-		return 0;
-	}
+	uint8_t *BufPtr = Buffer;
+	uint64_t Position = Instance->Position;
 
 	/* BucketPtr for iterating */
 	size_t BytesWritten = 0;
@@ -1272,39 +1267,64 @@ size_t MfsWriteFile(void *FsData, MCoreFile_t *Handle, MCoreFileInstance_t *Inst
 		}
 	}
 
-	/* Allocate buffer for data */
-	size_t BufSize = mData->BucketSize * Fs->SectorSize;
-	uint8_t *TempBuffer = (uint8_t*)kmalloc(BufSize);
-
 	/* Keep wriiiting */
 	while (BytesToWrite)
 	{
+		uint64_t SectorLba = mData->BucketSize * mInstance->DataBucketPosition;
+		uint64_t bbOffset = Position - mInstance->BucketByteBoundary;
+		size_t SizeOfBucket = (mData->BucketSize * Fs->SectorSize);
+		size_t SizeOfThisBucket = (mInstance->DataBucketLength * SizeOfBucket);
+		size_t nBuckets = (size_t)(bbOffset / SizeOfBucket);
+		size_t AdjustedByteCount = 0;
+
+		/* Allocate buffer for data */
+		uint8_t *TransferBuffer = NULL;
+		size_t TransferSize = 0;
+
+		/* Determine optimal transfer buffer */
+		if (BytesToWrite <= SizeOfBucket
+			|| SizeOfThisBucket == SizeOfBucket) {
+			/* Use ours */
+			TransferBuffer = mInstance->BucketBuffer;
+			TransferSize = mData->BucketSize;
+		}
+		else {
+			/* Find optimal size */
+			size_t BucketsNeeded = DIVUP(BytesToWrite, SizeOfBucket);
+			TransferBuffer = (uint8_t*)kmalloc(BucketsNeeded * SizeOfBucket);
+			TransferSize = BucketsNeeded * mData->BucketSize;
+		}
+
+		/* Adjust SectorLba */
+		AdjustedByteCount = nBuckets * (mData->BucketSize * Fs->SectorSize);
+		SectorLba += nBuckets * mData->BucketSize;
+
 		/* We have to calculate the offset into this buffer we must transfer data */
-		size_t bOffset = (size_t)(Instance->Position % (BufSize));
-		size_t BytesLeft = BufSize - bOffset;
+		size_t bOffset = (size_t)(Position - mInstance->BucketByteBoundary - AdjustedByteCount);
+		size_t BytesLeft = (TransferSize * Fs->SectorSize) - bOffset;
 		size_t BytesCopied = 0;
 
 		/* Are we on a bucket boundary ?
 		 * and we need to write atleast an entire bucket */
-		if (bOffset == 0 && BytesToWrite >= BufSize)
+		if (bOffset == 0 && BytesToWrite >= (TransferSize * Fs->SectorSize))
 		{
 			/* Then we don't care about content */
-			memcpy(TempBuffer, BufPtr, BufSize);
-			BytesCopied = BufSize;
+			memcpy(TransferBuffer, BufPtr, (TransferSize * Fs->SectorSize));
+			BytesCopied = (TransferSize * Fs->SectorSize);
 		}
 		else
 		{
 			/* Means we are modifying */
 
 			/* Read the old bucket */
-			if (MfsReadSectors(Fs, mData->BucketSize * mInstance->DataBucketPosition,
-				TempBuffer, mData->BucketSize) != RequestOk)
+			if (MfsReadSectors(Fs, SectorLba, TransferBuffer, TransferSize) != RequestOk)
 			{
 				/* Error */
 				RetCode = VfsDiskError;
-				LogFatal("MFS1", "WRITEFILE: Error reading from disk (sector 0x%x, count 0x%x)", 
-					(size_t)(mData->BucketSize * mInstance->DataBucketPosition),
-					(size_t)(mData->BucketSize));
+				LogFatal("MFS1", "WRITEFILE: Error reading sector %u from disk",
+					(size_t)(mData->BucketSize * mInstance->DataBucketPosition));
+				LogFatal("MFS1", "Bucket Position %u, mFile Position %u, mFile Size %u",
+					mInstance->DataBucketPosition, (size_t)Position, (size_t)Handle->Size);
 				break;
 			}
 			
@@ -1313,20 +1333,19 @@ size_t MfsWriteFile(void *FsData, MCoreFile_t *Handle, MCoreFileInstance_t *Inst
 			if (BytesToWrite <= BytesLeft)
 			{
 				/* Write it */
-				memcpy((TempBuffer + bOffset), BufPtr, BytesToWrite);
+				memcpy((TransferBuffer + bOffset), BufPtr, BytesToWrite);
 				BytesCopied = BytesToWrite;
 			}
 			else
 			{
 				/* Write whats left */
-				memcpy((TempBuffer + bOffset), BufPtr, BytesLeft);
+				memcpy((TransferBuffer + bOffset), BufPtr, BytesLeft);
 				BytesCopied = BytesLeft;
 			}
 		}
 
 		/* Write back bucket */
-		if (MfsWriteSectors(Fs, mData->BucketSize * mInstance->DataBucketPosition,
-			TempBuffer, mData->BucketSize) != RequestOk)
+		if (MfsWriteSectors(Fs, SectorLba, TransferBuffer, TransferSize) != RequestOk)
 		{
 			/* Error */
 			RetCode = VfsDiskError;
@@ -1334,8 +1353,18 @@ size_t MfsWriteFile(void *FsData, MCoreFile_t *Handle, MCoreFileInstance_t *Inst
 			break;
 		}
 
+		/* Done with buffer */
+		if (TransferSize != mData->BucketSize)
+			kfree(TransferBuffer);
+
+		/* Advance pointer(s) */
+		BytesWritten += BytesCopied;
+		BufPtr += BytesCopied;
+		BytesToWrite -= BytesCopied;
+		Position += BytesCopied;
+
 		/* Switch to next bucket? */
-		if (BytesLeft == BytesCopied)
+		if (Position == mInstance->BucketByteBoundary + SizeOfThisBucket)
 		{
 			/* Go to next */
 			uint32_t NextBucket = 0;
@@ -1346,20 +1375,13 @@ size_t MfsWriteFile(void *FsData, MCoreFile_t *Handle, MCoreFileInstance_t *Inst
 			if (NextBucket != MFS_END_OF_CHAIN)
 				mInstance->DataBucketPosition = NextBucket;
 		}
-
-		/* Advance pointer(s) */
-		BytesWritten += BytesCopied;
-		BufPtr += BytesCopied;
-		BytesToWrite -= BytesCopied;
-		Instance->Position += BytesCopied;
 	}
 
-	/* Cleanup */
-	kfree(TempBuffer);
+	/* Update position */
+	Instance->Position = Position;
 
 	/* Sanity */
-	if (Instance->Position > Handle->Size)
-	{
+	if (Instance->Position > Handle->Size) {
 		Handle->Size = Instance->Position;
 		mFile->Size = Instance->Position;
 	}

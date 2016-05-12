@@ -431,43 +431,41 @@
     <CustomBuild Include="..\src\os\Syscall32.s">
       <Filter>Source\os\Asm</Filter>
     </CustomBuild>
-  </ItemGroup>
-  <ItemGroup>
-    <None Include="..\src\math\i386\_atan.S">
+    <CustomBuild Include="..\src\math\i386\_atan.S">
       <Filter>Source\math\i386</Filter>
-    </None>
-    <None Include="..\src\math\i386\_atan2.S">
+    </CustomBuild>
+    <CustomBuild Include="..\src\math\i386\_atan2.S">
       <Filter>Source\math\i386</Filter>
-    </None>
-    <None Include="..\src\math\i386\_ceil.S">
+    </CustomBuild>
+    <CustomBuild Include="..\src\math\i386\_ceil.S">
       <Filter>Source\math\i386</Filter>
-    </None>
-    <None Include="..\src\math\i386\_ceilf.S">
+    </CustomBuild>
+    <CustomBuild Include="..\src\math\i386\_ceilf.S">
       <Filter>Source\math\i386</Filter>
-    </None>
-    <None Include="..\src\math\i386\_fmod.s">
+    </CustomBuild>
+    <CustomBuild Include="..\src\math\i386\_cos.S">
       <Filter>Source\math\i386</Filter>
-    </None>
-    <None Include="..\src\math\i386\_fmodf.s">
+    </CustomBuild>
+    <CustomBuild Include="..\src\math\i386\_exp.S">
       <Filter>Source\math\i386</Filter>
-    </None>
-    <None Include="..\src\math\i386\_cos.S">
+    </CustomBuild>
+    <CustomBuild Include="..\src\math\i386\_fmod.S">
       <Filter>Source\math\i386</Filter>
-    </None>
-    <None Include="..\src\math\i386\_exp.S">
+    </CustomBuild>
+    <CustomBuild Include="..\src\math\i386\_fmodf.S">
       <Filter>Source\math\i386</Filter>
-    </None>
-    <None Include="..\src\math\i386\ftol_asm.s">
+    </CustomBuild>
+    <CustomBuild Include="..\src\math\i386\_ftol.s">
       <Filter>Source\math\i386</Filter>
-    </None>
-    <None Include="..\src\math\i386\ftol2_asm.s">
+    </CustomBuild>
+    <CustomBuild Include="..\src\math\i386\_ftol2.s">
       <Filter>Source\math\i386</Filter>
-    </None>
-    <None Include="..\src\math\i386\sin_asm.s">
+    </CustomBuild>
+    <CustomBuild Include="..\src\math\i386\_sin.S">
       <Filter>Source\math\i386</Filter>
-    </None>
-    <None Include="..\src\math\i386\_tan.S">
+    </CustomBuild>
+    <CustomBuild Include="..\src\math\i386\_tan.S">
       <Filter>Source\math\i386</Filter>
-    </None>
+    </CustomBuild>
   </ItemGroup>
 </Project>

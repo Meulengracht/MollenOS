@@ -469,7 +469,7 @@ size_t UsbHidParseReportDescriptor(HidDevice_t *Device, uint8_t *ReportData, siz
 
 	/* Offsets */
 	size_t BitOffset = 0;
-	int CurrentType = MCORE_INPUT_TYPE_UNKNOWN;
+	int CurrentType = PointerUnknown;
 
 	/* Null Report Id */
 	GlobalStats.ReportId = 0xFFFFFFFF;
@@ -663,15 +663,15 @@ size_t UsbHidParseReportDescriptor(HidDevice_t *Device, uint8_t *ReportData, siz
 					{
 						if (Packet == X86_USB_REPORT_USAGE_POINTER
 							|| Packet == X86_USB_REPORT_USAGE_MOUSE)
-							CurrentType = MCORE_INPUT_TYPE_MOUSE;
+							CurrentType = PointerMouse;
 						else if (Packet == X86_USB_REPORT_USAGE_KEYBOARD)
-							CurrentType = MCORE_INPUT_TYPE_KEYBOARD;
+							CurrentType = PointerKeyboard;
 						else if (Packet == X86_USB_REPORT_USAGE_KEYPAD)
-							CurrentType = MCORE_INPUT_TYPE_KEYPAD;
+							CurrentType = PointerKeypad;
 						else if (Packet == X86_USB_REPORT_USAGE_JOYSTICK)
-							CurrentType = MCORE_INPUT_TYPE_JOYSTICK;
+							CurrentType = PointerJoystick;
 						else if (Packet == X86_USB_REPORT_USAGE_GAMEPAD)
-							CurrentType = MCORE_INPUT_TYPE_GAMEPAD;
+							CurrentType = PointerGamePad;
 
 						for (j = 0; j < 16; j++)
 						{
@@ -718,15 +718,15 @@ void UsbHidApplyInputData(HidDevice_t *Device, UsbHidReportCollectionItem_t *Col
 	UsbHidReportInputItem_t *InputItem = (UsbHidReportInputItem_t*)CollectionItem->Data;
 
 	/* Need those for registrating events */
-	MCorePointerEvent_t PointerData = { 0 };
-	MCoreButtonEvent_t ButtonData = { 0 };
+	MEventMessageInputPointer_t PointerData = { 0 };
+	MEventMessageInputButton_t ButtonData = { 0 };
 
 	/* Set Headers */
 	ButtonData.Header.Type = EventInput;
-	ButtonData.Header.Length = sizeof(MCoreButtonEvent_t);
+	ButtonData.Header.Length = sizeof(MEventMessageInputButton_t);
 
 	PointerData.Header.Type = EventInput;
-	PointerData.Header.Length = sizeof(MCorePointerEvent_t);
+	PointerData.Header.Length = sizeof(MEventMessageInputPointer_t);
 
 	/* And these for parsing */
 	uint64_t Value = 0, OldValue = 0;
@@ -910,19 +910,19 @@ void UsbHidApplyInputData(HidDevice_t *Device, UsbHidReportCollectionItem_t *Col
 				switch (CollectionItem->InputType)
 				{
 					/* Mouse Button */
-					case MCORE_INPUT_TYPE_MOUSE:
+					case PointerMouse:
 					{
 
 					} break;
 
 					/* Gamepad Button */
-					case MCORE_INPUT_TYPE_GAMEPAD:
+					case PointerGamePad:
 					{
 
 					} break;
 
 					/* Joystick Button */
-					case MCORE_INPUT_TYPE_JOYSTICK:
+					case PointerJoystick:
 					{
 
 					} break;
