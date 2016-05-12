@@ -37,6 +37,7 @@ In order to build MollenOS you need NASM installed on your system in order to as
 
 ### Modifying the build script
 The build process is normally <almost> fully automated, but before you run BuildAll.bat you need to modify it to suit your paths, etc.
+
 1. The first thing you should do is edit the script and fix the paths for your own computer.
 2. The second thing you should do is under the "::Install MOS" step, remove the "-a" option, because THIS WILL install MollenOS directly the first disk it discovers, which will be your primary disk. I have it hardcoded in that it skips my primary disk for convience, and thus I'm the only one that can use that option.
 3. No more things you can do, the build script now builds and updates everything in the /install/ folder.
