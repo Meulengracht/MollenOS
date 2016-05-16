@@ -16,6 +16,9 @@
     <ClCompile Include="..\crt\msvc\math.c">
       <Filter>Source\msvc</Filter>
     </ClCompile>
+    <ClCompile Include="..\crt\msvc\crt.c">
+      <Filter>Source\msvc</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <MASM Include="..\crt\msvc\alldvrm.S">

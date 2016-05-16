@@ -473,13 +473,11 @@
     <CustomBuild Include="..\src\math\i386\_tan.S">
       <Filter>Source\math\i386</Filter>
     </CustomBuild>
-  </ItemGroup>
-  <ItemGroup>
-    <MASM Include="..\src\os\i386\_Spinlock.asm">
+    <CustomBuild Include="..\src\os\i386\_Syscall32.asm">
       <Filter>Source\os\i386</Filter>
-    </MASM>
-    <MASM Include="..\src\os\i386\_Syscall32.asm">
+    </CustomBuild>
+    <CustomBuild Include="..\src\os\i386\_Spinlock.asm">
       <Filter>Source\os\i386</Filter>
-    </MASM>
+    </CustomBuild>
   </ItemGroup>
 </Project>

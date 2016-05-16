@@ -40,6 +40,8 @@ void __EntryLibCEmpty(void)
 
 /* Extern */
 extern int main(int argc, char** argv);
+extern void __CppInit(void);
+extern void __CppFinit(void);
 
 /* Unescape Quotes in arguments */
 void UnEscapeQuotes(char *Arg)
@@ -143,6 +145,7 @@ void _mSrvCrt(void)
 	int RetValue = 0;
 
 	/* Init Crt */
+	__CppInit();
 	
 	/* Init Cmd */
 	ArgCount = ParseCommandLine((char*)MOLLENOS_ARGUMENT_ADDR, NULL);
@@ -168,11 +171,10 @@ void _mConCrt(void)
 	int RetValue = 0;
 
 	/* Init Crt */
+	__CppInit();
 
 	/* Initialize Ui */
 	UiConnect();
-
-	/* Create Console */
 
 	/* Init Cmd */
 	ArgCount = ParseCommandLine((char*)MOLLENOS_ARGUMENT_ADDR, NULL);

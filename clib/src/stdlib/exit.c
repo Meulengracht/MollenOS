@@ -23,10 +23,14 @@
 
 #ifndef LIBC_KERNEL
 
+/* Globals */
+extern void __CppFinit(void);
+
 /* Terminate */
 void exit(int status)
 {
 	/* Cleanup Crt */
+	__CppFinit();
 
 	/* Clean us up */
 	Syscall1(MOLLENOS_SYSCALL_TERMINATE, MOLLENOS_SYSCALL_PARAM(status));

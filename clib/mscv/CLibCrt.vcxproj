@@ -85,6 +85,7 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="..\crt\Entry.c" />
+    <ClCompile Include="..\crt\msvc\crt.c" />
     <ClCompile Include="..\crt\msvc\math.c" />
   </ItemGroup>
   <ItemGroup>

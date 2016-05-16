@@ -168,9 +168,31 @@ WndHandle_t UiCreateWindow(Rect_t Dimensions, int Flags)
  * with it. Returns 0 on success */
 int UiDestroyWindow(WndHandle_t Handle)
 {
+	/* Variables */
+	MEventMessageGeneric_t Message;
+	WindowDescriptor_t *Wnd = 
+		(WindowDescriptor_t*)Handle;
+
 	/* Sanity */
 	if (__UiConnected != 1)
 		return -1;
+
+	/* Setup base message */
+	Message.Header.Length = sizeof(MEventMessageGeneric_t);
+	Message.Header.Type = EventGeneric;
+
+	/* Setup generic message */
+	Message.Type = GenericWindowDestroy;
+	Message.LoParam = (size_t)Wnd->WindowId;
+	Message.HiParam = 0;
+
+	/* Send request */
+	if (MollenOSMessageSend(0, &Message, Message.Header.Length)) {
+		return -1;
+	}
+
+	/* Free resources */
+	free(Wnd);
 
 	/* Done */
 	return 0;
