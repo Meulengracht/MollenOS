@@ -41,10 +41,13 @@
     <ClCompile Include="..\src\os\Devices.c" />
     <ClCompile Include="..\src\os\Environment.c" />
     <ClCompile Include="..\src\os\Malloc.c" />
+    <ClCompile Include="..\src\os\Process.c" />
     <ClCompile Include="..\src\os\SharedObject.c" />
+    <ClCompile Include="..\src\os\Spinlock.c" />
     <ClCompile Include="..\src\os\Syscalls.c" />
     <ClCompile Include="..\src\os\System.c" />
     <ClCompile Include="..\src\os\Timer.c" />
+    <ClCompile Include="..\src\os\Ui.c" />
     <ClCompile Include="..\src\signal\signal.c" />
     <ClCompile Include="..\src\stdio\clearerr.c" />
     <ClCompile Include="..\src\stdio\fclose.c" />
@@ -172,13 +175,6 @@
     </CustomBuild>
   </ItemGroup>
   <ItemGroup>
-    <CustomBuild Include="..\src\os\Syscall32.s">
-      <FileType>Document</FileType>
-      <Command Condition="'$(Configuration)|$(Platform)'=='CLibK|Win32'">nasm -f win32 -Xvc -o $(IntDir)\%(Filename).obj %(FullPath)</Command>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='CLibK|Win32'">$(IntDir)\%(Filename).obj</Outputs>
-    </CustomBuild>
-  </ItemGroup>
-  <ItemGroup>
     <CustomBuild Include="..\src\math\i386\_atan.S">
       <FileType>Document</FileType>
       <Command Condition="'$(Configuration)|$(Platform)'=='CLibK|Win32'">nasm -f win32 -Xvc -o $(IntDir)\%(Filename).obj %(FullPath)</Command>
@@ -239,6 +235,18 @@
       <Outputs Condition="'$(Configuration)|$(Platform)'=='CLibK|Win32'">$(IntDir)\%(Filename).obj</Outputs>
     </CustomBuild>
     <CustomBuild Include="..\src\math\i386\_tan.S">
+      <FileType>Document</FileType>
+      <Command Condition="'$(Configuration)|$(Platform)'=='CLibK|Win32'">nasm -f win32 -Xvc -o $(IntDir)\%(Filename).obj %(FullPath)</Command>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='CLibK|Win32'">$(IntDir)\%(Filename).obj</Outputs>
+    </CustomBuild>
+  </ItemGroup>
+  <ItemGroup>
+    <CustomBuild Include="..\src\os\i386\_Spinlock.asm">
+      <FileType>Document</FileType>
+      <Command Condition="'$(Configuration)|$(Platform)'=='CLibK|Win32'">nasm -f win32 -Xvc -o $(IntDir)\%(Filename).obj %(FullPath)</Command>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='CLibK|Win32'">$(IntDir)\%(Filename).obj</Outputs>
+    </CustomBuild>
+    <CustomBuild Include="..\src\os\i386\_Syscall32.asm">
       <FileType>Document</FileType>
       <Command Condition="'$(Configuration)|$(Platform)'=='CLibK|Win32'">nasm -f win32 -Xvc -o $(IntDir)\%(Filename).obj %(FullPath)</Command>
       <Outputs Condition="'$(Configuration)|$(Platform)'=='CLibK|Win32'">$(IntDir)\%(Filename).obj</Outputs>

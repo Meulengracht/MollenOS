@@ -28,6 +28,84 @@
 
 /* Sapphire System */
 #include "Core/SceneManager.h"
+#include "Core/WindowIpc.h"
+
+/* Handle Message */
+void HandleMessage(SDL_Renderer *Target, MEventMessage_t *Message)
+{
+	/* First of all, 
+	 * which kind of message is it? 
+	 * User-messages are generic */
+	switch (Message->Base.Type)
+	{
+		/* Generic Message 
+		 * Comes from processes */
+		case EventGeneric:
+		{
+			/* Let's see.. */
+			switch (Message->Generic.Type)
+			{
+				/* Create new window */
+				case GenericWindowCreate:
+				{
+					/* Get window information structure */
+					IPCWindowCreate_t *WndInformation = 
+						(IPCWindowCreate_t*)Message->Generic.LoParam;
+					Window_t *Wnd = NULL;
+					void *BackbufferHandle = NULL;
+
+					/* Create window */
+					Wnd = WindowCreate(Message->Base.Sender, &WndInformation->Dimensions, 
+						WndInformation->Flags, Target);
+
+					/* Share backbuffer */
+					BackbufferHandle = MollenOSMemoryShare(Message->Base.Sender, 
+						Wnd->Backbuffer, Wnd->BackbufferSize);
+
+					/* Update structure */
+					Wnd->BackbufferHandle = BackbufferHandle;
+					WndInformation->Backbuffer = BackbufferHandle;
+					WndInformation->BackbufferSize = Wnd->BackbufferSize;
+
+					/* Update dimensions */
+					WndInformation->ResultDimensions.x = Wnd->Dimensions.x;
+					WndInformation->ResultDimensions.y = Wnd->Dimensions.y;
+					WndInformation->ResultDimensions.w = Wnd->Dimensions.w;
+					WndInformation->ResultDimensions.h = Wnd->Dimensions.h;
+
+					/* Add to scene manager */
+					SceneManagerAddWindow(Wnd);
+
+					/* Update id */
+					WndInformation->WindowId = Wnd->Id;
+
+				} break;
+
+				/* Destroy a window */
+				case GenericWindowDestroy:
+				{
+
+				} break;
+
+				/* Ignore other events */
+				default:
+					break;
+			}
+
+		} break;
+
+		/* Input Message
+		 * Comes from input drivers */
+		case EventInput:
+		{
+
+		} break;
+
+		/* Fuck rest */
+		default:
+			break;
+	}
+}
 
 /* Sdl Event Loop */
 void EventLoop(SDL_Renderer *Target)
@@ -59,6 +137,7 @@ void EventLoop(SDL_Renderer *Target)
 		MollenOSMessageWait(&Message);
 
 		/* Handle Message */
+		HandleMessage(Target, &Message);
 
 		/* Update Scene */
 		SceneManagerUpdate();

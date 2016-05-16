@@ -42,5 +42,8 @@
     <ClInclude Include="Common\List.h">
       <Filter>Source\Common</Filter>
     </ClInclude>
+    <ClInclude Include="Core\WindowIpc.h">
+      <Filter>Source\Sapphire</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

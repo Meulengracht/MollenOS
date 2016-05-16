@@ -125,9 +125,6 @@
     <CustomBuild Include="..\..\Arch\x86\x32\Memory\MmPaging.asm">
       <Filter>x32\Memory</Filter>
     </CustomBuild>
-    <CustomBuild Include="..\..\Arch\x86\x32\_Spinlock.asm">
-      <Filter>x32</Filter>
-    </CustomBuild>
     <CustomBuild Include="..\..\Arch\x86\x32\Irq.asm">
       <Filter>x32</Filter>
     </CustomBuild>

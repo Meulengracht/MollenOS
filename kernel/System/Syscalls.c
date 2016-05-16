@@ -35,20 +35,39 @@
 /***********************
  * Process Functions   *
  ***********************/
-PId_t ScProcessSpawn(void)
+PId_t ScProcessSpawn(char *Path, char *Arguments)
 {
 	/* Alloc on stack */
 	MCoreProcessRequest_t Request;
 
+	/* Convert to MSTrings */
+	MString_t *mPath = NULL;
+	MString_t *mArguments = NULL;
+
+	/* Sanity */
+	if (Path == NULL)
+		return 0xFFFFFFFF;
+
+	/* Allocate the mstrings */
+	mPath = MStringCreate(Path, StrUTF8);
+	mArguments = (Arguments == NULL) ? NULL : MStringCreate(Arguments, StrUTF8);
+
 	/* Setup */
 	Request.Type = ProcessSpawn;
 	Request.Cleanup = 0;
-	Request.Path = NULL;
-	Request.Arguments = NULL;
+	Request.Path = mPath;
+	Request.Arguments = mArguments;
 	
 	/* Fire! */
 	PmCreateRequest(&Request);
 	PmWaitRequest(&Request);
+
+	/* Cleanup */
+	MStringDestroy(mPath);
+
+	/* Only cleanup arguments if not null */
+	if (mArguments != NULL)
+		MStringDestroy(mArguments);
 
 	/* Done */
 	return Request.ProcessId;
@@ -265,6 +284,11 @@ Addr_t ScMemoryShare(IpcComm_t Target, Addr_t Address, size_t Size)
 	Addr_t Shm = BitmapAllocateAddress(Process->Shm, Size);
 	NumBlocks = DIVUP(Size, PAGE_SIZE);
 
+	/* Sanity -> If we cross a page boundary */
+	if (((Address + Size) & PAGE_MASK)
+		!= (Address & PAGE_MASK))
+		NumBlocks++;
+
 	/* Sanity */
 	if (Shm == 0)
 		return 0;
@@ -274,7 +298,7 @@ Addr_t ScMemoryShare(IpcComm_t Target, Addr_t Address, size_t Size)
 	for (i = 0; i < NumBlocks; i++) 
 	{
 		/* Adjust address */
-		Addr_t AdjustedAddr = Address + (i * PAGE_SIZE);
+		Addr_t AdjustedAddr = (Address & PAGE_MASK) + (i * PAGE_SIZE);
 		Addr_t AdjustedShm = Shm + (i * PAGE_SIZE);
 		Addr_t PhysicalAddr = 0;
 
@@ -291,7 +315,7 @@ Addr_t ScMemoryShare(IpcComm_t Target, Addr_t Address, size_t Size)
 	}
 
 	/* Done! */
-	return Shm;
+	return Shm + (Address & ATTRIBUTE_MASK);
 }
 
 /* Unshare memory with a process */
@@ -308,12 +332,17 @@ int ScMemoryUnshare(IpcComm_t Target, Addr_t TranslatedAddress, size_t Size)
 	/* Calculate */
 	NumBlocks = DIVUP(Size, PAGE_SIZE);
 
+	/* Sanity -> If we cross a page boundary */
+	if (((TranslatedAddress + Size) & PAGE_MASK)
+		!= (TranslatedAddress & PAGE_MASK))
+		NumBlocks++;
+
 	/* Start out by unmapping their 
 	 * memory in their address space */
 	for (i = 0; i < NumBlocks; i++)
 	{
 		/* Adjust address */
-		Addr_t AdjustedAddr = TranslatedAddress + (i * PAGE_SIZE);
+		Addr_t AdjustedAddr = (TranslatedAddress & PAGE_MASK) + (i * PAGE_SIZE);
 
 		/* Map it directly into target process */
 		AddressSpaceUnmap(Process->AddressSpace, AdjustedAddr, PAGE_SIZE);

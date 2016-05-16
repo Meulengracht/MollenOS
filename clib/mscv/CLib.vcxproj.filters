@@ -31,9 +31,6 @@
     <Filter Include="Source\os">
       <UniqueIdentifier>{f37ed1ba-8073-431b-a175-b9803ceb872b}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Source\os\Asm">
-      <UniqueIdentifier>{c2a32414-f746-419e-85e5-4581122381ff}</UniqueIdentifier>
-    </Filter>
     <Filter Include="Source\stdio\Printf">
       <UniqueIdentifier>{368df858-6e08-49a7-9c04-288718864ea0}</UniqueIdentifier>
     </Filter>
@@ -48,6 +45,9 @@
     </Filter>
     <Filter Include="Source\math\i386">
       <UniqueIdentifier>{12e48d7a-50f8-49e4-b10c-7ed6968e6be0}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source\os\i386">
+      <UniqueIdentifier>{c2a32414-f746-419e-85e5-4581122381ff}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>
@@ -405,6 +405,15 @@
     <ClCompile Include="..\src\math\hypot.c">
       <Filter>Source\math</Filter>
     </ClCompile>
+    <ClCompile Include="..\src\os\Process.c">
+      <Filter>Source\os</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\os\Ui.c">
+      <Filter>Source\os</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\os\Spinlock.c">
+      <Filter>Source\os</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <CustomBuild Include="..\src\string\memcpy_acc.s">
@@ -427,9 +436,6 @@
     </CustomBuild>
     <CustomBuild Include="..\src\math\i386\_log10.S">
       <Filter>Source\math\i386</Filter>
-    </CustomBuild>
-    <CustomBuild Include="..\src\os\Syscall32.s">
-      <Filter>Source\os\Asm</Filter>
     </CustomBuild>
     <CustomBuild Include="..\src\math\i386\_atan.S">
       <Filter>Source\math\i386</Filter>
@@ -467,5 +473,13 @@
     <CustomBuild Include="..\src\math\i386\_tan.S">
       <Filter>Source\math\i386</Filter>
     </CustomBuild>
+  </ItemGroup>
+  <ItemGroup>
+    <MASM Include="..\src\os\i386\_Spinlock.asm">
+      <Filter>Source\os\i386</Filter>
+    </MASM>
+    <MASM Include="..\src\os\i386\_Syscall32.asm">
+      <Filter>Source\os\i386</Filter>
+    </MASM>
   </ItemGroup>
 </Project>

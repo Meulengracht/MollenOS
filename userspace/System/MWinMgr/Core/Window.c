@@ -32,7 +32,7 @@
 /* Constructor
  * Allocates a new window of the given
  * dimensions and initializes it */
-Window_t *WindowCreate(int Id, Rect_t *Dimensions, int Flags, SDL_Renderer *Renderer)
+Window_t *WindowCreate(IpcComm_t Owner, Rect_t *Dimensions, int Flags, SDL_Renderer *Renderer)
 {
 	/* Allocate a new window instance */
 	Window_t *Window = (Window_t*)malloc(sizeof(Window_t));
@@ -40,7 +40,8 @@ Window_t *WindowCreate(int Id, Rect_t *Dimensions, int Flags, SDL_Renderer *Rend
 	int mPitch = 0;
 	
 	/* Set initial stuff */
-	Window->Id = Id;
+	Window->Id = 0;
+	Window->Owner = Owner;
 	Window->Flip = SDL_FLIP_NONE;
 	Window->Rotation = 0.0;
 	Window->zIndex = 1000;
@@ -67,6 +68,9 @@ Window_t *WindowCreate(int Id, Rect_t *Dimensions, int Flags, SDL_Renderer *Rend
 
 	/* Unlock texture */
 	SDL_UnlockTexture(Window->Texture);
+
+	/* Update size */
+	Window->BackbufferSize = Dimensions->h * mPitch;
 
 	/* Done */
 	return Window;

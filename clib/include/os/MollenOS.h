@@ -36,6 +36,19 @@
 #define MPATH_MAX		512
 #endif
 
+/* Typedef the process id type */
+#ifndef MPROCESS_ID
+#define MPROCESS_ID
+typedef unsigned int PId_t;
+#endif
+
+/* This describes a window handle 
+ * used by UI functions */
+#ifndef MWNDHANDLE
+#define MWNDHANDLE
+typedef void *WndHandle_t;
+#endif
+
 /* Enumerators */
 typedef enum _MollenOSDeviceType
 {
@@ -142,6 +155,31 @@ _MOS_API int MollenOSMessageWait(MEventMessage_t *Message);
 _MOS_API int MollenOSMessageSend(IpcComm_t Target, void *Message, size_t MessageLength);
 
 /***********************
+* Process Prototypes
+***********************/
+
+/* Process Spawn
+ * This function spawns a new process
+ * in it's own address space, and returns
+ * the new process id
+ * If startup is failed, the returned value
+ * is 0xFFFFFFFF */
+_MOS_API PId_t ProcessSpawn(const char *Path, const char *Arguments);
+
+/* Process Join
+ * Attaches to a running process
+ * and waits for the process to quit
+ * the return value is the return code
+ * from the target process */
+_MOS_API int ProcessJoin(PId_t ProcessId);
+
+/* Process Kill
+ * Kills target process id
+ * On error, returns -1, or if the
+ * kill was succesful, returns 0 */
+_MOS_API int ProcessKill(PId_t ProcessId);
+
+/***********************
 * Memory Prototypes
 ***********************/
 
@@ -168,25 +206,49 @@ _MOS_API int MollenOSDeviceQuery(MollenOSDeviceType_t Type, int Request, void *B
 /***********************
 * Shared Library Prototypes
 ***********************/
+
+/* Load a shared object given a path
+ * path must exists otherwise NULL is returned */
 _MOS_API void *SharedObjectLoad(const char *SharedObject);
+
+/* Load a function-address given an shared object
+ * handle and a function name, function must exist
+ * otherwise null is returned */
 _MOS_API void *SharedObjectGetFunction(void *Handle, const char *Function);
+
+/* Unloads a valid shared object handle
+ * returns 0 on success */
 _MOS_API void SharedObjectUnload(void *Handle);
 
 /***********************
 * Environment Prototypes
 ***********************/
+
+/* Resolve Environmental Path
+ * Resolves the environmental type
+ * to an valid absolute path */
 _MOS_API void EnvironmentResolve(EnvironmentPath_t SpecialPath, char *StringBuffer);
 
 /***********************
 * Screen Prototypes
 ***********************/
+
+/* This function returns screen geomemtry
+ * descriped as a rectangle structure, which
+ * must be pre-allocated */
 _MOS_API void MollenOSGetScreenGeometry(Rect_t *Rectangle);
 
 /***********************
 * System Misc Prototypes
+* - No functions here should
+*   be called manually
+*   they are automatically used
+*   by systems
 ***********************/
 _MOS_API void MollenOSSystemLog(const char *Message);
 _MOS_API int MollenOSEndBoot(void);
 _MOS_API int MollenOSRegisterWM(void);
+_MOS_API void UiConnect(void);
+_MOS_API void UiDisconnect(void);
 
 #endif //!__MOLLENOS_CLIB__

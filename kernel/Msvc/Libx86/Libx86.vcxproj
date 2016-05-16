@@ -94,11 +94,6 @@
       <Command Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">nasm -f win32 -Xvc -o $(IntDir)\%(Filename).obj %(FullPath)</Command>
       <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">$(IntDir)\%(Filename).obj</Outputs>
     </CustomBuild>
-    <CustomBuild Include="..\..\Arch\x86\x32\_Spinlock.asm">
-      <FileType>Document</FileType>
-      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">nasm -f win32 -Xvc -o $(IntDir)\%(Filename).obj %(FullPath)</Command>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">$(IntDir)\%(Filename).obj</Outputs>
-    </CustomBuild>
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <ProjectGuid>{17145F88-DAEA-496B-A91F-2A78ED5673CC}</ProjectGuid>

@@ -46,6 +46,16 @@ typedef enum _MEventType
 } MEventType_t;
 
 /***********************
+* Generic IPC Message Type
+***********************/
+typedef enum _MGenericMessageType
+{
+	GenericWindowCreate,
+	GenericWindowDestroy
+
+} MGenericMessageType_t;
+
+/***********************
 * Input IPC Message Type
 ***********************/
 typedef enum _MInputSourceType
@@ -79,6 +89,25 @@ typedef struct _MEventMessageBase
 	IpcComm_t Sender;
 
 } MEventMessageBase_t;
+
+/***********************
+* Generic IPC Message
+***********************/
+typedef struct _MEventMessageGeneric
+{
+	/* Base */
+	MEventMessageBase_t Header;
+
+	/* Message Type */
+	MGenericMessageType_t Type;
+
+	/* Param 1 */
+	size_t LoParam;
+
+	/* Param 2 */
+	size_t HiParam;
+
+} MEventMessageGeneric_t;
 
 /***********************
 * Input IPC Message
@@ -141,7 +170,13 @@ typedef union _MEventMessage
 	 * which structure to access */
 	MEventMessageBase_t Base;
 
-	/* Input Events 
+	/* Generic Message 
+	 * Used for pretty much any
+	 * message passed between processes */
+	MEventMessageGeneric_t Generic;
+
+	/* Events, these are driver messages
+	 * that rely on static message space
 	 * Contain data as mouse position, 
 	 * button states etc */
 	MEventMessageInputPointer_t EventPointer;

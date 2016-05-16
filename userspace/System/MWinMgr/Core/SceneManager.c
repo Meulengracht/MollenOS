@@ -41,6 +41,7 @@ void SceneManagerInit(SDL_Renderer *Renderer, Rect_t *ScreenDims)
 	GlbSceneManager = (SceneManager_t*)malloc(sizeof(SceneManager_t));
 	GlbSceneManager->Scenes = list_create(LIST_NORMAL);
 	GlbSceneManager->IdGen = 0;
+	GlbSceneManager->IdWindowGen = 0;
 
 	/* Create initial scene */
 	Scene = SceneCreate(GlbSceneManager->IdGen, ScreenDims, Renderer);
@@ -92,6 +93,10 @@ void SceneManagerAddWindow(Window_t *Window)
 
 	/* Get active scene (todo) */
 	Scene_t *ActiveScene = (Scene_t*)list_get_data_by_id(GlbSceneManager->Scenes, 0, 0);
+
+	/* Assign a unique id */
+	Window->Id = GlbSceneManager->IdWindowGen;
+	GlbSceneManager->IdWindowGen++;
 
 	/* Update Scene */
 	SceneAddWindow(ActiveScene, Window);

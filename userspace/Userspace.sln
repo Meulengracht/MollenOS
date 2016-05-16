@@ -3,13 +3,15 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio 2013
 VisualStudioVersion = 12.0.40629.0
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "MWinMgr", "System\MWinMgr\MWinMgr.vcxproj", "{9D87B19F-BD8D-475F-93C3-D7F01671AF63}"
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "Sapphire", "System\MWinMgr\MWinMgr.vcxproj", "{9D87B19F-BD8D-475F-93C3-D7F01671AF63}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "CRT", "CRT", "{0DAAAEB8-5673-4716-B349-82993A0F5ED9}"
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "LibC", "Crt\libc\WindowsProject1.vcxproj", "{66406913-4FF2-42D1-A65F-C024FDFC9159}"
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "LibCXXABI", "Crt\LibCXXABI\LibCXXABI.vcxproj", "{69B1ED50-EC11-4991-AD44-BE4AC32A7CEF}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "Terminal", "Applications\Terminal\Terminal.vcxproj", "{5A6FC271-438E-424C-9005-C5AA9DAA8EE4}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -29,6 +31,10 @@ Global
 		{69B1ED50-EC11-4991-AD44-BE4AC32A7CEF}.Debug|Win32.Build.0 = Debug|Win32
 		{69B1ED50-EC11-4991-AD44-BE4AC32A7CEF}.Release|Win32.ActiveCfg = Release|Win32
 		{69B1ED50-EC11-4991-AD44-BE4AC32A7CEF}.Release|Win32.Build.0 = Release|Win32
+		{5A6FC271-438E-424C-9005-C5AA9DAA8EE4}.Debug|Win32.ActiveCfg = Debug|Win32
+		{5A6FC271-438E-424C-9005-C5AA9DAA8EE4}.Debug|Win32.Build.0 = Debug|Win32
+		{5A6FC271-438E-424C-9005-C5AA9DAA8EE4}.Release|Win32.ActiveCfg = Release|Win32
+		{5A6FC271-438E-424C-9005-C5AA9DAA8EE4}.Release|Win32.Build.0 = Release|Win32
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

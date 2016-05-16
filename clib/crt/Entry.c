@@ -169,6 +169,9 @@ void _mConCrt(void)
 
 	/* Init Crt */
 
+	/* Initialize Ui */
+	UiConnect();
+
 	/* Create Console */
 
 	/* Init Cmd */
@@ -181,6 +184,9 @@ void _mConCrt(void)
 
 	/* Cleanup */
 	free(Args);
+
+	/* Destroy Ui */
+	UiDisconnect();
 
 	/* Exit cleanly, calling atexit() functions */
 	exit(RetValue);

@@ -31,12 +31,12 @@ void __SystemLibCEmpty(void)
 #else
 
 /* Const Message */
-const char *_SysTypeMessage = "CLIB";
+const char *__SysTypeMessage = "CLIB";
 
 /* Write to sysout */
 void MollenOSSystemLog(const char *Message)
 {
-	Syscall2(0, MOLLENOS_SYSCALL_PARAM(_SysTypeMessage), MOLLENOS_SYSCALL_PARAM(Message));
+	Syscall2(0, MOLLENOS_SYSCALL_PARAM(__SysTypeMessage), MOLLENOS_SYSCALL_PARAM(Message));
 }
 
 /* End Boot Sequence */
@@ -53,7 +53,9 @@ int MollenOSRegisterWM(void)
 	return Syscall0(MOLLENOS_SYSCALL_REGWM);
 }
 
-/* Get screen boundaries */
+/* This function returns screen geomemtry
+ * descriped as a rectangle structure, which
+ * must be pre-allocated */
 void MollenOSGetScreenGeometry(Rect_t *Rectangle)
 {
 	/* Vars */
@@ -137,7 +139,7 @@ int MollenOSMessageSend(IpcComm_t Target, void *Message, size_t MessageLength)
 	int RetVal = 0;
 
 	/* Syscall! */
-	RetVal = Syscall3(MOLLENOS_SYSCALL_READMSG, MOLLENOS_SYSCALL_PARAM(Target),
+	RetVal = Syscall3(MOLLENOS_SYSCALL_WRITEMSG, MOLLENOS_SYSCALL_PARAM(Target),
 		MOLLENOS_SYSCALL_PARAM(Message), MOLLENOS_SYSCALL_PARAM(MessageLength));
 
 	/* Sanity */

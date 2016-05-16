@@ -43,6 +43,7 @@ typedef struct _sSceneManager {
 
 	/* Id Generator */
 	int IdGen;
+	int IdWindowGen;
 
 	/* List of scenes */
 	list_t *Scenes;
