@@ -143,7 +143,7 @@ int PipeWrite(MCorePipe_t *Pipe, size_t SrcLength, uint8_t *Source)
 		/* Do we stil need to write more? */
 		if (BytesWritten < SrcLength) {
 			Pipe->WriteQueueCount++;
-			SemaphoreP(&Pipe->WriteQueue);
+			SemaphoreP(&Pipe->WriteQueue, 0);
 		}
 	}
 
@@ -193,7 +193,7 @@ int PipeRead(MCorePipe_t *Pipe, size_t DestLength, uint8_t *Destination, int Pee
 		{
 			/* Wakeup one of the writers */
 			if (Pipe->WriteQueueCount > 0) {
-				SemaphoreP(&Pipe->WriteQueue);
+				SemaphoreP(&Pipe->WriteQueue, 0);
 				Pipe->WriteQueueCount--;
 			}
 

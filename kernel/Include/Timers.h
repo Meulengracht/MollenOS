@@ -73,7 +73,6 @@ _CRT_EXPORT void TimersDestroyTimer(TmId_t TimerId);
 /* Sleep, Stall, etc */
 _CRT_EXPORT void SleepMs(size_t MilliSeconds);
 _CRT_EXPORT void StallMs(size_t MilliSeconds);
-_CRT_EXPORT void SleepNs(size_t NanoSeconds);
 _CRT_EXPORT void StallNs(size_t NanoSeconds);
 
 /* Stall-No-Int */

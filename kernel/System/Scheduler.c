@@ -41,11 +41,13 @@
 
 /* Globals */
 Scheduler_t *GlbSchedulers[MCORE_MAX_SCHEDULERS];
-list_t *SleepQueue = NULL;
+list_t *IoQueue = NULL;
 list_t *GlbSchedulerNodeRecycler = NULL;
 int GlbSchedulerEnabled = 0;
 
-/* Init */
+/* This initializes the scheduler for the
+ * given cpu_id, the first call to this
+ * will also initialize the scheduler enviornment */
 void SchedulerInit(Cpu_t Cpu)
 {
 	/* Variables needed */
@@ -59,8 +61,8 @@ void SchedulerInit(Cpu_t Cpu)
 		for (i = 0; i < MCORE_MAX_SCHEDULERS; i++)
 			GlbSchedulers[i] = NULL;
 
-		/* Allocate Sleep */
-		SleepQueue = list_create(LIST_SAFE);
+		/* Allocate IoQueue */
+		IoQueue = list_create(LIST_SAFE);
 
 		/* Allocate Node Recycler */
 		GlbSchedulerNodeRecycler = list_create(LIST_SAFE);
@@ -140,7 +142,9 @@ list_node_t *SchedulerGetNode(int Id, void *Data)
 		return list_create_node(Id, Data);
 }
 
-/* Add a thread */
+/* This function arms a thread for scheduling
+ * in most cases this is called with a prefilled
+ * priority of -1 to make it run almost immediately */
 void SchedulerReadyThread(MCoreThread_t *Thread)
 {
 	/* Add task to a queue based on its priority */
@@ -233,7 +237,9 @@ void SchedulerDisarmThread(MCoreThread_t *Thread)
 	SpinlockRelease(&GlbSchedulers[Thread->CpuId]->Lock);
 }
 
-/* Remove a thread from scheduler */
+/* This function is primarily used to remove a thread from
+ * scheduling totally, but it can always be scheduld again
+ * by calling SchedulerReadyThread */
 void SchedulerRemoveThread(MCoreThread_t *Thread)
 {
 	/* Get thread node if exists */
@@ -254,8 +260,67 @@ void SchedulerRemoveThread(MCoreThread_t *Thread)
 	kfree(ThreadNode);
 }
 
-/* Make a thread enter sleep */
-void SchedulerSleepThread(Addr_t *Resource)
+/* This is used by timer code to reduce threads's timeout
+ * if this function wasn't called then sleeping threads and 
+ * waiting threads would never be armed again. */
+void SchedulerApplyMs(size_t Ms)
+{
+	/* Find first thread matching resource */
+	list_node_t *sNode = NULL;
+
+	/* Sanity */
+	if (IoQueue == NULL
+		|| GlbSchedulerEnabled != 1)
+		return;
+
+	/* Loop */
+	for (sNode = IoQueue->head; sNode != NULL;)
+	{
+		/* Cast */
+		MCoreThread_t *mThread = (MCoreThread_t*)sNode->data;
+
+		/* Sanity */
+		if (mThread->Sleep != 0) 
+		{
+			/* Reduce */
+			mThread->Sleep -= MIN(Ms, mThread->Sleep);
+
+			/* Time to wakeup? */
+			if (mThread->Sleep == 0)
+			{
+				/* Temporary pointer */
+				list_node_t *WakeNode = sNode;
+
+				/* Skip to next node */
+				sNode = sNode->link;
+
+				/* Store node */
+				list_append(GlbSchedulerNodeRecycler, WakeNode);
+
+				/* Grant it top priority */
+				mThread->Priority = -1;
+				mThread->SleepResource = NULL;
+
+				/* Rearm thread */
+				SchedulerReadyThread(mThread);
+			}
+			else {
+				/* Go to next */
+				sNode = sNode->link;
+			}
+		}
+		else {
+			/* Go to next */
+			sNode = sNode->link;
+		}
+	}
+}
+
+/* This function sleeps the current thread either by resource,
+ * by time, or both. If resource is NULL then it will wake the
+ * thread after <timeout> ms. If infinite wait is required set
+ * timeout to 0 */
+void SchedulerSleepThread(Addr_t *Resource, size_t Timeout)
 {
 	/* Disable Interrupts 
 	 * This is a fragile operation */
@@ -274,26 +339,28 @@ void SchedulerSleepThread(Addr_t *Resource)
 
 	/* Add to list */
 	CurrentThread->SleepResource = Resource;
-	list_append(SleepQueue, 
+	CurrentThread->Sleep = Timeout;
+	list_append(IoQueue,
 		SchedulerGetNode(CurrentThread->ThreadId, CurrentThread));
 
 	/* Restore interrupts */
 	InterruptRestoreState(IntrState);
 }
 
-/* Wake up a thread sleeping */
+/* These two functions either wakes one or all threads
+ * waiting for a resource. */
 int SchedulerWakeupOneThread(Addr_t *Resource)
 {
 	/* Find first thread matching resource */
 	list_node_t *SleepMatch = NULL;
 
 	/* Sanity */
-	if (SleepQueue == NULL
+	if (IoQueue == NULL
 		|| GlbSchedulerEnabled != 1)
 		return 0;
 
 	/* Loop */
-	foreach(i, SleepQueue)
+	foreach(i, IoQueue)
 	{
 		/* Cast */
 		MCoreThread_t *mThread = (MCoreThread_t*)i->data;
@@ -313,11 +380,13 @@ int SchedulerWakeupOneThread(Addr_t *Resource)
 		MCoreThread_t *mThread = (MCoreThread_t*)SleepMatch->data;
 		
 		/* Cleanup */
-		list_remove_by_node(SleepQueue, SleepMatch);
+		list_remove_by_node(IoQueue, SleepMatch);
 		list_append(GlbSchedulerNodeRecycler, SleepMatch);
 
 		/* Grant it top priority */
 		mThread->Priority = -1;
+		mThread->Sleep = 0;
+		mThread->SleepResource = NULL;
 
 		/* Rearm thread */
 		SchedulerReadyThread(mThread);
@@ -329,7 +398,8 @@ int SchedulerWakeupOneThread(Addr_t *Resource)
 		return 0;
 }
 
-/* Wake up a all threads sleeping */
+/* These two functions either wakes one or all threads
+ * waiting for a resource. */
 void SchedulerWakeupAllThreads(Addr_t *Resource)
 {
 	/* Just keep iterating till no more sleep-matches */
@@ -341,7 +411,9 @@ void SchedulerWakeupAllThreads(Addr_t *Resource)
 	}
 }
 
-/* Schedule */
+/* Schedule 
+ * This should be called by the underlying archteicture code
+ * to get the next thread that is to be run. */
 MCoreThread_t *SchedulerGetNextTask(Cpu_t Cpu, MCoreThread_t *Thread, int PreEmptive)
 {
 	/* Variables */

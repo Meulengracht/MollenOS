@@ -133,6 +133,6 @@ _CRT_EXTERN void PmReapZombies(void);
 
 /* Requests */
 _CRT_EXTERN void PmCreateRequest(MCoreProcessRequest_t *Request);
-_CRT_EXTERN void PmWaitRequest(MCoreProcessRequest_t *Request);
+_CRT_EXTERN void PmWaitRequest(MCoreProcessRequest_t *Request, size_t Timeout);
 
 #endif //!_MCORE_PROCESS_MANAGER_H_

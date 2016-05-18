@@ -102,7 +102,7 @@ void DmCreateRequest(MCoreDeviceRequest_t *Request)
 }
 
 /* Wait for a request to complete */
-void DmWaitRequest(MCoreDeviceRequest_t *Request)
+void DmWaitRequest(MCoreDeviceRequest_t *Request, size_t Timeout)
 {
 	/* Sanity, make sure request hasn't completed */
 	if (Request->Status != RequestPending
@@ -110,7 +110,7 @@ void DmWaitRequest(MCoreDeviceRequest_t *Request)
 		return;
 
 	/* Otherwise wait */
-	SchedulerSleepThread((Addr_t*)Request);
+	SchedulerSleepThread((Addr_t*)Request, Timeout);
 	IThreadYield();
 }
 
@@ -127,7 +127,7 @@ void DmRequestHandler(void *Args)
 	while (1)
 	{
 		/* Acquire Semaphore */
-		SemaphoreP(GlbDmEventLock);
+		SemaphoreP(GlbDmEventLock, 0);
 
 		/* Pop Request */
 		lNode = list_pop_front(GlbDmEventQueue);

@@ -1664,7 +1664,7 @@ void OhciTransactionSend(void *Controller, UsbHcRequest_t *Request)
 		Ctrl->Registers->HcControl, Ctrl->Registers->HcCommandStatus);
 #else
 	/* Wait for interrupt */
-	SchedulerSleepThread((Addr_t*)Request->Data);
+	SchedulerSleepThread((Addr_t*)Request->Data, 5000);
 
 	/* Yield */
 	IThreadYield();
@@ -1777,7 +1777,7 @@ void OhciTransactionDestroy(void *Controller, UsbHcRequest_t *Request)
 		Ctrl->Registers->HcInterruptEnable = OHCI_INTR_SOF;
 
 		/* Wait for it to happen */
-		SchedulerSleepThread((Addr_t*)Ed);
+		SchedulerSleepThread((Addr_t*)Ed, 5000);
 		IThreadYield();
 
 		/* Iterate transactions and free buffers & td's */

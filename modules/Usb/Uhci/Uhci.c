@@ -1643,7 +1643,7 @@ void UhciTransactionSend(void *Controller, UsbHcRequest_t *Request)
 	
 #ifndef UHCI_DIAGNOSTICS
 	/* Wait for interrupt */
-	SchedulerSleepThread((Addr_t*)Request->Data);
+	SchedulerSleepThread((Addr_t*)Request->Data, 5000);
 
 	/* Yield */
 	IThreadYield();

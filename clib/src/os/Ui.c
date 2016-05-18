@@ -23,6 +23,7 @@
 #include <os/MollenOS.h>
 #include <os/Syscall.h>
 #include <os/Thread.h>
+#include "Shared/BAlloc.h"
 
 /* C Library */
 #include <stddef.h>
@@ -60,6 +61,9 @@ void *__UiConnectionHandle = NULL;
 int __UiConnected = 0;
 Spinlock_t __UiConnectionLock;
 
+/* Helpers */
+#define TO_SHARED_HANDLE(Ptr) ((void*)((uint8_t*)__UiConnectionHandle + ((size_t)Ptr - (size_t)__UiConnectionBuffer)))
+
 /* UiConnect
  * Only called once, it initializes 
  * the ui-connection to the window
@@ -71,15 +75,18 @@ void UiConnect(void)
 		return;
 
 	/* Allocate a message buffer 
-	 * 512 bytes should do it */
-	__UiConnectionBuffer = malloc(512);
+	 * 1024 bytes should do it */
+	__UiConnectionBuffer = malloc(1024);
 
 	/* Window server is ALWAYS process id 0 */
 	__UiConnectionHandle = 
-		MollenOSMemoryShare(0, __UiConnectionBuffer, 512);
+		MollenOSMemoryShare(0, __UiConnectionBuffer, 1024);
 
 	/* Reset lock */
 	SpinlockReset(&__UiConnectionLock);
+
+	/* Create the message allocator */
+	bpool(__UiConnectionBuffer, 1024);
 
 	/* Done! */
 	__UiConnected = 1;
@@ -95,7 +102,7 @@ void UiDisconnect(void)
 		return;
 
 	/* Unshare the memory */
-	MollenOSMemoryUnshare(0, __UiConnectionHandle, 512);
+	MollenOSMemoryUnshare(0, __UiConnectionHandle, 2048);
 
 	/* Free the handle */
 	free(__UiConnectionBuffer);
@@ -109,12 +116,13 @@ void UiDisconnect(void)
  * dimensions and flags. The returned
  * value is the id of the newly created
  * window. Returns NULL on failure */
-WndHandle_t UiCreateWindow(Rect_t Dimensions, int Flags)
+WndHandle_t UiCreateWindow(Rect_t *Dimensions, int Flags)
 {
 	/* Variables */
 	IPCWindowCreate_t *WndInformation;
 	MEventMessageGeneric_t Message;
 	WindowDescriptor_t *WndDescriptor;
+	void *SharedPtr = NULL;
 
 	/* Sanity */
 	if (__UiConnected != 1)
@@ -124,12 +132,18 @@ WndHandle_t UiCreateWindow(Rect_t Dimensions, int Flags)
 	SpinlockAcquire(&__UiConnectionLock);
 
 	/* Access/Setup buffer */
-	WndInformation = (IPCWindowCreate_t*)__UiConnectionBuffer;
+	WndInformation = (IPCWindowCreate_t*)bget(sizeof(IPCWindowCreate_t));
 	memset(WndInformation, 0, sizeof(IPCWindowCreate_t));
 
+	/* Release buffer lock */
+	SpinlockRelease(&__UiConnectionLock);
+
 	/* Fill in request information */
-	memcpy(&WndInformation->Dimensions, &Dimensions, sizeof(Rect_t));
+	memcpy(&WndInformation->Dimensions, Dimensions, sizeof(Rect_t));
 	WndInformation->Flags = Flags;
+
+	/* Cast to shared handle */
+	SharedPtr = TO_SHARED_HANDLE(WndInformation);
 
 	/* Setup base message */
 	Message.Header.Length = sizeof(MEventMessageGeneric_t);
@@ -137,14 +151,18 @@ WndHandle_t UiCreateWindow(Rect_t Dimensions, int Flags)
 	
 	/* Setup generic message */
 	Message.Type = GenericWindowCreate;
-	Message.LoParam = (size_t)__UiConnectionHandle;
+	Message.LoParam = (size_t)SharedPtr;
 	Message.HiParam = 0;
 
 	/* Send request */
 	if (MollenOSMessageSend(0, &Message, Message.Header.Length)) {
-		SpinlockRelease(&__UiConnectionLock);
+		brel((void*)WndInformation);
 		return NULL;
 	}
+
+	/* Wait for window manager to respond 
+	 * but don't wait for longer than 1 sec.. */
+	MollenOSSignalWait(1000);
 
 	/* Save return information
 	 * especially the backbuffer information */
@@ -155,8 +173,8 @@ WndHandle_t UiCreateWindow(Rect_t Dimensions, int Flags)
 	memcpy(&WndDescriptor->Dimensions, &WndInformation->ResultDimensions,
 		sizeof(Rect_t));
 
-	/* Release buffer lock */
-	SpinlockRelease(&__UiConnectionLock);
+	/* Release */
+	brel((void*)WndInformation);
 
 	/* Done */
 	return WndDescriptor;
@@ -196,6 +214,88 @@ int UiDestroyWindow(WndHandle_t Handle)
 
 	/* Done */
 	return 0;
+}
+
+/* UiQueryDimensions
+ * Queries the dimensions of a window
+ * handle */
+int UiQueryDimensions(WndHandle_t Handle, Rect_t *Dimensions)
+{
+	/* Cast to structure 
+	 * so we can access */
+	WindowDescriptor_t *Wnd =
+		(WindowDescriptor_t*)Handle;
+
+	/* Sanity */
+	if (Handle == NULL
+		|| Dimensions == NULL)
+		return -1;
+
+	/* Fill out information */
+	memcpy(Dimensions, &Wnd->Dimensions, sizeof(Rect_t));
+
+	/* Success! */
+	return 0;
+}
+
+/* UiQueryBackbuffer
+ * Queries the backbuffer handle of a window
+ * that can be used for direct pixel access to it */
+int UiQueryBackbuffer(WndHandle_t Handle, void **Backbuffer, size_t *BackbufferSize)
+{
+	/* Cast to structure
+	* so we can access */
+	WindowDescriptor_t *Wnd =
+		(WindowDescriptor_t*)Handle;
+
+	/* Sanity */
+	if (Handle == NULL)
+		return -1;
+
+	/* Fill out information */
+	if (Backbuffer != NULL)
+		*Backbuffer = Wnd->Backbuffer;
+	if (BackbufferSize != NULL)
+		*BackbufferSize = Wnd->BackbufferSize;
+
+	/* Success! */
+	return 0;
+}
+
+/* UiInvalidateRect
+ * Invalides a region of the window
+ * based on relative coordinates in the window 
+ * if its called with NULL as dimensions it 
+ * invalidates all */
+void UiInvalidateRect(WndHandle_t Handle, Rect_t *Rect)
+{
+	/* Variables */
+	MEventMessageGeneric_t Message;
+	WindowDescriptor_t *Wnd =
+		(WindowDescriptor_t*)Handle;
+
+	/* Sanity */
+	if (__UiConnected != 1
+		|| Handle == NULL)
+		return;
+
+	/* Setup base message */
+	Message.Header.Length = sizeof(MEventMessageGeneric_t);
+	Message.Header.Type = EventGeneric;
+
+	/* Setup generic message */
+	Message.Type = GenericWindowDestroy;
+	Message.LoParam = (size_t)Wnd->WindowId;
+	Message.HiParam = 0; /* Future:: Flags */
+
+	/* Setup rect */
+	if (Rect != NULL)
+		memcpy(&Message.RcParam, Rect, sizeof(Rect_t));
+	else
+		memcpy(&Message.RcParam, &Wnd->Dimensions, sizeof(Rect_t));
+
+	/* Send request */
+	MollenOSMessageSend(0, &Message, Message.Header.Length);
 }
 
 #endif

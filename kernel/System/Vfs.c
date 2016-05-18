@@ -69,21 +69,6 @@ void VfsInit(void)
 	GlbVfsInitHasRun = 0;
 }
 
-/* String Hash */
-size_t VfsHash(uint8_t *Str)
-{
-	/* Hash Seed */
-	size_t Hash = 5381;
-	int Char;
-
-	/* Hash */
-	while ((Char = tolower(*Str++)) != 0)
-		Hash = ((Hash << 5) + Hash) + Char; /* hash * 33 + c */
-
-	/* Done */
-	return Hash;
-}
-
 /* Register fs */
 void VfsInstallFileSystem(MCoreFileSystem_t *Fs)
 {
@@ -156,7 +141,7 @@ int VfsParsePartitionTable(DevId_t DiskId, uint64_t SectorBase, uint64_t SectorC
 
 	/* Create & Wait */
 	DmCreateRequest(&Request);
-	DmWaitRequest(&Request);
+	DmWaitRequest(&Request, 0);
 
 	/* Sanity */
 	if (Request.Status != RequestOk)
@@ -293,7 +278,7 @@ void VfsRegisterDisk(DevId_t DiskId)
 
 	/* Perform */
 	DmCreateRequest(&Request);
-	DmWaitRequest(&Request);
+	DmWaitRequest(&Request, 0);
 
 	/* Well, well */
 	uint64_t SectorCount = *(uint64_t*)&TmpBuffer[0];
@@ -584,7 +569,7 @@ void VfsOpenInternal(MCoreFileInstance_t *Instance, MString_t *Path, VfsFileFlag
 	int Index = 0;
 
 	/* Check Cache */
-	size_t PathHash = VfsHash(Path->Data);
+	size_t PathHash = MStringHash(Path);
 	list_node_t *pNode = list_get_node_by_id(GlbOpenFiles, (int)PathHash, 0);
 
 	/* Did it exist? */

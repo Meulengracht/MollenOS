@@ -60,7 +60,7 @@ PId_t ScProcessSpawn(char *Path, char *Arguments)
 	
 	/* Fire! */
 	PmCreateRequest(&Request);
-	PmWaitRequest(&Request);
+	PmWaitRequest(&Request, 0);
 
 	/* Cleanup */
 	MStringDestroy(mPath);
@@ -83,7 +83,7 @@ int ScProcessJoin(PId_t ProcessId)
 		return -1;
 
 	/* Sleep */
-	SchedulerSleepThread((Addr_t*)Process);
+	SchedulerSleepThread((Addr_t*)Process, 0);
 	IThreadYield();
 
 	/* Return the exit code */
@@ -102,7 +102,7 @@ int ScProcessKill(PId_t ProcessId)
 
 	/* Fire! */
 	PmCreateRequest(&Request);
-	PmWaitRequest(&Request);
+	PmWaitRequest(&Request, 1000);
 
 	/* Return the exit code */
 	if (Request.State == ProcessRequestOk)
@@ -406,7 +406,10 @@ int ScIpcRead(uint8_t *MessageContainer, size_t MessageLength)
 	return PipeRead(Process->Pipe, MessageLength, MessageContainer, 0);
 }
 
-/* Sends a message to another process */
+/* Sends a message to another process, 
+ * so far this system call is made in the fashion
+ * that the recieving process must have room in their
+ * message queue... dunno */
 int ScIpcWrite(PId_t ProcessId, uint8_t *Message, size_t MessageLength)
 {
 	/* Vars */
@@ -432,6 +435,53 @@ int ScIpcWrite(PId_t ProcessId, uint8_t *Message, size_t MessageLength)
 
 	/* Write */
 	return PipeWrite(Process->Pipe, MessageLength, Message);
+}
+
+/* This is a bit of a tricky synchronization method
+ * and should always be used with care and WITH the timeout
+ * since it could hang a process */
+int ScIpcSleep(size_t Timeout)
+{
+	/* Get current process */
+	Cpu_t CurrentCpu = ApicGetCpu();
+	MCoreProcess_t *Process =
+		PmGetProcess(ThreadingGetCurrentThread(CurrentCpu)->ProcessId);
+
+	/* Should never happen this 
+	 * Only threads associated with processes
+	 * can call this */
+	if (Process == NULL)
+		return -1;
+
+	/* Sleep on process handle */
+	SchedulerSleepThread((Addr_t*)Process, Timeout);
+	IThreadYield();
+
+	/* Now we reach this when the timeout is 
+	 * is triggered or another process wakes us */
+	return 0;
+}
+
+/* This must be used in conjuction with the above function
+ * otherwise this function has no effect, this is used for
+ * very limited IPC synchronization */
+int ScIpcWake(IpcComm_t Target)
+{
+	/* Vars */
+	MCoreProcess_t *Process = NULL;
+
+	/* Get current process */
+	Process = PmGetProcess(Target);
+
+	/* Sanity */
+	if (Process == NULL)
+		return -1;
+
+	/* Send a wakeup signal */
+	SchedulerWakeupOneThread((Addr_t*)Process);
+
+	/* Now we should have waked up the waiting process */
+	return 0;
 }
 
 /***********************
@@ -674,7 +724,7 @@ int ScDeviceQuery(DeviceType_t Type, uint8_t *Buffer, size_t BufferLength)
 	
 	/* Fire request */
 	DmCreateRequest(&Request);
-	DmWaitRequest(&Request);
+	DmWaitRequest(&Request, 1000);
 
 	/* Sanity */
 	if (Request.Status == RequestOk)
@@ -856,8 +906,8 @@ Addr_t GlbSyscallTable[111] =
 	DefineSyscall(ScIpcPeek),
 	DefineSyscall(ScIpcRead),
 	DefineSyscall(ScIpcWrite),
-	DefineSyscall(NoOperation),
-	DefineSyscall(NoOperation),
+	DefineSyscall(ScIpcSleep),
+	DefineSyscall(ScIpcWake),
 	DefineSyscall(NoOperation),
 	DefineSyscall(NoOperation),
 	DefineSyscall(NoOperation),

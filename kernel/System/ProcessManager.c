@@ -75,7 +75,7 @@ void PmCreateRequest(MCoreProcessRequest_t *Request)
 }
 
 /* Wait for request */
-void PmWaitRequest(MCoreProcessRequest_t *Request)
+void PmWaitRequest(MCoreProcessRequest_t *Request, size_t Timeout)
 {
 	/* Sanity, make sure request hasn't completed */
 	if (Request->State != ProcessRequestPending
@@ -83,7 +83,7 @@ void PmWaitRequest(MCoreProcessRequest_t *Request)
 		return;
 
 	/* Otherwise wait */
-	SchedulerSleepThread((Addr_t*)Request);
+	SchedulerSleepThread((Addr_t*)Request, Timeout);
 	IThreadYield();
 }
 
@@ -101,7 +101,7 @@ void PmEventHandler(void *Args)
 	while (1)
 	{
 		/* Get event */
-		SemaphoreP(GlbProcessEventLock);
+		SemaphoreP(GlbProcessEventLock, 0);
 
 		/* Pop from event queue */
 		eNode = list_pop_front(GlbProcessRequests);

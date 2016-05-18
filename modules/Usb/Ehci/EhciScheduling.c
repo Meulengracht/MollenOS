@@ -345,7 +345,7 @@ void EhciRingDoorbell(EhciController_t *Controller, Addr_t *Data)
 	MemoryBarrier();
 
 	/* Wait */
-	SchedulerSleepThread(Data);
+	SchedulerSleepThread(Data, 5000);
 	IThreadYield();
 }
 
@@ -1278,7 +1278,7 @@ void EhciTransactionSend(void *cData, UsbHcRequest_t *Request)
 	EhciEnableAsyncScheduler(Controller);
 
 	/* Wait for interrupt */
-	SchedulerSleepThread((Addr_t*)Request->Data);
+	SchedulerSleepThread((Addr_t*)Request->Data, 5000);
 
 	/* Yield */
 	IThreadYield();

@@ -79,10 +79,19 @@ void HandleMessage(SDL_Renderer *Target, MEventMessage_t *Message)
 					/* Update id */
 					WndInformation->WindowId = Wnd->Id;
 
+					/* Signal the process */
+					MollenOSSignalWake(Message->Base.Sender);
+
 				} break;
 
 				/* Destroy a window */
 				case GenericWindowDestroy:
+				{
+
+				} break;
+
+				/* Invalidate a window */
+				case GenericWindowInvalidate:
 				{
 
 				} break;

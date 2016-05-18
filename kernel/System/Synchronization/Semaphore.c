@@ -28,6 +28,7 @@
 
 /* Globals */
 list_t *GlbUserSemaphores = NULL;
+int GlbUserSemaphoreInit = 0;
 
 /* This method allocates and constructs
  * a new semaphore handle. This is a kernel
@@ -53,12 +54,27 @@ Semaphore_t *SemaphoreCreate(int Value)
 /* This method allocates and constructs
  * a new semaphore handle. This is a usermode
  * semaphore */
-UserSemaphore_t *SemaphoreUserCreate(const char *Identifier, int Value)
+UserSemaphore_t *SemaphoreUserCreate(MString_t *Identifier, int Value)
 {
 	/* First of all, make sure there is no 
 	 * conflicting semaphores in system */
-	if (Identifier != NULL) {
+	if (Identifier != NULL) 
+	{
+		/* Init ? */
+		if (GlbUserSemaphoreInit != 1) {
+			GlbUserSemaphores = list_create(LIST_SAFE);
+			GlbUserSemaphoreInit = 1;
+		}
 
+		/* Hash the string */
+		size_t Hash = MStringHash(Identifier);
+
+		/* Check list if exists */
+		void *uSem = list_get_data_by_id(GlbUserSemaphores, (int)Hash, 0);
+
+		/* Sanity */
+		if (uSem != NULL)
+			return (UserSemaphore_t*)uSem;
 	}
 
 	/* Allocate a new semaphore */
@@ -69,12 +85,43 @@ UserSemaphore_t *SemaphoreUserCreate(const char *Identifier, int Value)
 	SemaphoreConstruct(&Semaphore->Semaphore, Value);
 
 	/* Add to system list of semaphores if global */
-	if (Identifier != NULL) {
+	if (Identifier != NULL) 
+	{
+		/* Hash the string */
+		size_t Hash = MStringHash(Identifier);
 
+		/* Add to list */
+		list_append(GlbUserSemaphores, list_create_node((int)Hash, Semaphore));
 	}
 
 	/* Done! */
 	return Semaphore;
+}
+
+/* Destroys and frees a user semaphore, releasing any
+ * resources associated with it */
+void SemaphoreUserDestroy(UserSemaphore_t *Semaphore)
+{
+	/* Sanity 
+	 * If it has a global identifier
+	 * we want to remove it from list */
+	if (Semaphore->Identifier != NULL) 
+	{
+		/* Hash the string */
+		size_t Hash = MStringHash(Semaphore->Identifier);
+
+		/* Remove id */
+		list_remove_by_id(GlbUserSemaphores, (int)Hash);
+
+		/* Cleanup Ident */
+		MStringDestroy(Semaphore->Identifier);
+	}
+
+	/* Wake up all */
+	SchedulerWakeupAllThreads((Addr_t*)&Semaphore->Semaphore);
+
+	/* Free it */
+	kfree(Semaphore);
 }
 
 /* This method constructs a new semaphore handle.
@@ -107,7 +154,7 @@ void SemaphoreDestroy(Semaphore_t *Semaphore)
 
 /* Semaphore Wait
  * Waits for the semaphore signal */
-void SemaphoreP(Semaphore_t *Semaphore)
+void SemaphoreP(Semaphore_t *Semaphore, size_t Timeout)
 {
 	/* Lock */
 	SpinlockAcquire(&Semaphore->Lock);
@@ -119,7 +166,7 @@ void SemaphoreP(Semaphore_t *Semaphore)
 		SpinlockRelease(&Semaphore->Lock);
 		
 		/* Go to sleep */
-		SchedulerSleepThread((Addr_t*)Semaphore);
+		SchedulerSleepThread((Addr_t*)Semaphore, Timeout);
 		IThreadYield();
 	}
 	else

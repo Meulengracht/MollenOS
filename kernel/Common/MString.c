@@ -1060,6 +1060,30 @@ uint32_t MStringLength(MString_t *String)
 	return Utf8StringLength(DataPtr);
 }
 
+/* String Hash */
+size_t MStringHash(MString_t *String)
+{
+	/* Hash Seed */
+	size_t Hash = 5381;
+	uint8_t *StrPtr;
+	int Char;
+
+	/* Sanity */
+	if (String->Data == NULL
+		|| String->Length == 0)
+		return 0;
+
+	/* Get a pointer */
+	StrPtr = (uint8_t*)String->Data;
+
+	/* Hash */
+	while ((Char = tolower(*StrPtr++)) != 0)
+		Hash = ((Hash << 5) + Hash) + Char; /* hash * 33 + c */
+
+	/* Done */
+	return Hash;
+}
+
 uint32_t MStringCompare(MString_t *String1, MString_t *String2, uint32_t IgnoreCase)
 {
 	/* If ignore case we use IsAlpha on their asses and then tolower */

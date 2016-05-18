@@ -58,6 +58,7 @@ typedef struct _MCoreThread
 	
 	/* Synchronization */
 	Addr_t *SleepResource;
+	size_t Sleep;
 
 	/* Ids */
 	TId_t ThreadId;

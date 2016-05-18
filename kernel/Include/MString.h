@@ -86,6 +86,7 @@ _CRT_EXPORT void MStringReplace(MString_t *String, const char *Old, const char *
 
 /* Utilities */
 _CRT_EXPORT uint32_t MStringLength(MString_t *String);
+_CRT_EXPORT size_t MStringHash(MString_t *String);
 _CRT_EXPORT uint32_t MStringCompare(MString_t *String1, MString_t *String2, uint32_t IgnoreCase);
 _CRT_EXPORT void MStringToASCII(MString_t *String, void *Buffer);
 _CRT_EXPORT void MStringPrint(MString_t *String);

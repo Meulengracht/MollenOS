@@ -67,7 +67,7 @@ DeviceRequestStatus_t MfsReadSectors(MCoreFileSystem_t *Fs, uint64_t Sector, voi
 		DmCreateRequest(&Request);
 
 		/* Wait */
-		DmWaitRequest(&Request);
+		DmWaitRequest(&Request, 0);
 
 		/* Sanity */
 		if (Request.Status != RequestOk)
@@ -120,7 +120,7 @@ DeviceRequestStatus_t MfsWriteSectors(MCoreFileSystem_t *Fs, uint64_t Sector, vo
 		DmCreateRequest(&Request);
 
 		/* Wait */
-		DmWaitRequest(&Request);
+		DmWaitRequest(&Request, 0);
 
 		/* Sanity */
 		if (Request.Status != RequestOk)

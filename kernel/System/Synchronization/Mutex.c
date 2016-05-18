@@ -59,21 +59,21 @@ void MutexDestruct(Mutex_t *Mutex)
 }
 
 /* Get lock of mutex */
-void MutexLock(Mutex_t *Mutex)
+int MutexLock(Mutex_t *Mutex)
 {
 	/* If this thread already holds the mutex, increase ref count */
 	if (Mutex->Blocks != 0 
 		&& Mutex->Blocker == ThreadingGetCurrentThreadId())
 	{
 		Mutex->Blocks++;
-		return;
+		return 0;
 	}
 
 	/* Wait for mutex to become free */
 	while (Mutex->Blocks != 0)
 	{
 		/* Wait for signal */
-		SchedulerSleepThread((Addr_t*)Mutex);
+		SchedulerSleepThread((Addr_t*)Mutex, MUTEX_DEFAULT_TIMEOUT);
 
 		/* Yield */
 		IThreadYield();
@@ -82,6 +82,9 @@ void MutexLock(Mutex_t *Mutex)
 	/* Initialize */
 	Mutex->Blocks = 1;
 	Mutex->Blocker = ThreadingGetCurrentThreadId();
+
+	/* Success! */
+	return 0;
 }
 
 /* Release lock of mutex */

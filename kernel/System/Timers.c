@@ -24,6 +24,7 @@
 #include <Devices\Timer.h>
 #include <Arch.h>
 #include <Timers.h>
+#include <Scheduler.h>
 #include <Heap.h>
 #include <List.h>
 
@@ -92,40 +93,17 @@ void SleepMs(size_t MilliSeconds)
 {
 	/* Lookup */
 	MCoreDevice_t *tDevice = DmGetDevice(DeviceTimer);
-	MCoreTimerDevice_t *Timer = NULL;
 
-	/* Sanity */
-	if (tDevice == NULL)
-	{
+	/* Sanity - 
+	 * we make sure there is a timer present 
+	 * in the system, otherwise we must induce delay */
+	if (tDevice == NULL) {
 		DelayMs(MilliSeconds);
 		return;
 	}
-	
-	/* Cast */
-	Timer = (MCoreTimerDevice_t*)tDevice->Data;
 
-	/* Go */
-	Timer->Sleep(tDevice, MilliSeconds);
-}
-
-void SleepNs(size_t NanoSeconds)
-{
-	/* Lookup */
-	MCoreDevice_t *tDevice = DmGetDevice(DevicePerfTimer);
-	MCoreTimerDevice_t *Timer = NULL;
-
-	/* Sanity */
-	if (tDevice == NULL)
-	{
-		DelayMs((NanoSeconds / 1000) + 1);
-		return;
-	}
-
-	/* Cast */
-	Timer = (MCoreTimerDevice_t*)tDevice->Data;
-
-	/* Go */
-	Timer->Sleep(tDevice, NanoSeconds);
+	/* Enter sleep */
+	SchedulerSleepThread(NULL, MilliSeconds);
 }
 
 /* Stall functions */
@@ -178,6 +156,10 @@ void TimersApplyMs(size_t Ms)
 	if (GlbTimersInitialized != 1)
 		return;
 
+	/* Apply time to scheduler */
+	SchedulerApplyMs(Ms);
+
+	/* Now iterate */
 	_foreach(i, GlbTimers)
 	{
 		/* Cast */

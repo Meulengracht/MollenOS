@@ -49,6 +49,9 @@
     <Filter Include="Source\os\i386">
       <UniqueIdentifier>{c2a32414-f746-419e-85e5-4581122381ff}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Source\os\Shared">
+      <UniqueIdentifier>{8113a867-9237-4beb-91ab-52270a8d0259}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\src\string\atof.c">
@@ -414,6 +417,9 @@
     <ClCompile Include="..\src\os\Spinlock.c">
       <Filter>Source\os</Filter>
     </ClCompile>
+    <ClCompile Include="..\src\os\Shared\BAlloc.c">
+      <Filter>Source\os\Shared</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <CustomBuild Include="..\src\string\memcpy_acc.s">
@@ -479,5 +485,10 @@
     <CustomBuild Include="..\src\os\i386\_Spinlock.asm">
       <Filter>Source\os\i386</Filter>
     </CustomBuild>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\src\os\Shared\BAlloc.h">
+      <Filter>Source\os\Shared</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

@@ -300,6 +300,7 @@ TId_t ThreadingCreateThread(char *Name, ThreadEntry_t Function, void *Args, int 
 	nThread->Func = Function;
 	nThread->Args = Args;
 	nThread->Flags = 0;
+	nThread->Sleep = 0;
 
 	/* If we are CPU bound :/ */
 	if (Flags & THREADING_CPUBOUND)

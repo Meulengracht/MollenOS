@@ -499,7 +499,7 @@ void UsbEventHandler(void *args)
 	while (1)
 	{
 		/* Acquire Semaphore */
-		SemaphoreP(GlbEventLock);
+		SemaphoreP(GlbEventLock, 0);
 
 		/* Pop Event */
 		lNode = list_pop_front(GlbUsbEvents);

@@ -150,6 +150,39 @@ int MollenOSMessageSend(IpcComm_t Target, void *Message, size_t MessageLength)
 	return RetVal;
 }
 
+/* IPC - Sleep 
+ * This suspends the current process-thread
+ * and puts it in a sleep state untill either
+ * the timeout runs out or it recieves a wake 
+ * signal. */
+int MollenOSSignalWait(size_t Timeout)
+{
+	/* Variables */
+	int RetVal = 0;
+
+	/* Syscall! */
+	RetVal = Syscall1(MOLLENOS_SYSCALL_PSIGWAIT, MOLLENOS_SYSCALL_PARAM(Timeout));
+
+	/* Done! */
+	return RetVal;
+}
+
+/* IPC - Wake 
+ * This wakes up a thread in suspend mode on the 
+ * target. This should be used in conjunction with
+ * the Sleep. */
+int MollenOSSignalWake(IpcComm_t Target)
+{
+	/* Variables */
+	int RetVal = 0;
+
+	/* Syscall! */
+	RetVal = Syscall1(MOLLENOS_SYSCALL_PSIGSEND, MOLLENOS_SYSCALL_PARAM(Target));
+
+	/* Done! */
+	return RetVal;
+}
+
 /* Memory - Share
  * This shares a piece of memory with the
  * target process. The function returns NULL

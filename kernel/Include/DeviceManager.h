@@ -193,6 +193,6 @@ _CRT_EXPORT void DmDestroyDevice(DevId_t DeviceId);
 
 /* Device Requests */
 _CRT_EXPORT void DmCreateRequest(MCoreDeviceRequest_t *Request);
-_CRT_EXPORT void DmWaitRequest(MCoreDeviceRequest_t *Request);
+_CRT_EXPORT void DmWaitRequest(MCoreDeviceRequest_t *Request, size_t Timeout);
 
 #endif //_MCORE_DRIVER_MANAGER_H_

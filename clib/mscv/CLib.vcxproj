@@ -43,6 +43,7 @@
     <ClCompile Include="..\src\os\Malloc.c" />
     <ClCompile Include="..\src\os\Process.c" />
     <ClCompile Include="..\src\os\SharedObject.c" />
+    <ClCompile Include="..\src\os\Shared\BAlloc.c" />
     <ClCompile Include="..\src\os\Spinlock.c" />
     <ClCompile Include="..\src\os\Syscalls.c" />
     <ClCompile Include="..\src\os\System.c" />
@@ -251,6 +252,9 @@
       <Command Condition="'$(Configuration)|$(Platform)'=='CLibK|Win32'">nasm -f win32 -Xvc -o $(IntDir)\%(Filename).obj %(FullPath)</Command>
       <Outputs Condition="'$(Configuration)|$(Platform)'=='CLibK|Win32'">$(IntDir)\%(Filename).obj</Outputs>
     </CustomBuild>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\src\os\Shared\BAlloc.h" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <ProjectGuid>{5F7F1D6B-FFEE-44E1-8DF5-00725A1A5461}</ProjectGuid>

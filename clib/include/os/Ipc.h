@@ -51,7 +51,8 @@ typedef enum _MEventType
 typedef enum _MGenericMessageType
 {
 	GenericWindowCreate,
-	GenericWindowDestroy
+	GenericWindowDestroy,
+	GenericWindowInvalidate
 
 } MGenericMessageType_t;
 
@@ -71,6 +72,22 @@ typedef enum _MInputSourceType
 } MInputSourceType_t;
 
 /* Structures */
+
+/* Define the standard os
+* rectangle used for ui
+* operations */
+#ifndef MRECTANGLE_DEFINED
+#define MRECTANGLE_DEFINED
+typedef struct _mRectangle
+{
+	/* Origin */
+	int x, y;
+
+	/* Size */
+	int h, w;
+
+} Rect_t;
+#endif
 
 /*********************** 
  * Base IPC Message 
@@ -106,6 +123,9 @@ typedef struct _MEventMessageGeneric
 
 	/* Param 2 */
 	size_t HiParam;
+
+	/* Param Rect */
+	Rect_t RcParam;
 
 } MEventMessageGeneric_t;
 

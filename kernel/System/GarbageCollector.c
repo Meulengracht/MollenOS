@@ -74,8 +74,9 @@ void GcWorker(void *Args)
 	/* Run thread forever */
 	while (Run)
 	{
-		/* Wait for an event */
-		SemaphoreP(GlbGcEventLock);
+		/* Wait for an event, 
+		 * but still check every 10 seconds */
+		SemaphoreP(GlbGcEventLock, 10 * 1000);
 
 		/* Cleanup Threads */
 		ThreadingReapZombies();
