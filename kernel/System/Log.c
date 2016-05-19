@@ -31,6 +31,7 @@
 #include <string.h>
 
 /* Globals */
+MCoreFileInstance_t *GlbLogFileHandle = NULL;
 char GlbLogStatic[LOG_INITIAL_SIZE];
 LogTarget_t GlbLogTarget = LogMemory;
 LogLevel_t GlbLogLevel = LogLevel1;
@@ -51,6 +52,7 @@ void LogInit(void)
 	GlbLogLevel = LogLevel1;
 
 	/* Set log ptr to initial */
+	GlbLogFileHandle = NULL;
 	GlbLog = &GlbLogStatic[0];
 	GlbLogSize = LOG_INITIAL_SIZE;
 
@@ -96,8 +98,7 @@ void LogRedirect(LogTarget_t Output)
 
 	/* If we redirect to anything else than
 	 * memory, flush the log */
-	if (Output != LogMemory)
-		LogFlush(Output);
+	LogFlush(Output);
 }
 
 /* Flushes the log */
@@ -108,6 +109,17 @@ void LogFlush(LogTarget_t Output)
 	 * File */
 	char TempBuffer[256];
 
+	/* If we are flushing to anything 
+	 * other than a file, and the logfile is 
+	 * opened, we close it */
+	if (GlbLogFileHandle != NULL
+		&& Output != LogFile) {
+		/* Done, close file & cleanup */
+		VfsClose(GlbLogFileHandle);
+		GlbLogFileHandle = NULL;
+	}
+
+	/* Flush to console? */
 	if (Output == LogConsole)
 	{
 		/* Vars */
@@ -186,17 +198,22 @@ void LogFlush(LogTarget_t Output)
 		/* Temporary set to console */
 		GlbLogTarget = LogConsole;
 
-		/* Open log file */
+		/* Open log file 
+		 * But only if handle doesn't exist */
 		int Index = 0;
-		MCoreFileInstance_t *LogFileHandle = VfsOpen(FILESYSTEM_IDENT_SYS ":/System/Log.txt",
-			Read | Write | TruncateIfExists | CreateIfNotExists);
+		if (GlbLogFileHandle == NULL) {
+			/* Open */
+			GlbLogFileHandle = VfsOpen(FILESYSTEM_IDENT_SYS ":/System/Log.txt",
+				Read | Write | TruncateIfExists | CreateIfNotExists);
 
-		/* Sanity */
-		if (LogFileHandle->Code != VfsOk) {
-			VfsClose(LogFileHandle);
-			LogFatal("SYST", "Failed to open/create system logfile: %u", 
-				(size_t)LogFileHandle->Code);
-			return;
+			/* Sanity */
+			if (GlbLogFileHandle->Code != VfsOk) {
+				LogFatal("SYST", "Failed to open/create system logfile: %u",
+					(size_t)GlbLogFileHandle->Code);
+				VfsClose(GlbLogFileHandle);
+				GlbLogFileHandle = NULL;
+				return;
+			}
 		}
 
 		/* Iterate */
@@ -216,7 +233,7 @@ void LogFlush(LogTarget_t Output)
 				memcpy(TempBuffer, &GlbLog[Index + 2], (size_t)Length);
 
 				/* Write it to file */
-				VfsWrite(LogFileHandle, (uint8_t*)TempBuffer, Length);
+				VfsWrite(GlbLogFileHandle, (uint8_t*)TempBuffer, Length);
 
 				/* Increase */
 				Index += 2 + Length;
@@ -239,7 +256,7 @@ void LogFlush(LogTarget_t Output)
 				sprintf(HeaderBuffer, "[%s] ", TempBuffer);
 				
 				/* Write it to file */
-				VfsWrite(LogFileHandle, (uint8_t*)TempBuffer, HeaderLen + 3);
+				VfsWrite(GlbLogFileHandle, (uint8_t*)TempBuffer, HeaderLen + 3);
 
 				/* Clear */
 				memset(TempBuffer, 0, HeaderLen + 1);
@@ -251,15 +268,15 @@ void LogFlush(LogTarget_t Output)
 				memcpy(TempBuffer, &GlbLog[Index], (size_t)Length);
 
 				/* Write it to file */
-				VfsWrite(LogFileHandle, (uint8_t*)TempBuffer, Length);
+				VfsWrite(GlbLogFileHandle, (uint8_t*)TempBuffer, Length);
 
 				/* Increase again */
 				Index += Length;
 			}
 		}
 
-		/* Done, close file */
-		VfsClose(LogFileHandle);
+		/* Done, flush */
+		VfsFlush(GlbLogFileHandle);
 
 		/* NOW it's ok to log to file */
 		GlbLogTarget = LogFile;
@@ -269,6 +286,10 @@ void LogFlush(LogTarget_t Output)
 /* Internal Log Print */
 void LogInternalPrint(int LogType, const char *Header, const char *Message)
 {
+	/* Temporary format buffer 
+	 * used by fileprint */
+	char TempBuffer[256];
+
 	/* Acquire Lock */
 	SpinlockAcquire(&GlbLogLock);
 
@@ -338,6 +359,23 @@ void LogInternalPrint(int LogType, const char *Header, const char *Message)
 	}
 	else if (GlbLogTarget == LogFile) {
 
+		/* Sanity */
+		if (GlbLogFileHandle == NULL)
+			return;
+
+		/* Zero the buffer */
+		memset(TempBuffer, 0, sizeof(TempBuffer));
+
+		/* format it */
+		if (LogType == LOG_TYPE_RAW) {
+			memcpy(&TempBuffer[0], Message, strlen(Message));
+		}
+		else {
+			sprintf(&TempBuffer[0], "[%s] %s\n", Header, Message);
+		}
+
+		/* Write to file */
+		VfsWrite(GlbLogFileHandle, &TempBuffer[0], strlen((const char*)&TempBuffer[0]));
 	}
 
 	/* Release Lock */

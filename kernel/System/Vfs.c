@@ -335,15 +335,20 @@ void VfsUnregisterDisk(DevId_t DiskId, uint32_t Forced)
 
 	while (lNode != NULL)
 	{
-		/* Remove it from list */
-		list_remove_by_node(GlbFileSystems, lNode);
-
 		/* Cast */
 		MCoreFileSystem_t *Fs = (MCoreFileSystem_t*)lNode->data;
+
+		/* Redirect system log */
+		if (Fs->Flags & VFS_MAIN_DRIVE) {
+			LogRedirect(LogConsole);
+		}
 
 		/* Destruct the FS */
 		if (Fs->Destroy(lNode->data, Forced) != OsOk)
 			LogFatal("VFSM", "UnregisterDisk:: Failed to destroy filesystem");
+
+		/* Remove it from list */
+		list_remove_by_node(GlbFileSystems, lNode);		
 
 		/* Free */
 		MStringDestroy(Fs->Identifier);
