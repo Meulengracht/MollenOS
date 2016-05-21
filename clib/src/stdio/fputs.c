@@ -16,7 +16,7 @@
 * along with this program.If not, see <http://www.gnu.org/licenses/>.
 *
 *
-* MollenOS C Library - Clear Error
+* MollenOS C Library - File Put String
 */
 
 /* Includes */
@@ -26,15 +26,18 @@
 #include <stdlib.h>
 #include <os/Syscall.h>
 
-/* The clearerr
- * Clears out any error
- * set by file stream ops */
-void clearerr(FILE * stream)
+/* The fputs 
+ * writes a string to the given
+ * stream handle */
+int fputs(const char * str, FILE * stream)
 {
-	/* Sanity */
-	if (stream == NULL)
-		return;
+	/* Sanity input */
+	if (stream == NULL
+		|| str == NULL) {
+		_set_errno(EINVAL);
+		return EOF;
+	}
 
-	/* Clear out code */
-	stream->code = EOK;
+	/* Use write */
+	return fwrite(str, strlen(str), 1, stream);
 }

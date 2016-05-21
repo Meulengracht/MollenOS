@@ -20,57 +20,53 @@
 */
 
 /* Includes */
+#include <io.h>
 #include <stdio.h>
 #include <errno.h>
 #include <string.h>
 #include <stdlib.h>
 #include <os/Syscall.h>
 
+/* The _close 
+ * This is ANSI C close 
+ * function and works with 
+ * filedescriptors */
+int _close(int handle)
+{
+	/* Variables */
+	int RetVal = 0;
+
+	/* Syscall */
+	RetVal = Syscall1(MOLLENOS_SYSCALL_VFSCLOSE, MOLLENOS_SYSCALL_PARAM(handle));
+
+	/* Validation 
+	 * we need to make sure everythis is ok */
+	if (_fval(RetVal))
+		return -1;
+	else
+		return 0;
+}
+
 /* The fclose 
  * Closes a file handle and frees 
  * resources associated */
 int fclose(FILE * stream)
 {
-	/* Variables */
-	int RetVal = 0;
-
 	/* Sanity input */
 	if (stream == NULL) {
 		_set_errno(EINVAL);
 		return EOF;
 	}
 
-	/* Syscall */
-	RetVal = Syscall1(MOLLENOS_SYSCALL_VFSCLOSE, MOLLENOS_SYSCALL_PARAM(stream));
-
-	/* Sanity */
-	if (RetVal) {
-		/* Error */
-		if (RetVal == -1)
-			_set_errno(EINVAL);
-		else if (RetVal == -2)
-			_set_errno(EINVAL);
-		else if (RetVal == -3)
-			_set_errno(ENOENT);
-		else if (RetVal == -4)
-			_set_errno(ENOENT);
-		else if (RetVal == -5)
-			_set_errno(EACCES);
-		else if (RetVal == -6)
-			_set_errno(EISDIR);
-		else if (RetVal == -7)
-			_set_errno(EEXIST);
-		else if (RetVal == -8)
-			_set_errno(EIO);
-		else
-			_set_errno(EINVAL);
-
-		/* Return */
+	/* Close the associated
+	 * file descriptor */
+	if (_close(stream->fd)) {
+		free(stream);
 		return EOF;
 	}
-	
-	/* Clear error */
-	_set_errno(EOK);
+
+	/* Free the stream handle */
+	free(stream);
 
 	/* Done */
 	return 0;

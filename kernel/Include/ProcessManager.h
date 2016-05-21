@@ -29,6 +29,7 @@
 #include <Bitmap.h>
 #include <Pipe.h>
 #include <MString.h>
+#include <Events.h>
 #include <Heap.h>
 #include <List.h>
 
@@ -90,27 +91,11 @@ typedef enum _ProcessRequestType
 
 } ProcessRequestType_t;
 
-/* Process Request State */
-typedef enum _ProcessRequestState
-{
-	ProcessRequestPending,
-	ProcessRequestInProgress,
-	ProcessRequestOk,
-	ProcessRequestFailed
-
-} ProcessRequestState_t;
-
 /* Process Request */
 typedef struct _MCoreProcessRequest
 {
-	/* Type */
-	ProcessRequestType_t Type;
-
-	/* State */
-	ProcessRequestState_t State;
-
-	/* Auto Cleanup? */
-	int Cleanup;
+	/* Event Base */
+	MCoreEvent_t Base;
 
 	/* Creation Data */
 	MString_t *Path;

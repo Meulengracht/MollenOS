@@ -53,8 +53,8 @@ PId_t ScProcessSpawn(char *Path, char *Arguments)
 	mArguments = (Arguments == NULL) ? NULL : MStringCreate(Arguments, StrUTF8);
 
 	/* Setup */
-	Request.Type = ProcessSpawn;
-	Request.Cleanup = 0;
+	Request.Base.Type = ProcessSpawn;
+	Request.Base.Cleanup = 0;
 	Request.Path = mPath;
 	Request.Arguments = mArguments;
 	
@@ -96,8 +96,8 @@ int ScProcessKill(PId_t ProcessId)
 	MCoreProcessRequest_t Request;
 
 	/* Setup */
-	Request.Type = ProcessKill;
-	Request.Cleanup = 0;
+	Request.Base.Type = ProcessKill;
+	Request.Base.Cleanup = 0;
 	Request.ProcessId = ProcessId;
 
 	/* Fire! */
@@ -105,7 +105,7 @@ int ScProcessKill(PId_t ProcessId)
 	PmWaitRequest(&Request, 1000);
 
 	/* Return the exit code */
-	if (Request.State == ProcessRequestOk)
+	if (Request.Base.State == EventOk)
 		return 0;
 	else
 		return -1;
@@ -491,166 +491,258 @@ int ScIpcWake(IpcComm_t Target)
 #include <stdio.h>
 #include <errno.h>
 
-/* Vfs Code to C-Library code, 
- * used for c-library syscalls */
-int ScVfsConvertCodeAndSetStatus(MCoreFileInstance_t *Handle, FILE *cData, VfsErrorCode_t Code)
-{
-	/* Start out by converting error code */
-	if (Code == VfsOk)
-		cData->code = EOK;
-	else if (Code == VfsDeleted)
-		cData->code = ENOENT;
-	else if (Code == VfsInvalidParameters)
-		cData->code = EINVAL;
-	else if (Code == VfsInvalidPath 
-		     || Code == VfsPathNotFound)
-		cData->code = ENOENT;
-	else if (Code == VfsAccessDenied)
-		cData->code = EACCES;
-	else if (Code == VfsPathIsNotDirectory)
-		cData->code = EISDIR;
-	else if (Code == VfsPathExists)
-		cData->code = EEXIST;
-	else if (Code == VfsDiskError)
-		cData->code = EIO;
-	else
-		cData->code = EINVAL;
-
-	/* Update Status */
-	if (Handle != NULL) 
-	{
-		/* Reset */
-		cData->status = 0;
-
-		/* Check EOF */
-		if (Handle->IsEOF)
-			cData->status |= CLIB_FCODE_EOF;
-	}
-
-	/* Done */
-	return 0 - (int)Code;
-}
-
 /* Open File */
-int ScVfsOpen(const char *Utf8, FILE *cData, VfsFileFlags_t OpenFlags)
+int ScVfsOpen(const char *Utf8, VfsFileFlags_t OpenFlags, VfsErrorCode_t *ErrCode)
 {
-	/* Sanity */
-	if (Utf8 == NULL || cData == NULL)
+	/* Get current process */
+	Cpu_t CurrentCpu = ApicGetCpu();
+	MCoreProcess_t *Process =
+		PmGetProcess(ThreadingGetCurrentThread(CurrentCpu)->ProcessId);
+
+	/* Should never happen this
+	 * Only threads associated with processes
+	 * can call this */
+	if (Process == NULL 
+		|| Utf8 == NULL)
 		return -1;
 
 	/* Try */
 	MCoreFileInstance_t *Handle = VfsOpen(Utf8, OpenFlags);
 
-	/* Save handle */
-	cData->_handle = (void*)Handle;
+	/* Add to process list of open files */
+	list_append(Process->OpenFiles, list_create_node(Handle->Id, Handle));
 
-	/* Update status */
-	return ScVfsConvertCodeAndSetStatus(Handle, cData, Handle->Code);
+	/* Save error code */
+	if (ErrCode != NULL)
+		*ErrCode = Handle->Code;
+
+	/* Done! */
+	return Handle->Id;
 }
 
 /* Close File */
-int ScVfsClose(FILE *cData)
+int ScVfsClose(int FileDescriptor)
 {
+	/* Get current process */
+	Cpu_t CurrentCpu = ApicGetCpu();
+	MCoreProcess_t *Process =
+		PmGetProcess(ThreadingGetCurrentThread(CurrentCpu)->ProcessId);
+	VfsErrorCode_t RetCode = VfsInvalidParameters;
+
+	/* Should never happen this
+	* Only threads associated with processes
+	* can call this */
+	if (Process == NULL)
+		return RetCode;
+
+	/* Lookup file handle */
+	list_node_t *fNode = list_get_node_by_id(Process->OpenFiles, FileDescriptor, 0);
+	
 	/* Sanity */
-	if (cData == NULL || cData->_handle == NULL)
-		return -1;
+	if (fNode == NULL)
+		return RetCode;
+
+	/* Remove from open files */
+	list_remove_by_node(Process->OpenFiles, fNode);
+
+	/* Deep call */
+	RetCode = VfsClose((MCoreFileInstance_t*)fNode->data);
+
+	/* free node */
+	kfree(fNode);
 
 	/* Deep Call */
-	return 0 - (int)VfsClose((MCoreFileInstance_t*)cData->_handle);
+	return RetCode;
 }
 
 /* Read File */
-int ScVfsRead(FILE *cData, uint8_t *Buffer, size_t Length)
+size_t ScVfsRead(int FileDescriptor, uint8_t *Buffer, size_t Length, VfsErrorCode_t *ErrCode)
 {
-	/* Sanity */
-	if (cData == NULL || cData->_handle == NULL
-		|| Buffer == NULL)
-		return -1;
+	/* Get current process */
+	Cpu_t CurrentCpu = ApicGetCpu();
+	MCoreProcess_t *Process =
+		PmGetProcess(ThreadingGetCurrentThread(CurrentCpu)->ProcessId);
+	VfsErrorCode_t RetCode = VfsInvalidParameters;
+	size_t bRead = 0;
 
-	/* More sanity */
-	if (Length == 0)
-		return 0;
+	/* Should never happen this
+	* Only threads associated with processes
+	* can call this */
+	if (Process == NULL || Buffer == NULL)
+		goto done;
+
+	/* Sanitize length */
+	if (Length == 0) {
+		RetCode = VfsOk;
+		goto done;
+	}
+
+	/* Lookup file handle */
+	list_node_t *fNode = list_get_node_by_id(Process->OpenFiles, FileDescriptor, 0);
+
+	/* Sanity */
+	if (fNode == NULL)
+		goto done;
 
 	/* Do the read */
-	int bRead = (int)VfsRead((MCoreFileInstance_t*)cData->_handle, Buffer, Length);
+	bRead = (int)VfsRead((MCoreFileInstance_t*)fNode->data, Buffer, Length);
+	RetCode = ((MCoreFileInstance_t*)fNode->data)->Code;
 
-	/* Update Status */
-	ScVfsConvertCodeAndSetStatus((MCoreFileInstance_t*)cData->_handle, cData,
-		((MCoreFileInstance_t*)cData->_handle)->Code);
+done:
+	/* Save error code */
+	if (ErrCode != NULL)
+		*ErrCode = RetCode;
 
 	/* Done */
 	return bRead;
 }
 
 /* Write File */
-int ScVfsWrite(FILE *cData, uint8_t *Buffer, size_t Length)
+size_t ScVfsWrite(int FileDescriptor, uint8_t *Buffer, size_t Length, VfsErrorCode_t *ErrCode)
 {
-	/* Sanity */
-	if (cData == NULL || cData->_handle == NULL
-		|| Buffer == NULL)
-		return -1;
+	/* Get current process */
+	Cpu_t CurrentCpu = ApicGetCpu();
+	MCoreProcess_t *Process =
+		PmGetProcess(ThreadingGetCurrentThread(CurrentCpu)->ProcessId);
+	VfsErrorCode_t RetCode = VfsInvalidParameters;
+	size_t bWritten = 0;
 
-	/* More sanity */
-	if (Length == 0)
-		return 0;
+	/* Should never happen this
+	* Only threads associated with processes
+	* can call this */
+	if (Process == NULL || Buffer == NULL)
+		goto done;
+
+	/* Sanitize length */
+	if (Length == 0) {
+		RetCode = VfsOk;
+		goto done;
+	}
+
+	/* Lookup file handle */
+	list_node_t *fNode = list_get_node_by_id(Process->OpenFiles, FileDescriptor, 0);
+
+	/* Sanity */
+	if (fNode == NULL)
+		goto done;
 
 	/* Do the write */
-	int bWritten = (int)VfsWrite((MCoreFileInstance_t*)cData->_handle, Buffer, Length);
+	bWritten = VfsWrite((MCoreFileInstance_t*)fNode->data, Buffer, Length);
+	RetCode = ((MCoreFileInstance_t*)fNode->data)->Code;
 
-	/* Update Status */
-	ScVfsConvertCodeAndSetStatus((MCoreFileInstance_t*)cData->_handle, cData,
-		((MCoreFileInstance_t*)cData->_handle)->Code);
+done:
+	/* Save error code */
+	if (ErrCode != NULL)
+		*ErrCode = RetCode;
 
 	/* Done */
 	return bWritten;
 }
 
 /* Seek File */
-int ScVfsSeek(FILE *cData, off_t Position)
+int ScVfsSeek(int FileDescriptor, off_t Position)
 {
+	/* Get current process */
+	Cpu_t CurrentCpu = ApicGetCpu();
+	MCoreProcess_t *Process =
+		PmGetProcess(ThreadingGetCurrentThread(CurrentCpu)->ProcessId);
+	VfsErrorCode_t RetCode = VfsInvalidParameters;
+
+	/* Should never happen this
+	* Only threads associated with processes
+	* can call this */
+	if (Process == NULL)
+		return RetCode;
+
+	/* Lookup file handle */
+	list_node_t *fNode = list_get_node_by_id(Process->OpenFiles, FileDescriptor, 0);
+
 	/* Sanity */
-	if (cData == NULL || cData->_handle == NULL)
-		return -1;
+	if (fNode == NULL)
+		return RetCode;
 
-	/* Seek in file */
-	VfsErrorCode_t ErrCode = VfsSeek((MCoreFileInstance_t*)cData->_handle, (uint64_t)Position);
-
-	/* Update Status */
-	return ScVfsConvertCodeAndSetStatus((MCoreFileInstance_t*)cData->_handle, cData, ErrCode);
+	/* Seek */
+	return (int)VfsSeek((MCoreFileInstance_t*)fNode->data, (uint64_t)Position);
 }
 
 /* Delete File */
-int ScVfsDelete(FILE *cData)
+int ScVfsDelete(int FileDescriptor)
 {
+	/* Get current process */
+	Cpu_t CurrentCpu = ApicGetCpu();
+	MCoreProcess_t *Process =
+		PmGetProcess(ThreadingGetCurrentThread(CurrentCpu)->ProcessId);
+	VfsErrorCode_t RetCode = VfsInvalidParameters;
+
+	/* Should never happen this
+	* Only threads associated with processes
+	* can call this */
+	if (Process == NULL)
+		return RetCode;
+
+	/* Lookup file handle */
+	list_node_t *fNode = list_get_node_by_id(Process->OpenFiles, FileDescriptor, 0);
+
 	/* Sanity */
-	if (cData == NULL || cData->_handle == NULL)
-		return -1;
+	if (fNode == NULL)
+		return RetCode;
 
 	/* Deep Call */
-	return VfsDelete((MCoreFileInstance_t*)cData->_handle);
+	return (int)VfsDelete((MCoreFileInstance_t*)fNode->data);
 }
 
 /* Flush File */
-int ScVfsFlush(FILE *cData)
+int ScVfsFlush(int FileDescriptor)
 {
+	/* Get current process */
+	Cpu_t CurrentCpu = ApicGetCpu();
+	MCoreProcess_t *Process =
+		PmGetProcess(ThreadingGetCurrentThread(CurrentCpu)->ProcessId);
+	VfsErrorCode_t RetCode = VfsInvalidParameters;
+
+	/* Should never happen this
+	* Only threads associated with processes
+	* can call this */
+	if (Process == NULL)
+		return RetCode;
+
+	/* Lookup file handle */
+	list_node_t *fNode = list_get_node_by_id(Process->OpenFiles, FileDescriptor, 0);
+
 	/* Sanity */
-	if (cData == NULL || cData->_handle == NULL)
-		return -1;
+	if (fNode == NULL)
+		return RetCode;
 
 	/* Deep Call */
-	return VfsFlush((MCoreFileInstance_t*)cData->_handle);
+	return (int)VfsFlush((MCoreFileInstance_t*)fNode->data);
 }
 
 /* Query information about 
  * a file handle or directory handle */
-int ScVfsQuery(FILE *cData, VfsQueryFunction_t Function, void *Buffer, size_t Length)
+int ScVfsQuery(int FileDescriptor, VfsQueryFunction_t Function, void *Buffer, size_t Length)
 {
+	/* Get current process */
+	Cpu_t CurrentCpu = ApicGetCpu();
+	MCoreProcess_t *Process =
+		PmGetProcess(ThreadingGetCurrentThread(CurrentCpu)->ProcessId);
+	VfsErrorCode_t RetCode = VfsInvalidParameters;
+
+	/* Should never happen this
+	* Only threads associated with processes
+	* can call this */
+	if (Process == NULL
+		|| Buffer == NULL)
+		return RetCode;
+
+	/* Lookup file handle */
+	list_node_t *fNode = list_get_node_by_id(Process->OpenFiles, FileDescriptor, 0);
+
 	/* Sanity */
-	if (cData == NULL || cData->_handle == NULL || Buffer == NULL)
-		return -1;
+	if (fNode == NULL)
+		return RetCode;
 
 	/* Redirect to Vfs */
-	return 0 - (int)VfsQuery((MCoreFileInstance_t*)cData->_handle, Function, Buffer, Length);
+	return (int)VfsQuery((MCoreFileInstance_t*)fNode->data, Function, Buffer, Length);
 }
 
 /* The file move operation 
@@ -663,7 +755,7 @@ int ScVfsMove(const char *Source, const char *Destination, int Copy)
 		return -1;
 
 	/* Redirect to Vfs */
-	return 0 - (int)VfsMove(Source, Destination, Copy);
+	return (int)VfsMove(Source, Destination, Copy);
 }
 
 /* Vfs - Resolve Environmental Path

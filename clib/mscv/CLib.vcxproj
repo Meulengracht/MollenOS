@@ -62,6 +62,8 @@
     <ClCompile Include="..\src\stdio\fopen.c" />
     <ClCompile Include="..\src\stdio\fpeekc.c" />
     <ClCompile Include="..\src\stdio\fprintf.c" />
+    <ClCompile Include="..\src\stdio\fputc.c" />
+    <ClCompile Include="..\src\stdio\fputs.c" />
     <ClCompile Include="..\src\stdio\fread.c" />
     <ClCompile Include="..\src\stdio\fremove.c" />
     <ClCompile Include="..\src\stdio\freopen.c" />
@@ -92,6 +94,7 @@
     <ClCompile Include="..\src\stdlib\bsearch.c" />
     <ClCompile Include="..\src\stdlib\div.c" />
     <ClCompile Include="..\src\stdlib\exit.c" />
+    <ClCompile Include="..\src\stdlib\getenv.c" />
     <ClCompile Include="..\src\stdlib\labs.c" />
     <ClCompile Include="..\src\stdlib\ldiv.c" />
     <ClCompile Include="..\src\stdlib\qsort.c" />
@@ -133,6 +136,8 @@
     <ClCompile Include="..\src\string\strtoull.c" />
     <ClCompile Include="..\src\string\strxfrm.c" />
     <ClCompile Include="..\src\string\wcsnlen.c" />
+    <ClCompile Include="..\src\time\localtime.c" />
+    <ClCompile Include="..\src\time\time.c" />
   </ItemGroup>
   <ItemGroup>
     <CustomBuild Include="..\src\string\memcpy_acc.s">

@@ -16,7 +16,7 @@
 * along with this program.If not, see <http://www.gnu.org/licenses/>.
 *
 *
-* MollenOS C Library - Clear Error
+* MollenOS C Library - File Put Character
 */
 
 /* Includes */
@@ -26,15 +26,15 @@
 #include <stdlib.h>
 #include <os/Syscall.h>
 
-/* The clearerr
- * Clears out any error
- * set by file stream ops */
-void clearerr(FILE * stream)
+/* The fputc
+* Writes an character to the
+* given input stream */
+int fputc(int character, FILE * stream)
 {
 	/* Sanity */
 	if (stream == NULL)
-		return;
+		return EOF;
 
-	/* Clear out code */
-	stream->code = EOK;
+	/* @Unimplemented */
+	return character;
 }

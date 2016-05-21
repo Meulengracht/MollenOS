@@ -14,37 +14,37 @@ COMM	__errno:DWORD
 _DATA	ENDS
 _DATA	SEGMENT
 _signal_list DD	02H
-	DD	FLAT:$SG1627
-	DD	00H
-	DD	04H
-	DD	FLAT:$SG1628
-	DD	00H
-	DD	08H
-	DD	FLAT:$SG1629
-	DD	00H
-	DD	0bH
 	DD	FLAT:$SG1630
 	DD	00H
-	DD	0fH
+	DD	04H
 	DD	FLAT:$SG1631
 	DD	00H
-	DD	015H
+	DD	08H
 	DD	FLAT:$SG1632
 	DD	00H
-	DD	06H
+	DD	0bH
 	DD	FLAT:$SG1633
 	DD	00H
-$SG1627	DB	'CTRL+C', 00H
+	DD	0fH
+	DD	FLAT:$SG1634
+	DD	00H
+	DD	015H
+	DD	FLAT:$SG1635
+	DD	00H
+	DD	06H
+	DD	FLAT:$SG1636
+	DD	00H
+$SG1630	DB	'CTRL+C', 00H
 	ORG $+1
-$SG1628	DB	'Illegal instruction', 00H
-$SG1629	DB	'Floating-point exception', 00H
+$SG1631	DB	'Illegal instruction', 00H
+$SG1632	DB	'Floating-point exception', 00H
 	ORG $+3
-$SG1630	DB	'Illegal storage access', 00H
+$SG1633	DB	'Illegal storage access', 00H
 	ORG $+1
-$SG1631	DB	'Termination request', 00H
-$SG1632	DB	'CTRL+BREAK', 00H
+$SG1634	DB	'Termination request', 00H
+$SG1635	DB	'CTRL+BREAK', 00H
 	ORG $+1
-$SG1633	DB	'Abnormal termination', 00H
+$SG1636	DB	'Abnormal termination', 00H
 _DATA	ENDS
 PUBLIC	__default_handler
 PUBLIC	___pxcptinfoptrs

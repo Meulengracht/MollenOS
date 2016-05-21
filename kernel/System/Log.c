@@ -375,7 +375,8 @@ void LogInternalPrint(int LogType, const char *Header, const char *Message)
 		}
 
 		/* Write to file */
-		VfsWrite(GlbLogFileHandle, &TempBuffer[0], strlen((const char*)&TempBuffer[0]));
+		VfsWrite(GlbLogFileHandle, 
+			(uint8_t*)&TempBuffer[0], strlen((const char*)&TempBuffer[0]));
 	}
 
 	/* Release Lock */

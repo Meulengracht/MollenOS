@@ -16,25 +16,19 @@
 * along with this program.If not, see <http://www.gnu.org/licenses/>.
 *
 *
-* MollenOS C Library - Clear Error
+* MollenOS C Library - Get Time
 */
 
 /* Includes */
-#include <stdio.h>
-#include <errno.h>
-#include <string.h>
-#include <stdlib.h>
+#include <time.h>
 #include <os/Syscall.h>
 
-/* The clearerr
- * Clears out any error
- * set by file stream ops */
-void clearerr(FILE * stream)
+/* Time
+ * Gets the time from either a 
+ * time seed or returns the current
+ * time */
+time_t time(time_t *timer)
 {
-	/* Sanity */
-	if (stream == NULL)
-		return;
-
-	/* Clear out code */
-	stream->code = EOK;
+	_CRT_UNUSED(timer);
+	return 0;
 }

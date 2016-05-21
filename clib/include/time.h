@@ -1,7 +1,23 @@
-/* Standard C Library Time Implementation
- * 
- */
-
+/* MollenOS
+*
+* Copyright 2011 - 2016, Philip Meulengracht
+*
+* This program is free software : you can redistribute it and / or modify
+* it under the terms of the GNU General Public License as published by
+* the Free Software Foundation ? , either version 3 of the License, or
+* (at your option) any later version.
+*
+* This program is distributed in the hope that it will be useful,
+* but WITHOUT ANY WARRANTY; without even the implied warranty of
+* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.See the
+* GNU General Public License for more details.
+*
+* You should have received a copy of the GNU General Public License
+* along with this program.If not, see <http://www.gnu.org/licenses/>.
+*
+*
+* MollenOS C Library - Standard Time
+*/
 
 #ifndef __TIME_INC__
 #define __TIME_INC__
@@ -10,14 +26,19 @@
 #include <crtdefs.h>
 #include <sys/types.h>
 
+/* C Guard */
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-//Defines
+/*******************************
+ *        Definitions          *
+ *******************************/
 #define CLOCKS_PER_SEC	100
 
-//Structs
+/*******************************
+ *       Time Structures       *
+ *******************************/
 typedef struct TimeStructure
 {
 	int tm_sec;		//Seconds
@@ -36,22 +57,26 @@ typedef struct TimeStructure
 /* Types */
 typedef unsigned long clock_t;
 
+/*******************************
+ *         Prototypes          *
+ *******************************/
+
 /* Basic time functions */
-extern time_t time(time_t *timer);
-extern time_t mktime(tm *timeptr);
-extern double difftime(time_t time1, time_t time2);
-extern clock_t clock(void);
+_CRT_EXTERN time_t time(time_t *timer);
+_CRT_EXTERN time_t mktime(tm *timeptr);
+_CRT_EXTERN double difftime(time_t time1, time_t time2);
+_CRT_EXTERN clock_t clock(void);
 
 /* Get Time Formats */
-extern tm *gmtime(const time_t *timer);		//GMT time
-extern tm *localtime(const time_t *timer);  //UTC
+_CRT_EXTERN tm *gmtime(const time_t *timer);		//GMT time
+_CRT_EXTERN tm *localtime(const time_t *timer);  //UTC
 
 /* Time -> String functions */
-extern char* asctime(const tm *timeptr);
-extern char *ctime(const time_t *tim_p);
+_CRT_EXTERN char* asctime(const tm *timeptr);
+_CRT_EXTERN char *ctime(const time_t *tim_p);
 
 /* Not implemented */
-extern size_t strftime (char * ptr, size_t maxsize, const char * format,
+_CRT_EXTERN size_t strftime(char * ptr, size_t maxsize, const char * format,
                         const tm * timeptr);		//Format time as string, NA
 
 #ifdef __cplusplus

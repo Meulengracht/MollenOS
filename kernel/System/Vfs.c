@@ -32,10 +32,15 @@
 #include <ctype.h>
 
 /* Globals */
+MCoreEventHandler_t *GlbVfsEventHandler = NULL;
 list_t *GlbFileSystems = NULL;
 list_t *GlbOpenFiles = NULL;
 uint32_t GlbFileSystemId = 0;
 uint32_t GlbVfsInitHasRun = 0;
+int GlbVfsFileIdGen = 0;
+
+/* Prototypes */
+void VfsEventHandler(void *Args);
 
 /* Environment String Array */
 const char *GlbEnvironmentalPaths[] = {
@@ -67,6 +72,7 @@ void VfsInit(void)
 	GlbOpenFiles = list_create(LIST_SAFE);
 	GlbFileSystemId = 0;
 	GlbVfsInitHasRun = 0;
+	GlbVfsFileIdGen = 0;
 }
 
 /* Register fs */
@@ -108,10 +114,10 @@ void VfsInstallFileSystem(MCoreFileSystem_t *Fs)
 		MStringAppendChars(Path, FILESYSTEM_INIT);
 
 		/* Create Request */
-		ProcRequest->Type = ProcessSpawn;
+		ProcRequest->Base.Type = ProcessSpawn;
 		ProcRequest->Path = Path;
 		ProcRequest->Arguments = NULL;
-		ProcRequest->Cleanup = 1;
+		ProcRequest->Base.Cleanup = 1;
 
 		/* Send */
 		PmCreateRequest(ProcRequest);
@@ -664,6 +670,7 @@ MCoreFileInstance_t *VfsOpen(const char *Path, VfsFileFlags_t OpenFlags)
 	memset((void*)fRet, 0, sizeof(MCoreFileInstance_t));
 
 	/* Set initial code */
+	fRet->Id = GlbVfsFileIdGen++;
 	fRet->Code = VfsOk;
 
 	/* Sanity */

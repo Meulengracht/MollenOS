@@ -90,16 +90,13 @@ _CRT_EXTERN char *_errstrings[];
  *******************************/
 typedef struct _cLibFileStream
 {
-	/* Internal Os Handle */
-	void *_handle;
+	/* The associated file
+	 * descriptor. The id */
+	int fd;
 
 	/* Status Code 
 	 * Updated by sysops */
 	int code;
-
-	/* Status Flags 
-	 * set by sysops */
-	int status;
 
 	/* Access Flags 
 	 * Used for shortcuts */
@@ -114,6 +111,7 @@ typedef struct _cLibFileStream
 _CRT_EXTERN int fflags(const char * mode);
 _CRT_EXTERN int fclose(FILE * stream);
 _CRT_EXTERN FILE *fopen(const char * filename, const char * mode);
+_CRT_EXTERN FILE *fdopen(int fd, const char *mode);
 _CRT_EXTERN FILE *freopen(const char * filename, const char * mode, FILE * stream);
 _CRT_EXTERN int remove(const char * filename);
 _CRT_EXTERN int fflush(FILE * stream);
@@ -160,14 +158,14 @@ _CRT_EXTERN int putchar(int character);
 
 _CRT_EXTERN int fpeekc(FILE * stream);
 _CRT_EXTERN int fgetc(FILE * stream);
-//_CRT_EXTERN int fputc(int character, FILE * stream);
+_CRT_EXTERN int fputc(int character, FILE * stream);
 _CRT_EXTERN char *fgets(char * buf, size_t n, FILE * stream);
-//_CRT_EXTERN int fputs(const char * str, FILE * stream);
+_CRT_EXTERN int fputs(const char * str, FILE * stream);
 _CRT_EXTERN int fungetc (int character, FILE * stream);
 
 #define peekc(stream) fpeekc(stream)
 #define getc(stream) fgetc(stream)
-//#define putc(c, stream) fputc(c, stream)
+#define putc(c, stream) fputc(c, stream)
 #define ungetc(c, stream) fungetc(c, stream)
 
 /*******************************

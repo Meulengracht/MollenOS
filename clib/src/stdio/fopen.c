@@ -20,11 +20,60 @@
 */
 
 /* Includes */
+#include <io.h>
 #include <stdio.h>
 #include <errno.h>
 #include <string.h>
 #include <stdlib.h>
 #include <os/Syscall.h>
+
+/* _open_shared 
+ * Shared open function 
+ * between the handles */
+int _open_shared(const char *file, int mflags)
+{
+	/* Variables */
+	int RetVal, ErrCode;
+
+	/* System call time,
+	* get that file handle */
+	RetVal = Syscall3(MOLLENOS_SYSCALL_VFSOPEN, MOLLENOS_SYSCALL_PARAM(file),
+		MOLLENOS_SYSCALL_PARAM(mflags), MOLLENOS_SYSCALL_PARAM(&ErrCode));
+
+	/* Ok, so we validate the error-code
+	* If it's wrong we have to close the file
+	* handle again, it almost always opens */
+	if (_fval(ErrCode)) {
+		_close(RetVal);
+		_fval(ErrCode);
+		return -1;
+	}
+	else
+		return RetVal;
+}
+
+/* The open 
+ * This is the old ANSI 
+ * C version, and is here for
+ * backwards compatability */
+int _open(const char *file, int oflags, int pmode)
+{
+	/* Variables */
+	int mFlags;
+
+	/* Sanity input */
+	if (file == NULL) {
+		_set_errno(EINVAL);
+		return -1;
+	}
+
+	/* Convert flags into 
+	 * our vfs flags */
+	mFlags = _fflags(oflags);
+
+	/* Deep call! */
+	return _open_shared(file, mFlags);
+}
 
 /* Information 
 "r"	read: Open file for input operations. The file must exist.
@@ -36,6 +85,47 @@
 "a+" append/update: Open a file for update (both for input and output) with all output operations writing data at the end of the file. 
 	 Repositioning operations (fseek, fsetpos, rewind) affects the next input operations, but output operations move the position back to the end of file. The file is created if it does not exist.
 */
+
+FILE *fdopen(int fd, const char *mode)
+{
+	/* First of all, sanity the fd */
+	if (fd < 0)
+		return NULL;
+
+	/* Allocate a new file instance */
+	FILE *stream = (FILE*)malloc(sizeof(FILE));
+
+	/* Initialize instance */
+	stream->fd = fd;
+	stream->code = 0;
+
+	/* Do we need to change access mode ? */
+	if (mode != NULL) {
+		/* Convert flags */
+		int mFlags = fflags(mode);
+
+		/* Syscall */
+		Syscall4(MOLLENOS_SYSCALL_VFSQUERY, MOLLENOS_SYSCALL_PARAM(fd), MOLLENOS_SYSCALL_PARAM(3), 
+			MOLLENOS_SYSCALL_PARAM(&mFlags), MOLLENOS_SYSCALL_PARAM(sizeof(mFlags)));
+
+		/* Store */
+		stream->flags = mFlags;
+	}
+	else {
+		/* Convert flags */
+		int mFlags = 0;
+
+		/* Syscall */
+		Syscall4(MOLLENOS_SYSCALL_VFSQUERY, MOLLENOS_SYSCALL_PARAM(fd), MOLLENOS_SYSCALL_PARAM(2),
+			MOLLENOS_SYSCALL_PARAM(&mFlags), MOLLENOS_SYSCALL_PARAM(sizeof(mFlags)));
+
+		/* Store */
+		stream->flags = mFlags;
+	}
+
+	/* done! */
+	return stream;
+}
 
 /* The fopen */
 FILE *fopen(const char * filename, const char * mode)
@@ -54,47 +144,13 @@ FILE *fopen(const char * filename, const char * mode)
 	/* Convert flags */
 	mFlags = fflags(mode);
 
-	/* Now allocate a structure */
-	FILE *fHandle = (FILE*)malloc(sizeof(FILE));
-	fHandle->_handle = NULL;
-	fHandle->code = 0;
-	fHandle->status = 0;
-	fHandle->flags = mFlags;
-
-	/* Syscall */
-	RetVal = Syscall3(MOLLENOS_SYSCALL_VFSOPEN, MOLLENOS_SYSCALL_PARAM(filename),
-		MOLLENOS_SYSCALL_PARAM(fHandle), MOLLENOS_SYSCALL_PARAM(mFlags));
+	/* Use the shared open */
+	RetVal = _open_shared(filename, mFlags);
 
 	/* Sanity */
-	if (RetVal) {
-		/* Error */
-		if (RetVal == -1)
-			_set_errno(EINVAL);
-		else if (RetVal == -2)
-			_set_errno(EINVAL);
-		else if (RetVal == -3)
-			_set_errno(ENOENT);
-		else if (RetVal == -4)
-			_set_errno(ENOENT);
-		else if (RetVal == -5)
-			_set_errno(EACCES);
-		else if (RetVal == -6)
-			_set_errno(EISDIR);
-		else if (RetVal == -7)
-			_set_errno(EEXIST);
-		else if (RetVal == -8)
-			_set_errno(EIO);
-		else
-			_set_errno(EINVAL);
-
-		/* Free handle */
-		free(fHandle);
+	if (RetVal == -1)
 		return NULL;
-	}
-	
-	/* Clear Error */
-	_set_errno(EOK);
-	
-	/* Done */
-	return fHandle;
+
+	/* Just return fdopen */
+	return fdopen(RetVal, NULL);
 }

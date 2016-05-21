@@ -20,6 +20,7 @@
 */
 
 /* Includes */
+#include <io.h>
 #include <stdio.h>
 #include <errno.h>
 #include <string.h>
@@ -44,37 +45,16 @@ off_t ftello(FILE * stream)
 	memset(Buffer, 0, sizeof(Buffer));
 
 	/* Syscall */
-	RetVal = Syscall4(MOLLENOS_SYSCALL_VFSQUERY, MOLLENOS_SYSCALL_PARAM(stream),
+	RetVal = Syscall4(MOLLENOS_SYSCALL_VFSQUERY, MOLLENOS_SYSCALL_PARAM(stream->fd),
 		MOLLENOS_SYSCALL_PARAM(0),
 		MOLLENOS_SYSCALL_PARAM(&Buffer[0]),
 		MOLLENOS_SYSCALL_PARAM(sizeof(Buffer)));
 
-	if (!RetVal) {
+	if (!_fval(RetVal)) {
 		/* Now we can calculate */
 		uint64_t fPosition = *((off_t*)(&Buffer[16]));
-		_set_errno(EOK);
 		return (off_t)fPosition;
 	}
-
-	/* Error */
-	if (RetVal == -1)
-		_set_errno(EINVAL);
-	else if (RetVal == -2)
-		_set_errno(EINVAL);
-	else if (RetVal == -3)
-		_set_errno(ENOENT);
-	else if (RetVal == -4)
-		_set_errno(ENOENT);
-	else if (RetVal == -5)
-		_set_errno(EACCES);
-	else if (RetVal == -6)
-		_set_errno(EISDIR);
-	else if (RetVal == -7)
-		_set_errno(EEXIST);
-	else if (RetVal == -8)
-		_set_errno(EIO);
-	else
-		_set_errno(EINVAL);
 
 	/* Done */
 	return -1L;

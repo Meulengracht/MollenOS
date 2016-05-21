@@ -20,11 +20,33 @@
 */
 
 /* Includes */
+#include <io.h>
 #include <stdio.h>
 #include <errno.h>
 #include <string.h>
 #include <stdlib.h>
 #include <os/Syscall.h>
+
+/* The write
+* This is the ANSI C version
+* of fwrite */
+int _write(int fd, void *buffer, unsigned int length)
+{
+	/* Variables */
+	int RetVal = 0, ErrCode = 0;
+
+	/* Syscall */
+	RetVal = Syscall4(MOLLENOS_SYSCALL_VFSWRITE, MOLLENOS_SYSCALL_PARAM(fd),
+		MOLLENOS_SYSCALL_PARAM(buffer), MOLLENOS_SYSCALL_PARAM(length), MOLLENOS_SYSCALL_PARAM(&ErrCode));
+
+	/* Sanity */
+	if (_fval(ErrCode)) {
+		return -1;
+	}
+
+	/* Gj */
+	return RetVal;
+}
 
 /* The fwrite
 * writes to a file handle */
@@ -32,7 +54,7 @@ size_t fwrite(const void * vptr, size_t size, size_t count, FILE * stream)
 {
 	/* Variables */
 	size_t BytesToWrite = count * size;
-	int RetVal = 0;
+	int RetVal = 0, ErrCode = 0;
 
 	/* Sanity */
 	if (vptr == NULL
@@ -41,8 +63,8 @@ size_t fwrite(const void * vptr, size_t size, size_t count, FILE * stream)
 		return 0;
 
 	/* Syscall */
-	RetVal = Syscall3(MOLLENOS_SYSCALL_VFSWRITE, MOLLENOS_SYSCALL_PARAM(stream),
-		MOLLENOS_SYSCALL_PARAM(vptr), MOLLENOS_SYSCALL_PARAM(BytesToWrite));
+	RetVal = Syscall4(MOLLENOS_SYSCALL_VFSWRITE, MOLLENOS_SYSCALL_PARAM(stream->fd),
+		MOLLENOS_SYSCALL_PARAM(vptr), MOLLENOS_SYSCALL_PARAM(BytesToWrite), MOLLENOS_SYSCALL_PARAM(&ErrCode));
 
 	/* No need to check return
 	* the syscall will set error code if any */

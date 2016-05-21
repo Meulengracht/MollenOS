@@ -52,6 +52,9 @@
     <Filter Include="Source\os\Shared">
       <UniqueIdentifier>{8113a867-9237-4beb-91ab-52270a8d0259}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Source\time">
+      <UniqueIdentifier>{5f51f49c-31a8-4e90-a6e2-f87e13088b09}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\src\string\atof.c">
@@ -419,6 +422,21 @@
     </ClCompile>
     <ClCompile Include="..\src\os\Shared\BAlloc.c">
       <Filter>Source\os\Shared</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\stdio\fputs.c">
+      <Filter>Source\stdio\File</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\stdio\fputc.c">
+      <Filter>Source\stdio\File</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\stdlib\getenv.c">
+      <Filter>Source\stdlib</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\time\time.c">
+      <Filter>Source\time</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\time\localtime.c">
+      <Filter>Source\time</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>

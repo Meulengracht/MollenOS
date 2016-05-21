@@ -30,17 +30,6 @@
  * rewinds a file to it's start */
 void rewind(FILE * stream)
 {
-	/* Syscall Result */
-	int RetVal = 0;
-
-	/* Sanity */
-	if (stream == NULL)
-		return;
-
-	/* Seek to 0 */
-	RetVal = Syscall2(MOLLENOS_SYSCALL_VFSSEEK, 
-		MOLLENOS_SYSCALL_PARAM(stream), MOLLENOS_SYSCALL_PARAM(0));
-
-	/* Clear error */
-	_set_errno(EOK);
+	/* Use seek */
+	fseek(stream, 0, SEEK_SET);
 }

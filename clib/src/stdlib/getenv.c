@@ -16,7 +16,7 @@
 * along with this program.If not, see <http://www.gnu.org/licenses/>.
 *
 *
-* MollenOS C Library - Clear Error
+* MollenOS C Library - Get Environment Variable
 */
 
 /* Includes */
@@ -26,15 +26,10 @@
 #include <stdlib.h>
 #include <os/Syscall.h>
 
-/* The clearerr
- * Clears out any error
- * set by file stream ops */
-void clearerr(FILE * stream)
+/* Get environmental var 
+ * Returns the settings for a 
+ * given key */
+char *getenv(const char *name)
 {
-	/* Sanity */
-	if (stream == NULL)
-		return;
-
-	/* Clear out code */
-	stream->code = EOK;
+	return NULL;
 }

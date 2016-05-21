@@ -32,15 +32,14 @@
 #include <string.h>
 
 /* Prototypes */
-void PmEventHandler(void *Args);
+int PmEventHandler(void *UserData, MCoreEvent_t *Event);
 PId_t PmCreateProcess(MString_t *Path, MString_t *Arguments);
 
 /* Globals */
+MCoreEventHandler_t *GlbProcessEventHandler = NULL;
 PId_t GlbProcessId = 0;
 list_t *GlbProcesses = NULL; 
 list_t *GlbZombieProcesses = NULL;
-list_t *GlbProcessRequests = NULL;
-Semaphore_t *GlbProcessEventLock = NULL;
 
 /* Setup & Start Request Handler */
 void PmInit(void)
@@ -54,135 +53,97 @@ void PmInit(void)
 	/* Create */
 	GlbProcesses = list_create(LIST_SAFE);
 	GlbZombieProcesses = list_create(LIST_SAFE);
-	GlbProcessRequests = list_create(LIST_SAFE);
-	GlbProcessEventLock = SemaphoreCreate(0);
 
-	/* Start */
-	ThreadingCreateThread("Process Event Thread", PmEventHandler, NULL, 0);
+	/* Create event handler */
+	GlbProcessEventHandler = EventInit("Process Manager", PmEventHandler, NULL);
 }
 
-/* Create Request */
+/* Create Request 
+ * We simply move it on to
+ * the event handler */
 void PmCreateRequest(MCoreProcessRequest_t *Request)
 {
-	/* Add to list */
-	list_append(GlbProcessRequests, list_create_node(0, Request));
-	
-	/* Set */
-	Request->State = ProcessRequestPending;
-
-	/* Signal */
-	SemaphoreV(GlbProcessEventLock);
+	/* Deep call */
+	EventCreate(GlbProcessEventHandler, &Request->Base);
 }
 
-/* Wait for request */
+/* Wait for request 
+ * just as above we just call further
+ * the event handler */
 void PmWaitRequest(MCoreProcessRequest_t *Request, size_t Timeout)
 {
-	/* Sanity, make sure request hasn't completed */
-	if (Request->State != ProcessRequestPending
-		&& Request->State != ProcessRequestInProgress)
-		return;
-
-	/* Otherwise wait */
-	SchedulerSleepThread((Addr_t*)Request, Timeout);
-	IThreadYield();
+	/* Deep Call */
+	EventWait(&Request->Base, Timeout);
 }
 
 /* Event Handler */
-void PmEventHandler(void *Args)
+int PmEventHandler(void *UserData, MCoreEvent_t *Event)
 {
 	/* Vars */
-	list_node_t *eNode = NULL;
 	MCoreProcessRequest_t *Request = NULL;
 
 	/* Unused */
-	_CRT_UNUSED(Args);
+	_CRT_UNUSED(UserData);
 
-	/* Forever! */
-	while (1)
+	/* Cast */
+	Request = (MCoreProcessRequest_t*)Event;
+
+	/* Depends on request */
+	switch (Request->Base.Type)
 	{
-		/* Get event */
-		SemaphoreP(GlbProcessEventLock, 0);
-
-		/* Pop from event queue */
-		eNode = list_pop_front(GlbProcessRequests);
-
-		/* Sanity */
-		if (eNode == NULL)
-			continue;
-
-		/* Cast */
-		Request = (MCoreProcessRequest_t*)eNode->data;
-
-		/* Cleanup */
-		kfree(eNode);
-
-		/* Sanity */
-		if (Request == NULL)
-			continue;
-
-		/* Set initial */
-		Request->State = ProcessRequestInProgress;
-
-		/* Depends on request */
-		switch (Request->Type)
+		/* Spawn Process */
+		case ProcessSpawn:
 		{
-			/* Spawn Process */
-			case ProcessSpawn:
-			{
-				/* Deep Call */
-				LogInformation("PROC", "Spawning %s", Request->Path->Data);
-				Request->ProcessId = PmCreateProcess(Request->Path, Request->Arguments);
+			/* Deep Call */
+			LogInformation("PROC", "Spawning %s", Request->Path->Data);
+			Request->ProcessId = PmCreateProcess(Request->Path, Request->Arguments);
 
-				/* Sanity */
-				if (Request->ProcessId != 0xFFFFFFFF)
-					Request->State = ProcessRequestOk;
-				else
-					Request->State = ProcessRequestFailed;
+			/* Sanity */
+			if (Request->ProcessId != 0xFFFFFFFF)
+				Request->Base.State = EventOk;
+			else
+				Request->Base.State = EventFailed;
 
-			} break;
+		} break;
 
-			/* Kill Process */
-			case ProcessKill:
-			{
-				/* Lookup process */
-				MCoreProcess_t *Process = PmGetProcess(Request->ProcessId);
-
-				/* Sanity */
-				if (Process != NULL)
-				{
-					/* Terminate all threads used by process */
-					ThreadingTerminateProcessThreads(Process->Id);
-
-					/* Mark process for reaping */
-					PmTerminateProcess(Process);
-				}
-				else
-					Request->State = ProcessRequestFailed;
-
-			} break;
-
-			/* Panic */
-			default:
-			{
-				LogDebug("PROC", "Unhandled Event %u", (uint32_t)Request->Type);
-			} break;
-		}
-
-		/* Signal Completion */
-		SchedulerWakeupAllThreads((Addr_t*)Request);
-
-		/* Cleanup? */
-		if (Request->Cleanup != 0)
+		/* Kill Process */
+		case ProcessKill:
 		{
-			if (Request->Path != NULL)
-				MStringDestroy(Request->Path);
-			if (Request->Arguments != NULL)
-				MStringDestroy(Request->Arguments);
+			/* Lookup process */
+			MCoreProcess_t *Process = PmGetProcess(Request->ProcessId);
 
-			/* Free */
-			kfree((void*)Request);
-		}
+			/* Sanity */
+			if (Process != NULL)
+			{
+				/* Terminate all threads used by process */
+				ThreadingTerminateProcessThreads(Process->Id);
+
+				/* Mark process for reaping */
+				PmTerminateProcess(Process);
+			}
+			else
+				Request->Base.State = EventFailed;
+
+		} break;
+
+		/* Panic */
+		default:
+		{
+			LogDebug("PROC", "Unhandled Event %u", (uint32_t)Request->Base.Type);
+		} break;
 	}
+
+	/* Cleanup? */
+	if (Request->Base.Cleanup != 0)
+	{
+		if (Request->Path != NULL)
+			MStringDestroy(Request->Path);
+		if (Request->Arguments != NULL)
+			MStringDestroy(Request->Arguments);
+	}
+
+	/* Return 0 */
+	return 0;
 }
 
 /* Kickstarter function for Process */

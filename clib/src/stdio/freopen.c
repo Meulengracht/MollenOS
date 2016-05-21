@@ -20,6 +20,7 @@
 */
 
 /* Includes */
+#include <io.h>
 #include <stdio.h>
 #include <errno.h>
 #include <string.h>
@@ -35,6 +36,7 @@ FILE *freopen(const char * filename, const char * mode, FILE * stream)
 	/* Variables */
 	int mFlags = 0;
 	int RetVal = 0;
+	int ErrCode = 0;
 
 	/* Sanity input */
 	if ((filename == NULL
@@ -49,49 +51,29 @@ FILE *freopen(const char * filename, const char * mode, FILE * stream)
 	if (filename != NULL) 
 	{
 		/* Close existing handle */
-		RetVal = Syscall1(MOLLENOS_SYSCALL_VFSCLOSE, MOLLENOS_SYSCALL_PARAM(stream));
+		RetVal = Syscall1(MOLLENOS_SYSCALL_VFSCLOSE, MOLLENOS_SYSCALL_PARAM(stream->fd));
 
 		/* Convert flags */
 		mFlags = fflags(mode);
 
-		/* Syscall */
+		/* System call time,
+		* get that file handle */
 		RetVal = Syscall3(MOLLENOS_SYSCALL_VFSOPEN, MOLLENOS_SYSCALL_PARAM(filename),
-			MOLLENOS_SYSCALL_PARAM(stream), MOLLENOS_SYSCALL_PARAM(mFlags));
+			MOLLENOS_SYSCALL_PARAM(mFlags), MOLLENOS_SYSCALL_PARAM(&ErrCode));
 
 		/* Reset */
-		stream->code = 0;
-		stream->status = 0;
+		stream->fd = RetVal;
 		stream->flags = mFlags;
+		stream->code = 0;
 
 		/* Sanity */
-		if (RetVal) {
-			/* Error */
-			if (RetVal == -1)
-				_set_errno(EINVAL);
-			else if (RetVal == -2)
-				_set_errno(EINVAL);
-			else if (RetVal == -3)
-				_set_errno(ENOENT);
-			else if (RetVal == -4)
-				_set_errno(ENOENT);
-			else if (RetVal == -5)
-				_set_errno(EACCES);
-			else if (RetVal == -6)
-				_set_errno(EISDIR);
-			else if (RetVal == -7)
-				_set_errno(EEXIST);
-			else if (RetVal == -8)
-				_set_errno(EIO);
-			else
-				_set_errno(EINVAL);
-
+		if (_fval(ErrCode)) {
 			/* Free handle */
+			_close(RetVal);
 			free(stream);
+			_fval(ErrCode);
 			return NULL;
 		}
-		
-		/* Sanity */
-		_set_errno(EOK);
 
 		/* Done */
 		return stream;
@@ -105,13 +87,12 @@ FILE *freopen(const char * filename, const char * mode, FILE * stream)
 		mFlags = fflags(mode);
 
 		/* Syscall */
-		RetVal = Syscall4(MOLLENOS_SYSCALL_VFSQUERY, MOLLENOS_SYSCALL_PARAM(stream), 
-			MOLLENOS_SYSCALL_PARAM(3), MOLLENOS_SYSCALL_PARAM(&mFlags), MOLLENOS_SYSCALL_PARAM(sizeof(mFlags)));
+		Syscall4(MOLLENOS_SYSCALL_VFSQUERY, MOLLENOS_SYSCALL_PARAM(stream->fd), MOLLENOS_SYSCALL_PARAM(3), 
+			MOLLENOS_SYSCALL_PARAM(&mFlags), MOLLENOS_SYSCALL_PARAM(sizeof(mFlags)));
 
 		/* Store */
-		stream->code = 0;
-		stream->status = 0;
 		stream->flags = mFlags;
+		stream->code = 0;
 
 		/* clear error */
 		_set_errno(EOK);

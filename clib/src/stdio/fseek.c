@@ -20,11 +20,76 @@
 */
 
 /* Includes */
+#include <io.h>
 #include <stdio.h>
 #include <errno.h>
 #include <string.h>
 #include <stdlib.h>
 #include <os/Syscall.h>
+
+/* The lseek
+ * This is the ANSI C seek
+ * function used by filedescriptors */
+long _lseek(int fd, long offset, int mode)
+{
+	/* Syscall Result */
+	int RetVal = 0;
+	long SeekSpot = 0;
+
+	/* Depends on origin */
+	if (mode == SEEK_SET)
+		SeekSpot = offset;
+	else {
+		/* We need current position / size */
+
+		/* Prepare a buffer */
+		uint64_t fPos = 0, fSize = 0;
+		long CorrectedValue = (long)abs(offset);
+		char Buffer[64];
+		memset(Buffer, 0, sizeof(Buffer));
+
+		/* Syscall */
+		RetVal = Syscall4(MOLLENOS_SYSCALL_VFSQUERY, MOLLENOS_SYSCALL_PARAM(fd),
+			MOLLENOS_SYSCALL_PARAM(0),
+			MOLLENOS_SYSCALL_PARAM(&Buffer[0]),
+			MOLLENOS_SYSCALL_PARAM(sizeof(Buffer)));
+
+		/* Now we can calculate */
+		fPos = *((uint64_t*)(&Buffer[16]));
+		fSize = *((uint64_t*)(&Buffer[0]));
+
+		/* Sanity offset */
+		if ((size_t)fPos != fPos) {
+			_set_errno(EOVERFLOW);
+			return -1;
+		}
+
+		/* Lets see .. */
+		if (mode == SEEK_CUR) {
+			/* Handle negative */
+			if (offset < 0) {
+				SeekSpot = (long)fPos - CorrectedValue;
+			}
+			else {
+				SeekSpot = (long)fPos + CorrectedValue;
+			}
+		}
+		else {
+			SeekSpot = (long)fSize - CorrectedValue;
+		}
+	}
+
+	/* Seek to 0 */
+	RetVal = Syscall2(MOLLENOS_SYSCALL_VFSSEEK,
+		MOLLENOS_SYSCALL_PARAM(fd), MOLLENOS_SYSCALL_PARAM(SeekSpot));
+
+	/* Done */
+	if (_fval(RetVal)) {
+		return -1L;
+	}
+	else
+		return SeekSpot;
+}
 
 /* The seeko
  * Set the file position with off_t */
@@ -53,9 +118,9 @@ int fseeko(FILE *stream, off_t offset, int origin)
 		memset(Buffer, 0, sizeof(Buffer));
 
 		/* Syscall */
-		RetVal = Syscall4(MOLLENOS_SYSCALL_VFSQUERY, MOLLENOS_SYSCALL_PARAM(stream),
-			MOLLENOS_SYSCALL_PARAM(0), 
-			MOLLENOS_SYSCALL_PARAM(&Buffer[0]), 
+		RetVal = Syscall4(MOLLENOS_SYSCALL_VFSQUERY, MOLLENOS_SYSCALL_PARAM(stream->fd),
+			MOLLENOS_SYSCALL_PARAM(0),
+			MOLLENOS_SYSCALL_PARAM(&Buffer[0]),
 			MOLLENOS_SYSCALL_PARAM(sizeof(Buffer)));
 
 		/* Now we can calculate */
@@ -85,13 +150,10 @@ int fseeko(FILE *stream, off_t offset, int origin)
 
 	/* Seek to 0 */
 	RetVal = Syscall2(MOLLENOS_SYSCALL_VFSSEEK,
-		MOLLENOS_SYSCALL_PARAM(stream), MOLLENOS_SYSCALL_PARAM(SeekSpot));
-
-	/* Clear error */
-	_set_errno(EOK);
+		MOLLENOS_SYSCALL_PARAM(stream->fd), MOLLENOS_SYSCALL_PARAM(SeekSpot));
 
 	/* Done */
-	return RetVal;
+	return _fval(RetVal);
 }
 
 /* The seek

@@ -95,6 +95,7 @@ _CRT_EXTERN void qsort(void *base, unsigned num, unsigned width, int(*comp)(cons
 //------------------------------------------------------------//
 //                    Environmental                           //
 //------------------------------------------------------------//
+_CRT_EXTERN char *getenv(const char *name);
 _CRT_EXTERN void abort(void);
 _CRT_EXTERN int	atexit(void(*func)(void));
 _CRT_EXTERN int at_quick_exit(void(*func)(void));

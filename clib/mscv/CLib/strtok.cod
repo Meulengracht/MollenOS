@@ -10,11 +10,11 @@ INCLUDELIB MSVCRT
 INCLUDELIB OLDNAMES
 
 _BSS	SEGMENT
-$SG1826	DB	01H DUP (?)
-$SG1836	DB	01H DUP (?)
+$SG1829	DB	01H DUP (?)
+$SG1839	DB	01H DUP (?)
 _BSS	ENDS
 _DATA	SEGMENT
-?ssave@?1??strtok@@9@9 DD FLAT:$SG1836			; `strtok'::`2'::ssave
+?ssave@?1??strtok@@9@9 DD FLAT:$SG1839			; `strtok'::`2'::ssave
 _DATA	ENDS
 PUBLIC	_strtok_r
 PUBLIC	_strtok
@@ -90,7 +90,7 @@ $LN6@strtok_r:
 ; 22   :          *lasts = "";
 
   00024	c7 07 00 00 00
-	00		 mov	 DWORD PTR [edi], OFFSET $SG1826
+	00		 mov	 DWORD PTR [edi], OFFSET $SG1829
 
 ; 23   :          return NULL;
 

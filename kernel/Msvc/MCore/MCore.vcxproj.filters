@@ -111,6 +111,9 @@
     <ClCompile Include="..\..\Common\Bitmap.c">
       <Filter>Common</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\System\Events.c">
+      <Filter>Systems</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\Include\Heap.h">
@@ -198,6 +201,9 @@
       <Filter>Includes</Filter>
     </ClInclude>
     <ClInclude Include="..\..\Include\Bitmap.h">
+      <Filter>Includes</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Include\Events.h">
       <Filter>Includes</Filter>
     </ClInclude>
   </ItemGroup>

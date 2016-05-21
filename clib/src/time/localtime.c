@@ -16,25 +16,34 @@
 * along with this program.If not, see <http://www.gnu.org/licenses/>.
 *
 *
-* MollenOS C Library - Clear Error
+* MollenOS C Library - Convert to localtime struct
 */
 
 /* Includes */
-#include <stdio.h>
-#include <errno.h>
-#include <string.h>
 #include <stdlib.h>
+#include <stddef.h>
+#include <string.h>
+#include <time.h>
 #include <os/Syscall.h>
 
-/* The clearerr
- * Clears out any error
- * set by file stream ops */
-void clearerr(FILE * stream)
+/* localtime
+ * converts a time_t to the 
+ * timestructure with localtime 
+ * format */
+tm *localtime(const time_t *timer)
 {
-	/* Sanity */
-	if (stream == NULL)
-		return;
+	/* Variables */
+	tm *rettime;
 
-	/* Clear out code */
-	stream->code = EOK;
+	/* Sanity */
+	if (timer == NULL)
+		return NULL;
+
+	/* Allocate a new instance */
+	rettime = (tm*)malloc(sizeof(tm));
+	memset(rettime, 0, sizeof(tm));
+
+	/* Get tme */
+
+	return rettime;
 }

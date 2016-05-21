@@ -22,11 +22,14 @@
 #define _MCORE_VFS_H_
 
 /* Includes */
-#include <DeviceManager.h>
-#include <MString.h>
-#include <Mutex.h>
 #include <crtdefs.h>
 #include <stdint.h>
+
+#include <DeviceManager.h>
+#include <MollenOS.h>
+#include <MString.h>
+#include <Mutex.h>
+#include <Events.h>
 
 /* Additional Vfs includes */
 #include <Vfs/Partition.h>
@@ -131,6 +134,14 @@ typedef enum _VfsEnvironmentPaths
 /* Definitions */
 #define VFS_MAIN_DRIVE		0x1
 
+/* Vfs Request Structure */
+typedef struct _MCoreVfsRequest
+{
+	/* Base */
+	MCoreEvent_t Base;
+
+} MCoreVfsRequest_t;
+
 /* Vfs Query Function
  * -- Structures */
 typedef struct _VQFileStats
@@ -202,6 +213,7 @@ typedef struct _MCoreFile
 typedef struct _MCoreFileInstance
 {
 	/* Owner */
+	int Id;
 	//PId_t Process;
 
 	/* Flags */
@@ -275,6 +287,10 @@ typedef struct _MCoreFileSystem
 
 /* Setup */
 _CRT_EXTERN void VfsInit(void);
+
+/* Request Operations */
+_CRT_EXTERN void VfsRequestCreate(void*);
+_CRT_EXTERN void VfsRequestWait(void*);
 
 /* Register / Unregister */
 _CRT_EXTERN void VfsRegisterDisk(DevId_t DiskId);

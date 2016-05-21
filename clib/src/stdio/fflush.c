@@ -31,17 +31,7 @@
  * resources associated */
 int fflush(FILE * stream)
 {
-	/* Variables */
-	int RetVal = 0;
-
-	/* Sanity input */
-	if (stream == NULL) {
-		_set_errno(EINVAL);
-		return EOF;
-	}
-
-	/* Syscall */
-	RetVal = Syscall1(MOLLENOS_SYSCALL_VFSFLUSH, MOLLENOS_SYSCALL_PARAM(stream));
+	_CRT_UNUSED(stream);
 
 	/* Clear error */
 	_set_errno(EOK);
