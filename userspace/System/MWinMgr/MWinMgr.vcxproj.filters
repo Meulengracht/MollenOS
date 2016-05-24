@@ -8,9 +8,6 @@
     <Filter Include="Source\Sapphire">
       <UniqueIdentifier>{b8de0ca1-6123-4238-9eda-680a112b29b2}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Source\Common">
-      <UniqueIdentifier>{47052db8-210e-40b9-8e6e-fdbd335e27f3}</UniqueIdentifier>
-    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Sapphire.c">
@@ -25,8 +22,8 @@
     <ClCompile Include="Core\Window.c">
       <Filter>Source\Sapphire</Filter>
     </ClCompile>
-    <ClCompile Include="Common\List.c">
-      <Filter>Source\Common</Filter>
+    <ClCompile Include="Core\Terminal.c">
+      <Filter>Source\Sapphire</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -39,10 +36,13 @@
     <ClInclude Include="Core\Window.h">
       <Filter>Source\Sapphire</Filter>
     </ClInclude>
-    <ClInclude Include="Common\List.h">
-      <Filter>Source\Common</Filter>
-    </ClInclude>
     <ClInclude Include="Core\WindowIpc.h">
+      <Filter>Source\Sapphire</Filter>
+    </ClInclude>
+    <ClInclude Include="Core\Terminal.h">
+      <Filter>Source\Sapphire</Filter>
+    </ClInclude>
+    <ClInclude Include="Core\TerminalPrivate.h">
       <Filter>Source\Sapphire</Filter>
     </ClInclude>
   </ItemGroup>

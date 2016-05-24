@@ -45,6 +45,7 @@ typedef struct _MCoreProcess
 {
 	/* Id */
 	PId_t Id;
+	PId_t Parent;
 
 	/* Name */
 	MString_t *Name;

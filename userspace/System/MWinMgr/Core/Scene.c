@@ -38,7 +38,7 @@ Scene_t *SceneCreate(int Id, Rect_t *Dimensions, SDL_Renderer *Renderer)
 	
 	/* Setup */
 	Scene->Id = Id;
-	Scene->Windows = list_create(LIST_NORMAL);
+	Scene->Windows = ListCreate(KeyInteger, LIST_NORMAL);
 	memcpy(&Scene->Dimensions, Dimensions, sizeof(Rect_t));
 
 	/* Load default background for this scene */
@@ -69,7 +69,7 @@ void SceneDestroy(Scene_t *Scene)
 	foreach(wNode, Scene->Windows)
 	{
 		/* Cast */
-		Window_t *Window = (Window_t*)wNode->data;
+		Window_t *Window = (Window_t*)wNode->Data;
 
 		/* Destroy */
 		WindowDestroy(Window);
@@ -80,7 +80,7 @@ void SceneDestroy(Scene_t *Scene)
 	SDL_DestroyTexture(Scene->Texture);
 
 	/* Cleanup */
-	list_destroy(Scene->Windows);
+	ListDestroy(Scene->Windows);
 	free(Scene);
 }
 
@@ -90,13 +90,17 @@ void SceneDestroy(Scene_t *Scene)
 * rendered before a call to Render */
 void SceneAddWindow(Scene_t *Scene, Window_t *Window)
 {
+	/* Vars */
+	DataKey_t Key;
+
 	/* Sanity */
 	if (Scene == NULL
 		|| Window == NULL)
 		return;
 
 	/* Append window to scene */
-	list_append(Scene->Windows, list_create_node(Window->Id, Window));
+	Key.Value = Window->Id;
+	ListAppend(Scene->Windows, ListCreateNode(Key, Window));
 }
 
 /* Update
@@ -112,7 +116,7 @@ void SceneUpdate(Scene_t *Scene)
 	foreach(wNode, Scene->Windows)
 	{
 		/* Cast */
-		Window_t *Window = (Window_t*)wNode->data;
+		Window_t *Window = (Window_t*)wNode->Data;
 
 		/* Update window */
 		WindowUpdate(Window);
@@ -138,7 +142,7 @@ void SceneRender(Scene_t *Scene, SDL_Renderer *Renderer)
 	foreach(wNode, Scene->Windows)
 	{
 		/* Cast */
-		Window_t *Window = (Window_t*)wNode->data;
+		Window_t *Window = (Window_t*)wNode->Data;
 
 		/* Render window */
 		WindowRender(Window, Renderer);

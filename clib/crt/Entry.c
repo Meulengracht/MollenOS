@@ -21,6 +21,7 @@
 
 /* Includes */
 #include <os/MollenOS.h>
+#include <os/Ui.h>
 #include <os/Syscall.h>
 #include <stddef.h>
 #include <stdlib.h>
@@ -130,12 +131,6 @@ int ParseCommandLine(char *CmdLine, char **ArgBuffer)
 	return ArgCount;
 }
 
-/* Thread Entry Point */
-void _mThreadCrt(void)
-{
-
-}
-
 /* Service Entry Point */
 void _mSrvCrt(void)
 {
@@ -174,7 +169,7 @@ void _mConCrt(void)
 	__CppInit();
 
 	/* Initialize Ui */
-	UiConnect();
+	UiConnect(UiConsole);
 
 	/* Init Cmd */
 	ArgCount = ParseCommandLine((char*)MOLLENOS_ARGUMENT_ADDR, NULL);

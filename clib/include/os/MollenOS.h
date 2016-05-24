@@ -245,49 +245,12 @@ _MOS_API void EnvironmentResolve(EnvironmentPath_t SpecialPath, char *StringBuff
 _MOS_API void MollenOSGetScreenGeometry(Rect_t *Rectangle);
 
 /***********************
-* Ui Prototypes
-***********************/
-
-/* UiCreateWindow
- * Creates a window of the given
- * dimensions and flags. The returned
- * value is the id of the newly created
- * window. Returns NULL on failure */
-_MOS_API WndHandle_t UiCreateWindow(Rect_t *Dimensions, int Flags);
-
-/* UiDestroyWindow 
- * Destroys a given window 
- * and frees the resources associated
- * with it. Returns 0 on success */
-_MOS_API int UiDestroyWindow(WndHandle_t Handle);
-
-/* UiQueryDimensions 
- * Queries the dimensions of a window
- * handle */
-_MOS_API int UiQueryDimensions(WndHandle_t Handle, Rect_t *Dimensions);
-
-/* UiQueryBackbuffer 
- * Queries the backbuffer handle of a window 
- * that can be used for direct pixel access to it */
-_MOS_API int UiQueryBackbuffer(WndHandle_t Handle, void **Backbuffer, size_t *BackbufferSize);
-
-/* UiInvalidateRect
- * Invalides a region of the window
- * based on relative coordinates in the window 
- * if its called with NULL as dimensions it 
- * invalidates all */
-_MOS_API void UiInvalidateRect(WndHandle_t Handle, Rect_t *Rect);
-
-
-/***********************
 * System Misc Prototypes
 * - No functions here should
 *   be called manually
 *   they are automatically used
 *   by systems
 ***********************/
-_MOS_API void UiConnect(void);
-_MOS_API void UiDisconnect(void);
 _MOS_API int MollenOSSignalWait(size_t Timeout);
 _MOS_API int MollenOSSignalWake(IpcComm_t Target);
 _MOS_API void MollenOSSystemLog(const char *Message);

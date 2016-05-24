@@ -36,7 +36,7 @@ void exit(int status)
 	Syscall1(MOLLENOS_SYSCALL_TERMINATE, MOLLENOS_SYSCALL_PARAM(status));
 
 	/* Yield */
-	Syscall0(MOLLENOS_SYSCALL_YIELD);
+	Syscall0(MOLLENOS_SYSCALL_THREADYIELD);
 
 	/* Forever */
 	for (;;);

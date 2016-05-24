@@ -20,6 +20,7 @@
 */
 
 /* Includes */
+#include <Arch.h>
 #include <ProcessManager.h>
 #include <Vfs/Vfs.h>
 #include <Threading.h>
@@ -248,6 +249,7 @@ PId_t PmCreateProcess(MString_t *Path, MString_t *Arguments)
 
 	/* Set initial */
 	Process->Id = GlbProcessId;
+	Process->Parent = ThreadingGetCurrentThread(ApicGetCpu())->ProcessId;
 	GlbProcessId++;
 
 	/* Split path */

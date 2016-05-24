@@ -20,8 +20,11 @@
 */
 
 /* Includes */
-#include <time.h>
+#include <os/MollenOS.h>
 #include <os/Syscall.h>
+#include <time.h>
+#include <stddef.h>
+#include <string.h>
 
 /* Time
  * Gets the time from either a 
@@ -29,6 +32,25 @@
  * time */
 time_t time(time_t *timer)
 {
-	_CRT_UNUSED(timer);
-	return 0;
+	/* Variables */
+	time_t RetTime = 0;
+	tm TimeStruct;
+
+	/* Null out */
+	memset(&TimeStruct, 0, sizeof(tm));
+
+	/* Get current time */
+	MollenOSDeviceQuery(DeviceClock, 0, &TimeStruct, sizeof(tm));
+
+	/* Now convert the sys-time
+	 * to time_t */
+	RetTime = mktime(NULL);
+
+	/* Update the user-variable
+	 * if he passed a pointer */
+	if (timer != NULL)
+		*timer = RetTime;
+
+	/* Done! */
+	return RetTime;
 }

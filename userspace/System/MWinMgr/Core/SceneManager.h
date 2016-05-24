@@ -32,7 +32,7 @@
 
 /* List -> Scenes */
 #include <os/MollenOS.h>
-#include "../Common/List.h"
+#include <ds/list.h>
 #include "Window.h"
 
 /* Definitions */
@@ -46,7 +46,7 @@ typedef struct _sSceneManager {
 	int IdWindowGen;
 
 	/* List of scenes */
-	list_t *Scenes;
+	List_t *Scenes;
 
 } SceneManager_t;
 

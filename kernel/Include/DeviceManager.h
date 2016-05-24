@@ -25,6 +25,7 @@
 /* Includes */
 #include "../Arch/Arch.h"
 #include <Devices/Video.h>
+#include <Events.h>
 #include <stdint.h>
 #include <Mutex.h>
 

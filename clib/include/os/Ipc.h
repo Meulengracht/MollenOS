@@ -52,7 +52,8 @@ typedef enum _MGenericMessageType
 {
 	GenericWindowCreate,
 	GenericWindowDestroy,
-	GenericWindowInvalidate
+	GenericWindowInvalidate,
+	GenericWindowQuery
 
 } MGenericMessageType_t;
 

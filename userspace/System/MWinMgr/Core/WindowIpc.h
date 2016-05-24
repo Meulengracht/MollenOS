@@ -31,8 +31,8 @@
 /* IPC Structures */
 
 /***********************
-* Window Creation IPC Message
-***********************/
+ * Window Creation IPC Message
+ ***********************/
 typedef struct _MIPCWindowCreate
 {
 	/* Request Information */
@@ -46,5 +46,19 @@ typedef struct _MIPCWindowCreate
 	size_t BackbufferSize;
 
 } IPCWindowCreate_t;
+
+/***********************
+ * Window Query IPC Message
+ ***********************/
+typedef struct _MIPCWindowQuery
+{
+	/* Request Information */
+	IpcComm_t Target;
+
+	/* Response Information */
+	char Name[64];
+	Rect_t Dimensions;
+
+} IPCWindowQuery_t;
 
 #endif //!_SAPPHIRE_WINDOWIPC_H_

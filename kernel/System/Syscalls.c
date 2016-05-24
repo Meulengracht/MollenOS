@@ -16,7 +16,7 @@
 * along with this program.If not, see <http://www.gnu.org/licenses/>.
 *
 *
-* MollenOS MCore - Shared Memory System
+* MollenOS MCore - System Calls
 */
 
 /* Includes */
@@ -24,6 +24,7 @@
 #include <ProcessManager.h>
 #include <Threading.h>
 #include <Scheduler.h>
+#include <Timers.h>
 #include <Log.h>
 #include <os/Ipc.h>
 
@@ -35,6 +36,11 @@
 /***********************
  * Process Functions   *
  ***********************/
+
+/* Spawns a new process with the
+ * given executable + arguments 
+ * and returns the id, will return
+ * 0xFFFFFFFF if failed */
 PId_t ScProcessSpawn(char *Path, char *Arguments)
 {
 	/* Alloc on stack */
@@ -73,6 +79,9 @@ PId_t ScProcessSpawn(char *Path, char *Arguments)
 	return Request.ProcessId;
 }
 
+/* This waits for a child process to 
+ * finish executing, and does not wakeup
+ * before that */
 int ScProcessJoin(PId_t ProcessId)
 {
 	/* Wait for process */
@@ -90,6 +99,8 @@ int ScProcessJoin(PId_t ProcessId)
 	return Process->ReturnCode;
 }
 
+/* Attempts to kill the process 
+ * with the given process-id */
 int ScProcessKill(PId_t ProcessId)
 {
 	/* Alloc on stack */
@@ -111,6 +122,8 @@ int ScProcessKill(PId_t ProcessId)
 		return -1;
 }
 
+/* Kills the current process with the 
+ * error code given as argument */
 int ScProcessExit(int ExitCode)
 {
 	/* Disable interrupts */
@@ -135,10 +148,37 @@ int ScProcessExit(int ExitCode)
 	return 0;
 }
 
-int ScProcessYield(void)
+/* Queries information about 
+ * the given process id, if called
+ * with 0xFFFFFFFF it queries information
+ * about itself */
+int ScProcessQuery(PId_t ProcessId, void *Buffer, size_t Length)
 {
-	/* Deep Call */
-	IThreadYield();
+	/* Variables */
+	MCoreProcess_t *Process = NULL;
+
+	/* Sanity arguments */
+	if (Buffer == NULL
+		|| Length == 0) {
+		return -1;
+	}
+
+	/* Sanitize the processid */
+	if (ProcessId == 0xFFFFFFFF) {
+		ProcessId = ThreadingGetCurrentThread(ApicGetCpu())->ProcessId;
+	}
+
+	/* Lookup process */
+	Process = PmGetProcess(ProcessId);
+
+	/* Sanity, found? */
+	if (Process == NULL) {
+		return -2;
+	}
+
+	/* Copy information to user 
+	 * buffer */
+	*((PId_t*)Buffer) = Process->Parent;
 
 	/* Done */
 	return 0;
@@ -218,6 +258,169 @@ int ScSharedObjectUnload(void *Handle)
 * Threading Functions  *
 ***********************/
 
+/* Creates a new thread bound to 
+ * the calling process, with the given
+ * entry point and arguments */
+int ScThreadCreate(ThreadEntry_t Entry, void *Data, int Flags)
+{
+	/* Sanity */
+	if (Entry == NULL)
+		return -1;
+
+	/* Deep Call */
+	return (int)ThreadingCreateThread(NULL, Entry, Data, Flags | THREADING_USERMODE);
+}
+
+/* Exits the current thread and 
+ * instantly yields control to scheduler */
+int ScThreadExit(int ExitCode)
+{
+	/* Deep Call */
+	ThreadingExitThread(ExitCode);
+
+	/* We will never reach this 
+	 * statement */
+	return 0;
+}
+
+/* Thread join, waits for a given
+ * thread to finish executing, and
+ * returns it's exit code, works 
+ * like processjoin. Must be in same
+ * process as asking thread */
+int ScThreadJoin(TId_t ThreadId)
+{
+	/* Lookup process information */
+	PId_t CurrentPid = ThreadingGetCurrentThread(ApicGetCpu())->ProcessId;
+
+	/* Sanity */
+	if (ThreadingGetThread(ThreadId) == NULL)
+		return -1;
+	if (ThreadingGetThread(ThreadId)->ProcessId != CurrentPid)
+		return -1;
+
+	/* Simply deep call again 
+	 * the function takes care 
+	 * of validation as well */
+	return ThreadingJoinThread(ThreadId);
+}
+
+/* Thread kill, kills the given thread
+ * id, must belong to same process as the
+ * thread that asks. */
+int ScThreadKill(TId_t ThreadId)
+{
+	/* Lookup process information */
+	PId_t CurrentPid = ThreadingGetCurrentThread(ApicGetCpu())->ProcessId;
+
+	/* Sanity */
+	if (ThreadingGetThread(ThreadId) == NULL)
+		return -1;
+	if (ThreadingGetThread(ThreadId)->ProcessId != CurrentPid)
+		return -1;
+
+	/* Ok, we can kill it */
+	ThreadingKillThread(ThreadId);
+
+	/* Done! */
+	return 0;
+}
+
+/* Thread sleep,
+ * Sleeps the current thread for the
+ * given milliseconds. */
+int ScThreadSleep(size_t MilliSeconds)
+{
+	/* Deep Call */
+	SleepMs(MilliSeconds);
+
+	/* Done, this call never fails */
+	return 0;
+}
+
+/* Thread get current id
+ * Get's the current thread id */
+int ScThreadGetCurrentId(void)
+{
+	/* Deep Call */
+	return (int)ThreadingGetCurrentThreadId();
+}
+
+/* This yields the current thread 
+ * and gives cpu time to another thread */
+int ScThreadYield(void)
+{
+	/* Deep Call */
+	IThreadYield();
+
+	/* Done */
+	return 0;
+}
+
+/***********************
+* Synch Functions      *
+***********************/
+
+/* Create a new shared handle 
+ * that is unique for a condition
+ * variable */
+Addr_t ScConditionCreate(void)
+{
+	/* Allocate an int or smthing */
+	return (Addr_t)kmalloc(sizeof(int));
+}
+
+/* Destroys a shared handle
+ * for a condition variable */
+int ScConditionDestroy(Addr_t *Handle)
+{
+	/* Free handle */
+	kfree(Handle);
+
+	/* Done */
+	return 0;
+}
+
+/* Signals a handle for wakeup 
+ * This is primarily used for condition
+ * variables and semaphores */
+int ScSyncWakeUp(Addr_t *Handle)
+{
+	/* Deep Call */
+	return SchedulerWakeupOneThread(Handle);
+}
+
+/* Signals a handle for wakeup all
+ * This is primarily used for condition
+ * variables and semaphores */
+int ScSyncWakeUpAll(Addr_t *Handle)
+{
+	/* Deep Call */
+	SchedulerWakeupAllThreads(Handle);
+
+	/* Done! */
+	return 0;
+}
+
+/* Waits for a signal relating 
+ * to the above function, this
+ * function uses a timeout. Returns -1
+ * if we timed-out, otherwise returns 0 */
+int ScSyncSleep(Addr_t *Handle, size_t Timeout)
+{
+	/* Get current thread */
+	MCoreThread_t *Current = ThreadingGetCurrentThread(ApicGetCpu());
+
+	/* Sleep */
+	SchedulerSleepThread(Handle, Timeout);
+
+	/* Sanity */
+	if (Timeout != 0
+		&& Current->Sleep == 0)
+		return -1;
+	else
+		return 0;
+}
 
 /***********************
 * Memory Functions     *
@@ -953,14 +1156,14 @@ int NoOperation(void)
 }
 
 /* Syscall Table */
-Addr_t GlbSyscallTable[111] =
+Addr_t GlbSyscallTable[121] =
 {
 	/* Kernel Log */
 	DefineSyscall(LogDebug),
 
 	/* Process Functions - 1 */
 	DefineSyscall(ScProcessExit),
-	DefineSyscall(ScProcessYield),
+	DefineSyscall(ScProcessQuery),
 	DefineSyscall(ScProcessSpawn),
 	DefineSyscall(ScProcessJoin),
 	DefineSyscall(ScProcessKill),
@@ -971,18 +1174,30 @@ Addr_t GlbSyscallTable[111] =
 	DefineSyscall(ScSharedObjectUnload),
 
 	/* Threading Functions - 11 */
+	DefineSyscall(ScThreadCreate),
+	DefineSyscall(ScThreadExit),
+	DefineSyscall(ScThreadKill),
+	DefineSyscall(ScThreadJoin),
+	DefineSyscall(ScThreadSleep),
+	DefineSyscall(ScThreadYield),
+	DefineSyscall(ScThreadGetCurrentId),
 	DefineSyscall(NoOperation),
 	DefineSyscall(NoOperation),
 	DefineSyscall(NoOperation),
-	DefineSyscall(NoOperation),
-	DefineSyscall(NoOperation),
+
+	/* Synchronization Functions - 21 */
+	DefineSyscall(ScConditionCreate),
+	DefineSyscall(ScConditionDestroy),
+	DefineSyscall(ScSyncSleep),
+	DefineSyscall(ScSyncWakeUp),
+	DefineSyscall(ScSyncWakeUpAll),
 	DefineSyscall(NoOperation),
 	DefineSyscall(NoOperation),
 	DefineSyscall(NoOperation),
 	DefineSyscall(NoOperation),
 	DefineSyscall(NoOperation),
 
-	/* Memory Functions - 21 */
+	/* Memory Functions - 31 */
 	DefineSyscall(ScMemoryAllocate),
 	DefineSyscall(ScMemoryFree),
 	DefineSyscall(ScMemoryQuery),
@@ -994,7 +1209,7 @@ Addr_t GlbSyscallTable[111] =
 	DefineSyscall(NoOperation),
 	DefineSyscall(NoOperation),
 
-	/* IPC Functions - 31 */
+	/* IPC Functions - 41 */
 	DefineSyscall(ScIpcPeek),
 	DefineSyscall(ScIpcRead),
 	DefineSyscall(ScIpcWrite),
@@ -1006,7 +1221,7 @@ Addr_t GlbSyscallTable[111] =
 	DefineSyscall(NoOperation),
 	DefineSyscall(NoOperation),
 
-	/* Vfs Functions - 41 */
+	/* Vfs Functions - 51 */
 	DefineSyscall(ScVfsOpen),
 	DefineSyscall(ScVfsClose),
 	DefineSyscall(ScVfsRead),
@@ -1028,7 +1243,7 @@ Addr_t GlbSyscallTable[111] =
 	DefineSyscall(NoOperation),
 	DefineSyscall(NoOperation),
 
-	/* Timer Functions - 61 */
+	/* Timer Functions - 71 */
 	DefineSyscall(NoOperation),
 	DefineSyscall(NoOperation),
 	DefineSyscall(NoOperation),
@@ -1040,7 +1255,7 @@ Addr_t GlbSyscallTable[111] =
 	DefineSyscall(NoOperation),
 	DefineSyscall(NoOperation),
 
-	/* Device Functions - 71 */
+	/* Device Functions - 81 */
 	DefineSyscall(ScDeviceQuery),
 	DefineSyscall(NoOperation),
 	DefineSyscall(NoOperation),
@@ -1052,7 +1267,7 @@ Addr_t GlbSyscallTable[111] =
 	DefineSyscall(NoOperation),
 	DefineSyscall(NoOperation),
 
-	/* System Functions - 81 */
+	/* System Functions - 91 */
 	DefineSyscall(ScEndBootSequence),
 	DefineSyscall(ScRegisterWindowManager),
 	DefineSyscall(NoOperation),
@@ -1064,7 +1279,7 @@ Addr_t GlbSyscallTable[111] =
 	DefineSyscall(NoOperation),
 	DefineSyscall(NoOperation),
 
-	/* Driver Functions - 91 */
+	/* Driver Functions - 101 */
 	DefineSyscall(ScIoSpaceCreate),
 	DefineSyscall(ScIoSpaceRead),
 	DefineSyscall(ScIoSpaceWrite),

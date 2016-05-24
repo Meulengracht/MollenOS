@@ -26,19 +26,23 @@
 #include <crtdefs.h>
 #include <stddef.h>
 #include <stdint.h>
+#include <os/Ipc.h>
 
 /* Ui Includes */
 #include <SDL.h>
 
 /* Definitions */
-
+#define WINDOW_CONSOLE	0x1
+#define WINDOW_INHERIT	0x2
 
 /* Structures */
 typedef struct _sWindow {
 
-	/* Window Id */
-	IpcComm_t Owner;
+	/* Window Information
+	 * Id, owner, flags */
 	int Id;
+	IpcComm_t Owner;
+	int Flags;
 
 	/* Window Z-Index */
 	int zIndex;
@@ -56,7 +60,9 @@ typedef struct _sWindow {
 	size_t BackbufferSize;
 	
 	/* The render surface */
+	SDL_Renderer *Renderer;
 	SDL_Texture *Texture;
+	void *Terminal;
 
 } Window_t;
 

@@ -39,7 +39,7 @@ void SceneManagerInit(SDL_Renderer *Renderer, Rect_t *ScreenDims)
 
 	/* Allocate scene manager instance */
 	GlbSceneManager = (SceneManager_t*)malloc(sizeof(SceneManager_t));
-	GlbSceneManager->Scenes = list_create(LIST_NORMAL);
+	GlbSceneManager->Scenes = ListCreate(KeyInteger, LIST_NORMAL);
 	GlbSceneManager->IdGen = 0;
 	GlbSceneManager->IdWindowGen = 0;
 
@@ -49,8 +49,9 @@ void SceneManagerInit(SDL_Renderer *Renderer, Rect_t *ScreenDims)
 	/* How to keep track of active? */
 
 	/* Append to list */
-	list_append(GlbSceneManager->Scenes, 
-		list_create_node(GlbSceneManager->IdGen, Scene));
+	DataKey_t Key;
+	Key.Value = GlbSceneManager->IdGen;
+	ListAppend(GlbSceneManager->Scenes, ListCreateNode(Key, Scene));
 
 	/* Increase Id */
 	GlbSceneManager->IdGen++;
@@ -70,14 +71,14 @@ void SceneManagerDestruct(void)
 	foreach(sNode, GlbSceneManager->Scenes)
 	{
 		/* Cast */
-		Scene_t *Scene = (Scene_t*)sNode->data;
+		Scene_t *Scene = (Scene_t*)sNode->Data;
 
 		/* Destroy */
 		SceneDestroy(Scene);
 	}
 
 	/* Free */
-	list_destroy(GlbSceneManager->Scenes);
+	ListDestroy(GlbSceneManager->Scenes);
 	free(GlbSceneManager);
 }
 
@@ -87,12 +88,16 @@ void SceneManagerDestruct(void)
  * rendered before a call to Render */
 void SceneManagerAddWindow(Window_t *Window)
 {
+	/* Vars */
+	DataKey_t Key;
+
 	/* Sanity */
 	if (GlbSceneManager == NULL)
 		return;
 
 	/* Get active scene (todo) */
-	Scene_t *ActiveScene = (Scene_t*)list_get_data_by_id(GlbSceneManager->Scenes, 0, 0);
+	Key.Value = 0;
+	Scene_t *ActiveScene = (Scene_t*)ListGetDataByKey(GlbSceneManager->Scenes, Key, 0);
 
 	/* Assign a unique id */
 	Window->Id = GlbSceneManager->IdWindowGen;
@@ -107,12 +112,16 @@ void SceneManagerAddWindow(Window_t *Window)
  * and makes all neccessary changes to windows */
 void SceneManagerUpdate(void)
 {
+	/* Vars */
+	DataKey_t Key;
+
 	/* Sanity */
 	if (GlbSceneManager == NULL)
 		return;
 
 	/* Get active scene (todo) */
-	Scene_t *ActiveScene = (Scene_t*)list_get_data_by_id(GlbSceneManager->Scenes, 0, 0);
+	Key.Value = 0;
+	Scene_t *ActiveScene = (Scene_t*)ListGetDataByKey(GlbSceneManager->Scenes, Key, 0);
 
 	/* Update Scene */
 	SceneUpdate(ActiveScene);
@@ -123,12 +132,16 @@ void SceneManagerUpdate(void)
  * to the screen */
 void SceneManagerRender(SDL_Renderer *Renderer)
 {
+	/* Vars */
+	DataKey_t Key;
+
 	/* Sanity */
 	if (GlbSceneManager == NULL)
 		return;
 
 	/* Get active scene (todo) */
-	Scene_t *ActiveScene = (Scene_t*)list_get_data_by_id(GlbSceneManager->Scenes, 0, 0);
+	Key.Value = 0;
+	Scene_t *ActiveScene = (Scene_t*)ListGetDataByKey(GlbSceneManager->Scenes, Key, 0);
 
 	/* Update Scene */
 	SceneRender(ActiveScene, Renderer);

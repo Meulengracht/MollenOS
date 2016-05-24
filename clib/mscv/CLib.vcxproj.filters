@@ -49,11 +49,14 @@
     <Filter Include="Source\os\i386">
       <UniqueIdentifier>{c2a32414-f746-419e-85e5-4581122381ff}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Source\os\Shared">
-      <UniqueIdentifier>{8113a867-9237-4beb-91ab-52270a8d0259}</UniqueIdentifier>
-    </Filter>
     <Filter Include="Source\time">
       <UniqueIdentifier>{5f51f49c-31a8-4e90-a6e2-f87e13088b09}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source\ds">
+      <UniqueIdentifier>{5dccbbc2-4b90-4d49-bb3d-8a7402ba6cc3}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source\assert">
+      <UniqueIdentifier>{583149c5-cbf0-425f-8ab6-d608562cc739}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>
@@ -414,14 +417,8 @@
     <ClCompile Include="..\src\os\Process.c">
       <Filter>Source\os</Filter>
     </ClCompile>
-    <ClCompile Include="..\src\os\Ui.c">
-      <Filter>Source\os</Filter>
-    </ClCompile>
     <ClCompile Include="..\src\os\Spinlock.c">
       <Filter>Source\os</Filter>
-    </ClCompile>
-    <ClCompile Include="..\src\os\Shared\BAlloc.c">
-      <Filter>Source\os\Shared</Filter>
     </ClCompile>
     <ClCompile Include="..\src\stdio\fputs.c">
       <Filter>Source\stdio\File</Filter>
@@ -436,6 +433,36 @@
       <Filter>Source\time</Filter>
     </ClCompile>
     <ClCompile Include="..\src\time\localtime.c">
+      <Filter>Source\time</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\ds\List.c">
+      <Filter>Source\ds</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\ds\Ds.c">
+      <Filter>Source\ds</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\ds\HashTable.c">
+      <Filter>Source\ds</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\os\Mutex.c">
+      <Filter>Source\os</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\os\Thread.c">
+      <Filter>Source\os</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\time\mktime.c">
+      <Filter>Source\time</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\time\gmtime.c">
+      <Filter>Source\time</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\os\Condition.c">
+      <Filter>Source\os</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\assert\assert.c">
+      <Filter>Source\assert</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\time\difftime.c">
       <Filter>Source\time</Filter>
     </ClCompile>
   </ItemGroup>
@@ -503,10 +530,5 @@
     <CustomBuild Include="..\src\os\i386\_Spinlock.asm">
       <Filter>Source\os\i386</Filter>
     </CustomBuild>
-  </ItemGroup>
-  <ItemGroup>
-    <ClInclude Include="..\src\os\Shared\BAlloc.h">
-      <Filter>Source\os\Shared</Filter>
-    </ClInclude>
   </ItemGroup>
 </Project>

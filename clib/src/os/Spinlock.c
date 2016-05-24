@@ -16,7 +16,7 @@
 * along with this program.If not, see <http://www.gnu.org/licenses/>.
 *
 *
-* MollenOS - Graphical UI Functions
+* MollenOS - Spinlock Synchronization Functions
 */
 
 /* Includes */
@@ -36,6 +36,7 @@ void __SpinlockLibCEmpty(void)
 
 /* Externs to assembly */
 extern int _spinlock_acquire(Spinlock_t *Spinlock);
+extern int _spinlock_test(Spinlock_t *Spinlock);
 extern void _spinlock_release(Spinlock_t *Spinlock);
 
 /* Spinlock Reset
@@ -63,6 +64,20 @@ int SpinlockAcquire(Spinlock_t *Lock)
 
 	/* Deep call */
 	return _spinlock_acquire(Lock);
+}
+
+/* Spinlock TryAcquire
+ * TRIES to acquires the spinlock, 
+ * returns 0 if failed, returns 1
+ * if lock were acquired  */
+int SpinlockTryAcquire(Spinlock_t *Lock)
+{
+	/* Sanity */
+	if (Lock == NULL)
+		return 0;
+
+	/* Deep call */
+	return _spinlock_test(Lock);
 }
 
 /* Spinlock Release

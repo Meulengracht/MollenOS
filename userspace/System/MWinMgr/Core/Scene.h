@@ -32,7 +32,7 @@
 
 /* List -> Windows */
 #include <os/MollenOS.h>
-#include "../Common/List.h"
+#include <ds/list.h>
 #include "Window.h"
 
 /* Definitions */
@@ -54,7 +54,7 @@ typedef struct _sScene {
 	SDL_Texture *Texture;
 
 	/* List of windows */
-	list_t *Windows;
+	List_t *Windows;
 
 } Scene_t;
 

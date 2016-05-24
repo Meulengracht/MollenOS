@@ -385,7 +385,6 @@ int SchedulerWakeupOneThread(Addr_t *Resource)
 
 		/* Grant it top priority */
 		mThread->Priority = -1;
-		mThread->Sleep = 0;
 		mThread->SleepResource = NULL;
 
 		/* Rearm thread */

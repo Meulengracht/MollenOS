@@ -35,8 +35,10 @@
 #include <Devices\Disk.h>
 #include <Devices\Timer.h>
 #include <Devices\Video.h>
+#include <Devices\Clock.h>
 
 /* Globals */
+MCoreEventHandler_t *GlbDeviceEventHandler = NULL;
 MCoreDevice_t *GlbDmBootVideo = NULL;
 int GlbDmInitialized = 0;
 DevId_t GlbDmIdentfier = 0;
@@ -204,6 +206,24 @@ void DmRequestHandler(void *Args)
 					{
 						/* Copy the descriptor */
 						memcpy(Request->Buffer, &Video->Info, sizeof(MCoreVideoDescriptor_t));
+
+						/* Done */
+						Request->Status = RequestOk;
+					}
+				}
+				else if (Dev->Type == DeviceClock)
+				{
+					/* Cast again */
+					MCoreClockDevice_t *Clock = (MCoreClockDevice_t*)Dev->Data;
+
+					/* Validate buffer */
+					if (Request->Buffer == NULL
+						|| Request->Length < sizeof(tm))
+						Request->Status = RequestInvalidParameters;
+					else
+					{
+						/* Call */
+						Clock->GetTime(Dev, (tm*)Request->Buffer);
 
 						/* Done */
 						Request->Status = RequestOk;

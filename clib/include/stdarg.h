@@ -30,8 +30,8 @@ Boston, MA 02110-1301, USA.  */
 
 #ifndef _INC_STDARG
 #define _INC_STDARG
-#ifndef _WIN32
-#error Only Win32 target is supported!
+#ifndef MOLLENOS
+#error Only MollenOS target is supported!
 #endif
 
 #ifndef _STDARG_H

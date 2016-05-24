@@ -1,17 +1,29 @@
 /* MollenOS
-	- assert()
+*
+* Copyright 2011 - 2016, Philip Meulengracht
+*
+* This program is free software : you can redistribute it and / or modify
+* it under the terms of the GNU General Public License as published by
+* the Free Software Foundation ? , either version 3 of the License, or
+* (at your option) any later version.
+*
+* This program is distributed in the hope that it will be useful,
+* but WITHOUT ANY WARRANTY; without even the implied warranty of
+* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.See the
+* GNU General Public License for more details.
+*
+* You should have received a copy of the GNU General Public License
+* along with this program.If not, see <http://www.gnu.org/licenses/>.
+*
+*
+* MollenOS C-Library - Assert
 */
 
 #ifndef _CLIB_ASSERT
 #define _CLIB_ASSERT
 
-#ifdef MOLLENOS
-/* Includes */
-#include <crtdefs.h>
-_CRT_EXPORT void kernel_panic(const char* str);
-#else
-extern void kernel_panic(const char* str);
-#endif
+/* Extern */
+extern void _assert_panic(const char* str);
 
 #define __symbol2value( x ) #x
 #define __symbol2string( x ) __symbol2value( x )
@@ -23,7 +35,7 @@ extern void kernel_panic(const char* str);
 #else
 
 #define assert( expression ) ( ( expression ) ? (void) 0 \
-        : kernel_panic( "Assertion failed: " #expression \
+        : _assert_panic( "Assertion failed: " #expression \
                           ", file " __symbol2string( __FILE__ ) \
                           ", line " __symbol2string( __LINE__ ) \
                           "." ) )

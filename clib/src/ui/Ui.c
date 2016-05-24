@@ -21,6 +21,7 @@
 
 /* Includes */
 #include <os/MollenOS.h>
+#include <os/Ui.h>
 #include <os/Syscall.h>
 #include <os/Thread.h>
 #include "Shared/BAlloc.h"
@@ -32,13 +33,6 @@
 
 /* UI Ipc */
 #include "../../../userspace/System/MWinMgr/Core/WindowIpc.h"
-
-/* Kernel Guard */
-#ifdef LIBC_KERNEL
-void __UILibCEmpty(void)
-{
-}
-#else
 
 /* Private structures */
 typedef struct _MWindowDescriptor
@@ -58,8 +52,9 @@ typedef struct _MWindowDescriptor
 /* Globals */
 void *__UiConnectionBuffer = NULL;
 void *__UiConnectionHandle = NULL;
-int __UiConnected = 0;
 Spinlock_t __UiConnectionLock;
+int __UiConnected = 0;
+UiType_t __UiType = UiNone;
 
 /* Helpers */
 #define TO_SHARED_HANDLE(Ptr) ((void*)((uint8_t*)__UiConnectionHandle + ((size_t)Ptr - (size_t)__UiConnectionBuffer)))
@@ -68,7 +63,7 @@ Spinlock_t __UiConnectionLock;
  * Only called once, it initializes 
  * the ui-connection to the window
  * server */
-void UiConnect(void)
+void UiConnect(UiType_t UiType)
 {
 	/* Sanity */
 	if (__UiConnected == 1)
@@ -86,9 +81,10 @@ void UiConnect(void)
 	SpinlockReset(&__UiConnectionLock);
 
 	/* Create the message allocator */
-	bpool(__UiConnectionBuffer, 1024);
+	bpool(__UiConnectionBuffer, 1024); 
 
 	/* Done! */
+	__UiType = UiType;
 	__UiConnected = 1;
 }
 
@@ -102,13 +98,67 @@ void UiDisconnect(void)
 		return;
 
 	/* Unshare the memory */
-	MollenOSMemoryUnshare(0, __UiConnectionHandle, 2048);
+	MollenOSMemoryUnshare(0, __UiConnectionHandle, 1024);
 
 	/* Free the handle */
 	free(__UiConnectionBuffer);
 
 	/* Done! */
 	__UiConnected = 0;
+}
+
+/* UiQueryProcessWindow 
+ * Queries the window information
+ * from a target process id */
+int UiQueryProcessWindow(IpcComm_t Target, IPCWindowQuery_t *Information)
+{
+	/* Variables */
+	IPCWindowQuery_t *QueryInfo;
+	MEventMessageGeneric_t Message;
+	void *SharedPtr = NULL;
+
+	/* Grab buffer lock */
+	SpinlockAcquire(&__UiConnectionLock);
+
+	/* Access/Setup buffer */
+	QueryInfo = (IPCWindowQuery_t*)bget(sizeof(IPCWindowQuery_t));
+	memset(QueryInfo, 0, sizeof(IPCWindowQuery_t));
+
+	QueryInfo->Target = Target;
+
+	/* Release buffer lock */
+	SpinlockRelease(&__UiConnectionLock);
+
+	/* Cast to shared handle */
+	SharedPtr = TO_SHARED_HANDLE(QueryInfo);
+
+	/* Setup base message */
+	Message.Header.Length = sizeof(MEventMessageGeneric_t);
+	Message.Header.Type = EventGeneric;
+
+	/* Setup generic message */
+	Message.Type = GenericWindowQuery;
+	Message.LoParam = (size_t)SharedPtr;
+	Message.HiParam = 0;
+
+	/* Send request */
+	if (MollenOSMessageSend(0, &Message, Message.Header.Length)) {
+		brel((void*)QueryInfo);
+		return -1;
+	}
+
+	/* Wait for window manager to respond
+	* but don't wait for longer than 1 sec.. */
+	MollenOSSignalWait(1000);
+
+	/* Copy information */
+	memcpy(Information, QueryInfo, sizeof(IPCWindowQuery_t));
+
+	/* Release */
+	brel((void*)QueryInfo);
+
+	/* Done */
+	return 0;
 }
 
 /* UiCreateWindow 
@@ -297,5 +347,3 @@ void UiInvalidateRect(WndHandle_t Handle, Rect_t *Rect)
 	/* Send request */
 	MollenOSMessageSend(0, &Message, Message.Header.Length);
 }
-
-#endif

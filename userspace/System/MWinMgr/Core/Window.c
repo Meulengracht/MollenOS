@@ -24,6 +24,7 @@
 #include <SDL_image.h>
 #include "Scene.h"
 #include "Window.h"
+#include "Terminal.h"
 
 /* CLib */
 #include <string.h>
@@ -42,35 +43,70 @@ Window_t *WindowCreate(IpcComm_t Owner, Rect_t *Dimensions, int Flags, SDL_Rende
 	/* Set initial stuff */
 	Window->Id = 0;
 	Window->Owner = Owner;
+	Window->Flags = Flags;
 	Window->Flip = SDL_FLIP_NONE;
 	Window->Rotation = 0.0;
 	Window->zIndex = 1000;
+	Window->Texture = NULL;
+	Window->Renderer = Renderer;
 
-	/* Convert dims */
-	Window->Dimensions.x = Dimensions->x;
-	Window->Dimensions.y = Dimensions->y;
-	Window->Dimensions.h = Dimensions->h;
-	Window->Dimensions.w = Dimensions->w;
+	/* Now, we let the SDL_terminal 
+	 * handle everything console related
+	 * for us.. */
+	if (Flags & WINDOW_CONSOLE) {
+		/* Convert position only
+		* size is set from other stuff */
+		Window->Dimensions.x = Dimensions->x;
+		Window->Dimensions.y = Dimensions->y;		
 
-	/* Allocate a texture */
-	Window->Texture = SDL_CreateTexture(Renderer, SDL_PIXELFORMAT_RGBA8888, 
-		SDL_TEXTUREACCESS_STREAMING, Dimensions->w, Dimensions->h);
+		/* Create a new terminal 
+		 * interface */
+		SDL_Terminal *Terminal = SDL_CreateTerminal(Window);
 
-	/* Get texture information */
-	SDL_LockTexture(Window->Texture, NULL, &mPixels, &mPitch);
+		/* Initialize font and size */
+		SDL_TerminalSetFont(Terminal, "Fonts/DejaVuSansMono.ttf", 12);
+		SDL_TerminalSetSize(Terminal, 80, 25);
+		SDL_TerminalSetPosition(Terminal, 0, 0);
 
-	/* Allocate a user-backbuffer */
-	Window->Backbuffer = malloc(Dimensions->h * mPitch);
-	memset(Window->Backbuffer, 0xFFFFFFFF, Dimensions->h * mPitch);
+		/* Setup default colors */
+		SDL_TerminalSetColor(Terminal, 255, 255, 255, 128);
+		SDL_TerminalSetBorderColor(Terminal, 255, 255, 255, 255);
+		SDL_TerminalSetForeground(Terminal, 0, 0, 0, 255);
+		SDL_TerminalSetBackground(Terminal, 0, 0, 0, 0);
 
-	/* Copy pixels */
-	memcpy(mPixels, Window->Backbuffer, Dimensions->h * mPitch);
+		/* Clear out terminal */
+		SDL_TerminalClear(Terminal);
 
-	/* Unlock texture */
-	SDL_UnlockTexture(Window->Texture);
+		/* Store */
+		Window->Terminal = Terminal;
+	}
+	else {
+		/* Convert dims */
+		Window->Dimensions.x = Dimensions->x;
+		Window->Dimensions.y = Dimensions->y;
+		Window->Dimensions.h = Dimensions->h;
+		Window->Dimensions.w = Dimensions->w;
 
-	/* Update size */
-	Window->BackbufferSize = Dimensions->h * mPitch;
+		/* Allocate a texture */
+		Window->Texture = SDL_CreateTexture(Renderer, SDL_PIXELFORMAT_RGBA8888,
+			SDL_TEXTUREACCESS_STREAMING, Dimensions->w, Dimensions->h);
+
+		/* Get texture information */
+		SDL_LockTexture(Window->Texture, NULL, &mPixels, &mPitch);
+
+		/* Allocate a user-backbuffer */
+		Window->Backbuffer = malloc(Dimensions->h * mPitch);
+		memset(Window->Backbuffer, 0xFFFFFFFF, Dimensions->h * mPitch);
+
+		/* Copy pixels */
+		memcpy(mPixels, Window->Backbuffer, Dimensions->h * mPitch);
+
+		/* Unlock texture */
+		SDL_UnlockTexture(Window->Texture);
+
+		/* Update size */
+		Window->BackbufferSize = Dimensions->h * mPitch;
+	}
 
 	/* Done */
 	return Window;
@@ -86,6 +122,10 @@ void WindowDestroy(Window_t *Window)
 		return;
 
 	/* Free sdl-stuff */
+	if (Window->Flags & WINDOW_CONSOLE) {
+		SDL_DestroyTerminal(Window->Terminal);
+	}
+	
 	SDL_DestroyTexture(Window->Texture);
 
 	/* Free resources */
@@ -106,14 +146,20 @@ void WindowUpdate(Window_t *Window)
 	if (Window == NULL)
 		return;
 
-	/* Lock texture */
-	SDL_LockTexture(Window->Texture, NULL, &mPixels, &mPitch);
+	/* Sanity */
+	if (Window->Flags & WINDOW_CONSOLE) {
+		SDL_TerminalBlit(Window->Terminal);
+	}
+	else {
+		/* Lock texture */
+		SDL_LockTexture(Window->Texture, NULL, &mPixels, &mPitch);
 
-	/* Copy pixels */
-	memcpy(mPixels, Window->Backbuffer, Window->Dimensions.h * mPitch);
+		/* Copy pixels */
+		memcpy(mPixels, Window->Backbuffer, Window->Dimensions.h * mPitch);
 
-	/* Unlock texture */
-	SDL_UnlockTexture(Window->Texture);
+		/* Unlock texture */
+		SDL_UnlockTexture(Window->Texture);
+	}
 }
 
 /* Render

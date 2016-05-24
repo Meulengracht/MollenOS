@@ -22,8 +22,8 @@
 #ifndef _INC_VADEFS
 #define _INC_VADEFS
 
-#ifndef _WIN32
-#error Only Win32 target is supported!
+#if !defined(MOLLENOS)
+#error Only MollenOS target is supported!
 #endif
 
 #include <crtdefs.h>

@@ -80,6 +80,7 @@ extern "C" {
 		_CRT_EXTERN double __cdecl cos(double x);
 		_CRT_EXTERN double __cdecl cosh(double x);
 		_CRT_EXTERN double __cdecl exp(double x);
+		_CRT_EXTERN double __cdecl exp2(double n);
 		_CRT_EXTERN double __cdecl fabs(double x);
 		_CRT_EXTERN double __cdecl fmod(double x, double y);
 		_CRT_EXTERN double __cdecl log(double x);
@@ -92,6 +93,16 @@ extern "C" {
 		_CRT_EXTERN double __cdecl tanh(double x);
 		_CRT_EXTERN double __cdecl copysign(double x, double y);
 		_CRT_EXTERN double __cdecl scalbn(double x, int n);
+
+		_CRT_EXTERN int __cdecl rint(double x);
+		_CRT_EXTERN int __cdecl rintf(float x);
+		_CRT_EXTERN long int __cdecl lrint(double x);
+		_CRT_EXTERN long int __cdecl lrintf(float x);
+		_CRT_EXTERN	long long int __cdecl llrint(double x);
+		_CRT_EXTERN	long long int __cdecl llrintf(float x);
+
+		_CRT_EXTERN float __cdecl exp2f(float n);
+		_CRT_EXTERN long double __cdecl exp2l(long double n);
 #ifndef _CRT_MATHERR_DEFINED
 #define _CRT_MATHERR_DEFINED
 		int __cdecl _matherr(struct _exception *except);

@@ -51,6 +51,7 @@ typedef struct _MCoreThread
 
 	/* Thread Attributes */
 	int Flags;
+	int RetCode;
 
 	/* Scheduler Information */
 	size_t TimeSlice;
@@ -79,11 +80,31 @@ typedef struct _MCoreThread
 } MCoreThread_t;
 
 /* Prototypes */
+
+/* Initializors used by kernel threading
+ * and support, don't call otherwise */
 _CRT_EXTERN void ThreadingInit(void);
 _CRT_EXTERN void ThreadingApInit(Cpu_t Cpu);
 
+/* Create a new thread with the given name,
+ * entry point, arguments and flags, if name 
+ * is null, a generic name will be generated 
+ * Thread is started as soon as possible */
 _CRT_EXPORT TId_t ThreadingCreateThread(char *Name, ThreadEntry_t Function, void *Args, int Flags);
-_CRT_EXTERN void threading_kill_thread(TId_t thread_id);
+
+/* Exits the current thread by marking it finished
+ * and yielding control to scheduler */
+_CRT_EXPORT void ThreadingExitThread(int ExitCode);
+
+/* Kills a thread with the given id 
+ * this force-kills the thread, thread
+ * might not be killed immediately */
+_CRT_EXPORT void ThreadingKillThread(TId_t ThreadId);
+
+/* Can be used to wait for a thread 
+ * the return value of this function
+ * is the ret-code of the thread */
+_CRT_EXPORT int ThreadingJoinThread(TId_t ThreadId);
 
 /* Processes */
 _CRT_EXTERN void ThreadingEnterUserMode(void *ProcessInfo);
@@ -97,6 +118,10 @@ _CRT_EXTERN MCoreThread_t *ThreadingSwitch(Cpu_t Cpu, MCoreThread_t *Current, ui
 
 /* Gets */
 _CRT_EXTERN TId_t ThreadingGetCurrentThreadId(void);
+
+/* Lookup thread by the given 
+ * thread-id, returns NULL if invalid */
+_CRT_EXTERN MCoreThread_t *ThreadingGetThread(TId_t ThreadId);
 _CRT_EXTERN MCoreThread_t *ThreadingGetCurrentThread(Cpu_t Cpu);
 _CRT_EXTERN list_node_t *ThreadingGetCurrentNode(Cpu_t Cpu);
 _CRT_EXTERN int ThreadingIsCurrentTaskIdle(Cpu_t Cpu);

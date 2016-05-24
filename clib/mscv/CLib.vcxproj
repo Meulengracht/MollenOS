@@ -11,7 +11,11 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="..\src\assert\assert.c" />
     <ClCompile Include="..\src\ctype\ctype.c" />
+    <ClCompile Include="..\src\ds\Ds.c" />
+    <ClCompile Include="..\src\ds\HashTable.c" />
+    <ClCompile Include="..\src\ds\List.c" />
     <ClCompile Include="..\src\errno\errno.c" />
     <ClCompile Include="..\src\errno\errstrings.c" />
     <ClCompile Include="..\src\math\acos.c" />
@@ -38,17 +42,18 @@
     <ClCompile Include="..\src\math\sin.c" />
     <ClCompile Include="..\src\math\sinf.c" />
     <ClCompile Include="..\src\math\tanh.c" />
+    <ClCompile Include="..\src\os\Condition.c" />
     <ClCompile Include="..\src\os\Devices.c" />
     <ClCompile Include="..\src\os\Environment.c" />
     <ClCompile Include="..\src\os\Malloc.c" />
+    <ClCompile Include="..\src\os\Mutex.c" />
     <ClCompile Include="..\src\os\Process.c" />
     <ClCompile Include="..\src\os\SharedObject.c" />
-    <ClCompile Include="..\src\os\Shared\BAlloc.c" />
     <ClCompile Include="..\src\os\Spinlock.c" />
     <ClCompile Include="..\src\os\Syscalls.c" />
     <ClCompile Include="..\src\os\System.c" />
+    <ClCompile Include="..\src\os\Thread.c" />
     <ClCompile Include="..\src\os\Timer.c" />
-    <ClCompile Include="..\src\os\Ui.c" />
     <ClCompile Include="..\src\signal\signal.c" />
     <ClCompile Include="..\src\stdio\clearerr.c" />
     <ClCompile Include="..\src\stdio\fclose.c" />
@@ -136,7 +141,10 @@
     <ClCompile Include="..\src\string\strtoull.c" />
     <ClCompile Include="..\src\string\strxfrm.c" />
     <ClCompile Include="..\src\string\wcsnlen.c" />
+    <ClCompile Include="..\src\time\difftime.c" />
+    <ClCompile Include="..\src\time\gmtime.c" />
     <ClCompile Include="..\src\time\localtime.c" />
+    <ClCompile Include="..\src\time\mktime.c" />
     <ClCompile Include="..\src\time\time.c" />
   </ItemGroup>
   <ItemGroup>
@@ -258,13 +266,11 @@
       <Outputs Condition="'$(Configuration)|$(Platform)'=='CLibK|Win32'">$(IntDir)\%(Filename).obj</Outputs>
     </CustomBuild>
   </ItemGroup>
-  <ItemGroup>
-    <ClInclude Include="..\src\os\Shared\BAlloc.h" />
-  </ItemGroup>
   <PropertyGroup Label="Globals">
     <ProjectGuid>{5F7F1D6B-FFEE-44E1-8DF5-00725A1A5461}</ProjectGuid>
     <Keyword>Win32Proj</Keyword>
     <RootNamespace>CLib</RootNamespace>
+    <ProjectName>LibC</ProjectName>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='CLibK|Win32'" Label="Configuration">

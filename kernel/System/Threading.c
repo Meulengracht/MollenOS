@@ -177,6 +177,26 @@ TId_t ThreadingGetCurrentThreadId(void)
 		return ThreadingGetCurrentThread(Cpu)->ThreadId;
 }
 
+/* Lookup thread by the given 
+ * thread-id, returns NULL if invalid */
+MCoreThread_t *ThreadingGetThread(TId_t ThreadId)
+{
+	/* Iterate thread nodes 
+	 * and find the correct */
+	foreach(tNode, GlbThreads)
+	{
+		/* Cast */
+		MCoreThread_t *Thread = (MCoreThread_t*)tNode->data;
+
+		/* Check */
+		if (Thread->ThreadId == ThreadId)
+			return Thread;
+	}
+
+	/* Damn, no match */
+	return NULL;
+}
+
 /* Is current thread idle task? */
 int ThreadingIsCurrentTaskIdle(Cpu_t Cpu)
 {
@@ -278,11 +298,15 @@ void ThreadingEntryPoint(void)
 	for (;;);
 }
 
-/* Create a new thread */
+/* Create a new thread with the given name,
+ * entry point, arguments and flags, if name 
+ * is null, a generic name will be generated 
+ * Thread is started as soon as possible */
 TId_t ThreadingCreateThread(char *Name, ThreadEntry_t Function, void *Args, int Flags)
 {
 	/* Vars */
 	MCoreThread_t *nThread, *tParent;
+	char TmpBuffer[64];
 	Cpu_t Cpu;
 
 	/* Get mutex */
@@ -295,12 +319,22 @@ TId_t ThreadingCreateThread(char *Name, ThreadEntry_t Function, void *Args, int 
 	/* Allocate a new thread structure */
 	nThread = (MCoreThread_t*)kmalloc(sizeof(MCoreThread_t));
 
+	/* Sanitize name */
+	if (Name == NULL) {
+		memset(&TmpBuffer[0], 0, sizeof(TmpBuffer));
+		sprintf(&TmpBuffer[0], "Thread %u", GlbThreadId);
+		nThread->Name = strdup(&TmpBuffer[0]);
+	}
+	else {
+		nThread->Name = strdup(Name);
+	}
+
 	/* Setup */
-	nThread->Name = strdup(Name);
 	nThread->Func = Function;
 	nThread->Args = Args;
 	nThread->Flags = 0;
 	nThread->Sleep = 0;
+	nThread->RetCode = 0;
 
 	/* If we are CPU bound :/ */
 	if (Flags & THREADING_CPUBOUND)
@@ -341,6 +375,73 @@ TId_t ThreadingCreateThread(char *Name, ThreadEntry_t Function, void *Args, int 
 
 	/* Done */
 	return nThread->ThreadId;
+}
+
+/* Exits the current thread by marking it finished
+ * and yielding control to scheduler */
+void ThreadingExitThread(int ExitCode)
+{
+	/* Get current thread handle */
+	MCoreThread_t *Current = ThreadingGetCurrentThread(ApicGetCpu());
+
+	/* Store exit code */
+	Current->RetCode = ExitCode;
+
+	/* Mark thread finished */
+	Current->Flags |= THREADING_FINISHED;
+
+	/* Wakeup people that were 
+	 * waiting for the thread to finish */
+	SchedulerWakeupAllThreads((Addr_t*)Current);
+
+	/* Yield control */
+	IThreadYield();
+}
+
+/* Kills a thread with the given id 
+ * this force-kills the thread, thread
+ * might not be killed immediately */
+void ThreadingKillThread(TId_t ThreadId)
+{
+	/* Get thread handle */
+	MCoreThread_t *Target = ThreadingGetThread(ThreadId);
+
+	/* Sanity */
+	if (Target == NULL)
+		return;
+
+	/* Mark thread finished */
+	Target->Flags |= THREADING_FINISHED;
+	Target->RetCode = -1;
+
+	/* Wakeup people that were
+	* waiting for the thread to finish */
+	SchedulerWakeupAllThreads((Addr_t*)Target);
+
+	/* This means that it will be 
+	 * cleaned up at next schedule */
+}
+
+/* Can be used to wait for a thread 
+ * the return value of this function
+ * is the ret-code of the thread */
+int ThreadingJoinThread(TId_t ThreadId)
+{
+	/* Get thread handle */
+	MCoreThread_t *Target = ThreadingGetThread(ThreadId);
+
+	/* Sanity */
+	if (Target == NULL)
+		return -1;
+
+	/* Wait... */
+	SchedulerSleepThread((Addr_t*)Target, 0);
+	IThreadYield();
+
+	/* When we reach this point 
+	 * the thread is scheduled for
+	 * destruction */
+	return Target->RetCode;
 }
 
 /* Enters Usermode */

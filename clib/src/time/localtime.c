@@ -23,8 +23,16 @@
 #include <stdlib.h>
 #include <stddef.h>
 #include <string.h>
-#include <time.h>
+#include <internal/_time.h>
 #include <os/Syscall.h>
+
+/* Re-entrency */
+tm *localtime_r(const time_t *timer, tm *tmbuf) {
+	time_t t;
+
+	t = *timer - _timezone;
+	return gmtime_r(&t, tmbuf);
+}
 
 /* localtime
  * converts a time_t to the 
@@ -32,18 +40,6 @@
  * format */
 tm *localtime(const time_t *timer)
 {
-	/* Variables */
-	tm *rettime;
-
-	/* Sanity */
-	if (timer == NULL)
-		return NULL;
-
-	/* Allocate a new instance */
-	rettime = (tm*)malloc(sizeof(tm));
-	memset(rettime, 0, sizeof(tm));
-
-	/* Get tme */
-
-	return rettime;
+	tm buf;
+	return localtime_r(timer, &buf);
 }

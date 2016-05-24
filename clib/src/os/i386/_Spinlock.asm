@@ -23,6 +23,7 @@ segment .text
 
 ;Functions in this asm
 global __spinlock_acquire
+global __spinlock_test
 global __spinlock_release
 
 ; int spinlock_acquire(spinlock_t *spinlock)
@@ -62,6 +63,45 @@ __spinlock_acquire:
 	.gotlock:
 	; Release stack frame
 	mov eax, 1
+	pop ebx
+	pop ebp
+	ret
+
+; int spinlock_test(spinlock_t *spinlock)
+; This tests whether or not spinlock is
+; set or not
+__spinlock_test:
+	; Stack Frame
+	push ebp
+	mov ebp, esp
+	
+	; Save stuff
+	push ebx
+
+	; Get address of lock
+	mov ebx, dword [ebp + 8]
+
+	; Sanity
+	test ebx, ebx
+	je .gotlock
+
+	; We use this to test
+	mov eax, 1
+
+	; Try to get lock
+	xchg dword [ebx], eax
+	test eax, eax
+	je .gotlock
+
+	; nah, no lock for us
+	mov eax, 0
+	jmp .end
+
+	.gotlock:
+	; Release stack frame
+	mov eax, 1
+
+	.end:
 	pop ebx
 	pop ebp
 	ret

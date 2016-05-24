@@ -51,6 +51,7 @@ typedef struct TimeStructure
 	int tm_yday;	//Days since January 1'st
 	int tm_isdst;	//Is daylight saving?
 	long tm_gmtoff; //Offset from UTC in seconds
+	char *tm_zone;
 
 } tm;
 
