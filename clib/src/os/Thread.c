@@ -16,7 +16,7 @@
 * along with this program.If not, see <http://www.gnu.org/licenses/>.
 *
 *
-* MollenOS - Mutex Synchronization Functions
+* MollenOS - Threading Functions
 */
 
 /* Includes */
@@ -35,6 +35,18 @@ void __ThreadLibCEmpty(void)
 }
 #else
 
+/* Private Includes */
+#if defined(_MSC_VER) && (_MSC_VER >= 1500)
+#include <intrin.h>
+#endif
+
+/* Private Definitions */
+#ifdef _X86_32
+#define MOLLENOS_RESERVED_SPACE	0xFFFFFFF4
+#elif defined(X86_64)
+#define MOLLENOS_RESERVED_SPACE	0xFFFFFFF4
+#endif
+
 /* Structure (private) */
 typedef struct _ThreadPackage
 {
@@ -45,15 +57,22 @@ typedef struct _ThreadPackage
 	/* User-defined data
 	 * for the thread */
 	void *Data;
+
 } ThreadPackage_t;
 
 /* Thread CRT Entry Point */
 void _ThreadCRT(void *Data)
 {
 	/* Allocate TSS */
+	uint64_t *ReservedSpace;
 	ThreadPackage_t *Tp;
 	int RetVal = 0;
 	//_locale_tstruct tminfo;
+
+	/* Initialize the 8 bytes 
+	 * of storage */
+	ReservedSpace = (uint64_t*)MOLLENOS_RESERVED_SPACE;
+	*ReservedSpace = 0;
 
 	/* Cast */
 	Tp = (ThreadPackage_t*)Data;
@@ -68,9 +87,25 @@ void _ThreadCRT(void *Data)
 	ThreadExit(RetVal);
 }
 
+/* This is a support thread function
+ * that makes sure that even with shared
+ * functions between threads a function
+ * only ever gets called once */
+void ThreadOnce(ThreadOnce_t *Control, ThreadOnceFunc_t Function)
+{
+	/* Use interlocked exchange 
+	 * for this operation */
+	long RunOnce = _InterlockedExchange(Control, 0);
+
+	/* Sanity, RunOnce is 1 
+	 * if first time */
+	if (RunOnce != 0)
+		Function();
+}
+
 /* Creates a new thread bound to
-* the calling process, with the given
-* entry point and arguments */
+ * the calling process, with the given
+ * entry point and arguments */
 TId_t ThreadCreate(ThreadFunc_t Entry, void *Data)
 {
 	/* Allocate thread data */
@@ -89,6 +124,10 @@ TId_t ThreadCreate(ThreadFunc_t Entry, void *Data)
  * instantly yields control to scheduler */
 void ThreadExit(int ExitCode)
 {
+	/* Cleanup TLS */
+	TLSCleanup(ThreadGetCurrentId());
+	TLSUnregister(ThreadGetCurrentId());
+
 	/* The syscall actually does most of
 	 * the validation for us */
 	Syscall1(MOLLENOS_SYSCALL_THREADKILL, MOLLENOS_SYSCALL_PARAM(ExitCode));
@@ -136,9 +175,21 @@ void ThreadSleep(size_t MilliSeconds)
  * Get's the current thread id */
 TId_t ThreadGetCurrentId(void)
 {
+	/* Variables */
+	TId_t *tPtr = (TId_t*)MOLLENOS_RESERVED_SPACE;
+
+	/* We save this in the reserved
+	 * space to speed up this call */
+	if (*tPtr != 0) {
+		return *tPtr;
+	}
+
 	/* This is just a redirected syscall
 	 * no arguments involved, no validation */
-	return (TId_t)Syscall0(MOLLENOS_SYSCALL_THREADID);
+	*tPtr = (TId_t)Syscall0(MOLLENOS_SYSCALL_THREADID);
+
+	/* Done! */
+	return *tPtr;
 }
 
 /* This yields the current thread

@@ -204,10 +204,10 @@ static int FirstSetBit(size_t Value)
 #define MEMORY_LOCATION_USER_ARGS		0x60000000 /* Arg Space: 4 kB */
 #define MEMORY_LOCATION_USER			0x60010000 /* Image Space: 256~ mB */
 #define MEMORY_LOCATION_USER_HEAP		0x70000000 /* Heap Space: 2048 mB */
-#define MEMORY_LOCATION_USER_SHM		0xF0000000 /* Shared Memory: 252 mB */
-#define MEMORY_LOCATION_USER_SHM_END	0xFFC00000 /* Shared Memory: 252 mB */
-#define MEMORY_LOCATION_USER_GUARD		0xFFC00000 /* Stack End */
-#define MEMORY_LOCATION_USER_STACK		0xFFFFFFF0 /* Stack Space: 4 mB */
+#define MEMORY_LOCATION_USER_SHM		0xF0000000 /* Shared Memory: 240 mB */
+#define MEMORY_LOCATION_USER_SHM_END	0xFF000000 /* Shared Memory: 240 mB */
+#define MEMORY_LOCATION_USER_GUARD		0xFF000000 /* Stack End */
+#define MEMORY_LOCATION_USER_STACK		0xFFFFFFF0 /* Stack Space: 16 mB */
 
 /* Architecture Locked Interrupts */
 #define INTERRUPT_LAPIC					0xF0

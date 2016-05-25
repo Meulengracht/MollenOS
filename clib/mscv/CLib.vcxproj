@@ -54,6 +54,7 @@
     <ClCompile Include="..\src\os\System.c" />
     <ClCompile Include="..\src\os\Thread.c" />
     <ClCompile Include="..\src\os\Timer.c" />
+    <ClCompile Include="..\src\os\TLS.c" />
     <ClCompile Include="..\src\signal\signal.c" />
     <ClCompile Include="..\src\stdio\clearerr.c" />
     <ClCompile Include="..\src\stdio\fclose.c" />

@@ -141,7 +141,7 @@ int MutexLock(Mutex_t *Mutex)
 /* Tries to lock a mutex, with a timeout
  * which means it'll keep retrying locking
  * for the given time (Seconds) */
-int MutexTimedLock(Mutex_t *Mutex, size_t Timeout)
+int MutexTimedLock(Mutex_t *Mutex, time_t Expiration)
 {
 	/* If this thread already holds the mutex,
 	* increase ref count, but only if we're recursive */
@@ -158,10 +158,6 @@ int MutexTimedLock(Mutex_t *Mutex, size_t Timeout)
 			return MUTEX_BUSY;
 	}
 
-	/* Busy-Loop */
-	time_t Expire = time(NULL);
-	Expire += Timeout;
-
 	/* Wait for mutex to become free */
 	while (SpinlockTryAcquire(&Mutex->Lock) == 0) {
 		
@@ -169,7 +165,7 @@ int MutexTimedLock(Mutex_t *Mutex, size_t Timeout)
 		time_t Current = time(NULL);
 
 		/* Check if we are expired */
-		if (Expire < Current)
+		if (Expiration < Current)
 			return MUTEX_BUSY;
 
 		/* Yield.. */

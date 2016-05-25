@@ -272,7 +272,7 @@ void ThreadingDebugPrint(void)
 }
 
 /* This is actually every thread entry point,
-* It makes sure to handle ALL threads terminating */
+ * It makes sure to handle ALL threads terminating */
 void ThreadingEntryPoint(void)
 {
 	/* Vars */
@@ -290,6 +290,36 @@ void ThreadingEntryPoint(void)
 
 	/* IF WE REACH THIS POINT THREAD IS DONE! */
 	cThread->Flags |= THREADING_FINISHED;
+
+	/* Yield */
+	IThreadYield();
+
+	/* Safety-Catch */
+	for (;;);
+}
+
+/* This is the userspace version of the entry point
+ * and is used for initializing userspace threads 
+ * Threads started like this MUST use ThreadingExitThread */
+void ThreadingEntryPointUserMode(void)
+{
+	/* Sensitive */
+	Cpu_t CurrentCpu = ApicGetCpu();
+	MCoreThread_t *cThread = ThreadingGetCurrentThread(CurrentCpu);
+
+	/* It's important to create 
+	 * and map the stack before setting up */
+	Addr_t BaseAddress = ((MEMORY_LOCATION_USER_STACK - 0x1) & PAGE_MASK);
+	AddressSpaceMap(AddressSpaceGetCurrent(), 
+		BaseAddress, PROCESS_STACK_INIT, ADDRESS_SPACE_FLAG_USER);
+	BaseAddress += (MEMORY_LOCATION_USER_STACK & ~(PAGE_MASK));
+
+	/* Underlying Call */
+	IThreadInitUserMode(cThread->ThreadData, BaseAddress,
+		(Addr_t)cThread->Func, (Addr_t)cThread->Args);
+
+	/* Update this thread */
+	cThread->Flags |= THREADING_TRANSITION;
 
 	/* Yield */
 	IThreadYield();
@@ -355,13 +385,26 @@ TId_t ThreadingCreateThread(char *Name, ThreadEntry_t Function, void *Args, int 
 	nThread->TimeSlice = MCORE_INITIAL_TIMESLICE;
 
 	/* Create Address Space */
-	if (Flags & THREADING_USERMODE)
-		nThread->AddrSpace = AddressSpaceCreate(ADDRESS_SPACE_USER);
+	if (Flags & THREADING_USERMODE) {
+		if (Flags & THREADING_INHERIT)
+			nThread->AddrSpace = AddressSpaceCreate(ADDRESS_SPACE_USER | ADDRESS_SPACE_INHERIT);
+		else
+			nThread->AddrSpace = AddressSpaceCreate(ADDRESS_SPACE_USER);
+	}
 	else
 		nThread->AddrSpace = AddressSpaceCreate(ADDRESS_SPACE_INHERIT);
 
-	/* Create thread-data */
-	nThread->ThreadData = IThreadInit((Addr_t)&ThreadingEntryPoint);
+	/* Create thread-data 
+	 * But use different entry point
+	 * based upon usermode thread or
+	 * kernel mode thread */
+	if ((Flags & (THREADING_USERMODE | THREADING_INHERIT))
+		== (THREADING_USERMODE | THREADING_INHERIT)) {
+		nThread->ThreadData = IThreadInit((Addr_t)&ThreadingEntryPointUserMode);
+	}
+	else {
+		nThread->ThreadData = IThreadInit((Addr_t)&ThreadingEntryPoint);
+	}
 
 	/* Increase id */
 	GlbThreadId++;

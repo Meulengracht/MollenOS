@@ -38,6 +38,7 @@
 #define MUTEX_SUCCESS			0x0
 #define MUTEX_BUSY				0x1
 
+#define TLS_MAX_KEYS			64
 #define TLS_KEY_INVALID			0xFFFFFFFF
 
 /* The definition of a thread id
@@ -45,7 +46,7 @@
 #ifndef MTHREADID_DEFINED
 #define MTHREADID_DEFINED
 typedef unsigned int TId_t;
-typedef int ThreadOnce_t;
+typedef long ThreadOnce_t;
 typedef void (*ThreadOnceFunc_t)(void);
 #endif
 
@@ -102,10 +103,6 @@ typedef struct _Mutex
 
 } Mutex_t;
 
-/* The local thread storage 
- * space used by mollenos 
- * to keep track of state */
-
 /* Prototypes */
 
 /***********************
@@ -156,14 +153,40 @@ _MOS_API void ThreadYield(void);
  * TLS Prototypes
  ***********************/
 
+/* Initialises the TLS
+ * and allocates resources needed. 
+ * Not callable manually */
+EXTERN void TLSInit(void);
+
+/* Destroys the TLS for the specific thread
+ * by freeing resources and
+ * calling c11 destructors 
+ * Not callable manually */
+EXTERN void TLSCleanup(TId_t ThreadId);
+
+/* TLSRegister
+ * Register a new thread-storage space
+ * should be called by thread crt */
+EXTERN void TLSRegister(TId_t ThreadId, void *Tls);
+
+/* TLSUnregister 
+ * Unregisters a thread-storage space
+ * from the tls
+ * should be called by thread crt */
+EXTERN void TLSUnregister(TId_t ThreadId);
+
+/* TLSGetCurrent 
+ * Retrieves the local storage space
+ * for the current thread */
+EXTERN void *TLSGetCurrent(void);
+
 /* Create a new global 
  * TLS-key, this can be used to save
  * thread-specific data */
 _MOS_API TlsKey_t TLSCreateKey(TlsKeyDss_t Destructor);
 
 /* Deletes the global
- * but thread-specific key
- * and runs destructors */
+ * but thread-specific key */
 _MOS_API void TLSDestroyKey(TlsKey_t Key);
 
 /* Get a key from the TLS 

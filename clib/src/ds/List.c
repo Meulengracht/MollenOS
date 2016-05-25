@@ -401,45 +401,47 @@ void ListExecuteAll(List_t *List, void(*Function)(void*, int, void*), void *User
 	}
 }
 
-/* These are the deletion functions
- * and remove based on either node
- * index or key */
-void ListRemoveByNode(List_t *List, ListNode_t* Node)
+/* This functions unlinks a node
+ * and returns the next node for
+ * usage */
+ListNode_t *ListUnlinkNode(List_t *List, ListNode_t *Node)
 {
 	/* Sanity */
-	if (List == NULL || List->Headp == NULL || Node == NULL)
-		return;
+	if (List == NULL 
+		|| List->Headp == NULL 
+		|| Node == NULL)
+		return NULL;
 
 	/* Get lock */
 	if (List->Attributes & LIST_SAFE)
 		SpinlockAcquire(&List->Lock);
 
 	/* There are a few cases we need to handle
-	 * in order for this to be O(1) */
+	* in order for this to be O(1) */
 	if (Node->Prev == NULL) {
 		/* Ok, so this means we are the
-		 * first node in the list 
-		 * Do we have a link? */
+		* first node in the list
+		* Do we have a link? */
 		if (Node->Link == NULL) {
-			/* We're the only link 
-			 * but lets stil validate 
-			 * we're from this list */
+			/* We're the only link
+			* but lets stil validate
+			* we're from this list */
 			if (List->Headp == Node) {
 				List->Headp = List->Tailp = NULL;
 			}
 		}
 		else {
-			/* We have a link 
-			 * this means we set headp to next */
+			/* We have a link
+			* this means we set headp to next */
 			if (List->Headp == Node) {
 				List->Headp = Node->Link;
 			}
 		}
 	}
 	else {
-		/* We have a previous, 
-		 * Special case 1: we are last element
-		 * which means we should update pointer */
+		/* We have a previous,
+		* Special case 1: we are last element
+		* which means we should update pointer */
 		if (Node->Link == NULL) {
 			/* Ok, we are last element */
 			if (List->Tailp == Node) {
@@ -447,21 +449,38 @@ void ListRemoveByNode(List_t *List, ListNode_t* Node)
 			}
 		}
 		else {
-			/* Normal case, we just skip this 
-			 * element without interfering with the list 
-			 * pointers */
+			/* Normal case, we just skip this
+			* element without interfering with the list
+			* pointers */
 			ListNode_t *Prev = Node->Prev;
 			Prev->Link = Node->Link;
 		}
 	}
 
-	/* Update links */
-	Node->Link = NULL;
-	Node->Prev = NULL;
-
 	/* Release Lock */
 	if (List->Attributes & LIST_SAFE)
 		SpinlockRelease(&List->Lock);
+
+	/* Does node have a next? */
+	if (Node->Prev == NULL) {
+		return List->Headp;
+	}
+	else {
+		return Node->Link;
+	}
+}
+
+/* These are the deletion functions
+ * and remove based on either node
+ * index or key */
+void ListRemoveByNode(List_t *List, ListNode_t* Node)
+{
+	/* Reuse the unlink */
+	ListUnlinkNode(List, Node);
+
+	/* Update links */
+	Node->Link = NULL;
+	Node->Prev = NULL;
 }
 
 /* These are the deletion functions
@@ -477,7 +496,7 @@ void ListRemoveByIndex(List_t *List, int Index)
 /* These are the deletion functions
  * and remove based on either node
  * index or key */
-void ListRemoveByKey(List_t *List, DataKey_t Key)
+int ListRemoveByKey(List_t *List, DataKey_t Key)
 {
 	/* Step 1, lookup node */
 	ListNode_t *Node = ListGetNodeByKey(List, Key, 0);
@@ -486,5 +505,9 @@ void ListRemoveByKey(List_t *List, DataKey_t Key)
 	if (Node != NULL) {
 		ListRemoveByNode(List, Node);
 		ListDestroyNode(List, Node);
+		return 1;
 	}
+
+	/* Damn */
+	return 0;
 }

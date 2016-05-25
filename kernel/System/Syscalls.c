@@ -268,7 +268,8 @@ int ScThreadCreate(ThreadEntry_t Entry, void *Data, int Flags)
 		return -1;
 
 	/* Deep Call */
-	return (int)ThreadingCreateThread(NULL, Entry, Data, Flags | THREADING_USERMODE);
+	return (int)ThreadingCreateThread(NULL, Entry, Data, 
+		Flags | THREADING_USERMODE | THREADING_INHERIT);
 }
 
 /* Exits the current thread and 
@@ -413,6 +414,7 @@ int ScSyncSleep(Addr_t *Handle, size_t Timeout)
 
 	/* Sleep */
 	SchedulerSleepThread(Handle, Timeout);
+	IThreadYield();
 
 	/* Sanity */
 	if (Timeout != 0

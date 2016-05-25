@@ -81,6 +81,7 @@ typedef struct _List
 /* Foreach Macro */
 #define foreach(i, List) ListNode_t *i; for (i = List->Headp; i != NULL; i = i->Link)
 #define _foreach(i, List) for (i = List->Headp; i != NULL; i = i->Link)
+#define _foreach_nolink(i, List) for (i = List->Headp; i != NULL; )
 
 /*******************************
  *         Prototypes          *
@@ -151,11 +152,16 @@ _CRT_EXTERN void *ListGetDataByKey(List_t *List, DataKey_t Key, int n);
 _CRT_EXTERN void ListExecuteOnKey(List_t *List, void(*Function)(void*, int, void*), DataKey_t Key, void *UserData);
 _CRT_EXTERN void ListExecuteAll(List_t *List, void(*Function)(void*, int, void*), void *UserData);
 
+/* This functions unlinks a node
+ * and returns the next node for
+ * usage */
+_CRT_EXTERN ListNode_t *ListUnlinkNode(List_t *List, ListNode_t *Node);
+
 /* These are the deletion functions 
  * and remove based on either node 
  * index or key */
 _CRT_EXTERN void ListRemoveByNode(List_t *List, ListNode_t* Node);
 _CRT_EXTERN void ListRemoveByIndex(List_t *List, int Index);
-_CRT_EXTERN void ListRemoveByKey(List_t *List, DataKey_t Key);
+_CRT_EXTERN int ListRemoveByKey(List_t *List, DataKey_t Key);
 
 #endif //!_GENERIC_LIST_H_

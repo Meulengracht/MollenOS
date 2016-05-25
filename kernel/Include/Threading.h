@@ -42,6 +42,7 @@ typedef unsigned int TId_t;
 #define THREADING_ENTER_SLEEP	0x10
 #define THREADING_FINISHED		0x20
 #define THREADING_TRANSITION	0x40
+#define THREADING_INHERIT		0x80
 
 /* Structures */
 typedef struct _MCoreThread

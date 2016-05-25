@@ -58,6 +58,9 @@
     <Filter Include="Source\assert">
       <UniqueIdentifier>{583149c5-cbf0-425f-8ab6-d608562cc739}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Source\os\Threading">
+      <UniqueIdentifier>{cb750927-971d-4e8d-a3e2-7575fe294ee4}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\src\string\atof.c">
@@ -417,9 +420,6 @@
     <ClCompile Include="..\src\os\Process.c">
       <Filter>Source\os</Filter>
     </ClCompile>
-    <ClCompile Include="..\src\os\Spinlock.c">
-      <Filter>Source\os</Filter>
-    </ClCompile>
     <ClCompile Include="..\src\stdio\fputs.c">
       <Filter>Source\stdio\File</Filter>
     </ClCompile>
@@ -444,26 +444,32 @@
     <ClCompile Include="..\src\ds\HashTable.c">
       <Filter>Source\ds</Filter>
     </ClCompile>
-    <ClCompile Include="..\src\os\Mutex.c">
-      <Filter>Source\os</Filter>
-    </ClCompile>
-    <ClCompile Include="..\src\os\Thread.c">
-      <Filter>Source\os</Filter>
-    </ClCompile>
     <ClCompile Include="..\src\time\mktime.c">
       <Filter>Source\time</Filter>
     </ClCompile>
     <ClCompile Include="..\src\time\gmtime.c">
       <Filter>Source\time</Filter>
     </ClCompile>
-    <ClCompile Include="..\src\os\Condition.c">
-      <Filter>Source\os</Filter>
-    </ClCompile>
     <ClCompile Include="..\src\assert\assert.c">
       <Filter>Source\assert</Filter>
     </ClCompile>
     <ClCompile Include="..\src\time\difftime.c">
       <Filter>Source\time</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\os\Condition.c">
+      <Filter>Source\os\Threading</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\os\Mutex.c">
+      <Filter>Source\os\Threading</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\os\Spinlock.c">
+      <Filter>Source\os\Threading</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\os\Thread.c">
+      <Filter>Source\os\Threading</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\os\TLS.c">
+      <Filter>Source\os\Threading</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>

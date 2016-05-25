@@ -23,6 +23,7 @@
 #include <os/MollenOS.h>
 #include <os/Ui.h>
 #include <os/Syscall.h>
+#include <os/Thread.h>
 #include <stddef.h>
 #include <stdlib.h>
 #include <ctype.h>
@@ -33,6 +34,7 @@ void __EntryLibCEmpty(void)
 }
 #else
 
+/* Private Definitions */
 #ifdef _X86_32
 #define MOLLENOS_ARGUMENT_ADDR	0x60000000
 #elif defined(X86_64)
@@ -142,6 +144,9 @@ void _mSrvCrt(void)
 	/* Init Crt */
 	__CppInit();
 	
+	/* Init TLS */
+	TLSInit();
+
 	/* Init Cmd */
 	ArgCount = ParseCommandLine((char*)MOLLENOS_ARGUMENT_ADDR, NULL);
 	Args = (char**)calloc(sizeof(char*), ArgCount + 1);
@@ -167,6 +172,9 @@ void _mConCrt(void)
 
 	/* Init Crt */
 	__CppInit();
+
+	/* Init TLS */
+	TLSInit();
 
 	/* Initialize Ui */
 	UiConnect(UiConsole);
