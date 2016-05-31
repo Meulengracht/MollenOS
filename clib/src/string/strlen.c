@@ -25,7 +25,10 @@
 #error long int is not a 32bit or 64bit byte
 #endif
 
+#ifdef _MSC_VER
 #pragma function(strlen)
+#endif
+
 size_t strlen(const char *str)
 {
 	const char *start = str;

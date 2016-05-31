@@ -18,40 +18,40 @@ _to$ = 8						; size = 4
 _from$ = 12						; size = 4
 _strcpy	PROC						; COMDAT
 
-; 24   : {
+; 27   : {
 
   00000	55		 push	 ebp
   00001	8b ec		 mov	 ebp, esp
   00003	53		 push	 ebx
 
-; 25   : 	char *dst = to;
+; 28   : 	char *dst = to;
 
   00004	8b 5d 08	 mov	 ebx, DWORD PTR _to$[ebp]
   00007	8b c3		 mov	 eax, ebx
   00009	56		 push	 esi
 
-; 26   : 	const char *src = from;
+; 29   : 	const char *src = from;
 
   0000a	8b 75 0c	 mov	 esi, DWORD PTR _from$[ebp]
 
-; 27   : 	long *aligned_dst;
-; 28   : 	const long *aligned_src;
-; 29   : 
-; 30   : 	/* If SRC or DEST is unaligned, then copy bytes.  */
-; 31   : 	if (!UNALIGNED (src, dst))
+; 30   : 	long *aligned_dst;
+; 31   : 	const long *aligned_src;
+; 32   : 
+; 33   : 	/* If SRC or DEST is unaligned, then copy bytes.  */
+; 34   : 	if (!UNALIGNED (src, dst))
 
   0000d	8b cb		 mov	 ecx, ebx
   0000f	0b ce		 or	 ecx, esi
   00011	f6 c1 03	 test	 cl, 3
   00014	75 39		 jne	 SHORT $LN15@strcpy
 
-; 32   : 	{
-; 33   : 		aligned_dst = (long*)dst;
-; 34   : 		aligned_src = (long*)src;
-; 35   : 
-; 36   : 		/* SRC and DEST are both "long int" aligned, try to do "long int"
-; 37   : 			sized copies.  */
-; 38   : 		while (!DETECTNULL(*aligned_src))
+; 35   : 	{
+; 36   : 		aligned_dst = (long*)dst;
+; 37   : 		aligned_src = (long*)src;
+; 38   : 
+; 39   : 		/* SRC and DEST are both "long int" aligned, try to do "long int"
+; 40   : 			sized copies.  */
+; 41   : 		while (!DETECTNULL(*aligned_src))
 
   00016	57		 push	 edi
   00017	8b 3e		 mov	 edi, DWORD PTR [esi]
@@ -66,8 +66,8 @@ _strcpy	PROC						; COMDAT
   0002d	8d 49 00	 npad	 3
 $LL4@strcpy:
 
-; 39   : 		{
-; 40   : 			*aligned_dst++ = *aligned_src++;
+; 42   : 		{
+; 43   : 			*aligned_dst++ = *aligned_src++;
 
   00030	83 c6 04	 add	 esi, 4
   00033	89 38		 mov	 DWORD PTR [eax], edi
@@ -85,13 +85,13 @@ $LN3@strcpy:
   0004e	5f		 pop	 edi
 $LN15@strcpy:
 
-; 41   : 		}
-; 42   : 
-; 43   : 		dst = (char*)aligned_dst;
-; 44   : 		src = (char*)aligned_src;
-; 45   : 	}
-; 46   : 
-; 47   : 	while ((*dst++ = *src++))
+; 44   : 		}
+; 45   : 
+; 46   : 		dst = (char*)aligned_dst;
+; 47   : 		src = (char*)aligned_src;
+; 48   : 	}
+; 49   : 
+; 50   : 	while ((*dst++ = *src++))
 
   0004f	2b f0		 sub	 esi, eax
 $LL2@strcpy:
@@ -101,14 +101,14 @@ $LL2@strcpy:
   0005a	84 c9		 test	 cl, cl
   0005c	75 f3		 jne	 SHORT $LL2@strcpy
 
-; 48   : 	;
-; 49   : 	return to;
+; 51   : 	;
+; 52   : 	return to;
 
   0005e	5e		 pop	 esi
   0005f	8b c3		 mov	 eax, ebx
   00061	5b		 pop	 ebx
 
-; 50   : }
+; 53   : }
 
   00062	5d		 pop	 ebp
   00063	c3		 ret	 0

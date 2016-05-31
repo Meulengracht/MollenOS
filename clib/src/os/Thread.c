@@ -64,15 +64,18 @@ typedef struct _ThreadPackage
 void _ThreadCRT(void *Data)
 {
 	/* Allocate TSS */
+	ThreadLocalStorage_t Tls;
 	uint64_t *ReservedSpace;
 	ThreadPackage_t *Tp;
 	int RetVal = 0;
-	//_locale_tstruct tminfo;
+
+	/* Initialize the TLS */
+	TLSInitInstance(&Tls);
 
 	/* Initialize the 8 bytes 
 	 * of storage */
 	ReservedSpace = (uint64_t*)MOLLENOS_RESERVED_SPACE;
-	*ReservedSpace = 0;
+	*ReservedSpace = (uint64_t)(size_t)&Tls;
 
 	/* Cast */
 	Tp = (ThreadPackage_t*)Data;
@@ -126,7 +129,9 @@ void ThreadExit(int ExitCode)
 {
 	/* Cleanup TLS */
 	TLSCleanup(ThreadGetCurrentId());
-	TLSUnregister(ThreadGetCurrentId());
+
+	/* Destroy TLS struct */
+	TLSDestroyInstance(TLSGetCurrent());
 
 	/* The syscall actually does most of
 	 * the validation for us */
@@ -175,21 +180,18 @@ void ThreadSleep(size_t MilliSeconds)
  * Get's the current thread id */
 TId_t ThreadGetCurrentId(void)
 {
-	/* Variables */
-	TId_t *tPtr = (TId_t*)MOLLENOS_RESERVED_SPACE;
-
 	/* We save this in the reserved
 	 * space to speed up this call */
-	if (*tPtr != 0) {
-		return *tPtr;
+	if (TLSGetCurrent()->ThreadId != 0) {
+		return TLSGetCurrent()->ThreadId;
 	}
 
 	/* This is just a redirected syscall
 	 * no arguments involved, no validation */
-	*tPtr = (TId_t)Syscall0(MOLLENOS_SYSCALL_THREADID);
+	TLSGetCurrent()->ThreadId = (TId_t)Syscall0(MOLLENOS_SYSCALL_THREADID);
 
 	/* Done! */
-	return *tPtr;
+	return TLSGetCurrent()->ThreadId;
 }
 
 /* This yields the current thread

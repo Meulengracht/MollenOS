@@ -122,14 +122,14 @@ _source$ = 12						; size = 4
 _count$ = 16						; size = 4
 _memcpy	PROC						; COMDAT
 
-; 57   : {
+; 60   : {
 
   00000	55		 push	 ebp
   00001	8b ec		 mov	 ebp, esp
   00003	83 ec 10	 sub	 esp, 16			; 00000010H
 
-; 58   : 	/* Sanity */
-; 59   : 	if(CpuFeatEcx == 0 && CpuFeatEdx == 0)
+; 61   : 	/* Sanity */
+; 62   : 	if(CpuFeatEcx == 0 && CpuFeatEdx == 0)
 
   00006	83 3d 00 00 00
 	00 00		 cmp	 DWORD PTR _CpuFeatEcx, 0
@@ -142,13 +142,13 @@ _memcpy	PROC						; COMDAT
   00018	85 f6		 test	 esi, esi
   0001a	75 2a		 jne	 SHORT $LN12@memcpy
 
-; 60   : 	{
-; 61   : #ifdef _MSC_VER
-; 62   : 		int cpuinfo[4] = { 0 };
+; 63   : 	{
+; 64   : #ifdef _MSC_VER
+; 65   : 		int cpuinfo[4] = { 0 };
 
   0001c	33 c0		 xor	 eax, eax
 
-; 63   : 		__cpuid(cpuinfo, 1);
+; 66   : 		__cpuid(cpuinfo, 1);
 
   0001e	8d 7d f0	 lea	 edi, DWORD PTR _cpuinfo$1[ebp]
   00021	89 45 f4	 mov	 DWORD PTR _cpuinfo$1[ebp+4], eax
@@ -162,26 +162,26 @@ _memcpy	PROC						; COMDAT
   00038	89 4f 08	 mov	 DWORD PTR [edi+8], ecx
   0003b	89 57 0c	 mov	 DWORD PTR [edi+12], edx
 
-; 64   : 		CpuFeatEcx = cpuinfo[2];
+; 67   : 		CpuFeatEcx = cpuinfo[2];
 
   0003e	8b 45 f8	 mov	 eax, DWORD PTR _cpuinfo$1[ebp+8]
   00041	a3 00 00 00 00	 mov	 DWORD PTR _CpuFeatEcx, eax
 $LN12@memcpy:
 
-; 65   : #else
-; 66   : 		int unused = 0;
-; 67   : 		__cpuid(1, unused, unused, CpuFeatEcx, CpuFeatEdx);
-; 68   : #endif
-; 69   : 	}
-; 70   : 
-; 71   : 	//Can we use SSE?
-; 72   : 	if(CpuFeatEdx & CPUID_FEAT_EDX_SSE)
+; 68   : #else
+; 69   : 		int unused = 0;
+; 70   : 		__cpuid(1, unused, unused, CpuFeatEcx, CpuFeatEdx);
+; 71   : #endif
+; 72   : 	}
+; 73   : 
+; 74   : 	//Can we use SSE?
+; 75   : 	if(CpuFeatEdx & CPUID_FEAT_EDX_SSE)
 
   00046	f7 c6 00 00 00
 	02		 test	 esi, 33554432		; 02000000H
   0004c	74 18		 je	 SHORT $LN11@memcpy
 
-; 73   : 		return memcpy_sse(destination, source, count);
+; 76   : 		return memcpy_sse(destination, source, count);
 
   0004e	ff 75 10	 push	 DWORD PTR _count$[ebp]
   00051	ff 75 0c	 push	 DWORD PTR _source$[ebp]
@@ -192,21 +192,21 @@ $LN12@memcpy:
   00060	5e		 pop	 esi
   00061	5b		 pop	 ebx
 
-; 116  : 	}
-; 117  : }
+; 119  : 	}
+; 120  : }
 
   00062	8b e5		 mov	 esp, ebp
   00064	5d		 pop	 ebp
   00065	c3		 ret	 0
 $LN11@memcpy:
 
-; 74   : 	else if(CpuFeatEdx & CPUID_FEAT_EDX_MMX)
+; 77   : 	else if(CpuFeatEdx & CPUID_FEAT_EDX_MMX)
 
   00066	f7 c6 00 00 80
 	00		 test	 esi, 8388608		; 00800000H
   0006c	74 18		 je	 SHORT $LN9@memcpy
 
-; 75   : 		return memcpy_mmx(destination, source, count);
+; 78   : 		return memcpy_mmx(destination, source, count);
 
   0006e	ff 75 10	 push	 DWORD PTR _count$[ebp]
   00071	ff 75 0c	 push	 DWORD PTR _source$[ebp]
@@ -217,24 +217,24 @@ $LN11@memcpy:
   00080	5e		 pop	 esi
   00081	5b		 pop	 ebx
 
-; 116  : 	}
-; 117  : }
+; 119  : 	}
+; 120  : }
 
   00082	8b e5		 mov	 esp, ebp
   00084	5d		 pop	 ebp
   00085	c3		 ret	 0
 $LN9@memcpy:
 
-; 76   : 	else
-; 77   : 	{
-; 78   : 		char *dst = (char*)destination;
-; 79   : 		const char *src = (const char*)source;
-; 80   : 		long *aligned_dst;
-; 81   : 		const long *aligned_src;
-; 82   : 
-; 83   : 		/* If the size is small, or either SRC or DST is unaligned,
-; 84   : 			then punt into the byte copy loop.  This should be rare.  */
-; 85   : 		if (!TOO_SMALL(count) && !UNALIGNED (src, dst))
+; 79   : 	else
+; 80   : 	{
+; 81   : 		char *dst = (char*)destination;
+; 82   : 		const char *src = (const char*)source;
+; 83   : 		long *aligned_dst;
+; 84   : 		const long *aligned_src;
+; 85   : 
+; 86   : 		/* If the size is small, or either SRC or DST is unaligned,
+; 87   : 			then punt into the byte copy loop.  This should be rare.  */
+; 88   : 		if (!TOO_SMALL(count) && !UNALIGNED (src, dst))
 
   00086	8b 75 10	 mov	 esi, DWORD PTR _count$[ebp]
   00089	8b 5d 08	 mov	 ebx, DWORD PTR _destination$[ebp]
@@ -247,26 +247,26 @@ $LN9@memcpy:
   0009a	f6 c1 03	 test	 cl, 3
   0009d	75 41		 jne	 SHORT $LN3@memcpy
 
-; 86   : 		{
-; 87   : 			aligned_dst = (long*)dst;
+; 89   : 		{
+; 90   : 			aligned_dst = (long*)dst;
 
   0009f	8b fe		 mov	 edi, esi
   000a1	c1 ef 04	 shr	 edi, 4
 $LL6@memcpy:
 
-; 88   : 			aligned_src = (long*)src;
-; 89   : 
-; 90   : 			/* Copy 4X long words at a time if possible.  */
-; 91   : 			while (count >= BIGBLOCKSIZE)
-; 92   : 			{
-; 93   : 				*aligned_dst++ = *aligned_src++;
+; 91   : 			aligned_src = (long*)src;
+; 92   : 
+; 93   : 			/* Copy 4X long words at a time if possible.  */
+; 94   : 			while (count >= BIGBLOCKSIZE)
+; 95   : 			{
+; 96   : 				*aligned_dst++ = *aligned_src++;
 
   000a4	8b 0a		 mov	 ecx, DWORD PTR [edx]
 
-; 94   : 				*aligned_dst++ = *aligned_src++;
-; 95   : 				*aligned_dst++ = *aligned_src++;
-; 96   : 				*aligned_dst++ = *aligned_src++;
-; 97   : 				count -= BIGBLOCKSIZE;
+; 97   : 				*aligned_dst++ = *aligned_src++;
+; 98   : 				*aligned_dst++ = *aligned_src++;
+; 99   : 				*aligned_dst++ = *aligned_src++;
+; 100  : 				count -= BIGBLOCKSIZE;
 
   000a6	83 ee 10	 sub	 esi, 16			; 00000010H
   000a9	89 08		 mov	 DWORD PTR [eax], ecx
@@ -281,10 +281,10 @@ $LL6@memcpy:
   000c3	4f		 dec	 edi
   000c4	75 de		 jne	 SHORT $LL6@memcpy
 
-; 98   : 			}
-; 99   : 
-; 100  : 			/* Copy one long word at a time if possible.  */
-; 101  : 			while (count >= LITTLEBLOCKSIZE)
+; 101  : 			}
+; 102  : 
+; 103  : 			/* Copy one long word at a time if possible.  */
+; 104  : 			while (count >= LITTLEBLOCKSIZE)
 
   000c6	83 fe 04	 cmp	 esi, 4
   000c9	72 15		 jb	 SHORT $LN3@memcpy
@@ -292,12 +292,12 @@ $LL6@memcpy:
   000cd	c1 ef 02	 shr	 edi, 2
 $LL4@memcpy:
 
-; 102  : 			{
-; 103  : 				*aligned_dst++ = *aligned_src++;
+; 105  : 			{
+; 106  : 				*aligned_dst++ = *aligned_src++;
 
   000d0	8b 0a		 mov	 ecx, DWORD PTR [edx]
 
-; 104  : 				count -= LITTLEBLOCKSIZE;
+; 107  : 				count -= LITTLEBLOCKSIZE;
 
   000d2	83 ee 04	 sub	 esi, 4
   000d5	89 08		 mov	 DWORD PTR [eax], ecx
@@ -307,21 +307,21 @@ $LL4@memcpy:
   000de	75 f0		 jne	 SHORT $LL4@memcpy
 $LN3@memcpy:
 
-; 105  : 			}
-; 106  : 
-; 107  : 			/* Pick up any residual with a byte copier.  */
-; 108  : 			dst = (char*)aligned_dst;
-; 109  : 			src = (char*)aligned_src;
-; 110  : 		}
-; 111  : 
-; 112  : 		while (count--)
+; 108  : 			}
+; 109  : 
+; 110  : 			/* Pick up any residual with a byte copier.  */
+; 111  : 			dst = (char*)aligned_dst;
+; 112  : 			src = (char*)aligned_src;
+; 113  : 		}
+; 114  : 
+; 115  : 		while (count--)
 
   000e0	85 f6		 test	 esi, esi
   000e2	74 0e		 je	 SHORT $LN20@memcpy
   000e4	2b d0		 sub	 edx, eax
 $LL2@memcpy:
 
-; 113  : 		*dst++ = *src++;
+; 116  : 		*dst++ = *src++;
 
   000e6	8a 0c 02	 mov	 cl, BYTE PTR [edx+eax]
   000e9	8d 40 01	 lea	 eax, DWORD PTR [eax+1]
@@ -332,14 +332,14 @@ $LN20@memcpy:
   000f2	5f		 pop	 edi
   000f3	5e		 pop	 esi
 
-; 114  : 
-; 115  : 		return destination;
+; 117  : 
+; 118  : 		return destination;
 
   000f4	8b c3		 mov	 eax, ebx
   000f6	5b		 pop	 ebx
 
-; 116  : 	}
-; 117  : }
+; 119  : 	}
+; 120  : }
 
   000f7	8b e5		 mov	 esp, ebp
   000f9	5d		 pop	 ebp

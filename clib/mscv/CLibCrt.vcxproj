@@ -44,7 +44,7 @@
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <OutDir>..\build\</OutDir>
     <TargetName>LibCrt</TargetName>
-    <IncludePath>..\include</IncludePath>
+    <IncludePath>..\include;..\crt\msvc\include</IncludePath>
     <ReferencePath />
     <LibraryPath />
     <LibraryWPath />
@@ -72,61 +72,60 @@
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
       <InlineFunctionExpansion>OnlyExplicitInline</InlineFunctionExpansion>
       <WholeProgramOptimization>false</WholeProgramOptimization>
-      <PreprocessorDefinitions>MOLLENOS;_X86_32</PreprocessorDefinitions>
-      <ExceptionHandling>false</ExceptionHandling>
+      <PreprocessorDefinitions>MOLLENOS;_X86_32;__i386__;USE_MSVCRT_PREFIX</PreprocessorDefinitions>
+      <ExceptionHandling>Async</ExceptionHandling>
       <BufferSecurityCheck>false</BufferSecurityCheck>
       <EnableParallelCodeGeneration>true</EnableParallelCodeGeneration>
       <EnableEnhancedInstructionSet>NoExtensions</EnableEnhancedInstructionSet>
+      <DisableSpecificWarnings>4514;4706;4701;4100;4152;4054;4055</DisableSpecificWarnings>
+      <AssemblerOutput>All</AssemblerOutput>
     </ClCompile>
     <Link>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
     </Link>
+    <PreBuildEvent>
+      <Command>cl.exe /EP /D"_USE_ML" ../crt/msvc/cpprt/i386/cpprt_asm.s &gt; ../crt/msvc/cpprt/i386/cpprt.s
+cl.exe /EP /D"_USE_ML" ../crt/msvc/cpp/i386/cpp_cc.s &gt; ../crt/msvc/cpp/i386/cpp.s</Command>
+    </PreBuildEvent>
+    <Lib>
+      <TargetMachine>MachineX86</TargetMachine>
+    </Lib>
+    <Lib>
+      <SubSystem>Native</SubSystem>
+    </Lib>
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="..\crt\Entry.c" />
-    <ClCompile Include="..\crt\msvc\crt.c" />
-    <ClCompile Include="..\crt\msvc\math.c" />
+    <ClCompile Include="..\crt\msvc\cpprt\ehvec.cpp" />
+    <ClCompile Include="..\crt\msvc\cpprt\i386\framehandler.c" />
+    <ClCompile Include="..\crt\msvc\cpprt\new_nothrow.cpp" />
+    <ClCompile Include="..\crt\msvc\cpprt\typeinfo.cpp" />
+    <ClCompile Include="..\crt\msvc\cpp\rtti.c" />
+    <ClCompile Include="..\crt\msvc\cpp\crt.c" />
+    <ClCompile Include="..\crt\msvc\cpp\heap.c" />
+    <ClCompile Include="..\crt\msvc\cpp\matherr.c" />
+    <ClCompile Include="..\crt\msvc\cpp\stack.c" />
+    <ClCompile Include="..\crt\msvc\cpp\undname.c" />
+    <ClCompile Include="..\crt\msvc\cpp\xcptfil.c" />
   </ItemGroup>
   <ItemGroup>
-    <MASM Include="..\crt\msvc\alldvrm.S">
+    <MASM Include="..\crt\msvc\cpprt\i386\cpprt.s">
+      <FileType>Document</FileType>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+      </Command>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+      </Outputs>
+    </MASM>
+  </ItemGroup>
+  <ItemGroup>
+    <MASM Include="..\crt\msvc\cpp\i386\cpp.s">
       <FileType>Document</FileType>
     </MASM>
-    <MASM Include="..\crt\msvc\aulldiv.S">
-      <FileType>Document</FileType>
-    </MASM>
-    <MASM Include="..\crt\msvc\aulldvrm.S">
-      <FileType>Document</FileType>
-    </MASM>
-    <MASM Include="..\crt\msvc\aullrem.S">
-      <FileType>Document</FileType>
-    </MASM>
-    <MASM Include="..\crt\msvc\aullshr.S">
-      <FileType>Document</FileType>
-    </MASM>
-    <MASM Include="..\crt\msvc\chkstk.S">
-      <FileType>Document</FileType>
-    </MASM>
+  </ItemGroup>
+  <ItemGroup>
     <MASM Include="..\crt\msvc\constants.S">
-      <FileType>Document</FileType>
-    </MASM>
-    <MASM Include="..\crt\msvc\ints.S">
-      <FileType>Document</FileType>
-    </MASM>
-    <MASM Include="..\crt\msvc\lldiv.S">
-      <FileType>Document</FileType>
-    </MASM>
-    <MASM Include="..\crt\msvc\llmul.S">
-      <FileType>Document</FileType>
-    </MASM>
-    <MASM Include="..\crt\msvc\llrem.S">
-      <FileType>Document</FileType>
-    </MASM>
-    <MASM Include="..\crt\msvc\llshl.S">
-      <FileType>Document</FileType>
-    </MASM>
-    <MASM Include="..\crt\msvc\llshr.S">
       <FileType>Document</FileType>
     </MASM>
   </ItemGroup>

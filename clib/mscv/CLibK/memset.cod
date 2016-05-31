@@ -20,31 +20,31 @@ _c$ = 12						; size = 4
 _count$ = 16						; size = 4
 _memset	PROC						; COMDAT
 
-; 14   : {
+; 17   : {
 
   00000	55		 push	 ebp
   00001	8b ec		 mov	 ebp, esp
   00003	51		 push	 ecx
 
-; 15   : 	char *s = (char *)dest;
+; 18   : 	char *s = (char *)dest;
 
   00004	8b 4d 08	 mov	 ecx, DWORD PTR _dest$[ebp]
   00007	8b d1		 mov	 edx, ecx
   00009	53		 push	 ebx
 
-; 16   : 	int i;
-; 17   : 	unsigned long buffer;
-; 18   : 	unsigned long *aligned_addr;
-; 19   : 	unsigned int d = c & 0xff;	/* To avoid sign extension, copy C to an
+; 19   : 	int i;
+; 20   : 	unsigned long buffer;
+; 21   : 	unsigned long *aligned_addr;
+; 22   : 	unsigned int d = c & 0xff;	/* To avoid sign extension, copy C to an
 
   0000a	8b 5d 0c	 mov	 ebx, DWORD PTR _c$[ebp]
   0000d	0f b6 c3	 movzx	 eax, bl
   00010	89 45 fc	 mov	 DWORD PTR _d$1$[ebp], eax
   00013	56		 push	 esi
 
-; 20   : 					unsigned variable.  */
-; 21   : 
-; 22   : 	while (UNALIGNED (s))
+; 23   : 					unsigned variable.  */
+; 24   : 
+; 25   : 	while (UNALIGNED (s))
 
   00014	8b 75 10	 mov	 esi, DWORD PTR _count$[ebp]
   00017	f6 c1 03	 test	 cl, 3
@@ -52,8 +52,8 @@ _memset	PROC						; COMDAT
   0001c	8d 64 24 00	 npad	 4
 $LL14@memset:
 
-; 23   : 	{
-; 24   : 		if (count--)
+; 26   : 	{
+; 27   : 		if (count--)
 
   00020	8b c6		 mov	 eax, esi
   00022	4e		 dec	 esi
@@ -61,66 +61,66 @@ $LL14@memset:
   00025	0f 84 87 00 00
 	00		 je	 $LN12@memset
 
-; 25   : 			*s++ = (char) c;
+; 28   : 			*s++ = (char) c;
 
   0002b	88 1a		 mov	 BYTE PTR [edx], bl
   0002d	42		 inc	 edx
   0002e	f6 c2 03	 test	 dl, 3
   00031	75 ed		 jne	 SHORT $LL14@memset
 
-; 39   : 		for (i = 32; i < LBLOCKSIZE * 8; i <<= 1)
+; 42   : 		for (i = 32; i < LBLOCKSIZE * 8; i <<= 1)
 
   00033	8b 45 fc	 mov	 eax, DWORD PTR _d$1$[ebp]
 $LN13@memset:
   00036	57		 push	 edi
 
-; 28   : 	}
-; 29   : 
-; 30   : 	if (!TOO_SMALL (count))
+; 31   : 	}
+; 32   : 
+; 33   : 	if (!TOO_SMALL (count))
 
   00037	83 fe 04	 cmp	 esi, 4
   0003a	72 4d		 jb	 SHORT $LN3@memset
 
-; 34   : 
-; 35   : 		/* Store D into each char sized location in BUFFER so that
-; 36   : 			we can set large blocks quickly.  */
-; 37   : 		buffer = (d << 8) | d;
+; 37   : 
+; 38   : 		/* Store D into each char sized location in BUFFER so that
+; 39   : 			we can set large blocks quickly.  */
+; 40   : 		buffer = (d << 8) | d;
 
   0003c	8b f8		 mov	 edi, eax
   0003e	c1 e7 08	 shl	 edi, 8
   00041	0b f8		 or	 edi, eax
 
-; 38   : 		buffer |= (buffer << 16);
+; 41   : 		buffer |= (buffer << 16);
 
   00043	8b c7		 mov	 eax, edi
   00045	c1 e0 10	 shl	 eax, 16			; 00000010H
   00048	0b f8		 or	 edi, eax
 
-; 40   : 			buffer = (buffer << i) | buffer;
-; 41   : 
-; 42   : 		/* Unroll the loop.  */
-; 43   : 		while (count >= LBLOCKSIZE*4)
+; 43   : 			buffer = (buffer << i) | buffer;
+; 44   : 
+; 45   : 		/* Unroll the loop.  */
+; 46   : 		while (count >= LBLOCKSIZE*4)
 
   0004a	83 fe 10	 cmp	 esi, 16			; 00000010H
   0004d	72 19		 jb	 SHORT $LN20@memset
 
-; 31   : 	{
-; 32   : 		/* If we get this far, we know that n is large and s is word-aligned. */
-; 33   : 		aligned_addr = (unsigned long *) s;
+; 34   : 	{
+; 35   : 		/* If we get this far, we know that n is large and s is word-aligned. */
+; 36   : 		aligned_addr = (unsigned long *) s;
 
   0004f	8b c6		 mov	 eax, esi
   00051	c1 e8 04	 shr	 eax, 4
 $LL6@memset:
 
-; 44   : 		{
-; 45   : 			*aligned_addr++ = buffer;
+; 47   : 		{
+; 48   : 			*aligned_addr++ = buffer;
 
   00054	89 3a		 mov	 DWORD PTR [edx], edi
 
-; 46   : 			*aligned_addr++ = buffer;
-; 47   : 			*aligned_addr++ = buffer;
-; 48   : 			*aligned_addr++ = buffer;
-; 49   : 			count -= 4*LBLOCKSIZE;
+; 49   : 			*aligned_addr++ = buffer;
+; 50   : 			*aligned_addr++ = buffer;
+; 51   : 			*aligned_addr++ = buffer;
+; 52   : 			count -= 4*LBLOCKSIZE;
 
   00056	83 ee 10	 sub	 esi, 16			; 00000010H
   00059	89 7a 04	 mov	 DWORD PTR [edx+4], edi
@@ -131,9 +131,9 @@ $LL6@memset:
   00066	75 ec		 jne	 SHORT $LL6@memset
 $LN20@memset:
 
-; 50   : 		}
-; 51   : 
-; 52   : 		while (count >= LBLOCKSIZE)
+; 53   : 		}
+; 54   : 
+; 55   : 		while (count >= LBLOCKSIZE)
 
   00068	83 fe 04	 cmp	 esi, 4
   0006b	72 1c		 jb	 SHORT $LN3@memset
@@ -147,9 +147,9 @@ $LN20@memset:
   0007d	8d 49 00	 npad	 3
 $LL4@memset:
 
-; 53   : 		{
-; 54   : 			*aligned_addr++ = buffer;
-; 55   : 			count -= LBLOCKSIZE;
+; 56   : 		{
+; 57   : 			*aligned_addr++ = buffer;
+; 58   : 			count -= LBLOCKSIZE;
 
   00080	83 ee 04	 sub	 esi, 4
   00083	4b		 dec	 ebx
@@ -157,12 +157,12 @@ $LL4@memset:
   00086	8b 5d 0c	 mov	 ebx, DWORD PTR _c$[ebp]
 $LN3@memset:
 
-; 56   : 		}
-; 57   : 		/* Pick up the remainder with a bytewise loop.  */
-; 58   : 		s = (char*)aligned_addr;
-; 59   : 	}
-; 60   : 
-; 61   : 	while (count--)
+; 59   : 		}
+; 60   : 		/* Pick up the remainder with a bytewise loop.  */
+; 61   : 		s = (char*)aligned_addr;
+; 62   : 	}
+; 63   : 
+; 64   : 	while (count--)
 
   00089	85 f6		 test	 esi, esi
   0008b	74 1b		 je	 SHORT $LN2@memset
@@ -179,16 +179,16 @@ $LN3@memset:
   000a6	f3 aa		 rep stosb
 $LN2@memset:
 
-; 62   : 		*s++ = (char) c;
-; 63   : 
-; 64   : 	return dest;
+; 65   : 		*s++ = (char) c;
+; 66   : 
+; 67   : 	return dest;
 
   000a8	8b 45 08	 mov	 eax, DWORD PTR _dest$[ebp]
   000ab	5f		 pop	 edi
   000ac	5e		 pop	 esi
   000ad	5b		 pop	 ebx
 
-; 65   : }
+; 68   : }
 
   000ae	8b e5		 mov	 esp, ebp
   000b0	5d		 pop	 ebp
@@ -196,13 +196,13 @@ $LN2@memset:
 $LN12@memset:
   000b2	5e		 pop	 esi
 
-; 26   : 		else
-; 27   : 			return dest;
+; 29   : 		else
+; 30   : 			return dest;
 
   000b3	8b c1		 mov	 eax, ecx
   000b5	5b		 pop	 ebx
 
-; 65   : }
+; 68   : }
 
   000b6	8b e5		 mov	 esp, ebp
   000b8	5d		 pop	 ebp

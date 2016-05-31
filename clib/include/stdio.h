@@ -115,6 +115,7 @@ _CRT_EXTERN FILE *fdopen(int fd, const char *mode);
 _CRT_EXTERN FILE *freopen(const char * filename, const char * mode, FILE * stream);
 _CRT_EXTERN int remove(const char * filename);
 _CRT_EXTERN int fflush(FILE * stream);
+_CRT_EXTERN int _fileno(FILE * stream);
 
 //Rename
 //tmpfile
@@ -154,7 +155,7 @@ _CRT_EXTERN int __svfscanf(FILE *fp, char const * fmt0, va_list ap);
 _CRT_EXTERN int putchar(int character);
 //_CRT_EXTERN int getchar(void);
 //_CRT_EXTERN char *gets(char *sstr);
-//_CRT_EXTERN int puts(char *sstr);
+_CRT_EXTERN int puts(char *sstr);
 
 _CRT_EXTERN int fpeekc(FILE * stream);
 _CRT_EXTERN int fgetc(FILE * stream);

@@ -4,8 +4,10 @@
 
 #pragma once
 
-namespace std
-{
-  using ::ptrdiff_t;
-  using ::size_t;
+extern "C++" {
+	namespace std
+	{
+		using ::ptrdiff_t;
+		using ::size_t;
+	}
 }

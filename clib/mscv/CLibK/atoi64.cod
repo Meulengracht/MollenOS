@@ -10,7 +10,7 @@ INCLUDELIB MSVCRT
 INCLUDELIB OLDNAMES
 
 PUBLIC	_atoi64
-EXTRN	__ctype:BYTE
+EXTRN	___osctype:BYTE
 ; Function compile flags: /Ogtp
 ; File c:\users\philip\documents\github\mollenos\clib\src\string\atoi64.c
 ;	COMDAT _atoi64
@@ -67,7 +67,7 @@ $LN12@atoi64:
 
   00021	0f b6 01	 movzx	 eax, BYTE PTR [ecx]
   00024	f6 80 00 00 00
-	00 20		 test	 BYTE PTR __ctype[eax], 32 ; 00000020H
+	00 20		 test	 BYTE PTR ___osctype[eax], 32 ; 00000020H
   0002b	74 11		 je	 SHORT $LN7@atoi64
   0002d	8d 49 00	 npad	 3
 $LL8@atoi64:
@@ -77,7 +77,7 @@ $LL8@atoi64:
 
   00034	41		 inc	 ecx
   00035	f6 80 00 00 00
-	00 20		 test	 BYTE PTR __ctype[eax], 32 ; 00000020H
+	00 20		 test	 BYTE PTR ___osctype[eax], 32 ; 00000020H
   0003c	75 f2		 jne	 SHORT $LL8@atoi64
 $LN7@atoi64:
 
@@ -116,7 +116,7 @@ $LN13@atoi64:
   00052	8a 11		 mov	 dl, BYTE PTR [ecx]
   00054	0f b6 c2	 movzx	 eax, dl
   00057	f6 80 00 00 00
-	00 04		 test	 BYTE PTR __ctype[eax], 4
+	00 04		 test	 BYTE PTR ___osctype[eax], 4
   0005e	74 3e		 je	 SHORT $LN2@atoi64
   00060	57		 push	 edi
 $LL3@atoi64:
@@ -148,7 +148,7 @@ $LL3@atoi64:
   0008f	13 df		 adc	 ebx, edi
   00091	89 75 08	 mov	 DWORD PTR _acc$1$[ebp], esi
   00094	f6 80 00 00 00
-	00 04		 test	 BYTE PTR __ctype[eax], 4
+	00 04		 test	 BYTE PTR ___osctype[eax], 4
   0009b	75 c4		 jne	 SHORT $LL3@atoi64
   0009d	5f		 pop	 edi
 $LN2@atoi64:

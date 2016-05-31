@@ -109,6 +109,8 @@ _CRT_EXTERN int _write(int fd, void *buffer, unsigned int length);
 _CRT_EXTERN long _lseek(int fd, long offset, int mode);
 _CRT_EXTERN int _unlink(const char *filename);
 
+_CRT_EXTERN int _isatty(int fd);
+
 #if !__STDC__
 /* Alias functions */
 #define open _open

@@ -9,7 +9,7 @@ extern "C++" {
 
 class type_info {
 public:
-    virtual ~type_info();
+	virtual ~type_info();
 
     int before(const type_info &) const;
     const char *name() const;

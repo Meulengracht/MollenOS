@@ -33,6 +33,11 @@ extern "C" {
 #define MOS_PAGE_SIZE	0x1000
 #endif
 
+#define _MAX_PATH 512
+
+#define EXIT_FAILURE	-1
+#define EXIT_SUCCESS	0
+
 //------------------------------------------------------------//
 //                     Structures   		                  //
 //------------------------------------------------------------//
@@ -97,7 +102,7 @@ _CRT_EXTERN void qsort(void *base, unsigned num, unsigned width, int(*comp)(cons
 //------------------------------------------------------------//
 _CRT_EXTERN char *getenv(const char *name);
 _CRT_EXTERN void abort(void);
-_CRT_EXTERN int	atexit(void(*func)(void));
+int	atexit(void(__cdecl *func)(void));
 _CRT_EXTERN int at_quick_exit(void(*func)(void));
 
 _CRT_EXTERN void quick_exit(int status);				//Terminate normally, no cleanup. Call all functions in atexit_quick stack

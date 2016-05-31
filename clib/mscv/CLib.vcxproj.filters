@@ -61,6 +61,15 @@
     <Filter Include="Source\os\Threading">
       <UniqueIdentifier>{cb750927-971d-4e8d-a3e2-7575fe294ee4}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Source\getopt">
+      <UniqueIdentifier>{1adcf97b-6fef-4525-a7a4-a69389fe6271}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source\crt">
+      <UniqueIdentifier>{0c0ca6bd-a8d9-47b5-b9f2-43f5c310e78f}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source\crt\msvc">
+      <UniqueIdentifier>{3da6f991-8708-449f-8450-1208ea33ea72}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\src\string\atof.c">
@@ -471,6 +480,21 @@
     <ClCompile Include="..\src\os\TLS.c">
       <Filter>Source\os\Threading</Filter>
     </ClCompile>
+    <ClCompile Include="..\src\getopt\getopt_long.c">
+      <Filter>Source\getopt</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\math\trunc.c">
+      <Filter>Source\math</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\string\strnlen.c">
+      <Filter>Source\string</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\math\log2.c">
+      <Filter>Source\math</Filter>
+    </ClCompile>
+    <ClCompile Include="..\crt\msvc\math.c">
+      <Filter>Source\crt\msvc</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <CustomBuild Include="..\src\string\memcpy_acc.s">
@@ -536,5 +560,49 @@
     <CustomBuild Include="..\src\os\i386\_Spinlock.asm">
       <Filter>Source\os\i386</Filter>
     </CustomBuild>
+    <CustomBuild Include="..\src\math\i386\_log2.S">
+      <Filter>Source\math\i386</Filter>
+    </CustomBuild>
+    <CustomBuild Include="..\src\math\i386\_exp2.S">
+      <Filter>Source\math\i386</Filter>
+    </CustomBuild>
+  </ItemGroup>
+  <ItemGroup>
+    <MASM Include="..\crt\msvc\alldvrm.S">
+      <Filter>Source\crt\msvc</Filter>
+    </MASM>
+    <MASM Include="..\crt\msvc\aulldiv.S">
+      <Filter>Source\crt\msvc</Filter>
+    </MASM>
+    <MASM Include="..\crt\msvc\aulldvrm.S">
+      <Filter>Source\crt\msvc</Filter>
+    </MASM>
+    <MASM Include="..\crt\msvc\aullrem.S">
+      <Filter>Source\crt\msvc</Filter>
+    </MASM>
+    <MASM Include="..\crt\msvc\aullshr.S">
+      <Filter>Source\crt\msvc</Filter>
+    </MASM>
+    <MASM Include="..\crt\msvc\chkstk.S">
+      <Filter>Source\crt\msvc</Filter>
+    </MASM>
+    <MASM Include="..\crt\msvc\ints.S">
+      <Filter>Source\crt\msvc</Filter>
+    </MASM>
+    <MASM Include="..\crt\msvc\lldiv.S">
+      <Filter>Source\crt\msvc</Filter>
+    </MASM>
+    <MASM Include="..\crt\msvc\llmul.S">
+      <Filter>Source\crt\msvc</Filter>
+    </MASM>
+    <MASM Include="..\crt\msvc\llrem.S">
+      <Filter>Source\crt\msvc</Filter>
+    </MASM>
+    <MASM Include="..\crt\msvc\llshl.S">
+      <Filter>Source\crt\msvc</Filter>
+    </MASM>
+    <MASM Include="..\crt\msvc\llshr.S">
+      <Filter>Source\crt\msvc</Filter>
+    </MASM>
   </ItemGroup>
 </Project>

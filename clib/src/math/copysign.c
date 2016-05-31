@@ -42,3 +42,11 @@ double copysign(double x, double y)
 	__HI(x) = (__HI(x)&0x7fffffff)|(__HI(y)&0x80000000);
 	return x;
 }
+
+/* copysignf(float x, float y)
+ * copysignf(x,y) returns a value with the magnitude of x and
+ * with the sign bit of y. */
+float copysignf(float x, float y)
+{
+	return (float)copysign((double)x, (double)y);
+}

@@ -9,15 +9,12 @@
 INCLUDELIB MSVCRT
 INCLUDELIB OLDNAMES
 
-_DATA	SEGMENT
-COMM	__errno:DWORD
-_DATA	ENDS
 PUBLIC	_strtoi64
 PUBLIC	___tolower
 EXTRN	___errno:PROC
 EXTRN	__alldiv:PROC
 EXTRN	__allmul:PROC
-EXTRN	__ctype:BYTE
+EXTRN	___osctype:BYTE
 ; Function compile flags: /Ogtp
 ; File c:\users\philip\documents\github\mollenos\clib\include\ctype.h
 ;	COMDAT ___tolower
@@ -35,7 +32,7 @@ ___tolower PROC						; COMDAT
   00003	8b 45 08	 mov	 eax, DWORD PTR _c$[ebp]
   00006	0f b6 c0	 movzx	 eax, al
   00009	8a 88 00 00 00
-	00		 mov	 cl, BYTE PTR __ctype[eax]
+	00		 mov	 cl, BYTE PTR ___osctype[eax]
   0000f	f6 c1 01	 test	 cl, 1
   00012	74 08		 je	 SHORT $LN4@tolower
   00014	f6 c1 03	 test	 cl, 3
@@ -91,13 +88,13 @@ _strtoi64 PROC						; COMDAT
   00015	0f b6 06	 movzx	 eax, BYTE PTR [esi]
   00018	89 7d f8	 mov	 DWORD PTR _ret$2$[ebp], edi
   0001b	f6 80 00 00 00
-	00 20		 test	 BYTE PTR __ctype[eax], 32 ; 00000020H
+	00 20		 test	 BYTE PTR ___osctype[eax], 32 ; 00000020H
   00022	74 0e		 je	 SHORT $LN24@strtoi64
 $LL25@strtoi64:
   00024	0f b6 46 01	 movzx	 eax, BYTE PTR [esi+1]
   00028	46		 inc	 esi
   00029	f6 80 00 00 00
-	00 20		 test	 BYTE PTR __ctype[eax], 32 ; 00000020H
+	00 20		 test	 BYTE PTR ___osctype[eax], 32 ; 00000020H
   00030	75 f2		 jne	 SHORT $LL25@strtoi64
 $LN24@strtoi64:
 
@@ -145,7 +142,7 @@ $LN19@strtoi64:
 
   00055	0f b6 46 01	 movzx	 eax, BYTE PTR [esi+1]
   00059	8a 88 00 00 00
-	00		 mov	 cl, BYTE PTR __ctype[eax]
+	00		 mov	 cl, BYTE PTR ___osctype[eax]
   0005f	f6 c1 01	 test	 cl, 1
   00062	74 08		 je	 SHORT $LN30@strtoi64
   00064	f6 c1 03	 test	 cl, 3
@@ -206,7 +203,7 @@ $LL15@strtoi64:
 
   000a0	0f b6 c8	 movzx	 ecx, al
   000a3	8a 89 00 00 00
-	00		 mov	 cl, BYTE PTR __ctype[ecx]
+	00		 mov	 cl, BYTE PTR ___osctype[ecx]
   000a9	f6 c1 01	 test	 cl, 1
   000ac	74 07		 je	 SHORT $LN34@strtoi64
   000ae	f6 c1 03	 test	 cl, 3
@@ -219,7 +216,7 @@ $LN34@strtoi64:
 
   000b5	0f b6 c8	 movzx	 ecx, al
   000b8	f6 81 00 00 00
-	00 04		 test	 BYTE PTR __ctype[ecx], 4
+	00 04		 test	 BYTE PTR ___osctype[ecx], 4
   000bf	74 13		 je	 SHORT $LN13@strtoi64
 
 ; 37   : 			if(cur >= '0'+base)

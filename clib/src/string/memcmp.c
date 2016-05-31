@@ -15,7 +15,10 @@
 /* Threshhold for punting to the byte copier.  */
 #define TOO_SMALL(LEN)  ((LEN) < LBLOCKSIZE)
 
+#ifdef _MSC_VER
 #pragma function(memcmp)
+#endif
+
 int memcmp(const void* ptr1, const void* ptr2, size_t num)
 {
 	unsigned char *s1 = (unsigned char *) ptr1;

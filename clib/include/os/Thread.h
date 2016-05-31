@@ -28,6 +28,11 @@
 #include <crtdefs.h>
 #include <stdint.h>
 
+/* CPP-Guard */
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /* Definitons */
 #define THREAD_ONCE_INIT		0x1
 
@@ -103,6 +108,38 @@ typedef struct _Mutex
 
 } Mutex_t;
 
+/* The actual TLS
+ * This is the actual thread local storage
+ * that is created per thread and is purely
+ * acccessible by the local thread only */
+typedef struct _ThreadLocalStorage 
+{
+	/* Thread Information */
+	TId_t			 ThreadId;
+
+	/* C Library stuff */
+	void			*ThreadHandle;
+	errno_t			 ThreadErrno;
+	unsigned long	 ThreadDOSErrno;
+	int              ThreadUnknown0;
+
+	/* Seed for rand() */
+	unsigned int	 ThreadSeed;
+
+	/* Ptr for strtok() */
+	char			*StrTokNext;
+
+
+	/* Exceptions stuff */
+	void			*TerminateHandler;
+	void			*UnexpectedHandler;
+	void			*SeTranslator;
+	void			*ExceptionInfo;
+	void			*ExceptionRecord;
+	void			*ExceptionList;
+
+} ThreadLocalStorage_t;
+
 /* Prototypes */
 
 /***********************
@@ -156,7 +193,7 @@ _MOS_API void ThreadYield(void);
 /* Initialises the TLS
  * and allocates resources needed. 
  * Not callable manually */
-EXTERN void TLSInit(void);
+_MOS_API void TLSInit(void);
 
 /* Destroys the TLS for the specific thread
  * by freeing resources and
@@ -164,21 +201,20 @@ EXTERN void TLSInit(void);
  * Not callable manually */
 EXTERN void TLSCleanup(TId_t ThreadId);
 
-/* TLSRegister
- * Register a new thread-storage space
+/* TLSInitInstance
+ * Initializes a new thread-storage space
  * should be called by thread crt */
-EXTERN void TLSRegister(TId_t ThreadId, void *Tls);
+_MOS_API void TLSInitInstance(ThreadLocalStorage_t *Tls);
 
-/* TLSUnregister 
- * Unregisters a thread-storage space
- * from the tls
+/* TLSDestroyInstance
+ * Destroys a thread-storage space
  * should be called by thread crt */
-EXTERN void TLSUnregister(TId_t ThreadId);
+_MOS_API void TLSDestroyInstance(ThreadLocalStorage_t *Tls);
 
 /* TLSGetCurrent 
  * Retrieves the local storage space
  * for the current thread */
-EXTERN void *TLSGetCurrent(void);
+_MOS_API ThreadLocalStorage_t *TLSGetCurrent(void);
 
 /* Create a new global 
  * TLS-key, this can be used to save
@@ -297,5 +333,10 @@ _MOS_API int ConditionWait(Condition_t *Cond, Mutex_t *Mutex);
  * but also has a timeout specified, so that 
  * we get waken up if the timeout expires (in seconds) */
 _MOS_API int ConditionWaitTimed(Condition_t *Cond, Mutex_t *Mutex, time_t Expiration);
+
+/* CPP Guard */
+#ifdef __cplusplus
+}
+#endif
 
 #endif //!__THREADING_CLIB__

@@ -30,12 +30,20 @@
 #include <stdlib.h>
 #include <assert.h>
 #include <errno.h>
+#include <string.h>
 
 #ifdef LIBC_KERNEL
 void __TLSLibCEmpty(void)
 {
 }
 #else
+
+/* Private Definitions */
+#ifdef _X86_32
+#define MOLLENOS_RESERVED_SPACE	0xFFFFFFF4
+#elif defined(X86_64)
+#define MOLLENOS_RESERVED_SPACE	0xFFFFFFF4
+#endif
 
 /* Ds Includes */
 #include <ds/list.h>
@@ -65,11 +73,6 @@ typedef struct _m_tls_process
 	TlsKeyDss_t Dss[TLS_MAX_KEYS];
 	List_t *Tls;
 
-	/* List of all TLS-structures
-	* threads can use for safe
-	* space */
-	List_t *Storages;
-
 } m_tls_process_t;
 
 /* Globals */
@@ -87,7 +90,6 @@ void TLSInit(void)
 
 	/* Instantiate the lists */
 	__TLSGlobal.Tls = ListCreate(KeyInteger, LIST_NORMAL);
-	__TLSGlobal.Storages = ListCreate(KeyInteger, LIST_NORMAL);
 }
 
 /* Helper Callback
@@ -135,61 +137,31 @@ void TLSCleanup(TId_t ThreadId)
 	while (ListRemoveByKey(__TLSGlobal.Tls, Key));
 }
 
-/* TLSRegister 
- * Register a new thread-storage space
+/* TLSInitInstance
+ * Initializes a new thread-storage space
  * should be called by thread crt */
-void TLSRegister(TId_t ThreadId, void *Tls)
+void TLSInitInstance(ThreadLocalStorage_t *Tls)
 {
-	/* Vars */
-	DataKey_t Key;
-
-	/* Sanity */
-	if (Tls == NULL)
-		return;
-
-	/* Setup Key */
-	Key.Value = ThreadId;
-
-	/* Create entry */
-	ListAppend(__TLSGlobal.Storages, ListCreateNode(Key, Tls));
+	/* Setup base stuff */
+	memset(Tls, 0, sizeof(ThreadLocalStorage_t));
 }
 
-/* TLSUnregister 
- * Unregisters a thread-storage space
- * from the tls */
-void TLSUnregister(TId_t ThreadId)
+/* TLSDestroyInstance
+ * Destroys a thread-storage space
+ * should be called by thread crt */
+void TLSDestroyInstance(ThreadLocalStorage_t *Tls)
 {
-	/* Vars */
-	DataKey_t Key;
-
-	/* Setup Key */
-	Key.Value = ThreadId;
-
-	/* Lookup tls */
-	ListRemoveByKey(__TLSGlobal.Storages, Key);
+	/* Nothing to do here yet */
+	Tls->ThreadId = 0;
 }
 
 /* TLSGetCurrent 
  * Retrieves the local storage space
  * for the current thread */
-void *TLSGetCurrent(void)
+ThreadLocalStorage_t *TLSGetCurrent(void)
 {
-	/* Get thread id */
-	TId_t ThreadId = ThreadGetCurrentId();
-	DataKey_t Key;
-	void *Tls;
-
-	/* Setup Key */
-	Key.Value = ThreadId;
-
-	/* Lookup */
-	Tls = ListGetDataByKey(__TLSGlobal.Storages, Key, 0);
-
-	/* Sanity */
-	assert(Tls != NULL);
-
 	/* Done */
-	return Tls;
+	return (ThreadLocalStorage_t*)MOLLENOS_RESERVED_SPACE;
 }
 
 /* Create a new global

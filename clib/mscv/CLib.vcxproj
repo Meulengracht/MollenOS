@@ -11,6 +11,7 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="..\crt\msvc\math.c" />
     <ClCompile Include="..\src\assert\assert.c" />
     <ClCompile Include="..\src\ctype\ctype.c" />
     <ClCompile Include="..\src\ds\Ds.c" />
@@ -18,6 +19,7 @@
     <ClCompile Include="..\src\ds\List.c" />
     <ClCompile Include="..\src\errno\errno.c" />
     <ClCompile Include="..\src\errno\errstrings.c" />
+    <ClCompile Include="..\src\getopt\getopt_long.c" />
     <ClCompile Include="..\src\math\acos.c" />
     <ClCompile Include="..\src\math\asin.c" />
     <ClCompile Include="..\src\math\atan2f.c" />
@@ -36,12 +38,14 @@
     <ClCompile Include="..\src\math\isnan.c" />
     <ClCompile Include="..\src\math\log.c" />
     <ClCompile Include="..\src\math\log10.c" />
+    <ClCompile Include="..\src\math\log2.c" />
     <ClCompile Include="..\src\math\modf.c" />
     <ClCompile Include="..\src\math\pow.c" />
     <ClCompile Include="..\src\math\scalbn.c" />
     <ClCompile Include="..\src\math\sin.c" />
     <ClCompile Include="..\src\math\sinf.c" />
     <ClCompile Include="..\src\math\tanh.c" />
+    <ClCompile Include="..\src\math\trunc.c" />
     <ClCompile Include="..\src\os\Condition.c" />
     <ClCompile Include="..\src\os\Devices.c" />
     <ClCompile Include="..\src\os\Environment.c" />
@@ -127,6 +131,7 @@
     <ClCompile Include="..\src\string\strncat.c" />
     <ClCompile Include="..\src\string\strncmp.c" />
     <ClCompile Include="..\src\string\strncpy.c" />
+    <ClCompile Include="..\src\string\strnlen.c" />
     <ClCompile Include="..\src\string\strpbrk.c" />
     <ClCompile Include="..\src\string\strrchr.c" />
     <ClCompile Include="..\src\string\strspn.c" />
@@ -266,6 +271,58 @@
       <Command Condition="'$(Configuration)|$(Platform)'=='CLibK|Win32'">nasm -f win32 -Xvc -o $(IntDir)\%(Filename).obj %(FullPath)</Command>
       <Outputs Condition="'$(Configuration)|$(Platform)'=='CLibK|Win32'">$(IntDir)\%(Filename).obj</Outputs>
     </CustomBuild>
+  </ItemGroup>
+  <ItemGroup>
+    <CustomBuild Include="..\src\math\i386\_exp2.S">
+      <FileType>Document</FileType>
+      <Command Condition="'$(Configuration)|$(Platform)'=='CLibK|Win32'">nasm -f win32 -Xvc -o $(IntDir)\%(Filename).obj %(FullPath)</Command>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='CLibK|Win32'">$(IntDir)\%(Filename).obj</Outputs>
+    </CustomBuild>
+  </ItemGroup>
+  <ItemGroup>
+    <CustomBuild Include="..\src\math\i386\_log2.S">
+      <FileType>Document</FileType>
+      <Command Condition="'$(Configuration)|$(Platform)'=='CLibK|Win32'">nasm -f win32 -Xvc -o $(IntDir)\%(Filename).obj %(FullPath)</Command>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='CLibK|Win32'">$(IntDir)\%(Filename).obj</Outputs>
+    </CustomBuild>
+  </ItemGroup>
+  <ItemGroup>
+    <MASM Include="..\crt\msvc\alldvrm.S">
+      <FileType>Document</FileType>
+    </MASM>
+    <MASM Include="..\crt\msvc\aulldiv.S">
+      <FileType>Document</FileType>
+    </MASM>
+    <MASM Include="..\crt\msvc\aulldvrm.S">
+      <FileType>Document</FileType>
+    </MASM>
+    <MASM Include="..\crt\msvc\aullrem.S">
+      <FileType>Document</FileType>
+    </MASM>
+    <MASM Include="..\crt\msvc\aullshr.S">
+      <FileType>Document</FileType>
+    </MASM>
+    <MASM Include="..\crt\msvc\chkstk.S">
+      <FileType>Document</FileType>
+    </MASM>
+    <MASM Include="..\crt\msvc\ints.S">
+      <FileType>Document</FileType>
+    </MASM>
+    <MASM Include="..\crt\msvc\lldiv.S">
+      <FileType>Document</FileType>
+    </MASM>
+    <MASM Include="..\crt\msvc\llmul.S">
+      <FileType>Document</FileType>
+    </MASM>
+    <MASM Include="..\crt\msvc\llrem.S">
+      <FileType>Document</FileType>
+    </MASM>
+    <MASM Include="..\crt\msvc\llshl.S">
+      <FileType>Document</FileType>
+    </MASM>
+    <MASM Include="..\crt\msvc\llshr.S">
+      <FileType>Document</FileType>
+    </MASM>
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <ProjectGuid>{5F7F1D6B-FFEE-44E1-8DF5-00725A1A5461}</ProjectGuid>

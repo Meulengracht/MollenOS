@@ -22,8 +22,16 @@
 #ifndef _CLIB_ASSERT
 #define _CLIB_ASSERT
 
+/* Includes */
+#include <crtdefs.h>
+
+/* CPP-Guard */
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /* Extern */
-extern void _assert_panic(const char* str);
+_CRT_EXTERN void _assert_panic(const char* str);
 
 #define __symbol2value( x ) #x
 #define __symbol2string( x ) __symbol2value( x )
@@ -40,4 +48,10 @@ extern void _assert_panic(const char* str);
                           ", line " __symbol2string( __LINE__ ) \
                           "." ) )
 #endif
+
+/* CPP Guard */
+#ifdef __cplusplus
+}
+#endif
+
 #endif

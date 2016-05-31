@@ -8,57 +8,68 @@
     <Filter Include="Source\msvc">
       <UniqueIdentifier>{5f73d9ff-75e0-4f7d-a161-0a58e97f770c}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Source\msvc\cpp">
+      <UniqueIdentifier>{efa36029-eaa1-47be-a421-a8d331b20e1a}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source\msvc\cpprt">
+      <UniqueIdentifier>{d60c335b-2f0b-4dab-bb4d-46b7ecb5bf74}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source\msvc\cpprt\i386">
+      <UniqueIdentifier>{f3568155-c9fd-4720-ad40-bd0cc086d3a9}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source\msvc\cpp\i386">
+      <UniqueIdentifier>{a9822fa2-798f-4bf9-9ee9-b692bcbedf64}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\crt\Entry.c">
       <Filter>Source</Filter>
     </ClCompile>
-    <ClCompile Include="..\crt\msvc\math.c">
-      <Filter>Source\msvc</Filter>
+    <ClCompile Include="..\crt\msvc\cpprt\ehvec.cpp">
+      <Filter>Source\msvc\cpprt</Filter>
     </ClCompile>
-    <ClCompile Include="..\crt\msvc\crt.c">
-      <Filter>Source\msvc</Filter>
+    <ClCompile Include="..\crt\msvc\cpprt\new_nothrow.cpp">
+      <Filter>Source\msvc\cpprt</Filter>
+    </ClCompile>
+    <ClCompile Include="..\crt\msvc\cpprt\typeinfo.cpp">
+      <Filter>Source\msvc\cpprt</Filter>
+    </ClCompile>
+    <ClCompile Include="..\crt\msvc\cpprt\i386\framehandler.c">
+      <Filter>Source\msvc\cpprt\i386</Filter>
+    </ClCompile>
+    <ClCompile Include="..\crt\msvc\cpp\undname.c">
+      <Filter>Source\msvc\cpp</Filter>
+    </ClCompile>
+    <ClCompile Include="..\crt\msvc\cpp\heap.c">
+      <Filter>Source\msvc\cpp</Filter>
+    </ClCompile>
+    <ClCompile Include="..\crt\msvc\cpp\stack.c">
+      <Filter>Source\msvc\cpp</Filter>
+    </ClCompile>
+    <ClCompile Include="..\crt\msvc\cpp\matherr.c">
+      <Filter>Source\msvc\cpp</Filter>
+    </ClCompile>
+    <ClCompile Include="..\crt\msvc\cpp\xcptfil.c">
+      <Filter>Source\msvc\cpp</Filter>
+    </ClCompile>
+    <ClCompile Include="..\crt\msvc\cpp\crt.c">
+      <Filter>Source\msvc\cpp</Filter>
+    </ClCompile>
+    <ClCompile Include="..\crt\msvc\cpp\rtti.c">
+      <Filter>Source\msvc\cpp</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <MASM Include="..\crt\msvc\alldvrm.S">
-      <Filter>Source\msvc</Filter>
+    <MASM Include="..\crt\msvc\cpprt\i386\cpprt.s">
+      <Filter>Source\msvc\cpprt\i386</Filter>
     </MASM>
-    <MASM Include="..\crt\msvc\aulldiv.S">
-      <Filter>Source\msvc</Filter>
+    <MASM Include="..\crt\msvc\cpp\i386\cpp.s">
+      <Filter>Source\msvc\cpp\i386</Filter>
     </MASM>
-    <MASM Include="..\crt\msvc\aulldvrm.S">
-      <Filter>Source\msvc</Filter>
-    </MASM>
-    <MASM Include="..\crt\msvc\aullrem.S">
-      <Filter>Source\msvc</Filter>
-    </MASM>
-    <MASM Include="..\crt\msvc\aullshr.S">
-      <Filter>Source\msvc</Filter>
-    </MASM>
-    <MASM Include="..\crt\msvc\chkstk.S">
-      <Filter>Source\msvc</Filter>
-    </MASM>
-    <MASM Include="..\crt\msvc\constants.S">
-      <Filter>Source\msvc</Filter>
-    </MASM>
-    <MASM Include="..\crt\msvc\ints.S">
-      <Filter>Source\msvc</Filter>
-    </MASM>
-    <MASM Include="..\crt\msvc\lldiv.S">
-      <Filter>Source\msvc</Filter>
-    </MASM>
-    <MASM Include="..\crt\msvc\llmul.S">
-      <Filter>Source\msvc</Filter>
-    </MASM>
-    <MASM Include="..\crt\msvc\llrem.S">
-      <Filter>Source\msvc</Filter>
-    </MASM>
-    <MASM Include="..\crt\msvc\llshl.S">
-      <Filter>Source\msvc</Filter>
-    </MASM>
-    <MASM Include="..\crt\msvc\llshr.S">
-      <Filter>Source\msvc</Filter>
-    </MASM>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="..\crt\msvc\constants.S">
+      <Filter>Source\msvc\cpp</Filter>
+    </None>
   </ItemGroup>
 </Project>

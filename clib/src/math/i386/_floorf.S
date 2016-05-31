@@ -1,40 +1,49 @@
-/*
- * Written by J.T. Conklin <jtc@netbsd.org>.
- * Public domain.
- *
- * Changes for long double by Ulrich Drepper <drepper@cygnus.com>
- * 
- * Removed header file dependency for use in libmingwex.a by
- *   Danny Smith <dannysmith@users.sourceforge.net>
- */
+; MollenOS
+; Copyright 2011-2016, Philip Meulengracht
+;
+; This program is free software: you can redistribute it and/or modify
+; it under the terms of the GNU General Public License as published by
+; the Free Software Foundation?, either version 3 of the License, or
+; (at your option) any later version.
+;
+; This program is distributed in the hope that it will be useful,
+; but WITHOUT ANY WARRANTY; without even the implied warranty of
+; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+; GNU General Public License for more details.
+;
+; You should have received a copy of the GNU General Public License
+; along with this program.  If not, see <http://www.gnu.org/licenses/>.
+;
+;
+; MollenOS x86-32 Math FLOOR 
 
-#include <asm.inc>
+bits 32
+segment .text
 
-.code
-.align 4
+;Functions in this asm
+global _floorf
 
-PUBLIC _floorf
+; Floors a value
 _floorf:
 
-	fld dword ptr [esp + 4]
+	fld dword [esp + 4]
 	sub esp, 8
 
-	fstcw [esp + 4]		/* store fpu control word */
+	; store fpu control word 
+	fstcw [esp + 4]
 
-	/* We use here %edx although only the low 1 bits are defined.
-	   But none of the operations should care and they are faster
-	   than the 16 bit operations.  */
+	; We use here %edx although only the low 1 bits are defined.
+	; But none of the operations should care and they are faster
+	; than the 16 bit operations.
 	mov edx, [esp + 4]
-	or edx, HEX(0400)		/* round towards -oo */
-	and edx, HEX(0f7ff)
+	or edx, 0x0400
+	and edx, 0x0f7ff
 	mov [esp], edx
-	fldcw [esp]			/* load modified control word */
+	fldcw [esp]
 
-	frndint				/* round */
+	frndint
 
-	fldcw [esp + 4]			/* restore original control word */
+	fldcw [esp + 4]
 
 	add esp, 8
 	ret
-
-END

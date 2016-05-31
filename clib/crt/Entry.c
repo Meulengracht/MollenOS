@@ -37,8 +37,10 @@ void __EntryLibCEmpty(void)
 /* Private Definitions */
 #ifdef _X86_32
 #define MOLLENOS_ARGUMENT_ADDR	0x60000000
+#define MOLLENOS_RESERVED_SPACE	0xFFFFFFF4
 #elif defined(X86_64)
 #define MOLLENOS_ARGUMENT_ADDR	0x60000000
+#define MOLLENOS_RESERVED_SPACE	0xFFFFFFF4
 #endif
 
 /* Extern */
@@ -137,15 +139,25 @@ int ParseCommandLine(char *CmdLine, char **ArgBuffer)
 void _mSrvCrt(void)
 {
 	/* Variables */
+	ThreadLocalStorage_t Tls;
+	uint64_t *ReservedSpace;
 	char **Args = NULL;
 	int ArgCount = 0;
 	int RetValue = 0;
 
+	/* Initialize the 8 bytes
+	* of storage */
+	ReservedSpace = (uint64_t*)MOLLENOS_RESERVED_SPACE;
+	*ReservedSpace = (uint64_t)(size_t)&Tls;
+
 	/* Init Crt */
 	__CppInit();
 	
+	/* Initialize the TLS */
+	TLSInitInstance(&Tls);
+
 	/* Init TLS */
-	TLSInit();
+	TLSInit();	
 
 	/* Init Cmd */
 	ArgCount = ParseCommandLine((char*)MOLLENOS_ARGUMENT_ADDR, NULL);
@@ -166,12 +178,22 @@ void _mSrvCrt(void)
 void _mConCrt(void)
 {
 	/* Variables */
+	ThreadLocalStorage_t Tls;
+	uint64_t *ReservedSpace;
 	char **Args = NULL;
 	int ArgCount = 0;
 	int RetValue = 0;
 
+	/* Initialize the 8 bytes
+	* of storage */
+	ReservedSpace = (uint64_t*)MOLLENOS_RESERVED_SPACE;
+	*ReservedSpace = (uint64_t)(size_t)&Tls;
+
 	/* Init Crt */
 	__CppInit();
+
+	/* Initialize the TLS */
+	TLSInitInstance(&Tls);
 
 	/* Init TLS */
 	TLSInit();

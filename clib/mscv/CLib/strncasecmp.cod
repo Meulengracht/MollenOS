@@ -11,7 +11,7 @@ INCLUDELIB OLDNAMES
 
 PUBLIC	_strncasecmp
 PUBLIC	___tolower
-EXTRN	__ctype:BYTE
+EXTRN	___osctype:BYTE
 ; Function compile flags: /Ogtp
 ; File c:\users\philip\documents\github\mollenos\clib\include\ctype.h
 ;	COMDAT ___tolower
@@ -29,7 +29,7 @@ ___tolower PROC						; COMDAT
   00003	8b 45 08	 mov	 eax, DWORD PTR _c$[ebp]
   00006	0f b6 c0	 movzx	 eax, al
   00009	8a 88 00 00 00
-	00		 mov	 cl, BYTE PTR __ctype[eax]
+	00		 mov	 cl, BYTE PTR ___osctype[eax]
   0000f	f6 c1 01	 test	 cl, 1
   00012	74 08		 je	 SHORT $LN4@tolower
   00014	f6 c1 03	 test	 cl, 3
@@ -83,7 +83,7 @@ $LL5@strncasecm:
 
   00013	0f b6 07	 movzx	 eax, BYTE PTR [edi]
   00016	8a 88 00 00 00
-	00		 mov	 cl, BYTE PTR __ctype[eax]
+	00		 mov	 cl, BYTE PTR ___osctype[eax]
   0001c	f6 c1 01	 test	 cl, 1
   0001f	74 08		 je	 SHORT $LN10@strncasecm
   00021	f6 c1 03	 test	 cl, 3
@@ -102,7 +102,7 @@ $LN10@strncasecm:
 
   0002d	0f b6 03	 movzx	 eax, BYTE PTR [ebx]
   00030	8a 90 00 00 00
-	00		 mov	 dl, BYTE PTR __ctype[eax]
+	00		 mov	 dl, BYTE PTR ___osctype[eax]
   00036	f6 c2 01	 test	 dl, 1
   00039	74 08		 je	 SHORT $LN14@strncasecm
   0003b	f6 c2 03	 test	 dl, 3

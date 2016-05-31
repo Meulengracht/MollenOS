@@ -18,29 +18,29 @@ _destination$ = 8					; size = 4
 _source$ = 12						; size = 4
 _strcat	PROC						; COMDAT
 
-; 26   : {
+; 29   : {
 
   00000	55		 push	 ebp
   00001	8b ec		 mov	 ebp, esp
 
-; 27   : 	char *s = destination;
+; 30   : 	char *s = destination;
 
   00003	8b 4d 08	 mov	 ecx, DWORD PTR _destination$[ebp]
   00006	56		 push	 esi
   00007	57		 push	 edi
   00008	8b f9		 mov	 edi, ecx
 
-; 28   : 
-; 29   : 	/* Skip over the data in s1 as quickly as possible.  */
-; 30   : 	if (ALIGNED (destination))
+; 31   : 
+; 32   : 	/* Skip over the data in s1 as quickly as possible.  */
+; 33   : 	if (ALIGNED (destination))
 
   0000a	f6 c1 03	 test	 cl, 3
   0000d	75 2a		 jne	 SHORT $LN3@strcat
 
-; 31   : 	{
-; 32   : 		unsigned long *aligned_s1 = (unsigned long *)destination;
-; 33   : 		
-; 34   : 		while (!DETECTNULL (*aligned_s1))
+; 34   : 	{
+; 35   : 		unsigned long *aligned_s1 = (unsigned long *)destination;
+; 36   : 		
+; 37   : 		while (!DETECTNULL (*aligned_s1))
 
   0000f	8b 11		 mov	 edx, DWORD PTR [ecx]
   00011	8d 82 ff fe fe
@@ -52,7 +52,7 @@ _strcat	PROC						; COMDAT
 $LL4@strcat:
   00022	8b 51 04	 mov	 edx, DWORD PTR [ecx+4]
 
-; 35   : 			aligned_s1++;
+; 38   : 			aligned_s1++;
 
   00025	83 c1 04	 add	 ecx, 4
   00028	8d 82 ff fe fe
@@ -63,28 +63,28 @@ $LL4@strcat:
   00037	74 e9		 je	 SHORT $LL4@strcat
 $LN3@strcat:
 
-; 36   : 
-; 37   : 		destination = (char *)aligned_s1;
-; 38   : 	}
 ; 39   : 
-; 40   : 	while (*destination)
+; 40   : 		destination = (char *)aligned_s1;
+; 41   : 	}
+; 42   : 
+; 43   : 	while (*destination)
 
   00039	80 39 00	 cmp	 BYTE PTR [ecx], 0
   0003c	74 08		 je	 SHORT $LN1@strcat
   0003e	8b ff		 npad	 2
 $LL2@strcat:
 
-; 41   : 		destination++;
+; 44   : 		destination++;
 
   00040	41		 inc	 ecx
   00041	80 39 00	 cmp	 BYTE PTR [ecx], 0
   00044	75 fa		 jne	 SHORT $LL2@strcat
 $LN1@strcat:
 
-; 42   : 
-; 43   : 	/* s1 now points to the its trailing null character, we can
-; 44   : 		just use strcpy to do the work for us now. */
-; 45   : 	strcpy(destination, source);
+; 45   : 
+; 46   : 	/* s1 now points to the its trailing null character, we can
+; 47   : 		just use strcpy to do the work for us now. */
+; 48   : 	strcpy(destination, source);
 
   00046	8b 75 0c	 mov	 esi, DWORD PTR _source$[ebp]
   00049	2b ce		 sub	 ecx, esi
@@ -96,14 +96,14 @@ $LL8@strcat:
   00059	84 d2		 test	 dl, dl
   0005b	75 f3		 jne	 SHORT $LL8@strcat
 
-; 46   : 	
-; 47   : 	return s;
+; 49   : 	
+; 50   : 	return s;
 
   0005d	8b c7		 mov	 eax, edi
   0005f	5f		 pop	 edi
   00060	5e		 pop	 esi
 
-; 48   : }
+; 51   : }
 
   00061	5d		 pop	 ebp
   00062	c3		 ret	 0

@@ -9,12 +9,9 @@
 INCLUDELIB MSVCRT
 INCLUDELIB OLDNAMES
 
-_DATA	SEGMENT
-COMM	__errno:DWORD
-_DATA	ENDS
 PUBLIC	_strtol
 EXTRN	___errno:PROC
-EXTRN	__ctype:BYTE
+EXTRN	___osctype:BYTE
 ; Function compile flags: /Ogtp
 ; File c:\users\philip\documents\github\mollenos\clib\src\string\strtol.c
 ;	COMDAT _strtol
@@ -64,7 +61,7 @@ $LL25@strtol:
 
   00014	0f b6 c1	 movzx	 eax, cl
   00017	f6 80 00 00 00
-	00 20		 test	 BYTE PTR __ctype[eax], 32 ; 00000020H
+	00 20		 test	 BYTE PTR ___osctype[eax], 32 ; 00000020H
   0001e	75 f0		 jne	 SHORT $LL25@strtol
 
 ; 23   :   if (c == '-')
@@ -192,7 +189,7 @@ $LL15@strtol:
 
   000a0	0f b6 f1	 movzx	 esi, cl
   000a3	8a 96 00 00 00
-	00		 mov	 dl, BYTE PTR __ctype[esi]
+	00		 mov	 dl, BYTE PTR ___osctype[esi]
   000a9	f6 c2 04	 test	 dl, 4
   000ac	74 05		 je	 SHORT $LN12@strtol
 

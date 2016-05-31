@@ -19,7 +19,10 @@
 #endif
 #endif
 
+#ifdef _MSC_VER
 #pragma function(strcpy)
+#endif
+
 char* strcpy(char *to, const char *from)
 {
 	char *dst = to;

@@ -28,7 +28,7 @@ PUBLIC	_strtold
 PUBLIC	__real@0000000000000000
 PUBLIC	__real@3ff0000000000000
 PUBLIC	__real@4024000000000000
-EXTRN	__ctype:BYTE
+EXTRN	___osctype:BYTE
 EXTRN	__fltused:DWORD
 ;	COMDAT __real@4024000000000000
 CONST	SEGMENT
@@ -94,7 +94,7 @@ _strtold PROC						; COMDAT
 $LN30@strtold:
   00026	0f b6 c0	 movzx	 eax, al
   00029	f6 80 00 00 00
-	00 20		 test	 BYTE PTR __ctype[eax], 32 ; 00000020H
+	00 20		 test	 BYTE PTR ___osctype[eax], 32 ; 00000020H
   00030	74 08		 je	 SHORT $LN54@strtold
   00032	8a 42 01	 mov	 al, BYTE PTR [edx+1]
 

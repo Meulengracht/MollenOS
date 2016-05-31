@@ -29,9 +29,9 @@ extern "C"
 #define _CTYPE_X      0x40    /* hex digit */
 #define _CTYPE_SP     0x80    /* hard space (0x20) */
 
-_CRT_EXTERN unsigned char _ctype[];
+_CRT_EXTERN unsigned char __osctype[];
 
-#define __ismask(x) (_ctype[(int)(unsigned char)(x)])
+#define __ismask(x) (__osctype[(int)(unsigned char)(x)])
 
 /* Checks for an alphanumeric character. */
 #define isalnum(c)      ((__ismask(c)&(_CTYPE_U|_CTYPE_L|_CTYPE_D)) != 0)

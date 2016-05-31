@@ -38,28 +38,20 @@ _CRT_EXTERN	char* strdup(const char *str);
  *       String Copying        *
  *******************************/
 _CRT_EXTERN	void* memcpy(void *destination, const void *source, size_t count);
-#pragma intrinsic(memcpy)
-
 _CRT_EXTERN	void* memmove(void *destination, const void* source, size_t count);
 _CRT_EXTERN	char* strcpy(char *to, const char *from);
-#pragma intrinsic(strcpy)
-
 _CRT_EXTERN char* strncpy(char* destination, const char* source, size_t num);
 
 /*******************************
  *       String Concenation    *
  *******************************/
 _CRT_EXTERN	char* strcat(char* destination, const char* source);
-#pragma intrinsic(strcat)
-
 _CRT_EXTERN	char* strncat(char* destination, char* source, size_t num);
 
 /*******************************
  *      String Comparison      *
  *******************************/
 _CRT_EXTERN	int memcmp(const void* ptr1, const void* ptr2, size_t num);
-#pragma intrinsic(memcmp)
-
 _CRT_EXTERN	int strcmp(const char* str1, const char* str2);
 _CRT_EXTERN	int strcoll(const char* str1, const char* str2);
 _CRT_EXTERN	int strncmp(const char* s1, const char* s2, size_t n);
@@ -82,10 +74,8 @@ _CRT_EXTERN	char* strtok(char* str, const char* delimiters);
  *       String Utility        *
  *******************************/
 _CRT_EXTERN	void* memset(void *dest, int c, size_t count);
-#pragma intrinsic(memset)
-
 _CRT_EXTERN	size_t strlen(const char* str);
-#pragma intrinsic(strlen)
+_CRT_EXTERN size_t strnlen(const char *str, size_t max);
 
 /*******************************
  *     String Conversions      *

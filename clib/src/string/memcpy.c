@@ -52,7 +52,10 @@ void* memcpy_mmx(void *destination, const void *source, size_t count)
 	return destination;
 }
 
+#ifdef _MSC_VER
 #pragma function(memcpy)
+#endif
+
 void* memcpy(void *destination, const void *source, size_t count)
 {
 	/* Sanity */

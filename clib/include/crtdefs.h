@@ -183,6 +183,32 @@
 #endif
 #endif
 
+#define DECLSPEC_NORETURN __declspec(noreturn)
+
+#ifndef DECLSPEC_ADDRSAFE
+#if defined(_MSC_VER) && (defined(_M_ALPHA) || defined(_M_AXP64))
+#define DECLSPEC_ADDRSAFE __declspec(address_safe)
+#else
+#define DECLSPEC_ADDRSAFE
+#endif
+#endif /* DECLSPEC_ADDRSAFE */
+
+#ifndef DECLSPEC_NOTHROW
+#if !defined(MIDL_PASS)
+#define DECLSPEC_NOTHROW __declspec(nothrow)
+#else
+#define DECLSPEC_NOTHROW
+#endif
+#endif /* DECLSPEC_NOTHROW */
+
+#ifndef NOP_FUNCTION
+#if defined(_MSC_VER)
+#define NOP_FUNCTION __noop
+#else
+#define NOP_FUNCTION (void)0
+#endif
+#endif /* NOP_FUNCTION */
+
 #ifndef _CRT_ALIGN
 #if defined (__midl) || defined(__WIDL__)
 #define _CRT_ALIGN(x)

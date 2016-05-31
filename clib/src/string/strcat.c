@@ -21,7 +21,10 @@
 #endif
 #endif
 
+#ifdef _MSC_VER
 #pragma function(strcat)
+#endif
+
 char* strcat (char* destination, const char* source)
 {
 	char *s = destination;

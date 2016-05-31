@@ -35,7 +35,7 @@ typedef int error_t;
 
 #define errno (*__errno())
 #define _set_errno(err) (errno = err)
-_CRT_EXTERN int _errno;
+_CRT_EXTERN extern int _errno;
 _CRT_EXTERN int *__errno(void);
 
 /* Please don't use these variables directly.

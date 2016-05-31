@@ -6,7 +6,7 @@
 #include <ctype.h>
 
 /**< ASCII table */
-unsigned char _ctype[] = {
+unsigned char __osctype[] = {
 	_CTYPE_C,_CTYPE_C,_CTYPE_C,_CTYPE_C,_CTYPE_C,_CTYPE_C,_CTYPE_C,_CTYPE_C,                        /* 0-7 */
 	_CTYPE_C,_CTYPE_C|_CTYPE_S,_CTYPE_C|_CTYPE_S,_CTYPE_C|_CTYPE_S,_CTYPE_C|_CTYPE_S,_CTYPE_C|_CTYPE_S,_CTYPE_C,_CTYPE_C,         /* 8-15 */
 	_CTYPE_C,_CTYPE_C,_CTYPE_C,_CTYPE_C,_CTYPE_C,_CTYPE_C,_CTYPE_C,_CTYPE_C,                        /* 16-23 */
