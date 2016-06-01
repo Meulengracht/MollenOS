@@ -31,8 +31,20 @@
 int feof(FILE * stream)
 {
 	/* Sanity */
-	if (stream == NULL)
+	if (stream == NULL) {
+		_set_errno(EINVAL);
 		return -1;
+	}
+
+	/* Update status code */
+	_set_errno(EOK);
+
+	/* Sanity special handles */
+	if (stream == stdin
+		|| stream == stdout
+		|| stream == stderr) {
+		return 0;
+	}
 
 	/* Let's check, MOS 
 	 * keeps our errors updated */

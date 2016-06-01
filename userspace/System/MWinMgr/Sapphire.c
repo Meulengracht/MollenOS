@@ -203,7 +203,7 @@ int main(int argc, char* argv[])
 	}
 
 	/* End Boot */
-	MollenOSEndBoot();
+	//MollenOSEndBoot();
 
 	/* Initialize Sapphire */
 	SceneManagerInit(MainRenderer, &ScreenDims);

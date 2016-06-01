@@ -29,8 +29,8 @@ _atan2:
 	push    ebp
 	mov     ebp, esp
 
-    fld qword [ebp + 8]
-    fld qword [ebp + 16]
+    fld		qword [ebp + 8]
+    fld		qword [ebp + 16]
     fpatan
 
 	; Unwind & return

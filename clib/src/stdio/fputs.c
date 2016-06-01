@@ -33,11 +33,19 @@ int fputs(const char * str, FILE * stream)
 {
 	/* Sanity input */
 	if (stream == NULL
-		|| str == NULL) {
+		|| str == NULL
+		|| stream == stdin) {
 		_set_errno(EINVAL);
 		return EOF;
 	}
 
-	/* Use write */
+	/* If we are targeting stdout/stderr
+	* we just redirect this call */
+	if (stream == stdout
+		|| stream == stderr) {
+		return puts(str);
+	}
+
+	/* Use file-write */
 	return fwrite(str, strlen(str), 1, stream);
 }

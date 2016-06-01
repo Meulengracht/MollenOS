@@ -214,6 +214,9 @@ void ExceptionEntry(Registers_t *regs)
 		/* Sanity */
 		if (IssueFixed == 0)
 		{
+			/* Enable log */
+			LogRedirect(LogConsole);
+
 			/* Odd */
 			printf("CR2 Address: 0x%x\n", UnmappedAddr);
 
@@ -243,6 +246,9 @@ void ExceptionEntry(Registers_t *regs)
 
 	if (IssueFixed == 0)
 	{
+		/* Enable log */
+		LogRedirect(LogConsole);
+
 		printf("Exception Handler! Irq %u, Error Code: %u, Faulty Address: 0x%x\n",
 			regs->Irq, regs->ErrorCode, regs->Eip);
 
@@ -304,6 +310,9 @@ void kernel_panic(const char *Message)
 {
 	/* Get Cpu */
 	Cpu_t CurrCpu = ApicGetCpu();
+
+	/* Enable log */
+	LogRedirect(LogConsole);
 
 	/* Print */
 	LogFatal("SYST", Message);

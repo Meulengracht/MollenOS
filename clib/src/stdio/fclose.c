@@ -53,7 +53,10 @@ int _close(int handle)
 int fclose(FILE * stream)
 {
 	/* Sanity input */
-	if (stream == NULL) {
+	if (stream == NULL
+		|| stream == stdin
+		|| stream == stdout
+		|| stream == stderr) {
 		_set_errno(EINVAL);
 		return EOF;
 	}

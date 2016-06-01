@@ -40,7 +40,7 @@ _CRT_EXTERN	char* strdup(const char *str);
 _CRT_EXTERN	void* memcpy(void *destination, const void *source, size_t count);
 _CRT_EXTERN	void* memmove(void *destination, const void* source, size_t count);
 _CRT_EXTERN	char* strcpy(char *to, const char *from);
-_CRT_EXTERN char* strncpy(char* destination, const char* source, size_t num);
+_CRT_EXTERN     char* strncpy(char* destination, const char* source, size_t num);
 
 /*******************************
  *       String Concenation    *
@@ -60,13 +60,13 @@ _CRT_EXTERN	size_t strxfrm(char* destination, const char* source, size_t num);
 /*******************************
  *      String S&D             *
  *******************************/
-_CRT_EXTERN void* memchr(const void* ptr, int value, size_t num);
-_CRT_EXTERN char* strchr(const char* str, int character);
+_CRT_EXTERN     void* memchr(const void* ptr, int value, size_t num);
+_CRT_EXTERN     char* strchr(const char* str, int character);
 _CRT_EXTERN	size_t strcspn(const char* str1, const char* str2);
-_CRT_EXTERN char* strpbrk(const char* str1, const char* str2);
-_CRT_EXTERN char* strrchr(const char* str, int character);
+_CRT_EXTERN     char* strpbrk(const char* str1, const char* str2);
+_CRT_EXTERN     char* strrchr(const char* str, int character);
 _CRT_EXTERN	size_t strspn(const char* str1, const char* str2);
-_CRT_EXTERN char* strstr(const char* haystack, const char* needle);
+_CRT_EXTERN     char* strstr(const char* haystack, const char* needle);
 _CRT_EXTERN	char* strtok_r(char* s, const char* delimiters, char** lasts);
 _CRT_EXTERN	char* strtok(char* str, const char* delimiters);
 
@@ -75,7 +75,7 @@ _CRT_EXTERN	char* strtok(char* str, const char* delimiters);
  *******************************/
 _CRT_EXTERN	void* memset(void *dest, int c, size_t count);
 _CRT_EXTERN	size_t strlen(const char* str);
-_CRT_EXTERN size_t strnlen(const char *str, size_t max);
+_CRT_EXTERN     size_t strnlen(const char *str, size_t max);
 
 /*******************************
  *     String Conversions      *
@@ -98,7 +98,7 @@ _CRT_EXTERN	float strtof(const char *s, char **sret);
 _CRT_EXTERN	long double strtold(const char *s, char **sret);
 _CRT_EXTERN	__int64 strtoi64(const char *nptr, char **endptr, int base);
 
-_CRT_EXTERN long strtol(const char *nptr, char **endptr, int base);
+_CRT_EXTERN     long strtol(const char *nptr, char **endptr, int base);
 _CRT_EXTERN	unsigned long strtoul(const char *nptr, char **endptr, int base);
 _CRT_EXTERN	long long strtoll(const char *nptr, char **endptr, int base);
 _CRT_EXTERN	unsigned long long strtoull(const char *nptr, char **endptr, int base);

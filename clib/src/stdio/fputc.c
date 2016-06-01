@@ -26,15 +26,47 @@
 #include <stdlib.h>
 #include <os/Syscall.h>
 
+/* Size of an UTF-8 Character */
+int __fgetcharbytes(unsigned long Character)
+{
+	/* Simple length check */
+	if (Character <= 0xFF)
+		return 1;
+	else if (Character < 0x800)
+		return 2;
+	else if (Character < 0x10000)
+		return 3;
+	else if (Character < 0x110000)
+		return 4;
+
+	/* Invalid! */
+	return 0;
+}
+
 /* The fputc
-* Writes an character to the
-* given input stream */
+ * Writes an character to the
+ * given input stream */
 int fputc(int character, FILE * stream)
 {
 	/* Sanity */
-	if (stream == NULL)
+	if (stream == NULL
+		|| stream == stdin) {
+		_set_errno(EINVAL);
 		return EOF;
+	}
 
-	/* @Unimplemented */
+	/* If we are targeting stdout/stderr
+	 * we just redirect this call */
+	if (stream == stdout
+		|| stream == stderr) {
+		return putchar(character);
+	}
+
+	/* Translate the character that is 
+	 * contained in the int to how many bytes
+	 * we need to write out to file */
+	fwrite(&character, __fgetcharbytes((unsigned long)character), 1, stream);
+
+	/* Done */
 	return character;
 }

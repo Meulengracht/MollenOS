@@ -246,6 +246,7 @@ PId_t PmCreateProcess(MString_t *Path, MString_t *Arguments)
 
 	/* Allocate */
 	Process = (MCoreProcess_t*)kmalloc(sizeof(MCoreProcess_t));
+	memset(Process, 0, sizeof(MCoreProcess_t));
 
 	/* Set initial */
 	Process->Id = GlbProcessId;

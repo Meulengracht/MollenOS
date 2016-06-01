@@ -40,5 +40,6 @@ _log10f:
 	fyl2x
 	
 	; Unwind & return
+	mov     esp, ebp
 	pop     ebp
 	ret

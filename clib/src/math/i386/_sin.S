@@ -30,7 +30,7 @@ _sin:
 	mov     ebp, esp
 
 	; Load real from stack
-	fld     qword [ebp+8]
+	fld     qword [ebp + 8]
 	fsin
 	
 	; Unwind & return

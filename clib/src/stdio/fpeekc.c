@@ -33,8 +33,12 @@
 int fpeekc(FILE * stream)
 {
 	/* Sanity */
-	if (stream == NULL)
+	if (stream == NULL
+		|| stream == stdout
+		|| stream == stderr) {
+		_set_errno(EINVAL);
 		return EOF;
+	}
 
 	/* @Unimplemented */
 	return 0;

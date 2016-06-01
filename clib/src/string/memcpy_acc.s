@@ -29,52 +29,54 @@ global _asm_memcpy_sse
 ; then set value to 1 to mark it in use.
 _asm_memcpy_mmx:
 	; Stack Frame
-	push ebp
-	mov ebp, esp
+	push	ebp
+	mov		ebp, esp
 	
 	; Save stuff
 	pushad
 
 	; Get destination/source
-	mov edi, dword [ebp + 8]
-	mov esi, dword [ebp + 12]
+	mov		edi, dword [ebp + 8]
+	mov		esi, dword [ebp + 12]
 
 	; get loop count
-	mov ecx, dword [ebp + 16]
-	mov edx, dword [ebp + 20]
+	mov		ecx, dword [ebp + 16]
+	mov		edx, dword [ebp + 20]
 
 	; Make sure there is loops to do
-	test ecx, ecx
-	je MmxRemain
+	test	ecx, ecx
+	je		MmxRemain
 
 MmxLoop:
 	movq	mm0, [esi]
 	movq	[edi], mm0
 
 	; Increase Pointers
-	add esi, 8
-	add edi, 8
+	add		esi, 8
+	add		edi, 8
 
 	; Loop Epilogue
-	dec ecx							      
-	jnz MmxLoop
+	dec		ecx							      
+	jnz		MmxLoop
 
 	; Done, cleanup MMX
 	emms
 	
 	; Remainders
 MmxRemain:
-	mov ecx, edx
-	test ecx, ecx
-	je MmxDone
+	mov		ecx, edx
+	test	ecx, ecx
+	je		MmxDone
 
 	; Esi and Edi are already setup
-	rep movsb
+	rep		movsb
 
 MmxDone:
 	popad
 	
-	pop ebp
+	; Unwind & return
+	mov     esp, ebp
+	pop     ebp
 	ret
 
 
@@ -82,28 +84,28 @@ MmxDone:
 ; We set the spinlock to value 0
 _asm_memcpy_sse:
 	; Stack Frame
-	push ebp
-	mov ebp, esp
+	push	ebp
+	mov		ebp, esp
 	
 	; Save stuff
 	pushad
 
 	; Get destination/source
-	mov edi, dword [ebp + 8]
-	mov esi, dword [ebp + 12]
+	mov		edi, dword [ebp + 8]
+	mov		esi, dword [ebp + 12]
 
 	; get loop count
-	mov ecx, dword [ebp + 16]
-	mov edx, dword [ebp + 20]
+	mov		ecx, dword [ebp + 16]
+	mov		edx, dword [ebp + 20]
 	
 	test ecx, ecx
-	je SseRemain
+	je		SseRemain
 
 	; Test if buffers are 16 byte aligned
-	test si, 0xF
-	jne UnalignedLoop
-	test di, 0xF
-	jne UnalignedLoop
+	test	si, 0xF
+	jne		UnalignedLoop
+	test	di, 0xF
+	jne		UnalignedLoop
 
 	; Aligned Loop
 AlignedLoop:
@@ -111,13 +113,13 @@ AlignedLoop:
 	movaps	[edi], xmm0
 
 	; Increase Pointers
-	add esi, 16
-	add edi, 16
+	add		esi, 16
+	add		edi, 16
 
 	; Loop Epilogue
-	dec ecx							      
-	jnz AlignedLoop
-	jmp SseDone
+	dec		ecx							      
+	jnz		AlignedLoop
+	jmp		SseDone
 	
 	; Unaligned Loop
 UnalignedLoop:
@@ -125,12 +127,12 @@ UnalignedLoop:
 	movups	[edi], xmm0
 
 	; Increase Pointers
-	add esi, 16
-	add edi, 16
+	add		esi, 16
+	add		edi, 16
 
 	; Loop Epilogue
-	dec ecx							      
-	jnz UnalignedLoop
+	dec		ecx							      
+	jnz		UnalignedLoop
 
 SseDone:
 	; Done, cleanup MMX
@@ -138,15 +140,17 @@ SseDone:
 
 	; Remainders
 SseRemain:
-	mov ecx, edx
-	test ecx, ecx
-	je CpyDone
+	mov		ecx, edx
+	test	ecx, ecx
+	je		CpyDone
 
 	; Esi and Edi are already setup
-	rep movsb
+	rep		movsb
 
 CpyDone:
 	popad	
 
-	pop ebp
+	; Unwind & return
+	mov     esp, ebp
+	pop     ebp
 	ret

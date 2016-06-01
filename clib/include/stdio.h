@@ -46,9 +46,9 @@ extern "C" {
 #define SEEK_END        2
 
 /* Standard I/O */
-#define stdout						NULL //0
-#define stdin						NULL //1
-#define	stderr						NULL //2
+#define stdout						(void*)1 //1
+#define stdin						(void*)2 //2
+#define	stderr						(void*)3 //3
 #define BUFSIZ						(int)512
 #define _IOFBF						0x1
 #define _IOLBF						0x2
@@ -153,9 +153,9 @@ _CRT_EXTERN int __svfscanf(FILE *fp, char const * fmt0, va_list ap);
  *       Character IO          *
  *******************************/
 _CRT_EXTERN int putchar(int character);
-//_CRT_EXTERN int getchar(void);
-//_CRT_EXTERN char *gets(char *sstr);
-_CRT_EXTERN int puts(char *sstr);
+_CRT_EXTERN int getchar(void);
+_CRT_EXTERN char *gets(char *sstr);
+_CRT_EXTERN int puts(const char *sstr);
 
 _CRT_EXTERN int fpeekc(FILE * stream);
 _CRT_EXTERN int fgetc(FILE * stream);

@@ -41,7 +41,10 @@ FILE *freopen(const char * filename, const char * mode, FILE * stream)
 	/* Sanity input */
 	if ((filename == NULL
 		&& mode == NULL)
-		|| stream == NULL) {
+		|| stream == NULL
+		|| stream == stdin
+		|| stream == stdout
+		|| stream == stderr) {
 		_set_errno(EINVAL);
 		return NULL;
 	}

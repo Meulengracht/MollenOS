@@ -189,43 +189,19 @@
     <ClCompile Include="..\src\math\copysign.c">
       <Filter>Source\math</Filter>
     </ClCompile>
-    <ClCompile Include="..\src\math\cos.c">
-      <Filter>Source\math</Filter>
-    </ClCompile>
-    <ClCompile Include="..\src\math\frexp.c">
-      <Filter>Source\math</Filter>
-    </ClCompile>
     <ClCompile Include="..\src\math\hugeval.c">
       <Filter>Source\math</Filter>
     </ClCompile>
     <ClCompile Include="..\src\math\isnan.c">
       <Filter>Source\math</Filter>
     </ClCompile>
-    <ClCompile Include="..\src\math\log.c">
-      <Filter>Source\math</Filter>
-    </ClCompile>
-    <ClCompile Include="..\src\math\log10.c">
-      <Filter>Source\math</Filter>
-    </ClCompile>
-    <ClCompile Include="..\src\math\modf.c">
-      <Filter>Source\math</Filter>
-    </ClCompile>
-    <ClCompile Include="..\src\math\pow.c">
-      <Filter>Source\math</Filter>
-    </ClCompile>
     <ClCompile Include="..\src\math\scalbn.c">
-      <Filter>Source\math</Filter>
-    </ClCompile>
-    <ClCompile Include="..\src\math\sin.c">
       <Filter>Source\math</Filter>
     </ClCompile>
     <ClCompile Include="..\src\math\cosf.c">
       <Filter>Source\math</Filter>
     </ClCompile>
     <ClCompile Include="..\src\math\sinf.c">
-      <Filter>Source\math</Filter>
-    </ClCompile>
-    <ClCompile Include="..\src\math\tanh.c">
       <Filter>Source\math</Filter>
     </ClCompile>
     <ClCompile Include="..\src\signal\signal.c">
@@ -405,24 +381,6 @@
     <ClCompile Include="..\src\math\atan2f.c">
       <Filter>Source\math</Filter>
     </ClCompile>
-    <ClCompile Include="..\src\math\i386\atan2.c">
-      <Filter>Source\math\i386</Filter>
-    </ClCompile>
-    <ClCompile Include="..\src\math\i386\exp.c">
-      <Filter>Source\math\i386</Filter>
-    </ClCompile>
-    <ClCompile Include="..\src\math\i386\fmod.c">
-      <Filter>Source\math\i386</Filter>
-    </ClCompile>
-    <ClCompile Include="..\src\math\i386\fmodf.c">
-      <Filter>Source\math\i386</Filter>
-    </ClCompile>
-    <ClCompile Include="..\src\math\i386\ldexp.c">
-      <Filter>Source\math\i386</Filter>
-    </ClCompile>
-    <ClCompile Include="..\src\math\i386\sqrtf.c">
-      <Filter>Source\math\i386</Filter>
-    </ClCompile>
     <ClCompile Include="..\src\math\hypot.c">
       <Filter>Source\math</Filter>
     </ClCompile>
@@ -489,11 +447,14 @@
     <ClCompile Include="..\src\string\strnlen.c">
       <Filter>Source\string</Filter>
     </ClCompile>
-    <ClCompile Include="..\src\math\log2.c">
-      <Filter>Source\math</Filter>
-    </ClCompile>
     <ClCompile Include="..\crt\msvc\math.c">
       <Filter>Source\crt\msvc</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\stdio\puts.c">
+      <Filter>Source\stdio\ConIo</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\stdio\getchar.c">
+      <Filter>Source\stdio\ConIo</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -564,6 +525,24 @@
       <Filter>Source\math\i386</Filter>
     </CustomBuild>
     <CustomBuild Include="..\src\math\i386\_exp2.S">
+      <Filter>Source\math\i386</Filter>
+    </CustomBuild>
+    <CustomBuild Include="..\src\math\i386\_frexp.S">
+      <Filter>Source\math\i386</Filter>
+    </CustomBuild>
+    <CustomBuild Include="..\src\math\i386\_ldexp.S">
+      <Filter>Source\math\i386</Filter>
+    </CustomBuild>
+    <CustomBuild Include="..\src\math\i386\_modf.S">
+      <Filter>Source\math\i386</Filter>
+    </CustomBuild>
+    <CustomBuild Include="..\src\math\i386\_pow.S">
+      <Filter>Source\math\i386</Filter>
+    </CustomBuild>
+    <CustomBuild Include="..\src\math\i386\_sinh.S">
+      <Filter>Source\math\i386</Filter>
+    </CustomBuild>
+    <CustomBuild Include="..\src\math\i386\_tanh.S">
       <Filter>Source\math\i386</Filter>
     </CustomBuild>
   </ItemGroup>

@@ -15,7 +15,7 @@
 ; along with this program.  If not, see <http://www.gnu.org/licenses/>.
 ;
 ;
-; MollenOS x86-32 Math TAN
+; MollenOS x86-32 Math floating point tangent
 
 bits 32
 segment .text
@@ -23,7 +23,8 @@ segment .text
 ;Functions in this asm
 global _tan
 
-; computes the tangent
+; double __cdecl tan(double x)
+; floating point tangent
 _tan:
 	; Stack Frame
 	push    ebp
@@ -41,9 +42,7 @@ _tan:
 	; Throw away the constant 1
 	fstp    dword [ebp-4]
 
-	; Deallocate temporary space
-	mov     esp, ebp
-	
 	; Unwind & return
+	mov     esp, ebp
 	pop     ebp
 	ret

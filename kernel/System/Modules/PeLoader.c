@@ -564,12 +564,11 @@ MCorePeFile_t *PeLoadModule(uint8_t *Buffer)
 
 	/* Allocate data */
 	PeInfo = (MCorePeFile_t*)kmalloc(sizeof(MCorePeFile_t));
+	memset(PeInfo, 0, sizeof(MCorePeFile_t));
 	
 	/* Set base information */
 	PeInfo->Architecture = OptHeader->Architecture;
 	PeInfo->BaseVirtual = GlbModuleLoadAddr;
-	PeInfo->EntryAddr = 0;
-	PeInfo->LoadedLibraries = NULL;
 
 	/* Step 1. Relocate Sections */
 	GlbModuleLoadAddr = PeRelocateSections(PeInfo, Buffer, 
@@ -923,6 +922,7 @@ MCorePeFile_t *PeLoadImage(MCorePeFile_t *Parent, MString_t *Name, uint8_t *Buff
 
 	/* Allocate data */
 	PeInfo = (MCorePeFile_t*)kmalloc(sizeof(MCorePeFile_t));
+	memset(PeInfo, 0, sizeof(MCorePeFile_t));
 
 	/* Set base information */
 	PeInfo->Name = Name;

@@ -24,27 +24,12 @@
     <ClCompile Include="..\src\math\asin.c" />
     <ClCompile Include="..\src\math\atan2f.c" />
     <ClCompile Include="..\src\math\copysign.c" />
-    <ClCompile Include="..\src\math\cos.c" />
     <ClCompile Include="..\src\math\cosf.c" />
-    <ClCompile Include="..\src\math\frexp.c" />
     <ClCompile Include="..\src\math\hugeval.c" />
     <ClCompile Include="..\src\math\hypot.c" />
-    <ClCompile Include="..\src\math\i386\atan2.c" />
-    <ClCompile Include="..\src\math\i386\exp.c" />
-    <ClCompile Include="..\src\math\i386\fmod.c" />
-    <ClCompile Include="..\src\math\i386\fmodf.c" />
-    <ClCompile Include="..\src\math\i386\ldexp.c" />
-    <ClCompile Include="..\src\math\i386\sqrtf.c" />
     <ClCompile Include="..\src\math\isnan.c" />
-    <ClCompile Include="..\src\math\log.c" />
-    <ClCompile Include="..\src\math\log10.c" />
-    <ClCompile Include="..\src\math\log2.c" />
-    <ClCompile Include="..\src\math\modf.c" />
-    <ClCompile Include="..\src\math\pow.c" />
     <ClCompile Include="..\src\math\scalbn.c" />
-    <ClCompile Include="..\src\math\sin.c" />
     <ClCompile Include="..\src\math\sinf.c" />
-    <ClCompile Include="..\src\math\tanh.c" />
     <ClCompile Include="..\src\math\trunc.c" />
     <ClCompile Include="..\src\os\Condition.c" />
     <ClCompile Include="..\src\os\Devices.c" />
@@ -83,9 +68,11 @@
     <ClCompile Include="..\src\stdio\ftell.c" />
     <ClCompile Include="..\src\stdio\fungetc.c" />
     <ClCompile Include="..\src\stdio\fwrite.c" />
+    <ClCompile Include="..\src\stdio\getchar.c" />
     <ClCompile Include="..\src\stdio\perror.c" />
     <ClCompile Include="..\src\stdio\printf.c" />
     <ClCompile Include="..\src\stdio\putchar.c" />
+    <ClCompile Include="..\src\stdio\puts.c" />
     <ClCompile Include="..\src\stdio\snprintf.c" />
     <ClCompile Include="..\src\stdio\sprintf.c" />
     <ClCompile Include="..\src\stdio\sscanf.c" />
@@ -323,6 +310,48 @@
     <MASM Include="..\crt\msvc\llshr.S">
       <FileType>Document</FileType>
     </MASM>
+  </ItemGroup>
+  <ItemGroup>
+    <CustomBuild Include="..\src\math\i386\_modf.S">
+      <FileType>Document</FileType>
+      <Command Condition="'$(Configuration)|$(Platform)'=='CLibK|Win32'">nasm -f win32 -Xvc -o $(IntDir)\%(Filename).obj %(FullPath)</Command>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='CLibK|Win32'">$(IntDir)\%(Filename).obj</Outputs>
+    </CustomBuild>
+  </ItemGroup>
+  <ItemGroup>
+    <CustomBuild Include="..\src\math\i386\_frexp.S">
+      <FileType>Document</FileType>
+      <Command Condition="'$(Configuration)|$(Platform)'=='CLibK|Win32'">nasm -f win32 -Xvc -o $(IntDir)\%(Filename).obj %(FullPath)</Command>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='CLibK|Win32'">$(IntDir)\%(Filename).obj</Outputs>
+    </CustomBuild>
+  </ItemGroup>
+  <ItemGroup>
+    <CustomBuild Include="..\src\math\i386\_pow.S">
+      <FileType>Document</FileType>
+      <Command Condition="'$(Configuration)|$(Platform)'=='CLibK|Win32'">nasm -f win32 -Xvc -o $(IntDir)\%(Filename).obj %(FullPath)</Command>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='CLibK|Win32'">$(IntDir)\%(Filename).obj</Outputs>
+    </CustomBuild>
+  </ItemGroup>
+  <ItemGroup>
+    <CustomBuild Include="..\src\math\i386\_ldexp.S">
+      <FileType>Document</FileType>
+      <Command Condition="'$(Configuration)|$(Platform)'=='CLibK|Win32'">nasm -f win32 -Xvc -o $(IntDir)\%(Filename).obj %(FullPath)</Command>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='CLibK|Win32'">$(IntDir)\%(Filename).obj</Outputs>
+    </CustomBuild>
+  </ItemGroup>
+  <ItemGroup>
+    <CustomBuild Include="..\src\math\i386\_tanh.S">
+      <FileType>Document</FileType>
+      <Command Condition="'$(Configuration)|$(Platform)'=='CLibK|Win32'">nasm -f win32 -Xvc -o $(IntDir)\%(Filename).obj %(FullPath)</Command>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='CLibK|Win32'">$(IntDir)\%(Filename).obj</Outputs>
+    </CustomBuild>
+  </ItemGroup>
+  <ItemGroup>
+    <CustomBuild Include="..\src\math\i386\_sinh.S">
+      <FileType>Document</FileType>
+      <Command Condition="'$(Configuration)|$(Platform)'=='CLibK|Win32'">nasm -f win32 -Xvc -o $(IntDir)\%(Filename).obj %(FullPath)</Command>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='CLibK|Win32'">$(IntDir)\%(Filename).obj</Outputs>
+    </CustomBuild>
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <ProjectGuid>{5F7F1D6B-FFEE-44E1-8DF5-00725A1A5461}</ProjectGuid>

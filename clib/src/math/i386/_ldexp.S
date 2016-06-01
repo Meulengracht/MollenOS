@@ -15,24 +15,40 @@
 ; along with this program.  If not, see <http://www.gnu.org/licenses/>.
 ;
 ;
-; MollenOS x86-32 Math floating point to integer conversion
+; MollenOS x86-32 Math floating point x * 2 to the n
 
 bits 32
 segment .text
 
 ;Functions in this asm
-global __ftol
+global _ldexp
 
-; This routine is called by MSVC-generated code to convert from floating point
-; to integer representation
-__ftol:
-	fnstcw  word [esp-2]
-    mov     ax, word [esp-2]
-    or      ax, 0C00h
-    mov     word [esp-4], ax
-    fldcw   word [esp-4]
-    fistp   qword [esp-12]
-    fldcw   word [esp-2]
-    mov     eax, dword [esp-12]
-    mov     edx, dword [esp-8]
-    ret
+; double __cdecl ldexp(double x, int y)
+; floating point x * 2 to the n
+_ldexp:
+	; Stack Frame
+	push    ebp
+	mov     ebp, esp
+
+	; Allocate temporary space
+    sub     esp, 8
+
+	; Load n as integer
+    fild    dword [ebp + 16]
+
+	; Load real from stack
+    fld     qword [ebp + 8]
+
+	; Compute 2 to the n
+    fscale
+
+	; Set new top of stack
+    fstp    st1
+
+	; Store result
+    fst     qword [ebp - 8]
+	
+	; Unwind & return
+	mov     esp, ebp
+	pop     ebp
+	ret

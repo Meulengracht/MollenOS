@@ -15,42 +15,81 @@
 ; along with this program.  If not, see <http://www.gnu.org/licenses/>.
 ;
 ;
-; MollenOS x86-32 Math CEILING
+; MollenOS x86-32 Math FREXP
 
 bits 32
 segment .text
 
 ;Functions in this asm
-global _ceil
+global _frexp
 
-; Ceils a value
-_ceil:
+; double __cdecl frexp(double x, int *y)
+; get normalized fraction and exponent
+_frexp:
 	; Stack Frame
 	push    ebp
 	mov     ebp, esp
 
-	; Allocate temporary space
-	sub     esp, 4
+	; Save register edi
+    push    edi
 
 	; Load real from stack
-	fld     qword [ebp + 8]
+    fld     qword [ebp + 8]
 
-	; Save control word & clear errx
-	fstcw	[ebp - 2]
-	fclex
+	; Put exponent address in edi
+    mov     edi, dword [ebp + 16]
 
-	; Rounding control word
-	mov		word [ebp - 4], 0x0B63
-	fldcw	[ebp - 4]
-	
-	; Round to integer & clear ex again
-	frndint
-	fclex
+	; Test st for zero
+    ftst
 
-	; Restore control word + free space
-	fldcw   [ebp - 2]
+	; Put test result in ax
+    fstsw   ax
+
+	; Set flags based on test
+    sahf
+
+	; Re-direct if not zero
+    jnz     __frexp1
+
+	; Set exponent to zero
+    fld     st0
+
+	; End of case
+    jmp     __frexp2
+__frexp1:       
+	; Get exponent and significand
+	fxtract
+
+	; Load constant 1
+	fld1
+
+	; Load constant 1
+    fld1
+
+	; Constant 2
+    fadd
+
+	; Significand / 2
+    fdiv
+
+	; Swap st, st(1)
+    fxch
+
+	; Load constant 1
+    fld1
+
+	; Increment exponent
+    fadd
+
+	; Store result exponent and pop
+    fistp   dword [edi]
+
+__frexp2:       
+	; Restore register edi
+	pop     edi
 
 	; Unwind & return
 	mov     esp, ebp
 	pop     ebp
 	ret
+

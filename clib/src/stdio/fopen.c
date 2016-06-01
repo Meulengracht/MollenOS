@@ -123,6 +123,9 @@ FILE *fdopen(int fd, const char *mode)
 		stream->flags = mFlags;
 	}
 
+	/* Set code */
+	_set_errno(EOK);
+
 	/* done! */
 	return stream;
 }

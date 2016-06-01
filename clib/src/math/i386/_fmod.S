@@ -15,30 +15,63 @@
 ; along with this program.  If not, see <http://www.gnu.org/licenses/>.
 ;
 ;
-; MollenOS x86-32 Math FMOD
+; MollenOS x86-32 Math floating point remainder of x/y
 
 bits 32
 segment .text
 
 ;Functions in this asm
 global _fmod
+global __CIfmod
 
 ; double __cdecl fmod(double x, double y)
+; floating point remainder of x/y
 _fmod:
 	; Stack Frame
 	push    ebp
 	mov     ebp, esp
 
-    fld qword [ebp + 8]
-    fld qword [ebp + 16]
-    fxch st1
-l1:
-    fprem
-    fstsw ax
-    sahf
-    jp l1
-    fstp st1
+	; Load x and y from stack
+    fld     qword [ebp + 16]
+    fld     qword [ebp + 8]
+
+__fmod1:
+	; Get the partial remainder
+	fprem
+
+	; Get coprocessor status
+    fstsw   ax
+
+	; Complete remainder ?
+    test    ax, 0x0400
+
+	; No, go get next remainder
+    jnz     __fmod1
+
+	; Set new top of stack
+    fstp    st1
 
 	; Unwind & return
 	pop     ebp
 	ret
+
+__CIfmod:
+	; Swap arguments
+	fxch    st1
+
+__CIfmod1:
+	; Get the partial remainder
+	fprem                           
+	
+	; Get coprocessor status
+	fstsw   ax
+
+	; Complete remainder ?
+    test    ax, 0x0400
+
+	; No, go get next remainder
+    jnz     __CIfmod1
+
+	; Set new top of stack
+    fstp    st1
+    ret

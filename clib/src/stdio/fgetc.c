@@ -32,8 +32,18 @@
 int fgetc(FILE * stream)
 {
 	/* Sanity */
-	if (stream == NULL)
+	if (stream == NULL
+		|| stream == stdout
+		|| stream == stderr) {
+		_set_errno(EINVAL);
 		return EOF;
+	}
+
+	/* If we want to read from stdin 
+	 * redirect */
+	if (stream == stdin) {
+		return getchar();
+	}
 
 	/* @Unimplemented */
 	return 0;

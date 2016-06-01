@@ -15,7 +15,7 @@
 ; along with this program.  If not, see <http://www.gnu.org/licenses/>.
 ;
 ;
-; MollenOS x86-32 Math FABS
+; MollenOS x86-32 Math EXP
 
 bits 32
 segment .text
@@ -30,32 +30,33 @@ _exp:
 	push    ebp
 	mov     ebp, esp
 
-    fld qword [ebp + 8]
+    fld		qword [ebp + 8]
     fxam
-    fstsw ax
+    fstsw	ax
     fwait
     sahf
-    jnp .not_inf
-    jnc .not_inf
-    test ah, 2
-    jz .done
-    fstp st0
+    jnp		.not_inf
+    jnc		.not_inf
+    test	ah, 2
+    jz		.done
+    fstp	st0
     fldz
-    jmp .done
+    jmp		.done
 .not_inf:
     fldl2e
-    fmul st0, st1
-    fst st1
+    fmul	st0, st1
+    fst		st1
     frndint
-    fxch st1
-    fsub st0, st1
+    fxch	st1
+    fsub	st0, st1
     f2xm1
     fld1
-    faddp st1, st0
+    faddp	st1, st0
     fscale
-    fstp st1
+    fstp	st1
 .done:
 	; Unwind & return
+	mov     esp, ebp
 	pop     ebp
 	ret
 

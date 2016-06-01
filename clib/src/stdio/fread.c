@@ -59,6 +59,9 @@ size_t fread(void * vptr, size_t size, size_t count, FILE * stream)
 	/* Sanity */
 	if (vptr == NULL
 		|| stream == NULL
+		|| stream == stdin
+		|| stream == stdout
+		|| stream == stderr
 		|| BytesToRead == 0)
 		return 0;
 

@@ -144,6 +144,12 @@ int ScProcessExit(int ExitCode)
 	/* Enable Interrupts */
 	InterruptRestoreState(IntrState);
 
+	/* Kill this thread */
+	ThreadingKillThread(ThreadingGetCurrentThreadId());
+
+	/* Yield */
+	IThreadYield();
+
 	/* Done */
 	return 0;
 }

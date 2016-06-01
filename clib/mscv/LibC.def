@@ -16,6 +16,7 @@ _allmul
 _allrem
 _allshl
 _allshr
+_aulldvrm
 _chkstk
 _ftol
 _ftol2

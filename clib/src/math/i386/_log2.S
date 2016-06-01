@@ -71,6 +71,7 @@ t4:
 	fyl2xp1
 	
 	; Unwind & return
+	mov     esp, ebp
 	pop     ebp
 	ret
 
@@ -82,6 +83,7 @@ t2:
 	fyl2x
 	
 	; Unwind & return
+	mov     esp, ebp
 	pop     ebp
 	ret
 
@@ -92,5 +94,6 @@ t3:
 	fstp	st1
 	
 	; Unwind & return
+	mov     esp, ebp
 	pop     ebp
 	ret

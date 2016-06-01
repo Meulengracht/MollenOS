@@ -59,6 +59,9 @@ size_t fwrite(const void * vptr, size_t size, size_t count, FILE * stream)
 	/* Sanity */
 	if (vptr == NULL
 		|| stream == NULL
+		|| stream == stderr
+		|| stream == stdout
+		|| stream == stdin
 		|| BytesToWrite == 0)
 		return 0;
 

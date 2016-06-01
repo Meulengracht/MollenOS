@@ -16,45 +16,18 @@
 * along with this program.If not, see <http://www.gnu.org/licenses/>.
 *
 *
-* MollenOS C Library - variable argument file printf
+* MollenOS C Library - Get Character
 */
 
 /* Includes */
 #include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <stddef.h>
 #include <errno.h>
+#include <string.h>
+#include <stdlib.h>
+#include <os/Syscall.h>
 
-int vfprintf(FILE *stream, const char *format, va_list ap)
+/* The getchar */
+int getchar(void)
 {
-	/* Variables */
-	char Out[256];
-
-	/* Sanitize input */
-	if (stream == NULL
-		|| stream == stdin) {
-		_set_errno(EINVAL);
-		return -1;
-	}
-
-	/* Sanity */
-	if (stream == stdout
-		|| stream == stderr)
-	{
-		/* Redirect the call to vprintf instead
-		* as the output goes to screen instead */
-		return vprintf(format, ap);
-	}
-
-	/* Reset buffer */
-	memset(&Out[0], 0, sizeof(Out));
-
-	/* Redirect to sprintf to take care of 
-	 * formatting */
-	vsprintf(&Out[0], format, ap);
-
-	/* Use f-write to write 
-	 * to the file */
-	return fwrite(&Out[0], strlen(&Out[0]), 1, stream);
+	return 0;
 }

@@ -66,10 +66,8 @@
     <MASM Include="..\crt\msvc\cpp\i386\cpp.s">
       <Filter>Source\msvc\cpp\i386</Filter>
     </MASM>
-  </ItemGroup>
-  <ItemGroup>
-    <None Include="..\crt\msvc\constants.S">
-      <Filter>Source\msvc\cpp</Filter>
-    </None>
+    <MASM Include="..\crt\msvc\constants.S">
+      <Filter>Source\msvc</Filter>
+    </MASM>
   </ItemGroup>
 </Project>

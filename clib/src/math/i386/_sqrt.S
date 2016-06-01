@@ -22,15 +22,16 @@ segment .text
 
 ;Functions in this asm
 global _sqrt
+global  __CIsqrt
 
 ; Computes the square-root
 _sqrt:
 	; Stack Frame
-	push ebp
-	mov ebp, esp
+	push	ebp
+	mov		ebp, esp
 
 	; Load real from stack
-	fld qword [ebp+8]
+	fld		qword [ebp + 8]
 	
 	; Take the square root
 	fsqrt
@@ -38,3 +39,8 @@ _sqrt:
 	; Unwind & return
 	pop     ebp
 	ret
+
+; MSVC 
+__CIsqrt:
+    fsqrt
+    ret

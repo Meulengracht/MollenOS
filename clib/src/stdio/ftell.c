@@ -36,7 +36,10 @@ off_t ftello(FILE * stream)
 	char Buffer[64];
 
 	/* Sanity */
-	if (stream == NULL) {
+	if (stream == NULL
+		|| stream == stdin
+		|| stream == stdout
+		|| stream == stderr) {
 		_set_errno(ESPIPE);
 		return -1L;
 	}

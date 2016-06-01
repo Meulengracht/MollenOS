@@ -6,13 +6,6 @@
 #include <internal/_all.h>
 #include <math.h>
 
-
-double _cdecl _CIpow(void)
-{
-	FPU_DOUBLES(x, y);
-	return pow(x, y);
-}
-
 /*
  * @implemented
  */
@@ -25,28 +18,10 @@ double _cdecl _CItan(void)
 /*
  * @implemented
  */
-double _cdecl _CIsinh(void)
-{
-	FPU_DOUBLE(x);
-	return sinh(x);
-}
-
-/*
- * @implemented
- */
 double _cdecl _CIcosh(void)
 {
 	FPU_DOUBLE(x);
 	return cosh(x);
-}
-
-/*
- * @implemented
- */
-double _cdecl _CItanh(void)
-{
-	FPU_DOUBLE(x);
-	return tanh(x);
 }
 
 /*
@@ -106,15 +81,6 @@ double _cdecl _CIlog10(void)
 /*
  * @implemented
  */
-double _cdecl _CIfmod(void)
-{
-	FPU_DOUBLES(x, y);
-	return fmod(x, y);
-}
-
-/*
- * @implemented
- */
 double _cdecl _CIcos(void)
 {
 	FPU_DOUBLE(x);
@@ -137,13 +103,4 @@ double _cdecl _CIsin(void)
 {
 	FPU_DOUBLE(x);
 	return sin(x);
-}
-
-/*
- * @implemented
- */
-double _cdecl _CIsqrt(void)
-{
-	FPU_DOUBLE(x);
-	return sqrt(x);
 }

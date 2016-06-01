@@ -100,7 +100,10 @@ int fseeko(FILE *stream, off_t offset, int origin)
 	off_t SeekSpot = 0;
 
 	/* Sanity */
-	if (stream == NULL) {
+	if (stream == NULL
+		|| stream == stdin
+		|| stream == stdout
+		|| stream == stderr) {
 		_set_errno(EINVAL);
 		return -1;
 	}

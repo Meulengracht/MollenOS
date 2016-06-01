@@ -34,7 +34,7 @@ extern "C" {
 
 #if (defined(_X86_) && !defined(__x86_64)) || defined(_X86_32)
 
-#define _JBLEN 24
+#define _JBLEN 16
 #define _JBTYPE int
 
 typedef struct __JUMP_BUFFER {

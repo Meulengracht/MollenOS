@@ -30,22 +30,17 @@ PUBLIC	_lrintl
 PUBLIC	_llrint
 PUBLIC	_llrintf
 PUBLIC	_llrintl
-PUBLIC	__CIpow
 PUBLIC	__CItan
-PUBLIC	__CIsinh
 PUBLIC	__CIcosh
-PUBLIC	__CItanh
 PUBLIC	__CIasin
 PUBLIC	__CIacos
 PUBLIC	__CIatan
 PUBLIC	__CIatan2
 PUBLIC	__CIexp
 PUBLIC	__CIlog10
-PUBLIC	__CIfmod
 PUBLIC	__CIcos
 PUBLIC	__CIlog
 PUBLIC	__CIsin
-PUBLIC	__CIsqrt
 PUBLIC	__real@00000000
 PUBLIC	__real@0000000000000000
 EXTRN	__CIacos:PROC
@@ -55,15 +50,10 @@ EXTRN	__CIatan2:PROC
 EXTRN	__CIcos:PROC
 EXTRN	__CIcosh:PROC
 EXTRN	__CIexp:PROC
-EXTRN	__CIfmod:PROC
 EXTRN	__CIlog:PROC
 EXTRN	__CIlog10:PROC
-EXTRN	__CIpow:PROC
 EXTRN	__CIsin:PROC
-EXTRN	__CIsinh:PROC
-EXTRN	__CIsqrt:PROC
 EXTRN	__CItan:PROC
-EXTRN	__CItanh:PROC
 EXTRN	__fltused:DWORD
 ;	COMDAT __real@0000000000000000
 CONST	SEGMENT
@@ -75,58 +65,28 @@ __real@00000000 DD 000000000r			; 0
 CONST	ENDS
 ; Function compile flags: /Ogtp
 ; File c:\users\philip\documents\github\mollenos\clib\crt\msvc\math.c
-;	COMDAT __CIsqrt
-_TEXT	SEGMENT
-_x$ = -8						; size = 8
-__CIsqrt PROC						; COMDAT
-
-; 146  : {
-
-  00000	55		 push	 ebp
-  00001	8b ec		 mov	 ebp, esp
-  00003	83 ec 08	 sub	 esp, 8
-
-; 147  : 	FPU_DOUBLE(x);
-
-  00006	dd 5d f8	 fstp	 QWORD PTR _x$[ebp]
-  00009	9b		 fwait
-
-; 148  : 	return sqrt(x);
-
-  0000a	dd 45 f8	 fld	 QWORD PTR _x$[ebp]
-  0000d	e8 00 00 00 00	 call	 __CIsqrt
-
-; 149  : }
-
-  00012	8b e5		 mov	 esp, ebp
-  00014	5d		 pop	 ebp
-  00015	c3		 ret	 0
-__CIsqrt ENDP
-_TEXT	ENDS
-; Function compile flags: /Ogtp
-; File c:\users\philip\documents\github\mollenos\clib\crt\msvc\math.c
 ;	COMDAT __CIsin
 _TEXT	SEGMENT
 _x$ = -8						; size = 8
 __CIsin	PROC						; COMDAT
 
-; 137  : {
+; 103  : {
 
   00000	55		 push	 ebp
   00001	8b ec		 mov	 ebp, esp
   00003	83 ec 08	 sub	 esp, 8
 
-; 138  : 	FPU_DOUBLE(x);
+; 104  : 	FPU_DOUBLE(x);
 
   00006	dd 5d f8	 fstp	 QWORD PTR _x$[ebp]
   00009	9b		 fwait
 
-; 139  : 	return sin(x);
+; 105  : 	return sin(x);
 
   0000a	dd 45 f8	 fld	 QWORD PTR _x$[ebp]
   0000d	e8 00 00 00 00	 call	 __CIsin
 
-; 140  : }
+; 106  : }
 
   00012	8b e5		 mov	 esp, ebp
   00014	5d		 pop	 ebp
@@ -140,23 +100,23 @@ _TEXT	SEGMENT
 _x$ = -8						; size = 8
 __CIlog	PROC						; COMDAT
 
-; 128  : {
+; 94   : {
 
   00000	55		 push	 ebp
   00001	8b ec		 mov	 ebp, esp
   00003	83 ec 08	 sub	 esp, 8
 
-; 129  : 	FPU_DOUBLE(x);
+; 95   : 	FPU_DOUBLE(x);
 
   00006	dd 5d f8	 fstp	 QWORD PTR _x$[ebp]
   00009	9b		 fwait
 
-; 130  : 	return log(x);
+; 96   : 	return log(x);
 
   0000a	dd 45 f8	 fld	 QWORD PTR _x$[ebp]
   0000d	e8 00 00 00 00	 call	 __CIlog
 
-; 131  : }
+; 97   : }
 
   00012	8b e5		 mov	 esp, ebp
   00014	5d		 pop	 ebp
@@ -170,23 +130,23 @@ _TEXT	SEGMENT
 _x$ = -8						; size = 8
 __CIcos	PROC						; COMDAT
 
-; 119  : {
+; 85   : {
 
   00000	55		 push	 ebp
   00001	8b ec		 mov	 ebp, esp
   00003	83 ec 08	 sub	 esp, 8
 
-; 120  : 	FPU_DOUBLE(x);
+; 86   : 	FPU_DOUBLE(x);
 
   00006	dd 5d f8	 fstp	 QWORD PTR _x$[ebp]
   00009	9b		 fwait
 
-; 121  : 	return cos(x);
+; 87   : 	return cos(x);
 
   0000a	dd 45 f8	 fld	 QWORD PTR _x$[ebp]
   0000d	e8 00 00 00 00	 call	 __CIcos
 
-; 122  : }
+; 88   : }
 
   00012	8b e5		 mov	 esp, ebp
   00014	5d		 pop	 ebp
@@ -195,62 +155,28 @@ __CIcos	ENDP
 _TEXT	ENDS
 ; Function compile flags: /Ogtp
 ; File c:\users\philip\documents\github\mollenos\clib\crt\msvc\math.c
-;	COMDAT __CIfmod
-_TEXT	SEGMENT
-_x$ = -16						; size = 8
-_y$ = -8						; size = 8
-__CIfmod PROC						; COMDAT
-
-; 110  : {
-
-  00000	55		 push	 ebp
-  00001	8b ec		 mov	 ebp, esp
-  00003	83 ec 10	 sub	 esp, 16			; 00000010H
-
-; 111  : 	FPU_DOUBLES(x, y);
-
-  00006	dd 5d f0	 fstp	 QWORD PTR _x$[ebp]
-  00009	9b		 fwait
-  0000a	dd 5d f8	 fstp	 QWORD PTR _y$[ebp]
-  0000d	9b		 fwait
-
-; 112  : 	return fmod(x, y);
-
-  0000e	dd 45 f0	 fld	 QWORD PTR _x$[ebp]
-  00011	dd 45 f8	 fld	 QWORD PTR _y$[ebp]
-  00014	e8 00 00 00 00	 call	 __CIfmod
-
-; 113  : }
-
-  00019	8b e5		 mov	 esp, ebp
-  0001b	5d		 pop	 ebp
-  0001c	c3		 ret	 0
-__CIfmod ENDP
-_TEXT	ENDS
-; Function compile flags: /Ogtp
-; File c:\users\philip\documents\github\mollenos\clib\crt\msvc\math.c
 ;	COMDAT __CIlog10
 _TEXT	SEGMENT
 _x$ = -8						; size = 8
 __CIlog10 PROC						; COMDAT
 
-; 101  : {
+; 76   : {
 
   00000	55		 push	 ebp
   00001	8b ec		 mov	 ebp, esp
   00003	83 ec 08	 sub	 esp, 8
 
-; 102  : 	FPU_DOUBLE(x);
+; 77   : 	FPU_DOUBLE(x);
 
   00006	dd 5d f8	 fstp	 QWORD PTR _x$[ebp]
   00009	9b		 fwait
 
-; 103  : 	return log10(x);
+; 78   : 	return log10(x);
 
   0000a	dd 45 f8	 fld	 QWORD PTR _x$[ebp]
   0000d	e8 00 00 00 00	 call	 __CIlog10
 
-; 104  : }
+; 79   : }
 
   00012	8b e5		 mov	 esp, ebp
   00014	5d		 pop	 ebp
@@ -264,23 +190,23 @@ _TEXT	SEGMENT
 _x$ = -8						; size = 8
 __CIexp	PROC						; COMDAT
 
-; 92   : {
+; 67   : {
 
   00000	55		 push	 ebp
   00001	8b ec		 mov	 ebp, esp
   00003	83 ec 08	 sub	 esp, 8
 
-; 93   : 	FPU_DOUBLE(x);
+; 68   : 	FPU_DOUBLE(x);
 
   00006	dd 5d f8	 fstp	 QWORD PTR _x$[ebp]
   00009	9b		 fwait
 
-; 94   : 	return exp(x);
+; 69   : 	return exp(x);
 
   0000a	dd 45 f8	 fld	 QWORD PTR _x$[ebp]
   0000d	e8 00 00 00 00	 call	 __CIexp
 
-; 95   : }
+; 70   : }
 
   00012	8b e5		 mov	 esp, ebp
   00014	5d		 pop	 ebp
@@ -295,26 +221,26 @@ _x$ = -16						; size = 8
 _y$ = -8						; size = 8
 __CIatan2 PROC						; COMDAT
 
-; 83   : {
+; 58   : {
 
   00000	55		 push	 ebp
   00001	8b ec		 mov	 ebp, esp
   00003	83 ec 10	 sub	 esp, 16			; 00000010H
 
-; 84   : 	FPU_DOUBLES(x, y);
+; 59   : 	FPU_DOUBLES(x, y);
 
   00006	dd 5d f0	 fstp	 QWORD PTR _x$[ebp]
   00009	9b		 fwait
   0000a	dd 5d f8	 fstp	 QWORD PTR _y$[ebp]
   0000d	9b		 fwait
 
-; 85   : 	return atan2(x, y);
+; 60   : 	return atan2(x, y);
 
   0000e	dd 45 f0	 fld	 QWORD PTR _x$[ebp]
   00011	dd 45 f8	 fld	 QWORD PTR _y$[ebp]
   00014	e8 00 00 00 00	 call	 __CIatan2
 
-; 86   : }
+; 61   : }
 
   00019	8b e5		 mov	 esp, ebp
   0001b	5d		 pop	 ebp
@@ -328,23 +254,23 @@ _TEXT	SEGMENT
 _x$ = -8						; size = 8
 __CIatan PROC						; COMDAT
 
-; 74   : {
+; 49   : {
 
   00000	55		 push	 ebp
   00001	8b ec		 mov	 ebp, esp
   00003	83 ec 08	 sub	 esp, 8
 
-; 75   : 	FPU_DOUBLE(x);
+; 50   : 	FPU_DOUBLE(x);
 
   00006	dd 5d f8	 fstp	 QWORD PTR _x$[ebp]
   00009	9b		 fwait
 
-; 76   : 	return atan(x);
+; 51   : 	return atan(x);
 
   0000a	dd 45 f8	 fld	 QWORD PTR _x$[ebp]
   0000d	e8 00 00 00 00	 call	 __CIatan
 
-; 77   : }
+; 52   : }
 
   00012	8b e5		 mov	 esp, ebp
   00014	5d		 pop	 ebp
@@ -358,23 +284,23 @@ _TEXT	SEGMENT
 _x$ = -8						; size = 8
 __CIacos PROC						; COMDAT
 
-; 65   : {
+; 40   : {
 
   00000	55		 push	 ebp
   00001	8b ec		 mov	 ebp, esp
   00003	83 ec 08	 sub	 esp, 8
 
-; 66   : 	FPU_DOUBLE(x);
+; 41   : 	FPU_DOUBLE(x);
 
   00006	dd 5d f8	 fstp	 QWORD PTR _x$[ebp]
   00009	9b		 fwait
 
-; 67   : 	return acos(x);
+; 42   : 	return acos(x);
 
   0000a	dd 45 f8	 fld	 QWORD PTR _x$[ebp]
   0000d	e8 00 00 00 00	 call	 __CIacos
 
-; 68   : }
+; 43   : }
 
   00012	8b e5		 mov	 esp, ebp
   00014	5d		 pop	 ebp
@@ -388,23 +314,23 @@ _TEXT	SEGMENT
 _x$ = -8						; size = 8
 __CIasin PROC						; COMDAT
 
-; 56   : {
+; 31   : {
 
   00000	55		 push	 ebp
   00001	8b ec		 mov	 ebp, esp
   00003	83 ec 08	 sub	 esp, 8
 
-; 57   : 	FPU_DOUBLE(x);
+; 32   : 	FPU_DOUBLE(x);
 
   00006	dd 5d f8	 fstp	 QWORD PTR _x$[ebp]
   00009	9b		 fwait
 
-; 58   : 	return asin(x);
+; 33   : 	return asin(x);
 
   0000a	dd 45 f8	 fld	 QWORD PTR _x$[ebp]
   0000d	e8 00 00 00 00	 call	 __CIasin
 
-; 59   : }
+; 34   : }
 
   00012	8b e5		 mov	 esp, ebp
   00014	5d		 pop	 ebp
@@ -413,58 +339,28 @@ __CIasin ENDP
 _TEXT	ENDS
 ; Function compile flags: /Ogtp
 ; File c:\users\philip\documents\github\mollenos\clib\crt\msvc\math.c
-;	COMDAT __CItanh
-_TEXT	SEGMENT
-_x$ = -8						; size = 8
-__CItanh PROC						; COMDAT
-
-; 47   : {
-
-  00000	55		 push	 ebp
-  00001	8b ec		 mov	 ebp, esp
-  00003	83 ec 08	 sub	 esp, 8
-
-; 48   : 	FPU_DOUBLE(x);
-
-  00006	dd 5d f8	 fstp	 QWORD PTR _x$[ebp]
-  00009	9b		 fwait
-
-; 49   : 	return tanh(x);
-
-  0000a	dd 45 f8	 fld	 QWORD PTR _x$[ebp]
-  0000d	e8 00 00 00 00	 call	 __CItanh
-
-; 50   : }
-
-  00012	8b e5		 mov	 esp, ebp
-  00014	5d		 pop	 ebp
-  00015	c3		 ret	 0
-__CItanh ENDP
-_TEXT	ENDS
-; Function compile flags: /Ogtp
-; File c:\users\philip\documents\github\mollenos\clib\crt\msvc\math.c
 ;	COMDAT __CIcosh
 _TEXT	SEGMENT
 _x$ = -8						; size = 8
 __CIcosh PROC						; COMDAT
 
-; 38   : {
+; 22   : {
 
   00000	55		 push	 ebp
   00001	8b ec		 mov	 ebp, esp
   00003	83 ec 08	 sub	 esp, 8
 
-; 39   : 	FPU_DOUBLE(x);
+; 23   : 	FPU_DOUBLE(x);
 
   00006	dd 5d f8	 fstp	 QWORD PTR _x$[ebp]
   00009	9b		 fwait
 
-; 40   : 	return cosh(x);
+; 24   : 	return cosh(x);
 
   0000a	dd 45 f8	 fld	 QWORD PTR _x$[ebp]
   0000d	e8 00 00 00 00	 call	 __CIcosh
 
-; 41   : }
+; 25   : }
 
   00012	8b e5		 mov	 esp, ebp
   00014	5d		 pop	 ebp
@@ -473,97 +369,33 @@ __CIcosh ENDP
 _TEXT	ENDS
 ; Function compile flags: /Ogtp
 ; File c:\users\philip\documents\github\mollenos\clib\crt\msvc\math.c
-;	COMDAT __CIsinh
-_TEXT	SEGMENT
-_x$ = -8						; size = 8
-__CIsinh PROC						; COMDAT
-
-; 29   : {
-
-  00000	55		 push	 ebp
-  00001	8b ec		 mov	 ebp, esp
-  00003	83 ec 08	 sub	 esp, 8
-
-; 30   : 	FPU_DOUBLE(x);
-
-  00006	dd 5d f8	 fstp	 QWORD PTR _x$[ebp]
-  00009	9b		 fwait
-
-; 31   : 	return sinh(x);
-
-  0000a	dd 45 f8	 fld	 QWORD PTR _x$[ebp]
-  0000d	e8 00 00 00 00	 call	 __CIsinh
-
-; 32   : }
-
-  00012	8b e5		 mov	 esp, ebp
-  00014	5d		 pop	 ebp
-  00015	c3		 ret	 0
-__CIsinh ENDP
-_TEXT	ENDS
-; Function compile flags: /Ogtp
-; File c:\users\philip\documents\github\mollenos\clib\crt\msvc\math.c
 ;	COMDAT __CItan
 _TEXT	SEGMENT
 _x$ = -8						; size = 8
 __CItan	PROC						; COMDAT
 
-; 20   : {
+; 13   : {
 
   00000	55		 push	 ebp
   00001	8b ec		 mov	 ebp, esp
   00003	83 ec 08	 sub	 esp, 8
 
-; 21   : 	FPU_DOUBLE(x);
+; 14   : 	FPU_DOUBLE(x);
 
   00006	dd 5d f8	 fstp	 QWORD PTR _x$[ebp]
   00009	9b		 fwait
 
-; 22   : 	return tan(x);
+; 15   : 	return tan(x);
 
   0000a	dd 45 f8	 fld	 QWORD PTR _x$[ebp]
   0000d	e8 00 00 00 00	 call	 __CItan
 
-; 23   : }
+; 16   : }
 
   00012	8b e5		 mov	 esp, ebp
   00014	5d		 pop	 ebp
   00015	c3		 ret	 0
 __CItan	ENDP
-_TEXT	ENDS
-; Function compile flags: /Ogtp
-; File c:\users\philip\documents\github\mollenos\clib\crt\msvc\math.c
-;	COMDAT __CIpow
-_TEXT	SEGMENT
-_x$ = -16						; size = 8
-_y$ = -8						; size = 8
-__CIpow	PROC						; COMDAT
-
-; 11   : {
-
-  00000	55		 push	 ebp
-  00001	8b ec		 mov	 ebp, esp
-  00003	83 ec 10	 sub	 esp, 16			; 00000010H
-
-; 12   : 	FPU_DOUBLES(x, y);
-
-  00006	dd 5d f0	 fstp	 QWORD PTR _x$[ebp]
-  00009	9b		 fwait
-  0000a	dd 5d f8	 fstp	 QWORD PTR _y$[ebp]
-  0000d	9b		 fwait
-
-; 13   : 	return pow(x, y);
-
-  0000e	dd 45 f0	 fld	 QWORD PTR _x$[ebp]
-  00011	dd 45 f8	 fld	 QWORD PTR _y$[ebp]
-  00014	e8 00 00 00 00	 call	 __CIpow
-
-; 14   : }
-
-  00019	8b e5		 mov	 esp, ebp
-  0001b	5d		 pop	 ebp
-  0001c	c3		 ret	 0
-__CIpow	ENDP
 _TEXT	ENDS
 ; Function compile flags: /Ogtp
 ; File c:\users\philip\documents\github\mollenos\clib\include\math.h

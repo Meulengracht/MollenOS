@@ -22,6 +22,7 @@
 /* Includes */
 #include <os/MollenOS.h>
 #include <os/Syscall.h>
+#include <stddef.h>
 
 #ifdef LIBC_KERNEL
 void __SharedObjectLibCEmpty(void)
@@ -33,6 +34,11 @@ void __SharedObjectLibCEmpty(void)
  * path must exists otherwise NULL is returned */
 void *SharedObjectLoad(const char *SharedObject)
 {
+	/* Sanitize the path */
+	if (SharedObject == NULL) {
+		return NULL;
+	}
+
 	/* Just deep call, we have 
 	 * all neccessary functionlity and validation already in place */
 	return (void*)Syscall1(MOLLENOS_SYSCALL_LOADSO, MOLLENOS_SYSCALL_PARAM(SharedObject));
@@ -43,6 +49,12 @@ void *SharedObjectLoad(const char *SharedObject)
  * otherwise null is returned */
 void *SharedObjectGetFunction(void *Handle, const char *Function)
 {
+	/* Sanitize the arguments */
+	if (Handle == NULL
+		|| Function == NULL) {
+		return NULL;
+	}
+
 	/* Just deep call, we have
 	* all neccessary functionlity and validation already in place */
 	return (void*)Syscall2(MOLLENOS_SYSCALL_LOADPROC, 
@@ -53,6 +65,11 @@ void *SharedObjectGetFunction(void *Handle, const char *Function)
  * returns 0 on success */
 void SharedObjectUnload(void *Handle)
 {
+	/* Sanitize the handle */
+	if (Handle == NULL) {
+		return;
+	}
+
 	/* Just deep call, we have
 	* all neccessary functionlity and validation already in place */
 	Syscall1(MOLLENOS_SYSCALL_UNLOADSO, MOLLENOS_SYSCALL_PARAM(Handle));

@@ -552,6 +552,7 @@ void __MallocLibCEmpty(void)
 #endif  /* WIN32 */
 
 #ifdef MOLLENOS
+#define USE_LOCKS 1
 #define HAVE_MMAP 1
 #define HAVE_MORECORE 0
 #define LACKS_UNISTD_H
@@ -1525,7 +1526,7 @@ extern void*     sbrk(ptrdiff_t);
 
 /* Declarations for locking */
 #if USE_LOCKS
-#ifndef WIN32
+#if !defined(WIN32) && !defined(MOLLENOS)
 #if defined (__SVR4) && defined (__sun)  /* solaris */
 #include <thread.h>
 #elif !defined(LACKS_SCHED_H)
@@ -1540,14 +1541,11 @@ extern void*     sbrk(ptrdiff_t);
 #ifdef __cplusplus
 extern "C" {
 #endif /* __cplusplus */
-LONG __cdecl _InterlockedCompareExchange(LONG volatile *Dest, LONG Exchange, LONG Comp);
-LONG __cdecl _InterlockedExchange(LONG volatile *Target, LONG Value);
+#include <intrin.h>
 #ifdef __cplusplus
 }
 #endif /* __cplusplus */
 #endif /* _M_AMD64 */
-#pragma intrinsic (_InterlockedCompareExchange)
-#pragma intrinsic (_InterlockedExchange)
 #define interlockedcompareexchange _InterlockedCompareExchange
 #define interlockedexchange _InterlockedExchange
 #elif defined(WIN32) && defined(__GNUC__)
@@ -1911,8 +1909,8 @@ static FORCEINLINE void x86_clear_lock(int* sl) {
 #define CLEAR_LOCK(sl)   x86_clear_lock(sl)
 
 #else /* Win32 MSC */
-#define CAS_LOCK(sl)     interlockedexchange(sl, (LONG)1)
-#define CLEAR_LOCK(sl)   interlockedexchange (sl, (LONG)0)
+#define CAS_LOCK(sl)     interlockedexchange((volatile long*)sl, (long)1)
+#define CLEAR_LOCK(sl)   interlockedexchange ((volatile long*)sl, (long)0)
 
 #endif /* ... gcc spins locks ... */
 
@@ -1920,7 +1918,12 @@ static FORCEINLINE void x86_clear_lock(int* sl) {
 #define SPINS_PER_YIELD       63
 #if defined(_MSC_VER)
 #define SLEEP_EX_DURATION     50 /* delay for yield/sleep */
+#ifdef MOLLENOS
+#include <os/Thread.h>
+#define SPIN_LOCK_YIELD  ThreadSleep(SLEEP_EX_DURATION)
+#else
 #define SPIN_LOCK_YIELD  SleepEx(SLEEP_EX_DURATION, FALSE)
+#endif
 #elif defined (__SVR4) && defined (__sun) /* solaris */
 #define SPIN_LOCK_YIELD   thr_yield();
 #elif !defined(LACKS_SCHED_H)

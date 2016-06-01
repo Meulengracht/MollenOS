@@ -449,8 +449,11 @@ void ThreadingKillThread(TId_t ThreadId)
 	/* Get thread handle */
 	MCoreThread_t *Target = ThreadingGetThread(ThreadId);
 
-	/* Sanity */
-	if (Target == NULL)
+	/* Sanity 
+	 * NULL check and IDLE check
+	 * don't ever kill idle threads.. */
+	if (Target == NULL
+		|| (Target->Flags & THREADING_IDLE))
 		return;
 
 	/* Mark thread finished */
@@ -537,6 +540,7 @@ MCoreThread_t *ThreadingSwitch(Cpu_t Cpu, MCoreThread_t *Current, uint8_t PreEmp
 	Node = ThreadingGetCurrentNode(Cpu);
 
 	/* Unless this one is done.. */
+GetNextThread:
 	if (Current->Flags & THREADING_FINISHED || Current->Flags & THREADING_IDLE
 		|| Current->Flags & THREADING_ENTER_SLEEP)
 	{
@@ -569,6 +573,14 @@ MCoreThread_t *ThreadingSwitch(Cpu_t Cpu, MCoreThread_t *Current, uint8_t PreEmp
 	/* Sanity */
 	if (NextThread == NULL)
 		NextThread = (MCoreThread_t*)GlbIdleThreads[Cpu]->data;
+
+	/* More sanity 
+	 * If we have caught a finished thread that
+	 * has been killed while scheduled, get a new */
+	if (NextThread->Flags & THREADING_FINISHED) {
+		Current = NextThread;
+		goto GetNextThread;
+	}
 
 	/* Get node by thread */
 	Node = list_get_node_by_id(GlbThreads, NextThread->ThreadId, 0);
