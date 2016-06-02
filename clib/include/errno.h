@@ -30,13 +30,20 @@ extern "C" {
 /* Includes */
 #include <crtdefs.h>
 
-//errno_t
-typedef int error_t;
+/* Definitions */
+#ifndef _ERRCODE_DEFINED
+#define _ERRCODE_DEFINED
+	typedef int errcode;
+	typedef int errno_t;
+#endif
 
+/* These are the errno access 
+ * macros and should be used for 
+ * either accessing or setting the 
+ * current errno */
+_CRT_EXTERN errno_t *__errno(void);
 #define errno (*__errno())
 #define _set_errno(err) (errno = err)
-_CRT_EXTERN extern int _errno;
-_CRT_EXTERN int *__errno(void);
 
 /* Please don't use these variables directly.
    Use strerror instead. */
@@ -91,86 +98,86 @@ extern int _sys_nerr;
 #define	EL2HLT 44	/* Level 2 halted */
 #define	EDEADLK 45	/* Deadlock condition */
 #define	ENOLCK 46	/* No record locks available */
-#define EBADE 50	/* Invalid exchange */
-#define EBADR 51	/* Invalid request descriptor */
-#define EXFULL 52	/* Exchange full */
-#define ENOANO 53	/* No anode */
-#define EBADRQC 54	/* Invalid request code */
-#define EBADSLT 55	/* Invalid slot */
-#define EDEADLOCK 56	/* File locking deadlock error */
-#define EBFONT 57	/* Bad font file fmt */
-#define ENOSTR 60	/* Device not a stream */
-#define ENODATA 61	/* No data (for no delay io) */
-#define ETIME 62	/* Timer expired */
-#define ENOSR 63	/* Out of streams resources */
-#define ENONET 64	/* Machine is not on the network */
-#define ENOPKG 65	/* Package not installed */
-#define EREMOTE 66	/* The object is remote */
-#define ENOLINK 67	/* The link has been severed */
-#define EADV 68		/* Advertise error */
-#define ESRMNT 69	/* Srmount error */
-#define	ECOMM 70	/* Communication error on send */
-#define EPROTO 71	/* Protocol error */
-#define	EMULTIHOP 74	/* Multihop attempted */
-#define	ELBIN 75	/* Inode is remote (not really error) */
-#define	EDOTDOT 76	/* Cross mount point (not really error) */
-#define EBADMSG 77	/* Trying to read unreadable message */
-#define EFTYPE 79	/* Inappropriate file type or format */
-#define ENOTUNIQ 80	/* Given log. name not unique */
-#define EBADFD 81	/* f.d. invalid for this operation */
-#define EREMCHG 82	/* Remote address changed */
-#define ELIBACC 83	/* Can't access a needed shared lib */
-#define ELIBBAD 84	/* Accessing a corrupted shared lib */
-#define ELIBSCN 85	/* .lib section in a.out corrupted */
-#define ELIBMAX 86	/* Attempting to link in too many libs */
-#define ELIBEXEC 87	/* Attempting to exec a shared library */
-#define ENOSYS 88	/* Function not implemented */
-#define ENMFILE 89      /* No more files */
-#define ENOTEMPTY 90	/* Directory not empty */
-#define ENAMETOOLONG 91	/* File or path name too long */
-#define ELOOP 92	/* Too many symbolic links */
-#define EOPNOTSUPP 95	/* Operation not supported on transport endpoint */
-#define EPFNOSUPPORT 96 /* Protocol family not supported */
-#define ECONNRESET 104  /* Connection reset by peer */
-#define ENOBUFS 105	/* No buffer space available */
-#define EAFNOSUPPORT 106 /* Address family not supported by protocol family */
-#define EPROTOTYPE 107	/* Protocol wrong type for socket */
-#define ENOTSOCK 108	/* Socket operation on non-socket */
-#define ENOPROTOOPT 109	/* Protocol not available */
-#define ESHUTDOWN 110	/* Can't send after socket shutdown */
-#define ECONNREFUSED 111	/* Connection refused */
-#define EADDRINUSE 112		/* Address already in use */
-#define ECONNABORTED 113	/* Connection aborted */
-#define ENETUNREACH 114		/* Network is unreachable */
-#define ENETDOWN 115		/* Network interface is not configured */
-#define ETIMEDOUT 116		/* Connection timed out */
-#define EHOSTDOWN 117		/* Host is down */
-#define EHOSTUNREACH 118	/* Host is unreachable */
-#define EINPROGRESS 119		/* Connection already in progress */
-#define EALREADY 120		/* Socket already connected */
-#define EDESTADDRREQ 121	/* Destination address required */
-#define EMSGSIZE 122		/* Message too long */
-#define EPROTONOSUPPORT 123	/* Unknown protocol */
-#define ESOCKTNOSUPPORT 124	/* Socket type not supported */
-#define EADDRNOTAVAIL 125	/* Address not available */
-#define ENETRESET 126
-#define EISCONN 127		/* Socket is already connected */
-#define ENOTCONN 128		/* Socket is not connected */
-#define ETOOMANYREFS 129
-#define EPROCLIM 130
-#define EUSERS 131
-#define EDQUOT 132
-#define ESTALE 133
-#define ENOTSUP 134		/* Not supported */
-#define ENOMEDIUM 135   /* No medium (in tape drive) */
-#define ENOSHARE 136    /* No such host or network path */
-#define ECASECLASH 137  /* Filename exists with different case */
-#define EILSEQ 138
-#define EOVERFLOW 139	/* Value too large for defined data type */
-#define ECANCELED 140	/* Operation canceled */
-#define ENOTRECOVERABLE 141	/* State not recoverable */
-#define EOWNERDEAD 142	/* Previous owner died */
-#define ESTRPIPE 143	/* Streams pipe error */
+#define EBADE 47	/* Invalid exchange */
+#define EBADR 48	/* Invalid request descriptor */
+#define EXFULL 49	/* Exchange full */
+#define ENOANO 50	/* No anode */
+#define EBADRQC 51	/* Invalid request code */
+#define EBADSLT 52	/* Invalid slot */
+#define EDEADLOCK 53	/* File locking deadlock error */
+#define EBFONT 54	/* Bad font file fmt */
+#define ENOSTR 55	/* Device not a stream */
+#define ENODATA 56	/* No data (for no delay io) */
+#define ETIME 57	/* Timer expired */
+#define ENOSR 58	/* Out of streams resources */
+#define ENONET 59	/* Machine is not on the network */
+#define ENOPKG 60	/* Package not installed */
+#define EREMOTE 61	/* The object is remote */
+#define ENOLINK 62	/* The link has been severed */
+#define EADV 63		/* Advertise error */
+#define ESRMNT 64	/* Srmount error */
+#define	ECOMM 65	/* Communication error on send */
+#define EPROTO 66	/* Protocol error */
+#define	EMULTIHOP 67	/* Multihop attempted */
+#define	ELBIN 68	/* Inode is remote (not really error) */
+#define	EDOTDOT 69	/* Cross mount point (not really error) */
+#define EBADMSG 70	/* Trying to read unreadable message */
+#define EFTYPE 71	/* Inappropriate file type or format */
+#define ENOTUNIQ 72	/* Given log. name not unique */
+#define EBADFD 73	/* f.d. invalid for this operation */
+#define EREMCHG 74	/* Remote address changed */
+#define ELIBACC 75	/* Can't access a needed shared lib */
+#define ELIBBAD 76	/* Accessing a corrupted shared lib */
+#define ELIBSCN 77	/* .lib section in a.out corrupted */
+#define ELIBMAX 78	/* Attempting to link in too many libs */
+#define ELIBEXEC 79	/* Attempting to exec a shared library */
+#define ENOSYS 80	/* Function not implemented */
+#define ENMFILE 81      /* No more files */
+#define ENOTEMPTY 82	/* Directory not empty */
+#define ENAMETOOLONG 83	/* File or path name too long */
+#define ELOOP 84	/* Too many symbolic links */
+#define EOPNOTSUPP 85	/* Operation not supported on transport endpoint */
+#define EPFNOSUPPORT 86 /* Protocol mily not supported */
+#define ECONNRESET 87  /* Connection reset by peer */
+#define ENOBUFS 88	/* No buffer space available */
+#define EAFNOSUPPORT 89 /* Address family not supported by protocol family */
+#define EPROTOTYPE 90	/* Protocol wrong type for socket */
+#define ENOTSOCK 91	/* Socket operation on non-socket */
+#define ENOPROTOOPT 92	/* Protocol not available */
+#define ESHUTDOWN 96	/* Can't send after socket shutdown */
+#define ECONNREFUSED 97	/* Connection refused */
+#define EADDRINUSE 98		/* Address already in use */
+#define ECONNABORTED 99	/* Connection aborted */
+#define ENETUNREACH 100		/* Network is unreachable */
+#define ENETDOWN 101		/* Network interface is not configured */
+#define ETIMEDOUT 102		/* Connection timed out */
+#define EHOSTDOWN 103		/* Host is down */
+#define EHOSTUNREACH 104	/* Host is unreachable */
+#define EINPROGRESS 105		/* Connection already in progress */
+#define EALREADY 106		/* Socket already connected */
+#define EDESTADDRREQ 107	/* Destination address required */
+#define EMSGSIZE 108		/* Message too long */
+#define EPROTONOSUPPORT 109	/* Unknown protocol */
+#define ESOCKTNOSUPPORT 110	/* Socket type not supported */
+#define EADDRNOTAVAIL 111	/* Address not available */
+#define ENETRESET 112		/* Internet connection was reset */
+#define EISCONN 113		/* Socket is already connected */
+#define ENOTCONN 114		/* Socket is not connected */
+#define ETOOMANYREFS 115
+#define EPROCLIM 116
+#define EUSERS 117
+#define EDQUOT 118
+#define ESTALE 119
+#define ENOTSUP 120		/* Not supported */
+#define ENOMEDIUM 121   /* No medium (in tape drive) */
+#define ENOSHARE 122    /* No such host or network path */
+#define ECASECLASH 123  /* Filename exists with different case */
+#define EILSEQ 124
+#define EOVERFLOW 125	/* Value too large for defined data type */
+#define ECANCELED 126	/* Operation canceled */
+#define ENOTRECOVERABLE 127	/* State not recoverable */
+#define EOWNERDEAD 128	/* Previous owner died */
+#define ESTRPIPE 129	/* Streams pipe error */
 #define EWOULDBLOCK EAGAIN	/* Operation would block */
 
 #define __ELASTERROR 2000	/* Users can add values starting here */

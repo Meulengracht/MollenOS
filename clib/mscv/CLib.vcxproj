@@ -402,6 +402,7 @@
     <LibraryWPath />
     <TargetName>LibC</TargetName>
     <GenerateManifest>false</GenerateManifest>
+    <IntDir>LibC\$(Configuration)\</IntDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <TargetName>CLib</TargetName>

@@ -78,7 +78,7 @@ extern "C" {
  * Limits and extern 
  * list of strings */
 #define _MAX_ERRNO	127
-_CRT_EXTERN char *_errstrings[];
+_CRT_EXTERN const char *_errstrings[];
 
 /* The C-Library Error Codes 
  * These closely relate the the 

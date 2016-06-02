@@ -111,7 +111,7 @@ void SchedulerBoost(Scheduler_t *Scheduler)
 				/* Reset timeslice */
 				mThread = (MCoreThread_t*)mNode->data;
 				mThread->TimeSlice = MCORE_INITIAL_TIMESLICE;
-				mThread->Priority = 0;
+				mThread->Queue = 0;
 
 				list_append(Scheduler->Queues[0], mNode);
 				mNode = list_pop_front(Scheduler->Queues[i]);
@@ -153,10 +153,10 @@ void SchedulerReadyThread(MCoreThread_t *Thread)
 	int i = 0;
 	
 	/* Step 1. New thread? :) */
-	if (Thread->Priority == -1)
+	if (Thread->Queue == -1)
 	{
 		/* Reduce priority */
-		Thread->Priority = 0;
+		Thread->Queue = 0;
 
 		/* Recalculate time-slice */
 		Thread->TimeSlice = MCORE_INITIAL_TIMESLICE;
@@ -199,7 +199,7 @@ void SchedulerReadyThread(MCoreThread_t *Thread)
 	SpinlockAcquire(&GlbSchedulers[CpuIndex]->Lock);
 
 	/* Append */
-	list_append(GlbSchedulers[CpuIndex]->Queues[Thread->Priority], 
+	list_append(GlbSchedulers[CpuIndex]->Queues[Thread->Queue],
 		SchedulerGetNode(Thread->ThreadId, Thread));
 
 	/* Release lock */
@@ -217,7 +217,7 @@ void SchedulerDisarmThread(MCoreThread_t *Thread)
 	list_node_t *ThreadNode;
 
 	/* Sanity */
-	if (Thread->Priority < 0)
+	if (Thread->Queue < 0)
 		return;
 
 	/* Get lock */
@@ -225,11 +225,11 @@ void SchedulerDisarmThread(MCoreThread_t *Thread)
 
 	/* Find */
 	ThreadNode = list_get_node_by_id(
-		GlbSchedulers[Thread->CpuId]->Queues[Thread->Priority], Thread->ThreadId, 0);
+		GlbSchedulers[Thread->CpuId]->Queues[Thread->Queue], Thread->ThreadId, 0);
 
 	/* Remove it */
 	if (ThreadNode != NULL) {
-		list_remove_by_node(GlbSchedulers[Thread->CpuId]->Queues[Thread->Priority], ThreadNode);
+		list_remove_by_node(GlbSchedulers[Thread->CpuId]->Queues[Thread->Queue], ThreadNode);
 		list_append(GlbSchedulerNodeRecycler, ThreadNode);
 	}
 
@@ -298,7 +298,7 @@ void SchedulerApplyMs(size_t Ms)
 				list_append(GlbSchedulerNodeRecycler, WakeNode);
 
 				/* Grant it top priority */
-				mThread->Priority = -1;
+				mThread->Queue = -1;
 				mThread->SleepResource = NULL;
 
 				/* Rearm thread */
@@ -384,7 +384,7 @@ int SchedulerWakeupOneThread(Addr_t *Resource)
 		list_append(GlbSchedulerNodeRecycler, SleepMatch);
 
 		/* Grant it top priority */
-		mThread->Priority = -1;
+		mThread->Queue = -1;
 		mThread->SleepResource = NULL;
 
 		/* Rearm thread */
@@ -432,13 +432,13 @@ MCoreThread_t *SchedulerGetNextTask(Cpu_t Cpu, MCoreThread_t *Thread, int PreEmp
 
 		/* Increase its priority */
 		if (PreEmptive != 0
-			&& Thread->Priority < MCORE_SYSTEM_QUEUE) /* Must be below 60, 60 is highest normal queue */
+			&& Thread->Queue < MCORE_SYSTEM_QUEUE) /* Must be below 60, 60 is highest normal queue */
 		{
 			/* Reduce priority */
-			Thread->Priority++;
+			Thread->Queue++;
 
 			/* Recalculate time-slice */
-			Thread->TimeSlice = (Thread->Priority * 2) + MCORE_INITIAL_TIMESLICE;
+			Thread->TimeSlice = (Thread->Queue * 2) + MCORE_INITIAL_TIMESLICE;
 		}
 
 		/* Schedúle */

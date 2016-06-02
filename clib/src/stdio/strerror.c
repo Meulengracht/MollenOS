@@ -33,12 +33,12 @@ char *strerror(int errnum)
 {
 	/* Sanitize upper bound */
 	if (errnum >= _MAX_ERRNO)
-		return _errstrings[126];
+		return (char*)_errstrings[126];
 
 	/* Sanitize lower bound */
 	if (errnum < 0)
-		return _errstrings[0];
+		return (char*)_errstrings[0];
 
 	/* Yay */
-	return _errstrings[errnum];
+	return (char*)_errstrings[errnum];
 }

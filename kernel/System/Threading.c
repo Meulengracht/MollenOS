@@ -63,16 +63,14 @@ void ThreadingInit(void)
 
 	/* Setup initial thread */
 	Init = (MCoreThread_t*)kmalloc(sizeof(MCoreThread_t));
+	memset(Init, 0, sizeof(MCoreThread_t));
+
 	Init->Name = strdup("Idle");
-	Init->Priority = 60;
+	Init->Queue = MCORE_SCHEDULER_LEVELS - 1;
 	Init->Flags = THREADING_IDLE | THREADING_SYSTEMTHREAD | THREADING_CPUBOUND;
 	Init->TimeSlice = MCORE_IDLE_TIMESLICE;
 	Init->ParentId = 0xDEADBEEF;
 	Init->ThreadId = GlbThreadId;
-	Init->CpuId = 0;
-	Init->Func = NULL;
-	Init->Args = NULL;
-	Init->SleepResource = NULL;
 	Init->ProcessId = 0xFFFFFFFF;
 
 	/* Create Address Space */
@@ -108,16 +106,15 @@ void ThreadingApInit(Cpu_t Cpu)
 
 	/* Setup initial thread */
 	Init = (MCoreThread_t*)kmalloc(sizeof(MCoreThread_t));
+	memset(Init, 0, sizeof(MCoreThread_t));
+
 	Init->Name = strdup("ApIdle");
-	Init->Priority = 60;
+	Init->Queue = MCORE_SCHEDULER_LEVELS - 1;
 	Init->Flags = THREADING_IDLE | THREADING_SYSTEMTHREAD | THREADING_CPUBOUND;
 	Init->TimeSlice = MCORE_IDLE_TIMESLICE;
 	Init->ParentId = 0xDEADBEEF;
 	Init->ThreadId = GlbThreadId;
 	Init->CpuId = Cpu;
-	Init->Func = NULL;
-	Init->Args = NULL;
-	Init->SleepResource = NULL;
 	Init->ProcessId = 0xFFFFFFFF;
 
 	/* Create Address Space */
@@ -266,8 +263,8 @@ void ThreadingDebugPrint(void)
 	foreach(i, GlbThreads)
 	{
 		MCoreThread_t *t = (MCoreThread_t*)i->data;
-		printf("Thread %u (%s) - Flags %i, Priority %i, Timeslice %u, Cpu: %u\n",
-			t->ThreadId, t->Name, t->Flags, t->Priority, t->TimeSlice, t->CpuId);
+		printf("Thread %u (%s) - Flags %i, Queue %i, Timeslice %u, Cpu: %u\n",
+			t->ThreadId, t->Name, t->Flags, t->Queue, t->TimeSlice, t->CpuId);
 	}
 }
 
@@ -348,6 +345,7 @@ TId_t ThreadingCreateThread(char *Name, ThreadEntry_t Function, void *Args, int 
 
 	/* Allocate a new thread structure */
 	nThread = (MCoreThread_t*)kmalloc(sizeof(MCoreThread_t));
+	memset(nThread, 0, sizeof(MCoreThread_t));
 
 	/* Sanitize name */
 	if (Name == NULL) {
@@ -362,9 +360,6 @@ TId_t ThreadingCreateThread(char *Name, ThreadEntry_t Function, void *Args, int 
 	/* Setup */
 	nThread->Func = Function;
 	nThread->Args = Args;
-	nThread->Flags = 0;
-	nThread->Sleep = 0;
-	nThread->RetCode = 0;
 
 	/* If we are CPU bound :/ */
 	if (Flags & THREADING_CPUBOUND)
@@ -378,10 +373,9 @@ TId_t ThreadingCreateThread(char *Name, ThreadEntry_t Function, void *Args, int 
 	nThread->ParentId = tParent->ThreadId;
 	nThread->ThreadId = GlbThreadId;
 	nThread->ProcessId = 0xFFFFFFFF;
-	nThread->SleepResource = NULL;
 
 	/* Scheduler Related */
-	nThread->Priority = -1;
+	nThread->Queue = -1;
 	nThread->TimeSlice = MCORE_INITIAL_TIMESLICE;
 
 	/* Create Address Space */

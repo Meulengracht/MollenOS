@@ -25,7 +25,7 @@ global  _pow
 global  __CIpow
 
 ;errno 
-extern __errno
+extern ___errno
 
 ; Floating point zero
 fzero:          dq      0.0e0
@@ -276,7 +276,9 @@ __fpow5:
 	int     3
 	
 	; Set errno
-	mov     dword [__errno], eax
+	mov		edi, eax
+	call	___errno
+	mov     dword [eax], edi
 
 __fpow6:
 	; Restore registers eax & edi

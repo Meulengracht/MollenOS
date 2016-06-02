@@ -47,6 +47,7 @@
     <LibraryPath>..\build\</LibraryPath>
     <GenerateManifest>false</GenerateManifest>
     <OutDir>..\build\</OutDir>
+    <IntDir>LibUi\$(Configuration)\</IntDir>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>

@@ -49,6 +49,7 @@
     <LibraryPath />
     <LibraryWPath />
     <SourcePath />
+    <IntDir>LibCrt\$(Configuration)\</IntDir>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>

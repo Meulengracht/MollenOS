@@ -36,7 +36,7 @@
 
 /* Switches active thread */
 _CRT_EXTERN Registers_t *_ThreadingSwitch(Registers_t *Regs, int PreEmptive,
-										 uint32_t *TimeSlice, uint32_t *TaskPriority);
+										 uint32_t *TimeSlice, uint32_t *TaskQueue);
 
 /* Context Manipulation */
 _CRT_EXTERN Registers_t *ContextCreate(Addr_t Eip);

@@ -89,10 +89,10 @@ void *IThreadInitBoot(void)
 
 	/* Setup initial thread */
 	Init = (x86Thread_t*)kmalloc(sizeof(x86Thread_t));
+	memset(Init, 0, sizeof(x86Thread_t));
+
 	Init->FpuBuffer = kmalloc_a(0x1000);
 	Init->Flags = X86_THREAD_FPU_INITIALISED | X86_THREAD_USEDFPU;
-	Init->Context = NULL;
-	Init->UserContext = NULL;
 
 	/* Memset the buffer */
 	memset(Init->FpuBuffer, 0, 0x1000);
@@ -112,10 +112,10 @@ void *IThreadInitAp(void)
 
 	/* Setup initial thread */
 	Init = (x86Thread_t*)kmalloc(sizeof(x86Thread_t));
+	memset(Init, 0, sizeof(x86Thread_t));
+
 	Init->FpuBuffer = kmalloc_a(0x1000);
 	Init->Flags = X86_THREAD_FPU_INITIALISED | X86_THREAD_USEDFPU;
-	Init->Context = NULL;
-	Init->UserContext = NULL;
 
 	/* Memset the buffer */
 	memset(Init->FpuBuffer, 0, 0x1000);
@@ -150,11 +150,10 @@ void *IThreadInit(Addr_t EntryPoint)
 
 	/* Allocate a new thread structure */
 	t = (x86Thread_t*)kmalloc(sizeof(x86Thread_t));
+	memset(t, 0, sizeof(x86Thread_t));
 
 	/* Setup */
 	t->Context = ContextCreate((Addr_t)EntryPoint);
-	t->UserContext = NULL;
-	t->Flags = 0;
 
 	/* FPU */
 	t->FpuBuffer = (Addr_t*)kmalloc_a(0x1000);
@@ -198,7 +197,7 @@ void IThreadInitUserMode(void *ThreadData, Addr_t StackAddr, Addr_t EntryPoint, 
 
 /* Task Switch occurs here */
 Registers_t *_ThreadingSwitch(Registers_t *Regs, int PreEmptive, uint32_t *TimeSlice, 
-							 uint32_t *TaskPriority)
+							 uint32_t *TaskQueue)
 {
 	/* We'll need these */
 	Cpu_t Cpu;
@@ -237,7 +236,7 @@ Registers_t *_ThreadingSwitch(Registers_t *Regs, int PreEmptive, uint32_t *TimeS
 
 	/* Update user variables */
 	*TimeSlice = mThread->TimeSlice;
-	*TaskPriority = mThread->Priority;
+	*TaskQueue = mThread->Queue;
 
 	/* Update Addressing Space */
 	MmVirtualSwitchPageDirectory(Cpu, 

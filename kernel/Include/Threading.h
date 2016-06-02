@@ -56,7 +56,7 @@ typedef struct _MCoreThread
 
 	/* Scheduler Information */
 	size_t TimeSlice;
-	int Priority;
+	int Queue;
 	
 	/* Synchronization */
 	Addr_t *SleepResource;
