@@ -11,6 +11,10 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "LibC", "Crt\libc\WindowsPro
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "LibCXXABI", "Crt\LibCXXABI\LibCXXABI.vcxproj", "{69B1ED50-EC11-4991-AD44-BE4AC32A7CEF}"
 EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Applications", "Applications", "{ECD2CC60-3CFA-41C3-B95F-2805074E936D}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "Terminal", "Applications\Terminal\Terminal.vcxproj", "{5A6FC271-438E-424C-9005-C5AA9DAA8EE4}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Win32 = Debug|Win32
@@ -29,6 +33,10 @@ Global
 		{69B1ED50-EC11-4991-AD44-BE4AC32A7CEF}.Debug|Win32.Build.0 = Debug|Win32
 		{69B1ED50-EC11-4991-AD44-BE4AC32A7CEF}.Release|Win32.ActiveCfg = Release|Win32
 		{69B1ED50-EC11-4991-AD44-BE4AC32A7CEF}.Release|Win32.Build.0 = Release|Win32
+		{5A6FC271-438E-424C-9005-C5AA9DAA8EE4}.Debug|Win32.ActiveCfg = Debug|Win32
+		{5A6FC271-438E-424C-9005-C5AA9DAA8EE4}.Debug|Win32.Build.0 = Debug|Win32
+		{5A6FC271-438E-424C-9005-C5AA9DAA8EE4}.Release|Win32.ActiveCfg = Release|Win32
+		{5A6FC271-438E-424C-9005-C5AA9DAA8EE4}.Release|Win32.Build.0 = Release|Win32
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -36,5 +44,6 @@ Global
 	GlobalSection(NestedProjects) = preSolution
 		{66406913-4FF2-42D1-A65F-C024FDFC9159} = {0DAAAEB8-5673-4716-B349-82993A0F5ED9}
 		{69B1ED50-EC11-4991-AD44-BE4AC32A7CEF} = {0DAAAEB8-5673-4716-B349-82993A0F5ED9}
+		{5A6FC271-438E-424C-9005-C5AA9DAA8EE4} = {ECD2CC60-3CFA-41C3-B95F-2805074E936D}
 	EndGlobalSection
 EndGlobal

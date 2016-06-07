@@ -123,21 +123,12 @@ void EventLoop(SDL_Renderer *Target)
 	MEventMessage_t Message;
 	int bQuit = 0;
 
-	/* Precreate a test window */
-	Rect_t WndSize;
-	Window_t *Test = NULL;
-
-	WndSize.x = 100;
-	WndSize.y = 100;
-	WndSize.w = 350;
-	WndSize.h = 200;
-
-	Test = WindowCreate(0, &WndSize, 0, Target);
-
 	/* Pre-Render */
-	SceneManagerAddWindow(Test);
 	SceneManagerUpdate();
 	SceneManagerRender(Target);
+
+	/* Start terminal */
+	ProcessSpawn("%Sys%/Terminal.mxi", NULL);
 
 	/* Loop forever */
 	while (!bQuit) 

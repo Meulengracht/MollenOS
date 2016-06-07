@@ -81,3 +81,39 @@ int dsmatchkey(KeyType_t KeyType, DataKey_t Key1, DataKey_t Key2)
 	/* Damn, no match */
 	return -1;
 }
+
+/* Helper Function
+ * Used by sorting, it compares to values
+ * and returns 1 if 1 > 2, 0 if 1 == 2 and
+ * -1 if 2 > 1 */
+int dssortkey(KeyType_t KeyType, DataKey_t Key1, DataKey_t Key2)
+{
+	switch (KeyType)
+	{
+		/* Check if ints match */
+		case KeyInteger: {
+			if (Key1.Value == Key2.Value)
+				return 0;
+			else if (Key1.Value > Key2.Value)
+				return 1;
+			else
+				return -1;
+		} break;
+
+		/* Sort on pointers? Wtf?
+		 * this is impossible */
+		case KeyPointer: {
+			return 0;
+		} break;
+
+		/* Check if strings match 
+		 * by using strcmp, it follows
+		 * our return policy */
+		case KeyString: {
+			return strcmp(Key1.String, Key2.String);
+		} break;
+	}
+
+	/* Damn, no match */
+	return 0;
+}

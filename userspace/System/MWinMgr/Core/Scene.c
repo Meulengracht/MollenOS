@@ -100,7 +100,7 @@ void SceneAddWindow(Scene_t *Scene, Window_t *Window)
 
 	/* Append window to scene */
 	Key.Value = Window->Id;
-	ListAppend(Scene->Windows, ListCreateNode(Key, Window));
+	ListAppend(Scene->Windows, ListCreateNode(Key, Key, Window));
 }
 
 /* Update

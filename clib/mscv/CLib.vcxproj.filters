@@ -372,12 +372,6 @@
     <ClCompile Include="..\src\stdio\fungetc.c">
       <Filter>Source\stdio\File</Filter>
     </ClCompile>
-    <ClCompile Include="..\src\math\acos.c">
-      <Filter>Source\math</Filter>
-    </ClCompile>
-    <ClCompile Include="..\src\math\asin.c">
-      <Filter>Source\math</Filter>
-    </ClCompile>
     <ClCompile Include="..\src\math\atan2f.c">
       <Filter>Source\math</Filter>
     </ClCompile>
@@ -455,6 +449,9 @@
     </ClCompile>
     <ClCompile Include="..\src\stdio\getchar.c">
       <Filter>Source\stdio\ConIo</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\stdio\fscanf.c">
+      <Filter>Source\stdio\File</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -543,6 +540,12 @@
       <Filter>Source\math\i386</Filter>
     </CustomBuild>
     <CustomBuild Include="..\src\math\i386\_tanh.S">
+      <Filter>Source\math\i386</Filter>
+    </CustomBuild>
+    <CustomBuild Include="..\src\math\i386\_acos.S">
+      <Filter>Source\math\i386</Filter>
+    </CustomBuild>
+    <CustomBuild Include="..\src\math\i386\_asin.S">
       <Filter>Source\math\i386</Filter>
     </CustomBuild>
   </ItemGroup>

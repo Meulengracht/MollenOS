@@ -40,7 +40,7 @@ void PicInit(void)
 	outb(0xA1, 0x28);
 
 	/* Send initialization words, they define
-	* which PIC connects to where */
+	 * which PIC connects to where */
 	outb(0x21, 0x04);
 	outb(0xA1, 0x02);
 

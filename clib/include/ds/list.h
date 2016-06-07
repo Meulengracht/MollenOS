@@ -40,8 +40,9 @@
  * and data */
 typedef struct _ListNode
 {
-	/* Key */
+	/* Key(s) */
 	DataKey_t Key;
+	DataKey_t SortKey;
 
 	/* Payload */
 	void *Data;
@@ -75,10 +76,19 @@ typedef struct _List
 } List_t;
 
 /* List Definitions */
-#define LIST_NORMAL		0x0
-#define LIST_SAFE		0x1
+#define LIST_NORMAL				0x0
+#define LIST_SAFE				0x1
 
-/* Foreach Macro */
+/* Sorted list? Normally 
+ * the list is unsorted 
+ * but supports different sorts */
+#define LIST_SORT_ONINSERT		0x2
+#define LIST_SORT_ONCALL		(0x4 | LIST_SORT_ONINSERT)
+
+/* Foreach Macro(s)
+ * They help keeping the code 
+ * clean and readable when coding
+ * loops */
 #define foreach(i, List) ListNode_t *i; for (i = List->Headp; i != NULL; i = i->Link)
 #define _foreach(i, List) for (i = List->Headp; i != NULL; i = i->Link)
 #define _foreach_nolink(i, List) for (i = List->Headp; i != NULL; )
@@ -103,8 +113,9 @@ _CRT_EXTERN int ListLength(List_t *List);
 
 /* Instantiates a new list node 
  * that can be appended to the list 
- * by ListAppend */
-_CRT_EXTERN ListNode_t *ListCreateNode(DataKey_t Key, void *Data);
+ * by ListAppend. If using an unsorted list
+ * set the sortkey == key */
+_CRT_EXTERN ListNode_t *ListCreateNode(DataKey_t Key, DataKey_t SortKey, void *Data);
 
 /* Cleans up a list node and frees 
  * all resources it had */
@@ -112,15 +123,21 @@ _CRT_EXTERN void ListDestroyNode(List_t *List, ListNode_t *Node);
 
 /* Insert the node into a specific position
  * in the list, if position is invalid it is
- * inserted at the back */
-_CRT_EXTERN void ListInsert(List_t *List, ListNode_t *Node, int Position);
+ * inserted at the back. This function is not
+ * available for sorted lists, it will simply 
+ * call ListInsert instead */
+_CRT_EXTERN void ListInsertAt(List_t *List, ListNode_t *Node, int Position);
 
 /* Inserts the node into the front of 
- * the list */
-_CRT_EXTERN void ListInsertFront(List_t *List, ListNode_t *Node);
+ * the list. This should be used for sorted
+ * lists, but is available for unsorted lists
+ * aswell */
+_CRT_EXTERN void ListInsert(List_t *List, ListNode_t *Node);
 
 /* Inserts the node into the the back
- * of the list */
+ * of the list. This function is not
+ * available for sorted lists, it will
+ * simply redirect to ListInsert */
 _CRT_EXTERN void ListAppend(List_t *List, ListNode_t *Node);
 
 /* List pop functions, the either 

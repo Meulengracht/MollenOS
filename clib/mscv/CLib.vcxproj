@@ -20,8 +20,6 @@
     <ClCompile Include="..\src\errno\errno.c" />
     <ClCompile Include="..\src\errno\errstrings.c" />
     <ClCompile Include="..\src\getopt\getopt_long.c" />
-    <ClCompile Include="..\src\math\acos.c" />
-    <ClCompile Include="..\src\math\asin.c" />
     <ClCompile Include="..\src\math\atan2f.c" />
     <ClCompile Include="..\src\math\copysign.c" />
     <ClCompile Include="..\src\math\cosf.c" />
@@ -63,6 +61,7 @@
     <ClCompile Include="..\src\stdio\fremove.c" />
     <ClCompile Include="..\src\stdio\freopen.c" />
     <ClCompile Include="..\src\stdio\frewind.c" />
+    <ClCompile Include="..\src\stdio\fscanf.c" />
     <ClCompile Include="..\src\stdio\fseek.c" />
     <ClCompile Include="..\src\stdio\fsetpos.c" />
     <ClCompile Include="..\src\stdio\ftell.c" />
@@ -348,6 +347,20 @@
   </ItemGroup>
   <ItemGroup>
     <CustomBuild Include="..\src\math\i386\_sinh.S">
+      <FileType>Document</FileType>
+      <Command Condition="'$(Configuration)|$(Platform)'=='CLibK|Win32'">nasm -f win32 -Xvc -o $(IntDir)\%(Filename).obj %(FullPath)</Command>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='CLibK|Win32'">$(IntDir)\%(Filename).obj</Outputs>
+    </CustomBuild>
+  </ItemGroup>
+  <ItemGroup>
+    <CustomBuild Include="..\src\math\i386\_acos.S">
+      <FileType>Document</FileType>
+      <Command Condition="'$(Configuration)|$(Platform)'=='CLibK|Win32'">nasm -f win32 -Xvc -o $(IntDir)\%(Filename).obj %(FullPath)</Command>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='CLibK|Win32'">$(IntDir)\%(Filename).obj</Outputs>
+    </CustomBuild>
+  </ItemGroup>
+  <ItemGroup>
+    <CustomBuild Include="..\src\math\i386\_asin.S">
       <FileType>Document</FileType>
       <Command Condition="'$(Configuration)|$(Platform)'=='CLibK|Win32'">nasm -f win32 -Xvc -o $(IntDir)\%(Filename).obj %(FullPath)</Command>
       <Outputs Condition="'$(Configuration)|$(Platform)'=='CLibK|Win32'">$(IntDir)\%(Filename).obj</Outputs>

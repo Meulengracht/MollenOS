@@ -371,7 +371,7 @@ int DeviceAllocateInterrupt(void *mCoreDevice)
 		/* If no routing exists use the interrupt_line */
 		if (DidExist == -1)
 		{
-			IrqLine = Device->IrqLine;
+			IrqLine = PciRead8(Device->Bus, Device->Device, Device->Function, 0x3C);
 			IdtEntry += Device->IrqLine;
 
 			ApicFlags |= 0x100;				/* Lowest Priority */

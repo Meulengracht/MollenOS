@@ -136,10 +136,10 @@ _CRT_EXTERN int vasprintf(char **ret, const char *format, va_list ap);
 _CRT_EXTERN int sscanf(const char *ibuf, const char *fmt, ...);
 _CRT_EXTERN int vsscanf(const char *inp, char const *fmt0, va_list ap);
 
-_CRT_EXTERN int fprintf(FILE * stream, const char * format, ...);
+_CRT_EXTERN int fprintf(FILE * stream, const char *format, ...);
 _CRT_EXTERN int vfprintf(FILE *stream, const char *format, va_list ap);
-//_CRT_EXTERN int fscanf(FILE *stream, const char *format, ...);
-//_CRT_EXTERN int vfscanf ( FILE * stream, const char * format, va_list arg );
+_CRT_EXTERN int fscanf(FILE *stream, const char *format, ...);
+_CRT_EXTERN int vfscanf(FILE * stream, const char *format, va_list arg);
 
 _CRT_EXTERN int printf(const char *format, ...);
 _CRT_EXTERN int vprintf(const char *format, va_list ap);

@@ -81,4 +81,10 @@ _CRT_EXTERN void dsfree(void *p);
  * returns 0 if they are equal, or -1 if not */
 _CRT_EXTERN int dsmatchkey(KeyType_t KeyType, DataKey_t Key1, DataKey_t Key2);
 
+/* Helper Function
+ * Used by sorting, it compares to values
+ * and returns 1 if 1 > 2, 0 if 1 == 2 and
+ * -1 if 2 > 1 */
+_CRT_EXTERN int dssortkey(KeyType_t KeyType, DataKey_t Key1, DataKey_t Key2);
+
 #endif //!_DATASTRUCTURES_H_

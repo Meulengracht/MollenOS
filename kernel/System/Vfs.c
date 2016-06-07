@@ -638,6 +638,9 @@ void VfsOpenInternal(MCoreFileInstance_t *Instance, MString_t *Path, VfsFileFlag
 				fHandle->References = 1;
 				fHandle->Hash = PathHash;
 
+				/* Copy path */
+				fHandle->Path = MStringCreate(Path->Data, StrUTF8);
+
 				/* Create handle */
 				VfsOpenHandleInternal(Fs, Instance, fHandle, OpenFlags);
 
@@ -685,7 +688,7 @@ MCoreFileInstance_t *VfsOpen(const char *Path, VfsFileFlags_t OpenFlags)
 		&& strchr(Path, '%') == NULL) 
 	{
 		/* Now we loop through all possible locations
-		* of %PATH% */
+		 * of %PATH% */
 		for (i = 0; i < (int)PathEnvironmentCount; i++)
 		{
 			/* Which locations do we allow? */

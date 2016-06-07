@@ -241,7 +241,7 @@ void AcpiEnumerate(void)
 	if (ACPI_SUCCESS(AcpiGetTable(ACPI_SIG_SBST, 0, &Header3)))
 	{
 		/* Cast */
-		BattTable = (ACPI_TABLE_SBST*)Header2;
+		BattTable = (ACPI_TABLE_SBST*)Header3;
 
 		/* Gogo */
 		

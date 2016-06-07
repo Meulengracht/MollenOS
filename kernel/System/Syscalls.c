@@ -170,7 +170,8 @@ int ScProcessQuery(PId_t ProcessId, void *Buffer, size_t Length)
 	}
 
 	/* Sanitize the processid */
-	if (ProcessId == 0xFFFFFFFF) {
+	if (ProcessId == 0xFFFFFFFF
+		|| ProcessId == 0) {
 		ProcessId = ThreadingGetCurrentThread(ApicGetCpu())->ProcessId;
 	}
 

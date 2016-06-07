@@ -95,6 +95,26 @@ typedef enum _EnvironmentPaths
 
 } EnvironmentPath_t;
 
+/* Environment Queries
+ * List of the different options
+ * for environment queries */
+typedef enum _EnvironmentQueryFunction
+{
+	EnvironmentQueryOS,
+	EnvironmentQueryMemory
+
+} EnvironmentQueryFunction_t;
+
+/* Process Queries
+ * List of the different options
+ * for process queries */
+typedef enum _ProcessQueryFunction
+{
+	ProcessQueryName,
+	ProcessQueryMemory
+
+} ProcessQueryFunction_t;
+
 /* Structures */
 typedef struct _MollenOSVideoDescriptor
 {
@@ -161,8 +181,8 @@ _MOS_API int MollenOSMessageWait(MEventMessage_t *Message);
 _MOS_API int MollenOSMessageSend(IpcComm_t Target, void *Message, size_t MessageLength);
 
 /***********************
-* Process Prototypes
-***********************/
+ * Process Prototypes
+ ***********************/
 
 /* Process Spawn
  * This function spawns a new process
@@ -185,9 +205,16 @@ _MOS_API int ProcessJoin(PId_t ProcessId);
  * kill was succesful, returns 0 */
 _MOS_API int ProcessKill(PId_t ProcessId);
 
+/* Process Query
+ * Queries information about the
+ * given process id, or use 0
+ * to query information about current
+ * process */
+_MOS_API int ProcessQuery(PId_t ProcessId, ProcessQueryFunction_t Function, void *Buffer, size_t Length);
+
 /***********************
-* Memory Prototypes
-***********************/
+ * Memory Prototypes
+ ***********************/
 
 /* Memory - Share 
  * This shares a piece of memory with the 
@@ -205,13 +232,13 @@ _MOS_API void *MollenOSMemoryShare(IpcComm_t Target, void *Buffer, size_t Size);
 _MOS_API int MollenOSMemoryUnshare(IpcComm_t Target, void *MemoryHandle, size_t Size);
 
 /***********************
-* Device Prototypes
-***********************/
+ * Device Prototypes
+ ***********************/
 _MOS_API int MollenOSDeviceQuery(MollenOSDeviceType_t Type, int Request, void *Buffer, size_t Length);
 
 /***********************
-* Shared Library Prototypes
-***********************/
+ * Shared Library Prototypes
+ ***********************/
 
 /* Load a shared object given a path
  * path must exists otherwise NULL is returned */
@@ -227,17 +254,23 @@ _MOS_API void *SharedObjectGetFunction(void *Handle, const char *Function);
 _MOS_API void SharedObjectUnload(void *Handle);
 
 /***********************
-* Environment Prototypes
-***********************/
+ * Environment Prototypes
+ ***********************/
 
 /* Resolve Environmental Path
  * Resolves the environmental type
  * to an valid absolute path */
 _MOS_API void EnvironmentResolve(EnvironmentPath_t SpecialPath, char *StringBuffer);
 
+/* Environment Query
+ * Query the system environment 
+ * for information, this could be
+ * memory, cpu, etc information */
+_MOS_API int EnvironmentQuery(EnvironmentQueryFunction_t Function, void *Buffer, size_t Length);
+
 /***********************
-* Screen Prototypes
-***********************/
+ * Screen Prototypes
+ ***********************/
 
 /* This function returns screen geomemtry
  * descriped as a rectangle structure, which
@@ -245,12 +278,12 @@ _MOS_API void EnvironmentResolve(EnvironmentPath_t SpecialPath, char *StringBuff
 _MOS_API void MollenOSGetScreenGeometry(Rect_t *Rectangle);
 
 /***********************
-* System Misc Prototypes
-* - No functions here should
-*   be called manually
-*   they are automatically used
-*   by systems
-***********************/
+ * System Misc Prototypes
+ * - No functions here should
+ *   be called manually
+ *   they are automatically used
+ *   by systems
+ ***********************/
 _MOS_API int MollenOSSignalWait(size_t Timeout);
 _MOS_API int MollenOSSignalWake(IpcComm_t Target);
 _MOS_API void MollenOSSystemLog(const char *Message);

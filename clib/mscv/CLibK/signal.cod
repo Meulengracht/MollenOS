@@ -62,7 +62,7 @@ _signal_list DD	02H
 	DD	0fH
 	DD	FLAT:??_C@_0BE@FPFDJFHC@Termination?5request?$AA@
 	DD	00H
-	DD	015H
+	DD	03H
 	DD	FLAT:??_C@_0L@EKFNCKAB@CTRL?$CLBREAK?$AA@
 	DD	00H
 	DD	06H
@@ -94,7 +94,7 @@ _raise	PROC						; COMDAT
 
   00003	8b 55 08	 mov	 edx, DWORD PTR _sig$[ebp]
   00006	8d 42 fe	 lea	 eax, DWORD PTR [edx-2]
-  00009	83 f8 13	 cmp	 eax, 19			; 00000013H
+  00009	83 f8 0d	 cmp	 eax, 13			; 0000000dH
   0000c	77 5a		 ja	 SHORT $LN8@raise
   0000e	0f b6 80 00 00
 	00 00		 movzx	 eax, BYTE PTR $LN20@raise[eax]
@@ -228,7 +228,7 @@ $LN8@raise:
 ; 83   :       case SIGFPE:
 ; 84   :       case SIGSEGV:
 ; 85   :       case SIGTERM:
-; 86   :       case SIGBREAK:
+; 86   : 	  case SIGQUIT:
 ; 87   :       case SIGABRT:
 ; 88   :          break;
 ; 89   : 
@@ -248,7 +248,7 @@ $LN24@raise:
   00074	00 00 00 00	 DD	 $LN8@raise
 $LN20@raise:
   00078	00		 DB	 0
-  00079	01		 DB	 1
+  00079	00		 DB	 0
   0007a	00		 DB	 0
   0007b	01		 DB	 1
   0007c	00		 DB	 0
@@ -261,12 +261,6 @@ $LN20@raise:
   00083	01		 DB	 1
   00084	01		 DB	 1
   00085	00		 DB	 0
-  00086	01		 DB	 1
-  00087	01		 DB	 1
-  00088	01		 DB	 1
-  00089	01		 DB	 1
-  0008a	01		 DB	 1
-  0008b	00		 DB	 0
 _raise	ENDP
 _TEXT	ENDS
 ; Function compile flags: /Ogtp
@@ -289,7 +283,7 @@ _signal	PROC						; COMDAT
 
   00003	8b 55 08	 mov	 edx, DWORD PTR _sig$[ebp]
   00006	8d 42 fe	 lea	 eax, DWORD PTR [edx-2]
-  00009	83 f8 13	 cmp	 eax, 19			; 00000013H
+  00009	83 f8 0d	 cmp	 eax, 13			; 0000000dH
   0000c	77 5d		 ja	 SHORT $LN6@signal
   0000e	0f b6 80 00 00
 	00 00		 movzx	 eax, BYTE PTR $LN17@signal[eax]
@@ -391,7 +385,7 @@ $LN6@signal:
 ; 36   :       case SIGFPE:
 ; 37   :       case SIGSEGV:
 ; 38   :       case SIGTERM:
-; 39   :       case SIGBREAK:
+; 39   : 	  case SIGQUIT:
 ; 40   :       case SIGABRT:
 ; 41   :          break;
 ; 42   : 
@@ -416,7 +410,7 @@ $LN21@signal:
   00080	00 00 00 00	 DD	 $LN6@signal
 $LN17@signal:
   00084	00		 DB	 0
-  00085	01		 DB	 1
+  00085	00		 DB	 0
   00086	00		 DB	 0
   00087	01		 DB	 1
   00088	00		 DB	 0
@@ -429,12 +423,6 @@ $LN17@signal:
   0008f	01		 DB	 1
   00090	01		 DB	 1
   00091	00		 DB	 0
-  00092	01		 DB	 1
-  00093	01		 DB	 1
-  00094	01		 DB	 1
-  00095	01		 DB	 1
-  00096	01		 DB	 1
-  00097	00		 DB	 0
 _signal	ENDP
 _TEXT	ENDS
 ; Function compile flags: /Ogtp

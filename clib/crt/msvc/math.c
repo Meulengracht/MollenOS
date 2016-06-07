@@ -27,24 +27,6 @@ double _cdecl _CIcosh(void)
 /*
  * @implemented
  */
-double _cdecl _CIasin(void)
-{
-	FPU_DOUBLE(x);
-	return asin(x);
-}
-
-/*
- * @implemented
- */
-double _cdecl _CIacos(void)
-{
-	FPU_DOUBLE(x);
-	return acos(x);
-}
-
-/*
- * @implemented
- */
 double _cdecl _CIatan(void)
 {
 	FPU_DOUBLE(x);

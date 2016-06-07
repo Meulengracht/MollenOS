@@ -44,6 +44,16 @@ typedef unsigned int TId_t;
 #define THREADING_TRANSITION	0x40
 #define THREADING_INHERIT		0x80
 
+/* Enumerators */
+typedef enum _MCoreThreadPriority
+{
+	PriorityLow,
+	PriorityNormal,
+	PriorityHigh,
+	PriorityCritical
+
+} MCoreThreadPriority_t;
+
 /* Structures */
 typedef struct _MCoreThread
 {
@@ -55,6 +65,7 @@ typedef struct _MCoreThread
 	int RetCode;
 
 	/* Scheduler Information */
+	MCoreThreadPriority_t Priority;
 	size_t TimeSlice;
 	int Queue;
 	

@@ -355,6 +355,7 @@ void EhciSetup(EhciController_t *Controller)
 	/* Set desired interrupts */
 	Controller->OpRegisters->UsbIntr = (EHCI_INTR_PROCESS | EHCI_INTR_PROCESSERROR
 		| EHCI_INTR_PORTCHANGE | EHCI_INTR_HOSTERROR | EHCI_INTR_ASYNC_DOORBELL);
+	Controller->OpRegisters->UsbStatus = Controller->OpRegisters->UsbIntr;
 
 	/* Build Command 
 	 * Irq Latency = 0 */

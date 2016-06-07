@@ -1607,6 +1607,10 @@ void UhciTransactionSend(void *Controller, UsbHcRequest_t *Request)
 			PrevQh = ItrQh;
 			ItrQh = (UhciQueueHead_t*)ItrQh->LinkVirtual;
 
+			/* Sanity -> */
+			if (ItrQh == NULL)
+				break;
+
 			/* Get queue of next */
 			NextQueue = UHCI_QT_GET_QUEUE(ItrQh->Flags);
 

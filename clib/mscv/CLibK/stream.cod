@@ -18,10 +18,6 @@ _DATA	SEGMENT
 ?_nullstring@?1??streamout@@9@9 DD FLAT:??_C@_06OJHGLDPL@?$CInull?$CJ?$AA@ ; `streamout'::`2'::_nullstring
 _DATA	ENDS
 CONST	SEGMENT
-?digits_l@?1??streamout@@9@9 DB '0123456789abcdef0x', 00H ; `streamout'::`2'::digits_l
-	ORG $+1
-?digits_u@?1??streamout@@9@9 DB '0123456789ABCDEF0X', 00H ; `streamout'::`2'::digits_u
-	ORG $+1
 ?digits_l@?1??format_float@@9@9 DB '0123456789abcdef0x', 00H ; `format_float'::`2'::digits_l
 	ORG $+1
 ?digits_u@?1??format_float@@9@9 DB '0123456789ABCDEF0X', 00H ; `format_float'::`2'::digits_u
@@ -29,6 +25,10 @@ CONST	SEGMENT
 ?_nan@?1??format_float@@9@9 DB '#QNAN', 00H		; `format_float'::`2'::_nan
 	ORG $+2
 ?_infinity@?1??format_float@@9@9 DB '#INF', 00H		; `format_float'::`2'::_infinity
+	ORG $+3
+?digits_l@?1??streamout@@9@9 DB '0123456789abcdef0x', 00H ; `streamout'::`2'::digits_l
+	ORG $+1
+?digits_u@?1??streamout@@9@9 DB '0123456789ABCDEF0X', 00H ; `streamout'::`2'::digits_u
 CONST	ENDS
 PUBLIC	___fpclassifyl
 PUBLIC	___fpclassifyf

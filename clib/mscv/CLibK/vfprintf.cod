@@ -10,187 +10,143 @@ INCLUDELIB MSVCRT
 INCLUDELIB OLDNAMES
 
 PUBLIC	_vfprintf
-PUBLIC	??_C@_02CBLLGHLK@r?$CL?$AA@			; `string'
-PUBLIC	??_C@_0BD@FCDCCLAO@c?3?1system?1mlog?4txt?$AA@	; `string'
-EXTRN	_fclose:PROC
-EXTRN	_fopen:PROC
 EXTRN	_vsprintf:PROC
+EXTRN	_vprintf:PROC
 EXTRN	_fwrite:PROC
-EXTRN	_malloc:PROC
-EXTRN	_free:PROC
+EXTRN	___errno:PROC
 EXTRN	_memset:PROC
-;	COMDAT ??_C@_0BD@FCDCCLAO@c?3?1system?1mlog?4txt?$AA@
-CONST	SEGMENT
-??_C@_0BD@FCDCCLAO@c?3?1system?1mlog?4txt?$AA@ DB 'c:/system/mlog.txt', 00H ; `string'
-CONST	ENDS
-;	COMDAT ??_C@_02CBLLGHLK@r?$CL?$AA@
-CONST	SEGMENT
-??_C@_02CBLLGHLK@r?$CL?$AA@ DB 'r+', 00H		; `string'
-CONST	ENDS
 ; Function compile flags: /Ogtp
 ; File c:\users\philip\documents\github\mollenos\clib\src\stdio\vfprintf.c
 ;	COMDAT _vfprintf
 _TEXT	SEGMENT
+_Out$ = -256						; size = 256
 _stream$ = 8						; size = 4
 _format$ = 12						; size = 4
 _ap$ = 16						; size = 4
 _vfprintf PROC						; COMDAT
 
-; 12   : {
+; 30   : {
 
   00000	55		 push	 ebp
   00001	8b ec		 mov	 ebp, esp
-  00003	56		 push	 esi
-  00004	57		 push	 edi
+  00003	81 ec 00 01 00
+	00		 sub	 esp, 256		; 00000100H
+  00009	56		 push	 esi
 
-; 13   : 	//Step 1. Combine string and arguments
-; 14   : 	char *Out = (char*)malloc(256);
+; 31   : 	/* Variables */
+; 32   : 	char Out[256];
+; 33   : 
+; 34   : 	/* Sanitize input */
+; 35   : 	if (stream == NULL
+; 36   : 		|| stream == stdin) {
 
-  00005	68 00 01 00 00	 push	 256			; 00000100H
-  0000a	e8 00 00 00 00	 call	 _malloc
+  0000a	8b 75 08	 mov	 esi, DWORD PTR _stream$[ebp]
+  0000d	85 f6		 test	 esi, esi
+  0000f	74 74		 je	 SHORT $LN3@vfprintf
+  00011	83 fe 02	 cmp	 esi, 2
+  00014	74 6f		 je	 SHORT $LN3@vfprintf
 
-; 15   : 	memset(Out, 0, 256);
+; 39   : 	}
+; 40   : 
+; 41   : 	/* Sanity */
+; 42   : 	if (stream == stdout
+; 43   : 		|| stream == stderr)
 
-  0000f	68 00 01 00 00	 push	 256			; 00000100H
-  00014	8b f0		 mov	 esi, eax
-  00016	6a 00		 push	 0
-  00018	56		 push	 esi
-  00019	e8 00 00 00 00	 call	 _memset
+  00016	83 fe 01	 cmp	 esi, 1
+  00019	74 57		 je	 SHORT $LN1@vfprintf
+  0001b	83 fe 03	 cmp	 esi, 3
+  0001e	74 52		 je	 SHORT $LN1@vfprintf
 
-; 16   : 
-; 17   : 	//Use sprintf that for this
-; 18   : 	vsprintf(Out, format, ap);
+; 48   : 	}
+; 49   : 
+; 50   : 	/* Reset buffer */
+; 51   : 	memset(&Out[0], 0, sizeof(Out));
 
-  0001e	ff 75 10	 push	 DWORD PTR _ap$[ebp]
-  00021	ff 75 0c	 push	 DWORD PTR _format$[ebp]
-  00024	56		 push	 esi
-  00025	e8 00 00 00 00	 call	 _vsprintf
+  00020	68 00 01 00 00	 push	 256			; 00000100H
+  00025	8d 85 00 ff ff
+	ff		 lea	 eax, DWORD PTR _Out$[ebp]
+  0002b	6a 00		 push	 0
+  0002d	50		 push	 eax
+  0002e	e8 00 00 00 00	 call	 _memset
 
-; 19   : 
-; 20   : 	//If we have a valid stream, write to that.
-; 21   : 	if(stream != NULL)
+; 52   : 
+; 53   : 	/* Redirect to sprintf to take care of 
+; 54   : 	 * formatting */
+; 55   : 	vsprintf(&Out[0], format, ap);
 
-  0002a	8b 55 08	 mov	 edx, DWORD PTR _stream$[ebp]
-  0002d	83 c4 1c	 add	 esp, 28			; 0000001cH
-  00030	85 d2		 test	 edx, edx
-  00032	74 31		 je	 SHORT $LN3@vfprintf
+  00033	ff 75 10	 push	 DWORD PTR _ap$[ebp]
+  00036	8d 85 00 ff ff
+	ff		 lea	 eax, DWORD PTR _Out$[ebp]
+  0003c	ff 75 0c	 push	 DWORD PTR _format$[ebp]
+  0003f	50		 push	 eax
+  00040	e8 00 00 00 00	 call	 _vsprintf
 
-; 22   : 		fwrite(Out, strlen(Out), 1, stream);
+; 56   : 
+; 57   : 	/* Use f-write to write 
+; 58   : 	 * to the file */
+; 59   : 	return fwrite(&Out[0], strlen(&Out[0]), 1, stream);
 
-  00034	8b ce		 mov	 ecx, esi
-  00036	8d 79 01	 lea	 edi, DWORD PTR [ecx+1]
-  00039	8d a4 24 00 00
-	00 00		 npad	 7
-$LL6@vfprintf:
-  00040	8a 01		 mov	 al, BYTE PTR [ecx]
-  00042	41		 inc	 ecx
-  00043	84 c0		 test	 al, al
-  00045	75 f9		 jne	 SHORT $LL6@vfprintf
-  00047	52		 push	 edx
-  00048	2b cf		 sub	 ecx, edi
-  0004a	6a 01		 push	 1
-  0004c	51		 push	 ecx
-  0004d	56		 push	 esi
-  0004e	e8 00 00 00 00	 call	 _fwrite
-  00053	83 c4 10	 add	 esp, 16			; 00000010H
+  00045	8d 8d 00 ff ff
+	ff		 lea	 ecx, DWORD PTR _Out$[ebp]
+  0004b	83 c4 18	 add	 esp, 24			; 00000018H
+  0004e	8d 51 01	 lea	 edx, DWORD PTR [ecx+1]
+$LL7@vfprintf:
+  00051	8a 01		 mov	 al, BYTE PTR [ecx]
+  00053	41		 inc	 ecx
+  00054	84 c0		 test	 al, al
+  00056	75 f9		 jne	 SHORT $LL7@vfprintf
+  00058	56		 push	 esi
+  00059	2b ca		 sub	 ecx, edx
+  0005b	8d 85 00 ff ff
+	ff		 lea	 eax, DWORD PTR _Out$[ebp]
+  00061	6a 01		 push	 1
+  00063	51		 push	 ecx
+  00064	50		 push	 eax
+  00065	e8 00 00 00 00	 call	 _fwrite
+  0006a	83 c4 10	 add	 esp, 16			; 00000010H
+  0006d	5e		 pop	 esi
 
-; 36   : 	}
-; 37   : 
-; 38   : 	//Cleanup
-; 39   : 	free(Out);
+; 60   : }
 
-  00056	56		 push	 esi
-  00057	e8 00 00 00 00	 call	 _free
-  0005c	83 c4 04	 add	 esp, 4
-
-; 40   : 	return 0;
-
-  0005f	33 c0		 xor	 eax, eax
-  00061	5f		 pop	 edi
-  00062	5e		 pop	 esi
-
-; 41   : }
-
-  00063	5d		 pop	 ebp
-  00064	c3		 ret	 0
-$LN3@vfprintf:
-
-; 23   : 	else
-; 24   : 	{
-; 25   : 		//Ok, writing to sys-log
-; 26   : 		FILE *temp = fopen("c:/system/mlog.txt", "r+");
-
-  00065	68 00 00 00 00	 push	 OFFSET ??_C@_02CBLLGHLK@r?$CL?$AA@
-  0006a	68 00 00 00 00	 push	 OFFSET ??_C@_0BD@FCDCCLAO@c?3?1system?1mlog?4txt?$AA@
-  0006f	e8 00 00 00 00	 call	 _fopen
-  00074	8b f8		 mov	 edi, eax
-  00076	83 c4 08	 add	 esp, 8
-
-; 27   : 
-; 28   : 		if(temp == NULL)
-
-  00079	85 ff		 test	 edi, edi
-  0007b	75 07		 jne	 SHORT $LN1@vfprintf
-
-; 29   : 			return 1;
-
-  0007d	8d 47 01	 lea	 eax, DWORD PTR [edi+1]
-  00080	5f		 pop	 edi
-  00081	5e		 pop	 esi
-
-; 41   : }
-
-  00082	5d		 pop	 ebp
-  00083	c3		 ret	 0
+  0006e	8b e5		 mov	 esp, ebp
+  00070	5d		 pop	 ebp
+  00071	c3		 ret	 0
 $LN1@vfprintf:
 
-; 30   : 
-; 31   : 		//Write data
-; 32   : 		fwrite(Out, strlen(Out), 1, temp);
+; 44   : 	{
+; 45   : 		/* Redirect the call to vprintf instead
+; 46   : 		* as the output goes to screen instead */
+; 47   : 		return vprintf(format, ap);
 
-  00084	8b ce		 mov	 ecx, esi
-  00086	8d 51 01	 lea	 edx, DWORD PTR [ecx+1]
-  00089	8d a4 24 00 00
-	00 00		 npad	 7
-$LL7@vfprintf:
-  00090	8a 01		 mov	 al, BYTE PTR [ecx]
-  00092	41		 inc	 ecx
-  00093	84 c0		 test	 al, al
-  00095	75 f9		 jne	 SHORT $LL7@vfprintf
-  00097	57		 push	 edi
-  00098	2b ca		 sub	 ecx, edx
-  0009a	6a 01		 push	 1
-  0009c	51		 push	 ecx
-  0009d	56		 push	 esi
-  0009e	e8 00 00 00 00	 call	 _fwrite
+  00072	ff 75 10	 push	 DWORD PTR _ap$[ebp]
+  00075	ff 75 0c	 push	 DWORD PTR _format$[ebp]
+  00078	e8 00 00 00 00	 call	 _vprintf
+  0007d	83 c4 08	 add	 esp, 8
+  00080	5e		 pop	 esi
 
-; 33   : 
-; 34   : 		//Cleanup
-; 35   : 		fclose(temp);
+; 60   : }
 
-  000a3	57		 push	 edi
-  000a4	e8 00 00 00 00	 call	 _fclose
-  000a9	83 c4 14	 add	 esp, 20			; 00000014H
+  00081	8b e5		 mov	 esp, ebp
+  00083	5d		 pop	 ebp
+  00084	c3		 ret	 0
+$LN3@vfprintf:
 
-; 36   : 	}
-; 37   : 
-; 38   : 	//Cleanup
-; 39   : 	free(Out);
+; 37   : 		_set_errno(EINVAL);
 
-  000ac	56		 push	 esi
-  000ad	e8 00 00 00 00	 call	 _free
-  000b2	83 c4 04	 add	 esp, 4
+  00085	e8 00 00 00 00	 call	 ___errno
+  0008a	5e		 pop	 esi
+  0008b	c7 00 16 00 00
+	00		 mov	 DWORD PTR [eax], 22	; 00000016H
 
-; 40   : 	return 0;
+; 38   : 		return -1;
 
-  000b5	33 c0		 xor	 eax, eax
-  000b7	5f		 pop	 edi
-  000b8	5e		 pop	 esi
+  00091	83 c8 ff	 or	 eax, -1
 
-; 41   : }
+; 60   : }
 
-  000b9	5d		 pop	 ebp
-  000ba	c3		 ret	 0
+  00094	8b e5		 mov	 esp, ebp
+  00096	5d		 pop	 ebp
+  00097	c3		 ret	 0
 _vfprintf ENDP
 _TEXT	ENDS
 END

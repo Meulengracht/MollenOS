@@ -189,7 +189,9 @@ typedef struct _VQDirEntry
 #pragma pack(push, 1)
 typedef struct _MCoreFile
 {
-	/* Name of Node */
+	/* Full Path 
+	 * & Name of Node */
+	MString_t *Path;
 	MString_t *Name;
 
 	/* Flags */

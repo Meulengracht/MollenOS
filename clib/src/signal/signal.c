@@ -14,7 +14,7 @@ static sig_element signal_list[] =
 	{ SIGFPE, "Floating-point exception", SIG_DFL },
 	{ SIGSEGV, "Illegal storage access", SIG_DFL },
 	{ SIGTERM, "Termination request", SIG_DFL },
-	{ SIGBREAK, "CTRL+BREAK", SIG_DFL },
+	{ SIGQUIT, "CTRL+BREAK", SIG_DFL },
 	{ SIGABRT, "Abnormal termination", SIG_DFL }
 };
 
@@ -36,7 +36,7 @@ __p_sig_fn_t signal(int sig, __p_sig_fn_t func)
       case SIGFPE:
       case SIGSEGV:
       case SIGTERM:
-      case SIGBREAK:
+	  case SIGQUIT:
       case SIGABRT:
          break;
 
@@ -83,7 +83,7 @@ int raise(int sig)
       case SIGFPE:
       case SIGSEGV:
       case SIGTERM:
-      case SIGBREAK:
+	  case SIGQUIT:
       case SIGABRT:
          break;
 

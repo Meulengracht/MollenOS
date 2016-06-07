@@ -310,7 +310,7 @@ int TLSSetKey(TlsKey_t Key, void *Data)
 	NewTls->Destructor = __TLSGlobal.Dss[Key];
 
 	/* Add it to list */
-	ListAppend(__TLSGlobal.Tls, ListCreateNode(tKey, Data));
+	ListAppend(__TLSGlobal.Tls, ListCreateNode(tKey, tKey, Data));
 
 	/* Done!! */
 	return 0;

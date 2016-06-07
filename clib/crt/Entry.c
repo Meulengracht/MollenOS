@@ -185,7 +185,7 @@ void _mConCrt(void)
 	int RetValue = 0;
 
 	/* Initialize the 8 bytes
-	* of storage */
+	 * of storage */
 	ReservedSpace = (uint64_t*)MOLLENOS_RESERVED_SPACE;
 	*ReservedSpace = (uint64_t)(size_t)&Tls;
 

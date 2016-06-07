@@ -80,6 +80,10 @@ int ListLength(List_t *List)
 	/* Vars */
 	int RetVal = 0;
 
+	/* Sanity */
+	if (List == NULL)
+		return -1;
+
 	/* Get lock */
 	if (List->Attributes & LIST_SAFE)
 		SpinlockAcquire(&List->Lock);
@@ -98,14 +102,16 @@ int ListLength(List_t *List)
 
 /* Instantiates a new list node
  * that can be appended to the list
- * by ListAppend */
-ListNode_t *ListCreateNode(DataKey_t Key, void *Data)
+ * by ListAppend. If using an unsorted list
+ * set the sortkey == key */
+ListNode_t *ListCreateNode(DataKey_t Key, DataKey_t SortKey, void *Data)
 {
 	/* Allocate a new node */
 	ListNode_t *Node = (ListNode_t*)dsalloc(sizeof(ListNode_t));
 
 	/* Set items */
 	Node->Key = Key;
+	Node->SortKey = SortKey;
 	Node->Data = Data;
 	Node->Link = NULL;
 	Node->Prev = NULL;
@@ -130,24 +136,50 @@ void ListDestroyNode(List_t *List, ListNode_t *Node)
 			break;
 	}
 
+	/* Destroy sort key */
+	switch (List->KeyType)
+	{
+		case KeyPointer:
+		case KeyString:
+			if (Node->Key.Pointer != Node->SortKey.Pointer)
+				dsfree(Node->SortKey.Pointer);
+			break;
+
+		default:
+			break;
+	}
+
 	/* Destroy node */
 	dsfree(Node);
 }
 
 /* Insert the node into a specific position
  * in the list, if position is invalid it is
- * inserted at the back */
-void ListInsert(List_t *List, ListNode_t *Node, int Position)
+ * inserted at the back. This function is not
+ * available for sorted lists, it will simply
+ * call ListInsert instead */
+void ListInsertAt(List_t *List, ListNode_t *Node, int Position)
 {
+	/* Sanity */
+	if (List == NULL || Node == NULL)
+		return;
+
+	/* Redirect if we are using a insert-sorted
+	 * list, as we cannot insert at specific pos */
+	if (List->Attributes & LIST_SORT_ONINSERT) {
+		ListInsert(List, Node);
+		return;
+	}
+
 	/* TODO */
-	_CRT_UNUSED(List);
-	_CRT_UNUSED(Node);
 	_CRT_UNUSED(Position);
 }
 
 /* Inserts the node into the front of
- * the list */
-void ListInsertFront(List_t *List, ListNode_t *Node)
+ * the list. This should be used for sorted
+ * lists, but is available for unsorted lists
+ * aswell */
+void ListInsert(List_t *List, ListNode_t *Node)
 {
 	/* Sanity */
 	if (List == NULL || Node == NULL)
@@ -157,22 +189,95 @@ void ListInsertFront(List_t *List, ListNode_t *Node)
 	if (List->Attributes & LIST_SAFE)
 		SpinlockAcquire(&List->Lock);
 
-	/* Empty list  ? */
-	if (List->Headp == NULL || List->Tailp == NULL) {
-		List->Tailp = List->Headp = Node;
-		Node->Link = NULL;
-	}
-	else
-	{
-		/* Make the node point to head */
-		Node->Link = List->Headp;
+	/* So, do we need to do an insertion sort? */
+	if (List->Attributes & LIST_SORT_ONINSERT) {
+		/* Empty list  ? */
+		if (List->Headp == NULL || List->Tailp == NULL) {
+			List->Tailp = List->Headp = Node;
+			
+			/* Set link NULL (EoL) */
+			Node->Link = NULL;
+		}
+		else
+		{
+			/* Keep track of insertion */
+			int Inserted = 0;
 
-		/* Make the node the new head */
-		List->Headp = Node;
-	}
+			/* Iterate till we find our spot */
+			foreach(lNode, List)
+			{
+				/* Let's see */
+				if (dssortkey(List->KeyType, Node->SortKey, lNode->SortKey) == 1) {
+					/* We're bigger, continue */
+				}
+				else {
+					/* Ok, so we need to be inserted before lNode */
+					if (lNode->Prev == NULL) {
+						/* Make the node point to head */
+						Node->Link = lNode;
+						lNode->Prev = Node;
 
-	/* Set previous NONE */
-	Node->Prev = NULL;
+						/* Make the node the new head */
+						List->Headp = Node;
+					}
+					else {
+						/* Insert between nodes 
+						 * lNode->Prev <---> Node <---> lNode */
+
+						/* lNode->Prev ---> Node */
+						lNode->Prev->Link = Node;
+
+						/* lNode->Prev <--- Node */
+						Node->Prev = lNode->Prev;
+
+						/* Node <---- lNode */
+						lNode->Prev = Node;
+
+						/* Node ----> lNode */
+						Node->Link = lNode;
+					}
+
+					/* Update inserted */
+					Inserted = 1;
+					break;
+				}
+			}
+
+			/* Sanity 
+			 * If inserted is 0, append us to 
+			 * back of list */
+			if (!Inserted) {
+				/* Update current tail link */
+				List->Tailp->Link = Node;
+
+				/* Now make tail point to this */
+				Node->Prev = List->Tailp;
+				List->Tailp = Node;
+
+				/* Set link NULL (EoL) */
+				Node->Link = NULL;
+			}
+		}
+	}
+	else {
+		/* Empty list  ? */
+		if (List->Headp == NULL || List->Tailp == NULL) {
+			List->Tailp = List->Headp = Node;
+			Node->Link = NULL;
+		}
+		else
+		{
+			/* Make the node point to head */
+			Node->Link = List->Headp;
+			List->Headp->Prev = Node;
+
+			/* Make the node the new head */
+			List->Headp = Node;
+		}
+
+		/* Set previous NONE */
+		Node->Prev = NULL;
+	}
 
 	/* Increase Count */
 	List->Length++;
@@ -183,12 +288,21 @@ void ListInsertFront(List_t *List, ListNode_t *Node)
 }
 
 /* Inserts the node into the the back
- * of the list */
+ * of the list. This function is not
+ * available for sorted lists, it will
+ * simply redirect to ListInsert */
 void ListAppend(List_t *List, ListNode_t *Node)
 {
 	/* Sanity */
 	if (List == NULL || Node == NULL)
 		return;
+
+	/* Redirect if we are using a insert-sorted
+	* list, as we cannot insert at specific pos */
+	if (List->Attributes & LIST_SORT_ONINSERT) {
+		ListInsert(List, Node);
+		return;
+	}
 
 	/* Get lock */
 	if (List->Attributes & LIST_SAFE)

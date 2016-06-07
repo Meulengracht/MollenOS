@@ -209,20 +209,20 @@ ACPI_STATUS PciScanCallback(ACPI_HANDLE Handle, UINT32 Level, void *Context, voi
 	ACPI_STATUS Status = AE_OK;
 	ACPI_OBJECT_TYPE Type = 0;
 	ACPI_HANDLE Parent = (ACPI_HANDLE)Context;
-//	uint8_t x_name[128];
-//	ACPI_BUFFER n_buf;
+	//uint8_t x_name[128];
+	//ACPI_BUFFER n_buf;
 
 	/* Have we already enumerated this device? */
 	/* HINT, look at attached data */
-//	memset(x_name, 0, sizeof(x_name));
-//	n_buf.Length = sizeof(x_name);
-//	n_buf.Pointer = x_name;
+	//memset(x_name, 0, sizeof(x_name));
+	//n_buf.Length = sizeof(x_name);
+	//n_buf.Pointer = x_name;
 
 	/* Get name */
-	//status = AcpiGetName(handle, ACPI_FULL_PATHNAME, &n_buf);
+	//Status = AcpiGetName(Handle, ACPI_FULL_PATHNAME, &n_buf);
 	
-	//if (ACPI_SUCCESS(status))
-	//	printf("ACPI: %s\n", &x_name);
+	//if (ACPI_SUCCESS(Status))
+	//	LogInformation("ACPI", "Device: %s", &x_name[0]);
 
 	/* Get Type */
 	Status = AcpiGetType(Handle, &Type);
@@ -267,7 +267,7 @@ ACPI_STATUS PciScanCallback(ACPI_HANDLE Handle, UINT32 Level, void *Context, voi
 void AcpiScan(void)
 {
 	/* Log */
-	LogInformation("ACPI", "Scanning Bus");
+	LogInformation("ACPI", "Installing Fixables");
 
 	/* Init list, this is "bus 0" */
 	GlbPciAcpiDevices = list_create(LIST_SAFE);
@@ -278,6 +278,9 @@ void AcpiScan(void)
 
 	if (AcpiGbl_FADT.Flags & ACPI_FADT_SLEEP_BUTTON)
 		PciAddObject(NULL, ACPI_ROOT_OBJECT, ACPI_BUS_TYPE_SLEEP);
+
+	/* Log */
+	LogInformation("ACPI", "Scanning Bus");
 
 	/* Step 2. Enumerate */
 	//status = AcpiWalkNamespace(ACPI_TYPE_ANY, ACPI_ROOT_OBJECT, ACPI_UINT32_MAX, pci_scan_callback, NULL, handle, NULL);

@@ -73,9 +73,9 @@ void UiConnect(UiType_t UiType)
 	 * 1024 bytes should do it */
 	__UiConnectionBuffer = malloc(1024);
 
-	/* Window server is ALWAYS process id 0 */
+	/* Window server is ALWAYS process id 1 */
 	__UiConnectionHandle = 
-		MollenOSMemoryShare(0, __UiConnectionBuffer, 1024);
+		MollenOSMemoryShare(1, __UiConnectionBuffer, 1024);
 
 	/* Reset lock */
 	SpinlockReset(&__UiConnectionLock);
@@ -98,7 +98,7 @@ void UiDisconnect(void)
 		return;
 
 	/* Unshare the memory */
-	MollenOSMemoryUnshare(0, __UiConnectionHandle, 1024);
+	MollenOSMemoryUnshare(1, __UiConnectionHandle, 1024);
 
 	/* Free the handle */
 	free(__UiConnectionBuffer);
@@ -142,7 +142,7 @@ int UiQueryProcessWindow(IpcComm_t Target, IPCWindowQuery_t *Information)
 	Message.HiParam = 0;
 
 	/* Send request */
-	if (MollenOSMessageSend(0, &Message, Message.Header.Length)) {
+	if (MollenOSMessageSend(1, &Message, Message.Header.Length)) {
 		brel((void*)QueryInfo);
 		return -1;
 	}
@@ -205,7 +205,7 @@ WndHandle_t UiCreateWindow(Rect_t *Dimensions, int Flags)
 	Message.HiParam = 0;
 
 	/* Send request */
-	if (MollenOSMessageSend(0, &Message, Message.Header.Length)) {
+	if (MollenOSMessageSend(1, &Message, Message.Header.Length)) {
 		brel((void*)WndInformation);
 		return NULL;
 	}
@@ -255,7 +255,7 @@ int UiDestroyWindow(WndHandle_t Handle)
 	Message.HiParam = 0;
 
 	/* Send request */
-	if (MollenOSMessageSend(0, &Message, Message.Header.Length)) {
+	if (MollenOSMessageSend(1, &Message, Message.Header.Length)) {
 		return -1;
 	}
 
@@ -345,5 +345,5 @@ void UiInvalidateRect(WndHandle_t Handle, Rect_t *Rect)
 		memcpy(&Message.RcParam, &Wnd->Dimensions, sizeof(Rect_t));
 
 	/* Send request */
-	MollenOSMessageSend(0, &Message, Message.Header.Length);
+	MollenOSMessageSend(1, &Message, Message.Header.Length);
 }

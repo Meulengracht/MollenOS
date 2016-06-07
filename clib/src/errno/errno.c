@@ -23,6 +23,18 @@
 #include <os/Thread.h>
 #include <errno.h>
 
+#ifdef LIBC_KERNEL
+/* Global errno for kernel */
+errno_t __errno_global = 0;
+
+/* Retrieves a pointer
+ * to the global error code */
+errno_t *__errno(void)
+{
+	return &__errno_global;
+}
+
+#else
 /* Retrieves a pointer 
  * to the Thread-specific 
  * error code */
@@ -30,3 +42,5 @@ errno_t *__errno(void)
 {
 	return &TLSGetCurrent()->ThreadErrno;
 }
+
+#endif

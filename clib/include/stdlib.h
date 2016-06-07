@@ -67,8 +67,11 @@ _CRT_EXTERN long double	atold(const char *ascii);
 //------------------------------------------------------------//
 //                  Integer Arethmetic		                  //
 //------------------------------------------------------------//
+#ifndef _CRT_DIV_DEFINED
+#define _CRT_DIV_DEFINED
 _CRT_EXTERN div_t div(int num, int denom);
 _CRT_EXTERN ldiv_t ldiv(long num, long denom);
+#endif
 
 #ifndef _CRT_ABS_DEFINED
 #define _CRT_ABS_DEFINED
@@ -102,7 +105,7 @@ _CRT_EXTERN void qsort(void *base, unsigned num, unsigned width, int(*comp)(cons
 //------------------------------------------------------------//
 _CRT_EXTERN char *getenv(const char *name);
 _CRT_EXTERN void abort(void);
-int	atexit(void(__cdecl *func)(void));
+EXTERN int atexit(void(__cdecl *func)(void));
 _CRT_EXTERN int at_quick_exit(void(*func)(void));
 
 _CRT_EXTERN void quick_exit(int status);				//Terminate normally, no cleanup. Call all functions in atexit_quick stack

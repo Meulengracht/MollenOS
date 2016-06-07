@@ -49,7 +49,7 @@ void PmInit(void)
 	LogInformation("PROC", "Installing Request Handler");
 
 	/* Reset */
-	GlbProcessId = 0;
+	GlbProcessId = 1;
 
 	/* Create */
 	GlbProcesses = list_create(LIST_SAFE);
@@ -221,8 +221,7 @@ PId_t PmCreateProcess(MString_t *Path, MString_t *Arguments)
 	File = VfsOpen(Path->Data, Read);
 
 	/* Sanity */
-	if (File->Code != VfsOk)
-	{
+	if (File->Code != VfsOk) {
 		VfsClose(File);
 		return 0xFFFFFFFF;
 	}
@@ -237,8 +236,7 @@ PId_t PmCreateProcess(MString_t *Path, MString_t *Arguments)
 	VfsClose(File);
 
 	/* Validate File */
-	if (!PeValidate(fBuffer))
-	{
+	if (!PeValidate(fBuffer)) {
 		/* Bail Out */
 		kfree(fBuffer);
 		return 0xFFFFFFFF;
@@ -254,10 +252,10 @@ PId_t PmCreateProcess(MString_t *Path, MString_t *Arguments)
 	GlbProcessId++;
 
 	/* Split path */
-	Index = MStringFindReverse(Path, '/');
-	Process->Name = MStringSubString(Path, Index + 1, -1);
-	Process->WorkingDirectory = MStringSubString(Path, 0, Index);
-	Process->BaseDirectory = MStringSubString(Path, 0, Index);
+	Index = MStringFindReverse(File->File->Path, '/');
+	Process->Name = MStringSubString(File->File->Path, Index + 1, -1);
+	Process->WorkingDirectory = MStringSubString(File->File->Path, 0, Index);
+	Process->BaseDirectory = MStringSubString(File->File->Path, 0, Index);
 
 	/* Save file buffer */
 	Process->fBuffer = fBuffer;
@@ -265,12 +263,12 @@ PId_t PmCreateProcess(MString_t *Path, MString_t *Arguments)
 	/* Save arguments */
 	if (Arguments != NULL
 		&& Arguments->Length != 0) {
-		Process->Arguments = MStringCreate(Path->Data, StrUTF8);
+		Process->Arguments = MStringCreate(File->File->Path->Data, StrUTF8);
 		MStringAppendChar(Process->Arguments, ' ');
 		MStringAppendString(Process->Arguments, Arguments);
 	}
 	else
-		Process->Arguments = MStringCreate(Path->Data, StrUTF8);
+		Process->Arguments = MStringCreate(File->File->Path->Data, StrUTF8);
 
 	/* Add process to list */
 	list_append(GlbProcesses, list_create_node((int)Process->Id, Process));

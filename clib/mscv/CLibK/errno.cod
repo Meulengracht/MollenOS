@@ -9,9 +9,9 @@
 INCLUDELIB MSVCRT
 INCLUDELIB OLDNAMES
 
-PUBLIC	__errno
+PUBLIC	___errno_global
 _BSS	SEGMENT
-__errno	DD	01H DUP (?)
+___errno_global DD 01H DUP (?)
 _BSS	ENDS
 PUBLIC	___errno
 ; Function compile flags: /Ogtp
@@ -20,11 +20,11 @@ PUBLIC	___errno
 _TEXT	SEGMENT
 ___errno PROC						; COMDAT
 
-; 12   : 	return &_errno;
+; 34   : 	return &__errno_global;
 
-  00000	b8 00 00 00 00	 mov	 eax, OFFSET __errno
+  00000	b8 00 00 00 00	 mov	 eax, OFFSET ___errno_global
 
-; 13   : }
+; 35   : }
 
   00005	c3		 ret	 0
 ___errno ENDP

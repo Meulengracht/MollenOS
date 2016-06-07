@@ -408,10 +408,8 @@ void * AcpiOsAllocate(ACPI_SIZE Size)
 *
 *****************************************************************************/
 
-void AcpiOsFree(void *Mem)
-{
+void AcpiOsFree(void *Mem) {
 	kfree(Mem);
-	return;
 }
 
 

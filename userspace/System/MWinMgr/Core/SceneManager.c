@@ -51,7 +51,7 @@ void SceneManagerInit(SDL_Renderer *Renderer, Rect_t *ScreenDims)
 	/* Append to list */
 	DataKey_t Key;
 	Key.Value = GlbSceneManager->IdGen;
-	ListAppend(GlbSceneManager->Scenes, ListCreateNode(Key, Scene));
+	ListAppend(GlbSceneManager->Scenes, ListCreateNode(Key, Key, Scene));
 
 	/* Increase Id */
 	GlbSceneManager->IdGen++;

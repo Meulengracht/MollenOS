@@ -119,9 +119,10 @@ PUBLIC	??_C@_0BB@NDAKHOCP@Message?5too?5long?$AA@	; `string'
 PUBLIC	??_C@_0BB@DFOBLDAF@Unknown?5protocol?$AA@	; `string'
 PUBLIC	??_C@_0BK@LMAIHBL@Socket?5type?5not?5supported?$AA@ ; `string'
 PUBLIC	??_C@_0BG@LPGNEDFC@Address?5not?5available?$AA@	; `string'
-PUBLIC	??_C@_00CNPNBAHC@?$AA@				; `string'
+PUBLIC	??_C@_0BO@OJMAAHML@Internet?5connection?5was?5reset?$AA@ ; `string'
 PUBLIC	??_C@_0BM@CCONNCKE@Socket?5is?5already?5connected?$AA@ ; `string'
 PUBLIC	??_C@_0BI@ILAOGBJJ@Socket?5is?5not?5connected?$AA@ ; `string'
+PUBLIC	??_C@_00CNPNBAHC@?$AA@				; `string'
 PUBLIC	??_C@_0O@BKCHHJEH@Not?5supported?$AA@		; `string'
 PUBLIC	??_C@_0BK@EEAEOOMM@No?5medium?5?$CIin?5tape?5drive?$CJ?$AA@ ; `string'
 PUBLIC	??_C@_0BN@MNBPDAIP@No?5such?5host?5or?5network?5path?$AA@ ; `string'
@@ -178,6 +179,10 @@ CONST	ENDS
 CONST	SEGMENT
 ??_C@_0O@BKCHHJEH@Not?5supported?$AA@ DB 'Not supported', 00H ; `string'
 CONST	ENDS
+;	COMDAT ??_C@_00CNPNBAHC@?$AA@
+CONST	SEGMENT
+??_C@_00CNPNBAHC@?$AA@ DB 00H				; `string'
+CONST	ENDS
 ;	COMDAT ??_C@_0BI@ILAOGBJJ@Socket?5is?5not?5connected?$AA@
 CONST	SEGMENT
 ??_C@_0BI@ILAOGBJJ@Socket?5is?5not?5connected?$AA@ DB 'Socket is not conn'
@@ -188,9 +193,10 @@ CONST	SEGMENT
 ??_C@_0BM@CCONNCKE@Socket?5is?5already?5connected?$AA@ DB 'Socket is alre'
 	DB	'ady connected', 00H				; `string'
 CONST	ENDS
-;	COMDAT ??_C@_00CNPNBAHC@?$AA@
+;	COMDAT ??_C@_0BO@OJMAAHML@Internet?5connection?5was?5reset?$AA@
 CONST	SEGMENT
-??_C@_00CNPNBAHC@?$AA@ DB 00H				; `string'
+??_C@_0BO@OJMAAHML@Internet?5connection?5was?5reset?$AA@ DB 'Internet con'
+	DB	'nection was reset', 00H			; `string'
 CONST	ENDS
 ;	COMDAT ??_C@_0BG@LPGNEDFC@Address?5not?5available?$AA@
 CONST	SEGMENT
@@ -794,7 +800,7 @@ __errstrings DD	FLAT:??_C@_08IKODGPEB@No?5Error?$AA@
 	DD	FLAT:??_C@_0BB@DFOBLDAF@Unknown?5protocol?$AA@
 	DD	FLAT:??_C@_0BK@LMAIHBL@Socket?5type?5not?5supported?$AA@
 	DD	FLAT:??_C@_0BG@LPGNEDFC@Address?5not?5available?$AA@
-	DD	FLAT:??_C@_00CNPNBAHC@?$AA@
+	DD	FLAT:??_C@_0BO@OJMAAHML@Internet?5connection?5was?5reset?$AA@
 	DD	FLAT:??_C@_0BM@CCONNCKE@Socket?5is?5already?5connected?$AA@
 	DD	FLAT:??_C@_0BI@ILAOGBJJ@Socket?5is?5not?5connected?$AA@
 	DD	FLAT:??_C@_00CNPNBAHC@?$AA@
@@ -813,5 +819,7 @@ __errstrings DD	FLAT:??_C@_08IKODGPEB@No?5Error?$AA@
 	DD	FLAT:??_C@_0BE@KIMJAJFJ@Previous?5owner?5died?$AA@
 	DD	FLAT:??_C@_0BD@GAMHLFM@Streams?5pipe?5error?$AA@
 	DD	FLAT:??_C@_0BG@GMFMDOIH@Operation?5would?5block?$AA@
+	DD	FLAT:??_C@_00CNPNBAHC@?$AA@
+	DD	FLAT:??_C@_00CNPNBAHC@?$AA@
 _DATA	ENDS
 END
