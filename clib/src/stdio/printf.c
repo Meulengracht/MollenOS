@@ -24,10 +24,6 @@ int printf(const char *format, ...)
 #include <stdlib.h>
 #include <string.h>
 
-/* Lock */
-Spinlock_t glb_printf_lock;
-volatile uint32_t glb_printf_init = 0;
-
 /* Directly call */
 extern int streamout(char **out, size_t size, const char *format, va_list argptr);
 
@@ -42,23 +38,10 @@ int printf(const char *format, ...)
 	if (format == NULL)
 		return -1;
 
-	//Init
-	if (glb_printf_init != 0xDEADBEEF)
-	{
-		SpinlockReset(&glb_printf_lock);
-		glb_printf_init = 0xDEADBEEF;
-	}
-
-	/* Acquire Lock */
-	SpinlockAcquire(&glb_printf_lock);
-
 	/* Do the deed */
 	va_start(args, format);
 	result = streamout(NULL, 0x20000, format, args);
 	va_end(args);
-
-	/* Release */
-	SpinlockRelease(&glb_printf_lock);
 
 	return result;
 }

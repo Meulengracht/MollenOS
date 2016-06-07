@@ -62,6 +62,9 @@ void InitAcpiAndApic(void)
 
 	/* Setup Full APICPA */
 	AcpiSetupFull();
+
+	/* Scan ACPI Bus */
+	AcpiScan();
 }
 
 /* Installs Timers */

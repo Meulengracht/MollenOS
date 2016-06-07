@@ -123,28 +123,28 @@ int _VideoPutCharVesa(void *VideoData, int Character)
 	switch (Character)
 	{
 		/* New line */
-	case '\n':
-	{
-		vDevice->CursorX = vDevice->CursorStartX;
-		vDevice->CursorY += MCoreFontHeight;
-	} break;
+		case '\n':
+		{
+			vDevice->CursorX = vDevice->CursorStartX;
+			vDevice->CursorY += MCoreFontHeight;
+		} break;
 
-	/* Carriage Return */
-	case '\r':
-	{
-		vDevice->CursorX = vDevice->CursorStartX;
-	} break;
+		/* Carriage Return */
+		case '\r':
+		{
+			vDevice->CursorX = vDevice->CursorStartX;
+		} break;
 
-	/* Default */
-	default:
-	{
-		/* Print */
-		vDevice->DrawCharacter(VideoData, 
-			Character, vDevice->CursorY, vDevice->CursorX, vDevice->FgColor, vDevice->BgColor);
+		/* Default */
+		default:
+		{
+			/* Print */
+			vDevice->DrawCharacter(VideoData, 
+				Character, vDevice->CursorY, vDevice->CursorX, vDevice->FgColor, vDevice->BgColor);
 
-		/* Increase position */
-		vDevice->CursorX += (MCoreFontWidth + 2);
-	} break;
+			/* Increase position */
+			vDevice->CursorX += (MCoreFontWidth + 2);
+		} break;
 	}
 
 	/* Newline check */
@@ -171,23 +171,25 @@ int _VideoPutCharVesa(void *VideoData, int Character)
 		for (i = 0; i < Lines; i++)
 		{
 			/* Copy a line up */
-			memcpy(VideoPtr, VideoPtr + (vDevice->Info.BytesPerScanline * MCoreFontHeight), BytesToCopy);
+			memcpy(VideoPtr, VideoPtr + 
+				(vDevice->Info.BytesPerScanline * MCoreFontHeight), BytesToCopy);
 
 			/* Increament */
 			VideoPtr += vDevice->Info.BytesPerScanline;
 		}
 
-		/* Clear */
+		/* Clear
+		 * Get X0, Y0 */
 		VideoPtr = (uint8_t*)(vDevice->Info.FrameBufferAddr + 
-			((vDevice->CursorStartY * vDevice->Info.BytesPerScanline)
-			+ (vDevice->CursorStartX * (vDevice->Info.Depth / 8))));
+			((vDevice->CursorStartX * (vDevice->Info.Depth / 8))));
 
-		for (i = 0; i < 16; i++)
+		/* Add up to Y(MAX-Height) */
+		VideoPtr += (vDevice->Info.BytesPerScanline * (vDevice->CursorLimitY - MCoreFontHeight));
+
+		for (i = 0; i < (int)MCoreFontHeight; i++)
 		{
 			/* Clear low line */
-			memset((uint8_t*)(VideoPtr + 
-				(vDevice->Info.BytesPerScanline * (vDevice->CursorLimitY - MCoreFontHeight))),
-				0xFF, BytesToCopy);
+			memset(VideoPtr, 0xFF, BytesToCopy);
 
 			/* Increament */
 			VideoPtr += vDevice->Info.BytesPerScanline;

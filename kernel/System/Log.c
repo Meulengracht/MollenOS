@@ -289,16 +289,18 @@ void LogInternalPrint(int LogType, const char *Header, const char *Message)
 	/* Temporary format buffer 
 	 * used by fileprint */
 	char TempBuffer[256];
+	int HeaderLen = strlen(Header);
+	int MessageLen = strlen(Message);
 
 	/* Acquire Lock */
 	SpinlockAcquire(&GlbLogLock);
 
 	/* Log it into memory - if we have room */
-	if (GlbLogIndex + strlen(Message) < GlbLogSize)
+	if (GlbLogIndex + MessageLen < (int)GlbLogSize)
 	{
 		/* Write header */
 		GlbLog[GlbLogIndex] = (char)LogType;
-		GlbLog[GlbLogIndex + 1] = (char)strlen(Message);
+		GlbLog[GlbLogIndex + 1] = (char)MessageLen;
 
 		/* Increase */
 		GlbLogIndex += 2;
@@ -306,8 +308,8 @@ void LogInternalPrint(int LogType, const char *Header, const char *Message)
 		if (LogType != LOG_TYPE_RAW)
 		{
 			/* Add Header */
-			memcpy(&GlbLog[GlbLogIndex], Header, strlen(Header));
-			GlbLogIndex += strlen(Header);
+			memcpy(&GlbLog[GlbLogIndex], Header, HeaderLen);
+			GlbLogIndex += HeaderLen;
 
 			/* Add a space */
 			GlbLog[GlbLogIndex] = ' ';
@@ -315,8 +317,8 @@ void LogInternalPrint(int LogType, const char *Header, const char *Message)
 		}
 
 		/* Add it */
-		memcpy(&GlbLog[GlbLogIndex], Message, strlen(Message));
-		GlbLogIndex += strlen(Message);
+		memcpy(&GlbLog[GlbLogIndex], Message, MessageLen);
+		GlbLogIndex += MessageLen;
 
 		if (LogType != LOG_TYPE_RAW)
 		{
@@ -368,7 +370,7 @@ void LogInternalPrint(int LogType, const char *Header, const char *Message)
 
 		/* format it */
 		if (LogType == LOG_TYPE_RAW) {
-			memcpy(&TempBuffer[0], Message, strlen(Message));
+			memcpy(&TempBuffer[0], Message, MessageLen);
 		}
 		else {
 			sprintf(&TempBuffer[0], "[%s] %s\n", Header, Message);
@@ -389,6 +391,11 @@ void Log(const char *Message, ...)
 	/* Output Buffer */
 	char oBuffer[256];
 	va_list ArgList;
+
+	/* Sanitize arguments */
+	if (Message == NULL) {
+		return;
+	}
 
 	/* Memset buffer */
 	memset(&oBuffer[0], 0, 256);
@@ -412,6 +419,11 @@ void LogRaw(const char *Message, ...)
 	char oBuffer[256];
 	va_list ArgList;
 
+	/* Sanitize arguments */
+	if (Message == NULL) {
+		return;
+	}
+
 	/* Memset buffer */
 	memset(&oBuffer[0], 0, 256);
 
@@ -430,6 +442,12 @@ void LogInformation(const char *System, const char *Message, ...)
 	/* Output Buffer */
 	char oBuffer[256];
 	va_list ArgList;
+
+	/* Sanitize arguments */
+	if (System == NULL
+		|| Message == NULL) {
+		return;
+	}
 
 	/* Memset buffer */
 	memset(&oBuffer[0], 0, 256);
@@ -450,6 +468,12 @@ void LogDebug(const char *System, const char *Message, ...)
 	char oBuffer[256];
 	va_list ArgList;
 
+	/* Sanitize arguments */
+	if (System == NULL
+		|| Message == NULL) {
+		return;
+	}
+
 	/* Memset buffer */
 	memset(&oBuffer[0], 0, 256);
 
@@ -468,6 +492,12 @@ void LogFatal(const char *System, const char *Message, ...)
 	/* Output Buffer */
 	char oBuffer[256];
 	va_list ArgList;
+
+	/* Sanitize arguments */
+	if (System == NULL
+		|| Message == NULL) {
+		return;
+	}
 
 	/* Memset buffer */
 	memset(&oBuffer[0], 0, 256);

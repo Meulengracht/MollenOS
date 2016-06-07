@@ -281,7 +281,7 @@ void AcpiScan(void)
 
 	/* Log */
 	LogInformation("ACPI", "Scanning Bus");
-
+	
 	/* Step 2. Enumerate */
 	//status = AcpiWalkNamespace(ACPI_TYPE_ANY, ACPI_ROOT_OBJECT, ACPI_UINT32_MAX, pci_scan_callback, NULL, handle, NULL);
 	AcpiGetDevices(NULL, PciScanCallback, NULL, NULL);

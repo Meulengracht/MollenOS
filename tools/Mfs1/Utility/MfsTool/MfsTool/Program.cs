@@ -1,5 +1,4 @@
-﻿using DiscUtils.Vmdk;
-using Microsoft.Win32.SafeHandles;
+﻿using Microsoft.Win32.SafeHandles;
 using System;
 using System.Collections;
 using System.Collections.Generic;
@@ -87,7 +86,8 @@ namespace MfsTool
         static void OpenDisk(MfsDisk mDisk)
         {
             /* Sanity */
-            if (mDisk.DeviceId == "VMDK")
+            if (mDisk.DeviceId == "VMDK"
+                || mDisk.DeviceId == "IMG")
             {
                 /* We already have disk access */
                 return;
@@ -120,7 +120,8 @@ namespace MfsTool
         static void CloseDisk(MfsDisk mDisk)
         {
             /* Sanity */
-            if (mDisk.DeviceId == "VMDK") {
+            if (mDisk.DeviceId == "VMDK"
+                || mDisk.DeviceId == "IMG") {
                 return;
             }
             else
@@ -134,19 +135,19 @@ namespace MfsTool
         static void SeekDisk(MfsDisk mDisk, UInt64 Offset)
         {
             /* Sanity */
-            if (mDisk.DeviceId == "VMDK")
-            {
-                /* Seek in image */
-                ((Disk)mDisk.vDiskHandle).Content.Seek((long)Offset, SeekOrigin.Begin);
-
-                /* Done! */
-                return;
+            if (mDisk.DeviceId == "VMDK") {
+                ((DiscUtils.Vmdk.Disk)mDisk.vDiskHandle).Content.Seek((long)Offset, SeekOrigin.Begin);
             }
+            else if (mDisk.DeviceId == "IMG") {
+                ((DiscUtils.Raw.Disk)mDisk.vDiskHandle).Content.Seek((long)Offset, SeekOrigin.Begin);
+            }
+            else
+            {
+                int DistHigh = (int)((Offset >> 32) & 0xFFFFFFFF);
+                int DistLow = (int)(Offset & 0xFFFFFFFF);
 
-            int DistHigh = (int)((Offset >> 32) & 0xFFFFFFFF);
-            int DistLow = (int)(Offset & 0xFFFFFFFF);
-
-            SetFilePointer((SafeFileHandle)mDisk.vDiskHandle, DistLow, ref DistHigh, EMoveMethod.Begin);
+                SetFilePointer((SafeFileHandle)mDisk.vDiskHandle, DistLow, ref DistHigh, EMoveMethod.Begin);
+            }
         }
 
         /* Write */
@@ -160,17 +161,16 @@ namespace MfsTool
                 SeekDisk(mDisk, ValToMove);
 
             /* Sanity */
-            if (mDisk.DeviceId == "VMDK")
-            {
-                /* Write */
-                ((Disk)mDisk.vDiskHandle).Content.Write(Buffer, 0, Buffer.Length);
-
-                /* Done! */
-                return;
+            if (mDisk.DeviceId == "VMDK") {
+                ((DiscUtils.Vmdk.Disk)mDisk.vDiskHandle).Content.Write(Buffer, 0, Buffer.Length);
             }
-
-            uint BytesWritten = 0;
-            WriteFile(((SafeFileHandle)mDisk.vDiskHandle).DangerousGetHandle(), Buffer, (uint)Buffer.Length, out BytesWritten, IntPtr.Zero);
+            else if (mDisk.DeviceId == "IMG") {
+                ((DiscUtils.Raw.Disk)mDisk.vDiskHandle).Content.Write(Buffer, 0, Buffer.Length);
+            }
+            else {
+                uint BytesWritten = 0;
+                WriteFile(((SafeFileHandle)mDisk.vDiskHandle).DangerousGetHandle(), Buffer, (uint)Buffer.Length, out BytesWritten, IntPtr.Zero);
+            }
         }
 
         /* Read */
@@ -183,19 +183,20 @@ namespace MfsTool
             SeekDisk(mDisk, (Sector * mDisk.BytesPerSector));
 
             /* Sanity */
-            if (mDisk.DeviceId == "VMDK")
-            {
-                /* Write */
-                ((Disk)mDisk.vDiskHandle).Content.Read(RetBuf, 0, RetBuf.Length);
-
-                /* Done! */
-                return RetBuf;
+            if (mDisk.DeviceId == "VMDK") {
+                /* Read */
+                ((DiscUtils.Vmdk.Disk)mDisk.vDiskHandle).Content.Read(RetBuf, 0, RetBuf.Length);
             }
-
-            /* Read */
-            uint bRead = 0;
-            ReadFile(((SafeFileHandle)mDisk.vDiskHandle).DangerousGetHandle(), RetBuf, (uint)RetBuf.Length, out bRead, IntPtr.Zero);
-
+            else if (mDisk.DeviceId == "IMG") {
+                /* Read */
+                ((DiscUtils.Raw.Disk)mDisk.vDiskHandle).Content.Read(RetBuf, 0, RetBuf.Length);
+            }
+            else {
+                /* Read */
+                uint bRead = 0;
+                ReadFile(((SafeFileHandle)mDisk.vDiskHandle).DangerousGetHandle(), RetBuf, (uint)RetBuf.Length, out bRead, IntPtr.Zero);
+            }
+            
             /* Done */
             return RetBuf;
         }
@@ -1573,7 +1574,7 @@ namespace MfsTool
                         Console.WriteLine("Creating vmdk disk image...");
 
                         /* Create disk handle */
-                        Disk dHandle = Disk.Initialize(@"..\mollenos.vmdk", (long)SizeOfHdd, DiskCreateType.MonolithicSparse);
+                        DiscUtils.Vmdk.Disk dHandle = DiscUtils.Vmdk.Disk.Initialize(@"..\mollenos.vmdk", (long)SizeOfHdd, DiscUtils.Vmdk.DiskCreateType.MonolithicSparse);
                         
                         /* Setup mfs disk */
                         MfsDisk vDisk = new MfsDisk();
@@ -1596,6 +1597,50 @@ namespace MfsTool
 
                         /* Dispose disk handle */
                         dHandle.Dispose();
+
+                        /* Done! */
+                        return 0;
+                    }
+
+                    case "img":
+                    {
+                        /* Create a 128 MB disk image */
+                        ulong SizeOfHdd = 128 * 1024 * 1024;
+
+                        /* Delete if exists */
+                        if (File.Exists(@"..\mollenos.img"))
+                            File.Delete(@"..\mollenos.img");
+
+                        Console.WriteLine("Creating vmdk disk image...");
+
+                        /* Create disk handle */
+                        using (Stream imgStream = File.Create(@"..\mollenos.img"))
+                        {
+                            /* Initialize */
+                            DiscUtils.Raw.Disk dHandle = DiscUtils.Raw.Disk.Initialize(imgStream, DiscUtils.Ownership.None, (long)SizeOfHdd);
+
+                            /* Setup mfs disk */
+                            MfsDisk vDisk = new MfsDisk();
+                            vDisk.BytesPerSector = 512;
+                            vDisk.DeviceId = "IMG";
+                            vDisk.vDiskHandle = dHandle;
+                            vDisk.TotalSectors = SizeOfHdd / 512;
+                            vDisk.SectorsPerTrack = 63;
+                            vDisk.TracksPerCylinder = 255;
+
+                            Console.WriteLine("Formatting drive...");
+
+                            /* Do the format */
+                            Format(vDisk);
+
+                            Console.WriteLine("Installing MOS...");
+
+                            /* Do the install */
+                            InstallMOS(vDisk);
+
+                            /* Dispose disk handle */
+                            dHandle.Dispose();
+                        }
 
                         /* Done! */
                         return 0;
