@@ -383,7 +383,7 @@ namespace MfsTool
             UInt64 MirrorMasterBucketSector = 0;
 
             /* Determine bucket size 
-             * if <1gb = 1 Kb (2 sectors) 
+             * if <1gb = 2 Kb (4 sectors) 
              * If <64gb = 4 Kb (8 sectors)
              * If >64gb = 8 Kb (16 sectors)
              * If >256gb = 16 Kb (32 sectors) */
@@ -392,7 +392,7 @@ namespace MfsTool
             else if (DriveSizeBytes >= (64 * GigaByte))
                 BucketSize = 16;
             else if (DriveSizeBytes <= GigaByte)
-                BucketSize = 2;
+                BucketSize = 4;
             else
                 BucketSize = 8;
 
@@ -1381,9 +1381,14 @@ namespace MfsTool
                 Mb = ReadDisk(mDisk, MbSector, 1);
                 FreeBucket = BitConverter.ToUInt32(Mb, 8);
 
+                /* Calculate Sector Count */
+                UInt64 NumSectorsForBuckets = (ulong)FileData.LongLength / mDisk.BytesPerSector;
+                if (((ulong)FileData.LongLength % mDisk.BytesPerSector) > 0)
+                    NumSectorsForBuckets++;
+
                 /* Get first free bucket */
-                UInt64 NumBuckets = (UInt64)(FileData.LongLength / mDisk.BytesPerSector) / mDisk.BucketSize;
-                if (((FileData.LongLength / mDisk.BytesPerSector) % mDisk.BucketSize) > 0)
+                UInt64 NumBuckets = NumSectorsForBuckets / mDisk.BucketSize;
+                if ((NumSectorsForBuckets % mDisk.BucketSize) > 0)
                     NumBuckets++;
 
                 /* Allocate a chain */

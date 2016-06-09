@@ -83,10 +83,10 @@ void MmVirtualFillPageTable(PageTable_t *pTable, PhysAddr_t PhysStart, VirtAddr_
 		i++, phys += PAGE_SIZE, virt += PAGE_SIZE)
 	{
 		/* Create Entry */
-		uint32_t page = phys | PAGE_PRESENT | PAGE_WRITE | PAGE_SYSTEM_MAP | Flags;
+		uint32_t pAttribs = phys | PAGE_PRESENT | PAGE_WRITE | PAGE_SYSTEM_MAP | Flags;
 
 		/* Set it at correct offset */
-		pTable->Pages[PAGE_TABLE_INDEX(virt)] = page;
+		pTable->Pages[PAGE_TABLE_INDEX(virt)] = pAttribs;
 	}
 }
 

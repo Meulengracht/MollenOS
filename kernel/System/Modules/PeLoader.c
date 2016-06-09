@@ -26,6 +26,7 @@
 #include <Log.h>
 #include <Heap.h>
 
+#include <stdio.h>
 #include <stddef.h>
 #include <string.h>
 
@@ -52,6 +53,7 @@ void PeLoadKernelExports(Addr_t KernelBase, Addr_t TableOffset)
 	LogInformation("PELD", "Loading Kernel Exports");
 
 	/* Init list */
+	GlbModuleLoadAddr = MEMORY_LOCATION_MODULES;
 	GlbKernelExports = list_create(LIST_NORMAL);
 
 	/* Cast */
@@ -151,7 +153,7 @@ Addr_t PeRelocateSections(MCorePeFile_t *PeFile, uint8_t *Data,
 		uint8_t *MemBuffer = (uint8_t*)(PeFile->BaseVirtual + Section->VirtualAddr);
 
 		/* Calculate pages needed */
-		uint32_t NumPages = DIVUP(Section->VirtualSize, PAGE_SIZE);
+		uint32_t NumPages = DIVUP(MAX(Section->RawSize, Section->VirtualSize), PAGE_SIZE);
 
 		/* Copy Name */
 		memcpy(&TmpName[0], &Section->Name[0], 8);
@@ -171,13 +173,13 @@ Addr_t PeRelocateSections(MCorePeFile_t *PeFile, uint8_t *Data,
 
 		/* Which kind of section is this */
 		if (Section->RawSize == 0
-			|| Section->Flags & PE_SECTION_BSS)
+			|| (Section->Flags & PE_SECTION_BSS))
 		{
 			/* We should zero this */
 			memset(MemBuffer, 0, Section->VirtualSize);
 		}
-		else if (Section->Flags & PE_SECTION_CODE
-			|| Section->Flags & PE_SECTION_DATA)
+		else if ((Section->Flags & PE_SECTION_CODE)
+			|| (Section->Flags & PE_SECTION_DATA))
 		{
 			/* Copy section */
 			memcpy(MemBuffer, FileBuffer, Section->RawSize);
@@ -185,11 +187,12 @@ Addr_t PeRelocateSections(MCorePeFile_t *PeFile, uint8_t *Data,
 			/* Sanity */
 			if (Section->VirtualSize > Section->RawSize)
 				memset((MemBuffer + Section->RawSize), 0, 
-				(Section->VirtualSize - Section->RawSize));
+					   (Section->VirtualSize - Section->RawSize));
 		}
 
 		/* Increase Pointers */
-		MemAddr = (PeFile->BaseVirtual + Section->VirtualAddr + Section->VirtualSize);
+		MemAddr = (PeFile->BaseVirtual + Section->VirtualAddr 
+			+ MAX(Section->RawSize, Section->VirtualSize));
 
 		/* Go to next */
 		Section++;
@@ -230,6 +233,12 @@ void PeFixRelocations(MCorePeFile_t *PeFile, PeDataDirectory_t *RelocDirectory, 
 		/* Get block size */
 		BlockSize = *RelocPtr++;
 
+		/* Sanitize the block size */
+		if (BlockSize > BytesLeft) {
+			LogFatal("PELD", "Invalid relocation data: BlockSize > BytesLeft, bailing");
+			break;
+		}
+
 		/* Decrease */
 		BytesLeft -= BlockSize;
 
@@ -237,7 +246,7 @@ void PeFixRelocations(MCorePeFile_t *PeFile, PeDataDirectory_t *RelocDirectory, 
 		if (BlockSize != 0)
 			NumRelocs = (BlockSize - 8) / sizeof(uint16_t);
 		else {
-			LogFatal("PELD", "Invalid relocation data, bailing");
+			LogFatal("PELD", "Invalid relocation data: BlockSize == 0, bailing");
 			break;
 		}
 
@@ -259,11 +268,21 @@ void PeFixRelocations(MCorePeFile_t *PeFile, PeDataDirectory_t *RelocDirectory, 
 				 * an offset into the PageRVA */
 				Addr_t Offset = (PeFile->BaseVirtual + PageRVA + Value);
 
-				/* Calculate Delta */
-				Addr_t Delta = (Addr_t)(PeFile->BaseVirtual - ImageBase);
+				/* Should we add or subtract? */
+				if (PeFile->BaseVirtual >= ImageBase) {
+					/* Calculate Delta */
+					Addr_t Delta = (Addr_t)(PeFile->BaseVirtual - ImageBase);
 
-				/* Update */
-				*((Addr_t*)Offset) += Delta;
+					/* Update */
+					*((Addr_t*)Offset) += Delta;
+				}
+				else {
+					/* Calculate Delta */
+					Addr_t Delta = (Addr_t)(ImageBase - PeFile->BaseVirtual);
+
+					/* Update */
+					*((Addr_t*)Offset) -= Delta;
+				}
 			}
 
 			/* Next */
@@ -506,7 +525,7 @@ void PeLoadModuleImports(MCorePeFile_t *PeFile, PeDataDirectory_t *ImportDirecto
 }
 
 /* Load Module into memory */
-MCorePeFile_t *PeLoadModule(uint8_t *Buffer)
+MCorePeFile_t *PeLoadModule(uint8_t *Name, uint8_t *Buffer, size_t Length)
 {
 	/* Headers */
 	MzHeader_t *DosHeader = NULL;
@@ -526,6 +545,8 @@ MCorePeFile_t *PeLoadModule(uint8_t *Buffer)
 	/* Validate */
 	if (!PeValidate(Buffer))
 		return NULL;
+
+	_CRT_UNUSED(Length);
 
 	/* Let's see */
 	DosHeader = (MzHeader_t*)Buffer;
@@ -567,8 +588,11 @@ MCorePeFile_t *PeLoadModule(uint8_t *Buffer)
 	memset(PeInfo, 0, sizeof(MCorePeFile_t));
 	
 	/* Set base information */
+	PeInfo->Name = MStringCreate(Name, StrUTF8);
 	PeInfo->Architecture = OptHeader->Architecture;
 	PeInfo->BaseVirtual = GlbModuleLoadAddr;
+	PeInfo->LoadedLibraries = list_create(LIST_NORMAL);
+	PeInfo->References = 1;
 
 	/* Step 1. Relocate Sections */
 	GlbModuleLoadAddr = PeRelocateSections(PeInfo, Buffer, 

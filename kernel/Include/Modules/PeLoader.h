@@ -636,7 +636,7 @@ _CRT_EXTERN void PeLoadKernelExports(Addr_t KernelBase, Addr_t TableOffset);
 _CRT_EXTERN int PeValidate(uint8_t *Buffer);
 
 /* Used exclusively for module loading */
-_CRT_EXTERN MCorePeFile_t *PeLoadModule(uint8_t *Buffer);
+_CRT_EXTERN MCorePeFile_t *PeLoadModule(uint8_t *Name, uint8_t *Buffer, size_t Length);
 
 /* Generic */
 _CRT_EXTERN MCorePeFile_t *PeLoadImage(MCorePeFile_t *Parent, MString_t *Name, uint8_t *Buffer, Addr_t *BaseAddress);

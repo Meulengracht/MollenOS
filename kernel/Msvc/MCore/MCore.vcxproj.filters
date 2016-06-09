@@ -114,6 +114,9 @@
     <ClCompile Include="..\..\System\Events.c">
       <Filter>Systems</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\Common\Sha1.c">
+      <Filter>Common</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\Include\Heap.h">

@@ -224,7 +224,7 @@ ModuleResult_t ModuleLoad(MCoreModule_t *Module, void *Args)
 		(uint8_t*)((Addr_t)Module->Header + sizeof(MCoreRamDiskModuleHeader_t));
 
 	/* Parse & Relocate PE Module */
-	Module->Descriptor = PeLoadModule(ModData);
+	Module->Descriptor = PeLoadModule(&Module->Header->ModuleName[0], ModData, Module->Header->Length);
 
 	/* Sanity */
 	if (Module->Descriptor == NULL

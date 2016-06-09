@@ -15,6 +15,7 @@
     <ClCompile Include="..\..\Common\List.c" />
     <ClCompile Include="..\..\Common\MString.c" />
     <ClCompile Include="..\..\Common\RingBuffer.c" />
+    <ClCompile Include="..\..\Common\Sha1.c" />
     <ClCompile Include="..\..\Init\Entry.c" />
     <ClCompile Include="..\..\System\Devices\DeviceManager.c" />
     <ClCompile Include="..\..\System\Devices\Fonts\VideoFont6x12.c" />

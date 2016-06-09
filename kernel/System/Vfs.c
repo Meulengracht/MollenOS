@@ -713,9 +713,10 @@ MCoreFileInstance_t *VfsOpen(const char *Path, VfsFileFlags_t OpenFlags)
 			MStringDestroy(mPath);
 
 			/* Sanity */
-			if (fRet->Code == VfsInvalidPath
+			if ((fRet->Code == VfsInvalidPath
 				|| fRet->Code == VfsPathNotFound
-				|| fRet->Code == VfsPathIsNotDirectory) {
+				|| fRet->Code == VfsPathIsNotDirectory)
+				&& i < ((int)PathEnvironmentCount - 1)) {
 				/* Reset, Continue */
 				memset((void*)fRet, 0, sizeof(MCoreFileInstance_t));
 			}
