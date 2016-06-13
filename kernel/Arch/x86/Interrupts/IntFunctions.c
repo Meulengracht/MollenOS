@@ -371,7 +371,8 @@ int DeviceAllocateInterrupt(void *mCoreDevice)
 		/* If no routing exists use the interrupt_line */
 		if (DidExist == -1)
 		{
-			IrqLine = PciRead8(Device->Bus, Device->Device, Device->Function, 0x3C);
+			Device->IrqLine = IrqLine = 
+				(int)PciRead8(Device->Bus, Device->Device, Device->Function, 0x3C);
 			IdtEntry += Device->IrqLine;
 
 			ApicFlags |= 0x100;				/* Lowest Priority */
@@ -380,7 +381,7 @@ int DeviceAllocateInterrupt(void *mCoreDevice)
 		else
 		{
 			/* Update */
-			Device->IrqLine = IrqLine = (uint32_t)DidExist;
+			Device->IrqLine = IrqLine = DidExist;
 
 			/* Update PCI Interrupt Line */
 			PciWrite8(Device->Bus, Device->Device, Device->Function, 0x3C, (uint8_t)IrqLine);

@@ -1579,7 +1579,7 @@ void OhciTransactionSend(void *Controller, UsbHcRequest_t *Request)
 #ifdef _OHCI_DIAGNOSTICS_
 		Td = (OhciGTransferDescriptor_t*)Transaction->TransferDescriptor;
 
-		printf("Td (Addr 0x%x) Flags 0x%x, Cbp 0x%x, BufferEnd 0x%x, Next Td 0x%x\n", 
+		LogDebug("OHCI", "Td (Addr 0x%x) Flags 0x%x, Cbp 0x%x, BufferEnd 0x%x, Next Td 0x%x\n", 
 			AddressSpaceGetMap(AddressSpaceGetCurrent(), (VirtAddr_t)Td), Td->Flags, Td->Cbp, Td->BufferEnd, Td->NextTD);
 #endif
 		/* Next */
@@ -1605,8 +1605,8 @@ void OhciTransactionSend(void *Controller, UsbHcRequest_t *Request)
 	Ep->HeadPtr &= ~(0x1);
 
 #ifdef _OHCI_DIAGNOSTICS_
-	printf("Ed Address 0x%x, Flags 0x%x, Ed Tail 0x%x, Ed Head 0x%x, Next 0x%x\n", EdAddress, ((OhciEndpointDescriptor_t*)Request->Data)->Flags,
-		((OhciEndpointDescriptor_t*)Request->Data)->TailPtr, ((OhciEndpointDescriptor_t*)Request->Data)->HeadPtr, ((OhciEndpointDescriptor_t*)Request->Data)->NextED);
+	LogDebug("OHCI", "Ed Address 0x%x, Flags 0x%x, Ed Tail 0x%x, Ed Head 0x%x, Next 0x%x\n", 
+		EdAddress, Ep->Flags, Ep->TailPtr, Ep->HeadPtr, Ep->NextED);
 #endif
 
 	/*************************
@@ -1676,7 +1676,7 @@ void OhciTransactionSend(void *Controller, UsbHcRequest_t *Request)
 
 	/* Check Conditions (WithOUT dummy) */
 #ifdef _OHCI_DIAGNOSTICS_
-	printf("Ed Flags 0x%x, Ed Tail 0x%x, Ed Head 0x%x\n", ((OhciEndpointDescriptor_t*)Request->Data)->Flags,
+	LogDebug("OHCI", "Ed Flags 0x%x, Ed Tail 0x%x, Ed Head 0x%x\n", ((OhciEndpointDescriptor_t*)Request->Data)->Flags,
 		((OhciEndpointDescriptor_t*)Request->Data)->TailPtr, ((OhciEndpointDescriptor_t*)Request->Data)->HeadPtr);
 #endif
 	Transaction = Request->Transactions;
@@ -1694,7 +1694,8 @@ void OhciTransactionSend(void *Controller, UsbHcRequest_t *Request)
 		}
 
 #ifdef _OHCI_DIAGNOSTICS_
-		printf("Td Flags 0x%x, Cbp 0x%x, BufferEnd 0x%x, Td Condition Code %u (%s)\n", Td->Flags, Td->Cbp, Td->BufferEnd, CondCode, OhciErrorMessages[CondCode]);
+		LogDebug("OHCI", "Td Flags 0x%x, Cbp 0x%x, BufferEnd 0x%x, Td Condition Code %u (%s)\n", 
+			Td->Flags, Td->Cbp, Td->BufferEnd, CondCode, OhciErrorMessages[CondCode]);
 #endif
 
 		if (CondCode == 0 && Completed == TransferFinished)
@@ -1718,12 +1719,6 @@ void OhciTransactionSend(void *Controller, UsbHcRequest_t *Request)
 
 		Transaction = Transaction->Link;
 	}
-
-#ifdef _OHCI_DIAGNOSTICS_
-	printf("HcDoneHead: 0x%x\n", Ctrl->HCCA->HeadDone);
-	printf("Current Frame 0x%x (HCCA), HcFrameNumber 0x%x, HcFrameInterval 0x%x, HcFrameRemaining 0x%x\n", Ctrl->HCCA->CurrentFrame,
-		Ctrl->Registers->HcFmNumber, Ctrl->Registers->HcFmInterval, Ctrl->Registers->HcFmRemaining);
-#endif
 
 	/* Update Status */
 	Request->Status = Completed;

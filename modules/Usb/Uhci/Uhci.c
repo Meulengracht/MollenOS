@@ -1646,11 +1646,13 @@ void UhciTransactionSend(void *Controller, UsbHcRequest_t *Request)
 		return;
 	
 #ifndef UHCI_DIAGNOSTICS
+	LogFatal("UHCI", "Going to sleep");
 	/* Wait for interrupt */
-	SchedulerSleepThread((Addr_t*)Request->Data, 5000);
+	SchedulerSleepThread((Addr_t*)Qh, 5000);
 
 	/* Yield */
 	IThreadYield();
+	LogFatal("UHCI", "Woke up");
 #else
 	/* Wait */
 	StallMs(100);
@@ -2199,10 +2201,10 @@ int UhciInterruptHandler(void *Args)
 	if (!(IntrState & 0x1F))
 		return X86_IRQ_NOT_HANDLED;
 
-#ifdef UHCI_DIAGNOSTICS
+//#ifdef UHCI_DIAGNOSTICS
 	/* Debug */
 	LogInformation("UHCI", "INTERRUPT Controller %u: 0x%x", Controller->Id, IntrState);
-#endif
+//#endif
 
 	/* Clear Interrupt Bits :-) */
 	UhciWrite16(Controller, UHCI_REGISTER_STATUS, IntrState);

@@ -294,6 +294,9 @@ void SchedulerApplyMs(size_t Ms)
 				/* Skip to next node */
 				sNode = sNode->link;
 
+				/* Remove this node */
+				list_remove_by_node(IoQueue, WakeNode);
+
 				/* Store node */
 				list_append(GlbSchedulerNodeRecycler, WakeNode);
 

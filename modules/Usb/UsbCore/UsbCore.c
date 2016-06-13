@@ -171,6 +171,7 @@ void UsbReleaseAddress(UsbHc_t *Hc, size_t Address)
 void UsbDeviceSetup(UsbHc_t *Hc, int Port)
 {
 	/* Vars */
+	UsbTransferStatus_t tStatus;
 	UsbHcDevice_t *Device;
 	size_t ReservedAddr;
 	int i, j;
@@ -199,14 +200,11 @@ void UsbDeviceSetup(UsbHc_t *Hc, int Port)
 
 	/* Allocate control endpoint */
 	Device->CtrlEndpoint = (UsbHcEndpoint_t*)kmalloc(sizeof(UsbHcEndpoint_t));
-	Device->CtrlEndpoint->Address = 0;
+	memset(Device->CtrlEndpoint, 0, sizeof(UsbHcEndpoint_t));
 	Device->CtrlEndpoint->Type = EndpointControl;
-	Device->CtrlEndpoint->Toggle = 0;
 	Device->CtrlEndpoint->Bandwidth = 1;
 	Device->CtrlEndpoint->MaxPacketSize = 8;
 	Device->CtrlEndpoint->Direction = USB_EP_DIRECTION_BOTH;
-	Device->CtrlEndpoint->Interval = 0;
-	Device->CtrlEndpoint->AttachedData = NULL;
 
 	/* Bind it */
 	Hc->Ports[Port]->Device = Device;
@@ -241,13 +239,16 @@ void UsbDeviceSetup(UsbHc_t *Hc, int Port)
 		goto DevError;
 	}
 
+	LogDebug("OHCI", "SetAddress");
+
 	/* Set Device Address */
-	if (UsbFunctionSetAddress(Hc, Port, ReservedAddr) != TransferFinished)
+	tStatus = UsbFunctionSetAddress(Hc, Port, ReservedAddr);
+	if (tStatus != TransferFinished)
 	{
 		/* Try again */
-		if (UsbFunctionSetAddress(Hc, Port, ReservedAddr) != TransferFinished)
-		{
-			LogFatal("USBC", "(Set_Address) Failed to setup port %i", Port);
+		tStatus = UsbFunctionSetAddress(Hc, Port, ReservedAddr);
+		if (tStatus != TransferFinished) {
+			LogFatal("USBC", "(Set_Address) Failed to setup port %i: %u", Port, (size_t)tStatus);
 			goto DevError;
 		}
 	}
@@ -265,7 +266,7 @@ void UsbDeviceSetup(UsbHc_t *Hc, int Port)
 			goto DevError;
 		}
 	}
-	
+
 	/* Get Config Descriptor */
 	if (UsbFunctionGetConfigDescriptor(Hc, Port) != TransferFinished)
 	{
@@ -322,6 +323,8 @@ void UsbDeviceSetup(UsbHc_t *Hc, int Port)
 	return;
 
 DevError:
+	LogInformation("USBC", "Setup of port %i failed!", Port);
+
 	/* Destruct */
 	Hc->EndpointDestroy(Hc->Hc, Device->CtrlEndpoint);
 
@@ -329,11 +332,16 @@ DevError:
 	kfree(Device->CtrlEndpoint);
 
 	/* Free Address */
-	UsbReleaseAddress(Hc, Device->Address);
+	if (Device->Address != 0)
+		UsbReleaseAddress(Hc, Device->Address);
 
 	/* Free Interfaces */
 	for (i = 0; i < (int)Device->NumInterfaces; i++)
 	{
+		/* Sanity */
+		if (Device->Interfaces[i] == NULL)
+			continue;
+
 		/* Free Endpoints */
 		for (j = 0; j < USB_MAX_VERSIONS; j++) {
 			if (Device->Interfaces[i]->Versions[j] != NULL
@@ -404,11 +412,16 @@ void UsbDeviceDestroy(UsbHc_t *Hc, int Port)
 	kfree(Device->CtrlEndpoint);
 
 	/* Free Address */
-	UsbReleaseAddress(Hc, Device->Address);
+	if (Device->Address != 0)
+		UsbReleaseAddress(Hc, Device->Address);
 
 	/* Free Interfaces */
 	for (i = 0; i < (int)Device->NumInterfaces; i++)
 	{
+		/* Sanity */
+		if (Device->Interfaces[i] == NULL)
+			continue;
+
 		/* Free Endpoints */
 		for (j = 0; j < USB_MAX_VERSIONS; j++) {
 			if (Device->Interfaces[i]->Versions[j] != NULL 
@@ -458,12 +471,10 @@ UsbHcPort_t *UsbPortCreate(int Port)
 
 	/* Allocate Resources */
 	HcPort = kmalloc(sizeof(UsbHcPort_t));
+	memset(HcPort, 0, sizeof(UsbHcPort_t));
 
-	/* Get Port Status */
+	/* Set Port Id */
 	HcPort->Id = Port;
-	HcPort->Connected = 0;
-	HcPort->Device = NULL;
-	HcPort->Enabled = 0;
 
 	/* Done */
 	return HcPort;

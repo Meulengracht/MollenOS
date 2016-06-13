@@ -91,7 +91,7 @@ typedef struct _OhciEndpointDescriptor
 #define OHCI_EP_OUT					(1 << 11)
 #define OHCI_EP_IN					(1 << 12)
 #define OHCI_EP_INOUT_TD			(OHCI_EP_OUT | OHCI_EP_IN)
-#define OHCP_EP_LOWSPEED(n)			(n << 13)
+#define OHCP_EP_LOWSPEED(n)			((n & 0x1) << 13)
 #define OHCI_EP_SKIP				0x4000
 #define OHCI_EP_ISOCHRONOUS			(1 << 15)
 #define OHCI_EP_MAXLEN(n)			((n & OHCI_EP_LENGTH_MASK) << 16)
