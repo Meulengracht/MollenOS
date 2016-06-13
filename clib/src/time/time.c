@@ -44,7 +44,7 @@ time_t time(time_t *timer)
 
 	/* Now convert the sys-time
 	 * to time_t */
-	RetTime = mktime(NULL);
+	RetTime = mktime(&TimeStruct);
 
 	/* Update the user-variable
 	 * if he passed a pointer */

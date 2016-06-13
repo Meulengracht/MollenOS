@@ -25,11 +25,13 @@
 #include <string.h>
 #include <internal/_time.h>
 #include <os/Syscall.h>
+#include <os/Thread.h>
 
 /* Re-entrency */
-tm *localtime_r(const time_t *timer, tm *tmbuf) {
+tm *localtime_r(const time_t *timer, tm *tmbuf) 
+{
+	/* Variables */
 	time_t t;
-
 	t = *timer - _timezone;
 	return gmtime_r(&t, tmbuf);
 }
@@ -40,6 +42,6 @@ tm *localtime_r(const time_t *timer, tm *tmbuf) {
  * format */
 tm *localtime(const time_t *timer)
 {
-	tm buf;
-	return localtime_r(timer, &buf);
+	tm *buf = &TLSGetCurrent()->TmBuffer;
+	return localtime_r(timer, buf);
 }

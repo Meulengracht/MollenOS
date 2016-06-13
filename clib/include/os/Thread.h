@@ -129,6 +129,8 @@ typedef struct _ThreadLocalStorage
 	/* Ptr for strtok() */
 	char			*StrTokNext;
 
+	/* Buffer for time functions */
+	tm				 TmBuffer;
 
 	/* Exceptions stuff */
 	void			*TerminateHandler;

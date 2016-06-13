@@ -25,6 +25,7 @@
 #include <string.h>
 #include <internal/_time.h>
 #include <os/Syscall.h>
+#include <os/Thread.h>
 
 /* Re-entrency */
 tm *gmtime_r(const time_t *timer, tm *tmbuf) {
@@ -62,6 +63,6 @@ tm *gmtime_r(const time_t *timer, tm *tmbuf) {
 * timestructure with gmtime
 * format */
 tm *gmtime(const time_t *timer) {
-	tm buf;
-	return gmtime_r(timer, &buf);
+	tm *buf = &TLSGetCurrent()->TmBuffer;
+	return gmtime_r(timer, buf);
 }
