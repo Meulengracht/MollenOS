@@ -150,7 +150,7 @@ _CRT_EXTERN void AcpiScan(void);
 
 /* Device Functions */
 _CRT_EXTERN ACPI_STATUS AcpiDeviceAttachData(AcpiDevice_t *Device, uint32_t Type);
-_CRT_EXTERN int AcpiDeviceGetIrq(int Bus, int Device, int Pin,
+_CRT_EXTERN int AcpiDeviceGetIrq(void *PciDevice, int Pin,
 	uint8_t *TriggerMode, uint8_t *Polarity, uint8_t *Shareable, uint8_t *Fixed);
 
 /* Device Get's */

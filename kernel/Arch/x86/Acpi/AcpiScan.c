@@ -23,6 +23,7 @@
 #include <Arch.h>
 #include <AcpiSys.h>
 #include <Heap.h>
+#include <Pci.h>
 #include <Log.h>
 
 /* C-Library */
@@ -37,71 +38,117 @@ int AcpiDerivePin(int Device, int Pin) {
 	return (((Pin - 1) + Device) % 4) + 1;
 }
 
-/* Get Irq by Bus / Dev / Pin 
- * Returns -1 if no overrides exists */
-int AcpiDeviceGetIrq(int Bus, int Device, int Pin,
-					uint8_t *TriggerMode, uint8_t *Polarity, uint8_t *Shareable,
-					uint8_t *Fixed)
+/* Lookup a bridge device for the given
+ * bus that contains pci routings */
+AcpiDevice_t *AcpiLookupDevice(int Bus) 
 {
-	/* Locate correct bus */
+	/* Variables */
 	AcpiDevice_t *Dev = NULL;
 	DataKey_t Key;
 	int Index = 0;
 
-	LogFatal("ACPI", "Looking up IRQ for [%i:%i:%i]", Bus, Device, Pin);
-	
-	//If a device is on bus 2, dev 3, this actually maps to
-	//<bus2_addr> on bus 0
-
-	//also pin gets changed
-
 	/* Keep looping untill no more
-	 * buses */
+	* buses */
 	while (1)
 	{
 		/* Get the index */
 		Key.Value = ACPI_BUS_ROOT_BRIDGE;
 		Dev = (AcpiDevice_t*)ListGetDataByKey(GlbPciAcpiDevices, Key, Index);
 
-		/* Sanity, if this returns 
+		/* Sanity, if this returns
 		 * null we are out of data */
 		if (Dev == NULL)
 			break;
 
-		LogFatal("ACPI", "Found bus %u", Dev->Bus);
-
-		/* Todo, make sure we find the correct root-bridge */
-		if (Dev->Routings != NULL)
-		{
-			/* Get offset */
-			int toffset = (Device * 4) + Pin;
-			LogFatal("ACPI", "IRQ Table Address: %i -- irq %i", 
-				toffset, Dev->Routings->Interrupts[toffset]);
-
-			/* Sanity */
-			if (Dev->Routings->Interrupts[toffset] != -1) {
-				/* Update IRQ Information */
-				if (Dev->Routings->Trigger[toffset] == ACPI_LEVEL_SENSITIVE)
-					*TriggerMode = 1;
-				else
-					*TriggerMode = 0;
-
-				if (Dev->Routings->Polarity[toffset] == ACPI_ACTIVE_LOW)
-					*Polarity = 1;
-				else
-					*Polarity = 0;
-
-				*Shareable = Dev->Routings->Shareable[toffset];
-				*Fixed = Dev->Routings->Fixed[toffset];
-				return Dev->Routings->Interrupts[toffset];
-			}
+		/* Match the bus plx */
+		if (Dev->Bus == Bus
+			&& Dev->Routings != NULL) {
+			return Dev;
 		}
-		
+
 		/* Increase N */
 		Index++;
 	}
 
-	for (;;);
+	/* Noooooooo */
+	return NULL;
+}
+
+/* Get Irq by Bus / Dev / Pin 
+ * Returns -1 if no overrides exists */
+int AcpiDeviceGetIrq(void *PciDevice, int Pin,
+					uint8_t *TriggerMode, uint8_t *Polarity, uint8_t *Shareable,
+					uint8_t *Fixed)
+{
+	/* Locate correct bus */
+	AcpiDevice_t *Dev = NULL;
+	PciDevice_t *PciDev = (PciDevice_t*)PciDevice;
+	int pDevice = PciDev->Device, pPin = Pin;
+
+	/* Calculate routing index */
+	int rIndex = (pDevice * 4) + Pin;
+
+	/* Start by checking if we can find the 
+	 * routings by checking the given device */
+	Dev = AcpiLookupDevice(PciDev->Bus);
+
+	/* Sanitize */
+	if (Dev != NULL) {
+		/* Sanity */
+		if (Dev->Routings->Interrupts[rIndex] != -1) {
+			/* Update IRQ Information */
+			if (Dev->Routings->Trigger[rIndex] == ACPI_LEVEL_SENSITIVE)
+				*TriggerMode = 1;
+			else
+				*TriggerMode = 0;
+
+			if (Dev->Routings->Polarity[rIndex] == ACPI_ACTIVE_LOW)
+				*Polarity = 1;
+			else
+				*Polarity = 0;
+
+			*Shareable = Dev->Routings->Shareable[rIndex];
+			*Fixed = Dev->Routings->Fixed[rIndex];
+			return Dev->Routings->Interrupts[rIndex];
+		}
+	}
+
+	/* Damn, check parents */
+	PciDev = PciDev->Parent;
+	while (PciDev) {
+
+		/* Correct the pin */
+		pPin = AcpiDerivePin(pDevice, pPin);
+		pDevice = PciDev->Device;
+
+		/* Calculate new corrected routing index */
+		rIndex = (pDevice * 4) + pPin;
+
+		/* Start by checking if we can find the
+		* routings by checking the given device */
+		Dev = AcpiLookupDevice(PciDev->Bus);
+
+		/* Sanitize */
+		if (Dev != NULL) {
+			/* Sanity */
+			if (Dev->Routings->Interrupts[rIndex] != -1) {
+				/* Update IRQ Information */
+				if (Dev->Routings->Trigger[rIndex] == ACPI_LEVEL_SENSITIVE)
+					*TriggerMode = 1;
+				else
+					*TriggerMode = 0;
+
+				if (Dev->Routings->Polarity[rIndex] == ACPI_ACTIVE_LOW)
+					*Polarity = 1;
+				else
+					*Polarity = 0;
+
+				*Shareable = Dev->Routings->Shareable[rIndex];
+				*Fixed = Dev->Routings->Fixed[rIndex];
+				return Dev->Routings->Interrupts[rIndex];
+			}
+		}
+	}
 
 	return -1;
 }

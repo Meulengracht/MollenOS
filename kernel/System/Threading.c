@@ -72,6 +72,7 @@ void ThreadingInit(void)
 	Init->Queue = MCORE_SCHEDULER_LEVELS - 1;
 	Init->Flags = THREADING_IDLE | THREADING_SYSTEMTHREAD | THREADING_CPUBOUND;
 	Init->TimeSlice = MCORE_IDLE_TIMESLICE;
+	Init->Priority = PriorityLow;
 	Init->ParentId = 0xDEADBEEF;
 	Init->ThreadId = GlbThreadId;
 	Init->ProcessId = 0xFFFFFFFF;
@@ -117,6 +118,7 @@ void ThreadingApInit(Cpu_t Cpu)
 	Init->Queue = MCORE_SCHEDULER_LEVELS - 1;
 	Init->Flags = THREADING_IDLE | THREADING_SYSTEMTHREAD | THREADING_CPUBOUND;
 	Init->TimeSlice = MCORE_IDLE_TIMESLICE;
+	Init->Priority = PriorityLow;
 	Init->ParentId = 0xDEADBEEF;
 	Init->ThreadId = GlbThreadId;
 	Init->CpuId = Cpu;
@@ -384,6 +386,7 @@ TId_t ThreadingCreateThread(char *Name, ThreadEntry_t Function, void *Args, int 
 	/* Scheduler Related */
 	nThread->Queue = -1;
 	nThread->TimeSlice = MCORE_INITIAL_TIMESLICE;
+	nThread->Priority = PriorityNormal;
 
 	/* Create Address Space */
 	if (Flags & THREADING_USERMODE) {

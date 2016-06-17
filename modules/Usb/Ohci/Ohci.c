@@ -32,7 +32,7 @@
 #include <Scheduler.h>
 #include <Heap.h>
 #include <Timers.h>
-#include <Pci.h>
+#include <x86/Pci.h>
 
 /* CLib */
 #include <assert.h>

@@ -242,8 +242,6 @@ void UsbDeviceSetup(UsbHc_t *Hc, int Port)
 		goto DevError;
 	}
 
-	LogDebug("OHCI", "SetAddress");
-
 	/* Set Device Address */
 	tStatus = UsbFunctionSetAddress(Hc, Port, ReservedAddr);
 	if (tStatus != TransferFinished)

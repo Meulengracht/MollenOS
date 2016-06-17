@@ -133,6 +133,10 @@ _CRT_EXTERN Addr_t IoSpaceValidate(Addr_t Address);
 /***********************
 * Device Interface     *
 ***********************/
+/* First of all, devices exists on TWO different
+* busses. PCI and PCI Express. */
+_CRT_EXTERN void BusInit(void);
+
 _CRT_EXTERN int DeviceAllocateInterrupt(void *mCoreDevice);
 
 #endif

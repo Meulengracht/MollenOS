@@ -366,14 +366,14 @@ int DeviceAllocateInterrupt(void *mCoreDevice)
 		ReducedPin--;
 
 		/* Get Interrupt Information */
-		DidExist = AcpiDeviceGetIrq(Device->Bus, Device->Device, ReducedPin,
+		DidExist = AcpiDeviceGetIrq(Device->BusDevice, ReducedPin,
 			&IrqTriggerMode, &IrqPolarity, &IrqShareable, &Fixed);
 
 		/* If no routing exists use the interrupt_line */
 		if (DidExist == -1)
 		{
 			Device->IrqLine = IrqLine = 
-				(int)PciRead8(Device->Bus, Device->Device, Device->Function, 0x3C);
+				(int)PciRead8(NULL, Device->Bus, Device->Device, Device->Function, 0x3C);
 			IdtEntry += Device->IrqLine;
 
 			ApicFlags |= 0x100;				/* Lowest Priority */
@@ -385,7 +385,7 @@ int DeviceAllocateInterrupt(void *mCoreDevice)
 			Device->IrqLine = IrqLine = DidExist;
 
 			/* Update PCI Interrupt Line */
-			PciWrite8(Device->Bus, Device->Device, Device->Function, 0x3C, (uint8_t)IrqLine);
+			PciWrite8(NULL, Device->Bus, Device->Device, Device->Function, 0x3C, (uint8_t)IrqLine);
 
 			/* Setup APIC flags */
 			ApicFlags |= 0x100;						/* Lowest Priority */

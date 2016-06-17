@@ -111,6 +111,15 @@
     <ClCompile Include="..\..\Arch\x86\Pci\PciIo.c">
       <Filter>Pci</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\Arch\x86\Pci\PciEnumerate.c">
+      <Filter>Pci</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Arch\x86\Pci\PciHelpers.c">
+      <Filter>Pci</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Arch\x86\Pci\PciStrings.c">
+      <Filter>Pci</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <CustomBuild Include="..\..\Arch\x86\Components\Portio.asm">

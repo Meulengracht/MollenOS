@@ -112,10 +112,17 @@ void HeapPrintStats(Heap_t *Heap)
 	HeapBlock_t *current_block, *previous_block;
 	uint32_t node_count = 0;
 	size_t total_bytes_allocated = 0;
-	size_t total_nodes_allocated = 0;
+	size_t total_nodes_allocated = 0; 
+
+	/* Vars */
+	Heap_t *pHeap = Heap;
+
+	/* Sanity */
+	if (pHeap == NULL)
+		pHeap = &KernelHeap;
 
 	/* Count Nodes */
-	current_block = Heap->Blocks, previous_block = NULL;
+	current_block = pHeap->Blocks, previous_block = NULL;
 	while (current_block)
 	{
 		HeapNode_t *current_node = current_block->Nodes, *previous_node = NULL;
@@ -884,7 +891,7 @@ int HeapValidateAddress(Heap_t *Heap, Addr_t Address)
 		pHeap = &KernelHeap;
 
 	/* Find Addr */
-	HeapNode_t *MemInfo = HeapQuery(Heap, Address);
+	HeapNode_t *MemInfo = HeapQuery(pHeap, Address);
 
 	/* Sanity */
 	if (MemInfo == NULL

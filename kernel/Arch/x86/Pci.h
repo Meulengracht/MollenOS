@@ -99,7 +99,7 @@ typedef struct _PciNativeHeader
 /* The Bus Header */
 typedef struct _PciBus
 {
-	/* Address */
+	/* Io Space */
 	DeviceIoSpace_t *IoSpace;
 
 	/* Type */
@@ -117,8 +117,15 @@ typedef struct _PciBus
 /* The Driver Header */
 typedef struct _PciDevice
 {
+	/* Pointer to our parent
+	* which is a bridge */
+	struct _PciDevice *Parent;
+
 	/* Type */
 	uint32_t Type;
+
+	/* Bus Io */
+	PciBus_t *PciBus;
 
 	/* Location */
 	uint32_t Bus;
@@ -129,7 +136,6 @@ typedef struct _PciDevice
 	PciNativeHeader_t *Header;
 
 	/* Children (list.h) */
-	void *Parent;
 	void *Children;
 
 } PciDevice_t;
@@ -164,13 +170,30 @@ typedef struct _PciDevice
 /* Prototypes */
 
 /* Read I/O */
-_CRT_EXTERN uint8_t PciRead8(uint32_t Bus, uint32_t Device, uint32_t Function, uint32_t Register);
-_CRT_EXTERN uint16_t PciRead16(uint32_t Bus, uint32_t Device, uint32_t Function, uint32_t Register);
-_CRT_EXTERN uint32_t PciRead32(uint32_t Bus, uint32_t Device, uint32_t Function, uint32_t Register);
+_CRT_EXTERN uint8_t PciRead8(PciBus_t *BusIo, uint32_t Bus, uint32_t Device, uint32_t Function, uint32_t Register);
+_CRT_EXTERN uint16_t PciRead16(PciBus_t *BusIo, uint32_t Bus, uint32_t Device, uint32_t Function, uint32_t Register);
+_CRT_EXTERN uint32_t PciRead32(PciBus_t *BusIo, uint32_t Bus, uint32_t Device, uint32_t Function, uint32_t Register);
+_CRT_EXPORT uint32_t PciDeviceRead(PciDevice_t *Device, uint32_t Register, uint32_t Length);
 
 /* Write I/O */
-_CRT_EXTERN void PciWrite8(uint32_t Bus, uint32_t Device, uint32_t Function, uint32_t Register, uint8_t Value);
-_CRT_EXTERN void PciWrite16(uint32_t Bus, uint32_t Device, uint32_t Function, uint32_t Register, uint16_t Value);
-_CRT_EXTERN void PciWrite32(uint32_t Bus, uint32_t Device, uint32_t Function, uint32_t Register, uint32_t Value);
+_CRT_EXTERN void PciWrite8(PciBus_t *BusIo, uint32_t Bus, uint32_t Device, uint32_t Function, uint32_t Register, uint8_t Value);
+_CRT_EXTERN void PciWrite16(PciBus_t *BusIo, uint32_t Bus, uint32_t Device, uint32_t Function, uint32_t Register, uint16_t Value);
+_CRT_EXTERN void PciWrite32(PciBus_t *BusIo, uint32_t Bus, uint32_t Device, uint32_t Function, uint32_t Register, uint32_t Value);
+_CRT_EXPORT void PciDeviceWrite(PciDevice_t *Device, uint32_t Register, uint32_t Value, uint32_t Length);
+
+/* Decode PCI Device to String */
+_CRT_EXTERN const char *PciToString(uint8_t Class, uint8_t SubClass, uint8_t Interface);
+
+/* Helpers */
+
+/* Reads the vendor id at given location */
+_CRT_EXTERN uint16_t PciReadVendorId(PciBus_t *BusIo, uint32_t Bus, uint32_t Device, uint32_t Function);
+_CRT_EXTERN void PciReadFunction(PciNativeHeader_t *Pcs, PciBus_t *BusIo, uint32_t Bus, uint32_t Device, uint32_t Function);
+
+_CRT_EXTERN uint8_t PciReadBaseClass(PciBus_t *BusIo, uint32_t Bus, uint32_t Device, uint32_t Function);
+_CRT_EXTERN uint8_t PciReadSubclass(PciBus_t *BusIo, uint32_t Bus, uint32_t Device, uint32_t Function);
+_CRT_EXTERN uint8_t PciReadInterface(PciBus_t *BusIo, uint32_t Bus, uint32_t Device, uint32_t Function);
+_CRT_EXTERN uint8_t PciReadSecondaryBusNumber(PciBus_t *BusIo, uint32_t Bus, uint32_t Device, uint32_t Function);
+_CRT_EXTERN uint8_t PciReadHeaderType(PciBus_t *BusIo, uint32_t Bus, uint32_t Device, uint32_t Function);
 
 #endif // !_X86_PCI_H_

@@ -49,21 +49,11 @@ void PrintHeader(MCoreBootInfo_t *BootInfo)
 /* The bus thread */
 void MCoreKickStartBus(void *Args)
 {
-	/* Vars */
-	MCoreModule_t *BusModule = NULL;
-
 	/* Unused */
 	_CRT_UNUSED(Args);
 
-	/* Drivers
-	* Start the bus driver */
-	BusModule = ModuleFindGeneric(MODULE_BUS, 0);
-
-	/* Sanity */
-	if (BusModule == NULL)
-		LogFatal("SYST", "Failed to locate bus module in initrd, which means system will have no further functionality.");
-	else
-		ModuleLoad(BusModule, NULL);
+	/* Initialize the bus */
+	BusInit();
 }
 
 /* * 

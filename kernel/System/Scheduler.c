@@ -343,9 +343,9 @@ void SchedulerSleepThread(Addr_t *Resource, size_t Timeout)
 	 * This is a fragile operation */
 	MCoreThread_t *CurrentThread = NULL;
 	IntStatus_t IntrState = InterruptDisable();
+	Cpu_t Cpu = ApicGetCpu();
 	DataKey_t iKey;
 	DataKey_t sKey;
-	Cpu_t Cpu = ApicGetCpu();
 
 	/* Mark current thread for sleep */
 	CurrentThread = ThreadingGetCurrentThread(Cpu);
