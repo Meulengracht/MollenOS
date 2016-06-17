@@ -16,7 +16,7 @@
 ; along with this program.  If not, see <http://www.gnu.org/licenses/>.
 ;
 ;
-; MollenOS x86-32 Spinlock Code
+; MollenOS x86 Direct Port IO Code
 ;
 bits 32
 segment .text

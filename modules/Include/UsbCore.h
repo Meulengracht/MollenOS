@@ -24,10 +24,11 @@
 
 /* Includes */
 #include <Arch.h>
+
+/* C-Library */
 #include <crtdefs.h>
 #include <stdint.h>
-
-#include <MString.h>
+#include <ds/mstring.h>
 
 /* Sanity */
 #ifdef __USBCORE

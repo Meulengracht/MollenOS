@@ -32,9 +32,9 @@
 
 /* Includes */
 #include <crtdefs.h>
+#include <ds/list.h>
 
 #include <Arch.h>
-#include <List.h>
 #include <Threading.h>
 
 /* Definitions */
@@ -49,10 +49,10 @@
 typedef struct _MCoreScheduler
 {
 	/* Thread List */
-	list_t *Threads;
+	List_t *Threads;
 
 	/* Queues */
-	list_t *Queues[MCORE_SCHEDULER_LEVELS];
+	List_t *Queues[MCORE_SCHEDULER_LEVELS];
 
 	/* Boost Timer */
 	size_t BoostTimer;

@@ -814,7 +814,7 @@ void HeapInit(void)
 	KernelHeap.NodeRecycler = NULL;
 
 	/* Initiate the global spinlock */
-	CriticalSectionConstruct(&KernelHeap.Lock);
+	CriticalSectionConstruct(&KernelHeap.Lock, CRITICALSECTION_REENTRANCY);
 
 	/* Create a normal node */
 	NormBlock = HeapCreateBlock(&KernelHeap, HEAP_NORMAL_BLOCK, BLOCK_NORMAL);
@@ -849,7 +849,7 @@ Heap_t *HeapCreate(Addr_t HeapAddress, int UserHeap)
 	Heap->NodeRecycler = NULL;
 
 	/* Initiate the global spinlock */
-	CriticalSectionConstruct(&Heap->Lock);
+	CriticalSectionConstruct(&Heap->Lock, CRITICALSECTION_REENTRANCY);
 
 	/* Create a normal node */
 	NormBlock = HeapCreateBlock(Heap, HEAP_NORMAL_BLOCK, BLOCK_NORMAL);

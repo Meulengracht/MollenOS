@@ -30,6 +30,9 @@
 #include <Threading.h>
 #include <Log.h>
 
+/* C-Library */
+#include <stddef.h>
+
 /* Prototypes */
 void GcWorker(void *Args);
 

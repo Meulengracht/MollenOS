@@ -16,11 +16,11 @@
 * along with this program.If not, see <http://www.gnu.org/licenses/>.
 *
 *
-* MollenOS x86 ACPI Interface (Uses ACPICA)
+* MollenOS ACPI Interface (Uses ACPICA)
 */
 
-#ifndef _X86_ACPI_SYSTEM_
-#define _X86_ACPI_SYSTEM_
+#ifndef _ACPI_SYSTEM_
+#define _ACPI_SYSTEM_
 
 /* Includes */
 #include <stdint.h>
@@ -91,8 +91,11 @@ typedef struct _PciRoutings
 #pragma pack(push, 1)
 typedef struct _AcpiDevice
 {
+	/* Name */
+	char *Name;
+
 	/* Type */
-	uint32_t Type;
+	int Type;
 
 	/* ACPI_HANDLE */
 	void *Handle;
@@ -104,16 +107,16 @@ typedef struct _AcpiDevice
 	char BusId[8];
 
 	/* PCI Location */
-	uint32_t Bus;
-	uint32_t Device;
-	uint32_t Function;
-	uint32_t Segment;
+	int Bus;
+	int Device;
+	int Function;
+	int Segment;
 
 	/* Supported NS Functions */
-	uint32_t Features;
+	size_t Features;
 
 	/* Current Status */
-	uint32_t Status;
+	size_t Status;
 
 	/* Bus Address */
 	uint64_t Address;
@@ -147,7 +150,7 @@ _CRT_EXTERN void AcpiScan(void);
 
 /* Device Functions */
 _CRT_EXTERN ACPI_STATUS AcpiDeviceAttachData(AcpiDevice_t *Device, uint32_t Type);
-_CRT_EXTERN int32_t AcpiDeviceGetIrq(uint32_t Bus, uint32_t Device, uint32_t Pin, 
+_CRT_EXTERN int AcpiDeviceGetIrq(int Bus, int Device, int Pin,
 	uint8_t *TriggerMode, uint8_t *Polarity, uint8_t *Shareable, uint8_t *Fixed);
 
 /* Device Get's */
@@ -164,4 +167,4 @@ _CRT_EXTERN ACPI_STATUS AcpiDeviceIsDock(AcpiDevice_t *Device);
 _CRT_EXTERN ACPI_STATUS AcpiDeviceIsBay(AcpiDevice_t *Device);
 _CRT_EXTERN ACPI_STATUS AcpiDeviceIsBattery(AcpiDevice_t *Device);
 
-#endif //!_X86_ACPI_SYSTEM_
+#endif //!_ACPI_SYSTEM_

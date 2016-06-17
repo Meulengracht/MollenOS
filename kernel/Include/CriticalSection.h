@@ -24,19 +24,29 @@
 #define _MCORE_CRITICAL_SECTION_
 
 /* Includes */
-#include <Arch.h>
-#include <Threading.h>
+#include "../Arch/Arch.h"
+#include <os/Spinlock.h>
 #include <crtdefs.h>
 #include <stdint.h>
+
+/* Definitions */
+#define CRITICALSECTION_PLAIN			0x0
+#define CRITICALSECTION_REENTRANCY		0x1
 
 /* Structures */
 typedef struct _CriticalSection
 {
+	/* Settings */
+	int Flags;
+
 	/* Owner */
 	TId_t Owner;
 
 	/* References */
 	size_t References;
+
+	/* Interrupt Status */
+	IntStatus_t IntrState;
 
 	/* Spinlock */
 	Spinlock_t Lock;
@@ -44,11 +54,28 @@ typedef struct _CriticalSection
 } CriticalSection_t;
 
 /* Prototypes */
-_CRT_EXPORT CriticalSection_t *CriticalSectionCreate(void);
+
+/* Instantiate a new critical section
+ * with allocation and resets it */
+_CRT_EXPORT CriticalSection_t *CriticalSectionCreate(int Flags);
+
+/* Constructs an already allocated section 
+ * by resetting it's datamembers and initializing
+ * the lock */
+_CRT_EXPORT void CriticalSectionConstruct(CriticalSection_t *Section, int Flags);
+
+/* Destroy and release resources,
+ * the lock MUST NOT be held when this
+ * is called, so make sure its not used */
 _CRT_EXPORT void CriticalSectionDestroy(CriticalSection_t *Section);
 
-_CRT_EXPORT void CriticalSectionConstruct(CriticalSection_t *Section);
+/* Enter a critical section, the critical
+ * section supports reentrancy if set at creation */
 _CRT_EXPORT void CriticalSectionEnter(CriticalSection_t *Section);
+
+/* Leave a critical section, the lock is 
+ * not neccesarily released if held by multiple 
+ * entrances */
 _CRT_EXPORT void CriticalSectionLeave(CriticalSection_t *Section);
 
 #endif

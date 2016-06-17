@@ -36,6 +36,31 @@
 #define MPATH_MAX		512
 #endif
 
+/* The definition of a thread id
+* used for identifying threads */
+#ifndef MTHREADID_DEFINED
+#define MTHREADID_DEFINED
+typedef unsigned int TId_t;
+typedef long ThreadOnce_t;
+typedef void(*ThreadOnceFunc_t)(void);
+#endif
+
+/* The definition of a thread specifc
+* storage key, used for saving data
+* in a dictionary */
+#ifndef MTHREADTLS_DEFINED
+#define MTHREADTLS_DEFINED
+typedef unsigned int TlsKey_t;
+typedef void(*TlsKeyDss_t)(void*);
+#endif
+
+/* The definition of a thread entry
+* point format */
+#ifndef MTHREADENTRY_DEFINED
+#define MTHREADENTRY_DEFINED
+typedef int(*ThreadFunc_t)(void*);
+#endif
+
 /* Typedef the process id type */
 #ifndef MPROCESS_ID
 #define MPROCESS_ID

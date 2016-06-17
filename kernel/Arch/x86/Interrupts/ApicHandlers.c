@@ -23,7 +23,6 @@
 #include <Arch.h>
 #include <Acpi.h>
 #include <Apic.h>
-#include <List.h>
 #include <Thread.h>
 #include <Threading.h>
 #include <Interrupts.h>

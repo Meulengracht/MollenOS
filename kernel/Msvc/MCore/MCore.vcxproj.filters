@@ -36,12 +36,6 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="..\..\Common\List.c">
-      <Filter>Common</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\Common\RingBuffer.c">
-      <Filter>Common</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\Init\Entry.c">
       <Filter>Entry</Filter>
     </ClCompile>
@@ -74,9 +68,6 @@
     </ClCompile>
     <ClCompile Include="..\..\System\Vfs.c">
       <Filter>Systems</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\Common\MString.c">
-      <Filter>Common</Filter>
     </ClCompile>
     <ClCompile Include="..\..\System\Modules\ModuleManager.c">
       <Filter>Systems\Modules</Filter>
@@ -113,9 +104,6 @@
     </ClCompile>
     <ClCompile Include="..\..\System\Events.c">
       <Filter>Systems</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\Common\Sha1.c">
-      <Filter>Common</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>

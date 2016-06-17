@@ -134,7 +134,7 @@ void EhciInitQueues(EhciController_t *Controller)
 	Controller->QhPool[EHCI_POOL_QH_ASYNC]->HcdFlags = EHCI_QH_ALLOCATED;
 
 	/* Allocate Transaction List */
-	Controller->TransactionList = list_create(LIST_SAFE);
+	Controller->TransactionList = ListCreate(KeyInteger, LIST_SAFE);
 
 	/* Setup a bandwidth scheduler */
 	Controller->Scheduler = UsbSchedulerInit(Controller->FLength, EHCI_MAX_BANDWIDTH, 8);
@@ -1104,6 +1104,7 @@ void EhciTransactionSend(void *cData, UsbHcRequest_t *Request)
 	EhciQueueHead_t *Qh = NULL;
 	EhciTransferDescriptor_t *Td = NULL;
 
+	DataKey_t Key;
 	uint32_t CondCode;
 
 	/************************
@@ -1175,7 +1176,8 @@ void EhciTransactionSend(void *cData, UsbHcRequest_t *Request)
 	}
 
 	/* Add this Transaction to list */
-	list_append((list_t*)Controller->TransactionList, list_create_node(0, Request));
+	Key.Value = 0;
+	ListAppend((List_t*)Controller->TransactionList, ListCreateNode(Key, Key, Request));
 
 	/*************************
 	**** LINKING PHASE ******
@@ -1348,7 +1350,7 @@ void EhciTransactionDestroy(void *cData, UsbHcRequest_t *Request)
 	/* Cast */
 	UsbHcTransaction_t *Transaction = Request->Transactions;
 	EhciController_t *Controller = (EhciController_t*)cData;
-	list_node_t *Node = NULL;
+	ListNode_t *Node = NULL;
 
 	/* We unlink and clean up based 
 	 * on trasnaction type */
@@ -1473,14 +1475,14 @@ void EhciTransactionDestroy(void *cData, UsbHcRequest_t *Request)
 	}
 
 	/* Remove transaction from list */
-	_foreach(Node, ((list_t*)Controller->TransactionList)) {
-		if (Node->data == Request)
+	_foreach(Node, ((List_t*)Controller->TransactionList)) {
+		if (Node->Data == Request)
 			break;
 	}
 
 	/* Sanity */
 	if (Node != NULL) {
-		list_remove_by_node((list_t*)Controller->TransactionList, Node);
+		ListRemoveByNode((List_t*)Controller->TransactionList, Node);
 		kfree(Node);
 	}
 }
@@ -1612,13 +1614,13 @@ int EhciScanQh(EhciController_t *Controller, UsbHcRequest_t *Request)
 void EhciProcessTransfers(EhciController_t *Controller)
 {
 	/* Transaction is completed / Failed */
-	list_t *Transactions = (list_t*)Controller->TransactionList;
+	List_t *Transactions = (List_t*)Controller->TransactionList;
 
 	/* Get transactions in progress and find the offender */
 	foreach(Node, Transactions)
 	{
 		/* Cast UsbRequest */
-		UsbHcRequest_t *HcRequest = (UsbHcRequest_t*)Node->data;
+		UsbHcRequest_t *HcRequest = (UsbHcRequest_t*)Node->Data;
 		int Processed = 0;
 
 		/* Scan */
@@ -1670,17 +1672,17 @@ void EhciProcessTransfers(EhciController_t *Controller)
 void EhciProcessDoorBell(EhciController_t *Controller)
 {
 	/* Vars */
-	list_node_t *Node = NULL;
+	ListNode_t *Node = NULL;
 
 Scan:
 	/* Reset the rescan */
 	Controller->BellReScan = 0;
 
 	/* Iterate transactions */
-	_foreach(Node, ((list_t*)Controller->TransactionList))
+	_foreach(Node, ((List_t*)Controller->TransactionList))
 	{
 		/* Cast */
-		UsbHcRequest_t *Request = (UsbHcRequest_t*)Node->data;
+		UsbHcRequest_t *Request = (UsbHcRequest_t*)Node->Data;
 
 		/* Get transaction type */
 		if (Request->Type == ControlTransfer

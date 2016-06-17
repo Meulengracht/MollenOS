@@ -26,9 +26,11 @@
 #include <DeviceManager.h>
 #include <Module.h>
 #include <Pci.h>
-#include <List.h>
 #include <Heap.h>
 #include <Log.h>
+
+/* C-Library */
+#include <ds/list.h>
 
 /* The MCFG Entry */
 #pragma pack(push, 1)
@@ -51,10 +53,10 @@ typedef struct _McfgEntry
 #pragma pack(pop)
 
 /* Globals */
-list_t *GlbPciDevices = NULL;
+PciDevice_t *GlbRootBridge = NULL;
 
 /* Prototypes */
-void PciCheckBus(list_t *Bridge, PciBus_t *Bus, uint8_t BusNo);
+void PciCheckBus(PciDevice_t *Parent, uint8_t BusNo);
 
 /* Create class information from dev */
 DevInfo_t PciToDevClass(uint32_t Class, uint32_t SubClass)
@@ -192,22 +194,24 @@ void PciReadBars(PciBus_t *Bus, MCoreDevice_t *Device, uint32_t HeaderType)
 /* Check a function */
 /* For each function we create a 
  * pci_device and add it to the list */
-void PciCheckFunction(list_t *Bridge, PciBus_t *BusIo, uint8_t Bus, uint8_t Device, uint8_t Function)
+void PciCheckFunction(PciDevice_t *Parent, uint8_t Bus, uint8_t Device, uint8_t Function)
 {
 	/* Vars */
 	uint8_t SecondBus;
 	PciNativeHeader_t *Pcs;
 	PciDevice_t *PciDevice;
+	DataKey_t lKey;
 
 	/* Allocate */
 	Pcs = (PciNativeHeader_t*)kmalloc(sizeof(PciNativeHeader_t));
 	PciDevice = (PciDevice_t*)kmalloc(sizeof(PciDevice_t));
 
 	/* Get full information */
-	PciReadFunction(Pcs, BusIo, Bus, Device, Function);
+	PciReadFunction(Pcs, Parent->PciBus, Bus, Device, Function);
 
 	/* Set information */
-	PciDevice->PciBus = BusIo;
+	PciDevice->Parent = Parent;
+	PciDevice->PciBus = Parent->PciBus;
 	PciDevice->Header = Pcs;
 	PciDevice->Bus = Bus;
 	PciDevice->Device = Device;
@@ -232,8 +236,8 @@ void PciCheckFunction(list_t *Bridge, PciBus_t *BusIo, uint8_t Bus, uint8_t Devi
 		&& (Pcs->Class != PCI_DEVICE_CLASS_VIDEO))
 	{
 		/* Disable Device untill further notice */
-		uint16_t PciSettings = PciRead16(BusIo, Bus, Device, Function, 0x04);
-		PciWrite16(BusIo, Bus, Device, Function, 0x04, PciSettings | X86_PCI_COMMAND_INTDISABLE);
+		uint16_t PciSettings = PciRead16(PciDevice->PciBus, Bus, Device, Function, 0x04);
+		PciWrite16(PciDevice->PciBus, Bus, Device, Function, 0x04, PciSettings | X86_PCI_COMMAND_INTDISABLE);
 	}
 	
 	/* Add to list */
@@ -241,40 +245,42 @@ void PciCheckFunction(list_t *Bridge, PciBus_t *BusIo, uint8_t Bus, uint8_t Devi
 		&& Pcs->Subclass == PCI_DEVICE_SUBCLASS_PCI)
 	{
 		PciDevice->Type = X86_PCI_TYPE_BRIDGE;
-		list_append(Bridge, list_create_node(X86_PCI_TYPE_BRIDGE, PciDevice));
+		lKey.Value = X86_PCI_TYPE_BRIDGE;
+		ListAppend(Parent->Children, ListCreateNode(lKey, lKey, PciDevice));
 
 		/* Uh oh, this dude has children */
-		PciDevice->Children = list_create(LIST_SAFE);
+		PciDevice->Children = ListCreate(KeyInteger, LIST_NORMAL);
 
 		/* Get secondary bus no and iterate */
-		SecondBus = PciReadSecondaryBusNumber(BusIo, Bus, Device, Function);
-		PciCheckBus(PciDevice->Children, BusIo, SecondBus);
+		SecondBus = PciReadSecondaryBusNumber(PciDevice->PciBus, Bus, Device, Function);
+		PciCheckBus(PciDevice->Children, SecondBus);
 	}
 	else
 	{
 		/* This is an device */
 		PciDevice->Type = X86_PCI_TYPE_DEVICE;
-		list_append(Bridge, list_create_node(X86_PCI_TYPE_DEVICE, PciDevice));
+		lKey.Value = X86_PCI_TYPE_DEVICE;
+		ListAppend(Parent->Children, ListCreateNode(lKey, lKey, PciDevice));
 	}
 }
 
 /* Check a device */
-void PciCheckDevice(list_t *Bridge, PciBus_t *Bus, uint8_t BusNo, uint8_t Device)
+void PciCheckDevice(PciDevice_t *Parent, uint8_t Bus, uint8_t Device)
 {
 	uint8_t Function = 0;
 	uint16_t VendorId = 0;
 	uint8_t HeaderType = 0;
 
 	/* Get vendor id */
-	VendorId = PciReadVendorId(Bus, BusNo, Device, Function);
+	VendorId = PciReadVendorId(Parent->PciBus, Bus, Device, Function);
 
 	/* Sanity */
 	if (VendorId == 0xFFFF)
 		return;
 
 	/* Check function 0 */
-	PciCheckFunction(Bridge, Bus, BusNo, Device, Function);
-	HeaderType = PciReadHeaderType(Bus, BusNo, Device, Function);
+	PciCheckFunction(Parent, Bus, Device, Function);
+	HeaderType = PciReadHeaderType(Parent->PciBus, Bus, Device, Function);
 
 	/* Multi-function or single? */
 	if (HeaderType & 0x80)
@@ -283,21 +289,21 @@ void PciCheckDevice(list_t *Bridge, PciBus_t *Bus, uint8_t BusNo, uint8_t Device
 		for (Function = 1; Function < 8; Function++)
 		{
 			/* Only check if valid vendor */
-			if (PciReadVendorId(Bus, BusNo, Device, Function) != 0xFFFF)
-				PciCheckFunction(Bridge, Bus, BusNo, Device, Function);
+			if (PciReadVendorId(Parent->PciBus, Bus, Device, Function) != 0xFFFF)
+				PciCheckFunction(Parent, Bus, Device, Function);
 		}
 	}
 }
 
 /* Check a bus */
-void PciCheckBus(list_t *Bridge, PciBus_t *Bus, uint8_t BusNo)
+void PciCheckBus(PciDevice_t *Parent, uint8_t BusNo)
 {
 	/* Vars */
 	uint8_t Device;
 
 	/* Iterate devices on bus */
 	for (Device = 0; Device < 32; Device++)
-		PciCheckDevice(Bridge, Bus, BusNo, Device);
+		PciCheckDevice(Parent, BusNo, Device);
 }
 
 /* Convert PciDevice to MCoreDevice */
@@ -372,14 +378,14 @@ void PciCreateDeviceFromPci(PciDevice_t *PciDev)
 }
 
 /* Install Driver Callback */
-void PciInstallDriverCallback(void *Data, int No)
+void PciInstallDriverCallback(void *Data, int No, void *Context)
 {
 	/* Cast */
 	PciDevice_t *PciDev = (PciDevice_t*)Data;
 
 	/* Bridge or device? */
 	if (PciDev->Type == X86_PCI_TYPE_BRIDGE) {
-		list_execute_all((list_t*)PciDev->Children, PciInstallDriverCallback);
+		ListExecuteAll((List_t*)PciDev->Children, PciInstallDriverCallback, Context);
 	}
 	else
 	{
@@ -399,7 +405,13 @@ MODULES_API void ModuleInit(void *Data)
 	uint8_t HeaderType;
 
 	/* Init list, this is "bus 0" */
-	GlbPciDevices = list_create(LIST_NORMAL);
+	GlbRootBridge = (PciDevice_t*)kmalloc(sizeof(PciDevice_t));
+	GlbRootBridge->Children = ListCreate(KeyInteger, LIST_NORMAL);
+	GlbRootBridge->Bus = 0;
+	GlbRootBridge->Device = 0;
+	GlbRootBridge->Function = 0;
+	GlbRootBridge->Header = NULL;
+	GlbRootBridge->Parent = NULL;
 
 	/* Pci Express */
 	if (McfgTable != NULL)
@@ -422,12 +434,15 @@ MODULES_API void ModuleInit(void *Data)
 			Bus->BusEnd = Entry->EndBus;
 			Bus->Segment = Entry->SegmentGroup;
 
+			/* Store bus */
+			GlbRootBridge->PciBus = Bus;
+
 			/* Enumerate devices */
 			for (Function = Bus->BusStart; Function <= Bus->BusEnd; Function++)
 			{
 				/* Check bus */
 				BusNo = Function;
-				PciCheckBus(GlbPciDevices, Bus, (uint8_t)BusNo);
+				PciCheckBus(GlbRootBridge, (uint8_t)BusNo);
 			}
 
 			/* Next */
@@ -446,13 +461,16 @@ MODULES_API void ModuleInit(void *Data)
 		Bus->IsExtended = 0;
 		Bus->Segment = 0;
 
+		/* Store bus */
+		GlbRootBridge->PciBus = Bus;
+
 		/* Pci Legacy */
 		HeaderType = PciReadHeaderType(Bus, 0, 0, 0);
 
 		if ((HeaderType & 0x80) == 0)
 		{
 			/* Single PCI host controller */
-			PciCheckBus(GlbPciDevices, Bus, 0);
+			PciCheckBus(GlbRootBridge, 0);
 		}
 		else
 		{
@@ -464,13 +482,13 @@ MODULES_API void ModuleInit(void *Data)
 
 				/* Check bus */
 				BusNo = Function;
-				PciCheckBus(GlbPciDevices, Bus, (uint8_t)BusNo);
+				PciCheckBus(GlbRootBridge, (uint8_t)BusNo);
 			}
 		}
 	}
 
 	/* Step 1. Enumerate bus */
-	list_execute_all(GlbPciDevices, PciInstallDriverCallback);
+	ListExecuteAll(GlbRootBridge->Children, PciInstallDriverCallback, NULL);
 
 	/* Step 3. Install PS2 if present */
 

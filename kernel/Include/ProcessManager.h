@@ -24,14 +24,14 @@
 /* Includes */
 #include <crtdefs.h>
 #include <stdint.h>
+#include <ds/list.h>
+#include <ds/mstring.h>
 
 #include <Modules/PeLoader.h>
 #include <Bitmap.h>
 #include <Pipe.h>
-#include <MString.h>
 #include <Events.h>
 #include <Heap.h>
-#include <List.h>
 
 /* Definitions */
 typedef unsigned int PId_t;
@@ -55,7 +55,7 @@ typedef struct _MCoreProcess
 	MString_t *BaseDirectory;
 
 	/* Open Files */
-	list_t *OpenFiles;
+	List_t *OpenFiles;
 
 	/* Pipe */
 	MCorePipe_t *Pipe;

@@ -25,14 +25,13 @@
 
 /* Includes */
 #include <MollenOS.h>
-#include <Arch.h>
-#include <MString.h>
-#include <List.h>
+#include "../Arch/Arch.h"
+
+/* C-Library */
+#include <ds/list.h>
 #include <stdint.h>
 
 /* Definitions */
-typedef void(*ThreadEntry_t)(void*);
-typedef unsigned int TId_t;
 
 /* Threading Flags */
 #define THREADING_USERMODE		0x1
@@ -135,7 +134,7 @@ _CRT_EXTERN TId_t ThreadingGetCurrentThreadId(void);
  * thread-id, returns NULL if invalid */
 _CRT_EXTERN MCoreThread_t *ThreadingGetThread(TId_t ThreadId);
 _CRT_EXTERN MCoreThread_t *ThreadingGetCurrentThread(Cpu_t Cpu);
-_CRT_EXTERN list_node_t *ThreadingGetCurrentNode(Cpu_t Cpu);
+_CRT_EXTERN ListNode_t *ThreadingGetCurrentNode(Cpu_t Cpu);
 _CRT_EXTERN int ThreadingIsCurrentTaskIdle(Cpu_t Cpu);
 _CRT_EXTERN int ThreadingIsEnabled(void);
 _CRT_EXPORT void ThreadingDebugPrint(void);

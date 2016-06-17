@@ -60,11 +60,7 @@ typedef enum _KeyType
 
 /* Data-structure locking 
  * primitive definition */
-#ifdef LIBC_KERNEL
-#include <Arch.h>
-#else
-#include <os/Thread.h>
-#endif
+#include <os/Spinlock.h>
 
 /*******************************
  *         Prototypes          *

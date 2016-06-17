@@ -19,13 +19,15 @@
 * MollenOS x86 ACPI Interface (Uses ACPICA)
 */
 
+/* Includes */
 #include <Arch.h>
-#include <assert.h>
 #include <AcpiSys.h>
 #include <Log.h>
 #include <Apic.h>
 #include <Heap.h>
-#include <List.h>
+
+/* C-Library */
+#include <assert.h>
 
 /* OSC */
 #define ACPI_OSC_QUERY_INDEX				0

@@ -22,30 +22,36 @@
 
 /* Includes */
 #include <CriticalSection.h>
+#include <Threading.h>
 #include <Heap.h>
 #include <Log.h>
 
 /* CLib */
 #include <assert.h>
 
-/* Instantiate a new critical section */
-CriticalSection_t *CriticalSectionCreate(void)
+/* Instantiate a new critical section
+ * with allocation and resets it */
+CriticalSection_t *CriticalSectionCreate(int Flags)
 {
 	/* Allocate */
 	CriticalSection_t *CSection = 
 		(CriticalSection_t*)kmalloc(sizeof(CriticalSection_t));
 
 	/* Reset */
-	CriticalSectionConstruct(CSection);
+	CriticalSectionConstruct(CSection, Flags);
 
 	/* Done! */
 	return CSection;
 }
 
-/* Constructs an already allocated section */
-void CriticalSectionConstruct(CriticalSection_t *Section)
+/* Constructs an already allocated section 
+ * by resetting it's datamembers and initializing
+ * the lock */
+void CriticalSectionConstruct(CriticalSection_t *Section, int Flags)
 {
 	/* Set initial stats */
+	Section->Flags = Flags;
+	Section->IntrState = 0;
 	Section->References = 0;
 	Section->Owner = 0xFFFFFFFF;
 
@@ -53,22 +59,33 @@ void CriticalSectionConstruct(CriticalSection_t *Section)
 	SpinlockReset(&Section->Lock);
 }
 
-/* Destroy and release resources */
+/* Destroy and release resources,
+ * the lock MUST NOT be held when this
+ * is called, so make sure its not used */
 void CriticalSectionDestroy(CriticalSection_t *Section)
 {
 	_CRT_UNUSED(Section);
 }
 
-/* Access a critical section */
+/* Enter a critical section, the critical
+ * section supports reentrancy if set at creation */
 void CriticalSectionEnter(CriticalSection_t *Section)
 {
+	/* Variables */
+	IntStatus_t IrqState = 0;
+
 	/* If thread already has lock */
 	if (Section->References != 0
-		&& Section->Owner == ThreadingGetCurrentThreadId())
+		&& Section->Owner == ThreadingGetCurrentThreadId()
+		&& (Section->Flags & CRITICALSECTION_REENTRANCY))
 	{
 		Section->References++;
 		return;
 	}
+
+	/* Disable interrupts while
+	 * we wait for the lock as well */
+	IrqState = InterruptDisable();
 
 	/* Otherwise wait for the section to clear */
 	SpinlockAcquire(&Section->Lock);
@@ -76,9 +93,12 @@ void CriticalSectionEnter(CriticalSection_t *Section)
 	/* Set our stats */
 	Section->Owner = ThreadingGetCurrentThreadId();
 	Section->References = 1;
+	Section->IntrState = IrqState;
 }
 
-/* Leave a critical section */
+/* Leave a critical section, the lock is 
+ * not neccesarily released if held by multiple 
+ * entrances */
 void CriticalSectionLeave(CriticalSection_t *Section)
 {
 	/* Sanity */
@@ -95,5 +115,8 @@ void CriticalSectionLeave(CriticalSection_t *Section)
 		
 		/* Release */
 		SpinlockRelease(&Section->Lock);
+
+		/* Restore interrupt state */
+		InterruptRestoreState(Section->IntrState);
 	}
 }

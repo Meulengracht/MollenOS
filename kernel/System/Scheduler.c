@@ -31,18 +31,19 @@
 #include <Arch.h>
 #include <Scheduler.h>
 #include <Threading.h>
-#include <List.h>
 #include <Heap.h>
 #include <Log.h>
 
 /* CLib */
+#include <stddef.h>
+#include <ds/list.h>
 #include <assert.h>
 #include <stdio.h>
 
 /* Globals */
 Scheduler_t *GlbSchedulers[MCORE_MAX_SCHEDULERS];
-list_t *IoQueue = NULL;
-list_t *GlbSchedulerNodeRecycler = NULL;
+List_t *IoQueue = NULL;
+List_t *GlbSchedulerNodeRecycler = NULL;
 int GlbSchedulerEnabled = 0;
 
 /* This initializes the scheduler for the
@@ -62,21 +63,21 @@ void SchedulerInit(Cpu_t Cpu)
 			GlbSchedulers[i] = NULL;
 
 		/* Allocate IoQueue */
-		IoQueue = list_create(LIST_SAFE);
+		IoQueue = ListCreate(KeyInteger, LIST_SAFE);
 
 		/* Allocate Node Recycler */
-		GlbSchedulerNodeRecycler = list_create(LIST_SAFE);
+		GlbSchedulerNodeRecycler = ListCreate(KeyInteger, LIST_SAFE);
 	}
 
 	/* Allocate a scheduler */
 	Scheduler = (Scheduler_t*)kmalloc(sizeof(Scheduler_t));
 
 	/* Init thread queue */
-	Scheduler->Threads = list_create(LIST_NORMAL);
+	Scheduler->Threads = ListCreate(KeyInteger, LIST_NORMAL);
 
 	/* Initialize all queues (Lock-Less) */
 	for (i = 0; i < MCORE_SCHEDULER_LEVELS; i++)
-		Scheduler->Queues[i] = list_create(LIST_NORMAL);
+		Scheduler->Queues[i] = ListCreate(KeyInteger, LIST_NORMAL);
 
 	/* Reset boost timer */
 	Scheduler->BoostTimer = 0;
@@ -95,51 +96,52 @@ void SchedulerBoost(Scheduler_t *Scheduler)
 {
 	/* Variables */
 	MCoreThread_t *mThread;
-	list_node_t *mNode;
+	ListNode_t *mNode;
 	int i = 0;
 	
 	/* Step 1. Loop through all queues, pop their elements and append them to queue 0
 	 * Reset time-slices */
 	for (i = 1; i < MCORE_SCHEDULER_LEVELS; i++)
 	{
-		if (Scheduler->Queues[i]->length > 0)
+		if (Scheduler->Queues[i]->Length > 0)
 		{
-			mNode = list_pop_front(Scheduler->Queues[i]);
+			mNode = ListPopFront(Scheduler->Queues[i]);
 
 			while (mNode != NULL)
 			{
 				/* Reset timeslice */
-				mThread = (MCoreThread_t*)mNode->data;
+				mThread = (MCoreThread_t*)mNode->Data;
 				mThread->TimeSlice = MCORE_INITIAL_TIMESLICE;
 				mThread->Queue = 0;
 
-				list_append(Scheduler->Queues[0], mNode);
-				mNode = list_pop_front(Scheduler->Queues[i]);
+				ListAppend(Scheduler->Queues[0], mNode);
+				mNode = ListPopFront(Scheduler->Queues[i]);
 			}
 		}
 	}
 }
 
 /* Allocate a Queue Node */
-list_node_t *SchedulerGetNode(int Id, void *Data)
+ListNode_t *SchedulerGetNode(DataKey_t Key, DataKey_t SortKey, void *Data)
 {
 	/* Sanity */
 	if (GlbSchedulerNodeRecycler != NULL) 
 	{
 		/* Pop first */
-		list_node_t *RetNode = list_pop_front(GlbSchedulerNodeRecycler);
+		ListNode_t *RetNode = ListPopFront(GlbSchedulerNodeRecycler);
 
 		/* Sanity */
 		if (RetNode == NULL)
-			return list_create_node(Id, Data);
+			return ListCreateNode(Key, SortKey, Data);
 		
 		/* Set data */
-		RetNode->identifier = Id;
-		RetNode->data = Data;
+		RetNode->Key = Key;
+		RetNode->SortKey = SortKey;
+		RetNode->Data = Data;
 		return RetNode;
 	}
 	else
-		return list_create_node(Id, Data);
+		return ListCreateNode(Key, SortKey, Data);
 }
 
 /* This function arms a thread for scheduling
@@ -148,8 +150,10 @@ list_node_t *SchedulerGetNode(int Id, void *Data)
 void SchedulerReadyThread(MCoreThread_t *Thread)
 {
 	/* Add task to a queue based on its priority */
-	list_node_t *ThreadNode;
+	ListNode_t *ThreadNode;
 	Cpu_t CpuIndex = 0;
+	DataKey_t iKey;
+	DataKey_t sKey;
 	int i = 0;
 	
 	/* Step 1. New thread? :) */
@@ -185,13 +189,17 @@ void SchedulerReadyThread(MCoreThread_t *Thread)
 		CpuIndex = Thread->CpuId;
 	}
 
+	/* Setup keys */
+	iKey.Value = (int)Thread->ThreadId;
+	sKey.Value = (int)Thread->Priority;
+
 	/* Get thread node if exists */
-	ThreadNode = list_get_node_by_id(GlbSchedulers[CpuIndex]->Threads, Thread->ThreadId, 0);
+	ThreadNode = ListGetNodeByKey(GlbSchedulers[CpuIndex]->Threads, iKey, 0);
 
 	/* Sanity */
 	if (ThreadNode == NULL) {
-		ThreadNode = list_create_node(Thread->ThreadId, Thread);
-		list_append(GlbSchedulers[CpuIndex]->Threads, ThreadNode);
+		ThreadNode = ListCreateNode(iKey, sKey, Thread);
+		ListAppend(GlbSchedulers[CpuIndex]->Threads, ThreadNode);
 		GlbSchedulers[CpuIndex]->NumThreads++;
 	}
 
@@ -199,8 +207,8 @@ void SchedulerReadyThread(MCoreThread_t *Thread)
 	SpinlockAcquire(&GlbSchedulers[CpuIndex]->Lock);
 
 	/* Append */
-	list_append(GlbSchedulers[CpuIndex]->Queues[Thread->Queue],
-		SchedulerGetNode(Thread->ThreadId, Thread));
+	ListAppend(GlbSchedulers[CpuIndex]->Queues[Thread->Queue],
+		SchedulerGetNode(iKey, sKey, Thread));
 
 	/* Release lock */
 	SpinlockRelease(&GlbSchedulers[CpuIndex]->Lock);
@@ -214,7 +222,8 @@ void SchedulerReadyThread(MCoreThread_t *Thread)
 void SchedulerDisarmThread(MCoreThread_t *Thread)
 {
 	/* Vars */
-	list_node_t *ThreadNode;
+	ListNode_t *ThreadNode;
+	DataKey_t iKey;
 
 	/* Sanity */
 	if (Thread->Queue < 0)
@@ -224,13 +233,14 @@ void SchedulerDisarmThread(MCoreThread_t *Thread)
 	SpinlockAcquire(&GlbSchedulers[Thread->CpuId]->Lock);
 
 	/* Find */
-	ThreadNode = list_get_node_by_id(
-		GlbSchedulers[Thread->CpuId]->Queues[Thread->Queue], Thread->ThreadId, 0);
+	iKey.Value = (int)Thread->ThreadId;
+	ThreadNode = ListGetNodeByKey(
+		GlbSchedulers[Thread->CpuId]->Queues[Thread->Queue], iKey, 0);
 
 	/* Remove it */
 	if (ThreadNode != NULL) {
-		list_remove_by_node(GlbSchedulers[Thread->CpuId]->Queues[Thread->Queue], ThreadNode);
-		list_append(GlbSchedulerNodeRecycler, ThreadNode);
+		ListRemoveByNode(GlbSchedulers[Thread->CpuId]->Queues[Thread->Queue], ThreadNode);
+		ListAppend(GlbSchedulerNodeRecycler, ThreadNode);
 	}
 
 	/* Release lock */
@@ -242,9 +252,13 @@ void SchedulerDisarmThread(MCoreThread_t *Thread)
  * by calling SchedulerReadyThread */
 void SchedulerRemoveThread(MCoreThread_t *Thread)
 {
+	/* Variables */
+	ListNode_t *ThreadNode = NULL;
+	DataKey_t iKey;
+
 	/* Get thread node if exists */
-	list_node_t *ThreadNode = 
-		list_get_node_by_id(GlbSchedulers[Thread->CpuId]->Threads, Thread->ThreadId, 0);
+	iKey.Value = (int)Thread->ThreadId;
+	ThreadNode = ListGetNodeByKey(GlbSchedulers[Thread->CpuId]->Threads, iKey, 0);
 
 	/* Sanity */
 	assert(ThreadNode != NULL);
@@ -253,7 +267,7 @@ void SchedulerRemoveThread(MCoreThread_t *Thread)
 	SchedulerDisarmThread(Thread);
 
 	/* Remove the node */
-	list_remove_by_node(GlbSchedulers[Thread->CpuId]->Threads, ThreadNode);
+	ListRemoveByNode(GlbSchedulers[Thread->CpuId]->Threads, ThreadNode);
 	GlbSchedulers[Thread->CpuId]->NumThreads--;
 
 	/* Free */
@@ -266,7 +280,7 @@ void SchedulerRemoveThread(MCoreThread_t *Thread)
 void SchedulerApplyMs(size_t Ms)
 {
 	/* Find first thread matching resource */
-	list_node_t *sNode = NULL;
+	ListNode_t *sNode = NULL;
 
 	/* Sanity */
 	if (IoQueue == NULL
@@ -274,10 +288,10 @@ void SchedulerApplyMs(size_t Ms)
 		return;
 
 	/* Loop */
-	for (sNode = IoQueue->head; sNode != NULL;)
+	_foreach_nolink(sNode, IoQueue)
 	{
 		/* Cast */
-		MCoreThread_t *mThread = (MCoreThread_t*)sNode->data;
+		MCoreThread_t *mThread = (MCoreThread_t*)sNode->Data;
 
 		/* Sanity */
 		if (mThread->Sleep != 0) 
@@ -289,16 +303,16 @@ void SchedulerApplyMs(size_t Ms)
 			if (mThread->Sleep == 0)
 			{
 				/* Temporary pointer */
-				list_node_t *WakeNode = sNode;
+				ListNode_t *WakeNode = sNode;
 
 				/* Skip to next node */
-				sNode = sNode->link;
+				sNode = sNode->Link;
 
 				/* Remove this node */
-				list_remove_by_node(IoQueue, WakeNode);
+				ListRemoveByNode(IoQueue, WakeNode);
 
 				/* Store node */
-				list_append(GlbSchedulerNodeRecycler, WakeNode);
+				ListAppend(GlbSchedulerNodeRecycler, WakeNode);
 
 				/* Grant it top priority */
 				mThread->Queue = -1;
@@ -309,12 +323,12 @@ void SchedulerApplyMs(size_t Ms)
 			}
 			else {
 				/* Go to next */
-				sNode = sNode->link;
+				sNode = sNode->Link;
 			}
 		}
 		else {
 			/* Go to next */
-			sNode = sNode->link;
+			sNode = sNode->Link;
 		}
 	}
 }
@@ -329,6 +343,8 @@ void SchedulerSleepThread(Addr_t *Resource, size_t Timeout)
 	 * This is a fragile operation */
 	MCoreThread_t *CurrentThread = NULL;
 	IntStatus_t IntrState = InterruptDisable();
+	DataKey_t iKey;
+	DataKey_t sKey;
 	Cpu_t Cpu = ApicGetCpu();
 
 	/* Mark current thread for sleep */
@@ -340,11 +356,14 @@ void SchedulerSleepThread(Addr_t *Resource, size_t Timeout)
 	/* Disarm the thread */
 	SchedulerDisarmThread(CurrentThread);
 
+	/* Setup Keys */
+	iKey.Value = (int)CurrentThread->ThreadId;
+	sKey.Value = (int)CurrentThread->Priority;
+
 	/* Add to list */
 	CurrentThread->SleepResource = Resource;
 	CurrentThread->Sleep = Timeout;
-	list_append(IoQueue,
-		SchedulerGetNode(CurrentThread->ThreadId, CurrentThread));
+	ListAppend(IoQueue, SchedulerGetNode(iKey, sKey, CurrentThread));
 
 	/* Restore interrupts */
 	InterruptRestoreState(IntrState);
@@ -355,7 +374,7 @@ void SchedulerSleepThread(Addr_t *Resource, size_t Timeout)
 int SchedulerWakeupOneThread(Addr_t *Resource)
 {
 	/* Find first thread matching resource */
-	list_node_t *SleepMatch = NULL;
+	ListNode_t *SleepMatch = NULL;
 
 	/* Sanity */
 	if (IoQueue == NULL
@@ -366,7 +385,7 @@ int SchedulerWakeupOneThread(Addr_t *Resource)
 	foreach(i, IoQueue)
 	{
 		/* Cast */
-		MCoreThread_t *mThread = (MCoreThread_t*)i->data;
+		MCoreThread_t *mThread = (MCoreThread_t*)i->Data;
 
 		/* Did we find it? */
 		if (mThread->SleepResource == Resource)
@@ -380,11 +399,11 @@ int SchedulerWakeupOneThread(Addr_t *Resource)
 	if (SleepMatch != NULL)
 	{
 		/* Cast data */
-		MCoreThread_t *mThread = (MCoreThread_t*)SleepMatch->data;
+		MCoreThread_t *mThread = (MCoreThread_t*)SleepMatch->Data;
 		
 		/* Cleanup */
-		list_remove_by_node(IoQueue, SleepMatch);
-		list_append(GlbSchedulerNodeRecycler, SleepMatch);
+		ListRemoveByNode(IoQueue, SleepMatch);
+		ListAppend(GlbSchedulerNodeRecycler, SleepMatch);
 
 		/* Grant it top priority */
 		mThread->Queue = -1;
@@ -419,7 +438,7 @@ void SchedulerWakeupAllThreads(Addr_t *Resource)
 MCoreThread_t *SchedulerGetNextTask(Cpu_t Cpu, MCoreThread_t *Thread, int PreEmptive)
 {
 	/* Variables */
-	list_node_t *NextThreadNode = NULL;
+	ListNode_t *NextThreadNode = NULL;
 	size_t TimeSlice;
 	int i;
 
@@ -470,10 +489,10 @@ MCoreThread_t *SchedulerGetNextTask(Cpu_t Cpu, MCoreThread_t *Thread, int PreEmp
 	for (i = 0; i < MCORE_SCHEDULER_LEVELS; i++)
 	{
 		/* Do we even have any nodes in here ? */
-		if (GlbSchedulers[Cpu]->Queues[i]->length > 0)
+		if (GlbSchedulers[Cpu]->Queues[i]->Length > 0)
 		{
 			/* FIFO algorithm in queues */
-			NextThreadNode = list_pop_front(GlbSchedulers[Cpu]->Queues[i]);
+			NextThreadNode = ListPopFront(GlbSchedulers[Cpu]->Queues[i]);
 
 			/* Sanity */
 			if (NextThreadNode != NULL)
@@ -489,9 +508,9 @@ MCoreThread_t *SchedulerGetNextTask(Cpu_t Cpu, MCoreThread_t *Thread, int PreEmp
 		return NULL;
 	else {
 		/* Save node */
-		list_append(GlbSchedulerNodeRecycler, NextThreadNode);
+		ListAppend(GlbSchedulerNodeRecycler, NextThreadNode);
 
 		/* Return */
-		return (MCoreThread_t*)NextThreadNode->data;
+		return (MCoreThread_t*)NextThreadNode->Data;
 	}
 }

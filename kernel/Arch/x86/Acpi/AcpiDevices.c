@@ -23,6 +23,7 @@
 #include <Arch.h>
 #include <AcpiSys.h>
 #include <Heap.h>
+#include <Log.h>
 #include <stdio.h>
 
 /* Internal Use */
@@ -520,9 +521,10 @@ ACPI_STATUS AcpiDeviceGetIrqRoutings(AcpiDevice_t *Device)
 		if (*(char*)PciTable->Source == '\0')
 		{
 			/* Ok, eol */
-			
+
 			/* Set it */
-			UINT32 offset = ((ACPI_HIWORD(ACPI_LODWORD(PciTable->Address))) * 4) + PciTable->Pin;
+			uint32_t _dev = (ACPI_HIWORD(ACPI_LODWORD(PciTable->Address)));
+			uint32_t offset = (_dev * 4) + PciTable->Pin;
 
 			/* Fixed GSI */
 			Table->Interrupts[offset] = PciTable->SourceIndex;

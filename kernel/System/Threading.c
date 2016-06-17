@@ -25,18 +25,20 @@
 #include <Scheduler.h>
 #include <Threading.h>
 #include <ProcessManager.h>
-#include <List.h>
 #include <Heap.h>
 #include <Mutex.h>
+
+/* C-Library */
+#include <ds/list.h>
 #include <string.h>
 #include <stdio.h>
 
 /* Globals */
-list_t *GlbThreads = NULL;
-list_t *GlbZombieThreads = NULL;
+List_t *GlbThreads = NULL;
+List_t *GlbZombieThreads = NULL;
 TId_t GlbThreadId = 0;
-list_node_t *GlbCurrentThreads[64];
-list_node_t *GlbIdleThreads[64];
+ListNode_t *GlbCurrentThreads[64];
+ListNode_t *GlbIdleThreads[64];
 int GlbThreadingEnabled = 0;
 Mutex_t GlbThreadLock;
 
@@ -46,12 +48,13 @@ void ThreadingInit(void)
 {
 	/* Vars */
 	MCoreThread_t *Init;
-	list_node_t *Node;
+	ListNode_t *Node;
+	DataKey_t Key;
 	int Itr = 0;
 
 	/* Create threading list */
-	GlbThreads = list_create(LIST_SAFE);
-	GlbZombieThreads = list_create(LIST_SAFE);
+	GlbThreads = ListCreate(KeyInteger, LIST_SAFE);
+	GlbZombieThreads = ListCreate(KeyInteger, LIST_SAFE);
 	GlbThreadId = 0;
 
 	/* Set all NULL */
@@ -83,12 +86,13 @@ void ThreadingInit(void)
 	MutexConstruct(&GlbThreadLock);
 
 	/* Create a list node */
-	Node = list_create_node(GlbThreadId, Init);
+	Key.Value = (int)GlbThreadId;
+	Node = ListCreateNode(Key, Key, Init);
 	GlbCurrentThreads[0] = Node;
 	GlbIdleThreads[0] = Node;
 
 	/* append to thread list */
-	list_append(GlbThreads, Node);
+	ListAppend(GlbThreads, Node);
 
 	/* Increase Id */
 	GlbThreadId++;
@@ -102,7 +106,8 @@ void ThreadingApInit(Cpu_t Cpu)
 {
 	/* Vars */
 	MCoreThread_t *Init;
-	list_node_t *Node;
+	ListNode_t *Node;
+	DataKey_t Key;
 
 	/* Setup initial thread */
 	Init = (MCoreThread_t*)kmalloc(sizeof(MCoreThread_t));
@@ -124,12 +129,13 @@ void ThreadingApInit(Cpu_t Cpu)
 	Init->ThreadData = IThreadInitAp();
 
 	/* Create a node for the scheduler */
-	Node = list_create_node(GlbThreadId, Init);
+	Key.Value = (int)GlbThreadId;
+	Node = ListCreateNode(Key, Key, Init);
 	GlbCurrentThreads[Cpu] = Node;
 	GlbIdleThreads[Cpu] = Node;
 
 	/* Append to thread list */
-	list_append(GlbThreads, Node);
+	ListAppend(GlbThreads, Node);
 
 	/* Increase Id */
 	GlbThreadId++;
@@ -147,14 +153,14 @@ MCoreThread_t *ThreadingGetCurrentThread(Cpu_t Cpu)
 	assert(GlbCurrentThreads[Cpu] != NULL);
 
 	/* Get thread */
-	return (MCoreThread_t*)GlbCurrentThreads[Cpu]->data;
+	return (MCoreThread_t*)GlbCurrentThreads[Cpu]->Data;
 }
 
 /* Get Current Scheduler(!!!) Node */
-list_node_t *ThreadingGetCurrentNode(Cpu_t Cpu)
+ListNode_t *ThreadingGetCurrentNode(Cpu_t Cpu)
 {
 	/* Get thread */
-	return (list_node_t*)GlbCurrentThreads[Cpu];
+	return (ListNode_t*)GlbCurrentThreads[Cpu];
 }
 
 /* Get current threading id */
@@ -183,7 +189,7 @@ MCoreThread_t *ThreadingGetThread(TId_t ThreadId)
 	foreach(tNode, GlbThreads)
 	{
 		/* Cast */
-		MCoreThread_t *Thread = (MCoreThread_t*)tNode->data;
+		MCoreThread_t *Thread = (MCoreThread_t*)tNode->Data;
 
 		/* Check */
 		if (Thread->ThreadId == ThreadId)
@@ -212,7 +218,7 @@ void ThreadingWakeCpu(Cpu_t Cpu)
 }
 
 /* Set Current List Node */
-void ThreadingUpdateCurrent(Cpu_t Cpu, list_node_t *Node)
+void ThreadingUpdateCurrent(Cpu_t Cpu, ListNode_t *Node)
 {
 	GlbCurrentThreads[Cpu] = Node;
 }
@@ -233,12 +239,12 @@ void ThreadingCleanupThread(MCoreThread_t *Thread)
 void ThreadingReapZombies(void)
 {
 	/* Reap untill list is empty */
-	list_node_t *tNode = list_pop_front(GlbZombieThreads);
+	ListNode_t *tNode = ListPopFront(GlbZombieThreads);
 
 	while (tNode != NULL)
 	{
 		/* Cast */
-		MCoreThread_t *Thread = (MCoreThread_t*)tNode->data;
+		MCoreThread_t *Thread = (MCoreThread_t*)tNode->Data;
 
 		/* Clean it up */
 		ThreadingCleanupThread(Thread);
@@ -247,7 +253,7 @@ void ThreadingReapZombies(void)
 		kfree(tNode);
 
 		/* Get next node */
-		tNode = list_pop_front(GlbZombieThreads);
+		tNode = ListPopFront(GlbZombieThreads);
 	}
 }
 
@@ -262,7 +268,7 @@ void ThreadingDebugPrint(void)
 {
 	foreach(i, GlbThreads)
 	{
-		MCoreThread_t *t = (MCoreThread_t*)i->data;
+		MCoreThread_t *t = (MCoreThread_t*)i->Data;
 		printf("Thread %u (%s) - Flags %i, Queue %i, Timeslice %u, Cpu: %u\n",
 			t->ThreadId, t->Name, t->Flags, t->Queue, t->TimeSlice, t->CpuId);
 	}
@@ -334,6 +340,7 @@ TId_t ThreadingCreateThread(char *Name, ThreadEntry_t Function, void *Args, int 
 	/* Vars */
 	MCoreThread_t *nThread, *tParent;
 	char TmpBuffer[64];
+	DataKey_t Key;
 	Cpu_t Cpu;
 
 	/* Get mutex */
@@ -407,7 +414,8 @@ TId_t ThreadingCreateThread(char *Name, ThreadEntry_t Function, void *Args, int 
 	MutexUnlock(&GlbThreadLock);
 
 	/* Append it to list & scheduler */
-	list_append(GlbThreads, list_create_node(nThread->ThreadId, nThread));
+	Key.Value = (int)nThread->ThreadId;
+	ListAppend(GlbThreads, ListCreateNode(Key, Key, nThread));
 	SchedulerReadyThread(nThread);
 
 	/* Done */
@@ -512,7 +520,7 @@ void ThreadingTerminateProcessThreads(uint32_t ProcessId)
 	foreach(tNode, GlbThreads)
 	{
 		/* Cast */
-		MCoreThread_t *Thread = (MCoreThread_t*)tNode->data;
+		MCoreThread_t *Thread = (MCoreThread_t*)tNode->Data;
 
 		/* Is it owned? */
 		if (Thread->ProcessId == ProcessId)
@@ -528,7 +536,8 @@ MCoreThread_t *ThreadingSwitch(Cpu_t Cpu, MCoreThread_t *Current, uint8_t PreEmp
 {
 	/* We'll need these */
 	MCoreThread_t *NextThread;
-	list_node_t *Node;
+	ListNode_t *Node;
+	DataKey_t Key;
 
 	/* Get a new task! */
 	Node = ThreadingGetCurrentNode(Cpu);
@@ -545,10 +554,10 @@ GetNextThread:
 			SchedulerRemoveThread(Current);
 
 			/* Remove it */
-			list_remove_by_node(GlbThreads, Node);
+			ListRemoveByNode(GlbThreads, Node);
 
 			/* Append to reaper list */
-			list_append(GlbZombieThreads, Node);
+			ListAppend(GlbZombieThreads, Node);
 		}
 
 		/* Remove flag so it does not happen again */
@@ -566,7 +575,7 @@ GetNextThread:
 
 	/* Sanity */
 	if (NextThread == NULL)
-		NextThread = (MCoreThread_t*)GlbIdleThreads[Cpu]->data;
+		NextThread = (MCoreThread_t*)GlbIdleThreads[Cpu]->Data;
 
 	/* More sanity 
 	 * If we have caught a finished thread that
@@ -577,7 +586,8 @@ GetNextThread:
 	}
 
 	/* Get node by thread */
-	Node = list_get_node_by_id(GlbThreads, NextThread->ThreadId, 0);
+	Key.Value = (int)NextThread->ThreadId;
+	Node = ListGetNodeByKey(GlbThreads, Key, 0);
 
 	/* Update current */
 	ThreadingUpdateCurrent(Cpu, Node);

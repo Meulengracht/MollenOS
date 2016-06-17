@@ -24,17 +24,19 @@
 #include <ProcessManager.h>
 #include <Vfs/Vfs.h>
 #include <Heap.h>
-#include <List.h>
 #include <Log.h>
 
 /* CLib */
+#include <stddef.h>
+#include <ds/mstring.h>
+#include <ds/list.h>
 #include <string.h>
 #include <ctype.h>
 
 /* Globals */
 MCoreEventHandler_t *GlbVfsEventHandler = NULL;
-list_t *GlbFileSystems = NULL;
-list_t *GlbOpenFiles = NULL;
+List_t *GlbFileSystems = NULL;
+List_t *GlbOpenFiles = NULL;
 uint32_t GlbFileSystemId = 0;
 uint32_t GlbVfsInitHasRun = 0;
 int GlbVfsFileIdGen = 0;
@@ -68,8 +70,8 @@ void VfsInit(void)
 	LogInformation("VFSM", "Initializing");
 
 	/* Create lists */
-	GlbFileSystems = list_create(LIST_SAFE);
-	GlbOpenFiles = list_create(LIST_SAFE);
+	GlbFileSystems = ListCreate(KeyInteger, LIST_SAFE);
+	GlbOpenFiles = ListCreate(KeyInteger, LIST_SAFE);
 	GlbFileSystemId = 0;
 	GlbVfsInitHasRun = 0;
 	GlbVfsFileIdGen = 0;
@@ -79,6 +81,7 @@ void VfsInit(void)
 void VfsInstallFileSystem(MCoreFileSystem_t *Fs)
 {
 	/* Ready the buffer */
+	DataKey_t Key;
 	char IdentBuffer[8];
 	memset(IdentBuffer, 0, 8);
 
@@ -93,7 +96,8 @@ void VfsInstallFileSystem(MCoreFileSystem_t *Fs)
 	Fs->Lock = MutexCreate();
 
 	/* Add to list */
-	list_append(GlbFileSystems, list_create_node(Fs->DiskId, Fs));
+	Key.Value = Fs->DiskId;
+	ListAppend(GlbFileSystems, ListCreateNode(Key, Key, Fs));
 
 	/* Increament */
 	GlbFileSystemId++;
@@ -139,7 +143,7 @@ int VfsParsePartitionTable(DevId_t DiskId, uint64_t SectorBase, uint64_t SectorC
 	int i;
 
 	/* Read sector */
-	Request.Type = RequestRead;
+	Request.Base.Type = RequestRead;
 	Request.DeviceId = DiskId;
 	Request.SectorLBA = SectorBase;
 	Request.Buffer = (uint8_t*)TmpBuffer;
@@ -150,10 +154,10 @@ int VfsParsePartitionTable(DevId_t DiskId, uint64_t SectorBase, uint64_t SectorC
 	DmWaitRequest(&Request, 0);
 
 	/* Sanity */
-	if (Request.Status != RequestOk)
+	if (Request.Base.State != EventOk)
 	{
 		/* Error */
-		LogFatal("VFSM", "REGISTERDISK: Error reading from disk - 0x%x\n", Request.Status);
+		LogFatal("VFSM", "REGISTERDISK: Error reading from disk - 0x%x\n", Request.ErrType);
 		kfree(TmpBuffer);
 		return 0;
 	}
@@ -274,7 +278,7 @@ void VfsRegisterDisk(DevId_t DiskId)
 	MCoreModule_t *Module = NULL;
 	char TmpBuffer[20];
 	MCoreDeviceRequest_t Request;
-	Request.Type = RequestQuery;
+	Request.Base.Type = RequestQuery;
 	Request.DeviceId = DiskId;
 	Request.Buffer = (uint8_t*)TmpBuffer;
 	Request.Length = 20;
@@ -334,15 +338,17 @@ void VfsRegisterDisk(DevId_t DiskId)
 void VfsUnregisterDisk(DevId_t DiskId, uint32_t Forced)
 {
 	/* Need this for the iteration */
-	list_node_t *lNode;
+	ListNode_t *lNode;
+	DataKey_t Key;
 
 	/* Keep iterating untill no more FS's are present on disk */
-	lNode = list_get_node_by_id(GlbFileSystems, DiskId, 0);
+	Key.Value = DiskId;
+	lNode = ListGetNodeByKey(GlbFileSystems, Key, 0);
 
 	while (lNode != NULL)
 	{
 		/* Cast */
-		MCoreFileSystem_t *Fs = (MCoreFileSystem_t*)lNode->data;
+		MCoreFileSystem_t *Fs = (MCoreFileSystem_t*)lNode->Data;
 
 		/* Redirect system log */
 		if (Fs->Flags & VFS_MAIN_DRIVE) {
@@ -350,11 +356,11 @@ void VfsUnregisterDisk(DevId_t DiskId, uint32_t Forced)
 		}
 
 		/* Destruct the FS */
-		if (Fs->Destroy(lNode->data, Forced) != OsOk)
+		if (Fs->Destroy(lNode->Data, Forced) != OsOk)
 			LogFatal("VFSM", "UnregisterDisk:: Failed to destroy filesystem");
 
 		/* Remove it from list */
-		list_remove_by_node(GlbFileSystems, lNode);		
+		ListRemoveByNode(GlbFileSystems, lNode);		
 
 		/* Free */
 		MStringDestroy(Fs->Identifier);
@@ -363,7 +369,7 @@ void VfsUnregisterDisk(DevId_t DiskId, uint32_t Forced)
 		kfree(lNode);
 
 		/* Get next */
-		lNode = list_get_node_by_id(GlbFileSystems, DiskId, 0);
+		lNode = ListGetNodeByKey(GlbFileSystems, Key, 0);
 	}
 }
 
@@ -388,7 +394,7 @@ MString_t *VfsResolveEnvironmentPath(VfsEnvironmentPath_t Base)
 
 	/* Otherwise we have to lookup in a string table */
 	MString_t *ResolvedPath = MStringCreate(NULL, StrUTF8);
-	list_node_t *fNode = NULL;
+	ListNode_t *fNode = NULL;
 	int pIndex = (int)Base;
 	int pFound = 0;
 
@@ -396,7 +402,7 @@ MString_t *VfsResolveEnvironmentPath(VfsEnvironmentPath_t Base)
 	_foreach(fNode, GlbFileSystems)
 	{
 		/* Cast */
-		MCoreFileSystem_t *Fs = (MCoreFileSystem_t*)fNode->data;
+		MCoreFileSystem_t *Fs = (MCoreFileSystem_t*)fNode->Data;
 
 		/* Boot drive? */
 		if (Fs->Flags & VFS_MAIN_DRIVE) {
@@ -425,7 +431,7 @@ MString_t *VfsCanonicalizePath(VfsEnvironmentPath_t Base, const char *Path)
 {
 	/* Store result */
 	MString_t *AbsPath = MStringCreate(NULL, StrUTF8);
-	list_node_t *fNode = NULL;
+	ListNode_t *fNode = NULL;
 	uint32_t Itr = 0;
 
 	/* Get base directory */
@@ -477,7 +483,7 @@ MString_t *VfsCanonicalizePath(VfsEnvironmentPath_t Base, const char *Path)
 				_foreach(fNode, GlbFileSystems)
 				{
 					/* Cast */
-					MCoreFileSystem_t *Fs = (MCoreFileSystem_t*)fNode->data;
+					MCoreFileSystem_t *Fs = (MCoreFileSystem_t*)fNode->Data;
 
 					/* Boot drive? */
 					if (Fs->Flags & VFS_MAIN_DRIVE) {
@@ -575,19 +581,21 @@ void VfsOpenInternal(MCoreFileInstance_t *Instance, MString_t *Path, VfsFileFlag
 {
 	/* Variables needed */
 	MString_t *mSubPath = NULL;
-	list_node_t *fNode = NULL;
+	ListNode_t *fNode = NULL;
 	MString_t *mIdent = NULL;
+	DataKey_t Key;
 	int Index = 0;
 
 	/* Check Cache */
 	size_t PathHash = MStringHash(Path);
-	list_node_t *pNode = list_get_node_by_id(GlbOpenFiles, (int)PathHash, 0);
+	Key.Value = (int)PathHash;
+	ListNode_t *pNode = ListGetNodeByKey(GlbOpenFiles, Key, 0);
 
 	/* Did it exist? */
 	if (pNode != NULL)
 	{
 		/* Get file-entry */
-		MCoreFile_t *fEntry = (MCoreFile_t*)pNode->data;
+		MCoreFile_t *fEntry = (MCoreFile_t*)pNode->Data;
 
 		/* If file is locked, bad luck */
 		if (fEntry->IsLocked) {
@@ -618,7 +626,7 @@ void VfsOpenInternal(MCoreFileInstance_t *Instance, MString_t *Path, VfsFileFlag
 	_foreach(fNode, GlbFileSystems)
 	{
 		/* Cast */
-		MCoreFileSystem_t *Fs = (MCoreFileSystem_t*)fNode->data;
+		MCoreFileSystem_t *Fs = (MCoreFileSystem_t*)fNode->Data;
 
 		/* Match? */
 		if (MStringCompare(mIdent, Fs->Identifier, 1))
@@ -645,7 +653,7 @@ void VfsOpenInternal(MCoreFileInstance_t *Instance, MString_t *Path, VfsFileFlag
 				VfsOpenHandleInternal(Fs, Instance, fHandle, OpenFlags);
 
 				/* Add to list */
-				list_append(GlbOpenFiles, list_create_node((int)PathHash, fHandle));
+				ListAppend(GlbOpenFiles, ListCreateNode(Key, Key, fHandle));
 			}
 
 			/* Done */
@@ -756,6 +764,7 @@ VfsErrorCode_t VfsClose(MCoreFileInstance_t *Handle)
 	/* Vars */
 	VfsErrorCode_t ErrCode = VfsPathNotFound;
 	MCoreFileSystem_t *Fs = NULL;
+	DataKey_t Key;
 
 	/* Sanity */
 	if (Handle == NULL)
@@ -788,11 +797,14 @@ VfsErrorCode_t VfsClose(MCoreFileInstance_t *Handle)
 	/* Reduce Ref count */
 	Handle->File->References--;
 
+	/* Cast key */
+	Key.Value = (int)Handle->File->Hash;
+
 	/* Last reference? */
 	if (Handle->File->References <= 0) 
 	{
 		/* Find node in open files */
-		list_node_t *pNode = list_get_node_by_id(GlbOpenFiles, (int)Handle->File->Hash, 0);
+		ListNode_t *pNode = ListGetNodeByKey(GlbOpenFiles, Key, 0);
 
 		/* Deep Close */
 		ErrCode = Fs->CloseFile(Fs, Handle->File);
@@ -800,7 +812,7 @@ VfsErrorCode_t VfsClose(MCoreFileInstance_t *Handle)
 
 		/* Remove from list */
 		if (pNode != NULL) {
-			list_remove_by_node(GlbOpenFiles, pNode);
+			ListRemoveByNode(GlbOpenFiles, pNode);
 			kfree(pNode);
 		}
 	}

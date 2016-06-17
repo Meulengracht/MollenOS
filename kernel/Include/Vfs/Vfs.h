@@ -24,10 +24,10 @@
 /* Includes */
 #include <crtdefs.h>
 #include <stdint.h>
+#include <ds/mstring.h>
 
 #include <DeviceManager.h>
 #include <MollenOS.h>
-#include <MString.h>
 #include <Mutex.h>
 #include <Events.h>
 

@@ -25,7 +25,6 @@
 #include <InputManager.h>
 #include <Semaphore.h>
 #include <Heap.h>
-#include <List.h>
 #include <Log.h>
 
 #include <string.h>

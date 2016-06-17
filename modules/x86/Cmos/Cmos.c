@@ -24,6 +24,7 @@
 #include <DeviceManager.h>
 #include <Devices\Clock.h>
 #include <Module.h>
+#include <Mutex.h>
 #include <Cmos.h>
 #include <Heap.h>
 

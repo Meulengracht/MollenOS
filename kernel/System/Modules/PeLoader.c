@@ -26,13 +26,14 @@
 #include <Log.h>
 #include <Heap.h>
 
+#include <ds/list.h>
 #include <stdio.h>
 #include <stddef.h>
 #include <string.h>
 
 /* Keep track of where to load 
  * the next module */
-list_t *GlbKernelExports = NULL;
+List_t *GlbKernelExports = NULL;
 Addr_t GlbModuleLoadAddr = MEMORY_LOCATION_MODULES;
 
 /* Parse Kernel Exports */
@@ -43,6 +44,7 @@ void PeLoadKernelExports(Addr_t KernelBase, Addr_t TableOffset)
 	uint32_t *FunctionNamesPtr = NULL;
 	uint16_t *FunctionOrdinalsPtr = NULL;
 	uint32_t *FunctionAddrPtr = NULL;
+	DataKey_t Key;
 	uint32_t i;
 
 	/* Sanity */
@@ -54,7 +56,7 @@ void PeLoadKernelExports(Addr_t KernelBase, Addr_t TableOffset)
 
 	/* Init list */
 	GlbModuleLoadAddr = MEMORY_LOCATION_MODULES;
-	GlbKernelExports = list_create(LIST_NORMAL);
+	GlbKernelExports = ListCreate(KeyInteger, LIST_NORMAL);
 
 	/* Cast */
 	ExportTable = (PeExportDirectory_t*)(KernelBase + TableOffset);
@@ -77,11 +79,12 @@ void PeLoadKernelExports(Addr_t KernelBase, Addr_t TableOffset)
 		ExFunc->Address = (Addr_t)(KernelBase + FunctionAddrPtr[ExFunc->Ordinal]);
 
 		/* Add to list */
-		list_append(GlbKernelExports, list_create_node(ExFunc->Ordinal, ExFunc));
+		Key.Value = (int)ExFunc->Ordinal;
+		ListAppend(GlbKernelExports, ListCreateNode(Key, Key, ExFunc));
 	}
 
 	/* Info */
-	LogInformation("PELD", "Found %u Functions", GlbKernelExports->length);
+	LogInformation("PELD", "Found %u Functions", GlbKernelExports->Length);
 }
 
 /* Validate a buffer containing a PE */
@@ -304,6 +307,7 @@ void PeEnumerateExports(MCorePeFile_t *PeFile, PeDataDirectory_t *ExportDirector
 	uint32_t *FunctionNamesPtr = NULL;
 	uint16_t *FunctionOrdinalsPtr = NULL;
 	uint32_t *FunctionAddrPtr = NULL;
+	DataKey_t Key;
 	uint32_t i;
 
 	/* Sanity */
@@ -320,7 +324,7 @@ void PeEnumerateExports(MCorePeFile_t *PeFile, PeDataDirectory_t *ExportDirector
 	FunctionAddrPtr = (uint32_t*)(PeFile->BaseVirtual + ExportTable->AddressOfFunctions);
 
 	/* Create the list */
-	PeFile->ExportedFunctions = list_create(LIST_NORMAL);
+	PeFile->ExportedFunctions = ListCreate(KeyInteger, LIST_NORMAL);
 
 	/* Iterate */
 	for (i = 0; i < ExportTable->NumberOfFunctions; i++)
@@ -335,7 +339,8 @@ void PeEnumerateExports(MCorePeFile_t *PeFile, PeDataDirectory_t *ExportDirector
 		ExFunc->Address = (Addr_t)(PeFile->BaseVirtual + FunctionAddrPtr[ExFunc->Ordinal]);
 
 		/* Add to list */
-		list_append(PeFile->ExportedFunctions, list_create_node(ExFunc->Ordinal, ExFunc));
+		Key.Value = (int)ExFunc->Ordinal;
+		ListAppend(PeFile->ExportedFunctions, ListCreateNode(Key, Key, ExFunc));
 	}
 }
 
@@ -358,7 +363,7 @@ void PeLoadModuleImports(MCorePeFile_t *PeFile, PeDataDirectory_t *ImportDirecto
 	while (ImportDescriptor->ImportAddressTable != 0)
 	{
 		/* Get name of module */
-		list_t *Exports = NULL;
+		List_t *Exports = NULL;
 		char *NamePtr = (char*)(PeFile->BaseVirtual + ImportDescriptor->ModuleName);
 
 		/* Is it the kernel module ? */
@@ -419,10 +424,11 @@ void PeLoadModuleImports(MCorePeFile_t *PeFile, PeDataDirectory_t *ImportDirecto
 				if (Value & PE_IMPORT_ORDINAL_32)
 				{
 					/* Yes, ordinal */
-					uint16_t Ordinal = (uint16_t)(Value & 0xFFFF);
+					DataKey_t Key;
+					Key.Value = (int)(Value & 0xFFFF);
 
 					/* Locate Ordinal in loaded image */
-					Func = (MCorePeExportFunction_t*)list_get_data_by_id(Exports, Ordinal, 0);
+					Func = (MCorePeExportFunction_t*)ListGetDataByKey(Exports, Key, 0);
 				}
 				else
 				{
@@ -434,7 +440,7 @@ void PeLoadModuleImports(MCorePeFile_t *PeFile, PeDataDirectory_t *ImportDirecto
 					{
 						/* Cast */
 						MCorePeExportFunction_t *pFunc =
-							(MCorePeExportFunction_t*)FuncNode->data;
+							(MCorePeExportFunction_t*)FuncNode->Data;
 
 						/* Compare */
 						if (!strcmp(pFunc->Name, FuncName))
@@ -477,10 +483,11 @@ void PeLoadModuleImports(MCorePeFile_t *PeFile, PeDataDirectory_t *ImportDirecto
 				if (Value & PE_IMPORT_ORDINAL_64)
 				{
 					/* Yes, ordinal */
-					uint16_t Ordinal = (uint16_t)(Value & 0xFFFF);
+					DataKey_t oKey;
+					oKey.Value = (int)(Value & 0xFFFF);
 
 					/* Locate Ordinal in loaded image */
-					Func = (MCorePeExportFunction_t*)list_get_data_by_id(Exports, Ordinal, 0);
+					Func = (MCorePeExportFunction_t*)ListGetDataByKey(Exports, oKey, 0);
 				}
 				else
 				{
@@ -492,7 +499,7 @@ void PeLoadModuleImports(MCorePeFile_t *PeFile, PeDataDirectory_t *ImportDirecto
 					{
 						/* Cast */
 						MCorePeExportFunction_t *pFunc =
-							(MCorePeExportFunction_t*)FuncNode->data;
+							(MCorePeExportFunction_t*)FuncNode->Data;
 
 						/* Compare */
 						if (!strcmp(pFunc->Name, FuncName))
@@ -591,7 +598,7 @@ MCorePeFile_t *PeLoadModule(uint8_t *Name, uint8_t *Buffer, size_t Length)
 	PeInfo->Name = MStringCreate(Name, StrUTF8);
 	PeInfo->Architecture = OptHeader->Architecture;
 	PeInfo->BaseVirtual = GlbModuleLoadAddr;
-	PeInfo->LoadedLibraries = list_create(LIST_NORMAL);
+	PeInfo->LoadedLibraries = ListCreate(KeyInteger, LIST_NORMAL);
 	PeInfo->References = 1;
 
 	/* Step 1. Relocate Sections */
@@ -615,7 +622,7 @@ MCorePeFile_t *PeLoadModule(uint8_t *Name, uint8_t *Buffer, size_t Length)
 		{
 			/* Cast */
 			MCorePeExportFunction_t *ExFunc =
-				(MCorePeExportFunction_t*)fNode->data;
+				(MCorePeExportFunction_t*)fNode->Data;
 
 			/* Is it ? */
 			if (!strcmp(ExFunc->Name, "ModuleInit"))
@@ -645,7 +652,7 @@ MCorePeFile_t *PeResolveLibrary(MCorePeFile_t *Parent, MCorePeFile_t *PeFile, MS
 	foreach(lNode, ExportParent->LoadedLibraries)
 	{
 		/* Cast */
-		MCorePeFile_t *Library = (MCorePeFile_t*)lNode->data;
+		MCorePeFile_t *Library = (MCorePeFile_t*)lNode->Data;
 
 		/* Did we find it ? */
 		if (MStringCompare(Library->Name, LibraryName, 1) == MSTRING_FULL_MATCH)
@@ -691,7 +698,9 @@ MCorePeFile_t *PeResolveLibrary(MCorePeFile_t *Parent, MCorePeFile_t *PeFile, MS
 
 		/* Add library to loaded libs */
 		if (Exports != NULL) {
-			list_append(ExportParent->LoadedLibraries, list_create_node(0, Library));
+			DataKey_t Key;
+			Key.Value = 0;
+			ListAppend(ExportParent->LoadedLibraries, ListCreateNode(Key, Key, Library));
 		}
 	}
 
@@ -707,13 +716,13 @@ MCorePeFile_t *PeResolveLibrary(MCorePeFile_t *Parent, MCorePeFile_t *PeFile, MS
 Addr_t PeResolveFunctionAddress(MCorePeFile_t *Library, const char *Function)
 {
 	/* Get exports */
-	list_t *Exports = Library->ExportedFunctions;
+	List_t *Exports = Library->ExportedFunctions;
 
 	/* Find File */
 	foreach(lNode, Exports)
 	{
 		/* Cast */
-		MCorePeExportFunction_t *exFunc = (MCorePeExportFunction_t*)lNode->data;
+		MCorePeExportFunction_t *exFunc = (MCorePeExportFunction_t*)lNode->Data;
 
 		/* Did we find it ? */
 		if (!strcmp(exFunc->Name, Function)) {
@@ -745,7 +754,7 @@ void PeLoadImageImports(MCorePeFile_t *Parent, MCorePeFile_t *PeFile, PeDataDire
 	{
 		/* Get name of module */
 		MCorePeFile_t *ResolvedLib = NULL;
-		list_t *Exports = NULL;
+		List_t *Exports = NULL;
 		char *NamePtr = (char*)(PeFile->BaseVirtual + ImportDescriptor->ModuleName);
 
 		/* Convert -> Don't release this */
@@ -782,10 +791,11 @@ void PeLoadImageImports(MCorePeFile_t *Parent, MCorePeFile_t *PeFile, PeDataDire
 				if (Value & PE_IMPORT_ORDINAL_32)
 				{
 					/* Yes, ordinal */
-					uint16_t Ordinal = (uint16_t)(Value & 0xFFFF);
+					DataKey_t oKey;
+					oKey.Value = (int)(Value & 0xFFFF);
 
 					/* Locate Ordinal in loaded image */
-					Func = (MCorePeExportFunction_t*)list_get_data_by_id(Exports, Ordinal, 0);
+					Func = (MCorePeExportFunction_t*)ListGetDataByKey(Exports, oKey, 0);
 				}
 				else
 				{
@@ -797,7 +807,7 @@ void PeLoadImageImports(MCorePeFile_t *Parent, MCorePeFile_t *PeFile, PeDataDire
 					{
 						/* Cast */
 						MCorePeExportFunction_t *pFunc =
-							(MCorePeExportFunction_t*)FuncNode->data;
+							(MCorePeExportFunction_t*)FuncNode->Data;
 
 						/* Compare */
 						if (!strcmp(pFunc->Name, FuncName))
@@ -840,10 +850,11 @@ void PeLoadImageImports(MCorePeFile_t *Parent, MCorePeFile_t *PeFile, PeDataDire
 				if (Value & PE_IMPORT_ORDINAL_64)
 				{
 					/* Yes, ordinal */
-					uint16_t Ordinal = (uint16_t)(Value & 0xFFFF);
+					DataKey_t oKey;
+					oKey.Value = (int)(Value & 0xFFFF);
 
 					/* Locate Ordinal in loaded image */
-					Func = (MCorePeExportFunction_t*)list_get_data_by_id(Exports, Ordinal, 0);
+					Func = (MCorePeExportFunction_t*)ListGetDataByKey(Exports, oKey, 0);
 				}
 				else
 				{
@@ -855,7 +866,7 @@ void PeLoadImageImports(MCorePeFile_t *Parent, MCorePeFile_t *PeFile, PeDataDire
 					{
 						/* Cast */
 						MCorePeExportFunction_t *pFunc =
-							(MCorePeExportFunction_t*)FuncNode->data;
+							(MCorePeExportFunction_t*)FuncNode->Data;
 
 						/* Compare */
 						if (!strcmp(pFunc->Name, FuncName))
@@ -952,7 +963,7 @@ MCorePeFile_t *PeLoadImage(MCorePeFile_t *Parent, MString_t *Name, uint8_t *Buff
 	PeInfo->Name = Name;
 	PeInfo->Architecture = OptHeader->Architecture;
 	PeInfo->BaseVirtual = *BaseAddress;
-	PeInfo->LoadedLibraries = list_create(LIST_NORMAL);
+	PeInfo->LoadedLibraries = ListCreate(KeyInteger, LIST_NORMAL);
 	PeInfo->References = 1;
 
 	/* Set Entry Point */
@@ -973,8 +984,11 @@ MCorePeFile_t *PeLoadImage(MCorePeFile_t *Parent, MString_t *Name, uint8_t *Buff
 
 	/* Before loading imports, add us to parent list of libraries 
 	 * so we might be reused, instead of reloaded */
-	if (Parent != NULL)
-		list_append(Parent->LoadedLibraries, list_create_node(0, PeInfo));
+	if (Parent != NULL) {
+		DataKey_t Key;
+		Key.Value = 0;
+		ListAppend(Parent->LoadedLibraries, ListCreateNode(Key, Key, PeInfo));
+	}
 
 	/* Step 3. Load Imports */
 	PeLoadImageImports(Parent, PeInfo, &DirectoryPtr[PE_SECTION_IMPORT], BaseAddress);
@@ -1000,13 +1014,13 @@ void PeUnloadLibrary(MCorePeFile_t *Parent, MCorePeFile_t *Library)
 		foreach(lNode, Parent->LoadedLibraries)
 		{
 			/* Cast */
-			MCorePeFile_t *lLib = (MCorePeFile_t*)lNode->data;
+			MCorePeFile_t *lLib = (MCorePeFile_t*)lNode->Data;
 
 			/* Did we find it ? */
 			if (lLib == Library)
 			{
 				/* Remove */
-				list_remove_by_node(Parent->LoadedLibraries, lNode);
+				ListRemoveByNode(Parent->LoadedLibraries, lNode);
 
 				/* Free node */
 				kfree(lNode);
@@ -1025,7 +1039,7 @@ void PeUnloadLibrary(MCorePeFile_t *Parent, MCorePeFile_t *Library)
 void PeUnload(MCorePeFile_t *Executable)
 {
 	/* Vars */
-	list_node_t *Node;
+	ListNode_t *Node;
 
 	/* Sanity */
 	if (Executable == NULL)
@@ -1041,14 +1055,14 @@ void PeUnload(MCorePeFile_t *Executable)
 		_foreach(Node, Executable->ExportedFunctions)
 		{
 			/* Cast data */
-			MCorePeExportFunction_t *ExFunc = (MCorePeExportFunction_t*)Node->data;
+			MCorePeExportFunction_t *ExFunc = (MCorePeExportFunction_t*)Node->Data;
 
 			/* Free struct */
 			kfree(ExFunc);
 		}
 
 		/* Destroy list */
-		list_destroy(Executable->ExportedFunctions);
+		ListDestroy(Executable->ExportedFunctions);
 	}
 
 	/* Cleanup libraries */
@@ -1058,14 +1072,14 @@ void PeUnload(MCorePeFile_t *Executable)
 		_foreach(Node, Executable->LoadedLibraries)
 		{
 			/* Cast data */
-			MCorePeFile_t *Library = (MCorePeFile_t*)Node->data;
+			MCorePeFile_t *Library = (MCorePeFile_t*)Node->Data;
 
 			/* Cleanup that aswell */
 			PeUnload(Library);
 		}
 
 		/* Destroy list */
-		list_destroy(Executable->LoadedLibraries);
+		ListDestroy(Executable->LoadedLibraries);
 	}
 
 	/* Free structure */

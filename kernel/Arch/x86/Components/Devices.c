@@ -28,9 +28,11 @@
 #include <AcpiSys.h>
 #include <Pci.h>
 #include <Heap.h>
-#include <List.h>
 #include <Timers.h>
 #include <Log.h>
+
+/* C-Library */
+#include <ds/list.h>
 
 /* Definitions */
 #define DEVICES_CMOS			0x00000000
@@ -100,7 +102,7 @@ void DevicesInitTimers(void)
 }
 
 /* Globals */
-list_t *GlbIoSpaces = NULL;
+List_t *GlbIoSpaces = NULL;
 int GlbIoSpaceInitialized = 0;
 int GlbIoSpaceId = 0;
 
@@ -111,7 +113,7 @@ extern x86CpuObject_t GlbBootCpuInfo;
 void IoSpaceInit(void)
 {
 	/* Create list */
-	GlbIoSpaces = list_create(LIST_NORMAL);
+	GlbIoSpaces = ListCreate(KeyInteger, LIST_NORMAL);
 	GlbIoSpaceInitialized = 1;
 	GlbIoSpaceId = 0;
 }
@@ -121,6 +123,7 @@ DeviceIoSpace_t *IoSpaceCreate(int Type, Addr_t PhysicalBase, size_t Size)
 {
 	/* Allocate */
 	DeviceIoSpace_t *IoSpace = (DeviceIoSpace_t*)kmalloc(sizeof(DeviceIoSpace_t));
+	DataKey_t Key;
 
 	/* Setup */
 	IoSpace->Id = GlbIoSpaceId;
@@ -150,8 +153,8 @@ DeviceIoSpace_t *IoSpaceCreate(int Type, Addr_t PhysicalBase, size_t Size)
 	}
 
 	/* Add to list */
-	list_append(GlbIoSpaces, 
-		list_create_node(IoSpace->Id, (void*)IoSpace));
+	Key.Value = IoSpace->Id;
+	ListAppend(GlbIoSpaces, ListCreateNode(Key, Key, (void*)IoSpace));
 	
 	/* Done! */
 	return IoSpace;
@@ -160,6 +163,9 @@ DeviceIoSpace_t *IoSpaceCreate(int Type, Addr_t PhysicalBase, size_t Size)
 /* Cleanup Io Space */
 void IoSpaceDestroy(DeviceIoSpace_t *IoSpace)
 {
+	/* DataKey for list */
+	DataKey_t Key;
+
 	/* Sanity */
 	if (IoSpace->Type == DEVICE_IO_SPACE_MMIO)
 	{
@@ -174,7 +180,8 @@ void IoSpaceDestroy(DeviceIoSpace_t *IoSpace)
 	}
 
 	/* Remove from list */
-	list_remove_by_id(GlbIoSpaces, IoSpace->Id);
+	Key.Value = IoSpace->Id;
+	ListRemoveByKey(GlbIoSpaces, Key);
 
 	/* Free */
 	kfree(IoSpace);
@@ -304,7 +311,7 @@ Addr_t IoSpaceValidate(Addr_t Address)
 	{
 		/* Cast */
 		DeviceIoSpace_t *IoSpace = 
-			(DeviceIoSpace_t*)ioNode->data;
+			(DeviceIoSpace_t*)ioNode->Data;
 
 		/* Let's see */
 		if (Address >= IoSpace->VirtualBase

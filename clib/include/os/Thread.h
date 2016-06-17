@@ -20,13 +20,20 @@
 * Contains threading methods + synchronization
 */
 
-#ifndef __THREADING_CLIB__
+#if !defined(__THREADING_CLIB__) && !defined(CLIB_KERNEL)
 #define __THREADING_CLIB__
 
 /* C-Library - Includes */
 #include <sys/types.h>
+#include <time.h>
 #include <crtdefs.h>
 #include <stdint.h>
+#include <os/MollenOS.h>
+
+/* Synchronizations */
+#include <os/Spinlock.h>
+#include <os/Mutex.h>
+#include <os/Condition.h>
 
 /* CPP-Guard */
 #ifdef __cplusplus
@@ -36,77 +43,12 @@ extern "C" {
 /* Definitons */
 #define THREAD_ONCE_INIT		0x1
 
-#define MUTEX_INITIALIZOR		{0, 0, 0, 0}
-#define MUTEX_PLAIN				0x0
-#define MUTEX_RECURSIVE			0x1
-#define MUTEX_DEFAULT_TIMEOUT	500
-#define MUTEX_SUCCESS			0x0
-#define MUTEX_BUSY				0x1
-
 #define TLS_MAX_KEYS			64
 #define TLS_KEY_INVALID			0xFFFFFFFF
-
-/* The definition of a thread id
- * used for identifying threads */
-#ifndef MTHREADID_DEFINED
-#define MTHREADID_DEFINED
-typedef unsigned int TId_t;
-typedef long ThreadOnce_t;
-typedef void (*ThreadOnceFunc_t)(void);
-#endif
-
-/* The definition of a thread specifc
- * storage key, used for saving data
- * in a dictionary */
-#ifndef MTHREADTLS_DEFINED
-#define MTHREADTLS_DEFINED
-typedef unsigned int TlsKey_t;
-typedef void (*TlsKeyDss_t)(void*);
-#endif
-
-/* The definition of a thread entry
- * point format */
-#ifndef MTHREADENTRY_DEFINED
-#define MTHREADENTRY_DEFINED
-typedef int (*ThreadFunc_t)(void*);
-#endif
-
-/* The definition of a spinlock handle
- * used for primitive lock access */
-#ifndef MSPINLOCK_DEFINED
-#define MSPINLOCK_DEFINED
-typedef int Spinlock_t;
-#endif
-
-/* The definition of a condition handle
- * used for primitive lock signaling */
-#ifndef MTHREADCOND_DEFINED
-#define MTHREADCOND_DEFINED
-typedef unsigned int Condition_t;
-#endif
 
 /***********************
  * Structures
  ***********************/
-
-/* The mutex structure
- * used for exclusive access to a resource
- * between threads */
-typedef struct _Mutex
-{
-	/* Mutex flags/type */
-	int Flags;
-
-	/* Task that is blocking */
-	TId_t Blocker;
-
-	/* Total amout of blocking */
-	size_t Blocks;
-
-	/* The spinlock */
-	Spinlock_t Lock;
-
-} Mutex_t;
 
 /* The actual TLS
  * This is the actual thread local storage
@@ -238,103 +180,6 @@ _MOS_API void *TLSGetKey(TlsKey_t Key);
  * data with the key 
  * returns -1 if no more room for keys */
 _MOS_API int TLSSetKey(TlsKey_t Key, void *Data);
-
-/***********************
- * Spinlock Prototypes
- ***********************/
-
-/* Spinlock Reset
- * This initializes a spinlock
- * handle and sets it to default
- * value (unlocked) */
-_MOS_API void SpinlockReset(Spinlock_t *Lock);
-
-/* Spinlock Acquire
- * Acquires the spinlock, this
- * is a blocking operation.
- * Returns 1 on lock success */
-_MOS_API int SpinlockAcquire(Spinlock_t *Lock);
-
-/* Spinlock TryAcquire
- * TRIES to acquires the spinlock, 
- * returns 0 if failed, returns 1
- * if lock were acquired  */
-_MOS_API int SpinlockTryAcquire(Spinlock_t *Lock);
-
-/* Spinlock Release
- * Releases the spinlock, and lets
- * other threads access the lock */
-_MOS_API void SpinlockRelease(Spinlock_t *Lock);
-
-/***********************
- * Mutex Prototypes
- ***********************/
-
-/* Instantiates a new mutex of the given
- * type, it allocates all neccessary resources
- * as well. */
-_MOS_API Mutex_t *MutexCreate(int Flags);
-
-/* Instantiates a new mutex of the given
- * type, using pre-allocated memory */
-_MOS_API void MutexConstruct(Mutex_t *Mutex, int Flags);
-
-/* Destroys a mutex and frees resources
- * allocated by the mutex */
-_MOS_API void MutexDestruct(Mutex_t *Mutex);
-
-/* Lock a mutex, this is a
- * blocking call */
-_MOS_API int MutexLock(Mutex_t *Mutex);
-
-/* Tries to lock a mutex, if the 
- * mutex is locked, this returns 
- * MUTEX_BUSY, otherwise MUTEX_SUCCESS */
-_MOS_API int MutexTryLock(Mutex_t *Mutex);
-
-/* Tries to lock a mutex, with a timeout
- * which means it'll keep retrying locking
- * untill the time has passed */
-_MOS_API int MutexTimedLock(Mutex_t *Mutex, time_t Expiration);
-
-/* Unlocks a mutex, reducing the blocker
- * count by 1 if recursive, otherwise it opens
- * the mutex */
-_MOS_API void MutexUnlock(Mutex_t *Mutex);
-
-/***********************
- * Condition Prototypes
- ***********************/
-
-/* Instantiates a new condition and allocates
- * all required resources for the condition */
-_MOS_API Condition_t *ConditionCreate(void);
-
-/* Constructs an already allocated condition
- * handle and initializes it */
-_MOS_API int ConditionConstruct(Condition_t *Cond);
-
-/* Destroys a conditional variable and 
- * wakes up all remaining sleepers */
-_MOS_API void ConditionDestroy(Condition_t *Cond);
-
-/* Signal the condition and wakes up a thread
- * in the queue for the condition */
-_MOS_API int ConditionSignal(Condition_t *Cond);
-
-/* Broadcast a signal to all condition waiters
- * and wakes threads up waiting for the cond */
-_MOS_API int ConditionBroadcast(Condition_t *Cond);
-
-/* Waits for condition to be signaled, and 
- * acquires the given mutex, using multiple 
- * mutexes for same condition is undefined behaviour */
-_MOS_API int ConditionWait(Condition_t *Cond, Mutex_t *Mutex);
-
-/* This functions as the ConditionWait, 
- * but also has a timeout specified, so that 
- * we get waken up if the timeout expires (in seconds) */
-_MOS_API int ConditionWaitTimed(Condition_t *Cond, Mutex_t *Mutex, time_t Expiration);
 
 /* CPP Guard */
 #ifdef __cplusplus

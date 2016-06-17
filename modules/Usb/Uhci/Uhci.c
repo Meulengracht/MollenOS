@@ -561,7 +561,7 @@ void UhciInitQueues(UhciController_t *Controller)
 		FrameListPtr[i] = UhciDetermineInterruptQh(Controller, i);
 
 	/* Init transaction list */
-	Controller->TransactionList = list_create(LIST_SAFE);
+	Controller->TransactionList = ListCreate(KeyInteger, LIST_SAFE);
 }
 
 /* Ports */
@@ -1480,6 +1480,7 @@ void UhciTransactionSend(void *Controller, UsbHcRequest_t *Request)
 	UhciQueueHead_t *Qh = NULL;
 	UhciTransferDescriptor_t *Td = NULL;
 	Addr_t QhAddress = 0;
+	DataKey_t Key;
 	int CondCode, Queue;
 
 	/*************************
@@ -1522,7 +1523,8 @@ void UhciTransactionSend(void *Controller, UsbHcRequest_t *Request)
 	UhciQhInit(Qh, Request->Transactions);
 
 	/* Add this Transaction to list */
-	list_append((list_t*)Ctrl->TransactionList, list_create_node(0, Request));
+	Key.Value = 0;
+	ListAppend((List_t*)Ctrl->TransactionList, ListCreateNode(Key, Key, Request));
 
 	/* Debug */
 #ifdef UHCI_DIAGNOSTICS
@@ -1721,7 +1723,7 @@ void UhciTransactionDestroy(void *Controller, UsbHcRequest_t *Request)
 	UsbHcTransaction_t *Transaction = Request->Transactions;
 	UhciController_t *Ctrl = (UhciController_t*)Controller;
 	UhciQueueHead_t *Qh = (UhciQueueHead_t*)Request->Data;
-	list_node_t *Node = NULL;
+	ListNode_t *Node = NULL;
 
 	/* Update */
 	UhciGetCurrentFrame(Ctrl);
@@ -1850,14 +1852,14 @@ void UhciTransactionDestroy(void *Controller, UsbHcRequest_t *Request)
 		kfree(Request->Data);
 
 		/* Remove from list */
-		_foreach(Node, ((list_t*)Ctrl->TransactionList)) {
-			if (Node->data == Request)
+		_foreach(Node, ((List_t*)Ctrl->TransactionList)) {
+			if (Node->Data == Request)
 				break;
 		}
 
 		/* Sanity */
 		if (Node != NULL) {
-			list_remove_by_node((list_t*)Ctrl->TransactionList, Node);
+			ListRemoveByNode((List_t*)Ctrl->TransactionList, Node);
 			kfree(Node);
 		}
 	}
@@ -1890,14 +1892,14 @@ void UhciTransactionDestroy(void *Controller, UsbHcRequest_t *Request)
 		kfree(Request->Data);
 
 		/* Remove from list */
-		_foreach(Node, ((list_t*)Ctrl->TransactionList)) {
-			if (Node->data == Request)
+		_foreach(Node, ((List_t*)Ctrl->TransactionList)) {
+			if (Node->Data == Request)
 				break;
 		}
 
 		/* Sanity */
 		if (Node != NULL) {
-			list_remove_by_node((list_t*)Ctrl->TransactionList, Node);
+			ListRemoveByNode((List_t*)Ctrl->TransactionList, Node);
 			kfree(Node);
 		}
 	}
@@ -1934,7 +1936,7 @@ void UhciFixupToggles(UsbHcRequest_t *Request)
 }
 
 /* Processes a QH */
-void UhciProcessRequest(UhciController_t *Controller, list_node_t *Node, 
+void UhciProcessRequest(UhciController_t *Controller, ListNode_t *Node, 
 	UsbHcRequest_t *Request, int FixupToggles, int ErrorTransfer)
 {
 	/* What kind of transfer was this? */
@@ -1949,7 +1951,7 @@ void UhciProcessRequest(UhciController_t *Controller, list_node_t *Node,
 		SchedulerWakeupOneThread((Addr_t*)Request->Data);
 
 		/* Remove from list */
-		list_remove_by_node((list_t*)Controller->TransactionList, Node);
+		ListRemoveByNode((List_t*)Controller->TransactionList, Node);
 
 		/* Cleanup node */
 		kfree(Node);
@@ -2099,7 +2101,7 @@ void UhciProcessRequest(UhciController_t *Controller, list_node_t *Node,
 void UhciProcessTransfers(UhciController_t *Controller)
 {
 	/* Transaction is completed / Failed */
-	list_t *Transactions = (list_t*)Controller->TransactionList;
+	List_t *Transactions = (List_t*)Controller->TransactionList;
 	int ProcessQh = 0;
 
 	/* Update frame */
@@ -2109,7 +2111,7 @@ void UhciProcessTransfers(UhciController_t *Controller)
 	foreach(Node, Transactions)
 	{
 		/* Cast UsbRequest */
-		UsbHcRequest_t *HcRequest = (UsbHcRequest_t*)Node->data;
+		UsbHcRequest_t *HcRequest = (UsbHcRequest_t*)Node->Data;
 
 		/* Get transaction list */
 		UsbHcTransaction_t *tList = (UsbHcTransaction_t*)HcRequest->Transactions;

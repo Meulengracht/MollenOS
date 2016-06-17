@@ -24,9 +24,11 @@
 
 /* Includes */
 #include <Arch.h>
-#include <MString.h>
-#include <List.h>
+
+/* C-Library */
 #include <stdint.h>
+#include <ds/list.h>
+#include <ds/mstring.h>
 
 /* Definitions */
 #define MZ_MAGIC			0x5A4D
@@ -620,10 +622,10 @@ typedef struct _MCorePeFile
 	int References;
 
 	/* Exported Functions */
-	list_t *ExportedFunctions;
+	List_t *ExportedFunctions;
 
 	/* Loaded Libraries */
-	list_t *LoadedLibraries;
+	List_t *LoadedLibraries;
 
 } MCorePeFile_t;
 

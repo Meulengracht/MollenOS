@@ -123,6 +123,10 @@ typedef struct _PciBus
 /* The Driver Header */
 typedef struct _PciDevice
 {
+	/* Pointer to our parent 
+	 * which is a bridge */
+	struct _PciDevice *Parent;
+
 	/* Type */
 	uint32_t Type;
 
@@ -138,7 +142,6 @@ typedef struct _PciDevice
 	PciNativeHeader_t *Header;
 
 	/* Children (list.h) */
-	void *Parent;
 	void *Children;
 
 } PciDevice_t;

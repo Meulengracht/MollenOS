@@ -26,8 +26,6 @@
 /* Includes */
 #include <Module.h>
 #include "Mfs.h"
-
-#include <MString.h>
 #include <Heap.h>
 #include <Log.h>
 
@@ -37,7 +35,7 @@
 /* Read Sectors Wrapper 
  * This makes sure to wrap our read requests 
  * into maximum allowed blocks */
-DeviceRequestStatus_t MfsReadSectors(MCoreFileSystem_t *Fs, uint64_t Sector, void *Buffer, size_t Count)
+DeviceErrorMessage_t MfsReadSectors(MCoreFileSystem_t *Fs, uint64_t Sector, void *Buffer, size_t Count)
 {
 	/* Sanity */
 	uint64_t SectorToRead = Fs->SectorStart + Sector;
@@ -52,7 +50,7 @@ DeviceRequestStatus_t MfsReadSectors(MCoreFileSystem_t *Fs, uint64_t Sector, voi
 		MCoreDeviceRequest_t Request;
 
 		/* Setup request */
-		Request.Type = RequestRead;
+		Request.Base.Type = RequestRead;
 		Request.DeviceId = Fs->DiskId;
 		Request.SectorLBA = SectorToRead;
 		Request.Buffer = BufferPointer;
@@ -70,8 +68,8 @@ DeviceRequestStatus_t MfsReadSectors(MCoreFileSystem_t *Fs, uint64_t Sector, voi
 		DmWaitRequest(&Request, 0);
 
 		/* Sanity */
-		if (Request.Status != RequestOk)
-			return Request.Status;
+		if (Request.Base.State != EventOk)
+			return Request.ErrType;
 
 		/* Increase */
 		if (BytesToRead > (SectorsPerRequest * Fs->SectorSize)) {
@@ -84,13 +82,13 @@ DeviceRequestStatus_t MfsReadSectors(MCoreFileSystem_t *Fs, uint64_t Sector, voi
 	}
 
 	/* Done! */
-	return RequestOk;
+	return RequestNoError;
 }
 
 /* Write Sectors Wrapper
 * This makes sure to wrap our write requests
 * into maximum allowed blocks */
-DeviceRequestStatus_t MfsWriteSectors(MCoreFileSystem_t *Fs, uint64_t Sector, void *Buffer, size_t Count)
+DeviceErrorMessage_t MfsWriteSectors(MCoreFileSystem_t *Fs, uint64_t Sector, void *Buffer, size_t Count)
 {
 	/* Sanity */
 	uint64_t SectorToWrite = Fs->SectorStart + Sector;
@@ -105,7 +103,7 @@ DeviceRequestStatus_t MfsWriteSectors(MCoreFileSystem_t *Fs, uint64_t Sector, vo
 		MCoreDeviceRequest_t Request;
 
 		/* Setup request */
-		Request.Type = RequestWrite;
+		Request.Base.Type = RequestWrite;
 		Request.DeviceId = Fs->DiskId;
 		Request.SectorLBA = SectorToWrite;
 		Request.Buffer = BufferPointer;
@@ -123,8 +121,8 @@ DeviceRequestStatus_t MfsWriteSectors(MCoreFileSystem_t *Fs, uint64_t Sector, vo
 		DmWaitRequest(&Request, 0);
 
 		/* Sanity */
-		if (Request.Status != RequestOk)
-			return Request.Status;
+		if (Request.Base.State != EventOk)
+			return Request.ErrType;
 
 		/* Increase */
 		if (BytesToWrite > (SectorsPerRequest * Fs->SectorSize)) {
@@ -137,7 +135,7 @@ DeviceRequestStatus_t MfsWriteSectors(MCoreFileSystem_t *Fs, uint64_t Sector, vo
 	}
 
 	/* Done! */
-	return RequestOk;
+	return RequestNoError;
 }
 
 /* Update Mb - Updates the 
@@ -159,8 +157,8 @@ int MfsUpdateMb(MCoreFileSystem_t *Fs)
 	MbPtr->BadBucketIndex = mData->BadIndex;
 
 	/* Write MB */
-	if (MfsWriteSectors(Fs, mData->MbSector, MbBuffer, 1) != RequestOk
-		|| MfsWriteSectors(Fs, mData->MbMirrorSector, MbBuffer, 1) != RequestOk)
+	if (MfsWriteSectors(Fs, mData->MbSector, MbBuffer, 1) != RequestNoError
+		|| MfsWriteSectors(Fs, mData->MbMirrorSector, MbBuffer, 1) != RequestNoError)
 	{
 		/* Error */
 		LogFatal("MFS1", "UPDATEMB: Error writing to disk");
@@ -190,7 +188,7 @@ int MfsGetNextBucket(MCoreFileSystem_t *Fs,
 	{
 		/* Read */
 		if (MfsReadSectors(Fs, mData->BucketMapSector + SectorOffset, 
-			mData->BucketBuffer, 1) != RequestOk)
+			mData->BucketBuffer, 1) != RequestNoError)
 		{
 			/* Error */
 			LogFatal("MFS1", "GETNEXTBUCKET: Error reading from disk (Bucket %u, Sector %u)",
@@ -229,7 +227,7 @@ int MfsSetNextBucket(MCoreFileSystem_t *Fs,
 	{
 		/* Read */
 		if (MfsReadSectors(Fs, mData->BucketMapSector + SectorOffset, 
-			mData->BucketBuffer, 1) != RequestOk)
+			mData->BucketBuffer, 1) != RequestNoError)
 		{
 			/* Error */
 			LogFatal("MFS1", "SETNEXTBUCKET: Error reading from disk");
@@ -252,7 +250,7 @@ int MfsSetNextBucket(MCoreFileSystem_t *Fs,
 
 	/* Write it back */
 	if (MfsWriteSectors(Fs, mData->BucketMapSector + SectorOffset, 
-		mData->BucketBuffer, 1) != RequestOk)
+		mData->BucketBuffer, 1) != RequestNoError)
 	{
 		/* Error */
 		LogFatal("MFS1", "SETNEXTBUCKET: Error writing to disk");
@@ -390,7 +388,7 @@ int MfsZeroBucket(MCoreFileSystem_t *Fs, uint32_t Bucket, uint32_t NumBuckets)
 	memset(NullBuffer, 0, sizeof(Count * mData->BucketSize * Fs->SectorSize));
 
 	/* Write it */
-	if (MfsReadSectors(Fs, Sector, NullBuffer, Count) != RequestOk) {
+	if (MfsReadSectors(Fs, Sector, NullBuffer, Count) != RequestNoError) {
 		/* Error */
 		LogFatal("MFS1", "ZEROBUCKET: Error writing to disk");
 		kfree(NullBuffer);
@@ -419,7 +417,7 @@ VfsErrorCode_t MfsUpdateEntry(MCoreFileSystem_t *Fs, MfsFile_t *Handle, int Acti
 
 	/* Read in the bucket of where the entry lies */
 	if (MfsReadSectors(Fs, mData->BucketSize * Handle->DirBucket,
-		EntryBuffer, mData->BucketSize) != RequestOk)
+		EntryBuffer, mData->BucketSize) != RequestNoError)
 	{
 		RetCode = VfsDiskError;
 		goto Done;
@@ -465,7 +463,7 @@ VfsErrorCode_t MfsUpdateEntry(MCoreFileSystem_t *Fs, MfsFile_t *Handle, int Acti
 	
 	/* Write it back */
 	if (MfsWriteSectors(Fs, mData->BucketSize * Handle->DirBucket,
-		EntryBuffer, mData->BucketSize) != RequestOk)
+		EntryBuffer, mData->BucketSize) != RequestNoError)
 		RetCode = VfsDiskError;
 
 	/* Done! */
@@ -507,7 +505,7 @@ MfsFile_t *MfsLocateEntry(MCoreFileSystem_t *Fs, uint32_t DirBucket, MString_t *
 	{
 		/* Load bucket */
 		if (MfsReadSectors(Fs, mData->BucketSize * CurrentBucket, 
-			EntryBuffer, mData->BucketSize) != RequestOk)
+			EntryBuffer, mData->BucketSize) != RequestNoError)
 		{
 			/* Error */
 			LogFatal("MFS1", "LOCATEENTRY: Error reading from disk");
@@ -676,7 +674,7 @@ MfsFile_t *MfsFindFreeEntry(MCoreFileSystem_t *Fs, uint32_t DirBucket, MString_t
 	{
 		/* Load bucket */
 		if (MfsReadSectors(Fs, mData->BucketSize * CurrentBucket,
-			EntryBuffer, mData->BucketSize) != RequestOk)
+			EntryBuffer, mData->BucketSize) != RequestNoError)
 		{
 			/* Error */
 			LogFatal("MFS1", "CREATEENTRY: Error reading from disk");
@@ -765,7 +763,7 @@ MfsFile_t *MfsFindFreeEntry(MCoreFileSystem_t *Fs, uint32_t DirBucket, MString_t
 
 						/* Write back buffer */
 						if (MfsWriteSectors(Fs, mData->BucketSize * CurrentBucket,
-							EntryBuffer, mData->BucketSize) != RequestOk)
+							EntryBuffer, mData->BucketSize) != RequestNoError)
 						{
 							/* Error */
 							LogFatal("MFS1", "CREATEENTRY: Error writing to disk");
@@ -1119,7 +1117,7 @@ size_t MfsReadFile(void *FsData, MCoreFile_t *Handle, MCoreFileInstance_t *Insta
 		SectorLba += nBuckets * mData->BucketSize;
 
 		/* Read the bucket */
-		if (MfsReadSectors(Fs, SectorLba, TransferBuffer, TransferSize) != RequestOk)
+		if (MfsReadSectors(Fs, SectorLba, TransferBuffer, TransferSize) != RequestNoError)
 		{
 			/* Error */
 			RetCode = VfsDiskError;
@@ -1317,7 +1315,7 @@ size_t MfsWriteFile(void *FsData, MCoreFile_t *Handle, MCoreFileInstance_t *Inst
 			/* Means we are modifying */
 
 			/* Read the old bucket */
-			if (MfsReadSectors(Fs, SectorLba, TransferBuffer, TransferSize) != RequestOk)
+			if (MfsReadSectors(Fs, SectorLba, TransferBuffer, TransferSize) != RequestNoError)
 			{
 				/* Error */
 				RetCode = VfsDiskError;
@@ -1345,7 +1343,7 @@ size_t MfsWriteFile(void *FsData, MCoreFile_t *Handle, MCoreFileInstance_t *Inst
 		}
 
 		/* Write back bucket */
-		if (MfsWriteSectors(Fs, SectorLba, TransferBuffer, TransferSize) != RequestOk)
+		if (MfsWriteSectors(Fs, SectorLba, TransferBuffer, TransferSize) != RequestNoError)
 		{
 			/* Error */
 			RetCode = VfsDiskError;
@@ -1597,7 +1595,7 @@ MODULES_API void ModuleInit(void *Data)
 	MfsBootRecord_t *BootRecord = NULL;
 
 	/* Read bootsector */
-	if (MfsReadSectors(Fs, 0, TmpBuffer, 1) != RequestOk)
+	if (MfsReadSectors(Fs, 0, TmpBuffer, 1) != RequestNoError)
 	{
 		/* Error */
 		Fs->State = VfsStateFailed;
@@ -1651,7 +1649,7 @@ MODULES_API void ModuleInit(void *Data)
 	memcpy(mData->VolumeLabel, BootRecord->BootLabel, 8);
 
 	/* Read the MB */
-	if (MfsReadSectors(Fs, mData->MbSector, TmpBuffer, 1) != RequestOk)
+	if (MfsReadSectors(Fs, mData->MbSector, TmpBuffer, 1) != RequestNoError)
 	{
 		/* Error */
 		Fs->State = VfsStateFailed;

@@ -23,13 +23,16 @@
 #include <Arch.h>
 #include <ProcessManager.h>
 #include <Vfs/Vfs.h>
+#include <GarbageCollector.h>
 #include <Threading.h>
 #include <Semaphore.h>
 #include <Scheduler.h>
-#include <List.h>
 #include <Log.h>
 
 /* CLib */
+#include <stddef.h>
+#include <ds/list.h>
+#include <ds/mstring.h>
 #include <string.h>
 
 /* Prototypes */
@@ -39,8 +42,8 @@ PId_t PmCreateProcess(MString_t *Path, MString_t *Arguments);
 /* Globals */
 MCoreEventHandler_t *GlbProcessEventHandler = NULL;
 PId_t GlbProcessId = 0;
-list_t *GlbProcesses = NULL; 
-list_t *GlbZombieProcesses = NULL;
+List_t *GlbProcesses = NULL; 
+List_t *GlbZombieProcesses = NULL;
 
 /* Setup & Start Request Handler */
 void PmInit(void)
@@ -52,8 +55,8 @@ void PmInit(void)
 	GlbProcessId = 1;
 
 	/* Create */
-	GlbProcesses = list_create(LIST_SAFE);
-	GlbZombieProcesses = list_create(LIST_SAFE);
+	GlbProcesses = ListCreate(KeyInteger, LIST_SAFE);
+	GlbZombieProcesses = ListCreate(KeyInteger, LIST_SAFE);
 
 	/* Create event handler */
 	GlbProcessEventHandler = EventInit("Process Manager", PmEventHandler, NULL);
@@ -160,7 +163,7 @@ void PmStartProcess(void *Args)
 	cThread->ProcessId = Process->Id;
 
 	/* Allocate a open file list */
-	Process->OpenFiles = list_create(LIST_NORMAL);
+	Process->OpenFiles = ListCreate(KeyInteger, LIST_NORMAL);
 
 	/* Save address space */
 	Process->AddressSpace = AddressSpaceGetCurrent();
@@ -211,6 +214,7 @@ PId_t PmCreateProcess(MString_t *Path, MString_t *Arguments)
 	MCoreProcess_t *Process = NULL;
 	MCoreFileInstance_t *File = NULL;
 	uint8_t *fBuffer = NULL;
+	DataKey_t Key;
 	int Index = 0;
 
 	/* Sanity */
@@ -271,7 +275,8 @@ PId_t PmCreateProcess(MString_t *Path, MString_t *Arguments)
 		Process->Arguments = MStringCreate(File->File->Path->Data, StrUTF8);
 
 	/* Add process to list */
-	list_append(GlbProcesses, list_create_node((int)Process->Id, Process));
+	Key.Value = (int)Process->Id;
+	ListAppend(GlbProcesses, ListCreateNode(Key, Key, Process));
 
 	/* Create the loader thread */
 	ThreadingCreateThread("Process", PmStartProcess, Process, THREADING_USERMODE);
@@ -287,7 +292,7 @@ MCoreProcess_t *PmGetProcess(PId_t ProcessId)
 	foreach(pNode, GlbProcesses)
 	{
 		/* Cast */
-		MCoreProcess_t *Process = (MCoreProcess_t*)pNode->data;
+		MCoreProcess_t *Process = (MCoreProcess_t*)pNode->Data;
 
 		/* Found? */
 		if (Process->Id == ProcessId)
@@ -305,7 +310,7 @@ MString_t *PmGetWorkingDirectory(PId_t ProcessId)
 	foreach(pNode, GlbProcesses)
 	{
 		/* Cast */
-		MCoreProcess_t *Process = (MCoreProcess_t*)pNode->data;
+		MCoreProcess_t *Process = (MCoreProcess_t*)pNode->Data;
 
 		/* Found? */
 		if (Process->Id == ProcessId)
@@ -323,7 +328,7 @@ MString_t *PmGetBaseDirectory(PId_t ProcessId)
 	foreach(pNode, GlbProcesses)
 	{
 		/* Cast */
-		MCoreProcess_t *Process = (MCoreProcess_t*)pNode->data;
+		MCoreProcess_t *Process = (MCoreProcess_t*)pNode->Data;
 
 		/* Found? */
 		if (Process->Id == ProcessId)
@@ -337,26 +342,34 @@ MString_t *PmGetBaseDirectory(PId_t ProcessId)
 /* End Process */
 void PmTerminateProcess(MCoreProcess_t *Process)
 {
+	/* Variables needed */
+	ListNode_t *pNode = NULL;
+	DataKey_t Key;
+
 	/* Lookup node */
-	list_node_t *pNode = list_get_node_by_id(GlbProcesses, (int)Process->Id, 0);
+	Key.Value = (int)Process->Id;
+	pNode = ListGetNodeByKey(GlbProcesses, Key, 0);
 
 	/* Sanity */
 	if (pNode == NULL)
 		return;
 
 	/* Remove it, add to zombies */
-	list_remove_by_node(GlbProcesses, pNode);
-	list_append(GlbZombieProcesses, pNode);
+	ListRemoveByNode(GlbProcesses, pNode);
+	ListAppend(GlbZombieProcesses, pNode);
 
 	/* Wake all that waits for this to finish */
-	SchedulerWakeupAllThreads((Addr_t*)pNode->data);
+	SchedulerWakeupAllThreads((Addr_t*)pNode->Data);
+
+	/* Tell GC */
+	GcAddWork();
 }
 
 /* Cleans a process and it's resources */
 void PmCleanupProcess(MCoreProcess_t *Process)
 {
 	/* Vars */
-	list_node_t *fNode = NULL;
+	ListNode_t *fNode = NULL;
 
 	/* Cleanup Strings */
 	MStringDestroy(Process->Name);
@@ -368,14 +381,14 @@ void PmCleanupProcess(MCoreProcess_t *Process)
 	_foreach(fNode, Process->OpenFiles)
 	{
 		/* Cast */
-		MCoreFileInstance_t *fHandle = (MCoreFileInstance_t*)fNode->data;
+		MCoreFileInstance_t *fHandle = (MCoreFileInstance_t*)fNode->Data;
 
 		/* Cleanup */
 		VfsClose(fHandle);
 	}
 
 	/* Destroy list */
-	list_destroy(Process->OpenFiles);
+	ListDestroy(Process->OpenFiles);
 
 	/* Destroy Pipe */
 	PipeDestroy(Process->Pipe);
@@ -398,12 +411,12 @@ void PmCleanupProcess(MCoreProcess_t *Process)
 void PmReapZombies(void)
 {
 	/* Reap untill list is empty */
-	list_node_t *tNode = list_pop_front(GlbZombieProcesses);
+	ListNode_t *tNode = ListPopFront(GlbZombieProcesses);
 
 	while (tNode != NULL)
 	{
 		/* Cast */
-		MCoreProcess_t *Process = (MCoreProcess_t*)tNode->data;
+		MCoreProcess_t *Process = (MCoreProcess_t*)tNode->Data;
 
 		/* Clean it up */
 		PmCleanupProcess(Process);
@@ -412,6 +425,6 @@ void PmReapZombies(void)
 		kfree(tNode);
 
 		/* Get next node */
-		tNode = list_pop_front(GlbZombieProcesses);
+		tNode = ListPopFront(GlbZombieProcesses);
 	}
 }

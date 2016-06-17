@@ -45,7 +45,7 @@ typedef struct _HeapNode
 	Addr_t Address;
 
 	/* Status */
-	uint32_t Allocated;
+	int Allocated;
 
 	/* Length */
 	size_t Length;

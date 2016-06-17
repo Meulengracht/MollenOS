@@ -23,6 +23,8 @@
 #include <Bitmap.h>
 #include <Heap.h>
 
+/* C-Library */
+#include <stddef.h>
 #include <string.h>
 
 /* Helpers */

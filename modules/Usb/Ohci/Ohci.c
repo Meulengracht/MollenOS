@@ -417,7 +417,7 @@ void OhciInitQueues(OhciController_t *Controller)
 	Controller->TransactionsWaitingControl = 0;
 	Controller->TransactionQueueBulk = 0;
 	Controller->TransactionQueueControl = 0;
-	Controller->TransactionList = list_create(LIST_SAFE);
+	Controller->TransactionList = ListCreate(KeyInteger, LIST_SAFE);
 }
 
 /* Take control of OHCI controller */
@@ -1545,6 +1545,7 @@ void OhciTransactionSend(void *Controller, UsbHcRequest_t *Request)
 	UsbTransferStatus_t Completed = TransferFinished;
 	OhciEndpointDescriptor_t *Ep = NULL;
 	OhciGTransferDescriptor_t *Td = NULL;
+	DataKey_t Key;
 	uint32_t CondCode;
 	Addr_t EdAddress;
 
@@ -1598,7 +1599,8 @@ void OhciTransactionSend(void *Controller, UsbHcRequest_t *Request)
 		Request->Endpoint->MaxPacketSize, Request->Speed);
 
 	/* Add this Transaction to list */
-	list_append((list_t*)Ctrl->TransactionList, list_create_node(0, Request));
+	Key.Value = 0;
+	ListAppend((List_t*)Ctrl->TransactionList, ListCreateNode(Key, Key, Request));
 
 	/* Remove Skip */
 	Ep->Flags &= ~(OHCI_EP_SKIP);
@@ -1734,7 +1736,7 @@ void OhciTransactionDestroy(void *Controller, UsbHcRequest_t *Request)
 	/* Vars */
 	UsbHcTransaction_t *Transaction = Request->Transactions;
 	OhciController_t *Ctrl = (OhciController_t*)Controller;
-	list_node_t *Node = NULL;
+	ListNode_t *Node = NULL;
 
 	/* Unallocate Ed */
 	if (Request->Type == ControlTransfer
@@ -1793,14 +1795,14 @@ void OhciTransactionDestroy(void *Controller, UsbHcRequest_t *Request)
 		kfree(Request->Data);
 
 		/* Remove from list */
-		_foreach(Node, ((list_t*)Ctrl->TransactionList)) {
-			if (Node->data == Request)
+		_foreach(Node, ((List_t*)Ctrl->TransactionList)) {
+			if (Node->Data == Request)
 				break;
 		}
 
 		/* Sanity */
 		if (Node != NULL) {
-			list_remove_by_node((list_t*)Ctrl->TransactionList, Node);
+			ListRemoveByNode((List_t*)Ctrl->TransactionList, Node);
 			kfree(Node);
 		}
 	}
@@ -1858,13 +1860,13 @@ void OhciReloadControlBulk(OhciController_t *Controller, UsbTransferType_t Trans
 void OhciProcessDoneQueue(OhciController_t *Controller, Addr_t DoneHeadAddr)
 {
 	/* Get transaction list */
-	list_t *Transactions = (list_t*)Controller->TransactionList;
+	List_t *Transactions = (List_t*)Controller->TransactionList;
 
 	/* Get Ed with the same td address as DoneHeadAddr */
 	foreach(Node, Transactions)
 	{
 		/* Cast UsbRequest */
-		UsbHcRequest_t *HcRequest = (UsbHcRequest_t*)Node->data;
+		UsbHcRequest_t *HcRequest = (UsbHcRequest_t*)Node->Data;
 
 		/* Get Ed */
 		OhciEndpointDescriptor_t *Ed = (OhciEndpointDescriptor_t*)HcRequest->Data;
@@ -1894,7 +1896,7 @@ void OhciProcessDoneQueue(OhciController_t *Controller, Addr_t DoneHeadAddr)
 					SchedulerWakeupOneThread((Addr_t*)Ed);
 
 					/* Remove from list */
-					list_remove_by_node(Transactions, Node);
+					ListRemoveByNode(Transactions, Node);
 
 					/* Cleanup node */
 					kfree(Node);
@@ -2008,13 +2010,13 @@ void OhciProcessDoneQueue(OhciController_t *Controller, Addr_t DoneHeadAddr)
 void OhciProcessTransactions(OhciController_t *Controller)
 {
 	/* Get transaction list */
-	list_t *Transactions = (list_t*)Controller->TransactionList;
+	List_t *Transactions = (List_t*)Controller->TransactionList;
 
 	/* Iterate list */
 	foreach(Node, Transactions)
 	{
 		/* Cast UsbRequest */
-		UsbHcRequest_t *HcRequest = (UsbHcRequest_t*)Node->data;
+		UsbHcRequest_t *HcRequest = (UsbHcRequest_t*)Node->Data;
 
 		/* Get Ed */
 		OhciEndpointDescriptor_t *Ed = (OhciEndpointDescriptor_t*)HcRequest->Data;

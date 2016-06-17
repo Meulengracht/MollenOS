@@ -12,10 +12,6 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\Common\Bitmap.c" />
-    <ClCompile Include="..\..\Common\List.c" />
-    <ClCompile Include="..\..\Common\MString.c" />
-    <ClCompile Include="..\..\Common\RingBuffer.c" />
-    <ClCompile Include="..\..\Common\Sha1.c" />
     <ClCompile Include="..\..\Init\Entry.c" />
     <ClCompile Include="..\..\System\Devices\DeviceManager.c" />
     <ClCompile Include="..\..\System\Devices\Fonts\VideoFont6x12.c" />
@@ -130,7 +126,7 @@
       <Optimization>MaxSpeed</Optimization>
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>false</IntrinsicFunctions>
-      <PreprocessorDefinitions>MOLLENOS;UNICODE;_KERNEL_API;_X86_32</PreprocessorDefinitions>
+      <PreprocessorDefinitions>MOLLENOS;UNICODE;_KERNEL_API;_X86_32;LIBC_KERNEL</PreprocessorDefinitions>
       <SDLCheck>
       </SDLCheck>
       <TreatWarningAsError>true</TreatWarningAsError>

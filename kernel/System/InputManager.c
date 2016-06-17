@@ -22,7 +22,6 @@
 /* Includes */
 #include <Arch.h>
 #include <InputManager.h>
-#include <RingBuffer.h>
 #include <stddef.h>
 
 /* Globals */

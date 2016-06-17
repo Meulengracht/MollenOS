@@ -27,7 +27,6 @@
 #include <Devices/Video.h>
 #include <Events.h>
 #include <stdint.h>
-#include <Mutex.h>
 
 /* Definitions */
 typedef unsigned DevInfo_t;
@@ -77,16 +76,14 @@ typedef enum _DeviceRequestType
 
 } DeviceRequestType_t;
 
-typedef enum _DeviceRequestStatus
+typedef enum _DeviceErrorMessage
 {
-	RequestPending,
-	RequestInProgress,
-	RequestOk,
+	RequestNoError,
 	RequestInvalidParameters,
 	RequestDeviceError,
 	RequestDeviceIsRemoved
 
-} DeviceRequestStatus_t;
+} DeviceErrorMessage_t;
 
 typedef enum _DriverStatus
 {
@@ -159,25 +156,25 @@ typedef struct _MCoreDevice
 } MCoreDevice_t;
 
 /* Device Requests */
-#pragma pack(push, 1)
 typedef struct _MCoreDeviceRequest
 {
-	/* Request Type */
-	DeviceRequestType_t Type;
+	/* Event Base */
+	MCoreEvent_t Base;
 
 	/* Device Id */
 	DevId_t DeviceId;
+	uint32_t Padding0;
 
 	/* Data */
 	uint64_t SectorLBA;
 	uint8_t *Buffer;
 	size_t Length;
 
-	/* Result */
-	DeviceRequestStatus_t Status;
+	/* Error Type if any */
+	DeviceErrorMessage_t ErrType;
+	uint32_t Padding1;
 
 } MCoreDeviceRequest_t;
-#pragma pack(pop)
 
 /* Prototypes */
 _CRT_EXTERN void DmInit(void);

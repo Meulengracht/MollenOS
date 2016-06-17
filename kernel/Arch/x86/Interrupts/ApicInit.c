@@ -21,7 +21,6 @@
 */
 
 /* Includes */
-#include <List.h>
 #include <Apic.h>
 #include <Acpi.h>
 #include <Memory.h>
@@ -31,19 +30,20 @@
 #include <Log.h>
 
 /* CLib */
+#include <ds/list.h>
 #include <string.h>
 
 /* Globals */
 volatile uint32_t GlbTimerTicks[64];
 uint8_t GlbBootstrapCpuId = 0;
 uint32_t GlbTimerQuantum = 0;
-list_t *GlbIoApics = NULL;
+List_t *GlbIoApics = NULL;
 uint32_t GlbIoApicI8259Pin = 0;
 uint32_t GlbIoApicI8259Apic = 0;
 
 /* Externs */
 extern x86CpuObject_t GlbBootCpuInfo;
-extern list_t *GlbAcpiNodes;
+extern List_t *GlbAcpiNodes;
 
 /* Handlers */
 extern int ApicErrorHandler(void *Args);
@@ -54,17 +54,17 @@ extern int ApicTimerHandler(void *Args);
 void ApicSetupLvt(Cpu_t Cpu, int Lvt)
 {
 	/* Vars */
-	list_node_t *Node;
+	ListNode_t *Node;
 	uint32_t Temp = 0;
 
 	/* Iterate */
 	_foreach(Node, GlbAcpiNodes)
 	{
-		if (Node->identifier == ACPI_MADT_TYPE_LOCAL_APIC_NMI)
+		if (Node->Key.Value == ACPI_MADT_TYPE_LOCAL_APIC_NMI)
 		{
 			/* Cast */
 			ACPI_MADT_LOCAL_APIC_NMI *ApicNmi =
-				(ACPI_MADT_LOCAL_APIC_NMI*)Node->data;
+				(ACPI_MADT_LOCAL_APIC_NMI*)Node->Data;
 
 			/* Is it for us? */
 			if (ApicNmi->ProcessorId == 0xFF
@@ -121,6 +121,7 @@ void AcpiSetupIoApic(void *Data, int Nr, void *UserData)
 {
 	/* Cast Data */
 	ACPI_MADT_IO_APIC *IoApic = (ACPI_MADT_IO_APIC*)Data;
+	DataKey_t Key;
 
 	/* Sanity */
 	if (IoApic == NULL)
@@ -159,7 +160,8 @@ void AcpiSetupIoApic(void *Data, int Nr, void *UserData)
 	IoListEntry->Version = 0;
 
 	/* Add to list */
-	list_append(GlbIoApics, list_create_node(IoApic->Id, IoListEntry));
+	Key.Value = (int)IoApic->Id;
+	ListAppend(GlbIoApics, ListCreateNode(Key, Key, IoListEntry));
 
 	/* Structure of IO Entry Register:
 	* Bits 0 - 7: Interrupt Vector that will be raised (Valid ranges are from 0x10 - 0xFE) - Read/Write
@@ -398,6 +400,7 @@ void ApicInitBoot(void)
 	/* Vars */
 	uint32_t BspApicId = 0;
 	uint32_t Temp = 0;
+	DataKey_t Key;
 
 	/* Disable IMCR if present (to-do..) */
 	outb(0x22, 0x70);
@@ -435,8 +438,9 @@ void ApicInitBoot(void)
 #endif
 
 	/* Setup IO apics */
-	GlbIoApics = list_create(LIST_NORMAL);
-	ListExecuteOnId(GlbAcpiNodes, AcpiSetupIoApic, ACPI_MADT_TYPE_IO_APIC, NULL);
+	GlbIoApics = ListCreate(KeyInteger, LIST_NORMAL);
+	Key.Value = ACPI_MADT_TYPE_IO_APIC;
+	ListExecuteOnKey(GlbAcpiNodes, AcpiSetupIoApic, Key, NULL);
 
 	/* Done! Enable interrupts */
 	LogInformation("APIC", "Enabling Interrupts");

@@ -22,6 +22,17 @@
 #ifndef _MCORE_MAIN_ARCH_
 #define _MCORE_MAIN_ARCH_
 
+/* Includes */
+#include <crtdefs.h>
+
+/* Definitions */
+typedef int OsStatus_t;
+
+/* The definition of a thread id
+* used for identifying threads */
+typedef void(*ThreadEntry_t)(void*);
+typedef unsigned int TId_t;
+
 /* Select Correct ARCH file */
 #if defined(_X86_32)
 #include "x86\x32\Arch.h"
@@ -31,11 +42,6 @@
 #error "Unsupported Architecture :("
 #endif
 
-/* Includes */
-#include <crtdefs.h>
-
-/* Definitions */
-typedef int OsStatus_t;
 
 /* These must be implemented by 
  * the underlying architecture */
@@ -123,13 +129,6 @@ _CRT_EXPORT void IoSpaceDestroy(DeviceIoSpace_t *IoSpace);
 _CRT_EXPORT size_t IoSpaceRead(DeviceIoSpace_t *IoSpace, size_t Offset, size_t Length);
 _CRT_EXPORT void IoSpaceWrite(DeviceIoSpace_t *IoSpace, size_t Offset, size_t Value, size_t Length);
 _CRT_EXTERN Addr_t IoSpaceValidate(Addr_t Address);
-
-/***********************
-* Spinlock Interface   *
-***********************/
-_CRT_EXPORT void SpinlockReset(Spinlock_t *Spinlock);
-_CRT_EXPORT OsStatus_t SpinlockAcquire(Spinlock_t *Spinlock);
-_CRT_EXPORT void SpinlockRelease(Spinlock_t *Spinlock);
 
 /***********************
 * Device Interface     *

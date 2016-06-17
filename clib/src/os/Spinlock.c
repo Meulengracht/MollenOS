@@ -27,13 +27,6 @@
 /* C Library */
 #include <stddef.h>
 
-/* Kernel Guard */
-#ifdef LIBC_KERNEL
-void __SpinlockLibCEmpty(void)
-{
-}
-#else
-
 /* Externs to assembly */
 extern int _spinlock_acquire(Spinlock_t *Spinlock);
 extern int _spinlock_test(Spinlock_t *Spinlock);
@@ -92,5 +85,3 @@ void SpinlockRelease(Spinlock_t *Lock)
 	/* Deep call */
 	_spinlock_release(Lock);
 }
-
-#endif

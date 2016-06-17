@@ -24,9 +24,10 @@
 /* Includes */
 #include <MollenOS.h>
 #include <Arch.h>
-#include <MString.h>
+
 #include <crtdefs.h>
 #include <stdint.h>
+#include <ds/mstring.h>
 
 /* Subsystems */
 #include <Modules/PeLoader.h>

@@ -24,15 +24,17 @@
 #include <AcpiSys.h>
 #include <Memory.h>
 #include <Apic.h>
-#include <List.h>
 #include <Heap.h>
 #include <Log.h>
 
+/* C-Library */
+#include <ds/list.h>
+
 /* Globals */
 volatile Addr_t GlbLocalApicAddress = 0;
-list_t *GlbAcpiNodes = NULL;
-uint32_t GlbNumLogicalCpus = 0;
-uint32_t GlbNumIoApics = 0;
+List_t *GlbAcpiNodes = NULL;
+int GlbNumLogicalCpus = 0;
+int GlbNumIoApics = 0;
 
 /* Static Acpica */
 #define ACPI_MAX_INIT_TABLES 16
@@ -41,9 +43,12 @@ static ACPI_TABLE_DESC TableArray[ACPI_MAX_INIT_TABLES];
 /* Enumerate MADT Entries */
 void AcpiEnumarateMADT(void *MadtStart, void *MadtEnd)
 {
+	/* Variables */
 	ACPI_SUBTABLE_HEADER *MadtEntry;
+	DataKey_t Key;
 
-	for (MadtEntry = (ACPI_SUBTABLE_HEADER*)MadtStart; (void *)MadtEntry < MadtEnd;)
+	for (MadtEntry = (ACPI_SUBTABLE_HEADER*)MadtStart; 
+		(void *)MadtEntry < MadtEnd;)
 	{
 		/* Avoid an infinite loop if we hit a bogus entry. */
 		if (MadtEntry->Length < sizeof(ACPI_SUBTABLE_HEADER))
@@ -65,7 +70,8 @@ void AcpiEnumarateMADT(void *MadtStart, void *MadtEnd)
 				memcpy(CpuNode, AcpiCpu, sizeof(ACPI_MADT_LOCAL_APIC));
 
 				/* Insert it into list */
-				list_append(GlbAcpiNodes, list_create_node(ACPI_MADT_TYPE_LOCAL_APIC, CpuNode));
+				Key.Value = ACPI_MADT_TYPE_LOCAL_APIC;
+				ListAppend(GlbAcpiNodes, ListCreateNode(Key, Key, CpuNode));
 
 				/* Debug */
 				LogInformation("MADT", "Found CPU: %u (%s)", 
@@ -90,7 +96,8 @@ void AcpiEnumarateMADT(void *MadtStart, void *MadtEnd)
 			memcpy(IoNode, AcpiIoApic, sizeof(ACPI_MADT_IO_APIC));
 
 			/* Insert it into list */
-			list_append(GlbAcpiNodes, list_create_node(ACPI_MADT_TYPE_IO_APIC, IoNode));
+			Key.Value = ACPI_MADT_TYPE_IO_APIC;
+			ListAppend(GlbAcpiNodes, ListCreateNode(Key, Key, IoNode));
 
 			/* Debug */
 			LogInformation("MADT", "Found IO-APIC: %u", AcpiIoApic->Id);
@@ -115,7 +122,8 @@ void AcpiEnumarateMADT(void *MadtStart, void *MadtEnd)
 			memcpy(OverrideNode, AcpiOverrideNode, sizeof(ACPI_MADT_INTERRUPT_OVERRIDE));
 
 			/* Insert it into list */
-			list_append(GlbAcpiNodes, list_create_node(ACPI_MADT_TYPE_INTERRUPT_OVERRIDE, OverrideNode));
+			Key.Value = ACPI_MADT_TYPE_INTERRUPT_OVERRIDE;
+			ListAppend(GlbAcpiNodes, ListCreateNode(Key, Key, OverrideNode));
 
 		} break;
 
@@ -133,7 +141,8 @@ void AcpiEnumarateMADT(void *MadtStart, void *MadtEnd)
 			memcpy(NmiNode, ApinNmi, sizeof(ACPI_MADT_LOCAL_APIC_NMI));
 
 			/* Insert it into list */
-			list_append(GlbAcpiNodes, list_create_node(ACPI_MADT_TYPE_LOCAL_APIC_NMI, NmiNode));
+			Key.Value = ACPI_MADT_TYPE_LOCAL_APIC_NMI;
+			ListAppend(GlbAcpiNodes, ListCreateNode(Key, Key, NmiNode));
 
 		} break;
 
@@ -199,7 +208,7 @@ void AcpiEnumerate(void)
 	MadtTable = (ACPI_TABLE_MADT*)Header;
 
 	/* Create the acpi lists */
-	GlbAcpiNodes = list_create(LIST_NORMAL);
+	GlbAcpiNodes = ListCreate(KeyInteger, LIST_NORMAL);
 
 	/* Get Local Apic Address */
 	GlbNumLogicalCpus = 0;

@@ -453,6 +453,15 @@
     <ClCompile Include="..\src\stdio\fscanf.c">
       <Filter>Source\stdio\File</Filter>
     </ClCompile>
+    <ClCompile Include="..\src\ds\MString.c">
+      <Filter>Source\ds</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\ds\Ringbuffer.c">
+      <Filter>Source\ds</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\os\Sha1.c">
+      <Filter>Source\os</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <CustomBuild Include="..\src\string\memcpy_acc.s">

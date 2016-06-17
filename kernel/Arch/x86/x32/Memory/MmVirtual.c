@@ -19,7 +19,7 @@
 * MollenOS x86-32 Virtual Memory Manager
 */
 
-#include "../../Arch.h"
+#include <Threading.h>
 #include <Devices/Video.h>
 #include <Heap.h>
 #include <Video.h>
@@ -40,7 +40,7 @@ volatile Addr_t GblReservedPtr = 0;
 Spinlock_t VmLock;
 
 /* Externs */
-extern volatile uint32_t GlbNumLogicalCpus;
+extern int GlbNumLogicalCpus;
 extern MCoreVideoDevice_t GlbBootVideo;
 extern SysMemMapping_t SysMappings[32];
 extern void memory_set_paging(int enable);
@@ -422,7 +422,7 @@ void MmVirtualInit(void)
 	KernelPageDirectory->vTables[0] = (Addr_t)itable;
 	
 	/* Init mutexes */
-	CriticalSectionConstruct(&KernelPageDirectory->Lock);
+	CriticalSectionConstruct(&KernelPageDirectory->Lock, CRITICALSECTION_REENTRANCY);
 	SpinlockReset(&VmLock);
 
 	/* Map Memory Regions */
@@ -546,7 +546,7 @@ AddressSpace_t *AddressSpaceCreate(int Flags)
 		memset(NewPd, 0, sizeof(PageDirectory_t));
 
 		/* Setup Lock */
-		CriticalSectionConstruct(&NewPd->Lock);
+		CriticalSectionConstruct(&NewPd->Lock, CRITICALSECTION_REENTRANCY);
 
 		/* Create shared mappings */
 		for (Itr = 0; Itr < 1024; Itr++)

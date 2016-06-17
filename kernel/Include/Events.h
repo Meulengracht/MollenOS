@@ -25,6 +25,8 @@
 /* Includes */
 #include <crtdefs.h>
 #include <stdint.h>
+#include <ds/list.h>
+
 #include <Semaphore.h>
 
 /* Definitions */
@@ -97,7 +99,7 @@ typedef struct _MCoreEventHandler
 	int Running;
 
 	/* Event Stuff */
-	list_t *Events;
+	List_t *Events;
 	Semaphore_t *Lock;
 
 	/* Callback */

@@ -22,15 +22,18 @@
 
 /* Includes */
 #include <DeviceManager.h>
-#include <List.h>
 #include <Apic.h>
-#include <string.h>
 #include <acpi.h>
+#include <Log.h>
+
+/* C-Library */
+#include <string.h>
 #include <stdio.h>
+#include <ds/list.h>
 
 /* Externs */
-extern list_t *GlbIoApics;
-extern list_t *GlbAcpiNodes;
+extern List_t *GlbIoApics;
+extern List_t *GlbAcpiNodes;
 extern volatile uint32_t GlbTimerTicks[64];
 extern volatile uint32_t GlbCpusBooted;
 extern volatile Addr_t GlbLocalApicAddress;
@@ -74,13 +77,11 @@ int ApicGetMaxLvt(void)
 /* More helpers */
 IoApic_t *ApicGetIoFromGsi(uint32_t Gsi)
 {
-	list_node_t *i;
-
 	/* Convert Gsi to Pin & IoApic */
-	_foreach(i, GlbIoApics)
+	foreach(i, GlbIoApics)
 	{
 		/* Cast */
-		IoApic_t *Io = (IoApic_t*)i->data;
+		IoApic_t *Io = (IoApic_t*)i->Data;
 
 		if (Io->GsiStart <= Gsi &&
 			(Io->GsiStart + Io->PinCount) > Gsi)
@@ -93,13 +94,11 @@ IoApic_t *ApicGetIoFromGsi(uint32_t Gsi)
 
 uint32_t ApicGetPinFromGsi(uint32_t Gsi)
 {
-	list_node_t *i;
-
 	/* Convert Gsi to Pin & IoApic */
-	_foreach(i, GlbIoApics)
+	foreach(i, GlbIoApics)
 	{
 		/* Cast */
-		IoApic_t *Io = (IoApic_t*)i->data;
+		IoApic_t *Io = (IoApic_t*)i->Data;
 
 		if (Io->GsiStart <= Gsi &&
 			(Io->GsiStart + Io->PinCount) > Gsi)
@@ -152,7 +151,7 @@ void ApicSendEoi(uint32_t Gsi, uint32_t Vector)
 
 		if (IoApic == NULL || Pin == 0xFFFFFFFF)
 		{
-			printf("Invalid Gsi %u\n", Gsi);
+			LogFatal("APIC", "Invalid Gsi %u\n", Gsi);
 			return;
 		}
 
@@ -248,9 +247,11 @@ void ApicSendIpi(uint8_t CpuTarget, uint8_t IrqVector)
 	if (CpuTarget == 0xFF)
 	{
 		uint32_t tVector = (uint32_t)IrqVector;
+		DataKey_t Key;
 
 		/* Broadcast */
-		ListExecuteOnId(GlbAcpiNodes, ApicSendIpiLoop, ACPI_MADT_TYPE_LOCAL_APIC, &tVector);
+		Key.Value = ACPI_MADT_TYPE_LOCAL_APIC;
+		ListExecuteOnKey(GlbAcpiNodes, ApicSendIpiLoop, Key, &tVector);
 	}
 	else
 	{
@@ -340,5 +341,5 @@ void ApicPrintCpuTicks(void)
 {
 	int i;
 	for (i = 0; i < (int)GlbCpusBooted; i++)
-		printf("Cpu %u Ticks: %u\n", i, GlbTimerTicks[i]);
+		LogDebug("APIC", "Cpu %u Ticks: %u\n", i, GlbTimerTicks[i]);
 }

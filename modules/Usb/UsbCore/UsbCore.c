@@ -24,10 +24,10 @@
 #include <Module.h>
 
 /* Kernel */
+#include <Threading.h>
 #include <Timers.h>
 #include <Semaphore.h>
 #include <Heap.h>
-#include <List.h>
 #include <Log.h>
 
 /* Drivers */
@@ -35,12 +35,13 @@
 #include <UsbMsd.h>
 
 /* CLib */
+#include <ds/list.h>
 #include <string.h>
 
 /* Globals */
-list_t *GlbUsbControllers = NULL;
-list_t *GlbUsbDevices = NULL;
-list_t *GlbUsbEvents = NULL;
+List_t *GlbUsbControllers = NULL;
+List_t *GlbUsbDevices = NULL;
+List_t *GlbUsbEvents = NULL;
 Semaphore_t *GlbEventLock = NULL;
 volatile int GlbUsbInitialized = 0;
 volatile int GlbUsbControllerId = 0;
@@ -60,9 +61,9 @@ MODULES_API void ModuleInit(void *Data)
 
 	/* Init */
 	GlbUsbInitialized = 1;
-	GlbUsbDevices = list_create(LIST_SAFE);
-	GlbUsbControllers = list_create(LIST_SAFE);
-	GlbUsbEvents = list_create(LIST_SAFE);
+	GlbUsbDevices = ListCreate(KeyInteger, LIST_SAFE);
+	GlbUsbControllers = ListCreate(KeyInteger, LIST_SAFE);
+	GlbUsbEvents = ListCreate(KeyInteger, LIST_SAFE);
 	GlbUsbControllerId = 0;
 
 	/* Initialize Event Semaphore */
@@ -100,23 +101,24 @@ UsbHc_t *UsbInitController(void *Data, UsbControllerType_t Type, size_t Ports)
 int UsbRegisterController(UsbHc_t *Controller)
 {
 	/* Vars */
-	int Id;
+	DataKey_t Key;
 
 	/* Get id */
-	Id = GlbUsbControllerId;
+	Key.Value = GlbUsbControllerId;
 	GlbUsbControllerId++;
 
 	/* Add to list */
-	list_append(GlbUsbControllers, list_create_node(Id, Controller));
+	ListAppend(GlbUsbControllers, ListCreateNode(Key, Key, Controller));
 
 	/* Done */
-	return Id;
+	return Key.Value;
 }
 
 /* Create Event */
 void UsbEventCreate(UsbHc_t *Hc, int Port, UsbEventType_t Type)
 {
 	UsbEvent_t *Event;
+	DataKey_t Key;
 
 	/* Allocate */
 	Event = (UsbEvent_t*)kmalloc(sizeof(UsbEvent_t));
@@ -125,7 +127,8 @@ void UsbEventCreate(UsbHc_t *Hc, int Port, UsbEventType_t Type)
 	Event->Type = Type;
 
 	/* Append */
-	list_append(GlbUsbEvents, list_create_node((int)Type, Event));
+	Key.Value = (int)Type;
+	ListAppend(GlbUsbEvents, ListCreateNode(Key, Key, Event));
 
 	/* Signal */
 	SemaphoreV(GlbEventLock);
@@ -490,7 +493,7 @@ void UsbWatchdog(void* Data)
 	foreach(Node, GlbUsbControllers)
 	{
 		/* Cast */
-		UsbHc_t *Controller = (UsbHc_t*)Node->data;
+		UsbHc_t *Controller = (UsbHc_t*)Node->Data;
 
 		/* Invoke the controllers watchdog */
 		if (Controller->Watchdog != NULL)
@@ -502,7 +505,7 @@ void UsbWatchdog(void* Data)
 void UsbEventHandler(void *args)
 {
 	UsbEvent_t *Event;
-	list_node_t *lNode;
+	ListNode_t *lNode;
 
 	/* Unused */
 	_CRT_UNUSED(args);
@@ -513,14 +516,14 @@ void UsbEventHandler(void *args)
 		SemaphoreP(GlbEventLock, 0);
 
 		/* Pop Event */
-		lNode = list_pop_front(GlbUsbEvents);
+		lNode = ListPopFront(GlbUsbEvents);
 
 		/* Sanity */
 		if (lNode == NULL)
 			continue;
 
 		/* Cast */
-		Event = (UsbEvent_t*)lNode->data;
+		Event = (UsbEvent_t*)lNode->Data;
 
 		/* Free the node */
 		kfree(lNode);
@@ -577,7 +580,12 @@ void UsbEventHandler(void *args)
 /* Gets */
 UsbHc_t *UsbGetHcd(int ControllerId)
 {
-	return (UsbHc_t*)list_get_data_by_id(GlbUsbControllers, ControllerId, 0);
+	/* Setup datakey */
+	DataKey_t Key;
+	Key.Value = ControllerId;
+
+	/* Find it */
+	return (UsbHc_t*)ListGetDataByKey(GlbUsbControllers, Key, 0);
 }
 
 UsbHcPort_t *UsbGetPort(UsbHc_t *Controller, int Port)

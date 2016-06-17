@@ -43,19 +43,6 @@ typedef unsigned int Cpu_t;
 //#define X86_PCI_DIAGNOSE
 //#define _OHCI_DIAGNOSTICS_
 
-typedef struct _x86_Spinlock
-{
-	/* The lock itself */
-	volatile unsigned Lock;
-
-	/* The INTR state */
-	IntStatus_t IntrState;
-
-	/* Lock Holder */
-	uint32_t Owner;
-
-} Spinlock_t;
-
 /* OsStatus Return Codes */
 #define OS_STATUS_OK			0
 #define OS_STATUS_FAIL			-1

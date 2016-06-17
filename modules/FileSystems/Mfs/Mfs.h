@@ -23,10 +23,12 @@
 
 /* Includes */
 #include <Vfs\Vfs.h>
-#include <MString.h>
+
+/* C-Library */
 #include <stdint.h>
 #include <crtdefs.h>
 #include <stddef.h>
+#include <ds/mstring.h>
 
 /* Definitions */
 #define MFS_MAGIC			0x3153464D		/* 1FSM */

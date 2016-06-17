@@ -51,9 +51,6 @@
     <ClCompile Include="..\..\Arch\x86\Init\Cpu.c">
       <Filter>Components</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\Arch\x86\Components\Spinlock.c">
-      <Filter>Components</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\Arch\x86\Components\Thread.c">
       <Filter>Components</Filter>
     </ClCompile>

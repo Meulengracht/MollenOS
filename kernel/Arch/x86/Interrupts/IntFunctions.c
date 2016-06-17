@@ -22,7 +22,6 @@
 /* Includes */
 #include <DeviceManager.h>
 #include <Interrupts.h>
-#include <List.h>
 #include <Idt.h>
 #include <Pci.h>
 #include <AcpiSys.h>
@@ -32,6 +31,7 @@
 /* CLib */
 #include <assert.h>
 #include <stdio.h>
+#include <ds/list.h>
 
 /* Internal Defines */
 #define EFLAGS_INTERRUPT_FLAG (1 << 9)
@@ -40,7 +40,7 @@
 extern void __cli(void);
 extern void __sti(void);
 extern uint32_t __getflags(void);
-extern list_t *GlbAcpiNodes;
+extern List_t *GlbAcpiNodes;
 
 extern IrqEntry_t IrqTable[X86_IDT_DESCRIPTORS][X86_MAX_HANDLERS_PER_INTERRUPT];
 extern uint32_t IrqIsaTable[X86_NUM_ISA_INTERRUPTS];
@@ -103,6 +103,7 @@ void InterruptInstallBase(uint32_t Irq, uint32_t IdtEntry, uint64_t ApicEntry, I
 	uint32_t upper = 0;
 	uint32_t lower = 0;
 	IoApic_t *IoApic;
+	DataKey_t Key;
 
 	/* Sanity */
 	assert(Irq < X86_IDT_DESCRIPTORS);
@@ -110,8 +111,8 @@ void InterruptInstallBase(uint32_t Irq, uint32_t IdtEntry, uint64_t ApicEntry, I
 	/* Uh, check for ACPI redirection */
 	if (GlbAcpiNodes != NULL)
 	{
-		ACPI_MADT_INTERRUPT_OVERRIDE *io_redirect = 
-			list_get_data_by_id(GlbAcpiNodes, ACPI_MADT_TYPE_INTERRUPT_OVERRIDE, 0);
+		Key.Value = ACPI_MADT_TYPE_INTERRUPT_OVERRIDE;
+		ACPI_MADT_INTERRUPT_OVERRIDE *io_redirect = ListGetDataByKey(GlbAcpiNodes, Key, 0);
 		int n = 1;
 
 		while (io_redirect != NULL)
@@ -131,7 +132,7 @@ void InterruptInstallBase(uint32_t Irq, uint32_t IdtEntry, uint64_t ApicEntry, I
 			}
 
 			/* Get next io redirection */
-			io_redirect = list_get_data_by_id(GlbAcpiNodes, ACPI_MADT_TYPE_INTERRUPT_OVERRIDE, n);
+			io_redirect = ListGetDataByKey(GlbAcpiNodes, Key, n);
 			n++;
 		}
 	}

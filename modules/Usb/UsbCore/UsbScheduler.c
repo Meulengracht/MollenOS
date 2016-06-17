@@ -25,6 +25,7 @@
 #include <Heap.h>
 
 /* CLib */
+#include <stddef.h>
 #include <string.h>
 
 

@@ -33,6 +33,9 @@
 #include <Heap.h>
 #include <Log.h>
 
+/* C-Library */
+#include <stddef.h>
+
 /* Print Header Information */
 void PrintHeader(MCoreBootInfo_t *BootInfo)
 {

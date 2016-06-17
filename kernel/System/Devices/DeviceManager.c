@@ -23,12 +23,15 @@
 #include <Modules\ModuleManager.h>
 #include <Semaphore.h>
 #include <Scheduler.h>
-#include <List.h>
 #include <Timers.h>
 #include <Heap.h>
 #include <Log.h>
 #include <DeviceManager.h>
 #include <Vfs\Vfs.h>
+
+/* C-Library */
+#include <stddef.h>
+#include <ds/list.h>
 #include <string.h>
 
 /* Devices Capable of requests */
@@ -42,21 +45,17 @@ MCoreEventHandler_t *GlbDeviceEventHandler = NULL;
 MCoreDevice_t *GlbDmBootVideo = NULL;
 int GlbDmInitialized = 0;
 DevId_t GlbDmIdentfier = 0;
-list_t *GlbDmDeviceList = NULL;
-Spinlock_t GlbDmLock; 
-
-/* Request Handler Vars */
-Semaphore_t *GlbDmEventLock = NULL;
-list_t *GlbDmEventQueue = NULL;
+List_t *GlbDmDeviceList = NULL;
+Spinlock_t GlbDmLock;
 
 /* Request Thread - Prototype */
-void DmRequestHandler(void *Args);
+int DmRequestHandler(void *UserData, MCoreEvent_t *Event);
 
 /* Setup */
 void DmInit(void)
 {
 	/* Setup list */
-	GlbDmDeviceList = list_create(LIST_SAFE);
+	GlbDmDeviceList = ListCreate(KeyInteger, LIST_SAFE);
 
 	/* Setup lock */
 	SpinlockReset(&GlbDmLock);
@@ -72,12 +71,8 @@ void DmStart(void)
 	/* Debug */
 	LogInformation("DRVM", "Starting Request Handler");
 
-	/* Create the signal & Request queue */
-	GlbDmEventLock = SemaphoreCreate(0);
-	GlbDmEventQueue = list_create(LIST_SAFE);
-
-	/* Spawn the thread */
-	ThreadingCreateThread("Device Event Thread", DmRequestHandler, NULL, 0);
+	/* Create event handler */
+	GlbDeviceEventHandler = EventInit("Device Manager", DmRequestHandler, NULL);
 
 	/* Is there a boot video? */
 	if (GlbDmBootVideo != NULL)
@@ -89,228 +84,218 @@ void DmCreateRequest(MCoreDeviceRequest_t *Request)
 {
 	/* Sanity */
 	if (Request->Length > DEVICEMANAGER_MAX_IO_SIZE) {
-		Request->Status = RequestInvalidParameters;
+		Request->ErrType = RequestInvalidParameters;
 		return;
 	}
+	else {
+		Request->ErrType = RequestNoError;
+	}
 
-	/* Append it to our request list */
-	list_append(GlbDmEventQueue, list_create_node(0, Request));
-
-	/* Set Pending */
-	Request->Status = RequestPending;
-
-	/* Notify request thread */
-	SemaphoreV(GlbDmEventLock);
+	/* Deep call */
+	EventCreate(GlbDeviceEventHandler, &Request->Base);
 }
 
 /* Wait for a request to complete */
 void DmWaitRequest(MCoreDeviceRequest_t *Request, size_t Timeout)
 {
-	/* Sanity, make sure request hasn't completed */
-	if (Request->Status != RequestPending
-		&& Request->Status != RequestInProgress)
-		return;
-
-	/* Otherwise wait */
-	SchedulerSleepThread((Addr_t*)Request, Timeout);
-	IThreadYield();
+	/* Deep Call */
+	EventWait(&Request->Base, Timeout);
 }
 
 /* Request Thread */
-void DmRequestHandler(void *Args)
+int DmRequestHandler(void *UserData, MCoreEvent_t *Event)
 {
 	/* Vars */
-	list_node_t *lNode;
 	MCoreDeviceRequest_t *Request;
+	DataKey_t Key;
 
 	/* Unused */
-	_CRT_UNUSED(Args);
+	_CRT_UNUSED(UserData);
 
-	while (1)
+	/* Cast */
+	Request = (MCoreDeviceRequest_t*)Event;
+	Key.Value = (int)Request->DeviceId;
+
+	/* Lookup Device */
+	MCoreDevice_t *Dev =
+		(MCoreDevice_t*)ListGetDataByKey(GlbDmDeviceList, Key, 0);
+
+	/* Sanity */
+	if (Dev == NULL)
 	{
-		/* Acquire Semaphore */
-		SemaphoreP(GlbDmEventLock, 0);
+		/* Set status */
+		Request->Base.State = EventFailed;
+		Request->ErrType = RequestDeviceIsRemoved;
 
-		/* Pop Request */
-		lNode = list_pop_front(GlbDmEventQueue);
+		/* Next! */
+		return -1;
+	}
 
-		/* Sanity */
-		if (lNode == NULL)
-			continue;
+	/* Set initial status */
+	Request->Base.State = EventInProgress;
 
-		/* Cast */
-		Request = (MCoreDeviceRequest_t*)lNode->data;
-
-		/* Free the node */
-		kfree(lNode);
-
-		/* Again, sanity */
-		if (Request == NULL)
-			continue;
-
-		/* Lookup Device */
-		MCoreDevice_t *Dev =
-			(MCoreDevice_t*)list_get_data_by_id(GlbDmDeviceList, Request->DeviceId, 0);
-
-		/* Sanity */
-		if (Dev == NULL)
+	/* Handle Event */
+	switch (Request->Base.Type)
+	{
+		/* Read from Device */
+		case RequestQuery:
 		{
-			/* Set status */
-			Request->Status = RequestDeviceIsRemoved;
-
-			/* We are done, wakeup */
-			SchedulerWakeupAllThreads((Addr_t*)Request);
-
-			/* Next! */
-			continue;
-		}
-
-		/* Set initial status */
-		Request->Status = RequestInProgress;
-
-		/* Handle Event */
-		switch (Request->Type)
-		{
-			/* Read from Device */
-			case RequestQuery:
+			/* Sanity type */
+			if (Dev->Type == DeviceStorage)
 			{
-				/* Sanity type */
-				if (Dev->Type == DeviceStorage)
-				{
-					/* Cast again */
-					MCoreStorageDevice_t *Disk = (MCoreStorageDevice_t*)Dev->Data;
+				/* Cast again */
+				MCoreStorageDevice_t *Disk = (MCoreStorageDevice_t*)Dev->Data;
 
-					/* Validate buffer */
-					if (Request->Buffer == NULL
-						|| Request->Length < 20)
-						Request->Status = RequestInvalidParameters;
-					else
-					{
-						/* Copy the first 20 bytes that contains stats */
-						memcpy(Request->Buffer, Disk, 20);
-
-						/* Done */
-						Request->Status = RequestOk;
-					}
-				}
-				else if (Dev->Type == DeviceVideo)
-				{
-					/* Cast again */
-					MCoreVideoDevice_t *Video = (MCoreVideoDevice_t*)Dev->Data;
-
-					/* Validate buffer */
-					if (Request->Buffer == NULL
-						|| Request->Length < sizeof(MCoreVideoDescriptor_t))
-						Request->Status = RequestInvalidParameters;
-					else
-					{
-						/* Copy the descriptor */
-						memcpy(Request->Buffer, &Video->Info, sizeof(MCoreVideoDescriptor_t));
-
-						/* Done */
-						Request->Status = RequestOk;
-					}
-				}
-				else if (Dev->Type == DeviceClock)
-				{
-					/* Cast again */
-					MCoreClockDevice_t *Clock = (MCoreClockDevice_t*)Dev->Data;
-
-					/* Validate buffer */
-					if (Request->Buffer == NULL
-						|| Request->Length < sizeof(tm))
-						Request->Status = RequestInvalidParameters;
-					else
-					{
-						/* Call */
-						Clock->GetTime(Dev, (tm*)Request->Buffer);
-
-						/* Done */
-						Request->Status = RequestOk;
-					}
-				}
-
-			} break;
-
-			/* Read from Device */
-			case RequestRead:
-			{
-				/* Sanity type */
-				if (Dev->Type == DeviceStorage)
-				{
-					/* Cast again */
-					MCoreStorageDevice_t *Disk = (MCoreStorageDevice_t*)Dev->Data;
-
-					/* Validate parameters */
-
-					/* Perform */
-					if (Disk->Read(Dev, Request->SectorLBA, Request->Buffer, Request->Length) != 0)
-						Request->Status = RequestDeviceError;
-					else
-						Request->Status = RequestOk;
-				}
-
-			} break;
-
-			/* Write to Device */
-			case RequestWrite:
-			{
-				/* Sanity type */
-				if (Dev->Type == DeviceStorage)
-				{
-					/* Cast again */
-					MCoreStorageDevice_t *Disk = (MCoreStorageDevice_t*)Dev->Data;
-
-					/* Validate parameters */
-
-					/* Perform */
-					if (Disk->Write(Dev, Request->SectorLBA, Request->Buffer, Request->Length) != 0)
-						Request->Status = RequestDeviceError;
-					else
-						Request->Status = RequestOk;
-				}
-
-			} break;
-
-			/* Install Driver */
-			case RequestInstall:
-			{
-				/* Try to locate a vendor/device specific driver */
-				MCoreModule_t *Driver = ModuleFindSpecific(Dev->VendorId, Dev->DeviceId);
-
-				/* Did one exist? */
-				if (Driver != NULL) {
-					ModuleLoad(Driver, Dev);
+				/* Validate buffer */
+				if (Request->Buffer == NULL
+					|| Request->Length < 20) {
+					Request->Base.State = EventFailed;
+					Request->ErrType = RequestInvalidParameters;
 				}
 				else
 				{
-					/* Try to locate a generic driver 
-					 * which is always better than nothing */
-					Driver = ModuleFindGeneric(Dev->Class, Dev->Subclass);
+					/* Copy the first 20 bytes that contains stats */
+					memcpy(Request->Buffer, Disk, 20);
 
-					/* Find one? */
-					if (Driver != NULL) {
-						ModuleLoad(Driver, Dev);
-					}
+					/* Done */
+					Request->Base.State = EventOk;
+					Request->ErrType = RequestNoError;
 				}
+			}
+			else if (Dev->Type == DeviceVideo)
+			{
+				/* Cast again */
+				MCoreVideoDevice_t *Video = (MCoreVideoDevice_t*)Dev->Data;
 
-			} break;
+				/* Validate buffer */
+				if (Request->Buffer == NULL
+					|| Request->Length < sizeof(MCoreVideoDescriptor_t)) {
+					Request->Base.State = EventFailed;
+					Request->ErrType = RequestInvalidParameters;
+				}
+				else
+				{
+					/* Copy the descriptor */
+					memcpy(Request->Buffer, &Video->Info, sizeof(MCoreVideoDescriptor_t));
 
-			default:
-				break;
-		}
+					/* Done */
+					Request->Base.State = EventOk;
+					Request->ErrType = RequestNoError;
+				}
+			}
+			else if (Dev->Type == DeviceClock)
+			{
+				/* Cast again */
+				MCoreClockDevice_t *Clock = (MCoreClockDevice_t*)Dev->Data;
 
-		/* We are done, wakeup */
-		SchedulerWakeupAllThreads((Addr_t*)Request);
+				/* Validate buffer */
+				if (Request->Buffer == NULL
+					|| Request->Length < sizeof(tm)) {
+					Request->Base.State = EventFailed;
+					Request->ErrType = RequestInvalidParameters;
+				}
+				else
+				{
+					/* Call */
+					Clock->GetTime(Dev, (tm*)Request->Buffer);
 
-		/* Clean up request if it was a install */
-		if (Request->Type == RequestInstall)
-			kfree(Request);
+					/* Done */
+					Request->Base.State = EventOk;
+					Request->ErrType = RequestNoError;
+				}
+			}
+
+		} break;
+
+		/* Read from Device */
+		case RequestRead:
+		{
+			/* Sanity type */
+			if (Dev->Type == DeviceStorage)
+			{
+				/* Cast again */
+				MCoreStorageDevice_t *Disk = (MCoreStorageDevice_t*)Dev->Data;
+
+				/* Validate parameters */
+
+				/* Perform */
+				if (Disk->Read(Dev, Request->SectorLBA, Request->Buffer, Request->Length) != 0) {
+					Request->Base.State = EventFailed;
+					Request->ErrType = RequestDeviceError;
+				}
+				else {
+					Request->Base.State = EventOk;
+					Request->ErrType = RequestNoError;
+				}
+			}
+
+		} break;
+
+		/* Write to Device */
+		case RequestWrite:
+		{
+			/* Sanity type */
+			if (Dev->Type == DeviceStorage)
+			{
+				/* Cast again */
+				MCoreStorageDevice_t *Disk = (MCoreStorageDevice_t*)Dev->Data;
+
+				/* Validate parameters */
+
+				/* Perform */
+				if (Disk->Write(Dev, Request->SectorLBA, Request->Buffer, Request->Length) != 0) {
+					Request->Base.State = EventFailed;
+					Request->ErrType = RequestDeviceError;
+				}
+				else {
+					Request->Base.State = EventOk;
+					Request->ErrType = RequestNoError;
+				}
+			}
+
+		} break;
+
+		/* Install Driver */
+		case RequestInstall:
+		{
+			/* Try to locate a vendor/device specific driver */
+			MCoreModule_t *Driver = ModuleFindSpecific(Dev->VendorId, Dev->DeviceId);
+
+			/* Did one exist? */
+			if (Driver != NULL) {
+				ModuleLoad(Driver, Dev);
+			}
+			else
+			{
+				/* Try to locate a generic driver
+				* which is always better than nothing */
+				Driver = ModuleFindGeneric(Dev->Class, Dev->Subclass);
+
+				/* Find one? */
+				if (Driver != NULL) {
+					ModuleLoad(Driver, Dev);
+				}
+			}
+
+		} break;
+
+		default:
+			break;
 	}
+
+	/* Clean up request if it was a install */
+	if (Request->Base.Type == RequestInstall)
+		Request->Base.Cleanup = 1;
+
+	/* Done! */
+	return 0;
 }
 
 DevId_t DmCreateDevice(char *Name, MCoreDevice_t *Device)
 {
+	/* DataKey for list */
+	DataKey_t Key;
+
 	/* Grap lock */
 	SpinlockAcquire(&GlbDmLock);
 	
@@ -325,7 +310,8 @@ DevId_t DmCreateDevice(char *Name, MCoreDevice_t *Device)
 	SpinlockRelease(&GlbDmLock);
 
 	/* Add to list */
-	list_append(GlbDmDeviceList, list_create_node(Device->Id, (void*)Device));
+	Key.Value = (int)Device->Id;
+	ListAppend(GlbDmDeviceList, ListCreateNode(Key, Key, (void*)Device));
 
 	/* Call some broadcast function so systems know a new device is avaiable
 	 * depending on the device type */
@@ -356,7 +342,7 @@ DevId_t DmCreateDevice(char *Name, MCoreDevice_t *Device)
 				(MCoreDeviceRequest_t*)kmalloc(sizeof(MCoreDeviceRequest_t));
 
 			/* Setup */
-			Request->Type = RequestInstall;
+			Request->Base.Type = RequestInstall;
 			Request->DeviceId = Device->Id;
 
 			/* Send request */
@@ -370,7 +356,8 @@ DevId_t DmCreateDevice(char *Name, MCoreDevice_t *Device)
 	}
 
 	/* Info Log */
-	LogInformation("DRVM", "New Device: %s", Name);
+	LogInformation("DRVM", "New Device: %s [at %u:%u:%u]", 
+		Name, Device->Bus, Device->Device, Device->Function);
 
 	/* Done */
 	return Device->Id;
@@ -397,15 +384,20 @@ int DmRequestResource(MCoreDevice_t *Device, DeviceResourceType_t ResourceType)
 /* Destroy device & cleanup resources */
 void DmDestroyDevice(DevId_t DeviceId)
 {
+	/* Variables */
+	MCoreDevice_t *mDev = NULL;
+	DataKey_t Key;
+
 	/* Lookup */
-	MCoreDevice_t *mDev = (MCoreDevice_t*)list_get_data_by_id(GlbDmDeviceList, DeviceId, 0);
+	Key.Value = (int)DeviceId;
+	mDev = (MCoreDevice_t*)ListGetDataByKey(GlbDmDeviceList, Key, 0);
 
 	/* Sanity */
 	if (mDev == NULL)
 		return;
 
 	/* Remove device from list */
-	list_remove_by_id(GlbDmDeviceList, DeviceId);
+	ListRemoveByKey(GlbDmDeviceList, Key);
 
 	/* Call some broadcast function so systems know a device is being removed
 	* depending on the device type */
@@ -436,7 +428,7 @@ MCoreDevice_t *DmGetDevice(DeviceType_t Type)
 	foreach(dNode, GlbDmDeviceList)
 	{
 		/* Cast */
-		MCoreDevice_t *mDev = (MCoreDevice_t*)dNode->data;
+		MCoreDevice_t *mDev = (MCoreDevice_t*)dNode->Data;
 
 		/* Sanity */
 		if (mDev->Type == Type)

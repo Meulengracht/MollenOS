@@ -21,16 +21,19 @@
 
 /* Includes */
 #include <Modules/ModuleManager.h>
-#include <List.h>
 #include <Heap.h>
 #include <Log.h>
+
+/* C-Library */
+#include <stddef.h>
+#include <ds/list.h>
 
 /* Types */
 typedef void(*ModuleEntryFunc)(void *Data);
 
 /* Globals */
 uint32_t GlbModMgrInitialized = 0;
-list_t *GlbModMgrModules = NULL;
+List_t *GlbModMgrModules = NULL;
 
 /* Loads the RD */
 void ModuleMgrInit(MCoreBootDescriptor *BootDescriptor)
@@ -66,7 +69,7 @@ void ModuleMgrInit(MCoreBootDescriptor *BootDescriptor)
 	}
 
 	/* Allocate list */
-	GlbModMgrModules = list_create(LIST_NORMAL);
+	GlbModMgrModules = ListCreate(KeyInteger, LIST_NORMAL);
 
 	/* Save Module-Count */
 	uint32_t FileCount = RdHeader->FileCount;
@@ -84,6 +87,7 @@ void ModuleMgrInit(MCoreBootDescriptor *BootDescriptor)
 			/* Get a pointer to the module header */
 			MCoreRamDiskModuleHeader_t *ModuleHeader = 
 				(MCoreRamDiskModuleHeader_t*)(BootDescriptor->RamDiskAddress + FilePtr->DataOffset);
+			DataKey_t Key;
 
 			/* Allocate a new module */
 			MCoreModule_t *Module = (MCoreModule_t*)kmalloc(sizeof(MCoreModule_t));
@@ -94,7 +98,8 @@ void ModuleMgrInit(MCoreBootDescriptor *BootDescriptor)
 			Module->Descriptor = NULL;
 
 			/* Add to list */
-			list_append(GlbModMgrModules, list_create_node(0, Module));
+			Key.Value = 0;
+			ListAppend(GlbModMgrModules, ListCreateNode(Key, Key, Module));
 		}
 
 		/* Next! */
@@ -103,7 +108,7 @@ void ModuleMgrInit(MCoreBootDescriptor *BootDescriptor)
 	}
 
 	/* Info */
-	LogInformation("MDMG", "Found %i Modules", GlbModMgrModules->length);
+	LogInformation("MDMG", "Found %i Modules", GlbModMgrModules->Length);
 
 	/* Done! */
 	GlbModMgrInitialized = 1;
@@ -115,7 +120,7 @@ MCoreModule_t *ModuleFindGeneric(uint32_t DeviceType, uint32_t DeviceSubType)
 	foreach(mNode, GlbModMgrModules)
 	{
 		/* Cast */
-		MCoreModule_t *Module = (MCoreModule_t*)mNode->data;
+		MCoreModule_t *Module = (MCoreModule_t*)mNode->Data;
 
 		/* Sanity */
 		if (Module->Header->DeviceType == DeviceType
@@ -133,7 +138,7 @@ MCoreModule_t *ModuleFindSpecific(uint32_t VendorId, uint32_t DeviceId)
 	foreach(mNode, GlbModMgrModules)
 	{
 		/* Cast */
-		MCoreModule_t *Module = (MCoreModule_t*)mNode->data;
+		MCoreModule_t *Module = (MCoreModule_t*)mNode->Data;
 
 		/* Sanity */
 		if (Module->Header->VendorId == VendorId
@@ -151,10 +156,10 @@ MCoreModule_t *ModuleFindStr(MString_t *Module)
 	foreach(mNode, GlbModMgrModules)
 	{
 		/* Cast */
-		MCoreModule_t *cModule = (MCoreModule_t*)mNode->data;
+		MCoreModule_t *cModule = (MCoreModule_t*)mNode->Data;
 
 		/* Sanity */
-		if (MStringCompare(Module, cModule->Name, 0))
+		if (MStringCompare(Module, cModule->Name, 0) == MSTRING_FULL_MATCH)
 			return cModule;
 	}
 
@@ -172,7 +177,7 @@ MCoreModule_t *ModuleFindAddress(Addr_t Address)
 	foreach(mNode, GlbModMgrModules)
 	{
 		/* Cast */
-		MCoreModule_t *Module = (MCoreModule_t*)mNode->data;
+		MCoreModule_t *Module = (MCoreModule_t*)mNode->Data;
 
 		/* Sanity */
 		if (Module->Descriptor != NULL &&

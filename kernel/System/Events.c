@@ -24,6 +24,10 @@
 #include <Events.h>
 #include <Heap.h>
 
+/* C-Library */
+#include <stddef.h>
+#include <ds/list.h>
+
 /* Prototypes */
 void EventHandlerInternal(void *Args);
 
@@ -38,7 +42,7 @@ MCoreEventHandler_t *EventInit(const char *Name, EventCallback Callback, void *D
 
 	/* Allocate lock etc */
 	EventHandler->Name = MStringCreate((void*)Name, StrUTF8);
-	EventHandler->Events = list_create(LIST_SAFE);
+	EventHandler->Events = ListCreate(KeyInteger, LIST_SAFE);
 	EventHandler->Lock = SemaphoreCreate(0);
 	
 	/* Save stuff */
@@ -63,7 +67,7 @@ MCoreEventHandler_t *EventInit(const char *Name, EventCallback Callback, void *D
 void EventDestruct(MCoreEventHandler_t *EventHandler)
 {
 	/* Variables */
-	list_node_t *eNode = NULL;
+	ListNode_t *eNode = NULL;
 
 	/* Step 1. Stop thread 
 	 * We do this by setting it's running
@@ -82,7 +86,7 @@ void EventDestruct(MCoreEventHandler_t *EventHandler)
 	_foreach(eNode, EventHandler->Events)
 	{
 		/* Cast */
-		MCoreEvent_t *Event = (MCoreEvent_t*)eNode->data;
+		MCoreEvent_t *Event = (MCoreEvent_t*)eNode->Data;
 
 		/* Update status */
 		Event->State = EventCancelled;
@@ -93,7 +97,7 @@ void EventDestruct(MCoreEventHandler_t *EventHandler)
 
 	/* Lastly, destroy list 
 	 * and cleanup the event handler */
-	list_destroy(EventHandler->Events);
+	ListDestroy(EventHandler->Events);
 	kfree(EventHandler);
 }
 
@@ -106,7 +110,7 @@ void EventHandlerInternal(void *Args)
 	/* Get the event-handler for this thread */
 	MCoreEventHandler_t *EventHandler = (MCoreEventHandler_t*)Args;
 	MCoreEvent_t *Event = NULL;
-	list_node_t *eNode = NULL;
+	ListNode_t *eNode = NULL;
 
 	/* Start the while loop */
 	while (EventHandler->Running)
@@ -120,14 +124,14 @@ void EventHandlerInternal(void *Args)
 			break;
 
 		/* Pop from event queue */
-		eNode = list_pop_front(EventHandler->Events);
+		eNode = ListPopFront(EventHandler->Events);
 
 		/* Sanity */
 		if (eNode == NULL)
 			continue;
 
 		/* Cast */
-		Event = (MCoreEvent_t*)eNode->data;
+		Event = (MCoreEvent_t*)eNode->Data;
 
 		/* Cleanup */
 		kfree(eNode);
@@ -158,12 +162,16 @@ void EventHandlerInternal(void *Args)
  * Asynchronous operation */
 void EventCreate(MCoreEventHandler_t *EventHandler, MCoreEvent_t *Event)
 {
+	/* DataKey for list */
+	DataKey_t Key;
+	Key.Value = 0;
+
 	/* Get owner and save it to request */
 	Event->Owner = ThreadingGetCurrentThreadId();
 	Event->State = EventPending;
 
 	/* Add to list */
-	list_append(EventHandler->Events, list_create_node(0, Event));
+	ListAppend(EventHandler->Events, ListCreateNode(Key, Key, Event));
 
 	/* Signal */
 	SemaphoreV(EventHandler->Lock);

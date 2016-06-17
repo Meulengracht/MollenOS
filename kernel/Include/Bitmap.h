@@ -28,6 +28,7 @@
 
 /* OS */
 #include <Arch.h>
+#include <os/Spinlock.h>
 
 /* Structures */
 typedef struct _Bitmap

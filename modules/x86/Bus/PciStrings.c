@@ -20,8 +20,7 @@
 */
 
 /* Includes */
-#include <Arch.h>
-#include <Pci.h>
+#include <stdint.h>
 
 /* Decode PCI Device to String */
 const char *PciToString(uint8_t Class, uint8_t SubClass, uint8_t Interface)

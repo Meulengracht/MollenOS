@@ -22,71 +22,111 @@
 /* Includes */
 #include <Arch.h>
 #include <AcpiSys.h>
-#include <List.h>
 #include <Heap.h>
 #include <Log.h>
 
+/* C-Library */
+#include <ds/list.h>
+
 /* Globals */
-list_t *GlbPciAcpiDevices = NULL;
-uint32_t GlbBusCounter = 0;
+List_t *GlbPciAcpiDevices = NULL;
+int GlbBusCounter = 0;
+
+/* Pin conversion from behind a bridge */
+int AcpiDerivePin(int Device, int Pin) {
+	return (((Pin - 1) + Device) % 4) + 1;
+}
 
 /* Get Irq by Bus / Dev / Pin 
  * Returns -1 if no overrides exists */
-int32_t AcpiDeviceGetIrq(uint32_t Bus, uint32_t Device, uint32_t Pin, 
+int AcpiDeviceGetIrq(int Bus, int Device, int Pin,
 					uint8_t *TriggerMode, uint8_t *Polarity, uint8_t *Shareable,
 					uint8_t *Fixed)
 {
 	/* Locate correct bus */
-	int n = 0;
-	AcpiDevice_t *Dev;
+	AcpiDevice_t *Dev = NULL;
+	DataKey_t Key;
+	int Index = 0;
+
+	LogFatal("ACPI", "Looking up IRQ for [%i:%i:%i]", Bus, Device, Pin);
 	
+	//If a device is on bus 2, dev 3, this actually maps to
+	//<bus2_addr> on bus 0
+
+	//also pin gets changed
+
+	/* Keep looping untill no more
+	 * buses */
 	while (1)
 	{
-		Dev = (AcpiDevice_t*)list_get_data_by_id(GlbPciAcpiDevices, ACPI_BUS_ROOT_BRIDGE, n);
+		/* Get the index */
+		Key.Value = ACPI_BUS_ROOT_BRIDGE;
+		Dev = (AcpiDevice_t*)ListGetDataByKey(GlbPciAcpiDevices, Key, Index);
 
+		/* Sanity, if this returns 
+		 * null we are out of data */
 		if (Dev == NULL)
 			break;
+
+		LogFatal("ACPI", "Found bus %u", Dev->Bus);
 
 		/* Todo, make sure we find the correct root-bridge */
 		if (Dev->Routings != NULL)
 		{
 			/* Get offset */
-			uint32_t toffset = (Device * 4) + Pin;
+			int toffset = (Device * 4) + Pin;
+			LogFatal("ACPI", "IRQ Table Address: %i -- irq %i", 
+				toffset, Dev->Routings->Interrupts[toffset]);
 
-			/* Update IRQ Information */
-			if (Dev->Routings->Trigger[toffset] == ACPI_LEVEL_SENSITIVE)
-				*TriggerMode = 1;
-			else
-				*TriggerMode = 0;
+			/* Sanity */
+			if (Dev->Routings->Interrupts[toffset] != -1) {
+				/* Update IRQ Information */
+				if (Dev->Routings->Trigger[toffset] == ACPI_LEVEL_SENSITIVE)
+					*TriggerMode = 1;
+				else
+					*TriggerMode = 0;
 
-			if (Dev->Routings->Polarity[toffset] == ACPI_ACTIVE_LOW)
-				*Polarity = 1;
-			else
-				*Polarity = 0;
+				if (Dev->Routings->Polarity[toffset] == ACPI_ACTIVE_LOW)
+					*Polarity = 1;
+				else
+					*Polarity = 0;
 
-			*Shareable = Dev->Routings->Shareable[toffset];
-			*Fixed = Dev->Routings->Fixed[toffset];
-			return Dev->Routings->Interrupts[toffset];
+				*Shareable = Dev->Routings->Shareable[toffset];
+				*Fixed = Dev->Routings->Fixed[toffset];
+				return Dev->Routings->Interrupts[toffset];
+			}
 		}
 		
 		/* Increase N */
-		n++;
+		Index++;
 	}
+
+	for (;;);
 
 	return -1;
 }
 
-/* Adds an object to the Acpi List */
+/* Gathers information about a ACPICA handle
+ * stores it into AcpiDevice structure for later
+ * use so we never have to query acpica again, for
+ * performance. We also do ACPI setup for the device
+ * in this function */
 AcpiDevice_t *PciAddObject(ACPI_HANDLE Handle, ACPI_HANDLE Parent, uint32_t Type)
 {
+	ACPI_BUFFER Buffer;
 	ACPI_STATUS Status;
 	AcpiDevice_t *Device;
+	DataKey_t Key;
 
 	/* Allocate Resources */
 	Device = (AcpiDevice_t*)kmalloc(sizeof(AcpiDevice_t));
 
 	/* Memset */
 	memset(Device, 0, sizeof(AcpiDevice_t));
+
+	/* Allocate name resources */
+	Device->Name = (char*)kmalloc(128);
+	memset(Device->Name, 0, 128);
 
 	/* Set handle */
 	Device->Handle = Handle;
@@ -99,6 +139,17 @@ AcpiDevice_t *PciAddObject(ACPI_HANDLE Handle, ACPI_HANDLE Parent, uint32_t Type
 
 	/* Get Bus and Seg Number */
 	Status = AcpiDeviceGetBusAndSegment(Device);
+
+	/* Retrieve the name of the acpi device */
+	Buffer.Length = 128;
+	Buffer.Pointer = Device->Name;
+	Status = AcpiGetName(Handle, ACPI_FULL_PATHNAME, &Buffer);
+
+	/* Sanity */
+	if (ACPI_FAILURE(Status)) {
+		memset(Device->Name, 0, 128);
+		strcpy(Device->Name, "(null)");
+	}
 
 	/* Check device status */
 	switch (Type)
@@ -197,32 +248,23 @@ AcpiDevice_t *PciAddObject(ACPI_HANDLE Handle, ACPI_HANDLE Parent, uint32_t Type
 		Device->Type = Type;
 
 	/* Add to list and return */
-	list_append(GlbPciAcpiDevices, list_create_node(Device->Type, Device));
+	Key.Value = Device->Type;
+	ListAppend(GlbPciAcpiDevices, ListCreateNode(Key, Key, Device));
 
 	return Device;
 }
 
-/* Scan Callback */
+/* Scan callback from the AcpiGetDevices
+ * everytime we are called it's because
+ * the acpica system has discovered a new
+ * device on the bus (handle) */
 ACPI_STATUS PciScanCallback(ACPI_HANDLE Handle, UINT32 Level, void *Context, void **ReturnValue)
 {
+	/* Variables */
 	AcpiDevice_t *Device = NULL;
 	ACPI_STATUS Status = AE_OK;
 	ACPI_OBJECT_TYPE Type = 0;
 	ACPI_HANDLE Parent = (ACPI_HANDLE)Context;
-	//uint8_t x_name[128];
-	//ACPI_BUFFER n_buf;
-
-	/* Have we already enumerated this device? */
-	/* HINT, look at attached data */
-	//memset(x_name, 0, sizeof(x_name));
-	//n_buf.Length = sizeof(x_name);
-	//n_buf.Pointer = x_name;
-
-	/* Get name */
-	//Status = AcpiGetName(Handle, ACPI_FULL_PATHNAME, &n_buf);
-	
-	//if (ACPI_SUCCESS(Status))
-	//	LogInformation("ACPI", "Device: %s", &x_name[0]);
 
 	/* Get Type */
 	Status = AcpiGetType(Handle, &Type);
@@ -255,22 +297,23 @@ ACPI_STATUS PciScanCallback(ACPI_HANDLE Handle, UINT32 Level, void *Context, voi
 	Device = PciAddObject(Handle, Parent, Type);
 	
 	/* Sanity */
-	if (Device != NULL)
-	{
+	if (Device != NULL) {
 		//acpi_scan_init_hotplug(device);
 	}
 
 	return AE_OK;
 }
 
-/* Scan the Acpi Devices */
+/* Scan the ACPI namespace for devices
+ * and irq-routings, this is very neccessary
+ * for getting correct irqs */
 void AcpiScan(void)
 {
 	/* Log */
 	LogInformation("ACPI", "Installing Fixables");
 
 	/* Init list, this is "bus 0" */
-	GlbPciAcpiDevices = list_create(LIST_SAFE);
+	GlbPciAcpiDevices = ListCreate(KeyInteger, LIST_SAFE);
 
 	/* Step 1. Enumerate Fixed Objects */
 	if (AcpiGbl_FADT.Flags & ACPI_FADT_POWER_BUTTON)
@@ -283,6 +326,5 @@ void AcpiScan(void)
 	LogInformation("ACPI", "Scanning Bus");
 	
 	/* Step 2. Enumerate */
-	//status = AcpiWalkNamespace(ACPI_TYPE_ANY, ACPI_ROOT_OBJECT, ACPI_UINT32_MAX, pci_scan_callback, NULL, handle, NULL);
 	AcpiGetDevices(NULL, PciScanCallback, NULL, NULL);
 }

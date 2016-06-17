@@ -25,6 +25,7 @@
 /* Video Includes */
 #include <Arch.h>
 #include <MollenOS.h>
+#include <os/Spinlock.h>
 
 /* Video Structures */
 typedef enum _MCoreVideoType

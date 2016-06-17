@@ -25,6 +25,9 @@
 #include <Pipe.h>
 #include <Heap.h>
 
+/* C-Library */
+#include <stddef.h>
+
 /* Initialise a new pipe */
 MCorePipe_t *PipeCreate(size_t Size)
 {

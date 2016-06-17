@@ -19,6 +19,7 @@
 * MollenOS x86-32 AP Setup
 */
 
+/* Includes */
 #include <Arch.h>
 #include <Acpi.h>
 #include <Apic.h>
@@ -29,12 +30,14 @@
 #include <Memory.h>
 #include <Idt.h>
 #include <Cpu.h>
+
+/* C-Library */
 #include <string.h>
 #include <stdio.h>
-#include <List.h>
+#include <ds/list.h>
 
 /* Externs */
-extern list_t *GlbAcpiNodes;
+extern List_t *GlbAcpiNodes;
 extern volatile uint8_t GlbBootstrapCpuId;
 extern x86CpuObject_t GlbBootCpuInfo;
 
@@ -209,9 +212,13 @@ void SmpBootCore(void *Data, int n, void *UserData)
 /* Go through ACPI nodes */
 void CpuSmpInit(void)
 {
+	/* DataKey for list iteration */
+	DataKey_t Key;
+
 	/* Setup AP Code */
 	SmpApSetup();
 
 	/* Start each CPU */
-	ListExecuteOnId(GlbAcpiNodes, SmpBootCore, ACPI_MADT_TYPE_LOCAL_APIC, NULL);
+	Key.Value = ACPI_MADT_TYPE_LOCAL_APIC;
+	ListExecuteOnKey(GlbAcpiNodes, SmpBootCore, Key, NULL);
 }

@@ -25,9 +25,11 @@
 
 /* Includes */
 #include <Arch.h>
-#include <Threading.h>
+
+/* C-Library */
 #include <crtdefs.h>
 #include <stdint.h>
+#include <ds/mstring.h>
 
 /* Structures */
 typedef struct _Semaphore 

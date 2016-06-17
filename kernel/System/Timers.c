@@ -26,10 +26,13 @@
 #include <Timers.h>
 #include <Scheduler.h>
 #include <Heap.h>
-#include <List.h>
+
+/* C-Library */
+#include <stddef.h>
+#include <ds/list.h>
 
 /* Globals */
-list_t *GlbTimers = NULL;
+List_t *GlbTimers = NULL;
 TmId_t GlbTimerIds = 0;
 int GlbTimersInitialized = 0;
 
@@ -37,7 +40,7 @@ int GlbTimersInitialized = 0;
 void TimersInit(void)
 {
 	/* Create list */
-	GlbTimers = list_create(LIST_SAFE);
+	GlbTimers = ListCreate(KeyInteger, LIST_SAFE);
 	GlbTimersInitialized = 1;
 	GlbTimerIds = 0;
 }
@@ -45,7 +48,9 @@ void TimersInit(void)
 TmId_t TimersCreateTimer(TimerHandler_t Callback,
 	void *Args, MCoreTimerType_t Type, size_t Timeout)
 {
+	/* Variables */
 	MCoreTimer_t *TimerInfo;
+	DataKey_t Key;
 	TmId_t Id;
 
 	/* Sanity */
@@ -61,7 +66,8 @@ TmId_t TimersCreateTimer(TimerHandler_t Callback,
 	TimerInfo->MsLeft = (ssize_t)Timeout;
 
 	/* Append to list */
-	list_append(GlbTimers, list_create_node((int)GlbTimerIds, TimerInfo));
+	Key.Value = (int)GlbTimerIds;
+	ListAppend(GlbTimers, ListCreateNode(Key, Key, TimerInfo));
 
 	/* Increase */
 	Id = GlbTimerIds;
@@ -74,15 +80,20 @@ TmId_t TimersCreateTimer(TimerHandler_t Callback,
 /* Destroys and removes a timer */
 void TimersDestroyTimer(TmId_t TimerId)
 {
-	/* Get node */
-	MCoreTimer_t *Timer = (MCoreTimer_t*)list_get_data_by_id(GlbTimers, (int)TimerId, 0);
+	/* Variables */
+	MCoreTimer_t *Timer = NULL;
+	DataKey_t Key;
+
+	/* Get Node */
+	Key.Value = (int)TimerId;
+	Timer = (MCoreTimer_t*)ListGetDataByKey(GlbTimers, Key, 0);
 
 	/* Sanity */
 	if (Timer == NULL)
 		return;
 
 	/* Remove By Id */
-	list_remove_by_id(GlbTimers, (int)TimerId);
+	ListRemoveByKey(GlbTimers, Key);
 
 	/* Free */
 	kfree(Timer);
@@ -150,7 +161,7 @@ void StallNs(size_t NanoSeconds)
 /* This should be called by only ONE periodic irq */
 void TimersApplyMs(size_t Ms)
 {
-	list_node_t *i;
+	ListNode_t *i;
 
 	/* Sanity */
 	if (GlbTimersInitialized != 1)
@@ -163,7 +174,7 @@ void TimersApplyMs(size_t Ms)
 	_foreach(i, GlbTimers)
 	{
 		/* Cast */
-		MCoreTimer_t *Timer = (MCoreTimer_t*)i->data;
+		MCoreTimer_t *Timer = (MCoreTimer_t*)i->Data;
 
 		/* Decreament */
 		Timer->MsLeft -= Ms;
@@ -180,7 +191,7 @@ void TimersApplyMs(size_t Ms)
 			else
 			{
 				/* Remove */
-				list_remove_by_node(GlbTimers, i);
+				ListRemoveByNode(GlbTimers, i);
 
 				/* Free timer */
 				kfree(Timer);

@@ -129,6 +129,7 @@
 /* Shared */
 #include "..\Arch\x86\Pci.h"
 
+#include <Threading.h>
 #include <Heap.h>
 #include <Semaphore.h>
 #include <Timers.h>
@@ -435,7 +436,7 @@ UINT32 AcpiOsInstallInterruptHandler(
 {
 	/* Install it */
 	InterruptInstallISA(InterruptNumber, INTERRUPT_ACPIBASE + InterruptNumber,
-		(ACPI_OSD_HANDLER)ServiceRoutine, Context);
+		(IrqHandler_t)ServiceRoutine, Context);
 
 	/* Done */
 	return (AE_OK);

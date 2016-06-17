@@ -24,7 +24,6 @@
 #include <UsbMsd.h>
 #include <Semaphore.h>
 #include <Heap.h>
-#include <List.h>
 #include <Timers.h>
 #include <Log.h>
 

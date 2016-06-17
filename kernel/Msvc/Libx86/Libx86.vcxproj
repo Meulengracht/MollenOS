@@ -52,7 +52,6 @@
     <ClCompile Include="..\..\Arch\x86\Interrupts\Pic.c" />
     <ClCompile Include="..\..\Arch\x86\Init\Cpu.c" />
     <ClCompile Include="..\..\Arch\x86\Init\Main.c" />
-    <ClCompile Include="..\..\Arch\x86\Components\Spinlock.c" />
     <ClCompile Include="..\..\Arch\x86\Components\Thread.c" />
     <ClCompile Include="..\..\Arch\x86\Components\Video.c" />
     <ClCompile Include="..\..\Arch\x86\Pci\PciIo.c" />
@@ -150,7 +149,7 @@
       <Optimization>MaxSpeed</Optimization>
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>false</IntrinsicFunctions>
-      <PreprocessorDefinitions>MOLLENOS;UNICODE;_KERNEL_API;_X86_32</PreprocessorDefinitions>
+      <PreprocessorDefinitions>MOLLENOS;UNICODE;_KERNEL_API;_X86_32;CLIB_KERNEL</PreprocessorDefinitions>
       <SDLCheck>
       </SDLCheck>
       <TreatWarningAsError>true</TreatWarningAsError>

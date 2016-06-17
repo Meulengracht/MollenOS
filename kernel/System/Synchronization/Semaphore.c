@@ -21,13 +21,17 @@
 */
 
 /* Includes */
-#include <assert.h>
 #include <Scheduler.h>
 #include <Semaphore.h>
 #include <Heap.h>
 
+/* C-Library */
+#include <stddef.h>
+#include <ds/list.h>
+#include <assert.h>
+
 /* Globals */
-list_t *GlbUserSemaphores = NULL;
+List_t *GlbUserSemaphores = NULL;
 int GlbUserSemaphoreInit = 0;
 
 /* This method allocates and constructs
@@ -62,15 +66,16 @@ UserSemaphore_t *SemaphoreUserCreate(MString_t *Identifier, int Value)
 	{
 		/* Init ? */
 		if (GlbUserSemaphoreInit != 1) {
-			GlbUserSemaphores = list_create(LIST_SAFE);
+			GlbUserSemaphores = ListCreate(KeyInteger, LIST_SAFE);
 			GlbUserSemaphoreInit = 1;
 		}
 
 		/* Hash the string */
-		size_t Hash = MStringHash(Identifier);
+		DataKey_t hKey;
+		hKey.Value = (int)MStringHash(Identifier);
 
 		/* Check list if exists */
-		void *uSem = list_get_data_by_id(GlbUserSemaphores, (int)Hash, 0);
+		void *uSem = ListGetDataByKey(GlbUserSemaphores, hKey, 0);
 
 		/* Sanity */
 		if (uSem != NULL)
@@ -88,10 +93,11 @@ UserSemaphore_t *SemaphoreUserCreate(MString_t *Identifier, int Value)
 	if (Identifier != NULL) 
 	{
 		/* Hash the string */
-		size_t Hash = MStringHash(Identifier);
+		DataKey_t hKey;
+		hKey.Value = (int)MStringHash(Identifier);
 
 		/* Add to list */
-		list_append(GlbUserSemaphores, list_create_node((int)Hash, Semaphore));
+		ListAppend(GlbUserSemaphores, ListCreateNode(hKey, hKey, Semaphore));
 	}
 
 	/* Done! */
@@ -108,10 +114,11 @@ void SemaphoreUserDestroy(UserSemaphore_t *Semaphore)
 	if (Semaphore->Identifier != NULL) 
 	{
 		/* Hash the string */
-		size_t Hash = MStringHash(Semaphore->Identifier);
+		DataKey_t Key;
+		Key.Value = (int)MStringHash(Semaphore->Identifier);
 
 		/* Remove id */
-		list_remove_by_id(GlbUserSemaphores, (int)Hash);
+		ListRemoveByKey(GlbUserSemaphores, Key);
 
 		/* Cleanup Ident */
 		MStringDestroy(Semaphore->Identifier);
