@@ -30,13 +30,11 @@ List_t *ListCreate(KeyType_t KeyType, int Attributes)
 {
 	/* Allocate a new instance */
 	List_t *List = (List_t*)dsalloc(sizeof(List_t));
+	memset(List, 0, sizeof(List_t));
 
 	/* Set initial stuff, especially
 	 * set the data key type */
 	List->Attributes = Attributes;
-	List->Headp = NULL;
-	List->Tailp = NULL;
-	List->Length = 0;
 	List->KeyType = KeyType;
 
 	/* Do we use a lock? */
@@ -59,13 +57,8 @@ void ListDestroy(List_t *List)
 	/* Keep freeing nodes */
 	while (Node != NULL) 
 	{
-		/* Free the key */
-		if (List->KeyType != KeyInteger) {
-			dsfree(Node->Key.Pointer);
-		}
-		
 		/* Free node, and next! */
-		dsfree(Node);
+		ListDestroyNode(List, Node);
 		Node = ListPopFront(List);
 	}
 
@@ -108,13 +101,12 @@ ListNode_t *ListCreateNode(DataKey_t Key, DataKey_t SortKey, void *Data)
 {
 	/* Allocate a new node */
 	ListNode_t *Node = (ListNode_t*)dsalloc(sizeof(ListNode_t));
+	memset(Node, 0, sizeof(ListNode_t));
 
 	/* Set items */
 	Node->Key = Key;
 	Node->SortKey = SortKey;
 	Node->Data = Data;
-	Node->Link = NULL;
-	Node->Prev = NULL;
 
 	/* Done! */
 	return Node;
@@ -371,10 +363,10 @@ ListNode_t *ListPopFront(List_t *List)
 		/* Reset its link (remove any list traces!) */
 		Current->Link = NULL;
 		Current->Prev = NULL;
-	}
 
-	/* Update length */
-	List->Length--;
+		/* Update length */
+		List->Length--;
+	}
 
 	/* Release Lock */
 	if (List->Attributes & LIST_SAFE)
@@ -428,12 +420,16 @@ int ListGetIndexByNode(List_t *List, ListNode_t *Node)
 ListNode_t *ListGetNodeByKey(List_t *List, DataKey_t Key, int n)
 {
 	/* Variables */
-	ListNode_t *i;
+	ListNode_t *i, *found = NULL;
 	int Counter = n;
 
 	/* Sanity */
 	if (List == NULL || List->Headp == NULL || List->Length == 0)
 		return NULL;
+
+	/* Get lock */
+	if (List->Attributes & LIST_SAFE)
+		SpinlockAcquire(&List->Lock);
 
 	/* Iterate each member in the 
 	 * given list */
@@ -441,15 +437,21 @@ ListNode_t *ListGetNodeByKey(List_t *List, DataKey_t Key, int n)
 	{
 		if (!dsmatchkey(List->KeyType, i->Key, Key))
 		{
-			if (Counter == 0)
-				return i;
+			if (Counter == 0) {
+				found = i;
+				break;
+			}
 			else
 				Counter--;
 		}
 	}
 
+	/* Release Lock */
+	if (List->Attributes & LIST_SAFE)
+		SpinlockRelease(&List->Lock);
+
 	/* If we reach here, not enough of id */
-	return NULL;
+	return found;
 }
 
 /* These are the data-retriever functions
@@ -531,43 +533,66 @@ ListNode_t *ListUnlinkNode(List_t *List, ListNode_t *Node)
 		SpinlockAcquire(&List->Lock);
 
 	/* There are a few cases we need to handle
-	* in order for this to be O(1) */
+	 * in order for this to be O(1) */
 	if (Node->Prev == NULL) {
 		/* Ok, so this means we are the
-		* first node in the list
-		* Do we have a link? */
+		 * first node in the list
+		 * Do we have a link? */
 		if (Node->Link == NULL) {
 			/* We're the only link
-			* but lets stil validate
-			* we're from this list */
+			 * but lets stil validate
+			 * we're from this list */
 			if (List->Headp == Node) {
 				List->Headp = List->Tailp = NULL;
+				List->Length--;
 			}
 		}
 		else {
 			/* We have a link
-			* this means we set headp to next */
+			 * this means we set headp to next */
 			if (List->Headp == Node) {
+				/* Set head pointer to next */
 				List->Headp = Node->Link;
+
+				/* Update previous */
+				List->Headp->Prev = NULL;
+
+				/* Reduce length */
+				List->Length--;
 			}
 		}
 	}
 	else {
 		/* We have a previous,
-		* Special case 1: we are last element
-		* which means we should update pointer */
+		 * Special case 1: we are last element
+		 * which means we should update pointer */
 		if (Node->Link == NULL) {
 			/* Ok, we are last element */
 			if (List->Tailp == Node) {
+				/* Update tail pointer to previous */
 				List->Tailp = Node->Prev;
+
+				/* Update link to EOL */
+				List->Tailp->Link = NULL;
+
+				/* Reduce length */
+				List->Length--;
 			}
 		}
 		else {
 			/* Normal case, we just skip this
-			* element without interfering with the list
-			* pointers */
+			 * element without interfering with the list
+			 * pointers */
 			ListNode_t *Prev = Node->Prev;
+
+			/* Update previous to -> link */
 			Prev->Link = Node->Link;
+
+			/* Update link previous to -> prev */
+			Prev->Link->Prev = Prev;
+
+			/* Reduce list */
+			List->Length--;
 		}
 	}
 

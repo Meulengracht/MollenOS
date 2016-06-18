@@ -193,6 +193,9 @@ void SchedulerReadyThread(MCoreThread_t *Thread)
 	iKey.Value = (int)Thread->ThreadId;
 	sKey.Value = (int)Thread->Priority;
 
+	/* Get lock */
+	SpinlockAcquire(&GlbSchedulers[CpuIndex]->Lock);
+
 	/* Get thread node if exists */
 	ThreadNode = ListGetNodeByKey(GlbSchedulers[CpuIndex]->Threads, iKey, 0);
 
@@ -202,9 +205,6 @@ void SchedulerReadyThread(MCoreThread_t *Thread)
 		ListAppend(GlbSchedulers[CpuIndex]->Threads, ThreadNode);
 		GlbSchedulers[CpuIndex]->NumThreads++;
 	}
-
-	/* Get lock */
-	SpinlockAcquire(&GlbSchedulers[CpuIndex]->Lock);
 
 	/* Append */
 	ListAppend(GlbSchedulers[CpuIndex]->Queues[Thread->Queue],
@@ -256,9 +256,15 @@ void SchedulerRemoveThread(MCoreThread_t *Thread)
 	ListNode_t *ThreadNode = NULL;
 	DataKey_t iKey;
 
+	/* Get lock */
+	SpinlockAcquire(&GlbSchedulers[Thread->CpuId]->Lock);
+
 	/* Get thread node if exists */
 	iKey.Value = (int)Thread->ThreadId;
 	ThreadNode = ListGetNodeByKey(GlbSchedulers[Thread->CpuId]->Threads, iKey, 0);
+
+	/* Release lock */
+	SpinlockRelease(&GlbSchedulers[Thread->CpuId]->Lock);
 
 	/* Sanity */
 	assert(ThreadNode != NULL);
@@ -266,9 +272,15 @@ void SchedulerRemoveThread(MCoreThread_t *Thread)
 	/* Disarm the thread */
 	SchedulerDisarmThread(Thread);
 
+	/* Get lock */
+	SpinlockAcquire(&GlbSchedulers[Thread->CpuId]->Lock);
+
 	/* Remove the node */
 	ListRemoveByNode(GlbSchedulers[Thread->CpuId]->Threads, ThreadNode);
 	GlbSchedulers[Thread->CpuId]->NumThreads--;
+
+	/* Release lock */
+	SpinlockRelease(&GlbSchedulers[Thread->CpuId]->Lock);
 
 	/* Free */
 	kfree(ThreadNode);
