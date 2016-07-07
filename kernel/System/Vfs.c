@@ -37,8 +37,8 @@
 MCoreEventHandler_t *GlbVfsEventHandler = NULL;
 List_t *GlbFileSystems = NULL;
 List_t *GlbOpenFiles = NULL;
-uint32_t GlbFileSystemId = 0;
-uint32_t GlbVfsInitHasRun = 0;
+int GlbFileSystemId = 0;
+int GlbVfsInitHasRun = 0;
 int GlbVfsFileIdGen = 0;
 
 /* Prototypes */
@@ -96,14 +96,14 @@ void VfsInstallFileSystem(MCoreFileSystem_t *Fs)
 	Fs->Lock = MutexCreate();
 
 	/* Add to list */
-	Key.Value = Fs->DiskId;
+	Key.Value = (int)Fs->DiskId;
 	ListAppend(GlbFileSystems, ListCreateNode(Key, Key, Fs));
 
 	/* Increament */
 	GlbFileSystemId++;
 
 	/* Start init? */
-	if (Fs->Flags & VFS_MAIN_DRIVE
+	if ((Fs->Flags & VFS_MAIN_DRIVE)
 		&& !GlbVfsInitHasRun)
 	{
 		/* Process Request */

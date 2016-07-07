@@ -135,7 +135,9 @@ int ParseCommandLine(char *CmdLine, char **ArgBuffer)
 	return ArgCount;
 }
 
-/* Service Entry Point */
+/* Service Entry Point 
+ * Use this entry point for programs
+ * that don't require a window/console */
 void _mSrvCrt(void)
 {
 	/* Variables */
@@ -174,7 +176,9 @@ void _mSrvCrt(void)
 	exit(RetValue);
 }
 
-/* Service Entry Point */
+/* Console Entry Point 
+ * Use this entry point for 
+ * programs that require a console */
 void _mConCrt(void)
 {
 	/* Variables */

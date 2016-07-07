@@ -38,11 +38,11 @@ extern void clear_ts(void);
 extern void ThreadingDebugPrint(void);
 
 /* Our very own Cdecl x86 stack trace :-) */
-void StackTrace(uint32_t MaxFrames)
+void StackTrace(size_t MaxFrames)
 {
 	/* Get stack position */
 	uint32_t *StackPtr = (uint32_t*)&MaxFrames;
-	uint32_t Itr = MaxFrames;
+	size_t Itr = MaxFrames;
 
 	/* Run */
 	while (Itr != 0)
@@ -214,6 +214,9 @@ void ExceptionEntry(Registers_t *regs)
 		/* Sanity */
 		if (IssueFixed == 0)
 		{
+			/* Get cpu */
+			Cpu = ApicGetCpu();
+
 			/* Enable log */
 			LogRedirect(LogConsole);
 
@@ -228,17 +231,22 @@ void ExceptionEntry(Registers_t *regs)
 				MCoreModule_t *Module = ModuleFindAddress(regs->Eip);
 
 				/* Sanity */
-				if (Module != NULL)
-				{
-					uint32_t Diff = regs->Eip - Module->Descriptor->BaseVirtual;
+				if (Module != NULL) {
+					size_t Diff = regs->Eip - Module->Descriptor->BaseVirtual;
 					printf("Fauly Address: 0x%x (%s)\n", Diff, Module->Header->ModuleName);
 				}
 			}
-			else
+			else {
 				printf("Faulty Address: 0x%x\n", regs->Eip);
+				printf("Stack ptr: 0x%x\n", regs->Esp);
+				StackTrace(3);
+			}
 
-			/* Try to stack trace first */
-			StackTrace(6);
+			/* Log Thread Information */
+			LogFatal("SYST", "Thread %s - %u (Core %u)!",
+				ThreadingGetCurrentThread(Cpu)->Name,
+				ThreadingGetCurrentThreadId(), Cpu);
+			ThreadingDebugPrint();
 
 			for (;;);
 		}

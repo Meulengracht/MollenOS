@@ -83,37 +83,36 @@ namespace MfsTool
         }
 
         /* Helpers */
-        static void OpenDisk(MfsDisk mDisk)
+        static bool OpenDisk(MfsDisk mDisk)
         {
             /* Sanity */
             if (mDisk.DeviceId == "VMDK"
-                || mDisk.DeviceId == "IMG")
-            {
+                || mDisk.DeviceId == "IMG") {
                 /* We already have disk access */
-                return;
+                return true;
             }
 
             /* Open Disk */
-            SafeFileHandle vHandle =
-                CreateFile(mDisk.DeviceId,
+            mDisk.sfHandle = CreateFile(mDisk.DeviceId,
                 GENERIC_READ | GENERIC_WRITE, 0, IntPtr.Zero,
                 OPEN_EXISTING, FILE_FLAG_NO_BUFFERING, new SafeFileHandle(IntPtr.Zero, true));
 
-            if (vHandle.IsInvalid)
+            if (mDisk.sfHandle.IsInvalid)
             {
-                Console.WriteLine("Failed to open drive");
-                return;
+                mDisk.sfHandle = null;
+                Console.WriteLine("Handle was invalid");
+                return false;
             }
 
             /* Lock Disk */
             uint lpBytesReturned = 0;
-            if (!DeviceIoControl(vHandle.DangerousGetHandle(), FSCTL_LOCK_VOLUME, IntPtr.Zero, 0, IntPtr.Zero, 0, out lpBytesReturned, IntPtr.Zero))
+            if (!DeviceIoControl(mDisk.sfHandle.DangerousGetHandle(), FSCTL_LOCK_VOLUME, IntPtr.Zero, 0, IntPtr.Zero, 0, out lpBytesReturned, IntPtr.Zero))
                 Console.WriteLine("Failed to lock!");
-            if (!DeviceIoControl(vHandle.DangerousGetHandle(), FSCTL_DISMOUNT_VOLUME, IntPtr.Zero, 0, IntPtr.Zero, 0, out lpBytesReturned, IntPtr.Zero))
+            if (!DeviceIoControl(mDisk.sfHandle.DangerousGetHandle(), FSCTL_DISMOUNT_VOLUME, IntPtr.Zero, 0, IntPtr.Zero, 0, out lpBytesReturned, IntPtr.Zero))
                 Console.WriteLine("Failed to unmount!");
 
-            /* Store handle */
-            mDisk.vDiskHandle = vHandle;
+            /* Done */
+            return true;
         }
 
         /* Close Disk */
@@ -125,14 +124,15 @@ namespace MfsTool
                 return;
             }
             else
-                ((SafeFileHandle)mDisk.vDiskHandle).Close();
+                mDisk.sfHandle.Close();
 
             /* Null */
             mDisk.vDiskHandle = null;
+            mDisk.sfHandle = null;
         }
 
         /* Seek in disk */
-        static void SeekDisk(MfsDisk mDisk, UInt64 Offset)
+        static void SeekDisk(MfsDisk mDisk, Int64 Offset)
         {
             /* Sanity */
             if (mDisk.DeviceId == "VMDK") {
@@ -145,8 +145,7 @@ namespace MfsTool
             {
                 int DistHigh = (int)((Offset >> 32) & 0xFFFFFFFF);
                 int DistLow = (int)(Offset & 0xFFFFFFFF);
-
-                SetFilePointer((SafeFileHandle)mDisk.vDiskHandle, DistLow, ref DistHigh, EMoveMethod.Begin);
+                SetFilePointer(mDisk.sfHandle, DistLow, ref DistHigh, EMoveMethod.Begin);
             }
         }
 
@@ -154,7 +153,7 @@ namespace MfsTool
         static void WriteDisk(MfsDisk mDisk, UInt64 Sector, Byte[] Buffer, Boolean Seek)
         {
             /* Calculate offset */
-            UInt64 ValToMove = (Sector * mDisk.BytesPerSector);
+            Int64 ValToMove = ((Int64)Sector * (int)mDisk.BytesPerSector);
 
             /* Seek to offset */
             if (Seek)
@@ -169,7 +168,7 @@ namespace MfsTool
             }
             else {
                 uint BytesWritten = 0;
-                WriteFile(((SafeFileHandle)mDisk.vDiskHandle).DangerousGetHandle(), Buffer, (uint)Buffer.Length, out BytesWritten, IntPtr.Zero);
+                WriteFile(mDisk.sfHandle.DangerousGetHandle(), Buffer, (uint)Buffer.Length, out BytesWritten, IntPtr.Zero);
             }
         }
 
@@ -180,7 +179,7 @@ namespace MfsTool
             Byte[] RetBuf = new Byte[SectorCount * mDisk.BytesPerSector];
 
             /* Seek to offset */
-            SeekDisk(mDisk, (Sector * mDisk.BytesPerSector));
+            SeekDisk(mDisk, (Int64)((Int64)Sector * mDisk.BytesPerSector));
 
             /* Sanity */
             if (mDisk.DeviceId == "VMDK") {
@@ -194,7 +193,7 @@ namespace MfsTool
             else {
                 /* Read */
                 uint bRead = 0;
-                ReadFile(((SafeFileHandle)mDisk.vDiskHandle).DangerousGetHandle(), RetBuf, (uint)RetBuf.Length, out bRead, IntPtr.Zero);
+                ReadFile(mDisk.sfHandle.DangerousGetHandle(), RetBuf, (uint)RetBuf.Length, out bRead, IntPtr.Zero);
             }
             
             /* Done */
@@ -362,9 +361,8 @@ namespace MfsTool
         static void Format(MfsDisk mDisk)
         {
             /* Open Disk */
-            OpenDisk(mDisk);
-
-            if (mDisk.vDiskHandle == null) {
+            if (!OpenDisk(mDisk))
+            {
                 Console.WriteLine("Failed to open drive");
                 return;
             }
@@ -436,8 +434,7 @@ namespace MfsTool
             Console.WriteLine("Writing BucketTable");
 
             /* Seek to sector BucketMapSector */
-            UInt64 ValToMove = BucketMapSector * mDisk.BytesPerSector;
-            int DistHigh = (int)((ValToMove >> 32) & 0xFFFFFFFF);
+            Int64 ValToMove = (Int64)BucketMapSector * mDisk.BytesPerSector;
             SeekDisk(mDisk, ValToMove);
             Byte[] SectorBuffer = new Byte[mDisk.BytesPerSector];
             UInt64 Iterator = 0;
@@ -580,7 +577,7 @@ namespace MfsTool
             MasterBucket[39] = (Byte)((BucketMapSize >> 56) & 0xFF);
 
             /* Seek */
-            WriteDisk(mDisk, (UInt64)MirrorMasterBucketSector, MasterBucket, true);
+            WriteDisk(mDisk, MirrorMasterBucketSector, MasterBucket, true);
             WriteDisk(mDisk, (UInt64)MasterBucketSector, MasterBucket, true);
 
             /* Wipe new sectors */
@@ -892,7 +889,10 @@ namespace MfsTool
                         UInt16 Flags = BitConverter.ToUInt16(fBuffer, i + 2);
 
                         if (Name.ToLower() == LookFor.ToLower())
+                        {
+                            Console.WriteLine("EOP - Entry did exist already");
                             return null;
+                        }
 
                         /* Next */
                         i += 1023;
@@ -1037,6 +1037,8 @@ namespace MfsTool
                 }
             }
 
+            /* We got broken */
+            Console.WriteLine("Failed to find " + LookFor + " in directory");
             return null;
         }
 
@@ -1044,9 +1046,7 @@ namespace MfsTool
         static void ListDirectory(MfsDisk mDisk, String Path)
         {
             /* Open Disk */
-            OpenDisk(mDisk);
-
-            if (mDisk.vDiskHandle == null) {
+            if (!OpenDisk(mDisk)) {
                 Console.WriteLine("Failed to open drive");
                 return;
             }
@@ -1252,9 +1252,8 @@ namespace MfsTool
         static void WriteToMfs(MfsDisk mDisk, String pFile, String lPath)
         {
             /* Open Disk */
-            OpenDisk(mDisk);
-
-            if (mDisk.vDiskHandle == null) {
+            if (!OpenDisk(mDisk))
+            {
                 Console.WriteLine("Failed to open drive");
                 return;
             }
@@ -1428,9 +1427,7 @@ namespace MfsTool
         static void InstallMOS(MfsDisk mDisk)
         {
             /* Open Disk */
-            OpenDisk(mDisk);
-
-            if (mDisk.vDiskHandle == null) {
+            if (!OpenDisk(mDisk)) {
                 Console.WriteLine("Failed to open drive");
                 return;
             }
@@ -1538,6 +1535,7 @@ namespace MfsTool
                 nDisk.SectorsPerTrack = (UInt32)o["SectorsPerTrack"];
                 nDisk.TracksPerCylinder = (UInt32)o["TracksPerCylinder"];
                 nDisk.vDiskHandle = null;
+                nDisk.sfHandle = null;
 
                 Drives.Add(Itr, nDisk);
                 Itr++;
@@ -1747,6 +1745,7 @@ namespace MfsTool
         /* Physical Drive No */
         public String DeviceId;
         public Object vDiskHandle;
+        public SafeFileHandle sfHandle;
 
         /* Used by reading */
         public UInt16 BucketSize;
