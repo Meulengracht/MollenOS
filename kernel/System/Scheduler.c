@@ -172,11 +172,9 @@ void SchedulerReadyThread(MCoreThread_t *Thread)
 		/* Yea, broadcast thread 
 		 * Locate the least used CPU 
 		 * TODO */
-		while (GlbSchedulers[i] != NULL)
-		{
+		while (GlbSchedulers[i] != NULL) {
 			if (GlbSchedulers[i]->NumThreads < GlbSchedulers[CpuIndex]->NumThreads)
 				CpuIndex = i;
-
 			i++;
 		}
 

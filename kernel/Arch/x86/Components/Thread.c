@@ -28,6 +28,8 @@
 #include <Heap.h>
 #include <Apic.h>
 #include <Gdt.h>
+#include <Log.h>
+
 #include <string.h>
 #include <stdio.h>
 
@@ -37,6 +39,7 @@ extern void save_fpu(Addr_t *buffer);
 extern void set_ts(void);
 extern void _yield(void);
 extern void enter_thread(Registers_t *regs);
+extern void RegisterDump(Registers_t *Regs);
 
 /* The YIELD handler */
 int ThreadingYield(void *Args)
@@ -48,7 +51,7 @@ int ThreadingYield(void *Args)
 	Cpu_t CurrCpu = ApicGetCpu();
 
 	/* Send EOI */
-	ApicSendEoi(0, INTERRUPT_YIELD);
+	ApicSendEoi(0xFFFFFFFF, INTERRUPT_YIELD);
 
 	/* Switch Task */ 
 	Regs = _ThreadingSwitch((Registers_t*)Args, 0, &TimeSlice, &TaskPriority);
@@ -185,7 +188,8 @@ void IThreadDestroy(void *ThreadData)
 }
 
 /* Setup Usermode */
-void IThreadInitUserMode(void *ThreadData, Addr_t StackAddr, Addr_t EntryPoint, Addr_t ArgumentAddress)
+void IThreadInitUserMode(void *ThreadData, 
+	Addr_t StackAddr, Addr_t EntryPoint, Addr_t ArgumentAddress)
 {
 	/* Cast */
 	x86Thread_t *t = (x86Thread_t*)ThreadData;
@@ -245,8 +249,7 @@ Registers_t *_ThreadingSwitch(Registers_t *Regs, int PreEmptive, uint32_t *TimeS
 	TssUpdateStack(Cpu, (Addr_t)tx86->Context);
 
 	/* Finish Transition */
-	if (mThread->Flags & THREADING_TRANSITION)
-	{
+	if (mThread->Flags & THREADING_TRANSITION) {
 		mThread->Flags &= ~THREADING_TRANSITION;
 		mThread->Flags |= THREADING_USERMODE;
 	}

@@ -45,11 +45,11 @@ int GlbVfsFileIdGen = 0;
 void VfsEventHandler(void *Args);
 
 /* Environment String Array */
-const char *GlbEnvironmentalPaths[] = {
-	"N/A",
-	
-	"N/A",
-	":/Shared/AppData/"
+const char *GlbEnvironmentalPaths[PathEnvironmentCount] = {
+	"./",
+
+	"./",
+	":/Shared/AppData/",
 
 	":/",
 	":/System/",
@@ -110,6 +110,9 @@ void VfsInstallFileSystem(MCoreFileSystem_t *Fs)
 		MCoreProcessRequest_t *ProcRequest
 			= (MCoreProcessRequest_t*)kmalloc(sizeof(MCoreProcessRequest_t));
 
+		/* Reset request */
+		memset(ProcRequest, 0, sizeof(MCoreProcessRequest_t));
+
 		/* Print */
 		LogInformation("VFSM", "Boot Drive Detected, Running Init");
 
@@ -141,6 +144,9 @@ int VfsParsePartitionTable(DevId_t DiskId, uint64_t SectorBase, uint64_t SectorC
 	MCoreDeviceRequest_t Request;
 	int PartitionCount = 0;
 	int i;
+
+	/* Null out request */
+	memset(&Request, 0, sizeof(MCoreDeviceRequest_t));
 
 	/* Read sector */
 	Request.Base.Type = RequestRead;
@@ -278,9 +284,14 @@ void VfsRegisterDisk(DevId_t DiskId)
 	MCoreModule_t *Module = NULL;
 	char TmpBuffer[20];
 	MCoreDeviceRequest_t Request;
+
+	/* Null out request */
+	memset(&Request, 0, sizeof(MCoreDeviceRequest_t));
+
+	/* Setup request */
 	Request.Base.Type = RequestQuery;
 	Request.DeviceId = DiskId;
-	Request.Buffer = (uint8_t*)TmpBuffer;
+	Request.Buffer = (uint8_t*)&TmpBuffer[0];
 	Request.Length = 20;
 
 	/* Memset */
@@ -434,14 +445,14 @@ MString_t *VfsCanonicalizePath(VfsEnvironmentPath_t Base, const char *Path)
 	ListNode_t *fNode = NULL;
 	uint32_t Itr = 0;
 
-	/* Get base directory */
-	MString_t *BasePath = VfsResolveEnvironmentPath(Base);
-
 	/* Start by copying cwd over 
 	 * if Path is not absolute or specifier */
 	if (strchr(Path, ':') == NULL
 		&& strchr(Path, '%') == NULL)
 	{
+		/* Get base directory */
+		MString_t *BasePath = VfsResolveEnvironmentPath(Base);
+
 		/* Unless Base is null, then we have a problem */
 		if (BasePath == NULL)
 		{
@@ -492,8 +503,18 @@ MString_t *VfsCanonicalizePath(VfsEnvironmentPath_t Base, const char *Path)
 					}
 				}
 
+				/* Now append the system path */
+				MStringAppendChars(AbsPath, GlbEnvironmentalPaths[PathSystemDirectory]);
+
 				/* Skip */
 				Itr += 5;
+
+				/* Is the next char a '/'? If so skip */
+				if (Path[Itr] == '/' || Path[Itr] == '\\') {
+					Itr++;
+				}
+
+				/* Done! */
 				continue;
 			}
 		}
@@ -808,6 +829,7 @@ VfsErrorCode_t VfsClose(MCoreFileInstance_t *Handle)
 
 		/* Deep Close */
 		ErrCode = Fs->CloseFile(Fs, Handle->File);
+		MStringDestroy(Handle->File->Path);
 		kfree(Handle->File);
 
 		/* Remove from list */
@@ -868,8 +890,7 @@ size_t VfsRead(MCoreFileInstance_t *Handle, uint8_t *Buffer, size_t Length)
 		return VfsInvalidParameters;
 
 	/* Sanity */
-	if (Handle->IsEOF
-		|| Length == 0)
+	if (Length == 0)
 		return 0;
 
 	/* EOF Sanity */
@@ -1014,6 +1035,7 @@ VfsErrorCode_t VfsSeek(MCoreFileInstance_t *Handle, uint64_t Offset)
 
 	/* Clear last op */
 	Handle->LastOp = 0;
+	Handle->IsEOF = 0;
 
 	/* Done */
 	return ErrCode;

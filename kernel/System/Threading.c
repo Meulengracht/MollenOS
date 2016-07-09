@@ -21,14 +21,15 @@
 
 /* Includes */
 #include <Arch.h>
-#include <assert.h>
 #include <Scheduler.h>
 #include <Threading.h>
 #include <ProcessManager.h>
 #include <Heap.h>
-#include <Mutex.h>
+#include <Log.h>
+#include <CriticalSection.h>
 
 /* C-Library */
+#include <assert.h>
 #include <ds/list.h>
 #include <string.h>
 #include <stdio.h>
@@ -40,7 +41,7 @@ TId_t GlbThreadId = 0;
 ListNode_t *GlbCurrentThreads[64];
 ListNode_t *GlbIdleThreads[64];
 int GlbThreadingEnabled = 0;
-Mutex_t GlbThreadLock;
+CriticalSection_t GlbThreadLock;
 
 /* Initialization
 * Creates the main thread */
@@ -84,7 +85,7 @@ void ThreadingInit(void)
 	Init->ThreadData = IThreadInitBoot();
 
 	/* Reset lock */
-	MutexConstruct(&GlbThreadLock);
+	CriticalSectionConstruct(&GlbThreadLock, CRITICALSECTION_PLAIN);
 
 	/* Create a list node */
 	Key.Value = (int)GlbThreadId;
@@ -341,12 +342,12 @@ TId_t ThreadingCreateThread(char *Name, ThreadEntry_t Function, void *Args, int 
 {
 	/* Vars */
 	MCoreThread_t *nThread, *tParent;
-	char TmpBuffer[64];
+	char TmpBuffer[16];
 	DataKey_t Key;
 	Cpu_t Cpu;
 
 	/* Get mutex */
-	MutexLock(&GlbThreadLock);
+	CriticalSectionEnter(&GlbThreadLock);
 
 	/* Get cpu */
 	Cpu = ApicGetCpu();
@@ -371,8 +372,10 @@ TId_t ThreadingCreateThread(char *Name, ThreadEntry_t Function, void *Args, int 
 	nThread->Args = Args;
 
 	/* If we are CPU bound :/ */
-	if (Flags & THREADING_CPUBOUND)
+	if (Flags & THREADING_CPUBOUND) {
 		nThread->CpuId = Cpu;
+		nThread->Flags |= THREADING_CPUBOUND;
+	}
 	else
 	{
 		/* Select the low bearing CPU */
@@ -414,7 +417,7 @@ TId_t ThreadingCreateThread(char *Name, ThreadEntry_t Function, void *Args, int 
 	GlbThreadId++;
 
 	/* Release lock */
-	MutexUnlock(&GlbThreadLock);
+	CriticalSectionLeave(&GlbThreadLock);
 
 	/* Append it to list & scheduler */
 	Key.Value = (int)nThread->ThreadId;
@@ -506,11 +509,14 @@ void ThreadingEnterUserMode(void *ProcessInfo)
 
 	/* Update this thread */
 	cThread->ProcessId = Process->Id;
-	cThread->Flags |= THREADING_TRANSITION;
-	
-	/* Underlying Call */
+
+	/* Underlying Call  */
 	IThreadInitUserMode(cThread->ThreadData, Process->StackStart,
 		Process->Executable->EntryAddr, MEMORY_LOCATION_USER_ARGS);
+
+	/* This initiates the transition 
+	 * nothing happpens before this */
+	cThread->Flags |= THREADING_TRANSITION;
 
 	/* Done! */
 	InterruptRestoreState(IntrState);
@@ -547,8 +553,8 @@ MCoreThread_t *ThreadingSwitch(Cpu_t Cpu, MCoreThread_t *Current, uint8_t PreEmp
 
 	/* Unless this one is done.. */
 GetNextThread:
-	if (Current->Flags & THREADING_FINISHED || Current->Flags & THREADING_IDLE
-		|| Current->Flags & THREADING_ENTER_SLEEP)
+	if ((Current->Flags & THREADING_FINISHED) || (Current->Flags & THREADING_IDLE)
+		|| (Current->Flags & THREADING_ENTER_SLEEP))
 	{
 		/* Someone should really kill those zombies :/ */
 		if (Current->Flags & THREADING_FINISHED)

@@ -31,44 +31,46 @@
 
 Registers_t *ContextCreate(Addr_t Eip)
 {
-	Registers_t *context;
-	Addr_t context_location;
+	/* Variables */
+	Registers_t *Context;
+	Addr_t CtxLocation;
 
 	/* Allocate a new context */
-	context_location = (Addr_t)kmalloc_a(0x1000) + 0x1000 - 0x4 - sizeof(Registers_t);
-	context = (Registers_t*)context_location;
+	CtxLocation = ((Addr_t)kmalloc_a(0x1000)) + 0x1000 - sizeof(Registers_t);
+	Context = (Registers_t*)CtxLocation;
 
 	/* Set Segments */
-	context->Ds = X86_KERNEL_DATA_SEGMENT;
-	context->Fs = X86_KERNEL_DATA_SEGMENT;
-	context->Es = X86_KERNEL_DATA_SEGMENT;
-	context->Gs = X86_KERNEL_DATA_SEGMENT;
+	Context->Ds = X86_KERNEL_DATA_SEGMENT;
+	Context->Fs = X86_KERNEL_DATA_SEGMENT;
+	Context->Es = X86_KERNEL_DATA_SEGMENT;
+	Context->Gs = X86_KERNEL_DATA_SEGMENT;
 
 	/* Initialize Registers */
-	context->Eax = 0;
-	context->Ebx = 0;
-	context->Ecx = 0;
-	context->Edx = 0;
-	context->Esi = 0;
-	context->Edi = 0;
-	context->Ebp = (context_location + sizeof(Registers_t));
-	context->Esp = 0;
+	Context->Eax = 0;
+	Context->Ebx = 0;
+	Context->Ecx = 0;
+	Context->Edx = 0;
+	Context->Esi = 0;
+	Context->Edi = 0;
+	Context->Ebp = (CtxLocation + sizeof(Registers_t));
+	Context->Esp = 0;
 
 	/* Set NULL */
-	context->Irq = 0;
-	context->ErrorCode = 0;
+	Context->Irq = 0;
+	Context->ErrorCode = 0;
 
 	/* Set Entry */
-	context->Eip = Eip;
-	context->Eflags = X86_THREAD_EFLAGS;
-	context->Cs = X86_KERNEL_CODE_SEGMENT;
+	Context->Eip = Eip;
+	Context->Eflags = X86_THREAD_EFLAGS;
+	Context->Cs = X86_KERNEL_CODE_SEGMENT;
 
 	/* Null user stuff */
-	context->UserEsp = 0;
-	context->UserSs = 0;
-	context->UserArg = 0;
+	Context->UserEsp = 0;
+	Context->UserSs = 0;
+	Context->UserArg = 0;
 
-	return context;
+	/* Done! */
+	return Context;
 }
 
 Registers_t *ContextUserCreate(Addr_t StackStartAddr, Addr_t Eip, Addr_t *Args)
@@ -77,7 +79,7 @@ Registers_t *ContextUserCreate(Addr_t StackStartAddr, Addr_t Eip, Addr_t *Args)
 	Registers_t *uContext;
 
 	/* Allocate a new context */
-	uContext = (Registers_t*)(StackStartAddr - sizeof(Registers_t) - sizeof(Addr_t));
+	uContext = (Registers_t*)(StackStartAddr - sizeof(Registers_t));
 
 	/* Set Segments */
 	uContext->Ds = X86_USER_DATA_SEGMENT + 0x03;
@@ -92,7 +94,7 @@ Registers_t *ContextUserCreate(Addr_t StackStartAddr, Addr_t Eip, Addr_t *Args)
 	uContext->Edx = 0;
 	uContext->Esi = 0;
 	uContext->Edi = 0;
-	uContext->Ebp = (StackStartAddr - sizeof(Addr_t));
+	uContext->Ebp = StackStartAddr;
 	uContext->Esp = 0;
 
 	/* Set NULL */

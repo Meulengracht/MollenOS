@@ -34,6 +34,9 @@
     <Filter Include="Includes\Modules">
       <UniqueIdentifier>{d05f1880-7a2d-4c35-974b-a9211c29d982}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Systems\Servers">
+      <UniqueIdentifier>{2d0031da-c7dc-4a5b-a130-d65f6d70ea56}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\Init\Entry.c">
@@ -104,6 +107,9 @@
     </ClCompile>
     <ClCompile Include="..\..\System\Events.c">
       <Filter>Systems</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\System\Servers\Server.c">
+      <Filter>Systems\Servers</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>

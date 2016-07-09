@@ -341,6 +341,9 @@ DevId_t DmCreateDevice(char *Name, MCoreDevice_t *Device)
 			MCoreDeviceRequest_t *Request = 
 				(MCoreDeviceRequest_t*)kmalloc(sizeof(MCoreDeviceRequest_t));
 
+			/* Reset request */
+			memset(Request, 0, sizeof(MCoreDeviceRequest_t));
+
 			/* Setup */
 			Request->Base.Type = RequestInstall;
 			Request->DeviceId = Device->Id;

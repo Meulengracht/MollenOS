@@ -602,6 +602,14 @@ SDL_TerminalSetSize (SDL_Terminal *terminal, int column, int row)
     int w = column * terminal->glyph_size.w + 2*terminal->br_size;
     int h = row    * terminal->glyph_size.h + 2*terminal->br_size;
 
+	if (terminal->glyph_size.w == 0
+		|| terminal->glyph_size.h == 0) {
+		SDL_SetError("SDL Error invalid glyph dimensions: %i, %i", 
+			terminal->glyph_size.w, terminal->glyph_size.h);
+		terminal->status = 0;
+		return -1;
+	}
+
 #ifdef HAVE_OPENGL
     if (terminal->texture) {
         if (w > terminal->texture_size.w) {

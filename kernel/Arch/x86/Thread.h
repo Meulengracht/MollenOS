@@ -31,6 +31,7 @@
 #define X86_THREAD_FPU_INITIALISED	0x2
 
 #define X86_THREAD_EFLAGS			0x202
+#define X86_THREAD_SINGLESTEP		0x100
 
 /* Prototypes */
 

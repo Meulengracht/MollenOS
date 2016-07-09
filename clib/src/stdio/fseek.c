@@ -108,6 +108,12 @@ int fseeko(FILE *stream, off_t offset, int origin)
 		return -1;
 	}
 
+	/* Sanity */
+	if (offset == 0
+		&& origin == SEEK_CUR) {
+		return 0;
+	}
+
 	/* Depends on origin */
 	if (origin == SEEK_SET)
 		SeekSpot = offset;
@@ -127,8 +133,8 @@ int fseeko(FILE *stream, off_t offset, int origin)
 			MOLLENOS_SYSCALL_PARAM(sizeof(Buffer)));
 
 		/* Now we can calculate */
-		fPos = *((uint64_t*)(&Buffer[16]));
 		fSize = *((uint64_t*)(&Buffer[0]));
+		fPos = *((uint64_t*)(&Buffer[16]));
 
 		/* Sanity offset */
 		if ((size_t)fPos != fPos) {

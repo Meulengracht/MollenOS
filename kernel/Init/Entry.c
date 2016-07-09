@@ -102,6 +102,9 @@ void MCoreInitialize(MCoreBootInfo_t *BootInfo)
 	/* Initialize the GC */
 	GcInit();
 
+	/* STOP
+	 * - Micro Conversion */
+
 	/* Start the request handler */
 	DmStart();
 

@@ -27,6 +27,7 @@
     <ClCompile Include="..\..\System\Pipe.c" />
     <ClCompile Include="..\..\System\ProcessManager.c" />
     <ClCompile Include="..\..\System\Scheduler.c" />
+    <ClCompile Include="..\..\System\Servers\Server.c" />
     <ClCompile Include="..\..\System\Synchronization\CriticalSection.c" />
     <ClCompile Include="..\..\System\Synchronization\Mutex.c" />
     <ClCompile Include="..\..\System\Synchronization\Semaphore.c" />

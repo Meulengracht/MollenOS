@@ -143,12 +143,9 @@ _rdtsc:
 ; void enter_thread(registers_t *stack)
 ; Switches stack and far jumps to next task
 _enter_thread:
-	; Stack Frame
-	push ebp
-	mov ebp, esp
 
 	; Get pointer
-	mov eax, [ebp + 8]
+	mov eax, [esp + 4]
 	mov esp, eax
 
 	; When we return, restore state

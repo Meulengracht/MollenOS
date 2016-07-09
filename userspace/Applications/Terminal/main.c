@@ -20,6 +20,7 @@
 */
 
 /* Includes */
+#include <os/MollenOS.h>
 #include <SDL.h>
 #include "Terminal.h"
 
@@ -41,7 +42,7 @@ int main(int argc, char* argv[])
 	}
 
 	/* Create a window */
-	MainWnd = SDL_CreateWindow("Sapphire", 100, 100, 800, 600, SDL_WINDOW_SHOWN);
+	MainWnd = SDL_CreateWindow("Sapphire", 100, 100, 600, 400, SDL_WINDOW_SHOWN);
 	if (MainWnd == NULL) {
 		SDL_Quit();
 		return -2;
@@ -58,14 +59,15 @@ int main(int argc, char* argv[])
 	/* Create terminal */
 	SDL_Terminal *terminal = SDL_CreateTerminal(MainWnd);
 
-	SDL_TerminalSetFont(terminal, "Fonts/DejaVuSansMono.ttf", 12);
+	SDL_TerminalSetFont(terminal, "%Sys%/Fonts/DejaVuSansMono.ttf", 12);
 	SDL_TerminalSetSize(terminal, 80, 25);
+
 	SDL_TerminalSetPosition(terminal, 0, 0);
 
 	SDL_TerminalSetColor(terminal, 255, 255, 255, 128);
 	SDL_TerminalSetBorderColor(terminal, 255, 255, 255, 255);
 	SDL_TerminalSetForeground(terminal, 0, 0, 0, 255);
-	SDL_TerminalSetBackground(terminal, 0, 0, 0, 0); /* No background since alpha=0 */
+	SDL_TerminalSetBackground(terminal, 255, 255, 255, 128);
 
 	SDL_TerminalClear(terminal);
 	SDL_TerminalPrint(terminal, "Terminal initialized\n");
@@ -73,7 +75,7 @@ int main(int argc, char* argv[])
 	SDL_TerminalPrint(terminal, "Terminal geometry: %d x %d\n\n", terminal->size.column, terminal->size.row);
 	SDL_TerminalPrint(terminal, "\033[1mBold on\033[22m - Bold off\n");
 	SDL_TerminalPrint(terminal, "\033[3mItalic on\033[23m - Italic off\n");
-	SDL_TerminalPrint(terminal, "\033[4mUnderline on\033[24m - Underline off\n");
+	SDL_TerminalPrint(terminal, "\033[4mUnderline on\033[24m - Underline off\n"); 
 
 	int done = 0;
 	SDL_Event event;

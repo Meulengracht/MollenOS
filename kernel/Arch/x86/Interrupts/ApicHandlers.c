@@ -26,6 +26,8 @@
 #include <Thread.h>
 #include <Threading.h>
 #include <Interrupts.h>
+#include <Log.h>
+
 #include <stdio.h>
 
 /* Extenrn Vars */
@@ -34,6 +36,7 @@ extern uint32_t GlbTimerQuantum;
 
 /* Extern Functions */
 extern void enter_thread(Registers_t *regs);
+extern void RegisterDump(Registers_t *Regs);
 
 /* Primary CPU Timer IRQ */
 int ApicTimerHandler(void *Args)

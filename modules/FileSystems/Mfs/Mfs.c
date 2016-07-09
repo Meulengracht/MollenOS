@@ -49,6 +49,9 @@ DeviceErrorMessage_t MfsReadSectors(MCoreFileSystem_t *Fs, uint64_t Sector, void
 		/* Keep */
 		MCoreDeviceRequest_t Request;
 
+		/* Clear out request */
+		memset(&Request, 0, sizeof(MCoreDeviceRequest_t));
+
 		/* Setup request */
 		Request.Base.Type = RequestRead;
 		Request.DeviceId = Fs->DiskId;
@@ -101,6 +104,9 @@ DeviceErrorMessage_t MfsWriteSectors(MCoreFileSystem_t *Fs, uint64_t Sector, voi
 	{
 		/* Keep */
 		MCoreDeviceRequest_t Request;
+
+		/* Clear out request */
+		memset(&Request, 0, sizeof(MCoreDeviceRequest_t));
 
 		/* Setup request */
 		Request.Base.Type = RequestWrite;

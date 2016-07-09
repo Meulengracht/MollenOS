@@ -214,6 +214,7 @@ PId_t PmCreateProcess(MString_t *Path, MString_t *Arguments)
 	MCoreProcess_t *Process = NULL;
 	MCoreFileInstance_t *File = NULL;
 	uint8_t *fBuffer = NULL;
+	MString_t *PathCopy = NULL;
 	DataKey_t Key;
 	int Index = 0;
 
@@ -225,7 +226,8 @@ PId_t PmCreateProcess(MString_t *Path, MString_t *Arguments)
 	File = VfsOpen(Path->Data, Read);
 
 	/* Sanity */
-	if (File->Code != VfsOk) {
+	if (File->Code != VfsOk
+		|| File->File == NULL) {
 		VfsClose(File);
 		return 0xFFFFFFFF;
 	}
@@ -236,12 +238,16 @@ PId_t PmCreateProcess(MString_t *Path, MString_t *Arguments)
 	/* Read */
 	VfsRead(File, fBuffer, (size_t)File->File->Size);
 
+	/* Copy path */
+	PathCopy = MStringCreate(File->File->Path->Data, StrUTF8);
+
 	/* Close */
 	VfsClose(File);
 
 	/* Validate File */
 	if (!PeValidate(fBuffer)) {
 		/* Bail Out */
+		MStringDestroy(PathCopy);
 		kfree(fBuffer);
 		return 0xFFFFFFFF;
 	}
@@ -256,10 +262,10 @@ PId_t PmCreateProcess(MString_t *Path, MString_t *Arguments)
 	GlbProcessId++;
 
 	/* Split path */
-	Index = MStringFindReverse(File->File->Path, '/');
-	Process->Name = MStringSubString(File->File->Path, Index + 1, -1);
-	Process->WorkingDirectory = MStringSubString(File->File->Path, 0, Index);
-	Process->BaseDirectory = MStringSubString(File->File->Path, 0, Index);
+	Index = MStringFindReverse(PathCopy, '/');
+	Process->Name = MStringSubString(PathCopy, Index + 1, -1);
+	Process->WorkingDirectory = MStringSubString(PathCopy, 0, Index);
+	Process->BaseDirectory = MStringSubString(PathCopy, 0, Index);
 
 	/* Save file buffer */
 	Process->fBuffer = fBuffer;
@@ -267,19 +273,19 @@ PId_t PmCreateProcess(MString_t *Path, MString_t *Arguments)
 	/* Save arguments */
 	if (Arguments != NULL
 		&& Arguments->Length != 0) {
-		Process->Arguments = MStringCreate(File->File->Path->Data, StrUTF8);
+		Process->Arguments = PathCopy;
 		MStringAppendChar(Process->Arguments, ' ');
 		MStringAppendString(Process->Arguments, Arguments);
 	}
 	else
-		Process->Arguments = MStringCreate(File->File->Path->Data, StrUTF8);
+		Process->Arguments = PathCopy;
 
 	/* Add process to list */
 	Key.Value = (int)Process->Id;
 	ListAppend(GlbProcesses, ListCreateNode(Key, Key, Process));
 
 	/* Create the loader thread */
-	ThreadingCreateThread("Process", PmStartProcess, Process, THREADING_USERMODE);
+	ThreadingCreateThread(Process->Name->Data, PmStartProcess, Process, THREADING_USERMODE);
 
 	/* Done */
 	return Process->Id;

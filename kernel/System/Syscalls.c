@@ -62,9 +62,11 @@ PId_t ScProcessSpawn(char *Path, char *Arguments)
 	mPath = MStringCreate(Path, StrUTF8);
 	mArguments = (Arguments == NULL) ? NULL : MStringCreate(Arguments, StrUTF8);
 
+	/* Clean out structure */
+	memset(&Request, 0, sizeof(MCoreProcessRequest_t));
+
 	/* Setup */
 	Request.Base.Type = ProcessSpawn;
-	Request.Base.Cleanup = 0;
 	Request.Path = mPath;
 	Request.Arguments = mArguments;
 	
@@ -110,9 +112,11 @@ int ScProcessKill(PId_t ProcessId)
 	/* Alloc on stack */
 	MCoreProcessRequest_t Request;
 
+	/* Clean out structure */
+	memset(&Request, 0, sizeof(MCoreProcessRequest_t));
+
 	/* Setup */
 	Request.Base.Type = ProcessKill;
-	Request.Base.Cleanup = 0;
 	Request.ProcessId = ProcessId;
 
 	/* Fire! */
@@ -785,7 +789,6 @@ size_t ScVfsRead(int FileDescriptor, uint8_t *Buffer, size_t Length, VfsErrorCod
 	VfsErrorCode_t RetCode = VfsInvalidParameters;
 	size_t bRead = 0;
 	DataKey_t Key;
-	Key.Value = FileDescriptor;
 
 	/* Should never happen this
 	* Only threads associated with processes
@@ -800,6 +803,7 @@ size_t ScVfsRead(int FileDescriptor, uint8_t *Buffer, size_t Length, VfsErrorCod
 	}
 
 	/* Lookup file handle */
+	Key.Value = FileDescriptor;
 	ListNode_t *fNode = ListGetNodeByKey(Process->OpenFiles, Key, 0);
 
 	/* Sanity */
@@ -1039,6 +1043,9 @@ int ScDeviceQuery(DeviceType_t Type, uint8_t *Buffer, size_t BufferLength)
 
 	/* Allocate a proxy buffer */
 	uint8_t *Proxy = (uint8_t*)kmalloc(BufferLength);
+
+	/* Reset request */
+	memset(&Request, 0, sizeof(MCoreDeviceRequest_t));
 
 	/* Setup */
 	Request.Base.Type = RequestQuery;

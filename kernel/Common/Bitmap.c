@@ -22,6 +22,7 @@
 /* Includes */
 #include <Bitmap.h>
 #include <Heap.h>
+#include <Log.h>
 
 /* C-Library */
 #include <stddef.h>
@@ -101,77 +102,75 @@ void BitmapDestroy(Bitmap_t *Bitmap)
 Addr_t BitmapAllocateAddress(Bitmap_t *Bitmap, size_t Size)
 {
 	/* Variables */
-	size_t i, max = Bitmap->BlockCount;
-	size_t numblocks = DIVUP(Size, Bitmap->BlockSize);
-	int j, k;
-	int rbit = -1;
+	size_t NumBlocks = DIVUP(Size, Bitmap->BlockSize);
+	size_t BlockItr, k;
+	int BitItr;
+	int StartBit = -1;
 
 	/* Acquire lock */
 	SpinlockAcquire(&Bitmap->Lock);
 
 	/* Find time! */
-	for (i = 0; i < max; i++)
+	for (BlockItr = 0; BlockItr < Bitmap->BlockCount; BlockItr++)
 	{
-		/* Quick test -> if all is allocated */
-		if (Bitmap->Bitmap[i] != 0xFFFFFFFF)
-		{
-			/* Test each bit in this int */
-			for (j = 0; j < 32; j++)
-			{
-				/* Calculate the bit */
-				int bit = 1 << j;
+		/* Quick test, if all is allocated, damn */
+		if (Bitmap->Bitmap[BlockItr] == 0xFFFFFFFF) {
+			continue;
+		}
 
-				/* Test it */
-				if (!(Bitmap->Bitmap[i] & bit))
-				{
-					/* Ok, so this is not completely enough 
-					 * as we might have requested more than
-					 * one block */
-					if (numblocks != 1) {
-						/* Test each bit in this int */
-						for (k = 0; (k < (int)numblocks) && ((j + k) < 32); k++)
-						{
-							/* Calculate the bit */
-							int kbit = 1 << (j + k);
+		/* Test each bit in this part */
+		for (BitItr = 0; BitItr < 32; BitItr++) {
+			int CurrentBit = 1 << BitItr;
+			if (Bitmap->Bitmap[BlockItr] & CurrentBit) {
+				continue;
+			}
 
-							if (Bitmap->Bitmap[i] & kbit)
-								break;
-						}
-
-						/* If k == numblocks we can allocate */
-						if (k == (int)numblocks) {
-							rbit = (int)(i * 4 * 8 + j);
-							break;
-						}
-						else
-							rbit = -1;
+			/* Ok, now we have to incremently make sure
+			 * enough consecutive bits are free */
+			for (k = 0; k < NumBlocks; k++) {
+				/* Sanitize that we haven't switched
+				 * block temporarily */
+				if ((BitItr + k) >= 32) {
+					int TempI = BlockItr + ((BitItr + k) / 32);
+					int OffsetI = (BitItr + k) % 32;
+					int BlockBit = 1 << OffsetI;
+					if (Bitmap->Bitmap[TempI] & BlockBit) {
+						break;
 					}
-					else {
-						rbit = (int)(i * 4 * 8 + j);
+				}
+				else {
+					int BlockBit = 1 << (BitItr + k);
+					if (Bitmap->Bitmap[BlockItr] & BlockBit) {
 						break;
 					}
 				}
 			}
+
+			/* If k == numblocks we can allocate */
+			if (k == NumBlocks) {
+				StartBit = (int)(BlockItr * 4 * 8 + BitItr);
+				break;
+			}
 		}
 
 		/* Check for break */
-		if (rbit != -1)
+		if (StartBit != -1)
 			break;
 	}
 
 	/* Allocate the bits */
-	for (k = 0; k < (int)numblocks; k++) {
-		/* Allocate the bit */
-		BitmapSet(Bitmap, rbit + k);
+	for (k = 0; k < NumBlocks; k++) {
+		BitmapSet(Bitmap, StartBit + k);
 	}
 
 	/* Release lock */
 	SpinlockRelease(&Bitmap->Lock);
 
-	/* Sanity */
-	if (rbit != -1) {
-		/* Calculate address */
-		return Bitmap->Base + (Addr_t)(rbit * Bitmap->BlockSize);
+	/* Sanity 
+	 * Only calculate the resulting 
+	 * address if we found a bit */
+	if (StartBit != -1) {
+		return Bitmap->Base + (Addr_t)(StartBit * Bitmap->BlockSize);
 	}
 	else
 		return 0;
@@ -182,17 +181,15 @@ Addr_t BitmapAllocateAddress(Bitmap_t *Bitmap, size_t Size)
 void BitmapFreeAddress(Bitmap_t *Bitmap, Addr_t Address, size_t Size)
 {
 	/* Start out by calculating the bit index */
-	int rbit = (Address - Bitmap->Base) / Bitmap->BlockSize;
-	size_t numblocks = DIVUP(Size, Bitmap->BlockSize);
-	int i;
+	int StartBit = (Address - Bitmap->Base) / Bitmap->BlockSize;
+	size_t i, NumBlocks = DIVUP(Size, Bitmap->BlockSize);
 
 	/* Acquire lock */
 	SpinlockAcquire(&Bitmap->Lock);
 
 	/* Deallocate the bits */
-	for (i = 0; i < (int)numblocks; i++) {
-		/* Allocate the bit */
-		BitmapUnset(Bitmap, rbit + i);
+	for (i = 0; i < NumBlocks; i++) {
+		BitmapUnset(Bitmap, StartBit + i);
 	}
 
 	/* Release lock */
