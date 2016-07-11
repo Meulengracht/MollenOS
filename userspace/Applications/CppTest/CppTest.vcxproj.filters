@@ -15,6 +15,9 @@
     <Filter Include="libcpp\i386">
       <UniqueIdentifier>{8d46a673-89b3-4037-aa28-816aa25cfb8f}</UniqueIdentifier>
     </Filter>
+    <Filter Include="libcpp\os">
+      <UniqueIdentifier>{6ec9ce3a-0552-4ec9-9568-1dc2cdbe8ea3}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="main.cpp">
@@ -38,6 +41,15 @@
     <ClCompile Include="LibCxx\misc.c">
       <Filter>libcpp</Filter>
     </ClCompile>
+    <ClCompile Include="LibCxx\i386\Unwind32.c">
+      <Filter>libcpp\i386</Filter>
+    </ClCompile>
+    <ClCompile Include="LibCxx\i386\Except32.c">
+      <Filter>libcpp\i386</Filter>
+    </ClCompile>
+    <ClCompile Include="LibCxx\os\Exceptions.c">
+      <Filter>libcpp\os</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="LibCxx\mvcxx.h">
@@ -51,10 +63,5 @@
     <CustomBuild Include="LibCxx\i386\rtxx.asm">
       <Filter>libcpp\i386</Filter>
     </CustomBuild>
-  </ItemGroup>
-  <ItemGroup>
-    <None Include="LibCxx\i386\vtables.asm">
-      <Filter>libcpp\i386</Filter>
-    </None>
   </ItemGroup>
 </Project>

@@ -84,9 +84,12 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="LibCxx\exception.cpp" />
+    <ClCompile Include="LibCxx\i386\Except32.c" />
     <ClCompile Include="LibCxx\i386\Frame32.c" />
+    <ClCompile Include="LibCxx\i386\Unwind32.c" />
     <ClCompile Include="LibCxx\misc.c" />
     <ClCompile Include="LibCxx\new.cpp" />
+    <ClCompile Include="LibCxx\os\Exceptions.c" />
     <ClCompile Include="LibCxx\typeinfo.cpp" />
     <ClCompile Include="LibCxx\delete.cpp" />
     <ClCompile Include="main.cpp" />
@@ -101,9 +104,6 @@
   <ItemGroup>
     <ClInclude Include="LibCxx\mscxx.h" />
     <ClInclude Include="LibCxx\mvcxx.h" />
-  </ItemGroup>
-  <ItemGroup>
-    <None Include="LibCxx\i386\vtables.asm" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

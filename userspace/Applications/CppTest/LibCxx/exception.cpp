@@ -28,19 +28,9 @@
 /* C++ */
 #include <exception>
 
-/* Globals */
-extern const vTablePtr cxx_exception_vtable;
-extern const vTablePtr cxx_bad_typeid_vtable;
-extern const vTablePtr cxx_bad_cast_vtable;
-extern const vTablePtr cxx___non_rtti_object_vtable;
-extern const vTablePtr cxx_type_info_vtable;
-
 /* Internal common ctor for exception */
 static void _InternalExceptionConstruct(InternalException_t *_this, const char **ExcName, int NoAlloc)
 {
-	/* Access it's virtual table */
-	_this->vTable = &cxx_exception_vtable;
-
 	/* Is it a noalloc instance? */
 	if (NoAlloc != 0) {
 		_this->ExcName = (char*)(*ExcName);
@@ -100,16 +90,9 @@ exception::exception(const char * const &ExceptionName, int NoAlloc) {
  * exception classes */
 exception::~exception() 
 {
-	/* Start by casting it so we can access 
-	 * the virtual table */
-	InternalException_t *_IntExc = (InternalException_t*)this;
-
-	/* Update virtual table */
-	_IntExc->vTable = &cxx_exception_vtable;
-
 	/* Free resources if neccessary */
-	if (_IntExc->FreeName) {
-		free(_IntExc->ExcName);
+	if (_do_free) {
+		free((void*)_name);
 	}
 }
 

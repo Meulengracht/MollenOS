@@ -65,6 +65,7 @@ void CxxRaiseException(uint32_t dwExceptionCode, uint32_t dwExceptionFlags,
 
 	/* Now actually raise the exception
 	 * all is now converted to an ExceptionRecord */
+	RtlRaiseException(&ExceptionRecord);
 }
 
 /* This is the function that actually throws
@@ -81,6 +82,105 @@ void CxxThrowException(InternalException_t *ExcObject, const CxxExceptionType_t 
 
 	/* Redirect */
 	CxxRaiseException(CXX_EXCEPTION, EH_NONCONTINUABLE, 3, Arguments);
+}
+
+/* Detect whether or not it was a rethrow */
+int __cdecl __CxxDetectRethrow(PEXCEPTION_POINTERS Ptrs)
+{
+	/* Variables */
+	PEXCEPTION_RECORD Record;
+
+	/* Sanitize pointers */
+	if (!Ptrs)
+		return 0;
+
+	/* Store exception record */
+	Record = Ptrs->ExceptionRecord;
+
+	if (Record->ExceptionCode == CXX_EXCEPTION &&
+		Record->NumberParameters == 3 &&
+		Record->ExceptionInformation[0] == CXX_FRAME_MAGIC_VC6 &&
+		Record->ExceptionInformation[2]) {
+		Ptrs->ExceptionRecord = TLSGetCurrent()->ExceptionRecord;
+		return 1;
+	}
+
+	/* Final check */
+	return (TLSGetCurrent()->ExceptionRecord == Record);
+}
+
+/* This just returns the size of 
+ * the exception type record */
+unsigned int __cdecl __CxxQueryExceptionSize(void) {
+	return sizeof(CxxExceptionType_t);
+}
+
+#ifdef _MSC_VER
+#pragma warning(push)
+#pragma warning(disable:4733)
+#endif
+
+/* Pushes a new exception frame onto the exception list 
+ * this list is local for each thread */
+EXCEPTION_REGISTRATION_RECORD *CxxPushFrame(EXCEPTION_REGISTRATION_RECORD *Frame)
+{
+	/* Get local thread data */
+	ThreadLocalStorage_t *Data = TLSGetCurrent();
+
+	/* Store next record */
+	Frame->NextRecord = Data->ExceptionList;
+	Data->ExceptionList = (void*)Frame;
+
+	/* Return previous frame */
+	return Frame->NextRecord;
+}
+
+/* Pops an exception frame from the exception list
+ * this list is local for each thread */
+EXCEPTION_REGISTRATION_RECORD *CxxPopFrame(EXCEPTION_REGISTRATION_RECORD *Frame)
+{
+	/* Get local thread data */
+	ThreadLocalStorage_t *Data = TLSGetCurrent();
+
+	/* Remove */
+	Data->ExceptionList = (void*)Frame->NextRecord;
+
+	/* Return previous frame */
+	return Frame->NextRecord;
+}
+
+#ifdef _MSC_VER
+#pragma warning(pop)
+#endif
+
+/* Compute the this pointer for a base class of a given type */
+void *CxxGetThisPointer(const CxxThisPtrOffsets_t *Offsets, void *Object)
+{
+	/* Null object? No offset to compute then */
+	if (!Object)
+		return NULL;
+
+	/* Sanitize the vBase Descriptor */
+	if (Offsets->vBaseDescriptor >= 0)
+	{
+		/* Variables */
+		int *Offset;
+
+		/* mMve this ptr to vbase descriptor */
+		Object = (char *)Object + Offsets->vBaseDescriptor;
+
+		/* Then fetch additional offset from vbase descriptor */
+		Offset = (int *)(*(char **)Object + Offsets->vBaseOffset);
+
+		/* Calculate initial offset */
+		Object = (char *)Object + *Offset;
+	}
+
+	/* Calculate the final object pointer */
+	Object = (char *)Object + Offsets->ThisOffset;
+
+	/* Done! Return the corrected object pointer */
+	return Object;
 }
 
 /* Install a handler to be called when terminate() is called.

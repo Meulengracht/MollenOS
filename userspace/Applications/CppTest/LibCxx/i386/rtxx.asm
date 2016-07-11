@@ -31,6 +31,8 @@ global ___CxxFrameHandler3
 global _CallCxxFrameHandler
 global ___CxxFrameHandler
 global __CxxThrowException@8
+global _RtlpCaptureContext
+global _RtlCaptureContext
 
 ; Throw Exception redirection
 __CxxThrowException@8:
@@ -63,3 +65,67 @@ ___CxxFrameHandler:
 _CallCxxFrameHandler:
     mov eax, dword [esp + 20]
     jmp ___CxxFrameHandler
+
+; Capture Context
+_RtlCaptureContext:
+
+    ; Preserve EBX and put the context in it
+    push ebx
+    mov ebx, [esp+8]
+
+    ; Save the basic register context
+    mov [ebx+0xB0], eax
+    mov [ebx+0xAC], ecx
+    mov [ebx+0xA8], edx
+    mov eax, [esp]
+    mov [ebx+0xA4], eax
+    mov [ebx+0xA0], esi
+    mov [ebx+0x9C], edi
+
+    ; Capture the other regs
+    jmp CaptureRest
+
+
+; Capture Context
+_RtlpCaptureContext:
+
+    ; Preserve EBX and put the context in it
+    push ebx
+    mov ebx, [esp+8]
+
+    ; Clear the basic register context
+    mov dword [ebx+0xB0], 0
+    mov dword [ebx+0xAC], 0
+    mov dword [ebx+0xA8], 0
+    mov dword [ebx+0xA4], 0
+    mov dword [ebx+0xA0], 0
+    mov dword [ebx+0x9C], 0
+
+CaptureRest:
+    ; Capture the segment registers
+    mov [ebx+0xBC], cs
+    mov [ebx+0x98], ds
+    mov [ebx+0x94], es
+    mov [ebx+0x90], fs
+    mov [ebx+0x8C], gs
+    mov [ebx+0xC8], ss
+
+    ; Capture flags
+    pushfd
+    pop dword [ebx+0xC0]
+
+    ; The return address should be in [ebp+4]
+    mov eax, [ebp+4]
+    mov [ebx+0xB8], eax
+
+    ; Get EBP
+    mov eax, [ebp+0]
+    mov [ebx+0xB4], eax
+
+    ; And get ESP
+    lea eax, [ebp+8]
+    mov [ebx+0xC4], eax
+
+    ; Return to the caller
+    pop ebx
+    ret 4

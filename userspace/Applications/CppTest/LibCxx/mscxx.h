@@ -50,6 +50,9 @@
 #define EXCEPTION_NONCONTINUABLE_EXCEPTION ((uint32_t)0xC0000025)
 #define EXCEPTION_STACK_OVERFLOW ((uint32_t)0xC00000FD)
 #define EXCEPTION_INVALID_DISPOSITION ((uint32_t)0xC0000026)
+#define EXCEPTION_STATUS_UNWIND ((uint32_t)0xC0000027)
+#define EXCEPTION_INVALID_STACK ((uint32_t)0xC0000028)
+#define EXCEPTION_INVALID_UNWIND ((uint32_t)0xC0000029)
 #define EXCEPTION_GUARD_PAGE ((uint32_t)0x80000001)
 #define EXCEPTION_INVALID_HANDLE ((uint32_t)0xC0000008L)
 
@@ -67,6 +70,8 @@
 #define IS_UNWINDING(Flag) ((Flag & EXCEPTION_UNWIND) != 0)
 #define IS_DISPATCHING(Flag) ((Flag & EXCEPTION_UNWIND) == 0)
 #define IS_TARGET_UNWIND(Flag) (Flag & EXCEPTION_TARGET_UNWIND)
+
+#define EXCEPTION_CHAIN_END ((PEXCEPTION_REGISTRATION_RECORD)-1)
 
 /* Describes an exception record, used
  * to cast and catch exceptions in the lower
@@ -264,14 +269,17 @@ typedef enum _EXCEPTION_DISPOSITION
 
 /* Typedef for the exception handler function
  * prototype */
-typedef uint32_t (*PEXCEPTIONHANDLER)(EXCEPTION_RECORD *pException,
-	struct _EXCEPTION_REGISTRATION_RECORD *pRegistrationRecord, CONTEXT *pContext);
+typedef EXCEPTION_DISPOSITION(*PEXCEPTION_HANDLER)(
+	struct _EXCEPTION_RECORD *ExceptionRecord, 
+	struct _EXCEPTION_REGISTRATION_RECORD *EstablisherFrame,
+	struct _CONTEXT *ContextRecord,
+	struct _EXCEPTION_REGISTRATION_RECORD **DispatcherContext);
 
 /* Definition of 'raw' WinNt exception
  * registration record - this ought to be in WinNt.h */
 typedef struct _EXCEPTION_REGISTRATION_RECORD {
 	struct _EXCEPTION_REGISTRATION_RECORD *NextRecord;
-	PEXCEPTIONHANDLER ExceptionHandler;
+	PEXCEPTION_HANDLER ExceptionHandler;
 } EXCEPTION_REGISTRATION_RECORD, *PEXCEPTION_REGISTRATION_RECORD;
 
 /* Describes an exception record, used

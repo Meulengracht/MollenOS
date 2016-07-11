@@ -62,13 +62,6 @@ int main(int argc, char* argv[])
 	SDL_TerminalSetFont(terminal, "%Sys%/Fonts/DejaVuSansMono.ttf", 12);
 	SDL_TerminalSetSize(terminal, 80, 25);
 
-	SDL_TerminalSetPosition(terminal, 0, 0);
-
-	SDL_TerminalSetColor(terminal, 255, 255, 255, 128);
-	SDL_TerminalSetBorderColor(terminal, 255, 255, 255, 255);
-	SDL_TerminalSetForeground(terminal, 0, 0, 0, 255);
-	SDL_TerminalSetBackground(terminal, 255, 255, 255, 128);
-
 	SDL_TerminalClear(terminal);
 	SDL_TerminalPrint(terminal, "Terminal initialized\n");
 	SDL_TerminalPrint(terminal, "Using font DejaVuSansMono, %d\n", terminal->font_size);
@@ -76,13 +69,14 @@ int main(int argc, char* argv[])
 	SDL_TerminalPrint(terminal, "\033[1mBold on\033[22m - Bold off\n");
 	SDL_TerminalPrint(terminal, "\033[3mItalic on\033[23m - Italic off\n");
 	SDL_TerminalPrint(terminal, "\033[4mUnderline on\033[24m - Underline off\n"); 
+	SDL_TerminalBlit(terminal);
 
 	int done = 0;
 	SDL_Event event;
 	last_tick = SDL_GetTicks();
 
 	while (!done) {
-		while (SDL_PollEvent(&event)) {
+		/*while (SDL_PollEvent(&event)) {
 			switch (event.type) {
 			case SDL_KEYDOWN:
 				//key_press(&event.key.keysym);
@@ -104,7 +98,7 @@ int main(int argc, char* argv[])
 			SDL_Delay(wait - (new_tick - last_tick));
 		last_tick = SDL_GetTicks();
 
-		SDL_TerminalBlit(terminal);
+		SDL_TerminalBlit(terminal);*/
 	}
 
 	/* Cleanup */

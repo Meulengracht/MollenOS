@@ -39,15 +39,6 @@ typedef void(*CxxUnexpectedHandler)(void);
 typedef void(*CxxUnexpectedFunction)(void);
 typedef void(*CxxSETranslatorFunction)(unsigned int code, struct _EXCEPTION_POINTERS *info);
 
-CxxTerminateFunction _set_terminate(CxxTerminateFunction func);
-CxxUnexpectedFunction _set_unexpected(CxxUnexpectedFunction func);
-CxxSETranslatorFunction _set_se_translator(CxxSETranslatorFunction func);
-
-/* Function definitions 
- * for unhandled exceptions */
-void terminate(void);
-void unexpected(void);
-
 /* Magic numbers used by VC++ */
 #define CXX_FRAME_MAGIC_VC6 0x19930520
 #define CXX_FRAME_MAGIC_VC7 0x19930521
@@ -262,7 +253,7 @@ typedef struct __CxxTypeInfoTable
 
 /* Custom cxx exception handler 
  * fingerprint */
-typedef uint32_t (*CxxCustomHandler)(PEXCEPTION_RECORD, CxxExceptionFrame_t*,
+typedef EXCEPTION_DISPOSITION(*CxxCustomHandler)(PEXCEPTION_RECORD, CxxExceptionFrame_t*,
 	PCONTEXT, EXCEPTION_REGISTRATION_RECORD**, const CxxFunctionDescriptor_t*, int,
 	EXCEPTION_REGISTRATION_RECORD *, uint32_t);
 
@@ -285,5 +276,33 @@ typedef struct __CxxExceptionType
 	const CxxTypeInfoTable_t	*TypeTable;
 
 } CxxExceptionType_t;
+
+CxxTerminateFunction _set_terminate(CxxTerminateFunction func);
+CxxUnexpectedFunction _set_unexpected(CxxUnexpectedFunction func);
+CxxSETranslatorFunction _set_se_translator(CxxSETranslatorFunction func);
+
+/* Function definitions
+* for unhandled exceptions */
+void terminate(void);
+void unexpected(void);
+
+/* Pushes a new exception frame onto the exception list
+* this list is local for each thread */
+EXCEPTION_REGISTRATION_RECORD *CxxPushFrame(EXCEPTION_REGISTRATION_RECORD *Frame);
+
+/* Pops an exception frame from the exception list
+* this list is local for each thread */
+EXCEPTION_REGISTRATION_RECORD *CxxPopFrame(EXCEPTION_REGISTRATION_RECORD *Frame);
+
+/* Compute the this pointer for a base class of a given type */
+void *CxxGetThisPointer(const CxxThisPtrOffsets_t *Offsets, void *Object);
+
+/* RTL Functions, this include 
+ * Unwind, RaiseException etc */
+void RtlUnwind(PEXCEPTION_REGISTRATION_RECORD EndFrame, void *Eip,
+	PEXCEPTION_RECORD Record, uint32_t ReturnValue);
+void RtlRaiseException(PEXCEPTION_RECORD ExceptionRecord);
+void RtlCaptureContext(PCONTEXT ContextRecord);
+void RtlpCaptureContext(PCONTEXT ContextRecord);
 
 #endif //!_MOLLENOS_VCXX_H_

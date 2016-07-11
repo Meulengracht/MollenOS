@@ -427,8 +427,8 @@ SDL_TerminalBlit (SDL_Terminal *terminal)
 {
     SDL_TerminalRenderCursor (terminal);
 
-	SDL_Surface *screen = SDL_GetWindowSurface(terminal->window);
-    if (screen == 0)
+	SDL_Surface *wSurface = SDL_GetWindowSurface(terminal->window);
+	if (wSurface == 0)
         return -1;
 
     if (!(terminal->visible))
@@ -487,10 +487,8 @@ SDL_TerminalBlit (SDL_Terminal *terminal)
 
 	return 0;
 #else
-	SDL_SetSurfaceAlphaMod(terminal->surface, 0);
-	SDL_Rect src = { 0, 0, terminal->surface->w, terminal->surface->h };
 	SDL_Rect dst = { terminal->position.x, terminal->position.y, 0, 0 };
-	SDL_BlitSurface(terminal->surface, &src, screen, &dst);
+	SDL_BlitSurface(terminal->surface, NULL, wSurface, &dst);
 	return SDL_UpdateWindowSurface(terminal->window);
 #endif
 }
@@ -513,13 +511,14 @@ SDL_TerminalClear (SDL_Terminal *terminal)
     Uint32 color;
 
     /* Outer border */
-    color = SDL_MapRGBA (fmt, terminal->br_color.r,terminal->br_color.g, terminal->br_color.b, terminal->br_color.a);
+    color = SDL_MapRGBA (fmt, terminal->br_color.r, 
+		terminal->br_color.g, terminal->br_color.b, terminal->br_color.a);
     SDL_Rect outer = {0, 0, terminal->psize.w, terminal->psize.h};
-	SDL_SetSurfaceAlphaMod(terminal->surface, 0);
     SDL_FillRect (terminal->surface, &outer, color);
 
     /* Inner background */
-    color = SDL_MapRGBA (fmt, terminal->color.r, terminal->color.g, terminal->color.b, terminal->color.a);
+    color = SDL_MapRGBA (fmt, terminal->color.r, terminal->color.g, 
+		terminal->color.b, terminal->color.a);
     SDL_Rect inner = {1, 1, terminal->psize.w-2, terminal->psize.h-2};
     SDL_FillRect (terminal->surface, &inner, color);
 
@@ -637,7 +636,6 @@ SDL_TerminalSetSize (SDL_Terminal *terminal, int column, int row)
         terminal->status = 0;
         return -1;
     }
-	SDL_SetSurfaceAlphaMod(terminal->surface, 0);
     SDL_TerminalRefresh (terminal);
     return 0;
 }
@@ -1329,7 +1327,7 @@ SDL_TerminalGetNumberOfLine (SDL_Terminal *terminal, char *text)
 int SDL_TerminalClearFrom (SDL_Terminal *terminal, int column, int row)
 {
     Uint32 color = SDL_MapRGBA (terminal->surface->format, terminal->color.r, terminal->color.g, terminal->color.b, terminal->color.a);
-	SDL_SetSurfaceAlphaMod(terminal->surface, 0);
+	//SDL_SetSurfaceAlphaMod(terminal->surface, 0);
 
     if ((column <= (terminal->size.column-1)) && (row <= (terminal->size.row-1))) {
         SDL_Rect dst = {terminal->br_size + column*terminal->glyph_size.w,
@@ -1366,7 +1364,7 @@ SDL_TerminalScroll (SDL_Terminal *terminal, int n)
 
         SDL_Rect dst_rect = {terminal->br_size, terminal->br_size,
                              terminal->surface->w-2*terminal->br_size, terminal->surface->h - 2*terminal->br_size - n*terminal->glyph_size.h};
-		SDL_SetSurfaceAlphaMod(terminal->surface, 0);
+		//SDL_SetSurfaceAlphaMod(terminal->surface, 0);
         SDL_BlitSurface (terminal->surface, &src_rect, terminal->surface, &dst_rect);
         SDL_TerminalUpdateGLTexture (terminal, &dst_rect);
     }
@@ -1382,11 +1380,16 @@ int
 SDL_TerminalEraseCursor (SDL_Terminal *terminal) 
 {
     char c = ' ';
+
+	/* Determine where to put the cursor in case 
+	 * it's to far */
     if (terminal->line_pos < strlen(terminal->line)) {
         c = terminal->line[terminal->line_pos];
         if (c == '\t')
             c = ' ';
     }
+
+	/* 'Render' the cursor */
     return SDL_TerminalRenderChar (terminal,
                                    terminal->br_size + terminal->cpos.x * terminal->glyph_size.w,
                                    terminal->br_size + terminal->cpos.y * terminal->glyph_size.h,
@@ -1400,22 +1403,34 @@ SDL_TerminalEraseCursor (SDL_Terminal *terminal)
 int
 SDL_TerminalRenderCursor (SDL_Terminal *terminal) 
 {
+	/* Get foreground and bg colors */
     SDL_Color fg = terminal->fg_color;
-    SDL_Color bg = terminal->bg_color;
+	SDL_Color bg = terminal->bg_color;
+	char c = ' ';
+	int r = 0;
+
+	/* Setup cursor colors */
     terminal->fg_color = terminal->color;
     terminal->bg_color.a = 255;
-    char c = ' ';
+
+	/* Where should we render it? */
     if (terminal->line_pos < strlen(terminal->line)) {
         c = terminal->line[terminal->line_pos];
         if (c == '\t')
             c = ' ';
     }
-    int r = SDL_TerminalRenderChar (terminal,
+
+	/* Render the character */
+    r = SDL_TerminalRenderChar (terminal,
                                     terminal->br_size + terminal->cpos.x * terminal->glyph_size.w,
                                     terminal->br_size + terminal->cpos.y * terminal->glyph_size.h,
                                     c);
+
+	/* Restore colors */
     terminal->fg_color = fg;
-    terminal->bg_color = bg;    
+    terminal->bg_color = bg;
+
+	/* Done! */
     return r;
 }
 
@@ -1425,39 +1440,52 @@ SDL_TerminalRenderCursor (SDL_Terminal *terminal)
 int
 SDL_TerminalRenderChar (SDL_Terminal *terminal, int x, int y, char c)
 {
-    char buffer[] = " ";
-    buffer[0] = c;
-    SDL_Surface *text_surf = 0;
+	/* Temporary buffer */
+	SDL_Surface *TextSurface = 0;
+    char cBuffer[] = " ";
 
+	/* Set buffer */
+	cBuffer[0] = c;
+
+	/* If we have transparency shade the character */
     if (terminal->bg_color.a)
-        text_surf = TTF_RenderText_Shaded (terminal->font, buffer, terminal->fg_color, terminal->bg_color);
+		TextSurface = TTF_RenderText_Shaded(terminal->font,
+							cBuffer, terminal->fg_color, terminal->bg_color);
     else
-        text_surf = TTF_RenderText_Blended (terminal->font, buffer, terminal->fg_color);
-    if (text_surf == 0) {
+		TextSurface = TTF_RenderText_Blended(terminal->font, cBuffer, terminal->fg_color);
+
+	/* Sanity */
+	if (TextSurface == 0) {
 		SDL_SetError("SDL Error <out of memory>: %i", SDL_ENOMEM);
         return -1;
     }
 
+	/* Erase any character at that position 
+	 * in case we are overwriting */
     SDL_TerminalEraseChar (terminal, x, y);
 
+	/* Blit the surface */
     SDL_Rect src = {0, 0, terminal->glyph_size.w, terminal->glyph_size.h};
     SDL_Rect dst = {x, y, terminal->glyph_size.w, terminal->glyph_size.h};
-    SDL_BlitSurface (text_surf, &src, terminal->surface, &dst);
+	SDL_BlitSurface(TextSurface, &src, terminal->surface, &dst);
 
     /* Make character opaque when it is rendered on a transparent background */
-    if (text_surf->format->BytesPerPixel == 4) {
+	if (TextSurface->format->BytesPerPixel == 4) {
         int i,j;
         for (i=0; i<terminal->glyph_size.w; i++) {
             for (j=0; j<terminal->glyph_size.h; j++) {
 				Uint8 *s = (Uint8 *)((Uint8*)terminal->surface->pixels + (x + i) * 4 + (y + j)*terminal->surface->pitch);
-				Uint8 *t = (Uint8 *)((Uint8*)text_surf->pixels + i * 4 + j*text_surf->pitch);
+				Uint8 *t = (Uint8 *)((Uint8*)TextSurface->pixels + i * 4 + j*TextSurface->pitch);
                 if (*(t+3) > *(s+3))
                     *(s+3) = *(t+3);
             }
         }
     }
     
-    SDL_FreeSurface (text_surf);
+	/* Free the temporary text surface */
+	SDL_FreeSurface(TextSurface);
+
+	/* If using opengl update texture */
     return SDL_TerminalUpdateGLTexture (terminal, &dst);
 }
 
@@ -1467,10 +1495,19 @@ SDL_TerminalRenderChar (SDL_Terminal *terminal, int x, int y, char c)
 int
 SDL_TerminalEraseChar (SDL_Terminal *terminal, int x, int y)
 {
-    Uint32 color = SDL_MapRGBA (terminal->surface->format, terminal->color.r, terminal->color.g, terminal->color.b, terminal->color.a);
-	SDL_SetSurfaceAlphaMod(terminal->surface, 0);
+	/* Get the background color in RGBA format */
+    Uint32 color = SDL_MapRGBA (terminal->surface->format, 
+		terminal->color.r, terminal->color.g, terminal->color.b, terminal->color.a);
+
+	/* Set the alpha to be used for blit operations */
+	//SDL_SetSurfaceAlphaMod(terminal->surface, 0);
+
+	/* Blit background color on top of the character
+	 * essentially errasing it */
     SDL_Rect dst = {x, y, terminal->glyph_size.w, terminal->glyph_size.h};
     SDL_FillRect (terminal->surface, &dst, color);
+
+	/* If using opengl update texture */
     return SDL_TerminalUpdateGLTexture (terminal, &dst);
 }
 
