@@ -41,7 +41,7 @@ typedef struct _NESTED_FRAME {
  * happening during the handler execution. */
 EXCEPTION_DISPOSITION CxxUnwindCallHandler(EXCEPTION_RECORD *Record,
 	EXCEPTION_REGISTRATION_RECORD *Frame, CONTEXT *Ctx, 
-	EXCEPTION_REGISTRATION_RECORD **dispatcher, PEXCEPTION_HANDLER Handler, 
+	EXCEPTION_REGISTRATION_RECORD **Dispatcher, PEXCEPTION_HANDLER Handler, 
 	PEXCEPTION_HANDLER NestedHandler) 
 {
 	/* Variables */
@@ -55,7 +55,7 @@ EXCEPTION_DISPOSITION CxxUnwindCallHandler(EXCEPTION_RECORD *Record,
 	/* Push the frame 
 	 * Call the handler and pop frame off */
 	CxxPushFrame(&NewFrame.Frame);
-	Rc = Handler(Record, Frame, Ctx, dispatcher);
+	Rc = Handler(Record, Frame, Ctx, Dispatcher);
 	CxxPopFrame(&NewFrame.Frame);
 
 	/* Done! */
@@ -92,7 +92,8 @@ void CxxUnwind(PEXCEPTION_REGISTRATION_RECORD EndFrame, void *Eip,
 	ThreadLocalStorage_t *tData = TLSGetCurrent();
 
 	/* Get the current stack limits */
-	//RtlpGetStackLimits(&StackLow, &StackHigh);
+	StackLow = (uint32_t)tData->StackLow;
+	StackHigh = (uint32_t)tData->StackHigh;
 
 	/* Check if we have already been given a exception
 	 * record, otherwise we have to create one */
@@ -120,7 +121,7 @@ void CxxUnwind(PEXCEPTION_REGISTRATION_RECORD EndFrame, void *Eip,
 
 		/* If we have reached the target */
 		if (Frame == EndFrame)
-			; //ZwContinue(Ctx, FALSE);
+			ZwContinue(Ctx, 0);
 
 		/* Validate frame address */
 		if (EndFrame && (Frame > EndFrame)) {
@@ -135,6 +136,7 @@ void CxxUnwind(PEXCEPTION_REGISTRATION_RECORD EndFrame, void *Eip,
 			RtlRaiseException(&NewRecord);  // Never returns
 		}
 
+		/* Make sure the registration frame is located within the stack */
 		if ((uint32_t)Frame < StackLow
 			|| (uint32_t)(Frame + 1) > StackHigh
 			|| (int)Frame & 3) 
@@ -181,12 +183,135 @@ void CxxUnwind(PEXCEPTION_REGISTRATION_RECORD EndFrame, void *Eip,
 	/* Check if we reached the end */
 	if (EndFrame == EXCEPTION_CHAIN_END) {
 		/* Unwind completed, so we don't exit */
-		//ZwContinue(Ctx, FALSE);
+		ZwContinue(Ctx, 0);
 	}
 	else {
 		/* This is an exit_unwind or the frame wasn't present in the list */
-		//ZwRaiseException(pRecord, Ctx, FALSE);
+		ZwRaiseException(pRecord, Ctx, 0);
 	}
+}
+
+/* This function actually dispatches the exception to
+* usermode handlers */
+int RtlDispatchException(PEXCEPTION_RECORD ExceptionRecord, PCONTEXT Context)
+{
+	/* Variables */
+	PEXCEPTION_REGISTRATION_RECORD RegistrationFrame, NestedFrame = NULL, Dispatch;
+	EXCEPTION_RECORD NewRecord;
+	EXCEPTION_DISPOSITION Disposition;
+	uint32_t StackLow, StackHigh;
+
+	/* Get local thread data */
+	ThreadLocalStorage_t *tData = TLSGetCurrent();
+
+	/* Perform vectored exception handling for user mode */
+	if (RtlCallVectoredExceptionHandlers(ExceptionRecord, Context)) {
+		/* Exception handled, now call vectored continue handlers */
+		RtlCallVectoredContinueHandlers(ExceptionRecord, Context);
+
+		/* Continue execution */
+		return 1;
+	}
+
+	/* Get the current stack limits */
+	StackLow = (uint32_t)tData->StackLow;
+	StackHigh = (uint32_t)tData->StackHigh;
+
+	/* Retrieve the exception frame list */
+	RegistrationFrame = (PEXCEPTION_REGISTRATION_RECORD)tData->ExceptionList;
+
+	/* Iterate all exception frames untill
+	* we reach the end of our target frame or end of list */
+	while (RegistrationFrame != EXCEPTION_CHAIN_END)
+	{
+		/* Registration chain entries are never NULL */
+		assert(RegistrationFrame != NULL);
+
+		/* Make sure the registration frame is located within the stack */
+		if ((uint32_t)RegistrationFrame < StackLow
+			|| (uint32_t)(RegistrationFrame + 1) > StackHigh
+			|| (int)RegistrationFrame & 3)
+		{
+			/* Set invalid stack and return false */
+			ExceptionRecord->ExceptionFlags |= EXCEPTION_STACK_INVALID;
+			return 0;
+		}
+
+		/* Call Exception Handler */
+		Disposition = CxxUnwindCallHandler(ExceptionRecord, RegistrationFrame,
+			Context, &Dispatch, RegistrationFrame->ExceptionHandler, CxxUnwindException);
+
+		/* Check if this is a nested frame */
+		if (RegistrationFrame == NestedFrame)
+		{
+			/* Mask out the flag and the nested frame */
+			ExceptionRecord->ExceptionFlags &= ~EXCEPTION_NESTED_CALL;
+			NestedFrame = NULL;
+		}
+
+		/* Handle the dispositions */
+		switch (Disposition)
+		{
+			/* Continue execution */
+		case ExceptionContinueExecution:
+
+			/* Check if it was non-continuable */
+			if (ExceptionRecord->ExceptionFlags & EXCEPTION_NONCONTINUABLE)
+			{
+				/* Set up the exception record */
+				NewRecord.ExceptionRecord = ExceptionRecord;
+				NewRecord.ExceptionCode = EXCEPTION_NONCONTINUABLE_EXCEPTION;
+				NewRecord.ExceptionFlags = EXCEPTION_NONCONTINUABLE;
+				NewRecord.NumberParameters = 0;
+
+				/* Raise the exception */
+				RtlRaiseException(&NewRecord);
+			}
+			else {
+				/* In user mode, call any registered vectored continue handlers */
+				RtlCallVectoredContinueHandlers(ExceptionRecord, Context);
+
+				/* Execution continues */
+				return 1;
+			}
+
+			/* Continue searching */
+		case ExceptionContinueSearch:
+			break;
+
+			/* Nested exception */
+		case ExceptionNestedException:
+
+			/* Turn the nested flag on */
+			ExceptionRecord->ExceptionFlags |= EXCEPTION_NESTED_CALL;
+
+			/* Update the current nested frame */
+			if (Dispatch > NestedFrame) {
+				/* Get the frame from the dispatcher context */
+				NestedFrame = Dispatch;
+			}
+			break;
+
+			/* Anything else */
+		default:
+
+			/* Set up the exception record */
+			NewRecord.ExceptionRecord = ExceptionRecord;
+			NewRecord.ExceptionCode = EXCEPTION_INVALID_DISPOSITION;
+			NewRecord.ExceptionFlags = EXCEPTION_NONCONTINUABLE;
+			NewRecord.NumberParameters = 0;
+
+			/* Raise the exception */
+			RtlRaiseException(&NewRecord);
+			break;
+		}
+
+		/* Skip to next frame */
+		RegistrationFrame = CxxPopFrame(RegistrationFrame);
+	}
+
+	/* Unhandled, return false */
+	return 0;
 }
 
 /* Main Unwind function */
@@ -198,7 +323,7 @@ void RtlUnwind(PEXCEPTION_REGISTRATION_RECORD EndFrame, void *Eip,
 	CONTEXT Ctx;
 
 	/* Read Context */
-	Ctx.ContextFlags = CONTEXT_INTEGER | CONTEXT_CONTROL | CONTEXT_SEGMENTS;
+	Ctx.ContextFlags = CONTEXT_FULL;
 	RtlpCaptureContext(&Ctx);
 
 	/* Pop the current arguments off */

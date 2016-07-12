@@ -50,6 +50,9 @@
     <ClCompile Include="LibCxx\os\Exceptions.c">
       <Filter>libcpp\os</Filter>
     </ClCompile>
+    <ClCompile Include="LibCxx\vectoreh.c">
+      <Filter>libcpp</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="LibCxx\mvcxx.h">

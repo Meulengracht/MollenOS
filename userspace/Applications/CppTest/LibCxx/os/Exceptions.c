@@ -30,70 +30,13 @@
 /* OS Includes */
 #include <os/Thread.h>
 
-uint32_t NtRaiseException(PEXCEPTION_RECORD ExceptionRecord, PCONTEXT Context, int FirstChance)
+/* LowLevel Exception Functions */
+uint32_t ZwContinue(PCONTEXT Context, int TestAlert)
 {
-	NTSTATUS Status;
-	PKTHREAD Thread;
-	PKTRAP_FRAME TrapFrame;
-
-	/* Get trap frame and link previous one*/
-	Thread = KeGetCurrentThread();
-	TrapFrame = Thread->TrapFrame;
-	Thread->TrapFrame = KiGetLinkedTrapFrame(TrapFrame);
-
-	/* Set exception list */
-#ifdef _M_IX86
-	KeGetPcr()->NtTib.ExceptionList = TrapFrame->ExceptionList;
-#endif
-
-	/* Raise the exception */
-	Status = KiRaiseException(ExceptionRecord,
-		Context,
-		NULL,
-		TrapFrame,
-		FirstChance);
-	if (NT_SUCCESS(Status))
-	{
-		/* It was handled, so exit restoring all state */
-		KiServiceExit2(TrapFrame);
-	}
-	else
-	{
-		/* Exit with error */
-		KiServiceExit(TrapFrame, Status);
-	}
-
-	/* We don't actually make it here */
-	return Status;
+	return 0;
 }
 
-uint32_t NtContinue(PCONTEXT Context, int TestAlert)
+uint32_t ZwRaiseException(PEXCEPTION_RECORD ExceptionRecord, PCONTEXT Context, int FirstChance)
 {
-	PKTHREAD Thread;
-	NTSTATUS Status;
-	PKTRAP_FRAME TrapFrame;
-
-	/* Get trap frame and link previous one*/
-	Thread = KeGetCurrentThread();
-	TrapFrame = Thread->TrapFrame;
-	Thread->TrapFrame = KiGetLinkedTrapFrame(TrapFrame);
-
-	/* Continue from this point on */
-	Status = KiContinue(Context, NULL, TrapFrame);
-	if (NT_SUCCESS(Status))
-	{
-		/* Check if alert was requested */
-		if (TestAlert) KeTestAlertThread(Thread->PreviousMode);
-
-		/* Exit to new trap frame */
-		KiServiceExit2(TrapFrame);
-	}
-	else
-	{
-		/* Exit with an error */
-		KiServiceExit(TrapFrame, Status);
-	}
-
-	/* We don't actually make it here */
-	return Status;
+	return 0;
 }

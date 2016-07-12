@@ -80,6 +80,7 @@
       <IgnoreAllDefaultLibraries>true</IgnoreAllDefaultLibraries>
       <SubSystem>Native</SubSystem>
       <EntryPointSymbol>main</EntryPointSymbol>
+      <ImageHasSafeExceptionHandlers>true</ImageHasSafeExceptionHandlers>
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
@@ -92,6 +93,7 @@
     <ClCompile Include="LibCxx\os\Exceptions.c" />
     <ClCompile Include="LibCxx\typeinfo.cpp" />
     <ClCompile Include="LibCxx\delete.cpp" />
+    <ClCompile Include="LibCxx\vectoreh.c" />
     <ClCompile Include="main.cpp" />
   </ItemGroup>
   <ItemGroup>

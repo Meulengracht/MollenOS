@@ -82,6 +82,13 @@ typedef struct _ThreadLocalStorage
 	void			*ExceptionRecord;
 	void			*ExceptionList;
 
+	/* Stack Information */
+	void			*StackLow;
+	void			*StackHigh;
+
+	/* Debugging */
+	int				 IsDebugging;
+
 } ThreadLocalStorage_t;
 
 /* Prototypes */

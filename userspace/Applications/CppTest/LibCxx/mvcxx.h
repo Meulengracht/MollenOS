@@ -302,7 +302,15 @@ void *CxxGetThisPointer(const CxxThisPtrOffsets_t *Offsets, void *Object);
 void RtlUnwind(PEXCEPTION_REGISTRATION_RECORD EndFrame, void *Eip,
 	PEXCEPTION_RECORD Record, uint32_t ReturnValue);
 void RtlRaiseException(PEXCEPTION_RECORD ExceptionRecord);
+void RtlRaiseStatus(uint32_t Status);
+int RtlDispatchException(PEXCEPTION_RECORD ExceptionRecord, PCONTEXT Context);
+int RtlCallVectoredExceptionHandlers(PEXCEPTION_RECORD ExceptionRecord, PCONTEXT Context);
+void RtlCallVectoredContinueHandlers(PEXCEPTION_RECORD ExceptionRecord, PCONTEXT Context);
 void RtlCaptureContext(PCONTEXT ContextRecord);
 void RtlpCaptureContext(PCONTEXT ContextRecord);
+
+/* LowLevel Exception Functions */
+uint32_t ZwContinue(PCONTEXT Context, int TestAlert);
+uint32_t ZwRaiseException(PEXCEPTION_RECORD ExceptionRecord, PCONTEXT Context, int FirstChance);
 
 #endif //!_MOLLENOS_VCXX_H_
