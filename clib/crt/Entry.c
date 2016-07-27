@@ -47,6 +47,7 @@ void __EntryLibCEmpty(void)
 extern int main(int argc, char** argv);
 extern void __CppInit(void);
 extern void __CppFinit(void);
+extern void __CppInitVectoredEH(void);
 
 /* Unescape Quotes in arguments */
 void UnEscapeQuotes(char *Arg)
@@ -161,6 +162,9 @@ void _mSrvCrt(void)
 	/* Init TLS */
 	TLSInit();	
 
+	/* Init EH */
+	__CppInitVectoredEH();
+
 	/* Init Cmd */
 	ArgCount = ParseCommandLine((char*)MOLLENOS_ARGUMENT_ADDR, NULL);
 	Args = (char**)calloc(sizeof(char*), ArgCount + 1);
@@ -201,6 +205,9 @@ void _mConCrt(void)
 
 	/* Init TLS */
 	TLSInit();
+
+	/* Init EH */
+	__CppInitVectoredEH();
 
 	/* Initialize Ui */
 	UiConnect(UiConsole);

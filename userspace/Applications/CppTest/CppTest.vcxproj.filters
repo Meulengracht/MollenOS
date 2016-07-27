@@ -5,66 +5,10 @@
       <UniqueIdentifier>{4FC737F1-C7A5-4376-A066-2A32D752A2FF}</UniqueIdentifier>
       <Extensions>cpp;c;cc;cxx;def;odl;idl;hpj;bat;asm;asmx</Extensions>
     </Filter>
-    <Filter Include="Header Files">
-      <UniqueIdentifier>{93995380-89BD-4b04-88EB-625FBE52EBFB}</UniqueIdentifier>
-      <Extensions>h;hh;hpp;hxx;hm;inl;inc;xsd</Extensions>
-    </Filter>
-    <Filter Include="libcpp">
-      <UniqueIdentifier>{a7b54317-007f-4d20-aa43-046f6f32133e}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="libcpp\i386">
-      <UniqueIdentifier>{8d46a673-89b3-4037-aa28-816aa25cfb8f}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="libcpp\os">
-      <UniqueIdentifier>{6ec9ce3a-0552-4ec9-9568-1dc2cdbe8ea3}</UniqueIdentifier>
-    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="main.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="LibCxx\typeinfo.cpp">
-      <Filter>libcpp</Filter>
-    </ClCompile>
-    <ClCompile Include="LibCxx\delete.cpp">
-      <Filter>libcpp</Filter>
-    </ClCompile>
-    <ClCompile Include="LibCxx\new.cpp">
-      <Filter>libcpp</Filter>
-    </ClCompile>
-    <ClCompile Include="LibCxx\exception.cpp">
-      <Filter>libcpp</Filter>
-    </ClCompile>
-    <ClCompile Include="LibCxx\i386\Frame32.c">
-      <Filter>libcpp\i386</Filter>
-    </ClCompile>
-    <ClCompile Include="LibCxx\misc.c">
-      <Filter>libcpp</Filter>
-    </ClCompile>
-    <ClCompile Include="LibCxx\i386\Unwind32.c">
-      <Filter>libcpp\i386</Filter>
-    </ClCompile>
-    <ClCompile Include="LibCxx\i386\Except32.c">
-      <Filter>libcpp\i386</Filter>
-    </ClCompile>
-    <ClCompile Include="LibCxx\os\Exceptions.c">
-      <Filter>libcpp\os</Filter>
-    </ClCompile>
-    <ClCompile Include="LibCxx\vectoreh.c">
-      <Filter>libcpp</Filter>
-    </ClCompile>
-  </ItemGroup>
-  <ItemGroup>
-    <ClInclude Include="LibCxx\mvcxx.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="LibCxx\mscxx.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-  </ItemGroup>
-  <ItemGroup>
-    <CustomBuild Include="LibCxx\i386\rtxx.asm">
-      <Filter>libcpp\i386</Filter>
-    </CustomBuild>
   </ItemGroup>
 </Project>

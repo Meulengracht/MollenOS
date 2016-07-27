@@ -66,19 +66,20 @@
       <WarningLevel>EnableAllWarnings</WarningLevel>
       <Optimization>Full</Optimization>
       <FunctionLevelLinking>true</FunctionLevelLinking>
-      <IntrinsicFunctions>false</IntrinsicFunctions>
+      <IntrinsicFunctions>true</IntrinsicFunctions>
       <SDLCheck>
       </SDLCheck>
       <TreatWarningAsError>true</TreatWarningAsError>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
-      <InlineFunctionExpansion>OnlyExplicitInline</InlineFunctionExpansion>
+      <InlineFunctionExpansion>Default</InlineFunctionExpansion>
       <WholeProgramOptimization>false</WholeProgramOptimization>
-      <PreprocessorDefinitions>MOLLENOS;_X86_32;__i386__;USE_MSVCRT_PREFIX</PreprocessorDefinitions>
-      <ExceptionHandling>Async</ExceptionHandling>
+      <PreprocessorDefinitions>MOLLENOS;_X86_32</PreprocessorDefinitions>
+      <ExceptionHandling>Sync</ExceptionHandling>
       <BufferSecurityCheck>false</BufferSecurityCheck>
-      <EnableParallelCodeGeneration>true</EnableParallelCodeGeneration>
-      <EnableEnhancedInstructionSet>NoExtensions</EnableEnhancedInstructionSet>
-      <DisableSpecificWarnings>4514;4706;4701;4100;4152;4054;4055</DisableSpecificWarnings>
+      <EnableParallelCodeGeneration>
+      </EnableParallelCodeGeneration>
+      <EnableEnhancedInstructionSet>NotSet</EnableEnhancedInstructionSet>
+      <DisableSpecificWarnings>4115;4711;4054;4055;4706;4152;4714;4514;4297;4710</DisableSpecificWarnings>
       <AssemblerOutput>All</AssemblerOutput>
     </ClCompile>
     <Link>
@@ -99,36 +100,33 @@ cl.exe /EP /D"_USE_ML" ../crt/msvc/cpp/i386/cpp_cc.s &gt; ../crt/msvc/cpp/i386/c
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="..\crt\Entry.c" />
-    <ClCompile Include="..\crt\msvc\cpprt\ehvec.cpp" />
-    <ClCompile Include="..\crt\msvc\cpprt\i386\framehandler.c" />
-    <ClCompile Include="..\crt\msvc\cpprt\new_nothrow.cpp" />
-    <ClCompile Include="..\crt\msvc\cpprt\typeinfo.cpp" />
-    <ClCompile Include="..\crt\msvc\cpp\rtti.c" />
-    <ClCompile Include="..\crt\msvc\cpp\crt.c" />
-    <ClCompile Include="..\crt\msvc\cpp\heap.c" />
-    <ClCompile Include="..\crt\msvc\cpp\matherr.c" />
-    <ClCompile Include="..\crt\msvc\cpp\stack.c" />
-    <ClCompile Include="..\crt\msvc\cpp\undname.c" />
-    <ClCompile Include="..\crt\msvc\cpp\xcptfil.c" />
+    <ClCompile Include="..\crt\msvc\abi\delete.cpp" />
+    <ClCompile Include="..\crt\msvc\abi\exception.cpp" />
+    <ClCompile Include="..\crt\msvc\abi\i386\Except32.c" />
+    <ClCompile Include="..\crt\msvc\abi\i386\Frame32.c" />
+    <ClCompile Include="..\crt\msvc\abi\i386\Unwind32.c" />
+    <ClCompile Include="..\crt\msvc\abi\misc.c" />
+    <ClCompile Include="..\crt\msvc\abi\new.cpp" />
+    <ClCompile Include="..\crt\msvc\abi\rtti.cpp" />
+    <ClCompile Include="..\crt\msvc\abi\typeinfo.cpp" />
+    <ClCompile Include="..\crt\msvc\abi\undname.c" />
+    <ClCompile Include="..\crt\msvc\abi\vectoreh.c" />
+    <ClCompile Include="..\crt\msvc\abi\xcptfilter.c" />
+    <ClCompile Include="..\crt\msvc\crt.c" />
   </ItemGroup>
   <ItemGroup>
-    <MASM Include="..\crt\msvc\cpprt\i386\cpprt.s">
+    <CustomBuild Include="..\crt\msvc\abi\i386\rtxx.asm">
       <FileType>Document</FileType>
-      <Command Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
-      </Command>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
-      </Outputs>
-    </MASM>
-  </ItemGroup>
-  <ItemGroup>
-    <MASM Include="..\crt\msvc\cpp\i386\cpp.s">
-      <FileType>Document</FileType>
-    </MASM>
-  </ItemGroup>
-  <ItemGroup>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">nasm -f win32 -Xvc -o $(IntDir)\%(Filename).obj %(FullPath)</Command>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">$(IntDir)\%(Filename).obj</Outputs>
+    </CustomBuild>
     <MASM Include="..\crt\msvc\constants.S">
       <FileType>Document</FileType>
     </MASM>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\crt\msvc\abi\mscxx.h" />
+    <ClInclude Include="..\crt\msvc\abi\mvcxx.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

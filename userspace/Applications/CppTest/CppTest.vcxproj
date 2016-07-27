@@ -76,7 +76,7 @@
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <EnableCOMDATFolding>false</EnableCOMDATFolding>
       <OptimizeReferences>false</OptimizeReferences>
-      <AdditionalDependencies>LibC.lib</AdditionalDependencies>
+      <AdditionalDependencies>LibC.lib;LibCrt.lib</AdditionalDependencies>
       <IgnoreAllDefaultLibraries>true</IgnoreAllDefaultLibraries>
       <SubSystem>Native</SubSystem>
       <EntryPointSymbol>main</EntryPointSymbol>
@@ -84,28 +84,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="LibCxx\exception.cpp" />
-    <ClCompile Include="LibCxx\i386\Except32.c" />
-    <ClCompile Include="LibCxx\i386\Frame32.c" />
-    <ClCompile Include="LibCxx\i386\Unwind32.c" />
-    <ClCompile Include="LibCxx\misc.c" />
-    <ClCompile Include="LibCxx\new.cpp" />
-    <ClCompile Include="LibCxx\os\Exceptions.c" />
-    <ClCompile Include="LibCxx\typeinfo.cpp" />
-    <ClCompile Include="LibCxx\delete.cpp" />
-    <ClCompile Include="LibCxx\vectoreh.c" />
     <ClCompile Include="main.cpp" />
-  </ItemGroup>
-  <ItemGroup>
-    <CustomBuild Include="LibCxx\i386\rtxx.asm">
-      <FileType>Document</FileType>
-      <Command Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">nasm -f win32 -Xvc -o $(IntDir)\%(Filename).obj %(FullPath)</Command>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">$(IntDir)\%(Filename).obj</Outputs>
-    </CustomBuild>
-  </ItemGroup>
-  <ItemGroup>
-    <ClInclude Include="LibCxx\mscxx.h" />
-    <ClInclude Include="LibCxx\mvcxx.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

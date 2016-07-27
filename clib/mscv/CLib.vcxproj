@@ -34,6 +34,7 @@
     <ClCompile Include="..\src\os\Condition.c" />
     <ClCompile Include="..\src\os\Devices.c" />
     <ClCompile Include="..\src\os\Environment.c" />
+    <ClCompile Include="..\src\os\Exceptions.c" />
     <ClCompile Include="..\src\os\Malloc.c" />
     <ClCompile Include="..\src\os\Mutex.c" />
     <ClCompile Include="..\src\os\Process.c" />
@@ -447,7 +448,7 @@
       <EnableParallelCodeGeneration>true</EnableParallelCodeGeneration>
       <AssemblerOutput>All</AssemblerOutput>
       <MinimalRebuild>false</MinimalRebuild>
-      <DisableSpecificWarnings>4706;4127;4100;4738</DisableSpecificWarnings>
+      <DisableSpecificWarnings>4706;4127;4100;4738;4115</DisableSpecificWarnings>
       <InlineFunctionExpansion>OnlyExplicitInline</InlineFunctionExpansion>
       <BufferSecurityCheck>false</BufferSecurityCheck>
       <EnableEnhancedInstructionSet>StreamingSIMDExtensions</EnableEnhancedInstructionSet>
@@ -487,7 +488,7 @@
       <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
       <EnableParallelCodeGeneration>true</EnableParallelCodeGeneration>
       <AssemblerOutput>All</AssemblerOutput>
-      <DisableSpecificWarnings>4706;4127;4100;4738</DisableSpecificWarnings>
+      <DisableSpecificWarnings>4706;4127;4100;4738;4115</DisableSpecificWarnings>
       <InlineFunctionExpansion>OnlyExplicitInline</InlineFunctionExpansion>
       <BasicRuntimeChecks>Default</BasicRuntimeChecks>
       <BufferSecurityCheck>false</BufferSecurityCheck>

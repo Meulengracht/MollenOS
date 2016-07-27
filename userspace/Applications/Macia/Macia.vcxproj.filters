@@ -1,0 +1,40 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="Parser">
+      <UniqueIdentifier>{e95a112a-4040-4357-9885-35fd708b8ba6}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Lexer">
+      <UniqueIdentifier>{fcaf438c-53ae-4542-b69e-a3e57a26a6c6}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Generator">
+      <UniqueIdentifier>{ec2f0a0e-3e02-4d1e-8b50-e4d8d521aa90}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Compilers">
+      <UniqueIdentifier>{7c4f2fa9-ffc2-44b3-adc9-948d64628604}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Shared">
+      <UniqueIdentifier>{71ffd212-c7b4-449f-9b7e-7843c521c9b8}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="Macia.cpp" />
+    <ClCompile Include="Lexer\Scanner.cpp">
+      <Filter>Lexer</Filter>
+    </ClCompile>
+    <ClCompile Include="Shared\StringBuffer.cpp">
+      <Filter>Shared</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="Lexer\Scanner.h">
+      <Filter>Lexer</Filter>
+    </ClInclude>
+    <ClInclude Include="Lexer\Element.h">
+      <Filter>Lexer</Filter>
+    </ClInclude>
+    <ClInclude Include="Shared\StringBuffer.h">
+      <Filter>Shared</Filter>
+    </ClInclude>
+  </ItemGroup>
+</Project>

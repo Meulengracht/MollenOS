@@ -41,7 +41,6 @@ namespace std
     unexpected_handler set_unexpected(unexpected_handler) throw();
 
     void unexpected();
-
     bool uncaught_exception() throw();
 } // namespace std
 

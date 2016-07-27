@@ -88,7 +88,7 @@ Window_t *WindowCreate(IpcComm_t Owner, Rect_t *Dimensions, int Flags, SDL_Rende
 		Window->Dimensions.w = Dimensions->w;
 
 		/* Allocate a texture */
-		Window->Texture = SDL_CreateTexture(Renderer, SDL_PIXELFORMAT_RGBA8888,
+		Window->Texture = SDL_CreateTexture(Renderer, SDL_PIXELFORMAT_ARGB8888,
 			SDL_TEXTUREACCESS_STREAMING, Dimensions->w, Dimensions->h);
 
 		/* Get texture information */

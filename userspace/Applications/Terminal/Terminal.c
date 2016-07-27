@@ -71,8 +71,7 @@ static SDL_Terminal *SDL_ActiveTerminal = 0;
  *
  * @return	If the creation is successful, it returns a new terminal, otherwise it returns 0.
  */
-SDL_Terminal *
-SDL_CreateTerminal(SDL_Window *window)
+SDL_Terminal *SDL_CreateTerminal(SDL_Window *window)
 {
     int i;
 

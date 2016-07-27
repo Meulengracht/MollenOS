@@ -462,6 +462,9 @@
     <ClCompile Include="..\src\os\Sha1.c">
       <Filter>Source\os</Filter>
     </ClCompile>
+    <ClCompile Include="..\src\os\Exceptions.c">
+      <Filter>Source\os</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <CustomBuild Include="..\src\string\memcpy_acc.s">
