@@ -27,30 +27,6 @@
 #include <cctype>
 #include <cstdio>
 
-/* Element Type Names */
-const char *__ElementTypeNames[] = {
-	"UNKNOWN",
-	
-	"Operator - ADD",
-	"Operator - SUB",
-	"Operator - MUL",
-	"Operator - DIV",
-	
-	"Left Parenthesis",
-	"Right Parenthesis",
-	"Left Bracket",
-	"Right Bracket",
-	"Left Function Bracket",
-	"Right Function Bracket",
-	
-	"Operator - ASSIGN",
-	
-	"Operator - SEMICOLON",
-	"Identifier",
-	"StringLiteral",
-	"DigitLiteral"
-};
-
 /* Initialize variables 
  * and clear out the elements just to be sure */
 Scanner::Scanner() {
@@ -69,7 +45,7 @@ Scanner::~Scanner() {
 int Scanner::Scan(char *Data, size_t Length)
 {
 	/* Some state variables */
-	long CharPos = 0;
+	long CharPos = 1;
 	int LineNo = 1;
 	size_t Count = 0;
 
@@ -82,17 +58,105 @@ int Scanner::Scan(char *Data, size_t Length)
 		/* Handle the types of characters 
 		 * that we don't care about */
 		if (isspace(Character)) {
+			if (Character == '\n') {
+				LineNo++;
+				CharPos = 0;
+			}
+
+			/* Increase, go */
 			CharPos++;
 			goto NextScan;
 		}
-		else if (Character == '\n') {
-			LineNo++;
-			CharPos = 0;
-			goto NextScan;
-		}
 
+		/* Check for comments first */
+		if (Character == '/'
+			&& ((Count + 1) < Length)
+			&& Data[Count + 1] == '/') {
+			/* This is a comment line */
+
+			/* We need a string buffer for this
+			* to append */
+			StringBuffer_t *Sb = GetStringBuffer();
+
+			/* Consume the comment line tokens */
+			Count += 2;
+			Character = Data[Count];
+
+			/* Keep iterating! 
+			 * Consume everything untill we reach a newline */
+			while (Character != '\n') {
+				Sb->Append(Sb, Character);
+
+				/* Consume -> Next */
+				Count++;
+				CharPos++;
+				Character = Data[Count];
+			}
+
+			/* Create the token */
+			CreateElement(CommentLine, Sb->ToString(Sb), LineNo, CharPos);
+
+			/* Cleanup */
+			Sb->Dispose(&Sb);
+
+			/* Go one back */
+			Count--;
+		}
+		else if (Character == '/'
+			&& ((Count + 1) < Length)
+			&& Data[Count + 1] == '*') {
+			/* This is a comment block */
+
+			/* We need a string buffer for this
+			* to append */
+			StringBuffer_t *Sb = GetStringBuffer();
+
+			/* Consume the comment line tokens */
+			Count += 2;
+			Character = Data[Count];
+
+			/* Keep iterating!
+			* Consume everything untill we reach a newline */
+			while (1) {
+
+				/* Check for end of command block 
+				 * If it's the end, then consume them */
+				if (Character == '*'
+					&& Data[Count + 1] == '/') {
+					Count += 2;
+					break;
+				}
+
+				/* Append */
+				Sb->Append(Sb, Character);
+
+				/* Consume -> Next */
+				Count++;
+				CharPos++;
+				Character = Data[Count];
+
+				/* Sanity */
+				if ((Count + 1) >= Length) 
+				{
+					/* Error message */
+					printf("Comment Block without closer at line %i\n", LineNo);
+
+					/* Bail out */
+					return -1;
+				}
+			}
+
+			/* Create the token */
+			CreateElement(CommentBlock, Sb->ToString(Sb), LineNo, CharPos);
+
+			/* Cleanup */
+			Sb->Dispose(&Sb);
+
+			/* Go one back */
+			Count--;
+		}
 		/* Identifier? */
-		if (isalpha(Character)
+		else if (isalpha(Character)
 			|| Character == '_') {
 
 			/* We need a string buffer for this
@@ -101,6 +165,7 @@ int Scanner::Scan(char *Data, size_t Length)
 
 			/* Keep iterating! */
 			while (isalpha(Character)
+				|| isdigit(Character)
 				|| Character == '_') {
 				Sb->Append(Sb, Character);
 				
@@ -256,5 +321,5 @@ void Scanner::CreateElement(ElementType_t Type, char *Data, int Line, long Chara
 	m_lElements.push_back(elem);
 
 	/* Diagnose */
-	printf("Found Element %s\n", __ElementTypeNames[(int)Type]);
+	printf("Found Element %s\n", elem->GetName());
 }

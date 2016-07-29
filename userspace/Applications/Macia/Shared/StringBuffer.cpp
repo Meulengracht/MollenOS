@@ -30,21 +30,30 @@
 #define STR_BUF_INIT_SIZE 32
 
 /* Function declarations */
-
-void Append(StringBuffer_t *Sb, char c);
-char *ToString(StringBuffer_t *Sb);
-void Dispose(StringBuffer_t **Sb);
 void error(char *msg);
-void growPtrList(StringBuffer_t *sb);
-void *getMem(int nBytes);
-void init(StringBuffer_t *sb);
+void Grow(StringBuffer_t *sb);
+void Init(StringBuffer_t *sb);
 
 /* Quasi-public functions exposed as function pointers in StringBuffer structure */
 
+/* Wrapper around malloc() - allocate memory and initialize to all zeros */
+void *AllocateMemory(int nBytes)
+{
+	void *ret = malloc(nBytes);
+
+	/* Out of memory?! */
+	if (!ret)
+		error("Memory allocation failed!");
+
+	/* Null it */
+	memset(ret, 0, nBytes);
+	return ret;
+}
+
 /* Factory-like StringBuffer instantiator */
 StringBuffer_t *GetStringBuffer() {
-	StringBuffer_t *sb = (StringBuffer_t*)getMem(sizeof(StringBuffer_t));
-	init(sb);
+	StringBuffer_t *sb = (StringBuffer_t*)AllocateMemory(sizeof(StringBuffer_t));
+	Init(sb);
 	return sb;
 }
 
@@ -57,7 +66,7 @@ void Append(StringBuffer_t *Sb, char c)
 	
 	/* Size-check! */
 	if (Sb->Count == Sb->Capacity)
-		growPtrList(Sb);
+		Grow(Sb);
 	
 	/* Append */
 	Sb->Characters[Sb->Count++] = c;
@@ -98,36 +107,22 @@ void error(char *msg) {
 	exit(1);
 }
 
-/* Double length of the array of pointers when append() needs to go past current limit */
-void growPtrList(StringBuffer_t *Sb) {
+/* Double length of the characters when append() needs to go past current limit */
+void Grow(StringBuffer_t *Sb) {
 	size_t nBytes = 2 * Sb->Capacity * sizeof(char);
-	char *pTemp = (char*)getMem(nBytes);
+	char *pTemp = (char*)AllocateMemory(nBytes);
 	memcpy((void *)pTemp, Sb->Characters, Sb->Capacity * sizeof(char));
 	Sb->Capacity *= 2;
 	free(Sb->Characters);
 	Sb->Characters = pTemp;
 }
 
-/* Wrapper around malloc() - allocate memory and initialize to all zeros */
-void *getMem(int nBytes) 
-{
-	void *ret = malloc(nBytes);
-	
-	/* Out of memory?! */
-	if (!ret) 
-		error("Memory allocation failed!");
-	
-	/* Null it */
-	memset(ret, 0, nBytes);
-	return ret;
-}
-
 /* Initialize a new StringBuffer structure */
-void init(StringBuffer_t *Sb) 
+void Init(StringBuffer_t *Sb) 
 {
 	Sb->Count = 0;
 	Sb->Capacity = STR_BUF_INIT_SIZE;
-	Sb->Characters = (char*)getMem(STR_BUF_INIT_SIZE * sizeof(char));
+	Sb->Characters = (char*)AllocateMemory(STR_BUF_INIT_SIZE * sizeof(char));
 	Sb->Append = Append;
 	Sb->ToString = ToString;
 	Sb->Dispose = Dispose;

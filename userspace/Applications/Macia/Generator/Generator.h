@@ -16,35 +16,38 @@
 * along with this program.If not, see <http://www.gnu.org/licenses/>.
 *
 *
-* Macia - Scanner (Lexer)
+* Macia - IL Generation
+* - This is the IL generation system
+* - It converts AST into Macia bytecode
 */
 #pragma once
 
 /* Includes */
-#include "../Shared/Element.h"
-#include <vector>
+#include <cstring>
+#include <cstdlib>
 
-/* The class 
- * Scans a file and breaks it down
- * into elements, this also filters all 
- * unneccessary bullshit from the file */
-class Scanner
+/* System Includes */
+#include "../Parser/Parser.h"
+#include "../Shared/DataPool.h"
+
+/* The generation-class
+ * Converts AST into IL Bytecode */
+class Generator
 {
 public:
-	Scanner();
-	~Scanner();
+	Generator(Statement *AST);
+	~Generator();
 
-	/* Parse file */
-	int Scan(char *Data, size_t Length);
-
-	/* Retrieve elements */
-	std::vector<Element*> &GetElements() { return m_lElements; }
+	/* Generate the bytecode from the AST,
+	 * can be assembled or interpreted afterwards */
+	int Generate();
 
 private:
 	/* Private - Functions */
-	void CreateElement(ElementType_t Type, char *Data, int Line, long Character);
+	int ParseStatement(Statement *pStmt, int ScopeId);
+	int ParseExpression(Expression *pExpr, int ScopeId);
 
 	/* Private - Data */
-	std::vector<Element*> m_lElements;
+	Statement *m_pAST;
+	DataPool *m_pPool;
 };
-

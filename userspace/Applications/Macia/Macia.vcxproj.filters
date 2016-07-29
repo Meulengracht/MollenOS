@@ -16,6 +16,9 @@
     <Filter Include="Shared">
       <UniqueIdentifier>{71ffd212-c7b4-449f-9b7e-7843c521c9b8}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Interpreter">
+      <UniqueIdentifier>{37017cd1-e047-4fcd-a162-d06da22398fc}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Macia.cpp" />
@@ -25,15 +28,51 @@
     <ClCompile Include="Shared\StringBuffer.cpp">
       <Filter>Shared</Filter>
     </ClCompile>
+    <ClCompile Include="Parser\Parser.cpp">
+      <Filter>Parser</Filter>
+    </ClCompile>
+    <ClCompile Include="Shared\Element.cpp">
+      <Filter>Shared</Filter>
+    </ClCompile>
+    <ClCompile Include="Generator\Generator.cpp">
+      <Filter>Generator</Filter>
+    </ClCompile>
+    <ClCompile Include="Shared\DataPool.cpp">
+      <Filter>Shared</Filter>
+    </ClCompile>
+    <ClCompile Include="Shared\CodeObject.cpp">
+      <Filter>Shared</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Lexer\Scanner.h">
       <Filter>Lexer</Filter>
     </ClInclude>
-    <ClInclude Include="Lexer\Element.h">
-      <Filter>Lexer</Filter>
-    </ClInclude>
     <ClInclude Include="Shared\StringBuffer.h">
+      <Filter>Shared</Filter>
+    </ClInclude>
+    <ClInclude Include="Parser\Parser.h">
+      <Filter>Parser</Filter>
+    </ClInclude>
+    <ClInclude Include="Shared\Element.h">
+      <Filter>Shared</Filter>
+    </ClInclude>
+    <ClInclude Include="Parser\Expression.h">
+      <Filter>Parser</Filter>
+    </ClInclude>
+    <ClInclude Include="Parser\Statement.h">
+      <Filter>Parser</Filter>
+    </ClInclude>
+    <ClInclude Include="Generator\Generator.h">
+      <Filter>Generator</Filter>
+    </ClInclude>
+    <ClInclude Include="Generator\Opcodes.h">
+      <Filter>Generator</Filter>
+    </ClInclude>
+    <ClInclude Include="Shared\DataPool.h">
+      <Filter>Shared</Filter>
+    </ClInclude>
+    <ClInclude Include="Shared\CodeObject.h">
       <Filter>Shared</Filter>
     </ClInclude>
   </ItemGroup>

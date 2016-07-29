@@ -16,35 +16,17 @@
 * along with this program.If not, see <http://www.gnu.org/licenses/>.
 *
 *
-* Macia - Scanner (Lexer)
+* Macia - IL Opcodes
 */
 #pragma once
 
-/* Includes */
-#include "../Shared/Element.h"
-#include <vector>
+typedef enum {
 
-/* The class 
- * Scans a file and breaks it down
- * into elements, this also filters all 
- * unneccessary bullshit from the file */
-class Scanner
-{
-public:
-	Scanner();
-	~Scanner();
+	/* Unknown 
+	 * Opcode 0 is noop */
+	OpNone			= 0x00,
 
-	/* Parse file */
-	int Scan(char *Data, size_t Length);
 
-	/* Retrieve elements */
-	std::vector<Element*> &GetElements() { return m_lElements; }
+	
 
-private:
-	/* Private - Functions */
-	void CreateElement(ElementType_t Type, char *Data, int Line, long Character);
-
-	/* Private - Data */
-	std::vector<Element*> m_lElements;
-};
-
+} Opcode_t;

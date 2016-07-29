@@ -16,35 +16,42 @@
 * along with this program.If not, see <http://www.gnu.org/licenses/>.
 *
 *
-* Macia - Scanner (Lexer)
+* Macia - Parser
+* - Turns an element list into a program structure
 */
 #pragma once
 
 /* Includes */
 #include "../Shared/Element.h"
+#include "Statement.h"
 #include <vector>
 
-/* The class 
- * Scans a file and breaks it down
- * into elements, this also filters all 
- * unneccessary bullshit from the file */
-class Scanner
+/* The class
+ * Takes a element-list and parses it
+ * into a program-structure list of expressions
+ * and statements */
+class Parser
 {
 public:
-	Scanner();
-	~Scanner();
+	Parser(std::vector<Element*> &Elements);
+	~Parser();
 
-	/* Parse file */
-	int Scan(char *Data, size_t Length);
+	/* This runs the actual parsing 
+	 * process, use GetProgram to retrieve
+	 * the results */
+	int Parse();
 
-	/* Retrieve elements */
-	std::vector<Element*> &GetElements() { return m_lElements; }
+	/* Retrieve the program AST */
+	Statement *GetProgram() { return m_pBase; }
 
 private:
 	/* Private - Functions */
-	void CreateElement(ElementType_t Type, char *Data, int Line, long Character);
+	int ParseExpression(int Index, Expression **Parent);
+	int ParseStatement(int Index, Statement **Parent);
+	int ParseModifiers(int Index, int *Modifiers);
 
 	/* Private - Data */
 	std::vector<Element*> m_lElements;
+	Statement *m_pBase;
 };
 

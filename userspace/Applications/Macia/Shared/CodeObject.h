@@ -16,35 +16,44 @@
 * along with this program.If not, see <http://www.gnu.org/licenses/>.
 *
 *
-* Macia - Scanner (Lexer)
+* Macia - IL Code Object
+* - This keeps track of all data for a program
+* - Allows us to serialize it into bytecode easier
 */
 #pragma once
 
 /* Includes */
-#include "../Shared/Element.h"
-#include <vector>
+#include <cstring>
+#include <cstdlib>
 
-/* The class 
- * Scans a file and breaks it down
- * into elements, this also filters all 
- * unneccessary bullshit from the file */
-class Scanner
+/* The code type
+* Identifies the type of the code object */
+typedef enum {
+
+	/* Build in objects */
+	CTObject,
+	CTFunction,
+	CTVariable
+
+} CodeType_t;
+
+/* The code object
+* Represents everything that is serializable to IL */
+class CodeObject
 {
 public:
-	Scanner();
-	~Scanner();
+	CodeObject(CodeType_t pType, char *pIdentifier,
+		char *pPath, int pScopeId);
+	~CodeObject();
 
-	/* Parse file */
-	int Scan(char *Data, size_t Length);
-
-	/* Retrieve elements */
-	std::vector<Element*> &GetElements() { return m_lElements; }
+	/* Gets */
+	char *GetPath() { return m_pPath; }
+	char *GetIdentifier() { return m_pIdentifier; }
 
 private:
-	/* Private - Functions */
-	void CreateElement(ElementType_t Type, char *Data, int Line, long Character);
-
 	/* Private - Data */
-	std::vector<Element*> m_lElements;
+	CodeType_t m_eType;
+	char *m_pIdentifier;
+	char *m_pPath;
+	int m_iScopeId;
 };
-

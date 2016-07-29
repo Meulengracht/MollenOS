@@ -16,35 +16,28 @@
 * along with this program.If not, see <http://www.gnu.org/licenses/>.
 *
 *
-* Macia - Scanner (Lexer)
+* Macia - IL Code Object
+* - This keeps track of all data for a program
+* - Allows us to serialize it into bytecode easier
 */
-#pragma once
 
 /* Includes */
-#include "../Shared/Element.h"
-#include <vector>
+#include "CodeObject.h"
 
-/* The class 
- * Scans a file and breaks it down
- * into elements, this also filters all 
- * unneccessary bullshit from the file */
-class Scanner
-{
-public:
-	Scanner();
-	~Scanner();
+/* Constructor 
+ * Initialize and setup vars */
+CodeObject::CodeObject(CodeType_t pType, char *pIdentifier,
+	char *pPath, int pScopeId) {
 
-	/* Parse file */
-	int Scan(char *Data, size_t Length);
+	/* Store */
+	m_eType = pType;
+	m_pIdentifier = strdup(pIdentifier);
+	m_pPath = pPath;
+	m_iScopeId = pScopeId;
+}
 
-	/* Retrieve elements */
-	std::vector<Element*> &GetElements() { return m_lElements; }
-
-private:
-	/* Private - Functions */
-	void CreateElement(ElementType_t Type, char *Data, int Line, long Character);
-
-	/* Private - Data */
-	std::vector<Element*> m_lElements;
-};
-
+/* Destructor 
+ * Cleanup the name variables */
+CodeObject::~CodeObject() {
+	free(m_pIdentifier);
+}

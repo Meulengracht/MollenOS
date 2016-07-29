@@ -49,7 +49,11 @@ typedef enum
 	OperatorSemiColon,
 	Identifier,
 	StringLiteral,
-	DigitLiteral
+	DigitLiteral,
+
+	/* Comments */
+	CommentLine,
+	CommentBlock
 
 } ElementType_t;
 
@@ -60,19 +64,11 @@ class Element
 {
 public:
 	/* Store information */
-	Element(ElementType_t Type, int Line, long Character) {
-		m_eType = Type;
-		m_iLinePosition = Line;
-		m_iCharPosition = Character;
-	}
+	Element(ElementType_t Type, int Line, long Character);
 
 	/* Destructor 
 	 * Cleanup data as well */
-	~Element() {
-		if (m_pData != NULL) {
-			free(m_pData);
-		}
-	}
+	~Element();
 
 	/* Modify data for element */
 	void SetData(char *Data) { m_pData = Data; }
@@ -82,6 +78,7 @@ public:
 	char *GetData() { return m_pData; }
 	int GetLineNumber() { return m_iLinePosition; }
 	long GetCharacterPosition() { return m_iCharPosition; }
+	const char *GetName();
 
 private:
 	/* Private - Information */

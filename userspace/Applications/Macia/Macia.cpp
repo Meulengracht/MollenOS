@@ -30,12 +30,16 @@
 
 /* Suite Includes */
 #include "Lexer/Scanner.h"
+#include "Parser/Parser.h"
+#include "Generator/Generator.h"
 
 int _tmain(int argc, _TCHAR* argv[])
 {
 	/* Variables we will need
 	 * for build */
+	Generator *ilgen = NULL;
 	Scanner *scrambler = NULL;
+	Parser *parser = NULL;
 	char *fileData = NULL;
 	FILE *source = NULL;
 	size_t size = 0;
@@ -82,9 +86,35 @@ int _tmain(int argc, _TCHAR* argv[])
 	printf(" - Scanning (flength = %u)\n", size);
 #endif
 
-	/* Parse our file */
+	/* Scan our file */
 	if (scrambler->Scan(fileData, size)) {
 		printf("Failed to scramble file\n");
+		goto Cleanup;
+	}
+
+#ifdef DIAGNOSE
+	printf(" - Parsing (elements = %u)\n", scrambler->GetElements().size());
+#endif
+
+	/* Setup the parser */
+	parser = new Parser(scrambler->GetElements());
+
+	/* Scan our file */
+	if (parser->Parse()) {
+		printf("Failed to parse file\n");
+		goto Cleanup;
+	}
+
+#ifdef DIAGNOSE
+	printf(" - Generating IL (Bytecode)\n");
+#endif
+
+	/* Create the IL Generator */
+	ilgen = new Generator(parser->GetProgram());
+
+	/* Generate IL */
+	if (ilgen->Generate()) {
+		printf("Failed to create bytecode from the AST\n");
 		goto Cleanup;
 	}
 
@@ -94,6 +124,14 @@ Cleanup:
 #endif
 
 	/* Cleanup all our stuff */
+	if (ilgen != NULL) {
+		delete ilgen;
+	}
+
+	if (parser != NULL) {
+		delete parser;
+	}
+
 	if (scrambler != NULL) {
 		delete scrambler;
 	}
