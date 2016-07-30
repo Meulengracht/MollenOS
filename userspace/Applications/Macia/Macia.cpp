@@ -24,10 +24,6 @@
 #include <cstdio>
 #include <cstdlib>
 
-#define DIAGNOSE
-#define VERSION "0.0.1-dev"
-#define AUTHOR	"Philip Meulengracht"
-
 /* Suite Includes */
 #include "Lexer/Scanner.h"
 #include "Parser/Parser.h"
@@ -117,6 +113,9 @@ int _tmain(int argc, _TCHAR* argv[])
 		printf("Failed to create bytecode from the AST\n");
 		goto Cleanup;
 	}
+
+	/* Save the IL code as an object file */
+	ilgen->SaveAs("test.mo");
 
 Cleanup:
 #ifdef DIAGNOSE

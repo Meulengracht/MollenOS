@@ -25,6 +25,7 @@
 /* Includes */
 #include <cstring>
 #include <cstdlib>
+#include <vector>
 
 /* The code type
 * Identifies the type of the code object */
@@ -33,7 +34,8 @@ typedef enum {
 	/* Build in objects */
 	CTObject,
 	CTFunction,
-	CTVariable
+	CTVariable,
+	CTString
 
 } CodeType_t;
 
@@ -46,11 +48,20 @@ public:
 		char *pPath, int pScopeId);
 	~CodeObject();
 
+	/* Add Code */
+	void AddCode(unsigned char Opcode) { m_lByteCode.push_back(Opcode); }
+
 	/* Gets */
+	std::vector<unsigned char> &GetCode() { return m_lByteCode; }
+	CodeType_t GetType() { return m_eType; }
 	char *GetPath() { return m_pPath; }
 	char *GetIdentifier() { return m_pIdentifier; }
+	int GetScopeId() { return m_iScopeId; }
 
 private:
+	/* Private - ByteCode */
+	std::vector<unsigned char> m_lByteCode;
+
 	/* Private - Data */
 	CodeType_t m_eType;
 	char *m_pIdentifier;

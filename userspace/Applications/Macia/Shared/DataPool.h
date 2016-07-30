@@ -28,6 +28,7 @@
 #include <map>
 
 /* System Includes */
+#include "../Generator/Opcodes.h"
 #include "../Parser/Parser.h"
 #include "CodeObject.h"
 
@@ -51,9 +52,24 @@ public:
 	 * and return the id of the variable */
 	int DefineVariable(char *pIdentifier, int ScopeId);
 
+	/* Creates a new string in the string pool
+	 * and returns the id given to it */
+	int DefineString(char *pString);
+
 	/* Retrieve a code object Id from the given 
 	 * scope and identifier */
 	int LookupSymbol(char *pIdentifier, int ScopeId);
+
+	/* Appends bytecode to a code-object 
+	 * this redirects the bytecode to the id given */
+	int AddOpcode(int ScopeId, Opcode_t Opcode);
+	int AddCode8(int ScopeId, char Value);
+	int AddCode16(int ScopeId, short Value);
+	int AddCode32(int ScopeId, int Value);
+	int AddCode64(int ScopeId, long long Value);
+
+	/* Gets */
+	std::map<int, CodeObject*> &GetTable() { return m_sTable; }
 
 private:
 	/* Private - Functions */

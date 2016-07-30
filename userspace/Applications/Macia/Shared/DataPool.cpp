@@ -186,6 +186,49 @@ int DataPool::DefineVariable(char *pIdentifier, int ScopeId) {
 	return Id;
 }
 
+/* Creates a new string in the string pool
+ * and returns the id given to it */
+int DataPool::DefineString(char *pString) {
+
+	/* Create Path */
+	char Buffer[1024];
+	CodeObject *dObj = NULL;
+	int Id = 0;
+
+	/* Clear out buffer */
+	memset(&Buffer[0], 0, sizeof(Buffer));
+
+	/* Format the string */
+	sprintf(&Buffer[0], "StringPool.%s", pString);
+
+	/* Check dublicates */
+	for (std::map<int, CodeObject*>::iterator Itr = m_sTable.begin();
+		Itr != m_sTable.end(); ++Itr)
+	{
+		/* Get dataobject */
+		CodeObject *Obj = Itr->second;
+
+		/* Compare path */
+		if (Obj->GetType() == CTString 
+			&& !strcmp(Obj->GetPath(), &Buffer[0])) {
+			/* Yay! String pool optimizations */
+			return Itr->first;
+		}
+	}
+
+	/* Allocate id */
+	Id = m_iIdGen++;
+
+	/* Create a new object */
+	dObj = new CodeObject(CTString, NULL, strdup(&Buffer[0]), -1);
+
+	/* Insert */
+	m_sTable[Id] = dObj;
+
+	/* Done! */
+	return Id;
+}
+
 /* Retrieve a variable Id from the given 
  * scope and identifier */
 int DataPool::LookupSymbol(char *pIdentifier, int ScopeId) {
@@ -198,10 +241,151 @@ int DataPool::LookupSymbol(char *pIdentifier, int ScopeId) {
 		CodeObject *Obj = Itr->second;
 
 		/* Compare path */
-		if (!strcmpi(Obj->GetIdentifier(), pIdentifier)) {
+		if (Obj->GetIdentifier() != NULL
+			&& !strcmpi(Obj->GetIdentifier(), pIdentifier)) {
 			
 			/* Yay! Found! */
 			return Itr->first;
+		}
+	}
+
+	/* Err - Not found - Bail */
+	return -1;
+}
+
+/* Appends bytecode to a code-object
+ * this redirects the bytecode to the id given */
+int DataPool::AddOpcode(int ScopeId, Opcode_t Opcode) {
+
+	/* Iterate our code objects */
+	for (std::map<int, CodeObject*>::iterator Itr = m_sTable.begin();
+		Itr != m_sTable.end(); ++Itr)
+	{
+		/* Get dataobject */
+		CodeObject *Obj = Itr->second;
+
+		/* Compare path */
+		if (Itr->first == ScopeId) {
+
+			/* Yay! Found! Add code */
+			Obj->AddCode(Opcode & 0xFF);
+
+			/* Done! */
+			return 0;
+		}
+	}
+
+	/* Err - Not found - Bail */
+	return -1;
+}
+
+/* Appends bytecode to a code-object
+ * this redirects the bytecode to the id given */
+int DataPool::AddCode8(int ScopeId, char Value) {
+
+	/* Iterate our code objects */
+	for (std::map<int, CodeObject*>::iterator Itr = m_sTable.begin();
+		Itr != m_sTable.end(); ++Itr)
+	{
+		/* Get dataobject */
+		CodeObject *Obj = Itr->second;
+
+		/* Compare path */
+		if (Itr->first == ScopeId) {
+
+			/* Yay! Found! Add code */
+			Obj->AddCode(Value);
+
+			/* Done! */
+			return 0;
+		}
+	}
+
+	/* Err - Not found - Bail */
+	return -1;
+}
+
+/* Appends bytecode to a code-object
+ * this redirects the bytecode to the id given */
+int DataPool::AddCode16(int ScopeId, short Value) {
+
+	/* Iterate our code objects */
+	for (std::map<int, CodeObject*>::iterator Itr = m_sTable.begin();
+		Itr != m_sTable.end(); ++Itr)
+	{
+		/* Get dataobject */
+		CodeObject *Obj = Itr->second;
+
+		/* Compare path */
+		if (Itr->first == ScopeId) {
+
+			/* Yay! Found! Add code */
+			Obj->AddCode(Value & 0xFF);
+			Obj->AddCode((Value >> 8) & 0xFF);
+
+			/* Done! */
+			return 0;
+		}
+	}
+
+	/* Err - Not found - Bail */
+	return -1;
+}
+
+/* Appends bytecode to a code-object
+ * this redirects the bytecode to the id given */
+int DataPool::AddCode32(int ScopeId, int Value) {
+	
+	/* Iterate our code objects */
+	for (std::map<int, CodeObject*>::iterator Itr = m_sTable.begin();
+		Itr != m_sTable.end(); ++Itr)
+	{
+		/* Get dataobject */
+		CodeObject *Obj = Itr->second;
+
+		/* Compare path */
+		if (Itr->first == ScopeId) {
+
+			/* Yay! Found! Add code */
+			Obj->AddCode(Value & 0xFF);
+			Obj->AddCode((Value >> 8) & 0xFF);
+			Obj->AddCode((Value >> 16) & 0xFF);
+			Obj->AddCode((Value >> 24) & 0xFF);
+
+			/* Done! */
+			return 0;
+		}
+	}
+
+	/* Err - Not found - Bail */
+	return -1;
+}
+
+/* Appends bytecode to a code-object
+ * this redirects the bytecode to the id given */
+int DataPool::AddCode64(int ScopeId, long long Value) {
+
+	/* Iterate our code objects */
+	for (std::map<int, CodeObject*>::iterator Itr = m_sTable.begin();
+		Itr != m_sTable.end(); ++Itr)
+	{
+		/* Get dataobject */
+		CodeObject *Obj = Itr->second;
+
+		/* Compare path */
+		if (Itr->first == ScopeId) {
+
+			/* Yay! Found! Add code */
+			Obj->AddCode(Value & 0xFF);
+			Obj->AddCode((Value >> 8) & 0xFF);
+			Obj->AddCode((Value >> 16) & 0xFF);
+			Obj->AddCode((Value >> 24) & 0xFF);
+			Obj->AddCode((Value >> 32) & 0xFF);
+			Obj->AddCode((Value >> 40) & 0xFF);
+			Obj->AddCode((Value >> 48) & 0xFF);
+
+			/* Done! */
+			return 0;
 		}
 	}
 

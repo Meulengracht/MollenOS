@@ -26,7 +26,25 @@ typedef enum {
 	 * Opcode 0 is noop */
 	OpNone			= 0x00,
 
+	/* Special Functions */
+	OpLabel,					//(5) label #id
+	OpReturn,					//(1) return
 
-	
+	/* Store Opcodes */
+	OpStore,					//store #id, [val]
+	OpStoreI,					//(9) storei #id, [val]
+	OpStoreRI,					//(5) storeir $, [val]
+
+	/* Load Opcodes */
+	OpLoadA,					//(9) load #target_id, #source_id
+	OpLoadRA,					//(5) load $, #source_id
+
+
+	/* Arithmetics */
+	OpAddRA,					//(6) addra #id, $
+	OpDivRA,					//(6) divra #id, $
+	OpSubRA,					//(6) subra #id, $
+	OpRemRA,					//(6) remra $
+	OpMulRA						//(6) mulra #id, $
 
 } Opcode_t;

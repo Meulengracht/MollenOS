@@ -34,10 +34,15 @@ CodeObject::CodeObject(CodeType_t pType, char *pIdentifier,
 	m_pIdentifier = strdup(pIdentifier);
 	m_pPath = pPath;
 	m_iScopeId = pScopeId;
+
+	/* Clear out */
+	m_lByteCode.clear();
 }
 
 /* Destructor 
  * Cleanup the name variables */
 CodeObject::~CodeObject() {
-	free(m_pIdentifier);
+	m_lByteCode.clear();
+	if (m_pIdentifier != NULL)
+		free(m_pIdentifier);
 }

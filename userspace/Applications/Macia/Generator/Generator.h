@@ -26,9 +26,31 @@
 #include <cstring>
 #include <cstdlib>
 
+#define MACIA_REGISTER_COUNT	4
+#define DIAGNOSE
+#define VERSION "0.0.1-dev"
+#define AUTHOR	"Philip Meulengracht"
+
 /* System Includes */
 #include "../Parser/Parser.h"
 #include "../Shared/DataPool.h"
+
+/* This is the generator state 
+ * structure that holds information 
+ * about target register etc */
+typedef struct {
+
+	/* Keeps track of the code-scope
+	 * this is the scope we should append
+	 * the code too */
+	int CodeScopeId;
+
+	/* This contains things 
+	 * as active register */
+	int ActiveRegister;
+	int ActiveReference;
+
+} GenState_t;
 
 /* The generation-class
  * Converts AST into IL Bytecode */
@@ -42,12 +64,26 @@ public:
 	 * can be assembled or interpreted afterwards */
 	int Generate();
 
+	/* Save the code and data to a object file 
+	 * this can then be compiled into native code
+	 * or run by the interpreter */
+	int SaveAs(const char *Path);
+
+	/* Gets */
+	std::vector<unsigned char> &GetCode() { return m_lByteCode; }
+	std::vector<unsigned char> &GetData() { return m_lByteData; }
+
 private:
 	/* Private - Functions */
 	int ParseStatement(Statement *pStmt, int ScopeId);
-	int ParseExpression(Expression *pExpr, int ScopeId);
+	int ParseExpression(Expression *pExpr, GenState_t *State);
+	int AllocateRegister();
+	void DeallocateRegister(int Register);
 
 	/* Private - Data */
+	std::vector<unsigned char> m_lByteCode;
+	std::vector<unsigned char> m_lByteData;
+	std::map<int, int> m_sRegisters;
 	Statement *m_pAST;
 	DataPool *m_pPool;
 };
