@@ -48,9 +48,42 @@ typedef struct {
 	/* This contains things 
 	 * as active register */
 	int ActiveRegister;
+	int IntermediateRegister;
 	int ActiveReference;
 
+	/* Initial */
+	int LoadToActive;
+
 } GenState_t;
+
+/* Expression precedence groups */
+typedef enum {
+
+	/* Group 1:
+	 * ++ (suffix), -- (suffix), func(),
+	 * arr[], '.' obj access */
+	OpGroup1,
+
+	/* Group 2:
+	 * ++ (prefix), -- (prefix),
+	 * + (unary), - (unary) */
+	OpGroup2,
+
+	/* Group 3:
+	 * '*, '/', '%' */
+	OpGroup3,
+
+	/* Group 4:
+	 * + (add), - (sub) */
+	OpGroup4,
+
+	/* Singles */
+	OpGroupSingles,
+
+	/* Used for iteration */
+	OperatorGroupCount
+
+} OperatorGroup_t;
 
 /* The generation-class
  * Converts AST into IL Bytecode */
@@ -76,7 +109,9 @@ public:
 private:
 	/* Private - Functions */
 	int ParseStatement(Statement *pStmt, int ScopeId);
-	int ParseExpression(Expression *pExpr, GenState_t *State);
+	int ParseExpressions(Expression *pExpr, GenState_t *State);
+	int ParseExpression(Expression *pExpr, Expression *pPrev, 
+		GenState_t *State, OperatorGroup_t Group);
 	int AllocateRegister();
 	void DeallocateRegister(int Register);
 

@@ -313,11 +313,10 @@ int Generator::ParseStatement(Statement *pStmt, int ScopeId) {
 
 			/* Setup the GenState */
 			State.CodeScopeId = ScopeId;
-			State.ActiveRegister = -1;
 			State.ActiveReference = Id;
 
 			/* Parse the expression */
-			if (ParseExpression(Decl->GetExpression(), &State)) {
+			if (ParseExpressions(Decl->GetExpression(), &State)) {
 				return -1;
 			}
 
@@ -345,11 +344,10 @@ int Generator::ParseStatement(Statement *pStmt, int ScopeId) {
 
 			/* Setup the GenState */
 			State.CodeScopeId = ScopeId;
-			State.ActiveRegister = -1;
 			State.ActiveReference = Id;
 
 			/* Parse the expression */
-			if (ParseExpression(Ass->GetExpression(), &State)) {
+			if (ParseExpressions(Ass->GetExpression(), &State)) {
 				return -1;
 			}
 
@@ -368,12 +366,43 @@ int Generator::ParseStatement(Statement *pStmt, int ScopeId) {
 	return 0;
 }
 
+/* Expression Parser */
+int Generator::ParseExpressions(Expression *pExpr, GenState_t *State) {
+
+	/* Setup initial registers */
+	State->ActiveRegister = AllocateRegister();
+	State->IntermediateRegister = -1;
+	State->LoadToActive = 1;
+
+	/* Now generate the code */
+	for (int i = 0; i < (int)OperatorGroupCount; i++) {
+		if (ParseExpression(pExpr, NULL, State, (OperatorGroup_t)i))
+			return -1;
+	}
+
+	/* Transfer code */
+	m_pPool->AddOpcode(State->CodeScopeId, OpStore);
+	m_pPool->AddCode32(State->CodeScopeId, State->ActiveReference);
+	m_pPool->AddCode8(State->CodeScopeId, State->ActiveRegister);
+
+#ifdef DIAGNOSE
+	printf("store #%i, $%i\n", State->ActiveReference, State->ActiveRegister);
+#endif
+
+	/* Deallocate */
+	DeallocateRegister(State->ActiveRegister);
+
+	return 0;
+}
+
 /* This is a recursive expression parser 
  * used for turning AST expressions into bytecode */
-int Generator::ParseExpression(Expression *pExpr, GenState_t *State) {
+int Generator::ParseExpression(Expression *pExpr, 
+	Expression *pPrev, GenState_t *State, OperatorGroup_t Group) {
 
 	/* Sanity */
-	if (pExpr == NULL) {
+	if (pExpr == NULL
+		|| pExpr->IsSolved()) {
 		return 0;
 	}
 
@@ -389,23 +418,37 @@ int Generator::ParseExpression(Expression *pExpr, GenState_t *State) {
 			/* Lookup Id */
 			int Id = m_pPool->LookupSymbol(Var->GetIdentifier(), State->CodeScopeId);
 
-			/* Generate some code */
-			if (State->ActiveRegister != -1) {
+			/* Sanity, don't parse us 
+			 * unless we are asked for non operators */
+			if (Group != OpGroupSingles) {
+				return 0;
+			}
 
-				/* We are working in a temporary register 
-				 * use appropriate instructions */
+			/* Generate some code */
+			if ((State->IntermediateRegister != -1
+				|| State->ActiveRegister != -1)) {
+
+				/* Select register */
+				int Register = State->IntermediateRegister;
+
+				/* Sanity */
+				if (Register == -1)
+					Register = State->ActiveRegister;
+
+				/* We are working in a temporary register
+				* use appropriate instructions */
 				m_pPool->AddOpcode(State->CodeScopeId, OpLoadRA);
-				m_pPool->AddCode8(State->CodeScopeId, State->ActiveRegister);
+				m_pPool->AddCode8(State->CodeScopeId, Register);
 				m_pPool->AddCode32(State->CodeScopeId, Id);
 
 #ifdef DIAGNOSE
-				printf("loadra $%i, #%i\n", State->ActiveRegister, Id);
+				printf("loadra $%i, #%i\n", Register, Id);
 #endif
 			}
 			else {
 
 				/* We are working with a variable reference
-				 * use appropriate instructions */
+				* use appropriate instructions */
 				m_pPool->AddOpcode(State->CodeScopeId, OpLoadA);
 				m_pPool->AddCode32(State->CodeScopeId, State->ActiveReference);
 				m_pPool->AddCode32(State->CodeScopeId, Id);
@@ -414,6 +457,9 @@ int Generator::ParseExpression(Expression *pExpr, GenState_t *State) {
 				printf("loada #%i, #%i\n", State->ActiveReference, Id);
 #endif
 			}
+
+			/* Set us to solved */
+			pExpr->SetSolved();
 
 		} break;
 
@@ -426,17 +472,31 @@ int Generator::ParseExpression(Expression *pExpr, GenState_t *State) {
 			/* Define it in our data-pool */
 			int Id = m_pPool->DefineString(String->GetValue());
 
+			/* Sanity, don't parse us 
+			 * unless we are asked for non operators */
+			if (Group != OpGroupSingles) {
+				return 0;
+			}
+
 			/* Generate some code */
-			if (State->ActiveRegister != -1) {
+			if ((State->IntermediateRegister != -1
+				|| State->ActiveRegister != -1)) {
+
+				/* Select register */
+				int Register = State->IntermediateRegister;
+
+				/* Sanity */
+				if (Register == -1)
+					Register = State->ActiveRegister;
 
 				/* We are working in a temporary register
 				* use appropriate instructions */
 				m_pPool->AddOpcode(State->CodeScopeId, OpLoadRA);
-				m_pPool->AddCode8(State->CodeScopeId, State->ActiveRegister);
+				m_pPool->AddCode8(State->CodeScopeId, Register);
 				m_pPool->AddCode32(State->CodeScopeId, Id);
 
 #ifdef DIAGNOSE
-				printf("loadra $%i, #%i\n", State->ActiveRegister, Id);
+				printf("loadra $%i, #%i\n", Register, Id);
 #endif
 			}
 			else {
@@ -452,6 +512,9 @@ int Generator::ParseExpression(Expression *pExpr, GenState_t *State) {
 #endif
 			}
 
+			/* Set us to solved */
+			pExpr->SetSolved();
+
 		} break;
 
 		/* Int Literal? */
@@ -460,17 +523,31 @@ int Generator::ParseExpression(Expression *pExpr, GenState_t *State) {
 			/* Cast to correct expression type */
 			IntValue *Int = (IntValue*)pExpr;
 
+			/* Sanity, don't parse us 
+			 * unless we are asked for non operators */
+			if (Group != OpGroupSingles) {
+				return 0;
+			}
+
 			/* Generate some code */
-			if (State->ActiveRegister != -1) {
+			if ((State->IntermediateRegister != -1
+				|| State->ActiveRegister != -1)) {
+
+				/* Select register */
+				int Register = State->IntermediateRegister;
+
+				/* Sanity */
+				if (Register == -1)
+					Register = State->ActiveRegister;
 
 				/* We are working in a temporary register
 				* use appropriate instructions */
 				m_pPool->AddOpcode(State->CodeScopeId, OpStoreRI);
-				m_pPool->AddCode8(State->CodeScopeId, State->ActiveRegister);
+				m_pPool->AddCode8(State->CodeScopeId, Register);
 				m_pPool->AddCode32(State->CodeScopeId, Int->GetValue());
 
 #ifdef DIAGNOSE
-				printf("storeri $%i, [%i]\n", State->ActiveRegister, Int->GetValue());
+				printf("storeri $%i, [%i]\n", Register, Int->GetValue());
 #endif
 			}
 			else {
@@ -486,73 +563,113 @@ int Generator::ParseExpression(Expression *pExpr, GenState_t *State) {
 #endif
 			}
 
+			/* Set us to solved */
+			pExpr->SetSolved();
+
 		} break;
 
 		/* Binary Expression?? */
 		case ExprBinary: {
 
-			/* We need a new genstate for this */
-			GenState_t TempState;
-
 			/* Cast to correct expression type */
 			BinaryExpression *BinExpr = (BinaryExpression*)pExpr;
 
-			/* First of all, allocate a register */
-			TempState.CodeScopeId = State->CodeScopeId;
-			TempState.ActiveRegister = AllocateRegister();
-			TempState.ActiveReference = State->ActiveReference;
-
-			/* Now, we want to do left hand first 
-			 * and make sure we store the value in main first 
-			 * Then we solve right hand, but store it into the temporary 
-			 * state with the temp register we have allocated */
-			if (TempState.ActiveRegister == -1
-				|| ParseExpression(BinExpr->GetExpression1(), State)
-				|| ParseExpression(BinExpr->GetExpression2(), &TempState)) {
-				return -1;
+			/* Are we in the correct group? */
+			if (Group == OpGroup3
+				&& (BinExpr->GetOperator() == ExprOperatorDivide
+				|| BinExpr->GetOperator() == ExprOperatorMultiply)) {
+			}
+			else if (Group == OpGroup4
+				&& (BinExpr->GetOperator() == ExprOperatorAdd
+				|| BinExpr->GetOperator() == ExprOperatorSubtract)) {
+			}
+			else {
+				return ParseExpression(BinExpr->GetExpression2(), pExpr, State, Group);
 			}
 
-			/* Now we handle the operator, we have right hand in register
-			 * and left hand in id */
+			/* Use previous state if there is any */
+			if (State->LoadToActive) {
+				/* Now we want to load left hand into this
+				 * sexy new register */
+				if (ParseExpression(BinExpr->GetExpression1(), pExpr, State, OpGroupSingles)) {
+					return -1;
+				}
+
+				/* Clean */
+				State->LoadToActive = 0;
+			}
+
+			/* Allocate an intermediate register */
+			State->IntermediateRegister = AllocateRegister();
+
+			/* Depends on what the next is, because 
+			 * we need to create an intermediate state */
+			if (BinExpr->GetExpression2()->GetType() == ExprBinary) {
+				/* Cast to correct expression type */
+				BinaryExpression *LowerBinExpr = (BinaryExpression*)BinExpr->GetExpression2();
+
+				/* Ok, load in next left hand */
+				if (ParseExpression(LowerBinExpr->GetExpression1(), pExpr, State, OpGroupSingles)) {
+					return -1;
+				}
+			}
+			else {
+				/* Ok, end of chain, load second into intermediate 
+				 * generate the last statements */
+				if (ParseExpression(BinExpr->GetExpression2(), pExpr, State, OpGroupSingles)) {
+					return -1;
+				}
+			}
+
+			/* Generate code for both active 
+			 * intermediate code */
 			if (BinExpr->GetOperator() == ExprOperatorAdd) {
-				m_pPool->AddOpcode(State->CodeScopeId, OpAddRA);
-				m_pPool->AddCode32(State->CodeScopeId, State->ActiveReference);
-				m_pPool->AddCode8(State->CodeScopeId, TempState.ActiveRegister);
+				m_pPool->AddOpcode(State->CodeScopeId, OpAdd);
+				m_pPool->AddCode8(State->CodeScopeId, State->ActiveRegister);
+				m_pPool->AddCode8(State->CodeScopeId, State->IntermediateRegister);
 
 #ifdef DIAGNOSE
-				printf("addra #%i, $%i\n", State->ActiveReference, TempState.ActiveRegister);
+				printf("add $%i, $%i\n", State->ActiveRegister, State->IntermediateRegister);
 #endif
 			}
 			else if (BinExpr->GetOperator() == ExprOperatorSubtract) {
-				m_pPool->AddOpcode(State->CodeScopeId, OpSubRA);
-				m_pPool->AddCode32(State->CodeScopeId, State->ActiveReference);
-				m_pPool->AddCode8(State->CodeScopeId, TempState.ActiveRegister);
+				m_pPool->AddOpcode(State->CodeScopeId, OpSub);
+				m_pPool->AddCode8(State->CodeScopeId, State->ActiveRegister);
+				m_pPool->AddCode8(State->CodeScopeId, State->IntermediateRegister);
 
 #ifdef DIAGNOSE
-				printf("subra #%i, $%i\n", State->ActiveReference, TempState.ActiveRegister);
+				printf("sub $%i, $%i\n", State->ActiveRegister, State->IntermediateRegister);
 #endif
 			}
 			else if (BinExpr->GetOperator() == ExprOperatorMultiply) {
-				m_pPool->AddOpcode(State->CodeScopeId, OpMulRA);
-				m_pPool->AddCode32(State->CodeScopeId, State->ActiveReference);
-				m_pPool->AddCode8(State->CodeScopeId, TempState.ActiveRegister);
+				m_pPool->AddOpcode(State->CodeScopeId, OpMul);
+				m_pPool->AddCode8(State->CodeScopeId, State->ActiveRegister);
+				m_pPool->AddCode8(State->CodeScopeId, State->IntermediateRegister);
 
 #ifdef DIAGNOSE
-				printf("mulra #%i, $%i\n", State->ActiveReference, TempState.ActiveRegister);
+				printf("mul $%i, $%i\n", State->ActiveRegister, State->IntermediateRegister);
 #endif
 			}
 			else if (BinExpr->GetOperator() == ExprOperatorDivide) {
-				m_pPool->AddOpcode(State->CodeScopeId, OpDivRA);
-				m_pPool->AddCode32(State->CodeScopeId, State->ActiveReference);
-				m_pPool->AddCode8(State->CodeScopeId, TempState.ActiveRegister);
+				m_pPool->AddOpcode(State->CodeScopeId, OpDiv);
+				m_pPool->AddCode8(State->CodeScopeId, State->ActiveRegister);
+				m_pPool->AddCode8(State->CodeScopeId, State->IntermediateRegister);
 
 #ifdef DIAGNOSE
-				printf("divra #%i, $%i\n", State->ActiveReference, TempState.ActiveRegister);
+				printf("div $%i, $%i\n", State->ActiveRegister, State->IntermediateRegister);
 #endif
 			}
 
-			/* Deallocate register */
-			DeallocateRegister(TempState.ActiveRegister);
+			/* Free the intermediate */
+			DeallocateRegister(State->IntermediateRegister);
+			State->IntermediateRegister = -1;
+
+			/* Recursive down */
+			if (BinExpr->GetExpression2()->GetType() == ExprBinary) {
+				if (ParseExpression(BinExpr->GetExpression2(), pExpr, State, Group)) {
+					return -1;
+				}
+			}
 
 		} break;
 

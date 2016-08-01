@@ -53,15 +53,20 @@ typedef enum
 class Expression
 {
 public:
-	Expression(ExpressionType_t Type) { m_eType = Type; }
+	Expression(ExpressionType_t Type) { m_eType = Type; m_iSolved = 0; }
 	virtual ~Expression() {}
 
-	/* Type of expression */
+	/* Sets */
+	void SetSolved() { m_iSolved = 1; }
+
+	/* Gets */
 	ExpressionType_t GetType() { return m_eType; }
+	int IsSolved() { return m_iSolved; }
 
 private:
 	/* Private - Data */
 	ExpressionType_t m_eType;
+	int m_iSolved;
 };
 
 /* A variable, this can pretty much be a reference

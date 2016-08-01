@@ -31,7 +31,7 @@ typedef enum {
 	OpReturn,					//(1) return
 
 	/* Store Opcodes */
-	OpStore,					//store #id, [val]
+	OpStore,					//(6) store #id, $
 	OpStoreI,					//(9) storei #id, [val]
 	OpStoreRI,					//(5) storeir $, [val]
 
@@ -41,10 +41,15 @@ typedef enum {
 
 
 	/* Arithmetics */
+	OpAdd,						//(3) add $, $
 	OpAddRA,					//(6) addra #id, $
+	OpDiv,						//(3) div $, $
 	OpDivRA,					//(6) divra #id, $
+	OpSub,						//(3) sub $, $
 	OpSubRA,					//(6) subra #id, $
+	OpRem,						//(3) rem $
 	OpRemRA,					//(6) remra $
+	OpMul,						//(3) mul $, $
 	OpMulRA						//(6) mulra #id, $
 
 } Opcode_t;
