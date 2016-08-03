@@ -60,6 +60,10 @@ public:
 	 * scope and identifier */
 	int LookupSymbol(char *pIdentifier, int ScopeId);
 
+	/* Retrieves a code object from the given 
+	 * identifier path */
+	CodeObject *LookupObject(char *pPath);
+
 	/* Appends bytecode to a code-object 
 	 * this redirects the bytecode to the id given */
 	int AddOpcode(int ScopeId, Opcode_t Opcode);

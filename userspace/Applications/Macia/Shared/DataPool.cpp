@@ -253,6 +253,29 @@ int DataPool::LookupSymbol(char *pIdentifier, int ScopeId) {
 	return -1;
 }
 
+/* Retrieves a code object from the given 
+ * identifier path */
+CodeObject *DataPool::LookupObject(char *pPath) {
+
+	/* Iterate our code objects */
+	for (std::map<int, CodeObject*>::iterator Itr = m_sTable.begin();
+		Itr != m_sTable.end(); ++Itr)
+	{
+		/* Get dataobject */
+		CodeObject *Obj = Itr->second;
+
+		/* Compare path */
+		if (!strcmpi(Obj->GetPath(), pPath)) {
+
+			/* Yay! Found! */
+			return Obj;
+		}
+	}
+
+	/* Err - Not found - Bail */
+	return NULL;
+}
+
 /* Appends bytecode to a code-object
  * this redirects the bytecode to the id given */
 int DataPool::AddOpcode(int ScopeId, Opcode_t Opcode) {

@@ -333,13 +333,25 @@ int Parser::ParseExpression(int Index, Expression **Parent)
 	int ModIndex = Index;
 
 	/* Iterate untill end of expression */
-	while (m_lElements[ModIndex]->GetType() != OperatorSemiColon) {
+	while (m_lElements[ModIndex]->GetType() != OperatorSemiColon
+		&& m_lElements[ModIndex]->GetType() != RightParenthesis) {
 
 		/* Used elements */
 		int Used = 0;
 
 		/* Now, let's check... */
-		if (m_lElements[ModIndex]->GetType() == StringLiteral) {
+		if (m_lElements[ModIndex]->GetType() == LeftParenthesis) {
+
+			/* Consume the left paranthesis */
+			Used++;
+
+			/* Parse sub-expression in expression */
+			Used += ParseExpression(ModIndex + 1, &Expr);
+
+			/* Skip the right parenthesis */
+			Used++;
+		}
+		else if (m_lElements[ModIndex]->GetType() == StringLiteral) {
 
 			/* Create a new string value object */
 			StringValue *StrVal = new StringValue(m_lElements[ModIndex]->GetData());
@@ -358,7 +370,7 @@ int Parser::ParseExpression(int Index, Expression **Parent)
 			Used++;
 		}
 		else if (m_lElements[ModIndex]->GetType() == Identifier
-			&& m_lElements[ModIndex]->GetType() == LeftParenthesis) {
+			&& m_lElements[ModIndex + 1]->GetType() == LeftParenthesis) {
 			/* Function calls in expressions 
 			 * not really supported atm */
 			printf("Functions calls in expressions are currently unsupported, line %u\n",

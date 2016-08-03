@@ -105,7 +105,9 @@ int Scanner::Scan(char *Data, size_t Length)
 		else if (Character == '/'
 			&& ((Count + 1) < Length)
 			&& Data[Count + 1] == '*') {
+
 			/* This is a comment block */
+			int TempLineIncrease = 0;
 
 			/* We need a string buffer for this
 			* to append */
@@ -125,6 +127,12 @@ int Scanner::Scan(char *Data, size_t Length)
 					&& Data[Count + 1] == '/') {
 					Count += 2;
 					break;
+				}
+
+				/* Keep track of line-skips */
+				if (Character == '\n') {
+					TempLineIncrease++;
+					CharPos = 0;
 				}
 
 				/* Append */
@@ -151,6 +159,9 @@ int Scanner::Scan(char *Data, size_t Length)
 
 			/* Cleanup */
 			Sb->Dispose(&Sb);
+
+			/* Restore line-no */
+			LineNo += TempLineIncrease;
 
 			/* Go one back */
 			Count--;

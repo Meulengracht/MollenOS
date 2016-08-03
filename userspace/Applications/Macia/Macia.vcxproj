@@ -79,6 +79,7 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="Generator\Generator.cpp" />
+    <ClCompile Include="Interpreter\Interpreter.cpp" />
     <ClCompile Include="Lexer\Scanner.cpp" />
     <ClCompile Include="Macia.cpp" />
     <ClCompile Include="Parser\Parser.cpp" />
@@ -90,6 +91,8 @@
   <ItemGroup>
     <ClInclude Include="Generator\Generator.h" />
     <ClInclude Include="Generator\Opcodes.h" />
+    <ClInclude Include="Interpreter\Interpreter.h" />
+    <ClInclude Include="Interpreter\MachineState.h" />
     <ClInclude Include="Lexer\Scanner.h" />
     <ClInclude Include="Parser\Expression.h" />
     <ClInclude Include="Parser\Parser.h" />

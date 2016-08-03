@@ -31,7 +31,8 @@ typedef enum {
 	OpReturn,					//(1) return
 
 	/* Store Opcodes */
-	OpStore,					//(6) store #id, $
+	OpStore,					//(3) store $, $
+	OpStoreAR,					//(6) storear #id, $
 	OpStoreI,					//(9) storei #id, [val]
 	OpStoreRI,					//(5) storeir $, [val]
 

@@ -28,11 +28,13 @@
 #include "Lexer/Scanner.h"
 #include "Parser/Parser.h"
 #include "Generator/Generator.h"
+#include "Interpreter/Interpreter.h"
 
 int _tmain(int argc, _TCHAR* argv[])
 {
 	/* Variables we will need
 	 * for build */
+	Interpreter *vm = NULL;
 	Generator *ilgen = NULL;
 	Scanner *scrambler = NULL;
 	Parser *parser = NULL;
@@ -116,6 +118,19 @@ int _tmain(int argc, _TCHAR* argv[])
 
 	/* Save the IL code as an object file */
 	ilgen->SaveAs("test.mo");
+
+#ifdef DIAGNOSE
+	printf(" - Executing the code\n");
+#endif
+
+	/* Create the interpreter instance */
+	vm = new Interpreter(ilgen->GetPool());
+
+	/* Run the code */
+	printf("The interpreter finished with result %i\n", vm->Execute());
+
+	/* Cleanup the interpreter */
+	delete vm;
 
 Cleanup:
 #ifdef DIAGNOSE

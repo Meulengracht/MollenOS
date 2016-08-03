@@ -51,8 +51,9 @@ typedef struct {
 	int IntermediateRegister;
 	int ActiveReference;
 
-	/* Initial */
-	int LoadToActive;
+	/* If we need cleanup for this
+	 * environment state */
+	int GenerateCleanUp;
 
 } GenState_t;
 
@@ -105,13 +106,13 @@ public:
 	/* Gets */
 	std::vector<unsigned char> &GetCode() { return m_lByteCode; }
 	std::vector<unsigned char> &GetData() { return m_lByteData; }
+	DataPool *GetPool() { return m_pPool; }
 
 private:
 	/* Private - Functions */
 	int ParseStatement(Statement *pStmt, int ScopeId);
 	int ParseExpressions(Expression *pExpr, GenState_t *State);
-	int ParseExpression(Expression *pExpr, Expression *pPrev, 
-		GenState_t *State, OperatorGroup_t Group);
+	int ParseExpression(Expression *pExpr, GenState_t *State, OperatorGroup_t Group);
 	int AllocateRegister();
 	void DeallocateRegister(int Register);
 

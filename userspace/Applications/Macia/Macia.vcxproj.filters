@@ -43,6 +43,9 @@
     <ClCompile Include="Shared\CodeObject.cpp">
       <Filter>Shared</Filter>
     </ClCompile>
+    <ClCompile Include="Interpreter\Interpreter.cpp">
+      <Filter>Interpreter</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Lexer\Scanner.h">
@@ -74,6 +77,12 @@
     </ClInclude>
     <ClInclude Include="Shared\CodeObject.h">
       <Filter>Shared</Filter>
+    </ClInclude>
+    <ClInclude Include="Interpreter\Interpreter.h">
+      <Filter>Interpreter</Filter>
+    </ClInclude>
+    <ClInclude Include="Interpreter\MachineState.h">
+      <Filter>Interpreter</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

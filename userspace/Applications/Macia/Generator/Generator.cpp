@@ -370,35 +370,36 @@ int Generator::ParseStatement(Statement *pStmt, int ScopeId) {
 int Generator::ParseExpressions(Expression *pExpr, GenState_t *State) {
 
 	/* Setup initial registers */
-	State->ActiveRegister = AllocateRegister();
+	State->ActiveRegister = -1;
 	State->IntermediateRegister = -1;
-	State->LoadToActive = 1;
+	State->GenerateCleanUp = 0;
 
 	/* Now generate the code */
 	for (int i = 0; i < (int)OperatorGroupCount; i++) {
-		if (ParseExpression(pExpr, NULL, State, (OperatorGroup_t)i))
+		if (ParseExpression(pExpr, State, (OperatorGroup_t)i))
 			return -1;
 	}
 
-	/* Transfer code */
-	m_pPool->AddOpcode(State->CodeScopeId, OpStore);
-	m_pPool->AddCode32(State->CodeScopeId, State->ActiveReference);
-	m_pPool->AddCode8(State->CodeScopeId, State->ActiveRegister);
+	/* Generate cleanup statement? */
+	if (State->GenerateCleanUp) {
+		m_pPool->AddOpcode(State->CodeScopeId, OpStoreAR);
+		m_pPool->AddCode32(State->CodeScopeId, State->ActiveReference);
+		m_pPool->AddCode8(State->CodeScopeId, State->ActiveRegister);
 
 #ifdef DIAGNOSE
-	printf("store #%i, $%i\n", State->ActiveReference, State->ActiveRegister);
+		printf("storear #%i, $%i\n", State->ActiveReference, State->ActiveRegister);
 #endif
 
-	/* Deallocate */
-	DeallocateRegister(State->ActiveRegister);
+		/* Deallocate */
+		DeallocateRegister(State->ActiveRegister);
+	}
 
 	return 0;
 }
 
 /* This is a recursive expression parser 
  * used for turning AST expressions into bytecode */
-int Generator::ParseExpression(Expression *pExpr, 
-	Expression *pPrev, GenState_t *State, OperatorGroup_t Group) {
+int Generator::ParseExpression(Expression *pExpr, GenState_t *State, OperatorGroup_t Group) {
 
 	/* Sanity */
 	if (pExpr == NULL
@@ -578,48 +579,144 @@ int Generator::ParseExpression(Expression *pExpr,
 			if (Group == OpGroup3
 				&& (BinExpr->GetOperator() == ExprOperatorDivide
 				|| BinExpr->GetOperator() == ExprOperatorMultiply)) {
+				goto ParseUs;
 			}
 			else if (Group == OpGroup4
 				&& (BinExpr->GetOperator() == ExprOperatorAdd
 				|| BinExpr->GetOperator() == ExprOperatorSubtract)) {
+				goto ParseUs;
 			}
 			else {
-				return ParseExpression(BinExpr->GetExpression2(), pExpr, State, Group);
+				return ParseExpression(BinExpr->GetExpression2(), State, Group);
 			}
 
+		ParseUs:
 			/* Use previous state if there is any */
-			if (State->LoadToActive) {
-				/* Now we want to load left hand into this
-				 * sexy new register */
-				if (ParseExpression(BinExpr->GetExpression1(), pExpr, State, OpGroupSingles)) {
-					return -1;
+			if (State->ActiveRegister == -1) {
+
+				/* Allocate a temporary register 
+				 * for calculations */
+				State->ActiveRegister = AllocateRegister();
+
+				/*************************************
+				 ***** LEFT - HAND - EVALUATION ******
+				 *************************************/
+
+				/* First of all, if our left hand is a binary expression
+				 * this means we should calculate our left hand tree before
+				 * proceeding. For that we need a new intermediate state */
+				if (BinExpr->GetExpression1()->GetType() == ExprBinary) {
+
+					/* Create a new intermediate state */
+					GenState_t TempEnvironment;
+
+					/* Instantiate it */
+					TempEnvironment.CodeScopeId = State->CodeScopeId;
+					TempEnvironment.IntermediateRegister = -1;
+					TempEnvironment.ActiveReference = -1;
+					TempEnvironment.ActiveRegister = -1;
+					TempEnvironment.GenerateCleanUp = 0;
+
+					/* Parse the left hand */
+					for (int i = 0; i < (int)OperatorGroupCount; i++) {
+						if (ParseExpression(BinExpr->GetExpression1(), &TempEnvironment, (OperatorGroup_t)i))
+							return -1;
+					}
+
+					/* Generate cleanup statement? */
+					if (TempEnvironment.GenerateCleanUp) {
+						m_pPool->AddOpcode(State->CodeScopeId, OpStore);
+						m_pPool->AddCode8(State->CodeScopeId, State->ActiveRegister);
+						m_pPool->AddCode8(State->CodeScopeId, TempEnvironment.ActiveRegister);
+
+#ifdef DIAGNOSE
+						printf("store #%i, $%i\n", State->ActiveRegister, TempEnvironment.ActiveRegister);
+#endif
+
+						/* Deallocate */
+						DeallocateRegister(TempEnvironment.ActiveRegister);
+					}
+
+					/* Mark expression as solved */
+					BinExpr->GetExpression1()->SetSolved();
+				}
+				else {
+					/* Simple stuff actually
+					 * this means we can directly load the left hand value in */
+					if (ParseExpression(BinExpr->GetExpression1(), State, OpGroupSingles)) {
+						return -1;
+					}
 				}
 
-				/* Clean */
-				State->LoadToActive = 0;
+				/* Remember to cleanup */
+				State->GenerateCleanUp = 1;
 			}
 
 			/* Allocate an intermediate register */
 			State->IntermediateRegister = AllocateRegister();
 
-			/* Depends on what the next is, because 
-			 * we need to create an intermediate state */
+			/*************************************
+			 ***** RIGHT - HAND - EVALUATION *****
+			 *************************************/
+
+			/* First of all, if right hand is a binary expression
+			 * we have two cases that can happen, however if it is not
+			 * a binary expression, we have reached end of expression list
+			 * and such it's pretty easy to handle */
 			if (BinExpr->GetExpression2()->GetType() == ExprBinary) {
-				/* Cast to correct expression type */
+				
+				/* For convienance, we need a handle to lower expression
+				 * Cast to correct expression type */
 				BinaryExpression *LowerBinExpr = (BinaryExpression*)BinExpr->GetExpression2();
 
-				/* Ok, load in next left hand */
-				if (ParseExpression(LowerBinExpr->GetExpression1(), pExpr, State, OpGroupSingles)) {
-					return -1;
+				/* Now we have two possible cases, either the left hand of
+				 * this expression is actually ALSO a binary expression,
+				 * in which case we actually need to parse it */
+				if (LowerBinExpr->GetExpression1()->GetType() == ExprBinary) {
+					
+					/* Create a temporary environment */
+					GenState_t TempEnvironment;
+
+					/* Deallocate the intermediate register */
+					DeallocateRegister(State->IntermediateRegister);
+
+					/* Instantiate it */
+					TempEnvironment.CodeScopeId = State->CodeScopeId;
+					TempEnvironment.IntermediateRegister = -1;
+					TempEnvironment.ActiveReference = -1;
+					TempEnvironment.ActiveRegister = -1;
+					TempEnvironment.GenerateCleanUp = 0;
+
+					/* Parse the left hand */
+					for (int i = 0; i < (int)OperatorGroupCount; i++) {
+						if (ParseExpression(LowerBinExpr->GetExpression1(), &TempEnvironment, (OperatorGroup_t)i))
+							return -1;
+					}
+
+					/* Update the new intermediate */
+					State->IntermediateRegister = TempEnvironment.ActiveRegister;
+
+					/* Mark expression as solved, skip it forever */
+					LowerBinExpr->GetExpression1()->SetSolved();
+				}
+				else {
+					/* Or, it's simply a single expression in which case it's pretty easy */
+					if (ParseExpression(LowerBinExpr->GetExpression1(), State, OpGroupSingles)) {
+						return -1;
+					}
 				}
 			}
 			else {
 				/* Ok, end of chain, load second into intermediate 
 				 * generate the last statements */
-				if (ParseExpression(BinExpr->GetExpression2(), pExpr, State, OpGroupSingles)) {
+				if (ParseExpression(BinExpr->GetExpression2(), State, OpGroupSingles)) {
 					return -1;
 				}
 			}
+
+			/*************************************
+			 ****** OPERATOR CODE APPENDUM *******
+			 *************************************/
 
 			/* Generate code for both active 
 			 * intermediate code */
@@ -666,7 +763,7 @@ int Generator::ParseExpression(Expression *pExpr,
 
 			/* Recursive down */
 			if (BinExpr->GetExpression2()->GetType() == ExprBinary) {
-				if (ParseExpression(BinExpr->GetExpression2(), pExpr, State, Group)) {
+				if (ParseExpression(BinExpr->GetExpression2(), State, Group)) {
 					return -1;
 				}
 			}
