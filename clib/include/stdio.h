@@ -84,15 +84,22 @@ _CRT_EXTERN const char *_errstrings[];
  * These closely relate the the 
  * cLibFileStream->code member */
 #define CLIB_FCODE_EOF		0x1
+#define CLIB_FDIR_UNAVAIL	(int)-1
+#define CLIB_FDIR_READ		(int)0
+#define CLIB_FDIR_WRITE		(int)1
 
 /*******************************
  *       File Structures       *
  *******************************/
-typedef struct _cLibFileStream
+typedef struct _CLibraryFile
 {
 	/* The associated file
 	 * descriptor. The id */
 	int fd;
+
+	/* Buffering 
+	 * used for optimizations */
+	void *buffer;
 
 	/* Status Code 
 	 * Updated by sysops */

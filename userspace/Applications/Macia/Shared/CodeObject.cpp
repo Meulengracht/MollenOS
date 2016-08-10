@@ -35,6 +35,11 @@ CodeObject::CodeObject(CodeType_t pType, char *pIdentifier,
 	m_pPath = pPath;
 	m_iScopeId = pScopeId;
 
+	/* Zero */
+	m_iFunctionsDefined = 0;
+	m_iVariablesDefined = 0;
+	m_iOffset = 0;
+
 	/* Clear out */
 	m_lByteCode.clear();
 }
@@ -45,4 +50,22 @@ CodeObject::~CodeObject() {
 	m_lByteCode.clear();
 	if (m_pIdentifier != NULL)
 		free(m_pIdentifier);
+}
+
+/* State Tracking
+ * These allow for defining children
+ * and their offsets in the object or function */
+int CodeObject::AllocateFunctionOffset() {
+	int RetVal = m_iFunctionsDefined;
+	m_iFunctionsDefined++;
+	return RetVal;
+}
+
+/* State Tracking
+ * These allow for defining children
+ * and their offsets in the object or function */
+int CodeObject::AllocateVariableOffset() {
+	int RetVal = m_iVariablesDefined;
+	m_iVariablesDefined++;
+	return RetVal;
 }

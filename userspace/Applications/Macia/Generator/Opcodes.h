@@ -28,6 +28,8 @@ typedef enum {
 
 	/* Special Functions */
 	OpLabel,					//(5) label #id
+	OpNew,						//(5) new $, #id
+	OpInvoke,					//(5) invoke #id
 	OpReturn,					//(1) return
 
 	/* Store Opcodes */

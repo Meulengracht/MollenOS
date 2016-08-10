@@ -27,6 +27,9 @@
 #include <stdlib.h>
 #include <os/Syscall.h>
 
+/* Externs */
+extern int _favail(FILE * stream);
+
 /* The ftello
  * Get the file position with off_t */
 off_t ftello(FILE * stream)
@@ -53,9 +56,11 @@ off_t ftello(FILE * stream)
 		MOLLENOS_SYSCALL_PARAM(&Buffer[0]),
 		MOLLENOS_SYSCALL_PARAM(sizeof(Buffer)));
 
-	if (!_fval(RetVal)) {
-		/* Now we can calculate */
-		uint64_t fPosition = *((off_t*)(&Buffer[16]));
+	if (!_fval(RetVal)) 
+	{
+		/* Now we can calculate 
+		 * but we need to remember to offset for our buffer pos */
+		uint64_t fPosition = (*((off_t*)(&Buffer[16])) - _favail(stream));
 		return (off_t)fPosition;
 	}
 

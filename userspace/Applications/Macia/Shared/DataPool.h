@@ -57,12 +57,16 @@ public:
 	int DefineString(char *pString);
 
 	/* Retrieve a code object Id from the given 
-	 * scope and identifier */
+	 * identifier and scope */
 	int LookupSymbol(char *pIdentifier, int ScopeId);
 
 	/* Retrieves a code object from the given 
 	 * identifier path */
 	CodeObject *LookupObject(char *pPath);
+
+	/* Calculates the memory requirement of 
+	 * an object, returned as bytes */
+	int CalculateObjectSize(int ObjectId);
 
 	/* Appends bytecode to a code-object 
 	 * this redirects the bytecode to the id given */

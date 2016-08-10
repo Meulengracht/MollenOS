@@ -316,7 +316,7 @@ EXCEPTION_REGISTRATION_RECORD *CxxPopFrame(EXCEPTION_REGISTRATION_RECORD *Frame)
  * Unwind, RaiseException etc */
 void RtlUnwind(PEXCEPTION_REGISTRATION_RECORD EndFrame, void *Eip,
 	PEXCEPTION_RECORD Record, uint32_t ReturnValue);
-_MOS_API void RtlRaiseException(PEXCEPTION_RECORD ExceptionRecord);
+void RtlRaiseException(PEXCEPTION_RECORD ExceptionRecord);
 void RtlRaiseStatus(uint32_t Status);
 int RtlDispatchException(PEXCEPTION_RECORD ExceptionRecord, PCONTEXT Context);
 int RtlCallVectoredExceptionHandlers(PEXCEPTION_RECORD ExceptionRecord, PCONTEXT Context);

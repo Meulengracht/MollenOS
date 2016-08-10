@@ -31,6 +31,34 @@
 #include "MachineState.h"
 #include "../Shared/DataPool.h"
 
+/* The object instance 
+ * this is used for objects when new instances
+ * of something is created */
+class ObjectInstance
+{
+public:
+	ObjectInstance(size_t Size, CodeObject *Type) {
+		m_pBase = malloc(Size);
+		m_pType = Type;
+		m_iSize = Size;
+	}
+
+	~ObjectInstance() {
+		free(m_pBase);
+	}
+
+	/* Gets */
+	CodeObject *GetType() { return m_pType; }
+	size_t GetSize() { return m_iSize; }
+	void *GetBase() { return m_pBase; }
+
+private:
+	/* Private - Data */
+	CodeObject *m_pType;
+	size_t m_iSize;
+	void *m_pBase;
+};
+
 /* The interpreter class 
  * this contains all functionality needed
  * for executing Macia bytecode */
@@ -46,7 +74,7 @@ public:
 
 private:
 	/* Private - Functions */
-	int ExecuteCode(std::vector<unsigned char> &Code);
+	int ExecuteCode(ObjectInstance *Instance, std::vector<unsigned char> &Code);
 
 	/* Private - Data */
 	DataPool *m_pPool;

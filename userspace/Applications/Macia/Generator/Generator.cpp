@@ -61,6 +61,58 @@ Generator::~Generator() {
 	m_pAST = NULL;
 }
 
+/* Generates the entry point for the program 
+ * this includes instantiating a new object of 'Program' */
+void Generator::GenerateEntry() {
+
+	/* Variables */
+	int TemporaryRegister = -1;
+	int ObjectId = 0;
+	int ConstructorId = 0;
+	int MainId = 0;
+	int VarId = 0;
+	int Id = 0;
+
+	/* Lookup program object & functions */
+	ObjectId = m_pPool->LookupSymbol("Program", -1);
+	ConstructorId = m_pPool->LookupSymbol("Program", ObjectId);
+	MainId = m_pPool->LookupSymbol("Main", ObjectId);
+
+	/* Sanity */
+	if (ObjectId == -1
+		|| MainId == -1) {
+		printf("Missing main function 'Program.Main', you need the Program Object and the Main function to run anything\n");
+		return;
+	}
+
+	/* Generate the entry point function */
+	Id = m_pPool->CreateFunction("__maciaentry", -1);
+
+	/* Define the needed variables */
+	VarId = m_pPool->DefineVariable("__entry", Id);
+
+	/* Allocate a register */
+	TemporaryRegister = AllocateRegister();
+
+	/* Add code */
+	m_pPool->AddOpcode(Id, OpNew);
+	m_pPool->AddCode8(Id, TemporaryRegister);
+	m_pPool->AddCode32(Id, ObjectId);
+
+	m_pPool->AddOpcode(Id, OpStoreAR);
+	m_pPool->AddCode32(Id, VarId);
+	m_pPool->AddCode8(Id, TemporaryRegister);
+
+	m_pPool->AddOpcode(Id, OpInvoke);
+	m_pPool->AddCode32(Id, ConstructorId);
+
+	m_pPool->AddOpcode(Id, OpInvoke);
+	m_pPool->AddCode32(Id, MainId);
+
+	/* Cleanup */
+	DeallocateRegister(TemporaryRegister);
+}
+
 /* Generate the bytecode from the AST,
  * can be assembled or interpreted afterwards */
 int Generator::Generate() {
@@ -73,6 +125,9 @@ int Generator::Generate() {
 	if (ParseStatement(m_pAST, -1)) {
 		return -1;
 	}
+
+	/* Generate an entry point */
+	GenerateEntry();
 
 	/* Step 2 is now compiling everything together */
 	for (std::map<int, CodeObject*>::iterator Itr = m_pPool->GetTable().begin(); 
@@ -125,7 +180,7 @@ int Generator::Generate() {
 			m_lByteCode.push_back(OpReturn);
 		}
 	}
- 
+
 	/* Just return the result of Parser */
 	return 0;
 }

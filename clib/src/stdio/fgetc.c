@@ -27,10 +27,13 @@
 #include <os/Syscall.h>
 
 /* The fgetc
- * Reads an character from the 
+ * Reads an character from the
  * given input stream */
 int fgetc(FILE * stream)
 {
+	/* Varaibles */
+	int character = 0;
+
 	/* Sanity */
 	if (stream == NULL
 		|| stream == stdout
@@ -39,12 +42,17 @@ int fgetc(FILE * stream)
 		return EOF;
 	}
 
-	/* If we want to read from stdin 
+	/* If we want to read from stdin
 	 * redirect */
 	if (stream == stdin) {
 		return getchar();
 	}
 
-	/* @Unimplemented */
-	return 0;
+	/* Read */
+	if (fread(&character, 1, 1, stream) != 1) {
+		return -1;
+	}
+
+	/* Done! */
+	return character;
 }

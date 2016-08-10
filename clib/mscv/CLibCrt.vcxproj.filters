@@ -8,12 +8,6 @@
     <Filter Include="Source\msvc">
       <UniqueIdentifier>{5f73d9ff-75e0-4f7d-a161-0a58e97f770c}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Source\msvc\abi">
-      <UniqueIdentifier>{461bf22a-603a-41e2-8fa8-4f8d2b467c42}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Source\msvc\abi\i386">
-      <UniqueIdentifier>{febdbe0f-33e6-4d3e-9926-f388bc1c9216}</UniqueIdentifier>
-    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\crt\Entry.c">
@@ -22,59 +16,10 @@
     <ClCompile Include="..\crt\msvc\crt.c">
       <Filter>Source\msvc</Filter>
     </ClCompile>
-    <ClCompile Include="..\crt\msvc\abi\delete.cpp">
-      <Filter>Source\msvc\abi</Filter>
-    </ClCompile>
-    <ClCompile Include="..\crt\msvc\abi\exception.cpp">
-      <Filter>Source\msvc\abi</Filter>
-    </ClCompile>
-    <ClCompile Include="..\crt\msvc\abi\misc.c">
-      <Filter>Source\msvc\abi</Filter>
-    </ClCompile>
-    <ClCompile Include="..\crt\msvc\abi\new.cpp">
-      <Filter>Source\msvc\abi</Filter>
-    </ClCompile>
-    <ClCompile Include="..\crt\msvc\abi\rtti.cpp">
-      <Filter>Source\msvc\abi</Filter>
-    </ClCompile>
-    <ClCompile Include="..\crt\msvc\abi\typeinfo.cpp">
-      <Filter>Source\msvc\abi</Filter>
-    </ClCompile>
-    <ClCompile Include="..\crt\msvc\abi\undname.c">
-      <Filter>Source\msvc\abi</Filter>
-    </ClCompile>
-    <ClCompile Include="..\crt\msvc\abi\vectoreh.c">
-      <Filter>Source\msvc\abi</Filter>
-    </ClCompile>
-    <ClCompile Include="..\crt\msvc\abi\xcptfilter.c">
-      <Filter>Source\msvc\abi</Filter>
-    </ClCompile>
-    <ClCompile Include="..\crt\msvc\abi\i386\Except32.c">
-      <Filter>Source\msvc\abi\i386</Filter>
-    </ClCompile>
-    <ClCompile Include="..\crt\msvc\abi\i386\Frame32.c">
-      <Filter>Source\msvc\abi\i386</Filter>
-    </ClCompile>
-    <ClCompile Include="..\crt\msvc\abi\i386\Unwind32.c">
-      <Filter>Source\msvc\abi\i386</Filter>
-    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <MASM Include="..\crt\msvc\constants.S">
       <Filter>Source\msvc</Filter>
     </MASM>
-  </ItemGroup>
-  <ItemGroup>
-    <ClInclude Include="..\crt\msvc\abi\mscxx.h">
-      <Filter>Source\msvc\abi</Filter>
-    </ClInclude>
-    <ClInclude Include="..\crt\msvc\abi\mvcxx.h">
-      <Filter>Source\msvc\abi</Filter>
-    </ClInclude>
-  </ItemGroup>
-  <ItemGroup>
-    <CustomBuild Include="..\crt\msvc\abi\i386\rtxx.asm">
-      <Filter>Source\msvc\abi\i386</Filter>
-    </CustomBuild>
   </ItemGroup>
 </Project>

@@ -133,6 +133,7 @@ int DataPool::CreateObject(char *pIdentifier) {
 int DataPool::CreateFunction(char *pIdentifier, int ScopeId) {
 
 	/* Variables */
+	CodeObject *OwnerObj = NULL;
 	CodeObject *dObj = NULL;
 	char *Path = NULL;
 	int Id = 0;
@@ -144,11 +145,20 @@ int DataPool::CreateFunction(char *pIdentifier, int ScopeId) {
 	if (CheckDublicate(pIdentifier, Path))
 		return -1;
 
+	/* Lookup Owner */
+	if (ScopeId != -1)
+		OwnerObj = m_sTable[ScopeId];
+
 	/* Allocate id */
 	Id = m_iIdGen++;
 
 	/* Create a new object */
 	dObj = new CodeObject(CTFunction, pIdentifier, Path, ScopeId);
+
+	/* Allocate us in the owner of this function
+	 * we must know where to be put */
+	if (OwnerObj != NULL)
+		dObj->SetOffset(OwnerObj->AllocateFunctionOffset());
 
 	/* Insert */
 	m_sTable[Id] = dObj;
@@ -162,6 +172,7 @@ int DataPool::CreateFunction(char *pIdentifier, int ScopeId) {
 int DataPool::DefineVariable(char *pIdentifier, int ScopeId) {
 
 	/* Variables */
+	CodeObject *OwnerObj = NULL;
 	CodeObject *dObj = NULL;
 	char *Path = NULL;
 	int Id = 0;
@@ -173,11 +184,20 @@ int DataPool::DefineVariable(char *pIdentifier, int ScopeId) {
 	if (CheckDublicate(pIdentifier, Path))
 		return -1;
 
+	/* Lookup Owner */
+	if (ScopeId != -1)
+		OwnerObj = m_sTable[ScopeId];
+
 	/* Allocate id */
 	Id = m_iIdGen++;
 
 	/* Create a new object */
 	dObj = new CodeObject(CTVariable, pIdentifier, Path, ScopeId);
+
+	/* Allocate us in the owner of this variable
+	 * we must know where to be put */
+	if (OwnerObj != NULL)
+		dObj->SetOffset(OwnerObj->AllocateVariableOffset());
 
 	/* Insert */
 	m_sTable[Id] = dObj;
@@ -242,7 +262,8 @@ int DataPool::LookupSymbol(char *pIdentifier, int ScopeId) {
 
 		/* Compare path */
 		if (Obj->GetIdentifier() != NULL
-			&& !strcmpi(Obj->GetIdentifier(), pIdentifier)) {
+			&& !strcmpi(Obj->GetIdentifier(), pIdentifier)
+			&& Obj->GetScopeId() == ScopeId) {
 			
 			/* Yay! Found! */
 			return Itr->first;

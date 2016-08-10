@@ -465,6 +465,9 @@
     <ClCompile Include="..\src\os\Exceptions.c">
       <Filter>Source\os</Filter>
     </ClCompile>
+    <ClCompile Include="..\src\stdio\fbuf.c">
+      <Filter>Source\stdio\File</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <CustomBuild Include="..\src\string\memcpy_acc.s">

@@ -200,7 +200,7 @@ void* __cdecl __RTDynamicCast(void *Object, int unknown,
 		* to a reference, since references cannot be NULL.
 		*/
 		if (!RetInfo && do_throw) {
-			throw bad_cast((const char * const *)"Bad dynamic_cast!");
+			//throw bad_cast((const char * const *)"Bad dynamic_cast!");
 		}
 	}
 	__except (((PEXCEPTION_RECORD)TLSGetCurrent()->ExceptionRecord)->ExceptionCode

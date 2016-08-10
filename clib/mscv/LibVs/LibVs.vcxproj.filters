@@ -1,0 +1,65 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <ClCompile Include="..\..\crt\msvc\abi\i386\Except32.c">
+      <Filter>Source\i386</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\crt\msvc\abi\i386\Frame32.c">
+      <Filter>Source\i386</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\crt\msvc\abi\i386\Unwind32.c">
+      <Filter>Source\i386</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\crt\msvc\abi\delete.cpp">
+      <Filter>Source</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\crt\msvc\abi\exception.cpp">
+      <Filter>Source</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\crt\msvc\abi\misc.c">
+      <Filter>Source</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\crt\msvc\abi\undname.c">
+      <Filter>Source</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\crt\msvc\abi\new.cpp">
+      <Filter>Source</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\crt\msvc\abi\rtti.cpp">
+      <Filter>Source</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\crt\msvc\abi\typeinfo.cpp">
+      <Filter>Source</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\crt\msvc\abi\vectoreh.c">
+      <Filter>Source</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\crt\msvc\abi\xcptfilter.c">
+      <Filter>Source</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\..\crt\msvc\abi\mscxx.h">
+      <Filter>Headers</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\crt\msvc\abi\mvcxx.h">
+      <Filter>Headers</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="Source">
+      <UniqueIdentifier>{06b1d146-d481-4061-8f8f-419771336204}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source\i386">
+      <UniqueIdentifier>{7732fd74-79e1-48bf-b9fa-26ecefca77fd}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Headers">
+      <UniqueIdentifier>{b2abb584-0d09-4d45-acde-dfc520f8bf65}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <CustomBuild Include="..\..\crt\msvc\abi\i386\rtxx.asm">
+      <Filter>Source\i386</Filter>
+    </CustomBuild>
+  </ItemGroup>
+</Project>

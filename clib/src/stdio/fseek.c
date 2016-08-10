@@ -27,6 +27,10 @@
 #include <stdlib.h>
 #include <os/Syscall.h>
 
+/* Externs */
+extern int _finv(FILE * stream);
+extern int _favail(FILE * stream);
+
 /* The lseek
  * This is the ANSI C seek
  * function used by filedescriptors */
@@ -134,7 +138,7 @@ int fseeko(FILE *stream, off_t offset, int origin)
 
 		/* Now we can calculate */
 		fSize = *((uint64_t*)(&Buffer[0]));
-		fPos = *((uint64_t*)(&Buffer[16]));
+		fPos = (*((uint64_t*)(&Buffer[16])) - (uint64_t)_favail(stream));
 
 		/* Sanity offset */
 		if ((size_t)fPos != fPos) {
@@ -160,6 +164,10 @@ int fseeko(FILE *stream, off_t offset, int origin)
 	/* Seek to 0 */
 	RetVal = Syscall2(MOLLENOS_SYSCALL_VFSSEEK,
 		MOLLENOS_SYSCALL_PARAM(stream->fd), MOLLENOS_SYSCALL_PARAM(SeekSpot));
+
+	/* Invalidate the file buffer 
+	 * otherwise we read from wrong place! */
+	_finv(stream);
 
 	/* Done */
 	return _fval(RetVal);

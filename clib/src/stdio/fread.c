@@ -27,6 +27,9 @@
 #include <stdlib.h>
 #include <os/Syscall.h>
 
+/* Externs */
+extern int _ffill(FILE * stream, void *ptr, size_t size);
+
 /* The read 
  * This is the ANSI C version
  * of fread */
@@ -53,8 +56,7 @@ int _read(int fd, void *buffer, unsigned int len)
 size_t fread(void * vptr, size_t size, size_t count, FILE * stream)
 {
 	/* Variables */
-	size_t BytesToRead = count * size;
-	int RetVal = 0, ErrCode = 0;
+	size_t BytesToRead = count * size, BytesRead = 0;
 
 	/* Sanity */
 	if (vptr == NULL
@@ -65,24 +67,30 @@ size_t fread(void * vptr, size_t size, size_t count, FILE * stream)
 		|| BytesToRead == 0)
 		return 0;
 
-	/* Syscall */
-	RetVal = Syscall4(MOLLENOS_SYSCALL_VFSREAD, MOLLENOS_SYSCALL_PARAM(stream->fd),
-		MOLLENOS_SYSCALL_PARAM(vptr), MOLLENOS_SYSCALL_PARAM(BytesToRead), MOLLENOS_SYSCALL_PARAM(&ErrCode));
+	/* Keep reading untill
+	 * we've read all bytes requested */
+	while (BytesToRead > 0) 
+	{
+		/* Variables */
+		int res = _ffill(stream, vptr, BytesToRead);
 
-	/* No need to check return 
-	 * the syscall will set error code if any */
-	BytesToRead = (size_t)RetVal;
-
-	/* If we read 0 bytes and errcode is ok, 
-	 * then we are EOF */
-	if (RetVal == 0
-		&& ErrCode == 0) {
-		stream->code |= CLIB_FCODE_EOF;
+		/* Sanity */
+		if (res < 0) {
+			/* fuck */
+			return res;
+		}
+		else if (feof(stream)) {
+			break;
+		}
+		else {
+			BytesToRead -= (size_t)res;
+			BytesRead += (size_t)res;
+		}
 	}
 
 	/* Clear error */
 	_set_errno(EOK);
 
 	/* Gj */
-	return BytesToRead;
+	return BytesRead;
 }

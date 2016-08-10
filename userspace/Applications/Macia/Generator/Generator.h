@@ -116,6 +116,8 @@ private:
 	int AllocateRegister();
 	void DeallocateRegister(int Register);
 
+	void GenerateEntry();
+
 	/* Private - Data */
 	std::vector<unsigned char> m_lByteCode;
 	std::vector<unsigned char> m_lByteData;

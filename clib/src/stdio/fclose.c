@@ -27,6 +27,9 @@
 #include <stdlib.h>
 #include <os/Syscall.h>
 
+/* Externs */
+extern int _ffillclean(FILE * stream);
+
 /* The _close 
  * This is ANSI C close 
  * function and works with 
@@ -67,6 +70,9 @@ int fclose(FILE * stream)
 		free(stream);
 		return EOF;
 	}
+
+	/* Cleanup the file buffer */
+	_ffillclean(stream);
 
 	/* Free the stream handle */
 	free(stream);

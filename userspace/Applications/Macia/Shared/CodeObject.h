@@ -28,7 +28,7 @@
 #include <vector>
 
 /* The code type
-* Identifies the type of the code object */
+ * Identifies the type of the code object */
 typedef enum {
 
 	/* Build in objects */
@@ -40,13 +40,20 @@ typedef enum {
 } CodeType_t;
 
 /* The code object
-* Represents everything that is serializable to IL */
+ * Represents everything that is serializable to IL */
 class CodeObject
 {
 public:
 	CodeObject(CodeType_t pType, char *pIdentifier,
 		char *pPath, int pScopeId);
 	~CodeObject();
+
+	/* State Tracking
+	 * These allow for defining children
+	 * and their offsets in the object or function */
+	int AllocateFunctionOffset();
+	int AllocateVariableOffset();
+	void SetOffset(int Offset) { m_iOffset = Offset; }
 
 	/* Add Code */
 	void AddCode(unsigned char Opcode) { m_lByteCode.push_back(Opcode); }
@@ -57,6 +64,7 @@ public:
 	char *GetPath() { return m_pPath; }
 	char *GetIdentifier() { return m_pIdentifier; }
 	int GetScopeId() { return m_iScopeId; }
+	int GetOffset() { return m_iOffset; }
 
 private:
 	/* Private - ByteCode */
@@ -67,4 +75,9 @@ private:
 	char *m_pIdentifier;
 	char *m_pPath;
 	int m_iScopeId;
+
+	/* Private - State Tracking */
+	int m_iFunctionsDefined;
+	int m_iVariablesDefined;
+	int m_iOffset;
 };

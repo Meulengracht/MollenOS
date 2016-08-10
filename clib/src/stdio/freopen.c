@@ -27,6 +27,9 @@
 #include <stdlib.h>
 #include <os/Syscall.h>
 
+/* Externs */
+extern int _finv(FILE * stream);
+
 /* The freopen
  * Reuses the file
  * handle to either open a new 
@@ -48,6 +51,9 @@ FILE *freopen(const char * filename, const char * mode, FILE * stream)
 		_set_errno(EINVAL);
 		return NULL;
 	}
+
+	/* Invalidate the stream buffer */
+	_finv(stream);
 
 	/* Ok, if filename is not null 
 	 * we must open a new file */

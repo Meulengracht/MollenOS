@@ -92,12 +92,13 @@ FILE *fdopen(int fd, const char *mode)
 	if (fd < 0)
 		return NULL;
 
-	/* Allocate a new file instance */
+	/* Allocate a new file instance 
+	 * and reset the structure */
 	FILE *stream = (FILE*)malloc(sizeof(FILE));
+	memset(stream, 0, sizeof(FILE));
 
 	/* Initialize instance */
 	stream->fd = fd;
-	stream->code = 0;
 
 	/* Do we need to change access mode ? */
 	if (mode != NULL) {

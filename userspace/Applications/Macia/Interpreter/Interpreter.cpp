@@ -42,7 +42,8 @@ Interpreter::~Interpreter() {
 int Interpreter::Execute() {
 
 	/* Lookup main method */
-	CodeObject *EntryObj = m_pPool->LookupObject("Program.Main");
+	ObjectInstance *Instance = NULL;
+	CodeObject *EntryObj = m_pPool->LookupObject("__maciaentry");
 
 	/* Sanity -> We need entry */
 	if (EntryObj == NULL) {
@@ -54,14 +55,15 @@ int Interpreter::Execute() {
 	}
 
 	/* Allocate variables and objects */
+	//Instance = new ObjectInstance(m_pPool->CalculateObjectSize(0), NULL);
 
 	/* Execute code */
-	return ExecuteCode(EntryObj->GetCode());
+	return ExecuteCode(Instance, EntryObj->GetCode());
 }
 
 /* Executes the given code 
  * this function may be called recursive */
-int Interpreter::ExecuteCode(std::vector<unsigned char> &Code) {
+int Interpreter::ExecuteCode(ObjectInstance *Instance, std::vector<unsigned char> &Code) {
 	
 	/* Iterator */
 	size_t Iterator = 0;
@@ -76,6 +78,14 @@ int Interpreter::ExecuteCode(std::vector<unsigned char> &Code) {
 
 		/* Handle opcode */
 		switch (Opcode) {
+
+			/* Specials */
+			case OpLabel:
+			case OpNew:
+			case OpInvoke:
+			case OpReturn: {
+
+			} break;
 
 			/* Store Opcodes */
 			case OpStore:

@@ -27,6 +27,9 @@
 #include <stdlib.h>
 #include <os/Syscall.h>
 
+/* Externs */
+extern int _favail(FILE * stream);
+
 /* The write
 * This is the ANSI C version
 * of fwrite */
@@ -64,6 +67,12 @@ size_t fwrite(const void * vptr, size_t size, size_t count, FILE * stream)
 		|| stream == stdin
 		|| BytesToWrite == 0)
 		return 0;
+
+	/* Sanity, if we are in position of a 
+	 * buffer, we need to adjust before writing */
+	if (_favail(stream)) {
+		fseek(stream, 0 - _favail(stream), SEEK_CUR);
+	}
 
 	/* Syscall */
 	RetVal = Syscall4(MOLLENOS_SYSCALL_VFSWRITE, MOLLENOS_SYSCALL_PARAM(stream->fd),
