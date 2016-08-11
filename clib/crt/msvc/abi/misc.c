@@ -115,12 +115,12 @@ int __cdecl __CxxDetectRethrow(PEXCEPTION_POINTERS Ptrs)
 
 /* This just returns the size of 
  * the exception type record */
-unsigned int __cdecl __CxxQueryExceptionSize(void) {
+_CRTXX_ABI unsigned int __cdecl __CxxQueryExceptionSize(void) {
 	return sizeof(CxxExceptionType_t);
 }
 
 /* Expcetion Filter */
-int __cdecl __CppXcptFilter(int ExType, PEXCEPTION_POINTERS Ptr)
+_CRTXX_ABI int __cdecl __CppXcptFilter(int ExType, PEXCEPTION_POINTERS Ptr)
 {
 	/* Only filter c++ exceptions */
 	if (ExType != CXX_EXCEPTION) 

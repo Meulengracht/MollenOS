@@ -26,6 +26,14 @@
 #include <crtdefs.h>
 #include <stdint.h>
 
+#ifdef MOLLENOS
+#ifndef _VCXXABI_IMPLEMENTATION
+#define _CRTXX_ABI __declspec(dllimport)
+#else
+#define _CRTXX_ABI __declspec(dllexport)
+#endif
+#endif
+
 /* Definitions */
 #define EXCEPTION_MAXIMUM_PARAMETERS   15
 

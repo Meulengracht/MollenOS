@@ -442,6 +442,10 @@ int ScSyncSleep(Addr_t *Handle, size_t Timeout)
 /***********************
 * Memory Functions     *
 ***********************/
+
+/* Allows a process to allocate memory
+ * from the userheap, it takes a size and 
+ * allocation flags which describe the type of allocation */
 Addr_t ScMemoryAllocate(size_t Size, int Flags)
 {
 	/* Locate Process */
@@ -460,6 +464,8 @@ Addr_t ScMemoryAllocate(size_t Size, int Flags)
 	return (Addr_t)umalloc(Process->Heap, Size);
 }
 
+/* Free's previous allocated memory, given an address
+ * and a length (though not needed for now!) */
 int ScMemoryFree(Addr_t Address, size_t Length)
 {
 	/* Locate Process */
@@ -481,6 +487,9 @@ int ScMemoryFree(Addr_t Address, size_t Length)
 	return 0;
 }
 
+/* Queries information about a chunk of memory 
+ * and returns allocation information or stats 
+ * depending on query function */
 int ScMemoryQuery(void)
 {
 	return 0;
@@ -606,11 +615,15 @@ int ScIpcPeek(uint8_t *MessageContainer, size_t MessageLength)
  * and consume the message, if no message 
  * is available, this function will block untill 
  * a message is available */
-int ScIpcRead(uint8_t *MessageContainer, size_t MessageLength)
+int ScIpcRead(uint8_t *MessageContainer)
 {
+	/* Variables */
+	MEventMessageBase_t *MsgBase = 
+		(MEventMessageBase_t*)MessageContainer;
+	int BytesRead = 0;
+
 	/* Validation */
-	if (MessageContainer == NULL
-		|| MessageLength == 0)
+	if (MessageContainer == NULL)
 		return -1;
 
 	/* Get current process */
@@ -622,8 +635,27 @@ int ScIpcRead(uint8_t *MessageContainer, size_t MessageLength)
 	if (Process == NULL)
 		return -2;
 
-	/* Read */
-	return PipeRead(Process->Pipe, MessageLength, MessageContainer, 0);
+	/* Read the base message */
+	BytesRead = PipeRead(Process->Pipe, 
+		sizeof(MEventMessageBase_t), MessageContainer, 0);
+
+	/* Validate how much we read */
+	if (BytesRead != sizeof(MEventMessageBase_t))
+		return -1;
+
+	/* Read rest of message */
+	if (BytesRead != MsgBase->Length) 
+	{
+		/* Calculate remainder and increase pointer */
+		int Remainder = (MsgBase->Length - BytesRead);
+		MessageContainer += BytesRead;
+
+		/* Read the rest of the message */
+		BytesRead += PipeRead(Process->Pipe, (size_t)Remainder, MessageContainer, 0);
+	}
+
+	/* Done! */
+	return BytesRead;
 }
 
 /* Sends a message to another process, 

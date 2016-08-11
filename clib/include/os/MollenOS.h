@@ -311,7 +311,7 @@ _MOS_API void MollenOSGetScreenGeometry(Rect_t *Rectangle);
  ***********************/
 _MOS_API int MollenOSSignalWait(size_t Timeout);
 _MOS_API int MollenOSSignalWake(IpcComm_t Target);
-_MOS_API void MollenOSSystemLog(const char *Message);
+_MOS_API void MollenOSSystemLog(const char *Format, ...);
 _MOS_API int MollenOSEndBoot(void);
 _MOS_API int MollenOSRegisterWM(void);
 

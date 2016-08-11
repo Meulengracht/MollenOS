@@ -70,7 +70,7 @@
       </SDLCheck>
       <TreatWarningAsError>true</TreatWarningAsError>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
-      <PreprocessorDefinitions>MOLLENOS;_X86_32;_CRT_DYNAMIC;_CRT_DLL</PreprocessorDefinitions>
+      <PreprocessorDefinitions>MOLLENOS;_X86_32;_CRT_DYNAMIC;_CRT_DLL;_VCXXABI_IMPLEMENTATION</PreprocessorDefinitions>
       <BufferSecurityCheck>false</BufferSecurityCheck>
       <DisableSpecificWarnings>4115;4711;4054;4055;4706;4152;4714;4514;4297;4710</DisableSpecificWarnings>
     </ClCompile>

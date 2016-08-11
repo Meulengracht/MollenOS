@@ -20,6 +20,7 @@
 */
 
 /* Includes */
+#include "mvcxx.h"
 #include <stdlib.h>
 #include <new>
 
@@ -40,7 +41,7 @@ void *operator new(size_t size)
 
 /* Standard new array operator 
  * function */
-void *operator new[](size_t size)
+ void *operator new[](size_t size)
 {
 	/* Deep call */
 	return malloc(size);

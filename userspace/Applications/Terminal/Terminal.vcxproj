@@ -73,7 +73,7 @@
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
-      <AdditionalDependencies>LibC.lib;LibCrt.lib;LibUi.lib;SDL2.lib;SDL2_ttf.lib</AdditionalDependencies>
+      <AdditionalDependencies>LibC.lib;LibCrt.lib;LibUi.lib;LibVs.lib;SDL2.lib;SDL2_ttf.lib</AdditionalDependencies>
       <SubSystem>Native</SubSystem>
       <EntryPointSymbol>_mConCrt</EntryPointSymbol>
       <ImageHasSafeExceptionHandlers>false</ImageHasSafeExceptionHandlers>

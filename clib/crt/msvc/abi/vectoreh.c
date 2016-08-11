@@ -46,7 +46,7 @@ typedef struct _RTL_VECTORED_HANDLER_ENTRY
 } RTL_VECTORED_HANDLER_ENTRY, *PRTL_VECTORED_HANDLER_ENTRY;
 
 /* FUNCTIONS ***************************************************************/
-void __CppInitVectoredEH(void)
+_CRTXX_ABI void __CppInitVectoredEH(void)
 {
 	/* Initialize our two lists and the common lock */
 	SpinlockReset(&__VectorEhLock);

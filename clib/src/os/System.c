@@ -24,6 +24,11 @@
 #include <os/Syscall.h>
 #include <os/Ipc.h>
 
+/* C-Library */
+#include <stdarg.h>
+#include <stdio.h>
+#include <string.h>
+
 #ifdef LIBC_KERNEL
 void __SystemLibCEmpty(void)
 {
@@ -34,9 +39,24 @@ void __SystemLibCEmpty(void)
 const char *__SysTypeMessage = "CLIB";
 
 /* Write to sysout */
-void MollenOSSystemLog(const char *Message)
+void MollenOSSystemLog(const char *Format, ...)
 {
-	Syscall2(0, MOLLENOS_SYSCALL_PARAM(__SysTypeMessage), MOLLENOS_SYSCALL_PARAM(Message));
+	/* We need a static, temporary buffer */
+	va_list Args;
+	char TmpBuffer[256];
+
+	/* Reset the buffer */
+	memset(&TmpBuffer[0], 0, sizeof(TmpBuffer));
+
+	/* Now use that one to format the string
+	 * in using sprintf */
+	va_start(Args, Format);
+	vsprintf(&TmpBuffer[0], Format, Args);
+	va_end(Args);
+
+	/* Now spit it out */
+	Syscall2(0, MOLLENOS_SYSCALL_PARAM(__SysTypeMessage), 
+		MOLLENOS_SYSCALL_PARAM(&TmpBuffer[0]));
 }
 
 /* End Boot Sequence */
@@ -93,40 +113,17 @@ int MollenOSMessagePeek(MEventMessage_t *Message)
 }
 
 /* IPC - Read/Wait - BLOCKING OP
-* This returns -1 if something went wrong reading
-* a message from the message queue, otherwise it returns 0
-* and fills the structures with information about
-* the message */
+ * This returns -2/-1/0 if something went wrong reading
+ * a message from the message queue, otherwise it returns 0
+ * and fills the structures with information about
+ * the message */
 int MollenOSMessageWait(MEventMessage_t *Message)
 {
-	/* Variables */
+	/* Cast to an address pointer */
 	uint8_t *MsgPointer = (uint8_t*)Message;
-	int RetVal = 0;
 
 	/* Syscall! */
-	RetVal = Syscall2(MOLLENOS_SYSCALL_READMSG, MOLLENOS_SYSCALL_PARAM(MsgPointer),
-		MOLLENOS_SYSCALL_PARAM(sizeof(MEventMessageBase_t)));
-
-	/* Sanity */
-	if (RetVal > 0
-		&& RetVal == sizeof(MEventMessageBase_t))
-	{
-		/* Calculate some offsets */
-		size_t BytesRemaining = Message->Base.Length - sizeof(MEventMessageBase_t);
-		MsgPointer += RetVal;
-
-		/* Read rest of message */
-		RetVal += Syscall2(MOLLENOS_SYSCALL_READMSG, MOLLENOS_SYSCALL_PARAM(MsgPointer),
-			MOLLENOS_SYSCALL_PARAM(BytesRemaining));
-
-		/* Sanity */
-		if ((size_t)RetVal == Message->Base.Length)
-			return 0;
-		else
-			return -1;
-	}
-	else
-		return -1;
+	return Syscall1(MOLLENOS_SYSCALL_READMSG, MOLLENOS_SYSCALL_PARAM(MsgPointer));
 }
 
 /* IPC - Write

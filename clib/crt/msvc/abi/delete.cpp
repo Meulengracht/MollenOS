@@ -20,6 +20,7 @@
 */
 
 /* Includes */
+#include "mvcxx.h"
 #include <stdlib.h>
 
 /* Standard delete operator 
