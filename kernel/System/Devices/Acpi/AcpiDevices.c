@@ -16,12 +16,12 @@
 * along with this program.If not, see <http://www.gnu.org/licenses/>.
 *
 *
-* MollenOS x86 ACPI Interface (Uses ACPICA)
+* MollenOS ACPI Interface (Uses ACPICA)
 */
 
 /* Includes */
 #include <Arch.h>
-#include <AcpiSys.h>
+#include <AcpiInterface.h>
 #include <Heap.h>
 #include <Log.h>
 #include <stdio.h>
@@ -239,7 +239,7 @@ ACPI_STATUS AcpiDeviceGetStatus(AcpiDevice_t* Device)
 	Buffer.Pointer = lbuf;
 
 	/* Sanity */
-	if (Device->Features & X86_ACPI_FEATURE_STA)
+	if (Device->Features & ACPI_FEATURE_STA)
 	{
 		Status = AcpiEvaluateObjectTyped(Device->Handle, "_STA", NULL, &Buffer, ACPI_TYPE_INTEGER);
 
@@ -272,7 +272,7 @@ ACPI_STATUS AcpiDeviceGetBusAndSegment(AcpiDevice_t* Device)
 	Buffer.Pointer = lbuf;
 
 	/* Sanity */
-	if (Device->Features & X86_ACPI_FEATURE_BBN)
+	if (Device->Features & ACPI_FEATURE_BBN)
 	{
 		Status = AcpiEvaluateObjectTyped(Device->Handle, "_BBN", NULL, &Buffer, ACPI_TYPE_INTEGER);
 
@@ -288,7 +288,7 @@ ACPI_STATUS AcpiDeviceGetBusAndSegment(AcpiDevice_t* Device)
 	}
 
 	/* Sanity */
-	if (Device->Features & X86_ACPI_FEATURE_SEG)
+	if (Device->Features & ACPI_FEATURE_SEG)
 	{
 		Status = AcpiEvaluateObjectTyped(Device->Handle, "_SEG", NULL, &Buffer, ACPI_TYPE_INTEGER);
 
@@ -356,87 +356,87 @@ ACPI_STATUS AcpiDeviceGetFeatures(AcpiDevice_t *Device)
 	Status = AcpiGetHandle(Device->Handle, "_STA", &NullHandle);
 	
 	if (ACPI_SUCCESS(Status))
-		Device->Features |= X86_ACPI_FEATURE_STA;
+		Device->Features |= ACPI_FEATURE_STA;
 
 	/* Is compatible ids present? */
 	Status = AcpiGetHandle(Device->Handle, "_CID", &NullHandle);
 
 	if (ACPI_SUCCESS(Status))
-		Device->Features |= X86_ACPI_FEATURE_CID;
+		Device->Features |= ACPI_FEATURE_CID;
 
 	/* Supports removable? */
 	Status = AcpiGetHandle(Device->Handle, "_RMV", &NullHandle);
 
 	if (ACPI_SUCCESS(Status))
-		Device->Features |= X86_ACPI_FEATURE_RMV;
+		Device->Features |= ACPI_FEATURE_RMV;
 
 	/* Supports ejecting? */
 	Status = AcpiGetHandle(Device->Handle, "_EJD", &NullHandle);
 
 	if (ACPI_SUCCESS(Status))
-		Device->Features |= X86_ACPI_FEATURE_EJD;
+		Device->Features |= ACPI_FEATURE_EJD;
 	else
 	{
 		Status = AcpiGetHandle(Device->Handle, "_EJ0", &NullHandle);
 
 		if (ACPI_SUCCESS(Status))
-			Device->Features |= X86_ACPI_FEATURE_EJD;
+			Device->Features |= ACPI_FEATURE_EJD;
 	}
 
 	/* Supports device locking? */
 	Status = AcpiGetHandle(Device->Handle, "_LCK", &NullHandle);
 
 	if (ACPI_SUCCESS(Status))
-		Device->Features |= X86_ACPI_FEATURE_LCK;
+		Device->Features |= ACPI_FEATURE_LCK;
 
 	/* Supports power management? */
 	Status = AcpiGetHandle(Device->Handle, "_PS0", &NullHandle);
 
 	if (ACPI_SUCCESS(Status))
-		Device->Features |= X86_ACPI_FEATURE_PS0;
+		Device->Features |= ACPI_FEATURE_PS0;
 	else
 	{
 		Status = AcpiGetHandle(Device->Handle, "_PR0", &NullHandle);
 
 		if (ACPI_SUCCESS(Status))
-			Device->Features |= X86_ACPI_FEATURE_PS0;
+			Device->Features |= ACPI_FEATURE_PS0;
 	}
 
 	/* Supports wake? */
 	Status = AcpiGetHandle(Device->Handle, "_PRW", &NullHandle);
 
 	if (ACPI_SUCCESS(Status))
-		Device->Features |= X86_ACPI_FEATURE_PRW;
+		Device->Features |= ACPI_FEATURE_PRW;
 	
 	/* Has IRQ Routing Table Present ?  */
 	Status = AcpiGetHandle(Device->Handle, "_PRT", &NullHandle);
 
 	if (ACPI_SUCCESS(Status))
-		Device->Features |= X86_ACPI_FEATURE_PRT;
+		Device->Features |= ACPI_FEATURE_PRT;
 
 	/* Has Current Resources Set ?  */
 	Status = AcpiGetHandle(Device->Handle, "_CRS", &NullHandle);
 
 	if (ACPI_SUCCESS(Status))
-		Device->Features |= X86_ACPI_FEATURE_CRS;
+		Device->Features |= ACPI_FEATURE_CRS;
 
 	/* Supports Bus Numbering ?  */
 	Status = AcpiGetHandle(Device->Handle, "_BBN", &NullHandle);
 
 	if (ACPI_SUCCESS(Status))
-		Device->Features |= X86_ACPI_FEATURE_BBN;
+		Device->Features |= ACPI_FEATURE_BBN;
 
 	/* Supports Bus Segment ?  */
 	Status = AcpiGetHandle(Device->Handle, "_SEG", &NullHandle);
 
 	if (ACPI_SUCCESS(Status))
-		Device->Features |= X86_ACPI_FEATURE_SEG;
+		Device->Features |= ACPI_FEATURE_SEG;
 
 	/* Supports PCI Config Space ?  */
 	Status = AcpiGetHandle(Device->Handle, "_REG", &NullHandle);
 
 	if (ACPI_SUCCESS(Status))
-		Device->Features |= X86_ACPI_FEATURE_REG;
+		Device->Features |= ACPI_FEATURE_REG;
 
 	return AE_OK;
 }
@@ -444,32 +444,109 @@ ACPI_STATUS AcpiDeviceGetFeatures(AcpiDevice_t *Device)
 /* IRQ Routing Callback */
 ACPI_STATUS AcpiDeviceIrqRoutingCallback(ACPI_RESOURCE *Resource, void *Context)
 {
+	/* Cast the information given to us */
 	IrqResource_t *IrqResource = (IrqResource_t*)Context;
 	AcpiDevice_t *Device = (AcpiDevice_t*)IrqResource->Device;
-	ACPI_PCI_ROUTING_TABLE *IrqTable = (ACPI_PCI_ROUTING_TABLE*)IrqResource->Table;
+	ACPI_PCI_ROUTING_TABLE *IrqTable = 
+		(ACPI_PCI_ROUTING_TABLE*)IrqResource->Table;
+	
+	/* Needed for storing the interrupt setting */
+	PciRoutingEntry_t *pEntry = NULL;
+	DataKey_t pKey;
+
+	/* Set the key */
+	pKey.Value = 0;
 
 	/* Normal IRQ Resource? */
 	if (Resource->Type == ACPI_RESOURCE_TYPE_IRQ)
 	{
+		/* Yess, variables for this 
+		 * Calculate offset as well */
 		ACPI_RESOURCE_IRQ *Irq;
-		UINT32 offset = ((ACPI_HIWORD(ACPI_LODWORD(IrqTable->Address))) * 4) + IrqTable->Pin;
+		int Offset = ((ACPI_HIWORD(ACPI_LODWORD(IrqTable->Address))) * 4) + IrqTable->Pin;
 
+		/* Shorthand access */
 		Irq = &Resource->Data.Irq;
-		Device->Routings->Polarity[offset] = Irq->Polarity;
-		Device->Routings->Trigger[offset] = Irq->Triggering;
-		Device->Routings->Shareable[offset] = Irq->Sharable;
-		Device->Routings->Interrupts[offset] = Irq->Interrupts[IrqTable->SourceIndex];
+
+		/* Allocate the entry */
+		pEntry = (PciRoutingEntry_t*)kmalloc(sizeof(PciRoutingEntry_t));
+
+		/* Set information */
+		pEntry->Polarity = Irq->Polarity;
+		pEntry->Trigger = Irq->Triggering;
+		pEntry->Shareable = Irq->Sharable;
+		pEntry->Interrupts = Irq->Interrupts[IrqTable->SourceIndex];
+
+		/* Do we already have an entry?? */
+		if (Device->Routings->InterruptInformation[Offset] == 1) {
+
+			/* Ok... We are an list */
+			ListAppend(Device->Routings->Interrupts[Offset].Entries,
+				ListCreateNode(pKey, pKey, pEntry));
+		}
+		else if (Device->Routings->InterruptInformation[Offset] == 0
+			&& Device->Routings->Interrupts[Offset].Entry != NULL) {
+
+			/* Create a new list */
+			List_t *IntList = ListCreate(KeyInteger, LIST_NORMAL);
+
+			/* Append the existing entry */
+			ListAppend(IntList, ListCreateNode(pKey, pKey, Device->Routings->Interrupts[Offset].Entry));
+
+			/* Append the new entry */
+			ListAppend(IntList, ListCreateNode(pKey, pKey, pEntry));
+
+			/* Store the list and set upgraded */
+			Device->Routings->Interrupts[Offset].Entries = IntList;
+			Device->Routings->InterruptInformation[Offset] = 1;
+		}
+		else
+			Device->Routings->Interrupts[Offset].Entry = pEntry;
 	}
 	else if (Resource->Type == ACPI_RESOURCE_TYPE_EXTENDED_IRQ)
 	{
+		/* Extended, variables for this
+		 * Calculate offset as well */
 		ACPI_RESOURCE_EXTENDED_IRQ *Irq;
-		UINT32 offset = ((ACPI_HIWORD(ACPI_LODWORD(IrqTable->Address))) * 4) + IrqTable->Pin;
+		int Offset = ((ACPI_HIWORD(ACPI_LODWORD(IrqTable->Address))) * 4) + IrqTable->Pin;
 
+		/* Shorthand access */
 		Irq = &Resource->Data.ExtendedIrq;
-		Device->Routings->Polarity[offset] = Irq->Polarity;
-		Device->Routings->Trigger[offset] = Irq->Triggering;
-		Device->Routings->Shareable[offset] = Irq->Sharable;
-		Device->Routings->Interrupts[offset] = Irq->Interrupts[IrqTable->SourceIndex];
+		
+		/* Allocate the entry */
+		pEntry = (PciRoutingEntry_t*)kmalloc(sizeof(PciRoutingEntry_t));
+		
+		/* Set information */
+		pEntry->Polarity = Irq->Polarity;
+		pEntry->Trigger = Irq->Triggering;
+		pEntry->Shareable = Irq->Sharable;
+		pEntry->Interrupts = Irq->Interrupts[IrqTable->SourceIndex];
+
+		/* Do we already have an entry?? */
+		if (Device->Routings->InterruptInformation[Offset] == 1) {
+
+			/* Ok... We are an list */
+			ListAppend(Device->Routings->Interrupts[Offset].Entries,
+				ListCreateNode(pKey, pKey, pEntry));
+		}
+		else if (Device->Routings->InterruptInformation[Offset] == 0
+			&& Device->Routings->Interrupts[Offset].Entry != NULL) {
+
+			/* Create a new list */
+			List_t *IntList = ListCreate(KeyInteger, LIST_NORMAL);
+
+			/* Append the existing entry */
+			ListAppend(IntList, ListCreateNode(pKey, pKey, Device->Routings->Interrupts[Offset].Entry));
+
+			/* Append the new entry */
+			ListAppend(IntList, ListCreateNode(pKey, pKey, pEntry));
+
+			/* Store the list and set upgraded */
+			Device->Routings->Interrupts[Offset].Entries = IntList;
+			Device->Routings->InterruptInformation[Offset] = 1;
+		}
+		else
+			Device->Routings->Interrupts[Offset].Entry = pEntry;
 	}
 
 	return AE_OK;
@@ -481,8 +558,8 @@ ACPI_STATUS AcpiDeviceGetIrqRoutings(AcpiDevice_t *Device)
 	ACPI_STATUS Status;
 	ACPI_BUFFER aBuff;
 	ACPI_PCI_ROUTING_TABLE *PciTable;
-	int i;
 	PciRoutings_t *Table;
+	int i;
 
 	/* Setup Buffer */
 	aBuff.Length = 0x2000;
@@ -497,13 +574,9 @@ ACPI_STATUS AcpiDeviceGetIrqRoutings(AcpiDevice_t *Device)
 	Table = (PciRoutings_t*)kmalloc(sizeof(PciRoutings_t));
 	
 	/* Reset it */
-	for (i = 0; i < 128; i++)
-	{
-		Table->Interrupts[i] = -1;
-		Table->Polarity[i] = 0;
-		Table->Shareable[i] = 0;
-		Table->Trigger[i] = 0;
-		Table->Fixed[i] = 0;
+	for (i = 0; i < 128; i++) {
+		Table->Interrupts[i].Entry = NULL;
+		Table->InterruptInformation[i] = 0;
 	}
 
 	/* Link it */
@@ -514,6 +587,7 @@ ACPI_STATUS AcpiDeviceGetIrqRoutings(AcpiDevice_t *Device)
 		PciTable = (ACPI_PCI_ROUTING_TABLE *)
 		((char *)PciTable + PciTable->Length))
 	{
+		/* Variables */
 		ACPI_HANDLE SourceHandle;
 		IrqResource_t IrqRes;
 
@@ -521,16 +595,22 @@ ACPI_STATUS AcpiDeviceGetIrqRoutings(AcpiDevice_t *Device)
 		if (*(char*)PciTable->Source == '\0')
 		{
 			/* Ok, eol */
+			PciRoutingEntry_t *pEntry = (PciRoutingEntry_t*)kmalloc(sizeof(PciRoutingEntry_t));
 
 			/* Set it */
-			uint32_t _dev = (ACPI_HIWORD(ACPI_LODWORD(PciTable->Address)));
-			uint32_t offset = (_dev * 4) + PciTable->Pin;
+			int _dev = (ACPI_HIWORD(ACPI_LODWORD(PciTable->Address)));
+			int offset = (_dev * 4) + PciTable->Pin;
 
 			/* Fixed GSI */
-			Table->Interrupts[offset] = PciTable->SourceIndex;
-			Table->Polarity[offset] = ACPI_ACTIVE_LOW;
-			Table->Trigger[offset] = ACPI_LEVEL_SENSITIVE;
-			Table->Fixed[offset] = 1;
+			pEntry->Interrupts = PciTable->SourceIndex;
+			pEntry->Polarity = ACPI_ACTIVE_LOW;
+			pEntry->Trigger = ACPI_LEVEL_SENSITIVE;
+			pEntry->Fixed = 1;
+
+			/* Set entry */
+			Table->Interrupts[offset].Entry = pEntry;
+
+			/* Done! */
 			continue;
 		}
 
@@ -545,8 +625,11 @@ ACPI_STATUS AcpiDeviceGetIrqRoutings(AcpiDevice_t *Device)
 		IrqRes.Device = (void*)Device;
 		IrqRes.Table = (void*)PciTable;
 		
-		Status = AcpiWalkResources(SourceHandle, METHOD_NAME__CRS, AcpiDeviceIrqRoutingCallback, &IrqRes);
+		/* Walk the handle */
+		Status = AcpiWalkResources(SourceHandle, 
+			METHOD_NAME__CRS, AcpiDeviceIrqRoutingCallback, &IrqRes);
 		
+		/* Sanitize the return status */
 		if (ACPI_FAILURE(Status)) {
 			printf("Failed IRQ resource\n");
 			continue;
@@ -601,7 +684,7 @@ ACPI_STATUS AcpiDeviceGetHWInfo(AcpiDevice_t *Device, ACPI_HANDLE ParentHandle, 
 			if (DeviceInfo->Valid & ACPI_VALID_ADR)
 			{
 				Device->Address = DeviceInfo->Address;
-				Device->Features |= X86_ACPI_FEATURE_ADR;
+				Device->Features |= ACPI_FEATURE_ADR;
 			}
 
 			/* Check for special device, i.e Video / Bay / Dock */
@@ -644,13 +727,13 @@ ACPI_STATUS AcpiDeviceGetHWInfo(AcpiDevice_t *Device, ACPI_HANDLE ParentHandle, 
 	if (Hid)
 	{
 		strcpy(Device->HID, Hid);
-		Device->Features |= X86_ACPI_FEATURE_HID;
+		Device->Features |= ACPI_FEATURE_HID;
 	}
 	
 	if (Uid) 
 	{
 		strcpy(Device->UID, Uid);
-		Device->Features |= X86_ACPI_FEATURE_UID;
+		Device->Features |= ACPI_FEATURE_UID;
 	}
 	
 	/* Now store CID */
@@ -700,7 +783,7 @@ ACPI_STATUS AcpiDeviceGetHWInfo(AcpiDevice_t *Device, ACPI_HANDLE ParentHandle, 
 		list->Count = count;
 		list->ListSize = size;
 		Device->CID = list;
-		Device->Features |= X86_ACPI_FEATURE_CID;
+		Device->Features |= ACPI_FEATURE_CID;
 	}
 
 	return AE_OK;

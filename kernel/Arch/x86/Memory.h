@@ -52,8 +52,9 @@
 
 
 /* Includes */
-#include <MollenOS.h>
 #include <stdint.h>
+
+#include <MollenOS.h>
 #include <CriticalSection.h>
 
 /**********************************/

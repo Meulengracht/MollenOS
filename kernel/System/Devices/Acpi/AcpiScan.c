@@ -21,22 +21,17 @@
 
 /* Includes */
 #include <Arch.h>
-#include <AcpiSys.h>
+#include <AcpiInterface.h>
 #include <Heap.h>
-#include <Pci.h>
 #include <Log.h>
 
 /* C-Library */
+#include <stddef.h>
 #include <ds/list.h>
 
 /* Globals */
 List_t *GlbPciAcpiDevices = NULL;
 int GlbBusCounter = 0;
-
-/* Pin conversion from behind a bridge */
-int AcpiDerivePin(int Device, int Pin) {
-	return (((Pin - 1) + Device) % 4) + 1;
-}
 
 /* Lookup a bridge device for the given
  * bus that contains pci routings */
@@ -72,85 +67,6 @@ AcpiDevice_t *AcpiLookupDevice(int Bus)
 
 	/* Noooooooo */
 	return NULL;
-}
-
-/* Get Irq by Bus / Dev / Pin 
- * Returns -1 if no overrides exists */
-int AcpiDeviceGetIrq(void *PciDevice, int Pin,
-					uint8_t *TriggerMode, uint8_t *Polarity, uint8_t *Shareable,
-					uint8_t *Fixed)
-{
-	/* Locate correct bus */
-	AcpiDevice_t *Dev = NULL;
-	PciDevice_t *PciDev = (PciDevice_t*)PciDevice;
-	int pDevice = PciDev->Device, pPin = Pin;
-
-	/* Calculate routing index */
-	int rIndex = (pDevice * 4) + Pin;
-
-	/* Start by checking if we can find the 
-	 * routings by checking the given device */
-	Dev = AcpiLookupDevice(PciDev->Bus);
-
-	/* Sanitize */
-	if (Dev != NULL) {
-		/* Sanity */
-		if (Dev->Routings->Interrupts[rIndex] != -1) {
-			/* Update IRQ Information */
-			if (Dev->Routings->Trigger[rIndex] == ACPI_LEVEL_SENSITIVE)
-				*TriggerMode = 1;
-			else
-				*TriggerMode = 0;
-
-			if (Dev->Routings->Polarity[rIndex] == ACPI_ACTIVE_LOW)
-				*Polarity = 1;
-			else
-				*Polarity = 0;
-
-			*Shareable = Dev->Routings->Shareable[rIndex];
-			*Fixed = Dev->Routings->Fixed[rIndex];
-			return Dev->Routings->Interrupts[rIndex];
-		}
-	}
-
-	/* Damn, check parents */
-	PciDev = PciDev->Parent;
-	while (PciDev) {
-
-		/* Correct the pin */
-		pPin = AcpiDerivePin(pDevice, pPin);
-		pDevice = PciDev->Device;
-
-		/* Calculate new corrected routing index */
-		rIndex = (pDevice * 4) + pPin;
-
-		/* Start by checking if we can find the
-		* routings by checking the given device */
-		Dev = AcpiLookupDevice(PciDev->Bus);
-
-		/* Sanitize */
-		if (Dev != NULL) {
-			/* Sanity */
-			if (Dev->Routings->Interrupts[rIndex] != -1) {
-				/* Update IRQ Information */
-				if (Dev->Routings->Trigger[rIndex] == ACPI_LEVEL_SENSITIVE)
-					*TriggerMode = 1;
-				else
-					*TriggerMode = 0;
-
-				if (Dev->Routings->Polarity[rIndex] == ACPI_ACTIVE_LOW)
-					*Polarity = 1;
-				else
-					*Polarity = 0;
-
-				*Shareable = Dev->Routings->Shareable[rIndex];
-				*Fixed = Dev->Routings->Fixed[rIndex];
-				return Dev->Routings->Interrupts[rIndex];
-			}
-		}
-	}
-
-	return -1;
 }
 
 /* Gathers information about a ACPICA handle
@@ -245,7 +161,7 @@ AcpiDevice_t *PciAddObject(ACPI_HANDLE Handle, ACPI_HANDLE Parent, uint32_t Type
 	Status = AcpiDeviceAttachData(Device, Type);
 	
 	/* Convert ADR to device / function */
-	if (Device->Features & X86_ACPI_FEATURE_ADR)
+	if (Device->Features & ACPI_FEATURE_ADR)
 	{
 		Device->Device = ACPI_HIWORD(ACPI_LODWORD(Device->Address));
 		Device->Function = ACPI_LOWORD(ACPI_LODWORD(Device->Address));
@@ -263,7 +179,7 @@ AcpiDevice_t *PciAddObject(ACPI_HANDLE Handle, ACPI_HANDLE Parent, uint32_t Type
 	}
 
 	/* Does it contain routings */
-	if (Device->Features & X86_ACPI_FEATURE_PRT)
+	if (Device->Features & ACPI_FEATURE_PRT)
 	{
 		Status = AcpiDeviceGetIrqRoutings(Device);
 

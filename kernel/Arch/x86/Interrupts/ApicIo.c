@@ -26,28 +26,28 @@
 #include <stddef.h>
 
 /* Externs */
-extern volatile Addr_t GlbLocalApicAddress;
+extern volatile Addr_t GlbLocalApicBase;
 
 /* Read / Write to local apic registers */
 uint32_t ApicReadLocal(uint32_t Register)
 {
 	/* Sanity */
-	assert(GlbLocalApicAddress != 0);
+	assert(GlbLocalApicBase != 0);
 
 	/* Simply just read */
-	return (uint32_t)(*(volatile Addr_t*)(GlbLocalApicAddress + Register));
+	return (uint32_t)(*(volatile Addr_t*)(GlbLocalApicBase + Register));
 }
 
 void ApicWriteLocal(uint32_t Register, uint32_t Value)
 {
 	/* Sanity */
-	assert(GlbLocalApicAddress != 0);
+	assert(GlbLocalApicBase != 0);
 
 	/* Write */
-	(*(volatile Addr_t*)(GlbLocalApicAddress + Register)) = Value;
+	(*(volatile Addr_t*)(GlbLocalApicBase + Register)) = Value;
 
 	/* Re-read new value to sync */
-	Value = (*(volatile Addr_t*)(GlbLocalApicAddress + Register));
+	Value = (*(volatile Addr_t*)(GlbLocalApicBase + Register));
 }
 
 /* Read / Write to io apic registers */

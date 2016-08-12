@@ -28,9 +28,6 @@
     <Filter Include="Includes">
       <UniqueIdentifier>{df810496-32c7-4a8d-bc69-2434fc3c44bd}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Acpi">
-      <UniqueIdentifier>{9f0e9a9c-a460-430d-b158-8c383914884f}</UniqueIdentifier>
-    </Filter>
     <Filter Include="x32\Includes">
       <UniqueIdentifier>{9f0f89a3-d2aa-4895-a9d2-4ec0cda5e967}</UniqueIdentifier>
     </Filter>
@@ -84,20 +81,8 @@
     <ClCompile Include="..\..\Arch\x86\Interrupts\ApicHandlers.c">
       <Filter>Interrupts</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\Arch\x86\Acpi\Acpi.c">
-      <Filter>Acpi</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\Arch\x86\Acpi\AcpiEnumerate.c">
-      <Filter>Acpi</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\Arch\x86\Components\Smp.c">
       <Filter>Components</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\Arch\x86\Acpi\AcpiDevices.c">
-      <Filter>Acpi</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\Arch\x86\Acpi\AcpiScan.c">
-      <Filter>Acpi</Filter>
     </ClCompile>
     <ClCompile Include="..\..\Arch\x86\Components\Devices.c">
       <Filter>Components</Filter>
@@ -119,6 +104,12 @@
     </ClCompile>
     <ClCompile Include="..\..\Arch\x86\Pci\PciStrings.c">
       <Filter>Pci</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Arch\x86\Components\AddressSpace.c">
+      <Filter>Components</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Arch\x86\Components\IoSpace.c">
+      <Filter>Components</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>

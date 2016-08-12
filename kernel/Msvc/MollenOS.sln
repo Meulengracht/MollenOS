@@ -22,26 +22,17 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "AcpiSubsystem", "Acpica\Acp
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
-		Debug|Win32 = Debug|Win32
-		Release|Win32 = Release|Win32
+		Build_X86_32|MollenOS = Build_X86_32|MollenOS
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
-		{17145F88-DAEA-496B-A91F-2A78ED5673CC}.Debug|Win32.ActiveCfg = Debug|Win32
-		{17145F88-DAEA-496B-A91F-2A78ED5673CC}.Debug|Win32.Build.0 = Debug|Win32
-		{17145F88-DAEA-496B-A91F-2A78ED5673CC}.Release|Win32.ActiveCfg = Release|Win32
-		{17145F88-DAEA-496B-A91F-2A78ED5673CC}.Release|Win32.Build.0 = Release|Win32
-		{E1811ABC-D002-44D1-8581-2ACF9C1DD0F9}.Debug|Win32.ActiveCfg = Debug|Win32
-		{E1811ABC-D002-44D1-8581-2ACF9C1DD0F9}.Debug|Win32.Build.0 = Debug|Win32
-		{E1811ABC-D002-44D1-8581-2ACF9C1DD0F9}.Release|Win32.ActiveCfg = Release|Win32
-		{E1811ABC-D002-44D1-8581-2ACF9C1DD0F9}.Release|Win32.Build.0 = Release|Win32
-		{7884D19E-EF4A-4898-81E4-A33DAAE85D27}.Debug|Win32.ActiveCfg = Debug|Win32
-		{7884D19E-EF4A-4898-81E4-A33DAAE85D27}.Debug|Win32.Build.0 = Debug|Win32
-		{7884D19E-EF4A-4898-81E4-A33DAAE85D27}.Release|Win32.ActiveCfg = Release|Win32
-		{7884D19E-EF4A-4898-81E4-A33DAAE85D27}.Release|Win32.Build.0 = Release|Win32
-		{2B403FFB-5AFB-48D8-8C13-F8E65CEC5BB6}.Debug|Win32.ActiveCfg = Debug|Win32
-		{2B403FFB-5AFB-48D8-8C13-F8E65CEC5BB6}.Debug|Win32.Build.0 = Debug|Win32
-		{2B403FFB-5AFB-48D8-8C13-F8E65CEC5BB6}.Release|Win32.ActiveCfg = Release|Win32
-		{2B403FFB-5AFB-48D8-8C13-F8E65CEC5BB6}.Release|Win32.Build.0 = Release|Win32
+		{17145F88-DAEA-496B-A91F-2A78ED5673CC}.Build_X86_32|MollenOS.ActiveCfg = Build_X86_32|Win32
+		{17145F88-DAEA-496B-A91F-2A78ED5673CC}.Build_X86_32|MollenOS.Build.0 = Build_X86_32|Win32
+		{E1811ABC-D002-44D1-8581-2ACF9C1DD0F9}.Build_X86_32|MollenOS.ActiveCfg = Build_X86_32|Win32
+		{E1811ABC-D002-44D1-8581-2ACF9C1DD0F9}.Build_X86_32|MollenOS.Build.0 = Build_X86_32|Win32
+		{7884D19E-EF4A-4898-81E4-A33DAAE85D27}.Build_X86_32|MollenOS.ActiveCfg = Debug|Win32
+		{7884D19E-EF4A-4898-81E4-A33DAAE85D27}.Build_X86_32|MollenOS.Build.0 = Debug|Win32
+		{2B403FFB-5AFB-48D8-8C13-F8E65CEC5BB6}.Build_X86_32|MollenOS.ActiveCfg = Build_X86_32|Win32
+		{2B403FFB-5AFB-48D8-8C13-F8E65CEC5BB6}.Build_X86_32|MollenOS.Build.0 = Build_X86_32|Win32
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

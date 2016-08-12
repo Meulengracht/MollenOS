@@ -25,6 +25,7 @@
 /* Architecture Includes */
 #include <stdint.h>
 #include <crtdefs.h>
+#include <os/Spinlock.h>
 
 /* Architecture Definitions */
 #define ARCHITECTURE_NAME		"x86-32"
@@ -83,8 +84,14 @@ typedef struct _Registers
 /* X86-32 Address Space */
 typedef struct _AddressSpace
 {
+	/* Lock */
+	Spinlock_t Lock;
+
+	/* Reference Count */
+	int References;
+
 	/* Flags */
-	uint32_t Flags;
+	int Flags;
 
 	/* Physical Address of 
 	 * Paging Structure */

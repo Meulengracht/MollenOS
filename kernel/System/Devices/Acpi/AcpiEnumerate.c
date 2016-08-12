@@ -21,9 +21,7 @@
 
 /* Includes */
 #include <Arch.h>
-#include <AcpiSys.h>
-#include <Memory.h>
-#include <Apic.h>
+#include <AcpiInterface.h>
 #include <Heap.h>
 #include <Log.h>
 
@@ -31,13 +29,10 @@
 #include <ds/list.h>
 
 /* Globals */
-volatile Addr_t GlbLocalApicAddress = 0;
 List_t *GlbAcpiNodes = NULL;
-int GlbNumLogicalCpus = 0;
-int GlbNumIoApics = 0;
+int GlbAcpiAvailable = ACPI_NOT_AVAILABLE;
 
 /* Static Acpica */
-#define ACPI_MAX_INIT_TABLES 16
 static ACPI_TABLE_DESC TableArray[ACPI_MAX_INIT_TABLES];
 
 /* Enumerate MADT Entries */
@@ -77,9 +72,6 @@ void AcpiEnumarateMADT(void *MadtStart, void *MadtEnd)
 				LogInformation("MADT", "Found CPU: %u (%s)", 
 					AcpiCpu->Id, (AcpiCpu->LapicFlags & 0x1) ? "Active" : "Inactive");
 
-				/* Increase CPU count */
-				GlbNumLogicalCpus++;
-
 			} break;
 
 		/* IO Apic */
@@ -101,9 +93,6 @@ void AcpiEnumarateMADT(void *MadtStart, void *MadtEnd)
 
 			/* Debug */
 			LogInformation("MADT", "Found IO-APIC: %u", AcpiIoApic->Id);
-
-			/* Increase Count */
-			GlbNumIoApics++;
 
 		} break;
 
@@ -166,95 +155,87 @@ void AcpiEnumerateSRAT(void *SratStart, void *SratEnd)
 
 /* Initializes Early Access
 * and enumerates the APIC */
-void AcpiEnumerate(void)
+int AcpiEnumerate(void)
 {
-	/* Vars */
-	ACPI_TABLE_MADT *MadtTable = NULL;
-	ACPI_TABLE_SRAT *SratTable = NULL;
-	ACPI_TABLE_SBST *BattTable = NULL;
-
+	/* Variables needed for initial
+	 * ACPI access */
 	ACPI_TABLE_HEADER *Header = NULL;
-	ACPI_TABLE_HEADER *Header2 = NULL;
-	ACPI_TABLE_HEADER *Header3 = NULL;
-
 	ACPI_STATUS Status = 0;
 
 	/* Early Table Access */
 	Status = AcpiInitializeTables((ACPI_TABLE_DESC*)&TableArray, ACPI_MAX_INIT_TABLES, TRUE);
 
-	/* Sanity */
-	if (ACPI_FAILURE(Status))
-	{
-		LogFatal("ACPI", "AcpiInitializeTables, %u!", Status);
-		for (;;);
+	/* Sanity 
+	 * If this fails there is no ACPI on the system */
+	if (ACPI_FAILURE(Status)) {
+		LogFatal("ACPI", "Failed to initialize early ACPI access,"
+			"probable no ACPI available (%u)", Status);
+		GlbAcpiAvailable = ACPI_NOT_AVAILABLE;
+		return -1;
 	}
-
-	/* Get the table */
-	if (ACPI_FAILURE(AcpiGetTable(ACPI_SIG_MADT, 0, &Header)))
-	{
-		/* Damn :( */
-		LogFatal("ACPI", "Unable the locate the MADT Table");
-
-		/* On older pc's we should parse the MP table */
-
-		/* Stall */
-		for (;;);
-	}
-
-	/* Info */
-	LogInformation("ACPI", "Enumerating the MADT Table");
-
-	/* Cast */
-	MadtTable = (ACPI_TABLE_MADT*)Header;
+	else
+		GlbAcpiAvailable = ACPI_AVAILABLE;
 
 	/* Create the acpi lists */
 	GlbAcpiNodes = ListCreate(KeyInteger, LIST_NORMAL);
 
-	/* Get Local Apic Address */
-	GlbNumLogicalCpus = 0;
-	GlbNumIoApics = 0;
+	/* Get the table */
+	if (ACPI_SUCCESS(AcpiGetTable(ACPI_SIG_MADT, 0, &Header)))
+	{
+		/* Variables */
+		ACPI_TABLE_MADT *MadtTable = NULL;
 
-	/* Identity map it in */
-	LogInformation("ACPI", "Local Apic Addr at 0x%x", MadtTable->Address);
-	MmVirtualMap(NULL, MadtTable->Address, MadtTable->Address, 0x10);
+		/* Yay! */
+		LogInformation("ACPI", "Enumerating the MADT Table");
 
-	/* Now we can set it */
-	GlbLocalApicAddress = MadtTable->Address;
+		/* Cast */
+		MadtTable = (ACPI_TABLE_MADT*)Header;
 
-	/* Enumerate MADT */
-	AcpiEnumarateMADT((void*)((Addr_t)MadtTable + sizeof(ACPI_TABLE_MADT)), 
-		(void*)((Addr_t)MadtTable + MadtTable->Header.Length));
-
-	/* Info */
-	LogInformation("ACPI", "Enumerating the SRAT Table");
+		/* Enumerate MADT */
+		AcpiEnumarateMADT((void*)((Addr_t)MadtTable + sizeof(ACPI_TABLE_MADT)),
+			(void*)((Addr_t)MadtTable + MadtTable->Header.Length));
+	}
 
 	/* Enumerate SRAT */
-	if (ACPI_SUCCESS(AcpiGetTable(ACPI_SIG_SRAT, 0, &Header2)))
+	if (ACPI_SUCCESS(AcpiGetTable(ACPI_SIG_SRAT, 0, &Header)))
 	{
+		/* Variables */
+		ACPI_TABLE_SRAT *SratTable = NULL;
+
+		/* Info */
+		LogInformation("ACPI", "Enumerating the SRAT Table");
+
 		/* Cast */
-		SratTable = (ACPI_TABLE_SRAT*)Header2;
+		SratTable = (ACPI_TABLE_SRAT*)Header;
 
 		/* Gogo */
 		AcpiEnumerateSRAT((void*)((Addr_t)SratTable + sizeof(ACPI_TABLE_MADT)),
 			(void*)((Addr_t)SratTable + SratTable->Header.Length));
 	}
-	else
-		LogDebug("ACPI", "Unable the locate the SRAT Table");
-
-	/* Enumerate SBST */
-	
-	/* Info */
-	LogInformation("ACPI", "Parsing the SBST Table");
 
 	/* Enumerate SRAT */
-	if (ACPI_SUCCESS(AcpiGetTable(ACPI_SIG_SBST, 0, &Header3)))
+	if (ACPI_SUCCESS(AcpiGetTable(ACPI_SIG_SBST, 0, &Header)))
 	{
+		/* Variables */
+		ACPI_TABLE_SBST *BattTable = NULL;
+
+		/* Info */
+		LogInformation("ACPI", "Parsing the SBST Table");
+
 		/* Cast */
-		BattTable = (ACPI_TABLE_SBST*)Header3;
+		BattTable = (ACPI_TABLE_SBST*)Header;
 
 		/* Gogo */
-		
+
 	}
-	else
-		LogDebug("ACPI", "Unable the locate the SBST Table");
+
+	/* Done! */
+	return 0;
+}
+
+/* This returns 0 if ACPI is not available
+ * on the system, or 1 if acpi is available */
+int AcpiAvailable(void)
+{
+	return GlbAcpiAvailable;
 }

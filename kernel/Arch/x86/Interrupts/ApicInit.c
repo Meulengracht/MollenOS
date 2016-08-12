@@ -22,7 +22,7 @@
 
 /* Includes */
 #include <Apic.h>
-#include <Acpi.h>
+#include <AcpiInterface.h>
 #include <Memory.h>
 #include <Interrupts.h>
 #include <Timers.h>
@@ -34,7 +34,8 @@
 #include <string.h>
 
 /* Globals */
-volatile uint32_t GlbTimerTicks[64];
+volatile size_t GlbTimerTicks[64];
+volatile Addr_t GlbLocalApicBase = 0;
 uint8_t GlbBootstrapCpuId = 0;
 uint32_t GlbTimerQuantum = 0;
 List_t *GlbIoApics = NULL;
@@ -398,13 +399,33 @@ void ApicReloadTimer(uint32_t Quantum)
 void ApicInitBoot(void)
 {
 	/* Vars */
+	ACPI_TABLE_HEADER *Header = NULL;
 	uint32_t BspApicId = 0;
 	uint32_t Temp = 0;
 	DataKey_t Key;
 
-	/* Disable IMCR if present (to-do..) */
+	/* Step 1. Disable IMCR if present (to-do..) */
 	outb(0x22, 0x70);
 	outb(0x23, 0x1);
+
+	/* Step 2. Get MADT and the LAPIC base */
+	if (ACPI_SUCCESS(AcpiGetTable(ACPI_SIG_MADT, 0, &Header)))
+	{
+		/* Variables */
+		ACPI_TABLE_MADT *MadtTable = NULL;
+
+		/* Identity map it in */
+		LogInformation("APIC", "LAPIC address at 0x%x", MadtTable->Address);
+		MmVirtualMap(NULL, MadtTable->Address, MadtTable->Address, 0x10);
+
+		/* Now we can set it */
+		GlbLocalApicBase = MadtTable->Address;
+	}
+	else {
+		/* This means GET FROM MP table or MSR */
+		LogFatal("APIC", "Failed to get LAPIC base address, ABORT!!!");
+		Idle();
+	}
 
 	/* Get Apic Id */
 	BspApicId = (ApicReadLocal(APIC_PROCESSOR_ID) >> 24) & 0xFF;

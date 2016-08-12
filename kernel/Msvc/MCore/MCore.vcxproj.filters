@@ -37,6 +37,9 @@
     <Filter Include="Systems\Servers">
       <UniqueIdentifier>{2d0031da-c7dc-4a5b-a130-d65f6d70ea56}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Systems\Devices\Acpi">
+      <UniqueIdentifier>{5deed555-85d5-4a53-9ff6-1a3939859996}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\Init\Entry.c">
@@ -110,6 +113,18 @@
     </ClCompile>
     <ClCompile Include="..\..\System\Servers\Server.c">
       <Filter>Systems\Servers</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\System\Devices\Acpi\Acpi.c">
+      <Filter>Systems\Devices\Acpi</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\System\Devices\Acpi\AcpiDevices.c">
+      <Filter>Systems\Devices\Acpi</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\System\Devices\Acpi\AcpiEnumerate.c">
+      <Filter>Systems\Devices\Acpi</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\System\Devices\Acpi\AcpiScan.c">
+      <Filter>Systems\Devices\Acpi</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>

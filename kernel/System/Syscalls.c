@@ -644,7 +644,7 @@ int ScIpcRead(uint8_t *MessageContainer)
 		return -1;
 
 	/* Read rest of message */
-	if (BytesRead != MsgBase->Length) 
+	if ((size_t)BytesRead != MsgBase->Length) 
 	{
 		/* Calculate remainder and increase pointer */
 		int Remainder = (MsgBase->Length - BytesRead);

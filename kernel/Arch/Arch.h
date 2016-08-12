@@ -64,6 +64,7 @@ typedef unsigned int TId_t;
 #define ADDRESS_SPACE_FLAG_NOCACHE		0x8
 #define ADDRESS_SPACE_FLAG_VIRTUAL		0x10
 
+_CRT_EXTERN void AddressSpaceInitKernel(AddressSpace_t *Kernel);
 _CRT_EXTERN AddressSpace_t *AddressSpaceCreate(int Flags);
 _CRT_EXTERN void AddressSpaceDestroy(AddressSpace_t *AddrSpace);
 _CRT_EXTERN void AddressSpaceSwitch(AddressSpace_t *AddrSpace);

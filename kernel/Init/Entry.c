@@ -23,6 +23,7 @@
 #include <revision.h>
 #include <MollenOS.h>
 #include <Arch.h>
+#include <AcpiInterface.h>
 #include <GarbageCollector.h>
 #include <DeviceManager.h>
 #include <Modules/ModuleManager.h>
@@ -89,8 +90,26 @@ void MCoreInitialize(MCoreBootInfo_t *BootInfo)
 	SchedulerInit(0);
 	ThreadingInit();
 
-	/* Init post-systems */
+	/* Now we can do some early ACPI
+	 * initialization if ACPI is present
+	 * on this system */
+	AcpiEnumerate();
+
+	/* Now we initialize some systems that 
+	 * rely on the presence of ACPI tables
+	 * or the absence of them */
 	BootInfo->InitPostSystems();
+
+	/* Now we finish the ACPI setup IF 
+	 * ACPI is present on the system */
+	if (AcpiAvailable() == ACPI_AVAILABLE) 
+	{
+		/* Initialize full acpi */
+		AcpiInitialize();
+
+		/* Scan for acpi devices */
+		AcpiScan();
+	}
 
 	/* Beyond this point we need timers 
 	 * and right now we have no timers,

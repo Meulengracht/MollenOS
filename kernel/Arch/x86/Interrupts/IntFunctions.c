@@ -20,11 +20,11 @@
 */
 
 /* Includes */
+#include <AcpiInterface.h>
 #include <DeviceManager.h>
 #include <Interrupts.h>
 #include <Idt.h>
 #include <Pci.h>
-#include <AcpiSys.h>
 #include <Apic.h>
 #include <Log.h>
 
@@ -91,6 +91,120 @@ uint32_t InterruptGetTrigger(uint16_t IntiFlags, uint8_t IrqSource)
 	}
 
 	return 0;
+}
+
+/* Pin conversion from behind a bridge */
+int AcpiDerivePin(int Device, int Pin) {
+	return (((Pin - 1) + Device) % 4) + 1;
+}
+
+/* Get Irq by Bus / Dev / Pin
+* Returns -1 if no overrides exists */
+int AcpiDeviceGetIrq(void *PciDevice, int Pin,
+	uint8_t *TriggerMode, uint8_t *Polarity, uint8_t *Shareable,
+	uint8_t *Fixed)
+{
+	/* Locate correct bus */
+	AcpiDevice_t *Dev = NULL;
+	PciDevice_t *PciDev = (PciDevice_t*)PciDevice;
+	int pDevice = PciDev->Device, pPin = Pin;
+	DataKey_t iKey;
+
+	/* Calculate routing index */
+	int rIndex = (pDevice * 4) + Pin;
+
+	/* Set Key */
+	iKey.Value = 0;
+
+	/* Start by checking if we can find the
+	* routings by checking the given device */
+	Dev = AcpiLookupDevice(PciDev->Bus);
+
+	/* Sanitize */
+	if (Dev != NULL) {
+		/* Sanity */
+		if (Dev->Routings->Interrupts[rIndex].Entry != NULL) {
+
+			/* Extract the entry */
+			PciRoutingEntry_t *pEntry = NULL;
+
+			/* Either from list or raw */
+			if (Dev->Routings->InterruptInformation[rIndex] == 0) {
+				pEntry = Dev->Routings->Interrupts[rIndex].Entry;
+			}
+			else {
+				pEntry = (PciRoutingEntry_t*)
+					ListGetDataByKey(Dev->Routings->Interrupts[rIndex].Entries, iKey, 0);
+			}
+
+			/* Update IRQ Information */
+			if (pEntry->Trigger == ACPI_LEVEL_SENSITIVE)
+				*TriggerMode = 1;
+			else
+				*TriggerMode = 0;
+
+			if (pEntry->Polarity == ACPI_ACTIVE_LOW)
+				*Polarity = 1;
+			else
+				*Polarity = 0;
+
+			*Shareable = pEntry->Shareable;
+			*Fixed = pEntry->Fixed;
+			return pEntry->Interrupts;
+		}
+	}
+
+	/* Damn, check parents */
+	PciDev = PciDev->Parent;
+	while (PciDev) {
+
+		/* Correct the pin */
+		pPin = AcpiDerivePin(pDevice, pPin);
+		pDevice = PciDev->Device;
+
+		/* Calculate new corrected routing index */
+		rIndex = (pDevice * 4) + pPin;
+
+		/* Start by checking if we can find the
+		* routings by checking the given device */
+		Dev = AcpiLookupDevice(PciDev->Bus);
+
+		/* Sanitize */
+		if (Dev != NULL) {
+			/* Sanity */
+			if (Dev->Routings->Interrupts[rIndex].Entry != NULL) {
+
+				/* Extract the entry */
+				PciRoutingEntry_t *pEntry = NULL;
+
+				/* Either from list or raw */
+				if (Dev->Routings->InterruptInformation[rIndex] == 0) {
+					pEntry = Dev->Routings->Interrupts[rIndex].Entry;
+				}
+				else {
+					pEntry = (PciRoutingEntry_t*)
+						ListGetDataByKey(Dev->Routings->Interrupts[rIndex].Entries, iKey, 0);
+				}
+
+				/* Update IRQ Information */
+				if (pEntry->Trigger == ACPI_LEVEL_SENSITIVE)
+					*TriggerMode = 1;
+				else
+					*TriggerMode = 0;
+
+				if (pEntry->Polarity == ACPI_ACTIVE_LOW)
+					*Polarity = 1;
+				else
+					*Polarity = 0;
+
+				*Shareable = pEntry->Shareable;
+				*Fixed = pEntry->Fixed;
+				return pEntry->Interrupts;
+			}
+		}
+	}
+
+	return -1;
 }
 
 /* Install a interrupt handler */

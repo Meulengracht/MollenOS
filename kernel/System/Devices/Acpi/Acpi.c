@@ -21,9 +21,8 @@
 
 /* Includes */
 #include <Arch.h>
-#include <AcpiSys.h>
+#include <AcpiInterface.h>
 #include <Log.h>
-#include <Apic.h>
 #include <Heap.h>
 
 /* C-Library */
@@ -378,9 +377,10 @@ void AcpiOsiInstall(void)
 	}
 }
 
-/* Initializes FULL access 
- * across ACPICA */
-void AcpiSetupFull(void)
+/* Initializes the full access and functionality
+ * of ACPICA / ACPI and allows for scanning of
+ * ACPI devices */
+void AcpiInitialize(void)
 {
 	ACPI_STATUS Status;
 	ACPI_OBJECT arg1;

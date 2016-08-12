@@ -20,7 +20,7 @@
 */
 
 /* Arch */
-#include <AcpiSys.h>
+#include <AcpiInterface.h>
 
 /* Includes */
 #include <DeviceManager.h>
@@ -29,6 +29,7 @@
 #include <Log.h>
 
 /* C-Library */
+#include <stddef.h>
 #include <ds/list.h>
 
 /* The MCFG Entry */
@@ -493,9 +494,4 @@ void BusInit(void)
 
 	/* Step 1. Enumerate bus */
 	ListExecuteAll(GlbRootBridge->Children, PciInstallDriverCallback, NULL);
-
-	/* Step 3. Install PS2 if present */
-	if (AcpiGbl_FADT.BootFlags & ACPI_FADT_8042) {
-
-	}
 }

@@ -29,7 +29,6 @@
 #include <Interrupts.h>
 #include <stddef.h>
 #include <Apic.h>
-#include <AcpiSys.h>
 #include <Log.h>
 
 /* Extern, this function is declared in the MCore project
@@ -54,17 +53,8 @@ void InitAcpiAndApic(void)
 		Idle();
 	}
 
-	/* Enumerate Acpi */
-	AcpiEnumerate();
-
 	/* Init */
 	ApicInitBoot();
-
-	/* Setup Full APICPA */
-	AcpiSetupFull();
-
-	/* Scan ACPI Bus */
-	AcpiScan();
 }
 
 /* Installs Timers */

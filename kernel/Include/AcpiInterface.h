@@ -19,33 +19,39 @@
 * MollenOS ACPI Interface (Uses ACPICA)
 */
 
-#ifndef _ACPI_SYSTEM_
-#define _ACPI_SYSTEM_
+#ifndef _MOLLENOS_ACPI_SYSTEM_
+#define _MOLLENOS_ACPI_SYSTEM_
 
 /* Includes */
 #include <stdint.h>
 #include <crtdefs.h>
+#include <ds/list.h>
+
+/* ACPICA Header */
 #include <acpi.h>
 
 /* Definitions */
+#define ACPI_MAX_INIT_TABLES	16
 
+#define ACPI_NOT_AVAILABLE		0
+#define ACPI_AVAILABLE			1
 
 /* Feature Flags */
-#define X86_ACPI_FEATURE_STA	0x1
-#define X86_ACPI_FEATURE_CID	0x2
-#define X86_ACPI_FEATURE_RMV	0x4
-#define X86_ACPI_FEATURE_EJD	0x8
-#define X86_ACPI_FEATURE_LCK	0x10
-#define X86_ACPI_FEATURE_PS0	0x20
-#define X86_ACPI_FEATURE_PRW	0x40
-#define X86_ACPI_FEATURE_ADR	0x80
-#define X86_ACPI_FEATURE_HID	0x100
-#define X86_ACPI_FEATURE_UID	0x200
-#define X86_ACPI_FEATURE_PRT	0x400
-#define X86_ACPI_FEATURE_BBN	0x800
-#define X86_ACPI_FEATURE_SEG	0x1000
-#define X86_ACPI_FEATURE_REG	0x2000
-#define X86_ACPI_FEATURE_CRS	0x4000
+#define ACPI_FEATURE_STA		0x1
+#define ACPI_FEATURE_CID		0x2
+#define ACPI_FEATURE_RMV		0x4
+#define ACPI_FEATURE_EJD		0x8
+#define ACPI_FEATURE_LCK		0x10
+#define ACPI_FEATURE_PS0		0x20
+#define ACPI_FEATURE_PRW		0x40
+#define ACPI_FEATURE_ADR		0x80
+#define ACPI_FEATURE_HID		0x100
+#define ACPI_FEATURE_UID		0x200
+#define ACPI_FEATURE_PRT		0x400
+#define ACPI_FEATURE_BBN		0x800
+#define ACPI_FEATURE_SEG		0x1000
+#define ACPI_FEATURE_REG		0x2000
+#define ACPI_FEATURE_CRS		0x4000
 
 /* Type Definitions */
 #define ACPI_BUS_SYSTEM			0x0
@@ -74,16 +80,38 @@
 
 /* Structures */
 
-/* This doesn't fully support linked entries */
+/* First we declare an interrupt entry
+ * a very small structure containing information
+ * about an interrupt in this system */
 #pragma pack(push, 1)
+typedef struct _PciRoutingEntry
+{
+	/* The interrupt line */
+	int Interrupts;
+
+	/* Interrupt information */
+	uint8_t Trigger;
+	uint8_t Shareable;
+	uint8_t Polarity;
+	uint8_t Fixed;
+
+} PciRoutingEntry_t;
+
+/* A table containing 128 interrupt entries 
+ * which is the number of 'redirects' there can
+ * be */
 typedef struct _PciRoutings
 {
-	/* Just a lot of ints */
-	int Interrupts[128];
-	uint8_t Trigger[128];
-	uint8_t Shareable[128];
-	uint8_t Polarity[128];
-	uint8_t Fixed[128];
+	/* This descripes whether or not 
+	 * an entry is a list or .. not a list */
+	int InterruptInformation[128];
+
+	/* Just a table of 128 interrupts or
+	 * 128 lists of interrupts */
+	union {
+		PciRoutingEntry_t *Entry;
+		List_t *Entries;
+	} Interrupts[128];
 
 } PciRoutings_t;
 #pragma pack(pop)
@@ -131,27 +159,42 @@ typedef struct _AcpiDevice
 	void *CID;
 
 	/* Type Features */
-	uint64_t xFeatures;
+	int xFeatures;
 
 } AcpiDevice_t;
 #pragma pack(pop)
 
 
-/* Prototypes */
+/* Initialize functions, don't call these manually
+ * they get automatically called in kernel setup */
 
-/* Initializes Early access and enumerates ACPI Tables */
-_CRT_EXTERN void AcpiEnumerate(void);
+/* Initializes Early access and enumerates 
+ * ACPI Tables, returns -1 if ACPI is not
+ * present on this system */
+_CRT_EXTERN int AcpiEnumerate(void);
 
-/* Initializes FULL access across ACPICA */
-_CRT_EXTERN void AcpiSetupFull(void);
+/* Initializes the full access and functionality
+ * of ACPICA / ACPI and allows for scanning of 
+ * ACPI devices */
+_CRT_EXTERN void AcpiInitialize(void);
 
-/* Scan all Acpi Devices */
+/* Scans the ACPI bus/namespace for all available
+ * ACPI devices/functions and initializes them */
 _CRT_EXTERN void AcpiScan(void);
+
+
+/* Get Functions */
+
+/* This returns ACPI_NOT_AVAILABLE if ACPI is not available
+ * on the system, or ACPI_AVAILABLE if acpi is available */
+_CRT_EXTERN int AcpiAvailable(void);
+
+/* Lookup a bridge device for the given
+ * bus that contains pci routings */
+_CRT_EXTERN AcpiDevice_t *AcpiLookupDevice(int Bus);
 
 /* Device Functions */
 _CRT_EXTERN ACPI_STATUS AcpiDeviceAttachData(AcpiDevice_t *Device, uint32_t Type);
-_CRT_EXTERN int AcpiDeviceGetIrq(void *PciDevice, int Pin,
-	uint8_t *TriggerMode, uint8_t *Polarity, uint8_t *Shareable, uint8_t *Fixed);
 
 /* Device Get's */
 _CRT_EXTERN ACPI_STATUS AcpiDeviceGetStatus(AcpiDevice_t* Device);
@@ -167,4 +210,4 @@ _CRT_EXTERN ACPI_STATUS AcpiDeviceIsDock(AcpiDevice_t *Device);
 _CRT_EXTERN ACPI_STATUS AcpiDeviceIsBay(AcpiDevice_t *Device);
 _CRT_EXTERN ACPI_STATUS AcpiDeviceIsBattery(AcpiDevice_t *Device);
 
-#endif //!_ACPI_SYSTEM_
+#endif //!_MOLLENOS_ACPI_SYSTEM_
