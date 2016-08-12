@@ -139,9 +139,6 @@
     <ClInclude Include="..\..\Arch\x86\Exceptions.h">
       <Filter>Includes</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\Arch\x86\Gdt.h">
-      <Filter>Includes</Filter>
-    </ClInclude>
     <ClInclude Include="..\..\Arch\x86\Memory.h">
       <Filter>Includes</Filter>
     </ClInclude>

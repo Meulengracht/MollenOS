@@ -27,7 +27,6 @@
 #include <Gdt.h>
 #include <Idt.h>
 #include <Interrupts.h>
-#include <stddef.h>
 #include <Apic.h>
 #include <Log.h>
 

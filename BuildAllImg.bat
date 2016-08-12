@@ -11,10 +11,10 @@ nasm.exe -f bin boot\Stage1\MFS1\Stage1.asm -o boot\Stage1\MFS1\Stage1.bin
 START "NASM" /D %~dp0\boot\Stage2 /B /W nasm.exe -f bin Stage2.asm -o ssbl.stm
 
 ::Build CLibK
-MSBuild.exe clib\mscv\CLib.sln /p:Configuration=CLibK /t:Clean,Build
+MSBuild.exe clib\mscv\LibRT.sln /p:Configuration=CLibK /t:Clean,Build
 
 ::Build MCore
-MSBuild.exe kernel\Msvc\MollenOS.sln /p:Configuration=Debug /t:Clean,Build
+MSBuild.exe kernel\Msvc\MollenOS.sln /p:Configuration=Build_X86_32 /t:Clean,Build
 
 ::Build Modules
 MSBuild.exe modules\Modules.sln /p:Configuration=Debug /t:Clean,Build

@@ -55,7 +55,6 @@
     <ClInclude Include="..\..\Arch\x86\Apic.h" />
     <ClInclude Include="..\..\Arch\x86\Cpu.h" />
     <ClInclude Include="..\..\Arch\x86\Exceptions.h" />
-    <ClInclude Include="..\..\Arch\x86\Gdt.h" />
     <ClInclude Include="..\..\Arch\x86\Interrupts.h" />
     <ClInclude Include="..\..\Arch\x86\Memory.h" />
     <ClInclude Include="..\..\Arch\x86\Multiboot.h" />
