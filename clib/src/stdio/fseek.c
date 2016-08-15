@@ -26,10 +26,12 @@
 #include <string.h>
 #include <stdlib.h>
 #include <os/Syscall.h>
+#include <os/MollenOS.h>
 
 /* Externs */
 extern int _finv(FILE * stream);
 extern int _favail(FILE * stream);
+extern int _fbufptr(FILE * stream);
 
 /* The lseek
  * This is the ANSI C seek
@@ -100,10 +102,10 @@ long _lseek(int fd, long offset, int mode)
 int fseeko(FILE *stream, off_t offset, int origin)
 {
 	/* Syscall Result */
-	int RetVal = 0;
-	off_t SeekSpot = 0;
+	long RetVal = 0;
 
-	/* Sanity */
+	/* Sanitize parameters before 
+	 * doing anything */
 	if (stream == NULL
 		|| stream == stdin
 		|| stream == stdout
@@ -112,65 +114,52 @@ int fseeko(FILE *stream, off_t offset, int origin)
 		return -1;
 	}
 
-	/* Sanity */
-	if (offset == 0
-		&& origin == SEEK_CUR) {
-		return 0;
+	/* Save all output-buffered data */
+	if (stream->code & _IOWRT) {
+		fflush(stream);
 	}
 
-	/* Depends on origin */
-	if (origin == SEEK_SET)
-		SeekSpot = offset;
-	else {
-		/* We need current position / size */
+	/* Change from CURRENT to SET if we can */
+	if (origin == SEEK_CUR && (stream->code & _IOREAD)) {
 
-		/* Prepare a buffer */
-		uint64_t fPos = 0, fSize = 0;
-		off_t CorrectedValue = (off_t)abs(offset);
-		char Buffer[64];
-		memset(Buffer, 0, sizeof(Buffer));
-
-		/* Syscall */
-		RetVal = Syscall4(MOLLENOS_SYSCALL_VFSQUERY, MOLLENOS_SYSCALL_PARAM(stream->fd),
-			MOLLENOS_SYSCALL_PARAM(0),
-			MOLLENOS_SYSCALL_PARAM(&Buffer[0]),
-			MOLLENOS_SYSCALL_PARAM(sizeof(Buffer)));
-
-		/* Now we can calculate */
-		fSize = *((uint64_t*)(&Buffer[0]));
-		fPos = (*((uint64_t*)(&Buffer[16])) - (uint64_t)_favail(stream));
-
-		/* Sanity offset */
-		if ((size_t)fPos != fPos) {
-			_set_errno(EOVERFLOW);
-			return -1;
-		}
-
-		/* Lets see .. */
-		if (origin == SEEK_CUR) {
-			/* Handle negative */
-			if (offset < 0) {
-				SeekSpot = (off_t)fPos - CorrectedValue;
+		/* First of all, before we actually seek 
+		 * can we just seek in current buffer? */
+		if (_fbufptr(stream) != -1) {
+			if (offset >= 0
+				&& _favail(stream) > offset) {
+				//_fbufadjust(stream, offset);
+				//goto ExitSeek;
 			}
-			else {
-				SeekSpot = (off_t)fPos + CorrectedValue;
+			else if (offset < 0
+				&& _fbufptr(stream) >= abs(offset)) {
+				//_fbufadjust(stream, offset);
+				//goto ExitSeek;
 			}
 		}
-		else {
-			SeekSpot = (off_t)fSize - CorrectedValue;
-		}
+
+		/* Nah, do an actual seek */
+		origin = SEEK_SET;
+		offset += ftell(stream);
 	}
 
-	/* Seek to 0 */
-	RetVal = Syscall2(MOLLENOS_SYSCALL_VFSSEEK,
-		MOLLENOS_SYSCALL_PARAM(stream->fd), MOLLENOS_SYSCALL_PARAM(SeekSpot));
+	/* Reset direction of i/o */
+	if (stream->code & _IORW) {
+		stream->code &= ~(_IOREAD | _IOWRT);
+	}
+
+	/* Deep call _lseek */
+	RetVal = _lseek(stream->fd, offset, origin);
 
 	/* Invalidate the file buffer 
 	 * otherwise we read from wrong place! */
 	_finv(stream);
 
+ExitSeek:
+	/* Clear end of file */
+	stream->code = ~(_IOEOF);
+
 	/* Done */
-	return _fval(RetVal);
+	return (RetVal == -1) ? -1 : 0;
 }
 
 /* The seek

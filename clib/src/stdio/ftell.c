@@ -26,18 +26,43 @@
 #include <string.h>
 #include <stdlib.h>
 #include <os/Syscall.h>
+#include <os/MollenOS.h>
 
 /* Externs */
 extern int _favail(FILE * stream);
+
+/* _tell 
+ * the ANSII C version of ftell */
+long _tell(int fd)
+{
+	/* Variables */
+	char Buffer[64];
+	int RetVal = 0;
+
+	/* Prepare a buffer */
+	memset(Buffer, 0, sizeof(Buffer));
+
+	/* Syscall */
+	RetVal = Syscall4(MOLLENOS_SYSCALL_VFSQUERY, MOLLENOS_SYSCALL_PARAM(fd),
+		MOLLENOS_SYSCALL_PARAM(0),
+		MOLLENOS_SYSCALL_PARAM(&Buffer[0]),
+		MOLLENOS_SYSCALL_PARAM(sizeof(Buffer)));
+
+	/* Sanity the result */
+	if (!_fval(RetVal)) {
+		return *((long*)(&Buffer[16]));
+	}
+	else
+		return -1;
+}
 
 /* The ftello
  * Get the file position with off_t */
 off_t ftello(FILE * stream)
 {
-	/* Syscall Result */
-	int RetVal = 0;	
-	char Buffer[64];
-
+	/* Variables */
+	long Position = 0;	
+	
 	/* Sanity */
 	if (stream == NULL
 		|| stream == stdin
@@ -47,25 +72,20 @@ off_t ftello(FILE * stream)
 		return -1L;
 	}
 
-	/* Prepare a buffer */
-	memset(Buffer, 0, sizeof(Buffer));
+	/* Get current position */
+	Position = _tell(stream->fd);
+	
+	/* Sanity */
+	if (Position == -1)
+		return -1L;
 
-	/* Syscall */
-	RetVal = Syscall4(MOLLENOS_SYSCALL_VFSQUERY, MOLLENOS_SYSCALL_PARAM(stream->fd),
-		MOLLENOS_SYSCALL_PARAM(0),
-		MOLLENOS_SYSCALL_PARAM(&Buffer[0]),
-		MOLLENOS_SYSCALL_PARAM(sizeof(Buffer)));
-
-	if (!_fval(RetVal)) 
-	{
-		/* Now we can calculate 
-		 * but we need to remember to offset for our buffer pos */
-		uint64_t fPosition = (*((off_t*)(&Buffer[16])) - _favail(stream));
-		return (off_t)fPosition;
+	/* Adjust for buffering */
+	if (_favail(stream) != 0) {
+		Position -= _favail(stream);
 	}
 
 	/* Done */
-	return -1L;
+	return (off_t)Position;
 }
 
 /* The ftell

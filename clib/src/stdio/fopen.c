@@ -99,6 +99,7 @@ FILE *fdopen(int fd, const char *mode)
 
 	/* Initialize instance */
 	stream->fd = fd;
+	stream->code = _IOREAD | _IOFBF;
 
 	/* Do we need to change access mode ? */
 	if (mode != NULL) {

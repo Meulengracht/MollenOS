@@ -53,7 +53,7 @@ typedef struct _div_t
 	int rem;
 } div_t;
 
-typedef struct _ldiv_t 
+typedef struct _ldiv_t
 {
 	long quot;
 	long rem;

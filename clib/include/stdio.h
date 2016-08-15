@@ -49,10 +49,7 @@ extern "C" {
 #define stdout						(void*)1 //1
 #define stdin						(void*)2 //2
 #define	stderr						(void*)3 //3
-#define BUFSIZ						(int)512
-#define _IOFBF						0x1
-#define _IOLBF						0x2
-#define _IONBF						0x4
+#define BUFSIZ						(int)2048
 
 /* Set fpos_t to the arch-specific width */
 #ifndef FPOS_T_DEFINED
@@ -83,10 +80,13 @@ _CRT_EXTERN const char *_errstrings[];
 /* The C-Library Error Codes 
  * These closely relate the the 
  * cLibFileStream->code member */
-#define CLIB_FCODE_EOF		0x1
-#define CLIB_FDIR_UNAVAIL	(int)-1
-#define CLIB_FDIR_READ		(int)0
-#define CLIB_FDIR_WRITE		(int)1
+#define _IOEOF				0x1
+#define _IOREAD				0x2
+#define _IOWRT				0x4
+#define _IORW				(_IOREAD | _IOWRT)
+#define _IOFBF				0x8
+#define _IOLBF				0x10
+#define _IONBF				0x20
 
 /*******************************
  *       File Structures       *

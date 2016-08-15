@@ -41,6 +41,7 @@ typedef struct _CLibraryFileBuffer {
 	/* The buffer size 
 	 * so we know the limit */
 	int Size;
+	int TempSize;
 
 	/* Cleanup ? */
 	int Cleanup;
@@ -71,6 +72,7 @@ int _ffill(FILE * stream, void *ptr, size_t size)
 		fbuffer->Pointer = -1;
 		fbuffer->Cleanup = 1;
 		fbuffer->Size = BUFSIZ;
+		fbuffer->TempSize = 0;
 	}
 	else {
 		/* Cast */
@@ -79,7 +81,7 @@ int _ffill(FILE * stream, void *ptr, size_t size)
 
 	/* Take care of a new buffer */
 	if (fbuffer->Pointer == -1
-		|| (fbuffer->Pointer == fbuffer->Size)) {
+		|| (fbuffer->Pointer == fbuffer->TempSize)) {
 		/* Read a complete block */
 		int errcode = 0;
 		int retval = Syscall4(MOLLENOS_SYSCALL_VFSREAD, MOLLENOS_SYSCALL_PARAM(stream->fd),
@@ -91,14 +93,18 @@ int _ffill(FILE * stream, void *ptr, size_t size)
 			return -1;
 		}
 
+		/* Update temporary size */
+		fbuffer->TempSize = retval;
+
 		/* If we read 0 bytes and errcode is ok,
 		 * then we are EOF */
 		if (retval == 0 && errcode == 0) 
 		{
 			/* Set status code, 
 			 * invalidate buffer */
-			stream->code |= CLIB_FCODE_EOF;
-			fbuffer->Pointer = fbuffer->Size;
+			stream->code |= _IOEOF;
+			fbuffer->Pointer = 0;
+			fbuffer->TempSize = 0;
 
 			/* Return 0 */
 			return 0;
@@ -109,7 +115,7 @@ int _ffill(FILE * stream, void *ptr, size_t size)
 	}
 
 	/* How many bytes are available? */
-	bavail = fbuffer->Size - fbuffer->Pointer;
+	bavail = fbuffer->TempSize - fbuffer->Pointer;
 	
 	/* Set bread */
 	bread = (int)MIN(bavail, size);
@@ -172,11 +178,37 @@ int _favail(FILE * stream)
 		if (fbuffer->Pointer == -1)
 			return 0;
 		else
-			return (fbuffer->Size - fbuffer->Pointer);
+			return (fbuffer->TempSize - fbuffer->Pointer);
 	}
 
 	/* Done! */
 	return 0;
+}
+
+/* _fbufptr
+ * returns the buffer pointer position */
+int _fbufptr(FILE * stream)
+{
+	/* Variables */
+	FILEBUFFER *fbuffer;
+
+	/* Sanity */
+	if (stream == NULL)
+		return -1;
+
+	/* Make sure the buffer is
+	* allocated before invalidation */
+	if (stream->buffer != NULL)
+	{
+		/* Cast */
+		fbuffer = (FILEBUFFER*)stream->buffer;
+
+		/* Return bytes available */
+		return fbuffer->Pointer;
+	}
+
+	/* Done! */
+	return -1;
 }
 
 /* The _ffillclean

@@ -64,6 +64,10 @@ int fclose(FILE * stream)
 		return EOF;
 	}
 
+	/* Flush the file? */
+	if (stream->code & _IOWRT)
+		fflush(stream);
+
 	/* Close the associated
 	 * file descriptor */
 	if (_close(stream->fd)) {

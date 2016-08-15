@@ -45,7 +45,7 @@ Scene_t *SceneCreate(int Id, Rect_t *Dimensions, SDL_Renderer *Renderer)
 	Scene->Background = IMG_LoadTexture(Renderer, "Themes/Default/GfxBg.png");
 
 	/* Allocate a texture */
-	Scene->Texture = SDL_CreateTexture(Renderer, SDL_PIXELFORMAT_RGBA8888,
+	Scene->Texture = SDL_CreateTexture(Renderer, SDL_PIXELFORMAT_ARGB8888,
 		SDL_TEXTUREACCESS_TARGET, Dimensions->w, Dimensions->h);
 
 	/* Set blend mode */

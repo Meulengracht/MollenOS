@@ -107,6 +107,7 @@ _CRT_EXTERN int _read(int fd, void *buffer, unsigned int len);
 _CRT_EXTERN int _write(int fd, void *buffer, unsigned int length);
 
 _CRT_EXTERN long _lseek(int fd, long offset, int mode);
+_CRT_EXTERN long _tell(int fd);
 _CRT_EXTERN int _unlink(const char *filename);
 
 _CRT_EXTERN int _isatty(int fd);
@@ -118,6 +119,7 @@ _CRT_EXTERN int _isatty(int fd);
 #define read _read
 #define write _write
 #define lseek _lseek
+#define tell _tell
 #define unlink _unlink
 #endif
 

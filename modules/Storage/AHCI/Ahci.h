@@ -1,6 +1,6 @@
 /* MollenOS
 *
-* Copyright 2011 - 2016, Philip Meulengracht
+* Copyright 2011 - 2014, Philip Meulengracht
 *
 * This program is free software : you can redistribute it and / or modify
 * it under the terms of the GNU General Public License as published by
@@ -16,40 +16,14 @@
 * along with this program.If not, see <http://www.gnu.org/licenses/>.
 *
 *
-* MollenOS C Library - File EoF
+* MollenOS MCore - Advanced Host Controller Interface Driver
 */
 
-/* Includes */
-#include <stdio.h>
-#include <errno.h>
-#include <string.h>
-#include <stdlib.h>
-#include <os/Syscall.h>
+#ifndef _AHCI_H_
+#define _AHCI_H_
 
-/* The feof
- * checks for end of file indicator */
-int feof(FILE * stream)
-{
-	/* Sanity */
-	if (stream == NULL) {
-		_set_errno(EINVAL);
-		return -1;
-	}
 
-	/* Update status code */
-	_set_errno(EOK);
 
-	/* Sanity special handles */
-	if (stream == stdin
-		|| stream == stdout
-		|| stream == stderr) {
-		return 0;
-	}
 
-	/* Let's check, MOS 
-	 * keeps our errors updated */
-	if (stream->code & _IOEOF)
-		return 1;
-	else
-		return 0;
-}
+
+#endif //!_AHCI_H_

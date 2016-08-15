@@ -433,8 +433,6 @@ SDL_TerminalBlit (SDL_Terminal *terminal)
     if (!(terminal->visible))
         return -1;
 
-
-
 #ifdef HAVE_OPENGL
     if (screen->flags & SDL_OPENGL) {
         /* Enter "2D mode" */
@@ -629,12 +627,14 @@ SDL_TerminalSetSize (SDL_Terminal *terminal, int column, int row)
 
     if (terminal->surface)
         SDL_FreeSurface (terminal->surface);
+	
     terminal->surface = SDL_CreateRGBSurface (SDL_SWSURFACE, w, h, 32, SDL_TERMINAL_MASK);
     if (terminal->surface == NULL) {
 		SDL_SetError("SDL Error <out of memory>: %i", SDL_ENOMEM);
         terminal->status = 0;
         return -1;
     }
+	SDL_SetSurfaceBlendMode(terminal->surface, SDL_BLENDMODE_NONE);
     SDL_TerminalRefresh (terminal);
     return 0;
 }

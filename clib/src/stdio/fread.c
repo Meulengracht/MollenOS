@@ -26,6 +26,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <os/Syscall.h>
+#include <os/MollenOS.h>
 
 /* Externs */
 extern int _ffill(FILE * stream, void *ptr, size_t size);
@@ -57,6 +58,7 @@ size_t fread(void * vptr, size_t size, size_t count, FILE * stream)
 {
 	/* Variables */
 	size_t BytesToRead = count * size, BytesRead = 0;
+	uint8_t *bPtr = (uint8_t*)vptr;
 
 	/* Sanity */
 	if (vptr == NULL
@@ -72,7 +74,7 @@ size_t fread(void * vptr, size_t size, size_t count, FILE * stream)
 	while (BytesToRead > 0) 
 	{
 		/* Variables */
-		int res = _ffill(stream, vptr, BytesToRead);
+		int res = _ffill(stream, bPtr, BytesToRead);
 
 		/* Sanity */
 		if (res < 0) {
@@ -85,6 +87,7 @@ size_t fread(void * vptr, size_t size, size_t count, FILE * stream)
 		else {
 			BytesToRead -= (size_t)res;
 			BytesRead += (size_t)res;
+			bPtr += res;
 		}
 	}
 

@@ -412,11 +412,11 @@ void ApicInitBoot(void)
 	if (ACPI_SUCCESS(AcpiGetTable(ACPI_SIG_MADT, 0, &Header)))
 	{
 		/* Variables */
-		ACPI_TABLE_MADT *MadtTable = NULL;
+		ACPI_TABLE_MADT *MadtTable = (ACPI_TABLE_MADT*)Header;
 
 		/* Identity map it in */
 		LogInformation("APIC", "LAPIC address at 0x%x", MadtTable->Address);
-		MmVirtualMap(NULL, MadtTable->Address, MadtTable->Address, 0x10);
+		MmVirtualMap(NULL, MadtTable->Address, MadtTable->Address, PAGE_CACHE_DISABLE);
 
 		/* Now we can set it */
 		GlbLocalApicBase = MadtTable->Address;

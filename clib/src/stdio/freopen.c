@@ -73,7 +73,7 @@ FILE *freopen(const char * filename, const char * mode, FILE * stream)
 		/* Reset */
 		stream->fd = RetVal;
 		stream->flags = mFlags;
-		stream->code = 0;
+		stream->code = _IOREAD | _IOFBF;
 
 		/* Sanity */
 		if (_fval(ErrCode)) {
@@ -101,7 +101,7 @@ FILE *freopen(const char * filename, const char * mode, FILE * stream)
 
 		/* Store */
 		stream->flags = mFlags;
-		stream->code = 0;
+		stream->code = _IOREAD | _IOFBF;
 
 		/* clear error */
 		_set_errno(EOK);
