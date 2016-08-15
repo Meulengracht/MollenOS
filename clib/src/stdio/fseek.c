@@ -32,6 +32,7 @@
 extern int _finv(FILE * stream);
 extern int _favail(FILE * stream);
 extern int _fbufptr(FILE * stream);
+extern int _fbufadjust(FILE * stream, off_t offset);
 
 /* The lseek
  * This is the ANSI C seek
@@ -127,13 +128,13 @@ int fseeko(FILE *stream, off_t offset, int origin)
 		if (_fbufptr(stream) != -1) {
 			if (offset >= 0
 				&& _favail(stream) > offset) {
-				//_fbufadjust(stream, offset);
-				//goto ExitSeek;
+				_fbufadjust(stream, offset);
+				goto ExitSeek;
 			}
 			else if (offset < 0
 				&& _fbufptr(stream) >= abs(offset)) {
-				//_fbufadjust(stream, offset);
-				//goto ExitSeek;
+				_fbufadjust(stream, offset);
+				goto ExitSeek;
 			}
 		}
 

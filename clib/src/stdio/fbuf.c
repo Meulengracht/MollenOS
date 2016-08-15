@@ -232,6 +232,36 @@ int _fbufptr(FILE * stream)
 	return -1;
 }
 
+/* _fbufadjust
+ * Adjusts the buffer pointer by an offset
+ * used for internal buf seeking */
+int _fbufadjust(FILE * stream, off_t offset)
+{
+	/* Variables */
+	FILEBUFFER *fbuffer;
+
+	/* Sanity */
+	if (stream == NULL)
+		return -1;
+
+	/* Make sure the buffer is
+	* allocated before invalidation */
+	if (stream->buffer != NULL)
+	{
+		/* Cast */
+		fbuffer = (FILEBUFFER*)stream->buffer;
+
+		/* Adjust and return */
+		fbuffer->Pointer += offset;
+
+		/* Done */
+		return 0;
+	}
+
+	/* Done! */
+	return -1;
+}
+
 /* The _ffillclean
  * cleans up the file buffer */
 int _ffillclean(FILE * stream)
