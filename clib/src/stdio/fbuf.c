@@ -84,17 +84,24 @@ int _ffill(FILE * stream, void *ptr, size_t size)
 		|| (fbuffer->Pointer == fbuffer->TempSize)) {
 		/* Read a complete block */
 		int errcode = 0;
-		int retval = Syscall4(MOLLENOS_SYSCALL_VFSREAD, MOLLENOS_SYSCALL_PARAM(stream->fd),
-			MOLLENOS_SYSCALL_PARAM(fbuffer->Buffer), MOLLENOS_SYSCALL_PARAM(fbuffer->Size),
-			MOLLENOS_SYSCALL_PARAM(&errcode));
+		int retval = 0;
+
+		/* Determine if we read more than a full buffer */
+		if (size > fbuffer->Size) {
+			retval = Syscall4(MOLLENOS_SYSCALL_VFSREAD, MOLLENOS_SYSCALL_PARAM(stream->fd),
+				MOLLENOS_SYSCALL_PARAM(ptr), MOLLENOS_SYSCALL_PARAM(size),
+				MOLLENOS_SYSCALL_PARAM(&errcode));
+		}
+		else {
+			retval = Syscall4(MOLLENOS_SYSCALL_VFSREAD, MOLLENOS_SYSCALL_PARAM(stream->fd),
+				MOLLENOS_SYSCALL_PARAM(fbuffer->Buffer), MOLLENOS_SYSCALL_PARAM(fbuffer->Size),
+				MOLLENOS_SYSCALL_PARAM(&errcode));
+		}
 
 		/* Sanity */
 		if (_fval(errcode)) {
 			return -1;
 		}
-
-		/* Update temporary size */
-		fbuffer->TempSize = retval;
 
 		/* If we read 0 bytes and errcode is ok,
 		 * then we are EOF */
@@ -110,8 +117,22 @@ int _ffill(FILE * stream, void *ptr, size_t size)
 			return 0;
 		}
 
-		/* Update pointer */
-		fbuffer->Pointer = 0;
+		/* Sanity, if we read more than buffer 
+		 * we are still invalid */
+		if (size > fbuffer->Size) {
+			/* Invalidate */
+			fbuffer->Pointer = -1;
+
+			/* Return number of bytes read */
+			return retval;
+		}
+		else {
+			/* Update temporary size */
+			fbuffer->TempSize = retval;
+
+			/* Update pointer */
+			fbuffer->Pointer = 0;
+		}
 	}
 
 	/* How many bytes are available? */
