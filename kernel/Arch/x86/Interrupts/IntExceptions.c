@@ -21,7 +21,7 @@
 
 /* Includes */
 #include "../Arch.h"
-#include <ProcessManager.h>
+#include <Process.h>
 #include <Threading.h>
 #include <Thread.h>
 #include <Modules/ModuleManager.h>

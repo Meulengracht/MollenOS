@@ -23,7 +23,7 @@
 #include <Arch.h>
 #include <Scheduler.h>
 #include <Threading.h>
-#include <ProcessManager.h>
+#include <Process.h>
 #include <Heap.h>
 #include <Log.h>
 #include <CriticalSection.h>

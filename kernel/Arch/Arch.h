@@ -42,6 +42,8 @@ typedef unsigned int TId_t;
 #error "Unsupported Architecture :("
 #endif
 
+/* Typedef this */
+typedef Registers_t Context_t;
 
 /* These must be implemented by 
  * the underlying architecture */

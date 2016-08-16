@@ -25,9 +25,11 @@
     <ClCompile Include="..\..\System\Modules\ModuleManager.c" />
     <ClCompile Include="..\..\System\Modules\PeLoader.c" />
     <ClCompile Include="..\..\System\Pipe.c" />
+    <ClCompile Include="..\..\System\Process.c" />
     <ClCompile Include="..\..\System\ProcessManager.c" />
     <ClCompile Include="..\..\System\Scheduler.c" />
     <ClCompile Include="..\..\System\Servers\Server.c" />
+    <ClCompile Include="..\..\System\Signal.c" />
     <ClCompile Include="..\..\System\Synchronization\CriticalSection.c" />
     <ClCompile Include="..\..\System\Synchronization\Mutex.c" />
     <ClCompile Include="..\..\System\Synchronization\Semaphore.c" />
@@ -58,7 +60,7 @@
     <ClInclude Include="..\..\Include\MString.h" />
     <ClInclude Include="..\..\Include\Mutex.h" />
     <ClInclude Include="..\..\Include\Pipe.h" />
-    <ClInclude Include="..\..\Include\ProcessManager.h" />
+    <ClInclude Include="..\..\Include\Process.h" />
     <ClInclude Include="..\..\Include\RingBuffer.h" />
     <ClInclude Include="..\..\Include\Scheduler.h" />
     <ClInclude Include="..\..\Include\Semaphore.h" />

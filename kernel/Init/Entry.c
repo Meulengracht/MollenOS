@@ -27,7 +27,7 @@
 #include <GarbageCollector.h>
 #include <DeviceManager.h>
 #include <Modules/ModuleManager.h>
-#include <ProcessManager.h>
+#include <Process.h>
 #include <Scheduler.h>
 #include <Threading.h>
 #include <Vfs\Vfs.h>

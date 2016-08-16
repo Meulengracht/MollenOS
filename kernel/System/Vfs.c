@@ -21,7 +21,7 @@
 
 /* Includes */
 #include <Modules/ModuleManager.h>
-#include <ProcessManager.h>
+#include <Process.h>
 #include <Vfs/Vfs.h>
 #include <Heap.h>
 #include <Log.h>

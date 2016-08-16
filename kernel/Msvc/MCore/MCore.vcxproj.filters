@@ -40,6 +40,9 @@
     <Filter Include="Systems\Devices\Acpi">
       <UniqueIdentifier>{5deed555-85d5-4a53-9ff6-1a3939859996}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Systems\Processes">
+      <UniqueIdentifier>{b2f4993c-f281-4755-b5e7-98bd1721149e}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\Init\Entry.c">
@@ -93,9 +96,6 @@
     <ClCompile Include="..\..\System\Devices\Fonts\VideoFont6x12.c">
       <Filter>Systems\Devices\Video</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\System\ProcessManager.c">
-      <Filter>Systems</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\System\Syscalls.c">
       <Filter>Systems</Filter>
     </ClCompile>
@@ -125,6 +125,15 @@
     </ClCompile>
     <ClCompile Include="..\..\System\Devices\Acpi\AcpiScan.c">
       <Filter>Systems\Devices\Acpi</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\System\Process.c">
+      <Filter>Systems\Processes</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\System\Signal.c">
+      <Filter>Systems\Processes</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\System\ProcessManager.c">
+      <Filter>Systems\Processes</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -203,9 +212,6 @@
     <ClInclude Include="..\..\Include\CriticalSection.h">
       <Filter>Includes</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\Include\ProcessManager.h">
-      <Filter>Includes</Filter>
-    </ClInclude>
     <ClInclude Include="..\..\Arch\Arch.h">
       <Filter>Includes</Filter>
     </ClInclude>
@@ -216,6 +222,9 @@
       <Filter>Includes</Filter>
     </ClInclude>
     <ClInclude Include="..\..\Include\Events.h">
+      <Filter>Includes</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Include\Process.h">
       <Filter>Includes</Filter>
     </ClInclude>
   </ItemGroup>

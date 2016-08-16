@@ -23,11 +23,11 @@
 #define _MCORE_EVENT_MANAGER_H_
 
 /* Includes */
-#include <ProcessManager.h>
 #include <crtdefs.h>
 #include <stdint.h>
 
 /* Include Ipc */
+#include <Process.h>
 #include <os/Ipc.h>
 
 /* Prototypes */

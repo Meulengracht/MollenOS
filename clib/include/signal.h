@@ -74,7 +74,7 @@ extern "C" {
 #define SIGWINEVENT 35 /* Window server event */
 #define SIGCAT      36 /* Everybody loves cats */
 
-#define NUMSIGNALS  36
+#define NUMSIGNALS  37
 
 #define SIGABRT_COMPAT 6
 

@@ -25,7 +25,7 @@
 
 /* Includes */
 #include <GarbageCollector.h>
-#include <ProcessManager.h>
+#include <Process.h>
 #include <Semaphore.h>
 #include <Threading.h>
 #include <Log.h>

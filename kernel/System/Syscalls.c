@@ -21,7 +21,7 @@
 
 /* Includes */
 #include <Arch.h>
-#include <ProcessManager.h>
+#include <Process.h>
 #include <Threading.h>
 #include <Scheduler.h>
 #include <Timers.h>
@@ -197,6 +197,38 @@ int ScProcessQuery(PId_t ProcessId, void *Buffer, size_t Length)
 
 	/* Done */
 	return 0;
+}
+
+/* Installs a signal handler for 
+ * the given signal number, it's then invokable
+ * by other threads/processes etc */
+int ScProcessSignal(int Signal, Addr_t Handler) 
+{
+	/* Variables */
+	MCoreProcess_t *Process = NULL;
+
+	/* Sanitize our params */
+	if (Signal > NUMSIGNALS) {
+		return -1;
+	}
+
+	/* Lookup process */
+	Process = PmGetProcess(ThreadingGetCurrentThread(ApicGetCpu())->ProcessId);
+
+	/* Sanity... 
+	 * This should never happen though
+	 * Only I write code that has no process */
+	if (Process == NULL) {
+		return -1;
+	}
+
+	/* Always retrieve the old handler 
+	 * and return it, so temp store it before updating */
+	Addr_t OldHandler = Process->Signals.Handlers[Signal];
+	Process->Signals.Handlers[Signal] = Handler;
+
+	/* Done, return the old ! */
+	return (int)OldHandler;
 }
 
 /**************************
@@ -1235,7 +1267,7 @@ Addr_t GlbSyscallTable[121] =
 	DefineSyscall(ScProcessSpawn),
 	DefineSyscall(ScProcessJoin),
 	DefineSyscall(ScProcessKill),
-	DefineSyscall(NoOperation),
+	DefineSyscall(ScProcessSignal),
 	DefineSyscall(NoOperation),
 	DefineSyscall(ScSharedObjectLoad),
 	DefineSyscall(ScSharedObjectGetFunction),

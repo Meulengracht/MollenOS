@@ -18,15 +18,20 @@
 *
 * MollenOS MCore - Process Manager
 */
+
 #ifndef _MCORE_PROCESS_MANAGER_H_
 #define _MCORE_PROCESS_MANAGER_H_
 
 /* Includes */
+
+/* C-Library Includes */
 #include <crtdefs.h>
 #include <stdint.h>
+#include <signal.h>
 #include <ds/list.h>
 #include <ds/mstring.h>
 
+#include <Arch.h>
 #include <Modules/PeLoader.h>
 #include <Bitmap.h>
 #include <Pipe.h>
@@ -41,6 +46,36 @@ typedef unsigned int PId_t;
 #define PROCESS_PIPE_SIZE		0x2000
 
 /* Structures */
+
+/* Signal Table 
+ * This is used for interrupt-signals
+ * across threads and processes */
+typedef struct _MCoreSignalTable {
+
+	/* An array of handlers */
+	Addr_t Handlers[NUMSIGNALS + 1];
+
+} MCoreSignalTable_t;
+
+/* A Signal Entry 
+ * This is used to describe a signal 
+ * that is waiting for execution */
+typedef struct _MCoreSignal {
+	
+	/* The signal */
+	int Signal;
+
+	/* The handler */
+	Addr_t Handler;
+
+	/* The execution context */
+	Context_t Context;
+
+} MCoreSignal_t;
+
+/* The process structure, contains information
+ * and stats about a running process, also contains
+ * it's address space, shm, etc etc */
 typedef struct _MCoreProcess
 {
 	/* Id */
@@ -78,10 +113,30 @@ typedef struct _MCoreProcess
 	/* Stack Start in Kernel */
 	Addr_t StackStart;
 
+	/* Signal Support */
+	MCoreSignalTable_t Signals;
+	List_t *SignalQueue;
+
 	/* Return Code */
 	int ReturnCode;
 
 } MCoreProcess_t;
+
+/* Process Function Prototypes
+ * these are the interesting ones */
+_CRT_EXTERN void PmCleanupProcess(MCoreProcess_t *Process);
+_CRT_EXTERN void PmTerminateProcess(MCoreProcess_t *Process);
+_CRT_EXTERN MCoreProcess_t *PmGetProcess(PId_t ProcessId);
+_CRT_EXTERN MString_t *PmGetWorkingDirectory(PId_t ProcessId);
+_CRT_EXTERN MString_t *PmGetBaseDirectory(PId_t ProcessId);
+
+/* Signal Functions */
+_CRT_EXTERN int SignalCreate(PId_t ProcessId, int Signal);
+_CRT_EXTERN void SignalExecute(MCoreProcess_t *Process, MCoreSignal_t *Signal);
+
+/*************************************
+ ******** PROCESS - MANAGER **********
+ *************************************/
 
 /* Process Request Type */
 typedef enum _ProcessRequestType
@@ -109,12 +164,6 @@ typedef struct _MCoreProcessRequest
 
 /* Prototypes */
 _CRT_EXTERN void PmInit(void);
-
-/* Process Functions */
-_CRT_EXTERN void PmTerminateProcess(MCoreProcess_t *Process);
-_CRT_EXTERN MCoreProcess_t *PmGetProcess(PId_t ProcessId);
-_CRT_EXTERN MString_t *PmGetWorkingDirectory(PId_t ProcessId);
-_CRT_EXTERN MString_t *PmGetBaseDirectory(PId_t ProcessId);
 _CRT_EXTERN void PmReapZombies(void);
 
 /* Requests */
