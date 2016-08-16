@@ -26,8 +26,6 @@
 /* Includes */
 #include "../Arch/Arch.h"
 #include <os/Spinlock.h>
-#include <crtdefs.h>
-#include <stdint.h>
 
 /* Definitions */
 #define CRITICALSECTION_PLAIN			0x0
@@ -40,7 +38,7 @@ typedef struct _CriticalSection
 	int Flags;
 
 	/* Owner */
-	TId_t Owner;
+	ThreadId_t Owner;
 
 	/* References */
 	size_t References;

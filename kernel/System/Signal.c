@@ -21,6 +21,7 @@
 
 /* Includes */
 #include <Process.h>
+#include <Threading.h>
 #include <Heap.h>
 
 #include <stddef.h>
@@ -70,7 +71,7 @@ char GlbSignalIsDeadly[] = {
 
 /* Create Signal 
  * Dispatches a signal to a given process */
-int SignalCreate(PId_t ProcessId, int Signal) 
+int SignalCreate(ProcId_t ProcessId, int Signal)
 {
 	/* Variables*/
 	MCoreProcess_t *Target = PmGetProcess(ProcessId);
@@ -106,30 +107,61 @@ int SignalCreate(PId_t ProcessId, int Signal)
 	return 0;
 }
 
+/* Handle Signal 
+ * This checks if the process has any waiting signals
+ * and if it has, it executes the first in list */
+void SignalHandle(ThreadId_t ThreadId)
+{
+	/* Variables */
+	MCoreProcess_t *Process = NULL;
+	MCoreThread_t *Thread = NULL;
+	MCoreSignal_t *Signal = NULL;
+	ListNode_t *sNode = NULL;
+	
+	/* Lookup Thread */
+	Thread = ThreadingGetThread(ThreadId);
+	Process = PmGetProcess(Thread->ProcessId);
+
+	/* Sanitize, we might not have a process */
+	if (Process == NULL) {
+		return;
+	}
+
+	/* Even if there is a process, we might want not
+	 * to process any signals ATM if there is already 
+	 * one active */
+	if (Process->ActiveSignal != NULL) {
+		return;
+	}
+
+	/* Ok.. pop off first signal */
+	sNode = ListPopFront(Process->SignalQueue);
+
+	/* Cast */
+	if (sNode != NULL) {
+		Signal = (MCoreSignal_t*)sNode->Data;
+		ListDestroyNode(Process->SignalQueue, sNode);
+		SignalExecute(Process, Signal);
+	}
+}
+
 /* Execute Signal 
  * This function does preliminary checks before actually
  * dispatching the signal to the process */
 void SignalExecute(MCoreProcess_t *Process, MCoreSignal_t *Signal)
 {
-	/* Variables */
-	Addr_t Handler = Signal->Handler;
-	int Sig = Signal->Signal;
-	
-	/* Cleanup signal */
-	kfree(Signal);
-
 	/* Sanitize the thread and signal */
-	if ((Sig == 0 || Sig >= NUMSIGNALS)
-		|| Handler == 1) {
+	if ((Signal->Signal == 0 || Signal->Signal >= NUMSIGNALS)
+		|| Signal->Handler == 1) {
 		return;
 	}
 
 	/* Do we have a handler? */
-	if (Handler == 0) 
+	if (Signal->Handler == 0)
 	{
 		/* Thing is ... if the signal is deadly
 		 * we can't ignore the signal */
-		char Action = GlbSignalIsDeadly[Sig];
+		char Action = GlbSignalIsDeadly[Signal->Signal];
 		
 		/* Kill? */
 		if (Action == 1 || Action == 2) {
@@ -140,6 +172,9 @@ void SignalExecute(MCoreProcess_t *Process, MCoreSignal_t *Signal)
 		return;
 	}
 
+	/* Update some settings */
+	Process->ActiveSignal = Signal;
+
 	/* Handle Signal */
-	//SignalDispatch(Process, Sig, Handler);
+	SignalDispatch(Process, Signal);
 }

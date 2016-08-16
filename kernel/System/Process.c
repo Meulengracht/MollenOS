@@ -37,7 +37,7 @@
 
 /* Externs */
 extern List_t *GlbProcesses;
-extern PId_t GlbProcessId;
+extern ProcId_t GlbProcessId;
 
 /* Kickstarter function for Process */
 void PmStartProcess(void *Args)
@@ -49,6 +49,7 @@ void PmStartProcess(void *Args)
 	MCoreThread_t *cThread = ThreadingGetCurrentThread(CurrentCpu);
 
 	/* Update this thread */
+	Process->MainThread = cThread->Id;
 	cThread->ProcessId = Process->Id;
 
 	/* Allocate a open file list */
@@ -100,7 +101,7 @@ void PmStartProcess(void *Args)
 }
 
 /* Create Process */
-PId_t PmCreateProcess(MString_t *Path, MString_t *Arguments)
+ProcId_t PmCreateProcess(MString_t *Path, MString_t *Arguments)
 {
 	/* Vars */
 	MCoreProcess_t *Process = NULL;
@@ -235,7 +236,7 @@ void PmCleanupProcess(MCoreProcess_t *Process)
 }
 
 /* Get Process */
-MCoreProcess_t *PmGetProcess(PId_t ProcessId)
+MCoreProcess_t *PmGetProcess(ProcId_t ProcessId)
 {
 	/* Iterate */
 	foreach(pNode, GlbProcesses)
@@ -253,7 +254,7 @@ MCoreProcess_t *PmGetProcess(PId_t ProcessId)
 }
 
 /* Get the working directory */
-MString_t *PmGetWorkingDirectory(PId_t ProcessId)
+MString_t *PmGetWorkingDirectory(ProcId_t ProcessId)
 {
 	/* Iterate */
 	foreach(pNode, GlbProcesses)
@@ -271,7 +272,7 @@ MString_t *PmGetWorkingDirectory(PId_t ProcessId)
 }
 
 /* Get the base directory */
-MString_t *PmGetBaseDirectory(PId_t ProcessId)
+MString_t *PmGetBaseDirectory(ProcId_t ProcessId)
 {
 	/* Iterate */
 	foreach(pNode, GlbProcesses)

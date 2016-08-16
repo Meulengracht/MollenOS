@@ -23,8 +23,7 @@
 #define _MCORE_X86_ARCH_
 
 /* Architecture Includes */
-#include <stdint.h>
-#include <crtdefs.h>
+#include <os/osdefs.h>
 #include <os/Spinlock.h>
 
 /* Architecture Definitions */
@@ -32,21 +31,6 @@
 
 /* Architecture Typedefs */
 typedef uint32_t IntStatus_t;
-typedef unsigned int PhysAddr_t;
-typedef unsigned int VirtAddr_t;
-typedef unsigned int Addr_t;
-typedef signed int SAddr_t;
-typedef unsigned int Cpu_t;
-
-/* Diagnostics */
-//#define X86_ACPICA_DIAGNOSE
-//#define X86_HPET_DIAGNOSE
-//#define X86_PCI_DIAGNOSE
-//#define _OHCI_DIAGNOSTICS_
-
-/* OsStatus Return Codes */
-#define OS_STATUS_OK			0
-#define OS_STATUS_FAIL			-1
 
 /* X86-32 Context */
 typedef struct _Registers
@@ -154,32 +138,6 @@ _CRT_EXTERN void ApicSendIpi(uint8_t CpuTarget, uint8_t IrqVector);
 _CRT_EXTERN void Idle(void);
 _CRT_EXPORT void kernel_panic(const char *str);
 
-/* Utils Definitions */
-#define MIN(a,b) (((a)<(b))?(a):(b))
-#define MAX(a,b) (((a)>(b))?(a):(b))
-#define DIVUP(a, b) ((a / b) + (((a % b) > 0) ? 1 : 0))
-#define INCLIMIT(i, limit) i++; if (i == limit) i = 0;
-#define ALIGN(Val, Alignment, Roundup) ((Val & (Alignment-1)) > 0 ? (Roundup == 1 ? ((Val + Alignment) & ~(Alignment-1)) : Val & ~(Alignment-1)) : Val)
-
-/* Utils Functions */
-
-/* Get first available bit */
-static int FirstSetBit(size_t Value)
-{
-	/* Vars */
-	int bCount = 0;
-	size_t Cc = Value;
-
-	/* Keep bit-shifting */
-	for (; Cc != 0;) {
-		bCount++;
-		Cc >>= 1;
-	}
-
-	/* Done */
-	return bCount;
-}
-
 /* Architecture Memory Layout, this
  * gives you an idea how memory layout
  * is on the x86-32 platform in MollenOS */
@@ -200,6 +158,7 @@ static int FirstSetBit(size_t Value)
 #define MEMORY_LOCATION_USER_HEAP		0x70000000 /* Heap Space: 2048 mB */
 #define MEMORY_LOCATION_USER_SHM		0xF0000000 /* Shared Memory: 240 mB */
 #define MEMORY_LOCATION_USER_SHM_END	0xFF000000 /* Shared Memory: 240 mB */
+#define MEMORY_LOCATION_SIGNAL_RET		0xFF0000DE /* Signal Ret Addr */
 #define MEMORY_LOCATION_USER_GUARD		0xFF000000 /* Stack End */
 #define MEMORY_LOCATION_USER_STACK		0xFFFFFFF0 /* Stack Space: 16 mB */
 

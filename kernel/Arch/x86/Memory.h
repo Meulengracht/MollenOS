@@ -52,8 +52,6 @@
 
 
 /* Includes */
-#include <stdint.h>
-
 #include <MollenOS.h>
 #include <CriticalSection.h>
 

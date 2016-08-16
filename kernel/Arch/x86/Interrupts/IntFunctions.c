@@ -325,21 +325,21 @@ void InterruptInstallIdtOnly(uint32_t Gsi, uint32_t IdtEntry, IrqHandler_t Callb
 }
 
 /* Allocate ISA Interrupt */
-int InterruptAllocateISA(uint32_t Irq)
+OsStatus_t InterruptAllocateISA(uint32_t Irq)
 {
 	/* Sanity */
 	if (Irq > 15)
-		return OS_STATUS_FAIL;
+		return OsError;
 
 	/* Allocate if free */
 	if (IrqIsaTable[Irq] != 1)
 	{
 		IrqIsaTable[Irq] = 1;
-		return OS_STATUS_OK;
+		return OsNoError;
 	}
 	
 	/* Damn */
-	return OS_STATUS_FAIL;
+	return OsError;
 }
 
 /* Check Irq Status */

@@ -33,7 +33,7 @@
 
 /* Globals */
 List_t *GlbTimers = NULL;
-TmId_t GlbTimerIds = 0;
+TimerId_t GlbTimerIds = 0;
 int GlbTimersInitialized = 0;
 
 /* Init */
@@ -45,13 +45,13 @@ void TimersInit(void)
 	GlbTimerIds = 0;
 }
 
-TmId_t TimersCreateTimer(TimerHandler_t Callback,
+TimerId_t TimersCreateTimer(TimerHandler_t Callback,
 	void *Args, MCoreTimerType_t Type, size_t Timeout)
 {
 	/* Variables */
 	MCoreTimer_t *TimerInfo;
 	DataKey_t Key;
-	TmId_t Id;
+	TimerId_t Id;
 
 	/* Sanity */
 	if (GlbTimersInitialized != 1)
@@ -78,7 +78,7 @@ TmId_t TimersCreateTimer(TimerHandler_t Callback,
 }
 
 /* Destroys and removes a timer */
-void TimersDestroyTimer(TmId_t TimerId)
+void TimersDestroyTimer(TimerId_t TimerId)
 {
 	/* Variables */
 	MCoreTimer_t *Timer = NULL;

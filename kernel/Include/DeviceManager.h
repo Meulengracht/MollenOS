@@ -23,10 +23,10 @@
 #define _MCORE_DRIVER_MANAGER_H_
 
 /* Includes */
+#include <os/osdefs.h>
 #include "../Arch/Arch.h"
 #include <Devices/Video.h>
 #include <Events.h>
-#include <stdint.h>
 
 /* Definitions */
 typedef unsigned DevInfo_t;

@@ -27,8 +27,6 @@
 #include <Arch.h>
 
 /* C-Library */
-#include <crtdefs.h>
-#include <stdint.h>
 #include <ds/mstring.h>
 
 /* Structures */
@@ -41,7 +39,7 @@ typedef struct _Semaphore
 	volatile int Value;
 
 	/* Semaphore Creator */
-	TId_t Creator;
+	ThreadId_t Creator;
 
 } Semaphore_t;
 

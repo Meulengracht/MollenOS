@@ -45,7 +45,7 @@
  * given executable + arguments 
  * and returns the id, will return
  * 0xFFFFFFFF if failed */
-PId_t ScProcessSpawn(char *Path, char *Arguments)
+ProcId_t ScProcessSpawn(char *Path, char *Arguments)
 {
 	/* Alloc on stack */
 	MCoreProcessRequest_t Request;
@@ -88,7 +88,7 @@ PId_t ScProcessSpawn(char *Path, char *Arguments)
 /* This waits for a child process to 
  * finish executing, and does not wakeup
  * before that */
-int ScProcessJoin(PId_t ProcessId)
+int ScProcessJoin(ProcId_t ProcessId)
 {
 	/* Wait for process */
 	MCoreProcess_t *Process = PmGetProcess(ProcessId);
@@ -107,7 +107,7 @@ int ScProcessJoin(PId_t ProcessId)
 
 /* Attempts to kill the process 
  * with the given process-id */
-int ScProcessKill(PId_t ProcessId)
+int ScProcessKill(ProcId_t ProcessId)
 {
 	/* Alloc on stack */
 	MCoreProcessRequest_t Request;
@@ -166,7 +166,7 @@ int ScProcessExit(int ExitCode)
  * the given process id, if called
  * with 0xFFFFFFFF it queries information
  * about itself */
-int ScProcessQuery(PId_t ProcessId, void *Buffer, size_t Length)
+int ScProcessQuery(ProcId_t ProcessId, void *Buffer, size_t Length)
 {
 	/* Variables */
 	MCoreProcess_t *Process = NULL;
@@ -193,7 +193,7 @@ int ScProcessQuery(PId_t ProcessId, void *Buffer, size_t Length)
 
 	/* Copy information to user 
 	 * buffer */
-	*((PId_t*)Buffer) = Process->Parent;
+	*((ProcId_t*)Buffer) = Process->Parent;
 
 	/* Done */
 	return 0;
@@ -336,10 +336,10 @@ int ScThreadExit(int ExitCode)
  * returns it's exit code, works 
  * like processjoin. Must be in same
  * process as asking thread */
-int ScThreadJoin(TId_t ThreadId)
+int ScThreadJoin(ThreadId_t ThreadId)
 {
 	/* Lookup process information */
-	PId_t CurrentPid = ThreadingGetCurrentThread(ApicGetCpu())->ProcessId;
+	ProcId_t CurrentPid = ThreadingGetCurrentThread(ApicGetCpu())->ProcessId;
 
 	/* Sanity */
 	if (ThreadingGetThread(ThreadId) == NULL)
@@ -356,10 +356,10 @@ int ScThreadJoin(TId_t ThreadId)
 /* Thread kill, kills the given thread
  * id, must belong to same process as the
  * thread that asks. */
-int ScThreadKill(TId_t ThreadId)
+int ScThreadKill(ThreadId_t ThreadId)
 {
 	/* Lookup process information */
-	PId_t CurrentPid = ThreadingGetCurrentThread(ApicGetCpu())->ProcessId;
+	ProcId_t CurrentPid = ThreadingGetCurrentThread(ApicGetCpu())->ProcessId;
 
 	/* Sanity */
 	if (ThreadingGetThread(ThreadId) == NULL)
@@ -694,7 +694,7 @@ int ScIpcRead(uint8_t *MessageContainer)
  * so far this system call is made in the fashion
  * that the recieving process must have room in their
  * message queue... dunno */
-int ScIpcWrite(PId_t ProcessId, uint8_t *Message, size_t MessageLength)
+int ScIpcWrite(ProcId_t ProcessId, uint8_t *Message, size_t MessageLength)
 {
 	/* Vars */
 	Cpu_t CurrentCpu = ApicGetCpu();

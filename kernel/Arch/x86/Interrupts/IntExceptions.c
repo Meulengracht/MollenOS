@@ -36,6 +36,7 @@ extern void init_fpu(void);
 extern void load_fpu(Addr_t *buffer);
 extern void clear_ts(void);
 extern void ThreadingDebugPrint(void);
+extern void enter_thread(Registers_t *Regs);
 
 /* Our very own Cdecl x86 stack trace :-) */
 void StackTrace(size_t MaxFrames)
@@ -163,8 +164,8 @@ void ExceptionEntry(Registers_t *regs)
 	/* We'll need these */
 	MCoreThread_t *cThread;
 	x86Thread_t *cThreadx86;
-	Cpu_t Cpu;
 	int IssueFixed = 0;
+	Cpu_t Cpu;
 	//char *instructions = NULL;
 
 	/* Determine Irq */
@@ -234,6 +235,42 @@ void ExceptionEntry(Registers_t *regs)
 	{
 		/* Get failed address */
 		Addr_t UnmappedAddr = (Addr_t)__getcr2();
+
+		/* FIRST OF ALL, we check like, SPECIAL addresses */
+		if (UnmappedAddr == MEMORY_LOCATION_SIGNAL_RET)
+		{
+			/* Variables */
+			MCoreProcess_t *Process = NULL;
+			MCoreSignal_t *Signal = NULL;
+
+			/* Oh oh, someone has done the dirty signal */
+			Cpu = ApicGetCpu();
+			cThread = ThreadingGetCurrentThread(Cpu);
+			Process = PmGetProcess(cThread->ProcessId);
+
+			/* Now.. get active signal */
+			Signal = Process->ActiveSignal;
+
+			/* Restore context */
+			//??? neccessary?? 
+
+			/* Cleanup signal */
+			Process->ActiveSignal = NULL;
+			kfree(Signal);
+
+			/* Continue into next signal? */
+			SignalHandle(cThread->Id);
+
+			/* If we reach here, no more signals, 
+			 * and we should just enter the actual thread */
+			if (cThread->Flags & THREADING_USERMODE)
+				enter_thread(((x86Thread_t*)cThread->ThreadData)->UserContext);
+			else
+				enter_thread(((x86Thread_t*)cThread->ThreadData)->Context);
+
+			/* We can never reach here tho... */
+			kernel_panic("REACHED BEYOND enter_thread AFTER SIGNAL");
+		}
 
 		/* Driver Address? */
 		if (UnmappedAddr >= MEMORY_LOCATION_RESERVED

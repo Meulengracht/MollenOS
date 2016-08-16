@@ -23,15 +23,14 @@
 #define _MCORE_EVENT_MANAGER_H_
 
 /* Includes */
-#include <crtdefs.h>
-#include <stdint.h>
+#include <os/osdefs.h>
 
 /* Include Ipc */
 #include <Process.h>
 #include <os/Ipc.h>
 
 /* Prototypes */
-_CRT_EXTERN void EmRegisterSystemTarget(PId_t ProcessId);
+_CRT_EXTERN void EmRegisterSystemTarget(ProcId_t ProcessId);
 
 /* Write data to pointer pipe */
 _CRT_EXPORT void EmCreateEvent(MEventMessageBase_t *Event);

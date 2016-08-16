@@ -30,6 +30,7 @@ global _set_ts
 global _rdtsc
 global __yield
 global _enter_thread
+global _enter_signal
 
 ; void _yield(void)
 ; Yields
@@ -159,6 +160,48 @@ _enter_thread:
 
 	; Cleanup IrqNum & IrqErrorCode from stack
 	add esp, 0x8
+
+	; Return
+	iret
+
+; void enter_signal(registers_t *stack, addr_t handler, int sig)
+; Switches stack and far jumps to next task
+_enter_signal:
+
+	; Get pointer
+	mov eax, [esp + 4]
+	mov ebx, [esp + 8]
+	mov ecx, [esp + 12]
+	mov edx, [esp + 16]
+	mov esp, eax
+
+	; Push signal information
+	push ecx ; push sig
+	push edx ; push return-addr
+
+	; Set user segments
+	mov ax, 0x23
+	mov ds, ax
+	mov es, ax
+	mov fs, ax
+	mov gs, ax
+
+	; Get stack
+	mov eax, esp
+	push 0x00000023
+	push eax
+
+	; Fix eflags, we need ints
+	pushf
+	pop eax
+	or eax, 0x200
+	push eax
+
+	; push code-selector 
+	push 0x0000001B
+
+	; Push handler
+	push ebx
 
 	; Return
 	iret

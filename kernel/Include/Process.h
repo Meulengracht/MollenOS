@@ -25,8 +25,7 @@
 /* Includes */
 
 /* C-Library Includes */
-#include <crtdefs.h>
-#include <stdint.h>
+#include <os/osdefs.h>
 #include <signal.h>
 #include <ds/list.h>
 #include <ds/mstring.h>
@@ -39,13 +38,9 @@
 #include <Heap.h>
 
 /* Definitions */
-typedef unsigned int PId_t;
-
 #define PROCESS_STACK_INIT		0x1000
 #define PROCESS_STACK_MAX		(4 << 20)
 #define PROCESS_PIPE_SIZE		0x2000
-
-/* Structures */
 
 /* Signal Table 
  * This is used for interrupt-signals
@@ -78,9 +73,10 @@ typedef struct _MCoreSignal {
  * it's address space, shm, etc etc */
 typedef struct _MCoreProcess
 {
-	/* Id */
-	PId_t Id;
-	PId_t Parent;
+	/* Ids */
+	ThreadId_t MainThread;
+	ProcId_t Id;
+	ProcId_t Parent;
 
 	/* Name */
 	MString_t *Name;
@@ -115,6 +111,7 @@ typedef struct _MCoreProcess
 
 	/* Signal Support */
 	MCoreSignalTable_t Signals;
+	MCoreSignal_t *ActiveSignal;
 	List_t *SignalQueue;
 
 	/* Return Code */
@@ -126,13 +123,18 @@ typedef struct _MCoreProcess
  * these are the interesting ones */
 _CRT_EXTERN void PmCleanupProcess(MCoreProcess_t *Process);
 _CRT_EXTERN void PmTerminateProcess(MCoreProcess_t *Process);
-_CRT_EXTERN MCoreProcess_t *PmGetProcess(PId_t ProcessId);
-_CRT_EXTERN MString_t *PmGetWorkingDirectory(PId_t ProcessId);
-_CRT_EXTERN MString_t *PmGetBaseDirectory(PId_t ProcessId);
+_CRT_EXTERN MCoreProcess_t *PmGetProcess(ProcId_t ProcessId);
+_CRT_EXTERN MString_t *PmGetWorkingDirectory(ProcId_t ProcessId);
+_CRT_EXTERN MString_t *PmGetBaseDirectory(ProcId_t ProcessId);
 
 /* Signal Functions */
-_CRT_EXTERN int SignalCreate(PId_t ProcessId, int Signal);
+_CRT_EXTERN void SignalHandle(ThreadId_t ThreadId);
+_CRT_EXTERN int SignalCreate(ProcId_t ProcessId, int Signal);
 _CRT_EXTERN void SignalExecute(MCoreProcess_t *Process, MCoreSignal_t *Signal);
+
+/* Architecture Specific  
+ * Must be implemented in the arch-layer */
+_CRT_EXTERN void SignalDispatch(MCoreProcess_t *Process, MCoreSignal_t *Signal);
 
 /*************************************
  ******** PROCESS - MANAGER **********
@@ -158,7 +160,7 @@ typedef struct _MCoreProcessRequest
 	MString_t *Arguments;
 
 	/* Process Id */
-	PId_t ProcessId;
+	ProcId_t ProcessId;
 
 } MCoreProcessRequest_t;
 

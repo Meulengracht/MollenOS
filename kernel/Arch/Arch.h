@@ -23,15 +23,11 @@
 #define _MCORE_MAIN_ARCH_
 
 /* Includes */
-#include <crtdefs.h>
-
-/* Definitions */
-typedef int OsStatus_t;
+#include <os/osdefs.h>
 
 /* The definition of a thread id
 * used for identifying threads */
 typedef void(*ThreadEntry_t)(void*);
-typedef unsigned int TId_t;
 
 /* Select Correct ARCH file */
 #if defined(_X86_32)

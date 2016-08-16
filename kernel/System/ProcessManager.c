@@ -37,11 +37,11 @@
 
 /* Prototypes */
 int PmEventHandler(void *UserData, MCoreEvent_t *Event);
-PId_t PmCreateProcess(MString_t *Path, MString_t *Arguments);
+ProcId_t PmCreateProcess(MString_t *Path, MString_t *Arguments);
 
 /* Globals */
 MCoreEventHandler_t *GlbProcessEventHandler = NULL;
-PId_t GlbProcessId = 0;
+ProcId_t GlbProcessId = 0;
 List_t *GlbProcesses = NULL;
 List_t *GlbZombieProcesses = NULL;
 

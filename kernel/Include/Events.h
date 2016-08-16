@@ -23,8 +23,7 @@
 #define _MCORE_EVENTS_H_
 
 /* Includes */
-#include <crtdefs.h>
-#include <stdint.h>
+#include <os/osdefs.h>
 #include <ds/list.h>
 
 #include <Semaphore.h>
@@ -61,7 +60,7 @@ typedef struct _MCoreEvent
 	/* Owner 
 	 * The thread that owns this 
 	 * event */
-	TId_t Owner;
+	ThreadId_t Owner;
 
 	/* Type 
 	 * This the type of event 
@@ -93,7 +92,7 @@ typedef struct _MCoreEventHandler
 {
 	/* Name of event handler */
 	MString_t *Name;
-	TId_t ThreadId;
+	ThreadId_t ThreadId;
 
 	/* Status of event-handler */
 	int Running;

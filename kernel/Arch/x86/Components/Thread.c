@@ -16,13 +16,14 @@
 * along with this program.If not, see <http://www.gnu.org/licenses/>.
 *
 *
-* MollenOS X86-32 Threads
+* MollenOS X86 Threads
 */
 
 /* Includes */
 #include <Arch.h>
 #include <assert.h>
 #include <Threading.h>
+#include <Process.h>
 #include <Thread.h>
 #include <Memory.h>
 #include <Heap.h>
@@ -37,8 +38,9 @@
 extern uint32_t GlbTimerQuantum;
 extern void save_fpu(Addr_t *buffer);
 extern void set_ts(void);
-extern void _yield(void);
-extern void enter_thread(Registers_t *regs);
+extern void _yield(void); 
+extern void enter_thread(Registers_t *Regs);
+extern void enter_signal(Registers_t *Regs, Addr_t Handler, int Signal, Addr_t Return);
 extern void RegisterDump(Registers_t *Regs);
 
 /* The YIELD handler */
@@ -198,14 +200,37 @@ void IThreadInitUserMode(void *ThreadData,
 	t->UserContext = ContextUserCreate(StackAddr, EntryPoint, (Addr_t*)ArgumentAddress);
 }
 
+/* Dispatches a signal to the given process 
+ * signals will always be dispatched to main thread */
+void SignalDispatch(MCoreProcess_t *Process, MCoreSignal_t *Signal)
+{
+	/* Variables */
+	MCoreThread_t *Thread = ThreadingGetThread(Process->MainThread);
+	x86Thread_t *Thread86 = (x86Thread_t*)Thread->ThreadData;
+	Registers_t *Regs = NULL;
+
+	/* User or kernel mode thread? */
+	if (Thread->Flags & THREADING_USERMODE)
+		Regs = Thread86->UserContext;
+	else
+		Regs = Thread86->Context;
+
+	/* Store current context */
+	memcpy(&Signal->Context, Regs, sizeof(Registers_t));
+
+	/* Now we can enter the signal context 
+	 * handler, we cannot return from this function */
+	enter_signal(Regs, Signal->Handler, Signal->Signal, MEMORY_LOCATION_SIGNAL_RET);
+}
+
 /* Task Switch occurs here */
 Registers_t *_ThreadingSwitch(Registers_t *Regs, int PreEmptive, uint32_t *TimeSlice, 
 							 uint32_t *TaskQueue)
 {
 	/* We'll need these */
-	Cpu_t Cpu;
 	MCoreThread_t *mThread;
 	x86Thread_t *tx86;
+	Cpu_t Cpu;
 
 	/* Sanity */
 	if (ThreadingIsEnabled() != 1)
@@ -259,6 +284,9 @@ Registers_t *_ThreadingSwitch(Registers_t *Regs, int PreEmptive, uint32_t *TimeS
 
 	/* Set TS bit in CR0 */
 	set_ts();
+
+	/* Handle signals if any */
+	SignalHandle(mThread->Id);
 
 	/* Return new stack */
 	if (mThread->Flags & THREADING_USERMODE)

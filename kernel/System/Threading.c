@@ -37,7 +37,7 @@
 /* Globals */
 List_t *GlbThreads = NULL;
 List_t *GlbZombieThreads = NULL;
-TId_t GlbThreadId = 0;
+ThreadId_t GlbThreadId = 0;
 ListNode_t *GlbCurrentThreads[64];
 ListNode_t *GlbIdleThreads[64];
 int GlbThreadingEnabled = 0;
@@ -75,7 +75,7 @@ void ThreadingInit(void)
 	Init->TimeSlice = MCORE_IDLE_TIMESLICE;
 	Init->Priority = PriorityLow;
 	Init->ParentId = 0xDEADBEEF;
-	Init->ThreadId = GlbThreadId;
+	Init->Id = GlbThreadId;
 	Init->ProcessId = 0xFFFFFFFF;
 
 	/* Create Address Space */
@@ -121,7 +121,7 @@ void ThreadingApInit(Cpu_t Cpu)
 	Init->TimeSlice = MCORE_IDLE_TIMESLICE;
 	Init->Priority = PriorityLow;
 	Init->ParentId = 0xDEADBEEF;
-	Init->ThreadId = GlbThreadId;
+	Init->Id = GlbThreadId;
 	Init->CpuId = Cpu;
 	Init->ProcessId = 0xFFFFFFFF;
 
@@ -167,7 +167,7 @@ ListNode_t *ThreadingGetCurrentNode(Cpu_t Cpu)
 }
 
 /* Get current threading id */
-TId_t ThreadingGetCurrentThreadId(void)
+ThreadId_t ThreadingGetCurrentThreadId(void)
 {
 	/* Get current cpu */
 	Cpu_t Cpu = ApicGetCpu();
@@ -175,17 +175,17 @@ TId_t ThreadingGetCurrentThreadId(void)
 	/* If it's during startup phase for cpu's
 	* we have to take precautions */
 	if (GlbCurrentThreads[Cpu] == NULL)
-		return (TId_t)Cpu;
+		return (ThreadId_t)Cpu;
 
 	if (GlbThreadId == 0)
 		return 0;
 	else
-		return ThreadingGetCurrentThread(Cpu)->ThreadId;
+		return ThreadingGetCurrentThread(Cpu)->Id;
 }
 
 /* Lookup thread by the given 
  * thread-id, returns NULL if invalid */
-MCoreThread_t *ThreadingGetThread(TId_t ThreadId)
+MCoreThread_t *ThreadingGetThread(ThreadId_t ThreadId)
 {
 	/* Iterate thread nodes 
 	 * and find the correct */
@@ -195,7 +195,7 @@ MCoreThread_t *ThreadingGetThread(TId_t ThreadId)
 		MCoreThread_t *Thread = (MCoreThread_t*)tNode->Data;
 
 		/* Check */
-		if (Thread->ThreadId == ThreadId)
+		if (Thread->Id == ThreadId)
 			return Thread;
 	}
 
@@ -273,7 +273,7 @@ void ThreadingDebugPrint(void)
 	{
 		MCoreThread_t *t = (MCoreThread_t*)i->Data;
 		printf("Thread %u (%s) - Flags %i, Queue %i, Timeslice %u, Cpu: %u\n",
-			t->ThreadId, t->Name, t->Flags, t->Queue, t->TimeSlice, t->CpuId);
+			t->Id, t->Name, t->Flags, t->Queue, t->TimeSlice, t->CpuId);
 	}
 }
 
@@ -338,7 +338,7 @@ void ThreadingEntryPointUserMode(void)
  * entry point, arguments and flags, if name 
  * is null, a generic name will be generated 
  * Thread is started as soon as possible */
-TId_t ThreadingCreateThread(char *Name, ThreadEntry_t Function, void *Args, int Flags)
+ThreadId_t ThreadingCreateThread(char *Name, ThreadEntry_t Function, void *Args, int Flags)
 {
 	/* Vars */
 	MCoreThread_t *nThread, *tParent;
@@ -382,8 +382,8 @@ TId_t ThreadingCreateThread(char *Name, ThreadEntry_t Function, void *Args, int 
 		nThread->CpuId = 0xFF;
 	}
 
-	nThread->ParentId = tParent->ThreadId;
-	nThread->ThreadId = GlbThreadId;
+	nThread->Id = GlbThreadId;
+	nThread->ParentId = tParent->Id;
 	nThread->ProcessId = 0xFFFFFFFF;
 
 	/* Scheduler Related */
@@ -420,12 +420,12 @@ TId_t ThreadingCreateThread(char *Name, ThreadEntry_t Function, void *Args, int 
 	CriticalSectionLeave(&GlbThreadLock);
 
 	/* Append it to list & scheduler */
-	Key.Value = (int)nThread->ThreadId;
+	Key.Value = (int)nThread->Id;
 	ListAppend(GlbThreads, ListCreateNode(Key, Key, nThread));
 	SchedulerReadyThread(nThread);
 
 	/* Done */
-	return nThread->ThreadId;
+	return nThread->Id;
 }
 
 /* Exits the current thread by marking it finished
@@ -452,7 +452,7 @@ void ThreadingExitThread(int ExitCode)
 /* Kills a thread with the given id 
  * this force-kills the thread, thread
  * might not be killed immediately */
-void ThreadingKillThread(TId_t ThreadId)
+void ThreadingKillThread(ThreadId_t ThreadId)
 {
 	/* Get thread handle */
 	MCoreThread_t *Target = ThreadingGetThread(ThreadId);
@@ -479,7 +479,7 @@ void ThreadingKillThread(TId_t ThreadId)
 /* Can be used to wait for a thread 
  * the return value of this function
  * is the ret-code of the thread */
-int ThreadingJoinThread(TId_t ThreadId)
+int ThreadingJoinThread(ThreadId_t ThreadId)
 {
 	/* Get thread handle */
 	MCoreThread_t *Target = ThreadingGetThread(ThreadId);
@@ -523,7 +523,7 @@ void ThreadingEnterUserMode(void *ProcessInfo)
 }
 
 /* End all threads by process id */
-void ThreadingTerminateProcessThreads(uint32_t ProcessId)
+void ThreadingTerminateProcessThreads(unsigned ProcessId)
 {
 	/* Iterate thread list */
 	foreach(tNode, GlbThreads)
@@ -595,7 +595,7 @@ GetNextThread:
 	}
 
 	/* Get node by thread */
-	Key.Value = (int)NextThread->ThreadId;
+	Key.Value = (int)NextThread->Id;
 	Node = ListGetNodeByKey(GlbThreads, Key, 0);
 
 	/* Update current */

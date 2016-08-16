@@ -26,8 +26,6 @@
 /* Includes */
 #include <Arch.h>
 #include <Threading.h>
-#include <crtdefs.h>
-#include <stdint.h>
 
 /* Definitions */
 #define MUTEX_DEFAULT_TIMEOUT	500
@@ -36,7 +34,7 @@
 typedef struct _Mutex
 {
 	/* Task that is blocking */
-	TId_t Blocker;
+	ThreadId_t Blocker;
 
 	/* Total amout of blocking */
 	size_t Blocks;

@@ -96,9 +96,6 @@
     <ClCompile Include="..\..\System\Devices\Fonts\VideoFont6x12.c">
       <Filter>Systems\Devices\Video</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\System\Syscalls.c">
-      <Filter>Systems</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\System\Pipe.c">
       <Filter>Systems</Filter>
     </ClCompile>
@@ -133,6 +130,9 @@
       <Filter>Systems\Processes</Filter>
     </ClCompile>
     <ClCompile Include="..\..\System\ProcessManager.c">
+      <Filter>Systems\Processes</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\System\Syscalls.c">
       <Filter>Systems\Processes</Filter>
     </ClCompile>
   </ItemGroup>

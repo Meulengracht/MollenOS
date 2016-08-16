@@ -28,9 +28,6 @@
 #include <Arch.h>
 #include <CriticalSection.h>
 
-#include <stdint.h>
-#include <crtdefs.h>
-
 /***************************
 Heap Management
 ***************************/

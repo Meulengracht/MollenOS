@@ -23,12 +23,10 @@
 #define _MCORE_TIMERS_H_
 
 /* Include */
-#include <crtdefs.h>
-#include <stdint.h>
+#include <os/osdefs.h>
 #include <Log.h>
 
 /* Definitions */
-typedef unsigned int TmId_t;
 typedef void(*TimerHandler_t)(void*);
 
 /* Time Stuff */
@@ -66,9 +64,9 @@ typedef struct _MCoreTimer
 } MCoreTimer_t;
 
 /* Prototypes */
-_CRT_EXPORT TmId_t TimersCreateTimer(TimerHandler_t Callback, 
+_CRT_EXPORT TimerId_t TimersCreateTimer(TimerHandler_t Callback,
 	void *Args, MCoreTimerType_t Type, size_t Timeout);
-_CRT_EXPORT void TimersDestroyTimer(TmId_t TimerId);
+_CRT_EXPORT void TimersDestroyTimer(TimerId_t TimerId);
 
 /* Sleep, Stall, etc */
 _CRT_EXPORT void SleepMs(size_t MilliSeconds);
