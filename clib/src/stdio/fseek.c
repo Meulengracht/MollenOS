@@ -34,25 +34,29 @@ extern int _favail(FILE * stream);
 extern int _fbufptr(FILE * stream);
 extern int _fbufadjust(FILE * stream, off_t offset);
 
-/* The lseek
+/* Helper */
+off64_t offabs(off64_t Value) {
+	return (Value <= 0) ? 0 - Value : Value;
+}
+
+/* The lseeki64
  * This is the ANSI C seek
  * function used by filedescriptors */
-long _lseek(int fd, long offset, int mode)
+off64_t _lseeki64(int fd, off64_t offset, int mode)
 {
 	/* Syscall Result */
+	off_t SeekSpotLow = 0, SeekSpotHigh = 0;
+	char Buffer[64];
 	int RetVal = 0;
-	long SeekSpot = 0;
 
 	/* Depends on origin */
-	if (mode == SEEK_SET)
-		SeekSpot = offset;
-	else {
+	if (mode != SEEK_SET) 
+	{
 		/* We need current position / size */
+		uint64_t fPos = 0, fSize = 0;
+		off64_t CorrectedValue = offabs(offset);
 
 		/* Prepare a buffer */
-		uint64_t fPos = 0, fSize = 0;
-		long CorrectedValue = (long)abs(offset);
-		char Buffer[64];
 		memset(Buffer, 0, sizeof(Buffer));
 
 		/* Syscall */
@@ -75,27 +79,40 @@ long _lseek(int fd, long offset, int mode)
 		if (mode == SEEK_CUR) {
 			/* Handle negative */
 			if (offset < 0) {
-				SeekSpot = (long)fPos - CorrectedValue;
+				offset = (long)fPos - CorrectedValue;
 			}
 			else {
-				SeekSpot = (long)fPos + CorrectedValue;
+				offset = (long)fPos + CorrectedValue;
 			}
 		}
 		else {
-			SeekSpot = (long)fSize - CorrectedValue;
+			offset = (long)fSize - CorrectedValue;
 		}
 	}
 
+	/* Build parts */
+	SeekSpotLow = offset & 0xFFFFFFFF;
+	SeekSpotHigh = (offset >> 32) & 0xFFFFFFFF;
+
 	/* Seek to 0 */
-	RetVal = Syscall2(MOLLENOS_SYSCALL_VFSSEEK,
-		MOLLENOS_SYSCALL_PARAM(fd), MOLLENOS_SYSCALL_PARAM(SeekSpot));
+	RetVal = Syscall3(MOLLENOS_SYSCALL_VFSSEEK, MOLLENOS_SYSCALL_PARAM(fd), 
+		MOLLENOS_SYSCALL_PARAM(SeekSpotLow), MOLLENOS_SYSCALL_PARAM(SeekSpotHigh));
 
 	/* Done */
 	if (_fval(RetVal)) {
 		return -1L;
 	}
 	else
-		return SeekSpot;
+		return ((off64_t)SeekSpotHigh << 32) | SeekSpotLow;
+}
+
+/* The lseek
+ * This is the ANSI C seek
+ * function used by filedescriptors */
+long _lseek(int fd, long offset, int mode)
+{
+	/* Call the 64 bit version */
+	return (long)_lseeki64(fd, offset, mode);
 }
 
 /* The seeko
@@ -103,7 +120,7 @@ long _lseek(int fd, long offset, int mode)
 int fseeko(FILE *stream, off_t offset, int origin)
 {
 	/* Syscall Result */
-	long RetVal = 0;
+	off64_t RetVal = 0;
 
 	/* Sanitize parameters before 
 	 * doing anything */
@@ -149,7 +166,7 @@ int fseeko(FILE *stream, off_t offset, int origin)
 	}
 
 	/* Deep call _lseek */
-	RetVal = _lseek(stream->fd, offset, origin);
+	RetVal = _lseeki64(stream->fd, offset, origin);
 
 	/* Invalidate the file buffer 
 	 * otherwise we read from wrong place! */

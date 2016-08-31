@@ -931,14 +931,18 @@ done:
 	return bWritten;
 }
 
-/* Seek File */
-int ScVfsSeek(int FileDescriptor, off_t Position)
+/* Seek in File Descriptor
+ * This function takes a file-descriptor (id) and 
+ * a position split up into high/low parts so we can
+ * support large files even on 32 bit */
+int ScVfsSeek(int FileDescriptor, off_t PositionLow, off_t PositionHigh)
 {
 	/* Get current process */
 	Cpu_t CurrentCpu = ApicGetCpu();
 	MCoreProcess_t *Process =
 		PmGetProcess(ThreadingGetCurrentThread(CurrentCpu)->ProcessId);
 	VfsErrorCode_t RetCode = VfsInvalidParameters;
+	uint64_t Position = 0;
 	DataKey_t Key;
 	Key.Value = FileDescriptor;
 
@@ -955,8 +959,11 @@ int ScVfsSeek(int FileDescriptor, off_t Position)
 	if (fNode == NULL)
 		return RetCode;
 
+	/* Build position */
+	Position = ((uint64_t)PositionHigh << 32) | PositionLow;
+
 	/* Seek */
-	return (int)VfsSeek((MCoreFileInstance_t*)fNode->Data, (uint64_t)Position);
+	return (int)VfsSeek((MCoreFileInstance_t*)fNode->Data, Position);
 }
 
 /* Delete File */

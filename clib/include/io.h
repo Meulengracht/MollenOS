@@ -107,6 +107,7 @@ _CRT_EXTERN int _read(int fd, void *buffer, unsigned int len);
 _CRT_EXTERN int _write(int fd, void *buffer, unsigned int length);
 
 _CRT_EXTERN long _lseek(int fd, long offset, int mode);
+_CRT_EXTERN long long _lseeki64(int fd, long long offset, int mode);
 _CRT_EXTERN long _tell(int fd);
 _CRT_EXTERN int _unlink(const char *filename);
 

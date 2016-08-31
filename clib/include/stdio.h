@@ -65,8 +65,10 @@ extern "C" {
 #ifndef OFF_T_DEFINED
 #if _FILE_OFFSET_BITS==64
 	typedef int64_t off_t;
+	typedef int64_t off_t;
 #else
-	typedef long int off_t;
+	typedef long off_t;
+	typedef long long off64_t;
 #endif
 #define OFF_T_DEFINED
 #endif 
