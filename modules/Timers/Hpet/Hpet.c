@@ -176,7 +176,7 @@ OsStatus_t HpetComparatorStart(uint32_t Comparator, uint32_t Periodic, uint32_t 
 			LogFatal("HPET", "Failed to allocate irq for use, bailing out!");
 
 			/* Done */
-			return OS_STATUS_FAIL;
+			return OsError;
 		}
 
 		/* Update */
@@ -242,7 +242,7 @@ OsStatus_t HpetComparatorStart(uint32_t Comparator, uint32_t Periodic, uint32_t 
 	HpetStart();
 
 	/* Done */
-	return OS_STATUS_OK;
+	return OsNoError;
 }
 
 /* Setup Comparator */
@@ -282,7 +282,7 @@ OsStatus_t HpetComparatorSetup(uint32_t Comparator)
 	LogInformation("HPET", "New TimerInfo: 0x%x", TimerInfo);
 #endif
 
-	return OS_STATUS_OK;
+	return OsNoError;
 }
 
 /* Entry point of a module */
