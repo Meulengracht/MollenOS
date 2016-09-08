@@ -238,8 +238,17 @@ void PmCleanupProcess(MCoreProcess_t *Process)
 /* Get Process */
 MCoreProcess_t *PmGetProcess(ProcId_t ProcessId)
 {
+	/* Variables */
+	ListNode_t *pNode = NULL;
+
+	/* Sanity */
+	if (GlbProcesses == NULL
+		|| GlbProcesses->Length == 0) {
+		return NULL;
+	}
+
 	/* Iterate */
-	foreach(pNode, GlbProcesses)
+	_foreach(pNode, GlbProcesses)
 	{
 		/* Cast */
 		MCoreProcess_t *Process = (MCoreProcess_t*)pNode->Data;
@@ -256,8 +265,17 @@ MCoreProcess_t *PmGetProcess(ProcId_t ProcessId)
 /* Get the working directory */
 MString_t *PmGetWorkingDirectory(ProcId_t ProcessId)
 {
+	/* Variables */
+	ListNode_t *pNode = NULL;
+
+	/* Sanity */
+	if (GlbProcesses == NULL
+		|| GlbProcesses->Length == 0) {
+		return NULL;
+	}
+
 	/* Iterate */
-	foreach(pNode, GlbProcesses)
+	_foreach(pNode, GlbProcesses)
 	{
 		/* Cast */
 		MCoreProcess_t *Process = (MCoreProcess_t*)pNode->Data;
@@ -274,8 +292,17 @@ MString_t *PmGetWorkingDirectory(ProcId_t ProcessId)
 /* Get the base directory */
 MString_t *PmGetBaseDirectory(ProcId_t ProcessId)
 {
+	/* Variables */
+	ListNode_t *pNode = NULL;
+
+	/* Sanity */
+	if (GlbProcesses == NULL
+		|| GlbProcesses->Length == 0) {
+		return NULL;
+	}
+
 	/* Iterate */
-	foreach(pNode, GlbProcesses)
+	_foreach(pNode, GlbProcesses)
 	{
 		/* Cast */
 		MCoreProcess_t *Process = (MCoreProcess_t*)pNode->Data;
