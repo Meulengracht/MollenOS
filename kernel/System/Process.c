@@ -315,3 +315,73 @@ MString_t *PmGetBaseDirectory(ProcId_t ProcessId)
 	/* Found? NO! */
 	return NULL;
 }
+
+/* Queries the given process for information
+ * which kind of information is determined by <Function> */
+int PmQueryProcess(MCoreProcess_t *Process, 
+	ProcessQueryFunction_t Function, void *Buffer, size_t Length)
+{
+	/* Sanity */
+	if (Process == NULL
+		|| Buffer == NULL
+		|| Length == 0)
+		return -1;
+
+	/* Now.. What do you want to know? */
+	switch (Function)
+	{
+		/* Query name? */
+		case ProcessQueryName:
+		{
+			/* Never copy more data than user can contain */
+			size_t BytesToCopy = MIN(Process->Name->Length, Length);
+
+			/* Cooopy */
+			memcpy(Buffer, Process->Name->Data, BytesToCopy);
+
+		} break;
+
+		/* Query memory? in bytes of course */
+		case ProcessQueryMemory:
+		{
+			/* Use our delicious heap query */
+			HeapQueryMemoryInformation(Process->Heap, (size_t*)Buffer, NULL);
+
+		} break;
+
+		/* Query immediate parent? */
+		case ProcessQueryParent:
+		{
+			/* Get a pointer */
+			ProcId_t *bPtr = (ProcId_t*)Buffer;
+
+			/* There we go */
+			*bPtr = Process->Parent;
+
+		} break;
+
+		/* Query topmost parent? */
+		case ProcessQueryTopMostParent:
+		{
+			/* Get a pointer */
+			ProcId_t *bPtr = (ProcId_t*)Buffer;
+
+			/* Set initial value */
+			*bPtr = PROCESS_NO_PROCESS;
+
+			/* While parent has a valid parent */
+			MCoreProcess_t *Parent = Process;
+			while (Parent->Parent != PROCESS_NO_PROCESS) {
+				*bPtr = Parent->Parent;
+				Parent = PmGetProcess(Parent->Parent);
+			}
+
+		} break;
+
+		default:
+			break;
+	}
+
+	/* Done! */
+	return 0;
+}

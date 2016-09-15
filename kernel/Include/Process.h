@@ -41,6 +41,7 @@
 #define PROCESS_STACK_INIT		0x1000
 #define PROCESS_STACK_MAX		(4 << 20)
 #define PROCESS_PIPE_SIZE		0x2000
+#define PROCESS_NO_PROCESS		0xFFFFFFFF
 
 /* Signal Table 
  * This is used for interrupt-signals
@@ -119,8 +120,21 @@ typedef struct _MCoreProcess
 
 } MCoreProcess_t;
 
+/* Process Queries
+ * List of the different options
+ * for process queries */
+typedef enum _ProcessQueryFunction
+{
+	ProcessQueryName,
+	ProcessQueryMemory,
+	ProcessQueryParent,
+	ProcessQueryTopMostParent
+
+} ProcessQueryFunction_t;
+
 /* Process Function Prototypes
  * these are the interesting ones */
+_CRT_EXTERN int PmQueryProcess(MCoreProcess_t *Process, ProcessQueryFunction_t Function, void *Buffer, size_t Length);
 _CRT_EXTERN void PmCleanupProcess(MCoreProcess_t *Process);
 _CRT_EXTERN void PmTerminateProcess(MCoreProcess_t *Process);
 _CRT_EXTERN MCoreProcess_t *PmGetProcess(ProcId_t ProcessId);

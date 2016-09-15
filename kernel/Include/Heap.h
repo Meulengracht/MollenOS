@@ -121,6 +121,10 @@ _CRT_EXTERN void HeapPrintStats(Heap_t *Heap);
 _CRT_EXTERN void HeapReap(void);
 _CRT_EXTERN int HeapValidateAddress(Heap_t *Heap, Addr_t Address);
 
+/* Queries memory information about a heap
+* useful for processes and such */
+_CRT_EXTERN int HeapQueryMemoryInformation(Heap_t *Heap, size_t *BytesInUse, size_t *BlocksAllocated);
+
 /* Kernel Allocations */
 _CRT_EXPORT void *kmalloc_ap(size_t sz, Addr_t *p);
 _CRT_EXPORT void *kmalloc_p(size_t sz, Addr_t *p);

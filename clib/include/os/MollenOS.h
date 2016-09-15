@@ -136,7 +136,9 @@ typedef enum _EnvironmentQueryFunction
 typedef enum _ProcessQueryFunction
 {
 	ProcessQueryName,
-	ProcessQueryMemory
+	ProcessQueryMemory,
+	ProcessQueryParent,
+	ProcessQueryTopMostParent
 
 } ProcessQueryFunction_t;
 

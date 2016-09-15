@@ -166,7 +166,7 @@ int ScProcessExit(int ExitCode)
  * the given process id, if called
  * with 0xFFFFFFFF it queries information
  * about itself */
-int ScProcessQuery(ProcId_t ProcessId, void *Buffer, size_t Length)
+int ScProcessQuery(ProcId_t ProcessId, ProcessQueryFunction_t Function, void *Buffer, size_t Length)
 {
 	/* Variables */
 	MCoreProcess_t *Process = NULL;
@@ -191,12 +191,8 @@ int ScProcessQuery(ProcId_t ProcessId, void *Buffer, size_t Length)
 		return -2;
 	}
 
-	/* Copy information to user 
-	 * buffer */
-	*((ProcId_t*)Buffer) = Process->Parent;
-
-	/* Done */
-	return 0;
+	/* Deep Call */
+	return PmQueryProcess(Process, Function, Buffer, Length);
 }
 
 /* Installs a signal handler for 

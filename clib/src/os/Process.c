@@ -88,4 +88,17 @@ int ProcessKill(PId_t ProcessId)
 	return RetVal;
 }
 
+/* Process Query
+ * Queries information about the
+ * given process id, or use 0
+ * to query information about current
+ * process */
+int ProcessQuery(PId_t ProcessId, ProcessQueryFunction_t Function, void *Buffer, size_t Length)
+{
+	/* Prep for syscall */
+	return Syscall4(MOLLENOS_SYSCALL_PROCQUERY, MOLLENOS_SYSCALL_PARAM(ProcessId),
+		MOLLENOS_SYSCALL_PARAM(Function), MOLLENOS_SYSCALL_PARAM(Buffer),
+		MOLLENOS_SYSCALL_PARAM(Length));
+}
+
 #endif

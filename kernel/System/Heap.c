@@ -721,7 +721,7 @@ HeapNode_t *HeapQueryAddressInNode(HeapBlock_t *Block, Addr_t Address)
 }
 
 /* Finds the appropriate block
-* that should contain our node */
+ * that should contain our node */
 HeapNode_t *HeapQuery(Heap_t *Heap, Addr_t Addr)
 {
 	/* Find a block that match our
@@ -745,6 +745,23 @@ HeapNode_t *HeapQuery(Heap_t *Heap, Addr_t Addr)
 
 	/* Dayum */
 	return NULL;
+}
+
+/* Queries memory information about a heap
+ * useful for processes and such */
+int HeapQueryMemoryInformation(Heap_t *Heap, size_t *BytesInUse, size_t *BlocksAllocated)
+{
+	/* Sanity */
+	if (Heap == NULL)
+		return -1;
+
+	/* Yay, set stuff */
+	if (BytesInUse != NULL)
+		*BytesInUse = 0;
+	if (BlocksAllocated != NULL)
+		*BlocksAllocated = 0;
+
+	return 0;
 }
 
 /**************************************/

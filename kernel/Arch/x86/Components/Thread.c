@@ -282,11 +282,11 @@ Registers_t *_ThreadingSwitch(Registers_t *Regs, int PreEmptive, uint32_t *TimeS
 	/* Clear FPU/MMX/SSE */
 	tx86->Flags &= ~X86_THREAD_USEDFPU;
 
-	/* Set TS bit in CR0 */
-	set_ts();
-
 	/* Handle signals if any */
 	SignalHandle(mThread->Id);
+
+	/* Set TS bit in CR0 */
+	set_ts();
 
 	/* Return new stack */
 	if (mThread->Flags & THREADING_USERMODE)

@@ -76,7 +76,7 @@ void ThreadingInit(void)
 	Init->Priority = PriorityLow;
 	Init->ParentId = 0xDEADBEEF;
 	Init->Id = GlbThreadId;
-	Init->ProcessId = 0xFFFFFFFF;
+	Init->ProcessId = PROCESS_NO_PROCESS;
 
 	/* Create Address Space */
 	Init->AddrSpace = AddressSpaceCreate(ADDRESS_SPACE_KERNEL);
@@ -123,7 +123,7 @@ void ThreadingApInit(Cpu_t Cpu)
 	Init->ParentId = 0xDEADBEEF;
 	Init->Id = GlbThreadId;
 	Init->CpuId = Cpu;
-	Init->ProcessId = 0xFFFFFFFF;
+	Init->ProcessId = PROCESS_NO_PROCESS;
 
 	/* Create Address Space */
 	Init->AddrSpace = AddressSpaceCreate(ADDRESS_SPACE_KERNEL);
@@ -384,7 +384,7 @@ ThreadId_t ThreadingCreateThread(char *Name, ThreadEntry_t Function, void *Args,
 
 	nThread->Id = GlbThreadId;
 	nThread->ParentId = tParent->Id;
-	nThread->ProcessId = 0xFFFFFFFF;
+	nThread->ProcessId = PROCESS_NO_PROCESS;
 
 	/* Scheduler Related */
 	nThread->Queue = -1;
