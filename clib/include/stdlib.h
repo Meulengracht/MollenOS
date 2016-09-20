@@ -65,7 +65,13 @@ typedef struct _ldiv_t
 //                     Type Conversion		                  //
 //------------------------------------------------------------//
 _CRT_EXTERN int atoi(const char * string);
+_CRT_EXTERN double atof(const char* str);
+_CRT_EXTERN long int atol(const char * str);
 _CRT_EXTERN long double	atold(const char *ascii);
+
+_CRT_EXTERN double strtod(const char* str, char** endptr);
+_CRT_EXTERN long int strtol(const char* str, char** endptr, int base);
+_CRT_EXTERN unsigned long int strtoul(const char* str, char** endptr, int base);
 
 //------------------------------------------------------------//
 //                  Integer Arethmetic		                  //

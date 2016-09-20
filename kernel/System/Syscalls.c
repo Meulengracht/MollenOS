@@ -164,7 +164,7 @@ int ScProcessExit(int ExitCode)
 
 /* Queries information about 
  * the given process id, if called
- * with 0xFFFFFFFF it queries information
+ * with -1 it queries information
  * about itself */
 int ScProcessQuery(ProcId_t ProcessId, ProcessQueryFunction_t Function, void *Buffer, size_t Length)
 {
@@ -178,7 +178,7 @@ int ScProcessQuery(ProcId_t ProcessId, ProcessQueryFunction_t Function, void *Bu
 	}
 
 	/* Sanitize the processid */
-	if (ProcessId == 0xFFFFFFFF
+	if (ProcessId == PROCESS_NO_PROCESS
 		|| ProcessId == 0) {
 		ProcessId = ThreadingGetCurrentThread(ApicGetCpu())->ProcessId;
 	}
@@ -225,6 +225,45 @@ int ScProcessSignal(int Signal, Addr_t Handler)
 
 	/* Done, return the old ! */
 	return (int)OldHandler;
+}
+
+/* Dispatches a signal to the target process id 
+ * It will get handled next time it's selected for execution 
+ * so we yield instantly as well. If processid is -1, we select self */
+int ScProcessRaise(ProcId_t ProcessId, int Signal)
+{
+	/* Variables */
+	MCoreProcess_t *Process = NULL;
+
+	/* Sanitize our params */
+	if (Signal > NUMSIGNALS) {
+		return -1;
+	}
+
+	/* Sanitize the processid */
+	if (ProcessId == PROCESS_NO_PROCESS
+		|| ProcessId == 0) {
+		ProcessId = ThreadingGetCurrentThread(ApicGetCpu())->ProcessId;
+	}
+
+	/* Lookup process */
+	Process = PmGetProcess(ProcessId);
+
+	/* Sanity...
+	 * This should never happen though
+	 * Only I write code that has no process */
+	if (Process == NULL) {
+		return -1;
+	}
+
+	/* Simply create a new signal 
+	 * and return it's value */
+	if (SignalCreate(ProcessId, Signal))
+		return -1;
+	else {
+		IThreadYield();
+		return 0;
+	}
 }
 
 /**************************
@@ -1271,7 +1310,7 @@ Addr_t GlbSyscallTable[121] =
 	DefineSyscall(ScProcessJoin),
 	DefineSyscall(ScProcessKill),
 	DefineSyscall(ScProcessSignal),
-	DefineSyscall(NoOperation),
+	DefineSyscall(ScProcessRaise),
 	DefineSyscall(ScSharedObjectLoad),
 	DefineSyscall(ScSharedObjectGetFunction),
 	DefineSyscall(ScSharedObjectUnload),

@@ -55,9 +55,9 @@ namespace std
   using ::labs;
   using ::ldiv;
   using ::malloc;
-  using ::mblen;
-  using ::mbstowcs;
-  using ::mbtowc;
+  //using ::mblen;
+  //using ::mbstowcs;
+  //using ::mbtowc;
   using ::qsort;
   using ::rand;
   using ::realloc;
@@ -65,9 +65,9 @@ namespace std
   using ::strtod;
   using ::strtol;
   using ::strtoul;
-  using ::system;
-  using ::wcstombs;
-  using ::wctomb;
+  //using ::system;
+  //using ::wcstombs;
+  //using ::wctomb;
 
   inline long
   abs(long __i) { return labs(__i); }
