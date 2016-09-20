@@ -32,11 +32,19 @@ Userspace is still being fleshed out, and not much work has been done here yet.
 
 ### The C-Library, C++ Library and OS Library
 
+ToDo
+
 ### Sapphire (Window Manager)
+
+ToDo
 
 ### Terminal Implementation
 
+ToDo
+
 ### Ported libraries and programs
+
+ToDo
 
 ## Building MollenOS
 
@@ -46,22 +54,22 @@ In order to build MollenOS you need NASM installed on your system in order to as
 ### Modifying the build script
 You have various choices for the build script, it can automatically build to various disk image formats (VMDK, IMG), but also compile and build to a live disk. However doing so you need to modificate the BuildLive.bat script.
 
-#### Compiling and setting up disk image (VMDK or IMG)
+#### 1. Compiling and setting up disk image (VMDK or IMG)
 In order to build the entire project, you need to only run BuildImg.bat or BuildVmdk.bat. This process is fully automatized and requires nothing else than for you to modify the paths in the .bat script for your own computer (They are hardcoded to mine for now).
 
-#### Compiling and setting up for a live disk (Usb, External Hdd etc)
-The build process is normally <almost> fully automated, but before you run BuildAll.bat you need to modify it to suit your paths, etc.
+#### 2. Compiling and setting up for a live disk (Usb, External Hdd etc)
+The build process is normally <almost> fully automated, but before you run BuildLive.bat you need to modify it to suit your paths, etc.
 
 1. The first thing you should do is edit the script and fix the paths for your own computer.
 2. The second thing you should do is under the "::Install MOS" step, remove the "-a" option, because THIS WILL install MollenOS directly the first disk it discovers, which will be your primary disk. I have it hardcoded in that it skips my primary disk for convience, and thus I'm the only one that can use that option.
 3. No more things you can do, the build script now builds and updates everything in the /install/ folder.
 4. You MUST grant MfsTool.exe administrator privelieges in order for it access disk drives, the program is located in /install/
 
-##### Building MollenOS
-Just run the BuildAll.bat after you've modified it. It will as an end-step automatically start the install program for MollenOS after the build process.
+##### 2.1 Building MollenOS
+Just run the BuildLive.bat after you've modified it. It will as an end-step automatically start the install program for MollenOS after the build process.
 
-##### Installing MollenOS
-The installer is started automatically by BuildAll.bat at the end, and the installer will present you with the available disks in your system, in a numbered fashion. To format a disk with MFS type the following in the command-line:
+##### 2.2 Installing MollenOS
+The installer is started automatically by BuildLive.bat at the end, and the installer will present you with the available disks in your system, in a numbered fashion. To format a disk with MFS type the following in the command-line:
 
 1. format disk_no (Example: format 1)
 2. install disk_no (Example: install 1)
