@@ -51,7 +51,11 @@ public:
 
 	/* Retrieves a surface data pointer for accessing
 	 * raw pixels on our surface - direct drawing */
-	void *DataPtr(size_t Offset = 0);
+	void *DataPtr(int OffsetX = 0, int OffsetY = 0);
+
+	/* Get dimensions of this surface 
+	 * Can be useful for boundary checks */
+	Rect_t *GetDimensions() { return &m_sDimensions; }
 
 private:
 	/* Private - Functions */
@@ -62,6 +66,7 @@ private:
 	size_t m_iBufferSize;
 
 	/* Private - State */
+	Rect_t m_sDimensions;
 	bool m_bIsValid;
 };
 

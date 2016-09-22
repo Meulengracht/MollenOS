@@ -22,6 +22,7 @@
 
 /* Includes */
 #include "Surface.h"
+#include <cstddef>
 
 /* MollenOS Guard
 * So other subsystems don't include this */
@@ -32,20 +33,17 @@
  * and gets the backbuffer */
 Surface::Surface()
 {
-	/* Variables */
-	Rect_t SurfaceDimensions;
-
 	/* Set some default params */
 	m_bIsValid = true;
 
 	/* Create default size of terminal */
-	SurfaceDimensions.x = 0;
-	SurfaceDimensions.y = 0;
-	SurfaceDimensions.w = 600;
-	SurfaceDimensions.h = 400;
+	m_sDimensions.x = 0;
+	m_sDimensions.y = 0;
+	m_sDimensions.w = 600;
+	m_sDimensions.h = 400;
 
 	/* Create the window */
-	m_pHandle = UiCreateWindow(&SurfaceDimensions, 0);
+	m_pHandle = UiCreateWindow(&m_sDimensions, 0);
 
 	/* Query the backbuffer information */
 	UiQueryBackbuffer(m_pHandle, &m_pBuffer, &m_iBufferSize);
@@ -63,7 +61,18 @@ Surface::~Surface()
 * Use this for cleaning */
 void Surface::Clear(uint32_t Color)
 {
+	/* Calculate the number of iterations 
+	 * in bytes of 4 */
+	uint32_t *ItrPtr = (uint32_t*)m_pBuffer;
+	size_t Calculations = m_iBufferSize / 4;
 
+	/* Iterate and set color */
+	for (size_t i = 0; i < Calculations; i++, ItrPtr++) {
+		*ItrPtr = Color;
+	}
+
+	/* Invalidate */
+	UiInvalidateRect(m_pHandle, NULL);
 }
 
 /* Resize the canvas, so we can support that! */
@@ -80,9 +89,16 @@ bool Surface::IsValid() {
 
 /* Retrieves a surface data pointer for accessing
 * raw pixels on our surface - direct drawing */
-void *Surface::DataPtr(size_t Offset)
+void *Surface::DataPtr(int OffsetX, int OffsetY)
 {
+	/* Cast to a modifiable pointer */
+	uint8_t *Ptr = (uint8_t*)m_pBuffer;
 
+	/* Increase by offsets */
+	Ptr += (OffsetX * 4 + (OffsetY * (m_sDimensions.w * 4)));
+
+	/* Done! */
+	return (void*)Ptr;
 }
 
 #endif

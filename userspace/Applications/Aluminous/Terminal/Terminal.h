@@ -43,24 +43,26 @@
 #include FT_TRUETYPE_IDS_H
 
 /* Cached glyph information */
-typedef struct FontGlyph {
-	int stored;
-	FT_UInt index;
-	FT_Bitmap bitmap;
-	FT_Bitmap pixmap;
-	int minx;
-	int maxx;
-	int miny;
-	int maxy;
-	int yoffset;
-	int advance;
-	uint16_t cached;
+typedef struct FontGlyph 
+{
+	int Stored;
+	FT_UInt Index;
+	FT_Bitmap Bitmap;
+	FT_Bitmap Pixmap;
+	int MinX;
+	int MaxX;
+	int MinY;
+	int MaxY;
+	int yOffset;
+	int Advance;
+	uint16_t Cached;
 
 } FontGlyph_t;
 
 /* The structure used to hold internal 
  * font information */
-struct TerminalFont {
+struct TerminalFont 
+{
 	/* Freetype2 maintains all sorts of useful info itself */
 	FT_Face Face;
 
@@ -112,6 +114,10 @@ public:
 	 * character and preps for new input */
 	void NewCommand();
 
+	/* Print raw messages to the terminal,
+	 * this could be a header or a warning message */
+	void PrintLine(const char *Message, ...);
+
 	/* Terminal Customization functions 
 	 * Use this for setting font, colors
 	 * size etc */
@@ -133,6 +139,9 @@ private:
 	FT_Error LoadGlyph(TerminalFont* Font,
 		uint16_t Character, FontGlyph_t* Cached, int Want);
 	FT_Error FindGlyph(TerminalFont* Font, uint16_t Character, int Want);
+
+	/* Render Functions */
+	void RenderText(const char *Text);
 
 	/* Private - Data */
 	TerminalFont *m_pActiveFont;

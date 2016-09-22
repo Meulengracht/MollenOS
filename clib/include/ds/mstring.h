@@ -63,7 +63,8 @@ typedef enum _MStringType
 	StrASCII,
 	StrUTF8,
 	StrUTF16,
-	StrUTF32
+	StrUTF32,
+	Latin1
 } MStringType_t;
 
 /* Structures 
@@ -110,8 +111,7 @@ _CRT_EXTERN void MStringAppendChar(MString_t *String, mchar_t Character);
 _CRT_EXTERN void MStringAppendChars(MString_t *String, const char *Chars);
 
 /* Append MString to MString 
- * This appends the given String
- * the destination string */
+ * This appends the given String the destination string */
 _CRT_EXTERN void MStringAppendString(MString_t *Destination, MString_t *String);
 
 _CRT_EXTERN void MStringAppendInt32(MString_t *String, int32_t Value);

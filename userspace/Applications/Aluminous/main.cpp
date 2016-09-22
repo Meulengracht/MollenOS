@@ -36,6 +36,7 @@ int main(int argc, char* argv[])
 	Term->SetBackgroundColor(0, 0, 0, 255);
 
 	/* Print header? maybe? */
+	Term->PrintLine("MollenOS System Terminal %s\n", "V0.01-dev");
 
 	/* Enter while loop */
 	while (Term->IsAlive()) {

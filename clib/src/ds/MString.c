@@ -378,6 +378,40 @@ MString_t *MStringCreate(void *Data, MStringType_t DataType)
 		else
 			memcpy(RetStr->Data, Data, StrLength);
 	}
+	else if (DataType == Latin1)
+	{
+		/* Calculate the string length */
+		char *SourcePtr = (char*)Data;
+		char *DestPtr = NULL;
+		StrLength = strlen((const char*)Data) * 2 + 1;
+
+		/* Calculate Length */
+		size_t BlockCount = (StrLength / MSTRING_BLOCK_SIZE) + 1;
+
+		/* Allocate a buffer */
+		RetStr->Data = (void*)dsalloc(BlockCount * MSTRING_BLOCK_SIZE);
+		RetStr->Length = StrLength;
+		RetStr->MaxLength = BlockCount * MSTRING_BLOCK_SIZE;
+
+		/* Memset it */
+		memset(RetStr->Data, 0, BlockCount * MSTRING_BLOCK_SIZE);
+		DestPtr = (char*)RetStr->Data;
+
+		/* Iterate the data given and convert */
+		while (*SourcePtr) {
+			uint8_t ch = *(uint8_t*)SourcePtr++;
+			if (ch <= 0x7F) {
+				*DestPtr++ = ch;
+			}
+			else {
+				*DestPtr++ = 0xC0 | ((ch >> 6) & 0x1F);
+				*DestPtr++ = 0x80 | (ch & 0x3F);
+			}
+		}
+
+		/* Null terminate */
+		*DestPtr = '\0';
+	}
 	else
 	{
 		/* Get length */
