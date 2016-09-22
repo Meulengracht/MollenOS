@@ -14,107 +14,159 @@
 #include <cpuid.h>
 #endif
 
+/* Typedef the memset fingerprint */
+typedef void *(*MemCpyTemplate)(void *Destination, const void *Source, size_t Count);
+
 /* Definitions CPUID */
 #define CPUID_FEAT_EDX_MMX      1 << 23
 #define CPUID_FEAT_EDX_SSE		1 << 25
 
-//Feats
-uint32_t CpuFeatEcx = 0;
-uint32_t CpuFeatEdx = 0;
+#define MEMCPY_ACCEL_THRESHOLD	10
 
-/* ASM Externs */
+/* ASM Externs + Prototypes */
 extern void asm_memcpy_mmx(void *Dest, const void *Source, int Loops, int RemainingBytes);
 extern void asm_memcpy_sse(void *Dest, const void *Source, int Loops, int RemainingBytes);
+void *MemCpyBase(void *Destination, const void *Source, size_t Count);
 
-void* memcpy_sse(void *destination, const void *source, size_t count)
+/* Global */
+MemCpyTemplate __GlbMemCpyInstance = NULL;
+
+/* This is the SSE optimized version of memcpy, but there is a fallback
+ * to the normal one, in case there isn't enough loops for overhead to be
+ * worth it. */
+void *MemCpySSE(void *Destination, const void *Source, size_t Count)
 {
 	/* Loop Count */
-	uint32_t SseLoops = count / 16;
-	uint32_t mBytes = count % 16;
+	uint32_t SseLoops = Count / 16;
+	uint32_t mBytes = Count % 16;
+
+	/* Sanity, we don't want to go through the
+	 * overhead if it's less than a certain threshold */
+	if (SseLoops < MEMCPY_ACCEL_THRESHOLD) {
+		return MemCpyBase(Destination, Source, Count);
+	}
 
 	/* Call asm */
-	asm_memcpy_sse(destination, source, SseLoops, mBytes);
+	asm_memcpy_sse(Destination, Source, SseLoops, mBytes);
 	
 	/* Done */
-	return destination;
+	return Destination;
 }
 
-void* memcpy_mmx(void *destination, const void *source, size_t count)
+/* This is the MMX optimized version of memcpy, but there is a fallback
+ * to the normal one, in case there isn't enough loops for overhead to be
+ * worth it. */
+void *MemCpyMMX(void *Destination, const void *Source, size_t Count)
 {
 	/* Loop Count */
-	uint32_t MmxLoops = count / 8;
-	uint32_t mBytes = count % 8;
+	uint32_t MmxLoops = Count / 8;
+	uint32_t mBytes = Count % 8;
+
+	/* Sanity, we don't want to go through the
+	* overhead if it's less than a certain threshold */
+	if (MmxLoops < MEMCPY_ACCEL_THRESHOLD) {
+		return MemCpyBase(Destination, Source, Count);
+	}
 
 	/* Call asm */
-	asm_memcpy_mmx(destination, source, MmxLoops, mBytes);
+	asm_memcpy_mmx(Destination, Source, MmxLoops, mBytes);
 
 	/* Done */
-	return destination;
+	return Destination;
+}
+
+/* This is the default non-accelerated byte copier, it's optimized
+ * for transfering as much as possible, but no CPU acceleration */
+void *MemCpyBase(void *Destination, const void *Source, size_t Count)
+{
+	char *dst = (char*)Destination;
+	const char *src = (const char*)Source;
+	long *aligned_dst;
+	const long *aligned_src;
+
+	/* If the size is small, or either SRC or DST is unaligned,
+	then punt into the byte copy loop.  This should be rare.  */
+	if (!TOO_SMALL(Count) && !UNALIGNED(src, dst))
+	{
+		aligned_dst = (long*)dst;
+		aligned_src = (long*)src;
+
+		/* Copy 4X long words at a time if possible.  */
+		while (Count >= BIGBLOCKSIZE)
+		{
+			*aligned_dst++ = *aligned_src++;
+			*aligned_dst++ = *aligned_src++;
+			*aligned_dst++ = *aligned_src++;
+			*aligned_dst++ = *aligned_src++;
+			Count -= BIGBLOCKSIZE;
+		}
+
+		/* Copy one long word at a time if possible.  */
+		while (Count >= LITTLEBLOCKSIZE)
+		{
+			*aligned_dst++ = *aligned_src++;
+			Count -= LITTLEBLOCKSIZE;
+		}
+
+		/* Pick up any residual with a byte copier.  */
+		dst = (char*)aligned_dst;
+		src = (char*)aligned_src;
+	}
+
+	while (Count--)
+		*dst++ = *src++;
+
+	return Destination;
+}
+
+/* This is the default, initial routine, it selects the best
+ * optimized memcpy for this system. It can be either SSE or MMX
+ * or just the byte copier */
+void *MemCpySelect(void *Destination, const void *Source, size_t Count)
+{
+	/* Variables */
+	uint32_t CpuFeatEcx = 0;
+	uint32_t CpuFeatEdx = 0;
+
+	/* Now extract the cpu information 
+	 * so we can select a memcpy */
+#ifdef _MSC_VER
+	int CpuInfo[4] = { 0 };
+	__cpuid(CpuInfo, 1);
+	CpuFeatEcx = CpuInfo[2];
+#else
+	int unused = 0;
+	__cpuid(1, unused, unused, CpuFeatEcx, CpuFeatEdx);
+#endif
+
+	/* Now do the select */
+	if (CpuFeatEdx & CPUID_FEAT_EDX_SSE) {
+		__GlbMemCpyInstance = MemCpySSE;
+		return MemCpySSE(Destination, Source, Count);
+	}
+	else if (CpuFeatEdx & CPUID_FEAT_EDX_MMX) {
+		__GlbMemCpyInstance = MemCpyMMX;
+		return MemCpyMMX(Destination, Source, Count);
+	}
+	else {
+		__GlbMemCpyInstance = MemCpyBase;
+		return MemCpyBase(Destination, Source, Count);
+	}
 }
 
 #ifdef _MSC_VER
 #pragma function(memcpy)
 #endif
 
+/* The memory copy function 
+ * It simply calls the selector */
 void* memcpy(void *destination, const void *source, size_t count)
 {
-	/* Sanity */
-	if(CpuFeatEcx == 0 && CpuFeatEdx == 0)
-	{
-#ifdef _MSC_VER
-		int cpuinfo[4] = { 0 };
-		__cpuid(cpuinfo, 1);
-		CpuFeatEcx = cpuinfo[2];
-#else
-		int unused = 0;
-		__cpuid(1, unused, unused, CpuFeatEcx, CpuFeatEdx);
-#endif
+	/* Sanity, just in case */
+	if (__GlbMemCpyInstance == NULL) {
+		__GlbMemCpyInstance = MemCpySelect;
 	}
 
-	//Can we use SSE?
-	if(CpuFeatEdx & CPUID_FEAT_EDX_SSE)
-		return memcpy_sse(destination, source, count);
-	else if(CpuFeatEdx & CPUID_FEAT_EDX_MMX)
-		return memcpy_mmx(destination, source, count);
-	else
-	{
-		char *dst = (char*)destination;
-		const char *src = (const char*)source;
-		long *aligned_dst;
-		const long *aligned_src;
-
-		/* If the size is small, or either SRC or DST is unaligned,
-			then punt into the byte copy loop.  This should be rare.  */
-		if (!TOO_SMALL(count) && !UNALIGNED (src, dst))
-		{
-			aligned_dst = (long*)dst;
-			aligned_src = (long*)src;
-
-			/* Copy 4X long words at a time if possible.  */
-			while (count >= BIGBLOCKSIZE)
-			{
-				*aligned_dst++ = *aligned_src++;
-				*aligned_dst++ = *aligned_src++;
-				*aligned_dst++ = *aligned_src++;
-				*aligned_dst++ = *aligned_src++;
-				count -= BIGBLOCKSIZE;
-			}
-
-			/* Copy one long word at a time if possible.  */
-			while (count >= LITTLEBLOCKSIZE)
-			{
-				*aligned_dst++ = *aligned_src++;
-				count -= LITTLEBLOCKSIZE;
-			}
-
-			/* Pick up any residual with a byte copier.  */
-			dst = (char*)aligned_dst;
-			src = (char*)aligned_src;
-		}
-
-		while (count--)
-		*dst++ = *src++;
-
-		return destination;
-	}
+	/* Just return the selected template */
+	return __GlbMemCpyInstance(destination, source, count);
 }

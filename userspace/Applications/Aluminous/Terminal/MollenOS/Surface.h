@@ -40,7 +40,7 @@ public:
 
 	/* Clear out surface with the background color
 	 * Use this for cleaning */
-	void Clear();
+	void Clear(uint32_t Color);
 
 	/* Resize the canvas, so we can support that! */
 	void Resize(int Width, int Height);
@@ -55,6 +55,14 @@ public:
 
 private:
 	/* Private - Functions */
+
+	/* Private - Data */
+	WndHandle_t m_pHandle;
+	void *m_pBuffer;
+	size_t m_iBufferSize;
+
+	/* Private - State */
+	bool m_bIsValid;
 };
 
 #endif //!MOLLENOS

@@ -66,10 +66,3 @@ void *memset(void *dest, int c, size_t count)
 
 	return dest;
 }
-
-
-//Old
-
-//unsigned char *temp = (unsigned char *)dest;
-//for( ; count != 0; count--, temp[count] = (unsigned char)val);
-//return dest;

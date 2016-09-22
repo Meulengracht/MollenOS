@@ -27,7 +27,7 @@
 int main(int argc, char* argv[])
 {
 	/* Start out by initializing console-env */
-	Terminal *Term = new Terminal(SYSTEM_MOLLENOS);
+	Terminal *Term = new Terminal();
 
 	/* Setup console stuff */
 	Term->SetSize(80, 25);

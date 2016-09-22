@@ -77,7 +77,7 @@
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <EnableCOMDATFolding>false</EnableCOMDATFolding>
       <OptimizeReferences>false</OptimizeReferences>
-      <AdditionalDependencies>LibC.lib;LibCrt.lib;LibVs.lib</AdditionalDependencies>
+      <AdditionalDependencies>LibC.lib;LibCrt.lib;LibVs.lib;freetype2.lib</AdditionalDependencies>
       <IgnoreAllDefaultLibraries>true</IgnoreAllDefaultLibraries>
       <SubSystem>Native</SubSystem>
       <EntryPointSymbol>main</EntryPointSymbol>
