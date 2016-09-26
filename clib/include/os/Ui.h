@@ -25,6 +25,10 @@
 /* C-Library - Includes */
 #include <crtdefs.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /* This describes a window handle
 * used by UI functions */
 #ifndef MWNDHANDLE
@@ -96,5 +100,9 @@ _MOS_API int UiQueryBackbuffer(WndHandle_t Handle, void **Backbuffer, size_t *Ba
 * if its called with NULL as dimensions it
 * invalidates all */
 _MOS_API void UiInvalidateRect(WndHandle_t Handle, Rect_t *Rect);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif //!__MOLLENOS_LIBUI__

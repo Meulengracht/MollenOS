@@ -41,8 +41,10 @@ extern char  __safe_se_handler_count;  /* absolute symbol whose address is
 typedef struct {
 	uint32_t       Size;
 	uint32_t       TimeDateStamp;
+
 	uint16_t        MajorVersion;
 	uint16_t        MinorVersion;
+
 	uint32_t       GlobalFlagsClear;
 	uint32_t       GlobalFlagsSet;
 	uint32_t       CriticalSectionDefaultTimeout;
@@ -53,12 +55,14 @@ typedef struct {
 	uint32_t       VirtualMemoryThreshold;
 	uint32_t       ProcessHeapFlags;
 	uint32_t       ProcessAffinityMask;
+
 	uint16_t        CSDVersion;
 	uint16_t        Reserved1;
+
 	uint32_t       EditList;                   // VA
-	uint32_t		*SecurityCookie;
-	void			*SEHandlerTable;
-	uint32_t       SEHandlerCount;
+	uint32_t	*SecurityCookie;
+	uint32_t	SEHandlerTable;
+	uint32_t	SEHandlerCount;
 } IMAGE_LOAD_CONFIG_DIRECTORY32_2;
 
 const IMAGE_LOAD_CONFIG_DIRECTORY32_2 _load_config_used = {
@@ -80,6 +84,6 @@ const IMAGE_LOAD_CONFIG_DIRECTORY32_2 _load_config_used = {
 	0,
 	0,
 	0,//&__security_cookie,
-	__safe_se_handler_table,
+	(uint32_t)__safe_se_handler_table,
 	(uint32_t)(uint32_t*)&__safe_se_handler_count
 };

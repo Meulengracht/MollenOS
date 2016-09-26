@@ -1,0 +1,10 @@
+LIBRARY LibUi
+EXPORTS
+UiConnect
+UiDisconnect
+UiQueryProcessWindow
+UiCreateWindow
+UiDestroyWindow
+UiQueryDimensions
+UiQueryBackbuffer
+UiInvalidateRect

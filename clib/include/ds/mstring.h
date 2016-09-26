@@ -32,6 +32,9 @@
 #include <ds/ds.h>
 
 /* Definitions */
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 /* This describes the type used for
  * chars in mstring (at max), which should 
@@ -188,5 +191,9 @@ _CRT_EXTERN MString_t *MStringUpperCaseCopy(MString_t *String);
 
 _CRT_EXTERN void MStringLowerCase(MString_t *String);
 _CRT_EXTERN MString_t *MStringLowerCaseCopy(MString_t *String);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif //!_MCORE_STRING_H_

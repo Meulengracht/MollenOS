@@ -117,6 +117,9 @@ bool Terminal::SetSize(int Columns, int Rows)
 	if (m_pActiveFont != NULL)
 		m_pSurface->Resize(Columns * (m_pActiveFont->Face->size->metrics.max_advance >> 6),
 						   Rows * m_pActiveFont->Height);
+
+	/* Done! */
+	return true;
 }
 
 /* Terminal Customization functions
@@ -124,7 +127,7 @@ bool Terminal::SetSize(int Columns, int Rows)
  * size etc */
 bool Terminal::SetHistorySize(int NumLines)
 {
-
+	return true;
 }
 
 /* Terminal Customization functions
@@ -269,7 +272,7 @@ bool Terminal::SetFont(const char *FontPath, int SizePt)
  * size etc */
 bool Terminal::SetTextColor(uint8_t r, uint8_t b, uint8_t g, uint8_t a)
 {
-
+	return true;
 }
 
 /* Terminal Customization functions
@@ -277,7 +280,7 @@ bool Terminal::SetTextColor(uint8_t r, uint8_t b, uint8_t g, uint8_t a)
  * size etc */
 bool Terminal::SetBackgroundColor(uint8_t r, uint8_t b, uint8_t g, uint8_t a)
 {
-
+	return true;
 }
 
 /* Print raw messages to the terminal,
@@ -451,6 +454,27 @@ void Terminal::FlushCache(TerminalFont* Font)
 			FlushGlyph(&Font->Cache[i]);
 		}
 	}
+}
+
+/* This function cleans up a font object 
+ * and flushes all resources associated */
+void Terminal::CleanupFont(TerminalFont *Font)
+{
+	/* Sanity */
+	if (Font == NULL) {
+		return;
+	}
+
+	/* Flush Cache */
+	FlushCache(Font);
+
+	/* Flush Source */
+	if (Font->CleanupSource) {
+		free(Font->Source);
+	}
+
+	/* Cleanup struct */
+	free(Font);
 }
 
 /* Loads a glyph into the cache of the font */
