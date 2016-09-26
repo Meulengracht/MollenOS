@@ -56,6 +56,14 @@ typedef struct _sScene {
 	/* List of windows */
 	List_t *Windows;
 
+	/* Array of dirty rectangles
+	 * up to a max 16 per iteration */
+	Rect_t Dirty[16];
+
+	/* The index for how many of the 
+	 * above rectangles are valid */
+	int ValidRectangles;
+
 } Scene_t;
 
 
@@ -76,10 +84,15 @@ EXTERN void SceneDestroy(Scene_t *Scene);
  * rendered before a call to Render */
 EXTERN void SceneAddWindow(Scene_t *Scene, Window_t *Window);
 
+/* Get Window 
+ * Looks up a window by id in the given scene
+ * returns NULL if none is found */
+EXTERN Window_t *SceneGetWindow(Scene_t *Scene, int WindowId);
+
 /* Update
  * This updates any changes to windows
- * for this scene */
-EXTERN void SceneUpdate(Scene_t *Scene);
+ * for this scene, but only for the given rectangle */
+EXTERN void SceneUpdate(Scene_t *Scene, Rect_t *DirtyArea);
 
 /* Render
  * This renders all windows for this scene */

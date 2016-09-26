@@ -341,8 +341,11 @@ void UiInvalidateRect(WndHandle_t Handle, Rect_t *Rect)
 	/* Setup rect */
 	if (Rect != NULL)
 		memcpy(&Message.RcParam, Rect, sizeof(Rect_t));
-	else
+	else {
 		memcpy(&Message.RcParam, &Wnd->Dimensions, sizeof(Rect_t));
+		Message.RcParam.x = 0;
+		Message.RcParam.y = 0;
+	}
 
 	/* Send request */
 	MollenOSMessageSend(1, &Message, Message.Header.Length);

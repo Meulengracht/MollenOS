@@ -22,9 +22,6 @@
     <ClCompile Include="Core\Window.c">
       <Filter>Source\Sapphire</Filter>
     </ClCompile>
-    <ClCompile Include="Core\Terminal.c">
-      <Filter>Source\Sapphire</Filter>
-    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Core\Scene.h">
@@ -37,12 +34,6 @@
       <Filter>Source\Sapphire</Filter>
     </ClInclude>
     <ClInclude Include="Core\WindowIpc.h">
-      <Filter>Source\Sapphire</Filter>
-    </ClInclude>
-    <ClInclude Include="Core\Terminal.h">
-      <Filter>Source\Sapphire</Filter>
-    </ClInclude>
-    <ClInclude Include="Core\TerminalPrivate.h">
       <Filter>Source\Sapphire</Filter>
     </ClInclude>
   </ItemGroup>

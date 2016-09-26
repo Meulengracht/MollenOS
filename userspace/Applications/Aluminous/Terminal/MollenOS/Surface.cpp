@@ -95,7 +95,7 @@ void *Surface::DataPtr(int OffsetX, int OffsetY)
 	uint8_t *Ptr = (uint8_t*)m_pBuffer;
 
 	/* Increase by offsets */
-	Ptr += (OffsetX * 4 + (OffsetY * (m_sDimensions.w * 4)));
+	Ptr += ((OffsetY * (m_sDimensions.w * 4)) + OffsetX * 4);
 
 	/* Done! */
 	return (void*)Ptr;

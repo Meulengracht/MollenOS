@@ -69,10 +69,16 @@ EXTERN void SceneManagerDestruct(void);
  * rendered before a call to Render */
 EXTERN void SceneManagerAddWindow(Window_t *Window);
 
+/* Get Window 
+ * This looks up a window by id in the current
+ * active scene, if not found, NULL is returned */
+EXTERN Window_t *SceneManagerGetWindow(int WindowId);
+
 /* Update 
  * This updates the current scene 
- * and makes all neccessary changes to windows */
-EXTERN void SceneManagerUpdate(void);
+ * and makes all neccessary changes to windows 
+ * a call with NULL updates entire scene */
+EXTERN void SceneManagerUpdate(Rect_t *DirtyArea);
 
 /* Render
  * This renders the current scene 

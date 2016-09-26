@@ -42,6 +42,9 @@ typedef uint32_t mchar_t;
  * methods that return int */
 #define MSTRING_NOT_FOUND		-1
 
+/* Used for the MStringIterate function to indicate end of string */
+#define MSTRING_EOS				0xFFFD
+
 /* Used by MStringCompare, if the string match 100%
  * the MSTRING_FULL_MATCH is returned, if they match,
  * but one of the string has more content afterwards,
@@ -140,6 +143,11 @@ _CRT_EXTERN int MStringFindReverse(MString_t *String, mchar_t Character);
 /* Get character at the given index and 
  * return the character found as UTF32 */
 _CRT_EXTERN mchar_t MStringGetCharAt(MString_t *String, int Index);
+
+/* Iterate through a MString, it returns the next
+ * character each time untill MSTRING_EOS. Call with Iterator = NULL
+ * the first time, it holds the state. And Index = 0. */
+_CRT_EXTERN mchar_t MStringIterate(MString_t *String, char **Iterator, size_t *Index);
 
 /* Substring - build substring from the given mstring
  * starting at Index with the Length. If the length is -1

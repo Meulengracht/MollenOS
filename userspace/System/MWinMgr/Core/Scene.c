@@ -35,6 +35,7 @@ Scene_t *SceneCreate(int Id, Rect_t *Dimensions, SDL_Renderer *Renderer)
 {
 	/* Allocate a scene instance */
 	Scene_t *Scene = (Scene_t*)malloc(sizeof(Scene_t));
+	memset(Scene, 0, sizeof(Scene_t));
 	
 	/* Setup */
 	Scene->Id = Id;
@@ -103,23 +104,41 @@ void SceneAddWindow(Scene_t *Scene, Window_t *Window)
 	ListAppend(Scene->Windows, ListCreateNode(Key, Key, Window));
 }
 
+/* Get Window
+ * Looks up a window by id in the given scene
+ * returns NULL if none is found */
+Window_t *SceneGetWindow(Scene_t *Scene, int WindowId)
+{
+	/* Vars */
+	DataKey_t Key;
+
+	/* Sanity */
+	if (Scene == NULL)
+		return NULL;
+
+	/* Setup key */
+	Key.Value = WindowId;
+
+	/* Lookup node by Id */
+	return (Window_t*)ListGetDataByKey(Scene->Windows, Key, 0);
+}
+
 /* Update
  * This updates any changes to windows
- * for this scene */
-void SceneUpdate(Scene_t *Scene)
+ * for this scene, but only for the given rectangle */
+void SceneUpdate(Scene_t *Scene, Rect_t *DirtyArea)
 {
 	/* Sanity */
 	if (Scene == NULL)
 		return;
-	
-	/* Update windows */
-	foreach(wNode, Scene->Windows)
-	{
-		/* Cast */
-		Window_t *Window = (Window_t*)wNode->Data;
 
-		/* Update window */
-		WindowUpdate(Window);
+	/* Append dirty rectangles */
+	if (DirtyArea == NULL || Scene->ValidRectangles == -1) {
+		Scene->ValidRectangles = -1;
+	}
+	else {
+		memcpy(&Scene->Dirty[Scene->ValidRectangles], DirtyArea, sizeof(Rect_t));
+		Scene->ValidRectangles++;
 	}
 }
 
@@ -127,6 +146,9 @@ void SceneUpdate(Scene_t *Scene)
  * This renders all windows for this scene */
 void SceneRender(Scene_t *Scene, SDL_Renderer *Renderer)
 {
+	/* Variables */
+	SDL_Rect InvalidationRect;
+
 	/* Sanity */
 	if (Scene == NULL
 		|| Renderer == NULL)
@@ -135,22 +157,76 @@ void SceneRender(Scene_t *Scene, SDL_Renderer *Renderer)
 	/* Change render target to backbuffer */
 	SDL_SetRenderTarget(Renderer, Scene->Texture);
 
-	/* Start by rendering background */
-	SDL_RenderCopy(Renderer, Scene->Background, NULL, NULL);
+	/* Are we rerendering entire scene? */
+	if (Scene->ValidRectangles == -1) {
 
-	/* Render windows */
-	foreach(wNode, Scene->Windows)
+		/* Start by rendering background */
+		SDL_RenderCopy(Renderer, Scene->Background, NULL, NULL);
+
+		/* Render windows */
+		foreach(wNode, Scene->Windows)
+		{
+			/* Cast */
+			Window_t *Window = (Window_t*)wNode->Data;
+
+			/* Update window */
+			WindowUpdate(Window, NULL);
+
+			/* Render window */
+			WindowRender(Window, Renderer, NULL);
+		}
+
+		/* Change target back to screen */
+		SDL_SetRenderTarget(Renderer, NULL);
+
+		/* Render */
+		SDL_RenderCopy(Renderer, Scene->Texture, NULL, NULL);
+	}
+	else
 	{
-		/* Cast */
-		Window_t *Window = (Window_t*)wNode->Data;
+		/* Go through dirty rectangles and update/render */
+		for (int i = 0; i < Scene->ValidRectangles; i++) {
 
-		/* Render window */
-		WindowRender(Window, Renderer);
+			/* Copy data over */
+			InvalidationRect.x = Scene->Dirty[i].x;
+			InvalidationRect.y = Scene->Dirty[i].y;
+			InvalidationRect.w = Scene->Dirty[i].w;
+			InvalidationRect.h = Scene->Dirty[i].h;
+
+			/* Start by rendering background */
+			SDL_RenderCopy(Renderer, Scene->Background, &InvalidationRect, &InvalidationRect);
+
+			/* Render windows */
+			foreach(wNode, Scene->Windows)
+			{
+				/* Cast */
+				Window_t *Window = (Window_t*)wNode->Data;
+
+				/* Update window */
+				WindowUpdate(Window, &Scene->Dirty[i]);
+
+				/* Render window */
+				WindowRender(Window, Renderer, &Scene->Dirty[i]);
+			}
+		}
+
+		/* Change target back to screen */
+		SDL_SetRenderTarget(Renderer, NULL);
+
+		/* Render */
+		for (int i = 0; i < Scene->ValidRectangles; i++) {
+
+			/* Copy data over */
+			InvalidationRect.x = Scene->Dirty[i].x;
+			InvalidationRect.y = Scene->Dirty[i].y;
+			InvalidationRect.w = Scene->Dirty[i].w;
+			InvalidationRect.h = Scene->Dirty[i].h;
+
+			/* Write to screen */
+			SDL_RenderCopy(Renderer, Scene->Texture, &InvalidationRect, &InvalidationRect);
+		}
 	}
 
-	/* Change target back to screen */
-	SDL_SetRenderTarget(Renderer, NULL);
-
-	/* Render */
-	SDL_RenderCopy(Renderer, Scene->Texture, NULL, NULL);
+	/* Reset dirties */
+	Scene->ValidRectangles = 0;
 }

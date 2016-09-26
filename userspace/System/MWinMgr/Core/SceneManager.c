@@ -107,10 +107,31 @@ void SceneManagerAddWindow(Window_t *Window)
 	SceneAddWindow(ActiveScene, Window);
 }
 
-/* Update
- * This updates the current scene
- * and makes all neccessary changes to windows */
-void SceneManagerUpdate(void)
+/* Get Window 
+ * This looks up a window by id in the current
+ * active scene, if not found, NULL is returned */
+Window_t *SceneManagerGetWindow(int WindowId)
+{
+	/* Vars */
+	DataKey_t Key;
+
+	/* Sanity */
+	if (GlbSceneManager == NULL)
+		return NULL;
+
+	/* Get active scene (todo) */
+	Key.Value = 0;
+	Scene_t *ActiveScene = (Scene_t*)ListGetDataByKey(GlbSceneManager->Scenes, Key, 0);
+
+	/* Now just return for the active scene */
+	return SceneGetWindow(ActiveScene, WindowId);
+}
+
+/* Update 
+ * This updates the current scene 
+ * and makes all neccessary changes to windows 
+ * a call with NULL updates entire scene */
+void SceneManagerUpdate(Rect_t *DirtyArea)
 {
 	/* Vars */
 	DataKey_t Key;
@@ -124,7 +145,7 @@ void SceneManagerUpdate(void)
 	Scene_t *ActiveScene = (Scene_t*)ListGetDataByKey(GlbSceneManager->Scenes, Key, 0);
 
 	/* Update Scene */
-	SceneUpdate(ActiveScene);
+	SceneUpdate(ActiveScene, DirtyArea);
 }
 
 /* Render

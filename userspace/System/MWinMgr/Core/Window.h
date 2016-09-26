@@ -82,11 +82,11 @@ EXTERN void WindowDestroy(Window_t *Window);
 /* Update
  * Updates all neccessary state and 
  * buffers before rendering */
-EXTERN void WindowUpdate(Window_t *Window);
+EXTERN void WindowUpdate(Window_t *Window, Rect_t *DirtyArea);
 
 /* Render
  * Renders the window to the 
  * given renderer */
-EXTERN void WindowRender(Window_t *Window, SDL_Renderer *Renderer);
+EXTERN void WindowRender(Window_t *Window, SDL_Renderer *Renderer, Rect_t *DirtyArea);
 
 #endif //!_SAPPHIRE_WINDOW_H_

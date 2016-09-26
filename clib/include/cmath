@@ -122,11 +122,11 @@ floor(float __x)
 inline long double
 floor(long double __x)
 { return floorl(__x); }
-
+/*
 inline float
 fmod(float __x, float __y)
 { return fmodf(__x, __y); }
-
+*/
 inline long double
 fmod(long double __x, long double __y)
 { return fmodl(__x, __y); }

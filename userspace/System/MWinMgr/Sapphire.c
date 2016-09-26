@@ -76,6 +76,9 @@ void HandleMessage(SDL_Renderer *Target, MEventMessage_t *Message)
 					/* Add to scene manager */
 					SceneManagerAddWindow(Wnd);
 
+					/* Invalidate Rectangle */
+					SceneManagerUpdate(&WndInformation->Dimensions);
+
 					/* Update id */
 					WndInformation->WindowId = Wnd->Id;
 
@@ -93,7 +96,22 @@ void HandleMessage(SDL_Renderer *Target, MEventMessage_t *Message)
 				/* Invalidate a window */
 				case GenericWindowInvalidate:
 				{
+					/* Since the coordinates for the dirty rect
+					 * actually are relative to the window 
+					 * we need to offset them */
+					Window_t *Window = SceneManagerGetWindow((int)Message->Generic.LoParam);
+					Rect_t AbsRect;
 
+					/* Append global coords */
+					AbsRect.x = Window->Dimensions.x + Message->Generic.RcParam.x;
+					AbsRect.y = Window->Dimensions.y + Message->Generic.RcParam.y;
+					AbsRect.w = Message->Generic.RcParam.w;
+					AbsRect.h = Message->Generic.RcParam.h;
+
+					/* Ok, so mark the rectangle dirty 
+					 * and update screen */
+					SceneManagerUpdate(&AbsRect);
+					
 				} break;
 
 				/* Ignore other events */
@@ -124,7 +142,7 @@ void EventLoop(SDL_Renderer *Target)
 	int bQuit = 0;
 
 	/* Pre-Render */
-	SceneManagerUpdate();
+	SceneManagerUpdate(NULL);
 	SceneManagerRender(Target);
 
 	/* Start terminal */
@@ -139,10 +157,7 @@ void EventLoop(SDL_Renderer *Target)
 		/* Handle Message */
 		HandleMessage(Target, &Message);
 
-		/* Update Scene */
-		SceneManagerUpdate();
-
-		/* Render Scene */
+		/* Render updates */
 		SceneManagerRender(Target);
 	}
 }

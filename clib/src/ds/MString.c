@@ -907,6 +907,130 @@ mchar_t MStringGetCharAt(MString_t *String, int Index)
 	return 0;
 }
 
+/* Iterate through a MString, it returns the next
+* character each time untill MSTRING_EOS. Call with Iterator = NULL
+* the first time, it holds the state. And Index = 0. */
+mchar_t MStringIterate(MString_t *String, char **Iterator, size_t *Index)
+{
+	/* Variables for iteration */
+	const uint8_t *Ptr = *(const uint8_t**)String->Data;
+	mchar_t Character = MSTRING_EOS;
+	int Overlong = 0;
+	int Underflow = 0;
+	int Left = 0;
+
+	/* Sanitize */
+	if (String->Length == 0) {
+		return MSTRING_EOS;
+	}
+
+	/* Fill in first call to iterator */
+	if (*Iterator == NULL) {
+		*Iterator = (char*)String->Data;
+		*Index = String->Length;
+	}
+
+	if (Ptr[0] >= 0xFC) {
+		if ((Ptr[0] & 0xFE) == 0xFC) {
+			if (Ptr[0] == 0xFC && (Ptr[1] & 0xFC) == 0x80) {
+				Overlong = 1;
+			}
+
+			Character = (mchar_t)(Ptr[0] & 0x01);
+			Left = 5;
+		}
+	}
+	else if (Ptr[0] >= 0xF8) {
+		if ((Ptr[0] & 0xFC) == 0xF8) {
+			if (Ptr[0] == 0xF8 && (Ptr[1] & 0xF8) == 0x80) {
+				Overlong = 1;
+			}
+
+			Character = (mchar_t)(Ptr[0] & 0x03);
+			Left = 4;
+		}
+	}
+	else if (Ptr[0] >= 0xF0) {
+		if ((Ptr[0] & 0xF8) == 0xF0) {
+			if (Ptr[0] == 0xF0 && (Ptr[1] & 0xF0) == 0x80) {
+				Overlong = 1;
+			}
+
+			Character = (mchar_t)(Ptr[0] & 0x07);
+			Left = 3;
+		}
+	}
+	else if (Ptr[0] >= 0xE0) {
+		if ((Ptr[0] & 0xF0) == 0xE0) {
+			if (Ptr[0] == 0xE0 && (Ptr[1] & 0xE0) == 0x80) {
+				Overlong = 1;
+			}
+
+			Character = (mchar_t)(Ptr[0] & 0x0F);
+			Left = 2;
+		}
+	}
+	else if (Ptr[0] >= 0xC0) {
+		if ((Ptr[0] & 0xE0) == 0xC0) {
+			if ((Ptr[0] & 0xDE) == 0xC0) {
+				Overlong = 1;
+			}
+
+			Character = (mchar_t)(Ptr[0] & 0x1F);
+			Left = 1;
+		}
+	}
+	else {
+		if ((Ptr[0] & 0x80) == 0x00) {
+			Character = (mchar_t)Ptr[0];
+		}
+	}
+
+	/* Increament sources */
+	++*Iterator;
+	--*Index;
+
+	/* Build the character */
+	while (Left > 0 && *Index > 0) {
+		++Ptr;
+		if ((Ptr[0] & 0xC0) != 0x80) {
+			Character = MSTRING_EOS;
+			break;
+		}
+
+		/* Append data */
+		Character <<= 6;
+		Character |= (Ptr[0] & 0x3F);
+
+		/* Next */
+		++*Iterator;
+		--*Index;
+		--Left;
+	}
+
+	/* Sanity */
+	if (Left > 0) {
+		Underflow = 1;
+	}
+
+	/* Technically overlong sequences are invalid and should not be interpreted.
+	However, it doesn't cause a security risk here and I don't see any harm in
+	displaying them. The application is responsible for any other side effects
+	of allowing overlong sequences (e.g. string compares failing, etc.)
+	See bug 1931 for sample input that triggers this.
+	*/
+
+	/*if (overlong) return UNKNOWN_UNICODE;*/
+	if (Underflow == 1 ||
+		(Character >= 0xD800 && Character <= 0xDFFF) ||
+		(Character == 0xFFFE || Character == 0xFFFF) || Character > 0x10FFFF) {
+		Character = MSTRING_EOS;
+	}
+
+	/* Done! */
+	return Character;
+}
+
 /* Substring - build substring from the given mstring
  * starting at Index with the Length. If the length is -1
  * it takes the rest of string */
