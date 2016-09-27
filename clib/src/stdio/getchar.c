@@ -24,10 +24,30 @@
 #include <errno.h>
 #include <string.h>
 #include <stdlib.h>
-#include <os/Syscall.h>
+#include <os/MollenOS.h>
 
 /* The getchar */
 int getchar(void)
 {
+	/* Message */
+	MEventMessage_t Message;
+
+	/* Wait for input message, we need to discard 
+	 * everything else as this is a polling op */
+	while (1) 
+	{
+		/* Get message */
+		if (MollenOSMessageWait(&Message))
+			return -1;
+
+		/* Handle Message */
+		if (Message.Base.Type == EventInput
+			&& Message.EventButton.Type == PointerKeyboard) {
+			if (Message.EventButton.State == MCORE_INPUT_BUTTON_CLICKED) {
+				return (int)Message.EventButton.Data;
+			}
+		}
+	}
+
 	return 0;
 }

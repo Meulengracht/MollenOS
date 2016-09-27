@@ -113,7 +113,7 @@ int MollenOSMessagePeek(MEventMessage_t *Message)
 }
 
 /* IPC - Read/Wait - BLOCKING OP
- * This returns -2/-1/0 if something went wrong reading
+ * This returns -2/-1 if something went wrong reading
  * a message from the message queue, otherwise it returns 0
  * and fills the structures with information about
  * the message */

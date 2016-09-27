@@ -140,6 +140,31 @@ private:
 		uint16_t Character, FontGlyph_t* Cached, int Want);
 	FT_Error FindGlyph(TerminalFont* Font, uint16_t Character, int Want);
 
+	/* Add text to the buffer, this ensures
+	 * we can transfer it to history afterwards */ 
+	void AddTextBuffer(char *Message, ...);
+
+	/* This actually renders the text in the end
+	 * by processng it, and scrolls if necessary */
+	void AddText(char *Message, ...);
+
+	/* Process a new line by updating history */
+	void NewLine();
+
+	/* Add given character to current line */
+	void InsertChar(char Character);
+
+	/* Delete character of current line at current pos */
+	void RemoveChar(int Position);
+
+	/* Render the cursor in reverse colors, this will give the
+	 * effect of a big fat block that acts as cursor */
+	void ShowCursor();
+
+	/* 'Render' the cursor at our current position
+	 * in it's normal colors, this will effectively hide it */
+	void HideCursor();
+
 	/* Text Rendering 
 	 * This is our primary render function, 
 	 * it renders text at a specific position on the buffer */

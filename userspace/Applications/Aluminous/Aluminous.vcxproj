@@ -72,6 +72,7 @@
       <PreprocessorDefinitions>MOLLENOS;_CRT_DYNAMIC;_X86_32</PreprocessorDefinitions>
       <BufferSecurityCheck>false</BufferSecurityCheck>
       <AssemblerOutput>All</AssemblerOutput>
+      <DisableSpecificWarnings>4018</DisableSpecificWarnings>
     </ClCompile>
     <Link>
       <GenerateDebugInformation>true</GenerateDebugInformation>

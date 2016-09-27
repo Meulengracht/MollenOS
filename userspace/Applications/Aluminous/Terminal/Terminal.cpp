@@ -129,8 +129,17 @@ Terminal::~Terminal()
  * character and preps for new input */
 void Terminal::NewCommand()
 {
-	/* Print a new command */
+	/* Keep track */
+	bool Reading = true;
 
+	/* Print a new command */
+	while (Reading) {
+
+		/* Read a new character from input */
+		int Character = getchar();
+
+
+	}
 }
 
 /* Terminal Customization functions
@@ -336,7 +345,301 @@ bool Terminal::SetBackgroundColor(uint8_t r, uint8_t b, uint8_t g, uint8_t a)
  * this could be a header or a warning message */
 void Terminal::PrintLine(const char *Message, ...)
 {
+	/* VA */
+	va_list Args;
+	char *Line = (char*)malloc(1024 * sizeof(char));
 
+	/* Combine into buffer */
+	va_start(Args, Message);
+	vsnprintf(Line, 1024 - 1, Message, Args);
+	va_end(Args);
+
+	/* Now actually add the text */
+	AddTextBuffer(Line);
+	AddText(Line);
+
+	/* Update line start coords */
+	m_iLineStartX = m_iCursorPositionX;
+	m_iLineStartY = m_iCursorPositionY;
+
+	/* Cleanup line */
+	free(Line);
+}
+
+/* This actually renders the text in the end
+ * by processng it, and scrolls if necessary */
+void Terminal::AddText(char *Message, ...)
+{
+	/* VA */
+	static char Line[1024];
+	char cBuffer[] = " ";
+	va_list Args;
+	int i = 0;
+
+	/* Sanitize params */
+	if (Message == NULL)
+		return;
+
+	/* Combine */
+	va_start(Args, Message);
+	vsnprintf(Line, 1024 - 1, Message, Args);
+	va_end(Args);
+
+	/* Iterate characters */
+	while (Line[i] != 0) 
+	{
+		/* Extract character */
+		int c = Line[i++];
+		int cc = c;
+		int dx = 1;
+
+		/* Newline? */
+		if (c == '\n') {
+			m_iCursorPositionX = 0;
+			m_iCursorPositionY++;
+
+			/* Boundary check, maybe scroll */
+			if (m_iCursorPositionY >= m_iRows) {
+				ScrollText(1);
+				m_iCursorPositionY--;
+			}
+
+			/* Done, go to next */
+			continue;
+		}
+
+		/* Taburator, override in that case
+		 * since \t is not printable */
+		if (c == '\t') {
+			cc = ' ';
+			dx = 4;
+		}
+
+		/* Update */
+		cBuffer[0] = (char)cc;
+
+		/* Iterate how many chars we need to output */
+		for (int j = 0; j < dx; j++) 
+		{
+			/* Render the character */
+			RenderText(m_iCursorPositionX * m_iFontWidth,
+				m_iCursorPositionY * m_iFontHeight, cBuffer);
+			m_iCursorPositionX++;
+
+			/* Boundary check on width */
+			if (m_iCursorPositionX >= m_iColumns) {
+				m_iCursorPositionX -= m_iColumns;
+				m_iCursorPositionY++;
+				
+				/* Boundary check, maybe scroll */
+				if (m_iCursorPositionY >= m_iRows) {
+					ScrollText(1);
+					m_iCursorPositionY--;
+				}
+			}
+		}
+	}
+}
+
+/* Add text to the buffer, this ensures
+ * we can transfer it to history afterwards */
+void Terminal::AddTextBuffer(char *Message, ...)
+{
+	/* VA */
+	va_list Args;
+
+	/* Sanitize params */
+	if (Message == NULL)
+		return;
+
+	/* Sanitize the buffer first index, 
+	 * we need the space */
+	if (m_pBuffer[0] != NULL)
+		free(m_pBuffer[0]);
+
+	/* Iterate and move the buffers */
+	for (int i = 1; i < m_iBufferSize; i++)
+		m_pBuffer[i - 1] = m_pBuffer[i];
+
+	/* Allocate a new buffer */
+	m_pBuffer[m_iBufferSize - 1] = (char*)malloc(1024 * sizeof(char));
+	if (m_pBuffer[m_iBufferSize - 1] == NULL) {
+		/* Out of memory probably */
+		return;
+	}
+
+	/* Combine it into buffer */
+	va_start(Args, Message);
+	vsnprintf(m_pBuffer[m_iBufferSize - 1], 1024 - 1, Message, Args);
+	va_end(Args);
+
+	/* Null terminate the new string */
+	m_pBuffer[m_iBufferSize - 1][1024 - 1] = '\0';
+}
+
+/* Process a new line by updating history */
+void Terminal::NewLine()
+{
+	/* Store a copy within history
+	do not store blank lines
+	do not store line if it is just before in history
+	*/
+	if ((strcmp(m_pCurrentLine, "") != 0) &&
+		((m_pHistory[m_iHistorySize - 2] == 0) ||
+		(strcmp(m_pCurrentLine, m_pHistory[m_iHistorySize - 2]) != 0)))
+	{
+		/* Variables */
+		int i;
+
+		/* Sanitize the first member of history */
+		if (m_pHistory[0])
+			free(m_pHistory[0]);
+
+		/* Allocate a new history entry if 
+		 * it isn't already allocated */
+		if (!m_pHistory[m_iHistorySize - 1]) {
+			m_pHistory[m_iHistorySize - 1] = (char*)malloc(1024 * sizeof(char));
+			if (m_pHistory[m_iHistorySize - 1] == NULL) {
+				/* Out of memory */
+				return;
+			}
+		}
+
+		/* Move history up */
+		strcpy(m_pHistory[m_iHistorySize - 1], m_pCurrentLine);
+		for (i = 1; i< m_iHistorySize; i++)
+			m_pHistory[i - 1] = m_pHistory[i];
+
+		/* Allocate a history entry */
+		m_pHistory[m_iHistorySize - 1] = (char*)malloc(1024 * sizeof(char));
+		if (m_pHistory[m_iHistorySize - 1] == NULL) {
+			/* Out of memory */
+			return;
+		}
+
+		/* Null terminate history */
+		m_pHistory[0] = '\0';
+		m_iHistoryIndex = m_iHistorySize - 1;
+	}
+
+
+	/* Update cursor position */
+	m_iCursorPositionX = 0;
+	m_iCursorPositionY++;
+
+	/* Boundary Check */
+	if (m_iCursorPositionY >= m_iRows) {
+		ScrollText(1);
+		m_iCursorPositionY--;
+	}
+
+	/* Add trailing '\n' to go to next line */
+	InsertChar('\n');
+
+	/* Update text buffer (with '\n') */
+	AddTextBuffer(m_pCurrentLine);
+
+	/* Misc. updates */
+	m_pCurrentLine[0] = '\0';
+	m_iLinePos = 0;
+	m_iLineStartX = m_iCursorPositionX;
+	m_iLineStartY = m_iCursorPositionY;
+}
+
+/* 'Render' the cursor at our current position 
+ * in it's normal colors, this will effectively hide it */
+void Terminal::HideCursor()
+{
+	/* Variables */
+	char cBuffer[] = " ";
+	char c = ' ';
+
+	/* Determine where to put the cursor in case
+	 * it's to far */
+	if (m_iLinePos < strlen(m_pCurrentLine)) {
+		c = m_pCurrentLine[m_iLinePos];
+		if (c == '\t')
+			c = ' ';
+	}
+
+	/* Update buffer */
+	cBuffer[0] = c;
+
+	/* 'Render' the cursor */
+	RenderText(m_iCursorPositionX * m_iFontWidth,
+		m_iCursorPositionY * m_iFontHeight, cBuffer);
+}
+
+/* Render the cursor in reverse colors, this will give the
+ * effect of a big fat block that acts as cursor */
+void Terminal::ShowCursor()
+{
+	/* Get foreground and bg colors */
+	char cBuffer[] = " ";
+	char c = ' ';
+	int r = 0;
+
+	/* Store colors */
+	uint8_t BgR = m_cBgR; uint8_t BgG = m_cBgG;
+	uint8_t BgB = m_cBgB; uint8_t BgA = m_cBgA;
+
+	uint8_t FgR = m_cFgR; uint8_t FgG = m_cFgG;
+	uint8_t FgB = m_cFgB; uint8_t FgA = m_cFgA;
+
+	/* Setup cursor colors, by swapping fg/bg */
+	m_cFgR = BgR; m_cFgG = BgG; m_cFgB = BgB; m_cFgA = BgA;
+	m_cBgR = FgR; m_cBgG = FgG; m_cBgB = FgB; m_cBgA = FgA;
+
+	/* Where should we render it? */
+	if (m_iLinePos < strlen(m_pCurrentLine)) {
+		c = m_pCurrentLine[m_iLinePos];
+		if (c == '\t')
+			c = ' ';
+	}
+
+	/* Update buffer */
+	cBuffer[0] = c;
+
+	/* Render the cursor */
+	RenderText(m_iCursorPositionX * m_iFontWidth,
+		m_iCursorPositionY * m_iFontHeight, cBuffer);
+
+	/* Restore colors */
+	m_cFgR = FgR; m_cFgG = FgG; m_cFgB = FgB; m_cFgA = FgA;
+	m_cBgR = BgR; m_cBgG = BgG; m_cBgB = BgB; m_cBgA = BgA;
+}
+
+/* Add given character to current line */
+void Terminal::InsertChar(char Character)
+{
+	/* Sanitize length */
+	if (strlen(m_pCurrentLine) >= (1024 - 1))
+		return;
+
+	/* Move the characters one space */
+	memmove(&m_pCurrentLine[m_iLinePos + 1],
+		&m_pCurrentLine[m_iLinePos],
+		strlen(m_pCurrentLine) - m_iLinePos + 1);
+
+	/* Insert the new character */
+	m_pCurrentLine[m_iLinePos++] = Character;
+}
+
+/* Delete character of current line at current pos */
+void Terminal::RemoveChar(int Position)
+{
+	/* Sanitize some params and the current line */
+	if (Position < 0 
+		|| strlen(m_pCurrentLine) == 0)
+		return;
+
+	/* Move the line one space and simoultanously override the
+	 * character spot we want to delete */
+	memmove(&m_pCurrentLine[Position], &m_pCurrentLine[Position + 1],
+		strlen(m_pCurrentLine) - Position + 1);
+
+	/* Reduce line position */
+	m_iLinePos--;
 }
 
 /* Clear out lines from the given col/row 
@@ -403,7 +706,8 @@ void Terminal::ScrollText(int Lines)
 
 /* Text Rendering 
  * This is our primary render function, 
- * it renders text at a specific position on the buffer */
+ * it renders text at a specific position on the buffer 
+ * TODO ERASE */
 void Terminal::RenderText(int AtX, int AtY, const char *Text)
 {
 	/* Variables for state tracking, 
@@ -411,7 +715,7 @@ void Terminal::RenderText(int AtX, int AtY, const char *Text)
 	bool First;
 	int xStart;
 	int Width;
-	int Height;
+	//int Height;
 	uint8_t *Source;
 	uint8_t *Destination;
 	uint8_t *DestCheck;
@@ -499,7 +803,7 @@ void Terminal::RenderText(int AtX, int AtY, const char *Text)
 			
 			/* Calculate destination */
 			Destination = (uint8_t*)m_pSurface->DataPtr(AtX, AtY) +
-				(Row + Glyph->yOffset) * 4 + xStart + Glyph->MinX;
+				((Row + Glyph->yOffset) * 4) + xStart + Glyph->MinX;
 			Source = Current->buffer + Row * Current->pitch;
 
 			/* Loop ! */
