@@ -104,9 +104,11 @@ void Generator::GenerateEntry() {
 	m_pPool->AddCode8(Id, TemporaryRegister);
 
 	m_pPool->AddOpcode(Id, OpInvoke);
+	m_pPool->AddCode8(Id, TemporaryRegister);
 	m_pPool->AddCode32(Id, ConstructorId);
 
 	m_pPool->AddOpcode(Id, OpInvoke);
+	m_pPool->AddCode8(Id, TemporaryRegister);
 	m_pPool->AddCode32(Id, MainId);
 
 	/* Cleanup */

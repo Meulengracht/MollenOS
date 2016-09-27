@@ -39,8 +39,9 @@ public:
 	~Surface();
 
 	/* Clear out surface with the background color
-	 * Use this for cleaning */
-	void Clear(uint32_t Color);
+	 * Use this for cleaning, for a full clear use
+	 * NULL in Area */
+	void Clear(uint32_t Color, Rect_t *Area);
 
 	/* Resize the canvas, so we can support that! */
 	void Resize(int Width, int Height);
@@ -56,6 +57,10 @@ public:
 	/* Get dimensions of this surface 
 	 * Can be useful for boundary checks */
 	Rect_t *GetDimensions() { return &m_sDimensions; }
+
+	/* Helper, it combines different color components
+	 * into a full color */
+	uint32_t GetColor(uint8_t R, uint8_t G, uint8_t B, uint8_t A);
 
 private:
 	/* Private - Functions */

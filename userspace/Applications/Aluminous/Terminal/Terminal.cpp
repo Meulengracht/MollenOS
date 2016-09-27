@@ -69,6 +69,11 @@ Terminal::Terminal()
 	m_iColumns = 80;
 	m_iRows = 25;
 
+	/* Fill out the cmd */
+	m_szCmdStart[0] = '$';
+	m_szCmdStart[1] = ' ';
+	m_szCmdStart[2] = '\0';
+
 	/* Initialize render surface */
 	m_pSurface = new Surface();
 
@@ -78,6 +83,30 @@ Terminal::Terminal()
 		m_bIsAlive = false;
 		m_pFreeType = NULL;
 	}
+
+	/* Initialize lines */
+	m_pCurrentLine = (char*)malloc(1024 * sizeof(char));
+	m_pCurrentLine[0] = '\0';
+	m_iLineStartX = 0;
+	m_iLineStartY = 0;
+	m_iLinePos = 0;
+
+	/* History allocation */
+	m_iHistorySize = 25;
+	m_iHistoryIndex = m_iHistorySize - 1;
+	m_pHistory = (char**)malloc(m_iHistorySize * sizeof(char*));
+
+	/* Reset history */
+	for (int i = 0; i < m_iHistorySize; i++)
+		m_pHistory[i] = NULL;
+
+	/* Text buffer Allocation */
+	m_iBufferSize = 250;
+	m_pBuffer = (char**)malloc(m_iBufferSize * sizeof(char*));
+
+	/* Reset buffer */
+	for (int i = 0; i < m_iBufferSize; i++)
+		m_pBuffer[i] = NULL;
 }
 
 /* Destructor 
@@ -100,12 +129,13 @@ Terminal::~Terminal()
  * character and preps for new input */
 void Terminal::NewCommand()
 {
+	/* Print a new command */
 
 }
 
 /* Terminal Customization functions
-* Use this for setting font, colors
-* size etc */
+ * Use this for setting font, colors
+ * size etc */
 bool Terminal::SetSize(int Columns, int Rows)
 {
 	/* If we have no font, then we can't adjust accordingly
@@ -261,6 +291,11 @@ bool Terminal::SetFont(const char *FontPath, int SizePt)
 	/* Update active font */
 	m_pActiveFont = Font;
 
+	/* Update stats */
+	m_iFontHeight = Font->Height;
+	FindGlyph(m_pActiveFont, 'A', CACHED_METRICS);
+	m_iFontWidth = Font->Current->Advance;
+
 	/* Done! 
 	 * But the last thing to do here is to update the 
 	 * size of the terminal */
@@ -272,6 +307,13 @@ bool Terminal::SetFont(const char *FontPath, int SizePt)
  * size etc */
 bool Terminal::SetTextColor(uint8_t r, uint8_t b, uint8_t g, uint8_t a)
 {
+	/* Update color */
+	m_cFgR = r;
+	m_cFgG = g;
+	m_cFgB = b;
+	m_cFgA = a;
+
+	/* Done! */
 	return true;
 }
 
@@ -280,6 +322,13 @@ bool Terminal::SetTextColor(uint8_t r, uint8_t b, uint8_t g, uint8_t a)
  * size etc */
 bool Terminal::SetBackgroundColor(uint8_t r, uint8_t b, uint8_t g, uint8_t a)
 {
+	/* Update color */
+	m_cBgR = r;
+	m_cBgG = g;
+	m_cBgB = b;
+	m_cBgA = a;
+
+	/* Done! */
 	return true;
 }
 
@@ -290,8 +339,72 @@ void Terminal::PrintLine(const char *Message, ...)
 
 }
 
-/* Render Functions */
-void Terminal::RenderText(const char *Text)
+/* Clear out lines from the given col/row 
+ * so it is ready for new data */
+void Terminal::ClearFrom(int Column, int Row)
+{
+	/* Make sure columns are valid */
+	if ((Column <= (m_iColumns - 1)) && (Row <= (m_iRows - 1))) 
+	{
+		/* Create dest area */
+		Rect_t Destination = {
+			Column * m_iFontWidth,
+			Row * m_iFontHeight,
+			(m_iRows - Row) * m_iFontHeight,
+			(m_iColumns - Column) * m_iFontWidth
+		};
+
+		/* Clear */
+		m_pSurface->Clear(m_pSurface->GetColor(m_cBgR, m_cBgG, m_cBgB, m_cBgA), &Destination);
+	}
+
+	/* Make sure row is valid */
+	if (Row < (m_iRows - 1)) 
+	{
+		/* Create dest area */
+		Rect_t Destination = { 
+			0, 
+			(Row + 1) * m_iFontHeight,
+			(m_iRows - Row - 1) * m_iFontHeight,
+			m_iColumns * m_iFontWidth
+		};
+
+		/* Clear */
+		m_pSurface->Clear(m_pSurface->GetColor(m_cBgR, m_cBgG, m_cBgB, m_cBgA), &Destination);
+	}
+}
+
+/* Scroll the terminal by a number of lines
+ * and clear below the scrolled lines */
+void Terminal::ScrollText(int Lines)
+{
+	/* Sanitize limits */
+	if (Lines >= m_iRows)
+		Lines = m_iRows;
+
+	/* We do a memcpy */
+	if (Lines < m_iRows) 
+	{
+		/* Calculate source pointer and how much to copy */
+		uint8_t *SourcePtr = (uint8_t*)m_pSurface->DataPtr(0, Lines * m_iFontHeight);
+		size_t BytesToCopy = m_pSurface->GetDimensions()->w * 
+			(m_pSurface->GetDimensions()->h - Lines * m_iFontHeight) * 4;
+
+		/* Calculate destination pointer */
+		uint8_t *DestPtr = (uint8_t*)m_pSurface->DataPtr(0, 0);
+
+		/* Copy */
+		memcpy(DestPtr, SourcePtr, BytesToCopy);
+	}
+
+	/* Clear remaining lines */
+	ClearFrom(0, m_iRows - Lines);
+}
+
+/* Text Rendering 
+ * This is our primary render function, 
+ * it renders text at a specific position on the buffer */
+void Terminal::RenderText(int AtX, int AtY, const char *Text)
 {
 	/* Variables for state tracking, 
 	 * and formatting, and rendering */
@@ -317,7 +430,7 @@ void Terminal::RenderText(const char *Text)
 	FT_UInt PreviousIndex = 0;
 
 	/* Adding bound checking to avoid all kinds of memory corruption errors
-	that may occur. */
+	 * that may occur. */
 	DestCheck = (uint8_t*)m_pSurface->DataPtr() + 4 * m_pSurface->GetDimensions()->h;
 
 	/* check kerning */
@@ -385,8 +498,7 @@ void Terminal::RenderText(const char *Text)
 			}
 			
 			/* Calculate destination */
-			//Destination = (uint8_t*)m_pSurface->DataPtr(Row + Glyph->yOffset, xStart + Glyph->MinX);
-			Destination = (uint8_t*)m_pSurface->DataPtr() +
+			Destination = (uint8_t*)m_pSurface->DataPtr(AtX, AtY) +
 				(Row + Glyph->yOffset) * 4 + xStart + Glyph->MinX;
 			Source = Current->buffer + Row * Current->pitch;
 

@@ -140,8 +140,21 @@ private:
 		uint16_t Character, FontGlyph_t* Cached, int Want);
 	FT_Error FindGlyph(TerminalFont* Font, uint16_t Character, int Want);
 
-	/* Render Functions */
-	void RenderText(const char *Text);
+	/* Text Rendering 
+	 * This is our primary render function, 
+	 * it renders text at a specific position on the buffer */
+	void RenderText(int AtX, int AtY, const char *Text);
+
+	/* Scroll the terminal by a number of lines
+	 * and clear below the scrolled lines */
+	void ScrollText(int Lines);
+
+	/* Clear out lines from the given col/row 
+	 * so it is ready for new data */
+	void ClearFrom(int Column, int Row);
+
+	/* Text Functions */
+	int AddCharacter(char Character);
 
 	/* Private - Data */
 	TerminalFont *m_pActiveFont;
@@ -157,10 +170,29 @@ private:
 	char **m_pBuffer;
 	int m_iBufferSize;
 
+	/* Current edit line */
+	char *m_pCurrentLine;
+	int m_iLineStartX;
+	int m_iLineStartY;
+	int m_iLinePos;
+
 	/* Private - State */
+	char m_szCmdStart[3];
 	bool m_bIsAlive;
 	int m_iColumns;
 	int m_iRows;
+
+	/* Position tracking */
+	int m_iCursorPositionX;
+	int m_iCursorPositionY;
+
+	/* Advancing */
+	int m_iFontHeight;
+	int m_iFontWidth;
+
+	/* Colors */
+	uint8_t m_cBgR, m_cBgG, m_cBgB, m_cBgA;
+	uint8_t m_cFgR, m_cFgG, m_cFgB, m_cFgA;
 };
 
 
