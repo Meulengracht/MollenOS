@@ -73,7 +73,7 @@
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
       <InlineFunctionExpansion>Default</InlineFunctionExpansion>
       <WholeProgramOptimization>false</WholeProgramOptimization>
-      <PreprocessorDefinitions>MOLLENOS;_X86_32</PreprocessorDefinitions>
+      <PreprocessorDefinitions>MOLLENOS;_X86_32;_CRT_DYNAMIC</PreprocessorDefinitions>
       <ExceptionHandling>Sync</ExceptionHandling>
       <BufferSecurityCheck>false</BufferSecurityCheck>
       <EnableParallelCodeGeneration>
@@ -96,6 +96,7 @@ cl.exe /EP /D"_USE_ML" ../crt/msvc/cpp/i386/cpp_cc.s &gt; ../crt/msvc/cpp/i386/c
     </Lib>
     <Lib>
       <SubSystem>Native</SubSystem>
+      <IgnoreAllDefaultLibraries>true</IgnoreAllDefaultLibraries>
     </Lib>
   </ItemDefinitionGroup>
   <ItemGroup>

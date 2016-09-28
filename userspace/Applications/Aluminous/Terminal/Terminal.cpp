@@ -339,7 +339,7 @@ bool Terminal::SetFont(const char *FontPath, int SizePt)
 {
 	/* Load the font file into a buffer 
 	 * and retrieve size of file */
-	FILE *Fp = fopen(FontPath, "ra");
+	FILE *Fp = fopen(FontPath, "rab");
 	size_t Size = ftell(Fp);
 	TerminalFont *Font = NULL;
 	void *DataBuffer = NULL;
@@ -347,14 +347,16 @@ bool Terminal::SetFont(const char *FontPath, int SizePt)
 
 	/* Sanitize the stuff, ftell won't
 	 * crash on null, so we can wait till here */
-	if (Fp == NULL || Size == 0)
+	if (Fp == NULL || Size == 0) {
 		return false;
+	}
 
 	/* Spool back */
 	rewind(Fp);
 
 	/* Read the font file */
-	fread(DataBuffer, 1, Size, Fp);
+	MollenOSSystemLog("Read %u bytes out of %u",
+		fread(DataBuffer, 1, Size, Fp), Size);
 	fclose(Fp);
 
 	/* If there was an old font, clean it up */
@@ -376,6 +378,7 @@ bool Terminal::SetFont(const char *FontPath, int SizePt)
 	 * in the FT library */
 	if (FT_New_Memory_Face(m_pFreeType,
 		(FT_Byte*)DataBuffer, Size, 0, &Font->Face)) {
+		MollenOSSystemLog("Failed to create a new FT_Memory_Face");
 		CleanupFont(Font);
 		return false;
 	}
@@ -906,6 +909,11 @@ void Terminal::RenderText(int AtX, int AtY, const char *Text)
 	FT_Error Error;
 	FT_Long UseKerning;
 	FT_UInt PreviousIndex = 0;
+
+	/* Sanity */
+	if (m_pActiveFont == NULL) {
+		return;
+	}
 
 	/* Adding bound checking to avoid all kinds of memory corruption errors
 	 * that may occur. */

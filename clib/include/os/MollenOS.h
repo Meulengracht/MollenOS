@@ -28,8 +28,6 @@
 /* OS - Includes */
 #include <os/Ipc.h>
 
-/* Definitons */
-
 /* The max path to expect from mollenos 
  * file/path operations */
 #ifndef MPATH_MAX
@@ -188,6 +186,11 @@ typedef struct _mRectangle
 * IPC Prototypes
 ***********************/
 
+/* Cpp Guard */
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /* IPC - Peek - NO BLOCK
  * This returns -1 if there is no new messages
  * in the message-queue, otherwise it returns 0
@@ -317,5 +320,9 @@ _MOS_API int MollenOSSignalWake(IpcComm_t Target);
 _MOS_API void MollenOSSystemLog(const char *Format, ...);
 _MOS_API int MollenOSEndBoot(void);
 _MOS_API int MollenOSRegisterWM(void);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif //!__MOLLENOS_CLIB__

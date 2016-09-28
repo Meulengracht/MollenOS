@@ -73,6 +73,7 @@
       <BufferSecurityCheck>false</BufferSecurityCheck>
       <AssemblerOutput>All</AssemblerOutput>
       <DisableSpecificWarnings>4018</DisableSpecificWarnings>
+      <ExceptionHandling>false</ExceptionHandling>
     </ClCompile>
     <Link>
       <GenerateDebugInformation>true</GenerateDebugInformation>
@@ -81,8 +82,10 @@
       <AdditionalDependencies>LibC.lib;LibUi.lib;LibCrt.lib;LibVs.lib;freetype2.lib</AdditionalDependencies>
       <IgnoreAllDefaultLibraries>true</IgnoreAllDefaultLibraries>
       <SubSystem>Native</SubSystem>
-      <EntryPointSymbol>main</EntryPointSymbol>
+      <EntryPointSymbol>_mConCrt</EntryPointSymbol>
       <ImageHasSafeExceptionHandlers>false</ImageHasSafeExceptionHandlers>
+      <GenerateMapFile>true</GenerateMapFile>
+      <MapExports>true</MapExports>
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>

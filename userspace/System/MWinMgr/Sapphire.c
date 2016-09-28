@@ -33,6 +33,8 @@
 /* Handle Message */
 void HandleMessage(SDL_Renderer *Target, MEventMessage_t *Message)
 {
+	MollenOSSystemLog("Handling message type %i", (int)Message->Base.Type);
+
 	/* First of all, 
 	 * which kind of message is it? 
 	 * User-messages are generic */
@@ -78,6 +80,9 @@ void HandleMessage(SDL_Renderer *Target, MEventMessage_t *Message)
 
 					/* Invalidate Rectangle */
 					SceneManagerUpdate(&WndInformation->Dimensions);
+
+					MollenOSSystemLog("Rendering window of size %x,%x",
+						WndInformation->Dimensions.w, WndInformation->Dimensions.y);
 
 					/* Update id */
 					WndInformation->WindowId = Wnd->Id;
