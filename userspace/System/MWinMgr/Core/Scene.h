@@ -89,6 +89,11 @@ EXTERN void SceneAddWindow(Scene_t *Scene, Window_t *Window);
  * returns NULL if none is found */
 EXTERN Window_t *SceneGetWindow(Scene_t *Scene, int WindowId);
 
+/* Get Active Window
+ * Looks up the active window in the given scene
+ * returns NULL if none is found */
+EXTERN Window_t *SceneGetActiveWindow(Scene_t *Scene);
+
 /* Update
  * This updates any changes to windows
  * for this scene, but only for the given rectangle */

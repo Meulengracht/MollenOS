@@ -123,6 +123,20 @@ Window_t *SceneGetWindow(Scene_t *Scene, int WindowId)
 	return (Window_t*)ListGetDataByKey(Scene->Windows, Key, 0);
 }
 
+/* Get Active Window
+ * Looks up the active window in the given scene
+ * returns NULL if none is found */
+Window_t *SceneGetActiveWindow(Scene_t *Scene)
+{
+	/* Sanity */
+	if (Scene == NULL
+		|| Scene->Windows->Tailp == NULL)
+		return NULL;
+
+	/* Get last window, it's the upper  */
+	return (Window_t*)Scene->Windows->Tailp->Data;
+}
+
 /* Update
  * This updates any changes to windows
  * for this scene, but only for the given rectangle */

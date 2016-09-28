@@ -125,6 +125,18 @@ void HandleMessage(SDL_Renderer *Target, MEventMessage_t *Message)
 		 * Comes from input drivers */
 		case EventInput:
 		{
+			/* First of all, we want to intercept the input by 
+			 * checking whether or not we should handle it 
+			 * so start out by checking key-combinations, and
+			 * check whether or not a window decoration has been hit */
+
+			/* Ok, if not, we redirect it to active window */
+			Window_t *Active = SceneManagerGetActiveWindow();
+
+			/* Is there not any? */
+			if (Active != NULL) {
+				MollenOSMessageSend(Active->Owner, &Message, Message->Base.Length);
+			}
 
 		} break;
 
@@ -210,6 +222,7 @@ int main(int argc, char* argv[])
 
 	/* End Boot */
 	//MollenOSEndBoot();
+	//MollenOSRegisterWM();
 
 	/* Initialize Sapphire */
 	SceneManagerInit(MainRenderer, &ScreenDims);

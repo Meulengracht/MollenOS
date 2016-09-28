@@ -127,6 +127,26 @@ Window_t *SceneManagerGetWindow(int WindowId)
 	return SceneGetWindow(ActiveScene, WindowId);
 }
 
+/* Get Active Window
+ * This looks up the active window by in the current
+ * active scene, if not found, NULL is returned */
+Window_t *SceneManagerGetActiveWindow(void)
+{
+	/* Vars */
+	DataKey_t Key;
+
+	/* Sanity */
+	if (GlbSceneManager == NULL)
+		return NULL;
+
+	/* Get active scene (todo) */
+	Key.Value = 0;
+	Scene_t *ActiveScene = (Scene_t*)ListGetDataByKey(GlbSceneManager->Scenes, Key, 0);
+
+	/* Now just return for the active scene */
+	return SceneGetActiveWindow(ActiveScene);
+}
+
 /* Update 
  * This updates the current scene 
  * and makes all neccessary changes to windows 

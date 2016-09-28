@@ -74,6 +74,11 @@ EXTERN void SceneManagerAddWindow(Window_t *Window);
  * active scene, if not found, NULL is returned */
 EXTERN Window_t *SceneManagerGetWindow(int WindowId);
 
+/* Get Active Window
+ * This looks up the active window by in the current
+ * active scene, if not found, NULL is returned */
+EXTERN Window_t *SceneManagerGetActiveWindow(void);
+
 /* Update 
  * This updates the current scene 
  * and makes all neccessary changes to windows 
