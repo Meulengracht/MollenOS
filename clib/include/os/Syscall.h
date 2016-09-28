@@ -89,6 +89,7 @@
 
 #define MOLLENOS_SYSCALL_ENDBOOT			0x5B
 #define MOLLENOS_SYSCALL_REGWM				0x5C
+#define MOLLENOS_SYSCALL_SYSTEMQUERY		0x5D
 
 /* Prototypes */
 _CRT_EXTERN int Syscall0(int Function);

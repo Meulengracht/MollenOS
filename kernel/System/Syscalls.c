@@ -29,7 +29,7 @@
 
 /* C-Library */
 #include <stddef.h>
-#include <os/Ipc.h>
+#include <os/ipc.h>
 #include <ds/list.h>
 #include <ds/mstring.h>
 #include <string.h>
@@ -1289,6 +1289,14 @@ int ScRegisterWindowManager(void)
 	return 0;
 }
 
+/* System (Environment) Query 
+ * This function allows the user to query 
+ * information about cpu, memory, stats etc */
+int ScEnvironmentQuery(void)
+{
+	return 0;
+}
+
 /* Empty Operation, mostly
  * because the operation is
  * reserved */
@@ -1412,7 +1420,7 @@ Addr_t GlbSyscallTable[121] =
 	/* System Functions - 91 */
 	DefineSyscall(ScEndBootSequence),
 	DefineSyscall(ScRegisterWindowManager),
-	DefineSyscall(NoOperation),
+	DefineSyscall(ScEnvironmentQuery),
 	DefineSyscall(NoOperation),
 	DefineSyscall(NoOperation),
 	DefineSyscall(NoOperation),

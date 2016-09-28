@@ -126,6 +126,7 @@ typedef enum _EnvironmentPaths
 typedef enum _EnvironmentQueryFunction
 {
 	EnvironmentQueryOS,
+	EnvironmentQueryCpuId,
 	EnvironmentQueryMemory
 
 } EnvironmentQueryFunction_t;

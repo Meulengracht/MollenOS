@@ -29,6 +29,29 @@
 /* The puts */
 int puts(const char *sstr)
 {
-	_CRT_UNUSED(sstr);
-	return 0;
+	/* Vars for iteration */
+	int i = 0;
+
+	/* Sanity */
+	if (sstr == NULL) {
+		return 0;
+	}
+
+	/* Loop while valid */
+	while (sstr[i]) {
+		if (putchar(sstr[i]) == EOF) {
+			return EOF;
+		}
+
+		/* Increase */
+		i++;
+	}
+
+	/* Output newline */
+	if (putchar('\n') == EOF) {
+		return EOF;
+	}
+
+	/* Specs require non-negative */
+	return 1;
 }

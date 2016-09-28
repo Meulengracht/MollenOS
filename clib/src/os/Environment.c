@@ -42,4 +42,16 @@ void EnvironmentResolve(EnvironmentPath_t SpecialPath, char *StringBuffer)
 		MOLLENOS_SYSCALL_PARAM(StringBuffer));
 }
 
+/* Environment Query
+ * Query the system environment
+ * for information, this could be
+ * memory, cpu, etc information */
+int EnvironmentQuery(EnvironmentQueryFunction_t Function, void *Buffer, size_t Length)
+{
+	/* Just deep call, syscall does all
+	 * validation checks */
+	return Syscall3(MOLLENOS_SYSCALL_SYSTEMQUERY, MOLLENOS_SYSCALL_PARAM(Function),
+		MOLLENOS_SYSCALL_PARAM(Buffer), MOLLENOS_SYSCALL_PARAM(Length));
+}
+
 #endif

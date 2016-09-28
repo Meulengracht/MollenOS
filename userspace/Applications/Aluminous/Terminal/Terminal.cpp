@@ -210,6 +210,7 @@ void Terminal::NewCommand()
 		else if (Character == VK_ENTER) {
 			HideCursor();
 			NewLine();
+			break;
 		}
 		else if (Character == VK_UP) {
 			HistoryPrevious();
@@ -1006,6 +1007,9 @@ void Terminal::RenderText(int AtX, int AtY, const char *Text)
 		row = TTF_strikethrough_top_row(font);
 		TTF_drawLine_Solid(font, textbuf, row);
 	}  */
+
+	/* Cleanup */
+	MStringDestroy(mText);
 }
 
 /* This cleans up a stored glyph and 

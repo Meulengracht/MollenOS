@@ -182,7 +182,7 @@ void SceneRender(Scene_t *Scene, SDL_Renderer *Renderer)
 		/* Render */
 		SDL_RenderCopy(Renderer, Scene->Texture, NULL, NULL);
 	}
-	else
+	else if (Scene->ValidRectangles > 0)
 	{
 		/* Go through dirty rectangles and update/render */
 		for (int i = 0; i < Scene->ValidRectangles; i++) {
