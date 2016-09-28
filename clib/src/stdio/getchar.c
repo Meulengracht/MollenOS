@@ -42,7 +42,7 @@ int getchar(void)
 
 		/* Handle Message */
 		if (Message.Base.Type == EventInput
-			&& Message.EventButton.Type == PointerKeyboard) {
+			&& Message.EventButton.Type == InputKeyboard) {
 			if (Message.EventButton.State == MCORE_INPUT_BUTTON_CLICKED) {
 				return (int)Message.EventButton.Data;
 			}

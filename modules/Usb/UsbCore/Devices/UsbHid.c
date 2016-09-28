@@ -468,7 +468,7 @@ size_t UsbHidParseReportDescriptor(HidDevice_t *Device, uint8_t *ReportData, siz
 
 	/* Offsets */
 	size_t BitOffset = 0;
-	int CurrentType = PointerUnknown;
+	int CurrentType = InputUnknown;
 
 	/* Null Report Id */
 	GlobalStats.ReportId = 0xFFFFFFFF;
@@ -662,15 +662,15 @@ size_t UsbHidParseReportDescriptor(HidDevice_t *Device, uint8_t *ReportData, siz
 					{
 						if (Packet == X86_USB_REPORT_USAGE_POINTER
 							|| Packet == X86_USB_REPORT_USAGE_MOUSE)
-							CurrentType = PointerMouse;
+							CurrentType = InputMouse;
 						else if (Packet == X86_USB_REPORT_USAGE_KEYBOARD)
-							CurrentType = PointerKeyboard;
+							CurrentType = InputKeyboard;
 						else if (Packet == X86_USB_REPORT_USAGE_KEYPAD)
-							CurrentType = PointerKeypad;
+							CurrentType = InputKeypad;
 						else if (Packet == X86_USB_REPORT_USAGE_JOYSTICK)
-							CurrentType = PointerJoystick;
+							CurrentType = InputJoystick;
 						else if (Packet == X86_USB_REPORT_USAGE_GAMEPAD)
-							CurrentType = PointerGamePad;
+							CurrentType = InputGamePad;
 
 						for (j = 0; j < 16; j++)
 						{
@@ -717,15 +717,11 @@ void UsbHidApplyInputData(HidDevice_t *Device, UsbHidReportCollectionItem_t *Col
 	UsbHidReportInputItem_t *InputItem = (UsbHidReportInputItem_t*)CollectionItem->Data;
 
 	/* Need those for registrating events */
-	MEventMessageInputPointer_t PointerData = { 0 };
-	MEventMessageInputButton_t ButtonData = { 0 };
+	MEventMessageInputButton_t InputData = { 0 };
 
 	/* Set Headers */
-	ButtonData.Header.Type = EventInput;
-	ButtonData.Header.Length = sizeof(MEventMessageInputButton_t);
-
-	PointerData.Header.Type = EventInput;
-	PointerData.Header.Length = sizeof(MEventMessageInputPointer_t);
+	InputData.Header.Type = EventInput;
+	InputData.Header.Length = sizeof(MEventMessageInputButton_t);
 
 	/* And these for parsing */
 	uint64_t Value = 0, OldValue = 0;
@@ -747,8 +743,7 @@ void UsbHidApplyInputData(HidDevice_t *Device, UsbHidReportCollectionItem_t *Col
 	}
 
 	/* Set type */
-	PointerData.Type = CollectionItem->InputType;
-	ButtonData.Type = CollectionItem->InputType;
+	InputData.Type = CollectionItem->InputType;
 
 	/* Loop through report data */
 	Offset = InputItem->Stats.BitOffset;
@@ -802,7 +797,7 @@ void UsbHidApplyInputData(HidDevice_t *Device, UsbHidReportCollectionItem_t *Col
 						if (xRelative != 0)
 						{
 							/* Add it */
-							PointerData.xRelative = (int32_t)xRelative;
+							InputData.xRelative = (int32_t)xRelative;
 
 							/* Now it epends on mouse, joystick or w/e */
 							LogInformation("USBH", "X-Change: %i (Original 0x%x, Old 0x%x, LogMax %i)",
@@ -837,7 +832,7 @@ void UsbHidApplyInputData(HidDevice_t *Device, UsbHidReportCollectionItem_t *Col
 						if (yRelative != 0)
 						{
 							/* Add it */
-							PointerData.yRelative = (int32_t)yRelative;
+							InputData.yRelative = (int32_t)yRelative;
 
 							/* Now it epends on mouse, joystick or w/e */
 							LogInformation("USBH", "Y-Change: %i (Original 0x%x, Old 0x%x)",
@@ -871,7 +866,7 @@ void UsbHidApplyInputData(HidDevice_t *Device, UsbHidReportCollectionItem_t *Col
 						if (zRelative != 0)
 						{
 							/* Add it */
-							PointerData.zRelative = (int32_t)zRelative;
+							InputData.zRelative = (int32_t)zRelative;
 
 							/* Now it epends on mouse, joystick or w/e */
 							LogInformation("USBH", "Z-Change: %i (Original 0x%x, Old 0x%x)",
@@ -909,19 +904,19 @@ void UsbHidApplyInputData(HidDevice_t *Device, UsbHidReportCollectionItem_t *Col
 				switch (CollectionItem->InputType)
 				{
 					/* Mouse Button */
-					case PointerMouse:
+					case InputMouse:
 					{
 
 					} break;
 
 					/* Gamepad Button */
-					case PointerGamePad:
+					case InputGamePad:
 					{
 
 					} break;
 
 					/* Joystick Button */
-					case PointerJoystick:
+					case InputJoystick:
 					{
 
 					} break;
@@ -956,9 +951,9 @@ void UsbHidApplyInputData(HidDevice_t *Device, UsbHidReportCollectionItem_t *Col
 	}
 	
 	/* We send a report here */
-	if (PointerData.xRelative != 0 ||
-		PointerData.yRelative != 0 ||
-		PointerData.zRelative != 0)
+	if (InputData.xRelative != 0 ||
+		InputData.yRelative != 0 ||
+		InputData.zRelative != 0)
 	{
 		/* Register data */
 		//InputManagerCreatePointerEvent(&PointerData);

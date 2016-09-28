@@ -9,341 +9,393 @@
 INCLUDELIB MSVCRT
 INCLUDELIB OLDNAMES
 
-PUBLIC	_CpuFeatEcx
-PUBLIC	_CpuFeatEdx
+PUBLIC	___GlbMemCpyInstance
 _BSS	SEGMENT
-_CpuFeatEcx DD	01H DUP (?)
-_CpuFeatEdx DD	01H DUP (?)
+___GlbMemCpyInstance DD 01H DUP (?)
 _BSS	ENDS
 PUBLIC	_memcpy
-PUBLIC	_memcpy_sse
-PUBLIC	_memcpy_mmx
+PUBLIC	_MemCpyBase
+PUBLIC	_MemCpySSE
+PUBLIC	_MemCpyMMX
+PUBLIC	_MemCpySelect
 EXTRN	_asm_memcpy_mmx:PROC
 EXTRN	_asm_memcpy_sse:PROC
 ; Function compile flags: /Ogtp
 ; File c:\users\philip\documents\github\mollenos\clib\src\string\memcpy.c
-;	COMDAT _memcpy_mmx
+;	COMDAT _MemCpySelect
 _TEXT	SEGMENT
-_destination$ = 8					; size = 4
-_source$ = 12						; size = 4
-_count$ = 16						; size = 4
-_memcpy_mmx PROC					; COMDAT
+_Destination$ = 8					; size = 4
+_Source$ = 12						; size = 4
+_Count$ = 16						; size = 4
+_MemCpySelect PROC					; COMDAT
 
-; 43   : {
-
-  00000	55		 push	 ebp
-  00001	8b ec		 mov	 ebp, esp
-
-; 44   : 	/* Loop Count */
-; 45   : 	uint32_t MmxLoops = count / 8;
-; 46   : 	uint32_t mBytes = count % 8;
-
-  00003	8b 4d 10	 mov	 ecx, DWORD PTR _count$[ebp]
-  00006	8b c1		 mov	 eax, ecx
-  00008	83 e0 07	 and	 eax, 7
-  0000b	c1 e9 03	 shr	 ecx, 3
-
-; 47   : 
-; 48   : 	/* Call asm */
-; 49   : 	asm_memcpy_mmx(destination, source, MmxLoops, mBytes);
-
-  0000e	50		 push	 eax
-  0000f	51		 push	 ecx
-  00010	ff 75 0c	 push	 DWORD PTR _source$[ebp]
-  00013	ff 75 08	 push	 DWORD PTR _destination$[ebp]
-  00016	e8 00 00 00 00	 call	 _asm_memcpy_mmx
-
-; 50   : 
-; 51   : 	/* Done */
-; 52   : 	return destination;
-
-  0001b	8b 45 08	 mov	 eax, DWORD PTR _destination$[ebp]
-  0001e	83 c4 10	 add	 esp, 16			; 00000010H
-
-; 53   : }
-
-  00021	5d		 pop	 ebp
-  00022	c3		 ret	 0
-_memcpy_mmx ENDP
-_TEXT	ENDS
-; Function compile flags: /Ogtp
-; File c:\users\philip\documents\github\mollenos\clib\src\string\memcpy.c
-;	COMDAT _memcpy_sse
-_TEXT	SEGMENT
-_destination$ = 8					; size = 4
-_source$ = 12						; size = 4
-_count$ = 16						; size = 4
-_memcpy_sse PROC					; COMDAT
-
-; 30   : {
-
-  00000	55		 push	 ebp
-  00001	8b ec		 mov	 ebp, esp
-
-; 31   : 	/* Loop Count */
-; 32   : 	uint32_t SseLoops = count / 16;
-; 33   : 	uint32_t mBytes = count % 16;
-
-  00003	8b 4d 10	 mov	 ecx, DWORD PTR _count$[ebp]
-  00006	8b c1		 mov	 eax, ecx
-  00008	83 e0 0f	 and	 eax, 15			; 0000000fH
-  0000b	c1 e9 04	 shr	 ecx, 4
-
-; 34   : 
-; 35   : 	/* Call asm */
-; 36   : 	asm_memcpy_sse(destination, source, SseLoops, mBytes);
-
-  0000e	50		 push	 eax
-  0000f	51		 push	 ecx
-  00010	ff 75 0c	 push	 DWORD PTR _source$[ebp]
-  00013	ff 75 08	 push	 DWORD PTR _destination$[ebp]
-  00016	e8 00 00 00 00	 call	 _asm_memcpy_sse
-
-; 37   : 	
-; 38   : 	/* Done */
-; 39   : 	return destination;
-
-  0001b	8b 45 08	 mov	 eax, DWORD PTR _destination$[ebp]
-  0001e	83 c4 10	 add	 esp, 16			; 00000010H
-
-; 40   : }
-
-  00021	5d		 pop	 ebp
-  00022	c3		 ret	 0
-_memcpy_sse ENDP
-_TEXT	ENDS
-; Function compile flags: /Ogtp
-; File c:\users\philip\documents\github\mollenos\clib\src\string\memcpy.c
-;	COMDAT _memcpy
-_TEXT	SEGMENT
-_cpuinfo$1 = -16					; size = 16
-_destination$ = 8					; size = 4
-_source$ = 12						; size = 4
-_count$ = 16						; size = 4
-_memcpy	PROC						; COMDAT
-
-; 60   : {
+; 126  : {
 
   00000	55		 push	 ebp
   00001	8b ec		 mov	 ebp, esp
   00003	83 ec 10	 sub	 esp, 16			; 00000010H
 
-; 61   : 	/* Sanity */
-; 62   : 	if(CpuFeatEcx == 0 && CpuFeatEdx == 0)
+; 127  : 	/* Variables */
+; 128  : 	uint32_t CpuFeatEcx = 0;
+; 129  : 	uint32_t CpuFeatEdx = 0;
+; 130  : 
+; 131  : 	/* Now extract the cpu information 
+; 132  : 	 * so we can select a memcpy */
+; 133  : #ifdef _MSC_VER
+; 134  : 	int CpuInfo[4] = { 0 };
+; 135  : 	__cpuid(CpuInfo, 1);
+; 136  : 	CpuFeatEcx = CpuInfo[2];
+; 137  : #else
+; 138  : 	int unused = 0;
+; 139  : 	__cpuid(1, unused, unused, CpuFeatEcx, CpuFeatEdx);
+; 140  : #endif
+; 141  : 
+; 142  : 	/* Now do the select */
+; 143  : 	if (CpuFeatEdx & CPUID_FEAT_EDX_SSE) {
+; 144  : 		__GlbMemCpyInstance = MemCpySSE;
+; 145  : 		return MemCpySSE(Destination, Source, Count);
+; 146  : 	}
+; 147  : 	else if (CpuFeatEdx & CPUID_FEAT_EDX_MMX) {
+; 148  : 		__GlbMemCpyInstance = MemCpyMMX;
+; 149  : 		return MemCpyMMX(Destination, Source, Count);
+; 150  : 	}
+; 151  : 	else {
+; 152  : 		__GlbMemCpyInstance = MemCpyBase;
 
-  00006	83 3d 00 00 00
-	00 00		 cmp	 DWORD PTR _CpuFeatEcx, 0
-  0000d	53		 push	 ebx
-  0000e	56		 push	 esi
-  0000f	8b 35 00 00 00
-	00		 mov	 esi, DWORD PTR _CpuFeatEdx
-  00015	57		 push	 edi
-  00016	75 2e		 jne	 SHORT $LN12@memcpy
-  00018	85 f6		 test	 esi, esi
-  0001a	75 2a		 jne	 SHORT $LN12@memcpy
+  00006	c7 05 00 00 00
+	00 00 00 00 00	 mov	 DWORD PTR ___GlbMemCpyInstance, OFFSET _MemCpyBase
+  00010	53		 push	 ebx
+  00011	56		 push	 esi
 
-; 63   : 	{
-; 64   : #ifdef _MSC_VER
-; 65   : 		int cpuinfo[4] = { 0 };
+; 153  : 		return MemCpyBase(Destination, Source, Count);
 
-  0001c	33 c0		 xor	 eax, eax
+  00012	ff 75 10	 push	 DWORD PTR _Count$[ebp]
+  00015	ff 75 0c	 push	 DWORD PTR _Source$[ebp]
+  00018	ff 75 08	 push	 DWORD PTR _Destination$[ebp]
+  0001b	e8 00 00 00 00	 call	 _MemCpyBase
+  00020	83 c4 0c	 add	 esp, 12			; 0000000cH
+  00023	5e		 pop	 esi
+  00024	5b		 pop	 ebx
 
-; 66   : 		__cpuid(cpuinfo, 1);
+; 154  : 	}
+; 155  : }
 
-  0001e	8d 7d f0	 lea	 edi, DWORD PTR _cpuinfo$1[ebp]
-  00021	89 45 f4	 mov	 DWORD PTR _cpuinfo$1[ebp+4], eax
-  00024	33 c9		 xor	 ecx, ecx
-  00026	89 45 f8	 mov	 DWORD PTR _cpuinfo$1[ebp+8], eax
-  00029	89 45 fc	 mov	 DWORD PTR _cpuinfo$1[ebp+12], eax
-  0002c	b8 01 00 00 00	 mov	 eax, 1
-  00031	0f a2		 cpuid
-  00033	89 07		 mov	 DWORD PTR [edi], eax
-  00035	89 5f 04	 mov	 DWORD PTR [edi+4], ebx
-  00038	89 4f 08	 mov	 DWORD PTR [edi+8], ecx
-  0003b	89 57 0c	 mov	 DWORD PTR [edi+12], edx
+  00025	8b e5		 mov	 esp, ebp
+  00027	5d		 pop	 ebp
+  00028	c3		 ret	 0
+_MemCpySelect ENDP
+_TEXT	ENDS
+; Function compile flags: /Ogtp
+; File c:\users\philip\documents\github\mollenos\clib\src\string\memcpy.c
+;	COMDAT _MemCpyMMX
+_TEXT	SEGMENT
+_Destination$ = 8					; size = 4
+_Source$ = 12						; size = 4
+_Count$ = 16						; size = 4
+_MemCpyMMX PROC						; COMDAT
 
-; 67   : 		CpuFeatEcx = cpuinfo[2];
+; 60   : {
 
-  0003e	8b 45 f8	 mov	 eax, DWORD PTR _cpuinfo$1[ebp+8]
-  00041	a3 00 00 00 00	 mov	 DWORD PTR _CpuFeatEcx, eax
-$LN12@memcpy:
+  00000	55		 push	 ebp
+  00001	8b ec		 mov	 ebp, esp
 
-; 68   : #else
-; 69   : 		int unused = 0;
-; 70   : 		__cpuid(1, unused, unused, CpuFeatEcx, CpuFeatEdx);
-; 71   : #endif
-; 72   : 	}
+; 61   : 	/* Loop Count */
+; 62   : 	uint32_t MmxLoops = Count / 8;
+
+  00003	8b 4d 10	 mov	 ecx, DWORD PTR _Count$[ebp]
+  00006	8b c1		 mov	 eax, ecx
+  00008	c1 e8 03	 shr	 eax, 3
+
+; 64   : 
+; 65   : 	/* Sanity, we don't want to go through the
+; 66   : 	* overhead if it's less than a certain threshold */
+; 67   : 	if (MmxLoops < MEMCPY_ACCEL_THRESHOLD) {
+
+  0000b	83 f8 0a	 cmp	 eax, 10			; 0000000aH
+  0000e	73 09		 jae	 SHORT $LN1@MemCpyMMX
+
+; 68   : 		return MemCpyBase(Destination, Source, Count);
+
+  00010	89 4d 10	 mov	 DWORD PTR _Count$[ebp], ecx
+
+; 76   : }
+
+  00013	5d		 pop	 ebp
+
+; 68   : 		return MemCpyBase(Destination, Source, Count);
+
+  00014	e9 00 00 00 00	 jmp	 _MemCpyBase
+$LN1@MemCpyMMX:
+
+; 63   : 	uint32_t mBytes = Count % 8;
+
+  00019	83 e1 07	 and	 ecx, 7
+
+; 69   : 	}
+; 70   : 
+; 71   : 	/* Call asm */
+; 72   : 	asm_memcpy_mmx(Destination, Source, MmxLoops, mBytes);
+
+  0001c	51		 push	 ecx
+  0001d	50		 push	 eax
+  0001e	ff 75 0c	 push	 DWORD PTR _Source$[ebp]
+  00021	ff 75 08	 push	 DWORD PTR _Destination$[ebp]
+  00024	e8 00 00 00 00	 call	 _asm_memcpy_mmx
+
 ; 73   : 
-; 74   : 	//Can we use SSE?
-; 75   : 	if(CpuFeatEdx & CPUID_FEAT_EDX_SSE)
+; 74   : 	/* Done */
+; 75   : 	return Destination;
 
-  00046	f7 c6 00 00 00
-	02		 test	 esi, 33554432		; 02000000H
-  0004c	74 18		 je	 SHORT $LN11@memcpy
+  00029	8b 45 08	 mov	 eax, DWORD PTR _Destination$[ebp]
+  0002c	83 c4 10	 add	 esp, 16			; 00000010H
 
-; 76   : 		return memcpy_sse(destination, source, count);
+; 76   : }
 
-  0004e	ff 75 10	 push	 DWORD PTR _count$[ebp]
-  00051	ff 75 0c	 push	 DWORD PTR _source$[ebp]
-  00054	ff 75 08	 push	 DWORD PTR _destination$[ebp]
-  00057	e8 00 00 00 00	 call	 _memcpy_sse
-  0005c	83 c4 0c	 add	 esp, 12			; 0000000cH
-  0005f	5f		 pop	 edi
-  00060	5e		 pop	 esi
-  00061	5b		 pop	 ebx
+  0002f	5d		 pop	 ebp
+  00030	c3		 ret	 0
+_MemCpyMMX ENDP
+_TEXT	ENDS
+; Function compile flags: /Ogtp
+; File c:\users\philip\documents\github\mollenos\clib\src\string\memcpy.c
+;	COMDAT _MemCpySSE
+_TEXT	SEGMENT
+_Destination$ = 8					; size = 4
+_Source$ = 12						; size = 4
+_Count$ = 16						; size = 4
+_MemCpySSE PROC						; COMDAT
 
-; 119  : 	}
+; 38   : {
+
+  00000	55		 push	 ebp
+  00001	8b ec		 mov	 ebp, esp
+
+; 39   : 	/* Loop Count */
+; 40   : 	uint32_t SseLoops = Count / 16;
+
+  00003	8b 4d 10	 mov	 ecx, DWORD PTR _Count$[ebp]
+  00006	8b c1		 mov	 eax, ecx
+  00008	c1 e8 04	 shr	 eax, 4
+
+; 42   : 
+; 43   : 	/* Sanity, we don't want to go through the
+; 44   : 	 * overhead if it's less than a certain threshold */
+; 45   : 	if (SseLoops < MEMCPY_ACCEL_THRESHOLD) {
+
+  0000b	83 f8 0a	 cmp	 eax, 10			; 0000000aH
+  0000e	73 09		 jae	 SHORT $LN1@MemCpySSE
+
+; 46   : 		return MemCpyBase(Destination, Source, Count);
+
+  00010	89 4d 10	 mov	 DWORD PTR _Count$[ebp], ecx
+
+; 54   : }
+
+  00013	5d		 pop	 ebp
+
+; 46   : 		return MemCpyBase(Destination, Source, Count);
+
+  00014	e9 00 00 00 00	 jmp	 _MemCpyBase
+$LN1@MemCpySSE:
+
+; 41   : 	uint32_t mBytes = Count % 16;
+
+  00019	83 e1 0f	 and	 ecx, 15			; 0000000fH
+
+; 47   : 	}
+; 48   : 
+; 49   : 	/* Call asm */
+; 50   : 	asm_memcpy_sse(Destination, Source, SseLoops, mBytes);
+
+  0001c	51		 push	 ecx
+  0001d	50		 push	 eax
+  0001e	ff 75 0c	 push	 DWORD PTR _Source$[ebp]
+  00021	ff 75 08	 push	 DWORD PTR _Destination$[ebp]
+  00024	e8 00 00 00 00	 call	 _asm_memcpy_sse
+
+; 51   : 	
+; 52   : 	/* Done */
+; 53   : 	return Destination;
+
+  00029	8b 45 08	 mov	 eax, DWORD PTR _Destination$[ebp]
+  0002c	83 c4 10	 add	 esp, 16			; 00000010H
+
+; 54   : }
+
+  0002f	5d		 pop	 ebp
+  00030	c3		 ret	 0
+_MemCpySSE ENDP
+_TEXT	ENDS
+; Function compile flags: /Ogtp
+; File c:\users\philip\documents\github\mollenos\clib\src\string\memcpy.c
+;	COMDAT _MemCpyBase
+_TEXT	SEGMENT
+_Destination$ = 8					; size = 4
+_Source$ = 12						; size = 4
+_Count$ = 16						; size = 4
+_MemCpyBase PROC					; COMDAT
+
+; 81   : {
+
+  00000	55		 push	 ebp
+  00001	8b ec		 mov	 ebp, esp
+
+; 82   : 	char *dst = (char*)Destination;
+; 83   : 	const char *src = (const char*)Source;
+
+  00003	8b 55 0c	 mov	 edx, DWORD PTR _Source$[ebp]
+  00006	53		 push	 ebx
+  00007	8b 5d 08	 mov	 ebx, DWORD PTR _Destination$[ebp]
+  0000a	8b c3		 mov	 eax, ebx
+  0000c	56		 push	 esi
+
+; 84   : 	long *aligned_dst;
+; 85   : 	const long *aligned_src;
+; 86   : 
+; 87   : 	/* If the size is small, or either SRC or DST is unaligned,
+; 88   : 	then punt into the byte copy loop.  This should be rare.  */
+; 89   : 	if (!TOO_SMALL(Count) && !UNALIGNED(src, dst))
+
+  0000d	8b 75 10	 mov	 esi, DWORD PTR _Count$[ebp]
+  00010	83 fe 10	 cmp	 esi, 16			; 00000010H
+  00013	72 4c		 jb	 SHORT $LN3@MemCpyBase
+  00015	8b cb		 mov	 ecx, ebx
+  00017	0b ca		 or	 ecx, edx
+  00019	f6 c1 03	 test	 cl, 3
+  0001c	75 43		 jne	 SHORT $LN3@MemCpyBase
+
+; 90   : 	{
+; 91   : 		aligned_dst = (long*)dst;
+
+  0001e	57		 push	 edi
+  0001f	8b fe		 mov	 edi, esi
+  00021	c1 ef 04	 shr	 edi, 4
+$LL6@MemCpyBase:
+
+; 92   : 		aligned_src = (long*)src;
+; 93   : 
+; 94   : 		/* Copy 4X long words at a time if possible.  */
+; 95   : 		while (Count >= BIGBLOCKSIZE)
+; 96   : 		{
+; 97   : 			*aligned_dst++ = *aligned_src++;
+
+  00024	8b 0a		 mov	 ecx, DWORD PTR [edx]
+
+; 98   : 			*aligned_dst++ = *aligned_src++;
+; 99   : 			*aligned_dst++ = *aligned_src++;
+; 100  : 			*aligned_dst++ = *aligned_src++;
+; 101  : 			Count -= BIGBLOCKSIZE;
+
+  00026	83 ee 10	 sub	 esi, 16			; 00000010H
+  00029	89 08		 mov	 DWORD PTR [eax], ecx
+  0002b	8b 4a 04	 mov	 ecx, DWORD PTR [edx+4]
+  0002e	89 48 04	 mov	 DWORD PTR [eax+4], ecx
+  00031	8b 4a 08	 mov	 ecx, DWORD PTR [edx+8]
+  00034	89 48 08	 mov	 DWORD PTR [eax+8], ecx
+  00037	8b 4a 0c	 mov	 ecx, DWORD PTR [edx+12]
+  0003a	83 c2 10	 add	 edx, 16			; 00000010H
+  0003d	89 48 0c	 mov	 DWORD PTR [eax+12], ecx
+  00040	83 c0 10	 add	 eax, 16			; 00000010H
+  00043	4f		 dec	 edi
+  00044	75 de		 jne	 SHORT $LL6@MemCpyBase
+
+; 102  : 		}
+; 103  : 
+; 104  : 		/* Copy one long word at a time if possible.  */
+; 105  : 		while (Count >= LITTLEBLOCKSIZE)
+
+  00046	83 fe 04	 cmp	 esi, 4
+  00049	72 15		 jb	 SHORT $LN24@MemCpyBase
+  0004b	8b fe		 mov	 edi, esi
+  0004d	c1 ef 02	 shr	 edi, 2
+$LL4@MemCpyBase:
+
+; 106  : 		{
+; 107  : 			*aligned_dst++ = *aligned_src++;
+
+  00050	8b 0a		 mov	 ecx, DWORD PTR [edx]
+
+; 108  : 			Count -= LITTLEBLOCKSIZE;
+
+  00052	83 ee 04	 sub	 esi, 4
+  00055	89 08		 mov	 DWORD PTR [eax], ecx
+  00057	83 c2 04	 add	 edx, 4
+  0005a	83 c0 04	 add	 eax, 4
+  0005d	4f		 dec	 edi
+  0005e	75 f0		 jne	 SHORT $LL4@MemCpyBase
+$LN24@MemCpyBase:
+  00060	5f		 pop	 edi
+$LN3@MemCpyBase:
+
+; 109  : 		}
+; 110  : 
+; 111  : 		/* Pick up any residual with a byte copier.  */
+; 112  : 		dst = (char*)aligned_dst;
+; 113  : 		src = (char*)aligned_src;
+; 114  : 	}
+; 115  : 
+; 116  : 	while (Count--)
+
+  00061	85 f6		 test	 esi, esi
+  00063	74 0e		 je	 SHORT $LN23@MemCpyBase
+  00065	2b d0		 sub	 edx, eax
+$LL2@MemCpyBase:
+
+; 117  : 		*dst++ = *src++;
+
+  00067	8a 0c 02	 mov	 cl, BYTE PTR [edx+eax]
+  0006a	8d 40 01	 lea	 eax, DWORD PTR [eax+1]
+  0006d	88 48 ff	 mov	 BYTE PTR [eax-1], cl
+  00070	4e		 dec	 esi
+  00071	75 f4		 jne	 SHORT $LL2@MemCpyBase
+$LN23@MemCpyBase:
+  00073	5e		 pop	 esi
+
+; 118  : 
+; 119  : 	return Destination;
+
+  00074	8b c3		 mov	 eax, ebx
+  00076	5b		 pop	 ebx
+
 ; 120  : }
 
-  00062	8b e5		 mov	 esp, ebp
-  00064	5d		 pop	 ebp
-  00065	c3		 ret	 0
-$LN11@memcpy:
+  00077	5d		 pop	 ebp
+  00078	c3		 ret	 0
+_MemCpyBase ENDP
+_TEXT	ENDS
+; Function compile flags: /Ogtp
+; File c:\users\philip\documents\github\mollenos\clib\src\string\memcpy.c
+;	COMDAT _memcpy
+_TEXT	SEGMENT
+_destination$ = 8					; size = 4
+_source$ = 12						; size = 4
+_count$ = 16						; size = 4
+_memcpy	PROC						; COMDAT
 
-; 77   : 	else if(CpuFeatEdx & CPUID_FEAT_EDX_MMX)
+; 164  : {
 
-  00066	f7 c6 00 00 80
-	00		 test	 esi, 8388608		; 00800000H
-  0006c	74 18		 je	 SHORT $LN9@memcpy
+  00000	55		 push	 ebp
+  00001	8b ec		 mov	 ebp, esp
 
-; 78   : 		return memcpy_mmx(destination, source, count);
+; 165  : 	/* Sanity, just in case */
+; 166  : 	if (__GlbMemCpyInstance == NULL) {
 
-  0006e	ff 75 10	 push	 DWORD PTR _count$[ebp]
-  00071	ff 75 0c	 push	 DWORD PTR _source$[ebp]
-  00074	ff 75 08	 push	 DWORD PTR _destination$[ebp]
-  00077	e8 00 00 00 00	 call	 _memcpy_mmx
-  0007c	83 c4 0c	 add	 esp, 12			; 0000000cH
-  0007f	5f		 pop	 edi
-  00080	5e		 pop	 esi
-  00081	5b		 pop	 ebx
+  00003	a1 00 00 00 00	 mov	 eax, DWORD PTR ___GlbMemCpyInstance
+  00008	b9 00 00 00 00	 mov	 ecx, OFFSET _MemCpySelect
+  0000d	85 c0		 test	 eax, eax
+  0000f	0f 44 c1	 cmove	 eax, ecx
+  00012	a3 00 00 00 00	 mov	 DWORD PTR ___GlbMemCpyInstance, eax
 
-; 119  : 	}
-; 120  : }
+; 172  : }
 
-  00082	8b e5		 mov	 esp, ebp
-  00084	5d		 pop	 ebp
-  00085	c3		 ret	 0
-$LN9@memcpy:
+  00017	5d		 pop	 ebp
 
-; 79   : 	else
-; 80   : 	{
-; 81   : 		char *dst = (char*)destination;
-; 82   : 		const char *src = (const char*)source;
-; 83   : 		long *aligned_dst;
-; 84   : 		const long *aligned_src;
-; 85   : 
-; 86   : 		/* If the size is small, or either SRC or DST is unaligned,
-; 87   : 			then punt into the byte copy loop.  This should be rare.  */
-; 88   : 		if (!TOO_SMALL(count) && !UNALIGNED (src, dst))
+; 167  : 		__GlbMemCpyInstance = MemCpySelect;
+; 168  : 	}
+; 169  : 
+; 170  : 	/* Just return the selected template */
+; 171  : 	return __GlbMemCpyInstance(destination, source, count);
 
-  00086	8b 75 10	 mov	 esi, DWORD PTR _count$[ebp]
-  00089	8b 5d 08	 mov	 ebx, DWORD PTR _destination$[ebp]
-  0008c	8b c3		 mov	 eax, ebx
-  0008e	8b 55 0c	 mov	 edx, DWORD PTR _source$[ebp]
-  00091	83 fe 10	 cmp	 esi, 16			; 00000010H
-  00094	72 4a		 jb	 SHORT $LN3@memcpy
-  00096	8b cb		 mov	 ecx, ebx
-  00098	0b ca		 or	 ecx, edx
-  0009a	f6 c1 03	 test	 cl, 3
-  0009d	75 41		 jne	 SHORT $LN3@memcpy
-
-; 89   : 		{
-; 90   : 			aligned_dst = (long*)dst;
-
-  0009f	8b fe		 mov	 edi, esi
-  000a1	c1 ef 04	 shr	 edi, 4
-$LL6@memcpy:
-
-; 91   : 			aligned_src = (long*)src;
-; 92   : 
-; 93   : 			/* Copy 4X long words at a time if possible.  */
-; 94   : 			while (count >= BIGBLOCKSIZE)
-; 95   : 			{
-; 96   : 				*aligned_dst++ = *aligned_src++;
-
-  000a4	8b 0a		 mov	 ecx, DWORD PTR [edx]
-
-; 97   : 				*aligned_dst++ = *aligned_src++;
-; 98   : 				*aligned_dst++ = *aligned_src++;
-; 99   : 				*aligned_dst++ = *aligned_src++;
-; 100  : 				count -= BIGBLOCKSIZE;
-
-  000a6	83 ee 10	 sub	 esi, 16			; 00000010H
-  000a9	89 08		 mov	 DWORD PTR [eax], ecx
-  000ab	8b 4a 04	 mov	 ecx, DWORD PTR [edx+4]
-  000ae	89 48 04	 mov	 DWORD PTR [eax+4], ecx
-  000b1	8b 4a 08	 mov	 ecx, DWORD PTR [edx+8]
-  000b4	89 48 08	 mov	 DWORD PTR [eax+8], ecx
-  000b7	8b 4a 0c	 mov	 ecx, DWORD PTR [edx+12]
-  000ba	83 c2 10	 add	 edx, 16			; 00000010H
-  000bd	89 48 0c	 mov	 DWORD PTR [eax+12], ecx
-  000c0	83 c0 10	 add	 eax, 16			; 00000010H
-  000c3	4f		 dec	 edi
-  000c4	75 de		 jne	 SHORT $LL6@memcpy
-
-; 101  : 			}
-; 102  : 
-; 103  : 			/* Copy one long word at a time if possible.  */
-; 104  : 			while (count >= LITTLEBLOCKSIZE)
-
-  000c6	83 fe 04	 cmp	 esi, 4
-  000c9	72 15		 jb	 SHORT $LN3@memcpy
-  000cb	8b fe		 mov	 edi, esi
-  000cd	c1 ef 02	 shr	 edi, 2
-$LL4@memcpy:
-
-; 105  : 			{
-; 106  : 				*aligned_dst++ = *aligned_src++;
-
-  000d0	8b 0a		 mov	 ecx, DWORD PTR [edx]
-
-; 107  : 				count -= LITTLEBLOCKSIZE;
-
-  000d2	83 ee 04	 sub	 esi, 4
-  000d5	89 08		 mov	 DWORD PTR [eax], ecx
-  000d7	83 c2 04	 add	 edx, 4
-  000da	83 c0 04	 add	 eax, 4
-  000dd	4f		 dec	 edi
-  000de	75 f0		 jne	 SHORT $LL4@memcpy
-$LN3@memcpy:
-
-; 108  : 			}
-; 109  : 
-; 110  : 			/* Pick up any residual with a byte copier.  */
-; 111  : 			dst = (char*)aligned_dst;
-; 112  : 			src = (char*)aligned_src;
-; 113  : 		}
-; 114  : 
-; 115  : 		while (count--)
-
-  000e0	85 f6		 test	 esi, esi
-  000e2	74 0e		 je	 SHORT $LN20@memcpy
-  000e4	2b d0		 sub	 edx, eax
-$LL2@memcpy:
-
-; 116  : 		*dst++ = *src++;
-
-  000e6	8a 0c 02	 mov	 cl, BYTE PTR [edx+eax]
-  000e9	8d 40 01	 lea	 eax, DWORD PTR [eax+1]
-  000ec	88 48 ff	 mov	 BYTE PTR [eax-1], cl
-  000ef	4e		 dec	 esi
-  000f0	75 f4		 jne	 SHORT $LL2@memcpy
-$LN20@memcpy:
-  000f2	5f		 pop	 edi
-  000f3	5e		 pop	 esi
-
-; 117  : 
-; 118  : 		return destination;
-
-  000f4	8b c3		 mov	 eax, ebx
-  000f6	5b		 pop	 ebx
-
-; 119  : 	}
-; 120  : }
-
-  000f7	8b e5		 mov	 esp, ebp
-  000f9	5d		 pop	 ebp
-  000fa	c3		 ret	 0
+  00018	ff e0		 jmp	 eax
 _memcpy	ENDP
 _TEXT	ENDS
 END

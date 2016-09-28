@@ -62,13 +62,13 @@ typedef enum _MGenericMessageType
 ***********************/
 typedef enum _MInputSourceType
 {
-	PointerUnknown = 0,
-	PointerMouse,
-	PointerKeyboard,
-	PointerKeypad,
-	PointerJoystick,
-	PointerGamePad,
-	PointerOther
+	InputUnknown = 0,
+	InputMouse,
+	InputKeyboard,
+	InputKeypad,
+	InputJoystick,
+	InputGamePad,
+	InputOther
 
 } MInputSourceType_t;
 
@@ -132,29 +132,6 @@ typedef struct _MEventMessageGeneric
 
 /***********************
 * Input IPC Message
-*  - Pointer Event
-***********************/
-typedef struct _MEventMessageInputPointer
-{
-	/* Header */
-	MEventMessageBase_t Header;
-
-	/* Input Type */
-	MInputSourceType_t Type;
-
-	/* Axis Data
-	* Must be relative */
-	int32_t xRelative;
-	int32_t yRelative;
-	int32_t zRelative;
-
-	/* Rotation Data */
-
-} MEventMessageInputPointer_t;
-
-
-/***********************
-* Input IPC Message
 *  - Button Event
 ***********************/
 typedef struct _MEventMessageInputButton
@@ -170,6 +147,14 @@ typedef struct _MEventMessageInputButton
 
 	/* Button State (Press / Release) */
 	uint32_t State;
+
+	/* Axis Data
+	 * Must be relative */
+	int32_t xRelative;
+	int32_t yRelative;
+	int32_t zRelative;
+
+	/* Rotation Data */
 
 } MEventMessageInputButton_t; 
 
@@ -200,7 +185,6 @@ typedef union _MEventMessage
 	 * that rely on static message space
 	 * Contain data as mouse position, 
 	 * button states etc */
-	MEventMessageInputPointer_t EventPointer;
 	MEventMessageInputButton_t EventButton;
 
 } MEventMessage_t;

@@ -40,7 +40,7 @@ int Ps2MouseIrqHandler(void *Args)
 {
 	/* We get 3 bytes describing the state
 	 * BUT we can only get one at the time..... -.- */
-	MEventMessageInputPointer_t eData;
+	MEventMessageInputButton_t eData;
 	MEventMessageInputButton_t bData;
 
 	/* Get datastructure */
@@ -73,14 +73,14 @@ int Ps2MouseIrqHandler(void *Args)
 			Ps2Dev->MouseY += (int32_t)(Ps2Dev->Buffer[2] - ((Ps2Dev->Buffer[0] << 4) & 0x100));
 
 			/* Redirect Mouse Pointer Data */
-			eData.Type = PointerMouse;
+			eData.Type = InputMouse;
 			eData.xRelative = (int32_t)(Ps2Dev->Buffer[1] - ((Ps2Dev->Buffer[0] << 4) & 0x100));
 			eData.yRelative = (int32_t)(Ps2Dev->Buffer[2] - ((Ps2Dev->Buffer[0] << 4) & 0x100));
 			eData.zRelative = 0;
 
 			/* Set header */
 			eData.Header.Type = EventInput;
-			eData.Header.Length = sizeof(MEventMessageInputPointer_t);
+			eData.Header.Length = sizeof(MEventMessageInputButton_t);
 
 			/* Send! */
 			EmCreateEvent((MEventMessageBase_t*)&eData);
@@ -89,7 +89,7 @@ int Ps2MouseIrqHandler(void *Args)
 			if (Ps2Dev->Buffer[0] != Ps2Dev->MouseButtons)
 			{
 				/* Setup */
-				bData.Type = PointerMouse;
+				bData.Type = InputMouse;
 				bData.Data = Ps2Dev->Buffer[0];
 				bData.State = 0;
 
