@@ -23,9 +23,9 @@
 #define _MCORE_KEYBOARD_SCS2_H_
 
 /* Includes */
+#include <os/virtualkeycodes.h>
 #include <stddef.h>
 #include <stdint.h>
-#include <VirtualKeyCodes.h>
 
 /* Table */
 typedef enum _ScancodeSet2

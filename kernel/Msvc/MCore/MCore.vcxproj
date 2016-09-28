@@ -68,7 +68,6 @@
     <ClInclude Include="..\..\Include\Timers.h" />
     <ClInclude Include="..\..\Include\Vfs\Partition.h" />
     <ClInclude Include="..\..\Include\Vfs\Vfs.h" />
-    <ClInclude Include="..\..\Include\VirtualKeyCodes.h" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <ProjectGuid>{E1811ABC-D002-44D1-8581-2ACF9C1DD0F9}</ProjectGuid>

@@ -161,9 +161,6 @@
     <ClInclude Include="..\..\Include\Timers.h">
       <Filter>Includes</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\Include\VirtualKeyCodes.h">
-      <Filter>Includes</Filter>
-    </ClInclude>
     <ClInclude Include="..\..\Include\DeviceManager.h">
       <Filter>Includes</Filter>
     </ClInclude>

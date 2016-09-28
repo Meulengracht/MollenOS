@@ -46,6 +46,7 @@ typedef unsigned long long Cpu_t;
 /* Operation System types below 
  * these are usually fixed no matter arch and include stuff
  * as threading, processing etc */
+typedef unsigned int IpcComm_t;
 typedef unsigned int ProcId_t;
 typedef unsigned int ThreadId_t;
 typedef unsigned int TimerId_t;

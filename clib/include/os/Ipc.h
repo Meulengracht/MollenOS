@@ -23,17 +23,8 @@
 #define _MOLLENOS_IPC_H_
 
 /* Includes */
-#include <crtdefs.h>
-#include <stdint.h>
-
-/* Definitions */
-
-/***********************
-* IPC Comm Type
-***********************/
-typedef unsigned int IpcComm_t;
-
-/* Enumerators */
+#include <os/osdefs.h>
+#include <os/virtualkeycodes.h>
 
 /***********************
 * Base IPC Message Type
@@ -134,7 +125,7 @@ typedef struct _MEventMessageGeneric
 * Input IPC Message
 *  - Button Event
 ***********************/
-typedef struct _MEventMessageInputButton
+typedef struct _MEventMessageInput
 {
 	/* Header */
 	MEventMessageBase_t Header;
@@ -142,29 +133,27 @@ typedef struct _MEventMessageInputButton
 	/* Input Type */
 	MInputSourceType_t Type;
 
-	/* Button Data (Keycode) */
-	uint32_t Data;
+	/* Button Data (Keycode / Symbol) */
+	unsigned Scancode;
+	VKey Key;
 
-	/* Button State (Press / Release) */
-	uint32_t State;
+	/* Flags (Bit-field, see under structure) */
+	unsigned Flags;
 
 	/* Axis Data
 	 * Must be relative */
-	int32_t xRelative;
-	int32_t yRelative;
-	int32_t zRelative;
+	ssize_t xRelative;
+	ssize_t yRelative;
+	ssize_t zRelative;
 
 	/* Rotation Data */
 
-} MEventMessageInputButton_t; 
+} MEventMessageInput_t; 
 
-/* Event Types */
-#define MCORE_INPUT_LEFT_MOUSEBUTTON	0x1
-#define MCORE_INPUT_RIGHT_MOUSEBUTTON	0x2
-#define MCORE_INPUT_MIDDLE_MOUSEBUTTON	0x4
-
+/* Flags - Event Types */
 #define MCORE_INPUT_BUTTON_RELEASED		0x0
 #define MCORE_INPUT_BUTTON_CLICKED		0x1
+#define MCORE_INPUT_MULTIPLEKEYS		0x2
 
 /***********************
 * Input IPC Message
@@ -185,7 +174,7 @@ typedef union _MEventMessage
 	 * that rely on static message space
 	 * Contain data as mouse position, 
 	 * button states etc */
-	MEventMessageInputButton_t EventButton;
+	MEventMessageInput_t Input;
 
 } MEventMessage_t;
 

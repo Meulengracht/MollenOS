@@ -717,11 +717,11 @@ void UsbHidApplyInputData(HidDevice_t *Device, UsbHidReportCollectionItem_t *Col
 	UsbHidReportInputItem_t *InputItem = (UsbHidReportInputItem_t*)CollectionItem->Data;
 
 	/* Need those for registrating events */
-	MEventMessageInputButton_t InputData = { 0 };
+	MEventMessageInput_t InputData = { 0 };
 
 	/* Set Headers */
 	InputData.Header.Type = EventInput;
-	InputData.Header.Length = sizeof(MEventMessageInputButton_t);
+	InputData.Header.Length = sizeof(MEventMessageInput_t);
 
 	/* And these for parsing */
 	uint64_t Value = 0, OldValue = 0;

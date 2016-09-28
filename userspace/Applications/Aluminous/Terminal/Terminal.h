@@ -148,6 +148,10 @@ private:
 	 * by processng it, and scrolls if necessary */
 	void AddText(char *Message, ...);
 
+	/* History functions, for previous / next */
+	void HistoryPrevious();
+	void HistoryNext();
+
 	/* Process a new line by updating history */
 	void NewLine();
 
@@ -155,7 +159,7 @@ private:
 	void InsertChar(char Character);
 
 	/* Delete character of current line at current pos */
-	void RemoveChar(int Position);
+	int RemoveChar(int Position);
 
 	/* Render the cursor in reverse colors, this will give the
 	 * effect of a big fat block that acts as cursor */
@@ -179,7 +183,7 @@ private:
 	void ClearFrom(int Column, int Row);
 
 	/* Text Functions */
-	int AddCharacter(char Character);
+	void AddCharacter(char Character);
 
 	/* Private - Data */
 	TerminalFont *m_pActiveFont;

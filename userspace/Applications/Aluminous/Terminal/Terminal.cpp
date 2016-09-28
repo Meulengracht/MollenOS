@@ -21,9 +21,13 @@
 */
 
 /* Includes */
-#include <ds/mstring.h>
 #include "Terminal.h"
+
+/* C-Library */
+#include <os/VirtualKeyCodes.h>
+#include <ds/mstring.h>
 #include <cmath>
+#include <cctype>
 
 /* FIXME: Right now we assume the gray-scale renderer Freetype is using
 supports 256 shades of gray, but we should instead key off of num_grays
@@ -136,9 +140,124 @@ void Terminal::NewCommand()
 	while (Reading) {
 
 		/* Read a new character from input */
-		int Character = getchar();
+		VKey Character = (VKey)getchar();
 
+		/* Switch */ 
+		if (Character == VK_BACK) {
+			if ((m_iLinePos > 0) && (m_pCurrentLine[m_iLinePos - 1] == '\t')) {
+				if (!RemoveChar(m_iLinePos - 1)) {
+					HideCursor();
+					m_iCursorPositionX -= 4;
 
+					/* Sanity check boundary on y */
+					if (m_iCursorPositionX < 0) {
+						m_iCursorPositionX += m_iColumns;
+						m_iCursorPositionY--;
+					}
+
+					/* If we were in the middle of the line, 
+					 * we have to render the rest of the line */
+					if (m_iLinePos < strlen(m_pCurrentLine)) 
+					{
+						/* Save current cursor */
+						int SavedX = m_iCursorPositionX, SavedY = m_iCursorPositionY;
+
+						for (int i = m_iLinePos; i<strlen(m_pCurrentLine); i++)
+							AddCharacter(m_pCurrentLine[i]); //AddChar
+						for (int i = 0; i < 4; i++)
+							AddCharacter(' '); //AddChar
+
+						/* Restore position */
+						m_iCursorPositionX = SavedX;
+						m_iCursorPositionY = SavedY;
+					}
+
+					/* Render Cursor */
+					ShowCursor();
+				}
+			}
+			else if (RemoveChar(m_iLinePos - 1) == 0) {
+				
+				HideCursor();
+				
+				if (m_iCursorPositionX > 0)
+					m_iCursorPositionX--;
+				else {
+					m_iCursorPositionX = m_iColumns - 1;
+					m_iCursorPositionY--;
+				}
+
+				/* If we were in the middle of the line, we have to render the ret of the line */
+				if (m_iLinePos < strlen(m_pCurrentLine)) {
+					
+					/* Save current cursor */
+					int SavedX = m_iCursorPositionX, SavedY = m_iCursorPositionY;
+
+					/* Add the characters */
+					for (int i = m_iLinePos; i<strlen(m_pCurrentLine); i++)
+						AddCharacter(m_pCurrentLine[i]);
+					AddCharacter(' ');
+					
+					/* Restore position */
+					m_iCursorPositionX = SavedX;
+					m_iCursorPositionY = SavedY;
+				}
+				
+				/* Render Cursor */
+				ShowCursor();
+			}
+		}
+		else if (Character == VK_ENTER) {
+			HideCursor();
+			NewLine();
+		}
+		else if (Character == VK_UP) {
+			HistoryPrevious();
+		}
+		else if (Character == VK_DOWN) {
+			HistoryNext();
+		}
+		else if (Character == VK_LEFT) {
+			if (m_iLinePos > 0) {
+				HideCursor();
+				m_iLinePos--;
+				int dx = 1;
+				if (m_pCurrentLine[m_iLinePos] == '\t')
+					dx = 4;
+				m_iCursorPositionX -= dx;
+				if (m_iCursorPositionX < 0) {
+					m_iCursorPositionX += m_iColumns;
+					m_iCursorPositionY--;
+				}
+				
+				/* Render Cursor */
+				ShowCursor();
+			}
+		}
+		else if (Character == VK_RIGHT) {
+			if (m_iLinePos < strlen(m_pCurrentLine)) {
+				HideCursor();
+				int dx = +1;
+				if ((m_iLinePos < strlen(m_pCurrentLine)) && m_pCurrentLine[m_iLinePos] == '\t')
+					dx = 4;
+				m_iCursorPositionX += dx;
+				if (m_iCursorPositionX >= m_iColumns) {
+					m_iCursorPositionX -= m_iColumns;
+					m_iCursorPositionY++;
+				}
+				m_iLinePos++;
+				
+				/* Render Cursor */
+				ShowCursor();
+			}
+		}
+		else
+		{
+			/* ASCII ? */
+			if (isalpha(Character)) {
+				AddCharacter((char)Character);
+			}
+		}
 	}
 }
 
@@ -167,6 +286,49 @@ bool Terminal::SetSize(int Columns, int Rows)
 bool Terminal::SetHistorySize(int NumLines)
 {
 	return true;
+}
+
+/* Yank previous history line */
+void Terminal::HistoryPrevious()
+{
+	/* Sanitize if enough history available */
+	if ((m_iHistoryIndex <= 0) || (m_pHistory[m_iHistoryIndex - 1] == 0))
+		return;
+
+	/* Save current entry within history */
+	if (m_iHistoryIndex == m_iHistorySize - 1) {
+		strcpy(m_pHistory[m_iHistorySize - 1], m_pCurrentLine);
+	}
+
+	/* Copy history to entry */
+	m_iHistoryIndex--;
+	strcpy(m_pCurrentLine, m_pHistory[m_iHistoryIndex]);
+	m_iLinePos = strlen(m_pCurrentLine);
+
+	/* Refresh terminal */
+	ClearFrom(m_iLineStartX, m_iLineStartY);
+	m_iCursorPositionX = m_iLineStartX;
+	m_iCursorPositionY = m_iLineStartY;
+	AddText(m_pCurrentLine);
+}
+
+/* Yank next history line */
+void Terminal::HistoryNext()
+{
+	/* Make sure we have enough room for next */
+	if (m_iHistoryIndex >= m_iHistorySize - 1)
+		return;
+
+	/* Copy history to entry */
+	m_iHistoryIndex++;
+	strcpy(m_pCurrentLine, m_pHistory[m_iHistoryIndex]);
+	m_iLinePos = strlen(m_pCurrentLine);
+
+	/* Refresh terminal */
+	ClearFrom(m_iLineStartX, m_iLineStartY);
+	m_iCursorPositionX = m_iLineStartX;
+	m_iCursorPositionY = m_iLineStartY;
+	AddText(m_pCurrentLine);
 }
 
 /* Terminal Customization functions
@@ -372,7 +534,6 @@ void Terminal::AddText(char *Message, ...)
 {
 	/* VA */
 	static char Line[1024];
-	char cBuffer[] = " ";
 	va_list Args;
 	int i = 0;
 
@@ -415,28 +576,37 @@ void Terminal::AddText(char *Message, ...)
 			dx = 4;
 		}
 
-		/* Update */
-		cBuffer[0] = (char)cc;
-
 		/* Iterate how many chars we need to output */
-		for (int j = 0; j < dx; j++) 
-		{
-			/* Render the character */
-			RenderText(m_iCursorPositionX * m_iFontWidth,
-				m_iCursorPositionY * m_iFontHeight, cBuffer);
-			m_iCursorPositionX++;
+		for (int j = 0; j < dx; j++)  {
+			AddCharacter(cc);
+		}
+	}
+}
 
-			/* Boundary check on width */
-			if (m_iCursorPositionX >= m_iColumns) {
-				m_iCursorPositionX -= m_iColumns;
-				m_iCursorPositionY++;
-				
-				/* Boundary check, maybe scroll */
-				if (m_iCursorPositionY >= m_iRows) {
-					ScrollText(1);
-					m_iCursorPositionY--;
-				}
-			}
+/* Shorthand for the above function, instead of 
+ * adding an entire message, just add a single character */
+void Terminal::AddCharacter(char Character)
+{
+	/* Buffer */
+	char cBuffer[] = " ";
+
+	/* Update */
+	cBuffer[0] = Character;
+
+	/* Render the character */
+	RenderText(m_iCursorPositionX * m_iFontWidth,
+		m_iCursorPositionY * m_iFontHeight, cBuffer);
+	m_iCursorPositionX++;
+
+	/* Boundary check on width */
+	if (m_iCursorPositionX >= m_iColumns) {
+		m_iCursorPositionX -= m_iColumns;
+		m_iCursorPositionY++;
+
+		/* Boundary check, maybe scroll */
+		if (m_iCursorPositionY >= m_iRows) {
+			ScrollText(1);
+			m_iCursorPositionY--;
 		}
 	}
 }
@@ -626,12 +796,12 @@ void Terminal::InsertChar(char Character)
 }
 
 /* Delete character of current line at current pos */
-void Terminal::RemoveChar(int Position)
+int Terminal::RemoveChar(int Position)
 {
 	/* Sanitize some params and the current line */
 	if (Position < 0 
 		|| strlen(m_pCurrentLine) == 0)
-		return;
+		return -1;
 
 	/* Move the line one space and simoultanously override the
 	 * character spot we want to delete */
@@ -640,6 +810,9 @@ void Terminal::RemoveChar(int Position)
 
 	/* Reduce line position */
 	m_iLinePos--;
+
+	/* Done! */
+	return 0;
 }
 
 /* Clear out lines from the given col/row 
