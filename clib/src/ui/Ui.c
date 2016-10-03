@@ -123,7 +123,6 @@ int UiQueryProcessWindow(IpcComm_t Target, IPCWindowQuery_t *Information)
 	/* Access/Setup buffer */
 	QueryInfo = (IPCWindowQuery_t*)bget(sizeof(IPCWindowQuery_t));
 	memset(QueryInfo, 0, sizeof(IPCWindowQuery_t));
-
 	QueryInfo->Target = Target;
 
 	/* Release buffer lock */

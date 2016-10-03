@@ -1,8 +1,10 @@
 
 # About MollenOS
 
-MollenOS is a hobby OS project, started back in 2011. The aim is to create something usuable, just for trivial tasks in your every normal day like checking the web.
+MollenOS is a hobby OS project, started back in 2011. I then took a long break and picked up development again in the start of 2015 by rewriting the entire OS. The aim is to create something usuable, just for trivial tasks in your every normal day like checking the web.
 It is written entirely from scratch, however the C Library is a custom variation of third party existing c libraries and my own implementations. 
+
+## Screenshots
 
 ## Kernel Features
 
@@ -44,7 +46,15 @@ ToDo
 
 ### Ported libraries and programs
 
-ToDo
+| Library       | Version   |
+| ------------- | ---------:|
+| zlib          | 1.2.8     |
+| libpng        | 1.6.21    |
+| libjpeg       | 9b        |
+| freetype2     | 2.6.3     |
+| SDL2          | 2.0.3     |
+| SDL2_image    | 2.0.1     |
+| lua           | 5.3.2     |
 
 ## Building MollenOS
 

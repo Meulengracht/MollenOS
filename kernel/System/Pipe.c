@@ -35,19 +35,8 @@ MCorePipe_t *PipeCreate(size_t Size)
 	MCorePipe_t *Pipe = (MCorePipe_t*)kmalloc(sizeof(MCorePipe_t));
 	Pipe->Buffer = (uint8_t*)kmalloc(Size);
 
-	/* Setup rest */
-	Pipe->ReadQueueCount = 0;
-	Pipe->WriteQueueCount = 0;
-	Pipe->IndexWrite = 0;
-	Pipe->IndexRead = 0;
-	Pipe->Length = Size;
-
-	/* Reset Lock */
-	SpinlockReset(&Pipe->Lock);
-
-	/* Setup Semaphores */
-	SemaphoreConstruct(&Pipe->ReadQueue, 0);
-	SemaphoreConstruct(&Pipe->WriteQueue, 0);
+	/* Construct it */
+	PipeConstruct(Pipe, Pipe->Buffer, Size);
 
 	/* Done */
 	return Pipe;
@@ -60,6 +49,8 @@ void PipeConstruct(MCorePipe_t *Pipe, uint8_t *Buffer, size_t BufferLength)
 	Pipe->Buffer = Buffer;
 
 	/* Setup rest */
+	Pipe->ReadQueueCount = 0;
+	Pipe->WriteQueueCount = 0;
 	Pipe->IndexWrite = 0;
 	Pipe->IndexRead = 0;
 	Pipe->Length = BufferLength;
