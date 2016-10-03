@@ -6,6 +6,14 @@ It is written entirely from scratch, however the C Library is a custom variation
 
 ## Screenshots
 
+### Boot Screen
+
+ToDo
+
+### Usage
+
+ToDo
+
 ## Kernel Features
 
 Since MollenOS uses it's own filesystem (MFS), it is not booted by the more traditional way of GRUB. Instead it has it's own advanced bootloader, which can be found under my other repositories. mBoot is written specifically for MollenOS, and supports booting from both FAT32 & MFS.
@@ -46,15 +54,18 @@ ToDo
 
 ### Ported libraries and programs
 
-| Library       | Version   |
-| ------------- | ---------:|
-| zlib          | 1.2.8     |
-| libpng        | 1.6.21    |
-| libjpeg       | 9b        |
-| freetype2     | 2.6.3     |
-| SDL2          | 2.0.3     |
-| SDL2_image    | 2.0.1     |
-| lua           | 5.3.2     |
+These are the various libraries ported to MollenOS userspace, and are primarily used by system software, like the terminal, window manager etc.
+
+| Library       | Version   | Description             |
+| ------------- | ---------:|:-----------------------:|
+| zlib          | 1.2.8     | Compression library, used by libpng |
+| libpng        | 1.6.21    | Library for handling *.png image files |
+| libjpeg       | 9b        | Library for handling *.jpg image files |
+| freetype2     | 2.6.3     | Library for handling and rendering truetype fonts |
+| SDL2          | 2.0.3     | Graphics/Utility library used by Sapphire for rendering |
+| SDL2_image    | 2.0.1     | Image helper library used by Sapphire for rendering |
+| lua           | 5.3.2     | I ported this just for fun so I had something to test when the terminal implementation is ready |
+
 
 ## Building MollenOS
 
