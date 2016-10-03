@@ -39,19 +39,16 @@ int GlbUserSemaphoreInit = 0;
  * semaphore */
 Semaphore_t *SemaphoreCreate(int Value)
 {
+	/* Variables needed */
 	Semaphore_t *Semaphore;
 
-	/* Sanity */
-	assert(Value >= 0);
-
-	/* Allocate */
+	/* Allocate a new instance of a semaphore */
 	Semaphore = (Semaphore_t*)kmalloc(sizeof(Semaphore_t));
-	Semaphore->Value = Value;
-	Semaphore->Creator = ThreadingGetCurrentThreadId();
 
-	/* Setup lock */
-	SpinlockReset(&Semaphore->Lock);
+	/* Simply construct it */
+	SemaphoreConstruct(Semaphore, Value);
 
+	/* Done! */
 	return Semaphore;
 }
 
@@ -140,7 +137,6 @@ void SemaphoreConstruct(Semaphore_t *Semaphore, int Value)
 	assert(Value >= 0);
 
 	/* Allocate */
-	Semaphore = (Semaphore_t*)kmalloc(sizeof(Semaphore_t));
 	Semaphore->Value = Value;
 	Semaphore->Creator = ThreadingGetCurrentThreadId();
 

@@ -10,35 +10,14 @@
     <Filter Include="Interrupts">
       <UniqueIdentifier>{11123936-825e-45b2-be98-5fa6e60d0e19}</UniqueIdentifier>
     </Filter>
-    <Filter Include="x32">
-      <UniqueIdentifier>{095c5231-400d-4c13-a6e8-2acb28c7ebcc}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="x64">
-      <UniqueIdentifier>{b58340b2-5ac6-4e01-a82a-8469c99fe286}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="x32\Memory">
-      <UniqueIdentifier>{8e1fa0a3-90b8-4f07-8fa1-a03aab0134c7}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="x32\Descriptors">
-      <UniqueIdentifier>{4ca598f1-0554-4331-be1b-6c43e545d43a}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="x32\Threading">
-      <UniqueIdentifier>{d5a4e472-8069-4770-86ad-04971f2e9ccb}</UniqueIdentifier>
-    </Filter>
     <Filter Include="Includes">
       <UniqueIdentifier>{df810496-32c7-4a8d-bc69-2434fc3c44bd}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="x32\Includes">
-      <UniqueIdentifier>{9f0f89a3-d2aa-4895-a9d2-4ec0cda5e967}</UniqueIdentifier>
     </Filter>
     <Filter Include="Pci">
       <UniqueIdentifier>{8b69d971-0f41-4d61-8b7c-d46b710d101c}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="..\..\Arch\x86\x32\Memory\MmVirtual.c">
-      <Filter>x32\Memory</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\Arch\x86\Init\Main.c">
       <Filter>Startup</Filter>
     </ClCompile>
@@ -50,15 +29,6 @@
     </ClCompile>
     <ClCompile Include="..\..\Arch\x86\Components\Thread.c">
       <Filter>Components</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\Arch\x86\x32\Gdt.c">
-      <Filter>x32\Descriptors</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\Arch\x86\x32\Idt.c">
-      <Filter>x32\Descriptors</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\Arch\x86\x32\Context.c">
-      <Filter>x32\Threading</Filter>
     </ClCompile>
     <ClCompile Include="..\..\Arch\x86\Interrupts\IntExceptions.c">
       <Filter>Interrupts</Filter>
@@ -116,21 +86,6 @@
     <CustomBuild Include="..\..\Arch\x86\Components\Portio.asm">
       <Filter>Components</Filter>
     </CustomBuild>
-    <CustomBuild Include="..\..\Arch\x86\x32\Boot\Boot.asm">
-      <Filter>x32</Filter>
-    </CustomBuild>
-    <CustomBuild Include="..\..\Arch\x86\x32\Memory\MmPaging.asm">
-      <Filter>x32\Memory</Filter>
-    </CustomBuild>
-    <CustomBuild Include="..\..\Arch\x86\x32\Irq.asm">
-      <Filter>x32</Filter>
-    </CustomBuild>
-    <CustomBuild Include="..\..\Arch\x86\x32\Threading.asm">
-      <Filter>x32\Threading</Filter>
-    </CustomBuild>
-    <CustomBuild Include="..\..\Arch\x86\x32\Descriptors.asm">
-      <Filter>x32\Descriptors</Filter>
-    </CustomBuild>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\Arch\x86\Cpu.h">
@@ -165,15 +120,6 @@
     </ClInclude>
     <ClInclude Include="..\..\Arch\x86\AcpiSys.h">
       <Filter>Includes</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\Arch\x86\x32\Arch.h">
-      <Filter>x32\Includes</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\Arch\x86\x32\Gdt.h">
-      <Filter>x32\Includes</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\Arch\x86\x32\Idt.h">
-      <Filter>x32\Includes</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

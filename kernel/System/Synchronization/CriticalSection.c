@@ -64,6 +64,7 @@ void CriticalSectionConstruct(CriticalSection_t *Section, int Flags)
  * is called, so make sure its not used */
 void CriticalSectionDestroy(CriticalSection_t *Section)
 {
+	/* Uh, not yet I guess */
 	_CRT_UNUSED(Section);
 }
 

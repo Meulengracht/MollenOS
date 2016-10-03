@@ -16,7 +16,7 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS x86-32 Init Code.
+ * MollenOS x86 Init Code.
  */
 
 /* Includes */

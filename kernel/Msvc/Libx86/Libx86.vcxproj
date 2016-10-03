@@ -7,17 +7,7 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
-    <CustomBuild Include="..\..\Arch\x86\x32\Boot\Boot.asm">
-      <FileType>Document</FileType>
-      <Command Condition="'$(Configuration)|$(Platform)'=='Build_X86_32|Win32'">nasm -f win32 -Xvc -o $(IntDir)\%(Filename).obj %(FullPath)</Command>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='Build_X86_32|Win32'">$(IntDir)\%(Filename).obj</Outputs>
-    </CustomBuild>
     <CustomBuild Include="..\..\Arch\x86\Components\Portio.asm">
-      <FileType>Document</FileType>
-      <Command Condition="'$(Configuration)|$(Platform)'=='Build_X86_32|Win32'">nasm -f win32 -Xvc -o $(IntDir)\%(Filename).obj %(FullPath)</Command>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='Build_X86_32|Win32'">$(IntDir)\%(Filename).obj</Outputs>
-    </CustomBuild>
-    <CustomBuild Include="..\..\Arch\x86\x32\Memory\MmPaging.asm">
       <FileType>Document</FileType>
       <Command Condition="'$(Configuration)|$(Platform)'=='Build_X86_32|Win32'">nasm -f win32 -Xvc -o $(IntDir)\%(Filename).obj %(FullPath)</Command>
       <Outputs Condition="'$(Configuration)|$(Platform)'=='Build_X86_32|Win32'">$(IntDir)\%(Filename).obj</Outputs>
@@ -45,10 +35,6 @@
     <ClCompile Include="..\..\Arch\x86\Pci\PciHelpers.c" />
     <ClCompile Include="..\..\Arch\x86\Pci\PciIo.c" />
     <ClCompile Include="..\..\Arch\x86\Pci\PciStrings.c" />
-    <ClCompile Include="..\..\Arch\x86\x32\Context.c" />
-    <ClCompile Include="..\..\Arch\x86\x32\Gdt.c" />
-    <ClCompile Include="..\..\Arch\x86\x32\Idt.c" />
-    <ClCompile Include="..\..\Arch\x86\x32\Memory\MmVirtual.c" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\Arch\x86\AcpiSys.h" />
@@ -62,26 +48,6 @@
     <ClInclude Include="..\..\Arch\x86\Pic.h" />
     <ClInclude Include="..\..\Arch\x86\Thread.h" />
     <ClInclude Include="..\..\Arch\x86\Video.h" />
-    <ClInclude Include="..\..\Arch\x86\x32\Arch.h" />
-    <ClInclude Include="..\..\Arch\x86\x32\Gdt.h" />
-    <ClInclude Include="..\..\Arch\x86\x32\Idt.h" />
-  </ItemGroup>
-  <ItemGroup>
-    <CustomBuild Include="..\..\Arch\x86\x32\Descriptors.asm">
-      <FileType>Document</FileType>
-      <Command Condition="'$(Configuration)|$(Platform)'=='Build_X86_32|Win32'">nasm -f win32 -Xvc -o $(IntDir)\%(Filename).obj %(FullPath)</Command>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='Build_X86_32|Win32'">$(IntDir)\%(Filename).obj</Outputs>
-    </CustomBuild>
-    <CustomBuild Include="..\..\Arch\x86\x32\Irq.asm">
-      <FileType>Document</FileType>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='Build_X86_32|Win32'">$(IntDir)\%(Filename).obj</Outputs>
-      <Command Condition="'$(Configuration)|$(Platform)'=='Build_X86_32|Win32'">nasm -f win32 -Xvc -o $(IntDir)\%(Filename).obj %(FullPath)</Command>
-    </CustomBuild>
-    <CustomBuild Include="..\..\Arch\x86\x32\Threading.asm">
-      <FileType>Document</FileType>
-      <Command Condition="'$(Configuration)|$(Platform)'=='Build_X86_32|Win32'">nasm -f win32 -Xvc -o $(IntDir)\%(Filename).obj %(FullPath)</Command>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='Build_X86_32|Win32'">$(IntDir)\%(Filename).obj</Outputs>
-    </CustomBuild>
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <ProjectGuid>{17145F88-DAEA-496B-A91F-2A78ED5673CC}</ProjectGuid>
@@ -106,7 +72,7 @@
     <NuGetPackageImportStamp>27414a97</NuGetPackageImportStamp>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Build_X86_32|Win32'">
-    <OutDir>..\..\Build\\i386\</OutDir>
+    <OutDir>..\..\Build\i386\</OutDir>
     <IncludePath>..\..\acpica\include;..\..\Include;..\..\Msvc\MCoreConfig;..\..\..\clib\include;..\..\Arch\x86;..\..\Arch\x86\x32</IncludePath>
     <ReferencePath />
     <LibraryWPath />
@@ -130,7 +96,7 @@
       <AssemblerOutput>All</AssemblerOutput>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
       <InlineFunctionExpansion>OnlyExplicitInline</InlineFunctionExpansion>
-      <RuntimeLibrary>MultiThreadedDebugDLL</RuntimeLibrary>
+      <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
       <ExpandAttributedSource>true</ExpandAttributedSource>
       <DisableSpecificWarnings>4127;4702</DisableSpecificWarnings>
       <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>

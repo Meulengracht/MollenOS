@@ -33,10 +33,10 @@
 
 /* Globals */
 Addr_t *MemoryBitmap = NULL;
-uint32_t MemoryBitmapSize = 0;
-uint32_t MemoryBlocks = 0;
-uint32_t MemoryBlocksUsed = 0;
-uint32_t MemorySize = 0;
+size_t MemoryBitmapSize = 0;
+size_t MemoryBlocks = 0;
+size_t MemoryBlocksUsed = 0;
+size_t MemorySize = 0;
 
 /* Lock */
 Spinlock_t MemoryLock;
@@ -57,8 +57,8 @@ void MmMemoryMapUnsetBit(int Bit)
 
 uint8_t MmMemoryMapTestBit(int Bit)
 {
-	uint32_t block = MemoryBitmap[Bit / 32];
-	uint32_t index = (1 << (Bit % 32));
+	size_t block = MemoryBitmap[Bit / 32];
+	size_t index = (1 << (Bit % 32));
 
 	if (block & index)
 		return 1;
@@ -70,7 +70,7 @@ uint8_t MmMemoryMapTestBit(int Bit)
  * at low memory < 1 mb */
 int MmGetFreeMapBitLow(void)
 {
-	uint32_t i;
+	size_t i;
 	int j;
 	int rbit = -1;
 
@@ -103,7 +103,7 @@ int MmGetFreeMapBitLow(void)
 /* at high memory > 1 mb */
 int MmGetFreeMapBitHigh(void)
 {
-	uint32_t i, max = MemoryBlocks;
+	size_t i, max = MemoryBlocks;
 	int j;
 	int rbit = -1;
 
@@ -136,9 +136,9 @@ int MmGetFreeMapBitHigh(void)
 /* Frees a region of memory */
 void MmFreeRegion(Addr_t Base, size_t Size)
 {
-	int align = (int32_t)(Base / PAGE_SIZE);
-	int32_t blocks = (int32_t)(Size / PAGE_SIZE);
-	uint32_t i;
+	ssize_t align = (ssize_t)(Base / PAGE_SIZE);
+	ssize_t blocks = (ssize_t)(Size / PAGE_SIZE);
+	Addr_t i;
 
 	/* Block freeing loop */
 	for (i = Base; blocks > 0; blocks--, i += PAGE_SIZE)

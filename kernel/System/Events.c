@@ -155,7 +155,6 @@ void EventHandlerInternal(void *Args)
 	}
 }
 
-
 /* Event Create
  * Queues up a new event for the
  * event handler to process

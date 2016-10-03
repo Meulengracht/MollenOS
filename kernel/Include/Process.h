@@ -42,6 +42,7 @@
 #define PROCESS_STACK_MAX		(4 << 20)
 #define PROCESS_PIPE_SIZE		0x2000
 #define PROCESS_NO_PROCESS		0xFFFFFFFF
+#define PROCESS_CURRENT			0
 
 /* Signal Table 
  * This is used for interrupt-signals
@@ -137,8 +138,23 @@ typedef enum _ProcessQueryFunction
 _CRT_EXTERN int PmQueryProcess(MCoreProcess_t *Process, ProcessQueryFunction_t Function, void *Buffer, size_t Length);
 _CRT_EXTERN void PmCleanupProcess(MCoreProcess_t *Process);
 _CRT_EXTERN void PmTerminateProcess(MCoreProcess_t *Process);
+
+/* Get Process 
+ * This function looks up a process structure 
+ * by id, if either PROCESS_CURRENT or PROCESS_NO_PROCESS 
+ * is passed, it retrieves the current process */
 _CRT_EXTERN MCoreProcess_t *PmGetProcess(ProcId_t ProcessId);
+
+ /* Get the working directory 
+ * This function looks up the working directory for a process 
+ * by id, if either PROCESS_CURRENT or PROCESS_NO_PROCESS 
+ * is passed, it retrieves the current process's working directory */
 _CRT_EXTERN MString_t *PmGetWorkingDirectory(ProcId_t ProcessId);
+
+/* Get the base directory 
+ * This function looks up the base directory for a process 
+ * by id, if either PROCESS_CURRENT or PROCESS_NO_PROCESS 
+ * is passed, it retrieves the current process's base directory */
 _CRT_EXTERN MString_t *PmGetBaseDirectory(ProcId_t ProcessId);
 
 /* Signal Functions */

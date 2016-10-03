@@ -44,7 +44,7 @@
 /* Spawns a new process with the
  * given executable + arguments 
  * and returns the id, will return
- * 0xFFFFFFFF if failed */
+ * PROCESS_NO_PROCESS if failed */
 ProcId_t ScProcessSpawn(char *Path, char *Arguments)
 {
 	/* Alloc on stack */
@@ -56,7 +56,7 @@ ProcId_t ScProcessSpawn(char *Path, char *Arguments)
 
 	/* Sanity */
 	if (Path == NULL)
-		return 0xFFFFFFFF;
+		return PROCESS_NO_PROCESS;
 
 	/* Allocate the mstrings */
 	mPath = MStringCreate(Path, StrUTF8);
@@ -134,14 +134,23 @@ int ScProcessKill(ProcId_t ProcessId)
  * error code given as argument */
 int ScProcessExit(int ExitCode)
 {
-	/* Disable interrupts */
-	IntStatus_t IntrState = InterruptDisable();
-	Cpu_t CurrentCpu = ApicGetCpu();
-	MCoreProcess_t *Process = PmGetProcess(ThreadingGetCurrentThread(CurrentCpu)->ProcessId);
+	/* Retrieve crrent process */
+	MCoreProcess_t *Process = PmGetProcess(PROCESS_CURRENT);
+	IntStatus_t IntrState;
 
-	/* Save return code */
-	LogDebug("SYSC", "Process %s terminated with code %i", Process->Name->Data, ExitCode);
+	/* Sanity 
+	 * We don't proceed in case it's not a process */
+	if (Process == NULL) {
+		return -1;
+	}
+
+	/* Log it and save return code */
+	LogDebug("SYSC", "Process %s terminated with code %i", 
+		Process->Name->Data, ExitCode);
 	Process->ReturnCode = ExitCode;
+
+	/* Disable interrupts before proceeding */
+	IntrState = InterruptDisable();
 
 	/* Terminate all threads used by process */
 	ThreadingTerminateProcessThreads(Process->Id);
@@ -177,12 +186,6 @@ int ScProcessQuery(ProcId_t ProcessId, ProcessQueryFunction_t Function, void *Bu
 		return -1;
 	}
 
-	/* Sanitize the processid */
-	if (ProcessId == PROCESS_NO_PROCESS
-		|| ProcessId == 0) {
-		ProcessId = ThreadingGetCurrentThread(ApicGetCpu())->ProcessId;
-	}
-
 	/* Lookup process */
 	Process = PmGetProcess(ProcessId);
 
@@ -209,7 +212,7 @@ int ScProcessSignal(int Signal, Addr_t Handler)
 	}
 
 	/* Lookup process */
-	Process = PmGetProcess(ThreadingGetCurrentThread(ApicGetCpu())->ProcessId);
+	Process = PmGetProcess(PROCESS_CURRENT);
 
 	/* Sanity... 
 	 * This should never happen though
@@ -238,12 +241,6 @@ int ScProcessRaise(ProcId_t ProcessId, int Signal)
 	/* Sanitize our params */
 	if (Signal > NUMSIGNALS) {
 		return -1;
-	}
-
-	/* Sanitize the processid */
-	if (ProcessId == PROCESS_NO_PROCESS
-		|| ProcessId == 0) {
-		ProcessId = ThreadingGetCurrentThread(ApicGetCpu())->ProcessId;
 	}
 
 	/* Lookup process */
@@ -275,9 +272,7 @@ int ScProcessRaise(ProcId_t ProcessId, int Signal)
 void *ScSharedObjectLoad(const char *SharedObject)
 {
 	/* Locate Process */
-	Cpu_t CurrentCpu = ApicGetCpu();
-	MCoreProcess_t *Process =
-		PmGetProcess(ThreadingGetCurrentThread(CurrentCpu)->ProcessId);
+	MCoreProcess_t *Process = PmGetProcess(PROCESS_CURRENT);
 	Addr_t BaseAddress = 0;
 	
 	/* Vars for solving library */
@@ -321,9 +316,7 @@ Addr_t ScSharedObjectGetFunction(void *Handle, const char *Function)
 int ScSharedObjectUnload(void *Handle)
 {
 	/* Locate Process */
-	Cpu_t CurrentCpu = ApicGetCpu();
-	MCoreProcess_t *Process =
-		PmGetProcess(ThreadingGetCurrentThread(CurrentCpu)->ProcessId);
+	MCoreProcess_t *Process = PmGetProcess(PROCESS_CURRENT);
 
 	/* Sanity */
 	if (Process == NULL)
@@ -516,9 +509,7 @@ int ScSyncSleep(Addr_t *Handle, size_t Timeout)
 Addr_t ScMemoryAllocate(size_t Size, int Flags)
 {
 	/* Locate Process */
-	Cpu_t CurrentCpu = ApicGetCpu();
-	MCoreProcess_t *Process = 
-		PmGetProcess(ThreadingGetCurrentThread(CurrentCpu)->ProcessId);
+	MCoreProcess_t *Process = PmGetProcess(PROCESS_CURRENT);
 
 	/* For now.. */
 	_CRT_UNUSED(Flags);
@@ -536,9 +527,7 @@ Addr_t ScMemoryAllocate(size_t Size, int Flags)
 int ScMemoryFree(Addr_t Address, size_t Length)
 {
 	/* Locate Process */
-	Cpu_t CurrentCpu = ApicGetCpu();
-	MCoreProcess_t *Process =
-		PmGetProcess(ThreadingGetCurrentThread(CurrentCpu)->ProcessId);
+	MCoreProcess_t *Process = PmGetProcess(PROCESS_CURRENT);
 
 	/* For now.. */
 	_CRT_UNUSED(Length);
@@ -660,15 +649,16 @@ int ScMemoryUnshare(IpcComm_t Target, Addr_t TranslatedAddress, size_t Size)
  * without actually consuming it */
 int ScIpcPeek(uint8_t *MessageContainer, size_t MessageLength)
 {
+	/* Variables */
+	MCoreProcess_t *Process = NULL;
+
 	/* Validation */
 	if (MessageContainer == NULL
 		|| MessageLength == 0)
 		return -1;
 
 	/* Get current process */
-	Cpu_t CurrentCpu = ApicGetCpu();
-	MCoreProcess_t *Process =
-		PmGetProcess(ThreadingGetCurrentThread(CurrentCpu)->ProcessId);
+	Process = PmGetProcess(PROCESS_CURRENT);
 
 	/* Should never happen this */
 	if (Process == NULL)
@@ -687,6 +677,7 @@ int ScIpcRead(uint8_t *MessageContainer)
 	/* Variables */
 	MEventMessageBase_t *MsgBase = 
 		(MEventMessageBase_t*)MessageContainer;
+	MCoreProcess_t *Process = NULL;
 	int BytesRead = 0;
 
 	/* Validation */
@@ -694,9 +685,7 @@ int ScIpcRead(uint8_t *MessageContainer)
 		return -1;
 
 	/* Get current process */
-	Cpu_t CurrentCpu = ApicGetCpu();
-	MCoreProcess_t *Process =
-		PmGetProcess(ThreadingGetCurrentThread(CurrentCpu)->ProcessId);
+	Process = PmGetProcess(PROCESS_CURRENT);
 
 	/* Should never happen this */
 	if (Process == NULL)
@@ -762,9 +751,7 @@ int ScIpcWrite(ProcId_t ProcessId, uint8_t *Message, size_t MessageLength)
 int ScIpcSleep(size_t Timeout)
 {
 	/* Get current process */
-	Cpu_t CurrentCpu = ApicGetCpu();
-	MCoreProcess_t *Process =
-		PmGetProcess(ThreadingGetCurrentThread(CurrentCpu)->ProcessId);
+	MCoreProcess_t *Process = PmGetProcess(PROCESS_CURRENT);
 
 	/* Should never happen this 
 	 * Only threads associated with processes
@@ -814,9 +801,7 @@ int ScIpcWake(IpcComm_t Target)
 int ScVfsOpen(const char *Utf8, VfsFileFlags_t OpenFlags, VfsErrorCode_t *ErrCode)
 {
 	/* Get current process */
-	Cpu_t CurrentCpu = ApicGetCpu();
-	MCoreProcess_t *Process =
-		PmGetProcess(ThreadingGetCurrentThread(CurrentCpu)->ProcessId);
+	MCoreProcess_t *Process = PmGetProcess(PROCESS_CURRENT);
 	DataKey_t Key;
 
 	/* Should never happen this
@@ -845,9 +830,7 @@ int ScVfsOpen(const char *Utf8, VfsFileFlags_t OpenFlags, VfsErrorCode_t *ErrCod
 int ScVfsClose(int FileDescriptor)
 {
 	/* Get current process */
-	Cpu_t CurrentCpu = ApicGetCpu();
-	MCoreProcess_t *Process =
-		PmGetProcess(ThreadingGetCurrentThread(CurrentCpu)->ProcessId);
+	MCoreProcess_t *Process = PmGetProcess(PROCESS_CURRENT);
 	VfsErrorCode_t RetCode = VfsInvalidParameters;
 	DataKey_t Key;
 	Key.Value = FileDescriptor;
@@ -882,9 +865,7 @@ int ScVfsClose(int FileDescriptor)
 size_t ScVfsRead(int FileDescriptor, uint8_t *Buffer, size_t Length, VfsErrorCode_t *ErrCode)
 {
 	/* Get current process */
-	Cpu_t CurrentCpu = ApicGetCpu();
-	MCoreProcess_t *Process =
-		PmGetProcess(ThreadingGetCurrentThread(CurrentCpu)->ProcessId);
+	MCoreProcess_t *Process = PmGetProcess(PROCESS_CURRENT);
 	VfsErrorCode_t RetCode = VfsInvalidParameters;
 	size_t bRead = 0;
 	DataKey_t Key;
@@ -926,9 +907,7 @@ done:
 size_t ScVfsWrite(int FileDescriptor, uint8_t *Buffer, size_t Length, VfsErrorCode_t *ErrCode)
 {
 	/* Get current process */
-	Cpu_t CurrentCpu = ApicGetCpu();
-	MCoreProcess_t *Process =
-		PmGetProcess(ThreadingGetCurrentThread(CurrentCpu)->ProcessId);
+	MCoreProcess_t *Process = PmGetProcess(PROCESS_CURRENT);
 	VfsErrorCode_t RetCode = VfsInvalidParameters;
 	size_t bWritten = 0;
 	DataKey_t Key;
@@ -973,9 +952,7 @@ done:
 int ScVfsSeek(int FileDescriptor, off_t PositionLow, off_t PositionHigh)
 {
 	/* Get current process */
-	Cpu_t CurrentCpu = ApicGetCpu();
-	MCoreProcess_t *Process =
-		PmGetProcess(ThreadingGetCurrentThread(CurrentCpu)->ProcessId);
+	MCoreProcess_t *Process = PmGetProcess(PROCESS_CURRENT);
 	VfsErrorCode_t RetCode = VfsInvalidParameters;
 	uint64_t Position = 0;
 	DataKey_t Key;
@@ -1005,9 +982,7 @@ int ScVfsSeek(int FileDescriptor, off_t PositionLow, off_t PositionHigh)
 int ScVfsDelete(int FileDescriptor)
 {
 	/* Get current process */
-	Cpu_t CurrentCpu = ApicGetCpu();
-	MCoreProcess_t *Process =
-		PmGetProcess(ThreadingGetCurrentThread(CurrentCpu)->ProcessId);
+	MCoreProcess_t *Process = PmGetProcess(PROCESS_CURRENT);
 	VfsErrorCode_t RetCode = VfsInvalidParameters;
 	DataKey_t Key;
 	Key.Value = FileDescriptor;
@@ -1033,9 +1008,7 @@ int ScVfsDelete(int FileDescriptor)
 int ScVfsFlush(int FileDescriptor)
 {
 	/* Get current process */
-	Cpu_t CurrentCpu = ApicGetCpu();
-	MCoreProcess_t *Process =
-		PmGetProcess(ThreadingGetCurrentThread(CurrentCpu)->ProcessId);
+	MCoreProcess_t *Process = PmGetProcess(PROCESS_CURRENT);
 	VfsErrorCode_t RetCode = VfsInvalidParameters;
 	DataKey_t Key;
 	Key.Value = FileDescriptor;
@@ -1062,9 +1035,7 @@ int ScVfsFlush(int FileDescriptor)
 int ScVfsQuery(int FileDescriptor, VfsQueryFunction_t Function, void *Buffer, size_t Length)
 {
 	/* Get current process */
-	Cpu_t CurrentCpu = ApicGetCpu();
-	MCoreProcess_t *Process =
-		PmGetProcess(ThreadingGetCurrentThread(CurrentCpu)->ProcessId);
+	MCoreProcess_t *Process = PmGetProcess(PROCESS_CURRENT);
 	VfsErrorCode_t RetCode = VfsInvalidParameters;
 	DataKey_t Key;
 	Key.Value = FileDescriptor;
@@ -1274,9 +1245,7 @@ int ScEndBootSequence(void)
 int ScRegisterWindowManager(void)
 {
 	/* Locate Process */
-	Cpu_t CurrentCpu = ApicGetCpu();
-	MCoreProcess_t *Process =
-		PmGetProcess(ThreadingGetCurrentThread(CurrentCpu)->ProcessId);
+	MCoreProcess_t *Process = PmGetProcess(PROCESS_CURRENT);
 
 	/* Sanity */
 	if (Process == NULL)

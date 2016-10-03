@@ -309,9 +309,7 @@ void ExceptionEntry(Registers_t *regs)
 			&& UnmappedAddr < MEMORY_LOCATION_USER_GUARD)
 		{
 			/* Get heap */
-			Cpu_t CurrentCpu = ApicGetCpu();
-			MCoreProcess_t *Process =
-				PmGetProcess(ThreadingGetCurrentThread(CurrentCpu)->ProcessId);
+			MCoreProcess_t *Process = PmGetProcess(PROCESS_CURRENT);
 
 			/* Sanity */
 			if (Process != NULL)

@@ -113,7 +113,7 @@ ProcId_t PmCreateProcess(MString_t *Path, MString_t *Arguments)
 
 	/* Sanity */
 	if (Path == NULL)
-		return 0xFFFFFFFF;
+		return PROCESS_NO_PROCESS;
 
 	/* Open File */
 	File = VfsOpen(Path->Data, Read);
@@ -122,7 +122,7 @@ ProcId_t PmCreateProcess(MString_t *Path, MString_t *Arguments)
 	if (File->Code != VfsOk
 		|| File->File == NULL) {
 		VfsClose(File);
-		return 0xFFFFFFFF;
+		return PROCESS_NO_PROCESS;
 	}
 
 	/* Allocate a buffer */
@@ -142,7 +142,7 @@ ProcId_t PmCreateProcess(MString_t *Path, MString_t *Arguments)
 		/* Bail Out */
 		MStringDestroy(PathCopy);
 		kfree(fBuffer);
-		return 0xFFFFFFFF;
+		return PROCESS_NO_PROCESS;
 	}
 
 	/* Allocate */
@@ -235,16 +235,36 @@ void PmCleanupProcess(MCoreProcess_t *Process)
 	kfree(Process);
 }
 
-/* Get Process */
+/* Get Process 
+ * This function looks up a process structure 
+ * by id, if either PROCESS_CURRENT or PROCESS_NO_PROCESS 
+ * is passed, it retrieves the current process */
 MCoreProcess_t *PmGetProcess(ProcId_t ProcessId)
 {
 	/* Variables */
 	ListNode_t *pNode = NULL;
+	Cpu_t CurrentCpu = 0;
 
 	/* Sanity */
 	if (GlbProcesses == NULL
 		|| GlbProcesses->Length == 0) {
 		return NULL;
+	}
+
+	/* Sanitize the process id */
+	if (ProcessId == PROCESS_CURRENT
+		|| ProcessId == PROCESS_NO_PROCESS) 
+	{
+		/* Get current cpu id */
+		CurrentCpu = ApicGetCpu();
+
+		/* Sanitize threading is up */
+		if (ThreadingGetCurrentThread(CurrentCpu) != NULL) {
+			ProcessId = ThreadingGetCurrentThread(CurrentCpu)->ProcessId;
+		}
+		else {
+			return NULL;
+		}
 	}
 
 	/* Iterate */
@@ -262,58 +282,40 @@ MCoreProcess_t *PmGetProcess(ProcId_t ProcessId)
 	return NULL;
 }
 
-/* Get the working directory */
+/* Get the working directory 
+ * This function looks up the working directory for a process 
+ * by id, if either PROCESS_CURRENT or PROCESS_NO_PROCESS 
+ * is passed, it retrieves the current process's working directory */
 MString_t *PmGetWorkingDirectory(ProcId_t ProcessId)
 {
 	/* Variables */
-	ListNode_t *pNode = NULL;
+	MCoreProcess_t *Process = PmGetProcess(ProcessId);
 
-	/* Sanity */
-	if (GlbProcesses == NULL
-		|| GlbProcesses->Length == 0) {
+	/* Sanitize result */
+	if (Process != NULL) {
+		return Process->WorkingDirectory;
+	}
+	else {
 		return NULL;
 	}
-
-	/* Iterate */
-	_foreach(pNode, GlbProcesses)
-	{
-		/* Cast */
-		MCoreProcess_t *Process = (MCoreProcess_t*)pNode->Data;
-
-		/* Found? */
-		if (Process->Id == ProcessId)
-			return Process->WorkingDirectory;
-	}
-
-	/* Found? NO! */
-	return NULL;
 }
 
-/* Get the base directory */
+/* Get the base directory 
+ * This function looks up the base directory for a process 
+ * by id, if either PROCESS_CURRENT or PROCESS_NO_PROCESS 
+ * is passed, it retrieves the current process's base directory */
 MString_t *PmGetBaseDirectory(ProcId_t ProcessId)
 {
 	/* Variables */
-	ListNode_t *pNode = NULL;
+	MCoreProcess_t *Process = PmGetProcess(ProcessId);
 
-	/* Sanity */
-	if (GlbProcesses == NULL
-		|| GlbProcesses->Length == 0) {
+	/* Sanitize result */
+	if (Process != NULL) {
+		return Process->BaseDirectory;
+	}
+	else {
 		return NULL;
 	}
-
-	/* Iterate */
-	_foreach(pNode, GlbProcesses)
-	{
-		/* Cast */
-		MCoreProcess_t *Process = (MCoreProcess_t*)pNode->Data;
-
-		/* Found? */
-		if (Process->Id == ProcessId)
-			return Process->BaseDirectory;
-	}
-
-	/* Found? NO! */
-	return NULL;
 }
 
 /* Queries the given process for information
