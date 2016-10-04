@@ -140,11 +140,16 @@ void EventHandlerInternal(void *Args)
 		if (Event == NULL)
 			continue;
 
-		/* Set in progress */
-		Event->State = EventInProgress;
+		/* Make sure event hasn't been cancelled 
+		 * before we process it */
+		if (Event->State != EventCancelled)
+		{
+			/* Set in progress */
+			Event->State = EventInProgress;
 
-		/* Callback */
-		EventHandler->Callback(EventHandler->UserData, Event);
+			/* Callback */
+			EventHandler->Callback(EventHandler->UserData, Event);
+		}
 
 		/* Signal Completion */
 		SchedulerWakeupAllThreads((Addr_t*)Event);

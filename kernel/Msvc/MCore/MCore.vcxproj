@@ -20,7 +20,7 @@
     <ClCompile Include="..\..\System\Events.c" />
     <ClCompile Include="..\..\System\GarbageCollector.c" />
     <ClCompile Include="..\..\System\Heap.c" />
-    <ClCompile Include="..\..\System\InputManager.c" />
+    <ClCompile Include="..\..\System\UserEvents.c" />
     <ClCompile Include="..\..\System\Log.c" />
     <ClCompile Include="..\..\System\Modules\ModuleManager.c" />
     <ClCompile Include="..\..\System\Modules\PeLoader.c" />

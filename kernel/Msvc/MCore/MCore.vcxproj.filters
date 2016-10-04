@@ -84,9 +84,6 @@
     <ClCompile Include="..\..\System\Modules\PeLoader.c">
       <Filter>Systems\Modules</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\System\InputManager.c">
-      <Filter>Systems</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\System\Log.c">
       <Filter>Systems</Filter>
     </ClCompile>
@@ -134,6 +131,9 @@
     </ClCompile>
     <ClCompile Include="..\..\System\Syscalls.c">
       <Filter>Systems\Processes</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\System\UserEvents.c">
+      <Filter>Systems</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>

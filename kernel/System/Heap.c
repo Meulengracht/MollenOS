@@ -751,16 +751,47 @@ HeapNode_t *HeapQuery(Heap_t *Heap, Addr_t Addr)
  * useful for processes and such */
 int HeapQueryMemoryInformation(Heap_t *Heap, size_t *BytesInUse, size_t *BlocksAllocated)
 {
-	/* Sanity */
+	/* Variables */
+	HeapBlock_t *CurrentBlock, *PreviousBlock;
+	size_t NodeCount = 0;
+	size_t BytesAllocated = 0;
+	size_t NodesAllocated = 0;
+
+	/* Sanity 
+	 * Make sure we have a heap */
 	if (Heap == NULL)
 		return -1;
 
+	/* Count Nodes */
+	CurrentBlock = Heap->Blocks, PreviousBlock = NULL;
+	while (CurrentBlock)
+	{
+		/* We need to iterate nodes */
+		HeapNode_t *CurrentNode = CurrentBlock->Nodes, *PreviousNode = NULL;
+		while (CurrentNode)
+		{
+			/* Stats */
+			NodesAllocated = (CurrentNode->Allocated == 0) ? NodesAllocated : NodesAllocated + 1;
+			BytesAllocated = (CurrentNode->Allocated == 0) ? BytesAllocated : (BytesAllocated + CurrentNode->Length);
+			NodeCount++;
+
+			/* Next Node */
+			PreviousNode = CurrentNode;
+			CurrentNode = CurrentNode->Link;
+		}
+
+		/* Next Block */
+		PreviousBlock = CurrentBlock;
+		CurrentBlock = CurrentBlock->Link;
+	}
+
 	/* Yay, set stuff */
 	if (BytesInUse != NULL)
-		*BytesInUse = 0;
+		*BytesInUse = BytesAllocated;
 	if (BlocksAllocated != NULL)
-		*BlocksAllocated = 0;
+		*BlocksAllocated = NodesAllocated;
 
+	/* No probs */
 	return 0;
 }
 

@@ -33,8 +33,6 @@
 /* Handle Message */
 void HandleMessage(SDL_Renderer *Target, MEventMessage_t *Message)
 {
-	MollenOSSystemLog("Handling message type %i", (int)Message->Base.Type);
-
 	/* First of all, 
 	 * which kind of message is it? 
 	 * User-messages are generic */

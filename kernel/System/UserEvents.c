@@ -16,7 +16,9 @@
 * along with this program.If not, see <http://www.gnu.org/licenses/>.
 *
 *
-* MollenOS Input Manager
+* MollenOS User Events
+* - Redirects events to userspace
+* - Most cases this means Sapphire
 */
 
 /* Includes */
@@ -33,15 +35,15 @@ void EmInit(void)
 {
 	/* Set initialized */
 	GlbEmInitialized = 1;
-	GlbEmWindowManager = 0xFFFFFFFF;
+	GlbEmWindowManager = PROCESS_NO_PROCESS;
 }
 
 /* Register */
 void EmRegisterSystemTarget(ProcId_t ProcessId)
 {
 	/* Sanity, NO OVERRIDES */
-	if (ProcessId != 0xFFFFFFFF
-		&& GlbEmWindowManager != 0xFFFFFFFF)
+	if (ProcessId != PROCESS_NO_PROCESS
+		&& GlbEmWindowManager != PROCESS_NO_PROCESS)
 		return;
 
 	/* Set */
@@ -59,7 +61,7 @@ void EmCreateEvent(MEventMessageBase_t *Event)
 		EmInit();
 
 	/* Sanity - More ! */
-	if (GlbEmWindowManager != 0xFFFFFFFF) 
+	if (GlbEmWindowManager != PROCESS_NO_PROCESS)
 	{
 		/* Get process */
 		MCoreProcess_t *Process = PmGetProcess(GlbEmWindowManager);
