@@ -354,9 +354,11 @@ bool Terminal::SetFont(const char *FontPath, int SizePt)
 	/* Spool back */
 	rewind(Fp);
 
+	/* Allocate the buffer for files */
+	DataBuffer = malloc(Size);
+
 	/* Read the font file */
-	MollenOSSystemLog("Read %u bytes out of %u",
-		fread(DataBuffer, 1, Size, Fp), Size);
+	fread(DataBuffer, 1, Size, Fp);
 	fclose(Fp);
 
 	/* If there was an old font, clean it up */

@@ -22,8 +22,12 @@
 #ifndef _AHCI_H_
 #define _AHCI_H_
 
+/* Includes */
 
 
 
+/* AHCI Operation Registers */
+#define AHCI_REGISTER_IDENTIFIERS			0x00
+#define AHCI_REGISTER_COMMAND				0x04
 
 #endif //!_AHCI_H_

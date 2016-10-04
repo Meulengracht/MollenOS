@@ -908,19 +908,20 @@ mchar_t MStringGetCharAt(MString_t *String, int Index)
 }
 
 /* Iterate through a MString, it returns the next
-* character each time untill MSTRING_EOS. Call with Iterator = NULL
-* the first time, it holds the state. And Index = 0. */
+ * character each time untill MSTRING_EOS. Call with Iterator = NULL
+ * the first time, it holds the state. And Index = 0. */
 mchar_t MStringIterate(MString_t *String, char **Iterator, size_t *Index)
 {
 	/* Variables for iteration */
-	const uint8_t *Ptr = *(const uint8_t**)String->Data;
+	uint8_t *Ptr = NULL;
 	mchar_t Character = MSTRING_EOS;
 	int Overlong = 0;
 	int Underflow = 0;
 	int Left = 0;
 
 	/* Sanitize */
-	if (String->Length == 0) {
+	if (String->Data == NULL
+		|| String->Length == 0) {
 		return MSTRING_EOS;
 	}
 
@@ -929,6 +930,9 @@ mchar_t MStringIterate(MString_t *String, char **Iterator, size_t *Index)
 		*Iterator = (char*)String->Data;
 		*Index = String->Length;
 	}
+
+	/* Cast pointer */
+	Ptr = *(uint8_t**)Iterator;
 
 	if (Ptr[0] >= 0xFC) {
 		if ((Ptr[0] & 0xFE) == 0xFC) {

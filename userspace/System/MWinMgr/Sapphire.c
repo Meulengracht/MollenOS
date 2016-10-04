@@ -79,8 +79,9 @@ void HandleMessage(SDL_Renderer *Target, MEventMessage_t *Message)
 					/* Invalidate Rectangle */
 					SceneManagerUpdate(&WndInformation->Dimensions);
 
-					MollenOSSystemLog("Rendering window of size %x,%x",
-						WndInformation->Dimensions.w, WndInformation->Dimensions.y);
+					MollenOSSystemLog("Rendering window of size %i, %i, position %i, %i",
+						WndInformation->Dimensions.w, WndInformation->Dimensions.h,
+						WndInformation->Dimensions.x, WndInformation->Dimensions.y);
 
 					/* Update id */
 					WndInformation->WindowId = Wnd->Id;
@@ -173,7 +174,7 @@ void EventLoop(SDL_Renderer *Target)
 		HandleMessage(Target, &Message);
 
 		/* Render updates */
-		SceneManagerRender(Target);
+		//SceneManagerRender(Target);
 	}
 }
 

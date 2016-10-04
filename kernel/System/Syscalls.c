@@ -891,7 +891,7 @@ size_t ScVfsRead(int FileDescriptor, uint8_t *Buffer, size_t Length, VfsErrorCod
 		goto done;
 
 	/* Do the read */
-	bRead = (int)VfsRead((MCoreFileInstance_t*)fNode->Data, Buffer, Length);
+	bRead = VfsRead((MCoreFileInstance_t*)fNode->Data, Buffer, Length);
 	RetCode = ((MCoreFileInstance_t*)fNode->Data)->Code;
 
 done:
@@ -972,7 +972,12 @@ int ScVfsSeek(int FileDescriptor, off_t PositionLow, off_t PositionHigh)
 		return RetCode;
 
 	/* Build position */
-	Position = ((uint64_t)PositionHigh << 32) | PositionLow;
+	if (PositionHigh != 0) {
+		Position = ((uint64_t)PositionHigh << 32) | PositionLow;
+	}
+	else {
+		Position = (uint64_t)PositionLow;
+	}
 
 	/* Seek */
 	return (int)VfsSeek((MCoreFileInstance_t*)fNode->Data, Position);
