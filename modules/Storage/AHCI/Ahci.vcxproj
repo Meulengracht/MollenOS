@@ -11,16 +11,16 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="Mfs.c" />
+    <ClInclude Include="Ahci.h" />
   </ItemGroup>
   <ItemGroup>
-    <None Include="Mfs.mdrv" />
+    <ClCompile Include="Ahci.c" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="Mfs.h" />
+    <None Include="Ahci.mdrv" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
-    <ProjectGuid>{1835FDB8-C07F-4A34-B19D-528A84310040}</ProjectGuid>
+    <ProjectGuid>{D8F98581-1110-445E-A24F-80C95A727318}</ProjectGuid>
     <Keyword>Win32Proj</Keyword>
     <RootNamespace>Modules</RootNamespace>
   </PropertyGroup>

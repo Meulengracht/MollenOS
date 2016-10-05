@@ -51,7 +51,8 @@ MODULES_API void ModuleInit(void *Data)
 	/* Get I/O Base, and for AHCI there might be between 1-5
 	 * IO-spaces filled, so we always, ALWAYS go for the last one */
 	for (PciCommand = 0; PciCommand < DEVICEMANAGER_MAX_IOSPACES; PciCommand++) {
-		if (mDevice->IoSpaces[PciCommand] != NULL) {
+		if (mDevice->IoSpaces[PciCommand] != NULL
+			&& mDevice->IoSpaces[PciCommand]->Type == DEVICE_IO_SPACE_MMIO) {
 			IoBase = mDevice->IoSpaces[PciCommand];
 		}
 	}
