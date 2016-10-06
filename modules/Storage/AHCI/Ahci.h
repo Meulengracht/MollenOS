@@ -29,7 +29,7 @@
 #define AHCI_REGISTER_HOSTCONTROL		0x00
 #define AHCI_REGISTER_VENDORSPEC		0xA0
 #define AHCI_REGISTER_PORTBASE(Port)	(0x100 + (Port * 0x80))
-
+#define AHCI_MAX_PORTS					32
 
 /* AHCI Generic Host Control Registers 
  * Global, apply to all AHCI ops */
@@ -148,15 +148,87 @@ typedef struct _AHCIPortRegisters
 
 } AHCIPortRegisters_t ;
 
+/* The SATA specs specify these kinds of 
+ * FIS (Frame Information Structure) */
+typedef enum _AHCIFisType
+{
+	/* Register FIS - Host To Device */
+	FIS_TYPE_REG_H2D = 0x27,
+	
+	/* Register FIS - Device To Host */
+	FIS_TYPE_REG_D2H = 0x34,
+
+	/* DMA Activate FIS - Device To Host */
+	FIS_TYPE_DMA_ACT = 0x39,
+
+	/* DMA Setup FIS - Bidirectional */
+	FIS_TYPE_DMA_SETUP = 0x41,
+
+	/* Data FIS - Bidirectional */
+	FIS_TYPE_DATA = 0x46,
+
+	/* BIST Activate FIS - Bidirectional */
+	FIS_TYPE_BIST = 0x58,
+
+	/* PIO Setup FIS - Device To Host */
+	FIS_TYPE_PIO_SETUP = 0x5F,
+
+	/* Set device bits FIS - Device To Host */
+	FIS_TYPE_DEV_BITS = 0xA1
+
+} AHCIFisType_t;
+
+/* The Physical Region Descriptor Table 
+ * Describes a scatter/gather list for data transfers */
+typedef struct _AHCIPrdtEntry
+{
+	/* Data Base Address */
+	uint32_t DataBaseAddress;
+
+	/* Data Base Address Upper */
+	uint32_t DataBaseAddressUpper;
+
+	/* Reserved */
+	uint32_t Reserved;
+
+	/* Descriptor Information 
+	 * Bits 00-21: Data Byte Count 
+	 * Bit 31: Interrupt on Completion */
+	uint32_t Descriptor;
+
+} AHCIPrdtEntry_t;
+
+/* The command table, which is pointed to by a 
+ * Command list header, and this table contains
+ * a given number of FIS */
+typedef struct _AHCICommandTable
+{
+	/* The first 64 bytes are reserved 
+	 * for a command fis */
+	uint8_t FISCommand[64];
+
+	/* The next 16 bytes are reserved
+	 * for an atapi fis */
+	uint8_t FISAtapi[16];
+
+	/* The next 48 bytes are reserved */
+	uint8_t Reserved[48];
+
+	/* Between 0...65535 entries  
+	 * of PRDT */
+	AHCIPrdtEntry_t PrdtEntry[1];
+
+} AHCICommandTable_t;
+
 /* The command list entry structure 
  * Contains a command for the port to execute */
 typedef struct _AHCICommandHeader
 {
-	/* Command Description Information */
-	uint32_t Description;
+	/* Physical Region Descriptor */
+	uint32_t Descriptor;
 
-	/* Command Status */
-	uint32_t Status;
+	/* PRDBC: PRD Byte Count */
+	uint32_t PRDByteCount;
 
 	/* Command Table Base Address */
 	uint32_t CmdTableBaseAddress;
@@ -245,6 +317,21 @@ typedef struct _AHCICommandList
 /* Supports 64-bit Addressing */
 #define AHCI_CAPABILITIES_S64A				0x80000000
 
+/* Global HBA Control (GlobalHostControl)
+ * - Generic Registers */
+
+/* HBA Reset */
+#define AHCI_HOSTCONTROL_HR					0x1
+
+/* Global Interrupt Enable */
+#define AHCI_HOSTCONTROL_IE					0x2
+
+/* MSI Revert to Single Message */
+#define AHCI_HOSTCONTROL_MRSM				0x4
+
+/* AHCI Enable */
+#define AHCI_HOSTCONTROL_AE					0x80000000
+
 /* Port Interrupt Bits (InterruptStatus)
  * - Generic Registers */
 #define AHCI_INTERRUPT_PORT(Port)			(1 << Port)
@@ -300,5 +387,30 @@ typedef struct _AHCICommandList
 
 /* BIOS Busy */
 #define AHCI_CONTROLSTATUS_BB				0x10
+
+/* The AHCI Controller 
+ * It contains all information neccessary 
+ * for us to use it for our functions */
+typedef struct _AhciController
+{
+	/* Id */
+	int Id;
+
+	/* Device */
+	MCoreDevice_t *Device;
+
+	/* Lock */
+	Spinlock_t Lock;
+
+	/* Registers */
+	volatile AHCIGenericRegisters_t *Registers;
+	volatile AHCIPortRegisters_t *Ports[AHCI_MAX_PORTS];
+
+} AhciController_t;
+
+/* AHCISetup
+ * Initializes memory structures, ports and 
+ * resets the controller so it's ready for use */
+_CRT_EXTERN void AhciSetup(AhciController_t *Controller);
 
 #endif //!_AHCI_H_

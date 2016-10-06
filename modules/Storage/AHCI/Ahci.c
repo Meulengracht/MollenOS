@@ -42,11 +42,13 @@ MODULES_API void ModuleInit(void *Data)
 {
 	/* Cast & Vars */
 	MCoreDevice_t *mDevice = (MCoreDevice_t*)Data;
+	AhciController_t *Controller = NULL;
 	DeviceIoSpace_t *IoBase = NULL;
 	uint16_t PciCommand;
 
 	/* Allocate Resources for this Controller */
-
+	Controller = (AhciController_t*)kmalloc(sizeof(AhciController_t));
+	memset(Controller, 0, sizeof(AhciController_t));
 
 	/* Get I/O Base, and for AHCI there might be between 1-5
 	 * IO-spaces filled, so we always, ALWAYS go for the last one */
@@ -62,27 +64,31 @@ MODULES_API void ModuleInit(void *Data)
 	{
 		/* Yea, give me my hat back */
 		LogFatal("AHCI", "No memory space found for controller!");
+		kfree(Controller);
 		return;
 	}
 
 	/* Now we initialise */
+	Controller->Id = GlbAhciControllerId;
+	Controller->Device = mDevice;
 	GlbAhciControllerId++;
 
 	/* Get registers */
-
+	Controller->Registers = (volatile AHCIGenericRegisters_t*)IoBase->VirtualBase;
 
 	/* Reset Lock */
-
+	SpinlockReset(&Controller->Lock);
 
 	/* Allocate Irq */
 	mDevice->IrqAvailable[0] = -1;
-	//mDevice->IrqHandler = EhciInterruptHandler;
+	//mDevice->IrqHandler = AhciInterruptHandler;
 
 	/* Register us for an irq */
 	if (DmRequestResource(mDevice, ResourceIrq)) {
 
 		/* Damnit! */
-		LogFatal("EHCI", "Failed to allocate irq for use, bailing out!");
+		LogFatal("AHCI", "Failed to allocate irq for use, bailing out!");
+		kfree(Controller);
 		return;
 	}
 
@@ -92,10 +98,18 @@ MODULES_API void ModuleInit(void *Data)
 
 	/* Setup driver information */
 	mDevice->Driver.Name = (char*)GlbAhciDriverName;
-	//mDevice->Driver.Data = Controller;
+	mDevice->Driver.Data = Controller;
 	mDevice->Driver.Version = 1;
 	mDevice->Driver.Status = DriverActive;
 
 	/* Setup Controller */
-	//EhciSetup(Controller);
+	AhciSetup(Controller);
+}
+
+/* AHCISetup
+ * Initializes memory structures, ports and
+ * resets the controller so it's ready for use */
+void AhciSetup(AhciController_t *Controller)
+{
+
 }
