@@ -80,7 +80,7 @@ void AhciPortInit(AhciController_t *Controller, AhciPort_t *Port)
 	/* Determine which events should cause an interrupt, 
 	 * and set each implemented port’s PxIE register with the appropriate enables. */
 	Port->Registers->InterruptEnable = 
-		(AHCI_PORT_IE_CPDE | AHCI_PORT_IE_DSE | AHCI_PORT_IE_PSE | AHCI_PORT_IE_DHRE);
+		(uint32_t)(AHCI_PORT_IE_CPDE | AHCI_PORT_IE_DSE | AHCI_PORT_IE_PSE | AHCI_PORT_IE_DHRE);
 }
 
 /* AHCIPortCleanup

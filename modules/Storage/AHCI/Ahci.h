@@ -27,6 +27,9 @@
 #include <Module.h>
 #include <DeviceManager.h>
 
+/* Include the Sata header */
+#include <Sata.h>
+
 /* AHCI Operation Registers */
 #define AHCI_REGISTER_HOSTCONTROL		0x00
 #define AHCI_REGISTER_VENDORSPEC		0xA0
@@ -150,36 +153,6 @@ typedef struct _AHCIPortRegisters
 
 } AHCIPortRegisters_t ;
 
-/* The SATA specs specify these kinds of 
- * FIS (Frame Information Structure) */
-typedef enum _AHCIFisType
-{
-	/* Register FIS - Host To Device */
-	FIS_TYPE_REG_H2D = 0x27,
-	
-	/* Register FIS - Device To Host */
-	FIS_TYPE_REG_D2H = 0x34,
-
-	/* DMA Activate FIS - Device To Host */
-	FIS_TYPE_DMA_ACT = 0x39,
-
-	/* DMA Setup FIS - Bidirectional */
-	FIS_TYPE_DMA_SETUP = 0x41,
-
-	/* Data FIS - Bidirectional */
-	FIS_TYPE_DATA = 0x46,
-
-	/* BIST Activate FIS - Bidirectional */
-	FIS_TYPE_BIST = 0x58,
-
-	/* PIO Setup FIS - Device To Host */
-	FIS_TYPE_PIO_SETUP = 0x5F,
-
-	/* Set device bits FIS - Device To Host */
-	FIS_TYPE_DEV_BITS = 0xA1
-
-} AHCIFisType_t;
-
 /* The Physical Region Descriptor Table 
  * Describes a scatter/gather list for data transfers */
 typedef struct _AHCIPrdtEntry
@@ -252,6 +225,40 @@ typedef struct _AHCICommandList
 	AHCICommandHeader_t Headers[32];
 
 } AHCICommandList_t;
+
+/* Received FIS 
+ * There are four kinds of FIS which may be sent to the host 
+ * by the device as indicated in the following structure declaration */
+typedef volatile struct _AHCIFIS
+{
+	/* Offset 0x0 - Dma Setup FIS */
+	FISDmaSetup_t DmaSetup;
+
+	/* Padding */
+	uint8_t Padding0[4];
+
+	/* Offset 0x20 - Pio Setup FIS */
+	FISPioSetup_t PioSetup;
+
+	/* Padding, again */
+	uint8_t Padding1[12];
+
+	/* Offset 0x40 - Register – Device to Host FIS */
+	FISRegisterD2H_t RegisterD2H;
+
+	/* Padding, again again */
+	uint8_t Padding2[4];
+
+	/* Offset 0x58 - Set Device Bit FIS */
+	FISDeviceBits_t	DeviceBits;
+
+	/* Offset 0x60 - Space for unknown */
+	uint8_t UnknownFIS[64];
+
+	/* Offset 0xA0 - Reserved */
+	uint8_t ReservedArea[0x100 - 0xA0];
+
+} AHCIFis_t;
 
 /* Capability Bits (Host Capabilities) 
  * - Generic Registers */
