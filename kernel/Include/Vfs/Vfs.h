@@ -266,7 +266,7 @@ typedef struct _MCoreFileSystem
 	void *FsData;
 
 	/* Functions */
-	OsResult_t (*Destroy)(void *Fs, uint32_t Forced);
+	OsStatus_t (*Destroy)(void *Fs, uint32_t Forced);
 
 	/* Handle Operations */
 	VfsErrorCode_t (*OpenFile)(void *Fs, MCoreFile_t *Handle, MString_t *Path, VfsFileFlags_t Flags);

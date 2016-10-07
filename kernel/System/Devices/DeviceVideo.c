@@ -87,7 +87,7 @@ void VideoDrawBootTerminal(MCoreVideoDevice_t *VideoDevice,
 }
 
 /* CPU Prototypes */
-OsResult_t VideoBootInit(MCoreVideoDevice_t *BootVideo)
+OsStatus_t VideoBootInit(MCoreVideoDevice_t *BootVideo)
 {
 	/* Clear */
 	GlbVideoPtr = BootVideo;
@@ -105,7 +105,7 @@ OsResult_t VideoBootInit(MCoreVideoDevice_t *BootVideo)
 	LogRedirect(LogConsole);
 
 	/* Done */
-	return OsOk;
+	return OsNoError;
 }
 
 /* PutChar Wrapper */

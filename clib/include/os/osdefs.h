@@ -29,18 +29,26 @@
 
 /* Memory / Addressing types below 
  * these will switch in size based upon target-arch */
+
+/* Fixed Width */
+typedef uint32_t reg32_t;
+typedef uint64_t reg64_t;
+
+/* Variable Width */
 #if defined(_X86_32)
 typedef unsigned int PhysAddr_t;
 typedef unsigned int VirtAddr_t;
 typedef unsigned int Addr_t;
 typedef int SAddr_t;
 typedef unsigned int Cpu_t;
+typedef reg32_t reg_t;
 #elif defined(_X86_64)
 typedef unsigned long long PhysAddr_t;
 typedef unsigned long long VirtAddr_t;
 typedef unsigned long long Addr_t;
 typedef long long SAddr_t;
 typedef unsigned long long Cpu_t;
+typedef reg64_t reg_t;
 #endif
 
 /* Operation System types below 

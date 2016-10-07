@@ -1571,7 +1571,7 @@ VfsErrorCode_t MfsQuery(void *FsData, MCoreFile_t *Handle,
 /* Unload MFS Driver 
  * If it's forced, we can't save
  * stuff back to the disk :/ */
-OsResult_t MfsDestroy(void *FsData, uint32_t Forced)
+OsStatus_t MfsDestroy(void *FsData, uint32_t Forced)
 {
 	/* Cast */
 	MCoreFileSystem_t *Fs = (MCoreFileSystem_t*)FsData;
@@ -1589,7 +1589,7 @@ OsResult_t MfsDestroy(void *FsData, uint32_t Forced)
 	kfree(mData);
 
 	/* Done */
-	return OsOk;
+	return OsNoError;
 }
 
 /* Entry point of a module */

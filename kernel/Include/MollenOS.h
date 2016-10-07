@@ -22,15 +22,7 @@
 #define _MCORE_H_
 
 /* Includes */
-#include <crtdefs.h>
-#include <stdint.h>
-
-/* Typedefs */
-typedef enum _OsResult
-{
-	OsOk,
-	OsFail
-} OsResult_t;
+#include <os/osdefs.h>
 
 /* Definitions */
 

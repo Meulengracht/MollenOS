@@ -367,7 +367,7 @@ void VfsUnregisterDisk(DevId_t DiskId, uint32_t Forced)
 		}
 
 		/* Destruct the FS */
-		if (Fs->Destroy(lNode->Data, Forced) != OsOk)
+		if (Fs->Destroy(lNode->Data, Forced) != OsNoError)
 			LogFatal("VFSM", "UnregisterDisk:: Failed to destroy filesystem");
 
 		/* Remove it from list */

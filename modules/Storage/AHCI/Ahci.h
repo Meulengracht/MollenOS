@@ -24,6 +24,8 @@
 
 /* Includes */
 #include <os/osdefs.h>
+#include <Module.h>
+#include <DeviceManager.h>
 
 /* AHCI Operation Registers */
 #define AHCI_REGISTER_HOSTCONTROL		0x00
@@ -249,7 +251,7 @@ typedef struct _AHCICommandList
 	/* The list, 32 entries */
 	AHCICommandHeader_t Headers[32];
 
-} AHCICommandTable_t;
+} AHCICommandList_t;
 
 /* Capability Bits (Host Capabilities) 
  * - Generic Registers */
@@ -388,6 +390,173 @@ typedef struct _AHCICommandList
 /* BIOS Busy */
 #define AHCI_CONTROLSTATUS_BB				0x10
 
+/* Port Control & Status (CommandAndStatus)
+* - Port Registers */
+
+/* Start */
+#define AHCI_PORT_ST						0x1
+
+/* Spin-Up Device */
+#define AHCI_PORT_SUD						0x2
+
+/* Power On Device */
+#define AHCI_PORT_POD						0x4
+
+/* Command List Override */
+#define AHCI_PORT_CLO						0x8
+
+/* FIS Receive Enable */
+#define AHCI_PORT_FRE						0x10
+
+/* Current Command Slot */
+#define AHCI_PORT_CCS(Register)				((Register >> 8) & 0x1F)
+
+/* Mechanical Presence Switch State */
+#define AHCI_PORT_MPSS						0x2000
+
+/* FIS Receive Running */
+#define AHCI_PORT_FR						0x4000
+
+/* Command List Running */
+#define AHCI_PORT_CR						0x8000
+
+/* Cold Presence State */
+#define AHCI_PORT_CPS						0x10000
+
+/* Port Multiplier Attached */
+#define AHCI_PORT_PMA						0x20000
+
+/* Hot Plug Capable Port */
+#define AHCI_PORT_HPCP						0x40000
+
+/* Mechanical Presence Switch Attached to Port */
+#define AHCI_PORT_MPSP						0x80000
+
+/* Cold Presence Detection */
+#define AHCI_PORT_CPD						0x100000
+
+/* External SATA Port */
+#define AHCI_PORT_ESP						0x200000
+
+/* FIS-based Switching Capable Port */
+#define AHCI_PORT_FBSCP						0x400000
+
+/* Automatic Partial to Slumber Transitions Enabled */
+#define AHCI_PORT_APSTE						0x800000
+
+/* Device is ATAPI */
+#define AHCI_PORT_ATAPI						0x1000000
+
+/* Drive LED on ATAPI Enable */
+#define AHCI_PORT_DLAE						0x2000000
+
+/* Aggressive Link Power Management Enable */
+#define AHCI_PORT_ALPE						0x4000000
+
+/* Aggressive Slumber / Partial */
+#define AHCI_PORT_ASP						0x8000000
+
+/* Interface Communication Control */
+#define AHCI_PORT_ICC(Register)				((Register >> 28) & 0xF)
+#define AHCI_PORT_ICC_SET(Register, Mode)	Register |= ((Mode & 0xF) << 28)
+#define AHCI_PORT_ICC_IDLE					0x0
+#define AHCI_PORT_ICC_ACTIVE				0x1
+#define AHCI_PORT_ICC_PARTIAL				0x2
+#define AHCI_PORT_ICC_SLUMBER				0x6
+#define AHCI_PORT_ICC_DEVSLEEP				0x8
+
+/* Port x Interrupt Enable (InterruptEnable)
+ * - Port Registers */
+
+/* Device to Host Register FIS Interrupt Enable */
+#define AHCI_PORT_IE_DHRE					0x1
+
+/* PIO Setup FIS Interrupt Enable */
+#define AHCI_PORT_IE_PSE					0x2
+
+/* DMA Setup FIS Interrupt Enable */
+#define AHCI_PORT_IE_DSE					0x4
+
+/* Set Device Bits FIS Interrupt Enable */
+#define AHCI_PORT_IE_SDBE					0x8
+
+/* Unknown FIS Interrupt Enable */
+#define AHCI_PORT_IE_UFE					0x10
+
+/* Descriptor Processed Interrupt Enable */
+#define AHCI_PORT_IE_DPE					0x20
+
+/* Port Change Interrupt Enable */
+#define AHCI_PORT_IE_PCE					0x40
+
+/* Device Mechanical Presence Enable */
+#define AHCI_PORT_IE_DMPE					0x80
+
+/* PhyRdy Change Interrupt Enable */
+#define AHCI_PORT_IE_PRCE					(1 << 22)
+
+/* Incorrect Port Multiplier Enable */
+#define AHCI_PORT_IE_IPME					(1 << 23)
+
+/* Overflow Enable */
+#define AHCI_PORT_IE_OFE					(1 << 24)
+
+/* Interface Non-fatal Error Enable */
+#define AHCI_PORT_IE_INFE					(1 << 26)
+
+/* Interface Fatal Error Enable */
+#define AHCI_PORT_IE_IFE					(1 << 27)
+
+/* Host Bus Data Error Enable */
+#define AHCI_PORT_IE_HBDE					(1 << 28)
+
+/* Host Bus Fatal Error Enable */
+#define AHCI_PORT_IE_HBFE					(1 << 29)
+
+/* Task File Error Enable */
+#define AHCI_PORT_IE_TFEE					(1 << 30)
+
+/* Cold Presence Detect Enable */
+#define AHCI_PORT_IE_CPDE					(1 << 31)
+
+
+/* Port Ata Control (AtaControl)
+ * - Port Registers */
+
+/* Device Detection Initialization */
+#define AHCI_PORT_SCTL_DET_MASK				0xF
+#define AHCI_PORT_SCTL_DET_RESET			0x1
+#define AHCI_PORT_SCTL_DET_DISABLE			0x4
+
+/* Port Ata Status (AtaStatus)
+ * - Port Registers */
+
+/* Device Detection */
+#define AHCI_PORT_SSTS_DET_NODEVICE			0x0
+#define AHCI_PORT_SSTS_DET_NOPHYCOM			0x1 /* Device is present, but no phys com */
+#define AHCI_PORT_SSTS_DET_ENABLED			0x3 
+
+/* Port Ata Error (AtaError)
+ * - Port Registers */
+
+/* Helpers */
+#define AHCI_PORT_SERR_CLEARALL				0x3FF783
+
+/* The AHCI Controller Port 
+ * Contains all memory structures neccessary
+ * for port transactions */
+typedef struct _AhciPort
+{
+	/* Id */
+	int Id;
+
+	/* Register Access for this port */
+	volatile AHCIPortRegisters_t *Registers;
+
+	/* PRDT, FIS */
+
+} AhciPort_t;
+
 /* The AHCI Controller 
  * It contains all information neccessary 
  * for us to use it for our functions */
@@ -404,7 +573,10 @@ typedef struct _AhciController
 
 	/* Registers */
 	volatile AHCIGenericRegisters_t *Registers;
-	volatile AHCIPortRegisters_t *Ports[AHCI_MAX_PORTS];
+
+	/* Ports */
+	AhciPort_t *Ports[AHCI_MAX_PORTS];
+	uint32_t ValidPorts;
 
 } AhciController_t;
 
@@ -412,5 +584,26 @@ typedef struct _AhciController
  * Initializes memory structures, ports and 
  * resets the controller so it's ready for use */
 _CRT_EXTERN void AhciSetup(AhciController_t *Controller);
+
+/* AHCIPortCreate
+ * Initializes the port structure, but not memory structures yet */
+_CRT_EXTERN AhciPort_t *AhciPortCreate(AhciController_t *Controller, int Port);
+
+/* AHCIPortCleanup
+ * Destroys a port, cleans up device, cleans up memory and resources */
+_CRT_EXTERN void AhciPortCleanup(AhciController_t *Controller, AhciPort_t *Port);
+
+/* AHCIPortInit
+ * Initializes the memory regions and enables them in the port */
+_CRT_EXTERN void AhciPortInit(AhciController_t *Controller, AhciPort_t *Port);
+
+/* AHCIPortSetupDevice
+ * Identifies connection on a port, and initializes connection/device */
+_CRT_EXTERN void AhciPortSetupDevice(AhciController_t *Controller, AhciPort_t *Port);
+
+/* AHCIPortReset
+ * Resets the port, and resets communication with the device on the port
+ * if the communication was destroyed */
+_CRT_EXTERN OsStatus_t AhciPortReset(AhciController_t *Controller, AhciPort_t *Port);
 
 #endif //!_AHCI_H_
