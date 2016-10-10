@@ -25,6 +25,17 @@
 /* Includes */
 #include <os/osdefs.h>
 
+/* SATA Device Signatures
+ * Used to identify which kind of device is attached to a SATA port */
+#define	SATA_SIG_ATA	0x00000101
+#define	SATA_SIG_ATAPI	0xEB140101
+
+/* Enclosure Management Bridge */
+#define	SATA_SIG_SEMB	0xC33C0101
+
+/* Port Multiplier */
+#define	SATA_SIG_PM		0x96690101
+
 /* The SATA specs specify these kinds of
 * FIS (Frame Information Structure) */
 typedef enum _AHCIFisType

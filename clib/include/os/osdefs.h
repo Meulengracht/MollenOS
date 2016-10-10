@@ -95,4 +95,53 @@ static int FirstSetBit(size_t Value)
 #define INCLIMIT(i, limit) i++; if (i == limit) i = 0;
 #define ALIGN(Val, Alignment, Roundup) ((Val & (Alignment-1)) > 0 ? (Roundup == 1 ? ((Val + Alignment) & ~(Alignment-1)) : Val & ~(Alignment-1)) : Val)
 
+/* Data manipulation macros */
+#ifndef LOWORD
+#define LOWORD(l)                       ((uint16_t)(uint32_t)(l))
+#endif
+
+#ifndef HIWORD
+#define HIWORD(l)                       ((uint16_t)((((uint32_t)(l)) >> 16) & 0xFFFF))
+#endif
+
+#ifndef LOBYTE
+#define LOBYTE(l)                       ((uint8_t)(uint16_t)(l))
+#endif
+
+#ifndef HIBYTE
+#define HIBYTE(l)                       ((uint8_t)((((uint16_t)(l)) >> 8) & 0xFF))
+#endif
+
+#ifdef _X86_16
+/* For 16-bit addresses, we have to assume that the upper 32 bits
+ * are zero. */
+#ifndef LODWORD
+#define LODWORD(l)                      (l)
+#endif
+
+#ifndef HIDWORD
+#define HIDWORD(l)                      (0)
+#endif
+#else
+#ifdef _MOLLENOS_NO_64BIT
+/* int is 32-bits, no 64-bit support on this platform */
+#ifndef LODWORD
+#define LODWORD(l)                      ((u32)(l))
+#endif
+
+#ifndef HIDWORD
+#define HIDWORD(l)                      (0)
+#endif
+#else
+/* Full 64-bit address/integer on both 32-bit and 64-bit platforms */
+#ifndef LODWORD
+#define LODWORD(l)                      ((uint32_t)(uint64_t)(l))
+#endif
+
+#ifndef HIDWORD
+#define HIDWORD(l)                      ((uint32_t)(((*(val64_t*)(&l))).HighPart))
+#endif
+#endif
+#endif
+
 #endif //!_OS_DEFITIONS_H_

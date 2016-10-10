@@ -203,6 +203,14 @@ void AhciDestroy(AhciController_t *Controller)
 		}
 	}
 
+	/* Free the shared resources */
+	if (Controller->CmdListBase != NULL)
+		kfree(Controller->CmdListBase);
+	if (Controller->FisBase != NULL)
+		kfree(Controller->FisBase);
+	if (Controller->CmdTableBase != NULL)
+		kfree(Controller->CmdTableBase);
+	
 	/* Free controller */
 	kfree(Controller);
 }
@@ -248,7 +256,7 @@ OsStatus_t AhciTakeOwnership(AhciController_t *Controller)
 void AhciSetup(AhciController_t *Controller)
 {
 	/* Variables */
-	int FullResetRequired = 0;
+	int FullResetRequired = 0, PortItr = 0;
 	int i;
 
 	/* Declare ownership */
@@ -266,6 +274,7 @@ void AhciSetup(AhciController_t *Controller)
 	 * This bit map value will aid software in determining how many ports are 
 	 * available and which port registers need to be initialized. */
 	Controller->ValidPorts = Controller->Registers->PortsImplemented;
+	Controller->CmdSlotCount = AHCI_CAPABILITIES_NCS(Controller->Registers->Capabilities);
 
 	/* Ensure that the controller is not in the running state by reading and 
 	 * examining each implemented port’s PxCMD register */
@@ -277,7 +286,7 @@ void AhciSetup(AhciController_t *Controller)
 		}
 
 		/* Create a new port */
-		Controller->Ports[i] = AhciPortCreate(Controller, i);
+		Controller->Ports[i] = AhciPortCreate(Controller, PortItr, i);
 
 		/* If PxCMD.ST, PxCMD.CR, PxCMD.FRE and PxCMD.FR 
 		 * are all cleared, the port is in an idle state */
@@ -289,6 +298,9 @@ void AhciSetup(AhciController_t *Controller)
 		/* System software places a port into the idle state by clearing PxCMD.ST and 
 		 * waiting for PxCMD.CR to return ‘0’ when read */
 		Controller->Ports[i]->Registers->CommandAndStatus = 0;
+
+		/* Increament port counter */
+		PortItr++;
 	}
 
 	/* Flush writes, just in case */
@@ -322,6 +334,17 @@ void AhciSetup(AhciController_t *Controller)
 		}
 	}
 
+	/* Allocate some shared resources, especially 
+	 * command lists as we need 1K * portcount */
+	Controller->CmdListBase = kmalloc_a(1024 * PortItr);
+	Controller->FisBase = kmalloc_a(256 * PortItr);
+	Controller->CmdTableBase = kmalloc_a(((256 * Controller->CmdSlotCount) * 32) * PortItr);
+
+	/* Zero out memory allocated */
+	memset(Controller->CmdListBase, 0, 1024 * PortItr);
+	memset(Controller->FisBase, 0, 256 * PortItr);
+	memset(Controller->CmdTableBase, 0, ((256 * Controller->CmdSlotCount) * 32) * PortItr);
+
 	/* For each implemented port, system software shall allocate memory */
 	for (i = 0; i < AHCI_MAX_PORTS; i++) {
 		if (Controller->Ports[i] != NULL) {
@@ -341,14 +364,33 @@ void AhciSetup(AhciController_t *Controller)
 	}
 }
 
-/* Interrupt Handler */
+/* Controller Interrupt Handler 
+ * Does basic interrupt handling */
 int AhciInterruptHandler(void *Args)
 {
-	/* Vars */
+	/* Variables */
 	MCoreDevice_t *mDevice = (MCoreDevice_t*)Args;
 	AhciController_t *Controller = (AhciController_t*)mDevice->Driver.Data;
+	int i;
 	
-	_CRT_UNUSED(Controller);
+	/* Store status locally */
+	uint32_t InterruptStatus = Controller->Registers->InterruptStatus;
+
+	/* Was this interrupt even from this controller?? */
+	if (!InterruptStatus) {
+		return X86_IRQ_NOT_HANDLED;
+	}
+
+	/* Iterate port interrupt status */
+	for (i = 0; i < 32; i++) {
+		if (Controller->Ports[i] != NULL
+			&& ((InterruptStatus & (1 << i)) != 0)) {
+			AhciPortInterruptHandler(Controller, Controller->Ports[i]);
+		}
+	}
+
+	/* Clear out interrupts */
+	Controller->Registers->InterruptStatus = InterruptStatus;
 
 	/* Done! */
 	return X86_IRQ_HANDLED;

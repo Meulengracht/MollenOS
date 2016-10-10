@@ -29,6 +29,7 @@
 
 /* Include the Sata header */
 #include <Sata.h>
+#include <Ata.h>
 
 /* AHCI Operation Registers */
 #define AHCI_REGISTER_HOSTCONTROL		0x00
@@ -199,8 +200,20 @@ typedef struct _AHCICommandTable
  * Contains a command for the port to execute */
 typedef struct _AHCICommandHeader
 {
-	/* Physical Region Descriptor */
-	uint32_t Descriptor;
+	/* Flags 
+	 * Bits  0-4: Command FIS Length (CFL) 
+	 * Bit     5: ATAPI 
+	 * Bit     6: (1) Write, (0) Read
+	 * Bit     7: Prefetchable (P)
+	 * Bit     8: Reset, perform sync
+	 * Bit     9: BIST Fis
+	 * Bit    10: Clear Busy Upon R_OK 
+	 * Bit    11: Reserved
+	 * Bit 12-15: Port Multiplier Port */
+	uint16_t Flags;
+
+	/* Physical Region Descriptor Table Length */
+	uint16_t TableLength;
 
 	/* PRDBC: PRD Byte Count */
 	uint32_t PRDByteCount;
@@ -276,7 +289,7 @@ typedef volatile struct _AHCIFIS
 #define AHCI_CAPABILITIES_CCCS				0x80
 
 /* Number of Command Slots */
-#define AHCI_CAPABILITIES_NCS(Caps)			(((Caps & 0x1F00) >> 8) + 1)
+#define AHCI_CAPABILITIES_NCS(Caps)			(((Caps >> 8) & 0x1F) + 1)
 
 /* Partial State Capable */
 #define AHCI_CAPABILITIES_PSC				0x2000
@@ -526,6 +539,12 @@ typedef volatile struct _AHCIFIS
 /* Cold Presence Detect Enable */
 #define AHCI_PORT_IE_CPDE					(1 << 31)
 
+/* Port x Task File Data (TaskFileData)
+ * - Port Registers */
+
+#define AHCI_PORT_TFD_ERR					0x1
+#define AHCI_PORT_TFD_DRQ					0x8
+#define AHCI_PORT_TFD_BSY					0x80
 
 /* Port Ata Control (AtaControl)
  * - Port Registers */
@@ -539,6 +558,7 @@ typedef volatile struct _AHCIFIS
  * - Port Registers */
 
 /* Device Detection */
+#define AHCI_PORT_STSS_DET(Sts)				(Sts & 0xF)
 #define AHCI_PORT_SSTS_DET_NODEVICE			0x0
 #define AHCI_PORT_SSTS_DET_NOPHYCOM			0x1 /* Device is present, but no phys com */
 #define AHCI_PORT_SSTS_DET_ENABLED			0x3 
@@ -554,13 +574,20 @@ typedef volatile struct _AHCIFIS
  * for port transactions */
 typedef struct _AhciPort
 {
-	/* Id */
+	/* Id & Index */
 	int Id;
+	int Index;
 
 	/* Register Access for this port */
 	volatile AHCIPortRegisters_t *Registers;
 
-	/* PRDT, FIS */
+	/* Memory resources */
+	AHCICommandList_t *CommandList;
+	AHCIFis_t *RecievedFis;
+	void *CommandTable;
+
+	/* Status */
+	int Connected;
 
 } AhciPort_t;
 
@@ -585,6 +612,16 @@ typedef struct _AhciController
 	AhciPort_t *Ports[AHCI_MAX_PORTS];
 	uint32_t ValidPorts;
 
+	/* Number of command slots for ports 
+	 * So we can allocate stuff correctly */
+	size_t CmdSlotCount;
+
+	/* Shared resource bases 
+	 * Especially command lists for optimizing memory */
+	void *CmdListBase;
+	void *FisBase;
+	void *CmdTableBase;
+
 } AhciController_t;
 
 /* AHCISetup
@@ -594,7 +631,7 @@ _CRT_EXTERN void AhciSetup(AhciController_t *Controller);
 
 /* AHCIPortCreate
  * Initializes the port structure, but not memory structures yet */
-_CRT_EXTERN AhciPort_t *AhciPortCreate(AhciController_t *Controller, int Port);
+_CRT_EXTERN AhciPort_t *AhciPortCreate(AhciController_t *Controller, int Port, int Index);
 
 /* AHCIPortCleanup
  * Destroys a port, cleans up device, cleans up memory and resources */
@@ -612,5 +649,10 @@ _CRT_EXTERN void AhciPortSetupDevice(AhciController_t *Controller, AhciPort_t *P
  * Resets the port, and resets communication with the device on the port
  * if the communication was destroyed */
 _CRT_EXTERN OsStatus_t AhciPortReset(AhciController_t *Controller, AhciPort_t *Port);
+
+/* AHCIPortInterruptHandler
+ * Port specific interrupt handler 
+ * handles interrupt for a specific port */
+_CRT_EXTERN void AhciPortInterruptHandler(AhciController_t *Controller, AhciPort_t *Port);
 
 #endif //!_AHCI_H_

@@ -395,23 +395,20 @@ are probably typos and should be removed before 2.8 is released.  */
 #define _FILE_OFFSET_BITS 32
 #endif
 
-//Structures
-typedef struct Value64Bit
-{
+/* 64 Bit, 128 Bit helper structures 
+ * for misc operations */
+#pragma pack(push, 1)
+typedef struct Value64Bit {
 	uint32_t LowPart;
 	uint32_t HighPart;
-
 } val64_t;
-
-typedef struct Value128Bit
-{
+typedef struct Value128Bit {
 	uint32_t Part32;
 	uint32_t Part64;
 	uint32_t Part96;
 	uint32_t Part128;
-
 } val128_t;
-
+#pragma pack(pop)
 
 #endif
 
