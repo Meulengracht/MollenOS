@@ -239,8 +239,8 @@ void InterruptInstallBase(uint32_t Irq, uint32_t IdtEntry, uint64_t ApicEntry, I
 
 				/* Re-adjust trigger & polarity */
 				i_apic &= ~(0x8000 | 0x2000);
-				i_apic |= (InterruptGetPolarity(io_redirect->IntiFlags, Irq) << 13);
-				i_apic |= (InterruptGetTrigger(io_redirect->IntiFlags, Irq) << 15);
+				i_apic |= (InterruptGetPolarity(io_redirect->IntiFlags, LOBYTE(Irq)) << 13);
+				i_apic |= (InterruptGetTrigger(io_redirect->IntiFlags, LOBYTE(Irq)) << 15);
 
 				break;
 			}
