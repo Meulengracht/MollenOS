@@ -57,6 +57,9 @@ AhciPort_t *AhciPortCreate(AhciController_t *Controller, int Port, int Index)
 	AhciPort->Registers = (volatile AHCIPortRegisters_t*)
 		((uint8_t*)Controller->Registers + AHCI_REGISTER_PORTBASE(Port));
 
+	/* Reset lock */
+	SpinlockReset(&AhciPort->Lock);
+
 	/* Done, return it! */
 	return AhciPort;
 }
@@ -74,7 +77,7 @@ void AhciPortInit(AhciController_t *Controller, AhciPort_t *Port)
 	Port->CommandList = (AHCICommandList_t*)((uint8_t*)Controller->CmdListBase + (1024 * Port->Id));
 	Port->RecievedFis = (AHCIFis_t*)((uint8_t*)Controller->FisBase + (256 * Port->Id));
 	Port->CommandTable = (void*)((uint8_t*)Controller->CmdTableBase 
-		+ (((256 * Controller->CmdSlotCount) * 32) * Port->Id));
+		+ (((AHCI_COMMAND_TABLE_SIZE * Controller->CmdSlotCount) * 32) * Port->Id));
 
 	/* Setup mem pointer */
 	CmdTablePtr = (uint8_t*)Port->CommandTable;
@@ -84,7 +87,7 @@ void AhciPortInit(AhciController_t *Controller, AhciPort_t *Port)
 		
 		/* Setup flags */
 		Port->CommandList->Headers[i].Flags = 0;
-		Port->CommandList->Headers[i].TableLength = 8;
+		Port->CommandList->Headers[i].TableLength = AHCI_PORT_PRDT_COUNT;
 		Port->CommandList->Headers[i].PRDByteCount = 0;
 
 		/* Set command table address */
@@ -96,7 +99,7 @@ void AhciPortInit(AhciController_t *Controller, AhciPort_t *Port)
 			(sizeof(void*) > 4) ? HIDWORD(CmdTablePtr) : 0;
 
 		/* Increament pointer */
-		CmdTablePtr += (256 * Controller->CmdSlotCount);
+		CmdTablePtr += (AHCI_COMMAND_TABLE_SIZE * Controller->CmdSlotCount);
 	}
 
 	/* Update registers */
@@ -195,6 +198,68 @@ void AhciPortSetupDevice(AhciController_t *Controller, AhciPort_t *Port)
 
 	/* Query device */
 
+}
+
+/* AHCIPortAcquireCommandSlot
+ * Allocates an available command slot on a port
+ * returns index on success, otherwise -1 */
+int AhciPortAcquireCommandSlot(AhciController_t *Controller, AhciPort_t *Port)
+{
+	/* Variables */
+	uint32_t AtaActive = Port->Registers->AtaActive;
+	int i;
+
+	/* Lock access to port, we don't 
+	 * want simoultanous access */
+	SpinlockAcquire(&Port->Lock);
+
+	/* Iterate */
+	for (i = 0; i < (int)Controller->CmdSlotCount; i++)
+	{
+		/* Check availability status 
+		 * on this command slot */
+		if ((Port->SlotStatus & (1 << i)) != 0
+			|| (AtaActive & (1 << i)) != 0)
+			continue;
+
+		/* Allocate slot */
+		Port->SlotStatus |= (1 << i);
+		
+		/* Release lock */
+		SpinlockRelease(&Port->Lock);
+
+		/* Return index */
+		return i;
+	}
+
+	/* Release lock */
+	SpinlockRelease(&Port->Lock);
+
+	/* Damn... !! */
+	return -1;
+}
+
+/* AHCIPortReleaseCommandSlot
+ * Deallocates a previously allocated command slot */
+void AhciPortReleaseCommandSlot(AhciPort_t *Port, int Slot)
+{
+	/* Lock access to port, we don't 
+	 * want simoultanous access */
+	SpinlockAcquire(&Port->Lock);
+
+	/* Release slot */
+	Port->SlotStatus &= ~(1 << Slot);
+
+	/* Release lock */
+	SpinlockRelease(&Port->Lock);
+}
+
+/* AHCIPortStartCommandSlot
+ * Starts a command slot on the given port */
+void AhciPortStartCommandSlot(AhciPort_t *Port, int Slot)
+{
+	/* Release slot */
+	Port->Registers->CommandIssue |= (1 << Slot);
 }
 
 /* AHCIPortInterruptHandler

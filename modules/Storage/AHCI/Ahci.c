@@ -338,12 +338,12 @@ void AhciSetup(AhciController_t *Controller)
 	 * command lists as we need 1K * portcount */
 	Controller->CmdListBase = kmalloc_a(1024 * PortItr);
 	Controller->FisBase = kmalloc_a(256 * PortItr);
-	Controller->CmdTableBase = kmalloc_a(((256 * Controller->CmdSlotCount) * 32) * PortItr);
+	Controller->CmdTableBase = kmalloc_a(((AHCI_COMMAND_TABLE_SIZE * Controller->CmdSlotCount) * 32) * PortItr);
 
 	/* Zero out memory allocated */
 	memset(Controller->CmdListBase, 0, 1024 * PortItr);
 	memset(Controller->FisBase, 0, 256 * PortItr);
-	memset(Controller->CmdTableBase, 0, ((256 * Controller->CmdSlotCount) * 32) * PortItr);
+	memset(Controller->CmdTableBase, 0, ((AHCI_COMMAND_TABLE_SIZE * Controller->CmdSlotCount) * 32) * PortItr);
 
 	/* For each implemented port, system software shall allocate memory */
 	for (i = 0; i < AHCI_MAX_PORTS; i++) {

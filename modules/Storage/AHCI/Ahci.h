@@ -37,8 +37,13 @@
 #define AHCI_REGISTER_PORTBASE(Port)	(0x100 + (Port * 0x80))
 #define AHCI_MAX_PORTS					32
 
+/* How much we should allocate for each port */
+#define AHCI_PORT_PRDT_COUNT			32
+#define AHCI_COMMAND_TABLE_SIZE			(128 + (16 * AHCI_PORT_PRDT_COUNT))
+
 /* AHCI Generic Host Control Registers 
  * Global, apply to all AHCI ops */
+#pragma pack(push, 1)
 typedef struct _AHCIGenericRegisters
 {
 	/* Host Capabilities */
@@ -80,10 +85,12 @@ typedef struct _AHCIGenericRegisters
 	uint32_t OSControlAndStatus;
 
 } AHCIGenericRegisters_t;
+#pragma pack(pop)
 
 /* AHCI Port Specific Registers
  * This is per port, which means these registers
  * only control a single port */
+#pragma pack(push, 1)
 typedef struct _AHCIPortRegisters
 {
 	/* Command List Base Address */
@@ -153,9 +160,12 @@ typedef struct _AHCIPortRegisters
 	uint32_t VendorSpecifics[4];
 
 } AHCIPortRegisters_t ;
+#pragma pack(pop)
 
 /* The Physical Region Descriptor Table 
- * Describes a scatter/gather list for data transfers */
+ * Describes a scatter/gather list for data transfers 
+ * Size, 16 bytes */
+#pragma pack(push, 1)
 typedef struct _AHCIPrdtEntry
 {
 	/* Data Base Address */
@@ -173,31 +183,35 @@ typedef struct _AHCIPrdtEntry
 	uint32_t Descriptor;
 
 } AHCIPrdtEntry_t;
+#pragma pack(pop)
 
 /* The command table, which is pointed to by a 
  * Command list header, and this table contains
- * a given number of FIS */
+ * a given number of FIS, 128 bytes */
+#pragma pack(push, 1)
 typedef struct _AHCICommandTable
 {
 	/* The first 64 bytes are reserved 
 	 * for a command fis */
 	uint8_t FISCommand[64];
 
-	/* The next 16 bytes are reserved
+	/* The next 32 bytes are reserved
 	 * for an atapi fis */
-	uint8_t FISAtapi[16];
+	uint8_t FISAtapi[32];
 
 	/* The next 48 bytes are reserved */
-	uint8_t Reserved[48];
+	uint8_t Reserved[32];
 
 	/* Between 0...65535 entries  
 	 * of PRDT */
-	AHCIPrdtEntry_t PrdtEntry[1];
+	AHCIPrdtEntry_t PrdtEntry[8];
 
 } AHCICommandTable_t;
+#pragma pack(pop)
 
 /* The command list entry structure 
  * Contains a command for the port to execute */
+#pragma pack(push, 1)
 typedef struct _AHCICommandHeader
 {
 	/* Flags 
@@ -228,20 +242,24 @@ typedef struct _AHCICommandHeader
 	uint32_t Reserved[4];
 
 } AHCICommandHeader_t;
+#pragma pack(pop)
 
 /* The command list structure 
  * Contains a number of entries (1K /32 bytes)
  * for each port to execute */
+#pragma pack(push, 1)
 typedef struct _AHCICommandList
 {
 	/* The list, 32 entries */
 	AHCICommandHeader_t Headers[32];
 
 } AHCICommandList_t;
+#pragma pack(pop)
 
 /* Received FIS 
  * There are four kinds of FIS which may be sent to the host 
  * by the device as indicated in the following structure declaration */
+#pragma pack(push, 1)
 typedef volatile struct _AHCIFIS
 {
 	/* Offset 0x0 - Dma Setup FIS */
@@ -272,6 +290,7 @@ typedef volatile struct _AHCIFIS
 	uint8_t ReservedArea[0x100 - 0xA0];
 
 } AHCIFis_t;
+#pragma pack(pop)
 
 /* Capability Bits (Host Capabilities) 
  * - Generic Registers */
@@ -587,7 +606,11 @@ typedef struct _AhciPort
 	void *CommandTable;
 
 	/* Status */
+	uint32_t SlotStatus;
 	int Connected;
+
+	/* Port lock */
+	Spinlock_t Lock;
 
 } AhciPort_t;
 
@@ -649,6 +672,19 @@ _CRT_EXTERN void AhciPortSetupDevice(AhciController_t *Controller, AhciPort_t *P
  * Resets the port, and resets communication with the device on the port
  * if the communication was destroyed */
 _CRT_EXTERN OsStatus_t AhciPortReset(AhciController_t *Controller, AhciPort_t *Port);
+
+/* AHCIPortAcquireCommandSlot
+ * Allocates an available command slot on a port
+ * returns index on success, otherwise -1 */
+_CRT_EXTERN int AhciPortAcquireCommandSlot(AhciController_t *Controller, AhciPort_t *Port);
+
+/* AHCIPortReleaseCommandSlot
+ * Deallocates a previously allocated command slot */
+_CRT_EXTERN void AhciPortReleaseCommandSlot(AhciPort_t *Port, int Slot);
+
+/* AHCIPortStartCommandSlot
+ * Starts a command slot on the given port */
+_CRT_EXTERN void AhciPortStartCommandSlot(AhciPort_t *Port, int Slot);
 
 /* AHCIPortInterruptHandler
  * Port specific interrupt handler 
