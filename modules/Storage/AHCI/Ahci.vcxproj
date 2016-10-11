@@ -15,6 +15,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Ahci.c" />
+    <ClCompile Include="AhciFunctions.c" />
     <ClCompile Include="AhciPorts.c" />
   </ItemGroup>
   <ItemGroup>

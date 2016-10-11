@@ -60,6 +60,9 @@ AhciPort_t *AhciPortCreate(AhciController_t *Controller, int Port, int Index)
 	/* Reset lock */
 	SpinlockReset(&AhciPort->Lock);
 
+	/* Create list */
+	AhciPort->Transactions = ListCreate(KeyInteger, LIST_SAFE);
+
 	/* Done, return it! */
 	return AhciPort;
 }
@@ -128,8 +131,24 @@ void AhciPortInit(AhciController_t *Controller, AhciPort_t *Port)
  * Destroys a port, cleans up device, cleans up memory and resources */
 void AhciPortCleanup(AhciController_t *Controller, AhciPort_t *Port)
 {
+	/* Variables */
+	ListNode_t *pNode;
+
 	/* Set it null in the controller */
 	Controller->Ports[Port->Index] = NULL;
+
+	/* Cleanup list */
+	_foreach(pNode, Port->Transactions)
+	{
+		/* Cast */
+		void *PayLoad = pNode->Data;
+
+		/* Cleanup */
+		kfree(PayLoad);
+	}
+
+	/* Destroy the list */
+	ListDestroy(Port->Transactions);
 
 	/* Free the port structure */
 	kfree(Port);

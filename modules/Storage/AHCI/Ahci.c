@@ -38,6 +38,7 @@ const char *GlbAhciDriverName = "MollenOS AHCI Driver";
 int GlbAhciControllerId = 0;
 
 /* Prototypes */
+void AhciSetup(AhciController_t *Controller);
 int AhciInterruptHandler(void *Args);
 
 /* Entry point of a module */
@@ -306,6 +307,9 @@ void AhciSetup(AhciController_t *Controller)
 	/* Flush writes, just in case */
 	MemoryBarrier();
 
+	/* Log */
+	LogInformation("AHCI", "Ports initializing: %i", PortItr);
+
 	/* Software should wait at least 500 milliseconds for port idle to occur */
 	SleepMs(650);
 
@@ -327,6 +331,7 @@ void AhciSetup(AhciController_t *Controller)
 	/* If one of the ports reset fail, and ports  
 	 * still don't clear properly, we should attempt a full reset */
 	if (FullResetRequired) {
+		LogDebug("AHCI", "Full reset of controller is required");
 		if (AhciReset(Controller) != OsNoError) {
 			LogFatal("AHCI", "Failed to reset controller, as a full reset was required.");
 			AhciDestroy(Controller);
@@ -355,6 +360,9 @@ void AhciSetup(AhciController_t *Controller)
 	/* To enable the HBA to generate interrupts, system software must also set GHC.IE to a ‘1’ */
 	Controller->Registers->InterruptStatus = 0xFFFFFFFF;
 	Controller->Registers->GlobalHostControl |= AHCI_HOSTCONTROL_IE;
+
+	/* Debug */
+	LogInformation("AHCI", "Controller is up and running, enabling ports");
 
 	/* Enumerate ports and devices */
 	for (i = 0; i < AHCI_MAX_PORTS; i++) {

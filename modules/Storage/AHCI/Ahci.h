@@ -24,6 +24,7 @@
 
 /* Includes */
 #include <os/osdefs.h>
+#include <ds/list.h>
 #include <Module.h>
 #include <DeviceManager.h>
 
@@ -40,6 +41,7 @@
 /* How much we should allocate for each port */
 #define AHCI_PORT_PRDT_COUNT			32
 #define AHCI_COMMAND_TABLE_SIZE			(128 + (16 * AHCI_PORT_PRDT_COUNT))
+#define AHCI_PRDT_MAX_LENGTH			(4*1024*1024)
 
 /* AHCI Generic Host Control Registers 
  * Global, apply to all AHCI ops */
@@ -185,6 +187,9 @@ typedef struct _AHCIPrdtEntry
 } AHCIPrdtEntry_t;
 #pragma pack(pop)
 
+/* Interrupt Enable */
+#define AHCI_PRDT_IOC			(1 << 31)
+
 /* The command table, which is pointed to by a 
  * Command list header, and this table contains
  * a given number of FIS, 128 bytes */
@@ -195,12 +200,12 @@ typedef struct _AHCICommandTable
 	 * for a command fis */
 	uint8_t FISCommand[64];
 
-	/* The next 32 bytes are reserved
+	/* The next 16 bytes are reserved
 	 * for an atapi fis */
-	uint8_t FISAtapi[32];
+	uint8_t FISAtapi[16];
 
 	/* The next 48 bytes are reserved */
-	uint8_t Reserved[32];
+	uint8_t Reserved[48];
 
 	/* Between 0...65535 entries  
 	 * of PRDT */
@@ -588,6 +593,31 @@ typedef volatile struct _AHCIFIS
 /* Helpers */
 #define AHCI_PORT_SERR_CLEARALL				0x3FF783
 
+/* The AHCI Transaction structure 
+ * Describes a single AHCI transfer or a 
+ * single AHCI request */
+typedef struct _AhciTransaction
+{
+	/* Descriptor */
+	int Slot;
+	int Write;
+
+	/* FIS Command */
+	void *Command;
+	size_t CommandLength;
+
+	/* FIS Atapi */
+	void *AtapiCmd;
+	size_t AtapiCmdLength;
+
+	/* Data Buffer 
+	 * Either holds output data or 
+	 * a buffer for input */
+	void *Buffer;
+	size_t BufferLength;
+
+} AhciTransaction_t;
+
 /* The AHCI Controller Port 
  * Contains all memory structures neccessary
  * for port transactions */
@@ -611,6 +641,10 @@ typedef struct _AhciPort
 
 	/* Port lock */
 	Spinlock_t Lock;
+
+	/* Transactions for this port 
+	 * Keeps track of active transfers */
+	List_t *Transactions;
 
 } AhciPort_t;
 
@@ -646,11 +680,6 @@ typedef struct _AhciController
 	void *CmdTableBase;
 
 } AhciController_t;
-
-/* AHCISetup
- * Initializes memory structures, ports and 
- * resets the controller so it's ready for use */
-_CRT_EXTERN void AhciSetup(AhciController_t *Controller);
 
 /* AHCIPortCreate
  * Initializes the port structure, but not memory structures yet */
@@ -690,5 +719,7 @@ _CRT_EXTERN void AhciPortStartCommandSlot(AhciPort_t *Port, int Slot);
  * Port specific interrupt handler 
  * handles interrupt for a specific port */
 _CRT_EXTERN void AhciPortInterruptHandler(AhciController_t *Controller, AhciPort_t *Port);
+
+
 
 #endif //!_AHCI_H_

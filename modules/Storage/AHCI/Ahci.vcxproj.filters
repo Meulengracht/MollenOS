@@ -22,6 +22,9 @@
     <ClCompile Include="AhciPorts.c">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="AhciFunctions.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <None Include="Ahci.mdrv">
