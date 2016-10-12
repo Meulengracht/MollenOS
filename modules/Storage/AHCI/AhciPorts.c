@@ -73,6 +73,7 @@ void AhciPortInit(AhciController_t *Controller, AhciPort_t *Port)
 {
 	/* Variables */
 	uint8_t *CmdTablePtr = NULL;
+	Addr_t PhysAddress = 0;
 	int i;
 
 	/* Initialize memory structures 
@@ -80,7 +81,7 @@ void AhciPortInit(AhciController_t *Controller, AhciPort_t *Port)
 	Port->CommandList = (AHCICommandList_t*)((uint8_t*)Controller->CmdListBase + (1024 * Port->Id));
 	Port->RecievedFis = (AHCIFis_t*)((uint8_t*)Controller->FisBase + (256 * Port->Id));
 	Port->CommandTable = (void*)((uint8_t*)Controller->CmdTableBase 
-		+ (((AHCI_COMMAND_TABLE_SIZE * Controller->CmdSlotCount) * 32) * Port->Id));
+		+ ((AHCI_COMMAND_TABLE_SIZE  * 32) * Port->Id));
 
 	/* Setup mem pointer */
 	CmdTablePtr = (uint8_t*)Port->CommandTable;
@@ -88,29 +89,34 @@ void AhciPortInit(AhciController_t *Controller, AhciPort_t *Port)
 	/* Iterate command headers */
 	for (i = 0; i < 32; i++) {
 		
+		/* Get physical address of pointer */
+		Addr_t CmdTablePhys = AddressSpaceGetMap(AddressSpaceGetCurrent(), (VirtAddr_t)CmdTablePtr);
+
 		/* Setup flags */
 		Port->CommandList->Headers[i].Flags = 0;
 		Port->CommandList->Headers[i].TableLength = AHCI_PORT_PRDT_COUNT;
 		Port->CommandList->Headers[i].PRDByteCount = 0;
 
 		/* Set command table address */
-		Port->CommandList->Headers[i].CmdTableBaseAddress = LODWORD((uint32_t)CmdTablePtr);
+		Port->CommandList->Headers[i].CmdTableBaseAddress = LODWORD(CmdTablePhys);
 
 		/* Set command table address upper register 
 		 * Only set upper if we are in 64 bit */
 		Port->CommandList->Headers[i].CmdTableBaseAddressUpper = 
-			(sizeof(void*) > 4) ? HIDWORD(CmdTablePtr) : 0;
+			(sizeof(void*) > 4) ? HIDWORD(CmdTablePhys) : 0;
 
 		/* Increament pointer */
-		CmdTablePtr += (AHCI_COMMAND_TABLE_SIZE * Controller->CmdSlotCount);
+		CmdTablePtr += AHCI_COMMAND_TABLE_SIZE;
 	}
 
 	/* Update registers */
-	Port->Registers->CmdListBaseAddress = LODWORD((uint32_t)Port->CommandList);
-	Port->Registers->CmdListBaseAddressUpper = (sizeof(void*) > 4) ? HIDWORD(Port->CommandList) : 0;
+	PhysAddress = AddressSpaceGetMap(AddressSpaceGetCurrent(), (VirtAddr_t)Port->CommandList);
+	Port->Registers->CmdListBaseAddress = LODWORD(PhysAddress);
+	Port->Registers->CmdListBaseAddressUpper = (sizeof(void*) > 4) ? HIDWORD(PhysAddress) : 0;
 
-	Port->Registers->FISBaseAddress = LOWORD((uint32_t)Port->RecievedFis);
-	Port->Registers->FISBaseAdressUpper = (sizeof(void*) > 4) ? HIDWORD(Port->RecievedFis) : 0;
+	PhysAddress = AddressSpaceGetMap(AddressSpaceGetCurrent(), (VirtAddr_t)Port->RecievedFis);
+	Port->Registers->FISBaseAddress = LOWORD(PhysAddress);
+	Port->Registers->FISBaseAdressUpper = (sizeof(void*) > 4) ? HIDWORD(PhysAddress) : 0;
 
 	/* After setting PxFB and PxFBU to the physical address of the FIS receive area,
 	 * system software shall set PxCMD.FRE to ‘1’. */
@@ -213,6 +219,8 @@ void AhciPortSetupDevice(AhciController_t *Controller, AhciPort_t *Port)
 	}
 
 	/* Update port status */
+	LogInformation("AHCI", "Device present 0x%x on port %i", 
+		Port->Registers->Signature, Port->Id);
 	Port->Connected = 1;
 
 	/* Query device */

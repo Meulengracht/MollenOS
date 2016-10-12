@@ -134,4 +134,195 @@ typedef enum _ATACommandType
 
 } ATACommandType_t;
 
+/* This is the ATA Identify Command 
+ * Structure data, as described in the
+ * ATA specs. */
+#pragma pack(push, 1)
+typedef struct _ATAIdentify
+{
+	/* Flags 
+	 * Nothing is ok excpet:
+	 * Bit 15 -> (0) ATA Device, (1) Who knows */
+	uint16_t Flags;
+
+	/* Reserved or obsolete 
+	 * Words 1 -> 9 */
+	uint16_t Obsolete0[9];
+
+	/* Serial Number (20 ASCII Chars)
+	 * Length: 10 words, 20 bytes */
+	uint8_t SerialNo[20];
+
+	/* Retired or obsolete 
+	 * Words 20 -> 22 */
+	uint16_t Obsolete1[3];
+
+	/* Firmware Revision (8 ASCII Chars)
+	 * Length: 4 words, 8 bytes */
+	uint8_t FWRevision[8];
+
+	/* Model Number (40 ASCII Chars)
+	 * Length: 20 words, 40 bytes */
+	uint8_t ModelNo[40];
+
+	/* RW Multiple information 
+	 * Max number of logical sectors per DRQ */
+	uint8_t RWMultiple;
+
+	/* This is fixed value at 0x80 */
+	uint8_t FixedValue;
+
+	/* Trusted Computing Features */
+	uint16_t TCFeatures;
+
+	/* Retired part of Capabilities 1 */
+	uint8_t Obsolete2;
+
+	/* Capabilities 0
+	 * Bit 0: DMA Supported
+	 * Bit 1: LBA Supported 
+	 * Bit 2: Don't use IORDY 
+	 * Bit 3: (1) IORDY Supported, (0) Maybe Supported
+	 * Bit 4: Reserved
+	 * Bit 5: Standby Timer 
+	 * Bit 6-7: Reserved */
+	uint8_t Capabilities0;
+
+	/* Capabilities 1 
+	 * Contains totally not fun settings */
+	uint16_t Capabilities1;
+
+	/* Obsolete AND i don't care
+	 * Words 51 -> 60 */
+	uint16_t Obsolete3[9];
+
+	/* Number of LBA28 sectors */
+	uint32_t SectorCountLBA28;
+
+	/* Obsolete AND i don't care 
+	 * Words 62-79 */
+	uint16_t Obsolete4[18];
+
+	/* Drive Revision 
+	 * - Major */
+	uint16_t MajorRevision;
+
+	/* Drive Revision
+	 * - Minor */
+	uint16_t MinorRevision;
+
+	/* Command Set supported 0 
+	 * Bit 0: SMART Supported
+	 * Bit 1: Security Mode Supported
+	 * Bit 2: Obsolete
+	 * Bit 3: Power Management Supported
+	 * Bit 4: PACKET Supported
+	 * Bit 5: Write Cache Supported
+	 * Bit 6: Look-Ahead Supported
+	 * Bit 7: Release Interrupt Supported
+	 * Bit 8: SERVICE Interrupt Supported
+	 * Bit 9: DEVICE-RESET Supported
+	 * Bit 10: Host Protected Area Supported
+	 * Bit 11: Obsolete
+	 * Bit 12: WRITE BUFFER Supported
+	 * Bit 13: READ BUFFER Supported
+	 * Bit 14: NOP Supported
+	 * Bit 15: Obsolete */
+	uint16_t CommandSetSupport0;
+
+	/* Command Set supported 1 
+	 * Bit 0: DOWNLOAD MICROCODE Supported
+	 * Bit 1: READ/WRITE DMA QUEUED Supported
+	 * Bit 2: CFA Supported
+	 * Bit 3: Advanced Power Management Supported
+	 * Bit 4: Obsolete
+	 * Bit 5: Power-Up In Standby Supported
+	 * Bit 6: SET FEATURES subcommand required to spin-up after power-up
+	 * Bit 7: Ignore....
+	 * Bit 8: SET MAX security extension Supported
+	 * Bit 9: Automatic Acoustic Management Supported
+	 * Bit 10: 48-bit Address Support
+	 * Bit 11: Device Configuration Overlay Support
+	 * Bit 12: FLUSH CACHE Supported
+	 * Bit 13: FLUSH CACHE EXT Supported
+	 * Bit 14: Shall be set to one
+	 * Bit 15: Shall be set to zero */
+	uint16_t CommandSetSupport1;
+
+	/* Command Set supported 2
+	 * Bit 0: SMART error logging Supported
+	 * Bit 1: SMART self-test Supported
+	 * Bit 2: Media serial number Supported
+	 * Bit 3: Media Card Pass Through Command Supported
+	 * Bit 4: Streaming feature Supported
+	 * Bit 5: General Purpose Logging Supported
+	 * Bit 6: WRITE DMA FUA EXT and WRITE MULTIPLE FUA EXT Supported
+	 * Bit 7: WRITE DMA QUEUED FUA EXT Supported
+	 * Bit 8: 64-bit World wide name Supported
+	 * Bit 9: Obsolete
+	 * Bit 10: Obsolete
+	 * Bit 11: Reserved
+	 * Bit 12: Reserved
+	 * Bit 13: IDLE IMMEDIATE with UNLOAD FEATURE Supported
+	 * Bit 14: Shall be set to one
+	 * Bit 15: Shall be set to zero */
+	uint16_t CommandSetSupport2;
+
+	/* CommandSetEnabled 0, 1, 2 
+	 * They have exact same structure as 
+	 * the commandsetsupport above */
+	uint16_t CommandSetEnabled0;
+	uint16_t CommandSetEnabled1;
+	uint16_t CommandSetEnabled2;
+
+	/* Ultra DMA Mode 
+	 * Support / Enabled Status */
+	uint8_t UltraDMASupport;
+	uint8_t UltraDMAStatus;
+
+	/* Timings, master password, 
+	 * hardware reset results 
+	 * streaming information 
+	 * Words 89 -> 99 */
+	uint16_t Obsolete5[11];
+
+	/* Number of LBA48 sectors 
+	 * This value is 0, use LBA28 */
+	uint64_t SectorCountLBA48;
+
+	/* PIO Streaming Transfer Time */
+	uint16_t StreamingTransferTimePIO;
+
+	/* Reserved */
+	uint16_t Obsolete6;
+
+	/* Sector Size 
+	 * Bits 0-3: logical sectors per physical sector 
+	 * Bit   12: (1) Logical Sector is larger than 512 bytes (256 words)
+	 * Bit   13: (1) There is multiple logical sectors per physical 
+	 * Bit   14: Shall be set to one
+	 * Bit   15: Cleared to zero */
+	uint16_t SectorSize;
+
+	/* Obsolete AND i don't care 
+	 * Words 107-116 */
+	uint16_t Obsolete7[10];
+
+	/* Words per logical sector 
+	 * This * 2 = bytes per sector */
+	uint16_t WordsPerLogicalSector;
+
+	/* Obsolete AND i don't care 
+	 * Words 119-255 */
+	uint16_t Obsolete8[255 - 119];
+
+	/* Signature + Checksum */
+	uint8_t Signature;
+	uint8_t Checksum;
+
+	/* 209 -> Alignment of logical blocks within a larger physical block */
+
+} ATAIdentify_t;
+#pragma pack(pop)
+
 #endif //!_ATA_H_

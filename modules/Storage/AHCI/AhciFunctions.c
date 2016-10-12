@@ -72,7 +72,7 @@ OsStatus_t AhciCommandDispatch(AhciController_t *Controller,
 	Transaction->Slot = Slot;
 
 	/* Get a reference to the command slot */
-	CmdTable = (AHCICommandTable_t*)Port->CommandList->Headers[Slot].CmdTableBaseAddress;
+	CmdTable = (AHCICommandTable_t*)((uint8_t*)Port->CommandTable + (AHCI_COMMAND_TABLE_SIZE * Slot));
 
 	/* Zero out the command table */
 	memset(CmdTable, 0, AHCI_COMMAND_TABLE_SIZE);
