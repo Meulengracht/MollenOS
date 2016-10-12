@@ -720,6 +720,11 @@ _CRT_EXTERN void AhciPortStartCommandSlot(AhciPort_t *Port, int Slot);
  * handles interrupt for a specific port */
 _CRT_EXTERN void AhciPortInterruptHandler(AhciController_t *Controller, AhciPort_t *Port);
 
-
+/* AHCICommandDispatch 
+ * Dispatches a FIS command on a given port 
+ * This function automatically allocates everything neccessary
+ * for the transfer */
+_CRT_EXTERN OsStatus_t AhciCommandDispatch(AhciController_t *Controller,
+	AhciPort_t *Port, AhciTransaction_t *Transaction);
 
 #endif //!_AHCI_H_

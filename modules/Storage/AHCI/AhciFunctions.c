@@ -36,8 +36,8 @@
  * Dispatches a FIS command on a given port 
  * This function automatically allocates everything neccessary
  * for the transfer */
-OsStatus_t AhciCommandDispatch(AhciController_t *Controller, AhciPort_t *Port, 
-	AhciTransaction_t *Transaction)
+OsStatus_t AhciCommandDispatch(AhciController_t *Controller, 
+	AhciPort_t *Port, AhciTransaction_t *Transaction)
 {
 	/* Variables */
 	AHCICommandTable_t *CmdTable = NULL;
@@ -133,7 +133,8 @@ OsStatus_t AhciCommandDispatch(AhciController_t *Controller, AhciPort_t *Port,
 	AhciPortStartCommandSlot(Port, Slot);
 
 	/* Start the sleep */
-
+	SchedulerSleepThread((Addr_t*)Transaction, 0);
+	IThreadYield();
 
 	/* Done */
 	return OsNoError;

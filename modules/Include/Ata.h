@@ -30,10 +30,8 @@
 
 /* ATA Status bits */
 #define ATA_STS_DEV_ERROR			0x1
-#define ATA_STS_DEV_DRQ				0x10
-#define ATA_STS_DEV_DWE				0x10
-#define ATA_STS_DEV_SERV			0x10
-#define ATA_STS_DEV_STREAMERR		0x20
+#define ATA_STS_DEV_DRQ				0x08
+#define ATA_STS_DEV_CDERR			0x10
 #define ATA_STS_DEV_FAULT			0x20
 #define ATA_STS_DEV_READY			0x40
 #define ATA_STS_DEV_BUSY			0x80

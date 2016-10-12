@@ -382,7 +382,7 @@ int AhciInterruptHandler(void *Args)
 	int i;
 	
 	/* Store status locally */
-	uint32_t InterruptStatus = Controller->Registers->InterruptStatus;
+	reg32_t InterruptStatus = Controller->Registers->InterruptStatus;
 
 	/* Was this interrupt even from this controller?? */
 	if (!InterruptStatus) {

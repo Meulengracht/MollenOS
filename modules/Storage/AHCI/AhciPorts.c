@@ -286,7 +286,36 @@ void AhciPortStartCommandSlot(AhciPort_t *Port, int Slot)
  * handles interrupt for a specific port */
 void AhciPortInterruptHandler(AhciController_t *Controller, AhciPort_t *Port)
 {
+	/* Variables */
+	reg32_t DoneCommands = 
+		Port->Registers->CommandIssue ^ Port->Registers->AtaActive;
+	ListNode_t *tNode;
+	DataKey_t Key;
+	int i;
+	
 	/* Unused */
 	_CRT_UNUSED(Controller);
-	_CRT_UNUSED(Port);
+
+	/* Check interrupt services 
+	 * Cold port detect, recieved fis etc */
+
+
+	/* Check for command completion */
+	if (!DoneCommands) {
+		return;
+	}
+
+	/* Run through completed commands */
+	for (i = 0; i < 32; i++) {
+		if (DoneCommands & (1 << i)) {
+			Key.Value = i;
+			tNode = ListGetNodeByKey(Port->Transactions, Key, 0);
+			if (tNode != NULL) {
+				void *PayLoad = tNode->Data;
+				ListRemoveByNode(Port->Transactions, tNode);
+				ListDestroyNode(Port->Transactions, tNode);
+				SchedulerWakeupAllThreads((Addr_t*)PayLoad);
+			}
+		}
+	}
 }
