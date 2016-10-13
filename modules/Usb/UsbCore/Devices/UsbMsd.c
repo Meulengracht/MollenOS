@@ -119,15 +119,13 @@ void UsbMsdInit(UsbHcDevice_t *UsbDevice, int InterfaceIndex)
 	StorageData->SectorCount = 0;
 
 	/* Depends if floppy */
-	if (DevData->Type != FloppyDrive)
-	{
-		StorageData->AlignedAccess = 0;
-		StorageData->SectorsPerCylinder = 64;
+	if (DevData->Type != FloppyDrive) {
+		DevData->AlignedAccess = 0;
+		DevData->SectorsPerCylinder = 64;
 	}
-	else
-	{
-		StorageData->AlignedAccess = 1;
-		StorageData->SectorsPerCylinder = 18;
+	else {
+		DevData->AlignedAccess = 1;
+		DevData->SectorsPerCylinder = 18;
 	}
 
 	/* Set functions */

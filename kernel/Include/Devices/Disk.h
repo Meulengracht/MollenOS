@@ -28,15 +28,21 @@
 #pragma pack(push, 1)
 typedef struct _MCoreStorageDevice
 {
-	/* Disk Stats */
+	/* Disk strings 
+	 * Can be manufactor, model, id, revision etc */
+	char *Manufactor;
+	char *SerialNo;
+	char *ModelNo;
+	char *Revision;
+
+	/* Common disk statistics
+	 * this can be sector count, sector size etc */
 	uint64_t SectorCount;
-	size_t SectorsPerCylinder;
-	int AlignedAccess;
 	size_t SectorSize;
 
 	/* Functions */
-	int(*Read)(void *Device, uint64_t LBA, void *Buffer, size_t BufferLength);
-	int(*Write)(void *Device, uint64_t LBA, void *Buffer, size_t BufferLength);
+	int(*Read)(void *mDevice, uint64_t StartSector, void *Buffer, size_t BufferLength);
+	int(*Write)(void *mDevice, uint64_t StartSector, void *Buffer, size_t BufferLength);
 
 } MCoreStorageDevice_t;
 #pragma pack(pop)

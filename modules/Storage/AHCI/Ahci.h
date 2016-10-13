@@ -29,9 +29,11 @@
 /* Includes */
 #include <os/osdefs.h>
 #include <ds/list.h>
-#include <Module.h>
+
+/* System Includes */
 #include <DeviceManager.h>
 #include <CriticalSection.h>
+#include <Module.h>
 
 /* Include the Sata header */
 #include <Sata.h>
@@ -662,6 +664,43 @@ typedef struct _AhciController
 
 } AhciController_t;
 
+/* The AHCI Device Structure 
+ * This describes an attached ahci device 
+ * and the information neccessary to deal with it */
+#pragma pack(push, 1)
+typedef struct _AhciDevice
+{
+	/* First of all, we need 
+	 * to know which controller and port 
+	 * this device belongs to */
+	AhciController_t *Controller;
+	AhciPort_t *Port;
+
+	/* Next up we describe the capabilities 
+	 * DeviceType:
+	 * 0 -> ATA
+	 * 1 -> ATAPI */
+	int DeviceType;
+
+	/* Whether or not this device supports
+	 * DMA transfers, otherwise fallback to PIO */
+	int UseDMA;
+
+	/* Addressing mode is descriped as 
+	 * (0) CHS, (1) LBA28, (2) LBA48 */
+	int AddressingMode;
+
+	/* Sector Count, implemented as both LBA28 and
+	 * LBA48 to keep it simple, see addressing mode */
+	uint64_t SectorsLBA;
+
+	/* Size of a physical sector in bytes 
+	 * Calculated from the IDENTIFY command */
+	size_t SectorSize;
+
+} AhciDevice_t;
+#pragma pack(pop)
+
 /* AHCIPortCreate
  * Initializes the port structure, but not memory structures yet */
 _CRT_EXTERN AhciPort_t *AhciPortCreate(AhciController_t *Controller, int Port, int Index);
@@ -705,5 +744,7 @@ _CRT_EXTERN void AhciPortInterruptHandler(AhciController_t *Controller, AhciPort
  * Identifies the device and type on a port
  * and sets it up accordingly */
 _CRT_EXTERN void AhciDeviceIdentify(AhciController_t *Controller, AhciPort_t *Port);
+
+
 
 #endif //!_AHCI_H_

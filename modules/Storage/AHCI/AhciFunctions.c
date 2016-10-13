@@ -24,6 +24,7 @@
 
 /* Additional Includes */
 #include <DeviceManager.h>
+#include <Devices/Disk.h>
 #include <Scheduler.h>
 #include <Heap.h>
 #include <Timers.h>
@@ -39,6 +40,32 @@
 #define DISPATCH_PREFETCH				0x20
 #define DISPATCH_CLEARBUSY				0x40
 #define DISPATCH_ATAPI					0x80
+
+/* Prototypes 
+ * Read/Write forwarding for our setup */
+int AhciReadSectors(void *mDevice, uint64_t StartSector, void *Buffer, size_t BufferLength);
+int AhciWriteSectors(void *mDevice, uint64_t StartSector, void *Buffer, size_t BufferLength);
+
+/* AHCIStringFlip 
+ * Flips a string returned by an ahci command
+ * so it's readable */
+void AhciStringFlip(uint8_t *Buffer, size_t Length)
+{
+	/* Variables */
+	size_t StringPairs = Length / 2;
+	size_t i;
+
+	/* Iterate pairs in string, and swap */
+	for (i = 0; i < StringPairs; i++)
+	{
+		/* Get temporary character */
+		uint8_t TempChar = Buffer[i * 2];
+
+		/* Do the swap */
+		Buffer[i * 2] = Buffer[i * 2 + 1];
+		Buffer[i * 2 + 1] = TempChar;
+	}
+}
 
 /* AHCICommandDispatch 
  * Dispatches a FIS command on a given port 
@@ -262,7 +289,10 @@ OsStatus_t AhciCommandRegisterFIS(AhciController_t *Controller, AhciPort_t *Port
 void AhciDeviceIdentify(AhciController_t *Controller, AhciPort_t *Port)
 {
 	/* Variables */
+	MCoreStorageDevice_t *Disk;
+	MCoreDevice_t *Device;
 	ATAIdentify_t DeviceInformation;
+	AhciDevice_t *AhciDisk;
 	OsStatus_t Status;
 
 	/* First of all, is this a port multiplier? 
@@ -284,9 +314,107 @@ void AhciDeviceIdentify(AhciController_t *Controller, AhciPort_t *Port)
 		return;
 	}
 
-	/* Safety */
-	DeviceInformation.ModelNo[39] = '\0';
+	/* Flip the strings */
+	AhciStringFlip(DeviceInformation.SerialNo, 20);
+	AhciStringFlip(DeviceInformation.ModelNo, 40);
+	AhciStringFlip(DeviceInformation.FWRevision, 8);
+
+	/* Allocate the disk device 
+	 * we need it to register a new disk */
+	Disk = (MCoreStorageDevice_t*)kmalloc(sizeof(MCoreStorageDevice_t));
+	AhciDisk = (AhciDevice_t*)kmalloc(sizeof(AhciDevice_t));
+	Device = (MCoreDevice_t*)kmalloc(sizeof(MCoreDevice_t));
+
+	/* Set initial stuff */
+	AhciDisk->Controller = Controller;
+	AhciDisk->Port = Port;
+
+	/* Set capabilities */
+	if (DeviceInformation.Capabilities0 & (1 << 0)) {
+		AhciDisk->UseDMA = 1;
+	}
+
+	if (Port->Registers->Signature == SATA_SIGNATURE_ATAPI) {
+		AhciDisk->DeviceType = 1;
+	}
+	else {
+		AhciDisk->DeviceType = 0;
+	}
+
+	/* Check addressing mode supported 
+	 * Check that LBA is supported */
+	if (DeviceInformation.Capabilities0 & (1 << 1)) {
+		AhciDisk->AddressingMode = 1;
+
+		/* Is LBA48 commands supported? */
+		if (DeviceInformation.CommandSetSupport1 & (1 << 10)) {
+			AhciDisk->AddressingMode = 2;
+		}
+	}
+	else {
+		AhciDisk->AddressingMode = 0;
+	}
+
+	/* Calculate sector size if neccessary */
+	if (DeviceInformation.SectorSize & (1 << 12)) {
+		AhciDisk->SectorSize = DeviceInformation.WordsPerLogicalSector * 2;
+	}
+	else {
+		AhciDisk->SectorSize = 512;
+	}
+	
+	/* Calculate sector count per physical sector */
+	if (DeviceInformation.SectorSize & (1 << 13)) {
+		AhciDisk->SectorSize *= (DeviceInformation.SectorSize & 0xF);
+	}
+
+	/* Now, get the number of sectors for 
+	 * this particular disk */
+	if (DeviceInformation.SectorCountLBA48 != 0) {
+		AhciDisk->SectorsLBA = DeviceInformation.SectorCountLBA48;
+	}
+	else {
+		AhciDisk->SectorsLBA = DeviceInformation.SectorCountLBA28;
+	}
+
+	/* At this point the ahcidisk structure is filled
+	 * and we can continue to fill out the mcoredisk */
+	Disk->Manufactor = NULL;
+	Disk->ModelNo = strndup((const char*)&DeviceInformation.ModelNo[0], 40);
+	Disk->Revision = strndup((const char*)&DeviceInformation.FWRevision[0], 8);
+	Disk->SerialNo = strndup((const char*)&DeviceInformation.SerialNo[0], 20);
+
+	Disk->SectorCount = AhciDisk->SectorsLBA;
+	Disk->SectorSize = AhciDisk->SectorSize;
+
+	/* Setup functions */
+	Disk->Read = AhciReadSectors;
+	Disk->Write = AhciWriteSectors;
+
+	/* At this point all the disk structures are filled 
+	 * out, and we can build a MCoreDevice_t under our controller
+	 * as parent */
+	
 
 	/* Transform information */
-	LogInformation("AHCI", "Drive Model: %s", &DeviceInformation.ModelNo[0]);
+	LogInformation("AHCI", "Drive Model: %s, SectorCount 0x%x", 
+		Disk->ModelNo, DeviceInformation.SectorCountLBA28);
+}
+
+int AhciReadSectors(void *mDevice, uint64_t StartSector, void *Buffer, size_t BufferLength)
+{
+	_CRT_UNUSED(mDevice);
+	_CRT_UNUSED(StartSector);
+	_CRT_UNUSED(Buffer);
+	_CRT_UNUSED(BufferLength);
+	return 0;
+}
+
+int AhciWriteSectors(void *mDevice, uint64_t StartSector, void *Buffer, size_t BufferLength)
+{
+	_CRT_UNUSED(mDevice);
+	_CRT_UNUSED(StartSector);
+	_CRT_UNUSED(Buffer);
+	_CRT_UNUSED(BufferLength);
+	return 0;
 }

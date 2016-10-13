@@ -33,6 +33,7 @@ extern "C" {
  *       String Creation       *
  *******************************/
 _CRT_EXTERN	char* strdup(const char *str);
+_CRT_EXTERN char *strndup(const char *str, size_t len);
 
 /*******************************
  *       String Copying        *

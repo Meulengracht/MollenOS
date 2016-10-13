@@ -23,6 +23,7 @@ MollenOS is written in the traditional layers (The kernel is built upon a hardwa
 MollenOS supports a wide array of features and has implementation for VFS, Processes, Pipes, an advanced PE loader (which is used as the file format in MollenOS), ACPICA built in and MollenOS natively uses UTF-8 in it's kernel. UTF-8 Is implemented in a library called MString which is written for MollenOS.
 
 ## Drivers:
+    - AHCI
     - ACPICA
     - MFS
     - HPET

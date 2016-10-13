@@ -292,6 +292,10 @@ typedef struct _MsdDevice
 	size_t LUNCount;
 	size_t SectorSize;
 
+	/* Disk Stats */
+	size_t SectorsPerCylinder;
+	int AlignedAccess;
+
 	/* Usb Data */
 	UsbHcDevice_t *UsbDevice;
 	UsbHcEndpoint_t *EpIn;
