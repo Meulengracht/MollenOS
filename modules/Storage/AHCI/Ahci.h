@@ -31,6 +31,7 @@
 #include <ds/list.h>
 #include <Module.h>
 #include <DeviceManager.h>
+#include <CriticalSection.h>
 
 /* Include the Sata header */
 #include <Sata.h>
@@ -541,19 +542,19 @@ typedef volatile struct _AHCIFIS
 #define AHCI_PORT_IE_DMPE					0x80
 
 /* PhyRdy Change Interrupt Enable */
-#define AHCI_PORT_IE_PRCE					(1 << 22)
+#define AHCI_PORT_IE_PRCE					0x800000
 
 /* Incorrect Port Multiplier Enable */
-#define AHCI_PORT_IE_IPME					(1 << 23)
+#define AHCI_PORT_IE_IPME					0x1000000
 
 /* Overflow Enable */
-#define AHCI_PORT_IE_OFE					(1 << 24)
+#define AHCI_PORT_IE_OFE					0x2000000
 
 /* Interface Non-fatal Error Enable */
-#define AHCI_PORT_IE_INFE					(1 << 26)
+#define AHCI_PORT_IE_INFE					0x4000000
 
 /* Interface Fatal Error Enable */
-#define AHCI_PORT_IE_IFE					(1 << 27)
+#define AHCI_PORT_IE_IFE					0x8000000
 
 /* Host Bus Data Error Enable */
 #define AHCI_PORT_IE_HBDE					0x10000000
@@ -618,7 +619,8 @@ typedef struct _AhciPort
 	uint32_t SlotStatus;
 	int Connected;
 
-	/* Port lock */
+	/* Port lock/section */
+	CriticalSection_t Section;
 	Spinlock_t Lock;
 
 	/* Transactions for this port 

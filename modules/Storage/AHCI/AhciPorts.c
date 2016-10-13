@@ -57,7 +57,8 @@ AhciPort_t *AhciPortCreate(AhciController_t *Controller, int Port, int Index)
 	AhciPort->Registers = (volatile AHCIPortRegisters_t*)
 		((uint8_t*)Controller->Registers + AHCI_REGISTER_PORTBASE(Port));
 
-	/* Reset lock */
+	/* Reset lock & section */
+	CriticalSectionConstruct(&AhciPort->Section, CRITICALSECTION_PLAIN);
 	SpinlockReset(&AhciPort->Lock);
 
 	/* Create list */
@@ -319,9 +320,9 @@ void AhciPortInterruptHandler(AhciController_t *Controller, AhciPort_t *Port)
 	/* Check interrupt services 
 	 * Cold port detect, recieved fis etc */
 
-
-	/* Check for TFD */
-	if (Port->Registers->InterruptStatus & AHCI_PORT_IE_TFEE) {
+	/* Check for errors */
+	if (InterruptStatus & (AHCI_PORT_IE_TFEE | AHCI_PORT_IE_HBFE 
+		| AHCI_PORT_IE_HBDE | AHCI_PORT_IE_IFE | AHCI_PORT_IE_INFE)) {
 		/* Task file error */
 		LogInformation("AHCI", "Port ERROR %i, CMD: 0x%x, CI 0x%x, IE: 0x%x, IS 0x%x, TFD: 0x%x", Port->Id,
 			Port->Registers->CommandAndStatus, Port->Registers->CommandIssue,
@@ -329,21 +330,25 @@ void AhciPortInterruptHandler(AhciController_t *Controller, AhciPort_t *Port)
 			Port->Registers->TaskFileData);
 	}
 
-	/* Get completed commands */
-	DoneCommands = Port->Registers->CommandIssue ^ Port->Registers->AtaActive;
+	/* Get completed commands, by using our own slot-status */
+	DoneCommands = Port->SlotStatus ^ Port->Registers->AtaActive;
 
 	/* Check for command completion */
-	if (DoneCommands) {
+	if (DoneCommands != 0) {
 		/* Run through completed commands */
 		for (i = 0; i < 32; i++) {
 			if (DoneCommands & (1 << i)) {
 				Key.Value = i;
 				tNode = ListGetNodeByKey(Port->Transactions, Key, 0);
 				if (tNode != NULL) {
+					/* Unlink node, wakeup node, delete node */
 					ListRemoveByNode(Port->Transactions, tNode);
 					SchedulerWakeupAllThreads((Addr_t*)tNode);
 					ListDestroyNode(Port->Transactions, tNode);
 				}
+
+				/* Cleanup */
+				AhciPortReleaseCommandSlot(Port, i);
 			}
 		}
 	}

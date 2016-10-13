@@ -136,7 +136,7 @@ typedef struct _SATAFISRegisterH2D
 
 /* FISRegisterH2D Definitions 
  * - Flags */
-#define FIS_REGISTER_COMMAND			0x80
+#define FIS_HOST_TO_DEVICE			0x80
 
 /* The FISRegisterD2H structure 
  * as described in the SATA Specification */

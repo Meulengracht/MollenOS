@@ -154,15 +154,22 @@ OsStatus_t AhciCommandDispatch(AhciController_t *Controller, AhciPort_t *Port, u
 	tNode = ListCreateNode(Key, SubKey, NULL);
 	ListAppend(Port->Transactions, tNode);
 
+	/* Enter critical section 
+	 * We do this since it's possible for the
+	 * port interrupt to happen before we sleep
+	 * our self on the resource */
+	CriticalSectionEnter(&Port->Section);
+
 	/* Start command */
 	AhciPortStartCommandSlot(Port, Slot);
 
-	/* Start the sleep */
+	/* Wait for signal to happen on resource */
 	SchedulerSleepThread((Addr_t*)tNode, 0);
-	IThreadYield();
 
-	/* Cleanup */
-	AhciPortReleaseCommandSlot(Port, Slot);
+	/* Leave critical section, and allow 
+	 * it to be interrupt, then yield */
+	CriticalSectionLeave(&Port->Section);
+	IThreadYield();
 
 	/* Done */
 	return OsNoError;
@@ -189,10 +196,10 @@ OsStatus_t AhciCommandRegisterFIS(AhciController_t *Controller, AhciPort_t *Port
 	memset((void*)&Fis, 0, sizeof(FISRegisterH2D_t));
 
 	/* Fill in FIS */
-	Fis.FISType = (uint8_t)FISRegisterH2D;
-	Fis.Flags |= FIS_REGISTER_COMMAND;
-	Fis.Command = (uint8_t)Command;
-	Fis.Device = 0x40 | ((uint8_t)(Device & 0x1) << 4);
+	Fis.FISType = LOBYTE(FISRegisterH2D);
+	Fis.Flags |= FIS_HOST_TO_DEVICE;
+	Fis.Command = LOBYTE(Command);
+	Fis.Device = 0x40 | ((LOBYTE(Device) & 0x1) << 4);
 
 	/* Set CHS fields */
 	if (AddressingMode == 0) 
