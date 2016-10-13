@@ -79,9 +79,16 @@ void AhciPortInit(AhciController_t *Controller, AhciPort_t *Port)
 	/* Initialize memory structures 
 	 * Both RecievedFIS and PRDT */
 	Port->CommandList = (AHCICommandList_t*)((uint8_t*)Controller->CmdListBase + (1024 * Port->Id));
-	Port->RecievedFis = (AHCIFis_t*)((uint8_t*)Controller->FisBase + (256 * Port->Id));
 	Port->CommandTable = (void*)((uint8_t*)Controller->CmdTableBase 
 		+ ((AHCI_COMMAND_TABLE_SIZE  * 32) * Port->Id));
+
+	/* Get FIS base */
+	if (Controller->Registers->Capabilities & AHCI_CAPABILITIES_FBSS) {
+		Port->RecievedFis = (AHCIFis_t*)((uint8_t*)Controller->FisBase + (0x1000 * Port->Id));
+	}
+	else {
+		Port->RecievedFis = (AHCIFis_t*)((uint8_t*)Controller->FisBase + (256 * Port->Id));
+	}
 
 	/* Setup mem pointer */
 	CmdTablePtr = (uint8_t*)Port->CommandTable;
@@ -118,9 +125,15 @@ void AhciPortInit(AhciController_t *Controller, AhciPort_t *Port)
 	Port->Registers->FISBaseAddress = LOWORD(PhysAddress);
 	Port->Registers->FISBaseAdressUpper = (sizeof(void*) > 4) ? HIDWORD(PhysAddress) : 0;
 
+	/* Flush */
+	MemoryBarrier();
+
 	/* After setting PxFB and PxFBU to the physical address of the FIS receive area,
 	 * system software shall set PxCMD.FRE to ‘1’. */
 	Port->Registers->CommandAndStatus |= AHCI_PORT_FRE;
+
+	/* Flush */
+	MemoryBarrier();
 
 	/* For each implemented port, clear the PxSERR register, 
 	 * by writing ‘1s’ to each implemented bit location. */
@@ -129,8 +142,8 @@ void AhciPortInit(AhciController_t *Controller, AhciPort_t *Port)
 	
 	/* Determine which events should cause an interrupt, 
 	 * and set each implemented port’s PxIE register with the appropriate enables. */
-	Port->Registers->InterruptEnable = 
-		(uint32_t)(AHCI_PORT_IE_CPDE | AHCI_PORT_IE_DSE | AHCI_PORT_IE_PSE | AHCI_PORT_IE_DHRE);
+	Port->Registers->InterruptEnable = (uint32_t)AHCI_PORT_IE_CPDE | AHCI_PORT_IE_TFEE
+		| AHCI_PORT_IE_PCE | AHCI_PORT_IE_DSE | AHCI_PORT_IE_PSE | AHCI_PORT_IE_DHRE;
 }
 
 /* AHCIPortCleanup
@@ -204,9 +217,6 @@ OsStatus_t AhciPortReset(AhciController_t *Controller, AhciPort_t *Port)
  * Identifies connection on a port, and initializes connection/device */
 void AhciPortSetupDevice(AhciController_t *Controller, AhciPort_t *Port)
 {
-	/* Unused */
-	_CRT_UNUSED(Controller);
-
 	/* Start command engine */
 	Port->Registers->CommandAndStatus |= AHCI_PORT_ST | AHCI_PORT_FRE;
 
@@ -223,8 +233,8 @@ void AhciPortSetupDevice(AhciController_t *Controller, AhciPort_t *Port)
 		Port->Registers->Signature, Port->Id);
 	Port->Connected = 1;
 
-	/* Query device */
-
+	/* Identify device */
+	AhciDeviceIdentify(Controller, Port);
 }
 
 /* AHCIPortAcquireCommandSlot
@@ -295,8 +305,7 @@ void AhciPortStartCommandSlot(AhciPort_t *Port, int Slot)
 void AhciPortInterruptHandler(AhciController_t *Controller, AhciPort_t *Port)
 {
 	/* Variables */
-	reg32_t DoneCommands = 
-		Port->Registers->CommandIssue ^ Port->Registers->AtaActive;
+	reg32_t DoneCommands, InterruptStatus;
 	ListNode_t *tNode;
 	DataKey_t Key;
 	int i;
@@ -304,26 +313,41 @@ void AhciPortInterruptHandler(AhciController_t *Controller, AhciPort_t *Port)
 	/* Unused */
 	_CRT_UNUSED(Controller);
 
+	/* Store a copy of IS */
+	InterruptStatus = Port->Registers->InterruptStatus;
+
 	/* Check interrupt services 
 	 * Cold port detect, recieved fis etc */
 
 
-	/* Check for command completion */
-	if (!DoneCommands) {
-		return;
+	/* Check for TFD */
+	if (Port->Registers->InterruptStatus & AHCI_PORT_IE_TFEE) {
+		/* Task file error */
+		LogInformation("AHCI", "Port ERROR %i, CMD: 0x%x, CI 0x%x, IE: 0x%x, IS 0x%x, TFD: 0x%x", Port->Id,
+			Port->Registers->CommandAndStatus, Port->Registers->CommandIssue,
+			Port->Registers->InterruptEnable, Port->Registers->InterruptStatus,
+			Port->Registers->TaskFileData);
 	}
 
-	/* Run through completed commands */
-	for (i = 0; i < 32; i++) {
-		if (DoneCommands & (1 << i)) {
-			Key.Value = i;
-			tNode = ListGetNodeByKey(Port->Transactions, Key, 0);
-			if (tNode != NULL) {
-				void *PayLoad = tNode->Data;
-				ListRemoveByNode(Port->Transactions, tNode);
-				ListDestroyNode(Port->Transactions, tNode);
-				SchedulerWakeupAllThreads((Addr_t*)PayLoad);
+	/* Get completed commands */
+	DoneCommands = Port->Registers->CommandIssue ^ Port->Registers->AtaActive;
+
+	/* Check for command completion */
+	if (DoneCommands) {
+		/* Run through completed commands */
+		for (i = 0; i < 32; i++) {
+			if (DoneCommands & (1 << i)) {
+				Key.Value = i;
+				tNode = ListGetNodeByKey(Port->Transactions, Key, 0);
+				if (tNode != NULL) {
+					ListRemoveByNode(Port->Transactions, tNode);
+					SchedulerWakeupAllThreads((Addr_t*)tNode);
+					ListDestroyNode(Port->Transactions, tNode);
+				}
 			}
 		}
 	}
+
+	/* Clear IS */
+	Port->Registers->InterruptStatus = InterruptStatus;
 }

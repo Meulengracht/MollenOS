@@ -342,12 +342,21 @@ void AhciSetup(AhciController_t *Controller)
 	/* Allocate some shared resources, especially 
 	 * command lists as we need 1K * portcount */
 	Controller->CmdListBase = kmalloc_a(1024 * PortItr);
-	Controller->FisBase = kmalloc_a(256 * PortItr);
 	Controller->CmdTableBase = kmalloc_a((AHCI_COMMAND_TABLE_SIZE * 32) * PortItr);
-
+	
+	/* We have to take into account FIS based switching here, 
+	 * if it's supported we need 4K */
+	if (Controller->Registers->Capabilities & AHCI_CAPABILITIES_FBSS) {
+		Controller->FisBase = kmalloc_a(0x1000 * PortItr);
+		memset(Controller->FisBase, 0, 0x1000 * PortItr);
+	}
+	else {
+		Controller->FisBase = kmalloc_a(256 * PortItr);
+		memset(Controller->FisBase, 0, 256 * PortItr);
+	}
+	
 	/* Zero out memory allocated */
 	memset(Controller->CmdListBase, 0, 1024 * PortItr);
-	memset(Controller->FisBase, 0, 256 * PortItr);
 	memset(Controller->CmdTableBase, 0, (AHCI_COMMAND_TABLE_SIZE * 32) * PortItr);
 
 	/* For each implemented port, system software shall allocate memory */

@@ -32,28 +32,38 @@
 #include <stddef.h>
 #include <string.h>
 
+/* AHCICommandDispatch Flags 
+ * Used to setup transfer flags */
+#define DISPATCH_MULTIPLIER(Pmp)		(Pmp & 0xF)
+#define DISPATCH_WRITE					0x10
+#define DISPATCH_PREFETCH				0x20
+#define DISPATCH_CLEARBUSY				0x40
+#define DISPATCH_ATAPI					0x80
+
 /* AHCICommandDispatch 
  * Dispatches a FIS command on a given port 
  * This function automatically allocates everything neccessary
  * for the transfer */
-OsStatus_t AhciCommandDispatch(AhciController_t *Controller, 
-	AhciPort_t *Port, AhciTransaction_t *Transaction)
+OsStatus_t AhciCommandDispatch(AhciController_t *Controller, AhciPort_t *Port, uint32_t Flags,
+	void *Command, size_t CommandLength, void *AtapiCmd, size_t AtapiCmdLength, 
+	void *Buffer, size_t BufferLength)
 {
 	/* Variables */
 	AHCICommandTable_t *CmdTable = NULL;
 	uint8_t *BufferPtr = NULL;
-	size_t BytesLeft = Transaction->BufferLength;
+	size_t BytesLeft = BufferLength;
 	int Slot = 0, PrdtIndex = 0;
-	DataKey_t Key;
+	ListNode_t *tNode = NULL;
+	DataKey_t Key, SubKey;
 
 	/* Assert that buffer is DWORD aligned */
-	if (((Addr_t)Transaction->Buffer & 0x3) != 0) {
+	if (((Addr_t)Buffer & 0x3) != 0) {
 		LogFatal("AHCI", "AhciCommandDispatch::Buffer was not dword aligned", Port->Id);
 		return OsError;
 	}
 
 	/* Assert that buffer length is an even byte-count requested */
-	if ((Transaction->BufferLength & 0x1) != 0) {
+	if ((BufferLength & 0x1) != 0) {
 		LogFatal("AHCI", "AhciCommandDispatch::BufferLength is odd, must be even", Port->Id);
 		return OsError;
 	}
@@ -68,9 +78,6 @@ OsStatus_t AhciCommandDispatch(AhciController_t *Controller,
 		return OsError;
 	}
 
-	/* Store slot */
-	Transaction->Slot = Slot;
-
 	/* Get a reference to the command slot */
 	CmdTable = (AHCICommandTable_t*)((uint8_t*)Port->CommandTable + (AHCI_COMMAND_TABLE_SIZE * Slot));
 
@@ -78,19 +85,21 @@ OsStatus_t AhciCommandDispatch(AhciController_t *Controller,
 	memset(CmdTable, 0, AHCI_COMMAND_TABLE_SIZE);
 
 	/* Sanitizie packet lenghts */
-	if (Transaction->CommandLength > 64
-		|| Transaction->AtapiCmdLength > 16) {
+	if (CommandLength > 64
+		|| AtapiCmdLength > 16) {
 		LogFatal("AHCI", "Commands are exceeding the allowed length, FIS (%u), ATAPI (%u)", 
-			Transaction->CommandLength, Transaction->AtapiCmdLength);
+			CommandLength, AtapiCmdLength);
 		goto Error;
 	}
 
 	/* Copy data over to packet */
-	memcpy(&CmdTable->FISCommand[0], Transaction->Command, Transaction->CommandLength);
-	memcpy(&CmdTable->FISAtapi[0], Transaction->AtapiCmd, Transaction->AtapiCmdLength);
+	if (Command != NULL)
+		memcpy(&CmdTable->FISCommand[0], Command, CommandLength); 
+	if (AtapiCmd != NULL)
+		memcpy(&CmdTable->FISAtapi[0], AtapiCmd, AtapiCmdLength);
 
 	/* Build PRDT */
-	BufferPtr = (uint8_t*)Transaction->Buffer;
+	BufferPtr = (uint8_t*)Buffer;
 	while (BytesLeft > 0)
 	{
 		/* Get handler to prdt entry */
@@ -122,19 +131,38 @@ OsStatus_t AhciCommandDispatch(AhciController_t *Controller,
 
 	/* Update command table */
 	Port->CommandList->Headers[Slot].TableLength = (uint16_t)PrdtIndex;
-	Port->CommandList->Headers[Slot].Flags = 
-		(uint16_t)(Transaction->Write << 6) | (uint16_t)(Transaction->CommandLength / 4);
+	Port->CommandList->Headers[Slot].Flags = (uint16_t)(CommandLength / 4);
+
+	/* Set flags */
+	if (Flags & DISPATCH_ATAPI)
+		Port->CommandList->Headers[Slot].Flags |= (1 << 5);
+	if (Flags & DISPATCH_WRITE)
+		Port->CommandList->Headers[Slot].Flags |= (1 << 6);
+	if (Flags & DISPATCH_PREFETCH)
+		Port->CommandList->Headers[Slot].Flags |= (1 << 7);
+	if (Flags & DISPATCH_CLEARBUSY)
+		Port->CommandList->Headers[Slot].Flags |= (1 << 10);
+
+	/* Update PMP */
+	Port->CommandList->Headers[Slot].Flags |= (DISPATCH_MULTIPLIER(Flags) << 12);
+
+	/* Setup Keys */
+	Key.Value = Slot;
+	SubKey.Value = (int)DISPATCH_MULTIPLIER(Flags);
 
 	/* Add transaction to queue */
-	Key.Value = Slot;
-	ListAppend(Port->Transactions, ListCreateNode(Key, Key, Transaction));
+	tNode = ListCreateNode(Key, SubKey, NULL);
+	ListAppend(Port->Transactions, tNode);
 
 	/* Start command */
 	AhciPortStartCommandSlot(Port, Slot);
 
 	/* Start the sleep */
-	SchedulerSleepThread((Addr_t*)Transaction, 0);
+	SchedulerSleepThread((Addr_t*)tNode, 0);
 	IThreadYield();
+
+	/* Cleanup */
+	AhciPortReleaseCommandSlot(Port, Slot);
 
 	/* Done */
 	return OsNoError;
@@ -145,4 +173,113 @@ Error:
 
 	/* Return error */
 	return OsError;
+}
+
+/* AHCICommandRegisterFIS 
+ * Builds a new AHCI Transaction based on a register FIS */
+OsStatus_t AhciCommandRegisterFIS(AhciController_t *Controller, AhciPort_t *Port, 
+	ATACommandType_t Command, uint64_t SectorLBA, size_t SectorCount, int Device, 
+	int Write, int AddressingMode, void *Buffer, size_t BufferSize)
+{
+	/* Variables */
+	FISRegisterH2D_t Fis;
+	uint32_t Flags;
+
+	/* Reset structure */
+	memset((void*)&Fis, 0, sizeof(FISRegisterH2D_t));
+
+	/* Fill in FIS */
+	Fis.FISType = (uint8_t)FISRegisterH2D;
+	Fis.Flags |= FIS_REGISTER_COMMAND;
+	Fis.Command = (uint8_t)Command;
+	Fis.Device = 0x40 | ((uint8_t)(Device & 0x1) << 4);
+
+	/* Set CHS fields */
+	if (AddressingMode == 0) 
+	{
+		/* Variables */
+		//uint16_t Head = 0, Cylinder = 0, Sector = 0;
+
+		/* Step 1 -> Transform LBA into CHS */
+
+		/* Set CHS params */
+
+
+
+		/* Set count */
+		Fis.Count = LOBYTE(SectorCount);
+	}
+	else if (AddressingMode == 1
+		|| AddressingMode == 2) {
+		/* Set LBA28 params */
+		Fis.SectorNo = LOBYTE(SectorLBA);
+		Fis.SectorNoExtended = (uint8_t)((SectorLBA >> 8) & 0xFF);
+		Fis.CylinderLow = (uint8_t)((SectorLBA >> 16) & 0xFF);
+		Fis.CylinderLowExtended = (uint8_t)((SectorLBA >> 24) & 0xFF);
+
+		/* If it's an LBA48, set LBA48 params */
+		if (AddressingMode == 2) {
+			Fis.CylinderHigh = (uint8_t)((SectorLBA >> 32) & 0xFF);
+			Fis.CylinderHighExtended = (uint8_t)((SectorLBA >> 40) & 0xFF);
+
+			/* Set count */
+			Fis.Count = LOWORD(SectorCount);
+		}
+		else {
+			/* Set count */
+			Fis.Count = LOBYTE(SectorCount);
+		}
+	}
+
+	/* Build flags */
+	Flags = DISPATCH_MULTIPLIER(0);
+	
+	/* Is this an ATAPI? */
+	if (Port->Registers->Signature == SATA_SIGNATURE_ATAPI) {
+		Flags |= DISPATCH_ATAPI;
+	}
+
+	/* Write operation? */
+	if (Write != 0) {
+		Flags |= DISPATCH_WRITE;
+	}
+
+	/* Execute our command */
+	return AhciCommandDispatch(Controller, Port, Flags, &Fis,
+		sizeof(FISRegisterH2D_t), NULL, 0, Buffer, BufferSize);
+}
+
+/* AHCIDeviceIdentify 
+ * Identifies the device and type on a port
+ * and sets it up accordingly */
+void AhciDeviceIdentify(AhciController_t *Controller, AhciPort_t *Port)
+{
+	/* Variables */
+	ATAIdentify_t DeviceInformation;
+	OsStatus_t Status;
+
+	/* First of all, is this a port multiplier? 
+	 * because then we should really enumerate it */
+	if (Port->Registers->Signature == SATA_SIGNATURE_PM
+		|| Port->Registers->Signature == SATA_SIGNATURE_SEMB) {
+		LogDebug("AHCI", "Unsupported device type 0x%x on port %i",
+			Port->Registers->Signature, Port->Id);
+		return;
+	}
+
+	/* Ok, so either ATA or ATAPI */
+	Status = AhciCommandRegisterFIS(Controller, Port, AtaPIOIdentifyDevice,
+		0, 0, 0, 0, -1, (void*)&DeviceInformation, sizeof(ATAIdentify_t));
+
+	/* So, how did it go? */
+	if (Status != OsNoError) {
+		LogFatal("AHCI", "AHCIDeviceIdentify:: Failed to send Identify");
+		return;
+	}
+
+	/* Safety */
+	DeviceInformation.ModelNo[39] = '\0';
+
+	/* Transform information */
+	LogInformation("AHCI", "Drive Model: %s", &DeviceInformation.ModelNo[0]);
 }

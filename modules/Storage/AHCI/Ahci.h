@@ -17,6 +17,10 @@
 *
 *
 * MollenOS MCore - Advanced Host Controller Interface Driver
+* TODO:
+*	- Port Multiplier Support
+*	- Power Management
+*	- Finish interrupt handler for ports
 */
 
 #ifndef _AHCI_H_
@@ -437,19 +441,19 @@ typedef volatile struct _AHCIFIS
 /* Port Control & Status (CommandAndStatus)
 * - Port Registers */
 
-/* Start */
+/* Bit 0: Start */
 #define AHCI_PORT_ST						0x1
 
-/* Spin-Up Device */
+/* Bit 1: Spin-Up Device */
 #define AHCI_PORT_SUD						0x2
 
-/* Power On Device */
+/* Bit 2: Power On Device */
 #define AHCI_PORT_POD						0x4
 
-/* Command List Override */
+/* Bit 3: Command List Override */
 #define AHCI_PORT_CLO						0x8
 
-/* FIS Receive Enable */
+/* Bit 4: FIS Receive Enable */
 #define AHCI_PORT_FRE						0x10
 
 /* Current Command Slot */
@@ -552,16 +556,16 @@ typedef volatile struct _AHCIFIS
 #define AHCI_PORT_IE_IFE					(1 << 27)
 
 /* Host Bus Data Error Enable */
-#define AHCI_PORT_IE_HBDE					(1 << 28)
+#define AHCI_PORT_IE_HBDE					0x10000000
 
 /* Host Bus Fatal Error Enable */
-#define AHCI_PORT_IE_HBFE					(1 << 29)
+#define AHCI_PORT_IE_HBFE					0x20000000
 
 /* Task File Error Enable */
-#define AHCI_PORT_IE_TFEE					(1 << 30)
+#define AHCI_PORT_IE_TFEE					0x40000000
 
 /* Cold Presence Detect Enable */
-#define AHCI_PORT_IE_CPDE					(1 << 31)
+#define AHCI_PORT_IE_CPDE					0x80000000
 
 /* Port x Task File Data (TaskFileData)
  * - Port Registers */
@@ -592,31 +596,6 @@ typedef volatile struct _AHCIFIS
 
 /* Helpers */
 #define AHCI_PORT_SERR_CLEARALL				0x3FF783
-
-/* The AHCI Transaction structure 
- * Describes a single AHCI transfer or a 
- * single AHCI request */
-typedef struct _AhciTransaction
-{
-	/* Descriptor */
-	int Slot;
-	int Write;
-
-	/* FIS Command */
-	void *Command;
-	size_t CommandLength;
-
-	/* FIS Atapi */
-	void *AtapiCmd;
-	size_t AtapiCmdLength;
-
-	/* Data Buffer 
-	 * Either holds output data or 
-	 * a buffer for input */
-	void *Buffer;
-	size_t BufferLength;
-
-} AhciTransaction_t;
 
 /* The AHCI Controller Port 
  * Contains all memory structures neccessary
@@ -720,11 +699,9 @@ _CRT_EXTERN void AhciPortStartCommandSlot(AhciPort_t *Port, int Slot);
  * handles interrupt for a specific port */
 _CRT_EXTERN void AhciPortInterruptHandler(AhciController_t *Controller, AhciPort_t *Port);
 
-/* AHCICommandDispatch 
- * Dispatches a FIS command on a given port 
- * This function automatically allocates everything neccessary
- * for the transfer */
-_CRT_EXTERN OsStatus_t AhciCommandDispatch(AhciController_t *Controller,
-	AhciPort_t *Port, AhciTransaction_t *Transaction);
+/* AHCIDeviceIdentify 
+ * Identifies the device and type on a port
+ * and sets it up accordingly */
+_CRT_EXTERN void AhciDeviceIdentify(AhciController_t *Controller, AhciPort_t *Port);
 
 #endif //!_AHCI_H_

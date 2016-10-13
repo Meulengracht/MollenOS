@@ -27,14 +27,14 @@
 
 /* SATA Device Signatures
  * Used to identify which kind of device is attached to a SATA port */
-#define	SATA_SIG_ATA	0x00000101
-#define	SATA_SIG_ATAPI	0xEB140101
+#define	SATA_SIGNATURE_ATA		0x00000101
+#define	SATA_SIGNATURE_ATAPI	0xEB140101
 
 /* Enclosure Management Bridge */
-#define	SATA_SIG_SEMB	0xC33C0101
+#define	SATA_SIGNATURE_SEMB		0xC33C0101
 
 /* Port Multiplier */
-#define	SATA_SIG_PM		0x96690101
+#define	SATA_SIGNATURE_PM		0x96690101
 
 /* The SATA specs specify these kinds of
 * FIS (Frame Information Structure) */
@@ -87,25 +87,39 @@ typedef struct _SATAFISRegisterH2D
 	/* Features 0:7 */
 	uint8_t FeaturesLow;
 
-	/* Lba Register 0:15 */
-	uint16_t Lba0;
+	/* Lba Register 0:7 */
+	uint8_t SectorNo;
 
-	/* Lba Register 16:23 */
-	uint8_t	Lba1;
+	/* Contents of the least significant 8 bits 
+	 * of Cylinder Number or LBA 16:23 */
+	uint8_t	CylinderLow;
 
-	/* Device Register */
+	/* Contents of the least significant 8 bits 
+	 * of Cylinder Number or LBA 32:39 */
+	uint8_t	CylinderHigh;
+
+	/* Device Register 
+	 * Bit 0-3: Head when using CHS 
+	 * Bit   4: Drive number, 0 or 1 */
 	uint8_t	Device;
 
-	/* Lba Register 24:39 */
-	uint16_t Lba2;
+	/* Contents of the upper 8 bits of the expandend 
+	 * sector number value (LBA 8:15) when using LBA48 */
+	uint8_t SectorNoExtended;
+	
+	/* Contents of the most significant 8 bits of 
+	 * the Cylinder number, or LBA 24:31 */
+	uint8_t CylinderLowExtended;
 
-	/* Lba Register 40:47 */
-	uint8_t Lba3;
+	/* Contents of the most significant 8 bits of 
+	 * the Cylinder number, or LBA 40:47 */
+	uint8_t CylinderHighExtended;
 
 	/* Features 8:15 */
 	uint8_t	FeaturesHigh;
 
-	/* Count Register */
+	/* Count Register  
+	 * Only using bits 8-15 in LBA48 mode */
 	uint16_t Count;
 
 	/* Isochronous Command Completion */
@@ -119,6 +133,10 @@ typedef struct _SATAFISRegisterH2D
 
 } FISRegisterH2D_t;
 #pragma pack(pop)
+
+/* FISRegisterH2D Definitions 
+ * - Flags */
+#define FIS_REGISTER_COMMAND			0x80
 
 /* The FISRegisterD2H structure 
  * as described in the SATA Specification */

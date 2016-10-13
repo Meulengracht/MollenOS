@@ -192,26 +192,36 @@ typedef struct _ATAIdentify
 	 * Contains totally not fun settings */
 	uint16_t Capabilities1;
 
+	/* Words 51-52: Obsolete */
+	uint32_t Obsolete3;
+
+	/* Describes which fields are valid data 
+	 * in the Identify Structure */ 
+	uint16_t ValidExtData;
+
 	/* Obsolete AND i don't care
-	 * Words 51 -> 60 */
-	uint16_t Obsolete3[9];
+	 * Words 54 -> 58 */
+	uint16_t Obsolete4[5];
+
+	/* Current setting for number of logical sectors */
+	uint16_t RWMultipleCurrent;
 
 	/* Number of LBA28 sectors */
 	uint32_t SectorCountLBA28;
 
 	/* Obsolete AND i don't care 
 	 * Words 62-79 */
-	uint16_t Obsolete4[18];
+	uint16_t Obsolete5[18];
 
-	/* Drive Revision 
+	/* 80: Drive Revision 
 	 * - Major */
 	uint16_t MajorRevision;
 
-	/* Drive Revision
+	/* 81: Drive Revision
 	 * - Minor */
 	uint16_t MinorRevision;
 
-	/* Command Set supported 0 
+	/* 82: Command Set supported 0 
 	 * Bit 0: SMART Supported
 	 * Bit 1: Security Mode Supported
 	 * Bit 2: Obsolete
@@ -230,7 +240,7 @@ typedef struct _ATAIdentify
 	 * Bit 15: Obsolete */
 	uint16_t CommandSetSupport0;
 
-	/* Command Set supported 1 
+	/* 83: Command Set supported 1 
 	 * Bit 0: DOWNLOAD MICROCODE Supported
 	 * Bit 1: READ/WRITE DMA QUEUED Supported
 	 * Bit 2: CFA Supported
@@ -249,7 +259,7 @@ typedef struct _ATAIdentify
 	 * Bit 15: Shall be set to zero */
 	uint16_t CommandSetSupport1;
 
-	/* Command Set supported 2
+	/* 84: Command Set supported 2
 	 * Bit 0: SMART error logging Supported
 	 * Bit 1: SMART self-test Supported
 	 * Bit 2: Media serial number Supported
@@ -268,35 +278,35 @@ typedef struct _ATAIdentify
 	 * Bit 15: Shall be set to zero */
 	uint16_t CommandSetSupport2;
 
-	/* CommandSetEnabled 0, 1, 2 
+	/* 85: CommandSetEnabled 0, 1, 2 
 	 * They have exact same structure as 
 	 * the commandsetsupport above */
 	uint16_t CommandSetEnabled0;
 	uint16_t CommandSetEnabled1;
 	uint16_t CommandSetEnabled2;
 
-	/* Ultra DMA Mode 
+	/* 88: Ultra DMA Mode 
 	 * Support / Enabled Status */
 	uint8_t UltraDMASupport;
 	uint8_t UltraDMAStatus;
 
-	/* Timings, master password, 
+	/* 89: Timings, master password, 
 	 * hardware reset results 
 	 * streaming information 
 	 * Words 89 -> 99 */
-	uint16_t Obsolete5[11];
+	uint16_t Obsolete6[11];
 
-	/* Number of LBA48 sectors 
+	/* 100: Number of LBA48 sectors 
 	 * This value is 0, use LBA28 */
 	uint64_t SectorCountLBA48;
 
-	/* PIO Streaming Transfer Time */
+	/* 104: PIO Streaming Transfer Time */
 	uint16_t StreamingTransferTimePIO;
 
-	/* Reserved */
-	uint16_t Obsolete6;
+	/* 105: Reserved */
+	uint16_t Obsolete7;
 
-	/* Sector Size 
+	/* 106: Sector Size 
 	 * Bits 0-3: logical sectors per physical sector 
 	 * Bit   12: (1) Logical Sector is larger than 512 bytes (256 words)
 	 * Bit   13: (1) There is multiple logical sectors per physical 
@@ -304,17 +314,17 @@ typedef struct _ATAIdentify
 	 * Bit   15: Cleared to zero */
 	uint16_t SectorSize;
 
-	/* Obsolete AND i don't care 
+	/* 107: Obsolete AND i don't care 
 	 * Words 107-116 */
-	uint16_t Obsolete7[10];
+	uint16_t Obsolete8[10];
 
-	/* Words per logical sector 
+	/* 117: Words per logical sector 
 	 * This * 2 = bytes per sector */
-	uint16_t WordsPerLogicalSector;
+	uint32_t WordsPerLogicalSector;
 
-	/* Obsolete AND i don't care 
+	/* 119: Obsolete AND i don't care 
 	 * Words 119-255 */
-	uint16_t Obsolete8[255 - 119];
+	uint16_t Obsolete9[255 - 119];
 
 	/* Signature + Checksum */
 	uint8_t Signature;
