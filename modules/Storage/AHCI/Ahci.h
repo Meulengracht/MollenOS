@@ -20,7 +20,6 @@
 * TODO:
 *	- Port Multiplier Support
 *	- Power Management
-*	- Finish interrupt handler for ports
 */
 
 #ifndef _AHCI_H_

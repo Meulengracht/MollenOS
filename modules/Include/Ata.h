@@ -52,9 +52,6 @@
  * - It's incomplete as there are a lot */
 typedef enum _ATACommandType
 {
-	AtaPIOReadSectors				= 0x20,
-	AtaPIOWriteSectors				= 0x30,
-	AtaPIOWriteSectorsExt			= 0x34,
 	AtaCFAEraseSectors				= 0xC0,
 	AtaCFARequestErrorCodeExt		= 0x03,
 	AtaPIOCFATranslateSector		= 0x87,
@@ -106,13 +103,14 @@ typedef enum _ATACommandType
 	AtaPIOWriteMultipleExt			= 0x39,
 	AtaPIOWriteMultipleExtFUA		= 0xCE,
 
-
 	AtaReadNativeMaxAddr			= 0xF8,
 	AtaReadNativeMaxAddrExt			= 0x27,
 
-	/* Pio Reads */
+	/* Pio Commands */
 	AtaPIORead						= 0x20,
 	AtaPIOReadExt					= 0x24,
+	AtaPIOWrite						= 0x30,
+	AtaPIOWriteExt					= 0x34,
 
 	AtaDMAReadStreamExt				= 0x2A,
 	AtaDMAWriteStreamExt			= 0x3A,

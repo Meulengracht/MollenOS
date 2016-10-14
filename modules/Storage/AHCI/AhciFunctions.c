@@ -41,6 +41,9 @@
 #define DISPATCH_CLEARBUSY				0x40
 #define DISPATCH_ATAPI					0x80
 
+/* Globals */
+const char *GlbAhciDriveDriverName = "MollenOS AHCI Drive Driver";
+
 /* Prototypes 
  * Read/Write forwarding for our setup */
 int AhciReadSectors(void *mDevice, uint64_t StartSector, void *Buffer, size_t BufferLength);
@@ -394,27 +397,122 @@ void AhciDeviceIdentify(AhciController_t *Controller, AhciPort_t *Port)
 	/* At this point all the disk structures are filled 
 	 * out, and we can build a MCoreDevice_t under our controller
 	 * as parent */
-	
+	memset(Device, 0, sizeof(MCoreDevice_t));
 
-	/* Transform information */
-	LogInformation("AHCI", "Drive Model: %s, SectorCount 0x%x", 
-		Disk->ModelNo, DeviceInformation.SectorCountLBA28);
+	/* Setup information */
+	Device->VendorId = 0x8086;
+	Device->DeviceId = 0x0;
+	Device->Class = DEVICEMANAGER_LEGACY_CLASS;
+	Device->Subclass = 0x00000018;
+
+	Device->IrqLine = -1;
+	Device->IrqPin = -1;
+	Device->IrqAvailable[0] = -1;
+
+	/* Type */
+	Device->Type = DeviceStorage;
+	Device->Data = Disk;
+
+	/* Initial */
+	Device->Driver.Name = (char*)GlbAhciDriveDriverName;
+	Device->Driver.Version = 1;
+	Device->Driver.Data = AhciDisk;
+	Device->Driver.Status = DriverActive;
+
+	/* Register Device */
+	
 }
 
+/* AHCIReadSectors 
+ * The wrapper function for reading data from an 
+ * ahci-drive. It also auto-selects the command needed and everything.
+ * Should return 0 on no error */
 int AhciReadSectors(void *mDevice, uint64_t StartSector, void *Buffer, size_t BufferLength)
 {
-	_CRT_UNUSED(mDevice);
-	_CRT_UNUSED(StartSector);
-	_CRT_UNUSED(Buffer);
-	_CRT_UNUSED(BufferLength);
+	/* Variables, we 
+	 * need to cast some of the information */
+	MCoreDevice_t *Device = (MCoreDevice_t*)mDevice;
+	AhciDevice_t *AhciDisk = (AhciDevice_t*)Device->Driver.Data;
+	ATACommandType_t Command;
+	OsStatus_t Status;
+
+	/* Use DMA commands? */
+	if (AhciDisk->UseDMA) {
+		/* Yes, decide on LBA28 or LBA48 */
+		if (AhciDisk->AddressingMode == 2) {
+			Command = AtaDMAReadExt;
+		}
+		else {
+			Command = AtaDMARead;
+		}
+	}
+	else {
+		/* Nope, stick to PIO, decide on LBA28 or LBA48 */
+		if (AhciDisk->AddressingMode == 2) {
+			Command = AtaPIOReadExt;
+		}
+		else {
+			Command = AtaPIORead;
+		}
+	}
+
+	/* Run command */
+	Status = AhciCommandRegisterFIS(AhciDisk->Controller, AhciDisk->Port,
+		Command, StartSector, BufferLength / AhciDisk->SectorSize, 0, 0, 
+		AhciDisk->AddressingMode, Buffer, BufferLength);
+
+	/* So, how did it go? */
+	if (Status != OsNoError) {
+		LogFatal("AHCI", "AHCIReadSectors:: Failed to do the read");
+		return -1;
+	}
+
 	return 0;
 }
 
+/* AHCIWriteSectors 
+ * The wrapper function for writing data to an 
+ * ahci-drive. It also auto-selects the command needed and everything.
+ * Should return 0 on no error */
 int AhciWriteSectors(void *mDevice, uint64_t StartSector, void *Buffer, size_t BufferLength)
 {
-	_CRT_UNUSED(mDevice);
-	_CRT_UNUSED(StartSector);
-	_CRT_UNUSED(Buffer);
-	_CRT_UNUSED(BufferLength);
+	/* Variables, we
+	* need to cast some of the information */
+	MCoreDevice_t *Device = (MCoreDevice_t*)mDevice;
+	AhciDevice_t *AhciDisk = (AhciDevice_t*)Device->Driver.Data;
+	ATACommandType_t Command;
+	OsStatus_t Status;
+
+	/* Use DMA commands? */
+	if (AhciDisk->UseDMA) {
+		/* Yes, decide on LBA28 or LBA48 */
+		if (AhciDisk->AddressingMode == 2) {
+			Command = AtaDMAWriteExt;
+		}
+		else {
+			Command = AtaDMAWrite;
+		}
+	}
+	else {
+		/* Nope, stick to PIO, decide on LBA28 or LBA48 */
+		if (AhciDisk->AddressingMode == 2) {
+			Command = AtaPIOWriteExt;
+		}
+		else {
+			Command = AtaPIOWrite;
+		}
+	}
+
+	/* Run command */
+	Status = AhciCommandRegisterFIS(AhciDisk->Controller, AhciDisk->Port,
+		Command, StartSector, BufferLength / AhciDisk->SectorSize, 0, 1, 
+		AhciDisk->AddressingMode, Buffer, BufferLength);
+
+	/* So, how did it go? */
+	if (Status != OsNoError) {
+		LogFatal("AHCI", "AHCIWriteSectors:: Failed to write");
+		return -1;
+	}
+
 	return 0;
 }
