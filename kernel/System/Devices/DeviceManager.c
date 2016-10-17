@@ -155,7 +155,8 @@ int DmRequestHandler(void *UserData, MCoreEvent_t *Event)
 				else
 				{
 					/* Copy the first 20 bytes that contains stats */
-					memcpy(Request->Buffer, Disk, 20);
+					memcpy(Request->Buffer, &Disk->SectorCount, 8);
+					memcpy(Request->Buffer + 8, &Disk->SectorSize, sizeof(size_t));
 
 					/* Done */
 					Request->Base.State = EventOk;
@@ -313,6 +314,10 @@ DevId_t DmCreateDevice(char *Name, MCoreDevice_t *Device)
 	Key.Value = (int)Device->Id;
 	ListAppend(GlbDmDeviceList, ListCreateNode(Key, Key, (void*)Device));
 
+	/* Info Log */
+	LogInformation("DRVM", "New Device: %s [at %u:%u:%u]",
+		Name, Device->Bus, Device->Device, Device->Function);
+
 	/* Call some broadcast function so systems know a new device is avaiable
 	 * depending on the device type */
 	switch (Device->Type)
@@ -357,10 +362,6 @@ DevId_t DmCreateDevice(char *Name, MCoreDevice_t *Device)
 		default:
 			break;
 	}
-
-	/* Info Log */
-	LogInformation("DRVM", "New Device: %s [at %u:%u:%u]", 
-		Name, Device->Bus, Device->Device, Device->Function);
 
 	/* Done */
 	return Device->Id;

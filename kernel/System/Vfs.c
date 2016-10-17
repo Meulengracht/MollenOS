@@ -303,7 +303,7 @@ void VfsRegisterDisk(DevId_t DiskId)
 
 	/* Well, well */
 	uint64_t SectorCount = *(uint64_t*)&TmpBuffer[0];
-	uint32_t SectorSize = *(uint32_t*)&TmpBuffer[16];
+	size_t SectorSize = *(size_t*)&TmpBuffer[8];
 
 	/* Sanity */
 	if (!VfsParsePartitionTable(DiskId, 0, SectorCount, SectorSize))

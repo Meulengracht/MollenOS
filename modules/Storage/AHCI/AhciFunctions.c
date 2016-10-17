@@ -420,7 +420,7 @@ void AhciDeviceIdentify(AhciController_t *Controller, AhciPort_t *Port)
 	Device->Driver.Status = DriverActive;
 
 	/* Register Device */
-	
+	DmCreateDevice("AHCI Disk Drive", Device);
 }
 
 /* AHCIReadSectors 
@@ -466,6 +466,10 @@ int AhciReadSectors(void *mDevice, uint64_t StartSector, void *Buffer, size_t Bu
 		LogFatal("AHCI", "AHCIReadSectors:: Failed to do the read");
 		return -1;
 	}
+
+	LogDebug("AHCI", "Read %u bytes at sector 0x%x", 
+		BufferLength, LODWORD(StartSector));
+	for (;;);
 
 	return 0;
 }
