@@ -148,13 +148,13 @@ int DmRequestHandler(void *UserData, MCoreEvent_t *Event)
 
 				/* Validate buffer */
 				if (Request->Buffer == NULL
-					|| Request->Length < 20) {
+					|| Request->Length < 12) {
 					Request->Base.State = EventFailed;
 					Request->ErrType = RequestInvalidParameters;
 				}
 				else
 				{
-					/* Copy the first 20 bytes that contains stats */
+					/* Copy the members that contains stats */
 					memcpy(Request->Buffer, &Disk->SectorCount, 8);
 					memcpy(Request->Buffer + 8, &Disk->SectorSize, sizeof(size_t));
 
@@ -334,8 +334,23 @@ DevId_t DmCreateDevice(char *Name, MCoreDevice_t *Device)
 		/* Register with Vfs */
 		case DeviceStorage:
 		{
-			/* Call */
-			VfsRegisterDisk(Device->Id);
+			/* Create a new request with the VFS 
+			 * Ask it to setup the disk */
+			MCoreVfsRequest_t *Request =
+				(MCoreVfsRequest_t*)kmalloc(sizeof(MCoreVfsRequest_t));
+
+			/* Reset request */
+			memset(Request, 0, sizeof(MCoreVfsRequest_t));
+
+			/* Setup base request */
+			Request->Base.Type = VfsRequestRegisterDisk;
+			Request->Base.Cleanup = 1;
+
+			/* Setup params for the request */
+			Request->Value.Lo.DiskId = Device->Id;
+
+			/* Send the request */
+			VfsRequestCreate(Request);
 
 		} break;
 
@@ -410,7 +425,25 @@ void DmDestroyDevice(DevId_t DeviceId)
 		/* Register with Vfs */
 		case DeviceStorage:
 		{
-			VfsUnregisterDisk(mDev->Id, 1);
+			/* Create a new request with the VFS
+			 * Ask it to cleanup the disk */
+			MCoreVfsRequest_t *Request =
+				(MCoreVfsRequest_t*)kmalloc(sizeof(MCoreVfsRequest_t));
+
+			/* Reset request */
+			memset(Request, 0, sizeof(MCoreVfsRequest_t));
+
+			/* Setup base request */
+			Request->Base.Type = VfsRequestUnregisterDisk;
+			Request->Base.Cleanup = 1;
+
+			/* Setup params for the request */
+			Request->Value.Lo.DiskId = mDev->Id;
+			Request->Value.Hi.Forced = 1;
+
+			/* Send the request */
+			VfsRequestCreate(Request);
+
 		} break;
 
 		/* No special actions */

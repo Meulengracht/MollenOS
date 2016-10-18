@@ -18,303 +18,182 @@
 *
 * MollenOS MCore - Virtual FileSystem
 */
+
 #ifndef _MCORE_VFS_H_
 #define _MCORE_VFS_H_
 
-/* Includes */
-#include <crtdefs.h>
-#include <stdint.h>
+/* Includes 
+ * - C-Library */
+#include <os/osdefs.h>
 #include <ds/mstring.h>
+#include <stddef.h>
 
+/* Includes 
+ * - System */
 #include <DeviceManager.h>
-#include <MollenOS.h>
-#include <Mutex.h>
 #include <Events.h>
+#include <Mutex.h>
 
-/* Additional Vfs includes */
+/* Includes
+ * - VFS */
+#include <Vfs/Definitions.h>
 #include <Vfs/Partition.h>
+#include <Vfs/File.h>
 
-/* Definitions */
-#define FILESYSTEM_FAT			0x00000000
-#define FILESYSTEM_MFS			0x00000008
-
-#define FILESYSTEM_INIT			":/System/Sapphire.mxi"
-
-#define FILESYSTEM_IDENT_SYS	"%Sys%"
-
-/* Error Codes for VFS Operations */
-typedef enum _VfsErrorCode
+/* VFS Request Types 
+ * These are the possible requests
+ * to make for the VFS */
+typedef enum _MCoreVfsRequestType
 {
-	VfsOk,
-	VfsDeleted,
-	VfsInvalidParameters,
-	VfsInvalidPath,
-	VfsPathNotFound,
-	VfsAccessDenied,
-	VfsPathIsNotDirectory,
-	VfsPathExists,
-	VfsDiskError
+	/* Disk Operations */
+	VfsRequestRegisterDisk,
+	VfsRequestUnregisterDisk,
 
-} VfsErrorCode_t;
+	/* VFS Operations */
+	VfsRequestOpenFile,
+	VfsRequestCloseFile,
+	VfsRequestDeleteFile,
+	VfsRequestReadFile,
+	VfsRequestWriteFile,
+	VfsRequestSeekFile,
+	VfsRequestFlushFile
 
-/* VFS State Codes */
-typedef enum _VfsState
-{
-	VfsStateInit,
-	VfsStateFailed,
-	VfsStateActive
+} MCoreVfsRequestType_t;
 
-} VfsState_t;
-
-/* File Flags */
-typedef enum _VfsFileFlags
-{
-	/* Access Flags */
-	Read	= 0x1,
-	Write	= 0x2,
-
-	/* Utilities */
-	CreateIfNotExists = 0x4,
-	TruncateIfExists = 0x8,
-	FailIfExists = 0x10,
-	
-	/* Data Flags */
-	Binary	= 0x20,
-	NoBuffering = 0x40,
-	Append = 0x80,
-
-	/* Share Flags */
-	ReadShare	= 0x100,
-	WriteShare	= 0x200
-
-} VfsFileFlags_t;
-
-/* Query Functions */
-typedef enum _VfsQueryFunctions
-{
-	/* Functions - Fs Layer */
-	QueryStats = 0,
-	QueryChildren,
-
-	/* Functions - Vfs Layer */
-	QueryGetAccess,
-	QuerySetAccess
-
-} VfsQueryFunction_t;
-
-/* Vfs Special Paths */
-typedef enum _VfsEnvironmentPaths
-{
-	/* The default */
-	PathCurrentWorkingDir = 0,
-
-	/* Application Paths */
-	PathApplicationBase,
-	PathApplicationData,
-
-	/* System Directories */
-	PathSystemBase,
-	PathSystemDirectory,
-
-	/* Shared Directories */
-	PathCommonBin,
-	PathCommonDocuments,
-	PathCommonInclude,
-	PathCommonLib,
-	PathCommonMedia,
-
-	/* User Directories */
-	PathUserBase,
-
-	/* Special Directory Count */
-	PathEnvironmentCount
-
-} VfsEnvironmentPath_t;
-
-/* Definitions */
-#define VFS_MAIN_DRIVE		0x1
-
-/* Vfs Request Structure */
+/* VFS Event System
+ * This is the request structure for 
+ * making any VFS related requests */
 typedef struct _MCoreVfsRequest
 {
 	/* Base */
 	MCoreEvent_t Base;
 
+	/* Pointer data (params) 
+	 * Which one is used depends on the request */
+	union {
+		MCoreFileInstance_t *Handle;
+		const char *Path;
+	} Pointer;
+
+	/* Buffer data (params)
+	 * This is used by read, write and query for buffers */
+	uint8_t *Buffer;
+
+	/* Value data (params)
+	 * Which and how this is used is based on request 
+	 * This supports up to 64 bit */
+	union {
+		union {
+			uint32_t Length;
+			DevId_t DiskId;
+			VfsQueryFunction_t Function;
+			VfsFileFlags_t Flags;
+			int Copy;
+		} Lo;
+		union {
+			uint32_t Length;
+			int Forced;
+		} Hi;
+	} Value;
+	
+	/* Error code if anything 
+	 * happened during ops */
+	VfsErrorCode_t Error;
+
 } MCoreVfsRequest_t;
 
-/* Vfs Query Function
- * -- Structures */
-typedef struct _VQFileStats
-{
-	/* Size(s) */
-	uint64_t Size;
-	uint64_t SizeOnDisk;
-
-	/* RW-Position */
-	uint64_t Position;
-
-	/* Time-Info */
-
-	/* Perms & Flags */
-	int Access;
-	int Flags;
-
-} VQFileStats_t;
-
-/* Entries are dynamic in size */
-#pragma pack(push, 1)
-typedef struct _VQDirEntry
-{
-	/* Magic */
-	uint16_t Magic;
-
-	/* Entry length 
-	 * for whole structure */
-	uint16_t Length;
-
-	/* Size(s) */
-	uint64_t Size;
-	uint64_t SizeOnDisk;
-
-	/* Flags */
-	int Flags;
-
-	/* Name */
-	uint8_t Name[1];
-
-} VQDirEntry_t;
-#pragma pack(pop)
-
-/* Structures */
-#pragma pack(push, 1)
-typedef struct _MCoreFile
-{
-	/* Full Path 
-	 * & Name of Node */
-	MString_t *Path;
-	MString_t *Name;
-
-	/* Flags */
-	size_t Hash;
-	int IsLocked;
-	int References;
-
-	/* Position */
-	uint64_t Size;
-
-	/* The FS structure */
-	void *Fs;
-
-	/* FS-Specific Data */
-	void *Data;
-
-} MCoreFile_t;
-#pragma pack(pop)
-
-#pragma pack(push, 1)
-typedef struct _MCoreFileInstance
-{
-	/* Owner */
-	int Id;
-	//PId_t Process;
-
-	/* Flags */
-	VfsErrorCode_t Code;
-	VfsFileFlags_t Flags;
-	VfsFileFlags_t LastOp;
-	int IsEOF;
-
-	/* Position */
-	uint64_t Position;
-
-	/* I/O Buffer */
-	void *oBuffer;
-	size_t oBufferPosition;
-
-	/* Handle */
-	MCoreFile_t *File;
-
-	/* FS-Instance Handle */
-	void *Instance;
-
-} MCoreFileInstance_t;
-#pragma pack(pop)
-
+/* VFS FileSystem structure
+ * this is the main file-system structure 
+ * and contains everything related to a filesystem 
+ * represented in MCore */
 #pragma pack(push, 1)
 typedef struct _MCoreFileSystem
 {
-	/* Identifier */
-	MString_t *Identifier;
-	uint32_t Id;
+	/* FileSystem Id */
+	int Id;
 
-	/* Flags */
-	VfsState_t State;
-	uint32_t Flags;
-
-	/* Information */
-	uint64_t SectorStart;
-	uint64_t SectorCount;
-	uint32_t SectorSize;
-
-	/* Lock */
-	Mutex_t *Lock;
-
-	/* Disk */
+	/* The disk it longs to */
 	DevId_t DiskId;
 
-	/* Filesystem-specific data */
-	void *FsData;
+	/* Identifier of this filesystem
+	 * used for ex as St0, St1, etc 
+	 * or Rm0 if removable */
+	MString_t *Identifier;
 
-	/* Functions */
-	OsStatus_t (*Destroy)(void *Fs, uint32_t Forced);
+	/* Information relating to the current
+	 * state and current flags on this FS */
+	VfsState_t State;
+	Flags_t Flags;
 
-	/* Handle Operations */
+	/* Sector information, where it starts on disk
+	 * the count of sectors and sector size */
+	uint64_t SectorStart;
+	uint64_t SectorCount;
+	size_t SectorSize;
+
+	/* Filesystem-specific data 
+	 * this is private to the underlying FS */
+	void *ExtendedData;
+
+	/* Destroy FS, this flushes and cleans up
+	 * the underlying FS, and indicates whether it was a 
+	 * forced operation (no flush) or user-specified */
+	OsStatus_t (*Destroy)(void *Fs, int Forced);
+
+	/* Open file, it takes a few params 
+	 * It takes the FS, a file handle it can fill in
+	 * the filepath and open flags */
 	VfsErrorCode_t (*OpenFile)(void *Fs, MCoreFile_t *Handle, MString_t *Path, VfsFileFlags_t Flags);
+
+	/* Close file, cleans up the file, and resources
+	 * allocated for that file handle */
 	VfsErrorCode_t (*CloseFile)(void *Fs, MCoreFile_t *Handle);
 
-	void (*OpenHandle)(void *Fs, MCoreFile_t *Handle, MCoreFileInstance_t *Instance);
-	void (*CloseHandle)(void *Fs, MCoreFileInstance_t *Instance);
+	/* Open handle, this creates a new handle for an
+	 * open file, and resets it for the requester */
+	VfsErrorCode_t (*OpenHandle)(void *Fs, MCoreFile_t *Handle, MCoreFileInstance_t *Instance);
+
+	/* Close handle, this does not neccessarily close 
+	 * the file it belongs to, only if no more references
+	 * are on that file */
+	VfsErrorCode_t (*CloseHandle)(void *Fs, MCoreFileInstance_t *Instance);
 	
-	/* File Operations */
-	size_t (*ReadFile)(void *Fs, MCoreFile_t *Handle, MCoreFileInstance_t *Instance, uint8_t *Buffer, size_t Size);
-	size_t (*WriteFile)(void *Fs, MCoreFile_t *Handle, MCoreFileInstance_t *Instance, uint8_t *Buffer, size_t Size);
-	VfsErrorCode_t (*Seek)(void *Fs, MCoreFile_t *Handle, MCoreFileInstance_t *Instance, uint64_t Position);
+	/* File Operations 
+	 * These include Read, Write, Seek and Delete */
+	size_t (*ReadFile)(void *Fs, MCoreFileInstance_t *Instance, uint8_t *Buffer, size_t Size);
+	size_t (*WriteFile)(void *Fs, MCoreFileInstance_t *Instance, uint8_t *Buffer, size_t Size);
+	VfsErrorCode_t (*SeekFile)(void *Fs, MCoreFileInstance_t *Instance, uint64_t Position);
 	VfsErrorCode_t (*DeleteFile)(void *Fs, MCoreFile_t *Handle);
 
-	/* Get's information about a node */
-	VfsErrorCode_t (*Query)(void *Fs, MCoreFile_t *Handle, MCoreFileInstance_t *Instance, VfsQueryFunction_t Function, void *Buffer, size_t Length);
+	/* The Query function, queries information
+	 * about a given file-handle */
+	VfsErrorCode_t (*Query)(void *Fs, MCoreFileInstance_t *Instance, 
+		VfsQueryFunction_t Function, void *Buffer, size_t Length);
 
 } MCoreFileSystem_t;
 #pragma pack(pop)
 
-/* Setup */
+/* VfsInit
+ * Initializes the virtual filesystem and 
+ * all resources related, and starts the VFSEventLoop */
 _CRT_EXTERN void VfsInit(void);
 
-/* Request Operations */
-_CRT_EXTERN void VfsRequestCreate(void*);
-_CRT_EXTERN void VfsRequestWait(void*);
+/* VfsRequestCreate
+ * - Create a new request for the VFS */
+_CRT_EXTERN void VfsRequestCreate(MCoreVfsRequest_t *Request);
 
-/* Register / Unregister */
-_CRT_EXTERN void VfsRegisterDisk(DevId_t DiskId);
-_CRT_EXTERN void VfsUnregisterDisk(DevId_t DiskId, uint32_t Forced);
+/* VfsRequestWait 
+ * - Wait for a request to complete, thread 
+ *   will sleep/block for the duration */
+_CRT_EXTERN void VfsRequestWait(MCoreVfsRequest_t *Request, size_t Timeout);
 
-/* Open & Close */
-_CRT_EXTERN MCoreFileInstance_t *VfsOpen(const char *Path, VfsFileFlags_t OpenFlags);
-_CRT_EXTERN VfsErrorCode_t VfsClose(MCoreFileInstance_t *Handle);
-_CRT_EXTERN VfsErrorCode_t VfsDelete(MCoreFileInstance_t *Handle);
+/* The Query function, queries information
+ * about a given file-handle */
+_CRT_EXTERN VfsErrorCode_t VfsQuery(MCoreFileInstance_t *Handle, 
+	VfsQueryFunction_t Function, void *Buffer, size_t Length);
 
-/* File Operations */
-_CRT_EXTERN size_t VfsRead(MCoreFileInstance_t *Handle, uint8_t *Buffer, size_t Length);
-_CRT_EXTERN size_t VfsWrite(MCoreFileInstance_t *Handle, uint8_t *Buffer, size_t Length);
-_CRT_EXTERN VfsErrorCode_t VfsSeek(MCoreFileInstance_t *Handle, uint64_t Offset);
-_CRT_EXTERN VfsErrorCode_t VfsFlush(MCoreFileInstance_t *Handle);
-
-/* Directory Operations */
-_CRT_EXTERN VfsErrorCode_t VfsCreatePath(const char *Path);
-
-/* Utilities */
-_CRT_EXTERN VfsErrorCode_t VfsQuery(MCoreFileInstance_t *Handle, VfsQueryFunction_t Function, void *Buffer, size_t Length);
-_CRT_EXTERN VfsErrorCode_t VfsMove(const char *Path, const char *NewPath, int Copy);
+/* Vfs - Resolve Environmental Path
+ * @Base - Environmental Path */
 _CRT_EXTERN MString_t *VfsResolveEnvironmentPath(VfsEnvironmentPath_t Base);
 
 #endif //!_MCORE_VFS_H_

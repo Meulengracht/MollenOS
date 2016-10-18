@@ -43,6 +43,9 @@
     <Filter Include="Systems\Processes">
       <UniqueIdentifier>{b2f4993c-f281-4755-b5e7-98bd1721149e}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Systems\Vfs">
+      <UniqueIdentifier>{3b63c136-f228-470d-950a-a52c8b8ccbde}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\Init\Entry.c">
@@ -73,9 +76,6 @@
       <Filter>Systems\Devices\Video</Filter>
     </ClCompile>
     <ClCompile Include="..\..\System\Threading.c">
-      <Filter>Systems</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\System\Vfs.c">
       <Filter>Systems</Filter>
     </ClCompile>
     <ClCompile Include="..\..\System\Modules\ModuleManager.c">
@@ -134,6 +134,18 @@
     </ClCompile>
     <ClCompile Include="..\..\System\UserEvents.c">
       <Filter>Systems</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\System\Vfs\Vfs.c">
+      <Filter>Systems\Vfs</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\System\Vfs\VfsDisk.c">
+      <Filter>Systems\Vfs</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\System\Vfs\VfsFunctions.c">
+      <Filter>Systems\Vfs</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\System\Vfs\VfsPath.c">
+      <Filter>Systems\Vfs</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>

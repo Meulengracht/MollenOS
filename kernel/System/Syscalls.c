@@ -797,11 +797,15 @@ int ScIpcWake(IpcComm_t Target)
 #include <stdio.h>
 #include <errno.h>
 
-/* Open File */
+/* ScVfsOpen 
+ * System call edition of VFS Open File 
+ * It does a lot of validation, but returns a filedescriptor Id */
 int ScVfsOpen(const char *Utf8, VfsFileFlags_t OpenFlags, VfsErrorCode_t *ErrCode)
 {
 	/* Get current process */
 	MCoreProcess_t *Process = PmGetProcess(PROCESS_CURRENT);
+	MCoreFileInstance_t *Handle = NULL;
+	MCoreVfsRequest_t *Request = NULL;
 	DataKey_t Key;
 
 	/* Should never happen this
@@ -811,8 +815,29 @@ int ScVfsOpen(const char *Utf8, VfsFileFlags_t OpenFlags, VfsErrorCode_t *ErrCod
 		|| Utf8 == NULL)
 		return -1;
 
-	/* Try */
-	MCoreFileInstance_t *Handle = VfsOpen(Utf8, OpenFlags);
+	/* Create a new request with the VFS
+	 * Ask it to open the file */
+	Request = (MCoreVfsRequest_t*)kmalloc(sizeof(MCoreVfsRequest_t));
+
+	/* Reset request */
+	memset(Request, 0, sizeof(MCoreVfsRequest_t));
+
+	/* Setup base request */
+	Request->Base.Type = VfsRequestOpenFile;
+
+	/* Setup params for the request */
+	Request->Pointer.Path = Utf8;
+	Request->Value.Lo.Flags = OpenFlags;
+
+	/* Send the request */
+	VfsRequestCreate(Request);
+	VfsRequestWait(Request, 0);
+
+	/* Store handle */
+	Handle = Request->Pointer.Handle;
+
+	/* Cleanup */
+	kfree(Request);
 
 	/* Add to process list of open files */
 	Key.Value = Handle->Id;
@@ -826,18 +851,21 @@ int ScVfsOpen(const char *Utf8, VfsFileFlags_t OpenFlags, VfsErrorCode_t *ErrCod
 	return Handle->Id;
 }
 
-/* Close File */
+/* ScVfsClose 
+ * System call edition of VFS Close File 
+ * Validates its a real descriptor, and cleans up resources */
 int ScVfsClose(int FileDescriptor)
 {
 	/* Get current process */
 	MCoreProcess_t *Process = PmGetProcess(PROCESS_CURRENT);
 	VfsErrorCode_t RetCode = VfsInvalidParameters;
+	MCoreVfsRequest_t *Request = NULL;
 	DataKey_t Key;
 	Key.Value = FileDescriptor;
 
 	/* Should never happen this
-	* Only threads associated with processes
-	* can call this */
+	 * Only threads associated with processes
+	 * can call this */
 	if (Process == NULL)
 		return RetCode;
 
@@ -851,28 +879,52 @@ int ScVfsClose(int FileDescriptor)
 	/* Remove from open files */
 	ListRemoveByNode(Process->OpenFiles, fNode);
 
-	/* Deep call */
-	RetCode = VfsClose((MCoreFileInstance_t*)fNode->Data);
+	/* Create a new request with the VFS
+	 * Ask it to cleanup the file */
+	Request = (MCoreVfsRequest_t*)kmalloc(sizeof(MCoreVfsRequest_t));
+
+	/* Reset request */
+	memset(Request, 0, sizeof(MCoreVfsRequest_t));
+
+	/* Setup base request */
+	Request->Base.Type = VfsRequestCloseFile;
+
+	/* Setup params for the request */
+	Request->Pointer.Handle = (MCoreFileInstance_t*)fNode->Data;
+
+	/* Send the request */
+	VfsRequestCreate(Request);
+	VfsRequestWait(Request, 0);
+
+	/* Store code */
+	RetCode = Request->Error;
+
+	/* Cleanup */
+	kfree(Request);
 
 	/* free node */
 	kfree(fNode);
 
 	/* Deep Call */
-	return RetCode;
+	return (int)RetCode;
 }
 
-/* Read File */
+/* ScVfsRead  
+ * System call edition of VFS Read File,
+ * It tries to read the requested amount of bytes,
+ * and returns the actual byte amount read */
 size_t ScVfsRead(int FileDescriptor, uint8_t *Buffer, size_t Length, VfsErrorCode_t *ErrCode)
 {
 	/* Get current process */
 	MCoreProcess_t *Process = PmGetProcess(PROCESS_CURRENT);
 	VfsErrorCode_t RetCode = VfsInvalidParameters;
+	MCoreVfsRequest_t *Request = NULL;
 	size_t bRead = 0;
 	DataKey_t Key;
 
 	/* Should never happen this
-	* Only threads associated with processes
-	* can call this */
+	 * Only threads associated with processes
+	 * can call this */
 	if (Process == NULL || Buffer == NULL)
 		goto done;
 
@@ -890,9 +942,31 @@ size_t ScVfsRead(int FileDescriptor, uint8_t *Buffer, size_t Length, VfsErrorCod
 	if (fNode == NULL)
 		goto done;
 
-	/* Do the read */
-	bRead = VfsRead((MCoreFileInstance_t*)fNode->Data, Buffer, Length);
+	/* Create a new request with the VFS
+	 * Ask it to read the file */
+	Request = (MCoreVfsRequest_t*)kmalloc(sizeof(MCoreVfsRequest_t));
+
+	/* Reset request */
+	memset(Request, 0, sizeof(MCoreVfsRequest_t));
+
+	/* Setup base request */
+	Request->Base.Type = VfsRequestReadFile;
+
+	/* Setup params for the request */
+	Request->Pointer.Handle = (MCoreFileInstance_t*)fNode->Data;
+	Request->Buffer = Buffer;
+	Request->Value.Lo.Length = Length;
+
+	/* Send the request */
+	VfsRequestCreate(Request);
+	VfsRequestWait(Request, 0);
+
+	/* Store bytes read */
+	bRead = Request->Value.Hi.Length;
 	RetCode = ((MCoreFileInstance_t*)fNode->Data)->Code;
+
+	/* Cleanup */
+	kfree(Request);
 
 done:
 	/* Save error code */
@@ -903,12 +977,16 @@ done:
 	return bRead;
 }
 
-/* Write File */
+/* ScVfsWrite
+ * System call edition of VFS Write File,
+ * It tries to write the requested amount of bytes,
+ * and returns the actual byte amount written */
 size_t ScVfsWrite(int FileDescriptor, uint8_t *Buffer, size_t Length, VfsErrorCode_t *ErrCode)
 {
 	/* Get current process */
 	MCoreProcess_t *Process = PmGetProcess(PROCESS_CURRENT);
 	VfsErrorCode_t RetCode = VfsInvalidParameters;
+	MCoreVfsRequest_t *Request = NULL;
 	size_t bWritten = 0;
 	DataKey_t Key;
 	Key.Value = FileDescriptor;
@@ -932,9 +1010,31 @@ size_t ScVfsWrite(int FileDescriptor, uint8_t *Buffer, size_t Length, VfsErrorCo
 	if (fNode == NULL)
 		goto done;
 
-	/* Do the write */
-	bWritten = VfsWrite((MCoreFileInstance_t*)fNode->Data, Buffer, Length);
+	/* Create a new request with the VFS
+	 * Ask it to write the file */
+	Request = (MCoreVfsRequest_t*)kmalloc(sizeof(MCoreVfsRequest_t));
+
+	/* Reset request */
+	memset(Request, 0, sizeof(MCoreVfsRequest_t));
+
+	/* Setup base request */
+	Request->Base.Type = VfsRequestWriteFile;
+
+	/* Setup params for the request */
+	Request->Pointer.Handle = (MCoreFileInstance_t*)fNode->Data;
+	Request->Buffer = Buffer;
+	Request->Value.Lo.Length = Length;
+
+	/* Send the request */
+	VfsRequestCreate(Request);
+	VfsRequestWait(Request, 0);
+
+	/* Store bytes read */
+	bWritten = Request->Value.Hi.Length;
 	RetCode = ((MCoreFileInstance_t*)fNode->Data)->Code;
+
+	/* Cleanup */
+	kfree(Request);
 
 done:
 	/* Save error code */
@@ -954,7 +1054,7 @@ int ScVfsSeek(int FileDescriptor, off_t PositionLow, off_t PositionHigh)
 	/* Get current process */
 	MCoreProcess_t *Process = PmGetProcess(PROCESS_CURRENT);
 	VfsErrorCode_t RetCode = VfsInvalidParameters;
-	uint64_t Position = 0;
+	MCoreVfsRequest_t *Request = NULL;
 	DataKey_t Key;
 	Key.Value = FileDescriptor;
 
@@ -971,24 +1071,46 @@ int ScVfsSeek(int FileDescriptor, off_t PositionLow, off_t PositionHigh)
 	if (fNode == NULL)
 		return RetCode;
 
-	/* Build position */
-	if (PositionHigh != 0) {
-		Position = ((uint64_t)PositionHigh << 32) | PositionLow;
-	}
-	else {
-		Position = (uint64_t)PositionLow;
-	}
+	/* Create a new request with the VFS
+	 * Ask it to seek in the file */
+	Request = (MCoreVfsRequest_t*)kmalloc(sizeof(MCoreVfsRequest_t));
 
-	/* Seek */
-	return (int)VfsSeek((MCoreFileInstance_t*)fNode->Data, Position);
+	/* Reset request */
+	memset(Request, 0, sizeof(MCoreVfsRequest_t));
+
+	/* Setup base request */
+	Request->Base.Type = VfsRequestSeekFile;
+
+	/* Setup params for the request */
+	Request->Pointer.Handle = (MCoreFileInstance_t*)fNode->Data;
+	Request->Value.Lo.Length = PositionLow;
+	Request->Value.Hi.Length = PositionHigh;
+
+	/* Send the request */
+	VfsRequestCreate(Request);
+	VfsRequestWait(Request, 0);
+
+	/* Store error */
+	RetCode = Request->Error;
+
+	/* Cleanup */
+	kfree(Request);
+
+	/* Done, return error code */
+	return (int)RetCode;
 }
 
-/* Delete File */
+/* ScVfsDelete 
+ * System call edition of VFS Delete File 
+ * It does a lot of validation on the FD
+ * and deletes the file, it's important to close
+ * the file-descriptor afterwards as it's invalidated */
 int ScVfsDelete(int FileDescriptor)
 {
 	/* Get current process */
 	MCoreProcess_t *Process = PmGetProcess(PROCESS_CURRENT);
 	VfsErrorCode_t RetCode = VfsInvalidParameters;
+	MCoreVfsRequest_t *Request = NULL;
 	DataKey_t Key;
 	Key.Value = FileDescriptor;
 
@@ -1005,16 +1127,43 @@ int ScVfsDelete(int FileDescriptor)
 	if (fNode == NULL)
 		return RetCode;
 
-	/* Deep Call */
-	return (int)VfsDelete((MCoreFileInstance_t*)fNode->Data);
+	/* Create a new request with the VFS
+	 * Ask it to delete the file */
+	Request = (MCoreVfsRequest_t*)kmalloc(sizeof(MCoreVfsRequest_t));
+
+	/* Reset request */
+	memset(Request, 0, sizeof(MCoreVfsRequest_t));
+
+	/* Setup base request */
+	Request->Base.Type = VfsRequestDeleteFile;
+
+	/* Setup params for the request */
+	Request->Pointer.Handle = (MCoreFileInstance_t*)fNode->Data;
+
+	/* Send the request */
+	VfsRequestCreate(Request);
+	VfsRequestWait(Request, 0);
+
+	/* Store error */
+	RetCode = Request->Error;
+
+	/* Cleanup */
+	kfree(Request);
+
+	/* Done, return error code */
+	return (int)RetCode;
 }
 
-/* Flush File */
+/* ScVfsFlush 
+ * System call edition of VFS Flush File 
+ * Currently it just flushes the out-buffer
+ * as in-buffer is buffered in userspace */
 int ScVfsFlush(int FileDescriptor)
 {
 	/* Get current process */
 	MCoreProcess_t *Process = PmGetProcess(PROCESS_CURRENT);
 	VfsErrorCode_t RetCode = VfsInvalidParameters;
+	MCoreVfsRequest_t *Request = NULL;
 	DataKey_t Key;
 	Key.Value = FileDescriptor;
 
@@ -1031,8 +1180,31 @@ int ScVfsFlush(int FileDescriptor)
 	if (fNode == NULL)
 		return RetCode;
 
-	/* Deep Call */
-	return (int)VfsFlush((MCoreFileInstance_t*)fNode->Data);
+	/* Create a new request with the VFS
+	 * Ask it to flush the file */
+	Request = (MCoreVfsRequest_t*)kmalloc(sizeof(MCoreVfsRequest_t));
+
+	/* Reset request */
+	memset(Request, 0, sizeof(MCoreVfsRequest_t));
+
+	/* Setup base request */
+	Request->Base.Type = VfsRequestFlushFile;
+
+	/* Setup params for the request */
+	Request->Pointer.Handle = (MCoreFileInstance_t*)fNode->Data;
+
+	/* Send the request */
+	VfsRequestCreate(Request);
+	VfsRequestWait(Request, 0);
+
+	/* Store error */
+	RetCode = Request->Error;
+
+	/* Cleanup */
+	kfree(Request);
+
+	/* Done, return error code */
+	return (int)RetCode;
 }
 
 /* Query information about 
@@ -1068,12 +1240,41 @@ int ScVfsQuery(int FileDescriptor, VfsQueryFunction_t Function, void *Buffer, si
  * or moves it, deleting the Source. */
 int ScVfsMove(const char *Source, const char *Destination, int Copy)
 {
+	/* Variables */
+	MCoreVfsRequest_t *Request = NULL;
+	VfsErrorCode_t RetCode = VfsInvalidParameters;
+
 	/* Sanity */
 	if (Source == NULL || Destination == NULL)
 		return -1;
 
-	/* Redirect to Vfs */
-	return (int)VfsMove(Source, Destination, Copy);
+	/* Create a new request with the VFS
+	 * Ask it to move the file */
+	Request = (MCoreVfsRequest_t*)kmalloc(sizeof(MCoreVfsRequest_t));
+
+	/* Reset request */
+	memset(Request, 0, sizeof(MCoreVfsRequest_t));
+
+	/* Setup base request */
+	Request->Base.Type = VfsRequestDeleteFile; //TODO;
+
+	/* Setup params for the request */
+	Request->Pointer.Path = Source;
+	Request->Buffer = (uint8_t*)Destination;
+	Request->Value.Lo.Copy = Copy;
+
+	/* Send the request */
+	VfsRequestCreate(Request);
+	VfsRequestWait(Request, 0);
+
+	/* Store error */
+	RetCode = Request->Error;
+
+	/* Cleanup */
+	kfree(Request);
+
+	/* Done, return error code */
+	return (int)RetCode;
 }
 
 /* Vfs - Resolve Environmental Path

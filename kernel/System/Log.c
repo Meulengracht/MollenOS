@@ -113,9 +113,30 @@ void LogFlush(LogTarget_t Output)
 	 * other than a file, and the logfile is 
 	 * opened, we close it */
 	if (GlbLogFileHandle != NULL
-		&& Output != LogFile) {
-		/* Done, close file & cleanup */
-		VfsClose(GlbLogFileHandle);
+		&& Output != LogFile) 
+	{
+		/* Create a new request with the VFS
+		 * Ask it to cleanup the file */
+		MCoreVfsRequest_t *Request =
+			(MCoreVfsRequest_t*)kmalloc(sizeof(MCoreVfsRequest_t));
+
+		/* Reset request */
+		memset(Request, 0, sizeof(MCoreVfsRequest_t));
+
+		/* Setup base request */
+		Request->Base.Type = VfsRequestCloseFile;
+
+		/* Setup params for the request */
+		Request->Pointer.Handle = GlbLogFileHandle;
+
+		/* Send the request */
+		VfsRequestCreate(Request);
+		VfsRequestWait(Request, 0);
+
+		/* Cleanup */
+		kfree(Request);
+
+		/* Null it */
 		GlbLogFileHandle = NULL;
 	}
 
@@ -201,19 +222,58 @@ void LogFlush(LogTarget_t Output)
 		/* Open log file 
 		 * But only if handle doesn't exist */
 		int Index = 0;
-		if (GlbLogFileHandle == NULL) {
-			/* Open */
-			GlbLogFileHandle = VfsOpen(FILESYSTEM_IDENT_SYS ":/System/Log.txt",
-				Read | Write | TruncateIfExists | CreateIfNotExists);
+		if (GlbLogFileHandle == NULL) 
+		{
+			/* Create a new request with the VFS
+			 * Ask it to open the file */
+			MCoreVfsRequest_t *Request =
+				(MCoreVfsRequest_t*)kmalloc(sizeof(MCoreVfsRequest_t));
+
+			/* Reset request */
+			memset(Request, 0, sizeof(MCoreVfsRequest_t));
+
+			/* Setup base request */
+			Request->Base.Type = VfsRequestOpenFile;
+
+			/* Setup params for the request */
+			Request->Pointer.Path = FILESYSTEM_IDENT_SYS ":/System/Log.txt";
+			Request->Value.Lo.Flags = Read | Write | TruncateIfExists | CreateIfNotExists;
+
+			/* Send the request */
+			VfsRequestCreate(Request);
+			VfsRequestWait(Request, 0);
+
+			/* Store the handle */
+			GlbLogFileHandle = Request->Pointer.Handle;
 
 			/* Sanity */
 			if (GlbLogFileHandle->Code != VfsOk) {
 				LogFatal("SYST", "Failed to open/create system logfile: %u",
 					(size_t)GlbLogFileHandle->Code);
-				VfsClose(GlbLogFileHandle);
+				
+				/* Reset request */
+				memset(Request, 0, sizeof(MCoreVfsRequest_t));
+
+				/* Setup base request */
+				Request->Base.Type = VfsRequestCloseFile;
+
+				/* Setup params for the request */
+				Request->Pointer.Handle = GlbLogFileHandle;
+
+				/* Send the request */
+				VfsRequestCreate(Request);
+				VfsRequestWait(Request, 0);
+
+				/* Cleanup */
+				kfree(Request);
+
+				/* Null, return */
 				GlbLogFileHandle = NULL;
 				return;
 			}
+
+			/* Cleanup */
+			kfree(Request);
 		}
 
 		/* Iterate */

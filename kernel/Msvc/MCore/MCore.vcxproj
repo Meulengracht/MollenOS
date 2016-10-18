@@ -36,7 +36,10 @@
     <ClCompile Include="..\..\System\Syscalls.c" />
     <ClCompile Include="..\..\System\Threading.c" />
     <ClCompile Include="..\..\System\Timers.c" />
-    <ClCompile Include="..\..\System\Vfs.c" />
+    <ClCompile Include="..\..\System\Vfs\Vfs.c" />
+    <ClCompile Include="..\..\System\Vfs\VfsDisk.c" />
+    <ClCompile Include="..\..\System\Vfs\VfsFunctions.c" />
+    <ClCompile Include="..\..\System\Vfs\VfsPath.c" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\Arch\Arch.h" />

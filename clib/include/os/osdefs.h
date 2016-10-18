@@ -58,6 +58,7 @@ typedef unsigned int IpcComm_t;
 typedef unsigned int ProcId_t;
 typedef unsigned int ThreadId_t;
 typedef unsigned int TimerId_t;
+typedef unsigned int Flags_t;
 typedef unsigned DevInfo_t;
 typedef int DevId_t;
 
