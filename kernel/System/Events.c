@@ -152,7 +152,7 @@ void EventHandlerInternal(void *Args)
 		}
 
 		/* Signal Completion */
-		SchedulerWakeupAllThreads((Addr_t*)Event);
+		SemaphoreV(&Event->Queue);
 
 		/* Cleanup? */
 		if (Event->Cleanup != 0)
@@ -174,6 +174,9 @@ void EventCreate(MCoreEventHandler_t *EventHandler, MCoreEvent_t *Event)
 	Event->Owner = ThreadingGetCurrentThreadId();
 	Event->State = EventPending;
 
+	/* Reset the semaphore */
+	SemaphoreConstruct(&Event->Queue, 0);
+
 	/* Add to list */
 	ListAppend(EventHandler->Events, ListCreateNode(Key, Key, Event));
 
@@ -187,14 +190,9 @@ void EventCreate(MCoreEventHandler_t *EventHandler, MCoreEvent_t *Event)
  * be cancelled */
 void EventWait(MCoreEvent_t *Event, size_t Timeout)
 {
-	/* Sanity, make sure request hasn't completed */
-	if (Event->State != EventPending
-		&& Event->State != EventInProgress)
-		return;
-
-	/* Otherwise wait */
-	SchedulerSleepThread((Addr_t*)Event, Timeout);
-	IThreadYield();
+	/* Try to acquire one piece of candy
+	 * from the queue */
+	SemaphoreP(&Event->Queue, Timeout);
 }
 
 /* Event Cancel

@@ -22,13 +22,14 @@
 #ifndef _MCORE_EVENTS_H_
 #define _MCORE_EVENTS_H_
 
-/* Includes */
+/* Includes 
+ * - C Library */
 #include <os/osdefs.h>
 #include <ds/list.h>
 
+/* Includes
+ * - System */
 #include <Semaphore.h>
-
-/* Definitions */
 
 /* This describes the current state
  * of an event, this means the sender
@@ -47,9 +48,7 @@ typedef enum _EventState
 /* Generic format used for the
  * different enums.. they are 
  * all ints anyway */
-typedef int enum_t;
-
-/* Structures */
+typedef int Enum_t;
 
 /* Generic Event/Request 
  * Describes the BASE of an 
@@ -65,12 +64,17 @@ typedef struct _MCoreEvent
 	/* Type 
 	 * This the type of event 
 	 * that can happen */
-	enum_t Type;
+	Enum_t Type;
 
 	/* State 
 	 * This is the current state
 	 * of the event */
 	EventState_t State;
+
+	/* Queue
+	 * This keeps track of people
+	 * waiting on this request to finish */
+	Semaphore_t Queue;
 
 	/* Auto Cleanup 
 	 * This means the event-handler
