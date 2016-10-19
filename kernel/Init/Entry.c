@@ -102,12 +102,8 @@ void MCoreInitialize(MCoreBootInfo_t *BootInfo)
 
 	/* Now we finish the ACPI setup IF 
 	 * ACPI is present on the system */
-	if (AcpiAvailable() == ACPI_AVAILABLE) 
-	{
-		/* Initialize full acpi */
+	if (AcpiAvailable() == ACPI_AVAILABLE) {
 		AcpiInitialize();
-
-		/* Scan for acpi devices */
 		AcpiScan();
 	}
 

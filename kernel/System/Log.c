@@ -23,7 +23,7 @@
 #include <Devices/Video.h>
 #include <Heap.h>
 #include <Log.h>
-#include <Vfs/Vfs.h>
+#include <Vfs/VfsWrappers.h>
 
 /* CLib */
 #include <stddef.h>
@@ -115,26 +115,8 @@ void LogFlush(LogTarget_t Output)
 	if (GlbLogFileHandle != NULL
 		&& Output != LogFile) 
 	{
-		/* Create a new request with the VFS
-		 * Ask it to cleanup the file */
-		MCoreVfsRequest_t *Request =
-			(MCoreVfsRequest_t*)kmalloc(sizeof(MCoreVfsRequest_t));
-
-		/* Reset request */
-		memset(Request, 0, sizeof(MCoreVfsRequest_t));
-
-		/* Setup base request */
-		Request->Base.Type = VfsRequestCloseFile;
-
-		/* Setup params for the request */
-		Request->Pointer.Handle = GlbLogFileHandle;
-
-		/* Send the request */
-		VfsRequestCreate(Request);
-		VfsRequestWait(Request, 0);
-
-		/* Cleanup */
-		kfree(Request);
+		/* Close the handle */
+		VfsWrapperClose(GlbLogFileHandle);
 
 		/* Null it */
 		GlbLogFileHandle = NULL;
@@ -224,56 +206,22 @@ void LogFlush(LogTarget_t Output)
 		int Index = 0;
 		if (GlbLogFileHandle == NULL) 
 		{
-			/* Create a new request with the VFS
-			 * Ask it to open the file */
-			MCoreVfsRequest_t *Request =
-				(MCoreVfsRequest_t*)kmalloc(sizeof(MCoreVfsRequest_t));
-
-			/* Reset request */
-			memset(Request, 0, sizeof(MCoreVfsRequest_t));
-
-			/* Setup base request */
-			Request->Base.Type = VfsRequestOpenFile;
-
-			/* Setup params for the request */
-			Request->Pointer.Path = FILESYSTEM_IDENT_SYS ":/System/Log.txt";
-			Request->Value.Lo.Flags = Read | Write | TruncateIfExists | CreateIfNotExists;
-
-			/* Send the request */
-			VfsRequestCreate(Request);
-			VfsRequestWait(Request, 0);
-
-			/* Store the handle */
-			GlbLogFileHandle = Request->Pointer.Handle;
+			/* Open the handle */
+			GlbLogFileHandle = VfsWrapperOpen(FILESYSTEM_IDENT_SYS ":/System/Log.txt",
+				Read | Write | TruncateIfExists | CreateIfNotExists);
 
 			/* Sanity */
 			if (GlbLogFileHandle->Code != VfsOk) {
 				LogFatal("SYST", "Failed to open/create system logfile: %u",
 					(size_t)GlbLogFileHandle->Code);
 				
-				/* Reset request */
-				memset(Request, 0, sizeof(MCoreVfsRequest_t));
-
-				/* Setup base request */
-				Request->Base.Type = VfsRequestCloseFile;
-
-				/* Setup params for the request */
-				Request->Pointer.Handle = GlbLogFileHandle;
-
-				/* Send the request */
-				VfsRequestCreate(Request);
-				VfsRequestWait(Request, 0);
-
-				/* Cleanup */
-				kfree(Request);
+				/* Close the handle */
+				VfsWrapperClose(GlbLogFileHandle);
 
 				/* Null, return */
 				GlbLogFileHandle = NULL;
 				return;
 			}
-
-			/* Cleanup */
-			kfree(Request);
 		}
 
 		/* Iterate */
@@ -293,7 +241,7 @@ void LogFlush(LogTarget_t Output)
 				memcpy(TempBuffer, &GlbLog[Index + 2], (size_t)Length);
 
 				/* Write it to file */
-				VfsWrite(GlbLogFileHandle, (uint8_t*)TempBuffer, Length);
+				VfsWrapperWrite(GlbLogFileHandle, (uint8_t*)TempBuffer, Length);
 
 				/* Increase */
 				Index += 2 + Length;
@@ -316,7 +264,7 @@ void LogFlush(LogTarget_t Output)
 				sprintf(HeaderBuffer, "[%s] ", TempBuffer);
 				
 				/* Write it to file */
-				VfsWrite(GlbLogFileHandle, (uint8_t*)TempBuffer, HeaderLen + 3);
+				VfsWrapperWrite(GlbLogFileHandle, (uint8_t*)TempBuffer, HeaderLen + 3);
 
 				/* Clear */
 				memset(TempBuffer, 0, HeaderLen + 1);
@@ -328,7 +276,7 @@ void LogFlush(LogTarget_t Output)
 				memcpy(TempBuffer, &GlbLog[Index], (size_t)Length);
 
 				/* Write it to file */
-				VfsWrite(GlbLogFileHandle, (uint8_t*)TempBuffer, Length);
+				VfsWrapperWrite(GlbLogFileHandle, (uint8_t*)TempBuffer, Length);
 
 				/* Increase again */
 				Index += Length;
@@ -336,7 +284,7 @@ void LogFlush(LogTarget_t Output)
 		}
 
 		/* Done, flush */
-		VfsFlush(GlbLogFileHandle);
+		VfsWrapperFlush(GlbLogFileHandle);
 
 		/* NOW it's ok to log to file */
 		GlbLogTarget = LogFile;
@@ -437,7 +385,7 @@ void LogInternalPrint(int LogType, const char *Header, const char *Message)
 		}
 
 		/* Write to file */
-		VfsWrite(GlbLogFileHandle, 
+		VfsWrapperWrite(GlbLogFileHandle,
 			(uint8_t*)&TempBuffer[0], strlen((const char*)&TempBuffer[0]));
 	}
 

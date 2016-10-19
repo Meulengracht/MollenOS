@@ -22,7 +22,7 @@
 /* Includes */
 #include <Modules\ModuleManager.h>
 #include <Modules\PeLoader.h>
-#include <Vfs/Vfs.h>
+#include <Vfs/VfsWrappers.h>
 #include <Log.h>
 #include <Heap.h>
 
@@ -672,7 +672,7 @@ MCorePeFile_t *PeResolveLibrary(MCorePeFile_t *Parent, MCorePeFile_t *PeFile, MS
 	if (Exports == NULL)
 	{
 		/* Resolve Library */
-		MCoreFileInstance_t *lFile = VfsOpen(LibraryName->Data, Read);
+		MCoreFileInstance_t *lFile = VfsWrapperOpen(LibraryName->Data, Read);
 		uint8_t *fBuffer = (uint8_t*)kmalloc((size_t)lFile->File->Size);
 		MCorePeFile_t *Library = NULL;
 
@@ -682,10 +682,10 @@ MCorePeFile_t *PeResolveLibrary(MCorePeFile_t *Parent, MCorePeFile_t *PeFile, MS
 		}
 
 		/* Read all data */
-		VfsRead(lFile, fBuffer, (size_t)lFile->File->Size);
+		VfsWrapperRead(lFile, fBuffer, (size_t)lFile->File->Size);
 
 		/* Cleanup */
-		VfsClose(lFile);
+		VfsWrapperClose(lFile);
 
 		/* Load */
 		Library = PeLoadImage(ExportParent, LibraryName, fBuffer, NextLoadAddress);

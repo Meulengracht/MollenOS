@@ -22,7 +22,7 @@
 /* Includes */
 #include <Arch.h>
 #include <Process.h>
-#include <Vfs/Vfs.h>
+#include <Vfs/VfsWrappers.h>
 #include <GarbageCollector.h>
 #include <Threading.h>
 #include <Semaphore.h>
@@ -116,12 +116,12 @@ ProcId_t PmCreateProcess(MString_t *Path, MString_t *Arguments)
 		return PROCESS_NO_PROCESS;
 
 	/* Open File */
-	File = VfsOpen(Path->Data, Read);
+	File = VfsWrapperOpen(Path->Data, Read);
 
 	/* Sanity */
 	if (File->Code != VfsOk
 		|| File->File == NULL) {
-		VfsClose(File);
+		VfsWrapperClose(File);
 		return PROCESS_NO_PROCESS;
 	}
 
@@ -129,13 +129,13 @@ ProcId_t PmCreateProcess(MString_t *Path, MString_t *Arguments)
 	fBuffer = (uint8_t*)kmalloc((size_t)File->File->Size);
 
 	/* Read */
-	VfsRead(File, fBuffer, (size_t)File->File->Size);
+	VfsWrapperRead(File, fBuffer, (size_t)File->File->Size);
 
 	/* Copy path */
 	PathCopy = MStringCreate(File->File->Path->Data, StrUTF8);
 
 	/* Close */
-	VfsClose(File);
+	VfsWrapperClose(File);
 
 	/* Validate File */
 	if (!PeValidate(fBuffer)) {
@@ -203,7 +203,7 @@ void PmCleanupProcess(MCoreProcess_t *Process)
 		MCoreFileInstance_t *fHandle = (MCoreFileInstance_t*)fNode->Data;
 
 		/* Cleanup */
-		VfsClose(fHandle);
+		VfsWrapperClose(fHandle);
 	}
 
 	/* Destroy list */

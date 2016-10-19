@@ -156,6 +156,7 @@ typedef struct _MCoreDevice
 } MCoreDevice_t;
 
 /* Device Requests */
+#pragma pack(push, 1)
 typedef struct _MCoreDeviceRequest
 {
 	/* Event Base */
@@ -163,7 +164,6 @@ typedef struct _MCoreDeviceRequest
 
 	/* Device Id */
 	DevId_t DeviceId;
-	uint32_t Padding0;
 
 	/* Data */
 	uint64_t SectorLBA;
@@ -172,9 +172,9 @@ typedef struct _MCoreDeviceRequest
 
 	/* Error Type if any */
 	DeviceErrorMessage_t ErrType;
-	uint32_t Padding1;
 
 } MCoreDeviceRequest_t;
+#pragma pack(pop)
 
 /* Prototypes */
 _CRT_EXTERN void DmInit(void);
