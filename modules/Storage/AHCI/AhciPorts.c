@@ -58,7 +58,7 @@ AhciPort_t *AhciPortCreate(AhciController_t *Controller, int Port, int Index)
 		((uint8_t*)Controller->Registers + AHCI_REGISTER_PORTBASE(Port));
 
 	/* Reset lock & section */
-	CriticalSectionConstruct(&AhciPort->Section, CRITICALSECTION_PLAIN);
+	SemaphoreConstruct(&AhciPort->Queue, 0);
 	SpinlockReset(&AhciPort->Lock);
 
 	/* Create list */
@@ -83,13 +83,17 @@ void AhciPortInit(AhciController_t *Controller, AhciPort_t *Port)
 	Port->CommandTable = (void*)((uint8_t*)Controller->CmdTableBase 
 		+ ((AHCI_COMMAND_TABLE_SIZE  * 32) * Port->Id));
 
-	/* Get FIS base */
+	/* Setup FIS */
 	if (Controller->Registers->Capabilities & AHCI_CAPABILITIES_FBSS) {
 		Port->RecievedFis = (AHCIFis_t*)((uint8_t*)Controller->FisBase + (0x1000 * Port->Id));
 	}
 	else {
 		Port->RecievedFis = (AHCIFis_t*)((uint8_t*)Controller->FisBase + (256 * Port->Id));
 	}
+	
+	/* Setup Recieved-FIS table */
+	Port->RecievedFisTable = (AHCIFis_t**)kmalloc(Controller->CmdSlotCount * 256);
+	memset((void*)Port->RecievedFisTable, 0, Controller->CmdSlotCount * 256);
 
 	/* Setup mem pointer */
 	CmdTablePtr = (uint8_t*)Port->CommandTable;
@@ -165,6 +169,11 @@ void AhciPortCleanup(AhciController_t *Controller, AhciPort_t *Port)
 
 		/* Cleanup */
 		kfree(PayLoad);
+	}
+
+	/* Free memory resources */
+	if (Port->RecievedFisTable != NULL) {
+		kfree((void*)Port->RecievedFisTable);
 	}
 
 	/* Destroy the list */
@@ -341,14 +350,18 @@ void AhciPortInterruptHandler(AhciController_t *Controller, AhciPort_t *Port)
 				Key.Value = i;
 				tNode = ListGetNodeByKey(Port->Transactions, Key, 0);
 				if (tNode != NULL) {
+					/* Calculate Offset */
+					size_t Offset = i * AHCI_RECIEVED_FIS_SIZE;
+
+					/* Copy data over - we make a copy of the recieved fis */
+					memcpy((void*)((uint8_t*)Port->RecievedFisTable + Offset), 
+						(void*)Port->RecievedFis, sizeof(AHCIFis_t));
+
 					/* Unlink node, wakeup node, delete node */
 					ListRemoveByNode(Port->Transactions, tNode);
 					SchedulerWakeupAllThreads((Addr_t*)tNode);
 					ListDestroyNode(Port->Transactions, tNode);
 				}
-
-				/* Cleanup */
-				AhciPortReleaseCommandSlot(Port, i);
 			}
 		}
 	}

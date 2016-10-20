@@ -31,7 +31,7 @@
 
 /* System Includes */
 #include <DeviceManager.h>
-#include <CriticalSection.h>
+#include <Semaphore.h>
 #include <Module.h>
 
 /* Include the Sata header */
@@ -43,6 +43,7 @@
 #define AHCI_REGISTER_VENDORSPEC		0xA0
 #define AHCI_REGISTER_PORTBASE(Port)	(0x100 + (Port * 0x80))
 #define AHCI_MAX_PORTS					32
+#define AHCI_RECIEVED_FIS_SIZE			256
 
 /* How much we should allocate for each port */
 #define AHCI_PORT_PRDT_COUNT			32
@@ -608,24 +609,31 @@ typedef struct _AhciPort
 	int Id;
 	int Index;
 
+	/* Whether or not this port 
+	 * has a device connected */
+	int Connected;
+
 	/* Register Access for this port */
 	volatile AHCIPortRegisters_t *Registers;
 
 	/* Memory resources */
 	AHCICommandList_t *CommandList;
+	AHCIFis_t **RecievedFisTable;
 	AHCIFis_t *RecievedFis;
 	void *CommandTable;
 
-	/* Status */
+	/* Status of command slots
+	 * There can be max 32 slots,
+	 * so we use a 32 bit unsigned */
 	uint32_t SlotStatus;
-	int Connected;
 
-	/* Port lock/section */
-	CriticalSection_t Section;
+	/* Port lock/queue */
+	Semaphore_t Queue;
 	Spinlock_t Lock;
 
 	/* Transactions for this port 
-	 * Keeps track of active transfers */
+	 * Keeps track of active transfers. 
+	 * Key -> Slot, SubKey -> Multiplier */
 	List_t *Transactions;
 
 } AhciPort_t;

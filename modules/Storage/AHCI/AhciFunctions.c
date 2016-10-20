@@ -17,6 +17,7 @@
 *
 *
 * MollenOS MCore - Advanced Host Controller Interface Driver
+* - Should have a semaphore per slot, not per port..
 */
 
 /* Includes */
@@ -74,7 +75,7 @@ void AhciStringFlip(uint8_t *Buffer, size_t Length)
  * Dispatches a FIS command on a given port 
  * This function automatically allocates everything neccessary
  * for the transfer */
-OsStatus_t AhciCommandDispatch(AhciController_t *Controller, AhciPort_t *Port, uint32_t Flags,
+OsStatus_t AhciCommandDispatch(AhciController_t *Controller, AhciPort_t *Port, int Slot, uint32_t Flags,
 	void *Command, size_t CommandLength, void *AtapiCmd, size_t AtapiCmdLength, 
 	void *Buffer, size_t BufferLength)
 {
@@ -82,9 +83,12 @@ OsStatus_t AhciCommandDispatch(AhciController_t *Controller, AhciPort_t *Port, u
 	AHCICommandTable_t *CmdTable = NULL;
 	uint8_t *BufferPtr = NULL;
 	size_t BytesLeft = BufferLength;
-	int Slot = 0, PrdtIndex = 0;
 	ListNode_t *tNode = NULL;
 	DataKey_t Key, SubKey;
+	int PrdtIndex = 0;
+
+	/* Unused - for now */
+	_CRT_UNUSED(Controller);
 
 	/* Assert that buffer is DWORD aligned */
 	if (((Addr_t)Buffer & 0x3) != 0) {
@@ -97,9 +101,6 @@ OsStatus_t AhciCommandDispatch(AhciController_t *Controller, AhciPort_t *Port, u
 		LogFatal("AHCI", "AhciCommandDispatch::BufferLength is odd, must be even", Port->Id);
 		return OsError;
 	}
-
-	/* Allocate a slot for this FIS */
-	Slot = AhciPortAcquireCommandSlot(Controller, Port);
 
 	/* Sanitize that there is room 
 	 * for our command */
@@ -184,32 +185,52 @@ OsStatus_t AhciCommandDispatch(AhciController_t *Controller, AhciPort_t *Port, u
 	tNode = ListCreateNode(Key, SubKey, NULL);
 	ListAppend(Port->Transactions, tNode);
 
-	/* Enter critical section 
-	 * We do this since it's possible for the
-	 * port interrupt to happen before we sleep
-	 * our self on the resource */
-	CriticalSectionEnter(&Port->Section);
-
 	/* Start command */
 	AhciPortStartCommandSlot(Port, Slot);
 
 	/* Wait for signal to happen on resource */
-	SchedulerSleepThread((Addr_t*)tNode, 0);
-
-	/* Leave critical section, and allow 
-	 * it to be interrupt, then yield */
-	CriticalSectionLeave(&Port->Section);
-	IThreadYield();
+	SemaphoreP(&Port->Queue, 0);
 
 	/* Done */
 	return OsNoError;
 
 Error:
-	/* Cleanup */
-	AhciPortReleaseCommandSlot(Port, Slot);
 
 	/* Return error */
 	return OsError;
+}
+
+/* AHCIVerifyRegisterFIS
+ * Verifies a recieved fis result on a port/slot */
+OsStatus_t AhciVerifyRegisterFIS(AhciController_t *Controller, AhciPort_t *Port, int Slot)
+{
+	/* Calculate Offset */
+	AHCIFis_t *Fis = NULL;
+	size_t Offset = Slot * AHCI_RECIEVED_FIS_SIZE;
+
+	/* Unused - for now */
+	_CRT_UNUSED(Controller);
+
+	/* Get a pointer to the FIS */
+	Fis = (AHCIFis_t*)((uint8_t*)Port->RecievedFisTable + Offset);
+
+	/* Is the error bit set? */
+	if (Fis->RegisterD2H.Status & ATA_STS_DEV_ERROR) {
+		LogFatal("AHCI", "Port (%i): Transmission Error, error 0x%x",
+			Port->Id, (size_t)Fis->RegisterD2H.Error);
+		return OsError;
+	}
+
+	/* Is the fault bit set? */
+	if (Fis->RegisterD2H.Status & ATA_STS_DEV_FAULT) {
+		LogFatal("AHCI", "Port (%i): Device Fault, error 0x%x",
+			Port->Id, (size_t)Fis->RegisterD2H.Error);
+		return OsError;
+	}
+
+	/* If we reach here, all checks has been 
+	 * passed succesfully, and we return no err */
+	return OsNoError;
 }
 
 /* AHCICommandRegisterFIS 
@@ -220,7 +241,9 @@ OsStatus_t AhciCommandRegisterFIS(AhciController_t *Controller, AhciPort_t *Port
 {
 	/* Variables */
 	FISRegisterH2D_t Fis;
+	OsStatus_t Status;
 	uint32_t Flags;
+	int Slot = 0;
 
 	/* Reset structure */
 	memset((void*)&Fis, 0, sizeof(FISRegisterH2D_t));
@@ -281,9 +304,28 @@ OsStatus_t AhciCommandRegisterFIS(AhciController_t *Controller, AhciPort_t *Port
 		Flags |= DISPATCH_WRITE;
 	}
 
+	/* Allocate a slot for this FIS */
+	Slot = AhciPortAcquireCommandSlot(Controller, Port);
+
 	/* Execute our command */
-	return AhciCommandDispatch(Controller, Port, Flags, &Fis,
+	Status = AhciCommandDispatch(Controller, Port, Slot, Flags, &Fis,
 		sizeof(FISRegisterH2D_t), NULL, 0, Buffer, BufferSize);
+
+	/* Sanity */
+	if (Status != OsNoError) {
+		/* Release slot, return */
+		AhciPortReleaseCommandSlot(Port, Slot);
+		return Status;
+	}
+
+	/* Verify us */
+	Status = AhciVerifyRegisterFIS(Controller, Port, Slot);
+
+	/* Release slot */
+	AhciPortReleaseCommandSlot(Port, Slot);
+
+	/* Done! */
+	return Status;
 }
 
 /* AHCIDeviceIdentify 
@@ -467,10 +509,7 @@ int AhciReadSectors(void *mDevice, uint64_t StartSector, void *Buffer, size_t Bu
 		return -1;
 	}
 
-	LogDebug("AHCI", "Read %u bytes at sector 0x%x", 
-		BufferLength, LODWORD(StartSector));
-	for (;;);
-
+	/* Done! */
 	return 0;
 }
 
