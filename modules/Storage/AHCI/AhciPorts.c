@@ -357,10 +357,10 @@ void AhciPortInterruptHandler(AhciController_t *Controller, AhciPort_t *Port)
 					memcpy((void*)((uint8_t*)Port->RecievedFisTable + Offset), 
 						(void*)Port->RecievedFis, sizeof(AHCIFis_t));
 
-					/* Unlink node, wakeup node, delete node */
+					/* Unlink node, delete node */
 					ListRemoveByNode(Port->Transactions, tNode);
-					SchedulerWakeupAllThreads((Addr_t*)tNode);
 					ListDestroyNode(Port->Transactions, tNode);
+					SemaphoreV(&Port->Queue);
 				}
 			}
 		}

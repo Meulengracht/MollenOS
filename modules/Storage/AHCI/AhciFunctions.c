@@ -216,8 +216,14 @@ OsStatus_t AhciVerifyRegisterFIS(AhciController_t *Controller, AhciPort_t *Port,
 
 	/* Is the error bit set? */
 	if (Fis->RegisterD2H.Status & ATA_STS_DEV_ERROR) {
-		LogFatal("AHCI", "Port (%i): Transmission Error, error 0x%x",
-			Port->Id, (size_t)Fis->RegisterD2H.Error);
+		if (Fis->RegisterD2H.Error & ATA_ERR_DEV_EOM) {
+			LogFatal("AHCI", "Port (%i): Transmission Error, Invalid LBA(sector) range given, end of media.",
+				Port->Id, (size_t)Fis->RegisterD2H.Error);
+		}
+		else {
+			LogFatal("AHCI", "Port (%i): Transmission Error, error 0x%x",
+				Port->Id, (size_t)Fis->RegisterD2H.Error);
+		}
 		return OsError;
 	}
 
@@ -273,13 +279,13 @@ OsStatus_t AhciCommandRegisterFIS(AhciController_t *Controller, AhciPort_t *Port
 		|| AddressingMode == 2) {
 		/* Set LBA28 params */
 		Fis.SectorNo = LOBYTE(SectorLBA);
-		Fis.SectorNoExtended = (uint8_t)((SectorLBA >> 8) & 0xFF);
-		Fis.CylinderLow = (uint8_t)((SectorLBA >> 16) & 0xFF);
-		Fis.CylinderLowExtended = (uint8_t)((SectorLBA >> 24) & 0xFF);
+		Fis.CylinderLow = (uint8_t)((SectorLBA >> 8) & 0xFF);
+		Fis.CylinderHigh = (uint8_t)((SectorLBA >> 16) & 0xFF);
+		Fis.SectorNoExtended = (uint8_t)((SectorLBA >> 24) & 0xFF);
 
 		/* If it's an LBA48, set LBA48 params */
 		if (AddressingMode == 2) {
-			Fis.CylinderHigh = (uint8_t)((SectorLBA >> 32) & 0xFF);
+			Fis.CylinderLowExtended = (uint8_t)((SectorLBA >> 32) & 0xFF);
 			Fis.CylinderHighExtended = (uint8_t)((SectorLBA >> 40) & 0xFF);
 
 			/* Set count */
@@ -500,7 +506,7 @@ int AhciReadSectors(void *mDevice, uint64_t StartSector, void *Buffer, size_t Bu
 
 	/* Run command */
 	Status = AhciCommandRegisterFIS(AhciDisk->Controller, AhciDisk->Port,
-		Command, StartSector, BufferLength / AhciDisk->SectorSize, 0, 0, 
+		Command, StartSector, DIVUP(BufferLength, AhciDisk->SectorSize), 0, 0, 
 		AhciDisk->AddressingMode, Buffer, BufferLength);
 
 	/* So, how did it go? */
@@ -548,7 +554,7 @@ int AhciWriteSectors(void *mDevice, uint64_t StartSector, void *Buffer, size_t B
 
 	/* Run command */
 	Status = AhciCommandRegisterFIS(AhciDisk->Controller, AhciDisk->Port,
-		Command, StartSector, BufferLength / AhciDisk->SectorSize, 0, 1, 
+		Command, StartSector, DIVUP(BufferLength, AhciDisk->SectorSize), 0, 1,
 		AhciDisk->AddressingMode, Buffer, BufferLength);
 
 	/* So, how did it go? */

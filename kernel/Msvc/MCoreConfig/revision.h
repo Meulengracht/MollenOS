@@ -7,11 +7,11 @@
 #define _REVISION_H_
 
 #define BUILD_DATE "20 October 2016"
-#define BUILD_TIME "09:38:38"
+#define BUILD_TIME "10:52:02"
 
 #define REVISION_MAJOR 0
 #define REVISION_MINOR 3
-#define REVISION_BUILD 3498
+#define REVISION_BUILD 3501
 
 #endif
 

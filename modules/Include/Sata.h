@@ -91,11 +91,11 @@ typedef struct _SATAFISRegisterH2D
 	uint8_t SectorNo;
 
 	/* Contents of the least significant 8 bits 
-	 * of Cylinder Number or LBA 16:23 */
+	 * of Cylinder Number or LBA 15:8 */
 	uint8_t	CylinderLow;
 
 	/* Contents of the least significant 8 bits 
-	 * of Cylinder Number or LBA 32:39 */
+	 * of Cylinder Number or LBA 23:16 */
 	uint8_t	CylinderHigh;
 
 	/* Device Register 
@@ -104,15 +104,15 @@ typedef struct _SATAFISRegisterH2D
 	uint8_t	Device;
 
 	/* Contents of the upper 8 bits of the expandend 
-	 * sector number value (LBA 8:15) when using LBA48 */
+	 * sector number value (LBA 31:24) */
 	uint8_t SectorNoExtended;
 	
 	/* Contents of the most significant 8 bits of 
-	 * the Cylinder number, or LBA 24:31 */
+	 * the Cylinder number, or LBA 39:32 */
 	uint8_t CylinderLowExtended;
 
 	/* Contents of the most significant 8 bits of 
-	 * the Cylinder number, or LBA 40:47 */
+	 * the Cylinder number, or LBA 47:40 */
 	uint8_t CylinderHighExtended;
 
 	/* Features 8:15 */
