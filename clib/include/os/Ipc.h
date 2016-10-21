@@ -27,30 +27,44 @@
 #include <os/virtualkeycodes.h>
 
 /***********************
-* Base IPC Message Type
-***********************/
+ * Base IPC Message Type
+ ***********************/
 typedef enum _MEventType
 {
 	EventGeneric,
-	EventInput
+	EventInput,
+
+	/* Server Events */
+	EventServerControl,
+	EventServerCommand,
+	EventServerResponse
 
 } MEventType_t;
 
 /***********************
-* Generic IPC Message Type
-***********************/
+ * Generic IPC Message Type
+ ***********************/
 typedef enum _MGenericMessageType
 {
+	/* Window Manager 
+	 * - Control Messages */
 	GenericWindowCreate,
 	GenericWindowDestroy,
 	GenericWindowInvalidate,
-	GenericWindowQuery
+	GenericWindowQuery,
+
+	/* Servers 
+	 * - Control Messages */
+	GenericServerPing,
+	GenericServerPong,
+	GenericServerRestart,
+	GenericServerQuit
 
 } MGenericMessageType_t;
 
 /***********************
-* Input IPC Message Type
-***********************/
+ * Input IPC Message Type
+ ***********************/
 typedef enum _MInputSourceType
 {
 	InputUnknown = 0,
@@ -62,24 +76,6 @@ typedef enum _MInputSourceType
 	InputOther
 
 } MInputSourceType_t;
-
-/* Structures */
-
-/* Define the standard os
-* rectangle used for ui
-* operations */
-#ifndef MRECTANGLE_DEFINED
-#define MRECTANGLE_DEFINED
-typedef struct _mRectangle
-{
-	/* Origin */
-	int x, y;
-
-	/* Size */
-	int h, w;
-
-} Rect_t;
-#endif
 
 /*********************** 
  * Base IPC Message 
@@ -100,8 +96,8 @@ typedef struct _MEventMessageBase
 } MEventMessageBase_t;
 
 /***********************
-* Generic IPC Message
-***********************/
+ * Generic IPC Message
+ ***********************/
 typedef struct _MEventMessageGeneric
 {
 	/* Base */
@@ -122,9 +118,9 @@ typedef struct _MEventMessageGeneric
 } MEventMessageGeneric_t;
 
 /***********************
-* Input IPC Message
-*  - Button Event
-***********************/
+ * Input IPC Message
+ *  - Button Event
+ ***********************/
 typedef struct _MEventMessageInput
 {
 	/* Header */

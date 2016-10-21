@@ -144,20 +144,20 @@ _CRT_EXPORT void kernel_panic(const char *str);
 #define MEMORY_LOCATION_KERNEL			0x100000 /* Kernel Image Space: 1024 kB */
 #define MEMORY_LOCATION_RAMDISK			0x200000 /* RamDisk Image Space: 1024 kB */
 #define MEMORY_LOCATION_BITMAP			0x300000 /* Bitmap Space: 12 mB */
-
 #define MEMORY_LOCATION_HEAP			0x1000000 /* Heap Space: 64 mB */
 #define MEMORY_LOCATION_HEAP_END		0x4000000
-
 #define MEMORY_LOCATION_VIDEO			0x4000000 /* Video Space: 16 mB */
 #define MEMORY_LOCATION_MODULES			0x5000000 /* Module Space: 190~ mB */
+#define MEMORY_LOCATION_RESERVED		0x10000000 /* IO-Space/ACPI: 3.584 mB */
 
-#define MEMORY_LOCATION_RESERVED		0x10000000 /* Device Space: 1.256 mB */
-
+/* Below is seperated, and only used by the user-space 
+ * this of course means that everything in kernel-space is free
+ * for usage, probably going to use it for shared memory */
 #define MEMORY_LOCATION_USER_ARGS		0x60000000 /* Arg Space: 4 kB */
 #define MEMORY_LOCATION_USER			0x60010000 /* Image Space: 256~ mB */
 #define MEMORY_LOCATION_USER_HEAP		0x70000000 /* Heap Space: 2048 mB */
 #define MEMORY_LOCATION_USER_SHM		0xF0000000 /* Shared Memory: 240 mB */
-#define MEMORY_LOCATION_USER_SHM_END	0xFF000000 /* Shared Memory: 240 mB */
+#define MEMORY_LOCATION_USER_SHM_END	0xFF000000 /* Shared Memory End */
 #define MEMORY_LOCATION_SIGNAL_RET		0xFF0000DE /* Signal Ret Addr */
 #define MEMORY_LOCATION_USER_GUARD		0xFF000000 /* Stack End */
 #define MEMORY_LOCATION_USER_STACK		0xFFFFFFF0 /* Stack Space: 16 mB */

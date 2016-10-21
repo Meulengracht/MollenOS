@@ -35,17 +35,23 @@
  * 
  */
 
-/* Includes */
+/* Includes 
+ * - System */
 #include <Server.h>
 
+/* Includes 
+ * - C-Library */
+#include <ds/list.h>
+#include <stddef.h>
+
 /* Globals */
-
-
+List_t *GlbServers = NULL;
 
 /* Initialize the Server system 
  * This does not load any actual servers
  * or anything, just inits the server structures */
 void ServerInit(void)
 {
-
+	/* Initialize lists */
+	GlbServers = ListCreate(KeyInteger, LIST_NORMAL);
 }

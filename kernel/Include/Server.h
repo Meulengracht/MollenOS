@@ -42,6 +42,17 @@
 #include <Arch.h>
 #include <os/osdefs.h>
 
+
+/* Internal Server List 
+ * These are the possible internal servers 
+ * that MCore Supports */
+typedef enum _MCoreInternalServerType
+{
+	iServerDevice,
+	iServerVFS
+
+} MCoreInternalServerType_t;
+
 /* This definition controls how many arguments should 
  * be allowed by a cross-over package, default: 5 */
 #define CROSSOVER_MAX_ARGUMENTS				5
@@ -66,7 +77,6 @@ typedef struct _MCoreCrossoverPackage
 	int ArgumentMap[CROSSOVER_MAX_ARGUMENTS];
 
 } MCoreCrossoverPackage_t;
-
 
 /* Crossover functions, this is for the system calls 
  * so processes can request crossover */

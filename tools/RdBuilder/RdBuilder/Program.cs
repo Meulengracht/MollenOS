@@ -198,8 +198,8 @@ namespace RdBuilder
                                 DeviceSubClass = Convert.ToUInt32(Tokens[1].Trim().ToLower(), 16);
                             
                             /* Device Shared ? */
-                            if (Tokens[0].Trim().ToLower() == "shared")
-                                DeviceFlags = Convert.ToUInt32(Tokens[1].Trim().ToLower(), 10);
+                            if (Tokens[0].Trim().ToLower() == "flags")
+                                DeviceFlags = Convert.ToUInt32(Tokens[1].Trim().ToLower(), 16);
                         }
 
                         /* Cleanup */

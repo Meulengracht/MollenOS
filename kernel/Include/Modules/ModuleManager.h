@@ -25,8 +25,7 @@
 #include <MollenOS.h>
 #include <Arch.h>
 
-#include <crtdefs.h>
-#include <stdint.h>
+#include <os/osdefs.h>
 #include <ds/mstring.h>
 
 /* Subsystems */

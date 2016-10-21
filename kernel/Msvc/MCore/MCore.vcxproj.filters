@@ -161,9 +161,6 @@
     <ClInclude Include="..\..\Include\Mutex.h">
       <Filter>Includes</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\Include\RingBuffer.h">
-      <Filter>Includes</Filter>
-    </ClInclude>
     <ClInclude Include="..\..\Include\Scheduler.h">
       <Filter>Includes</Filter>
     </ClInclude>

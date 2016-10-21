@@ -38,6 +38,7 @@
 #define RAMDISK_MODULE			0x4
 
 #define RAMDISK_MODULE_SHARED	0x1
+#define RAMDISK_MODULE_SERVER	0x2
 
 /* Structures */
 typedef struct _MCoreRamDiskHeader

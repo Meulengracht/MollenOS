@@ -4,6 +4,7 @@
  * with information that is passed directly through a device-structure
  * along with information about the device
  */
+
 #ifndef __MOLLENOS_MODULE__
 #define __MOLLENOS_MODULE__
 
@@ -14,15 +15,19 @@
 #define MODULES_API __declspec(dllimport)
 #endif
 
-/* Includes */
+/* Includes 
+ * - System */
 #include <Arch.h>
 
-/* CLib */
-#include <crtdefs.h>
+/* Includes
+ * - C-Library */
+#include <os/osdefs.h>
 #include <stddef.h>
-#include <stdint.h>
 
-/* Module Setup */
+/* Module Setup 
+ * This is called as soon as the module 
+ * ór server has been loaded, for servers
+ * this is the main loop as well */
 MODULES_API void ModuleInit(void *Data);
 //MODULES_API void ModuleDestroy(void *Data);
 

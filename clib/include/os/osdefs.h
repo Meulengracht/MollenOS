@@ -71,6 +71,22 @@ typedef enum
 
 } OsStatus_t;
 
+/* Define the standard os
+ * rectangle used for ui
+ * operations */
+#ifndef MRECTANGLE_DEFINED
+#define MRECTANGLE_DEFINED
+typedef struct _mRectangle
+{
+	/* Origin */
+	int x, y;
+
+	/* Size */
+	int h, w;
+
+} Rect_t;
+#endif
+
 /* Helper function, retrieves the first 
  * set bit in a set of bits */
 static int FirstSetBit(size_t Value)

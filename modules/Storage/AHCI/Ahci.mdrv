@@ -3,4 +3,4 @@ VendorId = 00000000
 DeviceId = 00000000
 Class = 00010006
 SubClass = 00010000
-Shared = 0
+Flags = 00000000
