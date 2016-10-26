@@ -132,19 +132,19 @@ void AcpiSetupIoApic(void *Data, int Nr, void *UserData)
 	uint32_t IoEntries, i, j;
 	uint32_t IoApicNum = (uint32_t)Nr;
 	IoApic_t *IoListEntry = NULL;
+	Addr_t RemapTo = (Addr_t)MmReserveMemory(1);
 
 	/* Debug */
 	LogInformation("APIC", "Initializing I/O Apic %u", IoApic->Id);
 
-	/* Make sure address is mapped */
-	if (!MmVirtualGetMapping(NULL, IoApic->Address))
-		MmVirtualMap(NULL, IoApic->Address, IoApic->Address, 0x10);
+	/* Relocate the IoApic */
+	MmVirtualMap(NULL, IoApic->Address, RemapTo, PAGE_CACHE_DISABLE);
 
 	/* Allocate Entry */
 	IoListEntry = (IoApic_t*)kmalloc(sizeof(IoApic_t));
 	IoListEntry->GsiStart = IoApic->GlobalIrqBase;
 	IoListEntry->Id = IoApic->Id;
-	IoListEntry->BaseAddress = IoApic->Address;
+	IoListEntry->BaseAddress = RemapTo + (IoApic->Address & 0xFFF);
 
 	/* Maximum Redirection Entry—RO. This field contains the entry number (0 being the lowest
 	* entry) of the highest entry in the I/O Redirection Table. The value is equal to the number of
@@ -413,13 +413,14 @@ void ApicInitBoot(void)
 	{
 		/* Variables */
 		ACPI_TABLE_MADT *MadtTable = (ACPI_TABLE_MADT*)Header;
+		Addr_t RemapTo = (Addr_t)MmReserveMemory(1);
 
 		/* Identity map it in */
 		LogInformation("APIC", "LAPIC address at 0x%x", MadtTable->Address);
-		MmVirtualMap(NULL, MadtTable->Address, MadtTable->Address, PAGE_CACHE_DISABLE);
-
+		MmVirtualMap(NULL, MadtTable->Address, RemapTo, PAGE_CACHE_DISABLE);
+		
 		/* Now we can set it */
-		GlbLocalApicBase = MadtTable->Address;
+		GlbLocalApicBase = RemapTo + (MadtTable->Address & 0xFFF);
 	}
 	else {
 		/* This means GET FROM MP table or MSR */

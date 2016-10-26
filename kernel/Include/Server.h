@@ -82,4 +82,14 @@ typedef struct _MCoreCrossoverPackage
  * so processes can request crossover */
 _CRT_EXTERN int ServerCrossEnter(MCoreCrossoverPackage_t *Package);
 
+/* Initialize the Server system
+ * This does not load any actual servers
+ * or anything, just inits the server structures */
+_CRT_EXTERN void ServerInit(void);
+
+/* Server Memory Operations 
+ * These include allocation and freeing */
+_CRT_EXTERN void *ServerMemoryAllocate(size_t Length);
+_CRT_EXTERN void ServerMemoryFree(void *Ptr);
+
 #endif //!_MCORE_SERVER_H_

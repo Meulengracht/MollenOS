@@ -38,6 +38,8 @@
 /* Includes 
  * - System */
 #include <Server.h>
+#include <Heap.h>
+#include <Log.h>
 
 /* Includes 
  * - C-Library */
@@ -46,6 +48,7 @@
 
 /* Globals */
 List_t *GlbServers = NULL;
+Heap_t *GlbServerHeap = NULL;
 
 /* Initialize the Server system 
  * This does not load any actual servers
@@ -54,4 +57,22 @@ void ServerInit(void)
 {
 	/* Initialize lists */
 	GlbServers = ListCreate(KeyInteger, LIST_NORMAL);
+
+	/* Initialize the shared memory */
+	GlbServerHeap = HeapCreate(MEMORY_LOCATION_SHM, 0);
+}
+
+/* Server Memory Operations
+ * These include allocation and freeing */
+void *ServerMemoryAllocate(size_t Length)
+{
+	return (void*)HeapAllocate(GlbServerHeap, 
+		Length, ALLOCATION_COMMIT, 16, 0, "SERVER");
+}
+
+/* Server Memory Operations
+ * These include allocation and freeing */
+void ServerMemoryFree(void *Ptr)
+{
+	HeapFree(GlbServerHeap, (Addr_t)Ptr);
 }

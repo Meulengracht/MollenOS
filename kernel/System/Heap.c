@@ -21,51 +21,70 @@
 * Memory Nodes / Linked List / Lock Protectected (TODO REAPING )
 */
 
-/* Heap Includes */
+/* Includes 
+ * - System */
 #include <Arch.h>
 #include <Heap.h>
 #include <Log.h>
 
-/* CLib */
+/* Includes 
+ * - C-Library */
 #include <assert.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdio.h>
 
-/* Globals */
-Heap_t KernelHeap = { 0 };
+/* These are internal allocation flags
+ * and get applied based on size for optimization */
+#define ALLOCATION_PAGEALIGN		0x10000000
+#define ALLOCATION_BIG				0x20000000
 
-/**************************************/
-/******* Heap Helper Functions ********/
-/**************************************/
+/* Globals */
+const char *GlbKernelUnknown = "Unknown";
+Heap_t GlbKernelHeap = { 0 };
+
+/* The heap-structure allocation function
+ * this allocates heap memory in the reserved
+ * header space */
 Addr_t *HeapSAllocator(Heap_t *Heap, size_t Size)
 {
-	Addr_t *RetAddr;
+	/* The return address */
+	Addr_t *RetAddr = NULL;
 
-	/* Sanity */
+	/* Sanitize the size 
+	 * if we ask for invalid size something has
+	 * gone VERY wrong */
 	assert(Size > 0);
 
-	/* Sanity */
+	/* Sanitize our max-addr
+	 * We might need to map in new memory */
 	if ((Heap->MemHeaderCurrent + Size) >= Heap->MemHeaderMax)
 	{
-		/* Sanity */
+		/* Sanitize end of header memory */
 		if ((Heap->MemHeaderMax + PAGE_SIZE) >= 
 			(Heap->HeapBase + MEMORY_STATIC_OFFSET))
 		{
+			/* Debug */
 			LogFatal("HEAP", "OUT OF MEM, HeaderMax: 0x%x, HeaderCurrent 0x%x", 
 				Heap->MemHeaderMax, Heap->MemHeaderCurrent);
 			HeapPrintStats(Heap);
-			for (;;);
+
+			/* Daaamn */
+			return RetAddr;
 		}
 
-		/* Map */
+		/* Map in the new memory */
 		AddressSpaceMap(AddressSpaceGetCurrent(), Heap->MemHeaderMax, PAGE_SIZE, 
 			(Heap->IsUser == 1) ? ADDRESS_SPACE_FLAG_USER : 0);
+
+		/* Reset the memory */
 		memset((void*)Heap->MemHeaderMax, 0, PAGE_SIZE);
+
+		/* Increase limit */
 		Heap->MemHeaderMax += PAGE_SIZE;
 	}
 
-	/* Calc */
+	/* Get next new memory */
 	RetAddr = (Addr_t*)Heap->MemHeaderCurrent;
 	Heap->MemHeaderCurrent += Size;
 
@@ -73,89 +92,98 @@ Addr_t *HeapSAllocator(Heap_t *Heap, size_t Size)
 	return RetAddr;
 }
 
-/* Appends block to end of block list */
+/* Helper function that appends a block 
+ * to end of block list in a given heap */
 void HeapAppendBlockToList(Heap_t *Heap, HeapBlock_t *Block)
 {
-	HeapBlock_t *CurrBlock;
+	/* Variables needed for iteration */
+	HeapBlock_t *CurrBlock = NULL;
 
-	/* Sanity */
+	/* Sanitize parameter */
 	assert(Block != NULL);
 
-	/* Loop To End */
+	/* Loop to end, we want to append */
 	CurrBlock = Heap->Blocks;
-
 	while (CurrBlock->Link)
 		CurrBlock = CurrBlock->Link;
 
 	/* Set as end */
 	CurrBlock->Link = Block;
+	Block->Link = NULL;
 }
 
-/* Rounds up an address to page */
-Addr_t HeapAlignPageWithRoundup(Addr_t Address)
-{
-	Addr_t Aligned = Address;
-
-	/* Page Align */
-	if (Aligned % PAGE_SIZE)
-	{
-		Aligned &= PAGE_MASK;
-		Aligned += PAGE_SIZE;
-	}
-
-	return Aligned;
-}
-
-/* Prints stats of heap */
+/* Helper function that enumerates the given heap 
+ * and prints out different allocation stats of heap */
 void HeapPrintStats(Heap_t *Heap)
 {
-	HeapBlock_t *current_block, *previous_block;
-	uint32_t node_count = 0;
-	size_t total_bytes_allocated = 0;
-	size_t total_nodes_allocated = 0; 
-
-	/* Vars */
+	/* Variables needed for enumeration of 
+	 * the heap and stat variables */
+	HeapBlock_t *CurrentBlock = NULL;
+	size_t StatNodeCount = 0;
+	size_t StatBlockCount = 0;
+	size_t StatBytesAllocated = 0;
+	size_t StatNodesAllocated = 0;
+	size_t StatBlockPageCount = 0;
+	size_t StatBlockBigCount = 0;
+	size_t StatBlockNormCount = 0;
 	Heap_t *pHeap = Heap;
 
-	/* Sanity */
+	/* Sanitize heap param, if NULL
+	 * we want to use the kernel heap instead */
 	if (pHeap == NULL)
-		pHeap = &KernelHeap;
+		pHeap = &GlbKernelHeap;
 
 	/* Count Nodes */
-	current_block = pHeap->Blocks, previous_block = NULL;
-	while (current_block)
+	CurrentBlock = pHeap->Blocks;
+	while (CurrentBlock)
 	{
-		HeapNode_t *current_node = current_block->Nodes, *previous_node = NULL;
-
-		while (current_node)
+		/* Node iterator */
+		HeapNode_t *CurrentNode = CurrentBlock->Nodes;
+		
+		/* Iterate */
+		while (CurrentNode)
 		{
 			/* Stats */
-			total_nodes_allocated = (current_node->Allocated == 0) ? 
-				total_nodes_allocated : total_nodes_allocated + 1;
-			total_bytes_allocated = (current_node->Allocated == 0) ?
-				total_bytes_allocated : (total_bytes_allocated + current_node->Length);
+			StatNodesAllocated += (CurrentNode->Flags & NODE_ALLOCATED) ? 1 : 0;
+			StatBytesAllocated += (CurrentNode->Flags & NODE_ALLOCATED) ? CurrentNode->Length : 0;
 
-			node_count++;
+			/* Increase the node count */
+			StatNodeCount++;
 
 			/* Next Node */
-			previous_node = current_node;
-			current_node = current_node->Link;
+			CurrentNode = CurrentNode->Link;
 		}
 
+		/* Increase stats */
+		StatBlockCount++;
+
+		/* What kind of block? */
+		if (CurrentBlock->Flags & BLOCK_VERY_LARGE)
+			StatBlockBigCount++;
+		else if (CurrentBlock->Flags & BLOCK_LARGE)
+			StatBlockPageCount++;
+		else
+			StatBlockNormCount++;
+
 		/* Next Block */
-		previous_block = current_block;
-		current_block = current_block->Link;
+		CurrentBlock = CurrentBlock->Link;
 	}
 
 	/* Done, print */
-	printf("Heap Stats:\n");
-	printf("  -- Nodes Total: %u\n", node_count);
-	printf("  -- Nodes Allocated: %u\n", total_nodes_allocated);
-	printf("  -- Bytes Allocated: %u\n", total_bytes_allocated);
+	LogDebug("HEAP", "Heap Stats:");
+	LogDebug("HEAP", "  -- Blocks Total: %u", StatBlockCount);
+	LogDebug("HEAP", "     -- Normal Blocks: %u", StatBlockNormCount);
+	LogDebug("HEAP", "     -- Page Blocks: %u", StatBlockPageCount);
+	LogDebug("HEAP", "     -- Big Blocks: %u", StatBlockBigCount);
+	LogDebug("HEAP", "  -- Nodes Total: %u", StatNodeCount);
+	LogDebug("HEAP", "     -- Nodes Allocated: %u", StatNodesAllocated);
+	LogDebug("HEAP", "  -- Bytes Allocated: %u", StatBytesAllocated);
 }
 
-/* Helper to allocate and create a block */
-HeapBlock_t *HeapCreateBlock(Heap_t *Heap, size_t Size, int Flags)
+/* Helper to allocate and create a block for a given heap
+ * it will allocate from the recycler if possible */
+HeapBlock_t *HeapCreateBlock(Heap_t *Heap, 
+	size_t Size, Flags_t Flags, const char *Identifier)
 {
 	/* Allocate a block & node */
 	HeapBlock_t *hBlock = NULL;
@@ -171,6 +199,10 @@ HeapBlock_t *HeapCreateBlock(Heap_t *Heap, size_t Size, int Flags)
 	else
 		hBlock = (HeapBlock_t*)HeapSAllocator(Heap, sizeof(HeapBlock_t));
 
+	/* Sanitize that the allocated block 
+	 * is not NULL */
+	assert(hBlock != NULL);
+
 	/* Sanity Recycler */
 	if (Heap->NodeRecycler != NULL)
 	{
@@ -181,6 +213,10 @@ HeapBlock_t *HeapCreateBlock(Heap_t *Heap, size_t Size, int Flags)
 	else
 		hNode = (HeapNode_t*)HeapSAllocator(Heap, sizeof(HeapNode_t));
 
+	/* Sanitize that the allocated block
+	* is not NULL */
+	assert(hNode != NULL);
+
 	/* Set Members */
 	hBlock->AddressStart = Heap->MemStartData;
 	hBlock->AddressEnd = (Heap->MemStartData + Size - 1);
@@ -189,10 +225,13 @@ HeapBlock_t *HeapCreateBlock(Heap_t *Heap, size_t Size, int Flags)
 	hBlock->Link = NULL;
 	hBlock->Nodes = hNode;
 
-	/* Setup node */
+	/* Setup node with identifier */
+	memcpy(&hNode->Identifier[0], Identifier == NULL ? GlbKernelUnknown : Identifier,
+		Identifier == NULL ? strlen(GlbKernelUnknown) : strnlen(Identifier, 7));
+	hNode->Identifier[7] = '\0';
 	hNode->Address = Heap->MemStartData;
 	hNode->Link = NULL;
-	hNode->Allocated = 0;
+	hNode->Flags = 0;
 	hNode->Length = Size;
 
 	/* Increament Address */
@@ -202,27 +241,27 @@ HeapBlock_t *HeapCreateBlock(Heap_t *Heap, size_t Size, int Flags)
 	return hBlock;
 }
 
-/**************************************/
-/********** Heap Expansion  ***********/
-/**************************************/
-void HeapExpand(Heap_t *Heap, size_t Size, int ExpandType)
+/* Helper to expand the heap with a given size, now 
+ * it also heavily depends on which kind of allocation is being made */
+void HeapExpand(Heap_t *Heap, size_t Size, Flags_t Flags, const char *Identifier)
 {
+	/* Variable */
 	HeapBlock_t *hBlock;
 
-	/* Normal expansion? */
-	if (ExpandType == ALLOCATION_NORMAL)
-		hBlock = HeapCreateBlock(Heap, HEAP_NORMAL_BLOCK, BLOCK_NORMAL);
-	else if (ExpandType & ALLOCATION_ALIGNED)
-		hBlock = HeapCreateBlock(Heap, HEAP_LARGE_BLOCK, BLOCK_LARGE);
-	else
-	{
-		/* Page Align */
-		size_t nsize = HeapAlignPageWithRoundup(Size);
-
-		/* And allocate */
-		hBlock = HeapCreateBlock(Heap, nsize, BLOCK_VERY_LARGE);
+	/* Which kind of expansion are we making? */
+	if (Flags & ALLOCATION_BIG) {
+		/* Page aligned allocation */
+		hBlock = HeapCreateBlock(Heap, ALIGN(Size, PAGE_SIZE, 1), 
+			BLOCK_VERY_LARGE, Identifier);
 	}
-	
+	else if (Flags & ALLOCATION_PAGEALIGN) {
+		hBlock = HeapCreateBlock(Heap, HEAP_LARGE_BLOCK, BLOCK_LARGE, Identifier);
+	}
+	else {
+		/* Normal expansion */
+		hBlock = HeapCreateBlock(Heap, HEAP_NORMAL_BLOCK, BLOCK_NORMAL, Identifier);
+	}
+
 	/* Add it to list */
 	HeapAppendBlockToList(Heap, hBlock);
 }
@@ -231,69 +270,120 @@ void HeapExpand(Heap_t *Heap, size_t Size, int ExpandType)
 /********** Heap Allocation ***********/
 /**************************************/
 
-/* Allocates <size> in a given <block> */
-Addr_t HeapAllocateSizeInBlock(Heap_t *Heap, HeapBlock_t *Block, size_t Size)
+/* Helper function for the primary allocation function, this 
+ * 'sub'-allocates <size> in a given <block> from the heap */
+Addr_t HeapAllocateSizeInBlock(Heap_t *Heap, HeapBlock_t *Block, 
+	size_t Size, size_t Alignment, const char *Identifier)
 {
-	HeapNode_t *CurrNode = Block->Nodes, *PrevNode = NULL;
+	/* Variables needed for node iteration */
+	HeapNode_t *CurrNode = Block->Nodes, 
+			   *PrevNode = NULL;
 	Addr_t RetAddr = 0;
 
 	/* Standard block allocation algorithm */
 	while (CurrNode)
 	{
-		/* Check if free and large enough */
-		if (CurrNode->Allocated == 0
-			&& CurrNode->Length >= Size)
-		{
-			/* Allocate, two cases, either exact
-			 * match in size or we make a new header */
-			if (CurrNode->Length == Size
-				|| Block->Flags & BLOCK_VERY_LARGE)
-			{
-				/* Easy peasy, set allocated and
-				 * return */
-				CurrNode->Allocated = 1;
-				RetAddr = CurrNode->Address;
-				Block->BytesFree -= Size;
-				break;
-			}
-			else
-			{
-				/* Make new node */
-				/* Insert it before this */
-				HeapNode_t *hNode = NULL;
-
-				/* Sanity Recycler */
-				if (Heap->NodeRecycler != NULL)
-				{
-					/* Pop */
-					hNode = Heap->NodeRecycler;
-					Heap->NodeRecycler = Heap->NodeRecycler->Link;
-				}
-				else
-					hNode = (HeapNode_t*)HeapSAllocator(Heap, sizeof(HeapNode_t));
-
-				/* Fill */
-				hNode->Address = CurrNode->Address;
-				hNode->Allocated = 1;
-				hNode->Length = Size;
-				hNode->Link = CurrNode;
-				RetAddr = hNode->Address;
-
-				/* Update current node stats */
-				CurrNode->Address = hNode->Address + Size;
-				CurrNode->Length -= Size;
-
-				/* Update previous */
-				if (PrevNode != NULL)
-					PrevNode->Link = hNode;
-				else
-					Block->Nodes = hNode;
-
-				break;
-			}
-
+		/* Do some initial sanity checks
+		 * for whether this node is valid */
+		if (CurrNode->Flags & NODE_ALLOCATED
+			|| CurrNode->Length < Size) {
+			goto Skip;
 		}
 
+		/* Allocate, two cases, either exact
+		 * match in size or we make a new header */
+		if (CurrNode->Length == Size
+			|| Block->Flags & BLOCK_VERY_LARGE)
+		{
+			/* Well that matched awfully well
+			 * -> Custom allocation, one note, set information */
+			memcpy(&CurrNode->Identifier[0], Identifier == NULL ? GlbKernelUnknown : Identifier,
+				Identifier == NULL ? strlen(GlbKernelUnknown) : strnlen(Identifier, 7));
+			CurrNode->Identifier[7] = '\0';
+			CurrNode->Flags = NODE_ALLOCATED;
+
+			/* Store address, update information */
+			RetAddr = CurrNode->Address;
+			Block->BytesFree -= Size;
+
+			/* We are done! */
+			break;
+		}
+		else
+		{
+			/* Make new node
+			 * Insert it before this */
+			HeapNode_t *hNode = NULL;
+
+			/* Before continuining we want to make
+			 * sure this node actually have room in
+			 * case we need alignment */
+			if (Alignment != 0
+				&& !ISALIGNED(CurrNode->Address, Alignment)) {
+				if (CurrNode->Length < ALIGN(Size, Alignment, 1)) {
+					goto Skip;
+				}
+			}
+
+			/* Sanitize the recycler before
+			 * we actually allocate a new node */
+			if (Heap->NodeRecycler != NULL)
+			{
+				/* Pop */
+				hNode = Heap->NodeRecycler;
+				Heap->NodeRecycler = Heap->NodeRecycler->Link;
+			}
+			else
+				hNode = (HeapNode_t*)HeapSAllocator(Heap, sizeof(HeapNode_t));
+
+			/* Sanitize the node! */
+			assert(hNode != NULL);
+
+			/* Fill in details in the new node
+			 * and set the identifier */
+			memcpy(&CurrNode->Identifier[0], Identifier == NULL ? GlbKernelUnknown : Identifier,
+				Identifier == NULL ? strlen(GlbKernelUnknown) : strnlen(Identifier, 7));
+			CurrNode->Identifier[7] = '\0';
+
+			/* Set links and set it allocated */
+			hNode->Address = CurrNode->Address;
+			hNode->Flags = NODE_ALLOCATED;
+			hNode->Link = CurrNode;
+
+			/* Handle alignment if neccessary */
+			if (Alignment != 0
+				&& !ISALIGNED(hNode->Address, Alignment)) {
+
+				/* Adjust size by the difference of address
+				 * and then store it */
+				Size += Alignment - (hNode->Address % Alignment);
+				hNode->Length = Size;
+
+				/* Adjust address aswell */
+				RetAddr = ALIGN(hNode->Address, Alignment, 1);
+			}
+			else {
+				/* Simply store this */
+				hNode->Length = Size;
+
+				/* Store the return address */
+				RetAddr = hNode->Address;
+			}
+
+			/* Update current node stats */
+			CurrNode->Address = hNode->Address + Size;
+			CurrNode->Length -= Size;
+
+			/* Update previous */
+			if (PrevNode != NULL)
+				PrevNode->Link = hNode;
+			else
+				Block->Nodes = hNode;
+
+			break;
+		}
+
+	Skip:
 		/* Next node, search for a free */
 		PrevNode = CurrNode;
 		CurrNode = CurrNode->Link;
@@ -303,261 +393,141 @@ Addr_t HeapAllocateSizeInBlock(Heap_t *Heap, HeapBlock_t *Block, size_t Size)
 	return RetAddr;
 }
 
-/* Finds a suitable block for allocation
- * and allocates in that block */
-Addr_t HeapAllocate(Heap_t *Heap, size_t Size, int Flags)
+/* Helper for mapping in pages as soon as they
+ * are allocated, used by allocation flags */
+void HeapCommitPages(Addr_t Address, size_t Size, Addr_t Mask)
 {
-	/* Find a block that match our 
-	 * requirements */
-	HeapBlock_t *current_block = Heap->Blocks, *previous_block = NULL;
+	/* Variables  */
+	size_t Pages = DIVUP(Size, PAGE_SIZE);
+	size_t i = 0;
 
-	while (current_block)
-	{
-		/* Find a matching block */
+	/* Unused for now */
+	_CRT_UNUSED(Mask);
 
-		/* Check normal */
-		if ((Flags == ALLOCATION_NORMAL)
-			&& (current_block->Flags == BLOCK_NORMAL)
-			&& (current_block->BytesFree >= Size))
-		{
-			/* Try to make the allocation, THIS CAN 
-			 * FAIL */
-			Addr_t res = HeapAllocateSizeInBlock(Heap, current_block, Size);
-
-			/* Check if failed */
-			if (res != 0)
-				return res;
-		}
-
-		/* Check aligned */
-		if ((Flags == ALLOCATION_ALIGNED)
-			&& (current_block->Flags & BLOCK_LARGE)
-			&& (current_block->BytesFree >= Size))
-		{
-			/* Var */
-			Addr_t res = 0;
-			size_t a_size = Size;
-
-			/* Page align allocation */
-			if (a_size & ATTRIBUTE_MASK)
-			{
-				a_size &= PAGE_MASK;
-				a_size += PAGE_SIZE;
-			}
-
-			/* Try to make the allocation, THIS CAN
-			* FAIL */
-			res = HeapAllocateSizeInBlock(Heap, current_block, a_size);
-
-			/* Check if failed */
-			if (res != 0)
-				return res;
-		}
-
-		/* Check Special */
-		if ((Flags == ALLOCATION_SPECIAL)
-			&& (current_block->Flags & BLOCK_VERY_LARGE)
-			&& (current_block->BytesFree >= Size))
-		{
-			/* Try to make the allocation, THIS CAN
-			* FAIL */
-			Addr_t res = HeapAllocateSizeInBlock(Heap, current_block, Size);
-
-			/* Check if failed */
-			if (res != 0)
-				return res;
-		}
-
-		/* Next Block */
-		previous_block = current_block;
-		current_block = current_block->Link;
-	}
-
-	/* If we reach here, expand and research */
-	HeapExpand(Heap, Size, Flags);
-
-	/* Recursive Call */
-	return HeapAllocate(Heap, Size, Flags);
-}
-
-/* Map Pages */
-void HeapSanityPages(Addr_t Address, size_t Size)
-{
-	/* Vars */
-	size_t Pages = Size / PAGE_SIZE;
-	uint32_t i;
-
-	/* Sanity */
-	if (Size % PAGE_SIZE)
-		Pages++;
-
-	/* Do we step across page boundary? */
+	/* Sanitize the page boundary
+	 * Do we step across page boundary? */
 	if ((Address & PAGE_MASK)
 		!= ((Address + Size - 1) & PAGE_MASK))
 		Pages++;
 
-	/* Map */
-	for (i = 0; i < Pages; i++)
+	/* Map in the pages */
+	for (; i < Pages; i++)
 	{
 		if (!AddressSpaceGetMap(AddressSpaceGetCurrent(), Address + (i * PAGE_SIZE)))
 			AddressSpaceMap(AddressSpaceGetCurrent(), Address + (i * PAGE_SIZE), PAGE_SIZE, 0);
 	}
 }
 
-/* The real calls */
-
-/* Page align & return physical */
-void *kmalloc_ap(size_t sz, Addr_t *p)
+/* Finds a suitable block for allocation
+ * and allocates in that block, this is primary 
+ * allocator of the heap */
+Addr_t HeapAllocate(Heap_t *Heap, size_t Size, 
+	Flags_t Flags, size_t Alignment, Addr_t Mask, const char *Identifier)
 {
-	/* Vars */
-	Addr_t RetAddr;
-	int Flags = ALLOCATION_ALIGNED;
+	/* Find a block that match our 
+	 * requirements */
+	HeapBlock_t *CurrentBlock = NULL;
+	size_t AdjustedSize = Size;
+	Addr_t RetVal = 0;
 
-	/* Sanity */
-	assert(sz != 0);
+	/* Add some block-type flags 
+	 * based upon size of requested allocation */
+	if (Size >= 0x3000) {
+		Flags |= ALLOCATION_BIG;
+	}
+	else if (Size >= 0x500) {
+		Flags |= ALLOCATION_PAGEALIGN;
+		AdjustedSize = ALIGN(Size, PAGE_SIZE, 1);
+	}
 
-	/* Special Allocation? */
-	if (sz >= 0x3000)
-		Flags = ALLOCATION_SPECIAL;
+	/* Acquire the lock */
+	CriticalSectionEnter(&Heap->Lock);
 
-	/* Lock */
-	CriticalSectionEnter(&KernelHeap.Lock);
+	/* Now lets iterate the heap */
+	CurrentBlock = Heap->Blocks;
+	while (CurrentBlock)
+	{
+		/* Check which type of allocation is 
+		 * being made, we have three types: 
+		 * Standard-aligned allocations
+		 * Page-aligned allocations 
+		 * Custom allocations (large) */
+		if (CurrentBlock->BytesFree < AdjustedSize) {
+			goto Skip;
+		}
 
-	/* Do the call */
-	RetAddr = HeapAllocate(&KernelHeap, sz, Flags);
+		/* Check if custom allocation */
+		if (Flags & ALLOCATION_BIG
+			&& (CurrentBlock->Flags & BLOCK_VERY_LARGE)) {
 
-	/* Release */
-	CriticalSectionLeave(&KernelHeap.Lock);
+			/* Big allocation (IGNORE ALIGNMENT)
+			 * Try to make the allocation, THIS CAN FAIL */
+			RetVal = HeapAllocateSizeInBlock(Heap, CurrentBlock, 
+				AdjustedSize, 0, Identifier);
+		}
+		else if (Flags & ALLOCATION_PAGEALIGN
+			&& (CurrentBlock->Flags & BLOCK_LARGE)) {
 
-	/* Sanity */
-	assert(RetAddr != 0);
+			/* Page aligned allocation (IGNORE ALIGNMENT)
+			 * Try to make the allocation, THIS CAN FAIL */
+			RetVal = HeapAllocateSizeInBlock(Heap, CurrentBlock, 
+				AdjustedSize, 0, Identifier);
+		}
+		else if ((CurrentBlock->Flags == BLOCK_NORMAL)) {
+			
+			/* Standard allocation (USE ALIGNMENT)
+			 * Try to make the allocation, THIS CAN FAIL */
+			RetVal = HeapAllocateSizeInBlock(Heap, CurrentBlock, 
+				AdjustedSize, Alignment, Identifier);
+		}
 
-	/* Sanity Pages */
-	HeapSanityPages(RetAddr, sz);
+		/* Check if succeded 
+		 * then we have an allocation */
+		if (RetVal != 0)
+			break;
 
-	/* Now, get physical mapping */
-	*p = AddressSpaceGetMap(AddressSpaceGetCurrent(), RetAddr);
+	Skip:
+		/* Next Block */
+		CurrentBlock = CurrentBlock->Link;
+	}
 
-	/* Done */
-	return (void*)RetAddr;
-}
+	/* Sanitize
+	 * If return value is not 0 it means
+	 * our allocation was made! */
+	if (RetVal != 0) {
 
-/* Normal allocation, return physical */
-void *kmalloc_p(size_t sz, Addr_t *p)
-{
-	/* Vars */
-	Addr_t RetAddr;
-	int Flags = ALLOCATION_NORMAL;
+		/* Were we asked to commit pages? */
+		if (Flags & ALLOCATION_COMMIT) {
+			HeapCommitPages(RetVal, Size, Mask);
+		}
 
-	/* Sanity */
-	assert(sz != 0);
+		/* Release lock */
+		CriticalSectionLeave(&Heap->Lock);
 
-	/* Do aligned allocation´? */
-	if (sz >= 0x500)
-		Flags = ALLOCATION_ALIGNED;
+		/* Done! */
+		return RetVal;
+	}
 
-	/* Special Allocation? */
-	if (sz >= 0x3000)
-		Flags = ALLOCATION_SPECIAL;
+	/* If we reach here, expand and research */
+	HeapExpand(Heap, Size, Flags, Identifier);
 
-	/* Lock */
-	CriticalSectionEnter(&KernelHeap.Lock);
+	/* Release lock */
+	CriticalSectionLeave(&Heap->Lock);
 
-	/* Do the call */
-	RetAddr = HeapAllocate(&KernelHeap, sz, Flags);
-
-	/* Release */
-	CriticalSectionLeave(&KernelHeap.Lock);
-
-	/* Sanity */
-	assert(RetAddr != 0);
-
-	/* Sanity Pages */
-	HeapSanityPages(RetAddr, sz);
-
-	/* Now, get physical mapping */
-	*p = AddressSpaceGetMap(AddressSpaceGetCurrent(), RetAddr);
-
-	/* Done */
-	return (void*)RetAddr;
-}
-
-/* Page aligned allocation */
-void *kmalloc_a(size_t sz)
-{
-	/* Vars */
-	Addr_t RetAddr;
-	int Flags = ALLOCATION_ALIGNED;
-
-	/* Sanity */
-	assert(sz > 0);
-
-	/* Special Allocation? */
-	if (sz >= 0x3000)
-		Flags = ALLOCATION_SPECIAL;
-
-	/* Lock */
-	CriticalSectionEnter(&KernelHeap.Lock);
-
-	/* Do the call */
-	RetAddr = HeapAllocate(&KernelHeap, sz, Flags);
-
-	/* Release */
-	CriticalSectionLeave(&KernelHeap.Lock);
-
-	/* Sanity */
-	assert(RetAddr != 0);
-
-	/* Sanity Pages */
-	HeapSanityPages(RetAddr, sz);
-
-	/* Done */
-	return (void*)RetAddr;
-}
-
-/* Normal allocation */
-void *kmalloc(size_t sz)
-{
-	/* Vars */
-	Addr_t RetAddr;
-	int Flags = ALLOCATION_NORMAL;
-
-	/* Sanity */
-	assert(sz > 0);
-
-	/* Do aligned allocation´? */
-	if (sz >= 0x500)
-		Flags = ALLOCATION_ALIGNED;
-
-	/* Special Allocation? */
-	if (sz >= 0x3000)
-		Flags = ALLOCATION_SPECIAL;
-
-	/* Lock */
-	CriticalSectionEnter(&KernelHeap.Lock);
-
-	/* Do the call */
-	RetAddr = HeapAllocate(&KernelHeap, sz, Flags);
-
-	/* Release */
-	CriticalSectionLeave(&KernelHeap.Lock);
-
-	/* Sanity */
-	assert(RetAddr != 0);
-
-	/* Sanity Pages */
-	HeapSanityPages(RetAddr, sz);
-
-	/* Done */
-	return (void*)RetAddr;
+	/* Recursive Call */
+	return HeapAllocate(Heap, Size, Flags, Alignment, Mask, Identifier);
 }
 
 /**************************************/
 /*********** Heap Freeing *************/
 /**************************************/
+
+/* Helper for the primary freeing routine, it free's 
+ * an address in the correct block, it's a bit more complicated
+ * as it supports merging with sibling nodes  */
 void HeapFreeAddressInNode(Heap_t *Heap, HeapBlock_t *Block, Addr_t Address)
 {
-	/* Vars */
+	/* Variables for iteration */
 	HeapNode_t *CurrNode = Block->Nodes, *PrevNode = NULL;
 
 	/* Standard block freeing algorithm */
@@ -567,11 +537,16 @@ void HeapFreeAddressInNode(Heap_t *Heap, HeapBlock_t *Block, Addr_t Address)
 		Addr_t aStart = CurrNode->Address;
 		Addr_t aEnd = CurrNode->Address + CurrNode->Length - 1;
 
-		/* Check if address is a part of this node */
+		/* Check if address is a part of this node 
+		 * And we do need to check like this as address
+		 * might have been aligned */
 		if (Address >= aStart && Address < aEnd)
 		{
-			/* Well, well, well. */
-			CurrNode->Allocated = 0;
+			/* We found the relevant node, reset it's data 
+			 * Flags, identification, but ofc not address */
+			CurrNode->Flags = 0;
+			
+			/* Update information */
 			Block->BytesFree += CurrNode->Length;
 
 			/* CHECK IF WE CAN MERGE!! */
@@ -581,7 +556,7 @@ void HeapFreeAddressInNode(Heap_t *Heap, HeapBlock_t *Block, Addr_t Address)
 
 			/* Can we merge with previous? */
 			if (PrevNode != NULL
-				&& PrevNode->Allocated == 0)
+				&& !(PrevNode->Flags & NODE_ALLOCATED))
 			{
 				/* Add this length to previous */
 				PrevNode->Length += CurrNode->Length;
@@ -605,7 +580,7 @@ void HeapFreeAddressInNode(Heap_t *Heap, HeapBlock_t *Block, Addr_t Address)
 				}
 			}
 			else if (CurrNode->Link != NULL
-				&& CurrNode->Link->Allocated == 0)
+				&& !(CurrNode->Flags & NODE_ALLOCATED))
 			{
 				/* We are root, move our data */
 				CurrNode->Link->Address = CurrNode->Address;
@@ -647,11 +622,14 @@ void HeapFreeAddressInNode(Heap_t *Heap, HeapBlock_t *Block, Addr_t Address)
  * that should contain our node */
 void HeapFree(Heap_t *Heap, Addr_t Addr)
 {
-	/* Find a block that match our
-	* address */
-	HeapBlock_t *CurrBlock = Heap->Blocks;
+	/* Find a block that match our address */
+	HeapBlock_t *CurrBlock = NULL;
+
+	/* Acquire the lock */
+	CriticalSectionEnter(&Heap->Lock);
 
 	/* Try to locate the block */
+	CurrBlock = Heap->Blocks;
 	while (CurrBlock)
 	{
 		/* Correct block? */
@@ -662,36 +640,23 @@ void HeapFree(Heap_t *Heap, Addr_t Addr)
 			HeapFreeAddressInNode(Heap, CurrBlock, Addr);
 
 			/* Done! */
-			return;
+			break;
 		}
 		
 		/* Next Block */
 		CurrBlock = CurrBlock->Link;
 	}
-}
 
-/* Free call */
-void kfree(void *p)
-{
-	/* Sanity */
-	assert(p != NULL); 
-
-	/* Lock */
-	CriticalSectionEnter(&KernelHeap.Lock);
-
-	/* Free */
-	HeapFree(&KernelHeap, (Addr_t)p);
-
-	/* Release */
-	CriticalSectionLeave(&KernelHeap.Lock);
-
-	/* Set NULL */
-	p = NULL;
+	/* Release the lock */
+	CriticalSectionLeave(&Heap->Lock);
 }
 
 /**************************************/
 /*********** Heap Querying ************/
 /**************************************/
+
+/* This function is basicilly just a node-lookup function
+ * that's used to find information about the node */
 HeapNode_t *HeapQueryAddressInNode(HeapBlock_t *Block, Addr_t Address)
 {
 	/* Vars */
@@ -771,8 +736,8 @@ int HeapQueryMemoryInformation(Heap_t *Heap, size_t *BytesInUse, size_t *BlocksA
 		while (CurrentNode)
 		{
 			/* Stats */
-			NodesAllocated = (CurrentNode->Allocated == 0) ? NodesAllocated : NodesAllocated + 1;
-			BytesAllocated = (CurrentNode->Allocated == 0) ? BytesAllocated : (BytesAllocated + CurrentNode->Length);
+			NodesAllocated = (CurrentNode->Flags & NODE_ALLOCATED) ? NodesAllocated + 1 : NodesAllocated;
+			BytesAllocated = (CurrentNode->Flags & NODE_ALLOCATED) ? (BytesAllocated + CurrentNode->Length) : BytesAllocated;
 			NodeCount++;
 
 			/* Next Node */
@@ -796,93 +761,45 @@ int HeapQueryMemoryInformation(Heap_t *Heap, size_t *BytesInUse, size_t *BlocksA
 }
 
 /**************************************/
-/******* Heap User Allocation *********/
-/**************************************/
-void *umalloc(Heap_t *Heap, size_t Size)
-{
-	/* Vars */
-	Addr_t RetAddr;
-	int Flags = ALLOCATION_NORMAL;
-
-	/* Sanity */
-	assert(Size > 0);
-
-	/* Do aligned allocation´? */
-	if (Size >= 0x500)
-		Flags = ALLOCATION_ALIGNED;
-
-	/* Special Allocation? */
-	if (Size >= 0x3000)
-		Flags = ALLOCATION_SPECIAL;
-
-	/* Lock */
-	CriticalSectionEnter(&Heap->Lock);
-
-	/* Do the call */
-	RetAddr = HeapAllocate(Heap, Size, Flags);
-
-	/* Release */
-	CriticalSectionLeave(&Heap->Lock);
-
-	/* Sanity */
-	assert(RetAddr != 0);
-
-	/* Done */
-	return (void*)RetAddr;
-}
-
-void ufree(Heap_t *Heap, void *Ptr)
-{
-	/* Sanity */
-	assert(Ptr != NULL);
-
-	/* Lock */
-	CriticalSectionEnter(&Heap->Lock);
-
-	/* Free */
-	HeapFree(Heap, (Addr_t)Ptr);
-
-	/* Release */
-	CriticalSectionLeave(&Heap->Lock);
-
-	/* Set NULL */
-	Ptr = NULL;
-}
-
-/**************************************/
 /******** Heap Initialization *********/
 /**************************************/
+
+/* This initializes the kernel heap and 
+ * readies the first few blocks for allocation
+ * this MUST be called before any calls to *mallocs */
 void HeapInit(void)
 {
 	/* Vars */
 	HeapBlock_t *NormBlock, *SpecBlock;
 
 	/* Reset */
-	KernelHeap.IsUser = 0;
-	KernelHeap.HeapBase = MEMORY_LOCATION_HEAP;
-	KernelHeap.MemStartData = KernelHeap.HeapBase + MEMORY_STATIC_OFFSET;
-	KernelHeap.MemHeaderCurrent = KernelHeap.HeapBase;
-	KernelHeap.MemHeaderMax = KernelHeap.HeapBase;
+	GlbKernelHeap.IsUser = 0;
+	GlbKernelHeap.HeapBase = MEMORY_LOCATION_HEAP;
+	GlbKernelHeap.MemStartData = GlbKernelHeap.HeapBase + MEMORY_STATIC_OFFSET;
+	GlbKernelHeap.MemHeaderCurrent = GlbKernelHeap.HeapBase;
+	GlbKernelHeap.MemHeaderMax = GlbKernelHeap.HeapBase;
 
 	/* Set null */
-	KernelHeap.BlockRecycler = NULL;
-	KernelHeap.NodeRecycler = NULL;
+	GlbKernelHeap.BlockRecycler = NULL;
+	GlbKernelHeap.NodeRecycler = NULL;
 
 	/* Initiate the global spinlock */
-	CriticalSectionConstruct(&KernelHeap.Lock, CRITICALSECTION_REENTRANCY);
+	CriticalSectionConstruct(&GlbKernelHeap.Lock, CRITICALSECTION_REENTRANCY);
 
 	/* Create a normal node */
-	NormBlock = HeapCreateBlock(&KernelHeap, HEAP_NORMAL_BLOCK, BLOCK_NORMAL);
-	SpecBlock = HeapCreateBlock(&KernelHeap, HEAP_LARGE_BLOCK, BLOCK_LARGE);
+	NormBlock = HeapCreateBlock(&GlbKernelHeap, HEAP_NORMAL_BLOCK, BLOCK_NORMAL, GlbKernelUnknown);
+	SpecBlock = HeapCreateBlock(&GlbKernelHeap, HEAP_LARGE_BLOCK, BLOCK_LARGE, GlbKernelUnknown);
 
 	/* Insert them */
 	NormBlock->Link = SpecBlock;
-	KernelHeap.Blocks = NormBlock;
+	GlbKernelHeap.Blocks = NormBlock;
 
 	/* Heap is now ready to use! */
 }
 
-/* Allocate & Create a custom heap */
+/* This function allocates a 'third party' heap that
+ * can be used like a memory region for allocations, usefull
+ * for servers, shared memory, processes etc */
 Heap_t *HeapCreate(Addr_t HeapAddress, int UserHeap)
 {
 	/* Vars */
@@ -907,8 +824,8 @@ Heap_t *HeapCreate(Addr_t HeapAddress, int UserHeap)
 	CriticalSectionConstruct(&Heap->Lock, CRITICALSECTION_REENTRANCY);
 
 	/* Create a normal node */
-	NormBlock = HeapCreateBlock(Heap, HEAP_NORMAL_BLOCK, BLOCK_NORMAL);
-	SpecBlock = HeapCreateBlock(Heap, HEAP_LARGE_BLOCK, BLOCK_LARGE);
+	NormBlock = HeapCreateBlock(Heap, HEAP_NORMAL_BLOCK, BLOCK_NORMAL, GlbKernelUnknown);
+	SpecBlock = HeapCreateBlock(Heap, HEAP_LARGE_BLOCK, BLOCK_LARGE, GlbKernelUnknown);
 
 	/* Insert them */
 	NormBlock->Link = SpecBlock;
@@ -925,10 +842,12 @@ Heap_t *HeapCreate(Addr_t HeapAddress, int UserHeap)
 }
 
 /**************************************/
-/*****Ø***** Heap Utilities ***********/
+/*********** Heap Utilities ***********/
 /**************************************/
 
-/* Heap Validation */
+/* Used for validation that an address is allocated
+ * within the given heap, this can be used for security
+ * or validation purposes, use NULL for kernel heap */
 int HeapValidateAddress(Heap_t *Heap, Addr_t Address)
 {
 	/* Vars */
@@ -936,18 +855,145 @@ int HeapValidateAddress(Heap_t *Heap, Addr_t Address)
 
 	/* Sanity */
 	if (pHeap == NULL)
-		pHeap = &KernelHeap;
+		pHeap = &GlbKernelHeap;
 
 	/* Find Addr */
 	HeapNode_t *MemInfo = HeapQuery(pHeap, Address);
 
 	/* Sanity */
 	if (MemInfo == NULL
-		|| !MemInfo->Allocated)
+		|| !(MemInfo->Flags & NODE_ALLOCATED))
 		return -1;
 
 	/* Yay */
 	return 0;
+}
+
+/* Simply just a wrapper for HeapAllocate
+ * with the kernel heap as argument 
+ * but this does some basic validation and
+ * makes sure pages are mapped in memory
+ * this function also returns the physical address 
+ * of the allocation and aligned to PAGE_ALIGN */
+void *kmalloc_ap(size_t Size, Addr_t *Ptr)
+{
+	/* Variables for kernel allocation
+	 * Setup some default stuff */
+	Addr_t RetAddr = 0;
+
+	/* Sanitize size in kernel allocations 
+	 * we need to extra sensitive */
+	assert(Size != 0);
+
+	/* Do the call */
+	RetAddr = HeapAllocate(&GlbKernelHeap, Size, 
+		ALLOCATION_COMMIT, HEAP_STANDARD_ALIGN, 0, GlbKernelUnknown);
+
+	/* Sanitize null-allocs in kernel allocations
+	 * we need to extra sensitive */
+	assert(RetAddr != 0);
+
+	/* Now, get physical mapping */
+	*Ptr = AddressSpaceGetMap(AddressSpaceGetCurrent(), RetAddr);
+
+	/* Done */
+	return (void*)RetAddr;
+}
+
+/* Simply just a wrapper for HeapAllocate
+ * with the kernel heap as argument 
+ * but this does some basic validation and
+ * makes sure pages are mapped in memory
+ * this function also returns the physical address 
+ * of the allocation */
+void *kmalloc_p(size_t Size, Addr_t *Ptr)
+{
+	/* Variables for kernel allocation
+	 * Setup some default stuff */
+	Addr_t RetAddr = 0;
+
+	/* Sanitize size in kernel allocations 
+	 * we need to extra sensitive */
+	assert(Size > 0);
+
+	/* Do the call */
+	RetAddr = HeapAllocate(&GlbKernelHeap, Size, 
+		ALLOCATION_COMMIT, HEAP_STANDARD_ALIGN, 0, NULL);
+
+	/* Sanitize size in kernel allocations 
+	 * we need to extra sensitive */
+	assert(RetAddr != 0);
+
+	/* Now, get physical mapping */
+	*Ptr = AddressSpaceGetMap(AddressSpaceGetCurrent(), RetAddr);
+
+	/* Done */
+	return (void*)RetAddr;
+}
+
+/* Simply just a wrapper for HeapAllocate
+ * with the kernel heap as argument 
+ * but this does some basic validation and
+ * makes sure pages are mapped in memory 
+ * the memory returned is PAGE_ALIGNED */
+void *kmalloc_a(size_t Size)
+{
+	/* Variables for kernel allocation
+	 * Setup some default stuff */
+	Addr_t RetAddr = 0;
+
+	/* Sanitize size in kernel allocations 
+	 * we need to extra sensitive */
+	assert(Size != 0);
+
+	/* Do the call */
+	RetAddr = HeapAllocate(&GlbKernelHeap, Size, 
+		ALLOCATION_COMMIT, HEAP_STANDARD_ALIGN, 0, GlbKernelUnknown);
+
+	/* Sanitize null-allocs in kernel allocations
+	 * we need to extra sensitive */
+	assert(RetAddr != 0);
+
+	/* Done */
+	return (void*)RetAddr;
+}
+
+/* Simply just a wrapper for HeapAllocate
+ * with the kernel heap as argument 
+ * but this does some basic validation and
+ * makes sure pages are mapped in memory */
+void *kmalloc(size_t Size)
+{
+	/* Variables for kernel allocation
+	 * Setup some default stuff */
+	Addr_t RetAddr = 0;
+
+	/* Sanitize size in kernel allocations 
+	 * we need to extra sensitive */
+	assert(Size > 0);
+
+	/* Do the call */
+	RetAddr = HeapAllocate(&GlbKernelHeap, Size, 
+		ALLOCATION_COMMIT, HEAP_STANDARD_ALIGN, 0, NULL);
+
+	/* Sanitize size in kernel allocations 
+	 * we need to extra sensitive */
+	assert(RetAddr != 0);
+	
+	/* Done */
+	return (void*)RetAddr;
+}
+
+/* kfree 
+ * Wrapper for the HeapFree that essentially 
+ * just calls it with the kernel heap as argument */
+void kfree(void *p)
+{
+	/* Sanity */
+	assert(p != NULL);
+
+	/* Free */
+	HeapFree(&GlbKernelHeap, (Addr_t)p);
 }
 
 /**************************************/
@@ -959,7 +1005,7 @@ void heap_test(void)
 	uint32_t phys1 = 0, phys2 = 0, i = 0;
 	void *res1, *res2, *res3, *res4, *res5, *res6;
 
-	HeapPrintStats(&KernelHeap);
+	HeapPrintStats(&GlbKernelHeap);
 
 	printf(" >> Performing small allocs & frees (a few)\n");
 	res1 = kmalloc(0x30);
@@ -969,7 +1015,7 @@ void heap_test(void)
 	res5 = kmalloc(0x600);
 	res6 = kmalloc(0x3000);
 
-	HeapPrintStats(&KernelHeap);
+	HeapPrintStats(&GlbKernelHeap);
 
 	printf(" Alloc1 (0x30): 0x%x, Alloc2 (0x50): 0x%x, Alloc3 (0x130): 0x%x, Alloc4 (0x180): 0x%x\n",
 		(uint32_t)res1, (uint32_t)res2, (uint32_t)res3, (uint32_t)res4);
@@ -980,7 +1026,7 @@ void heap_test(void)
 	kfree(res2);
 	kfree(res3);
 
-	HeapPrintStats(&KernelHeap);
+	HeapPrintStats(&GlbKernelHeap);
 
 	printf(" Re-allocing 5, 2 & 3\n");
 	res2 = kmalloc(0x90);
@@ -997,7 +1043,7 @@ void heap_test(void)
 	kfree(res5);
 	kfree(res6);
 
-	HeapPrintStats(&KernelHeap);
+	HeapPrintStats(&GlbKernelHeap);
 
 	printf(" Making special allocations (aligned & aligned /w phys)\n");
 	res1 = kmalloc_a(0x30);
@@ -1021,7 +1067,7 @@ void heap_test(void)
 	kfree(res5);
 	kfree(res6);
 
-	HeapPrintStats(&KernelHeap);
+	HeapPrintStats(&GlbKernelHeap);
 
 	printf(" >> Performing allocations (150)\n");
 	
@@ -1032,7 +1078,7 @@ void heap_test(void)
 		kmalloc(0x3000);
 	}
 
-	HeapPrintStats(&KernelHeap);
+	HeapPrintStats(&GlbKernelHeap);
 	
 	printf(" >> Performing allocs & frees (150)\n");
 	for (i = 0; i < 50; i++)

@@ -436,6 +436,11 @@ void MmVirtualInit(void)
 		MEMORY_LOCATION_VIDEO, (GlbBootVideo.Info.BytesPerScanline * GlbBootVideo.Info.Height), 
 		1, PAGE_USER);
 
+	/* SHARED MEMORY */
+	LogInformation("VMEM", "Mapping shm region to 0x%x", MEMORY_LOCATION_SHM);
+	MmVirtualIdentityMapMemoryRange(KernelPageDirectory, 0, MEMORY_LOCATION_SHM,
+		(MEMORY_LOCATION_SHM_END - MEMORY_LOCATION_SHM), 0, 0);
+
 	/* Now, tricky, map reserved memory regions */
 
 	/* Step 1. Install a pagetable at MEMORY_LOCATION_RESERVED */

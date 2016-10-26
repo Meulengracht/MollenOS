@@ -628,7 +628,7 @@ typedef struct _AhciPort
 	uint32_t SlotStatus;
 
 	/* Port lock/queue */
-	Semaphore_t Queue;
+	Semaphore_t **SlotQueues;
 	Spinlock_t Lock;
 
 	/* Transactions for this port 

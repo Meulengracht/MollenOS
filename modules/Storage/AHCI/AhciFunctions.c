@@ -92,7 +92,8 @@ OsStatus_t AhciCommandDispatch(AhciController_t *Controller, AhciPort_t *Port, i
 
 	/* Assert that buffer is DWORD aligned */
 	if (((Addr_t)Buffer & 0x3) != 0) {
-		LogFatal("AHCI", "AhciCommandDispatch::Buffer was not dword aligned", Port->Id);
+		LogFatal("AHCI", "AhciCommandDispatch::Buffer was not dword aligned (0x%x)", 
+			Port->Id, (Addr_t)Buffer);
 		return OsError;
 	}
 
@@ -189,7 +190,7 @@ OsStatus_t AhciCommandDispatch(AhciController_t *Controller, AhciPort_t *Port, i
 	AhciPortStartCommandSlot(Port, Slot);
 
 	/* Wait for signal to happen on resource */
-	SemaphoreP(&Port->Queue, 0);
+	SemaphoreP(Port->SlotQueues[Slot], 0);
 
 	/* Done */
 	return OsNoError;
@@ -511,7 +512,7 @@ int AhciReadSectors(void *mDevice, uint64_t StartSector, void *Buffer, size_t Bu
 
 	/* So, how did it go? */
 	if (Status != OsNoError) {
-		LogFatal("AHCI", "AHCIReadSectors:: Failed to do the read");
+		LogFatal("AHCI", "AhciReadSectors:: Failed to do the read");
 		return -1;
 	}
 
@@ -559,7 +560,7 @@ int AhciWriteSectors(void *mDevice, uint64_t StartSector, void *Buffer, size_t B
 
 	/* So, how did it go? */
 	if (Status != OsNoError) {
-		LogFatal("AHCI", "AHCIWriteSectors:: Failed to write");
+		LogFatal("AHCI", "AhciWriteSectors:: Failed to write");
 		return -1;
 	}
 

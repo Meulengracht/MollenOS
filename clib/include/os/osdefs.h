@@ -111,6 +111,7 @@ static int FirstSetBit(size_t Value)
 #define DIVUP(a, b) ((a / b) + (((a % b) > 0) ? 1 : 0))
 #define INCLIMIT(i, limit) i++; if (i == limit) i = 0;
 #define ALIGN(Val, Alignment, Roundup) ((Val & (Alignment-1)) > 0 ? (Roundup == 1 ? ((Val + Alignment) & ~(Alignment-1)) : Val & ~(Alignment-1)) : Val)
+#define ISALIGNED(Val, Alignment)	((Val & (Alignment-1)) == 0)
 
 /* Data manipulation macros */
 #ifndef LOWORD

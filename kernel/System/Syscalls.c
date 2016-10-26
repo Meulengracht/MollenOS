@@ -519,7 +519,8 @@ Addr_t ScMemoryAllocate(size_t Size, int Flags)
 		return (Addr_t)-1;
 
 	/* Call */
-	return (Addr_t)umalloc(Process->Heap, Size);
+	return HeapAllocate(Process->Heap, Size, 
+		0, 0, 0, Process->Name->Data);
 }
 
 /* Free's previous allocated memory, given an address
@@ -537,7 +538,7 @@ int ScMemoryFree(Addr_t Address, size_t Length)
 		return (Addr_t)-1;
 
 	/* Call */
-	ufree(Process->Heap, (void*)Address);
+	HeapFree(Process->Heap, (Addr_t)Address);
 
 	/* Done */
 	return 0;
@@ -794,6 +795,7 @@ int ScIpcWake(IpcComm_t Target)
 * VFS Functions        *
 ***********************/
 #include <Vfs/Vfs.h>
+#include <Server.h>
 #include <stdio.h>
 #include <errno.h>
 
@@ -825,8 +827,10 @@ int ScVfsOpen(const char *Utf8, VfsFileFlags_t OpenFlags, VfsErrorCode_t *ErrCod
 	/* Setup base request */
 	Request->Base.Type = VfsRequestOpenFile;
 
-	/* Setup params for the request */
-	Request->Pointer.Path = Utf8;
+	/* Setup params for the request 
+	 * we allocate a copy of the string in kernel memory
+	 * so everyone can access it */
+	Request->Pointer.Path = strdup(Utf8);
 	Request->Value.Lo.Flags = OpenFlags;
 
 	/* Send the request */
@@ -837,6 +841,7 @@ int ScVfsOpen(const char *Utf8, VfsFileFlags_t OpenFlags, VfsErrorCode_t *ErrCod
 	Handle = Request->Pointer.Handle;
 
 	/* Cleanup */
+	kfree((void*)Request->Pointer.Path);
 	kfree(Request);
 
 	/* Add to process list of open files */
@@ -954,12 +959,16 @@ size_t ScVfsRead(int FileDescriptor, uint8_t *Buffer, size_t Length, VfsErrorCod
 
 	/* Setup params for the request */
 	Request->Pointer.Handle = (MCoreFileInstance_t*)fNode->Data;
-	Request->Buffer = Buffer;
+	Request->Buffer = (uint8_t*)ServerMemoryAllocate(Length);
 	Request->Value.Lo.Length = Length;
 
 	/* Send the request */
 	VfsRequestCreate(Request);
 	VfsRequestWait(Request, 0);
+
+	/* Copy data from proxy to buffer */
+	memcpy((void*)Buffer, (const void*)Request->Buffer, Length);
+	ServerMemoryFree((void*)Request->Buffer);
 
 	/* Store bytes read */
 	bRead = Request->Value.Hi.Length;
@@ -992,8 +1001,8 @@ size_t ScVfsWrite(int FileDescriptor, uint8_t *Buffer, size_t Length, VfsErrorCo
 	Key.Value = FileDescriptor;
 
 	/* Should never happen this
-	* Only threads associated with processes
-	* can call this */
+	 * Only threads associated with processes
+	 * can call this */
 	if (Process == NULL || Buffer == NULL)
 		goto done;
 
@@ -1022,12 +1031,18 @@ size_t ScVfsWrite(int FileDescriptor, uint8_t *Buffer, size_t Length, VfsErrorCo
 
 	/* Setup params for the request */
 	Request->Pointer.Handle = (MCoreFileInstance_t*)fNode->Data;
-	Request->Buffer = Buffer;
+	Request->Buffer = ServerMemoryAllocate(Length);
 	Request->Value.Lo.Length = Length;
+
+	/* Copy data from proxy to buffer */
+	memcpy((void*)Request->Buffer, (const void*)Buffer, Length);
 
 	/* Send the request */
 	VfsRequestCreate(Request);
 	VfsRequestWait(Request, 0);
+
+	/* Cleanup proxy */
+	ServerMemoryFree((void*)Request->Buffer);
 
 	/* Store bytes read */
 	bWritten = Request->Value.Hi.Length;
@@ -1214,6 +1229,7 @@ int ScVfsQuery(int FileDescriptor, VfsQueryFunction_t Function, void *Buffer, si
 	/* Get current process */
 	MCoreProcess_t *Process = PmGetProcess(PROCESS_CURRENT);
 	VfsErrorCode_t RetCode = VfsInvalidParameters;
+	void *Proxy = NULL;
 	DataKey_t Key;
 	Key.Value = FileDescriptor;
 
@@ -1231,8 +1247,20 @@ int ScVfsQuery(int FileDescriptor, VfsQueryFunction_t Function, void *Buffer, si
 	if (fNode == NULL)
 		return RetCode;
 
+	/* Allocate a proxy buffer */
+	Proxy = ServerMemoryAllocate(Length);
+
 	/* Redirect to Vfs */
-	return (int)VfsQuery((MCoreFileInstance_t*)fNode->Data, Function, Buffer, Length);
+	RetCode = VfsQuery((MCoreFileInstance_t*)fNode->Data, Function, Proxy, Length);
+
+	/* Copy */
+	memcpy(Buffer, Proxy, Length);
+
+	/* Cleanup proxy */
+	ServerMemoryFree(Proxy);
+
+	/* Done! */
+	return (int)RetCode;
 }
 
 /* The file move operation 
@@ -1307,8 +1335,8 @@ int ScVfsResolvePath(int EnvPath, char *StrBuffer)
 }
 
 /***********************
-* Device Functions     *
-***********************/
+ * Device Functions     *
+ ***********************/
 #include <DeviceManager.h>
 
 /* Query Device Information */

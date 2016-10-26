@@ -1,143 +1,232 @@
 /* MollenOS
-*
-* Copyright 2011 - 2016, Philip Meulengracht
-*
-* This program is free software : you can redistribute it and / or modify
-* it under the terms of the GNU General Public License as published by
-* the Free Software Foundation ? , either version 3 of the License, or
-* (at your option) any later version.
-*
-* This program is distributed in the hope that it will be useful,
-* but WITHOUT ANY WARRANTY; without even the implied warranty of
-* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.See the
-* GNU General Public License for more details.
-*
-* You should have received a copy of the GNU General Public License
-* along with this program.If not, see <http://www.gnu.org/licenses/>.
-*
-*
-* MollenOS Heap Manager
-* Basic Heap Manager
-* No contraction for now, for simplicity.
-*/
+ *
+ * Copyright 2011 - 2016, Philip Meulengracht
+ *
+ * This program is free software : you can redistribute it and / or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation ? , either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.If not, see <http://www.gnu.org/licenses/>.
+ *
+ *
+ * MollenOS Heap Manager (Dynamic Block System)
+ * DBS Heap Manager
+ * Memory Nodes / Linked List / Lock Protectected (TODO REAPING )
+ */
 
 #ifndef _MCORE_HEAP_H_
 #define _MCORE_HEAP_H_
 
-/* Includes */
+/* Includes
+ * - C-Library */
+#include <os/osdefs.h>
+
+/* Includes 
+ * - System */
 #include <Arch.h>
 #include <CriticalSection.h>
 
 /***************************
-Heap Management
-***************************/
-#define MEMORY_STATIC_OFFSET	0x400000 /* Reserved Header Space */
+ * Heap Management
+ ***************************/
+
+/* These are defined from trial and error 
+ * and should probably never be any LESS than
+ * these values, of course they could be higher */
+#define MEMORY_STATIC_OFFSET	0x400000
 #define HEAP_NORMAL_BLOCK		0x1000
 #define HEAP_LARGE_BLOCK		0x10000
 
-/* 12 bytes overhead */
+#define HEAP_IDENT_SIZE			8
+#define HEAP_STANDARD_ALIGN		4
+
+/* The basic HeapNode, this describes a node in a block
+ * of memory, and contains basic properties. 
+ * The size of this is 12 bytes + HEAP_IDENT_SIZE */
 typedef struct _HeapNode
 {
-	/* Address */
+	/* Node Identifier 
+	 * A very short-text (optional)
+	 * describing the allocation */
+	char Identifier[HEAP_IDENT_SIZE];
+
+	/* Base Address of the allocation
+	 * made, used for finding the allocation */
 	Addr_t Address;
 
-	/* Status */
-	int Allocated;
+	/* Node Flags 
+	 * Used to set different status flags for
+	 * this node */
+	Flags_t Flags;
 
-	/* Length */
+	/* Node Length 
+	 * Describes the length of this allocation or
+	 * just the length of this unallocated block */
 	size_t Length;
 
-	/* Link */
+	/* Node Link */
 	struct _HeapNode *Link;
 
 } HeapNode_t;
 
-#define BLOCK_NORMAL			0x0
-#define BLOCK_LARGE				0x1
-#define BLOCK_VERY_LARGE		0x2
-#define AddrIsAligned(x)		((x & 0xFFF) == 0)
+/* Heap node flags, used by <Flags> in 
+ * the heap node structure */
+#define NODE_ALLOCATED				0x1
 
-#define ALLOCATION_NORMAL		0x0
-#define ALLOCATION_ALIGNED		0x1
-#define ALLOCATION_SPECIAL		0x2
-
-/* A block descriptor, contains a 
- * memory range */
+/* A block descriptor in the heap, 
+ * contains a memory range, used like a bucket */
 typedef struct _HeapBlock
 {
-	/* Start - End Address */
+	/* Block Address Range 
+	 * Describes the Start - End Address */
 	Addr_t AddressStart;
 	Addr_t AddressEnd;
 
-	/* Node Flags */
-	int Flags;
+	/* Block Flags 
+	 * Used to set different status flags for
+	 * this block */
+	Flags_t Flags;
 
-	/* Stats */
+	/* Shortcut stats for quickly checking
+	 * whether an allocation can be made */
 	size_t BytesFree;
 
-	/* Next in Linked List */
+	/* The block link to the next
+	 * block in the heap */
 	struct _HeapBlock *Link;
 
-	/* Head of Header List */
+	/* The children nodes of this
+	 * memory block */
 	struct _HeapNode *Nodes;
 
 } HeapBlock_t;
 
-/* A heap */
-typedef struct _HeapArea
+/* Heap block flags, used by the <Flags> field
+ * in a heap block to describe it */
+#define BLOCK_NORMAL				0x0
+#define BLOCK_LARGE					0x1
+#define BLOCK_VERY_LARGE			0x2
+
+/* This is the MCore Heap Structure 
+ * and describes a memory region that can
+ * be allocated from */
+typedef struct _HeapRegion
 {
-	/* Info */
+	/* Heap Region 
+	 * Stat variables, keep track of current allocations
+	 * for headers and base memory */
 	Addr_t HeapBase;
 	Addr_t MemStartData;
 	Addr_t MemHeaderCurrent;
 	Addr_t MemHeaderMax;
 
-	/* UserHeap? */
+	/* Whether or not this is a user heap
+	 * we need to know this when mapping in memory */
 	int IsUser;
 
-	/* Stats */
+	/* Heap Region 
+	 * Statistic variables, used to see interesting stuff */
 	size_t BytesAllocated;
 	size_t NumAllocs;
 	size_t NumFrees;
 	size_t NumPages;
 
-	/* Lock */
+	/* Heap Region Lock
+	 * This is for critical stuff during allocation */
 	CriticalSection_t Lock;
 
-	/* Recyclers */
+	/* Recyclers 
+	 * Used by the region to reuse headers, nodes and blocks */
 	HeapBlock_t *BlockRecycler;
 	HeapNode_t *NodeRecycler;
 
-	/* Head of Node List */
+	/* The children nodes of this
+	 * memory region */
 	struct _HeapBlock *Blocks;
 
 } Heap_t;
 
-/* Initializer & Maintience */
+/* Allocation Flags */
+#define ALLOCATION_COMMIT			0x1
+
+/* HeapAllocate 
+ * Finds a suitable block for allocation
+ * and allocates in that block, this is primary
+ * allocator of the heap */
+_CRT_EXTERN Addr_t HeapAllocate(Heap_t *Heap, size_t Size,
+	Flags_t Flags, size_t Alignment, Addr_t Mask, const char *Identifier);
+
+/* HeapFree
+ * Finds the appropriate block
+ * that should contain our node */
+_CRT_EXTERN void HeapFree(Heap_t *Heap, Addr_t Addr);
+
+/* HeapQueryMemoryInformation
+ * Queries memory information about a heap
+ * useful for processes and such */
+_CRT_EXTERN int HeapQueryMemoryInformation(Heap_t *Heap, 
+	size_t *BytesInUse, size_t *BlocksAllocated);
+
+/* HeapInit
+ * This initializes the kernel heap and 
+ * readies the first few blocks for allocation
+ * this MUST be called before any calls to *mallocs */
 _CRT_EXTERN void HeapInit(void);
+
+/* HeapCreate
+ * This function allocates a 'third party' heap that
+ * can be used like a memory region for allocations, usefull
+ * for servers, shared memory, processes etc */
 _CRT_EXTERN Heap_t *HeapCreate(Addr_t HeapAddress, int UserHeap);
-_CRT_EXTERN uint32_t HeapGetCount(void);
+
+/* Helper function that enumerates the given heap 
+ * and prints out different allocation stats of heap */
 _CRT_EXTERN void HeapPrintStats(Heap_t *Heap);
 _CRT_EXTERN void HeapReap(void);
+
+/* Used for validation that an address is allocated
+ * within the given heap, this can be used for security
+ * or validation purposes, use NULL for kernel heap */
 _CRT_EXTERN int HeapValidateAddress(Heap_t *Heap, Addr_t Address);
 
-/* Queries memory information about a heap
-* useful for processes and such */
-_CRT_EXTERN int HeapQueryMemoryInformation(Heap_t *Heap, size_t *BytesInUse, size_t *BlocksAllocated);
+/* Simply just a wrapper for HeapAllocate
+ * with the kernel heap as argument 
+ * but this does some basic validation and
+ * makes sure pages are mapped in memory
+ * this function also returns the physical address 
+ * of the allocation and aligned to PAGE_ALIGN */
+_CRT_EXPORT void *kmalloc_ap(size_t Size, Addr_t *Ptr);
 
-/* Kernel Allocations */
-_CRT_EXPORT void *kmalloc_ap(size_t sz, Addr_t *p);
-_CRT_EXPORT void *kmalloc_p(size_t sz, Addr_t *p);
-_CRT_EXPORT void *kmalloc_a(size_t sz);
-_CRT_EXPORT void *kmalloc(size_t sz);
-_CRT_EXPORT void *kcalloc(size_t nmemb, size_t size);
-_CRT_EXPORT void *krealloc(void *ptr, size_t size);
+/* Simply just a wrapper for HeapAllocate
+ * with the kernel heap as argument 
+ * but this does some basic validation and
+ * makes sure pages are mapped in memory
+ * this function also returns the physical address 
+ * of the allocation */
+_CRT_EXPORT void *kmalloc_p(size_t Size, Addr_t *Ptr);
 
-/* Kernel Freeing */
+/* Simply just a wrapper for HeapAllocate
+ * with the kernel heap as argument 
+ * but this does some basic validation and
+ * makes sure pages are mapped in memory 
+ * the memory returned is PAGE_ALIGNED */
+_CRT_EXPORT void *kmalloc_a(size_t Size);
+
+/* Simply just a wrapper for HeapAllocate
+ * but this does some basic validation and
+ * makes sure pages are mapped in memory */
+_CRT_EXPORT void *kmalloc(size_t Size);
+
+/* kfree 
+ * Wrapper for the HeapFree that essentially 
+ * just calls it with the kernel heap as argument */
 _CRT_EXPORT void kfree(void *p);
-
-/* Custom Allocation */
-_CRT_EXTERN void *umalloc(Heap_t *Heap, size_t Size);
-_CRT_EXTERN void ufree(Heap_t *Heap, void *Ptr);
 
 #endif

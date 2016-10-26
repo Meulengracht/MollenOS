@@ -27,6 +27,7 @@
 #include <GarbageCollector.h>
 #include <DeviceManager.h>
 #include <Modules/ModuleManager.h>
+#include <Server.h>
 #include <Process.h>
 #include <Scheduler.h>
 #include <Threading.h>
@@ -128,6 +129,9 @@ void MCoreInitialize(MCoreBootInfo_t *BootInfo)
 
 	/* Process Manager */
 	PmInit();
+
+	/* Initialize servers */
+	ServerInit();
 
 	/* From this point, we should start seperate threads and
 	* let this thread die out, because initial system setup

@@ -38,6 +38,7 @@ AhciPort_t *AhciPortCreate(AhciController_t *Controller, int Port, int Index)
 {
 	/* Variables */
 	AhciPort_t *AhciPort = NULL;
+	int i;
 
 	/* Sanity checks */
 	if (Controller->Ports[Port] != NULL
@@ -58,8 +59,11 @@ AhciPort_t *AhciPortCreate(AhciController_t *Controller, int Port, int Index)
 		((uint8_t*)Controller->Registers + AHCI_REGISTER_PORTBASE(Port));
 
 	/* Reset lock & section */
-	SemaphoreConstruct(&AhciPort->Queue, 0);
 	SpinlockReset(&AhciPort->Lock);
+	AhciPort->SlotQueues = (Semaphore_t**)kmalloc(sizeof(Semaphore_t*) * Controller->CmdSlotCount);
+	for (i = 0; i < (int)Controller->CmdSlotCount; i++) {
+		AhciPort->SlotQueues[i] = SemaphoreCreate(0);
+	}
 
 	/* Create list */
 	AhciPort->Transactions = ListCreate(KeyInteger, LIST_SAFE);
@@ -157,6 +161,7 @@ void AhciPortCleanup(AhciController_t *Controller, AhciPort_t *Port)
 {
 	/* Variables */
 	ListNode_t *pNode;
+	int i;
 
 	/* Set it null in the controller */
 	Controller->Ports[Port->Index] = NULL;
@@ -175,6 +180,12 @@ void AhciPortCleanup(AhciController_t *Controller, AhciPort_t *Port)
 	if (Port->RecievedFisTable != NULL) {
 		kfree((void*)Port->RecievedFisTable);
 	}
+
+	/* Destroy the queues */
+	for (i = 0; i < (int)Controller->CmdSlotCount; i++) {
+		SemaphoreDestroy(Port->SlotQueues[i]);
+	}
+	kfree((void*)Port->SlotQueues);
 
 	/* Destroy the list */
 	ListDestroy(Port->Transactions);
@@ -360,7 +371,7 @@ void AhciPortInterruptHandler(AhciController_t *Controller, AhciPort_t *Port)
 					/* Unlink node, delete node */
 					ListRemoveByNode(Port->Transactions, tNode);
 					ListDestroyNode(Port->Transactions, tNode);
-					SemaphoreV(&Port->Queue);
+					SemaphoreV(Port->SlotQueues[i]);
 				}
 			}
 		}

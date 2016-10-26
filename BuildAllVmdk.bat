@@ -14,7 +14,7 @@ START "NASM" /D %~dp0\boot\Stage2 /B /W nasm.exe -f bin Stage2.asm -o ssbl.stm
 MSBuild.exe clib\mscv\LibRT.sln /p:Configuration=CLibK /t:Clean,Build
 
 ::Build MCore
-MSBuild.exe kernel\Msvc\MollenOS.sln /p:Configuration=Build_X86_32 /t:Clean,Build
+MSBuild.exe MollenOS.sln /p:Configuration=Build_X86_32 /t:Clean,Build
 
 ::Build Modules
 MSBuild.exe modules\Modules.sln /p:Configuration=Debug /t:Clean,Build
