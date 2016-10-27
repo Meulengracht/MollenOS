@@ -29,6 +29,20 @@
 #include <string.h>
 #include <stdlib.h>
 
+/* This is a dword size memset 
+ * utilized to clear a surface to a given color */
+void memsetd(void *Buffer, uint32_t Color, size_t Count)
+{
+	/* Calculate the number of iterations
+	* in bytes of 4 */
+	uint32_t *ItrPtr = (uint32_t*)Buffer;
+
+	/* Iterate and set color */
+	for (size_t i = 0; i < Count; i++, ItrPtr++) {
+		*ItrPtr = Color;
+	}
+}
+
 /* Constructor
  * Allocates a new window of the given
  * dimensions and initializes it */
@@ -64,7 +78,7 @@ Window_t *WindowCreate(IpcComm_t Owner, Rect_t *Dimensions, int Flags, SDL_Rende
 
 	/* Allocate a user-backbuffer */
 	Window->Backbuffer = malloc(Dimensions->h * mPitch);
-	memset(Window->Backbuffer, 0xFFFFFFFF, Dimensions->h * mPitch);
+	memsetd(Window->Backbuffer, 0xFFFFFFFF, (Dimensions->h * mPitch) / 4);
 
 	/* Copy pixels */
 	memcpy(mPixels, Window->Backbuffer, Dimensions->h * mPitch);
@@ -148,11 +162,13 @@ void WindowRender(Window_t *Window, SDL_Renderer *Renderer, Rect_t *DirtyArea)
 	}
 	else {
 
-		/* Set source variables */
+		/* Set source variables 
+		 * We do this by adjusting the rectangle
+		 * by the window position */
 		Source.x = DirtyArea->x - Window->Dimensions.x;
 		Source.y = DirtyArea->y - Window->Dimensions.y;
-		Source.w = DirtyArea->w - Window->Dimensions.w;
-		Source.h = DirtyArea->h - Window->Dimensions.h;
+		Source.w = DirtyArea->w - Window->Dimensions.x;
+		Source.h = DirtyArea->h - Window->Dimensions.y;
 
 		/* Set destination (just copy) */
 		Destination.x = DirtyArea->x;

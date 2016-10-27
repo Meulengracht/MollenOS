@@ -333,7 +333,7 @@ void UiInvalidateRect(WndHandle_t Handle, Rect_t *Rect)
 	Message.Header.Type = EventGeneric;
 
 	/* Setup generic message */
-	Message.Type = GenericWindowDestroy;
+	Message.Type = GenericWindowInvalidate;
 	Message.LoParam = (size_t)Wnd->WindowId;
 	Message.HiParam = 0; /* Future:: Flags */
 

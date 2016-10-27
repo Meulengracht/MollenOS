@@ -58,8 +58,8 @@ Surface::~Surface()
 }
 
 /* Clear out surface with the background color
-* Use this for cleaning, for a full clear use
-* NULL in Area */
+ * Use this for cleaning, for a full clear use
+ * NULL in Area */
 void Surface::Clear(uint32_t Color, Rect_t *Area)
 {
 	/* Calculate the number of iterations 
@@ -106,10 +106,9 @@ void *Surface::DataPtr(int OffsetX, int OffsetY)
 * into a full color */
 uint32_t Surface::GetColor(uint8_t R, uint8_t G, uint8_t B, uint8_t A)
 {
-	/* Combine them into ARGB for now.. untill we can query
-	 * pixel format */
-	return (uint32_t)(((uint32_t)A << 24) 
-		|| ((uint32_t)R << 16) || ((uint32_t)G << 8) || B);
+	/* Combine them into ARGB for now.. 
+	 * untill we can query pixel format */
+	return ((A << 24) | (R << 16) | (G << 8) | B);
 }
 
 #endif

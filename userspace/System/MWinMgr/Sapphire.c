@@ -79,10 +79,6 @@ void HandleMessage(SDL_Renderer *Target, MEventMessage_t *Message)
 					/* Invalidate Rectangle */
 					SceneManagerUpdate(&WndInformation->Dimensions);
 
-					MollenOSSystemLog("Rendering window of size %i, %i, position %i, %i",
-						WndInformation->Dimensions.w, WndInformation->Dimensions.h,
-						WndInformation->Dimensions.x, WndInformation->Dimensions.y);
-
 					/* Update id */
 					WndInformation->WindowId = Wnd->Id;
 
@@ -115,7 +111,7 @@ void HandleMessage(SDL_Renderer *Target, MEventMessage_t *Message)
 					/* Ok, so mark the rectangle dirty 
 					 * and update screen */
 					SceneManagerUpdate(&AbsRect);
-					
+
 				} break;
 
 				/* Ignore other events */
@@ -174,7 +170,7 @@ void EventLoop(SDL_Renderer *Target)
 		HandleMessage(Target, &Message);
 
 		/* Render updates */
-		//SceneManagerRender(Target);
+		SceneManagerRender(Target);
 	}
 }
 
@@ -245,4 +241,3 @@ int main(int argc, char* argv[])
 	/* Done! */
 	return 0;
 }
-

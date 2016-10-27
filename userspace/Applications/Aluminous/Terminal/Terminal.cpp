@@ -505,6 +505,9 @@ bool Terminal::SetBackgroundColor(uint8_t r, uint8_t b, uint8_t g, uint8_t a)
 	m_cBgB = b;
 	m_cBgA = a;
 
+	/* Clear out surface */
+	m_pSurface->Clear(m_pSurface->GetColor(r, g, b, a), NULL);
+
 	/* Done! */
 	return true;
 }
