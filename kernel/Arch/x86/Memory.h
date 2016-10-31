@@ -16,7 +16,7 @@
 * along with this program.If not, see <http://www.gnu.org/licenses/>.
 *
 *
-* MollenOS x86-32 Memory Definitions, Structures, Explanations
+* MollenOS x86 Memory Definitions, Structures, Explanations
 */
 
 #ifndef _X86_MEMORY_H_
@@ -33,9 +33,17 @@
 
 /* This is the how many bits per register 
  * definition, used by the memory bitmap */
-#define MEMORY_BITS					(sizeof(size_t) * 8)
-#define MEMORY_LIMIT				~((Addr_t)0)
-#define MEMORY_MASK_DEFAULT			~((Addr_t)0)
+#if defined(_X86_32)
+#define MEMORY_BITS					32
+#define MEMORY_LIMIT				0xFFFFFFFF
+#define MEMORY_MASK_DEFAULT			0xFFFFFFFF
+#elif defined(_X86_64)
+#define MEMORY_BITS					64
+#define MEMORY_LIMIT				0xFFFFFFFFFFFFFFFF
+#define MEMORY_MASK_DEFAULT			0xFFFFFFFFFFFFFFFF
+#else
+#error "Unsupported Architecture :("
+#endif
 
 /* Memory Map Structure 
  * This is the structure passed to us by
@@ -172,8 +180,6 @@ typedef struct _PageDirectory
 	CriticalSection_t Lock;
 
 } PageDirectory_t;
-
-
 
 /* Virtual Memory */
 _CRT_EXTERN void MmVirtualInit(void);

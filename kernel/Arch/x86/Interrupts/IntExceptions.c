@@ -236,6 +236,12 @@ void ExceptionEntry(Registers_t *regs)
 		/* Get failed address */
 		Addr_t UnmappedAddr = (Addr_t)__getcr2();
 
+		printf("CR2 Address: 0x%x\n", UnmappedAddr);
+		printf("Faulty Address: 0x%x\n", regs->Eip);
+		printf("Stack ptr: 0x%x\n", regs->Esp);
+		StackTrace(6);
+		for (;;);
+
 		/* FIRST OF ALL, we check like, SPECIAL addresses */
 		if (UnmappedAddr == MEMORY_LOCATION_SIGNAL_RET)
 		{
@@ -386,7 +392,6 @@ void ExceptionEntry(Registers_t *regs)
 			for (;;);
 		}
 	}
-
 	if (IssueFixed == 0)
 	{
 		/* Get cpu */

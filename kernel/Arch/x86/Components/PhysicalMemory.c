@@ -100,7 +100,7 @@ int MmGetFreeMapBitLow(void)
 	{
 		/* Quick-check, if it's maxxed we can skip it 
 		 * due to all being allocated */
-		if (MemoryBitmap[i] != 0xFFFFFFFF) {
+		if (MemoryBitmap[i] != MEMORY_LIMIT) {
 			for (j = 0; j < MEMORY_BITS; j++) {
 				if (!(MemoryBitmap[i] & 1 << j)) {
 					Result = (int)((i * MEMORY_BITS) + j);
@@ -134,7 +134,7 @@ int MmGetFreeMapBitHigh(void)
 	{
 		/* Quick-check, if it's maxxed we can skip it
 		 * due to all being allocated */
-		if (MemoryBitmap[i] != 0xFFFFFFFF) {
+		if (MemoryBitmap[i] != MEMORY_LIMIT) {
 			for (j = 0; j < MEMORY_BITS; j++) {
 				if (!(MemoryBitmap[i] & 1 << j)) {
 					Result = (int)((i * MEMORY_BITS) + j);
