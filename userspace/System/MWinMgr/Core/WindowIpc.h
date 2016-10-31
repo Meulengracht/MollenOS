@@ -39,9 +39,19 @@ typedef struct _MIPCWindowCreate
 	Rect_t Dimensions;
 	int Flags;
 
-	/* Response Information */
+	/* Response Information 
+	 * - Window Id */
 	int WindowId;
-	Rect_t ResultDimensions;
+
+	/* The dimensions returned: 
+	 * - Window Dimensions 
+	 * - Backbuffer Dimensions */
+	Rect_t WndDimensions;
+	Rect_t BbDimensions;
+
+	/* The backbuffer information
+	 * - Size in bytes
+	 * - Pointer */
 	void *Backbuffer;
 	size_t BackbufferSize;
 

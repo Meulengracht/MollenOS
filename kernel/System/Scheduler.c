@@ -303,6 +303,9 @@ void SchedulerApplyMs(size_t Ms)
 		/* Cast */
 		MCoreThread_t *mThread = (MCoreThread_t*)sNode->Data;
 
+		/* Fucking what */
+		assert(mThread != NULL);
+
 		/* Sanity */
 		if (mThread->Sleep != 0) 
 		{

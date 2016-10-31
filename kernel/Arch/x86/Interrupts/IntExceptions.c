@@ -324,6 +324,14 @@ void ExceptionEntry(Registers_t *regs)
 					/* Issue is fixed */
 					IssueFixed = 1;
 				}
+				else
+				{
+					LogDebug("DBG0", "(BASE) => 0x%x", Process->Executable->BaseVirtual);
+					foreach(lNode, Process->Executable->LoadedLibraries) {
+						MCorePeFile_t *Library = (MCorePeFile_t*)lNode->Data;
+						LogDebug("DBG0", "(%s) => 0x%x", Library->Name->Data, Library->BaseVirtual);
+					}
+				}
 			}
 		}
 

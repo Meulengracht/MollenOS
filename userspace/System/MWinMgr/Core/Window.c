@@ -29,17 +29,78 @@
 #include <string.h>
 #include <stdlib.h>
 
+/* Window decoration definitions
+ * generally size and such */
+#define DECO_BAR_TOP_HEIGHT		35
+#define DECO_BAR_LEFT_WIDTH		2
+#define DECO_BAR_RIGHT_WIDTH	2
+#define DECO_BAR_BOTTOM_HEIGHT	2
+
+#define DECO_SHADOW				1
+
+
 /* This is a dword size memset 
  * utilized to clear a surface to a given color */
 void memsetd(void *Buffer, uint32_t Color, size_t Count)
 {
 	/* Calculate the number of iterations
-	* in bytes of 4 */
+	 * in bytes of 4 */
 	uint32_t *ItrPtr = (uint32_t*)Buffer;
 
 	/* Iterate and set color */
 	for (size_t i = 0; i < Count; i++, ItrPtr++) {
 		*ItrPtr = Color;
+	}
+}
+
+/* Utility to fill a rect with a rect 
+ * can be usefull when we don't want to copy a full buffer
+ * to another full buffer */
+void BitBlt(uint8_t *Dest, size_t DestPitch, int DestX, int DestY,
+	uint8_t *Src, size_t SrcPitch, int SrcX, int SrcY, int Width, int Height, uint Flags)
+{
+	/* Calculate indices before we start
+	 * to optimize to a one-time thing */
+	uint8_t *SrcPointer = Src + (SrcPitch * SrcY) + (SrcX * 4);
+	uint8_t *DestPointer = Dest + (DestPitch * DestY) + (DestX * 4);
+
+	/* Start a loop */
+	for (int Row = 0; Row < Height; Row++) {
+		memcpy(DestPointer, SrcPointer, Width * 4);
+		SrcPointer += SrcPitch;
+		DestPointer += DestPitch;
+	}
+}
+
+/* Utility to intersect two rectangles, we utilize 
+ * the inbuilt SDL function for this, but we use our own struct */
+void RectIntersect(Rect_t *RectA, Rect_t *RectB, Rect_t *Result)
+{
+	/* We have to proxy some values ... */
+	SDL_Rect A, B, R;
+
+	/* Copy over first rectangle data */
+	A.x = RectA->x;
+	A.y = RectA->y;
+	A.w = RectA->w;
+	A.h = RectA->h;
+
+	/* Copy over second rectangle data */
+	B.x = RectB->x;
+	B.y = RectB->y;
+	B.w = RectB->w;
+	B.h = RectB->h;
+
+	/* Do the call */
+	if (SDL_IntersectRect(&A, &B, &R)) {
+		Result->x = R.x;
+		Result->y = R.y;
+		Result->w = R.w;
+		Result->h = R.h;
+	}
+	else {
+		Result->w = 0;
+		Result->h = 0;
 	}
 }
 
@@ -63,31 +124,48 @@ Window_t *WindowCreate(IpcComm_t Owner, Rect_t *Dimensions, int Flags, SDL_Rende
 	Window->Texture = NULL;
 	Window->Renderer = Renderer;
 
-	/* Convert dims */
-	Window->Dimensions.x = Dimensions->x;
-	Window->Dimensions.y = Dimensions->y;
-	Window->Dimensions.h = Dimensions->h;
-	Window->Dimensions.w = Dimensions->w;
+	/* Convert dims 
+	 * The full-dimension is screen absolute */
+	Window->FullDimensions.x = Dimensions->x;
+	Window->FullDimensions.y = Dimensions->y;
+	
+	Window->FullDimensions.h = Dimensions->h + DECO_BAR_TOP_HEIGHT;
+	Window->FullDimensions.w = Dimensions->w;
 
-	/* Allocate a texture */
+	/* Convert dims 
+	 * The content-dimensions are relative */
+	Window->ContentDimensions.x = Dimensions->x;
+	Window->ContentDimensions.y = Dimensions->y + DECO_BAR_TOP_HEIGHT;
+	
+	Window->ContentDimensions.h = Dimensions->h;
+	Window->ContentDimensions.w = Dimensions->w;
+
+	/* Allocate a texture for the full dimensions of 
+	 * the window */
 	Window->Texture = SDL_CreateTexture(Renderer, SDL_PIXELFORMAT_ARGB8888,
-		SDL_TEXTUREACCESS_STREAMING, Dimensions->w, Dimensions->h);
+		SDL_TEXTUREACCESS_STREAMING, Window->FullDimensions.w, Window->FullDimensions.h);
 
 	/* Get texture information */
 	SDL_LockTexture(Window->Texture, NULL, &mPixels, &mPitch);
 
-	/* Allocate a user-backbuffer */
-	Window->Backbuffer = malloc(Dimensions->h * mPitch);
-	memsetd(Window->Backbuffer, 0xFFFFFFFF, (Dimensions->h * mPitch) / 4);
+	/* Allocate a user-backbuffer for only the content
+	 * therefore we can't exactly use mPitch if Content.w != Full.w */
+	Window->Backbuffer = malloc(Window->ContentDimensions.h * mPitch);
+	memsetd(Window->Backbuffer, 0xFFFFFFFF, (Window->ContentDimensions.h * mPitch) / 4);
 
-	/* Copy pixels */
-	memcpy(mPixels, Window->Backbuffer, Dimensions->h * mPitch);
+	/* Fill the header */
+	memsetd(mPixels, 0xFFCCCCCC, (DECO_BAR_TOP_HEIGHT * mPitch) / 4);
+
+	/* Fill the content => Copy pixels */
+	BitBlt(mPixels, mPitch, 0, DECO_BAR_TOP_HEIGHT, 
+		Window->Backbuffer, mPitch, 0, 0, 
+		Window->ContentDimensions.w, Window->ContentDimensions.h, 0);
 
 	/* Unlock texture */
 	SDL_UnlockTexture(Window->Texture);
 
 	/* Update size */
-	Window->BackbufferSize = Dimensions->h * mPitch;
+	Window->BackbufferSize = Window->ContentDimensions.h * mPitch;
 
 	/* Done */
 	return Window;
@@ -116,6 +194,7 @@ void WindowDestroy(Window_t *Window)
 void WindowUpdate(Window_t *Window, Rect_t *DirtyArea)
 {
 	/* Variables needed for update */
+	Rect_t Intersection;
 	void *mPixels = NULL;
 	int mPitch = 0;
 
@@ -123,28 +202,39 @@ void WindowUpdate(Window_t *Window, Rect_t *DirtyArea)
 	if (Window == NULL)
 		return;
 
+	/* Check intersection */
+	if (DirtyArea != NULL) {
+		RectIntersect(&Window->ContentDimensions, DirtyArea, &Intersection);
+	}
+	else {
+		Intersection.x = Window->ContentDimensions.x;
+		Intersection.y = Window->ContentDimensions.y;
+		Intersection.w = Window->ContentDimensions.w;
+		Intersection.h = Window->ContentDimensions.h;
+	}
+
+	/* Sanity 
+	 * In case there was no intersection */
+	if (Intersection.w == 0 && Intersection.h == 0) {
+		return;
+	}
+
 	/* Lock texture */
 	SDL_LockTexture(Window->Texture, NULL, &mPixels, &mPitch);
 
 	/* Copy pixels */
-	if (DirtyArea == NULL) {
-		memcpy(mPixels, Window->Backbuffer, Window->Dimensions.h * mPitch);
-	}
-	else {
-		for (int i = (DirtyArea->y - Window->Dimensions.y); i < DirtyArea->h; i++) {
-			size_t Offset = i * mPitch;
-			memcpy(((uint8_t*)mPixels + Offset), ((uint8_t*)Window->Backbuffer + Offset),
-				DirtyArea->w * 4);
-		}
-	}
+	BitBlt(mPixels, mPitch, (Intersection.x - Window->FullDimensions.x), (Intersection.y - Window->FullDimensions.x),
+		Window->Backbuffer, mPitch, (Intersection.x - Window->ContentDimensions.x), (Intersection.y - Window->ContentDimensions.y),
+		Intersection.w, Intersection.h, 0);
 
 	/* Unlock texture */
 	SDL_UnlockTexture(Window->Texture);
 }
 
 /* Render
- * Renders the window to the
- * given renderer */
+ * Renders the window to the given renderer 
+ * Right now it does not use rect-invalidation
+ * so any invalidate out of scope faults */
 void WindowRender(Window_t *Window, SDL_Renderer *Renderer, Rect_t *DirtyArea)
 {
 	/* The rects to be updated */
@@ -157,7 +247,14 @@ void WindowRender(Window_t *Window, SDL_Renderer *Renderer, Rect_t *DirtyArea)
 
 	/* Copy window texture to render */
 	if (DirtyArea == NULL) {
-		SDL_RenderCopyEx(Renderer, Window->Texture, NULL, &Window->Dimensions,
+		/* Set destination (just copy) */
+		Destination.x = Window->FullDimensions.x;
+		Destination.y = Window->FullDimensions.y;
+		Destination.w = Window->FullDimensions.w;
+		Destination.h = Window->FullDimensions.h;
+
+		/* Full redraw */
+		SDL_RenderCopyEx(Renderer, Window->Texture, NULL, &Destination,
 			Window->Rotation, NULL, Window->Flip);
 	}
 	else {
@@ -165,10 +262,10 @@ void WindowRender(Window_t *Window, SDL_Renderer *Renderer, Rect_t *DirtyArea)
 		/* Set source variables 
 		 * We do this by adjusting the rectangle
 		 * by the window position */
-		Source.x = DirtyArea->x - Window->Dimensions.x;
-		Source.y = DirtyArea->y - Window->Dimensions.y;
-		Source.w = DirtyArea->w - Window->Dimensions.x;
-		Source.h = DirtyArea->h - Window->Dimensions.y;
+		Source.x = DirtyArea->x - Window->FullDimensions.x;
+		Source.y = DirtyArea->y - Window->FullDimensions.y;
+		Source.w = DirtyArea->w;
+		Source.h = DirtyArea->h;
 
 		/* Set destination (just copy) */
 		Destination.x = DirtyArea->x;

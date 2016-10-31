@@ -37,8 +37,8 @@ Surface::Surface()
 	m_bIsValid = true;
 
 	/* Create default size of terminal */
-	m_sDimensions.x = 0;
-	m_sDimensions.y = 0;
+	m_sDimensions.x = 100;
+	m_sDimensions.y = 100;
 	m_sDimensions.w = 600;
 	m_sDimensions.h = 400;
 

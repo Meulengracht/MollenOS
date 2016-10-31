@@ -48,7 +48,8 @@ typedef struct _sWindow {
 	int zIndex;
 
 	/* Window Dimensions */
-	SDL_Rect Dimensions;
+	Rect_t FullDimensions;
+	Rect_t ContentDimensions;
 
 	/* Specials */
 	double Rotation;

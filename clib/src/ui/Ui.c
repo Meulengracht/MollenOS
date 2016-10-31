@@ -41,7 +41,8 @@ typedef struct _MWindowDescriptor
 	int WindowId;
 
 	/* Window dimensions */
-	Rect_t Dimensions;
+	Rect_t OuterDimensions;
+	Rect_t InnerDimensions;
 
 	/* Backbuffer information */
 	void *Backbuffer;
@@ -219,7 +220,11 @@ WndHandle_t UiCreateWindow(Rect_t *Dimensions, int Flags)
 	WndDescriptor->WindowId = WndInformation->WindowId;
 	WndDescriptor->Backbuffer = WndInformation->Backbuffer;
 	WndDescriptor->BackbufferSize = WndInformation->BackbufferSize;
-	memcpy(&WndDescriptor->Dimensions, &WndInformation->ResultDimensions,
+	
+	/* Copy dimensions over */
+	memcpy(&WndDescriptor->OuterDimensions, &WndInformation->WndDimensions,
+		sizeof(Rect_t));
+	memcpy(&WndDescriptor->InnerDimensions, &WndInformation->BbDimensions,
 		sizeof(Rect_t));
 
 	/* Release */
@@ -281,7 +286,7 @@ int UiQueryDimensions(WndHandle_t Handle, Rect_t *Dimensions)
 		return -1;
 
 	/* Fill out information */
-	memcpy(Dimensions, &Wnd->Dimensions, sizeof(Rect_t));
+	memcpy(Dimensions, &Wnd->InnerDimensions, sizeof(Rect_t));
 
 	/* Success! */
 	return 0;
@@ -338,12 +343,17 @@ void UiInvalidateRect(WndHandle_t Handle, Rect_t *Rect)
 	Message.HiParam = 0; /* Future:: Flags */
 
 	/* Setup rect */
-	if (Rect != NULL)
-		memcpy(&Message.RcParam, Rect, sizeof(Rect_t));
+	if (Rect != NULL) {
+		Message.RcParam.x = Wnd->InnerDimensions.x + Rect->x;
+		Message.RcParam.y = Wnd->InnerDimensions.y + Rect->y;
+		Message.RcParam.w = Rect->w;
+		Message.RcParam.h = Rect->h;
+	}
 	else {
-		memcpy(&Message.RcParam, &Wnd->Dimensions, sizeof(Rect_t));
 		Message.RcParam.x = 0;
 		Message.RcParam.y = 0;
+		Message.RcParam.w = Wnd->OuterDimensions.w;
+		Message.RcParam.h = Wnd->OuterDimensions.h;
 	}
 
 	/* Send request */

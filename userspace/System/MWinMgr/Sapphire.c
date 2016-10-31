@@ -68,16 +68,21 @@ void HandleMessage(SDL_Renderer *Target, MEventMessage_t *Message)
 					WndInformation->BackbufferSize = Wnd->BackbufferSize;
 
 					/* Update dimensions */
-					WndInformation->ResultDimensions.x = Wnd->Dimensions.x;
-					WndInformation->ResultDimensions.y = Wnd->Dimensions.y;
-					WndInformation->ResultDimensions.w = Wnd->Dimensions.w;
-					WndInformation->ResultDimensions.h = Wnd->Dimensions.h;
+					WndInformation->WndDimensions.x = Wnd->FullDimensions.x;
+					WndInformation->WndDimensions.y = Wnd->FullDimensions.y;
+					WndInformation->WndDimensions.w = Wnd->FullDimensions.w;
+					WndInformation->WndDimensions.h = Wnd->FullDimensions.h;
+					
+					WndInformation->BbDimensions.x = Wnd->ContentDimensions.x;
+					WndInformation->BbDimensions.y = Wnd->ContentDimensions.y;
+					WndInformation->BbDimensions.w = Wnd->ContentDimensions.w;
+					WndInformation->BbDimensions.h = Wnd->ContentDimensions.h;
 
 					/* Add to scene manager */
 					SceneManagerAddWindow(Wnd);
 
 					/* Invalidate Rectangle */
-					SceneManagerUpdate(&WndInformation->Dimensions);
+					SceneManagerUpdate(&Wnd->FullDimensions);
 
 					/* Update id */
 					WndInformation->WindowId = Wnd->Id;
@@ -103,8 +108,8 @@ void HandleMessage(SDL_Renderer *Target, MEventMessage_t *Message)
 					Rect_t AbsRect;
 
 					/* Append global coords */
-					AbsRect.x = Window->Dimensions.x + Message->Generic.RcParam.x;
-					AbsRect.y = Window->Dimensions.y + Message->Generic.RcParam.y;
+					AbsRect.x = Window->FullDimensions.x + Message->Generic.RcParam.x;
+					AbsRect.y = Window->FullDimensions.y + Message->Generic.RcParam.y;
 					AbsRect.w = Message->Generic.RcParam.w;
 					AbsRect.h = Message->Generic.RcParam.h;
 
