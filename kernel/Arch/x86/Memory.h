@@ -1,6 +1,6 @@
 /* MollenOS
 *
-* Copyright 2011 - 2014, Philip Meulengracht
+* Copyright 2011 - 2016, Philip Meulengracht
 *
 * This program is free software : you can redistribute it and / or modify
 * it under the terms of the GNU General Public License as published by
@@ -22,36 +22,8 @@
 #ifndef _X86_MEMORY_H_
 #define _X86_MEMORY_H_
 
-/* Memory Layout in MollenOS Kernel Directory
-* Address Start     Address End    Description
-*
-*  0x0              0xFFF          Unmapped to catch NULL pointers
-*  0x1000           0x100000       Pre kernel, bootloader, stage2, SMP Init code
-*  0x100000         0x400000       Kernel Space, PMM Bitmap, all pre-vmm allocs (3 MB)
-*  0x1000000        0x4000000      Kernel Heap (62 MB)
-*  0x4000000        0x8000000	   VESA LFB Buffer (64 MB)
-*  0x8000000        0x800F000      Kernel Stack (60 KB) 
-*  0x9000000        0x30000000     Shared Memory (600~ MB)
-*  0x30000000       0xA0000000     Unused Memory (2048 - 256 MB) 
-*  0xA0000000       0xB0000000     Reserved Memory (256 MB)
-*  0xB0000000       0xFFFFFFFF     Reserved Memory (Reserved - 1280 MB)
-*/
-
-/* Memory Layout in MollenOS User Directory
-* Address Start     Address End    Description
-*
-*  0x0              0x100000       Unmapped
-*  0x100000         0x400000       Kernel Space, PMM Bitmap, all pre-vmm allocs (3 MB)
-*  0x400000         0x10000000     Kernel Heap (252 MB)
-*  0x10010000       0x30000000     Shared Memory (512 MB)
-*  0x30000000       0x50000000     Program Load Address (536 MB)
-*  0x50000000       0x70000000     Program Libraries (512 MB)
-*  0x70000000       0xFFEFFFFF     Program Heap (2047 MB)
-*  0xFFF00000       0xFFFFFFF0     Program Stack (Max 1 MB)
-*/
-
-
-/* Includes */
+/* Includes 
+ * - System */
 #include <MollenOS.h>
 #include <CriticalSection.h>
 
@@ -59,28 +31,53 @@
 /* Physical Memory Defs & Structs */
 /**********************************/
 
-/* Memory Map Structure */
+/* This is the how many bits per register 
+ * definition, used by the memory bitmap */
+#define MEMORY_BITS					(sizeof(size_t) * 8)
+#define MEMORY_LIMIT				~((Addr_t)0)
+#define MEMORY_MASK_DEFAULT			~((Addr_t)0)
+
+/* Memory Map Structure 
+ * This is the structure passed to us by
+ * the mBoot bootloader */
 #pragma pack(push, 1)
 typedef struct _MBootMemoryRegion
 {
+	/* The 64 bit address of where this 
+	 * memory region starts */
 	uint64_t	Address;
+
+	/* The size of the this memory region 
+	 * also 64 bit value */
 	uint64_t	Size;
+
+	/* The type of this memory region
+	 * 1 => Available, 2 => ACPI, 3 => Reserved */
 	uint32_t	Type;
+
+	/* Null value, used for stuff i guess 
+	 * and 8 bytes padding to reach 32 bytes 
+	 * per entry */
 	uint32_t	Nil;
 	uint64_t	Padding;
+
 } MBootMemoryRegion_t;
 #pragma pack(pop)
 
-/* System Reserved Mappings */
+/* System reserved memory mappings
+ * this is to faster/safer map in system
+ * memory like ACPI/device memory etc etc */
 typedef struct _SysMemMapping
 {
-	/* Where it starts in physical */
+	/* Where this memory mapping starts
+	 * in physical address space */
 	PhysAddr_t PhysicalAddrStart;
 
-	/* Where we have mapped this virtual */
+	/* Where we have mapped this in 
+	 * the virtual address space */
 	VirtAddr_t VirtualAddrStart;
 
-	/* Length */
+	/* Length of this memory mapping */
 	size_t Length;
 
 	/* Type. 2 - ACPI */
@@ -88,15 +85,37 @@ typedef struct _SysMemMapping
 
 } SysMemMapping_t;
 
+/* This is the physical memory manager initializor
+* It reads the multiboot memory descriptor(s), initialies
+* the bitmap and makes sure reserved regions are allocated */
+_CRT_EXTERN void MmPhyiscalInit(void *BootInfo, MCoreBootDescriptor *Descriptor);
+
+/* This is the primary function for allocating
+* physical memory pages, this takes an argument
+* <Mask> which determines where in memory the
+* allocation is OK */
+_CRT_EXTERN PhysAddr_t MmPhysicalAllocateBlock(Addr_t Mask);
+
+/* This is the primary function for
+* freeing physical pages, but NEVER free physical
+* pages if they exist in someones mapping */
+_CRT_EXTERN void MmPhysicalFreeBlock(PhysAddr_t Addr);
+
+/* This function retrieves the virtual address 
+ * of an mapped system mapping, this is to avoid
+ * re-mapping and continous unmap of device memory 
+ * Returns 0 if none exists */
+_CRT_EXTERN VirtAddr_t MmPhyiscalGetSysMappingVirtual(PhysAddr_t PhysicalAddr);
+
 /**********************************/
 /* Virtual Memory Defs & Structs  */
 /**********************************/
 
 /* Structural Sizes */
-#define PAGES_PER_TABLE		1024
-#define TABLES_PER_PDIR		1024
-#define TABLE_SPACE_SIZE	0x400000
-#define DIRECTORY_SPACE_SIZE 0xFFFFFFFF
+#define PAGES_PER_TABLE			1024
+#define TABLES_PER_PDIR			1024
+#define TABLE_SPACE_SIZE		0x400000
+#define DIRECTORY_SPACE_SIZE	0xFFFFFFFF
 
 /* Shared PT/Page Definitions */
 #define PAGE_PRESENT		0x1
@@ -154,25 +173,18 @@ typedef struct _PageDirectory
 
 } PageDirectory_t;
 
-/* Init */
-_CRT_EXTERN void MmPhyiscalInit(void *BootInfo, MCoreBootDescriptor *Descriptor);
-_CRT_EXTERN void MmVirtualInit(void);
 
-/* Physical Memory */
-_CRT_EXTERN PhysAddr_t MmPhysicalAllocateBlock(void);
-_CRT_EXTERN void MmPhysicalFreeBlock(PhysAddr_t Addr);
 
 /* Virtual Memory */
+_CRT_EXTERN void MmVirtualInit(void);
 _CRT_EXTERN void MmVirtualMap(void *PageDirectory, PhysAddr_t PhysicalAddr, VirtAddr_t VirtualAddr, uint32_t Flags);
 _CRT_EXTERN void MmVirtualUnmap(void *PageDirectory, VirtAddr_t VirtualAddr);
 _CRT_EXTERN PhysAddr_t MmVirtualGetMapping(void *PageDirectory, VirtAddr_t VirtualAddr);
 
 /* Hihi */
 _CRT_EXTERN VirtAddr_t *MmReserveMemory(int Pages);
-_CRT_EXTERN PhysAddr_t MmPhysicalAllocateBlockDma(void);
 _CRT_EXTERN PageDirectory_t *MmVirtualGetCurrentDirectory(Cpu_t cpu);
 _CRT_EXTERN void MmVirtualSwitchPageDirectory(Cpu_t cpu, PageDirectory_t* PageDirectory, PhysAddr_t Pdb);
-_CRT_EXTERN VirtAddr_t MmPhyiscalGetSysMappingVirtual(PhysAddr_t PhysicalAddr);
 
 /* Install paging for AP Cores */
 _CRT_EXTERN void MmVirtualInstallPaging(Cpu_t cpu);

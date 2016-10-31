@@ -55,7 +55,7 @@ extern void irq_handler255(void);
 PageTable_t *MmVirtualCreatePageTable(void)
 {
 	/* Allocate a page table */
-	PhysAddr_t pAddr = MmPhysicalAllocateBlock();
+	PhysAddr_t pAddr = MmPhysicalAllocateBlock(MEMORY_MASK_DEFAULT);
 	PageTable_t *pTable = (PageTable_t*)pAddr;
 
 	/* Sanity */
@@ -214,9 +214,9 @@ void MmVirtualMap(void *PageDirectory, PhysAddr_t PhysicalAddr, VirtAddr_t Virtu
 }
 
 /* Unmaps a virtual memory address and frees the physical
-* memory address in a given page-directory
-* If page-directory is NULL, current directory
-* is used */
+ * memory address in a given page-directory
+ * If page-directory is NULL, current directory
+ * is used */
 void MmVirtualUnmap(void *PageDirectory, VirtAddr_t VirtualAddr)
 {
 	PageDirectory_t *pDir = (PageDirectory_t*)PageDirectory;
@@ -403,8 +403,8 @@ void MmVirtualInit(void)
 	LogInformation("VMEM", "Initializing");
 
 	/* We need 3 pages for the page directory */
-	KernelPageDirectory = (PageDirectory_t*)MmPhysicalAllocateBlock();
-	MmPhysicalAllocateBlock(); MmPhysicalAllocateBlock();
+	KernelPageDirectory = (PageDirectory_t*)MmPhysicalAllocateBlock(MEMORY_MASK_DEFAULT);
+	MmPhysicalAllocateBlock(MEMORY_MASK_DEFAULT); MmPhysicalAllocateBlock(MEMORY_MASK_DEFAULT);
 
 	/* Allocate initial */
 	iTable = MmVirtualCreatePageTable();

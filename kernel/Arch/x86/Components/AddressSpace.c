@@ -186,7 +186,7 @@ void AddressSpaceDestroy(AddressSpace_t *AddrSpace)
 					continue;
 
 				/* Is this an inherited page-table?
-				* We don't free our parents stuff */
+				 * We don't free our parents stuff */
 				if (Pd->pTables[i] & PAGE_INHERITED)
 					continue;
 
@@ -282,14 +282,14 @@ Addr_t AddressSpaceMap(AddressSpace_t *AddrSpace, VirtAddr_t Address, size_t Siz
 
 	/* Dma request? */
 	if (Flags & ADDRESS_SPACE_FLAG_LOWMEM) {
-		return MmPhysicalAllocateBlockDma();
+		return MmPhysicalAllocateBlock(0xFFFFFF);
 	}
 
 	/* Deep Call */
 	for (Itr = 0; Itr < PageCount; Itr++)
 	{
 		/* Alloc physical page */
-		Addr_t PhysBlock = MmPhysicalAllocateBlock();
+		Addr_t PhysBlock = MmPhysicalAllocateBlock(MEMORY_MASK_DEFAULT);
 
 		/* Sanity */
 		if (RetAddr == 0)

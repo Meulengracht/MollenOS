@@ -59,7 +59,7 @@ typedef struct MultibootInfo
 
 	/* Memory Mappings */
 	uint32_t MemoryMapLength;
-	uint32_t MemoryMapAddr;
+	uint32_t MemoryMapAddress;
 
 	/* Drive Info */
 	uint32_t DrivesLength;

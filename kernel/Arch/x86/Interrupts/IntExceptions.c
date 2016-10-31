@@ -297,7 +297,7 @@ void ExceptionEntry(Registers_t *regs)
 			if (!HeapValidateAddress(NULL, UnmappedAddr)) 
 			{
 				/* Map in in */
-				MmVirtualMap(NULL, MmPhysicalAllocateBlock(), (UnmappedAddr & PAGE_MASK), 0);
+				MmVirtualMap(NULL, MmPhysicalAllocateBlock(MEMORY_MASK_DEFAULT), (UnmappedAddr & PAGE_MASK), 0);
 
 				/* Issue is fixed */
 				IssueFixed = 1;
@@ -318,7 +318,7 @@ void ExceptionEntry(Registers_t *regs)
 				if (!HeapValidateAddress(Process->Heap, UnmappedAddr))
 				{
 					/* Map in in */
-					MmVirtualMap(NULL, MmPhysicalAllocateBlock(), 
+					MmVirtualMap(NULL, MmPhysicalAllocateBlock(MEMORY_MASK_DEFAULT),
 						(UnmappedAddr & PAGE_MASK), PAGE_USER);
 
 					/* Issue is fixed */
@@ -340,7 +340,7 @@ void ExceptionEntry(Registers_t *regs)
 			&& UnmappedAddr < MEMORY_LOCATION_USER_STACK)
 		{
 			/* Map in in */
-			MmVirtualMap(NULL, MmPhysicalAllocateBlock(), (UnmappedAddr & PAGE_MASK), PAGE_USER);
+			MmVirtualMap(NULL, MmPhysicalAllocateBlock(MEMORY_MASK_DEFAULT), (UnmappedAddr & PAGE_MASK), PAGE_USER);
 
 			/* Issue is fixed */
 			IssueFixed = 1;
