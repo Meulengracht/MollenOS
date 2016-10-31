@@ -198,13 +198,14 @@ void MmPhyiscalInit(void *BootInfo, MCoreBootDescriptor *Descriptor)
 	MBootMemoryRegion_t *region = (MBootMemoryRegion_t*)mboot->MemoryMapAddr;
 	uint32_t i, j;
 	
-	/* Get information from multiboot struct */
-	MemorySize = mboot->MemoryHigh; /* This is how many blocks of 64 kb above 1 mb */
+	/* Get information from multiboot struct 
+	 * The memory-high part is 64kb blocks 
+	 * whereas the memory-low part is bytes of memory */
+	MemorySize = (mboot->MemoryHigh * 64 * 1024); 
 	MemorySize += mboot->MemoryLow; /* This is in kilobytes ... */
-	MemorySize *= 1024;
 
-	/* Sanity, we need AT LEAST 2 mb to run! */
-	assert((MemorySize / 1024 / 1024) >= 4);
+	/* Sanity, we need AT LEAST 32 mb to run! */
+	assert((MemorySize / 1024 / 1024) >= 32);
 
 	/* Set storage variables */
 	MemoryBitmap = (Addr_t*)MEMORY_LOCATION_BITMAP;
@@ -389,4 +390,12 @@ VirtAddr_t MmPhyiscalGetSysMappingVirtual(PhysAddr_t PhysicalAddr)
 	}
 
 	return 0;
+}
+
+void MmDebugPrint(void)
+{
+	/* Debug */
+	LogInformation("PMEM", "Bitmap size: %u Bytes", MemoryBitmapSize);
+	LogInformation("PMEM", "Memory in use %u Bytes", MemoryBlocksUsed * PAGE_SIZE);
+	LogInformation("PMEM", "Block Status %u/%u", MemoryBlocksUsed, MemoryBlocks);
 }
