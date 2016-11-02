@@ -69,9 +69,11 @@ void EhciInitQueues(EhciController_t *Controller)
 	else
 		Controller->FLength = 1024;
 
-	/* Allocate the frame list */
-	Controller->FrameList = (uint32_t*)AddressSpaceMap(AddressSpaceGetCurrent(), 
-		0, (Controller->FLength * sizeof(uint32_t)), ADDRESS_SPACE_FLAG_LOWMEM);
+	/* Allocate the frame list, but do so in low memory
+	 * as some controllers can't handle addresses above 2gb */
+	Controller->FrameList = (uint32_t*)kmalloc_apm(
+		(Controller->FLength * sizeof(uint32_t)), &Phys, 0x0FFFFFFF);
+	Controller->FrameListPhysical = Phys;
 
 	/* Allocate the virtual copy list */
 	Controller->VirtualList = (uint32_t*)kmalloc(sizeof(uint32_t*) * Controller->FLength);
@@ -141,7 +143,7 @@ void EhciInitQueues(EhciController_t *Controller)
 
 	/* Write addresses */
 	Controller->OpRegisters->PeriodicListAddr = 
-		(uint32_t)Controller->FrameList;
+		(uint32_t)Controller->FrameListPhysical;
 	Controller->OpRegisters->AsyncListAddress = 
 		(uint32_t)Controller->QhPool[EHCI_POOL_QH_ASYNC]->PhysicalAddress | EHCI_LINK_QH;
 }

@@ -105,6 +105,24 @@ static int FirstSetBit(size_t Value)
 	return bCount;
 }
 
+/* Helper function, retrieves the last 
+ * set bit in a set of bits */
+static int LastSetBit(size_t Value)
+{
+	/* Variables */
+	size_t _Val = Value;
+	int bIndex = 0;
+
+	/* Keep shifting untill we 
+	 * reach a zero value */
+	while (_Val >>= 1) {
+		bIndex++;
+	}
+
+	/* Done! */
+	return bIndex;
+}
+
 /* Utils Definitions */
 #define MIN(a,b) (((a)<(b))?(a):(b))
 #define MAX(a,b) (((a)>(b))?(a):(b))

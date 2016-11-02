@@ -107,6 +107,7 @@ AddressSpace_t *AddressSpaceCreate(int Flags)
 		PageDirectory_t *CurrPd = (PageDirectory_t*)AddressSpaceGetCurrent()->PageDirectory;
 		PageDirectory_t *KernPd = (PageDirectory_t*)GlbKernelAddressSpace.PageDirectory;
 		int MaxCopyKernel = PAGE_DIRECTORY_INDEX(MEMORY_LOCATION_USER_ARGS);
+		int MaxCopyReadOnly = PAGE_DIRECTORY_INDEX(MEMORY_LOCATION_VIDEO);
 
 		/* Allocate a new address space */
 		AddrSpace = (AddressSpace_t*)kmalloc(sizeof(AddressSpace_t));
@@ -115,7 +116,7 @@ AddressSpace_t *AddressSpaceCreate(int Flags)
 		memset(NewPd, 0, sizeof(PageDirectory_t));
 
 		/* Setup Lock */
-		CriticalSectionConstruct(&NewPd->Lock, CRITICALSECTION_REENTRANCY);
+		MutexConstruct(&NewPd->Lock);
 
 		/* Create shared mappings */
 		for (Itr = 0; Itr < TABLES_PER_PDIR; Itr++)
@@ -123,7 +124,14 @@ AddressSpace_t *AddressSpaceCreate(int Flags)
 			/* Sanity - Kernel Mapping 
 			 * Only copy kernel mappings BELOW user-space start */
 			if (KernPd->pTables[Itr] && Itr < MaxCopyKernel) {
-				NewPd->pTables[Itr] = KernPd->pTables[Itr];
+				if (Itr < MaxCopyReadOnly) {
+					NewPd->pTables[Itr] = (KernPd->pTables[Itr] & PAGE_MASK)
+						| PAGE_PRESENT | PAGE_INHERITED ;
+				}
+				else {
+					NewPd->pTables[Itr] = KernPd->pTables[Itr];
+				}
+
 				NewPd->vTables[Itr] = KernPd->vTables[Itr];
 				continue;
 			}
@@ -264,13 +272,14 @@ void AddressSpaceReleaseKernel(AddressSpace_t *AddrSpace)
 
 /* Map a virtual address into the Address Space
  * Returns the base physical address */
-Addr_t AddressSpaceMap(AddressSpace_t *AddrSpace, VirtAddr_t Address, size_t Size, int Flags)
+Addr_t AddressSpaceMap(AddressSpace_t *AddrSpace, VirtAddr_t Address, 
+	size_t Size, Addr_t Mask, int Flags)
 {
 	/* Calculate num of pages */
 	size_t PageCount = DIVUP(Size, PAGE_SIZE);
-	int AllocFlags = 0;
 	Addr_t RetAddr = 0;
 	size_t Itr = 0;
+	int AllocFlags = 0;
 
 	/* Add flags */
 	if (Flags & ADDRESS_SPACE_FLAG_USER)
@@ -280,16 +289,11 @@ Addr_t AddressSpaceMap(AddressSpace_t *AddrSpace, VirtAddr_t Address, size_t Siz
 	if (Flags & ADDRESS_SPACE_FLAG_VIRTUAL)
 		AllocFlags |= PAGE_VIRTUAL;
 
-	/* Dma request? */
-	if (Flags & ADDRESS_SPACE_FLAG_LOWMEM) {
-		return MmPhysicalAllocateBlock(0xFFFFFF);
-	}
-
 	/* Deep Call */
 	for (Itr = 0; Itr < PageCount; Itr++)
 	{
 		/* Alloc physical page */
-		Addr_t PhysBlock = MmPhysicalAllocateBlock(MEMORY_MASK_DEFAULT);
+		Addr_t PhysBlock = MmPhysicalAllocateBlock(Mask, 1);
 
 		/* Sanity */
 		if (RetAddr == 0)

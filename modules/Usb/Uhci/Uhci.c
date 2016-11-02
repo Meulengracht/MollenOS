@@ -142,12 +142,10 @@ MODULES_API void ModuleInit(void *Data)
 		return;
 	}
 
-	/* Get DMA */
-	Controller->FrameListPhys = 
-		(Addr_t)AddressSpaceMap(AddressSpaceGetCurrent(), 
-			0, PAGE_SIZE, ADDRESS_SPACE_FLAG_LOWMEM);
+	/* Allocate in lower memory as controllers have
+	 * a problem with higher memory */
 	Controller->FrameList = 
-		(void*)Controller->FrameListPhys;
+		kmalloc_apm(PAGE_SIZE, &Controller->FrameListPhys, 0x00FFFFFF);
 
 	/* Memset */
 	memset(Controller->FrameList, 0, PAGE_SIZE);

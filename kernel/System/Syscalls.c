@@ -517,10 +517,10 @@ Addr_t ScMemoryAllocate(size_t Size, int Flags)
 	/* Sanity */
 	if (Process == NULL)
 		return (Addr_t)-1;
-
+	
 	/* Call */
 	return HeapAllocate(Process->Heap, Size, 
-		0, 0, 0, Process->Name->Data);
+		0, 0, MEMORY_MASK_DEFAULT, Process->Name->Data);
 }
 
 /* Free's previous allocated memory, given an address
@@ -590,7 +590,7 @@ Addr_t ScMemoryShare(IpcComm_t Target, Addr_t Address, size_t Size)
 
 		/* The address MUST be mapped in ours */
 		if (!AddressSpaceGetMap(AddressSpaceGetCurrent(), AdjustedAddr))
-			AddressSpaceMap(AddressSpaceGetCurrent(), AdjustedAddr, PAGE_SIZE, ADDRESS_SPACE_FLAG_USER);
+			AddressSpaceMap(AddressSpaceGetCurrent(), AdjustedAddr, PAGE_SIZE, MEMORY_MASK_DEFAULT, ADDRESS_SPACE_FLAG_USER);
 	
 		/* Get physical mapping */
 		PhysicalAddr = AddressSpaceGetMap(AddressSpaceGetCurrent(), AdjustedAddr);

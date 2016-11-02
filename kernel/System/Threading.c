@@ -317,7 +317,7 @@ void ThreadingEntryPointUserMode(void)
 	 * and map the stack before setting up */
 	Addr_t BaseAddress = ((MEMORY_LOCATION_USER_STACK - 0x1) & PAGE_MASK);
 	AddressSpaceMap(AddressSpaceGetCurrent(), 
-		BaseAddress, PROCESS_STACK_INIT, ADDRESS_SPACE_FLAG_USER);
+		BaseAddress, PROCESS_STACK_INIT, MEMORY_MASK_DEFAULT, ADDRESS_SPACE_FLAG_USER);
 	BaseAddress += (MEMORY_LOCATION_USER_STACK & ~(PAGE_MASK));
 
 	/* Underlying Call */

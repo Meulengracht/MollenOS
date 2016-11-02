@@ -50,6 +50,20 @@ typedef Registers_t Context_t;
 * the virtual memory   *
 ***********************/
 
+/* This is the how many bits per register
+* definition, used by the memory bitmap */
+#if defined(_X86_32)
+#define MEMORY_BITS					32
+#define MEMORY_LIMIT				0xFFFFFFFF
+#define MEMORY_MASK_DEFAULT			0xFFFFFFFF
+#elif defined(_X86_64)
+#define MEMORY_BITS					64
+#define MEMORY_LIMIT				0xFFFFFFFFFFFFFFFF
+#define MEMORY_MASK_DEFAULT			0xFFFFFFFFFFFFFFFF
+#else
+#error "Unsupported Architecture :("
+#endif
+
 /* Address Space Flags */
 #define ADDRESS_SPACE_KERNEL		0x1
 #define ADDRESS_SPACE_INHERIT		0x2
@@ -57,10 +71,9 @@ typedef Registers_t Context_t;
 
 /* Allocation Flags */
 #define ADDRESS_SPACE_FLAG_USER			0x1
-#define ADDRESS_SPACE_FLAG_LOWMEM		0x2
-#define ADDRESS_SPACE_FLAG_RESERVE		0x4
-#define ADDRESS_SPACE_FLAG_NOCACHE		0x8
-#define ADDRESS_SPACE_FLAG_VIRTUAL		0x10
+#define ADDRESS_SPACE_FLAG_RESERVE		0x2
+#define ADDRESS_SPACE_FLAG_NOCACHE		0x4
+#define ADDRESS_SPACE_FLAG_VIRTUAL		0x8
 
 _CRT_EXTERN void AddressSpaceInitKernel(AddressSpace_t *Kernel);
 _CRT_EXTERN AddressSpace_t *AddressSpaceCreate(int Flags);
@@ -70,7 +83,7 @@ _CRT_EXPORT AddressSpace_t *AddressSpaceGetCurrent(void);
 
 _CRT_EXTERN void AddressSpaceReleaseKernel(AddressSpace_t *AddrSpace);
 _CRT_EXPORT Addr_t AddressSpaceMap(AddressSpace_t *AddrSpace, 
-	VirtAddr_t Address, size_t Size, int Flags);
+	VirtAddr_t Address, size_t Size, Addr_t Mask, int Flags);
 _CRT_EXPORT void AddressSpaceMapFixed(AddressSpace_t *AddrSpace,
 	PhysAddr_t PhysicalAddr, VirtAddr_t VirtualAddr, size_t Size, int Flags);
 _CRT_EXPORT void AddressSpaceUnmap(AddressSpace_t *AddrSpace, VirtAddr_t Address, size_t Size);

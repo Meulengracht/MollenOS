@@ -25,25 +25,11 @@
 /* Includes 
  * - System */
 #include <MollenOS.h>
-#include <CriticalSection.h>
+#include <Mutex.h>
 
 /**********************************/
 /* Physical Memory Defs & Structs */
 /**********************************/
-
-/* This is the how many bits per register 
- * definition, used by the memory bitmap */
-#if defined(_X86_32)
-#define MEMORY_BITS					32
-#define MEMORY_LIMIT				0xFFFFFFFF
-#define MEMORY_MASK_DEFAULT			0xFFFFFFFF
-#elif defined(_X86_64)
-#define MEMORY_BITS					64
-#define MEMORY_LIMIT				0xFFFFFFFFFFFFFFFF
-#define MEMORY_MASK_DEFAULT			0xFFFFFFFFFFFFFFFF
-#else
-#error "Unsupported Architecture :("
-#endif
 
 /* Memory Map Structure 
  * This is the structure passed to us by
@@ -102,7 +88,7 @@ _CRT_EXTERN void MmPhyiscalInit(void *BootInfo, MCoreBootDescriptor *Descriptor)
 * physical memory pages, this takes an argument
 * <Mask> which determines where in memory the
 * allocation is OK */
-_CRT_EXTERN PhysAddr_t MmPhysicalAllocateBlock(Addr_t Mask);
+_CRT_EXTERN PhysAddr_t MmPhysicalAllocateBlock(Addr_t Mask, int Count);
 
 /* This is the primary function for
 * freeing physical pages, but NEVER free physical
@@ -124,6 +110,9 @@ _CRT_EXTERN VirtAddr_t MmPhyiscalGetSysMappingVirtual(PhysAddr_t PhysicalAddr);
 #define TABLES_PER_PDIR			1024
 #define TABLE_SPACE_SIZE		0x400000
 #define DIRECTORY_SPACE_SIZE	0xFFFFFFFF
+
+/* Only allocate memory below 4mb */
+#define MEMORY_INIT_MASK		0x3FFFFF
 
 /* Shared PT/Page Definitions */
 #define PAGE_PRESENT		0x1
@@ -176,8 +165,10 @@ typedef struct _PageDirectory
 	 * Not seen by MMU */
 	uint32_t vTables[TABLES_PER_PDIR];
 
-	/* Lock */
-	CriticalSection_t Lock;
+	/* Mutex to protect the page-directory
+	 * we don't want two different threads
+	 * fucking us up */
+	Mutex_t Lock;
 
 } PageDirectory_t;
 

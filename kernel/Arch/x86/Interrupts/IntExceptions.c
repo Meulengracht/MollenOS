@@ -236,12 +236,6 @@ void ExceptionEntry(Registers_t *regs)
 		/* Get failed address */
 		Addr_t UnmappedAddr = (Addr_t)__getcr2();
 
-		printf("CR2 Address: 0x%x\n", UnmappedAddr);
-		printf("Faulty Address: 0x%x\n", regs->Eip);
-		printf("Stack ptr: 0x%x\n", regs->Esp);
-		StackTrace(6);
-		for (;;);
-
 		/* FIRST OF ALL, we check like, SPECIAL addresses */
 		if (UnmappedAddr == MEMORY_LOCATION_SIGNAL_RET)
 		{
@@ -303,7 +297,7 @@ void ExceptionEntry(Registers_t *regs)
 			if (!HeapValidateAddress(NULL, UnmappedAddr)) 
 			{
 				/* Map in in */
-				MmVirtualMap(NULL, MmPhysicalAllocateBlock(MEMORY_MASK_DEFAULT), (UnmappedAddr & PAGE_MASK), 0);
+				MmVirtualMap(NULL, MmPhysicalAllocateBlock(MEMORY_MASK_DEFAULT, 1), (UnmappedAddr & PAGE_MASK), 0);
 
 				/* Issue is fixed */
 				IssueFixed = 1;
@@ -324,7 +318,7 @@ void ExceptionEntry(Registers_t *regs)
 				if (!HeapValidateAddress(Process->Heap, UnmappedAddr))
 				{
 					/* Map in in */
-					MmVirtualMap(NULL, MmPhysicalAllocateBlock(MEMORY_MASK_DEFAULT),
+					MmVirtualMap(NULL, MmPhysicalAllocateBlock(MEMORY_MASK_DEFAULT, 1),
 						(UnmappedAddr & PAGE_MASK), PAGE_USER);
 
 					/* Issue is fixed */
@@ -346,7 +340,7 @@ void ExceptionEntry(Registers_t *regs)
 			&& UnmappedAddr < MEMORY_LOCATION_USER_STACK)
 		{
 			/* Map in in */
-			MmVirtualMap(NULL, MmPhysicalAllocateBlock(MEMORY_MASK_DEFAULT), (UnmappedAddr & PAGE_MASK), PAGE_USER);
+			MmVirtualMap(NULL, MmPhysicalAllocateBlock(MEMORY_MASK_DEFAULT, 1), (UnmappedAddr & PAGE_MASK), PAGE_USER);
 
 			/* Issue is fixed */
 			IssueFixed = 1;
@@ -475,7 +469,7 @@ void kernel_panic(const char *Message)
 	LogFatal("SYST", Message);
 
 	/* Try to stack trace first */
-	StackTrace(6);
+	StackTrace(12);
 
 	/* Log Thread Information */
 	LogFatal("SYST", "Thread %s - %u (Core %u)!", 

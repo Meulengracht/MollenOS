@@ -94,6 +94,11 @@ typedef struct _HeapBlock
 	 * this block */
 	Flags_t Flags;
 
+	/* Block Address Mask
+	 * This is for masked allocations 
+	 * The mask must match or be less than this */
+	Addr_t Mask;
+
 	/* Shortcut stats for quickly checking
 	 * whether an allocation can be made */
 	size_t BytesFree;
@@ -195,6 +200,14 @@ _CRT_EXTERN void HeapReap(void);
  * within the given heap, this can be used for security
  * or validation purposes, use NULL for kernel heap */
 _CRT_EXTERN int HeapValidateAddress(Heap_t *Heap, Addr_t Address);
+
+/* Simply just a wrapper for HeapAllocate
+ * with the kernel heap as argument 
+ * but this does some basic validation and
+ * makes sure pages are mapped in memory
+ * this function also returns the physical address 
+ * of the allocation and aligned to PAGE_ALIGN with memory <Mask> */
+_CRT_EXPORT void *kmalloc_apm(size_t Size, Addr_t *Ptr, Addr_t Mask);
 
 /* Simply just a wrapper for HeapAllocate
  * with the kernel heap as argument 

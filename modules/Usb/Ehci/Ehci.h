@@ -723,6 +723,7 @@ typedef struct _EhciController
 	/* FrameList */
 	size_t FLength;
 	uint32_t *FrameList;
+	uint32_t FrameListPhysical;
 	uint32_t *VirtualList;
 
 	/* Pools */

@@ -67,7 +67,7 @@ void ServerInit(void)
 void *ServerMemoryAllocate(size_t Length)
 {
 	return (void*)HeapAllocate(GlbServerHeap, 
-		Length, ALLOCATION_COMMIT, 16, 0, "SERVER");
+		Length, ALLOCATION_COMMIT, 16, MEMORY_MASK_DEFAULT, "SERVER");
 }
 
 /* Server Memory Operations

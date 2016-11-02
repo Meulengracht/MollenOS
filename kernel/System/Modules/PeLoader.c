@@ -171,7 +171,7 @@ Addr_t PeRelocateSections(MCorePeFile_t *PeFile, uint8_t *Data,
 			/* Is it mapped? */
 			if (!AddressSpaceGetMap(AddressSpaceGetCurrent(), pAddr))
 				AddressSpaceMap(AddressSpaceGetCurrent(), pAddr, PAGE_SIZE,
-				(UserSpace == 1) ? ADDRESS_SPACE_FLAG_USER : 0);
+				MEMORY_MASK_DEFAULT, (UserSpace == 1) ? ADDRESS_SPACE_FLAG_USER : 0);
 		}
 
 		/* Which kind of section is this */

@@ -75,7 +75,7 @@ Addr_t *HeapSAllocator(Heap_t *Heap, size_t Size)
 
 		/* Map in the new memory */
 		AddressSpaceMap(AddressSpaceGetCurrent(), Heap->MemHeaderMax, PAGE_SIZE, 
-			(Heap->IsUser == 1) ? ADDRESS_SPACE_FLAG_USER : 0);
+			MEMORY_MASK_DEFAULT, (Heap->IsUser == 1) ? ADDRESS_SPACE_FLAG_USER : 0);
 
 		/* Reset the memory */
 		memset((void*)Heap->MemHeaderMax, 0, PAGE_SIZE);
@@ -183,7 +183,7 @@ void HeapPrintStats(Heap_t *Heap)
 /* Helper to allocate and create a block for a given heap
  * it will allocate from the recycler if possible */
 HeapBlock_t *HeapCreateBlock(Heap_t *Heap, 
-	size_t Size, Flags_t Flags, const char *Identifier)
+	size_t Size, Addr_t Mask, Flags_t Flags, const char *Identifier)
 {
 	/* Allocate a block & node */
 	HeapBlock_t *hBlock = NULL;
@@ -224,6 +224,7 @@ HeapBlock_t *HeapCreateBlock(Heap_t *Heap,
 	hBlock->Flags = Flags;
 	hBlock->Link = NULL;
 	hBlock->Nodes = hNode;
+	hBlock->Mask = Mask;
 
 	/* Setup node with identifier */
 	memcpy(&hNode->Identifier[0], Identifier == NULL ? GlbKernelUnknown : Identifier,
@@ -243,7 +244,7 @@ HeapBlock_t *HeapCreateBlock(Heap_t *Heap,
 
 /* Helper to expand the heap with a given size, now 
  * it also heavily depends on which kind of allocation is being made */
-void HeapExpand(Heap_t *Heap, size_t Size, Flags_t Flags, const char *Identifier)
+void HeapExpand(Heap_t *Heap, size_t Size, Addr_t Mask, Flags_t Flags, const char *Identifier)
 {
 	/* Variable */
 	HeapBlock_t *hBlock;
@@ -252,14 +253,14 @@ void HeapExpand(Heap_t *Heap, size_t Size, Flags_t Flags, const char *Identifier
 	if (Flags & ALLOCATION_BIG) {
 		/* Page aligned allocation */
 		hBlock = HeapCreateBlock(Heap, ALIGN(Size, PAGE_SIZE, 1), 
-			BLOCK_VERY_LARGE, Identifier);
+			Mask, BLOCK_VERY_LARGE, Identifier);
 	}
 	else if (Flags & ALLOCATION_PAGEALIGN) {
-		hBlock = HeapCreateBlock(Heap, HEAP_LARGE_BLOCK, BLOCK_LARGE, Identifier);
+		hBlock = HeapCreateBlock(Heap, HEAP_LARGE_BLOCK, Mask, BLOCK_LARGE, Identifier);
 	}
 	else {
 		/* Normal expansion */
-		hBlock = HeapCreateBlock(Heap, HEAP_NORMAL_BLOCK, BLOCK_NORMAL, Identifier);
+		hBlock = HeapCreateBlock(Heap, HEAP_NORMAL_BLOCK, Mask, BLOCK_NORMAL, Identifier);
 	}
 
 	/* Add it to list */
@@ -414,7 +415,7 @@ void HeapCommitPages(Addr_t Address, size_t Size, Addr_t Mask)
 	for (; i < Pages; i++)
 	{
 		if (!AddressSpaceGetMap(AddressSpaceGetCurrent(), Address + (i * PAGE_SIZE)))
-			AddressSpaceMap(AddressSpaceGetCurrent(), Address + (i * PAGE_SIZE), PAGE_SIZE, 0);
+			AddressSpaceMap(AddressSpaceGetCurrent(), Address + (i * PAGE_SIZE), PAGE_SIZE, Mask, 0);
 	}
 }
 
@@ -452,7 +453,11 @@ Addr_t HeapAllocate(Heap_t *Heap, size_t Size,
 		 * Standard-aligned allocations
 		 * Page-aligned allocations 
 		 * Custom allocations (large) */
-		if (CurrentBlock->BytesFree < AdjustedSize) {
+
+		/* Sanitize both that enough space is free 
+		 * but ALSO that the block has higher mask */
+		if ((CurrentBlock->BytesFree < AdjustedSize)
+			|| (CurrentBlock->Mask < Mask)) {
 			goto Skip;
 		}
 
@@ -509,7 +514,7 @@ Addr_t HeapAllocate(Heap_t *Heap, size_t Size,
 	}
 
 	/* If we reach here, expand and research */
-	HeapExpand(Heap, Size, Flags, Identifier);
+	HeapExpand(Heap, Size, Mask, Flags, Identifier);
 
 	/* Release lock */
 	CriticalSectionLeave(&Heap->Lock);
@@ -786,9 +791,12 @@ void HeapInit(void)
 	/* Initiate the global spinlock */
 	CriticalSectionConstruct(&GlbKernelHeap.Lock, CRITICALSECTION_REENTRANCY);
 
-	/* Create a normal node */
-	NormBlock = HeapCreateBlock(&GlbKernelHeap, HEAP_NORMAL_BLOCK, BLOCK_NORMAL, GlbKernelUnknown);
-	SpecBlock = HeapCreateBlock(&GlbKernelHeap, HEAP_LARGE_BLOCK, BLOCK_LARGE, GlbKernelUnknown);
+	/* Create a normal node + large node
+	 * so we save the initial creation */
+	NormBlock = HeapCreateBlock(&GlbKernelHeap, 
+		HEAP_NORMAL_BLOCK, MEMORY_MASK_DEFAULT, BLOCK_NORMAL, GlbKernelUnknown);
+	SpecBlock = HeapCreateBlock(&GlbKernelHeap, 
+		HEAP_LARGE_BLOCK, MEMORY_MASK_DEFAULT, BLOCK_LARGE, GlbKernelUnknown);
 
 	/* Insert them */
 	NormBlock->Link = SpecBlock;
@@ -823,9 +831,12 @@ Heap_t *HeapCreate(Addr_t HeapAddress, int UserHeap)
 	/* Initiate the global spinlock */
 	CriticalSectionConstruct(&Heap->Lock, CRITICALSECTION_REENTRANCY);
 
-	/* Create a normal node */
-	NormBlock = HeapCreateBlock(Heap, HEAP_NORMAL_BLOCK, BLOCK_NORMAL, GlbKernelUnknown);
-	SpecBlock = HeapCreateBlock(Heap, HEAP_LARGE_BLOCK, BLOCK_LARGE, GlbKernelUnknown);
+	/* Create a normal node + large node to 
+	 * save the initial creations */
+	NormBlock = HeapCreateBlock(Heap, HEAP_NORMAL_BLOCK, 
+		MEMORY_MASK_DEFAULT,  BLOCK_NORMAL, GlbKernelUnknown);
+	SpecBlock = HeapCreateBlock(Heap, HEAP_LARGE_BLOCK, 
+		MEMORY_MASK_DEFAULT, BLOCK_LARGE, GlbKernelUnknown);
 
 	/* Insert them */
 	NormBlock->Link = SpecBlock;
@@ -874,6 +885,37 @@ int HeapValidateAddress(Heap_t *Heap, Addr_t Address)
  * but this does some basic validation and
  * makes sure pages are mapped in memory
  * this function also returns the physical address 
+ * of the allocation and aligned to PAGE_ALIGN with memory <Mask> */
+void *kmalloc_apm(size_t Size, Addr_t *Ptr, Addr_t Mask)
+{
+	/* Variables for kernel allocation
+	 * Setup some default stuff */
+	Addr_t RetAddr = 0;
+
+	/* Sanitize size in kernel allocations 
+	 * we need to extra sensitive */
+	assert(Size != 0);
+
+	/* Do the call */
+	RetAddr = HeapAllocate(&GlbKernelHeap, Size, 
+		ALLOCATION_COMMIT, HEAP_STANDARD_ALIGN, Mask, GlbKernelUnknown);
+
+	/* Sanitize null-allocs in kernel allocations
+	 * we need to extra sensitive */
+	assert(RetAddr != 0);
+
+	/* Now, get physical mapping */
+	*Ptr = AddressSpaceGetMap(AddressSpaceGetCurrent(), RetAddr);
+
+	/* Done */
+	return (void*)RetAddr;
+}
+
+/* Simply just a wrapper for HeapAllocate
+ * with the kernel heap as argument 
+ * but this does some basic validation and
+ * makes sure pages are mapped in memory
+ * this function also returns the physical address 
  * of the allocation and aligned to PAGE_ALIGN */
 void *kmalloc_ap(size_t Size, Addr_t *Ptr)
 {
@@ -887,7 +929,7 @@ void *kmalloc_ap(size_t Size, Addr_t *Ptr)
 
 	/* Do the call */
 	RetAddr = HeapAllocate(&GlbKernelHeap, Size, 
-		ALLOCATION_COMMIT, HEAP_STANDARD_ALIGN, 0, GlbKernelUnknown);
+		ALLOCATION_COMMIT, HEAP_STANDARD_ALIGN, MEMORY_MASK_DEFAULT, GlbKernelUnknown);
 
 	/* Sanitize null-allocs in kernel allocations
 	 * we need to extra sensitive */
@@ -918,7 +960,7 @@ void *kmalloc_p(size_t Size, Addr_t *Ptr)
 
 	/* Do the call */
 	RetAddr = HeapAllocate(&GlbKernelHeap, Size, 
-		ALLOCATION_COMMIT, HEAP_STANDARD_ALIGN, 0, NULL);
+		ALLOCATION_COMMIT, HEAP_STANDARD_ALIGN, MEMORY_MASK_DEFAULT, NULL);
 
 	/* Sanitize size in kernel allocations 
 	 * we need to extra sensitive */
@@ -948,7 +990,7 @@ void *kmalloc_a(size_t Size)
 
 	/* Do the call */
 	RetAddr = HeapAllocate(&GlbKernelHeap, Size, 
-		ALLOCATION_COMMIT, HEAP_STANDARD_ALIGN, 0, GlbKernelUnknown);
+		ALLOCATION_COMMIT, HEAP_STANDARD_ALIGN, MEMORY_MASK_DEFAULT, GlbKernelUnknown);
 
 	/* Sanitize null-allocs in kernel allocations
 	 * we need to extra sensitive */
@@ -974,7 +1016,7 @@ void *kmalloc(size_t Size)
 
 	/* Do the call */
 	RetAddr = HeapAllocate(&GlbKernelHeap, Size, 
-		ALLOCATION_COMMIT, HEAP_STANDARD_ALIGN, 0, NULL);
+		ALLOCATION_COMMIT, HEAP_STANDARD_ALIGN, MEMORY_MASK_DEFAULT, NULL);
 
 	/* Sanitize size in kernel allocations 
 	 * we need to extra sensitive */

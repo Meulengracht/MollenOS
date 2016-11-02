@@ -17,6 +17,7 @@
 *
 *
 * MollenOS x86 Physical Memory Manager
+* Todo: Incorperate real support for Mask
 */
 
 /* Includes 
@@ -88,7 +89,7 @@ int MmMemoryMapTestBit(int Bit) {
 /* This function can be used to retrieve
  * a page of memory below the MEMORY_LOW_THRESHOLD 
  * this is useful for devices that use DMA */
-int MmGetFreeMapBitLow(void)
+int MmGetFreeMapBitLow(int Count)
 {
 	/* Variables needed for iteration */
 	int i, j, Result = -1;
@@ -103,8 +104,17 @@ int MmGetFreeMapBitLow(void)
 		if (MemoryBitmap[i] != MEMORY_LIMIT) {
 			for (j = 0; j < MEMORY_BITS; j++) {
 				if (!(MemoryBitmap[i] & 1 << j)) {
-					Result = (int)((i * MEMORY_BITS) + j);
-					break;
+					int Found = 1;
+					for (int k = 0, c = j; k < Count && c < MEMORY_BITS; k++, c++) {
+						if (MemoryBitmap[i] & 1 << c) {
+							Found = 0;
+							break;
+						}
+					}
+					if (Found == 1) {
+						Result = (int)((i * MEMORY_BITS) + j);
+						break;
+					}
 				}
 			}
 		}
@@ -122,7 +132,7 @@ int MmGetFreeMapBitLow(void)
 /* This function can be used to retrieve
  * a page of memory above the MEMORY_LOW_THRESHOLD 
  * this should probably be the standard alloc used */
-int MmGetFreeMapBitHigh(void)
+int MmGetFreeMapBitHigh(int Count)
 {
 	/* Variables needed for iteration */
 	int i, j, Result = -1;
@@ -137,8 +147,17 @@ int MmGetFreeMapBitHigh(void)
 		if (MemoryBitmap[i] != MEMORY_LIMIT) {
 			for (j = 0; j < MEMORY_BITS; j++) {
 				if (!(MemoryBitmap[i] & 1 << j)) {
-					Result = (int)((i * MEMORY_BITS) + j);
-					break;
+					int Found = 1;
+					for (int k = 0, c = j; k < Count && c < MEMORY_BITS; k++, c++) {
+						if (MemoryBitmap[i] & 1 << c) {
+							Found = 0;
+							break;
+						}
+					}
+					if (Found == 1) {
+						Result = (int)((i * MEMORY_BITS) + j);
+						break;
+					}
 				}
 			}
 		}
@@ -347,11 +366,14 @@ void MmPhysicalFreeBlock(PhysAddr_t Addr)
  * physical memory pages, this takes an argument
  * <Mask> which determines where in memory the
  * allocation is OK */
-PhysAddr_t MmPhysicalAllocateBlock(Addr_t Mask)
+PhysAddr_t MmPhysicalAllocateBlock(Addr_t Mask, int Count)
 {
 	/* Variables, keep track of 
 	 * the frame allocated */
 	int Frame = -1;
+
+	/* Sanitize params */
+	assert(Count > 0);
 
 	/* Get Spinlock */
 	SpinlockAcquire(&MemoryLock);
@@ -359,18 +381,21 @@ PhysAddr_t MmPhysicalAllocateBlock(Addr_t Mask)
 	/* Calculate which allocation function
 	 * to use with the given mask */
 	if (Mask <= 0xFFFFFF) {
-		Frame = MmGetFreeMapBitLow();
+		Frame = MmGetFreeMapBitLow(Count);
 	}
 	else {
-		Frame = MmGetFreeMapBitHigh();
+		Frame = MmGetFreeMapBitHigh(Count);
 	}
 
 	/* Set bit allocated before we 
 	 * release the lock, but ONLY if 
 	 * the frame is valid */
-	if (Frame != -1)
-		MmMemoryMapSetBit(Frame);
-	
+	if (Frame != -1) {
+		for (int i = 0; i < Count; i++) {
+			MmMemoryMapSetBit(Frame + i);
+		}
+	}
+
 	/* Release lock */
 	SpinlockRelease(&MemoryLock);
 

@@ -124,9 +124,10 @@ MODULES_API void ModuleInit(void *Data)
 	Controller->Registers = 
 		(volatile OhciRegisters_t*)IoBase->VirtualBase;
 	
-	Controller->HccaSpace = AddressSpaceMap(AddressSpaceGetCurrent(), 
-			0, PAGE_SIZE, ADDRESS_SPACE_FLAG_LOWMEM);
-	Controller->HCCA = (volatile OhciHCCA_t*)Controller->HccaSpace;
+	/* Allocate the HCCA-space in low memory as controllers
+	 * have issues with higher memory */
+	Controller->HCCA = (volatile OhciHCCA_t*)
+		kmalloc_apm(PAGE_SIZE, &Controller->HccaSpace, 0x00FFFFFF);
 	
 	/* Reset Lock */
 	SpinlockReset(&Controller->Lock);

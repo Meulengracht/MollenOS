@@ -72,7 +72,7 @@ void PmStartProcess(void *Args)
 
 	/* Map in arguments */
 	AddressSpaceMap(AddressSpaceGetCurrent(), 
-		MEMORY_LOCATION_USER_ARGS, PAGE_SIZE, ADDRESS_SPACE_FLAG_USER);
+		MEMORY_LOCATION_USER_ARGS, PAGE_SIZE, MEMORY_MASK_DEFAULT, ADDRESS_SPACE_FLAG_USER);
 
 	/* Copy arguments */
 	memcpy((void*)MEMORY_LOCATION_USER_ARGS,
@@ -83,7 +83,7 @@ void PmStartProcess(void *Args)
 
 	/* Map Stack */
 	BaseAddress = ((MEMORY_LOCATION_USER_STACK - 0x1) & PAGE_MASK);
-	AddressSpaceMap(AddressSpaceGetCurrent(), BaseAddress, PROCESS_STACK_INIT, ADDRESS_SPACE_FLAG_USER);
+	AddressSpaceMap(AddressSpaceGetCurrent(), BaseAddress, PROCESS_STACK_INIT, MEMORY_MASK_DEFAULT, ADDRESS_SPACE_FLAG_USER);
 	BaseAddress += (MEMORY_LOCATION_USER_STACK & ~(PAGE_MASK));
 	Process->StackStart = BaseAddress;
 

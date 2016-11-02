@@ -199,8 +199,8 @@ void SceneRender(Scene_t *Scene, SDL_Renderer *Renderer)
 	else if (Scene->ValidRectangles > 0)
 	{
 		/* Go through dirty rectangles and update/render */
-		for (int i = 0; i < Scene->ValidRectangles; i++) {
-
+		for (int i = 0; i < Scene->ValidRectangles; i++) 
+		{
 			/* Copy data over */
 			InvalidationRect.x = Scene->Dirty[i].x;
 			InvalidationRect.y = Scene->Dirty[i].y;
@@ -228,8 +228,8 @@ void SceneRender(Scene_t *Scene, SDL_Renderer *Renderer)
 		SDL_SetRenderTarget(Renderer, NULL);
 
 		/* Render */
-		for (int i = 0; i < Scene->ValidRectangles; i++) {
-
+		for (int i = 0; i < Scene->ValidRectangles; i++) 
+		{
 			/* Copy data over */
 			InvalidationRect.x = Scene->Dirty[i].x;
 			InvalidationRect.y = Scene->Dirty[i].y;
