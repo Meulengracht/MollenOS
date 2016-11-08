@@ -200,7 +200,8 @@ int main(int argc, char* argv[])
 	MollenOSGetScreenGeometry(&ScreenDims);
 
 	/* Create a window */
-	MainWnd = SDL_CreateWindow("Sapphire", 0, 0, ScreenDims.w, ScreenDims.h, SDL_WINDOW_SHOWN | SDL_WINDOW_FULLSCREEN);
+	MainWnd = SDL_CreateWindow("Sapphire", 0, 0, 
+		ScreenDims.w, ScreenDims.h, SDL_WINDOW_SHOWN | SDL_WINDOW_FULLSCREEN);
 	if (MainWnd == NULL) {
 		MollenOSSystemLog(SDL_GetError());
 		SDL_Quit();

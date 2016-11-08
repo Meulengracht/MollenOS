@@ -40,7 +40,7 @@ typedef int DevId_t;
 #define DEVICEMANAGER_ACPI_HPET			0x00000008
 
 /* Erhhh, limitiations? */
-#define DEVICEMANAGER_MAX_IO_SIZE		(16 * 1024)
+#define DEVICEMANAGER_MAX_IO_SIZE		(512 * 1024)
 #define DEVICEMANAGER_MAX_IRQS			8
 #define DEVICEMANAGER_MAX_IOSPACES		6
 

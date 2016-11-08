@@ -46,7 +46,7 @@ void StackTrace(size_t MaxFrames)
 	size_t Itr = MaxFrames;
 
 	/* Run */
-	while (Itr != 0)
+	while (Itr != 0 && StackPtr != NULL)
 	{
 		/* Get IP */
 		uint32_t Ip = StackPtr[2];
@@ -68,6 +68,38 @@ void StackTrace(size_t MaxFrames)
 				uint32_t Diff = Ip - Module->Descriptor->BaseVirtual;
 				LogInformation("CSTK", "%u - 0x%x (%s)",
 					MaxFrames - Itr, Diff, Module->Header->ModuleName);
+			}
+		}
+		else if (Ip >= MEMORY_LOCATION_USER
+			&& Ip < MEMORY_LOCATION_USER_HEAP)
+		{
+			/* Get current process information */
+			MCoreProcess_t *Process = PmGetProcess(PROCESS_CURRENT);
+
+			/* Sanitize */
+			if (Process != NULL
+				&& Process->Executable != NULL) {
+				char *PmName = (char*)Process->Executable->Name->Data;
+				Addr_t Base = Process->Executable->BaseVirtual;
+
+				/* Iterate libraries to find the sinner 
+				 * We only want one */
+				if (Process->Executable->LoadedLibraries != NULL) {
+					foreach(lNode, Process->Executable->LoadedLibraries) {
+						MCorePeFile_t *Lib = (MCorePeFile_t*)lNode->Data;
+						if (Ip >= Lib->BaseVirtual) {
+							PmName = (char*)Lib->Name->Data;
+							Base = Lib->BaseVirtual;
+						}
+					}
+				}
+
+				/* Now spit out information */
+				LogInformation("CSTK", "%u - 0x%x (%s)",
+					MaxFrames - Itr, (Ip - Base), PmName);
+			}
+			else {
+				LogInformation("CSTK", "%u - 0x%x", MaxFrames - Itr, Ip);
 			}
 		}
 		else
@@ -324,14 +356,6 @@ void ExceptionEntry(Registers_t *regs)
 					/* Issue is fixed */
 					IssueFixed = 1;
 				}
-				else
-				{
-					LogDebug("DBG0", "(BASE) => 0x%x", Process->Executable->BaseVirtual);
-					foreach(lNode, Process->Executable->LoadedLibraries) {
-						MCorePeFile_t *Library = (MCorePeFile_t*)lNode->Data;
-						LogDebug("DBG0", "(%s) => 0x%x", Library->Name->Data, Library->BaseVirtual);
-					}
-				}
 			}
 		}
 
@@ -469,7 +493,7 @@ void kernel_panic(const char *Message)
 	LogFatal("SYST", Message);
 
 	/* Try to stack trace first */
-	StackTrace(12);
+	StackTrace(8);
 
 	/* Log Thread Information */
 	LogFatal("SYST", "Thread %s - %u (Core %u)!", 

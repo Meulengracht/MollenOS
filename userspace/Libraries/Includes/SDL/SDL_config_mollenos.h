@@ -33,13 +33,19 @@
 #define HAVE_SYS_TYPES_H	1
 #define HAVE_STRING_H		1
 #define HAVE_CTYPE_H		1
-//#define HAVE_STDIO_H		1
+#define HAVE_STDIO_H		1 //I am missing conio + fgets/fputs
 #define HAVE_FLOAT_H		1
 #define HAVE_STRINGS_H		1
 #define HAVE_STDARG_H		1
 #define HAVE_STDDEF_H		1
 #define HAVE_MALLOC			1
+#define HAVE_SETJMP			1
 #define STDC_HEADERS		1
+#define HAVE_LIBC			1
+
+/* Single-definitions */
+#define HAVE_FSEEKO			1
+#define HAVE_FTELLO			1
 
 /* Most everything except Visual Studio 2008 and earlier has stdint.h now */
 #if defined(_MSC_VER) && (_MSC_VER < 1600)
@@ -62,12 +68,19 @@ typedef unsigned long uintptr_t;
 #define HAVE_GCC_SYNC_LOCK_TEST_AND_SET 1
 #endif
 
+#if defined(_CRT_DYNAMIC)
+#undef DECLSPEC
+#define DECLSPEC __declspec(dllexport)
+#endif
+
 /* Settings */
-#define SDL_POWER_MOLLENOS
-#define SDL_ATOMIC_DISABLED 1
+#define SDL_POWER_HARDWIRED
+#define SDL_AUDIO_DISABLED 1
 
 /* Enable OS Drivers */
-#define SDL_VIDEO_DRIVER_MOLLENOS 1
+#define SDL_VIDEO_DRIVER_MOLLENOS	1
+#define SDL_LOADSO_MOLLENOS			1
+#define SDL_FILESYSTEM_MOLLENOS		1
 
 /* Enable the dummy audio driver (src/audio/dummy/\*.c) */
 #define SDL_AUDIO_DRIVER_DUMMY  1
@@ -78,16 +91,10 @@ typedef unsigned long uintptr_t;
 /* Enable the stub haptic driver (src/haptic/dummy/\*.c) */
 #define SDL_HAPTIC_DISABLED 1
 
-/* Enable the stub shared object loader (src/loadso/dummy/\*.c) */
-#define SDL_LOADSO_DISABLED 1
-
 /* Enable the stub thread support (src/thread/generic/\*.c) */
 #define SDL_THREADS_DISABLED    1
 
 /* Enable the stub timer support (src/timer/dummy/\*.c) */
 #define SDL_TIMERS_DISABLED 1
-
-/* Enable the dummy filesystem driver (src/filesystem/dummy/\*.c) */
-#define SDL_FILESYSTEM_DUMMY  1
 
 #endif /* _SDL_config_minimal_h */

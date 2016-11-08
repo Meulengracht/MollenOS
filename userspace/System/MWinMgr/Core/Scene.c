@@ -33,8 +33,12 @@
  * Creates a new scene */
 Scene_t *SceneCreate(int Id, Rect_t *Dimensions, SDL_Renderer *Renderer)
 {
-	/* Allocate a scene instance */
-	Scene_t *Scene = (Scene_t*)malloc(sizeof(Scene_t));
+	/* Variables */
+	SDL_Texture *Background = NULL;
+	Scene_t *Scene = NULL;
+
+	/* Allocate a scene instance and reset it */
+	Scene = (Scene_t*)malloc(sizeof(Scene_t));
 	memset(Scene, 0, sizeof(Scene_t));
 	
 	/* Setup */
@@ -43,14 +47,31 @@ Scene_t *SceneCreate(int Id, Rect_t *Dimensions, SDL_Renderer *Renderer)
 	memcpy(&Scene->Dimensions, Dimensions, sizeof(Rect_t));
 
 	/* Load default background for this scene */
-	Scene->Background = IMG_LoadTexture(Renderer, "Themes/Default/GfxBg.png");
+	Background = IMG_LoadTexture(Renderer, "Themes/Default/GfxBg.png");
+	if (Background == NULL) {
+		MollenOSSystemLog("BACKGROUND::SDL Error: (%s)", SDL_GetError());
+		for (;;);
+	}
 
-	/* Allocate a texture */
+	/* Allocate two textures, one as a backbuffer
+	 * and the second one for a scaled background image */
+	Scene->Background = SDL_CreateTexture(Renderer, SDL_PIXELFORMAT_ARGB8888,
+		SDL_TEXTUREACCESS_TARGET, Dimensions->w, Dimensions->h);
 	Scene->Texture = SDL_CreateTexture(Renderer, SDL_PIXELFORMAT_ARGB8888,
 		SDL_TEXTUREACCESS_TARGET, Dimensions->w, Dimensions->h);
 
-	/* Set blend mode */
+	/* Scale background image to our 
+	 * newly allocated background texture */
+	SDL_SetRenderTarget(Renderer, Scene->Background);
+	SDL_RenderCopy(Renderer, Background, NULL, NULL);
+	SDL_SetRenderTarget(Renderer, NULL);
+
+	/* Set blend mode for the backbuffer 
+	 * texture, we only do this for it */
 	SDL_SetTextureBlendMode(Scene->Texture, SDL_BLENDMODE_BLEND);
+
+	/* Cleanup the allocated image */
+	SDL_DestroyTexture(Background);
 
 	/* Done! */
 	return Scene;
@@ -86,9 +107,9 @@ void SceneDestroy(Scene_t *Scene)
 }
 
 /* Add Window
-* Adds a newly created window to the
-* given scene. The window is not immediately
-* rendered before a call to Render */
+ * Adds a newly created window to the
+ * given scene. The window is not immediately
+ * rendered before a call to Render */
 void SceneAddWindow(Scene_t *Scene, Window_t *Window)
 {
 	/* Vars */

@@ -2129,6 +2129,14 @@ void UhciProcessTransfers(UhciController_t *Controller)
 			UhciTransferDescriptor_t *Td = 
 				(UhciTransferDescriptor_t*)tList->TransferDescriptor;
 
+			/* Sanitize the TD descriptor 
+			 * - If the TD is null then the transaction has
+			 *   been cleaned up, but not removed in time */
+			if (Td == NULL) {
+				ProcessQh = 0;
+				break;
+			}
+
 			/* Get code */
 			int CondCode = UhciConditionCodeToIndex(UHCI_TD_STATUS(Td->Flags));
 			int BytesTransfered = UHCI_TD_ACT_LEN(Td->Flags);
