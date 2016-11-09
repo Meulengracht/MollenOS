@@ -22,6 +22,9 @@
     <ClCompile Include="Core\Window.c">
       <Filter>Source\Sapphire</Filter>
     </ClCompile>
+    <ClCompile Include="Core\Shape.c">
+      <Filter>Source\Sapphire</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Core\Scene.h">

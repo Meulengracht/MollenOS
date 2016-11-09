@@ -99,6 +99,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="Core\Shape.c" />
     <ClCompile Include="Core\Scene.c" />
     <ClCompile Include="Core\SceneManager.c" />
     <ClCompile Include="Core\Window.c" />

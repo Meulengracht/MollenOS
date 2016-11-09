@@ -76,6 +76,40 @@ void Surface::Clear(uint32_t Color, Rect_t *Area)
 	UiInvalidateRect(m_pHandle, NULL);
 }
 
+/* Invalidate surface with the
+ * given rectangle dimensions, by logical units */
+void Surface::Invalidate(int x, int y, int width, int height)
+{
+	/* Sanitize params 
+	 * full invalidate? */
+	Rect_t Dirty;
+
+	if (width == -1 && height == -1) {
+		UiInvalidateRect(m_pHandle, NULL);
+	}
+	else {
+		Dirty.x = x;
+		Dirty.y = y;
+
+		if (width == -1) {
+			Dirty.w = m_sDimensions.w;
+		}
+		else {
+			Dirty.w = width;
+		}
+
+		if (height == -1) {
+			Dirty.h = m_sDimensions.h;
+		}
+		else {
+			Dirty.h = height;
+		}
+
+		/* Call the invalidation */
+		UiInvalidateRect(m_pHandle, &Dirty);
+	}
+}
+
 /* Resize the canvas, so we can support that! */
 void Surface::Resize(int Width, int Height)
 {

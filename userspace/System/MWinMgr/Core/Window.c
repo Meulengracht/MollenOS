@@ -39,17 +39,13 @@
 
 #define DECO_SHADOW				5
 
-/* This is the drop shaodw texture 
- * which will be loaded upon initial
- * window creation */
-SDL_Texture *GlbDropShadowEffectTopLeft = NULL;
-SDL_Texture *GlbDropShadowEffectBottomLeft = NULL;
-SDL_Texture *GlbDropShadowEffectTopRight = NULL;
-SDL_Texture *GlbDropShadowEffectBottomRight = NULL;
-SDL_Texture *GlbDropShadowEffectTop = NULL;
-SDL_Texture *GlbDropShadowEffectLeft = NULL;
-SDL_Texture *GlbDropShadowEffectRight = NULL;
-SDL_Texture *GlbDropShadowEffectBottom = NULL;
+/* BitBlt Flags */
+#define BITBLT_SRCSET			0x1
+#define BITBLT_SRCCOPY			0x2
+
+/* Prototypes */
+void SDL_DrawRound(SDL_Texture *Target,
+	Sint16 x0, Sint16 y0, Uint16 w, Uint16 h, Uint16 corner, Uint32 color);
 
 /* This is a dword size memset 
  * utilized to clear a surface to a given color */
@@ -78,9 +74,15 @@ void BitBlt(uint8_t *Dest, size_t DestPitch, int DestX, int DestY,
 
 	/* Start a loop */
 	for (int Row = 0; Row < Height; Row++) {
-		memcpy(DestPointer, SrcPointer, Width * 4);
-		SrcPointer += SrcPitch;
-		DestPointer += DestPitch;
+		if (Flags & BITBLT_SRCSET) {
+			memsetd(DestPointer, (uint32_t)((uint32_t*)Src), Width);
+			DestPointer += DestPitch;
+		}
+		else {
+			memcpy(DestPointer, SrcPointer, Width * 4);
+			SrcPointer += SrcPitch;
+			DestPointer += DestPitch;
+		}
 	}
 }
 
@@ -116,6 +118,16 @@ void RectIntersect(Rect_t *RectA, Rect_t *RectB, Rect_t *Result)
 	}
 }
 
+/* Utility to draw rounded shadows in edges
+ * of texture, uses SDL_draw code */
+void SDL_Shadows(SDL_Texture *Texture, int Width, int Height)
+{
+	for (int i = 0; i < DECO_SHADOW; i++) {
+		SDL_DrawRound(Texture, i, i, Width - (i * 2), Height - (i * 2), 
+			2, 0x00000000 + (i * 0x3F000000));
+	}
+}
+
 /* Constructor
  * Allocates a new window of the given
  * dimensions and initializes it */
@@ -125,25 +137,6 @@ Window_t *WindowCreate(IpcComm_t Owner, Rect_t *Dimensions, int Flags, SDL_Rende
 	Window_t *Window = (Window_t*)malloc(sizeof(Window_t));
 	void *mPixels = NULL;
 	int mPitch = 0;
-
-	/* Is the drop shadows loaded? */
-	if (GlbDropShadowEffectTopLeft == NULL) {
-		GlbDropShadowEffectTopRight = IMG_LoadTexture(Renderer, "Themes/Default/top-right.png");
-		GlbDropShadowEffectTopLeft = IMG_LoadTexture(Renderer, "Themes/Default/top-left.png");
-		GlbDropShadowEffectTop = IMG_LoadTexture(Renderer, "Themes/Default/top-center.png");
-		GlbDropShadowEffectRight = IMG_LoadTexture(Renderer, "Themes/Default/right-center.png");
-		GlbDropShadowEffectLeft = IMG_LoadTexture(Renderer, "Themes/Default/left-center.png");
-		GlbDropShadowEffectBottomRight = IMG_LoadTexture(Renderer, "Themes/Default/bottom-right.png");
-		GlbDropShadowEffectBottomLeft = IMG_LoadTexture(Renderer, "Themes/Default/bottom-left.png");
-		GlbDropShadowEffectBottom = IMG_LoadTexture(Renderer, "Themes/Default/bottom-center.png");
-		if (GlbDropShadowEffectTopRight == NULL || GlbDropShadowEffectTopLeft == NULL
-			|| GlbDropShadowEffectTop == NULL || GlbDropShadowEffectRight == NULL
-			|| GlbDropShadowEffectLeft == NULL || GlbDropShadowEffectBottomRight == NULL
-			|| GlbDropShadowEffectBottomLeft == NULL || GlbDropShadowEffectBottom == NULL) {
-			MollenOSSystemLog("DROPSHADOW::SDL Error: (%s)", SDL_GetError());
-			for (;;);
-		}
-	}
 	
 	/* Set initial stuff */
 	Window->Id = 0;
@@ -160,14 +153,18 @@ Window_t *WindowCreate(IpcComm_t Owner, Rect_t *Dimensions, int Flags, SDL_Rende
 	Window->FullDimensions.x = Dimensions->x;
 	Window->FullDimensions.y = Dimensions->y;
 	
-	Window->FullDimensions.h = Dimensions->h + DECO_BAR_TOP_HEIGHT;
-	Window->FullDimensions.w = Dimensions->w;
+	/* Adjust by header and shadow 
+	 * it's important to do this in full-dims */
+	Window->FullDimensions.h = Dimensions->h + DECO_BAR_TOP_HEIGHT + (2 * DECO_SHADOW);
+	Window->FullDimensions.w = Dimensions->w + (2 * DECO_SHADOW);
 
 	/* Convert dims 
-	 * The content-dimensions are relative */
-	Window->ContentDimensions.x = Dimensions->x;
-	Window->ContentDimensions.y = Dimensions->y + DECO_BAR_TOP_HEIGHT;
+	 * The content-dimensions are relative 
+	 * But x is adjusted by shadow, y is adjusted by both shadow and header */
+	Window->ContentDimensions.x = Dimensions->x + DECO_SHADOW;
+	Window->ContentDimensions.y = Dimensions->y + (DECO_BAR_TOP_HEIGHT + DECO_SHADOW);
 	
+	/* These are kept intact */
 	Window->ContentDimensions.h = Dimensions->h;
 	Window->ContentDimensions.w = Dimensions->w;
 
@@ -182,25 +179,36 @@ Window_t *WindowCreate(IpcComm_t Owner, Rect_t *Dimensions, int Flags, SDL_Rende
 
 	/* Get texture information */
 	SDL_LockTexture(Window->Texture, NULL, &mPixels, &mPitch);
+	memset(mPixels, 0, Window->FullDimensions.h * mPitch);
+	SDL_UnlockTexture(Window->Texture);
+
+	/* Draw Shadows */
+	SDL_Shadows(Window->Texture, Window->FullDimensions.w, Window->FullDimensions.h);
 
 	/* Allocate a user-backbuffer for only the content
 	 * therefore we can't exactly use mPitch if Content.w != Full.w */
 	Window->Backbuffer = malloc(Window->ContentDimensions.h * mPitch);
+	Window->BackbufferSize = Window->ContentDimensions.h * mPitch;
 	memsetd(Window->Backbuffer, 0xFFFFFFFF, (Window->ContentDimensions.h * mPitch) / 4);
 
+	/* Now lock the texture again */
+	SDL_LockTexture(Window->Texture, NULL, &mPixels, &mPitch);
+
 	/* Fill the header */
-	memsetd(mPixels, 0xFFCCCCCC, (DECO_BAR_TOP_HEIGHT * mPitch) / 4);
+	BitBlt(mPixels, mPitch, DECO_SHADOW, DECO_SHADOW, (uint8_t*)0xFFCCCCCC, 0, 0, 0,
+		Window->ContentDimensions.w, DECO_BAR_TOP_HEIGHT, BITBLT_SRCSET);
 
 	/* Fill the content => Copy pixels */
-	BitBlt(mPixels, mPitch, 0, DECO_BAR_TOP_HEIGHT, 
-		Window->Backbuffer, mPitch, 0, 0, 
-		Window->ContentDimensions.w, Window->ContentDimensions.h, 0);
+	BitBlt(mPixels, mPitch, DECO_SHADOW, DECO_BAR_TOP_HEIGHT + DECO_SHADOW,
+		Window->Backbuffer, mPitch, 0, 0,
+		Window->ContentDimensions.w, Window->ContentDimensions.h, BITBLT_SRCCOPY);
 
 	/* Unlock texture */
 	SDL_UnlockTexture(Window->Texture);
 
-	/* Update size */
-	Window->BackbufferSize = Window->ContentDimensions.h * mPitch;
+	/* Draw the image */
+
+	/* Draw the text */
 
 	/* Done */
 	return Window;
@@ -286,65 +294,6 @@ void WindowRender(Window_t *Window, SDL_Renderer *Renderer, Rect_t *DirtyArea)
 			&& DirtyArea->w == Window->FullDimensions.w
 			&& DirtyArea->h == Window->FullDimensions.h)) 
 	{
-		Source.w = DECO_SHADOW;
-		Source.h = DECO_SHADOW;
-
-		/* Render TL */
-		Source.x = Window->FullDimensions.x - MIN(DECO_SHADOW, Window->FullDimensions.x);
-		Source.y = Window->FullDimensions.y - MIN(DECO_SHADOW, Window->FullDimensions.y);
-		SDL_RenderCopyEx(Renderer, GlbDropShadowEffectTopLeft, NULL, &Source,
-			Window->Rotation, NULL, Window->Flip);
-
-		/* Render TR */
-		Source.x = Window->FullDimensions.x + Window->FullDimensions.w;
-		Source.y = Window->FullDimensions.y - MIN(DECO_SHADOW, Window->FullDimensions.y);
-		SDL_RenderCopyEx(Renderer, GlbDropShadowEffectTopRight, NULL, &Source,
-			Window->Rotation, NULL, Window->Flip);
-
-		/* Render BL */
-		Source.x = Window->FullDimensions.x - DECO_SHADOW;
-		Source.y = Window->FullDimensions.y + Window->FullDimensions.h;
-		SDL_RenderCopyEx(Renderer, GlbDropShadowEffectBottomLeft, NULL, &Source,
-			Window->Rotation, NULL, Window->Flip);
-
-		/* Render BR */
-		Source.x = Window->FullDimensions.x + Window->FullDimensions.w;
-		Source.y = Window->FullDimensions.y + Window->FullDimensions.h;
-		SDL_RenderCopyEx(Renderer, GlbDropShadowEffectBottomRight, NULL, &Source,
-			Window->Rotation, NULL, Window->Flip);
-
-		/* Set new dimensions */
-		Source.w = Window->FullDimensions.w;
-		Source.h = DECO_SHADOW;
-
-		/* Render top */
-		Source.x = Window->FullDimensions.x;
-		Source.y = Window->FullDimensions.y - MIN(DECO_SHADOW, Window->FullDimensions.y);
-		SDL_RenderCopyEx(Renderer, GlbDropShadowEffectTop, NULL, &Source,
-			Window->Rotation, NULL, Window->Flip);
-
-		/* Render bottom */
-		Source.x = Window->FullDimensions.x;
-		Source.y = Window->FullDimensions.y + Window->FullDimensions.h;
-		SDL_RenderCopyEx(Renderer, GlbDropShadowEffectBottom, NULL, &Source,
-			Window->Rotation, NULL, Window->Flip);
-
-		/* Set new dimensions */
-		Source.w = DECO_SHADOW;
-		Source.h = Window->FullDimensions.w;
-
-		/* Render left */
-		Source.x = Window->FullDimensions.x - MIN(DECO_SHADOW, Window->FullDimensions.x);
-		Source.y = Window->FullDimensions.y;
-		SDL_RenderCopyEx(Renderer, GlbDropShadowEffectLeft, NULL, &Source,
-			Window->Rotation, NULL, Window->Flip);
-
-		/* Render right */
-		Source.x = Window->FullDimensions.x + Window->FullDimensions.w;
-		Source.y = Window->FullDimensions.y;
-		SDL_RenderCopyEx(Renderer, GlbDropShadowEffectRight, NULL, &Source,
-			Window->Rotation, NULL, Window->Flip);
-
 		/* Set destination (just copy) */
 		Destination.x = Window->FullDimensions.x;
 		Destination.y = Window->FullDimensions.y;
@@ -371,8 +320,8 @@ void WindowRender(Window_t *Window, SDL_Renderer *Renderer, Rect_t *DirtyArea)
 		Destination.w = DirtyArea->w;
 		Destination.h = DirtyArea->h;
 
-		/* Copy buffer 
+		/* Copy buffer */
 		SDL_RenderCopyEx(Renderer, Window->Texture, &Source, &Destination,
-			Window->Rotation, NULL, Window->Flip);*/
+			Window->Rotation, NULL, Window->Flip);
 	}
 }

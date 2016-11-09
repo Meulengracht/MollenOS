@@ -46,6 +46,10 @@ public:
 	/* Resize the canvas, so we can support that! */
 	void Resize(int Width, int Height);
 
+	/* Invalidate surface with the 
+	 * given rectangle dimensions, by logical units */
+	void Invalidate(int x, int y, int width, int height);
+
 	/* Is surface valid for rendering? In many 
 	 * cases it won't be before size has been set */
 	bool IsValid();

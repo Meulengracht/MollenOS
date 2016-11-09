@@ -590,6 +590,9 @@ void Terminal::AddText(char *Message, ...)
 			AddCharacter(cc);
 		}
 	}
+
+	/* Invalidate surface */
+	m_pSurface->Invalidate(0, 0, -1, -1);
 }
 
 /* Shorthand for the above function, instead of 
@@ -922,7 +925,7 @@ void Terminal::RenderText(int AtX, int AtY, const char *Text)
 
 	/* Adding bound checking to avoid all kinds of memory corruption errors
 	 * that may occur. */
-	DestCheck = (uint8_t*)m_pSurface->DataPtr() + 4 * m_pSurface->GetDimensions()->h;
+	DestCheck = (uint8_t*)m_pSurface->DataPtr() + (4 * m_pSurface->GetDimensions()->h);
 
 	/* check kerning */
 	UseKerning = FT_HAS_KERNING(m_pActiveFont->Face) && m_pActiveFont->Kerning;
@@ -983,19 +986,25 @@ void Terminal::RenderText(int AtX, int AtY, const char *Text)
 		for (Row = 0; Row < Current->rows; ++Row) {
 			/* Make sure we don't go either over, or under the
 			 * limit */
-			if (Row + Glyph->yOffset < 0
+			if ((Row + Glyph->yOffset) < 0
 				|| Row + Glyph->yOffset >= m_pSurface->GetDimensions()->h) {
 				continue;
 			}
 			
 			/* Calculate destination */
-			Destination = (uint8_t*)m_pSurface->DataPtr(AtX, AtY) +
-				((Row + Glyph->yOffset) * 4) + xStart + Glyph->MinX;
-			Source = Current->buffer + Row * Current->pitch;
+			Destination = (uint8_t*)m_pSurface->DataPtr(
+				AtX + xStart + Glyph->MinX, AtY + Row + Glyph->yOffset);
+			Source = Current->buffer + (Row * Current->pitch);
 
 			/* Loop ! */
 			for (Col = Width; Col > 0 && Destination < DestCheck; --Col) {
-				*Destination++ |= *Source++;
+				char Alpha = *Source++;
+				if (Alpha == 0) {
+					*Destination++ = m_pSurface->GetColor(m_cBgR, m_cBgG, m_cBgB, m_cBgA);
+				}
+				else {
+					*Destination++ = m_pSurface->GetColor(m_cFgR, m_cFgG, m_cFgB, m_cFgA); //Alpha
+				}
 			}
 		}
 
