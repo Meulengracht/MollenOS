@@ -56,10 +56,6 @@ typedef uint32_t mchar_t;
 #define MSTRING_FULL_MATCH		1
 #define MSTRING_PARTIAL_MATCH	2
 
-/* This is the block size that mstring allocates with
- * this can be tweaked by the user */
-#define MSTRING_BLOCK_SIZE		64
-
 /* String Types 
  * Used by MStringCreate to tell us
  * which type of data we are feeding the
@@ -74,20 +70,9 @@ typedef enum _MStringType
 } MStringType_t;
 
 /* Structures 
- * The MString structure, it keeps 
- * track of data, length and max length 
- * before next string expansion */
-typedef struct _MString
-{
-	/* String Data
-	 * As UTF8 */
-	void *Data;
-	
-	/* Length(s) */
-	size_t Length;
-	size_t MaxLength;
-
-} MString_t;
+ * The MString structure */
+struct _MString;
+typedef struct _MString MString_t;
 
 /* Creates a MString instace from string data
  * The possible string-data types are ASCII, UTF8, UTF16, UTF32
@@ -110,11 +95,10 @@ _CRT_EXTERN void MStringCopy(MString_t *Destination, MString_t *Source, int Leng
  * and NOT utf8 */
 _CRT_EXTERN void MStringAppendChar(MString_t *String, mchar_t Character);
 
-/* Appends raw string
- * The string given must be in the format of UTF-8 
- * or ASCII. UTF16 and UTF32 strings must be appended
- * by creating a new MSTRING */
-_CRT_EXTERN void MStringAppendChars(MString_t *String, const char *Chars);
+/* Appends raw string data to a 
+ * given mstring, you must indicate what format
+ * the raw string is of so it converts correctly. */
+_CRT_EXTERN void MStringAppendCharacters(MString_t *String, const char *Characters, MStringType_t DataType);
 
 /* Append MString to MString 
  * This appends the given String the destination string */
@@ -128,20 +112,16 @@ _CRT_EXTERN void MStringAppendInt64(MString_t *String, int64_t Value);
 _CRT_EXTERN void MStringAppendUInt64(MString_t *String, uint64_t Value);
 _CRT_EXTERN void MStringAppendHex64(MString_t *String, uint64_t Value);
 
-/* Find first occurence of the given character (ASCII, UTF16, UTF32)
- * in the given string. This does not accept UTF8 Characters.
+/* Find first/last occurence of the given character in the given string. 
+ * The character given to this function should be UTF8
  * returns the index if found, otherwise MSTRING_NOT_FOUND */
 _CRT_EXTERN int MStringFind(MString_t *String, mchar_t Character);
+_CRT_EXTERN int MStringFindReverse(MString_t *String, mchar_t Character);
 
 /* Find first occurence of the given UTF8 string
  * in the given string. This does not accept UTF16 or UTF32.
  * returns the index if found, otherwise MSTRING_NOT_FOUND */
 _CRT_EXTERN int MStringFindChars(MString_t *String, const char *Chars);
-
-/* Find last occurence of the given character (ASCII, UTF16, UTF32)
- * in the given string. This does not accept UTF8 Characters.
- * returns the index if found, otherwise MSTRING_NOT_FOUND */
-_CRT_EXTERN int MStringFindReverse(MString_t *String, mchar_t Character);
 
 /* Get character at the given index and 
  * return the character found as UTF32 */
@@ -165,6 +145,15 @@ _CRT_EXTERN void MStringReplace(MString_t *String, const char *Old, const char *
 /* Get's the number of characters in a mstring
  * and not the actual byte length. */
 _CRT_EXTERN size_t MStringLength(MString_t *String);
+
+/* Retrieves the number of bytes used 
+ * in the given mstring */
+_CRT_EXTERN size_t MStringSize(MString_t *String);
+
+/* Returns the raw data pointer 
+ * of the given MString, which can be used for
+ * usage, not recommended to edit data */
+_CRT_EXTERN const char *MStringRaw(MString_t *String);
 
 /* Generate hash of a mstring
  * the hash will be either 32/64 depending

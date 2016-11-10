@@ -101,7 +101,7 @@ MString_t *VfsResolveEnvironmentPath(VfsEnvironmentPath_t Base)
 	}
 
 	/* Now append the special paths */
-	MStringAppendChars(ResolvedPath, GlbEnvironmentalPaths[pIndex]);
+	MStringAppendCharacters(ResolvedPath, GlbEnvironmentalPaths[pIndex], StrUTF8);
 
 	/* Done! */
 	return ResolvedPath;
@@ -175,7 +175,8 @@ MString_t *VfsCanonicalizePath(VfsEnvironmentPath_t Base, const char *Path)
 				}
 
 				/* Now append the system path */
-				MStringAppendChars(AbsPath, GlbEnvironmentalPaths[PathSystemDirectory]);
+				MStringAppendCharacters(AbsPath, 
+					GlbEnvironmentalPaths[PathSystemDirectory], StrUTF8);
 
 				/* Skip */
 				Itr += 5;

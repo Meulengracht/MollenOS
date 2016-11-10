@@ -449,7 +449,8 @@ VfsErrorCode_t MfsUpdateEntry(MCoreFileSystem_t *Fs, MfsFile_t *Handle, int Acti
 			Iterator->Status = MFS_STATUS_OK;
 
 			/* Set Name */
-			memcpy(&Iterator->Name[0], Handle->Name->Data, Handle->Name->Length);
+			memcpy(&Iterator->Name[0], 
+				MStringRaw(Handle->Name), MStringSize(Handle->Name));
 
 			/* Null datablock */
 			memset(&Iterator->Data[0], 0, 512);

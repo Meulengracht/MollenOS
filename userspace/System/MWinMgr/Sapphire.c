@@ -115,7 +115,7 @@ void HandleMessage(SDL_Renderer *Target, MEventMessage_t *Message)
 
 					/* Ok, so mark the rectangle dirty 
 					 * and update screen */
-					SceneManagerUpdate(&AbsRect);
+					//SceneManagerUpdate(&AbsRect);
 
 				} break;
 

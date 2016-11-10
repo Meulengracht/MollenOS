@@ -146,7 +146,7 @@ int ScProcessExit(int ExitCode)
 
 	/* Log it and save return code */
 	LogDebug("SYSC", "Process %s terminated with code %i", 
-		Process->Name->Data, ExitCode);
+		MStringRaw(Process->Name), ExitCode);
 	Process->ReturnCode = ExitCode;
 
 	/* Disable interrupts before proceeding */
@@ -520,7 +520,7 @@ Addr_t ScMemoryAllocate(size_t Size, int Flags)
 	
 	/* Call */
 	return HeapAllocate(Process->Heap, Size, 
-		0, 0, MEMORY_MASK_DEFAULT, Process->Name->Data);
+		0, 0, MEMORY_MASK_DEFAULT, MStringRaw(Process->Name));
 }
 
 /* Free's previous allocated memory, given an address
@@ -1325,7 +1325,7 @@ int ScVfsResolvePath(int EnvPath, char *StrBuffer)
 		return -1;
 
 	/* Copy it to user-buffer */
-	memcpy(StrBuffer, ResolvedPath->Data, ResolvedPath->Length);
+	memcpy(StrBuffer, MStringRaw(ResolvedPath), MStringSize(ResolvedPath));
 
 	/* Cleanup */
 	MStringDestroy(ResolvedPath);

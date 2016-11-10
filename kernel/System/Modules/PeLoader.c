@@ -382,7 +382,7 @@ void PeLoadModuleImports(MCorePeFile_t *PeFile, PeDataDirectory_t *ImportDirecto
 			/* Sanity */
 			if (Module == NULL)
 			{
-				LogFatal("PELD", "Failed to locate module %s", Name->Data);
+				LogFatal("PELD", "Failed to locate module %s", MStringRaw(Name));
 				return;
 			}
 
@@ -393,7 +393,7 @@ void PeLoadModuleImports(MCorePeFile_t *PeFile, PeDataDirectory_t *ImportDirecto
 			/* Sanity */
 			if (Module->Descriptor->ExportedFunctions == NULL)
 			{
-				LogFatal("PELD", "Module %s does not export anything", Name->Data);
+				LogFatal("PELD", "Module %s does not export anything", MStringRaw(Name));
 				return;
 			}
 
@@ -672,13 +672,13 @@ MCorePeFile_t *PeResolveLibrary(MCorePeFile_t *Parent, MCorePeFile_t *PeFile, MS
 	if (Exports == NULL)
 	{
 		/* Resolve Library */
-		MCoreFileInstance_t *lFile = VfsWrapperOpen(LibraryName->Data, Read);
+		MCoreFileInstance_t *lFile = VfsWrapperOpen(MStringRaw(LibraryName), Read);
 		uint8_t *fBuffer = (uint8_t*)kmalloc((size_t)lFile->File->Size);
 		MCorePeFile_t *Library = NULL;
 
 		/* Sanity */
 		if (lFile->Code != VfsOk) {
-			LogDebug("PELD", "Failed to load library %s", LibraryName->Data);
+			LogDebug("PELD", "Failed to load library %s", MStringRaw(LibraryName));
 		}
 
 		/* Read all data */
@@ -706,7 +706,7 @@ MCorePeFile_t *PeResolveLibrary(MCorePeFile_t *Parent, MCorePeFile_t *PeFile, MS
 
 	/* Sanity Again */
 	if (Exports == NULL)
-		LogFatal("PELD", "Library %s was unable to be resolved", LibraryName->Data);
+		LogFatal("PELD", "Library %s was unable to be resolved", MStringRaw(LibraryName));
 
 	/* Done */
 	return Exports;

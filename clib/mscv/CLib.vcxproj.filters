@@ -70,6 +70,9 @@
     <Filter Include="Source\crt\msvc">
       <UniqueIdentifier>{3da6f991-8708-449f-8450-1208ea33ea72}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Source\os\MString">
+      <UniqueIdentifier>{8266e0e7-94fa-46bd-bdcf-bcf8c4667a6d}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\src\string\atof.c">
@@ -453,9 +456,6 @@
     <ClCompile Include="..\src\stdio\fscanf.c">
       <Filter>Source\stdio\File</Filter>
     </ClCompile>
-    <ClCompile Include="..\src\ds\MString.c">
-      <Filter>Source\ds</Filter>
-    </ClCompile>
     <ClCompile Include="..\src\ds\Ringbuffer.c">
       <Filter>Source\ds</Filter>
     </ClCompile>
@@ -467,6 +467,45 @@
     </ClCompile>
     <ClCompile Include="..\src\stdio\fbuf.c">
       <Filter>Source\stdio\File</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\os\MString\MStringUtf8.c">
+      <Filter>Source\os\MString</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\os\MString\MStringCreate.c">
+      <Filter>Source\os\MString</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\os\MString\MStringDestroy.c">
+      <Filter>Source\os\MString</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\os\MString\MString.c">
+      <Filter>Source\os\MString</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\os\MString\MStringAppend.c">
+      <Filter>Source\os\MString</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\os\MString\MStringHash.c">
+      <Filter>Source\os\MString</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\os\MString\MStringLength.c">
+      <Filter>Source\os\MString</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\os\MString\MStringPrint.c">
+      <Filter>Source\os\MString</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\os\MString\MStringResize.c">
+      <Filter>Source\os\MString</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\os\MString\MStringFind.c">
+      <Filter>Source\os\MString</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\os\MString\MStringCopy.c">
+      <Filter>Source\os\MString</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\os\MString\MStringIterate.c">
+      <Filter>Source\os\MString</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\os\MString\MStringRaw.c">
+      <Filter>Source\os\MString</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -601,5 +640,10 @@
     <MASM Include="..\crt\msvc\llshr.S">
       <Filter>Source\crt\msvc</Filter>
     </MASM>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\src\os\MString\MStringPrivate.h">
+      <Filter>Source\os\MString</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

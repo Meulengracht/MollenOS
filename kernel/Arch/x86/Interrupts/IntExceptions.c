@@ -79,7 +79,7 @@ void StackTrace(size_t MaxFrames)
 			/* Sanitize */
 			if (Process != NULL
 				&& Process->Executable != NULL) {
-				char *PmName = (char*)Process->Executable->Name->Data;
+				char *PmName = (char*)MStringRaw(Process->Executable->Name);
 				Addr_t Base = Process->Executable->BaseVirtual;
 
 				/* Iterate libraries to find the sinner 
@@ -88,7 +88,7 @@ void StackTrace(size_t MaxFrames)
 					foreach(lNode, Process->Executable->LoadedLibraries) {
 						MCorePeFile_t *Lib = (MCorePeFile_t*)lNode->Data;
 						if (Ip >= Lib->BaseVirtual) {
-							PmName = (char*)Lib->Name->Data;
+							PmName = (char*)MStringRaw(Lib->Name);
 							Base = Lib->BaseVirtual;
 						}
 					}

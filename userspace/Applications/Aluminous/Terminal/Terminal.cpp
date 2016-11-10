@@ -541,14 +541,19 @@ void Terminal::PrintLine(const char *Message, ...)
  * by processng it, and scrolls if necessary */
 void Terminal::AddText(char *Message, ...)
 {
-	/* VA */
+	/* Variables need for formatting
+	 * Use static so we don't allocate 1kb on stack */
 	static char Line[1024];
 	va_list Args;
 	int i = 0;
 
 	/* Sanitize params */
-	if (Message == NULL)
+	if (Message == NULL) {
 		return;
+	}
+
+	/* Clear out buffer */
+	memset(Line, 0, sizeof(Line));
 
 	/* Combine */
 	va_start(Args, Message);
@@ -556,9 +561,10 @@ void Terminal::AddText(char *Message, ...)
 	va_end(Args);
 
 	/* Iterate characters */
-	while (Line[i] != 0) 
+	while (Line[i]) 
 	{
-		/* Extract character */
+		/* Extract character 
+		 * and keep a copy of the char */
 		int c = Line[i++];
 		int cc = c;
 		int dx = 1;
@@ -592,7 +598,7 @@ void Terminal::AddText(char *Message, ...)
 	}
 
 	/* Invalidate surface */
-	m_pSurface->Invalidate(0, 0, -1, -1);
+	//m_pSurface->Invalidate(0, 0, -1, -1);
 }
 
 /* Shorthand for the above function, instead of 
@@ -931,7 +937,7 @@ void Terminal::RenderText(int AtX, int AtY, const char *Text)
 	UseKerning = FT_HAS_KERNING(m_pActiveFont->Face) && m_pActiveFont->Kerning;
 
 	/* Initialise for the loop */
-	mText = MStringCreate((void*)Text, Latin1);
+	mText = MStringCreate((void*)Text, StrUTF8);
 	First = true;
 	xStart = 0;
 
@@ -939,15 +945,20 @@ void Terminal::RenderText(int AtX, int AtY, const char *Text)
 	while (true) 
 	{
 		/* Get next character of text-string */
-		uint16_t Character = (uint16_t)MStringIterate(mText, &mItr, &ItrLength);
+		uint16_t Character = (uint16_t)MStringGetCharAt(mText, ItrLength); //MStringIterate(mText, &mItr, &ItrLength);
+		MollenOSSystemLog("TERM::Render(%c - 0x%x)", (char)Character, Character);
 		if (Character == UNICODE_BOM_NATIVE 
 			|| Character == UNICODE_BOM_SWAPPED) {
 			continue;
 		}
 
 		/* End of string? */
-		if (Character == MSTRING_EOS)
+		if (Character == MSTRING_EOS) {
 			break;
+		}
+
+		/* Inc */
+		ItrLength++;
 
 		/* Lookup glyph for the character, if we have none, 
 		 * we bail! */
@@ -983,7 +994,7 @@ void Terminal::RenderText(int AtX, int AtY, const char *Text)
 		First = false;
 
 		/* Iterate over rows and actually draw it */
-		for (Row = 0; Row < Current->rows; ++Row) {
+		for (Row = 0; Row < Current->rows; Row++) {
 			/* Make sure we don't go either over, or under the
 			 * limit */
 			if ((Row + Glyph->yOffset) < 0
@@ -1032,6 +1043,8 @@ void Terminal::RenderText(int AtX, int AtY, const char *Text)
 
 	/* Cleanup */
 	MStringDestroy(mText);
+
+	for (;;);
 }
 
 /* This cleans up a stored glyph and 

@@ -76,7 +76,7 @@ void PmStartProcess(void *Args)
 
 	/* Copy arguments */
 	memcpy((void*)MEMORY_LOCATION_USER_ARGS,
-		Process->Arguments->Data, Process->Arguments->Length);
+		MStringRaw(Process->Arguments), MStringSize(Process->Arguments));
 
 	/* Create in */
 	Process->Pipe = PipeCreate(PROCESS_PIPE_SIZE);
@@ -116,7 +116,7 @@ ProcId_t PmCreateProcess(MString_t *Path, MString_t *Arguments)
 		return PROCESS_NO_PROCESS;
 
 	/* Open File */
-	File = VfsWrapperOpen(Path->Data, Read);
+	File = VfsWrapperOpen(MStringRaw(Path), Read);
 
 	/* Sanity */
 	if (File->Code != VfsOk
@@ -132,7 +132,7 @@ ProcId_t PmCreateProcess(MString_t *Path, MString_t *Arguments)
 	VfsWrapperRead(File, fBuffer, (size_t)File->File->Size);
 
 	/* Copy path */
-	PathCopy = MStringCreate(File->File->Path->Data, StrUTF8);
+	PathCopy = MStringCreate((void*)MStringRaw(File->File->Path), StrUTF8);
 
 	/* Close */
 	VfsWrapperClose(File);
@@ -165,7 +165,7 @@ ProcId_t PmCreateProcess(MString_t *Path, MString_t *Arguments)
 
 	/* Save arguments */
 	if (Arguments != NULL
-		&& Arguments->Length != 0) {
+		&& MStringSize(Arguments) != 0) {
 		Process->Arguments = PathCopy;
 		MStringAppendChar(Process->Arguments, ' ');
 		MStringAppendString(Process->Arguments, Arguments);
@@ -178,7 +178,7 @@ ProcId_t PmCreateProcess(MString_t *Path, MString_t *Arguments)
 	ListAppend(GlbProcesses, ListCreateNode(Key, Key, Process));
 
 	/* Create the loader thread */
-	ThreadingCreateThread(Process->Name->Data, PmStartProcess, Process, THREADING_USERMODE);
+	ThreadingCreateThread((char*)MStringRaw(Process->Name), PmStartProcess, Process, THREADING_USERMODE);
 
 	/* Done */
 	return Process->Id;
@@ -336,10 +336,10 @@ int PmQueryProcess(MCoreProcess_t *Process,
 		case ProcessQueryName:
 		{
 			/* Never copy more data than user can contain */
-			size_t BytesToCopy = MIN(Process->Name->Length, Length);
+			size_t BytesToCopy = MIN(MStringSize(Process->Name), Length);
 
 			/* Cooopy */
-			memcpy(Buffer, Process->Name->Data, BytesToCopy);
+			memcpy(Buffer, MStringRaw(Process->Name), BytesToCopy);
 
 		} break;
 

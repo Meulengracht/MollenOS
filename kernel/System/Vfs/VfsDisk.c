@@ -79,8 +79,8 @@ void VfsInstallFileSystem(MCoreFileSystem_t *Fs)
 		LogInformation("VFSM", "Boot Drive Detected, Running Init");
 
 		/* Append init path */
-		MString_t *Path = MStringCreate(Fs->Identifier->Data, StrUTF8);
-		MStringAppendChars(Path, FILESYSTEM_INIT);
+		MString_t *Path = MStringCreate((void*)MStringRaw(Fs->Identifier), StrUTF8);
+		MStringAppendCharacters(Path, FILESYSTEM_INIT, StrUTF8);
 
 		/* Create Request */
 		ProcRequest->Base.Type = ProcessSpawn;

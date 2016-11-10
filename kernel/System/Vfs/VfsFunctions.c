@@ -189,7 +189,7 @@ void VfsOpenInternal(MCoreFileInstance_t *Instance, MString_t *Path, VfsFileFlag
 				fHandle->Hash = PathHash;
 
 				/* Copy path */
-				fHandle->Path = MStringCreate(Path->Data, StrUTF8);
+				fHandle->Path = MStringCreate((void*)MStringRaw(Path), StrUTF8);
 
 				/* Create handle */
 				VfsOpenHandleInternal(Fs, Instance, fHandle, OpenFlags);

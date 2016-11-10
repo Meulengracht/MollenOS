@@ -99,7 +99,7 @@ int PmEventHandler(void *UserData, MCoreEvent_t *Event)
 	case ProcessSpawn:
 	{
 		/* Deep Call */
-		LogInformation("PROC", "Spawning %s", Request->Path->Data);
+		LogInformation("PROC", "Spawning %s", MStringRaw(Request->Path));
 		Request->ProcessId = PmCreateProcess(Request->Path, Request->Arguments);
 
 		/* Sanity */
