@@ -477,9 +477,6 @@
     <ClCompile Include="..\src\os\MString\MStringDestroy.c">
       <Filter>Source\os\MString</Filter>
     </ClCompile>
-    <ClCompile Include="..\src\os\MString\MString.c">
-      <Filter>Source\os\MString</Filter>
-    </ClCompile>
     <ClCompile Include="..\src\os\MString\MStringAppend.c">
       <Filter>Source\os\MString</Filter>
     </ClCompile>
@@ -505,6 +502,15 @@
       <Filter>Source\os\MString</Filter>
     </ClCompile>
     <ClCompile Include="..\src\os\MString\MStringRaw.c">
+      <Filter>Source\os\MString</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\os\MString\MStringCompare.c">
+      <Filter>Source\os\MString</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\os\MString\MStringMisc.c">
+      <Filter>Source\os\MString</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\os\MString\MStringSubString.c">
       <Filter>Source\os\MString</Filter>
     </ClCompile>
   </ItemGroup>

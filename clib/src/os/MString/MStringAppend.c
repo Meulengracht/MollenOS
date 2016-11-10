@@ -51,6 +51,36 @@ void MStringAppendString(MString_t *Destination, MString_t *String)
 	Destination->Length = NewLength;
 }
 
+/* Append Character to a given string 
+ * the character is assumed to be either 
+ * ASCII, UTF16 or UTF32 and NOT utf8 */
+void MStringAppendCharacter(MString_t *String, mchar_t Character)
+{
+	/* Variables needed for addition */
+	size_t NewLength = String->Length + Utf8ByteSizeOfCharacterInUtf8(Character);
+	uint8_t *BufPtr = NULL;
+	size_t cLen = 0;
+	int Itr = 0;
+
+	/* Sanitize the length of our storage */ 
+	if (NewLength >= String->MaxLength) {
+		MStringResize(String, NewLength);
+	}
+
+	/* Cast */
+	BufPtr = (uint8_t*)String->Data;
+	Itr = String->Length;
+
+	/* Append */
+	Utf8ConvertCharacterToUtf8(Character, (void*)&BufPtr[Itr], &cLen);
+
+	/* Null-terminate */
+	BufPtr[Itr + cLen] = '\0';
+
+	/* Done? */
+	String->Length += cLen;
+}
+
 /* Appends raw string data to a 
  * given mstring, you must indicate what format
  * the raw string is of so it converts correctly. */

@@ -35,8 +35,9 @@
     <ClCompile Include="..\src\os\Environment.c" />
     <ClCompile Include="..\src\os\Exceptions.c" />
     <ClCompile Include="..\src\os\Malloc.c" />
-    <ClCompile Include="..\src\os\MString\MString.c" />
+    <ClCompile Include="..\src\os\MString\MStringMisc.c" />
     <ClCompile Include="..\src\os\MString\MStringAppend.c" />
+    <ClCompile Include="..\src\os\MString\MStringCompare.c" />
     <ClCompile Include="..\src\os\MString\MStringCopy.c" />
     <ClCompile Include="..\src\os\MString\MStringCreate.c" />
     <ClCompile Include="..\src\os\MString\MStringDestroy.c" />
@@ -47,6 +48,7 @@
     <ClCompile Include="..\src\os\MString\MStringPrint.c" />
     <ClCompile Include="..\src\os\MString\MStringRaw.c" />
     <ClCompile Include="..\src\os\MString\MStringResize.c" />
+    <ClCompile Include="..\src\os\MString\MStringSubString.c" />
     <ClCompile Include="..\src\os\MString\MStringUtf8.c" />
     <ClCompile Include="..\src\os\Mutex.c" />
     <ClCompile Include="..\src\os\Process.c" />

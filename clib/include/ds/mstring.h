@@ -91,9 +91,9 @@ _CRT_EXTERN void MStringDestroy(MString_t *String);
 _CRT_EXTERN void MStringCopy(MString_t *Destination, MString_t *Source, int Length);
 
 /* Append Character to a given string 
- * the character is assumed to be either ASCII, UTF16 or UTF32
- * and NOT utf8 */
-_CRT_EXTERN void MStringAppendChar(MString_t *String, mchar_t Character);
+ * the character is assumed to be either 
+ * ASCII, UTF16 or UTF32 and NOT utf8 */
+_CRT_EXTERN void MStringAppendCharacter(MString_t *String, mchar_t Character);
 
 /* Appends raw string data to a 
  * given mstring, you must indicate what format

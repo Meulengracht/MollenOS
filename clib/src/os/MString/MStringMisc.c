@@ -23,51 +23,6 @@
  * - System */
 #include "MStringPrivate.h"
 
-/* Append Character to a given string 
- * the character is assumed to be either ASCII, UTF16 or UTF32
- * and NOT utf8 */
-void MStringAppendChar(MString_t *String, mchar_t Character)
-{
-	/* Vars */
-	uint8_t *BufPtr = NULL;
-	uint32_t cLen = 0;
-	int Itr = 0;
-
-	/* Sanity */ 
-	if ((String->Length + Utf8ByteSizeOfCharacterInUtf8(Character)) >= String->MaxLength)
-	{
-		/* Expand */
-		void *nDataBuffer = dsalloc(String->MaxLength + MSTRING_BLOCK_SIZE);
-		memset(nDataBuffer, 0, String->MaxLength + MSTRING_BLOCK_SIZE);
-
-		/* Copy old data over */
-		memcpy(nDataBuffer, String->Data, String->Length);
-
-		/* Free */
-		dsfree(String->Data);
-
-		/* Set new */
-		String->MaxLength += MSTRING_BLOCK_SIZE;
-		String->Data = nDataBuffer;
-	}
-
-	/* Cast */
-	BufPtr = (uint8_t*)String->Data;
-
-	/* Loop to end of string */
-	while (BufPtr[Itr])
-		Itr++;
-
-	/* Append */
-	Utf8ConvertCharacterToUtf8(Character, (void*)&BufPtr[Itr], &cLen);
-
-	/* Null-terminate */
-	BufPtr[Itr + cLen] = '\0';
-
-	/* Done? */
-	String->Length += cLen;
-}
-
 /* Find first occurence of the given UTF8 string
  * in the given string. This does not accept UTF16 or UTF32.
  * returns the index if found, otherwise MSTRING_NOT_FOUND */
@@ -127,102 +82,6 @@ int MStringFindChars(MString_t *String, const char *Chars)
 
 	/* No entry */
 	return MSTRING_NOT_FOUND;
-}
-
-/* Substring - build substring from the given mstring
- * starting at Index with the Length. If the length is -1
- * it takes the rest of string */
-MString_t *MStringSubString(MString_t *String, int Index, int Length)
-{
-	/* Sanity */
-	if (String->Data == NULL
-		|| String->Length == 0)
-		return NULL;
-
-	/* More Sanity */
-	if (Index > (int)String->Length
-		|| ((((Index + Length) > (int)String->Length)) && Length != -1))
-		return NULL;
-
-	/* Vars */
-	int cIndex = 0, i = 0, lasti = 0;
-	char *DataPtr = (char*)String->Data;
-	size_t DataLength = 0;
-
-	/* Count size */
-	while (DataPtr[i]) {
-
-		/* Save position */
-		lasti = i;
-
-		/* Get next */
-		Utf8GetNextCharacterInString(DataPtr, &i);
-
-		/* Sanity */
-		if (cIndex >= Index
-			&& ((cIndex < (Index + Length))
-				|| Length == -1))
-		{
-			/* Lets count */
-			DataLength += (i - lasti);
-		}
-
-		/* Increase */
-		cIndex++;
-	}
-
-	/* Increase for null terminator */
-	DataLength++;
-
-	/* Allocate */
-	MString_t *SubString = (MString_t*)dsalloc(sizeof(MString_t));
-
-	/* Calculate Length */
-	size_t BlockCount = (DataLength / MSTRING_BLOCK_SIZE) + 1;
-
-	/* Set */
-	SubString->Data = dsalloc(BlockCount * MSTRING_BLOCK_SIZE);
-	SubString->Length = DataLength;
-	SubString->MaxLength = BlockCount * MSTRING_BLOCK_SIZE;
-
-	/* Zero it */
-	memset(SubString->Data, 0, BlockCount * MSTRING_BLOCK_SIZE);
-
-	/* Now, iterate again, but copy data over */
-	void *NewDataPtr = SubString->Data;
-	i = 0;
-	lasti = 0;
-	cIndex = 0;
-
-	while (DataPtr[i]) {
-
-		/* Save position */
-		lasti = i;
-
-		/* Get next */
-		mchar_t CharIndex =
-			Utf8GetNextCharacterInString(DataPtr, &i);
-
-		/* Sanity */
-		if (cIndex >= Index
-			&& ((cIndex < (Index + Length))
-			|| Length == -1))
-		{
-			/* Lets copy */
-			memcpy(NewDataPtr, (void*)&CharIndex, (i - lasti));
-			
-			/* Advance pointer */
-			size_t DataPtrAddr = (size_t)NewDataPtr;
-			DataPtrAddr += (i - lasti);
-			NewDataPtr = (void*)DataPtrAddr;
-		}
-
-		/* Increase */
-		cIndex++;
-	}
-
-	/* Done! */
-	return SubString;
 }
 
 /* Replace string occurences,
@@ -300,21 +159,8 @@ void MStringReplace(MString_t *String, const char *Old, const char *New)
 	NewLen = strlen((const char*)TempPtr);
 
 	/* Sanity */
-	if (NewLen > String->MaxLength)
-	{
-		/* Calculate new alloc size */
-		uint32_t BlockCount = (NewLen / MSTRING_BLOCK_SIZE) + 1;
-
-		/* Expand */
-		void *nDataBuffer = dsalloc(BlockCount * MSTRING_BLOCK_SIZE);
-		memset(nDataBuffer, 0, BlockCount * MSTRING_BLOCK_SIZE);
-
-		/* Free */
-		dsfree(String->Data);
-
-		/* Set new */
-		String->MaxLength = BlockCount * MSTRING_BLOCK_SIZE;
-		String->Data = nDataBuffer;
+	if (NewLen > String->MaxLength) {
+		MStringResize(String, NewLen);
 	}
 
 	/* Copy over */
@@ -323,58 +169,6 @@ void MStringReplace(MString_t *String, const char *Old, const char *New)
 
 	/* Free */
 	dsfree(TempPtr);
-}
-
-/* Compare two strings with either case-ignore or not. 
- * Returns MSTRING_FULL_MATCH if they are equal, or
- * MSTRING_PARTIAL_MATCH if they contain same text 
- * but one of the strings are longer. Returns MSTRING_NO_MATCH
- * if not match */
-int MStringCompare(MString_t *String1, MString_t *String2, int IgnoreCase)
-{
-	/* If ignore case we use IsAlpha on their asses and then tolower */
-	/* Loop vars */
-	char *DataPtr1 = (char*)String1->Data;
-	char *DataPtr2 = (char*)String2->Data;
-	int i1 = 0, i2 = 0;
-
-	/* Iterate */
-	while (DataPtr1[i1]
-		&& DataPtr2[i2])
-	{
-		/* Get characters */
-		mchar_t First =
-			Utf8GetNextCharacterInString(DataPtr1, &i1);
-		mchar_t Second =
-			Utf8GetNextCharacterInString(DataPtr2, &i2);
-
-		/* Ignore case? - Only on ASCII alpha-chars */
-		if (IgnoreCase)
-		{
-			/* Sanity */
-			if (First < 0x80
-				&& isalpha(First))
-				First = tolower((uint8_t)First);
-			if (Second < 0x80
-				&& isalpha(Second))
-				Second = tolower((uint8_t)Second);
-		}
-
-		/* Lets see */
-		if (First != Second)
-			return MSTRING_NO_MATCH;
-	}
-
-	/* Sanity */
-	if (DataPtr1[i1] != DataPtr2[i2])
-		return MSTRING_NO_MATCH;
-
-	/* Sanity - Length */
-	if (strlen(String1->Data) != strlen(String2->Data))
-		return MSTRING_PARTIAL_MATCH;
-
-	/* Done - Equal */
-	return MSTRING_FULL_MATCH;
 }
 
 /* Converts mstring-data to ASCII, if a character is non-ascii
