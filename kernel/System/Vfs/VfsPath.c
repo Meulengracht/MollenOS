@@ -137,7 +137,7 @@ MString_t *VfsCanonicalizePath(VfsEnvironmentPath_t Base, const char *Path)
 
 			/* Make sure the path ends on a '/' */
 			if (MStringGetCharAt(AbsPath, MStringLength(AbsPath) - 1) != '/')
-				MStringAppendChar(AbsPath, '/');
+				MStringAppendCharacter(AbsPath, '/');
 		}
 	}
 
@@ -216,9 +216,9 @@ MString_t *VfsCanonicalizePath(VfsEnvironmentPath_t Base, const char *Path)
 		{
 			/* Copy over */
 			if (Path[Itr] == '\\')
-				MStringAppendChar(AbsPath, '/');
+				MStringAppendCharacter(AbsPath, '/');
 			else
-				MStringAppendChar(AbsPath, Path[Itr]);
+				MStringAppendCharacter(AbsPath, Path[Itr]);
 		}
 
 		/* Increase */

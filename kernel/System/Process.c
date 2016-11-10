@@ -167,7 +167,7 @@ ProcId_t PmCreateProcess(MString_t *Path, MString_t *Arguments)
 	if (Arguments != NULL
 		&& MStringSize(Arguments) != 0) {
 		Process->Arguments = PathCopy;
-		MStringAppendChar(Process->Arguments, ' ');
+		MStringAppendCharacter(Process->Arguments, ' ');
 		MStringAppendString(Process->Arguments, Arguments);
 	}
 	else

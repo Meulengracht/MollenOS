@@ -945,7 +945,7 @@ void Terminal::RenderText(int AtX, int AtY, const char *Text)
 	while (true) 
 	{
 		/* Get next character of text-string */
-		uint16_t Character = (uint16_t)MStringGetCharAt(mText, ItrLength); //MStringIterate(mText, &mItr, &ItrLength);
+		uint16_t Character = (uint16_t)MStringIterate(mText, &mItr, &ItrLength);
 		MollenOSSystemLog("TERM::Render(%c - 0x%x)", (char)Character, Character);
 		if (Character == UNICODE_BOM_NATIVE 
 			|| Character == UNICODE_BOM_SWAPPED) {
