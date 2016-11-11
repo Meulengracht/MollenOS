@@ -598,7 +598,7 @@ void Terminal::AddText(char *Message, ...)
 	}
 
 	/* Invalidate surface */
-	//m_pSurface->Invalidate(0, 0, -1, -1);
+	m_pSurface->Invalidate(0, 0, -1, -1);
 }
 
 /* Shorthand for the above function, instead of 
@@ -945,8 +945,7 @@ void Terminal::RenderText(int AtX, int AtY, const char *Text)
 	while (true) 
 	{
 		/* Get next character of text-string */
-		uint16_t Character = (uint16_t)MStringIterate(mText, &mItr, &ItrLength);
-		MollenOSSystemLog("TERM::Render(%c - 0x%x)", (char)Character, Character);
+		uint16_t Character = (uint16_t)MStringGetCharAt(mText, ItrLength++);//;MStringIterate(mText, &mItr, &ItrLength);
 		if (Character == UNICODE_BOM_NATIVE 
 			|| Character == UNICODE_BOM_SWAPPED) {
 			continue;
@@ -957,14 +956,11 @@ void Terminal::RenderText(int AtX, int AtY, const char *Text)
 			break;
 		}
 
-		/* Inc */
-		ItrLength++;
-
 		/* Lookup glyph for the character, if we have none, 
 		 * we bail! */
 		Error = FindGlyph(m_pActiveFont, Character, CACHED_METRICS | CACHED_BITMAP);
 		if (Error) {
-			return;
+			break;
 		}
 
 		/* Shorthand some stuff */
@@ -1043,8 +1039,6 @@ void Terminal::RenderText(int AtX, int AtY, const char *Text)
 
 	/* Cleanup */
 	MStringDestroy(mText);
-
-	for (;;);
 }
 
 /* This cleans up a stored glyph and 
