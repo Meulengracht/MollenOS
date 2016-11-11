@@ -89,8 +89,8 @@ DeviceErrorMessage_t MfsReadSectors(MCoreFileSystem_t *Fs, uint64_t Sector, void
 }
 
 /* Write Sectors Wrapper
-* This makes sure to wrap our write requests
-* into maximum allowed blocks */
+ * This makes sure to wrap our write requests
+ * into maximum allowed blocks */
 DeviceErrorMessage_t MfsWriteSectors(MCoreFileSystem_t *Fs, uint64_t Sector, void *Buffer, size_t Count)
 {
 	/* Sanity */
@@ -484,33 +484,43 @@ Done:
  * mfs-entry in a directory-path */
 MfsFile_t *MfsLocateEntry(MCoreFileSystem_t *Fs, uint32_t DirBucket, MString_t *Path, VfsErrorCode_t *ErrCode)
 {
-	/* Vars */
+	/* Variables needed for iteration
+	 * of the given bucket, this is a recursive function */
+	int StrIndex = MSTRING_NOT_FOUND, IsEndOfFolder = 0, IsEndOfPath = 0;
 	MfsData_t *mData = (MfsData_t*)Fs->ExtendedData;
 	uint32_t CurrentBucket = DirBucket;
-	int IsEnd = 0;
-	uint32_t i;
-
-	/* Get token */
-	int IsEndOfPath = 0;
+	void *EntryBuffer = NULL;
 	MString_t *Token = NULL;
-	int StrIndex = MStringFind(Path, (uint32_t)'/');
-	if (StrIndex == -1
-		|| StrIndex == (int)(MStringLength(Path) - 1))
-	{
-		/* Set end, and token as rest of path */
+	size_t i;
+
+	/* Step 1 is to extract the next token we 
+	 * searching for in this directory 
+	 * we do also detect if that is the last token */
+	StrIndex = MStringFind(Path, '/');
+
+	/* So, if StrIndex is MSTRING_NOT_FOUND now, we 
+	 * can pretty much assume this was the last token 
+	 * unless that StrIndex == Last character */
+	if (StrIndex == MSTRING_NOT_FOUND
+		|| StrIndex == (int)(MStringLength(Path) - 1)) {
 		IsEndOfPath = 1;
 		Token = Path;
 	}
-	else
+	else {
 		Token = MStringSubString(Path, 0, StrIndex);
+	}
 
 	/* Allocate buffer for data */
-	void *EntryBuffer = kmalloc(mData->BucketSize * Fs->SectorSize);
+	EntryBuffer = kmalloc(mData->BucketSize * Fs->SectorSize);
 	 
 	/* Let's iterate */
-	while (!IsEnd)
+	while (!IsEndOfFolder)
 	{
-		/* Load bucket */
+		/* Our entry iterator */
+		MfsTableEntry_t *Entry = NULL;
+
+		/* The first thing we do each loop is to load 
+		 * the next bucket of this directory */
 		if (MfsReadSectors(Fs, mData->BucketSize * CurrentBucket, 
 			EntryBuffer, mData->BucketSize) != RequestNoError)
 		{
@@ -520,19 +530,20 @@ MfsFile_t *MfsLocateEntry(MCoreFileSystem_t *Fs, uint32_t DirBucket, MString_t *
 		}
 
 		/* Iterate buffer */
-		MfsTableEntry_t *Entry = (MfsTableEntry_t*)EntryBuffer;
+		Entry = (MfsTableEntry_t*)EntryBuffer;
 		for (i = 0; i < (mData->BucketSize / 2); i++)
 		{
-			/* Sanity, end of table */
-			if (Entry->Status == MFS_STATUS_END)
-			{
-				IsEnd = 1;
+			/* Sanity, end of table? 
+			 * If it's end, we break out of this totally */
+			if (Entry->Status == MFS_STATUS_END) {
+				IsEndOfFolder = 1;
 				break;
 			}
 
-			/* Sanity, deleted entry? */
-			if (Entry->Status == MFS_STATUS_DELETED) 
-			{
+			/* Sanity, deleted entry? 
+			 * In case of a deleted entry we don't break
+			 * we simply just skip it */
+			if (Entry->Status == MFS_STATUS_DELETED) {
 				/* Go on to next */
 				Entry++;
 				continue;
@@ -543,7 +554,7 @@ MfsFile_t *MfsLocateEntry(MCoreFileSystem_t *Fs, uint32_t DirBucket, MString_t *
 
 			/* If we find a match, and we are at end 
 			 * we are done. Otherwise, go deeper */
-			if (MStringCompare(Token, NodeName, 1))
+			if (MStringCompare(Token, NodeName, 1) != MSTRING_NO_MATCH)
 			{
 				/* Match */
 				if (!IsEndOfPath)
@@ -626,14 +637,14 @@ MfsFile_t *MfsLocateEntry(MCoreFileSystem_t *Fs, uint32_t DirBucket, MString_t *
 		}
 
 		/* Get next bucket */
-		if (!IsEnd)
+		if (!IsEndOfFolder)
 		{
 			uint32_t Unused = 0;
 			if (MfsGetNextBucket(Fs, CurrentBucket, &CurrentBucket, &Unused))
-				IsEnd = 1;
+				IsEndOfFolder = 1;
 
 			if (CurrentBucket == MFS_END_OF_CHAIN)
-				IsEnd = 1;
+				IsEndOfFolder = 1;
 		}
 	}
 

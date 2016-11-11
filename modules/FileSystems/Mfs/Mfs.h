@@ -212,9 +212,9 @@ typedef struct _MfsData
 	uint64_t MbMirrorSector;
 
 	/* Information */
-	uint32_t BucketSize;
-	uint32_t Flags;
-	uint32_t Version;
+	size_t BucketSize;
+	Flags_t Flags;
+	int Version;
 
 	uint64_t BucketCount;
 	uint64_t BucketMapSize;
@@ -229,7 +229,7 @@ typedef struct _MfsData
 
 	/* Bucket Buffer */
 	void *BucketBuffer;
-	uint32_t BucketBufferOffset;
+	size_t BucketBufferOffset;
 
 } MfsData_t;
 #pragma pack(pop)

@@ -117,7 +117,7 @@ MString_t *VfsCanonicalizePath(VfsEnvironmentPath_t Base, const char *Path)
 	uint32_t Itr = 0;
 
 	/* Start by copying cwd over
-	* if Path is not absolute or specifier */
+	 * if Path is not absolute or specifier */
 	if (strchr(Path, ':') == NULL
 		&& strchr(Path, '%') == NULL)
 	{

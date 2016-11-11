@@ -208,7 +208,7 @@ size_t Utf8CharacterCountInString(const char *Str)
 	}
 
 	/* Keep iterating untill end */
-	while (Utf8GetNextCharacterInString(Str, &Index) != 0) {
+	while (Utf8GetNextCharacterInString(Str, &Index) != MSTRING_EOS) {
 		Length++;
 	}
 
