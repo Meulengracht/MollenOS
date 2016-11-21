@@ -15,68 +15,66 @@
 ; along with this program.  If not, see <http://www.gnu.org/licenses/>.
 ;
 ;
-; MollenOS x86-32 Math EXP2
+; MollenOS x86-32 Math SCALBN
 
 bits 32
 segment .text
 
 ;Functions in this asm
-global _exp2l
+global _scalbn
+global _scalbnf
+global _scalbnl
 
-; long double __cdecl exp2(long double)
-; Take the exponential exp 2
-_exp2l:
-    ; Stack Frame
+; The math scale
+_scalbn:
+	; Stack Frame
 	push    ebp
 	mov     ebp, esp
 
-	fld		qword [ebp + 8]
-
-	; Is NaN or +-Inf?
-	fxam
-	fstsw	ax
-	fwait
-	mov		dh, 0x45
-	and		dh, ah
-	cmp		dh, 0x05
-
-	; Is +-Inf, jump.
-	je		t1
-	fld		st0
-
-	; int(x)
-	frndint
-
-	; fract(x)
-	fsubr	st1, st0
-	fxch
-
-	; 2^(fract(x)) - 1
-	f2xm1
-	fld1
-
-	;  2^(fract(x))
-	faddp
-
-	; e^x
+	; Load real from stack
+	fild    dword [ebp + 16]
+	fld     qword [ebp + 8]
 	fscale
+	
+	; Store result
 	fstp	st1
 	
 	; Unwind & return
 	pop     ebp
 	ret
+
+; The math scale float
+_scalbnf:
+	; Stack Frame
+	push    ebp
+	mov     ebp, esp
+
+	; Load real from stack
+	fild    dword [ebp + 12]
+	fld     dword [ebp + 8]
+	fscale
 	
-t1:
-	; Test sign.
-	test	eax, 0x200
+	; Store result
+	fstp	st1
+	
+	; Unwind & return
+	pop     ebp
+	ret
 
-	; If positive, jump.
-	jz		t2
-	fstp	st0
+; The math scale long double
+_scalbnl:
+	; Stack Frame
+	push    ebp
+	mov     ebp, esp
 
-	; Set result to 0.
-	fldz
-t2:
+	; Load real from stack
+	fild    dword [ebp + 20]
+	fld     tword [ebp + 8]
+	fscale
+	
+	; Store result
+	fstp	st1
+	
 	; Unwind & return
 	pop     ebp
 	ret

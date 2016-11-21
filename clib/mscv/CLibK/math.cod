@@ -19,24 +19,68 @@ PUBLIC	___signbit
 PUBLIC	___signbitf
 PUBLIC	___signbitl
 PUBLIC	__CItan
+PUBLIC	__CIsinh
 PUBLIC	__CIcosh
+PUBLIC	__CItanh
+PUBLIC	__CIasin
+PUBLIC	__CIacos
 PUBLIC	__CIatan
 PUBLIC	__CIatan2
 PUBLIC	__CIexp
 PUBLIC	__CIlog10
+PUBLIC	__CIfmod
+PUBLIC	__CIpow
 PUBLIC	__CIcos
 PUBLIC	__CIlog
 PUBLIC	__CIsin
+PUBLIC	__CIsqrt
+EXTRN	__CIacos:PROC
+EXTRN	__CIasin:PROC
 EXTRN	__CIatan:PROC
 EXTRN	__CIatan2:PROC
 EXTRN	__CIcos:PROC
 EXTRN	__CIcosh:PROC
 EXTRN	__CIexp:PROC
+EXTRN	__CIfmod:PROC
 EXTRN	__CIlog:PROC
 EXTRN	__CIlog10:PROC
+EXTRN	__CIpow:PROC
 EXTRN	__CIsin:PROC
+EXTRN	__CIsinh:PROC
+EXTRN	__CIsqrt:PROC
 EXTRN	__CItan:PROC
+EXTRN	__CItanh:PROC
 EXTRN	__fltused:DWORD
+; Function compile flags: /Ogtp
+; File c:\users\philip\documents\github\mollenos\clib\crt\msvc\math.c
+;	COMDAT __CIsqrt
+_TEXT	SEGMENT
+_x$ = -8						; size = 8
+__CIsqrt PROC						; COMDAT
+
+; 150  : {
+
+  00000	55		 push	 ebp
+  00001	8b ec		 mov	 ebp, esp
+  00003	83 ec 08	 sub	 esp, 8
+
+; 151  : 	FPU_DOUBLE(x);
+
+  00006	dd 5d f8	 fstp	 QWORD PTR _x$[ebp]
+  00009	9b		 fwait
+
+; 152  : 	return sqrt(x);
+
+  0000a	dd 45 f8	 fld	 QWORD PTR _x$[ebp]
+  0000d	e8 00 00 00 00	 call	 __CIsqrt
+
+; 153  : }
+
+  00012	8b e5		 mov	 esp, ebp
+  00014	5d		 pop	 ebp
+  00015	c3		 ret	 0
+__CIsqrt ENDP
+_TEXT	ENDS
 ; Function compile flags: /Ogtp
 ; File c:\users\philip\documents\github\mollenos\clib\crt\msvc\math.c
 ;	COMDAT __CIsin
@@ -44,23 +88,23 @@ _TEXT	SEGMENT
 _x$ = -8						; size = 8
 __CIsin	PROC						; COMDAT
 
-; 85   : {
+; 141  : {
 
   00000	55		 push	 ebp
   00001	8b ec		 mov	 ebp, esp
   00003	83 ec 08	 sub	 esp, 8
 
-; 86   : 	FPU_DOUBLE(x);
+; 142  : 	FPU_DOUBLE(x);
 
   00006	dd 5d f8	 fstp	 QWORD PTR _x$[ebp]
   00009	9b		 fwait
 
-; 87   : 	return sin(x);
+; 143  : 	return sin(x);
 
   0000a	dd 45 f8	 fld	 QWORD PTR _x$[ebp]
   0000d	e8 00 00 00 00	 call	 __CIsin
 
-; 88   : }
+; 144  : }
 
   00012	8b e5		 mov	 esp, ebp
   00014	5d		 pop	 ebp
@@ -74,23 +118,23 @@ _TEXT	SEGMENT
 _x$ = -8						; size = 8
 __CIlog	PROC						; COMDAT
 
-; 76   : {
+; 132  : {
 
   00000	55		 push	 ebp
   00001	8b ec		 mov	 ebp, esp
   00003	83 ec 08	 sub	 esp, 8
 
-; 77   : 	FPU_DOUBLE(x);
+; 133  : 	FPU_DOUBLE(x);
 
   00006	dd 5d f8	 fstp	 QWORD PTR _x$[ebp]
   00009	9b		 fwait
 
-; 78   : 	return log(x);
+; 134  : 	return log(x);
 
   0000a	dd 45 f8	 fld	 QWORD PTR _x$[ebp]
   0000d	e8 00 00 00 00	 call	 __CIlog
 
-; 79   : }
+; 135  : }
 
   00012	8b e5		 mov	 esp, ebp
   00014	5d		 pop	 ebp
@@ -104,23 +148,23 @@ _TEXT	SEGMENT
 _x$ = -8						; size = 8
 __CIcos	PROC						; COMDAT
 
-; 67   : {
+; 123  : {
 
   00000	55		 push	 ebp
   00001	8b ec		 mov	 ebp, esp
   00003	83 ec 08	 sub	 esp, 8
 
-; 68   : 	FPU_DOUBLE(x);
+; 124  : 	FPU_DOUBLE(x);
 
   00006	dd 5d f8	 fstp	 QWORD PTR _x$[ebp]
   00009	9b		 fwait
 
-; 69   : 	return cos(x);
+; 125  : 	return cos(x);
 
   0000a	dd 45 f8	 fld	 QWORD PTR _x$[ebp]
   0000d	e8 00 00 00 00	 call	 __CIcos
 
-; 70   : }
+; 126  : }
 
   00012	8b e5		 mov	 esp, ebp
   00014	5d		 pop	 ebp
@@ -129,28 +173,96 @@ __CIcos	ENDP
 _TEXT	ENDS
 ; Function compile flags: /Ogtp
 ; File c:\users\philip\documents\github\mollenos\clib\crt\msvc\math.c
+;	COMDAT __CIpow
+_TEXT	SEGMENT
+_x$ = -16						; size = 8
+_y$ = -8						; size = 8
+__CIpow	PROC						; COMDAT
+
+; 114  : {
+
+  00000	55		 push	 ebp
+  00001	8b ec		 mov	 ebp, esp
+  00003	83 ec 10	 sub	 esp, 16			; 00000010H
+
+; 115  : 	FPU_DOUBLES(x, y);
+
+  00006	dd 5d f0	 fstp	 QWORD PTR _x$[ebp]
+  00009	9b		 fwait
+  0000a	dd 5d f8	 fstp	 QWORD PTR _y$[ebp]
+  0000d	9b		 fwait
+
+; 116  : 	return pow(x, y);
+
+  0000e	dd 45 f0	 fld	 QWORD PTR _x$[ebp]
+  00011	dd 45 f8	 fld	 QWORD PTR _y$[ebp]
+  00014	e8 00 00 00 00	 call	 __CIpow
+
+; 117  : }
+
+  00019	8b e5		 mov	 esp, ebp
+  0001b	5d		 pop	 ebp
+  0001c	c3		 ret	 0
+__CIpow	ENDP
+_TEXT	ENDS
+; Function compile flags: /Ogtp
+; File c:\users\philip\documents\github\mollenos\clib\crt\msvc\math.c
+;	COMDAT __CIfmod
+_TEXT	SEGMENT
+_x$ = -16						; size = 8
+_y$ = -8						; size = 8
+__CIfmod PROC						; COMDAT
+
+; 103  : {
+
+  00000	55		 push	 ebp
+  00001	8b ec		 mov	 ebp, esp
+  00003	83 ec 10	 sub	 esp, 16			; 00000010H
+
+; 104  : 	FPU_DOUBLES(x, y);
+
+  00006	dd 5d f0	 fstp	 QWORD PTR _x$[ebp]
+  00009	9b		 fwait
+  0000a	dd 5d f8	 fstp	 QWORD PTR _y$[ebp]
+  0000d	9b		 fwait
+
+; 105  : 	return fmod(x, y);
+
+  0000e	dd 45 f0	 fld	 QWORD PTR _x$[ebp]
+  00011	dd 45 f8	 fld	 QWORD PTR _y$[ebp]
+  00014	e8 00 00 00 00	 call	 __CIfmod
+
+; 106  : }
+
+  00019	8b e5		 mov	 esp, ebp
+  0001b	5d		 pop	 ebp
+  0001c	c3		 ret	 0
+__CIfmod ENDP
+_TEXT	ENDS
+; Function compile flags: /Ogtp
+; File c:\users\philip\documents\github\mollenos\clib\crt\msvc\math.c
 ;	COMDAT __CIlog10
 _TEXT	SEGMENT
 _x$ = -8						; size = 8
 __CIlog10 PROC						; COMDAT
 
-; 58   : {
+; 94   : {
 
   00000	55		 push	 ebp
   00001	8b ec		 mov	 ebp, esp
   00003	83 ec 08	 sub	 esp, 8
 
-; 59   : 	FPU_DOUBLE(x);
+; 95   : 	FPU_DOUBLE(x);
 
   00006	dd 5d f8	 fstp	 QWORD PTR _x$[ebp]
   00009	9b		 fwait
 
-; 60   : 	return log10(x);
+; 96   : 	return log10(x);
 
   0000a	dd 45 f8	 fld	 QWORD PTR _x$[ebp]
   0000d	e8 00 00 00 00	 call	 __CIlog10
 
-; 61   : }
+; 97   : }
 
   00012	8b e5		 mov	 esp, ebp
   00014	5d		 pop	 ebp
@@ -164,23 +276,23 @@ _TEXT	SEGMENT
 _x$ = -8						; size = 8
 __CIexp	PROC						; COMDAT
 
-; 49   : {
+; 85   : {
 
   00000	55		 push	 ebp
   00001	8b ec		 mov	 ebp, esp
   00003	83 ec 08	 sub	 esp, 8
 
-; 50   : 	FPU_DOUBLE(x);
+; 86   : 	FPU_DOUBLE(x);
 
   00006	dd 5d f8	 fstp	 QWORD PTR _x$[ebp]
   00009	9b		 fwait
 
-; 51   : 	return exp(x);
+; 87   : 	return exp(x);
 
   0000a	dd 45 f8	 fld	 QWORD PTR _x$[ebp]
   0000d	e8 00 00 00 00	 call	 __CIexp
 
-; 52   : }
+; 88   : }
 
   00012	8b e5		 mov	 esp, ebp
   00014	5d		 pop	 ebp
@@ -191,30 +303,30 @@ _TEXT	ENDS
 ; File c:\users\philip\documents\github\mollenos\clib\crt\msvc\math.c
 ;	COMDAT __CIatan2
 _TEXT	SEGMENT
-_x$ = -16						; size = 8
-_y$ = -8						; size = 8
+_y$ = -16						; size = 8
+_x$ = -8						; size = 8
 __CIatan2 PROC						; COMDAT
 
-; 40   : {
+; 76   : {
 
   00000	55		 push	 ebp
   00001	8b ec		 mov	 ebp, esp
   00003	83 ec 10	 sub	 esp, 16			; 00000010H
 
-; 41   : 	FPU_DOUBLES(x, y);
+; 77   : 	FPU_DOUBLES(y, x);
 
-  00006	dd 5d f0	 fstp	 QWORD PTR _x$[ebp]
+  00006	dd 5d f0	 fstp	 QWORD PTR _y$[ebp]
   00009	9b		 fwait
-  0000a	dd 5d f8	 fstp	 QWORD PTR _y$[ebp]
+  0000a	dd 5d f8	 fstp	 QWORD PTR _x$[ebp]
   0000d	9b		 fwait
 
-; 42   : 	return atan2(x, y);
+; 78   : 	return atan2(y, x);
 
-  0000e	dd 45 f0	 fld	 QWORD PTR _x$[ebp]
-  00011	dd 45 f8	 fld	 QWORD PTR _y$[ebp]
+  0000e	dd 45 f0	 fld	 QWORD PTR _y$[ebp]
+  00011	dd 45 f8	 fld	 QWORD PTR _x$[ebp]
   00014	e8 00 00 00 00	 call	 __CIatan2
 
-; 43   : }
+; 79   : }
 
   00019	8b e5		 mov	 esp, ebp
   0001b	5d		 pop	 ebp
@@ -228,6 +340,126 @@ _TEXT	SEGMENT
 _x$ = -8						; size = 8
 __CIatan PROC						; COMDAT
 
+; 67   : {
+
+  00000	55		 push	 ebp
+  00001	8b ec		 mov	 ebp, esp
+  00003	83 ec 08	 sub	 esp, 8
+
+; 68   : 	FPU_DOUBLE(x);
+
+  00006	dd 5d f8	 fstp	 QWORD PTR _x$[ebp]
+  00009	9b		 fwait
+
+; 69   : 	return atan(x);
+
+  0000a	dd 45 f8	 fld	 QWORD PTR _x$[ebp]
+  0000d	e8 00 00 00 00	 call	 __CIatan
+
+; 70   : }
+
+  00012	8b e5		 mov	 esp, ebp
+  00014	5d		 pop	 ebp
+  00015	c3		 ret	 0
+__CIatan ENDP
+_TEXT	ENDS
+; Function compile flags: /Ogtp
+; File c:\users\philip\documents\github\mollenos\clib\crt\msvc\math.c
+;	COMDAT __CIacos
+_TEXT	SEGMENT
+_x$ = -8						; size = 8
+__CIacos PROC						; COMDAT
+
+; 58   : {
+
+  00000	55		 push	 ebp
+  00001	8b ec		 mov	 ebp, esp
+  00003	83 ec 08	 sub	 esp, 8
+
+; 59   : 	FPU_DOUBLE(x);
+
+  00006	dd 5d f8	 fstp	 QWORD PTR _x$[ebp]
+  00009	9b		 fwait
+
+; 60   : 	return acos(x);
+
+  0000a	dd 45 f8	 fld	 QWORD PTR _x$[ebp]
+  0000d	e8 00 00 00 00	 call	 __CIacos
+
+; 61   : }
+
+  00012	8b e5		 mov	 esp, ebp
+  00014	5d		 pop	 ebp
+  00015	c3		 ret	 0
+__CIacos ENDP
+_TEXT	ENDS
+; Function compile flags: /Ogtp
+; File c:\users\philip\documents\github\mollenos\clib\crt\msvc\math.c
+;	COMDAT __CIasin
+_TEXT	SEGMENT
+_x$ = -8						; size = 8
+__CIasin PROC						; COMDAT
+
+; 49   : {
+
+  00000	55		 push	 ebp
+  00001	8b ec		 mov	 ebp, esp
+  00003	83 ec 08	 sub	 esp, 8
+
+; 50   : 	FPU_DOUBLE(x);
+
+  00006	dd 5d f8	 fstp	 QWORD PTR _x$[ebp]
+  00009	9b		 fwait
+
+; 51   : 	return asin(x);
+
+  0000a	dd 45 f8	 fld	 QWORD PTR _x$[ebp]
+  0000d	e8 00 00 00 00	 call	 __CIasin
+
+; 52   : }
+
+  00012	8b e5		 mov	 esp, ebp
+  00014	5d		 pop	 ebp
+  00015	c3		 ret	 0
+__CIasin ENDP
+_TEXT	ENDS
+; Function compile flags: /Ogtp
+; File c:\users\philip\documents\github\mollenos\clib\crt\msvc\math.c
+;	COMDAT __CItanh
+_TEXT	SEGMENT
+_x$ = -8						; size = 8
+__CItanh PROC						; COMDAT
+
+; 40   : {
+
+  00000	55		 push	 ebp
+  00001	8b ec		 mov	 ebp, esp
+  00003	83 ec 08	 sub	 esp, 8
+
+; 41   : 	FPU_DOUBLE(x);
+
+  00006	dd 5d f8	 fstp	 QWORD PTR _x$[ebp]
+  00009	9b		 fwait
+
+; 42   : 	return tanh(x);
+
+  0000a	dd 45 f8	 fld	 QWORD PTR _x$[ebp]
+  0000d	e8 00 00 00 00	 call	 __CItanh
+
+; 43   : }
+
+  00012	8b e5		 mov	 esp, ebp
+  00014	5d		 pop	 ebp
+  00015	c3		 ret	 0
+__CItanh ENDP
+_TEXT	ENDS
+; Function compile flags: /Ogtp
+; File c:\users\philip\documents\github\mollenos\clib\crt\msvc\math.c
+;	COMDAT __CIcosh
+_TEXT	SEGMENT
+_x$ = -8						; size = 8
+__CIcosh PROC						; COMDAT
+
 ; 31   : {
 
   00000	55		 push	 ebp
@@ -239,24 +471,24 @@ __CIatan PROC						; COMDAT
   00006	dd 5d f8	 fstp	 QWORD PTR _x$[ebp]
   00009	9b		 fwait
 
-; 33   : 	return atan(x);
+; 33   : 	return cosh(x);
 
   0000a	dd 45 f8	 fld	 QWORD PTR _x$[ebp]
-  0000d	e8 00 00 00 00	 call	 __CIatan
+  0000d	e8 00 00 00 00	 call	 __CIcosh
 
 ; 34   : }
 
   00012	8b e5		 mov	 esp, ebp
   00014	5d		 pop	 ebp
   00015	c3		 ret	 0
-__CIatan ENDP
+__CIcosh ENDP
 _TEXT	ENDS
 ; Function compile flags: /Ogtp
 ; File c:\users\philip\documents\github\mollenos\clib\crt\msvc\math.c
-;	COMDAT __CIcosh
+;	COMDAT __CIsinh
 _TEXT	SEGMENT
 _x$ = -8						; size = 8
-__CIcosh PROC						; COMDAT
+__CIsinh PROC						; COMDAT
 
 ; 22   : {
 
@@ -269,17 +501,17 @@ __CIcosh PROC						; COMDAT
   00006	dd 5d f8	 fstp	 QWORD PTR _x$[ebp]
   00009	9b		 fwait
 
-; 24   : 	return cosh(x);
+; 24   : 	return sinh(x);
 
   0000a	dd 45 f8	 fld	 QWORD PTR _x$[ebp]
-  0000d	e8 00 00 00 00	 call	 __CIcosh
+  0000d	e8 00 00 00 00	 call	 __CIsinh
 
 ; 25   : }
 
   00012	8b e5		 mov	 esp, ebp
   00014	5d		 pop	 ebp
   00015	c3		 ret	 0
-__CIcosh ENDP
+__CIsinh ENDP
 _TEXT	ENDS
 ; Function compile flags: /Ogtp
 ; File c:\users\philip\documents\github\mollenos\clib\crt\msvc\math.c
@@ -319,41 +551,41 @@ _stw$ = -4						; size = 2
 _x$ = 8							; size = 8
 ___signbitl PROC					; COMDAT
 
-; 271  : __CRT_INLINE int __cdecl __signbitl(long double x) {
+; 269  : __CRT_INLINE int __cdecl __signbitl(long double x) {
 
   00000	55		 push	 ebp
   00001	8b ec		 mov	 ebp, esp
   00003	51		 push	 ecx
 
-; 272  : 	unsigned short stw;
-; 273  : #if defined(_MSC_VER)
-; 274  : 	_asm {
-; 275  : 		fld [x];
+; 270  : 	unsigned short stw;
+; 271  : #if defined(_MSC_VER)
+; 272  : 	_asm {
+; 273  : 		fld [x];
 
   00004	dd 45 08	 fld	 QWORD PTR _x$[ebp]
 
-; 276  : 		fxam;
+; 274  : 		fxam;
 
   00007	d9 e5		 fxam
 
-; 277  : 		fstsw ax;
+; 275  : 		fstsw ax;
 
   00009	9b df e0	 fstsw	 ax
 
-; 278  : 		mov word ptr[stw], ax;
+; 276  : 		mov word ptr[stw], ax;
 
   0000c	66 89 45 fc	 mov	 WORD PTR _stw$[ebp], ax
 
-; 279  : 	}
-; 280  : #else
-; 281  : 	__asm__ __volatile__("fxam; fstsw %%ax;": "=a" (stw) : "t" (x));
-; 282  : #endif
-; 283  : 	return stw & 0x0200;
+; 277  : 	}
+; 278  : #else
+; 279  : 	__asm__ __volatile__("fxam; fstsw %%ax;": "=a" (stw) : "t" (x));
+; 280  : #endif
+; 281  : 	return stw & 0x0200;
 
   00010	0f b7 45 fc	 movzx	 eax, WORD PTR _stw$[ebp]
   00014	25 00 02 00 00	 and	 eax, 512		; 00000200H
 
-; 284  : }
+; 282  : }
 
   00019	8b e5		 mov	 esp, ebp
   0001b	5d		 pop	 ebp
@@ -368,41 +600,41 @@ _stw$ = -4						; size = 2
 _x$ = 8							; size = 4
 ___signbitf PROC					; COMDAT
 
-; 256  : __CRT_INLINE int __cdecl __signbitf(float x) {
+; 254  : __CRT_INLINE int __cdecl __signbitf(float x) {
 
   00000	55		 push	 ebp
   00001	8b ec		 mov	 ebp, esp
   00003	51		 push	 ecx
 
-; 257  : 	unsigned short stw;
-; 258  : #if defined(_MSC_VER)
-; 259  : 	_asm {
-; 260  : 		fld [x];
+; 255  : 	unsigned short stw;
+; 256  : #if defined(_MSC_VER)
+; 257  : 	_asm {
+; 258  : 		fld [x];
 
   00004	d9 45 08	 fld	 DWORD PTR _x$[ebp]
 
-; 261  : 		fxam;
+; 259  : 		fxam;
 
   00007	d9 e5		 fxam
 
-; 262  : 		fstsw ax;
+; 260  : 		fstsw ax;
 
   00009	9b df e0	 fstsw	 ax
 
-; 263  : 		mov word ptr[stw], ax;
+; 261  : 		mov word ptr[stw], ax;
 
   0000c	66 89 45 fc	 mov	 WORD PTR _stw$[ebp], ax
 
-; 264  : 	}
-; 265  : #else
-; 266  : 	__asm__ __volatile__("fxam; fstsw %%ax;": "=a" (stw) : "t" (x));
-; 267  : #endif
-; 268  : 	return stw & 0x0200;
+; 262  : 	}
+; 263  : #else
+; 264  : 	__asm__ __volatile__("fxam; fstsw %%ax;": "=a" (stw) : "t" (x));
+; 265  : #endif
+; 266  : 	return stw & 0x0200;
 
   00010	0f b7 45 fc	 movzx	 eax, WORD PTR _stw$[ebp]
   00014	25 00 02 00 00	 and	 eax, 512		; 00000200H
 
-; 269  : }
+; 267  : }
 
   00019	8b e5		 mov	 esp, ebp
   0001b	5d		 pop	 ebp
@@ -417,41 +649,41 @@ _stw$ = -4						; size = 2
 _x$ = 8							; size = 8
 ___signbit PROC						; COMDAT
 
-; 241  : __CRT_INLINE int __cdecl __signbit(double x) {
+; 239  : __CRT_INLINE int __cdecl __signbit(double x) {
 
   00000	55		 push	 ebp
   00001	8b ec		 mov	 ebp, esp
   00003	51		 push	 ecx
 
-; 242  : 	unsigned short stw;
-; 243  : #if defined(_MSC_VER)
-; 244  : 	_asm {
-; 245  : 		fld [x];
+; 240  : 	unsigned short stw;
+; 241  : #if defined(_MSC_VER)
+; 242  : 	_asm {
+; 243  : 		fld [x];
 
   00004	dd 45 08	 fld	 QWORD PTR _x$[ebp]
 
-; 246  : 		fxam;
+; 244  : 		fxam;
 
   00007	d9 e5		 fxam
 
-; 247  : 		fstsw ax;
+; 245  : 		fstsw ax;
 
   00009	9b df e0	 fstsw	 ax
 
-; 248  : 		mov word ptr[stw], ax;
+; 246  : 		mov word ptr[stw], ax;
 
   0000c	66 89 45 fc	 mov	 WORD PTR _stw$[ebp], ax
 
-; 249  : 	}
-; 250  : #else
-; 251  : 	__asm__ __volatile__("fxam; fstsw %%ax;": "=a" (stw) : "t" (x));
-; 252  : #endif
-; 253  : 	return stw & 0x0200;
+; 247  : 	}
+; 248  : #else
+; 249  : 	__asm__ __volatile__("fxam; fstsw %%ax;": "=a" (stw) : "t" (x));
+; 250  : #endif
+; 251  : 	return stw & 0x0200;
 
   00010	0f b7 45 fc	 movzx	 eax, WORD PTR _stw$[ebp]
   00014	25 00 02 00 00	 and	 eax, 512		; 00000200H
 
-; 254  : }
+; 252  : }
 
   00019	8b e5		 mov	 esp, ebp
   0001b	5d		 pop	 ebp
@@ -466,38 +698,38 @@ _sw$ = -4						; size = 2
 __x$ = 8						; size = 8
 ___isnanl PROC						; COMDAT
 
-; 211  : {
+; 209  : {
 
   00000	55		 push	 ebp
   00001	8b ec		 mov	 ebp, esp
   00003	51		 push	 ecx
 
-; 212  : 	unsigned short sw;
-; 213  : #if defined(_MSC_VER)
-; 214  : 	_asm {
-; 215  : 		fld [_x];
+; 210  : 	unsigned short sw;
+; 211  : #if defined(_MSC_VER)
+; 212  : 	_asm {
+; 213  : 		fld [_x];
 
   00004	dd 45 08	 fld	 QWORD PTR __x$[ebp]
 
-; 216  : 		fxam;
+; 214  : 		fxam;
 
   00007	d9 e5		 fxam
 
-; 217  : 		fstsw ax;
+; 215  : 		fstsw ax;
 
   00009	9b df e0	 fstsw	 ax
 
-; 218  : 		mov word ptr[sw], ax;
+; 216  : 		mov word ptr[sw], ax;
 
   0000c	66 89 45 fc	 mov	 WORD PTR _sw$[ebp], ax
 
-; 219  : 	}
-; 220  : #else
-; 221  : 	__asm__ __volatile__("fxam;"
-; 222  : 		"fstsw %%ax": "=a" (sw) : "t" (_x));
-; 223  : #endif
-; 224  : 	return (sw & (FP_NAN | FP_NORMAL | FP_INFINITE | FP_ZERO | FP_SUBNORMAL))
-; 225  : 		== FP_NAN;
+; 217  : 	}
+; 218  : #else
+; 219  : 	__asm__ __volatile__("fxam;"
+; 220  : 		"fstsw %%ax": "=a" (sw) : "t" (_x));
+; 221  : #endif
+; 222  : 	return (sw & (FP_NAN | FP_NORMAL | FP_INFINITE | FP_ZERO | FP_SUBNORMAL))
+; 223  : 		== FP_NAN;
 
   00010	0f b7 4d fc	 movzx	 ecx, WORD PTR _sw$[ebp]
   00014	33 c0		 xor	 eax, eax
@@ -507,7 +739,7 @@ ___isnanl PROC						; COMDAT
 	00		 cmp	 ecx, 256		; 00000100H
   00022	0f 94 c0	 sete	 al
 
-; 226  : }
+; 224  : }
 
   00025	8b e5		 mov	 esp, ebp
   00027	5d		 pop	 ebp
@@ -522,38 +754,38 @@ _sw$ = -4						; size = 2
 __x$ = 8						; size = 4
 ___isnanf PROC						; COMDAT
 
-; 193  : {
+; 192  : {
 
   00000	55		 push	 ebp
   00001	8b ec		 mov	 ebp, esp
   00003	51		 push	 ecx
 
-; 194  : 	unsigned short sw;
-; 195  : #if defined(_MSC_VER)
-; 196  : 	_asm {
-; 197  : 		fld [_x];
+; 193  : 	unsigned short sw;
+; 194  : #if defined(_MSC_VER)
+; 195  : 	_asm {
+; 196  : 		fld [_x];
 
   00004	d9 45 08	 fld	 DWORD PTR __x$[ebp]
 
-; 198  : 		fxam;
+; 197  : 		fxam;
 
   00007	d9 e5		 fxam
 
-; 199  : 		fstsw ax;
+; 198  : 		fstsw ax;
 
   00009	9b df e0	 fstsw	 ax
 
-; 200  : 		mov word ptr[sw], ax;
+; 199  : 		mov word ptr[sw], ax;
 
   0000c	66 89 45 fc	 mov	 WORD PTR _sw$[ebp], ax
 
-; 201  : 	}
-; 202  : #else
-; 203  : 	__asm__ __volatile__("fxam;"
-; 204  : 		"fstsw %%ax": "=a" (sw) : "t" (_x));
-; 205  : #endif
-; 206  : 	return (sw & (FP_NAN | FP_NORMAL | FP_INFINITE | FP_ZERO | FP_SUBNORMAL))
-; 207  : 		== FP_NAN;
+; 200  : 	}
+; 201  : #else
+; 202  : 	__asm__ __volatile__("fxam;"
+; 203  : 		"fstsw %%ax": "=a" (sw) : "t" (_x));
+; 204  : #endif
+; 205  : 	return (sw & (FP_NAN | FP_NORMAL | FP_INFINITE | FP_ZERO | FP_SUBNORMAL))
+; 206  : 		== FP_NAN;
 
   00010	0f b7 4d fc	 movzx	 ecx, WORD PTR _sw$[ebp]
   00014	33 c0		 xor	 eax, eax
@@ -563,7 +795,7 @@ ___isnanf PROC						; COMDAT
 	00		 cmp	 ecx, 256		; 00000100H
   00022	0f 94 c0	 sete	 al
 
-; 208  : }
+; 207  : }
 
   00025	8b e5		 mov	 esp, ebp
   00027	5d		 pop	 ebp

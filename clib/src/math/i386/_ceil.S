@@ -22,6 +22,8 @@ segment .text
 
 ;Functions in this asm
 global _ceil
+global _ceilf
+global _ceill
 
 ; Ceils a value
 _ceil:
@@ -30,25 +32,98 @@ _ceil:
 	mov     ebp, esp
 
 	; Allocate temporary space
-	sub     esp, 4
+	sub     esp, 8
+
+	; Store control word 
+	fstcw	word [ebp - 4]
+	mov		dx, word [ebp - 4]
+
+	; Round towards +oo
+	or		dx, 0x0800
+	and		dx, 0xFBFF
+	mov		word [ebp - 8], dx
+
+	; Load modfied control word
+	fldcw	word [ebp - 8]
 
 	; Load real from stack
 	fld     qword [ebp + 8]
 
-	; Save control word & clear errx
-	fstcw	[ebp - 2]
-	fclex
-
-	; Rounding control word
-	mov		word [ebp - 4], 0x0B63
-	fldcw	[ebp - 4]
-	
-	; Round to integer & clear ex again
+	; Round
 	frndint
-	fclex
 
-	; Restore control word + free space
-	fldcw   [ebp - 2]
+	; Restore control word
+	fldcw   [ebp - 4]
+
+	; Unwind & return
+	mov     esp, ebp
+	pop     ebp
+	ret
+
+; Ceils a value float
+_ceilf:
+	; Stack Frame
+	push    ebp
+	mov     ebp, esp
+
+	; Allocate temporary space
+	sub     esp, 8
+
+	; Store control word 
+	fstcw	word [ebp - 4]
+	mov		dx, word [ebp - 4]
+
+	; Round towards +oo
+	or		dx, 0x0800
+	and		dx, 0xFBFF
+	mov		word [ebp - 8], dx
+
+	; Load modfied control word
+	fldcw	word [ebp - 8]
+
+	; Load real from stack
+	fld     dword [ebp + 8]
+
+	; Round
+	frndint
+
+	; Restore control word
+	fldcw   [ebp - 4]
+
+	; Unwind & return
+	mov     esp, ebp
+	pop     ebp
+	ret
+
+; Ceils a value long double
+_ceill:
+	; Stack Frame
+	push    ebp
+	mov     ebp, esp
+
+	; Allocate temporary space
+	sub     esp, 8
+
+	; Store control word 
+	fstcw	word [ebp - 4]
+	mov		dx, word [ebp - 4]
+
+	; Round towards +oo
+	or		dx, 0x0800
+	and		dx, 0xFBFF
+	mov		word [ebp - 8], dx
+
+	; Load modfied control word
+	fldcw	word [ebp - 8]
+
+	; Load real from stack
+	fld     tword [ebp + 8]
+
+	; Round
+	frndint
+
+	; Restore control word
+	fldcw   [ebp - 4]
 
 	; Unwind & return
 	mov     esp, ebp

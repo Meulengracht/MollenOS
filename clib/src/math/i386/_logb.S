@@ -15,26 +15,63 @@
 ; along with this program.  If not, see <http://www.gnu.org/licenses/>.
 ;
 ;
-; MollenOS x86-32 Math FABS
+; MollenOS x86-32 Math LOGB
 
 bits 32
 segment .text
 
 ;Functions in this asm
-global _fabs
+global _logb
+global _logbf
+global _logbl
 
-; takes the absolute float value
-_fabs:
+; takes the logorithmic value
+_logb:
 	; Stack Frame
 	push    ebp
 	mov     ebp, esp
 
-	; Load real from stack
-	fld qword [ebp + 8]
+	; Do the magic
+	fld     qword [ebp + 8]       ; Load real from stack
+	fxtract
 
-	; Take the absolute value
-	fabs
-	
+	; Store
+	fstp	st0
+
+	; Unwind & return
+	pop     ebp
+	ret
+
+; takes the logorithmic value
+_logbf:
+	; Stack Frame
+	push    ebp
+	mov     ebp, esp
+
+	; Do the magic
+	fld     dword [ebp + 8]       ; Load single from stack
+	fxtract
+
+	; Store
+	fstp	st0
+
+	; Unwind & return
+	pop     ebp
+	ret
+
+; takes the logorithmic value
+_logbl:
+	; Stack Frame
+	push    ebp
+	mov     ebp, esp
+
+	; Do the magic
+	fld     tword [ebp + 8]       ; Load 80bit from stack
+	fxtract
+
+	; Store
+	fstp	st0
+
 	; Unwind & return
 	pop     ebp
 	ret

@@ -22,7 +22,9 @@ segment .text
 
 ;Functions in this asm
 global _sqrt
-global  __CIsqrt
+global _sqrtf
+global _sqrtl
+global __CIsqrt
 
 ; Computes the square-root
 _sqrt:
@@ -40,7 +42,39 @@ _sqrt:
 	pop     ebp
 	ret
 
-; MSVC 
+; Computes the square-root
+_sqrtf:
+	; Stack Frame
+	push	ebp
+	mov		ebp, esp
+
+	; Load real from stack
+	fld		dword [ebp + 8]
+	
+	; Take the square root
+	fsqrt
+		
+	; Unwind & return
+	pop     ebp
+	ret
+
+; Computes the square-root
+_sqrtl:
+	; Stack Frame
+	push	ebp
+	mov		ebp, esp
+
+	; Load real from stack
+	fld		tword [ebp + 8]
+	
+	; Take the square root
+	fsqrt
+		
+	; Unwind & return
+	pop     ebp
+	ret
+
+; Msvc version of sqrt
 __CIsqrt:
-    fsqrt
-    ret
+	fsqrt
+	ret

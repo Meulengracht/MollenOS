@@ -21,25 +21,70 @@ bits 32
 segment .text
 
 ;Functions in this asm
+global _log10
 global _log10f
+global _log10l
+global __CIlog10
 
 ; takes the logorithmic value in base 10
-_log10f:
+_log10:
 	; Stack Frame
 	push    ebp
 	mov     ebp, esp
 
 	; Do the magic
-	fld     qword [ebp+8]       ; Load real from stack
-	fldlg2                          ; Load log base 10 of 2
+	fldlg2                      ; Load log base 10 of 2
+	fld     qword [ebp + 8]       ; Load real from stack
 	
-	; Exchange st, st(1)
-	fxch
-
 	; Compute the log base 10(x)
 	fyl2x
 	
 	; Unwind & return
 	mov     esp, ebp
 	pop     ebp
+	ret
+
+; takes the logorithmic value in base 10 float
+_log10f:
+	; Stack Frame
+	push    ebp
+	mov     ebp, esp
+
+	; Do the magic
+	fldlg2                      ; Load log base 10 of 2
+	fld     dword [ebp + 8]       ; Load real from stack
+	
+	; Compute the log base 10(x)
+	fyl2x
+	
+	; Unwind & return
+	mov     esp, ebp
+	pop     ebp
+	ret
+
+; takes the logorithmic value in base 10 long double
+_log10l:
+	; Stack Frame
+	push    ebp
+	mov     ebp, esp
+
+	; Load log base 10 of 2
+	fldlg2
+	
+	; Load real from stack     
+	fld     tword [ebp + 8]
+	
+	; Compute the log base 10(x)
+	fyl2x
+	
+	; Unwind & return
+	mov     esp, ebp
+	pop     ebp
+	ret
+
+; Msvc version of log10
+__CIlog10:
+	fldlg2
+	fxch
+	fyl2x
 	ret

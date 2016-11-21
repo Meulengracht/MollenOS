@@ -11,18 +11,16 @@ INCLUDELIB OLDNAMES
 
 CONST	SEGMENT
 _one	DQ	03ff0000000000000r		; 1
+_twoTo1023 DQ	07fe0000000000000r		; 8.98847e+307
+_twoToM1022 DQ	00010000000000000r		; 2.22507e-308
 CONST	ENDS
-PUBLIC	___fpclassifyl
-PUBLIC	___fpclassifyf
-PUBLIC	___fpclassify
-PUBLIC	___isnan
-PUBLIC	___isnanf
-PUBLIC	___isnanl
-PUBLIC	___signbit
-PUBLIC	___signbitf
-PUBLIC	___signbitl
 PUBLIC	_modf
+PUBLIC	__real@0000000000000000
 EXTRN	__fltused:DWORD
+;	COMDAT __real@0000000000000000
+CONST	SEGMENT
+__real@0000000000000000 DQ 00000000000000000r	; 0
+CONST	ENDS
 ; Function compile flags: /Ogtp
 ; File c:\users\philip\documents\github\mollenos\clib\src\math\modf.c
 ;	COMDAT _modf
@@ -39,19 +37,19 @@ _x$ = 8							; size = 8
 _iptr$ = 16						; size = 4
 _modf	PROC						; COMDAT
 
-; 88   : {
+; 32   : {
 
   00000	55		 push	 ebp
   00001	8b ec		 mov	 ebp, esp
 
-; 89   : 	__int32_t i0,i1,j_0;
-; 90   : 	__uint32_t i;
-; 91   : 	EXTRACT_WORDS(i0,i1,x);
+; 33   : 	int32_t i0, i1, j0;
+; 34   : 	uint32_t i;
+; 35   : 	EXTRACT_WORDS(i0, i1, x);
 
   00003	dd 45 08	 fld	 QWORD PTR _x$[ebp]
   00006	dd 55 08	 fst	 QWORD PTR _ew_u$8[ebp]
 
-; 92   : 	j_0 = ((i0>>20)&0x7ff)-0x3ff;	/* exponent of x */
+; 36   : 	j0 = ((i0 >> 20) & 0x7ff) - 0x3ff;	/* exponent of x */
 
   00009	8b 55 0c	 mov	 edx, DWORD PTR _ew_u$8[ebp+4]
   0000c	8b ca		 mov	 ecx, edx
@@ -61,17 +59,17 @@ _modf	PROC						; COMDAT
   00017	81 e9 ff 03 00
 	00		 sub	 ecx, 1023		; 000003ffH
 
-; 93   : 	if(j_0<20) {			/* integer part in high x */
+; 37   : 	if (j0<20) {			/* integer part in high x */
 
   0001d	83 f9 14	 cmp	 ecx, 20			; 00000014H
-  00020	7d 63		 jge	 SHORT $LN37@modf
+  00020	7d 63		 jge	 SHORT $LN38@modf
 
-; 94   : 		if(j_0<0) {			/* |x|<1 */
+; 38   : 		if (j0<0) {			/* |x|<1 */
 
   00022	85 c9		 test	 ecx, ecx
-  00024	79 1a		 jns	 SHORT $LN36@modf
+  00024	79 1a		 jns	 SHORT $LN37@modf
 
-; 95   : 			INSERT_WORDS(*iptr,i0&0x80000000U,0);	/* *iptr = +-0 */
+; 39   : 			INSERT_WORDS(*iptr, i0 & 0x80000000, 0);	/* *iptr = +-0 */
 
   00026	8b 45 10	 mov	 eax, DWORD PTR _iptr$[ebp]
   00029	81 e2 00 00 00
@@ -82,61 +80,63 @@ _modf	PROC						; COMDAT
   00039	dd 45 08	 fld	 QWORD PTR _iw_u$7[ebp]
   0003c	dd 18		 fstp	 QWORD PTR [eax]
 
-; 127  : 		}
-; 128  : 	}
-; 129  : }
+; 80   : 		}
+; 81   : 	}
+; 82   : }
 
   0003e	5d		 pop	 ebp
   0003f	c3		 ret	 0
-$LN36@modf:
+$LN37@modf:
   00040	56		 push	 esi
 
-; 96   : 			return x;
-; 97   : 		} else {
-; 98   : 			i = (0x000fffff)>>j_0;
+; 40   : 			return x;
+; 41   : 		}
+; 42   : 		else {
+; 43   : 			i = (0x000fffff) >> j0;
 
   00041	be ff ff 0f 00	 mov	 esi, 1048575		; 000fffffH
   00046	d3 fe		 sar	 esi, cl
 
-; 99   : 			if(((i0&i)|i1)==0) {		/* x is integral */
+; 44   : 			if (((i0&i) | i1) == 0) {		/* x is integral */
 
   00048	8b c6		 mov	 eax, esi
   0004a	23 c2		 and	 eax, edx
   0004c	0b 45 08	 or	 eax, DWORD PTR _ew_u$8[ebp]
 
-; 100  : 				__uint32_t high;
-; 101  : 				*iptr = x;
+; 45   : 				uint32_t high;
+; 46   : 				*iptr = x;
 
   0004f	8b 45 10	 mov	 eax, DWORD PTR _iptr$[ebp]
-  00052	75 19		 jne	 SHORT $LN23@modf
+  00052	75 19		 jne	 SHORT $LN24@modf
   00054	dd 10		 fst	 QWORD PTR [eax]
 
-; 102  : 				GET_HIGH_WORD(high,x);
+; 47   : 				GET_HIGH_WORD(high, x);
 
   00056	dd 5d 08	 fstp	 QWORD PTR _gh_u$6[ebp]
 
-; 103  : 				INSERT_WORDS(x,high&0x80000000U,0);	/* return +-0 */
+; 48   : 				INSERT_WORDS(x, high & 0x80000000, 0);	/* return +-0 */
 
   00059	81 65 0c 00 00
 	00 80		 and	 DWORD PTR _gh_u$6[ebp+4], -2147483648 ; 80000000H
   00060	c7 45 08 00 00
 	00 00		 mov	 DWORD PTR _iw_u$5[ebp], 0
 
-; 104  : 				return x;
+; 49   : 				return x;
 
   00067	dd 45 08	 fld	 QWORD PTR _iw_u$5[ebp]
   0006a	5e		 pop	 esi
 
-; 127  : 		}
-; 128  : 	}
-; 129  : }
+; 80   : 		}
+; 81   : 	}
+; 82   : }
 
   0006b	5d		 pop	 ebp
   0006c	c3		 ret	 0
-$LN23@modf:
+$LN24@modf:
 
-; 105  : 			} else {
-; 106  : 				INSERT_WORDS(*iptr,i0&(~i),0);
+; 50   : 			}
+; 51   : 			else {
+; 52   : 				INSERT_WORDS(*iptr, i0&(~i), 0);
 
   0006d	f7 d6		 not	 esi
   0006f	c7 45 08 00 00
@@ -146,557 +146,121 @@ $LN23@modf:
   0007b	dd 45 08	 fld	 QWORD PTR _iw_u$4[ebp]
   0007e	dd 10		 fst	 QWORD PTR [eax]
 
-; 107  : 				return x - *iptr;
+; 53   : 				return x - *iptr;
 
   00080	de e9		 fsubp	 ST(1), ST(0)
   00082	5e		 pop	 esi
 
-; 127  : 		}
-; 128  : 	}
-; 129  : }
+; 80   : 		}
+; 81   : 	}
+; 82   : }
 
   00083	5d		 pop	 ebp
   00084	c3		 ret	 0
-$LN37@modf:
+$LN38@modf:
 
-; 108  : 			}
-; 109  : 		}
-; 110  : 	} else if (j_0>51) {		/* no fraction part */
+; 54   : 			}
+; 55   : 		}
+; 56   : 	}
+; 57   : 	else if (j0>51) {		/* no fraction part */
 
   00085	83 f9 33	 cmp	 ecx, 51			; 00000033H
-  00088	7e 1b		 jle	 SHORT $LN19@modf
-$LN59@modf:
+  00088	7e 13		 jle	 SHORT $LN20@modf
 
-; 111  : 		__uint32_t high;
-; 112  : 		*iptr = x*one;
+; 58   : 		uint32_t high;
+; 59   : 		if (j0 == 0x400) {		/* inf/NaN */
+; 60   : 			*iptr = x;
 
   0008a	8b 45 10	 mov	 eax, DWORD PTR _iptr$[ebp]
   0008d	dd 10		 fst	 QWORD PTR [eax]
+  0008f	81 f9 00 04 00
+	00		 cmp	 ecx, 1024		; 00000400H
+  00095	75 1a		 jne	 SHORT $LN19@modf
 
-; 113  : 		GET_HIGH_WORD(high,x);
+; 61   : 			return 0.0 / x;
 
-  0008f	dd 5d 08	 fstp	 QWORD PTR _gh_u$3[ebp]
+  00097	d9 ee		 fldz
+  00099	de f1		 fdivrp	 ST(1), ST(0)
 
-; 114  : 		INSERT_WORDS(x,high&0x80000000U,0);	/* return +-0 */
+; 80   : 		}
+; 81   : 	}
+; 82   : }
 
-  00092	81 65 0c 00 00
-	00 80		 and	 DWORD PTR _gh_u$3[ebp+4], -2147483648 ; 80000000H
-  00099	c7 45 08 00 00
-	00 00		 mov	 DWORD PTR _iw_u$2[ebp], 0
+  0009b	5d		 pop	 ebp
+  0009c	c3		 ret	 0
+$LN20@modf:
 
-; 115  : 		return x;
+; 62   : 		}
+; 63   : 		*iptr = x*one;
+; 64   : 		GET_HIGH_WORD(high, x);
+; 65   : 		INSERT_WORDS(x, high & 0x80000000, 0);	/* return +-0 */
+; 66   : 		return x;
+; 67   : 	}
+; 68   : 	else {			/* fraction part in low x */
+; 69   : 		i = ((uint32_t)(0xffffffff)) >> (j0 - 20);
 
-  000a0	dd 45 08	 fld	 QWORD PTR _iw_u$2[ebp]
+  0009d	83 c1 ec	 add	 ecx, -20		; ffffffecH
+  000a0	83 c8 ff	 or	 eax, -1
+  000a3	d3 e8		 shr	 eax, cl
 
-; 127  : 		}
-; 128  : 	}
-; 129  : }
+; 70   : 		if ((i1&i) == 0) { 		/* x is integral */
 
-  000a3	5d		 pop	 ebp
-  000a4	c3		 ret	 0
+  000a5	8b 4d 08	 mov	 ecx, DWORD PTR _ew_u$8[ebp]
+  000a8	85 c1		 test	 eax, ecx
+  000aa	75 1b		 jne	 SHORT $LN3@modf
+
+; 71   : 			uint32_t high;
+; 72   : 			*iptr = x;
+
+  000ac	8b 45 10	 mov	 eax, DWORD PTR _iptr$[ebp]
+  000af	dd 10		 fst	 QWORD PTR [eax]
 $LN19@modf:
 
-; 116  : 	} else {			/* fraction part in low x */
-; 117  : 		i = ((__uint32_t)(0xffffffffU))>>(j_0-20);
+; 73   : 			GET_HIGH_WORD(high, x);
 
-  000a5	83 c1 ec	 add	 ecx, -20		; ffffffecH
-  000a8	83 c8 ff	 or	 eax, -1
-  000ab	d3 e8		 shr	 eax, cl
+  000b1	dd 5d 08	 fstp	 QWORD PTR _gh_u$3[ebp]
 
-; 118  : 		if((i1&i)==0) { 		/* x is integral */
+; 74   : 			INSERT_WORDS(x, high & 0x80000000, 0);	/* return +-0 */
 
-  000ad	8b 4d 08	 mov	 ecx, DWORD PTR _ew_u$8[ebp]
-  000b0	85 c1		 test	 eax, ecx
-  000b2	74 d6		 je	 SHORT $LN59@modf
+  000b4	81 65 0c 00 00
+	00 80		 and	 DWORD PTR _gh_u$3[ebp+4], -2147483648 ; 80000000H
+  000bb	c7 45 08 00 00
+	00 00		 mov	 DWORD PTR _iw_u$2[ebp], 0
 
-; 119  : 			__uint32_t high;
-; 120  : 			*iptr = x;
-; 121  : 			GET_HIGH_WORD(high,x);
-; 122  : 			INSERT_WORDS(x,high&0x80000000U,0);	/* return +-0 */
-; 123  : 			return x;
-; 124  : 		} else {
-; 125  : 			INSERT_WORDS(*iptr,i0,i1&(~i));
+; 75   : 			return x;
 
-  000b4	f7 d0		 not	 eax
-  000b6	89 55 0c	 mov	 DWORD PTR _iw_u$1[ebp+4], edx
-  000b9	23 c1		 and	 eax, ecx
-  000bb	89 45 08	 mov	 DWORD PTR _iw_u$1[ebp], eax
-  000be	8b 45 10	 mov	 eax, DWORD PTR _iptr$[ebp]
-  000c1	dd 45 08	 fld	 QWORD PTR _iw_u$1[ebp]
-  000c4	dd 10		 fst	 QWORD PTR [eax]
+  000c2	dd 45 08	 fld	 QWORD PTR _iw_u$2[ebp]
 
-; 126  : 			return x - *iptr;
+; 80   : 		}
+; 81   : 	}
+; 82   : }
 
-  000c6	de e9		 fsubp	 ST(1), ST(0)
+  000c5	5d		 pop	 ebp
+  000c6	c3		 ret	 0
+$LN3@modf:
 
-; 127  : 		}
-; 128  : 	}
-; 129  : }
+; 76   : 		}
+; 77   : 		else {
+; 78   : 			INSERT_WORDS(*iptr, i0, i1&(~i));
 
-  000c8	5d		 pop	 ebp
-  000c9	c3		 ret	 0
+  000c7	f7 d0		 not	 eax
+  000c9	89 55 0c	 mov	 DWORD PTR _iw_u$1[ebp+4], edx
+  000cc	23 c1		 and	 eax, ecx
+  000ce	89 45 08	 mov	 DWORD PTR _iw_u$1[ebp], eax
+  000d1	8b 45 10	 mov	 eax, DWORD PTR _iptr$[ebp]
+  000d4	dd 45 08	 fld	 QWORD PTR _iw_u$1[ebp]
+  000d7	dd 10		 fst	 QWORD PTR [eax]
+
+; 79   : 			return x - *iptr;
+
+  000d9	de e9		 fsubp	 ST(1), ST(0)
+
+; 80   : 		}
+; 81   : 	}
+; 82   : }
+
+  000db	5d		 pop	 ebp
+  000dc	c3		 ret	 0
 _modf	ENDP
-_TEXT	ENDS
-; Function compile flags: /Ogtp
-; File c:\users\philip\documents\github\mollenos\clib\include\math.h
-;	COMDAT ___signbitl
-_TEXT	SEGMENT
-_stw$ = -4						; size = 2
-_x$ = 8							; size = 8
-___signbitl PROC					; COMDAT
-
-; 271  : __CRT_INLINE int __cdecl __signbitl(long double x) {
-
-  00000	55		 push	 ebp
-  00001	8b ec		 mov	 ebp, esp
-  00003	51		 push	 ecx
-
-; 272  : 	unsigned short stw;
-; 273  : #if defined(_MSC_VER)
-; 274  : 	_asm {
-; 275  : 		fld [x];
-
-  00004	dd 45 08	 fld	 QWORD PTR _x$[ebp]
-
-; 276  : 		fxam;
-
-  00007	d9 e5		 fxam
-
-; 277  : 		fstsw ax;
-
-  00009	9b df e0	 fstsw	 ax
-
-; 278  : 		mov word ptr[stw], ax;
-
-  0000c	66 89 45 fc	 mov	 WORD PTR _stw$[ebp], ax
-
-; 279  : 	}
-; 280  : #else
-; 281  : 	__asm__ __volatile__("fxam; fstsw %%ax;": "=a" (stw) : "t" (x));
-; 282  : #endif
-; 283  : 	return stw & 0x0200;
-
-  00010	0f b7 45 fc	 movzx	 eax, WORD PTR _stw$[ebp]
-  00014	25 00 02 00 00	 and	 eax, 512		; 00000200H
-
-; 284  : }
-
-  00019	8b e5		 mov	 esp, ebp
-  0001b	5d		 pop	 ebp
-  0001c	c3		 ret	 0
-___signbitl ENDP
-_TEXT	ENDS
-; Function compile flags: /Ogtp
-; File c:\users\philip\documents\github\mollenos\clib\include\math.h
-;	COMDAT ___signbitf
-_TEXT	SEGMENT
-_stw$ = -4						; size = 2
-_x$ = 8							; size = 4
-___signbitf PROC					; COMDAT
-
-; 256  : __CRT_INLINE int __cdecl __signbitf(float x) {
-
-  00000	55		 push	 ebp
-  00001	8b ec		 mov	 ebp, esp
-  00003	51		 push	 ecx
-
-; 257  : 	unsigned short stw;
-; 258  : #if defined(_MSC_VER)
-; 259  : 	_asm {
-; 260  : 		fld [x];
-
-  00004	d9 45 08	 fld	 DWORD PTR _x$[ebp]
-
-; 261  : 		fxam;
-
-  00007	d9 e5		 fxam
-
-; 262  : 		fstsw ax;
-
-  00009	9b df e0	 fstsw	 ax
-
-; 263  : 		mov word ptr[stw], ax;
-
-  0000c	66 89 45 fc	 mov	 WORD PTR _stw$[ebp], ax
-
-; 264  : 	}
-; 265  : #else
-; 266  : 	__asm__ __volatile__("fxam; fstsw %%ax;": "=a" (stw) : "t" (x));
-; 267  : #endif
-; 268  : 	return stw & 0x0200;
-
-  00010	0f b7 45 fc	 movzx	 eax, WORD PTR _stw$[ebp]
-  00014	25 00 02 00 00	 and	 eax, 512		; 00000200H
-
-; 269  : }
-
-  00019	8b e5		 mov	 esp, ebp
-  0001b	5d		 pop	 ebp
-  0001c	c3		 ret	 0
-___signbitf ENDP
-_TEXT	ENDS
-; Function compile flags: /Ogtp
-; File c:\users\philip\documents\github\mollenos\clib\include\math.h
-;	COMDAT ___signbit
-_TEXT	SEGMENT
-_stw$ = -4						; size = 2
-_x$ = 8							; size = 8
-___signbit PROC						; COMDAT
-
-; 241  : __CRT_INLINE int __cdecl __signbit(double x) {
-
-  00000	55		 push	 ebp
-  00001	8b ec		 mov	 ebp, esp
-  00003	51		 push	 ecx
-
-; 242  : 	unsigned short stw;
-; 243  : #if defined(_MSC_VER)
-; 244  : 	_asm {
-; 245  : 		fld [x];
-
-  00004	dd 45 08	 fld	 QWORD PTR _x$[ebp]
-
-; 246  : 		fxam;
-
-  00007	d9 e5		 fxam
-
-; 247  : 		fstsw ax;
-
-  00009	9b df e0	 fstsw	 ax
-
-; 248  : 		mov word ptr[stw], ax;
-
-  0000c	66 89 45 fc	 mov	 WORD PTR _stw$[ebp], ax
-
-; 249  : 	}
-; 250  : #else
-; 251  : 	__asm__ __volatile__("fxam; fstsw %%ax;": "=a" (stw) : "t" (x));
-; 252  : #endif
-; 253  : 	return stw & 0x0200;
-
-  00010	0f b7 45 fc	 movzx	 eax, WORD PTR _stw$[ebp]
-  00014	25 00 02 00 00	 and	 eax, 512		; 00000200H
-
-; 254  : }
-
-  00019	8b e5		 mov	 esp, ebp
-  0001b	5d		 pop	 ebp
-  0001c	c3		 ret	 0
-___signbit ENDP
-_TEXT	ENDS
-; Function compile flags: /Ogtp
-; File c:\users\philip\documents\github\mollenos\clib\include\math.h
-;	COMDAT ___isnanl
-_TEXT	SEGMENT
-_sw$ = -4						; size = 2
-__x$ = 8						; size = 8
-___isnanl PROC						; COMDAT
-
-; 211  : {
-
-  00000	55		 push	 ebp
-  00001	8b ec		 mov	 ebp, esp
-  00003	51		 push	 ecx
-
-; 212  : 	unsigned short sw;
-; 213  : #if defined(_MSC_VER)
-; 214  : 	_asm {
-; 215  : 		fld [_x];
-
-  00004	dd 45 08	 fld	 QWORD PTR __x$[ebp]
-
-; 216  : 		fxam;
-
-  00007	d9 e5		 fxam
-
-; 217  : 		fstsw ax;
-
-  00009	9b df e0	 fstsw	 ax
-
-; 218  : 		mov word ptr[sw], ax;
-
-  0000c	66 89 45 fc	 mov	 WORD PTR _sw$[ebp], ax
-
-; 219  : 	}
-; 220  : #else
-; 221  : 	__asm__ __volatile__("fxam;"
-; 222  : 		"fstsw %%ax": "=a" (sw) : "t" (_x));
-; 223  : #endif
-; 224  : 	return (sw & (FP_NAN | FP_NORMAL | FP_INFINITE | FP_ZERO | FP_SUBNORMAL))
-; 225  : 		== FP_NAN;
-
-  00010	0f b7 4d fc	 movzx	 ecx, WORD PTR _sw$[ebp]
-  00014	33 c0		 xor	 eax, eax
-  00016	81 e1 00 45 00
-	00		 and	 ecx, 17664		; 00004500H
-  0001c	81 f9 00 01 00
-	00		 cmp	 ecx, 256		; 00000100H
-  00022	0f 94 c0	 sete	 al
-
-; 226  : }
-
-  00025	8b e5		 mov	 esp, ebp
-  00027	5d		 pop	 ebp
-  00028	c3		 ret	 0
-___isnanl ENDP
-_TEXT	ENDS
-; Function compile flags: /Ogtp
-; File c:\users\philip\documents\github\mollenos\clib\include\math.h
-;	COMDAT ___isnanf
-_TEXT	SEGMENT
-_sw$ = -4						; size = 2
-__x$ = 8						; size = 4
-___isnanf PROC						; COMDAT
-
-; 193  : {
-
-  00000	55		 push	 ebp
-  00001	8b ec		 mov	 ebp, esp
-  00003	51		 push	 ecx
-
-; 194  : 	unsigned short sw;
-; 195  : #if defined(_MSC_VER)
-; 196  : 	_asm {
-; 197  : 		fld [_x];
-
-  00004	d9 45 08	 fld	 DWORD PTR __x$[ebp]
-
-; 198  : 		fxam;
-
-  00007	d9 e5		 fxam
-
-; 199  : 		fstsw ax;
-
-  00009	9b df e0	 fstsw	 ax
-
-; 200  : 		mov word ptr[sw], ax;
-
-  0000c	66 89 45 fc	 mov	 WORD PTR _sw$[ebp], ax
-
-; 201  : 	}
-; 202  : #else
-; 203  : 	__asm__ __volatile__("fxam;"
-; 204  : 		"fstsw %%ax": "=a" (sw) : "t" (_x));
-; 205  : #endif
-; 206  : 	return (sw & (FP_NAN | FP_NORMAL | FP_INFINITE | FP_ZERO | FP_SUBNORMAL))
-; 207  : 		== FP_NAN;
-
-  00010	0f b7 4d fc	 movzx	 ecx, WORD PTR _sw$[ebp]
-  00014	33 c0		 xor	 eax, eax
-  00016	81 e1 00 45 00
-	00		 and	 ecx, 17664		; 00004500H
-  0001c	81 f9 00 01 00
-	00		 cmp	 ecx, 256		; 00000100H
-  00022	0f 94 c0	 sete	 al
-
-; 208  : }
-
-  00025	8b e5		 mov	 esp, ebp
-  00027	5d		 pop	 ebp
-  00028	c3		 ret	 0
-___isnanf ENDP
-_TEXT	ENDS
-; Function compile flags: /Ogtp
-; File c:\users\philip\documents\github\mollenos\clib\include\math.h
-;	COMDAT ___isnan
-_TEXT	SEGMENT
-_sw$ = -4						; size = 2
-__x$ = 8						; size = 8
-___isnan PROC						; COMDAT
-
-; 175  : {
-
-  00000	55		 push	 ebp
-  00001	8b ec		 mov	 ebp, esp
-  00003	51		 push	 ecx
-
-; 176  : 	unsigned short sw;
-; 177  : #if defined(_MSC_VER)
-; 178  : 	_asm {
-; 179  : 		fld [_x];
-
-  00004	dd 45 08	 fld	 QWORD PTR __x$[ebp]
-
-; 180  : 		fxam;
-
-  00007	d9 e5		 fxam
-
-; 181  : 		fstsw ax;
-
-  00009	9b df e0	 fstsw	 ax
-
-; 182  : 		mov word ptr[sw], ax;
-
-  0000c	66 89 45 fc	 mov	 WORD PTR _sw$[ebp], ax
-
-; 183  : 	}
-; 184  : #else
-; 185  : 	__asm__ __volatile__("fxam;"
-; 186  : 		"fstsw %%ax": "=a" (sw) : "t" (_x));
-; 187  : #endif
-; 188  : 	return (sw & (FP_NAN | FP_NORMAL | FP_INFINITE | FP_ZERO | FP_SUBNORMAL))
-; 189  : 		== FP_NAN;
-
-  00010	0f b7 4d fc	 movzx	 ecx, WORD PTR _sw$[ebp]
-  00014	33 c0		 xor	 eax, eax
-  00016	81 e1 00 45 00
-	00		 and	 ecx, 17664		; 00004500H
-  0001c	81 f9 00 01 00
-	00		 cmp	 ecx, 256		; 00000100H
-  00022	0f 94 c0	 sete	 al
-
-; 190  : }
-
-  00025	8b e5		 mov	 esp, ebp
-  00027	5d		 pop	 ebp
-  00028	c3		 ret	 0
-___isnan ENDP
-_TEXT	ENDS
-; Function compile flags: /Ogtp
-; File c:\users\philip\documents\github\mollenos\clib\include\math.h
-;	COMDAT ___fpclassify
-_TEXT	SEGMENT
-_sw$ = -4						; size = 2
-_x$ = 8							; size = 8
-___fpclassify PROC					; COMDAT
-
-; 125  : __CRT_INLINE int __cdecl __fpclassify(double x) {
-
-  00000	55		 push	 ebp
-  00001	8b ec		 mov	 ebp, esp
-  00003	51		 push	 ecx
-
-; 126  : 	unsigned short sw;
-; 127  : #if defined(_MSC_VER)
-; 128  : 	_asm {
-; 129  : 		fld [x];
-
-  00004	dd 45 08	 fld	 QWORD PTR _x$[ebp]
-
-; 130  : 		fxam;
-
-  00007	d9 e5		 fxam
-
-; 131  : 		fstsw ax;
-
-  00009	9b df e0	 fstsw	 ax
-
-; 132  : 		mov word ptr[sw], ax;
-
-  0000c	66 89 45 fc	 mov	 WORD PTR _sw$[ebp], ax
-
-; 133  : 	}
-; 134  : #else
-; 135  : 	__asm__ __volatile__("fxam; fstsw %%ax;" : "=a" (sw) : "t" (x));
-; 136  : #endif
-; 137  : 	return sw & (FP_NAN | FP_NORMAL | FP_ZERO);
-
-  00010	0f b7 45 fc	 movzx	 eax, WORD PTR _sw$[ebp]
-  00014	25 00 45 00 00	 and	 eax, 17664		; 00004500H
-
-; 138  : }
-
-  00019	8b e5		 mov	 esp, ebp
-  0001b	5d		 pop	 ebp
-  0001c	c3		 ret	 0
-___fpclassify ENDP
-_TEXT	ENDS
-; Function compile flags: /Ogtp
-; File c:\users\philip\documents\github\mollenos\clib\include\math.h
-;	COMDAT ___fpclassifyf
-_TEXT	SEGMENT
-_sw$ = -4						; size = 2
-_x$ = 8							; size = 4
-___fpclassifyf PROC					; COMDAT
-
-; 139  : __CRT_INLINE int __cdecl __fpclassifyf(float x) {
-
-  00000	55		 push	 ebp
-  00001	8b ec		 mov	 ebp, esp
-  00003	51		 push	 ecx
-
-; 140  : 	unsigned short sw;
-; 141  : #if defined(_MSC_VER)
-; 142  : 	_asm {
-; 143  : 		fld [x];
-
-  00004	d9 45 08	 fld	 DWORD PTR _x$[ebp]
-
-; 144  : 		fxam;
-
-  00007	d9 e5		 fxam
-
-; 145  : 		fstsw ax;
-
-  00009	9b df e0	 fstsw	 ax
-
-; 146  : 		mov word ptr[sw], ax;
-
-  0000c	66 89 45 fc	 mov	 WORD PTR _sw$[ebp], ax
-
-; 147  : 	}
-; 148  : #else
-; 149  : 	__asm__ __volatile__("fxam; fstsw %%ax;" : "=a" (sw) : "t" (x));
-; 150  : #endif
-; 151  : 	return sw & (FP_NAN | FP_NORMAL | FP_ZERO);
-
-  00010	0f b7 45 fc	 movzx	 eax, WORD PTR _sw$[ebp]
-  00014	25 00 45 00 00	 and	 eax, 17664		; 00004500H
-
-; 152  : }
-
-  00019	8b e5		 mov	 esp, ebp
-  0001b	5d		 pop	 ebp
-  0001c	c3		 ret	 0
-___fpclassifyf ENDP
-_TEXT	ENDS
-; Function compile flags: /Ogtp
-; File c:\users\philip\documents\github\mollenos\clib\include\math.h
-;	COMDAT ___fpclassifyl
-_TEXT	SEGMENT
-_sw$ = -4						; size = 2
-_x$ = 8							; size = 8
-___fpclassifyl PROC					; COMDAT
-
-; 111  : __CRT_INLINE int __cdecl __fpclassifyl(long double x) {
-
-  00000	55		 push	 ebp
-  00001	8b ec		 mov	 ebp, esp
-  00003	51		 push	 ecx
-
-; 112  : 	unsigned short sw;
-; 113  : #if defined(_MSC_VER)
-; 114  : 	_asm {
-; 115  : 		fld [x];
-
-  00004	dd 45 08	 fld	 QWORD PTR _x$[ebp]
-
-; 116  : 		fxam;
-
-  00007	d9 e5		 fxam
-
-; 117  : 		fstsw ax;
-
-  00009	9b df e0	 fstsw	 ax
-
-; 118  : 		mov word ptr [sw], ax;
-
-  0000c	66 89 45 fc	 mov	 WORD PTR _sw$[ebp], ax
-
-; 119  : 	}
-; 120  : #else
-; 121  : 	__asm__ __volatile__("fxam; fstsw %%ax;" : "=a" (sw) : "t" (x));
-; 122  : #endif
-; 123  : 	return sw & (FP_NAN | FP_NORMAL | FP_ZERO);
-
-  00010	0f b7 45 fc	 movzx	 eax, WORD PTR _sw$[ebp]
-  00014	25 00 45 00 00	 and	 eax, 17664		; 00004500H
-
-; 124  : }
-
-  00019	8b e5		 mov	 esp, ebp
-  0001b	5d		 pop	 ebp
-  0001c	c3		 ret	 0
-___fpclassifyl ENDP
 _TEXT	ENDS
 END

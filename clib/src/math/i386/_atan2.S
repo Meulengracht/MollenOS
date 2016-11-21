@@ -22,6 +22,7 @@ segment .text
 
 ;Functions in this asm
 global _atan2
+global __CIatan2
 
 ; double __cdecl atan2(double y, double x)
 _atan2:
@@ -35,4 +36,9 @@ _atan2:
 
 	; Unwind & return
 	pop     ebp
+	ret
+
+; Msvc version of atan2
+__CIatan2:
+	fpatan
 	ret

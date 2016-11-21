@@ -22,6 +22,7 @@ segment .text
 
 ;Functions in this asm
 global _sin
+global __CIsin
 
 ; computes the sinus value
 _sin:
@@ -32,7 +33,61 @@ _sin:
 	; Load real from stack
 	fld     qword [ebp + 8]
 	fsin
+
+	; Do some validation
+	fnstsw	ax
+	and		ax, 0x0400
+
+	jnz		.Try1
+	jmp		.Leave
+
+	.Try1:
+		fldpi
+		fadd	st0
+		fxch	st1
+
+	.Try2:
+		fprem1
+		fnstsw	ax
+		and		ax, 0x0400
+		jnz		.Try2
+		fstp	st1
+		fsin
 	
-	; Unwind & return
-	pop     ebp
-	ret
+	.Leave:
+		; Unwind & return
+		pop     ebp
+		ret
+
+; Msvc version of sin
+__CIsin:
+	; We trash eax
+	push	eax
+
+	; Do the fsin
+	fsin
+
+	; Do some validation
+	fnstsw	ax
+	and		ax, 0x0400
+
+	jnz		.Try1
+	jmp		.Leave
+
+	.Try1:
+		fldpi
+		fadd	st0
+		fxch	st1
+
+	.Try2:
+		fprem1
+		fnstsw	ax
+		and		ax, 0x0400
+		jnz		.Try2
+		fstp	st1
+		fsin
+	
+	.Leave:
+		; Unwind & return
+		pop     eax
+		ret

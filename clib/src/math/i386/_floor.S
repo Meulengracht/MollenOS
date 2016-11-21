@@ -22,24 +22,97 @@ segment .text
 
 ;Functions in this asm
 global _floor
+global _floorf
+global _floorl
 
 ; Floors a value
 _floor:
 	; Stack Frame
 	push    ebp
 	mov     ebp, esp
+	sub     esp, 8			; Allocate temporary space
 
-	; Do the magic
-	sub     esp,4                   ; Allocate temporary space
-	fld     qword [ebp+8]			; Load real from stack
-	fstcw   [ebp-2]                 ; Save control word
-	fclex                           ; Clear exceptions
-	mov     word [ebp-4], 0763h		; Rounding control word
-	fldcw   [ebp-4]                 ; Set new rounding control
-	frndint                         ; Round to integer
-	fclex                           ; Clear exceptions
-	fldcw   [ebp-2]                 ; Restore control word
-				
+	; Save control word
+	fstcw   word [ebp - 4]
+	mov		dx, word [ebp - 4]
+
+	; Round towards -oo
+	or		dx, 0x0400
+	and		dx, 0xF7FF
+	mov		word [ebp - 8], dx
+
+	; Set new rounding control
+	fldcw	word [ebp - 8]
+
+	; Load real from stack
+	fld     qword [ebp+8]
+	frndint
+
+	; Restore control word
+	fldcw	word [ebp - 4]
+
+	; Unwind & return
+	mov     esp, ebp
+	pop     ebp
+	ret
+
+; Floors a value float
+_floorf:
+	; Stack Frame
+	push    ebp
+	mov     ebp, esp
+	sub     esp, 8			; Allocate temporary space
+
+	; Save control word
+	fstcw   word [ebp - 4]
+	mov		dx, word [ebp - 4]
+
+	; Round towards -oo
+	or		dx, 0x0400
+	and		dx, 0xF7FF
+	mov		word [ebp - 8], dx
+
+	; Set new rounding control
+	fldcw	word [ebp - 8]
+
+	; Load real from stack
+	fld     dword [ebp+8]
+	frndint
+
+	; Restore control word
+	fldcw	word [ebp - 4]
+
+	; Unwind & return
+	mov     esp, ebp
+	pop     ebp
+	ret
+
+; Floors a value long
+_floorl:
+	; Stack Frame
+	push    ebp
+	mov     ebp, esp
+	sub     esp, 8			; Allocate temporary space
+
+	; Save control word
+	fstcw   word [ebp - 4]
+	mov		dx, word [ebp - 4]
+
+	; Round towards -oo
+	or		dx, 0x0400
+	and		dx, 0xF7FF
+	mov		word [ebp - 8], dx
+
+	; Set new rounding control
+	fldcw	word [ebp - 8]
+
+	; Load real from stack
+	fld     tword [ebp+8]
+	frndint
+
+	; Restore control word
+	fldcw	word [ebp - 4]
+
 	; Unwind & return
 	mov     esp, ebp
 	pop     ebp

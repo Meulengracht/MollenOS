@@ -26,8 +26,7 @@ when squared.  */
 /*
 * @implemented
 */
-double
-_hypot(double x, double y)
+double hypot(double x, double y)
 {
 	double abig = fabs(x), asmall = fabs(y);
 	double ratio;

@@ -4,7 +4,7 @@
 
 
 #ifndef LIBC_KERNEL
-
+#include <os/MollenOS.h>
 #include <stdio.h>
 #include <stddef.h>
 #include <stdlib.h>
@@ -12,8 +12,25 @@
 
 /* Allocate a buffer, act a sprintf and send it to CP SYSTEM */
 int printf(const char *format, ...)
-{
-	return 0;
+{ 
+	/* Variables */
+	va_list Arguments;
+	int RetVal;
+	char Out[256];
+
+	/* Reset buffer */
+	memset(&Out[0], 0, sizeof(Out));
+
+	/* Build buffer */
+	va_start(Arguments, format);
+	RetVal = vsprintf(&Out[0], format, Arguments);
+	va_end(Arguments);
+
+	/* Now spit out data */
+	MollenOSSystemLog("%s", &Out[0]);
+
+	/* Done! */
+	return RetVal;
 }
 
 #else

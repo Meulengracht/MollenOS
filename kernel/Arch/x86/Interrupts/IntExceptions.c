@@ -118,6 +118,10 @@ void StackTrace(size_t MaxFrames)
 		StackPtr = (uint32_t*)StackPtr[1];
 		StackPtr--;
 
+		/* Sanitize */
+		if (!AddressSpaceGetMap(AddressSpaceGetCurrent(), (VirtAddr_t)StackPtr)) 
+			break;
+
 		/* Dec */
 		Itr--;
 	}

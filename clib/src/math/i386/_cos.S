@@ -22,6 +22,7 @@ segment .text
 
 ;Functions in this asm
 global _cos
+global __CIcos
 
 ; takes the cosinus value
 _cos:
@@ -34,7 +35,59 @@ _cos:
 
 	; Take the cosine
 	fcos
+
+	; Modify control word
+	fnstsw	ax
+	and		ax, 0x0400
+	jnz		.Try1
+	jmp		.Leave
+
+	.Try1:
+		fldpi
+		fadd	st0
+		fxch	st1
+
+	.Try2:
+		fprem1
+		fnstsw	ax
+		and		ax, 0x0400
+		jnz		.Try2
+		fstp	st1
+		fcos
 	
 	; Unwind & return
-	pop     ebp
+	.Leave:
+		pop     ebp
+		ret
+
+; Msvc version of cos
+__CIcos:
+	; We trash eax
+	push	eax
+
+	; Take the cosine
+	fcos
+
+	; Modify control word
+	fnstsw	ax
+	and		ax, 0x0400
+	jnz		.Try1
+	jmp		.Leave
+
+	.Try1:
+		fldpi
+		fadd	st0
+		fxch	st1
+
+	.Try2:
+		fprem1
+		fnstsw	ax
+		and		ax, 0x0400
+		jnz		.Try2
+		fstp	st1
+		fcos
+	
+	; Restore and ret
+	.Leave:
+	pop		eax
 	ret

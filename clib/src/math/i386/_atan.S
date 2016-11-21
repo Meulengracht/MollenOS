@@ -22,6 +22,7 @@ segment .text
 
 ;Functions in this asm
 global _atan
+global __CIatan
 
 ; double __cdecl atan(double x)
 ; Take the arctangent
@@ -41,4 +42,15 @@ _atan:
 	
 	; Unwind & return
 	pop     ebp
+	ret
+
+; Msvc version of atan
+__CIatan:
+	; Load constant 1
+	fld1
+
+	; Take the arctangent
+	fpatan
+
+	; Done
 	ret

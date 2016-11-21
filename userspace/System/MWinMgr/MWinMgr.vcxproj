@@ -82,6 +82,7 @@
       <ExceptionHandling>false</ExceptionHandling>
       <BufferSecurityCheck>false</BufferSecurityCheck>
       <AssemblerOutput>All</AssemblerOutput>
+      <EnableEnhancedInstructionSet>NoExtensions</EnableEnhancedInstructionSet>
     </ClCompile>
     <Link>
       <SubSystem>Native</SubSystem>
@@ -104,6 +105,7 @@
     <ClCompile Include="Core\SceneManager.c" />
     <ClCompile Include="Core\Window.c" />
     <ClCompile Include="Sapphire.c" />
+    <ClCompile Include="test-double.c" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Core\Scene.h" />

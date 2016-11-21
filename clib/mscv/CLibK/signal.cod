@@ -69,6 +69,10 @@ _signal_list DD	02H
 	DD	FLAT:??_C@_0BF@MMAMBPEK@Abnormal?5termination?$AA@
 	DD	00H
 _DATA	ENDS
+CONST	SEGMENT
+_twoTo1023 DQ	07fe0000000000000r		; 8.98847e+307
+_twoToM1022 DQ	00010000000000000r		; 2.22507e-308
+CONST	ENDS
 PUBLIC	__default_handler
 PUBLIC	___pxcptinfoptrs
 PUBLIC	_signal

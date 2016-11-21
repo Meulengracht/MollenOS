@@ -15,68 +15,63 @@
 ; along with this program.  If not, see <http://www.gnu.org/licenses/>.
 ;
 ;
-; MollenOS x86-32 Math EXP2
+; MollenOS x86-32 Math Round To Int
 
 bits 32
 segment .text
 
 ;Functions in this asm
-global _exp2f
+global _lrint
+global _lrintf
+global _lrintl
 
-; float __cdecl exp2f(float)
-; Take the exponential exp 2
-_exp2f:
-    ; Stack Frame
-	push    ebp
-	mov     ebp, esp
+; Rounds a double to long
+_lrint:
+	; Stack Frame
+	push	ebp
+	mov		ebp, esp
+	sub     esp, 4
 
+	; Load real from stack
 	fld		qword [ebp + 8]
+	fistp	dword [ebp - 4]
+	pop		eax
 
-	; Is NaN or +-Inf?
-	fxam
-	fstsw	ax
-	fwait
-	mov		dh, 0x45
-	and		dh, ah
-	cmp		dh, 0x05
-
-	; Is +-Inf, jump.
-	je		t1
-	fld		st0
-
-	; int(x)
-	frndint
-
-	; fract(x)
-	fsubr	st1, st0
-	fxch
-
-	; 2^(fract(x)) - 1
-	f2xm1
-	fld1
-
-	;  2^(fract(x))
-	faddp
-
-	; e^x
-	fscale
-	fstp	st1
-	
 	; Unwind & return
+	mov     esp, ebp
 	pop     ebp
 	ret
-	
-t1:
-	; Test sign.
-	test	eax, 0x200
 
-	; If positive, jump.
-	jz		t2
-	fstp	st0
+; Rounds a float to long
+_lrintf:
+	; Stack Frame
+	push	ebp
+	mov		ebp, esp
+	sub     esp, 4
 
-	; Set result to 0.
-	fldz
-t2:
+	; Load real from stack
+	fld		dword [ebp + 8]
+	fistp	dword [ebp - 4]
+	pop		eax
+
 	; Unwind & return
+	mov     esp, ebp
+	pop     ebp
+	ret
+
+; Rounds a long double to long
+_lrintl:
+	; Stack Frame
+	push	ebp
+	mov		ebp, esp
+	sub     esp, 4
+
+	; Load real from stack
+	fld		tword [ebp + 8]
+	fistp	dword [ebp - 4]
+	pop		eax
+
+	; Unwind & return
+	mov     esp, ebp
 	pop     ebp
 	ret

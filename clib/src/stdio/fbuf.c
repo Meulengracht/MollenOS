@@ -79,7 +79,9 @@ int _ffill(FILE * stream, void *ptr, size_t size)
 		fbuffer = (FILEBUFFER*)stream->buffer;
 	}
 
-	/* Take care of a new buffer */
+	/* Take care of a new buffer 
+	 * but check if we are at end of buffer
+	 * or buffer has never been used */
 	if (fbuffer->Pointer == -1
 		|| (fbuffer->Pointer == fbuffer->TempSize)) {
 		/* Read a complete block */
@@ -87,7 +89,7 @@ int _ffill(FILE * stream, void *ptr, size_t size)
 		int retval = 0;
 
 		/* Determine if we read more than a full buffer */
-		if (size > (size_t)fbuffer->Size) {
+		if (size >= (size_t)fbuffer->Size) {
 			retval = Syscall4(MOLLENOS_SYSCALL_VFSREAD, MOLLENOS_SYSCALL_PARAM(stream->fd),
 				MOLLENOS_SYSCALL_PARAM(ptr), MOLLENOS_SYSCALL_PARAM(size),
 				MOLLENOS_SYSCALL_PARAM(&errcode));
@@ -119,7 +121,7 @@ int _ffill(FILE * stream, void *ptr, size_t size)
 
 		/* Sanity, if we read more than buffer 
 		 * we are still invalid */
-		if (size > (size_t)fbuffer->Size) {
+		if (size >= (size_t)fbuffer->Size) {
 			/* Invalidate */
 			fbuffer->Pointer = -1;
 

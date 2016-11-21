@@ -15,37 +15,54 @@
 ; along with this program.  If not, see <http://www.gnu.org/licenses/>.
 ;
 ;
-; MollenOS x86-32 Math CEILING FLOAT
+; MollenOS x86-32 Math Round To Int
 
 bits 32
 segment .text
 
 ;Functions in this asm
-global _ceilf
+global _rint
+global _rintf
+global _rintl
 
-; Ceils a value (float)
-_ceilf:
+; Rounds a double to int
+_rint:
+	; Stack Frame
+	push	ebp
+	mov		ebp, esp
 
-	fld		dword [esp + 4]
-	sub		esp, 8
-
-	; store fpu control word
-	fstcw	[esp + 4]
-
-	; round towards +oo
-	mov edx, [esp + 4]
-	or edx,  0x0800
-	and edx, 0xFBFF
-	mov [esp], edx
-
-	; load modified control word
-	fldcw [esp]
-
-	; round
+	; Load real from stack
+	fld		qword [ebp + 8]
 	frndint
 
-	; restore original control word
-	fldcw [esp + 4]
+	; Unwind & return
+	pop     ebp
+	ret
 
-	add esp, 8
+; Rounds a float to int
+_rintf:
+	; Stack Frame
+	push	ebp
+	mov		ebp, esp
+
+	; Load real from stack
+	fld		dword [ebp + 8]
+	frndint
+
+	; Unwind & return
+	pop     ebp
+	ret
+
+; Rounds a long double to int
+_rintl:
+	; Stack Frame
+	push	ebp
+	mov		ebp, esp
+
+	; Load real from stack
+	fld		tword [ebp + 8]
+	frndint
+
+	; Unwind & return
+	pop     ebp
 	ret

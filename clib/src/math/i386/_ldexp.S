@@ -30,25 +30,14 @@ _ldexp:
 	push    ebp
 	mov     ebp, esp
 
-	; Allocate temporary space
-    sub     esp, 8
-
-	; Load n as integer
-    fild    dword [ebp + 16]
-
 	; Load real from stack
-    fld     qword [ebp + 8]
-
-	; Compute 2 to the n
-    fscale
-
-	; Set new top of stack
-    fstp    st1
-
+	fild    dword [ebp + 16]
+	fld     qword [ebp + 8]
+	fscale
+	
 	; Store result
-    fst     qword [ebp - 8]
+	fstp	st1
 	
 	; Unwind & return
-	mov     esp, ebp
 	pop     ebp
 	ret

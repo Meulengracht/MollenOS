@@ -22,6 +22,7 @@ segment .text
 
 ;Functions in this asm
 global _tan
+global __CItan
 
 ; double __cdecl tan(double x)
 ; floating point tangent
@@ -29,20 +30,72 @@ _tan:
 	; Stack Frame
 	push    ebp
 	mov     ebp, esp
-        
-	; Allocate temporary space
-	sub     esp, 4
-
+    
 	; Load real from stack
 	fld     qword [ebp+8]
 
 	; Take the tangent
 	fptan
 
-	; Throw away the constant 1
-	fstp    dword [ebp-4]
+	; Use ax for temporary storage
+	fnstsw	ax
+	and		ax, 0x400
+	jnz		.NotZero
+	
+	fstp	st0
+	jmp		.Leave
+	
+	.NotZero:
+		fldpi
+		fadd	st0
+		fxch	st1
+
+	.Repeat:
+		fprem1
+		fnstsw	ax
+		and		ax, 0x400
+		jnz		.Repeat
+		fstp	st1
+		fptan
+		fstp	st0
 
 	; Unwind & return
-	mov     esp, ebp
-	pop     ebp
+	.Leave:
+		pop     ebp
+		ret
+
+; Msvc version of tan
+__CItan:
+	; Store eax, we trash it
+	push	eax
+
+	; Take the tangent
+	fptan
+
+	; Use ax for temporary storage
+	fnstsw	ax
+	and		ax, 0x400
+	jnz		.NotZero
+	fstp	st0
+	
+	; Restore and return
+	pop		eax
+	ret
+	
+	.NotZero:
+		fldpi
+		fadd	st0
+		fxch	st1
+
+	.Repeat:
+		fprem1
+		fnstsw	ax
+		and		ax, 0x400
+		jnz		.Repeat
+		fstp	st1
+		fptan
+		fstp	st0
+
+	; Restore and return
+	pop		eax
 	ret

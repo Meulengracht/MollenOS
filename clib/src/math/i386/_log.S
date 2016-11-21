@@ -21,26 +21,73 @@ bits 32
 segment .text
 
 ;Functions in this asm
+global _log
 global _logf
+global _logl
+global __CIlog
 
 ; takes the logorithmic value in base 2
-_logf:
+_log:
 	; Stack Frame
 	push    ebp
 	mov     ebp, esp
 
-	; Load real from stack
-	fld     qword [ebp+8]
-	
 	; Load log base e of 2
 	fldln2
-	
-	; Exchange st, st(1)
-	fxch
-	
+
+	; Load real from stack
+	fld     qword [ebp + 8]
+
 	; Compute the natural log(x)
 	fyl2x
 
 	; Unwind & return
 	pop     ebp
+	ret
+
+; takes the logorithmic value in base 2 float
+_logf:
+	; Stack Frame
+	push    ebp
+	mov     ebp, esp
+
+	; Load log base e of 2
+	fldln2
+
+	; Load real from stack
+	fld     dword [ebp + 8]
+
+	; Compute the natural log(x)
+	fyl2x
+
+	; Unwind & return
+	pop     ebp
+	ret
+
+; takes the logorithmic value in base 2 float
+_logl:
+	; Stack Frame
+	push    ebp
+	mov     ebp, esp
+
+	; Load log base e of 2
+	fldln2
+
+	; Load real from stack
+	fld     tword [ebp + 8]
+
+	; Compute the natural log(x)
+	fyl2x
+
+	; Unwind & return
+	pop     ebp
+	ret
+
+; Msvc version of log
+__CIlog:
+	fldln2
+	fxch
+	fyl2x
+
+	; Done
 	ret

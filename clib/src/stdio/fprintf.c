@@ -51,7 +51,7 @@ int fprintf(FILE * stream, const char * format, ...)
 		 * as the output goes to screen instead */
 		va_start(Arguments, format);
 		RetVal = vprintf(format, Arguments);
-		va_end(Arguments);
+		va_end(Arguments); 
 
 		/* Done! */
 		return RetVal;

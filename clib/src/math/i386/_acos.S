@@ -21,8 +21,8 @@ bits 32
 segment .text
 
 ;Functions in this asm
-global  _acos
-global  __CIacos
+global _acos
+global __CIacos
 
 ; double __cdecl acos(double x)
 ; floating point arc cosine
@@ -60,13 +60,14 @@ _acos:
 	pop     ebp
 	ret
 
+; msvc Version of acos
 __CIacos:
 	; Load x twice
     fld     st0
     fld     st0
-    
+
 	; Multiply (x squared)
-	fmul
+    fmul
 
 	; Load 1
     fld1
@@ -83,5 +84,5 @@ __CIacos:
 	; This gives the arc cosine !
     fpatan
 
-	; Done!
-    ret
+	; Done
+	ret

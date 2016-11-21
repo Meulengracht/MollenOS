@@ -76,12 +76,18 @@ size_t fread(void * vptr, size_t size, size_t count, FILE * stream)
 		/* Variables */
 		int res = _ffill(stream, bPtr, BytesToRead);
 
-		/* Sanity */
+		/* Sanitize
+		 * if res is below 0, then errno is 
+		 * already set for us by _fval in _ffill */
 		if (res < 0) {
-			/* fuck */
 			return res;
 		}
 		else if (feof(stream)) {
+			/* Just because stream is eof 
+			 * we might still have read bytes */
+			if (res > 0) {
+				BytesRead += (size_t)res;
+			}
 			break;
 		}
 		else {

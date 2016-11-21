@@ -396,13 +396,13 @@ case_e:
 		*prefix = (" ");
 
 	/* Handle special cases first */
-	if (_isnan((double)fpval))
+	if (_isnan(fpval))
 	{
 		(*string) -= sizeof(_nan) / sizeof(char) - 1;
 		strcpy((*string), _nan);
 		fpval2 = 1;
 	}
-	else if (!_finite((double)fpval))
+	else if (!_finite(fpval))
 	{
 		(*string) -= sizeof(_infinity) / sizeof(char) - 1;
 		strcpy((*string), _infinity);

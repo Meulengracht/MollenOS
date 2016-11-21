@@ -1,5 +1,4 @@
 /* MollenOS Math Implementation
- * Newlib
  *
  */
 
@@ -82,577 +81,287 @@ _CRT_EXTERN extern double const _HUGE;
 #define _INFCODE 1
 #define _NANCODE 2
 
+/* The prototypes */
+_CRT_EXTERN int	__fpclassifyd(double);
+_CRT_EXTERN int	__fpclassifyf(float);
+_CRT_EXTERN int	__fpclassifyl(long double);
+_CRT_EXTERN int	__isfinitef(float);
+_CRT_EXTERN int	__isfinite(double);
+_CRT_EXTERN int	__isfinitel(long double);
+_CRT_EXTERN int __isinf(double);
+_CRT_EXTERN int	__isinff(float);
+_CRT_EXTERN int	__isinfl(long double);
+_CRT_EXTERN int __isnan(double);
+_CRT_EXTERN int	__isnanf(float);
+_CRT_EXTERN int	__isnanl(long double);
+_CRT_EXTERN int	__isnormalf(float);
+_CRT_EXTERN int	__isnormal(double);
+_CRT_EXTERN int	__isnormall(long double);
+_CRT_EXTERN int __signbit(double);
+_CRT_EXTERN int __signbitf(float);
+_CRT_EXTERN int __signbitl(long double);
+
 /* 7.12.3.1 */
-/*
-Return values for fpclassify.
-These are based on Intel x87 fpu condition codes
-in the high byte of status word and differ from
-the return values for MS IEEE 754 extension _fpclass()
-*/
-#define FP_NAN		0x0100
-#define FP_NORMAL	0x0400
-#define FP_INFINITE	(FP_NAN | FP_NORMAL)
-#define FP_ZERO		0x4000
-#define FP_SUBNORMAL	(FP_NORMAL | FP_ZERO)
-/* 0x0200 is signbit mask */
+/* Symbolic constants to classify floating point numbers. */
+#define	FP_INFINITE		0x01
+#define	FP_NAN			0x02
+#define	FP_NORMAL		0x04
+#define	FP_SUBNORMAL	0x08
+#define	FP_ZERO			0x10
 
-/*
-We can't inline float or double, because we want to ensure truncation
-to semantic type before classification.
-(A normal long double value might become subnormal when
-converted to double, and zero when converted to float.)
-*/
-
-extern int __cdecl __fpclassifyl(long double);
-extern int __cdecl __fpclassifyf(float);
-extern int __cdecl __fpclassify(double);
-
-#ifndef __CRT__NO_INLINE
-__CRT_INLINE int __cdecl __fpclassifyl(long double x) {
-	unsigned short sw;
-#if defined(_MSC_VER)
-	_asm {
-		fld [x];
-		fxam;
-		fstsw ax;
-		mov word ptr [sw], ax;
-	}
-#else
-	__asm__ __volatile__("fxam; fstsw %%ax;" : "=a" (sw) : "t" (x));
-#endif
-	return sw & (FP_NAN | FP_NORMAL | FP_ZERO);
-}
-__CRT_INLINE int __cdecl __fpclassify(double x) {
-	unsigned short sw;
-#if defined(_MSC_VER)
-	_asm {
-		fld [x];
-		fxam;
-		fstsw ax;
-		mov word ptr[sw], ax;
-	}
-#else
-	__asm__ __volatile__("fxam; fstsw %%ax;" : "=a" (sw) : "t" (x));
-#endif
-	return sw & (FP_NAN | FP_NORMAL | FP_ZERO);
-}
-__CRT_INLINE int __cdecl __fpclassifyf(float x) {
-	unsigned short sw;
-#if defined(_MSC_VER)
-	_asm {
-		fld [x];
-		fxam;
-		fstsw ax;
-		mov word ptr[sw], ax;
-	}
-#else
-	__asm__ __volatile__("fxam; fstsw %%ax;" : "=a" (sw) : "t" (x));
-#endif
-	return sw & (FP_NAN | FP_NORMAL | FP_ZERO);
-}
-#endif
-
-#define fpclassify(x) (sizeof (x) == sizeof (float) ? __fpclassifyf (x)	  \
-  : sizeof (x) == sizeof (double) ? __fpclassify (x) \
-  : __fpclassifyl (x))
+#define	fpclassify(x) \
+    ((sizeof (x) == sizeof (float)) ? __fpclassifyf(x) \
+    : (sizeof (x) == sizeof (double)) ? __fpclassifyd(x) \
+    : __fpclassifyl(x))
 
 /* 7.12.3.2 */
-#define isfinite(x) ((fpclassify(x) & FP_NAN) == 0)
+#define	isfinite(x)					\
+    ((sizeof (x) == sizeof (float)) ? __isfinitef((float)x)	\
+    : (sizeof (x) == sizeof (double)) ? __isfinite((double)x)	\
+    : __isfinitel(x))
+
 
 /* 7.12.3.3 */
-#define isinf(x) (fpclassify(x) == FP_INFINITE)
+#define	isinf(x)					\
+    ((sizeof (x) == sizeof (float)) ? __isinff((float)x)	\
+    : (sizeof (x) == sizeof (double)) ? __isinf((double)x)	\
+    : __isinfl(x))
 
 /* 7.12.3.4 */
-/* We don't need to worry about truncation here:
-A NaN stays a NaN. */
-
-extern int __cdecl __isnan(double);
-extern int __cdecl __isnanf(float);
-extern int __cdecl __isnanl(long double);
-
-#ifndef __CRT__NO_INLINE
-__CRT_INLINE int __cdecl __isnan(double _x)
-{
-	unsigned short sw;
-#if defined(_MSC_VER)
-	_asm {
-		fld [_x];
-		fxam;
-		fstsw ax;
-		mov word ptr[sw], ax;
-	}
-#else
-	__asm__ __volatile__("fxam;"
-		"fstsw %%ax": "=a" (sw) : "t" (_x));
-#endif
-	return (sw & (FP_NAN | FP_NORMAL | FP_INFINITE | FP_ZERO | FP_SUBNORMAL))
-		== FP_NAN;
-}
-
-__CRT_INLINE int __cdecl __isnanf(float _x)
-{
-	unsigned short sw;
-#if defined(_MSC_VER)
-	_asm {
-		fld [_x];
-		fxam;
-		fstsw ax;
-		mov word ptr[sw], ax;
-	}
-#else
-	__asm__ __volatile__("fxam;"
-		"fstsw %%ax": "=a" (sw) : "t" (_x));
-#endif
-	return (sw & (FP_NAN | FP_NORMAL | FP_INFINITE | FP_ZERO | FP_SUBNORMAL))
-		== FP_NAN;
-}
-
-__CRT_INLINE int __cdecl __isnanl(long double _x)
-{
-	unsigned short sw;
-#if defined(_MSC_VER)
-	_asm {
-		fld [_x];
-		fxam;
-		fstsw ax;
-		mov word ptr[sw], ax;
-	}
-#else
-	__asm__ __volatile__("fxam;"
-		"fstsw %%ax": "=a" (sw) : "t" (_x));
-#endif
-	return (sw & (FP_NAN | FP_NORMAL | FP_INFINITE | FP_ZERO | FP_SUBNORMAL))
-		== FP_NAN;
-}
-#endif
-
-#define isnan(x) (sizeof (x) == sizeof (float) ? __isnanf (x)	\
-  : sizeof (x) == sizeof (double) ? __isnan (x)	\
-  : __isnanl (x))
+/* We don't need to worry about truncation here: 
+ * A NaN stays a NaN. */
+#define	isnan(x)					\
+    ((sizeof (x) == sizeof (float)) ? __isnanf((float)x)	\
+    : (sizeof (x) == sizeof (double)) ? __isnan((double)x)	\
+    : __isnanl(x))
 
 /* 7.12.3.5 */
-#define isnormal(x) (fpclassify(x) == FP_NORMAL)
+#define	isnormal(x)					\
+    ((sizeof (x) == sizeof (float)) ? __isnormalf(x)	\
+    : (sizeof (x) == sizeof (double)) ? __isnormal(x)	\
+    : __isnormall(x))
 
 /* 7.12.3.6 The signbit macro */
-extern int __cdecl __signbit(double);
-extern int __cdecl __signbitf(float);
-extern int __cdecl __signbitl(long double);
-#ifndef __CRT__NO_INLINE
-__CRT_INLINE int __cdecl __signbit(double x) {
-	unsigned short stw;
-#if defined(_MSC_VER)
-	_asm {
-		fld [x];
-		fxam;
-		fstsw ax;
-		mov word ptr[stw], ax;
-	}
-#else
-	__asm__ __volatile__("fxam; fstsw %%ax;": "=a" (stw) : "t" (x));
-#endif
-	return stw & 0x0200;
-}
-
-__CRT_INLINE int __cdecl __signbitf(float x) {
-	unsigned short stw;
-#if defined(_MSC_VER)
-	_asm {
-		fld [x];
-		fxam;
-		fstsw ax;
-		mov word ptr[stw], ax;
-	}
-#else
-	__asm__ __volatile__("fxam; fstsw %%ax;": "=a" (stw) : "t" (x));
-#endif
-	return stw & 0x0200;
-}
-
-__CRT_INLINE int __cdecl __signbitl(long double x) {
-	unsigned short stw;
-#if defined(_MSC_VER)
-	_asm {
-		fld [x];
-		fxam;
-		fstsw ax;
-		mov word ptr[stw], ax;
-	}
-#else
-	__asm__ __volatile__("fxam; fstsw %%ax;": "=a" (stw) : "t" (x));
-#endif
-	return stw & 0x0200;
-}
-#endif
-
-#define signbit(x) (sizeof (x) == sizeof (float) ? __signbitf (x)	\
-  : sizeof (x) == sizeof (double) ? __signbit (x)	\
-  : __signbitl (x))
+#define	signbit(x)					\
+    ((sizeof (x) == sizeof (float)) ? __signbitf(x)	\
+    : (sizeof (x) == sizeof (double)) ? __signbit(x)	\
+    : __signbitl(x))
 
 /* 7.12.4 Trigonometric functions: Double in C89 */
-// Already in math.h
+_CRT_EXTERN double __CRTDECL cos(double);
+_CRT_EXTERN double __CRTDECL sin(double);
+_CRT_EXTERN double __CRTDECL tan(double);
 
 /* 7.12.5 Hyperbolic functions: Double in C89  */
-// Already in math.h
+_CRT_EXTERN double __CRTDECL cosh(double);
+_CRT_EXTERN double __CRTDECL sinh(double);
+_CRT_EXTERN double __CRTDECL tanh(double);
 
-/* Inverse hyperbolic trig functions  */
-/* 7.12.5.1 */
-_CRT_EXTERN double __cdecl acosh(double);
-_CRT_EXTERN float __cdecl acoshf(float);
-_CRT_EXTERN long double __cdecl acoshl(long double);
+/* 7.12.4 Inverse Trigonometric functions: Double in C89 */
+_CRT_EXTERN double __CRTDECL acos(double);
+_CRT_EXTERN double __CRTDECL asin(double);
+_CRT_EXTERN double __CRTDECL atan(double);
+_CRT_EXTERN double __CRTDECL atan2(double, double);
+
+/* 7.12.5.1  Inverse hyperbolic trig functions  */
+_CRT_EXTERN double __CRTDECL acosh(double);
+_CRT_EXTERN float __CRTDECL acoshf(float);
+_CRT_EXTERN long double __CRTDECL acoshl(long double);
 
 /* 7.12.5.2 */
-_CRT_EXTERN double __cdecl asinh(double);
-_CRT_EXTERN float __cdecl asinhf(float);
-_CRT_EXTERN long double __cdecl asinhl(long double);
+_CRT_EXTERN double __CRTDECL asinh(double);
+_CRT_EXTERN float __CRTDECL asinhf(float);
+_CRT_EXTERN long double __CRTDECL asinhl(long double);
 
 /* 7.12.5.3 */
-_CRT_EXTERN double __cdecl atanh(double);
-_CRT_EXTERN float __cdecl atanhf(float);
-_CRT_EXTERN long double __cdecl atanhl(long double);
+_CRT_EXTERN double __CRTDECL atanh(double);
+_CRT_EXTERN float __CRTDECL atanhf(float);
+_CRT_EXTERN long double __CRTDECL atanhl(long double);
 
 /* Exponentials and logarithms  */
 /* 7.12.6.1 Double in C89 */
-// exp functions. Already in math.h
+_CRT_EXTERN double __CRTDECL exp(double);
+_CRT_EXTERN float __CRTDECL expf(float);
+_CRT_EXTERN long double expl(long double);
 
 /* 7.12.6.2 */
-_CRT_EXTERN double __cdecl exp2(double);
-_CRT_EXTERN float __cdecl exp2f(float);
-_CRT_EXTERN long double __cdecl exp2l(long double);
+_CRT_EXTERN double __CRTDECL exp2(double);
+_CRT_EXTERN float __CRTDECL exp2f(float);
+_CRT_EXTERN long double __CRTDECL exp2l(long double);
 
 /* 7.12.6.3 The expm1 functions */
 /* TODO: These could be inlined */
-_CRT_EXTERN double __cdecl expm1(double);
-_CRT_EXTERN float __cdecl expm1f(float);
-_CRT_EXTERN long double __cdecl expm1l(long double);
+_CRT_EXTERN double __CRTDECL expm1(double);
+_CRT_EXTERN float __CRTDECL expm1f(float);
+_CRT_EXTERN long double __CRTDECL expm1l(long double);
 
 /* 7.12.6.4 Double in C89 */
-// frexp functions. Already in math.h
+_CRT_EXTERN double __CRTDECL frexp(double, int*);
+_CRT_EXTERN float __CRTDECL frexpf(float, int*);
+_CRT_EXTERN long double __CRTDECL frexpl(long double, int*);
 
 /* 7.12.6.5 */
+_CRT_EXTERN double __CRTDECL ldexp(double, int);
+
+/* 7.12.6.6 */
 #define FP_ILOGB0 ((int)0x80000000)
 #define FP_ILOGBNAN ((int)0x80000000)
-_CRT_EXTERN int __cdecl ilogb(double);
-_CRT_EXTERN int __cdecl ilogbf(float);
-_CRT_EXTERN int __cdecl ilogbl(long double);
+_CRT_EXTERN int __CRTDECL ilogb(double);
+_CRT_EXTERN int __CRTDECL ilogbf(float);
+_CRT_EXTERN int __CRTDECL ilogbl(long double);
+
+/* 7.12.6.7 */
+_CRT_EXTERN double __CRTDECL log(double);
+
+/* 7.12.6.8 */
+_CRT_EXTERN double __CRTDECL log10(double);
 
 /* 7.12.6.9 */
-_CRT_EXTERN double __cdecl log1p(double);
-_CRT_EXTERN float __cdecl log1pf(float);
-_CRT_EXTERN long double __cdecl log1pl(long double);
+_CRT_EXTERN double __CRTDECL log1p(double);
+_CRT_EXTERN float __CRTDECL log1pf(float);
+_CRT_EXTERN long double __CRTDECL log1pl(long double);
 
 /* 7.12.6.10 */
-_CRT_EXTERN double __cdecl log2(double);
-_CRT_EXTERN float __cdecl log2f(float);
-_CRT_EXTERN long double __cdecl log2l(long double);
+_CRT_EXTERN double __CRTDECL log2(double);
+_CRT_EXTERN float __CRTDECL log2f(float);
+_CRT_EXTERN long double __CRTDECL log2l(long double);
 
 /* 7.12.6.11 */
-_CRT_EXTERN double __cdecl logb(double);
-_CRT_EXTERN float __cdecl logbf(float);
-_CRT_EXTERN long double __cdecl logbl(long double);
-
-/* Inline versions.  GCC-4.0+ can do a better fast-math optimization
-with __builtins. */
-#ifndef __CRT__NO_INLINE
-__CRT_INLINE double __cdecl logb(double x)
-{
-	double res = 0.0;
-#if defined(_MSC_VER)
-	_asm {
-		fld [x];
-		fxtract;
-		fstp [res];
-	}
-#else
-	__asm__ __volatile__("fxtract\n\t"
-		"fstp	%%st" : "=t" (res) : "0" (x));
-#endif
-	return res;
-}
-
-__CRT_INLINE float __cdecl logbf(float x)
-{
-	float res = 0.0F;
-#if defined(_MSC_VER)
-	_asm {
-		fld[x];
-		fxtract;
-		fstp[res];
-	}
-#else
-	__asm__ __volatile__("fxtract\n\t"
-		"fstp	%%st" : "=t" (res) : "0" (x));
-#endif
-	return res;
-}
-
-__CRT_INLINE long double __cdecl logbl(long double x)
-{
-	long double res = 0.0l;
-#if defined(_MSC_VER)
-	_asm {
-		fld[x];
-		fxtract;
-		fstp[res];
-	}
-#else
-	__asm__ __volatile__("fxtract\n\t"
-		"fstp	%%st" : "=t" (res) : "0" (x));
-#endif
-	return res;
-}
-#endif /* __CRT__NO_INLINE */
+_CRT_EXTERN double __CRTDECL logb(double);
+_CRT_EXTERN float __CRTDECL logbf(float);
+_CRT_EXTERN long double __CRTDECL logbl(long double);
 
 /* 7.12.6.12  Double in C89 */
+_CRT_EXTERN double __CRTDECL modf(double, double*);
 // modf functions. Already in math.h
 
 /* 7.12.6.13 */
-_CRT_EXTERN double __cdecl scalbn(double, int);
-_CRT_EXTERN float __cdecl scalbnf(float, int);
-_CRT_EXTERN long double __cdecl scalbnl(long double, int);
+_CRT_EXTERN double __CRTDECL scalbn(double, int);
+_CRT_EXTERN float __CRTDECL scalbnf(float, int);
+_CRT_EXTERN long double __CRTDECL scalbnl(long double, int);
 
-_CRT_EXTERN double __cdecl scalbln(double, long);
-_CRT_EXTERN float __cdecl scalblnf(float, long);
-_CRT_EXTERN long double __cdecl scalblnl(long double, long);
+_CRT_EXTERN double __CRTDECL scalbln(double, long);
+_CRT_EXTERN float __CRTDECL scalblnf(float, long);
+_CRT_EXTERN long double __CRTDECL scalblnl(long double, long);
 
 /* 7.12.7.1 */
 /* Implementations adapted from Cephes versions */
-_CRT_EXTERN double __cdecl cbrt(double);
-_CRT_EXTERN float __cdecl cbrtf(float);
-_CRT_EXTERN long double __cdecl cbrtl(long double);
+_CRT_EXTERN double __CRTDECL cbrt(double);
+_CRT_EXTERN float __CRTDECL cbrtf(float);
+_CRT_EXTERN long double __CRTDECL cbrtl(long double);
 
 /* 7.12.7.2 The fabs functions: Double in C89 */
-// Already in math.h
+_CRT_EXTERN double __CRTDECL fabs(double);
+_CRT_EXTERN float __CRTDECL fabsf(float);
+_CRT_EXTERN long double __CRTDECL fabsl(long double);
 
 /* 7.12.7.3  */
-// hypot functions. Already in math.h
+_CRT_EXTERN double __CRTDECL hypot(double, double);
+float __CRTDECL hypotf(float, float);
+long double __CRTDECL hypotl(long double, long double);
 
 /* 7.12.7.4 The pow functions. Double in C89 */
 // Already in math.h
+_CRT_EXTERN double __CRTDECL pow(double x, double y);
 
 /* 7.12.7.5 The sqrt functions. Double in C89. */
 // Already in math.h
+_CRT_EXTERN double __CRTDECL sqrt(double x);
 
 /* 7.12.8.1 The erf functions  */
-_CRT_EXTERN double __cdecl erf(double);
-_CRT_EXTERN float __cdecl erff(float);
-_CRT_EXTERN long double __cdecl erfl(long double);
+_CRT_EXTERN double __CRTDECL erf(double);
+_CRT_EXTERN float __CRTDECL erff(float);
+_CRT_EXTERN long double __CRTDECL erfl(long double);
 
 /* 7.12.8.2 The erfc functions  */
-_CRT_EXTERN double __cdecl erfc(double);
-_CRT_EXTERN float __cdecl erfcf(float);
-_CRT_EXTERN long double __cdecl erfcl(long double);
+_CRT_EXTERN double __CRTDECL erfc(double);
+_CRT_EXTERN float __CRTDECL erfcf(float);
+_CRT_EXTERN long double __CRTDECL erfcl(long double);
 
 /* 7.12.8.3 The lgamma functions */
-_CRT_EXTERN double __cdecl lgamma(double);
-_CRT_EXTERN float __cdecl lgammaf(float);
-_CRT_EXTERN long double __cdecl lgammal(long double);
+_CRT_EXTERN double __CRTDECL lgamma(double);
+_CRT_EXTERN float __CRTDECL lgammaf(float);
+_CRT_EXTERN long double __CRTDECL lgammal(long double);
 
 /* 7.12.8.4 The tgamma functions */
-_CRT_EXTERN double __cdecl tgamma(double);
-_CRT_EXTERN float __cdecl tgammaf(float);
-_CRT_EXTERN long double __cdecl tgammal(long double);
+_CRT_EXTERN double __CRTDECL tgamma(double);
+_CRT_EXTERN float __CRTDECL tgammaf(float);
+_CRT_EXTERN long double __CRTDECL tgammal(long double);
 
 /* 7.12.9.1 Double in C89 */
-// ceil functions. Already in math.h
+_CRT_EXTERN double __CRTDECL ceil(double);
+_CRT_EXTERN float __CRTDECL ceilf(float);
+_CRT_EXTERN long double __CRTDECL ceill(long double);
 
 /* 7.12.9.2 Double in C89 */
-// floor functions. Already in math.h
+_CRT_EXTERN double __CRTDECL floor(double);
+_CRT_EXTERN float __CRTDECL floorf(float);
+_CRT_EXTERN long double __CRTDECL floorl(long double);
 
 /* 7.12.9.3 */
-_CRT_EXTERN double __cdecl nearbyint(double);
-_CRT_EXTERN float __cdecl nearbyintf(float);
-_CRT_EXTERN long double __cdecl nearbyintl(long double);
+_CRT_EXTERN double __CRTDECL nearbyint(double);
+_CRT_EXTERN float __CRTDECL nearbyintf(float);
+_CRT_EXTERN long double __CRTDECL nearbyintl(long double);
 
 /* 7.12.9.4 */
 /* round, using fpu control word settings */
-_CRT_EXTERN double __cdecl rint(double);
-_CRT_EXTERN float __cdecl rintf(float);
-_CRT_EXTERN long double __cdecl rintl(long double);
+_CRT_EXTERN double __CRTDECL rint(double);
+_CRT_EXTERN float __CRTDECL rintf(float);
+_CRT_EXTERN long double __CRTDECL rintl(long double);
 
 /* 7.12.9.5 */
-_CRT_EXTERN long __cdecl lrint(double);
-_CRT_EXTERN long __cdecl lrintf(float);
-_CRT_EXTERN long __cdecl lrintl(long double);
+_CRT_EXTERN long __CRTDECL lrint(double);
+_CRT_EXTERN long __CRTDECL lrintf(float);
+_CRT_EXTERN long __CRTDECL lrintl(long double);
 
-_CRT_EXTERN long long __cdecl llrint(double);
-_CRT_EXTERN long long __cdecl llrintf(float);
-_CRT_EXTERN long long __cdecl llrintl(long double);
-
-/* Inline versions of above.
-GCC 4.0+ can do a better fast-math job with __builtins. */
-
-#ifndef __CRT__NO_INLINE
-__CRT_INLINE double __cdecl rint(double x)
-{
-	double retval = 0.0;
-#if defined(_MSC_VER)
-	_asm {
-		fld [x];
-		frndint;
-		fstp [retval];
-	}
-#else
-	__asm__ __volatile__("frndint;": "=t" (retval) : "0" (x));
-#endif
-	return retval;
-}
-
-__CRT_INLINE float __cdecl rintf(float x)
-{
-	float retval = 0.0;
-#if defined(_MSC_VER)
-	_asm {
-		fld [x];
-		frndint;
-		fstp [retval];
-	}
-#else
-	__asm__ __volatile__("frndint;": "=t" (retval) : "0" (x));
-#endif
-	return retval;
-}
-
-__CRT_INLINE long double __cdecl rintl(long double x)
-{
-	long double retval = 0.0l;
-#if defined(_MSC_VER)
-	_asm {
-		fld [x];
-		frndint;
-		fstp [retval];
-	}
-#else
-	__asm__ __volatile__("frndint;": "=t" (retval) : "0" (x));
-#endif
-	return retval;
-}
-
-__CRT_INLINE long __cdecl lrint(double x)
-{
-	long retval = 0;
-#if defined(_MSC_VER)
-	_asm {
-		fld [x];
-		fistp [retval];
-	}
-#else
-	__asm__ __volatile__("fistpl %0"  : "=m" (retval) : "t" (x) : "st");
-#endif
-	return retval;
-}
-
-__CRT_INLINE long __cdecl lrintf(float x)
-{
-	long retval = 0;
-#if defined(_MSC_VER)
-	_asm {
-		fld [x];
-		fistp [retval];
-	}
-#else
-	__asm__ __volatile__("fistpl %0"  : "=m" (retval) : "t" (x) : "st");
-#endif
-	return retval;
-}
-
-__CRT_INLINE long __cdecl lrintl(long double x)
-{
-	long retval = 0;
-#if defined(_MSC_VER)
-	_asm {
-		fld [x];
-		fistp [retval];
-	}
-#else
-	__asm__ __volatile__("fistpl %0"  : "=m" (retval) : "t" (x) : "st");
-#endif
-}
-
-__CRT_INLINE long long __cdecl llrint(double x)
-{
-	long long retval = 0ll;
-#if defined(_MSC_VER)
-	_asm {
-		fld [x];
-		fistp [retval];
-	}
-#else
-	__asm__ __volatile__("fistpll %0"  : "=m" (retval) : "t" (x) : "st");
-#endif
-	return retval;
-}
-
-__CRT_INLINE long long __cdecl llrintf(float x)
-{
-	long long retval = 0ll;
-#if defined(_MSC_VER)
-	_asm {
-		fld [x];
-		fistp [retval];
-	}
-#else
-	__asm__ __volatile__("fistpll %0"  : "=m" (retval) : "t" (x) : "st");
-#endif
-	return retval;
-}
-
-__CRT_INLINE long long __cdecl llrintl(long double x)
-{
-	long long retval = 0ll;
-#if defined(_MSC_VER)
-	_asm {
-		fld [x];
-		fistp [retval];
-	}
-#else
-	__asm__ __volatile__("fistpll %0"  : "=m" (retval) : "t" (x) : "st");
-#endif
-	return retval;
-}
-#endif /* !__CRT__NO_INLINE */
+_CRT_EXTERN long long __CRTDECL llrint(double);
+_CRT_EXTERN long long __CRTDECL llrintf(float);
+_CRT_EXTERN long long __CRTDECL llrintl(long double);
 
 /* 7.12.9.6 */
 /* round away from zero, regardless of fpu control word settings */
-extern double __cdecl round(double);
-extern float __cdecl roundf(float);
-extern long double __cdecl roundl(long double);
+_CRT_EXTERN double __CRTDECL round(double);
+_CRT_EXTERN float __CRTDECL roundf(float);
+_CRT_EXTERN long double __CRTDECL roundl(long double);
 
 /* 7.12.9.7  */
-_CRT_EXTERN long __cdecl lround(double);
-_CRT_EXTERN long __cdecl lroundf(float);
-_CRT_EXTERN long __cdecl lroundl(long double);
-_CRT_EXTERN long long __cdecl llround(double);
-_CRT_EXTERN long long __cdecl llroundf(float);
-_CRT_EXTERN long long __cdecl llroundl(long double);
+_CRT_EXTERN long __CRTDECL lround(double);
+_CRT_EXTERN long __CRTDECL lroundf(float);
+_CRT_EXTERN long __CRTDECL lroundl(long double);
+_CRT_EXTERN long long __CRTDECL llround(double);
+_CRT_EXTERN long long __CRTDECL llroundf(float);
+_CRT_EXTERN long long __CRTDECL llroundl(long double);
 
 /* 7.12.9.8 */
 /* round towards zero, regardless of fpu control word settings */
-_CRT_EXTERN double __cdecl trunc(double);
-_CRT_EXTERN float __cdecl truncf(float);
-_CRT_EXTERN long double __cdecl truncl(long double);
+_CRT_EXTERN double __CRTDECL trunc(double);
+_CRT_EXTERN float __CRTDECL truncf(float);
+_CRT_EXTERN long double __CRTDECL truncl(long double);
 
 /* 7.12.10.1 Double in C89 */
-// fmod functions. Already in math.h
+_CRT_EXTERN double __CRTDECL fmod(double, double);
+__CRT_INLINE float fmodf(float, float);
+__CRT_INLINE long double fmodl(long double, long double);
 
 /* 7.12.10.2 */
-_CRT_EXTERN double __cdecl remainder(double, double);
-_CRT_EXTERN float __cdecl remainderf(float, float);
-_CRT_EXTERN long double __cdecl remainderl(long double, long double);
+_CRT_EXTERN double __CRTDECL remainder(double, double);
+_CRT_EXTERN float __CRTDECL remainderf(float, float);
+_CRT_EXTERN long double __CRTDECL remainderl(long double, long double);
 
 /* 7.12.10.3 */
-_CRT_EXTERN double __cdecl remquo(double, double, int *);
-_CRT_EXTERN float __cdecl remquof(float, float, int *);
-_CRT_EXTERN long double __cdecl remquol(long double, long double, int *);
+_CRT_EXTERN double __CRTDECL remquo(double, double, int *);
+_CRT_EXTERN float __CRTDECL remquof(float, float, int *);
+_CRT_EXTERN long double __CRTDECL remquol(long double, long double, int *);
 
 /* 7.12.11.1 */
-_CRT_EXTERN double __cdecl copysign(double, double); /* in libmoldname.a */
-_CRT_EXTERN float __cdecl copysignf(float, float);
-_CRT_EXTERN long double __cdecl copysignl(long double, long double);
+_CRT_EXTERN double __CRTDECL copysign(double, double); /* in libmoldname.a */
+_CRT_EXTERN float __CRTDECL copysignf(float, float);
+_CRT_EXTERN long double __CRTDECL copysignl(long double, long double);
 
 /* 7.12.11.2 Return a NaN */
-_CRT_EXTERN double __cdecl nan(const char *tagp);
-_CRT_EXTERN float __cdecl nanf(const char *tagp);
-_CRT_EXTERN long double __cdecl nanl(const char *tagp);
+_CRT_EXTERN double __CRTDECL nan(const char *tagp);
+_CRT_EXTERN float __CRTDECL nanf(const char *tagp);
+_CRT_EXTERN long double __CRTDECL nanl(const char *tagp);
 
 #ifndef __STRICT_ANSI__
 #define _nan() nan("")
@@ -661,20 +370,20 @@ _CRT_EXTERN long double __cdecl nanl(const char *tagp);
 #endif
 
 /* 7.12.11.3 */
-_CRT_EXTERN double __cdecl nextafter(double, double); /* in libmoldname.a */
-_CRT_EXTERN float __cdecl nextafterf(float, float);
-_CRT_EXTERN long double __cdecl nextafterl(long double, long double);
+_CRT_EXTERN double __CRTDECL nextafter(double, double); /* in libmoldname.a */
+_CRT_EXTERN float __CRTDECL nextafterf(float, float);
+_CRT_EXTERN long double __CRTDECL nextafterl(long double, long double);
 
 /* 7.12.11.4 The nexttoward functions */
-_CRT_EXTERN double __cdecl nexttoward(double, long double);
-_CRT_EXTERN float __cdecl nexttowardf(float, long double);
-_CRT_EXTERN long double __cdecl nexttowardl(long double, long double);
+_CRT_EXTERN double __CRTDECL nexttoward(double, long double);
+_CRT_EXTERN float __CRTDECL nexttowardf(float, long double);
+_CRT_EXTERN long double __CRTDECL nexttowardl(long double, long double);
 
 /* 7.12.12.1 */
 /*  x > y ? (x - y) : 0.0  */
-_CRT_EXTERN double __cdecl fdim(double x, double y);
-_CRT_EXTERN float __cdecl fdimf(float x, float y);
-_CRT_EXTERN long double __cdecl fdiml(long double x, long double y);
+_CRT_EXTERN double __CRTDECL fdim(double, double);
+_CRT_EXTERN float __CRTDECL fdimf(float, float);
+_CRT_EXTERN long double __CRTDECL fdiml(long double, long double);
 
 /* fmax and fmin.
 NaN arguments are treated as missing data: if one argument is a NaN
@@ -682,20 +391,28 @@ and the other numeric, then these functions choose the numeric
 value. */
 
 /* 7.12.12.2 */
-_CRT_EXTERN double __cdecl fmax(double, double);
-_CRT_EXTERN float __cdecl fmaxf(float, float);
-_CRT_EXTERN long double __cdecl fmaxl(long double, long double);
+_CRT_EXTERN double __CRTDECL fmax(double, double);
+_CRT_EXTERN float __CRTDECL fmaxf(float, float);
+_CRT_EXTERN long double __CRTDECL fmaxl(long double, long double);
 
 /* 7.12.12.3 */
-_CRT_EXTERN double __cdecl fmin(double, double);
-_CRT_EXTERN float __cdecl fminf(float, float);
-_CRT_EXTERN long double __cdecl fminl(long double, long double);
+_CRT_EXTERN double __CRTDECL fmin(double, double);
+_CRT_EXTERN float __CRTDECL fminf(float, float);
+_CRT_EXTERN long double __CRTDECL fminl(long double, long double);
 
 /* 7.12.13.1 */
 /* return x * y + z as a ternary op */
-_CRT_EXTERN double __cdecl fma(double, double, double);
-_CRT_EXTERN float __cdecl fmaf(float, float, float);
-_CRT_EXTERN long double __cdecl fmal(long double, long double, long double);
+_CRT_EXTERN double __CRTDECL fma(double, double, double);
+_CRT_EXTERN float __CRTDECL fmaf(float, float, float);
+_CRT_EXTERN long double __CRTDECL fmal(long double, long double, long double);
+
+/* 7.12.13.2 Bessel functions */
+_CRT_EXTERN double __CRTDECL _j0(double);
+_CRT_EXTERN double __CRTDECL _j1(double);
+_CRT_EXTERN double __CRTDECL _jn(int, double);
+_CRT_EXTERN double __CRTDECL _y0(double);
+_CRT_EXTERN double __CRTDECL _y1(double);
+_CRT_EXTERN double __CRTDECL _yn(int, double);
 
 /* 7.12.14 */
 /*
@@ -718,7 +435,7 @@ _CRT_EXTERN long double __cdecl fmal(long double, long double, long double);
 #else
 /*  helper  */
 #ifndef __CRT__NO_INLINE
-__CRT_INLINE int  __cdecl
+__CRT_INLINE int  __CRTDECL
 __fp_unordered_compare(long double x, long double y){
 	unsigned short retval;
 #if defined(_MSC_VER)
@@ -752,118 +469,79 @@ __fp_unordered_compare(long double x, long double y){
 
 #ifndef _CRT_ABS_DEFINED
 #define _CRT_ABS_DEFINED
-		_CRT_EXTERN int __cdecl abs(int x);
-		_CRT_EXTERN long __cdecl labs(long x);
+		_CRT_EXTERN int __CRTDECL abs(int x);
+		_CRT_EXTERN long __CRTDECL labs(long x);
 #endif
-		_CRT_EXTERN double __cdecl acos(double x);
-		_CRT_EXTERN double __cdecl asin(double x);
-		_CRT_EXTERN double __cdecl atan(double x);
-		_CRT_EXTERN double __cdecl atan2(double y, double x);
-		_CRT_EXTERN double __cdecl cos(double x);
-		_CRT_EXTERN double __cdecl cosh(double x);
-		_CRT_EXTERN double __cdecl exp(double x);
-		_CRT_EXTERN double __cdecl exp2(double n);
-		_CRT_EXTERN double __cdecl fabs(double x);
-		_CRT_EXTERN double __cdecl fmod(double x, double y);
-		_CRT_EXTERN double __cdecl log(double x);
-		_CRT_EXTERN double __cdecl log10(double x);
-		_CRT_EXTERN double __cdecl pow(double x, double y);
-		_CRT_EXTERN double __cdecl sin(double x);
-		_CRT_EXTERN double __cdecl sinh(double x);
-		_CRT_EXTERN double __cdecl sqrt(double x);
-		_CRT_EXTERN double __cdecl tan(double x);
-		_CRT_EXTERN double __cdecl tanh(double x);
-		_CRT_EXTERN double __cdecl copysign(double x, double y);
-		_CRT_EXTERN double __cdecl scalbn(double x, int n);
+
 #ifndef _CRT_MATHERR_DEFINED
 #define _CRT_MATHERR_DEFINED
-		int __cdecl _matherr(struct _exception *except);
+		int __CRTDECL _matherr(struct _exception *except);
 #endif
 
 #ifndef _CRT_ATOF_DEFINED
 #define _CRT_ATOF_DEFINED
-		_CRT_EXTERN double __cdecl atof(const char *str);
-		 double __cdecl _atof_l(const char *str ,_locale_t locale);
+		_CRT_EXTERN double __CRTDECL atof(const char *str);
+		 double __CRTDECL _atof_l(const char *str ,_locale_t locale);
 #endif
 #ifndef _SIGN_DEFINED
 #define _SIGN_DEFINED
-		 double __cdecl _copysign(double x,double sgn);
-		 double __cdecl _chgsign(double x);
+		 double __CRTDECL _copysign(double x,double sgn);
+		 double __CRTDECL _chgsign(double x);
 #endif
-		 _CRT_EXTERN double __cdecl _cabs(struct _complex a);
-		 _CRT_EXTERN double __cdecl ceil(double x);
-		 _CRT_EXTERN double __cdecl floor(double x);
-		 _CRT_EXTERN double __cdecl frexp(double x, int *y);
-		 _CRT_EXTERN double __cdecl _hypot(double x, double y);
-		 double __cdecl _j0(double x);
-		 double __cdecl _j1(double x);
-		 double __cdecl _jn(int x, double y);
-		 _CRT_EXTERN double __cdecl ldexp(double x, int y);
-		 _CRT_EXTERN double __cdecl modf(double x, double *y);
-		 double __cdecl _y0(double x);
-		 double __cdecl _y1(double x);
-		 double __cdecl _yn(int x, double y);
-		 float __cdecl _hypotf(float x, float y);
+		 _CRT_EXTERN double __CRTDECL _cabs(struct _complex a);
 
 #if defined(__i386__) || defined(_M_IX86)
-		 int __cdecl _set_SSE2_enable(int flag);
+		 int __CRTDECL _set_SSE2_enable(int flag);
 #endif
 
 #if defined(__x86_64) || defined(_M_AMD64)
-		 float __cdecl _copysignf(float x, float sgn);
-		 float __cdecl _chgsignf(float x);
-		 float __cdecl _logbf(float x);
-		 float __cdecl _nextafterf(float x,float y);
-		 int __cdecl _finitef(float x);
-		 int __cdecl _isnanf(float x);
-		 int __cdecl _fpclassf(float x);
+		 float __CRTDECL _copysignf(float x, float sgn);
+		 float __CRTDECL _chgsignf(float x);
+		 float __CRTDECL _logbf(float x);
+		 float __CRTDECL _nextafterf(float x,float y);
+		 int __CRTDECL _finitef(float x);
+		 int __CRTDECL _isnanf(float x);
+		 int __CRTDECL _fpclassf(float x);
 #endif
 
 #if defined(__ia64__) || defined (_M_IA64)
-		 float __cdecl fabsf(float x);
-		 float __cdecl ldexpf(float x, int y);
-		 long double __cdecl tanl(long double x);
+		 
+		 float __CRTDECL ldexpf(float x, int y);
+		 long double __CRTDECL tanl(long double x);
 #else
-		__CRT_INLINE float __cdecl fabsf(float x) { return ((float)fabs((double)x)); }
-		__CRT_INLINE float __cdecl ldexpf(float x, int expn) { return (float)ldexp (x, expn); }
-		__CRT_INLINE long double tanl(long double x) { return (tan((double)x)); }
+		__CRT_INLINE float __CRTDECL ldexpf(float x, int expn) { return (float)ldexp (x, expn); }
+		__CRT_INLINE long double __CRTDECL tanl(long double x) { return (tan((double)x)); }
 #endif
 
 #if (_MOLLENOS >= 0x100) && \
 	(defined(__x86_64) || defined(_M_AMD64) || \
 	defined (__ia64__) || defined (_M_IA64))
-		 float __cdecl acosf(float x);
-		 float __cdecl asinf(float x);
-		 float __cdecl atanf(float x);
-		 float __cdecl atan2f(float x, float y);
-		 float __cdecl ceilf(float x);
-		 float __cdecl cosf(float x);
-		 float __cdecl coshf(float x);
-		 float __cdecl expf(float x);
-		 float __cdecl floorf(float x);
-		 float __cdecl fmodf(float x, float y);
-		 float __cdecl logf(float x);
-		 float __cdecl log10f(float x);
-		 float __cdecl modff(float x, float *y);
-		 float __cdecl powf(float b, float e);
-		 float __cdecl sinf(float x);
-		 float __cdecl sinhf(float x);
-		 float __cdecl sqrtf(float x);
-		 float __cdecl tanf(float x);
-		 float __cdecl tanhf(float x);
+		 float __CRTDECL acosf(float x);
+		 float __CRTDECL asinf(float x);
+		 float __CRTDECL atanf(float x);
+		 float __CRTDECL atan2f(float x, float y);
+		 float __CRTDECL ceilf(float x);
+		 float __CRTDECL cosf(float x);
+		 float __CRTDECL coshf(float x);
+		 float __CRTDECL expf(float x);
+		 float __CRTDECL floorf(float x);
+		 float __CRTDECL fmodf(float x, float y);
+		 float __CRTDECL logf(float x);
+		 float __CRTDECL log10f(float x);
+		 float __CRTDECL modff(float x, float *y);
+		 float __CRTDECL powf(float b, float e);
+		 float __CRTDECL sinf(float x);
+		 float __CRTDECL sinhf(float x);
+		 float __CRTDECL sqrtf(float x);
+		 float __CRTDECL tanf(float x);
+		 float __CRTDECL tanhf(float x);
 #else
 		__CRT_INLINE float acosf(float x) { return ((float)acos((double)x)); }
 		__CRT_INLINE float asinf(float x) { return ((float)asin((double)x)); }
 		__CRT_INLINE float atanf(float x) { return ((float)atan((double)x)); }
 		__CRT_INLINE float atan2f(float x,float y) { return ((float)atan2((double)x,(double)y)); }
-		__CRT_INLINE float ceilf(float x) { return ((float)ceil((double)x)); }
 		__CRT_INLINE float cosf(float x) { return ((float)cos((double)x)); }
 		__CRT_INLINE float coshf(float x) { return ((float)cosh((double)x)); }
-		__CRT_INLINE float expf(float x) { return ((float)exp((double)x)); }
-		__CRT_INLINE float floorf(float x) { return ((float)floor((double)x)); }
-#ifdef MATH_USE_C
-		__CRT_INLINE float fmodf(float x,float y) { return ((float)fmod((double)x,(double)y)); }
-#endif
 		__CRT_INLINE float logf(float x) { return ((float)log((double)x)); }
 		__CRT_INLINE float log10f(float x) { return ((float)log10((double)x)); }
 		__CRT_INLINE float modff(float x,float *y) {
@@ -883,13 +561,8 @@ __fp_unordered_compare(long double x, long double y){
 		__CRT_INLINE long double asinl(long double x) { return (asin((double)x)); }
 		__CRT_INLINE long double atanl(long double x) { return (atan((double)x)); }
 		__CRT_INLINE long double atan2l(long double y, long double x) { return (atan2((double)y, (double)x)); }
-		__CRT_INLINE long double ceill(long double x) { return (ceil((double)x)); }
 		__CRT_INLINE long double cosl(long double x) { return (cos((double)x)); }
 		__CRT_INLINE long double coshl(long double x) { return (cosh((double)x)); }
-		__CRT_INLINE long double expl(long double x) { return (exp((double)x)); }
-		__CRT_INLINE long double floorl(long double x) { return (floor((double)x)); }
-		__CRT_INLINE long double fmodl(long double x, long double y) { return (fmod((double)x, (double)y)); }
-		__CRT_INLINE long double frexpl(long double x, int *y) { return (frexp((double)x, y)); }
 		__CRT_INLINE long double logl(long double x) { return (log((double)x)); }
 		__CRT_INLINE long double log10l(long double x) { return (log10((double)x)); }
 		__CRT_INLINE long double powl(long double x, long double y) { return (pow((double)x, (double)y)); }
@@ -897,11 +570,8 @@ __fp_unordered_compare(long double x, long double y){
 		__CRT_INLINE long double sinhl(long double x) { return (sinh((double)x)); }
 		__CRT_INLINE long double sqrtl(long double x) { return (sqrt((double)x)); }
 		__CRT_INLINE long double tanhl(long double x) {return (tanh((double)x)); }
-		__CRT_INLINE long double __cdecl fabsl(long double x) { return fabs((double)x); }
 		__CRT_INLINE long double _chgsignl(long double _Number) { return _chgsign((double)(_Number)); }
 		__CRT_INLINE long double _copysignl(long double _Number, long double _Sign) { return _copysign((double)(_Number),(double)(_Sign)); }
-		__CRT_INLINE long double _hypotl(long double x,long double y) { return _hypot((double)(x),(double)(y)); }
-		__CRT_INLINE float frexpf(float x, int *y) { return ((float)frexp((double)x,y)); }
 		__CRT_INLINE long double ldexpl(long double x, int y) { return ldexp((double)x, y); }
 		__CRT_INLINE long double modfl(long double x,long double *y) {
 			double _Di,_Df = modf((double)x,&_Di);
@@ -918,16 +588,8 @@ __fp_unordered_compare(long double x, long double y){
 #define PLOSS _PLOSS
 #define matherr _matherr
 #define HUGE _HUGE
-		//  double __cdecl cabs(struct _complex x);
+		//  double __CRTDECL cabs(struct _complex x);
 #define cabs _cabs
-		 double __cdecl hypot(double x,double y);
-		 double __cdecl j0(double x);
-		 double __cdecl j1(double x);
-		 double __cdecl jn(int x,double y);
-		 double __cdecl y0(double x);
-		 double __cdecl y1(double x);
-		 double __cdecl yn(int x,double y);
-		__CRT_INLINE float __cdecl hypotf(float x, float y) { return (float) hypot (x, y); }
 #endif
 
 #ifdef __cplusplus
@@ -1021,12 +683,12 @@ extern "C" {
 /* Set the FPU control word as cw = (cw & ~unMask) | (unNew & unMask),
  * i.e. change the bits in unMask to have the values they have in unNew,
  * leaving other bits unchanged. */
- unsigned int __cdecl _controlfp (unsigned int unNew, unsigned int unMask);
- unsigned int __cdecl _control87 (unsigned int unNew, unsigned int unMask);
+ unsigned int __CRTDECL _controlfp (unsigned int unNew, unsigned int unMask);
+ unsigned int __CRTDECL _control87 (unsigned int unNew, unsigned int unMask);
 
 
- unsigned int __cdecl _clearfp (void);	/* Clear the FPU status word */
- unsigned int __cdecl _statusfp (void);	/* Report the FPU status word */
+ unsigned int __CRTDECL _clearfp (void);	/* Clear the FPU status word */
+ unsigned int __CRTDECL _statusfp (void);	/* Report the FPU status word */
 #define		_clear87	_clearfp
 #define		_status87	_statusfp
 
@@ -1040,11 +702,11 @@ extern "C" {
    per fninit. To use the MSVCRT.dll _fpreset, include CRT_fp8.o when
    building your application.
 */
-void __cdecl _fpreset (void);
-void __cdecl fpreset (void);
+void __CRTDECL _fpreset (void);
+void __CRTDECL fpreset (void);
 
 /* Global 'variable' for the current floating point error code. */
- int * __cdecl __fpecode(void);
+ int * __CRTDECL __fpecode(void);
 #define	_fpecode	(*(__fpecode()))
 
 /*
@@ -1052,15 +714,15 @@ void __cdecl fpreset (void);
  * but they really belong in math.h.
  */
 
- double __cdecl _chgsign	(double);
- double __cdecl _copysign (double, double);
- double __cdecl _logb (double);
- double __cdecl _nextafter (double, double);
- double __cdecl _scalb (double, long);
+ double __CRTDECL _chgsign	(double);
+ double __CRTDECL _copysign (double, double);
+ double __CRTDECL _logb (double);
+ double __CRTDECL _nextafter (double, double);
+ double __CRTDECL _scalb (double, long);
 
- int __cdecl _finite (double);
- int __cdecl _fpclass (double);
- int __cdecl _isnan (double);
+#define _finite(x) isfinite(x)
+#define _fpclass(x) fpclassify(x)
+#define _isnan(x) isnan(x)
 
 #ifdef	__cplusplus
 }

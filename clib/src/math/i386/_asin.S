@@ -40,8 +40,9 @@ _asin:
     pop     ebp
     ret
 
+; Msvc version of asin
 __CIasin:
-    fld     st0                     ; Load x
+	fld     st0                     ; Load x
     fld     st0                     ; Load x
     fmul                            ; Multiply (x squared)
     fld1                            ; Load 1

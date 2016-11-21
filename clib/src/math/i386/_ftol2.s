@@ -28,5 +28,52 @@ global __ftol2_sse
 ; This routine is called by MSVC-generated code to convert from floating point
 ; to integer representation.
 __ftol2:
+	push        ebp 
+	mov         ebp,esp
+	sub         esp,20h
+
+	and         esp,0FFFFFFF0h
+	fld         st0
+	fst         dword [esp+18h]
+	fistp       qword [esp+10h]
+	fild        qword [esp+10h]
+	mov         edx,dword [esp+18h]
+	mov         eax,dword [esp+10h]
+	test        eax,eax
+	je          integer_QnaN_or_zero
+
+arg_is_not_integer_QnaN:
+	fsubp       st1, st0
+	test        edx,edx
+	jns         positive
+	fstp        dword [esp]
+	mov         ecx,dword [esp]
+	xor         ecx,80000000h
+	add         ecx,7FFFFFFFh
+	adc         eax,0
+	mov         edx,dword [esp+14h]
+	adc         edx,0
+	jmp         localexit
+
+positive:
+	fstp        dword [esp]
+	mov         ecx,dword [esp]
+	add         ecx,7FFFFFFFh
+	sbb         eax,0
+	mov         edx,dword [esp+14h]
+	sbb         edx,0
+	jmp         localexit
+
+integer_QnaN_or_zero:
+	mov         edx,dword [esp+14h]
+	test        edx,7FFFFFFFh
+	jne         arg_is_not_integer_QnaN
+	fstp        dword [esp+18h]
+	fstp        dword [esp+18h]
+
+localexit:
+	leave           
+	ret   
+
 __ftol2_sse:
-    jmp __ftol
+    jmp __ftol2

@@ -3,14 +3,28 @@
 */
 
 #ifndef LIBC_KERNEL
-
+#include <os/MollenOS.h>
 #include <stdio.h>
 #include <stddef.h>
 #include <string.h>
 
 int vprintf(const char *format, va_list ap)
 {
-	return 0;
+	/* Do a static debug */
+	int ReturnVal = 0;
+	char Out[256];
+
+	/* Reset buffer */
+	memset(&Out[0], 0, sizeof(Out));
+
+	/* Build buffer */
+	ReturnVal = vsprintf(&Out[0], format, ap);
+
+	/* Now print it out */
+	MollenOSSystemLog("%s", &Out[0]);
+
+	/* Done! */
+	return ReturnVal;
 }
 
 #else

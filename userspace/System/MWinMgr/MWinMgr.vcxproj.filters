@@ -25,6 +25,9 @@
     <ClCompile Include="Core\Shape.c">
       <Filter>Source\Sapphire</Filter>
     </ClCompile>
+    <ClCompile Include="test-double.c">
+      <Filter>Source</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Core\Scene.h">
