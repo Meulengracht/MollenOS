@@ -59,10 +59,11 @@ These are the various libraries ported to MollenOS userspace, and are primarily 
 
 | Library       | Version   | Description             |
 | ------------- | ---------:|:-----------------------:|
+| openlibm      | <unk>     | Portable Math Library   |
 | zlib          | 1.2.8     | Compression library, used by libpng |
-| libpng        | 1.6.21    | Library for handling *.png image files |
+| libpng        | 1.6.26    | Library for handling *.png image files |
 | libjpeg       | 9b        | Library for handling *.jpg image files |
-| freetype2     | 2.6.3     | Library for handling and rendering truetype fonts |
+| freetype2     | 2.7.0     | Library for handling and rendering truetype fonts |
 | SDL2          | 2.0.3     | Graphics/Utility library used by Sapphire for rendering |
 | SDL2_image    | 2.0.1     | Image helper library used by Sapphire for rendering |
 | lua           | 5.3.2     | I ported this just for fun so I had something to test when the terminal implementation is ready |
