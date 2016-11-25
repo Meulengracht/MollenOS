@@ -29,6 +29,9 @@
 #ifndef	_FENV_H_
 #define	_FENV_H_
 
+/* Includes */
+#include <os/osdefs.h>
+
 #ifndef	__fenv_static
 #define	__fenv_static	static
 #endif
@@ -36,28 +39,6 @@
 #ifndef	__fenv_extern
 #define	__fenv_extern	extern
 #endif
-
-/*                   
- * To preserve binary compatibility with FreeBSD 5.3, we pack the
- * mxcsr into some reserved fields, rather than changing sizeof(fenv_t).
- */
-typedef struct {
-	uint16_t	__control;
-	uint16_t      __mxcsr_hi;
-	uint16_t	__status;
-	uint16_t      __mxcsr_lo;
-	uint32_t	__tag;
-	char		__other[16];
-} fenv_t;
-
-#define	__get_mxcsr(env)	(((env).__mxcsr_hi << 16) |	\
-				 ((env).__mxcsr_lo))
-#define	__set_mxcsr(env, x)	do {				\
-	(env).__mxcsr_hi = (uint32_t)((x >> 16) & 0xFFFF);	\
-	(env).__mxcsr_lo = (uint16_t)(x & 0xFFFF);	\
-} while (0)
-
-typedef	uint16_t	fexcept_t;
 
 /* Exception flags */
 #define	FE_INVALID	0x01
@@ -77,39 +58,25 @@ typedef	uint16_t	fexcept_t;
 #define	_ROUND_MASK	(FE_TONEAREST | FE_DOWNWARD | \
 			 FE_UPWARD | FE_TOWARDZERO)
 
-/*
- * As compared to the x87 control word, the SSE unit's control word
+/* As compared to the x87 control word, the SSE unit's control word
  * has the rounding control bits offset by 3 and the exception mask
- * bits offset by 7.
- */
+ * bits offset by 7. */
 #define	_SSE_ROUND_SHIFT	3
 #define	_SSE_EMASK_SHIFT	7
 
-/* After testing for SSE support once, we cache the result in __has_sse. */
-enum __sse_support { __SSE_YES, __SSE_NO, __SSE_UNK };
-_CRT_EXTERN enum __sse_support __has_sse;
-_CRT_EXTERN int __test_sse(void);
-#ifdef __SSE__
-#define	__HAS_SSE()	1
-#else
-#define	__HAS_SSE()	(__has_sse == __SSE_YES ||			\
-			 (__has_sse == __SSE_UNK && __test_sse()))
-#endif
-
-/* Default floating-point environment */
-_CRT_EXTERN extern const fenv_t __fe_dfl_env;
-#define	FE_DFL_ENV	(&__fe_dfl_env)
-
+/* Inline helpers for both MSVC assembler, 
+ * but also for GCC assembler, unfortunately
+ * i don't know how to do the clober thing in msvc */
 #ifdef _MSC_VER
-#define	__fldcw(__cw)		_asm fldcw [__cw]
-#define	__fldenv(__env)		_asm fldenv  [__env]
-#define	__fldenvx(__env)	_asm fldenv [__env]
+#define	__fldcw(__cw)		_asm fldcw dword ptr [__cw]
+#define	__fldenv(__env)		_asm fldenv dword ptr [__env]
+#define	__fldenvx(__env)	_asm fldenv dword ptr [__env]
 #define	__fnclex()			_asm fnclex
 #define	__fnstenv(__env)	_asm fnstenv dword ptr [__env]
 #define	__fnstcw(__cw)		_asm fnstcw dword ptr [__cw]
 #define	__fnstsw(__sw)		_asm fnstsw dword ptr [__sw]
 #define	__fwait()			_asm fwait
-#define	__ldmxcsr(__csr)	_asm ldmxcsr [__csr]
+#define	__ldmxcsr(__csr)	_asm ldmxcsr dword ptr [__csr]
 #define	__stmxcsr(__csr)	_asm stmxcsr dword ptr [__csr]
 #else
 #define	__fldcw(__cw)		__asm __volatile("fldcw %0" : : "m" (__cw))
@@ -126,8 +93,68 @@ _CRT_EXTERN extern const fenv_t __fe_dfl_env;
 #define	__stmxcsr(__csr)	__asm __volatile("stmxcsr %0" : "=m" (*(&__csr)))
 #endif
 
-__fenv_static __CRT_INLINE int
-feclearexcept(int __excepts)
+/* For now, support only for the basic abstraction of flags that are
+ * either set or clear. fexcept_t could be  structure that holds more
+ * info about the fp environment. */
+typedef unsigned short fexcept_t;
+
+/* This 32-byte struct represents the entire floating point
+ * environment as stored by fnstenv or fstenv, augmented by
+ * the  contents of the MXCSR register, as stored by stmxcsr
+ * (if CPU supports it). */
+typedef struct {
+	unsigned short __control_word;
+	unsigned short __unused0;
+	unsigned short __status_word;
+	unsigned short __unused1;
+	unsigned short __tag_word;
+	unsigned short __unused2;
+	unsigned int   __ip_offset;    /* instruction pointer offset */
+	unsigned short __ip_selector;
+	unsigned short __opcode;
+	unsigned int   __data_offset;
+	unsigned short __data_selector;
+	unsigned short __unused3;
+
+	/* contents of the MXCSR register 
+	 * This is not seen by the fpu */
+	unsigned int   __mxcsr;
+} fenv_t;
+
+/*The C99 standard (7.6.9) allows us to define 
+ * implementation-specific macros for different fp environments */
+_CRT_EXTERN extern const fenv_t __fe_dfl_env;
+#define	FE_DFL_ENV	(&__fe_dfl_env)
+
+/* The SSE status */
+enum __sse_support { 
+	__SSE_YES, 
+	__SSE_NO, 
+	__SSE_UNK 
+};
+
+/* After testing for SSE support once 
+ * we cache the result in __has_sse. */
+_CRT_EXTERN enum __sse_support __has_sse;
+_CRT_EXTERN int __test_sse(void);
+#ifdef __SSE__
+#define	__HAS_SSE()	1
+#else
+#define	__HAS_SSE()	(__has_sse == __SSE_YES ||			\
+			 (__has_sse == __SSE_UNK && __test_sse()))
+#endif
+
+/* Prototypes which we don't inline */
+_CRT_EXTERN int fesetexceptflag(const fexcept_t *__flagp, int __excepts);
+_CRT_EXTERN int feraiseexcept(int __excepts);
+_CRT_EXTERN int fegetenv(fenv_t *__envp);
+_CRT_EXTERN int feholdexcept(fenv_t *__envp);
+_CRT_EXTERN int feupdateenv(const fenv_t *__envp);
+_CRT_EXTERN int feenableexcept(int __mask);
+_CRT_EXTERN int fedisableexcept(int __mask);
+
+__fenv_static __CRT_INLINE 
+int feclearexcept(int __excepts)
 {
 	fenv_t __env;
 	uint32_t __mxcsr;
@@ -136,7 +163,7 @@ feclearexcept(int __excepts)
 		__fnclex();
 	} else {
 		__fnstenv(__env);
-		__env.__status &= ~__excepts;
+		__env.__status_word &= ~__excepts;
 		__fldenv(__env);
 	}
 	if (__HAS_SSE()) {
@@ -147,8 +174,8 @@ feclearexcept(int __excepts)
 	return (0);
 }
 
-__fenv_static __CRT_INLINE int
-fegetexceptflag(fexcept_t *__flagp, int __excepts)
+__fenv_static __CRT_INLINE 
+int fegetexceptflag(fexcept_t *__flagp, int __excepts)
 {
 	uint32_t __mxcsr;
 	uint16_t __status;
@@ -162,35 +189,26 @@ fegetexceptflag(fexcept_t *__flagp, int __excepts)
 	return (0);
 }
 
-/* Export */
-_CRT_EXTERN int fesetexceptflag(const fexcept_t *__flagp, int __excepts);
-_CRT_EXTERN int feraiseexcept(int __excepts);
-
 __fenv_static __CRT_INLINE 
 int fetestexcept(int __excepts)
 {
 	uint32_t __mxcsr;
 	uint16_t __status;
-
 	__fnstsw(__status);
 	if (__HAS_SSE())
 		__stmxcsr(__mxcsr);
-	else
-		__mxcsr = 0;
+	else __mxcsr = 0;
 	return ((__status | __mxcsr) & __excepts);
 }
 
+/* We assume that the x87 and the SSE unit agree on the
+ * rounding mode.  Reading the control word on the x87 turns
+ * out to be about 5 times faster than reading it on the SSE
+ * unit on an Opteron 244. */
 __fenv_static __CRT_INLINE 
 int fegetround(void)
 {
 	uint16_t __control;
-
-	/*
-	 * We assume that the x87 and the SSE unit agree on the
-	 * rounding mode.  Reading the control word on the x87 turns
-	 * out to be about 5 times faster than reading it on the SSE
-	 * unit on an Opteron 244.
-	 */
 	__fnstcw(__control);
 	return (__control & _ROUND_MASK);
 }
@@ -219,45 +237,31 @@ int fesetround(int __round)
 	return (0);
 }
 
-_CRT_EXTERN int fegetenv(fenv_t *__envp);
-_CRT_EXTERN int feholdexcept(fenv_t *__envp);
-
-__fenv_static __CRT_INLINE int
-fesetenv(const fenv_t *__envp)
+/* XXX Using fldenvx() instead of fldenv() tells the compiler that this
+ * instruction clobbers the i387 register stack.  This happens because
+ * we restore the tag word from the saved environment.  Normally, this
+ * would happen anyway and we wouldn't care, because the ABI allows
+ * function calls to clobber the i387 regs.  However, fesetenv() is
+ * inlined, so we need to be more careful. */
+__fenv_static __CRT_INLINE 
+int fesetenv(const fenv_t *__envp)
 {
 	fenv_t __env = *__envp;
-	uint32_t __mxcsr;
-
-	__mxcsr = __get_mxcsr(__env);
-	__set_mxcsr(__env, 0xffffffff);
-	/*
-	 * XXX Using fldenvx() instead of fldenv() tells the compiler that this
-	 * instruction clobbers the i387 register stack.  This happens because
-	 * we restore the tag word from the saved environment.  Normally, this
-	 * would happen anyway and we wouldn't care, because the ABI allows
-	 * function calls to clobber the i387 regs.  However, fesetenv() is
-	 * inlined, so we need to be more careful.
-	 */
+	uint32_t __mxcsr = __env.__mxcsr;
+	__env.__mxcsr = 0xFFFFFFFF;
 	__fldenvx(__env);
 	if (__HAS_SSE())
 		__ldmxcsr(__mxcsr);
 	return (0);
 }
 
-/* Export */
-_CRT_EXTERN int feupdateenv(const fenv_t *__envp);
-_CRT_EXTERN int feenableexcept(int __mask);
-_CRT_EXTERN int fedisableexcept(int __mask);
-
-/* We currently provide no external definition of fegetexcept(). */
-__fenv_static __CRT_INLINE int 
-fegetexcept(void) {
-	uint16_t __control;
-
-	/*
-	 * We assume that the masks for the x87 and the SSE unit are
-	 * the same.
-	 */
+/* We currently provide no external definition of fegetexcept(). 
+ * We assume that the masks for the x87 and the SSE unit are
+ * the same. */
+__fenv_static __CRT_INLINE 
+int fegetexcept(void) 
+{
+	uint16_t __control = 0;
 	__fnstcw(__control);
 	return (~__control & FE_ALL_EXCEPT);
 }

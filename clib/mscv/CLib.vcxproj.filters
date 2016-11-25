@@ -73,6 +73,12 @@
     <Filter Include="time">
       <UniqueIdentifier>{5f51f49c-31a8-4e90-a6e2-f87e13088b09}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Source\math\core">
+      <UniqueIdentifier>{e9ae4e0f-a639-46e9-9a83-d84df92b074d}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source\math\ieee">
+      <UniqueIdentifier>{a74ac765-f645-44b5-9bd6-f3765585a50f}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\src\string\atof.c">
@@ -579,6 +585,102 @@
     <ClCompile Include="..\src\math\pow.c">
       <Filter>Source\math</Filter>
     </ClCompile>
+    <ClCompile Include="..\src\math\core_exp.c">
+      <Filter>Source\math\core</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\math\acos.c">
+      <Filter>Source\math</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\math\acosh.c">
+      <Filter>Source\math</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\math\asin.c">
+      <Filter>Source\math</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\math\asinh.c">
+      <Filter>Source\math</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\math\atan.c">
+      <Filter>Source\math</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\math\atanh.c">
+      <Filter>Source\math</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\math\log1p.c">
+      <Filter>Source\math</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\math\cbrt.c">
+      <Filter>Source\math</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\math\scalbln.c">
+      <Filter>Source\math</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\math\bgamma.c">
+      <Filter>Source\math</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\math\lgamma.c">
+      <Filter>Source\math</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\math\fdim.c">
+      <Filter>Source\math</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\math\fmax.c">
+      <Filter>Source\math</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\math\fmin.c">
+      <Filter>Source\math</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\math\fma.c">
+      <Filter>Source\math</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\math\nextafter.c">
+      <Filter>Source\math</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\math\core_sin.c">
+      <Filter>Source\math\core</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\math\core_cos.c">
+      <Filter>Source\math\core</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\math\j0_y0.c">
+      <Filter>Source\math\ieee</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\math\j1_y1.c">
+      <Filter>Source\math\ieee</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\math\jn_yn.c">
+      <Filter>Source\math\ieee</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\math\sincos.c">
+      <Filter>Source\math</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\math\core_rempio.c">
+      <Filter>Source\math</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\math\rempio.c">
+      <Filter>Source\math</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\math\erf.c">
+      <Filter>Source\math</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\math\erff.c">
+      <Filter>Source\math</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\math\expf.c">
+      <Filter>Source\math</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\math\frexp.c">
+      <Filter>Source\math</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\math\ldexp.c">
+      <Filter>Source\math</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\math\atanf.c">
+      <Filter>Source\math</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\math\powf.c">
+      <Filter>Source\math</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <CustomBuild Include="..\src\string\memcpy_acc.s">
@@ -597,9 +699,6 @@
       <Filter>Source\math\i386</Filter>
     </CustomBuild>
     <CustomBuild Include="..\src\math\i386\_log10.S">
-      <Filter>Source\math\i386</Filter>
-    </CustomBuild>
-    <CustomBuild Include="..\src\math\i386\_atan.S">
       <Filter>Source\math\i386</Filter>
     </CustomBuild>
     <CustomBuild Include="..\src\math\i386\_atan2.S">
@@ -636,18 +735,6 @@
       <Filter>os\i386</Filter>
     </CustomBuild>
     <CustomBuild Include="..\src\math\i386\_log2.S">
-      <Filter>Source\math\i386</Filter>
-    </CustomBuild>
-    <CustomBuild Include="..\src\math\i386\_frexp.S">
-      <Filter>Source\math\i386</Filter>
-    </CustomBuild>
-    <CustomBuild Include="..\src\math\i386\_ldexp.S">
-      <Filter>Source\math\i386</Filter>
-    </CustomBuild>
-    <CustomBuild Include="..\src\math\i386\_acos.S">
-      <Filter>Source\math\i386</Filter>
-    </CustomBuild>
-    <CustomBuild Include="..\src\math\i386\_asin.S">
       <Filter>Source\math\i386</Filter>
     </CustomBuild>
     <CustomBuild Include="..\src\math\i386\_trunc.S">

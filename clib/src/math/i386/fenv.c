@@ -33,18 +33,13 @@
 #define	__fenv_extern
 #include <i386/fenv.h>
 
-#ifdef __GNUC_GNU_INLINE__
-#error "This file must be compiled with C99 'inline' semantics"
-#endif
-
 const fenv_t __fe_dfl_env = {
 	__INITIAL_NPXCW__,
 	0x0000,
 	0x0000,
-	0x1f80,
-	0xffffffff,
-	{ 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-	  0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xff, 0xff }
+	0x1F80,
+	0xFFFF,
+	0, 0, 0, 0, 0, 0, 0, 0
 };
 
 enum __sse_support __has_sse =
@@ -55,9 +50,10 @@ enum __sse_support __has_sse =
 #endif
 
 #ifdef _MSC_VER
-#define	getfl(x)	__asm { pushf }; __asm { pop eax } __asm { mov dword ptr [x], eax }
-#define setfl(x)	__asm { push [x] }; __asm { popf }
-#define	cpuid_dx(x)	__asm { pushad }; __asm { mov eax, 1 }; __asm { cpuid }; __asm { mov dword ptr [x], edx }; __asm { popad }
+#include <intrin.h>
+#define	getfl(x)	x = __readeflags()
+#define setfl(x)	__writeeflags(x)
+#define	cpuid_dx(x)	int cpufeats[4]; __cpuid(cpufeats, 1); x = cpufeats[3]
 #else
 #define	getfl(x)	__asm __volatile("pushfl\n\tpopl %0" : "=mr" (*(&x)))
 #define	setfl(x)	__asm __volatile("pushl %0\n\tpopfl" : : "g" (x))
@@ -98,11 +94,12 @@ int fesetexceptflag(const fexcept_t *flagp, int excepts)
 {
 	fenv_t env;
 	uint32_t mxcsr;
+	fenv_t *envp = &env;
 
-	__fnstenv(env);
-	env.__status &= ~excepts;
-	env.__status |= *flagp & excepts;
-	__fldenv(env);
+	__fnstenv(envp);
+	env.__status_word &= ~excepts;
+	env.__status_word |= *flagp & excepts;
+	__fldenv(envp);
 
 	if (__HAS_SSE()) {
 		__stmxcsr(mxcsr);
@@ -117,26 +114,22 @@ int fesetexceptflag(const fexcept_t *flagp, int excepts)
 int feraiseexcept(int excepts)
 {
 	fexcept_t ex = (fexcept_t)excepts;
-
 	fesetexceptflag(&ex, excepts);
 	__fwait();
 	return (0);
 }
 
+/* fnstenv masks all exceptions, so we need to restore
+ * the old control word to avoid this side effect. */
 int fegetenv(fenv_t *envp)
 {
 	uint32_t mxcsr;
-	uint16_t control = envp->__control;
-
+	uint16_t control = envp->__control_word;
 	__fnstenv(envp);
-	/*
-	 * fnstenv masks all exceptions, so we need to restore
-	 * the old control word to avoid this side effect.
-	 */
 	__fldcw(control);
 	if (__HAS_SSE()) {
 		__stmxcsr(mxcsr);
-		__set_mxcsr(*envp, mxcsr);
+		envp->__mxcsr = mxcsr;
 	}
 	return (0);
 }
@@ -149,7 +142,7 @@ int feholdexcept(fenv_t *envp)
 	__fnclex();
 	if (__HAS_SSE()) {
 		__stmxcsr(mxcsr);
-		__set_mxcsr(*envp, mxcsr);
+		envp->__mxcsr = mxcsr;
 		mxcsr &= ~FE_ALL_EXCEPT;
 		mxcsr |= FE_ALL_EXCEPT << _SSE_EMASK_SHIFT;
 		__ldmxcsr(mxcsr);

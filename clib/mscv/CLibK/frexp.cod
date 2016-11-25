@@ -9,534 +9,115 @@
 INCLUDELIB MSVCRT
 INCLUDELIB OLDNAMES
 
-PUBLIC	___fpclassifyl
-PUBLIC	___fpclassifyf
-PUBLIC	___fpclassify
-PUBLIC	___isnan
-PUBLIC	___isnanf
-PUBLIC	___isnanl
-PUBLIC	___signbit
-PUBLIC	___signbitf
-PUBLIC	___signbitl
+CONST	SEGMENT
+_two54	DQ	04350000000000000r		; 1.80144e+016
+CONST	ENDS
 PUBLIC	_frexp
+PUBLIC	__real@4350000000000000
 EXTRN	__fltused:DWORD
+;	COMDAT __real@4350000000000000
+CONST	SEGMENT
+__real@4350000000000000 DQ 04350000000000000r	; 1.80144e+016
+CONST	ENDS
 ; Function compile flags: /Ogtp
 ; File c:\users\philip\documents\github\mollenos\clib\src\math\frexp.c
 ;	COMDAT _frexp
 _TEXT	SEGMENT
-___x$ = 8						; size = 8
-_exptr$ = 16						; size = 4
+_sh_u$1 = 8						; size = 8
+_gh_u$2 = 8						; size = 8
+_ew_u$3 = 8						; size = 8
+_x$ = 8							; size = 8
+_eptr$ = 16						; size = 4
 _frexp	PROC						; COMDAT
 
-; 10   : {
+; 30   : {
 
   00000	55		 push	 ebp
   00001	8b ec		 mov	 ebp, esp
 
-; 11   : 	union
-; 12   : 	{
-; 13   : 		double*		__x;
-; 14   : 		double_s*	x;
-; 15   : 	} x;
-; 16   : 
-; 17   : 	x.__x = &__x;
-; 18   : 
-; 19   : 	if(exptr != NULL)
+; 31   : 	int32_t hx, ix, lx;
+; 32   : 	EXTRACT_WORDS(hx, lx, x);
 
-  00003	8b 55 10	 mov	 edx, DWORD PTR _exptr$[ebp]
-  00006	8b 4d 0c	 mov	 ecx, DWORD PTR ___x$[ebp+4]
-  00009	85 d2		 test	 edx, edx
-  0000b	74 11		 je	 SHORT $LN1@frexp
+  00003	dd 45 08	 fld	 QWORD PTR _x$[ebp]
+  00006	dd 55 08	 fst	 QWORD PTR _ew_u$3[ebp]
+  00009	8b 55 0c	 mov	 edx, DWORD PTR _ew_u$3[ebp+4]
 
-; 20   : 		*exptr = x.x->exponent - 0x3FE;
+; 33   : 	ix = 0x7fffffff & hx;
 
-  0000d	8b c1		 mov	 eax, ecx
-  0000f	c1 e8 14	 shr	 eax, 20			; 00000014H
-  00012	25 ff 07 00 00	 and	 eax, 2047		; 000007ffH
-  00017	2d fe 03 00 00	 sub	 eax, 1022		; 000003feH
-  0001c	89 02		 mov	 DWORD PTR [edx], eax
-$LN1@frexp:
+  0000c	8b ca		 mov	 ecx, edx
+  0000e	56		 push	 esi
 
-; 21   : 
-; 22   : 	x.x->exponent = 0x3FE;
+; 34   : 	*eptr = 0;
 
-  0001e	81 e1 ff ff ef
-	bf		 and	 ecx, -1074790401	; bfefffffH
-  00024	81 c9 00 00 e0
-	3f		 or	 ecx, 1071644672		; 3fe00000H
-  0002a	89 4d 0c	 mov	 DWORD PTR ___x$[ebp+4], ecx
+  0000f	8b 75 10	 mov	 esi, DWORD PTR _eptr$[ebp]
+  00012	81 e1 ff ff ff
+	7f		 and	 ecx, 2147483647		; 7fffffffH
+  00018	c7 06 00 00 00
+	00		 mov	 DWORD PTR [esi], 0
 
-; 23   : 
-; 24   : 	return __x;
+; 35   : 	if (ix >= 0x7ff00000 || ((ix | lx) == 0)) return x;	/* 0,inf,nan */
 
-  0002d	dd 45 08	 fld	 QWORD PTR ___x$[ebp]
+  0001e	81 f9 00 00 f0
+	7f		 cmp	 ecx, 2146435072		; 7ff00000H
+  00024	7d 49		 jge	 SHORT $LN13@frexp
+  00026	8b c1		 mov	 eax, ecx
+  00028	0b 45 08	 or	 eax, DWORD PTR _ew_u$3[ebp]
+  0002b	74 42		 je	 SHORT $LN13@frexp
 
-; 25   : }
+; 36   : 	if (ix<0x00100000) {		/* subnormal */
 
-  00030	5d		 pop	 ebp
-  00031	c3		 ret	 0
+  0002d	81 f9 00 00 10
+	00		 cmp	 ecx, 1048576		; 00100000H
+  00033	7d 1a		 jge	 SHORT $LN7@frexp
+
+; 37   : 		x *= two54;
+
+  00035	dc 0d 00 00 00
+	00		 fmul	 QWORD PTR __real@4350000000000000
+
+; 38   : 		GET_HIGH_WORD(hx, x);
+; 39   : 		ix = hx & 0x7fffffff;
+; 40   : 		*eptr = -54;
+
+  0003b	c7 06 ca ff ff
+	ff		 mov	 DWORD PTR [esi], -54	; ffffffcaH
+  00041	dd 55 08	 fst	 QWORD PTR _gh_u$2[ebp]
+  00044	8b 55 0c	 mov	 edx, DWORD PTR _gh_u$2[ebp+4]
+  00047	8b ca		 mov	 ecx, edx
+  00049	81 e1 ff ff ff
+	7f		 and	 ecx, 2147483647		; 7fffffffH
+$LN7@frexp:
+
+; 41   : 	}
+; 42   : 	*eptr += (ix >> 20) - 1022;
+
+  0004f	c1 f9 14	 sar	 ecx, 20			; 00000014H
+
+; 43   : 	hx = (hx & 0x800fffff) | 0x3fe00000;
+
+  00052	81 e2 ff ff ef
+	bf		 and	 edx, -1074790401	; bfefffffH
+  00058	81 e9 fe 03 00
+	00		 sub	 ecx, 1022		; 000003feH
+  0005e	01 0e		 add	 DWORD PTR [esi], ecx
+  00060	81 ca 00 00 e0
+	3f		 or	 edx, 1071644672		; 3fe00000H
+
+; 44   : 	SET_HIGH_WORD(x, hx);
+
+  00066	dd 5d 08	 fstp	 QWORD PTR _sh_u$1[ebp]
+  00069	89 55 0c	 mov	 DWORD PTR _sh_u$1[ebp+4], edx
+
+; 45   : 	return x;
+
+  0006c	dd 45 08	 fld	 QWORD PTR _sh_u$1[ebp]
+$LN13@frexp:
+  0006f	5e		 pop	 esi
+
+; 46   : }
+
+  00070	5d		 pop	 ebp
+  00071	c3		 ret	 0
 _frexp	ENDP
-_TEXT	ENDS
-; Function compile flags: /Ogtp
-; File c:\users\philip\documents\github\mollenos\clib\include\math.h
-;	COMDAT ___signbitl
-_TEXT	SEGMENT
-_stw$ = -4						; size = 2
-_x$ = 8							; size = 8
-___signbitl PROC					; COMDAT
-
-; 271  : __CRT_INLINE int __cdecl __signbitl(long double x) {
-
-  00000	55		 push	 ebp
-  00001	8b ec		 mov	 ebp, esp
-  00003	51		 push	 ecx
-
-; 272  : 	unsigned short stw;
-; 273  : #if defined(_MSC_VER)
-; 274  : 	_asm {
-; 275  : 		fld [x];
-
-  00004	dd 45 08	 fld	 QWORD PTR _x$[ebp]
-
-; 276  : 		fxam;
-
-  00007	d9 e5		 fxam
-
-; 277  : 		fstsw ax;
-
-  00009	9b df e0	 fstsw	 ax
-
-; 278  : 		mov word ptr[stw], ax;
-
-  0000c	66 89 45 fc	 mov	 WORD PTR _stw$[ebp], ax
-
-; 279  : 	}
-; 280  : #else
-; 281  : 	__asm__ __volatile__("fxam; fstsw %%ax;": "=a" (stw) : "t" (x));
-; 282  : #endif
-; 283  : 	return stw & 0x0200;
-
-  00010	0f b7 45 fc	 movzx	 eax, WORD PTR _stw$[ebp]
-  00014	25 00 02 00 00	 and	 eax, 512		; 00000200H
-
-; 284  : }
-
-  00019	8b e5		 mov	 esp, ebp
-  0001b	5d		 pop	 ebp
-  0001c	c3		 ret	 0
-___signbitl ENDP
-_TEXT	ENDS
-; Function compile flags: /Ogtp
-; File c:\users\philip\documents\github\mollenos\clib\include\math.h
-;	COMDAT ___signbitf
-_TEXT	SEGMENT
-_stw$ = -4						; size = 2
-_x$ = 8							; size = 4
-___signbitf PROC					; COMDAT
-
-; 256  : __CRT_INLINE int __cdecl __signbitf(float x) {
-
-  00000	55		 push	 ebp
-  00001	8b ec		 mov	 ebp, esp
-  00003	51		 push	 ecx
-
-; 257  : 	unsigned short stw;
-; 258  : #if defined(_MSC_VER)
-; 259  : 	_asm {
-; 260  : 		fld [x];
-
-  00004	d9 45 08	 fld	 DWORD PTR _x$[ebp]
-
-; 261  : 		fxam;
-
-  00007	d9 e5		 fxam
-
-; 262  : 		fstsw ax;
-
-  00009	9b df e0	 fstsw	 ax
-
-; 263  : 		mov word ptr[stw], ax;
-
-  0000c	66 89 45 fc	 mov	 WORD PTR _stw$[ebp], ax
-
-; 264  : 	}
-; 265  : #else
-; 266  : 	__asm__ __volatile__("fxam; fstsw %%ax;": "=a" (stw) : "t" (x));
-; 267  : #endif
-; 268  : 	return stw & 0x0200;
-
-  00010	0f b7 45 fc	 movzx	 eax, WORD PTR _stw$[ebp]
-  00014	25 00 02 00 00	 and	 eax, 512		; 00000200H
-
-; 269  : }
-
-  00019	8b e5		 mov	 esp, ebp
-  0001b	5d		 pop	 ebp
-  0001c	c3		 ret	 0
-___signbitf ENDP
-_TEXT	ENDS
-; Function compile flags: /Ogtp
-; File c:\users\philip\documents\github\mollenos\clib\include\math.h
-;	COMDAT ___signbit
-_TEXT	SEGMENT
-_stw$ = -4						; size = 2
-_x$ = 8							; size = 8
-___signbit PROC						; COMDAT
-
-; 241  : __CRT_INLINE int __cdecl __signbit(double x) {
-
-  00000	55		 push	 ebp
-  00001	8b ec		 mov	 ebp, esp
-  00003	51		 push	 ecx
-
-; 242  : 	unsigned short stw;
-; 243  : #if defined(_MSC_VER)
-; 244  : 	_asm {
-; 245  : 		fld [x];
-
-  00004	dd 45 08	 fld	 QWORD PTR _x$[ebp]
-
-; 246  : 		fxam;
-
-  00007	d9 e5		 fxam
-
-; 247  : 		fstsw ax;
-
-  00009	9b df e0	 fstsw	 ax
-
-; 248  : 		mov word ptr[stw], ax;
-
-  0000c	66 89 45 fc	 mov	 WORD PTR _stw$[ebp], ax
-
-; 249  : 	}
-; 250  : #else
-; 251  : 	__asm__ __volatile__("fxam; fstsw %%ax;": "=a" (stw) : "t" (x));
-; 252  : #endif
-; 253  : 	return stw & 0x0200;
-
-  00010	0f b7 45 fc	 movzx	 eax, WORD PTR _stw$[ebp]
-  00014	25 00 02 00 00	 and	 eax, 512		; 00000200H
-
-; 254  : }
-
-  00019	8b e5		 mov	 esp, ebp
-  0001b	5d		 pop	 ebp
-  0001c	c3		 ret	 0
-___signbit ENDP
-_TEXT	ENDS
-; Function compile flags: /Ogtp
-; File c:\users\philip\documents\github\mollenos\clib\include\math.h
-;	COMDAT ___isnanl
-_TEXT	SEGMENT
-_sw$ = -4						; size = 2
-__x$ = 8						; size = 8
-___isnanl PROC						; COMDAT
-
-; 211  : {
-
-  00000	55		 push	 ebp
-  00001	8b ec		 mov	 ebp, esp
-  00003	51		 push	 ecx
-
-; 212  : 	unsigned short sw;
-; 213  : #if defined(_MSC_VER)
-; 214  : 	_asm {
-; 215  : 		fld [_x];
-
-  00004	dd 45 08	 fld	 QWORD PTR __x$[ebp]
-
-; 216  : 		fxam;
-
-  00007	d9 e5		 fxam
-
-; 217  : 		fstsw ax;
-
-  00009	9b df e0	 fstsw	 ax
-
-; 218  : 		mov word ptr[sw], ax;
-
-  0000c	66 89 45 fc	 mov	 WORD PTR _sw$[ebp], ax
-
-; 219  : 	}
-; 220  : #else
-; 221  : 	__asm__ __volatile__("fxam;"
-; 222  : 		"fstsw %%ax": "=a" (sw) : "t" (_x));
-; 223  : #endif
-; 224  : 	return (sw & (FP_NAN | FP_NORMAL | FP_INFINITE | FP_ZERO | FP_SUBNORMAL))
-; 225  : 		== FP_NAN;
-
-  00010	0f b7 4d fc	 movzx	 ecx, WORD PTR _sw$[ebp]
-  00014	33 c0		 xor	 eax, eax
-  00016	81 e1 00 45 00
-	00		 and	 ecx, 17664		; 00004500H
-  0001c	81 f9 00 01 00
-	00		 cmp	 ecx, 256		; 00000100H
-  00022	0f 94 c0	 sete	 al
-
-; 226  : }
-
-  00025	8b e5		 mov	 esp, ebp
-  00027	5d		 pop	 ebp
-  00028	c3		 ret	 0
-___isnanl ENDP
-_TEXT	ENDS
-; Function compile flags: /Ogtp
-; File c:\users\philip\documents\github\mollenos\clib\include\math.h
-;	COMDAT ___isnanf
-_TEXT	SEGMENT
-_sw$ = -4						; size = 2
-__x$ = 8						; size = 4
-___isnanf PROC						; COMDAT
-
-; 193  : {
-
-  00000	55		 push	 ebp
-  00001	8b ec		 mov	 ebp, esp
-  00003	51		 push	 ecx
-
-; 194  : 	unsigned short sw;
-; 195  : #if defined(_MSC_VER)
-; 196  : 	_asm {
-; 197  : 		fld [_x];
-
-  00004	d9 45 08	 fld	 DWORD PTR __x$[ebp]
-
-; 198  : 		fxam;
-
-  00007	d9 e5		 fxam
-
-; 199  : 		fstsw ax;
-
-  00009	9b df e0	 fstsw	 ax
-
-; 200  : 		mov word ptr[sw], ax;
-
-  0000c	66 89 45 fc	 mov	 WORD PTR _sw$[ebp], ax
-
-; 201  : 	}
-; 202  : #else
-; 203  : 	__asm__ __volatile__("fxam;"
-; 204  : 		"fstsw %%ax": "=a" (sw) : "t" (_x));
-; 205  : #endif
-; 206  : 	return (sw & (FP_NAN | FP_NORMAL | FP_INFINITE | FP_ZERO | FP_SUBNORMAL))
-; 207  : 		== FP_NAN;
-
-  00010	0f b7 4d fc	 movzx	 ecx, WORD PTR _sw$[ebp]
-  00014	33 c0		 xor	 eax, eax
-  00016	81 e1 00 45 00
-	00		 and	 ecx, 17664		; 00004500H
-  0001c	81 f9 00 01 00
-	00		 cmp	 ecx, 256		; 00000100H
-  00022	0f 94 c0	 sete	 al
-
-; 208  : }
-
-  00025	8b e5		 mov	 esp, ebp
-  00027	5d		 pop	 ebp
-  00028	c3		 ret	 0
-___isnanf ENDP
-_TEXT	ENDS
-; Function compile flags: /Ogtp
-; File c:\users\philip\documents\github\mollenos\clib\include\math.h
-;	COMDAT ___isnan
-_TEXT	SEGMENT
-_sw$ = -4						; size = 2
-__x$ = 8						; size = 8
-___isnan PROC						; COMDAT
-
-; 175  : {
-
-  00000	55		 push	 ebp
-  00001	8b ec		 mov	 ebp, esp
-  00003	51		 push	 ecx
-
-; 176  : 	unsigned short sw;
-; 177  : #if defined(_MSC_VER)
-; 178  : 	_asm {
-; 179  : 		fld [_x];
-
-  00004	dd 45 08	 fld	 QWORD PTR __x$[ebp]
-
-; 180  : 		fxam;
-
-  00007	d9 e5		 fxam
-
-; 181  : 		fstsw ax;
-
-  00009	9b df e0	 fstsw	 ax
-
-; 182  : 		mov word ptr[sw], ax;
-
-  0000c	66 89 45 fc	 mov	 WORD PTR _sw$[ebp], ax
-
-; 183  : 	}
-; 184  : #else
-; 185  : 	__asm__ __volatile__("fxam;"
-; 186  : 		"fstsw %%ax": "=a" (sw) : "t" (_x));
-; 187  : #endif
-; 188  : 	return (sw & (FP_NAN | FP_NORMAL | FP_INFINITE | FP_ZERO | FP_SUBNORMAL))
-; 189  : 		== FP_NAN;
-
-  00010	0f b7 4d fc	 movzx	 ecx, WORD PTR _sw$[ebp]
-  00014	33 c0		 xor	 eax, eax
-  00016	81 e1 00 45 00
-	00		 and	 ecx, 17664		; 00004500H
-  0001c	81 f9 00 01 00
-	00		 cmp	 ecx, 256		; 00000100H
-  00022	0f 94 c0	 sete	 al
-
-; 190  : }
-
-  00025	8b e5		 mov	 esp, ebp
-  00027	5d		 pop	 ebp
-  00028	c3		 ret	 0
-___isnan ENDP
-_TEXT	ENDS
-; Function compile flags: /Ogtp
-; File c:\users\philip\documents\github\mollenos\clib\include\math.h
-;	COMDAT ___fpclassify
-_TEXT	SEGMENT
-_sw$ = -4						; size = 2
-_x$ = 8							; size = 8
-___fpclassify PROC					; COMDAT
-
-; 125  : __CRT_INLINE int __cdecl __fpclassify(double x) {
-
-  00000	55		 push	 ebp
-  00001	8b ec		 mov	 ebp, esp
-  00003	51		 push	 ecx
-
-; 126  : 	unsigned short sw;
-; 127  : #if defined(_MSC_VER)
-; 128  : 	_asm {
-; 129  : 		fld [x];
-
-  00004	dd 45 08	 fld	 QWORD PTR _x$[ebp]
-
-; 130  : 		fxam;
-
-  00007	d9 e5		 fxam
-
-; 131  : 		fstsw ax;
-
-  00009	9b df e0	 fstsw	 ax
-
-; 132  : 		mov word ptr[sw], ax;
-
-  0000c	66 89 45 fc	 mov	 WORD PTR _sw$[ebp], ax
-
-; 133  : 	}
-; 134  : #else
-; 135  : 	__asm__ __volatile__("fxam; fstsw %%ax;" : "=a" (sw) : "t" (x));
-; 136  : #endif
-; 137  : 	return sw & (FP_NAN | FP_NORMAL | FP_ZERO);
-
-  00010	0f b7 45 fc	 movzx	 eax, WORD PTR _sw$[ebp]
-  00014	25 00 45 00 00	 and	 eax, 17664		; 00004500H
-
-; 138  : }
-
-  00019	8b e5		 mov	 esp, ebp
-  0001b	5d		 pop	 ebp
-  0001c	c3		 ret	 0
-___fpclassify ENDP
-_TEXT	ENDS
-; Function compile flags: /Ogtp
-; File c:\users\philip\documents\github\mollenos\clib\include\math.h
-;	COMDAT ___fpclassifyf
-_TEXT	SEGMENT
-_sw$ = -4						; size = 2
-_x$ = 8							; size = 4
-___fpclassifyf PROC					; COMDAT
-
-; 139  : __CRT_INLINE int __cdecl __fpclassifyf(float x) {
-
-  00000	55		 push	 ebp
-  00001	8b ec		 mov	 ebp, esp
-  00003	51		 push	 ecx
-
-; 140  : 	unsigned short sw;
-; 141  : #if defined(_MSC_VER)
-; 142  : 	_asm {
-; 143  : 		fld [x];
-
-  00004	d9 45 08	 fld	 DWORD PTR _x$[ebp]
-
-; 144  : 		fxam;
-
-  00007	d9 e5		 fxam
-
-; 145  : 		fstsw ax;
-
-  00009	9b df e0	 fstsw	 ax
-
-; 146  : 		mov word ptr[sw], ax;
-
-  0000c	66 89 45 fc	 mov	 WORD PTR _sw$[ebp], ax
-
-; 147  : 	}
-; 148  : #else
-; 149  : 	__asm__ __volatile__("fxam; fstsw %%ax;" : "=a" (sw) : "t" (x));
-; 150  : #endif
-; 151  : 	return sw & (FP_NAN | FP_NORMAL | FP_ZERO);
-
-  00010	0f b7 45 fc	 movzx	 eax, WORD PTR _sw$[ebp]
-  00014	25 00 45 00 00	 and	 eax, 17664		; 00004500H
-
-; 152  : }
-
-  00019	8b e5		 mov	 esp, ebp
-  0001b	5d		 pop	 ebp
-  0001c	c3		 ret	 0
-___fpclassifyf ENDP
-_TEXT	ENDS
-; Function compile flags: /Ogtp
-; File c:\users\philip\documents\github\mollenos\clib\include\math.h
-;	COMDAT ___fpclassifyl
-_TEXT	SEGMENT
-_sw$ = -4						; size = 2
-_x$ = 8							; size = 8
-___fpclassifyl PROC					; COMDAT
-
-; 111  : __CRT_INLINE int __cdecl __fpclassifyl(long double x) {
-
-  00000	55		 push	 ebp
-  00001	8b ec		 mov	 ebp, esp
-  00003	51		 push	 ecx
-
-; 112  : 	unsigned short sw;
-; 113  : #if defined(_MSC_VER)
-; 114  : 	_asm {
-; 115  : 		fld [x];
-
-  00004	dd 45 08	 fld	 QWORD PTR _x$[ebp]
-
-; 116  : 		fxam;
-
-  00007	d9 e5		 fxam
-
-; 117  : 		fstsw ax;
-
-  00009	9b df e0	 fstsw	 ax
-
-; 118  : 		mov word ptr [sw], ax;
-
-  0000c	66 89 45 fc	 mov	 WORD PTR _sw$[ebp], ax
-
-; 119  : 	}
-; 120  : #else
-; 121  : 	__asm__ __volatile__("fxam; fstsw %%ax;" : "=a" (sw) : "t" (x));
-; 122  : #endif
-; 123  : 	return sw & (FP_NAN | FP_NORMAL | FP_ZERO);
-
-  00010	0f b7 45 fc	 movzx	 eax, WORD PTR _sw$[ebp]
-  00014	25 00 45 00 00	 and	 eax, 17664		; 00004500H
-
-; 124  : }
-
-  00019	8b e5		 mov	 esp, ebp
-  0001b	5d		 pop	 ebp
-  0001c	c3		 ret	 0
-___fpclassifyl ENDP
 _TEXT	ENDS
 END

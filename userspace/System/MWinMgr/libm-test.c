@@ -118,6 +118,7 @@
 #include "libm-test-ulps.h"
 #include <float.h>
 #include <math.h>
+#include <i386/fenv.h>
 
 #if 0 /* XXX scp XXX */
 #define FE_INEXACT FE_INEXACT
@@ -135,19 +136,6 @@
 #include <string.h>
 #if 0 /* XXX scp XXX */
 #include <argp.h>
-#endif
-
-// Some native libm implementations don't have sincos defined, so we have to do it ourselves
-void FUNC(sincos) (FLOAT x, FLOAT * s, FLOAT * c);
-
-#ifdef __APPLE__
-#ifdef SYS_MATH_H
-void sincos(FLOAT x, FLOAT * s, FLOAT * c)
-{
-    *s = sin(x);
-    *c = cos(x);
-}
-#endif
 #endif
 
 /* Possible exceptions */
@@ -236,7 +224,7 @@ init_max_error (void)
   max_error = 0;
   real_max_error = 0;
   imag_max_error = 0;
-  //feclearexcept (FE_ALL_EXCEPT);
+  feclearexcept (FE_ALL_EXCEPT);
 }
 
 static void
@@ -394,6 +382,56 @@ print_complex_max_error (const char *func_name, __complex__ FLOAT allowed,
 }
 #endif
 
+/* Test whether a given exception was raised.  */
+static void
+test_single_exception(const char *test_name,
+int exception,
+int exc_flag,
+int fe_flag,
+const char *flag_name)
+{
+	/* Don't perform these checks if we're compiling with clang, because clang
+	doesn't bother to set floating-point exceptions properly */
+#ifndef __clang__
+#ifndef TEST_INLINE
+	int ok = 1;
+	if (exception & exc_flag)
+	{
+		if (fetestexcept(fe_flag))
+		{
+			if (print_screen(1, 0))
+				printf("Pass: %s: Exception \"%s\" set\n", test_name, flag_name);
+		}
+		else
+		{
+			ok = 0;
+			if (print_screen(0, 0))
+				printf("Failure: %s: Exception \"%s\" not set\n",
+				test_name, flag_name);
+		}
+	}
+	else
+	{
+		if (fetestexcept(fe_flag))
+		{
+			ok = 0;
+			if (print_screen(0, 0))
+				printf("Failure: %s: Exception \"%s\" set\n",
+				test_name, flag_name);
+		}
+		else
+		{
+			if (print_screen(1, 0))
+				printf("%s: Exception \"%s\" not set\n", test_name,
+				flag_name);
+		}
+	}
+	if (!ok)
+		++noErrors;
+
+#endif
+#endif // __clang__
+}
 
 /* Test whether exceptions given by EXCEPTION are raised.  Ignore thereby
    allowed but not required exceptions.
@@ -413,7 +451,7 @@ test_exceptions (const char *test_name, int exception)
     test_single_exception (test_name, exception, INVALID_EXCEPTION, FE_INVALID,
 			 "Invalid operation");
 #endif
-  //feclearexcept (FE_ALL_EXCEPT);
+  feclearexcept (FE_ALL_EXCEPT);
 }
 
 
@@ -2705,7 +2743,7 @@ gamma_test (void)
   if (errno == ENOSYS)
     /* Function not implemented.  */
     return;
-  //feclearexcept (FE_ALL_EXCEPT);
+  feclearexcept (FE_ALL_EXCEPT);
 
   init_max_error ();
 
@@ -2997,7 +3035,7 @@ lgamma_test (void)
   if (errno == ENOSYS)
     /* Function not implemented.  */
     return;
-  //feclearexcept (FE_ALL_EXCEPT);
+  feclearexcept (FE_ALL_EXCEPT);
   int signgam;
 
   init_max_error ();
@@ -3379,7 +3417,7 @@ nearbyint_test (void)
 
   print_max_error ("nearbyint", 0, 0);
 }
-/*
+
 static void
 nextafter_test (void)
 {
@@ -3405,7 +3443,6 @@ nextafter_test (void)
   print_max_error ("nextafter", 0, 0);
 }
 
- */
 #if 0 /* XXX scp XXX */
 static void
 nexttoward_test (void)
@@ -3979,7 +4016,7 @@ tgamma_test (void)
   if (errno == ENOSYS)
     /* Function not implemented.  */
     return;
-  //feclearexcept (FE_ALL_EXCEPT);
+  feclearexcept (FE_ALL_EXCEPT);
 
   init_max_error ();
 
@@ -4191,7 +4228,7 @@ initialize (void)
   (void) &minus_infty;
 
   /* Clear all exceptions.  From now on we must not get random exceptions.  */
-  //feclearexcept (FE_ALL_EXCEPT);
+  feclearexcept (FE_ALL_EXCEPT);
 }
 
 #if 0 /* XXX scp XXX */
@@ -4326,94 +4363,104 @@ int libm_main (int argc, char **argv)
 
   /* Keep the tests a wee bit ordered (according to ISO C99).  */
   /* Classification macros:  */
-  fpclassify_test ();
-  isfinite_test ();
-  isnormal_test ();
-  signbit_test ();
+  fpclassify_test();
+  isfinite_test();
+  isnormal_test();
+  signbit_test();
 
   /* Trigonometric functions:  */
-  acos_test ();
-  asin_test ();
-  atan_test ();
-  atan2_test ();
-  cos_test ();
-  sin_test ();
-  tan_test ();
+  printf("Testing Trigonometric functions");
+  acos_test();
+  asin_test();
+  atan_test();
+  atan2_test();
+  cos_test();
+  sin_test();
+  sincos_test();
+  tan_test();
 
-  /* Power and absolute value functions:  */
-  fabs_test();
-  sqrt_test();
+  /* Hyperbolic functions:  */
+  printf("Testing Hyperbolic functions");
+  acosh_test();
+  asinh_test();
+  atanh_test();
+  cosh_test();
+  sinh_test();
+  tanh_test();
 
   /* Exponential and logarithmic functions:  */
+  printf("Testing Exponential and logarithmic functions");
   exp_test();
+#if 0 /* XXX scp XXX */
+  exp10_test();
+#endif
+  exp2_test();
   expm1_test();
   frexp_test();
   ldexp_test();
   log_test();
   log10_test();
+  log1p_test();
   log2_test();
   logb_test();
-  ilogb_test();
   modf_test();
+  ilogb_test();
   scalbn_test();
+  scalbln_test();
 
-  /* Remainder functions:  */
-  fmod_test();
-  remainder_test();
-  //remquo_test ();
+  /* Power and absolute value functions:  */
+  printf("Testing Power and absolute value functions");
+  cbrt_test();
+  fabs_test();
+  hypot_test();
+  pow_test();
+  sqrt_test();
+
+  /* Error and gamma functions:  */
+  //erf_test();
+  //erfc_test();
+  //gamma_test();
+  //lgamma_test();
+  //tgamma_test();
 
   /* Nearest integer functions:  */
+  printf("Testing Nearest integer functions");
   ceil_test();
   floor_test();
+  trunc_test();
+  //nearbyint_test();
+
+  printf("Testing Rounding functions");
   rint_test();
   lrint_test();
   llrint_test();
   round_test();
   lround_test();
   llround_test();
-  trunc_test();
+
+  /* Remainder functions:  */
+  printf("Testing Remainder functions");
+  fmod_test();
+  remainder_test();
+  //remquo_test();
 
   /* Manipulation functions:  */
+  printf("Testing Manipulation functions");
   copysign_test();
-
-  /* Power and absolute value functions:  */
-  //pow_test();
-
-  //log1p_test ();
-  //exp2_test();
-  //hypot_test ();
-  //cbrt_test ();
-  //scalbln_test ();
-  //sincos_test ();
-  //nearbyint_test();
-  //nextafter_test ();
-
-  /* Hyperbolic functions:  */
-  //acosh_test ();
-  //asinh_test ();
-  //atanh_test ();
-  //cosh_test ();
-  //sinh_test ();
-  //tanh_test ();
-
-  /* Error and gamma functions: 
-  erf_test ();
-  erfc_test ();
-  gamma_test ();
-  lgamma_test ();
-  tgamma_test ();  */
-
+  nextafter_test();
 #if 0 /* XXX scp XXX */
   nexttoward_test ();
 #endif
 
-  /* maximum, minimum and positive difference functions
-  fdim_test ();
-  fmax_test ();
-  fmin_test ();  */
+  /* maximum, minimum and positive difference functions */
+  printf("Testing maximum, minimum and positive difference functions");
+  fdim_test();
+  fmax_test();
+  fmin_test();
 
   /* Multiply and add:  */
-  //fma_test ();
+  printf("Testing Multiply and add functions");
+  fma_test();
 
 #if 0 /* XXX scp XXX */
   /* Complex functions:  */
@@ -4442,13 +4489,14 @@ int libm_main (int argc, char **argv)
   ctanh_test ();
 #endif
 
-  /* Bessel functions:
-  j0_test ();
-  j1_test ();
-  jn_test ();
-  y0_test ();
-  y1_test ();
-  yn_test ();   */
+  /* Bessel functions:  */
+  printf("Testing Bessel functions");
+  j0_test();
+  j1_test();
+  jn_test();
+  y0_test();
+  y1_test();
+  yn_test();
 
   if (output_ulps)
     fclose (ulps_file);

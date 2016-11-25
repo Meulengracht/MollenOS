@@ -38,7 +38,7 @@ static const double one = 1.0, shuge = 1.0e307;
 #pragma function(sinh)
 #endif
 
-double sinh(double x)
+double __ieee754_sinh(double x)
 {
 	double t, h;
 	int32_t ix, jx;
@@ -62,11 +62,11 @@ double sinh(double x)
 	}
 
 	/* |x| in [22, log(maxdouble)] return 0.5*exp(|x|) */
-	if (ix < 0x40862E42)  return h*exp(fabs(x));
+	if (ix < 0x40862E42)  return h*__ieee754_exp(fabs(x));
 
 	/* |x| in [log(maxdouble), overflowthresold] */
 	if (ix <= 0x408633CE)
-		return h*2.0*ldexp(fabs(x), -1);
+		return h*2.0*__ldexp_exp(fabs(x), -1);
 
 	/* |x| > overflowthresold, sinh(x) overflow */
 	return x*shuge;

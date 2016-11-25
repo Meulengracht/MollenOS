@@ -1,3 +1,5 @@
+
+/* @(#)e_lgamma.c 1.3 95/01/18 */
 /*
 * ====================================================
 * Copyright (C) 1993 by Sun Microsystems, Inc. All rights reserved.
@@ -7,26 +9,21 @@
 * software is freely granted, provided that this notice
 * is preserved.
 * ====================================================
+*
+*/
+
+/* __ieee754_lgamma(x)
+* Return the logarithm of the Gamma function of x.
+*
+* Method: call __ieee754_lgamma_r
 */
 
 #include "private.h"
-#include <limits.h>
 #include <math.h>
 
-/* Simply a pow, 2 wrapper */
-double exp2(double x)
+double
+__ieee754_lgamma(double x)
 {
-	return pow(2.0, x);
+	int signgam;
+	return __ieee754_lgamma_r(x, &signgam);
 }
-
-/* Simply a powf, 2 wrapper */
-float exp2f(float x)
-{
-	return powf(2.0, x);
-}
-
-/* Simply a powl, 2 wrapper 
-long double exp2l(long double x)
-{
-	return powl(2.0, x);
-} */

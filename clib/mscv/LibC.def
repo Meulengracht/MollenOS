@@ -26,7 +26,6 @@ modf
 frexp
 exp2
 exp2f
-exp2l
 log2
 log2f
 log2l

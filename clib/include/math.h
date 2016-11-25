@@ -144,7 +144,7 @@ _CRT_EXTERN int __signbitl(long double);
 
 /* 7.12.3.5 */
 #define	isnormal(x)					\
-    ((sizeof (x) == sizeof (float)) ? __isnormalf(x)	\
+    ((sizeof (x) == sizeof (float)) ? __isnormalf((float)x)	\
     : (sizeof (x) == sizeof (double)) ? __isnormal(x)	\
     : __isnormall(x))
 
@@ -156,19 +156,46 @@ _CRT_EXTERN int __signbitl(long double);
 
 /* 7.12.4 Trigonometric functions: Double in C89 */
 _CRT_EXTERN double __CRTDECL cos(double);
+_CRT_EXTERN float __CRTDECL cosf(float);
+_CRT_EXTERN long double __CRTDECL cosl(long double);
+
 _CRT_EXTERN double __CRTDECL sin(double);
+_CRT_EXTERN float __CRTDECL sinf(float);
+_CRT_EXTERN long double __CRTDECL sinl(long double);
+
 _CRT_EXTERN double __CRTDECL tan(double);
+_CRT_EXTERN float __CRTDECL tanf(float);
+_CRT_EXTERN long double __CRTDECL tanl(long double);
 
 /* 7.12.5 Hyperbolic functions: Double in C89  */
 _CRT_EXTERN double __CRTDECL cosh(double);
+_CRT_EXTERN float __CRTDECL coshf(float);
+_CRT_EXTERN long double __CRTDECL coshl(long double);
+
 _CRT_EXTERN double __CRTDECL sinh(double);
+_CRT_EXTERN float __CRTDECL sinhf(float);
+_CRT_EXTERN long double __CRTDECL sinhl(long double);
+
 _CRT_EXTERN double __CRTDECL tanh(double);
+_CRT_EXTERN float __CRTDECL tanhf(float);
+_CRT_EXTERN long double __CRTDECL tanhl(long double);
 
 /* 7.12.4 Inverse Trigonometric functions: Double in C89 */
 _CRT_EXTERN double __CRTDECL acos(double);
+_CRT_EXTERN float __CRTDECL acosf(float);
+_CRT_EXTERN long double __CRTDECL acosl(long double);
+
 _CRT_EXTERN double __CRTDECL asin(double);
+_CRT_EXTERN float __CRTDECL asinf(float);
+_CRT_EXTERN long double __CRTDECL asinl(long double);
+
 _CRT_EXTERN double __CRTDECL atan(double);
+_CRT_EXTERN float __CRTDECL atanf(float);
+_CRT_EXTERN long double __CRTDECL atanl(long double);
+
 _CRT_EXTERN double __CRTDECL atan2(double, double);
+_CRT_EXTERN float __CRTDECL atan2f(float, float);
+_CRT_EXTERN long double __CRTDECL atan2l(long double, long double);
 
 /* 7.12.5.1  Inverse hyperbolic trig functions  */
 _CRT_EXTERN double __CRTDECL acosh(double);
@@ -189,7 +216,7 @@ _CRT_EXTERN long double __CRTDECL atanhl(long double);
 /* 7.12.6.1 Double in C89 */
 _CRT_EXTERN double __CRTDECL exp(double);
 _CRT_EXTERN float __CRTDECL expf(float);
-_CRT_EXTERN long double expl(long double);
+_CRT_EXTERN long double __CRTDECL expl(long double);
 
 /* 7.12.6.2 */
 _CRT_EXTERN double __CRTDECL exp2(double);
@@ -209,6 +236,8 @@ _CRT_EXTERN long double __CRTDECL frexpl(long double, int*);
 
 /* 7.12.6.5 */
 _CRT_EXTERN double __CRTDECL ldexp(double, int);
+_CRT_EXTERN float __CRTDECL ldexpf(float, int);
+_CRT_EXTERN long double __CRTDECL ldexpl(long double, int);
 
 /* 7.12.6.6 */
 #define FP_ILOGB0 ((int)0x80000000)
@@ -219,9 +248,13 @@ _CRT_EXTERN int __CRTDECL ilogbl(long double);
 
 /* 7.12.6.7 */
 _CRT_EXTERN double __CRTDECL log(double);
+_CRT_EXTERN float __CRTDECL logf(float);
+_CRT_EXTERN long double __CRTDECL logl(long double);
 
 /* 7.12.6.8 */
 _CRT_EXTERN double __CRTDECL log10(double);
+_CRT_EXTERN float __CRTDECL log10f(float);
+_CRT_EXTERN long double __CRTDECL log10l(long double);
 
 /* 7.12.6.9 */
 _CRT_EXTERN double __CRTDECL log1p(double);
@@ -240,7 +273,8 @@ _CRT_EXTERN long double __CRTDECL logbl(long double);
 
 /* 7.12.6.12  Double in C89 */
 _CRT_EXTERN double __CRTDECL modf(double, double*);
-// modf functions. Already in math.h
+_CRT_EXTERN float __CRTDECL modff(float, float*);
+_CRT_EXTERN long double __CRTDECL modfl(long double, long double*);
 
 /* 7.12.6.13 */
 _CRT_EXTERN double __CRTDECL scalbn(double, int);
@@ -264,16 +298,19 @@ _CRT_EXTERN long double __CRTDECL fabsl(long double);
 
 /* 7.12.7.3  */
 _CRT_EXTERN double __CRTDECL hypot(double, double);
-float __CRTDECL hypotf(float, float);
-long double __CRTDECL hypotl(long double, long double);
+_CRT_EXTERN float __CRTDECL hypotf(float, float);
+_CRT_EXTERN long double __CRTDECL hypotl(long double, long double);
 
 /* 7.12.7.4 The pow functions. Double in C89 */
-// Already in math.h
-_CRT_EXTERN double __CRTDECL pow(double x, double y);
+_CRT_EXTERN double __CRTDECL pow(double, double);
+_CRT_EXTERN float __CRTDECL powf(float, float);
+_CRT_EXTERN long double __CRTDECL powl(long double, long double);
 
 /* 7.12.7.5 The sqrt functions. Double in C89. */
 // Already in math.h
-_CRT_EXTERN double __CRTDECL sqrt(double x);
+_CRT_EXTERN double __CRTDECL sqrt(double);
+_CRT_EXTERN float __CRTDECL sqrtf(float);
+_CRT_EXTERN long double __CRTDECL sqrtl(long double);
 
 /* 7.12.8.1 The erf functions  */
 _CRT_EXTERN double __CRTDECL erf(double);
@@ -289,6 +326,10 @@ _CRT_EXTERN long double __CRTDECL erfcl(long double);
 _CRT_EXTERN double __CRTDECL lgamma(double);
 _CRT_EXTERN float __CRTDECL lgammaf(float);
 _CRT_EXTERN long double __CRTDECL lgammal(long double);
+
+/* Reentrant version of lgamma; passes signgam back by reference as the
+ * second argument; user must allocate space for signgam. */
+_CRT_EXTERN double __CRTDECL lgamma_r(double, int *);
 
 /* 7.12.8.4 The tgamma functions */
 _CRT_EXTERN double __CRTDECL tgamma(double);
@@ -347,8 +388,8 @@ _CRT_EXTERN long double __CRTDECL truncl(long double);
 
 /* 7.12.10.1 Double in C89 */
 _CRT_EXTERN double __CRTDECL fmod(double, double);
-__CRT_INLINE float fmodf(float, float);
-__CRT_INLINE long double fmodl(long double, long double);
+_CRT_EXTERN float __CRTDECL fmodf(float, float);
+_CRT_EXTERN long double __CRTDECL fmodl(long double, long double);
 
 /* 7.12.10.2 */
 _CRT_EXTERN double __CRTDECL remainder(double, double);
@@ -356,9 +397,9 @@ _CRT_EXTERN float __CRTDECL remainderf(float, float);
 _CRT_EXTERN long double __CRTDECL remainderl(long double, long double);
 
 /* 7.12.10.3 */
-_CRT_EXTERN double __CRTDECL remquo(double, double, int *);
-_CRT_EXTERN float __CRTDECL remquof(float, float, int *);
-_CRT_EXTERN long double __CRTDECL remquol(long double, long double, int *);
+_CRT_EXTERN double __CRTDECL remquo(double, double, int*);
+_CRT_EXTERN float __CRTDECL remquof(float, float, int*);
+_CRT_EXTERN long double __CRTDECL remquol(long double, long double, int*);
 
 /* 7.12.11.1 */
 _CRT_EXTERN double __CRTDECL copysign(double, double); /* in libmoldname.a */
@@ -414,12 +455,15 @@ _CRT_EXTERN float __CRTDECL fmaf(float, float, float);
 _CRT_EXTERN long double __CRTDECL fmal(long double, long double, long double);
 
 /* 7.12.13.2 Bessel functions */
-_CRT_EXTERN double __CRTDECL _j0(double);
-_CRT_EXTERN double __CRTDECL _j1(double);
-_CRT_EXTERN double __CRTDECL _jn(int, double);
-_CRT_EXTERN double __CRTDECL _y0(double);
-_CRT_EXTERN double __CRTDECL _y1(double);
-_CRT_EXTERN double __CRTDECL _yn(int, double);
+_CRT_EXTERN double __CRTDECL j0(double);
+_CRT_EXTERN double __CRTDECL j1(double);
+_CRT_EXTERN double __CRTDECL jn(int, double);
+_CRT_EXTERN double __CRTDECL y0(double);
+_CRT_EXTERN double __CRTDECL y1(double);
+_CRT_EXTERN double __CRTDECL yn(int, double);
+
+/* Combined */
+_CRT_EXTERN void __CRTDECL sincos(double, double*, double*);
 
 /* 7.12.14 */
 /*
@@ -510,81 +554,6 @@ __fp_unordered_compare(long double x, long double y){
 		 int __CRTDECL _isnanf(float x);
 		 int __CRTDECL _fpclassf(float x);
 #endif
-
-#if defined(__ia64__) || defined (_M_IA64)
-		 
-		 float __CRTDECL ldexpf(float x, int y);
-		 long double __CRTDECL tanl(long double x);
-#else
-		__CRT_INLINE float __CRTDECL ldexpf(float x, int expn) { return (float)ldexp (x, expn); }
-		__CRT_INLINE long double __CRTDECL tanl(long double x) { return (tan((double)x)); }
-#endif
-
-#if (_MOLLENOS >= 0x100) && \
-	(defined(__x86_64) || defined(_M_AMD64) || \
-	defined (__ia64__) || defined (_M_IA64))
-		 float __CRTDECL acosf(float x);
-		 float __CRTDECL asinf(float x);
-		 float __CRTDECL atanf(float x);
-		 float __CRTDECL atan2f(float x, float y);
-		 float __CRTDECL ceilf(float x);
-		 float __CRTDECL cosf(float x);
-		 float __CRTDECL coshf(float x);
-		 float __CRTDECL expf(float x);
-		 float __CRTDECL floorf(float x);
-		 float __CRTDECL fmodf(float x, float y);
-		 float __CRTDECL logf(float x);
-		 float __CRTDECL log10f(float x);
-		 float __CRTDECL modff(float x, float *y);
-		 float __CRTDECL powf(float b, float e);
-		 float __CRTDECL sinf(float x);
-		 float __CRTDECL sinhf(float x);
-		 float __CRTDECL sqrtf(float x);
-		 float __CRTDECL tanf(float x);
-		 float __CRTDECL tanhf(float x);
-#else
-		__CRT_INLINE float acosf(float x) { return ((float)acos((double)x)); }
-		__CRT_INLINE float asinf(float x) { return ((float)asin((double)x)); }
-		__CRT_INLINE float atanf(float x) { return ((float)atan((double)x)); }
-		__CRT_INLINE float atan2f(float x,float y) { return ((float)atan2((double)x,(double)y)); }
-		__CRT_INLINE float cosf(float x) { return ((float)cos((double)x)); }
-		__CRT_INLINE float coshf(float x) { return ((float)cosh((double)x)); }
-		__CRT_INLINE float logf(float x) { return ((float)log((double)x)); }
-		__CRT_INLINE float log10f(float x) { return ((float)log10((double)x)); }
-		__CRT_INLINE float modff(float x,float *y) {
-			double _Di,_Df = modf((double)x,&_Di);
-			*y = (float)_Di;
-			return ((float)_Df);
-		}
-		__CRT_INLINE float powf(float x,float y) { return ((float)pow((double)x,(double)y)); }
-		__CRT_INLINE float sinf(float x) { return ((float)sin((double)x)); }
-		__CRT_INLINE float sinhf(float x) { return ((float)sinh((double)x)); }
-		__CRT_INLINE float sqrtf(float x) { return ((float)sqrt((double)x)); }
-		__CRT_INLINE float tanf(float x) { return ((float)tan((double)x)); }
-		__CRT_INLINE float tanhf(float x) { return ((float)tanh((double)x)); }
-#endif
-
-		__CRT_INLINE long double acosl(long double x) { return (acos((double)x)); }
-		__CRT_INLINE long double asinl(long double x) { return (asin((double)x)); }
-		__CRT_INLINE long double atanl(long double x) { return (atan((double)x)); }
-		__CRT_INLINE long double atan2l(long double y, long double x) { return (atan2((double)y, (double)x)); }
-		__CRT_INLINE long double cosl(long double x) { return (cos((double)x)); }
-		__CRT_INLINE long double coshl(long double x) { return (cosh((double)x)); }
-		__CRT_INLINE long double logl(long double x) { return (log((double)x)); }
-		__CRT_INLINE long double log10l(long double x) { return (log10((double)x)); }
-		__CRT_INLINE long double powl(long double x, long double y) { return (pow((double)x, (double)y)); }
-		__CRT_INLINE long double sinl(long double x) { return (sin((double)x)); }
-		__CRT_INLINE long double sinhl(long double x) { return (sinh((double)x)); }
-		__CRT_INLINE long double sqrtl(long double x) { return (sqrt((double)x)); }
-		__CRT_INLINE long double tanhl(long double x) {return (tanh((double)x)); }
-		__CRT_INLINE long double _chgsignl(long double _Number) { return _chgsign((double)(_Number)); }
-		__CRT_INLINE long double _copysignl(long double _Number, long double _Sign) { return _copysign((double)(_Number),(double)(_Sign)); }
-		__CRT_INLINE long double ldexpl(long double x, int y) { return ldexp((double)x, y); }
-		__CRT_INLINE long double modfl(long double x,long double *y) {
-			double _Di,_Df = modf((double)x,&_Di);
-			*y = (long double)_Di;
-			return (_Df);
-		}
 
 #ifndef	NO_OLDNAMES
 #define DOMAIN _DOMAIN

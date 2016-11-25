@@ -223,11 +223,11 @@ __CIpow	PROC						; COMDAT
   00001	8b ec		 mov	 ebp, esp
   00003	83 ec 10	 sub	 esp, 16			; 00000010H
 
-; 329  : 	FPU_DOUBLES(x, y);
+; 329  : 	FPU_DOUBLES(y, x);
 
-  00006	dd 5d f0	 fstp	 QWORD PTR _x$[ebp]
+  00006	dd 5d f8	 fstp	 QWORD PTR _y$[ebp]
   00009	9b		 fwait
-  0000a	dd 5d f8	 fstp	 QWORD PTR _y$[ebp]
+  0000a	dd 5d f0	 fstp	 QWORD PTR _x$[ebp]
   0000d	9b		 fwait
 
 ; 330  : 	return pow(x, y);

@@ -26,24 +26,49 @@
 
 #include "private.h"
 #include <math.h>
-#include <i386/fenv.h>
+#include <limits.h>
 
-/* We save and restore the floating-point environment to avoid raising
- * an inexact exception.  We can get away with using fesetenv()
- * instead of feclearexcept()/feupdateenv() to restore the environment
- * because the only exception defined for rint() is overflow, and
- * rounding can't overflow as long as emax >= p. */
-#define	DECL(type, fn, rint)	\
-type fn(type x)			\
-{				\
-	type ret;		\
-	fenv_t env;		\
-				\
-	fegetenv(&env);		\
-	ret = rint(x);		\
-	fesetenv(&env);		\
-	return (ret);		\
+double
+scalbln(double x, long n)
+{
+	int in;
+
+	in = (int)n;
+	if (in != n) {
+		if (n > 0)
+			in = INT_MAX;
+		else
+			in = INT_MIN;
+	}
+	return (scalbn(x, in));
 }
 
-DECL(double, nearbyint, rint)
-DECL(float, nearbyintf, rintf)
+float
+scalblnf(float x, long n)
+{
+	int in;
+
+	in = (int)n;
+	if (in != n) {
+		if (n > 0)
+			in = INT_MAX;
+		else
+			in = INT_MIN;
+	}
+	return (scalbnf(x, in));
+}
+
+long double
+scalblnl(long double x, long n)
+{
+	int in;
+
+	in = (int)n;
+	if (in != n) {
+		if (n > 0)
+			in = INT_MAX;
+		else
+			in = INT_MIN;
+	}
+	return (scalbnl(x, (int)n));
+}

@@ -26,24 +26,19 @@
 
 #include "private.h"
 #include <math.h>
-#include <i386/fenv.h>
 
-/* We save and restore the floating-point environment to avoid raising
- * an inexact exception.  We can get away with using fesetenv()
- * instead of feclearexcept()/feupdateenv() to restore the environment
- * because the only exception defined for rint() is overflow, and
- * rounding can't overflow as long as emax >= p. */
-#define	DECL(type, fn, rint)	\
-type fn(type x)			\
-{				\
-	type ret;		\
-	fenv_t env;		\
-				\
-	fegetenv(&env);		\
-	ret = rint(x);		\
-	fesetenv(&env);		\
-	return (ret);		\
+#define	DECL(type, fn)			\
+type					\
+fn(type x, type y)			\
+{					\
+					\
+	if (isnan(x))			\
+		return (x);		\
+	if (isnan(y))			\
+		return (y);		\
+	return (type)(x > y ? x - y : 0.0);	\
 }
 
-DECL(double, nearbyint, rint)
-DECL(float, nearbyintf, rintf)
+DECL(double, fdim)
+DECL(float, fdimf)
+DECL(long double, fdiml)

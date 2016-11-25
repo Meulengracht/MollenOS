@@ -1,76 +1,126 @@
-/* Copyright (C) 1995 DJ Delorie, see COPYING.DJ for details */
+
+/* @(#)e_hypot.c 1.3 95/01/18 */
 /*
-* hypot() function for DJGPP.
+* ====================================================
+* Copyright (C) 1993 by Sun Microsystems, Inc. All rights reserved.
 *
-* hypot() computes sqrt(x^2 + y^2).  The problem with the obvious
-* naive implementation is that it might fail for very large or
-* very small arguments.  For instance, for large x or y the result
-* might overflow even if the value of the function should not,
-* because squaring a large number might trigger an overflow.  For
-* very small numbers, their square might underflow and will be
-* silently replaced by zero; this won't cause an exception, but might
-* have an adverse effect on the accuracy of the result.
-*
-* This implementation tries to avoid the above pitfals, without
-* inflicting too much of a performance hit.
-*
+* Developed at SunSoft, a Sun Microsystems, Inc. business.
+* Permission to use, copy, modify, and distribute this
+* software is freely granted, provided that this notice
+* is preserved.
+* ====================================================
 */
+
+/* __ieee754_hypot(x,y)
+*
+* Method :
+*	If (assume round-to-nearest) z=x*x+y*y
+*	has error less than sqrt(2)/2 ulp, than
+*	sqrt(z) has error less than 1 ulp (exercise).
+*
+*	So, compute sqrt(x*x+y*y) with some care as
+*	follows to get the error below 1 ulp:
+*
+*	Assume x>y>0;
+*	(if possible, set rounding to round-to-nearest)
+*	1. if x > 2y  use
+*		x1*x1+(y*y+(x2*(x+x1))) for x*x+y*y
+*	where x1 = x with lower 32 bits cleared, x2 = x-x1; else
+*	2. if x <= 2y use
+*		t1*y1+((x-y)*(x-y)+(t1*y2+t2*y))
+*	where t1 = 2x with lower 32 bits cleared, t2 = 2x-t1,
+*	y1= y with lower 32 bits chopped, y2 = y-y1.
+*
+*	NOTE: scaling may be necessary if some argument is too
+*	      large or too tiny
+*
+* Special cases:
+*	hypot(x,y) is INF if x or y is +INF or -INF; else
+*	hypot(x,y) is NAN if x or y is NAN.
+*
+* Accuracy:
+* 	hypot(x,y) returns sqrt(x^2+y^2) with error less
+* 	than 1 ulps (units in the last place)
+*/
+
+#include "private.h"
 #include <math.h>
 
-/* Approximate square roots of DBL_MAX and DBL_MIN.  Numbers
-between these two shouldn't neither overflow nor underflow
-when squared.  */
-#define __SQRT_DBL_MAX 1.3e+154
-#define __SQRT_DBL_MIN 2.3e-162
-
-/*
-* @implemented
-*/
-double hypot(double x, double y)
+double
+__ieee754_hypot(double x, double y)
 {
-	double abig = fabs(x), asmall = fabs(y);
-	double ratio;
+	double a, b, t1, t2, y1, y2, w;
+	int32_t j, k, ha, hb;
 
-	/* Make abig = max(|x|, |y|), asmall = min(|x|, |y|).  */
-	if (abig < asmall)
-	{
-		double temp = abig;
-
-		abig = asmall;
-		asmall = temp;
+	GET_HIGH_WORD(ha, x);
+	ha &= 0x7fffffff;
+	GET_HIGH_WORD(hb, y);
+	hb &= 0x7fffffff;
+	if (hb > ha) { a = y; b = x; j = ha; ha = hb; hb = j; }
+	else { a = x; b = y; }
+	a = fabs(a);
+	b = fabs(b);
+	if ((ha - hb)>0x3c00000) { return a + b; } /* x/y > 2**60 */
+	k = 0;
+	if (ha > 0x5f300000) {	/* a>2**500 */
+		if (ha >= 0x7ff00000) {	/* Inf or NaN */
+			uint32_t low;
+			/* Use original arg order iff result is NaN; quieten sNaNs. */
+			w = fabs(x + 0.0) - fabs(y + 0.0);
+			GET_LOW_WORD(low, a);
+			if (((ha & 0xfffff) | low) == 0) w = a;
+			GET_LOW_WORD(low, b);
+			if (((hb ^ 0x7ff00000) | low) == 0) w = b;
+			return w;
+		}
+		/* scale a and b by 2**-600 */
+		ha -= 0x25800000; hb -= 0x25800000;	k += 600;
+		SET_HIGH_WORD(a, ha);
+		SET_HIGH_WORD(b, hb);
 	}
-
-	/* Trivial case.  */
-	if (asmall == 0.)
-		return abig;
-
-	/* Scale the numbers as much as possible by using its ratio.
-	For example, if both ABIG and ASMALL are VERY small, then
-	X^2 + Y^2 might be VERY inaccurate due to loss of
-	significant digits.  Dividing ASMALL by ABIG scales them
-	to a certain degree, so that accuracy is better.  */
-
-	if ((ratio = asmall / abig) > __SQRT_DBL_MIN && abig < __SQRT_DBL_MAX)
-		return abig * sqrt(1.0 + ratio*ratio);
-	else
-	{
-		/* Slower but safer algorithm due to Moler and Morrison.  Never
-		produces any intermediate result greater than roughly the
-		larger of X and Y.  Should converge to machine-precision
-		accuracy in 3 iterations.  */
-
-		double r = ratio*ratio, t, s, p = abig, q = asmall;
-
-		do {
-			t = 4. + r;
-			if (t == 4.)
-				break;
-			s = r / t;
-			p += 2. * s * p;
-			q *= s;
-			r = (q / p) * (q / p);
-		} while (1);
-
-		return p;
+	if (hb < 0x20b00000) {	/* b < 2**-500 */
+		if (hb <= 0x000fffff) {	/* subnormal b or 0 */
+			uint32_t low;
+			GET_LOW_WORD(low, b);
+			if ((hb | low) == 0) return a;
+			t1 = 0;
+			SET_HIGH_WORD(t1, 0x7fd00000);	/* t1=2^1022 */
+			b *= t1;
+			a *= t1;
+			k -= 1022;
+		}
+		else {		/* scale a and b by 2^600 */
+			ha += 0x25800000; 	/* a *= 2^600 */
+			hb += 0x25800000;	/* b *= 2^600 */
+			k -= 600;
+			SET_HIGH_WORD(a, ha);
+			SET_HIGH_WORD(b, hb);
+		}
 	}
+	/* medium size a and b */
+	w = a - b;
+	if (w>b) {
+		t1 = 0;
+		SET_HIGH_WORD(t1, ha);
+		t2 = a - t1;
+		w = sqrt(t1*t1 - (b*(-b) - t2*(a + t1)));
+	}
+	else {
+		a = a + a;
+		y1 = 0;
+		SET_HIGH_WORD(y1, hb);
+		y2 = b - y1;
+		t1 = 0;
+		SET_HIGH_WORD(t1, ha + 0x00100000);
+		t2 = a - t1;
+		w = sqrt(t1*y1 - (w*(-w) - (t1*y2 + t2*b)));
+	}
+	if (k != 0) {
+		uint32_t high;
+		t1 = 1.0;
+		GET_HIGH_WORD(high, t1);
+		SET_HIGH_WORD(t1, high + (k << 20));
+		return t1*w;
+	}
+	else return w;
 }
