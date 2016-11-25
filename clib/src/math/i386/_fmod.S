@@ -22,8 +22,6 @@ segment .text
 
 ;Functions in this asm
 global _fmod
-global _fmodf
-global _fmodl
 global __CIfmod
 
 ; double __cdecl fmod(double x, double y)
@@ -49,66 +47,6 @@ __fmod1:
 
 	; No, go get next remainder
     jp		__fmod1
-
-	; Set new top of stack
-    fstp    st1
-
-	; Unwind & return
-	pop     ebp
-	ret
-
-; float fmodf(float x,float y)
-_fmodf:
-	; Stack Frame
-	push    ebp
-	mov     ebp, esp
-
-	; Load x and y from stack
-    fld     dword [ebp + 12]
-    fld     dword [ebp + 8]
-
-__fmod1f:
-	; Get the partial remainder
-	fprem
-
-	; Get coprocessor status
-    fstsw   ax
-
-	; Complete remainder ?
-    sahf
-
-	; No, go get next remainder
-    jp		__fmod1f
-
-	; Set new top of stack
-    fstp    st1
-
-	; Unwind & return
-	pop     ebp
-	ret
-
-; float fmodl(long double x, long double y)
-_fmodl:
-	; Stack Frame
-	push    ebp
-	mov     ebp, esp
-
-	; Load x and y from stack
-    fld     tword [ebp + 20]
-    fld     tword [ebp + 8]
-
-__fmod1l:
-	; Get the partial remainder
-	fprem
-
-	; Get coprocessor status
-    fstsw   ax
-
-	; Complete remainder ?
-    sahf
-
-	; No, go get next remainder
-    jp		__fmod1l
 
 	; Set new top of stack
     fstp    st1

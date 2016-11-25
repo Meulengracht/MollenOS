@@ -458,9 +458,18 @@ _CRT_EXTERN long double __CRTDECL fmal(long double, long double, long double);
 _CRT_EXTERN double __CRTDECL j0(double);
 _CRT_EXTERN double __CRTDECL j1(double);
 _CRT_EXTERN double __CRTDECL jn(int, double);
+
+_CRT_EXTERN float __CRTDECL j0f(float);
+_CRT_EXTERN float __CRTDECL j1f(float);
+_CRT_EXTERN float __CRTDECL jnf(int, float);
+
 _CRT_EXTERN double __CRTDECL y0(double);
 _CRT_EXTERN double __CRTDECL y1(double);
 _CRT_EXTERN double __CRTDECL yn(int, double);
+
+_CRT_EXTERN float __CRTDECL y0f(float);
+_CRT_EXTERN float __CRTDECL y1f(float);
+_CRT_EXTERN float __CRTDECL ynf(int, float);
 
 /* Combined */
 _CRT_EXTERN void __CRTDECL sincos(double, double*, double*);

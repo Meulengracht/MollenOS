@@ -25,7 +25,7 @@
     <ClCompile Include="Core\Shape.c">
       <Filter>Source\Sapphire</Filter>
     </ClCompile>
-    <ClCompile Include="test-double.c">
+    <ClCompile Include="test-float.c">
       <Filter>Source</Filter>
     </ClCompile>
   </ItemGroup>

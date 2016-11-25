@@ -681,6 +681,72 @@
     <ClCompile Include="..\src\math\powf.c">
       <Filter>Source\math</Filter>
     </ClCompile>
+    <ClCompile Include="..\src\math\j0f_y0f.c">
+      <Filter>Source\math\ieee</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\math\j1f_y1f.c">
+      <Filter>Source\math\ieee</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\math\jnf_ynf.c">
+      <Filter>Source\math\ieee</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\math\hypotf.c">
+      <Filter>Source\math</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\math\acoshf.c">
+      <Filter>Source\math</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\math\acosf.c">
+      <Filter>Source\math</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\math\log1pf.c">
+      <Filter>Source\math</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\math\tanhf.c">
+      <Filter>Source\math</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\math\asinf.c">
+      <Filter>Source\math</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\math\asinhf.c">
+      <Filter>Source\math</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\math\cbrtf.c">
+      <Filter>Source\math</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\math\atanhf.c">
+      <Filter>Source\math</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\math\coshf.c">
+      <Filter>Source\math</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\math\fmaf.c">
+      <Filter>Source\math</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\math\fmaxf.c">
+      <Filter>Source\math</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\math\fminf.c">
+      <Filter>Source\math</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\math\core_expf.c">
+      <Filter>Source\math\core</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\math\sinhf.c">
+      <Filter>Source\math</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\math\nextafterf.c">
+      <Filter>Source\math</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\math\frexpf.c">
+      <Filter>Source\math</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\math\modff.c">
+      <Filter>Source\math</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\math\fmodf.c">
+      <Filter>Source\math</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <CustomBuild Include="..\src\string\memcpy_acc.s">
