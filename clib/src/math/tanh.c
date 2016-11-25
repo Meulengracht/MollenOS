@@ -34,10 +34,7 @@
 *	only tanh(0)=0 is exact for finite argument.
 */
 
-#include <float.h>
-#include <stdint.h>
-#include <internal/_all.h>
-#include <limits.h>
+#include "private.h"
 #include <math.h>
 
 static const double one = 1.0, two = 2.0, tiny = 1.0e-300, huge = 1.0e300;

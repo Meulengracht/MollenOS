@@ -47,7 +47,6 @@
     <ClCompile Include="..\src\math\modf.c" />
     <ClCompile Include="..\src\math\nearbyint.c" />
     <ClCompile Include="..\src\math\pow.c" />
-    <ClCompile Include="..\src\math\powf.c" />
     <ClCompile Include="..\src\math\round.c" />
     <ClCompile Include="..\src\math\signbit.c" />
     <ClCompile Include="..\src\math\sinf.c" />
@@ -477,7 +476,7 @@
       </PrecompiledHeader>
       <WarningLevel>EnableAllWarnings</WarningLevel>
       <Optimization>MaxSpeed</Optimization>
-      <PreprocessorDefinitions>MOLLENOS;LIBC_KERNEL;_X86_32</PreprocessorDefinitions>
+      <PreprocessorDefinitions>MOLLENOS;LIBC_KERNEL;_X86_32;__STDC__</PreprocessorDefinitions>
       <SDLCheck>
       </SDLCheck>
       <CompileAsManaged>
@@ -495,7 +494,7 @@
       <EnableParallelCodeGeneration>true</EnableParallelCodeGeneration>
       <AssemblerOutput>All</AssemblerOutput>
       <MinimalRebuild>false</MinimalRebuild>
-      <DisableSpecificWarnings>4706;4127;4100;4738;4115</DisableSpecificWarnings>
+      <DisableSpecificWarnings>4706;4127;4100;4738;4115;4214</DisableSpecificWarnings>
       <InlineFunctionExpansion>OnlyExplicitInline</InlineFunctionExpansion>
       <BufferSecurityCheck>false</BufferSecurityCheck>
       <EnableEnhancedInstructionSet>StreamingSIMDExtensions</EnableEnhancedInstructionSet>
@@ -521,7 +520,7 @@
       <Optimization>Full</Optimization>
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>false</IntrinsicFunctions>
-      <PreprocessorDefinitions>MOLLENOS;_X86_32;_CRT_DYNAMIC;_CRT_DLL</PreprocessorDefinitions>
+      <PreprocessorDefinitions>MOLLENOS;_X86_32;_CRT_DYNAMIC;_CRT_DLL;__STDC__</PreprocessorDefinitions>
       <SDLCheck>
       </SDLCheck>
       <CompileAsManaged>
@@ -535,7 +534,7 @@
       <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
       <EnableParallelCodeGeneration>true</EnableParallelCodeGeneration>
       <AssemblerOutput>All</AssemblerOutput>
-      <DisableSpecificWarnings>4706;4127;4100;4738;4115</DisableSpecificWarnings>
+      <DisableSpecificWarnings>4706;4127;4100;4738;4115;4214</DisableSpecificWarnings>
       <InlineFunctionExpansion>OnlyExplicitInline</InlineFunctionExpansion>
       <BasicRuntimeChecks>Default</BasicRuntimeChecks>
       <BufferSecurityCheck>false</BufferSecurityCheck>

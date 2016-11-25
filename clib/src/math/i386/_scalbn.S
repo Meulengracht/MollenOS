@@ -36,7 +36,7 @@ _scalbn:
 	fld     qword [ebp + 8]
 	fscale
 	
-	; Store result
+	; Store result + restore stack
 	fstp	st1
 	
 	; Unwind & return

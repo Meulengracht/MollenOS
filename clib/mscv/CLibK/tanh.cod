@@ -14,8 +14,6 @@ _one	DQ	03ff0000000000000r		; 1
 _two	DQ	04000000000000000r		; 2
 _tiny	DQ	001a56e1fc2f8f359r		; 1e-300
 _huge	DQ	07e37e43c8800759cr		; 1e+300
-_twoTo1023 DQ	07fe0000000000000r		; 8.98847e+307
-_twoToM1022 DQ	00010000000000000r		; 2.22507e-308
 CONST	ENDS
 PUBLIC	_tanh
 PUBLIC	__CItanh
@@ -48,18 +46,18 @@ _TEXT	SEGMENT
 _x$ = -8						; size = 8
 __CItanh PROC						; COMDAT
 
-; 88   : {
+; 85   : {
 
   00000	55		 push	 ebp
   00001	8b ec		 mov	 ebp, esp
   00003	83 ec 08	 sub	 esp, 8
 
-; 89   : 	FPU_DOUBLE(x);
+; 86   : 	FPU_DOUBLE(x);
 
   00006	dd 5d f8	 fstp	 QWORD PTR _x$[ebp]
   00009	9b		 fwait
 
-; 90   : 	return tanh(x);
+; 87   : 	return tanh(x);
 
   0000a	dd 45 f8	 fld	 QWORD PTR _x$[ebp]
   0000d	83 ec 08	 sub	 esp, 8
@@ -67,7 +65,7 @@ __CItanh PROC						; COMDAT
   00013	e8 00 00 00 00	 call	 _tanh
   00018	83 c4 08	 add	 esp, 8
 
-; 91   : }
+; 88   : }
 
   0001b	8b e5		 mov	 esp, ebp
   0001d	5d		 pop	 ebp
@@ -82,36 +80,36 @@ _gh_u$1 = 8						; size = 8
 _x$ = 8							; size = 8
 _tanh	PROC						; COMDAT
 
-; 50   : {
+; 47   : {
 
   00000	55		 push	 ebp
   00001	8b ec		 mov	 ebp, esp
 
-; 51   : 	double t, z;
-; 52   : 	int32_t jx, ix;
-; 53   : 
-; 54   : 	GET_HIGH_WORD(jx, x);
+; 48   : 	double t, z;
+; 49   : 	int32_t jx, ix;
+; 50   : 
+; 51   : 	GET_HIGH_WORD(jx, x);
 
   00003	dd 45 08	 fld	 QWORD PTR _x$[ebp]
   00006	dd 55 08	 fst	 QWORD PTR _gh_u$1[ebp]
   00009	56		 push	 esi
 
-; 55   : 	ix = jx & 0x7fffffff;
+; 52   : 	ix = jx & 0x7fffffff;
 
   0000a	8b 75 0c	 mov	 esi, DWORD PTR _gh_u$1[ebp+4]
   0000d	8b ce		 mov	 ecx, esi
   0000f	81 e1 ff ff ff
 	7f		 and	 ecx, 2147483647		; 7fffffffH
 
-; 56   : 
-; 57   : 	/* x is INF or NaN */
-; 58   : 	if (ix >= 0x7ff00000) {
+; 53   : 
+; 54   : 	/* x is INF or NaN */
+; 55   : 	if (ix >= 0x7ff00000) {
 
   00015	81 f9 00 00 f0
 	7f		 cmp	 ecx, 2146435072		; 7ff00000H
   0001b	7c 14		 jl	 SHORT $LN7@tanh
 
-; 59   : 		if (jx >= 0) return one / x + one;    /* tanh(+-inf)=+-1 */
+; 56   : 		if (jx >= 0) return one / x + one;    /* tanh(+-inf)=+-1 */
 
   0001d	d9 e8		 fld1
   0001f	d9 c0		 fld	 ST(0)
@@ -121,39 +119,39 @@ _tanh	PROC						; COMDAT
   00027	de c1		 faddp	 ST(1), ST(0)
   00029	5e		 pop	 esi
 
-; 82   : }
+; 79   : }
 
   0002a	5d		 pop	 ebp
   0002b	c3		 ret	 0
 $LN8@tanh:
 
-; 60   : 		else       return one / x - one;    /* tanh(NaN) = NaN */
+; 57   : 		else       return one / x - one;    /* tanh(NaN) = NaN */
 
   0002c	de e9		 fsubp	 ST(1), ST(0)
   0002e	5e		 pop	 esi
 
-; 82   : }
+; 79   : }
 
   0002f	5d		 pop	 ebp
   00030	c3		 ret	 0
 $LN7@tanh:
 
-; 61   : 	}
-; 62   : 
-; 63   : 	/* |x| < 22 */
-; 64   : 	if (ix < 0x40360000) {		/* |x|<22 */
+; 58   : 	}
+; 59   : 
+; 60   : 	/* |x| < 22 */
+; 61   : 	if (ix < 0x40360000) {		/* |x|<22 */
 
   00031	81 f9 00 00 36
 	40		 cmp	 ecx, 1077280768		; 40360000H
   00037	7d 63		 jge	 SHORT $LN24@tanh
 
-; 65   : 		if (ix<0x3e300000) {	/* |x|<2**-28 */
+; 62   : 		if (ix<0x3e300000) {	/* |x|<2**-28 */
 
   00039	81 f9 00 00 30
 	3e		 cmp	 ecx, 1043333120		; 3e300000H
   0003f	7d 12		 jge	 SHORT $LN4@tanh
 
-; 66   : 			if (huge + x>one) return x; /* tanh(tiny) = tiny with inexact */
+; 63   : 			if (huge + x>one) return x; /* tanh(tiny) = tiny with inexact */
 
   00041	dd 05 00 00 00
 	00		 fld	 QWORD PTR __real@7e37e43c8800759c
@@ -165,9 +163,9 @@ $LN7@tanh:
   00051	77 53		 ja	 SHORT $LN13@tanh
 $LN4@tanh:
 
-; 67   : 		}
-; 68   : 		if (ix >= 0x3ff00000) {	/* |x|>=1  */
-; 69   : 			t = expm1(two*fabs(x));
+; 64   : 		}
+; 65   : 		if (ix >= 0x3ff00000) {	/* |x|>=1  */
+; 66   : 			t = expm1(two*fabs(x));
 
   00053	83 ec 08	 sub	 esp, 8
   00056	d9 e1		 fabs
@@ -178,7 +176,7 @@ $LN4@tanh:
   00062	dd 1c 24	 fstp	 QWORD PTR [esp]
   00065	e8 00 00 00 00	 call	 _expm1
 
-; 70   : 			z = one - two / (t + two);
+; 67   : 			z = one - two / (t + two);
 
   0006a	dd 05 00 00 00
 	00		 fld	 QWORD PTR __real@4000000000000000
@@ -188,20 +186,20 @@ $LN4@tanh:
   00077	d9 e8		 fld1
   00079	de e1		 fsubrp	 ST(1), ST(0)
 
-; 71   : 		}
-; 72   : 		else {
+; 68   : 		}
+; 69   : 		else {
 
   0007b	eb 23		 jmp	 SHORT $LN1@tanh
 $LN3@tanh:
 
-; 73   : 			t = expm1(-two*fabs(x));
+; 70   : 			t = expm1(-two*fabs(x));
 
   0007d	dc 0d 00 00 00
 	00		 fmul	 QWORD PTR __real@c000000000000000
   00083	dd 1c 24	 fstp	 QWORD PTR [esp]
   00086	e8 00 00 00 00	 call	 _expm1
 
-; 74   : 			z = -t / (t + two);
+; 71   : 			z = -t / (t + two);
 
   0008b	dd 05 00 00 00
 	00		 fld	 QWORD PTR __real@4000000000000000
@@ -210,22 +208,22 @@ $LN3@tanh:
   00096	de f9		 fdivp	 ST(1), ST(0)
   00098	d9 e0		 fchs
 
-; 75   : 		}
-; 76   : 		/* |x| >= 22, return +-1 */
-; 77   : 	}
-; 78   : 	else {
+; 72   : 		}
+; 73   : 		/* |x| >= 22, return +-1 */
+; 74   : 	}
+; 75   : 	else {
 
   0009a	eb 04		 jmp	 SHORT $LN1@tanh
 $LN24@tanh:
   0009c	dd d8		 fstp	 ST(0)
 
-; 79   : 		z = one - tiny;		/* raise inexact flag */
+; 76   : 		z = one - tiny;		/* raise inexact flag */
 
   0009e	d9 e8		 fld1
 $LN1@tanh:
 
-; 80   : 	}
-; 81   : 	return (jx >= 0) ? z : -z;
+; 77   : 	}
+; 78   : 	return (jx >= 0) ? z : -z;
 
   000a0	85 f6		 test	 esi, esi
   000a2	79 02		 jns	 SHORT $LN13@tanh
@@ -233,7 +231,7 @@ $LN1@tanh:
 $LN13@tanh:
   000a6	5e		 pop	 esi
 
-; 82   : }
+; 79   : }
 
   000a7	5d		 pop	 ebp
   000a8	c3		 ret	 0

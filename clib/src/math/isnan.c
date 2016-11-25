@@ -26,8 +26,7 @@
 * $FreeBSD: src/lib/msun/src/s_isnan.c,v 1.9 2010/06/12 17:32:05 das Exp $
 */
 
-#include <stdint.h>
-#include <internal/_all.h>
+#include "private.h"
 #include <limits.h>
 #include <math.h>
 

@@ -20,10 +20,7 @@
 *	No exception.
 */
 
-#include <float.h>
-#include <stdint.h>
-#include <internal/_all.h>
-#include <limits.h>
+#include "private.h"
 #include <math.h>
 
 static const double one = 1.0;

@@ -24,9 +24,7 @@
 * THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
-#include <stdint.h>
-#include <internal/_all.h>
-#include <limits.h>
+#include "private.h"
 #include <math.h>
 
 double round(double x)

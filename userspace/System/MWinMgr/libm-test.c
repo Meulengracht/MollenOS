@@ -354,9 +354,9 @@ print_max_error (const char *func_name, FLOAT allowed, int xfail)
 
   if (print_screen_max_error (ok, xfail))
     {
-      printf ("Maximal error of `%s'\n", func_name);
-      printf (" is      : % .4" PRINTF_NEXPR " ulp\n", max_error);
-      printf (" accepted: % .4" PRINTF_NEXPR " ulp\n", allowed);
+      printf ("Maximal error of `%s'", func_name);
+      printf (" is      : % .4" PRINTF_NEXPR " ulp", max_error);
+      printf (" accepted: % .4" PRINTF_NEXPR " ulp", allowed);
     }
 
   update_stats (ok, xfail);
@@ -436,7 +436,7 @@ check_float_internal (const char *test_name, FLOAT computed, FLOAT expected,
 	  && signbit (computed) != signbit (expected))
 	{
 	  ok = 0;
-	  printf ("infinity has wrong sign.\n");
+	  printf ("infinity has wrong sign.");
 	}
       else
 	ok = 1;
@@ -471,18 +471,18 @@ check_float_internal (const char *test_name, FLOAT computed, FLOAT expected,
     {
       if (!ok)
 	printf ("Failure: ");
-      printf ("Test: %s\n", test_name);
-      printf ("Result:\n");
-      printf (" is:         % .20" PRINTF_EXPR "  % .20" PRINTF_XEXPR "\n",
+      printf ("Test: %s", test_name);
+      printf ("Result:");
+      printf (" is:         % .20" PRINTF_EXPR "  % .20" PRINTF_XEXPR,
 	      computed, computed);
-      printf (" should be:  % .20" PRINTF_EXPR "  % .20" PRINTF_XEXPR "\n",
+      printf (" should be:  % .20" PRINTF_EXPR "  % .20" PRINTF_XEXPR,
 	      expected, expected);
       if (print_diff)
 	{
 	  printf (" difference: % .20" PRINTF_EXPR "  % .20" PRINTF_XEXPR
-		  "\n", diff, diff);
-	  printf (" ulp       : % .4" PRINTF_NEXPR "\n", ulp);
-	  printf (" max.ulp   : % .4" PRINTF_NEXPR "\n", max_ulp);
+		  , diff, diff);
+	  printf (" ulp       : % .4" PRINTF_NEXPR, ulp);
+	  printf (" max.ulp   : % .4" PRINTF_NEXPR, max_ulp);
 	}
     }
   update_stats (ok, xfail);
@@ -3458,7 +3458,6 @@ pow_test (void)
   check_float ("pow (NaN, 0) == 1",  FUNC(pow) (nan_value, 0), 1, 0, 0, 0);
   check_float ("pow (NaN, -0) == 1",  FUNC(pow) (nan_value, minus_zero), 1, 0, 0, 0);
 
-
 #ifndef TEST_INLINE
   check_float ("pow (1.1, inf) == inf",  FUNC(pow) (1.1L, plus_infty), plus_infty, 0, 0, 0);
   check_float ("pow (inf, inf) == inf",  FUNC(pow) (plus_infty, plus_infty), plus_infty, 0, 0, 0);
@@ -4318,7 +4317,6 @@ int libm_main (int argc, char **argv)
 	}
     }
 
-  printf("INIT");
   initialize ();
   printf (TEST_MSG);
 
@@ -4379,9 +4377,7 @@ int libm_main (int argc, char **argv)
   copysign_test();
 
   /* Power and absolute value functions:  */
-  pow_test();
-
-  for (;;);
+  //pow_test();
 
   //log1p_test ();
   //exp2_test();
@@ -4391,8 +4387,6 @@ int libm_main (int argc, char **argv)
   //sincos_test ();
   //nearbyint_test();
   //nextafter_test ();
-
-
 
   /* Hyperbolic functions:  */
   //acosh_test ();
@@ -4459,19 +4453,21 @@ int libm_main (int argc, char **argv)
   if (output_ulps)
     fclose (ulps_file);
 
-  printf ("\nTest suite completed:\n");
-  printf ("  %d test cases plus %d tests for exception flags executed.\n",
+  printf ("Test suite completed:");
+  printf ("  %d test cases plus %d tests for exception flags executed.",
 	  noTests, noExcTests);
   if (noXFails)
-    printf ("  %d expected failures occurred.\n", noXFails);
+    printf ("  %d expected failures occurred.", noXFails);
   if (noXPasses)
-    printf ("  %d unexpected passes occurred.\n", noXPasses);
+    printf ("  %d unexpected passes occurred.", noXPasses);
   if (noErrors)
     {
-      printf ("  %d errors occurred.\n", noErrors);
+      printf ("  %d errors occurred.", noErrors);
       return 1;
     }
-  printf ("  All tests passed successfully.\n");
+  printf("  All tests passed successfully.");
+
+  for (;;);
 
   return 0;
 }

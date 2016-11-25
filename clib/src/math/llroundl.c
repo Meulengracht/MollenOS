@@ -24,8 +24,7 @@
 * THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
-#include <stdint.h>
-#include <internal/_all.h>
+#include "private.h"
 #include <limits.h>
 #include <math.h>
 #include <i386/fenv.h>

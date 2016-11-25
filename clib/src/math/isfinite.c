@@ -26,8 +26,7 @@
 * $FreeBSD: src/lib/msun/src/s_isfinite.c,v 1.1 2004/07/09 03:32:39 das Exp $
 */
 
-#include <stdint.h>
-#include <internal/_all.h>
+#include "private.h"
 #include <limits.h>
 #include <math.h>
 

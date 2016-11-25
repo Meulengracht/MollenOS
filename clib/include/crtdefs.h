@@ -323,6 +323,14 @@ MemoryBarrier (void)
 #define _CRT_OBSOLETE(_NewItem)
 #endif
 
+/* Sometimes it's necessary to define __LITTLE_ENDIAN explicitly
+ * but these catch some common cases. */
+#if defined(i386) || defined(i486) || \
+	defined(intel) || defined(x86) || defined(i86pc) || \
+	defined(__alpha) || defined(__osf__) || defined(_X86_32)
+#define __LITTLE_ENDIAN
+#endif
+
 
 /** Constants ****************************************************************/
 

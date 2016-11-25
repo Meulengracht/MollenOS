@@ -519,12 +519,6 @@
     <ClCompile Include="..\src\math\isnan.c">
       <Filter>Source\math</Filter>
     </ClCompile>
-    <ClCompile Include="..\src\math\pow.c">
-      <Filter>Source\math</Filter>
-    </ClCompile>
-    <ClCompile Include="..\src\math\powf.c">
-      <Filter>Source\math</Filter>
-    </ClCompile>
     <ClCompile Include="..\src\math\hugeval.c">
       <Filter>Source\math</Filter>
     </ClCompile>
@@ -580,6 +574,9 @@
       <Filter>Source\math</Filter>
     </ClCompile>
     <ClCompile Include="..\src\math\llroundl.c">
+      <Filter>Source\math</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\math\pow.c">
       <Filter>Source\math</Filter>
     </ClCompile>
   </ItemGroup>

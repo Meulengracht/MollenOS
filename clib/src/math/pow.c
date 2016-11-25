@@ -54,7 +54,7 @@
 * to produce the hexadecimal values shown.
 */
 
-#include <internal/_all.h>
+#include "private.h"
 #include <math.h>
 
 static const double

@@ -30,10 +30,17 @@ extern "C" {
 #define M_SQRT2 1.41421356237309504880
 #define M_SQRT1_2 0.707106781186547524401
 	
+#ifdef __LITTLE_ENDIAN
 #define __HI(x) *(1+(int*)&x)
 #define __LO(x) *(int*)&x
 #define __HIp(x) *(1+(int*)x)
 #define __LOp(x) *(int*)x
+#else
+#define __HI(x) *(int*)&x
+#define __LO(x) *(1+(int*)&x)
+#define __HIp(x) *(int*)x
+#define __LOp(x) *(1+(int*)x)
+#endif
 
 #ifndef _EXCEPTION_DEFINED
 #define _EXCEPTION_DEFINED

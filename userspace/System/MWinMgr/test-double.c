@@ -19,7 +19,7 @@
 
 #define FUNC(function) function
 #define FLOAT double
-#define TEST_MSG "testing double (without inline functions)\n"
+#define TEST_MSG "testing double (without inline functions)"
 #define MATHCONST(x) x
 #define CHOOSE(Clongdouble,Cdouble,Cfloat,Cinlinelongdouble,Cinlinedouble,Cinlinefloat) Cdouble
 #define PRINTF_EXPR "e"

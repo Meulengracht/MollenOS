@@ -24,9 +24,7 @@
 * SUCH DAMAGE.
 */
 
-#include <stdint.h>
-#include <internal/_all.h>
-#include <limits.h>
+#include "private.h"
 #include <math.h>
 #include <i386/fenv.h>
 

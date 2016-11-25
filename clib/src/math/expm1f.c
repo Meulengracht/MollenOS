@@ -13,9 +13,7 @@
  * ====================================================
  */
 
-#include <float.h>
-#include <stdint.h>
-#include <internal/_all.h>
+#include "private.h"
 #include <limits.h>
 #include <math.h>
 

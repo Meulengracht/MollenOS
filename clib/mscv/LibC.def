@@ -21,6 +21,7 @@ _chkstk
 _ftol
 _ftol2
 _ftol2_sse
+pow
 modf
 frexp
 exp2
@@ -73,3 +74,4 @@ _CIatan2
 _CIatan
 _CIasin
 _CIacos
+_CIpow

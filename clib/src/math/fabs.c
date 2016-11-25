@@ -14,9 +14,7 @@
 * fabs(x) returns the absolute value of x.
 */
 
-#include <stdint.h>
-#include <internal/_all.h>
-#include <limits.h>
+#include "private.h"
 #include <math.h>
 
 #ifdef _MSC_VER

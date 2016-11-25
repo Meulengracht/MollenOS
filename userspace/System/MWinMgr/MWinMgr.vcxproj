@@ -76,7 +76,7 @@
       <Optimization>MaxSpeed</Optimization>
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
-      <PreprocessorDefinitions>MOLLENOS;_CRT_DYNAMIC;_X86_</PreprocessorDefinitions>
+      <PreprocessorDefinitions>MOLLENOS;_CRT_DYNAMIC;_X86_;_X86_32</PreprocessorDefinitions>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
       <StringPooling>true</StringPooling>
       <ExceptionHandling>false</ExceptionHandling>

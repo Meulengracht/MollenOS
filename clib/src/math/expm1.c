@@ -105,9 +105,7 @@
  * to produce the hexadecimal values shown.
  */
 
-#include <float.h>
-#include <stdint.h>
-#include <internal/_all.h>
+#include "private.h"
 #include <limits.h>
 #include <math.h>
 
@@ -198,7 +196,7 @@ double expm1(double x)
 	    }
 	    if (k <= -2 || k>56) {   /* suffice to return exp(x)-1 */
 	        y = one-(e-x);
-			if (k == 1024) y = y*2.0*twoTo1023;
+			if (k == 1024) y = y*2.0*ldexp(2.0, 1023);
 		else y = y*twopk;
 	        return y-one;
 	    }

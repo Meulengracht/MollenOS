@@ -9,10 +9,6 @@
 INCLUDELIB MSVCRT
 INCLUDELIB OLDNAMES
 
-CONST	SEGMENT
-_twoTo1023 DQ	07fe0000000000000r		; 8.98847e+307
-_twoToM1022 DQ	00010000000000000r		; 2.22507e-308
-CONST	ENDS
 PUBLIC	___isnan
 PUBLIC	___isnanf
 PUBLIC	___isnanl
@@ -25,28 +21,28 @@ _u$ = -16						; size = 16
 _e$ = 8							; size = 8
 ___isnanl PROC						; COMDAT
 
-; 52   : {
+; 51   : {
 
   00000	55		 push	 ebp
   00001	8b ec		 mov	 ebp, esp
   00003	83 ec 10	 sub	 esp, 16			; 00000010H
 
-; 53   : 	union IEEEl2bits u = { 0 };
-; 54   : 
-; 55   : 	u.e = e;
+; 52   : 	union IEEEl2bits u = { 0 };
+; 53   : 
+; 54   : 	u.e = e;
 
   00006	dd 45 08	 fld	 QWORD PTR _e$[ebp]
   00009	33 c0		 xor	 eax, eax
   0000b	dd 5d f0	 fstp	 QWORD PTR _u$[ebp]
 
-; 56   : 	mask_nbit_l(u);
+; 55   : 	mask_nbit_l(u);
 
   0000e	8b 4d f4	 mov	 ecx, DWORD PTR _u$[ebp+4]
   00011	89 45 fc	 mov	 DWORD PTR _u$[ebp+12], eax
   00014	81 e1 ff ff ff
 	7f		 and	 ecx, 2147483647		; 7fffffffH
 
-; 57   : 	return (u.bits.exp == 32767 && (u.bits.manl != 0 || u.bits.manh != 0));
+; 56   : 	return (u.bits.exp == 32767 && (u.bits.manl != 0 || u.bits.manh != 0));
 
   0001a	25 ff 7f 00 00	 and	 eax, 32767		; 00007fffH
   0001f	3d ff 7f 00 00	 cmp	 eax, 32767		; 00007fffH
@@ -58,18 +54,18 @@ ___isnanl PROC						; COMDAT
 $LN3@isnanl:
   00030	b8 01 00 00 00	 mov	 eax, 1
 
-; 58   : }
+; 57   : }
 
   00035	8b e5		 mov	 esp, ebp
   00037	5d		 pop	 ebp
   00038	c3		 ret	 0
 $LN4@isnanl:
 
-; 57   : 	return (u.bits.exp == 32767 && (u.bits.manl != 0 || u.bits.manh != 0));
+; 56   : 	return (u.bits.exp == 32767 && (u.bits.manl != 0 || u.bits.manh != 0));
 
   00039	33 c0		 xor	 eax, eax
 
-; 58   : }
+; 57   : }
 
   0003b	8b e5		 mov	 esp, ebp
   0003d	5d		 pop	 ebp
@@ -84,19 +80,19 @@ _u$ = 8							; size = 4
 _f$ = 8							; size = 4
 ___isnanf PROC						; COMDAT
 
-; 44   : {
+; 43   : {
 
   00000	55		 push	 ebp
   00001	8b ec		 mov	 ebp, esp
 
-; 45   : 	union IEEEf2bits u;
-; 46   : 
-; 47   : 	u.f = f;
+; 44   : 	union IEEEf2bits u;
+; 45   : 
+; 46   : 	u.f = f;
 
   00003	f3 0f 10 45 08	 movss	 xmm0, DWORD PTR _f$[ebp]
   00008	f3 0f 11 45 08	 movss	 DWORD PTR _u$[ebp], xmm0
 
-; 48   : 	return (u.bits.exp == 255 && u.bits.man != 0);
+; 47   : 	return (u.bits.exp == 255 && u.bits.man != 0);
 
   0000d	8b 45 08	 mov	 eax, DWORD PTR _u$[ebp]
   00010	8b c8		 mov	 ecx, eax
@@ -109,17 +105,17 @@ ___isnanf PROC						; COMDAT
   00025	74 07		 je	 SHORT $LN3@isnanf
   00027	b8 01 00 00 00	 mov	 eax, 1
 
-; 49   : }
+; 48   : }
 
   0002c	5d		 pop	 ebp
   0002d	c3		 ret	 0
 $LN3@isnanf:
 
-; 48   : 	return (u.bits.exp == 255 && u.bits.man != 0);
+; 47   : 	return (u.bits.exp == 255 && u.bits.man != 0);
 
   0002e	33 c0		 xor	 eax, eax
 
-; 49   : }
+; 48   : }
 
   00030	5d		 pop	 ebp
   00031	c3		 ret	 0
@@ -133,19 +129,19 @@ _u$ = 8							; size = 8
 _d$ = 8							; size = 8
 ___isnan PROC						; COMDAT
 
-; 36   : {
+; 35   : {
 
   00000	55		 push	 ebp
   00001	8b ec		 mov	 ebp, esp
 
-; 37   : 	union IEEEd2bits u;
-; 38   : 
-; 39   : 	u.d = d;
+; 36   : 	union IEEEd2bits u;
+; 37   : 
+; 38   : 	u.d = d;
 
   00003	dd 45 08	 fld	 QWORD PTR _d$[ebp]
   00006	dd 5d 08	 fstp	 QWORD PTR _u$[ebp]
 
-; 40   : 	return (u.bits.exp == 2047 && (u.bits.manl != 0 || u.bits.manh != 0));
+; 39   : 	return (u.bits.exp == 2047 && (u.bits.manl != 0 || u.bits.manh != 0));
 
   00009	8b 4d 0c	 mov	 ecx, DWORD PTR _u$[ebp+4]
   0000c	8b c1		 mov	 eax, ecx
@@ -160,17 +156,17 @@ ___isnan PROC						; COMDAT
 $LN3@isnan:
   00028	b8 01 00 00 00	 mov	 eax, 1
 
-; 41   : }
+; 40   : }
 
   0002d	5d		 pop	 ebp
   0002e	c3		 ret	 0
 $LN4@isnan:
 
-; 40   : 	return (u.bits.exp == 2047 && (u.bits.manl != 0 || u.bits.manh != 0));
+; 39   : 	return (u.bits.exp == 2047 && (u.bits.manl != 0 || u.bits.manh != 0));
 
   0002f	33 c0		 xor	 eax, eax
 
-; 41   : }
+; 40   : }
 
   00031	5d		 pop	 ebp
   00032	c3		 ret	 0
