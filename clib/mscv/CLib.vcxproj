@@ -88,6 +88,7 @@
     <ClCompile Include="..\src\math\llroundl.c" />
     <ClCompile Include="..\src\math\log1p.c" />
     <ClCompile Include="..\src\math\log1pf.c" />
+    <ClCompile Include="..\src\math\log2f.c" />
     <ClCompile Include="..\src\math\lround.c" />
     <ClCompile Include="..\src\math\lroundf.c" />
     <ClCompile Include="..\src\math\lroundl.c" />

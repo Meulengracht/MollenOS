@@ -189,10 +189,6 @@ int main(int argc, char* argv[])
 	SDL_Renderer *MainRenderer;
 	Rect_t ScreenDims;
 
-	/* TEST */
-	libm_main(argc, argv);
-	for (;;);
-
 	/* Init SDL (Main) */
 	SDL_SetMainReady();
 

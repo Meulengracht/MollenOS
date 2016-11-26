@@ -105,7 +105,6 @@
     <ClCompile Include="Core\SceneManager.c" />
     <ClCompile Include="Core\Window.c" />
     <ClCompile Include="Sapphire.c" />
-    <ClCompile Include="test-float.c" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Core\Scene.h" />

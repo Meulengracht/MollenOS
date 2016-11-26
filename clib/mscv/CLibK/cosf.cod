@@ -9,33 +9,424 @@
 INCLUDELIB MSVCRT
 INCLUDELIB OLDNAMES
 
+CONST	SEGMENT
+_c1pio2	DQ	03ff921fb54442d18r		; 1.5708
+_c2pio2	DQ	0400921fb54442d18r		; 3.14159
+_c3pio2	DQ	04012d97c7f3321d2r		; 4.71239
+_c4pio2	DQ	0401921fb54442d18r		; 6.28319
+CONST	ENDS
 PUBLIC	_cosf
-EXTRN	__CIcos:PROC
+PUBLIC	__real@3f800000
+PUBLIC	__real@3ff921fb54442d18
+PUBLIC	__real@400921fb54442d18
+PUBLIC	__real@4012d97c7f3321d2
+PUBLIC	__real@401921fb54442d18
+PUBLIC	__real@c00921fb54442d18
+PUBLIC	__real@c012d97c7f3321d2
+PUBLIC	__real@c01921fb54442d18
+EXTRN	___ieee754_rem_pio2f:PROC
+EXTRN	___kernel_sindf:PROC
+EXTRN	___kernel_cosdf:PROC
 EXTRN	__fltused:DWORD
+;	COMDAT __real@c01921fb54442d18
+CONST	SEGMENT
+__real@c01921fb54442d18 DQ 0c01921fb54442d18r	; -6.28319
+CONST	ENDS
+;	COMDAT __real@c012d97c7f3321d2
+CONST	SEGMENT
+__real@c012d97c7f3321d2 DQ 0c012d97c7f3321d2r	; -4.71239
+CONST	ENDS
+;	COMDAT __real@c00921fb54442d18
+CONST	SEGMENT
+__real@c00921fb54442d18 DQ 0c00921fb54442d18r	; -3.14159
+CONST	ENDS
+;	COMDAT __real@401921fb54442d18
+CONST	SEGMENT
+__real@401921fb54442d18 DQ 0401921fb54442d18r	; 6.28319
+CONST	ENDS
+;	COMDAT __real@4012d97c7f3321d2
+CONST	SEGMENT
+__real@4012d97c7f3321d2 DQ 04012d97c7f3321d2r	; 4.71239
+CONST	ENDS
+;	COMDAT __real@400921fb54442d18
+CONST	SEGMENT
+__real@400921fb54442d18 DQ 0400921fb54442d18r	; 3.14159
+CONST	ENDS
+;	COMDAT __real@3ff921fb54442d18
+CONST	SEGMENT
+__real@3ff921fb54442d18 DQ 03ff921fb54442d18r	; 1.5708
+CONST	ENDS
+;	COMDAT __real@3f800000
+CONST	SEGMENT
+__real@3f800000 DD 03f800000r			; 1
+CONST	ENDS
 ; Function compile flags: /Ogtp
 ; File c:\users\philip\documents\github\mollenos\clib\src\math\cosf.c
 ;	COMDAT _cosf
 _TEXT	SEGMENT
-tv72 = 8						; size = 4
-__X$ = 8						; size = 4
+_y$ = -8						; size = 8
+_hx$ = -4						; size = 4
+tv167 = 8						; size = 4
+_x$ = 8							; size = 4
 _cosf	PROC						; COMDAT
 
-; 11   : {
+; 29   : {
 
   00000	55		 push	 ebp
   00001	8b ec		 mov	 ebp, esp
+  00003	83 ec 08	 sub	 esp, 8
 
-; 12   : 	return ((float)cos((double)_X));
+; 30   : 	double y;
+; 31   : 	int32_t n, hx, ix;
+; 32   : 
+; 33   : 	GET_FLOAT_WORD(hx, x);
 
-  00003	d9 45 08	 fld	 DWORD PTR __X$[ebp]
-  00006	e8 00 00 00 00	 call	 __CIcos
-  0000b	d9 5d 08	 fstp	 DWORD PTR tv72[ebp]
-  0000e	d9 45 08	 fld	 DWORD PTR tv72[ebp]
+  00006	f3 0f 10 45 08	 movss	 xmm0, DWORD PTR _x$[ebp]
+  0000b	f3 0f 11 45 fc	 movss	 DWORD PTR _hx$[ebp], xmm0
 
-; 13   : }
+; 34   : 	ix = hx & 0x7fffffff;
 
-  00011	5d		 pop	 ebp
-  00012	c3		 ret	 0
+  00010	8b 4d fc	 mov	 ecx, DWORD PTR _hx$[ebp]
+  00013	8b c1		 mov	 eax, ecx
+  00015	25 ff ff ff 7f	 and	 eax, 2147483647		; 7fffffffH
+
+; 35   : 
+; 36   : 	if (ix <= 0x3f490fda) {		/* |x| ~<= pi/4 */
+
+  0001a	3d da 0f 49 3f	 cmp	 eax, 1061752794		; 3f490fdaH
+  0001f	7f 2a		 jg	 SHORT $LN22@cosf
+
+; 37   : 		if (ix<0x39800000)		/* |x| < 2**-12 */
+
+  00021	3d 00 00 80 39	 cmp	 eax, 964689920		; 39800000H
+  00026	7d 0e		 jge	 SHORT $LN20@cosf
+
+; 38   : 			if (((int)x) == 0) return 1.0;	/* 1 with inexact if x != 0 */
+
+  00028	f3 0f 2c c0	 cvttss2si eax, xmm0
+  0002c	85 c0		 test	 eax, eax
+  0002e	75 06		 jne	 SHORT $LN20@cosf
+  00030	d9 e8		 fld1
+
+; 74   : 		}
+; 75   : 	}
+; 76   : }
+
+  00032	8b e5		 mov	 esp, ebp
+  00034	5d		 pop	 ebp
+  00035	c3		 ret	 0
+$LN20@cosf:
+
+; 39   : 		return __kernel_cosdf(x);
+
+  00036	d9 45 08	 fld	 DWORD PTR _x$[ebp]
+$LN34@cosf:
+
+; 68   : 		switch (n & 3) {
+; 69   : 		case 0: return  __kernel_cosdf(y);
+
+  00039	83 ec 08	 sub	 esp, 8
+  0003c	dd 1c 24	 fstp	 QWORD PTR [esp]
+  0003f	e8 00 00 00 00	 call	 ___kernel_cosdf
+  00044	83 c4 08	 add	 esp, 8
+
+; 74   : 		}
+; 75   : 	}
+; 76   : }
+
+  00047	8b e5		 mov	 esp, ebp
+  00049	5d		 pop	 ebp
+  0004a	c3		 ret	 0
+$LN22@cosf:
+
+; 40   : 	}
+; 41   : 	if (ix <= 0x407b53d1) {		/* |x| ~<= 5*pi/4 */
+
+  0004b	3d d1 53 7b 40	 cmp	 eax, 1081824209		; 407b53d1H
+  00050	7f 64		 jg	 SHORT $LN15@cosf
+
+; 42   : 		if (ix <= 0x4016cbe3) {	/* |x|  ~> 3*pi/4 */
+
+  00052	3d e3 cb 16 40	 cmp	 eax, 1075235811		; 4016cbe3H
+  00057	7f 34		 jg	 SHORT $LN18@cosf
+
+; 43   : 			if (hx>0)
+; 44   : 				return __kernel_sindf(c1pio2 - x);
+
+  00059	d9 45 08	 fld	 DWORD PTR _x$[ebp]
+  0005c	83 ec 08	 sub	 esp, 8
+  0005f	85 c9		 test	 ecx, ecx
+  00061	7e 15		 jle	 SHORT $LN17@cosf
+  00063	dc 2d 00 00 00
+	00		 fsubr	 QWORD PTR __real@3ff921fb54442d18
+  00069	dd 1c 24	 fstp	 QWORD PTR [esp]
+  0006c	e8 00 00 00 00	 call	 ___kernel_sindf
+
+; 68   : 		switch (n & 3) {
+; 69   : 		case 0: return  __kernel_cosdf(y);
+
+  00071	83 c4 08	 add	 esp, 8
+
+; 74   : 		}
+; 75   : 	}
+; 76   : }
+
+  00074	8b e5		 mov	 esp, ebp
+  00076	5d		 pop	 ebp
+  00077	c3		 ret	 0
+$LN17@cosf:
+
+; 45   : 			else
+; 46   : 				return __kernel_sindf(x + c1pio2);
+
+  00078	dc 05 00 00 00
+	00		 fadd	 QWORD PTR __real@3ff921fb54442d18
+  0007e	dd 1c 24	 fstp	 QWORD PTR [esp]
+  00081	e8 00 00 00 00	 call	 ___kernel_sindf
+
+; 68   : 		switch (n & 3) {
+; 69   : 		case 0: return  __kernel_cosdf(y);
+
+  00086	83 c4 08	 add	 esp, 8
+
+; 74   : 		}
+; 75   : 	}
+; 76   : }
+
+  00089	8b e5		 mov	 esp, ebp
+  0008b	5d		 pop	 ebp
+  0008c	c3		 ret	 0
+$LN18@cosf:
+
+; 47   : 		}
+; 48   : 		else
+; 49   : 			return -__kernel_cosdf(x + (hx > 0 ? -c2pio2 : c2pio2));
+
+  0008d	85 c9		 test	 ecx, ecx
+  0008f	7e 08		 jle	 SHORT $LN28@cosf
+  00091	dd 05 00 00 00
+	00		 fld	 QWORD PTR __real@c00921fb54442d18
+  00097	eb 06		 jmp	 SHORT $LN29@cosf
+$LN28@cosf:
+  00099	dd 05 00 00 00
+	00		 fld	 QWORD PTR __real@400921fb54442d18
+$LN29@cosf:
+  0009f	d8 45 08	 fadd	 DWORD PTR _x$[ebp]
+  000a2	83 ec 08	 sub	 esp, 8
+  000a5	dd 1c 24	 fstp	 QWORD PTR [esp]
+$LN2@cosf:
+  000a8	e8 00 00 00 00	 call	 ___kernel_cosdf
+  000ad	d9 e0		 fchs
+
+; 68   : 		switch (n & 3) {
+; 69   : 		case 0: return  __kernel_cosdf(y);
+
+  000af	83 c4 08	 add	 esp, 8
+
+; 74   : 		}
+; 75   : 	}
+; 76   : }
+
+  000b2	8b e5		 mov	 esp, ebp
+  000b4	5d		 pop	 ebp
+  000b5	c3		 ret	 0
+$LN15@cosf:
+
+; 50   : 	}
+; 51   : 	if (ix <= 0x40e231d5) {		/* |x| ~<= 9*pi/4 */
+
+  000b6	3d d5 31 e2 40	 cmp	 eax, 1088565717		; 40e231d5H
+  000bb	7f 75		 jg	 SHORT $LN14@cosf
+
+; 52   : 		if (ix <= 0x40afeddf) {	/* |x|  ~> 7*pi/4 */
+
+  000bd	3d df ed af 40	 cmp	 eax, 1085271519		; 40afeddfH
+  000c2	7f 34		 jg	 SHORT $LN13@cosf
+
+; 53   : 			if (hx>0)
+; 54   : 				return __kernel_sindf(x - c3pio2);
+
+  000c4	d9 45 08	 fld	 DWORD PTR _x$[ebp]
+  000c7	83 ec 08	 sub	 esp, 8
+  000ca	85 c9		 test	 ecx, ecx
+  000cc	7e 15		 jle	 SHORT $LN12@cosf
+  000ce	dc 25 00 00 00
+	00		 fsub	 QWORD PTR __real@4012d97c7f3321d2
+  000d4	dd 1c 24	 fstp	 QWORD PTR [esp]
+  000d7	e8 00 00 00 00	 call	 ___kernel_sindf
+
+; 68   : 		switch (n & 3) {
+; 69   : 		case 0: return  __kernel_cosdf(y);
+
+  000dc	83 c4 08	 add	 esp, 8
+
+; 74   : 		}
+; 75   : 	}
+; 76   : }
+
+  000df	8b e5		 mov	 esp, ebp
+  000e1	5d		 pop	 ebp
+  000e2	c3		 ret	 0
+$LN12@cosf:
+
+; 55   : 			else
+; 56   : 				return __kernel_sindf(-c3pio2 - x);
+
+  000e3	dc 2d 00 00 00
+	00		 fsubr	 QWORD PTR __real@c012d97c7f3321d2
+  000e9	dd 1c 24	 fstp	 QWORD PTR [esp]
+  000ec	e8 00 00 00 00	 call	 ___kernel_sindf
+
+; 68   : 		switch (n & 3) {
+; 69   : 		case 0: return  __kernel_cosdf(y);
+
+  000f1	83 c4 08	 add	 esp, 8
+
+; 74   : 		}
+; 75   : 	}
+; 76   : }
+
+  000f4	8b e5		 mov	 esp, ebp
+  000f6	5d		 pop	 ebp
+  000f7	c3		 ret	 0
+$LN13@cosf:
+
+; 57   : 		}
+; 58   : 		else
+; 59   : 			return __kernel_cosdf(x + (hx > 0 ? -c4pio2 : c4pio2));
+
+  000f8	85 c9		 test	 ecx, ecx
+  000fa	7e 1b		 jle	 SHORT $LN30@cosf
+  000fc	dd 05 00 00 00
+	00		 fld	 QWORD PTR __real@c01921fb54442d18
+
+; 68   : 		switch (n & 3) {
+; 69   : 		case 0: return  __kernel_cosdf(y);
+
+  00102	83 ec 08	 sub	 esp, 8
+  00105	d8 45 08	 fadd	 DWORD PTR _x$[ebp]
+  00108	dd 1c 24	 fstp	 QWORD PTR [esp]
+  0010b	e8 00 00 00 00	 call	 ___kernel_cosdf
+  00110	83 c4 08	 add	 esp, 8
+
+; 74   : 		}
+; 75   : 	}
+; 76   : }
+
+  00113	8b e5		 mov	 esp, ebp
+  00115	5d		 pop	 ebp
+  00116	c3		 ret	 0
+$LN30@cosf:
+
+; 57   : 		}
+; 58   : 		else
+; 59   : 			return __kernel_cosdf(x + (hx > 0 ? -c4pio2 : c4pio2));
+
+  00117	dd 05 00 00 00
+	00		 fld	 QWORD PTR __real@401921fb54442d18
+
+; 68   : 		switch (n & 3) {
+; 69   : 		case 0: return  __kernel_cosdf(y);
+
+  0011d	83 ec 08	 sub	 esp, 8
+  00120	d8 45 08	 fadd	 DWORD PTR _x$[ebp]
+  00123	dd 1c 24	 fstp	 QWORD PTR [esp]
+  00126	e8 00 00 00 00	 call	 ___kernel_cosdf
+  0012b	83 c4 08	 add	 esp, 8
+
+; 74   : 		}
+; 75   : 	}
+; 76   : }
+
+  0012e	8b e5		 mov	 esp, ebp
+  00130	5d		 pop	 ebp
+  00131	c3		 ret	 0
+$LN14@cosf:
+
+; 60   : 	}
+; 61   : 
+; 62   : 	/* cos(Inf or NaN) is NaN */
+; 63   : 	else if (ix >= 0x7f800000) return x - x;
+
+  00132	3d 00 00 80 7f	 cmp	 eax, 2139095040		; 7f800000H
+  00137	7c 0f		 jl	 SHORT $LN8@cosf
+  00139	d9 45 08	 fld	 DWORD PTR _x$[ebp]
+  0013c	dc e8		 fsub	 ST(0), ST(0)
+  0013e	d9 5d 08	 fstp	 DWORD PTR tv167[ebp]
+  00141	d9 45 08	 fld	 DWORD PTR tv167[ebp]
+
+; 74   : 		}
+; 75   : 	}
+; 76   : }
+
+  00144	8b e5		 mov	 esp, ebp
+  00146	5d		 pop	 ebp
+  00147	c3		 ret	 0
+$LN8@cosf:
+
+; 64   : 
+; 65   : 	/* general argument reduction needed */
+; 66   : 	else {
+; 67   : 		n = __ieee754_rem_pio2f(x, &y);
+
+  00148	d9 45 08	 fld	 DWORD PTR _x$[ebp]
+  0014b	8d 45 f8	 lea	 eax, DWORD PTR _y$[ebp]
+  0014e	50		 push	 eax
+  0014f	51		 push	 ecx
+  00150	d9 1c 24	 fstp	 DWORD PTR [esp]
+  00153	e8 00 00 00 00	 call	 ___ieee754_rem_pio2f
+
+; 71   : 		case 2: return -__kernel_cosdf(y);
+; 72   : 		default:
+; 73   : 			return  __kernel_sindf(y);
+
+  00158	dd 45 f8	 fld	 QWORD PTR _y$[ebp]
+  0015b	83 e0 03	 and	 eax, 3
+  0015e	83 c4 08	 add	 esp, 8
+  00161	83 e8 00	 sub	 eax, 0
+  00164	0f 84 cf fe ff
+	ff		 je	 $LN34@cosf
+  0016a	83 ec 08	 sub	 esp, 8
+  0016d	48		 dec	 eax
+  0016e	74 16		 je	 SHORT $LN3@cosf
+  00170	dd 1c 24	 fstp	 QWORD PTR [esp]
+  00173	48		 dec	 eax
+  00174	0f 84 2e ff ff
+	ff		 je	 $LN2@cosf
+
+; 43   : 			if (hx>0)
+; 44   : 				return __kernel_sindf(c1pio2 - x);
+
+  0017a	e8 00 00 00 00	 call	 ___kernel_sindf
+
+; 68   : 		switch (n & 3) {
+; 69   : 		case 0: return  __kernel_cosdf(y);
+
+  0017f	83 c4 08	 add	 esp, 8
+
+; 74   : 		}
+; 75   : 	}
+; 76   : }
+
+  00182	8b e5		 mov	 esp, ebp
+  00184	5d		 pop	 ebp
+  00185	c3		 ret	 0
+$LN3@cosf:
+
+; 70   : 		case 1: return  __kernel_sindf(-y);
+
+  00186	d9 e0		 fchs
+  00188	dd 1c 24	 fstp	 QWORD PTR [esp]
+  0018b	e8 00 00 00 00	 call	 ___kernel_sindf
+  00190	83 c4 08	 add	 esp, 8
+
+; 74   : 		}
+; 75   : 	}
+; 76   : }
+
+  00193	8b e5		 mov	 esp, ebp
+  00195	5d		 pop	 ebp
+  00196	c3		 ret	 0
 _cosf	ENDP
 _TEXT	ENDS
 END

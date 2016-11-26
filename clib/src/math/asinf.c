@@ -25,20 +25,20 @@ pS1 = -4.2743422091e-02f,
 pS2 = -8.6563630030e-03f,
 qS1 = -7.0662963390e-01f;
 
-static const double
+static const float
 pio2 = 1.570796326794896558e+00f;
 
  float
 __ieee754_asinf(float x)
 {
-	double s;
+	float s;
 	float t, w, p, q;
 	int32_t hx, ix;
 	GET_FLOAT_WORD(hx, x);
 	ix = hx & 0x7fffffff;
 	if (ix >= 0x3f800000) {		/* |x| >= 1 */
 		if (ix == 0x3f800000)		/* |x| == 1 */
-			return (float)(x*pio2);		/* asin(+-1) = +-pi/2 with inexact */
+			return x*pio2;		/* asin(+-1) = +-pi/2 with inexact */
 		return (x - x) / (x - x);		/* asin(|x|>1) is NaN */
 	}
 	else if (ix<0x3f000000) {	/* |x|<0.5 */
@@ -56,8 +56,8 @@ __ieee754_asinf(float x)
 	t = w*(float)0.5;
 	p = t*(pS0 + t*(pS1 + t*pS2));
 	q = one + t*qS1;
-	s = sqrt(t);
+	s = sqrtf(t);
 	w = p / q;
-	t = (float)(pio2 - 2.0*(s + s*w));
+	t = pio2 - 2.0f*(s + s*w);
 	if (hx>0) return t; else return -t;
 }

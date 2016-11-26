@@ -22,14 +22,10 @@ segment .text
 
 ;Functions in this asm
 global _log2
-global _log2f
-global _log2l
 
 ; double __cdecl log2(double)
 ; Take the log value 2
 _log2:
-_log2f:
-_log2l:
     ; Stack Frame
 	push    ebp
 	mov     ebp, esp

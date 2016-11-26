@@ -31,160 +31,160 @@
     <Filter Include="Source\crt\msvc">
       <UniqueIdentifier>{3da6f991-8708-449f-8450-1208ea33ea72}</UniqueIdentifier>
     </Filter>
-    <Filter Include="os">
-      <UniqueIdentifier>{f37ed1ba-8073-431b-a175-b9803ceb872b}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="os\i386">
-      <UniqueIdentifier>{c2a32414-f746-419e-85e5-4581122381ff}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="os\Threading">
-      <UniqueIdentifier>{cb750927-971d-4e8d-a3e2-7575fe294ee4}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="os\MString">
-      <UniqueIdentifier>{8266e0e7-94fa-46bd-bdcf-bcf8c4667a6d}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="setjmp">
-      <UniqueIdentifier>{f2f965bb-d6e5-46e1-9d9f-3d240a1e9818}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="signal">
-      <UniqueIdentifier>{626d7b43-18fa-46af-b751-8dc80c1a7314}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="stdio">
-      <UniqueIdentifier>{5a275b44-a4e2-4f02-8637-a977e0087a91}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="stdio\Printf">
-      <UniqueIdentifier>{368df858-6e08-49a7-9c04-288718864ea0}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="stdio\File">
-      <UniqueIdentifier>{6dda5bb2-7d9e-4e05-998d-25f99c6add29}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="stdio\Error Handling">
-      <UniqueIdentifier>{66be516c-4e4a-4c96-937d-0924cdcaabee}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="stdio\ConIo">
-      <UniqueIdentifier>{a426f54c-a095-4749-b7fd-2971bc4f7557}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="stdlib">
-      <UniqueIdentifier>{5815a8d1-566a-496e-9ca6-01425251df84}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="string">
-      <UniqueIdentifier>{b31684f5-13cb-47e6-aafc-4e07d5c36862}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="time">
-      <UniqueIdentifier>{5f51f49c-31a8-4e90-a6e2-f87e13088b09}</UniqueIdentifier>
-    </Filter>
     <Filter Include="Source\math\core">
       <UniqueIdentifier>{e9ae4e0f-a639-46e9-9a83-d84df92b074d}</UniqueIdentifier>
     </Filter>
     <Filter Include="Source\math\ieee">
       <UniqueIdentifier>{a74ac765-f645-44b5-9bd6-f3765585a50f}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Source\os">
+      <UniqueIdentifier>{f37ed1ba-8073-431b-a175-b9803ceb872b}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source\os\i386">
+      <UniqueIdentifier>{c2a32414-f746-419e-85e5-4581122381ff}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source\os\Threading">
+      <UniqueIdentifier>{cb750927-971d-4e8d-a3e2-7575fe294ee4}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source\os\MString">
+      <UniqueIdentifier>{8266e0e7-94fa-46bd-bdcf-bcf8c4667a6d}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source\setjmp">
+      <UniqueIdentifier>{f2f965bb-d6e5-46e1-9d9f-3d240a1e9818}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source\signal">
+      <UniqueIdentifier>{626d7b43-18fa-46af-b751-8dc80c1a7314}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source\stdio">
+      <UniqueIdentifier>{5a275b44-a4e2-4f02-8637-a977e0087a91}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source\stdio\Printf">
+      <UniqueIdentifier>{368df858-6e08-49a7-9c04-288718864ea0}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source\stdio\File">
+      <UniqueIdentifier>{6dda5bb2-7d9e-4e05-998d-25f99c6add29}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source\stdio\Error Handling">
+      <UniqueIdentifier>{66be516c-4e4a-4c96-937d-0924cdcaabee}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source\stdio\ConIo">
+      <UniqueIdentifier>{a426f54c-a095-4749-b7fd-2971bc4f7557}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source\stdlib">
+      <UniqueIdentifier>{5815a8d1-566a-496e-9ca6-01425251df84}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source\string">
+      <UniqueIdentifier>{b31684f5-13cb-47e6-aafc-4e07d5c36862}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source\time">
+      <UniqueIdentifier>{5f51f49c-31a8-4e90-a6e2-f87e13088b09}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\src\string\atof.c">
-      <Filter>string</Filter>
+      <Filter>Source\string</Filter>
     </ClCompile>
     <ClCompile Include="..\src\string\atoi64.c">
-      <Filter>string</Filter>
+      <Filter>Source\string</Filter>
     </ClCompile>
     <ClCompile Include="..\src\string\atol.c">
-      <Filter>string</Filter>
+      <Filter>Source\string</Filter>
     </ClCompile>
     <ClCompile Include="..\src\string\itoa.c">
-      <Filter>string</Filter>
+      <Filter>Source\string</Filter>
     </ClCompile>
     <ClCompile Include="..\src\string\memchr.c">
-      <Filter>string</Filter>
+      <Filter>Source\string</Filter>
     </ClCompile>
     <ClCompile Include="..\src\string\memcmp.c">
-      <Filter>string</Filter>
+      <Filter>Source\string</Filter>
     </ClCompile>
     <ClCompile Include="..\src\string\memcpy.c">
-      <Filter>string</Filter>
+      <Filter>Source\string</Filter>
     </ClCompile>
     <ClCompile Include="..\src\string\memmove.c">
-      <Filter>string</Filter>
+      <Filter>Source\string</Filter>
     </ClCompile>
     <ClCompile Include="..\src\string\memset.c">
-      <Filter>string</Filter>
+      <Filter>Source\string</Filter>
     </ClCompile>
     <ClCompile Include="..\src\string\strcasecmp.c">
-      <Filter>string</Filter>
+      <Filter>Source\string</Filter>
     </ClCompile>
     <ClCompile Include="..\src\string\strcat.c">
-      <Filter>string</Filter>
+      <Filter>Source\string</Filter>
     </ClCompile>
     <ClCompile Include="..\src\string\strchr.c">
-      <Filter>string</Filter>
+      <Filter>Source\string</Filter>
     </ClCompile>
     <ClCompile Include="..\src\string\strcmp.c">
-      <Filter>string</Filter>
+      <Filter>Source\string</Filter>
     </ClCompile>
     <ClCompile Include="..\src\string\strcoll.c">
-      <Filter>string</Filter>
+      <Filter>Source\string</Filter>
     </ClCompile>
     <ClCompile Include="..\src\string\strcpy.c">
-      <Filter>string</Filter>
+      <Filter>Source\string</Filter>
     </ClCompile>
     <ClCompile Include="..\src\string\strcspn.c">
-      <Filter>string</Filter>
+      <Filter>Source\string</Filter>
     </ClCompile>
     <ClCompile Include="..\src\string\strdup.c">
-      <Filter>string</Filter>
+      <Filter>Source\string</Filter>
     </ClCompile>
     <ClCompile Include="..\src\string\strlen.c">
-      <Filter>string</Filter>
+      <Filter>Source\string</Filter>
     </ClCompile>
     <ClCompile Include="..\src\string\strncasecmp.c">
-      <Filter>string</Filter>
+      <Filter>Source\string</Filter>
     </ClCompile>
     <ClCompile Include="..\src\string\strncat.c">
-      <Filter>string</Filter>
+      <Filter>Source\string</Filter>
     </ClCompile>
     <ClCompile Include="..\src\string\strncmp.c">
-      <Filter>string</Filter>
+      <Filter>Source\string</Filter>
     </ClCompile>
     <ClCompile Include="..\src\string\strncpy.c">
-      <Filter>string</Filter>
+      <Filter>Source\string</Filter>
     </ClCompile>
     <ClCompile Include="..\src\string\strpbrk.c">
-      <Filter>string</Filter>
+      <Filter>Source\string</Filter>
     </ClCompile>
     <ClCompile Include="..\src\string\strrchr.c">
-      <Filter>string</Filter>
+      <Filter>Source\string</Filter>
     </ClCompile>
     <ClCompile Include="..\src\string\strspn.c">
-      <Filter>string</Filter>
+      <Filter>Source\string</Filter>
     </ClCompile>
     <ClCompile Include="..\src\string\strstr.c">
-      <Filter>string</Filter>
+      <Filter>Source\string</Filter>
     </ClCompile>
     <ClCompile Include="..\src\string\strtod.c">
-      <Filter>string</Filter>
+      <Filter>Source\string</Filter>
     </ClCompile>
     <ClCompile Include="..\src\string\strtof.c">
-      <Filter>string</Filter>
+      <Filter>Source\string</Filter>
     </ClCompile>
     <ClCompile Include="..\src\string\strtoi64.c">
-      <Filter>string</Filter>
+      <Filter>Source\string</Filter>
     </ClCompile>
     <ClCompile Include="..\src\string\strtok.c">
-      <Filter>string</Filter>
+      <Filter>Source\string</Filter>
     </ClCompile>
     <ClCompile Include="..\src\string\strtol.c">
-      <Filter>string</Filter>
+      <Filter>Source\string</Filter>
     </ClCompile>
     <ClCompile Include="..\src\string\strtold.c">
-      <Filter>string</Filter>
+      <Filter>Source\string</Filter>
     </ClCompile>
     <ClCompile Include="..\src\string\strtoul.c">
-      <Filter>string</Filter>
+      <Filter>Source\string</Filter>
     </ClCompile>
     <ClCompile Include="..\src\string\strtoull.c">
-      <Filter>string</Filter>
+      <Filter>Source\string</Filter>
     </ClCompile>
     <ClCompile Include="..\src\string\strxfrm.c">
-      <Filter>string</Filter>
+      <Filter>Source\string</Filter>
     </ClCompile>
     <ClCompile Include="..\src\errno\errno.c">
       <Filter>Source\errno</Filter>
@@ -199,193 +199,193 @@
       <Filter>Source\math</Filter>
     </ClCompile>
     <ClCompile Include="..\src\signal\signal.c">
-      <Filter>signal</Filter>
+      <Filter>Source\signal</Filter>
     </ClCompile>
     <ClCompile Include="..\src\string\wcsnlen.c">
-      <Filter>string</Filter>
+      <Filter>Source\string</Filter>
     </ClCompile>
     <ClCompile Include="..\src\stdlib\abs.c">
-      <Filter>stdlib</Filter>
+      <Filter>Source\stdlib</Filter>
     </ClCompile>
     <ClCompile Include="..\src\stdlib\div.c">
-      <Filter>stdlib</Filter>
+      <Filter>Source\stdlib</Filter>
     </ClCompile>
     <ClCompile Include="..\src\stdlib\exit.c">
-      <Filter>stdlib</Filter>
+      <Filter>Source\stdlib</Filter>
     </ClCompile>
     <ClCompile Include="..\src\os\Syscalls.c">
-      <Filter>os</Filter>
+      <Filter>Source\os</Filter>
     </ClCompile>
     <ClCompile Include="..\src\os\Malloc.c">
-      <Filter>os</Filter>
+      <Filter>Source\os</Filter>
     </ClCompile>
     <ClCompile Include="..\src\stdlib\abort.c">
-      <Filter>stdlib</Filter>
+      <Filter>Source\stdlib</Filter>
     </ClCompile>
     <ClCompile Include="..\src\os\Devices.c">
-      <Filter>os</Filter>
+      <Filter>Source\os</Filter>
     </ClCompile>
     <ClCompile Include="..\src\os\System.c">
-      <Filter>os</Filter>
+      <Filter>Source\os</Filter>
     </ClCompile>
     <ClCompile Include="..\src\stdlib\atoi.c">
-      <Filter>stdlib</Filter>
+      <Filter>Source\stdlib</Filter>
     </ClCompile>
     <ClCompile Include="..\src\stdlib\atold.c">
-      <Filter>stdlib</Filter>
+      <Filter>Source\stdlib</Filter>
     </ClCompile>
     <ClCompile Include="..\src\stdlib\bsearch.c">
-      <Filter>stdlib</Filter>
+      <Filter>Source\stdlib</Filter>
     </ClCompile>
     <ClCompile Include="..\src\stdlib\labs.c">
-      <Filter>stdlib</Filter>
+      <Filter>Source\stdlib</Filter>
     </ClCompile>
     <ClCompile Include="..\src\stdlib\ldiv.c">
-      <Filter>stdlib</Filter>
+      <Filter>Source\stdlib</Filter>
     </ClCompile>
     <ClCompile Include="..\src\stdlib\qsort.c">
-      <Filter>stdlib</Filter>
+      <Filter>Source\stdlib</Filter>
     </ClCompile>
     <ClCompile Include="..\src\stdlib\rand.c">
-      <Filter>stdlib</Filter>
+      <Filter>Source\stdlib</Filter>
     </ClCompile>
     <ClCompile Include="..\src\stdio\fprintf.c">
-      <Filter>stdio\Printf</Filter>
+      <Filter>Source\stdio\Printf</Filter>
     </ClCompile>
     <ClCompile Include="..\src\stdio\printf.c">
-      <Filter>stdio\Printf</Filter>
+      <Filter>Source\stdio\Printf</Filter>
     </ClCompile>
     <ClCompile Include="..\src\stdio\snprintf.c">
-      <Filter>stdio\Printf</Filter>
+      <Filter>Source\stdio\Printf</Filter>
     </ClCompile>
     <ClCompile Include="..\src\stdio\sprintf.c">
-      <Filter>stdio\Printf</Filter>
+      <Filter>Source\stdio\Printf</Filter>
     </ClCompile>
     <ClCompile Include="..\src\stdio\stream.c">
-      <Filter>stdio\Printf</Filter>
+      <Filter>Source\stdio\Printf</Filter>
     </ClCompile>
     <ClCompile Include="..\src\stdio\vasprintf.c">
-      <Filter>stdio\Printf</Filter>
+      <Filter>Source\stdio\Printf</Filter>
     </ClCompile>
     <ClCompile Include="..\src\stdio\vfprintf.c">
-      <Filter>stdio\Printf</Filter>
+      <Filter>Source\stdio\Printf</Filter>
     </ClCompile>
     <ClCompile Include="..\src\stdio\vprintf.c">
-      <Filter>stdio\Printf</Filter>
+      <Filter>Source\stdio\Printf</Filter>
     </ClCompile>
     <ClCompile Include="..\src\stdio\vsnprintf.c">
-      <Filter>stdio\Printf</Filter>
+      <Filter>Source\stdio\Printf</Filter>
     </ClCompile>
     <ClCompile Include="..\src\stdio\vsprintf.c">
-      <Filter>stdio\Printf</Filter>
+      <Filter>Source\stdio\Printf</Filter>
     </ClCompile>
     <ClCompile Include="..\src\stdio\fopen.c">
-      <Filter>stdio\File</Filter>
+      <Filter>Source\stdio\File</Filter>
     </ClCompile>
     <ClCompile Include="..\src\stdio\fclose.c">
-      <Filter>stdio\File</Filter>
+      <Filter>Source\stdio\File</Filter>
     </ClCompile>
     <ClCompile Include="..\src\stdio\freopen.c">
-      <Filter>stdio\File</Filter>
+      <Filter>Source\stdio\File</Filter>
     </ClCompile>
     <ClCompile Include="..\src\stdio\fflags.c">
-      <Filter>stdio\File</Filter>
+      <Filter>Source\stdio\File</Filter>
     </ClCompile>
     <ClCompile Include="..\src\stdio\fremove.c">
-      <Filter>stdio\File</Filter>
+      <Filter>Source\stdio\File</Filter>
     </ClCompile>
     <ClCompile Include="..\src\stdio\fread.c">
-      <Filter>stdio\File</Filter>
+      <Filter>Source\stdio\File</Filter>
     </ClCompile>
     <ClCompile Include="..\src\stdio\fwrite.c">
-      <Filter>stdio\File</Filter>
+      <Filter>Source\stdio\File</Filter>
     </ClCompile>
     <ClCompile Include="..\src\stdio\feof.c">
-      <Filter>stdio\File</Filter>
+      <Filter>Source\stdio\File</Filter>
     </ClCompile>
     <ClCompile Include="..\src\stdio\frewind.c">
-      <Filter>stdio\File</Filter>
+      <Filter>Source\stdio\File</Filter>
     </ClCompile>
     <ClCompile Include="..\src\stdio\fseek.c">
-      <Filter>stdio\File</Filter>
+      <Filter>Source\stdio\File</Filter>
     </ClCompile>
     <ClCompile Include="..\src\stdio\ftell.c">
-      <Filter>stdio\File</Filter>
+      <Filter>Source\stdio\File</Filter>
     </ClCompile>
     <ClCompile Include="..\src\stdio\clearerr.c">
-      <Filter>stdio\Error Handling</Filter>
+      <Filter>Source\stdio\Error Handling</Filter>
     </ClCompile>
     <ClCompile Include="..\src\stdio\ferror.c">
-      <Filter>stdio\Error Handling</Filter>
+      <Filter>Source\stdio\Error Handling</Filter>
     </ClCompile>
     <ClCompile Include="..\src\stdio\perror.c">
-      <Filter>stdio\Error Handling</Filter>
+      <Filter>Source\stdio\Error Handling</Filter>
     </ClCompile>
     <ClCompile Include="..\src\stdio\strerror.c">
-      <Filter>stdio\Error Handling</Filter>
+      <Filter>Source\stdio\Error Handling</Filter>
     </ClCompile>
     <ClCompile Include="..\src\stdio\fgetpos.c">
-      <Filter>stdio\File</Filter>
+      <Filter>Source\stdio\File</Filter>
     </ClCompile>
     <ClCompile Include="..\src\stdio\fsetpos.c">
-      <Filter>stdio\File</Filter>
+      <Filter>Source\stdio\File</Filter>
     </ClCompile>
     <ClCompile Include="..\src\stdio\sscanf.c">
-      <Filter>stdio\Printf</Filter>
+      <Filter>Source\stdio\Printf</Filter>
     </ClCompile>
     <ClCompile Include="..\src\string\strtoll.c">
-      <Filter>string</Filter>
+      <Filter>Source\string</Filter>
     </ClCompile>
     <ClCompile Include="..\src\stdio\fflush.c">
-      <Filter>stdio\File</Filter>
+      <Filter>Source\stdio\File</Filter>
     </ClCompile>
     <ClCompile Include="..\src\os\SharedObject.c">
-      <Filter>os</Filter>
+      <Filter>Source\os</Filter>
     </ClCompile>
     <ClCompile Include="..\src\os\Environment.c">
-      <Filter>os</Filter>
+      <Filter>Source\os</Filter>
     </ClCompile>
     <ClCompile Include="..\src\stdio\putchar.c">
-      <Filter>stdio\ConIo</Filter>
+      <Filter>Source\stdio\ConIo</Filter>
     </ClCompile>
     <ClCompile Include="..\src\os\Timer.c">
-      <Filter>os</Filter>
+      <Filter>Source\os</Filter>
     </ClCompile>
     <ClCompile Include="..\src\stdio\fgets.c">
-      <Filter>stdio\File</Filter>
+      <Filter>Source\stdio\File</Filter>
     </ClCompile>
     <ClCompile Include="..\src\stdio\fgetc.c">
-      <Filter>stdio\File</Filter>
+      <Filter>Source\stdio\File</Filter>
     </ClCompile>
     <ClCompile Include="..\src\stdio\vfscanf.c">
-      <Filter>stdio\Printf</Filter>
+      <Filter>Source\stdio\Printf</Filter>
     </ClCompile>
     <ClCompile Include="..\src\stdio\fpeekc.c">
-      <Filter>stdio\File</Filter>
+      <Filter>Source\stdio\File</Filter>
     </ClCompile>
     <ClCompile Include="..\src\stdio\fungetc.c">
-      <Filter>stdio\File</Filter>
+      <Filter>Source\stdio\File</Filter>
     </ClCompile>
     <ClCompile Include="..\src\math\atan2f.c">
       <Filter>Source\math</Filter>
     </ClCompile>
     <ClCompile Include="..\src\os\Process.c">
-      <Filter>os</Filter>
+      <Filter>Source\os</Filter>
     </ClCompile>
     <ClCompile Include="..\src\stdio\fputs.c">
-      <Filter>stdio\File</Filter>
+      <Filter>Source\stdio\File</Filter>
     </ClCompile>
     <ClCompile Include="..\src\stdio\fputc.c">
-      <Filter>stdio\File</Filter>
+      <Filter>Source\stdio\File</Filter>
     </ClCompile>
     <ClCompile Include="..\src\stdlib\getenv.c">
-      <Filter>stdlib</Filter>
+      <Filter>Source\stdlib</Filter>
     </ClCompile>
     <ClCompile Include="..\src\time\time.c">
-      <Filter>time</Filter>
+      <Filter>Source\time</Filter>
     </ClCompile>
     <ClCompile Include="..\src\time\localtime.c">
-      <Filter>time</Filter>
+      <Filter>Source\time</Filter>
     </ClCompile>
     <ClCompile Include="..\src\ds\List.c">
       <Filter>Source\ds</Filter>
@@ -397,103 +397,103 @@
       <Filter>Source\ds</Filter>
     </ClCompile>
     <ClCompile Include="..\src\time\mktime.c">
-      <Filter>time</Filter>
+      <Filter>Source\time</Filter>
     </ClCompile>
     <ClCompile Include="..\src\time\gmtime.c">
-      <Filter>time</Filter>
+      <Filter>Source\time</Filter>
     </ClCompile>
     <ClCompile Include="..\src\assert\assert.c">
       <Filter>Source\assert</Filter>
     </ClCompile>
     <ClCompile Include="..\src\time\difftime.c">
-      <Filter>time</Filter>
+      <Filter>Source\time</Filter>
     </ClCompile>
     <ClCompile Include="..\src\os\Condition.c">
-      <Filter>os\Threading</Filter>
+      <Filter>Source\os\Threading</Filter>
     </ClCompile>
     <ClCompile Include="..\src\os\Mutex.c">
-      <Filter>os\Threading</Filter>
+      <Filter>Source\os\Threading</Filter>
     </ClCompile>
     <ClCompile Include="..\src\os\Spinlock.c">
-      <Filter>os\Threading</Filter>
+      <Filter>Source\os\Threading</Filter>
     </ClCompile>
     <ClCompile Include="..\src\os\Thread.c">
-      <Filter>os\Threading</Filter>
+      <Filter>Source\os\Threading</Filter>
     </ClCompile>
     <ClCompile Include="..\src\os\TLS.c">
-      <Filter>os\Threading</Filter>
+      <Filter>Source\os\Threading</Filter>
     </ClCompile>
     <ClCompile Include="..\src\getopt\getopt_long.c">
       <Filter>Source\getopt</Filter>
     </ClCompile>
     <ClCompile Include="..\src\string\strnlen.c">
-      <Filter>string</Filter>
+      <Filter>Source\string</Filter>
     </ClCompile>
     <ClCompile Include="..\src\stdio\puts.c">
-      <Filter>stdio\ConIo</Filter>
+      <Filter>Source\stdio\ConIo</Filter>
     </ClCompile>
     <ClCompile Include="..\src\stdio\getchar.c">
-      <Filter>stdio\ConIo</Filter>
+      <Filter>Source\stdio\ConIo</Filter>
     </ClCompile>
     <ClCompile Include="..\src\stdio\fscanf.c">
-      <Filter>stdio\File</Filter>
+      <Filter>Source\stdio\File</Filter>
     </ClCompile>
     <ClCompile Include="..\src\ds\Ringbuffer.c">
       <Filter>Source\ds</Filter>
     </ClCompile>
     <ClCompile Include="..\src\os\Sha1.c">
-      <Filter>os</Filter>
+      <Filter>Source\os</Filter>
     </ClCompile>
     <ClCompile Include="..\src\os\Exceptions.c">
-      <Filter>os</Filter>
+      <Filter>Source\os</Filter>
     </ClCompile>
     <ClCompile Include="..\src\stdio\fbuf.c">
-      <Filter>stdio\File</Filter>
+      <Filter>Source\stdio\File</Filter>
     </ClCompile>
     <ClCompile Include="..\src\os\MString\MStringUtf8.c">
-      <Filter>os\MString</Filter>
+      <Filter>Source\os\MString</Filter>
     </ClCompile>
     <ClCompile Include="..\src\os\MString\MStringCreate.c">
-      <Filter>os\MString</Filter>
+      <Filter>Source\os\MString</Filter>
     </ClCompile>
     <ClCompile Include="..\src\os\MString\MStringDestroy.c">
-      <Filter>os\MString</Filter>
+      <Filter>Source\os\MString</Filter>
     </ClCompile>
     <ClCompile Include="..\src\os\MString\MStringAppend.c">
-      <Filter>os\MString</Filter>
+      <Filter>Source\os\MString</Filter>
     </ClCompile>
     <ClCompile Include="..\src\os\MString\MStringHash.c">
-      <Filter>os\MString</Filter>
+      <Filter>Source\os\MString</Filter>
     </ClCompile>
     <ClCompile Include="..\src\os\MString\MStringLength.c">
-      <Filter>os\MString</Filter>
+      <Filter>Source\os\MString</Filter>
     </ClCompile>
     <ClCompile Include="..\src\os\MString\MStringPrint.c">
-      <Filter>os\MString</Filter>
+      <Filter>Source\os\MString</Filter>
     </ClCompile>
     <ClCompile Include="..\src\os\MString\MStringResize.c">
-      <Filter>os\MString</Filter>
+      <Filter>Source\os\MString</Filter>
     </ClCompile>
     <ClCompile Include="..\src\os\MString\MStringFind.c">
-      <Filter>os\MString</Filter>
+      <Filter>Source\os\MString</Filter>
     </ClCompile>
     <ClCompile Include="..\src\os\MString\MStringCopy.c">
-      <Filter>os\MString</Filter>
+      <Filter>Source\os\MString</Filter>
     </ClCompile>
     <ClCompile Include="..\src\os\MString\MStringIterate.c">
-      <Filter>os\MString</Filter>
+      <Filter>Source\os\MString</Filter>
     </ClCompile>
     <ClCompile Include="..\src\os\MString\MStringRaw.c">
-      <Filter>os\MString</Filter>
+      <Filter>Source\os\MString</Filter>
     </ClCompile>
     <ClCompile Include="..\src\os\MString\MStringCompare.c">
-      <Filter>os\MString</Filter>
+      <Filter>Source\os\MString</Filter>
     </ClCompile>
     <ClCompile Include="..\src\os\MString\MStringMisc.c">
-      <Filter>os\MString</Filter>
+      <Filter>Source\os\MString</Filter>
     </ClCompile>
     <ClCompile Include="..\src\os\MString\MStringSubString.c">
-      <Filter>os\MString</Filter>
+      <Filter>Source\os\MString</Filter>
     </ClCompile>
     <ClCompile Include="..\src\math\i386\fenv.c">
       <Filter>Source\math\i386</Filter>
@@ -759,13 +759,16 @@
     <ClCompile Include="..\src\math\rempiof.c">
       <Filter>Source\math</Filter>
     </ClCompile>
+    <ClCompile Include="..\src\math\log2f.c">
+      <Filter>Source\math</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <CustomBuild Include="..\src\string\memcpy_acc.s">
-      <Filter>string</Filter>
+      <Filter>Source\string</Filter>
     </CustomBuild>
     <CustomBuild Include="..\src\setjmp\setjmp_i386.s">
-      <Filter>setjmp</Filter>
+      <Filter>Source\setjmp</Filter>
     </CustomBuild>
     <CustomBuild Include="..\src\math\i386\_sqrt.S">
       <Filter>Source\math\i386</Filter>
@@ -807,10 +810,10 @@
       <Filter>Source\math\i386</Filter>
     </CustomBuild>
     <CustomBuild Include="..\src\os\i386\_Syscall32.asm">
-      <Filter>os\i386</Filter>
+      <Filter>Source\os\i386</Filter>
     </CustomBuild>
     <CustomBuild Include="..\src\os\i386\_Spinlock.asm">
-      <Filter>os\i386</Filter>
+      <Filter>Source\os\i386</Filter>
     </CustomBuild>
     <CustomBuild Include="..\src\math\i386\_log2.S">
       <Filter>Source\math\i386</Filter>
@@ -880,7 +883,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\src\os\MString\MStringPrivate.h">
-      <Filter>os\MString</Filter>
+      <Filter>Source\os\MString</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

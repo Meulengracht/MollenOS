@@ -35,12 +35,12 @@ exp2
 exp2f
 log2
 log2f
-log2l
 log10
 log10f
 log10l
 _HUGE
 hypot
+tanf
 log
 logf
 logl

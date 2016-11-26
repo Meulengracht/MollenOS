@@ -307,7 +307,6 @@ _CRT_EXTERN float __CRTDECL powf(float, float);
 _CRT_EXTERN long double __CRTDECL powl(long double, long double);
 
 /* 7.12.7.5 The sqrt functions. Double in C89. */
-// Already in math.h
 _CRT_EXTERN double __CRTDECL sqrt(double);
 _CRT_EXTERN float __CRTDECL sqrtf(float);
 _CRT_EXTERN long double __CRTDECL sqrtl(long double);
