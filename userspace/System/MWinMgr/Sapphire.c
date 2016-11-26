@@ -179,8 +179,6 @@ void EventLoop(SDL_Renderer *Target)
 	}
 }
 
-extern int libm_main(int argc, char **argv);
-
 /* Entry Point */
 int main(int argc, char* argv[])
 {
