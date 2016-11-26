@@ -36,10 +36,12 @@
     <ClCompile Include="..\src\math\cbrt.c" />
     <ClCompile Include="..\src\math\cbrtf.c" />
     <ClCompile Include="..\src\math\core_cos.c" />
+    <ClCompile Include="..\src\math\core_cosf.c" />
     <ClCompile Include="..\src\math\core_exp.c" />
     <ClCompile Include="..\src\math\core_expf.c" />
     <ClCompile Include="..\src\math\core_rempio.c" />
     <ClCompile Include="..\src\math\core_sin.c" />
+    <ClCompile Include="..\src\math\core_sinf.c" />
     <ClCompile Include="..\src\math\cosf.c" />
     <ClCompile Include="..\src\math\cosh.c" />
     <ClCompile Include="..\src\math\coshf.c" />
@@ -97,10 +99,12 @@
     <ClCompile Include="..\src\math\pow.c" />
     <ClCompile Include="..\src\math\powf.c" />
     <ClCompile Include="..\src\math\rempio.c" />
+    <ClCompile Include="..\src\math\rempiof.c" />
     <ClCompile Include="..\src\math\round.c" />
     <ClCompile Include="..\src\math\scalbln.c" />
     <ClCompile Include="..\src\math\signbit.c" />
     <ClCompile Include="..\src\math\sincos.c" />
+    <ClCompile Include="..\src\math\sincosf.c" />
     <ClCompile Include="..\src\math\sinf.c" />
     <ClCompile Include="..\src\math\sinh.c" />
     <ClCompile Include="..\src\math\sinhf.c" />

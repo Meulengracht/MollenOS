@@ -473,6 +473,7 @@ _CRT_EXTERN float __CRTDECL ynf(int, float);
 
 /* Combined */
 _CRT_EXTERN void __CRTDECL sincos(double, double*, double*);
+_CRT_EXTERN void __CRTDECL sincosf(float, float*, float*);
 
 /* 7.12.14 */
 /*

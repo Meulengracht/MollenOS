@@ -747,6 +747,18 @@
     <ClCompile Include="..\src\math\fmodf.c">
       <Filter>Source\math</Filter>
     </ClCompile>
+    <ClCompile Include="..\src\math\core_cosf.c">
+      <Filter>Source\math\core</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\math\core_sinf.c">
+      <Filter>Source\math\core</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\math\sincosf.c">
+      <Filter>Source\math</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\math\rempiof.c">
+      <Filter>Source\math</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <CustomBuild Include="..\src\string\memcpy_acc.s">
