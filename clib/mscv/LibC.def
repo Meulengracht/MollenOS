@@ -14,7 +14,6 @@ ceill
 memset
 memcpy
 strcmp
-__osctype
 ceil
 _alldiv
 _allmul

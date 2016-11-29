@@ -17,14 +17,16 @@
 */
 
 /* Includes */
-#include <stddef.h>
 #include <stdlib.h>
 
 #ifndef LIBC_KERNEL
 
+/* Abort is simply a wrapper for exit
+ * which does the actual cleanup and shutdown of
+ * the current process */
 void abort(void)
 {
-	exit(-1);
+	exit(EXIT_FAILURE);
 }
 
 #endif

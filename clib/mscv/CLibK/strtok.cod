@@ -37,7 +37,7 @@ _strtok	PROC						; COMDAT
 ; 55   : 	return strtok_r(str, delimiters, &TLSGetCurrent()->StrTokNext);
 
   00003	e8 00 00 00 00	 call	 _TLSGetCurrent
-  00008	83 c0 18	 add	 eax, 24			; 00000018H
+  00008	83 c0 1c	 add	 eax, 28			; 0000001cH
   0000b	50		 push	 eax
   0000c	ff 75 0c	 push	 DWORD PTR _delimiters$[ebp]
   0000f	ff 75 08	 push	 DWORD PTR _str$[ebp]

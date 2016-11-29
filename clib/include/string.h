@@ -91,25 +91,10 @@ _CRT_EXTERN	char *ltoa(long value, char *string, int radix);
 _CRT_EXTERN	int ltoa_s(long value, char *str, size_t size, int radix);
 _CRT_EXTERN	char *ultoa(unsigned long value, char *string, int radix);
 
-_CRT_EXTERN	__int64 atoi64(const char *nptr);
-_CRT_EXTERN	long atol(const char *str);
-
-_CRT_EXTERN	double strtod(const char *s, char **sret);
-_CRT_EXTERN	float strtof(const char *s, char **sret);
-_CRT_EXTERN	long double strtold(const char *s, char **sret);
-_CRT_EXTERN	__int64 strtoi64(const char *nptr, char **endptr, int base);
-
-_CRT_EXTERN long strtol(const char *nptr, char **endptr, int base);
-_CRT_EXTERN	unsigned long strtoul(const char *nptr, char **endptr, int base);
-_CRT_EXTERN	long long strtoll(const char *nptr, char **endptr, int base);
-_CRT_EXTERN	unsigned long long strtoull(const char *nptr, char **endptr, int base);
-
-
 /*******************************
  *       WString Utility       *
  *******************************/
 _CRT_EXTERN size_t wcsnlen(const wchar_t * str, size_t count);
-
 
 #ifdef __cplusplus
 }

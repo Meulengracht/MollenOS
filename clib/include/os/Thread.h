@@ -64,6 +64,7 @@ typedef struct _ThreadLocalStorage
 	errno_t			 ThreadErrno;
 	unsigned long	 ThreadDOSErrno;
 	int              ThreadUnknown0;
+	void			*ThreadLocale;
 
 	/* Seed for rand() */
 	unsigned int	 ThreadSeed;

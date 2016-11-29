@@ -26,6 +26,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <os/Syscall.h>
+#include <os/osdefs.h>
 
 /* Private structure 
  * it's not exposed for users */

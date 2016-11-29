@@ -108,6 +108,16 @@ _CRT_EXTERN int __signbit(double);
 _CRT_EXTERN int __signbitf(float);
 _CRT_EXTERN int __signbitl(long double);
 
+/* Integer version of absolute functions 
+ * they are defined in stdlib usually as well
+ * but keep them here for compat */
+#ifndef _CRT_ABS_DEFINED
+#define _CRT_ABS_DEFINED
+_CRT_EXTERN int abs(int);
+_CRT_EXTERN long labs(long);
+_CRT_EXTERN long long llabs(long long);
+#endif
+
 /* 7.12.3.1 */
 /* Symbolic constants to classify floating point numbers. */
 #define	FP_INFINITE		0x01
@@ -527,12 +537,6 @@ __fp_unordered_compare(long double x, long double y){
 #define _matherrl _matherr
 #endif
 
-#ifndef _CRT_ABS_DEFINED
-#define _CRT_ABS_DEFINED
-		_CRT_EXTERN int __CRTDECL abs(int x);
-		_CRT_EXTERN long __CRTDECL labs(long x);
-#endif
-
 #ifndef _CRT_MATHERR_DEFINED
 #define _CRT_MATHERR_DEFINED
 		int __CRTDECL _matherr(struct _exception *except);
@@ -581,12 +585,12 @@ __fp_unordered_compare(long double x, long double y){
 	}
 	extern "C++" {
 		template<class _Ty> inline _Ty _Pow_int(_Ty x,int y) {
-			unsigned int _N;
-			if(y >= 0) _N = (unsigned int)y;
-			else _N = (unsigned int)(-y);
+			unsigned int _CTYPE_N;
+			if(y >= 0) _CTYPE_N = (unsigned int)y;
+			else _CTYPE_N = (unsigned int)(-y);
 			for(_Ty _Z = _Ty(1);;x *= x) {
-				if((_N & 1)!=0) _Z *= x;
-				if((_N >>= 1)==0) return (y < 0 ? _Ty(1) / _Z : _Z);
+				if((_CTYPE_N & 1)!=0) _Z *= x;
+				if((_CTYPE_N >>= 1)==0) return (y < 0 ? _Ty(1) / _Z : _Z);
 			}
 		}
 	}

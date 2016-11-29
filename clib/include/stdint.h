@@ -127,8 +127,18 @@ typedef unsigned long long   uintmax_t;
 #endif
 #endif
 
-#ifndef WCHAR_MIN  /* also in wchar.h */ 
-#define WCHAR_MIN 0
+/* also in wchar.h */
+#ifndef WCHAR_MIN
+#ifdef __WCHAR_MIN__
+#define WCHAR_MIN __WCHAR_MIN__
+#elif defined(__WCHAR_UNSIGNED__) || (L'\0' - 1 > 0)
+#define WCHAR_MIN (0 + L'\0')
+#else
+#define WCHAR_MIN (-0x7fffffff - 1 + L'\0')
+#endif
+#endif
+
+#ifndef WCHAR_MAX  
 #define WCHAR_MAX ((wchar_t)-1) /* UINT16_MAX */
 #endif
 

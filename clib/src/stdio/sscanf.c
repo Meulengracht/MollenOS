@@ -66,6 +66,7 @@
 #include <ctype.h>
 #include <stdarg.h>
 #include <string.h>
+#include <stdlib.h>
 
 #define	BUF		32 	/* Maximum length of numeric string. */
 
@@ -540,7 +541,7 @@ int vsscanf(const char *inp, char const *fmt0, va_list ap)
 
 				*p = 0;
 				if ((flags & UNSIGNED) == 0)
-					res.val = (int64_t)strtoi64(buf, (char **)NULL, base);
+					res.val = (int64_t)strtoll(buf, (char **)NULL, base);
 				else
 					res.uval = (uint64_t)strtoull(buf, (char **)NULL, base);
 				if (flags & POINTER)

@@ -79,35 +79,29 @@
     <Filter Include="Source\time">
       <UniqueIdentifier>{5f51f49c-31a8-4e90-a6e2-f87e13088b09}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Source\mem">
+      <UniqueIdentifier>{b9b0b033-6481-4e6f-9196-0b42911951a0}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source\locale">
+      <UniqueIdentifier>{5a2d508c-fbf9-4bc2-be05-4a13e9017f16}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source\stdlib\Headers">
+      <UniqueIdentifier>{a1a1bb66-e1df-4dd3-aeb8-d90b8d99519b}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source\ctype\base">
+      <UniqueIdentifier>{cd126bde-1a3a-4252-805f-7ac5fd6d3cf7}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source\ctype\wbase">
+      <UniqueIdentifier>{95124b3f-7c57-4cb4-a889-ee6b70195108}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source\ctype\base\posix">
+      <UniqueIdentifier>{a4075ca3-fd5b-4f2e-9a99-538d8e4fcf84}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source\ctype\wbase\posix">
+      <UniqueIdentifier>{a4e15a15-feab-48b1-b8b4-6c745f000d73}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="..\src\string\atof.c">
-      <Filter>Source\string</Filter>
-    </ClCompile>
-    <ClCompile Include="..\src\string\atoi64.c">
-      <Filter>Source\string</Filter>
-    </ClCompile>
-    <ClCompile Include="..\src\string\atol.c">
-      <Filter>Source\string</Filter>
-    </ClCompile>
-    <ClCompile Include="..\src\string\itoa.c">
-      <Filter>Source\string</Filter>
-    </ClCompile>
-    <ClCompile Include="..\src\string\memchr.c">
-      <Filter>Source\string</Filter>
-    </ClCompile>
-    <ClCompile Include="..\src\string\memcmp.c">
-      <Filter>Source\string</Filter>
-    </ClCompile>
-    <ClCompile Include="..\src\string\memcpy.c">
-      <Filter>Source\string</Filter>
-    </ClCompile>
-    <ClCompile Include="..\src\string\memmove.c">
-      <Filter>Source\string</Filter>
-    </ClCompile>
-    <ClCompile Include="..\src\string\memset.c">
-      <Filter>Source\string</Filter>
-    </ClCompile>
     <ClCompile Include="..\src\string\strcasecmp.c">
       <Filter>Source\string</Filter>
     </ClCompile>
@@ -159,28 +153,7 @@
     <ClCompile Include="..\src\string\strstr.c">
       <Filter>Source\string</Filter>
     </ClCompile>
-    <ClCompile Include="..\src\string\strtod.c">
-      <Filter>Source\string</Filter>
-    </ClCompile>
-    <ClCompile Include="..\src\string\strtof.c">
-      <Filter>Source\string</Filter>
-    </ClCompile>
-    <ClCompile Include="..\src\string\strtoi64.c">
-      <Filter>Source\string</Filter>
-    </ClCompile>
     <ClCompile Include="..\src\string\strtok.c">
-      <Filter>Source\string</Filter>
-    </ClCompile>
-    <ClCompile Include="..\src\string\strtol.c">
-      <Filter>Source\string</Filter>
-    </ClCompile>
-    <ClCompile Include="..\src\string\strtold.c">
-      <Filter>Source\string</Filter>
-    </ClCompile>
-    <ClCompile Include="..\src\string\strtoul.c">
-      <Filter>Source\string</Filter>
-    </ClCompile>
-    <ClCompile Include="..\src\string\strtoull.c">
       <Filter>Source\string</Filter>
     </ClCompile>
     <ClCompile Include="..\src\string\strxfrm.c">
@@ -191,9 +164,6 @@
     </ClCompile>
     <ClCompile Include="..\src\errno\errstrings.c">
       <Filter>Source\errno</Filter>
-    </ClCompile>
-    <ClCompile Include="..\src\ctype\ctype.c">
-      <Filter>Source\ctype</Filter>
     </ClCompile>
     <ClCompile Include="..\src\math\cosf.c">
       <Filter>Source\math</Filter>
@@ -332,9 +302,6 @@
     </ClCompile>
     <ClCompile Include="..\src\stdio\sscanf.c">
       <Filter>Source\stdio\Printf</Filter>
-    </ClCompile>
-    <ClCompile Include="..\src\string\strtoll.c">
-      <Filter>Source\string</Filter>
     </ClCompile>
     <ClCompile Include="..\src\stdio\fflush.c">
       <Filter>Source\stdio\File</Filter>
@@ -762,11 +729,320 @@
     <ClCompile Include="..\src\math\log2f.c">
       <Filter>Source\math</Filter>
     </ClCompile>
+    <ClCompile Include="..\src\mem\memset.c">
+      <Filter>Source\mem</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\mem\memchr.c">
+      <Filter>Source\mem</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\mem\memcmp.c">
+      <Filter>Source\mem</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\mem\memcpy.c">
+      <Filter>Source\mem</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\mem\memmove.c">
+      <Filter>Source\mem</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\stdlib\atof.c">
+      <Filter>Source\stdlib</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\stdlib\itoa.c">
+      <Filter>Source\stdlib</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\stdlib\atoll.c">
+      <Filter>Source\stdlib</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\stdlib\atoff.c">
+      <Filter>Source\stdlib</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\stdlib\atol.c">
+      <Filter>Source\stdlib</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\stdlib\llabs.c">
+      <Filter>Source\stdlib</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\stdlib\strtol.c">
+      <Filter>Source\stdlib</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\stdlib\strtoll.c">
+      <Filter>Source\stdlib</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\stdlib\strtoul.c">
+      <Filter>Source\stdlib</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\stdlib\strtoull.c">
+      <Filter>Source\stdlib</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\stdlib\lldiv.c">
+      <Filter>Source\stdlib</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\stdlib\strtodg.c">
+      <Filter>Source\stdlib</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\stdlib\strtold.c">
+      <Filter>Source\stdlib</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\stdlib\strtod.c">
+      <Filter>Source\stdlib</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\stdlib\mprec.c">
+      <Filter>Source\stdlib</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\locale\duplocale.c">
+      <Filter>Source\locale</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\locale\freelocale.c">
+      <Filter>Source\locale</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\locale\lctype.c">
+      <Filter>Source\locale</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\locale\lmessages.c">
+      <Filter>Source\locale</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\locale\lmonetary.c">
+      <Filter>Source\locale</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\locale\lnumeric.c">
+      <Filter>Source\locale</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\locale\locale.c">
+      <Filter>Source\locale</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\locale\localeconv.c">
+      <Filter>Source\locale</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\locale\newlocale.c">
+      <Filter>Source\locale</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\locale\timelocal.c">
+      <Filter>Source\locale</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\locale\uselocale.c">
+      <Filter>Source\locale</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\ctype\ctype_.c">
+      <Filter>Source\ctype</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\ctype\jp2uc.c">
+      <Filter>Source\ctype</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\ctype\isalnum.c">
+      <Filter>Source\ctype\base</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\ctype\isalpha.c">
+      <Filter>Source\ctype\base</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\ctype\isascii.c">
+      <Filter>Source\ctype\base</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\ctype\isblank.c">
+      <Filter>Source\ctype\base</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\ctype\iscntrl.c">
+      <Filter>Source\ctype\base</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\ctype\isdigit.c">
+      <Filter>Source\ctype\base</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\ctype\islower.c">
+      <Filter>Source\ctype\base</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\ctype\isprint.c">
+      <Filter>Source\ctype\base</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\ctype\ispunct.c">
+      <Filter>Source\ctype\base</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\ctype\isspace.c">
+      <Filter>Source\ctype\base</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\ctype\isupper.c">
+      <Filter>Source\ctype\base</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\ctype\isxdigit.c">
+      <Filter>Source\ctype\base</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\ctype\iswalpha.c">
+      <Filter>Source\ctype\wbase</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\ctype\iswalnum.c">
+      <Filter>Source\ctype\wbase</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\ctype\iswblank.c">
+      <Filter>Source\ctype\wbase</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\ctype\iswcntrl.c">
+      <Filter>Source\ctype\wbase</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\ctype\iswctype.c">
+      <Filter>Source\ctype\wbase</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\ctype\iswdigit.c">
+      <Filter>Source\ctype\wbase</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\ctype\iswprint.c">
+      <Filter>Source\ctype\wbase</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\ctype\iswlower.c">
+      <Filter>Source\ctype\wbase</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\ctype\iswpunct.c">
+      <Filter>Source\ctype\wbase</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\ctype\iswgraph.c">
+      <Filter>Source\ctype\wbase</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\ctype\iswspace.c">
+      <Filter>Source\ctype\wbase</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\ctype\iswupper.c">
+      <Filter>Source\ctype\wbase</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\ctype\iswxdigit.c">
+      <Filter>Source\ctype\wbase</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\ctype\toascii.c">
+      <Filter>Source\ctype\base</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\ctype\tolower.c">
+      <Filter>Source\ctype\base</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\ctype\toupper.c">
+      <Filter>Source\ctype\base</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\ctype\towlower.c">
+      <Filter>Source\ctype\wbase</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\ctype\towupper.c">
+      <Filter>Source\ctype\wbase</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\ctype\wctype.c">
+      <Filter>Source\ctype\wbase</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\ctype\wctrans.c">
+      <Filter>Source\ctype\wbase</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\ctype\isalnum_l.c">
+      <Filter>Source\ctype\base\posix</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\ctype\isalpha_l.c">
+      <Filter>Source\ctype\base\posix</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\ctype\isascii_l.c">
+      <Filter>Source\ctype\base\posix</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\ctype\isblank_l.c">
+      <Filter>Source\ctype\base\posix</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\ctype\iscntrl_l.c">
+      <Filter>Source\ctype\base\posix</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\ctype\isdigit_l.c">
+      <Filter>Source\ctype\base\posix</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\ctype\islower_l.c">
+      <Filter>Source\ctype\base\posix</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\ctype\isprint_l.c">
+      <Filter>Source\ctype\base\posix</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\ctype\ispunct_l.c">
+      <Filter>Source\ctype\base\posix</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\ctype\isspace_l.c">
+      <Filter>Source\ctype\base\posix</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\ctype\isupper_l.c">
+      <Filter>Source\ctype\base\posix</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\ctype\isxdigit_l.c">
+      <Filter>Source\ctype\base\posix</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\ctype\toascii_l.c">
+      <Filter>Source\ctype\base\posix</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\ctype\tolower_l.c">
+      <Filter>Source\ctype\base\posix</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\ctype\toupper_l.c">
+      <Filter>Source\ctype\base\posix</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\ctype\iswalnum_l.c">
+      <Filter>Source\ctype\wbase\posix</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\ctype\iswalpha_l.c">
+      <Filter>Source\ctype\wbase\posix</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\ctype\iswblank_l.c">
+      <Filter>Source\ctype\wbase\posix</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\ctype\iswcntrl_l.c">
+      <Filter>Source\ctype\wbase\posix</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\ctype\iswctype_l.c">
+      <Filter>Source\ctype\wbase\posix</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\ctype\iswdigit_l.c">
+      <Filter>Source\ctype\wbase\posix</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\ctype\iswgraph_l.c">
+      <Filter>Source\ctype\wbase\posix</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\ctype\iswlower_l.c">
+      <Filter>Source\ctype\wbase\posix</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\ctype\iswprint_l.c">
+      <Filter>Source\ctype\wbase\posix</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\ctype\iswpunct_l.c">
+      <Filter>Source\ctype\wbase\posix</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\ctype\iswspace_l.c">
+      <Filter>Source\ctype\wbase\posix</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\ctype\iswupper_l.c">
+      <Filter>Source\ctype\wbase\posix</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\ctype\iswxdigit_l.c">
+      <Filter>Source\ctype\wbase\posix</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\ctype\towctrans_l.c">
+      <Filter>Source\ctype\wbase\posix</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\ctype\towlower_l.c">
+      <Filter>Source\ctype\wbase\posix</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\ctype\towupper_l.c">
+      <Filter>Source\ctype\wbase\posix</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\ctype\wctrans_l.c">
+      <Filter>Source\ctype\wbase\posix</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\ctype\wctype_l.c">
+      <Filter>Source\ctype\wbase\posix</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\ctype\towctrans.c">
+      <Filter>Source\ctype\wbase</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\math\nan.c">
+      <Filter>Source\math</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\stdlib\wctomb.c">
+      <Filter>Source\stdlib</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\stdlib\mbtowc.c">
+      <Filter>Source\stdlib</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\stdlib\gdtoa.c">
+      <Filter>Source\stdlib</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\stdlib\gdtoa_hex.c">
+      <Filter>Source\stdlib</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <CustomBuild Include="..\src\string\memcpy_acc.s">
-      <Filter>Source\string</Filter>
-    </CustomBuild>
     <CustomBuild Include="..\src\setjmp\setjmp_i386.s">
       <Filter>Source\setjmp</Filter>
     </CustomBuild>
@@ -842,6 +1118,9 @@
     <CustomBuild Include="..\src\math\i386\_copysign.S">
       <Filter>Source\math\i386</Filter>
     </CustomBuild>
+    <CustomBuild Include="..\src\mem\_memcpy.s">
+      <Filter>Source\mem</Filter>
+    </CustomBuild>
   </ItemGroup>
   <ItemGroup>
     <MASM Include="..\crt\msvc\alldvrm.S">
@@ -865,9 +1144,6 @@
     <MASM Include="..\crt\msvc\ints.S">
       <Filter>Source\crt\msvc</Filter>
     </MASM>
-    <MASM Include="..\crt\msvc\lldiv.S">
-      <Filter>Source\crt\msvc</Filter>
-    </MASM>
     <MASM Include="..\crt\msvc\llmul.S">
       <Filter>Source\crt\msvc</Filter>
     </MASM>
@@ -880,10 +1156,52 @@
     <MASM Include="..\crt\msvc\llshr.S">
       <Filter>Source\crt\msvc</Filter>
     </MASM>
+    <MASM Include="..\crt\msvc\alldiv.S">
+      <Filter>Source\crt\msvc</Filter>
+    </MASM>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\src\os\MString\MStringPrivate.h">
       <Filter>Source\os\MString</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\stdlib\mprec.h">
+      <Filter>Source\stdlib\Headers</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\stdlib\gd_qnan.h">
+      <Filter>Source\stdlib\Headers</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\stdlib\gdtoa.h">
+      <Filter>Source\stdlib\Headers</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\locale\setlocale.h">
+      <Filter>Source\locale</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\stdlib\local.h">
+      <Filter>Source\stdlib</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\ctype\ctype_.h">
+      <Filter>Source\ctype</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\ctype\ctype_cp.h">
+      <Filter>Source\ctype</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\ctype\ctype_iso.h">
+      <Filter>Source\ctype</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\ctype\jp2uc.h">
+      <Filter>Source\ctype</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\ctype\local.h">
+      <Filter>Source\ctype</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\ctype\utf8alpha.h">
+      <Filter>Source\ctype</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\ctype\utf8print.h">
+      <Filter>Source\ctype</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\stdlib\mbctype.h">
+      <Filter>Source\stdlib\Headers</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

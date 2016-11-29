@@ -25,6 +25,7 @@
 #include <os/Thread.h>
 
 /* C Library */
+#include "../locale/setlocale.h"
 #include <crtdefs.h>
 #include <stddef.h>
 #include <stdlib.h>
@@ -144,6 +145,11 @@ void TLSInitInstance(ThreadLocalStorage_t *Tls)
 {
 	/* Setup base stuff */
 	memset(Tls, 0, sizeof(ThreadLocalStorage_t));
+
+	/* Setup c-library stuff */
+	Tls->ThreadErrno = EOK;
+	Tls->ThreadLocale = __get_global_locale();
+	Tls->ThreadSeed = 1;
 }
 
 /* TLSDestroyInstance

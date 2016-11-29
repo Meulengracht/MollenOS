@@ -12,7 +12,74 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\src\assert\assert.c" />
-    <ClCompile Include="..\src\ctype\ctype.c" />
+    <ClCompile Include="..\src\ctype\ctype_.c" />
+    <ClCompile Include="..\src\ctype\isalnum.c" />
+    <ClCompile Include="..\src\ctype\isalnum_l.c" />
+    <ClCompile Include="..\src\ctype\isalpha.c" />
+    <ClCompile Include="..\src\ctype\isalpha_l.c" />
+    <ClCompile Include="..\src\ctype\isascii.c" />
+    <ClCompile Include="..\src\ctype\isascii_l.c" />
+    <ClCompile Include="..\src\ctype\isblank.c" />
+    <ClCompile Include="..\src\ctype\isblank_l.c" />
+    <ClCompile Include="..\src\ctype\iscntrl.c" />
+    <ClCompile Include="..\src\ctype\iscntrl_l.c" />
+    <ClCompile Include="..\src\ctype\isdigit.c" />
+    <ClCompile Include="..\src\ctype\isdigit_l.c" />
+    <ClCompile Include="..\src\ctype\islower.c" />
+    <ClCompile Include="..\src\ctype\islower_l.c" />
+    <ClCompile Include="..\src\ctype\isprint.c" />
+    <ClCompile Include="..\src\ctype\isprint_l.c" />
+    <ClCompile Include="..\src\ctype\ispunct.c" />
+    <ClCompile Include="..\src\ctype\ispunct_l.c" />
+    <ClCompile Include="..\src\ctype\isspace.c" />
+    <ClCompile Include="..\src\ctype\isspace_l.c" />
+    <ClCompile Include="..\src\ctype\isupper.c" />
+    <ClCompile Include="..\src\ctype\isupper_l.c" />
+    <ClCompile Include="..\src\ctype\iswalnum.c" />
+    <ClCompile Include="..\src\ctype\iswalnum_l.c" />
+    <ClCompile Include="..\src\ctype\iswalpha.c" />
+    <ClCompile Include="..\src\ctype\iswalpha_l.c" />
+    <ClCompile Include="..\src\ctype\iswblank.c" />
+    <ClCompile Include="..\src\ctype\iswblank_l.c" />
+    <ClCompile Include="..\src\ctype\iswcntrl.c" />
+    <ClCompile Include="..\src\ctype\iswcntrl_l.c" />
+    <ClCompile Include="..\src\ctype\iswctype.c" />
+    <ClCompile Include="..\src\ctype\iswctype_l.c" />
+    <ClCompile Include="..\src\ctype\iswdigit.c" />
+    <ClCompile Include="..\src\ctype\iswdigit_l.c" />
+    <ClCompile Include="..\src\ctype\iswgraph.c" />
+    <ClCompile Include="..\src\ctype\iswgraph_l.c" />
+    <ClCompile Include="..\src\ctype\iswlower.c" />
+    <ClCompile Include="..\src\ctype\iswlower_l.c" />
+    <ClCompile Include="..\src\ctype\iswprint.c" />
+    <ClCompile Include="..\src\ctype\iswprint_l.c" />
+    <ClCompile Include="..\src\ctype\iswpunct.c" />
+    <ClCompile Include="..\src\ctype\iswpunct_l.c" />
+    <ClCompile Include="..\src\ctype\iswspace.c" />
+    <ClCompile Include="..\src\ctype\iswspace_l.c" />
+    <ClCompile Include="..\src\ctype\iswupper.c" />
+    <ClCompile Include="..\src\ctype\iswupper_l.c" />
+    <ClCompile Include="..\src\ctype\iswxdigit.c" />
+    <ClCompile Include="..\src\ctype\iswxdigit_l.c" />
+    <ClCompile Include="..\src\ctype\isxdigit.c" />
+    <ClCompile Include="..\src\ctype\isxdigit_l.c" />
+    <ClCompile Include="..\src\ctype\jp2uc.c" />
+    <ClCompile Include="..\src\ctype\toascii.c" />
+    <ClCompile Include="..\src\ctype\toascii_l.c" />
+    <ClCompile Include="..\src\ctype\tolower.c" />
+    <ClCompile Include="..\src\ctype\tolower_l.c" />
+    <ClCompile Include="..\src\ctype\toupper.c" />
+    <ClCompile Include="..\src\ctype\toupper_l.c" />
+    <ClCompile Include="..\src\ctype\towctrans.c" />
+    <ClCompile Include="..\src\ctype\towctrans_l.c" />
+    <ClCompile Include="..\src\ctype\towlower.c" />
+    <ClCompile Include="..\src\ctype\towlower_l.c" />
+    <ClCompile Include="..\src\ctype\towupper.c" />
+    <ClCompile Include="..\src\ctype\towupper_l.c" />
+    <ClCompile Include="..\src\ctype\wctrans.c" />
+    <ClCompile Include="..\src\ctype\wctrans_l.c" />
+    <ClCompile Include="..\src\ctype\wctype.c" />
+    <ClCompile Include="..\src\ctype\wctype_l.c" />
     <ClCompile Include="..\src\ds\Ds.c" />
     <ClCompile Include="..\src\ds\HashTable.c" />
     <ClCompile Include="..\src\ds\List.c" />
@@ -20,6 +87,17 @@
     <ClCompile Include="..\src\errno\errno.c" />
     <ClCompile Include="..\src\errno\errstrings.c" />
     <ClCompile Include="..\src\getopt\getopt_long.c" />
+    <ClCompile Include="..\src\locale\duplocale.c" />
+    <ClCompile Include="..\src\locale\freelocale.c" />
+    <ClCompile Include="..\src\locale\lctype.c" />
+    <ClCompile Include="..\src\locale\lmessages.c" />
+    <ClCompile Include="..\src\locale\lmonetary.c" />
+    <ClCompile Include="..\src\locale\lnumeric.c" />
+    <ClCompile Include="..\src\locale\locale.c" />
+    <ClCompile Include="..\src\locale\localeconv.c" />
+    <ClCompile Include="..\src\locale\newlocale.c" />
+    <ClCompile Include="..\src\locale\timelocal.c" />
+    <ClCompile Include="..\src\locale\uselocale.c" />
     <ClCompile Include="..\src\math\acos.c" />
     <ClCompile Include="..\src\math\acosf.c" />
     <ClCompile Include="..\src\math\acosh.c" />
@@ -94,6 +172,7 @@
     <ClCompile Include="..\src\math\lroundl.c" />
     <ClCompile Include="..\src\math\modf.c" />
     <ClCompile Include="..\src\math\modff.c" />
+    <ClCompile Include="..\src\math\nan.c" />
     <ClCompile Include="..\src\math\nearbyint.c" />
     <ClCompile Include="..\src\math\nextafter.c" />
     <ClCompile Include="..\src\math\nextafterf.c" />
@@ -111,6 +190,11 @@
     <ClCompile Include="..\src\math\sinhf.c" />
     <ClCompile Include="..\src\math\tanh.c" />
     <ClCompile Include="..\src\math\tanhf.c" />
+    <ClCompile Include="..\src\mem\memchr.c" />
+    <ClCompile Include="..\src\mem\memcmp.c" />
+    <ClCompile Include="..\src\mem\memcpy.c" />
+    <ClCompile Include="..\src\mem\memmove.c" />
+    <ClCompile Include="..\src\mem\memset.c" />
     <ClCompile Include="..\src\os\Condition.c" />
     <ClCompile Include="..\src\os\Devices.c" />
     <ClCompile Include="..\src\os\Environment.c" />
@@ -185,25 +269,35 @@
     <ClCompile Include="..\src\stdio\vsprintf.c" />
     <ClCompile Include="..\src\stdlib\abort.c" />
     <ClCompile Include="..\src\stdlib\abs.c" />
+    <ClCompile Include="..\src\stdlib\atof.c" />
+    <ClCompile Include="..\src\stdlib\atoff.c" />
     <ClCompile Include="..\src\stdlib\atoi.c" />
+    <ClCompile Include="..\src\stdlib\atol.c" />
+    <ClCompile Include="..\src\stdlib\atoll.c" />
     <ClCompile Include="..\src\stdlib\atold.c" />
     <ClCompile Include="..\src\stdlib\bsearch.c" />
     <ClCompile Include="..\src\stdlib\div.c" />
     <ClCompile Include="..\src\stdlib\exit.c" />
+    <ClCompile Include="..\src\stdlib\gdtoa.c" />
+    <ClCompile Include="..\src\stdlib\gdtoa_hex.c" />
     <ClCompile Include="..\src\stdlib\getenv.c" />
+    <ClCompile Include="..\src\stdlib\itoa.c" />
     <ClCompile Include="..\src\stdlib\labs.c" />
     <ClCompile Include="..\src\stdlib\ldiv.c" />
+    <ClCompile Include="..\src\stdlib\llabs.c" />
+    <ClCompile Include="..\src\stdlib\lldiv.c" />
+    <ClCompile Include="..\src\stdlib\mbtowc.c" />
+    <ClCompile Include="..\src\stdlib\mprec.c" />
     <ClCompile Include="..\src\stdlib\qsort.c" />
     <ClCompile Include="..\src\stdlib\rand.c" />
-    <ClCompile Include="..\src\string\atof.c" />
-    <ClCompile Include="..\src\string\atoi64.c" />
-    <ClCompile Include="..\src\string\atol.c" />
-    <ClCompile Include="..\src\string\itoa.c" />
-    <ClCompile Include="..\src\string\memchr.c" />
-    <ClCompile Include="..\src\string\memcmp.c" />
-    <ClCompile Include="..\src\string\memcpy.c" />
-    <ClCompile Include="..\src\string\memmove.c" />
-    <ClCompile Include="..\src\string\memset.c" />
+    <ClCompile Include="..\src\stdlib\strtod.c" />
+    <ClCompile Include="..\src\stdlib\strtodg.c" />
+    <ClCompile Include="..\src\stdlib\strtol.c" />
+    <ClCompile Include="..\src\stdlib\strtold.c" />
+    <ClCompile Include="..\src\stdlib\strtoll.c" />
+    <ClCompile Include="..\src\stdlib\strtoul.c" />
+    <ClCompile Include="..\src\stdlib\strtoull.c" />
+    <ClCompile Include="..\src\stdlib\wctomb.c" />
     <ClCompile Include="..\src\string\strcasecmp.c" />
     <ClCompile Include="..\src\string\strcat.c" />
     <ClCompile Include="..\src\string\strchr.c" />
@@ -222,15 +316,7 @@
     <ClCompile Include="..\src\string\strrchr.c" />
     <ClCompile Include="..\src\string\strspn.c" />
     <ClCompile Include="..\src\string\strstr.c" />
-    <ClCompile Include="..\src\string\strtod.c" />
-    <ClCompile Include="..\src\string\strtof.c" />
-    <ClCompile Include="..\src\string\strtoi64.c" />
     <ClCompile Include="..\src\string\strtok.c" />
-    <ClCompile Include="..\src\string\strtol.c" />
-    <ClCompile Include="..\src\string\strtold.c" />
-    <ClCompile Include="..\src\string\strtoll.c" />
-    <ClCompile Include="..\src\string\strtoul.c" />
-    <ClCompile Include="..\src\string\strtoull.c" />
     <ClCompile Include="..\src\string\strxfrm.c" />
     <ClCompile Include="..\src\string\wcsnlen.c" />
     <ClCompile Include="..\src\time\difftime.c" />
@@ -238,13 +324,6 @@
     <ClCompile Include="..\src\time\localtime.c" />
     <ClCompile Include="..\src\time\mktime.c" />
     <ClCompile Include="..\src\time\time.c" />
-  </ItemGroup>
-  <ItemGroup>
-    <CustomBuild Include="..\src\string\memcpy_acc.s">
-      <FileType>Document</FileType>
-      <Command Condition="'$(Configuration)|$(Platform)'=='CLibK|Win32'">nasm -f win32 -Xvc -o $(IntDir)\%(Filename).obj %(FullPath)</Command>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='CLibK|Win32'">$(IntDir)\%(Filename).obj</Outputs>
-    </CustomBuild>
   </ItemGroup>
   <ItemGroup>
     <CustomBuild Include="..\src\setjmp\setjmp_i386.s">
@@ -367,7 +446,7 @@
     <MASM Include="..\crt\msvc\ints.S">
       <FileType>Document</FileType>
     </MASM>
-    <MASM Include="..\crt\msvc\lldiv.S">
+    <MASM Include="..\crt\msvc\alldiv.S">
       <FileType>Document</FileType>
     </MASM>
     <MASM Include="..\crt\msvc\llmul.S">
@@ -384,7 +463,20 @@
     </MASM>
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="..\src\ctype\ctype_.h" />
+    <ClInclude Include="..\src\ctype\ctype_cp.h" />
+    <ClInclude Include="..\src\ctype\ctype_iso.h" />
+    <ClInclude Include="..\src\ctype\jp2uc.h" />
+    <ClInclude Include="..\src\ctype\local.h" />
+    <ClInclude Include="..\src\ctype\utf8alpha.h" />
+    <ClInclude Include="..\src\ctype\utf8print.h" />
+    <ClInclude Include="..\src\locale\setlocale.h" />
     <ClInclude Include="..\src\os\MString\MStringPrivate.h" />
+    <ClInclude Include="..\src\stdlib\gdtoa.h" />
+    <ClInclude Include="..\src\stdlib\gd_qnan.h" />
+    <ClInclude Include="..\src\stdlib\local.h" />
+    <ClInclude Include="..\src\stdlib\mbctype.h" />
+    <ClInclude Include="..\src\stdlib\mprec.h" />
   </ItemGroup>
   <ItemGroup>
     <CustomBuild Include="..\src\math\i386\_scalbn.S">
@@ -437,6 +529,13 @@
   </ItemGroup>
   <ItemGroup>
     <CustomBuild Include="..\src\math\i386\_trunc.S">
+      <FileType>Document</FileType>
+      <Command Condition="'$(Configuration)|$(Platform)'=='CLibK|Win32'">nasm -f win32 -Xvc -o $(IntDir)\%(Filename).obj %(FullPath)</Command>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='CLibK|Win32'">$(IntDir)\%(Filename).obj</Outputs>
+    </CustomBuild>
+  </ItemGroup>
+  <ItemGroup>
+    <CustomBuild Include="..\src\mem\_memcpy.s">
       <FileType>Document</FileType>
       <Command Condition="'$(Configuration)|$(Platform)'=='CLibK|Win32'">nasm -f win32 -Xvc -o $(IntDir)\%(Filename).obj %(FullPath)</Command>
       <Outputs Condition="'$(Configuration)|$(Platform)'=='CLibK|Win32'">$(IntDir)\%(Filename).obj</Outputs>
@@ -502,7 +601,7 @@
       </PrecompiledHeader>
       <WarningLevel>EnableAllWarnings</WarningLevel>
       <Optimization>MaxSpeed</Optimization>
-      <PreprocessorDefinitions>MOLLENOS;LIBC_KERNEL;_X86_32;__STDC__</PreprocessorDefinitions>
+      <PreprocessorDefinitions>MOLLENOS;LIBC_KERNEL;_X86_32;__STDC__;_HAVE_LONG_DOUBLE;_LDBL_EQ_DBL</PreprocessorDefinitions>
       <SDLCheck>
       </SDLCheck>
       <CompileAsManaged>
@@ -546,7 +645,7 @@
       <Optimization>Full</Optimization>
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>false</IntrinsicFunctions>
-      <PreprocessorDefinitions>MOLLENOS;_X86_32;_CRT_DYNAMIC;_CRT_DLL;__STDC__</PreprocessorDefinitions>
+      <PreprocessorDefinitions>MOLLENOS;_X86_32;_CRT_DYNAMIC;_CRT_DLL;__STDC__;_HAVE_LONG_DOUBLE;_LDBL_EQ_DBL</PreprocessorDefinitions>
       <SDLCheck>
       </SDLCheck>
       <CompileAsManaged>

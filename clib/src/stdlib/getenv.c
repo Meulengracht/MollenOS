@@ -27,8 +27,7 @@
 #include <os/Syscall.h>
 
 /* Get environmental var 
- * Returns the settings for a 
- * given key */
+ * Returns the settings for a given key */
 char *getenv(const char *name)
 {
 	return NULL;

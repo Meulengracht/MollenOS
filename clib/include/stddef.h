@@ -371,11 +371,14 @@ are probably typos and should be removed before 2.8 is released.  */
 #endif /* __sys_stdtypes_h */
 
 /* A null pointer constant.  */
+#ifndef _NULL_DEFINED
+#define _NULL_DEFINED
 #ifndef NULL
 #ifdef __cplusplus
 #define NULL 0
 #else
 #define NULL ((void*)0)
+#endif
 #endif
 #endif
 

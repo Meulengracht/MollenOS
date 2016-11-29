@@ -360,10 +360,10 @@ extern "C" {
 #else
 	typedef unsigned long long size_t;
 #endif
-#define SIZET_MAX 0xffffffffffffffffULL
+#define SIZET_MAX 0xFFFFFFFFFFFFFFFFULL
 #else
 	typedef unsigned int size_t;
-#define SIZET_MAX 0xffffffff
+#define SIZET_MAX 0xFFFFFFFF
 #endif
 #endif
 

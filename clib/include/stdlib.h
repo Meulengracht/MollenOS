@@ -25,107 +25,181 @@
 /* Includes */
 #include <crtdefs.h>
 
+/* Cpp-Guard */
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#ifndef MOS_PAGE_SIZE
-#define MOS_PAGE_SIZE	0x1000
-#endif
-
-#define _MAX_PATH 512
-
+/* Termination codes that must be defined in 
+ * stdlib.h by the ISO C standard */
 #define EXIT_FAILURE	-1
 #define EXIT_SUCCESS	0
 
-#define MIN(a,b) (((a)<(b))?(a):(b))
-#define MAX(a,b) (((a)>(b))?(a):(b))
+/* Size_t is also defined here because of 
+ * the ISO C standard, it tells us it must be
+ * defined in stdlib */
+#ifndef _SIZE_T_DEFINED
+#define _SIZE_T_DEFINED
+#undef size_t
+#if defined(_WIN64) || defined(_X86_64)
+#if defined(__GNUC__) && defined(__STRICT_ANSI__)
+	typedef unsigned int size_t __attribute__((mode(DI)));
+#else
+	typedef unsigned long long size_t;
+#endif
+#define SIZET_MAX 0xffffffffffffffffULL
+#else
+	typedef unsigned int size_t;
+#define SIZET_MAX 0xFFFFFFFF
+#endif
+#endif
 
-//------------------------------------------------------------//
-//                     Structures   		                  //
-//------------------------------------------------------------//
+/* NULL is also defined here because of 
+ * the ISO C standard, it tells us it must be
+ * defined in stdlib */
+#ifndef _NULL_DEFINED
+#define _NULL_DEFINED
+#ifndef NULL
+#ifdef __cplusplus
+#define NULL 0
+#else
+#define NULL ((void*)0)
+#endif
+#endif
+#endif
+
+/* This is the maximum value that can be returned 
+ * by the random function, but is guaranteed to be
+ * higher than 32767 */
+#ifndef RAND_MAX
+#define RAND_MAX 65535
+#endif
+
+/* This denotes the maximum number of bytes that may
+ * be allowed to be used by a single multi-byte character 
+ * we have no MB support, so just 1 for now */
+#ifndef MB_LEN_MAX
+#define MB_LEN_MAX	5
+#endif
+
+/* Define the division structures that are used 
+ * by div, ldiv and lldiv. The mentioned functions
+ * return these structures as result */
 #ifndef _DIV_T_DEFINED
 #define _DIV_T_DEFINED
-
-typedef struct _div_t 
-{
+typedef struct _div_t {
 	int quot;
 	int rem;
 } div_t;
 
-typedef struct _ldiv_t
-{
+typedef struct _ldiv_t {
 	long quot;
 	long rem;
 } ldiv_t;
 
+typedef struct _lldiv_t {
+	long long quot;
+	long long rem;
+} lldiv_t;
 #endif
 
-//------------------------------------------------------------//
-//                     Type Conversion		                  //
-//------------------------------------------------------------//
-_CRT_EXTERN int atoi(const char * string);
-_CRT_EXTERN double atof(const char* str);
-_CRT_EXTERN long int atol(const char * str);
-_CRT_EXTERN long double	atold(const char *ascii);
+/* String Conversion functions 
+ * Allows the extraction of integer, floats
+ * and doubles from strings */
+_CRT_EXTERN double atof(const char*);
+_CRT_EXTERN float atoff(const char*);
+_CRT_EXTERN int atoi(const char*);
+_CRT_EXTERN long int atol(const char*);
 
-_CRT_EXTERN double strtod(const char* str, char** endptr);
-_CRT_EXTERN long int strtol(const char* str, char** endptr, int base);
-_CRT_EXTERN unsigned long int strtoul(const char* str, char** endptr, int base);
+/* C++11 Added functions, to support 
+ * 64 bit integers and 80/128 bit doubles */
+_CRT_EXTERN long long atoll(const char*);
+_CRT_EXTERN long double	atold(const char*);
 
-//------------------------------------------------------------//
-//                  Integer Arethmetic		                  //
-//------------------------------------------------------------//
-#ifndef _CRT_DIV_DEFINED
-#define _CRT_DIV_DEFINED
-_CRT_EXTERN div_t div(int num, int denom);
-_CRT_EXTERN ldiv_t ldiv(long num, long denom);
-#endif
+/* Same as above, but these allow to specify an 
+ * endpoint in the string, and allows the specification
+ * of a decimal-base to use for the conversion */
+_CRT_EXTERN float strtof(const char* __restrict, char ** __restrict end);
+_CRT_EXTERN double strtod(const char* __restrict, char ** __restrict end);
+_CRT_EXTERN long int strtol(const char* __restrict, char ** __restrict end, int base);
+_CRT_EXTERN unsigned long int strtoul(const char* __restrict, char ** __restrict end, int base);
 
-#ifndef _CRT_ABS_DEFINED
-#define _CRT_ABS_DEFINED
-_CRT_EXTERN int abs(int j);
-_CRT_EXTERN long labs(long j);
-#endif
+/* C++11 Added functions, to support 
+ * 64 bit integers and 80/128 bit doubles */
+_CRT_EXTERN long long strtoll(const char* __restrict, char ** __restrict end, int base);
+_CRT_EXTERN long double strtold(const char* __restrict, char ** __restrict end);
+_CRT_EXTERN unsigned long long strtoull(const char* __restrict, char ** __restrict end, int base);
 
-//------------------------------------------------------------//
-//              Pseudo-random number generation               //
-//------------------------------------------------------------//
+/* Pseudo-random sequence generation 
+ * The seed is thread-specific and setup by the CRT 
+ * Use srand to set a custom seed */
 _CRT_EXTERN int	rand(void);
 _CRT_EXTERN void srand(unsigned int seed);
 
-//------------------------------------------------------------//
-//              Memory Management (malloc, free)              //
-//------------------------------------------------------------//
-
+/* Memory management functions 
+ * Use to allocate, deallocate and reallocate
+ * memory, uses mollenos's virtual allocators */
 _CRT_EXTERN void *malloc(size_t);
-_CRT_EXTERN void *realloc(void *, size_t);
+_CRT_EXTERN void *realloc(void*, size_t);
 _CRT_EXTERN void *calloc(size_t, size_t);
-_CRT_EXTERN void free(void *);
+_CRT_EXTERN void free(void*);
 
-//------------------------------------------------------------//
-//                    Sorting Funcs                           //
-//------------------------------------------------------------//
-_CRT_EXTERN void *bsearch(const void *key, const void *base, size_t nmemb, size_t size, int(*compar)(const void *, const void *));
-_CRT_EXTERN void qsort(void *base, unsigned num, unsigned width, int(*comp)(const void *, const void *));
-
-//------------------------------------------------------------//
-//                    Environmental                           //
-//------------------------------------------------------------//
-_CRT_EXTERN char *getenv(const char *name);
+/* Environment functions, primarily functions
+ * related to system env setup and exit functionality */
 _CRT_EXTERN void abort(void);
 EXTERN int atexit(void(__cdecl *func)(void));
 _CRT_EXTERN int at_quick_exit(void(*func)(void));
+_CRT_EXTERN char *getenv(const char*);
+_CRT_EXTERN int system(const char*);
 
-_CRT_EXTERN void quick_exit(int status);				//Terminate normally, no cleanup. Call all functions in atexit_quick stack
-_CRT_EXTERN void _Exit(int status);					//Terminate normally, no cleanup. No calls to anything.
+/* These are the different exit functions, they 
+ * all do the same, but have different procedures
+ * of doing it */
 
-//------------------------------------------------------------//
-//                    EXIT		                              //
-//------------------------------------------------------------//
+/* Terminate normally, no cleanup. Call all functions in atexit_quick stack */
+_CRT_EXTERN void quick_exit(int);
 
-_CRT_EXTERN void exit(int status);					//Terminate normally with cleanup, call all functions in atexit stack
+/* Terminate normally, no cleanup. No calls to anything. */
+_CRT_EXTERN void _Exit(int);
+
+/* Terminate normally with cleanup, call all functions in atexit stack */
+_CRT_EXTERN void exit(int);
 #define _exit(s)	exit(s);
+
+/* Search and sort functions, a custom sorting 
+ * comparator function can be provided for the sort */
+_CRT_EXTERN void *bsearch(const void *key, const void *base, size_t nmemb, 
+	size_t size, int(*compar)(const void *, const void *));
+_CRT_EXTERN void qsort(void *base, unsigned num, unsigned width, 
+	int(*comp)(const void *, const void *));
+
+/* Integer Arethmetic functions 
+ * Used to do integer divisions and to calculate
+ * the absolute integer value of a signed integer */
+#ifndef _CRT_DIV_DEFINED
+#define _CRT_DIV_DEFINED
+_CRT_EXTERN div_t div(int n, int denom);
+_CRT_EXTERN ldiv_t ldiv(long n, long denom);
+_CRT_EXTERN lldiv_t lldiv(long long n, long long denom);
+#endif
+
+/* Abs functions are defined in math header aswell
+ * and thus we protect it by a guard */
+#ifndef _CRT_ABS_DEFINED
+#define _CRT_ABS_DEFINED
+_CRT_EXTERN int abs(int);
+_CRT_EXTERN long labs(long);
+_CRT_EXTERN long long llabs(long long);
+#endif
+
+/* Multibyte functions
+ * Not implemented yet, no support for conversion
+ * and such yet */
+//mblen
+//mbtowc
+//wctomb
+//mbtowcs
+//wcstombs
 
 #ifdef __cplusplus
 }

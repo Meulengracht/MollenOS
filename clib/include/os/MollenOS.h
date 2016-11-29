@@ -182,6 +182,18 @@ typedef struct _mRectangle
 } Rect_t;
 #endif
 
+/* This is only hardcoded for now untill
+ * we implement support for querying memory
+ * options */
+#ifndef MOS_PAGE_SIZE
+#define MOS_PAGE_SIZE	0x1000
+#endif
+
+/* The max-path we support in the OS
+ * for file-paths, in MollenOS we support
+ * rather long paths */
+#define _MAX_PATH 512
+
 /***********************
 * IPC Prototypes
 ***********************/

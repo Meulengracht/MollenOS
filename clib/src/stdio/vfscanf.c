@@ -119,7 +119,7 @@ int __svfscanf(FILE *fp, char const * fmt0, va_list ap)
 	int nassigned;		/* number of fields assigned */
 	int nread;		/* number of characters consumed from fp */
 	int base;		/* base argument to strtol/strtoul */
-	u_long(*ccfn)(const char*, char**, int);	/* conversion function (strtol/strtoul) */
+	u_long(*ccfn)(const char*__restrict, char**__restrict, int);	/* conversion function (strtol/strtoul) */
 	char ccltab[256];	/* character class table for %[...] */
 	char buf[BUF];		/* buffer for numeric conversions */
 
@@ -199,13 +199,13 @@ int __svfscanf(FILE *fp, char const * fmt0, va_list ap)
 			/* FALLTHROUGH */
 		case 'd':
 			c = CT_INT;
-			ccfn = (u_long(*)(const char*, char**, int))strtol;
+			ccfn = (u_long(*)(const char*__restrict, char**__restrict, int))strtol;
 			base = 10;
 			break;
 
 		case 'i':
 			c = CT_INT;
-			ccfn = (u_long(*)(const char*, char**, int))strtol;
+			ccfn = (u_long(*)(const char*__restrict, char**__restrict, int))strtol;
 			base = 0;
 			break;
 
@@ -287,7 +287,7 @@ int __svfscanf(FILE *fp, char const * fmt0, va_list ap)
 			if (isupper(c))
 				flags |= LONG;
 			c = CT_INT;
-			ccfn = (u_long(*)(const char*, char**, int))strtol;
+			ccfn = (u_long(*)(const char*__restrict, char**__restrict, int))strtol;
 			base = 10;
 			break;
 		}
@@ -642,7 +642,7 @@ int __svfscanf(FILE *fp, char const * fmt0, va_list ap)
 				if (flags & LONG)
 					*va_arg(ap, double *) = res;
 				else
-					*va_arg(ap, float *) = res;
+					*va_arg(ap, float *) = (float)res;
 				nassigned++;
 			}
 			nread += p - buf;

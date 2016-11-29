@@ -29,30 +29,9 @@
 #pragma function(abs)
 #endif
 
-/* Absolutes the given int to a positive 
- * value */
+/* Absolutes the given integer value 
+ * to a positive value */
 int abs(int j)
 {
 	return j < 0 ? -j : j;
 }
-
-/* Complex absolute */
-double _cabs(struct _complex z)
-{
-	return sqrt(z.x*z.x + z.y*z.y);
-}
-
-#if (_MOLLENOS >= 0x100) && \
-	(defined(__x86_64) || defined(_M_AMD64) || \
-	defined (__ia64__) || defined (_M_IA64))
-
-_Check_return_
-float
-__cdecl
-fabsf(
-_In_ float x)
-{
-	return (float)fabs((double)x);
-}
-
-#endif
