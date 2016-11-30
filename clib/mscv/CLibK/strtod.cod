@@ -3557,12 +3557,12 @@ _TEXT	ENDS
 _TEXT	SEGMENT
 ___get_current_locale PROC				; COMDAT
 
-; 229  : 	return __get_locale_r() ? 
-; 230  : 		__get_locale_r() : __get_global_locale();
+; 236  : 	return (__get_locale_r() != NULL) ? 
+; 237  : 		__get_locale_r() : __get_global_locale();
 
   00000	b8 00 00 00 00	 mov	 eax, OFFSET ___global_locale
 
-; 231  : }
+; 238  : }
 
   00005	c3		 ret	 0
 ___get_current_locale ENDP
@@ -3573,13 +3573,11 @@ _TEXT	ENDS
 _TEXT	SEGMENT
 ___get_locale_r PROC					; COMDAT
 
-; 218  : 	/* Access the per thread storage locale */
-; 219  : 	return NULL;
+; 226  : 	return NULL;
 
   00000	33 c0		 xor	 eax, eax
 
-; 220  :   //return r->_locale;
-; 221  : }
+; 227  : }
 
   00002	c3		 ret	 0
 ___get_locale_r ENDP

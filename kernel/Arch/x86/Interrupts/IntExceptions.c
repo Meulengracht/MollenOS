@@ -38,6 +38,58 @@ extern void clear_ts(void);
 extern void ThreadingDebugPrint(void);
 extern void enter_thread(Registers_t *Regs);
 
+/* Use this to lookup the faulty module or process */
+void LookupFault(Addr_t Address, Addr_t *Base, char **Name)
+{
+	if (Address >= MEMORY_LOCATION_MODULES
+		&& Address < (MEMORY_LOCATION_MODULES + 0x1000000))
+	{
+		/* Try to find the module */
+		MCoreModule_t *Module = ModuleFindAddress(Address);
+
+		/* Sanity */
+		if (Module != NULL) {
+			*Base = Module->Descriptor->BaseVirtual;
+			*Name = (char*)&Module->Header->ModuleName[0];
+			return;
+		}
+	}
+	else if (Address >= MEMORY_LOCATION_USER
+		&& Address < MEMORY_LOCATION_USER_HEAP)
+	{
+		/* Get current process information */
+		MCoreProcess_t *Process = PmGetProcess(PROCESS_CURRENT);
+
+		/* Sanitize */
+		if (Process != NULL
+			&& Process->Executable != NULL) {
+			char *PmName = (char*)MStringRaw(Process->Executable->Name);
+			Addr_t PmBase = Process->Executable->BaseVirtual;
+
+			/* Iterate libraries to find the sinner
+			 * We only want one */
+			if (Process->Executable->LoadedLibraries != NULL) {
+				foreach(lNode, Process->Executable->LoadedLibraries) {
+					MCorePeFile_t *Lib = (MCorePeFile_t*)lNode->Data;
+					if (Address >= Lib->BaseVirtual) {
+						PmName = (char*)MStringRaw(Lib->Name);
+						PmBase = Lib->BaseVirtual;
+					}
+				}
+			}
+
+			/* Update */
+			*Base = PmBase;
+			*Name = PmName;
+			return;
+		}
+	}
+
+	/* Otherwise null */
+	*Base = 0;
+	*Name = NULL;
+}
+
 /* Our very own Cdecl x86 stack trace :-) */
 void StackTrace(size_t MaxFrames)
 {
@@ -48,62 +100,27 @@ void StackTrace(size_t MaxFrames)
 	/* Run */
 	while (Itr != 0 && StackPtr != NULL)
 	{
-		/* Get IP */
+		/* Variables */
 		uint32_t Ip = StackPtr[2];
+		Addr_t Base = 0;
+		char *Name = NULL;
 
 		/* Sanity */
 		if (Ip == 0)
 			break;
 
-		/* We could lookup */
-		if (Ip >= MEMORY_LOCATION_MODULES
-			&& Ip < (MEMORY_LOCATION_MODULES + 0x1000000))
-		{
-			/* Try to find the module */
-			MCoreModule_t *Module = ModuleFindAddress(Ip);
+		/* Who did this? */
+		LookupFault(Ip, &Base, &Name);
 
-			/* Sanity */
-			if (Module != NULL)
-			{
-				uint32_t Diff = Ip - Module->Descriptor->BaseVirtual;
-				LogInformation("CSTK", "%u - 0x%x (%s)",
-					MaxFrames - Itr, Diff, Module->Header->ModuleName);
-			}
+		/* Did we find the sinner? */
+		if (Name != NULL && Base != 0) {
+			Addr_t Diff = Ip - Base;
+			LogInformation("CSTK", "%u - 0x%x (%s)",
+				MaxFrames - Itr, Diff, Name);
 		}
-		else if (Ip >= MEMORY_LOCATION_USER
-			&& Ip < MEMORY_LOCATION_USER_HEAP)
-		{
-			/* Get current process information */
-			MCoreProcess_t *Process = PmGetProcess(PROCESS_CURRENT);
-
-			/* Sanitize */
-			if (Process != NULL
-				&& Process->Executable != NULL) {
-				char *PmName = (char*)MStringRaw(Process->Executable->Name);
-				Addr_t Base = Process->Executable->BaseVirtual;
-
-				/* Iterate libraries to find the sinner 
-				 * We only want one */
-				if (Process->Executable->LoadedLibraries != NULL) {
-					foreach(lNode, Process->Executable->LoadedLibraries) {
-						MCorePeFile_t *Lib = (MCorePeFile_t*)lNode->Data;
-						if (Ip >= Lib->BaseVirtual) {
-							PmName = (char*)MStringRaw(Lib->Name);
-							Base = Lib->BaseVirtual;
-						}
-					}
-				}
-
-				/* Now spit out information */
-				LogInformation("CSTK", "%u - 0x%x (%s)",
-					MaxFrames - Itr, (Ip - Base), PmName);
-			}
-			else {
-				LogInformation("CSTK", "%u - 0x%x", MaxFrames - Itr, Ip);
-			}
-		}
-		else
+		else {
 			LogInformation("CSTK", "%u - 0x%x", MaxFrames - Itr, Ip);
+		}
 
 		/* Sanity 
 		 * Always do null-checks */
@@ -377,6 +394,10 @@ void ExceptionEntry(Registers_t *regs)
 		/* Sanity */
 		if (IssueFixed == 0)
 		{
+			/* Variables for lookup */
+			Addr_t Base = 0;
+			char *Name = NULL;
+
 			/* Get cpu */
 			Cpu = ApicGetCpu();
 
@@ -387,17 +408,12 @@ void ExceptionEntry(Registers_t *regs)
 			printf("CR2 Address: 0x%x\n", UnmappedAddr);
 
 			/* We could lookup */
-			if (regs->Eip >= MEMORY_LOCATION_MODULES
-				&& regs->Eip < (MEMORY_LOCATION_MODULES + 0x1000000))
-			{
-				/* Try to find the module */
-				MCoreModule_t *Module = ModuleFindAddress(regs->Eip);
+			LookupFault(regs->Eip, &Base, &Name);
 
-				/* Sanity */
-				if (Module != NULL) {
-					size_t Diff = regs->Eip - Module->Descriptor->BaseVirtual;
-					printf("Fauly Address: 0x%x (%s)\n", Diff, Module->Header->ModuleName);
-				}
+			/* Sanitize */
+			if (Name != NULL && Base != 0) {
+				Addr_t Diff = regs->Eip - Base;
+				printf("Fauly Address: 0x%x (%s)\n", Diff, Name);
 			}
 			else {
 				printf("Faulty Address: 0x%x\n", regs->Eip);

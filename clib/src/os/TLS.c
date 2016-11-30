@@ -166,8 +166,11 @@ void TLSDestroyInstance(ThreadLocalStorage_t *Tls)
  * for the current thread */
 ThreadLocalStorage_t *TLSGetCurrent(void)
 {
+	/* Dereference the pointer */
+	size_t Address = *((size_t*)MOLLENOS_RESERVED_SPACE);
+
 	/* Done */
-	return (ThreadLocalStorage_t*)MOLLENOS_RESERVED_SPACE;
+	return (ThreadLocalStorage_t*)Address;
 }
 
 /* Create a new global

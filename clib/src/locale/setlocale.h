@@ -213,12 +213,19 @@ __CRT_INLINE struct __locale_t *__get_global_locale(void)
 }
 
 /* Per thread locale. */
+#ifndef LIBC_KERNEL
 #include <os/Thread.h>
 __CRT_INLINE struct __locale_t *__get_locale_r(void)
 {
 	/* Access the per thread storage locale */
 	return (struct __locale_t *)TLSGetCurrent()->ThreadLocale;
 }
+#else
+__CRT_INLINE struct __locale_t *__get_locale_r(void)
+{
+	return NULL;
+}
+#endif
 
 /* In POSIX terms the current locale is the locale used by all functions
    using locale info without providing a locale as parameter (*_l functions).
@@ -226,7 +233,7 @@ __CRT_INLINE struct __locale_t *__get_locale_r(void)
    thread called uselocale, or the global locale if not. */
 __CRT_INLINE struct __locale_t *__get_current_locale(void)
 {
-	return __get_locale_r() ? 
+	return (__get_locale_r() != NULL) ? 
 		__get_locale_r() : __get_global_locale();
 }
 
