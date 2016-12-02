@@ -63,6 +63,6 @@ tm *gmtime_r(const time_t *timer, tm *tmbuf) {
  * timestructure with gmtime
  * format */
 tm *gmtime(const time_t *timer) {
-	tm *buf = &TLSGetCurrent()->TmBuffer;
+	tm *buf = &(TLSGetCurrent()->TmBuffer);
 	return gmtime_r(timer, buf);
 }

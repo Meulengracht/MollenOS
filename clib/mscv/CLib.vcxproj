@@ -289,6 +289,7 @@
     <ClCompile Include="..\src\stdlib\mbtowc.c" />
     <ClCompile Include="..\src\stdlib\mprec.c" />
     <ClCompile Include="..\src\stdlib\qsort.c" />
+    <ClCompile Include="..\src\stdlib\quickexit.c" />
     <ClCompile Include="..\src\stdlib\rand.c" />
     <ClCompile Include="..\src\stdlib\strtod.c" />
     <ClCompile Include="..\src\stdlib\strtodg.c" />
@@ -298,6 +299,7 @@
     <ClCompile Include="..\src\stdlib\strtoul.c" />
     <ClCompile Include="..\src\stdlib\strtoull.c" />
     <ClCompile Include="..\src\stdlib\wctomb.c" />
+    <ClCompile Include="..\src\stdlib\_Exit.c" />
     <ClCompile Include="..\src\string\strcasecmp.c" />
     <ClCompile Include="..\src\string\strcat.c" />
     <ClCompile Include="..\src\string\strchr.c" />

@@ -147,8 +147,6 @@ _CRT_EXTERN void free(void*);
 /* Environment functions, primarily functions
  * related to system env setup and exit functionality */
 _CRT_EXTERN void abort(void);
-EXTERN int atexit(void(__cdecl *func)(void));
-_CRT_EXTERN int at_quick_exit(void(*func)(void));
 _CRT_EXTERN char *getenv(const char*);
 _CRT_EXTERN int system(const char*);
 
@@ -156,13 +154,16 @@ _CRT_EXTERN int system(const char*);
  * all do the same, but have different procedures
  * of doing it */
 
-/* Terminate normally, no cleanup. Call all functions in atexit_quick stack */
+/* Terminate normally, no cleanup. 
+ * Call all functions in atexit_quick stack */
+_CRT_EXTERN int at_quick_exit(void(__CRTDECL *function)(void));
 _CRT_EXTERN void quick_exit(int);
 
 /* Terminate normally, no cleanup. No calls to anything. */
 _CRT_EXTERN void _Exit(int);
 
 /* Terminate normally with cleanup, call all functions in atexit stack */
+EXTERN int atexit(void(__CRTDECL *func)(void));
 _CRT_EXTERN void exit(int);
 #define _exit(s)	exit(s);
 
@@ -195,11 +196,11 @@ _CRT_EXTERN long long llabs(long long);
 /* Multibyte functions
  * Not implemented yet, no support for conversion
  * and such yet */
-//mblen
-//mbtowc
-//wctomb
-//mbtowcs
-//wcstombs
+//_CRT_EXTERN int mblen(const char* pmb, size_t max);
+//_CRT_EXTERN int mbtowc(wchar_t *pwc, const char *pmb, size_t max);
+//_CRT_EXTERN int wctomb(char *pmb, wchar_t wc);
+//_CRT_EXTERN size_t mbstowcs (wchar_t* dest, const char* src, size_t max);
+//_CRT_EXTERN size_t wcstombs(char* dest, const wchar_t* src, size_t max);
 
 #ifdef __cplusplus
 }

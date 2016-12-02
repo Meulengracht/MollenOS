@@ -52,5 +52,5 @@ char* strtok(char* str, const char* delimiters)
 {
 	/* Call with the pointer in TLS 
 	 * so strktok is thread specific */
-	return strtok_r(str, delimiters, &TLSGetCurrent()->StrTokNext);
+	return strtok_r(str, delimiters, &(TLSGetCurrent()->StrTokNext));
 }

@@ -40,7 +40,7 @@ errno_t *__errno(void)
  * error code */
 errno_t *__errno(void)
 {
-	return &TLSGetCurrent()->ThreadErrno;
+	return &(TLSGetCurrent()->ThreadErrno);
 }
 
 #endif

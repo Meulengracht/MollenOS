@@ -42,6 +42,6 @@ tm *localtime_r(const time_t *timer, tm *tmbuf)
  * format */
 tm *localtime(const time_t *timer)
 {
-	tm *buf = &TLSGetCurrent()->TmBuffer;
+	tm *buf = &(TLSGetCurrent()->TmBuffer);
 	return localtime_r(timer, buf);
 }

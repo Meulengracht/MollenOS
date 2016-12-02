@@ -136,6 +136,32 @@ int ParseCommandLine(char *CmdLine, char **ArgBuffer)
 	return ArgCount;
 }
 
+/* CRT Initialization sequence 
+ * for a shared C/C++ environment 
+ * call this in all entry points */
+void _mCrtInit(ThreadLocalStorage_t *Tls)
+{
+	/* Variables */
+	uint64_t *ReservedSpace = NULL;
+
+	/* Initialize the 8 bytes
+	* of storage */
+	ReservedSpace = (uint64_t*)MOLLENOS_RESERVED_SPACE;
+	*ReservedSpace = (uint64_t)(size_t)Tls;
+
+	/* Init Crt */
+	__CppInit();
+
+	/* Initialize the TLS */
+	TLSInitInstance(Tls);
+
+	/* Init TLS */
+	TLSInit();
+
+	/* Init EH */
+	__CppInitVectoredEH();
+}
+
 /* Service Entry Point 
  * Use this entry point for programs
  * that don't require a window/console */
@@ -143,27 +169,12 @@ void _mSrvCrt(void)
 {
 	/* Variables */
 	ThreadLocalStorage_t Tls;
-	uint64_t *ReservedSpace;
 	char **Args = NULL;
 	int ArgCount = 0;
 	int RetValue = 0;
 
-	/* Initialize the 8 bytes
-	 * of storage */
-	ReservedSpace = (uint64_t*)MOLLENOS_RESERVED_SPACE;
-	*ReservedSpace = (uint64_t)(size_t)&Tls;
-
-	/* Init Crt */
-	__CppInit();
-	
-	/* Initialize the TLS */
-	TLSInitInstance(&Tls);
-
-	/* Init TLS */
-	TLSInit();	
-
-	/* Init EH */
-	__CppInitVectoredEH();
+	/* Initialize environment */
+	_mCrtInit(&Tls);
 
 	/* Init Cmd */
 	ArgCount = ParseCommandLine((char*)MOLLENOS_ARGUMENT_ADDR, NULL);
@@ -187,27 +198,12 @@ void _mConCrt(void)
 {
 	/* Variables */
 	ThreadLocalStorage_t Tls;
-	uint64_t *ReservedSpace;
 	char **Args = NULL;
 	int ArgCount = 0;
 	int RetValue = 0;
 
-	/* Initialize the 8 bytes
-	 * of storage */
-	ReservedSpace = (uint64_t*)MOLLENOS_RESERVED_SPACE;
-	*ReservedSpace = (uint64_t)(size_t)&Tls;
-
-	/* Init Crt */
-	__CppInit();
-
-	/* Initialize the TLS */
-	TLSInitInstance(&Tls);
-
-	/* Init TLS */
-	TLSInit();
-
-	/* Init EH */
-	__CppInitVectoredEH();
+	/* Initialize environment */
+	_mCrtInit(&Tls);
 
 	/* Initialize Ui */
 	UiConnect(UiConsole);

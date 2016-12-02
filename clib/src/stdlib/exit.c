@@ -17,8 +17,6 @@
 */
 
 /* Includes */
-#include <os/Syscall.h>
-#include <stddef.h>
 #include <stdlib.h>
 
 #ifndef LIBC_KERNEL
@@ -27,19 +25,13 @@
 extern void __CppFinit(void);
 
 /* Terminate */
-void exit(int status)
+void exit(int Status)
 {
 	/* Cleanup Crt */
 	__CppFinit();
 
-	/* Clean us up */
-	Syscall1(MOLLENOS_SYSCALL_TERMINATE, MOLLENOS_SYSCALL_PARAM(status));
-
-	/* Yield */
-	Syscall0(MOLLENOS_SYSCALL_THREADYIELD);
-
-	/* Forever */
-	for (;;);
+	/* Exit normally */
+	_Exit(Status);
 }
 
 #endif

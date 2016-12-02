@@ -37,6 +37,7 @@ extern "C" {
 #ifndef MSPINLOCK_DEFINED
 #define MSPINLOCK_DEFINED
 typedef int Spinlock_t;
+#define SPINLOCK_INIT			0
 #endif
 
 /***********************

@@ -52,35 +52,35 @@ static _PVFV onexitarray[32];
 static _PVFV *onexitbegin, *onexitend;
 
 /***
-* static void _initterm(_PVFV * pfbegin, _PVFV * pfend) - call entries in
-*       function pointer table
-*
-*Purpose:
-*       Walk a table of function pointers, calling each entry, as follows:
-*
-*           1. walk from beginning to end, pfunctbl is assumed to point
-*              to the beginning of the table, which is currently a null entry,
-*              as is the end entry.
-*           2. skip NULL entries
-*           3. stop walking when the end of the table is encountered
-*
-*Entry:
-*       _PVFV *pfbegin  - pointer to the beginning of the table (first
-*                         valid entry).
-*       _PVFV *pfend    - pointer to the end of the table (after last
-*                         valid entry).
-*
-*Exit:
-*       No return value
-*
-*Notes:
-*       This routine must be exported in the CRT DLL model so that the client
-*       EXE and client DLL(s) can call it to initialize their C++ constructors.
-*
-*Exceptions:
-*       If either pfbegin or pfend is NULL, or invalid, all bets are off!
-*
-*******************************************************************************/
+ * static void _initterm(_PVFV * pfbegin, _PVFV * pfend) - call entries in
+ *       function pointer table
+ *
+ *Purpose:
+ *       Walk a table of function pointers, calling each entry, as follows:
+ *
+ *           1. walk from beginning to end, pfunctbl is assumed to point
+ *              to the beginning of the table, which is currently a null entry,
+ *              as is the end entry.
+ *           2. skip NULL entries
+ *           3. stop walking when the end of the table is encountered
+ *
+ *Entry:
+ *       _PVFV *pfbegin  - pointer to the beginning of the table (first
+ *                         valid entry).
+ *       _PVFV *pfend    - pointer to the end of the table (after last
+ *                         valid entry).
+ *
+ *Exit:
+ *       No return value
+ *
+ *Notes:
+ *       This routine must be exported in the CRT DLL model so that the client
+ *       EXE and client DLL(s) can call it to initialize their C++ constructors.
+ *
+ *Exceptions:
+ *       If either pfbegin or pfend is NULL, or invalid, all bets are off!
+ *
+ *******************************************************************************/
 
 #ifdef CRTDLL
 void __cdecl _initterm(

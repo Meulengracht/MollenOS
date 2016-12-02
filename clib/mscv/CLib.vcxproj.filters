@@ -1041,6 +1041,12 @@
     <ClCompile Include="..\src\stdlib\gdtoa_hex.c">
       <Filter>Source\stdlib</Filter>
     </ClCompile>
+    <ClCompile Include="..\src\stdlib\quickexit.c">
+      <Filter>Source\stdlib</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\stdlib\_Exit.c">
+      <Filter>Source\stdlib</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <CustomBuild Include="..\src\setjmp\setjmp_i386.s">
@@ -1176,9 +1182,6 @@
     <ClInclude Include="..\src\locale\setlocale.h">
       <Filter>Source\locale</Filter>
     </ClInclude>
-    <ClInclude Include="..\src\stdlib\local.h">
-      <Filter>Source\stdlib</Filter>
-    </ClInclude>
     <ClInclude Include="..\src\ctype\ctype_.h">
       <Filter>Source\ctype</Filter>
     </ClInclude>
@@ -1201,6 +1204,9 @@
       <Filter>Source\ctype</Filter>
     </ClInclude>
     <ClInclude Include="..\src\stdlib\mbctype.h">
+      <Filter>Source\stdlib\Headers</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\stdlib\local.h">
       <Filter>Source\stdlib\Headers</Filter>
     </ClInclude>
   </ItemGroup>

@@ -104,7 +104,6 @@ void TLSCallback(void *Data, int n, void *Userdata)
 
 	/* Lol */
 	_CRT_UNUSED(n);
-	_CRT_UNUSED(Userdata);
 
 	/* Run destructor? */
 	if (Tls->Value != NULL
