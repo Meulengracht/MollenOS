@@ -96,9 +96,9 @@
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Build_X86_32|Win32'">
     <GenerateManifest>false</GenerateManifest>
-    <IncludePath>..\..\acpica\include;..\..\Arch;..\..\..\clib\include;..\..\Include;..\..\Msvc\MCoreConfig</IncludePath>
+    <IncludePath>..\..\acpica\include;..\..\Arch;..\..\..\librt\include;..\..\Include;..\..\Msvc\MCoreConfig</IncludePath>
     <LibraryWPath />
-    <LibraryPath>..\..\..\clib\build;..\..\Build\i386</LibraryPath>
+    <LibraryPath>..\..\..\librt\build;..\..\Build\i386</LibraryPath>
     <OutDir>..\..\Build\</OutDir>
     <TargetExt>.mos</TargetExt>
   </PropertyGroup>
@@ -134,7 +134,7 @@
       <DataExecutionPrevention>
       </DataExecutionPrevention>
       <BaseAddress>0x100000</BaseAddress>
-      <AdditionalDependencies>CLibK.lib;LibCrt.lib;Libx86.lib;Libx86_32.lib;Acpica.lib</AdditionalDependencies>
+      <AdditionalDependencies>libk.lib;libcrt.lib;Libx86.lib;Libx86_32.lib;Acpica.lib</AdditionalDependencies>
       <IgnoreAllDefaultLibraries>true</IgnoreAllDefaultLibraries>
       <ImageHasSafeExceptionHandlers />
       <GenerateMapFile>true</GenerateMapFile>

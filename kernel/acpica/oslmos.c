@@ -312,7 +312,7 @@ void *AcpiOsMapMemory(
 	ACPI_SIZE               Length)
 { 
 	/* Vars */
-	Addr_t Acpi_Mapping = MmPhyiscalGetSysMappingVirtual(Where);
+	Addr_t Acpi_Mapping = MmPhyiscalGetSysMappingVirtual((PhysAddr_t)Where);
 	int Acpi_Pages = (Length / PAGE_SIZE) + ((Length % PAGE_SIZE) != 0 ? 1 : 0);
 
 	/* We should handle the case where it crosses a page boundary :o */
@@ -497,7 +497,7 @@ void AcpiOsStall(UINT32 Microseconds)
 void AcpiOsSleep(UINT64 Milliseconds)
 {
 	/* Sleep this thread */
-	StallMs(Milliseconds);
+	StallMs((size_t)Milliseconds);
 	//Sleep(((unsigned long)Milliseconds) + 10);
 	return;
 }

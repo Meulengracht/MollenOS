@@ -1,0 +1,309 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" ToolsVersion="12.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Build_X86_32|Win32">
+      <Configuration>Build_X86_32</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <ProjectGuid>{96CD5AF1-B1D1-4EC0-8B87-DF05A83590E7}</ProjectGuid>
+    <RootNamespace>libc</RootNamespace>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Build_X86_32|Win32'" Label="Configuration">
+    <ConfigurationType>DynamicLibrary</ConfigurationType>
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <PlatformToolset>v120</PlatformToolset>
+    <WholeProgramOptimization>true</WholeProgramOptimization>
+    <CharacterSet>MultiByte</CharacterSet>
+    <UseOfMfc />
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <ImportGroup Label="ExtensionSettings">
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Build_X86_32|Win32'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <PropertyGroup Label="UserMacros" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Build_X86_32|Win32'">
+    <OutDir>$(SolutionDir)librt\build\</OutDir>
+    <IncludePath>..\..\include</IncludePath>
+    <ReferencePath />
+    <LibraryPath>..\..\build</LibraryPath>
+    <LibraryWPath />
+  </PropertyGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Build_X86_32|Win32'">
+    <ClCompile>
+      <WarningLevel>Level4</WarningLevel>
+      <Optimization>Full</Optimization>
+      <FunctionLevelLinking>true</FunctionLevelLinking>
+      <IntrinsicFunctions>false</IntrinsicFunctions>
+      <SDLCheck>
+      </SDLCheck>
+      <TreatWarningAsError Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">true</TreatWarningAsError>
+      <MultiProcessorCompilation Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">true</MultiProcessorCompilation>
+      <InlineFunctionExpansion Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">Disabled</InlineFunctionExpansion>
+      <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">MOLLENOS;X86_32;__i386__</PreprocessorDefinitions>
+      <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">MOLLENOS</PreprocessorDefinitions>
+      <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">MOLLENOS</PreprocessorDefinitions>
+      <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">MOLLENOS</PreprocessorDefinitions>
+      <PreprocessorDefinitions>MOLLENOS;_X86_32;_HAVE_LONG_DOUBLE;_LDBL_EQ_DBL;_CRT_DYNAMIC;_CRT_DLL</PreprocessorDefinitions>
+      <TreatWarningAsError>true</TreatWarningAsError>
+      <MultiProcessorCompilation>true</MultiProcessorCompilation>
+      <BufferSecurityCheck>false</BufferSecurityCheck>
+      <AssemblerOutput>All</AssemblerOutput>
+      <DisableSpecificWarnings>4706</DisableSpecificWarnings>
+      <InlineFunctionExpansion>Disabled</InlineFunctionExpansion>
+      <WholeProgramOptimization>false</WholeProgramOptimization>
+      <EnableEnhancedInstructionSet>NoExtensions</EnableEnhancedInstructionSet>
+    </ClCompile>
+    <Link>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <EnableCOMDATFolding>true</EnableCOMDATFolding>
+      <OptimizeReferences>true</OptimizeReferences>
+      <AdditionalDependencies>libcrt.lib;libm.lib</AdditionalDependencies>
+      <IgnoreAllDefaultLibraries>true</IgnoreAllDefaultLibraries>
+      <NoEntryPoint>false</NoEntryPoint>
+      <GenerateMapFile>true</GenerateMapFile>
+      <MapExports>true</MapExports>
+      <SubSystem>Native</SubSystem>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemGroup>
+    <ClCompile Include="..\..\libc\assert\assert.c" />
+    <ClCompile Include="..\..\libc\ctype\ctype_.c" />
+    <ClCompile Include="..\..\libc\ctype\isalnum.c" />
+    <ClCompile Include="..\..\libc\ctype\isalnum_l.c" />
+    <ClCompile Include="..\..\libc\ctype\isalpha.c" />
+    <ClCompile Include="..\..\libc\ctype\isalpha_l.c" />
+    <ClCompile Include="..\..\libc\ctype\isascii.c" />
+    <ClCompile Include="..\..\libc\ctype\isascii_l.c" />
+    <ClCompile Include="..\..\libc\ctype\isblank.c" />
+    <ClCompile Include="..\..\libc\ctype\isblank_l.c" />
+    <ClCompile Include="..\..\libc\ctype\iscntrl.c" />
+    <ClCompile Include="..\..\libc\ctype\iscntrl_l.c" />
+    <ClCompile Include="..\..\libc\ctype\isdigit.c" />
+    <ClCompile Include="..\..\libc\ctype\isdigit_l.c" />
+    <ClCompile Include="..\..\libc\ctype\islower.c" />
+    <ClCompile Include="..\..\libc\ctype\islower_l.c" />
+    <ClCompile Include="..\..\libc\ctype\isprint.c" />
+    <ClCompile Include="..\..\libc\ctype\isprint_l.c" />
+    <ClCompile Include="..\..\libc\ctype\ispunct.c" />
+    <ClCompile Include="..\..\libc\ctype\ispunct_l.c" />
+    <ClCompile Include="..\..\libc\ctype\isspace.c" />
+    <ClCompile Include="..\..\libc\ctype\isspace_l.c" />
+    <ClCompile Include="..\..\libc\ctype\isupper.c" />
+    <ClCompile Include="..\..\libc\ctype\isupper_l.c" />
+    <ClCompile Include="..\..\libc\ctype\iswalnum.c" />
+    <ClCompile Include="..\..\libc\ctype\iswalnum_l.c" />
+    <ClCompile Include="..\..\libc\ctype\iswalpha.c" />
+    <ClCompile Include="..\..\libc\ctype\iswalpha_l.c" />
+    <ClCompile Include="..\..\libc\ctype\iswblank.c" />
+    <ClCompile Include="..\..\libc\ctype\iswblank_l.c" />
+    <ClCompile Include="..\..\libc\ctype\iswcntrl.c" />
+    <ClCompile Include="..\..\libc\ctype\iswcntrl_l.c" />
+    <ClCompile Include="..\..\libc\ctype\iswctype.c" />
+    <ClCompile Include="..\..\libc\ctype\iswctype_l.c" />
+    <ClCompile Include="..\..\libc\ctype\iswdigit.c" />
+    <ClCompile Include="..\..\libc\ctype\iswdigit_l.c" />
+    <ClCompile Include="..\..\libc\ctype\iswgraph.c" />
+    <ClCompile Include="..\..\libc\ctype\iswgraph_l.c" />
+    <ClCompile Include="..\..\libc\ctype\iswlower.c" />
+    <ClCompile Include="..\..\libc\ctype\iswlower_l.c" />
+    <ClCompile Include="..\..\libc\ctype\iswprint.c" />
+    <ClCompile Include="..\..\libc\ctype\iswprint_l.c" />
+    <ClCompile Include="..\..\libc\ctype\iswpunct.c" />
+    <ClCompile Include="..\..\libc\ctype\iswpunct_l.c" />
+    <ClCompile Include="..\..\libc\ctype\iswspace.c" />
+    <ClCompile Include="..\..\libc\ctype\iswspace_l.c" />
+    <ClCompile Include="..\..\libc\ctype\iswupper.c" />
+    <ClCompile Include="..\..\libc\ctype\iswupper_l.c" />
+    <ClCompile Include="..\..\libc\ctype\iswxdigit.c" />
+    <ClCompile Include="..\..\libc\ctype\iswxdigit_l.c" />
+    <ClCompile Include="..\..\libc\ctype\isxdigit.c" />
+    <ClCompile Include="..\..\libc\ctype\isxdigit_l.c" />
+    <ClCompile Include="..\..\libc\ctype\jp2uc.c" />
+    <ClCompile Include="..\..\libc\ctype\toascii.c" />
+    <ClCompile Include="..\..\libc\ctype\toascii_l.c" />
+    <ClCompile Include="..\..\libc\ctype\tolower.c" />
+    <ClCompile Include="..\..\libc\ctype\tolower_l.c" />
+    <ClCompile Include="..\..\libc\ctype\toupper.c" />
+    <ClCompile Include="..\..\libc\ctype\toupper_l.c" />
+    <ClCompile Include="..\..\libc\ctype\towctrans.c" />
+    <ClCompile Include="..\..\libc\ctype\towctrans_l.c" />
+    <ClCompile Include="..\..\libc\ctype\towlower.c" />
+    <ClCompile Include="..\..\libc\ctype\towlower_l.c" />
+    <ClCompile Include="..\..\libc\ctype\towupper.c" />
+    <ClCompile Include="..\..\libc\ctype\towupper_l.c" />
+    <ClCompile Include="..\..\libc\ctype\wctrans.c" />
+    <ClCompile Include="..\..\libc\ctype\wctrans_l.c" />
+    <ClCompile Include="..\..\libc\ctype\wctype.c" />
+    <ClCompile Include="..\..\libc\ctype\wctype_l.c" />
+    <ClCompile Include="..\..\libc\errno\errno.c" />
+    <ClCompile Include="..\..\libc\errno\errstrings.c" />
+    <ClCompile Include="..\..\libc\getopt\getopt_long.c" />
+    <ClCompile Include="..\..\libc\glue\Misc.c" />
+    <ClCompile Include="..\..\libc\glue\Spinlock.c" />
+    <ClCompile Include="..\..\libc\glue\Syscalls.c" />
+    <ClCompile Include="..\..\libc\locale\duplocale.c" />
+    <ClCompile Include="..\..\libc\locale\freelocale.c" />
+    <ClCompile Include="..\..\libc\locale\lctype.c" />
+    <ClCompile Include="..\..\libc\locale\lmessages.c" />
+    <ClCompile Include="..\..\libc\locale\lmonetary.c" />
+    <ClCompile Include="..\..\libc\locale\lnumeric.c" />
+    <ClCompile Include="..\..\libc\locale\locale.c" />
+    <ClCompile Include="..\..\libc\locale\localeconv.c" />
+    <ClCompile Include="..\..\libc\locale\newlocale.c" />
+    <ClCompile Include="..\..\libc\locale\timelocal.c" />
+    <ClCompile Include="..\..\libc\locale\uselocale.c" />
+    <ClCompile Include="..\..\libc\mem\memchr.c" />
+    <ClCompile Include="..\..\libc\mem\memcmp.c" />
+    <ClCompile Include="..\..\libc\mem\memcpy.c" />
+    <ClCompile Include="..\..\libc\mem\memmove.c" />
+    <ClCompile Include="..\..\libc\mem\memset.c" />
+    <ClCompile Include="..\..\libc\signal\signal.c" />
+    <ClCompile Include="..\..\libc\stdio\fbuf.c" />
+    <ClCompile Include="..\..\libc\stdio\fclose.c" />
+    <ClCompile Include="..\..\libc\stdio\feof.c" />
+    <ClCompile Include="..\..\libc\stdio\ferror.c" />
+    <ClCompile Include="..\..\libc\stdio\fflags.c" />
+    <ClCompile Include="..\..\libc\stdio\fflush.c" />
+    <ClCompile Include="..\..\libc\stdio\fgetc.c" />
+    <ClCompile Include="..\..\libc\stdio\fgetpos.c" />
+    <ClCompile Include="..\..\libc\stdio\fgets.c" />
+    <ClCompile Include="..\..\libc\stdio\fopen.c" />
+    <ClCompile Include="..\..\libc\stdio\fpeekc.c" />
+    <ClCompile Include="..\..\libc\stdio\fprintf.c" />
+    <ClCompile Include="..\..\libc\stdio\fputc.c" />
+    <ClCompile Include="..\..\libc\stdio\fputs.c" />
+    <ClCompile Include="..\..\libc\stdio\fread.c" />
+    <ClCompile Include="..\..\libc\stdio\fremove.c" />
+    <ClCompile Include="..\..\libc\stdio\freopen.c" />
+    <ClCompile Include="..\..\libc\stdio\frewind.c" />
+    <ClCompile Include="..\..\libc\stdio\fscanf.c" />
+    <ClCompile Include="..\..\libc\stdio\fseek.c" />
+    <ClCompile Include="..\..\libc\stdio\fsetpos.c" />
+    <ClCompile Include="..\..\libc\stdio\ftell.c" />
+    <ClCompile Include="..\..\libc\stdio\fungetc.c" />
+    <ClCompile Include="..\..\libc\stdio\fwrite.c" />
+    <ClCompile Include="..\..\libc\stdio\getchar.c" />
+    <ClCompile Include="..\..\libc\stdio\perror.c" />
+    <ClCompile Include="..\..\libc\stdio\printf.c" />
+    <ClCompile Include="..\..\libc\stdio\putchar.c" />
+    <ClCompile Include="..\..\libc\stdio\puts.c" />
+    <ClCompile Include="..\..\libc\stdio\snprintf.c" />
+    <ClCompile Include="..\..\libc\stdio\sprintf.c" />
+    <ClCompile Include="..\..\libc\stdio\sscanf.c" />
+    <ClCompile Include="..\..\libc\stdio\stream.c" />
+    <ClCompile Include="..\..\libc\stdio\strerror.c" />
+    <ClCompile Include="..\..\libc\stdio\vasprintf.c" />
+    <ClCompile Include="..\..\libc\stdio\vfprintf.c" />
+    <ClCompile Include="..\..\libc\stdio\vfscanf.c" />
+    <ClCompile Include="..\..\libc\stdio\vprintf.c" />
+    <ClCompile Include="..\..\libc\stdio\vsnprintf.c" />
+    <ClCompile Include="..\..\libc\stdio\vsprintf.c" />
+    <ClCompile Include="..\..\libc\stdlib\abort.c" />
+    <ClCompile Include="..\..\libc\stdlib\abs.c" />
+    <ClCompile Include="..\..\libc\stdlib\atof.c" />
+    <ClCompile Include="..\..\libc\stdlib\atoff.c" />
+    <ClCompile Include="..\..\libc\stdlib\atoi.c" />
+    <ClCompile Include="..\..\libc\stdlib\atol.c" />
+    <ClCompile Include="..\..\libc\stdlib\atold.c" />
+    <ClCompile Include="..\..\libc\stdlib\atoll.c" />
+    <ClCompile Include="..\..\libc\stdlib\bsearch.c" />
+    <ClCompile Include="..\..\libc\stdlib\div.c" />
+    <ClCompile Include="..\..\libc\stdlib\exit.c" />
+    <ClCompile Include="..\..\libc\stdlib\gdtoa.c" />
+    <ClCompile Include="..\..\libc\stdlib\gdtoa_hex.c" />
+    <ClCompile Include="..\..\libc\stdlib\getenv.c" />
+    <ClCompile Include="..\..\libc\stdlib\itoa.c" />
+    <ClCompile Include="..\..\libc\stdlib\labs.c" />
+    <ClCompile Include="..\..\libc\stdlib\ldiv.c" />
+    <ClCompile Include="..\..\libc\stdlib\llabs.c" />
+    <ClCompile Include="..\..\libc\stdlib\lldiv.c" />
+    <ClCompile Include="..\..\libc\stdlib\malloc.c" />
+    <ClCompile Include="..\..\libc\stdlib\mbtowc.c" />
+    <ClCompile Include="..\..\libc\stdlib\mprec.c" />
+    <ClCompile Include="..\..\libc\stdlib\qsort.c" />
+    <ClCompile Include="..\..\libc\stdlib\quickexit.c" />
+    <ClCompile Include="..\..\libc\stdlib\rand.c" />
+    <ClCompile Include="..\..\libc\stdlib\strtod.c" />
+    <ClCompile Include="..\..\libc\stdlib\strtodg.c" />
+    <ClCompile Include="..\..\libc\stdlib\strtol.c" />
+    <ClCompile Include="..\..\libc\stdlib\strtold.c" />
+    <ClCompile Include="..\..\libc\stdlib\strtoll.c" />
+    <ClCompile Include="..\..\libc\stdlib\strtoul.c" />
+    <ClCompile Include="..\..\libc\stdlib\strtoull.c" />
+    <ClCompile Include="..\..\libc\stdlib\wctomb.c" />
+    <ClCompile Include="..\..\libc\stdlib\_Exit.c" />
+    <ClCompile Include="..\..\libc\string\strcasecmp.c" />
+    <ClCompile Include="..\..\libc\string\strcat.c" />
+    <ClCompile Include="..\..\libc\string\strchr.c" />
+    <ClCompile Include="..\..\libc\string\strcmp.c" />
+    <ClCompile Include="..\..\libc\string\strcoll.c" />
+    <ClCompile Include="..\..\libc\string\strcpy.c" />
+    <ClCompile Include="..\..\libc\string\strcspn.c" />
+    <ClCompile Include="..\..\libc\string\strdup.c" />
+    <ClCompile Include="..\..\libc\string\strlen.c" />
+    <ClCompile Include="..\..\libc\string\strncasecmp.c" />
+    <ClCompile Include="..\..\libc\string\strncat.c" />
+    <ClCompile Include="..\..\libc\string\strncmp.c" />
+    <ClCompile Include="..\..\libc\string\strncpy.c" />
+    <ClCompile Include="..\..\libc\string\strnlen.c" />
+    <ClCompile Include="..\..\libc\string\strpbrk.c" />
+    <ClCompile Include="..\..\libc\string\strrchr.c" />
+    <ClCompile Include="..\..\libc\string\strspn.c" />
+    <ClCompile Include="..\..\libc\string\strstr.c" />
+    <ClCompile Include="..\..\libc\string\strtok.c" />
+    <ClCompile Include="..\..\libc\string\strxfrm.c" />
+    <ClCompile Include="..\..\libc\string\wcsnlen.c" />
+    <ClCompile Include="..\..\libc\time\difftime.c" />
+    <ClCompile Include="..\..\libc\time\gmtime.c" />
+    <ClCompile Include="..\..\libc\time\localtime.c" />
+    <ClCompile Include="..\..\libc\time\mktime.c" />
+    <ClCompile Include="..\..\libc\time\time.c" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\..\libc\ctype\ctype_.h" />
+    <ClInclude Include="..\..\libc\ctype\ctype_cp.h" />
+    <ClInclude Include="..\..\libc\ctype\ctype_iso.h" />
+    <ClInclude Include="..\..\libc\ctype\jp2uc.h" />
+    <ClInclude Include="..\..\libc\ctype\local.h" />
+    <ClInclude Include="..\..\libc\ctype\utf8alpha.h" />
+    <ClInclude Include="..\..\libc\ctype\utf8print.h" />
+    <ClInclude Include="..\..\libc\locale\setlocale.h" />
+    <ClInclude Include="..\..\libc\stdlib\gdtoa.h" />
+    <ClInclude Include="..\..\libc\stdlib\gd_qnan.h" />
+    <ClInclude Include="..\..\libc\stdlib\local.h" />
+    <ClInclude Include="..\..\libc\stdlib\mbctype.h" />
+    <ClInclude Include="..\..\libc\stdlib\mprec.h" />
+    <ClInclude Include="..\..\libc\string\str-two-way.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="..\..\libc\arch\amd64\_setjmp.s" />
+    <CustomBuild Include="..\..\libc\arch\i386\_memcpy.s">
+      <FileType>Document</FileType>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Build_X86_32|Win32'">nasm -f win32 -Xvc -o $(IntDir)\%(Filename).obj %(FullPath)</Command>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Build_X86_32|Win32'">$(IntDir)\%(Filename).obj</Outputs>
+    </CustomBuild>
+    <CustomBuild Include="..\..\libc\arch\i386\_setjmp.s">
+      <FileType>Document</FileType>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Build_X86_32|Win32'">nasm -f win32 -Xvc -o $(IntDir)\%(Filename).obj %(FullPath)</Command>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Build_X86_32|Win32'">$(IntDir)\%(Filename).obj</Outputs>
+    </CustomBuild>
+    <CustomBuild Include="..\..\libc\glue\i386\_Spinlock.asm">
+      <FileType>Document</FileType>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Build_X86_32|Win32'">nasm -f win32 -Xvc -o $(IntDir)\%(Filename).obj %(FullPath)</Command>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Build_X86_32|Win32'">$(IntDir)\%(Filename).obj</Outputs>
+    </CustomBuild>
+    <CustomBuild Include="..\..\libc\glue\i386\_Syscall32.asm">
+      <FileType>Document</FileType>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Build_X86_32|Win32'">nasm -f win32 -Xvc -o $(IntDir)\%(Filename).obj %(FullPath)</Command>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Build_X86_32|Win32'">$(IntDir)\%(Filename).obj</Outputs>
+    </CustomBuild>
+  </ItemGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <ImportGroup Label="ExtensionTargets">
+  </ImportGroup>
+</Project>
