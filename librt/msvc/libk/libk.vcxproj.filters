@@ -171,63 +171,6 @@
     <ClCompile Include="..\..\libc\ctype\toupper.c">
       <Filter>ctype</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\libos\ds\Ds.c">
-      <Filter>ds</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\libos\ds\HashTable.c">
-      <Filter>ds</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\libos\ds\List.c">
-      <Filter>ds</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\libos\ds\Ringbuffer.c">
-      <Filter>ds</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\libos\mstring\MStringAppend.c">
-      <Filter>mstring</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\libos\mstring\MStringCompare.c">
-      <Filter>mstring</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\libos\mstring\MStringCopy.c">
-      <Filter>mstring</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\libos\mstring\MStringCreate.c">
-      <Filter>mstring</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\libos\mstring\MStringDestroy.c">
-      <Filter>mstring</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\libos\mstring\MStringFind.c">
-      <Filter>mstring</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\libos\mstring\MStringHash.c">
-      <Filter>mstring</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\libos\mstring\MStringIterate.c">
-      <Filter>mstring</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\libos\mstring\MStringLength.c">
-      <Filter>mstring</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\libos\mstring\MStringMisc.c">
-      <Filter>mstring</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\libos\mstring\MStringPrint.c">
-      <Filter>mstring</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\libos\mstring\MStringRaw.c">
-      <Filter>mstring</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\libos\mstring\MStringResize.c">
-      <Filter>mstring</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\libos\mstring\MStringSubString.c">
-      <Filter>mstring</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\libos\mstring\MStringUtf8.c">
-      <Filter>mstring</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\libc\stdlib\itoa.c">
       <Filter>stdlib</Filter>
     </ClCompile>
@@ -242,9 +185,6 @@
     </ClCompile>
     <ClCompile Include="..\..\libc\locale\locale.c">
       <Filter>locale</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\libc\glue\Spinlock.c">
-      <Filter>glue</Filter>
     </ClCompile>
     <ClCompile Include="..\..\libc\stdio\printf.c">
       <Filter>stdio</Filter>
@@ -273,6 +213,66 @@
     <ClCompile Include="..\..\libc\stdio\vsprintf.c">
       <Filter>stdio</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\libos\synchronization\spinlock.c">
+      <Filter>glue</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\libos\ds\ds.c">
+      <Filter>ds</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\libos\ds\hashtable.c">
+      <Filter>ds</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\libos\ds\list.c">
+      <Filter>ds</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\libos\ds\ringbuffer.c">
+      <Filter>ds</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\libos\mstring\mstringappend.c">
+      <Filter>mstring</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\libos\mstring\mstringcompare.c">
+      <Filter>mstring</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\libos\mstring\mstringcopy.c">
+      <Filter>mstring</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\libos\mstring\mstringcreate.c">
+      <Filter>mstring</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\libos\mstring\mstringdestroy.c">
+      <Filter>mstring</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\libos\mstring\mstringfind.c">
+      <Filter>mstring</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\libos\mstring\mstringhash.c">
+      <Filter>mstring</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\libos\mstring\mstringiterate.c">
+      <Filter>mstring</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\libos\mstring\mstringlength.c">
+      <Filter>mstring</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\libos\mstring\mstringmisc.c">
+      <Filter>mstring</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\libos\mstring\mstringprint.c">
+      <Filter>mstring</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\libos\mstring\mstringraw.c">
+      <Filter>mstring</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\libos\mstring\mstringresize.c">
+      <Filter>mstring</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\libos\mstring\mstringsubstring.c">
+      <Filter>mstring</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\libos\mstring\mstringutf8.c">
+      <Filter>mstring</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\libc\string\str-two-way.h">
@@ -298,7 +298,7 @@
     <CustomBuild Include="..\..\libc\arch\i386\_setjmp.s">
       <Filter>arch\i386</Filter>
     </CustomBuild>
-    <CustomBuild Include="..\..\libc\glue\i386\_Spinlock.asm">
+    <CustomBuild Include="..\..\libos\arch\i386\_spinlock.s">
       <Filter>glue\i386</Filter>
     </CustomBuild>
   </ItemGroup>

@@ -143,9 +143,7 @@
     <ClCompile Include="..\..\libc\errno\errno.c" />
     <ClCompile Include="..\..\libc\errno\errstrings.c" />
     <ClCompile Include="..\..\libc\getopt\getopt_long.c" />
-    <ClCompile Include="..\..\libc\glue\Misc.c" />
-    <ClCompile Include="..\..\libc\glue\Spinlock.c" />
-    <ClCompile Include="..\..\libc\glue\Syscalls.c" />
+    <ClCompile Include="..\..\libc\glue\misc.c" />
     <ClCompile Include="..\..\libc\locale\duplocale.c" />
     <ClCompile Include="..\..\libc\locale\freelocale.c" />
     <ClCompile Include="..\..\libc\locale\lctype.c" />
@@ -263,6 +261,8 @@
     <ClCompile Include="..\..\libc\time\localtime.c" />
     <ClCompile Include="..\..\libc\time\mktime.c" />
     <ClCompile Include="..\..\libc\time\time.c" />
+    <ClCompile Include="..\..\libos\synchronization\spinlock.c" />
+    <ClCompile Include="..\..\libos\syscalls.c" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\libc\ctype\ctype_.h" />
@@ -292,12 +292,12 @@
       <Command Condition="'$(Configuration)|$(Platform)'=='Build_X86_32|Win32'">nasm -f win32 -Xvc -o $(IntDir)\%(Filename).obj %(FullPath)</Command>
       <Outputs Condition="'$(Configuration)|$(Platform)'=='Build_X86_32|Win32'">$(IntDir)\%(Filename).obj</Outputs>
     </CustomBuild>
-    <CustomBuild Include="..\..\libc\glue\i386\_Spinlock.asm">
+    <CustomBuild Include="..\..\libos\arch\i386\_spinlock.s">
       <FileType>Document</FileType>
       <Command Condition="'$(Configuration)|$(Platform)'=='Build_X86_32|Win32'">nasm -f win32 -Xvc -o $(IntDir)\%(Filename).obj %(FullPath)</Command>
       <Outputs Condition="'$(Configuration)|$(Platform)'=='Build_X86_32|Win32'">$(IntDir)\%(Filename).obj</Outputs>
     </CustomBuild>
-    <CustomBuild Include="..\..\libc\glue\i386\_Syscall32.asm">
+    <CustomBuild Include="..\..\libos\arch\i386\_syscall.s">
       <FileType>Document</FileType>
       <Command Condition="'$(Configuration)|$(Platform)'=='Build_X86_32|Win32'">nasm -f win32 -Xvc -o $(IntDir)\%(Filename).obj %(FullPath)</Command>
       <Outputs Condition="'$(Configuration)|$(Platform)'=='Build_X86_32|Win32'">$(IntDir)\%(Filename).obj</Outputs>

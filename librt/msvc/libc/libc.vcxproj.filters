@@ -630,13 +630,13 @@
     <ClCompile Include="..\..\libc\stdlib\malloc.c">
       <Filter>stdlib</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\libc\glue\Spinlock.c">
+    <ClCompile Include="..\..\libc\glue\misc.c">
       <Filter>glue</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\libc\glue\Syscalls.c">
+    <ClCompile Include="..\..\libos\synchronization\spinlock.c">
       <Filter>glue</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\libc\glue\Misc.c">
+    <ClCompile Include="..\..\libos\syscalls.c">
       <Filter>glue</Filter>
     </ClCompile>
   </ItemGroup>
@@ -696,10 +696,10 @@
     <CustomBuild Include="..\..\libc\arch\i386\_setjmp.s">
       <Filter>arch\i386</Filter>
     </CustomBuild>
-    <CustomBuild Include="..\..\libc\glue\i386\_Syscall32.asm">
+    <CustomBuild Include="..\..\libos\arch\i386\_spinlock.s">
       <Filter>glue\i386</Filter>
     </CustomBuild>
-    <CustomBuild Include="..\..\libc\glue\i386\_Spinlock.asm">
+    <CustomBuild Include="..\..\libos\arch\i386\_syscall.s">
       <Filter>glue\i386</Filter>
     </CustomBuild>
   </ItemGroup>

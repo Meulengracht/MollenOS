@@ -79,7 +79,6 @@
     <ClCompile Include="..\..\libc\ctype\toupper.c" />
     <ClCompile Include="..\..\libc\errno\errno.c" />
     <ClCompile Include="..\..\libc\errno\errstrings.c" />
-    <ClCompile Include="..\..\libc\glue\Spinlock.c" />
     <ClCompile Include="..\..\libc\locale\locale.c" />
     <ClCompile Include="..\..\libc\mem\memchr.c" />
     <ClCompile Include="..\..\libc\mem\memcmp.c" />
@@ -118,25 +117,26 @@
     <ClCompile Include="..\..\libc\string\strtok.c" />
     <ClCompile Include="..\..\libc\string\strxfrm.c" />
     <ClCompile Include="..\..\libc\string\wcsnlen.c" />
-    <ClCompile Include="..\..\libos\ds\Ds.c" />
-    <ClCompile Include="..\..\libos\ds\HashTable.c" />
-    <ClCompile Include="..\..\libos\ds\List.c" />
-    <ClCompile Include="..\..\libos\ds\Ringbuffer.c" />
-    <ClCompile Include="..\..\libos\mstring\MStringAppend.c" />
-    <ClCompile Include="..\..\libos\mstring\MStringCompare.c" />
-    <ClCompile Include="..\..\libos\mstring\MStringCopy.c" />
-    <ClCompile Include="..\..\libos\mstring\MStringCreate.c" />
-    <ClCompile Include="..\..\libos\mstring\MStringDestroy.c" />
-    <ClCompile Include="..\..\libos\mstring\MStringFind.c" />
-    <ClCompile Include="..\..\libos\mstring\MStringHash.c" />
-    <ClCompile Include="..\..\libos\mstring\MStringIterate.c" />
-    <ClCompile Include="..\..\libos\mstring\MStringLength.c" />
-    <ClCompile Include="..\..\libos\mstring\MStringMisc.c" />
-    <ClCompile Include="..\..\libos\mstring\MStringPrint.c" />
-    <ClCompile Include="..\..\libos\mstring\MStringRaw.c" />
-    <ClCompile Include="..\..\libos\mstring\MStringResize.c" />
-    <ClCompile Include="..\..\libos\mstring\MStringSubString.c" />
-    <ClCompile Include="..\..\libos\mstring\MStringUtf8.c" />
+    <ClCompile Include="..\..\libos\ds\ds.c" />
+    <ClCompile Include="..\..\libos\ds\hashtable.c" />
+    <ClCompile Include="..\..\libos\ds\list.c" />
+    <ClCompile Include="..\..\libos\ds\ringbuffer.c" />
+    <ClCompile Include="..\..\libos\mstring\mstringappend.c" />
+    <ClCompile Include="..\..\libos\mstring\mstringcompare.c" />
+    <ClCompile Include="..\..\libos\mstring\mstringcopy.c" />
+    <ClCompile Include="..\..\libos\mstring\mstringcreate.c" />
+    <ClCompile Include="..\..\libos\mstring\mstringdestroy.c" />
+    <ClCompile Include="..\..\libos\mstring\mstringfind.c" />
+    <ClCompile Include="..\..\libos\mstring\mstringhash.c" />
+    <ClCompile Include="..\..\libos\mstring\mstringiterate.c" />
+    <ClCompile Include="..\..\libos\mstring\mstringlength.c" />
+    <ClCompile Include="..\..\libos\mstring\mstringmisc.c" />
+    <ClCompile Include="..\..\libos\mstring\mstringprint.c" />
+    <ClCompile Include="..\..\libos\mstring\mstringraw.c" />
+    <ClCompile Include="..\..\libos\mstring\mstringresize.c" />
+    <ClCompile Include="..\..\libos\mstring\mstringsubstring.c" />
+    <ClCompile Include="..\..\libos\mstring\mstringutf8.c" />
+    <ClCompile Include="..\..\libos\synchronization\spinlock.c" />
   </ItemGroup>
   <ItemGroup>
     <CustomBuild Include="..\..\libc\arch\i386\_memcpy.s">
@@ -162,10 +162,10 @@
     <ClInclude Include="..\..\libos\mstring\MStringPrivate.h" />
   </ItemGroup>
   <ItemGroup>
-    <CustomBuild Include="..\..\libc\glue\i386\_Spinlock.asm">
+    <CustomBuild Include="..\..\libos\arch\i386\_spinlock.s">
       <FileType>Document</FileType>
-      <Command Condition="'$(Configuration)|$(Platform)'=='Build_X86_32|Win32'">nasm -f win32 -Xvc -o $(IntDir)\%(Filename).obj %(FullPath)</Command>
       <Outputs Condition="'$(Configuration)|$(Platform)'=='Build_X86_32|Win32'">$(IntDir)\%(Filename).obj</Outputs>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Build_X86_32|Win32'">nasm -f win32 -Xvc -o $(IntDir)\%(Filename).obj %(FullPath)</Command>
     </CustomBuild>
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
