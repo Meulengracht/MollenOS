@@ -87,7 +87,7 @@ __ieee754_cosh(double x)
 /*
  * @implemented
  */
-_CRT_EXTERN double __cdecl _CIcosh(void)
+_CRTIMP double __CRTDECL _CIcosh(void)
 {
 	FPU_DOUBLE(x);
 	return cosh(x);

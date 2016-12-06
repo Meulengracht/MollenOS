@@ -177,11 +177,11 @@ typedef struct _MCoreDeviceRequest
 #pragma pack(pop)
 
 /* Prototypes */
-_CRT_EXTERN void DmInit(void);
-_CRT_EXTERN void DmStart(void);
+__CRT_EXTERN void DmInit(void);
+__CRT_EXTERN void DmStart(void);
 
 /* Boot Video */
-_CRT_EXTERN void DmRegisterBootVideo(MCoreDevice_t *Video);
+__CRT_EXTERN void DmRegisterBootVideo(MCoreDevice_t *Video);
 
 /* Setup of devices */
 _CRT_EXPORT int DmRequestResource(MCoreDevice_t *Device, DeviceResourceType_t ResourceType);

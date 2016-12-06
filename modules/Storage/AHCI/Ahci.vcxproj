@@ -55,8 +55,8 @@
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <LinkIncremental>false</LinkIncremental>
     <TargetExt>.mod</TargetExt>
-    <IncludePath>..\..\..\clib\include;..\..\..\kernel\Arch;..\..\..\kernel\Include;..\..\Include</IncludePath>
-    <LibraryPath>..\..\..\clib\build;..\..\Build;..\..\..\kernel\Build</LibraryPath>
+    <IncludePath>..\..\..\librt\include;..\..\..\kernel\Arch;..\..\..\kernel\Include;..\..\Include</IncludePath>
+    <LibraryPath>..\..\..\librt\build;..\..\Build;..\..\..\kernel\Build</LibraryPath>
     <SourcePath />
     <GenerateManifest>false</GenerateManifest>
     <OutDir>$(SolutionDir)\Build\</OutDir>
@@ -69,7 +69,7 @@
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <WarningLevel>EnableAllWarnings</WarningLevel>
       <Optimization>Full</Optimization>
-      <PreprocessorDefinitions>MOLLENOS;_X86_32;MODULES_EXPORTS;</PreprocessorDefinitions>
+      <PreprocessorDefinitions>MOLLENOS;_X86_32;MODULES_EXPORTS;_KRNL_DLL</PreprocessorDefinitions>
       <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
       <TreatWarningAsError>true</TreatWarningAsError>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
@@ -85,7 +85,7 @@
     <Link>
       <SubSystem>Native</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalDependencies>CLibK.lib;LibCrt.lib;MCore.lib</AdditionalDependencies>
+      <AdditionalDependencies>libcrt.lib;libk.lib;MCore.lib</AdditionalDependencies>
       <IgnoreAllDefaultLibraries>true</IgnoreAllDefaultLibraries>
       <Driver>Driver</Driver>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>

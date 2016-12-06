@@ -409,6 +409,10 @@ static bufsize pool_len = 0;	      /* 0: no bpool calls have been made
 
 #define ESent	((bufsize) (-(((1L << (sizeof(bufsize) * 8 - 2)) - 1) * 2) - 2))
 
+#ifdef _MSC_VER
+#pragma warning(disable:4127)
+#endif
+
 /*  BGET  --  Allocate a buffer.  */
 
 void *bget(bufsize requested_size)
@@ -1074,3 +1078,7 @@ int bpoolv(void *buf)
     return 1;
 }
 #endif /* BufValid */
+
+#ifdef _MSC_VER
+#pragma warning(default:4127)
+#endif

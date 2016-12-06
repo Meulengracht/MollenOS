@@ -73,6 +73,6 @@ typedef struct _VbeMode
 #pragma pack(pop)
 
 /* Video */
-_CRT_EXTERN void VideoInit(void *BootInfo);
+__CRT_EXTERN void VideoInit(void *BootInfo);
 
 #endif // !_X86_VIDEO_

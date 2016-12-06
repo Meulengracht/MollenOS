@@ -281,6 +281,7 @@ typedef enum _EXCEPTION_DISPOSITION
 
 /* Typedef for the exception handler function
  * prototype */
+struct _EXCEPTION_REGISTRATION_RECORD;
 typedef EXCEPTION_DISPOSITION(*PEXCEPTION_HANDLER)(
 	struct _EXCEPTION_RECORD *ExceptionRecord, 
 	struct _EXCEPTION_REGISTRATION_RECORD *EstablisherFrame,

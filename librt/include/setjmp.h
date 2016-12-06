@@ -183,14 +183,14 @@ typedef _JBTYPE jmp_buf[_JBLEN];
 /* Prototypes */
 
 /* The save in time -> jump */
-_CRT_EXTERN int _setjmp(jmp_buf env);
-_CRT_EXTERN int _setjmp3(jmp_buf env, int nb_args, ...);
+_CRTIMP int _setjmp(jmp_buf env);
+_CRTIMP int _setjmp3(jmp_buf env, int nb_args, ...);
 
 /* Shorthand */
 #define setjmp(env) _setjmp(env)
 
 /* Restore time-state -> jmp */
-_CRT_EXTERN void longjmp(jmp_buf env, int value);
+_CRTIMP void longjmp(jmp_buf env, int value);
 
 #ifdef __cplusplus
 }

@@ -9,10 +9,10 @@
 
 /* functions used to support SHIFT_JIS, EUC-JP, and JIS multibyte encodings */
 
-_CRT_EXTERN int _issjis1(int c);
-_CRT_EXTERN int _issjis2(int c);
-_CRT_EXTERN int _iseucjp(int c);
-_CRT_EXTERN int _isjis(int c);
+_CRTIMP int _issjis1(int c);
+_CRTIMP int _issjis2(int c);
+_CRTIMP int _iseucjp(int c);
+_CRTIMP int _isjis(int c);
 
 #define _issjis1(c)    (((c) >= 0x81 && (c) <= 0x9f) || ((c) >= 0xe0 && (c) <= 0xef))
 #define _issjis2(c)    (((c) >= 0x40 && (c) <= 0x7e) || ((c) >= 0x80 && (c) <= 0xfc))

@@ -70,27 +70,27 @@ typedef struct _MCoreScheduler
 /* This initializes the scheduler for the
  * given cpu_id, the first call to this
  * will also initialize the scheduler enviornment */
-_CRT_EXTERN void SchedulerInit(Cpu_t Cpu);
+__CRT_EXTERN void SchedulerInit(Cpu_t Cpu);
 
 /* This function arms a thread for scheduling
  * in most cases this is called with a prefilled
  * priority of -1 to make it run almost immediately */
-_CRT_EXTERN void SchedulerReadyThread(MCoreThread_t *Thread);
+__CRT_EXTERN void SchedulerReadyThread(MCoreThread_t *Thread);
 
 /* This function is primarily used to remove a thread from
  * scheduling totally, but it can always be scheduld again
  * by calling SchedulerReadyThread */
-_CRT_EXTERN void SchedulerRemoveThread(MCoreThread_t *Thread);
+__CRT_EXTERN void SchedulerRemoveThread(MCoreThread_t *Thread);
 
 /* Schedule 
  * This should be called by the underlying archteicture code
  * to get the next thread that is to be run. */
-_CRT_EXTERN MCoreThread_t *SchedulerGetNextTask(Cpu_t Cpu, MCoreThread_t *Thread, int PreEmptive);
+__CRT_EXTERN MCoreThread_t *SchedulerGetNextTask(Cpu_t Cpu, MCoreThread_t *Thread, int PreEmptive);
 
 /* This is used by timer code to reduce threads's timeout
  * if this function wasn't called then sleeping threads and 
  * waiting threads would never be armed again. */
-_CRT_EXTERN void SchedulerApplyMs(size_t MilliSeconds);
+__CRT_EXTERN void SchedulerApplyMs(size_t MilliSeconds);
 
 /* This function sleeps the current thread either by resource,
  * by time, or both. If resource is NULL then it will wake the

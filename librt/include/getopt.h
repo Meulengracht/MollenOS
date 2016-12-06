@@ -61,21 +61,21 @@ struct option {
 	int val;
 };
 
-_CRT_EXTERN int	 getopt_long(int, char * const *, const char *,
-	    const struct option *, int *);
-_CRT_EXTERN int	 getopt_long_only(int, char * const *, const char *,
-	    const struct option *, int *);
+_CRTIMP int	 getopt_long(int, char * __CRT_CONST *, __CRT_CONST char *,
+	__CRT_CONST struct option *, int *);
+_CRTIMP int	 getopt_long_only(int, char * __CRT_CONST *, __CRT_CONST char *,
+	__CRT_CONST struct option *, int *);
 #ifndef _GETOPT_DEFINED_
 #define _GETOPT_DEFINED_
-_CRT_EXTERN int	 getopt(int, char * const *, const char *);
-_CRT_EXTERN int	 getsubopt(char **, char * const *, char **);
+_CRTIMP int	 getopt(int, char * const *, const char *);
+_CRTIMP int	 getsubopt(char **, char * const *, char **);
 
-_CRT_EXTERN extern   char *optarg;                  /* getopt(3) external variables */
-_CRT_EXTERN extern   int opterr;
-_CRT_EXTERN extern   int optind;
-_CRT_EXTERN extern   int optopt;
-_CRT_EXTERN extern   int optreset;
-_CRT_EXTERN extern   char *suboptarg;               /* getsubopt(3) external variable */
+_CRTIMP __CRT_EXTERN char *optarg;                  /* getopt(3) external variables */
+_CRTIMP __CRT_EXTERN int opterr;
+_CRTIMP __CRT_EXTERN int optind;
+_CRTIMP __CRT_EXTERN int optopt;
+_CRTIMP __CRT_EXTERN int optreset;
+_CRTIMP __CRT_EXTERN char *suboptarg;               /* getsubopt(3) external variable */
 #endif
 
 #ifdef __cplusplus

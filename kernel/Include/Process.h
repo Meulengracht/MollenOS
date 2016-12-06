@@ -135,36 +135,36 @@ typedef enum _ProcessQueryFunction
 
 /* Process Function Prototypes
  * these are the interesting ones */
-_CRT_EXTERN int PmQueryProcess(MCoreProcess_t *Process, ProcessQueryFunction_t Function, void *Buffer, size_t Length);
-_CRT_EXTERN void PmCleanupProcess(MCoreProcess_t *Process);
-_CRT_EXTERN void PmTerminateProcess(MCoreProcess_t *Process);
+__CRT_EXTERN int PmQueryProcess(MCoreProcess_t *Process, ProcessQueryFunction_t Function, void *Buffer, size_t Length);
+__CRT_EXTERN void PmCleanupProcess(MCoreProcess_t *Process);
+__CRT_EXTERN void PmTerminateProcess(MCoreProcess_t *Process);
 
 /* Get Process 
  * This function looks up a process structure 
  * by id, if either PROCESS_CURRENT or PROCESS_NO_PROCESS 
  * is passed, it retrieves the current process */
-_CRT_EXTERN MCoreProcess_t *PmGetProcess(ProcId_t ProcessId);
+__CRT_EXTERN MCoreProcess_t *PmGetProcess(ProcId_t ProcessId);
 
  /* Get the working directory 
  * This function looks up the working directory for a process 
  * by id, if either PROCESS_CURRENT or PROCESS_NO_PROCESS 
  * is passed, it retrieves the current process's working directory */
-_CRT_EXTERN MString_t *PmGetWorkingDirectory(ProcId_t ProcessId);
+__CRT_EXTERN MString_t *PmGetWorkingDirectory(ProcId_t ProcessId);
 
 /* Get the base directory 
  * This function looks up the base directory for a process 
  * by id, if either PROCESS_CURRENT or PROCESS_NO_PROCESS 
  * is passed, it retrieves the current process's base directory */
-_CRT_EXTERN MString_t *PmGetBaseDirectory(ProcId_t ProcessId);
+__CRT_EXTERN MString_t *PmGetBaseDirectory(ProcId_t ProcessId);
 
 /* Signal Functions */
-_CRT_EXTERN void SignalHandle(ThreadId_t ThreadId);
-_CRT_EXTERN int SignalCreate(ProcId_t ProcessId, int Signal);
-_CRT_EXTERN void SignalExecute(MCoreProcess_t *Process, MCoreSignal_t *Signal);
+__CRT_EXTERN void SignalHandle(ThreadId_t ThreadId);
+__CRT_EXTERN int SignalCreate(ProcId_t ProcessId, int Signal);
+__CRT_EXTERN void SignalExecute(MCoreProcess_t *Process, MCoreSignal_t *Signal);
 
 /* Architecture Specific  
  * Must be implemented in the arch-layer */
-_CRT_EXTERN void SignalDispatch(MCoreProcess_t *Process, MCoreSignal_t *Signal);
+__CRT_EXTERN void SignalDispatch(MCoreProcess_t *Process, MCoreSignal_t *Signal);
 
 /*************************************
  ******** PROCESS - MANAGER **********
@@ -195,11 +195,11 @@ typedef struct _MCoreProcessRequest
 } MCoreProcessRequest_t;
 
 /* Prototypes */
-_CRT_EXTERN void PmInit(void);
-_CRT_EXTERN void PmReapZombies(void);
+__CRT_EXTERN void PmInit(void);
+__CRT_EXTERN void PmReapZombies(void);
 
 /* Requests */
-_CRT_EXTERN void PmCreateRequest(MCoreProcessRequest_t *Request);
-_CRT_EXTERN void PmWaitRequest(MCoreProcessRequest_t *Request, size_t Timeout);
+__CRT_EXTERN void PmCreateRequest(MCoreProcessRequest_t *Request);
+__CRT_EXTERN void PmWaitRequest(MCoreProcessRequest_t *Request, size_t Timeout);
 
 #endif //!_MCORE_PROCESS_MANAGER_H_

@@ -41,7 +41,7 @@ extern "C" {
  * macros and should be used for 
  * either accessing or setting the 
  * current errno */
-_CRT_EXTERN errno_t *__errno(void);
+_CRTIMP errno_t *__errno(void);
 #define errno (*__errno())
 #define _set_errno(err) (errno = err)
 

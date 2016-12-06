@@ -32,69 +32,69 @@ extern "C" {
 /*******************************
  *       String Creation       *
  *******************************/
-_CRT_EXTERN	char* strdup(const char *str);
-_CRT_EXTERN char *strndup(const char *str, size_t len);
+_CRTIMP	char* strdup(__CRT_CONST char *str);
+_CRTIMP char *strndup(__CRT_CONST char *str, size_t len);
 
 /*******************************
  *       String Copying        *
  *******************************/
-_CRT_EXTERN	void* memcpy(void *destination, const void *source, size_t count);
-_CRT_EXTERN	void* memmove(void *destination, const void* source, size_t count);
-_CRT_EXTERN	char* strcpy(char *to, const char *from);
-_CRT_EXTERN char* strncpy(char* destination, const char* source, size_t num);
+_CRTIMP	void* memcpy(void *destination, __CRT_CONST void *source, size_t count);
+_CRTIMP	void* memmove(void *destination, __CRT_CONST void* source, size_t count);
+_CRTIMP	char* strcpy(char *to, __CRT_CONST char *from);
+_CRTIMP char* strncpy(char* destination, __CRT_CONST char* source, size_t num);
 
 /*******************************
  *       String Concenation    *
  *******************************/
-_CRT_EXTERN	char* strcat(char* destination, const char* source);
-_CRT_EXTERN	char* strncat(char* destination, char* source, size_t num);
+_CRTIMP	char* strcat(char* destination, __CRT_CONST char* source);
+_CRTIMP	char* strncat(char* destination, char* source, size_t num);
 
 /*******************************
  *      String Comparison      *
  *******************************/
-_CRT_EXTERN	int memcmp(const void* ptr1, const void* ptr2, size_t num);
-_CRT_EXTERN	int strcmp(const char* str1, const char* str2);
-_CRT_EXTERN	int strcoll(const char* str1, const char* str2);
-_CRT_EXTERN	int strncmp(const char* s1, const char* s2, size_t n);
-_CRT_EXTERN	size_t strxfrm(char* destination, const char* source, size_t num);
+_CRTIMP	int memcmp(__CRT_CONST void* ptr1, __CRT_CONST void* ptr2, size_t num);
+_CRTIMP	int strcmp(__CRT_CONST char* str1, __CRT_CONST char* str2);
+_CRTIMP	int strcoll(__CRT_CONST char* str1, __CRT_CONST char* str2);
+_CRTIMP	int strncmp(__CRT_CONST char* s1, __CRT_CONST char* s2, size_t n);
+_CRTIMP	size_t strxfrm(char* destination, __CRT_CONST char* source, size_t num);
 
 /*******************************
  *      String S&D             *
  *******************************/
-_CRT_EXTERN void* memchr(const void* ptr, int value, size_t num);
-_CRT_EXTERN char* strchr(const char* str, int character);
-_CRT_EXTERN	size_t strcspn(const char* str1, const char* str2);
-_CRT_EXTERN char* strpbrk(const char* str1, const char* str2);
-_CRT_EXTERN char* strrchr(const char* str, int character);
-_CRT_EXTERN	size_t strspn(const char* str1, const char* str2);
-_CRT_EXTERN char* strstr(const char* haystack, const char* needle);
-_CRT_EXTERN	char* strtok_r(char* s, const char* delimiters, char** lasts);
-_CRT_EXTERN	char* strtok(char* str, const char* delimiters);
+_CRTIMP void* memchr(__CRT_CONST void* ptr, int value, size_t num);
+_CRTIMP char* strchr(__CRT_CONST char* str, int character);
+_CRTIMP	size_t strcspn(__CRT_CONST char* str1, __CRT_CONST char* str2);
+_CRTIMP char* strpbrk(__CRT_CONST char* str1, __CRT_CONST char* str2);
+_CRTIMP char* strrchr(__CRT_CONST char* str, int character);
+_CRTIMP	size_t strspn(__CRT_CONST char* str1, __CRT_CONST char* str2);
+_CRTIMP char* strstr(__CRT_CONST char* haystack, __CRT_CONST char* needle);
+_CRTIMP	char* strtok_r(char* s, __CRT_CONST char* delimiters, char** lasts);
+_CRTIMP	char* strtok(char* str, __CRT_CONST char* delimiters);
 
 /*******************************
  *       String Utility        *
  *******************************/
-_CRT_EXTERN	void* memset(void *dest, int c, size_t count);
-_CRT_EXTERN	size_t strlen(const char* str);
-_CRT_EXTERN size_t strnlen(const char *str, size_t max);
+_CRTIMP	void* memset(void *dest, int c, size_t count);
+_CRTIMP	size_t strlen(__CRT_CONST char* str);
+_CRTIMP size_t strnlen(__CRT_CONST char *str, size_t max);
 
 /*******************************
  *     String Conversions      *
  *******************************/
-_CRT_EXTERN	char *i64toa(__int64 value, char *string, int radix);
-_CRT_EXTERN	int i64toa_s(__int64 value, char *str, size_t size, int radix);
-_CRT_EXTERN	char *ui64toa(unsigned __int64 value, char *string, int radix);
-_CRT_EXTERN	int ui64toa_s(unsigned __int64 value, char *str, size_t size, int radix);
-_CRT_EXTERN	int itoa_s(int value, char *str, size_t size, int radix);
-_CRT_EXTERN	char *itoa(int value, char *string, int radix);
-_CRT_EXTERN	char *ltoa(long value, char *string, int radix);
-_CRT_EXTERN	int ltoa_s(long value, char *str, size_t size, int radix);
-_CRT_EXTERN	char *ultoa(unsigned long value, char *string, int radix);
+_CRTIMP	char *i64toa(__int64 value, char *string, int radix);
+_CRTIMP	int i64toa_s(__int64 value, char *str, size_t size, int radix);
+_CRTIMP	char *ui64toa(unsigned __int64 value, char *string, int radix);
+_CRTIMP	int ui64toa_s(unsigned __int64 value, char *str, size_t size, int radix);
+_CRTIMP	int itoa_s(int value, char *str, size_t size, int radix);
+_CRTIMP	char *itoa(int value, char *string, int radix);
+_CRTIMP	char *ltoa(long value, char *string, int radix);
+_CRTIMP	int ltoa_s(long value, char *str, size_t size, int radix);
+_CRTIMP	char *ultoa(unsigned long value, char *string, int radix);
 
 /*******************************
  *       WString Utility       *
  *******************************/
-_CRT_EXTERN size_t wcsnlen(const wchar_t * str, size_t count);
+_CRTIMP size_t wcsnlen(__CRT_CONST wchar_t * str, size_t count);
 
 #ifdef __cplusplus
 }

@@ -56,19 +56,19 @@ typedef struct _Bitmap
 /* Instantiate a new bitmap that keeps track of a
  * memory range between Start -> End with a 
  * given block size */
-_CRT_EXTERN Bitmap_t *BitmapCreate(Addr_t Base, Addr_t End, size_t BlockSize);
+__CRT_EXTERN Bitmap_t *BitmapCreate(Addr_t Base, Addr_t End, size_t BlockSize);
 
 /* Destroys a memory bitmap, and releases 
  * all resources associated with the bitmap */
-_CRT_EXTERN void BitmapDestroy(Bitmap_t *Bitmap);
+__CRT_EXTERN void BitmapDestroy(Bitmap_t *Bitmap);
 
 /* Allocates a number of bytes in the bitmap (rounded up in blocks)
  * and returns the calculated address of 
  * the start of block allocated (continously) */
-_CRT_EXTERN Addr_t BitmapAllocateAddress(Bitmap_t *Bitmap, size_t Size);
+__CRT_EXTERN Addr_t BitmapAllocateAddress(Bitmap_t *Bitmap, size_t Size);
 
 /* Deallocates a given address translated into offsets 
  * into the given bitmap, and frees them in the bitmap */
-_CRT_EXTERN void BitmapFreeAddress(Bitmap_t *Bitmap, Addr_t Address, size_t Size);
+__CRT_EXTERN void BitmapFreeAddress(Bitmap_t *Bitmap, Addr_t Address, size_t Size);
 
 #endif //!_MOLLENOS_BITMAP_H_

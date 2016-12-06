@@ -57,11 +57,11 @@ typedef struct _IrqEntry
 } IrqEntry_t;
 
 /* Prototypes */
-_CRT_EXTERN void InterruptInit(void);
-_CRT_EXTERN int InterruptAllocateISA(uint32_t Irq);
-_CRT_EXTERN void InterruptInstallISA(uint32_t Irq, uint32_t IdtEntry, IrqHandler_t Callback, void *Args);/* Install PCI Interrupt */
-_CRT_EXTERN void InterruptInstallIdtOnly(uint32_t Gsi, uint32_t IdtEntry, IrqHandler_t Callback, void *Args);
-_CRT_EXTERN uint32_t InterruptAllocatePCI(uint32_t Irqs[], uint32_t Count);
+__CRT_EXTERN void InterruptInit(void);
+__CRT_EXTERN int InterruptAllocateISA(uint32_t Irq);
+__CRT_EXTERN void InterruptInstallISA(uint32_t Irq, uint32_t IdtEntry, IrqHandler_t Callback, void *Args);/* Install PCI Interrupt */
+__CRT_EXTERN void InterruptInstallIdtOnly(uint32_t Gsi, uint32_t IdtEntry, IrqHandler_t Callback, void *Args);
+__CRT_EXTERN uint32_t InterruptAllocatePCI(uint32_t Irqs[], uint32_t Count);
 
 _CRT_EXPORT IntStatus_t InterruptDisable(void);
 _CRT_EXPORT IntStatus_t InterruptEnable(void);
@@ -69,7 +69,7 @@ _CRT_EXPORT IntStatus_t InterruptSaveState(void);
 _CRT_EXPORT IntStatus_t InterruptRestoreState(IntStatus_t state);
 
 /* Helpers */
-_CRT_EXTERN uint32_t InterruptGetPolarity(uint16_t IntiFlags, uint8_t IrqSource);
-_CRT_EXTERN uint32_t InterruptGetTrigger(uint16_t IntiFlags, uint8_t IrqSource);
+__CRT_EXTERN uint32_t InterruptGetPolarity(uint16_t IntiFlags, uint8_t IrqSource);
+__CRT_EXTERN uint32_t InterruptGetTrigger(uint16_t IntiFlags, uint8_t IrqSource);
 
 #endif //!_X86_INTERRUPTS_H_

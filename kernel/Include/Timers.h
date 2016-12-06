@@ -108,7 +108,7 @@ _CRT_EXPORT void DelayMs(size_t MilliSeconds);
 						    }
 
 /* Should be called by a periodic timer, but only one! */
-_CRT_EXTERN void TimersApplyMs(size_t Ms);
+__CRT_EXTERN void TimersApplyMs(size_t Ms);
 
 #endif // !_MCORE_TIMERS_H_
 

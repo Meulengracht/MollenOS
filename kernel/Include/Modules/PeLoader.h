@@ -632,19 +632,19 @@ typedef struct _MCorePeFile
 /* Prototypes */
 
 /* Load Kernel Exports */
-_CRT_EXTERN void PeLoadKernelExports(Addr_t KernelBase, Addr_t TableOffset);
+__CRT_EXTERN void PeLoadKernelExports(Addr_t KernelBase, Addr_t TableOffset);
 
 /* Validate a buffer containing a PE */
-_CRT_EXTERN int PeValidate(uint8_t *Buffer);
+__CRT_EXTERN int PeValidate(uint8_t *Buffer);
 
 /* Used exclusively for module loading */
-_CRT_EXTERN MCorePeFile_t *PeLoadModule(uint8_t *Name, uint8_t *Buffer, size_t Length);
+__CRT_EXTERN MCorePeFile_t *PeLoadModule(uint8_t *Name, uint8_t *Buffer, size_t Length);
 
 /* Generic */
-_CRT_EXTERN MCorePeFile_t *PeLoadImage(MCorePeFile_t *Parent, MString_t *Name, uint8_t *Buffer, Addr_t *BaseAddress);
-_CRT_EXTERN MCorePeFile_t *PeResolveLibrary(MCorePeFile_t *Parent, MCorePeFile_t *PeFile, MString_t *LibraryName, Addr_t *NextLoadAddress);
-_CRT_EXTERN void PeUnloadLibrary(MCorePeFile_t *Parent, MCorePeFile_t *Library);
-_CRT_EXTERN Addr_t PeResolveFunctionAddress(MCorePeFile_t *Library, const char *Function);
-_CRT_EXTERN void PeUnload(MCorePeFile_t *Executable);
+__CRT_EXTERN MCorePeFile_t *PeLoadImage(MCorePeFile_t *Parent, MString_t *Name, uint8_t *Buffer, Addr_t *BaseAddress);
+__CRT_EXTERN MCorePeFile_t *PeResolveLibrary(MCorePeFile_t *Parent, MCorePeFile_t *PeFile, MString_t *LibraryName, Addr_t *NextLoadAddress);
+__CRT_EXTERN void PeUnloadLibrary(MCorePeFile_t *Parent, MCorePeFile_t *Library);
+__CRT_EXTERN Addr_t PeResolveFunctionAddress(MCorePeFile_t *Library, const char *Function);
+__CRT_EXTERN void PeUnload(MCorePeFile_t *Executable);
 
 #endif //!__MCORE_PELOADER__

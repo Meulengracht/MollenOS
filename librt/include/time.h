@@ -63,21 +63,21 @@ typedef unsigned long clock_t;
  *******************************/
 
 /* Basic time functions */
-_CRT_EXTERN time_t time(time_t *timer);
-_CRT_EXTERN time_t mktime(tm *timeptr);
-_CRT_EXTERN double difftime(time_t time1, time_t time2);
-_CRT_EXTERN clock_t clock(void);
+_CRTIMP time_t time(time_t *timer);
+_CRTIMP time_t mktime(tm *timeptr);
+_CRTIMP double difftime(time_t time1, time_t time2);
+_CRTIMP clock_t clock(void);
 
 /* Get Time Formats */
-_CRT_EXTERN tm *gmtime(const time_t *timer);		//GMT time
-_CRT_EXTERN tm *localtime(const time_t *timer);  //UTC
+_CRTIMP tm *gmtime(const time_t *timer);		//GMT time
+_CRTIMP tm *localtime(const time_t *timer);  //UTC
 
 /* Time -> String functions */
-_CRT_EXTERN char* asctime(const tm *timeptr);
-_CRT_EXTERN char *ctime(const time_t *tim_p);
+_CRTIMP char* asctime(const tm *timeptr);
+_CRTIMP char *ctime(const time_t *tim_p);
 
 /* Not implemented */
-_CRT_EXTERN size_t strftime(char * ptr, size_t maxsize, const char * format,
+_CRTIMP size_t strftime(char * ptr, size_t maxsize, const char * format,
                         const tm * timeptr);		//Format time as string, NA
 
 #ifdef __cplusplus

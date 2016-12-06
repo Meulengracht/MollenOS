@@ -95,8 +95,8 @@ typedef struct _MCoreThread
 
 /* Initializors used by kernel threading
  * and support, don't call otherwise */
-_CRT_EXTERN void ThreadingInit(void);
-_CRT_EXTERN void ThreadingApInit(Cpu_t Cpu);
+__CRT_EXTERN void ThreadingInit(void);
+__CRT_EXTERN void ThreadingApInit(Cpu_t Cpu);
 
 /* Create a new thread with the given name,
  * entry point, arguments and flags, if name 
@@ -121,29 +121,29 @@ _CRT_EXPORT int ThreadingJoinThread(ThreadId_t ThreadId);
 /* These below functions are helper functions 
  * for processes, and include transition to user-mode
  * and cleanup */
-_CRT_EXTERN void ThreadingEnterUserMode(void *ProcessInfo);
-_CRT_EXTERN void ThreadingTerminateProcessThreads(unsigned ProcessId);
-_CRT_EXTERN void ThreadingReapZombies(void);
+__CRT_EXTERN void ThreadingEnterUserMode(void *ProcessInfo);
+__CRT_EXTERN void ThreadingTerminateProcessThreads(unsigned ProcessId);
+__CRT_EXTERN void ThreadingReapZombies(void);
 
 /* Sleep, Wake, etc */
-_CRT_EXTERN int ThreadingYield(void *Args);
-_CRT_EXTERN void ThreadingWakeCpu(Cpu_t Cpu);
+__CRT_EXTERN int ThreadingYield(void *Args);
+__CRT_EXTERN void ThreadingWakeCpu(Cpu_t Cpu);
 
 /* This is the thread-switch function and must be 
  * be called from the below architecture to get the
  * next thread to run */
-_CRT_EXTERN MCoreThread_t *ThreadingSwitch(Cpu_t Cpu, MCoreThread_t *Current, uint8_t PreEmptive);
+__CRT_EXTERN MCoreThread_t *ThreadingSwitch(Cpu_t Cpu, MCoreThread_t *Current, uint8_t PreEmptive);
 
 /* Getter functions */
-_CRT_EXTERN ThreadId_t ThreadingGetCurrentThreadId(void);
-_CRT_EXTERN MCoreThread_t *ThreadingGetThread(ThreadId_t ThreadId);
-_CRT_EXTERN MCoreThread_t *ThreadingGetCurrentThread(Cpu_t Cpu);
-_CRT_EXTERN ListNode_t *ThreadingGetCurrentNode(Cpu_t Cpu);
+__CRT_EXTERN ThreadId_t ThreadingGetCurrentThreadId(void);
+__CRT_EXTERN MCoreThread_t *ThreadingGetThread(ThreadId_t ThreadId);
+__CRT_EXTERN MCoreThread_t *ThreadingGetCurrentThread(Cpu_t Cpu);
+__CRT_EXTERN ListNode_t *ThreadingGetCurrentNode(Cpu_t Cpu);
 
 /* Utility functions, primarily used to check if stuff is 
  * ok, enabled etc etc. Random stuff as well! */
-_CRT_EXTERN int ThreadingIsCurrentTaskIdle(Cpu_t Cpu);
-_CRT_EXTERN int ThreadingIsEnabled(void);
+__CRT_EXTERN int ThreadingIsCurrentTaskIdle(Cpu_t Cpu);
+__CRT_EXTERN int ThreadingIsEnabled(void);
 _CRT_EXPORT void ThreadingDebugPrint(void);
 
 #endif

@@ -124,17 +124,17 @@ typedef struct _TssEntry
 #pragma pack(pop)
 
 /* GDT Prototypes */
-_CRT_EXTERN void GdtInit(void);
-_CRT_EXTERN void GdtInstallDescriptor(uint32_t Base, uint32_t Limit,
+__CRT_EXTERN void GdtInit(void);
+__CRT_EXTERN void GdtInstallDescriptor(uint32_t Base, uint32_t Limit,
 									  uint8_t Access, uint8_t Grandularity);
 
 
 /* TSS Prototypes */
-_CRT_EXTERN void TssInstall(int GdtIndex);
-_CRT_EXTERN void TssUpdateStack(Cpu_t Cpu, Addr_t Stack);
+__CRT_EXTERN void TssInstall(int GdtIndex);
+__CRT_EXTERN void TssUpdateStack(Cpu_t Cpu, Addr_t Stack);
 
 /* Should be called by AP cores */
-_CRT_EXTERN void GdtInstall(void);
-_CRT_EXTERN void GdtInstallTss(Cpu_t Cpu);
+__CRT_EXTERN void GdtInstall(void);
+__CRT_EXTERN void GdtInstallTss(Cpu_t Cpu);
 
 #endif // !_x86_GDT_H_

@@ -36,11 +36,11 @@
 /* Prototypes */
 
 /* Switches active thread */
-_CRT_EXTERN Registers_t *_ThreadingSwitch(Registers_t *Regs, int PreEmptive,
+__CRT_EXTERN Registers_t *_ThreadingSwitch(Registers_t *Regs, int PreEmptive,
 										 uint32_t *TimeSlice, uint32_t *TaskQueue);
 
 /* Context Manipulation */
-_CRT_EXTERN Registers_t *ContextCreate(Addr_t Eip);
-_CRT_EXTERN Registers_t *ContextUserCreate(Addr_t StackStartAddr, Addr_t Eip, Addr_t *Args);
+__CRT_EXTERN Registers_t *ContextCreate(Addr_t Eip);
+__CRT_EXTERN Registers_t *ContextUserCreate(Addr_t StackStartAddr, Addr_t Eip, Addr_t *Args);
 
 #endif // !_MCORE_THREAD_H_

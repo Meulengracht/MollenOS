@@ -45,33 +45,60 @@
 #define _CRT_WIDE(_String) __CRT_WIDE(_String)
 #endif
 
-#ifndef _CRT_EXTERN
-#ifdef _CRT_DYNAMIC
-#ifdef _CRT_DLL
-#define _CRT_EXTERN __declspec(dllexport)
-#else
-#define _CRT_EXTERN __declspec(dllimport)
-#endif
-#else
-#define _CRT_EXTERN
-#endif
+/* This is the export definitions used by
+ * the runtime libraries, they default to
+ * import by standard. RT Libraries have
+ * CRTDLL defined by default. 
+ * The only time this needs to be defined
+ * as static is for the OS */
+#ifndef _CRTIMP
+#ifdef CRTDLL /* Defined for libc, libm, etc */
+#define _CRTIMP __declspec(dllexport)
+#elif defined(_DLL) && !defined(_KRNL_DLL)
+#define _CRTIMP __declspec(dllimport)
+#define __CRT_INLINE __inline
+#else /* !CRTDLL && !_DLL */
+#define _CRTIMP 
+#define __CRT_INLINE __inline
+#endif /* CRTDLL || _DLL */
+#endif /* !_CRTIMP */
+
+#ifndef __CRT_INLINE
+#define __CRT_INLINE __inline
 #endif
 
-#ifndef EXTERN
-#define EXTERN extern
+#ifndef __CRT_EXTERN
+#define __CRT_EXTERN extern
 #endif
 
+#ifndef __CRT_CONST
+#define __CRT_CONST const
+#endif
+
+/* Kernel/LibOS export definitions
+ * Used by kernel to export functions for modules
+ * (Should soon be removed tho), and used by LibOS
+ * to export functions */
 #ifdef MOLLENOS
+
+/* Kernel Export for Modules */
 #ifndef _KERNEL_API
 #define _CRT_EXPORT __declspec(dllimport)
 #else
 #define _CRT_EXPORT __declspec(dllexport)
 #endif
+
+/* LibOS export for userspace programs. However
+ * except for the usual stuff, we have a static case aswell */
 #ifndef _MOS_API
-#ifdef _CRT_DLL
-#define _MOS_API EXTERN
+#ifdef _LIBOS_DLL
+#define _MOS_API __declspec(dllexport)
 #else
-#define _MOS_API _CRT_EXTERN
+#if defined(_KRNL_DLL) || defined(CRTDLL)
+#define _MOS_API
+#else
+#define _MOS_API __declspec(dllimport)
+#endif
 #endif
 #endif
 #endif
@@ -99,23 +126,6 @@
 #ifndef _M_IX86
 #define _M_IX86 600
 #endif
-
-#ifndef _CRTIMP
-#ifdef CRTDLL /* Defined for ntdll, crtdll, msvcrt, etc */
-#define _CRTIMP __declspec(dllexport)
-#elif defined(_DLL)
-#define _CRTIMP __declspec(dllimport)
-#define __CRT_INLINE __inline
-#else /* !CRTDLL && !_DLL */
-#define _CRTIMP 
-#define __CRT_INLINE __inline
-#endif /* CRTDLL || _DLL */
-#endif /* !_CRTIMP */
-
-#ifndef __CRT_INLINE
-#define __CRT_INLINE __inline
-#endif
-
 
 #ifndef _CRTIMP_ALT
  #ifdef _DLL

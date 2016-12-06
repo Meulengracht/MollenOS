@@ -110,7 +110,7 @@
       <Optimization>MaxSpeed</Optimization>
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>false</IntrinsicFunctions>
-      <PreprocessorDefinitions>MOLLENOS;UNICODE;_KERNEL_API;_X86_32;LIBC_KERNEL</PreprocessorDefinitions>
+      <PreprocessorDefinitions>MOLLENOS;UNICODE;_KERNEL_API;_X86_32;LIBC_KERNEL;_KRNL_DLL</PreprocessorDefinitions>
       <SDLCheck>
       </SDLCheck>
       <TreatWarningAsError>true</TreatWarningAsError>

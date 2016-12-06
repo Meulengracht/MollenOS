@@ -31,7 +31,7 @@ extern "C" {
 #endif
 
 /* Extern */
-_CRT_EXTERN void _assert_panic(const char* str);
+_CRTIMP void _assert_panic(__CRT_CONST char* str);
 
 #define __symbol2value( x ) #x
 #define __symbol2string( x ) __symbol2value( x )

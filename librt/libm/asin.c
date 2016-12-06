@@ -114,7 +114,7 @@ __ieee754_asin(double x)
 }
 
 /* Msvc version (intrin) of asin */
-_CRT_EXTERN double __cdecl _CIasin(void) {
+_CRTIMP double __CRTDECL _CIasin(void) {
 	FPU_DOUBLE(x);
 	return asin(x);
 }

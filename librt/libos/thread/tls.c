@@ -25,7 +25,7 @@
 #include <os/Thread.h>
 
 /* C Library */
-#include "../locale/setlocale.h"
+#include "../../libc/locale/setlocale.h"
 #include <crtdefs.h>
 #include <stddef.h>
 #include <stdlib.h>

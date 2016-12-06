@@ -83,9 +83,9 @@ static _PVFV *onexitbegin, *onexitend;
  *******************************************************************************/
 
 #ifdef CRTDLL
-void __cdecl _initterm(
+void __CRTDECL _initterm(
 #else  /* CRTDLL */
-static void __cdecl _initterm(
+static void __CRTDECL _initterm(
 #endif  /* CRTDLL */
 	_PVFV * pfbegin,
 	_PVFV * pfend
@@ -135,7 +135,7 @@ static void __cdecl _initterm(
 *
 *******************************************************************************/
 
-int __cdecl _initterm_e(
+int __CRTDECL _initterm_e(
 	_PIFV * pfbegin,
 	_PIFV * pfend
 	)
@@ -162,21 +162,21 @@ int __cdecl _initterm_e(
 }
 
 #ifdef LIBC_KERNEL
-int __cdecl _purecall(void)
+int __CRTDECL _purecall(void)
 {
 	// print error message
 	return 0;
 }
 #else
 #include <os/MollenOS.h>
-int __cdecl _purecall(void)
+int __CRTDECL _purecall(void)
 {
 	MollenOSSystemLog("PURECALL HAS BEEN MADE");
 	return 0;
 }
 #endif
 
-int __cdecl atexit(_PVFV fn)
+int __CRTDECL atexit(_PVFV fn)
 {
 	if (32 * 4 < ((int)onexitend - (int)onexitbegin) + 4)
 		return 1;
@@ -186,7 +186,7 @@ int __cdecl atexit(_PVFV fn)
 }
 
 /* Cpp Init */
-EXTERN void __CppInit(void)
+__CRT_EXTERN void __CppInit(void)
 {
 	/* Initialize non-ret functions */
 	_initterm(__xc_a, __xc_z);
@@ -195,7 +195,7 @@ EXTERN void __CppInit(void)
 	_initterm_e(__xi_a, __xi_z);
 }
 
-EXTERN void __CppFinit(void)
+__CRT_EXTERN void __CppFinit(void)
 {
 	if (onexitbegin)
 	{
@@ -208,7 +208,7 @@ EXTERN void __CppFinit(void)
 	_initterm(__xt_a, __xt_z);
 }
 
-EXTERN int onexitinit(void)
+__CRT_EXTERN int onexitinit(void)
 {
 	onexitend = onexitbegin = onexitarray;
 	*onexitbegin = 0;

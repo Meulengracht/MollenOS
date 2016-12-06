@@ -77,7 +77,7 @@ extern "C" {
  * Limits and extern 
  * list of strings */
 #define _MAX_ERRNO	127
-_CRT_EXTERN const char *_errstrings[];
+_CRTIMP __CRT_CONST char *_errstrings[];
 
 /* The C-Library Error Codes 
  * These closely relate the the 
@@ -117,14 +117,14 @@ typedef struct _CLibraryFile
 /*******************************
  *       File Access           *
  *******************************/
-_CRT_EXTERN int fflags(const char * mode);
-_CRT_EXTERN int fclose(FILE * stream);
-_CRT_EXTERN FILE *fopen(const char * filename, const char * mode);
-_CRT_EXTERN FILE *fdopen(int fd, const char *mode);
-_CRT_EXTERN FILE *freopen(const char * filename, const char * mode, FILE * stream);
-_CRT_EXTERN int remove(const char * filename);
-_CRT_EXTERN int fflush(FILE * stream);
-_CRT_EXTERN int _fileno(FILE * stream);
+_CRTIMP int fflags(__CRT_CONST char * mode);
+_CRTIMP int fclose(FILE * stream);
+_CRTIMP FILE *fopen(__CRT_CONST char * filename, __CRT_CONST char * mode);
+_CRTIMP FILE *fdopen(int fd, __CRT_CONST char *mode);
+_CRTIMP FILE *freopen(__CRT_CONST char * filename, __CRT_CONST char * mode, FILE * stream);
+_CRTIMP int remove(__CRT_CONST char * filename);
+_CRTIMP int fflush(FILE * stream);
+_CRTIMP int _fileno(FILE * stream);
 
 //Rename
 //tmpfile
@@ -136,42 +136,42 @@ _CRT_EXTERN int _fileno(FILE * stream);
 /*******************************
  *       Formatted IO          *
  *******************************/
-_CRT_EXTERN int sprintf(char *str, const char *format, ...);
-_CRT_EXTERN int snprintf(char *str, size_t size, const char *format, ...);
-_CRT_EXTERN int vnprintf(char *str, size_t size, const char *format, ...);
-_CRT_EXTERN int vsprintf(char *str, const char *format, va_list ap);
-_CRT_EXTERN int vsnprintf(char *str, size_t size, const char *format, va_list ap);
-_CRT_EXTERN int vasprintf(char **ret, const char *format, va_list ap);
-_CRT_EXTERN int sscanf(const char *ibuf, const char *fmt, ...);
-_CRT_EXTERN int vsscanf(const char *inp, char const *fmt0, va_list ap);
+_CRTIMP int sprintf(char *str, __CRT_CONST char *format, ...);
+_CRTIMP int snprintf(char *str, size_t size, __CRT_CONST char *format, ...);
+_CRTIMP int vnprintf(char *str, size_t size, __CRT_CONST char *format, ...);
+_CRTIMP int vsprintf(char *str, __CRT_CONST char *format, va_list ap);
+_CRTIMP int vsnprintf(char *str, size_t size, __CRT_CONST char *format, va_list ap);
+_CRTIMP int vasprintf(char **ret, __CRT_CONST char *format, va_list ap);
+_CRTIMP int sscanf(__CRT_CONST char *ibuf, __CRT_CONST char *fmt, ...);
+_CRTIMP int vsscanf(__CRT_CONST char *inp, char __CRT_CONST *fmt0, va_list ap);
 
-_CRT_EXTERN int fprintf(FILE * stream, const char *format, ...);
-_CRT_EXTERN int vfprintf(FILE *stream, const char *format, va_list ap);
-_CRT_EXTERN int fscanf(FILE *stream, const char *format, ...);
-_CRT_EXTERN int vfscanf(FILE * stream, const char *format, va_list arg);
+_CRTIMP int fprintf(FILE * stream, __CRT_CONST char *format, ...);
+_CRTIMP int vfprintf(FILE *stream, __CRT_CONST char *format, va_list ap);
+_CRTIMP int fscanf(FILE *stream, __CRT_CONST char *format, ...);
+_CRTIMP int vfscanf(FILE * stream, __CRT_CONST char *format, va_list arg);
 
-_CRT_EXTERN int printf(const char *format, ...);
-_CRT_EXTERN int vprintf(const char *format, va_list ap);
-//_CRT_EXTERN int scanf(const char *format, ...);
-//_CRT_EXTERN int vscanf(const char * format, va_list arg);
+_CRTIMP int printf(__CRT_CONST char *format, ...);
+_CRTIMP int vprintf(__CRT_CONST char *format, va_list ap);
+//_CRTIMP int scanf(__CRT_CONST char *format, ...);
+//_CRTIMP int vscanf(__CRT_CONST char * format, va_list arg);
 
 /* Helpers */
-_CRT_EXTERN int __svfscanf(FILE *fp, char const * fmt0, va_list ap);
+_CRTIMP int __svfscanf(FILE *fp, char __CRT_CONST * fmt0, va_list ap);
 
 /*******************************
  *       Character IO          *
  *******************************/
-_CRT_EXTERN int putchar(int character);
-_CRT_EXTERN int getchar(void);
-_CRT_EXTERN char *gets(char *sstr);
-_CRT_EXTERN int puts(const char *sstr);
+_CRTIMP int putchar(int character);
+_CRTIMP int getchar(void);
+_CRTIMP char *gets(char *sstr);
+_CRTIMP int puts(__CRT_CONST char *sstr);
 
-_CRT_EXTERN int fpeekc(FILE * stream);
-_CRT_EXTERN int fgetc(FILE * stream);
-_CRT_EXTERN int fputc(int character, FILE * stream);
-_CRT_EXTERN char *fgets(char * buf, size_t n, FILE * stream);
-_CRT_EXTERN int fputs(const char * str, FILE * stream);
-_CRT_EXTERN int fungetc (int character, FILE * stream);
+_CRTIMP int fpeekc(FILE * stream);
+_CRTIMP int fgetc(FILE * stream);
+_CRTIMP int fputc(int character, FILE * stream);
+_CRTIMP char *fgets(char * buf, size_t n, FILE * stream);
+_CRTIMP int fputs(__CRT_CONST char * str, FILE * stream);
+_CRTIMP int fungetc (int character, FILE * stream);
 
 #define peekc(stream) fpeekc(stream)
 #define getc(stream) fgetc(stream)
@@ -181,29 +181,29 @@ _CRT_EXTERN int fungetc (int character, FILE * stream);
 /*******************************
  *         Direct IO           *
  *******************************/
-_CRT_EXTERN size_t fread(void * vptr, size_t size, size_t count, FILE * stream);
-_CRT_EXTERN size_t fwrite(const void * vptr, size_t size, size_t count, FILE * stream);
+_CRTIMP size_t fread(void * vptr, size_t size, size_t count, FILE * stream);
+_CRTIMP size_t fwrite(__CRT_CONST void * vptr, size_t size, size_t count, FILE * stream);
 
 /*******************************
  *     File Positioning        *
  *******************************/
-_CRT_EXTERN int fgetpos(FILE * stream, fpos_t * pos);
-_CRT_EXTERN int fsetpos(FILE * stream, const fpos_t * pos);
-_CRT_EXTERN int fseek(FILE * stream, long int offset, int origin);
-_CRT_EXTERN long int ftell(FILE * stream);
-_CRT_EXTERN void rewind(FILE * stream);
-_CRT_EXTERN int feof(FILE * stream);
+_CRTIMP int fgetpos(FILE * stream, fpos_t * pos);
+_CRTIMP int fsetpos(FILE * stream, __CRT_CONST fpos_t * pos);
+_CRTIMP int fseek(FILE * stream, long int offset, int origin);
+_CRTIMP long int ftell(FILE * stream);
+_CRTIMP void rewind(FILE * stream);
+_CRTIMP int feof(FILE * stream);
 
-_CRT_EXTERN off_t ftello(FILE *stream);
-_CRT_EXTERN int fseeko(FILE *stream, off_t offset, int origin);
+_CRTIMP off_t ftello(FILE *stream);
+_CRTIMP int fseeko(FILE *stream, off_t offset, int origin);
 
 /*******************************
  *       Error Handling        *
  *******************************/
-_CRT_EXTERN void clearerr(FILE * stream);
-_CRT_EXTERN int ferror(FILE * stream);
-_CRT_EXTERN void perror(const char * str);
-_CRT_EXTERN char *strerror(int errnum);
+_CRTIMP void clearerr(FILE * stream);
+_CRTIMP int ferror(FILE * stream);
+_CRTIMP void perror(__CRT_CONST char * str);
+_CRTIMP char *strerror(int errnum);
 
 #ifdef __cplusplus
 }

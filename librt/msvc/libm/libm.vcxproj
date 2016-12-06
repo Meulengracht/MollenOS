@@ -49,7 +49,7 @@
       <TreatWarningAsError>true</TreatWarningAsError>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
       <InlineFunctionExpansion>Disabled</InlineFunctionExpansion>
-      <PreprocessorDefinitions>MOLLENOS;_X86_32;_HAVE_LONG_DOUBLE;_LDBL_EQ_DBL;_CRT_DYNAMIC;_CRT_DLL</PreprocessorDefinitions>
+      <PreprocessorDefinitions>MOLLENOS;_X86_32;_HAVE_LONG_DOUBLE;_LDBL_EQ_DBL;CRTDLL</PreprocessorDefinitions>
       <DisableSpecificWarnings>4214;4127</DisableSpecificWarnings>
       <BufferSecurityCheck>false</BufferSecurityCheck>
       <EnableEnhancedInstructionSet>NoExtensions</EnableEnhancedInstructionSet>

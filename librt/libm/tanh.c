@@ -81,7 +81,7 @@ double tanh(double x)
 /*
 * @implemented
 */
-_CRT_EXTERN double __cdecl _CItanh(void)
+_CRTIMP double __CRTDECL _CItanh(void)
 {
 	FPU_DOUBLE(x);
 	return tanh(x);

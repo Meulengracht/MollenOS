@@ -32,47 +32,47 @@ extern "C"
 #endif
 
 /* Checks for an alphanumeric character. */
-_CRT_EXTERN int isalnum(int __c);
+_CRTIMP int isalnum(int __c);
 /* Checks for an alphabetic character. */
-_CRT_EXTERN int isalpha(int __c);
+_CRTIMP int isalpha(int __c);
 /* Checks for a control character. */
-_CRT_EXTERN int iscntrl(int __c);
+_CRTIMP int iscntrl(int __c);
 /* Checks for a digit (0 through 9). */
-_CRT_EXTERN int isdigit(int __c);
+_CRTIMP int isdigit(int __c);
 /* Checks for any printable character except space. */
-_CRT_EXTERN int isgraph(int __c);
+_CRTIMP int isgraph(int __c);
 /* Checks for a lower-case character. */
-_CRT_EXTERN int islower(int __c);
+_CRTIMP int islower(int __c);
 /* Checks for any printable character including space. */
-_CRT_EXTERN int isprint(int __c);
+_CRTIMP int isprint(int __c);
 /* Checks for any printable character which is not a space
  * or an alphanumeric character. */
-_CRT_EXTERN int ispunct(int __c);
+_CRTIMP int ispunct(int __c);
 /* Checks for white-space characters. */
-_CRT_EXTERN int isspace(int __c);
+_CRTIMP int isspace(int __c);
 /* Checks for an uppercase letter. */
-_CRT_EXTERN int isupper(int __c);
+_CRTIMP int isupper(int __c);
 /* Checks for a hexadecimal digits. */
-_CRT_EXTERN int isxdigit(int __c);
+_CRTIMP int isxdigit(int __c);
 
 /* Checks whether c is a 7-bit unsigned char value that
  * fits into the ASCII character set. */
-_CRT_EXTERN int tolower(int __c);
-_CRT_EXTERN int toupper(int __c);
+_CRTIMP int tolower(int __c);
+_CRTIMP int toupper(int __c);
 
 /* <<isblank>> is a function which classifies singlebyte charset values by table
  * lookup.  It is a predicate returning non-zero for blank characters, and 0
  * for other characters.  It is defined only if <[c]> is representable as an
  * unsigned char or if <[c]> is EOF. */
-_CRT_EXTERN int isblank(int __c);
+_CRTIMP int isblank(int __c);
 
 /* Determine whether or not the given character 
  * is a valid ASCII character */
-_CRT_EXTERN int isascii(int __c);
+_CRTIMP int isascii(int __c);
 
 /* <<toascii>> is a macro which coerces integers 
  * to the ASCII range (0--127) by zeroing any higher-order bits. */
-_CRT_EXTERN int toascii(int __c);
+_CRTIMP int toascii(int __c);
 #define _tolower(__c) ((unsigned char)(__c) - 'A' + 'a')
 #define _toupper(__c) ((unsigned char)(__c) - 'a' + 'A')
 
@@ -104,7 +104,7 @@ extern int toascii_l(int __c, locale_t __l);
 #define _CTYPE_X	0100
 #define	_CTYPE_B	0200
 
-_CRT_EXTERN const char *__locale_ctype_ptr(void);
+_CRTIMP const char *__locale_ctype_ptr(void);
 # define __CTYPE_PTR	(__locale_ctype_ptr ())
 
 #ifndef __cplusplus
@@ -196,7 +196,7 @@ function.  */
 #endif /* !__cplusplus */
 
 /* For C++ backward-compatibility only.  */
-extern _CRT_EXTERN const char _ctype_[];
+_CRTDATA(__CRT_EXTERN __CRT_CONST char _ctype_[]);
 
 #ifdef __cplusplus
 }

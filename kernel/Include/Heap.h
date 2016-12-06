@@ -165,41 +165,41 @@ typedef struct _HeapRegion
  * Finds a suitable block for allocation
  * and allocates in that block, this is primary
  * allocator of the heap */
-_CRT_EXTERN Addr_t HeapAllocate(Heap_t *Heap, size_t Size,
+__CRT_EXTERN Addr_t HeapAllocate(Heap_t *Heap, size_t Size,
 	Flags_t Flags, size_t Alignment, Addr_t Mask, const char *Identifier);
 
 /* HeapFree
  * Finds the appropriate block
  * that should contain our node */
-_CRT_EXTERN void HeapFree(Heap_t *Heap, Addr_t Addr);
+__CRT_EXTERN void HeapFree(Heap_t *Heap, Addr_t Addr);
 
 /* HeapQueryMemoryInformation
  * Queries memory information about a heap
  * useful for processes and such */
-_CRT_EXTERN int HeapQueryMemoryInformation(Heap_t *Heap, 
+__CRT_EXTERN int HeapQueryMemoryInformation(Heap_t *Heap,
 	size_t *BytesInUse, size_t *BlocksAllocated);
 
 /* HeapInit
  * This initializes the kernel heap and 
  * readies the first few blocks for allocation
  * this MUST be called before any calls to *mallocs */
-_CRT_EXTERN void HeapInit(void);
+__CRT_EXTERN void HeapInit(void);
 
 /* HeapCreate
  * This function allocates a 'third party' heap that
  * can be used like a memory region for allocations, usefull
  * for servers, shared memory, processes etc */
-_CRT_EXTERN Heap_t *HeapCreate(Addr_t HeapAddress, int UserHeap);
+__CRT_EXTERN Heap_t *HeapCreate(Addr_t HeapAddress, int UserHeap);
 
 /* Helper function that enumerates the given heap 
  * and prints out different allocation stats of heap */
-_CRT_EXTERN void HeapPrintStats(Heap_t *Heap);
-_CRT_EXTERN void HeapReap(void);
+__CRT_EXTERN void HeapPrintStats(Heap_t *Heap);
+__CRT_EXTERN void HeapReap(void);
 
 /* Used for validation that an address is allocated
  * within the given heap, this can be used for security
  * or validation purposes, use NULL for kernel heap */
-_CRT_EXTERN int HeapValidateAddress(Heap_t *Heap, Addr_t Address);
+__CRT_EXTERN int HeapValidateAddress(Heap_t *Heap, Addr_t Address);
 
 /* Simply just a wrapper for HeapAllocate
  * with the kernel heap as argument 

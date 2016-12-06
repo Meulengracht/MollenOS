@@ -108,8 +108,8 @@ typedef struct _HpetObject
 } Hpet_t;
 
 /* Sleep & Stall */
-_CRT_EXTERN uint64_t HpetGetClocks(void* Device);
-_CRT_EXTERN void HpetSleep(void* Device, size_t MilliSeconds);
-_CRT_EXTERN void HpetStall(void* Device, size_t MilliSeconds);
+__CRT_EXTERN uint64_t HpetGetClocks(void* Device);
+__CRT_EXTERN void HpetSleep(void* Device, size_t MilliSeconds);
+__CRT_EXTERN void HpetStall(void* Device, size_t MilliSeconds);
 
 #endif

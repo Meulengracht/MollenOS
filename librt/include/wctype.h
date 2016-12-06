@@ -47,44 +47,44 @@ extern "C"
 typedef int wctrans_t;
 #endif
 
-_CRT_EXTERN int	iswalpha(wint_t);
-_CRT_EXTERN int	iswalnum(wint_t);
-_CRT_EXTERN int	iswblank(wint_t);
-_CRT_EXTERN int	iswcntrl(wint_t);
-_CRT_EXTERN int	iswctype(wint_t, wctype_t);
-_CRT_EXTERN int	iswdigit(wint_t);
-_CRT_EXTERN int	iswgraph(wint_t);
-_CRT_EXTERN int	iswlower(wint_t);
-_CRT_EXTERN int	iswprint(wint_t);
-_CRT_EXTERN int	iswpunct(wint_t);
-_CRT_EXTERN int	iswspace(wint_t);
-_CRT_EXTERN int	iswupper(wint_t);
-_CRT_EXTERN int	iswxdigit(wint_t);
-_CRT_EXTERN wint_t towctrans(wint_t, wctrans_t);
-_CRT_EXTERN wint_t towupper(wint_t);
-_CRT_EXTERN wint_t towlower(wint_t);
-_CRT_EXTERN wctrans_t wctrans(const char *);
-_CRT_EXTERN wctype_t wctype(const char *);
+_CRTIMP int	iswalpha(wint_t);
+_CRTIMP int	iswalnum(wint_t);
+_CRTIMP int	iswblank(wint_t);
+_CRTIMP int	iswcntrl(wint_t);
+_CRTIMP int	iswctype(wint_t, wctype_t);
+_CRTIMP int	iswdigit(wint_t);
+_CRTIMP int	iswgraph(wint_t);
+_CRTIMP int	iswlower(wint_t);
+_CRTIMP int	iswprint(wint_t);
+_CRTIMP int	iswpunct(wint_t);
+_CRTIMP int	iswspace(wint_t);
+_CRTIMP int	iswupper(wint_t);
+_CRTIMP int	iswxdigit(wint_t);
+_CRTIMP wint_t towctrans(wint_t, wctrans_t);
+_CRTIMP wint_t towupper(wint_t);
+_CRTIMP wint_t towlower(wint_t);
+_CRTIMP wctrans_t wctrans(__CRT_CONST char *);
+_CRTIMP wctype_t wctype(__CRT_CONST char *);
 
 #if defined(__POSIX_VISIBLE)
-extern int	iswalpha_l (wint_t, locale_t);
-extern int	iswalnum_l (wint_t, locale_t);
-extern int	iswblank_l (wint_t, locale_t);
-extern int	iswcntrl_l (wint_t, locale_t);
-extern int	iswctype_l (wint_t, wctype_t, locale_t);
-extern int	iswdigit_l (wint_t, locale_t);
-extern int	iswgraph_l (wint_t, locale_t);
-extern int	iswlower_l (wint_t, locale_t);
-extern int	iswprint_l (wint_t, locale_t);
-extern int	iswpunct_l (wint_t, locale_t);
-extern int	iswspace_l (wint_t, locale_t);
-extern int	iswupper_l (wint_t, locale_t);
-extern int	iswxdigit_l (wint_t, locale_t);
-extern wint_t	towctrans_l (wint_t, wctrans_t, locale_t);
-extern wint_t	towupper_l (wint_t, locale_t);
-extern wint_t	towlower_l (wint_t, locale_t);
-extern wctrans_t wctrans_l (const char *, locale_t);
-extern wctype_t wctype_l (const char *, locale_t);
+_CRTIMP int	iswalpha_l (wint_t, locale_t);
+_CRTIMP int	iswalnum_l (wint_t, locale_t);
+_CRTIMP int	iswblank_l (wint_t, locale_t);
+_CRTIMP int	iswcntrl_l (wint_t, locale_t);
+_CRTIMP int	iswctype_l (wint_t, wctype_t, locale_t);
+_CRTIMP int	iswdigit_l (wint_t, locale_t);
+_CRTIMP int	iswgraph_l (wint_t, locale_t);
+_CRTIMP int	iswlower_l (wint_t, locale_t);
+_CRTIMP int	iswprint_l (wint_t, locale_t);
+_CRTIMP int	iswpunct_l (wint_t, locale_t);
+_CRTIMP int	iswspace_l (wint_t, locale_t);
+_CRTIMP int	iswupper_l (wint_t, locale_t);
+_CRTIMP int	iswxdigit_l (wint_t, locale_t);
+_CRTIMP wint_t	towctrans_l (wint_t, wctrans_t, locale_t);
+_CRTIMP wint_t	towupper_l (wint_t, locale_t);
+_CRTIMP wint_t	towlower_l (wint_t, locale_t);
+_CRTIMP wctrans_t wctrans_l (__CRT_CONST char *, locale_t);
+_CRTIMP wctype_t wctype_l (__CRT_CONST char *, locale_t);
 #endif
 
 #ifdef __cplusplus

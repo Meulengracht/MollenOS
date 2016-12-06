@@ -25,5 +25,5 @@
    to the requirements of the underlying OS. */
 #define _jp2uc(c) (c)
 #else
-_CRT_EXTERN wint_t _jp2uc(wint_t);
+_CRTIMP wint_t _jp2uc(wint_t);
 #endif

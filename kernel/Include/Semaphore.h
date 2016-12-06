@@ -63,11 +63,11 @@ _CRT_EXPORT Semaphore_t *SemaphoreCreate(int Value);
 /* This method allocates and constructs
  * a new semaphore handle. This is a usermode
  * semaphore */
-_CRT_EXTERN UserSemaphore_t *SemaphoreUserCreate(MString_t *Identifier, int Value);
+__CRT_EXTERN UserSemaphore_t *SemaphoreUserCreate(MString_t *Identifier, int Value);
 
 /* Destroys and frees a user semaphore, releasing any
  * resources associated with it */
-_CRT_EXTERN void SemaphoreUserDestroy(UserSemaphore_t *Semaphore);
+__CRT_EXTERN void SemaphoreUserDestroy(UserSemaphore_t *Semaphore);
 
 /* This method constructs a new semaphore handle. 
  * Does not allocate any memory 

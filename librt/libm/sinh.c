@@ -75,7 +75,7 @@ double __ieee754_sinh(double x)
 /*
 * @implemented
 */
-_CRT_EXTERN double __cdecl _CIsinh(void)
+_CRTIMP double __CRTDECL _CIsinh(void)
 {
 	FPU_DOUBLE(x);
 	return sinh(x);

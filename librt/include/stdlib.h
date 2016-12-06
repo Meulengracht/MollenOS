@@ -106,49 +106,49 @@ typedef struct _lldiv_t {
 /* String Conversion functions 
  * Allows the extraction of integer, floats
  * and doubles from strings */
-_CRT_EXTERN double atof(const char*);
-_CRT_EXTERN float atoff(const char*);
-_CRT_EXTERN int atoi(const char*);
-_CRT_EXTERN long int atol(const char*);
+_CRTIMP double atof(__CRT_CONST char*);
+_CRTIMP float atoff(__CRT_CONST char*);
+_CRTIMP int atoi(__CRT_CONST char*);
+_CRTIMP long int atol(__CRT_CONST char*);
 
 /* C++11 Added functions, to support 
  * 64 bit integers and 80/128 bit doubles */
-_CRT_EXTERN long long atoll(const char*);
-_CRT_EXTERN long double	atold(const char*);
+_CRTIMP long long atoll(__CRT_CONST char*);
+_CRTIMP long double	atold(__CRT_CONST char*);
 
 /* Same as above, but these allow to specify an 
  * endpoint in the string, and allows the specification
  * of a decimal-base to use for the conversion */
-_CRT_EXTERN float strtof(const char* __restrict, char ** __restrict end);
-_CRT_EXTERN double strtod(const char* __restrict, char ** __restrict end);
-_CRT_EXTERN long int strtol(const char* __restrict, char ** __restrict end, int base);
-_CRT_EXTERN unsigned long int strtoul(const char* __restrict, char ** __restrict end, int base);
+_CRTIMP float strtof(__CRT_CONST char* __restrict, char ** __restrict end);
+_CRTIMP double strtod(__CRT_CONST char* __restrict, char ** __restrict end);
+_CRTIMP long int strtol(__CRT_CONST char* __restrict, char ** __restrict end, int base);
+_CRTIMP unsigned long int strtoul(__CRT_CONST char* __restrict, char ** __restrict end, int base);
 
 /* C++11 Added functions, to support 
  * 64 bit integers and 80/128 bit doubles */
-_CRT_EXTERN long long strtoll(const char* __restrict, char ** __restrict end, int base);
-_CRT_EXTERN long double strtold(const char* __restrict, char ** __restrict end);
-_CRT_EXTERN unsigned long long strtoull(const char* __restrict, char ** __restrict end, int base);
+_CRTIMP long long strtoll(__CRT_CONST char* __restrict, char ** __restrict end, int base);
+_CRTIMP long double strtold(__CRT_CONST char* __restrict, char ** __restrict end);
+_CRTIMP unsigned long long strtoull(__CRT_CONST char* __restrict, char ** __restrict end, int base);
 
 /* Pseudo-random sequence generation 
  * The seed is thread-specific and setup by the CRT 
  * Use srand to set a custom seed */
-_CRT_EXTERN int	rand(void);
-_CRT_EXTERN void srand(unsigned int seed);
+_CRTIMP int	rand(void);
+_CRTIMP void srand(unsigned int seed);
 
 /* Memory management functions 
  * Use to allocate, deallocate and reallocate
  * memory, uses mollenos's virtual allocators */
-_CRT_EXTERN void *malloc(size_t);
-_CRT_EXTERN void *realloc(void*, size_t);
-_CRT_EXTERN void *calloc(size_t, size_t);
-_CRT_EXTERN void free(void*);
+_CRTIMP void *malloc(size_t);
+_CRTIMP void *realloc(void*, size_t);
+_CRTIMP void *calloc(size_t, size_t);
+_CRTIMP void free(void*);
 
 /* Environment functions, primarily functions
  * related to system env setup and exit functionality */
-_CRT_EXTERN void abort(void);
-_CRT_EXTERN char *getenv(const char*);
-_CRT_EXTERN int system(const char*);
+_CRTIMP void abort(void);
+_CRTIMP char *getenv(__CRT_CONST char*);
+_CRTIMP int system(__CRT_CONST char*);
 
 /* These are the different exit functions, they 
  * all do the same, but have different procedures
@@ -156,51 +156,51 @@ _CRT_EXTERN int system(const char*);
 
 /* Terminate normally, no cleanup. 
  * Call all functions in atexit_quick stack */
-_CRT_EXTERN int at_quick_exit(void(__CRTDECL *function)(void));
-_CRT_EXTERN void quick_exit(int);
+_CRTIMP int at_quick_exit(void(__CRTDECL *function)(void));
+_CRTIMP void quick_exit(int);
 
 /* Terminate normally, no cleanup. No calls to anything. */
-_CRT_EXTERN void _Exit(int);
+_CRTIMP void _Exit(int);
 
 /* Terminate normally with cleanup, call all functions in atexit stack */
-EXTERN int atexit(void(__CRTDECL *func)(void));
-_CRT_EXTERN void exit(int);
+__CRT_EXTERN int atexit(void(__CRTDECL *func)(void));
+_CRTIMP void exit(int);
 #define _exit(s)	exit(s);
 
 /* Search and sort functions, a custom sorting 
  * comparator function can be provided for the sort */
-_CRT_EXTERN void *bsearch(const void *key, const void *base, size_t nmemb, 
-	size_t size, int(*compar)(const void *, const void *));
-_CRT_EXTERN void qsort(void *base, unsigned num, unsigned width, 
-	int(*comp)(const void *, const void *));
+_CRTIMP void *bsearch(__CRT_CONST void *key, __CRT_CONST void *base, size_t nmemb, 
+	size_t size, int(*compar)(__CRT_CONST void *, __CRT_CONST void *));
+_CRTIMP void qsort(void *base, unsigned num, unsigned width, 
+	int(*comp)(__CRT_CONST void *, __CRT_CONST void *));
 
 /* Integer Arethmetic functions 
  * Used to do integer divisions and to calculate
  * the absolute integer value of a signed integer */
 #ifndef _CRT_DIV_DEFINED
 #define _CRT_DIV_DEFINED
-_CRT_EXTERN div_t div(int n, int denom);
-_CRT_EXTERN ldiv_t ldiv(long n, long denom);
-_CRT_EXTERN lldiv_t lldiv(long long n, long long denom);
+_CRTIMP div_t div(int n, int denom);
+_CRTIMP ldiv_t ldiv(long n, long denom);
+_CRTIMP lldiv_t lldiv(long long n, long long denom);
 #endif
 
 /* Abs functions are defined in math header aswell
  * and thus we protect it by a guard */
 #ifndef _CRT_ABS_DEFINED
 #define _CRT_ABS_DEFINED
-_CRT_EXTERN int abs(int);
-_CRT_EXTERN long labs(long);
-_CRT_EXTERN long long llabs(long long);
+_CRTIMP int abs(int);
+_CRTIMP long labs(long);
+_CRTIMP long long llabs(long long);
 #endif
 
 /* Multibyte functions
  * Not implemented yet, no support for conversion
  * and such yet */
-//_CRT_EXTERN int mblen(const char* pmb, size_t max);
-//_CRT_EXTERN int mbtowc(wchar_t *pwc, const char *pmb, size_t max);
-//_CRT_EXTERN int wctomb(char *pmb, wchar_t wc);
-//_CRT_EXTERN size_t mbstowcs (wchar_t* dest, const char* src, size_t max);
-//_CRT_EXTERN size_t wcstombs(char* dest, const wchar_t* src, size_t max);
+//_CRTIMP int mblen(__CRT_CONST char* pmb, size_t max);
+//_CRTIMP int mbtowc(wchar_t *pwc, __CRT_CONST char *pmb, size_t max);
+//_CRTIMP int wctomb(char *pmb, wchar_t wc);
+//_CRTIMP size_t mbstowcs (wchar_t* dest, __CRT_CONST char* src, size_t max);
+//_CRTIMP size_t wcstombs(char* dest, __CRT_CONST wchar_t* src, size_t max);
 
 #ifdef __cplusplus
 }

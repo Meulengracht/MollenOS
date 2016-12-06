@@ -52,19 +52,19 @@ typedef struct {
  * using either an internal buffer for 
  * hashing by setting handsoff to 1, otherwise
  * it will destroy the given data buffers */
-_CRT_EXTERN void Sha1Init(Sha1Context_t *Context, int Handsoff);
+_MOS_API void Sha1Init(Sha1Context_t *Context, int Handsoff);
 
 /* Add data to the given SHA1 context,
  * this is the function for using the context */
-_CRT_EXTERN void Sha1Add(Sha1Context_t *Context, const uint8_t *Data, const size_t Length);
+_MOS_API void Sha1Add(Sha1Context_t *Context, const uint8_t *Data, const size_t Length);
 
 /* Finalizes the Sha1 context and outputs the
  * result to a digest buffer the user must provide */
-_CRT_EXTERN void Sha1Finalize(Sha1Context_t *Context, uint8_t Digest[SHA1_DIGEST_SIZE]);
+_MOS_API void Sha1Finalize(Sha1Context_t *Context, uint8_t Digest[SHA1_DIGEST_SIZE]);
 
 /* Converts the digest buffer to a hex-string 
  * by calling this function */
-_CRT_EXTERN void Sha1DigestToHex(const uint8_t Digest[SHA1_DIGEST_SIZE], char *Output);
+_MOS_API void Sha1DigestToHex(const uint8_t Digest[SHA1_DIGEST_SIZE], char *Output);
 
 /* Cpp end Guard */
 #ifdef __cplusplus

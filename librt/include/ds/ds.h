@@ -69,18 +69,18 @@ typedef enum _KeyType
 /* This is used by data-structures 
  * to allocate memory, since it will 
  * be different for kernel/clib */
-_CRT_EXTERN void *dsalloc(size_t size);
-_CRT_EXTERN void dsfree(void *p);
+_MOS_API void *dsalloc(size_t size);
+_MOS_API void dsfree(void *p);
 
 /* Helper Function 
  * Matches two keys based on the key type 
  * returns 0 if they are equal, or -1 if not */
-_CRT_EXTERN int dsmatchkey(KeyType_t KeyType, DataKey_t Key1, DataKey_t Key2);
+_MOS_API int dsmatchkey(KeyType_t KeyType, DataKey_t Key1, DataKey_t Key2);
 
 /* Helper Function
  * Used by sorting, it compares to values
  * and returns 1 if 1 > 2, 0 if 1 == 2 and
  * -1 if 2 > 1 */
-_CRT_EXTERN int dssortkey(KeyType_t KeyType, DataKey_t Key1, DataKey_t Key2);
+_MOS_API int dssortkey(KeyType_t KeyType, DataKey_t Key1, DataKey_t Key2);
 
 #endif //!_DATASTRUCTURES_H_

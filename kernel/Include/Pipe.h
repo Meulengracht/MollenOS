@@ -58,24 +58,24 @@ typedef struct _MCorePipe
 } MCorePipe_t;
 
 /* Initialise a new pipe */
-_CRT_EXTERN MCorePipe_t *PipeCreate(size_t Size);
+__CRT_EXTERN MCorePipe_t *PipeCreate(size_t Size);
 
 /* Construct a new pipe */
-_CRT_EXTERN void PipeConstruct(MCorePipe_t *Pipe, uint8_t *Buffer, size_t BufferLength);
+__CRT_EXTERN void PipeConstruct(MCorePipe_t *Pipe, uint8_t *Buffer, size_t BufferLength);
 
 /* Destroy Pipe */
-_CRT_EXTERN void PipeDestroy(MCorePipe_t *Pipe);
+__CRT_EXTERN void PipeDestroy(MCorePipe_t *Pipe);
 
 /* Write to buffer */
-_CRT_EXTERN int PipeWrite(MCorePipe_t *Pipe, size_t SrcLength, uint8_t *Source);
+__CRT_EXTERN int PipeWrite(MCorePipe_t *Pipe, size_t SrcLength, uint8_t *Source);
 
 /* Read from buffer */
-_CRT_EXTERN int PipeRead(MCorePipe_t *Pipe, size_t DestLength, uint8_t *Destination, int Peek);
+__CRT_EXTERN int PipeRead(MCorePipe_t *Pipe, size_t DestLength, uint8_t *Destination, int Peek);
 
 /* How many bytes are available in buffer to be read */
-_CRT_EXTERN int PipeBytesAvailable(MCorePipe_t *Pipe);
+__CRT_EXTERN int PipeBytesAvailable(MCorePipe_t *Pipe);
 
 /* How many bytes are ready for usage */
-_CRT_EXTERN int PipeBytesLeft(MCorePipe_t *Pipe);
+__CRT_EXTERN int PipeBytesLeft(MCorePipe_t *Pipe);
 
 #endif // !_MCORE_PIPE_H_

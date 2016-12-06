@@ -34,27 +34,27 @@ typedef long bufsize;
 /* Create a buffer pool of <len> bytes, using the storage starting at
  * <buffer>.	You  can  call	bpool()  subsequently  to   contribute
  * additional storage to the overall buffer pool. */
-EXTERN void bpool(void *buffer, bufsize len);
+__CRT_EXTERN void bpool(void *buffer, bufsize len);
 
 /* Allocate  a  buffer of <size> bytes.  The address of the buffer is
  * returned, or NULL if insufficient memory was available to allocate
  * the buffer. */
-EXTERN void *bget(bufsize size);
+__CRT_EXTERN void *bget(bufsize size);
 
 /* Allocate a buffer of <size> bytes and clear it to all zeroes.  The
  * address of the buffer is returned, or NULL if insufficient	memory
  * was available to allocate the buffer. */
-EXTERN void *bgetz(bufsize size);
+__CRT_EXTERN void *bgetz(bufsize size);
 
 /* Reallocate a buffer previously allocated by bget(),  changing  its
  * size  to  <newsize>  and  preserving  all  existing data.  NULL is
  * returned if insufficient memory is	available  to  reallocate  the
  * buffer, in which case the original buffer remains intact. */
-EXTERN void *bgetr(void *buffer, bufsize newsize);
+__CRT_EXTERN void *bgetr(void *buffer, bufsize newsize);
 
 /* Return  the  buffer  <buf>, previously allocated by bget(), to the
  * free space pool. */
-EXTERN void	brel(void *buf);
+__CRT_EXTERN void	brel(void *buf);
 
 /* Expansion control: specify functions through which the package may
  * compact  storage  (or  take  other	appropriate  action)  when  an
@@ -102,7 +102,7 @@ EXTERN void	brel(void *buf);
  * directly by calls to the <acquire> function.  Automatic release of
  * empty pool blocks will occur only if all pool blocks in the system
  * are the size given by <pool_incr>. */
-EXTERN void	bectl(int(*compact)(bufsize sizereq, int sequence),
+__CRT_EXTERN void	bectl(int(*compact)(bufsize sizereq, int sequence),
 		       void *(*acquire)(bufsize size),
 		       void (*release)(void *buf), bufsize pool_incr);
 
@@ -114,7 +114,7 @@ EXTERN void	bectl(int(*compact)(bufsize sizereq, int sequence),
  * <maxfree>.	 The  variables  pointed  to  by <nget> and <nrel> are
  * filled, respectively, with	the  number  of  successful  (non-NULL
  * return) bget() calls and the number of brel() calls. */
-EXTERN void	bstats(bufsize *curalloc, bufsize *totfree, bufsize *maxfree,
+__CRT_EXTERN void	bstats(bufsize *curalloc, bufsize *totfree, bufsize *maxfree,
 		       long *nget, long *nrel);
 
 /* Extended  statistics: The expansion block size will be stored into
@@ -128,24 +128,24 @@ EXTERN void	bstats(bufsize *curalloc, bufsize *totfree, bufsize *maxfree,
  * the  number  of  bget()  and  brel()  calls, respectively, managed
  * through blocks directly allocated by the acquisition  and  release
  * functions. */
-EXTERN void	bstatse(bufsize *pool_incr, long *npool, long *npget,
+__CRT_EXTERN void	bstatse(bufsize *pool_incr, long *npool, long *npget,
 		       long *nprel, long *ndget, long *ndrel);
 
 /* The buffer pointed to by <buf> is dumped on standard output. */
-EXTERN void	bufdump(void *buf);
+__CRT_EXTERN void	bufdump(void *buf);
 
 /* All buffers in the buffer pool <pool>, previously initialised by a
  * call on bpool(), are listed in ascending memory address order.  If
  * <dumpalloc> is nonzero, the  contents  of  allocated  buffers  are
  * dumped;  if <dumpfree> is nonzero, the contents of free blocks are
  * dumped. */
-EXTERN void	bpoold(void *pool, int dumpalloc, int dumpfree);
+__CRT_EXTERN void	bpoold(void *pool, int dumpalloc, int dumpfree);
 
 /* The  named	buffer	pool,  previously  initialised	by  a  call on
  * bpool(), is validated for bad pointers, overwritten data, etc.  If
  * compiled with NDEBUG not defined, any error generates an assertion
  * failure.  Otherwise 1 is returned if the pool is valid,  0	if  an
  * error is found. */
-EXTERN int	bpoolv(void *pool);
+__CRT_EXTERN int	bpoolv(void *pool);
 
 #endif //!_BGET_ALLOCATOR_H_

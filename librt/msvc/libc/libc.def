@@ -1,0 +1,4 @@
+LIBRARY libc
+EXPORTS
+memcpy
+memset

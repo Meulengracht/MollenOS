@@ -324,7 +324,7 @@ double pow(double x, double y)
 /*
 * @implemented
 */
-_CRT_EXTERN double __cdecl	_CIpow(void)
+_CRTIMP double __CRTDECL _CIpow(void)
 {
 	FPU_DOUBLES(y, x);
 	return pow(x, y);

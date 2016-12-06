@@ -108,7 +108,7 @@ __ieee754_acos(double x)
 }
 
 /* Msvc version (intrin) of acos */
-_CRT_EXTERN double __cdecl _CIacos(void) {
+_CRTIMP double __CRTDECL _CIacos(void) {
 	FPU_DOUBLE(x);
 	return acos(x);
 }

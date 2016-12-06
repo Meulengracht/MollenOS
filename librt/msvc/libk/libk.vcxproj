@@ -41,7 +41,7 @@
       <IntrinsicFunctions>false</IntrinsicFunctions>
       <SDLCheck>
       </SDLCheck>
-      <PreprocessorDefinitions>MOLLENOS;_X86_32;LIBC_KERNEL</PreprocessorDefinitions>
+      <PreprocessorDefinitions>MOLLENOS;_X86_32;LIBC_KERNEL;_KRNL_DLL</PreprocessorDefinitions>
       <TreatWarningAsError>true</TreatWarningAsError>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
       <InlineFunctionExpansion>Disabled</InlineFunctionExpansion>
@@ -59,6 +59,9 @@
       <TargetMachine>MachineX86</TargetMachine>
       <SubSystem>Native</SubSystem>
     </Lib>
+    <ProjectReference>
+      <LinkLibraryDependencies>true</LinkLibraryDependencies>
+    </ProjectReference>
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="..\..\libc\assert\assert.c" />

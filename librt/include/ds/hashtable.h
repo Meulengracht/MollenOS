@@ -56,26 +56,26 @@ typedef struct _HashTable
 /* HashTableCreate
  * Initializes a new hash table
  * of the given capacity */
-_CRT_EXTERN HashTable_t *HashTableCreate(KeyType_t KeyType, size_t Capacity);
+_MOS_API HashTable_t *HashTableCreate(KeyType_t KeyType, size_t Capacity);
 
 /* HashTableDestroy
  * Releases all resources 
  * associated with the hashtable */
-_CRT_EXTERN void HashTableDestroy(HashTable_t *HashTable);
+_MOS_API void HashTableDestroy(HashTable_t *HashTable);
 
 /* HashTableInsert
  * Inserts an object with the given
  * string key from the hash table */
-_CRT_EXTERN void HashTableInsert(HashTable_t *HashTable, DataKey_t Key, void *Data);
+_MOS_API void HashTableInsert(HashTable_t *HashTable, DataKey_t Key, void *Data);
 
 /* HashTableRemove 
  * Removes an object with the given 
  * string key from the hash table */
-_CRT_EXTERN void HashTableRemove(HashTable_t *HashTable, DataKey_t Key);
+_MOS_API void HashTableRemove(HashTable_t *HashTable, DataKey_t Key);
 
 /* HashTableGetValue
  * Retrieves the data associated with
  * a value from the hash table */
-_CRT_EXTERN void *HashTableGetValue(HashTable_t *HashTable, DataKey_t Key);
+_MOS_API void *HashTableGetValue(HashTable_t *HashTable, DataKey_t Key);
 
 #endif //!_HASHTABLE_H_

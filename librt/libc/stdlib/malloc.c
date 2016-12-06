@@ -535,7 +535,7 @@ void __MallocLibCEmpty(void)
 
 #ifndef DLMALLOC_EXPORT
 #ifdef MOLLENOS
-#define DLMALLOC_EXPORT _CRT_EXTERN
+#define DLMALLOC_EXPORT _CRTIMP
 #else
 #define DLMALLOC_EXPORT extern
 #endif

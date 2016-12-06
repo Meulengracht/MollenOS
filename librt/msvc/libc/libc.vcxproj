@@ -48,7 +48,7 @@
       <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">MOLLENOS</PreprocessorDefinitions>
       <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">MOLLENOS</PreprocessorDefinitions>
       <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">MOLLENOS</PreprocessorDefinitions>
-      <PreprocessorDefinitions>MOLLENOS;_X86_32;_HAVE_LONG_DOUBLE;_LDBL_EQ_DBL;_CRT_DYNAMIC;_CRT_DLL</PreprocessorDefinitions>
+      <PreprocessorDefinitions>MOLLENOS;_X86_32;_HAVE_LONG_DOUBLE;_LDBL_EQ_DBL;CRTDLL</PreprocessorDefinitions>
       <TreatWarningAsError>true</TreatWarningAsError>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
       <BufferSecurityCheck>false</BufferSecurityCheck>
@@ -68,6 +68,7 @@
       <GenerateMapFile>true</GenerateMapFile>
       <MapExports>true</MapExports>
       <SubSystem>Native</SubSystem>
+      <ModuleDefinitionFile>libc.def</ModuleDefinitionFile>
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>

@@ -88,37 +88,37 @@ typedef struct _IoApic
 } IoApic_t;
 
 /* Init Functions */
-_CRT_EXTERN void ApicInitBoot(void);
-_CRT_EXTERN void ApicInitAp(void);
-_CRT_EXTERN void ApicInitBootFinalize(void);
-_CRT_EXTERN void ApicTimerInit(void);
-_CRT_EXTERN void ApicReloadTimer(uint32_t Quantum);
+__CRT_EXTERN void ApicInitBoot(void);
+__CRT_EXTERN void ApicInitAp(void);
+__CRT_EXTERN void ApicInitBootFinalize(void);
+__CRT_EXTERN void ApicTimerInit(void);
+__CRT_EXTERN void ApicReloadTimer(uint32_t Quantum);
 
 /* IO Functions */
 
 /* Local Apic */
-_CRT_EXTERN uint32_t ApicReadLocal(uint32_t Register);
-_CRT_EXTERN void ApicWriteLocal(uint32_t Register, uint32_t Value);
+__CRT_EXTERN uint32_t ApicReadLocal(uint32_t Register);
+__CRT_EXTERN void ApicWriteLocal(uint32_t Register, uint32_t Value);
 
 /* IO Apic */
-_CRT_EXTERN uint32_t ApicIoRead(IoApic_t *IoApic, uint32_t Register);
-_CRT_EXTERN void ApicIoWrite(IoApic_t *IoApic, uint32_t Register, uint32_t Data);
-_CRT_EXTERN uint64_t ApicReadIoEntry(IoApic_t *IoApic, uint32_t Register);
-_CRT_EXTERN void ApicWriteIoEntry(IoApic_t *IoApic, uint32_t Pin, uint64_t Data);
+__CRT_EXTERN uint32_t ApicIoRead(IoApic_t *IoApic, uint32_t Register);
+__CRT_EXTERN void ApicIoWrite(IoApic_t *IoApic, uint32_t Register, uint32_t Data);
+__CRT_EXTERN uint64_t ApicReadIoEntry(IoApic_t *IoApic, uint32_t Register);
+__CRT_EXTERN void ApicWriteIoEntry(IoApic_t *IoApic, uint32_t Pin, uint64_t Data);
 
 /* Helper Functions */
-_CRT_EXTERN void ApicSendEoi(uint32_t Gsi, uint32_t Vector);
-_CRT_EXTERN void ApicSendIpi(uint8_t CpuTarget, uint8_t IrqVector);
+__CRT_EXTERN void ApicSendEoi(uint32_t Gsi, uint32_t Vector);
+__CRT_EXTERN void ApicSendIpi(uint8_t CpuTarget, uint8_t IrqVector);
 
-_CRT_EXTERN IoApic_t *ApicGetIoFromGsi(uint32_t Gsi);
-_CRT_EXTERN uint32_t ApicGetPinFromGsi(uint32_t Gsi);
+__CRT_EXTERN IoApic_t *ApicGetIoFromGsi(uint32_t Gsi);
+__CRT_EXTERN uint32_t ApicGetPinFromGsi(uint32_t Gsi);
 
-_CRT_EXTERN int ApicIsIntegrated(void);
-_CRT_EXTERN int ApicGetMaxLvt(void);
-_CRT_EXTERN Cpu_t ApicGetCpu(void);
-_CRT_EXTERN uint32_t ApicGetCpuMask(uint32_t Cpu);
+__CRT_EXTERN int ApicIsIntegrated(void);
+__CRT_EXTERN int ApicGetMaxLvt(void);
+__CRT_EXTERN Cpu_t ApicGetCpu(void);
+__CRT_EXTERN uint32_t ApicGetCpuMask(uint32_t Cpu);
 
-_CRT_EXTERN void ApicSetTaskPriority(uint32_t Priority);
-_CRT_EXTERN uint32_t ApicGetTaskPriority(void);
+__CRT_EXTERN void ApicSetTaskPriority(uint32_t Priority);
+__CRT_EXTERN uint32_t ApicGetTaskPriority(void);
 
 #endif //!_X86_APIC_H_

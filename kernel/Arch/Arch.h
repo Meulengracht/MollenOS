@@ -75,13 +75,13 @@ typedef Registers_t Context_t;
 #define ADDRESS_SPACE_FLAG_NOCACHE		0x4
 #define ADDRESS_SPACE_FLAG_VIRTUAL		0x8
 
-_CRT_EXTERN void AddressSpaceInitKernel(AddressSpace_t *Kernel);
-_CRT_EXTERN AddressSpace_t *AddressSpaceCreate(int Flags);
-_CRT_EXTERN void AddressSpaceDestroy(AddressSpace_t *AddrSpace);
-_CRT_EXTERN void AddressSpaceSwitch(AddressSpace_t *AddrSpace);
+__CRT_EXTERN void AddressSpaceInitKernel(AddressSpace_t *Kernel);
+__CRT_EXTERN AddressSpace_t *AddressSpaceCreate(int Flags);
+__CRT_EXTERN void AddressSpaceDestroy(AddressSpace_t *AddrSpace);
+__CRT_EXTERN void AddressSpaceSwitch(AddressSpace_t *AddrSpace);
 _CRT_EXPORT AddressSpace_t *AddressSpaceGetCurrent(void);
 
-_CRT_EXTERN void AddressSpaceReleaseKernel(AddressSpace_t *AddrSpace);
+__CRT_EXTERN void AddressSpaceReleaseKernel(AddressSpace_t *AddrSpace);
 _CRT_EXPORT Addr_t AddressSpaceMap(AddressSpace_t *AddrSpace, 
 	VirtAddr_t Address, size_t Size, Addr_t Mask, int Flags);
 _CRT_EXPORT void AddressSpaceMapFixed(AddressSpace_t *AddrSpace,
@@ -96,15 +96,15 @@ _CRT_EXPORT PhysAddr_t AddressSpaceGetMap(AddressSpace_t *AddrSpace, VirtAddr_t 
 ***********************/
 
 /* Functions */
-_CRT_EXTERN void *IThreadInitBoot(void);
-_CRT_EXTERN void *IThreadInitAp(void);
+__CRT_EXTERN void *IThreadInitBoot(void);
+__CRT_EXTERN void *IThreadInitAp(void);
 
-_CRT_EXTERN void *IThreadInit(Addr_t EntryPoint);
-_CRT_EXTERN void IThreadDestroy(void *ThreadData);
+__CRT_EXTERN void *IThreadInit(Addr_t EntryPoint);
+__CRT_EXTERN void IThreadDestroy(void *ThreadData);
 
-_CRT_EXTERN void IThreadInitUserMode(void *ThreadData, 
+__CRT_EXTERN void IThreadInitUserMode(void *ThreadData,
 	Addr_t StackAddr, Addr_t EntryPoint, Addr_t ArgumentAddress);
-_CRT_EXTERN void IThreadWakeCpu(Cpu_t Cpu);
+__CRT_EXTERN void IThreadWakeCpu(Cpu_t Cpu);
 _CRT_EXPORT void IThreadYield(void);
 
 /***********************
@@ -134,21 +134,21 @@ typedef struct _DeviceIoSpace
 } DeviceIoSpace_t;
 
 /* Functions */
-_CRT_EXTERN void IoSpaceInit(void);
+__CRT_EXTERN void IoSpaceInit(void);
 _CRT_EXPORT DeviceIoSpace_t *IoSpaceCreate(int Type, Addr_t PhysicalBase, size_t Size);
 _CRT_EXPORT void IoSpaceDestroy(DeviceIoSpace_t *IoSpace);
 
 _CRT_EXPORT size_t IoSpaceRead(DeviceIoSpace_t *IoSpace, size_t Offset, size_t Length);
 _CRT_EXPORT void IoSpaceWrite(DeviceIoSpace_t *IoSpace, size_t Offset, size_t Value, size_t Length);
-_CRT_EXTERN Addr_t IoSpaceValidate(Addr_t Address);
+__CRT_EXTERN Addr_t IoSpaceValidate(Addr_t Address);
 
 /***********************
 * Device Interface     *
 ***********************/
 /* First of all, devices exists on TWO different
-* busses. PCI and PCI Express. */
-_CRT_EXTERN void BusInit(void);
+ * busses. PCI and PCI Express. */
+__CRT_EXTERN void BusInit(void);
 
-_CRT_EXTERN int DeviceAllocateInterrupt(void *mCoreDevice);
+__CRT_EXTERN int DeviceAllocateInterrupt(void *mCoreDevice);
 
 #endif

@@ -90,18 +90,18 @@ struct lconv {
 
 /* The setlocale function
  * Used to update the current localization */
-_CRT_EXTERN char *setlocale(int, const char *);
+_CRTIMP char *setlocale(int, __CRT_CONST char *);
 
 /* The localeconv function
  * Get locale formatting parameters for quantities */
-_CRT_EXTERN struct lconv *localeconv(void);
+_CRTIMP struct lconv *localeconv(void);
 
 /* The below functions are not actually strictly defined
  * by the C standard, but rather by the POSIX standard */
-_CRT_EXTERN locale_t newlocale(int, const char *, locale_t);
-_CRT_EXTERN void freelocale(locale_t);
-_CRT_EXTERN locale_t duplocale(locale_t);
-_CRT_EXTERN locale_t uselocale(locale_t);
+_CRTIMP locale_t newlocale(int, __CRT_CONST char *, locale_t);
+_CRTIMP void freelocale(locale_t);
+_CRTIMP locale_t duplocale(locale_t);
+_CRTIMP locale_t uselocale(locale_t);
 
 #ifdef __cplusplus
 }
