@@ -74,6 +74,9 @@
     <MASM>
       <UseSafeExceptionHandlers>true</UseSafeExceptionHandlers>
     </MASM>
+    <PostBuildEvent>
+      <Command>xcopy $(SolutionDir)librt\build\libcrt.lib $(SolutionDir)userspace\development\lib\* /v /y /i</Command>
+    </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup>
     <MASM Include="..\..\libcrt\vscrt\alldiv.S">

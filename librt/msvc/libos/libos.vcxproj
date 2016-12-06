@@ -63,6 +63,10 @@
       <MapExports>true</MapExports>
       <SubSystem>Native</SubSystem>
     </Link>
+    <PostBuildEvent>
+      <Command>xcopy $(SolutionDir)librt\build\libos.lib $(SolutionDir)userspace\development\lib\* /v /y /i
+xcopy $(SolutionDir)librt\build\libos.dll $(SolutionDir)userspace\development\bin\* /v /y /i</Command>
+    </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="..\..\libos\devices.c" />

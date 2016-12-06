@@ -70,6 +70,12 @@
       <SubSystem>Native</SubSystem>
       <ModuleDefinitionFile>libc.def</ModuleDefinitionFile>
     </Link>
+    <PostBuildEvent>
+      <Command>xcopy $(SolutionDir)librt\include $(SolutionDir)userspace\development\include /v /y /s /EXCLUDE:$(SolutionDir)librt\msvc\libc\excl.list
+xcopy $(SolutionDir)librt\include\i386\fenv.h $(SolutionDir)userspace\development\include\* /v /y /i
+xcopy $(SolutionDir)librt\build\libc.lib $(SolutionDir)userspace\development\lib\* /v /y /i
+xcopy $(SolutionDir)librt\build\libc.dll $(SolutionDir)userspace\development\bin\* /v /y /i</Command>
+    </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="..\..\libc\assert\assert.c" />

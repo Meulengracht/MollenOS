@@ -2,3 +2,6 @@ LIBRARY libc
 EXPORTS
 memcpy
 memset
+_setjmp
+_setjmp3
+longjmp
