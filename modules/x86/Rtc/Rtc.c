@@ -25,7 +25,7 @@
 #include <Devices/Timer.h>
 #include <Timers.h>
 #include <Module.h>
-#include <Cmos.h>
+#include "../Include/Cmos.h"
 #include <Heap.h>
 
 /* CLib */

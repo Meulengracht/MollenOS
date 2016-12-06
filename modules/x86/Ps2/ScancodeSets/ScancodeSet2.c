@@ -20,7 +20,7 @@
 */
 
 /* Includes */
-#include <ScancodeSet2.h>
+#include "../../include/scancodeset2.h"
 
 /* Convert */
 VKey ScancodeSet2ToMCore(ScancodeSet2 Key)

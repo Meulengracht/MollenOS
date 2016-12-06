@@ -35,8 +35,9 @@
 #endif
 
 /* Definitions */
-#define X86_CMOS_IO_SELECT			0x70
-#define X86_CMOS_IO_DATA			0x71
+#define X86_CMOS_IO_BASE			0x70
+#define X86_CMOS_IO_SELECT			0x00
+#define X86_CMOS_IO_DATA			0x01
 
 #define X86_CMOS_REGISTER_SECONDS	0x00
 #define X86_CMOS_REGISTER_MINUTES	0x02

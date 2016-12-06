@@ -51,6 +51,6 @@ typedef struct _Ps2KeyboardDevice
 #pragma pack(pop)
 
 /* Prototypes */
-_CRT_EXTERN void Ps2KeyboardInit(int Port, int Translation);
+__CRT_EXTERN void Ps2KeyboardInit(int Port, int Translation);
 
 #endif

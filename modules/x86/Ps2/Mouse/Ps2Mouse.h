@@ -56,6 +56,6 @@ typedef struct _Ps2MouseDevice
 #pragma pack(pop)
 
 /* Prototypes */
-_CRT_EXTERN void Ps2MouseInit(int Port);
+__CRT_EXTERN void Ps2MouseInit(int Port);
 
 #endif

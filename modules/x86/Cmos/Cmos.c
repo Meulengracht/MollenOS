@@ -25,7 +25,7 @@
 #include <Devices\Clock.h>
 #include <Module.h>
 #include <Mutex.h>
-#include <Cmos.h>
+#include "../Include/Cmos.h"
 #include <Heap.h>
 
 /* Clib */
@@ -38,6 +38,12 @@ typedef struct _CmosClock
 	/* Device Id */
 	DevId_t DeviceId;
 
+	/* IO Lock */
+	Mutex_t *Lock;
+
+	/* IO Space */
+	DeviceIoSpace_t *IoSpace;
+
 	/* Century Register */
 	uint8_t AcpiCentury;
 
@@ -46,7 +52,7 @@ typedef struct _CmosClock
 
 /* Mutex */
 const char *GlbCmosDriverName = "MollenOS CMOS Driver";
-Mutex_t *GlbCmosLock = NULL;
+static CmosClock_t *GlbCmos = NULL;
 
 /* Gets current time and stores it in a time structure */
 void CmosGetTime(void *Device, tm *TimeStructure)
@@ -138,21 +144,24 @@ MODULES_API void ModuleInit(void *Data)
 	/* Vars */
 	MCoreDevice_t *Device = NULL;
 	MCoreClockDevice_t *Clock = NULL;
-	CmosClock_t *Cmos = NULL;
-
-	/* Init lock */
-	GlbCmosLock = MutexCreate();
 
 	/* Allocate */
 	Device = (MCoreDevice_t*)kmalloc(sizeof(MCoreDevice_t));
-	Cmos = (CmosClock_t*)kmalloc(sizeof(CmosClock_t));
+	GlbCmos = (CmosClock_t*)kmalloc(sizeof(CmosClock_t));
 	Clock = (MCoreClockDevice_t*)kmalloc(sizeof(MCoreClockDevice_t));
 
 	/* Setup Cmos object */
 	if (Data != NULL)
-		Cmos->AcpiCentury = *(uint8_t*)Data;
+		GlbCmos->AcpiCentury = *(uint8_t*)Data;
 	else
-		Cmos->AcpiCentury = 0;
+		GlbCmos->AcpiCentury = 0;
+
+	/* Create the io-space 
+	 * it spans over 2 bytes, very modest */
+	GlbCmos->IoSpace = IoSpaceCreate(DEVICE_IO_SPACE_IO, X86_CMOS_IO_SELECT, 2);
+
+	/* Initialize the cmos lock */
+	GlbCmos->Lock = MutexCreate();
 
 	/* Setup Clock */
 	Clock->GetTime = CmosGetTime;
@@ -175,11 +184,11 @@ MODULES_API void ModuleInit(void *Data)
 	/* Initial */
 	Device->Driver.Name = (char*)GlbCmosDriverName;
 	Device->Driver.Version = 1;
-	Device->Driver.Data = Cmos;
+	Device->Driver.Data = GlbCmos;
 	Device->Driver.Status = DriverActive;
 
 	/* Register */
-	Cmos->DeviceId = DmCreateDevice("CMOS Clock", Device);
+	GlbCmos->DeviceId = DmCreateDevice("CMOS Clock", Device);
 }
 
 /* Helpers, I/O */
@@ -189,19 +198,19 @@ uint8_t CmosReadRegister(uint8_t Register)
 	uint8_t Tmp = 0, RetValue;
 
 	/* Acquire Mutex */
-	MutexLock(GlbCmosLock);
+	MutexLock(GlbCmos->Lock);
 
 	/* Keep NMI if disabled */
-	Tmp = inb(X86_CMOS_IO_SELECT) & X86_CMOS_NMI_BIT;
+	Tmp = IoSpaceRead(GlbCmos->IoSpace, X86_CMOS_IO_SELECT, 1) & X86_CMOS_NMI_BIT;
 
 	/* Select Register (but do not change NMI) */
-	outb(X86_CMOS_IO_SELECT, (Tmp | (Register & X86_CMOS_ALLBITS_NONMI)));
+	IoSpaceWrite(GlbCmos->IoSpace, X86_CMOS_IO_SELECT, (Tmp | (Register & X86_CMOS_ALLBITS_NONMI)), 1);
 
 	/* Get Data */
-	RetValue = inb(X86_CMOS_IO_DATA);
+	RetValue = (uint8_t)IoSpaceRead(GlbCmos->IoSpace, X86_CMOS_IO_DATA, 1);
 
 	/* Unlock */
-	MutexUnlock(GlbCmosLock);
+	MutexUnlock(GlbCmos->Lock);
 
 	/* Done */
 	return RetValue;
@@ -213,17 +222,17 @@ void CmosWriteRegister(uint8_t Register, uint8_t Data)
 	uint8_t Tmp = 0;
 
 	/* Acquire Mutex */
-	MutexLock(GlbCmosLock);
+	MutexLock(GlbCmos->Lock);
 
 	/* Keep NMI if disabled */
-	Tmp = inb(X86_CMOS_IO_SELECT) & X86_CMOS_NMI_BIT;
+	Tmp = (uint8_t)IoSpaceRead(GlbCmos->IoSpace, X86_CMOS_IO_SELECT, 1) & X86_CMOS_NMI_BIT;
 
 	/* Select Register (but do not change NMI) */
-	outb(X86_CMOS_IO_SELECT, (Tmp | (Register & X86_CMOS_ALLBITS_NONMI)));
+	IoSpaceWrite(GlbCmos->IoSpace, X86_CMOS_IO_SELECT, (Tmp | (Register & X86_CMOS_ALLBITS_NONMI)), 1);
 
 	/* Write Data */
-	outb(X86_CMOS_IO_DATA, Data);
+	IoSpaceWrite(GlbCmos->IoSpace, X86_CMOS_IO_DATA, Data, 1);
 
 	/* Unlock */
-	MutexUnlock(GlbCmosLock);
+	MutexUnlock(GlbCmos->Lock);
 }

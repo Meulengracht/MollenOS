@@ -317,6 +317,6 @@ typedef struct _MsdDevice
 /* Prototypes */
 
 /* Initialise Driver for a MSD */
-_CRT_EXTERN void UsbMsdInit(UsbHcDevice_t *UsbDevice, int InterfaceIndex);
+__CRT_EXTERN void UsbMsdInit(UsbHcDevice_t *UsbDevice, int InterfaceIndex);
 
 #endif // !X86_USB_MSD_H_

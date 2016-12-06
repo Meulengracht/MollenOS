@@ -26,9 +26,10 @@
 #include <stddef.h>
 
 /* Definitions */
-#define X86_PS2_DATA		0x60
-#define X86_PS2_STATUS		0x64
-#define X86_PS2_COMMAND		0x64
+#define X86_PS2_IO_BASE		0x60
+#define X86_PS2_DATA		0x00
+#define X86_PS2_STATUS		0x04
+#define X86_PS2_COMMAND		0x04
 
 /* Status Stuff */
 #define X86_PS2_STATUS_OUTPUT_FULL	0x1
@@ -60,10 +61,10 @@
 #define X86_PS2_PORT2_INTERRUPT		0x0C
 
 /* Prototypes */
-_CRT_EXTERN void Ps2Init(void);
+__CRT_EXTERN void Ps2Init(void);
 
-_CRT_EXTERN void Ps2SendCommand(uint8_t Value);
-_CRT_EXTERN int Ps2WriteData(uint8_t Value);
-_CRT_EXTERN uint8_t Ps2ReadData(int Dummy);
+__CRT_EXTERN void Ps2SendCommand(uint8_t Value);
+__CRT_EXTERN int Ps2WriteData(uint8_t Value);
+__CRT_EXTERN uint8_t Ps2ReadData(int Dummy);
 
 #endif

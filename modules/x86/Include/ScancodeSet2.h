@@ -164,6 +164,6 @@ typedef enum _ScancodeSet2
 } ScancodeSet2;
 
 /* Translate to Mcore Userspace defs */
-_CRT_EXTERN VKey ScancodeSet2ToMCore(ScancodeSet2 Key);
+__CRT_EXTERN VKey ScancodeSet2ToMCore(ScancodeSet2 Key);
 
 #endif

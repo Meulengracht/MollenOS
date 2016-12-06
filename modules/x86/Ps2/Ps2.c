@@ -35,12 +35,13 @@ uint32_t GlbPs2Exists = 0;
 uint32_t GlbPs2PortCount = 0;
 uint32_t GlbPs2Port1 = 0;
 uint32_t GlbPs2Port2 = 0;
+DeviceIoSpace_t *GlbPs2IoSpace = NULL;
 Spinlock_t GlbPs2Lock;
 
 /* Helpers */
 uint8_t Ps2ReadStatus(void)
 {
-	return inb(X86_PS2_STATUS);
+	return (uint8_t)IoSpaceRead(GlbPs2IoSpace, X86_PS2_STATUS, 1);
 }
 
 uint8_t Ps2ReadData(int Dummy)
@@ -69,7 +70,7 @@ uint8_t Ps2ReadData(int Dummy)
 	}
 
 	/* Get data */
-	Response = inb(X86_PS2_DATA);
+	Response = (uint8_t)IoSpaceRead(GlbPs2IoSpace, X86_PS2_DATA, 1);
 
 	/* Release */
 	SpinlockRelease(&GlbPs2Lock);
@@ -86,7 +87,7 @@ void Ps2SendCommand(uint8_t Value)
 	WaitForConditionWithFault(Error, (Ps2ReadStatus() & X86_PS2_STATUS_INPUT_FULL) == 0, 100, 1);
 
 	/* Write */
-	outb(X86_PS2_COMMAND, Value);
+	IoSpaceWrite(GlbPs2IoSpace, X86_PS2_COMMAND, Value, 1);
 }
 
 int Ps2WriteData(uint8_t Value)
@@ -108,7 +109,7 @@ int Ps2WriteData(uint8_t Value)
 	SpinlockAcquire(&GlbPs2Lock);
 		
 	/* Write */
-	outb(X86_PS2_DATA, Value);
+	IoSpaceWrite(GlbPs2IoSpace, X86_PS2_DATA, Value, 1);
 
 	/* Release */
 	SpinlockRelease(&GlbPs2Lock);
@@ -286,6 +287,10 @@ MODULES_API void ModuleInit(void *Data)
 
 	/* Setup lock */
 	SpinlockReset(&GlbPs2Lock);
+
+	/* Initialize the io-space for 
+	 * the ps2 controller, spans 8 bytes for safety */
+	GlbPs2IoSpace = IoSpaceCreate(DEVICE_IO_SPACE_IO, X86_PS2_IO_BASE, 8);
 
 	/* Dummy reads, empty it's buffer */
 	Ps2ReadData(1);

@@ -504,11 +504,12 @@ void UsbEventHandler(void *args)
 {
 	UsbEvent_t *Event;
 	ListNode_t *lNode;
+	int Run = 1;
 
 	/* Unused */
 	_CRT_UNUSED(args);
 
-	while (1)
+	while (Run)
 	{
 		/* Acquire Semaphore */
 		SemaphoreP(GlbEventLock, 0);

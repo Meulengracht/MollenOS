@@ -34,7 +34,7 @@
 #include <string.h>
 
 /* Scansets */
-#include <ScancodeSet2.h>
+#include "../../Include/ScancodeSet2.h"
 
 /* Globals */
 const char *GlbPs2KeyboardDriverName = "MollenOS PS2-Keyboard Driver";

@@ -37,6 +37,10 @@ typedef struct _PitTimer
 	/* Device Id */
 	DevId_t DeviceId;
 
+	/* Io-space for accessing the PIT
+	 * Spans over 4 bytes from 0x40-0x44 */
+	DeviceIoSpace_t *IoSpace;
+
 	/* Divisor Value */
 	uint32_t Divisor;
 
@@ -92,6 +96,9 @@ MODULES_API void ModuleInit(void *Data)
 	Pit->PitCounter = 0;
 	Pit->Divisor = Divisor;
 
+	/* Setup io-space */
+	Pit->IoSpace = IoSpaceCreate(DEVICE_IO_SPACE_IO, X86_PIT_IO_BASE, 4);
+
 	/* Setup Timer */
 	Timer->ReportMs = NULL;
 	Timer->Sleep = PitSleep;
@@ -142,14 +149,13 @@ MODULES_API void ModuleInit(void *Data)
 	IntrState = InterruptDisable();
 
 	/* We use counter 0, select counter 0 and configure it */
-	outb(X86_PIT_REGISTER_COMMAND,
-		X86_PIT_COMMAND_SQUAREWAVEGEN |
-		X86_PIT_COMMAND_RL_DATA |
-		X86_PIT_COMMAND_COUNTER_0);
+	IoSpaceWrite(Pit->IoSpace, X86_PIT_REGISTER_COMMAND, 
+		X86_PIT_COMMAND_SQUAREWAVEGEN | X86_PIT_COMMAND_RL_DATA |
+		X86_PIT_COMMAND_COUNTER_0, 1);
 
 	/* Set divisor */
-	outb(X86_PIT_REGISTER_COUNTER0, (uint8_t)(Divisor & 0xFF));
-	outb(X86_PIT_REGISTER_COUNTER0, (uint8_t)((Divisor >> 8) & 0xFF));
+	IoSpaceWrite(Pit->IoSpace, X86_PIT_REGISTER_COUNTER0, (uint8_t)(Divisor & 0xFF), 1);
+	IoSpaceWrite(Pit->IoSpace, X86_PIT_REGISTER_COUNTER0, (uint8_t)((Divisor >> 8) & 0xFF), 1);
 
 	/* Done, reenable interrupts */
 	InterruptRestoreState(IntrState);
