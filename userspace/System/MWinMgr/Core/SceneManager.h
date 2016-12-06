@@ -56,38 +56,38 @@ typedef struct _sSceneManager {
 /* Initializor
  * Sets up the scene manager
  * and creates the default scene */
-EXTERN void SceneManagerInit(SDL_Renderer *Renderer, Rect_t *ScreenDims);
+__CRT_EXTERN void SceneManagerInit(SDL_Renderer *Renderer, Rect_t *ScreenDims);
 
 /* Destructor
  * Cleans up all scenes
  * and releases resources allocated */
-EXTERN void SceneManagerDestruct(void);
+__CRT_EXTERN void SceneManagerDestruct(void);
 
 /* Add Window 
  * Adds a newly created window to the 
  * current scene. The window is not immediately 
  * rendered before a call to Render */
-EXTERN void SceneManagerAddWindow(Window_t *Window);
+__CRT_EXTERN void SceneManagerAddWindow(Window_t *Window);
 
 /* Get Window 
  * This looks up a window by id in the current
  * active scene, if not found, NULL is returned */
-EXTERN Window_t *SceneManagerGetWindow(int WindowId);
+__CRT_EXTERN Window_t *SceneManagerGetWindow(int WindowId);
 
 /* Get Active Window
  * This looks up the active window by in the current
  * active scene, if not found, NULL is returned */
-EXTERN Window_t *SceneManagerGetActiveWindow(void);
+__CRT_EXTERN Window_t *SceneManagerGetActiveWindow(void);
 
 /* Update 
  * This updates the current scene 
  * and makes all neccessary changes to windows 
  * a call with NULL updates entire scene */
-EXTERN void SceneManagerUpdate(Rect_t *DirtyArea);
+__CRT_EXTERN void SceneManagerUpdate(Rect_t *DirtyArea);
 
 /* Render
  * This renders the current scene 
  * to the screen */
-EXTERN void SceneManagerRender(SDL_Renderer *Renderer);
+__CRT_EXTERN void SceneManagerRender(SDL_Renderer *Renderer);
 
 #endif //!_SAPPHIRE_SCENEMGR_H_

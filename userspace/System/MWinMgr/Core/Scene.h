@@ -71,36 +71,36 @@ typedef struct _sScene {
 
 /* Initializor
  * Creates a new scene */
-EXTERN Scene_t *SceneCreate(int Id, Rect_t *Dimensions, SDL_Renderer *Renderer);
+__CRT_EXTERN Scene_t *SceneCreate(int Id, Rect_t *Dimensions, SDL_Renderer *Renderer);
 
 /* Destructor
  * Cleans up all windows
  * and releases resources allocated */
-EXTERN void SceneDestroy(Scene_t *Scene);
+__CRT_EXTERN void SceneDestroy(Scene_t *Scene);
 
 /* Add Window
  * Adds a newly created window to the
  * given scene. The window is not immediately
  * rendered before a call to Render */
-EXTERN void SceneAddWindow(Scene_t *Scene, Window_t *Window);
+__CRT_EXTERN void SceneAddWindow(Scene_t *Scene, Window_t *Window);
 
 /* Get Window 
  * Looks up a window by id in the given scene
  * returns NULL if none is found */
-EXTERN Window_t *SceneGetWindow(Scene_t *Scene, int WindowId);
+__CRT_EXTERN Window_t *SceneGetWindow(Scene_t *Scene, int WindowId);
 
 /* Get Active Window
  * Looks up the active window in the given scene
  * returns NULL if none is found */
-EXTERN Window_t *SceneGetActiveWindow(Scene_t *Scene);
+__CRT_EXTERN Window_t *SceneGetActiveWindow(Scene_t *Scene);
 
 /* Update
  * This updates any changes to windows
  * for this scene, but only for the given rectangle */
-EXTERN void SceneUpdate(Scene_t *Scene, Rect_t *DirtyArea);
+__CRT_EXTERN void SceneUpdate(Scene_t *Scene, Rect_t *DirtyArea);
 
 /* Render
  * This renders all windows for this scene */
-EXTERN void SceneRender(Scene_t *Scene, SDL_Renderer *Renderer);
+__CRT_EXTERN void SceneRender(Scene_t *Scene, SDL_Renderer *Renderer);
 
 #endif //!_SAPPHIRE_SCENE_H_

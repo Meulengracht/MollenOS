@@ -50,8 +50,8 @@
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <LinkIncremental>false</LinkIncremental>
-    <IncludePath>..\..\..\clib\include;..\..\Libraries\Includes\SDL\</IncludePath>
-    <LibraryPath>..\..\..\clib\build;..\..\Libraries\Lib\</LibraryPath>
+    <IncludePath>..\..\development\include;..\..\development\include\SDL\</IncludePath>
+    <LibraryPath>..\..\development\lib;</LibraryPath>
     <TargetExt>.mxi</TargetExt>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
@@ -89,7 +89,7 @@
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
-      <AdditionalDependencies>LibVs.lib;LibC.lib;LibCrt.lib;LibUi.lib;UICore.lib;UIImage.lib</AdditionalDependencies>
+      <AdditionalDependencies>libcrt.lib;libc.lib;libos.lib;libmsc++.lib;UICore.lib;UIImage.lib</AdditionalDependencies>
       <IgnoreAllDefaultLibraries>true</IgnoreAllDefaultLibraries>
       <GenerateMapFile>true</GenerateMapFile>
       <MapExports>true</MapExports>

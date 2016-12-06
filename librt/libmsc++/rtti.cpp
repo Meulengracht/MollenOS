@@ -86,25 +86,30 @@ static inline const rtti_object_locator *CxxGetObjectLocator(void *Object)
 	return (const rtti_object_locator *)vTable[-1];
 }
 
+/* Disable warnings */
+#ifdef _MSC_VER
+#pragma warning(disable:4297)
+#endif
+
 /******************************************************************
-*		__RTtypeid (MSVCRT.@)
-*
-* Retrieve the Run Time Type Information (RTTI) for a C++ object.
-*
-* PARAMS
-*  Object [I] C++ object to get type information for.
-*
-* RETURNS
-*  Success: A type_info object describing cppobj.
-*  Failure: If the object to be cast has no RTTI, a __non_rtti_object
-*           exception is thrown. If cppobj is NULL, a bad_typeid exception
-*           is thrown. In either case, this function does not return.
-*
-* NOTES
-*  This function is usually called by compiler generated code as a result
-*  of using one of the C++ dynamic cast statements.
-*/
-extern "C" void* __cdecl __RTtypeid(void *Object) throw()
+ *		__RTtypeid (MSVCRT.@)
+ *
+ * Retrieve the Run Time Type Information (RTTI) for a C++ object.
+ *
+ * PARAMS
+ *  Object [I] C++ object to get type information for.
+ *
+ * RETURNS
+ *  Success: A type_info object describing cppobj.
+ *  Failure: If the object to be cast has no RTTI, a __non_rtti_object
+ *           exception is thrown. If cppobj is NULL, a bad_typeid exception
+ *           is thrown. In either case, this function does not return.
+ *
+ * NOTES
+ *  This function is usually called by compiler generated code as a result
+ *  of using one of the C++ dynamic cast statements.
+ */
+__CRT_EXTERN "C" void* __CRTDECL __RTtypeid(void *Object) throw()
 {
 	/* Variables */
 	const type_info *RetInfo;
@@ -135,28 +140,28 @@ extern "C" void* __cdecl __RTtypeid(void *Object) throw()
 }
 
 /******************************************************************
-*		__RTDynamicCast (MSVCRT.@)
-*
-* Dynamically cast a C++ object to one of its base classes.
-*
-* PARAMS
-*  cppobj   [I] Any C++ object to cast
-*  unknown  [I] Reserved, set to 0
-*  src      [I] type_info object describing cppobj
-*  dst      [I] type_info object describing the base class to cast to
-*  do_throw [I] TRUE = throw an exception if the cast fails, FALSE = don't
-*
-* RETURNS
-*  Success: The address of cppobj, cast to the object described by dst.
-*  Failure: NULL, If the object to be cast has no RTTI, or dst is not a
-*           valid cast for cppobj. If do_throw is TRUE, a bad_cast exception
-*           is thrown and this function does not return.
-*
-* NOTES
-*  This function is usually called by compiler generated code as a result
-*  of using one of the C++ dynamic cast statements.
-*/
-void* __cdecl __RTDynamicCast(void *Object, int unknown,
+ *		__RTDynamicCast (MSVCRT.@)
+ *
+ * Dynamically cast a C++ object to one of its base classes.
+ *
+ * PARAMS
+ *  cppobj   [I] Any C++ object to cast
+ *  unknown  [I] Reserved, set to 0
+ *  src      [I] type_info object describing cppobj
+ *  dst      [I] type_info object describing the base class to cast to
+ *  do_throw [I] TRUE = throw an exception if the cast fails, FALSE = don't
+ *
+ * RETURNS
+ *  Success: The address of cppobj, cast to the object described by dst.
+ *  Failure: NULL, If the object to be cast has no RTTI, or dst is not a
+ *           valid cast for cppobj. If do_throw is TRUE, a bad_cast exception
+ *           is thrown and this function does not return.
+ *
+ * NOTES
+ *  This function is usually called by compiler generated code as a result
+ *  of using one of the C++ dynamic cast statements.
+ */
+void* __CRTDECL __RTDynamicCast(void *Object, int unknown,
 	type_info *src, type_info *dst, int do_throw) throw()
 {
 	void *RetInfo;
@@ -169,13 +174,13 @@ void* __cdecl __RTDynamicCast(void *Object, int unknown,
 	_CRT_UNUSED(unknown);
 
 	/* To cast an object at runtime:
-	* 1.Find out the true type of the object from the typeinfo at vtable[-1]
-	* 2.Search for the destination type in the class hierarchy
-	* 3.If destination type is found, return base object address + dest offset
-	*   Otherwise, fail the cast
-	*
-	* FIXME: the unknown parameter doesn't seem to be used for anything
-	*/
+	 * 1.Find out the true type of the object from the typeinfo at vtable[-1]
+	 * 2.Search for the destination type in the class hierarchy
+	 * 3.If destination type is found, return base object address + dest offset
+	 *   Otherwise, fail the cast
+	 *
+	 * FIXME: the unknown parameter doesn't seem to be used for anything
+	 */
 	__try
 	{
 		int i;
@@ -216,22 +221,22 @@ void* __cdecl __RTDynamicCast(void *Object, int unknown,
 
 
 /******************************************************************
-*		__RTCastToVoid (MSVCRT.@)
-*
-* Dynamically cast a C++ object to a void*.
-*
-* PARAMS
-*  cppobj [I] The C++ object to cast
-*
-* RETURNS
-*  Success: The base address of the object as a void*.
-*  Failure: NULL, if cppobj is NULL or has no RTTI.
-*
-* NOTES
-*  This function is usually called by compiler generated code as a result
-*  of using one of the C++ dynamic cast statements.
-*/
-extern "C" void* __cdecl __RTCastToVoid(void *Object) throw()
+ *		__RTCastToVoid (MSVCRT.@)
+ *
+ * Dynamically cast a C++ object to a void*.
+ *
+ * PARAMS
+ *  cppobj [I] The C++ object to cast
+ *
+ * RETURNS
+ *  Success: The base address of the object as a void*.
+ *  Failure: NULL, if cppobj is NULL or has no RTTI.
+ *
+ * NOTES
+ *  This function is usually called by compiler generated code as a result
+ *  of using one of the C++ dynamic cast statements.
+ */
+__CRT_EXTERN "C" void* __CRTDECL __RTCastToVoid(void *Object) throw()
 {
 	void *RetInfo;
 
@@ -258,3 +263,8 @@ extern "C" void* __cdecl __RTCastToVoid(void *Object) throw()
 	/* Done! */
 	return RetInfo;
 }
+
+/* Disable warnings */
+#ifdef _MSC_VER
+#pragma warning(default:4297)
+#endif

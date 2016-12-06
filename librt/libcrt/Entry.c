@@ -191,6 +191,19 @@ void _mSrvCrt(void)
 	exit(RetValue);
 }
 
+/* Dll Entry Point 
+ * Use this entry point for dll extensions */
+void _mDllCrt(int Action)
+{
+	/* Init Crt */
+	if (Action == 0) {
+		__CppInit();
+	}
+	else {
+		__CppFinit();
+	}
+}
+
 /* Console Entry Point 
  * Use this entry point for 
  * programs that require a console */

@@ -29,7 +29,7 @@
 #include <os/Thread.h>
 
 /* Prototypes */
-EXCEPTION_DISPOSITION __cdecl XcptFilter(
+EXCEPTION_DISPOSITION __CRTDECL XcptFilter(
 	int ExceptionCode, struct _EXCEPTION_POINTERS *ExceptionPtrs);
 
 /* This function creates a new exception record based
@@ -89,7 +89,7 @@ void CxxThrowException(InternalException_t *ExcObject, const CxxExceptionType_t 
 }
 
 /* Detect whether or not it was a rethrow */
-int __cdecl __CxxDetectRethrow(PEXCEPTION_POINTERS Ptrs)
+int __CRTDECL __CxxDetectRethrow(PEXCEPTION_POINTERS Ptrs)
 {
 	/* Variables */
 	PEXCEPTION_RECORD Record;
@@ -115,12 +115,12 @@ int __cdecl __CxxDetectRethrow(PEXCEPTION_POINTERS Ptrs)
 
 /* This just returns the size of 
  * the exception type record */
-_CRTXX_ABI unsigned int __cdecl __CxxQueryExceptionSize(void) {
+_CRTXX_ABI unsigned int __CRTDECL __CxxQueryExceptionSize(void) {
 	return sizeof(CxxExceptionType_t);
 }
 
 /* Expcetion Filter */
-_CRTXX_ABI int __cdecl __CppXcptFilter(int ExType, PEXCEPTION_POINTERS Ptr)
+_CRTXX_ABI int __CRTDECL __CppXcptFilter(int ExType, PEXCEPTION_POINTERS Ptr)
 {
 	/* Only filter c++ exceptions */
 	if (ExType != CXX_EXCEPTION) 
@@ -288,7 +288,7 @@ void *CxxGetThisPointer(const CxxThisPtrOffsets_t *Offsets, void *Object)
 
 /* Install a handler to be called when terminate() is called.
  * The previously installed handler function, if any. */
-CxxTerminateFunction __cdecl _set_terminate(CxxTerminateFunction func)
+CxxTerminateFunction __CRTDECL _set_terminate(CxxTerminateFunction func)
 {
 	/* Get current thread data, we need 
 	 * to update the terminate handler */
@@ -305,7 +305,7 @@ CxxTerminateFunction __cdecl _set_terminate(CxxTerminateFunction func)
 
 /* Retrieves the current termination handler
  * for the current thread */
-CxxTerminateFunction __cdecl _get_terminate(void)
+CxxTerminateFunction __CRTDECL _get_terminate(void)
 {
 	ThreadLocalStorage_t *Data = TLSGetCurrent();
 	return (CxxTerminateFunction)Data->TerminateHandler;
@@ -313,7 +313,7 @@ CxxTerminateFunction __cdecl _get_terminate(void)
 
 /* Install a handler to be called when unexpected() is called.
  * The previously installed handler function, if any. */
-CxxUnexpectedFunction __cdecl _set_unexpected(CxxUnexpectedFunction func)
+CxxUnexpectedFunction __CRTDECL _set_unexpected(CxxUnexpectedFunction func)
 {
 	/* Get current thread data, we need 
 	 * to update the unexpected handler */
@@ -330,7 +330,7 @@ CxxUnexpectedFunction __cdecl _set_unexpected(CxxUnexpectedFunction func)
 
 /* Retrieves the current unexpected handler
  * for the current thread */
-CxxUnexpectedFunction __cdecl _get_unexpected(void)
+CxxUnexpectedFunction __CRTDECL _get_unexpected(void)
 {
 	ThreadLocalStorage_t *Data = TLSGetCurrent();
 	return (CxxUnexpectedFunction)Data->UnexpectedHandler;
@@ -338,7 +338,7 @@ CxxUnexpectedFunction __cdecl _get_unexpected(void)
 
 /* Installs a SE Translator function and 
  * returns the current if there were any */
-CxxSETranslatorFunction __cdecl _set_se_translator(CxxSETranslatorFunction func)
+CxxSETranslatorFunction __CRTDECL _set_se_translator(CxxSETranslatorFunction func)
 {
 	/* Get current thread data, we need 
 	 * to update the translator handler */
@@ -355,7 +355,7 @@ CxxSETranslatorFunction __cdecl _set_se_translator(CxxSETranslatorFunction func)
 
 /* This is the default handler 
  * for uncaught exceptions */
-void __cdecl terminate(void)
+void __CRTDECL terminate(void)
 {
 	/* Access the local thread 
 	 * storage and get the termination handler */

@@ -73,21 +73,21 @@ typedef struct _sWindow {
 /* Constructor 
  * Allocates a new window of the given
  * dimensions and initializes it */
-EXTERN Window_t *WindowCreate(IpcComm_t Owner, Rect_t *Dimensions, int Flags, SDL_Renderer *Renderer);
+__CRT_EXTERN Window_t *WindowCreate(IpcComm_t Owner, Rect_t *Dimensions, int Flags, SDL_Renderer *Renderer);
 
 /* Destructor
  * Cleans up and releases 
  * resources allocated */
-EXTERN void WindowDestroy(Window_t *Window);
+__CRT_EXTERN void WindowDestroy(Window_t *Window);
 
 /* Update
  * Updates all neccessary state and 
  * buffers before rendering */
-EXTERN void WindowUpdate(Window_t *Window, Rect_t *DirtyArea);
+__CRT_EXTERN void WindowUpdate(Window_t *Window, Rect_t *DirtyArea);
 
 /* Render
  * Renders the window to the 
  * given renderer */
-EXTERN void WindowRender(Window_t *Window, SDL_Renderer *Renderer, Rect_t *DirtyArea);
+__CRT_EXTERN void WindowRender(Window_t *Window, SDL_Renderer *Renderer, Rect_t *DirtyArea);
 
 #endif //!_SAPPHIRE_WINDOW_H_

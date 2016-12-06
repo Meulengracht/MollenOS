@@ -42,10 +42,10 @@
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <TargetExt>.mxi</TargetExt>
-    <IncludePath>..\..\..\clib\include;..\..\Libraries\Includes\</IncludePath>
+    <IncludePath>..\..\development\include</IncludePath>
     <ExecutablePath>$(VC_ExecutablePath_x86);$(WindowsSDK_ExecutablePath);$(VS_ExecutablePath);$(MSBuild_ExecutablePath);$(SystemRoot)\SysWow64;$(FxCopDir);$(PATH);</ExecutablePath>
     <ReferencePath />
-    <LibraryPath>..\..\..\clib\build;..\..\Libraries\Lib\</LibraryPath>
+    <LibraryPath>..\..\development\lib</LibraryPath>
     <LibraryWPath />
     <SourcePath />
     <ExcludePath />
@@ -79,7 +79,7 @@
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <EnableCOMDATFolding>false</EnableCOMDATFolding>
       <OptimizeReferences>false</OptimizeReferences>
-      <AdditionalDependencies>LibC.lib;LibUi.lib;LibCrt.lib;LibVs.lib;freetype2.lib</AdditionalDependencies>
+      <AdditionalDependencies>libcrt.lib;libc.lib;libm.lib;libos.lib;libmsc++.lib;freetype2.lib</AdditionalDependencies>
       <IgnoreAllDefaultLibraries>true</IgnoreAllDefaultLibraries>
       <SubSystem>Native</SubSystem>
       <EntryPointSymbol>_mConCrt</EntryPointSymbol>
