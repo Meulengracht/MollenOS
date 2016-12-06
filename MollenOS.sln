@@ -70,6 +70,11 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "libk", "librt\msvc\libk\lib
 	EndProjectSection
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "libos", "librt\msvc\libos\libos.vcxproj", "{0C598AF6-FD13-40CB-948C-5B027A70A471}"
+	ProjectSection(ProjectDependencies) = postProject
+		{1AD2E59E-5A05-43C7-A10B-236170B9B317} = {1AD2E59E-5A05-43C7-A10B-236170B9B317}
+		{7A7461EB-BFEA-4036-BA61-08BF33B12562} = {7A7461EB-BFEA-4036-BA61-08BF33B12562}
+		{96CD5AF1-B1D1-4EC0-8B87-DF05A83590E7} = {96CD5AF1-B1D1-4EC0-8B87-DF05A83590E7}
+	EndProjectSection
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Filesystems", "Filesystems", "{AADE2EEC-BEEA-4125-AB68-0A1A6E60D2DF}"
 EndProject
@@ -114,14 +119,26 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "Hpet", "modules\Timers\Hpet
 	EndProjectSection
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "UsbCore", "modules\Usb\Core\UsbCore.vcxproj", "{F70C9248-FEE4-4C76-9D28-69B2E4D73104}"
+	ProjectSection(ProjectDependencies) = postProject
+		{E1811ABC-D002-44D1-8581-2ACF9C1DD0F9} = {E1811ABC-D002-44D1-8581-2ACF9C1DD0F9}
+	EndProjectSection
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Hosts", "Hosts", "{31F52C3B-21D2-4816-955D-B40F58BFD1B7}"
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "Uhci", "modules\Usb\Uhci\Uhci.vcxproj", "{F83C53D0-F668-4F4B-B423-6C58336FE36B}"
+	ProjectSection(ProjectDependencies) = postProject
+		{F70C9248-FEE4-4C76-9D28-69B2E4D73104} = {F70C9248-FEE4-4C76-9D28-69B2E4D73104}
+	EndProjectSection
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "Ohci", "modules\Usb\Ohci\Ohci.vcxproj", "{5B870E7F-3EF4-4A5E-A79E-53DA4138E1AE}"
+	ProjectSection(ProjectDependencies) = postProject
+		{F70C9248-FEE4-4C76-9D28-69B2E4D73104} = {F70C9248-FEE4-4C76-9D28-69B2E4D73104}
+	EndProjectSection
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "Ehci", "modules\Usb\Ehci\Ehci.vcxproj", "{2BF8E1C1-202D-4874-92AD-EF891CB1D616}"
+	ProjectSection(ProjectDependencies) = postProject
+		{F70C9248-FEE4-4C76-9D28-69B2E4D73104} = {F70C9248-FEE4-4C76-9D28-69B2E4D73104}
+	EndProjectSection
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "Ahci", "modules\Storage\AHCI\Ahci.vcxproj", "{D8F98581-1110-445E-A24F-80C95A727318}"
 	ProjectSection(ProjectDependencies) = postProject

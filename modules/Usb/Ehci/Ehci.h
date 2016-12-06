@@ -749,22 +749,22 @@ typedef struct _EhciController
 } EhciController_t;
 
 /* Prototypes */
-_CRT_EXTERN void EhciInitQueues(EhciController_t *Controller);
+__CRT_EXTERN void EhciInitQueues(EhciController_t *Controller);
 
 /* Endpoint Prototypes */
-_CRT_EXTERN void EhciEndpointSetup(void *cData, UsbHcEndpoint_t *Endpoint);
-_CRT_EXTERN void EhciEndpointDestroy(void *cData, UsbHcEndpoint_t *Endpoint);
+__CRT_EXTERN void EhciEndpointSetup(void *cData, UsbHcEndpoint_t *Endpoint);
+__CRT_EXTERN void EhciEndpointDestroy(void *cData, UsbHcEndpoint_t *Endpoint);
 
 /* Transaction Prototypes */
-_CRT_EXTERN void EhciTransactionInit(void *cData, UsbHcRequest_t *Request);
-_CRT_EXTERN UsbHcTransaction_t *EhciTransactionSetup(void *cData, UsbHcRequest_t *Request, UsbPacket_t *Packet);
-_CRT_EXTERN UsbHcTransaction_t *EhciTransactionIn(void *cData, UsbHcRequest_t *Request, void *Buffer, size_t Length);
-_CRT_EXTERN UsbHcTransaction_t *EhciTransactionOut(void *cData, UsbHcRequest_t *Request, void *Buffer, size_t Length);
-_CRT_EXTERN void EhciTransactionSend(void *cData, UsbHcRequest_t *Request);
-_CRT_EXTERN void EhciTransactionDestroy(void *cData, UsbHcRequest_t *Request);
+__CRT_EXTERN void EhciTransactionInit(void *cData, UsbHcRequest_t *Request);
+__CRT_EXTERN UsbHcTransaction_t *EhciTransactionSetup(void *cData, UsbHcRequest_t *Request, UsbPacket_t *Packet);
+__CRT_EXTERN UsbHcTransaction_t *EhciTransactionIn(void *cData, UsbHcRequest_t *Request, void *Buffer, size_t Length);
+__CRT_EXTERN UsbHcTransaction_t *EhciTransactionOut(void *cData, UsbHcRequest_t *Request, void *Buffer, size_t Length);
+__CRT_EXTERN void EhciTransactionSend(void *cData, UsbHcRequest_t *Request);
+__CRT_EXTERN void EhciTransactionDestroy(void *cData, UsbHcRequest_t *Request);
 
 /* Processing Functions */
-_CRT_EXTERN void EhciProcessTransfers(EhciController_t *Controller);
-_CRT_EXTERN void EhciProcessDoorBell(EhciController_t *Controller);
+__CRT_EXTERN void EhciProcessTransfers(EhciController_t *Controller);
+__CRT_EXTERN void EhciProcessDoorBell(EhciController_t *Controller);
 
 #endif

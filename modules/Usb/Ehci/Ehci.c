@@ -142,12 +142,13 @@ void EhciDisableLegacySupport(EhciController_t *Controller)
 		volatile uint8_t CapId = 0;
 		uint8_t Failed = 0;
 		volatile uint8_t NextEecp = 0;
+		int Run = 1;
 
 		/* Get the extended capability register
 		* We read the second byte, because it contains
 		* the BIOS Semaphore */
 		Failed = 0;
-		while (1)
+		while (Run)
 		{
 			/* Get Id */
 			CapId = (uint8_t)PciDeviceRead(Controller->Device->BusDevice, Eecp, 1);

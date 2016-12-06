@@ -53,6 +53,12 @@ const char *EhciErrorMessages[] =
 	"Active"
 };
 
+/* Disable the warning about conditional
+ * expressions being constant, they are intentional */
+#ifdef _MSC_VER
+#pragma warning(disable:4127)
+#endif
+
 /* Initialize the scheduling structures
  * that is used for the async scheduler code
  * but also the periodic scheduler code */
@@ -1711,3 +1717,8 @@ Scan:
 	/* Bell is no longer ringing */
 	Controller->BellIsRinging = 0;
 }
+
+/* Re-enable warnings */
+#ifdef _MSC_VER
+#pragma warning(default:4127)
+#endif

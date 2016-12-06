@@ -13,9 +13,6 @@ START "NASM" /D %~dp0\boot\Stage2 /B /W nasm.exe -f bin Stage2.asm -o ssbl.stm
 ::Build MCore
 MSBuild.exe MollenOS.sln /p:Configuration=Build_X86_32 /t:Clean,Build
 
-::Build Modules
-MSBuild.exe modules\Modules.sln /p:Configuration=Debug /t:Clean,Build
-
 ::Build InitRd
 START "InitRD" /D %~dp0\modules /B /W "modules\RdBuilder.exe"
 
