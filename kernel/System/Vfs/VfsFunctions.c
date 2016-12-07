@@ -269,6 +269,7 @@ MCoreFileInstance_t *VfsOpen(const char *Path, VfsFileFlags_t OpenFlags)
 				&& i < ((int)PathEnvironmentCount - 1)) {
 				/* Reset, Continue */
 				memset((void*)fRet, 0, sizeof(MCoreFileInstance_t));
+				fRet->Code = VfsPathNotFound;
 			}
 			else
 				break;

@@ -673,13 +673,17 @@ MCorePeFile_t *PeResolveLibrary(MCorePeFile_t *Parent, MCorePeFile_t *PeFile, MS
 	{
 		/* Resolve Library */
 		MCoreFileInstance_t *lFile = VfsWrapperOpen(MStringRaw(LibraryName), Read);
-		uint8_t *fBuffer = (uint8_t*)kmalloc((size_t)lFile->File->Size);
 		MCorePeFile_t *Library = NULL;
+		uint8_t *fBuffer = NULL;
 
 		/* Sanity */
-		if (lFile->Code != VfsOk) {
+		if (lFile == NULL || lFile->Code != VfsOk || lFile->File == NULL) {
 			LogDebug("PELD", "Failed to load library %s", MStringRaw(LibraryName));
+			for (;;);
 		}
+
+		/* Allocate a new buffer */
+		fBuffer = (uint8_t*)kmalloc((size_t)lFile->File->Size);
 
 		/* Read all data */
 		VfsWrapperRead(lFile, fBuffer, (size_t)lFile->File->Size);

@@ -153,7 +153,7 @@ _MOS_API size_t MStringSize(MString_t *String);
 /* Returns the raw data pointer 
  * of the given MString, which can be used for
  * usage, not recommended to edit data */
-_MOS_API const char *MStringRaw(MString_t *String);
+_MOS_API __CRT_CONST char *MStringRaw(MString_t *String);
 
 /* Generate hash of a mstring
  * the hash will be either 32/64 depending
