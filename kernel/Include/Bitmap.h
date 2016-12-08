@@ -44,6 +44,12 @@ typedef struct _Bitmap
 	size_t BlockSize;
 	size_t BlockCount;
 
+	/* Bitmap statistics
+	 * Blocks in use, etc */
+	size_t BlocksAllocated;
+	size_t NumAllocations;
+	size_t NumFrees;
+
 	/* Data */
 	Addr_t *Bitmap;
 	size_t BitmapSize;
@@ -70,5 +76,9 @@ __CRT_EXTERN Addr_t BitmapAllocateAddress(Bitmap_t *Bitmap, size_t Size);
 /* Deallocates a given address translated into offsets 
  * into the given bitmap, and frees them in the bitmap */
 __CRT_EXTERN void BitmapFreeAddress(Bitmap_t *Bitmap, Addr_t Address, size_t Size);
+
+/* Validates the given address that it's within
+ * range of our bitmap and that it has in fact, been allocated */
+__CRT_EXTERN int BitmapValidateAddress(Bitmap_t *Bitmap, Addr_t Address);
 
 #endif //!_MOLLENOS_BITMAP_H_

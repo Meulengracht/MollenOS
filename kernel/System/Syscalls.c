@@ -28,6 +28,7 @@
 #include <Log.h>
 
 /* C-Library */
+#include <assert.h>
 #include <stddef.h>
 #include <os/ipc.h>
 #include <ds/list.h>
@@ -370,9 +371,8 @@ int ScThreadJoin(ThreadId_t ThreadId)
 	ProcId_t CurrentPid = ThreadingGetCurrentThread(ApicGetCpu())->ProcessId;
 
 	/* Sanity */
-	if (ThreadingGetThread(ThreadId) == NULL)
-		return -1;
-	if (ThreadingGetThread(ThreadId)->ProcessId != CurrentPid)
+	if (ThreadingGetThread(ThreadId) == NULL
+		|| ThreadingGetThread(ThreadId)->ProcessId != CurrentPid)
 		return -1;
 
 	/* Simply deep call again 
@@ -390,9 +390,8 @@ int ScThreadKill(ThreadId_t ThreadId)
 	ProcId_t CurrentPid = ThreadingGetCurrentThread(ApicGetCpu())->ProcessId;
 
 	/* Sanity */
-	if (ThreadingGetThread(ThreadId) == NULL)
-		return -1;
-	if (ThreadingGetThread(ThreadId)->ProcessId != CurrentPid)
+	if (ThreadingGetThread(ThreadId) == NULL
+		|| ThreadingGetThread(ThreadId)->ProcessId != CurrentPid)
 		return -1;
 
 	/* Ok, we can kill it */
@@ -506,39 +505,51 @@ int ScSyncSleep(Addr_t *Handle, size_t Timeout)
 /* Allows a process to allocate memory
  * from the userheap, it takes a size and 
  * allocation flags which describe the type of allocation */
-Addr_t ScMemoryAllocate(size_t Size, int Flags)
+Addr_t ScMemoryAllocate(size_t Size, Flags_t Flags)
 {
 	/* Locate Process */
 	MCoreProcess_t *Process = PmGetProcess(PROCESS_CURRENT);
+	Addr_t AllocatedAddress = 0;
 
 	/* For now.. */
 	_CRT_UNUSED(Flags);
 
-	/* Sanity */
+	/* Sanitize the process we looked up
+	 * we want it to exist of course */
 	if (Process == NULL)
 		return (Addr_t)-1;
 	
-	/* Call */
-	return HeapAllocate(Process->Heap, Size, 
-		0, 0, MEMORY_MASK_DEFAULT, MStringRaw(Process->Name));
+	/* Now do the allocation in the user-bitmap 
+	 * since memory is managed in userspace for speed */
+	AllocatedAddress = BitmapAllocateAddress(Process->Heap, Size);
+
+	/* Sanitize the returned address */
+	assert(AllocatedAddress != 0);
+
+	/* Handle flags here */
+	if (Flags & ALLOCATION_COMMIT) {
+		/* Commit the pages */
+	}
+
+	/* Return the address */
+	return AllocatedAddress;
 }
 
 /* Free's previous allocated memory, given an address
- * and a length (though not needed for now!) */
-int ScMemoryFree(Addr_t Address, size_t Length)
+ * and a size (though not needed for now!) */
+int ScMemoryFree(Addr_t Address, size_t Size)
 {
 	/* Locate Process */
 	MCoreProcess_t *Process = PmGetProcess(PROCESS_CURRENT);
 
-	/* For now.. */
-	_CRT_UNUSED(Length);
-
-	/* Sanity */
+	/* Sanitize the process we looked up
+	 * we want it to exist of course */
 	if (Process == NULL)
 		return (Addr_t)-1;
 
-	/* Call */
-	HeapFree(Process->Heap, (Addr_t)Address);
+	/* Now do the deallocation in the user-bitmap 
+	 * since memory is managed in userspace for speed */
+	BitmapFreeAddress(Process->Heap, Address, Size);
 
 	/* Done */
 	return 0;
@@ -566,7 +577,7 @@ Addr_t ScMemoryShare(IpcComm_t Target, Addr_t Address, size_t Size)
 		return 0;
 
 	/* Start out by allocating memory 
-	 * in target process */
+	 * in target process's shared memory space */
 	Addr_t Shm = BitmapAllocateAddress(Process->Shm, Size);
 	NumBlocks = DIVUP(Size, PAGE_SIZE);
 
@@ -576,8 +587,7 @@ Addr_t ScMemoryShare(IpcComm_t Target, Addr_t Address, size_t Size)
 		NumBlocks++;
 
 	/* Sanity */
-	if (Shm == 0)
-		return 0;
+	assert(Shm != 0);
 
 	/* Now we have to transfer our physical mappings 
 	 * to their new virtual */

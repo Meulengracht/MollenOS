@@ -97,7 +97,7 @@ typedef struct _MCoreProcess
 	AddressSpace_t *AddressSpace;
 
 	/* Heap(s) */
-	Heap_t *Heap;
+	Bitmap_t *Heap;
 	Bitmap_t *Shm;
 
 	/* Startup Args */

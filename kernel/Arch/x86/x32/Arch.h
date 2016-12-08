@@ -158,6 +158,7 @@ _CRT_EXPORT void kernel_panic(const char *str);
 #define MEMORY_LOCATION_USER_ARGS		0x60000000 /* Arg Space: 4 kB */
 #define MEMORY_LOCATION_USER			0x60010000 /* Image Space: 256~ mB */
 #define MEMORY_LOCATION_USER_HEAP		0x70000000 /* Heap Space: 2048 mB */
+#define MEMORY_LOCATION_USER_HEAP_END	0xF0000000 /* Shared Memory: 240 mB */
 #define MEMORY_LOCATION_USER_SHM		0xF0000000 /* Shared Memory: 240 mB */
 #define MEMORY_LOCATION_USER_SHM_END	0xFF000000 /* Shared Memory End */
 #define MEMORY_LOCATION_SIGNAL_RET		0xFF0000DE /* Signal Ret Addr */

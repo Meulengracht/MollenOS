@@ -42,14 +42,11 @@ void BitmapUnset(Bitmap_t *Bitmap, int Bit)
 int BitmapTest(Bitmap_t *Bitmap, int Bit)
 {
 	/* Get block & index */
-	uint32_t Block = Bitmap->Bitmap[Bit / 32];
-	uint32_t Index = (1 << (Bit % 32));
+	Addr_t Block = Bitmap->Bitmap[Bit / 32];
+	Addr_t Index = (1 << (Bit % 32));
 
 	/* Test */
-	if (Block & Index)
-		return 1;
-	else
-		return 0;
+	return ((Block & Index) != 0);
 }
 
 /* Instantiate a new bitmap that keeps track of a
@@ -59,6 +56,7 @@ Bitmap_t *BitmapCreate(Addr_t Base, Addr_t End, size_t BlockSize)
 {
 	/* Allocate bitmap structure */
 	Bitmap_t *Bitmap = (Bitmap_t*)kmalloc(sizeof(Bitmap_t));
+	memset(Bitmap, 0, sizeof(Bitmap_t));
 
 	/* Set initial stuff */
 	Bitmap->Base = Base;
@@ -159,10 +157,16 @@ Addr_t BitmapAllocateAddress(Bitmap_t *Bitmap, size_t Size)
 	}
 
 	/* Allocate the bits */
-	for (k = 0; k < NumBlocks; k++) {
-		BitmapSet(Bitmap, StartBit + k);
-	}
+	if (StartBit != -1) {
+		for (k = 0; k < NumBlocks; k++) {
+			BitmapSet(Bitmap, StartBit + k);
+		}
 
+		/* Increase stats */
+		Bitmap->BlocksAllocated += NumBlocks;
+		Bitmap->NumAllocations++;
+	}
+	
 	/* Release lock */
 	SpinlockRelease(&Bitmap->Lock);
 
@@ -184,6 +188,13 @@ void BitmapFreeAddress(Bitmap_t *Bitmap, Addr_t Address, size_t Size)
 	int StartBit = (Address - Bitmap->Base) / Bitmap->BlockSize;
 	size_t i, NumBlocks = DIVUP(Size, Bitmap->BlockSize);
 
+	/* Do some sanity checks on the calculated 
+	 * values, they should be in bounds */
+	if (StartBit < 0
+		|| StartBit >= (int)Bitmap->BlockCount) {
+		return;
+	}
+
 	/* Acquire lock */
 	SpinlockAcquire(&Bitmap->Lock);
 
@@ -192,6 +203,29 @@ void BitmapFreeAddress(Bitmap_t *Bitmap, Addr_t Address, size_t Size)
 		BitmapUnset(Bitmap, StartBit + i);
 	}
 
+	/* Increase stats */
+	Bitmap->BlocksAllocated -= NumBlocks;
+	Bitmap->NumFrees++;
+
 	/* Release lock */
 	SpinlockRelease(&Bitmap->Lock);
+}
+
+/* Validates the given address that it's within
+ * range of our bitmap and that it has in fact, been allocated */
+int BitmapValidateAddress(Bitmap_t *Bitmap, Addr_t Address)
+{
+	/* Start out by calculating the bit index */
+	int StartBit = (Address - Bitmap->Base) / Bitmap->BlockSize;
+
+	/* Do some sanity checks on the calculated
+	 * values, they should be in bounds */
+	if (StartBit < 0
+		|| StartBit >= (int)Bitmap->BlockCount) {
+		return -1;
+	}
+
+	/* Now we will check whether or not the bit has
+	 * been set, if it hasn't, it's not allocated */
+	return BitmapTest(Bitmap, StartBit) == 1 ? 0 : 1;
 }

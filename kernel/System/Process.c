@@ -67,7 +67,7 @@ void PmStartProcess(void *Args)
 	kfree(Process->fBuffer);
 
 	/* Create a heap */
-	Process->Heap = HeapCreate(MEMORY_LOCATION_USER_HEAP, 1);
+	Process->Heap = BitmapCreate(MEMORY_LOCATION_USER_HEAP, MEMORY_LOCATION_USER_HEAP_END, PAGE_SIZE);
 	Process->Shm = BitmapCreate(MEMORY_LOCATION_USER_SHM, MEMORY_LOCATION_USER_SHM_END, PAGE_SIZE);
 
 	/* Map in arguments */
@@ -346,8 +346,9 @@ int PmQueryProcess(MCoreProcess_t *Process,
 		/* Query memory? in bytes of course */
 		case ProcessQueryMemory:
 		{
-			/* Use our delicious heap query */
-			HeapQueryMemoryInformation(Process->Heap, (size_t*)Buffer, NULL);
+			/* For now, we only support querying of 
+			 * how much memory has been allocated for the heap */
+			*((size_t*)Buffer) = (Process->Heap->BlocksAllocated * PAGE_SIZE);
 
 		} break;
 

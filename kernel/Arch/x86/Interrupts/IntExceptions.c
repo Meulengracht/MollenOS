@@ -368,7 +368,7 @@ void ExceptionEntry(Registers_t *regs)
 			if (Process != NULL)
 			{
 				/* Yes, validate it in the heap */
-				if (!HeapValidateAddress(Process->Heap, UnmappedAddr))
+				if (!BitmapValidateAddress(Process->Heap, UnmappedAddr))
 				{
 					/* Map in in */
 					MmVirtualMap(NULL, MmPhysicalAllocateBlock(MEMORY_MASK_DEFAULT, 1),
