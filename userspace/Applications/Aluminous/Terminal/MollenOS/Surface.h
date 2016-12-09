@@ -63,6 +63,11 @@ public:
 	Rect_t *GetDimensions() { return &m_sDimensions; }
 
 	/* Helper, it combines different color components
+	 * into a full color, using color blend */
+	uint32_t GetBlendedColor(uint8_t RA, uint8_t GA, uint8_t BA, uint8_t AA,
+		uint8_t RB, uint8_t GB, uint8_t BB, uint8_t AB, uint8_t A);
+
+	/* Helper, it combines different color components
 	 * into a full color */
 	uint32_t GetColor(uint8_t R, uint8_t G, uint8_t B, uint8_t A);
 
@@ -73,6 +78,7 @@ private:
 	WndHandle_t m_pHandle;
 	void *m_pBuffer;
 	size_t m_iBufferSize;
+	size_t m_iBufferPitch;
 
 	/* Private - State */
 	Rect_t m_sDimensions;

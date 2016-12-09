@@ -136,6 +136,16 @@ void Terminal::NewCommand()
 	/* Keep track */
 	bool Reading = true;
 
+	/* Resolve current path */
+	EnvironmentResolve(PathCurrentWorkingDir, m_pCurrentLine);
+
+	/* Print new command */
+	PrintLine("[%s | %s | 09/12/2016 - 13:00]\n", m_pCurrentLine, "Philip");
+	PrintLine("$ ");
+
+	/* Empty */
+	m_pCurrentLine[0] = '\0';
+
 	/* Print a new command */
 	while (Reading) {
 
@@ -903,13 +913,13 @@ void Terminal::RenderText(int AtX, int AtY, const char *Text)
 {
 	/* Variables for state tracking, 
 	 * and formatting, and rendering */
+	int BitmapMode = CACHED_PIXMAP;
 	bool First;
 	int xStart;
 	int Width;
-	//int Height;
 	uint8_t *Source;
-	uint8_t *Destination;
-	uint8_t *DestCheck;
+	uint32_t *Destination;
+	uint32_t *DestCheck;
 	int Row, Col;
 	FontGlyph_t *Glyph;
 
@@ -931,7 +941,8 @@ void Terminal::RenderText(int AtX, int AtY, const char *Text)
 
 	/* Adding bound checking to avoid all kinds of memory corruption errors
 	 * that may occur. */
-	DestCheck = (uint8_t*)m_pSurface->DataPtr() + (4 * m_pSurface->GetDimensions()->h);
+	DestCheck = (uint32_t*)m_pSurface->DataPtr() + 
+		((m_pSurface->GetDimensions()->w * 4) * m_pSurface->GetDimensions()->h);
 
 	/* check kerning */
 	UseKerning = FT_HAS_KERNING(m_pActiveFont->Face) && m_pActiveFont->Kerning;
@@ -945,7 +956,7 @@ void Terminal::RenderText(int AtX, int AtY, const char *Text)
 	while (true) 
 	{
 		/* Get next character of text-string */
-		uint16_t Character = (uint16_t)MStringGetCharAt(mText, ItrLength++);//;MStringIterate(mText, &mItr, &ItrLength);
+		uint16_t Character = (uint16_t)MStringGetCharAt(mText, ItrLength++);
 		if (Character == UNICODE_BOM_NATIVE 
 			|| Character == UNICODE_BOM_SWAPPED) {
 			continue;
@@ -958,14 +969,21 @@ void Terminal::RenderText(int AtX, int AtY, const char *Text)
 
 		/* Lookup glyph for the character, if we have none, 
 		 * we bail! */
-		Error = FindGlyph(m_pActiveFont, Character, CACHED_METRICS | CACHED_BITMAP);
+		Error = FindGlyph(m_pActiveFont, Character, CACHED_METRICS | BitmapMode);
 		if (Error) {
 			break;
 		}
 
 		/* Shorthand some stuff */
 		Glyph = m_pActiveFont->Current;
-		Current = &Glyph->Bitmap;
+
+		/* Get the appropriate bitmap */
+		if (BitmapMode & CACHED_BITMAP) {
+			Current = &Glyph->Bitmap;
+		}
+		else {
+			Current = &Glyph->Pixmap;
+		}
 
 		/* Ensure the width of the pixmap is correct. On some cases,
 		 * freetype may report a larger pixmap than possible.*/
@@ -999,18 +1017,24 @@ void Terminal::RenderText(int AtX, int AtY, const char *Text)
 			}
 			
 			/* Calculate destination */
-			Destination = (uint8_t*)m_pSurface->DataPtr(
+			Destination = (uint32_t*)m_pSurface->DataPtr(
 				AtX + xStart + Glyph->MinX, AtY + Row + Glyph->yOffset);
 			Source = Current->buffer + (Row * Current->pitch);
 
 			/* Loop ! */
 			for (Col = Width; Col > 0 && Destination < DestCheck; --Col) {
-				char Alpha = *Source++;
+				uint8_t Alpha = *Source++;
 				if (Alpha == 0) {
 					*Destination++ = m_pSurface->GetColor(m_cBgR, m_cBgG, m_cBgB, m_cBgA);
 				}
 				else {
-					*Destination++ = m_pSurface->GetColor(m_cFgR, m_cFgG, m_cFgB, m_cFgA); //Alpha
+					if (BitmapMode & CACHED_BITMAP) {
+						*Destination++ = m_pSurface->GetColor(m_cFgR, m_cFgG, m_cFgB, m_cFgA);
+					}
+					else {
+						*Destination++ = m_pSurface->GetBlendedColor(m_cBgR, m_cBgG, m_cBgB, m_cBgA, 
+							m_cFgR, m_cFgG, m_cFgB, m_cFgA, Alpha);
+					}
 				}
 			}
 		}
@@ -1221,7 +1245,7 @@ FT_Error Terminal::LoadGlyph(TerminalFont* Font,
 			FT_Stroker_Done(Stroker);
 			
 			/* Render the glyph */
-			Error = FT_Glyph_To_Bitmap(&BitmapGlyph, Mono ? ft_render_mode_mono : ft_render_mode_normal, 0, 1);
+			Error = FT_Glyph_To_Bitmap(&BitmapGlyph, Mono ? FT_RENDER_MODE_MONO : FT_RENDER_MODE_NORMAL, 0, 1);
 			
 			/* Sanitize the result, if fail
 			 * Cleanup glyph and return error */
@@ -1235,7 +1259,7 @@ FT_Error Terminal::LoadGlyph(TerminalFont* Font,
 		}
 		else {
 			/* Render the glyph */
-			Error = FT_Render_Glyph(Glyph, Mono ? ft_render_mode_mono : ft_render_mode_normal);
+			Error = FT_Render_Glyph(Glyph, Mono ? FT_RENDER_MODE_MONO : FT_RENDER_MODE_NORMAL);
 			if (Error) {
 				return Error;
 			}
@@ -1254,15 +1278,15 @@ FT_Error Terminal::LoadGlyph(TerminalFont* Font,
 		memcpy(Destination, Source, sizeof(*Destination));
 
 		/* FT_Render_Glyph() and .fon fonts always generate a
-		* two-color (black and white) glyphslot surface, even
-		* when rendered in ft_render_mode_normal. */
+		 * two-color (black and white) glyphslot surface, even
+		 * when rendered in ft_render_mode_normal. */
 		/* FT_IS_SCALABLE() means that the font is in outline format,
-		* but does not imply that outline is rendered as 8-bit
-		* grayscale, because embedded bitmap/graymap is preferred
-		* (see FT_LOAD_DEFAULT section of FreeType2 API Reference).
-		* FT_Render_Glyph() canreturn two-color bitmap or 4/16/256-
-		* color graymap according to the format of embedded bitmap/
-		* graymap. */
+		 * but does not imply that outline is rendered as 8-bit
+		 * grayscale, because embedded bitmap/graymap is preferred
+		 * (see FT_LOAD_DEFAULT section of FreeType2 API Reference).
+		 * FT_Render_Glyph() canreturn two-color bitmap or 4/16/256-
+		 * color graymap according to the format of embedded bitmap/
+		 * graymap. */
 		if (Source->pixel_mode == FT_PIXEL_MODE_MONO) {
 			Destination->pitch *= 8;
 		}

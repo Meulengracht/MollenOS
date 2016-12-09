@@ -47,6 +47,9 @@ Surface::Surface()
 
 	/* Query the backbuffer information */
 	UiQueryBackbuffer(m_pHandle, &m_pBuffer, &m_iBufferSize);
+
+	/* Calculate the pitch */
+	m_iBufferPitch = m_iBufferSize / m_sDimensions.h;
 }
 
 /* Cleans up the surface, and destroys the window
@@ -117,27 +120,41 @@ void Surface::Resize(int Width, int Height)
 }
 
 /* Is surface valid for rendering? In many
-* cases it won't be before size has been set */
+ * cases it won't be before size has been set */
 bool Surface::IsValid() {
 	return m_bIsValid;
 }
 
 /* Retrieves a surface data pointer for accessing
-* raw pixels on our surface - direct drawing */
+ * raw pixels on our surface - direct drawing */
 void *Surface::DataPtr(int OffsetX, int OffsetY)
 {
 	/* Cast to a modifiable pointer */
 	uint8_t *Ptr = (uint8_t*)m_pBuffer;
 
 	/* Increase by offsets */
-	Ptr += ((OffsetY * (m_sDimensions.w * 4)) + OffsetX * 4);
+	Ptr += ((OffsetY * m_iBufferPitch) + (OffsetX * 4));
 
 	/* Done! */
 	return (void*)Ptr;
 }
 
 /* Helper, it combines different color components
-* into a full color */
+ * into a full color, using color blend */
+uint32_t Surface::GetBlendedColor(uint8_t RA, uint8_t GA, uint8_t BA, uint8_t AA,
+	uint8_t RB, uint8_t GB, uint8_t BB, uint8_t AB, uint8_t A)
+{
+	uint32_t ColorA = GetColor(RA, GA, BA, AA);
+	uint32_t ColorB = GetColor(RB, GB, BB, AB);
+	uint32_t RB1 = ((0x100 - A) * (ColorA & 0xFF00FF)) >> 8;
+	uint32_t RB2 = (A * (ColorB & 0xFF00FF)) >> 8;
+	uint32_t G1 = ((0x100 - A) * (ColorA & 0x00FF00)) >> 8;
+	uint32_t G2 = (A * (ColorB & 0x00FF00)) >> 8;
+	return (((RB1 | RB2) & 0xFF00FF) + ((G1 | G2) & 0x00FF00)) | 0xFF000000;
+}
+
+/* Helper, it combines different color components
+ * into a full color */
 uint32_t Surface::GetColor(uint8_t R, uint8_t G, uint8_t B, uint8_t A)
 {
 	/* Combine them into ARGB for now.. 

@@ -268,7 +268,7 @@ void WindowUpdate(Window_t *Window, Rect_t *DirtyArea)
 	/* Copy pixels */
 	BitBlt(mPixels, mPitch, (Intersection.x - Window->FullDimensions.x), (Intersection.y - Window->FullDimensions.x),
 		Window->Backbuffer, mPitch, (Intersection.x - Window->ContentDimensions.x), (Intersection.y - Window->ContentDimensions.y),
-		Intersection.w, Intersection.h, 0);
+		Intersection.w, Intersection.h, BITBLT_SRCCOPY);
 
 	/* Unlock texture */
 	SDL_UnlockTexture(Window->Texture);
