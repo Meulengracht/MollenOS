@@ -217,7 +217,7 @@ __CRT_INLINE struct __locale_t *__get_global_locale(void) {
 __CRT_INLINE struct __locale_t *__get_locale_r(void)
 {
 	/* Access the per thread storage locale */
-	return (struct __locale_t *)TLSGetCurrent()->ThreadLocale;
+	return (struct __locale_t *)TLSGetCurrent()->Locale;
 }
 #else
 __CRT_INLINE struct __locale_t *__get_locale_r(void)

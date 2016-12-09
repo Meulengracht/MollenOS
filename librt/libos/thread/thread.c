@@ -182,16 +182,16 @@ TId_t ThreadGetCurrentId(void)
 {
 	/* We save this in the reserved
 	 * space to speed up this call */
-	if (TLSGetCurrent()->ThreadId != 0) {
-		return TLSGetCurrent()->ThreadId;
+	if (TLSGetCurrent()->Id != 0) {
+		return TLSGetCurrent()->Id;
 	}
 
 	/* This is just a redirected syscall
 	 * no arguments involved, no validation */
-	TLSGetCurrent()->ThreadId = (TId_t)Syscall0(MOLLENOS_SYSCALL_THREADID);
+	TLSGetCurrent()->Id = (TId_t)Syscall0(MOLLENOS_SYSCALL_THREADID);
 
 	/* Done! */
-	return TLSGetCurrent()->ThreadId;
+	return TLSGetCurrent()->Id;
 }
 
 /* This yields the current thread

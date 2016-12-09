@@ -30,7 +30,7 @@
 typedef struct _MCoreClockDevice
 {
 	/* Functions */
-	void(*GetTime)(void *Device, tm *time);
+	void(*GetTime)(void *Device, struct tm*);
 
 } MCoreClockDevice_t;
 #pragma pack(pop)

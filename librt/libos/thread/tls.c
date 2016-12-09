@@ -146,9 +146,9 @@ void TLSInitInstance(ThreadLocalStorage_t *Tls)
 	memset(Tls, 0, sizeof(ThreadLocalStorage_t));
 
 	/* Setup c-library stuff */
-	Tls->ThreadErrno = EOK;
-	Tls->ThreadLocale = __get_global_locale();
-	Tls->ThreadSeed = 1;
+	Tls->Errno = EOK;
+	Tls->Locale = __get_global_locale();
+	Tls->Seed = 1;
 }
 
 /* TLSDestroyInstance
@@ -157,7 +157,7 @@ void TLSInitInstance(ThreadLocalStorage_t *Tls)
 void TLSDestroyInstance(ThreadLocalStorage_t *Tls)
 {
 	/* Nothing to do here yet */
-	Tls->ThreadId = 0;
+	Tls->Id = 0;
 }
 
 /* TLSGetCurrent 

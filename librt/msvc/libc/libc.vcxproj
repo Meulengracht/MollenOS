@@ -263,11 +263,23 @@ xcopy $(SolutionDir)librt\build\libc.dll $(SolutionDir)userspace\development\bin
     <ClCompile Include="..\..\libc\string\strtok.c" />
     <ClCompile Include="..\..\libc\string\strxfrm.c" />
     <ClCompile Include="..\..\libc\string\wcsnlen.c" />
+    <ClCompile Include="..\..\libc\time\asctime.c" />
+    <ClCompile Include="..\..\libc\time\clock.c" />
+    <ClCompile Include="..\..\libc\time\ctime.c" />
     <ClCompile Include="..\..\libc\time\difftime.c" />
+    <ClCompile Include="..\..\libc\time\gettzinfo.c" />
     <ClCompile Include="..\..\libc\time\gmtime.c" />
-    <ClCompile Include="..\..\libc\time\localtime.c" />
+    <ClCompile Include="..\..\libc\time\lcltime.c" />
     <ClCompile Include="..\..\libc\time\mktime.c" />
+    <ClCompile Include="..\..\libc\time\month_lengths.c" />
+    <ClCompile Include="..\..\libc\time\strftime.c" />
+    <ClCompile Include="..\..\libc\time\strptime.c" />
     <ClCompile Include="..\..\libc\time\time.c" />
+    <ClCompile Include="..\..\libc\time\tzcalc_limits.c" />
+    <ClCompile Include="..\..\libc\time\tzlock.c" />
+    <ClCompile Include="..\..\libc\time\tzset.c" />
+    <ClCompile Include="..\..\libc\time\tzset_r.c" />
+    <ClCompile Include="..\..\libc\time\tzvars.c" />
     <ClCompile Include="..\..\libos\synchronization\spinlock.c" />
     <ClCompile Include="..\..\libos\syscalls.c" />
   </ItemGroup>
@@ -286,6 +298,7 @@ xcopy $(SolutionDir)librt\build\libc.dll $(SolutionDir)userspace\development\bin
     <ClInclude Include="..\..\libc\stdlib\mbctype.h" />
     <ClInclude Include="..\..\libc\stdlib\mprec.h" />
     <ClInclude Include="..\..\libc\string\str-two-way.h" />
+    <ClInclude Include="..\..\libc\time\local.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="..\..\libc\arch\amd64\_setjmp.s" />

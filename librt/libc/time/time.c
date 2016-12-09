@@ -34,13 +34,13 @@ time_t time(time_t *timer)
 {
 	/* Variables */
 	time_t RetTime = 0;
-	tm TimeStruct;
+	struct tm TimeStruct;
 
 	/* Null out */
-	memset(&TimeStruct, 0, sizeof(tm));
+	memset(&TimeStruct, 0, sizeof(struct tm));
 
 	/* Get current time */
-	MollenOSDeviceQuery(DeviceClock, 0, &TimeStruct, sizeof(tm));
+	MollenOSDeviceQuery(DeviceClock, 0, &TimeStruct, sizeof(struct tm));
 
 	/* Now convert the sys-time
 	 * to time_t */

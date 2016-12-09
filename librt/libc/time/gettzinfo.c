@@ -16,31 +16,20 @@
 * along with this program.If not, see <http://www.gnu.org/licenses/>.
 *
 *
-* MollenOS C Library - ERR NO
+* MollenOS C Library - Retrieve timezone information
 */
 
 /* Includes */
-#include <os/Thread.h>
-#include <errno.h>
+#include <sys/types.h>
+#include "local.h"
 
-#ifdef LIBC_KERNEL
-/* Global errno for kernel */
-errno_t __errno_global = 0;
+/* Shared timezone information for libc/time functions.  */
+static __tzinfo_type tzinfo = {1, 0,
+    { {'J', 0, 0, 0, 0, (time_t)0, 0L },
+      {'J', 0, 0, 0, 0, (time_t)0, 0L } 
+    } 
+};
 
-/* Retrieves a pointer
- * to the global error code */
-errno_t *__errno(void)
-{
-	return &__errno_global;
+__tzinfo_type *__gettzinfo(void) {
+  return &tzinfo;
 }
-
-#else
-/* Retrieves a pointer 
- * to the Thread-specific 
- * error code */
-errno_t *__errno(void)
-{
-	return &(TLSGetCurrent()->Errno);
-}
-
-#endif

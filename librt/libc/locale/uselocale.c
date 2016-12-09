@@ -63,8 +63,8 @@ struct __locale_t *uselocale(struct __locale_t *newloc)
   if (!current_locale)
     current_locale = LC_GLOBAL_LOCALE;
   if (newloc == LC_GLOBAL_LOCALE)
-    TLSGetCurrent()->ThreadLocale = NULL;
+    TLSGetCurrent()->Locale = NULL;
   else if (newloc)
-    TLSGetCurrent()->ThreadLocale = (void*)newloc;
+    TLSGetCurrent()->Locale = (void*)newloc;
   return current_locale;
 }

@@ -16,21 +16,14 @@
 * along with this program.If not, see <http://www.gnu.org/licenses/>.
 *
 *
-* MollenOS C Library - Get Time Difference
+* MollenOS C Library - Return difference between two times
 */
 
 /* Includes */
-#include <os/MollenOS.h>
-#include <os/Syscall.h>
 #include <time.h>
-#include <stddef.h>
-#include <string.h>
+#include <time.h>
 
-/* difftime 
- * Simply takes the difference in 
- * time and returns, diff is in secs */
-double difftime(time_t end, time_t start)
-{
-	/* Done! */
+/* Return difference between two times */
+double difftime(time_t end, time_t start) {
 	return (double)(end - start);
 }

@@ -28,11 +28,11 @@
 int rand(void)
 {
 	/* Extract value from the TLS */
-	int Current = TLSGetCurrent()->ThreadSeed;
+	int Current = TLSGetCurrent()->Seed;
 	Current = Current * 214013L + 2531011L;
 
 	/* Update seed */
-	TLSGetCurrent()->ThreadSeed = Current;
+	TLSGetCurrent()->Seed = Current;
 
 	/* Do some final sizzling before 
 	 * returning the value, at max RAND_MAX */
@@ -43,5 +43,5 @@ int rand(void)
  * random number generator */
 void srand(unsigned int seed)
 {
-	TLSGetCurrent()->ThreadSeed = seed;
+	TLSGetCurrent()->Seed = seed;
 }

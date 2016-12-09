@@ -191,14 +191,14 @@ int DmRequestHandler(void *UserData, MCoreEvent_t *Event)
 
 				/* Validate buffer */
 				if (Request->Buffer == NULL
-					|| Request->Length < sizeof(tm)) {
+					|| Request->Length < sizeof(struct tm)) {
 					Request->Base.State = EventFailed;
 					Request->ErrType = RequestInvalidParameters;
 				}
 				else
 				{
 					/* Call */
-					Clock->GetTime(Dev, (tm*)Request->Buffer);
+					Clock->GetTime(Dev, (struct tm*)Request->Buffer);
 
 					/* Done */
 					Request->Base.State = EventOk;

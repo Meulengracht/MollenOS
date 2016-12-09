@@ -55,7 +55,7 @@ const char *GlbCmosDriverName = "MollenOS CMOS Driver";
 static CmosClock_t *GlbCmos = NULL;
 
 /* Gets current time and stores it in a time structure */
-void CmosGetTime(void *Device, tm *TimeStructure)
+void CmosGetTime(void *Device, struct tm *TimeStructure)
 {
 	int oSec, n;
 	uint8_t Century = 0;

@@ -16,32 +16,21 @@
 * along with this program.If not, see <http://www.gnu.org/licenses/>.
 *
 *
-* MollenOS C Library - Convert to localtime struct
+* MollenOS C Library - Timezone variables lock
 */
 
-/* Includes */
-#include <stdlib.h>
-#include <stddef.h>
-#include <string.h>
-#include <internal/_time.h>
-#include <os/Syscall.h>
-#include <os/Thread.h>
+#include <os/spinlock.h>
+#include "local.h"
 
-/* Re-entrency */
-tm *localtime_r(const time_t *timer, tm *tmbuf) 
-{
-	/* Variables */
-	time_t t;
-	t = *timer - _timezone;
-	return gmtime_r(&t, tmbuf);
+/* Declare the lock */
+Spinlock_t __GlbTzLock = SPINLOCK_INIT;
+
+/* Grab tz lock */
+void __tz_lock(void) {
+	SpinlockAcquire(&__GlbTzLock);
 }
 
-/* localtime
- * converts a time_t to the 
- * timestructure with localtime 
- * format */
-tm *localtime(const time_t *timer)
-{
-	tm *buf = &(TLSGetCurrent()->TmBuffer);
-	return localtime_r(timer, buf);
+/* Release tz lock */
+void __tz_unlock(void) {
+	SpinlockRelease(&__GlbTzLock);
 }

@@ -23,23 +23,35 @@
 #define __TIME_INC__
 
 /* Includes */
-#include <crtdefs.h>
+#include <os/osdefs.h>
 #include <sys/types.h>
+
+#define __need_size_t
+#include <stddef.h>
 
 /* C Guard */
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-/*******************************
- *        Definitions          *
- *******************************/
+/* According to the C-standard we must have
+ * NULL, size_t and CLOCKS_PER_SEC defined 
+ * in this header, we get two first from stddef */
 #define CLOCKS_PER_SEC	100
 
-/*******************************
- *       Time Structures       *
- *******************************/
-typedef struct TimeStructure
+/* clock_t must be defined in this header, and should
+ * be as wide as possible in the given platform */
+#if defined(_X86_32)
+typedef unsigned long clock_t;
+#elif defined(_X86_64)
+typedef unsigned long long clock_t;
+#else
+typedef size_t clock_t;
+#endif
+
+/* Define the time structures, this one is the base
+ * structure that describes a point in time */
+struct tm
 {
 	int tm_sec;		//Seconds
 	int tm_min;		//Minutes
@@ -52,33 +64,78 @@ typedef struct TimeStructure
 	int tm_isdst;	//Is daylight saving?
 	long tm_gmtoff; //Offset from UTC in seconds
 	char *tm_zone;
+};
 
-} tm;
+/* Define the timezone rule structure, this is 
+ * related to the current timezone */
+typedef struct __tzrule_struct
+{
+	char ch;
+	char p[3];
+	int m;
+	int n;
+	int d;
+	int s;
+	int p1;
+	time_t change;
+	long offset; /* Match type of _timezone. */
+	int p2;
+} __tzrule_type;
 
-/* Types */
-typedef unsigned long clock_t;
+/* The timezone information structure, used by
+ * locale and current timezone settings given by
+ * getenv */
+typedef struct __tzinfo_struct
+{
+	int __tznorth;
+	int __tzyear;
+	__tzrule_type __tzrule[2];
+} __tzinfo_type;
 
-/*******************************
- *         Prototypes          *
- *******************************/
+/* Get the current calendar time as a 
+ * value of type time_t. */
+_CRTIMP time_t time(time_t*);
 
-/* Basic time functions */
-_CRTIMP time_t time(time_t *timer);
-_CRTIMP time_t mktime(tm *timeptr);
-_CRTIMP double difftime(time_t time1, time_t time2);
+/* Returns the value of type time_t that represents the local time 
+ * described by the tm structure pointed by timeptr (which may be modified). */
+_CRTIMP time_t mktime(struct tm*);
+
+/* Calculates the difference in seconds 
+ * between start and end. */
+_CRTIMP double difftime(time_t end, time_t start);
+
+/* Returns the processor time consumed by the program. 
+ * To calculate the number of seconds the program has
+ * been running divide by CLOCKS_PER_SEC */
 _CRTIMP clock_t clock(void);
 
-/* Get Time Formats */
-_CRTIMP tm *gmtime(const time_t *timer);		//GMT time
-_CRTIMP tm *localtime(const time_t *timer);  //UTC
+/* Timezone functions */
+_CRTIMP __tzinfo_type *__gettzinfo(void);
 
-/* Time -> String functions */
-_CRTIMP char* asctime(const tm *timeptr);
-_CRTIMP char *ctime(const time_t *tim_p);
+/* Uses the value pointed by timer to fill a tm structure 
+ * with the values that represent the corresponding time, 
+ * expressed as a UTC time (i.e., the time at the GMT timezone). */
+_CRTIMP struct tm *gmtime(__CRT_CONST time_t*);
 
-/* Not implemented */
-_CRTIMP size_t strftime(char * ptr, size_t maxsize, const char * format,
-                        const tm * timeptr);		//Format time as string, NA
+/* Uses the value pointed by timer to fill a tm structure with the 
+ * values that represent the corresponding time, expressed for the local timezone. */
+_CRTIMP struct tm *localtime(__CRT_CONST time_t*);
+
+/* Formats a given timebuffer to a 
+ * string of format Www Mmm dd hh:mm:ss yyyy */
+_CRTIMP char* asctime(__CRT_CONST struct tm*);
+
+/* Interprets the value pointed by timer as a calendar time and 
+ * converts it to a C-string containing a human-readable version 
+ * of the corresponding time and date, in terms of local time. */
+_CRTIMP char *ctime(__CRT_CONST time_t*);
+
+/* Copies into ptr the content of format, expanding its format 
+ * specifiers into the corresponding values that represent the 
+ * time described in timeptr, with a limit of maxsize characters. */
+_CRTIMP size_t strftime(char *__restrict dest, size_t maxsize, 
+	__CRT_CONST char *__restrict format,
+	__CRT_CONST struct tm *__restrict tmptr);
 
 #ifdef __cplusplus
 }

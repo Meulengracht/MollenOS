@@ -54,26 +54,27 @@ extern "C" {
  * This is the actual thread local storage
  * that is created per thread and is purely
  * acccessible by the local thread only */
+#pragma pack(push, 1)
 typedef struct _ThreadLocalStorage 
 {
 	/* Thread Information */
-	TId_t			 ThreadId;
+	TId_t			 Id;
 
-	/* C Library stuff */
-	void			*ThreadHandle;
-	errno_t			 ThreadErrno;
-	unsigned long	 ThreadDOSErrno;
-	int              ThreadUnknown0;
-	void			*ThreadLocale;
+	/* C-Library Storage 
+	 * - Thread Local Storage */
+	void			*Handle;
+	errno_t			 Errno;
+	void			*Locale;
 
 	/* Seed for rand() */
-	unsigned int	 ThreadSeed;
+	unsigned int	 Seed;
 
 	/* Ptr for strtok() */
 	char			*StrTokNext;
 
 	/* Buffer for time functions */
-	tm				 TmBuffer;
+	struct tm		 TmBuffer;
+	char			 AscBuffer[26];
 
 	/* Exceptions stuff */
 	void			*TerminateHandler;
@@ -91,6 +92,7 @@ typedef struct _ThreadLocalStorage
 	int				 IsDebugging;
 
 } ThreadLocalStorage_t;
+#pragma pack(pop)
 
 /* Prototypes */
 

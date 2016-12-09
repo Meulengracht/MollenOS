@@ -288,21 +288,6 @@
     <ClCompile Include="..\..\libc\signal\signal.c">
       <Filter>signal</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\libc\time\difftime.c">
-      <Filter>time</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\libc\time\gmtime.c">
-      <Filter>time</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\libc\time\localtime.c">
-      <Filter>time</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\libc\time\mktime.c">
-      <Filter>time</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\libc\time\time.c">
-      <Filter>time</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\libc\stdio\fbuf.c">
       <Filter>stdio\file</Filter>
     </ClCompile>
@@ -639,6 +624,57 @@
     <ClCompile Include="..\..\libos\syscalls.c">
       <Filter>glue</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\libc\time\asctime.c">
+      <Filter>time</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\libc\time\clock.c">
+      <Filter>time</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\libc\time\ctime.c">
+      <Filter>time</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\libc\time\difftime.c">
+      <Filter>time</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\libc\time\gettzinfo.c">
+      <Filter>time</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\libc\time\gmtime.c">
+      <Filter>time</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\libc\time\lcltime.c">
+      <Filter>time</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\libc\time\mktime.c">
+      <Filter>time</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\libc\time\month_lengths.c">
+      <Filter>time</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\libc\time\strftime.c">
+      <Filter>time</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\libc\time\strptime.c">
+      <Filter>time</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\libc\time\time.c">
+      <Filter>time</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\libc\time\tzcalc_limits.c">
+      <Filter>time</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\libc\time\tzlock.c">
+      <Filter>time</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\libc\time\tzset.c">
+      <Filter>time</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\libc\time\tzset_r.c">
+      <Filter>time</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\libc\time\tzvars.c">
+      <Filter>time</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\libc\locale\setlocale.h">
@@ -682,6 +718,9 @@
     </ClInclude>
     <ClInclude Include="..\..\libc\ctype\utf8print.h">
       <Filter>ctype</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\libc\time\local.h">
+      <Filter>time</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
