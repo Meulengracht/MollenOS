@@ -511,9 +511,6 @@ Addr_t ScMemoryAllocate(size_t Size, Flags_t Flags)
 	MCoreProcess_t *Process = PmGetProcess(PROCESS_CURRENT);
 	Addr_t AllocatedAddress = 0;
 
-	/* For now.. */
-	_CRT_UNUSED(Flags);
-
 	/* Sanitize the process we looked up
 	 * we want it to exist of course */
 	if (Process == NULL)

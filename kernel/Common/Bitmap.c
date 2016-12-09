@@ -28,22 +28,28 @@
 #include <stddef.h>
 #include <string.h>
 
-/* Helpers */
-void BitmapSet(Bitmap_t *Bitmap, int Bit)
-{
-	Bitmap->Bitmap[Bit / 32] |= (1 << (Bit % 32));
+/* Helper - Set
+ * Sets a specific bit in the bitmap, which is
+ * then marked as allocated */
+void BitmapSet(Bitmap_t *Bitmap, int Bit) {
+	Bitmap->Bitmap[Bit / MEMORY_BITS] |= (1 << (Bit % MEMORY_BITS));
 }
 
-void BitmapUnset(Bitmap_t *Bitmap, int Bit)
-{
-	Bitmap->Bitmap[Bit / 32] &= ~(1 << (Bit % 32));
+/* Helper - Unset
+ * Unsets a specific bit in the bitmap, which is
+ * then marked as free for allocation */
+void BitmapUnset(Bitmap_t *Bitmap, int Bit) {
+	Bitmap->Bitmap[Bit / MEMORY_BITS] &= ~(1 << (Bit % MEMORY_BITS));
 }
 
+/* Helper - Test
+ * Tests a specific bit in the bitmap, returns
+ * 0 if the bit is free, 1 if otherwise */
 int BitmapTest(Bitmap_t *Bitmap, int Bit)
 {
 	/* Get block & index */
-	Addr_t Block = Bitmap->Bitmap[Bit / 32];
-	Addr_t Index = (1 << (Bit % 32));
+	Addr_t Block = Bitmap->Bitmap[Bit / MEMORY_BITS];
+	Addr_t Index = (1 << (Bit % MEMORY_BITS));
 
 	/* Test */
 	return ((Block & Index) != 0);
@@ -64,7 +70,8 @@ Bitmap_t *BitmapCreate(Addr_t Base, Addr_t End, size_t BlockSize)
 	Bitmap->Size = End - Base;
 	Bitmap->BlockSize = BlockSize;
 
-	/* Now calculate blocks */
+	/* Now calculate blocks 
+	 * and divide by how many bytes are required */
 	Bitmap->BlockCount = Bitmap->Size / BlockSize;
 	Bitmap->BitmapSize = DIVUP((Bitmap->BlockCount + 1), 8);
 
@@ -112,13 +119,13 @@ Addr_t BitmapAllocateAddress(Bitmap_t *Bitmap, size_t Size)
 	for (BlockItr = 0; BlockItr < Bitmap->BlockCount; BlockItr++)
 	{
 		/* Quick test, if all is allocated, damn */
-		if (Bitmap->Bitmap[BlockItr] == 0xFFFFFFFF) {
+		if (Bitmap->Bitmap[BlockItr] == MEMORY_LIMIT) {
 			continue;
 		}
 
 		/* Test each bit in this part */
-		for (BitItr = 0; BitItr < 32; BitItr++) {
-			int CurrentBit = 1 << BitItr;
+		for (BitItr = 0; BitItr < MEMORY_BITS; BitItr++) {
+			size_t CurrentBit = 1 << BitItr;
 			if (Bitmap->Bitmap[BlockItr] & CurrentBit) {
 				continue;
 			}
@@ -128,16 +135,16 @@ Addr_t BitmapAllocateAddress(Bitmap_t *Bitmap, size_t Size)
 			for (k = 0; k < NumBlocks; k++) {
 				/* Sanitize that we haven't switched
 				 * block temporarily */
-				if ((BitItr + k) >= 32) {
-					int TempI = BlockItr + ((BitItr + k) / 32);
-					int OffsetI = (BitItr + k) % 32;
-					int BlockBit = 1 << OffsetI;
+				if ((BitItr + k) >= MEMORY_BITS) {
+					int TempI = BlockItr + ((BitItr + k) / MEMORY_BITS);
+					int OffsetI = (BitItr + k) % MEMORY_BITS;
+					size_t BlockBit = 1 << OffsetI;
 					if (Bitmap->Bitmap[TempI] & BlockBit) {
 						break;
 					}
 				}
 				else {
-					int BlockBit = 1 << (BitItr + k);
+					size_t BlockBit = 1 << (BitItr + k);
 					if (Bitmap->Bitmap[BlockItr] & BlockBit) {
 						break;
 					}
@@ -203,12 +210,12 @@ void BitmapFreeAddress(Bitmap_t *Bitmap, Addr_t Address, size_t Size)
 		BitmapUnset(Bitmap, StartBit + i);
 	}
 
+	/* Release lock */
+	SpinlockRelease(&Bitmap->Lock);
+
 	/* Increase stats */
 	Bitmap->BlocksAllocated -= NumBlocks;
 	Bitmap->NumFrees++;
-
-	/* Release lock */
-	SpinlockRelease(&Bitmap->Lock);
 }
 
 /* Validates the given address that it's within

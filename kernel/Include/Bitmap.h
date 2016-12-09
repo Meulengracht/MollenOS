@@ -22,11 +22,12 @@
 #ifndef _MOLLENOS_BITMAP_H_
 #define _MOLLENOS_BITMAP_H_
 
-/* Includes */
-#include <crtdefs.h>
-#include <stdint.h>
+/* Includes 
+ * - C-Library */
+#include <os/osdefs.h>
 
-/* OS */
+/* Includes
+ * - System */
 #include <Arch.h>
 #include <os/Spinlock.h>
 
