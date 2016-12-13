@@ -78,14 +78,14 @@ In order to build MollenOS you need NASM installed on your system in order to as
 The build and install process is almost fully automated on windows, and is controlled by Build.bat and MfsTool.exe, the only thing you have to run is the Build.bat. In order to customize your installation and build process, there is a number of switches you can give to Build.bat
 
 #### Build Arguments
-´-arch´ This switch allows you to specify which platform you want to build for, right now it defaults to the ´x86´ platform. At this moment, it's also the only supported platform. Valid parameters for it are ´i386´, ´x86´ and ´X86´
+`-arch` This switch allows you to specify which platform you want to build for, right now it defaults to the `x86` platform. At this moment, it's also the only supported platform. Valid parameters for it are `i386`, `x86` and `X86`
 
-´-target´ This switch allows you to control which medium you want MollenOS installed to. It always default to the creation of a VMDK image file, to use with virtual computers. If you want it installed to a live disk, use ´live´ as an argument, where MfsTool will automatically be run and allow you to specify which disk you want to use. Other valid targets are ´img´ (image file).
+`-target` This switch allows you to control which medium you want MollenOS installed to. It always default to the creation of a VMDK image file, to use with virtual computers. If you want it installed to a live disk, use `live` as an argument, where MfsTool will automatically be run and allow you to specify which disk you want to use. Other valid targets are `img` (image file).
 
-´-install´ The install switch allows you to skip the building of the entire MollenOS project and go directly to the creation of the disk image / disk installation. This is used as a shortcut when no code-changes has been made, but rather only disk image changes. 
+`-install` The install switch allows you to skip the building of the entire MollenOS project and go directly to the creation of the disk image / disk installation. This is used as a shortcut when no code-changes has been made, but rather only disk image changes. 
 
 
-#### MfsTool Instructions (Use with ´-target live´)
+#### MfsTool Instructions (Use with `-target live`)
 The installer is started automatically by Build.bat at the end, and the installer will present you with the available disks in your system, in a numbered fashion. To format a disk with MFS type the following in the command-line:
 
 1. format disk_no (Example: format 1)
