@@ -59,7 +59,7 @@ void ServerInit(void)
 	GlbServers = ListCreate(KeyInteger, LIST_NORMAL);
 
 	/* Initialize the shared memory */
-	GlbServerHeap = HeapCreate(MEMORY_LOCATION_SHM, 0);
+	GlbServerHeap = HeapCreate(MEMORY_LOCATION_SHM, MEMORY_LOCATION_SHM_END, 0);
 }
 
 /* Server Memory Operations

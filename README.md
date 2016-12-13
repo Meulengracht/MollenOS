@@ -74,25 +74,19 @@ These are the various libraries ported to MollenOS userspace, and are primarily 
 ### Pre-requisites
 In order to build MollenOS you need NASM installed on your system in order to assemble the bootloader and various assembler files in the visual studio projects, you also need Visual Studio 2013 installed on your system to build the projects. These are the only programs needed in order to build MollenOS, drivers, userspace etc. 
 
-### Modifying the build script
-You have various choices for the build script, it can automatically build to various disk image formats (VMDK, IMG), but also compile and build to a live disk. However doing so you need to modificate the BuildLive.bat script.
+### Build Script Information
+The build and install process is almost fully automated on windows, and is controlled by Build.bat and MfsTool.exe, the only thing you have to run is the Build.bat. In order to customize your installation and build process, there is a number of switches you can give to Build.bat
 
-#### 1. Compiling and setting up disk image (VMDK or IMG)
-In order to build the entire project, you need to only run BuildImg.bat or BuildVmdk.bat. This process is fully automatized and requires nothing else than for you to modify the paths in the .bat script for your own computer (They are hardcoded to mine for now).
+#### Build Arguments
+´-arch´ This switch allows you to specify which platform you want to build for, right now it defaults to the ´x86´ platform. At this moment, it's also the only supported platform. Valid parameters for it are ´i386´, ´x86´ and ´X86´
 
-#### 2. Compiling and setting up for a live disk (Usb, External Hdd etc)
-The build process is normally <almost> fully automated, but before you run BuildLive.bat you need to modify it to suit your paths, etc.
+´-target´ This switch allows you to control which medium you want MollenOS installed to. It always default to the creation of a VMDK image file, to use with virtual computers. If you want it installed to a live disk, use ´live´ as an argument, where MfsTool will automatically be run and allow you to specify which disk you want to use. Other valid targets are ´img´ (image file).
 
-1. The first thing you should do is edit the script and fix the paths for your own computer.
-2. The second thing you should do is under the "::Install MOS" step, remove the "-a" option, because THIS WILL install MollenOS directly the first disk it discovers, which will be your primary disk. I have it hardcoded in that it skips my primary disk for convience, and thus I'm the only one that can use that option.
-3. No more things you can do, the build script now builds and updates everything in the /install/ folder.
-4. You MUST grant MfsTool.exe administrator privelieges in order for it access disk drives, the program is located in /install/
+´-install´ The install switch allows you to skip the building of the entire MollenOS project and go directly to the creation of the disk image / disk installation. This is used as a shortcut when no code-changes has been made, but rather only disk image changes. 
 
-##### 2.1 Building MollenOS
-Just run the BuildLive.bat after you've modified it. It will as an end-step automatically start the install program for MollenOS after the build process.
 
-##### 2.2 Installing MollenOS
-The installer is started automatically by BuildLive.bat at the end, and the installer will present you with the available disks in your system, in a numbered fashion. To format a disk with MFS type the following in the command-line:
+#### MfsTool Instructions (Use with ´-target live´)
+The installer is started automatically by Build.bat at the end, and the installer will present you with the available disks in your system, in a numbered fashion. To format a disk with MFS type the following in the command-line:
 
 1. format disk_no (Example: format 1)
 2. install disk_no (Example: install 1)

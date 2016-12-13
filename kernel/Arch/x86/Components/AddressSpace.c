@@ -33,7 +33,7 @@
 #include <string.h>
 
 /* Globals */
-AddressSpace_t GlbKernelAddressSpace;
+static AddressSpace_t GlbKernelAddressSpace;
 
 /* Address Space Abstraction Layer
 **********************************/
@@ -277,9 +277,9 @@ Addr_t AddressSpaceMap(AddressSpace_t *AddrSpace, VirtAddr_t Address,
 {
 	/* Calculate num of pages */
 	size_t PageCount = DIVUP(Size, PAGE_SIZE);
+	Flags_t AllocFlags = 0;
 	Addr_t RetAddr = 0;
 	size_t Itr = 0;
-	int AllocFlags = 0;
 
 	/* Add flags */
 	if (Flags & ADDRESS_SPACE_FLAG_USER)
@@ -301,7 +301,7 @@ Addr_t AddressSpaceMap(AddressSpace_t *AddrSpace, VirtAddr_t Address,
 
 		/* Do the actual map */
 		MmVirtualMap(AddrSpace->PageDirectory, PhysBlock,
-			(Address + (Itr * PAGE_SIZE)), (uint32_t)AllocFlags);
+			(Address + (Itr * PAGE_SIZE)), AllocFlags);
 	}
 
 	/* Done */

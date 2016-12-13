@@ -16,9 +16,18 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS Heap Manager (Dynamic Block System)
- * DBS Heap Manager
- * Memory Nodes / Linked List / Lock Protectected (TODO REAPING )
+ * MollenOS Heap Manager (Dynamic Buddy Block System)
+ * DBBS Heap Manager
+ * Version History:
+ * - Version 1.1: The heap allocator is being upgraded yet again
+ *                to involve better error checking, boundary checking
+ *                and involve a buddy-allocator system
+ *
+ * - Version 1.0: Upgraded the linked list allocator to
+ *                be a dynamic block system allocator and to support
+ *                memory masks, aligned allocations etc
+ *
+ * - Version 0.1: Linked list memory allocator, simple but it worked
  */
 
 #ifndef _MCORE_HEAP_H_
@@ -40,9 +49,9 @@
 /* These are defined from trial and error 
  * and should probably never be any LESS than
  * these values, of course they could be higher */
-#define MEMORY_STATIC_OFFSET	0x400000
-#define HEAP_NORMAL_BLOCK		0x1000
-#define HEAP_LARGE_BLOCK		0x10000
+#define MEMORY_STATIC_OFFSET	0x400000 
+#define HEAP_NORMAL_BLOCK		0x2000
+#define HEAP_LARGE_BLOCK		0x20000
 
 #define HEAP_IDENT_SIZE			8
 #define HEAP_STANDARD_ALIGN		4
@@ -116,7 +125,7 @@ typedef struct _HeapBlock
 /* Heap block flags, used by the <Flags> field
  * in a heap block to describe it */
 #define BLOCK_NORMAL				0x0
-#define BLOCK_LARGE					0x1
+#define BLOCK_ALIGNED				0x1
 #define BLOCK_VERY_LARGE			0x2
 
 /* This is the MCore Heap Structure 
@@ -131,6 +140,7 @@ typedef struct _HeapRegion
 	Addr_t MemStartData;
 	Addr_t MemHeaderCurrent;
 	Addr_t MemHeaderMax;
+	Addr_t HeapEnd;
 
 	/* Whether or not this is a user heap
 	 * we need to know this when mapping in memory */
@@ -155,6 +165,8 @@ typedef struct _HeapRegion
 	/* The children nodes of this
 	 * memory region */
 	struct _HeapBlock *Blocks;
+	struct _HeapBlock *PageBlocks;
+	struct _HeapBlock *CustomBlocks;
 
 } Heap_t;
 
@@ -189,7 +201,7 @@ __CRT_EXTERN void HeapInit(void);
  * This function allocates a 'third party' heap that
  * can be used like a memory region for allocations, usefull
  * for servers, shared memory, processes etc */
-__CRT_EXTERN Heap_t *HeapCreate(Addr_t HeapAddress, int UserHeap);
+__CRT_EXTERN Heap_t *HeapCreate(Addr_t HeapAddress, Addr_t HeapEnd, int UserHeap);
 
 /* Helper function that enumerates the given heap 
  * and prints out different allocation stats of heap */

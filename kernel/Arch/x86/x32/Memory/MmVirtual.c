@@ -156,16 +156,23 @@ void MmVirtualMap(void *PageDirectory, PhysAddr_t PhysicalAddr, VirtAddr_t Virtu
 	 * entry in, in the page-directory */
 	PageDirectory_t *Directory = (PageDirectory_t*)PageDirectory;
 	PageTable_t *Table = NULL;
+	int IsCurrent = 0;
 
 	/* Determine page directory 
 	 * If we were given null, select for core */
-	if (Directory == NULL)
-		Directory = (PageDirectory_t*)CurrentPageDirectories[ApicGetCpu()];
+	if (Directory == NULL) {
+		Directory = CurrentPageDirectories[ApicGetCpu()];
+	}
+
+	/* Sanitizie if we are modifying the currently
+	 * loaded page-directory */
+	if (CurrentPageDirectories[ApicGetCpu()] == Directory) {
+		IsCurrent = 1;
+	}
 
 	/* Sanitize again
 	 * If its still null something is wrong */
 	assert(Directory != NULL);
-	assert(PhysicalAddr != MEMORY_LIMIT);
 
 	/* Get lock on the page-directory 
 	 * we don't want people to touch */
@@ -197,13 +204,12 @@ void MmVirtualMap(void *PageDirectory, PhysAddr_t PhysicalAddr, VirtAddr_t Virtu
 
 		/* Reload CR3 directory to force 
 		 * the MMIO to see our changes */
-		if (PageDirectory == NULL) {
+		if (IsCurrent) {
 			memory_reload_cr3();
 		}
 	}
 	else {
-		/* Simply load it from the 
-		 * directory table */
+		/* Simply load it from the directory table */
 		Table = (PageTable_t*)Directory->vTables[PAGE_DIRECTORY_INDEX(VirtualAddr)];
 	}
 
@@ -229,8 +235,9 @@ void MmVirtualMap(void *PageDirectory, PhysAddr_t PhysicalAddr, VirtAddr_t Virtu
 
 	/* Last step is to invalidate the 
 	 * the address in the MMIO */
-	if (PageDirectory == NULL)
+	if (IsCurrent) {
 		memory_invalidate_addr(VirtualAddr);
+	}
 }
 
 /* Unmaps a virtual memory address and frees the physical
@@ -243,11 +250,19 @@ void MmVirtualUnmap(void *PageDirectory, VirtAddr_t VirtualAddr)
 	 * out page index */
 	PageDirectory_t *Directory = (PageDirectory_t*)PageDirectory;
 	PageTable_t *Table = NULL;
+	int IsCurrent = 0;
 
 	/* Determine page directory 
 	 * if pDir is null we get for current cpu */
-	if (Directory == NULL)
-		Directory = (PageDirectory_t*)CurrentPageDirectories[ApicGetCpu()];
+	if (Directory == NULL) {
+		Directory = CurrentPageDirectories[ApicGetCpu()];
+	}
+
+	/* Sanitizie if we are modifying the currently
+	* loaded page-directory */
+	if (CurrentPageDirectories[ApicGetCpu()] == Directory) {
+		IsCurrent = 1;
+	}
 
 	/* Sanitize the page-directory
 	 * If it's still NULL somethings wrong */
@@ -292,7 +307,7 @@ void MmVirtualUnmap(void *PageDirectory, VirtAddr_t VirtualAddr)
 
 		/* Last step is to validate the page-mapping
 		 * now this should be an IPC to all cpu's */
-		if (PageDirectory == NULL) {
+		if (IsCurrent) {
 			memory_invalidate_addr(VirtualAddr);
 		}
 	}
