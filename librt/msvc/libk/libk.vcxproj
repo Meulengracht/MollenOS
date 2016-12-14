@@ -139,6 +139,7 @@
     <ClCompile Include="..\..\libos\mstring\mstringresize.c" />
     <ClCompile Include="..\..\libos\mstring\mstringsubstring.c" />
     <ClCompile Include="..\..\libos\mstring\mstringutf8.c" />
+    <ClCompile Include="..\..\libos\sha1.c" />
     <ClCompile Include="..\..\libos\synchronization\spinlock.c" />
   </ItemGroup>
   <ItemGroup>

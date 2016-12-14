@@ -51,6 +51,8 @@
 /* Helper to define whether or not an allocation is normal
  * or modified by allocation flags as alignment/size */
 #define ALLOCISNORMAL(x)			((x & (ALLOCATION_PAGEALIGN | ALLOCATION_BIG)) == 0)
+#define ALLOCISNOTBIG(x)			((x & ALLOCATION_BIG) == 0)
+#define ALLOCISPAGE(x)				(((x & ALLOCATION_PAGEALIGN) != 0) && ALLOCISNOTBIG(x))
 
 /* Globals */
 const char *GlbKernelUnknown = "Unknown";
@@ -307,15 +309,12 @@ void HeapExpand(Heap_t *Heap, size_t Size, Addr_t Mask, Flags_t Flags, const cha
 
 	/* Which kind of expansion are we making? */
 	if (Flags & ALLOCATION_BIG) {
-		/* Page aligned allocation */
-		hBlock = HeapCreateBlock(Heap, ALIGN(Size, PAGE_SIZE, 1), 
-			Mask, BLOCK_VERY_LARGE, Identifier);
+		hBlock = HeapCreateBlock(Heap, Size, Mask, BLOCK_VERY_LARGE, Identifier);
 	}
 	else if (Flags & ALLOCATION_PAGEALIGN) {
 		hBlock = HeapCreateBlock(Heap, HEAP_LARGE_BLOCK, Mask, BLOCK_ALIGNED, Identifier);
 	}
 	else {
-		/* Normal expansion */
 		hBlock = HeapCreateBlock(Heap, HEAP_NORMAL_BLOCK, Mask, BLOCK_NORMAL, Identifier);
 	}
 
@@ -482,15 +481,23 @@ Addr_t HeapAllocate(Heap_t *Heap, size_t Size,
 	/* Find a block that match our 
 	 * requirements */
 	HeapBlock_t *CurrentBlock = NULL;
-	size_t AdjustedAlign = 0;
+	size_t AdjustedAlign = Alignment;
 	size_t AdjustedSize = Size;
 	Addr_t RetVal = 0;
 
 	/* Add some block-type flags 
-	 * based upon size of requested allocation */
+	 * based upon size of requested allocation 
+	 * we want to use our normal blocks for smaller allocations 
+	 * and the page-aligned for larger ones */
 	if (ALLOCISNORMAL(Flags) && Size >= HEAP_NORMAL_BLOCK) {
-		Flags |= ALLOCATION_BIG;
 		AdjustedSize = ALIGN(Size, PAGE_SIZE, 1);
+		Flags |= ALLOCATION_PAGEALIGN;
+	}
+	if (ALLOCISNOTBIG(Flags) && AdjustedSize >= HEAP_LARGE_BLOCK) {
+		Flags |= ALLOCATION_BIG;
+	}
+	if (ALLOCISPAGE(Flags) && !ISALIGNED(AdjustedSize, PAGE_SIZE)) {
+		AdjustedSize = ALIGN(AdjustedSize, PAGE_SIZE, 1);
 	}
 
 	/* Acquire the lock */
@@ -505,7 +512,6 @@ Addr_t HeapAllocate(Heap_t *Heap, size_t Size,
 	}
 	else {
 		CurrentBlock = Heap->Blocks;
-		AdjustedAlign = Alignment;
 	}
 
 	/* Now lets iterate the heap */
@@ -545,7 +551,7 @@ Addr_t HeapAllocate(Heap_t *Heap, size_t Size,
 
 		/* Were we asked to commit pages? */
 		if (Flags & ALLOCATION_COMMIT) {
-			HeapCommitPages(RetVal, Size, Mask);
+			HeapCommitPages(RetVal, AdjustedSize, Mask);
 		}
 
 		/* Release lock */
@@ -556,13 +562,13 @@ Addr_t HeapAllocate(Heap_t *Heap, size_t Size,
 	}
 
 	/* If we reach here, expand and research */
-	HeapExpand(Heap, Size, Mask, Flags, Identifier);
+	HeapExpand(Heap, AdjustedSize, Mask, Flags, Identifier);
 
 	/* Release lock */
 	CriticalSectionLeave(&Heap->Lock);
 
 	/* Recursive Call */
-	return HeapAllocate(Heap, Size, Flags, Alignment, Mask, Identifier);
+	return HeapAllocate(Heap, AdjustedSize, Flags, AdjustedAlign, Mask, Identifier);
 }
 
 /**************************************/
@@ -955,11 +961,12 @@ void *kmalloc_apm(size_t Size, Addr_t *Ptr, Addr_t Mask)
 	/* Do the call */
 	RetAddr = HeapAllocate(&GlbKernelHeap, Size, 
 		ALLOCATION_COMMIT | ALLOCATION_PAGEALIGN, 
-		HEAP_STANDARD_ALIGN, Mask, GlbKernelUnknown);
+		0, Mask, GlbKernelUnknown);
 
 	/* Sanitize null-allocs in kernel allocations
-	 * we need to extra sensitive */
-	assert(RetAddr != 0);
+	 * we need to extra sensitive, we also assert
+	 * the alignment */
+	assert(RetAddr != 0 && (RetAddr & ATTRIBUTE_MASK) == 0);
 
 	/* Now, get physical mapping */
 	*Ptr = AddressSpaceGetMap(AddressSpaceGetCurrent(), RetAddr);
@@ -986,12 +993,13 @@ void *kmalloc_ap(size_t Size, Addr_t *Ptr)
 
 	/* Do the call */
 	RetAddr = HeapAllocate(&GlbKernelHeap, Size, 
-		ALLOCATION_COMMIT | ALLOCATION_PAGEALIGN, HEAP_STANDARD_ALIGN,
-		MEMORY_MASK_DEFAULT, GlbKernelUnknown);
+		ALLOCATION_COMMIT | ALLOCATION_PAGEALIGN, 
+		0, MEMORY_MASK_DEFAULT, GlbKernelUnknown);
 
 	/* Sanitize null-allocs in kernel allocations
-	 * we need to extra sensitive */
-	assert(RetAddr != 0);
+	 * we need to extra sensitive, we also assert
+	 * the alignment */
+	assert(RetAddr != 0 && (RetAddr & ATTRIBUTE_MASK) == 0);
 
 	/* Now, get physical mapping */
 	*Ptr = AddressSpaceGetMap(AddressSpaceGetCurrent(), RetAddr);
@@ -1018,7 +1026,8 @@ void *kmalloc_p(size_t Size, Addr_t *Ptr)
 
 	/* Do the call */
 	RetAddr = HeapAllocate(&GlbKernelHeap, Size, 
-		ALLOCATION_COMMIT, HEAP_STANDARD_ALIGN, MEMORY_MASK_DEFAULT, NULL);
+		ALLOCATION_COMMIT, HEAP_STANDARD_ALIGN, 
+		MEMORY_MASK_DEFAULT, NULL);
 
 	/* Sanitize size in kernel allocations 
 	 * we need to extra sensitive */
@@ -1048,12 +1057,13 @@ void *kmalloc_a(size_t Size)
 
 	/* Do the call */
 	RetAddr = HeapAllocate(&GlbKernelHeap, Size, 
-		ALLOCATION_COMMIT | ALLOCATION_PAGEALIGN, HEAP_STANDARD_ALIGN,
-		MEMORY_MASK_DEFAULT, GlbKernelUnknown);
+		ALLOCATION_COMMIT | ALLOCATION_PAGEALIGN, 
+		0, MEMORY_MASK_DEFAULT, GlbKernelUnknown);
 
 	/* Sanitize null-allocs in kernel allocations
-	 * we need to extra sensitive */
-	assert(RetAddr != 0);
+	 * we need to extra sensitive, we also assert
+	 * the alignment */
+	assert(RetAddr != 0 && (RetAddr & ATTRIBUTE_MASK) == 0);
 
 	/* Done */
 	return (void*)RetAddr;
@@ -1075,7 +1085,8 @@ void *kmalloc(size_t Size)
 
 	/* Do the call */
 	RetAddr = HeapAllocate(&GlbKernelHeap, Size, 
-		ALLOCATION_COMMIT, HEAP_STANDARD_ALIGN, MEMORY_MASK_DEFAULT, NULL);
+		ALLOCATION_COMMIT, HEAP_STANDARD_ALIGN, 
+		MEMORY_MASK_DEFAULT, NULL);
 
 	/* Sanitize size in kernel allocations 
 	 * we need to extra sensitive */

@@ -93,8 +93,8 @@ int fflags(const char * mode)
 }
 
 /* The _fflags
-* Converts the ANSI-C-mode
-* flags into our vfs flags */
+ * Converts the ANSI-C-mode
+ * flags into our vfs flags */
 int _fflags(int oflags)
 {
 	/* Variables */

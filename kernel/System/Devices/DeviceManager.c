@@ -82,14 +82,9 @@ void DmStart(void)
 /* Create a request */
 void DmCreateRequest(MCoreDeviceRequest_t *Request)
 {
-	/* Sanity */
-	if (Request->Length > DEVICEMANAGER_MAX_IO_SIZE) {
-		Request->ErrType = RequestInvalidParameters;
-		return;
-	}
-	else {
-		Request->ErrType = RequestNoError;
-	}
+	/* Initialize the return error
+	 * to no error of course */
+	Request->ErrType = RequestNoError;
 
 	/* Deep call */
 	EventCreate(GlbDeviceEventHandler, &Request->Base);

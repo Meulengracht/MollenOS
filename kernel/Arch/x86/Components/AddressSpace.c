@@ -343,9 +343,8 @@ void AddressSpaceUnmap(AddressSpace_t *AddrSpace, VirtAddr_t Address, size_t Siz
 		MmVirtualUnmap(AddrSpace->PageDirectory, (Address + (Itr * PAGE_SIZE)));
 }
 
-/* Retrieves a physical mapping from an address space */
-PhysAddr_t AddressSpaceGetMap(AddressSpace_t *AddrSpace, VirtAddr_t Address)
-{
-	/* Deep Call */
+/* Retrieves a physical mapping from an address space 
+ * for x86 we can simply just redirect it to MmVirtual */
+PhysAddr_t AddressSpaceGetMap(AddressSpace_t *AddrSpace, VirtAddr_t Address) {
 	return MmVirtualGetMapping(AddrSpace->PageDirectory, Address);
 }

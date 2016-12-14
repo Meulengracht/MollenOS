@@ -61,6 +61,7 @@ MSBuild.exe MollenOS.sln /p:Configuration=Build_X86_32 /t:Clean,Build
 START "InitRD" /D %~dp0\modules /B /W "modules\RdBuilder.exe"
 
 ::Copy files to install directory
+xcopy /v /y librt\build\*.dll install\Hdd\System\
 xcopy /v /y kernel\Build\MCore.mos install\Hdd\System\Sys32.mos
 xcopy /v /y modules\InitRd.mos install\Hdd\System\InitRd32.mos
 xcopy /v /y boot\Stage1\MFS1\Stage1.bin install\Stage1.bin

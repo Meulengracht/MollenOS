@@ -189,7 +189,9 @@ void MmVirtualMap(void *PageDirectory, PhysAddr_t PhysicalAddr, VirtAddr_t Virtu
 		/* Allocate new table */
 		Table = (PageTable_t*)kmalloc_ap(PAGE_SIZE, &TablePhysical);
 
-		/* Sanity */
+		/* Sanitize the newly allocated
+		 * table, two things must be true;
+		 * no NULL and no page-not-align */
 		assert(Table != NULL);
 
 		/* Zero it */
@@ -332,7 +334,7 @@ PhysAddr_t MmVirtualGetMapping(void *PageDirectory, VirtAddr_t VirtualAddr)
 
 	/* Determine page directory */
 	if (Directory == NULL) {
-		Directory = (PageDirectory_t*)CurrentPageDirectories[ApicGetCpu()];
+		Directory = CurrentPageDirectories[ApicGetCpu()];
 	}
 
 	/* Sanitize the page-directory
@@ -371,7 +373,6 @@ PhysAddr_t MmVirtualGetMapping(void *PageDirectory, VirtAddr_t VirtualAddr)
 	return (Mapping + (VirtualAddr & ATTRIBUTE_MASK));
 
 NotMapped:
-
 	/* Release mutex on page-directory
 	 * we should not keep it longer than neccessary */
 	MutexUnlock(&Directory->Lock);

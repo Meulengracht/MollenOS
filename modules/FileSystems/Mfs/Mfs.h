@@ -31,7 +31,7 @@
 #include <ds/mstring.h>
 
 /* Definitions */
-#define MFS_MAGIC			0x3153464D		/* 1FSM */
+#define MFS_MAGIC			0x3153464D		/* 1SFM */
 
 #define MFS_OSDRIVE			0x1
 

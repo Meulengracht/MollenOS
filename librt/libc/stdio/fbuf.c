@@ -80,6 +80,23 @@ int _ffill(FILE * stream, void *ptr, size_t size)
 		fbuffer = (FILEBUFFER*)stream->buffer;
 	}
 
+	/* Sanitize whther or not this file-stream has
+	 * stream-buffering disabled */
+	if (stream->flags & _IONBF) {
+		int errcode = 0;
+		int retval = Syscall4(MOLLENOS_SYSCALL_VFSREAD, MOLLENOS_SYSCALL_PARAM(stream->fd),
+			MOLLENOS_SYSCALL_PARAM(ptr), MOLLENOS_SYSCALL_PARAM(size),
+			MOLLENOS_SYSCALL_PARAM(&errcode));
+
+		/* Sanity */
+		if (_fval(errcode)) {
+			return -1;
+		}
+		else {
+			return retval;
+		}
+	}
+
 	/* Take care of a new buffer 
 	 * but check if we are at end of buffer
 	 * or buffer has never been used */

@@ -37,52 +37,24 @@
  * into maximum allowed blocks */
 DeviceErrorMessage_t MfsReadSectors(MCoreFileSystem_t *Fs, uint64_t Sector, void *Buffer, size_t Count)
 {
-	/* Sanity */
+	/* Build initial variables */
+	MCoreDeviceRequest_t Request;
 	uint64_t SectorToRead = Fs->SectorStart + Sector;
-	uint8_t *BufferPointer = (uint8_t*)Buffer;
 	size_t BytesToRead = (Count * Fs->SectorSize);
-	size_t SectorsPerRequest = DEVICEMANAGER_MAX_IO_SIZE / Fs->SectorSize;
 
-	/* Split into blocks */
-	while (BytesToRead)
-	{
-		/* Keep */
-		MCoreDeviceRequest_t Request;
+	/* Clear out request */
+	memset(&Request, 0, sizeof(MCoreDeviceRequest_t));
 
-		/* Clear out request */
-		memset(&Request, 0, sizeof(MCoreDeviceRequest_t));
+	/* Setup request */
+	Request.Base.Type = RequestRead;
+	Request.DeviceId = Fs->DiskId;
+	Request.SectorLBA = SectorToRead;
+	Request.Buffer = (uint8_t*)Buffer;
+	Request.Length = BytesToRead;
 
-		/* Setup request */
-		Request.Base.Type = RequestRead;
-		Request.DeviceId = Fs->DiskId;
-		Request.SectorLBA = SectorToRead;
-		Request.Buffer = BufferPointer;
-
-		/* Make sure we don't read to much */
-		if (BytesToRead > (SectorsPerRequest * Fs->SectorSize))
-			Request.Length = SectorsPerRequest * Fs->SectorSize;
-		else
-			Request.Length = BytesToRead;
-
-		/* Create Request */
-		DmCreateRequest(&Request);
-
-		/* Wait */
-		DmWaitRequest(&Request, 0);
-
-		/* Sanity */
-		if (Request.Base.State != EventOk)
-			return Request.ErrType;
-
-		/* Increase */
-		if (BytesToRead > (SectorsPerRequest * Fs->SectorSize)) {
-			SectorToRead += SectorsPerRequest;
-			BufferPointer += SectorsPerRequest * Fs->SectorSize;
-			BytesToRead -= SectorsPerRequest * Fs->SectorSize;
-		}
-		else
-			break;
-	}
+	/* Create Request */
+	DmCreateRequest(&Request);
+	DmWaitRequest(&Request, 0);
 
 	/* Done! */
 	return RequestNoError;
@@ -1091,59 +1063,58 @@ VfsErrorCode_t MfsCloseHandle(void *FsData, MCoreFileInstance_t *Instance)
  * File must be opened with read permissions */
 size_t MfsReadFile(void *FsData, MCoreFileInstance_t *Instance, uint8_t *Buffer, size_t Size)
 {
-	/* Vars */
+	/* Variables, cast the neccessary information
+	 * and retrieve data */
 	MCoreFileSystem_t *Fs = (MCoreFileSystem_t*)FsData;
 	MfsFileInstance_t *mInstance = (MfsFileInstance_t*)Instance->Instance;
 	MfsData_t *mData = (MfsData_t*)Fs->ExtendedData;
+
+	/* Variables for iteration and 
+	 * state-keeping */
+	size_t SizeOfBucket = (mData->BucketSize * Fs->SectorSize);
+	uint64_t Position = Instance->Position;
 	VfsErrorCode_t RetCode = VfsOk;
 	uint8_t *BufPtr = Buffer;
-	uint64_t Position = Instance->Position;
-
-	/* BucketPtr for iterating */
 	size_t BytesToRead = Size;
 	size_t BytesRead = 0;
 
-	/* Sanity */
-	if ((Instance->Position + Size) > Instance->File->Size)
-		BytesToRead = (size_t)(Instance->File->Size - Instance->Position);
+	/* Sanitize the amount of bytes we want
+	 * to read, cap it at bytes available */
+	if ((Position + Size) > Instance->File->Size)
+		BytesToRead = (size_t)(Instance->File->Size - Position);
 
 	/* Keep reeeading */
 	while (BytesToRead)
 	{
-		/* Calculate buffer size */
+		/* Calculate initial variables we will need
+		 * to read the data, since we MUST read in sector-size boundaries
+		 * it's possible we will have to use a temporary buffer */
 		uint64_t SectorLba = mData->BucketSize * mInstance->DataBucketPosition;
-		uint64_t bbOffset = Position - mInstance->BucketByteBoundary;
-		size_t SizeOfBucket = (mData->BucketSize * Fs->SectorSize);
-		size_t SizeOfThisBucket = (mInstance->DataBucketLength * SizeOfBucket);
-		size_t nBuckets = (size_t)(bbOffset / SizeOfBucket);
-		size_t AdjustedByteCount = 0;
+		uint64_t BucketClusterOffset = Position - mInstance->BucketByteBoundary;
+		size_t SizeOfBucketCluster = (mInstance->DataBucketLength * SizeOfBucket);
+		size_t nBuckets = (size_t)(BucketClusterOffset / SizeOfBucket);
+		size_t AdjustedByteCount = nBuckets * (mData->BucketSize * Fs->SectorSize);
 
-		/* Allocate buffer for data */
-		uint8_t *TransferBuffer = NULL;
-		size_t TransferSize = 0;
+		/* These are WHERE and HOW much will actually 
+		 * be transfered for this iteration */
+		uint8_t *TransferBuffer = mInstance->BucketBuffer;
+		size_t TransferSize = mData->BucketSize;
 
-		/* Determine optimal transfer buffer */
-		if (BytesToRead <= SizeOfBucket
-			|| SizeOfThisBucket == SizeOfBucket) {
-			/* Use ours */
-			TransferBuffer = mInstance->BucketBuffer;
-			TransferSize = mData->BucketSize;
-		}
-		else {
-			/* Find optimal size */
-			size_t BucketsNeeded = DIVUP(BytesToRead, SizeOfBucket);
-			TransferBuffer = (uint8_t*)kmalloc(BucketsNeeded * SizeOfBucket);
-			TransferSize = BucketsNeeded * mData->BucketSize;
+		/* Special large case, this is for speedups 
+		 * if we are trying to read more than the entirety of
+		 * this bucket cluster, we can just use the buffer provided */
+		if (BytesToRead >= SizeOfBucket && BucketClusterOffset == 0) {
+			TransferBuffer = BufPtr;
+			TransferSize = (BytesToRead / SizeOfBucket) * mData->BucketSize;
 		}
 
-		/* Adjust SectorLba */
-		AdjustedByteCount = nBuckets * (mData->BucketSize * Fs->SectorSize);
-		SectorLba += nBuckets * mData->BucketSize;
+		/* Adjust SectorLba, because the bucket we are reading in
+		 * might actually consist of a lot of buckets, so nBuckets
+		 * contain the bucket offset in the bucket-cluster */
+		SectorLba += (nBuckets * mData->BucketSize);
 
 		/* Read the bucket */
-		if (MfsReadSectors(Fs, SectorLba, TransferBuffer, TransferSize) != RequestNoError)
-		{
-			/* Error */
+		if (MfsReadSectors(Fs, SectorLba, TransferBuffer, TransferSize) != RequestNoError) {
 			RetCode = VfsDiskError;
 			LogFatal("MFS1", "READFILE: Error reading sector %u from disk",
 				(size_t)(mData->BucketSize * mInstance->DataBucketPosition));
@@ -1152,30 +1123,32 @@ size_t MfsReadFile(void *FsData, MCoreFileInstance_t *Instance, uint8_t *Buffer,
 			break;
 		}
 
-		/* We have to calculate the offset into this buffer we must transfer data */
-		size_t bOffset = (size_t)(Position - mInstance->BucketByteBoundary - AdjustedByteCount);
-		size_t BytesLeft = (TransferSize * Fs->SectorSize) - bOffset;
+		/* Use this to indicate how much
+		 * we moved forward with bytes */
 		size_t BytesCopied = 0;
 
-		/* We have a few cases
-		 * Case 1: We have enough data here 
-		 * Case 2: We have to read more than is here */
-		if (BytesToRead > BytesLeft)
-		{
-			/* Start out by copying remainder */
-			memcpy(BufPtr, (TransferBuffer + bOffset), BytesLeft);
-			BytesCopied = BytesLeft;
-		}
-		else
-		{
-			/* Just copy */
-			memcpy(BufPtr, (TransferBuffer + bOffset), BytesToRead);
-			BytesCopied = BytesToRead;
-		}
+		if (TransferBuffer != BufPtr) {
+			/* We have to calculate the offset into this buffer we must transfer data */
+			size_t bOffset = (size_t)(Position - (mInstance->BucketByteBoundary + AdjustedByteCount));
+			size_t BytesLeft = (TransferSize * Fs->SectorSize) - bOffset;
 
-		/* Done with buffer */
-		if (TransferSize != mData->BucketSize)
-			kfree(TransferBuffer);
+			/* We have a few cases
+			* Case 1: We have enough data here
+			* Case 2: We have to read more than is here */
+			if (BytesToRead > BytesLeft) {
+				/* Start out by copying remainder */
+				memcpy(BufPtr, (TransferBuffer + bOffset), BytesLeft);
+				BytesCopied = BytesLeft;
+			}
+			else {
+				/* Just copy */
+				memcpy(BufPtr, (TransferBuffer + bOffset), BytesToRead);
+				BytesCopied = BytesToRead;
+			}
+		}
+		else {
+			BytesCopied = (TransferSize * Fs->SectorSize);
+		}
 
 		/* Advance pointer(s) */
 		BytesRead += BytesCopied;
@@ -1184,9 +1157,7 @@ size_t MfsReadFile(void *FsData, MCoreFileInstance_t *Instance, uint8_t *Buffer,
 		Position += BytesCopied;
 
 		/* Switch to next bucket? */
-		if (Position == mInstance->BucketByteBoundary + SizeOfThisBucket)
-		{
-			/* Vars */
+		if (Position == (mInstance->BucketByteBoundary + SizeOfBucketCluster)) {
 			uint32_t NextBucket = 0, BucketLength = 0;
 
 			/* Go to next */

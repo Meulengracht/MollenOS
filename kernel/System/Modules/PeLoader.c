@@ -678,7 +678,8 @@ MCorePeFile_t *PeResolveLibrary(MCorePeFile_t *Parent, MCorePeFile_t *PeFile, MS
 
 		/* Sanity */
 		if (lFile == NULL || lFile->Code != VfsOk || lFile->File == NULL) {
-			LogDebug("PELD", "Failed to load library %s", MStringRaw(LibraryName));
+			LogDebug("PELD", "Failed to load library %s (Code %i)", 
+				MStringRaw(LibraryName), lFile->Code);
 			for (;;);
 		}
 
@@ -923,7 +924,7 @@ MCorePeFile_t *PeLoadImage(MCorePeFile_t *Parent, MString_t *Name, uint8_t *Buff
 	/* Validate */
 	if (!PeValidate(Buffer))
 		return NULL;
-
+	
 	/* Let's see */
 	DosHeader = (MzHeader_t*)Buffer;
 
