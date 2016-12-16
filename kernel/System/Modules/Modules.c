@@ -20,7 +20,7 @@
 */
 
 /* Includes */
-#include <Modules/ModuleManager.h>
+#include <Modules/Modules.h>
 #include <Heap.h>
 #include <Log.h>
 
@@ -76,7 +76,7 @@ void ModuleMgrInit(MCoreBootDescriptor *BootDescriptor)
 	Addr_t RdPtr = BootDescriptor->RamDiskAddress + sizeof(MCoreRamDiskHeader_t);
 
 	/* Point to first entry */
-	MCoreRamDiskFileHeader_t *FilePtr = (MCoreRamDiskFileHeader_t*)RdPtr;
+	MCoreRamDiskEntry_t *FilePtr = (MCoreRamDiskEntry_t*)RdPtr;
 
 	/* Iterate */
 	while (FileCount != 0)

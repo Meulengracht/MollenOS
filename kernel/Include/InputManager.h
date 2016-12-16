@@ -30,7 +30,7 @@
 #include <os/Ipc.h>
 
 /* Prototypes */
-__CRT_EXTERN void EmRegisterSystemTarget(ProcId_t ProcessId);
+__CRT_EXTERN void EmRegisterSystemTarget(PhxId_t ProcessId);
 
 /* Write data to pointer pipe */
 _CRT_EXPORT void EmCreateEvent(MEventMessageBase_t *Event);

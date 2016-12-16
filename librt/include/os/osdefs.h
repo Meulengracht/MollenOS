@@ -55,7 +55,7 @@ typedef reg64_t reg_t;
  * these are usually fixed no matter arch and include stuff
  * as threading, processing etc */
 typedef unsigned int IpcComm_t;
-typedef unsigned int ProcId_t;
+typedef unsigned int PhxId_t;
 typedef unsigned int ThreadId_t;
 typedef unsigned int TimerId_t;
 typedef unsigned int Flags_t;

@@ -87,20 +87,54 @@ void PeLoadKernelExports(Addr_t KernelBase, Addr_t TableOffset)
 	LogInformation("PELD", "Found %u Functions", GlbKernelExports->Length);
 }
 
+/* Perform a checksum calculation of the 
+ * given PE file. Use this to validate contents
+ * of a PE executable */
+uint32_t PeCalcCheckSum(uint8_t *Data, size_t DataLength, size_t PeChkSumOffset)
+{
+	/* Variables for calculating the 
+	 * pe-checksum */
+	uint32_t *DataPtr = (uint32_t*)Data;
+	uint64_t Limit = 4294967296;
+	uint64_t CheckSum = 0;
+
+	for (size_t i = 0; i < (DataLength / 4); i++, DataPtr++) {
+		if (i == (PeChkSumOffset / 4)) {
+			continue;
+		}
+
+		/* Add value to checksum */
+		uint32_t Val = *DataPtr;
+		CheckSum = (CheckSum & UINT32_MAX) + Val + (CheckSum >> 32);
+		if (CheckSum > Limit) {
+			CheckSum = (CheckSum & UINT32_MAX) + (CheckSum >> 32);
+		}
+	}
+
+	CheckSum = (CheckSum & UINT16_MAX) + (CheckSum >> 16);
+	CheckSum = (CheckSum) + (CheckSum >> 16);
+	CheckSum = CheckSum & UINT16_MAX;
+
+	/* Add length of data and return */
+	CheckSum += (uint32_t)DataLength;
+	return (uint32_t)(CheckSum & UINT32_MAX);
+}
+
 /* Validate a buffer containing a PE */
-int PeValidate(uint8_t *Buffer)
+int PeValidate(uint8_t *Buffer, size_t Length)
 {
 	/* Headers */
 	MzHeader_t *DosHeader = NULL;
 	PeHeader_t *BaseHeader = NULL;
 	PeOptionalHeader_t *OptHeader = NULL;
+	size_t HeaderCheckSum = 0, CalculatedCheckSum = 0;
+	size_t CheckSumAddress = 0;
 
 	/* Let's see */
 	DosHeader = (MzHeader_t*)Buffer;
 
 	/* Validate */
-	if (DosHeader->Signature != MZ_MAGIC)
-	{
+	if (DosHeader->Signature != MZ_MAGIC) {
 		LogFatal("PELD", "Invalid MZ Signature 0x%x", DosHeader->Signature);
 		return 0;
 	}
@@ -109,16 +143,14 @@ int PeValidate(uint8_t *Buffer)
 	BaseHeader = (PeHeader_t*)(Buffer + DosHeader->PeAddr);
 
 	/* Validate */
-	if (BaseHeader->Magic != PE_MAGIC)
-	{
+	if (BaseHeader->Magic != PE_MAGIC) {
 		LogFatal("PELD", "Invalid PE File Magic 0x%x", BaseHeader->Magic);
 		return 0;
 	}
 
 	/* Validate Machine */
 	if (BaseHeader->Machine != PE_MACHINE_X32
-		&& BaseHeader->Machine != PE_MACHINE_X64)
-	{
+		&& BaseHeader->Machine != PE_MACHINE_X64) {
 		LogFatal("PELD", "Unsupported Machine 0x%x", BaseHeader->Machine);
 		return 0;
 	}
@@ -128,9 +160,35 @@ int PeValidate(uint8_t *Buffer)
 
 	/* Validate Optional */
 	if (OptHeader->Architecture != PE_ARCHITECTURE_32
-		&& OptHeader->Architecture != PE_ARCHITECTURE_64)
-	{
+		&& OptHeader->Architecture != PE_ARCHITECTURE_64) {
 		LogFatal("PELD", "Unsupported Machine 0x%x", BaseHeader->Machine);
+		return 0;
+	}
+
+	/* Ok, time to validate the contents of the file
+	 * by performing a checksum of the PE file */
+	/* We need to re-cast based on architecture */
+	if (OptHeader->Architecture == PE_ARCHITECTURE_32) {
+		PeOptionalHeader32_t *OptHeader32 = 
+			(PeOptionalHeader32_t*)(Buffer + DosHeader->PeAddr + sizeof(PeHeader_t));
+		CheckSumAddress = (size_t)&(OptHeader32->ImageChecksum);
+		HeaderCheckSum = OptHeader32->ImageChecksum;
+	}
+	else if (OptHeader->Architecture == PE_ARCHITECTURE_64) {
+		PeOptionalHeader64_t *OptHeader64 = 
+			(PeOptionalHeader64_t*)(Buffer + DosHeader->PeAddr + sizeof(PeHeader_t));
+		CheckSumAddress = (size_t)&(OptHeader64->ImageChecksum);
+		HeaderCheckSum = OptHeader64->ImageChecksum;
+	}
+
+	/* Now do the actual checksum calc */
+	CalculatedCheckSum = 
+		PeCalcCheckSum(Buffer, Length, CheckSumAddress - ((size_t)Buffer));
+
+	/* Are they equal? x.x */
+	if (CalculatedCheckSum != HeaderCheckSum) {
+		LogFatal("PELD", "Invalid checksum of file (Header 0x%x, Calculated 0x%x)", 
+			HeaderCheckSum, CalculatedCheckSum);
 		return 0;
 	}
 
@@ -550,10 +608,8 @@ MCorePeFile_t *PeLoadModule(uint8_t *Name, uint8_t *Buffer, size_t Length)
 	MCorePeFile_t *PeInfo = NULL;
 
 	/* Validate */
-	if (!PeValidate(Buffer))
+	if (!PeValidate(Buffer, Length))
 		return NULL;
-
-	_CRT_UNUSED(Length);
 
 	/* Let's see */
 	DosHeader = (MzHeader_t*)Buffer;
@@ -675,6 +731,7 @@ MCorePeFile_t *PeResolveLibrary(MCorePeFile_t *Parent, MCorePeFile_t *PeFile, MS
 		MCoreFileInstance_t *lFile = VfsWrapperOpen(MStringRaw(LibraryName), Read);
 		MCorePeFile_t *Library = NULL;
 		uint8_t *fBuffer = NULL;
+		size_t fSize = 0;
 
 		/* Sanity */
 		if (lFile == NULL || lFile->Code != VfsOk || lFile->File == NULL) {
@@ -684,16 +741,17 @@ MCorePeFile_t *PeResolveLibrary(MCorePeFile_t *Parent, MCorePeFile_t *PeFile, MS
 		}
 
 		/* Allocate a new buffer */
-		fBuffer = (uint8_t*)kmalloc((size_t)lFile->File->Size);
+		fSize = (size_t)lFile->File->Size;
+		fBuffer = (uint8_t*)kmalloc(fSize);
 
 		/* Read all data */
-		VfsWrapperRead(lFile, fBuffer, (size_t)lFile->File->Size);
+		VfsWrapperRead(lFile, fBuffer, fSize);
 
 		/* Cleanup */
 		VfsWrapperClose(lFile);
 
 		/* Load */
-		Library = PeLoadImage(ExportParent, LibraryName, fBuffer, NextLoadAddress);
+		Library = PeLoadImage(ExportParent, LibraryName, fBuffer, fSize, NextLoadAddress);
 
 		/* Cleanup Buffer */
 		kfree(fBuffer);
@@ -904,7 +962,7 @@ void PeLoadImageImports(MCorePeFile_t *Parent, MCorePeFile_t *PeFile, PeDataDire
 }
 
 /* Load Executable into memory */
-MCorePeFile_t *PeLoadImage(MCorePeFile_t *Parent, MString_t *Name, uint8_t *Buffer, Addr_t *BaseAddress)
+MCorePeFile_t *PeLoadImage(MCorePeFile_t *Parent, MString_t *Name, uint8_t *Buffer, size_t Length, Addr_t *BaseAddress)
 {
 	/* Headers */
 	MzHeader_t *DosHeader = NULL;
@@ -922,7 +980,7 @@ MCorePeFile_t *PeLoadImage(MCorePeFile_t *Parent, MString_t *Name, uint8_t *Buff
 	MCorePeFile_t *PeInfo = NULL;
 
 	/* Validate */
-	if (!PeValidate(Buffer))
+	if (!PeValidate(Buffer, Length))
 		return NULL;
 	
 	/* Let's see */

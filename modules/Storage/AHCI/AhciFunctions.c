@@ -148,7 +148,7 @@ OsStatus_t AhciCommandDispatch(AhciController_t *Controller, AhciPort_t *Port, i
 		Prdt->DataBaseAddressUpper = (sizeof(void*) > 4) ? HIDWORD(PhysicalAddr) : 0;
 
 		/* Set transfer length */
-		Prdt->Descriptor = TransferLength - 1;
+		Prdt->Descriptor = (TransferLength - 1);
 
 		/* Adjust pointer and length */
 		BytesLeft -= TransferLength;

@@ -78,7 +78,7 @@ typedef struct _MCoreThread
 
 	/* Ids */
 	ThreadId_t ParentId;
-	ProcId_t ProcessId;
+	PhxId_t ProcessId;
 	Cpu_t CpuId;
 
 	/* Address Space */

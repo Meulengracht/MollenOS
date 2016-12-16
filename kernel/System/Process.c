@@ -37,7 +37,7 @@
 
 /* Externs */
 extern List_t *GlbProcesses;
-extern ProcId_t GlbProcessId;
+extern PhxId_t GlbProcessId;
 
 /* Kickstarter function for Process */
 void PmStartProcess(void *Args)
@@ -60,7 +60,7 @@ void PmStartProcess(void *Args)
 
 	/* Load Executable */
 	Process->Executable = 
-		PeLoadImage(NULL, Process->Name, Process->fBuffer, &BaseAddress);
+		PeLoadImage(NULL, Process->Name, Process->fBuffer, Process->fBufferLength, &BaseAddress);
 	Process->NextBaseAddress = BaseAddress;
 
 	/* Cleanup file buffer */
@@ -101,12 +101,13 @@ void PmStartProcess(void *Args)
 }
 
 /* Create Process */
-ProcId_t PmCreateProcess(MString_t *Path, MString_t *Arguments)
+PhxId_t PmCreateProcess(MString_t *Path, MString_t *Arguments)
 {
 	/* Vars */
 	MCoreProcess_t *Process = NULL;
 	MCoreFileInstance_t *File = NULL;
 	uint8_t *fBuffer = NULL;
+	size_t fSize = 0;
 	MString_t *PathCopy = NULL;
 	DataKey_t Key;
 	int Index = 0;
@@ -126,10 +127,11 @@ ProcId_t PmCreateProcess(MString_t *Path, MString_t *Arguments)
 	}
 
 	/* Allocate a buffer */
-	fBuffer = (uint8_t*)kmalloc((size_t)File->File->Size);
+	fSize = (size_t)File->File->Size;
+	fBuffer = (uint8_t*)kmalloc(fSize);
 
 	/* Read */
-	VfsWrapperRead(File, fBuffer, (size_t)File->File->Size);
+	VfsWrapperRead(File, fBuffer, fSize);
 
 	/* Copy path */
 	PathCopy = MStringCreate((void*)MStringRaw(File->File->Path), StrUTF8);
@@ -138,7 +140,7 @@ ProcId_t PmCreateProcess(MString_t *Path, MString_t *Arguments)
 	VfsWrapperClose(File);
 
 	/* Validate File */
-	if (!PeValidate(fBuffer)) {
+	if (!PeValidate(fBuffer, fSize)) {
 		/* Bail Out */
 		MStringDestroy(PathCopy);
 		kfree(fBuffer);
@@ -162,6 +164,7 @@ ProcId_t PmCreateProcess(MString_t *Path, MString_t *Arguments)
 
 	/* Save file buffer */
 	Process->fBuffer = fBuffer;
+	Process->fBufferLength = fSize;
 
 	/* Save arguments */
 	if (Arguments != NULL
@@ -239,7 +242,7 @@ void PmCleanupProcess(MCoreProcess_t *Process)
  * This function looks up a process structure 
  * by id, if either PROCESS_CURRENT or PROCESS_NO_PROCESS 
  * is passed, it retrieves the current process */
-MCoreProcess_t *PmGetProcess(ProcId_t ProcessId)
+MCoreProcess_t *PmGetProcess(PhxId_t ProcessId)
 {
 	/* Variables */
 	ListNode_t *pNode = NULL;
@@ -286,7 +289,7 @@ MCoreProcess_t *PmGetProcess(ProcId_t ProcessId)
  * This function looks up the working directory for a process 
  * by id, if either PROCESS_CURRENT or PROCESS_NO_PROCESS 
  * is passed, it retrieves the current process's working directory */
-MString_t *PmGetWorkingDirectory(ProcId_t ProcessId)
+MString_t *PmGetWorkingDirectory(PhxId_t ProcessId)
 {
 	/* Variables */
 	MCoreProcess_t *Process = PmGetProcess(ProcessId);
@@ -304,7 +307,7 @@ MString_t *PmGetWorkingDirectory(ProcId_t ProcessId)
  * This function looks up the base directory for a process 
  * by id, if either PROCESS_CURRENT or PROCESS_NO_PROCESS 
  * is passed, it retrieves the current process's base directory */
-MString_t *PmGetBaseDirectory(ProcId_t ProcessId)
+MString_t *PmGetBaseDirectory(PhxId_t ProcessId)
 {
 	/* Variables */
 	MCoreProcess_t *Process = PmGetProcess(ProcessId);
@@ -356,7 +359,7 @@ int PmQueryProcess(MCoreProcess_t *Process,
 		case ProcessQueryParent:
 		{
 			/* Get a pointer */
-			ProcId_t *bPtr = (ProcId_t*)Buffer;
+			PhxId_t *bPtr = (PhxId_t*)Buffer;
 
 			/* There we go */
 			*bPtr = Process->Parent;
@@ -367,7 +370,7 @@ int PmQueryProcess(MCoreProcess_t *Process,
 		case ProcessQueryTopMostParent:
 		{
 			/* Get a pointer */
-			ProcId_t *bPtr = (ProcId_t*)Buffer;
+			PhxId_t *bPtr = (PhxId_t*)Buffer;
 
 			/* Set initial value */
 			*bPtr = PROCESS_NO_PROCESS;

@@ -1,27 +1,29 @@
 /* MollenOS
-*
-* Copyright 2011 - 2016, Philip Meulengracht
-*
-* This program is free software : you can redistribute it and / or modify
-* it under the terms of the GNU General Public License as published by
-* the Free Software Foundation ? , either version 3 of the License, or
-* (at your option) any later version.
-*
-* This program is distributed in the hope that it will be useful,
-* but WITHOUT ANY WARRANTY; without even the implied warranty of
-* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.See the
-* GNU General Public License for more details.
-*
-* You should have received a copy of the GNU General Public License
-* along with this program.If not, see <http://www.gnu.org/licenses/>.
-*
-*
-* MollenOS MCore - Processes Implementation
-*/
+ *
+ * Copyright 2011 - 2016, Philip Meulengracht
+ *
+ * This program is free software : you can redistribute it and / or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation ? , either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.If not, see <http://www.gnu.org/licenses/>.
+ *
+ *
+ * MollenOS MCore - Server & Process Management
+ * - The process/server manager is known as Phoenix
+ */
 
-/* Includes */
+/* Includes 
+ * - System */
 #include <Arch.h>
-#include <Process.h>
+#include <Modules/Process.h>
 #include <Vfs/Vfs.h>
 #include <GarbageCollector.h>
 #include <Threading.h>
@@ -29,7 +31,8 @@
 #include <Scheduler.h>
 #include <Log.h>
 
-/* CLib */
+/* Includes
+ * C-Library */
 #include <stddef.h>
 #include <ds/list.h>
 #include <ds/mstring.h>
@@ -37,11 +40,11 @@
 
 /* Prototypes */
 int PmEventHandler(void *UserData, MCoreEvent_t *Event);
-ProcId_t PmCreateProcess(MString_t *Path, MString_t *Arguments);
+PhxId_t PmCreateProcess(MString_t *Path, MString_t *Arguments);
 
 /* Globals */
 MCoreEventHandler_t *GlbProcessEventHandler = NULL;
-ProcId_t GlbProcessId = 0;
+PhxId_t GlbProcessId = 0;
 List_t *GlbProcesses = NULL;
 List_t *GlbZombieProcesses = NULL;
 

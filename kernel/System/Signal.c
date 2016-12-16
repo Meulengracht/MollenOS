@@ -71,7 +71,7 @@ char GlbSignalIsDeadly[] = {
 
 /* Create Signal 
  * Dispatches a signal to a given process */
-int SignalCreate(ProcId_t ProcessId, int Signal)
+int SignalCreate(PhxId_t ProcessId, int Signal)
 {
 	/* Variables*/
 	MCoreProcess_t *Target = PmGetProcess(ProcessId);

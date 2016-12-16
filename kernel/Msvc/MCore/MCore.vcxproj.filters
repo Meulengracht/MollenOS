@@ -34,9 +34,6 @@
     <Filter Include="Includes\Modules">
       <UniqueIdentifier>{d05f1880-7a2d-4c35-974b-a9211c29d982}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Systems\Servers">
-      <UniqueIdentifier>{2d0031da-c7dc-4a5b-a130-d65f6d70ea56}</UniqueIdentifier>
-    </Filter>
     <Filter Include="Systems\Devices\Acpi">
       <UniqueIdentifier>{5deed555-85d5-4a53-9ff6-1a3939859996}</UniqueIdentifier>
     </Filter>
@@ -78,9 +75,6 @@
     <ClCompile Include="..\..\System\Threading.c">
       <Filter>Systems</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\System\Modules\ModuleManager.c">
-      <Filter>Systems\Modules</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\System\Modules\PeLoader.c">
       <Filter>Systems\Modules</Filter>
     </ClCompile>
@@ -105,9 +99,6 @@
     <ClCompile Include="..\..\System\Events.c">
       <Filter>Systems</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\System\Servers\Server.c">
-      <Filter>Systems\Servers</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\System\Devices\Acpi\Acpi.c">
       <Filter>Systems\Devices\Acpi</Filter>
     </ClCompile>
@@ -124,9 +115,6 @@
       <Filter>Systems\Processes</Filter>
     </ClCompile>
     <ClCompile Include="..\..\System\Signal.c">
-      <Filter>Systems\Processes</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\System\ProcessManager.c">
       <Filter>Systems\Processes</Filter>
     </ClCompile>
     <ClCompile Include="..\..\System\Syscalls.c">
@@ -146,6 +134,15 @@
     </ClCompile>
     <ClCompile Include="..\..\System\Vfs\VfsPath.c">
       <Filter>Systems\Vfs</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\System\Modules\Server.c">
+      <Filter>Systems\Modules</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\System\Modules\Modules.c">
+      <Filter>Systems\Modules</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\System\Phoenix.c">
+      <Filter>Systems\Processes</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -197,9 +194,6 @@
     <ClInclude Include="..\..\Include\MString.h">
       <Filter>Includes</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\Include\Modules\ModuleManager.h">
-      <Filter>Includes\Modules</Filter>
-    </ClInclude>
     <ClInclude Include="..\..\Include\Modules\RamDisk.h">
       <Filter>Includes\Modules</Filter>
     </ClInclude>
@@ -232,6 +226,9 @@
     </ClInclude>
     <ClInclude Include="..\..\Include\Process.h">
       <Filter>Includes</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Include\Modules\Modules.h">
+      <Filter>Includes\Modules</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

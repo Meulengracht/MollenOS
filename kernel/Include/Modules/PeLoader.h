@@ -635,13 +635,13 @@ typedef struct _MCorePeFile
 __CRT_EXTERN void PeLoadKernelExports(Addr_t KernelBase, Addr_t TableOffset);
 
 /* Validate a buffer containing a PE */
-__CRT_EXTERN int PeValidate(uint8_t *Buffer);
+__CRT_EXTERN int PeValidate(uint8_t *Buffer, size_t Length);
 
 /* Used exclusively for module loading */
 __CRT_EXTERN MCorePeFile_t *PeLoadModule(uint8_t *Name, uint8_t *Buffer, size_t Length);
 
 /* Generic */
-__CRT_EXTERN MCorePeFile_t *PeLoadImage(MCorePeFile_t *Parent, MString_t *Name, uint8_t *Buffer, Addr_t *BaseAddress);
+__CRT_EXTERN MCorePeFile_t *PeLoadImage(MCorePeFile_t *Parent, MString_t *Name, uint8_t *Buffer, size_t Length, Addr_t *BaseAddress);
 __CRT_EXTERN MCorePeFile_t *PeResolveLibrary(MCorePeFile_t *Parent, MCorePeFile_t *PeFile, MString_t *LibraryName, Addr_t *NextLoadAddress);
 __CRT_EXTERN void PeUnloadLibrary(MCorePeFile_t *Parent, MCorePeFile_t *Library);
 __CRT_EXTERN Addr_t PeResolveFunctionAddress(MCorePeFile_t *Library, const char *Function);

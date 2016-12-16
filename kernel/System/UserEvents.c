@@ -28,7 +28,7 @@
 
 /* Globals */
 int GlbEmInitialized = 0;
-ProcId_t GlbEmWindowManager = 0;
+PhxId_t GlbEmWindowManager = 0;
 
 /* Initialise Event Manager */
 void EmInit(void)
@@ -39,7 +39,7 @@ void EmInit(void)
 }
 
 /* Register */
-void EmRegisterSystemTarget(ProcId_t ProcessId)
+void EmRegisterSystemTarget(PhxId_t ProcessId)
 {
 	/* Sanity, NO OVERRIDES */
 	if (ProcessId != PROCESS_NO_PROCESS

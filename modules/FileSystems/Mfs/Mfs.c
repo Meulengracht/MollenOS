@@ -1102,11 +1102,11 @@ size_t MfsReadFile(void *FsData, MCoreFileInstance_t *Instance, uint8_t *Buffer,
 
 		/* Special large case, this is for speedups 
 		 * if we are trying to read more than the entirety of
-		 * this bucket cluster, we can just use the buffer provided */
+		 * this bucket cluster, we can just use the buffer provided 
 		if (BytesToRead >= SizeOfBucket && BucketClusterOffset == 0) {
 			TransferBuffer = BufPtr;
 			TransferSize = (BytesToRead / SizeOfBucket) * mData->BucketSize;
-		}
+		}*/
 
 		/* Adjust SectorLba, because the bucket we are reading in
 		 * might actually consist of a lot of buckets, so nBuckets
