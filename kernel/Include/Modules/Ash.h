@@ -44,6 +44,16 @@
 #define ASH_STACK_MAX			(4 << 20)
 #define ASH_PIPE_SIZE			0x2000
 
+/* Ash Queries
+ * List of the different options
+ * for querying of ashes */
+typedef enum _AshQueryFunction {
+	AshQueryName,
+	AshQueryMemory,
+	AshQueryParent,
+	AshQueryTopMostParent
+} AshQueryFunction_t;
+
 /* Signal Table 
  * This is used for interrupt-signals
  * across threads and processes */
@@ -60,29 +70,40 @@ typedef struct _MCoreSignal {
 	Context_t Context;
 } MCoreSignal_t;
 
+/* This is the different types of ashes
+ * that exists in MollenOS */
+typedef enum _MCoreAshType
+{
+	AshBase,
+	AshServer,
+	AshProcess
+} MCoreAshType_t;
+
 /* The phoenix base structure, this contains
 * basic information shared across all ashes
 * Whether it's a process or a server */
 typedef struct _MCoreAsh
 {
 	/* Ids related to this Ash,
-	* both it's own id, it's main thread
-	* and it's parent ash */
+	 * both it's own id, it's main thread
+	 * and it's parent ash */
 	ThreadId_t MainThread;
 	PhxId_t Id;
 	PhxId_t Parent;
+	MCoreAshType_t Type;
 
 	/* The name of the Ash, this is usually
-	* derived from the file that spawned it */
+	 * derived from the file that spawned it */
 	MString_t *Name;
+	MString_t *Path;
 
 	/* The communication line for this Ash
-	* all types of ash need some form of com */
+	 * all types of ash need some form of com */
 	MCorePipe_t *Pipe;
 
 	/* Memory management and information,
-	* Ashes run in their own space, and have their
-	* own bitmap allocators */
+	 * Ashes run in their own space, and have their
+	 * own bitmap allocators */
 	AddressSpace_t *AddressSpace;
 	Bitmap_t *Heap;
 	Bitmap_t *Shm;
@@ -93,8 +114,8 @@ typedef struct _MCoreAsh
 	List_t *SignalQueue;
 
 	/* Below is everything related to
-	* the startup and the executable information
-	* that the Ash has */
+	 * the startup and the executable information
+	 * that the Ash has */
 	MCorePeFile_t *Executable;
 	Addr_t NextLoadingAddress;
 	uint8_t *FileBuffer;
@@ -102,5 +123,34 @@ typedef struct _MCoreAsh
 	Addr_t StackStart;
 
 } MCoreAsh_t;
+
+/* This function loads the executable and
+ * prepares the ash-environment, at this point
+ * it won't be completely running yet, it needs
+ * its own thread for that. Returns 0 on success */
+__CRT_EXTERN int PhoenixInitializeAsh(MCoreAsh_t *Ash, MString_t *Path);
+
+/* This is a wrapper for starting up a base Ash
+ * and uses <PhoenixInitializeAsh> to setup the env
+ * and do validation before starting */
+__CRT_EXTERN PhxId_t PhoenixStartupAsh(MString_t *Path);
+
+/* This is the finalizor function for starting
+ * up a new base Ash, it finishes setting up the environment
+ * and memory mappings, must be called on it's own thread */
+__CRT_EXTERN void PhoenixFinishAsh(MCoreAsh_t *Ash);
+
+/* Ash Function Prototypes
+ * these are the interesting ones */
+__CRT_EXTERN int PhoenixQueryAsh(MCoreAsh_t *Ash,
+	AshQueryFunction_t Function, void *Buffer, size_t Length);
+__CRT_EXTERN void PhoenixCleanupAsh(MCoreAsh_t *Ash);
+__CRT_EXTERN void PhoenixTerminateAsh(MCoreAsh_t *Ash);
+
+/* Lookup Ash
+ * This function looks up a ash structure
+ * by id, if either PHOENIX_CURRENT or PHOENIX_NO_ASH
+ * is passed, it retrieves the current process */
+__CRT_EXTERN MCoreAsh_t *PhoenixGetAsh(PhxId_t AshId);
 
 #endif //!_MCORE_ASH_H_

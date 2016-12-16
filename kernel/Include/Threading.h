@@ -78,7 +78,7 @@ typedef struct _MCoreThread
 
 	/* Ids */
 	ThreadId_t ParentId;
-	PhxId_t ProcessId;
+	PhxId_t AshId;
 	Cpu_t CpuId;
 
 	/* Address Space */
@@ -119,10 +119,10 @@ _CRT_EXPORT void ThreadingKillThread(ThreadId_t ThreadId);
 _CRT_EXPORT int ThreadingJoinThread(ThreadId_t ThreadId);
 
 /* These below functions are helper functions 
- * for processes, and include transition to user-mode
+ * for ashes, and include transition to user-mode
  * and cleanup */
-__CRT_EXTERN void ThreadingEnterUserMode(void *ProcessInfo);
-__CRT_EXTERN void ThreadingTerminateProcessThreads(unsigned ProcessId);
+__CRT_EXTERN void ThreadingEnterUserMode(void *AshInfo);
+__CRT_EXTERN void ThreadingTerminateAshThreads(PhxId_t AshId);
 __CRT_EXTERN void ThreadingReapZombies(void);
 
 /* Sleep, Wake, etc */

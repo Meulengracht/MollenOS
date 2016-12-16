@@ -31,9 +31,6 @@
     <Filter Include="Systems\Modules">
       <UniqueIdentifier>{d25a1bc3-f724-4473-a9f3-66fc27e009da}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Includes\Modules">
-      <UniqueIdentifier>{d05f1880-7a2d-4c35-974b-a9211c29d982}</UniqueIdentifier>
-    </Filter>
     <Filter Include="Systems\Devices\Acpi">
       <UniqueIdentifier>{5deed555-85d5-4a53-9ff6-1a3939859996}</UniqueIdentifier>
     </Filter>
@@ -42,6 +39,9 @@
     </Filter>
     <Filter Include="Systems\Vfs">
       <UniqueIdentifier>{3b63c136-f228-470d-950a-a52c8b8ccbde}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Includes\Modules">
+      <UniqueIdentifier>{7aaa2a55-dea3-4b70-b444-e05f5fa1f1e3}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>
@@ -111,9 +111,6 @@
     <ClCompile Include="..\..\System\Devices\Acpi\AcpiScan.c">
       <Filter>Systems\Devices\Acpi</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\System\Process.c">
-      <Filter>Systems\Processes</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\System\Signal.c">
       <Filter>Systems\Processes</Filter>
     </ClCompile>
@@ -141,8 +138,14 @@
     <ClCompile Include="..\..\System\Modules\Modules.c">
       <Filter>Systems\Modules</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\System\Phoenix.c">
-      <Filter>Systems\Processes</Filter>
+    <ClCompile Include="..\..\System\Modules\Ash.c">
+      <Filter>Systems\Modules</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\System\Modules\Phoenix.c">
+      <Filter>Systems\Modules</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\System\Modules\Process.c">
+      <Filter>Systems\Modules</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -194,12 +197,6 @@
     <ClInclude Include="..\..\Include\MString.h">
       <Filter>Includes</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\Include\Modules\RamDisk.h">
-      <Filter>Includes\Modules</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\Include\Modules\PeLoader.h">
-      <Filter>Includes\Modules</Filter>
-    </ClInclude>
     <ClInclude Include="..\..\Include\Devices\Timer.h">
       <Filter>Includes\Devices</Filter>
     </ClInclude>
@@ -224,10 +221,22 @@
     <ClInclude Include="..\..\Include\Events.h">
       <Filter>Includes</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\Include\Process.h">
-      <Filter>Includes</Filter>
+    <ClInclude Include="..\..\Include\Modules\Ash.h">
+      <Filter>Includes\Modules</Filter>
     </ClInclude>
     <ClInclude Include="..\..\Include\Modules\Modules.h">
+      <Filter>Includes\Modules</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Include\Modules\PeLoader.h">
+      <Filter>Includes\Modules</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Include\Modules\Phoenix.h">
+      <Filter>Includes\Modules</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Include\Modules\Process.h">
+      <Filter>Includes\Modules</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Include\Modules\RamDisk.h">
       <Filter>Includes\Modules</Filter>
     </ClInclude>
   </ItemGroup>

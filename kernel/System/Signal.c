@@ -20,7 +20,7 @@
 */
 
 /* Includes */
-#include <Process.h>
+#include <Modules/Phoenix.h>
 #include <Threading.h>
 #include <Heap.h>
 
@@ -70,15 +70,15 @@ char GlbSignalIsDeadly[] = {
 };
 
 /* Create Signal 
- * Dispatches a signal to a given process */
-int SignalCreate(PhxId_t ProcessId, int Signal)
+ * Dispatches a signal to a given ash */
+int SignalCreate(PhxId_t AshId, int Signal)
 {
 	/* Variables*/
-	MCoreProcess_t *Target = PmGetProcess(ProcessId);
+	MCoreAsh_t *Target = PhoenixGetAsh(AshId);
 	MCoreSignal_t *Sig = NULL;
 	DataKey_t sKey;
 
-	/* Sanitize the process 
+	/* Sanitize the Ash 
 	 * and that the signal given is valid */
 	if (Target == NULL
 		|| (Signal > NUMSIGNALS)) {
@@ -113,42 +113,42 @@ int SignalCreate(PhxId_t ProcessId, int Signal)
 void SignalHandle(ThreadId_t ThreadId)
 {
 	/* Variables */
-	MCoreProcess_t *Process = NULL;
+	MCoreAsh_t *Ash = NULL;
 	MCoreThread_t *Thread = NULL;
 	MCoreSignal_t *Signal = NULL;
 	ListNode_t *sNode = NULL;
 	
 	/* Lookup Thread */
 	Thread = ThreadingGetThread(ThreadId);
-	Process = PmGetProcess(Thread->ProcessId);
+	Ash = PhoenixGetAsh(Thread->ProcessId);
 
-	/* Sanitize, we might not have a process */
-	if (Process == NULL) {
+	/* Sanitize, we might not have an Ash */
+	if (Ash == NULL) {
 		return;
 	}
 
-	/* Even if there is a process, we might want not
-	 * to process any signals ATM if there is already 
+	/* Even if there is a Ash, we might want not
+	 * to Ash any signals ATM if there is already 
 	 * one active */
-	if (Process->ActiveSignal != NULL) {
+	if (Ash->ActiveSignal != NULL) {
 		return;
 	}
 
 	/* Ok.. pop off first signal */
-	sNode = ListPopFront(Process->SignalQueue);
+	sNode = ListPopFront(Ash->SignalQueue);
 
 	/* Cast */
 	if (sNode != NULL) {
 		Signal = (MCoreSignal_t*)sNode->Data;
-		ListDestroyNode(Process->SignalQueue, sNode);
-		SignalExecute(Process, Signal);
+		ListDestroyNode(Ash->SignalQueue, sNode);
+		SignalExecute(Ash, Signal);
 	}
 }
 
 /* Execute Signal 
  * This function does preliminary checks before actually
  * dispatching the signal to the process */
-void SignalExecute(MCoreProcess_t *Process, MCoreSignal_t *Signal)
+void SignalExecute(MCoreAsh_t *Ash, MCoreSignal_t *Signal)
 {
 	/* Sanitize the thread and signal */
 	if ((Signal->Signal == 0 || Signal->Signal >= NUMSIGNALS)
@@ -165,7 +165,7 @@ void SignalExecute(MCoreProcess_t *Process, MCoreSignal_t *Signal)
 		
 		/* Kill? */
 		if (Action == 1 || Action == 2) {
-			PmTerminateProcess(Process);
+			PhoenixTerminateAsh(Ash);
 		}
 
 		/* Done, return, ignore rest */
@@ -173,8 +173,8 @@ void SignalExecute(MCoreProcess_t *Process, MCoreSignal_t *Signal)
 	}
 
 	/* Update some settings */
-	Process->ActiveSignal = Signal;
+	Ash->ActiveSignal = Signal;
 
 	/* Handle Signal */
-	SignalDispatch(Process, Signal);
+	SignalDispatch(Ash, Signal);
 }

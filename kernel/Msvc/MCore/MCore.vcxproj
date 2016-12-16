@@ -20,14 +20,15 @@
     <ClCompile Include="..\..\System\Events.c" />
     <ClCompile Include="..\..\System\GarbageCollector.c" />
     <ClCompile Include="..\..\System\Heap.c" />
+    <ClCompile Include="..\..\System\Modules\Ash.c" />
+    <ClCompile Include="..\..\System\Modules\Phoenix.c" />
+    <ClCompile Include="..\..\System\Modules\Process.c" />
     <ClCompile Include="..\..\System\Modules\Server.c" />
     <ClCompile Include="..\..\System\UserEvents.c" />
     <ClCompile Include="..\..\System\Log.c" />
     <ClCompile Include="..\..\System\Modules\Modules.c" />
     <ClCompile Include="..\..\System\Modules\PeLoader.c" />
     <ClCompile Include="..\..\System\Pipe.c" />
-    <ClCompile Include="..\..\System\Process.c" />
-    <ClCompile Include="..\..\System\Phoenix.c" />
     <ClCompile Include="..\..\System\Scheduler.c" />
     <ClCompile Include="..\..\System\Signal.c" />
     <ClCompile Include="..\..\System\Synchronization\CriticalSection.c" />
@@ -50,8 +51,11 @@
     <ClInclude Include="..\..\Include\Devices\Timer.h" />
     <ClInclude Include="..\..\Include\Events.h" />
     <ClInclude Include="..\..\Include\Log.h" />
+    <ClInclude Include="..\..\Include\Modules\Ash.h" />
     <ClInclude Include="..\..\Include\Modules\Modules.h" />
     <ClInclude Include="..\..\Include\Modules\PeLoader.h" />
+    <ClInclude Include="..\..\Include\Modules\Phoenix.h" />
+    <ClInclude Include="..\..\Include\Modules\Process.h" />
     <ClInclude Include="..\..\Include\Modules\RamDisk.h" />
     <ClInclude Include="..\..\Include\MollenOS.h" />
     <ClInclude Include="..\..\Include\DeviceManager.h" />
@@ -63,7 +67,6 @@
     <ClInclude Include="..\..\Include\MString.h" />
     <ClInclude Include="..\..\Include\Mutex.h" />
     <ClInclude Include="..\..\Include\Pipe.h" />
-    <ClInclude Include="..\..\Include\Process.h" />
     <ClInclude Include="..\..\Include\Scheduler.h" />
     <ClInclude Include="..\..\Include\Semaphore.h" />
     <ClInclude Include="..\..\Include\Threading.h" />

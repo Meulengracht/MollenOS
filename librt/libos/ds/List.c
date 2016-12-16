@@ -75,7 +75,7 @@ int ListLength(List_t *List)
 
 	/* Sanity */
 	if (List == NULL)
-		return -1;
+		return 0;
 
 	/* Get lock */
 	if (List->Attributes & LIST_SAFE)

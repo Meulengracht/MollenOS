@@ -37,66 +37,59 @@
 #define PHOENIX_NO_ASH			0xFFFFFFFF
 #define PHOENIX_CURRENT			0
 
-/* Process Request Type */
+/* The type of action that are supported
+ * by Phoenix, each of these actions support
+ * different parameters as well, especially 
+ * the spawn command */
 typedef enum _PhoenixRequestType {
 	AshSpawn,
+	AshSpawnProcess,
+	AshPing,
 	AshKill,
 	AshQuery
 } PhoenixRequestType_t;
 
-/* Process Request */
+/* The Phoenix request structure, it builds
+ * on the event system we have created, using
+ * it as an base, and then supports parameters
+ * for requests in PhoneixRequestType */
 typedef struct _MCorePhoenixRequest
 {
-	/* Event Base */
+	/* Event Base 
+	 * All event-derived systems must
+	 * have this member */
 	MCoreEvent_t Base;
 
-	/* Creation Data */
+	/* Event Parameters, the following
+	 * must be filled out for some of the
+	 * actions that phoenix support */
 	MString_t *Path;
 	MString_t *Arguments;
 
-	/* Process Id */
-	PhxId_t ProcessId;
+	/* This is a combined parameter, for some
+	 * actions it acts as a return, other times it
+	 * is the parameter for an action */
+	PhxId_t AshId;
 
 } MCorePhoenixRequest_t;
 
-/* Phoenix Queries
- * List of the different options
- * for querying of ashes */
-typedef enum _PhoenixQueryFunction {
-	AshQueryName,
-	AshQueryMemory,
-	AshQueryParent,
-	AshQueryTopMostParent
-} PhoenixQueryFunction_t;
-
-/* Prototypes */
+/* These are maintience/initializor functions and 
+ * should only be called by system processes */
 __CRT_EXTERN void PhoenixInit(void);
 __CRT_EXTERN void PhoenixReapZombies(void);
 
-/* Requests */
+/* Methods for supporting events, use these
+ * to send requests to the phoenix system */
 __CRT_EXTERN void PhoenixCreateRequest(MCorePhoenixRequest_t *Request);
 __CRT_EXTERN void PhoenixWaitRequest(MCorePhoenixRequest_t *Request, size_t Timeout);
-
-/* Phoenix Function Prototypes
- * these are the interesting ones */
-__CRT_EXTERN int PhoenixQueryAsh(MCoreAsh_t *Ash, 
-	PhoenixQueryFunction_t Function, void *Buffer, size_t Length);
-__CRT_EXTERN void PhoenixCleanupAsh(MCoreAsh_t *Ash);
-__CRT_EXTERN void PhoenixTerminateAsh(MCoreAsh_t *Ash);
-
-/* Lookup Ash 
- * This function looks up a ash structure 
- * by id, if either PHOENIX_CURRENT or PHOENIX_NO_ASH 
- * is passed, it retrieves the current process */
-__CRT_EXTERN MCoreAsh_t *PhoenixGetAsh(PhxId_t AshId);
 
 /* Signal Functions */
 __CRT_EXTERN void SignalHandle(ThreadId_t ThreadId);
 __CRT_EXTERN int SignalCreate(PhxId_t AshId, int Signal);
-__CRT_EXTERN void SignalExecute(MCoreAsh_t *Process, MCoreSignal_t *Signal);
+__CRT_EXTERN void SignalExecute(MCoreAsh_t *Ash, MCoreSignal_t *Signal);
 
 /* Architecture Specific  
  * Must be implemented in the arch-layer */
-__CRT_EXTERN void SignalDispatch(MCoreAsh_t *Process, MCoreSignal_t *Signal);
+__CRT_EXTERN void SignalDispatch(MCoreAsh_t *Ash, MCoreSignal_t *Signal);
 
 #endif //!_MCORE_PHOENIX_H_

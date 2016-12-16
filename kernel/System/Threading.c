@@ -23,7 +23,7 @@
 #include <Arch.h>
 #include <Scheduler.h>
 #include <Threading.h>
-#include <Process.h>
+#include <Modules/Phoenix.h>
 #include <Heap.h>
 #include <Log.h>
 #include <CriticalSection.h>
@@ -76,7 +76,7 @@ void ThreadingInit(void)
 	Init->Priority = PriorityLow;
 	Init->ParentId = 0xDEADBEEF;
 	Init->Id = GlbThreadId;
-	Init->ProcessId = PROCESS_NO_PROCESS;
+	Init->AshId = PHOENIX_NO_ASH;
 
 	/* Create Address Space */
 	Init->AddrSpace = AddressSpaceCreate(ADDRESS_SPACE_KERNEL);
@@ -123,7 +123,7 @@ void ThreadingApInit(Cpu_t Cpu)
 	Init->ParentId = 0xDEADBEEF;
 	Init->Id = GlbThreadId;
 	Init->CpuId = Cpu;
-	Init->ProcessId = PROCESS_NO_PROCESS;
+	Init->AshId = PHOENIX_NO_ASH;
 
 	/* Create Address Space */
 	Init->AddrSpace = AddressSpaceCreate(ADDRESS_SPACE_KERNEL);
@@ -160,10 +160,8 @@ MCoreThread_t *ThreadingGetCurrentThread(Cpu_t Cpu)
 }
 
 /* Get Current Scheduler(!!!) Node */
-ListNode_t *ThreadingGetCurrentNode(Cpu_t Cpu)
-{
-	/* Get thread */
-	return (ListNode_t*)GlbCurrentThreads[Cpu];
+ListNode_t *ThreadingGetCurrentNode(Cpu_t Cpu) {
+	return GlbCurrentThreads[Cpu];
 }
 
 /* Get current threading id */
@@ -221,8 +219,7 @@ void ThreadingWakeCpu(Cpu_t Cpu)
 }
 
 /* Set Current List Node */
-void ThreadingUpdateCurrent(Cpu_t Cpu, ListNode_t *Node)
-{
+void ThreadingUpdateCurrent(Cpu_t Cpu, ListNode_t *Node) {
 	GlbCurrentThreads[Cpu] = Node;
 }
 
@@ -317,7 +314,7 @@ void ThreadingEntryPointUserMode(void)
 	 * and map the stack before setting up */
 	Addr_t BaseAddress = ((MEMORY_LOCATION_USER_STACK - 0x1) & PAGE_MASK);
 	AddressSpaceMap(AddressSpaceGetCurrent(), 
-		BaseAddress, PROCESS_STACK_INIT, MEMORY_MASK_DEFAULT, ADDRESS_SPACE_FLAG_USER);
+		BaseAddress, ASH_STACK_INIT, MEMORY_MASK_DEFAULT, ADDRESS_SPACE_FLAG_USER);
 	BaseAddress += (MEMORY_LOCATION_USER_STACK & ~(PAGE_MASK));
 
 	/* Underlying Call */
@@ -384,7 +381,7 @@ ThreadId_t ThreadingCreateThread(char *Name, ThreadEntry_t Function, void *Args,
 
 	nThread->Id = GlbThreadId;
 	nThread->ParentId = tParent->Id;
-	nThread->ProcessId = PROCESS_NO_PROCESS;
+	nThread->AshId = PHOENIX_NO_ASH;
 
 	/* Scheduler Related */
 	nThread->Queue = -1;
@@ -499,20 +496,20 @@ int ThreadingJoinThread(ThreadId_t ThreadId)
 }
 
 /* Enters Usermode */
-void ThreadingEnterUserMode(void *ProcessInfo)
+void ThreadingEnterUserMode(void *AshInfo)
 {
 	/* Sensitive */
-	MCoreProcess_t *Process = (MCoreProcess_t*)ProcessInfo;
+	MCoreAsh_t *Ash = (MCoreAsh_t*)AshInfo;
 	IntStatus_t IntrState = InterruptDisable();
 	Cpu_t CurrentCpu = ApicGetCpu();
 	MCoreThread_t *cThread = ThreadingGetCurrentThread(CurrentCpu);
 
 	/* Update this thread */
-	cThread->ProcessId = Process->Id;
+	cThread->AshId = Ash->Id;
 
 	/* Underlying Call  */
-	IThreadInitUserMode(cThread->ThreadData, Process->StackStart,
-		Process->Executable->EntryAddr, MEMORY_LOCATION_USER_ARGS);
+	IThreadInitUserMode(cThread->ThreadData, Ash->StackStart,
+		Ash->Executable->EntryAddr, MEMORY_LOCATION_USER_ARGS);
 
 	/* This initiates the transition 
 	 * nothing happpens before this */
@@ -523,7 +520,7 @@ void ThreadingEnterUserMode(void *ProcessInfo)
 }
 
 /* End all threads by process id */
-void ThreadingTerminateProcessThreads(unsigned ProcessId)
+void ThreadingTerminateProcessThreads(PhxId_t AshId)
 {
 	/* Iterate thread list */
 	foreach(tNode, GlbThreads)
@@ -531,10 +528,9 @@ void ThreadingTerminateProcessThreads(unsigned ProcessId)
 		/* Cast */
 		MCoreThread_t *Thread = (MCoreThread_t*)tNode->Data;
 
-		/* Is it owned? */
-		if (Thread->ProcessId == ProcessId)
-		{
-			/* Mark finished */
+		/* Is it owned?
+		 * Then we mark it finished */
+		if (Thread->AshId == AshId) {
 			Thread->Flags |= THREADING_FINISHED;
 		}
 	}

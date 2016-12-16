@@ -29,7 +29,12 @@
 
 /* Includes 
  * - System */
-#include <Modules/Ash.h>
+#include <Modules/Phoenix.h>
+
+/* Redirection of definitions from Ash.h
+ * to make it more sensible for processing */
+#define PROCESS_CURRENT			PHOENIX_CURRENT
+#define PROCESS_NO_PROCESS		PHOENIX_NO_ASH
 
 /* The base of an process, processes
  * are derived from Ashes, and merely extensions
@@ -51,6 +56,16 @@ typedef struct _MCoreProcess
 	int ReturnCode;
 
 } MCoreProcess_t;
+
+/* This function loads the executable and
+ * prepares the ash-process-environment, at this point
+ * it won't be completely running yet, it needs
+ * its own thread for that */
+__CRT_EXTERN PhxId_t PhoenixCreateProcess(MString_t *Path, MString_t *Arguments);
+
+/* Cleans up all the process-specific resources allocated
+ * this this AshProcess, and afterwards call the base-cleanup */
+__CRT_EXTERN void PhoenixCleanupProcess(MCoreProcess_t *Process);
 
 /* Get Process 
  * This function looks up a process structure 
