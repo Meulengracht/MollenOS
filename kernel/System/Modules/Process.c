@@ -173,7 +173,7 @@ MCoreProcess_t *PhoenixGetProcess(PhxId_t ProcessId)
  * This function looks up the working directory for a process 
  * by id, if either PROCESS_CURRENT or PROCESS_NO_PROCESS 
  * is passed, it retrieves the current process's working directory */
-MString_t *PmGetWorkingDirectory(PhxId_t ProcessId)
+MString_t *PhoenixGetWorkingDirectory(PhxId_t ProcessId)
 {
 	/* Variables */
 	MCoreProcess_t *Process = PhoenixGetProcess(ProcessId);
@@ -191,7 +191,7 @@ MString_t *PmGetWorkingDirectory(PhxId_t ProcessId)
  * This function looks up the base directory for a process 
  * by id, if either PROCESS_CURRENT or PROCESS_NO_PROCESS 
  * is passed, it retrieves the current process's base directory */
-MString_t *PmGetBaseDirectory(PhxId_t ProcessId)
+MString_t *PhoenixGetBaseDirectory(PhxId_t ProcessId)
 {
 	/* Variables */
 	MCoreProcess_t *Process = PhoenixGetProcess(ProcessId);

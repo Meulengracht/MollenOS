@@ -23,7 +23,7 @@
 #include <Arch.h>
 #include <assert.h>
 #include <Threading.h>
-#include <Process.h>
+#include <Modules/Phoenix.h>
 #include <Thread.h>
 #include <Memory.h>
 #include <Heap.h>
@@ -202,10 +202,10 @@ void IThreadInitUserMode(void *ThreadData,
 
 /* Dispatches a signal to the given process 
  * signals will always be dispatched to main thread */
-void SignalDispatch(MCoreProcess_t *Process, MCoreSignal_t *Signal)
+void SignalDispatch(MCoreAsh_t *Ash, MCoreSignal_t *Signal)
 {
 	/* Variables */
-	MCoreThread_t *Thread = ThreadingGetThread(Process->MainThread);
+	MCoreThread_t *Thread = ThreadingGetThread(Ash->MainThread);
 	x86Thread_t *Thread86 = (x86Thread_t*)Thread->ThreadData;
 	Registers_t *Regs = NULL;
 

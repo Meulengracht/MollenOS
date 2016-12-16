@@ -194,7 +194,7 @@ PhxId_t PhoenixStartupAsh(MString_t *Path)
 
 /* Queries the given ash for information
  * which kind of information is determined by <Function> */
-int PmQueryProcess(MCoreAsh_t *Ash,
+int PhoenixQueryAsh(MCoreAsh_t *Ash,
 	AshQueryFunction_t Function, void *Buffer, size_t Length)
 {
 	/* Sanitize the parameters */

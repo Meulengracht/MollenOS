@@ -24,6 +24,7 @@
 #include <Modules/Process.h>
 #include <Threading.h>
 #include <Scheduler.h>
+#include <Heap.h>
 #include <Timers.h>
 #include <Log.h>
 
@@ -49,7 +50,7 @@
 PhxId_t ScProcessSpawn(char *Path, char *Arguments)
 {
 	/* Alloc on stack */
-	MCoreProcessRequest_t Request;
+	MCorePhoenixRequest_t Request;
 
 	/* Convert to MSTrings */
 	MString_t *mPath = NULL;
@@ -64,16 +65,16 @@ PhxId_t ScProcessSpawn(char *Path, char *Arguments)
 	mArguments = (Arguments == NULL) ? NULL : MStringCreate(Arguments, StrUTF8);
 
 	/* Clean out structure */
-	memset(&Request, 0, sizeof(MCoreProcessRequest_t));
+	memset(&Request, 0, sizeof(MCorePhoenixRequest_t));
 
 	/* Setup */
-	Request.Base.Type = ProcessSpawn;
+	Request.Base.Type = AshSpawnProcess;
 	Request.Path = mPath;
 	Request.Arguments = mArguments;
 	
 	/* Fire! */
-	PmCreateRequest(&Request);
-	PmWaitRequest(&Request, 0);
+	PhoenixCreateRequest(&Request);
+	PhoenixWaitRequest(&Request, 0);
 
 	/* Cleanup */
 	MStringDestroy(mPath);
@@ -83,7 +84,7 @@ PhxId_t ScProcessSpawn(char *Path, char *Arguments)
 		MStringDestroy(mArguments);
 
 	/* Done */
-	return Request.ProcessId;
+	return Request.AshId;
 }
 
 /* This waits for a child process to 
@@ -92,7 +93,7 @@ PhxId_t ScProcessSpawn(char *Path, char *Arguments)
 int ScProcessJoin(PhxId_t ProcessId)
 {
 	/* Wait for process */
-	MCoreProcess_t *Process = PmGetProcess(ProcessId);
+	MCoreProcess_t *Process = PhoenixGetProcess(ProcessId);
 
 	/* Sanity */
 	if (Process == NULL)
@@ -111,18 +112,18 @@ int ScProcessJoin(PhxId_t ProcessId)
 int ScProcessKill(PhxId_t ProcessId)
 {
 	/* Alloc on stack */
-	MCoreProcessRequest_t Request;
+	MCorePhoenixRequest_t Request;
 
 	/* Clean out structure */
-	memset(&Request, 0, sizeof(MCoreProcessRequest_t));
+	memset(&Request, 0, sizeof(MCorePhoenixRequest_t));
 
 	/* Setup */
-	Request.Base.Type = ProcessKill;
-	Request.ProcessId = ProcessId;
+	Request.Base.Type = AshKill;
+	Request.AshId = ProcessId;
 
 	/* Fire! */
-	PmCreateRequest(&Request);
-	PmWaitRequest(&Request, 1000);
+	PhoenixCreateRequest(&Request);
+	PhoenixWaitRequest(&Request, 1000);
 
 	/* Return the exit code */
 	if (Request.Base.State == EventOk)
@@ -136,7 +137,7 @@ int ScProcessKill(PhxId_t ProcessId)
 int ScProcessExit(int ExitCode)
 {
 	/* Retrieve crrent process */
-	MCoreProcess_t *Process = PmGetProcess(PROCESS_CURRENT);
+	MCoreProcess_t *Process = PhoenixGetProcess(PROCESS_CURRENT);
 	IntStatus_t IntrState;
 
 	/* Sanity 
@@ -147,17 +148,17 @@ int ScProcessExit(int ExitCode)
 
 	/* Log it and save return code */
 	LogDebug("SYSC", "Process %s terminated with code %i", 
-		MStringRaw(Process->Name), ExitCode);
+		MStringRaw(Process->Base.Name), ExitCode);
 	Process->ReturnCode = ExitCode;
 
 	/* Disable interrupts before proceeding */
 	IntrState = InterruptDisable();
 
 	/* Terminate all threads used by process */
-	ThreadingTerminateProcessThreads(Process->Id);
+	ThreadingTerminateAshThreads(Process->Base.Id);
 
 	/* Mark process for reaping */
-	PmTerminateProcess(Process);
+	PhoenixTerminateAsh(&Process->Base);
 
 	/* Enable Interrupts */
 	InterruptRestoreState(IntrState);
@@ -176,7 +177,7 @@ int ScProcessExit(int ExitCode)
  * the given process id, if called
  * with -1 it queries information
  * about itself */
-int ScProcessQuery(PhxId_t ProcessId, ProcessQueryFunction_t Function, void *Buffer, size_t Length)
+int ScProcessQuery(PhxId_t ProcessId, AshQueryFunction_t Function, void *Buffer, size_t Length)
 {
 	/* Variables */
 	MCoreProcess_t *Process = NULL;
@@ -188,7 +189,7 @@ int ScProcessQuery(PhxId_t ProcessId, ProcessQueryFunction_t Function, void *Buf
 	}
 
 	/* Lookup process */
-	Process = PmGetProcess(ProcessId);
+	Process = PhoenixGetProcess(ProcessId);
 
 	/* Sanity, found? */
 	if (Process == NULL) {
@@ -196,7 +197,7 @@ int ScProcessQuery(PhxId_t ProcessId, ProcessQueryFunction_t Function, void *Buf
 	}
 
 	/* Deep Call */
-	return PmQueryProcess(Process, Function, Buffer, Length);
+	return PhoenixQueryAsh(&Process->Base, Function, Buffer, Length);
 }
 
 /* Installs a signal handler for 
@@ -213,7 +214,7 @@ int ScProcessSignal(int Signal, Addr_t Handler)
 	}
 
 	/* Lookup process */
-	Process = PmGetProcess(PROCESS_CURRENT);
+	Process = PhoenixGetProcess(PROCESS_CURRENT);
 
 	/* Sanity... 
 	 * This should never happen though
@@ -224,8 +225,8 @@ int ScProcessSignal(int Signal, Addr_t Handler)
 
 	/* Always retrieve the old handler 
 	 * and return it, so temp store it before updating */
-	Addr_t OldHandler = Process->Signals.Handlers[Signal];
-	Process->Signals.Handlers[Signal] = Handler;
+	Addr_t OldHandler = Process->Base.Signals.Handlers[Signal];
+	Process->Base.Signals.Handlers[Signal] = Handler;
 
 	/* Done, return the old ! */
 	return (int)OldHandler;
@@ -245,7 +246,7 @@ int ScProcessRaise(PhxId_t ProcessId, int Signal)
 	}
 
 	/* Lookup process */
-	Process = PmGetProcess(ProcessId);
+	Process = PhoenixGetProcess(ProcessId);
 
 	/* Sanity...
 	 * This should never happen though
@@ -273,7 +274,7 @@ int ScProcessRaise(PhxId_t ProcessId, int Signal)
 void *ScSharedObjectLoad(const char *SharedObject)
 {
 	/* Locate Process */
-	MCoreProcess_t *Process = PmGetProcess(PROCESS_CURRENT);
+	MCoreProcess_t *Process = PhoenixGetProcess(PROCESS_CURRENT);
 	Addr_t BaseAddress = 0;
 	
 	/* Vars for solving library */
@@ -287,9 +288,9 @@ void *ScSharedObjectLoad(const char *SharedObject)
 	MString_t *Path = MStringCreate((void*)SharedObject, StrUTF8);
 
 	/* Resolve Library */
-	BaseAddress = Process->NextBaseAddress;
-	Handle = PeResolveLibrary(Process->Executable, NULL, Path, &BaseAddress);
-	Process->NextBaseAddress = BaseAddress;
+	BaseAddress = Process->Base.NextLoadingAddress;
+	Handle = PeResolveLibrary(Process->Base.Executable, NULL, Path, &BaseAddress);
+	Process->Base.NextLoadingAddress = BaseAddress;
 
 	/* Cleanup Buffers */
 	MStringDestroy(Path);
@@ -317,14 +318,14 @@ Addr_t ScSharedObjectGetFunction(void *Handle, const char *Function)
 int ScSharedObjectUnload(void *Handle)
 {
 	/* Locate Process */
-	MCoreProcess_t *Process = PmGetProcess(PROCESS_CURRENT);
+	MCoreProcess_t *Process = PhoenixGetProcess(PROCESS_CURRENT);
 
 	/* Sanity */
 	if (Process == NULL)
 		return -1;
 
 	/* Do the unload */
-	PeUnloadLibrary(Process->Executable, (MCorePeFile_t*)Handle);
+	PeUnloadLibrary(Process->Base.Executable, (MCorePeFile_t*)Handle);
 
 	/* Done! */
 	return 0;
@@ -368,11 +369,11 @@ int ScThreadExit(int ExitCode)
 int ScThreadJoin(ThreadId_t ThreadId)
 {
 	/* Lookup process information */
-	PhxId_t CurrentPid = ThreadingGetCurrentThread(ApicGetCpu())->ProcessId;
+	PhxId_t CurrentPid = ThreadingGetCurrentThread(ApicGetCpu())->AshId;
 
 	/* Sanity */
 	if (ThreadingGetThread(ThreadId) == NULL
-		|| ThreadingGetThread(ThreadId)->ProcessId != CurrentPid)
+		|| ThreadingGetThread(ThreadId)->AshId != CurrentPid)
 		return -1;
 
 	/* Simply deep call again 
@@ -387,11 +388,11 @@ int ScThreadJoin(ThreadId_t ThreadId)
 int ScThreadKill(ThreadId_t ThreadId)
 {
 	/* Lookup process information */
-	PhxId_t CurrentPid = ThreadingGetCurrentThread(ApicGetCpu())->ProcessId;
+	PhxId_t CurrentPid = ThreadingGetCurrentThread(ApicGetCpu())->AshId;
 
 	/* Sanity */
 	if (ThreadingGetThread(ThreadId) == NULL
-		|| ThreadingGetThread(ThreadId)->ProcessId != CurrentPid)
+		|| ThreadingGetThread(ThreadId)->AshId != CurrentPid)
 		return -1;
 
 	/* Ok, we can kill it */
@@ -507,18 +508,18 @@ int ScSyncSleep(Addr_t *Handle, size_t Timeout)
  * allocation flags which describe the type of allocation */
 Addr_t ScMemoryAllocate(size_t Size, Flags_t Flags)
 {
-	/* Locate Process */
-	MCoreProcess_t *Process = PmGetProcess(PROCESS_CURRENT);
+	/* Locate the current running process */
+	MCoreAsh_t *Ash = PhoenixGetAsh(PHOENIX_CURRENT);
 	Addr_t AllocatedAddress = 0;
 
 	/* Sanitize the process we looked up
 	 * we want it to exist of course */
-	if (Process == NULL)
+	if (Ash == NULL)
 		return (Addr_t)-1;
 	
 	/* Now do the allocation in the user-bitmap 
 	 * since memory is managed in userspace for speed */
-	AllocatedAddress = BitmapAllocateAddress(Process->Heap, Size);
+	AllocatedAddress = BitmapAllocateAddress(Ash->Heap, Size);
 
 	/* Sanitize the returned address */
 	assert(AllocatedAddress != 0);
@@ -537,16 +538,16 @@ Addr_t ScMemoryAllocate(size_t Size, Flags_t Flags)
 int ScMemoryFree(Addr_t Address, size_t Size)
 {
 	/* Locate Process */
-	MCoreProcess_t *Process = PmGetProcess(PROCESS_CURRENT);
+	MCoreAsh_t *Ash = PhoenixGetAsh(PHOENIX_CURRENT);
 
 	/* Sanitize the process we looked up
 	 * we want it to exist of course */
-	if (Process == NULL)
+	if (Ash == NULL)
 		return (Addr_t)-1;
 
 	/* Now do the deallocation in the user-bitmap 
 	 * since memory is managed in userspace for speed */
-	BitmapFreeAddress(Process->Heap, Address, Size);
+	BitmapFreeAddress(Ash->Heap, Address, Size);
 
 	/* Done */
 	return 0;
@@ -563,19 +564,19 @@ int ScMemoryQuery(void)
 /* Share memory with a process */
 Addr_t ScMemoryShare(IpcComm_t Target, Addr_t Address, size_t Size)
 {
-	/* Locate Process */
-	MCoreProcess_t *Process = PmGetProcess(Target);
+	/* Locate the current running process */
+	MCoreAsh_t *Ash = PhoenixGetAsh(Target);
 	size_t NumBlocks, i;
 
 	/* Sanity */
-	if (Process == NULL
+	if (Ash == NULL
 		|| Address == 0
 		|| Size == 0)
 		return 0;
 
 	/* Start out by allocating memory 
 	 * in target process's shared memory space */
-	Addr_t Shm = BitmapAllocateAddress(Process->Shm, Size);
+	Addr_t Shm = BitmapAllocateAddress(Ash->Shm, Size);
 	NumBlocks = DIVUP(Size, PAGE_SIZE);
 
 	/* Sanity -> If we cross a page boundary */
@@ -603,7 +604,7 @@ Addr_t ScMemoryShare(IpcComm_t Target, Addr_t Address, size_t Size)
 		PhysicalAddr = AddressSpaceGetMap(AddressSpaceGetCurrent(), AdjustedAddr);
 
 		/* Map it directly into target process */
-		AddressSpaceMapFixed(Process->AddressSpace, PhysicalAddr, 
+		AddressSpaceMapFixed(Ash->AddressSpace, PhysicalAddr,
 			AdjustedShm, PAGE_SIZE, ADDRESS_SPACE_FLAG_USER | ADDRESS_SPACE_FLAG_VIRTUAL);
 	}
 
@@ -614,12 +615,12 @@ Addr_t ScMemoryShare(IpcComm_t Target, Addr_t Address, size_t Size)
 /* Unshare memory with a process */
 int ScMemoryUnshare(IpcComm_t Target, Addr_t TranslatedAddress, size_t Size)
 {
-	/* Locate Process */
-	MCoreProcess_t *Process = PmGetProcess(Target);
+	/* Locate the current running process */
+	MCoreAsh_t *Ash = PhoenixGetAsh(Target);
 	size_t NumBlocks, i;
 
 	/* Sanity */
-	if (Process == NULL)
+	if (Ash == NULL)
 		return -1;
 
 	/* Calculate */
@@ -638,11 +639,11 @@ int ScMemoryUnshare(IpcComm_t Target, Addr_t TranslatedAddress, size_t Size)
 		Addr_t AdjustedAddr = (TranslatedAddress & PAGE_MASK) + (i * PAGE_SIZE);
 
 		/* Map it directly into target process */
-		AddressSpaceUnmap(Process->AddressSpace, AdjustedAddr, PAGE_SIZE);
+		AddressSpaceUnmap(Ash->AddressSpace, AdjustedAddr, PAGE_SIZE);
 	}
 
 	/* Now unallocate it in their bitmap */
-	BitmapFreeAddress(Process->Shm, TranslatedAddress, Size);
+	BitmapFreeAddress(Ash->Shm, TranslatedAddress, Size);
 
 	/* Done */
 	return 0;
@@ -658,7 +659,7 @@ int ScMemoryUnshare(IpcComm_t Target, Addr_t TranslatedAddress, size_t Size)
 int ScIpcPeek(uint8_t *MessageContainer, size_t MessageLength)
 {
 	/* Variables */
-	MCoreProcess_t *Process = NULL;
+	MCoreAsh_t *Ash = NULL;
 
 	/* Validation */
 	if (MessageContainer == NULL
@@ -666,14 +667,14 @@ int ScIpcPeek(uint8_t *MessageContainer, size_t MessageLength)
 		return -1;
 
 	/* Get current process */
-	Process = PmGetProcess(PROCESS_CURRENT);
+	Ash = PhoenixGetAsh(PHOENIX_CURRENT);
 
 	/* Should never happen this */
-	if (Process == NULL)
+	if (Ash == NULL)
 		return -2;
 
 	/* Read */
-	return PipeRead(Process->Pipe, MessageLength, MessageContainer, 1);
+	return PipeRead(Ash->Pipe, MessageLength, MessageContainer, 1);
 }
 
 /* Get the top message for this process
@@ -685,7 +686,7 @@ int ScIpcRead(uint8_t *MessageContainer)
 	/* Variables */
 	MEventMessageBase_t *MsgBase = 
 		(MEventMessageBase_t*)MessageContainer;
-	MCoreProcess_t *Process = NULL;
+	MCoreAsh_t *Ash = NULL;
 	int BytesRead = 0;
 
 	/* Validation */
@@ -693,14 +694,14 @@ int ScIpcRead(uint8_t *MessageContainer)
 		return -1;
 
 	/* Get current process */
-	Process = PmGetProcess(PROCESS_CURRENT);
+	Ash = PhoenixGetAsh(PHOENIX_CURRENT);
 
 	/* Should never happen this */
-	if (Process == NULL)
+	if (Ash == NULL)
 		return -2;
 
 	/* Read the base message */
-	BytesRead = PipeRead(Process->Pipe, 
+	BytesRead = PipeRead(Ash->Pipe,
 		sizeof(MEventMessageBase_t), MessageContainer, 0);
 
 	/* Validate how much we read */
@@ -715,7 +716,7 @@ int ScIpcRead(uint8_t *MessageContainer)
 		MessageContainer += BytesRead;
 
 		/* Read the rest of the message */
-		BytesRead += PipeRead(Process->Pipe, (size_t)Remainder, MessageContainer, 0);
+		BytesRead += PipeRead(Ash->Pipe, (size_t)Remainder, MessageContainer, 0);
 	}
 
 	/* Done! */
@@ -730,7 +731,7 @@ int ScIpcWrite(PhxId_t ProcessId, uint8_t *Message, size_t MessageLength)
 {
 	/* Vars */
 	Cpu_t CurrentCpu = ApicGetCpu();
-	MCoreProcess_t *Process = NULL;
+	MCoreAsh_t *Ash = NULL;
 	IpcComm_t Sender = 0;
 
 	/* Validation */
@@ -739,18 +740,18 @@ int ScIpcWrite(PhxId_t ProcessId, uint8_t *Message, size_t MessageLength)
 		return -1;
 
 	/* Get current process */
-	Process = PmGetProcess(ProcessId);
-	Sender = ThreadingGetCurrentThread(CurrentCpu)->ProcessId;
+	Ash = PhoenixGetAsh(ProcessId);
+	Sender = ThreadingGetCurrentThread(CurrentCpu)->AshId;
 
 	/* Sanity */
-	if (Process == NULL)
+	if (Ash == NULL)
 		return -2;
 
 	/* Fill in sender */
 	((MEventMessageBase_t*)Message)->Sender = Sender;
 
 	/* Write */
-	return PipeWrite(Process->Pipe, MessageLength, Message);
+	return PipeWrite(Ash->Pipe, MessageLength, Message);
 }
 
 /* This is a bit of a tricky synchronization method
@@ -758,17 +759,17 @@ int ScIpcWrite(PhxId_t ProcessId, uint8_t *Message, size_t MessageLength)
  * since it could hang a process */
 int ScIpcSleep(size_t Timeout)
 {
-	/* Get current process */
-	MCoreProcess_t *Process = PmGetProcess(PROCESS_CURRENT);
+	/* Locate Process */
+	MCoreAsh_t *Ash = PhoenixGetAsh(PHOENIX_CURRENT);
 
 	/* Should never happen this 
 	 * Only threads associated with processes
 	 * can call this */
-	if (Process == NULL)
+	if (Ash == NULL)
 		return -1;
 
 	/* Sleep on process handle */
-	SchedulerSleepThread((Addr_t*)Process, Timeout);
+	SchedulerSleepThread((Addr_t*)Ash, Timeout);
 	IThreadYield();
 
 	/* Now we reach this when the timeout is 
@@ -781,18 +782,15 @@ int ScIpcSleep(size_t Timeout)
  * very limited IPC synchronization */
 int ScIpcWake(IpcComm_t Target)
 {
-	/* Vars */
-	MCoreProcess_t *Process = NULL;
-
-	/* Get current process */
-	Process = PmGetProcess(Target);
+	/* Locate Process */
+	MCoreAsh_t *Ash = PhoenixGetAsh(Target);
 
 	/* Sanity */
-	if (Process == NULL)
+	if (Ash == NULL)
 		return -1;
 
 	/* Send a wakeup signal */
-	SchedulerWakeupOneThread((Addr_t*)Process);
+	SchedulerWakeupOneThread((Addr_t*)Ash);
 
 	/* Now we should have waked up the waiting process */
 	return 0;
@@ -812,7 +810,7 @@ int ScIpcWake(IpcComm_t Target)
 int ScVfsOpen(const char *Utf8, VfsFileFlags_t OpenFlags, VfsErrorCode_t *ErrCode)
 {
 	/* Get current process */
-	MCoreProcess_t *Process = PmGetProcess(PROCESS_CURRENT);
+	MCoreProcess_t *Process = PhoenixGetProcess(PROCESS_CURRENT);
 	MCoreFileInstance_t *Handle = NULL;
 	MCoreVfsRequest_t *Request = NULL;
 	DataKey_t Key;
@@ -869,7 +867,7 @@ int ScVfsOpen(const char *Utf8, VfsFileFlags_t OpenFlags, VfsErrorCode_t *ErrCod
 int ScVfsClose(int FileDescriptor)
 {
 	/* Get current process */
-	MCoreProcess_t *Process = PmGetProcess(PROCESS_CURRENT);
+	MCoreProcess_t *Process = PhoenixGetProcess(PROCESS_CURRENT);
 	VfsErrorCode_t RetCode = VfsInvalidParameters;
 	MCoreVfsRequest_t *Request = NULL;
 	DataKey_t Key;
@@ -928,7 +926,7 @@ int ScVfsClose(int FileDescriptor)
 size_t ScVfsRead(int FileDescriptor, uint8_t *Buffer, size_t Length, VfsErrorCode_t *ErrCode)
 {
 	/* Get current process */
-	MCoreProcess_t *Process = PmGetProcess(PROCESS_CURRENT);
+	MCoreProcess_t *Process = PhoenixGetProcess(PROCESS_CURRENT);
 	VfsErrorCode_t RetCode = VfsInvalidParameters;
 	MCoreVfsRequest_t *Request = NULL;
 	size_t bRead = 0;
@@ -1000,7 +998,7 @@ done:
 size_t ScVfsWrite(int FileDescriptor, uint8_t *Buffer, size_t Length, VfsErrorCode_t *ErrCode)
 {
 	/* Get current process */
-	MCoreProcess_t *Process = PmGetProcess(PROCESS_CURRENT);
+	MCoreProcess_t *Process = PhoenixGetProcess(PROCESS_CURRENT);
 	VfsErrorCode_t RetCode = VfsInvalidParameters;
 	MCoreVfsRequest_t *Request = NULL;
 	size_t bWritten = 0;
@@ -1074,7 +1072,7 @@ done:
 int ScVfsSeek(int FileDescriptor, off_t PositionLow, off_t PositionHigh)
 {
 	/* Get current process */
-	MCoreProcess_t *Process = PmGetProcess(PROCESS_CURRENT);
+	MCoreProcess_t *Process = PhoenixGetProcess(PROCESS_CURRENT);
 	VfsErrorCode_t RetCode = VfsInvalidParameters;
 	MCoreVfsRequest_t *Request = NULL;
 	DataKey_t Key;
@@ -1130,7 +1128,7 @@ int ScVfsSeek(int FileDescriptor, off_t PositionLow, off_t PositionHigh)
 int ScVfsDelete(int FileDescriptor)
 {
 	/* Get current process */
-	MCoreProcess_t *Process = PmGetProcess(PROCESS_CURRENT);
+	MCoreProcess_t *Process = PhoenixGetProcess(PROCESS_CURRENT);
 	VfsErrorCode_t RetCode = VfsInvalidParameters;
 	MCoreVfsRequest_t *Request = NULL;
 	DataKey_t Key;
@@ -1183,7 +1181,7 @@ int ScVfsDelete(int FileDescriptor)
 int ScVfsFlush(int FileDescriptor)
 {
 	/* Get current process */
-	MCoreProcess_t *Process = PmGetProcess(PROCESS_CURRENT);
+	MCoreProcess_t *Process = PhoenixGetProcess(PROCESS_CURRENT);
 	VfsErrorCode_t RetCode = VfsInvalidParameters;
 	MCoreVfsRequest_t *Request = NULL;
 	DataKey_t Key;
@@ -1234,7 +1232,7 @@ int ScVfsFlush(int FileDescriptor)
 int ScVfsQuery(int FileDescriptor, VfsQueryFunction_t Function, void *Buffer, size_t Length)
 {
 	/* Get current process */
-	MCoreProcess_t *Process = PmGetProcess(PROCESS_CURRENT);
+	MCoreProcess_t *Process = PhoenixGetProcess(PROCESS_CURRENT);
 	VfsErrorCode_t RetCode = VfsInvalidParameters;
 	void *Proxy = NULL;
 	DataKey_t Key;
@@ -1486,14 +1484,14 @@ int ScEndBootSequence(void)
 int ScRegisterWindowManager(void)
 {
 	/* Locate Process */
-	MCoreProcess_t *Process = PmGetProcess(PROCESS_CURRENT);
+	MCoreAsh_t *Ash = PhoenixGetAsh(PHOENIX_CURRENT);
 
 	/* Sanity */
-	if (Process == NULL)
+	if (Ash == NULL)
 		return -1;
 
 	/* Register Us */
-	EmRegisterSystemTarget(Process->Id);
+	EmRegisterSystemTarget(Ash->Id);
 
 	/* Done */
 	return 0;

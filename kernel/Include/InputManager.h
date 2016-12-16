@@ -26,7 +26,6 @@
 #include <os/osdefs.h>
 
 /* Include Ipc */
-#include <Process.h>
 #include <os/Ipc.h>
 
 /* Prototypes */

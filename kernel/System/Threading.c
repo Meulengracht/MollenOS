@@ -520,7 +520,7 @@ void ThreadingEnterUserMode(void *AshInfo)
 }
 
 /* End all threads by process id */
-void ThreadingTerminateProcessThreads(PhxId_t AshId)
+void ThreadingTerminateAshThreads(PhxId_t AshId)
 {
 	/* Iterate thread list */
 	foreach(tNode, GlbThreads)

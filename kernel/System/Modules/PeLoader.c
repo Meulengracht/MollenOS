@@ -20,7 +20,7 @@
 */
 
 /* Includes */
-#include <Modules\ModuleManager.h>
+#include <Modules\Modules.h>
 #include <Modules\PeLoader.h>
 #include <Vfs/VfsWrappers.h>
 #include <Log.h>

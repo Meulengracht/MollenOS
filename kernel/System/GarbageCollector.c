@@ -25,7 +25,7 @@
 
 /* Includes */
 #include <GarbageCollector.h>
-#include <Process.h>
+#include <Modules/Phoenix.h>
 #include <Semaphore.h>
 #include <Threading.h>
 #include <Log.h>
@@ -85,7 +85,7 @@ void GcWorker(void *Args)
 		ThreadingReapZombies();
 
 		/* Cleanup Processes */
-		PmReapZombies();
+		PhoenixReapZombies();
 
 		/* Reap the Heap */
 	}

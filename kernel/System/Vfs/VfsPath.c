@@ -22,8 +22,8 @@
 
 /* Includes 
  * - System */
+#include <Modules/Process.h>
 #include <Vfs/Vfs.h>
-#include <Process.h>
 
 /* Includes
  * - C-Library */
@@ -69,9 +69,9 @@ MString_t *VfsResolveEnvironmentPath(VfsEnvironmentPath_t Base)
 		MCoreThread_t *cThread = ThreadingGetCurrentThread(CurrentCpu);
 
 		if (Base == PathCurrentWorkingDir)
-			return PmGetWorkingDirectory(cThread->ProcessId);
+			return PhoenixGetWorkingDirectory(cThread->AshId);
 		else
-			return PmGetBaseDirectory(cThread->ProcessId);
+			return PhoenixGetBaseDirectory(cThread->AshId);
 	}
 
 	/* Otherwise we have to lookup in a string table */

@@ -64,7 +64,6 @@
     <ClInclude Include="..\..\Include\Heap.h" />
     <ClInclude Include="..\..\Include\InputManager.h" />
     <ClInclude Include="..\..\Include\List.h" />
-    <ClInclude Include="..\..\Include\MString.h" />
     <ClInclude Include="..\..\Include\Mutex.h" />
     <ClInclude Include="..\..\Include\Pipe.h" />
     <ClInclude Include="..\..\Include\Scheduler.h" />

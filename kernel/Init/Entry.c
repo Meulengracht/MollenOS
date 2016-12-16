@@ -26,9 +26,9 @@
 #include <AcpiInterface.h>
 #include <GarbageCollector.h>
 #include <DeviceManager.h>
-#include <Modules/ModuleManager.h>
+#include <Modules/Modules.h>
+#include <Modules/Phoenix.h>
 #include <Server.h>
-#include <Process.h>
 #include <Scheduler.h>
 #include <Threading.h>
 #include <Vfs\Vfs.h>
@@ -127,8 +127,8 @@ void MCoreInitialize(MCoreBootInfo_t *BootInfo)
 	/* Virtual Filesystem */
 	VfsInit();
 
-	/* Process Manager */
-	PmInit();
+	/* Phoenix */
+	PhoenixInit();
 
 	/* Initialize servers */
 	ServerInit();

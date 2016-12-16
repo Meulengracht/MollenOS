@@ -194,9 +194,6 @@
     <ClInclude Include="..\..\Include\Vfs\Vfs.h">
       <Filter>Includes\Vfs</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\Include\MString.h">
-      <Filter>Includes</Filter>
-    </ClInclude>
     <ClInclude Include="..\..\Include\Devices\Timer.h">
       <Filter>Includes\Devices</Filter>
     </ClInclude>

@@ -24,6 +24,7 @@
 /* Includes */
 #include <Arch.h>
 #include <InputManager.h>
+#include <Modules/Phoenix.h>
 #include <stddef.h>
 
 /* Globals */
@@ -35,15 +36,15 @@ void EmInit(void)
 {
 	/* Set initialized */
 	GlbEmInitialized = 1;
-	GlbEmWindowManager = PROCESS_NO_PROCESS;
+	GlbEmWindowManager = PHOENIX_NO_ASH;
 }
 
 /* Register */
 void EmRegisterSystemTarget(PhxId_t ProcessId)
 {
 	/* Sanity, NO OVERRIDES */
-	if (ProcessId != PROCESS_NO_PROCESS
-		&& GlbEmWindowManager != PROCESS_NO_PROCESS)
+	if (ProcessId != PHOENIX_NO_ASH
+		&& GlbEmWindowManager != PHOENIX_NO_ASH)
 		return;
 
 	/* Set */
@@ -61,19 +62,19 @@ void EmCreateEvent(MEventMessageBase_t *Event)
 		EmInit();
 
 	/* Sanity - More ! */
-	if (GlbEmWindowManager != PROCESS_NO_PROCESS)
+	if (GlbEmWindowManager != PHOENIX_NO_ASH)
 	{
 		/* Get process */
-		MCoreProcess_t *Process = PmGetProcess(GlbEmWindowManager);
+		MCoreAsh_t *Ash = PhoenixGetAsh(GlbEmWindowManager);
 		
 		/* Force space in buffer */
-		while (PipeBytesLeft(Process->Pipe) < (int)(Event->Length))
-			PipeRead(Process->Pipe, Event->Length, (uint8_t*)&NotRecycleBin, 0);
+		while (PipeBytesLeft(Ash->Pipe) < (int)(Event->Length))
+			PipeRead(Ash->Pipe, Event->Length, (uint8_t*)&NotRecycleBin, 0);
 
 		/* Set sender as system */
 		Event->Sender = 0;
 		
 		/* Write data to pipe */
-		PipeWrite(Process->Pipe, Event->Length, (uint8_t*)Event);
+		PipeWrite(Ash->Pipe, Event->Length, (uint8_t*)Event);
 	}
 }

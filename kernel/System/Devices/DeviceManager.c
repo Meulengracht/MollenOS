@@ -20,7 +20,7 @@
 */
 
 /* Includes */
-#include <Modules\ModuleManager.h>
+#include <Modules\Modules.h>
 #include <Semaphore.h>
 #include <Scheduler.h>
 #include <Timers.h>

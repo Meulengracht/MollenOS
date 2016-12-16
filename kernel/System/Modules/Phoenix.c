@@ -24,7 +24,11 @@
  * - System */
 #include <Modules/Phoenix.h>
 #include <Modules/Process.h>
+#include <GarbageCollector.h>
 #include <Threading.h>
+#include <Scheduler.h>
+#include <Heap.h>
+#include <Log.h>
 
 /* Includes
  * C-Library */
@@ -38,10 +42,10 @@
 int PhoenixEventHandler(void *UserData, MCoreEvent_t *Event);
 
 /* Globals */
-static MCoreEventHandler_t *GlbPhoenixEventHandler = NULL;
-static PhxId_t GlbAshIdGenerator = 0;
-static List_t *GlbAshes = NULL;
-static List_t *GlbZombieAshes = NULL;
+MCoreEventHandler_t *GlbPhoenixEventHandler = NULL;
+PhxId_t GlbAshIdGenerator = 0;
+List_t *GlbAshes = NULL;
+List_t *GlbZombieAshes = NULL;
 
 /* Initialize the Phoenix environment and 
  * start the event-handler loop, it handles all requests 
@@ -148,7 +152,8 @@ int PhoenixEventHandler(void *UserData, MCoreEvent_t *Event)
 	return 0;
 }
 
-/* End Process */
+/* This marks an ash for termination by taking it out
+ * of rotation and adding it to the cleanup list */
 void PhoenixTerminateAsh(MCoreAsh_t *Ash)
 {
 	/* Variables needed */
@@ -156,16 +161,16 @@ void PhoenixTerminateAsh(MCoreAsh_t *Ash)
 	DataKey_t Key;
 
 	/* Lookup node */
-	Key.Value = (int)Process->Id;
-	pNode = ListGetNodeByKey(GlbProcesses, Key, 0);
+	Key.Value = (int)Ash->Id;
+	pNode = ListGetNodeByKey(GlbAshes, Key, 0);
 
 	/* Sanity */
 	if (pNode == NULL)
 		return;
 
 	/* Remove it, add to zombies */
-	ListRemoveByNode(GlbProcesses, pNode);
-	ListAppend(GlbZombieProcesses, pNode);
+	ListRemoveByNode(GlbAshes, pNode);
+	ListAppend(GlbZombieAshes, pNode);
 
 	/* Wake all that waits for this to finish */
 	SchedulerWakeupAllThreads((Addr_t*)pNode->Data);
@@ -174,24 +179,34 @@ void PhoenixTerminateAsh(MCoreAsh_t *Ash)
 	GcAddWork();
 }
 
-/* Cleans up all the unused processes */
+/* This function cleans up all processes and
+ * ashes and servers that might be queued up for
+ * destruction, they can't handle all their cleanup themselves */
 void PhoenixReapZombies(void)
 {
 	/* Reap untill list is empty */
-	ListNode_t *tNode = ListPopFront(GlbZombieProcesses);
+	ListNode_t *tNode = ListPopFront(GlbZombieAshes);
 
 	while (tNode != NULL)
 	{
 		/* Cast */
-		MCoreProcess_t *Process = (MCoreProcess_t*)tNode->Data;
+		MCoreAsh_t *Ash = (MCoreAsh_t*)tNode->Data;
 
 		/* Clean it up */
-		PmCleanupProcess(Process);
+		if (Ash->Type == AshBase) {
+			PhoenixCleanupAsh(Ash);
+		}
+		else if (Ash->Type == AshProcess) {
+			PhoenixCleanupProcess((MCoreProcess_t*)Ash);
+		}
+		else {
+			//??
+		}
 
 		/* Clean up rest */
 		kfree(tNode);
 
 		/* Get next node */
-		tNode = ListPopFront(GlbZombieProcesses);
+		tNode = ListPopFront(GlbZombieAshes);
 	}
 }

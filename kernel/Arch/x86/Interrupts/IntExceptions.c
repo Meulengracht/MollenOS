@@ -21,10 +21,10 @@
 
 /* Includes */
 #include "../Arch.h"
-#include <Process.h>
+#include <Modules/Phoenix.h>
+#include <Modules/Modules.h>
 #include <Threading.h>
 #include <Thread.h>
-#include <Modules/ModuleManager.h>
 #include <Log.h>
 #include <Heap.h>
 #include "../Memory.h"
@@ -58,18 +58,18 @@ void LookupFault(Addr_t Address, Addr_t *Base, char **Name)
 		&& Address < MEMORY_LOCATION_USER_HEAP)
 	{
 		/* Get current process information */
-		MCoreProcess_t *Process = PmGetProcess(PROCESS_CURRENT);
+		MCoreAsh_t *Ash = PhoenixGetAsh(PHOENIX_CURRENT);
 
-		/* Sanitize */
-		if (Process != NULL
-			&& Process->Executable != NULL) {
-			char *PmName = (char*)MStringRaw(Process->Executable->Name);
-			Addr_t PmBase = Process->Executable->BaseVirtual;
+		/* Sanitize the lookup */
+		if (Ash != NULL
+			&& Ash->Executable != NULL) {
+			char *PmName = (char*)MStringRaw(Ash->Executable->Name);
+			Addr_t PmBase = Ash->Executable->BaseVirtual;
 
 			/* Iterate libraries to find the sinner
 			 * We only want one */
-			if (Process->Executable->LoadedLibraries != NULL) {
-				foreach(lNode, Process->Executable->LoadedLibraries) {
+			if (Ash->Executable->LoadedLibraries != NULL) {
+				foreach(lNode, Ash->Executable->LoadedLibraries) {
 					MCorePeFile_t *Lib = (MCorePeFile_t*)lNode->Data;
 					if (Address >= Lib->BaseVirtual) {
 						PmName = (char*)MStringRaw(Lib->Name);
@@ -293,22 +293,22 @@ void ExceptionEntry(Registers_t *regs)
 		if (UnmappedAddr == MEMORY_LOCATION_SIGNAL_RET)
 		{
 			/* Variables */
-			MCoreProcess_t *Process = NULL;
 			MCoreSignal_t *Signal = NULL;
+			MCoreAsh_t *Ash = NULL;
 
 			/* Oh oh, someone has done the dirty signal */
 			Cpu = ApicGetCpu();
 			cThread = ThreadingGetCurrentThread(Cpu);
-			Process = PmGetProcess(cThread->ProcessId);
+			Ash = PhoenixGetAsh(cThread->AshId);
 
 			/* Now.. get active signal */
-			Signal = Process->ActiveSignal;
+			Signal = Ash->ActiveSignal;
 
 			/* Restore context */
 			//??? neccessary?? 
 
 			/* Cleanup signal */
-			Process->ActiveSignal = NULL;
+			Ash->ActiveSignal = NULL;
 			kfree(Signal);
 
 			/* Continue into next signal? */
@@ -362,13 +362,13 @@ void ExceptionEntry(Registers_t *regs)
 			&& UnmappedAddr < MEMORY_LOCATION_USER_GUARD)
 		{
 			/* Get heap */
-			MCoreProcess_t *Process = PmGetProcess(PROCESS_CURRENT);
+			MCoreAsh_t *Ash = PhoenixGetAsh(PHOENIX_CURRENT);
 
 			/* Sanity */
-			if (Process != NULL)
+			if (Ash != NULL)
 			{
 				/* Yes, validate it in the heap */
-				if (!BitmapValidateAddress(Process->Heap, UnmappedAddr))
+				if (!BitmapValidateAddress(Ash->Heap, UnmappedAddr))
 				{
 					/* Map in in */
 					MmVirtualMap(NULL, MmPhysicalAllocateBlock(MEMORY_MASK_DEFAULT, 1),

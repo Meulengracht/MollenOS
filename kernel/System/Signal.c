@@ -120,7 +120,7 @@ void SignalHandle(ThreadId_t ThreadId)
 	
 	/* Lookup Thread */
 	Thread = ThreadingGetThread(ThreadId);
-	Ash = PhoenixGetAsh(Thread->ProcessId);
+	Ash = PhoenixGetAsh(Thread->AshId);
 
 	/* Sanitize, we might not have an Ash */
 	if (Ash == NULL) {

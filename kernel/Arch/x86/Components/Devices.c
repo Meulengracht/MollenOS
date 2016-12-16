@@ -23,7 +23,7 @@
 /* Includes */
 #include <AcpiInterface.h>
 #include <DeviceManager.h>
-#include <Modules/ModuleManager.h>
+#include <Modules/Modules.h>
 #include "../Arch.h"
 #include <Memory.h>
 #include <Pci.h>

@@ -22,9 +22,10 @@
 
 /* Includes 
  * - System */
-#include <Modules/ModuleManager.h>
+#include <Modules/Modules.h>
+#include <Modules/Process.h>
 #include <Vfs/Vfs.h>
-#include <Process.h>
+#include <Heap.h>
 #include <Log.h>
 
 /* Includes
@@ -69,11 +70,11 @@ void VfsInstallFileSystem(MCoreFileSystem_t *Fs)
 		&& !GlbVfsInitHasRun)
 	{
 		/* Process Request */
-		MCoreProcessRequest_t *ProcRequest
-			= (MCoreProcessRequest_t*)kmalloc(sizeof(MCoreProcessRequest_t));
+		MCorePhoenixRequest_t *ProcRequest
+			= (MCorePhoenixRequest_t*)kmalloc(sizeof(MCorePhoenixRequest_t));
 
 		/* Reset request */
-		memset(ProcRequest, 0, sizeof(MCoreProcessRequest_t));
+		memset(ProcRequest, 0, sizeof(MCorePhoenixRequest_t));
 
 		/* Print */
 		LogInformation("VFSM", "Boot Drive Detected, Running Init");
@@ -83,13 +84,13 @@ void VfsInstallFileSystem(MCoreFileSystem_t *Fs)
 		MStringAppendCharacters(Path, FILESYSTEM_INIT, StrUTF8);
 
 		/* Create Request */
-		ProcRequest->Base.Type = ProcessSpawn;
+		ProcRequest->Base.Type = AshSpawnProcess;
 		ProcRequest->Path = Path;
 		ProcRequest->Arguments = NULL;
 		ProcRequest->Base.Cleanup = 1;
 
 		/* Send */
-		PmCreateRequest(ProcRequest);
+		PhoenixCreateRequest(ProcRequest);
 
 		/* Set */
 		GlbVfsInitHasRun = 1;
