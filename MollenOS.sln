@@ -152,6 +152,8 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "libmsc++", "librt\msvc\libm
 		{0C598AF6-FD13-40CB-948C-5B027A70A471} = {0C598AF6-FD13-40CB-948C-5B027A70A471}
 	EndProjectSection
 EndProject
+Project("{F088123C-0E9E-452A-89E6-6BA2F21D5CAC}") = "Design", "kernel\Msvc\Design\Design.modelproj", "{EAA9C080-C5D1-4220-BE45-9D29EC13EF3F}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		All|MollenOS = All|MollenOS
@@ -228,6 +230,8 @@ Global
 		{BC075CA9-559D-47EE-AEA7-B2175F141688}.All|MollenOS.ActiveCfg = Build_X86_32|Win32
 		{BC075CA9-559D-47EE-AEA7-B2175F141688}.Build_X86_32|MollenOS.ActiveCfg = Build_X86_32|Win32
 		{BC075CA9-559D-47EE-AEA7-B2175F141688}.Build_X86_32|MollenOS.Build.0 = Build_X86_32|Win32
+		{EAA9C080-C5D1-4220-BE45-9D29EC13EF3F}.All|MollenOS.ActiveCfg = Release|Any CPU
+		{EAA9C080-C5D1-4220-BE45-9D29EC13EF3F}.Build_X86_32|MollenOS.ActiveCfg = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

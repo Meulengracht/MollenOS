@@ -1,0 +1,135 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<logicalClassDesignerModel xmlns:dm0="http://schemas.microsoft.com/VisualStudio/2008/DslTools/Core" xmlns:dm1="http://schemas.microsoft.com/dsltools/Kernel" xmlns:dm2="http://schemas.microsoft.com/dsltools/Component" xmlns:dm3="http://schemas.microsoft.com/dsltools/UseCase" xmlns:dm4="http://schemas.microsoft.com/dsltools/Activity" xmlns:dm5="http://schemas.microsoft.com/dsltools/Interaction" xmlns:dm6="http://schemas.microsoft.com/dsltools/UmlModelLibrary" xmlns:dm7="http://schemas.microsoft.com/dsltools/UmlDiagrams" xmlns:dm8="http://schemas.microsoft.com/dsltools/ModelStore" dslVersion="1.0.0.0" Id="76ceba08-9ba5-4195-96d8-101faf68b3ac" name="DeviceArch" linkedPackageId="df0a33ca-e452-44d3-9979-2172789a9a58" xmlns="http://schemas.microsoft.com/dsltools/LogicalClassDesigner">
+  <ownedCommentsInternal>
+    <comment Id="522bda30-c604-4375-8020-3fd1d71f4c05">
+      <elementDefinition Id="3c8c9caf-9843-42f6-b42f-26f311777843" />
+      <body>IPCWrite();</body>
+    </comment>
+    <comment Id="5f899b0b-bfe9-435d-ac79-b59864dfe15b">
+      <elementDefinition Id="e69d397d-5f05-439d-bb87-76a7b9d8c724" />
+      <body>IPCWrite();
+</body>
+    </comment>
+    <comment Id="3934fed4-13ce-4627-bcfa-6b348c2a8057">
+      <elementDefinition Id="e9cfcabf-ec14-4bab-8ac5-7db32c4c6ffb" />
+      <body>Structures must not contain pointers if allocated in process-memory, otherwise consider server-shared memory? But dangerous with shared memory..
+</body>
+    </comment>
+  </ownedCommentsInternal>
+  <packagedElements>
+    <logicalClassDesignerModelHasPackages>
+      <package Id="78c8c657-8e65-4486-b312-325c2b483c0b" name="Device Manager Module">
+        <ownedCommentsInternal>
+          <comment Id="27739930-76ce-43d7-848c-e7bab61c8b23">
+            <elementDefinition Id="bc540dbb-fb91-4645-8219-05c1be9bdb8f" />
+            <body>ServerEntry(NULL?);
+    - RegisterServer(new ServerDescriptor());
+    - Listen(); / IPCRead();
+
+Handles Events:
+    - RegisterDevice();
+    - UnregisterDevice();
+    - RegisterDriver();
+    - RegisterEvent(); //ResetDriver, driver events etc
+    - UnregisterDriver();
+
+DriverContracts:
+     - Base
+     - ControllerBase
+     - UsbControllerDriver
+     - NetControllerDriver
+     - DiskControllerDriver
+     - Disk, Timer, Clock</body>
+          </comment>
+        </ownedCommentsInternal>
+        <elementDefinition Id="8edbd1ae-7314-4f0b-87b4-da71245bc461" />
+      </package>
+    </logicalClassDesignerModelHasPackages>
+    <logicalClassDesignerModelHasPackages>
+      <package Id="1889826b-fb2d-4862-aa7b-8a2c85edaf5f" name="Ohci Controller">
+        <ownedCommentsInternal>
+          <comment Id="ae315084-b565-42c3-951f-19d9b845a53c">
+            <elementDefinition Id="8847349b-c760-4a87-bf89-cbebeb1eec32" />
+            <body>DriverInit(MCoreDevice_t*);
+    - RegisterDriver(new UsbControllerDriver(Device-&gt;Id));
+    - RegisterEvent(EventId, EventData);
+</body>
+          </comment>
+        </ownedCommentsInternal>
+        <elementDefinition Id="9c28c440-b4a7-41e2-8bcf-d59a1dccbe04" />
+        <importedPackagesInternal>
+          <packageImport Id="7d820bd6-a84b-48a3-9517-968b9b92b9c9" visibility="Public">
+            <packageMoniker Id="78c8c657-8e65-4486-b312-325c2b483c0b" LastKnownName="Device Manager Module" />
+            <elementDefinition Id="7f9e8dfd-12d9-4434-9bcb-150585d4f7d8" />
+          </packageImport>
+        </importedPackagesInternal>
+      </package>
+    </logicalClassDesignerModelHasPackages>
+    <logicalClassDesignerModelHasPackages>
+      <package Id="e00d70eb-6424-4199-8cf3-3ca6f6891ea0" name="Bus Module">
+        <ownedCommentsInternal>
+          <comment Id="5a746249-6e46-4c17-9e9f-d3d7c92367b9">
+            <elementDefinition Id="dfb67792-8250-46e7-8a32-07b9d8ad4156" />
+            <body>EnumerateDevices();
+   - RegisterDevice(new MCoreDevice());</body>
+          </comment>
+        </ownedCommentsInternal>
+        <elementDefinition Id="eff7a8af-4350-41f2-b21d-e89409d61508" />
+        <importedPackagesInternal>
+          <packageImport Id="60263168-9d00-41b6-bd4a-089c183d454b" visibility="Public">
+            <packageMoniker Id="78c8c657-8e65-4486-b312-325c2b483c0b" LastKnownName="Device Manager Module" />
+            <elementDefinition Id="7e6692c1-b59b-4da5-9244-38dfb2e2d51d" />
+          </packageImport>
+        </importedPackagesInternal>
+      </package>
+    </logicalClassDesignerModelHasPackages>
+    <packageHasNamedElement>
+      <class Id="db9a73ea-8922-4512-a499-19f835642a01" name="MCoreDevice_t" isAbstract="false" isLeaf="false" isActiveClass="false">
+        <elementDefinition Id="e03d3e63-2f08-4a9c-aba5-4d05463c40c7" />
+        <ownedAttributesInternal>
+          <property Id="d641cee8-d441-454d-b033-44e37fb8620e" name="Id" isLeaf="false" isStatic="false" isReadOnly="false" isUnique="false" isDerived="false" isDerivedUnion="false" aggregation="None" isComposite="false">
+            <elementDefinition Id="52a9128f-d1f9-4d4f-bb9c-87d98b4d1621" />
+          </property>
+          <property Id="4aa680d0-46fa-4573-97ea-9bded0d005ae" name="Parent" isLeaf="false" isStatic="false" isReadOnly="false" isUnique="false" isDerived="false" isDerivedUnion="false" aggregation="None" isComposite="false">
+            <elementDefinition Id="28c5b292-807a-411c-b52c-b64c10d7f291" />
+          </property>
+          <property Id="b53ae088-835f-44c1-aeaf-d7e5d1028c77" name="IoSpaces" isLeaf="false" isStatic="false" isReadOnly="false" isUnique="false" isDerived="false" isDerivedUnion="false" aggregation="None" isComposite="false">
+            <lowerValueInternal>
+              <literalString Id="c7316316-4179-427f-8699-12bc068e7628" name="Lower" value="6">
+                <elementDefinition Id="a3ed05f1-be5b-4eee-9a10-820e9bf50d49" />
+              </literalString>
+            </lowerValueInternal>
+            <upperValueInternal>
+              <literalString Id="9880ffba-94c2-4fe0-ad2a-4c9abde45cee" name="Upper" value="6">
+                <elementDefinition Id="89d15baa-7137-4041-ab41-4e830b9490c4" />
+              </literalString>
+            </upperValueInternal>
+            <elementDefinition Id="3a90e0cb-1a55-4d2a-b4b7-4ed1c7b3d15f" />
+          </property>
+        </ownedAttributesInternal>
+      </class>
+    </packageHasNamedElement>
+    <logicalClassDesignerModelHasTypes>
+      <class Id="957addab-7097-49b5-a7b3-0cf0907a353f" name="MCoreDriver_t" isAbstract="false" isLeaf="false" isActiveClass="false">
+        <elementDefinition Id="c3cfc600-72f0-43ee-b7da-224f698bc5e7" />
+      </class>
+    </logicalClassDesignerModelHasTypes>
+  </packagedElements>
+  <package Id="df0a33ca-e452-44d3-9979-2172789a9a58" name="Design">
+    <elementDefinition Id="17eb4b58-c234-4e4f-acbc-278268048074" />
+    <profileInstances>
+      <packageHasProfileInstances Id="5fa0315b-15cc-43df-8a8e-8b585cae81f7">
+        <profileInstance Id="6ba5c8fd-7a45-4b65-9ace-4f939255a971" name="StandardProfileL2">
+          <elementDefinition Id="e34d544e-0fea-4ed6-ac5e-1b74119ac791" />
+        </profileInstance>
+        <elementDefinition Id="0caec977-1f8c-4ba3-a7db-8cc9ad9cc73b" />
+      </packageHasProfileInstances>
+      <packageHasProfileInstances Id="7dd51894-927e-4fc4-9b14-e949d9067861">
+        <profileInstance Id="9980e657-6a94-4b30-9d75-448ffff67e5a" name="StandardProfileL3">
+          <elementDefinition Id="532ea607-fb19-44b8-8502-3351b05452be" />
+        </profileInstance>
+        <elementDefinition Id="29349502-908c-4fda-9054-c48619c59ed0" />
+      </packageHasProfileInstances>
+    </profileInstances>
+  </package>
+</logicalClassDesignerModel>
