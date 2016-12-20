@@ -11,12 +11,10 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <None Include="Drvm.mdrv">
-      <Filter>Source Files</Filter>
-    </None>
+    <None Include="drm.mdrv" />
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="Drvm.c">
+    <ClCompile Include="main.c">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

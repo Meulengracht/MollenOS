@@ -119,7 +119,7 @@ _CRT_EXPORT void IThreadYield(void);
 typedef struct _DeviceIoSpace
 {
 	/* Id */
-	int Id;
+	IoSpaceId_t Id;
 
 	/* Type */
 	int Type;

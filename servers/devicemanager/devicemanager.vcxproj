@@ -7,10 +7,10 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
-    <None Include="Drvm.mdrv" />
+    <None Include="drm.mdrv" />
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="Drvm.c" />
+    <ClCompile Include="main.c" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <ProjectGuid>{DEA6F86E-257B-45FE-99D7-E9F0FF5E1928}</ProjectGuid>
@@ -36,11 +36,11 @@
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Build_X86_32|Win32'">
     <LinkIncremental>false</LinkIncremental>
     <TargetExt>.mod</TargetExt>
-    <IncludePath>..\..\..\clib\include;..\..\..\kernel\Arch;..\..\..\kernel\Include;..\..\Include</IncludePath>
-    <LibraryPath>..\..\..\clib\build;..\..\Build;..\..\..\kernel\Build</LibraryPath>
+    <IncludePath>..\..\librt\include;..\include</IncludePath>
+    <LibraryPath>..\..\librt\build</LibraryPath>
     <SourcePath />
     <GenerateManifest>false</GenerateManifest>
-    <OutDir>..\..\Build\</OutDir>
+    <OutDir>..\..\modules\build\</OutDir>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Build_X86_32|Win32'">
     <ClCompile>
@@ -63,15 +63,15 @@
     <Link>
       <SubSystem>Native</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalDependencies>CLibK.lib;LibCrt.lib;MCore.lib</AdditionalDependencies>
+      <AdditionalDependencies>libcrt.lib;libc.lib;libos.lib</AdditionalDependencies>
       <IgnoreAllDefaultLibraries>true</IgnoreAllDefaultLibraries>
       <Driver>Driver</Driver>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
-      <EntryPointSymbol>
-      </EntryPointSymbol>
+      <EntryPointSymbol>_mDrvCrt</EntryPointSymbol>
       <MapExports>true</MapExports>
       <DataExecutionPrevention />
-      <NoEntryPoint>true</NoEntryPoint>
+      <NoEntryPoint>false</NoEntryPoint>
+      <GenerateMapFile>true</GenerateMapFile>
     </Link>
   </ItemDefinitionGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

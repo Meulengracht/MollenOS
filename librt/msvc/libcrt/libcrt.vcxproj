@@ -147,7 +147,7 @@
     </MASM>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="..\..\libcrt\Entry.c" />
+    <ClCompile Include="..\..\libcrt\entry.c" />
     <ClCompile Include="..\..\libcrt\vscrt\crt.c" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

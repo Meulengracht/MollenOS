@@ -44,9 +44,10 @@ void __EntryLibCEmpty(void)
 #endif
 
 /* Extern */
-extern int main(int argc, char** argv);
-extern void __CppInit(void);
-extern void __CppFinit(void);
+__CRT_EXTERN int main(int argc, char** argv);
+__CRT_EXTERN int ServerMain(void *Data);
+__CRT_EXTERN void __CppInit(void);
+__CRT_EXTERN void __CppFinit(void);
 _MOS_API void __CppInitVectoredEH(void);
 
 /* Unescape Quotes in arguments */
@@ -186,6 +187,24 @@ void _mSrvCrt(void)
 
 	/* Cleanup */
 	free(Args);
+
+	/* Exit cleanly, calling atexit() functions */
+	exit(RetValue);
+}
+
+/* Driver Entry Point
+ * Use this entry point for drivers/servers/modules */
+void _mSrvCrt(void)
+{
+	/* Variables */
+	ThreadLocalStorage_t Tls;
+	int RetValue = 0;
+
+	/* Initialize environment */
+	_mCrtInit(&Tls);
+
+	/* Call main */
+	RetValue = ServerMain(NULL);
 
 	/* Exit cleanly, calling atexit() functions */
 	exit(RetValue);

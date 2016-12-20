@@ -47,9 +47,9 @@
     </MASM>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="..\..\libcrt\Entry.c" />
     <ClCompile Include="..\..\libcrt\vscrt\crt.c">
       <Filter>vscrt</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\libcrt\entry.c" />
   </ItemGroup>
 </Project>

@@ -28,10 +28,6 @@
 #include <Devices/Video.h>
 #include <Events.h>
 
-/* Definitions */
-typedef unsigned DevInfo_t;
-typedef int DevId_t;
-
 /* Fixed Classes */
 #define DEVICEMANAGER_LEGACY_CLASS		0x0000015A
 #define DEVICEMANAGER_ACPI_CLASS		0x0000AC71

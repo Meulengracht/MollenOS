@@ -61,6 +61,7 @@ typedef unsigned int TimerId_t;
 typedef unsigned int Flags_t;
 typedef unsigned DevInfo_t;
 typedef int DevId_t;
+typedef int IoSpaceId_t;
 
 /* This definies various possible results
  * from certain os-operations */
