@@ -54,6 +54,8 @@
 #ifndef _CRTIMP
 #ifdef CRTDLL /* Defined for libc, libm, etc */
 #define _CRTIMP __declspec(dllexport)
+#elif defined(_DLL) && defined(_CRTIMP_STATIC) /* Defined for servers */
+#define _CRTIMP 
 #elif defined(_DLL) && !defined(_KRNL_DLL)
 #define _CRTIMP __declspec(dllimport)
 #define __CRT_INLINE __inline
@@ -94,7 +96,7 @@
 #ifdef _LIBOS_DLL
 #define _MOS_API __declspec(dllexport)
 #else
-#if defined(_KRNL_DLL) || defined(CRTDLL)
+#if defined(_KRNL_DLL) || defined(CRTDLL) || defined(_CRTIMP_STATIC)
 #define _MOS_API
 #else
 #define _MOS_API __declspec(dllimport)

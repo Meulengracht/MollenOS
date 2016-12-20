@@ -110,4 +110,7 @@ int ServerMain(void *Data)
 			/* Wtf? */
 		}
 	}
+
+	/* Done, no error, return 0 */
+	return 0;
 }

@@ -62,7 +62,6 @@ typedef struct _MCoreDevice
 	int IrqLine;
 	int IrqPin;
 	int IrqAvailable[MAX_IRQS];
-	void *IrqData;
 
 	/* Device I/O Spaces 
 	 * These are the id's of the IO-spaces that

@@ -345,9 +345,9 @@ void PciCreateDeviceFromPci(PciDevice_t *PciDev)
 	PciReadBars(PciDev->PciBus, mDevice, PciDev->Header->HeaderType);
 
 	/* PCI - IDE Bar Fixup
-	* From experience ide-bars don't always show up (ex: Oracle VM)
-	* but only the initial 4 bars don't, the BM bar
-	* always seem to show up */
+	 * From experience ide-bars don't always show up (ex: Oracle VM)
+	 * but only the initial 4 bars don't, the BM bar
+	 * always seem to show up */
 	if (PciDev->Header->Class == 0x01
 		&& PciDev->Header->Subclass == 0x01)
 	{

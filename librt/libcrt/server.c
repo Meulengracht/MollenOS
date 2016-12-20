@@ -44,7 +44,7 @@ void __EntryLibCEmpty(void)
 #endif
 
 /* Extern */
-__CRT_EXTERN int main(int argc, char** argv);
+__CRT_EXTERN int ServerMain(void *Data);
 __CRT_EXTERN void __CppInit(void);
 __CRT_EXTERN void __CppFinit(void);
 _MOS_API void __CppInitVectoredEH(void);
@@ -72,8 +72,8 @@ void UnEscapeQuotes(char *Arg)
 	}
 }
 
-/* Parse a command line buffer into arguments 
- * If called with NULL in argv, it simply counts */
+/* Parse a command line buffer into arguments
+* If called with NULL in argv, it simply counts */
 int ParseCommandLine(char *CmdLine, char **ArgBuffer)
 {
 	/* Variables */
@@ -136,9 +136,9 @@ int ParseCommandLine(char *CmdLine, char **ArgBuffer)
 	return ArgCount;
 }
 
-/* CRT Initialization sequence 
- * for a shared C/C++ environment 
- * call this in all entry points */
+/* CRT Initialization sequence
+* for a shared C/C++ environment
+* call this in all entry points */
 void _mCrtInit(ThreadLocalStorage_t *Tls)
 {
 	/* Variables */
@@ -162,78 +162,19 @@ void _mCrtInit(ThreadLocalStorage_t *Tls)
 	__CppInitVectoredEH();
 }
 
-/* Service Entry Point 
- * Use this entry point for programs
- * that don't require a window/console */
-void _mSrvCrt(void)
+/* Driver Entry Point
+* Use this entry point for drivers/servers/modules */
+void _mDrvCrt(void)
 {
 	/* Variables */
 	ThreadLocalStorage_t Tls;
-	char **Args = NULL;
-	int ArgCount = 0;
 	int RetValue = 0;
 
 	/* Initialize environment */
 	_mCrtInit(&Tls);
 
-	/* Init Cmd */
-	ArgCount = ParseCommandLine((char*)MOLLENOS_ARGUMENT_ADDR, NULL);
-	Args = (char**)calloc(sizeof(char*), ArgCount + 1);
-	ParseCommandLine((char*)MOLLENOS_ARGUMENT_ADDR, Args);
-
 	/* Call main */
-	RetValue = main(ArgCount, Args);
-
-	/* Cleanup */
-	free(Args);
-
-	/* Exit cleanly, calling atexit() functions */
-	exit(RetValue);
-}
-
-/* Dll Entry Point 
- * Use this entry point for dll extensions */
-void _mDllCrt(int Action)
-{
-	/* Init Crt */
-	if (Action == 0) {
-		__CppInit();
-	}
-	else {
-		__CppFinit();
-	}
-}
-
-/* Console Entry Point 
- * Use this entry point for 
- * programs that require a console */
-void _mConCrt(void)
-{
-	/* Variables */
-	ThreadLocalStorage_t Tls;
-	char **Args = NULL;
-	int ArgCount = 0;
-	int RetValue = 0;
-
-	/* Initialize environment */
-	_mCrtInit(&Tls);
-
-	/* Initialize Ui */
-	UiConnect(UiConsole);
-
-	/* Init Cmd */
-	ArgCount = ParseCommandLine((char*)MOLLENOS_ARGUMENT_ADDR, NULL);
-	Args = (char**)calloc(sizeof(char*), ArgCount + 1);
-	ParseCommandLine((char*)MOLLENOS_ARGUMENT_ADDR, Args);
-
-	/* Call main */
-	RetValue = main(ArgCount, Args);
-
-	/* Cleanup */
-	free(Args);
-
-	/* Destroy Ui */
-	UiDisconnect();
+	RetValue = ServerMain(NULL);
 
 	/* Exit cleanly, calling atexit() functions */
 	exit(RetValue);

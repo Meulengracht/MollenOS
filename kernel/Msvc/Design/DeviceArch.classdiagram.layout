@@ -28,6 +28,10 @@
       <commentMoniker Id="3934fed4-13ce-4627-bcfa-6b348c2a8057" />
       <relativeChildShapes />
     </commentShape>
+    <commentShape Id="a3ec9a46-9e90-4e43-8fc4-4cf899616da3" absoluteBounds="0.5, 0.75, 1.5, 2.625" customColor="251, 247, 200">
+      <commentMoniker Id="f8e5183e-ee59-4d01-a094-aeefeb347abb" />
+      <relativeChildShapes />
+    </commentShape>
     <packageShape Id="ea079a12-d19e-4058-9855-654857a678f6" absoluteBounds="0.5, 3.875, 4.25, 4.875" customColor="255, 249, 230" hideQualifiedName="false">
       <packageMoniker Id="78c8c657-8e65-4486-b312-325c2b483c0b" LastKnownName="Device Manager Module" />
       <nestedChildShapes>

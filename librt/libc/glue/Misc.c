@@ -33,6 +33,11 @@
 #define MOLLENOS_RESERVED_SPACE	0xFFFFFFF4
 #endif
 
+/* Don't define any of this
+ * if the static version of the library is
+ * being build! */
+#ifndef _CRTIMP_STATIC
+
 /* Thread sleep,
  * Sleeps the current thread for the
  * given milliseconds. */
@@ -108,3 +113,5 @@ int MollenOSMessageWait(MEventMessage_t *Message)
 	/* Syscall! */
 	return Syscall1(MOLLENOS_SYSCALL_READMSG, MOLLENOS_SYSCALL_PARAM(MsgPointer));
 }
+
+#endif
