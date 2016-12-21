@@ -64,17 +64,25 @@ void EmCreateEvent(MEventMessageBase_t *Event)
 	/* Sanity - More ! */
 	if (GlbEmWindowManager != PHOENIX_NO_ASH)
 	{
-		/* Get process */
-		MCoreAsh_t *Ash = PhoenixGetAsh(GlbEmWindowManager);
+		/* Get process pipe for window-events, these kind of
+		 * events go to the window manager */
+		MCorePipe_t *Pipe = 
+			PhoenixGetAshPipe(PhoenixGetAsh(GlbEmWindowManager), ASH_PIPE_WINDOWMANAGER);
+
+		/* Sanitize the pipe first, if the target
+		 * is not open for communication then ignore */
+		if (Pipe == NULL) {
+			return;
+		}
 		
 		/* Force space in buffer */
-		while (PipeBytesLeft(Ash->Pipe) < (int)(Event->Length))
-			PipeRead(Ash->Pipe, Event->Length, (uint8_t*)&NotRecycleBin, 0);
+		while (PipeBytesLeft(Pipe) < (int)(Event->Length))
+			PipeRead(Pipe, Event->Length, (uint8_t*)&NotRecycleBin, 0);
 
 		/* Set sender as system */
 		Event->Sender = 0;
 		
 		/* Write data to pipe */
-		PipeWrite(Ash->Pipe, Event->Length, (uint8_t*)Event);
+		PipeWrite(Pipe, Event->Length, (uint8_t*)Event);
 	}
 }

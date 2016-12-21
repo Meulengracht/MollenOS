@@ -61,8 +61,10 @@ void PhoenixFinishAsh(MCoreAsh_t *Ash)
 	Ash->Heap = BitmapCreate(MEMORY_LOCATION_USER_HEAP, MEMORY_LOCATION_USER_HEAP_END, PAGE_SIZE);
 	Ash->Shm = BitmapCreate(MEMORY_LOCATION_USER_SHM, MEMORY_LOCATION_USER_SHM_END, PAGE_SIZE);
 
-	/* Create the communication pipe */
-	Ash->Pipe = PipeCreate(ASH_PIPE_SIZE);
+	/* Create the pipe list, there are as a default
+	 * no pipes open for a process, the process must
+	 * open the pipes it need */
+	Ash->Pipes = ListCreate(KeyInteger, LIST_SAFE);
 
 	/* Map Stack */
 	BaseAddress = ((MEMORY_LOCATION_USER_STACK - 0x1) & PAGE_MASK);
@@ -192,6 +194,85 @@ PhxId_t PhoenixStartupAsh(MString_t *Path)
 	return Ash->Id;
 }
 
+/* These function manipulate pipes on the given port
+ * there are some pre-defined ports on which pipes
+ * can be opened, window manager etc */
+int PhoenixOpenAshPipe(MCoreAsh_t *Ash, int Port)
+{
+	/* Variables */
+	MCorePipe_t *Pipe = NULL;
+	DataKey_t Key;
+	Key.Value = Port;
+
+	/* Sanitize the parameters */
+	if (Ash == NULL || Port < 0) {
+		return -1;
+	}
+
+	/* Make sure that a pipe on the given Port 
+	 * doesn't already exist! */
+	if (ListGetDataByKey(Ash->Pipes, Key, 0) != NULL) {
+		return -2;
+	}
+
+	/* Open a new pipe */
+	Pipe = PipeCreate(ASH_PIPE_SIZE);
+
+	/* Add it to the list */
+	ListAppend(Ash->Pipes, ListCreateNode(Key, Key, Pipe));
+
+	/* The pipe is now created and ready
+	 * for use by the process */
+	return 0;
+}
+
+/* Closes the pipe for the given Ash, and cleansup
+ * resources allocated by the pipe. This shutsdown
+ * any communication on the port */
+int PhoenixCloseAshPipe(MCoreAsh_t *Ash, int Port)
+{
+	/* Variables */
+	MCorePipe_t *Pipe = NULL;
+	DataKey_t Key;
+	Key.Value = Port;
+
+	/* Sanitize the parameters */
+	if (Ash == NULL || Port < 0) {
+		return -1;
+	}
+
+	/* There must exist a pipe on the port, otherwise
+	 * we'll throw an error! */
+	Pipe = (MCorePipe_t*)ListGetDataByKey(Ash->Pipes, Key, 0);
+	if (Pipe == NULL) {
+		return -2;
+	}
+
+	/* Cleanup the pipe */
+	PipeDestroy(Pipe);
+
+	/* Remove entry from list */
+	return ListRemoveByKey(Ash->Pipes, Key) == 1 ? 0 : -1;
+}
+
+/* Retrieves a pipe for the given port, if it doesn't
+ * exist, it returns NULL, otherwise a pointer to the
+ * given pipe is returned */
+MCorePipe_t *PhoenixGetAshPipe(MCoreAsh_t *Ash, int Port)
+{
+	/* Variables */
+	DataKey_t Key;
+	Key.Value = Port;
+
+	/* Sanitize the parameters */
+	if (Ash == NULL || Port < 0) {
+		return NULL;
+	}
+
+	/* Return the data by the given key */
+	return (MCorePipe_t*)ListGetDataByKey(Ash->Pipes, Key, 0);
+}
+
 /* Queries the given ash for information
  * which kind of information is determined by <Function> */
 int PhoenixQueryAsh(MCoreAsh_t *Ash,
@@ -284,8 +365,13 @@ void PhoenixCleanupAsh(MCoreAsh_t *Ash)
 	/* Destroy the signal list */
 	ListDestroy(Ash->SignalQueue);
 
-	/* Destroy Pipe */
-	PipeDestroy(Ash->Pipe);
+	/* Destroy all open pipies */
+	_foreach(fNode, Ash->Pipes) {
+		PipeDestroy((MCorePipe_t*)fNode->Data);
+	}
+
+	/* Now destroy the pipe-list */
+	ListDestroy(Ash->Pipes);
 
 	/* Cleanup memory allocators */
 	BitmapDestroy(Ash->Shm);

@@ -654,104 +654,83 @@ int ScMemoryUnshare(IpcComm_t Target, Addr_t TranslatedAddress, size_t Size)
 ***********************/
 #include <InputManager.h>
 
-/* Get the top message for this process 
- * without actually consuming it */
-int ScIpcPeek(uint8_t *MessageContainer, size_t MessageLength)
+/* Opens a new pipe for the calling Ash process
+ * and allows communication to this port from other
+ * processes */
+int ScPipeOpen(int Port)
 {
-	/* Variables */
-	MCoreAsh_t *Ash = NULL;
+	/* No need for any preperation on this call, the
+	 * underlying call takes care of validation as well */
+	return PhoenixOpenAshPipe(PhoenixGetAsh(PHOENIX_CURRENT), Port);
+}
 
-	/* Validation */
-	if (MessageContainer == NULL
-		|| MessageLength == 0)
-		return -1;
-
-	/* Get current process */
-	Ash = PhoenixGetAsh(PHOENIX_CURRENT);
-
-	/* Should never happen this */
-	if (Ash == NULL)
-		return -2;
-
-	/* Read */
-	return PipeRead(Ash->Pipe, MessageLength, MessageContainer, 1);
+/* Closes an existing pipe on a given port and
+ * shutdowns any communication on that port */
+int ScPipeClose(int Port)
+{
+	/* No need for any preperation on this call, the
+	 * underlying call takes care of validation as well */
+	return PhoenixCloseAshPipe(PhoenixGetAsh(PHOENIX_CURRENT), Port);
 }
 
 /* Get the top message for this process
  * and consume the message, if no message 
  * is available, this function will block untill 
  * a message is available */
-int ScIpcRead(uint8_t *MessageContainer)
+int ScPipeRead(int Port, uint8_t *Container, size_t Length, int Peek)
 {
 	/* Variables */
-	MEventMessageBase_t *MsgBase = 
-		(MEventMessageBase_t*)MessageContainer;
-	MCoreAsh_t *Ash = NULL;
-	int BytesRead = 0;
+	MCorePipe_t *Pipe = NULL;
 
-	/* Validation */
-	if (MessageContainer == NULL)
+	/* Santizie the parameters */
+	if (Container == NULL
+		|| Length == 0) {
 		return -1;
-
-	/* Get current process */
-	Ash = PhoenixGetAsh(PHOENIX_CURRENT);
-
-	/* Should never happen this */
-	if (Ash == NULL)
-		return -2;
-
-	/* Read the base message */
-	BytesRead = PipeRead(Ash->Pipe,
-		sizeof(MEventMessageBase_t), MessageContainer, 0);
-
-	/* Validate how much we read */
-	if (BytesRead != sizeof(MEventMessageBase_t))
-		return -1;
-
-	/* Read rest of message */
-	if ((size_t)BytesRead != MsgBase->Length) 
-	{
-		/* Calculate remainder and increase pointer */
-		int Remainder = (MsgBase->Length - BytesRead);
-		MessageContainer += BytesRead;
-
-		/* Read the rest of the message */
-		BytesRead += PipeRead(Ash->Pipe, (size_t)Remainder, MessageContainer, 0);
 	}
 
-	/* Done! */
-	return BytesRead;
+	/* Lookup the pipe for the given port */
+	Pipe = PhoenixGetAshPipe(PhoenixGetAsh(PHOENIX_CURRENT), Port);
+
+	/* Sanitize the pipe */
+	if (Pipe == NULL) {
+		return -2;
+	}
+
+	/* Read */
+	return PipeRead(Pipe, Length, Container, Peek);
 }
 
 /* Sends a message to another process, 
  * so far this system call is made in the fashion
  * that the recieving process must have room in their
  * message queue... dunno */
-int ScIpcWrite(PhxId_t ProcessId, uint8_t *Message, size_t MessageLength)
+int ScPipeWrite(PhxId_t AshId, int Port, uint8_t *Message, size_t Length)
 {
-	/* Vars */
+	/* Variables */
 	Cpu_t CurrentCpu = ApicGetCpu();
-	MCoreAsh_t *Ash = NULL;
+	MCorePipe_t *Pipe = NULL;
 	IpcComm_t Sender = 0;
 
-	/* Validation */
+	/* Santizie the parameters */
 	if (Message == NULL
-		|| MessageLength == 0)
+		|| Length == 0) {
 		return -1;
+	}
 
-	/* Get current process */
-	Ash = PhoenixGetAsh(ProcessId);
+	/* Lookup the pipe for the given port */
+	Pipe = PhoenixGetAshPipe(PhoenixGetAsh(AshId), Port);
 	Sender = ThreadingGetCurrentThread(CurrentCpu)->AshId;
 
-	/* Sanity */
-	if (Ash == NULL)
+	/* Sanitize the pipe */
+	if (Pipe == NULL) {
 		return -2;
+	}
 
 	/* Fill in sender */
 	((MEventMessageBase_t*)Message)->Sender = Sender;
 
 	/* Write */
-	return PipeWrite(Ash->Pipe, MessageLength, Message);
+	return PipeWrite(Pipe, Length, Message);
 }
 
 /* This is a bit of a tricky synchronization method
@@ -1568,12 +1547,12 @@ Addr_t GlbSyscallTable[121] =
 	DefineSyscall(NoOperation),
 
 	/* IPC Functions - 41 */
-	DefineSyscall(ScIpcPeek),
-	DefineSyscall(ScIpcRead),
-	DefineSyscall(ScIpcWrite),
+	DefineSyscall(ScPipeOpen),
+	DefineSyscall(ScPipeClose),
+	DefineSyscall(ScPipeRead),
+	DefineSyscall(ScPipeWrite),
 	DefineSyscall(ScIpcSleep),
 	DefineSyscall(ScIpcWake),
-	DefineSyscall(NoOperation),
 	DefineSyscall(NoOperation),
 	DefineSyscall(NoOperation),
 	DefineSyscall(NoOperation),

@@ -44,6 +44,12 @@
 #define ASH_STACK_MAX			(4 << 20)
 #define ASH_PIPE_SIZE			0x2000
 
+/* Predefined system pipe-ports that should not
+ * be used by user pipes. Trying to open new pipes
+ * on these ports will result in error */
+#define ASH_PIPE_SERVER			0x8000
+#define ASH_PIPE_WINDOWMANAGER	0x8001
+
 /* Ash Queries
  * List of the different options
  * for querying of ashes */
@@ -99,7 +105,7 @@ typedef struct _MCoreAsh
 
 	/* The communication line for this Ash
 	 * all types of ash need some form of com */
-	MCorePipe_t *Pipe;
+	List_t *Pipes;
 
 	/* Memory management and information,
 	 * Ashes run in their own space, and have their
@@ -139,6 +145,13 @@ __CRT_EXTERN PhxId_t PhoenixStartupAsh(MString_t *Path);
  * up a new base Ash, it finishes setting up the environment
  * and memory mappings, must be called on it's own thread */
 __CRT_EXTERN void PhoenixFinishAsh(MCoreAsh_t *Ash);
+
+/* These function manipulate pipes on the given port
+ * there are some pre-defined ports on which pipes
+ * can be opened, window manager etc */
+__CRT_EXTERN int PhoenixOpenAshPipe(MCoreAsh_t *Ash, int Port);
+__CRT_EXTERN int PhoenixCloseAshPipe(MCoreAsh_t *Ash, int Port);
+__CRT_EXTERN MCorePipe_t *PhoenixGetAshPipe(MCoreAsh_t *Ash, int Port);
 
 /* Ash Function Prototypes
  * these are the interesting ones */

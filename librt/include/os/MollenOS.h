@@ -87,7 +87,7 @@ typedef enum _MollenOSDeviceType
 	DeviceStorage,
 	DeviceVideo
 
-} MollenOSDeviceType_t;
+} OSDeviceType_t;
 
 /* Environment Paths */
 typedef enum _EnvironmentPaths
@@ -164,7 +164,7 @@ typedef struct _MollenOSVideoDescriptor
 	int GreenMask;
 	int ReservedMask;
 
-} MollenOSVideoDescriptor_t;
+} OSVideoDescriptor_t;
 
 /* Define the standard os 
  * rectangle used for ui 
@@ -203,25 +203,29 @@ typedef struct _mRectangle
 extern "C" {
 #endif
 
-/* IPC - Peek - NO BLOCK
- * This returns -1 if there is no new messages
- * in the message-queue, otherwise it returns 0
- * and fills the base structures with information about
- * the message */
-_MOS_API int MollenOSMessagePeek(MEventMessage_t *Message);
+/* IPC - Open - Pipe
+ * Opens a new communication pipe on the given
+ * port for this process, if one already exists
+ * SIGPIPE is signaled */
+_MOS_API int PipeOpen(int Port);
 
-/* IPC - Read/Wait - BLOCKING OP
+/* IPC - Close - Pipe
+* Closes an existing communication pipe on the given
+* port for this process, if one doesn't exists
+* SIGPIPE is signaled */
+_MOS_API int PipeClose(int Port);
+
+/* IPC - Read
  * This returns -1 if something went wrong reading
  * a message from the message queue, otherwise it returns 0
- * and fills the structures with information about
- * the message */
-_MOS_API int MollenOSMessageWait(MEventMessage_t *Message);
+ * and fills the structures with information about the message */
+_MOS_API int PipeRead(int Pipe, void *Buffer, size_t Length);
 
-/* IPC - Write
+/* IPC - Send
  * Returns -1 if message failed to send
  * Returns -2 if message-target didn't exist
  * Returns 0 if message was sent correctly to target */
-_MOS_API int MollenOSMessageSend(IpcComm_t Target, void *Message, size_t MessageLength);
+_MOS_API int PipeSend(IpcComm_t Target, int Port, void *Message, size_t Length);
 
 /***********************
  * Process Prototypes

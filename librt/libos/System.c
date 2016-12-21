@@ -24,7 +24,9 @@
 #include <os/Syscall.h>
 #include <os/Ipc.h>
 
-/* C-Library */
+/* Includes
+ * - C-Library */
+#include <signal.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <string.h>
@@ -63,14 +65,14 @@ void MollenOSSystemLog(const char *Format, ...)
 int MollenOSEndBoot(void)
 {
 	/* Prep for syscall */
-	return Syscall0(MOLLENOS_SYSCALL_ENDBOOT);
+	return Syscall0(SYSCALL_ENDBOOT);
 }
 
 /* Register Event Target */
 int MollenOSRegisterWM(void)
 {
 	/* Prep for syscall */
-	return Syscall0(MOLLENOS_SYSCALL_REGWM);
+	return Syscall0(SYSCALL_REGWM);
 }
 
 /* This function returns screen geomemtry
@@ -79,10 +81,10 @@ int MollenOSRegisterWM(void)
 void MollenOSGetScreenGeometry(Rect_t *Rectangle)
 {
 	/* Vars */
-	MollenOSVideoDescriptor_t VidDescriptor;
+	OSVideoDescriptor_t VidDescriptor;
 
 	/* Do it */
-	MollenOSDeviceQuery(DeviceVideo, 0, &VidDescriptor, sizeof(MollenOSVideoDescriptor_t));
+	MollenOSDeviceQuery(DeviceVideo, 0, &VidDescriptor, sizeof(OSVideoDescriptor_t));
 
 	/* Save info */
 	Rectangle->x = 0;
@@ -91,60 +93,66 @@ void MollenOSGetScreenGeometry(Rect_t *Rectangle)
 	Rectangle->h = VidDescriptor.Height;
 }
 
-/* IPC - Peek - NO BLOCK
- * This returns -1 if there is no new messages
- * in the message-queue, otherwise it returns 0 
- * and fills the base structures with information about
- * the message */
-int MollenOSMessagePeek(MEventMessage_t *Message)
+/* IPC - Open - Pipe
+ * Opens a new communication pipe on the given
+ * port for this process, if one already exists
+ * SIGPIPE is signaled */
+int PipeOpen(int Port)
 {
-	/* Variables */
-	int RetVal = 0;
 
-	/* Syscall! */
-	RetVal = Syscall2(MOLLENOS_SYSCALL_PEEKMSG, MOLLENOS_SYSCALL_PARAM(Message),
-		MOLLENOS_SYSCALL_PARAM(sizeof(MEventMessageBase_t)));
-
-	/* Sanity */
-	if (RetVal > 0)
-		return 0;
-	else
-		return -1;
 }
 
-/* IPC - Read/Wait - BLOCKING OP
- * This returns -2/-1 if something went wrong reading
+/* IPC - Close - Pipe
+* Closes an existing communication pipe on the given
+* port for this process, if one doesn't exists
+* SIGPIPE is signaled */
+int PipeClose(int Port)
+{
+
+}
+
+/* IPC - Read
+ * This returns -1 if something went wrong reading
  * a message from the message queue, otherwise it returns 0
- * and fills the structures with information about
- * the message */
-int MollenOSMessageWait(MEventMessage_t *Message)
-{
-	/* Cast to an address pointer */
-	uint8_t *MsgPointer = (uint8_t*)Message;
-
-	/* Syscall! */
-	return Syscall1(MOLLENOS_SYSCALL_READMSG, MOLLENOS_SYSCALL_PARAM(MsgPointer));
-}
-
-/* IPC - Write
- * Returns -1 if message failed to send 
- * Returns -2 if message-target didn't exist
- * Returns 0 if message was sent correctly to target */
-int MollenOSMessageSend(IpcComm_t Target, void *Message, size_t MessageLength)
+ * and fills the structures with information about the message */
+int PipeRead(int Pipe, void *Buffer, size_t Length)
 {
 	/* Variables */
-	int RetVal = 0;
+	int Result = 0;
+	
+	/* Read is rather just calling the underlying syscall */
+	Result = Syscall4(SYSCALL_READPIPE, SYSCALL_PARAM(Pipe), 
+		SYSCALL_PARAM(Buffer), SYSCALL_PARAM(Length), 0);
 
-	/* Syscall! */
-	RetVal = Syscall3(MOLLENOS_SYSCALL_WRITEMSG, MOLLENOS_SYSCALL_PARAM(Target),
-		MOLLENOS_SYSCALL_PARAM(Message), MOLLENOS_SYSCALL_PARAM(MessageLength));
-
-	/* Sanity */
-	if (RetVal > 0)
-		return 0;
+	/* Sanitize the return parameters */
+	if (Result < 0) {
+		raise(SIGPIPE);
+	}
 
 	/* Done! */
-	return RetVal;
+	return Result;
+}
+
+/* IPC - Send
+ * Returns -1 if message failed to send
+ * Returns -2 if message-target didn't exist
+ * Returns 0 if message was sent correctly to target */
+int PipeSend(IpcComm_t Target, int Port, void *Message, size_t Length)
+{
+	/* Variables */
+	int Result = 0;
+
+	/* Read is rather just calling the underlying syscall */
+	Result = Syscall4(SYSCALL_WRITEPIPE, SYSCALL_PARAM(Target),
+		SYSCALL_PARAM(Port), SYSCALL_PARAM(Message), SYSCALL_PARAM(Length));
+
+	/* Sanitize the return parameters */
+	if (Result < 0) {
+		raise(SIGPIPE);
+	}
+
+	/* Done! */
+	return Result;
 }
 
 /* IPC - Sleep 
