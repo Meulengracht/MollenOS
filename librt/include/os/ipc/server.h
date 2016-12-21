@@ -1,6 +1,7 @@
-/*
- * MollenOS - Philip Meulengracht, Copyright 2011-2016
- * 
+/* MollenOS
+ *
+ * Copyright 2011 - 2016, Philip Meulengracht
+ *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation ? , either version 3 of the License, or
@@ -15,24 +16,32 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS CLib - _Exit Function
- * This is like exit, except it does not call any CRT related cleanup
+ * MollenOS InterProcess Comm Interface
  */
 
-/* Includes */
-#include <os/Syscall.h>
-#include <stdlib.h>
+#ifndef _MOLLENOS_IPC_SERVER_H_
+#define _MOLLENOS_IPC_SERVER_H_
 
-/* Terminate normally, no cleanup. No calls to anything. 
- * And it never returns this function */
-void _Exit(int Status)
+/* Includes
+ * - System */
+#include <os/osdefs.h>
+
+/* Forward declarations 
+ * to avoid recursion */
+
+
+/* The types of server messages 
+ * These are the control messages that
+ * all servers should support */
+typedef enum _MServerMessageType
 {
-	/* Clean us up */
-	Syscall1(SYSCALL_TERMINATE, SYSCALL_PARAM(Status));
+	/* Servers
+	 * - Control Messages */
+	ServerCtrlPing,
+	ServerCtrlPong,
+	ServerCtrlRestart,
+	ServerCtrlQuit
 
-	/* Yield */
-	Syscall0(SYSCALL_THREADYIELD);
+} MServerMessageType_t;
 
-	/* Forever */
-	for (;;);
-}
+#endif //!_MOLLENOS_IPC_SERVER_H_

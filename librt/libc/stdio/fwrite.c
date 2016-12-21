@@ -39,8 +39,8 @@ int _write(int fd, void *buffer, unsigned int length)
 	int RetVal = 0, ErrCode = 0;
 
 	/* Syscall */
-	RetVal = Syscall4(MOLLENOS_SYSCALL_VFSWRITE, MOLLENOS_SYSCALL_PARAM(fd),
-		MOLLENOS_SYSCALL_PARAM(buffer), MOLLENOS_SYSCALL_PARAM(length), MOLLENOS_SYSCALL_PARAM(&ErrCode));
+	RetVal = Syscall4(SYSCALL_VFSWRITE, SYSCALL_PARAM(fd),
+		SYSCALL_PARAM(buffer), SYSCALL_PARAM(length), SYSCALL_PARAM(&ErrCode));
 
 	/* Sanity */
 	if (_fval(ErrCode)) {
@@ -75,8 +75,8 @@ size_t fwrite(const void * vptr, size_t size, size_t count, FILE * stream)
 	}
 
 	/* Syscall */
-	RetVal = Syscall4(MOLLENOS_SYSCALL_VFSWRITE, MOLLENOS_SYSCALL_PARAM(stream->fd),
-		MOLLENOS_SYSCALL_PARAM(vptr), MOLLENOS_SYSCALL_PARAM(BytesToWrite), MOLLENOS_SYSCALL_PARAM(&ErrCode));
+	RetVal = Syscall4(SYSCALL_VFSWRITE, SYSCALL_PARAM(stream->fd),
+		SYSCALL_PARAM(vptr), SYSCALL_PARAM(BytesToWrite), SYSCALL_PARAM(&ErrCode));
 
 	/* No need to check return
 	* the syscall will set error code if any */

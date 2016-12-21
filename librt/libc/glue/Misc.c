@@ -20,9 +20,10 @@
  */
 
 /* Includes */
-#include <os/MollenOS.h>
-#include <os/Syscall.h>
-#include <os/Thread.h>
+#include <os/mollenos.h>
+#include <os/syscall.h>
+#include <os/thread.h>
+#include <signal.h>
 #include <string.h>
 #include <stdio.h>
 
@@ -50,7 +51,7 @@ void ThreadSleep(size_t MilliSeconds)
 		return;
 
 	/* Gogo! */
-	Syscall1(MOLLENOS_SYSCALL_THREADSLEEP, MOLLENOS_SYSCALL_PARAM(MilliSeconds));
+	Syscall1(SYSCALL_THREADSLEEP, SYSCALL_PARAM(MilliSeconds));
 }
 
 /* TLSGetCurrent 
@@ -66,14 +67,14 @@ ThreadLocalStorage_t *TLSGetCurrent(void)
 }
 
 /* Query */
-int MollenOSDeviceQuery(MollenOSDeviceType_t Type, int Request, void *Buffer, size_t Length)
+int MollenOSDeviceQuery(OSDeviceType_t Type, int Request, void *Buffer, size_t Length)
 {
 	/* Not used atm */
 	_CRT_UNUSED(Request);
 
 	/* Prep for syscall */
-	return Syscall3(MOLLENOS_SYSCALL_DEVQUERY, MOLLENOS_SYSCALL_PARAM(Type), 
-		MOLLENOS_SYSCALL_PARAM(Buffer), MOLLENOS_SYSCALL_PARAM(Length));
+	return Syscall3(SYSCALL_DEVQUERY, SYSCALL_PARAM(Type), 
+		SYSCALL_PARAM(Buffer), SYSCALL_PARAM(Length));
 }
 
 /* Const Message */
@@ -96,22 +97,30 @@ void MollenOSSystemLog(const char *Format, ...)
 	va_end(Args);
 
 	/* Now spit it out */
-	Syscall2(0, MOLLENOS_SYSCALL_PARAM(__SysTypeMessage), 
-		MOLLENOS_SYSCALL_PARAM(&TmpBuffer[0]));
+	Syscall2(0, SYSCALL_PARAM(__SysTypeMessage), 
+		SYSCALL_PARAM(&TmpBuffer[0]));
 }
 
-/* IPC - Read/Wait - BLOCKING OP
- * This returns -2/-1 if something went wrong reading
+/* IPC - Read
+ * This returns -1 if something went wrong reading
  * a message from the message queue, otherwise it returns 0
- * and fills the structures with information about
- * the message */
-int MollenOSMessageWait(MEventMessage_t *Message)
+ * and fills the structures with information about the message */
+int PipeRead(int Pipe, void *Buffer, size_t Length)
 {
-	/* Cast to an address pointer */
-	uint8_t *MsgPointer = (uint8_t*)Message;
+	/* Variables */
+	int Result = 0;
 
-	/* Syscall! */
-	return Syscall1(MOLLENOS_SYSCALL_READMSG, MOLLENOS_SYSCALL_PARAM(MsgPointer));
+	/* Read is rather just calling the underlying syscall */
+	Result = Syscall4(SYSCALL_READPIPE, SYSCALL_PARAM(Pipe),
+		SYSCALL_PARAM(Buffer), SYSCALL_PARAM(Length), 0);
+
+	/* Sanitize the return parameters */
+	if (Result < 0) {
+		raise(SIGPIPE);
+	}
+
+	/* Done! */
+	return Result;
 }
 
 #endif

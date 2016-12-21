@@ -27,6 +27,7 @@
 
 /* Includes
  * - C-Library */
+#include <stddef.h>
 #include <ds/list.h>
 #include <os/mollenos.h>
 #include <string.h>
@@ -68,10 +69,10 @@ int ServerMain(void *Data)
 		MCoreDeviceRequest_t Request;
 
 		/* Wait for event */
-		if (!MollenOSMessageWait((MEventMessage_t*)&Request))
+		if (!PipeRead(PIPE_SERVER, &Request, sizeof(MCoreDeviceRequest_t)))
 		{
 			/* Control message or response? */
-			if (Request.Base.Type == EventServerControl)
+			if (Request.Base.Type == EventServer)
 			{
 				/* Control message
 				 * Cast the type to generic */
@@ -103,7 +104,7 @@ int ServerMain(void *Data)
 				Request.Base.Type = EventServerResponse;
 
 				/* Send structure return */
-				MollenOSMessageSend(Request.Base.Sender, &Request, sizeof(MCoreDeviceRequest_t));
+				PipeSend(Request.Base.Sender, 0, &Request, sizeof(MCoreDeviceRequest_t));
 			}
 		}
 		else {

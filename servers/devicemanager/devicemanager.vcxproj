@@ -35,7 +35,7 @@
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Build_X86_32|Win32'">
     <LinkIncremental>false</LinkIncremental>
-    <TargetExt>.mod</TargetExt>
+    <TargetExt>.srv</TargetExt>
     <IncludePath>..\..\librt\include;..\include</IncludePath>
     <LibraryPath>..\..\librt\build</LibraryPath>
     <SourcePath />

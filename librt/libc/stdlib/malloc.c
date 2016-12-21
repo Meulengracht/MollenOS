@@ -1678,19 +1678,19 @@ unsigned char _BitScanReverse(unsigned long *index, unsigned long mask);
 #include <os/Syscall.h>
 /* MollenOS MMAP via Syscall */
 static FORCEINLINE void* mosmmap(size_t Size) {
-	void* ptr = (void*)Syscall2(MOLLENOS_SYSCALL_MEMALLOC, (int)Size, 0);
+	void* ptr = (void*)Syscall2(SYSCALL_MEMALLOC, (int)Size, 0);
 	return (ptr != 0)? ptr: MFAIL;
 }
 
 /* Same same but different */
 static FORCEINLINE void* mosdirect_mmap(size_t Size) {
-	void* ptr = (void*)Syscall2(MOLLENOS_SYSCALL_MEMALLOC, (int)Size, 0);
+	void* ptr = (void*)Syscall2(SYSCALL_MEMALLOC, (int)Size, 0);
 	return (ptr != 0) ? ptr : MFAIL;
 }
 
 /* This function supports releasing coalesed segments */
 static FORCEINLINE int win32munmap(void* Ptr, size_t Size) {
-	return Syscall2(MOLLENOS_SYSCALL_MEMFREE, (int)Ptr, (int)Size);
+	return Syscall2(SYSCALL_MEMFREE, (int)Ptr, (int)Size);
 }
 
 #define MMAP_DEFAULT(s)             mosmmap(s)

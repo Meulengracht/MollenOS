@@ -101,7 +101,7 @@ typedef enum _MCoreDeviceRequestType
 typedef struct _MCoreDeviceRequest
 {
 	/* Base of an IPC */
-	MEventMessageBase_t Base;
+	MEventMessage_t Base;
 
 	/* Ipc Request Type */
 	MCoreDeviceRequestType_t Type;

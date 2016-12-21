@@ -25,6 +25,10 @@
 #include <Arch.h>
 #include <InputManager.h>
 #include <Modules/Phoenix.h>
+
+/* Includes
+ * - C-Library */
+#include <os/ipc.h>
 #include <stddef.h>
 
 /* Globals */
@@ -67,7 +71,7 @@ void EmCreateEvent(MEventMessageBase_t *Event)
 		/* Get process pipe for window-events, these kind of
 		 * events go to the window manager */
 		MCorePipe_t *Pipe = 
-			PhoenixGetAshPipe(PhoenixGetAsh(GlbEmWindowManager), ASH_PIPE_WINDOWMANAGER);
+			PhoenixGetAshPipe(PhoenixGetAsh(GlbEmWindowManager), PIPE_WINDOWMANAGER);
 
 		/* Sanitize the pipe first, if the target
 		 * is not open for communication then ignore */

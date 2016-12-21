@@ -41,7 +41,7 @@ void *SharedObjectLoad(const char *SharedObject)
 
 	/* Just deep call, we have 
 	 * all neccessary functionlity and validation already in place */
-	return (void*)Syscall1(MOLLENOS_SYSCALL_LOADSO, MOLLENOS_SYSCALL_PARAM(SharedObject));
+	return (void*)Syscall1(SYSCALL_LOADSO, SYSCALL_PARAM(SharedObject));
 }
 
 /* Load a function-address given an shared object
@@ -57,8 +57,8 @@ void *SharedObjectGetFunction(void *Handle, const char *Function)
 
 	/* Just deep call, we have
 	* all neccessary functionlity and validation already in place */
-	return (void*)Syscall2(MOLLENOS_SYSCALL_LOADPROC, 
-		MOLLENOS_SYSCALL_PARAM(Handle), MOLLENOS_SYSCALL_PARAM(Function));
+	return (void*)Syscall2(SYSCALL_LOADPROC, 
+		SYSCALL_PARAM(Handle), SYSCALL_PARAM(Function));
 }
 
 /* Unloads a valid shared object handle
@@ -72,7 +72,7 @@ void SharedObjectUnload(void *Handle)
 
 	/* Just deep call, we have
 	* all neccessary functionlity and validation already in place */
-	Syscall1(MOLLENOS_SYSCALL_UNLOADSO, MOLLENOS_SYSCALL_PARAM(Handle));
+	Syscall1(SYSCALL_UNLOADSO, SYSCALL_PARAM(Handle));
 }
 
 #endif

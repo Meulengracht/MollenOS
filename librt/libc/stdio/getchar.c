@@ -20,11 +20,11 @@
 */
 
 /* Includes */
+#include <os/ipc.h>
 #include <stdio.h>
 #include <errno.h>
 #include <string.h>
 #include <stdlib.h>
-#include <os/MollenOS.h>
 
 /* The getchar */
 int getchar(void)
@@ -38,7 +38,7 @@ int getchar(void)
 	while (Run) 
 	{
 		/* Get message */
-		if (MollenOSMessageWait(&Message))
+		if (PipeRead(PIPE_WINDOWMANAGER, &Message, sizeof(MEventMessage_t)))
 			return -1;
 
 		/* Handle Message */

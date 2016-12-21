@@ -60,15 +60,15 @@ FILE *freopen(const char * filename, const char * mode, FILE * stream)
 	if (filename != NULL) 
 	{
 		/* Close existing handle */
-		RetVal = Syscall1(MOLLENOS_SYSCALL_VFSCLOSE, MOLLENOS_SYSCALL_PARAM(stream->fd));
+		RetVal = Syscall1(SYSCALL_VFSCLOSE, SYSCALL_PARAM(stream->fd));
 
 		/* Convert flags */
 		mFlags = fflags(mode);
 
 		/* System call time,
 		* get that file handle */
-		RetVal = Syscall3(MOLLENOS_SYSCALL_VFSOPEN, MOLLENOS_SYSCALL_PARAM(filename),
-			MOLLENOS_SYSCALL_PARAM(mFlags), MOLLENOS_SYSCALL_PARAM(&ErrCode));
+		RetVal = Syscall3(SYSCALL_VFSOPEN, SYSCALL_PARAM(filename),
+			SYSCALL_PARAM(mFlags), SYSCALL_PARAM(&ErrCode));
 
 		/* Reset */
 		stream->fd = RetVal;
@@ -96,8 +96,8 @@ FILE *freopen(const char * filename, const char * mode, FILE * stream)
 		mFlags = fflags(mode);
 
 		/* Syscall */
-		Syscall4(MOLLENOS_SYSCALL_VFSQUERY, MOLLENOS_SYSCALL_PARAM(stream->fd), MOLLENOS_SYSCALL_PARAM(3), 
-			MOLLENOS_SYSCALL_PARAM(&mFlags), MOLLENOS_SYSCALL_PARAM(sizeof(mFlags)));
+		Syscall4(SYSCALL_VFSQUERY, SYSCALL_PARAM(stream->fd), SYSCALL_PARAM(3), 
+			SYSCALL_PARAM(&mFlags), SYSCALL_PARAM(sizeof(mFlags)));
 
 		/* Store */
 		stream->flags = mFlags;

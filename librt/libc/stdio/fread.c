@@ -40,8 +40,8 @@ int _read(int fd, void *buffer, unsigned int len)
 	int RetVal = 0, ErrCode = 0;
 
 	/* Syscall */
-	RetVal = Syscall4(MOLLENOS_SYSCALL_VFSREAD, MOLLENOS_SYSCALL_PARAM(fd),
-		MOLLENOS_SYSCALL_PARAM(buffer), MOLLENOS_SYSCALL_PARAM(len), MOLLENOS_SYSCALL_PARAM(&ErrCode));
+	RetVal = Syscall4(SYSCALL_VFSREAD, SYSCALL_PARAM(fd),
+		SYSCALL_PARAM(buffer), SYSCALL_PARAM(len), SYSCALL_PARAM(&ErrCode));
 
 	/* Sanity */
 	if (_fval(ErrCode)) {

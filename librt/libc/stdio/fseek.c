@@ -60,10 +60,9 @@ off64_t _lseeki64(int fd, off64_t offset, int mode)
 		memset(Buffer, 0, sizeof(Buffer));
 
 		/* Syscall */
-		RetVal = Syscall4(MOLLENOS_SYSCALL_VFSQUERY, MOLLENOS_SYSCALL_PARAM(fd),
-			MOLLENOS_SYSCALL_PARAM(0),
-			MOLLENOS_SYSCALL_PARAM(&Buffer[0]),
-			MOLLENOS_SYSCALL_PARAM(sizeof(Buffer)));
+		RetVal = Syscall4(SYSCALL_VFSQUERY, SYSCALL_PARAM(fd),
+			SYSCALL_PARAM(0), SYSCALL_PARAM(&Buffer[0]),
+			SYSCALL_PARAM(sizeof(Buffer)));
 
 		/* Now we can calculate */
 		fPos = *((uint64_t*)(&Buffer[16]));
@@ -95,8 +94,8 @@ off64_t _lseeki64(int fd, off64_t offset, int mode)
 	SeekSpotHigh = (offset >> 32) & 0xFFFFFFFF;
 
 	/* Seek to 0 */
-	RetVal = Syscall3(MOLLENOS_SYSCALL_VFSSEEK, MOLLENOS_SYSCALL_PARAM(fd), 
-		MOLLENOS_SYSCALL_PARAM(SeekSpotLow), MOLLENOS_SYSCALL_PARAM(SeekSpotHigh));
+	RetVal = Syscall3(SYSCALL_VFSSEEK, SYSCALL_PARAM(fd), 
+		SYSCALL_PARAM(SeekSpotLow), SYSCALL_PARAM(SeekSpotHigh));
 
 	/* Done */
 	if (_fval(RetVal)) {

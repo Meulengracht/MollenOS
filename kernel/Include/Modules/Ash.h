@@ -44,12 +44,6 @@
 #define ASH_STACK_MAX			(4 << 20)
 #define ASH_PIPE_SIZE			0x2000
 
-/* Predefined system pipe-ports that should not
- * be used by user pipes. Trying to open new pipes
- * on these ports will result in error */
-#define ASH_PIPE_SERVER			0x8000
-#define ASH_PIPE_WINDOWMANAGER	0x8001
-
 /* Ash Queries
  * List of the different options
  * for querying of ashes */

@@ -29,12 +29,6 @@
 #include <stddef.h>
 #include <stdlib.h>
 
-#ifdef LIBC_KERNEL
-void __ThreadLibCEmpty(void)
-{
-}
-#else
-
 /* Private Includes */
 #if defined(_MSC_VER) && (_MSC_VER >= 1500)
 #include <intrin.h>
@@ -119,8 +113,8 @@ TId_t ThreadCreate(ThreadFunc_t Entry, void *Data)
 	Tp->Data = Data;
 
 	/* This is just a redirected syscall */
-	return (TId_t)Syscall3(MOLLENOS_SYSCALL_THREADID, MOLLENOS_SYSCALL_PARAM((ThreadFunc_t)_ThreadCRT),
-		MOLLENOS_SYSCALL_PARAM(Tp), MOLLENOS_SYSCALL_PARAM(0));
+	return (TId_t)Syscall3(SYSCALL_THREADID, SYSCALL_PARAM((ThreadFunc_t)_ThreadCRT),
+		SYSCALL_PARAM(Tp), SYSCALL_PARAM(0));
 }
 
 /* Exits the current thread and
@@ -135,7 +129,7 @@ void ThreadExit(int ExitCode)
 
 	/* The syscall actually does most of
 	 * the validation for us */
-	Syscall1(MOLLENOS_SYSCALL_THREADKILL, MOLLENOS_SYSCALL_PARAM(ExitCode));
+	Syscall1(SYSCALL_THREADKILL, SYSCALL_PARAM(ExitCode));
 }
 
 /* Thread join, waits for a given
@@ -147,7 +141,7 @@ int ThreadJoin(TId_t ThreadId)
 {
 	/* The syscall actually does most of
 	 * the validation for us, returns -1 on err */
-	return Syscall1(MOLLENOS_SYSCALL_THREADJOIN, MOLLENOS_SYSCALL_PARAM(ThreadId));
+	return Syscall1(SYSCALL_THREADJOIN, SYSCALL_PARAM(ThreadId));
 }
 
 /* Thread kill, kills the given thread
@@ -158,7 +152,7 @@ int ThreadKill(TId_t ThreadId)
 	/* The syscall actually does most of 
 	 * the validation for us, this returns
 	 * 0 if everything went ok */
-	return Syscall1(MOLLENOS_SYSCALL_THREADKILL, MOLLENOS_SYSCALL_PARAM(ThreadId));
+	return Syscall1(SYSCALL_THREADKILL, SYSCALL_PARAM(ThreadId));
 }
 
 /* Thread sleep,
@@ -173,7 +167,7 @@ void ThreadSleep(size_t MilliSeconds)
 		return;
 
 	/* Gogo! */
-	Syscall1(MOLLENOS_SYSCALL_THREADSLEEP, MOLLENOS_SYSCALL_PARAM(MilliSeconds));
+	Syscall1(SYSCALL_THREADSLEEP, SYSCALL_PARAM(MilliSeconds));
 }
 
 /* Thread get current id
@@ -188,7 +182,7 @@ TId_t ThreadGetCurrentId(void)
 
 	/* This is just a redirected syscall
 	 * no arguments involved, no validation */
-	TLSGetCurrent()->Id = (TId_t)Syscall0(MOLLENOS_SYSCALL_THREADID);
+	TLSGetCurrent()->Id = (TId_t)Syscall0(SYSCALL_THREADID);
 
 	/* Done! */
 	return TLSGetCurrent()->Id;
@@ -200,7 +194,5 @@ void ThreadYield(void)
 {
 	/* This is just a redirected syscall 
      * no arguments involved, no validation */
-	Syscall0(MOLLENOS_SYSCALL_THREADYIELD);
+	Syscall0(SYSCALL_THREADYIELD);
 }
-
-#endif

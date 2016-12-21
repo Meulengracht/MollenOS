@@ -30,14 +30,14 @@ void __DeviceLibCEmpty(void)
 #else
 
 /* Query */
-int MollenOSDeviceQuery(MollenOSDeviceType_t Type, int Request, void *Buffer, size_t Length)
+int MollenOSDeviceQuery(OSDeviceType_t Type, int Request, void *Buffer, size_t Length)
 {
 	/* Not used atm */
 	_CRT_UNUSED(Request);
 
 	/* Prep for syscall */
-	return Syscall3(MOLLENOS_SYSCALL_DEVQUERY, MOLLENOS_SYSCALL_PARAM(Type), 
-		MOLLENOS_SYSCALL_PARAM(Buffer), MOLLENOS_SYSCALL_PARAM(Length));
+	return Syscall3(SYSCALL_DEVQUERY, SYSCALL_PARAM(Type), 
+		SYSCALL_PARAM(Buffer), SYSCALL_PARAM(Length));
 }
 
 #endif

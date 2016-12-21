@@ -37,8 +37,8 @@ int _open_shared(const char *file, int mflags)
 
 	/* System call time,
 	* get that file handle */
-	RetVal = Syscall3(MOLLENOS_SYSCALL_VFSOPEN, MOLLENOS_SYSCALL_PARAM(file),
-		MOLLENOS_SYSCALL_PARAM(mflags), MOLLENOS_SYSCALL_PARAM(&ErrCode));
+	RetVal = Syscall3(SYSCALL_VFSOPEN, SYSCALL_PARAM(file),
+		SYSCALL_PARAM(mflags), SYSCALL_PARAM(&ErrCode));
 
 	/* Ok, so we validate the error-code
 	* If it's wrong we have to close the file
@@ -110,8 +110,8 @@ FILE *fdopen(int fd, const char *mode)
 		int mFlags = fflags(mode);
 
 		/* Syscall */
-		Syscall4(MOLLENOS_SYSCALL_VFSQUERY, MOLLENOS_SYSCALL_PARAM(fd), MOLLENOS_SYSCALL_PARAM(3), 
-			MOLLENOS_SYSCALL_PARAM(&mFlags), MOLLENOS_SYSCALL_PARAM(sizeof(mFlags)));
+		Syscall4(SYSCALL_VFSQUERY, SYSCALL_PARAM(fd), SYSCALL_PARAM(3), 
+			SYSCALL_PARAM(&mFlags), SYSCALL_PARAM(sizeof(mFlags)));
 
 		/* Store */
 		stream->flags = mFlags;
@@ -121,8 +121,8 @@ FILE *fdopen(int fd, const char *mode)
 		int mFlags = 0;
 
 		/* Syscall */
-		Syscall4(MOLLENOS_SYSCALL_VFSQUERY, MOLLENOS_SYSCALL_PARAM(fd), MOLLENOS_SYSCALL_PARAM(2),
-			MOLLENOS_SYSCALL_PARAM(&mFlags), MOLLENOS_SYSCALL_PARAM(sizeof(mFlags)));
+		Syscall4(SYSCALL_VFSQUERY, SYSCALL_PARAM(fd), SYSCALL_PARAM(2),
+			SYSCALL_PARAM(&mFlags), SYSCALL_PARAM(sizeof(mFlags)));
 
 		/* Store */
 		stream->flags = mFlags;

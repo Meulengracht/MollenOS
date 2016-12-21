@@ -48,7 +48,7 @@ int _unlink(const char *filename)
 		return errno;
 
 	/* Syscall */
-	RetVal = Syscall1(MOLLENOS_SYSCALL_VFSDELETE, MOLLENOS_SYSCALL_PARAM(fd));
+	RetVal = Syscall1(SYSCALL_VFSDELETE, SYSCALL_PARAM(fd));
 
 	/* Close handle */
 	_close(fd);

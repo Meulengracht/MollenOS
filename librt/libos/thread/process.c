@@ -1,34 +1,27 @@
 /* MollenOS
-*
-* Copyright 2011 - 2016, Philip Meulengracht
-*
-* This program is free software : you can redistribute it and / or modify
-* it under the terms of the GNU General Public License as published by
-* the Free Software Foundation ? , either version 3 of the License, or
-* (at your option) any later version.
-*
-* This program is distributed in the hope that it will be useful,
-* but WITHOUT ANY WARRANTY; without even the implied warranty of
-* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.See the
-* GNU General Public License for more details.
-*
-* You should have received a copy of the GNU General Public License
-* along with this program.If not, see <http://www.gnu.org/licenses/>.
-*
-*
-* MollenOS - Process Functions
-*/
+ *
+ * Copyright 2011 - 2016, Philip Meulengracht
+ *
+ * This program is free software : you can redistribute it and / or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation ? , either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.If not, see <http://www.gnu.org/licenses/>.
+ *
+ *
+ * MollenOS - Process Functions
+ */
 
 /* Includes */
 #include <os/MollenOS.h>
 #include <os/Syscall.h>
-
-/* Kernel Guard */
-#ifdef LIBC_KERNEL
-void __ProcessLibCEmpty(void)
-{
-}
-#else
 
 /* Process Spawn
  * This function spawns a new process 
@@ -42,8 +35,8 @@ PId_t ProcessSpawn(const char *Path, const char *Arguments)
 	int RetVal = 0;
 
 	/* Syscall! */
-	RetVal = Syscall2(MOLLENOS_SYSCALL_PROCSPAWN, MOLLENOS_SYSCALL_PARAM(Path),
-		MOLLENOS_SYSCALL_PARAM(Arguments));
+	RetVal = Syscall2(SYSCALL_PROCSPAWN, 
+		SYSCALL_PARAM(Path), SYSCALL_PARAM(Arguments));
 
 	/* Done */
 	return (PId_t)RetVal;
@@ -60,7 +53,7 @@ int ProcessJoin(PId_t ProcessId)
 	int RetVal = 0;
 
 	/* Syscall! */
-	RetVal = Syscall1(MOLLENOS_SYSCALL_PROCJOIN, MOLLENOS_SYSCALL_PARAM(ProcessId));
+	RetVal = Syscall1(SYSCALL_PROCJOIN, SYSCALL_PARAM(ProcessId));
 
 	/* Done */
 	return RetVal;
@@ -82,7 +75,7 @@ int ProcessKill(PId_t ProcessId)
 		return -1;
 
 	/* Syscall! */
-	RetVal = Syscall1(MOLLENOS_SYSCALL_PROCKILL, MOLLENOS_SYSCALL_PARAM(ProcessId));
+	RetVal = Syscall1(SYSCALL_PROCKILL, SYSCALL_PARAM(ProcessId));
 
 	/* Done */
 	return RetVal;
@@ -96,9 +89,7 @@ int ProcessKill(PId_t ProcessId)
 int ProcessQuery(PId_t ProcessId, ProcessQueryFunction_t Function, void *Buffer, size_t Length)
 {
 	/* Prep for syscall */
-	return Syscall4(MOLLENOS_SYSCALL_PROCQUERY, MOLLENOS_SYSCALL_PARAM(ProcessId),
-		MOLLENOS_SYSCALL_PARAM(Function), MOLLENOS_SYSCALL_PARAM(Buffer),
-		MOLLENOS_SYSCALL_PARAM(Length));
+	return Syscall4(SYSCALL_PROCQUERY, SYSCALL_PARAM(ProcessId),
+		SYSCALL_PARAM(Function), SYSCALL_PARAM(Buffer),
+		SYSCALL_PARAM(Length));
 }
-
-#endif

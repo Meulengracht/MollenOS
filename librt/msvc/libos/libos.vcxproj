@@ -76,6 +76,7 @@ xcopy $(SolutionDir)librt\build\libos.dll $(SolutionDir)userspace\development\bi
     <ClCompile Include="..\..\libos\ds\ringbuffer.c" />
     <ClCompile Include="..\..\libos\environment.c" />
     <ClCompile Include="..\..\libos\exceptions.c" />
+    <ClCompile Include="..\..\libos\ipc.c" />
     <ClCompile Include="..\..\libos\mstring\mstringappend.c" />
     <ClCompile Include="..\..\libos\mstring\mstringcompare.c" />
     <ClCompile Include="..\..\libos\mstring\mstringcopy.c" />

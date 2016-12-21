@@ -194,38 +194,10 @@ typedef struct _mRectangle
  * rather long paths */
 #define _MAX_PATH 512
 
-/***********************
-* IPC Prototypes
-***********************/
-
 /* Cpp Guard */
 #ifdef __cplusplus
 extern "C" {
 #endif
-
-/* IPC - Open - Pipe
- * Opens a new communication pipe on the given
- * port for this process, if one already exists
- * SIGPIPE is signaled */
-_MOS_API int PipeOpen(int Port);
-
-/* IPC - Close - Pipe
-* Closes an existing communication pipe on the given
-* port for this process, if one doesn't exists
-* SIGPIPE is signaled */
-_MOS_API int PipeClose(int Port);
-
-/* IPC - Read
- * This returns -1 if something went wrong reading
- * a message from the message queue, otherwise it returns 0
- * and fills the structures with information about the message */
-_MOS_API int PipeRead(int Pipe, void *Buffer, size_t Length);
-
-/* IPC - Send
- * Returns -1 if message failed to send
- * Returns -2 if message-target didn't exist
- * Returns 0 if message was sent correctly to target */
-_MOS_API int PipeSend(IpcComm_t Target, int Port, void *Message, size_t Length);
 
 /***********************
  * Process Prototypes
@@ -281,7 +253,7 @@ _MOS_API int MollenOSMemoryUnshare(IpcComm_t Target, void *MemoryHandle, size_t 
 /***********************
  * Device Prototypes
  ***********************/
-_MOS_API int MollenOSDeviceQuery(MollenOSDeviceType_t Type, int Request, void *Buffer, size_t Length);
+_MOS_API int MollenOSDeviceQuery(OSDeviceType_t Type, int Request, void *Buffer, size_t Length);
 
 /***********************
  * Shared Library Prototypes
@@ -331,8 +303,8 @@ _MOS_API void MollenOSGetScreenGeometry(Rect_t *Rectangle);
  *   they are automatically used
  *   by systems
  ***********************/
-_MOS_API int MollenOSSignalWait(size_t Timeout);
-_MOS_API int MollenOSSignalWake(IpcComm_t Target);
+_MOS_API int WaitForSignal(size_t Timeout);
+_MOS_API int SignalProcess(IpcComm_t Target);
 _MOS_API void MollenOSSystemLog(const char *Format, ...);
 _MOS_API int MollenOSEndBoot(void);
 _MOS_API int MollenOSRegisterWM(void);

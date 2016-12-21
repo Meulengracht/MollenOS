@@ -60,7 +60,7 @@ int ConditionConstruct(Condition_t *Cond)
 		return -1;
 
 	/* Contact OS */
-	int RetVal = Syscall0(MOLLENOS_SYSCALL_CONDCREATE);
+	int RetVal = Syscall0(SYSCALL_CONDCREATE);
 
 	/* Sanity */
 	if (RetVal == 0) {
@@ -84,7 +84,7 @@ void ConditionDestroy(Condition_t *Cond)
 		return;
 
 	/* Contact OS */
-	Syscall1(MOLLENOS_SYSCALL_CONDDESTROY, MOLLENOS_SYSCALL_PARAM(*Cond));
+	Syscall1(SYSCALL_CONDDESTROY, SYSCALL_PARAM(*Cond));
 }
 
 /* Signal the condition and wakes up a thread
@@ -96,7 +96,7 @@ int ConditionSignal(Condition_t *Cond)
 		return -1;
 
 	/* Contact OS */
-	Syscall1(MOLLENOS_SYSCALL_SYNCWAKEONE, MOLLENOS_SYSCALL_PARAM(*Cond));
+	Syscall1(SYSCALL_SYNCWAKEONE, SYSCALL_PARAM(*Cond));
 
 	/* Done! */
 	return 0;
@@ -111,7 +111,7 @@ int ConditionBroadcast(Condition_t *Cond)
 		return -1;
 
 	/* Contact OS */
-	Syscall1(MOLLENOS_SYSCALL_SYNCWAKEALL, MOLLENOS_SYSCALL_PARAM(*Cond));
+	Syscall1(SYSCALL_SYNCWAKEALL, SYSCALL_PARAM(*Cond));
 
 	/* Done! */
 	return 0;
@@ -131,8 +131,8 @@ int ConditionWait(Condition_t *Cond, Mutex_t *Mutex)
 	MutexUnlock(Mutex);
 
 	/* Enter sleep */
-	Syscall2(MOLLENOS_SYSCALL_SYNCSLEEP, MOLLENOS_SYSCALL_PARAM(*Cond),
-		MOLLENOS_SYSCALL_PARAM(0));
+	Syscall2(SYSCALL_SYNCSLEEP, 
+		SYSCALL_PARAM(*Cond), SYSCALL_PARAM(0));
 
 	/* Ok, we have been woken up, acquire mutex */
 	if (MutexLock(Mutex) == MUTEX_SUCCESS) {
@@ -163,8 +163,8 @@ int ConditionWaitTimed(Condition_t *Cond, Mutex_t *Mutex, time_t Expiration)
 	MutexUnlock(Mutex);
 
 	/* Enter sleep */
-	RetVal = Syscall2(MOLLENOS_SYSCALL_SYNCSLEEP, MOLLENOS_SYSCALL_PARAM(*Cond),
-		MOLLENOS_SYSCALL_PARAM(difftime(Expiration, Now) * 1000));
+	RetVal = Syscall2(SYSCALL_SYNCSLEEP, SYSCALL_PARAM(*Cond),
+		SYSCALL_PARAM(difftime(Expiration, Now) * 1000));
 
 	/* Did we timeout ? */
 	if (RetVal != 0) {

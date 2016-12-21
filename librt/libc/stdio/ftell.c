@@ -43,10 +43,9 @@ long _tell(int fd)
 	memset(Buffer, 0, sizeof(Buffer));
 
 	/* Syscall */
-	RetVal = Syscall4(MOLLENOS_SYSCALL_VFSQUERY, MOLLENOS_SYSCALL_PARAM(fd),
-		MOLLENOS_SYSCALL_PARAM(0),
-		MOLLENOS_SYSCALL_PARAM(&Buffer[0]),
-		MOLLENOS_SYSCALL_PARAM(sizeof(Buffer)));
+	RetVal = Syscall4(SYSCALL_VFSQUERY, SYSCALL_PARAM(fd),
+		SYSCALL_PARAM(0), SYSCALL_PARAM(&Buffer[0]),
+		SYSCALL_PARAM(sizeof(Buffer)));
 
 	/* Sanity the result */
 	if (!_fval(RetVal)) {

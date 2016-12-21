@@ -40,7 +40,7 @@ int _close(int handle)
 	int RetVal = 0;
 
 	/* Syscall */
-	RetVal = Syscall1(MOLLENOS_SYSCALL_VFSCLOSE, MOLLENOS_SYSCALL_PARAM(handle));
+	RetVal = Syscall1(SYSCALL_VFSCLOSE, SYSCALL_PARAM(handle));
 
 	/* Validation 
 	 * we need to make sure everythis is ok */

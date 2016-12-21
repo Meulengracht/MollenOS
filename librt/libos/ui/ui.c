@@ -115,7 +115,7 @@ int UiQueryProcessWindow(IpcComm_t Target, IPCWindowQuery_t *Information)
 {
 	/* Variables */
 	IPCWindowQuery_t *QueryInfo;
-	MEventMessageGeneric_t Message;
+	MWindowControl_t Message;
 	void *SharedPtr = NULL;
 
 	/* Grab buffer lock */
@@ -133,23 +133,23 @@ int UiQueryProcessWindow(IpcComm_t Target, IPCWindowQuery_t *Information)
 	SharedPtr = TO_SHARED_HANDLE(QueryInfo);
 
 	/* Setup base message */
-	Message.Header.Length = sizeof(MEventMessageGeneric_t);
-	Message.Header.Type = EventGeneric;
+	Message.Header.Length = sizeof(MWindowControl_t);
+	Message.Header.Type = EventWindowControl;
 
 	/* Setup generic message */
-	Message.Type = GenericWindowQuery;
+	Message.Type = WindowCtrlQuery;
 	Message.LoParam = (size_t)SharedPtr;
 	Message.HiParam = 0;
 
 	/* Send request */
-	if (MollenOSMessageSend(1, &Message, Message.Header.Length)) {
+	if (PipeSend(1, PIPE_WINDOWMANAGER, &Message, Message.Header.Length)) {
 		brel((void*)QueryInfo);
 		return -1;
 	}
 
 	/* Wait for window manager to respond
 	* but don't wait for longer than 1 sec.. */
-	MollenOSSignalWait(1000);
+	WaitForSignal(1000);
 
 	/* Copy information */
 	memcpy(Information, QueryInfo, sizeof(IPCWindowQuery_t));
@@ -170,7 +170,7 @@ WndHandle_t UiCreateWindow(Rect_t *Dimensions, int Flags)
 {
 	/* Variables */
 	IPCWindowCreate_t *WndInformation;
-	MEventMessageGeneric_t Message;
+	MWindowControl_t Message;
 	WindowDescriptor_t *WndDescriptor;
 	void *SharedPtr = NULL;
 
@@ -196,23 +196,23 @@ WndHandle_t UiCreateWindow(Rect_t *Dimensions, int Flags)
 	SharedPtr = TO_SHARED_HANDLE(WndInformation);
 
 	/* Setup base message */
-	Message.Header.Length = sizeof(MEventMessageGeneric_t);
-	Message.Header.Type = EventGeneric;
+	Message.Header.Length = sizeof(MWindowControl_t);
+	Message.Header.Type = EventWindowControl;
 	
 	/* Setup generic message */
-	Message.Type = GenericWindowCreate;
+	Message.Type = WindowCtrlCreate;
 	Message.LoParam = (size_t)SharedPtr;
 	Message.HiParam = 0;
 
 	/* Send request */
-	if (MollenOSMessageSend(1, &Message, Message.Header.Length)) {
+	if (PipeSend(1, PIPE_WINDOWMANAGER, &Message, Message.Header.Length)) {
 		brel((void*)WndInformation);
 		return NULL;
 	}
 
 	/* Wait for window manager to respond 
 	 * but don't wait for longer than 1 sec.. */
-	MollenOSSignalWait(1000);
+	WaitForSignal(1000);
 
 	/* Save return information
 	 * especially the backbuffer information */
@@ -241,7 +241,7 @@ WndHandle_t UiCreateWindow(Rect_t *Dimensions, int Flags)
 int UiDestroyWindow(WndHandle_t Handle)
 {
 	/* Variables */
-	MEventMessageGeneric_t Message;
+	MWindowControl_t Message;
 	WindowDescriptor_t *Wnd = 
 		(WindowDescriptor_t*)Handle;
 
@@ -250,16 +250,16 @@ int UiDestroyWindow(WndHandle_t Handle)
 		return -1;
 
 	/* Setup base message */
-	Message.Header.Length = sizeof(MEventMessageGeneric_t);
-	Message.Header.Type = EventGeneric;
+	Message.Header.Length = sizeof(MWindowControl_t);
+	Message.Header.Type = EventWindowControl;
 
 	/* Setup generic message */
-	Message.Type = GenericWindowDestroy;
+	Message.Type = WindowCtrlDestroy;
 	Message.LoParam = (size_t)Wnd->WindowId;
 	Message.HiParam = 0;
 
 	/* Send request */
-	if (MollenOSMessageSend(1, &Message, Message.Header.Length)) {
+	if (PipeSend(1, PIPE_WINDOWMANAGER, &Message, Message.Header.Length)) {
 		return -1;
 	}
 
@@ -324,7 +324,7 @@ int UiQueryBackbuffer(WndHandle_t Handle, void **Backbuffer, size_t *BackbufferS
 void UiInvalidateRect(WndHandle_t Handle, Rect_t *Rect)
 {
 	/* Variables */
-	MEventMessageGeneric_t Message;
+	MWindowControl_t Message;
 	WindowDescriptor_t *Wnd =
 		(WindowDescriptor_t*)Handle;
 
@@ -334,11 +334,11 @@ void UiInvalidateRect(WndHandle_t Handle, Rect_t *Rect)
 		return;
 
 	/* Setup base message */
-	Message.Header.Length = sizeof(MEventMessageGeneric_t);
-	Message.Header.Type = EventGeneric;
+	Message.Header.Length = sizeof(MWindowControl_t);
+	Message.Header.Type = EventWindowControl;
 
 	/* Setup generic message */
-	Message.Type = GenericWindowInvalidate;
+	Message.Type = WindowCtrlInvalidate;
 	Message.LoParam = (size_t)Wnd->WindowId;
 	Message.HiParam = 0; /* Future:: Flags */
 
@@ -357,5 +357,5 @@ void UiInvalidateRect(WndHandle_t Handle, Rect_t *Rect)
 	}
 
 	/* Send request */
-	MollenOSMessageSend(1, &Message, Message.Header.Length);
+	PipeSend(1, PIPE_WINDOWMANAGER, &Message, Message.Header.Length);
 }

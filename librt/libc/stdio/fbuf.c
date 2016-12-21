@@ -84,9 +84,9 @@ int _ffill(FILE * stream, void *ptr, size_t size)
 	 * stream-buffering disabled */
 	if (stream->flags & _IONBF) {
 		int errcode = 0;
-		int retval = Syscall4(MOLLENOS_SYSCALL_VFSREAD, MOLLENOS_SYSCALL_PARAM(stream->fd),
-			MOLLENOS_SYSCALL_PARAM(ptr), MOLLENOS_SYSCALL_PARAM(size),
-			MOLLENOS_SYSCALL_PARAM(&errcode));
+		int retval = Syscall4(SYSCALL_VFSREAD, SYSCALL_PARAM(stream->fd),
+			SYSCALL_PARAM(ptr), SYSCALL_PARAM(size),
+			SYSCALL_PARAM(&errcode));
 
 		/* Sanity */
 		if (_fval(errcode)) {
@@ -108,14 +108,14 @@ int _ffill(FILE * stream, void *ptr, size_t size)
 
 		/* Determine if we read more than a full buffer */
 		if (size >= (size_t)fbuffer->Size) {
-			retval = Syscall4(MOLLENOS_SYSCALL_VFSREAD, MOLLENOS_SYSCALL_PARAM(stream->fd),
-				MOLLENOS_SYSCALL_PARAM(ptr), MOLLENOS_SYSCALL_PARAM(size),
-				MOLLENOS_SYSCALL_PARAM(&errcode));
+			retval = Syscall4(SYSCALL_VFSREAD, SYSCALL_PARAM(stream->fd),
+				SYSCALL_PARAM(ptr), SYSCALL_PARAM(size),
+				SYSCALL_PARAM(&errcode));
 		}
 		else {
-			retval = Syscall4(MOLLENOS_SYSCALL_VFSREAD, MOLLENOS_SYSCALL_PARAM(stream->fd),
-				MOLLENOS_SYSCALL_PARAM(fbuffer->Buffer), MOLLENOS_SYSCALL_PARAM(fbuffer->Size),
-				MOLLENOS_SYSCALL_PARAM(&errcode));
+			retval = Syscall4(SYSCALL_VFSREAD, SYSCALL_PARAM(stream->fd),
+				SYSCALL_PARAM(fbuffer->Buffer), SYSCALL_PARAM(fbuffer->Size),
+				SYSCALL_PARAM(&errcode));
 		}
 
 		/* Sanity */
