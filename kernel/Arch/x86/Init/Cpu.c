@@ -21,6 +21,7 @@
 
 /* MollenOS */
 #include <Devices/Cpu.h>
+#include <Log.h>
 
 /* Includes */
 #include <Arch.h>

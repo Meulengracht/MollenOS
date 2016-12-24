@@ -18,13 +18,13 @@
 *
 * MollenOS x86 Interrupts
 */
+
 #ifndef _X86_INTERRUPTS_H_
 #define _X86_INTERRUPTS_H_
 
 /* Includes */
 #include <Arch.h>
-#include <stdint.h>
-#include <crtdefs.h>
+#include <os/osdefs.h>
 
 /* Definitions */
 #ifndef __IRQHANDLER
@@ -49,10 +49,10 @@ typedef struct _IrqEntry
 	void *Data;
 
 	/* Whether it's installed or not */
-	uint32_t Installed;
+	int Installed;
 
 	/* Pin */
-	uint32_t Gsi;
+	int Gsi;
 
 } IrqEntry_t;
 

@@ -46,34 +46,33 @@ extern void RegisterDump(Registers_t *Regs);
 /* The YIELD handler */
 int ThreadingYield(void *Args)
 {
-	/* Get registers */
+	/* Variables we will need for loading
+	 * a new task */
 	Registers_t *Regs = NULL;
-	uint32_t TimeSlice = 20;
-	uint32_t TaskPriority = 0;
 	Cpu_t CurrCpu = ApicGetCpu();
 
-	/* Send EOI */
-	ApicSendEoi(0xFFFFFFFF, INTERRUPT_YIELD);
+	/* These will be assigned from the 
+	 * _switch function, but set them in
+	 * case threading is not initialized yet */
+	size_t TimeSlice = 20;
+	int TaskPriority = 0;
 
-	/* Switch Task */ 
+	/* Before we do anything, send EOI so 
+	 * we don't forget :-) */
+	ApicSendEoi(APIC_NO_GSI, INTERRUPT_YIELD);
+
+	/* Switch Task, if there is no threading enabled yet
+	 * it should return the same structure as we give */
 	Regs = _ThreadingSwitch((Registers_t*)Args, 0, &TimeSlice, &TaskPriority);
 
-	/* If we just got hold of idle task, well fuck it disable timer
-	* untill we get another task */
-	if (!(ThreadingGetCurrentThread(CurrCpu)->Flags & THREADING_IDLE))
-	{
-		/* Set Task Priority */
+	/* If we just got hold of idle task, well fuck it disable timer 
+	 * untill we get another task */
+	if (!ThreadingIsCurrentTaskIdle(CurrCpu)) {
 		ApicSetTaskPriority(61 - TaskPriority);
-
-		/* Restart timer */
 		ApicWriteLocal(APIC_INITIAL_COUNT, GlbTimerQuantum * TimeSlice);
 	}
-	else
-	{
-		/* Set low priority */
+	else {
 		ApicSetTaskPriority(0);
-
-		/* Disable timer */
 		ApicWriteLocal(APIC_INITIAL_COUNT, 0);
 	}
 
@@ -132,7 +131,7 @@ void *IThreadInitAp(void)
 void IThreadWakeCpu(Cpu_t Cpu)
 {
 	/* Send an IPI to the cpu */
-	ApicSendIpi((uint8_t)Cpu, INTERRUPT_YIELD);
+	ApicSendIpi(Cpu, INTERRUPT_YIELD);
 }
 
 /* Yield current thread */

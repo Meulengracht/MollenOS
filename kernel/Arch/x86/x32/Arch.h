@@ -134,7 +134,7 @@ __CRT_EXTERN void DevicesInitTimers(void);
 
 /* Utils */
 __CRT_EXTERN Cpu_t ApicGetCpu(void);
-__CRT_EXTERN void ApicSendIpi(uint8_t CpuTarget, uint8_t IrqVector);
+__CRT_EXTERN void ApicSendIpi(Cpu_t CpuTarget, uint32_t Vector);
 __CRT_EXTERN void Idle(void);
 _CRT_EXPORT void kernel_panic(const char *str);
 

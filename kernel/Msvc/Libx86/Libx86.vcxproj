@@ -23,6 +23,7 @@
     <ClCompile Include="..\..\Arch\x86\Interrupts\ApicHelpers.c" />
     <ClCompile Include="..\..\Arch\x86\Interrupts\ApicInit.c" />
     <ClCompile Include="..\..\Arch\x86\Interrupts\ApicIo.c" />
+    <ClCompile Include="..\..\Arch\x86\Interrupts\ApicIpi.c" />
     <ClCompile Include="..\..\Arch\x86\Interrupts\IntExceptions.c" />
     <ClCompile Include="..\..\Arch\x86\Interrupts\IntFunctions.c" />
     <ClCompile Include="..\..\Arch\x86\Interrupts\IntInit.c" />

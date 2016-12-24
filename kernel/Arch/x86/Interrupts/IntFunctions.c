@@ -117,7 +117,7 @@ int AcpiDeviceGetIrq(void *PciDevice, int Pin,
 	iKey.Value = 0;
 
 	/* Start by checking if we can find the
-	* routings by checking the given device */
+	 * routings by checking the given device */
 	Dev = AcpiLookupDevice(PciDev->Bus);
 
 	/* Sanitize */
@@ -542,7 +542,7 @@ void InterruptEntry(Registers_t *Regs)
 {
 	/* Determine Irq */
 	int Itr, Result = 0;
-	uint32_t Gsi = 0xFFFFFFFF;
+	int Gsi = APIC_NO_GSI;
 	uint32_t Irq = Regs->Irq + 0x20;
 
 	/* Get handler(s) */
@@ -559,8 +559,7 @@ void InterruptEntry(Registers_t *Regs)
 				Result = IrqTable[Irq][Itr].Function(IrqTable[Irq][Itr].Data);
 
 			/* Only one device could make interrupt */
-			if (Result == X86_IRQ_HANDLED)
-			{
+			if (Result == X86_IRQ_HANDLED) {
 				Gsi = IrqTable[Irq][Itr].Gsi;
 				break;
 			}

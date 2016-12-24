@@ -27,17 +27,21 @@
 #include <Arch.h>
 #include <os/osdefs.h>
 
-/* Definitions */
+/* Local apic timer definitions */
 #define APIC_TIMER_DIVIDER_1	0xB
 #define APIC_TIMER_DIVIDER_16	0x3
 #define APIC_TIMER_DIVIDER_128	0xA
-
 #define APIC_TIMER_ONESHOT		0x0
 #define APIC_TIMER_PERIODIC		0x20000
 
+/* Helper definitions for the utility
+ * and support functions */
 #define APIC_PRIORITY_MASK		0xFF
 #define APIC_NO_GSI				-1
 
+/* Local apic flags for some of the
+ * below registers, this is also io-apic
+ * entry flags */
 #define APIC_SMI_ROUTE			0x200
 #define APIC_NMI_ROUTE			0x400
 #define APIC_EXTINT_ROUTE		0x700
@@ -45,6 +49,8 @@
 #define APIC_MASKED				0x10000
 #define APIC_ICR_BUSY			0x1000
 
+/* This is the list of local apic
+ * registers and their offsets */
 #define APIC_PROCESSOR_ID		0x20
 #define APIC_VERSION			0x30
 #define APIC_TASK_PRIORITY		0x80
@@ -79,7 +85,9 @@
  * for the cpu to more accurately calculate a quantum */
 #define APIC_DEFAULT_QUANTUM	8000
 
-/* Structures */
+/* The struture of an io-apic entry in
+ * the apic code, we keep track of id,
+ * version and gsi information */
 typedef struct _IoApic {
 	int Id;
 	int Version;

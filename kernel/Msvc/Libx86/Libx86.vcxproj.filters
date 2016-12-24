@@ -81,6 +81,9 @@
     <ClCompile Include="..\..\Arch\x86\Components\IoSpace.c">
       <Filter>Components</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\Arch\x86\Interrupts\ApicIpi.c">
+      <Filter>Interrupts</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <CustomBuild Include="..\..\Arch\x86\Components\Portio.asm">
