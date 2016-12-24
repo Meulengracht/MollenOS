@@ -82,6 +82,11 @@ int PipeRead(int Pipe, void *Buffer, size_t Length)
 	/* Variables */
 	int Result = 0;
 
+	/* Sanitize length */
+	if (Length == 0) {
+		return Result;
+	}
+
 	/* Read is rather just calling the underlying syscall */
 	Result = Syscall4(SYSCALL_READPIPE, SYSCALL_PARAM(Pipe),
 		SYSCALL_PARAM(Buffer), SYSCALL_PARAM(Length), 0);
@@ -103,6 +108,11 @@ int PipeSend(IpcComm_t Target, int Port, void *Message, size_t Length)
 {
 	/* Variables */
 	int Result = 0;
+
+	/* Sanitize length */
+	if (Length == 0) {
+		return Result;
+	}
 
 	/* Send is rather just calling the underlying syscall */
 	Result = Syscall4(SYSCALL_WRITEPIPE, SYSCALL_PARAM(Target),

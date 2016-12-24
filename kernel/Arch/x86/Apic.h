@@ -1,30 +1,31 @@
 /* MollenOS
-*
-* Copyright 2011 - 2014, Philip Meulengracht
-*
-* This program is free software : you can redistribute it and / or modify
-* it under the terms of the GNU General Public License as published by
-* the Free Software Foundation ? , either version 3 of the License, or
-* (at your option) any later version.
-*
-* This program is distributed in the hope that it will be useful,
-* but WITHOUT ANY WARRANTY; without even the implied warranty of
-* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.See the
-* GNU General Public License for more details.
-*
-* You should have received a copy of the GNU General Public License
-* along with this program.If not, see <http://www.gnu.org/licenses/>.
-*
-*
-* MollenOS x86-32 Advanced Programmable Interrupt Controller Driver
-*/
+ *
+ * Copyright 2011 - 2017, Philip Meulengracht
+ *
+ * This program is free software : you can redistribute it and / or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation ? , either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.If not, see <http://www.gnu.org/licenses/>.
+ *
+ *
+ * MollenOS x86 Advanced Programmable Interrupt Controller Driver
+ * - General APIC header for local apic functionality
+ */
+
 #ifndef _X86_APIC_H_
 #define _X86_APIC_H_
 
 /* Includes */
 #include <Arch.h>
-#include <stdint.h>
-#include <crtdefs.h>
+#include <os/osdefs.h>
 
 /* Definitions */
 #define APIC_TIMER_DIVIDER_1	0xB
@@ -35,9 +36,12 @@
 #define APIC_TIMER_PERIODIC		0x20000
 
 #define APIC_PRIORITY_MASK		0xFF
+#define APIC_NO_GSI				-1
 
+#define APIC_SMI_ROUTE			0x200
 #define APIC_NMI_ROUTE			0x400
 #define APIC_EXTINT_ROUTE		0x700
+#define APIC_LEVEL_TRIGGER		0x8000
 #define APIC_MASKED				0x10000
 #define APIC_ICR_BUSY			0x1000
 
@@ -61,64 +65,129 @@
 #define APIC_CURRENT_COUNT		0x390
 #define APIC_DIVIDE_REGISTER	0x3E0
 
+/* This only is something we need to check on 
+ * 32-bit processors, all 64 bit cpus must use
+ * the integrated APIC */
 #ifdef _X86_32
 #define APIC_INTEGRATED(x)      ((x) & 0xF0)
 #else
 #define APIC_INTEGRATED(x)      (1)
 #endif
 
+/* This is a configurable default quantum for the
+ * local apic timer, this is used untill it's possible
+ * for the cpu to more accurately calculate a quantum */
+#define APIC_DEFAULT_QUANTUM	8000
+
 /* Structures */
-typedef struct _IoApic
-{
-	/* Io Apic Id */
-	uint32_t Id;
-
-	/* Io Apic Version */
-	uint32_t Version;
-
-	/* Gsi Start */
-	uint32_t GsiStart;
-
-	/* Pin Count */
-	uint32_t PinCount;
-
-	/* Base Address */
-	volatile uint32_t BaseAddress;
-
+typedef struct _IoApic {
+	int Id;
+	int Version;
+	int GsiStart;
+	int PinCount;
+	volatile Addr_t BaseAddress;
 } IoApic_t;
 
-/* Init Functions */
+/* Initialize the local APIC controller
+ * and install default interrupts. This
+ * code also sets up the local APIC timer
+ * with a default Quantum which is recalibrated
+ * for accuracy once a timer is available */
 __CRT_EXTERN void ApicInitBoot(void);
 __CRT_EXTERN void ApicInitAp(void);
-__CRT_EXTERN void ApicInitBootFinalize(void);
-__CRT_EXTERN void ApicTimerInit(void);
-__CRT_EXTERN void ApicReloadTimer(uint32_t Quantum);
 
-/* IO Functions */
+/* Recalibrates the the local apic 
+ * timer, using an external timer source
+ * this is to make the local apic timer more
+ * accurate to make sure the quantum is 1 ms */
+__CRT_EXTERN void ApicTimerRecalibrate(void);
 
-/* Local Apic */
-__CRT_EXTERN uint32_t ApicReadLocal(uint32_t Register);
-__CRT_EXTERN void ApicWriteLocal(uint32_t Register, uint32_t Value);
+/* Reloads the local apic timer with a default
+ * divisor and the timer set to the given quantum
+ * the timer is immediately started */
+__CRT_EXTERN void ApicReloadTimer(size_t Quantum);
 
-/* IO Apic */
+/* Reads from the local apic registers 
+ * Reads and writes from and to the local apic
+ * registers must always be 32 bit */
+__CRT_EXTERN uint32_t ApicReadLocal(size_t Register);
+
+/* Write to the local apic registers 
+ * Reads and writes from and to the local apic
+ * registers must always be 32 bit */
+__CRT_EXTERN void ApicWriteLocal(size_t Register, uint32_t Value);
+
+/* Read from io-apic registers
+ * Reads and writes from and to the io apic
+ * registers must always be 32 bit */
 __CRT_EXTERN uint32_t ApicIoRead(IoApic_t *IoApic, uint32_t Register);
+
+/* Write to the io-apic registers
+ * Reads and writes from and to the io apic
+ * registers must always be 32 bit */
 __CRT_EXTERN void ApicIoWrite(IoApic_t *IoApic, uint32_t Register, uint32_t Data);
-__CRT_EXTERN uint64_t ApicReadIoEntry(IoApic_t *IoApic, uint32_t Register);
+
+/* Reads interrupt data from the io-apic
+ * interrupt register. It reads the data from
+ * the given Pin (io-apic entry) offset. */
+__CRT_EXTERN uint64_t ApicReadIoEntry(IoApic_t *IoApic, uint32_t Pin);
+
+/* Writes interrupt data to the io-apic
+ * interrupt register. It writes the data to
+ * the given Pin (io-apic entry) offset. */
 __CRT_EXTERN void ApicWriteIoEntry(IoApic_t *IoApic, uint32_t Pin, uint64_t Data);
 
-/* Helper Functions */
-__CRT_EXTERN void ApicSendEoi(uint32_t Gsi, uint32_t Vector);
-__CRT_EXTERN void ApicSendIpi(uint8_t CpuTarget, uint8_t IrqVector);
+/* Sends end of interrupt to the local
+ * apic chip, and enables for a new interrupt
+ * on that irq line to occur */
+__CRT_EXTERN void ApicSendEoi(int Gsi, uint32_t Vector);
 
-__CRT_EXTERN IoApic_t *ApicGetIoFromGsi(uint32_t Gsi);
-__CRT_EXTERN uint32_t ApicGetPinFromGsi(uint32_t Gsi);
+/* Invoke an IPI request on either target
+ * cpu, or on all cpu cores if a broadcast
+ * has been requested. The supplied vector will
+ * be the invoked interrupt */
+__CRT_EXTERN void ApicSendIpi(Cpu_t CpuTarget, uint32_t Vector);
 
+/* This function derives an io-apic from
+ * the given gsi index, by locating which
+ * io-apic owns the gsi and returns it.
+ * Returns NULL if gsi is invalid */
+__CRT_EXTERN IoApic_t *ApicGetIoFromGsi(int Gsi);
+
+/* Calculates the pin from the 
+ * given gsi, it tries to locate the
+ * relevenat io-apic, if not found 
+ * it returns -1, otherwise the pin */
+__CRT_EXTERN int ApicGetPinFromGsi(int Gsi);
+
+/* This only is something we need to check on 
+ * 32-bit processors, all 64 bit cpus must use
+ * the integrated APIC */
 __CRT_EXTERN int ApicIsIntegrated(void);
-__CRT_EXTERN int ApicGetMaxLvt(void);
-__CRT_EXTERN Cpu_t ApicGetCpu(void);
-__CRT_EXTERN uint32_t ApicGetCpuMask(uint32_t Cpu);
 
+/* Retrieve the max supported LVT for the
+ * onboard local apic chip, this is used 
+ * for the ESR among others */
+__CRT_EXTERN int ApicGetMaxLvt(void);
+
+/* Retrieve the cpu id for the current cpu
+ * can be used as an identifier when running
+ * multicore */
+__CRT_EXTERN Cpu_t ApicGetCpu(void);
+
+/* Creates the correct bit index for
+ * the given cpu id, and converts the type
+ * to uint, since thats what the apic needs */
+__CRT_EXTERN uint32_t ApicGetCpuMask(Cpu_t Cpu);
+
+/* Helper for updating the task priority register
+ * this register helps us using Lowest-Priority
+ * delivery mode, as this controls which cpu to
+ * interrupt */
 __CRT_EXTERN void ApicSetTaskPriority(uint32_t Priority);
+
+/* Retrives the current task priority
+ * for the current cpu */
 __CRT_EXTERN uint32_t ApicGetTaskPriority(void);
 
 #endif //!_X86_APIC_H_

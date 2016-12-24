@@ -224,8 +224,8 @@ void SignalDispatch(MCoreAsh_t *Ash, MCoreSignal_t *Signal)
 }
 
 /* Task Switch occurs here */
-Registers_t *_ThreadingSwitch(Registers_t *Regs, int PreEmptive, uint32_t *TimeSlice, 
-							 uint32_t *TaskQueue)
+Registers_t *_ThreadingSwitch(Registers_t *Regs, int PreEmptive, size_t *TimeSlice, 
+							 int *TaskQueue)
 {
 	/* We'll need these */
 	MCoreThread_t *mThread;

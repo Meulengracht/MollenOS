@@ -1,6 +1,6 @@
 /* MollenOS
  *
- * Copyright 2011 - 2014, Philip Meulengracht
+ * Copyright 2011 - 2017, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by 
@@ -16,10 +16,12 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS x86 Init Code.
+ * MollenOS x86 Initialization code
+ * - Handles setup from a x86 entry point
  */
 
-/* Includes */
+/* Includes 
+ * - System */
 #include <MollenOS.h>
 #include <Arch.h>
 #include <Multiboot.h>
@@ -30,61 +32,57 @@
 #include <Apic.h>
 #include <Log.h>
 
+/* Variables that we can share with our project
+ * primarily just boot information in case */
+MCoreBootInfo_t x86BootInfo;
+
 /* Extern, this function is declared in the MCore project
  * and all platform libs should enter this function */
-MCoreBootInfo_t x86BootInfo;
-extern void MCoreInitialize(MCoreBootInfo_t*);
+__CRT_EXTERN void MCoreInitialize(MCoreBootInfo_t*);
 
-/* Externs */
-extern x86CpuObject_t GlbBootCpuInfo;
+/* Stuff from our own project that we import
+ * we need some information about the cpu config */
+__CRT_EXTERN x86CpuObject_t GlbBootCpuInfo;
 
-/* Inititalizes ACPI and the Apic */
-void InitAcpiAndApic(void)
+/* Initializes the local apic (if present, it faults
+ * in case it's not, we don't support less for now)
+ * and it boots all the dormant cores (if any) */
+void BootInitializeApic(void)
 {
-	/* Info */
-	LogInformation("APIC", "Initializing");
-
 	/* Initialize the APIC (if present) */
-	if (!(GlbBootCpuInfo.EdxFeatures & CPUID_FEAT_EDX_APIC))
-	{
-		/* Bail out */
+	if (!(GlbBootCpuInfo.EdxFeatures & CPUID_FEAT_EDX_APIC)) {
 		LogFatal("APIC", "Not Present");
 		Idle();
 	}
+	else {
+		LogInformation("APIC", "Initializing");
+	}
 
-	/* Init */
+	/* Init the apic on the boot 
+	 * processor, then try to boot cpus */
 	ApicInitBoot();
-}
-
-/* Installs Timers */
-void InitTimers(void)
-{
-	/* Setup Timers */
-	DevicesInitTimers();
-
-	/* Init Apic Timers */
-	ApicTimerInit();
-
-	/* Boot Cores */
 	CpuSmpInit();
 }
 
-/* Used for initializing base components */
+/* This initializes all the basic parts of the HAL
+ * and includes basic interrupt setup, memory setup and
+ * basic serial/video output */
 void HALInit(void *BootInfo, MCoreBootDescriptor *Descriptor)
 {
-	/* Initialize Video */
+	/* Initialize output */
 	VideoInit(BootInfo);
 
 	/* Print */
 	LogInformation("HAL0", "Initializing");
 
-	/* Setup Gdt */
+	/* Setup x86 descriptor-tables
+	 * which needs to happen on both 32/64 bit */
 	GdtInit();
-	
-	/* Setup Idt */
 	IdtInit();
 
-	/* Setup Interrupts */
+	/* Install all the interrupt handlers, we 
+	 * install ALL 255 handlers, since we use a common
+	 * entry point */
 	InterruptInit();
 
 	/* Memory setup! */
@@ -93,7 +91,9 @@ void HALInit(void *BootInfo, MCoreBootDescriptor *Descriptor)
 	MmVirtualInit();
 }
 
-/* Median entry between the x86 */
+/* This entry point is valid for both 32 and 64 bit
+ * so this is where we do any mutual setup before 
+ * calling the mcore entry */
 void InitX86(Multiboot_t *BootInfo, MCoreBootDescriptor *BootDescriptor)
 {
 	/* Setup Boot Info */
@@ -115,8 +115,7 @@ void InitX86(Multiboot_t *BootInfo, MCoreBootDescriptor *BootDescriptor)
 	
 	/* Setup Functions */
 	x86BootInfo.InitHAL = HALInit;
-	x86BootInfo.InitPostSystems = InitAcpiAndApic;
-	x86BootInfo.InitTimers = InitTimers;
+	x86BootInfo.InitPostSystems = BootInitializeApic;
 
 	/* Initialize Cpu */
 	CpuInit();

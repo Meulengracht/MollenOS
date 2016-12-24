@@ -76,7 +76,6 @@ _CRT_EXPORT void StallNs(size_t NanoSeconds);
 /* Stall-No-Int */
 _CRT_EXPORT void DelayMs(size_t MilliSeconds);
 
-
 /* Tools */
 #define WaitForCondition(condition, runs, wait, message, ...)\
     for (unsigned int timeout_ = 0; !(condition); timeout_++) {\

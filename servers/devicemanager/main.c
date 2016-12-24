@@ -22,6 +22,7 @@
 
 /* Includes
  * - System */
+#include <os/ipc/server.h>
 #include <device.h>
 #include <driver.h>
 
@@ -49,6 +50,14 @@ int GlbRun = 0;
  * that contains information about the system */
 int ServerMain(void *Data)
 {
+	/* Storage for message */
+	union {
+		MEventMessage_t Base;
+		MServerControl_t Control;
+		MCoreDeviceRequest_t Command;
+	} Message;
+	uint8_t *MessagePointer = &Message;
+
 	/* Save */
 	_CRT_UNUSED(Data);
 
@@ -62,49 +71,43 @@ int ServerMain(void *Data)
 
 	/* Register us with server manager */
 
+
 	/* Enter event queue */
-	while (GlbRun)
-	{
-		/* Storage for message */
-		MCoreDeviceRequest_t Request;
-
-		/* Wait for event */
-		if (!PipeRead(PIPE_SERVER, &Request, sizeof(MCoreDeviceRequest_t)))
+	while (GlbRun) {
+		if (!PipeRead(PIPE_SERVER, MessagePointer, sizeof(MEventMessage_t)))
 		{
+			/* Increase message pointer by base
+			 * bytes read */
+			MessagePointer += sizeof(MEventMessage_t);
+
 			/* Control message or response? */
-			if (Request.Base.Type == EventServer)
+			if (Message.Base.Type == EventServerControl)
 			{
-				/* Control message
-				 * Cast the type to generic */
-				MEventMessageGeneric_t *ControlMsg = 
-					(MEventMessageGeneric_t*)&Request;
-
-				/* Switch command */
-				switch (ControlMsg->Type)
-				{
+				/* Read the rest of the message */
+				if (!PipeRead(PIPE_SERVER, MessagePointer, 
+					sizeof(MServerControl_t) - sizeof(MEventMessage_t))) {
+					switch (Message.Control.Type)
+					{
 
 
 
-					/* Invalid is not for us */
-					default:
-						break;
+						/* Invalid is not for us */
+						default:
+							break;
+					}
 				}
 			}
-			else if (Request.Base.Type == EventServerCommand)
+			else if (Message.Base.Type == EventServerCommand)
 			{
-				/* Handle request */
-				switch (Request.Type)
-				{
-					
-					default:
-						break;
+				/* Read the rest of the message */
+				if (!PipeRead(PIPE_SERVER, MessagePointer,
+					sizeof(MCoreDeviceRequest_t) - sizeof(MEventMessage_t))) {
+					switch (Message.Command.Type)
+					{
+						default:
+							break;
+					}
 				}
-
-				/* Switch request to response */
-				Request.Base.Type = EventServerResponse;
-
-				/* Send structure return */
-				PipeSend(Request.Base.Sender, 0, &Request, sizeof(MCoreDeviceRequest_t));
 			}
 		}
 		else {

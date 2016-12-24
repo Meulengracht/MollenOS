@@ -63,7 +63,6 @@
 #define ACPI_BUS_TYPE_PWM		0x6
 #define ACPI_BUS_ROOT_BRIDGE	0x7
 
-
 /* Video Features */
 #define ACPI_VIDEO_SWITCHING	0x1
 #define ACPI_VIDEO_ROM			0x2
@@ -77,8 +76,6 @@
 #define ACPI_BATTERY_QUERY		0x4
 #define ACPI_BATTERY_CHARGEINFO	0x8
 #define ACPI_BATTERY_CAPMEAS	0x10
-
-/* Structures */
 
 /* First we declare an interrupt entry
  * a very small structure containing information
@@ -181,9 +178,6 @@ __CRT_EXTERN void AcpiInitialize(void);
 /* Scans the ACPI bus/namespace for all available
  * ACPI devices/functions and initializes them */
 __CRT_EXTERN void AcpiScan(void);
-
-
-/* Get Functions */
 
 /* This returns ACPI_NOT_AVAILABLE if ACPI is not available
  * on the system, or ACPI_AVAILABLE if acpi is available */

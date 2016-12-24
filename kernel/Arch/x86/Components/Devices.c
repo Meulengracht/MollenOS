@@ -105,28 +105,3 @@ void DevicesInitTimers(void)
 			ModuleLoad(Module, NULL);
 	}
 }
-
-
-/* Backup Timer, Should always be provided */
-extern void rdtsc(uint64_t *Value);
-extern x86CpuObject_t GlbBootCpuInfo;
-
-void DelayMs(uint32_t MilliSeconds)
-{
-	/* Keep value in this */
-	uint64_t Counter = 0;
-	volatile uint64_t TimeOut = 0;
-
-	/* Sanity */
-	if (!(GlbBootCpuInfo.EdxFeatures & CPUID_FEAT_EDX_TSC))
-	{
-		LogFatal("TIMR", "DelayMs() was called, but no TSC support in CPU.");
-		Idle();
-	}
-
-	/* Use rdtsc for this */
-	rdtsc(&Counter);
-	TimeOut = Counter + (uint64_t)(MilliSeconds * 100000);
-
-	while (Counter < TimeOut) { rdtsc(&Counter); }
-}

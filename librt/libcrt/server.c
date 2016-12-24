@@ -28,12 +28,6 @@
 #include <stdlib.h>
 #include <ctype.h>
 
-#ifdef LIBC_KERNEL
-void __EntryLibCEmpty(void)
-{
-}
-#else
-
 /* Private Definitions */
 #ifdef _X86_32
 #define MOLLENOS_ARGUMENT_ADDR	0x60000000
@@ -173,11 +167,15 @@ void _mDrvCrt(void)
 	/* Initialize environment */
 	_mCrtInit(&Tls);
 
+	/* Initialize default pipes */
+	PipeOpen(PIPE_SERVER);
+
 	/* Call main */
 	RetValue = ServerMain(NULL);
+
+	/* Cleanup pipes */
+	PipeClose(PIPE_SERVER);
 
 	/* Exit cleanly, calling atexit() functions */
 	exit(RetValue);
 }
-
-#endif

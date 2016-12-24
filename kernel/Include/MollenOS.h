@@ -64,7 +64,6 @@ typedef struct _MCoreBootInfo
 	/* Setup Functions */
 	void(*InitHAL)(void *ArchBootInfo, MCoreBootDescriptor *Descriptor);
 	void(*InitPostSystems)(void);
-	void(*InitTimers)(void);
 
 } MCoreBootInfo_t;
 

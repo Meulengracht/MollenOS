@@ -24,8 +24,6 @@
 
 /* Includes 
  * - System */
-#include <os/ipc/server.h>
-#include <os/ipc/window.h>
 #include <os/osdefs.h>
 #include <os/virtualkeycodes.h>
 
@@ -42,7 +40,8 @@ typedef enum _MEventType
 {
 	/* System Events 
 	 * - Server Types */
-	EventServer,
+	EventServerControl,
+	EventServerCommand,
 
 	/* System Events
 	 * -Window Types */

@@ -1,23 +1,23 @@
 /* MollenOS
-*
-* Copyright 2011 - 2016, Philip Meulengracht
-*
-* This program is free software : you can redistribute it and / or modify
-* it under the terms of the GNU General Public License as published by
-* the Free Software Foundation ? , either version 3 of the License, or
-* (at your option) any later version.
-*
-* This program is distributed in the hope that it will be useful,
-* but WITHOUT ANY WARRANTY; without even the implied warranty of
-* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.See the
-* GNU General Public License for more details.
-*
-* You should have received a copy of the GNU General Public License
-* along with this program.If not, see <http://www.gnu.org/licenses/>.
-*
-*
-* MollenOS Common Entry Point
-*/
+ *
+ * Copyright 2011 - 2016, Philip Meulengracht
+ *
+ * This program is free software : you can redistribute it and / or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation ? , either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.If not, see <http://www.gnu.org/licenses/>.
+ *
+ *
+ * MollenOS Common Entry Point
+ */
 
 /* Includes */
 #include <revision.h>
@@ -75,11 +75,13 @@ void MCoreInitialize(MCoreBootInfo_t *BootInfo)
 	/* Init the heap */
 	HeapInit();
 
+	/* The first memory operaiton we will
+	 * be performing is upgrading the log away
+	 * from the static buffer */
+	LogUpgrade(LOG_PREFFERED_SIZE);
+
 	/* Init the device manager */
 	DmInit();
-
-	/* Upgrade the log */
-	LogUpgrade(LOG_PREFFERED_SIZE);
 
 	/* Initialize IoSpaces early */
 	IoSpaceInit();
@@ -108,14 +110,9 @@ void MCoreInitialize(MCoreBootInfo_t *BootInfo)
 		AcpiScan();
 	}
 
-	/* Beyond this point we need timers 
-	 * and right now we have no timers,
-	 * and worst of all, timers are VERY 
-	 * arch-specific, so we let the underlying
-	 * architecture load them */
-	BootInfo->InitTimers();
-
-	/* Initialize the GC */
+	/* Initialize the GC 
+	 * It recycles threads, ashes and 
+	 * keeps the heap clean ! */
 	GcInit();
 
 	/* STOP

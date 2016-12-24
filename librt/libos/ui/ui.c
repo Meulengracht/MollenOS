@@ -24,6 +24,7 @@
 #include <os/Ui.h>
 #include <os/Syscall.h>
 #include <os/Thread.h>
+#include <os/ipc/window.h>
 #include "../shared/balloc.h"
 
 /* C Library */

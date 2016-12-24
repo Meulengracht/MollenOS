@@ -259,7 +259,7 @@ void InterruptInstallBase(uint32_t Irq, uint32_t IdtEntry, uint64_t ApicEntry, I
 	IoApic = ApicGetIoFromGsi(RealIrq);
 
 	/* If Apic Entry is located, we need to adjust */
-	CheckApicEntry = ApicReadIoEntry(IoApic, 0x10 + (2 * RealIrq));
+	CheckApicEntry = ApicReadIoEntry(IoApic, RealIrq);
 	lower = (uint32_t)(CheckApicEntry & 0xFFFFFFFF);
 	upper = (uint32_t)((CheckApicEntry >> 32) & 0xFFFFFFFF);
 

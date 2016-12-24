@@ -20,7 +20,7 @@
 */
 
 /* Includes */
-#include <os/ipc.h>
+#include <os/ipc/window.h>
 #include <stdio.h>
 #include <errno.h>
 #include <string.h>
@@ -30,7 +30,11 @@
 int getchar(void)
 {
 	/* Message */
-	MEventMessage_t Message;
+	union {
+		MEventMessage_t Base;
+		MWindowInput_t Input;
+	} Message;
+	uint8_t *MessagePointer = (uint8_t*)&Message;
 	int Run = 1;
 
 	/* Wait for input message, we need to discard 
@@ -38,15 +42,28 @@ int getchar(void)
 	while (Run) 
 	{
 		/* Get message */
-		if (PipeRead(PIPE_WINDOWMANAGER, &Message, sizeof(MEventMessage_t)))
+		if (PipeRead(PIPE_WINDOWMANAGER, MessagePointer, sizeof(MEventMessage_t)))
 			return -1;
 
+		/* Increase message pointer by base
+		 * bytes read */
+		MessagePointer += sizeof(MEventMessage_t);
+
 		/* Handle Message */
-		if (Message.Base.Type == EventInput
-			&& Message.Input.Type == InputKeyboard) {
-			if (Message.Input.Flags & MCORE_INPUT_BUTTON_CLICKED) {
-				return (int)Message.Input.Key;
+		if (Message.Base.Type == EventWindowInput) {
+			if (!PipeRead(PIPE_WINDOWMANAGER, MessagePointer,
+				sizeof(MWindowInput_t) - sizeof(MEventMessage_t))) {
+				if (Message.Input.Type == WindowInputKeyboard) {
+					if (Message.Input.Flags & MCORE_INPUT_BUTTON_CLICKED) {
+						return (int)Message.Input.Key;
+					}
+				}
 			}
+		}
+		else {
+			/* Trash Message */
+			PipeRead(PIPE_WINDOWMANAGER, NULL, 
+				Message.Base.Length - sizeof(MEventMessage_t));
 		}
 	}
 

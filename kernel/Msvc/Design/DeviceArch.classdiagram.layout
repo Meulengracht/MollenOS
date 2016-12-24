@@ -28,7 +28,7 @@
       <commentMoniker Id="3934fed4-13ce-4627-bcfa-6b348c2a8057" />
       <relativeChildShapes />
     </commentShape>
-    <commentShape Id="a3ec9a46-9e90-4e43-8fc4-4cf899616da3" absoluteBounds="0.5, 0.75, 1.5, 2.625" customColor="251, 247, 200">
+    <commentShape Id="a3ec9a46-9e90-4e43-8fc4-4cf899616da3" absoluteBounds="0.5, 0.75, 1.5, 3" customColor="251, 247, 200">
       <commentMoniker Id="f8e5183e-ee59-4d01-a094-aeefeb347abb" />
       <relativeChildShapes />
     </commentShape>
@@ -70,7 +70,7 @@
         </commentShape>
       </nestedChildShapes>
     </packageShape>
-    <packageImportConnector edgePoints="[(3.625 : 1); (2.81335227272727 : 1); (2.81335227272727 : 3.875)]" fixedFrom="Algorithm" fixedTo="Algorithm" customColor="Black">
+    <packageImportConnector edgePoints="[(3.625 : 1); (2.81335227272727 : 1); (2.81335227272727 : 3.875)]" fixedFrom="NotFixed" fixedTo="NotFixed" customColor="Black">
       <packageImportMoniker Id="60263168-9d00-41b6-bd4a-089c183d454b" />
       <relativeChildShapes />
       <moveableDecoratorHostShapes>

@@ -38,7 +38,7 @@
 
 /* Externs */
 extern List_t *GlbAcpiNodes;
-extern volatile uint8_t GlbBootstrapCpuId;
+extern Cpu_t GlbBootstrapCpuId;
 extern x86CpuObject_t GlbBootCpuInfo;
 
 /* These two are located in boot.asm */
@@ -47,7 +47,7 @@ extern void CpuEnableFpu(void);
 
 /* Globals */
 Spinlock_t GlbApLock;
-volatile uint32_t GlbCpusBooted = 1;
+volatile int GlbCpusBooted = 1;
 
 /* Trampoline Code */
 unsigned char TrampolineCode[] = {
