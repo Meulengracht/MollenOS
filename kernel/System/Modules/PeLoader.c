@@ -724,31 +724,47 @@ MCorePeFile_t *PeResolveLibrary(MCorePeFile_t *Parent, MCorePeFile_t *PeFile, MS
 		}
 	}
 
-	/* Sanity */
+	/* Sanitize the exports, if its null
+	 * we have to resolve the library */
 	if (Exports == NULL)
 	{
-		/* Resolve Library */
-		MCoreFileInstance_t *lFile = VfsWrapperOpen(MStringRaw(LibraryName), Read);
+		/* Variables */
+		MCoreFileInstance_t *lFile = NULL;
 		MCorePeFile_t *Library = NULL;
 		uint8_t *fBuffer = NULL;
 		size_t fSize = 0;
 
-		/* Sanity */
-		if (lFile == NULL || lFile->Code != VfsOk || lFile->File == NULL) {
-			LogDebug("PELD", "Failed to load library %s (Code %i)", 
-				MStringRaw(LibraryName), lFile->Code);
-			for (;;);
+		/* Open the file
+		 * We have a special case here that it might
+		 * be from the ramdisk we are loading */
+		if (MStringFindChars(LibraryName, "rd:/") != MSTRING_NOT_FOUND) {
+			if (ModulesQueryPath(LibraryName, &fBuffer, &fSize) != OsNoError) {
+				LogDebug("PELD", "Failed to load library %s (Code %i)",
+					MStringRaw(LibraryName), lFile->Code);
+				for (;;);
+			}
 		}
+		else {
+			/* Load the file */
+			lFile = VfsWrapperOpen(MStringRaw(LibraryName), Read);
 
-		/* Allocate a new buffer */
-		fSize = (size_t)lFile->File->Size;
-		fBuffer = (uint8_t*)kmalloc(fSize);
+			/* Sanity */
+			if (lFile == NULL || lFile->Code != VfsOk || lFile->File == NULL) {
+				LogDebug("PELD", "Failed to load library %s (Code %i)",
+					MStringRaw(LibraryName), lFile->Code);
+				for (;;);
+			}
 
-		/* Read all data */
-		VfsWrapperRead(lFile, fBuffer, fSize);
+			/* Allocate a new buffer */
+			fSize = (size_t)lFile->File->Size;
+			fBuffer = (uint8_t*)kmalloc(fSize);
 
-		/* Cleanup */
-		VfsWrapperClose(lFile);
+			/* Read all data */
+			VfsWrapperRead(lFile, fBuffer, fSize);
+
+			/* Cleanup */
+			VfsWrapperClose(lFile);
+		}
 
 		/* Load */
 		Library = PeLoadImage(ExportParent, LibraryName, fBuffer, fSize, NextLoadAddress);

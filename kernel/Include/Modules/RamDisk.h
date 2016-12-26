@@ -59,7 +59,7 @@ typedef struct _MCoreRamDiskHeader {
 	uint32_t Magic;
 	uint32_t Version;
 	uint32_t Architecture;
-	uint32_t FileCount;
+	int32_t FileCount;
 } MCoreRamDiskHeader_t;
 #pragma pack(pop)
 

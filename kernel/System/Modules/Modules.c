@@ -1,247 +1,275 @@
 /* MollenOS
-*
-* Copyright 2011 - 2016, Philip Meulengracht
-*
-* This program is free software : you can redistribute it and / or modify
-* it under the terms of the GNU General Public License as published by
-* the Free Software Foundation ? , either version 3 of the License, or
-* (at your option) any later version.
-*
-* This program is distributed in the hope that it will be useful,
-* but WITHOUT ANY WARRANTY; without even the implied warranty of
-* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.See the
-* GNU General Public License for more details.
-*
-* You should have received a copy of the GNU General Public License
-* along with this program.If not, see <http://www.gnu.org/licenses/>.
-*
-*
-* MollenOS MCore - MollenOS Module Manager
-*/
+ *
+ * Copyright 2011 - 2017, Philip Meulengracht
+ *
+ * This program is free software : you can redistribute it and / or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation ? , either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.If not, see <http://www.gnu.org/licenses/>.
+ *
+ *
+ * MollenOS MCore - MollenOS Module Manager
+ */
 
-/* Includes */
+/* Includes 
+ * - System */
+#include <Modules/Phoenix.h>
 #include <Modules/Modules.h>
 #include <Heap.h>
 #include <Log.h>
 
-/* C-Library */
+/* Includes
+ * - C-Library */
 #include <stddef.h>
 #include <ds/list.h>
 
-/* Types */
-typedef void(*ModuleEntryFunc)(void *Data);
+/* Private definitions that
+ * are local to this file */
+#define LIST_MODULE			1
+#define LIST_SERVER			2
 
 /* Globals */
-uint32_t GlbModMgrInitialized = 0;
-List_t *GlbModMgrModules = NULL;
+List_t *GlbModules = NULL;
+int GlbModulesInitialized = 0;
 
-/* Loads the RD */
-void ModuleMgrInit(MCoreBootDescriptor *BootDescriptor)
+/* ModulesInit
+ * Loads the ramdisk, iterates all headers and 
+ * builds a list of both available servers and 
+ * available drivers */
+OsStatus_t ModulesInit(MCoreBootDescriptor *BootDescriptor)
 {
-	/* Get pointers */
-	MCoreRamDiskHeader_t *RdHeader = (MCoreRamDiskHeader_t*)BootDescriptor->RamDiskAddress;
+	/* Variables needed for init of 
+	 * ramdisk and iteration */
+	MCoreRamDiskHeader_t *Ramdisk = NULL;
+	MCoreRamDiskEntry_t *Entry = NULL;
+	int Counter = 0;
 
-	/* Sanity */
-	if (BootDescriptor->RamDiskAddress == 0
-		|| BootDescriptor->RamDiskSize == 0)
-		return;
-
-	/* Info */
-	LogInformation("MDMG", "Initializing");
-
-	/* Parse Kernel Exports */
-	PeLoadKernelExports(BootDescriptor->KernelAddress, BootDescriptor->ExportsAddress);
-
-	/* Validate Members */
-	if (RdHeader->Magic != RAMDISK_MAGIC)
-	{
-		/* Error! */
-		LogFatal("MDMG", "Invalid Magic in Ramdisk - 0x%x", RdHeader->Magic);
-		return;
+	/* Sanitize the boot-parameters 
+	 * We will consider the possiblity of
+	 * 0 values to be there is no ramdisk */
+	if (BootDescriptor == NULL
+		|| BootDescriptor->RamDiskAddress == 0
+		|| BootDescriptor->RamDiskSize == 0) {
+		LogDebug("MODS", "No ramdisk detected");
+		return OsNoError;
+	}
+	else {
+		LogInformation("MODS", "Loading and parsing ramdisk");
 	}
 
-	/* Valid Version? */
-	if (RdHeader->Version != RAMDISK_VERSION_1)
-	{
-		/* Error! */
-		LogFatal("MDMG", "Invalid RamDisk Version - 0x%x", RdHeader->Version);
-		return;
+	/* Initialize the address to the pointer */
+	Ramdisk = (MCoreRamDiskHeader_t*)BootDescriptor->RamDiskAddress;
+
+	/* Validate the ramdisk magic constant */
+	if (Ramdisk->Magic != RAMDISK_MAGIC) {
+		LogFatal("MODS", "Invalid magic in ramdisk - 0x%x", Ramdisk->Magic);
+		return OsError;
 	}
 
-	/* Allocate list */
-	GlbModMgrModules = ListCreate(KeyInteger, LIST_NORMAL);
+	/* Validate the ramdisk version, we have to
+	 * support the version */
+	if (Ramdisk->Version != RAMDISK_VERSION_1) {
+		LogFatal("MODS", "Invalid ramdisk version - 0x%x", Ramdisk->Version);
+		return OsError;
+	}
 
-	/* Save Module-Count */
-	uint32_t FileCount = RdHeader->FileCount;
-	Addr_t RdPtr = BootDescriptor->RamDiskAddress + sizeof(MCoreRamDiskHeader_t);
+	/* Initialize the list of modules 
+	 * and servers so we can add later :-) */
+	GlbModules = ListCreate(KeyInteger, LIST_NORMAL);
 
-	/* Point to first entry */
-	MCoreRamDiskEntry_t *FilePtr = (MCoreRamDiskEntry_t*)RdPtr;
+	/* Store filecount so we can iterate */
+	Entry = (MCoreRamDiskEntry_t*)
+		(BootDescriptor->RamDiskAddress + sizeof(MCoreRamDiskHeader_t));
+	Counter = Ramdisk->FileCount;
 
-	/* Iterate */
-	while (FileCount != 0)
-	{
-		/* We only care about modules */
-		if (FilePtr->Type == RAMDISK_MODULE)
-		{
-			/* Get a pointer to the module header */
-			MCoreRamDiskModuleHeader_t *ModuleHeader = 
-				(MCoreRamDiskModuleHeader_t*)(BootDescriptor->RamDiskAddress + FilePtr->DataOffset);
+	/* Keep iterating untill we reach
+	 * the end of counter */
+	while (Counter != 0) {
+		if (Entry->Type == RAMDISK_MODULE
+				|| Entry->Type == RAMDISK_FILE) {
+			MCoreRamDiskModuleHeader_t *Header =
+				(MCoreRamDiskModuleHeader_t*)(BootDescriptor->RamDiskAddress + Entry->DataOffset); 
+			MCoreModule_t *Module = NULL;
 			DataKey_t Key;
 
-			/* Allocate a new module */
-			MCoreModule_t *Module = (MCoreModule_t*)kmalloc(sizeof(MCoreModule_t));
+			/* Allocate a new module header 
+			 * And copy some values */
+			Module = (MCoreModule_t*)kmalloc(sizeof(MCoreModule_t));
+			Module->Name = MStringCreate(Header->ModuleName, StrUTF8);
+			Module->Header = Header;
 
-			/* Set */
-			Module->Name = MStringCreate(ModuleHeader->ModuleName, StrUTF8);
-			Module->Header = ModuleHeader;
-			Module->Descriptor = NULL;
+			/* Update key based on the type of module
+			 * either its a server or a driver */
+			if (Header->Flags & RAMDISK_MODULE_SERVER) {
+				Key.Value = LIST_SERVER;
+			}
+			else {
+				Key.Value = LIST_MODULE;
+			}
 
 			/* Add to list */
-			Key.Value = 0;
-			ListAppend(GlbModMgrModules, ListCreateNode(Key, Key, Module));
+			ListAppend(GlbModules, ListCreateNode(Key, Key, Module));
 		}
 
 		/* Next! */
-		FilePtr++;
-		FileCount--;
+		Entry++;
+		Counter--;
 	}
 
-	/* Info */
-	LogInformation("MDMG", "Found %i Modules", GlbModMgrModules->Length);
+	/* Debug information */
+	LogInformation("MODS", "Found %i Modules and Servers", 
+		ListLength(GlbModules));
 
-	/* Done! */
-	GlbModMgrInitialized = 1;
+	/* Mark as initialized */
+	GlbModulesInitialized = 1;
 }
 
-/* Locate a generic module */
-MCoreModule_t *ModuleFindGeneric(uint32_t DeviceType, uint32_t DeviceSubType)
+/* ModulesRunServers
+ * Loads all iterated servers in the supplied ramdisk
+ * by spawning each one as a new process */
+void ModulesRunServers(void)
 {
-	foreach(mNode, GlbModMgrModules)
-	{
-		/* Cast */
-		MCoreModule_t *Module = (MCoreModule_t*)mNode->Data;
-
-		/* Sanity */
-		if (Module->Header->DeviceType == DeviceType
-			&& Module->Header->DeviceSubType == DeviceSubType)
-			return Module;
+	/* Sanitizie initialization status */
+	if (GlbModulesInitialized != 1) {
+		return;
 	}
 
-	/* Else return null, not found */
-	return NULL;
+	/* Iterate the server list */
+	foreach(sNode, GlbModules) {
+		/* Sanitize the key */
+		if (sNode->Key.Value == LIST_SERVER) {
+			/* Build Path */
+			MCorePhoenixRequest_t *Request = NULL;
+			MString_t *Path = MStringCreate("rd:/", StrUTF8);
+			MStringAppendString(Path, ((MCoreModule_t*)sNode->Data)->Name);
+
+			/* Create a phoenix request */
+			Request = (MCorePhoenixRequest_t*)kmalloc(sizeof(MCorePhoenixRequest_t));
+			Request->Base.Type = AshSpawn;
+			Request->Base.Cleanup = 1;
+
+			/* Set our parameters as well */
+			Request->Path = Path;
+			Request->Arguments = NULL;
+
+			/* Send off the request */
+			PhoenixCreateRequest(Request);
+		}
+	}
 }
 
-/* Locate a specific module */
-MCoreModule_t *ModuleFindSpecific(uint32_t VendorId, uint32_t DeviceId)
+/* ModulesQueryPath
+ * Retrieve a pointer to the file-buffer and its length 
+ * based on the given <rd:/> path */
+OsStatus_t ModulesQueryPath(MString_t *Path, void **Buffer, size_t *Length)
 {
-	foreach(mNode, GlbModMgrModules)
-	{
-		/* Cast */
-		MCoreModule_t *Module = (MCoreModule_t*)mNode->Data;
+	/* Build the token we are searcing for */
+	MString_t *Token = MStringSubString(Path, 
+		MStringFindReverse(Path, '/') + 1, -1);
+	OsStatus_t Result = OsError;
 
-		/* Sanity */
-		if (Module->Header->VendorId == VendorId
-			&& Module->Header->DeviceId == DeviceId)
-			return Module;
+	/* Sanitizie initialization status */
+	if (GlbModulesInitialized != 1) {
+		goto Exit;
 	}
 
-	/* Else return null, not found */
-	return NULL;
+	/* Iterate and compare */
+	foreach(sNode, GlbModules) {
+		MCoreModule_t *Mod = (MCoreModule_t*)sNode->Data;
+		if (MStringCompare(Token, Mod->Name, 1) != MSTRING_NO_MATCH) {
+			*Buffer = (void*)(
+				(Addr_t)Mod->Header + sizeof(MCoreRamDiskModuleHeader_t));
+			*Length = Mod->Header->Length;
+			Result = OsNoError;
+			break;
+		}
+	}
+	
+Exit:
+	/* Cleanup the token we created
+	 * and return the status */
+	MStringDestroy(Token);
+	return Result;
 }
 
-/* Locate a module by string */
-MCoreModule_t *ModuleFindStr(MString_t *Module)
+/* ModulesFindGeneric
+ * Resolve a 'generic' driver by its device-type and/or
+ * its device sub-type, this is generally used if there is no
+ * vendor specific driver available for the device. Returns NULL
+ * if none is available */
+MCoreModule_t *ModulesFindGeneric(DevInfo_t DeviceType, DevInfo_t DeviceSubType)
 {
-	foreach(mNode, GlbModMgrModules)
-	{
-		/* Cast */
-		MCoreModule_t *cModule = (MCoreModule_t*)mNode->Data;
-
-		/* Sanity */
-		if (MStringCompare(Module, cModule->Name, 0) == MSTRING_FULL_MATCH)
-			return cModule;
+	/* Sanitizie initialization status */
+	if (GlbModulesInitialized != 1) {
+		return NULL;
 	}
 
-	/* Else return null, not found */
-	return NULL;
-}
-
-/* Locates a module by address and returns the diff */
-MCoreModule_t *ModuleFindAddress(Addr_t Address)
-{
-	/* Keep track */
-	Addr_t BestMatch = 0xFFFFFFFF;
-	MCoreModule_t *BestModule = NULL;
-
-	foreach(mNode, GlbModMgrModules)
-	{
-		/* Cast */
-		MCoreModule_t *Module = (MCoreModule_t*)mNode->Data;
-
-		/* Sanity */
-		if (Module->Descriptor != NULL &&
-			Module->Descriptor->BaseVirtual <= Address)
-		{
-			/* Check delta */
-			if (Address - Module->Descriptor->BaseVirtual
-				< BestMatch)
-			{
-				BestModule = Module;
-				BestMatch = Address - Module->Descriptor->BaseVirtual;
-			}
+	/* Iterate the list of modules */
+	foreach(sNode, GlbModules) {
+		MCoreModule_t *Mod = (MCoreModule_t*)sNode->Data;
+		if (Mod->Header->DeviceType == DeviceType
+			&& Mod->Header->DeviceSubType == DeviceSubType) {
+			return Mod;
 		}
 	}
 
-	/* Else return null, not found */
-	return BestModule;
+	/* Dayum, return NULL upon no
+	 * results of the iteration */
+	return NULL;
 }
 
-/* Load a Module */
-ModuleResult_t ModuleLoad(MCoreModule_t *Module, void *Args)
+/* ModulesFindSpecific
+ * Resolve a specific driver by its vendorid and deviceid 
+ * this is to ensure optimal module load. Returns NULL 
+ * if none is available */
+MCoreModule_t *ModulesFindSpecific(DevInfo_t VendorId, DevInfo_t DeviceId)
 {
-	/* Sanity */
-	if (Module->Descriptor != NULL)
-	{
-		/* It is already loaded, 
-		 * The question is whether or 
-		 * not we should call constructor */
-		if (Module->Header->Flags & RAMDISK_MODULE_SHARED)
-			return ModuleOk;
-		else
-		{
-			/* Information */
-			LogInformation("MDMG", "Recycling Module %s", Module->Header->ModuleName);
+	/* Sanitizie initialization status */
+	if (GlbModulesInitialized != 1) {
+		return NULL;
+	}
 
-			/* Call entry point */
-			((ModuleEntryFunc)Module->Descriptor->EntryAddr)(Args);
-
-			/* Done! */
-			return ModuleOk;
+	/* Iterate the list of modules */
+	foreach(sNode, GlbModules) {
+		MCoreModule_t *Mod = (MCoreModule_t*)sNode->Data;
+		if (Mod->Header->VendorId == VendorId
+			&& Mod->Header->DeviceId == DeviceId) {
+			return Mod;
 		}
 	}
 
-	/* Information */
-	LogInformation("MDMG", "Loading Module %s", Module->Header->ModuleName);
+	/* Dayum, return NULL upon no
+	 * results of the iteration */
+	return NULL;
+}
 
-	/* Calculate the file data address */
-	uint8_t *ModData = 
-		(uint8_t*)((Addr_t)Module->Header + sizeof(MCoreRamDiskModuleHeader_t));
-
-	/* Parse & Relocate PE Module */
-	Module->Descriptor = PeLoadModule(&Module->Header->ModuleName[0], ModData, Module->Header->Length);
-
-	/* Sanity */
-	if (Module->Descriptor == NULL
-		|| Module->Descriptor->EntryAddr == 0)
-	{
-		LogFatal("MDMG", "Failed to load module");
-		return ModuleFailed;
+/* ModulesFindString
+ * Resolve a module by its name. Returns NULL if none
+ * is available */
+MCoreModule_t *ModulesFindString(MString_t *Module)
+{
+	/* Sanitizie initialization status */
+	if (GlbModulesInitialized != 1) {
+		return NULL;
 	}
 
-	/* Call entry point */
-	((ModuleEntryFunc)Module->Descriptor->EntryAddr)(Args);
+	/* Iterate the list of modules */
+	foreach(sNode, GlbModules) {
+		MCoreModule_t *Mod = (MCoreModule_t*)sNode->Data;
+		if (MStringCompare(Module, Mod->Name, 1) == MSTRING_FULL_MATCH) {
+			return Mod;
+		}
+	}
 
-	/* Done! */
-	return ModuleOk;
+	/* Dayum, return NULL upon no
+	 * results of the iteration */
+	return NULL;
 }

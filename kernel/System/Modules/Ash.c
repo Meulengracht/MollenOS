@@ -23,13 +23,14 @@
 
 /* Includes */
 #include <Modules/Phoenix.h>
+#include <Modules/Modules.h>
 #include <Vfs/VfsWrappers.h>
 #include <Threading.h>
 #include <stddef.h>
 
 /* Externs */
-extern PhxId_t GlbAshIdGenerator;
-extern List_t *GlbAshes;
+__CRT_EXTERN PhxId_t GlbAshIdGenerator;
+__CRT_EXTERN List_t *GlbAshes;
 
 /* This is the finalizor function for starting
  * up a new base Ash, it finishes setting up the environment
@@ -114,25 +115,34 @@ int PhoenixInitializeAsh(MCoreAsh_t *Ash, MString_t *Path)
 		return -1;
 	}
 
-	/* Open File */
-	File = VfsWrapperOpen(MStringRaw(Path), Read);
-
-	/* Sanity */
-	if (File->Code != VfsOk
-		|| File->File == NULL) {
-		VfsWrapperClose(File);
-		return -2;
+	/* Open File 
+	 * We have a special case here
+	 * in case we are loading from RD */
+	if (MStringFindChars(Path, "rd:/") != MSTRING_NOT_FOUND) {
+		if (ModulesQueryPath(Path, &fBuffer, &fSize) != OsNoError) {
+			return -2;
+		}
 	}
+	else {
+		File = VfsWrapperOpen(MStringRaw(Path), Read);
 
-	/* Allocate a buffer */
-	fSize = (size_t)File->File->Size;
-	fBuffer = (uint8_t*)kmalloc(fSize);
+		/* Sanity */
+		if (File->Code != VfsOk
+			|| File->File == NULL) {
+			VfsWrapperClose(File);
+			return -2;
+		}
 
-	/* Read */
-	VfsWrapperRead(File, fBuffer, fSize);
+		/* Allocate a buffer */
+		fSize = (size_t)File->File->Size;
+		fBuffer = (uint8_t*)kmalloc(fSize);
 
-	/* Close */
-	VfsWrapperClose(File);
+		/* Read */
+		VfsWrapperRead(File, fBuffer, fSize);
+
+		/* Close */
+		VfsWrapperClose(File);
+	}
 
 	/* Validate File */
 	if (!PeValidate(fBuffer, fSize)) {
@@ -150,8 +160,8 @@ int PhoenixInitializeAsh(MCoreAsh_t *Ash, MString_t *Path)
 	Ash->Type = AshBase;
 
 	/* Split path, even if a / is not found
-	* it won't fail, since -1 + 1 = 0, so we just copy
-	* the entire string */
+	 * it won't fail, since -1 + 1 = 0, so we just copy
+	 * the entire string */
 	Index = MStringFindReverse(File->File->Path, '/');
 	Ash->Name = MStringSubString(File->File->Path, Index + 1, -1);
 	Ash->Path = MStringCreate((void*)MStringRaw(File->File->Path), StrUTF8);

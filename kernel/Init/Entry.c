@@ -80,14 +80,17 @@ void MCoreInitialize(MCoreBootInfo_t *BootInfo)
 	 * from the static buffer */
 	LogUpgrade(LOG_PREFFERED_SIZE);
 
-	/* Init the device manager */
-	DmInit();
-
-	/* Initialize IoSpaces early */
+	/* We want to initialize IoSpaces as soon
+	 * as possible so devices and systems 
+	 * can register/claim their io-spaces */
 	IoSpaceInit();
 
-	/* Init ModuleManager */
-	ModuleMgrInit(&BootInfo->Descriptor);
+	/* Parse the ramdisk early, but we don't run
+	 * servers yet, this is not needed, but since there
+	 * is no dependancies yet, just do it */
+	if (ModulesInit(&BootInfo->Descriptor) != OsNoError) {
+		Idle();
+	}
 
 	/* Init Threading & Scheduler for boot cpu */
 	SchedulerInit(0);

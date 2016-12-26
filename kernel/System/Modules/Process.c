@@ -1,25 +1,26 @@
 /* MollenOS
-*
-* Copyright 2011 - 2016, Philip Meulengracht
-*
-* This program is free software : you can redistribute it and / or modify
-* it under the terms of the GNU General Public License as published by
-* the Free Software Foundation ? , either version 3 of the License, or
-* (at your option) any later version.
-*
-* This program is distributed in the hope that it will be useful,
-* but WITHOUT ANY WARRANTY; without even the implied warranty of
-* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.See the
-* GNU General Public License for more details.
-*
-* You should have received a copy of the GNU General Public License
-* along with this program.If not, see <http://www.gnu.org/licenses/>.
-*
-*
-* MollenOS MCore - Processes Implementation
-*/
+ *
+ * Copyright 2011 - 2017, Philip Meulengracht
+ *
+ * This program is free software : you can redistribute it and / or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation ? , either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.If not, see <http://www.gnu.org/licenses/>.
+ *
+ *
+ * MollenOS MCore - Processes Implementation
+ */
 
-/* Includes */
+/* Includes 
+ * - System */
 #include <Arch.h>
 #include <Modules/Process.h>
 #include <Vfs/VfsWrappers.h>
@@ -29,14 +30,15 @@
 #include <Scheduler.h>
 #include <Log.h>
 
-/* CLib */
+/* Includes
+ * - C-Library */
 #include <stddef.h>
 #include <ds/list.h>
 #include <ds/mstring.h>
 #include <string.h>
 
 /* Externs */
-extern List_t *GlbAshes;
+__CRT_EXTERN List_t *GlbAshes;
 
 /* This is the finalizor function for starting
  * up a new Ash Process, it finishes setting up the environment
