@@ -22,7 +22,6 @@
       Id="207a7711-36b5-40b9-b000-7a401d397d3c">
       <body>ToDo:
 
-- Rewrite module/peloader
  - Rewrite existing device code in kernel to new system
  - Switch to new code
  - Fit and implement

@@ -134,9 +134,9 @@ void MCoreInitialize(MCoreBootInfo_t *BootInfo)
 	ServerInit();
 
 	/* From this point, we should start seperate threads and
-	* let this thread die out, because initial system setup
-	* is now totally done, and the moment we start another
-	* thread, it will take over as this is the idle thread */
+	 * let this thread die out, because initial system setup
+	 * is now totally done, and the moment we start another
+	 * thread, it will take over as this is the idle thread */
 	ThreadingCreateThread("Bus Enumeration", MCoreKickStartBus, NULL, 0);
 
 	/* Enter Idle Loop */

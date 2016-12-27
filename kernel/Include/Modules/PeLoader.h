@@ -1,40 +1,50 @@
 /* MollenOS
-*
-* Copyright 2011 - 2016, Philip Meulengracht
-*
-* This program is free software : you can redistribute it and / or modify
-* it under the terms of the GNU General Public License as published by
-* the Free Software Foundation ? , either version 3 of the License, or
-* (at your option) any later version.
-*
-* This program is distributed in the hope that it will be useful,
-* but WITHOUT ANY WARRANTY; without even the implied warranty of
-* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.See the
-* GNU General Public License for more details.
-*
-* You should have received a copy of the GNU General Public License
-* along with this program.If not, see <http://www.gnu.org/licenses/>.
-*
-*
-* MollenOS MCore - PE Format Loader
-*/
+ *
+ * Copyright 2011 - 2017, Philip Meulengracht
+ *
+ * This program is free software : you can redistribute it and / or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation ? , either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.If not, see <http://www.gnu.org/licenses/>.
+ *
+ *
+ * MollenOS MCore - PE Format Loader
+ */
 
 #ifndef __MCORE_PELOADER__
 #define __MCORE_PELOADER__
 
-/* Includes */
+/* Includes 
+ * - System */
 #include <Arch.h>
 
-/* C-Library */
-#include <stdint.h>
+/* Includes
+ * - C-Library */
 #include <ds/list.h>
 #include <ds/mstring.h>
+#include <os/osdefs.h>
 
-/* Definitions */
+/* Magic Constants used for data integrity */
 #define MZ_MAGIC			0x5A4D
-
 #define PE_MAGIC			0x00004550
 
+/* Used by PeValidate, and is returned in either case
+ * to indicate whether or not the PE file is a valid file */
+#define PE_INVALID			0
+#define PE_VALID			1
+
+/* The available values for the machine field in the
+ * PE headers, and must of course match the current machine
+ * that is running the pe-file, otherwise its build for a 
+ * differnet machine */
 #define PE_MACHINE_UNKNOWN	0x0
 #define PE_MACHINE_AM33		0x1D3
 #define PE_MACHINE_X64		0x8664
@@ -45,6 +55,9 @@
 #define PE_MACHINE_X32		0x14C
 #define PE_MACHINE_IA64		0x200
 
+/* Describes any special attribute that the PE-file
+ * expects to be executed with. Could be no relocations
+ * large addresses or only 32 bit */
 #define PE_ATTRIBUTE_NORELOCATION		0x0001
 #define PE_ATTRIBUTE_VALID				0x0002
 #define PE_ATTRIBUTE_NOLINENUMS			0x0004
@@ -54,9 +67,15 @@
 #define PE_ATTRIBUTE_SYSTEM				0x1000
 #define PE_ATTRIBUTE_DLL				0x2000
 
+/* Available architectures for a PE-file. Which at the
+ * moment only means 32 and 64 bit archs untill 128 some day comes :-) */
 #define PE_ARCHITECTURE_32				0x10B
 #define PE_ARCHITECTURE_64				0x20B
 
+/* The available subsystem types in the subsystem
+ * field of the PE headers. Use this to determine the
+ * kind of environment the PE-file expects to be executed
+ * in */
 #define PE_SUBSYSTEM_UNKNOWN			0x0
 #define PE_SUBSYSTEM_NATIVE				0x1
 #define PE_SUBSYSTEM_WINDOWS_GUI		0x2
@@ -78,6 +97,25 @@
 #define PE_DLL_ATTRIBUTE_WDM_DRIVER			0x2000
 #define PE_DLL_ATTRIBUTE_TERMINAL_AWARE		0x8000
 
+/* We define some helpers in order to determine 
+ * some information about the current build, this
+ * is so we can do proper validation of the loaded
+ * binary */
+#if defined(_X86_32) || defined(_X86_64)
+#ifdef _X86_32
+#define PE_CURRENT_MACHINE	PE_MACHINE_X32
+#define PE_CURRENT_ARCH		PE_ARCHITECTURE_32
+#else
+#define PE_CURRENT_MACHINE	PE_MACHINE_X64
+#define PE_CURRENT_ARCH		PE_ARCHITECTURE_64
+#endif
+#else
+/* Uh arm and such.. */
+#endif
+
+/* Section definitions, these are the possible
+ * section types available in a PE image. Not all these
+ * are relevant for MollenOS */
 #define PE_SECTION_EXPORT			0x0
 #define PE_SECTION_IMPORT			0x1
 #define PE_SECTION_RESOURCE			0x2
@@ -95,7 +133,11 @@
 #define PE_SECTION_CLR				0xE /* CLR Runtime Header */
 
 #define PE_NUM_DIRECTORIES			0x10
+#define PE_SECTION_NAME_LENGTH		8
 
+/* Section flags definitions, every section has
+ * some available flags to determine which kind of
+ * section it is, and how it should be handled */
 #define PE_SECTION_NO_PADDING		0x00000008
 #define PE_SECTION_CODE				0x00000020
 #define PE_SECTION_DATA				0x00000040
@@ -117,44 +159,42 @@
  * is stored in the 32 bit virtual-address field of the first relocation entry */
 
 /* Relocation Types */
-#define PE_RELOCATION_ALIGN			0
-#define PE_RELOCATION_HIGH			1
-#define PE_RELOCATION_LOW			2
-#define PE_RELOCATION_HIGHLOW		3
-#define PE_RELOCATION_HIGHADJ		4
+#define PE_RELOCATION_ALIGN				0
+#define PE_RELOCATION_HIGH				1
+#define PE_RELOCATION_LOW				2
+#define PE_RELOCATION_HIGHLOW			3
+#define PE_RELOCATION_HIGHADJ			4
 
 /* Import Types */
-#define PE_IMPORT_CODE				0
-#define PE_IMPORT_DATA				1
-#define PE_IMPORT_CONST				2
+#define PE_IMPORT_CODE					0
+#define PE_IMPORT_DATA					1
+#define PE_IMPORT_CONST					2
 
-#define PE_IMPORT_NAME_ORDINAL		0
-#define PE_IMPORT_NAME				1
-#define PE_IMPORT_NAME_NOPREFIX		2
-#define PE_IMPORT_NAME_UNDECORATE	3
+#define PE_IMPORT_NAME_ORDINAL			0
+#define PE_IMPORT_NAME					1
+#define PE_IMPORT_NAME_NOPREFIX			2
+#define PE_IMPORT_NAME_UNDECORATE		3
 
-#define PE_IMPORT_ORDINAL_32		0x80000000
-#define PE_IMPORT_NAMEMASK			0x7FFFFFFF
-#define PE_IMPORT_ORDINAL_64		0x8000000000000000
+#define PE_IMPORT_ORDINAL_32			0x80000000
+#define PE_IMPORT_NAMEMASK				0x7FFFFFFF
+#define PE_IMPORT_ORDINAL_64			0x8000000000000000
 
 /* Debug Types */
 #define PE_DEBUG_TYPE_UNKNOWN			0
-#define PE_DEBUG_TYPE_COFF			1
-#define PE_DEBUG_TYPE_PDB			2
-#define PE_DEBUG_TYPE_FPO			3
-#define PE_DEBUG_TYPE_DBG			4
+#define PE_DEBUG_TYPE_COFF				1
+#define PE_DEBUG_TYPE_PDB				2
+#define PE_DEBUG_TYPE_FPO				3
+#define PE_DEBUG_TYPE_DBG				4
 #define PE_DEBUG_TYPE_EXCEPTION			5
-#define PE_DEBUG_TYPE_FIXUP			6
+#define PE_DEBUG_TYPE_FIXUP				6
 #define PE_DEBUG_TYPE_OMAP2SRC			7
 #define PE_DEBUG_TYPE_OMAP_FROM_SRC		8
 #define PE_DEBUG_TYPE_BORLAND			9
 #define PE_DEBUG_TYPE_RESERVED			10
-#define PE_DEBUG_TYPE_CLSID			11
+#define PE_DEBUG_TYPE_CLSID				11
 
-/* The Kernel Module Name */
-#define PE_KERNEL_MODULE			"MCore.mos"
-
-/* Structures */
+/* The MZ header which is the base for a PE/COM/DOS
+ * file, extra headers are added afterwards */
 #pragma pack(push, 1)
 typedef struct _MzHeader
 {
@@ -210,6 +250,8 @@ typedef struct _MzHeader
 } MzHeader_t;
 #pragma pack(pop)
 
+/* The PE header, which is an extension of the
+ * MZ header, and adds a lot of new features */
 #pragma pack(push, 1)
 typedef struct _PeHeader
 {
@@ -242,7 +284,9 @@ typedef struct _PeHeader
 } PeHeader_t;
 #pragma pack(pop)
 
-/* Data Directory */
+/* Describes a data-directory entry in the
+ * PE metadata. There is a max of 16 directories, and each
+ * entry is fixed for its type/index */
 #pragma pack(push, 1)
 typedef struct _PeDataDirectory
 {
@@ -255,8 +299,10 @@ typedef struct _PeDataDirectory
 } PeDataDirectory_t;
 #pragma pack(pop)
 
-/* The optional header follows directly after
- * the base header */
+/* PE-Optional-Header
+ * This is the shared optional header, we can use it to 
+ * determine which optional-version to use. It follows
+ * directly after the base header */
 #pragma pack(push, 1)
 typedef struct _PeOptionalHeader
 {
@@ -282,7 +328,8 @@ typedef struct _PeOptionalHeader
 
 } PeOptionalHeader_t;
 
-/* The 32 Bit Header */
+/* PE-Optional-Header
+ * The 32 bit version of the optional header */
 typedef struct _PeOptionalHeader32
 {
 	/* Architecture */
@@ -349,7 +396,8 @@ typedef struct _PeOptionalHeader32
 
 } PeOptionalHeader32_t;
 
-/* The 64 Bit Header */
+/* PE-Optional-Header
+ * The 64 bit version of the optional header */
 typedef struct _PeOptionalHeader64
 {
 	/* Architecture */
@@ -423,7 +471,7 @@ typedef struct _PeOptionalHeader64
 typedef struct _PeSectionHeader
 {
 	/* Section Name */
-	uint8_t Name[8];
+	uint8_t Name[PE_SECTION_NAME_LENGTH];
 
 	/* Virtual Size */
 	uint32_t VirtualSize;
@@ -455,7 +503,10 @@ typedef struct _PeSectionHeader
 } PeSectionHeader_t;
 #pragma pack(pop)
 
-/* The Debug Directory */
+/* PE-Directory
+ * The Debug Directory, either it actually contains
+ * debug information (old versions of pe), or it contains
+ * a PDB entry as described by the pdb header */
 typedef struct _PeDebugDirectory 
 {
 	/* Flags */
@@ -478,7 +529,10 @@ typedef struct _PeDebugDirectory
 
 } PeDebugDirectory_t;
 
-/* The PDB Entry */
+/* PE-PDB Entry Header
+ * Describes where and the name of the pdb
+ * file resides, usually in same folder as binary
+ * as the name is just the name of the file */
 #pragma pack(push, 1)
 typedef struct _PePdbInformation
 {
@@ -497,7 +551,10 @@ typedef struct _PePdbInformation
 } PePdbInformation_t;
 #pragma pack(pop)
 
-/* The Export Directory */
+/* PE-Directory
+ * The Export Directory, contains a list
+ * of exported functions, their ordinals and
+ * function names. */
 typedef struct _PeExportDirectory
 {
 	/* Flags */
@@ -529,7 +586,10 @@ typedef struct _PeExportDirectory
 
 } PeExportDirectory_t;
 
-/* The Import Directory */
+/* PE-Directory
+ * The Import Directory, contains a list of
+ * Pe-Import-Headers that each describe a new
+ * image dependancy */
 typedef struct _PeImportDirectory
 {
 	/* Signature 1 - Must be 0 */
@@ -560,7 +620,9 @@ typedef struct _PeImportDirectory
 
 } PeImportDirectory_t;
 
-/* The Import Descriptor */
+/* PE-Import-Header 
+ * The Import Descriptor, describes a new
+ * library dependancy */
 typedef struct _PeImportDescriptor
 {
 	/* Either it's the one,
@@ -589,62 +651,61 @@ typedef struct _PeImportDescriptor
 
 } PeImportDescriptor_t;
 
-/* An exported function */
-typedef struct _MCorePeExportFunction
-{
-	/* Name */
+/* The Pe-Image file exports a number of functions
+ * and to avoid re-parsing every time we want to resolve
+ * a function we cache them here, an exported function consists
+ * of a name, ordinal and where they reside in memory */
+typedef struct _MCorePeExportFunction {
 	char *Name;
-
-	/* Ordinal */
-	uint32_t Ordinal;
-
-	/* Address */
-	Addr_t Address;
-
+	int Ordinal;
+	Addr_t Address; /* Absolute Address */
 } MCorePeExportFunction_t;
 
-/* The PEFile */
-typedef struct _MCorePeFile
-{
-	/* Name ? */
+/* The Pe-Image file structure, this contains the
+ * loaded binaries and libraries, the functions an 
+ * image exports and base-information */
+typedef struct _MCorePeFile {
 	MString_t *Name;
-
-	/* Architecture */
 	uint32_t Architecture;
-
-	/* Base Virtual */
-	Addr_t BaseVirtual;
-
-	/* Entry Point */
-	Addr_t EntryAddr;
-
-	/* Stats */
+	Addr_t VirtualAddress;
+	Addr_t EntryAddress;
 	int References;
-
-	/* Exported Functions */
 	List_t *ExportedFunctions;
-
-	/* Loaded Libraries */
 	List_t *LoadedLibraries;
-
 } MCorePeFile_t;
 
-/* Prototypes */
-
-/* Load Kernel Exports */
-__CRT_EXTERN void PeLoadKernelExports(Addr_t KernelBase, Addr_t TableOffset);
-
-/* Validate a buffer containing a PE */
+/* PeValidate
+ * Validates a file-buffer of the given length,
+ * does initial header checks and performs a checksum
+ * validation. Returns either PE_INVALID or PE_VALID */
 __CRT_EXTERN int PeValidate(uint8_t *Buffer, size_t Length);
 
-/* Used exclusively for module loading */
-__CRT_EXTERN MCorePeFile_t *PeLoadModule(uint8_t *Name, uint8_t *Buffer, size_t Length);
+/* PeResolveLibrary
+ * Resolves a dependancy or a given module path, a load address must be provided
+ * together with a pe-file header to fill out and the parent that wants to resolve
+ * the library */
+__CRT_EXTERN MCorePeFile_t *PeResolveLibrary(MCorePeFile_t *Parent,
+	MCorePeFile_t *PeFile, MString_t *LibraryName, Addr_t *LoadAddress);
 
-/* Generic */
-__CRT_EXTERN MCorePeFile_t *PeLoadImage(MCorePeFile_t *Parent, MString_t *Name, uint8_t *Buffer, size_t Length, Addr_t *BaseAddress);
-__CRT_EXTERN MCorePeFile_t *PeResolveLibrary(MCorePeFile_t *Parent, MCorePeFile_t *PeFile, MString_t *LibraryName, Addr_t *NextLoadAddress);
+/* PeResolveFunction
+ * Resolves a function by name in the given pe image, the return
+ * value is the address of the function */
+__CRT_EXTERN Addr_t PeResolveFunction(MCorePeFile_t *Library, const char *Function);
+
+/* PeLoadImage
+ * Loads the given file-buffer as a pe image into the current address space 
+ * at the given Base-Address, which is updated after load to reflect where
+ * the next address is available for load */
+__CRT_EXTERN MCorePeFile_t *PeLoadImage(MCorePeFile_t *Parent, MString_t *Name,
+	uint8_t *Buffer, size_t Length, Addr_t *BaseAddress);
+
+/* PeUnloadLibrary
+ * Unload dynamically loaded library 
+ * This only cleans up in the case there are no more references */
 __CRT_EXTERN void PeUnloadLibrary(MCorePeFile_t *Parent, MCorePeFile_t *Library);
-__CRT_EXTERN Addr_t PeResolveFunctionAddress(MCorePeFile_t *Library, const char *Function);
-__CRT_EXTERN void PeUnload(MCorePeFile_t *Executable);
+
+/* PeUnloadImage
+ * Unload executables, all it's dependancies and free it's resources */
+__CRT_EXTERN void PeUnloadImage(MCorePeFile_t *Executable);
 
 #endif //!__MCORE_PELOADER__

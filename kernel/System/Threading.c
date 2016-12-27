@@ -509,7 +509,7 @@ void ThreadingEnterUserMode(void *AshInfo)
 
 	/* Underlying Call  */
 	IThreadInitUserMode(cThread->ThreadData, Ash->StackStart,
-		Ash->Executable->EntryAddr, MEMORY_LOCATION_USER_ARGS);
+		Ash->Executable->EntryAddress, MEMORY_LOCATION_USER_ARGS);
 
 	/* This initiates the transition 
 	 * nothing happpens before this */
