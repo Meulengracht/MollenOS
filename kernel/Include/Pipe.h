@@ -31,6 +31,8 @@
 #include <crtdefs.h>
 #include <stdint.h>
 
+#define PIPE_INSECURE	0x1
+
 /* Structure */
 typedef struct _MCorePipe
 {
@@ -39,6 +41,7 @@ typedef struct _MCorePipe
 
 	/* Length of buffer */
 	size_t Length;
+	Flags_t Flags;
 
 	/* Index */
 	size_t IndexWrite;
@@ -58,10 +61,10 @@ typedef struct _MCorePipe
 } MCorePipe_t;
 
 /* Initialise a new pipe */
-__CRT_EXTERN MCorePipe_t *PipeCreate(size_t Size);
+__CRT_EXTERN MCorePipe_t *PipeCreate(size_t Size, Flags_t Flags);
 
 /* Construct a new pipe */
-__CRT_EXTERN void PipeConstruct(MCorePipe_t *Pipe, uint8_t *Buffer, size_t BufferLength);
+__CRT_EXTERN void PipeConstruct(MCorePipe_t *Pipe, uint8_t *Buffer, size_t BufferLength, Flags_t Flags);
 
 /* Destroy Pipe */
 __CRT_EXTERN void PipeDestroy(MCorePipe_t *Pipe);

@@ -41,20 +41,7 @@ extern void enter_thread(Registers_t *Regs);
 /* Use this to lookup the faulty module or process */
 void LookupFault(Addr_t Address, Addr_t *Base, char **Name)
 {
-	if (Address >= MEMORY_LOCATION_MODULES
-		&& Address < (MEMORY_LOCATION_MODULES + 0x1000000))
-	{
-		/* Try to find the module */
-		MCoreModule_t *Module = ModuleFindAddress(Address);
-
-		/* Sanity */
-		if (Module != NULL) {
-			*Base = Module->Descriptor->BaseVirtual;
-			*Name = (char*)&Module->Header->ModuleName[0];
-			return;
-		}
-	}
-	else if (Address >= MEMORY_LOCATION_USER
+	if (Address >= MEMORY_LOCATION_USER
 		&& Address < MEMORY_LOCATION_USER_HEAP)
 	{
 		/* Get current process information */
@@ -64,16 +51,16 @@ void LookupFault(Addr_t Address, Addr_t *Base, char **Name)
 		if (Ash != NULL
 			&& Ash->Executable != NULL) {
 			char *PmName = (char*)MStringRaw(Ash->Executable->Name);
-			Addr_t PmBase = Ash->Executable->BaseVirtual;
+			Addr_t PmBase = Ash->Executable->VirtualAddress;
 
 			/* Iterate libraries to find the sinner
 			 * We only want one */
 			if (Ash->Executable->LoadedLibraries != NULL) {
 				foreach(lNode, Ash->Executable->LoadedLibraries) {
 					MCorePeFile_t *Lib = (MCorePeFile_t*)lNode->Data;
-					if (Address >= Lib->BaseVirtual) {
+					if (Address >= Lib->VirtualAddress) {
 						PmName = (char*)MStringRaw(Lib->Name);
-						PmBase = Lib->BaseVirtual;
+						PmBase = Lib->VirtualAddress;
 					}
 				}
 			}

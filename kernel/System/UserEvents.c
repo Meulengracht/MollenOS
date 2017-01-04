@@ -56,7 +56,7 @@ void EmRegisterSystemTarget(PhxId_t ProcessId)
 }
 
 /* Write data to pointer pipe */
-void EmCreateEvent(MEventMessageBase_t *Event)
+void EmCreateEvent(MEventMessage_t *Event)
 {
 	/* Temp Buffer */
 	uint8_t NotRecycleBin[64];

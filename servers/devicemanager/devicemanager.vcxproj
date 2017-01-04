@@ -35,7 +35,7 @@
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Build_X86_32|Win32'">
     <LinkIncremental>false</LinkIncremental>
-    <TargetExt>.srv</TargetExt>
+    <TargetExt>.dll</TargetExt>
     <IncludePath>..\..\librt\include;..\include</IncludePath>
     <LibraryPath>..\..\librt\build</LibraryPath>
     <SourcePath />
@@ -47,7 +47,7 @@
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <WarningLevel>EnableAllWarnings</WarningLevel>
       <Optimization>Full</Optimization>
-      <PreprocessorDefinitions>MOLLENOS;_X86_32;</PreprocessorDefinitions>
+      <PreprocessorDefinitions>MOLLENOS;_X86_32;__DEVICEMANAGER_EXPORT</PreprocessorDefinitions>
       <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
       <TreatWarningAsError>true</TreatWarningAsError>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>

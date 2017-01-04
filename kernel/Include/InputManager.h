@@ -22,16 +22,15 @@
 #ifndef _MCORE_EVENT_MANAGER_H_
 #define _MCORE_EVENT_MANAGER_H_
 
-/* Includes */
+/* Includes 
+ * - System */
 #include <os/osdefs.h>
-
-/* Include Ipc */
-#include <os/Ipc.h>
+#include <os/ipc.h>
 
 /* Prototypes */
 __CRT_EXTERN void EmRegisterSystemTarget(PhxId_t ProcessId);
 
 /* Write data to pointer pipe */
-_CRT_EXPORT void EmCreateEvent(MEventMessageBase_t *Event);
+_CRT_EXPORT void EmCreateEvent(MEventMessage_t *Event);
 
 #endif // !_MCORE_INPUT_MANAGER_H_

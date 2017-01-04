@@ -26,15 +26,35 @@
 
 /* Includes
  * - C-Library */
+#include <os/ipc/rpc.h>
 #include <os/osdefs.h>
-#include <os/ipc.h>
 
 /* These definitions are in-place to allow a custom
  * setting of the device-manager, these are set to values
  * where in theory it should never be needed to have more */
+#define DEVICE_INVALID		0
 #define MAX_IRQS			8
 #define MAX_IOSPACES		6
 #define IOSPACE_END			-1
+
+/* The export/usage macro definition
+ * since only the actually systems export
+ * and everything else imports/uses */
+#ifdef __DEVICEMANAGER_EXPORT
+#define __DEV_API __declspec(dllexport)
+#else
+#define __DEV_API static __CRT_INLINE
+#endif
+
+/* Definitions for the device-api, these are 
+ * used only by this interface */
+#define __DEVICEMANAGER_LIBRARY			"devicemanager.dll"
+#define __DEVICEMANAGER_VERSION			1
+
+/* Guard against CPP code */
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 /* This is the base device structure definition
  * and is passed on to all drivers on their initialization
@@ -80,63 +100,44 @@ typedef struct _MCoreDevice
 
 } MCoreDevice_t;
 
-/* Device Manager IPC Requests 
- * These are the IPC requests that
- * the devicemanager can handle */
-typedef enum _MCoreDeviceRequestType
+/* The register device RPC
+ * Use this to register a new device with the device-manager
+ * the returned value will be the id of the new device */
+__DEV_API
+#ifdef __DEVICEMANAGER_EXPORT
+DECLRPC(RegisterDevice(MCoreDevice_t *Device));
+#else
+DevId_t RegisterDevice(MCoreDevice_t *Device)
 {
-	IpcRegisterDevice,
-	IpcUnregisterDevice,
+	/* Variables */
+	MCoreRPC_t RpcPackage;
+	DevId_t DeviceId = 0;
+	int ErrorCode = 0;
+	void *Result = NULL;
 
-	IpcQueryDevice,
-	IpcControlDevice
+	/* Initialize a new RPC structure 
+	 * with the correct function name, and function
+	 * parameter package */
+	RPCInitialize(&RpcPackage, __DEVICEMANAGER_LIBRARY,
+		"RegisterDevice", __DEVICEMANAGER_VERSION);
+	RPCSetArgument(&RpcPackage, 0, 
+		(const void*)Device, sizeof(MCoreDevice_t));
+	Result = RPCEvaluate(&RpcPackage, &ErrorCode);
 
-} MCoreDeviceRequestType_t;
+	/* Sanitize the result */
+	if (ErrorCode == 0
+		&& Result != NULL) {
+		return *((DevId_t*)Result);
+	}
+	else {
+		return DEVICE_INVALID;
+	}
+}
+#endif
 
-/* Device Manager IPC Base 
- * This describes the base message of
- * a request for the device-manager and
- * should be used for all communication 
- * from/to device manager */
-typedef struct _MCoreDeviceRequest
-{
-	/* Base of an IPC */
-	MEventMessage_t Base;
-
-	/* Ipc Request Type */
-	MCoreDeviceRequestType_t Type;
-
-	/* The device in question for the
-	 * ipc operation - only need the id */
-	DevId_t DeviceId;
-
-	/* Fields here are read only
-	 * they are response fields that
-	 * results of the ipc request */
-	OsStatus_t Result;
-
-} MCoreDeviceRequest_t;
-
-/* Device Initialization
- * Initializes the device for use and enables
- * any irq(s) that is associated for the device
- * the requesting driver must handle irq events */
-_MOS_API int DeviceInitialize(MCoreDevice_t*);
-
-/* Device Shutdown
- * Disables the device and unregisteres any irq
- * that might have been previously registered
- * and unloads any children devices */
-_MOS_API int DeviceShutdown(MCoreDevice_t*);
-
-/* Device Query
- * Queries the given device for information, see
- * the different query-types available above */
-_MOS_API int DeviceQuery(MCoreDevice_t*);
-
-/* Device Control
- * Control the given device by making modification
- * the to the bus settings or irq status */
-_MOS_API int DeviceControl(MCoreDevice_t*);
+/* End of the cpp guard */
+#ifdef __cplusplus
+}
+#endif
 
 #endif //!_MCORE_DEVICE_H_

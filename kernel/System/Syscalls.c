@@ -31,7 +31,7 @@
 /* C-Library */
 #include <assert.h>
 #include <stddef.h>
-#include <os/ipc.h>
+#include <os/ipc/ipc.h>
 #include <ds/list.h>
 #include <ds/mstring.h>
 #include <string.h>
@@ -310,7 +310,7 @@ Addr_t ScSharedObjectGetFunction(void *Handle, const char *Function)
 		return 0;
 
 	/* Try to resolve function */
-	return PeResolveFunctionAddress((MCorePeFile_t*)Handle, Function);
+	return PeResolveFunction((MCorePeFile_t*)Handle, Function);
 }
 
 /* Unloads a valid shared object handle
@@ -657,11 +657,11 @@ int ScMemoryUnshare(IpcComm_t Target, Addr_t TranslatedAddress, size_t Size)
 /* Opens a new pipe for the calling Ash process
  * and allows communication to this port from other
  * processes */
-int ScPipeOpen(int Port)
+int ScPipeOpen(int Port, Flags_t Flags)
 {
 	/* No need for any preperation on this call, the
 	 * underlying call takes care of validation as well */
-	return PhoenixOpenAshPipe(PhoenixGetAsh(PHOENIX_CURRENT), Port);
+	return PhoenixOpenAshPipe(PhoenixGetAsh(PHOENIX_CURRENT), Port, Flags);
 }
 
 /* Closes an existing pipe on a given port and
@@ -727,7 +727,9 @@ int ScPipeWrite(PhxId_t AshId, int Port, uint8_t *Message, size_t Length)
 	}
 
 	/* Fill in sender */
-	((MEventMessageBase_t*)Message)->Sender = Sender;
+	if (!(Pipe->Flags & PIPE_INSECURE)) {
+		((MRemoteCall_t*)Message)->Sender = Sender;
+	}
 
 	/* Write */
 	return PipeWrite(Pipe, Length, Message);
@@ -773,6 +775,76 @@ int ScIpcWake(IpcComm_t Target)
 
 	/* Now we should have waked up the waiting process */
 	return 0;
+}
+
+/* ScRpcResponse (System Call)
+ * Waits for IPC RPC request to finish 
+ * by polling the default pipe for a rpc-response */
+OsStatus_t ScRpcResponse(MRemoteCall_t *Rpc)
+{
+	/* Variables */
+	MCoreAsh_t *Ash = NULL;
+	MCorePipe_t *Pipe = NULL;
+
+	/* Resolve the current running process
+	 * and the default pipe in the rpc */
+	Ash = PhoenixGetAsh(ThreadingGetCurrentThread(ApicGetCpu())->AshId);
+	Pipe = PhoenixGetAshPipe(Ash, Rpc->Port);
+
+	/* Sanitize the lookups */
+	if (Ash == NULL || Pipe == NULL
+		|| Rpc->Result.InUse == 0) {
+		return OsError;
+	}
+
+	/* Read the data into the response-buffer */
+	PipeRead(Pipe, Rpc->Result.Length, Rpc->Result.Buffer, 0);
+
+	/* Done, it finally ran! */
+	return OsNoError;
+}
+
+/* ScRpcExecute (System Call)
+ * Executes an IPC RPC request to the
+ * given process and optionally waits for
+ * a reply/response */
+OsStatus_t ScRpcExecute(MRemoteCall_t *Rpc, IpcComm_t Target, int Async)
+{
+	/* Variables */
+	MCoreAsh_t *Ash = NULL;
+	MCorePipe_t *Pipe = NULL;
+	int i = 0;
+
+	/* Start out by resolving both the
+	 * process and pipe */
+	Ash = PhoenixGetAsh(Target);
+	Pipe = PhoenixGetAshPipe(Ash, Rpc->Port);
+
+	/* Sanitize the lookups */
+	if (Ash == NULL || Pipe == NULL) {
+		return OsError;
+	}
+
+	/* Install the sender */
+	Rpc->Sender = ThreadingGetCurrentThread(ApicGetCpu())->AshId;
+
+	/* Write the base request 
+	 * and then iterate arguments and write them */
+	PipeWrite(Pipe, sizeof(MRemoteCall_t), (uint8_t*)Rpc);
+	for (i = 0; i < IPC_MAX_ARGUMENTS; i++) {
+		if (Rpc->Arguments[i].InUse) {
+			PipeWrite(Pipe, Rpc->Arguments[i].Length, Rpc->Arguments[i].Buffer);
+		}
+	}
+
+	/* Async request? Because if yes, don't
+	 * wait for response */
+	if (Async) {
+		return OsNoError;
+	}
+
+	/* Ok, wait for response */
+	return ScRpcResponse(Rpc);
 }
 
 /***********************
@@ -1330,7 +1402,8 @@ int ScDeviceQuery(DeviceType_t Type, uint8_t *Buffer, size_t BufferLength)
 	MCoreDeviceRequest_t Request;
 
 	/* Locate */
-	MCoreDevice_t *Device = DmGetDevice(Type);
+	MCoreDevice_t *Device = NULL;// DmGetDevice(Type);
+	_CRT_UNUSED(Type);
 
 	/* Sanity */
 	if (Device == NULL)
@@ -1349,8 +1422,8 @@ int ScDeviceQuery(DeviceType_t Type, uint8_t *Buffer, size_t BufferLength)
 	Request.DeviceId = Device->Id;
 	
 	/* Fire request */
-	DmCreateRequest(&Request);
-	DmWaitRequest(&Request, 1000);
+	//DmCreateRequest(&Request);
+	//DmWaitRequest(&Request, 1000);
 
 	/* Sanity */
 	if (Request.Base.State == EventOk)
@@ -1426,10 +1499,6 @@ int ScIoSpaceDestroy(DeviceIoSpace_t *IoSpace)
 }
 
 /*
-DefineSyscall(DmCreateDevice),
-DefineSyscall(DmRequestResource),
-DefineSyscall(DmGetDevice),
-DefineSyscall(DmDestroyDevice),
 DefineSyscall(AddressSpaceGetCurrent),
 DefineSyscall(AddressSpaceGetMap),
 DefineSyscall(AddressSpaceMapFixed),
@@ -1553,8 +1622,8 @@ Addr_t GlbSyscallTable[121] =
 	DefineSyscall(ScPipeWrite),
 	DefineSyscall(ScIpcSleep),
 	DefineSyscall(ScIpcWake),
-	DefineSyscall(NoOperation),
-	DefineSyscall(NoOperation),
+	DefineSyscall(ScRpcExecute),
+	DefineSyscall(ScRpcResponse),
 	DefineSyscall(NoOperation),
 	DefineSyscall(NoOperation),
 
@@ -1621,10 +1690,10 @@ Addr_t GlbSyscallTable[121] =
 	DefineSyscall(ScIoSpaceRead),
 	DefineSyscall(ScIoSpaceWrite),
 	DefineSyscall(ScIoSpaceDestroy),
-	DefineSyscall(DmCreateDevice),
-	DefineSyscall(DmRequestResource),
-	DefineSyscall(DmGetDevice),
-	DefineSyscall(DmDestroyDevice),
+	DefineSyscall(NoOperation),
+	DefineSyscall(NoOperation),
+	DefineSyscall(NoOperation),
+	DefineSyscall(NoOperation),
 	DefineSyscall(AddressSpaceGetCurrent),
 	DefineSyscall(AddressSpaceGetMap),
 	DefineSyscall(AddressSpaceMapFixed),

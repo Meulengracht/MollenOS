@@ -63,9 +63,6 @@
     <ClCompile Include="..\..\System\Timers.c">
       <Filter>Systems</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\System\Devices\DeviceManager.c">
-      <Filter>Systems\Devices</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\System\Devices\Fonts\VideoFont8x16.c">
       <Filter>Systems\Devices\Video</Filter>
     </ClCompile>

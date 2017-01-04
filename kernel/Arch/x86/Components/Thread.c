@@ -267,7 +267,7 @@ Registers_t *_ThreadingSwitch(Registers_t *Regs, int PreEmptive, size_t *TimeSli
 
 	/* Update Addressing Space */
 	MmVirtualSwitchPageDirectory(Cpu, 
-		(PageDirectory_t*)mThread->AddrSpace->PageDirectory, mThread->AddrSpace->Cr3);
+		(PageDirectory_t*)mThread->AddressSpace->PageDirectory, mThread->AddressSpace->Cr3);
 
 	/* Set TSS */
 	TssUpdateStack(Cpu, (Addr_t)tx86->Context);

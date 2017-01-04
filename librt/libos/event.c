@@ -1,6 +1,6 @@
 /* MollenOS
  *
- * Copyright 2011 - 2016, Philip Meulengracht
+ * Copyright 2011 - 2017, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,20 +16,19 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS MCore - Driver Definitions & Structures
- * - This header describes the base driver-structure, prototypes
- *   and functionality, refer to the individual things for descriptions
+ * MollenOS Inter-Process Communication Interface
  */
 
-#ifndef _MCORE_DRIVER_H_
-#define _MCORE_DRIVER_H_
+/* Includes
+ * - System */
+#include <os/syscall.h>
+#include <os/ipc/ipc.h>
 
-
-
-
-
-
-
-
-
-#endif //!_MCORE_DRIVER_H_
+/* EVTExecute
+ * Executes a new event to the desired target process
+ * the process must be listening on PIPE_EVENT to be able
+ * to recieve it. Events do not have replies */
+OsStatus_t EVTExecute(MEventMessage_t *Event, IpcComm_t Target)
+{
+	return Syscall2(SYSCALL_EVTEXEC, SYSCALL_PARAM(Event), SYSCALL_PARAM(Target));
+}

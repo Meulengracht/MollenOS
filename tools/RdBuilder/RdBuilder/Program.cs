@@ -13,7 +13,7 @@ namespace RdBuilder
         static void Main(string[] args)
         {
             /* Print Header */
-            Console.WriteLine("RamDisk Builder for MollenOS - Version 0.1 Alpha");
+            Console.WriteLine("RamDisk Builder for MollenOS - Version 0.2 Alpha");
             Console.WriteLine("Written by Philip Meulengracht");
             Console.WriteLine("");
 
@@ -43,7 +43,7 @@ namespace RdBuilder
 //            }
  
             /* Get a list of all *.mod */
-            String[] lFiles = Directory.GetFiles(Arch + "Build/", "*.mod");
+            String[] lFiles = Directory.GetFiles(Arch + "build/", "*.dll");
 
             /* Iterate */
             Console.WriteLine("Drivers Found:");
@@ -125,7 +125,7 @@ namespace RdBuilder
                     /* Write name bytes */
                     rdWriter.Write(NameData, 0, NameData.Length);
 
-                    /* Write Type (0x4 = Module, 0x1 = File(Generic)) */
+                    /* Write Type (0x4 = File(Module), 0x2 File(Diretory), 0x1 = File(Generic)) */
                     rdWriter.WriteByte(0x4);
                     rdWriter.WriteByte(0);
                     rdWriter.WriteByte(0);
@@ -251,8 +251,6 @@ namespace RdBuilder
 
                     /* Update position */
                     fDataPos = rdWriter.Position;
-
-                    /* Done */
                 }
 
                 /* Done, Cleanup */

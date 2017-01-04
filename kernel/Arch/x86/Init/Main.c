@@ -61,7 +61,7 @@ void BootInitializeApic(void)
 	/* Init the apic on the boot 
 	 * processor, then try to boot cpus */
 	ApicInitBoot();
-	CpuSmpInit();
+	//CpuSmpInit(); -- Disable till further notice, we need a fix for stall
 }
 
 /* This initializes all the basic parts of the HAL

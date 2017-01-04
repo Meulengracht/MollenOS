@@ -117,6 +117,7 @@
       <Filter>thread</Filter>
     </ClCompile>
     <ClCompile Include="..\..\libos\ipc.c" />
+    <ClCompile Include="..\..\libos\pipe.c" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\libos\mstring\MStringPrivate.h">

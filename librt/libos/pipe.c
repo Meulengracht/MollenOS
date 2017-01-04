@@ -1,6 +1,6 @@
 /* MollenOS
  *
- * Copyright 2011 - 2016, Philip Meulengracht
+ * Copyright 2011 - 2017, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,20 +16,17 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS IPC/Pipe Interface
+ * MollenOS Pipe Communication Interface
  */
 
 /* Includes
  * - System */
 #include <os/syscall.h>
-#include <os/ipc.h>
+#include <os/ipc/pipe.h>
 
 /* Includes
  * - C-Library */
 #include <signal.h>
-#include <stdarg.h>
-#include <stdio.h>
-#include <string.h>
 
 /* IPC - Open - Pipe
  * Opens a new communication pipe on the given
@@ -125,37 +122,4 @@ int PipeSend(IpcComm_t Target, int Port, void *Message, size_t Length)
 
 	/* Done! */
 	return Result;
-}
-
-/* IPC - Sleep
- * This suspends the current process-thread
- * and puts it in a sleep state untill either
- * the timeout runs out or it recieves a wake
- * signal. */
-int WaitForSignal(size_t Timeout)
-{
-	/* Variables */
-	int RetVal = 0;
-
-	/* Syscall! */
-	RetVal = Syscall1(SYSCALL_PSIGWAIT, SYSCALL_PARAM(Timeout));
-
-	/* Done! */
-	return RetVal;
-}
-
-/* IPC - Wake
- * This wakes up a thread in suspend mode on the
- * target. This should be used in conjunction with
- * the Sleep. */
-int SignalProcess(IpcComm_t Target)
-{
-	/* Variables */
-	int RetVal = 0;
-
-	/* Syscall! */
-	RetVal = Syscall1(SYSCALL_PSIGSEND, SYSCALL_PARAM(Target));
-
-	/* Done! */
-	return RetVal;
 }

@@ -103,7 +103,7 @@ void TimersDestroyTimer(TimerId_t TimerId)
 void SleepMs(size_t MilliSeconds)
 {
 	/* Lookup */
-	MCoreDevice_t *tDevice = DmGetDevice(DeviceTimer);
+	MCoreDevice_t *tDevice = NULL;//DmGetDevice(DeviceTimer);
 
 	/* Sanity - 
 	 * we make sure there is a timer present 
@@ -121,7 +121,7 @@ void SleepMs(size_t MilliSeconds)
 void StallMs(size_t MilliSeconds)
 {
 	/* Lookup */
-	MCoreDevice_t *tDevice = DmGetDevice(DeviceTimer);
+	MCoreDevice_t *tDevice = NULL;// DmGetDevice(DeviceTimer);
 	MCoreTimerDevice_t *Timer = NULL;
 
 	/* Sanity */
@@ -141,7 +141,7 @@ void StallMs(size_t MilliSeconds)
 void StallNs(size_t NanoSeconds)
 {
 	/* Lookup */
-	MCoreDevice_t *tDevice = DmGetDevice(DevicePerfTimer);
+	MCoreDevice_t *tDevice = NULL;// DmGetDevice(DevicePerfTimer);
 	MCoreTimerDevice_t *Timer = NULL;
 
 	/* Sanity */

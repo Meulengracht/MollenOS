@@ -41,6 +41,13 @@ void PhoenixFinishAsh(MCoreAsh_t *Ash)
 	Addr_t BaseAddress = MEMORY_LOCATION_USER;
 	Cpu_t CurrentCpu = ApicGetCpu();
 	MCoreThread_t *cThread = ThreadingGetCurrentThread(CurrentCpu);
+	int LoadedFromInitRD = 0;
+
+	/* Sanitize the loaded path, if we were
+	 * using the initrd set flags accordingly */
+	if (MStringFindChars(Ash->Path, "rd:/") != MSTRING_NOT_FOUND) {
+		LoadedFromInitRD = 1;
+	}
 
 	/* Update this thread */
 	Ash->MainThread = cThread->Id;
@@ -51,12 +58,17 @@ void PhoenixFinishAsh(MCoreAsh_t *Ash)
 
 	/* Load Executable */
 	Ash->Executable =
-		PeLoadImage(NULL, Ash->Name, Ash->FileBuffer, Ash->FileBufferLength, &BaseAddress);
+		PeLoadImage(NULL, Ash->Name, Ash->FileBuffer, 
+		Ash->FileBufferLength, &BaseAddress, LoadedFromInitRD);
 	Ash->NextLoadingAddress = BaseAddress;
 
 	/* Cleanup file buffer */
 	kfree(Ash->FileBuffer);
 	Ash->FileBuffer = NULL;
+
+	/* Create the mutex lock for
+	 * rpc-access by other threads */
+	Ash->RpcLock = MutexCreate();
 
 	/* Create the memory allocators */
 	Ash->Heap = BitmapCreate(MEMORY_LOCATION_USER_HEAP, MEMORY_LOCATION_USER_HEAP_END, PAGE_SIZE);
@@ -119,6 +131,7 @@ int PhoenixInitializeAsh(MCoreAsh_t *Ash, MString_t *Path)
 	 * We have a special case here
 	 * in case we are loading from RD */
 	if (MStringFindChars(Path, "rd:/") != MSTRING_NOT_FOUND) {
+		Ash->Path = MStringCreate((void*)MStringRaw(Path), StrUTF8);
 		if (ModulesQueryPath(Path, &fBuffer, &fSize) != OsNoError) {
 			return -2;
 		}
@@ -139,6 +152,10 @@ int PhoenixInitializeAsh(MCoreAsh_t *Ash, MString_t *Path)
 
 		/* Read */
 		VfsWrapperRead(File, fBuffer, fSize);
+
+		/* Save a copy of the path */
+		Ash->Path = MStringCreate(
+			(void*)MStringRaw(File->File->Path), StrUTF8);
 
 		/* Close */
 		VfsWrapperClose(File);
@@ -162,9 +179,8 @@ int PhoenixInitializeAsh(MCoreAsh_t *Ash, MString_t *Path)
 	/* Split path, even if a / is not found
 	 * it won't fail, since -1 + 1 = 0, so we just copy
 	 * the entire string */
-	Index = MStringFindReverse(File->File->Path, '/');
-	Ash->Name = MStringSubString(File->File->Path, Index + 1, -1);
-	Ash->Path = MStringCreate((void*)MStringRaw(File->File->Path), StrUTF8);
+	Index = MStringFindReverse(Ash->Path, '/');
+	Ash->Name = MStringSubString(Ash->Path, Index + 1, -1);
 
 	/* Save file buffer */
 	Ash->FileBuffer = fBuffer;
@@ -207,7 +223,7 @@ PhxId_t PhoenixStartupAsh(MString_t *Path)
 /* These function manipulate pipes on the given port
  * there are some pre-defined ports on which pipes
  * can be opened, window manager etc */
-int PhoenixOpenAshPipe(MCoreAsh_t *Ash, int Port)
+int PhoenixOpenAshPipe(MCoreAsh_t *Ash, int Port, Flags_t Flags)
 {
 	/* Variables */
 	MCorePipe_t *Pipe = NULL;
@@ -226,7 +242,7 @@ int PhoenixOpenAshPipe(MCoreAsh_t *Ash, int Port)
 	}
 
 	/* Open a new pipe */
-	Pipe = PipeCreate(ASH_PIPE_SIZE);
+	Pipe = PipeCreate(ASH_PIPE_SIZE, Flags);
 
 	/* Add it to the list */
 	ListAppend(Ash->Pipes, ListCreateNode(Key, Key, Pipe));
@@ -383,12 +399,15 @@ void PhoenixCleanupAsh(MCoreAsh_t *Ash)
 	/* Now destroy the pipe-list */
 	ListDestroy(Ash->Pipes);
 
+	/* Cleanup sync mecanisms */
+	MutexDestruct(Ash->RpcLock);
+
 	/* Cleanup memory allocators */
 	BitmapDestroy(Ash->Shm);
 	BitmapDestroy(Ash->Heap);
 
 	/* Cleanup executable data */
-	PeUnload(Ash->Executable);
+	PeUnloadImage(Ash->Executable);
 
 	/* Rest of memory is cleaned during
 	* address space cleanup */

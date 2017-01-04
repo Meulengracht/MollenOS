@@ -1,0 +1,6 @@
+#Driver Information
+VendorId = 00008086
+DeviceId = 00000000
+Class = 0000015A
+SubClass = 00000000
+Flags = 00000001

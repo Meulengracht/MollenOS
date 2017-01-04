@@ -372,9 +372,9 @@ void PciCreateDeviceFromPci(PciDevice_t *PciDev)
 		}
 	}
 
-	/* Register */
+	/* Register 
 	DmCreateDevice((char*)PciToString(PciDev->Header->Class,
-		PciDev->Header->Subclass, PciDev->Header->Interface), mDevice);
+		PciDev->Header->Subclass, PciDev->Header->Interface), mDevice); */
 }
 
 /* Install Driver Callback */

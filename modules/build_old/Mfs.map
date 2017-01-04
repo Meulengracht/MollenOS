@@ -1,0 +1,178 @@
+ Mfs
+
+ Timestamp is 58593980 (Tue Dec 20 15:00:32 2016)
+
+ Preferred load address is 10000000
+
+ Start         Length     Name                   Class
+ 0001:00000000 00000083H .text                   CODE
+ 0001:00000090 00002705H .text$mn                CODE
+ 0002:00000000 00000018H .idata$5                DATA
+ 0002:00000020 00000151H .rdata                  DATA
+ 0002:00000180 00000045H .edata                  DATA
+ 0002:000001c8 0000006cH .rdata$debug            DATA
+ 0002:00000234 00000014H .idata$2                DATA
+ 0002:00000248 00000014H .idata$3                DATA
+ 0002:0000025c 00000018H .idata$4                DATA
+ 0002:00000274 0000004aH .idata$6                DATA
+ 0003:00000000 0000050cH .data                   DATA
+ 0003:0000050c 0000000eH .bss                    DATA
+ 0004:00000000 00000058H .rsrc$01                DATA
+ 0004:00000060 00000180H .rsrc$02                DATA
+
+  Address         Publics by Value              Rva+Base       Lib:Object
+
+ 0000:00000000       ___safe_se_handler_table   00000000     <absolute>
+ 0000:00000000       ___guard_fids_table        00000000     <absolute>
+ 0000:00000000       ___safe_se_handler_count   00000000     <absolute>
+ 0000:00000000       ___guard_flags             00000000     <absolute>
+ 0000:00000000       ___guard_fids_count        00000000     <absolute>
+ 0001:00000000       _asm_memcpy_mmx            10001000     libk:_memcpy.obj
+ 0001:00000032       _asm_memcpy_sse            10001032     libk:_memcpy.obj
+ 0001:00000090       _MfsReadSectors            10001090 f   Mfs.obj
+ 0001:00000100       _MfsWriteSectors           10001100 f   Mfs.obj
+ 0001:000001c0       _MfsUpdateMb               100011c0 f   Mfs.obj
+ 0001:00000260       _MfsGetNextBucket          10001260 f   Mfs.obj
+ 0001:00000310       _MfsSetNextBucket          10001310 f   Mfs.obj
+ 0001:000003f0       _MfsAllocateBucket         100013f0 f   Mfs.obj
+ 0001:00000550       _MfsFreeBuckets            10001550 f   Mfs.obj
+ 0001:00000660       _MfsZeroBucket             10001660 f   Mfs.obj
+ 0001:00000700       _MfsUpdateEntry            10001700 f   Mfs.obj
+ 0001:00000870       _MfsLocateEntry            10001870 f   Mfs.obj
+ 0001:00000b90       _MfsFindFreeEntry          10001b90 f   Mfs.obj
+ 0001:00001010       _MfsCreateEntry            10002010 f   Mfs.obj
+ 0001:00001080       _MfsOpenFile               10002080 f   Mfs.obj
+ 0001:00001180       _MfsCloseFile              10002180 f   Mfs.obj
+ 0001:000011a0       _MfsOpenHandle             100021a0 f   Mfs.obj
+ 0001:00001220       _MfsCloseHandle            10002220 f   Mfs.obj
+ 0001:00001260       _MfsReadFile               10002260 f   Mfs.obj
+ 0001:00001550       _MfsWriteFile              10002550 f   Mfs.obj
+ 0001:00001ad0       _MfsDeleteFile             10002ad0 f   Mfs.obj
+ 0001:00001b00       _MfsSeek                   10002b00 f   Mfs.obj
+ 0001:00001ca0       _MfsQuery                  10002ca0 f   Mfs.obj
+ 0001:00001d10       _MfsDestroy                10002d10 f   Mfs.obj
+ 0001:00001d40       _ModuleInit                10002d40 f   Mfs.obj
+ 0001:00001fe0       _MemCpyBase                10002fe0 f   libk:memcpy.obj
+ 0001:00002060       _MemCpySelect              10003060 f   libk:memcpy.obj
+ 0001:00002090       _memcpy                    10003090 f   libk:memcpy.obj
+ 0001:000020b0       _memset                    100030b0 f   libk:memset.obj
+ 0001:00002170       _MStringFind               10003170 f   libk:mstringfind.obj
+ 0001:000021d0       _MStringCompare            100031d0 f   libk:mstringcompare.obj
+ 0001:000022d0       _MStringLength             100032d0 f   libk:mstringlength.obj
+ 0001:000022f0       _MStringSize               100032f0 f   libk:mstringlength.obj
+ 0001:00002300       _MStringSubString          10003300 f   libk:mstringsubstring.obj
+ 0001:00002410       _MStringDestroy            10003410 f   libk:mstringdestroy.obj
+ 0001:00002430       _MStringCopyUtf8ToUtf8     10003430 f   libk:mstringcreate.obj
+ 0001:00002490       _MStringNull               10003490 f   libk:mstringcreate.obj
+ 0001:000024d0       _MStringCreate             100034d0 f   libk:mstringcreate.obj
+ 0001:00002510       _MStringRaw                10003510 f   libk:mstringraw.obj
+ 0001:00002520       _Utf8GetNextCharacterInString 10003520 f   libk:mstringutf8.obj
+ 0001:000025a0       _Utf8CharacterCountInString 100035a0 f   libk:mstringutf8.obj
+ 0001:000025f0       ___get_global_locale       100035f0 f i libk:locale.obj
+ 0001:00002600       ___locale_ctype_ptr        10003600 f   libk:locale.obj
+ 0001:00002610       _tolower                   10003610 f   libk:tolower.obj
+ 0001:00002630       _dsalloc                   10003630 f   libk:ds.obj
+ 0001:00002640       _dsfree                    10003640 f   libk:ds.obj
+ 0001:00002650       __allmul                   10003650 f   libcrt:llmul.obj
+ 0001:00002690       __aulldiv                  10003690 f   libcrt:aulldiv.obj
+ 0001:00002700       __aulldvrm                 10003700 f   libcrt:aulldvrm.obj
+ 0002:00000000       __imp__DmCreateRequest     10004000     MCore:MCore.mos
+ 0002:00000004       __imp__LogFatal            10004004     MCore:MCore.mos
+ 0002:00000008       __imp__kmalloc             10004008     MCore:MCore.mos
+ 0002:0000000c       __imp__kfree               1000400c     MCore:MCore.mos
+ 0002:00000010       __imp__DmWaitRequest       10004010     MCore:MCore.mos
+ 0002:00000014       \177MCore_NULL_THUNK_DATA  10004014     MCore:MCore.mos
+ 0002:00000058       _GlbUtf8Offsets            10004058     libk:mstringutf8.obj
+ 0002:00000070       __ctype_                   10004070     libk:ctype_.obj
+ 0002:00000234       __IMPORT_DESCRIPTOR_MCore  10004234     MCore:MCore.mos
+ 0002:00000248       __NULL_IMPORT_DESCRIPTOR   10004248     MCore:MCore.mos
+ 0003:000003a0       ___global_locale           100053a0     libk:locale.obj
+ 0003:0000050c       ___GlbMemCpyInstance       1000550c     libk:memcpy.obj
+
+ entry point at        0000:00000000
+
+ Static symbols
+
+ 0000:ffff8000       .debug$S                   10000000     MCore:MCore.mos
+ 0000:ffff8000       .debug$S                   10000000     MCore:MCore.mos
+ 0000:ffff8000       .debug$S                   10000000     MCore:MCore.mos
+ 0000:ffff8000       .debug$S                   10000000     MCore:MCore.mos
+ 0000:ffff8000       .debug$S                   10000000     MCore:MCore.mos
+ 0001:00000015       MmxLoop                    10001015     libk:_memcpy.obj
+ 0001:00000026       MmxRemain                  10001026     libk:_memcpy.obj
+ 0001:0000002e       MmxDone                    1000102e     libk:_memcpy.obj
+ 0001:00000055       AlignedLoop                10001055     libk:_memcpy.obj
+ 0001:00000066       UnalignedLoop              10001066     libk:_memcpy.obj
+ 0001:00000075       SseDone                    10001075     libk:_memcpy.obj
+ 0001:00000077       SseRemain                  10001077     libk:_memcpy.obj
+ 0001:0000007f       CpyDone                    1000107f     libk:_memcpy.obj
+ 0001:00002650       $$000000                   10003650     libcrt:llmul.obj
+ 0001:00002690       $$000000                   10003690     libcrt:aulldiv.obj
+ 0001:00002700       $$000000                   10003700     libcrt:aulldvrm.obj
+ 0002:00000180       .edata                     10004180     Mfs.exp
+ 0002:000001a8       rgpv                       100041a8     Mfs.exp
+ 0002:000001ac       rgszName                   100041ac     Mfs.exp
+ 0002:000001b0       rgwOrd                     100041b0     Mfs.exp
+ 0002:000001b2       szName                     100041b2     Mfs.exp
+ 0002:000001ba       $N00001                    100041ba     Mfs.exp
+ 0002:000002b4       .idata$6                   100042b4     MCore:MCore.mos
+ 0003:00000000       $SG4294967291              10005000     Mfs.obj
+ 0003:00000020       $SG4294967290              10005020     Mfs.obj
+ 0003:00000028       $SG4294967289              10005028     Mfs.obj
+ 0003:00000068       $SG4294967288              10005068     Mfs.obj
+ 0003:00000070       $SG4294967287              10005070     Mfs.obj
+ 0003:00000098       $SG4294967286              10005098     Mfs.obj
+ 0003:000000a0       $SG4294967285              100050a0     Mfs.obj
+ 0003:000000c8       $SG4294967284              100050c8     Mfs.obj
+ 0003:000000d0       $SG4294967283              100050d0     Mfs.obj
+ 0003:000000f4       $SG4294967282              100050f4     Mfs.obj
+ 0003:000000fc       $SG4294967281              100050fc     Mfs.obj
+ 0003:00000124       $SG4294967280              10005124     Mfs.obj
+ 0003:0000012c       $SG4294967279              1000512c     Mfs.obj
+ 0003:00000154       $SG4294967278              10005154     Mfs.obj
+ 0003:0000015c       $SG4294967277              1000515c     Mfs.obj
+ 0003:00000180       $SG4294967276              10005180     Mfs.obj
+ 0003:00000188       $SG4294967275              10005188     Mfs.obj
+ 0003:000001b0       $SG4294967274              100051b0     Mfs.obj
+ 0003:000001b8       $SG4294967273              100051b8     Mfs.obj
+ 0003:000001e4       $SG4294967272              100051e4     Mfs.obj
+ 0003:000001ec       $SG4294967271              100051ec     Mfs.obj
+ 0003:00000224       $SG4294967270              10005224     Mfs.obj
+ 0003:0000022c       $SG4294967269              1000522c     Mfs.obj
+ 0003:0000025c       $SG4294967268              1000525c     Mfs.obj
+ 0003:00000264       $SG4294967267              10005264     Mfs.obj
+ 0003:0000029c       $SG4294967266              1000529c     Mfs.obj
+ 0003:000002a4       $SG4294967265              100052a4     Mfs.obj
+ 0003:000002c8       $SG4294967264              100052c8     Mfs.obj
+ 0003:000002d0       $SG4294967263              100052d0     Mfs.obj
+ 0003:000002f0       $SG4294967262              100052f0     Mfs.obj
+ 0003:000002f8       $SG4294967261              100052f8     Mfs.obj
+ 0003:00000314       $SG4294967260              10005314     Mfs.obj
+ 0003:0000031c       $SG4294967259              1000531c     Mfs.obj
+ 0003:00000334       $SG4294967258              10005334     Mfs.obj
+ 0003:0000033c       $SG4294967257              1000533c     Mfs.obj
+ 0003:00000360       $SG4294967256              10005360     Mfs.obj
+ 0003:00000368       $SG4294967255              10005368     Mfs.obj
+ 0003:00000384       $SG4294967254              10005384     Mfs.obj
+ 0003:0000038c       $SG4294967075              1000538c     libk:locale.obj
+ 0003:00000390       $SG4294967065              10005390     libk:locale.obj
+ 0003:00000398       $SG4294967064              10005398     libk:locale.obj
+ 0003:0000039c       $SG4294967062              1000539c     libk:locale.obj
+ 0003:00000510       $SG4294967074              10005510     libk:locale.obj
+ 0003:00000511       $SG4294967073              10005511     libk:locale.obj
+ 0003:00000512       $SG4294967072              10005512     libk:locale.obj
+ 0003:00000513       $SG4294967071              10005513     libk:locale.obj
+ 0003:00000514       $SG4294967070              10005514     libk:locale.obj
+ 0003:00000515       $SG4294967069              10005515     libk:locale.obj
+ 0003:00000516       $SG4294967068              10005516     libk:locale.obj
+ 0003:00000517       $SG4294967067              10005517     libk:locale.obj
+ 0003:00000518       $SG4294967066              10005518     libk:locale.obj
+ 0003:00000519       $SG4294967063              10005519     libk:locale.obj
+ 0004:00000060       $R000000                   10006060     * linker generated manifest res *
+
+ Exports
+
+  ordinal    name
+
+        1    _ModuleInit
+               exported name: ModuleInit

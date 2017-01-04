@@ -24,6 +24,10 @@
 #include <os/Ui.h>
 #include <os/Syscall.h>
 #include <os/Thread.h>
+#include <os/ipc/ipc.h>
+
+/* Includes
+ * - C-Library */
 #include <stddef.h>
 #include <stdlib.h>
 #include <ctype.h>
@@ -168,13 +172,13 @@ void _mDrvCrt(void)
 	_mCrtInit(&Tls);
 
 	/* Initialize default pipes */
-	PipeOpen(PIPE_SERVER);
+	PipeOpen(PIPE_DEFAULT);
 
 	/* Call main */
 	RetValue = ServerMain(NULL);
 
 	/* Cleanup pipes */
-	PipeClose(PIPE_SERVER);
+	PipeClose(PIPE_DEFAULT);
 
 	/* Exit cleanly, calling atexit() functions */
 	exit(RetValue);

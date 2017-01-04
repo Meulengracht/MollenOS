@@ -36,6 +36,7 @@
 #include <Modules/PeLoader.h>
 #include <Bitmap.h>
 #include <Pipe.h>
+#include <Mutex.h>
 
 /* Settings for ashes in the system, they
  * should not really be tinkered with, these are
@@ -143,7 +144,7 @@ __CRT_EXTERN void PhoenixFinishAsh(MCoreAsh_t *Ash);
 /* These function manipulate pipes on the given port
  * there are some pre-defined ports on which pipes
  * can be opened, window manager etc */
-__CRT_EXTERN int PhoenixOpenAshPipe(MCoreAsh_t *Ash, int Port);
+__CRT_EXTERN int PhoenixOpenAshPipe(MCoreAsh_t *Ash, int Port, Flags_t Flags);
 __CRT_EXTERN int PhoenixCloseAshPipe(MCoreAsh_t *Ash, int Port);
 __CRT_EXTERN MCorePipe_t *PhoenixGetAshPipe(MCoreAsh_t *Ash, int Port);
 
@@ -159,5 +160,6 @@ __CRT_EXTERN void PhoenixTerminateAsh(MCoreAsh_t *Ash);
  * by id, if either PHOENIX_CURRENT or PHOENIX_NO_ASH
  * is passed, it retrieves the current process */
 __CRT_EXTERN MCoreAsh_t *PhoenixGetAsh(PhxId_t AshId);
+__CRT_EXTERN MCoreAsh_t *PhoenixGetAshByName(const char *Name);
 
 #endif //!_MCORE_ASH_H_

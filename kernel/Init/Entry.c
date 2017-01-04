@@ -121,9 +121,6 @@ void MCoreInitialize(MCoreBootInfo_t *BootInfo)
 	/* STOP
 	 * - Micro Conversion */
 
-	/* Start the request handler */
-	DmStart();
-
 	/* Virtual Filesystem */
 	VfsInit();
 

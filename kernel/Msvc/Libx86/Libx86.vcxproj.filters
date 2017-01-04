@@ -54,9 +54,6 @@
     <ClCompile Include="..\..\Arch\x86\Components\Smp.c">
       <Filter>Components</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\Arch\x86\Components\Devices.c">
-      <Filter>Components</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\Arch\x86\Components\PhysicalMemory.c">
       <Filter>Components</Filter>
     </ClCompile>

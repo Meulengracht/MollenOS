@@ -73,6 +73,7 @@
 #define SYSCALL_WRITEPIPE			0x2C
 #define SYSCALL_PSIGWAIT			0x2D
 #define SYSCALL_PSIGSEND			0x2E
+#define SYSCALL_RPCEVAL				0x2F
 
 /* VFS System Calls */
 #define SYSCALL_VFSOPEN				0x33

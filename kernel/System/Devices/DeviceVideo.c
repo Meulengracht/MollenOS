@@ -22,6 +22,7 @@
 /* Video Includes */
 #include <MollenOS.h>
 #include <Arch.h>
+#include <DeviceManager.h>
 #include <Devices\Video.h>
 #include <Log.h>
 
@@ -120,4 +121,15 @@ int VideoPutChar(int Character)
 
 	/* Done */
 	return Character;
+}
+
+/* Boot Video */
+MCoreDevice_t *GlbDmBootVideo = NULL;
+void DmRegisterBootVideo(MCoreDevice_t *Video)
+{
+	/* Set it */
+	GlbDmBootVideo = Video;
+
+	/* Now set it up */
+	VideoBootInit((MCoreVideoDevice_t*)Video->Data);
 }

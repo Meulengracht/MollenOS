@@ -79,7 +79,7 @@ void ThreadingInit(void)
 	Init->AshId = PHOENIX_NO_ASH;
 
 	/* Create Address Space */
-	Init->AddrSpace = AddressSpaceCreate(ADDRESS_SPACE_KERNEL);
+	Init->AddressSpace = AddressSpaceCreate(ADDRESS_SPACE_KERNEL);
 
 	/* Create thread-data */
 	Init->ThreadData = IThreadInitBoot();
@@ -126,7 +126,7 @@ void ThreadingApInit(Cpu_t Cpu)
 	Init->AshId = PHOENIX_NO_ASH;
 
 	/* Create Address Space */
-	Init->AddrSpace = AddressSpaceCreate(ADDRESS_SPACE_KERNEL);
+	Init->AddressSpace = AddressSpaceCreate(ADDRESS_SPACE_KERNEL);
 
 	/* Create the threading data */
 	Init->ThreadData = IThreadInitAp();
@@ -227,11 +227,11 @@ void ThreadingUpdateCurrent(Cpu_t Cpu, ListNode_t *Node) {
 void ThreadingCleanupThread(MCoreThread_t *Thread)
 {
 	/* Cleanup arch resources */
-	AddressSpaceDestroy(Thread->AddrSpace);
+	AddressSpaceDestroy(Thread->AddressSpace);
 	IThreadDestroy(Thread->ThreadData);
 
 	/* Cleanup structure */
-	kfree(Thread->Name);
+	kfree((void*)Thread->Name);
 	kfree(Thread);
 }
 
@@ -289,7 +289,7 @@ void ThreadingEntryPoint(void)
 	cThread = ThreadingGetCurrentThread(Cpu);
 
 	/* Call entry point */
-	cThread->Func(cThread->Args);
+	cThread->Function(cThread->Args);
 
 	/* IF WE REACH THIS POINT THREAD IS DONE! */
 	cThread->Flags |= THREADING_FINISHED;
@@ -319,7 +319,7 @@ void ThreadingEntryPointUserMode(void)
 
 	/* Underlying Call */
 	IThreadInitUserMode(cThread->ThreadData, BaseAddress,
-		(Addr_t)cThread->Func, (Addr_t)cThread->Args);
+		(Addr_t)cThread->Function, (Addr_t)cThread->Args);
 
 	/* Update this thread */
 	cThread->Flags |= THREADING_TRANSITION;
@@ -365,7 +365,7 @@ ThreadId_t ThreadingCreateThread(char *Name, ThreadEntry_t Function, void *Args,
 	}
 
 	/* Setup */
-	nThread->Func = Function;
+	nThread->Function = Function;
 	nThread->Args = Args;
 
 	/* If we are CPU bound :/ */
@@ -391,12 +391,12 @@ ThreadId_t ThreadingCreateThread(char *Name, ThreadEntry_t Function, void *Args,
 	/* Create Address Space */
 	if (Flags & THREADING_USERMODE) {
 		if (Flags & THREADING_INHERIT)
-			nThread->AddrSpace = AddressSpaceCreate(ADDRESS_SPACE_USER | ADDRESS_SPACE_INHERIT);
+			nThread->AddressSpace = AddressSpaceCreate(ADDRESS_SPACE_USER | ADDRESS_SPACE_INHERIT);
 		else
-			nThread->AddrSpace = AddressSpaceCreate(ADDRESS_SPACE_USER);
+			nThread->AddressSpace = AddressSpaceCreate(ADDRESS_SPACE_USER);
 	}
 	else
-		nThread->AddrSpace = AddressSpaceCreate(ADDRESS_SPACE_INHERIT);
+		nThread->AddressSpace = AddressSpaceCreate(ADDRESS_SPACE_INHERIT);
 
 	/* Create thread-data 
 	 * But use different entry point

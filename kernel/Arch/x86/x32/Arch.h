@@ -155,7 +155,9 @@ _CRT_EXPORT void kernel_panic(const char *str);
 /* Below is seperated, and only used by the user-space 
  * this of course means that everything in kernel-space is free
  * for usage, probably going to use it for shared memory */
-#define MEMORY_LOCATION_USER_ARGS		0x60000000 /* Arg Space: 4 kB */
+#define MEMORY_LOCATION_USER_ARGS		0x60000000 /* Arg Space: 65 kB */
+#define MEMORY_LOCATION_USER_RPC		0x60008000
+#define MEMORY_LOCATION_USER_RPC2		0x6000C000
 #define MEMORY_LOCATION_USER			0x60010000 /* Image Space: 256~ mB */
 #define MEMORY_LOCATION_USER_HEAP		0x70000000 /* Heap Space: 2048 mB */
 #define MEMORY_LOCATION_USER_HEAP_END	0xF0000000 /* Shared Memory: 240 mB */

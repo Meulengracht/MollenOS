@@ -670,6 +670,7 @@ typedef struct _MCorePeFile {
 	Addr_t VirtualAddress;
 	Addr_t EntryAddress;
 	int References;
+	int UsingInitRD;
 	List_t *ExportedFunctions;
 	List_t *LoadedLibraries;
 } MCorePeFile_t;
@@ -697,7 +698,7 @@ __CRT_EXTERN Addr_t PeResolveFunction(MCorePeFile_t *Library, const char *Functi
  * at the given Base-Address, which is updated after load to reflect where
  * the next address is available for load */
 __CRT_EXTERN MCorePeFile_t *PeLoadImage(MCorePeFile_t *Parent, MString_t *Name,
-	uint8_t *Buffer, size_t Length, Addr_t *BaseAddress);
+	uint8_t *Buffer, size_t Length, Addr_t *BaseAddress, int UsingInitRD);
 
 /* PeUnloadLibrary
  * Unload dynamically loaded library 

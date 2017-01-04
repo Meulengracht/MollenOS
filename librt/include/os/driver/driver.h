@@ -16,38 +16,19 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS InterProcess Comm Interface
+ * MollenOS Driver Inteface
+ * - MollenOS SDK 
  */
 
-#ifndef _MOLLENOS_IPC_SERVER_H_
-#define _MOLLENOS_IPC_SERVER_H_
+#ifndef _MCORE_DRIVER_H_
+#define _MCORE_DRIVER_H_
+
+/* Includes
+ * - C-Library */
+#include <os/osdefs.h>
 
 /* Includes
  * - System */
-#include <os/ipc.h>
-#include <os/osdefs.h>
+#include <os/driver/device.h>
 
-/* The types of server messages 
- * These are the control messages that
- * all servers should support */
-typedef enum _MServerControlType {
-	ServerCtrlPing,
-	ServerCtrlPong,
-	ServerCtrlRestart,
-	ServerCtrlQuit
-} MServerControlType_t;
-
-/* Base structure for window control 
- * messages, the types of control messages
- * are defined above by MWindowControlType_t */
-typedef struct _MServerControl
-{
-	/* Base */
-	MEventMessage_t Header;
-
-	/* Message Type */
-	MServerControlType_t Type;
-
-} MServerControl_t;
-
-#endif //!_MOLLENOS_IPC_SERVER_H_
+#endif //!_MCORE_DRIVER_H_

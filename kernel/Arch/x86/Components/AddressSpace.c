@@ -87,16 +87,16 @@ AddressSpace_t *AddressSpaceCreate(int Flags)
 
 		/* Lock and increase reference count on kernel
 		* address space, we reuse */
-		SpinlockAcquire(&Current->AddrSpace->Lock);
+		SpinlockAcquire(&Current->AddressSpace->Lock);
 
 		/* Increase Count */
-		Current->AddrSpace->References++;
+		Current->AddressSpace->References++;
 
 		/* Release lock */
-		SpinlockRelease(&Current->AddrSpace->Lock);
+		SpinlockRelease(&Current->AddressSpace->Lock);
 
 		/* Done! */
-		AddrSpace = Current->AddrSpace;
+		AddrSpace = Current->AddressSpace;
 	}
 	else if (Flags & ADDRESS_SPACE_USER)
 	{
@@ -240,7 +240,7 @@ AddressSpace_t *AddressSpaceGetCurrent(void)
 	if (CurrThread == NULL)
 		return &GlbKernelAddressSpace;
 	else
-		return CurrThread->AddrSpace;
+		return CurrThread->AddressSpace;
 }
 
 /* Switch to given address space */

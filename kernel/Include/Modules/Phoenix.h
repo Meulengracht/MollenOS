@@ -30,6 +30,7 @@
 /* Includes
  * - System */
 #include <Modules/Ash.h>
+#include <Threading.h>
 #include <Events.h>
 
 /* Definitions for special identifiers
@@ -91,5 +92,9 @@ __CRT_EXTERN void SignalExecute(MCoreAsh_t *Ash, MCoreSignal_t *Signal);
 /* Architecture Specific  
  * Must be implemented in the arch-layer */
 __CRT_EXTERN void SignalDispatch(MCoreAsh_t *Ash, MCoreSignal_t *Signal);
+
+/*
+__CRT_EXTERN void RPCDispatch(MCoreThread_t *Thread, Addr_t Function,
+	Addr_t Arg0, Addr_t Arg1, Addr_t Arg2, Addr_t Arg3, Addr_t Arg4); */
 
 #endif //!_MCORE_PHOENIX_H_

@@ -15,7 +15,6 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\Arch\x86\Components\AddressSpace.c" />
-    <ClCompile Include="..\..\Arch\x86\Components\Devices.c" />
     <ClCompile Include="..\..\Arch\x86\Components\IoSpace.c" />
     <ClCompile Include="..\..\Arch\x86\Components\PhysicalMemory.c" />
     <ClCompile Include="..\..\Arch\x86\Components\Smp.c" />

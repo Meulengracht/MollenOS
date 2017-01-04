@@ -24,8 +24,7 @@
 #define _MCORE_MUTEX_H_
 
 /* Includes */
-#include <Arch.h>
-#include <Threading.h>
+#include <os/osdefs.h>
 
 /* Definitions */
 #define MUTEX_DEFAULT_TIMEOUT	500

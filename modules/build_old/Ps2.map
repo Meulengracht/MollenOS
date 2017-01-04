@@ -1,0 +1,138 @@
+ Ps2
+
+ Timestamp is 58593980 (Tue Dec 20 15:00:32 2016)
+
+ Preferred load address is 10000000
+
+ Start         Length     Name                   Class
+ 0001:00000000 000000f0H .text                   CODE
+ 0001:000000f0 0000155cH .text$mn                CODE
+ 0002:00000000 00000030H .idata$5                DATA
+ 0002:00000030 00000040H .rdata                  DATA
+ 0002:00000070 00000045H .edata                  DATA
+ 0002:000000b8 0000006cH .rdata$debug            DATA
+ 0002:00000124 00000014H .idata$2                DATA
+ 0002:00000138 00000014H .idata$3                DATA
+ 0002:0000014c 00000030H .idata$4                DATA
+ 0002:0000017c 000000a0H .idata$6                DATA
+ 0003:00000000 00000135H .data                   DATA
+ 0003:00000138 0000001cH .bss                    DATA
+ 0004:00000000 00000058H .rsrc$01                DATA
+ 0004:00000060 00000180H .rsrc$02                DATA
+
+  Address         Publics by Value              Rva+Base       Lib:Object
+
+ 0000:00000000       ___safe_se_handler_table   00000000     <absolute>
+ 0000:00000000       ___guard_fids_count        00000000     <absolute>
+ 0000:00000000       ___guard_fids_table        00000000     <absolute>
+ 0000:00000000       ___guard_flags             00000000     <absolute>
+ 0000:00000000       ___safe_se_handler_count   00000000     <absolute>
+ 0001:00000000       _asm_memcpy_mmx            10001000     libk:_memcpy.obj
+ 0001:00000032       _asm_memcpy_sse            10001032     libk:_memcpy.obj
+ 0001:00000090       __spinlock_acquire         10001090     libk:_spinlock.obj
+ 0001:000000b7       __spinlock_test            100010b7     libk:_spinlock.obj
+ 0001:000000dc       __spinlock_release         100010dc     libk:_spinlock.obj
+ 0001:000000f0       _Ps2KeyboadIrqHandler      100010f0 f   Ps2Keyboard.obj
+ 0001:000001c0       _Ps2KeyboardInit           100011c0 f   Ps2Keyboard.obj
+ 0001:00000350       _Ps2MouseIrqHandler        10001350 f   Ps2Mouse.obj
+ 0001:00000490       _Ps2MouseInit              10001490 f   Ps2Mouse.obj
+ 0001:000005b0       _Ps2ReadData               100015b0 f   Ps2.obj
+ 0001:00000630       _Ps2SendCommand            10001630 f   Ps2.obj
+ 0001:000006a0       _Ps2WriteData              100016a0 f   Ps2.obj
+ 0001:00000730       _Ps2SelfTest               10001730 f   Ps2.obj
+ 0001:00000810       _Ps2InterfaceTest          10001810 f   Ps2.obj
+ 0001:000008a0       _Ps2ResetPort              100018a0 f   Ps2.obj
+ 0001:00000970       _Ps2IdentifyPort           10001970 f   Ps2.obj
+ 0001:000009f0       _ModuleInit                100019f0 f   Ps2.obj
+ 0001:00000de0       _ScancodeSet2ToMCore       10001de0 f   ScancodeSet2.obj
+ 0001:00001490       _MemCpyBase                10002490 f   libk:memcpy.obj
+ 0001:00001510       _MemCpySelect              10002510 f   libk:memcpy.obj
+ 0001:00001540       _memcpy                    10002540 f   libk:memcpy.obj
+ 0001:00001560       _memset                    10002560 f   libk:memset.obj
+ 0001:00001620       _SpinlockReset             10002620 f   libk:spinlock.obj
+ 0001:00001630       _SpinlockAcquire           10002630 f   libk:spinlock.obj
+ 0001:00001640       _SpinlockRelease           10002640 f   libk:spinlock.obj
+ 0002:00000000       __imp__DmCreateDevice      10003000     MCore:MCore.mos
+ 0002:00000004       __imp__LogFatal            10003004     MCore:MCore.mos
+ 0002:00000008       __imp__kmalloc             10003008     MCore:MCore.mos
+ 0002:0000000c       __imp__DmRequestResource   1000300c     MCore:MCore.mos
+ 0002:00000010       __imp__EmCreateEvent       10003010     MCore:MCore.mos
+ 0002:00000014       __imp__kfree               10003014     MCore:MCore.mos
+ 0002:00000018       __imp__IoSpaceWrite        10003018     MCore:MCore.mos
+ 0002:0000001c       __imp__StallMs             1000301c     MCore:MCore.mos
+ 0002:00000020       __imp__IoSpaceCreate       10003020     MCore:MCore.mos
+ 0002:00000024       __imp__IoSpaceRead         10003024     MCore:MCore.mos
+ 0002:00000028       __imp__DelayMs             10003028     MCore:MCore.mos
+ 0002:0000002c       \177MCore_NULL_THUNK_DATA  1000302c     MCore:MCore.mos
+ 0002:00000068       _GlbPs2KeyboardDriverName  10003068     Ps2Keyboard.obj
+ 0002:0000006c       _GlbPs2MouseDriverName     1000306c     Ps2Mouse.obj
+ 0002:00000124       __IMPORT_DESCRIPTOR_MCore  10003124     MCore:MCore.mos
+ 0002:00000138       __NULL_IMPORT_DESCRIPTOR   10003138     MCore:MCore.mos
+ 0003:00000138       _GlbPs2Port1               10004138     Ps2.obj
+ 0003:0000013c       _GlbPs2Exists              1000413c     Ps2.obj
+ 0003:00000140       _GlbPs2Port2               10004140     Ps2.obj
+ 0003:00000144       _GlbPs2PortCount           10004144     Ps2.obj
+ 0003:00000148       _GlbPs2IoSpace             10004148     Ps2.obj
+ 0003:0000014c       ___GlbMemCpyInstance       1000414c     libk:memcpy.obj
+ 0003:00000150       _GlbPs2Lock                10004150     <common>
+
+ entry point at        0000:00000000
+
+ Static symbols
+
+ 0000:ffff9000       .debug$S                   10000000     MCore:MCore.mos
+ 0000:ffff9000       .debug$S                   10000000     MCore:MCore.mos
+ 0000:ffff9000       .debug$S                   10000000     MCore:MCore.mos
+ 0000:ffff9000       .debug$S                   10000000     MCore:MCore.mos
+ 0000:ffff9000       .debug$S                   10000000     MCore:MCore.mos
+ 0000:ffff9000       .debug$S                   10000000     MCore:MCore.mos
+ 0000:ffff9000       .debug$S                   10000000     MCore:MCore.mos
+ 0000:ffff9000       .debug$S                   10000000     MCore:MCore.mos
+ 0000:ffff9000       .debug$S                   10000000     MCore:MCore.mos
+ 0000:ffff9000       .debug$S                   10000000     MCore:MCore.mos
+ 0000:ffff9000       .debug$S                   10000000     MCore:MCore.mos
+ 0001:00000015       MmxLoop                    10001015     libk:_memcpy.obj
+ 0001:00000026       MmxRemain                  10001026     libk:_memcpy.obj
+ 0001:0000002e       MmxDone                    1000102e     libk:_memcpy.obj
+ 0001:00000055       AlignedLoop                10001055     libk:_memcpy.obj
+ 0001:00000066       UnalignedLoop              10001066     libk:_memcpy.obj
+ 0001:00000075       SseDone                    10001075     libk:_memcpy.obj
+ 0001:00000077       SseRemain                  10001077     libk:_memcpy.obj
+ 0001:0000007f       CpyDone                    1000107f     libk:_memcpy.obj
+ 0001:000000a0       __spinlock_acquire.trylock 100010a0     libk:_spinlock.obj
+ 0001:000000a6       __spinlock_acquire.lockloop 100010a6     libk:_spinlock.obj
+ 0001:000000af       __spinlock_acquire.gotlock 100010af     libk:_spinlock.obj
+ 0001:000000d4       __spinlock_test.gotlock    100010d4     libk:_spinlock.obj
+ 0001:000000d9       __spinlock_test.end        100010d9     libk:_spinlock.obj
+ 0001:000000ed       __spinlock_release.done    100010ed     libk:_spinlock.obj
+ 0001:000011b4       $LN130                     100021b4     ScancodeSet2.obj
+ 0001:0000130c       $LN126                     1000230c     ScancodeSet2.obj
+ 0001:00001390       $LN131                     10002390     ScancodeSet2.obj
+ 0001:00001418       $LN127                     10002418     ScancodeSet2.obj
+ 0002:00000070       .edata                     10003070     Ps2.exp
+ 0002:00000098       rgpv                       10003098     Ps2.exp
+ 0002:0000009c       rgszName                   1000309c     Ps2.exp
+ 0002:000000a0       rgwOrd                     100030a0     Ps2.exp
+ 0002:000000a2       szName                     100030a2     Ps2.exp
+ 0002:000000aa       $N00001                    100030aa     Ps2.exp
+ 0002:00000212       .idata$6                   10003212     MCore:MCore.mos
+ 0003:00000000       $SG4294967291              10004000     Ps2Keyboard.obj
+ 0003:00000020       $SG4294967290              10004020     Ps2Keyboard.obj
+ 0003:00000050       $SG4294967289              10004050     Ps2Keyboard.obj
+ 0003:00000058       $SG4294967288              10004058     Ps2Keyboard.obj
+ 0003:00000068       $SG4294967256              10004068     Ps2Mouse.obj
+ 0003:00000084       $SG4294967255              10004084     Ps2Mouse.obj
+ 0003:000000b4       $SG4294967254              100040b4     Ps2Mouse.obj
+ 0003:000000bc       $SG4294967253              100040bc     Ps2Mouse.obj
+ 0003:000000c8       $SG4294967237              100040c8     Ps2.obj
+ 0003:000000f8       $SG4294967236              100040f8     Ps2.obj
+ 0003:00000100       $SG4294967235              10004100     Ps2.obj
+ 0003:00000130       $SG4294967234              10004130     Ps2.obj
+ 0004:00000060       $R000000                   10005060     * linker generated manifest res *
+
+ Exports
+
+  ordinal    name
+
+        1    _ModuleInit
+               exported name: ModuleInit

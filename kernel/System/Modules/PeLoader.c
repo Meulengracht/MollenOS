@@ -554,7 +554,7 @@ MCorePeFile_t *PeResolveLibrary(MCorePeFile_t *Parent,
 		/* Open the file
 		 * We have a special case here that it might
 		 * be from the ramdisk we are loading */
-		if (MStringFindChars(LibraryName, "rd:/") != MSTRING_NOT_FOUND) {
+		if (ExportParent->UsingInitRD) {
 			if (ModulesQueryPath(LibraryName, &fBuffer, &fSize) != OsNoError) {
 				LogDebug("PELD", "Failed to load library %s (Code %i)",
 					MStringRaw(LibraryName), lFile->Code);
@@ -586,7 +586,8 @@ MCorePeFile_t *PeResolveLibrary(MCorePeFile_t *Parent,
 		/* After retrieving the data we can now
 		 * load the actual image */
 		Library = PeLoadImage(ExportParent, 
-			LibraryName, fBuffer, fSize, LoadAddress);
+			LibraryName, fBuffer, fSize, LoadAddress,
+			ExportParent->UsingInitRD);
 		Exports = Library;
 
 		/* Cleanup buffer, we are done with it now */
@@ -639,7 +640,7 @@ Addr_t PeResolveFunction(MCorePeFile_t *Library, const char *Function)
  * at the given Base-Address, which is updated after load to reflect where
  * the next address is available for load */
 MCorePeFile_t *PeLoadImage(MCorePeFile_t *Parent, MString_t *Name, 
-	uint8_t *Buffer, size_t Length, Addr_t *BaseAddress)
+	uint8_t *Buffer, size_t Length, Addr_t *BaseAddress, int UsingInitRD)
 {
 	/* Base Headers */
 	MzHeader_t *DosHeader = NULL;
@@ -697,6 +698,7 @@ MCorePeFile_t *PeLoadImage(MCorePeFile_t *Parent, MString_t *Name,
 	PeInfo->VirtualAddress = *BaseAddress;
 	PeInfo->LoadedLibraries = ListCreate(KeyInteger, LIST_NORMAL);
 	PeInfo->References = 1;
+	PeInfo->UsingInitRD = UsingInitRD;
 
 	/* Set the entry point if there is any */
 	if (OptHeader->EntryPoint != 0) {

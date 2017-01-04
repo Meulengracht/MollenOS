@@ -92,6 +92,7 @@ xcopy $(SolutionDir)librt\build\libos.dll $(SolutionDir)userspace\development\bi
     <ClCompile Include="..\..\libos\mstring\mstringresize.c" />
     <ClCompile Include="..\..\libos\mstring\mstringsubstring.c" />
     <ClCompile Include="..\..\libos\mstring\mstringutf8.c" />
+    <ClCompile Include="..\..\libos\pipe.c" />
     <ClCompile Include="..\..\libos\sha1.c" />
     <ClCompile Include="..\..\libos\sharedobject.c" />
     <ClCompile Include="..\..\libos\shared\balloc.c" />

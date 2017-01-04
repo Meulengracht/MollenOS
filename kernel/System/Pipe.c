@@ -29,21 +29,21 @@
 #include <stddef.h>
 
 /* Initialise a new pipe */
-MCorePipe_t *PipeCreate(size_t Size)
+MCorePipe_t *PipeCreate(size_t Size, Flags_t Flags)
 {
 	/* Allocate */
 	MCorePipe_t *Pipe = (MCorePipe_t*)kmalloc(sizeof(MCorePipe_t));
 	Pipe->Buffer = (uint8_t*)kmalloc(Size);
 
 	/* Construct it */
-	PipeConstruct(Pipe, Pipe->Buffer, Size);
+	PipeConstruct(Pipe, Pipe->Buffer, Size, Flags);
 
 	/* Done */
 	return Pipe;
 }
 
 /* Construct Pipe */
-void PipeConstruct(MCorePipe_t *Pipe, uint8_t *Buffer, size_t BufferLength)
+void PipeConstruct(MCorePipe_t *Pipe, uint8_t *Buffer, size_t BufferLength, Flags_t Flags)
 {
 	/* Set buffer */
 	Pipe->Buffer = Buffer;
@@ -54,6 +54,7 @@ void PipeConstruct(MCorePipe_t *Pipe, uint8_t *Buffer, size_t BufferLength)
 	Pipe->IndexWrite = 0;
 	Pipe->IndexRead = 0;
 	Pipe->Length = BufferLength;
+	Pipe->Flags = Flags;
 
 	/* Reset Lock */
 	SpinlockReset(&Pipe->Lock);

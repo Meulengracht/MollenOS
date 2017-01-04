@@ -105,7 +105,7 @@ int VfsParsePartitionTable(DevId_t DiskId, uint64_t SectorBase,
 {
 	/* Allocate structures */
 	void *TmpBuffer = (void*)kmalloc(SectorSize);
-	MCoreModule_t *Module = NULL;
+//	MCoreModule_t *Module = NULL;
 	MCoreMasterBootRecord_t *Mbr = NULL;
 	MCoreDeviceRequest_t Request;
 	int PartitionCount = 0;
@@ -122,8 +122,8 @@ int VfsParsePartitionTable(DevId_t DiskId, uint64_t SectorBase,
 	Request.Length = SectorSize;
 
 	/* Create & Wait */
-	DmCreateRequest(&Request);
-	DmWaitRequest(&Request, 0);
+	//DmCreateRequest(&Request);
+	//DmWaitRequest(&Request, 0);
 
 	/* Sanity */
 	if (Request.Base.State != EventOk)
@@ -180,11 +180,12 @@ int VfsParsePartitionTable(DevId_t DiskId, uint64_t SectorBase,
 			else if (Mbr->Partitions[i].Type == 0x61)
 			{
 				/* MFS 1 */
-				Module = ModuleFindGeneric(MODULE_FILESYSTEM, FILESYSTEM_MFS);
+				//TODO
+				//Module = ModuleFindGeneric(MODULE_FILESYSTEM, FILESYSTEM_MFS);
 
 				/* Load */
-				if (Module != NULL)
-					ModuleLoad(Module, Fs);
+//				if (Module != NULL)
+//					ModuleLoad(Module, Fs);
 			}
 
 			/* Check FAT */
@@ -249,7 +250,7 @@ int VfsParsePartitionTable(DevId_t DiskId, uint64_t SectorBase,
 void VfsRegisterDisk(DevId_t DiskId)
 {
 	/* Query for disk stats */
-	MCoreModule_t *Module = NULL;
+//	MCoreModule_t *Module = NULL;
 	char TmpBuffer[12];
 	MCoreDeviceRequest_t Request;
 
@@ -266,8 +267,8 @@ void VfsRegisterDisk(DevId_t DiskId)
 	memset(TmpBuffer, 0, sizeof(TmpBuffer));
 
 	/* Perform */
-	DmCreateRequest(&Request);
-	DmWaitRequest(&Request, 0);
+	//DmCreateRequest(&Request);
+	//DmWaitRequest(&Request, 0);
 
 	/* Well, well */
 	uint64_t SectorCount = *(uint64_t*)&TmpBuffer[0];
@@ -294,11 +295,12 @@ void VfsRegisterDisk(DevId_t DiskId)
 		* normally two types is used for full-partition
 		* MFS and FAT */
 		/* MFS 1 */
-		Module = ModuleFindGeneric(MODULE_FILESYSTEM, FILESYSTEM_MFS);
+		//TODO
+		//Module = ModuleFindGeneric(MODULE_FILESYSTEM, FILESYSTEM_MFS);
 
 		/* Load */
-		if (Module != NULL)
-			ModuleLoad(Module, Fs);
+//		if (Module != NULL)
+//			ModuleLoad(Module, Fs);
 
 		if (Fs->State != VfsStateActive)
 			; //FatInit()

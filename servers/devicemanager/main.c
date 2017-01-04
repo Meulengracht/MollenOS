@@ -1,6 +1,6 @@
 /* MollenOS
  *
- * Copyright 2011 - 2016, Philip Meulengracht
+ * Copyright 2011 - 2017, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -22,9 +22,7 @@
 
 /* Includes
  * - System */
-#include <os/ipc/server.h>
-#include <device.h>
-#include <driver.h>
+#include <os/driver/device.h>
 
 /* Includes
  * - C-Library */
@@ -51,12 +49,8 @@ int GlbRun = 0;
 int ServerMain(void *Data)
 {
 	/* Storage for message */
-	union {
-		MEventMessage_t Base;
-		MServerControl_t Control;
-		MCoreDeviceRequest_t Command;
-	} Message;
-	uint8_t *MessagePointer = &Message;
+	MEventMessage_t Message;
+	uint8_t *MessagePointer = (uint8_t*)&Message;
 
 	/* Save */
 	_CRT_UNUSED(Data);
@@ -74,7 +68,7 @@ int ServerMain(void *Data)
 
 	/* Enter event queue */
 	while (GlbRun) {
-		if (!PipeRead(PIPE_SERVER, MessagePointer, sizeof(MEventMessage_t)))
+		if (!PipeRead(PIPE_DEFAULT, MessagePointer, sizeof(MEventMessage_t)))
 		{
 			/* Increase message pointer by base
 			 * bytes read */
@@ -88,8 +82,21 @@ int ServerMain(void *Data)
 					sizeof(MServerControl_t) - sizeof(MEventMessage_t))) {
 					switch (Message.Control.Type)
 					{
+						case IpcRegisterDevice: {
+							
+						} break;
 
+						case IpcUnregisterDevice: {
 
+						} break;
+
+						case IpcQueryDevice: {
+
+						} break;
+
+						case IpcControlDevice: {
+
+						} break;
 
 						/* Invalid is not for us */
 						default:

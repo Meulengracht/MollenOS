@@ -130,6 +130,9 @@ OsStatus_t ModulesInit(MCoreBootDescriptor *BootDescriptor)
 
 	/* Mark as initialized */
 	GlbModulesInitialized = 1;
+
+	/* Return success */
+	return OsNoError;
 }
 
 /* ModulesRunServers

@@ -1,33 +1,37 @@
 /* MollenOS
-*
-* Copyright 2011 - 2016, Philip Meulengracht
-*
-* This program is free software : you can redistribute it and / or modify
-* it under the terms of the GNU General Public License as published by
-* the Free Software Foundation ? , either version 3 of the License, or
-* (at your option) any later version.
-*
-* This program is distributed in the hope that it will be useful,
-* but WITHOUT ANY WARRANTY; without even the implied warranty of
-* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.See the
-* GNU General Public License for more details.
-*
-* You should have received a copy of the GNU General Public License
-* along with this program.If not, see <http://www.gnu.org/licenses/>.
-*
-*
-* MollenOS MCore Threading
-*
-*/
+ *
+ * Copyright 2011 - 2017, Philip Meulengracht
+ *
+ * This program is free software : you can redistribute it and / or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation ? , either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.If not, see <http://www.gnu.org/licenses/>.
+ *
+ *
+ * MollenOS MCore Threading Interface
+ * - Handles all common threading across architectures
+ *   and implements systems like signaling, synchronization and rpc
+ */
 
 #ifndef _MCORE_THREADING_H_
 #define _MCORE_THREADING_H_
 
-/* Includes */
+/* Includes 
+ * - System */
 #include <MollenOS.h>
 #include "../Arch/Arch.h"
+#include <Mutex.h>
 
-/* C-Library */
+/* Includes 
+ * - C-Library */
 #include <os/osdefs.h>
 #include <ds/list.h>
 
@@ -40,55 +44,54 @@
 #define THREADING_FINISHED		0x20
 #define THREADING_TRANSITION	0x40
 #define THREADING_INHERIT		0x80
+#define THREADING_INRPC			0x100
 
 /* The different possible threading priorities 
  * Normal is the default thread-priority, and Critical
  * should only be used by the system */
-typedef enum _MCoreThreadPriority
-{
+typedef enum _MCoreThreadPriority {
 	PriorityLow,
 	PriorityNormal,
 	PriorityHigh,
 	PriorityCritical
-
 } MCoreThreadPriority_t;
 
 /* The shared Thread structure used in MCore
  * it contains a <ThreadData> which points to 
  * architecture specific thread data, but rest
  * of the information here is shared in MCore */
-typedef struct _MCoreThread
-{
-	/* Name/Id */
+typedef struct _MCoreThread {
 	ThreadId_t Id;
-	char *Name;
-
-	/* Thread Attributes */
-	int Flags;
+	ThreadId_t ParentId;
+	PhxId_t AshId;
+	Cpu_t CpuId;
+	
+	/* Information related to this 
+	 * thread for it's usage */
+	AddressSpace_t *AddressSpace;
+	const char *Name;
+	Flags_t Flags;
 	int RetCode;
 
-	/* Scheduler Information */
+	/* Scheduler Information 
+	 * Used by the scheduler to keep
+	 * track of time, priority and it's queue */
 	MCoreThreadPriority_t Priority;
 	size_t TimeSlice;
 	int Queue;
 	
-	/* Synchronization */
+	/* Synchronization 
+	 * Used by semaphores and sleep */
 	Addr_t *SleepResource;
 	size_t Sleep;
 
-	/* Ids */
-	ThreadId_t ParentId;
-	PhxId_t AshId;
-	Cpu_t CpuId;
-
-	/* Address Space */
-	AddressSpace_t *AddrSpace;
-
-	/* Architecture Data */
+	/* Architecture specific extra data
+	 * this involves it's contexts and other task
+	 * only data */
 	void *ThreadData;
 
 	/* Entry point */
-	ThreadEntry_t Func;
+	ThreadEntry_t Function;
 	void *Args;
 
 } MCoreThread_t;
