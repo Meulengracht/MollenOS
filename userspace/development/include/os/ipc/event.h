@@ -17,11 +17,11 @@
  *
  *
  * MollenOS Inter-Process Communication Interface
- * - Remote Procedure Call routines
+ * - Event Procedure Call routines
  */
 
-#ifndef _MOLLENOS_RPC_H_
-#define _MOLLENOS_RPC_H_
+#ifndef _MOLLENOS_EVENT_H_
+#define _MOLLENOS_EVENT_H_
 
 /* Guard against inclusion */
 #ifndef _MOLLENOS_IPC_H_
@@ -39,80 +39,67 @@
 /* The argument package that can be passed
  * to an IPC function request, we support up
  * to 5 arguments */
-typedef struct _MRPCArgument {
+typedef struct _MEventArgument {
 	int					InUse;
 	const void			*Buffer;
 	size_t				Length;
-} RPCArgument_t;
+} EventArgument_t;
 
 /* The base event message structure, any IPC
  * action going through pipes in MollenOS must
  * inherit from this structure for security */
-typedef struct _MRemoteCall {
-	int					Function;
+typedef struct _MEventMessage {
+	int					Type;
 	int					Port;
 	size_t				Length;		/* Excluding this header */
 	IpcComm_t			Sender;		/* Automatically set by OS */
-	RPCArgument_t		Arguments[IPC_MAX_ARGUMENTS];
-	RPCArgument_t		Result;
-} MRemoteCall_t;
+	EventArgument_t		Arguments[IPC_MAX_ARGUMENTS];
+} MEventMessage_t;
 
 /* Cpp Guard */
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-/* RPCInitialize 
- * Initializes a new RPC message of the 
+/* EVTInitialize 
+ * Initializes a new EVT message of the 
  * given type and length */
-static __CRT_INLINE void RPCInitialize(MRemoteCall_t *Ipc, int Port, int Function)
+static __CRT_INLINE void EVTInitialize(MEventMessage_t *Event, 
+	int Port, int EventType)
 {
-	memset((void*)Ipc, 0, sizeof(MRemoteCall_t));
-	Ipc->Function = Function;
-	Ipc->Port = Port;
+	memset((void*)Event, 0, sizeof(MEventMessage_t));
+	Event->Type = EventType;
+	Event->Port = Port;
 }
 
-/* RPCSetArgument
- * Adds a new argument for the RPC request at
+/* EVTSetArgument
+ * Adds a new argument for the EVT request at
  * the given argument index. It's not possible to override 
  * a current argument */
-static __CRT_INLINE void RPCSetArgument(MRemoteCall_t *Ipc,
+static __CRT_INLINE void EVTSetArgument(MEventMessage_t *Event,
 	int Index, const void *Data, size_t Length)
 {
 	/* Sanitize the index and the
 	 * current argument */
 	if (Index >= IPC_MAX_ARGUMENTS
-		|| Index < 0 || Ipc->Arguments[Index].InUse == 1) {
+		|| Index < 0 || Event->Arguments[Index].InUse == 1) {
 		return;
 	}
 
-	Ipc->Arguments[Index].InUse = 1;
-	Ipc->Arguments[Index].Buffer = Data;
-	Ipc->Arguments[Index].Length = Length;
-	Ipc->Length += Length;
+	Event->Arguments[Index].InUse = 1;
+	Event->Arguments[Index].Buffer = Data;
+	Event->Arguments[Index].Length = Length;
+	Event->Length += Length;
 }
 
-/* RPCSetResult
- * Installs a result buffer that will be filled
- * with the response from the RPC request */
-static __CRT_INLINE void RPCSetResult(MRemoteCall_t *Ipc,
-	const void *Data, size_t Length)
-{
-	Ipc->Result.InUse = 1;
-	Ipc->Result.Buffer = Data;
-	Ipc->Result.Length = Length;
-}
-
-/* RPCEvaluate/RPCExecute
- * To get a reply from the RPC request, the user
- * must use RPCEvaluate, this will automatically wait
- * for a reply, whereas RPCExecute will send the request
- * and not block/wait for reply */
-_MOS_API OsStatus_t RPCEvaluate(MRemoteCall_t *Ipc, IpcComm_t Target);
-_MOS_API OsStatus_t RPCExecute(MRemoteCall_t *Ipc, IpcComm_t Target);
+/* EVTExecute
+ * Executes a new event to the desired target process
+ * the process must be listening on PIPE_EVENT to be able
+ * to recieve it. Events do not have replies */
+_MOS_API OsStatus_t EVTExecute(MEventMessage_t *Event, IpcComm_t Target);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif //!_MOLLENOS_RPC_H_
+#endif //!_MOLLENOS_EVENT_H_

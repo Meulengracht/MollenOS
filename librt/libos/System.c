@@ -20,9 +20,8 @@
  */
 
 /* Includes */
-#include <os/MollenOS.h>
-#include <os/Syscall.h>
-#include <os/Ipc.h>
+#include <os/mollenos.h>
+#include <os/syscall.h>
 
 /* Includes
  * - C-Library */

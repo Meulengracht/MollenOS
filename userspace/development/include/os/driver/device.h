@@ -1,6 +1,6 @@
 /* MollenOS
  *
- * Copyright 2011 - 2016, Philip Meulengracht
+ * Copyright 2011 - 2017, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -26,35 +26,35 @@
 
 /* Includes
  * - C-Library */
-#include <os/ipc/rpc.h>
 #include <os/osdefs.h>
+#include <os/ipc/ipc.h>
+
+/* The export macro, and is only set by the
+ * the actual implementation of the devicemanager */
+#ifdef __DEVICEMANAGER_EXPORT
+#define __DEVAPI __declspec(dllexport)
+#else
+#define __DEVAPI static __CRT_INLINE
+#endif
 
 /* These definitions are in-place to allow a custom
  * setting of the device-manager, these are set to values
  * where in theory it should never be needed to have more */
-#define DEVICE_INVALID		0
-#define MAX_IRQS			8
-#define MAX_IOSPACES		6
-#define IOSPACE_END			-1
+#define __DEVICEMANAGER_INTERFACE_VERSION	1
+#define __DEVICEMANAGER_TARGET				0x8000
 
-/* The export/usage macro definition
- * since only the actually systems export
- * and everything else imports/uses */
-#ifdef __DEVICEMANAGER_EXPORT
-#define __DEV_API __declspec(dllexport)
-#else
-#define __DEV_API static __CRT_INLINE
-#endif
+#define __DEVICEMANAGER_MAX_IRQS			8
+#define __DEVICEMANAGER_MAX_IOSPACES		6
+#define __DEVICEMANAGER_IOSPACE_END			-1
 
-/* Definitions for the device-api, these are 
- * used only by this interface */
-#define __DEVICEMANAGER_LIBRARY			"devicemanager.dll"
-#define __DEVICEMANAGER_VERSION			1
-
-/* Guard against CPP code */
-#ifdef __cplusplus
-extern "C" {
-#endif
+/* These are the different IPC functions supported
+ * by the devicemanager, note that some of them might
+ * be changed in the different versions, and/or new
+ * functions will be added */
+#define __DEVICEMANAGER_REGISTERDEVICE		IPC_DECL_FUNCTION(0)
+#define __DEVICEMANAGER_UNREGISTERDEVICE	IPC_DECL_FUNCTION(1)
+#define __DEVICEMANAGER_QUERYDEVICE			IPC_DECL_FUNCTION(2)
+#define __DEVICEMANAGER_IOCTLDEVICE			IPC_DECL_FUNCTION(3)
 
 /* This is the base device structure definition
  * and is passed on to all drivers on their initialization
@@ -81,13 +81,13 @@ typedef struct _MCoreDevice
 	 * the device for interrupts */
 	int IrqLine;
 	int IrqPin;
-	int IrqAvailable[MAX_IRQS];
+	int IrqAvailable[__DEVICEMANAGER_MAX_IRQS];
 
 	/* Device I/O Spaces 
 	 * These are the id's of the IO-spaces that
 	 * belong to this device, use IoSpaceQuery
 	 * to find out more information. */
-	IoSpaceId_t IoSpaces[MAX_IOSPACES];
+	IoSpaceId_t IoSpaces[__DEVICEMANAGER_MAX_IOSPACES];
 
 	/* Device Bus Information 
 	 * This describes the location on
@@ -100,44 +100,46 @@ typedef struct _MCoreDevice
 
 } MCoreDevice_t;
 
-/* The register device RPC
- * Use this to register a new device with the device-manager
- * the returned value will be the id of the new device */
-__DEV_API
+/* Device Registering
+ * Allows registering of a new device in the
+ * device-manager, and automatically queries
+ * for a driver for the new device */
 #ifdef __DEVICEMANAGER_EXPORT
-DECLRPC(RegisterDevice(MCoreDevice_t *Device));
+__DEVAPI DevId_t RegisterDevice(MCoreDevice_t *Device);
 #else
-DevId_t RegisterDevice(MCoreDevice_t *Device)
+__DEVAPI DevId_t RegisterDevice(MCoreDevice_t *Device)
 {
 	/* Variables */
-	MCoreRPC_t RpcPackage;
-	DevId_t DeviceId = 0;
-	int ErrorCode = 0;
-	void *Result = NULL;
-
-	/* Initialize a new RPC structure 
-	 * with the correct function name, and function
-	 * parameter package */
-	RPCInitialize(&RpcPackage, __DEVICEMANAGER_LIBRARY,
-		"RegisterDevice", __DEVICEMANAGER_VERSION);
-	RPCSetArgument(&RpcPackage, 0, 
-		(const void*)Device, sizeof(MCoreDevice_t));
-	Result = RPCEvaluate(&RpcPackage, &ErrorCode);
-
-	/* Sanitize the result */
-	if (ErrorCode == 0
-		&& Result != NULL) {
-		return *((DevId_t*)Result);
-	}
-	else {
-		return DEVICE_INVALID;
-	}
+	MEventMessage_t Request;
+	DevId_t Result;
+	IPCInitialize(&Request, PIPE_DEFAULT, __DEVICEMANAGER_REGISTERDEVICE);
+	IPCSetArgument(&Request, 0, (const void*)Device, sizeof(MCoreDevice_t));
+	IPCSetResult(&Request, (const void*)&Result, sizeof(DevId_t));
+	IPCEvaluate(&Request, __DEVICEMANAGER_TARGET);
+	return Result;
 }
 #endif
 
-/* End of the cpp guard */
-#ifdef __cplusplus
-}
-#endif
+/* Device Initialization
+ * Initializes the device for use and enables
+ * any irq(s) that is associated for the device
+ * the requesting driver must handle irq events */
+_MOS_API int DeviceInitialize(MCoreDevice_t*);
+
+/* Device Shutdown
+ * Disables the device and unregisteres any irq
+ * that might have been previously registered
+ * and unloads any children devices */
+_MOS_API int DeviceShutdown(MCoreDevice_t*);
+
+/* Device Query
+ * Queries the given device for information, see
+ * the different query-types available above */
+_MOS_API int DeviceQuery(MCoreDevice_t*);
+
+/* Device Control
+ * Control the given device by making modification
+ * the to the bus settings or irq status */
+_MOS_API int DeviceControl(MCoreDevice_t*);
 
 #endif //!_MCORE_DEVICE_H_

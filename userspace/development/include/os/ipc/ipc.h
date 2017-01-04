@@ -46,6 +46,7 @@
  * all userspace applications, these primarily consists
  * of input and/or window events */
 #define EVENT_INPUT						IPC_DECL_EVENT(0)
+#define EVENT_WINDOW_REPAINT			IPC_DECL_EVENT(1)
 
 /* Include Systems */
 #include <os/ipc/event.h>

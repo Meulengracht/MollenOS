@@ -798,7 +798,7 @@ OsStatus_t ScRpcResponse(MRemoteCall_t *Rpc)
 	}
 
 	/* Read the data into the response-buffer */
-	PipeRead(Pipe, Rpc->Result.Length, Rpc->Result.Buffer, 0);
+	PipeRead(Pipe, Rpc->Result.Length, (uint8_t*)Rpc->Result.Buffer, 0);
 
 	/* Done, it finally ran! */
 	return OsNoError;
@@ -833,7 +833,7 @@ OsStatus_t ScRpcExecute(MRemoteCall_t *Rpc, IpcComm_t Target, int Async)
 	PipeWrite(Pipe, sizeof(MRemoteCall_t), (uint8_t*)Rpc);
 	for (i = 0; i < IPC_MAX_ARGUMENTS; i++) {
 		if (Rpc->Arguments[i].InUse) {
-			PipeWrite(Pipe, Rpc->Arguments[i].Length, Rpc->Arguments[i].Buffer);
+			PipeWrite(Pipe, Rpc->Arguments[i].Length, (uint8_t*)Rpc->Arguments[i].Buffer);
 		}
 	}
 
@@ -850,7 +850,7 @@ OsStatus_t ScRpcExecute(MRemoteCall_t *Rpc, IpcComm_t Target, int Async)
 /* ScEvtExecute (System Call)
  * Executes an IPC EVT request to the
  * given process, does not give a reply */
-OsStatus_t ScRpcExecute(MEventMessage_t *Event, IpcComm_t Target)
+OsStatus_t ScEvtExecute(MEventMessage_t *Event, IpcComm_t Target)
 {
 	/* Variables */
 	MCoreAsh_t *Ash = NULL;
@@ -875,7 +875,7 @@ OsStatus_t ScRpcExecute(MEventMessage_t *Event, IpcComm_t Target)
 	PipeWrite(Pipe, sizeof(MEventMessage_t), (uint8_t*)Event);
 	for (i = 0; i < IPC_MAX_ARGUMENTS; i++) {
 		if (Event->Arguments[i].InUse) {
-			PipeWrite(Pipe, Event->Arguments[i].Length, Event->Arguments[i].Buffer);
+			PipeWrite(Pipe, Event->Arguments[i].Length, (uint8_t*)Event->Arguments[i].Buffer);
 		}
 	}
 
@@ -1660,7 +1660,7 @@ Addr_t GlbSyscallTable[121] =
 	DefineSyscall(ScIpcWake),
 	DefineSyscall(ScRpcExecute),
 	DefineSyscall(ScRpcResponse),
-	DefineSyscall(NoOperation),
+	DefineSyscall(ScEvtExecute),
 	DefineSyscall(NoOperation),
 
 	/* Vfs Functions - 51 */

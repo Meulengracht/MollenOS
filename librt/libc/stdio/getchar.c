@@ -20,7 +20,8 @@
 */
 
 /* Includes */
-#include <os/ipc/window.h>
+#include <os/ipc/ipc.h>
+#include <os/ipc/input.h>
 #include <stdio.h>
 #include <errno.h>
 #include <string.h>
@@ -30,40 +31,30 @@
 int getchar(void)
 {
 	/* Message */
-	union {
-		MEventMessage_t Base;
-		MWindowInput_t Input;
-	} Message;
-	uint8_t *MessagePointer = (uint8_t*)&Message;
+	MEventMessage_t Event;
+	MEventInput_t Input;
 	int Run = 1;
 
 	/* Wait for input message, we need to discard 
 	 * everything else as this is a polling op */
 	while (Run) 
 	{
-		/* Get message */
-		if (PipeRead(PIPE_WINDOWMANAGER, MessagePointer, sizeof(MEventMessage_t)))
+		/* Listen for events */
+		if (PipeRead(PIPE_EVENT, &Event, sizeof(MEventMessage_t))) {
 			return -1;
+		}
 
-		/* Increase message pointer by base
-		 * bytes read */
-		MessagePointer += sizeof(MEventMessage_t);
-
-		/* Handle Message */
-		if (Message.Base.Type == EventWindowInput) {
-			if (!PipeRead(PIPE_WINDOWMANAGER, MessagePointer,
-				sizeof(MWindowInput_t) - sizeof(MEventMessage_t))) {
-				if (Message.Input.Type == WindowInputKeyboard) {
-					if (Message.Input.Flags & MCORE_INPUT_BUTTON_CLICKED) {
-						return (int)Message.Input.Key;
-					}
-				}
+		/* The message must be of type input, otherwise
+		 * we should trash the message :( */
+		if (Event.Type == EVENT_INPUT) {
+			PipeRead(PIPE_EVENT, &Input, sizeof(MEventInput_t));
+			if (Input.Type == InputKeyboard
+				&& (Input.Flags & INPUT_BUTTON_CLICKED)) {
+				return (int)Input.Key;
 			}
 		}
 		else {
-			/* Trash Message */
-			PipeRead(PIPE_WINDOWMANAGER, NULL, 
-				Message.Base.Length - sizeof(MEventMessage_t));
+			PipeRead(PIPE_EVENT, NULL, Event.Length);
 		}
 	}
 

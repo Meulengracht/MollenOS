@@ -66,10 +66,6 @@ void PhoenixFinishAsh(MCoreAsh_t *Ash)
 	kfree(Ash->FileBuffer);
 	Ash->FileBuffer = NULL;
 
-	/* Create the mutex lock for
-	 * rpc-access by other threads */
-	Ash->RpcLock = MutexCreate();
-
 	/* Create the memory allocators */
 	Ash->Heap = BitmapCreate(MEMORY_LOCATION_USER_HEAP, MEMORY_LOCATION_USER_HEAP_END, PAGE_SIZE);
 	Ash->Shm = BitmapCreate(MEMORY_LOCATION_USER_SHM, MEMORY_LOCATION_USER_SHM_END, PAGE_SIZE);
@@ -398,9 +394,6 @@ void PhoenixCleanupAsh(MCoreAsh_t *Ash)
 
 	/* Now destroy the pipe-list */
 	ListDestroy(Ash->Pipes);
-
-	/* Cleanup sync mecanisms */
-	MutexDestruct(Ash->RpcLock);
 
 	/* Cleanup memory allocators */
 	BitmapDestroy(Ash->Shm);

@@ -25,7 +25,7 @@
 /* Includes 
  * - System */
 #include <os/osdefs.h>
-#include <os/ipc.h>
+#include <os/ipc/ipc.h>
 
 /* Prototypes */
 __CRT_EXTERN void EmRegisterSystemTarget(PhxId_t ProcessId);

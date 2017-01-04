@@ -1,6 +1,6 @@
 /* MollenOS
  *
- * Copyright 2011 - 2016, Philip Meulengracht
+ * Copyright 2011 - 2017, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -19,93 +19,92 @@
  * MollenOS InterProcess Comm Interface
  */
 
-#ifndef _MOLLENOS_IPC_WINDOW_H_
-#define _MOLLENOS_IPC_WINDOW_H_
+#ifndef _MOLLENOS_WINDOW_H_
+#define _MOLLENOS_WINDOW_H_
 
 /* Includes
- * - System */
-#include <os/virtualkeycodes.h>
+ * - C-Library */
 #include <os/osdefs.h>
-#include <os/ipc.h>
+#include <os/ipc/ipc.h>
 
-/* Forward declarations
- * to avoid recursion */
-typedef struct _MEventMessage MEventMessage_t;
+/* The export macro, and is only set by the
+ * the actual implementation of the windowmanager */
+#ifdef __WINDOWMANAGER_EXPORT
+#define __WNDAPI __CRT_EXTERN
+#else
+#define __WNDAPI static __CRT_INLINE
+#endif
 
-/* The types of window server messages
- * This is for applications to interact
- * with the window server */
-typedef enum _MWindowControlType {
-	WindowCtrlCreate,
-	WindowCtrlDestroy,
-	WindowCtrlInvalidate,
-	WindowCtrlQuery,
-} MWindowControlType_t;
+/* These definitions are in-place to allow a custom
+ * setting of the windowmanager, these are set to values
+ * where in theory it should never be needed to have more */
+#define __WINDOWMANAGER_INTERFACE_VERSION	1
+#define __WINDOWMANAGER_TARGET				0x8001
+	
+/* These are the different IPC functions supported
+ * by the windowmanager, note that some of them might
+ * be changed in the different versions, and/or new
+ * functions will be added */
+#define __WINDOWMANAGER_CREATE				IPC_DECL_FUNCTION(0)
+#define __WINDOWMANAGER_DESTROY				IPC_DECL_FUNCTION(1)
+#define __WINDOWMANAGER_INVALIDATE			IPC_DECL_FUNCTION(2)
+#define __WINDOWMANAGER_QUERY				IPC_DECL_FUNCTION(3)
 
-/* Base structure for window control 
- * messages, the types of control messages
- * are defined above by MWindowControlType_t */
-typedef struct _MWindowControl
+/* Structure used by the the create
+ * window function call, the structure 
+ * specifies creation details and flags about
+ * the window */
+typedef struct _MWindowParameters {
+	Rect_t				Dimensions;
+	unsigned			Flags;
+} WindowParameters_t;
+
+/* Structure returned by the window query
+ * function, it describes the backbuffer details
+ * and the dimensions of the inner/outer region */
+typedef struct _MWindowDescriptor {
+	Rect_t				Dimensions;
+	/* Buffer Information */
+} MWindowDescriptor_t;
+
+/* CreateWindow 
+ * Creates a window of the given
+ * dimensions and flags. The returned
+ * value is the id of the newly created
+ * window. Returns NULL on failure */
+#ifdef __WINDOWMANAGER_EXPORT
+__WNDAPI WndHandle_t CreateWindow(WindowParameters_t *Params);
+#else
+__WNDAPI WndHandle_t CreateWindow(WindowParameters_t *Params)
 {
-	/* Base */
-	MEventMessage_t Header;
+	/* Variables */
+	MEventMessage_t Request;
+	WndHandle_t Result;
+	RPCInitialize(&Request, PIPE_DEFAULT, __WINDOWMANAGER_CREATE);
+	RPCSetArgument(&Request, 0, (const void*)Params, sizeof(WindowParameters_t));
+	RPCSetResult(&Request, (const void*)&Result, sizeof(WndHandle_t));
+	RPCEvaluate(&Request, __WINDOWMANAGER_TARGET);
+	return Result;
+}
+#endif
 
-	/* Message Type */
-	MWindowControlType_t Type;
-
-	/* Available control parameters
-	 * used by the control messages */
-	size_t LoParam;
-	size_t HiParam;
-	Rect_t RcParam;
-
-} MWindowControl_t;
-
-/* The different types of input
- * that can be sent input messages
- * from, check the Type field in the
- * structure of an input message */
-typedef enum _MWindowInputType {
-	WindowInputUnknown = 0,
-	WindowInputMouse,
-	WindowInputKeyboard,
-	WindowInputKeypad,
-	WindowInputJoystick,
-	WindowInputGamePad,
-	WindowInputOther
-} MWindowInputType_t;
-
-/* Window input structure, contains
- * information about the recieved input
- * event with button data etc */
-typedef struct _MWindowInput
+/* DestroyWindow 
+ * Destroys a given window 
+ * and frees the resources associated with it. */
+#ifdef __WINDOWMANAGER_EXPORT
+__WNDAPI OsStatus_t DestroyWindow(WndHandle_t Handle);
+#else
+__WNDAPI OsStatus_t DestroyWindow(WndHandle_t Handle)
 {
-	/* Header */
-	MEventMessage_t Header;
+	/* Variables */
+	MEventMessage_t Request;
+	OsStatus_t Result;
+	RPCInitialize(&Request, PIPE_DEFAULT, __WINDOWMANAGER_DESTROY);
+	RPCSetArgument(&Request, 0, (const void*)Handle, sizeof(WndHandle_t));
+	RPCSetResult(&Request, (const void*)&Result, sizeof(OsStatus_t));
+	RPCEvaluate(&Request, __WINDOWMANAGER_TARGET);
+	return Result;
+}
+#endif
 
-	/* Input Type */
-	MWindowInputType_t Type;
-
-	/* Button Data (Keycode / Symbol) */
-	unsigned Scancode;
-	VKey Key;
-
-	/* Flags (Bit-field, see under structure) */
-	unsigned Flags;
-
-	/* Axis Data
-	 * Must be relative */
-	ssize_t xRelative;
-	ssize_t yRelative;
-	ssize_t zRelative;
-
-	/* Rotation Data */
-
-} MWindowInput_t;
-
-/* Flags - Event Types */
-#define MCORE_INPUT_BUTTON_RELEASED		0x0
-#define MCORE_INPUT_BUTTON_CLICKED		0x1
-#define MCORE_INPUT_MULTIPLEKEYS		0x2
-
-#endif //!_MOLLENOS_IPC_WINDOW_H_
+#endif //!_MOLLENOS_WINDOW_H_
