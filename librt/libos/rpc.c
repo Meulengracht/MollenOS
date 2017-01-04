@@ -29,7 +29,7 @@
  * must use RPCEvaluate, this will automatically wait
  * for a reply, whereas RPCExecute will send the request
  * and not block/wait for reply */
-OsStatus_t RPCEvaluate(MEventMessage_t *Ipc, IpcComm_t Target)
+OsStatus_t RPCEvaluate(MRemoteCall_t *Ipc, IpcComm_t Target)
 {
 	return Syscall3(SYSCALL_RPCEVAL, SYSCALL_PARAM(Ipc), SYSCALL_PARAM(Target), 0);
 }
@@ -39,7 +39,7 @@ OsStatus_t RPCEvaluate(MEventMessage_t *Ipc, IpcComm_t Target)
  * must use RPCEvaluate, this will automatically wait
  * for a reply, whereas RPCExecute will send the request
  * and not block/wait for reply */
-OsStatus_t RPCExecute(MEventMessage_t *Ipc, IpcComm_t Target)
+OsStatus_t RPCExecute(MRemoteCall_t *Ipc, IpcComm_t Target)
 {
 	return Syscall3(SYSCALL_RPCEVAL, SYSCALL_PARAM(Ipc), SYSCALL_PARAM(Target), 1);
 }

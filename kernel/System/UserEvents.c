@@ -81,12 +81,12 @@ void EmCreateEvent(MEventMessage_t *Event)
 		
 		/* Force space in buffer */
 		while (PipeBytesLeft(Pipe) < (int)(Event->Length))
-			PipeRead(Pipe, Event->Length, (uint8_t*)&NotRecycleBin, 0);
+			PipeRead(Pipe, (uint8_t*)&NotRecycleBin, Event->Length, 0);
 
 		/* Set sender as system */
 		Event->Sender = 0;
 		
 		/* Write data to pipe */
-		PipeWrite(Pipe, Event->Length, (uint8_t*)Event);
+		PipeWrite(Pipe, (uint8_t*)Event, Event->Length);
 	}
 }

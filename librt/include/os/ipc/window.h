@@ -24,6 +24,7 @@
 
 /* Includes
  * - C-Library */
+#include <os/mollenos.h>
 #include <os/osdefs.h>
 #include <os/ipc/ipc.h>
 
@@ -50,21 +51,31 @@
 #define __WINDOWMANAGER_INVALIDATE			IPC_DECL_FUNCTION(2)
 #define __WINDOWMANAGER_QUERY				IPC_DECL_FUNCTION(3)
 
+/* Structure to represent a surface in a 
+ * window, it consists of a pixel-buffer
+ * and information about the buffer size */
+typedef struct _MSurfaceDescriptor {
+	Rect_t					Dimensions;
+	const void				*Backbuffer;
+	size_t					BufferSize;
+	size_t					BufferPitch;
+} MSurfaceDescriptor_t;
+
 /* Structure used by the the create
  * window function call, the structure 
  * specifies creation details and flags about
  * the window */
 typedef struct _MWindowParameters {
-	Rect_t				Dimensions;
-	unsigned			Flags;
+	Rect_t					Dimensions;
+	unsigned				Flags;
 } WindowParameters_t;
 
 /* Structure returned by the window query
  * function, it describes the backbuffer details
  * and the dimensions of the inner/outer region */
 typedef struct _MWindowDescriptor {
-	Rect_t				Dimensions;
-	/* Buffer Information */
+	Rect_t					Dimensions;
+	MSurfaceDescriptor_t	Surface;
 } MWindowDescriptor_t;
 
 /* CreateWindow 
@@ -78,7 +89,7 @@ __WNDAPI WndHandle_t CreateWindow(WindowParameters_t *Params);
 __WNDAPI WndHandle_t CreateWindow(WindowParameters_t *Params)
 {
 	/* Variables */
-	MEventMessage_t Request;
+	MRemoteCall_t Request;
 	WndHandle_t Result;
 	RPCInitialize(&Request, PIPE_DEFAULT, __WINDOWMANAGER_CREATE);
 	RPCSetArgument(&Request, 0, (const void*)Params, sizeof(WindowParameters_t));
@@ -92,18 +103,50 @@ __WNDAPI WndHandle_t CreateWindow(WindowParameters_t *Params)
  * Destroys a given window 
  * and frees the resources associated with it. */
 #ifdef __WINDOWMANAGER_EXPORT
-__WNDAPI OsStatus_t DestroyWindow(WndHandle_t Handle);
+__WNDAPI void DestroyWindow(WndHandle_t Handle);
 #else
 __WNDAPI OsStatus_t DestroyWindow(WndHandle_t Handle)
 {
 	/* Variables */
-	MEventMessage_t Request;
-	OsStatus_t Result;
+	MRemoteCall_t Request;
 	RPCInitialize(&Request, PIPE_DEFAULT, __WINDOWMANAGER_DESTROY);
 	RPCSetArgument(&Request, 0, (const void*)Handle, sizeof(WndHandle_t));
-	RPCSetResult(&Request, (const void*)&Result, sizeof(OsStatus_t));
-	RPCEvaluate(&Request, __WINDOWMANAGER_TARGET);
-	return Result;
+	return RPCExecute(&Request, __WINDOWMANAGER_TARGET);
+}
+#endif
+
+/* QueryWindow
+ * Queries the window for information about dimensions
+ * and its surface, that can be used for direct pixel access */
+#ifdef __WINDOWMANAGER_EXPORT
+__WNDAPI void QueryWindow(WndHandle_t Handle, MWindowDescriptor_t *Descriptor);
+#else
+__WNDAPI OsStatus_t QueryWindow(WndHandle_t Handle, MWindowDescriptor_t *Descriptor)
+{
+	/* Variables */
+	MRemoteCall_t Request;
+	RPCInitialize(&Request, PIPE_DEFAULT, __WINDOWMANAGER_QUERY);
+	RPCSetArgument(&Request, 0, (const void*)Handle, sizeof(WndHandle_t));
+	RPCSetResult(&Request, (const void*)Descriptor, sizeof(MWindowDescriptor_t));
+	return RPCEvaluate(&Request, __WINDOWMANAGER_TARGET);
+}
+#endif
+
+/* InvalidateWindow
+ * Invalides a region of the window
+ * based on relative coordinates in the window 
+ * if its called with NULL as dimensions it invalidates all */
+#ifdef __WINDOWMANAGER_EXPORT
+__WNDAPI void InvalidateWindow(WndHandle_t Handle, Rect_t *Rectangle);
+#else
+__WNDAPI OsStatus_t InvalidateWindow(WndHandle_t Handle, Rect_t *Rectangle)
+{
+	/* Variables */
+	MRemoteCall_t Request;
+	RPCInitialize(&Request, PIPE_DEFAULT, __WINDOWMANAGER_INVALIDATE);
+	RPCSetArgument(&Request, 0, (const void*)Handle, sizeof(WndHandle_t));
+	RPCSetArgument(&Request, 1, (const void*)Rectangle, sizeof(Rect_t));
+	return RPCExecute(&Request, __WINDOWMANAGER_TARGET);
 }
 #endif
 

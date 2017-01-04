@@ -96,7 +96,6 @@ xcopy $(SolutionDir)librt\build\libos.dll $(SolutionDir)userspace\development\bi
     <ClCompile Include="..\..\libos\pipe.c" />
     <ClCompile Include="..\..\libos\sha1.c" />
     <ClCompile Include="..\..\libos\sharedobject.c" />
-    <ClCompile Include="..\..\libos\shared\balloc.c" />
     <ClCompile Include="..\..\libos\synchronization\condition.c" />
     <ClCompile Include="..\..\libos\synchronization\mutex.c" />
     <ClCompile Include="..\..\libos\synchronization\spinlock.c" />
@@ -106,7 +105,6 @@ xcopy $(SolutionDir)librt\build\libos.dll $(SolutionDir)userspace\development\bi
     <ClCompile Include="..\..\libos\thread\thread.c" />
     <ClCompile Include="..\..\libos\thread\tls.c" />
     <ClCompile Include="..\..\libos\timer.c" />
-    <ClCompile Include="..\..\libos\ui\ui.c" />
   </ItemGroup>
   <ItemGroup>
     <CustomBuild Include="..\..\libos\arch\i386\_spinlock.s">
@@ -122,7 +120,6 @@ xcopy $(SolutionDir)librt\build\libos.dll $(SolutionDir)userspace\development\bi
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\libos\mstring\MStringPrivate.h" />
-    <ClInclude Include="..\..\libos\shared\balloc.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

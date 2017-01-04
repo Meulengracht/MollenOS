@@ -32,7 +32,7 @@
 /* The export macro, and is only set by the
  * the actual implementation of the devicemanager */
 #ifdef __DEVICEMANAGER_EXPORT
-#define __DEVAPI __declspec(dllexport)
+#define __DEVAPI __CRT_EXTERN
 #else
 #define __DEVAPI static __CRT_INLINE
 #endif
@@ -110,12 +110,12 @@ __DEVAPI DevId_t RegisterDevice(MCoreDevice_t *Device);
 __DEVAPI DevId_t RegisterDevice(MCoreDevice_t *Device)
 {
 	/* Variables */
-	MEventMessage_t Request;
+	MRemoteCall_t Request;
 	DevId_t Result;
-	IPCInitialize(&Request, PIPE_DEFAULT, __DEVICEMANAGER_REGISTERDEVICE);
-	IPCSetArgument(&Request, 0, (const void*)Device, sizeof(MCoreDevice_t));
-	IPCSetResult(&Request, (const void*)&Result, sizeof(DevId_t));
-	IPCEvaluate(&Request, __DEVICEMANAGER_TARGET);
+	RPCInitialize(&Request, PIPE_DEFAULT, __DEVICEMANAGER_REGISTERDEVICE);
+	RPCSetArgument(&Request, 0, (const void*)Device, sizeof(MCoreDevice_t));
+	RPCSetResult(&Request, (const void*)&Result, sizeof(DevId_t));
+	RPCEvaluate(&Request, __DEVICEMANAGER_TARGET);
 	return Result;
 }
 #endif

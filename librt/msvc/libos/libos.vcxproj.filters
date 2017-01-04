@@ -10,17 +10,11 @@
     <Filter Include="mstring">
       <UniqueIdentifier>{e393556f-3524-4e68-a685-627724f39010}</UniqueIdentifier>
     </Filter>
-    <Filter Include="shared">
-      <UniqueIdentifier>{13ea1bef-df9b-4a91-a4c3-9d5beab6cef0}</UniqueIdentifier>
-    </Filter>
     <Filter Include="synchronization">
       <UniqueIdentifier>{395ac59d-c50d-4d3a-be64-8ccd4da8d2d1}</UniqueIdentifier>
     </Filter>
     <Filter Include="thread">
       <UniqueIdentifier>{79e2eaba-7bba-4f43-a8d5-f71d6efa0d01}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="ui">
-      <UniqueIdentifier>{5d38805a-6df9-4e16-9098-748ddbd526b5}</UniqueIdentifier>
     </Filter>
     <Filter Include="arch\i386">
       <UniqueIdentifier>{38102c9a-0cd5-44e2-af79-1b31d50a28c9}</UniqueIdentifier>
@@ -92,12 +86,6 @@
     <ClCompile Include="..\..\libos\mstring\mstringutf8.c">
       <Filter>mstring</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\libos\ui\ui.c">
-      <Filter>ui</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\libos\shared\balloc.c">
-      <Filter>shared</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\libos\synchronization\condition.c">
       <Filter>synchronization</Filter>
     </ClCompile>
@@ -123,9 +111,6 @@
   <ItemGroup>
     <ClInclude Include="..\..\libos\mstring\MStringPrivate.h">
       <Filter>mstring</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\libos\shared\balloc.h">
-      <Filter>shared</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

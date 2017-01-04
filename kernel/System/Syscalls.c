@@ -682,12 +682,6 @@ int ScPipeRead(int Port, uint8_t *Container, size_t Length, int Peek)
 	/* Variables */
 	MCorePipe_t *Pipe = NULL;
 
-	/* Santizie the parameters */
-	if (Container == NULL
-		|| Length == 0) {
-		return -1;
-	}
-
 	/* Lookup the pipe for the given port */
 	Pipe = PhoenixGetAshPipe(PhoenixGetAsh(PHOENIX_CURRENT), Port);
 
@@ -697,7 +691,7 @@ int ScPipeRead(int Port, uint8_t *Container, size_t Length, int Peek)
 	}
 
 	/* Read */
-	return PipeRead(Pipe, Length, Container, Peek);
+	return PipeRead(Pipe, Container, Length, Peek);
 }
 
 /* Sends a message to another process, 
@@ -707,9 +701,7 @@ int ScPipeRead(int Port, uint8_t *Container, size_t Length, int Peek)
 int ScPipeWrite(PhxId_t AshId, int Port, uint8_t *Message, size_t Length)
 {
 	/* Variables */
-	Cpu_t CurrentCpu = ApicGetCpu();
 	MCorePipe_t *Pipe = NULL;
-	IpcComm_t Sender = 0;
 
 	/* Santizie the parameters */
 	if (Message == NULL
@@ -719,20 +711,14 @@ int ScPipeWrite(PhxId_t AshId, int Port, uint8_t *Message, size_t Length)
 
 	/* Lookup the pipe for the given port */
 	Pipe = PhoenixGetAshPipe(PhoenixGetAsh(AshId), Port);
-	Sender = ThreadingGetCurrentThread(CurrentCpu)->AshId;
 
 	/* Sanitize the pipe */
 	if (Pipe == NULL) {
 		return -2;
 	}
 
-	/* Fill in sender */
-	if (!(Pipe->Flags & PIPE_INSECURE)) {
-		((MRemoteCall_t*)Message)->Sender = Sender;
-	}
-
 	/* Write */
-	return PipeWrite(Pipe, Length, Message);
+	return PipeWrite(Pipe, Message, Length);
 }
 
 /* This is a bit of a tricky synchronization method
@@ -798,7 +784,7 @@ OsStatus_t ScRpcResponse(MRemoteCall_t *Rpc)
 	}
 
 	/* Read the data into the response-buffer */
-	PipeRead(Pipe, Rpc->Result.Length, (uint8_t*)Rpc->Result.Buffer, 0);
+	PipeRead(Pipe, (uint8_t*)Rpc->Result.Buffer, Rpc->Result.Length, 0);
 
 	/* Done, it finally ran! */
 	return OsNoError;
@@ -830,10 +816,10 @@ OsStatus_t ScRpcExecute(MRemoteCall_t *Rpc, IpcComm_t Target, int Async)
 
 	/* Write the base request 
 	 * and then iterate arguments and write them */
-	PipeWrite(Pipe, sizeof(MRemoteCall_t), (uint8_t*)Rpc);
+	PipeWrite(Pipe, (uint8_t*)Rpc, sizeof(MRemoteCall_t));
 	for (i = 0; i < IPC_MAX_ARGUMENTS; i++) {
 		if (Rpc->Arguments[i].InUse) {
-			PipeWrite(Pipe, Rpc->Arguments[i].Length, (uint8_t*)Rpc->Arguments[i].Buffer);
+			PipeWrite(Pipe, (uint8_t*)Rpc->Arguments[i].Buffer, Rpc->Arguments[i].Length);
 		}
 	}
 
@@ -872,10 +858,10 @@ OsStatus_t ScEvtExecute(MEventMessage_t *Event, IpcComm_t Target)
 
 	/* Write the base request
 	* and then iterate arguments and write them */
-	PipeWrite(Pipe, sizeof(MEventMessage_t), (uint8_t*)Event);
+	PipeWrite(Pipe, (uint8_t*)Event, sizeof(MEventMessage_t));
 	for (i = 0; i < IPC_MAX_ARGUMENTS; i++) {
 		if (Event->Arguments[i].InUse) {
-			PipeWrite(Pipe, Event->Arguments[i].Length, (uint8_t*)Event->Arguments[i].Buffer);
+			PipeWrite(Pipe, (uint8_t*)Event->Arguments[i].Buffer, Event->Arguments[i].Length);
 		}
 	}
 

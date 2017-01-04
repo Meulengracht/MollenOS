@@ -110,7 +110,7 @@ __DEVAPI DevId_t RegisterDevice(MCoreDevice_t *Device);
 __DEVAPI DevId_t RegisterDevice(MCoreDevice_t *Device)
 {
 	/* Variables */
-	MEventMessage_t Request;
+	MRemoteCall_t Request;
 	DevId_t Result;
 	RPCInitialize(&Request, PIPE_DEFAULT, __DEVICEMANAGER_REGISTERDEVICE);
 	RPCSetArgument(&Request, 0, (const void*)Device, sizeof(MCoreDevice_t));
