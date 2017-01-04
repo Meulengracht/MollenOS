@@ -847,6 +847,42 @@ OsStatus_t ScRpcExecute(MRemoteCall_t *Rpc, IpcComm_t Target, int Async)
 	return ScRpcResponse(Rpc);
 }
 
+/* ScEvtExecute (System Call)
+ * Executes an IPC EVT request to the
+ * given process, does not give a reply */
+OsStatus_t ScRpcExecute(MEventMessage_t *Event, IpcComm_t Target)
+{
+	/* Variables */
+	MCoreAsh_t *Ash = NULL;
+	MCorePipe_t *Pipe = NULL;
+	int i = 0;
+
+	/* Start out by resolving both the
+	* process and pipe */
+	Ash = PhoenixGetAsh(Target);
+	Pipe = PhoenixGetAshPipe(Ash, Event->Port);
+
+	/* Sanitize the lookups */
+	if (Ash == NULL || Pipe == NULL) {
+		return OsError;
+	}
+
+	/* Install the sender */
+	Event->Sender = ThreadingGetCurrentThread(ApicGetCpu())->AshId;
+
+	/* Write the base request
+	* and then iterate arguments and write them */
+	PipeWrite(Pipe, sizeof(MEventMessage_t), (uint8_t*)Event);
+	for (i = 0; i < IPC_MAX_ARGUMENTS; i++) {
+		if (Event->Arguments[i].InUse) {
+			PipeWrite(Pipe, Event->Arguments[i].Length, Event->Arguments[i].Buffer);
+		}
+	}
+
+	/* Ok, we are done! */
+	return OsNoError;
+}
+
 /***********************
 * VFS Functions        *
 ***********************/
