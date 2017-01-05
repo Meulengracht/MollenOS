@@ -40,10 +40,10 @@ Registers_t *ContextCreate(Addr_t Eip)
 	Context = (Registers_t*)CtxLocation;
 
 	/* Set Segments */
-	Context->Ds = X86_KERNEL_DATA_SEGMENT;
-	Context->Fs = X86_KERNEL_DATA_SEGMENT;
-	Context->Es = X86_KERNEL_DATA_SEGMENT;
-	Context->Gs = X86_KERNEL_DATA_SEGMENT;
+	Context->Ds = GDT_KDATA_SEGMENT;
+	Context->Fs = GDT_KDATA_SEGMENT;
+	Context->Es = GDT_KDATA_SEGMENT;
+	Context->Gs = GDT_KDATA_SEGMENT;
 
 	/* Initialize Registers */
 	Context->Eax = 0;
@@ -62,7 +62,7 @@ Registers_t *ContextCreate(Addr_t Eip)
 	/* Set Entry */
 	Context->Eip = Eip;
 	Context->Eflags = X86_THREAD_EFLAGS;
-	Context->Cs = X86_KERNEL_CODE_SEGMENT;
+	Context->Cs = GDT_KCODE_SEGMENT;
 
 	/* Null user stuff */
 	Context->UserEsp = 0;
@@ -82,10 +82,10 @@ Registers_t *ContextUserCreate(Addr_t StackStartAddr, Addr_t Eip, Addr_t *Args)
 	uContext = (Registers_t*)(StackStartAddr - sizeof(Registers_t));
 
 	/* Set Segments */
-	uContext->Ds = X86_USER_DATA_SEGMENT + 0x03;
-	uContext->Fs = X86_USER_DATA_SEGMENT + 0x03;
-	uContext->Es = X86_USER_DATA_SEGMENT + 0x03;
-	uContext->Gs = X86_USER_DATA_SEGMENT + 0x03;
+	uContext->Ds = GDT_UDATA_SEGMENT + 0x03;
+	uContext->Fs = GDT_UDATA_SEGMENT + 0x03;
+	uContext->Es = GDT_UDATA_SEGMENT + 0x03;
+	uContext->Gs = GDT_UDATA_SEGMENT + 0x03;
 
 	/* Initialize Registers */
 	uContext->Eax = 0;
@@ -104,11 +104,11 @@ Registers_t *ContextUserCreate(Addr_t StackStartAddr, Addr_t Eip, Addr_t *Args)
 	/* Set Entry */
 	uContext->Eip = Eip;
 	uContext->Eflags = X86_THREAD_EFLAGS;
-	uContext->Cs = X86_USER_CODE_SEGMENT + 0x03;
+	uContext->Cs = GDT_UCODE_SEGMENT + 0x03;
 
 	/* Null user stuff */
 	uContext->UserEsp = (Addr_t)&uContext->UserEsp;
-	uContext->UserSs = X86_USER_DATA_SEGMENT + 0x03;
+	uContext->UserSs = GDT_UDATA_SEGMENT + 0x03;
 	uContext->UserArg = (Addr_t)Args;
 
 	/* Done! */

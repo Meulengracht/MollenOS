@@ -77,7 +77,7 @@ void HALInit(void *BootInfo, MCoreBootDescriptor *Descriptor)
 
 	/* Setup x86 descriptor-tables
 	 * which needs to happen on both 32/64 bit */
-	GdtInit();
+	GdtInitialize();
 	IdtInit();
 
 	/* Install all the interrupt handlers, we 

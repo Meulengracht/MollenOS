@@ -86,19 +86,15 @@ typedef struct _AddressSpace
 
 } AddressSpace_t;
 
+#include "Gdt.h"
+
 /* X86-32 Thread */
-typedef struct _x86_Thread
-{
-	/* Flags */
-	uint32_t Flags;
-
-	/* Context(s) */
-	Registers_t *Context;
-	Registers_t *UserContext;
-
-	/* Math Buffer */
-	Addr_t *FpuBuffer;
-
+typedef struct _x86_Thread {
+	Flags_t				Flags;
+	uint8_t				IoMap[GDT_IOMAP_SIZE];
+	Registers_t			*Context;
+	Registers_t			*UserContext;
+	Addr_t				*FpuBuffer;
 } x86Thread_t;
 
 /* Architecture Prototypes, you should define 

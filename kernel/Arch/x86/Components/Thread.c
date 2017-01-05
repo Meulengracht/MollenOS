@@ -197,6 +197,9 @@ void IThreadInitUserMode(void *ThreadData,
 
 	/* Create user-context */
 	t->UserContext = ContextUserCreate(StackAddr, EntryPoint, (Addr_t*)ArgumentAddress);
+
+	/* Disable all port-access */
+	memset(&t->IoMap[0], 0xFF, GDT_IOMAP_SIZE);
 }
 
 /* Dispatches a signal to the given process 
@@ -271,6 +274,7 @@ Registers_t *_ThreadingSwitch(Registers_t *Regs, int PreEmptive, size_t *TimeSli
 
 	/* Set TSS */
 	TssUpdateStack(Cpu, (Addr_t)tx86->Context);
+	TssUpdateIo(Cpu, &tx86->IoMap[0]);
 
 	/* Finish Transition */
 	if (mThread->Flags & THREADING_TRANSITION) {
