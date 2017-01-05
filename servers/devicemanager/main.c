@@ -23,12 +23,13 @@
 /* Includes
  * - System */
 #include <os/driver/device.h>
+#include <os/mollenos.h>
+#include <ds/list.h>
 
 /* Includes
  * - C-Library */
+#include <stdlib.h>
 #include <stddef.h>
-#include <ds/list.h>
-#include <os/mollenos.h>
 #include <string.h>
 #include <ctype.h>
 
@@ -38,10 +39,6 @@ DevId_t GlbDeviceIdGen = 0;
 int GlbInitialized = 0;
 int GlbRun = 0;
 
-/* Prototypes
- * - Drvm Prototypes */
-
-
 /* Entry point of a server
  * this handles setup and enters the event-queue
  * the data passed is a system informations structure
@@ -49,8 +46,7 @@ int GlbRun = 0;
 int ServerMain(void *Data)
 {
 	/* Storage for message */
-	MEventMessage_t Message;
-	uint8_t *MessagePointer = (uint8_t*)&Message;
+	MRemoteCall_t Message;
 
 	/* Save */
 	_CRT_UNUSED(Data);
@@ -68,51 +64,41 @@ int ServerMain(void *Data)
 
 	/* Enter event queue */
 	while (GlbRun) {
-		if (!PipeRead(PIPE_DEFAULT, MessagePointer, sizeof(MEventMessage_t)))
-		{
-			/* Increase message pointer by base
-			 * bytes read */
-			MessagePointer += sizeof(MEventMessage_t);
+		if (!PipeRead(PIPE_DEFAULT, &Message, sizeof(MRemoteCall_t))) {
+			switch (Message.Function) {
 
-			/* Control message or response? */
-			if (Message.Base.Type == EventServerControl)
-			{
-				/* Read the rest of the message */
-				if (!PipeRead(PIPE_SERVER, MessagePointer, 
-					sizeof(MServerControl_t) - sizeof(MEventMessage_t))) {
-					switch (Message.Control.Type)
-					{
-						case IpcRegisterDevice: {
-							
-						} break;
+				/* Handles registration of a new device */
+				case __DEVICEMANAGER_REGISTERDEVICE: {
 
-						case IpcUnregisterDevice: {
+					/* Allocate resources needed for 
+					 * reading parameters */
+					MCoreDevice_t *Device = 
+						(MCoreDevice_t*)malloc(sizeof(MCoreDevice_t));
+					DevId_t Result;
 
-						} break;
+					/* Read in parameters in containers */
+					PipeRead(PIPE_DEFAULT, &Device, sizeof(MCoreDevice_t));
 
-						case IpcQueryDevice: {
+					/* Evaluate request */
+					Result = RegisterDevice(Device);
 
-						} break;
+					/* Write the result back to the caller */
+					PipeSend(Message.Sender, Message.Port, 
+						&Result, sizeof(DevId_t));
+				} break;
+				case __DEVICEMANAGER_UNREGISTERDEVICE: {
 
-						case IpcControlDevice: {
+				} break;
+				case __DEVICEMANAGER_QUERYDEVICE: {
 
-						} break;
+				} break;
+				case __DEVICEMANAGER_IOCTLDEVICE: {
 
-						/* Invalid is not for us */
-						default:
-							break;
-					}
-				}
-			}
-			else if (Message.Base.Type == EventServerCommand)
-			{
-				/* Read the rest of the message */
-				if (!PipeRead(PIPE_SERVER, MessagePointer,
-					sizeof(MCoreDeviceRequest_t) - sizeof(MEventMessage_t))) {
-					switch (Message.Command.Type)
-					{
-						default:
-							break;
+				} break;
+
+				default: {
+					if (Message.Length != 0) {
+						PipeRead(PIPE_DEFAULT, NULL, Message.Length);
 					}
 				}
 			}
@@ -124,4 +110,26 @@ int ServerMain(void *Data)
 
 	/* Done, no error, return 0 */
 	return 0;
+}
+
+/* Device Registering
+ * Allows registering of a new device in the
+ * device-manager, and automatically queries
+ * for a driver for the new device */
+DevId_t RegisterDevice(MCoreDevice_t *Device)
+{
+	/* Variables */
+	DevId_t DeviceId = GlbDeviceIdGen++;
+	DataKey_t Key;
+
+	/* Update id, add to list */
+	Key.Value = DeviceId;
+	Device->Id = DeviceId;
+	ListAppend(GlbDeviceList, ListCreateNode(Key, Key, Device));
+
+	/* Now, we want to try to find a driver
+	 * for the new device */
+
+	/* Done with processing of the new device */
+	return DeviceId;
 }

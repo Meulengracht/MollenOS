@@ -433,7 +433,8 @@ void BusInit(void)
 			PciBus_t *Bus = (PciBus_t*)kmalloc(sizeof(PciBus_t));
 
 			/* Memory Map 256 MB!!!!! Oh fucking god */
-			Bus->IoSpace = IoSpaceCreate(DEVICE_IO_SPACE_MMIO, (Addr_t)Entry->BaseAddress, (1024 * 1024 * 256));
+			Bus->IoSpace = IoSpaceCreate(DEVICE_IO_SPACE_MMIO, 
+				(Addr_t)Entry->BaseAddress, (1024 * 1024 * 256));
 			Bus->IsExtended = 1;
 			Bus->BusStart = Entry->StartBus;
 			Bus->BusEnd = Entry->EndBus;

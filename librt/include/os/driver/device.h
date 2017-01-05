@@ -43,6 +43,7 @@
 #define __DEVICEMANAGER_INTERFACE_VERSION	1
 #define __DEVICEMANAGER_TARGET				0x8000
 
+#define __DEVICEMANAGER_NAMEBUFFER_LENGTH	128
 #define __DEVICEMANAGER_MAX_IRQS			8
 #define __DEVICEMANAGER_MAX_IOSPACES		6
 #define __DEVICEMANAGER_IOSPACE_END			-1
@@ -65,38 +66,43 @@ typedef struct _MCoreDevice
 	/* Device Identifier
 	 * This is used when communicating with the
 	 * devicemanager server */
-	DevId_t Id;
+	DevId_t						Id;
+
+	/* Device Name
+	 * Limited name buffer set by config 
+	 * Null terminated utf8 data */
+	char						Name[__DEVICEMANAGER_NAMEBUFFER_LENGTH];
 
 	/* Device Information
 	 * This is used both by the devicemanager
 	 * and by the driver to match */
-	DevInfo_t VendorId;
-	DevInfo_t DeviceId;
-	DevInfo_t Class;
-	DevInfo_t Subclass;
+	DevInfo_t					VendorId;
+	DevInfo_t					DeviceId;
+	DevInfo_t					Class;
+	DevInfo_t					Subclass;
 
 	/* Device Irq Description
 	 * This information descripes the type of
 	 * irq, and the available irq lines when registering
 	 * the device for interrupts */
-	int IrqLine;
-	int IrqPin;
-	int IrqAvailable[__DEVICEMANAGER_MAX_IRQS];
+	int							IrqLine;
+	int							IrqPin;
+	int							IrqAvailable[__DEVICEMANAGER_MAX_IRQS];
 
 	/* Device I/O Spaces 
 	 * These are the id's of the IO-spaces that
 	 * belong to this device, use IoSpaceQuery
 	 * to find out more information. */
-	IoSpaceId_t IoSpaces[__DEVICEMANAGER_MAX_IOSPACES];
+	IoSpaceId_t					IoSpaces[__DEVICEMANAGER_MAX_IOSPACES];
 
 	/* Device Bus Information 
 	 * This describes the location on
 	 * the bus, and these informations
 	 * can be used to control the bus-device */
-	DevInfo_t Segment;
-	DevInfo_t Bus;
-	DevInfo_t Device;
-	DevInfo_t Function;
+	DevInfo_t					Segment;
+	DevInfo_t					Bus;
+	DevInfo_t					Device;
+	DevInfo_t					Function;
 
 } MCoreDevice_t;
 

@@ -1520,13 +1520,6 @@ int ScIoSpaceDestroy(DeviceIoSpace_t *IoSpace)
 	return 0;
 }
 
-/*
-DefineSyscall(AddressSpaceGetCurrent),
-DefineSyscall(AddressSpaceGetMap),
-DefineSyscall(AddressSpaceMapFixed),
-DefineSyscall(AddressSpaceUnmap),
-DefineSyscall(AddressSpaceMap), */
-
 /***********************
 * System Functions     *
 ***********************/
@@ -1716,11 +1709,11 @@ Addr_t GlbSyscallTable[121] =
 	DefineSyscall(NoOperation),
 	DefineSyscall(NoOperation),
 	DefineSyscall(NoOperation),
-	DefineSyscall(AddressSpaceGetCurrent),
-	DefineSyscall(AddressSpaceGetMap),
-	DefineSyscall(AddressSpaceMapFixed),
-	DefineSyscall(AddressSpaceUnmap),
-	DefineSyscall(AddressSpaceMap),
+	DefineSyscall(NoOperation),
+	DefineSyscall(NoOperation),
+	DefineSyscall(NoOperation),
+	DefineSyscall(NoOperation),
+	DefineSyscall(NoOperation),
 	DefineSyscall(NoOperation),
 	DefineSyscall(NoOperation),
 	DefineSyscall(NoOperation),
