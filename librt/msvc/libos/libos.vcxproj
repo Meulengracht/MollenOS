@@ -70,6 +70,8 @@ xcopy $(SolutionDir)librt\build\libos.dll $(SolutionDir)userspace\development\bi
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="..\..\libos\devices.c" />
+    <ClCompile Include="..\..\libos\driver\acsupport.c" />
+    <ClCompile Include="..\..\libos\driver\iospace.c" />
     <ClCompile Include="..\..\libos\ds\ds.c" />
     <ClCompile Include="..\..\libos\ds\hashtable.c" />
     <ClCompile Include="..\..\libos\ds\list.c" />

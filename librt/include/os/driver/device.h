@@ -28,6 +28,7 @@
  * - C-Library */
 #include <os/osdefs.h>
 #include <os/ipc/ipc.h>
+#include <os/driver/io.h>
 
 /* The export macro, and is only set by the
  * the actual implementation of the devicemanager */
@@ -91,9 +92,8 @@ typedef struct _MCoreDevice
 
 	/* Device I/O Spaces 
 	 * These are the id's of the IO-spaces that
-	 * belong to this device, use IoSpaceQuery
-	 * to find out more information. */
-	IoSpaceId_t					IoSpaces[__DEVICEMANAGER_MAX_IOSPACES];
+	 * belong to this device. */
+	DeviceIoSpace_t				IoSpaces[__DEVICEMANAGER_MAX_IOSPACES];
 
 	/* Device Bus Information 
 	 * This describes the location on

@@ -1,6 +1,6 @@
 /* MollenOS
  *
- * Copyright 2011 - 2016, Philip Meulengracht
+ * Copyright 2011 - 2017, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,21 +16,16 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS Driver Inteface
- * - MollenOS SDK 
+ * MollenOS MCore - Device I/O Definitions & Structures
+ * - This header describes the base io-structure, prototypes
+ *   and functionality, refer to the individual things for descriptions
  */
-
-#ifndef _MCORE_DRIVER_H_
-#define _MCORE_DRIVER_H_
-
-/* Includes
- * - C-Library */
-#include <os/osdefs.h>
 
 /* Includes
  * - System */
 #include <os/driver/io.h>
-#include <os/driver/acpi.h>
-#include <os/driver/device.h>
 
-#endif //!_MCORE_DRIVER_H_
+
+
+
+

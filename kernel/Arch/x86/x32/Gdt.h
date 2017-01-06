@@ -32,27 +32,29 @@
  * we allow for 16 gdt descriptors and tss descriptors 
  * they are allocated using static storage since we have
  * no dynamic memory at the time we need them */
-#define GDT_MAX_TSS					32
-#define GDT_MAX_DESCRIPTORS			(GDT_MAX_TSS + 5)
-#define GDT_IOMAP_SIZE				32
+#define GDT_MAX_TSS					128
+#define GDT_MAX_DESCRIPTORS			(GDT_MAX_TSS + 7)
+#define GDT_IOMAP_SIZE				2048
 
 /* 5 Hardcoded system descriptors, we must have a 
  * null descriptor to catch cases where segment has
- * been set to 0, and we need 2 for ring 0, and 2 for ring 3 */
+ * been set to 0, and we need 2 for ring 0, and 4 for ring 3 */
 #define GDT_NULL_SEGMENT			0x00
-#define GDT_KCODE_SEGMENT			0x08
-#define GDT_KDATA_SEGMENT			0x10
-#define GDT_UCODE_SEGMENT			0x18
-#define GDT_UDATA_SEGMENT			0x20
+#define GDT_KCODE_SEGMENT			0x08	/* Kernel */
+#define GDT_KDATA_SEGMENT			0x10	/* Kernel */
+#define GDT_UCODE_SEGMENT			0x18	/* Applications */
+#define GDT_UDATA_SEGMENT			0x20	/* Applications */
+#define GDT_PCODE_SEGMENT			0x28	/* Driver */
+#define GDT_PDATA_SEGMENT			0x30	/* Driver */
 
 /* Gdt type codes, they set the appropriate bits
  * needed for our needs, both for code and data segments
  * where kernel == ring0 and user == ring3 */
 #define GDT_GRANULARITY				0xCF
-#define GDT_KERNEL_CODE				0x9A
-#define GDT_KERNEL_DATA				0x92
-#define GDT_USER_CODE				0xFA
-#define GDT_USER_DATA				0xF2
+#define GDT_RING0_CODE				0x9A
+#define GDT_RING0_DATA				0x92
+#define GDT_RING3_CODE				0xFA
+#define GDT_RING3_DATA				0xF2
 #define GDT_TSS_ENTRY				0xE9
 
 /* The GDT base structure, this is what the hardware
@@ -121,7 +123,6 @@ typedef struct _TssEntry  {
 	uint16_t			IoMapBase;
 
 	/* Io priveliege map
-	 * only span the first 256 ports (32 * 8) 
 	 * 0 => Granted, 1 => Denied */
 	uint8_t				IoMap[GDT_IOMAP_SIZE];
 } TssEntry_t;
@@ -138,7 +139,7 @@ __CRT_EXTERN void GdtInstall(void);
 /* Helper for setting up a new task state segment for
  * the given cpu core, this should be done once per
  * core, and it will set default params for the TSS */
-__CRT_EXTERN void GdtInstallTss(Cpu_t Cpu);
+__CRT_EXTERN void GdtInstallTss(Cpu_t Cpu, int Static);
 
 /* Updates the kernel/interrupt stack for the current
  * cpu tss entry, this should be updated at each task-switch */

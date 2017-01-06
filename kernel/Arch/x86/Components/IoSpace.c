@@ -46,10 +46,10 @@ void IoSpaceInit(void)
 }
 
 /* Device Io Space */
-DeviceIoSpace_t *IoSpaceCreate(int Type, Addr_t PhysicalBase, size_t Size)
+MCoreIoSpace_t *IoSpaceCreate(int Type, Addr_t PhysicalBase, size_t Size)
 {
 	/* Allocate */
-	DeviceIoSpace_t *IoSpace = (DeviceIoSpace_t*)kmalloc(sizeof(DeviceIoSpace_t));
+	MCoreIoSpace_t *IoSpace = (MCoreIoSpace_t*)kmalloc(sizeof(MCoreIoSpace_t));
 	DataKey_t Key;
 
 	/* Setup */
@@ -88,7 +88,7 @@ DeviceIoSpace_t *IoSpaceCreate(int Type, Addr_t PhysicalBase, size_t Size)
 }
 
 /* Cleanup Io Space */
-void IoSpaceDestroy(DeviceIoSpace_t *IoSpace)
+void IoSpaceDestroy(MCoreIoSpace_t *IoSpace)
 {
 	/* DataKey for list */
 	DataKey_t Key;
@@ -115,7 +115,7 @@ void IoSpaceDestroy(DeviceIoSpace_t *IoSpace)
 }
 
 /* Read from device space */
-size_t IoSpaceRead(DeviceIoSpace_t *IoSpace, size_t Offset, size_t Length)
+size_t IoSpaceRead(MCoreIoSpace_t *IoSpace, size_t Offset, size_t Length)
 {
 	/* Result */
 	size_t Result = 0;
@@ -176,7 +176,7 @@ size_t IoSpaceRead(DeviceIoSpace_t *IoSpace, size_t Offset, size_t Length)
 }
 
 /* Write to device space */
-void IoSpaceWrite(DeviceIoSpace_t *IoSpace, size_t Offset, size_t Value, size_t Length)
+void IoSpaceWrite(MCoreIoSpace_t *IoSpace, size_t Offset, size_t Value, size_t Length)
 {
 	/* Sanity */
 	if ((Offset + Length) > IoSpace->Size) {
@@ -237,8 +237,8 @@ Addr_t IoSpaceValidate(Addr_t Address)
 	foreach(ioNode, GlbIoSpaces)
 	{
 		/* Cast */
-		DeviceIoSpace_t *IoSpace =
-			(DeviceIoSpace_t*)ioNode->Data;
+		MCoreIoSpace_t *IoSpace =
+			(MCoreIoSpace_t*)ioNode->Data;
 
 		/* Let's see */
 		if (Address >= IoSpace->VirtualBase

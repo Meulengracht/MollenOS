@@ -353,8 +353,7 @@ int InterruptIrqCount(int Irq)
 		return IrqIsaTable[Irq] == 1 ? -1 : 0;
 
 	/* Iterate */
-	for (i = 0; i < X86_MAX_HANDLERS_PER_INTERRUPT; i++)
-	{
+	for (i = 0; i < X86_MAX_HANDLERS_PER_INTERRUPT; i++) {
 		if (IrqTable[32 + Irq][i].Installed == 1)
 			RetVal++;
 	}

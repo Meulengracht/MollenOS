@@ -142,10 +142,12 @@ _CRT_EXPORT void kernel_panic(const char *str);
 #define MEMORY_LOCATION_BITMAP			0x300000 /* Bitmap Space: 12 mB */
 #define MEMORY_LOCATION_HEAP			0x1000000 /* Heap Space: 64 mB */
 #define MEMORY_LOCATION_HEAP_END		0x4000000
-#define MEMORY_LOCATION_VIDEO			0x4000000 /* Video Space: 16 mB */
-#define MEMORY_LOCATION_MODULES			0x5000000 /* Module Space: 190~ mB */
-#define MEMORY_LOCATION_SHM				0x10000000 /* SHM Space: 256 mB */
-#define MEMORY_LOCATION_SHM_END			0x20000000 
+#define MEMORY_LOCATION_MODULES			0x4000000 /* Module Space: 190~ mB */
+
+/* This is the driver space and is seperated from kernel
+ * memory, so drivers don't need access to kernel space */
+#define MEMORY_LOCATION_DRIVER			0x10000000
+#define MEMORY_LOCATION_VIDEO			0x10000000 /* Video Space: 256 mB */
 #define MEMORY_LOCATION_RESERVED		0x20000000 /* IO-Space/ACPI: 3.584 mB */
 
 /* Below is seperated, and only used by the user-space 

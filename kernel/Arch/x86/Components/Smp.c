@@ -104,14 +104,15 @@ void SmpApEntry(void)
 	/* Get Apic Id */
 	Cpu = (ApicReadLocal(APIC_PROCESSOR_ID) >> 24) & 0xFF;
 
-	/* TSS */
-	GdtInstallTss(Cpu);
-
 	/* Memory */
 	MmVirtualInstallPaging(Cpu);
 
 	/* Setup apic */
 	ApicInitAp();
+
+	/* Install the TSS descriptor, 
+	 * we need memory management for that */
+	GdtInstallTss(Cpu, 0);
 
 	/* Setup Threading */
 	SchedulerInit(Cpu);

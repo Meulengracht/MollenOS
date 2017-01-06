@@ -23,6 +23,7 @@
 
 /* Includes
  * - System */
+#include <Heap.h>
 #include <Gdt.h>
 
 /* Includes
@@ -36,14 +37,15 @@ __CRT_EXTERN void TssInstall(int GdtIndex);
 /* We have no memory allocation system 
  * in place yet, so uhm, allocate in place */
 GdtEntry_t GdtDescriptors[GDT_MAX_DESCRIPTORS];
-TssEntry_t TssDescriptors[GDT_MAX_TSS];
+TssEntry_t *TssDescriptors[GDT_MAX_TSS];
+TssEntry_t BootTss;
 Gdt_t Gdtptr;
 int GblGdtIndex = 0;
 
 /* Helper for installing a new gdt descriptor into
-* the descriptor table, a memory base, memory limit
-* access flags and a grandularity must be provided to
-* configurate the segment */
+ * the descriptor table, a memory base, memory limit
+ * access flags and a grandularity must be provided to
+ * configurate the segment */
 void GdtInstallDescriptor(uint32_t Base, uint32_t Limit,
 	uint8_t Access, uint8_t Grandularity)
 {
@@ -82,46 +84,64 @@ void GdtInitialize(void)
 	GdtInstallDescriptor(0, 0, 0, 0);
 
 	/* Kernel Code & Data */
-	GdtInstallDescriptor(0, 0xFFFFFFFF, GDT_KERNEL_CODE, GDT_GRANULARITY);
-	GdtInstallDescriptor(0, 0xFFFFFFFF, GDT_KERNEL_DATA, GDT_GRANULARITY);
+	GdtInstallDescriptor(0, 0xFFFFFFFF, GDT_RING0_CODE, GDT_GRANULARITY);
+	GdtInstallDescriptor(0, 0xFFFFFFFF, GDT_RING0_DATA, GDT_GRANULARITY);
 
 	/* Userland Code & Data */
-	GdtInstallDescriptor(0, 0xFFFFFFFF, GDT_USER_CODE, GDT_GRANULARITY);
-	GdtInstallDescriptor(0, 0xFFFFFFFF, GDT_USER_DATA, GDT_GRANULARITY);
+	GdtInstallDescriptor(MEMORY_LOCATION_USER_ARGS, 0xFFFFFFFF, GDT_RING3_CODE, GDT_GRANULARITY);
+	GdtInstallDescriptor(MEMORY_LOCATION_USER_ARGS, 0xFFFFFFFF, GDT_RING3_DATA, GDT_GRANULARITY);
 
-	/* Null task registers */
+	/* Driver Code & Data */
+	GdtInstallDescriptor(MEMORY_LOCATION_DRIVER, 0xFFFFFFFF, GDT_RING3_CODE, GDT_GRANULARITY);
+	GdtInstallDescriptor(MEMORY_LOCATION_DRIVER, 0xFFFFFFFF, GDT_RING3_DATA, GDT_GRANULARITY);
+
+	/* Null task pointers */
 	memset(&TssDescriptors, 0, sizeof(TssDescriptors));
 
 	/* Reload GDT */
 	GdtInstall();
 
 	/* Install first TSS, for the boot core */
-	GdtInstallTss(0);
+	GdtInstallTss(0, 1);
 }
 
 /* Helper for setting up a new task state segment for
  * the given cpu core, this should be done once per
  * core, and it will set default params for the TSS */
-void GdtInstallTss(Cpu_t Cpu)
+void GdtInstallTss(Cpu_t Cpu, int Static)
 {
 	/* Variables */
-	uint32_t tBase = (uint32_t)&TssDescriptors[Cpu];
-	uint32_t tLimit = tBase + sizeof(TssEntry_t);
+	uint32_t tBase = 0;
+	uint32_t tLimit = 0;
 	int TssIndex = GblGdtIndex;
+
+	/* Use the static or allocate one? */
+	if (Static) {
+		TssDescriptors[Cpu] = &BootTss;
+	}
+	else {
+		TssDescriptors[Cpu] = (TssEntry_t*)kmalloc(sizeof(TssEntry_t));
+	}
+
+	/* Reset the memory of the descriptor */
+	memset(TssDescriptors[Cpu], 0, sizeof(TssEntry_t));
+
+	/* Set up the tss-stuff */
+	tBase = (uint32_t)TssDescriptors[Cpu];
+	tLimit = tBase + sizeof(TssEntry_t);
 
 	/* Setup TSS initial ring0 stack information
 	 * this will be filled out properly later by scheduler */
-	TssDescriptors[Cpu].Ss0 = 0x10;
-	TssDescriptors[Cpu].Esp0 = 0;
+	TssDescriptors[Cpu]->Ss0 = GDT_KDATA_SEGMENT;
 	
 	/* Set initial segment information (Ring0) */
-	TssDescriptors[Cpu].Cs = GDT_KCODE_SEGMENT + 3;
-	TssDescriptors[Cpu].Ss = GDT_KDATA_SEGMENT + 3;
-	TssDescriptors[Cpu].Ds = GDT_KDATA_SEGMENT + 3;
-	TssDescriptors[Cpu].Es = GDT_KDATA_SEGMENT + 3;
-	TssDescriptors[Cpu].Fs = GDT_KDATA_SEGMENT + 3;
-	TssDescriptors[Cpu].Gs = GDT_KDATA_SEGMENT + 3;
-	TssDescriptors[Cpu].IoMapBase = (uint16_t)offsetof(TssEntry_t, IoMap[0]);
+	TssDescriptors[Cpu]->Cs = GDT_KCODE_SEGMENT + 3;
+	TssDescriptors[Cpu]->Ss = GDT_KDATA_SEGMENT + 3;
+	TssDescriptors[Cpu]->Ds = GDT_KDATA_SEGMENT + 3;
+	TssDescriptors[Cpu]->Es = GDT_KDATA_SEGMENT + 3;
+	TssDescriptors[Cpu]->Fs = GDT_KDATA_SEGMENT + 3;
+	TssDescriptors[Cpu]->Gs = GDT_KDATA_SEGMENT + 3;
+	TssDescriptors[Cpu]->IoMapBase = (uint16_t)offsetof(TssEntry_t, IoMap[0]);
 
 	/* Install TSS descriptor into table */
 	GdtInstallDescriptor(tBase, tLimit, GDT_TSS_ENTRY, 0x00);
@@ -134,7 +154,7 @@ void GdtInstallTss(Cpu_t Cpu)
  * cpu tss entry, this should be updated at each task-switch */
 void TssUpdateStack(Cpu_t Cpu, Addr_t Stack)
 {
-	TssDescriptors[Cpu].Esp0 = Stack;
+	TssDescriptors[Cpu]->Esp0 = Stack;
 }
 
 /* Updates the io-map for the current runinng task, should
@@ -142,7 +162,7 @@ void TssUpdateStack(Cpu_t Cpu, Addr_t Stack)
  * io-privs. Iomap given must be length GDT_IOMAP_SIZE */
 void TssUpdateIo(Cpu_t Cpu, uint8_t *IoMap)
 {
-	memcpy(&TssDescriptors[Cpu].IoMap[0], IoMap, GDT_IOMAP_SIZE);
+	memcpy(&TssDescriptors[Cpu]->IoMap[0], IoMap, GDT_IOMAP_SIZE);
 }
 
 /* Enables the given port in the given io-map, also updates
@@ -150,7 +170,7 @@ void TssUpdateIo(Cpu_t Cpu, uint8_t *IoMap)
  * reflect the port-ownership instantly */
 void TssEnableIo(Cpu_t Cpu, uint8_t *IoMap, uint16_t Port)
 {
-	TssDescriptors[Cpu].IoMap[Port / 8] &= ~(1 << (Port % 8));
+	TssDescriptors[Cpu]->IoMap[Port / 8] &= ~(1 << (Port % 8));
 	IoMap[Port / 8] &= ~(1 << (Port % 8));
 }
 
@@ -159,6 +179,6 @@ void TssEnableIo(Cpu_t Cpu, uint8_t *IoMap, uint16_t Port)
  * reflect the port-ownership instantly */
 void TssDisableIo(Cpu_t Cpu, uint8_t *IoMap, uint16_t Port)
 {    
-	TssDescriptors[Cpu].IoMap[Port / 8] |= (1 << (Port % 8));
+	TssDescriptors[Cpu]->IoMap[Port / 8] |= (1 << (Port % 8));
 	IoMap[Port / 8] |= (1 << (Port % 8));
 }

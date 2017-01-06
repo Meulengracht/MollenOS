@@ -25,6 +25,7 @@
 #include <os/driver/device.h>
 #include <os/mollenos.h>
 #include <ds/list.h>
+#include <bus.h>
 
 /* Includes
  * - C-Library */
@@ -61,6 +62,8 @@ int ServerMain(void *Data)
 
 	/* Register us with server manager */
 
+	/* Enumerate bus controllers/devices */
+	BusEnumerate();
 
 	/* Enter event queue */
 	while (GlbRun) {

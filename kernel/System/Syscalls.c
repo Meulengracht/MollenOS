@@ -1,25 +1,26 @@
 /* MollenOS
-*
-* Copyright 2011 - 2016, Philip Meulengracht
-*
-* This program is free software : you can redistribute it and / or modify
-* it under the terms of the GNU General Public License as published by
-* the Free Software Foundation ? , either version 3 of the License, or
-* (at your option) any later version.
-*
-* This program is distributed in the hope that it will be useful,
-* but WITHOUT ANY WARRANTY; without even the implied warranty of
-* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.See the
-* GNU General Public License for more details.
-*
-* You should have received a copy of the GNU General Public License
-* along with this program.If not, see <http://www.gnu.org/licenses/>.
-*
-*
-* MollenOS MCore - System Calls
-*/
+ *
+ * Copyright 2011 - 2017, Philip Meulengracht
+ *
+ * This program is free software : you can redistribute it and / or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation ? , either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.If not, see <http://www.gnu.org/licenses/>.
+ *
+ *
+ * MollenOS MCore - System Calls
+ */
 
-/* Includes */
+/* Includes 
+ * - System */
 #include <Arch.h>
 #include <Modules/Process.h>
 #include <Threading.h>
@@ -28,7 +29,8 @@
 #include <Timers.h>
 #include <Log.h>
 
-/* C-Library */
+/* Includes
+ * - Library */
 #include <assert.h>
 #include <stddef.h>
 #include <os/ipc/ipc.h>
@@ -1461,63 +1463,139 @@ int ScDeviceQuery(DeviceType_t Type, uint8_t *Buffer, size_t BufferLength)
 /***********************
 * Driver Functions     *
 ***********************/
+#include <AcpiInterface.h>
+#define __ACPI_EXCLUDE_TABLES
+#include <os/driver/acpi.h>
 
-/* Create device io-space */
-DeviceIoSpace_t *ScIoSpaceCreate(int Type, Addr_t PhysicalBase, size_t Size)
+/* ScAcpiQueryStatus
+ * Queries basic acpi information and returns either OsNoError
+ * or OsError if Acpi is not supported on the running platform */
+OsStatus_t ScAcpiQueryStatus(AcpiDescriptor_t *AcpiDescriptor)
 {
-	/* Vars */
-	DeviceIoSpace_t *IoSpace = NULL;
+	/* Sanitize the parameters */
+	if (AcpiDescriptor == NULL) {
+		return OsError;
+	}
 
-	/* Sanitize params */
+	/* Sanitize the acpi-status in this system */
+	if (AcpiAvailable() == ACPI_NOT_AVAILABLE) {
+		return OsError;
+	}
+	else {
+		/* Copy information over to descriptor */
+		AcpiDescriptor->Century = AcpiGbl_FADT.Century;
+		AcpiDescriptor->BootFlags = AcpiGbl_FADT.BootFlags;
+		AcpiDescriptor->ArmBootFlags = AcpiGbl_FADT.ArmBootFlags;
+		AcpiDescriptor->Version = ACPI_VERSION_6_0;
 
-	/* Validate process permissions */
-
-	/* Try to create io space */
-	IoSpace = IoSpaceCreate(Type, PhysicalBase, Size); /* Add owner to io-space */
-
-	/* If null, space is already claimed */
-
-	/* Done! */
-	return IoSpace;
+		/* Wuhu! */
+		return OsNoError;
+	}
 }
 
-/* Read from an existing io-space */
-size_t ScIoSpaceRead(DeviceIoSpace_t *IoSpace, size_t Offset, size_t Length)
+/* ScAcpiQueryTableHeader
+ * Queries the table header of the table that matches
+ * the given signature, if none is found OsError is returned */
+OsStatus_t ScAcpiQueryTableHeader(const char *Signature, ACPI_TABLE_HEADER *Header)
 {
-	/* Sanitize params */
+	/* Use a temporary buffer as we don't
+	 * really know the length */
+	ACPI_TABLE_HEADER *PointerToHeader = NULL;
 
-	/* Validate process permissions */
+	/* Sanitize that ACPI is enabled on this
+	 * system before we query */
+	if (AcpiAvailable() == ACPI_NOT_AVAILABLE) {
+		return OsError;
+	}
 
-	/* Done */
-	return IoSpaceRead(IoSpace, Offset, Length);
+	/* Now query for the header */
+	if (ACPI_FAILURE(AcpiGetTable(Signature, 0, &PointerToHeader))) {
+		return OsError;
+	}
+
+	/* Wuhuu, the requested table exists, copy the
+	 * header information over */
+	memcpy(Header, PointerToHeader, sizeof(ACPI_TABLE_HEADER));
+	return OsNoError;
 }
 
-/* Write to an existing io-space */
-int ScIoSpaceWrite(DeviceIoSpace_t *IoSpace, size_t Offset, size_t Value, size_t Length)
+/* ScAcpiQueryTable
+ * Queries the full table information of the table that matches
+ * the given signature, if none is found OsError is returned */
+OsStatus_t ScAcpiQueryTable(const char *Signature, ACPI_TABLE_HEADER *Table)
+{
+	/* Use a temporary buffer as we don't
+	 * really know the length */
+	ACPI_TABLE_HEADER *Header = NULL;
+
+	/* Sanitize that ACPI is enabled on this
+	 * system before we query */
+	if (AcpiAvailable() == ACPI_NOT_AVAILABLE) {
+		return OsError;
+	}
+
+	/* Now query for the full table */
+	if (ACPI_FAILURE(AcpiGetTable(Signature, 0, &Header))) {
+		return OsError;
+	}
+
+	/* Wuhuu, the requested table exists, copy the
+	 * table information over */
+	memcpy(Header, Table, Header->Length);
+	return OsNoError;
+}
+
+/* Include the driver-version of the io-space too */
+#include <os/driver/io.h>
+
+/* Creates and registers a new IoSpace with our
+ * architecture sub-layer, it must support io-spaces 
+ * or atleast dummy-implementation */
+OsStatus_t ScIoSpaceRegister(DeviceIoSpace_t *IoSpace)
 {
 	/* Sanitize params */
+	if (IoSpace == NULL) {
+		return OsError;
+	}
 
 	/* Validate process permissions */
 
-	/* Write */
-	IoSpaceWrite(IoSpace, Offset, Value, Length);
+	/* Now we can try to actually register the
+	 * io-space, if it fails it exists already */
+	return IoSpaceRegister(IoSpace);
+}
 
-	/* Done! */
-	return 0;
+/* Tries to claim a given io-space, only one driver
+ * can claim a single io-space at a time, to avoid
+ * two drivers using the same device */
+OsStatus_t ScIoSpaceAcquire(IoSpaceId_t IoSpace)
+{
+	/* Validate process permissions */
+
+	/* Now lets try to acquire the IoSpace */
+	return IoSpaceAcquire(IoSpace);
+}
+
+/* Tries to release a given io-space, only one driver
+ * can claim a single io-space at a time, to avoid
+ * two drivers using the same device */
+OsStatus_t ScIoSpaceRelease(IoSpaceId_t IoSpace)
+{
+	/* Now lets try to release the IoSpace 
+	 * Don't bother with validation */
+	return IoSpaceRelease(IoSpace);
 }
 
 /* Destroys an io-space */
-int ScIoSpaceDestroy(DeviceIoSpace_t *IoSpace)
+OsStatus_t ScIoSpaceDestroy(DeviceIoSpace_t *IoSpace)
 {
 	/* Sanitize params */
 
 	/* Validate process permissions */
 
-	/* Destroy */
-	IoSpaceDestroy(IoSpace);
-
-	/* Done! */
-	return 0;
+	/* Destroy the io-space, it might
+	 * not be possible, if we don't own it */
+	return IoSpaceDestroy(IoSpace);
 }
 
 /***********************
@@ -1568,16 +1646,16 @@ int ScEnvironmentQuery(void)
 	return 0;
 }
 
-/* Empty Operation, mostly
- * because the operation is
- * reserved */
+/* NoOperation
+ * Empty Operation, mostly
+ * because the operation is reserved */
 int NoOperation(void)
 {
 	return 0;
 }
 
 /* Syscall Table */
-Addr_t GlbSyscallTable[121] =
+Addr_t GlbSyscallTable[131] =
 {
 	/* Kernel Log */
 	DefineSyscall(LogDebug),
@@ -1700,10 +1778,24 @@ Addr_t GlbSyscallTable[121] =
 	DefineSyscall(NoOperation),
 	DefineSyscall(NoOperation),
 
-	/* Driver Functions - 101 */
-	DefineSyscall(ScIoSpaceCreate),
-	DefineSyscall(ScIoSpaceRead),
-	DefineSyscall(ScIoSpaceWrite),
+	/* Driver Functions - 101 
+	 * - ACPI Support */
+	DefineSyscall(ScAcpiQueryStatus),
+	DefineSyscall(ScAcpiQueryTableHeader),
+	DefineSyscall(ScAcpiQueryTable),
+	DefineSyscall(NoOperation),
+	DefineSyscall(NoOperation),
+	DefineSyscall(NoOperation),
+	DefineSyscall(NoOperation),
+	DefineSyscall(NoOperation),
+	DefineSyscall(NoOperation),
+	DefineSyscall(NoOperation),
+
+	/* Driver Functions - 111 
+	 * - I/O Support */
+	DefineSyscall(ScIoSpaceRegister),
+	DefineSyscall(ScIoSpaceAcquire),
+	DefineSyscall(ScIoSpaceRelease),
 	DefineSyscall(ScIoSpaceDestroy),
 	DefineSyscall(NoOperation),
 	DefineSyscall(NoOperation),

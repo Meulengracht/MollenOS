@@ -19,6 +19,9 @@
     <Filter Include="arch\i386">
       <UniqueIdentifier>{38102c9a-0cd5-44e2-af79-1b31d50a28c9}</UniqueIdentifier>
     </Filter>
+    <Filter Include="driver">
+      <UniqueIdentifier>{6177391c-bb7a-45a6-9700-f5a8d0efcfca}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\libos\devices.c" />
@@ -107,6 +110,12 @@
     <ClCompile Include="..\..\libos\pipe.c" />
     <ClCompile Include="..\..\libos\rpc.c" />
     <ClCompile Include="..\..\libos\event.c" />
+    <ClCompile Include="..\..\libos\driver\iospace.c">
+      <Filter>driver</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\libos\driver\acsupport.c">
+      <Filter>driver</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\libos\mstring\MStringPrivate.h">

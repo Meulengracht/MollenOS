@@ -112,34 +112,25 @@ _CRT_EXPORT void IThreadYield(void);
 * Used for abstracting *
 * device addressing    *
 ***********************/
-#define DEVICE_IO_SPACE_IO		0x1
-#define DEVICE_IO_SPACE_MMIO	0x2
+#define MCORE_IO_SPACE_IO		0x1
+#define MCORE_IO_SPACE_MMIO		0x2
 
 /* Structures */
-typedef struct _DeviceIoSpace
-{
-	/* Id */
-	IoSpaceId_t Id;
-
-	/* Type */
-	int Type;
-
-	/* Base */
-	Addr_t PhysicalBase;
-	Addr_t VirtualBase;
-
-	/* Size */
-	size_t Size;
-
-} DeviceIoSpace_t;
+typedef struct _MCoreIoSpace {
+	IoSpaceId_t			Id;
+	PhxId_t				Owner;
+	int					Type;
+	Addr_t				PhysicalBase;
+	Addr_t				VirtualBase;
+	size_t				Size;
+} MCoreIoSpace_t;
 
 /* Functions */
-__CRT_EXTERN void IoSpaceInit(void);
-_CRT_EXPORT DeviceIoSpace_t *IoSpaceCreate(int Type, Addr_t PhysicalBase, size_t Size);
-_CRT_EXPORT void IoSpaceDestroy(DeviceIoSpace_t *IoSpace);
-
-_CRT_EXPORT size_t IoSpaceRead(DeviceIoSpace_t *IoSpace, size_t Offset, size_t Length);
-_CRT_EXPORT void IoSpaceWrite(DeviceIoSpace_t *IoSpace, size_t Offset, size_t Value, size_t Length);
+__CRT_EXTERN void IoSpaceInitialize(void);
+__CRT_EXTERN OsStatus_t IoSpaceRegister(DeviceIoSpace_t *IoSpace);
+__CRT_EXTERN OsStatus_t IoSpaceAcquire(IoSpaceId_t IoSpace);
+__CRT_EXTERN OsStatus_t IoSpaceRelease(IoSpaceId_t IoSpace);
+__CRT_EXTERN OsStatus_t IoSpaceDestroy(IoSpaceId_t IoSpace);
 __CRT_EXTERN Addr_t IoSpaceValidate(Addr_t Address);
 
 /***********************
