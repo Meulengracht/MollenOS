@@ -375,7 +375,7 @@ void PciInstallDriverCallback(void *Data, int No, void *Context)
 	PciDevice_t *PciDev = (PciDevice_t*)Data;
 
 	/* Bridge or device? */
-	if (PciDev->Type == X86_PCI_TYPE_BRIDGE) {
+	if (PciDev->IsBridge) {
 		ListExecuteAll((List_t*)PciDev->Children, PciInstallDriverCallback, Context);
 	}
 	else

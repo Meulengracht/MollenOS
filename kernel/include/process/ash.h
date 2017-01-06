@@ -33,7 +33,7 @@
 /* Includes
  * - System */
 #include <Arch.h>
-#include <Modules/PeLoader.h>
+#include <process/pe.h>
 #include <Bitmap.h>
 #include <Pipe.h>
 #include <Mutex.h>

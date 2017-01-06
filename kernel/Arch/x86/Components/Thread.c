@@ -23,7 +23,7 @@
 #include <Arch.h>
 #include <assert.h>
 #include <Threading.h>
-#include <Modules/Phoenix.h>
+#include <process/phoenix.h>
 #include <Thread.h>
 #include <Memory.h>
 #include <Heap.h>

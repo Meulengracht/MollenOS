@@ -35,7 +35,9 @@
 #define IO_SPACE_IO				0x01
 #define IO_SPACE_MMIO			0x02
 
-/* Structures */
+/* Represents an io-space in MollenOS, they represent
+ * some kind of communication between hardware and software
+ * by either port or mmio */
 typedef struct _DeviceIoSpace {
 	IoSpaceId_t					Id;
 	int							Type;
@@ -44,12 +46,35 @@ typedef struct _DeviceIoSpace {
 	size_t						Size;
 } DeviceIoSpace_t;
 
-//_MOS_API CreateIoSpace(DeviceIoSpace_t *IoSpace);
-//_MOS_API AcquireIoSpace(DeviceIoSpace_t *IoSpace)
-//_MOS_API ReleaseIoSpace(DeviceIoSpace_t *IoSpace)
-//_MOS_API DestroyIoSpace(DeviceIoSpace_t *IoSpace)
+/* Creates a new io-space and registers it with
+ * the operation system, returns OsNoError if it's 
+ * a valid io-space */
+_MOS_API OsStatus_t CreateIoSpace(DeviceIoSpace_t *IoSpace);
 
-//_MOS_API ReadIoSpace(DeviceIoSpace_t *IoSpace, size_t Offset, size_t Length);
-//_MOS_API WriteIoSpace(DeviceIoSpace_t *IoSpace, size_t Offset, size_t Value, size_t Length);
+/* Tries to claim a given io-space, only one driver
+ * can claim a single io-space at a time, to avoid
+ * two drivers using the same device */
+_MOS_API OsStatus_t AcquireIoSpace(DeviceIoSpace_t *IoSpace);
+
+/* Tries to release a given io-space, only one driver
+ * can claim a single io-space at a time, to avoid
+ * two drivers using the same device */
+_MOS_API OsStatus_t ReleaseIoSpace(DeviceIoSpace_t *IoSpace);
+
+/* Destroys the io-space with the given id and removes
+ * it from the io-manage in the operation system, it
+ * can only be removed if its not already acquired */
+_MOS_API OsStatus_t DestroyIoSpace(IoSpaceId_t IoSpace);
+
+/* Read data from the given io-space at <offset> with 
+ * the given <length>, the offset and length must be below 
+ * the size of the io-space */
+_MOS_API size_t ReadIoSpace(DeviceIoSpace_t *IoSpace, size_t Offset, size_t Length);
+
+/* Write data from the given io-space at <offset> with 
+ * the given <length>, the offset and length must be below 
+ * the size of the io-space */
+_MOS_API void IoSpaceWrite(DeviceIoSpace_t *IoSpace, 
+	size_t Offset, size_t Value, size_t Length);
 
 #endif //!_MCORE_DEVICE_IO_H_

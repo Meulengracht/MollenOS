@@ -95,10 +95,18 @@
 #define SYSCALL_REGWM				0x5C
 #define SYSCALL_SYSTEMQUERY			0x5D
 
-/* Driver System Calls */
+/* Driver System Calls 
+ * - ACPI Support */
 #define SYSCALL_ACPIQUERY			0x65
 #define SYSCALL_ACPIGETTBLHEADER	0x66
 #define SYSCALL_ACPIGETTBLFULL		0x67
+
+/* Driver System Calls 
+ * - I/O Support */
+#define SYSCALL_IOSREGISTER			0x6F
+#define SYSCALL_IOSACQUIRE			0x70
+#define SYSCALL_IOSRELEASE			0x71
+#define SYSCALL_IOSDESTROY			0x72
 
 /* Prototypes */
 _MOS_API int Syscall0(int Function);

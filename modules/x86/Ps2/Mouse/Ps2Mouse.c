@@ -66,15 +66,23 @@ int Ps2MouseIrqHandler(void *Args)
 			/* Reset */
 			Ps2Dev->Buffer[2] = Ps2ReadData(1);
 			Ps2Dev->Index = 0;
+			//if (Ps2Dev->Buffer[0] & 0x10)
+			//	x = (int)(char)Ps2Dev->Buffer[1]
+			//else
+			//	x = (int)(uint16_t)Ps2Dev->Buffer[1]
+			//if (Ps2Dev->Buffer[0] & 0x20)
+			//	y = (int)(char)Ps2Dev->Buffer[2]
+			//else
+			//	y = (int)(uint16_t)Ps2Dev->Buffer[2]
 
 			/* Update */
 			Ps2Dev->MouseX += (int32_t)(Ps2Dev->Buffer[1] - ((Ps2Dev->Buffer[0] << 4) & 0x100));
-			Ps2Dev->MouseY += (int32_t)(Ps2Dev->Buffer[2] - ((Ps2Dev->Buffer[0] << 4) & 0x100));
+			Ps2Dev->MouseY += (int32_t)(Ps2Dev->Buffer[2] - ((Ps2Dev->Buffer[0] << 3) & 0x100));
 
 			/* Redirect Mouse Pointer Data */
 			eData.Type = InputMouse;
 			eData.xRelative = (int32_t)(Ps2Dev->Buffer[1] - ((Ps2Dev->Buffer[0] << 4) & 0x100));
-			eData.yRelative = (int32_t)(Ps2Dev->Buffer[2] - ((Ps2Dev->Buffer[0] << 4) & 0x100));
+			eData.yRelative = (int32_t)(Ps2Dev->Buffer[2] - ((Ps2Dev->Buffer[0] << 3) & 0x100));
 			eData.zRelative = 0;
 
 			/* Set key data */

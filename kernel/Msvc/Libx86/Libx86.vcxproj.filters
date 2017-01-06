@@ -13,9 +13,6 @@
     <Filter Include="Includes">
       <UniqueIdentifier>{df810496-32c7-4a8d-bc69-2434fc3c44bd}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Pci">
-      <UniqueIdentifier>{8b69d971-0f41-4d61-8b7c-d46b710d101c}</UniqueIdentifier>
-    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\Arch\x86\Init\Main.c">
@@ -59,18 +56,6 @@
     </ClCompile>
     <ClCompile Include="..\..\Arch\x86\Interrupts\ApicInit.c">
       <Filter>Interrupts</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\Arch\x86\Pci\PciIo.c">
-      <Filter>Pci</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\Arch\x86\Pci\PciEnumerate.c">
-      <Filter>Pci</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\Arch\x86\Pci\PciHelpers.c">
-      <Filter>Pci</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\Arch\x86\Pci\PciStrings.c">
-      <Filter>Pci</Filter>
     </ClCompile>
     <ClCompile Include="..\..\Arch\x86\Components\AddressSpace.c">
       <Filter>Components</Filter>

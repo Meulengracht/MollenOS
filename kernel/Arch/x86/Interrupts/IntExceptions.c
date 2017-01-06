@@ -21,8 +21,8 @@
 
 /* Includes */
 #include "../Arch.h"
-#include <Modules/Phoenix.h>
-#include <Modules/Modules.h>
+#include <process/phoenix.h>
+#include <modules/modules.h>
 #include <Threading.h>
 #include <Thread.h>
 #include <Log.h>

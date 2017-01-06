@@ -22,7 +22,7 @@
 /* Includes 
  * - System */
 #include <Arch.h>
-#include <Modules/Process.h>
+#include <process/process.h>
 #include <Threading.h>
 #include <Scheduler.h>
 #include <Heap.h>
@@ -875,7 +875,7 @@ OsStatus_t ScEvtExecute(MEventMessage_t *Event, IpcComm_t Target)
 * VFS Functions        *
 ***********************/
 #include <Vfs/Vfs.h>
-#include <Server.h>
+#include <process/server.h>
 #include <stdio.h>
 #include <errno.h>
 
@@ -1568,7 +1568,7 @@ OsStatus_t ScIoSpaceRegister(DeviceIoSpace_t *IoSpace)
 /* Tries to claim a given io-space, only one driver
  * can claim a single io-space at a time, to avoid
  * two drivers using the same device */
-OsStatus_t ScIoSpaceAcquire(IoSpaceId_t IoSpace)
+OsStatus_t ScIoSpaceAcquire(DeviceIoSpace_t *IoSpace)
 {
 	/* Validate process permissions */
 
@@ -1579,15 +1579,17 @@ OsStatus_t ScIoSpaceAcquire(IoSpaceId_t IoSpace)
 /* Tries to release a given io-space, only one driver
  * can claim a single io-space at a time, to avoid
  * two drivers using the same device */
-OsStatus_t ScIoSpaceRelease(IoSpaceId_t IoSpace)
+OsStatus_t ScIoSpaceRelease(DeviceIoSpace_t *IoSpace)
 {
 	/* Now lets try to release the IoSpace 
 	 * Don't bother with validation */
 	return IoSpaceRelease(IoSpace);
 }
 
-/* Destroys an io-space */
-OsStatus_t ScIoSpaceDestroy(DeviceIoSpace_t *IoSpace)
+/* Destroys the io-space with the given id and removes
+ * it from the io-manage in the operation system, it
+ * can only be removed if its not already acquired */
+OsStatus_t ScIoSpaceDestroy(IoSpaceId_t IoSpace)
 {
 	/* Sanitize params */
 

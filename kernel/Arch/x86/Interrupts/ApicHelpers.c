@@ -22,7 +22,6 @@
 
 /* Includes 
  * - System */
-#include <DeviceManager.h>
 #include <Apic.h>
 #include <acpi.h>
 #include <Log.h>

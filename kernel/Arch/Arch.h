@@ -112,10 +112,11 @@ _CRT_EXPORT void IThreadYield(void);
 * Used for abstracting *
 * device addressing    *
 ***********************/
-#define MCORE_IO_SPACE_IO		0x1
-#define MCORE_IO_SPACE_MMIO		0x2
+#include <os/driver/io.h>
 
-/* Structures */
+/* Represents an io-space in MollenOS, they represent
+ * some kind of communication between hardware and software
+ * by either port or mmio */
 typedef struct _MCoreIoSpace {
 	IoSpaceId_t			Id;
 	PhxId_t				Owner;
@@ -125,21 +126,39 @@ typedef struct _MCoreIoSpace {
 	size_t				Size;
 } MCoreIoSpace_t;
 
-/* Functions */
+/* Initialize the Io Space manager so we 
+ * can register io-spaces from drivers and the
+ * bus code */
 __CRT_EXTERN void IoSpaceInitialize(void);
+
+/* Registers an io-space with the io space manager 
+ * and assigns the io-space a unique id for later
+ * identification */
 __CRT_EXTERN OsStatus_t IoSpaceRegister(DeviceIoSpace_t *IoSpace);
-__CRT_EXTERN OsStatus_t IoSpaceAcquire(IoSpaceId_t IoSpace);
-__CRT_EXTERN OsStatus_t IoSpaceRelease(IoSpaceId_t IoSpace);
+
+/* Acquires the given memory space by mapping it in
+ * the current drivers memory space if needed, and sets
+ * a lock on the io-space */
+__CRT_EXTERN OsStatus_t IoSpaceAcquire(DeviceIoSpace_t *IoSpace);
+
+/* Releases the given memory space by unmapping it from
+ * the current drivers memory space if needed, and releases
+ * the lock on the io-space */
+__CRT_EXTERN OsStatus_t IoSpaceRelease(DeviceIoSpace_t *IoSpace);
+
+/* Destroys the given io-space by its id, the id
+ * has the be valid, and the target io-space HAS to 
+ * un-acquired by any process, otherwise its not possible */
 __CRT_EXTERN OsStatus_t IoSpaceDestroy(IoSpaceId_t IoSpace);
+
+/* Tries to validate the given virtual address by 
+ * checking if any process has an active io-space
+ * that involves that virtual address */
 __CRT_EXTERN Addr_t IoSpaceValidate(Addr_t Address);
 
 /***********************
 * Device Interface     *
 ***********************/
-/* First of all, devices exists on TWO different
- * busses. PCI and PCI Express. */
-__CRT_EXTERN void BusInit(void);
-
 __CRT_EXTERN int DeviceAllocateInterrupt(void *mCoreDevice);
 
 #endif

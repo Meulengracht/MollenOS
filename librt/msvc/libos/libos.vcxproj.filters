@@ -129,5 +129,8 @@
     <CustomBuild Include="..\..\libos\arch\i386\_syscall.s">
       <Filter>arch\i386</Filter>
     </CustomBuild>
+    <CustomBuild Include="..\..\libos\arch\i386\_io.s">
+      <Filter>arch\i386</Filter>
+    </CustomBuild>
   </ItemGroup>
 </Project>

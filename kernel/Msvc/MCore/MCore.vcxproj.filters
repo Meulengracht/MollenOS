@@ -28,26 +28,26 @@
     <Filter Include="Includes\Vfs">
       <UniqueIdentifier>{0e80ab11-a5b7-4a43-9f37-0173341884dc}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Systems\Modules">
-      <UniqueIdentifier>{d25a1bc3-f724-4473-a9f3-66fc27e009da}</UniqueIdentifier>
-    </Filter>
     <Filter Include="Systems\Devices\Acpi">
       <UniqueIdentifier>{5deed555-85d5-4a53-9ff6-1a3939859996}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Systems\Processes">
-      <UniqueIdentifier>{b2f4993c-f281-4755-b5e7-98bd1721149e}</UniqueIdentifier>
     </Filter>
     <Filter Include="Systems\Vfs">
       <UniqueIdentifier>{3b63c136-f228-470d-950a-a52c8b8ccbde}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Includes\Modules">
+    <Filter Include="Systems\process">
+      <UniqueIdentifier>{a9ed5b7b-c706-4c1c-bad0-6a96d3c29193}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Systems\process\loaders">
+      <UniqueIdentifier>{8a4ded77-cd7f-4efe-a737-d7cb78f0babb}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Includes\modules">
       <UniqueIdentifier>{7aaa2a55-dea3-4b70-b444-e05f5fa1f1e3}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Includes\process">
+      <UniqueIdentifier>{be22789a-2793-4e14-9216-0072167b2157}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="..\..\Init\Entry.c">
-      <Filter>Entry</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\System\Synchronization\Mutex.c">
       <Filter>Systems\Synchronization</Filter>
     </ClCompile>
@@ -71,9 +71,6 @@
     </ClCompile>
     <ClCompile Include="..\..\System\Threading.c">
       <Filter>Systems</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\System\Modules\PeLoader.c">
-      <Filter>Systems\Modules</Filter>
     </ClCompile>
     <ClCompile Include="..\..\System\Log.c">
       <Filter>Systems</Filter>
@@ -108,12 +105,6 @@
     <ClCompile Include="..\..\System\Devices\Acpi\AcpiScan.c">
       <Filter>Systems\Devices\Acpi</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\System\Signal.c">
-      <Filter>Systems\Processes</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\System\Syscalls.c">
-      <Filter>Systems\Processes</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\System\UserEvents.c">
       <Filter>Systems</Filter>
     </ClCompile>
@@ -129,20 +120,30 @@
     <ClCompile Include="..\..\System\Vfs\VfsPath.c">
       <Filter>Systems\Vfs</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\System\Modules\Server.c">
-      <Filter>Systems\Modules</Filter>
+    <ClCompile Include="..\..\init.c" />
+    <ClCompile Include="..\..\System\modules.c">
+      <Filter>Systems</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\System\Modules\Modules.c">
-      <Filter>Systems\Modules</Filter>
+    <ClCompile Include="..\..\System\process\ash.c">
+      <Filter>Systems\process</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\System\Modules\Ash.c">
-      <Filter>Systems\Modules</Filter>
+    <ClCompile Include="..\..\System\process\phoenix.c">
+      <Filter>Systems\process</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\System\Modules\Phoenix.c">
-      <Filter>Systems\Modules</Filter>
+    <ClCompile Include="..\..\System\process\process.c">
+      <Filter>Systems\process</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\System\Modules\Process.c">
-      <Filter>Systems\Modules</Filter>
+    <ClCompile Include="..\..\System\process\server.c">
+      <Filter>Systems\process</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\System\process\signal.c">
+      <Filter>Systems\process</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\System\process\syscalls.c">
+      <Filter>Systems\process</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\System\process\loaders\pe.c">
+      <Filter>Systems\process\loaders</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -150,9 +151,6 @@
       <Filter>Includes</Filter>
     </ClInclude>
     <ClInclude Include="..\..\Include\InputManager.h">
-      <Filter>Includes</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\Include\List.h">
       <Filter>Includes</Filter>
     </ClInclude>
     <ClInclude Include="..\..\Include\Mutex.h">
@@ -165,9 +163,6 @@
       <Filter>Includes</Filter>
     </ClInclude>
     <ClInclude Include="..\..\Include\Timers.h">
-      <Filter>Includes</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\Include\DeviceManager.h">
       <Filter>Includes</Filter>
     </ClInclude>
     <ClInclude Include="..\..\Include\Devices\Cpu.h">
@@ -215,23 +210,26 @@
     <ClInclude Include="..\..\Include\Events.h">
       <Filter>Includes</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\Include\Modules\Ash.h">
-      <Filter>Includes\Modules</Filter>
-    </ClInclude>
     <ClInclude Include="..\..\Include\Modules\Modules.h">
-      <Filter>Includes\Modules</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\Include\Modules\PeLoader.h">
-      <Filter>Includes\Modules</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\Include\Modules\Phoenix.h">
-      <Filter>Includes\Modules</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\Include\Modules\Process.h">
-      <Filter>Includes\Modules</Filter>
+      <Filter>Includes\modules</Filter>
     </ClInclude>
     <ClInclude Include="..\..\Include\Modules\RamDisk.h">
-      <Filter>Includes\Modules</Filter>
+      <Filter>Includes\modules</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\process\pe.h">
+      <Filter>Includes\process</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\process\phoenix.h">
+      <Filter>Includes\process</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\process\process.h">
+      <Filter>Includes\process</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\process\server.h">
+      <Filter>Includes\process</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\process\ash.h">
+      <Filter>Includes\process</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

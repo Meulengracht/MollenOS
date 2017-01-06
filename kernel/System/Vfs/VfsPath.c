@@ -22,7 +22,7 @@
 
 /* Includes 
  * - System */
-#include <Modules/Process.h>
+#include <Threading.h>
 #include <Vfs/Vfs.h>
 
 /* Includes
