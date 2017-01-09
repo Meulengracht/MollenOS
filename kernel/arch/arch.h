@@ -106,8 +106,7 @@ __CRT_EXTERN void *IThreadCreate(Flags_t ThreadFlags, Addr_t EntryPoint);
  * Initializes user-mode data for the given thread, and
  * allocates all neccessary resources (x86 specific) for
  * usermode operations */
-__CRT_EXTERN void IThreadSetupUserMode(MCoreThread_t *Thread, 
-	Addr_t StackAddress, Addr_t EntryPoint, Addr_t ArgumentAddress);
+__CRT_EXTERN void IThreadSetupUserMode(MCoreThread_t *Thread, Addr_t StackAddress);
 
 /* IThreadDestroy
  * Free's all the allocated resources for x86

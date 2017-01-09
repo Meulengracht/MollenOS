@@ -25,6 +25,7 @@
 #include <os/osdefs.h>
 
 /* Definitions */
+#define MAX_SUPPORTED_CPUS			64
 
 /* This structure is passed by mBoot 
  * in order to properly setup */

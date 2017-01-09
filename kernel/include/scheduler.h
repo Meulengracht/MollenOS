@@ -38,7 +38,6 @@
 #include <Threading.h>
 
 /* Definitions */
-#define MCORE_MAX_SCHEDULERS		64
 #define MCORE_SYSTEM_QUEUE			60
 #define MCORE_SCHEDULER_LEVELS		61
 #define MCORE_INITIAL_TIMESLICE		10

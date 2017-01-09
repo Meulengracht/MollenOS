@@ -1,156 +1,237 @@
 /* MollenOS
-*
-* Copyright 2011 - 2016, Philip Meulengracht
-*
-* This program is free software : you can redistribute it and / or modify
-* it under the terms of the GNU General Public License as published by
-* the Free Software Foundation ? , either version 3 of the License, or
-* (at your option) any later version.
-*
-* This program is distributed in the hope that it will be useful,
-* but WITHOUT ANY WARRANTY; without even the implied warranty of
-* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.See the
-* GNU General Public License for more details.
-*
-* You should have received a copy of the GNU General Public License
-* along with this program.If not, see <http://www.gnu.org/licenses/>.
-*
-*
-* MollenOS Threads
-*/
+ *
+ * Copyright 2011 - 2017, Philip Meulengracht
+ *
+ * This program is free software : you can redistribute it and / or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation ? , either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.If not, see <http://www.gnu.org/licenses/>.
+ *
+ *
+ * MollenOS Threading Interface
+ * - Common routines that are platform independant to provide
+ *   a flexible and generic threading platfrom
+ */
 
-/* Includes */
-#include <Arch.h>
-#include <Scheduler.h>
-#include <Threading.h>
-#include <Modules/Phoenix.h>
-#include <Heap.h>
-#include <Log.h>
-#include <CriticalSection.h>
-
-/* C-Library */
-#include <assert.h>
+/* Includes 
+ * - System */
+#include <mollenos.h>
+#include <process/phoenix.h>
+#include <threading.h>
+#include <scheduler.h>
 #include <ds/list.h>
+#include <heap.h>
+#include <log.h>
+
+/* Includes
+ * - Library */
+#include <assert.h>
 #include <string.h>
 #include <stdio.h>
 
-/* Globals */
+/* Globals, we need a few variables to
+ * keep track of running threads, idle threads
+ * and a thread resources lock */
+ThreadId_t GlbThreadId = 0;
 List_t *GlbThreads = NULL;
 List_t *GlbZombieThreads = NULL;
-ThreadId_t GlbThreadId = 0;
-ListNode_t *GlbCurrentThreads[64];
-ListNode_t *GlbIdleThreads[64];
+ListNode_t *GlbCurrentThreads[MAX_SUPPORTED_CPUS];
+ListNode_t *GlbIdleThreads[MAX_SUPPORTED_CPUS];
+Spinlock_t GlbThreadLock = SPINLOCK_INIT;
 int GlbThreadingEnabled = 0;
-CriticalSection_t GlbThreadLock;
 
-/* Initialization
-* Creates the main thread */
-void ThreadingInit(void)
+/* ThreadingInitialize
+ * Initializes threading on the given cpu-core
+ * and initializes the current 'context' as the
+ * idle-thread, first time it's called it also
+ * does initialization of threading system */
+void ThreadingInitialize(Cpu_t Cpu)
 {
-	/* Vars */
-	MCoreThread_t *Init;
-	ListNode_t *Node;
+	/* Variables for initializing the system */
+	MCoreThread_t *Init = NULL;
+	ListNode_t *Node = NULL;
 	DataKey_t Key;
 	int Itr = 0;
 
-	/* Create threading list */
-	GlbThreads = ListCreate(KeyInteger, LIST_SAFE);
-	GlbZombieThreads = ListCreate(KeyInteger, LIST_SAFE);
-	GlbThreadId = 0;
+	/* Acquire the lock */
+	SpinlockAcquire(&GlbThreadLock);
 
-	/* Set all NULL */
-	for (Itr = 0; Itr < 64; Itr++)
+	/* Sanitize the global, do we need to
+	 * initialize the entire threading? */
+	if (GlbThreadingEnabled != 1) 
 	{
-		GlbCurrentThreads[Itr] = NULL;
-		GlbIdleThreads[Itr] = NULL;
+		/* Create threading list */
+		GlbThreads = ListCreate(KeyInteger, LIST_SAFE);
+		GlbZombieThreads = ListCreate(KeyInteger, LIST_SAFE);
+		GlbThreadId = 0;
+
+		/* Zero all current threads out, together with idle */
+		for (Itr = 0; Itr < MAX_SUPPORTED_CPUS; Itr++) {
+			GlbCurrentThreads[Itr] = NULL;
+			GlbIdleThreads[Itr] = NULL;
+		}
+
+		/* Set enabled */
+		GlbThreadingEnabled = 1;
 	}
 
-	/* Setup initial thread */
+	/* Allocate resoures for a new thread (the idle thread for
+	 * this cpu)! */
 	Init = (MCoreThread_t*)kmalloc(sizeof(MCoreThread_t));
 	memset(Init, 0, sizeof(MCoreThread_t));
 
-	Init->Name = strdup("Idle");
+	/* Initialize default values */
+	Init->Name = strdup("idle");
 	Init->Queue = MCORE_SCHEDULER_LEVELS - 1;
 	Init->Flags = THREADING_IDLE | THREADING_SYSTEMTHREAD | THREADING_CPUBOUND;
 	Init->TimeSlice = MCORE_IDLE_TIMESLICE;
 	Init->Priority = PriorityLow;
 	Init->ParentId = 0xDEADBEEF;
-	Init->Id = GlbThreadId;
+	Init->Id = GlbThreadId++;
 	Init->AshId = PHOENIX_NO_ASH;
+	Init->CpuId = Cpu;
 
-	/* Create Address Space */
+	/* Release the lock */
+	SpinlockRelease(&GlbThreadLock);
+
+	/* Create resource spaces for the
+	 * underlying platform */
 	Init->AddressSpace = AddressSpaceCreate(ADDRESS_SPACE_KERNEL);
-
-	/* Create thread-data */
-	Init->ThreadData = IThreadInitBoot();
-
-	/* Reset lock */
-	CriticalSectionConstruct(&GlbThreadLock, CRITICALSECTION_PLAIN);
+	Init->ThreadData = IThreadCreate(Init->Flags, 0);
 
 	/* Create a list node */
-	Key.Value = (int)GlbThreadId;
-	Node = ListCreateNode(Key, Key, Init);
-	GlbCurrentThreads[0] = Node;
-	GlbIdleThreads[0] = Node;
-
-	/* append to thread list */
-	ListAppend(GlbThreads, Node);
-
-	/* Increase Id */
-	GlbThreadId++;
-
-	/* Enable */
-	GlbThreadingEnabled = 1;
-}
-
-/* Initialises AP task */
-void ThreadingApInit(Cpu_t Cpu)
-{
-	/* Vars */
-	MCoreThread_t *Init;
-	ListNode_t *Node;
-	DataKey_t Key;
-
-	/* Setup initial thread */
-	Init = (MCoreThread_t*)kmalloc(sizeof(MCoreThread_t));
-	memset(Init, 0, sizeof(MCoreThread_t));
-
-	Init->Name = strdup("ApIdle");
-	Init->Queue = MCORE_SCHEDULER_LEVELS - 1;
-	Init->Flags = THREADING_IDLE | THREADING_SYSTEMTHREAD | THREADING_CPUBOUND;
-	Init->TimeSlice = MCORE_IDLE_TIMESLICE;
-	Init->Priority = PriorityLow;
-	Init->ParentId = 0xDEADBEEF;
-	Init->Id = GlbThreadId;
-	Init->CpuId = Cpu;
-	Init->AshId = PHOENIX_NO_ASH;
-
-	/* Create Address Space */
-	Init->AddressSpace = AddressSpaceCreate(ADDRESS_SPACE_KERNEL);
-
-	/* Create the threading data */
-	Init->ThreadData = IThreadInitAp();
-
-	/* Create a node for the scheduler */
-	Key.Value = (int)GlbThreadId;
+	Key.Value = (int)Init->Id;
 	Node = ListCreateNode(Key, Key, Init);
 	GlbCurrentThreads[Cpu] = Node;
 	GlbIdleThreads[Cpu] = Node;
 
-	/* Append to thread list */
+	/* append to thread list */
 	ListAppend(GlbThreads, Node);
+}
 
-	/* Increase Id */
-	GlbThreadId++;
+/* Create a new thread with the given name,
+ * entry point, arguments and flags, if name 
+ * is NULL, a generic name will be generated 
+ * Thread is started as soon as possible */
+ThreadId_t ThreadingCreateThread(const char *Name, 
+	ThreadEntry_t Function, void *Arguments, Flags_t Flags)
+{
+	/* Variables needed for thread creation */
+	MCoreThread_t *Thread = NULL, *Parent = NULL;
+	char NameBuffer[16];
+	DataKey_t Key;
+	Cpu_t Cpu = 0;
+
+	/* Acquire the thread lock */
+	SpinlockAcquire(&GlbThreadLock);
+
+	/* Lookup current thread and cpu */
+	Key.Value = (int)GlbThreadId++;
+	Cpu = ApicGetCpu();
+	Parent = ThreadingGetCurrentThread(Cpu);
+
+	/* Release the lock, we don't need it for
+	 * anything else than id */
+	SpinlockRelease(&GlbThreadLock);
+
+	/* Allocate a new thread instance and 
+	 * zero out the allocated instance */
+	Thread = (MCoreThread_t*)kmalloc(sizeof(MCoreThread_t));
+	memset(Thread, 0, sizeof(MCoreThread_t));
+
+	/* Sanitize name, if NULL generate a new
+	 * thread name of format 'Thread X' */
+	if (Name == NULL) {
+		memset(&NameBuffer[0], 0, sizeof(NameBuffer));
+		sprintf(&NameBuffer[0], "Thread %u", GlbThreadId);
+		Thread->Name = strdup(&NameBuffer[0]);
+	}
+	else {
+		Thread->Name = strdup(Name);
+	}
+
+	/* Initialize some basic thread information 
+	 * The only flags we want to copy for now are
+	 * the running-mode */
+	Thread->Id = (ThreadId_t)Key.Value;
+	Thread->ParentId = Parent->Id;
+	Thread->AshId = PHOENIX_NO_ASH;
+	Thread->Flags = (Flags & THREADING_MODEMASK);
+	Thread->Function = Function;
+	Thread->Args = Arguments;
+
+	/* Setup initial scheduler information */
+	Thread->Queue = -1;
+	Thread->TimeSlice = MCORE_INITIAL_TIMESLICE;
+	Thread->Priority = PriorityNormal;
+
+	/* Flag-Special-Case:
+	 * If we are CPU bound */
+	if (Flags & THREADING_CPUBOUND) {
+		Thread->CpuId = Cpu;
+		Thread->Flags |= THREADING_CPUBOUND;
+	}
+	else {
+		Thread->CpuId = 0xFF;	/* Select the low bearing CPU */
+	}
+
+	/* Flag-Special-Case
+	 * If it's NOT a kernel thread
+	 * we specify transition-mode */
+	if (!(Flags & THREADING_KERNELMODE)) {
+		Thread->Flags |= THREADING_TRANSITION;
+	}
+
+	/* Flag-Special-Case
+	 * Determine the address space we want
+	 * to initialize for this thread */
+	if (Flags & THREADING_KERNELMODE) {
+		Thread->AddressSpace = AddressSpaceCreate(ADDRESS_SPACE_INHERIT);
+	}
+	else {
+		if (Flags & THREADING_INHERIT) {
+			Thread->AddressSpace = AddressSpaceCreate(ADDRESS_SPACE_USER | ADDRESS_SPACE_INHERIT);
+		}
+		else {
+			Thread->AddressSpace = AddressSpaceCreate(ADDRESS_SPACE_USER);
+		}
+	}
+
+	/* Create thread-data 
+	 * But use different entry point
+	 * based upon usermode thread or kernel mode thread */
+	if (Flags & THREADING_KERNELMODE) {
+		Thread->ThreadData = IThreadInit((Addr_t)&ThreadingEntryPoint);
+	}
+	else {
+		Thread->ThreadData = IThreadInit((Addr_t)&ThreadingEntryPointUserMode);
+	}
+
+	/* Append it to list & scheduler */
+	Key.Value = (int)Thread->Id;
+	ListAppend(GlbThreads, ListCreateNode(Key, Key, Thread));
+	SchedulerReadyThread(Thread);
+
+	/* Done */
+	return Thread->Id;
 }
 
 /* Get Current Thread */
 MCoreThread_t *ThreadingGetCurrentThread(Cpu_t Cpu)
 {
-	/* Sanity */
+	/* Sanitize the current threading status */
 	if (GlbThreadingEnabled != 1
-		|| GlbCurrentThreads[Cpu] == NULL)
+		|| GlbCurrentThreads[Cpu] == NULL) {
 		return NULL;
+	}
 
 	/* This, this is important */
 	assert(GlbCurrentThreads[Cpu] != NULL);
@@ -308,7 +389,7 @@ void ThreadingEntryPointUserMode(void)
 {
 	/* Sensitive */
 	Cpu_t CurrentCpu = ApicGetCpu();
-	MCoreThread_t *cThread = ThreadingGetCurrentThread(CurrentCpu);
+	MCoreThread_t *Thread = ThreadingGetCurrentThread(CurrentCpu);
 
 	/* It's important to create 
 	 * and map the stack before setting up */
@@ -318,11 +399,11 @@ void ThreadingEntryPointUserMode(void)
 	BaseAddress += (MEMORY_LOCATION_USER_STACK & ~(PAGE_MASK));
 
 	/* Underlying Call */
-	IThreadInitUserMode(cThread->ThreadData, BaseAddress,
-		(Addr_t)cThread->Function, (Addr_t)cThread->Args);
+	IThreadSetupUserMode(Thread, BaseAddress);
 
-	/* Update this thread */
-	cThread->Flags |= THREADING_TRANSITION;
+	/* Nothing actually happens before this flag is
+	 * is set */
+	Thread->Flags |= THREADING_TRANSITION;
 
 	/* Yield */
 	IThreadYield();
@@ -331,99 +412,6 @@ void ThreadingEntryPointUserMode(void)
 	for (;;);
 }
 
-/* Create a new thread with the given name,
- * entry point, arguments and flags, if name 
- * is null, a generic name will be generated 
- * Thread is started as soon as possible */
-ThreadId_t ThreadingCreateThread(char *Name, ThreadEntry_t Function, void *Args, int Flags)
-{
-	/* Vars */
-	MCoreThread_t *nThread, *tParent;
-	char TmpBuffer[16];
-	DataKey_t Key;
-	Cpu_t Cpu;
-
-	/* Get mutex */
-	CriticalSectionEnter(&GlbThreadLock);
-
-	/* Get cpu */
-	Cpu = ApicGetCpu();
-	tParent = ThreadingGetCurrentThread(Cpu);
-
-	/* Allocate a new thread structure */
-	nThread = (MCoreThread_t*)kmalloc(sizeof(MCoreThread_t));
-	memset(nThread, 0, sizeof(MCoreThread_t));
-
-	/* Sanitize name */
-	if (Name == NULL) {
-		memset(&TmpBuffer[0], 0, sizeof(TmpBuffer));
-		sprintf(&TmpBuffer[0], "Thread %u", GlbThreadId);
-		nThread->Name = strdup(&TmpBuffer[0]);
-	}
-	else {
-		nThread->Name = strdup(Name);
-	}
-
-	/* Setup */
-	nThread->Function = Function;
-	nThread->Args = Args;
-
-	/* If we are CPU bound :/ */
-	if (Flags & THREADING_CPUBOUND) {
-		nThread->CpuId = Cpu;
-		nThread->Flags |= THREADING_CPUBOUND;
-	}
-	else
-	{
-		/* Select the low bearing CPU */
-		nThread->CpuId = 0xFF;
-	}
-
-	nThread->Id = GlbThreadId;
-	nThread->ParentId = tParent->Id;
-	nThread->AshId = PHOENIX_NO_ASH;
-
-	/* Scheduler Related */
-	nThread->Queue = -1;
-	nThread->TimeSlice = MCORE_INITIAL_TIMESLICE;
-	nThread->Priority = PriorityNormal;
-
-	/* Create Address Space */
-	if (Flags & THREADING_USERMODE) {
-		if (Flags & THREADING_INHERIT)
-			nThread->AddressSpace = AddressSpaceCreate(ADDRESS_SPACE_USER | ADDRESS_SPACE_INHERIT);
-		else
-			nThread->AddressSpace = AddressSpaceCreate(ADDRESS_SPACE_USER);
-	}
-	else
-		nThread->AddressSpace = AddressSpaceCreate(ADDRESS_SPACE_INHERIT);
-
-	/* Create thread-data 
-	 * But use different entry point
-	 * based upon usermode thread or
-	 * kernel mode thread */
-	if ((Flags & (THREADING_USERMODE | THREADING_INHERIT))
-		== (THREADING_USERMODE | THREADING_INHERIT)) {
-		nThread->ThreadData = IThreadInit((Addr_t)&ThreadingEntryPointUserMode);
-	}
-	else {
-		nThread->ThreadData = IThreadInit((Addr_t)&ThreadingEntryPoint);
-	}
-
-	/* Increase id */
-	GlbThreadId++;
-
-	/* Release lock */
-	CriticalSectionLeave(&GlbThreadLock);
-
-	/* Append it to list & scheduler */
-	Key.Value = (int)nThread->Id;
-	ListAppend(GlbThreads, ListCreateNode(Key, Key, nThread));
-	SchedulerReadyThread(nThread);
-
-	/* Done */
-	return nThread->Id;
-}
 
 /* Exits the current thread by marking it finished
  * and yielding control to scheduler */
@@ -537,7 +525,7 @@ void ThreadingTerminateAshThreads(PhxId_t AshId)
 }
 
 /* Handles and switches thread from the current */
-MCoreThread_t *ThreadingSwitch(Cpu_t Cpu, MCoreThread_t *Current, uint8_t PreEmptive)
+MCoreThread_t *ThreadingSwitch(Cpu_t Cpu, MCoreThread_t *Current, int PreEmptive)
 {
 	/* We'll need these */
 	MCoreThread_t *NextThread;

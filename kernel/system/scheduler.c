@@ -41,7 +41,7 @@
 #include <stdio.h>
 
 /* Globals */
-Scheduler_t *GlbSchedulers[MCORE_MAX_SCHEDULERS];
+Scheduler_t *GlbSchedulers[MAX_SUPPORTED_CPUS];
 List_t *IoQueue = NULL;
 List_t *GlbSchedulerNodeRecycler = NULL;
 int GlbSchedulerEnabled = 0;
@@ -59,7 +59,7 @@ void SchedulerInit(Cpu_t Cpu)
 	if (Cpu == 0)
 	{
 		/* Null out stuff */
-		for (i = 0; i < MCORE_MAX_SCHEDULERS; i++)
+		for (i = 0; i < MAX_SUPPORTED_CPUS; i++)
 			GlbSchedulers[i] = NULL;
 
 		/* Allocate IoQueue */

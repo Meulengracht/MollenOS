@@ -42,20 +42,21 @@
  * 1 => User
  * 2 => Driver
  * 3 => Reserved */
-#define THREADING_KERNELMODE	0x0
-#define THREADING_USERMODE		0x1
-#define THREADING_DRIVERMODE	0x2
-#define THREADING_RESERVED		0x3
+#define THREADING_KERNELMODE		0x0
+#define THREADING_USERMODE			0x1
+#define THREADING_DRIVERMODE		0x2
+#define THREADING_MODEMASK			0x3
 
 /* The rest of the bits denode special
  * other run-modes */
-#define THREADING_CPUBOUND		0x4
-#define THREADING_SYSTEMTHREAD	0x8
-#define THREADING_IDLE			0x10
-#define THREADING_ENTER_SLEEP	0x20
-#define THREADING_FINISHED		0x40
-#define THREADING_TRANSITION	0x80
-#define THREADING_INHERIT		0x100
+#define THREADING_CPUBOUND			0x4
+#define THREADING_SYSTEMTHREAD		0x8
+#define THREADING_IDLE				0x10
+#define THREADING_ENTER_SLEEP		0x20
+#define THREADING_FINISHED			0x40
+#define THREADING_INHERIT			0x80
+#define THREADING_TRANSITION		0x100
+#define THREADING_TRANSITIONFINISH	0x200
 
 /* The different possible threading priorities 
  * Normal is the default thread-priority, and Critical
@@ -107,16 +108,19 @@ typedef struct _MCoreThread {
 
 } MCoreThread_t;
 
-/* Initializors used by kernel threading
- * and support, don't call otherwise */
-__CRT_EXTERN void ThreadingInit(void);
-__CRT_EXTERN void ThreadingApInit(Cpu_t Cpu);
+/* ThreadingInitialize
+ * Initializes threading on the given cpu-core
+ * and initializes the current 'context' as the
+ * idle-thread, first time it's called it also
+ * does initialization of threading system */
+__CRT_EXTERN void ThreadingInitialize(Cpu_t Cpu);
 
 /* Create a new thread with the given name,
  * entry point, arguments and flags, if name 
- * is null, a generic name will be generated 
+ * is NULL, a generic name will be generated 
  * Thread is started as soon as possible */
-_CRT_EXPORT ThreadId_t ThreadingCreateThread(char *Name, ThreadEntry_t Function, void *Args, int Flags);
+__CRT_EXTERN ThreadId_t ThreadingCreateThread(const char *Name,
+	ThreadEntry_t Function, void *Arguments, Flags_t Flags);
 
 /* Exits the current thread by marking it finished
  * and yielding control to scheduler */

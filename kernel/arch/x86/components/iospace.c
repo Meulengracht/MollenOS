@@ -130,7 +130,7 @@ OsStatus_t IoSpaceAcquire(DeviceIoSpace_t *IoSpace)
 		/* Ok, so when we map it in and reserver space
 		* for it, its important we set it with its offset */
 		SysCopy->VirtualBase = IoSpace->VirtualBase =
-			((Addr_t)MmReserveMemory(PageCount) + (SysCopy->PhysicalBase & ATTRIBUTE_MASK));
+			((Addr_t)MmReserveDriverMemory(PageCount) + (SysCopy->PhysicalBase & ATTRIBUTE_MASK));
 	}
 	else if (SysCopy->Type == IO_SPACE_IO) {
 		x86Thread_t *Tx = (x86Thread_t*)ThreadingGetCurrentThread(Cpu)->ThreadData;

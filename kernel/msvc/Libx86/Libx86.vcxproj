@@ -44,9 +44,6 @@
     <ClInclude Include="..\..\arch\x86\thread.h" />
     <ClInclude Include="..\..\arch\x86\video.h" />
   </ItemGroup>
-  <ItemGroup>
-    <None Include="ClassDiagram.cd" />
-  </ItemGroup>
   <PropertyGroup Label="Globals">
     <ProjectGuid>{17145F88-DAEA-496B-A91F-2A78ED5673CC}</ProjectGuid>
     <Keyword>Win32Proj</Keyword>
