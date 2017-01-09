@@ -26,9 +26,9 @@
 
 /* Includes 
  * - System */
-#include <MollenOS.h>
-#include "../Arch/Arch.h"
-#include <Mutex.h>
+#include <arch.h>
+#include <mollenos.h>
+#include <mutex.h>
 
 /* Includes 
  * - C-Library */
@@ -145,7 +145,7 @@ __CRT_EXTERN void ThreadingWakeCpu(Cpu_t Cpu);
 /* This is the thread-switch function and must be 
  * be called from the below architecture to get the
  * next thread to run */
-__CRT_EXTERN MCoreThread_t *ThreadingSwitch(Cpu_t Cpu, MCoreThread_t *Current, uint8_t PreEmptive);
+__CRT_EXTERN MCoreThread_t *ThreadingSwitch(Cpu_t Cpu, MCoreThread_t *Current, int PreEmptive);
 
 /* Getter functions */
 __CRT_EXTERN ThreadId_t ThreadingGetCurrentThreadId(void);

@@ -22,7 +22,7 @@
 
 /* Includes 
  * - System */
-#include <arch.h>
+#include "../../arch.h"
 #include <threading.h>
 #include <process/phoenix.h>
 #include <thread.h>
@@ -48,6 +48,10 @@ __CRT_EXTERN void _yield(void);
 __CRT_EXTERN void enter_thread(Registers_t *Regs);
 __CRT_EXTERN void enter_signal(Registers_t *Regs, Addr_t Handler, int Signal, Addr_t Return);
 __CRT_EXTERN void RegisterDump(Registers_t *Regs);
+
+/* Globals,
+ * Keep track of whether or not init code has run */
+int __GlbThreadX86Initialized = 0;
 
 /* The yield interrupt code for switching tasks
  * and is controlled by software interrupts, the yield interrupt
@@ -92,124 +96,98 @@ int ThreadingYield(void *Args)
 	return X86_IRQ_HANDLED;
 }
 
-/* Initialization 
- * Creates the main thread */
-void *IThreadInitBoot(void)
+/* IThreadCreate
+ * Initializes a new x86-specific thread context
+ * for the given threading flags, also initializes
+ * the yield interrupt handler first time its called */
+void *IThreadCreate(Flags_t ThreadFlags, Addr_t EntryPoint)
 {
-	/* Vars */
-	x86Thread_t *Init;
+	/* Variables for initialization */
+	x86Thread_t *Thread = NULL;
 
-	/* Setup initial thread */
-	Init = (x86Thread_t*)kmalloc(sizeof(x86Thread_t));
-	memset(Init, 0, sizeof(x86Thread_t));
+	/* Allocate a new thread context (x86) 
+	 * and zero it out */
+	Thread = (x86Thread_t*)kmalloc(sizeof(x86Thread_t));
+	memset(Thread, 0, sizeof(x86Thread_t));
 
-	Init->FpuBuffer = kmalloc_a(0x1000);
-	Init->Flags = X86_THREAD_FPU_INITIALISED | X86_THREAD_USEDFPU;
+	/* Allocate a new buffer for FPU operations  
+	 * and zero out the buffer space */
+	Thread->FpuBuffer = kmalloc_a(0x1000);
+	memset(Thread->FpuBuffer, 0, 0x1000);
 
-	/* Memset the buffer */
-	memset(Init->FpuBuffer, 0, 0x1000);
+	/* Initialize rest of params */
+	Thread->Flags = X86_THREAD_FPU_INITIALISED | X86_THREAD_USEDFPU;
 
-	/* Install Yield */
-	InterruptInstallIdtOnly(APIC_NO_GSI, INTERRUPT_YIELD, ThreadingYield, NULL);
+	/* Don't create contexts for idle threads 
+	 * Otherwise setup a kernel stack */
+	if (!(ThreadFlags & THREADING_IDLE)) {
+		Thread->Context = ContextCreate(THREADING_KERNELMODE, EntryPoint, 0, NULL);
+	}
+
+	/* If its the first time we run, install
+	 * the yield interrupt */
+	if (__GlbThreadX86Initialized == 0) {
+		__GlbThreadX86Initialized = 1;
+		InterruptInstallIdtOnly(APIC_NO_GSI, INTERRUPT_YIELD, ThreadingYield, NULL);
+	}
 
 	/* Done */
-	return Init;
+	return Thread;
 }
 
-/* Initialises AP task */
-void *IThreadInitAp(void)
+/* IThreadSetupUserMode
+ * Initializes user-mode data for the given thread, and
+ * allocates all neccessary resources (x86 specific) for
+ * usermode operations */
+void IThreadSetupUserMode(MCoreThread_t *Thread, Addr_t StackAddress, 
+	Addr_t EntryPoint, Addr_t ArgumentAddress)
 {
-	/* Vars */
-	x86Thread_t *Init;
+	/* Initialize a pointer to x86 specific data */
+	x86Thread_t *tData = (x86Thread_t*)Thread->ThreadData;
 
-	/* Setup initial thread */
-	Init = (x86Thread_t*)kmalloc(sizeof(x86Thread_t));
-	memset(Init, 0, sizeof(x86Thread_t));
+	/* Initialize a user/driver-context based on
+	 * the requested runmode*/
+	tData->UserContext = ContextCreate(Thread->Flags,
+		EntryPoint, StackAddress, (Addr_t*)ArgumentAddress);
 
-	Init->FpuBuffer = kmalloc_a(0x1000);
-	Init->Flags = X86_THREAD_FPU_INITIALISED | X86_THREAD_USEDFPU;
-
-	/* Memset the buffer */
-	memset(Init->FpuBuffer, 0, 0x1000);
-
-	/* Done */
-	return Init;
+	/* Disable all port-access */
+	memset(&tData->IoMap[0], 0xFF, GDT_IOMAP_SIZE);
 }
 
-/* Wake's up CPU */
+/* IThreadDestroy
+ * Free's all the allocated resources for x86
+ * specific threading operations */
+void IThreadDestroy(MCoreThread_t *Thread)
+{
+	/* Initialize a pointer to x86 specific data */
+	x86Thread_t *tData = (x86Thread_t*)Thread->ThreadData;
+
+	/* Cleanup both contexts */
+	kfree(tData->Context);
+	if (tData->UserContext != NULL) {
+		kfree(tData->UserContext);
+	}
+
+	/* Free fpu buffer and the
+	 * base structure */
+	kfree(tData->FpuBuffer);
+	kfree(tData);
+}
+
+/* IThreadWakeCpu
+ * Wake's the target cpu from an idle thread
+ * by sending it an yield IPI */
 void IThreadWakeCpu(Cpu_t Cpu)
 {
 	/* Send an IPI to the cpu */
 	ApicSendIpi(Cpu, INTERRUPT_YIELD);
 }
 
-/* Yield current thread */
-_CRT_EXPORT void IThreadYield(void)
+/* IThreadYield
+ * Yields the current thread control to the scheduler */
+void IThreadYield(void)
 {
-	/* Call the extern */
 	_yield();
-}
-
-/* Create a new thread */
-void *IThreadInit(Addr_t EntryPoint)
-{
-	/* Vars */
-	x86Thread_t *t;
-	Cpu_t Cpu;
-
-	/* Get cpu */
-	Cpu = ApicGetCpu();
-
-	/* Allocate a new thread structure */
-	t = (x86Thread_t*)kmalloc(sizeof(x86Thread_t));
-	memset(t, 0, sizeof(x86Thread_t));
-
-	/* Setup */
-	t->Context = ContextCreate(THREADING_KERNELMODE, (Addr_t)EntryPoint, 0, NULL);
-
-	/* FPU */
-	t->FpuBuffer = (Addr_t*)kmalloc_a(0x1000);
-
-	/* Memset the buffer */
-	memset(t->FpuBuffer, 0, 0x1000);
-
-	/* Done */
-	return t;
-}
-
-/* Frees thread resources */
-void IThreadDestroy(void *ThreadData)
-{
-	/* Cast */
-	x86Thread_t *Thread = (x86Thread_t*)ThreadData;
-
-	/* Cleanup Contexts */
-	kfree(Thread->Context);
-
-	/* Not all has user context */
-	if (Thread->UserContext != NULL)
-		kfree(Thread->UserContext);
-
-	/* Free fpu buffer */
-	kfree(Thread->FpuBuffer);
-
-	/* Free structure */
-	kfree(Thread);
-}
-
-/* Setup Usermode */
-void IThreadInitUserMode(void *ThreadData, 
-	Addr_t StackAddr, Addr_t EntryPoint, Addr_t ArgumentAddress)
-{
-	/* Cast */
-	x86Thread_t *t = (x86Thread_t*)ThreadData;
-
-	/* Create user-context */
-	t->UserContext = ContextCreate(THREADING_USERMODE, 
-		EntryPoint, StackAddr, (Addr_t*)ArgumentAddress);
-
-	/* Disable all port-access */
-	memset(&t->IoMap[0], 0xFF, GDT_IOMAP_SIZE);
 }
 
 /* Dispatches a signal to the given process 
@@ -235,75 +213,88 @@ void SignalDispatch(MCoreAsh_t *Ash, MCoreSignal_t *Signal)
 	enter_signal(Regs, Signal->Handler, Signal->Signal, MEMORY_LOCATION_SIGNAL_RET);
 }
 
-/* Task Switch occurs here */
-Registers_t *_ThreadingSwitch(Registers_t *Regs, int PreEmptive, size_t *TimeSlice, 
-							 int *TaskQueue)
+/* This function loads a new task from the scheduler, it
+ * implements the task-switching functionality, which MCore leaves
+ * up to the underlying architecture */
+Registers_t *_ThreadingSwitch(Registers_t *Regs, 
+	int PreEmptive, size_t *TimeSlice, int *TaskQueue)
 {
-	/* We'll need these */
-	MCoreThread_t *mThread;
-	x86Thread_t *tx86;
-	Cpu_t Cpu;
+	/* Variables we will need for the
+	 * context switch */
+	MCoreThread_t *Thread = NULL;
+	x86Thread_t *Tx = NULL;
+	Cpu_t Cpu = 0;
 
-	/* Sanity */
-	if (ThreadingIsEnabled() != 1)
+	/* Start out by sanitizing the state
+	 * of threading, don't schedule */
+	if (ThreadingIsEnabled() != 1) {
 		return Regs;
-
-	/* Get CPU */
-	Cpu = ApicGetCpu();
-
-	/* Get thread */
-	mThread = ThreadingGetCurrentThread(Cpu);
-
-	/* What the fuck?? */
-	assert(mThread != NULL && Regs != NULL);
-
-	/* Cast */
-	tx86 = (x86Thread_t*)mThread->ThreadData;
-
-	/* Save FPU/MMX/SSE State */
-	if (tx86->Flags & X86_THREAD_USEDFPU)
-		save_fpu(tx86->FpuBuffer);
-
-	/* Save stack */
-	if (mThread->Flags & THREADING_USERMODE)
-		tx86->UserContext = Regs;
-	else
-		tx86->Context = Regs;
-
-	/* Switch */
-	mThread = ThreadingSwitch(Cpu, mThread, (uint8_t)PreEmptive);
-	tx86 = (x86Thread_t*)mThread->ThreadData;
-
-	/* Update user variables */
-	*TimeSlice = mThread->TimeSlice;
-	*TaskQueue = mThread->Queue;
-
-	/* Update Addressing Space */
-	MmVirtualSwitchPageDirectory(Cpu, 
-		(PageDirectory_t*)mThread->AddressSpace->PageDirectory, mThread->AddressSpace->Cr3);
-
-	/* Set TSS */
-	TssUpdateStack(Cpu, (Addr_t)tx86->Context);
-	TssUpdateIo(Cpu, &tx86->IoMap[0]);
-
-	/* Finish Transition */
-	if (mThread->Flags & THREADING_TRANSITION) {
-		mThread->Flags &= ~THREADING_TRANSITION;
-		mThread->Flags |= THREADING_USERMODE;
 	}
 
-	/* Clear FPU/MMX/SSE */
-	tx86->Flags &= ~X86_THREAD_USEDFPU;
+	/* Lookup cpu and threading info */
+	Cpu = ApicGetCpu();
+	Thread = ThreadingGetCurrentThread(Cpu);
 
-	/* Handle signals if any */
-	SignalHandle(mThread->Id);
+	/* ASsert some sanity in this function! */
+	assert(Thread != NULL && Regs != NULL);
+
+	/* Initiate the x86 specific thread data pointer */
+	Tx = (x86Thread_t*)Thread->ThreadData;
+
+	/* Save FPU/MMX/SSE information if it's
+	 * been used, otherwise skip this and save time */
+	if (Tx->Flags & X86_THREAD_USEDFPU) {
+		save_fpu(Tx->FpuBuffer);
+	}
+
+	/* Save stack, we have a few cases here. 
+	 * We are using kernel stack in case of two things:
+	 * 1. Transitioning threads
+	 * 2. Kernel threads (surprise!) */
+	if ((Thread->Flags & THREADING_KERNELMODE)
+		|| (Thread->Flags & THREADING_TRANSITION)) {
+		Tx->Context = Regs;
+	}
+	else {
+		Tx->UserContext = Regs;
+	}
+	
+	/* Lookup a new thread and initiate our pointers */
+	Thread = ThreadingSwitch(Cpu, Thread, PreEmptive);
+	Tx = (x86Thread_t*)Thread->ThreadData;
+
+	/* Update scheduler variables */
+	*TimeSlice = Thread->TimeSlice;
+	*TaskQueue = Thread->Queue;
+
+	/* Update addressing space */
+	MmVirtualSwitchPageDirectory(Cpu, 
+		(PageDirectory_t*)Thread->AddressSpace->PageDirectory, 
+		Thread->AddressSpace->Cr3);
+
+	/* Update TSS information (stack/iomap) */
+	TssUpdateStack(Cpu, (Addr_t)Tx->Context);
+	TssUpdateIo(Cpu, &Tx->IoMap[0]);
+
+	/* Clear FPU/MMX/SSE flags */
+	Tx->Flags &= ~X86_THREAD_USEDFPU;
+
+	/* We want to handle any signals if neccessary
+	 * before we handle the transition */
+	SignalHandle(Thread->Id);
+
+	/* Handle the transition, we have to remove
+	 * the bit as we now have transitioned */
+	Thread->Flags &= ~THREADING_TRANSITION;
 
 	/* Set TS bit in CR0 */
 	set_ts();
 
 	/* Return new stack */
-	if (mThread->Flags & THREADING_USERMODE)
-		return tx86->UserContext;
-	else
-		return tx86->Context;
+	if (Thread->Flags & THREADING_KERNELMODE) {
+		return Tx->Context;
+	}	
+	else {
+		return Tx->UserContext;
+	}
 }

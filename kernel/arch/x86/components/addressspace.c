@@ -20,6 +20,7 @@
 */
 
 /* Includes */
+#include "../../arch.h"
 #include <Threading.h>
 #include <Devices/Video.h>
 #include <Heap.h>

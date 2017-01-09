@@ -22,13 +22,13 @@
 
 /* Includes 
  * - System */
-#include <Arch.h>
-#include <Acpi.h>
-#include <Apic.h>
-#include <Thread.h>
-#include <Threading.h>
-#include <Interrupts.h>
-#include <Log.h>
+#include "../../arch.h"
+#include <acpi.h>
+#include <apic.h>
+#include <thread.h>
+#include <threading.h>
+#include <interrupts.h>
+#include <log.h>
 
 /* Externs 
  * We need access to a few of the variables

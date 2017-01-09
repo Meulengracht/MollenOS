@@ -94,18 +94,34 @@ _CRT_EXPORT PhysAddr_t AddressSpaceGetMap(AddressSpace_t *AddrSpace, VirtAddr_t 
  * Used for abstracting *
  * arch specific thread *
  ************************/
+#include <threading.h>
 
-/* Functions */
-__CRT_EXTERN void *IThreadInitBoot(void);
-__CRT_EXTERN void *IThreadInitAp(void);
+/* IThreadCreate
+ * Initializes a new x86-specific thread context
+ * for the given threading flags, also initializes
+ * the yield interrupt handler first time its called */
+__CRT_EXTERN void *IThreadCreate(Flags_t ThreadFlags, Addr_t EntryPoint);
 
-__CRT_EXTERN void *IThreadInit(Addr_t EntryPoint);
-__CRT_EXTERN void IThreadDestroy(void *ThreadData);
+/* IThreadSetupUserMode
+ * Initializes user-mode data for the given thread, and
+ * allocates all neccessary resources (x86 specific) for
+ * usermode operations */
+__CRT_EXTERN void IThreadSetupUserMode(MCoreThread_t *Thread, 
+	Addr_t StackAddress, Addr_t EntryPoint, Addr_t ArgumentAddress);
 
-__CRT_EXTERN void IThreadInitUserMode(void *ThreadData,
-	Addr_t StackAddr, Addr_t EntryPoint, Addr_t ArgumentAddress);
+/* IThreadDestroy
+ * Free's all the allocated resources for x86
+ * specific threading operations */
+__CRT_EXTERN void IThreadDestroy(MCoreThread_t *Thread);
+
+/* IThreadWakeCpu
+ * Wake's the target cpu from an idle thread
+ * by sending it an yield IPI */
 __CRT_EXTERN void IThreadWakeCpu(Cpu_t Cpu);
-_CRT_EXPORT void IThreadYield(void);
+
+/* IThreadYield
+ * Yields the current thread control to the scheduler */
+__CRT_EXTERN void IThreadYield(void);
 
 /************************
  * Device Io Spaces     *

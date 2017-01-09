@@ -21,7 +21,7 @@
 
 /* Includes 
  * - System */
-#include <arch.h>
+#include "../../arch.h"
 #include <threading.h>
 #include <thread.h>
 #include <memory.h>
