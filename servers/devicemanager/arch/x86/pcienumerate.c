@@ -410,8 +410,7 @@ void BusEnumerate(void)
 		/* Check for things */
 		if (!(Acpi.BootFlags & ACPI_IA_NO_CMOS_RTC)) {
 			/* Boot up the CMOS and RTC */
-			//LoadDriver(CMOS) 
-			//LoadDriver(RTC)
+			//LoadDriver(CMOS_AND_RTC) 
 		}
 		if (Acpi.BootFlags & ACPI_IA_8042) {
 			/* Boot up PIT and PS2 */
@@ -422,8 +421,7 @@ void BusEnumerate(void)
 	else {
 		/* We can pretty much assume all 8042 devices
 		 * are present in system, like RTC, PS2, etc */
-		//LoadDriver(CMOS) 
-		//LoadDriver(RTC)
+		//LoadDriver(CMOS_AND_RTC) 
 		//LoadDriver(PIT)
 		//LoadDriver(PS2)
 	}
