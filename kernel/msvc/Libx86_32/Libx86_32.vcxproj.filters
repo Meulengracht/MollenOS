@@ -4,31 +4,28 @@
     <Filter Include="Source">
       <UniqueIdentifier>{72aa370d-f78d-49a6-9857-4ee22f86202c}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Source\Descriptors">
-      <UniqueIdentifier>{40f96f6f-d359-40f3-bcf5-74183e18a0a0}</UniqueIdentifier>
-    </Filter>
     <Filter Include="Headers">
       <UniqueIdentifier>{464131e9-0796-44d3-bf3b-c99c759d73c3}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Source\Memory">
-      <UniqueIdentifier>{aa6f7c1a-cec7-493f-b473-c34fb36e1cdb}</UniqueIdentifier>
+    <Filter Include="Source\descriptors">
+      <UniqueIdentifier>{40f96f6f-d359-40f3-bcf5-74183e18a0a0}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Source\Threading">
+    <Filter Include="Source\threading">
       <UniqueIdentifier>{4cf2c818-253a-4fd5-93d7-05cbc6ff32be}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\Arch\x86\x32\Gdt.c">
-      <Filter>Source\Descriptors</Filter>
+      <Filter>Source\descriptors</Filter>
     </ClCompile>
     <ClCompile Include="..\..\Arch\x86\x32\Idt.c">
-      <Filter>Source\Descriptors</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\Arch\x86\x32\Memory\MmVirtual.c">
-      <Filter>Source\Memory</Filter>
+      <Filter>Source\descriptors</Filter>
     </ClCompile>
     <ClCompile Include="..\..\Arch\x86\x32\Context.c">
-      <Filter>Source\Threading</Filter>
+      <Filter>Source\threading</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\arch\x86\x32\memory\virtualmemory.c">
+      <Filter>Source</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -43,20 +40,20 @@
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
-    <CustomBuild Include="..\..\Arch\x86\x32\Irq.asm">
-      <Filter>Source</Filter>
-    </CustomBuild>
     <CustomBuild Include="..\..\Arch\x86\x32\Boot\Boot.asm">
       <Filter>Source</Filter>
     </CustomBuild>
-    <CustomBuild Include="..\..\Arch\x86\x32\Descriptors.asm">
-      <Filter>Source\Descriptors</Filter>
+    <CustomBuild Include="..\..\arch\x86\x32\_thread.asm">
+      <Filter>Source\threading</Filter>
     </CustomBuild>
-    <CustomBuild Include="..\..\Arch\x86\x32\Memory\MmPaging.asm">
-      <Filter>Source\Memory</Filter>
+    <CustomBuild Include="..\..\arch\x86\x32\_irq.asm">
+      <Filter>Source\threading</Filter>
     </CustomBuild>
-    <CustomBuild Include="..\..\Arch\x86\x32\Threading.asm">
-      <Filter>Source\Threading</Filter>
+    <CustomBuild Include="..\..\arch\x86\x32\_descriptors.asm">
+      <Filter>Source</Filter>
+    </CustomBuild>
+    <CustomBuild Include="..\..\arch\x86\x32\memory\_paging.asm">
+      <Filter>Source</Filter>
     </CustomBuild>
   </ItemGroup>
 </Project>

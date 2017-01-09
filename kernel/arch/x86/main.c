@@ -22,15 +22,15 @@
 
 /* Includes 
  * - System */
-#include <MollenOS.h>
-#include <Arch.h>
-#include <Multiboot.h>
-#include <Memory.h>
-#include <Gdt.h>
-#include <Idt.h>
-#include <Interrupts.h>
-#include <Apic.h>
-#include <Log.h>
+#include <mollenos.h>
+#include <arch.h>
+#include <multiboot.h>
+#include <memory.h>
+#include <gdt.h>
+#include <idt.h>
+#include <interrupts.h>
+#include <apic.h>
+#include <log.h>
 
 /* Variables that we can share with our project
  * primarily just boot information in case */

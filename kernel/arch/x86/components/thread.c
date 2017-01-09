@@ -205,7 +205,8 @@ void IThreadInitUserMode(void *ThreadData,
 	x86Thread_t *t = (x86Thread_t*)ThreadData;
 
 	/* Create user-context */
-	t->UserContext = ContextUserCreate(StackAddr, EntryPoint, (Addr_t*)ArgumentAddress);
+	t->UserContext = ContextCreate(THREADING_USERMODE, 
+		EntryPoint, StackAddr, (Addr_t*)ArgumentAddress);
 
 	/* Disable all port-access */
 	memset(&t->IoMap[0], 0xFF, GDT_IOMAP_SIZE);
