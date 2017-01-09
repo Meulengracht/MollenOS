@@ -1,0 +1,95 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<package xmlns:dm0="http://schemas.microsoft.com/VisualStudio/2008/DslTools/Core" xmlns:dm1="http://schemas.microsoft.com/dsltools/Kernel" xmlns:dm2="http://schemas.microsoft.com/dsltools/Component" xmlns:dm3="http://schemas.microsoft.com/dsltools/UseCase" xmlns:dm4="http://schemas.microsoft.com/dsltools/Activity" xmlns:dm5="http://schemas.microsoft.com/dsltools/Interaction" xmlns:dm6="http://schemas.microsoft.com/dsltools/UmlModelLibrary" xmlns:dm7="http://schemas.microsoft.com/dsltools/UmlDiagrams" xmlns:dm8="http://schemas.microsoft.com/dsltools/LogicalClassDesigner"
+  dslVersion="1.0.0.0"
+  Id="8edbd1ae-7314-4f0b-87b4-da71245bc461"
+  name="Device Manager Module" xmlns="http://schemas.microsoft.com/dsltools/ModelStore">
+  <ownedCommentsInternal>
+    <comment
+      Id="bc540dbb-fb91-4645-8219-05c1be9bdb8f">
+      <body>ServerEntry(NULL?);
+    - RegisterServer(new ServerDescriptor());
+    - Listen(); / IPCRead();
+
+Handles Events:
+    - RegisterDevice();
+    - UnregisterDevice();
+    - RegisterDriver();
+    - RegisterEvent(); //ResetDriver, driver events etc
+    - UnregisterDriver();
+
+DriverContracts:
+     - Base
+     - ControllerBase
+     - UsbControllerDriver
+     - NetControllerDriver
+     - DiskControllerDriver
+     - Disk, Timer, Clock</body>
+    </comment>
+  </ownedCommentsInternal>
+  <packagedElements>
+    <packageHasNamedElement>
+      <class
+        Id="e03d3e63-2f08-4a9c-aba5-4d05463c40c7"
+        name="MCoreDevice_t"
+        isAbstract="false"
+        isLeaf="false"
+        isActiveClass="false">
+        <ownedAttributesInternal>
+          <property
+            Id="52a9128f-d1f9-4d4f-bb9c-87d98b4d1621"
+            name="Id"
+            isLeaf="false"
+            isStatic="false"
+            isReadOnly="false"
+            isUnique="false"
+            isDerived="false"
+            isDerivedUnion="false"
+            aggregation="None"
+            isComposite="false" />
+          <property
+            Id="28c5b292-807a-411c-b52c-b64c10d7f291"
+            name="Parent"
+            isLeaf="false"
+            isStatic="false"
+            isReadOnly="false"
+            isUnique="false"
+            isDerived="false"
+            isDerivedUnion="false"
+            aggregation="None"
+            isComposite="false" />
+          <property
+            Id="3a90e0cb-1a55-4d2a-b4b7-4ed1c7b3d15f"
+            name="IoSpaces"
+            isLeaf="false"
+            isStatic="false"
+            isReadOnly="false"
+            isUnique="false"
+            isDerived="false"
+            isDerivedUnion="false"
+            aggregation="None"
+            isComposite="false">
+            <lowerValueInternal>
+              <literalString
+                Id="a3ed05f1-be5b-4eee-9a10-820e9bf50d49"
+                name="Lower"
+                value="6" />
+            </lowerValueInternal>
+            <upperValueInternal>
+              <literalString
+                Id="89d15baa-7137-4041-ab41-4e830b9490c4"
+                name="Upper"
+                value="6" />
+            </upperValueInternal>
+          </property>
+        </ownedAttributesInternal>
+      </class>
+    </packageHasNamedElement>
+    <packageHasNamedElement>
+      <Interface
+        Id="6b174023-1e53-4e1c-97d0-d9da86f5f5e9"
+        name="Interface1"
+        isAbstract="false"
+        isLeaf="false" />
+    </packageHasNamedElement>
+  </packagedElements>
+</package>

@@ -1,0 +1,232 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="Systems">
+      <UniqueIdentifier>{3bcea2c0-a650-46ec-b90d-fefe4ec8eedb}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Common">
+      <UniqueIdentifier>{11bf9b2b-b5e5-4840-a298-1874f32c35ba}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Systems\Synchronization">
+      <UniqueIdentifier>{ed808d43-58c2-4e5f-a44d-ddd1d6bc7dab}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Includes">
+      <UniqueIdentifier>{81cd7e4a-fe41-497b-b8b9-348362f39bf7}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Systems\Devices">
+      <UniqueIdentifier>{95309756-6264-48ff-b7ce-0712c2be0aa9}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Includes\Devices">
+      <UniqueIdentifier>{4be81c73-69b8-4da0-b801-a1dc5c97a913}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Systems\Devices\Video">
+      <UniqueIdentifier>{b5451050-12d1-48fc-95d2-d17ed531ed99}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Includes\Vfs">
+      <UniqueIdentifier>{0e80ab11-a5b7-4a43-9f37-0173341884dc}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Systems\Devices\Acpi">
+      <UniqueIdentifier>{5deed555-85d5-4a53-9ff6-1a3939859996}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Systems\Vfs">
+      <UniqueIdentifier>{3b63c136-f228-470d-950a-a52c8b8ccbde}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Systems\process">
+      <UniqueIdentifier>{a9ed5b7b-c706-4c1c-bad0-6a96d3c29193}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Systems\process\loaders">
+      <UniqueIdentifier>{8a4ded77-cd7f-4efe-a737-d7cb78f0babb}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Includes\modules">
+      <UniqueIdentifier>{7aaa2a55-dea3-4b70-b444-e05f5fa1f1e3}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Includes\process">
+      <UniqueIdentifier>{be22789a-2793-4e14-9216-0072167b2157}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="..\..\System\Synchronization\Mutex.c">
+      <Filter>Systems\Synchronization</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\System\Synchronization\Semaphore.c">
+      <Filter>Systems\Synchronization</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\System\Heap.c">
+      <Filter>Systems</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\System\Scheduler.c">
+      <Filter>Systems</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\System\Timers.c">
+      <Filter>Systems</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\System\Devices\Fonts\VideoFont8x16.c">
+      <Filter>Systems\Devices\Video</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\System\Devices\DeviceVideo.c">
+      <Filter>Systems\Devices\Video</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\System\Threading.c">
+      <Filter>Systems</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\System\Log.c">
+      <Filter>Systems</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\System\Synchronization\CriticalSection.c">
+      <Filter>Systems\Synchronization</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\System\Devices\Fonts\VideoFont6x12.c">
+      <Filter>Systems\Devices\Video</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\System\Pipe.c">
+      <Filter>Systems</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\System\GarbageCollector.c">
+      <Filter>Systems</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Common\Bitmap.c">
+      <Filter>Common</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\System\Events.c">
+      <Filter>Systems</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\System\Devices\Acpi\Acpi.c">
+      <Filter>Systems\Devices\Acpi</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\System\Devices\Acpi\AcpiDevices.c">
+      <Filter>Systems\Devices\Acpi</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\System\Devices\Acpi\AcpiEnumerate.c">
+      <Filter>Systems\Devices\Acpi</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\System\Devices\Acpi\AcpiScan.c">
+      <Filter>Systems\Devices\Acpi</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\System\UserEvents.c">
+      <Filter>Systems</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\System\Vfs\Vfs.c">
+      <Filter>Systems\Vfs</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\System\Vfs\VfsDisk.c">
+      <Filter>Systems\Vfs</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\System\Vfs\VfsFunctions.c">
+      <Filter>Systems\Vfs</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\System\Vfs\VfsPath.c">
+      <Filter>Systems\Vfs</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\init.c" />
+    <ClCompile Include="..\..\System\modules.c">
+      <Filter>Systems</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\System\process\ash.c">
+      <Filter>Systems\process</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\System\process\phoenix.c">
+      <Filter>Systems\process</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\System\process\process.c">
+      <Filter>Systems\process</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\System\process\server.c">
+      <Filter>Systems\process</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\System\process\signal.c">
+      <Filter>Systems\process</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\System\process\syscalls.c">
+      <Filter>Systems\process</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\System\process\loaders\pe.c">
+      <Filter>Systems\process\loaders</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\..\Include\Heap.h">
+      <Filter>Includes</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Include\InputManager.h">
+      <Filter>Includes</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Include\Mutex.h">
+      <Filter>Includes</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Include\Scheduler.h">
+      <Filter>Includes</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Include\Semaphore.h">
+      <Filter>Includes</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Include\Timers.h">
+      <Filter>Includes</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Include\Devices\Cpu.h">
+      <Filter>Includes\Devices</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Include\Devices\Video.h">
+      <Filter>Includes\Devices</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Include\MollenOS.h">
+      <Filter>Includes</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Include\Threading.h">
+      <Filter>Includes</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Include\Devices\Disk.h">
+      <Filter>Includes\Devices</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Include\Vfs\Partition.h">
+      <Filter>Includes\Vfs</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Include\Vfs\Vfs.h">
+      <Filter>Includes\Vfs</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Include\Devices\Timer.h">
+      <Filter>Includes\Devices</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Include\Devices\Clock.h">
+      <Filter>Includes\Devices</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Include\Log.h">
+      <Filter>Includes</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Include\CriticalSection.h">
+      <Filter>Includes</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Arch\Arch.h">
+      <Filter>Includes</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Include\Pipe.h">
+      <Filter>Includes</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Include\Bitmap.h">
+      <Filter>Includes</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Include\Events.h">
+      <Filter>Includes</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Include\Modules\Modules.h">
+      <Filter>Includes\modules</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Include\Modules\RamDisk.h">
+      <Filter>Includes\modules</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\process\pe.h">
+      <Filter>Includes\process</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\process\phoenix.h">
+      <Filter>Includes\process</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\process\process.h">
+      <Filter>Includes\process</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\process\server.h">
+      <Filter>Includes\process</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\process\ash.h">
+      <Filter>Includes\process</Filter>
+    </ClInclude>
+  </ItemGroup>
+</Project>

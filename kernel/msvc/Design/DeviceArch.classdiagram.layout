@@ -1,0 +1,86 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<logicalClassDesignerDiagram dslVersion="1.0.0.0" absoluteBounds="0, 0, 11, 9" name="DeviceArch">
+  <logicalClassDesignerModelMoniker Id="76ceba08-9ba5-4195-96d8-101faf68b3ac" />
+  <nestedChildShapes>
+    <classShape Id="bb4cab45-2701-4fa8-9ab9-4463fd0e7155" absoluteBounds="7.5, 0.5, 1.25, 1.3828124701976781" hideQualifiedName="false" increaseHeight="0" customColor="181, 193, 223">
+      <classMoniker Id="db9a73ea-8922-4512-a499-19f835642a01" LastKnownName="MCoreDevice_t" />
+      <nestedChildShapes>
+        <AttributeElementListCompartment Id="c6d3b369-8970-4401-8fb0-5dead58bf46c" absoluteBounds="7.515, 0.89000000000000012, 1.2200000000000002, 0.68164060264825832" name="AttributesCompartment" titleTextColor="Black" itemTextColor="Black" />
+        <OperationElementListCompartment Id="10de4cd5-7f2a-48ca-91cf-e716ad514ea8" absoluteBounds="7.515, 1.5816406026482586, 1.2200000000000002, 0.20117186754941963" name="OperationsCompartment" titleTextColor="Black" itemTextColor="Black" />
+      </nestedChildShapes>
+    </classShape>
+    <commentShape Id="6b8a062d-bcd0-446a-9794-902046018ca1" absoluteBounds="1.875, 2.25, 0.875, 0.25" customColor="251, 247, 200">
+      <commentMoniker Id="522bda30-c604-4375-8020-3fd1d71f4c05" />
+      <relativeChildShapes />
+    </commentShape>
+    <commentShape Id="4c065e04-6244-4c16-911c-65e277ad6318" absoluteBounds="5.375, 3.125, 0.875, 0.25" customColor="251, 247, 200">
+      <commentMoniker Id="5f899b0b-bfe9-435d-ac79-b59864dfe15b" />
+      <relativeChildShapes />
+    </commentShape>
+    <classShape Id="d4db047a-dbc4-48c6-bbe4-87a6a979c4c1" absoluteBounds="8, 2, 1.5, 0.90234373509883881" hideQualifiedName="false" increaseHeight="0" customColor="181, 193, 223">
+      <classMoniker Id="957addab-7097-49b5-a7b3-0cf0907a353f" LastKnownName="MCoreDriver_t" />
+      <nestedChildShapes>
+        <AttributeElementListCompartment Id="8b1b63ba-1327-4ed4-a5b7-397eea1244fa" absoluteBounds="8.015, 2.39, 1.4700000000000002, 0.2011718675494194" name="AttributesCompartment" titleTextColor="Black" itemTextColor="Black" />
+        <OperationElementListCompartment Id="c235b45b-c99e-4167-8be8-42150bb31c6c" absoluteBounds="8.015, 2.6011718675494193, 1.4700000000000002, 0.2011718675494194" name="OperationsCompartment" titleTextColor="Black" itemTextColor="Black" />
+      </nestedChildShapes>
+    </classShape>
+    <commentShape Id="dd18b8ce-372e-4aae-8344-38a304407f63" absoluteBounds="5.5, 1.75, 1.875, 1.125" customColor="251, 247, 200">
+      <commentMoniker Id="3934fed4-13ce-4627-bcfa-6b348c2a8057" />
+      <relativeChildShapes />
+    </commentShape>
+    <commentShape Id="a3ec9a46-9e90-4e43-8fc4-4cf899616da3" absoluteBounds="0.5, 0.75, 1.5, 3" customColor="251, 247, 200">
+      <commentMoniker Id="f8e5183e-ee59-4d01-a094-aeefeb347abb" />
+      <relativeChildShapes />
+    </commentShape>
+    <packageShape Id="ea079a12-d19e-4058-9855-654857a678f6" absoluteBounds="0.5, 3.875, 4.25, 4.875" customColor="255, 249, 230" hideQualifiedName="false">
+      <packageMoniker Id="78c8c657-8e65-4486-b312-325c2b483c0b" LastKnownName="Device Manager Module" />
+      <nestedChildShapes>
+        <commentShape Id="2163cd47-0c18-4d19-ae29-b84f9798c007" absoluteBounds="0.75, 4.375, 3.875, 2.625" customColor="251, 247, 200">
+          <commentMoniker Id="27739930-76ce-43d7-848c-e7bab61c8b23" />
+          <relativeChildShapes />
+        </commentShape>
+      </nestedChildShapes>
+    </packageShape>
+    <packageShape Id="79c9f155-095b-4e2d-9b39-afe72abac09f" absoluteBounds="5.25, 3.875, 4.625, 4.875" customColor="255, 249, 230" hideQualifiedName="false">
+      <packageMoniker Id="1889826b-fb2d-4862-aa7b-8a2c85edaf5f" LastKnownName="Ohci Controller" />
+      <nestedChildShapes>
+        <commentShape Id="2cde9591-5e8f-4114-acf4-31a4f8dc83c9" absoluteBounds="5.625, 4.375, 4, 0.625" customColor="251, 247, 200">
+          <commentMoniker Id="ae315084-b565-42c3-951f-19d9b845a53c" />
+          <relativeChildShapes />
+        </commentShape>
+      </nestedChildShapes>
+    </packageShape>
+    <packageImportConnector edgePoints="[(7.5625 : 3.875); (7.5625 : 3.5); (3.0383152173913 : 3.5); (3.0383152173913 : 3.875)]" manuallyRouted="true" fixedFrom="NotFixed" fixedTo="NotFixed" customColor="Black">
+      <packageImportMoniker Id="7d820bd6-a84b-48a3-9517-968b9b92b9c9" />
+      <relativeChildShapes />
+      <moveableDecoratorHostShapes>
+        <moveableDecoratorHostShape manuallySized="true" absoluteBounds="4.8844216632324695, 3.1919965410232543, 0.125, 0.14800345897674561" shapeFieldName="&lt;&lt;Import&gt;&gt;" />
+      </moveableDecoratorHostShapes>
+      <nodes>
+        <packageShapeMoniker Id="79c9f155-095b-4e2d-9b39-afe72abac09f" />
+        <packageShapeMoniker Id="ea079a12-d19e-4058-9855-654857a678f6" />
+      </nodes>
+    </packageImportConnector>
+    <packageShape Id="4544137c-6a6a-4300-a9f7-d4d0661127e4" absoluteBounds="3.625, 0.5, 3.375, 1" customColor="255, 249, 230" hideQualifiedName="false">
+      <packageMoniker Id="e00d70eb-6424-4199-8cf3-3ca6f6891ea0" LastKnownName="Bus Module" />
+      <nestedChildShapes>
+        <commentShape Id="d8d54e83-cfac-415a-af1f-e97d356c880b" absoluteBounds="3.75, 1, 3.125, 0.375" customColor="251, 247, 200">
+          <commentMoniker Id="5a746249-6e46-4c17-9e9f-d3d7c92367b9" />
+          <relativeChildShapes />
+        </commentShape>
+      </nestedChildShapes>
+    </packageShape>
+    <packageImportConnector edgePoints="[(3.625 : 1); (2.81335227272727 : 1); (2.81335227272727 : 3.875)]" fixedFrom="NotFixed" fixedTo="NotFixed" customColor="Black">
+      <packageImportMoniker Id="60263168-9d00-41b6-bd4a-089c183d454b" />
+      <relativeChildShapes />
+      <moveableDecoratorHostShapes>
+        <moveableDecoratorHostShape manuallySized="true" manuallyPlaced="true" absoluteBounds="3.375, 2, 0.125, 0.1341145783662796" shapeFieldName="Stereotype" />
+        <moveableDecoratorHostShape manuallySized="true" absoluteBounds="2.1413803818009089, 1.9696709478985166, 0.125, 0.14800345897674561" shapeFieldName="&lt;&lt;Import&gt;&gt;" />
+      </moveableDecoratorHostShapes>
+      <nodes>
+        <packageShapeMoniker Id="4544137c-6a6a-4300-a9f7-d4d0661127e4" />
+        <packageShapeMoniker Id="ea079a12-d19e-4058-9855-654857a678f6" />
+      </nodes>
+    </packageImportConnector>
+  </nestedChildShapes>
+</logicalClassDesignerDiagram>

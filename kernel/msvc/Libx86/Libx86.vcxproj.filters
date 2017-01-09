@@ -1,0 +1,110 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="Startup">
+      <UniqueIdentifier>{301b2fae-cf85-4127-ba6b-debc87dc4389}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Components">
+      <UniqueIdentifier>{14b68f60-ab34-4c8c-af4e-a418705d061b}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Interrupts">
+      <UniqueIdentifier>{11123936-825e-45b2-be98-5fa6e60d0e19}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Includes">
+      <UniqueIdentifier>{df810496-32c7-4a8d-bc69-2434fc3c44bd}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="..\..\Arch\x86\Init\Main.c">
+      <Filter>Startup</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Arch\x86\Components\Video.c">
+      <Filter>Components</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Arch\x86\Init\Cpu.c">
+      <Filter>Components</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Arch\x86\Components\Thread.c">
+      <Filter>Components</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Arch\x86\Interrupts\IntExceptions.c">
+      <Filter>Interrupts</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Arch\x86\Interrupts\IntFunctions.c">
+      <Filter>Interrupts</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Arch\x86\Interrupts\IntInit.c">
+      <Filter>Interrupts</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Arch\x86\Interrupts\Pic.c">
+      <Filter>Interrupts</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Arch\x86\Interrupts\ApicIo.c">
+      <Filter>Interrupts</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Arch\x86\Interrupts\ApicHelpers.c">
+      <Filter>Interrupts</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Arch\x86\Interrupts\ApicHandlers.c">
+      <Filter>Interrupts</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Arch\x86\Components\Smp.c">
+      <Filter>Components</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Arch\x86\Components\PhysicalMemory.c">
+      <Filter>Components</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Arch\x86\Interrupts\ApicInit.c">
+      <Filter>Interrupts</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Arch\x86\Components\AddressSpace.c">
+      <Filter>Components</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Arch\x86\Components\IoSpace.c">
+      <Filter>Components</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Arch\x86\Interrupts\ApicIpi.c">
+      <Filter>Interrupts</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <CustomBuild Include="..\..\Arch\x86\Components\Portio.asm">
+      <Filter>Components</Filter>
+    </CustomBuild>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\..\Arch\x86\Cpu.h">
+      <Filter>Includes</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Arch\x86\Exceptions.h">
+      <Filter>Includes</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Arch\x86\Memory.h">
+      <Filter>Includes</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Arch\x86\Multiboot.h">
+      <Filter>Includes</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Arch\x86\Pci.h">
+      <Filter>Includes</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Arch\x86\Pic.h">
+      <Filter>Includes</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Arch\x86\Thread.h">
+      <Filter>Includes</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Arch\x86\Video.h">
+      <Filter>Includes</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Arch\x86\Interrupts.h">
+      <Filter>Includes</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Arch\x86\Apic.h">
+      <Filter>Includes</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Arch\x86\AcpiSys.h">
+      <Filter>Includes</Filter>
+    </ClInclude>
+  </ItemGroup>
+</Project>
