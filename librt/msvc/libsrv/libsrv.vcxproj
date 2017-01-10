@@ -58,6 +58,7 @@
       <PreprocessorDefinitions>MOLLENOS;_X86_32;_CRTIMP_STATIC</PreprocessorDefinitions>
       <BufferSecurityCheck>false</BufferSecurityCheck>
       <EnableEnhancedInstructionSet>NoExtensions</EnableEnhancedInstructionSet>
+      <DisableSpecificWarnings>4702</DisableSpecificWarnings>
     </ClCompile>
     <Link>
       <GenerateDebugInformation>true</GenerateDebugInformation>

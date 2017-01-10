@@ -109,7 +109,8 @@ namespace RdBuilder
                 /* First we write file entries */
                 foreach (String mFile in lFiles)
                 {
-                    Console.WriteLine("Writing " + Path.GetFileName(mFile));
+                    Boolean IsDriver = File.Exists(Path.GetDirectoryName(mFile) + "\\" + Path.GetFileNameWithoutExtension(mFile) + ".mdrv");
+                    Console.WriteLine("Writing " + Path.GetFileName(mFile) + (IsDriver ? " (Driver)" : " (File)"));
 
                     /* Convert name to bytes */
                     Byte[] NameData = new Byte[64];
@@ -126,7 +127,8 @@ namespace RdBuilder
                     rdWriter.Write(NameData, 0, NameData.Length);
 
                     /* Write Type (0x4 = File(Module), 0x2 File(Diretory), 0x1 = File(Generic)) */
-                    rdWriter.WriteByte(0x4);
+                    if (IsDriver) rdWriter.WriteByte(0x4);
+                    else rdWriter.WriteByte(0x1);
                     rdWriter.WriteByte(0);
                     rdWriter.WriteByte(0);
                     rdWriter.WriteByte(0);
@@ -165,45 +167,48 @@ namespace RdBuilder
                     uint DeviceSubClass = 0;
                     uint DeviceFlags = 0;
 
-                    using (StreamReader diReader = new StreamReader(Path.GetDirectoryName(mFile) + "\\" + Path.GetFileNameWithoutExtension(mFile) + ".mdrv"))
+                    if (IsDriver)
                     {
-                        String Line = "";
-                        while ((Line = diReader.ReadLine()) != null)
+                        using (StreamReader diReader = new StreamReader(Path.GetDirectoryName(mFile) + "\\" + Path.GetFileNameWithoutExtension(mFile) + ".mdrv"))
                         {
-                            /* Comment? */
-                            if (Line.StartsWith("#"))
-                                continue;
+                            String Line = "";
+                            while ((Line = diReader.ReadLine()) != null)
+                            {
+                                /* Comment? */
+                                if (Line.StartsWith("#"))
+                                    continue;
 
-                            /* Split into key-value */
-                            String[] Tokens = Line.Split(new Char[] { '=' });
+                                /* Split into key-value */
+                                String[] Tokens = Line.Split(new Char[] { '=' });
 
-                            /* Sanity */
-                            if (Tokens.Length != 2)
-                                continue;
+                                /* Sanity */
+                                if (Tokens.Length != 2)
+                                    continue;
 
-                            /* Vendor Id ? */
-                            if (Tokens[0].Trim().ToLower() == "vendorid")
-                                VendorId = Convert.ToUInt32(Tokens[1].Trim().ToLower(), 16);
+                                /* Vendor Id ? */
+                                if (Tokens[0].Trim().ToLower() == "vendorid")
+                                    VendorId = Convert.ToUInt32(Tokens[1].Trim().ToLower(), 16);
 
-                            /* Device Id ? */
-                            if (Tokens[0].Trim().ToLower() == "deviceid")
-                                DeviceId = Convert.ToUInt32(Tokens[1].Trim().ToLower(), 16);
+                                /* Device Id ? */
+                                if (Tokens[0].Trim().ToLower() == "deviceid")
+                                    DeviceId = Convert.ToUInt32(Tokens[1].Trim().ToLower(), 16);
 
-                            /* Device Class ? */
-                            if (Tokens[0].Trim().ToLower() == "class")
-                                DeviceClass = Convert.ToUInt32(Tokens[1].Trim().ToLower(), 16);
+                                /* Device Class ? */
+                                if (Tokens[0].Trim().ToLower() == "class")
+                                    DeviceClass = Convert.ToUInt32(Tokens[1].Trim().ToLower(), 16);
 
-                            /* Device SubClass ? */
-                            if (Tokens[0].Trim().ToLower() == "subclass")
-                                DeviceSubClass = Convert.ToUInt32(Tokens[1].Trim().ToLower(), 16);
-                            
-                            /* Device Shared ? */
-                            if (Tokens[0].Trim().ToLower() == "flags")
-                                DeviceFlags = Convert.ToUInt32(Tokens[1].Trim().ToLower(), 16);
+                                /* Device SubClass ? */
+                                if (Tokens[0].Trim().ToLower() == "subclass")
+                                    DeviceSubClass = Convert.ToUInt32(Tokens[1].Trim().ToLower(), 16);
+
+                                /* Device Shared ? */
+                                if (Tokens[0].Trim().ToLower() == "flags")
+                                    DeviceFlags = Convert.ToUInt32(Tokens[1].Trim().ToLower(), 16);
+                            }
+
+                            /* Cleanup */
+                            diReader.Close();
                         }
-
-                        /* Cleanup */
-                        diReader.Close();
                     }
 
                     /* Write Vendor Id */

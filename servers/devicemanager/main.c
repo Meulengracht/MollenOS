@@ -61,7 +61,8 @@ int ServerMain(void *Data)
 	GlbRun = 1;
 
 	/* Register us with server manager */
-
+	MollenOSSystemLog("Hello from our first ever server!! DEVICEMANAGER!");
+	for (;;);
 
 	/* Enumerate bus controllers/devices */
 	BusEnumerate();

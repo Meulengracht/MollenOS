@@ -59,6 +59,8 @@
 #define PCI_CLASS_ENCRYPTION				0x10
 #define PCI_CLASS_SIGNALDATA				0x11
 
+#define PCI_STORAGE_SUBCLASS_IDE			0x01
+
 #define PCI_BRIDGE_SUBCLASS_PCI				0x04
 
 /* The different command flag bits that can be 
@@ -114,7 +116,7 @@ typedef struct _PciLegacyEntry {
  * by the bus code, and is not related to any hardware structure. 
  * This keeps track of the bus's in the system and their io space */
 typedef struct _PciBus {
-	DeviceIoSpace_t			*IoSpace;
+	DeviceIoSpace_t			IoSpace;
 	int						IsExtended;
 	int						Segment;
 	int						BusStart;

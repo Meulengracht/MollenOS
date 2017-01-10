@@ -29,6 +29,8 @@
 
 /* Includes
  * - System */
+#include <os/driver/io.h>
+#include <os/driver/acpi.h>
 #include <os/driver/device.h>
 
 #endif //!_MCORE_DRIVER_H_
