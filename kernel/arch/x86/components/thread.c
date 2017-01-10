@@ -251,7 +251,7 @@ Registers_t *_ThreadingSwitch(Registers_t *Regs,
 	 * 1. Transitioning threads
 	 * 2. Kernel threads (surprise!) */
 	if ((Thread->Flags & THREADING_KERNELMODE)
-		|| (Thread->Flags & THREADING_TRANSITION)) {
+		|| (Thread->Flags & THREADING_SWITCHMODE)) {
 		Tx->Context = Regs;
 	}
 	else {
@@ -284,13 +284,16 @@ Registers_t *_ThreadingSwitch(Registers_t *Regs,
 
 	/* Handle the transition, we have to remove
 	 * the bit as we now have transitioned */
-	Thread->Flags &= ~THREADING_TRANSITION;
+	if (Thread->Flags & THREADING_TRANSITION) {
+		Thread->Flags &= ~(THREADING_SWITCHMODE | THREADING_TRANSITION);
+	}
 
 	/* Set TS bit in CR0 */
 	set_ts();
 
 	/* Return new stack */
-	if (Thread->Flags & THREADING_KERNELMODE) {
+	if ((Thread->Flags & THREADING_KERNELMODE)
+		|| (Thread->Flags & THREADING_SWITCHMODE)) {
 		return Tx->Context;
 	}	
 	else {

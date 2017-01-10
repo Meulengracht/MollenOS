@@ -1,59 +1,50 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
-    <Filter Include="Source">
-      <UniqueIdentifier>{72aa370d-f78d-49a6-9857-4ee22f86202c}</UniqueIdentifier>
+    <Filter Include="include">
+      <UniqueIdentifier>{b009d44d-f908-4ebc-bc85-7399a80ce983}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Headers">
-      <UniqueIdentifier>{464131e9-0796-44d3-bf3b-c99c759d73c3}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Source\descriptors">
+    <Filter Include="descriptors">
       <UniqueIdentifier>{40f96f6f-d359-40f3-bcf5-74183e18a0a0}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Source\threading">
+    <Filter Include="threading">
       <UniqueIdentifier>{4cf2c818-253a-4fd5-93d7-05cbc6ff32be}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\Arch\x86\x32\Gdt.c">
-      <Filter>Source\descriptors</Filter>
+      <Filter>descriptors</Filter>
     </ClCompile>
     <ClCompile Include="..\..\Arch\x86\x32\Idt.c">
-      <Filter>Source\descriptors</Filter>
+      <Filter>descriptors</Filter>
     </ClCompile>
     <ClCompile Include="..\..\Arch\x86\x32\Context.c">
-      <Filter>Source\threading</Filter>
+      <Filter>threading</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\arch\x86\x32\memory\virtualmemory.c">
-      <Filter>Source</Filter>
-    </ClCompile>
+    <ClCompile Include="..\..\arch\x86\x32\memory\virtualmemory.c" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\..\Arch\x86\x32\Idt.h">
-      <Filter>Headers</Filter>
+    <ClInclude Include="..\..\arch\x86\x32\arch.h">
+      <Filter>include</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\Arch\x86\x32\Gdt.h">
-      <Filter>Headers</Filter>
+    <ClInclude Include="..\..\arch\x86\x32\gdt.h">
+      <Filter>include</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\Arch\x86\x32\Arch.h">
-      <Filter>Headers</Filter>
+    <ClInclude Include="..\..\arch\x86\x32\idt.h">
+      <Filter>include</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
-    <CustomBuild Include="..\..\Arch\x86\x32\Boot\Boot.asm">
-      <Filter>Source</Filter>
-    </CustomBuild>
     <CustomBuild Include="..\..\arch\x86\x32\_thread.asm">
-      <Filter>Source\threading</Filter>
+      <Filter>threading</Filter>
     </CustomBuild>
     <CustomBuild Include="..\..\arch\x86\x32\_irq.asm">
-      <Filter>Source\threading</Filter>
+      <Filter>threading</Filter>
     </CustomBuild>
+    <CustomBuild Include="..\..\arch\x86\x32\boot\boot.asm" />
+    <CustomBuild Include="..\..\arch\x86\x32\memory\_paging.asm" />
     <CustomBuild Include="..\..\arch\x86\x32\_descriptors.asm">
-      <Filter>Source</Filter>
-    </CustomBuild>
-    <CustomBuild Include="..\..\arch\x86\x32\memory\_paging.asm">
-      <Filter>Source</Filter>
+      <Filter>descriptors</Filter>
     </CustomBuild>
   </ItemGroup>
 </Project>

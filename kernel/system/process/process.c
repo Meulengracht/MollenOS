@@ -21,14 +21,13 @@
 
 /* Includes 
  * - System */
-#include <Arch.h>
-#include <Modules/Process.h>
-#include <Vfs/VfsWrappers.h>
-#include <GarbageCollector.h>
-#include <Threading.h>
-#include <Semaphore.h>
-#include <Scheduler.h>
-#include <Log.h>
+#include <process/process.h>
+#include <vfs/vfswrappers.h>
+#include <garbagecollector.h>
+#include <threading.h>
+#include <semaphore.h>
+#include <scheduler.h>
+#include <log.h>
 
 /* Includes
  * - C-Library */
@@ -64,12 +63,6 @@ void PhoenixBootProcess(void *Args)
 
 	/* Go to user-land */
 	ThreadingEnterUserMode(Process);
-
-	/* Catch */
-	IThreadYield();
-
-	/* SHOULD NEVER reach this point */
-	for (;;);
 }
 
 /* This function loads the executable and

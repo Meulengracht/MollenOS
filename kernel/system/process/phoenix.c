@@ -1,6 +1,6 @@
 /* MollenOS
  *
- * Copyright 2011 - 2016, Philip Meulengracht
+ * Copyright 2011 - 2017, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -22,13 +22,14 @@
 
 /* Includes 
  * - System */
-#include <Modules/Phoenix.h>
-#include <Modules/Process.h>
-#include <GarbageCollector.h>
-#include <Threading.h>
-#include <Scheduler.h>
-#include <Heap.h>
-#include <Log.h>
+#include <process/phoenix.h>
+#include <process/process.h>
+#include <process/server.h>
+#include <garbagecollector.h>
+#include <threading.h>
+#include <scheduler.h>
+#include <heap.h>
+#include <log.h>
 
 /* Includes
  * C-Library */
@@ -97,16 +98,17 @@ int PhoenixEventHandler(void *UserData, MCoreEvent_t *Event)
 	{
 		/* Spawn a new ash/process */
 		case AshSpawnProcess:
-		case AshSpawn:
+		case AshSpawnServer:
 		{
 			/* Deep Call */
 			LogInformation("PHNX", "Spawning %s", MStringRaw(Request->Path));
 
-			if (Request->Base.Type == AshSpawn) {
-				Request->AshId = PhoenixStartupAsh(Request->Path);
+			if (Request->Base.Type == AshSpawnServer) {
+				Request->AshId = PhoenixCreateServer(Request->Path, 
+					Request->Arguments.Raw.Data, Request->Arguments.Raw.Length);
 			}
 			else {
-				Request->AshId = PhoenixCreateProcess(Request->Path, Request->Arguments);
+				Request->AshId = PhoenixCreateProcess(Request->Path, Request->Arguments.String);
 			}
 
 			/* Sanity */
@@ -144,8 +146,8 @@ int PhoenixEventHandler(void *UserData, MCoreEvent_t *Event)
 	if (Request->Base.Cleanup != 0) {
 		if (Request->Path != NULL)
 			MStringDestroy(Request->Path);
-		if (Request->Arguments != NULL)
-			MStringDestroy(Request->Arguments);
+		if (Request->Arguments.String != NULL)
+			MStringDestroy(Request->Arguments.String);
 	}
 
 	/* Return 0 */

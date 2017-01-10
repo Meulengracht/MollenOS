@@ -21,11 +21,11 @@
 
 /* Includes 
  * - System */
-#include <Modules\Modules.h>
-#include <Modules\PeLoader.h>
-#include <Vfs/VfsWrappers.h>
-#include <Heap.h>
-#include <Log.h>
+#include <process/pe.h>
+#include <modules/modules.h>
+#include <vfs/vfswrappers.h>
+#include <heap.h>
+#include <log.h>
 
 /* Includes
  * - C-Library */

@@ -21,10 +21,10 @@
 
 /* Includes 
  * - System */
-#include <Modules/Phoenix.h>
-#include <Modules/Modules.h>
-#include <Heap.h>
-#include <Log.h>
+#include <process/phoenix.h>
+#include <modules/modules.h>
+#include <heap.h>
+#include <log.h>
 
 /* Includes
  * - C-Library */
@@ -156,12 +156,13 @@ void ModulesRunServers(void)
 
 			/* Create a phoenix request */
 			Request = (MCorePhoenixRequest_t*)kmalloc(sizeof(MCorePhoenixRequest_t));
-			Request->Base.Type = AshSpawn;
+			Request->Base.Type = AshSpawnServer;
 			Request->Base.Cleanup = 1;
 
 			/* Set our parameters as well */
 			Request->Path = Path;
-			Request->Arguments = NULL;
+			Request->Arguments.Raw.Data = 0;
+			Request->Arguments.Raw.Length = 0;
 
 			/* Send off the request */
 			PhoenixCreateRequest(Request);

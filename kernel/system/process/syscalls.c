@@ -72,7 +72,7 @@ PhxId_t ScProcessSpawn(char *Path, char *Arguments)
 	/* Setup */
 	Request.Base.Type = AshSpawnProcess;
 	Request.Path = mPath;
-	Request.Arguments = mArguments;
+	Request.Arguments.String = mArguments;
 	
 	/* Fire! */
 	PhoenixCreateRequest(&Request);
@@ -1041,16 +1041,12 @@ size_t ScVfsRead(int FileDescriptor, uint8_t *Buffer, size_t Length, VfsErrorCod
 
 	/* Setup params for the request */
 	Request->Pointer.Handle = (MCoreFileInstance_t*)fNode->Data;
-	Request->Buffer = (uint8_t*)ServerMemoryAllocate(Length);
+	Request->Buffer = Buffer;
 	Request->Value.Lo.Length = Length;
 
 	/* Send the request */
 	VfsRequestCreate(Request);
 	VfsRequestWait(Request, 0);
-
-	/* Copy data from proxy to buffer */
-	memcpy((void*)Buffer, (const void*)Request->Buffer, Length);
-	ServerMemoryFree((void*)Request->Buffer);
 
 	/* Store bytes read */
 	bRead = Request->Value.Hi.Length;
@@ -1113,18 +1109,12 @@ size_t ScVfsWrite(int FileDescriptor, uint8_t *Buffer, size_t Length, VfsErrorCo
 
 	/* Setup params for the request */
 	Request->Pointer.Handle = (MCoreFileInstance_t*)fNode->Data;
-	Request->Buffer = ServerMemoryAllocate(Length);
+	Request->Buffer = (void*)Request->Buffer;
 	Request->Value.Lo.Length = Length;
-
-	/* Copy data from proxy to buffer */
-	memcpy((void*)Request->Buffer, (const void*)Buffer, Length);
 
 	/* Send the request */
 	VfsRequestCreate(Request);
 	VfsRequestWait(Request, 0);
-
-	/* Cleanup proxy */
-	ServerMemoryFree((void*)Request->Buffer);
 
 	/* Store bytes read */
 	bWritten = Request->Value.Hi.Length;
@@ -1311,7 +1301,6 @@ int ScVfsQuery(int FileDescriptor, VfsQueryFunction_t Function, void *Buffer, si
 	/* Get current process */
 	MCoreProcess_t *Process = PhoenixGetProcess(PROCESS_CURRENT);
 	VfsErrorCode_t RetCode = VfsInvalidParameters;
-	void *Proxy = NULL;
 	DataKey_t Key;
 	Key.Value = FileDescriptor;
 
@@ -1329,17 +1318,8 @@ int ScVfsQuery(int FileDescriptor, VfsQueryFunction_t Function, void *Buffer, si
 	if (fNode == NULL)
 		return RetCode;
 
-	/* Allocate a proxy buffer */
-	Proxy = ServerMemoryAllocate(Length);
-
 	/* Redirect to Vfs */
-	RetCode = VfsQuery((MCoreFileInstance_t*)fNode->Data, Function, Proxy, Length);
-
-	/* Copy */
-	memcpy(Buffer, Proxy, Length);
-
-	/* Cleanup proxy */
-	ServerMemoryFree(Proxy);
+	RetCode = VfsQuery((MCoreFileInstance_t*)fNode->Data, Function, Buffer, Length);
 
 	/* Done! */
 	return (int)RetCode;
@@ -1511,7 +1491,7 @@ OsStatus_t ScAcpiQueryTableHeader(const char *Signature, ACPI_TABLE_HEADER *Head
 	}
 
 	/* Now query for the header */
-	if (ACPI_FAILURE(AcpiGetTable(Signature, 0, &PointerToHeader))) {
+	if (ACPI_FAILURE(AcpiGetTable((ACPI_STRING)Signature, 0, &PointerToHeader))) {
 		return OsError;
 	}
 
@@ -1537,7 +1517,7 @@ OsStatus_t ScAcpiQueryTable(const char *Signature, ACPI_TABLE_HEADER *Table)
 	}
 
 	/* Now query for the full table */
-	if (ACPI_FAILURE(AcpiGetTable(Signature, 0, &Header))) {
+	if (ACPI_FAILURE(AcpiGetTable((ACPI_STRING)Signature, 0, &Header))) {
 		return OsError;
 	}
 

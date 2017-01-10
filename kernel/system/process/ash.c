@@ -21,11 +21,15 @@
  * - In this file we implement Ash functions
  */
 
-/* Includes */
-#include <Modules/Phoenix.h>
-#include <Modules/Modules.h>
-#include <Vfs/VfsWrappers.h>
-#include <Threading.h>
+/* Includes 
+ * - System */
+#include <process/phoenix.h>
+#include <modules/modules.h>
+#include <vfs/vfswrappers.h>
+#include <threading.h>
+
+/* Includes
+ * - Library */
 #include <stddef.h>
 
 /* Externs */
@@ -98,12 +102,6 @@ void PhoenixBootAsh(void *Args)
 
 	/* Go to user-land */
 	ThreadingEnterUserMode(Ash);
-
-	/* Catch */
-	IThreadYield();
-
-	/* SHOULD NEVER reach this point */
-	for (;;);
 }
 
 /* This function loads the executable and

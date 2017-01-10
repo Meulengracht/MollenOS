@@ -65,7 +65,13 @@ typedef struct _MCorePhoenixRequest
 	 * must be filled out for some of the
 	 * actions that phoenix support */
 	MString_t *Path;
-	MString_t *Arguments;
+	union {
+		MString_t *String;
+		struct {
+			void *Data;
+			size_t Length;
+		} Raw;
+	} Arguments;
 
 	/* This is a combined parameter, for some
 	 * actions it acts as a return, other times it

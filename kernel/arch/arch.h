@@ -94,7 +94,7 @@ _CRT_EXPORT PhysAddr_t AddressSpaceGetMap(AddressSpace_t *AddrSpace, VirtAddr_t 
  * Used for abstracting *
  * arch specific thread *
  ************************/
-#include <threading.h>
+typedef struct _MCoreThread MCoreThread_t;
 
 /* IThreadCreate
  * Initializes a new x86-specific thread context

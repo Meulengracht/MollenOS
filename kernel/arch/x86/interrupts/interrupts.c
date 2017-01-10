@@ -486,7 +486,7 @@ int DeviceAllocateInterrupt(void *mCoreDevice)
 		if (DidExist == -1)
 		{
 			Device->IrqLine = IrqLine = 
-				(int)PciRead8(NULL, Device->Bus, Device->Device, Device->Function, 0x3C);
+				(int)PciRead8(Device->Bus, Device->Device, Device->Function, 0x3C);
 			IdtEntry += Device->IrqLine;
 
 			ApicFlags |= 0x100;				/* Lowest Priority */
@@ -498,7 +498,7 @@ int DeviceAllocateInterrupt(void *mCoreDevice)
 			Device->IrqLine = IrqLine = DidExist;
 
 			/* Update PCI Interrupt Line */
-			PciWrite8(NULL, Device->Bus, Device->Device, Device->Function, 0x3C, (uint8_t)IrqLine);
+			PciWrite8(Device->Bus, Device->Device, Device->Function, 0x3C, (uint8_t)IrqLine);
 
 			/* Setup APIC flags */
 			ApicFlags |= 0x100;						/* Lowest Priority */

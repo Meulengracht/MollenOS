@@ -25,7 +25,7 @@
 
 /* Includes */
 #include <GarbageCollector.h>
-#include <Modules/Phoenix.h>
+#include <process/phoenix.h>
 #include <Semaphore.h>
 #include <Threading.h>
 #include <Log.h>

@@ -24,7 +24,7 @@
 
 /* Includes 
  * - System */
-#include <Arch.h>
+#include <arch.h>
 
 /* Includes
  * - C-Library */

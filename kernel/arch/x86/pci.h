@@ -1,24 +1,24 @@
 /* MollenOS
-*
-* Copyright 2011 - 2014, Philip Meulengracht
-*
-* This program is free software : you can redistribute it and / or modify
-* it under the terms of the GNU General Public License as published by
-* the Free Software Foundation ? , either version 3 of the License, or
-* (at your option) any later version.
-*
-* This program is distributed in the hope that it will be useful,
-* but WITHOUT ANY WARRANTY; without even the implied warranty of
-* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.See the
-* GNU General Public License for more details.
-*
-* You should have received a copy of the GNU General Public License
-* along with this program.If not, see <http://www.gnu.org/licenses/>.
-*
-*
-* MollenOS X86 PCI
-* Version 1. PCI Support Only (No PCI Express)
-*/
+ *
+ * Copyright 2011 - 2017, Philip Meulengracht
+ *
+ * This program is free software : you can redistribute it and / or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation ? , either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.If not, see <http://www.gnu.org/licenses/>.
+ *
+ *
+ * MollenOS X86 PCI
+ * Version 1. PCI Support Only (No PCI Express)
+ */
 
 #ifndef _X86_PCI_H_
 #define _X86_PCI_H_
@@ -167,33 +167,37 @@ typedef struct _PciDevice
 #define X86_PCI_COMMAND_FASTBTB		0x200
 #define X86_PCI_COMMAND_INTDISABLE	0x400
 
-/* Prototypes */
+/* PciRead32
+ * Reads a 32 bit value from the pci-bus
+ * at the specified location bus, device, function and register */
+__CRT_EXTERN uint32_t PciRead32(DevInfo_t Bus, DevInfo_t Device, DevInfo_t Function, size_t Register);
 
-/* Read I/O */
-__CRT_EXTERN uint8_t PciRead8(PciBus_t *BusIo, uint32_t Bus, uint32_t Device, uint32_t Function, uint32_t Register);
-__CRT_EXTERN uint16_t PciRead16(PciBus_t *BusIo, uint32_t Bus, uint32_t Device, uint32_t Function, uint32_t Register);
-__CRT_EXTERN uint32_t PciRead32(PciBus_t *BusIo, uint32_t Bus, uint32_t Device, uint32_t Function, uint32_t Register);
-_CRT_EXPORT uint32_t PciDeviceRead(PciDevice_t *Device, uint32_t Register, uint32_t Length);
+/* PciRead16
+ * Reads a 16 bit value from the pci-bus
+ * at the specified location bus, device, function and register */
+__CRT_EXTERN uint16_t PciRead16(DevInfo_t Bus, DevInfo_t Device, DevInfo_t Function, size_t Register);
 
-/* Write I/O */
-__CRT_EXTERN void PciWrite8(PciBus_t *BusIo, uint32_t Bus, uint32_t Device, uint32_t Function, uint32_t Register, uint8_t Value);
-__CRT_EXTERN void PciWrite16(PciBus_t *BusIo, uint32_t Bus, uint32_t Device, uint32_t Function, uint32_t Register, uint16_t Value);
-__CRT_EXTERN void PciWrite32(PciBus_t *BusIo, uint32_t Bus, uint32_t Device, uint32_t Function, uint32_t Register, uint32_t Value);
-_CRT_EXPORT void PciDeviceWrite(PciDevice_t *Device, uint32_t Register, uint32_t Value, uint32_t Length);
+/* PciRead8
+ * Reads a 8 bit value from the pci-bus
+ * at the specified location bus, device, function and register */
+__CRT_EXTERN uint8_t PciRead8(DevInfo_t Bus, DevInfo_t Device, DevInfo_t Function, size_t Register);
 
-/* Decode PCI Device to String */
-__CRT_EXTERN const char *PciToString(uint8_t Class, uint8_t SubClass, uint8_t Interface);
+/* PciWrite32
+ * Writes a 32 bit value to the pci-bus
+ * at the specified location bus, device, function and register */
+__CRT_EXTERN void PciWrite32(DevInfo_t Bus, DevInfo_t Device,
+	DevInfo_t Function, size_t Register, uint32_t Value);
 
-/* Helpers */
+/* PciWrite16
+ * Writes a 16 bit value to the pci-bus
+ * at the specified location bus, device, function and register */
+__CRT_EXTERN void PciWrite16(DevInfo_t Bus, DevInfo_t Device,
+	DevInfo_t Function, size_t Register, uint16_t Value);
 
-/* Reads the vendor id at given location */
-__CRT_EXTERN uint16_t PciReadVendorId(PciBus_t *BusIo, uint32_t Bus, uint32_t Device, uint32_t Function);
-__CRT_EXTERN void PciReadFunction(PciNativeHeader_t *Pcs, PciBus_t *BusIo, uint32_t Bus, uint32_t Device, uint32_t Function);
-
-__CRT_EXTERN uint8_t PciReadBaseClass(PciBus_t *BusIo, uint32_t Bus, uint32_t Device, uint32_t Function);
-__CRT_EXTERN uint8_t PciReadSubclass(PciBus_t *BusIo, uint32_t Bus, uint32_t Device, uint32_t Function);
-__CRT_EXTERN uint8_t PciReadInterface(PciBus_t *BusIo, uint32_t Bus, uint32_t Device, uint32_t Function);
-__CRT_EXTERN uint8_t PciReadSecondaryBusNumber(PciBus_t *BusIo, uint32_t Bus, uint32_t Device, uint32_t Function);
-__CRT_EXTERN uint8_t PciReadHeaderType(PciBus_t *BusIo, uint32_t Bus, uint32_t Device, uint32_t Function);
+/* PciWrite8
+ * Writes a 8 bit value to the pci-bus
+ * at the specified location bus, device, function and register */
+__CRT_EXTERN void PciWrite8(DevInfo_t Bus, DevInfo_t Device,
+	DevInfo_t Function, size_t Register, uint8_t Value);
 
 #endif // !_X86_PCI_H_

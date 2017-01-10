@@ -16,6 +16,7 @@
   <ItemGroup>
     <ClCompile Include="..\..\arch\x86\components\addressspace.c" />
     <ClCompile Include="..\..\arch\x86\components\iospace.c" />
+    <ClCompile Include="..\..\arch\x86\components\pci.c" />
     <ClCompile Include="..\..\arch\x86\components\physicalmemory.c" />
     <ClCompile Include="..\..\arch\x86\components\smp.c" />
     <ClCompile Include="..\..\arch\x86\interrupts\apic\apichandlers.c" />

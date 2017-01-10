@@ -1,6 +1,6 @@
 /* MollenOS
  *
- * Copyright 2011 - 2016, Philip Meulengracht
+ * Copyright 2011 - 2017, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -19,22 +19,23 @@
  * MollenOS Common Entry Point
  */
 
-/* Includes */
+/* Includes 
+ * - System */
 #include <revision.h>
-#include <MollenOS.h>
-#include <Arch.h>
-#include <AcpiInterface.h>
-#include <GarbageCollector.h>
-#include <DeviceManager.h>
+#include <mollenos.h>
+#include <arch.h>
+#include <acpiinterface.h>
+#include <garbagecollector.h>
 #include <modules/modules.h>
 #include <process/phoenix.h>
-#include <Scheduler.h>
-#include <Threading.h>
-#include <Vfs\Vfs.h>
-#include <Heap.h>
-#include <Log.h>
+#include <scheduler.h>
+#include <threading.h>
+#include <vfs\vfs.h>
+#include <heap.h>
+#include <log.h>
 
-/* C-Library */
+/* Includes
+ * - Library */
 #include <stddef.h>
 
 /* Print Header Information */
@@ -72,7 +73,7 @@ void MCoreInitialize(MCoreBootInfo_t *BootInfo)
 	/* We want to initialize IoSpaces as soon
 	 * as possible so devices and systems 
 	 * can register/claim their io-spaces */
-	IoSpaceInit();
+	IoSpaceInitialize();
 
 	/* Parse the ramdisk early, but we don't run
 	 * servers yet, this is not needed, but since there
@@ -83,7 +84,7 @@ void MCoreInitialize(MCoreBootInfo_t *BootInfo)
 
 	/* Init Threading & Scheduler for boot cpu */
 	SchedulerInit(0);
-	ThreadingInit();
+	ThreadingInitialize(0);
 
 	/* Now we can do some early ACPI
 	 * initialization if ACPI is present

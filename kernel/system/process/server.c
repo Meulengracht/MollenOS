@@ -84,7 +84,6 @@ PhxId_t PhoenixCreateServer(MString_t *Path, void *Arguments, size_t Length)
 	/* Vars */
 	MCoreServer_t *Server = NULL;
 	DataKey_t Key;
-	int Index = 0;
 
 	/* Allocate the structure */
 	Server = (MCoreServer_t*)kmalloc(sizeof(MCoreServer_t));

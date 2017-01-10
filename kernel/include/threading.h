@@ -41,22 +41,23 @@
  * 0 => Kernel
  * 1 => User
  * 2 => Driver
- * 3 => Reserved */
+ * 3 => Reserved 
+ * Bit 3: If it's currently in switch-mode */
 #define THREADING_KERNELMODE		0x0
 #define THREADING_USERMODE			0x1
 #define THREADING_DRIVERMODE		0x2
+#define THREADING_SWITCHMODE		0x4
 #define THREADING_MODEMASK			0x3
 
 /* The rest of the bits denode special
  * other run-modes */
-#define THREADING_CPUBOUND			0x4
-#define THREADING_SYSTEMTHREAD		0x8
-#define THREADING_IDLE				0x10
-#define THREADING_ENTER_SLEEP		0x20
-#define THREADING_FINISHED			0x40
-#define THREADING_INHERIT			0x80
-#define THREADING_TRANSITION		0x100
-#define THREADING_TRANSITIONFINISH	0x200
+#define THREADING_CPUBOUND			0x8
+#define THREADING_SYSTEMTHREAD		0x10
+#define THREADING_IDLE				0x20
+#define THREADING_ENTER_SLEEP		0x40
+#define THREADING_FINISHED			0x80
+#define THREADING_INHERIT			0x100
+#define THREADING_TRANSITION		0x200
 
 /* The different possible threading priorities 
  * Normal is the default thread-priority, and Critical
@@ -122,46 +123,80 @@ __CRT_EXTERN void ThreadingInitialize(Cpu_t Cpu);
 __CRT_EXTERN ThreadId_t ThreadingCreateThread(const char *Name,
 	ThreadEntry_t Function, void *Arguments, Flags_t Flags);
 
-/* Exits the current thread by marking it finished
+/* ThreadingExitThread
+ * Exits the current thread by marking it finished
  * and yielding control to scheduler */
-_CRT_EXPORT void ThreadingExitThread(int ExitCode);
+__CRT_EXTERN void ThreadingExitThread(int ExitCode);
 
-/* Kills a thread with the given id 
- * this force-kills the thread, thread
+/* ThreadingKillThread
+ * Kills a thread with the given id, the thread
  * might not be killed immediately */
-_CRT_EXPORT void ThreadingKillThread(ThreadId_t ThreadId);
+__CRT_EXTERN void ThreadingKillThread(ThreadId_t ThreadId);
 
-/* Can be used to wait for a thread 
- * the return value of this function
- * is the ret-code of the thread */
-_CRT_EXPORT int ThreadingJoinThread(ThreadId_t ThreadId);
+/* ThreadingJoinThread
+ * Can be used to wait for a thread the return 
+ * value of this function is the ret-code of the thread */
+__CRT_EXTERN int ThreadingJoinThread(ThreadId_t ThreadId);
 
-/* These below functions are helper functions 
- * for ashes, and include transition to user-mode
- * and cleanup */
+/* ThreadingEnterUserMode
+ * Initializes non-kernel mode and marks the thread
+ * for transitioning, there is no return from this function */
 __CRT_EXTERN void ThreadingEnterUserMode(void *AshInfo);
-__CRT_EXTERN void ThreadingTerminateAshThreads(PhxId_t AshId);
-__CRT_EXTERN void ThreadingReapZombies(void);
 
-/* Sleep, Wake, etc */
+/* ThreadingTerminateAshThreads
+ * Marks all threads belonging to the given ashid
+ * as finished and they will be cleaned up on next switch */
+__CRT_EXTERN void ThreadingTerminateAshThreads(PhxId_t AshId);
+
+/* ThreadingIsEnabled
+ * Returns 1 if the threading system has been
+ * initialized, otherwise it returns 0 */
+__CRT_EXTERN int ThreadingIsEnabled(void);
+
+/* ThreadingIsCurrentTaskIdle
+ * Is the given cpu running it's idle task? */
+__CRT_EXTERN int ThreadingIsCurrentTaskIdle(Cpu_t Cpu);
+
+/* ThreadingGetCurrentMode
+ * Returns the current run-mode for the current
+ * thread on the current cpu */
+__CRT_EXTERN Flags_t ThreadingGetCurrentMode(void);
+
+/* ThreadingGetCurrentThread
+ * Retrieves the current thread on the given cpu
+ * if there is any issues it returns NULL */
+__CRT_EXTERN MCoreThread_t *ThreadingGetCurrentThread(Cpu_t Cpu);
+
+/* ThreadingGetCurrentThreadId
+ * Retrives the current thread id on the current cpu
+ * from the callers perspective */
+__CRT_EXTERN ThreadId_t ThreadingGetCurrentThreadId(void);
+
+/* ThreadingGetThread
+ * Lookup thread by the given thread-id, 
+ * returns NULL if invalid */
+__CRT_EXTERN MCoreThread_t *ThreadingGetThread(ThreadId_t ThreadId);
+
+/* ThreadingWakeCpu
+ * Wake's the target cpu from an idle thread
+ * by sending it an yield IPI */
 __CRT_EXTERN void ThreadingWakeCpu(Cpu_t Cpu);
 
-/* This is the thread-switch function and must be 
+/* ThreadingReapZombies
+ * Garbage-Collector function, it reaps and
+ * cleans up all threads */
+__CRT_EXTERN void ThreadingReapZombies(void);
+
+/* ThreadingSwitch
+ * This is the thread-switch function and must be 
  * be called from the below architecture to get the
  * next thread to run */
-__CRT_EXTERN MCoreThread_t *ThreadingSwitch(Cpu_t Cpu, MCoreThread_t *Current, int PreEmptive);
+__CRT_EXTERN MCoreThread_t *ThreadingSwitch(Cpu_t Cpu, 
+	MCoreThread_t *Current, int PreEmptive);
 
-/* Getter functions */
-__CRT_EXTERN ThreadId_t ThreadingGetCurrentThreadId(void);
-__CRT_EXTERN Flags_t ThreadingGetCurrentMode(void);
-__CRT_EXTERN MCoreThread_t *ThreadingGetThread(ThreadId_t ThreadId);
-__CRT_EXTERN MCoreThread_t *ThreadingGetCurrentThread(Cpu_t Cpu);
-__CRT_EXTERN ListNode_t *ThreadingGetCurrentNode(Cpu_t Cpu);
-
-/* Utility functions, primarily used to check if stuff is 
- * ok, enabled etc etc. Random stuff as well! */
-__CRT_EXTERN int ThreadingIsCurrentTaskIdle(Cpu_t Cpu);
-__CRT_EXTERN int ThreadingIsEnabled(void);
-_CRT_EXPORT void ThreadingDebugPrint(void);
+/* ThreadingDebugPrint
+ * Prints out debugging information about each thread
+ * in the system, only active threads */
+__CRT_EXTERN void ThreadingDebugPrint(void);
 
 #endif

@@ -67,6 +67,9 @@
     <ClCompile Include="..\..\arch\x86\interrupts\pic\pic.c">
       <Filter>interrupts\pic</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\arch\x86\components\pci.c">
+      <Filter>components</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <CustomBuild Include="..\..\Arch\x86\Components\Portio.asm">

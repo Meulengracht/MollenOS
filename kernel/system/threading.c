@@ -48,6 +48,79 @@ ListNode_t *GlbIdleThreads[MAX_SUPPORTED_CPUS];
 Spinlock_t GlbThreadLock = SPINLOCK_INIT;
 int GlbThreadingEnabled = 0;
 
+/* ThreadingGetCurrentNode
+ * Helper function, retrieves the current 
+ * list-node in our list of threads */
+ListNode_t *ThreadingGetCurrentNode(Cpu_t Cpu) {
+	return GlbCurrentThreads[Cpu];
+}
+
+/* ThreadingUpdateCurrent
+ * Helper function, updates the current
+ * list-node in our list of current threads */
+void ThreadingUpdateCurrent(Cpu_t Cpu, ListNode_t *Node) {
+	GlbCurrentThreads[Cpu] = Node;
+}
+
+/* ThreadingEntryPoint
+ * Initializes and handles finish of the thread
+ * all threads should use this entry point. No Return */
+void ThreadingEntryPoint(void)
+{
+	/* Variables for setup */
+	MCoreThread_t *Thread = NULL;
+	Cpu_t Cpu = 0;
+
+	/* Retrieve the current cpu and
+	 * get the current thread */
+	Cpu = ApicGetCpu();
+	Thread = ThreadingGetCurrentThread(Cpu);
+
+	/* We don't need futther init, run the thread */
+	Thread->Function(Thread->Args);
+
+	/* IF WE REACH THIS POINT THREAD IS DONE! */
+	Thread->Flags |= THREADING_FINISHED;
+
+	/* Yield control, with safety-catch */
+	IThreadYield();
+	for (;;);
+}
+
+/* ThreadingEntryPointUserMode
+ * This is the userspace version of the entry point
+ * and is used for initializing userspace threads 
+ * Threads started like this MUST use ThreadingExitThread */
+void ThreadingEntryPointUserMode(void)
+{
+	/* Variables for setup */
+	MCoreThread_t *Thread = NULL;
+	Cpu_t Cpu = 0;
+
+	/* Retrieve the current cpu and
+	* get the current thread */
+	Cpu = ApicGetCpu();
+	Thread = ThreadingGetCurrentThread(Cpu);
+
+	/* It's important to create 
+	 * and map the stack before setting up */
+	Addr_t BaseAddress = ((MEMORY_LOCATION_USER_STACK - 0x1) & PAGE_MASK);
+	AddressSpaceMap(AddressSpaceGetCurrent(), 
+		BaseAddress, ASH_STACK_INIT, MEMORY_MASK_DEFAULT, ADDRESS_SPACE_FLAG_USER);
+	BaseAddress += (MEMORY_LOCATION_USER_STACK & ~(PAGE_MASK));
+
+	/* Let the architecture know we want to enter
+	 * user-mode */
+	IThreadSetupUserMode(Thread, BaseAddress);
+
+	/* Nothing actually happens before this flag is set */
+	Thread->Flags |= THREADING_TRANSITION;
+
+	/* Yield control, with safety-catch */
+	IThreadYield();
+	for (;;);
+}
+
 /* ThreadingInitialize
  * Initializes threading on the given cpu-core
  * and initializes the current 'context' as the
@@ -117,7 +190,8 @@ void ThreadingInitialize(Cpu_t Cpu)
 	ListAppend(GlbThreads, Node);
 }
 
-/* Create a new thread with the given name,
+/* ThreadingCreateThread
+ * Create a new thread with the given name,
  * entry point, arguments and flags, if name 
  * is NULL, a generic name will be generated 
  * Thread is started as soon as possible */
@@ -187,7 +261,7 @@ ThreadId_t ThreadingCreateThread(const char *Name,
 	 * If it's NOT a kernel thread
 	 * we specify transition-mode */
 	if (!(Flags & THREADING_KERNELMODE)) {
-		Thread->Flags |= THREADING_TRANSITION;
+		Thread->Flags |= THREADING_SWITCHMODE;
 	}
 
 	/* Flag-Special-Case
@@ -209,10 +283,10 @@ ThreadId_t ThreadingCreateThread(const char *Name,
 	 * But use different entry point
 	 * based upon usermode thread or kernel mode thread */
 	if (Flags & THREADING_KERNELMODE) {
-		Thread->ThreadData = IThreadInit((Addr_t)&ThreadingEntryPoint);
+		Thread->ThreadData = IThreadCreate(THREADING_KERNELMODE, (Addr_t)&ThreadingEntryPoint);
 	}
 	else {
-		Thread->ThreadData = IThreadInit((Addr_t)&ThreadingEntryPointUserMode);
+		Thread->ThreadData = IThreadCreate(THREADING_KERNELMODE, (Addr_t)&ThreadingEntryPointUserMode);
 	}
 
 	/* Append it to list & scheduler */
@@ -224,218 +298,52 @@ ThreadId_t ThreadingCreateThread(const char *Name,
 	return Thread->Id;
 }
 
-/* Get Current Thread */
-MCoreThread_t *ThreadingGetCurrentThread(Cpu_t Cpu)
-{
-	/* Sanitize the current threading status */
-	if (GlbThreadingEnabled != 1
-		|| GlbCurrentThreads[Cpu] == NULL) {
-		return NULL;
-	}
-
-	/* This, this is important */
-	assert(GlbCurrentThreads[Cpu] != NULL);
-
-	/* Get thread */
-	return (MCoreThread_t*)GlbCurrentThreads[Cpu]->Data;
-}
-
-/* Get Current Scheduler(!!!) Node */
-ListNode_t *ThreadingGetCurrentNode(Cpu_t Cpu) {
-	return GlbCurrentThreads[Cpu];
-}
-
-/* Get current threading id */
-ThreadId_t ThreadingGetCurrentThreadId(void)
-{
-	/* Get current cpu */
-	Cpu_t Cpu = ApicGetCpu();
-
-	/* If it's during startup phase for cpu's
-	* we have to take precautions */
-	if (GlbCurrentThreads[Cpu] == NULL)
-		return (ThreadId_t)Cpu;
-
-	if (GlbThreadId == 0)
-		return 0;
-	else
-		return ThreadingGetCurrentThread(Cpu)->Id;
-}
-
-/* Lookup thread by the given 
- * thread-id, returns NULL if invalid */
-MCoreThread_t *ThreadingGetThread(ThreadId_t ThreadId)
-{
-	/* Iterate thread nodes 
-	 * and find the correct */
-	foreach(tNode, GlbThreads)
-	{
-		/* Cast */
-		MCoreThread_t *Thread = (MCoreThread_t*)tNode->Data;
-
-		/* Check */
-		if (Thread->Id == ThreadId)
-			return Thread;
-	}
-
-	/* Damn, no match */
-	return NULL;
-}
-
-/* Is current thread idle task? */
-int ThreadingIsCurrentTaskIdle(Cpu_t Cpu)
-{
-	/* Has flag? */
-	if (ThreadingGetCurrentThread(Cpu)->Flags & THREADING_IDLE)
-		return 1;
-	else
-		return 0;
-}
-
-/* Wake's up CPU */
-void ThreadingWakeCpu(Cpu_t Cpu)
-{
-	/* This is unfortunately arch-specific */
-	IThreadWakeCpu(Cpu);
-}
-
-/* Set Current List Node */
-void ThreadingUpdateCurrent(Cpu_t Cpu, ListNode_t *Node) {
-	GlbCurrentThreads[Cpu] = Node;
-}
-
-/* Cleanup a thread */
+/* ThreadingCleanupThread
+ * Cleans up a thread and all it's resources, the
+ * address space is not cleaned up untill all threads
+ * in the given space has been shut down. Must be
+ * called from a seperate thread */
 void ThreadingCleanupThread(MCoreThread_t *Thread)
 {
 	/* Cleanup arch resources */
 	AddressSpaceDestroy(Thread->AddressSpace);
-	IThreadDestroy(Thread->ThreadData);
+	IThreadDestroy(Thread);
 
 	/* Cleanup structure */
 	kfree((void*)Thread->Name);
 	kfree(Thread);
 }
 
-/* Cleans up all threads */
-void ThreadingReapZombies(void)
-{
-	/* Reap untill list is empty */
-	ListNode_t *tNode = ListPopFront(GlbZombieThreads);
-
-	while (tNode != NULL)
-	{
-		/* Cast */
-		MCoreThread_t *Thread = (MCoreThread_t*)tNode->Data;
-
-		/* Clean it up */
-		ThreadingCleanupThread(Thread);
-
-		/* Clean up rest */
-		kfree(tNode);
-
-		/* Get next node */
-		tNode = ListPopFront(GlbZombieThreads);
-	}
-}
-
-/* Is threading running? */
-int ThreadingIsEnabled(void)
-{
-	return GlbThreadingEnabled;
-}
-
-/* Prints threads */
-void ThreadingDebugPrint(void)
-{
-	foreach(i, GlbThreads)
-	{
-		MCoreThread_t *t = (MCoreThread_t*)i->Data;
-		printf("Thread %u (%s) - Flags %i, Queue %i, Timeslice %u, Cpu: %u\n",
-			t->Id, t->Name, t->Flags, t->Queue, t->TimeSlice, t->CpuId);
-	}
-}
-
-/* This is actually every thread entry point,
- * It makes sure to handle ALL threads terminating */
-void ThreadingEntryPoint(void)
-{
-	/* Vars */
-	MCoreThread_t *cThread;
-	Cpu_t Cpu;
-
-	/* Get cpu */
-	Cpu = ApicGetCpu();
-
-	/* Get current thread */
-	cThread = ThreadingGetCurrentThread(Cpu);
-
-	/* Call entry point */
-	cThread->Function(cThread->Args);
-
-	/* IF WE REACH THIS POINT THREAD IS DONE! */
-	cThread->Flags |= THREADING_FINISHED;
-
-	/* Yield */
-	IThreadYield();
-
-	/* Safety-Catch */
-	for (;;);
-}
-
-/* This is the userspace version of the entry point
- * and is used for initializing userspace threads 
- * Threads started like this MUST use ThreadingExitThread */
-void ThreadingEntryPointUserMode(void)
-{
-	/* Sensitive */
-	Cpu_t CurrentCpu = ApicGetCpu();
-	MCoreThread_t *Thread = ThreadingGetCurrentThread(CurrentCpu);
-
-	/* It's important to create 
-	 * and map the stack before setting up */
-	Addr_t BaseAddress = ((MEMORY_LOCATION_USER_STACK - 0x1) & PAGE_MASK);
-	AddressSpaceMap(AddressSpaceGetCurrent(), 
-		BaseAddress, ASH_STACK_INIT, MEMORY_MASK_DEFAULT, ADDRESS_SPACE_FLAG_USER);
-	BaseAddress += (MEMORY_LOCATION_USER_STACK & ~(PAGE_MASK));
-
-	/* Underlying Call */
-	IThreadSetupUserMode(Thread, BaseAddress);
-
-	/* Nothing actually happens before this flag is
-	 * is set */
-	Thread->Flags |= THREADING_TRANSITION;
-
-	/* Yield */
-	IThreadYield();
-
-	/* Safety-Catch */
-	for (;;);
-}
-
-
-/* Exits the current thread by marking it finished
+/* ThreadingExitThread
+ * Exits the current thread by marking it finished
  * and yielding control to scheduler */
 void ThreadingExitThread(int ExitCode)
 {
-	/* Get current thread handle */
-	MCoreThread_t *Current = ThreadingGetCurrentThread(ApicGetCpu());
+	/* Variables for setup */
+	MCoreThread_t *Thread = NULL;
+	Cpu_t Cpu = 0;
+
+	/* Retrieve the current cpu and
+	* get the current thread */
+	Cpu = ApicGetCpu();
+	Thread = ThreadingGetCurrentThread(Cpu);
 
 	/* Store exit code */
-	Current->RetCode = ExitCode;
+	Thread->RetCode = ExitCode;
 
 	/* Mark thread finished */
-	Current->Flags |= THREADING_FINISHED;
+	Thread->Flags |= THREADING_FINISHED;
 
 	/* Wakeup people that were 
 	 * waiting for the thread to finish */
-	SchedulerWakeupAllThreads((Addr_t*)Current);
+	SchedulerWakeupAllThreads((Addr_t*)Thread);
 
 	/* Yield control */
 	IThreadYield();
 }
 
-/* Kills a thread with the given id 
- * this force-kills the thread, thread
+/* ThreadingKillThread
+ * Kills a thread with the given id, the thread
  * might not be killed immediately */
 void ThreadingKillThread(ThreadId_t ThreadId)
 {
@@ -461,9 +369,9 @@ void ThreadingKillThread(ThreadId_t ThreadId)
 	 * cleaned up at next schedule */
 }
 
-/* Can be used to wait for a thread 
- * the return value of this function
- * is the ret-code of the thread */
+/* ThreadingJoinThread
+ * Can be used to wait for a thread the return 
+ * value of this function is the ret-code of the thread */
 int ThreadingJoinThread(ThreadId_t ThreadId)
 {
 	/* Get thread handle */
@@ -483,38 +391,45 @@ int ThreadingJoinThread(ThreadId_t ThreadId)
 	return Target->RetCode;
 }
 
-/* Enters Usermode */
+/* ThreadingEnterUserMode
+ * Initializes non-kernel mode and marks the thread
+ * for transitioning, there is no return from this function */
 void ThreadingEnterUserMode(void *AshInfo)
 {
 	/* Sensitive */
 	MCoreAsh_t *Ash = (MCoreAsh_t*)AshInfo;
 	IntStatus_t IntrState = InterruptDisable();
-	Cpu_t CurrentCpu = ApicGetCpu();
-	MCoreThread_t *cThread = ThreadingGetCurrentThread(CurrentCpu);
+	MCoreThread_t *Thread = ThreadingGetCurrentThread(ApicGetCpu());
 
 	/* Update this thread */
-	cThread->AshId = Ash->Id;
+	Thread->AshId = Ash->Id;
+	Thread->Function = (ThreadEntry_t)Ash->Executable->EntryAddress;
+	Thread->Args = (void*)MEMORY_LOCATION_USER_ARGS;
 
 	/* Underlying Call  */
-	IThreadInitUserMode(cThread->ThreadData, Ash->StackStart,
-		Ash->Executable->EntryAddress, MEMORY_LOCATION_USER_ARGS);
+	IThreadSetupUserMode(Thread, Ash->StackStart);
 
 	/* This initiates the transition 
 	 * nothing happpens before this */
-	cThread->Flags |= THREADING_TRANSITION;
+	Thread->Flags |= THREADING_TRANSITION;
 
 	/* Done! */
 	InterruptRestoreState(IntrState);
+
+	/* Yield control and a safe-ty catch */
+	IThreadYield();
+	for (;;);
 }
 
-/* End all threads by process id */
+/* ThreadingTerminateAshThreads
+ * Marks all threads belonging to the given ashid
+ * as finished and they will be cleaned up on next switch */
 void ThreadingTerminateAshThreads(PhxId_t AshId)
 {
 	/* Iterate thread list */
-	foreach(tNode, GlbThreads)
-	{
-		/* Cast */
-		MCoreThread_t *Thread = (MCoreThread_t*)tNode->Data;
+	foreach(tNode, GlbThreads) {
+		MCoreThread_t *Thread = 
+			(MCoreThread_t*)tNode->Data;
 
 		/* Is it owned?
 		 * Then we mark it finished */
@@ -524,12 +439,155 @@ void ThreadingTerminateAshThreads(PhxId_t AshId)
 	}
 }
 
-/* Handles and switches thread from the current */
+/* ThreadingGetCurrentThread
+ * Retrieves the current thread on the given cpu
+ * if there is any issues it returns NULL */
+MCoreThread_t *ThreadingGetCurrentThread(Cpu_t Cpu)
+{
+	/* Sanitize the current threading status */
+	if (GlbThreadingEnabled != 1
+		|| GlbCurrentThreads[Cpu] == NULL) {
+		return NULL;
+	}
+
+	/* This, this is important */
+	assert(GlbCurrentThreads[Cpu] != NULL);
+
+	/* Get thread */
+	return (MCoreThread_t*)GlbCurrentThreads[Cpu]->Data;
+}
+
+/* ThreadingGetCurrentThreadId
+ * Retrives the current thread id on the current cpu
+ * from the callers perspective */
+ThreadId_t ThreadingGetCurrentThreadId(void)
+{
+	/* Get current cpu */
+	Cpu_t Cpu = ApicGetCpu();
+
+	/* If it's during startup phase for cpu's
+	 * we have to take precautions */
+	if (GlbCurrentThreads[Cpu] == NULL) {
+		return (ThreadId_t)Cpu;
+	}
+
+	/* Sanitize the threading status */
+	if (GlbThreadingEnabled != 1) {
+		return 0;
+	}
+	else {
+		return ThreadingGetCurrentThread(Cpu)->Id;
+	}
+}
+
+/* ThreadingGetThread
+ * Lookup thread by the given thread-id, 
+ * returns NULL if invalid */
+MCoreThread_t *ThreadingGetThread(ThreadId_t ThreadId)
+{
+	/* Iterate thread nodes and find the correct */
+	foreach(tNode, GlbThreads) {
+		MCoreThread_t *Thread = 
+			(MCoreThread_t*)tNode->Data;
+
+		/* Does id match? */
+		if (Thread->Id == ThreadId) {
+			return Thread;
+		}
+	}
+
+	/* Damn, no match */
+	return NULL;
+}
+
+/* ThreadingIsEnabled
+ * Returns 1 if the threading system has been
+ * initialized, otherwise it returns 0 */
+int ThreadingIsEnabled(void)
+{
+	return GlbThreadingEnabled;
+}
+
+/* ThreadingIsCurrentTaskIdle
+ * Is the given cpu running it's idle task? */
+int ThreadingIsCurrentTaskIdle(Cpu_t Cpu)
+{
+	/* Check the current threads flag */
+	if (ThreadingIsEnabled() == 1
+		&& ThreadingGetCurrentThread(Cpu)->Flags & THREADING_IDLE) {
+		return 1;
+	}
+	else {
+		return 0;
+	}
+}
+
+/* ThreadingGetCurrentMode
+ * Returns the current run-mode for the current
+ * thread on the current cpu */
+Flags_t ThreadingGetCurrentMode(void)
+{
+	/* Sanitizie status first! */
+	if (ThreadingIsEnabled() == 1) {
+		return ThreadingGetCurrentThread(ApicGetCpu())->Flags & THREADING_MODEMASK;
+	}
+	else {
+		return 0;
+	}
+}
+
+/* ThreadingWakeCpu
+ * Wake's the target cpu from an idle thread
+ * by sending it an yield IPI */
+void ThreadingWakeCpu(Cpu_t Cpu)
+{
+	/* This is unfortunately arch-specific */
+	IThreadWakeCpu(Cpu);
+}
+
+/* ThreadingReapZombies
+ * Garbage-Collector function, it reaps and
+ * cleans up all threads */
+void ThreadingReapZombies(void)
+{
+	/* Reap untill list is empty */
+	ListNode_t *tNode = ListPopFront(GlbZombieThreads);
+
+	while (tNode != NULL) {
+		MCoreThread_t *Thread = 
+			(MCoreThread_t*)tNode->Data;
+
+		/* Clean it up */
+		ThreadingCleanupThread(Thread);
+		kfree(tNode);
+
+		/* Get next node */
+		tNode = ListPopFront(GlbZombieThreads);
+	}
+}
+
+/* ThreadingDebugPrint
+ * Prints out debugging information about each thread
+ * in the system, only active threads */
+void ThreadingDebugPrint(void)
+{
+	foreach(i, GlbThreads)
+	{
+		MCoreThread_t *t = (MCoreThread_t*)i->Data;
+		LogDebug("THRD", "Thread %u (%s) - Flags %i, Queue %i, Timeslice %u, Cpu: %u\n",
+			t->Id, t->Name, t->Flags, t->Queue, t->TimeSlice, t->CpuId);
+	}
+}
+
+/* ThreadingSwitch
+ * This is the thread-switch function and must be 
+ * be called from the below architecture to get the
+ * next thread to run */
 MCoreThread_t *ThreadingSwitch(Cpu_t Cpu, MCoreThread_t *Current, int PreEmptive)
 {
 	/* We'll need these */
-	MCoreThread_t *NextThread;
-	ListNode_t *Node;
+	MCoreThread_t *NextThread = NULL;
+	ListNode_t *Node = NULL;
 	DataKey_t Key;
 
 	/* Get a new task! */

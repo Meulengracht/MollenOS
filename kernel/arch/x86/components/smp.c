@@ -116,7 +116,7 @@ void SmpApEntry(void)
 
 	/* Setup Threading */
 	SchedulerInit(Cpu);
-	ThreadingApInit(Cpu);
+	ThreadingInitialize(Cpu);
 
 	/* Increament Boot Count - Signal that we are ok */
 	GlbCpusBooted++;

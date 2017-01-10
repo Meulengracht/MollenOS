@@ -22,9 +22,9 @@
 */
 
 /* Includes */
-#include <Arch.h>
-#include <InputManager.h>
-#include <Modules/Phoenix.h>
+#include <arch.h>
+#include <inputmanager.h>
+#include <process/phoenix.h>
 
 /* Includes
  * - C-Library */

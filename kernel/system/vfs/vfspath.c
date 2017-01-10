@@ -22,8 +22,9 @@
 
 /* Includes 
  * - System */
-#include <Threading.h>
-#include <Vfs/Vfs.h>
+#include <process/process.h>
+#include <threading.h>
+#include <vfs/vfs.h>
 
 /* Includes
  * - C-Library */
