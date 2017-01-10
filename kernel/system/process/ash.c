@@ -62,18 +62,18 @@ void PhoenixFinishAsh(MCoreAsh_t *Ash)
 	Ash->AddressSpace = AddressSpaceGetCurrent();
 
 	/* Load Executable */
-	LogDebug("ASH0", "Loading image from rd: %i", LoadedFromInitRD);
 	Ash->Executable =
 		PeLoadImage(NULL, Ash->Name, Ash->FileBuffer, 
 		Ash->FileBufferLength, &BaseAddress, LoadedFromInitRD);
 	Ash->NextLoadingAddress = BaseAddress;
 
 	/* Cleanup file buffer */
-	kfree(Ash->FileBuffer);
+	if (!LoadedFromInitRD) {
+		kfree(Ash->FileBuffer);
+	}
 	Ash->FileBuffer = NULL;
 
 	/* Create the memory allocators */
-	LogDebug("ASH0", "Creating memory bitmaps (shm/heap)");
 	Ash->Heap = BitmapCreate(MEMORY_LOCATION_USER_HEAP, 
 		MEMORY_LOCATION_USER_HEAP_END, PAGE_SIZE);
 	Ash->Shm = BitmapCreate(MEMORY_LOCATION_USER_SHM, 
@@ -85,7 +85,6 @@ void PhoenixFinishAsh(MCoreAsh_t *Ash)
 	Ash->Pipes = ListCreate(KeyInteger, LIST_SAFE);
 
 	/* Map Stack */
-	LogDebug("ASH0", "Mapping stack memory in address space");
 	BaseAddress = ((MEMORY_LOCATION_USER_STACK - 0x1) & PAGE_MASK);
 	AddressSpaceMap(AddressSpaceGetCurrent(), BaseAddress,
 		ASH_STACK_INIT, MEMORY_MASK_DEFAULT, ADDRESS_SPACE_FLAG_USER);
@@ -94,8 +93,6 @@ void PhoenixFinishAsh(MCoreAsh_t *Ash)
 
 	/* Setup signalling */
 	Ash->SignalQueue = ListCreate(KeyInteger, LIST_NORMAL);
-
-	LogDebug("ASH0", "Setup done");
 }
 
 /* This is the standard ash-boot function

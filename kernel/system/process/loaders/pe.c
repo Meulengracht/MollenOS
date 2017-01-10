@@ -303,6 +303,13 @@ void PeHandleRelocations(MCorePeFile_t *PeFile,
 					*((Addr_t*)Offset) -= Delta;
 				}
 			}
+			else if (Type == PE_RELOCATION_ALIGN) {
+				/* End of alignment */
+			}
+			else {
+				LogFatal("PEXE", "Implement support for reloc type: %u", Type);
+				for (;;);
+			}
 
 			/* Next */
 			RelocationEntryPtr++;
@@ -586,12 +593,13 @@ MCorePeFile_t *PeResolveLibrary(MCorePeFile_t *Parent,
 		/* After retrieving the data we can now
 		 * load the actual image */
 		Library = PeLoadImage(ExportParent, 
-			LibraryName, fBuffer, fSize, LoadAddress,
-			ExportParent->UsingInitRD);
+			LibraryName, fBuffer, fSize, LoadAddress, ExportParent->UsingInitRD);
 		Exports = Library;
 
 		/* Cleanup buffer, we are done with it now */
-		kfree(fBuffer);
+		if (!ExportParent->UsingInitRD) {
+			kfree(fBuffer);
+		}
 
 		/* Add library to loaded libs */
 		if (Exports != NULL) {
@@ -726,6 +734,9 @@ MCorePeFile_t *PeLoadImage(MCorePeFile_t *Parent, MString_t *Name,
 
 	/* Now we can handle the imports */
 	PeHandleImports(Parent, PeInfo, &DirectoryPtr[PE_SECTION_IMPORT], BaseAddress);
+
+	LogDebug("PEXE", "%s: Entry 0x%x, BaseAddress 0x%x",
+		MStringRaw(PeInfo->Name), PeInfo->EntryAddress, *BaseAddress);
 
 	/* Done */
 	return PeInfo;

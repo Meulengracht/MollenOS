@@ -50,7 +50,6 @@ void PhoenixBootServer(void *Args)
 	MCoreServer_t *Server = (MCoreServer_t*)Args;
 
 	/* Finish the standard setup of the ash */
-	LogDebug("SERV", "Finishing boot of %s", MStringRaw(Server->Base.Name));
 	PhoenixFinishAsh(&Server->Base);
 
 	/* Initialize the server io-space memory */
@@ -68,7 +67,6 @@ void PhoenixBootServer(void *Args)
 	}
 
 	/* Go to user-land */
-	LogDebug("SERV", "Entering user-land");
 	ThreadingEnterUserMode(Server);
 
 	/* Catch */
