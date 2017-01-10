@@ -51,11 +51,11 @@ void BootInitializeApic(void)
 {
 	/* Initialize the APIC (if present) */
 	if (!(GlbBootCpuInfo.EdxFeatures & CPUID_FEAT_EDX_APIC)) {
-		LogFatal("APIC", "Not Present");
+		LogFatal("APIC", "BootInitializeApic::NOT PRESENT!");
 		Idle();
 	}
 	else {
-		LogInformation("APIC", "Initializing");
+		LogInformation("APIC", "Initializing local interrupt chip");
 	}
 
 	/* Init the apic on the boot 
@@ -73,7 +73,7 @@ void HALInit(void *BootInfo, MCoreBootDescriptor *Descriptor)
 	VideoInit(BootInfo);
 
 	/* Print */
-	LogInformation("HAL0", "Initializing");
+	LogInformation("HAL0", "Initializing hardware layer");
 
 	/* Setup x86 descriptor-tables
 	 * which needs to happen on both 32/64 bit */
@@ -86,7 +86,7 @@ void HALInit(void *BootInfo, MCoreBootDescriptor *Descriptor)
 	InterruptInit();
 
 	/* Memory setup! */
-	LogInformation("HAL0", "Setting Up Memory");
+	LogInformation("HAL0", "Initializing physical and virtual memory");
 	MmPhyiscalInit(BootInfo, Descriptor);
 	MmVirtualInit();
 }

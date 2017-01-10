@@ -108,14 +108,14 @@ void MCoreInitialize(MCoreBootInfo_t *BootInfo)
 	 * keeps the heap clean ! */
 	GcInit();
 
-	/* STOP
-	 * - Micro Conversion */
-
 	/* Virtual Filesystem */
 	VfsInit();
 
 	/* Phoenix */
 	PhoenixInit();
+
+	/* Boot up servers */
+	ModulesRunServers();
 
 	/* Enter Idle Loop */
 	while (1)

@@ -48,6 +48,7 @@
 #define THREADING_DRIVERMODE		0x2
 #define THREADING_SWITCHMODE		0x4
 #define THREADING_MODEMASK			0x3
+#define THREADING_RUNMODE(Flags)	(Flags & THREADING_MODEMASK)
 
 /* The rest of the bits denode special
  * other run-modes */

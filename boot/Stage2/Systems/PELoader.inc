@@ -302,6 +302,7 @@ PELoad:
 		mov	eax, dword [dPELastPage]
 		and 	eax, 0xFFFFF000
 		add	eax, 0x1000
+		sub	eax, dword [BootDescriptor + MollenOsBootDescriptor.KernelAddr]
 		mov	dword [BootDescriptor + MollenOsBootDescriptor.KernelSize], eax
 
 		; Done

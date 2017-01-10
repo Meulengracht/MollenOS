@@ -27,6 +27,7 @@
 #include <modules/modules.h>
 #include <vfs/vfswrappers.h>
 #include <threading.h>
+#include <log.h>
 
 /* Includes
  * - Library */
@@ -61,6 +62,7 @@ void PhoenixFinishAsh(MCoreAsh_t *Ash)
 	Ash->AddressSpace = AddressSpaceGetCurrent();
 
 	/* Load Executable */
+	LogDebug("ASH0", "Loading image from rd: %i", LoadedFromInitRD);
 	Ash->Executable =
 		PeLoadImage(NULL, Ash->Name, Ash->FileBuffer, 
 		Ash->FileBufferLength, &BaseAddress, LoadedFromInitRD);
@@ -71,8 +73,11 @@ void PhoenixFinishAsh(MCoreAsh_t *Ash)
 	Ash->FileBuffer = NULL;
 
 	/* Create the memory allocators */
-	Ash->Heap = BitmapCreate(MEMORY_LOCATION_USER_HEAP, MEMORY_LOCATION_USER_HEAP_END, PAGE_SIZE);
-	Ash->Shm = BitmapCreate(MEMORY_LOCATION_USER_SHM, MEMORY_LOCATION_USER_SHM_END, PAGE_SIZE);
+	LogDebug("ASH0", "Creating memory bitmaps (shm/heap)");
+	Ash->Heap = BitmapCreate(MEMORY_LOCATION_USER_HEAP, 
+		MEMORY_LOCATION_USER_HEAP_END, PAGE_SIZE);
+	Ash->Shm = BitmapCreate(MEMORY_LOCATION_USER_SHM, 
+		MEMORY_LOCATION_USER_SHM_END, PAGE_SIZE);
 
 	/* Create the pipe list, there are as a default
 	 * no pipes open for a process, the process must
@@ -80,6 +85,7 @@ void PhoenixFinishAsh(MCoreAsh_t *Ash)
 	Ash->Pipes = ListCreate(KeyInteger, LIST_SAFE);
 
 	/* Map Stack */
+	LogDebug("ASH0", "Mapping stack memory in address space");
 	BaseAddress = ((MEMORY_LOCATION_USER_STACK - 0x1) & PAGE_MASK);
 	AddressSpaceMap(AddressSpaceGetCurrent(), BaseAddress,
 		ASH_STACK_INIT, MEMORY_MASK_DEFAULT, ADDRESS_SPACE_FLAG_USER);
@@ -88,6 +94,8 @@ void PhoenixFinishAsh(MCoreAsh_t *Ash)
 
 	/* Setup signalling */
 	Ash->SignalQueue = ListCreate(KeyInteger, LIST_NORMAL);
+
+	LogDebug("ASH0", "Setup done");
 }
 
 /* This is the standard ash-boot function
@@ -121,10 +129,14 @@ int PhoenixInitializeAsh(MCoreAsh_t *Ash, MString_t *Path)
 		return -1;
 	}
 
+	/* Reset the Ash structure to be safe
+	 * we don't want random data there */
+	memset(Ash, 0, sizeof(MCoreAsh_t));
+
 	/* Open File 
 	 * We have a special case here
 	 * in case we are loading from RD */
-	if (MStringFindChars(Path, "rd:/") != MSTRING_NOT_FOUND) {
+	if (MStringFindChars(Path, "rd:/") != MSTRING_NOT_FOUND) { 
 		Ash->Path = MStringCreate((void*)MStringRaw(Path), StrUTF8);
 		if (ModulesQueryPath(Path, &fBuffer, &fSize) != OsNoError) {
 			return -2;
@@ -160,10 +172,6 @@ int PhoenixInitializeAsh(MCoreAsh_t *Ash, MString_t *Path)
 		kfree(fBuffer);
 		return -3;
 	}
-
-	/* Reset the Ash structure to be safe
-	 * we don't want random dat athere */
-	memset(Ash, 0, sizeof(MCoreAsh_t));
 
 	/* Set initial */
 	Ash->Id = GlbAshIdGenerator++;

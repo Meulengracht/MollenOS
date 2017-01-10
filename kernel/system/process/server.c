@@ -1,6 +1,6 @@
 /* MollenOS
  *
- * Copyright 2011 - 2016, Philip Meulengracht
+ * Copyright 2011 - 2017, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -22,14 +22,14 @@
 
 /* Includes
 * - System */
-#include <Arch.h>
+#include <arch.h>
 #include <process/server.h>
-#include <Vfs/VfsWrappers.h>
-#include <GarbageCollector.h>
-#include <Threading.h>
-#include <Semaphore.h>
-#include <Scheduler.h>
-#include <Log.h>
+#include <vfs/vfswrappers.h>
+#include <garbagecollector.h>
+#include <threading.h>
+#include <semaphore.h>
+#include <scheduler.h>
+#include <log.h>
 
 /* Includes
 * - C-Library */
@@ -50,6 +50,7 @@ void PhoenixBootServer(void *Args)
 	MCoreServer_t *Server = (MCoreServer_t*)Args;
 
 	/* Finish the standard setup of the ash */
+	LogDebug("SERV", "Finishing boot of %s", MStringRaw(Server->Base.Name));
 	PhoenixFinishAsh(&Server->Base);
 
 	/* Initialize the server io-space memory */
@@ -67,6 +68,7 @@ void PhoenixBootServer(void *Args)
 	}
 
 	/* Go to user-land */
+	LogDebug("SERV", "Entering user-land");
 	ThreadingEnterUserMode(Server);
 
 	/* Catch */
@@ -91,6 +93,7 @@ PhxId_t PhoenixCreateServer(MString_t *Path, void *Arguments, size_t Length)
 
 	/* Sanitize the created Ash */
 	if (PhoenixInitializeAsh(&Server->Base, Path)) {
+		LogFatal("SERV", "Failed to spawn server %s", MStringRaw(Path));
 		kfree(Server);
 		return PHOENIX_NO_ASH;
 	}

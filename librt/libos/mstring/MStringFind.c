@@ -74,8 +74,16 @@ int MStringFindReverse(MString_t *String, mchar_t Character)
 {
 	/* Loop vars */
 	int Result = 0, LastOccurrence = MSTRING_NOT_FOUND;
-	char *DataPtr = (char*)String->Data;
+	char *DataPtr = NULL;
 	int i = 0;
+
+	/* Sanitize string */
+	if (String == NULL) {
+		return LastOccurrence;
+	}
+
+	/* Initiate the pointer */
+	DataPtr = (char*)String->Data;
 
 	/* Sanitize parameters */
 	if (String->Data == NULL

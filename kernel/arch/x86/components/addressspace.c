@@ -107,8 +107,8 @@ AddressSpace_t *AddressSpaceCreate(int Flags)
 		PageDirectory_t *NewPd = (PageDirectory_t*)kmalloc_ap(sizeof(PageDirectory_t), &PhysAddr);
 		PageDirectory_t *CurrPd = (PageDirectory_t*)AddressSpaceGetCurrent()->PageDirectory;
 		PageDirectory_t *KernPd = (PageDirectory_t*)GlbKernelAddressSpace.PageDirectory;
-		int MaxCopyKernel = PAGE_DIRECTORY_INDEX(MEMORY_LOCATION_USER_ARGS);
-		int MaxCopyReadOnly = PAGE_DIRECTORY_INDEX(MEMORY_LOCATION_VIDEO);
+		int MaxCopyKernel = PAGE_DIRECTORY_INDEX(MEMORY_LOCATION_IOSPACE);
+		int MaxCopyReadOnly = PAGE_DIRECTORY_INDEX(MEMORY_LOCATION_DRIVER);
 
 		/* Allocate a new address space */
 		AddrSpace = (AddressSpace_t*)kmalloc(sizeof(AddressSpace_t));
@@ -123,7 +123,7 @@ AddressSpace_t *AddressSpaceCreate(int Flags)
 		for (Itr = 0; Itr < TABLES_PER_PDIR; Itr++)
 		{
 			/* Sanity - Kernel Mapping 
-			 * Only copy kernel mappings BELOW user-space start */
+			 * Only copy kernel mappings BELOW driver-space start */
 			if (KernPd->pTables[Itr] && Itr < MaxCopyKernel) {
 				if (Itr < MaxCopyReadOnly) {
 					NewPd->pTables[Itr] = (KernPd->pTables[Itr] & PAGE_MASK)

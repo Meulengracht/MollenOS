@@ -250,7 +250,7 @@ Registers_t *_ThreadingSwitch(Registers_t *Regs,
 	 * We are using kernel stack in case of two things:
 	 * 1. Transitioning threads
 	 * 2. Kernel threads (surprise!) */
-	if ((Thread->Flags & THREADING_KERNELMODE)
+	if ((THREADING_RUNMODE(Thread->Flags) == THREADING_KERNELMODE)
 		|| (Thread->Flags & THREADING_SWITCHMODE)) {
 		Tx->Context = Regs;
 	}
@@ -292,7 +292,7 @@ Registers_t *_ThreadingSwitch(Registers_t *Regs,
 	set_ts();
 
 	/* Return new stack */
-	if ((Thread->Flags & THREADING_KERNELMODE)
+	if ((THREADING_RUNMODE(Thread->Flags) == THREADING_KERNELMODE)
 		|| (Thread->Flags & THREADING_SWITCHMODE)) {
 		return Tx->Context;
 	}	

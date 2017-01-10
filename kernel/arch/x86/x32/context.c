@@ -45,19 +45,19 @@ Registers_t *ContextCreate(Flags_t ThreadFlags, Addr_t Eip,
 	Addr_t ContextAddress = 0, EbpInitial = 0;
 
 	/* Select proper segments */
-	if (ThreadFlags & THREADING_KERNELMODE) {
+	if (THREADING_RUNMODE(ThreadFlags) == THREADING_KERNELMODE) {
 		ContextAddress = ((Addr_t)kmalloc_a(0x1000)) + 0x1000 - sizeof(Registers_t);
 		CodeSegment = GDT_KCODE_SEGMENT;
 		DataSegment = GDT_KDATA_SEGMENT;
 		EbpInitial = (ContextAddress + sizeof(Registers_t));
 	}
-	else if (ThreadFlags & THREADING_DRIVERMODE) {
+	else if (THREADING_RUNMODE(ThreadFlags) == THREADING_DRIVERMODE) {
 		ContextAddress = (StackStartAddress - sizeof(Registers_t));
 		CodeSegment = GDT_PCODE_SEGMENT + 0x03;
 		DataSegment = GDT_PDATA_SEGMENT + 0x03;
 		EbpInitial = StackStartAddress;
 	}
-	else if (ThreadFlags & THREADING_USERMODE) {
+	else if (THREADING_RUNMODE(ThreadFlags) == THREADING_USERMODE) {
 		ContextAddress = (StackStartAddress - sizeof(Registers_t));
 		CodeSegment = GDT_UCODE_SEGMENT + 0x03;
 		DataSegment = GDT_UDATA_SEGMENT + 0x03;
@@ -98,7 +98,7 @@ Registers_t *ContextCreate(Flags_t ThreadFlags, Addr_t Eip,
 
 	/* Either initialize the ring3 stuff
 	 * or zero out the values */
-	if (ThreadFlags & THREADING_KERNELMODE) {
+	if (THREADING_RUNMODE(ThreadFlags) == THREADING_KERNELMODE) {
 		Context->UserEsp = 0;
 		Context->UserSs = 0;
 		Context->UserArg = 0;

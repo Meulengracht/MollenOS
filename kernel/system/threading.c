@@ -260,14 +260,14 @@ ThreadId_t ThreadingCreateThread(const char *Name,
 	/* Flag-Special-Case
 	 * If it's NOT a kernel thread
 	 * we specify transition-mode */
-	if (!(Flags & THREADING_KERNELMODE)) {
+	if (THREADING_RUNMODE(Flags) != THREADING_KERNELMODE) {
 		Thread->Flags |= THREADING_SWITCHMODE;
 	}
 
 	/* Flag-Special-Case
 	 * Determine the address space we want
 	 * to initialize for this thread */
-	if (Flags & THREADING_KERNELMODE) {
+	if (THREADING_RUNMODE(Flags) == THREADING_KERNELMODE) {
 		Thread->AddressSpace = AddressSpaceCreate(ADDRESS_SPACE_INHERIT);
 	}
 	else {
@@ -282,7 +282,8 @@ ThreadId_t ThreadingCreateThread(const char *Name,
 	/* Create thread-data 
 	 * But use different entry point
 	 * based upon usermode thread or kernel mode thread */
-	if (Flags & THREADING_KERNELMODE) {
+	if (THREADING_RUNMODE(Flags) == THREADING_KERNELMODE
+		|| !(Flags & THREADING_INHERIT)) {
 		Thread->ThreadData = IThreadCreate(THREADING_KERNELMODE, (Addr_t)&ThreadingEntryPoint);
 	}
 	else {
@@ -574,7 +575,7 @@ void ThreadingDebugPrint(void)
 	foreach(i, GlbThreads)
 	{
 		MCoreThread_t *t = (MCoreThread_t*)i->Data;
-		LogDebug("THRD", "Thread %u (%s) - Flags %i, Queue %i, Timeslice %u, Cpu: %u\n",
+		LogDebug("THRD", "Thread %u (%s) - Flags %i, Queue %i, Timeslice %u, Cpu: %u",
 			t->Id, t->Name, t->Flags, t->Queue, t->TimeSlice, t->CpuId);
 	}
 }
