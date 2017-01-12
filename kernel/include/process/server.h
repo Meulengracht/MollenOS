@@ -1,6 +1,6 @@
 /* MollenOS
  *
- * Copyright 2011 - 2016, Philip Meulengracht
+ * Copyright 2011 - 2017, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -30,6 +30,7 @@
 /* Includes 
  * - System */
 #include <process/phoenix.h>
+#include <bitmap.h>
 
 /* Redirection of definitions from Ash.h
  * to make it more sensible for server tasks */
@@ -48,7 +49,7 @@ typedef struct _MCoreServer
 	/* We want to be able to keep track 
 	 * of some driver-features that we have
 	 * available, like io-space memory */
-	Addr_t ReservedMemoryPointer; //perhaps a bitmap?
+	Bitmap_t *DriverMemory;
 
 	/* Also we allow for data arguments to
 	 * to be copied into the userspace on startup */
@@ -60,12 +61,14 @@ typedef struct _MCoreServer
 
 } MCoreServer_t;
 
-/* This function loads the executable and
+/* PhoenixCreateServer
+ * This function loads the executable and
  * prepares the ash-server-environment, at this point
  * it won't be completely running yet, it needs its own thread for that */
 __CRT_EXTERN PhxId_t PhoenixCreateServer(MString_t *Path, void *Arguments, size_t Length);
 
-/* Cleans up all the server-specific resources allocated
+/* PhoenixCleanupServer
+ * Cleans up all the server-specific resources allocated
  * this this AshServer, and afterwards call the base-cleanup */
 __CRT_EXTERN void PhoenixCleanupServer(MCoreServer_t *Server);
 

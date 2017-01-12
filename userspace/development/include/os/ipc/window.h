@@ -27,6 +27,7 @@
 #include <os/mollenos.h>
 #include <os/osdefs.h>
 #include <os/ipc/ipc.h>
+#include <os/driver/server.h>
 
 /* The export macro, and is only set by the
  * the actual implementation of the windowmanager */
@@ -40,7 +41,6 @@
  * setting of the windowmanager, these are set to values
  * where in theory it should never be needed to have more */
 #define __WINDOWMANAGER_INTERFACE_VERSION	1
-#define __WINDOWMANAGER_TARGET				0x8001
 	
 /* These are the different IPC functions supported
  * by the windowmanager, note that some of them might

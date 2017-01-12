@@ -38,7 +38,8 @@
 #include <ds/mstring.h>
 #include <string.h>
 
-/* Externs */
+/* Externs, we need access to the list of
+ * servers and the list of alias's */
 __CRT_EXTERN List_t *GlbAshes;
 
 /* This is the finalizor function for starting
@@ -53,7 +54,8 @@ void PhoenixBootServer(void *Args)
 	PhoenixFinishAsh(&Server->Base);
 
 	/* Initialize the server io-space memory */
-	Server->ReservedMemoryPointer = MEMORY_LOCATION_RING3_IOSPACE;
+	Server->DriverMemory = BitmapCreate(MEMORY_LOCATION_RING3_IOSPACE, 
+		MEMORY_LOCATION_RING3_IOSPACE_END, PAGE_SIZE);
 
 	/* Map in arguments */
 	if (Server->ArgumentLength != 0) {
@@ -129,6 +131,9 @@ void PhoenixCleanupServer(MCoreServer_t *Server)
 	if (Server->ArgumentBuffer != NULL) {
 		MStringDestroy(Server->ArgumentBuffer);
 	}
+
+	/* Cleanup bitmap */
+	BitmapDestroy(Server->DriverMemory);
 
 	/* Now that we have cleaned up all
 	* process-specifics, we want to just use the base

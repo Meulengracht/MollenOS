@@ -108,6 +108,10 @@
 #define SYSCALL_IOSRELEASE			0x71
 #define SYSCALL_IOSDESTROY			0x72
 
+/* Driver System Calls 
+ * - Server Support */
+#define SYSCALL_SERVERREGISTER		0x73
+
 /* Prototypes */
 _MOS_API int Syscall0(int Function);
 _MOS_API int Syscall1(int Function, int Arg0);

@@ -108,13 +108,17 @@ void MCoreInitialize(MCoreBootInfo_t *BootInfo)
 	 * keeps the heap clean ! */
 	GcInit();
 
-	/* Virtual Filesystem */
+	/* Initialize the process manager (Phoenix)
+	 * We must do this before starting up servers */
+	PhoenixInit();
+	
+	/* Initialize the virtual filesystem 
+	 * This should be moved to its own server
+	 * at some point.. */
 	VfsInit();
 
-	/* Phoenix */
-	PhoenixInit();
-
-	/* Boot up servers */
+	/* Last step, boot up all available system servers
+	 * like device-managers, vfs, etc */
 	ModulesRunServers();
 
 	/* Enter Idle Loop */

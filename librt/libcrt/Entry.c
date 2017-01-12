@@ -39,9 +39,9 @@ void __EntryLibCEmpty(void)
 
 /* Private Definitions */
 #ifdef _X86_32
-#define MOLLENOS_ARGUMENT_ADDR	0xF000000
+#define MOLLENOS_ARGUMENT_ADDR	0x1F000000
 #elif defined(X86_64)
-#define MOLLENOS_ARGUMENT_ADDR	0xF000000
+#define MOLLENOS_ARGUMENT_ADDR	0x1F000000
 #endif
 
 /* Extern */

@@ -1444,9 +1444,9 @@ int ScDeviceQuery(DeviceType_t Type, uint8_t *Buffer, size_t BufferLength)
 }
 
 /***********************
-* Driver Functions     *
-***********************/
-#include <AcpiInterface.h>
+ * Driver Functions    *
+ ***********************/
+#include <acpiinterface.h>
 #define __ACPI_EXCLUDE_TABLES
 #include <os/driver/acpi.h>
 
@@ -1581,6 +1581,16 @@ OsStatus_t ScIoSpaceDestroy(IoSpaceId_t IoSpace)
 	/* Destroy the io-space, it might
 	 * not be possible, if we don't own it */
 	return IoSpaceDestroy(IoSpace);
+}
+
+/* Allows a server to register an alias for its 
+ * process id, as applications can't possibly know
+ * its id if it changes */
+OsStatus_t ScRegisterAliasId(PhxId_t Alias)
+{
+	/* Redirect call */
+	return PhoenixRegisterAlias(
+		PhoenixGetAsh(PHOENIX_CURRENT), Alias);
 }
 
 /***********************
@@ -1782,7 +1792,10 @@ Addr_t GlbSyscallTable[131] =
 	DefineSyscall(ScIoSpaceAcquire),
 	DefineSyscall(ScIoSpaceRelease),
 	DefineSyscall(ScIoSpaceDestroy),
-	DefineSyscall(NoOperation),
+
+	/* Driver Functions - 115
+	 * - Support */
+	DefineSyscall(ScRegisterAliasId),
 	DefineSyscall(NoOperation),
 	DefineSyscall(NoOperation),
 	DefineSyscall(NoOperation),

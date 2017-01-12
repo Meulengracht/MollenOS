@@ -30,13 +30,15 @@
 /* Includes
  * - System */
 #include <process/ash.h>
-#include <Threading.h>
-#include <Events.h>
+#include <threading.h>
+#include <events.h>
 
 /* Definitions for special identifiers
  * these can be used to lookup special ashes/processes */
 #define PHOENIX_NO_ASH			0xFFFFFFFF
 #define PHOENIX_CURRENT			0
+#define PHOENIX_MAX_ASHES		512
+#define PHOENIX_ALIAS_BASE		0x8000
 
 /* The type of action that are supported
  * by Phoenix, each of these actions support

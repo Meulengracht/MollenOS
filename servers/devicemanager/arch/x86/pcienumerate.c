@@ -356,9 +356,8 @@ void PciCreateDeviceFromPci(PciDevice_t *PciDev)
 		}
 	}
 
-	/* Register 
-	DmCreateDevice((char*)PciToString(PciDev->Header->Class,
-		PciDev->Header->Subclass, PciDev->Header->Interface), mDevice); */
+	/* Register */
+	RegisterDevice(mDevice);
 }
 
 /* Install Driver Callback */
@@ -467,6 +466,9 @@ void BusEnumerate(void)
 			/* Next */
 			Entry++;
 		}
+
+		/* Cleanup the mcfg table */
+		free(McfgTable);
 	}
 	else
 	{

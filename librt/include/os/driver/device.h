@@ -29,6 +29,7 @@
 #include <os/osdefs.h>
 #include <os/ipc/ipc.h>
 #include <os/driver/io.h>
+#include <os/driver/server.h>
 
 /* The export macro, and is only set by the
  * the actual implementation of the devicemanager */
@@ -42,7 +43,6 @@
  * setting of the device-manager, these are set to values
  * where in theory it should never be needed to have more */
 #define __DEVICEMANAGER_INTERFACE_VERSION	1
-#define __DEVICEMANAGER_TARGET				0x8000
 
 #define __DEVICEMANAGER_NAMEBUFFER_LENGTH	128
 #define __DEVICEMANAGER_MAX_IRQS			8

@@ -155,6 +155,13 @@ __CRT_EXTERN int PhoenixQueryAsh(MCoreAsh_t *Ash,
 __CRT_EXTERN void PhoenixCleanupAsh(MCoreAsh_t *Ash);
 __CRT_EXTERN void PhoenixTerminateAsh(MCoreAsh_t *Ash);
 
+
+/* PhoenixRegisterAlias
+ * Allows a server to register an alias for its id
+ * which means that id (must be above PHOENIX_ALIAS_BASE)
+ * will always refer the calling process */
+__CRT_EXTERN OsStatus_t PhoenixRegisterAlias(MCoreAsh_t *Ash, PhxId_t Alias);
+
 /* Lookup Ash
  * This function looks up a ash structure
  * by id, if either PHOENIX_CURRENT or PHOENIX_NO_ASH

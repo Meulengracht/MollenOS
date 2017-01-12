@@ -116,6 +116,9 @@
     <ClCompile Include="..\..\libos\driver\acsupport.c">
       <Filter>driver</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\libos\driver\server.c">
+      <Filter>driver</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\libos\mstring\MStringPrivate.h">

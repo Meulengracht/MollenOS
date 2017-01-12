@@ -61,6 +61,7 @@ int ServerMain(void *Data)
 	GlbRun = 1;
 
 	/* Register us with server manager */
+	RegisterServer(__DEVICEMANAGER_TARGET);
 	MollenOSSystemLog("Hello from our first ever server!! DEVICEMANAGER!");
 	for (;;);
 

@@ -439,17 +439,6 @@ VirtAddr_t *MmReserveMemory(int Pages)
 	return (VirtAddr_t*)RetAddr;
 }
 
-/* Map io-space memory per process */
-VirtAddr_t MmReserveDriverMemory(size_t Pages)
-{
-	MCoreServer_t *Server = PhoenixGetServer(SERVER_CURRENT);
-	Addr_t Result = 0;
-	assert(Server != NULL);
-	Result = Server->ReservedMemoryPointer;
-	Server->ReservedMemoryPointer += (PAGE_SIZE * Pages);
-	return Result;
-}
-
 /* Creates a page directory and loads it */
 void MmVirtualInit(void)
 {

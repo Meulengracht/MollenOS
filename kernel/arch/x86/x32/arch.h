@@ -139,7 +139,13 @@ _CRT_EXPORT void kernel_panic(const char *str);
 
 /* Architecture Memory Layout, this
  * gives you an idea how memory layout
- * is on the x86-32 platform in MollenOS */
+ * is on the x86-32 platform in MollenOS 
+ * 0x0				=>			0x10000000 (Kernel Memory Space 256 mb)
+ * 0x10000000		=>			0xB0000000 (Application Memory Space 2.5gb) 
+ * 0xB0000000		=>			0xF0000000 (Driver Io Memory Space, 1gb)
+ * 0xF0000000		=>			0xFF000000 (Empty)
+ * 0xFF000000		=>			0xFFFFFFFF (Application Stack Space, 16mb) 
+ */
 #define MEMORY_LOCATION_KERNEL				0x100000 	/* Kernel Image Space: 1024 kB */
 #define MEMORY_LOCATION_RAMDISK				0x200000 	/* RamDisk Image Space: 1024 kB */
 #define MEMORY_LOCATION_BITMAP				0x300000 	/* Bitmap Space: 12 mB */

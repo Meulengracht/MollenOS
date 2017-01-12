@@ -1,6 +1,6 @@
 /* MollenOS
  *
- * Copyright 2011 - 2016, Philip Meulengracht
+ * Copyright 2011 - 2017, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -34,6 +34,7 @@
 #include <stddef.h>
 
 /* Externs */
+__CRT_EXTERN PhxId_t *GlbAliasMap;
 __CRT_EXTERN PhxId_t GlbAshIdGenerator;
 __CRT_EXTERN List_t *GlbAshes;
 
@@ -410,6 +411,26 @@ void PhoenixCleanupAsh(MCoreAsh_t *Ash)
 	kfree(Ash);
 }
 
+/* PhoenixRegisterAlias
+ * Allows a server to register an alias for its id
+ * which means that id (must be above SERVER_ALIAS_BASE)
+ * will always refer the calling process */
+OsStatus_t PhoenixRegisterAlias(MCoreAsh_t *Ash, PhxId_t Alias)
+{
+	/* Sanitize both the server and alias */
+	if (Ash == NULL
+		|| Alias < PHOENIX_ALIAS_BASE
+		|| GlbAliasMap[PHOENIX_ALIAS_BASE - Alias] != PHOENIX_NO_ASH) {
+		return OsError;
+	}
+
+	/* Register */
+	GlbAliasMap[PHOENIX_ALIAS_BASE - Alias] = Ash->Id;
+
+	/* Return no error */
+	return OsNoError;
+}
+
 /* Lookup Ash
  * This function looks up a ash structure
  * by id, if either PHOENIX_CURRENT or PHOENIX_NO_ASH
@@ -440,6 +461,13 @@ MCoreAsh_t *PhoenixGetAsh(PhxId_t AshId)
 		else {
 			return NULL;
 		}
+	}
+
+	/* Now we can sanitize the extra stuff,
+	 * like alias */
+	if (AshId >= PHOENIX_ALIAS_BASE
+		&& AshId < (PHOENIX_ALIAS_BASE + PHOENIX_MAX_ASHES)) {
+		AshId = GlbAliasMap[PHOENIX_ALIAS_BASE - AshId];
 	}
 
 	/* Iterate the list and try

@@ -22,11 +22,11 @@
 
 /* Includes 
  * - System */
-#include "../Arch.h"
-#include <process/phoenix.h>
-#include <Memory.h>
-#include <Heap.h>
-#include <Log.h>
+#include "../arch.h"
+#include <process/server.h>
+#include <memory.h>
+#include <heap.h>
+#include <log.h>
 
 /* Includes
  * - Library */
@@ -98,6 +98,7 @@ OsStatus_t IoSpaceAcquire(DeviceIoSpace_t *IoSpace)
 {
 	/* Variables we need for this 
 	 * operation */
+	MCoreServer_t *Server = PhoenixGetServer(SERVER_CURRENT);
 	MCoreIoSpace_t *SysCopy = NULL;
 	DataKey_t Key;
 	Cpu_t Cpu;
@@ -109,7 +110,7 @@ OsStatus_t IoSpaceAcquire(DeviceIoSpace_t *IoSpace)
 	SysCopy = (MCoreIoSpace_t*)ListGetDataByKey(__GlbIoSpaces, Key, 0);
 
 	/* Sanitize the system copy */
-	if (SysCopy == NULL
+	if (Server == NULL || SysCopy == NULL
 		|| SysCopy->Owner != PHOENIX_NO_ASH) {
 		return OsError;
 	}
@@ -129,8 +130,9 @@ OsStatus_t IoSpaceAcquire(DeviceIoSpace_t *IoSpace)
 
 		/* Ok, so when we map it in and reserver space
 		* for it, its important we set it with its offset */
-		SysCopy->VirtualBase = IoSpace->VirtualBase =
-			((Addr_t)MmReserveDriverMemory(PageCount) + (SysCopy->PhysicalBase & ATTRIBUTE_MASK));
+		SysCopy->VirtualBase = IoSpace->VirtualBase = 
+			BitmapAllocateAddress(Server->DriverMemory, PageCount * PAGE_SIZE)
+				+ (SysCopy->PhysicalBase & ATTRIBUTE_MASK);
 	}
 	else if (SysCopy->Type == IO_SPACE_IO) {
 		x86Thread_t *Tx = (x86Thread_t*)ThreadingGetCurrentThread(Cpu)->ThreadData;
@@ -151,23 +153,21 @@ OsStatus_t IoSpaceRelease(DeviceIoSpace_t *IoSpace)
 {
 	/* Variables we need for this 
 	 * operation */
+	MCoreServer_t *Server = PhoenixGetServer(SERVER_CURRENT);
 	MCoreIoSpace_t *SysCopy = NULL;
-	PhxId_t ProcessId = PHOENIX_NO_ASH;
 	DataKey_t Key;
 	Cpu_t Cpu;
-	int i;
 
 	/* Lookup the system copy to validate this
 	 * requested operation */
 	Cpu = ApicGetCpu();
-	ProcessId = ThreadingGetCurrentThread(Cpu)->AshId;
 	Key.Value = (int)IoSpace->Id;
 	SysCopy = (MCoreIoSpace_t*)ListGetDataByKey(__GlbIoSpaces, Key, 0);
 
 	/* Sanitize the system copy and do
 	 * some security checks */
-	if (SysCopy == NULL
-		|| SysCopy->Owner != ProcessId) {
+	if (Server == NULL || SysCopy == NULL
+		|| SysCopy->Owner != Server->Base.Id) {
 		return OsError;
 	}
 
@@ -182,9 +182,8 @@ OsStatus_t IoSpaceRelease(DeviceIoSpace_t *IoSpace)
 		}
 
 		/* Unmap them */
-		for (i = 0; i < PageCount; i++) {
-			MmVirtualUnmap(NULL, IoSpace->VirtualBase + (i * PAGE_SIZE));
-		}
+		BitmapFreeAddress(Server->DriverMemory, SysCopy->VirtualBase,
+			PageCount * PAGE_SIZE);
 	}
 	else if (SysCopy->Type == IO_SPACE_IO) {
 		x86Thread_t *Tx = (x86Thread_t*)ThreadingGetCurrentThread(Cpu)->ThreadData;

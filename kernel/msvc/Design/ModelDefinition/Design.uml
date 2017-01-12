@@ -22,10 +22,9 @@
       Id="207a7711-36b5-40b9-b000-7a401d397d3c">
       <body>ToDo:
 
- - Rewrite existing device code in kernel to new system
- - Switch to new code
- - Fit and implement
- - Convert drivers
+
+
+- Convert drivers
 
 Thoughts:
  - Move calibration code, timer code etc to later, initalize apic timer just for scheduling, not time-keeping with a sane value of 30000 (should give us around 5-100ms per task on cpus). Then calibrate it correctly when a timer is registered!</body>
