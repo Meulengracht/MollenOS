@@ -31,7 +31,7 @@ for %%x in (%*) do (
     )
 
     ::Handle arguments
-    if "%consumed%"=="0" (
+    if "%consumed%"=="1" (
         if "%decl%"=="1" (
             if "%%~x"=="x86" set arch=x86
             if "%%~x"=="X86" set arch=x86

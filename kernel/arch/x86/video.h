@@ -23,7 +23,6 @@
 
 
 /* Includes */
-#include <Arch.h>
 #include <stdint.h>
 
 /* Definitions */

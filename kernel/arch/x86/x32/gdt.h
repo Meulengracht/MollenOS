@@ -33,7 +33,7 @@
  * they are allocated using static storage since we have
  * no dynamic memory at the time we need them */
 #define GDT_MAX_TSS					128
-#define GDT_MAX_DESCRIPTORS			(GDT_MAX_TSS + 7)
+#define GDT_MAX_DESCRIPTORS			(GDT_MAX_TSS + 8)
 #define GDT_IOMAP_SIZE				2048
 
 /* 5 Hardcoded system descriptors, we must have a 
@@ -44,8 +44,9 @@
 #define GDT_KDATA_SEGMENT			0x10	/* Kernel */
 #define GDT_UCODE_SEGMENT			0x18	/* Applications */
 #define GDT_UDATA_SEGMENT			0x20	/* Applications */
-#define GDT_PCODE_SEGMENT			0x28	/* Driver */
-#define GDT_PDATA_SEGMENT			0x30	/* Driver */
+#define GDT_PCODE_SEGMENT			0x28	/* Drivers */
+#define GDT_PDATA_SEGMENT			0x30	/* Drivers */
+#define GDT_STACK_SEGMENT			0x38	/* Shared */
 
 /* Gdt type codes, they set the appropriate bits
  * needed for our needs, both for code and data segments
@@ -56,6 +57,28 @@
 #define GDT_RING3_CODE				0xFA
 #define GDT_RING3_DATA				0xF2
 #define GDT_TSS_ENTRY				0xE9
+
+/* The GDT access flags, they define general information
+ * about the code / data segment */
+
+/* Data Access */
+#define GDT_ACCESS_WRITABLE			0x02
+#define GDT_ACCESS_DOWN				0x04	/* Grows down instead of up */
+
+/* Code Access */
+#define GDT_ACCESS_READABLE			0x02
+#define GDT_ACCESS_CONFORMS			0x04
+
+/* Shared Access */
+#define GDT_ACCESS_ACCESSED			0x01
+#define GDT_ACCESS_EXECUTABLE		0x08
+#define GDT_ACCESS_RESERVED			0x10
+#define GDT_ACCESS_PRIV3			(0x20 | 0x40)
+#define GDT_ACCESS_PRESENT			0x80
+
+/* Flags */
+#define GDT_FLAG_32BIT				0x40
+#define GDT_FLAG_PAGES				0x80
 
 /* The GDT base structure, this is what the hardware
  * will poin to, that describes the memory range where

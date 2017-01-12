@@ -1,30 +1,33 @@
 /* MollenOS
-*
-* Copyright 2011 - 2016, Philip Meulengracht
-*
-* This program is free software : you can redistribute it and / or modify
-* it under the terms of the GNU General Public License as published by
-* the Free Software Foundation ? , either version 3 of the License, or
-* (at your option) any later version.
-*
-* This program is distributed in the hope that it will be useful,
-* but WITHOUT ANY WARRANTY; without even the implied warranty of
-* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.See the
-* GNU General Public License for more details.
-*
-* You should have received a copy of the GNU General Public License
-* along with this program.If not, see <http://www.gnu.org/licenses/>.
-*
-*
-* MollenOS - Threading Functions
-*/
+ *
+ * Copyright 2011 - 2017, Philip Meulengracht
+ *
+ * This program is free software : you can redistribute it and / or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation ? , either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.If not, see <http://www.gnu.org/licenses/>.
+ *
+ *
+ * MollenOS - Threading Functions
+ */
 
-/* Includes */
-#include <os/MollenOS.h>
-#include <os/Syscall.h>
-#include <os/Thread.h>
+/* Includes 
+ * - System */
+#include <os/mollenOS.h>
+#include <os/syscall.h>
+#include <os/thread.h>
+#include <ds/list.h>
 
-/* C Library */
+/* Includes
+ * - Library */
 #include "../../libc/locale/setlocale.h"
 #include <crtdefs.h>
 #include <stddef.h>
@@ -33,21 +36,30 @@
 #include <errno.h>
 #include <string.h>
 
-#ifdef LIBC_KERNEL
-void __TLSLibCEmpty(void)
-{
+/* Read and write the magic tls thread-specific
+ * pointer, we need to take into account the compiler here */
+#ifdef _MSC_VER
+static __CRT_INLINE size_t __get_reserved(size_t index) {
+	size_t result = 0;
+	size_t base = (0 - ((index * sizeof(size_t)) + sizeof(size_t)));
+	__asm {
+		mov ebx, [base];
+		mov eax, ss:[ebx];
+		mov [result], eax;
+	}
+	return result;
+}
+static __CRT_INLINE void __set_reserved(size_t index, size_t value) {
+	size_t base = (0 - ((index * sizeof(size_t)) + sizeof(size_t)));
+	__asm {
+		mov ebx, [base];
+		mov eax, [value];
+		mov ss:[ebx], eax;
+	}
 }
 #else
-
-/* Private Definitions */
-#ifdef _X86_32
-#define MOLLENOS_RESERVED_SPACE	0xFFFFFFF4
-#elif defined(X86_64)
-#define MOLLENOS_RESERVED_SPACE	0xFFFFFFF4
+#error "Implement rw for tls"
 #endif
-
-/* Ds Includes */
-#include <ds/list.h>
 
 /* TLS Entry for threads 
  * keys are shared all over 
@@ -149,6 +161,9 @@ void TLSInitInstance(ThreadLocalStorage_t *Tls)
 	Tls->Errno = EOK;
 	Tls->Locale = __get_global_locale();
 	Tls->Seed = 1;
+
+	/* Set pointer */
+	__set_reserved(0, (size_t)Tls);
 }
 
 /* TLSDestroyInstance
@@ -165,11 +180,8 @@ void TLSDestroyInstance(ThreadLocalStorage_t *Tls)
  * for the current thread */
 ThreadLocalStorage_t *TLSGetCurrent(void)
 {
-	/* Dereference the pointer */
-	size_t Address = *((size_t*)MOLLENOS_RESERVED_SPACE);
-
 	/* Done */
-	return (ThreadLocalStorage_t*)Address;
+	return (ThreadLocalStorage_t*)__get_reserved(0);
 }
 
 /* Create a new global
@@ -323,5 +335,3 @@ int TLSSetKey(TlsKey_t Key, void *Data)
 	/* Done!! */
 	return 0;
 }
-
-#endif

@@ -54,11 +54,11 @@ void PhoenixBootProcess(void *Args)
 	Process->OpenFiles = ListCreate(KeyInteger, LIST_NORMAL);
 
 	/* Map in arguments */
-	AddressSpaceMap(AddressSpaceGetCurrent(), 
-		MEMORY_LOCATION_USER_ARGS, PAGE_SIZE, MEMORY_MASK_DEFAULT, ADDRESS_SPACE_FLAG_USER);
+	AddressSpaceMap(AddressSpaceGetCurrent(), MEMORY_LOCATION_RING3_ARGS,
+		PAGE_SIZE, MEMORY_MASK_DEFAULT, ADDRESS_SPACE_FLAG_APPLICATION);
 
 	/* Copy arguments */
-	memcpy((void*)MEMORY_LOCATION_USER_ARGS,
+	memcpy((void*)MEMORY_LOCATION_RING3_ARGS,
 		MStringRaw(Process->Arguments), MStringSize(Process->Arguments));
 
 	/* Go to user-land */

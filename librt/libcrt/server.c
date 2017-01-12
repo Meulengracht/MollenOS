@@ -20,10 +20,9 @@
 */
 
 /* Includes */
-#include <os/MollenOS.h>
-#include <os/Ui.h>
-#include <os/Syscall.h>
-#include <os/Thread.h>
+#include <os/mollenos.h>
+#include <os/syscall.h>
+#include <os/thread.h>
 #include <os/ipc/ipc.h>
 
 /* Includes
@@ -34,11 +33,9 @@
 
 /* Private Definitions */
 #ifdef _X86_32
-#define MOLLENOS_ARGUMENT_ADDR	0x60000000
-#define MOLLENOS_RESERVED_SPACE	0xFFFFFFF4
+#define MOLLENOS_ARGUMENT_ADDR	0x1F000000
 #elif defined(X86_64)
-#define MOLLENOS_ARGUMENT_ADDR	0x60000000
-#define MOLLENOS_RESERVED_SPACE	0xFFFFFFF4
+#define MOLLENOS_ARGUMENT_ADDR	0x1F000000
 #endif
 
 /* Extern */
@@ -71,7 +68,7 @@ void UnEscapeQuotes(char *Arg)
 }
 
 /* Parse a command line buffer into arguments
-* If called with NULL in argv, it simply counts */
+ * If called with NULL in argv, it simply counts */
 int ParseCommandLine(char *CmdLine, char **ArgBuffer)
 {
 	/* Variables */
@@ -135,18 +132,10 @@ int ParseCommandLine(char *CmdLine, char **ArgBuffer)
 }
 
 /* CRT Initialization sequence
-* for a shared C/C++ environment
-* call this in all entry points */
+ * for a shared C/C++ environment
+ * call this in all entry points */
 void _mCrtInit(ThreadLocalStorage_t *Tls)
 {
-	/* Variables */
-	uint64_t *ReservedSpace = NULL;
-
-	/* Initialize the 8 bytes
-	* of storage */
-	ReservedSpace = (uint64_t*)MOLLENOS_RESERVED_SPACE;
-	*ReservedSpace = (uint64_t)(size_t)Tls;
-
 	/* Init Crt */
 	__CppInit();
 
@@ -161,7 +150,7 @@ void _mCrtInit(ThreadLocalStorage_t *Tls)
 }
 
 /* Driver Entry Point
-* Use this entry point for drivers/servers/modules */
+ * Use this entry point for drivers/servers/modules */
 void _mDrvCrt(void)
 {
 	/* Variables */

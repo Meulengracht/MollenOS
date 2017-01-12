@@ -602,14 +602,15 @@ Addr_t ScMemoryShare(IpcComm_t Target, Addr_t Address, size_t Size)
 
 		/* The address MUST be mapped in ours */
 		if (!AddressSpaceGetMap(AddressSpaceGetCurrent(), AdjustedAddr))
-			AddressSpaceMap(AddressSpaceGetCurrent(), AdjustedAddr, PAGE_SIZE, MEMORY_MASK_DEFAULT, ADDRESS_SPACE_FLAG_USER);
+			AddressSpaceMap(AddressSpaceGetCurrent(), AdjustedAddr, 
+			PAGE_SIZE, MEMORY_MASK_DEFAULT, ADDRESS_SPACE_FLAG_APPLICATION);
 	
 		/* Get physical mapping */
 		PhysicalAddr = AddressSpaceGetMap(AddressSpaceGetCurrent(), AdjustedAddr);
 
 		/* Map it directly into target process */
 		AddressSpaceMapFixed(Ash->AddressSpace, PhysicalAddr,
-			AdjustedShm, PAGE_SIZE, ADDRESS_SPACE_FLAG_USER | ADDRESS_SPACE_FLAG_VIRTUAL);
+			AdjustedShm, PAGE_SIZE, ADDRESS_SPACE_FLAG_APPLICATION | ADDRESS_SPACE_FLAG_VIRTUAL);
 	}
 
 	/* Done! */

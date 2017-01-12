@@ -1,34 +1,34 @@
 /* MollenOS
-*
-* Copyright 2011 - 2014, Philip Meulengracht
-*
-* This program is free software : you can redistribute it and / or modify
-* it under the terms of the GNU General Public License as published by
-* the Free Software Foundation ? , either version 3 of the License, or
-* (at your option) any later version.
-*
-* This program is distributed in the hope that it will be useful,
-* but WITHOUT ANY WARRANTY; without even the implied warranty of
-* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.See the
-* GNU General Public License for more details.
-*
-* You should have received a copy of the GNU General Public License
-* along with this program.If not, see <http://www.gnu.org/licenses/>.
-*
-*
-* MollenOS x86 Address Space Abstraction Layer
-*/
+ *
+ * Copyright 2011 - 2017, Philip Meulengracht
+ *
+ * This program is free software : you can redistribute it and / or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation ? , either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.If not, see <http://www.gnu.org/licenses/>.
+ *
+ *
+ * MollenOS x86 Address Space Abstraction Layer
+ */
 
-/* Includes */
+/* Includes 
+ * - System */
 #include "../../arch.h"
-#include <Threading.h>
-#include <Devices/Video.h>
-#include <Heap.h>
-#include <Video.h>
-#include <Memory.h>
-#include <Log.h>
+#include <threading.h>
+#include <memory.h>
+#include <heap.h>
+#include <log.h>
 
-/* C-Library */
+/* Includes
+ * - Library */
 #include <assert.h>
 #include <stddef.h>
 #include <string.h>
@@ -39,7 +39,8 @@ static AddressSpace_t GlbKernelAddressSpace;
 /* Address Space Abstraction Layer
 **********************************/
 
-/* Initializes the Kernel Address Space 
+/* AddressSpaceInitKernel
+ * Initializes the Kernel Address Space 
  * This only copies the data into a static global
  * storage, which means users should just pass something
  * temporary structure */
@@ -55,51 +56,36 @@ void AddressSpaceInitKernel(AddressSpace_t *Kernel)
 	GlbKernelAddressSpace.References = 1;
 }
 
-/* Initialize a new address space, depending on 
+/* AddressSpaceCreate
+ * Initialize a new address space, depending on 
  * what user is requesting we might recycle a already
  * existing address space */
-AddressSpace_t *AddressSpaceCreate(int Flags)
+AddressSpace_t *AddressSpaceCreate(Flags_t Flags)
 {
 	/* Allocate Structure */
 	AddressSpace_t *AddrSpace = NULL;
 	Cpu_t CurrentCpu = ApicGetCpu();
 	int Itr = 0;
 
-	/* Depends on what caller wants */
-	if (Flags & ADDRESS_SPACE_KERNEL) 
-	{
-		/* Lock and increase reference count on kernel
-		 * address space, we reuse */
+	/* If we want to create a new kernel address
+	 * space we instead want to re-use the current 
+	 * If kernel is specified, ignore rest */
+	if (Flags & ADDRESS_SPACE_KERNEL) {
 		SpinlockAcquire(&GlbKernelAddressSpace.Lock);
-
-		/* Increase Count */
 		GlbKernelAddressSpace.References++;
-
-		/* Release lock */
 		SpinlockRelease(&GlbKernelAddressSpace.Lock);
-
-		/* Done! */
 		AddrSpace = &GlbKernelAddressSpace;
 	}
-	else if (Flags == ADDRESS_SPACE_INHERIT)
-	{
-		/* Get current address space */
+	else if (Flags == ADDRESS_SPACE_INHERIT) {
+		/* Inheritance is a bit different, we re-use again
+		 * but instead of reusing the kernel, we reuse the current */
 		MCoreThread_t *Current = ThreadingGetCurrentThread(CurrentCpu);
-
-		/* Lock and increase reference count on kernel
-		* address space, we reuse */
 		SpinlockAcquire(&Current->AddressSpace->Lock);
-
-		/* Increase Count */
 		Current->AddressSpace->References++;
-
-		/* Release lock */
 		SpinlockRelease(&Current->AddressSpace->Lock);
-
-		/* Done! */
 		AddrSpace = Current->AddressSpace;
 	}
-	else if (Flags & ADDRESS_SPACE_USER)
+	else if (Flags & (ADDRESS_SPACE_APPLICATION | ADDRESS_SPACE_DRIVER))
 	{
 		/* This is the only case where we should create a 
 		 * new and seperate address space, user processes! */
@@ -107,8 +93,14 @@ AddressSpace_t *AddressSpaceCreate(int Flags)
 		PageDirectory_t *NewPd = (PageDirectory_t*)kmalloc_ap(sizeof(PageDirectory_t), &PhysAddr);
 		PageDirectory_t *CurrPd = (PageDirectory_t*)AddressSpaceGetCurrent()->PageDirectory;
 		PageDirectory_t *KernPd = (PageDirectory_t*)GlbKernelAddressSpace.PageDirectory;
-		int MaxCopyKernel = PAGE_DIRECTORY_INDEX(MEMORY_LOCATION_IOSPACE);
-		int MaxCopyReadOnly = PAGE_DIRECTORY_INDEX(MEMORY_LOCATION_DRIVER);
+
+		/* Copy at max kernel directories up to MEMORY_SEGMENT_RING3_BASE */
+		int KernelRegion = 0;
+		int KernelRegionEnd = PAGE_DIRECTORY_INDEX(MEMORY_LOCATION_KERNEL_END);
+
+		/* Lookup which table-region is the stack region */
+		int StackRegion = PAGE_DIRECTORY_INDEX(MEMORY_LOCATION_STACK_END);
+		int StackRegionEnd = PAGE_DIRECTORY_INDEX(MEMORY_SEGMENT_STACK_BASE);
 
 		/* Allocate a new address space */
 		AddrSpace = (AddressSpace_t*)kmalloc(sizeof(AddressSpace_t));
@@ -120,27 +112,22 @@ AddressSpace_t *AddressSpaceCreate(int Flags)
 		MutexConstruct(&NewPd->Lock);
 
 		/* Create shared mappings */
-		for (Itr = 0; Itr < TABLES_PER_PDIR; Itr++)
-		{
-			/* Sanity - Kernel Mapping 
-			 * Only copy kernel mappings BELOW driver-space start */
-			if (KernPd->pTables[Itr] && Itr < MaxCopyKernel) {
-				if (Itr < MaxCopyReadOnly) {
-					NewPd->pTables[Itr] = (KernPd->pTables[Itr] & PAGE_MASK)
-						| PAGE_PRESENT | PAGE_INHERITED ;
-				}
-				else {
-					NewPd->pTables[Itr] = KernPd->pTables[Itr];
-				}
-
+		for (Itr = 0; Itr < TABLES_PER_PDIR; Itr++) {
+			/* Sanity - Kernel Region */
+			if (Itr >= KernelRegion && Itr < KernelRegionEnd) {
+				NewPd->pTables[Itr] = KernPd->pTables[Itr];
 				NewPd->vTables[Itr] = KernPd->vTables[Itr];
 				continue;
 			}
 
-			/* Inherit? (Yet, never inherit last pagedir, thats where stack is) */
-			if (Flags & ADDRESS_SPACE_INHERIT
-				&& Itr != (TABLES_PER_PDIR - 1)
-				&& CurrPd->pTables[Itr]) {
+			/* Sanity - Stack Region */
+			if (Itr >= StackRegion && Itr < StackRegionEnd) {
+				continue;
+			}
+
+			/* Inherit? We must mark that table inherited to avoid
+			 * it being freed again */
+			if (Flags & ADDRESS_SPACE_INHERIT && CurrPd->pTables[Itr]) {
 				NewPd->pTables[Itr] = CurrPd->pTables[Itr] | PAGE_INHERITED;
 				NewPd->vTables[Itr] = CurrPd->vTables[Itr];
 			}
@@ -162,7 +149,8 @@ AddressSpace_t *AddressSpaceCreate(int Flags)
 	return AddrSpace;
 }
 
-/* Destroy and release all resources related
+/* AddressSpaceDestroy
+ * Destroy and release all resources related
  * to an address space, only if there is no more
  * references */
 void AddressSpaceDestroy(AddressSpace_t *AddrSpace)
@@ -175,8 +163,7 @@ void AddressSpaceDestroy(AddressSpace_t *AddrSpace)
 
 	/* Cleanup ? */
 	if (AddrSpace->References == 0) {
-		/* Sanity */
-		if (AddrSpace->Flags & ADDRESS_SPACE_FLAG_USER)
+		if (AddrSpace->Flags & (ADDRESS_SPACE_APPLICATION | ADDRESS_SPACE_DRIVER))
 		{
 			/* Vars */
 			PageDirectory_t *KernPd = (PageDirectory_t*)GlbKernelAddressSpace.PageDirectory;
@@ -228,7 +215,8 @@ void AddressSpaceDestroy(AddressSpace_t *AddrSpace)
 	}
 }
 
-/* Returns the current address space
+/* AddressSpaceGetCurrent
+ * Returns the current address space
  * if there is no active threads or threading
  * is not setup it returns the kernel address space */
 AddressSpace_t *AddressSpaceGetCurrent(void)
@@ -244,30 +232,34 @@ AddressSpace_t *AddressSpaceGetCurrent(void)
 		return CurrThread->AddressSpace;
 }
 
-/* Switch to given address space */
+/* AddressSpaceSwitch
+ * Switches the current address space out with the
+ * the address space provided for the current cpu */
 void AddressSpaceSwitch(AddressSpace_t *AddrSpace)
 {
 	/* Get current cpu */
 	Cpu_t CurrentCpu = ApicGetCpu();
 
-	/* Deep Call */
+	/* Redirect to our virtual memory manager */
 	MmVirtualSwitchPageDirectory(CurrentCpu, 
 		AddrSpace->PageDirectory, AddrSpace->Cr3);
 }
 
-/* This function removes kernel mappings from 
- * an address space, thus protecting the kernel
- * from access! */
-void AddressSpaceReleaseKernel(AddressSpace_t *AddrSpace)
+/* AddressSpaceTranslate
+ * Translates the given address to the correct virtual
+ * address, this can be used to correct any special cases on
+ * virtual addresses in the sub-layer */
+Addr_t AddressSpaceTranslate(AddressSpace_t *AddrSpace, Addr_t VirtualAddress)
 {
-	/* Vars */
-	PageDirectory_t *Pd = (PageDirectory_t*)AddrSpace->PageDirectory;
-	int Itr = 0;
-
-	/* Now unmap */
-	for (Itr = 0; Itr < PAGE_DIRECTORY_INDEX(MEMORY_LOCATION_USER_ARGS) - 1; Itr++) {
-		Pd->pTables[Itr] = 0;
-		Pd->vTables[Itr] = 0;
+	/* Sanitize on the address, and the
+	 * the type of addressing space */
+	if (AddrSpace->Flags & ADDRESS_SPACE_KERNEL) {
+		/* Never translate kernel address since the kernel
+		 * segment spans the entire addressing space */
+		return VirtualAddress;
+	}
+	else {
+		return VirtualAddress;
 	}
 }
 
@@ -283,7 +275,7 @@ Addr_t AddressSpaceMap(AddressSpace_t *AddrSpace, VirtAddr_t Address,
 	size_t Itr = 0;
 
 	/* Add flags */
-	if (Flags & ADDRESS_SPACE_FLAG_USER)
+	if (Flags & ADDRESS_SPACE_FLAG_APPLICATION)
 		AllocFlags |= PAGE_USER;
 	if (Flags & ADDRESS_SPACE_FLAG_NOCACHE)
 		AllocFlags |= PAGE_CACHE_DISABLE;
@@ -319,7 +311,7 @@ void AddressSpaceMapFixed(AddressSpace_t *AddrSpace,
 	size_t Itr = 0;
 
 	/* Add flags */
-	if (Flags & ADDRESS_SPACE_FLAG_USER)
+	if (Flags & ADDRESS_SPACE_FLAG_APPLICATION)
 		AllocFlags |= PAGE_USER;
 	if (Flags & ADDRESS_SPACE_FLAG_NOCACHE)
 		AllocFlags |= PAGE_CACHE_DISABLE;
@@ -344,7 +336,8 @@ void AddressSpaceUnmap(AddressSpace_t *AddrSpace, VirtAddr_t Address, size_t Siz
 		MmVirtualUnmap(AddrSpace->PageDirectory, (Address + (Itr * PAGE_SIZE)));
 }
 
-/* Retrieves a physical mapping from an address space 
+/* AddressSpaceGetMap
+ * Retrieves a physical mapping from an address space 
  * for x86 we can simply just redirect it to MmVirtual */
 PhysAddr_t AddressSpaceGetMap(AddressSpace_t *AddrSpace, VirtAddr_t Address) {
 	return MmVirtualGetMapping(AddrSpace->PageDirectory, Address);

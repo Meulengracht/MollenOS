@@ -34,13 +34,6 @@
 #include <intrin.h>
 #endif
 
-/* Private Definitions */
-#ifdef _X86_32
-#define MOLLENOS_RESERVED_SPACE	0xFFFFFFF4
-#elif defined(X86_64)
-#define MOLLENOS_RESERVED_SPACE	0xFFFFFFF4
-#endif
-
 /* Structure (private) */
 typedef struct _ThreadPackage
 {
@@ -59,17 +52,11 @@ void _ThreadCRT(void *Data)
 {
 	/* Allocate TSS */
 	ThreadLocalStorage_t Tls;
-	uint64_t *ReservedSpace;
 	ThreadPackage_t *Tp;
 	int RetVal = 0;
 
 	/* Initialize the TLS */
 	TLSInitInstance(&Tls);
-
-	/* Initialize the 8 bytes 
-	 * of storage */
-	ReservedSpace = (uint64_t*)MOLLENOS_RESERVED_SPACE;
-	*ReservedSpace = (uint64_t)(size_t)&Tls;
 
 	/* Cast */
 	Tp = (ThreadPackage_t*)Data;

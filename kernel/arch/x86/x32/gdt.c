@@ -23,8 +23,8 @@
 
 /* Includes
  * - System */
-#include <Heap.h>
-#include <Gdt.h>
+#include <heap.h>
+#include <gdt.h>
 
 /* Includes
  * - Library */
@@ -83,17 +83,38 @@ void GdtInitialize(void)
 	/* NULL Descriptor */
 	GdtInstallDescriptor(0, 0, 0, 0);
 
-	/* Kernel Code & Data */
-	GdtInstallDescriptor(0, 0xFFFFFFFF, GDT_RING0_CODE, GDT_GRANULARITY);
-	GdtInstallDescriptor(0, 0xFFFFFFFF, GDT_RING0_DATA, GDT_GRANULARITY);
+	/* Kernel segments
+	 * Kernel segments span the entire virtual
+	 * address space from 0 -> 0xFFFFFFFF */
+	GdtInstallDescriptor(0, (MEMORY_SEGMENT_KERNEL_CODE_LIMIT - 1) / PAGE_SIZE,
+		GDT_RING0_CODE, GDT_GRANULARITY);
+	GdtInstallDescriptor(0, MEMORY_SEGMENT_KERNEL_DATA_LIMIT,
+		GDT_RING0_DATA, GDT_GRANULARITY);
 
-	/* Userland Code & Data */
-	GdtInstallDescriptor(MEMORY_LOCATION_USER_ARGS, 0xFFFFFFFF, GDT_RING3_CODE, GDT_GRANULARITY);
-	GdtInstallDescriptor(MEMORY_LOCATION_USER_ARGS, 0xFFFFFFFF, GDT_RING3_DATA, GDT_GRANULARITY);
+	/* Applications segments
+	 * Application segments does not span entire address space
+	 * but rather in their own subset */
+	GdtInstallDescriptor(0, (MEMORY_SEGMNET_RING3_CODE_LIMIT - 1) / PAGE_SIZE,
+		GDT_RING3_CODE, GDT_GRANULARITY);
+	GdtInstallDescriptor(0, MEMORY_SEGMENT_RING3_DATA_LIMIT,
+		GDT_RING3_DATA, GDT_GRANULARITY);
 
-	/* Driver Code & Data */
-	GdtInstallDescriptor(MEMORY_LOCATION_DRIVER, 0xFFFFFFFF, GDT_RING3_CODE, GDT_GRANULARITY);
-	GdtInstallDescriptor(MEMORY_LOCATION_DRIVER, 0xFFFFFFFF, GDT_RING3_DATA, GDT_GRANULARITY);
+	/* Driver segments
+	 * Driver segments does not span entire address space
+	 * but rather in their own subset */
+	GdtInstallDescriptor(0, (MEMORY_SEGMNET_RING3_CODE_LIMIT - 1) / PAGE_SIZE,
+		GDT_RING3_CODE, GDT_GRANULARITY);
+	GdtInstallDescriptor(0, MEMORY_SEGMENT_RING3_DATA_LIMIT,
+		GDT_RING3_DATA, GDT_GRANULARITY);
+
+	/* Shared segments
+	 * Stack segment shared between drivers and applications
+	 * which goes into the highest page-table */
+	GdtInstallDescriptor(MEMORY_SEGMENT_STACK_BASE - MEMORY_LIMIT, 
+		((MEMORY_LIMIT - 1) - MEMORY_SEGMENT_STACK_LIMIT) / PAGE_SIZE,
+		GDT_ACCESS_WRITABLE | GDT_ACCESS_DOWN | GDT_ACCESS_PRIV3 
+		| GDT_ACCESS_RESERVED | GDT_ACCESS_PRESENT, 
+		GDT_FLAG_32BIT | GDT_FLAG_PAGES);
 
 	/* Null task pointers */
 	memset(&TssDescriptors, 0, sizeof(TssDescriptors));
@@ -133,14 +154,15 @@ void GdtInstallTss(Cpu_t Cpu, int Static)
 	/* Setup TSS initial ring0 stack information
 	 * this will be filled out properly later by scheduler */
 	TssDescriptors[Cpu]->Ss0 = GDT_KDATA_SEGMENT;
+	TssDescriptors[Cpu]->Ss2 = GDT_STACK_SEGMENT + 0x03;
 	
 	/* Set initial segment information (Ring0) */
-	TssDescriptors[Cpu]->Cs = GDT_KCODE_SEGMENT + 3;
-	TssDescriptors[Cpu]->Ss = GDT_KDATA_SEGMENT + 3;
-	TssDescriptors[Cpu]->Ds = GDT_KDATA_SEGMENT + 3;
-	TssDescriptors[Cpu]->Es = GDT_KDATA_SEGMENT + 3;
-	TssDescriptors[Cpu]->Fs = GDT_KDATA_SEGMENT + 3;
-	TssDescriptors[Cpu]->Gs = GDT_KDATA_SEGMENT + 3;
+	TssDescriptors[Cpu]->Cs = GDT_KCODE_SEGMENT + 0x03;
+	TssDescriptors[Cpu]->Ss = GDT_KDATA_SEGMENT + 0x03;
+	TssDescriptors[Cpu]->Ds = GDT_KDATA_SEGMENT + 0x03;
+	TssDescriptors[Cpu]->Es = GDT_KDATA_SEGMENT + 0x03;
+	TssDescriptors[Cpu]->Fs = GDT_KDATA_SEGMENT + 0x03;
+	TssDescriptors[Cpu]->Gs = GDT_KDATA_SEGMENT + 0x03;
 	TssDescriptors[Cpu]->IoMapBase = (uint16_t)offsetof(TssEntry_t, IoMap[0]);
 
 	/* Install TSS descriptor into table */

@@ -43,9 +43,9 @@ __CRT_EXTERN List_t *GlbAshes;
 void PhoenixFinishAsh(MCoreAsh_t *Ash)
 {
 	/* Cast */
-	Addr_t BaseAddress = MEMORY_LOCATION_USER;
 	Cpu_t CurrentCpu = ApicGetCpu();
-	MCoreThread_t *cThread = ThreadingGetCurrentThread(CurrentCpu);
+	MCoreThread_t *Thread = ThreadingGetCurrentThread(CurrentCpu);
+	Addr_t BaseAddress = 0;
 	int LoadedFromInitRD = 0;
 
 	/* Sanitize the loaded path, if we were
@@ -55,15 +55,17 @@ void PhoenixFinishAsh(MCoreAsh_t *Ash)
 	}
 
 	/* Update this thread */
-	Ash->MainThread = cThread->Id;
-	cThread->AshId = Ash->Id;
+	Ash->MainThread = Thread->Id;
+	Thread->AshId = Ash->Id;
 
 	/* Save address space */
 	Ash->AddressSpace = AddressSpaceGetCurrent();
 
+	/* Never translate here */
+	BaseAddress = MEMORY_LOCATION_RING3_CODE;
+
 	/* Load Executable */
-	Ash->Executable =
-		PeLoadImage(NULL, Ash->Name, Ash->FileBuffer, 
+	Ash->Executable = PeLoadImage(NULL, Ash->Name, Ash->FileBuffer, 
 		Ash->FileBufferLength, &BaseAddress, LoadedFromInitRD);
 	Ash->NextLoadingAddress = BaseAddress;
 
@@ -74,10 +76,10 @@ void PhoenixFinishAsh(MCoreAsh_t *Ash)
 	Ash->FileBuffer = NULL;
 
 	/* Create the memory allocators */
-	Ash->Heap = BitmapCreate(MEMORY_LOCATION_USER_HEAP, 
-		MEMORY_LOCATION_USER_HEAP_END, PAGE_SIZE);
-	Ash->Shm = BitmapCreate(MEMORY_LOCATION_USER_SHM, 
-		MEMORY_LOCATION_USER_SHM_END, PAGE_SIZE);
+	Ash->Heap = BitmapCreate(AddressSpaceTranslate(Ash->AddressSpace, MEMORY_LOCATION_RING3_HEAP),
+		AddressSpaceTranslate(Ash->AddressSpace, MEMORY_LOCATION_RING3_SHM), PAGE_SIZE);
+	Ash->Shm = BitmapCreate(AddressSpaceTranslate(Ash->AddressSpace, MEMORY_LOCATION_RING3_SHM),
+		AddressSpaceTranslate(Ash->AddressSpace, MEMORY_LOCATION_RING3_IOSPACE), PAGE_SIZE);
 
 	/* Create the pipe list, there are as a default
 	 * no pipes open for a process, the process must
@@ -85,11 +87,9 @@ void PhoenixFinishAsh(MCoreAsh_t *Ash)
 	Ash->Pipes = ListCreate(KeyInteger, LIST_SAFE);
 
 	/* Map Stack */
-	BaseAddress = ((MEMORY_LOCATION_USER_STACK - 0x1) & PAGE_MASK);
-	AddressSpaceMap(AddressSpaceGetCurrent(), BaseAddress,
-		ASH_STACK_INIT, MEMORY_MASK_DEFAULT, ADDRESS_SPACE_FLAG_USER);
-	BaseAddress += (MEMORY_LOCATION_USER_STACK & ~(PAGE_MASK));
-	Ash->StackStart = BaseAddress;
+	AddressSpaceMap(AddressSpaceGetCurrent(), (MEMORY_SEGMENT_STACK_BASE & PAGE_MASK),
+		ASH_STACK_INIT, MEMORY_MASK_DEFAULT, ADDRESS_SPACE_FLAG_APPLICATION);
+	Ash->StackStart = MEMORY_SEGMENT_STACK_BASE;
 
 	/* Setup signalling */
 	Ash->SignalQueue = ListCreate(KeyInteger, LIST_NORMAL);

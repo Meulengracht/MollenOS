@@ -53,16 +53,16 @@ void PhoenixBootServer(void *Args)
 	PhoenixFinishAsh(&Server->Base);
 
 	/* Initialize the server io-space memory */
-	Server->ReservedMemoryPointer = MEMORY_LOCATION_IOSPACE;
+	Server->ReservedMemoryPointer = MEMORY_LOCATION_RING3_IOSPACE;
 
 	/* Map in arguments */
 	if (Server->ArgumentLength != 0) {
 		AddressSpaceMap(AddressSpaceGetCurrent(),
-			MEMORY_LOCATION_USER_ARGS, MAX(PAGE_SIZE, Server->ArgumentLength),
-			MEMORY_MASK_DEFAULT, ADDRESS_SPACE_FLAG_USER);
+			MEMORY_LOCATION_RING3_ARGS, MAX(PAGE_SIZE, Server->ArgumentLength),
+			MEMORY_MASK_DEFAULT, ADDRESS_SPACE_FLAG_APPLICATION);
 
 		/* Copy arguments */
-		memcpy((void*)MEMORY_LOCATION_USER_ARGS,
+		memcpy((void*)MEMORY_LOCATION_RING3_ARGS,
 			Server->ArgumentBuffer, Server->ArgumentLength);
 	}
 

@@ -92,7 +92,7 @@ Addr_t *HeapSAllocator(Heap_t *Heap, size_t Size)
 
 		/* Map in the new memory */
 		AddressSpaceMap(AddressSpaceGetCurrent(), Heap->MemHeaderMax, PAGE_SIZE, 
-			MEMORY_MASK_DEFAULT, (Heap->IsUser == 1) ? ADDRESS_SPACE_FLAG_USER : 0);
+			MEMORY_MASK_DEFAULT, (Heap->IsUser == 1) ? ADDRESS_SPACE_FLAG_APPLICATION : 0);
 
 		/* Reset the memory */
 		memset((void*)Heap->MemHeaderMax, 0, PAGE_SIZE);

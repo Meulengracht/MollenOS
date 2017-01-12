@@ -63,6 +63,9 @@ typedef struct _Registers
 	uint32_t UserSs;
 	uint32_t UserArg;
 
+	/* 16 Bytes of reserved area */
+	uint32_t Reserved[4];
+
 } Registers_t;
 
 /* X86-32 Address Space */
@@ -137,32 +140,34 @@ _CRT_EXPORT void kernel_panic(const char *str);
 /* Architecture Memory Layout, this
  * gives you an idea how memory layout
  * is on the x86-32 platform in MollenOS */
-#define MEMORY_LOCATION_KERNEL			0x100000 /* Kernel Image Space: 1024 kB */
-#define MEMORY_LOCATION_RAMDISK			0x200000 /* RamDisk Image Space: 1024 kB */
-#define MEMORY_LOCATION_BITMAP			0x300000 /* Bitmap Space: 12 mB */
-#define MEMORY_LOCATION_HEAP			0x1000000 /* Heap Space: 64 mB */
-#define MEMORY_LOCATION_HEAP_END		0x4000000
-#define MEMORY_LOCATION_MODULES			0x4000000 /* Module Space: 190~ mB */
-#define MEMORY_LOCATION_RESERVED		0x4000000
+#define MEMORY_LOCATION_KERNEL				0x100000 	/* Kernel Image Space: 1024 kB */
+#define MEMORY_LOCATION_RAMDISK				0x200000 	/* RamDisk Image Space: 1024 kB */
+#define MEMORY_LOCATION_BITMAP				0x300000 	/* Bitmap Space: 12 mB */
+#define MEMORY_LOCATION_HEAP				0x1000000	/* Heap Space: 64 mB */
+#define MEMORY_LOCATION_HEAP_END			0x4000000
+#define MEMORY_LOCATION_VIDEO				0x4000000	/* Video Space: 16 mB */
+#define MEMORY_LOCATION_RESERVED			0x5000000	/* Driver Space: 190~ mB */
+#define MEMORY_LOCATION_KERNEL_END			0x10000000
 
-/* This is the driver space and is seperated from kernel
- * memory, so drivers don't need access to kernel space */
-#define MEMORY_LOCATION_DRIVER			0x10000000
-#define MEMORY_LOCATION_VIDEO			0x10000000 /* Video Space: 256 mB */
-#define MEMORY_LOCATION_IOSPACE			0x20000000 /* IO-Space/ACPI: 3.584 mB */
+#define MEMORY_SEGMENT_KERNEL_CODE_LIMIT	MEMORY_LOCATION_RAMDISK
+#define MEMORY_SEGMENT_KERNEL_DATA_LIMIT	0xFFFFFFFF
 
-/* Below is seperated, and only used by the user-space 
- * this of course means that everything in kernel-space is free
- * for usage, probably going to use it for shared memory */
-#define MEMORY_LOCATION_USER_ARGS		0x60000000 /* Arg Space: 65 kB */
-#define MEMORY_LOCATION_USER			0x60010000 /* Image Space: 256~ mB */
-#define MEMORY_LOCATION_USER_HEAP		0x70000000 /* Heap Space: 2048 mB */
-#define MEMORY_LOCATION_USER_HEAP_END	0xF0000000 /* Shared Memory: 240 mB */
-#define MEMORY_LOCATION_USER_SHM		0xF0000000 /* Shared Memory: 240 mB */
-#define MEMORY_LOCATION_USER_SHM_END	0xFF000000 /* Shared Memory End */
-#define MEMORY_LOCATION_SIGNAL_RET		0xFF0000DE /* Signal Ret Addr */
-#define MEMORY_LOCATION_USER_GUARD		0xFF000000 /* Stack End */
-#define MEMORY_LOCATION_USER_STACK		0xFFFFFFF0 /* Stack Space: 16 mB */
+#define MEMORY_LOCATION_RING3_ARGS			0x1F000000	/* Base for ring3 arguments */
+#define MEMORY_LOCATION_RING3_CODE			0x20000000	/* Base for ring3 code */
+#define MEMORY_LOCATION_RING3_HEAP			0x30000000	/* Base for ring3 heap */
+#define MEMORY_LOCATION_RING3_SHM			0xA0000000	/* Base for ring3 shm */
+#define MEMORY_LOCATION_RING3_IOSPACE		0xB0000000	/* Base for ring3 io-space (1gb) */
+#define MEMORY_LOCATION_RING3_IOSPACE_END	0xF0000000
+
+#define MEMORY_SEGMNET_RING3_CODE_LIMIT		MEMORY_LOCATION_RING3_HEAP
+#define MEMORY_SEGMENT_RING3_DATA_LIMIT		0xFFFFFFFF
+
+#define MEMORY_SEGMENT_STACK_BASE			0xFFFFFFFF	/* RING3 Stack Initial */
+#define MEMORY_SEGMENT_STACK_LIMIT			  0xFFFFFF	/* RING3 Stack Space: 16 mB */
+#define MEMORY_LOCATION_STACK_END			(MEMORY_SEGMENT_STACK_BASE - MEMORY_SEGMENT_STACK_LIMIT)
+
+/* Special addresses must be between 0x11000000 -> 0x11001000 */
+#define MEMORY_LOCATION_SIGNAL_RET			0x110000DE	/* Signal Ret Addr */
 
 /* Architecture Locked Interrupts */
 #define INTERRUPT_LAPIC					0xF0

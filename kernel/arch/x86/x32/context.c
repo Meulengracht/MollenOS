@@ -27,6 +27,7 @@
 #include <memory.h>
 #include <heap.h>
 #include <gdt.h>
+#include <log.h>
 
 /* Includes
  * - Library */
@@ -36,32 +37,33 @@
 /* Stack manipulation / setup of stacks for given
  * threading. We need functions that create a new kernel
  * stack and user/driver stack. Pass threading flags */
-Registers_t *ContextCreate(Flags_t ThreadFlags, Addr_t Eip,
-	Addr_t StackStartAddress, Addr_t *Arguments)
+Registers_t *ContextCreate(Flags_t ThreadFlags, Addr_t Eip, Addr_t *Arguments)
 {
 	/* Variables */
 	Registers_t *Context = NULL;
-	uint32_t DataSegment, CodeSegment;
+	uint32_t DataSegment, CodeSegment, StackSegment;
 	Addr_t ContextAddress = 0, EbpInitial = 0;
 
 	/* Select proper segments */
 	if (THREADING_RUNMODE(ThreadFlags) == THREADING_KERNELMODE) {
 		ContextAddress = ((Addr_t)kmalloc_a(0x1000)) + 0x1000 - sizeof(Registers_t);
 		CodeSegment = GDT_KCODE_SEGMENT;
-		DataSegment = GDT_KDATA_SEGMENT;
+		StackSegment = DataSegment = GDT_KDATA_SEGMENT;
 		EbpInitial = (ContextAddress + sizeof(Registers_t));
 	}
 	else if (THREADING_RUNMODE(ThreadFlags) == THREADING_DRIVERMODE) {
-		ContextAddress = (StackStartAddress - sizeof(Registers_t));
+		ContextAddress = ((MEMORY_SEGMENT_STACK_BASE - 0x3) - sizeof(Registers_t));
 		CodeSegment = GDT_PCODE_SEGMENT + 0x03;
 		DataSegment = GDT_PDATA_SEGMENT + 0x03;
-		EbpInitial = StackStartAddress;
+		StackSegment = GDT_STACK_SEGMENT + 0x03;
+		EbpInitial = 0;
 	}
 	else if (THREADING_RUNMODE(ThreadFlags) == THREADING_USERMODE) {
-		ContextAddress = (StackStartAddress - sizeof(Registers_t));
+		ContextAddress = ((MEMORY_SEGMENT_STACK_BASE - 0x3) - sizeof(Registers_t));
 		CodeSegment = GDT_UCODE_SEGMENT + 0x03;
 		DataSegment = GDT_UDATA_SEGMENT + 0x03;
-		EbpInitial = StackStartAddress;
+		StackSegment = GDT_STACK_SEGMENT + 0x03;
+		EbpInitial = 0;
 	}
 	else {
 		kernel_panic("ContextCreate::INVALID THREADFLAGS");
@@ -104,8 +106,8 @@ Registers_t *ContextCreate(Flags_t ThreadFlags, Addr_t Eip,
 		Context->UserArg = 0;
 	}
 	else {
-		Context->UserEsp = (Addr_t)&Context->UserEsp;
-		Context->UserSs = DataSegment;
+		Context->UserEsp = 0xFFFFFFF0;
+		Context->UserSs = StackSegment;
 		Context->UserArg = (Addr_t)Arguments;
 	}
 

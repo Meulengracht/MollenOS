@@ -1,6 +1,6 @@
 /* MollenOS
  *
- * Copyright 2011 - 2016, Philip Meulengracht
+ * Copyright 2011 - 2017, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -39,8 +39,8 @@
 
 /* Includes 
  * - System */
-#include <Arch.h>
-#include <CriticalSection.h>
+#include <arch.h>
+#include <criticalsection.h>
 
 /***************************
  * Heap Management
@@ -219,7 +219,7 @@ __CRT_EXTERN int HeapValidateAddress(Heap_t *Heap, Addr_t Address);
  * makes sure pages are mapped in memory
  * this function also returns the physical address 
  * of the allocation and aligned to PAGE_ALIGN with memory <Mask> */
-_CRT_EXPORT void *kmalloc_apm(size_t Size, Addr_t *Ptr, Addr_t Mask);
+__CRT_EXTERN void *kmalloc_apm(size_t Size, Addr_t *Ptr, Addr_t Mask);
 
 /* Simply just a wrapper for HeapAllocate
  * with the kernel heap as argument 
@@ -227,7 +227,7 @@ _CRT_EXPORT void *kmalloc_apm(size_t Size, Addr_t *Ptr, Addr_t Mask);
  * makes sure pages are mapped in memory
  * this function also returns the physical address 
  * of the allocation and aligned to PAGE_ALIGN */
-_CRT_EXPORT void *kmalloc_ap(size_t Size, Addr_t *Ptr);
+__CRT_EXTERN void *kmalloc_ap(size_t Size, Addr_t *Ptr);
 
 /* Simply just a wrapper for HeapAllocate
  * with the kernel heap as argument 
@@ -235,23 +235,23 @@ _CRT_EXPORT void *kmalloc_ap(size_t Size, Addr_t *Ptr);
  * makes sure pages are mapped in memory
  * this function also returns the physical address 
  * of the allocation */
-_CRT_EXPORT void *kmalloc_p(size_t Size, Addr_t *Ptr);
+__CRT_EXTERN void *kmalloc_p(size_t Size, Addr_t *Ptr);
 
 /* Simply just a wrapper for HeapAllocate
  * with the kernel heap as argument 
  * but this does some basic validation and
  * makes sure pages are mapped in memory 
  * the memory returned is PAGE_ALIGNED */
-_CRT_EXPORT void *kmalloc_a(size_t Size);
+__CRT_EXTERN void *kmalloc_a(size_t Size);
 
 /* Simply just a wrapper for HeapAllocate
  * but this does some basic validation and
  * makes sure pages are mapped in memory */
-_CRT_EXPORT void *kmalloc(size_t Size);
+__CRT_EXTERN void *kmalloc(size_t Size);
 
 /* kfree 
  * Wrapper for the HeapFree that essentially 
  * just calls it with the kernel heap as argument */
-_CRT_EXPORT void kfree(void *p);
+__CRT_EXTERN void kfree(void *p);
 
 #endif

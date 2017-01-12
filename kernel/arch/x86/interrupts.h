@@ -23,7 +23,6 @@
 #define _X86_INTERRUPTS_H_
 
 /* Includes */
-#include <Arch.h>
 #include <os/osdefs.h>
 
 /* Definitions */

@@ -44,8 +44,8 @@ extern void enter_thread(Registers_t *Regs);
 /* Use this to lookup the faulty module or process */
 void LookupFault(Addr_t Address, Addr_t *Base, char **Name)
 {
-	if (Address >= MEMORY_LOCATION_USER
-		&& Address < MEMORY_LOCATION_USER_HEAP)
+	if (Address >= MEMORY_LOCATION_RING3_CODE
+		&& Address < MEMORY_LOCATION_RING3_HEAP)
 	{
 		/* Get current process information */
 		MCoreAsh_t *Ash = PhoenixGetAsh(PHOENIX_CURRENT);
@@ -193,12 +193,16 @@ void RegisterDump(Registers_t *Regs)
 		Regs->Eax, Regs->Ebx, Regs->Ecx, Regs->Edx);
 
 	/* Dump ESI/EBP */
-	printf("  ESP 0x%x, EBP 0x%x, Flags 0x%x\n",
-		Regs->Esp, Regs->Ebp, Regs->Eflags);
+	printf("  ESP 0x%x (UserESP 0x%x), EBP 0x%x, Flags 0x%x\n",
+		Regs->Esp, Regs->UserEsp, Regs->Ebp, Regs->Eflags);
 
 	/* Dump segs */
 	printf("  CS 0x%x, DS 0x%x, GS 0x%x, ES 0x%x, FS 0x%x\n",
 		Regs->Cs, Regs->Ds, Regs->Gs, Regs->Es, Regs->Fs);
+
+	/* Dump irq */
+	printf("  IRQ 0x%x, ErrorCode 0x%x, UserSS 0x%x\n",
+		Regs->Irq, Regs->ErrorCode, Regs->UserSs);
 }
 
 /* Common entry for all exceptions */
@@ -316,8 +320,8 @@ void ExceptionEntry(Registers_t *regs)
 		}
 
 		/* Driver Address? */
-		if (UnmappedAddr >= MEMORY_LOCATION_IOSPACE
-			&& UnmappedAddr < MEMORY_LOCATION_USER_ARGS)
+		if (UnmappedAddr >= MEMORY_LOCATION_RING3_IOSPACE
+			&& UnmappedAddr < MEMORY_LOCATION_RING3_IOSPACE_END)
 		{
 			/* .. Probably, lets check */
 			Addr_t Physical = IoSpaceValidate(UnmappedAddr);
@@ -348,8 +352,8 @@ void ExceptionEntry(Registers_t *regs)
 		}
 
 		/* User heap address? */
-		else if (UnmappedAddr >= MEMORY_LOCATION_USER_HEAP
-			&& UnmappedAddr < MEMORY_LOCATION_USER_GUARD)
+		else if (UnmappedAddr >= MEMORY_LOCATION_RING3_HEAP
+			&& UnmappedAddr < MEMORY_LOCATION_RING3_SHM)
 		{
 			/* Get heap */
 			MCoreAsh_t *Ash = PhoenixGetAsh(PHOENIX_CURRENT);
@@ -371,13 +375,8 @@ void ExceptionEntry(Registers_t *regs)
 		}
 
 		/* User stack address? */
-		else if (UnmappedAddr >= (MEMORY_LOCATION_USER_GUARD + PAGE_SIZE)
-			&& UnmappedAddr < MEMORY_LOCATION_USER_STACK)
-		{
-			/* Map in in */
+		else if (UnmappedAddr >= MEMORY_LOCATION_STACK_END) {
 			MmVirtualMap(NULL, MmPhysicalAllocateBlock(MEMORY_MASK_DEFAULT, 1), (UnmappedAddr & PAGE_MASK), PAGE_USER);
-
-			/* Issue is fixed */
 			IssueFixed = 1;
 		}
 		

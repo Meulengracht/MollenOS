@@ -46,7 +46,7 @@ __CRT_EXTERN Registers_t *_ThreadingSwitch(Registers_t *Regs,
 /* Stack manipulation / setup of stacks for given
  * threading. We need functions that create a new kernel
  * stack and user/driver stack. Pass threading flags */
-__CRT_EXTERN Registers_t *ContextCreate(Flags_t ThreadFlags, Addr_t Eip, 
-	Addr_t StackStartAddress, Addr_t *Arguments);
+__CRT_EXTERN Registers_t *ContextCreate(Flags_t ThreadFlags, 
+	Addr_t Eip, Addr_t *Arguments);
 
 #endif // !_MCORE_THREAD_H_

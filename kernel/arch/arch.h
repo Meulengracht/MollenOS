@@ -64,30 +64,69 @@ typedef Registers_t Context_t;
 #error "Unsupported Architecture :("
 #endif
 
-/* Address Space Flags */
-#define ADDRESS_SPACE_KERNEL		0x1
-#define ADDRESS_SPACE_INHERIT		0x2
-#define ADDRESS_SPACE_USER			0x4
+/* Address space creation flags, use these
+ * to specify which kind of address space that is
+ * created */
+#define ADDRESS_SPACE_KERNEL			0x1
+#define ADDRESS_SPACE_INHERIT			0x2
+#define ADDRESS_SPACE_APPLICATION		0x4
+#define ADDRESS_SPACE_DRIVER			0x8
 
-/* Allocation Flags */
-#define ADDRESS_SPACE_FLAG_USER			0x1
+/* Address space mapping flags, use these to
+ * specify which kind of address-map that is
+ * being doine */
+#define ADDRESS_SPACE_FLAG_APPLICATION	0x1
 #define ADDRESS_SPACE_FLAG_RESERVE		0x2
 #define ADDRESS_SPACE_FLAG_NOCACHE		0x4
 #define ADDRESS_SPACE_FLAG_VIRTUAL		0x8
 
+/* AddressSpaceInitKernel
+ * Initializes the Kernel Address Space 
+ * This only copies the data into a static global
+ * storage, which means users should just pass something
+ * temporary structure */
 __CRT_EXTERN void AddressSpaceInitKernel(AddressSpace_t *Kernel);
-__CRT_EXTERN AddressSpace_t *AddressSpaceCreate(int Flags);
-__CRT_EXTERN void AddressSpaceDestroy(AddressSpace_t *AddrSpace);
-__CRT_EXTERN void AddressSpaceSwitch(AddressSpace_t *AddrSpace);
-_CRT_EXPORT AddressSpace_t *AddressSpaceGetCurrent(void);
 
-__CRT_EXTERN void AddressSpaceReleaseKernel(AddressSpace_t *AddrSpace);
+/* AddressSpaceCreate
+ * Initialize a new address space, depending on 
+ * what user is requesting we might recycle a already
+ * existing address space */
+__CRT_EXTERN AddressSpace_t *AddressSpaceCreate(Flags_t Flags);
+
+/* AddressSpaceDestroy
+ * Destroy and release all resources related
+ * to an address space, only if there is no more
+ * references */
+__CRT_EXTERN void AddressSpaceDestroy(AddressSpace_t *AddrSpace);
+
+/* AddressSpaceSwitch
+ * Switches the current address space out with the
+ * the address space provided for the current cpu */
+__CRT_EXTERN void AddressSpaceSwitch(AddressSpace_t *AddrSpace);
+
+/* AddressSpaceGetCurrent
+ * Returns the current address space
+ * if there is no active threads or threading
+ * is not setup it returns the kernel address space */
+__CRT_EXTERN AddressSpace_t *AddressSpaceGetCurrent(void);
+
+/* AddressSpaceTranslate
+ * Translates the given address to the correct virtual
+ * address, this can be used to correct any special cases on
+ * virtual addresses in the sub-layer */
+__CRT_EXTERN Addr_t AddressSpaceTranslate(AddressSpace_t *AddrSpace, 
+	Addr_t VirtualAddress);
+
 _CRT_EXPORT Addr_t AddressSpaceMap(AddressSpace_t *AddrSpace, 
 	VirtAddr_t Address, size_t Size, Addr_t Mask, int Flags);
 _CRT_EXPORT void AddressSpaceMapFixed(AddressSpace_t *AddrSpace,
 	PhysAddr_t PhysicalAddr, VirtAddr_t VirtualAddr, size_t Size, int Flags);
 _CRT_EXPORT void AddressSpaceUnmap(AddressSpace_t *AddrSpace, VirtAddr_t Address, size_t Size);
-_CRT_EXPORT PhysAddr_t AddressSpaceGetMap(AddressSpace_t *AddrSpace, VirtAddr_t Address);
+
+/* AddressSpaceGetMap
+ * Retrieves a physical mapping from an address space 
+ * for x86 we can simply just redirect it to MmVirtual */
+__CRT_EXTERN PhysAddr_t AddressSpaceGetMap(AddressSpace_t *AddrSpace, VirtAddr_t Address);
 
 /************************
  * Threading            *

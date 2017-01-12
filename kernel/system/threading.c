@@ -104,14 +104,12 @@ void ThreadingEntryPointUserMode(void)
 
 	/* It's important to create 
 	 * and map the stack before setting up */
-	Addr_t BaseAddress = ((MEMORY_LOCATION_USER_STACK - 0x1) & PAGE_MASK);
-	AddressSpaceMap(AddressSpaceGetCurrent(), 
-		BaseAddress, ASH_STACK_INIT, MEMORY_MASK_DEFAULT, ADDRESS_SPACE_FLAG_USER);
-	BaseAddress += (MEMORY_LOCATION_USER_STACK & ~(PAGE_MASK));
+	AddressSpaceMap(AddressSpaceGetCurrent(), (MEMORY_SEGMENT_STACK_BASE & PAGE_MASK),
+		ASH_STACK_INIT, MEMORY_MASK_DEFAULT, ADDRESS_SPACE_FLAG_APPLICATION);
 
 	/* Let the architecture know we want to enter
 	 * user-mode */
-	IThreadSetupUserMode(Thread, BaseAddress);
+	IThreadSetupUserMode(Thread, MEMORY_SEGMENT_STACK_BASE);
 
 	/* Nothing actually happens before this flag is set */
 	Thread->Flags |= THREADING_TRANSITION;
@@ -271,12 +269,21 @@ ThreadId_t ThreadingCreateThread(const char *Name,
 		Thread->AddressSpace = AddressSpaceCreate(ADDRESS_SPACE_INHERIT);
 	}
 	else {
-		if (Flags & THREADING_INHERIT) {
-			Thread->AddressSpace = AddressSpaceCreate(ADDRESS_SPACE_USER | ADDRESS_SPACE_INHERIT);
+		Flags_t ASFlags = 0;
+
+		if (THREADING_RUNMODE(Flags) == THREADING_DRIVERMODE) {
+			ASFlags |= ADDRESS_SPACE_DRIVER;
 		}
 		else {
-			Thread->AddressSpace = AddressSpaceCreate(ADDRESS_SPACE_USER);
+			ASFlags |= ADDRESS_SPACE_APPLICATION;
 		}
+
+		if (Flags & THREADING_INHERIT) {
+			ASFlags |= ADDRESS_SPACE_INHERIT;
+		}
+
+		/* Create the address space */
+		Thread->AddressSpace = AddressSpaceCreate(ASFlags);
 	}
 
 	/* Create thread-data 
@@ -404,8 +411,11 @@ void ThreadingEnterUserMode(void *AshInfo)
 
 	/* Update this thread */
 	Thread->AshId = Ash->Id;
+
+	/* Only translate the argument address, since the pe
+	 * loader already translates any image address */
 	Thread->Function = (ThreadEntry_t)Ash->Executable->EntryAddress;
-	Thread->Args = (void*)MEMORY_LOCATION_USER_ARGS;
+	Thread->Args = (void*)AddressSpaceTranslate(AddressSpaceGetCurrent(), MEMORY_LOCATION_RING3_ARGS);
 
 	/* Underlying Call  */
 	IThreadSetupUserMode(Thread, Ash->StackStart);

@@ -121,7 +121,7 @@ void *IThreadCreate(Flags_t ThreadFlags, Addr_t EntryPoint)
 	/* Don't create contexts for idle threads 
 	 * Otherwise setup a kernel stack */
 	if (!(ThreadFlags & THREADING_IDLE)) {
-		Thread->Context = ContextCreate(THREADING_KERNELMODE, EntryPoint, 0, NULL);
+		Thread->Context = ContextCreate(THREADING_KERNELMODE, EntryPoint, NULL);
 	}
 
 	/* If its the first time we run, install
@@ -143,11 +143,12 @@ void IThreadSetupUserMode(MCoreThread_t *Thread, Addr_t StackAddress)
 {
 	/* Initialize a pointer to x86 specific data */
 	x86Thread_t *tData = (x86Thread_t*)Thread->ThreadData;
+	_CRT_UNUSED(StackAddress);
 
 	/* Initialize a user/driver-context based on
-	 * the requested runmode*/
+	 * the requested runmode */
 	tData->UserContext = ContextCreate(Thread->Flags,
-		(Addr_t)Thread->Function, StackAddress, (Addr_t*)Thread->Args);
+		(Addr_t)Thread->Function, (Addr_t*)Thread->Args);
 
 	/* Disable all port-access */
 	memset(&tData->IoMap[0], 0xFF, GDT_IOMAP_SIZE);
@@ -297,6 +298,7 @@ Registers_t *_ThreadingSwitch(Registers_t *Regs,
 		return Tx->Context;
 	}	
 	else {
+		_asm xchg bx, bx;
 		return Tx->UserContext;
 	}
 }

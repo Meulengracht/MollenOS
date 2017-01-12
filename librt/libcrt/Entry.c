@@ -39,11 +39,9 @@ void __EntryLibCEmpty(void)
 
 /* Private Definitions */
 #ifdef _X86_32
-#define MOLLENOS_ARGUMENT_ADDR	0x60000000
-#define MOLLENOS_RESERVED_SPACE	0xFFFFFFF4
+#define MOLLENOS_ARGUMENT_ADDR	0xF000000
 #elif defined(X86_64)
-#define MOLLENOS_ARGUMENT_ADDR	0x60000000
-#define MOLLENOS_RESERVED_SPACE	0xFFFFFFF4
+#define MOLLENOS_ARGUMENT_ADDR	0xF000000
 #endif
 
 /* Extern */
@@ -144,14 +142,6 @@ int ParseCommandLine(char *CmdLine, char **ArgBuffer)
  * call this in all entry points */
 void _mCrtInit(ThreadLocalStorage_t *Tls)
 {
-	/* Variables */
-	uint64_t *ReservedSpace = NULL;
-
-	/* Initialize the 8 bytes
-	* of storage */
-	ReservedSpace = (uint64_t*)MOLLENOS_RESERVED_SPACE;
-	*ReservedSpace = (uint64_t)(size_t)Tls;
-
 	/* Init Crt */
 	__CppInit();
 

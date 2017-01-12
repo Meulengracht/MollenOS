@@ -184,7 +184,7 @@ Addr_t PeHandleSections(MCorePeFile_t *PeFile, uint8_t *Data,
 			if (!AddressSpaceGetMap(AddressSpaceGetCurrent(), Calculated)) {
 				AddressSpaceMap(AddressSpaceGetCurrent(), Calculated, 
 					PAGE_SIZE, MEMORY_MASK_DEFAULT, 
-					(UserSpace == 1) ? ADDRESS_SPACE_FLAG_USER : 0);
+					(UserSpace == 1) ? ADDRESS_SPACE_FLAG_APPLICATION : 0);
 			}
 		}
 
@@ -292,14 +292,16 @@ void PeHandleRelocations(MCorePeFile_t *PeFile,
 				/* Create a pointer, the low 12 bits have 
 				 * an offset into the PageRVA */
 				Addr_t Offset = (PeFile->VirtualAddress + PageRVA + Value);
+				Addr_t Translated = AddressSpaceTranslate(AddressSpaceGetCurrent(), 
+					PeFile->VirtualAddress);
 
 				/* Should we add or subtract? */
-				if (PeFile->VirtualAddress >= ImageBase) {
-					Addr_t Delta = (Addr_t)(PeFile->VirtualAddress - ImageBase);
+				if (Translated >= ImageBase) {
+					Addr_t Delta = (Addr_t)(Translated - ImageBase);
 					*((Addr_t*)Offset) += Delta;
 				}
 				else {
-					Addr_t Delta = (Addr_t)(ImageBase - PeFile->VirtualAddress);
+					Addr_t Delta = (Addr_t)(ImageBase - Translated);
 					*((Addr_t*)Offset) -= Delta;
 				}
 			}
@@ -359,7 +361,8 @@ void PeHandleExports(MCorePeFile_t *PeFile, PeDataDirectory_t *ExportDirectory)
 		/* Setup */
 		ExFunc->Name = (char*)(PeFile->VirtualAddress + FunctionNamesPtr[i]);
 		ExFunc->Ordinal = FunctionOrdinalsPtr[i];
-		ExFunc->Address = (Addr_t)(PeFile->VirtualAddress + FunctionAddrPtr[ExFunc->Ordinal]);
+		ExFunc->Address = AddressSpaceTranslate(AddressSpaceGetCurrent(), 
+			(Addr_t)(PeFile->VirtualAddress + FunctionAddrPtr[ExFunc->Ordinal]));
 
 		/* Add to list */
 		Key.Value = (int)ExFunc->Ordinal;
@@ -710,7 +713,8 @@ MCorePeFile_t *PeLoadImage(MCorePeFile_t *Parent, MString_t *Name,
 
 	/* Set the entry point if there is any */
 	if (OptHeader->EntryPoint != 0) {
-		PeInfo->EntryAddress = PeInfo->VirtualAddress + OptHeader->EntryPoint;
+		PeInfo->EntryAddress = AddressSpaceTranslate(AddressSpaceGetCurrent(), 
+			PeInfo->VirtualAddress + OptHeader->EntryPoint);
 	}
 	else {
 		PeInfo->EntryAddress = 0;
@@ -734,9 +738,6 @@ MCorePeFile_t *PeLoadImage(MCorePeFile_t *Parent, MString_t *Name,
 
 	/* Now we can handle the imports */
 	PeHandleImports(Parent, PeInfo, &DirectoryPtr[PE_SECTION_IMPORT], BaseAddress);
-
-	LogDebug("PEXE", "%s: Entry 0x%x, BaseAddress 0x%x",
-		MStringRaw(PeInfo->Name), PeInfo->EntryAddress, *BaseAddress);
 
 	/* Done */
 	return PeInfo;
