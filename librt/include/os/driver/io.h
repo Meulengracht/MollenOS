@@ -74,7 +74,7 @@ _MOS_API size_t ReadIoSpace(DeviceIoSpace_t *IoSpace, size_t Offset, size_t Leng
 /* Write data from the given io-space at <offset> with 
  * the given <length>, the offset and length must be below 
  * the size of the io-space */
-_MOS_API void IoSpaceWrite(DeviceIoSpace_t *IoSpace, 
+_MOS_API void WriteIoSpace(DeviceIoSpace_t *IoSpace, 
 	size_t Offset, size_t Value, size_t Length);
 
 #endif //!_MCORE_DEVICE_IO_H_

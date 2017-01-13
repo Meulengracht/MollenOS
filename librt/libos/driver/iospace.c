@@ -134,7 +134,7 @@ size_t ReadIoSpace(DeviceIoSpace_t *IoSpace, size_t Offset, size_t Length)
 /* Write data from the given io-space at <offset> with 
  * the given <length>, the offset and length must be below 
  * the size of the io-space */
-void IoSpaceWrite(DeviceIoSpace_t *IoSpace, size_t Offset, size_t Value, size_t Length)
+void WriteIoSpace(DeviceIoSpace_t *IoSpace, size_t Offset, size_t Value, size_t Length)
 {
 	/* Assert that its a valid offset
 	* we are trying to write to */

@@ -111,7 +111,7 @@ typedef struct _MCoreDevice
  * device-manager, and automatically queries
  * for a driver for the new device */
 #ifdef __DEVICEMANAGER_EXPORT
-__DEVAPI DevId_t RegisterDevice(MCoreDevice_t *Device);
+__DEVAPI DevId_t RegisterDevice(MCoreDevice_t *Device, const char *Name);
 #else
 __DEVAPI DevId_t RegisterDevice(MCoreDevice_t *Device)
 {

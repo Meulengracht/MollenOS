@@ -30,6 +30,14 @@
 #include <os/osdefs.h>
 #include <ds/list.h>
 
+/* Fixed device-id and vendor-id values for 
+ * loading non-dynamic devices */
+#define PCI_FIXED_VENDORID					0xFFEF
+#define PCI_CMOS_RTC_VENDORID				0x0010
+#define PCI_PIT_VENDORID					0x0020
+#define PCI_PS2_VENDORID					0x0030
+#define PCI_HPET_VENDORID					0x0040
+
 /* To be able to access bus data we need io-space
  * access, so lets define the io-ports neccessary
  * for accessing PCI (legacy), not PCIe */

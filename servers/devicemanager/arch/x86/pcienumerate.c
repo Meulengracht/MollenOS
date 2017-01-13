@@ -25,6 +25,7 @@
  * - System */
 #include <os/driver/device.h>
 #include <os/driver/acpi.h>
+#include <os/mollenos.h>
 #include "bus.h"
 
 /* Includes
@@ -32,7 +33,9 @@
 #include <stdlib.h>
 #include <stddef.h>
 
-/* The MCFG Entry */
+/* PCI-Express Support
+ * This is the acpi-mcfg entry structure that
+ * represents an pci-express controller */
 #pragma pack(push, 1)
 typedef struct _McfgEntry {
 	uint64_t			BaseAddress;
@@ -43,23 +46,33 @@ typedef struct _McfgEntry {
 } McfgEntry_t; 
 #pragma pack(pop)
 
-/* Globals */
+/* Globals, we want to
+ * keep track of all pci-devices by having this root device */
 PciDevice_t *GlbRootBridge = NULL;
 
-/* Prototypes */
-void PciCheckBus(PciDevice_t *Parent, uint8_t BusNo);
+/* Prototypes
+ * we need access to this function again.. */
+void PciCheckBus(PciDevice_t *Parent, int Bus);
 
-/* Create class information from dev */
+/* PciToDevClass
+ * Helper to construct the class from
+ * available pci-information */
 DevInfo_t PciToDevClass(uint32_t Class, uint32_t SubClass)
 {
 	return ((Class & 0xFFFF) << 16 | SubClass & 0xFFFF);
 }
 
+/* PciToDevSubClass
+ * Helper to construct the sub-class from
+ * available pci-information */
 DevInfo_t PciToDevSubClass(uint32_t Interface)
 {
 	return ((Interface & 0xFFFF) << 16 | 0);
 }
 
+/* PciSetIoSpace
+ * Helper function to construct a new
+ * io-space that uses static memory */
 void PciSetIoSpace(MCoreDevice_t *Device, int Index, int Type, Addr_t Base, size_t Length)
 {
 	Device->IoSpaces[Index].Type = Type;
@@ -67,58 +80,68 @@ void PciSetIoSpace(MCoreDevice_t *Device, int Index, int Type, Addr_t Base, size
 	Device->IoSpaces[Index].Size = Length;
 }
 
-/* Validate size */
+/* PciValidateBarSize
+ * Validates the size of a bar and the validity of
+ * the bar-size */
 uint64_t PciValidateBarSize(uint64_t Base, uint64_t MaxBase, uint64_t Mask)
 {
 	/* Find the significant bits */
 	uint64_t Size = Mask & MaxBase;
 
 	/* Sanity */
-	if (!Size)
+	if (!Size) {
 		return 0;
+	}
 
 	/* Calc correct size */
 	Size = (Size & ~(Size - 1)) - 1;
 
 	/* Sanitize the base */
-	if (Base == MaxBase && ((Base | Size) & Mask) != Mask)
+	if (Base == MaxBase && ((Base | Size) & Mask) != Mask) {
 		return 0;
-
-	/* Done! */
-	return Size;
+	}
+	else {
+		return Size;
+	}
 }
 
-/* Read IO Areas */
+/* PciReadBars
+ * Reads and initializes all available bars for the 
+ * given pci-device */
 void PciReadBars(PciBus_t *Bus, MCoreDevice_t *Device, uint32_t HeaderType)
 {
-	/* Sanity */
+	/* Variables, initialize count to
+	 * either 2 or 6 depending on header type */
 	int Count = (HeaderType & 0x1) == 0x1 ? 2 : 6;
 	int i;
 
-	/* Iterate */
+	/* Iterate all the avilable bars */
 	for (i = 0; i < Count; i++)
 	{
-		/* Vars */
-		uint32_t Offset = 0x10 + (i << 2);
+		/* Variables for initializing bars */
+		size_t Offset = 0x10 + (i << 2);
 		uint32_t Space32, Size32, Mask32;
 		uint64_t Space64, Size64, Mask64;
 
 		/* Calc initial mask */
 		Mask32 = (HeaderType & 0x1) == 0x1 ? ~0x7FF : 0xFFFFFFFF;
 
-		/* Read */
+		/* Read all the bar information */
 		Space32 = PciRead32(Bus, Device->Bus, Device->Device, Device->Function, Offset);
 		PciWrite32(Bus, Device->Bus, Device->Device, Device->Function, Offset, Space32 | Mask32);
 		Size32 = PciRead32(Bus, Device->Bus, Device->Device, Device->Function, Offset);
 		PciWrite32(Bus, Device->Bus, Device->Device, Device->Function, Offset, Space32);
 
-		/* Sanity */
-		if (Size32 == 0xFFFFFFFF)
+		/* Sanitize the size and space values */
+		if (Size32 == 0xFFFFFFFF) {
 			Size32 = 0;
-		if (Space32 == 0xFFFFFFFF)
+		}
+		if (Space32 == 0xFFFFFFFF) {
 			Space32 = 0;
+		}
 
-		/* Io? */
+		/* Which kind of io-space is it,
+		 * if bit 0 is set, it's io and not mmio */
 		if (Space32 & 0x1) 
 		{
 			/* Modify mask */
@@ -134,10 +157,10 @@ void PciReadBars(PciBus_t *Bus, MCoreDevice_t *Device, uint32_t HeaderType)
 				PciSetIoSpace(Device, i, IO_SPACE_IO, (Addr_t)Space64, (size_t)Size64);
 			}
 		}
-
-		/* Memory, 64 bit or 32 bit? */
-		else if (Space32 & 0x4) {
-
+		/* Ok, its memory, but is it 64 bit or 32 bit? 
+		 * Bit 2 is set for 64 bit memory space */
+		else if (Space32 & 0x4) 
+		{
 			/* 64 Bit */
 			Space64 = Space32 & 0xFFFFFFF0;
 			Size64 = Size32 & 0xFFFFFFF0;
@@ -147,20 +170,19 @@ void PciReadBars(PciBus_t *Bus, MCoreDevice_t *Device, uint32_t HeaderType)
 			i++;
 			Offset = 0x10 + (i << 2);
 
-			/* Read */
+			/* Get the size of the spaces */
 			Space32 = PciRead32(Bus, Device->Bus, Device->Device, Device->Function, Offset);
 			PciWrite32(Bus, Device->Bus, Device->Device, Device->Function, Offset, 0xFFFFFFFF);
 			Size32 = PciRead32(Bus, Device->Bus, Device->Device, Device->Function, Offset);
 			PciWrite32(Bus, Device->Bus, Device->Device, Device->Function, Offset, Space32);
 
-			/* Add */
+			/* Add it to our current */
 			Space64 |= ((uint64_t)Space32 << 32);
 			Size64 |= ((uint64_t)Size32 << 32);
 
-			/* Sanity */
-			if (sizeof(Addr_t) < 8
-				&& Space64 > SIZE_MAX) {
-				//LogFatal("PCIE", "Found 64 bit device with 64 bit address, can't use it in 32 bit mode");
+			/* Sanitize the space */
+			if (sizeof(Addr_t) < 8 && Space64 > SIZE_MAX) {
+				MollenOSSystemLog("Found 64 bit device with 64 bit address, can't use it in 32 bit mode");
 				return;
 			}
 
@@ -168,8 +190,7 @@ void PciReadBars(PciBus_t *Bus, MCoreDevice_t *Device, uint32_t HeaderType)
 			Size64 = PciValidateBarSize(Space64, Size64, Mask64);
 
 			/* Create */
-			if (Space64 != 0
-				&& Size64 != 0) {
+			if (Space64 != 0 && Size64 != 0) {
 				PciSetIoSpace(Device, i, IO_SPACE_MMIO, (Addr_t)Space64, (size_t)Size64);
 			}
 		}
@@ -191,25 +212,27 @@ void PciReadBars(PciBus_t *Bus, MCoreDevice_t *Device, uint32_t HeaderType)
 	}
 }
 
-/* Check a function */
-/* For each function we create a 
- * pci_device and add it to the list */
-void PciCheckFunction(PciDevice_t *Parent, uint8_t Bus, uint8_t Device, uint8_t Function)
+/* PciCheckFunction
+ * Create a new pci-device from a valid
+ * bus/device/function location on the bus */
+void PciCheckFunction(PciDevice_t *Parent, int Bus, int Device, int Function)
 {
 	/* Vars */
-	uint8_t SecondBus;
-	PciNativeHeader_t *Pcs;
-	PciDevice_t *PciDevice;
+	PciDevice_t *PciDevice = NULL;
+	PciNativeHeader_t *Pcs = NULL;
+	int SecondBus = 0;
 	DataKey_t lKey;
 
-	/* Allocate */
+	/* Allocate new instances of both the pci-header information
+	 * and the pci-device structure */
 	Pcs = (PciNativeHeader_t*)malloc(sizeof(PciNativeHeader_t));
 	PciDevice = (PciDevice_t*)malloc(sizeof(PciDevice_t));
 
-	/* Get full information */
-	PciReadFunction(Pcs, Parent->BusIo, Bus, Device, Function);
+	/* Read entire function information */
+	PciReadFunction(Pcs, Parent->BusIo, 
+		(DevInfo_t)Bus, (DevInfo_t)Device, (DevInfo_t)Function);
 
-	/* Set information */
+	/* Set initial stuff */
 	PciDevice->Parent = Parent;
 	PciDevice->BusIo = Parent->BusIo;
 	PciDevice->Header = Pcs;
@@ -220,22 +243,19 @@ void PciCheckFunction(PciDevice_t *Parent, uint8_t Bus, uint8_t Device, uint8_t 
 
 	/* Info 
 	 * Ignore the spam of device_id 0x7a0 in VMWare*/
-	if (Pcs->DeviceId != 0x7a0)
-	{
-#ifdef X86_PCI_DIAGNOSE
-		printf("    * [%d:%d:%d][%d:%d:%d] Vendor 0x%x, Device 0x%x : %s\n",
+#ifdef PCI_DIAGNOSE
+	if (Pcs->DeviceId != 0x7a0) {
+		MollenOSSystemLog("    * [%d:%d:%d][%d:%d:%d] Vendor 0x%x, Device 0x%x : %s\n",
 			Pcs->Class, Pcs->Subclass, Pcs->Interface,
 			Bus, Device, Function,
 			Pcs->VendorId, Pcs->DeviceId,
 			PciToString(Pcs->Class, Pcs->Subclass, Pcs->Interface));
-#endif
 	}
+#endif
 
 	/* Do some disabling, but NOT on the video or bridge */
 	if ((Pcs->Class != PCI_CLASS_BRIDGE)
-		&& (Pcs->Class != PCI_CLASS_VIDEO))
-	{
-		/* Disable Device untill further notice */
+		&& (Pcs->Class != PCI_CLASS_VIDEO)) {
 		uint16_t PciSettings = PciRead16(PciDevice->BusIo, Bus, Device, Function, 0x04);
 		PciWrite16(PciDevice->BusIo, Bus, Device, Function, 0x04,
 			PciSettings | PCI_COMMAND_INTDISABLE);
@@ -243,8 +263,7 @@ void PciCheckFunction(PciDevice_t *Parent, uint8_t Bus, uint8_t Device, uint8_t 
 	
 	/* Add to list */
 	if (Pcs->Class == PCI_CLASS_BRIDGE
-		&& Pcs->Subclass == PCI_BRIDGE_SUBCLASS_PCI)
-	{
+		&& Pcs->Subclass == PCI_BRIDGE_SUBCLASS_PCI) {
 		PciDevice->IsBridge = 1;
 		lKey.Value = 1;
 		ListAppend((List_t*)Parent->Children, ListCreateNode(lKey, lKey, PciDevice));
@@ -256,61 +275,71 @@ void PciCheckFunction(PciDevice_t *Parent, uint8_t Bus, uint8_t Device, uint8_t 
 		SecondBus = PciReadSecondaryBusNumber(PciDevice->BusIo, Bus, Device, Function);
 		PciCheckBus(PciDevice, SecondBus);
 	}
-	else
-	{
-		/* This is an device */
+	else {
 		PciDevice->IsBridge = 0;
 		lKey.Value = 0;
 		ListAppend((List_t*)Parent->Children, ListCreateNode(lKey, lKey, PciDevice));
 	}
 }
 
-/* Check a device */
-void PciCheckDevice(PciDevice_t *Parent, uint8_t Bus, uint8_t Device)
+/* PciCheckDevice
+ * Checks if there is any connection on the given
+ * pci-location, and enumerates it's function if available */
+void PciCheckDevice(PciDevice_t *Parent, int Bus, int Device)
 {
-	uint8_t Function = 0;
+	/* Variables */
 	uint16_t VendorId = 0;
-	uint8_t HeaderType = 0;
+	int Function = 0;
 
-	/* Get vendor id */
-	VendorId = PciReadVendorId(Parent->BusIo, Bus, Device, Function);
+	/* Validate the vendor id, it's invalid only
+	 * if there is no device on that location */
+	VendorId = PciReadVendorId(Parent->BusIo, 
+		(DevInfo_t)Bus, (DevInfo_t)Device, (DevInfo_t)Function);
 
-	/* Sanity */
-	if (VendorId == 0xFFFF)
+	/* Sanitize */
+	if (VendorId == 0xFFFF) {
 		return;
+	}
 
-	/* Check function 0 */
+	/* Check base function */
 	PciCheckFunction(Parent, Bus, Device, Function);
-	HeaderType = PciReadHeaderType(Parent->BusIo, Bus, Device, Function);
 
-	/* Multi-function or single? */
-	if (HeaderType & 0x80)
-	{
-		/* It is a multi-function device, so check remaining functions */
-		for (Function = 1; Function < 8; Function++)
-		{
-			/* Only check if valid vendor */
-			if (PciReadVendorId(Parent->BusIo, Bus, Device, Function) != 0xFFFF)
+	/* Multi-function or single? 
+	 * If it is a multi-function device, check remaining functions */
+	if (PciReadHeaderType(Parent->BusIo, 
+		(DevInfo_t)Bus, (DevInfo_t)Device, (DevInfo_t)Function) & 0x80) {
+		for (Function = 1; Function < 8; Function++) {
+			if (PciReadVendorId(Parent->BusIo, Bus, Device, Function) != 0xFFFF) {
 				PciCheckFunction(Parent, Bus, Device, Function);
+			}
 		}
 	}
 }
 
-/* Check a bus */
-void PciCheckBus(PciDevice_t *Parent, uint8_t BusNo)
+/* PciCheckBus
+ * Enumerates all possible devices on the given bus */
+void PciCheckBus(PciDevice_t *Parent, int Bus)
 {
-	/* Vars */
-	uint8_t Device;
+	/* Variables */
+	int Device;
 
-	/* Iterate devices on bus */
-	for (Device = 0; Device < 32; Device++)
-		PciCheckDevice(Parent, BusNo, Device);
+	/* Sanitize parameters */
+	if (Parent == NULL || Bus < 0) {
+		return;
+	}
+
+	/* Iterate all possible 32 devices on the pci-bus */
+	for (Device = 0; Device < 32; Device++) {
+		PciCheckDevice(Parent, Bus, Device);
+	}
 }
 
-/* Convert PciDevice to MCoreDevice */
+/* PciCreateDeviceFromPci
+ * Creates a new MCoreDevice_t from a pci-device 
+ * and registers it with the device-manager */
 void PciCreateDeviceFromPci(PciDevice_t *PciDev)
 {
-	/* Register device with the OS */
+	/* Allocate a new instance of the device structure */
 	MCoreDevice_t *mDevice = (MCoreDevice_t*)malloc(sizeof(MCoreDevice_t));
 	memset(mDevice, 0, sizeof(MCoreDevice_t));
 
@@ -357,25 +386,47 @@ void PciCreateDeviceFromPci(PciDevice_t *PciDev)
 	}
 
 	/* Register */
-	RegisterDevice(mDevice);
+	RegisterDevice(mDevice, PciToString(PciDev->Header->Class, 
+		PciDev->Header->Subclass, PciDev->Header->Interface));
 }
 
-/* Install Driver Callback */
+/* PciInstallDriverCallback
+ * Enumerates all found pci-devices in our list
+ * and loads drivers for the them */
 void PciInstallDriverCallback(void *Data, int No, void *Context)
 {
-	/* Cast */
+	/* Initialize a pci-dev pointer */
 	PciDevice_t *PciDev = (PciDevice_t*)Data;
 	_CRT_UNUSED(No);
 
-	/* Bridge or device? */
+	/* Bridge or device? 
+	 * If a bridge, we keep iterating, device, load driver */
 	if (PciDev->IsBridge) {
 		ListExecuteAll((List_t*)PciDev->Children, PciInstallDriverCallback, Context);
 	}
-	else
-	{
-		/* Create device! */
+	else {
 		PciCreateDeviceFromPci(PciDev);
 	}
+}
+
+/* BusInstallFixed
+ * Loads a fixed driver for the vendorid/deviceid */
+void BusInstallFixed(DevInfo_t DeviceId)
+{
+	/* We need some static storage */
+	MCoreDevice_t Device;
+	memset(&Device, 0, sizeof(MCoreDevice_t));
+
+	/* Update parameters */
+	Device.VendorId = PCI_FIXED_VENDORID;
+	Device.DeviceId = DeviceId;
+
+	/* Invalidate generics */
+	Device.Class = 0xFFFF;
+	Device.Subclass = 0xFFFF;
+
+	/* Install driver */
+	InstallDriver(&Device);
 }
 
 /* BusEnumerate
@@ -387,54 +438,65 @@ void BusEnumerate(void)
 	AcpiDescriptor_t Acpi;
 	ACPI_TABLE_HEADER *Header = NULL;
 	ACPI_TABLE_MCFG *McfgTable = NULL;
+	ACPI_TABLE_HPET *HpetTable = NULL;
 	int Function;
-	uint32_t BusNo;
-	uint8_t HeaderType;
+
+	/* Initialize the root bridge element */
+	GlbRootBridge = (PciDevice_t*)malloc(sizeof(PciDevice_t));
+	memset(GlbRootBridge, 0, sizeof(PciDevice_t));
+
+	/* Set some initial vars */
+	GlbRootBridge->Children = ListCreate(KeyInteger, LIST_NORMAL);
+	GlbRootBridge->IsBridge = 1;
 
 	/* Query acpi information */
 	if (AcpiQueryStatus(&Acpi) == OsNoError) {
-		/* Acpi is available! */
+		MollenOSSystemLog("Acpi is available! Version 0x%x", Acpi.Version);
+
+		/* PCI-Express */
 		if (AcpiQueryTable(ACPI_SIG_MCFG, &Header) == OsNoError) {
-			/* Wuhu! */
+			MollenOSSystemLog("Found PCIe controller (mcfg length 0x%x)", Header->Length);
 			//McfgTable = (ACPI_TABLE_MCFG*)Header;
 			//remember to free(McfgTable)
+			free(Header);
 		}
 
-		/* Check for things */
-		if (!(Acpi.BootFlags & ACPI_IA_NO_CMOS_RTC)) {
-			/* Boot up the CMOS and RTC */
-			//LoadDriver(CMOS_AND_RTC) 
+		/* HPET */
+		if (AcpiQueryTable(ACPI_SIG_HPET, &Header) == OsNoError) {
+			MollenOSSystemLog("Found hpet");
+			free(Header);
+			BusInstallFixed(PCI_HPET_VENDORID);
 		}
+		else {
+			/* Install PIT if no RTC */
+			if (!(Acpi.BootFlags & ACPI_IA_NO_CMOS_RTC)) {
+				BusInstallFixed(PCI_PIT_VENDORID);
+			}
+		}
+
+		/* Boot up cmos */
+		BusInstallFixed(PCI_CMOS_RTC_VENDORID);
+
+		/* Does the PS2 exist in our system? */
 		if (Acpi.BootFlags & ACPI_IA_8042) {
-			/* Boot up PIT and PS2 */
-			//LoadDriver(PIT)
-			//LoadDriver(PS2)
+			BusInstallFixed(PCI_PS2_VENDORID);
 		}
 	}
 	else {
 		/* We can pretty much assume all 8042 devices
 		 * are present in system, like RTC, PS2, etc */
-		//LoadDriver(CMOS_AND_RTC) 
-		//LoadDriver(PIT)
-		//LoadDriver(PS2)
+		BusInstallFixed(PCI_CMOS_RTC_VENDORID);
+		BusInstallFixed(PCI_PIT_VENDORID);
+		BusInstallFixed(PCI_PS2_VENDORID);
 	}
-
-	/* Init list, this is "bus 0" */
-	GlbRootBridge = (PciDevice_t*)malloc(sizeof(PciDevice_t));
-	GlbRootBridge->Children = ListCreate(KeyInteger, LIST_NORMAL);
-	GlbRootBridge->Bus = 0;
-	GlbRootBridge->Device = 0;
-	GlbRootBridge->Function = 0;
-	GlbRootBridge->Header = NULL;
-	GlbRootBridge->Parent = NULL;
 
 	/* Pci Express */
 	if (McfgTable != NULL)
 	{
 		/* Woah, there exists Pci Express Controllers */
-		uint32_t EntryCount = (McfgTable->Header.Length - sizeof(ACPI_TABLE_MCFG) / sizeof(McfgEntry_t));
-		uint32_t Itr = 0;
 		McfgEntry_t *Entry = (McfgEntry_t*)((uint8_t*)McfgTable + sizeof(ACPI_TABLE_MCFG));
+		size_t EntryCount = (McfgTable->Header.Length - sizeof(ACPI_TABLE_MCFG) / sizeof(McfgEntry_t));
+		size_t Itr = 0;
 
 		/* Iterate */
 		for (Itr = 0; Itr < EntryCount; Itr++)
@@ -459,8 +521,7 @@ void BusEnumerate(void)
 
 			/* Enumerate devices */
 			for (Function = Bus->BusStart; Function <= Bus->BusEnd; Function++) {
-				BusNo = Function;
-				PciCheckBus(GlbRootBridge, (uint8_t)BusNo);
+				PciCheckBus(GlbRootBridge, Function);
 			}
 
 			/* Next */
@@ -472,44 +533,48 @@ void BusEnumerate(void)
 	}
 	else
 	{
-		/* Allocate entry */
+		/* Allocate a new pci-bus controller */
 		PciBus_t *Bus = (PciBus_t*)malloc(sizeof(PciBus_t));
 		memset(Bus, 0, sizeof(PciBus_t));
 
-		/* Setup */
+		/* Store the newly allocated bus in root bridge */
+		GlbRootBridge->BusIo = Bus;
+
+		/* Setup some initial stuff */
 		Bus->BusEnd = 7;
 		
-		/* Setup io-space */
+		/* Initialize a fixed io-space */
 		Bus->IoSpace.Type = IO_SPACE_IO;
 		Bus->IoSpace.PhysicalBase = PCI_IO_BASE;
 		Bus->IoSpace.Size = PCI_IO_LENGTH;
+		
+		/* Register the io-space with the system */
+		if (CreateIoSpace(&Bus->IoSpace) != OsNoError) {
+			MollenOSSystemLog("Failed to initialize bus io");
+			for (;;);
+		}
 
-		/* Store bus */
-		GlbRootBridge->BusIo = Bus;
-
-		/* Pci Legacy */
-		HeaderType = PciReadHeaderType(Bus, 0, 0, 0);
-
-		if ((HeaderType & 0x80) == 0)
-		{
-			/* Single PCI host controller */
+		/* Now we acquire the io-space */
+		if (AcquireIoSpace(&Bus->IoSpace) != OsNoError) {
+			MollenOSSystemLog("Failed to acquire bus io with id %u", Bus->IoSpace.Id);
+			for (;;);
+		}
+		
+		/* We can check whether or not it's a multi-function
+		 * root-bridge, in that case there are multiple buses */
+		if (!(PciReadHeaderType(Bus, 0, 0, 0) & 0x80)) {
 			PciCheckBus(GlbRootBridge, 0);
 		}
-		else
-		{
-			/* Multiple PCI host controllers */
-			for (Function = 0; Function < 8; Function++)
-			{
+		else {
+			for (Function = 0; Function < 8; Function++) {
 				if (PciReadVendorId(Bus, 0, 0, Function) != 0xFFFF)
 					break;
-
-				/* Check bus */
-				BusNo = Function;
-				PciCheckBus(GlbRootBridge, (uint8_t)BusNo);
+				PciCheckBus(GlbRootBridge, Function);
 			}
 		}
 	}
 
-	/* Step 1. Enumerate bus */
+	/* Now, that the bus is enumerated, we can
+	 * iterate the found devices and load drivers */
 	ListExecuteAll(GlbRootBridge->Children, PciInstallDriverCallback, NULL);
 }

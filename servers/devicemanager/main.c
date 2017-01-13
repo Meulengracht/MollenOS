@@ -62,8 +62,6 @@ int ServerMain(void *Data)
 
 	/* Register us with server manager */
 	RegisterServer(__DEVICEMANAGER_TARGET);
-	MollenOSSystemLog("Hello from our first ever server!! DEVICEMANAGER!");
-	for (;;);
 
 	/* Enumerate bus controllers/devices */
 	BusEnumerate();
@@ -86,7 +84,7 @@ int ServerMain(void *Data)
 					PipeRead(PIPE_DEFAULT, &Device, sizeof(MCoreDevice_t));
 
 					/* Evaluate request */
-					Result = RegisterDevice(Device);
+					Result = RegisterDevice(Device, NULL);
 
 					/* Write the result back to the caller */
 					PipeSend(Message.Sender, Message.Port, 
@@ -122,11 +120,16 @@ int ServerMain(void *Data)
  * Allows registering of a new device in the
  * device-manager, and automatically queries
  * for a driver for the new device */
-DevId_t RegisterDevice(MCoreDevice_t *Device)
+DevId_t RegisterDevice(MCoreDevice_t *Device, const char *Name)
 {
 	/* Variables */
 	DevId_t DeviceId = GlbDeviceIdGen++;
 	DataKey_t Key;
+
+	/* Debug information */
+	if (Name != NULL) {
+		MollenOSSystemLog("Registered device %s", Name);
+	}
 
 	/* Update id, add to list */
 	Key.Value = DeviceId;
@@ -135,6 +138,9 @@ DevId_t RegisterDevice(MCoreDevice_t *Device)
 
 	/* Now, we want to try to find a driver
 	 * for the new device */
+	if (InstallDriver(Device) == OsError) {
+		MollenOSSystemLog("No driver found");
+	}
 
 	/* Done with processing of the new device */
 	return DeviceId;

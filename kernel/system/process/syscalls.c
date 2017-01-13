@@ -23,11 +23,11 @@
  * - System */
 #include <Arch.h>
 #include <process/process.h>
-#include <Threading.h>
-#include <Scheduler.h>
-#include <Heap.h>
-#include <Timers.h>
-#include <Log.h>
+#include <threading.h>
+#include <scheduler.h>
+#include <heap.h>
+#include <timers.h>
+#include <log.h>
 
 /* Includes
  * - Library */
@@ -776,6 +776,7 @@ OsStatus_t ScRpcResponse(MRemoteCall_t *Rpc)
 	/* Variables */
 	MCoreAsh_t *Ash = NULL;
 	MCorePipe_t *Pipe = NULL;
+	size_t ToRead = Rpc->Result.Length;
 
 	/* Resolve the current running process
 	 * and the default pipe in the rpc */
@@ -788,8 +789,13 @@ OsStatus_t ScRpcResponse(MRemoteCall_t *Rpc)
 		return OsError;
 	}
 
+	/* Wait for data to enter the pipe TODO */
+	//PipeWait();
+	//if (PipeBytesAvailable(Pipe) < ToRead)
+	//	ToRead = PipeBytesAvailable(Pipe);
+
 	/* Read the data into the response-buffer */
-	PipeRead(Pipe, (uint8_t*)Rpc->Result.Buffer, Rpc->Result.Length, 0);
+	PipeRead(Pipe, (uint8_t*)Rpc->Result.Buffer, ToRead, 0);
 
 	/* Done, it finally ran! */
 	return OsNoError;
@@ -877,7 +883,7 @@ OsStatus_t ScEvtExecute(MEventMessage_t *Event, IpcComm_t Target)
 /***********************
 * VFS Functions        *
 ***********************/
-#include <Vfs/Vfs.h>
+#include <vfs/vfs.h>
 #include <process/server.h>
 #include <stdio.h>
 #include <errno.h>
@@ -1398,52 +1404,6 @@ int ScVfsResolvePath(int EnvPath, char *StrBuffer)
 }
 
 /***********************
- * Device Functions     *
- ***********************/
-#include <DeviceManager.h>
-
-/* Query Device Information */
-int ScDeviceQuery(DeviceType_t Type, uint8_t *Buffer, size_t BufferLength)
-{
-	/* Alloc on stack */
-	MCoreDeviceRequest_t Request;
-
-	/* Locate */
-	MCoreDevice_t *Device = NULL;// DmGetDevice(Type);
-	_CRT_UNUSED(Type);
-
-	/* Sanity */
-	if (Device == NULL)
-		return -1;
-
-	/* Allocate a proxy buffer */
-	uint8_t *Proxy = (uint8_t*)kmalloc(BufferLength);
-
-	/* Reset request */
-	memset(&Request, 0, sizeof(MCoreDeviceRequest_t));
-
-	/* Setup */
-	Request.Base.Type = RequestQuery;
-	Request.Buffer = Proxy;
-	Request.Length = BufferLength;
-	Request.DeviceId = Device->Id;
-	
-	/* Fire request */
-	//DmCreateRequest(&Request);
-	//DmWaitRequest(&Request, 1000);
-
-	/* Sanity */
-	if (Request.Base.State == EventOk)
-		memcpy(Buffer, Proxy, BufferLength);
-
-	/* Cleanup */
-	kfree(Proxy);
-
-	/* Done! */
-	return (int)EventOk - (int)Request.Base.State;
-}
-
-/***********************
  * Driver Functions    *
  ***********************/
 #include <acpiinterface.h>
@@ -1529,7 +1489,9 @@ OsStatus_t ScAcpiQueryTable(const char *Signature, ACPI_TABLE_HEADER *Table)
 }
 
 /* Include the driver-version of the io-space too */
+#include <os/driver/device.h>
 #include <os/driver/io.h>
+#include <modules/modules.h>
 
 /* Creates and registers a new IoSpace with our
  * architecture sub-layer, it must support io-spaces 
@@ -1553,6 +1515,11 @@ OsStatus_t ScIoSpaceRegister(DeviceIoSpace_t *IoSpace)
  * two drivers using the same device */
 OsStatus_t ScIoSpaceAcquire(DeviceIoSpace_t *IoSpace)
 {
+	/* Sanitize params */
+	if (IoSpace == NULL) {
+		return OsError;
+	}
+
 	/* Validate process permissions */
 
 	/* Now lets try to acquire the IoSpace */
@@ -1591,6 +1558,58 @@ OsStatus_t ScRegisterAliasId(PhxId_t Alias)
 	/* Redirect call */
 	return PhoenixRegisterAlias(
 		PhoenixGetAsh(PHOENIX_CURRENT), Alias);
+}
+
+/* ScLoadDriver
+ * Attempts to resolve the best possible drive for
+ * the given device information */
+OsStatus_t ScLoadDriver(MCoreDevice_t *Device)
+{
+	/* Variables */
+	MCorePhoenixRequest_t *Request = NULL;
+	MCoreModule_t *Module = NULL;
+	MString_t *Path = NULL;
+
+	/* Sanitize information */
+	if (Device == NULL) {
+		return OsError;
+	}
+
+	/* Lookup specific driver */
+	Module = ModulesFindSpecific(Device->VendorId, Device->DeviceId);
+	
+	/* Lookup generic driver if it failed */
+	if (Module == NULL) {
+		Module = ModulesFindGeneric(Device->Class, Device->Subclass);
+	}
+
+	/* Return error if that failed */
+	if (Module == NULL) {
+		return OsError;
+	}
+
+	/* Build Path */
+	Path = MStringCreate("rd:/", StrUTF8);
+	MStringAppendString(Path, Module->Name);
+
+	/* Create a phoenix request */
+	Request = (MCorePhoenixRequest_t*)kmalloc(sizeof(MCorePhoenixRequest_t));
+	Request->Base.Type = AshSpawnServer;
+	Request->Base.Cleanup = 1;
+
+	/* Set our parameters as well */
+	Request->Path = Path;
+	Request->Arguments.Raw.Data = kmalloc(sizeof(MCoreDevice_t));
+	Request->Arguments.Raw.Length = sizeof(MCoreDevice_t);
+
+	/* Copy data */
+	memcpy(Request->Arguments.Raw.Data, Device, sizeof(MCoreDevice_t));
+
+	/* Send off the request */
+	PhoenixCreateRequest(Request);
+
+	/* Done! */
+	return OsNoError;
 }
 
 /***********************
@@ -1750,7 +1769,7 @@ Addr_t GlbSyscallTable[131] =
 	DefineSyscall(NoOperation),
 
 	/* Device Functions - 81 */
-	DefineSyscall(ScDeviceQuery),
+	DefineSyscall(NoOperation),
 	DefineSyscall(NoOperation),
 	DefineSyscall(NoOperation),
 	DefineSyscall(NoOperation),
@@ -1796,7 +1815,7 @@ Addr_t GlbSyscallTable[131] =
 	/* Driver Functions - 115
 	 * - Support */
 	DefineSyscall(ScRegisterAliasId),
-	DefineSyscall(NoOperation),
+	DefineSyscall(ScLoadDriver),
 	DefineSyscall(NoOperation),
 	DefineSyscall(NoOperation),
 	DefineSyscall(NoOperation),

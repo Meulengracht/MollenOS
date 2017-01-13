@@ -16,23 +16,48 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS MCore - Contract Definitions & Structures (Clock Contract)
+ * MollenOS MCore - Contract Definitions & Structures
  * - This header describes the base contract-structure, prototypes
  *   and functionality, refer to the individual things for descriptions
  */
 
-#ifndef _MCORE_CONTRACT_CLOCK_H_
-#define _MCORE_CONTRACT_CLOCK_H_
+#ifndef _MCORE_CONTRACT_H_
+#define _MCORE_CONTRACT_H_
 
 /* Includes 
  * - System */
-#include <os/driver/contracts/base.h>
 #include <os/osdefs.h>
 
-/* The clock contract structure
- * contains information about the clock driver */
-typedef struct _MContractClock {
-	MContract_t			Base;
-} MContractClock_t;
+/* Contract definitions, related to some limits
+ * that is bound to the contract structure */
+#define CONTRACT_MAX_NAME			64
 
-#endif //!_MCORE_CONTRACT_CLOCK_H_
+/* The available types of contracts 
+ * and denotes the type of device that 
+ * is bound to the contract */
+typedef enum _MContractType {
+	ContractUnknown,
+	ContractClock
+} MContractType_t;
+
+/* The available contract status's that
+ * a contract can be in */
+typedef enum _MContractState {
+	ContractIdle,
+	ContractActive,
+	ContractInactive
+} MContractState_t;
+
+/* The base of a contract, it contains
+ * information related to the driver that
+ * controls a device */
+typedef struct _MContract {
+	IpcComm_t			Target;
+	MContractType_t		Type;
+	size_t				Length;
+	int					Version;
+	MContractState_t	State;
+	char				Name[CONTRACT_MAX_NAME];
+} MContract_t;
+
+#endif //!_MCORE_CONTRACT_H_

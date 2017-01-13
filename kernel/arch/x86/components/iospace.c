@@ -37,7 +37,7 @@
  * We need to keep track of a few things
  * and keep a list of io-spaces in the system */
 Spinlock_t __GlbIoSpaceLock = SPINLOCK_INIT;
-IoSpaceId_t __GlbIoSpaceId = 0;
+IoSpaceId_t __GlbIoSpaceId = 1;
 List_t *__GlbIoSpaces = NULL;
 int __GlbIoSpaceInitialized = 0;
 
@@ -48,7 +48,7 @@ void IoSpaceInitialize(void)
 {
 	__GlbIoSpaces = ListCreate(KeyInteger, LIST_NORMAL);
 	__GlbIoSpaceInitialized = 1;
-	__GlbIoSpaceId = 0;
+	__GlbIoSpaceId = 1;
 }
 
 /* Registers an io-space with the io space manager 
@@ -84,8 +84,8 @@ OsStatus_t IoSpaceRegister(DeviceIoSpace_t *IoSpace)
 	SpinlockRelease(&__GlbIoSpaceLock);
 
 	/* Add to list */
-	Key.Value = IoSpace->Id;
-	ListAppend(__GlbIoSpaces, ListCreateNode(Key, Key, (void*)IoSpace));
+	Key.Value = (int)SysCopy->Id;
+	ListAppend(__GlbIoSpaces, ListCreateNode(Key, Key, (void*)SysCopy));
 
 	/* Done! */
 	return OsNoError;
@@ -112,6 +112,10 @@ OsStatus_t IoSpaceAcquire(DeviceIoSpace_t *IoSpace)
 	/* Sanitize the system copy */
 	if (Server == NULL || SysCopy == NULL
 		|| SysCopy->Owner != PHOENIX_NO_ASH) {
+		if (Server == NULL) {
+			LogFatal("IOSP", "Non-server process tried to acquire io-space");
+		}
+		LogFatal("IOSP", "Failed to find the requested io-space, id %u", IoSpace->Id);
 		return OsError;
 	}
 

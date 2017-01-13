@@ -58,6 +58,10 @@
 #define __DEVICEMANAGER_QUERYDEVICE			IPC_DECL_FUNCTION(2)
 #define __DEVICEMANAGER_IOCTLDEVICE			IPC_DECL_FUNCTION(3)
 
+#define __DEVICEMANAGER_REGISTERCONTRACT	IPC_DECL_FUNCTION(4)
+#define __DEVICEMANAGER_UNREGISTERCONTRACT	IPC_DECL_FUNCTION(5)
+#define __DEVICEMANAGER_QUERYCONTRACT		IPC_DECL_FUNCTION(6)
+
 /* This is the base device structure definition
  * and is passed on to all drivers on their initialization
  * to give them an overview and description of their device 
@@ -111,7 +115,7 @@ typedef struct _MCoreDevice
  * device-manager, and automatically queries
  * for a driver for the new device */
 #ifdef __DEVICEMANAGER_EXPORT
-__DEVAPI DevId_t RegisterDevice(MCoreDevice_t *Device);
+__DEVAPI DevId_t RegisterDevice(MCoreDevice_t *Device, const char *Name);
 #else
 __DEVAPI DevId_t RegisterDevice(MCoreDevice_t *Device)
 {
@@ -125,6 +129,17 @@ __DEVAPI DevId_t RegisterDevice(MCoreDevice_t *Device)
 	return Result;
 }
 #endif
+
+/* Private API for the devicemanager, these functions
+ * exists no-where else than in the devicemanager */
+#ifdef __DEVICEMANAGER_EXPORT
+
+/* InstallDriver 
+ * Tries to	find a suitable driver for the given device
+ * by searching storage-medias for the vendorid/deviceid 
+ * combination or the class/subclass combination if specific
+ * is not found */
+_MOS_API OsStatus_t InstallDriver(MCoreDevice_t *Device);
 
 /* Device Initialization
  * Initializes the device for use and enables
@@ -147,5 +162,7 @@ _MOS_API int DeviceQuery(MCoreDevice_t*);
  * Control the given device by making modification
  * the to the bus settings or irq status */
 _MOS_API int DeviceControl(MCoreDevice_t*);
+
+#endif
 
 #endif //!_MCORE_DEVICE_H_

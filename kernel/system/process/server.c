@@ -151,8 +151,7 @@ MCoreServer_t *PhoenixGetServer(PhxId_t ServerId)
 	MCoreAsh_t *Ash = PhoenixGetAsh(ServerId);
 
 	/* Other than null check, we do a process-check */
-	if (Ash != NULL
-		&& Ash->Type != AshServer) {
+	if (Ash != NULL && Ash->Type != AshServer) {
 		return NULL;
 	}
 

@@ -56,7 +56,7 @@ uint32_t PciRead32(PciBus_t *Io,
 		return ReadIoSpace(&Io->IoSpace, PciCalculateOffset(Io, Bus, Device, Function, Register), 4);
 	}
 	else {
-		IoSpaceWrite(&Io->IoSpace, PCI_REGISTER_SELECT,
+		WriteIoSpace(&Io->IoSpace, PCI_REGISTER_SELECT,
 			PciCalculateOffset(Io, Bus, Device, Function, Register), 4);
 		return ReadIoSpace(&Io->IoSpace, PCI_REGISTER_DATA, 4);
 	}
@@ -73,7 +73,7 @@ uint16_t PciRead16(PciBus_t *Io,
 		return (uint16_t)ReadIoSpace(&Io->IoSpace, PciCalculateOffset(Io, Bus, Device, Function, Register), 2);
 	}
 	else {
-		IoSpaceWrite(&Io->IoSpace, PCI_REGISTER_SELECT,
+		WriteIoSpace(&Io->IoSpace, PCI_REGISTER_SELECT,
 			PciCalculateOffset(Io, Bus, Device, Function, Register), 4);
 		return (uint16_t)ReadIoSpace(&Io->IoSpace, PCI_REGISTER_DATA + (Register & 0x02), 2);
 	}
@@ -90,7 +90,7 @@ uint8_t PciRead8(PciBus_t *Io,
 		return (uint8_t)ReadIoSpace(&Io->IoSpace, PciCalculateOffset(Io, Bus, Device, Function, Register), 1);
 	}
 	else {
-		IoSpaceWrite(&Io->IoSpace, PCI_REGISTER_SELECT,
+		WriteIoSpace(&Io->IoSpace, PCI_REGISTER_SELECT,
 			PciCalculateOffset(Io, Bus, Device, Function, Register), 4);
 		return (uint8_t)ReadIoSpace(&Io->IoSpace, PCI_REGISTER_DATA + (Register & 0x03), 1);
 	}
@@ -104,12 +104,12 @@ void PciWrite32(PciBus_t *Io,
 {
 	if (Io != NULL
 		&& Io->IsExtended) {
-		IoSpaceWrite(&Io->IoSpace, PciCalculateOffset(Io, Bus, Device, Function, Register), Value, 4);
+		WriteIoSpace(&Io->IoSpace, PciCalculateOffset(Io, Bus, Device, Function, Register), Value, 4);
 	}
 	else {
-		IoSpaceWrite(&Io->IoSpace, PCI_REGISTER_SELECT,
+		WriteIoSpace(&Io->IoSpace, PCI_REGISTER_SELECT,
 			PciCalculateOffset(Io, Bus, Device, Function, Register), 4);
-		IoSpaceWrite(&Io->IoSpace, PCI_REGISTER_DATA, Value, 4);
+		WriteIoSpace(&Io->IoSpace, PCI_REGISTER_DATA, Value, 4);
 	}
 }
 
@@ -121,12 +121,12 @@ void PciWrite16(PciBus_t *Io,
 {
 	if (Io != NULL
 		&& Io->IsExtended) {
-		IoSpaceWrite(&Io->IoSpace, PciCalculateOffset(Io, Bus, Device, Function, Register), Value, 2);
+		WriteIoSpace(&Io->IoSpace, PciCalculateOffset(Io, Bus, Device, Function, Register), Value, 2);
 	}
 	else {
-		IoSpaceWrite(&Io->IoSpace, PCI_REGISTER_SELECT,
+		WriteIoSpace(&Io->IoSpace, PCI_REGISTER_SELECT,
 			PciCalculateOffset(Io, Bus, Device, Function, Register), 4);
-		IoSpaceWrite(&Io->IoSpace, PCI_REGISTER_DATA + (Register & 0x02), Value, 2);
+		WriteIoSpace(&Io->IoSpace, PCI_REGISTER_DATA + (Register & 0x02), Value, 2);
 	}
 }
 
@@ -138,12 +138,12 @@ void PciWrite8(PciBus_t *Io,
 {
 	if (Io != NULL
 		&& Io->IsExtended) {
-		IoSpaceWrite(&Io->IoSpace, PciCalculateOffset(Io, Bus, Device, Function, Register), Value, 1);
+		WriteIoSpace(&Io->IoSpace, PciCalculateOffset(Io, Bus, Device, Function, Register), Value, 1);
 	}
 	else {
-		IoSpaceWrite(&Io->IoSpace, PCI_REGISTER_SELECT,
+		WriteIoSpace(&Io->IoSpace, PCI_REGISTER_SELECT,
 			PciCalculateOffset(Io, Bus, Device, Function, Register), 4);
-		IoSpaceWrite(&Io->IoSpace, PCI_REGISTER_DATA + (Register & 0x03), Value, 1);
+		WriteIoSpace(&Io->IoSpace, PCI_REGISTER_DATA + (Register & 0x03), Value, 1);
 	}
 }
 

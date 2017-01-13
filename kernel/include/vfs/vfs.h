@@ -30,15 +30,14 @@
 
 /* Includes 
  * - System */
-#include <DeviceManager.h>
-#include <Events.h>
-#include <Mutex.h>
+#include <events.h>
+#include <mutex.h>
 
 /* Includes
  * - VFS */
-#include <Vfs/Definitions.h>
-#include <Vfs/Partition.h>
-#include <Vfs/File.h>
+#include <vfs/definitions.h>
+#include <vfs/partition.h>
+#include <vfs/file.h>
 
 /* VFS Request Types 
  * These are the possible requests

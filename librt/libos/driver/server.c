@@ -23,7 +23,7 @@
 
 /* Includes
  * - System */
-#include <os/driver/server.h>
+#include <os/driver/device.h>
 #include <os/syscall.h>
 
 /* RegisterServer 
@@ -35,4 +35,16 @@ OsStatus_t RegisterServer(IpcComm_t Alias)
 	/* Redirect a syscall, it does all */
 	return (OsStatus_t)Syscall1(
 		SYSCALL_SERVERREGISTER, SYSCALL_PARAM(Alias));
+}
+
+/* InstallDriver 
+ * Tries to	find a suitable driver for the given device
+ * by searching storage-medias for the vendorid/deviceid 
+ * combination or the class/subclass combination if specific
+ * is not found */
+OsStatus_t InstallDriver(MCoreDevice_t *Device)
+{
+	/* Redirect a syscall, it does all */
+	return (OsStatus_t)Syscall1(
+		SYSCALL_SERVERREGISTER, SYSCALL_PARAM(Device));
 }
