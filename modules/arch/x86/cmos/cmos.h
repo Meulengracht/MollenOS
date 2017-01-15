@@ -29,6 +29,7 @@
 
 /* Definitions */
 #define CMOS_IO_BASE			0x70
+#define CMOS_IO_LENGTH			2
 #define CMOS_IO_SELECT			0x00
 #define CMOS_IO_DATA			0x01
 
@@ -61,8 +62,14 @@
 /* RTC Irq */
 #define CMOS_RTC_IRQ			0x08
 
-/* Prototypes */
-__CRT_EXTERN uint8_t CmosReadRegister(uint8_t Register);
-__CRT_EXTERN void CmosWriteRegister(uint8_t Register, uint8_t Data);
+/* CmosRead
+ * Read the byte at given register offset
+ * from the CMOS-Chip */
+__CRT_EXTERN uint8_t CmosRead(uint8_t Register);
+
+/* CmosRead
+ * Writes a byte to the given register offset
+ * from the CMOS-Chip */
+__CRT_EXTERN void CmosWrite(uint8_t Register, uint8_t Data);
 
 #endif // !__DRIVER_CMOS_H__

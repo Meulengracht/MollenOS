@@ -24,6 +24,7 @@
  * - System */
 #include <os/driver/contracts/clock.h>
 #include <os/driver/device.h>
+#include <os/driver/acpi.h>
 #include <os/driver/io.h>
 #include "cmos.h"
 
@@ -33,71 +34,74 @@
 #include <string.h>
 #include <stdlib.h>
 
-/* Structures */
+/* Since there only exists a single cmos
+ * chip on-board we keep some static information
+ * in this driver */
 #pragma pack(push, 1)
-typedef struct _CmosClock {
-	DevId_t DeviceId;
-	DeviceIoSpace_t *IoSpace;
-	uint8_t AcpiCentury;
-} CmosClock_t;
+typedef struct _Cmos {
+	DeviceIoSpace_t		IoSpace;
+	uint8_t				AcpiCentury;
+	int					UseRTC;
+} Cmos_t;
 #pragma pack(pop)
 
-/* Mutex */
-const char *GlbCmosDriverName = "MollenOS CMOS Driver";
-static CmosClock_t *GlbCmos = NULL;
+/* Globals 
+ * We keep a global copy of the cmos data */
+static Cmos_t *GlbCmos = NULL;
 
-/* Helpers, I/O */
-uint8_t CmosReadRegister(uint8_t Register)
+/* CmosRead
+ * Read the byte at given register offset
+ * from the CMOS-Chip */
+uint8_t CmosRead(uint8_t Register)
 {
-	/* Vars */
+	/* Variables for reading */
 	uint8_t Tmp = 0;
-
+	
 	/* Keep NMI if disabled */
-	Tmp = IoSpaceRead(GlbCmos->IoSpace, CMOS_IO_SELECT, 1) & CMOS_NMI_BIT;
+	Tmp = ReadIoSpace(&GlbCmos->IoSpace, CMOS_IO_SELECT, 1) & CMOS_NMI_BIT;
 
 	/* Select Register (but do not change NMI) */
-	IoSpaceWrite(GlbCmos->IoSpace, CMOS_IO_SELECT, (Tmp | (Register & CMOS_ALLBITS_NONMI)), 1);
+	WriteIoSpace(&GlbCmos->IoSpace, CMOS_IO_SELECT, (Tmp | (Register & CMOS_ALLBITS_NONMI)), 1);
 
 	/* Done */
-	return (uint8_t)IoSpaceRead(GlbCmos->IoSpace, CMOS_IO_DATA, 1);
+	return (uint8_t)ReadIoSpace(&GlbCmos->IoSpace, CMOS_IO_DATA, 1);
 }
 
-void CmosWriteRegister(uint8_t Register, uint8_t Data)
+/* CmosRead
+ * Writes a byte to the given register offset
+ * from the CMOS-Chip */
+void CmosWrite(uint8_t Register, uint8_t Data)
 {
-	/* Vars */
+	/* Variables for writing */
 	uint8_t Tmp = 0;
 
 	/* Keep NMI if disabled */
-	Tmp = (uint8_t)IoSpaceRead(GlbCmos->IoSpace, CMOS_IO_SELECT, 1) & CMOS_NMI_BIT;
+	Tmp = (uint8_t)ReadIoSpace(&GlbCmos->IoSpace, CMOS_IO_SELECT, 1) & CMOS_NMI_BIT;
 
 	/* Select Register (but do not change NMI) */
-	IoSpaceWrite(GlbCmos->IoSpace, CMOS_IO_SELECT, (Tmp | (Register & CMOS_ALLBITS_NONMI)), 1);
+	WriteIoSpace(&GlbCmos->IoSpace, CMOS_IO_SELECT, (Tmp | (Register & CMOS_ALLBITS_NONMI)), 1);
 
 	/* Write Data */
-	IoSpaceWrite(GlbCmos->IoSpace, CMOS_IO_DATA, Data, 1);
+	WriteIoSpace(&GlbCmos->IoSpace, CMOS_IO_DATA, Data, 1);
 }
 
 /* Gets current time and stores it in a time structure */
-void CmosGetTime(void *Device, struct tm *TimeStructure)
+void CmosGetTime(struct tm *TimeStructure)
 {
 	int oSec, n;
 	uint8_t Century = 0;
 
-	/* Cast */
-	MCoreDevice_t *mDev = (MCoreDevice_t*)Device;
-	CmosClock_t *Cmos = (CmosClock_t*)mDev->Driver.Data;
-
 	/* Do we support century? */
 	if (Cmos->AcpiCentury != 0)
-		Century = CmosReadRegister(Cmos->AcpiCentury);
+		Century = CmosRead(Cmos->AcpiCentury);
 
 	/* Get Clock (Stable, thats why we loop) */
-	while (CmosReadRegister(X86_CMOS_REGISTER_SECONDS) != TimeStructure->tm_sec
-		|| CmosReadRegister(X86_CMOS_REGISTER_MINUTES) != TimeStructure->tm_min
-		|| CmosReadRegister(X86_CMOS_REGISTER_HOURS) != TimeStructure->tm_hour
-		|| CmosReadRegister(X86_CMOS_REGISTER_DAYS) != TimeStructure->tm_mday
-		|| CmosReadRegister(X86_CMOS_REGISTER_MONTHS) != TimeStructure->tm_mon
-		|| CmosReadRegister(X86_CMOS_REGISTER_YEARS) != TimeStructure->tm_year)
+	while (CmosRead(CMOS_REGISTER_SECONDS) != TimeStructure->tm_sec
+		|| CmosRead(CMOS_REGISTER_MINUTES) != TimeStructure->tm_min
+		|| CmosRead(CMOS_REGISTER_HOURS) != TimeStructure->tm_hour
+		|| CmosRead(CMOS_REGISTER_DAYS) != TimeStructure->tm_mday
+		|| CmosRead(CMOS_REGISTER_MONTHS) != TimeStructure->tm_mon
+		|| CmosRead(CMOS_REGISTER_YEARS) != TimeStructure->tm_year)
 	{
 		oSec = -1;
 		n = 0;
@@ -106,10 +110,10 @@ void CmosGetTime(void *Device, struct tm *TimeStructure)
 		while (n < 2)
 		{
 			/* Clock update in progress? */
-			if (CmosReadRegister(X86_CMOS_REGISTER_STATUS_A) & X86_CMOSA_UPDATE_IN_PROG)
+			if (CmosRead(CMOS_REGISTER_STATUS_A) & CMOSA_UPDATE_IN_PROG)
 				continue;
 
-			TimeStructure->tm_sec = CmosReadRegister(X86_CMOS_REGISTER_SECONDS);
+			TimeStructure->tm_sec = CmosReadRegister(CMOS_REGISTER_SECONDS);
 			if (TimeStructure->tm_sec != oSec)
 			{
 				/* Seconds changed.  First from -1, then because the
@@ -123,23 +127,23 @@ void CmosGetTime(void *Device, struct tm *TimeStructure)
 		}
 
 		/* Read the other registers. */
-		TimeStructure->tm_min = CmosReadRegister(X86_CMOS_REGISTER_MINUTES);
-		TimeStructure->tm_hour = CmosReadRegister(X86_CMOS_REGISTER_HOURS);
-		TimeStructure->tm_mday = CmosReadRegister(X86_CMOS_REGISTER_DAYS);
-		TimeStructure->tm_mon = CmosReadRegister(X86_CMOS_REGISTER_MONTHS);
-		TimeStructure->tm_year = CmosReadRegister(X86_CMOS_REGISTER_YEARS);
+		TimeStructure->tm_min = CmosReadRegister(CMOS_REGISTER_MINUTES);
+		TimeStructure->tm_hour = CmosReadRegister(CMOS_REGISTER_HOURS);
+		TimeStructure->tm_mday = CmosReadRegister(CMOS_REGISTER_DAYS);
+		TimeStructure->tm_mon = CmosReadRegister(CMOS_REGISTER_MONTHS);
+		TimeStructure->tm_year = CmosReadRegister(CMOS_REGISTER_YEARS);
 	}
 
 	/* Convert Time Format? */
-	if (!(CmosReadRegister(X86_CMOS_REGISTER_STATUS_B) & X86_CMOSB_BCD_FORMAT))
+	if (!(CmosReadRegister(CMOS_REGISTER_STATUS_B) & CMOSB_BCD_FORMAT))
 	{
 		/* Convert BCD to binary (default RTC mode). */
-		TimeStructure->tm_year = X86_CMOS_BCD_TO_DEC(TimeStructure->tm_year);
-		TimeStructure->tm_mon = X86_CMOS_BCD_TO_DEC(TimeStructure->tm_mon);
-		TimeStructure->tm_mday = X86_CMOS_BCD_TO_DEC(TimeStructure->tm_mday);
-		TimeStructure->tm_hour = X86_CMOS_BCD_TO_DEC(TimeStructure->tm_hour);
-		TimeStructure->tm_min = X86_CMOS_BCD_TO_DEC(TimeStructure->tm_min);
-		TimeStructure->tm_sec = X86_CMOS_BCD_TO_DEC(TimeStructure->tm_sec);
+		TimeStructure->tm_year = CMOS_BCD_TO_DEC(TimeStructure->tm_year);
+		TimeStructure->tm_mon = CMOS_BCD_TO_DEC(TimeStructure->tm_mon);
+		TimeStructure->tm_mday =CMOS_BCD_TO_DEC(TimeStructure->tm_mday);
+		TimeStructure->tm_hour =CMOS_BCD_TO_DEC(TimeStructure->tm_hour);
+		TimeStructure->tm_min = CMOS_BCD_TO_DEC(TimeStructure->tm_min);
+		TimeStructure->tm_sec = CMOS_BCD_TO_DEC(TimeStructure->tm_sec);
 
 		/* Convert Century */
 		if (Century != 0)
@@ -154,63 +158,106 @@ void CmosGetTime(void *Device, struct tm *TimeStructure)
 		TimeStructure->tm_year += Century * 100;
 	else
 	{
-		TimeStructure->tm_year += (X86_CMOS_CURRENT_YEAR / 100) * 100;
+		TimeStructure->tm_year += (CMOS_CURRENT_YEAR / 100) * 100;
 
-		if (TimeStructure->tm_year < X86_CMOS_CURRENT_YEAR)
+		if (TimeStructure->tm_year < CMOS_CURRENT_YEAR)
 			TimeStructure->tm_year += 100;
 	}
 }
 
-/* Entry point of a driver
- * this handles setup and enters the event-queue
- * the data passed is a device information structure 
- * that describes the loaded device */
-int DriverMain(MCoreDevice_t *NotUsed)
+/* OnInterrupt
+ * Is called when one of the registered devices
+ * produces an interrupt. On successful handled
+ * interrupt return OsNoError, otherwise the interrupt
+ * won't be acknowledged */
+OsStatus_t OnInterrupt(void)
 {
-	/* Variables, we will be setting up two
-	 * things, both a device and a contract */
-	MContractClock_t *Driver = NULL;
-	MCoreDevice_t *Device = NULL;
+	/* Since the cmos doesn't use
+	 * interrupts, but the RTC does, we 
+	 * will redirect the interrupt to RTC code */
+}
 
-	/* Allocate */
-	Device = (MCoreDevice_t*)malloc(sizeof(MCoreDevice_t));
-	GlbCmos = (CmosClock_t*)malloc(sizeof(CmosClock_t));
-	Clock = (MCoreClockDevice_t*)malloc(sizeof(MCoreClockDevice_t));
+/* OnLoad
+ * The entry-point of a driver, this is called
+ * as soon as the driver is loaded in the system */
+OsStatus_t OnLoad(void)
+{
+	/* Variables */
+	AcpiDescriptor_t Acpi;
 
-	/* Setup Cmos object */
-	if (Data != NULL)
-		GlbCmos->AcpiCentury = *(uint8_t*)Data;
-	else
-		GlbCmos->AcpiCentury = 0;
+	/* Allocate a new instance of the cmos-data */
+	GlbCmos = (Cmos_t*)malloc(sizeof(Cmos_t));
 
-	/* Create the io-space 
-	 * it spans over 2 bytes, very modest */
-	GlbCmos->IoSpace = IoSpaceCreate(DEVICE_IO_SPACE_IO, CMOS_IO_SELECT, 2);
+	/* Create the io-space, again we have to create
+	 * the io-space ourselves */
+	GlbCmos->IoSpace.Id = 0;
+	GlbCmos->IoSpace.Type = IO_SPACE_IO;
+	GlbCmos->IoSpace.PhysicalBase = CMOS_IO_BASE;
+	GlbCmos->IoSpace.Size = CMOS_IO_LENGTH;
+	GlbCmos->AcpiCentury = 0;
+	GlbCmos->UseRTC = 1;
 
-	/* Setup Clock */
-	Clock->GetTime = CmosGetTime;
+	/* Create the io-space in system */
+	if (CreateIoSpace(&GlbCmos->IoSpace) != OsNoError) {
+		return OsError;
+	}
 
-	/* Setup device */
-	memset(Device, 0, sizeof(MCoreDevice_t));
+	/* Query the system for acpi-information 
+	 * - Check for century register
+	 * - Check if we should disable rtc */
+	if (AcpiQueryStatus(&Acpi) == OsNoError) {
+		GlbCmos->AcpiCentury = Acpi.Century;
+		if (Acpi.BootFlags & ACPI_IA_NO_CMOS_RTC) {
+			GlbCmos->UseRTC = 0;
+		}
+	}
 
-	/* Setup information */
-	Device->VendorId = 0x8086;
-	Device->DeviceId = 0x0;
-	Device->Class = DEVICEMANAGER_LEGACY_CLASS;
+	/* No problem, last thing is to acquire the
+	 * io-space, and just return that as result */
+	if (AcquireIoSpace(&GlbCmos->IoSpace) != OsNoError) {
+		return OsError;
+	}
 
-	Device->IrqLine = -1;
-	Device->IrqPin = -1;
+	/* Break */
+	return OsNoError;
+}
 
-	/* Type */
-	Device->Type = DeviceClock;
-	Device->Data = Clock;
+/* OnUnload
+ * This is called when the driver is being unloaded
+ * and should free all resources allocated by the system */
+OsStatus_t OnUnload(void)
+{
+	/* Destroy the io-space we created */
+	if (GlbCmos->IoSpace.Id != 0) {
+		ReleaseIoSpace(&GlbCmos->IoSpace);
+		DestroyIoSpace(GlbCmos->IoSpace.Id);
+	}
 
-	/* Initial */
-	Device->Driver.Name = (char*)GlbCmosDriverName;
-	Device->Driver.Version = 1;
-	Device->Driver.Data = GlbCmos;
-	Device->Driver.Status = DriverActive;
+	/* Free up allocated resources */
+	free(GlbCmos);
 
-	/* Register */
-	GlbCmos->DeviceId = DmCreateDevice("CMOS Clock", Device);
+	/* Wuhuu */
+	return OsNoError;
+}
+
+/* OnRegister
+ * Is called when the device-manager registers a new
+ * instance of this driver for the given device */
+OsStatus_t OnRegister(MCoreDevice_t *Device)
+{
+	/* The CMOS/RTC is a fixed device
+	 * and thus we don't support multiple instances */
+	_CRT_UNUSED(Device);
+	return OsNoError;
+}
+
+/* OnUnregister
+ * Is called when the device-manager wants to unload
+ * an instance of this driver from the system */
+OsStatus_t OnUnregister(MCoreDevice_t *Device)
+{
+	/* The CMOS/RTC is a fixed device
+	 * and thus we don't support multiple instances */
+	_CRT_UNUSED(Device);
+	return OsNoError;
 }

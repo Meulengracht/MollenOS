@@ -164,7 +164,7 @@ void _mDrvCrt(void)
 	PipeOpen(PIPE_DEFAULT);
 
 	/* Call main */
-	RetValue = ServerMain(NULL);
+	RetValue = ServerMain((void*)MOLLENOS_ARGUMENT_ADDR);
 
 	/* Cleanup pipes */
 	PipeClose(PIPE_DEFAULT);
