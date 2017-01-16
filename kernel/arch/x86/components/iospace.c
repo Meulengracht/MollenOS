@@ -37,7 +37,7 @@
  * We need to keep track of a few things
  * and keep a list of io-spaces in the system */
 Spinlock_t __GlbIoSpaceLock = SPINLOCK_INIT;
-IoSpaceId_t __GlbIoSpaceId = 1;
+UUId_t __GlbIoSpaceId = 1;
 List_t *__GlbIoSpaces = NULL;
 int __GlbIoSpaceInitialized = 0;
 
@@ -208,7 +208,7 @@ OsStatus_t IoSpaceRelease(DeviceIoSpace_t *IoSpace)
 /* Destroys the given io-space by its id, the id
  * has the be valid, and the target io-space HAS to 
  * un-acquired by any process, otherwise its not possible */
-OsStatus_t IoSpaceDestroy(IoSpaceId_t IoSpace)
+OsStatus_t IoSpaceDestroy(UUId_t IoSpace)
 {
 	/* Variables we need for this
 	 * operation */
@@ -242,7 +242,7 @@ Addr_t IoSpaceValidate(Addr_t Address)
 {
 	/* Ok, first of all, we need to validate that
 	 * it's actually a process trying to do this */
-	PhxId_t ProcessId = ThreadingGetCurrentThread(ApicGetCpu())->AshId;
+	UUId_t ProcessId = ThreadingGetCurrentThread(ApicGetCpu())->AshId;
 
 	/* Sanitize the id */
 	if (ProcessId == PHOENIX_NO_ASH) {

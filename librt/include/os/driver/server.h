@@ -30,7 +30,7 @@
 
 /* Server base definitions, includes things
  * like the base server-target */
-#define __SERVER_TARGET(Index)				((IpcComm_t)0x8000 + Index)
+#define __SERVER_TARGET(Index)				((UUId_t)0x8000 + Index)
 
 /* MollenOS possible server targets */
 #define __DEVICEMANAGER_TARGET				__SERVER_TARGET(0)
@@ -41,6 +41,6 @@
  * Registers a server on the current alias, allowing
  * other applications and frameworks to send commands
  * and function requests */
-_MOS_API OsStatus_t RegisterServer(IpcComm_t Alias);
+_MOS_API OsStatus_t RegisterServer(UUId_t Alias);
 
 #endif //!_MCORE_SERVER_H_

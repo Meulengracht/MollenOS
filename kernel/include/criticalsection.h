@@ -40,7 +40,7 @@ typedef struct _CriticalSection
 	int Flags;
 
 	/* Owner */
-	ThreadId_t Owner;
+	UUId_t Owner;
 
 	/* References */
 	size_t References;

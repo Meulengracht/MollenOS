@@ -239,14 +239,14 @@ _MOS_API int ProcessQuery(PId_t ProcessId, ProcessQueryFunction_t Function, void
  * on failure to share the piece of memory
  * otherwise it returns the new buffer handle
  * that can be accessed by the other process */
-_MOS_API void *MollenOSMemoryShare(IpcComm_t Target, void *Buffer, size_t Size);
+_MOS_API void *MollenOSMemoryShare(UUId_t Target, void *Buffer, size_t Size);
 
 /* Memory - Unshare 
  * This takes a previous shared memory handle 
  * and unshares it again from the target process
  * The function returns 0 if unshare was succesful, 
  * otherwise -1 */
-_MOS_API int MollenOSMemoryUnshare(IpcComm_t Target, void *MemoryHandle, size_t Size);
+_MOS_API int MollenOSMemoryUnshare(UUId_t Target, void *MemoryHandle, size_t Size);
 
 /***********************
  * Device Prototypes
@@ -302,7 +302,7 @@ _MOS_API void MollenOSGetScreenGeometry(Rect_t *Rectangle);
  *   by systems
  ***********************/
 _MOS_API int WaitForSignal(size_t Timeout);
-_MOS_API int SignalProcess(IpcComm_t Target);
+_MOS_API int SignalProcess(UUId_t Target);
 _MOS_API void MollenOSSystemLog(const char *Format, ...);
 _MOS_API int MollenOSEndBoot(void);
 _MOS_API int MollenOSRegisterWM(void);

@@ -36,7 +36,7 @@
 
 /* Globals */
 List_t *GlbDeviceList = NULL;
-DevId_t GlbDeviceIdGen = 0;
+UUId_t GlbDeviceIdGen = 0;
 int GlbInitialized = 0;
 int GlbRun = 0;
 
@@ -76,7 +76,7 @@ int ServerMain(void *Data)
 				/* Handles registration of a new device */
 				case __DEVICEMANAGER_REGISTERDEVICE: {
 					/* Variables for result */
-					DevId_t Result; 
+					UUId_t Result;
 
 					/* Evaluate request, but don't free
 					 * the allocated device storage, we need it */
@@ -84,8 +84,8 @@ int ServerMain(void *Data)
 					Result = RegisterDevice((MCoreDevice_t*)Message.Arguments[0].Buffer, NULL);
 
 					/* Write the result back to the caller */
-					PipeSend(Message.Sender, Message.Port, 
-						&Result, sizeof(DevId_t));
+					PipeSend(Message.Sender, Message.ResponsePort, 
+						&Result, sizeof(UUId_t));
 				} break;
 				case __DEVICEMANAGER_UNREGISTERDEVICE: {
 
@@ -120,10 +120,10 @@ int ServerMain(void *Data)
  * Allows registering of a new device in the
  * device-manager, and automatically queries
  * for a driver for the new device */
-DevId_t RegisterDevice(MCoreDevice_t *Device, const char *Name)
+UUId_t RegisterDevice(MCoreDevice_t *Device, const char *Name)
 {
 	/* Variables */
-	DevId_t DeviceId = GlbDeviceIdGen++;
+	UUId_t DeviceId = GlbDeviceIdGen++;
 	DataKey_t Key;
 
 	/* Update name and print debug information */

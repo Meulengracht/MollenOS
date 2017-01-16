@@ -101,7 +101,7 @@ void VfsInstallFileSystem(MCoreFileSystem_t *Fs)
 /* VfsParsePartitionTable 
  * - Partition table parser function for disks 
  *   and parses only MBR, not GPT */
-int VfsParsePartitionTable(DevId_t DiskId, uint64_t SectorBase, 
+int VfsParsePartitionTable(UUId_t DiskId, uint64_t SectorBase,
 	uint64_t SectorCount, size_t SectorSize)
 {
 	/* Allocate structures */
@@ -248,7 +248,7 @@ int VfsParsePartitionTable(DevId_t DiskId, uint64_t SectorBase,
 
 /* Registers a disk with the VFS
  * and parse all possible partiions */
-void VfsRegisterDisk(DevId_t DiskId)
+void VfsRegisterDisk(UUId_t DiskId)
 {
 	/* Query for disk stats */
 //	MCoreModule_t *Module = NULL;
@@ -316,7 +316,7 @@ void VfsRegisterDisk(DevId_t DiskId)
 
 /* Unregisters a disk and all registered fs's on disk
  * Close all files currently open */
-void VfsUnregisterDisk(DevId_t DiskId, int Forced)
+void VfsUnregisterDisk(UUId_t DiskId, int Forced)
 {
 	/* Need this for the iteration */
 	ListNode_t *lNode;

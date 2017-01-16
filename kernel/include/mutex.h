@@ -33,7 +33,7 @@
 typedef struct _Mutex
 {
 	/* Task that is blocking */
-	ThreadId_t Blocker;
+	UUId_t Blocker;
 
 	/* Total amout of blocking */
 	size_t Blocks;

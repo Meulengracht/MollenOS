@@ -58,7 +58,7 @@ typedef struct _MCoreProcess
  * prepares the ash-process-environment, at this point
  * it won't be completely running yet, it needs
  * its own thread for that */
-__CRT_EXTERN PhxId_t PhoenixCreateProcess(MString_t *Path, MString_t *Arguments);
+__CRT_EXTERN UUId_t PhoenixCreateProcess(MString_t *Path, MString_t *Arguments);
 
 /* Cleans up all the process-specific resources allocated
  * this this AshProcess, and afterwards call the base-cleanup */
@@ -68,18 +68,18 @@ __CRT_EXTERN void PhoenixCleanupProcess(MCoreProcess_t *Process);
  * This function looks up a process structure 
  * by id, if either PROCESS_CURRENT or PROCESS_NO_PROCESS 
  * is passed, it retrieves the current process */
-__CRT_EXTERN MCoreProcess_t *PhoenixGetProcess(PhxId_t ProcessId);
+__CRT_EXTERN MCoreProcess_t *PhoenixGetProcess(UUId_t ProcessId);
 
  /* Get the working directory 
  * This function looks up the working directory for a process 
  * by id, if either PROCESS_CURRENT or PROCESS_NO_PROCESS 
  * is passed, it retrieves the current process's working directory */
-__CRT_EXTERN MString_t *PhoenixGetWorkingDirectory(PhxId_t ProcessId);
+__CRT_EXTERN MString_t *PhoenixGetWorkingDirectory(UUId_t ProcessId);
 
 /* Get the base directory 
  * This function looks up the base directory for a process 
  * by id, if either PROCESS_CURRENT or PROCESS_NO_PROCESS 
  * is passed, it retrieves the current process's base directory */
-__CRT_EXTERN MString_t *PhoenixGetBaseDirectory(PhxId_t ProcessId);
+__CRT_EXTERN MString_t *PhoenixGetBaseDirectory(UUId_t ProcessId);
 
 #endif //!_MCORE_PROCESS_H_

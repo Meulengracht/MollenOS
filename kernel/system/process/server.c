@@ -81,7 +81,7 @@ void PhoenixBootServer(void *Args)
 /* This function loads the executable and
  * prepares the ash-server-environment, at this point
  * it won't be completely running yet, it needs its own thread for that */
-PhxId_t PhoenixCreateServer(MString_t *Path, void *Arguments, size_t Length)
+UUId_t PhoenixCreateServer(MString_t *Path, void *Arguments, size_t Length)
 {
 	/* Vars */
 	MCoreServer_t *Server = NULL;
@@ -144,7 +144,7 @@ void PhoenixCleanupServer(MCoreServer_t *Server)
  * This function looks up a server structure 
  * by id, if either SERVER_CURRENT or SERVER_NO_SERVER 
  * is passed, it retrieves the current server */
-MCoreServer_t *PhoenixGetServer(PhxId_t ServerId)
+MCoreServer_t *PhoenixGetServer(UUId_t ServerId)
 {
 	/* Use the default Ash lookup */
 	MCoreAsh_t *Ash = PhoenixGetAsh(ServerId);

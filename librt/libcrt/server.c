@@ -150,7 +150,7 @@ void _mCrtInit(ThreadLocalStorage_t *Tls)
 }
 
 /* Driver Entry Point
- * Use this entry point for drivers/servers/modules */
+ * Use this entry point for servers */
 void _mDrvCrt(void)
 {
 	/* Variables */
@@ -162,12 +162,14 @@ void _mDrvCrt(void)
 
 	/* Initialize default pipes */
 	PipeOpen(PIPE_DEFAULT);
+	PipeOpen(PIPE_RPC);
 
 	/* Call main */
 	RetValue = ServerMain((void*)MOLLENOS_ARGUMENT_ADDR);
 
 	/* Cleanup pipes */
 	PipeClose(PIPE_DEFAULT);
+	PipeClose(PIPE_RPC);
 
 	/* Exit cleanly, calling atexit() functions */
 	exit(RetValue);

@@ -35,7 +35,7 @@
 
 /* Definitions for special identifiers
  * these can be used to lookup special ashes/processes */
-#define PHOENIX_NO_ASH			0xFFFFFFFF
+#define PHOENIX_NO_ASH			UUID_INVALID
 #define PHOENIX_CURRENT			0
 #define PHOENIX_MAX_ASHES		512
 #define PHOENIX_ALIAS_BASE		0x8000
@@ -78,7 +78,7 @@ typedef struct _MCorePhoenixRequest
 	/* This is a combined parameter, for some
 	 * actions it acts as a return, other times it
 	 * is the parameter for an action */
-	PhxId_t AshId;
+	UUId_t AshId;
 
 } MCorePhoenixRequest_t;
 
@@ -93,8 +93,8 @@ __CRT_EXTERN void PhoenixCreateRequest(MCorePhoenixRequest_t *Request);
 __CRT_EXTERN void PhoenixWaitRequest(MCorePhoenixRequest_t *Request, size_t Timeout);
 
 /* Signal Functions */
-__CRT_EXTERN void SignalHandle(ThreadId_t ThreadId);
-__CRT_EXTERN int SignalCreate(PhxId_t AshId, int Signal);
+__CRT_EXTERN void SignalHandle(UUId_t ThreadId);
+__CRT_EXTERN int SignalCreate(UUId_t AshId, int Signal);
 __CRT_EXTERN void SignalExecute(MCoreAsh_t *Ash, MCoreSignal_t *Signal);
 
 /* Architecture Specific  

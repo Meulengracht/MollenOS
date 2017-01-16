@@ -46,8 +46,8 @@ int VfsRequestHandler(void *UserData, MCoreEvent_t *Event);
 
 /* Prototypes 
  * - VFS Prototypes */
-void VfsRegisterDisk(DevId_t DiskId);
-void VfsUnregisterDisk(DevId_t DiskId, int Forced);
+void VfsRegisterDisk(UUId_t DiskId);
+void VfsUnregisterDisk(UUId_t DiskId, int Forced);
 MCoreFileInstance_t *VfsOpen(const char *Path, VfsFileFlags_t OpenFlags);
 VfsErrorCode_t VfsClose(MCoreFileInstance_t *Handle);
 VfsErrorCode_t VfsDelete(MCoreFileInstance_t *Handle);

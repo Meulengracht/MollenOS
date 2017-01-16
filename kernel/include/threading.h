@@ -75,9 +75,9 @@ typedef enum _MCoreThreadPriority {
  * architecture specific thread data, but rest
  * of the information here is shared in MCore */
 typedef struct _MCoreThread {
-	ThreadId_t Id;
-	ThreadId_t ParentId;
-	PhxId_t AshId;
+	UUId_t Id;
+	UUId_t ParentId;
+	UUId_t AshId;
 	Cpu_t CpuId;
 	
 	/* Information related to this 
@@ -121,7 +121,7 @@ __CRT_EXTERN void ThreadingInitialize(Cpu_t Cpu);
  * entry point, arguments and flags, if name 
  * is NULL, a generic name will be generated 
  * Thread is started as soon as possible */
-__CRT_EXTERN ThreadId_t ThreadingCreateThread(const char *Name,
+__CRT_EXTERN UUId_t ThreadingCreateThread(const char *Name,
 	ThreadEntry_t Function, void *Arguments, Flags_t Flags);
 
 /* ThreadingExitThread
@@ -132,12 +132,12 @@ __CRT_EXTERN void ThreadingExitThread(int ExitCode);
 /* ThreadingKillThread
  * Kills a thread with the given id, the thread
  * might not be killed immediately */
-__CRT_EXTERN void ThreadingKillThread(ThreadId_t ThreadId);
+__CRT_EXTERN void ThreadingKillThread(UUId_t ThreadId);
 
 /* ThreadingJoinThread
  * Can be used to wait for a thread the return 
  * value of this function is the ret-code of the thread */
-__CRT_EXTERN int ThreadingJoinThread(ThreadId_t ThreadId);
+__CRT_EXTERN int ThreadingJoinThread(UUId_t ThreadId);
 
 /* ThreadingEnterUserMode
  * Initializes non-kernel mode and marks the thread
@@ -147,7 +147,7 @@ __CRT_EXTERN void ThreadingEnterUserMode(void *AshInfo);
 /* ThreadingTerminateAshThreads
  * Marks all threads belonging to the given ashid
  * as finished and they will be cleaned up on next switch */
-__CRT_EXTERN void ThreadingTerminateAshThreads(PhxId_t AshId);
+__CRT_EXTERN void ThreadingTerminateAshThreads(UUId_t AshId);
 
 /* ThreadingIsEnabled
  * Returns 1 if the threading system has been
@@ -171,12 +171,12 @@ __CRT_EXTERN MCoreThread_t *ThreadingGetCurrentThread(Cpu_t Cpu);
 /* ThreadingGetCurrentThreadId
  * Retrives the current thread id on the current cpu
  * from the callers perspective */
-__CRT_EXTERN ThreadId_t ThreadingGetCurrentThreadId(void);
+__CRT_EXTERN UUId_t ThreadingGetCurrentThreadId(void);
 
 /* ThreadingGetThread
  * Lookup thread by the given thread-id, 
  * returns NULL if invalid */
-__CRT_EXTERN MCoreThread_t *ThreadingGetThread(ThreadId_t ThreadId);
+__CRT_EXTERN MCoreThread_t *ThreadingGetThread(UUId_t ThreadId);
 
 /* ThreadingWakeCpu
  * Wake's the target cpu from an idle thread

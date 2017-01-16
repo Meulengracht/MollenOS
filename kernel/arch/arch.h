@@ -172,8 +172,8 @@ __CRT_EXTERN void IThreadYield(void);
  * some kind of communication between hardware and software
  * by either port or mmio */
 typedef struct _MCoreIoSpace {
-	IoSpaceId_t			Id;
-	PhxId_t				Owner;
+	UUId_t				Id;
+	UUId_t				Owner;
 	int					Type;
 	Addr_t				PhysicalBase;
 	Addr_t				VirtualBase;
@@ -203,7 +203,7 @@ __CRT_EXTERN OsStatus_t IoSpaceRelease(DeviceIoSpace_t *IoSpace);
 /* Destroys the given io-space by its id, the id
  * has the be valid, and the target io-space HAS to 
  * un-acquired by any process, otherwise its not possible */
-__CRT_EXTERN OsStatus_t IoSpaceDestroy(IoSpaceId_t IoSpace);
+__CRT_EXTERN OsStatus_t IoSpaceDestroy(UUId_t IoSpace);
 
 /* Tries to validate the given virtual address by 
  * checking if any process has an active io-space

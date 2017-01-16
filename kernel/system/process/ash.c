@@ -35,8 +35,8 @@
 #include <stddef.h>
 
 /* Externs */
-__CRT_EXTERN PhxId_t *GlbAliasMap;
-__CRT_EXTERN PhxId_t GlbAshIdGenerator;
+__CRT_EXTERN UUId_t *GlbAliasMap;
+__CRT_EXTERN UUId_t GlbAshIdGenerator;
 __CRT_EXTERN List_t *GlbAshes;
 
 /* This is the finalizor function for starting
@@ -194,7 +194,7 @@ int PhoenixInitializeAsh(MCoreAsh_t *Ash, MString_t *Path)
 /* This is a wrapper for starting up a base Ash
  * and uses <PhoenixInitializeAsh> to setup the env
  * and do validation before starting */
-PhxId_t PhoenixStartupAsh(MString_t *Path)
+UUId_t PhoenixStartupAsh(MString_t *Path)
 {
 	/* Variables needed for this */
 	MCoreAsh_t *Ash = NULL;
@@ -369,7 +369,7 @@ int PhoenixQueryAsh(MCoreAsh_t *Ash,
 		case AshQueryParent:
 		{
 			/* Get a pointer */
-			PhxId_t *bPtr = (PhxId_t*)Buffer;
+			UUId_t *bPtr = (UUId_t*)Buffer;
 
 			/* There we go */
 			*bPtr = Ash->Parent;
@@ -380,7 +380,7 @@ int PhoenixQueryAsh(MCoreAsh_t *Ash,
 		case AshQueryTopMostParent:
 		{
 			/* Get a pointer */
-			PhxId_t *bPtr = (PhxId_t*)Buffer;
+			UUId_t *bPtr = (UUId_t*)Buffer;
 
 			/* Set initial value */
 			*bPtr = PHOENIX_NO_ASH;
@@ -447,7 +447,7 @@ void PhoenixCleanupAsh(MCoreAsh_t *Ash)
  * Allows a server to register an alias for its id
  * which means that id (must be above SERVER_ALIAS_BASE)
  * will always refer the calling process */
-OsStatus_t PhoenixRegisterAlias(MCoreAsh_t *Ash, PhxId_t Alias)
+OsStatus_t PhoenixRegisterAlias(MCoreAsh_t *Ash, UUId_t Alias)
 {
 	/* Sanitize both the server and alias */
 	if (Ash == NULL
@@ -467,7 +467,7 @@ OsStatus_t PhoenixRegisterAlias(MCoreAsh_t *Ash, PhxId_t Alias)
  * This function looks up a ash structure
  * by id, if either PHOENIX_CURRENT or PHOENIX_NO_ASH
  * is passed, it retrieves the current process */
-MCoreAsh_t *PhoenixGetAsh(PhxId_t AshId)
+MCoreAsh_t *PhoenixGetAsh(UUId_t AshId)
 {
 	/* Variables */
 	ListNode_t *pNode = NULL;

@@ -82,6 +82,7 @@ void _mDrvCrt(void)
 
 	/* Initialize default pipes */
 	PipeOpen(PIPE_DEFAULT);
+	PipeOpen(PIPE_RPC);
 
 	/* Allocate the list of running instances */
 	__GlbInstances = ListCreate(KeyInteger, LIST_NORMAL);
@@ -141,5 +142,6 @@ Cleanup:
 	 * and perform a normal exit */
 	ListDestroy(__GlbInstances);
 	PipeClose(PIPE_DEFAULT);
+	PipeClose(PIPE_RPC);
 	exit(-1);
 }

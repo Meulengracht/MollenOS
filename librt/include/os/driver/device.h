@@ -71,7 +71,7 @@ typedef struct _MCoreDevice
 	/* Device Identifier
 	 * This is used when communicating with the
 	 * devicemanager server */
-	DevId_t						Id;
+	UUId_t						Id;
 
 	/* Device Name
 	 * Limited name buffer set by config 
@@ -115,16 +115,17 @@ typedef struct _MCoreDevice
  * device-manager, and automatically queries
  * for a driver for the new device */
 #ifdef __DEVICEMANAGER_EXPORT
-__DEVAPI DevId_t RegisterDevice(MCoreDevice_t *Device, const char *Name);
+__DEVAPI UUId_t RegisterDevice(MCoreDevice_t *Device, const char *Name);
 #else
-__DEVAPI DevId_t RegisterDevice(MCoreDevice_t *Device)
+__DEVAPI UUId_t RegisterDevice(MCoreDevice_t *Device)
 {
 	/* Variables */
 	MRemoteCall_t Request;
-	DevId_t Result;
-	RPCInitialize(&Request, PIPE_DEFAULT, __DEVICEMANAGER_REGISTERDEVICE);
+	UUId_t Result;
+	RPCInitialize(&Request, __DEVICEMANAGER_INTERFACE_VERSION, 
+		PIPE_DEFAULT, __DEVICEMANAGER_REGISTERDEVICE);
 	RPCSetArgument(&Request, 0, (const void*)Device, sizeof(MCoreDevice_t));
-	RPCSetResult(&Request, (const void*)&Result, sizeof(DevId_t));
+	RPCSetResult(&Request, (const void*)&Result, sizeof(UUId_t));
 	RPCEvaluate(&Request, __DEVICEMANAGER_TARGET);
 	return Result;
 }

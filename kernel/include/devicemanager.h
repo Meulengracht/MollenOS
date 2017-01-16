@@ -110,7 +110,7 @@ typedef struct _MCoreDriver
 typedef struct _MCoreDevice
 {
 	/* System Id */
-	DevId_t Id;
+	UUId_t Id;
 
 	/* Name */
 	char *Name;
@@ -159,7 +159,7 @@ typedef struct _MCoreDeviceRequest
 	MCoreEvent_t Base;
 
 	/* Device Id */
-	DevId_t DeviceId;
+	UUId_t DeviceId;
 
 	/* Data */
 	uint64_t SectorLBA;
@@ -181,9 +181,9 @@ __CRT_EXTERN void DmRegisterBootVideo(MCoreDevice_t *Video);
 
 /* Setup of devices */
 _CRT_EXPORT int DmRequestResource(MCoreDevice_t *Device, DeviceResourceType_t ResourceType);
-_CRT_EXPORT DevId_t DmCreateDevice(char *Name, MCoreDevice_t *Device);
+_CRT_EXPORT UUId_t DmCreateDevice(char *Name, MCoreDevice_t *Device);
 _CRT_EXPORT MCoreDevice_t *DmGetDevice(DeviceType_t Type);
-_CRT_EXPORT void DmDestroyDevice(DevId_t DeviceId);
+_CRT_EXPORT void DmDestroyDevice(UUId_t DeviceId);
 
 /* Device Requests */
 _CRT_EXPORT void DmCreateRequest(MCoreDeviceRequest_t *Request);

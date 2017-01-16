@@ -40,7 +40,7 @@
 /* Globals, we need a few variables to
  * keep track of running threads, idle threads
  * and a thread resources lock */
-ThreadId_t GlbThreadId = 0;
+UUId_t GlbThreadId = 0;
 List_t *GlbThreads = NULL;
 List_t *GlbZombieThreads = NULL;
 ListNode_t *GlbCurrentThreads[MAX_SUPPORTED_CPUS];
@@ -193,7 +193,7 @@ void ThreadingInitialize(Cpu_t Cpu)
  * entry point, arguments and flags, if name 
  * is NULL, a generic name will be generated 
  * Thread is started as soon as possible */
-ThreadId_t ThreadingCreateThread(const char *Name, 
+UUId_t ThreadingCreateThread(const char *Name,
 	ThreadEntry_t Function, void *Arguments, Flags_t Flags)
 {
 	/* Variables needed for thread creation */
@@ -233,7 +233,7 @@ ThreadId_t ThreadingCreateThread(const char *Name,
 	/* Initialize some basic thread information 
 	 * The only flags we want to copy for now are
 	 * the running-mode */
-	Thread->Id = (ThreadId_t)Key.Value;
+	Thread->Id = (UUId_t)Key.Value;
 	Thread->ParentId = Parent->Id;
 	Thread->AshId = PHOENIX_NO_ASH;
 	Thread->Flags = (Flags & THREADING_MODEMASK);
@@ -353,7 +353,7 @@ void ThreadingExitThread(int ExitCode)
 /* ThreadingKillThread
  * Kills a thread with the given id, the thread
  * might not be killed immediately */
-void ThreadingKillThread(ThreadId_t ThreadId)
+void ThreadingKillThread(UUId_t ThreadId)
 {
 	/* Get thread handle */
 	MCoreThread_t *Target = ThreadingGetThread(ThreadId);
@@ -380,7 +380,7 @@ void ThreadingKillThread(ThreadId_t ThreadId)
 /* ThreadingJoinThread
  * Can be used to wait for a thread the return 
  * value of this function is the ret-code of the thread */
-int ThreadingJoinThread(ThreadId_t ThreadId)
+int ThreadingJoinThread(UUId_t ThreadId)
 {
 	/* Get thread handle */
 	MCoreThread_t *Target = ThreadingGetThread(ThreadId);
@@ -435,7 +435,7 @@ void ThreadingEnterUserMode(void *AshInfo)
 /* ThreadingTerminateAshThreads
  * Marks all threads belonging to the given ashid
  * as finished and they will be cleaned up on next switch */
-void ThreadingTerminateAshThreads(PhxId_t AshId)
+void ThreadingTerminateAshThreads(UUId_t AshId)
 {
 	/* Iterate thread list */
 	foreach(tNode, GlbThreads) {
@@ -471,7 +471,7 @@ MCoreThread_t *ThreadingGetCurrentThread(Cpu_t Cpu)
 /* ThreadingGetCurrentThreadId
  * Retrives the current thread id on the current cpu
  * from the callers perspective */
-ThreadId_t ThreadingGetCurrentThreadId(void)
+UUId_t ThreadingGetCurrentThreadId(void)
 {
 	/* Get current cpu */
 	Cpu_t Cpu = ApicGetCpu();
@@ -479,7 +479,7 @@ ThreadId_t ThreadingGetCurrentThreadId(void)
 	/* If it's during startup phase for cpu's
 	 * we have to take precautions */
 	if (GlbCurrentThreads[Cpu] == NULL) {
-		return (ThreadId_t)Cpu;
+		return (UUId_t)Cpu;
 	}
 
 	/* Sanitize the threading status */
@@ -494,7 +494,7 @@ ThreadId_t ThreadingGetCurrentThreadId(void)
 /* ThreadingGetThread
  * Lookup thread by the given thread-id, 
  * returns NULL if invalid */
-MCoreThread_t *ThreadingGetThread(ThreadId_t ThreadId)
+MCoreThread_t *ThreadingGetThread(UUId_t ThreadId)
 {
 	/* Iterate thread nodes and find the correct */
 	foreach(tNode, GlbThreads) {

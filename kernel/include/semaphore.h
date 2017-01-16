@@ -38,7 +38,7 @@
  * and a Hash (for global support), and the current value */
 typedef struct _Semaphore {
 	CriticalSection_t Lock;
-	ThreadId_t Creator;
+	UUId_t Creator;
 	size_t Hash;
 	int Value;
 } Semaphore_t;

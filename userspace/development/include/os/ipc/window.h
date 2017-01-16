@@ -91,7 +91,8 @@ __WNDAPI WndHandle_t CreateWindow(WindowParameters_t *Params)
 	/* Variables */
 	MRemoteCall_t Request;
 	WndHandle_t Result;
-	RPCInitialize(&Request, PIPE_DEFAULT, __WINDOWMANAGER_CREATE);
+	RPCInitialize(&Request, __WINDOWMANAGER_INTERFACE_VERSION, 
+		PIPE_DEFAULT, __WINDOWMANAGER_CREATE);
 	RPCSetArgument(&Request, 0, (const void*)Params, sizeof(WindowParameters_t));
 	RPCSetResult(&Request, (const void*)&Result, sizeof(WndHandle_t));
 	RPCEvaluate(&Request, __WINDOWMANAGER_TARGET);
@@ -109,7 +110,8 @@ __WNDAPI OsStatus_t DestroyWindow(WndHandle_t Handle)
 {
 	/* Variables */
 	MRemoteCall_t Request;
-	RPCInitialize(&Request, PIPE_DEFAULT, __WINDOWMANAGER_DESTROY);
+	RPCInitialize(&Request, __WINDOWMANAGER_INTERFACE_VERSION,
+		PIPE_DEFAULT, __WINDOWMANAGER_DESTROY);
 	RPCSetArgument(&Request, 0, (const void*)Handle, sizeof(WndHandle_t));
 	return RPCExecute(&Request, __WINDOWMANAGER_TARGET);
 }
@@ -125,7 +127,8 @@ __WNDAPI OsStatus_t QueryWindow(WndHandle_t Handle, MWindowDescriptor_t *Descrip
 {
 	/* Variables */
 	MRemoteCall_t Request;
-	RPCInitialize(&Request, PIPE_DEFAULT, __WINDOWMANAGER_QUERY);
+	RPCInitialize(&Request, __WINDOWMANAGER_INTERFACE_VERSION,
+		PIPE_DEFAULT, __WINDOWMANAGER_QUERY);
 	RPCSetArgument(&Request, 0, (const void*)Handle, sizeof(WndHandle_t));
 	RPCSetResult(&Request, (const void*)Descriptor, sizeof(MWindowDescriptor_t));
 	return RPCEvaluate(&Request, __WINDOWMANAGER_TARGET);
@@ -143,7 +146,8 @@ __WNDAPI OsStatus_t InvalidateWindow(WndHandle_t Handle, Rect_t *Rectangle)
 {
 	/* Variables */
 	MRemoteCall_t Request;
-	RPCInitialize(&Request, PIPE_DEFAULT, __WINDOWMANAGER_INVALIDATE);
+	RPCInitialize(&Request, __WINDOWMANAGER_INTERFACE_VERSION,
+		PIPE_DEFAULT, __WINDOWMANAGER_INVALIDATE);
 	RPCSetArgument(&Request, 0, (const void*)Handle, sizeof(WndHandle_t));
 	RPCSetArgument(&Request, 1, (const void*)Rectangle, sizeof(Rect_t));
 	return RPCExecute(&Request, __WINDOWMANAGER_TARGET);

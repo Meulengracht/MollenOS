@@ -33,7 +33,7 @@
  * must use RPCEvaluate, this will automatically wait
  * for a reply, whereas RPCExecute will send the request
  * and not block/wait for reply */
-OsStatus_t RPCEvaluate(MRemoteCall_t *Ipc, IpcComm_t Target)
+OsStatus_t RPCEvaluate(MRemoteCall_t *Ipc, UUId_t Target)
 {
 	return Syscall3(SYSCALL_RPCEVAL, SYSCALL_PARAM(Ipc), SYSCALL_PARAM(Target), 0);
 }
@@ -43,7 +43,7 @@ OsStatus_t RPCEvaluate(MRemoteCall_t *Ipc, IpcComm_t Target)
  * must use RPCEvaluate, this will automatically wait
  * for a reply, whereas RPCExecute will send the request
  * and not block/wait for reply */
-OsStatus_t RPCExecute(MRemoteCall_t *Ipc, IpcComm_t Target)
+OsStatus_t RPCExecute(MRemoteCall_t *Ipc, UUId_t Target)
 {
 	return Syscall3(SYSCALL_RPCEVAL, SYSCALL_PARAM(Ipc), SYSCALL_PARAM(Target), 1);
 }
@@ -110,7 +110,7 @@ int WaitForSignal(size_t Timeout)
  * This wakes up a thread in suspend mode on the
  * target. This should be used in conjunction with
  * the Sleep. */
-int SignalProcess(IpcComm_t Target)
+int SignalProcess(UUId_t Target)
 {
 	return Syscall1(SYSCALL_PSIGSEND, SYSCALL_PARAM(Target));
 }

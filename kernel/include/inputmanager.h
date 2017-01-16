@@ -28,7 +28,7 @@
 #include <os/ipc/ipc.h>
 
 /* Prototypes */
-__CRT_EXTERN void EmRegisterSystemTarget(PhxId_t ProcessId);
+__CRT_EXTERN void EmRegisterSystemTarget(UUId_t ProcessId);
 
 /* Write data to pointer pipe */
 _CRT_EXPORT void EmCreateEvent(MEventMessage_t *Event);

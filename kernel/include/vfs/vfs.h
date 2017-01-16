@@ -84,7 +84,7 @@ typedef struct _MCoreVfsRequest
 	union {
 		union {
 			uint32_t Length;
-			DevId_t DiskId;
+			UUId_t DiskId;
 			VfsQueryFunction_t Function;
 			VfsFileFlags_t Flags;
 			int Copy;
@@ -112,7 +112,7 @@ typedef struct _MCoreFileSystem
 	int Id;
 
 	/* The disk it longs to */
-	DevId_t DiskId;
+	UUId_t DiskId;
 
 	/* Identifier of this filesystem
 	 * used for ex as St0, St1, etc 

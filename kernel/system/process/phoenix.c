@@ -44,10 +44,10 @@ int PhoenixEventHandler(void *UserData, MCoreEvent_t *Event);
 
 /* Globals */
 MCoreEventHandler_t *GlbPhoenixEventHandler = NULL;
-PhxId_t GlbAshIdGenerator = 0;
+UUId_t GlbAshIdGenerator = 0;
 List_t *GlbAshes = NULL;
 List_t *GlbZombieAshes = NULL;
-PhxId_t *GlbAliasMap = NULL;
+UUId_t *GlbAliasMap = NULL;
 
 /* Initialize the Phoenix environment and 
  * start the event-handler loop, it handles all requests 
@@ -65,8 +65,8 @@ void PhoenixInit(void)
 	GlbZombieAshes = ListCreate(KeyInteger, LIST_SAFE);
 
 	/* Initialize the global alias map */
-	GlbAliasMap = (PhxId_t*)kmalloc(sizeof(PhxId_t) * PHOENIX_MAX_ASHES);
-	memset(GlbAliasMap, 0xFF, sizeof(sizeof(PhxId_t) * PHOENIX_MAX_ASHES));
+	GlbAliasMap = (UUId_t*)kmalloc(sizeof(UUId_t) * PHOENIX_MAX_ASHES);
+	memset(GlbAliasMap, 0xFF, sizeof(sizeof(UUId_t) * PHOENIX_MAX_ASHES));
 
 	/* Create event handler */
 	GlbPhoenixEventHandler = EventInit("Phoenix Event Handler", PhoenixEventHandler, NULL);

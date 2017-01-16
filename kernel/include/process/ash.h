@@ -88,9 +88,9 @@ typedef struct _MCoreAsh
 	/* Ids related to this Ash,
 	 * both it's own id, it's main thread
 	 * and it's parent ash */
-	ThreadId_t MainThread;
-	PhxId_t Id;
-	PhxId_t Parent;
+	UUId_t MainThread;
+	UUId_t Id;
+	UUId_t Parent;
 	MCoreAshType_t Type;
 
 	/* The name of the Ash, this is usually
@@ -138,7 +138,7 @@ __CRT_EXTERN int PhoenixInitializeAsh(MCoreAsh_t *Ash, MString_t *Path);
 /* This is a wrapper for starting up a base Ash
  * and uses <PhoenixInitializeAsh> to setup the env
  * and do validation before starting */
-__CRT_EXTERN PhxId_t PhoenixStartupAsh(MString_t *Path);
+__CRT_EXTERN UUId_t PhoenixStartupAsh(MString_t *Path);
 
 /* This is the finalizor function for starting
  * up a new base Ash, it finishes setting up the environment
@@ -165,13 +165,13 @@ __CRT_EXTERN void PhoenixTerminateAsh(MCoreAsh_t *Ash);
  * Allows a server to register an alias for its id
  * which means that id (must be above PHOENIX_ALIAS_BASE)
  * will always refer the calling process */
-__CRT_EXTERN OsStatus_t PhoenixRegisterAlias(MCoreAsh_t *Ash, PhxId_t Alias);
+__CRT_EXTERN OsStatus_t PhoenixRegisterAlias(MCoreAsh_t *Ash, UUId_t Alias);
 
 /* Lookup Ash
  * This function looks up a ash structure
  * by id, if either PHOENIX_CURRENT or PHOENIX_NO_ASH
  * is passed, it retrieves the current process */
-__CRT_EXTERN MCoreAsh_t *PhoenixGetAsh(PhxId_t AshId);
+__CRT_EXTERN MCoreAsh_t *PhoenixGetAsh(UUId_t AshId);
 __CRT_EXTERN MCoreAsh_t *PhoenixGetAshByName(const char *Name);
 
 #endif //!_MCORE_ASH_H_

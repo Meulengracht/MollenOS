@@ -39,7 +39,7 @@
  * some kind of communication between hardware and software
  * by either port or mmio */
 typedef struct _DeviceIoSpace {
-	IoSpaceId_t					Id;
+	UUId_t						Id;
 	int							Type;
 	Addr_t						PhysicalBase;
 	Addr_t						VirtualBase;
@@ -64,7 +64,7 @@ _MOS_API OsStatus_t ReleaseIoSpace(DeviceIoSpace_t *IoSpace);
 /* Destroys the io-space with the given id and removes
  * it from the io-manage in the operation system, it
  * can only be removed if its not already acquired */
-_MOS_API OsStatus_t DestroyIoSpace(IoSpaceId_t IoSpace);
+_MOS_API OsStatus_t DestroyIoSpace(UUId_t IoSpace);
 
 /* Read data from the given io-space at <offset> with 
  * the given <length>, the offset and length must be below 

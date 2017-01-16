@@ -33,7 +33,7 @@
 
 /* Globals */
 int GlbEmInitialized = 0;
-PhxId_t GlbEmWindowManager = 0;
+UUId_t GlbEmWindowManager = 0;
 
 /* Initialise Event Manager */
 void EmInit(void)
@@ -44,7 +44,7 @@ void EmInit(void)
 }
 
 /* Register */
-void EmRegisterSystemTarget(PhxId_t ProcessId)
+void EmRegisterSystemTarget(UUId_t ProcessId)
 {
 	/* Sanity, NO OVERRIDES */
 	if (ProcessId != PHOENIX_NO_ASH

@@ -41,6 +41,7 @@
  * on these ports will result in error */
 #define PIPE_DEFAULT					0
 #define PIPE_EVENT						1
+#define PIPE_RPC						2
 
 /* Predefined system events that is common for
  * all userspace applications, these primarily consists

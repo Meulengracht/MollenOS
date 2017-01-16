@@ -69,7 +69,7 @@ typedef struct _MCoreServer
  * This function loads the executable and
  * prepares the ash-server-environment, at this point
  * it won't be completely running yet, it needs its own thread for that */
-__CRT_EXTERN PhxId_t PhoenixCreateServer(MString_t *Path, void *Arguments, size_t Length);
+__CRT_EXTERN UUId_t PhoenixCreateServer(MString_t *Path, void *Arguments, size_t Length);
 
 /* PhoenixCleanupServer
  * Cleans up all the server-specific resources allocated
@@ -80,7 +80,7 @@ __CRT_EXTERN void PhoenixCleanupServer(MCoreServer_t *Server);
  * This function looks up a server structure 
  * by id, if either SERVER_CURRENT or SERVER_NO_SERVER 
  * is passed, it retrieves the current server */
-__CRT_EXTERN MCoreServer_t *PhoenixGetServer(PhxId_t ServerId);
+__CRT_EXTERN MCoreServer_t *PhoenixGetServer(UUId_t ServerId);
 
 /* GetServerByDriver
  * Retrieves a running server by driver-information

@@ -28,7 +28,7 @@
  * Executes a new event to the desired target process
  * the process must be listening on PIPE_EVENT to be able
  * to recieve it. Events do not have replies */
-OsStatus_t EVTExecute(MEventMessage_t *Event, IpcComm_t Target)
+OsStatus_t EVTExecute(MEventMessage_t *Event, UUId_t Target)
 {
 	return Syscall2(SYSCALL_EVTEXEC, SYSCALL_PARAM(Event), SYSCALL_PARAM(Target));
 }

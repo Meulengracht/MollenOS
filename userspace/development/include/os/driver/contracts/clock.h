@@ -29,10 +29,6 @@
 #include <os/driver/contracts/base.h>
 #include <os/osdefs.h>
 
-/* The clock contract structure
- * contains information about the clock driver */
-typedef struct _MContractClock {
-	MContract_t			Base;
-} MContractClock_t;
+
 
 #endif //!_MCORE_CONTRACT_CLOCK_H_

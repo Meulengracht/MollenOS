@@ -69,7 +69,7 @@ void PhoenixBootProcess(void *Args)
  * prepares the ash-process-environment, at this point
  * it won't be completely running yet, it needs
  * its own thread for that */
-PhxId_t PhoenixCreateProcess(MString_t *Path, MString_t *Arguments)
+UUId_t PhoenixCreateProcess(MString_t *Path, MString_t *Arguments)
 {
 	/* Vars */
 	MCoreProcess_t *Process = NULL;
@@ -147,7 +147,7 @@ void PhoenixCleanupProcess(MCoreProcess_t *Process)
  * This function looks up a process structure 
  * by id, if either PROCESS_CURRENT or PROCESS_NO_PROCESS 
  * is passed, it retrieves the current process */
-MCoreProcess_t *PhoenixGetProcess(PhxId_t ProcessId)
+MCoreProcess_t *PhoenixGetProcess(UUId_t ProcessId)
 {
 	/* Use the default Ash lookup */
 	MCoreAsh_t *Ash = PhoenixGetAsh(ProcessId);
@@ -167,7 +167,7 @@ MCoreProcess_t *PhoenixGetProcess(PhxId_t ProcessId)
  * This function looks up the working directory for a process 
  * by id, if either PROCESS_CURRENT or PROCESS_NO_PROCESS 
  * is passed, it retrieves the current process's working directory */
-MString_t *PhoenixGetWorkingDirectory(PhxId_t ProcessId)
+MString_t *PhoenixGetWorkingDirectory(UUId_t ProcessId)
 {
 	/* Variables */
 	MCoreProcess_t *Process = PhoenixGetProcess(ProcessId);
@@ -185,7 +185,7 @@ MString_t *PhoenixGetWorkingDirectory(PhxId_t ProcessId)
  * This function looks up the base directory for a process 
  * by id, if either PROCESS_CURRENT or PROCESS_NO_PROCESS 
  * is passed, it retrieves the current process's base directory */
-MString_t *PhoenixGetBaseDirectory(PhxId_t ProcessId)
+MString_t *PhoenixGetBaseDirectory(UUId_t ProcessId)
 {
 	/* Variables */
 	MCoreProcess_t *Process = PhoenixGetProcess(ProcessId);

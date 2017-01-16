@@ -49,7 +49,7 @@
  * given executable + arguments 
  * and returns the id, will return
  * PROCESS_NO_PROCESS if failed */
-PhxId_t ScProcessSpawn(char *Path, char *Arguments)
+UUId_t ScProcessSpawn(char *Path, char *Arguments)
 {
 	/* Alloc on stack */
 	MCorePhoenixRequest_t Request;
@@ -92,7 +92,7 @@ PhxId_t ScProcessSpawn(char *Path, char *Arguments)
 /* This waits for a child process to 
  * finish executing, and does not wakeup
  * before that */
-int ScProcessJoin(PhxId_t ProcessId)
+int ScProcessJoin(UUId_t ProcessId)
 {
 	/* Wait for process */
 	MCoreAsh_t *Process = PhoenixGetAsh(ProcessId);
@@ -111,7 +111,7 @@ int ScProcessJoin(PhxId_t ProcessId)
 
 /* Attempts to kill the process 
  * with the given process-id */
-int ScProcessKill(PhxId_t ProcessId)
+int ScProcessKill(UUId_t ProcessId)
 {
 	/* Alloc on stack */
 	MCorePhoenixRequest_t Request;
@@ -179,7 +179,7 @@ int ScProcessExit(int ExitCode)
  * the given process id, if called
  * with -1 it queries information
  * about itself */
-int ScProcessQuery(PhxId_t ProcessId, AshQueryFunction_t Function, void *Buffer, size_t Length)
+int ScProcessQuery(UUId_t ProcessId, AshQueryFunction_t Function, void *Buffer, size_t Length)
 {
 	/* Variables */
 	MCoreProcess_t *Process = NULL;
@@ -237,7 +237,7 @@ int ScProcessSignal(int Signal, Addr_t Handler)
 /* Dispatches a signal to the target process id 
  * It will get handled next time it's selected for execution 
  * so we yield instantly as well. If processid is -1, we select self */
-int ScProcessRaise(PhxId_t ProcessId, int Signal)
+int ScProcessRaise(UUId_t ProcessId, int Signal)
 {
 	/* Variables */
 	MCoreProcess_t *Process = NULL;
@@ -370,10 +370,10 @@ int ScThreadExit(int ExitCode)
 /* Thread join, waits for a given
  * thread to finish executing, and returns it's exit code, works 
  * like processjoin. Must be in same process as asking thread */
-int ScThreadJoin(ThreadId_t ThreadId)
+int ScThreadJoin(UUId_t ThreadId)
 {
 	/* Lookup process information */
-	PhxId_t CurrentPid = ThreadingGetCurrentThread(ApicGetCpu())->AshId;
+	UUId_t CurrentPid = ThreadingGetCurrentThread(ApicGetCpu())->AshId;
 
 	/* Sanity */
 	if (ThreadingGetThread(ThreadId) == NULL
@@ -389,10 +389,10 @@ int ScThreadJoin(ThreadId_t ThreadId)
 /* Thread kill, kills the given thread
  * id, must belong to same process as the
  * thread that asks. */
-int ScThreadKill(ThreadId_t ThreadId)
+int ScThreadKill(UUId_t ThreadId)
 {
 	/* Lookup process information */
-	PhxId_t CurrentPid = ThreadingGetCurrentThread(ApicGetCpu())->AshId;
+	UUId_t CurrentPid = ThreadingGetCurrentThread(ApicGetCpu())->AshId;
 
 	/* Sanity */
 	if (ThreadingGetThread(ThreadId) == NULL
@@ -566,7 +566,7 @@ int ScMemoryQuery(void)
 }
 
 /* Share memory with a process */
-Addr_t ScMemoryShare(IpcComm_t Target, Addr_t Address, size_t Size)
+Addr_t ScMemoryShare(UUId_t Target, Addr_t Address, size_t Size)
 {
 	/* Locate the current running process */
 	MCoreAsh_t *Ash = PhoenixGetAsh(Target);
@@ -618,7 +618,7 @@ Addr_t ScMemoryShare(IpcComm_t Target, Addr_t Address, size_t Size)
 }
 
 /* Unshare memory with a process */
-int ScMemoryUnshare(IpcComm_t Target, Addr_t TranslatedAddress, size_t Size)
+int ScMemoryUnshare(UUId_t Target, Addr_t TranslatedAddress, size_t Size)
 {
 	/* Locate the current running process */
 	MCoreAsh_t *Ash = PhoenixGetAsh(Target);
@@ -703,7 +703,7 @@ int ScPipeRead(int Port, uint8_t *Container, size_t Length, int Peek)
  * so far this system call is made in the fashion
  * that the recieving process must have room in their
  * message queue... dunno */
-int ScPipeWrite(PhxId_t AshId, int Port, uint8_t *Message, size_t Length)
+int ScPipeWrite(UUId_t AshId, int Port, uint8_t *Message, size_t Length)
 {
 	/* Variables */
 	MCorePipe_t *Pipe = NULL;
@@ -752,7 +752,7 @@ int ScIpcSleep(size_t Timeout)
 /* This must be used in conjuction with the above function
  * otherwise this function has no effect, this is used for
  * very limited IPC synchronization */
-int ScIpcWake(IpcComm_t Target)
+int ScIpcWake(UUId_t Target)
 {
 	/* Locate Process */
 	MCoreAsh_t *Ash = PhoenixGetAsh(Target);
@@ -781,7 +781,7 @@ OsStatus_t ScRpcResponse(MRemoteCall_t *Rpc)
 	/* Resolve the current running process
 	 * and the default pipe in the rpc */
 	Ash = PhoenixGetAsh(ThreadingGetCurrentThread(ApicGetCpu())->AshId);
-	Pipe = PhoenixGetAshPipe(Ash, Rpc->Port);
+	Pipe = PhoenixGetAshPipe(Ash, Rpc->ResponsePort);
 
 	/* Sanitize the lookups */
 	if (Ash == NULL || Pipe == NULL
@@ -805,7 +805,7 @@ OsStatus_t ScRpcResponse(MRemoteCall_t *Rpc)
  * Executes an IPC RPC request to the
  * given process and optionally waits for
  * a reply/response */
-OsStatus_t ScRpcExecute(MRemoteCall_t *Rpc, IpcComm_t Target, int Async)
+OsStatus_t ScRpcExecute(MRemoteCall_t *Rpc, UUId_t Target, int Async)
 {
 	/* Variables */
 	MCoreAsh_t *Ash = NULL;
@@ -847,7 +847,7 @@ OsStatus_t ScRpcExecute(MRemoteCall_t *Rpc, IpcComm_t Target, int Async)
 /* ScEvtExecute (System Call)
  * Executes an IPC EVT request to the
  * given process, does not give a reply */
-OsStatus_t ScEvtExecute(MEventMessage_t *Event, IpcComm_t Target)
+OsStatus_t ScEvtExecute(MEventMessage_t *Event, UUId_t Target)
 {
 	/* Variables */
 	MCoreAsh_t *Ash = NULL;
@@ -1535,7 +1535,7 @@ OsStatus_t ScIoSpaceRelease(DeviceIoSpace_t *IoSpace)
 /* Destroys the io-space with the given id and removes
  * it from the io-manage in the operation system, it
  * can only be removed if its not already acquired */
-OsStatus_t ScIoSpaceDestroy(IoSpaceId_t IoSpace)
+OsStatus_t ScIoSpaceDestroy(UUId_t IoSpace)
 {
 	/* Sanitize params */
 
@@ -1549,7 +1549,7 @@ OsStatus_t ScIoSpaceDestroy(IoSpaceId_t IoSpace)
 /* Allows a server to register an alias for its 
  * process id, as applications can't possibly know
  * its id if it changes */
-OsStatus_t ScRegisterAliasId(PhxId_t Alias)
+OsStatus_t ScRegisterAliasId(UUId_t Alias)
 {
 	/* Redirect call */
 	return PhoenixRegisterAlias(
@@ -1635,7 +1635,7 @@ OsStatus_t ScLoadDriver(MCoreDevice_t *Device)
 	}
 
 	/* Prepare the message */
-	RPCInitialize(&Message, PIPE_DEFAULT, __DRIVER_REGISTERINSTANCE);
+	RPCInitialize(&Message, 1, PIPE_DEFAULT, __DRIVER_REGISTERINSTANCE);
 	RPCSetArgument(&Message, 0, Device, sizeof(MCoreDevice_t));
 	Message.Sender = ThreadingGetCurrentThread(ApicGetCpu())->AshId;
 

@@ -74,7 +74,7 @@ char GlbSignalIsDeadly[] = {
 
 /* Create Signal 
  * Dispatches a signal to a given ash */
-int SignalCreate(PhxId_t AshId, int Signal)
+int SignalCreate(UUId_t AshId, int Signal)
 {
 	/* Variables*/
 	MCoreAsh_t *Target = PhoenixGetAsh(AshId);
@@ -113,7 +113,7 @@ int SignalCreate(PhxId_t AshId, int Signal)
 /* Handle Signal 
  * This checks if the process has any waiting signals
  * and if it has, it executes the first in list */
-void SignalHandle(ThreadId_t ThreadId)
+void SignalHandle(UUId_t ThreadId)
 {
 	/* Variables */
 	MCoreAsh_t *Ash = NULL;

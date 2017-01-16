@@ -49,10 +49,12 @@ typedef struct _MRPCArgument {
  * action going through pipes in MollenOS must
  * inherit from this structure for security */
 typedef struct _MRemoteCall {
+	int					Version;
 	int					Function;
 	int					Port;
+	int					ResponsePort;
 	size_t				Length;		/* Excluding this header */
-	IpcComm_t			Sender;		/* Automatically set by OS */
+	UUId_t				Sender;		/* Automatically set by OS */
 	RPCArgument_t		Arguments[IPC_MAX_ARGUMENTS];
 	RPCArgument_t		Result;
 } MRemoteCall_t;
@@ -65,11 +67,18 @@ extern "C" {
 /* RPCInitialize 
  * Initializes a new RPC message of the 
  * given type and length */
-static __CRT_INLINE void RPCInitialize(MRemoteCall_t *Ipc, int Port, int Function)
+static __CRT_INLINE void RPCInitialize(MRemoteCall_t *Ipc, int Version, int Port, int Function)
 {
+	/* Zero out structure */
 	memset((void*)Ipc, 0, sizeof(MRemoteCall_t));
+
+	/* Initialize some of the args */
+	Ipc->Version = Version;
 	Ipc->Function = Function;
 	Ipc->Port = Port;
+
+	/* Standard response pipe */
+	Ipc->ResponsePort = PIPE_RPC;
 }
 
 /* RPCSetArgument
@@ -119,8 +128,8 @@ _MOS_API OsStatus_t RPCCleanup(MRemoteCall_t *Message);
  * must use RPCEvaluate, this will automatically wait
  * for a reply, whereas RPCExecute will send the request
  * and not block/wait for reply */
-_MOS_API OsStatus_t RPCEvaluate(MRemoteCall_t *Ipc, IpcComm_t Target);
-_MOS_API OsStatus_t RPCExecute(MRemoteCall_t *Ipc, IpcComm_t Target);
+_MOS_API OsStatus_t RPCEvaluate(MRemoteCall_t *Ipc, UUId_t Target);
+_MOS_API OsStatus_t RPCExecute(MRemoteCall_t *Ipc, UUId_t Target);
 
 #ifdef __cplusplus
 }

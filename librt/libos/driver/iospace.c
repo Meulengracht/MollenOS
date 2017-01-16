@@ -69,7 +69,7 @@ OsStatus_t ReleaseIoSpace(DeviceIoSpace_t *IoSpace)
 /* Destroys the io-space with the given id and removes
  * it from the io-manage in the operation system, it
  * can only be removed if its not already acquired */
-OsStatus_t DestroyIoSpace(IoSpaceId_t IoSpace)
+OsStatus_t DestroyIoSpace(UUId_t IoSpace)
 {
 	/* Simple redirect */
 	return (OsStatus_t)Syscall1(SYSCALL_IOSDESTROY, SYSCALL_PARAM(IoSpace));

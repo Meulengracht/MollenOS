@@ -30,7 +30,7 @@
  * Registers a server on the current alias, allowing
  * other applications and frameworks to send commands
  * and function requests */
-OsStatus_t RegisterServer(IpcComm_t Alias)
+OsStatus_t RegisterServer(UUId_t Alias)
 {
 	/* Redirect a syscall, it does all */
 	return (OsStatus_t)Syscall1(

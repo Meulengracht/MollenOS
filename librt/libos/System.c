@@ -91,7 +91,7 @@ void MollenOSGetScreenGeometry(Rect_t *Rectangle)
  * on failure to share the piece of memory
  * otherwise it returns the new buffer handle
  * that can be accessed by the other process */
-void *MollenOSMemoryShare(IpcComm_t Target, void *Buffer, size_t Size)
+void *MollenOSMemoryShare(UUId_t Target, void *Buffer, size_t Size)
 {
 	/* Variables */
 	int RetVal = 0;
@@ -109,7 +109,7 @@ void *MollenOSMemoryShare(IpcComm_t Target, void *Buffer, size_t Size)
  * and unshares it again from the target process
  * The function returns 0 if unshare was succesful,
  * otherwise -1 */
-int MollenOSMemoryUnshare(IpcComm_t Target, void *MemoryHandle, size_t Size)
+int MollenOSMemoryUnshare(UUId_t Target, void *MemoryHandle, size_t Size)
 {
 	/* Variables */
 	int RetVal = 0;

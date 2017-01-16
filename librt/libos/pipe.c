@@ -101,7 +101,7 @@ int PipeRead(int Pipe, void *Buffer, size_t Length)
  * Returns -1 if message failed to send
  * Returns -2 if message-target didn't exist
  * Returns 0 if message was sent correctly to target */
-int PipeSend(IpcComm_t Target, int Port, void *Message, size_t Length)
+int PipeSend(UUId_t Target, int Port, void *Message, size_t Length)
 {
 	/* Variables */
 	int Result = 0;

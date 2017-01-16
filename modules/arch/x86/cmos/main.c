@@ -244,16 +244,20 @@ OsStatus_t OnUnload(void)
 OsStatus_t OnRegister(MCoreDevice_t *Device)
 {
 	/* Variables */
-	MContractClock_t Clock;
+	MContract_t Clock;
 	MContract_t Timer;
+
+	/* Initialize both contracts */
+	InitializeContract(&Clock, Device->Id, 1, ContractClock, "CMOS Clock Interface");
+	InitializeContract(&Timer, Device->Id, 1, ContractTimer, "CMOS RTC Timer Interface");
 
 	/* The CMOS/RTC is a fixed device
 	 * and thus we don't support multiple instances */
-	RegisterContract(Device->Id, &Clock.Base);
+	RegisterContract(&Clock);
 
 	/* Only register the RTC if we use it */
 	if (GlbCmos->UseRTC) {
-		return RegisterContract(Device->Id, &Timer);
+		return RegisterContract(&Timer);
 	}
 	else {
 		return OsNoError;

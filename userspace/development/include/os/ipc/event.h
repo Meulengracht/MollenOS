@@ -52,7 +52,7 @@ typedef struct _MEventMessage {
 	int					Type;
 	int					Port;
 	size_t				Length;		/* Excluding this header */
-	IpcComm_t			Sender;		/* Automatically set by OS */
+	UUId_t				Sender;		/* Automatically set by OS */
 	EventArgument_t		Arguments[IPC_MAX_ARGUMENTS];
 } MEventMessage_t;
 
@@ -96,7 +96,7 @@ static __CRT_INLINE void EVTSetArgument(MEventMessage_t *Event,
  * Executes a new event to the desired target process
  * the process must be listening on PIPE_EVENT to be able
  * to recieve it. Events do not have replies */
-_MOS_API OsStatus_t EVTExecute(MEventMessage_t *Event, IpcComm_t Target);
+_MOS_API OsStatus_t EVTExecute(MEventMessage_t *Event, UUId_t Target);
 
 #ifdef __cplusplus
 }

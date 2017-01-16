@@ -59,7 +59,7 @@ typedef struct _MCoreEvent
 	/* Owner 
 	 * The thread that owns this 
 	 * event */
-	ThreadId_t Owner;
+	UUId_t Owner;
 
 	/* Type 
 	 * This the type of event 
@@ -96,7 +96,7 @@ typedef struct _MCoreEventHandler
 {
 	/* Name of event handler */
 	MString_t *Name;
-	ThreadId_t ThreadId;
+	UUId_t ThreadId;
 
 	/* Status of event-handler */
 	int Running;

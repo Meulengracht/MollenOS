@@ -52,7 +52,7 @@ _MOS_API int PipeRead(int Pipe, void *Buffer, size_t Length);
  * Returns -1 if message failed to send
  * Returns -2 if message-target didn't exist
  * Returns 0 if message was sent correctly to target */
-_MOS_API int PipeSend(IpcComm_t Target, int Port, void *Message, size_t Length);
+_MOS_API int PipeSend(UUId_t Target, int Port, void *Message, size_t Length);
 
 #endif //!KERNEL_API
 #endif //!_MOLLENOS_PIPE_H_

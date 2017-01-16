@@ -54,14 +54,13 @@ typedef reg64_t reg_t;
 /* Operation System types below 
  * these are usually fixed no matter arch and include stuff
  * as threading, processing etc */
-typedef unsigned int IpcComm_t;
-typedef unsigned int PhxId_t;
-typedef unsigned int ThreadId_t;
-typedef unsigned int TimerId_t;
+typedef unsigned int UUId_t;
 typedef unsigned int Flags_t;
 typedef unsigned DevInfo_t;
-typedef int DevId_t;
-typedef int IoSpaceId_t;
+
+/* Define some special UUId_t constants 
+ * Especially a constant for invalid */
+#define UUID_INVALID			(unsigned int)-1
 
 /* This definies various possible results
  * from certain os-operations */
@@ -75,14 +74,9 @@ typedef enum {
  * operations */
 #ifndef MRECTANGLE_DEFINED
 #define MRECTANGLE_DEFINED
-typedef struct _mRectangle
-{
-	/* Origin */
+typedef struct _mRectangle {
 	int x, y;
-
-	/* Size */
-	int h, w;
-
+	int w, h;
 } Rect_t;
 #endif
 
