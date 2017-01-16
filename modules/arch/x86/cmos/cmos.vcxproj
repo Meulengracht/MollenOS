@@ -11,7 +11,9 @@
     <ClCompile Include="rtc.c" />
   </ItemGroup>
   <ItemGroup>
-    <None Include="cmos.mdrv" />
+    <None Include="cmos.mdrv">
+      <DeploymentContent Condition="'$(Configuration)|$(Platform)'=='Build_X86_32|Win32'">true</DeploymentContent>
+    </None>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="cmos.h" />
@@ -40,7 +42,7 @@
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Build_X86_32|Win32'">
     <LinkIncremental>false</LinkIncremental>
     <OutDir>$(SolutionDir)modules\build\</OutDir>
-    <TargetExt>.mod</TargetExt>
+    <TargetExt>.dll</TargetExt>
     <IncludePath>..\..\..\..\librt\include</IncludePath>
     <ReferencePath />
     <LibraryPath>..\..\..\..\librt\build</LibraryPath>
@@ -53,7 +55,7 @@
       <Optimization>Full</Optimization>
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
-      <PreprocessorDefinitions>MOLLENOS;_X86_32;MODULES_EXPORTS;_KRNL_DLL;__CMOS</PreprocessorDefinitions>
+      <PreprocessorDefinitions>MOLLENOS;_X86_32;__DRIVER_EXPORT</PreprocessorDefinitions>
       <TreatWarningAsError>true</TreatWarningAsError>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
       <BufferSecurityCheck>false</BufferSecurityCheck>
@@ -64,11 +66,12 @@
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
-      <AdditionalDependencies>libdrv.lib;libc.lib;libos.lib</AdditionalDependencies>
+      <AdditionalDependencies>libdrv.lib;libmsc++.lib;libc.lib;libos.lib</AdditionalDependencies>
       <IgnoreAllDefaultLibraries>true</IgnoreAllDefaultLibraries>
       <GenerateMapFile>true</GenerateMapFile>
       <MapExports>true</MapExports>
       <AdditionalOptions>/include:_memcpy /include:_memset %(AdditionalOptions)</AdditionalOptions>
+      <EntryPointSymbol>_mDrvCrt</EntryPointSymbol>
     </Link>
   </ItemDefinitionGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

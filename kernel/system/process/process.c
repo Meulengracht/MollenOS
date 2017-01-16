@@ -78,7 +78,6 @@ PhxId_t PhoenixCreateProcess(MString_t *Path, MString_t *Arguments)
 
 	/* Allocate the structure */
 	Process = (MCoreProcess_t*)kmalloc(sizeof(MCoreProcess_t));
-	Process->ReturnCode = 0;
 
 	/* Sanitize the created Ash */
 	if (PhoenixInitializeAsh(&Process->Base, Path)) {

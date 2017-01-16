@@ -24,6 +24,10 @@
 #include <os/syscall.h>
 #include <os/ipc/ipc.h>
 
+/* Includes
+ * - Library */
+#include <stdlib.h>
+
 /* RPCEvaluate/RPCExecute
  * To get a reply from the RPC request, the user
  * must use RPCEvaluate, this will automatically wait
@@ -42,6 +46,54 @@ OsStatus_t RPCEvaluate(MRemoteCall_t *Ipc, IpcComm_t Target)
 OsStatus_t RPCExecute(MRemoteCall_t *Ipc, IpcComm_t Target)
 {
 	return Syscall3(SYSCALL_RPCEVAL, SYSCALL_PARAM(Ipc), SYSCALL_PARAM(Target), 1);
+}
+
+/* RPCListen 
+ * Call this to wait for a new RPC message, it automatically
+ * reads the message, and all the arguments. To avoid freeing
+ * an argument, set InUse to 0 */
+OsStatus_t RPCListen(MRemoteCall_t *Message) 
+{
+	/* Storage for parameters */
+	int i = 0;
+
+	/* Wait for a new rpc message */
+	if (!PipeRead(PIPE_DEFAULT, Message, sizeof(MRemoteCall_t))) {
+		for (i = 0; i < IPC_MAX_ARGUMENTS; i++) {
+			if (Message->Arguments[i].InUse) {
+				Message->Arguments[i].Buffer = (const void*)malloc(Message->Arguments[i].Length);
+				PipeRead(PIPE_DEFAULT, (void*)Message->Arguments[i].Buffer, 
+					Message->Arguments[i].Length);
+			}
+			else {
+				Message->Arguments[i].Buffer = NULL;
+			}
+		}
+
+		/* Done! */
+		return OsNoError;
+	}
+	else {
+		/* Something went wrong, wtf? */
+		return OsError;
+	}
+}
+
+/* RPCCleanup 
+ * Call this to cleanup the RPC message, it frees all
+ * allocated resources by RPCListen */
+OsStatus_t RPCCleanup(MRemoteCall_t *Message)
+{
+	/* Cleanup buffers */
+	for (int i = 0; i < IPC_MAX_ARGUMENTS; i++) {
+		if (Message->Arguments[i].InUse) {
+			free((void*)Message->Arguments[i].Buffer);
+			Message->Arguments[i].Buffer = NULL;
+		}
+	}
+
+	/* Done */
+	return OsNoError;
 }
 
 /* IPC - Sleep

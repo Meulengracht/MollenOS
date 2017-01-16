@@ -411,22 +411,27 @@ void PciInstallDriverCallback(void *Data, int No, void *Context)
 
 /* BusInstallFixed
  * Loads a fixed driver for the vendorid/deviceid */
-void BusInstallFixed(DevInfo_t DeviceId)
+void BusInstallFixed(DevInfo_t DeviceId, const char *Name)
 {
-	/* We need some static storage */
-	MCoreDevice_t Device;
-	memset(&Device, 0, sizeof(MCoreDevice_t));
+	/* Allocate a new instance of the device structure */
+	MCoreDevice_t *Device = (MCoreDevice_t*)malloc(sizeof(MCoreDevice_t));
+	memset(Device, 0, sizeof(MCoreDevice_t));
 
 	/* Update parameters */
-	Device.VendorId = PCI_FIXED_VENDORID;
-	Device.DeviceId = DeviceId;
+	Device->VendorId = PCI_FIXED_VENDORID;
+	Device->DeviceId = DeviceId;
 
 	/* Invalidate generics */
-	Device.Class = 0xFFFF;
-	Device.Subclass = 0xFFFF;
+	Device->Class = 0xFF0F;
+	Device->Subclass = 0xFF0F;
+
+	/* Invalidate irqs */
+	Device->IrqPin = -1;
+	Device->IrqLine = -1;
+	Device->IrqAvailable[0] = -1;
 
 	/* Install driver */
-	InstallDriver(&Device);
+	RegisterDevice(Device, Name);
 }
 
 /* BusEnumerate
@@ -438,7 +443,6 @@ void BusEnumerate(void)
 	AcpiDescriptor_t Acpi;
 	ACPI_TABLE_HEADER *Header = NULL;
 	ACPI_TABLE_MCFG *McfgTable = NULL;
-	ACPI_TABLE_HPET *HpetTable = NULL;
 	int Function;
 
 	/* Initialize the root bridge element */
@@ -465,29 +469,29 @@ void BusEnumerate(void)
 		if (AcpiQueryTable(ACPI_SIG_HPET, &Header) == OsNoError) {
 			MollenOSSystemLog("Found hpet");
 			free(Header);
-			BusInstallFixed(PCI_HPET_VENDORID);
+			BusInstallFixed(PCI_HPET_DEVICEID, "HPET Controller");
 		}
 		else {
 			/* Install PIT if no RTC */
 			if (!(Acpi.BootFlags & ACPI_IA_NO_CMOS_RTC)) {
-				BusInstallFixed(PCI_PIT_VENDORID);
+				BusInstallFixed(PCI_PIT_DEVICEID, "ISA-PIT");
 			}
 		}
 
 		/* Boot up cmos */
-		BusInstallFixed(PCI_CMOS_RTC_VENDORID);
+		BusInstallFixed(PCI_CMOS_RTC_DEVICEID, "CMOS/RTC Controller");
 
 		/* Does the PS2 exist in our system? */
 		if (Acpi.BootFlags & ACPI_IA_8042) {
-			BusInstallFixed(PCI_PS2_VENDORID);
+			BusInstallFixed(PCI_PS2_DEVICEID, "PS/2 Controller");
 		}
 	}
 	else {
 		/* We can pretty much assume all 8042 devices
 		 * are present in system, like RTC, PS2, etc */
-		BusInstallFixed(PCI_CMOS_RTC_VENDORID);
-		BusInstallFixed(PCI_PIT_VENDORID);
-		BusInstallFixed(PCI_PS2_VENDORID);
+		BusInstallFixed(PCI_CMOS_RTC_DEVICEID, "CMOS/RTC Controller");
+		BusInstallFixed(PCI_PIT_DEVICEID, "ISA-PIT");
+		BusInstallFixed(PCI_PS2_DEVICEID, "PS/2 Controller");
 	}
 
 	/* Pci Express */

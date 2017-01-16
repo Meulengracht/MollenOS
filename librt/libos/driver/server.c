@@ -46,5 +46,5 @@ OsStatus_t InstallDriver(MCoreDevice_t *Device)
 {
 	/* Redirect a syscall, it does all */
 	return (OsStatus_t)Syscall1(
-		SYSCALL_SERVERREGISTER, SYSCALL_PARAM(Device));
+		SYSCALL_RESOLVEDRIVER, SYSCALL_PARAM(Device));
 }

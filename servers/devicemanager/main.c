@@ -67,24 +67,21 @@ int ServerMain(void *Data)
 	BusEnumerate();
 
 	/* Enter event queue */
-	while (GlbRun) {
-		if (!PipeRead(PIPE_DEFAULT, &Message, sizeof(MRemoteCall_t))) {
+	while (GlbRun) 
+	{
+		if (RPCListen(&Message) == OsNoError) {
+			/* Which function is called? */
 			switch (Message.Function) {
 
 				/* Handles registration of a new device */
 				case __DEVICEMANAGER_REGISTERDEVICE: {
+					/* Variables for result */
+					DevId_t Result; 
 
-					/* Allocate resources needed for 
-					 * reading parameters */
-					MCoreDevice_t *Device = 
-						(MCoreDevice_t*)malloc(sizeof(MCoreDevice_t));
-					DevId_t Result;
-
-					/* Read in parameters in containers */
-					PipeRead(PIPE_DEFAULT, &Device, sizeof(MCoreDevice_t));
-
-					/* Evaluate request */
-					Result = RegisterDevice(Device, NULL);
+					/* Evaluate request, but don't free
+					 * the allocated device storage, we need it */
+					Message.Arguments[0].InUse = 0;
+					Result = RegisterDevice((MCoreDevice_t*)Message.Arguments[0].Buffer, NULL);
 
 					/* Write the result back to the caller */
 					PipeSend(Message.Sender, Message.Port, 
@@ -106,6 +103,9 @@ int ServerMain(void *Data)
 					}
 				}
 			}
+
+			/* Cleanup message */
+			RPCCleanup(&Message);
 		}
 		else {
 			/* Wtf? */
@@ -126,8 +126,9 @@ DevId_t RegisterDevice(MCoreDevice_t *Device, const char *Name)
 	DevId_t DeviceId = GlbDeviceIdGen++;
 	DataKey_t Key;
 
-	/* Debug information */
+	/* Update name and print debug information */
 	if (Name != NULL) {
+		memcpy(&Device->Name[0], Name, strlen(Name));
 		MollenOSSystemLog("Registered device %s", Name);
 	}
 
@@ -139,7 +140,6 @@ DevId_t RegisterDevice(MCoreDevice_t *Device, const char *Name)
 	/* Now, we want to try to find a driver
 	 * for the new device */
 	if (InstallDriver(Device) == OsError) {
-		MollenOSSystemLog("No driver found");
 	}
 
 	/* Done with processing of the new device */

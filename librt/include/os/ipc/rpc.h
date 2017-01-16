@@ -103,6 +103,17 @@ static __CRT_INLINE void RPCSetResult(MRemoteCall_t *Ipc,
 	Ipc->Result.Length = Length;
 }
 
+/* RPCListen 
+ * Call this to wait for a new RPC message, it automatically
+ * reads the message, and all the arguments. To avoid freeing
+ * an argument, set InUse to 0 */
+_MOS_API OsStatus_t RPCListen(MRemoteCall_t *Message);
+
+/* RPCCleanup 
+ * Call this to cleanup the RPC message, it frees all
+ * allocated resources by RPCListen */
+_MOS_API OsStatus_t RPCCleanup(MRemoteCall_t *Message);
+
 /* RPCEvaluate/RPCExecute
  * To get a reply from the RPC request, the user
  * must use RPCEvaluate, this will automatically wait

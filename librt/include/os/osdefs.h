@@ -65,11 +65,9 @@ typedef int IoSpaceId_t;
 
 /* This definies various possible results
  * from certain os-operations */
-typedef enum
-{
+typedef enum {
 	OsNoError,
 	OsError
-
 } OsStatus_t;
 
 /* Define the standard os

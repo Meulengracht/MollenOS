@@ -26,6 +26,7 @@
 #include <process/phoenix.h>
 #include <modules/modules.h>
 #include <vfs/vfswrappers.h>
+#include <scheduler.h>
 #include <threading.h>
 #include <log.h>
 
@@ -81,11 +82,6 @@ void PhoenixFinishAsh(MCoreAsh_t *Ash)
 		AddressSpaceTranslate(Ash->AddressSpace, MEMORY_LOCATION_RING3_SHM), PAGE_SIZE);
 	Ash->Shm = BitmapCreate(AddressSpaceTranslate(Ash->AddressSpace, MEMORY_LOCATION_RING3_SHM),
 		AddressSpaceTranslate(Ash->AddressSpace, MEMORY_LOCATION_RING3_IOSPACE), PAGE_SIZE);
-
-	/* Create the pipe list, there are as a default
-	 * no pipes open for a process, the process must
-	 * open the pipes it need */
-	Ash->Pipes = ListCreate(KeyInteger, LIST_SAFE);
 
 	/* Map Stack */
 	AddressSpaceMap(AddressSpaceGetCurrent(), (MEMORY_SEGMENT_STACK_BASE & PAGE_MASK),
@@ -186,6 +182,11 @@ int PhoenixInitializeAsh(MCoreAsh_t *Ash, MString_t *Path)
 	Ash->FileBuffer = fBuffer;
 	Ash->FileBufferLength = fSize;
 
+	/* Create the pipe list, there are as a default
+	 * no pipes open for a process, the process must
+	 * open the pipes it need */
+	Ash->Pipes = ListCreate(KeyInteger, LIST_SAFE);
+
 	/* Return success! */
 	return 0;
 }
@@ -246,9 +247,40 @@ int PhoenixOpenAshPipe(MCoreAsh_t *Ash, int Port, Flags_t Flags)
 
 	/* Add it to the list */
 	ListAppend(Ash->Pipes, ListCreateNode(Key, Key, Pipe));
+	SchedulerWakeupAllThreads((Addr_t*)Ash->Pipes);
 
 	/* The pipe is now created and ready
 	 * for use by the process */
+	return 0;
+}
+
+/* Waits for a pipe to be opened on the given
+ * ash instance, be careful as you can wait forever
+ * if you don't know what you're doing */
+int PhoenixWaitAshPipe(MCoreAsh_t *Ash, int Port)
+{
+	/* Variables */
+	DataKey_t Key;
+	int Run = 1;
+
+	/* Sanitize parameters */
+	if (Ash == NULL) {
+		return -1;
+	}
+
+	/* Set key */
+	Key.Value = Port;
+
+	/* Sleep on the given pipes */
+	while (Run) {
+		if (ListGetDataByKey(Ash->Pipes, Key, 0) != NULL) {
+			break;
+		}
+		SchedulerSleepThread((Addr_t*)Ash->Pipes, 0);
+		IThreadYield();
+ 	}
+
+	/* Done! */
 	return 0;
 }
 

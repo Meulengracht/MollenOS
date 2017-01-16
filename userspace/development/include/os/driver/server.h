@@ -21,8 +21,8 @@
  *   and functionality, refer to the individual things for descriptions
  */
 
-#ifndef _MCORE_SERVER_H_
-#define _MCORE_SERVER_H_
+#ifndef _SERVER_H_
+#define _SERVER_H_
 
 /* Includes
  * - System */
@@ -34,7 +34,8 @@
 
 /* MollenOS possible server targets */
 #define __DEVICEMANAGER_TARGET				__SERVER_TARGET(0)
-#define __WINDOWMANAGER_TARGET				__SERVER_TARGET(1)
+#define __FILEMANAGER_TARGET				__SERVER_TARGET(1)
+#define __WINDOWMANAGER_TARGET				__SERVER_TARGET(2)
 
 /* RegisterServer 
  * Registers a server on the current alias, allowing

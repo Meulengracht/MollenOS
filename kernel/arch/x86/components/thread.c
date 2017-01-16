@@ -298,7 +298,6 @@ Registers_t *_ThreadingSwitch(Registers_t *Regs,
 		return Tx->Context;
 	}	
 	else {
-		_asm xchg bx, bx;
 		return Tx->UserContext;
 	}
 }

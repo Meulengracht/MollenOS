@@ -25,6 +25,10 @@
 /* Includes 
  * - System */
 #include <os/osdefs.h>
+#include <os/driver/io.h>
+
+/* Includes
+ * - Library */
 #include <time.h>
 
 /* Definitions */
@@ -62,6 +66,17 @@
 /* RTC Irq */
 #define CMOS_RTC_IRQ			0x08
 
+#pragma pack(push, 1)
+typedef struct _Cmos {
+	DeviceIoSpace_t		IoSpace;
+	uint8_t				AcpiCentury;
+	int					UseRTC;
+	uint64_t			NsCounter;
+	size_t				AlarmTicks;
+	size_t				NsTick;
+} Cmos_t;
+#pragma pack(pop)
+
 /* CmosRead
  * Read the byte at given register offset
  * from the CMOS-Chip */
@@ -71,5 +86,19 @@ __CRT_EXTERN uint8_t CmosRead(uint8_t Register);
  * Writes a byte to the given register offset
  * from the CMOS-Chip */
 __CRT_EXTERN void CmosWrite(uint8_t Register, uint8_t Data);
+
+/* RtcInitialize
+ * Initializes the rtc-part of the cmos chip
+ * and installs the interrupt needed */
+__CRT_EXTERN OsStatus_t RtcInitialize(Cmos_t *Chip);
+
+/* RtcCleanup
+ * Disables the rtc and cleans up resources */
+__CRT_EXTERN OsStatus_t RtcCleanup(Cmos_t *Chip);
+
+/* RtcInterrupt
+ * Handles the rtc interrupt and acknowledges
+ * the interrupt by reading cmos */
+__CRT_EXTERN OsStatus_t RtcInterrupt(Cmos_t *Chip);
 
 #endif // !__DRIVER_CMOS_H__

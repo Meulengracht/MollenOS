@@ -52,9 +52,6 @@ typedef struct _MCoreProcess
 	List_t *OpenFiles;
 	MString_t *Arguments;
 
-	/* Return Code */
-	int ReturnCode;
-
 } MCoreProcess_t;
 
 /* This function loads the executable and

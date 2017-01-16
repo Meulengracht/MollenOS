@@ -89,7 +89,6 @@ PhxId_t PhoenixCreateServer(MString_t *Path, void *Arguments, size_t Length)
 
 	/* Allocate the structure */
 	Server = (MCoreServer_t*)kmalloc(sizeof(MCoreServer_t));
-	Server->ReturnCode = 0;
 
 	/* Sanitize the created Ash */
 	if (PhoenixInitializeAsh(&Server->Base, Path)) {
@@ -158,4 +157,35 @@ MCoreServer_t *PhoenixGetServer(PhxId_t ServerId)
 	/* Return the result, but cast it to
 	* the process structure */
 	return (MCoreServer_t*)Ash;
+}
+
+/* GetServerByDriver
+ * Retrieves a running server by driver-information
+ * to avoid spawning multiple servers */
+MCoreServer_t *PhoenixGetServerByDriver(DevInfo_t VendorId,
+	DevInfo_t DeviceId, DevInfo_t DeviceClass, DevInfo_t DeviceSubClass)
+{
+	/* Iterate the list and try
+	 * to locate the ash we have */
+	foreach(pNode, GlbAshes) {
+		MCoreAsh_t *Ash = (MCoreAsh_t*)pNode->Data;
+		if (Ash->Type == AshServer) {
+			MCoreServer_t *Server = (MCoreServer_t*)Ash;
+
+			/* Check vendorid/deviceid first */
+			if (Server->VendorId == VendorId
+				&& Server->DeviceId == DeviceId) {
+				return Server;
+			}
+
+			/* Check class/subclass combination then */
+			if (Server->DeviceClass == DeviceClass
+				&& Server->DeviceSubClass == DeviceSubClass) {
+				return Server;
+			}
+		}
+	}
+
+	/* Not found */
+	return NULL;
 }

@@ -123,6 +123,10 @@ typedef struct _MCoreAsh
 	size_t FileBufferLength;
 	Addr_t StackStart;
 
+	/* This is the return/code
+	 * that gets set upon ash-exit */
+	int Code;
+
 } MCoreAsh_t;
 
 /* This function loads the executable and
@@ -145,6 +149,7 @@ __CRT_EXTERN void PhoenixFinishAsh(MCoreAsh_t *Ash);
  * there are some pre-defined ports on which pipes
  * can be opened, window manager etc */
 __CRT_EXTERN int PhoenixOpenAshPipe(MCoreAsh_t *Ash, int Port, Flags_t Flags);
+__CRT_EXTERN int PhoenixWaitAshPipe(MCoreAsh_t *Ash, int Port);
 __CRT_EXTERN int PhoenixCloseAshPipe(MCoreAsh_t *Ash, int Port);
 __CRT_EXTERN MCorePipe_t *PhoenixGetAshPipe(MCoreAsh_t *Ash, int Port);
 

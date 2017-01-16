@@ -44,20 +44,24 @@
 typedef struct _MCoreServer
 {
 	/* We derive from Ashes */
-	MCoreAsh_t Base;
+	MCoreAsh_t	Base;
 
 	/* We want to be able to keep track 
 	 * of some driver-features that we have
 	 * available, like io-space memory */
-	Bitmap_t *DriverMemory;
+	Bitmap_t	*DriverMemory;
 
 	/* Also we allow for data arguments to
 	 * to be copied into the userspace on startup */
-	void *ArgumentBuffer;
-	size_t ArgumentLength;
+	void		*ArgumentBuffer;
+	size_t		ArgumentLength;
 
-	/* Return Code */
-	int ReturnCode;
+	/* Since we only have one server per driver
+	 * but multiple instances, we keep track of devinfo */
+	DevInfo_t	VendorId;
+	DevInfo_t	DeviceId;
+	DevInfo_t	DeviceClass;
+	DevInfo_t	DeviceSubClass;
 
 } MCoreServer_t;
 
@@ -77,5 +81,11 @@ __CRT_EXTERN void PhoenixCleanupServer(MCoreServer_t *Server);
  * by id, if either SERVER_CURRENT or SERVER_NO_SERVER 
  * is passed, it retrieves the current server */
 __CRT_EXTERN MCoreServer_t *PhoenixGetServer(PhxId_t ServerId);
+
+/* GetServerByDriver
+ * Retrieves a running server by driver-information
+ * to avoid spawning multiple servers */
+__CRT_EXTERN MCoreServer_t *PhoenixGetServerByDriver(DevInfo_t VendorId,
+	DevInfo_t DeviceId, DevInfo_t DeviceClass, DevInfo_t DeviceSubClass);
 
 #endif //!_MCORE_SERVER_H_

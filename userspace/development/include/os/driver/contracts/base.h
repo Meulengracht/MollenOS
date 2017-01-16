@@ -26,7 +26,6 @@
 
 /* Includes 
  * - System */
-#include <os/driver/device.h>
 #include <os/osdefs.h>
 
 /* Contract definitions, related to some limits
@@ -38,7 +37,6 @@
  * is bound to the contract */
 typedef enum _MContractType {
 	ContractUnknown,
-	ContractController,
 	ContractClock
 } MContractType_t;
 
@@ -62,20 +60,5 @@ typedef struct _MContract {
 	MContractState_t	State;
 	char				Name[CONTRACT_MAX_NAME];
 } MContract_t;
-
-/* RegisterContract */
-#ifdef __DEVICEMANAGER_EXPORT
-__DEVAPI OsStatus_t RegisterContract(DevId_t DeviceId, MContract_t *Contract);
-#else
-__DEVAPI OsStatus_t RegisterContract(DevId_t DeviceId, MContract_t *Contract)
-{
-	/* Variables */
-	MRemoteCall_t Request;
-	RPCInitialize(&Request, PIPE_DEFAULT, __DEVICEMANAGER_REGISTERCONTRACT);
-	RPCSetArgument(&Request, 0, (const void*)&DeviceId, sizeof(DevId_t));
-	RPCSetArgument(&Request, 0, (const void*)Contract, sizeof(MContract_t));
-	return RPCExecute(&Request, __DEVICEMANAGER_TARGET);
-}
-#endif
 
 #endif //!_MCORE_CONTRACT_H_

@@ -23,6 +23,7 @@
 #include <Scheduler.h>
 #include <Events.h>
 #include <Heap.h>
+#include <log.h>
 
 /* C-Library */
 #include <stddef.h>
@@ -74,7 +75,7 @@ void EventDestruct(MCoreEventHandler_t *EventHandler)
 	 * status to 0, and signaling it to wakeup 
 	 * this will cause it to stop */
 	EventHandler->Running = 0;
-	SemaphoreV(EventHandler->Lock);
+	SemaphoreV(EventHandler->Lock, 1);
 
 	/* Stop 2. Cleanup */
 	MStringDestroy(EventHandler->Name);
@@ -142,21 +143,18 @@ void EventHandlerInternal(void *Args)
 
 		/* Make sure event hasn't been cancelled 
 		 * before we process it */
-		if (Event->State != EventCancelled)
-		{
-			/* Set in progress */
+		if (Event->State != EventCancelled) {
 			Event->State = EventInProgress;
-
-			/* Callback */
 			EventHandler->Callback(EventHandler->UserData, Event);
 		}
 
 		/* Signal Completion */
-		SemaphoreV(&Event->Queue);
+		SemaphoreV(&Event->Queue, 1);
 
 		/* Cleanup? */
-		if (Event->Cleanup != 0)
+		if (Event->Cleanup != 0) {
 			kfree(Event);
+		}	
 	}
 }
 
@@ -181,7 +179,7 @@ void EventCreate(MCoreEventHandler_t *EventHandler, MCoreEvent_t *Event)
 	ListAppend(EventHandler->Events, ListCreateNode(Key, Key, Event));
 
 	/* Signal */
-	SemaphoreV(EventHandler->Lock);
+	SemaphoreV(EventHandler->Lock, 1);
 }
 
 /* Event Wait

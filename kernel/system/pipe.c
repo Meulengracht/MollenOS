@@ -140,7 +140,7 @@ int PipeWrite(MCorePipe_t *Pipe, uint8_t *Data, size_t Length)
 		/* Wakeup one of the readers 
 		 * Always do this nvm what */
 		if (Pipe->ReadQueueCount > 0) {
-			SemaphoreV(&Pipe->ReadQueue);
+			SemaphoreV(&Pipe->ReadQueue, 1);
 			Pipe->ReadQueueCount--;
 		}
 
@@ -209,7 +209,7 @@ int PipeRead(MCorePipe_t *Pipe, uint8_t *Buffer, size_t Length, int Peek)
 			if (BytesRead == 0
 				&& !(Pipe->Flags & PIPE_NOBLOCK_READ)) {
 				Pipe->ReadQueueCount++;
-				SemaphoreV(&Pipe->ReadQueue);
+				SemaphoreV(&Pipe->ReadQueue, 1);
 			}
 		}
 	}

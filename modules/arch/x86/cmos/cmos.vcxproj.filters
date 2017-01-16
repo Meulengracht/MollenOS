@@ -15,5 +15,6 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="main.c" />
+    <ClCompile Include="rtc.c" />
   </ItemGroup>
 </Project>

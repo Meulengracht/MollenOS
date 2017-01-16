@@ -111,6 +111,7 @@
 /* Driver System Calls 
  * - Server Support */
 #define SYSCALL_SERVERREGISTER		0x73
+#define SYSCALL_RESOLVEDRIVER		0x74
 
 /* Prototypes */
 _MOS_API int Syscall0(int Function);

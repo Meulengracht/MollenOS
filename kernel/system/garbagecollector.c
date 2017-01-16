@@ -62,7 +62,7 @@ void GcAddWork(void)
 		return;
 
 	/* Signal */
-	SemaphoreV(GlbGcEventLock);
+	SemaphoreV(GlbGcEventLock, 1);
 }
 
 /* The Gc Collect Thread */

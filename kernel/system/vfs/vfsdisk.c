@@ -22,6 +22,7 @@
 
 /* Includes 
  * - System */
+#include <devicemanager.h>
 #include <modules/modules.h>
 #include <process/process.h>
 #include <vfs/vfs.h>

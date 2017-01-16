@@ -130,39 +130,11 @@ __DEVAPI DevId_t RegisterDevice(MCoreDevice_t *Device)
 }
 #endif
 
-/* Private API for the devicemanager, these functions
- * exists no-where else than in the devicemanager */
-#ifdef __DEVICEMANAGER_EXPORT
-
 /* InstallDriver 
  * Tries to	find a suitable driver for the given device
  * by searching storage-medias for the vendorid/deviceid 
  * combination or the class/subclass combination if specific
  * is not found */
 _MOS_API OsStatus_t InstallDriver(MCoreDevice_t *Device);
-
-/* Device Initialization
- * Initializes the device for use and enables
- * any irq(s) that is associated for the device
- * the requesting driver must handle irq events */
-_MOS_API int DeviceInitialize(MCoreDevice_t*);
-
-/* Device Shutdown
- * Disables the device and unregisteres any irq
- * that might have been previously registered
- * and unloads any children devices */
-_MOS_API int DeviceShutdown(MCoreDevice_t*);
-
-/* Device Query
- * Queries the given device for information, see
- * the different query-types available above */
-_MOS_API int DeviceQuery(MCoreDevice_t*);
-
-/* Device Control
- * Control the given device by making modification
- * the to the bus settings or irq status */
-_MOS_API int DeviceControl(MCoreDevice_t*);
-
-#endif
 
 #endif //!_MCORE_DEVICE_H_

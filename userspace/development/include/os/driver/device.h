@@ -58,6 +58,10 @@
 #define __DEVICEMANAGER_QUERYDEVICE			IPC_DECL_FUNCTION(2)
 #define __DEVICEMANAGER_IOCTLDEVICE			IPC_DECL_FUNCTION(3)
 
+#define __DEVICEMANAGER_REGISTERCONTRACT	IPC_DECL_FUNCTION(4)
+#define __DEVICEMANAGER_UNREGISTERCONTRACT	IPC_DECL_FUNCTION(5)
+#define __DEVICEMANAGER_QUERYCONTRACT		IPC_DECL_FUNCTION(6)
+
 /* This is the base device structure definition
  * and is passed on to all drivers on their initialization
  * to give them an overview and description of their device 
@@ -126,26 +130,11 @@ __DEVAPI DevId_t RegisterDevice(MCoreDevice_t *Device)
 }
 #endif
 
-/* Device Initialization
- * Initializes the device for use and enables
- * any irq(s) that is associated for the device
- * the requesting driver must handle irq events */
-_MOS_API int DeviceInitialize(MCoreDevice_t*);
-
-/* Device Shutdown
- * Disables the device and unregisteres any irq
- * that might have been previously registered
- * and unloads any children devices */
-_MOS_API int DeviceShutdown(MCoreDevice_t*);
-
-/* Device Query
- * Queries the given device for information, see
- * the different query-types available above */
-_MOS_API int DeviceQuery(MCoreDevice_t*);
-
-/* Device Control
- * Control the given device by making modification
- * the to the bus settings or irq status */
-_MOS_API int DeviceControl(MCoreDevice_t*);
+/* InstallDriver 
+ * Tries to	find a suitable driver for the given device
+ * by searching storage-medias for the vendorid/deviceid 
+ * combination or the class/subclass combination if specific
+ * is not found */
+_MOS_API OsStatus_t InstallDriver(MCoreDevice_t *Device);
 
 #endif //!_MCORE_DEVICE_H_

@@ -414,6 +414,7 @@ void ExceptionEntry(Registers_t *regs)
 				ThreadingGetCurrentThread(Cpu)->Name,
 				ThreadingGetCurrentThreadId(), Cpu);
 			StackTrace(6);
+			RegisterDump(regs);
 			MemoryDump("Stack Contents (last 128 bytes)", (void*)regs->Esp, 128);
 
 			for (;;);

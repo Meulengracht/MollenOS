@@ -21,8 +21,8 @@
  *   and functionality, refer to the individual things for descriptions
  */
 
-#ifndef _MCORE_SERVER_H_
-#define _MCORE_SERVER_H_
+#ifndef _SERVER_H_
+#define _SERVER_H_
 
 /* Includes
  * - System */

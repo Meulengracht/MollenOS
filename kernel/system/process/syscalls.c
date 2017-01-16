@@ -95,7 +95,7 @@ PhxId_t ScProcessSpawn(char *Path, char *Arguments)
 int ScProcessJoin(PhxId_t ProcessId)
 {
 	/* Wait for process */
-	MCoreProcess_t *Process = PhoenixGetProcess(ProcessId);
+	MCoreAsh_t *Process = PhoenixGetAsh(ProcessId);
 
 	/* Sanity */
 	if (Process == NULL)
@@ -106,7 +106,7 @@ int ScProcessJoin(PhxId_t ProcessId)
 	IThreadYield();
 
 	/* Return the exit code */
-	return Process->ReturnCode;
+	return Process->Code;
 }
 
 /* Attempts to kill the process 
@@ -139,7 +139,7 @@ int ScProcessKill(PhxId_t ProcessId)
 int ScProcessExit(int ExitCode)
 {
 	/* Retrieve crrent process */
-	MCoreProcess_t *Process = PhoenixGetProcess(PROCESS_CURRENT);
+	MCoreAsh_t *Process = PhoenixGetAsh(PROCESS_CURRENT);
 	IntStatus_t IntrState;
 
 	/* Sanity 
@@ -150,17 +150,17 @@ int ScProcessExit(int ExitCode)
 
 	/* Log it and save return code */
 	LogDebug("SYSC", "Process %s terminated with code %i", 
-		MStringRaw(Process->Base.Name), ExitCode);
-	Process->ReturnCode = ExitCode;
+		MStringRaw(Process->Name), ExitCode);
+	Process->Code = ExitCode;
 
 	/* Disable interrupts before proceeding */
 	IntrState = InterruptDisable();
 
 	/* Terminate all threads used by process */
-	ThreadingTerminateAshThreads(Process->Base.Id);
+	ThreadingTerminateAshThreads(Process->Id);
 
 	/* Mark process for reaping */
-	PhoenixTerminateAsh(&Process->Base);
+	PhoenixTerminateAsh(Process);
 
 	/* Enable Interrupts */
 	InterruptRestoreState(IntrState);
@@ -1408,7 +1408,8 @@ int ScVfsResolvePath(int EnvPath, char *StrBuffer)
  ***********************/
 #include <acpiinterface.h>
 #define __ACPI_EXCLUDE_TABLES
-#include <os/driver/acpi.h>
+#include <os/driver/driver.h>
+#include <modules/modules.h>
 
 /* ScAcpiQueryStatus
  * Queries basic acpi information and returns either OsNoError
@@ -1488,11 +1489,6 @@ OsStatus_t ScAcpiQueryTable(const char *Signature, ACPI_TABLE_HEADER *Table)
 	return OsNoError;
 }
 
-/* Include the driver-version of the io-space too */
-#include <os/driver/device.h>
-#include <os/driver/io.h>
-#include <modules/modules.h>
-
 /* Creates and registers a new IoSpace with our
  * architecture sub-layer, it must support io-spaces 
  * or atleast dummy-implementation */
@@ -1567,7 +1563,9 @@ OsStatus_t ScLoadDriver(MCoreDevice_t *Device)
 {
 	/* Variables */
 	MCorePhoenixRequest_t *Request = NULL;
+	MCoreServer_t *Server = NULL;
 	MCoreModule_t *Module = NULL;
+	MRemoteCall_t Message;
 	MString_t *Path = NULL;
 
 	/* Sanitize information */
@@ -1575,41 +1573,78 @@ OsStatus_t ScLoadDriver(MCoreDevice_t *Device)
 		return OsError;
 	}
 
-	/* Lookup specific driver */
-	Module = ModulesFindSpecific(Device->VendorId, Device->DeviceId);
-	
-	/* Lookup generic driver if it failed */
-	if (Module == NULL) {
-		Module = ModulesFindGeneric(Device->Class, Device->Subclass);
+	/* First of all, if a server has already been spawned
+	 * for the specific driver, then call it's RegisterInstance */
+	Server = PhoenixGetServerByDriver(Device->VendorId, Device->DeviceId,
+		Device->Class, Device->Subclass);
+
+	/* Sanitize the lookup 
+	 * If it's not found, spawn server */
+	if (Server == NULL)
+	{
+		/* Lookup specific driver */
+		Module = ModulesFindSpecific(Device->VendorId, Device->DeviceId);
+
+		/* Lookup generic driver if it failed */
+		if (Module == NULL) {
+			Module = ModulesFindGeneric(Device->Class, Device->Subclass);
+		}
+
+		/* Return error if that failed */
+		if (Module == NULL) {
+			return OsError;
+		}
+
+		/* Build Path */
+		Path = MStringCreate("rd:/", StrUTF8);
+		MStringAppendString(Path, Module->Name);
+
+		/* Create a phoenix request */
+		Request = (MCorePhoenixRequest_t*)kmalloc(sizeof(MCorePhoenixRequest_t));
+		memset(Request, 0, sizeof(MCorePhoenixRequest_t));
+		Request->Base.Type = AshSpawnServer;
+
+		/* Set our parameters as well */
+		Request->Path = Path;
+		Request->Arguments.Raw.Data = kmalloc(sizeof(MCoreDevice_t));
+		Request->Arguments.Raw.Length = sizeof(MCoreDevice_t);
+
+		/* Copy data */
+		memcpy(Request->Arguments.Raw.Data, Device, sizeof(MCoreDevice_t));
+
+		/* Send off the request */
+		PhoenixCreateRequest(Request);
+		PhoenixWaitRequest(Request, 0);
+
+		/* Lookup server */
+		Server = PhoenixGetServer(Request->AshId);
+
+		/* Sanity */
+		assert(Server != NULL);
+
+		/* Cleanup resources */
+		MStringDestroy(Request->Path);
+		kfree(Request->Arguments.Raw.Data);
+		kfree(Request);
+
+		/* Update server params */
+		Server->VendorId = Device->VendorId;
+		Server->DeviceId = Device->DeviceId;
+		Server->DeviceClass = Device->Class;
+		Server->DeviceSubClass = Device->Subclass;
 	}
 
-	/* Return error if that failed */
-	if (Module == NULL) {
-		return OsError;
-	}
+	/* Prepare the message */
+	RPCInitialize(&Message, PIPE_DEFAULT, __DRIVER_REGISTERINSTANCE);
+	RPCSetArgument(&Message, 0, Device, sizeof(MCoreDevice_t));
+	Message.Sender = ThreadingGetCurrentThread(ApicGetCpu())->AshId;
 
-	/* Build Path */
-	Path = MStringCreate("rd:/", StrUTF8);
-	MStringAppendString(Path, Module->Name);
-
-	/* Create a phoenix request */
-	Request = (MCorePhoenixRequest_t*)kmalloc(sizeof(MCorePhoenixRequest_t));
-	Request->Base.Type = AshSpawnServer;
-	Request->Base.Cleanup = 1;
-
-	/* Set our parameters as well */
-	Request->Path = Path;
-	Request->Arguments.Raw.Data = kmalloc(sizeof(MCoreDevice_t));
-	Request->Arguments.Raw.Length = sizeof(MCoreDevice_t);
-
-	/* Copy data */
-	memcpy(Request->Arguments.Raw.Data, Device, sizeof(MCoreDevice_t));
-
-	/* Send off the request */
-	PhoenixCreateRequest(Request);
+	/* Wait for the driver to open it's
+	 * communication pipe */
+	PhoenixWaitAshPipe(&Server->Base, PIPE_DEFAULT);
 
 	/* Done! */
-	return OsNoError;
+	return ScRpcExecute(&Message, Server->Base.Id, 1);
 }
 
 /***********************
