@@ -16,15 +16,13 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS C Library - Entry Points
+ * MollenOS C Library - Driver Entry 
  */
 
 /* Includes 
  * - System */
 #include <os/mollenos.h>
-#include <os/syscall.h>
 #include <os/thread.h>
-#include <os/ipc/ipc.h>
 
 /* Includes
  * - Driver */
@@ -33,9 +31,7 @@
 /* Includes
  * - C-Library */
 #include <ds/list.h>
-#include <stddef.h>
 #include <stdlib.h>
-#include <ctype.h>
 
 /* Extern
  * - C/C++ Initialization

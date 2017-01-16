@@ -40,18 +40,11 @@ UUId_t GlbDeviceIdGen = 0;
 int GlbInitialized = 0;
 int GlbRun = 0;
 
-/* Entry point of a server
- * this handles setup and enters the event-queue
- * the data passed is a system informations structure
- * that contains information about the system */
-int ServerMain(void *Data)
+/* OnLoad
+ * The entry-point of a server, this is called
+ * as soon as the server is loaded in the system */
+OsStatus_t OnLoad(void)
 {
-	/* Storage for message */
-	MRemoteCall_t Message;
-
-	/* Save */
-	_CRT_UNUSED(Data);
-
 	/* Setup list */
 	GlbDeviceList = ListCreate(KeyInteger, LIST_SAFE);
 
@@ -66,54 +59,60 @@ int ServerMain(void *Data)
 	/* Enumerate bus controllers/devices */
 	BusEnumerate();
 
-	/* Enter event queue */
-	while (GlbRun) 
+	/* No error! */
+	return OsNoError;
+}
+
+/* OnUnload
+ * This is called when the server is being unloaded
+ * and should free all resources allocated by the system */
+OsStatus_t OnUnload(void)
+{
+	return OsNoError;
+}
+
+/* OnEvent
+ * This is called when the server recieved an external evnet
+ * and should handle the given event*/
+OsStatus_t OnEvent(MRemoteCall_t *Message)
+{
+	/* Which function is called? */
+	switch (Message->Function)
 	{
-		if (RPCListen(&Message) == OsNoError) {
-			/* Which function is called? */
-			switch (Message.Function) {
+		/* Handles registration of a new device */
+		case __DEVICEMANAGER_REGISTERDEVICE: {
+			/* Variables for result */
+			UUId_t Result;
 
-				/* Handles registration of a new device */
-				case __DEVICEMANAGER_REGISTERDEVICE: {
-					/* Variables for result */
-					UUId_t Result;
+			/* Evaluate request, but don't free
+			* the allocated device storage, we need it */
+			Message->Arguments[0].InUse = 0;
+			Result = RegisterDevice((MCoreDevice_t*)Message->Arguments[0].Buffer, NULL);
 
-					/* Evaluate request, but don't free
-					 * the allocated device storage, we need it */
-					Message.Arguments[0].InUse = 0;
-					Result = RegisterDevice((MCoreDevice_t*)Message.Arguments[0].Buffer, NULL);
+			/* Write the result back to the caller */
+			PipeSend(Message->Sender, Message->ResponsePort,
+				&Result, sizeof(UUId_t));
+		} break;
+		case __DEVICEMANAGER_UNREGISTERDEVICE: {
 
-					/* Write the result back to the caller */
-					PipeSend(Message.Sender, Message.ResponsePort, 
-						&Result, sizeof(UUId_t));
-				} break;
-				case __DEVICEMANAGER_UNREGISTERDEVICE: {
+		} break;
+		case __DEVICEMANAGER_QUERYDEVICE: {
 
-				} break;
-				case __DEVICEMANAGER_QUERYDEVICE: {
+		} break;
+		case __DEVICEMANAGER_IOCTLDEVICE: {
 
-				} break;
-				case __DEVICEMANAGER_IOCTLDEVICE: {
+		} break;
 
-				} break;
+		case __DEVICEMANAGER_REGISTERCONTRACT: {
 
-				default: {
-					if (Message.Length != 0) {
-						PipeRead(PIPE_DEFAULT, NULL, Message.Length);
-					}
-				}
-			}
+		} break;
 
-			/* Cleanup message */
-			RPCCleanup(&Message);
-		}
-		else {
-			/* Wtf? */
-		}
+		default: {
+		} break;
 	}
 
-	/* Done, no error, return 0 */
-	return 0;
+	/* Done! */
+	return OsNoError;
 }
 
 /* Device Registering

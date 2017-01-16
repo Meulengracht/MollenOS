@@ -55,7 +55,7 @@
       <TreatWarningAsError>true</TreatWarningAsError>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
       <InlineFunctionExpansion>Disabled</InlineFunctionExpansion>
-      <PreprocessorDefinitions>MOLLENOS;_X86_32;_CRTIMP_STATIC</PreprocessorDefinitions>
+      <PreprocessorDefinitions>MOLLENOS;_X86_32;__SERVER_EXPORT</PreprocessorDefinitions>
       <BufferSecurityCheck>false</BufferSecurityCheck>
       <EnableEnhancedInstructionSet>NoExtensions</EnableEnhancedInstructionSet>
       <DisableSpecificWarnings>4702</DisableSpecificWarnings>
