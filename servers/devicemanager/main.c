@@ -147,6 +147,11 @@ OsStatus_t OnEvent(MRemoteCall_t *Message)
 		 * This usually redirects a message to
 		 * the corresponding driver */
 		case __DEVICEMANAGER_QUERYCONTRACT: {
+			/* Variables for result */
+			MContractType_t Type = (MContractType_t)
+				Message->Arguments[0].Data.Value;
+			void *ResponseBuffer = 
+				malloc(Message->Result.Length);
 
 		} break;
 
@@ -194,7 +199,7 @@ UUId_t RegisterDevice(MCoreDevice_t *Device, const char *Name)
  * of functionality the device supports */
 UUId_t RegisterContract(MContract_t *Contract)
 {
-	/* Variables */
+	/* Variables */	
 	UUId_t ContractId = GlbDriverIdGen++;
 	DataKey_t Key;
 
