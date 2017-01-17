@@ -21,8 +21,8 @@
  *   and functionality, refer to the individual things for descriptions
  */
 
-#ifndef _MCORE_DEVICE_H_
-#define _MCORE_DEVICE_H_
+#ifndef _DEVICE_INTERFACE_H_
+#define _DEVICE_INTERFACE_H_
 
 /* Includes
  * - C-Library */
@@ -138,4 +138,4 @@ __DEVAPI UUId_t RegisterDevice(MCoreDevice_t *Device)
  * is not found */
 _MOS_API OsStatus_t InstallDriver(MCoreDevice_t *Device);
 
-#endif //!_MCORE_DEVICE_H_
+#endif //!_DEVICE_INTERFACE_H_

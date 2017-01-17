@@ -22,7 +22,7 @@
 
 /* Includes 
  * - System */
-#include <os/driver/contracts/clock.h>
+#include <os/driver/contracts/timer.h>
 #include "cmos.h"
 
 /* Includes

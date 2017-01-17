@@ -21,8 +21,8 @@
  *   and functionality, refer to the individual things for descriptions
  */
 
-#ifndef _MCORE_ACPI_H_
-#define _MCORE_ACPI_H_
+#ifndef _ACPI_INTEFACE_H_
+#define _ACPI_INTEFACE_H_
 
 /* Includes
  * - System */
@@ -86,4 +86,4 @@ _MOS_API OsStatus_t AcpiQueryStatus(AcpiDescriptor_t *AcpiDescriptor);
  * the buffer is automatically allocated, and should be cleaned up afterwards  */
 _MOS_API OsStatus_t AcpiQueryTable(const char *Signature, ACPI_TABLE_HEADER **Table);
 
-#endif //!_MCORE_ACPI_H_
+#endif //!_ACPI_INTEFACE_H_

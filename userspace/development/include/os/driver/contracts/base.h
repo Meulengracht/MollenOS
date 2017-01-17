@@ -93,7 +93,7 @@ static __CRT_INLINE void InitializeContract(MContract_t *Contract, UUId_t Device
  * the manager know we are handling this device, and what kind
  * of functionality the device supports */
 #ifdef __DEVICEMANAGER_IMPL
-__DEVAPI OsStatus_t RegisterContract(MContract_t *Contract);
+__DEVAPI UUId_t RegisterContract(MContract_t *Contract);
 #else
 __DEVAPI OsStatus_t RegisterContract(MContract_t *Contract)
 {

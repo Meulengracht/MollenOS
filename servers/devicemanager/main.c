@@ -23,7 +23,7 @@
 /* Includes
  * - System */
 #include <os/driver/contracts/base.h>
-#include <os/driver/device.h>
+#include <os/driver/driver.h>
 #include <os/mollenos.h>
 #include <ds/list.h>
 #include <bus.h>
@@ -37,7 +37,7 @@
 
 /* Prototypes in this file
  * since we want to avoid a header */
-OsStatus_t HandleQuery(MContractType_t Type, void *ResultBuffer);
+OsStatus_t HandleQuery(MContractType_t Type, void *ResultBuffer, size_t Length);
 
 /* Globals */
 List_t *GlbDeviceList = NULL;
@@ -132,6 +132,9 @@ OsStatus_t OnEvent(MRemoteCall_t *Message)
 				Message->Arguments[0].Data.Buffer;
 			UUId_t Result = 1;
 
+			/* Update sender in contract */
+			Contract->DriverId = Message->Sender;
+
 			/* Evaluate request, but don't free
 			 * the allocated contract storage, we need it */
 			Message->Arguments[0].Type = ARGUMENT_NOTUSED;
@@ -156,11 +159,14 @@ OsStatus_t OnEvent(MRemoteCall_t *Message)
 				Message->Arguments[0].Data.Value;
 			void *ResponseBuffer = 
 				malloc(Message->Result.Length);
-			if (HandleQuery(Type, ResponseBuffer) == OsNoError) {
-
+			if (HandleQuery(Type, ResponseBuffer, Message->Result.Length) == OsNoError) {
+				PipeSend(Message->Sender, Message->ResponsePort,
+					ResponseBuffer, Message->Result.Length);
+			}
+			else {
+				PipeSend(Message->Sender, Message->ResponsePort, NULL, sizeof(void*));
 			}
 			free(ResponseBuffer);
-
 		} break;
 
 		default: {
@@ -216,10 +222,27 @@ UUId_t RegisterContract(MContract_t *Contract)
 		Contract->DeviceId, &Contract->Name[0]);
 
 	/* Update id, add to list */
-	Contract->DriverId = ContractId;
+	Contract->ContractId = ContractId;
 	Key.Value = ContractId;
 	ListAppend(GlbDriverList, ListCreateNode(Key, Key, Contract));
 
 	/* Done with processing of the new driver */
 	return ContractId;
+}
+
+/* HandleQuery
+ * Handles the generic query function, by resolving
+ * the correct driver and asking for data */
+OsStatus_t HandleQuery(MContractType_t Type, void *ResultBuffer, size_t Length)
+{
+	/* Iterate driver nodes */
+	foreach(cNode, GlbDriverList) {
+		MContract_t *Contract = (MContract_t*)cNode->Data;
+		if (Contract->Type == Type) {
+			return QueryDriver(Contract, ResultBuffer, Length);
+		}
+	}
+
+	/* Done, if we reach here no fun */
+	return OsError;
 }

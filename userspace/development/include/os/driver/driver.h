@@ -85,7 +85,17 @@ __CRT_EXTERN OsStatus_t OnUnregister(MCoreDevice_t *Device);
 #ifdef __DRIVER_IMPL
 __CRT_EXTERN OsStatus_t OnQuery(MContractType_t QueryType, UUId_t QueryTarget, int Port);
 #else
+static __CRT_INLINE OsStatus_t QueryDriver(MContract_t *Contract, void *Buffer, size_t Length)
+{
+	/* Variables */
+	MRemoteCall_t Request;
 
+	/* Initialize RPC */
+	RPCInitialize(&Request, Contract->Version, PIPE_DEFAULT, __DRIVER_QUERY);
+	RPCSetArgument(&Request, 0, (const void*)&Contract->Type, sizeof(MContractType_t));
+	RPCSetResult(&Request, Buffer, Length);
+	return RPCEvaluate(&Request, Contract->DriverId);
+}
 #endif
 
 /* OnInterrupt
