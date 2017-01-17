@@ -148,9 +148,9 @@ __CRT_EXTERN void PhoenixFinishAsh(MCoreAsh_t *Ash);
 /* These function manipulate pipes on the given port
  * there are some pre-defined ports on which pipes
  * can be opened, window manager etc */
-__CRT_EXTERN int PhoenixOpenAshPipe(MCoreAsh_t *Ash, int Port, Flags_t Flags);
-__CRT_EXTERN int PhoenixWaitAshPipe(MCoreAsh_t *Ash, int Port);
-__CRT_EXTERN int PhoenixCloseAshPipe(MCoreAsh_t *Ash, int Port);
+__CRT_EXTERN OsStatus_t PhoenixOpenAshPipe(MCoreAsh_t *Ash, int Port, Flags_t Flags);
+__CRT_EXTERN OsStatus_t PhoenixWaitAshPipe(MCoreAsh_t *Ash, int Port);
+__CRT_EXTERN OsStatus_t PhoenixCloseAshPipe(MCoreAsh_t *Ash, int Port);
 __CRT_EXTERN MCorePipe_t *PhoenixGetAshPipe(MCoreAsh_t *Ash, int Port);
 
 /* Ash Function Prototypes

@@ -48,7 +48,15 @@
  * of input and/or window events */
 #define EVENT_INPUT						IPC_DECL_EVENT(0)
 
-/* Include Systems */
+
+/* Argument type definitions 
+ * Used by both RPC and Event argument systems */
+#define ARGUMENT_NOTUSED		0
+#define ARGUMENT_BUFFER			1
+#define ARGUMENT_REGISTER		2
+
+/* Include 
+ * - Systems */
 #include <os/ipc/event.h>
 #include <os/ipc/rpc.h>
 #include <os/ipc/pipe.h>

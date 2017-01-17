@@ -184,6 +184,7 @@ int PipeRead(MCorePipe_t *Pipe, uint8_t *Buffer, size_t Length, int Peek)
 			if (Buffer != NULL) {
 				Buffer[BytesRead++] = Pipe->Buffer[Pipe->IndexRead];
 			}
+			else BytesRead++;
 			PipeIncreaseRead(Pipe);
 		}
 

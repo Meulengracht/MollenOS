@@ -22,6 +22,7 @@
 
 /* Includes
  * - System */
+#include <os/driver/contracts/base.h>
 #include <os/driver/device.h>
 #include <os/mollenos.h>
 #include <ds/list.h>
@@ -36,7 +37,8 @@
 
 /* Globals */
 List_t *GlbDeviceList = NULL;
-UUId_t GlbDeviceIdGen = 0;
+List_t *GlbDriverList = NULL;
+UUId_t GlbDeviceIdGen = 0, GlbDriverIdGen = 0;
 int GlbInitialized = 0;
 int GlbRun = 0;
 
@@ -46,10 +48,12 @@ int GlbRun = 0;
 OsStatus_t OnLoad(void)
 {
 	/* Setup list */
-	GlbDeviceList = ListCreate(KeyInteger, LIST_SAFE);
+	GlbDeviceList = ListCreate(KeyInteger, LIST_NORMAL);
+	GlbDriverList = ListCreate(KeyInteger, LIST_NORMAL);
 
 	/* Init variables */
 	GlbDeviceIdGen = 0;
+	GlbDriverIdGen = 0;
 	GlbInitialized = 1;
 	GlbRun = 1;
 
@@ -79,31 +83,70 @@ OsStatus_t OnEvent(MRemoteCall_t *Message)
 	/* Which function is called? */
 	switch (Message->Function)
 	{
-		/* Handles registration of a new device */
+		/* Handles registration of a new device 
+		 * and store it with a custom version of
+		 * our own MCoreDevice */
 		case __DEVICEMANAGER_REGISTERDEVICE: {
 			/* Variables for result */
 			UUId_t Result;
 
 			/* Evaluate request, but don't free
 			* the allocated device storage, we need it */
-			Message->Arguments[0].InUse = 0;
-			Result = RegisterDevice((MCoreDevice_t*)Message->Arguments[0].Buffer, NULL);
+			Message->Arguments[0].Type = ARGUMENT_NOTUSED;
+			Result = RegisterDevice((MCoreDevice_t*)Message->Arguments[0].Data.Buffer, NULL);
 
 			/* Write the result back to the caller */
 			PipeSend(Message->Sender, Message->ResponsePort,
 				&Result, sizeof(UUId_t));
 		} break;
+
+		/* Unregisters a device from the system, and 
+		 * signals all drivers that are attached to 
+		 * un-attach */
 		case __DEVICEMANAGER_UNREGISTERDEVICE: {
 
 		} break;
+
+		/* Queries device information and returns
+		 * information about the device and the drivers
+		 * attached */
 		case __DEVICEMANAGER_QUERYDEVICE: {
 
 		} break;
+
+		/* What do? */
 		case __DEVICEMANAGER_IOCTLDEVICE: {
 
 		} break;
 
+		/* Registers a driver for the given device 
+		 * We then store what contracts are related to 
+		 * which devices in order to keep track */
 		case __DEVICEMANAGER_REGISTERCONTRACT: {
+			/* Variables for result */
+			MContract_t *Contract = (MContract_t*)
+				Message->Arguments[0].Data.Buffer;
+			UUId_t Result = 1;
+
+			/* Evaluate request, but don't free
+			 * the allocated contract storage, we need it */
+			Message->Arguments[0].Type = ARGUMENT_NOTUSED;
+			Result = RegisterContract(Contract);
+
+			/* Write the result back to the caller */
+			PipeSend(Message->Sender, Message->ResponsePort,
+				&Result, sizeof(UUId_t));
+		} break;
+
+		/* For now this function is un-implemented */
+		case __DEVICEMANAGER_UNREGISTERCONTRACT: {
+			/* Not-Implemented */
+		} break;
+
+		/* Query a contract for information 
+		 * This usually redirects a message to
+		 * the corresponding driver */
+		case __DEVICEMANAGER_QUERYCONTRACT: {
 
 		} break;
 
@@ -143,4 +186,27 @@ UUId_t RegisterDevice(MCoreDevice_t *Device, const char *Name)
 
 	/* Done with processing of the new device */
 	return DeviceId;
+}
+
+/* RegisterContract
+ * Registers the given contact with the device-manager to let
+ * the manager know we are handling this device, and what kind
+ * of functionality the device supports */
+UUId_t RegisterContract(MContract_t *Contract)
+{
+	/* Variables */
+	UUId_t ContractId = GlbDriverIdGen++;
+	DataKey_t Key;
+
+	/* Debug name */
+	MollenOSSystemLog("Registered driver for device %u: %s", 
+		Contract->DeviceId, &Contract->Name[0]);
+
+	/* Update id, add to list */
+	Contract->DriverId = ContractId;
+	Key.Value = ContractId;
+	ListAppend(GlbDriverList, ListCreateNode(Key, Key, Contract));
+
+	/* Done with processing of the new driver */
+	return ContractId;
 }

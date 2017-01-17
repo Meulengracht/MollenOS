@@ -40,8 +40,11 @@
  * to an IPC function request, we support up
  * to 5 arguments */
 typedef struct _MRPCArgument {
-	int					InUse;
-	const void			*Buffer;
+	int					Type;
+	union {
+		const void		*Buffer;
+		size_t			Value;
+	} Data;
 	size_t				Length;
 } RPCArgument_t;
 
@@ -85,31 +88,54 @@ static __CRT_INLINE void RPCInitialize(MRemoteCall_t *Ipc, int Version, int Port
  * Adds a new argument for the RPC request at
  * the given argument index. It's not possible to override 
  * a current argument */
-static __CRT_INLINE void RPCSetArgument(MRemoteCall_t *Ipc,
+static __CRT_INLINE void RPCSetArgument(MRemoteCall_t *Rpc,
 	int Index, const void *Data, size_t Length)
 {
 	/* Sanitize the index and the
 	 * current argument */
 	if (Index >= IPC_MAX_ARGUMENTS
-		|| Index < 0 || Ipc->Arguments[Index].InUse == 1) {
+		|| Index < 0 || Rpc->Arguments[Index].Type != ARGUMENT_NOTUSED) {
 		return;
 	}
 
-	Ipc->Arguments[Index].InUse = 1;
-	Ipc->Arguments[Index].Buffer = Data;
-	Ipc->Arguments[Index].Length = Length;
-	Ipc->Length += Length;
+	/* Kind of argument? */
+	if (Length <= sizeof(size_t)) {
+		Rpc->Arguments[Index].Type = ARGUMENT_REGISTER;
+
+		if (Length == 1) {
+			Rpc->Arguments[Index].Data.Value = *((uint8_t*)Data);
+		}
+		else if (Length == 2) {
+			Rpc->Arguments[Index].Data.Value = *((uint16_t*)Data);
+		}
+		else if (Length == 4) {
+			Rpc->Arguments[Index].Data.Value = *((uint32_t*)Data);
+		}
+		else if (Length == 8) {
+			Rpc->Arguments[Index].Data.Value = *((size_t*)Data);
+		}
+	}
+	else {
+		Rpc->Arguments[Index].Type = ARGUMENT_BUFFER;
+		Rpc->Arguments[Index].Data.Buffer = Data;
+		Rpc->Arguments[Index].Length = Length;
+	}
+
+	/* Increase total length of message */
+	Rpc->Length += Length;
 }
 
 /* RPCSetResult
  * Installs a result buffer that will be filled
  * with the response from the RPC request */
-static __CRT_INLINE void RPCSetResult(MRemoteCall_t *Ipc,
+static __CRT_INLINE void RPCSetResult(MRemoteCall_t *Rpc,
 	const void *Data, size_t Length)
 {
-	Ipc->Result.InUse = 1;
-	Ipc->Result.Buffer = Data;
-	Ipc->Result.Length = Length;
+	/* Always a buffer element as we need
+	 * a target to copy the data into */
+	Rpc->Result.Type = ARGUMENT_BUFFER;
+	Rpc->Result.Data.Buffer = Data;
+	Rpc->Result.Length = Length;
 }
 
 /* RPCListen 
@@ -128,8 +154,8 @@ _MOS_API OsStatus_t RPCCleanup(MRemoteCall_t *Message);
  * must use RPCEvaluate, this will automatically wait
  * for a reply, whereas RPCExecute will send the request
  * and not block/wait for reply */
-_MOS_API OsStatus_t RPCEvaluate(MRemoteCall_t *Ipc, UUId_t Target);
-_MOS_API OsStatus_t RPCExecute(MRemoteCall_t *Ipc, UUId_t Target);
+_MOS_API OsStatus_t RPCEvaluate(MRemoteCall_t *Rpc, UUId_t Target);
+_MOS_API OsStatus_t RPCExecute(MRemoteCall_t *Rpc, UUId_t Target);
 
 #ifdef __cplusplus
 }

@@ -40,8 +40,11 @@
  * to an IPC function request, we support up
  * to 5 arguments */
 typedef struct _MEventArgument {
-	int					InUse;
-	const void			*Buffer;
+	int					Type;
+	union {
+		const void		*Buffer;
+		size_t			Value;
+	} Data;
 	size_t				Length;
 } EventArgument_t;
 
@@ -49,6 +52,7 @@ typedef struct _MEventArgument {
  * action going through pipes in MollenOS must
  * inherit from this structure for security */
 typedef struct _MEventMessage {
+	int					Version;
 	int					Type;
 	int					Port;
 	size_t				Length;		/* Excluding this header */
@@ -65,9 +69,13 @@ extern "C" {
  * Initializes a new EVT message of the 
  * given type and length */
 static __CRT_INLINE void EVTInitialize(MEventMessage_t *Event, 
-	int Port, int EventType)
+	int Version, int Port, int EventType)
 {
+	/* Zero out structure */
 	memset((void*)Event, 0, sizeof(MEventMessage_t));
+
+	/* Initialize some of the args */
+	Event->Version = Version;
 	Event->Type = EventType;
 	Event->Port = Port;
 }
@@ -82,13 +90,34 @@ static __CRT_INLINE void EVTSetArgument(MEventMessage_t *Event,
 	/* Sanitize the index and the
 	 * current argument */
 	if (Index >= IPC_MAX_ARGUMENTS
-		|| Index < 0 || Event->Arguments[Index].InUse == 1) {
+		|| Index < 0 || Event->Arguments[Index].Type != ARGUMENT_NOTUSED) {
 		return;
 	}
 
-	Event->Arguments[Index].InUse = 1;
-	Event->Arguments[Index].Buffer = Data;
-	Event->Arguments[Index].Length = Length;
+	/* Kind of argument? */
+	if (Length <= sizeof(size_t)) {
+		Event->Arguments[Index].Type = ARGUMENT_REGISTER;
+
+		if (Length == 1) {
+			Event->Arguments[Index].Data.Value = *((uint8_t*)Data);
+		}
+		else if (Length == 2) {
+			Event->Arguments[Index].Data.Value = *((uint16_t*)Data);
+		}
+		else if (Length == 4) {
+			Event->Arguments[Index].Data.Value = *((uint32_t*)Data);
+		}
+		else if (Length == 8) {
+			Event->Arguments[Index].Data.Value = *((size_t*)Data);
+		}
+	}
+	else {
+		Event->Arguments[Index].Type = ARGUMENT_BUFFER;
+		Event->Arguments[Index].Data.Buffer = Data;
+		Event->Arguments[Index].Length = Length;
+	}
+
+	/* Increase total length of message */
 	Event->Length += Length;
 }
 

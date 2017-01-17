@@ -76,7 +76,7 @@ void CmosWrite(uint8_t Register, uint8_t Data)
 /* CmosGetTime
  * Retrieves the current time and stores it in
  * the c-library time structure */
-void CmosGetTime(struct tm *TimeStructure)
+void CmosGetTime(struct tm *Time)
 {
 	/* Variables for reading */
 	int Sec, Counter;
@@ -88,12 +88,12 @@ void CmosGetTime(struct tm *TimeStructure)
 	}	
 
 	/* Get Clock (Stable, thats why we loop) */
-	while (CmosRead(CMOS_REGISTER_SECONDS) != TimeStructure->tm_sec
-		|| CmosRead(CMOS_REGISTER_MINUTES) != TimeStructure->tm_min
-		|| CmosRead(CMOS_REGISTER_HOURS) != TimeStructure->tm_hour
-		|| CmosRead(CMOS_REGISTER_DAYS) != TimeStructure->tm_mday
-		|| CmosRead(CMOS_REGISTER_MONTHS) != TimeStructure->tm_mon
-		|| CmosRead(CMOS_REGISTER_YEARS) != TimeStructure->tm_year) {
+	while (CmosRead(CMOS_REGISTER_SECONDS) != Time->tm_sec
+		|| CmosRead(CMOS_REGISTER_MINUTES) != Time->tm_min
+		|| CmosRead(CMOS_REGISTER_HOURS) != Time->tm_hour
+		|| CmosRead(CMOS_REGISTER_DAYS) != Time->tm_mday
+		|| CmosRead(CMOS_REGISTER_MONTHS) != Time->tm_mon
+		|| CmosRead(CMOS_REGISTER_YEARS) != Time->tm_year) {
 		/* Reset variables */
 		Sec = -1;
 		Counter = 0;
@@ -102,51 +102,51 @@ void CmosGetTime(struct tm *TimeStructure)
 		while (Counter < 2) {
 			if (CmosRead(CMOS_REGISTER_STATUS_A) & CMOSA_UPDATE_IN_PROG)
 				continue;
-			TimeStructure->tm_sec = CmosRead(CMOS_REGISTER_SECONDS);
+			Time->tm_sec = CmosRead(CMOS_REGISTER_SECONDS);
 
 			/* Seconds changed.  First from -1, then because the
 			 * clock ticked, which is what we're waiting for to
 			 * get a precise reading.
 			 */
-			if (TimeStructure->tm_sec != Sec) {
-				Sec = TimeStructure->tm_sec;
+			if (Time->tm_sec != Sec) {
+				Sec = Time->tm_sec;
 				Counter++;
 			}
 		}
 
 		/* Read the other registers. */
-		TimeStructure->tm_min = CmosRead(CMOS_REGISTER_MINUTES);
-		TimeStructure->tm_hour = CmosRead(CMOS_REGISTER_HOURS);
-		TimeStructure->tm_mday = CmosRead(CMOS_REGISTER_DAYS);
-		TimeStructure->tm_mon = CmosRead(CMOS_REGISTER_MONTHS);
-		TimeStructure->tm_year = CmosRead(CMOS_REGISTER_YEARS);
+		Time->tm_min = CmosRead(CMOS_REGISTER_MINUTES);
+		Time->tm_hour = CmosRead(CMOS_REGISTER_HOURS);
+		Time->tm_mday = CmosRead(CMOS_REGISTER_DAYS);
+		Time->tm_mon = CmosRead(CMOS_REGISTER_MONTHS);
+		Time->tm_year = CmosRead(CMOS_REGISTER_YEARS);
 	}
 
 	/* Convert time format? 
 	 * - Convert BCD to binary (default RTC mode). */
 	if (!(CmosRead(CMOS_REGISTER_STATUS_B) & CMOSB_BCD_FORMAT)) {
-		TimeStructure->tm_year = CMOS_BCD_TO_DEC(TimeStructure->tm_year);
-		TimeStructure->tm_mon = CMOS_BCD_TO_DEC(TimeStructure->tm_mon);
-		TimeStructure->tm_mday = CMOS_BCD_TO_DEC(TimeStructure->tm_mday);
-		TimeStructure->tm_hour = CMOS_BCD_TO_DEC(TimeStructure->tm_hour);
-		TimeStructure->tm_min = CMOS_BCD_TO_DEC(TimeStructure->tm_min);
-		TimeStructure->tm_sec = CMOS_BCD_TO_DEC(TimeStructure->tm_sec);
+		Time->tm_year = CMOS_BCD_TO_DEC(Time->tm_year);
+		Time->tm_mon = CMOS_BCD_TO_DEC(Time->tm_mon);
+		Time->tm_mday = CMOS_BCD_TO_DEC(Time->tm_mday);
+		Time->tm_hour = CMOS_BCD_TO_DEC(Time->tm_hour);
+		Time->tm_min = CMOS_BCD_TO_DEC(Time->tm_min);
+		Time->tm_sec = CMOS_BCD_TO_DEC(Time->tm_sec);
 		if (Century != 0) {
 			Century = CMOS_BCD_TO_DEC(Century);
 		}	
 	}
 
 	/* Counts from 0. */
-	TimeStructure->tm_mon--;
+	Time->tm_mon--;
 
 	/* Correct the year */
 	if (Century != 0) {
-		TimeStructure->tm_year += Century * 100;
+		Time->tm_year += Century * 100;
 	}
 	else {
-		TimeStructure->tm_year += (CMOS_CURRENT_YEAR / 100) * 100;
-		if (TimeStructure->tm_year < CMOS_CURRENT_YEAR) {
-			TimeStructure->tm_year += 100;
+		Time->tm_year += (CMOS_CURRENT_YEAR / 100) * 100;
+		if (Time->tm_year < CMOS_CURRENT_YEAR) {
+			Time->tm_year += 100;
 		}
 	}
 }
@@ -204,6 +204,10 @@ OsStatus_t OnLoad(void)
 		return OsError;
 	}
 
+	/* Initialize the cmos-contract */
+	InitializeContract(&GlbCmos->Clock, UUID_INVALID, 1, 
+		ContractClock, "CMOS Clock Interface");
+
 	/* Last part is to initialize the rtc
 	 * chip if it present in system */
 	if (GlbCmos->UseRTC) {
@@ -243,21 +247,20 @@ OsStatus_t OnUnload(void)
  * instance of this driver for the given device */
 OsStatus_t OnRegister(MCoreDevice_t *Device)
 {
-	/* Variables */
-	MContract_t Clock;
-	MContract_t Timer;
-
-	/* Initialize both contracts */
-	InitializeContract(&Clock, Device->Id, 1, ContractClock, "CMOS Clock Interface");
-	InitializeContract(&Timer, Device->Id, 1, ContractTimer, "CMOS RTC Timer Interface");
-
-	/* The CMOS/RTC is a fixed device
+	/* Update contracts to bind to id 
+	 * The CMOS/RTC is a fixed device
 	 * and thus we don't support multiple instances */
-	RegisterContract(&Clock);
+	if (GlbCmos->Clock.DeviceId == UUID_INVALID) {
+		GlbCmos->Clock.DeviceId = Device->Id;
+		GlbCmos->Timer.DeviceId = Device->Id;
+	}
+
+	/* Now register the clock contract */
+	RegisterContract(&GlbCmos->Clock);
 
 	/* Only register the RTC if we use it */
 	if (GlbCmos->UseRTC) {
-		return RegisterContract(&Timer);
+		return RegisterContract(&GlbCmos->Timer);
 	}
 	else {
 		return OsNoError;
@@ -272,5 +275,28 @@ OsStatus_t OnUnregister(MCoreDevice_t *Device)
 	/* The CMOS/RTC is a fixed device
 	 * and thus we don't support multiple instances */
 	_CRT_UNUSED(Device);
+	return OsNoError;
+}
+
+/* OnQuery
+ * Occurs when an external process or server quries
+ * this driver for data, this will correspond to the query
+ * function that is defined in the contract */
+OsStatus_t OnQuery(MContractType_t QueryType, UUId_t QueryTarget, int Port)
+{
+	/* Static storage to avoid 
+	 * allocation and freeing */
+	struct tm _time;
+
+	/* Which kind of query type is being done? */
+	if (QueryType == ContractClock) {
+		CmosGetTime(&_time);
+		PipeSend(QueryTarget, Port, &_time, sizeof(struct tm));
+	}
+	else if (QueryType == ContractTimer) {
+
+	}
+
+	/* Done! */
 	return OsNoError;
 }

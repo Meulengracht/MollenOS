@@ -55,7 +55,7 @@
       <Optimization>Full</Optimization>
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
-      <PreprocessorDefinitions>MOLLENOS;_X86_32;__DRIVER_EXPORT</PreprocessorDefinitions>
+      <PreprocessorDefinitions>MOLLENOS;_X86_32;__DRIVER_IMPL</PreprocessorDefinitions>
       <TreatWarningAsError>true</TreatWarningAsError>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
       <BufferSecurityCheck>false</BufferSecurityCheck>

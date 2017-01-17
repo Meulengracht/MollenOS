@@ -28,7 +28,25 @@
  * - System */
 #include <os/driver/contracts/base.h>
 #include <os/osdefs.h>
+#include <time.h>
 
+/* ClockQuery
+ * This queries the clock contract for data
+ * and must be implemented by all contracts that
+ * implement the clock interface */
+__DEVAPI OsStatus_t ClockQuery(struct tm *time)
+{
+	/* Variables */
+	MRemoteCall_t Request;
+	MContractType_t Type = ContractClock;
 
+	/* Initialize RPC */
+	RPCInitialize(&Request, __DEVICEMANAGER_INTERFACE_VERSION,
+		PIPE_DEFAULT, __DEVICEMANAGER_QUERYCONTRACT);
+	RPCSetArgument(&Request, 0, (const void*)&Type,
+		sizeof(MContractType_t));
+	RPCSetResult(&Request, time, sizeof(struct tm));
+	return RPCEvaluate(&Request, __DEVICEMANAGER_TARGET);
+}
 
 #endif //!_MCORE_CONTRACT_CLOCK_H_

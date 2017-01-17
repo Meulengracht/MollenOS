@@ -455,11 +455,11 @@ void BusEnumerate(void)
 
 	/* Query acpi information */
 	if (AcpiQueryStatus(&Acpi) == OsNoError) {
-		MollenOSSystemLog("Acpi is available! Version 0x%x", Acpi.Version);
+		MollenOSSystemLog("ACPI-Version: 0x%x", Acpi.Version);
 
 		/* PCI-Express */
 		if (AcpiQueryTable(ACPI_SIG_MCFG, &Header) == OsNoError) {
-			MollenOSSystemLog("Found PCIe controller (mcfg length 0x%x)", Header->Length);
+			MollenOSSystemLog("PCI-Express Controller (mcfg length 0x%x)", Header->Length);
 			//McfgTable = (ACPI_TABLE_MCFG*)Header;
 			//remember to free(McfgTable)
 			free(Header);
@@ -467,7 +467,6 @@ void BusEnumerate(void)
 
 		/* HPET */
 		if (AcpiQueryTable(ACPI_SIG_HPET, &Header) == OsNoError) {
-			MollenOSSystemLog("Found hpet");
 			free(Header);
 			BusInstallFixed(PCI_HPET_DEVICEID, "HPET Controller");
 		}

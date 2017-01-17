@@ -68,6 +68,8 @@
 
 #pragma pack(push, 1)
 typedef struct _Cmos {
+	MContract_t			Clock;
+	MContract_t			Timer;
 	DeviceIoSpace_t		IoSpace;
 	uint8_t				AcpiCentury;
 	int					UseRTC;

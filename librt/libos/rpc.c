@@ -33,9 +33,9 @@
  * must use RPCEvaluate, this will automatically wait
  * for a reply, whereas RPCExecute will send the request
  * and not block/wait for reply */
-OsStatus_t RPCEvaluate(MRemoteCall_t *Ipc, UUId_t Target)
+OsStatus_t RPCEvaluate(MRemoteCall_t *Rpc, UUId_t Target)
 {
-	return Syscall3(SYSCALL_RPCEVAL, SYSCALL_PARAM(Ipc), SYSCALL_PARAM(Target), 0);
+	return Syscall3(SYSCALL_RPCEVAL, SYSCALL_PARAM(Rpc), SYSCALL_PARAM(Target), 0);
 }
 
 /* RPCEvaluate/RPCExecute
@@ -43,9 +43,9 @@ OsStatus_t RPCEvaluate(MRemoteCall_t *Ipc, UUId_t Target)
  * must use RPCEvaluate, this will automatically wait
  * for a reply, whereas RPCExecute will send the request
  * and not block/wait for reply */
-OsStatus_t RPCExecute(MRemoteCall_t *Ipc, UUId_t Target)
+OsStatus_t RPCExecute(MRemoteCall_t *Rpc, UUId_t Target)
 {
-	return Syscall3(SYSCALL_RPCEVAL, SYSCALL_PARAM(Ipc), SYSCALL_PARAM(Target), 1);
+	return Syscall3(SYSCALL_RPCEVAL, SYSCALL_PARAM(Rpc), SYSCALL_PARAM(Target), 1);
 }
 
 /* RPCListen 
@@ -60,13 +60,14 @@ OsStatus_t RPCListen(MRemoteCall_t *Message)
 	/* Wait for a new rpc message */
 	if (!PipeRead(PIPE_DEFAULT, Message, sizeof(MRemoteCall_t))) {
 		for (i = 0; i < IPC_MAX_ARGUMENTS; i++) {
-			if (Message->Arguments[i].InUse) {
-				Message->Arguments[i].Buffer = (const void*)malloc(Message->Arguments[i].Length);
-				PipeRead(PIPE_DEFAULT, (void*)Message->Arguments[i].Buffer, 
+			if (Message->Arguments[i].Type == ARGUMENT_BUFFER) {
+				Message->Arguments[i].Data.Buffer = 
+					(const void*)malloc(Message->Arguments[i].Length);
+				PipeRead(PIPE_DEFAULT, (void*)Message->Arguments[i].Data.Buffer, 
 					Message->Arguments[i].Length);
 			}
-			else {
-				Message->Arguments[i].Buffer = NULL;
+			else if (Message->Arguments[i].Type == ARGUMENT_NOTUSED) {
+				Message->Arguments[i].Data.Buffer = NULL;
 			}
 		}
 
@@ -86,9 +87,9 @@ OsStatus_t RPCCleanup(MRemoteCall_t *Message)
 {
 	/* Cleanup buffers */
 	for (int i = 0; i < IPC_MAX_ARGUMENTS; i++) {
-		if (Message->Arguments[i].InUse) {
-			free((void*)Message->Arguments[i].Buffer);
-			Message->Arguments[i].Buffer = NULL;
+		if (Message->Arguments[i].Type == ARGUMENT_BUFFER) {
+			free((void*)Message->Arguments[i].Data.Buffer);
+			Message->Arguments[i].Data.Buffer = NULL;
 		}
 	}
 

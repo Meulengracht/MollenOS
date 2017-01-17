@@ -33,7 +33,7 @@
 
 /* The export macro, and is only set by the
  * the actual implementation of the devicemanager */
-#ifdef __DEVICEMANAGER_EXPORT
+#ifdef __DEVICEMANAGER_IMPL
 #define __DEVAPI __CRT_EXTERN
 #else
 #define __DEVAPI static __CRT_INLINE
@@ -114,7 +114,7 @@ typedef struct _MCoreDevice
  * Allows registering of a new device in the
  * device-manager, and automatically queries
  * for a driver for the new device */
-#ifdef __DEVICEMANAGER_EXPORT
+#ifdef __DEVICEMANAGER_IMPL
 __DEVAPI UUId_t RegisterDevice(MCoreDevice_t *Device, const char *Name);
 #else
 __DEVAPI UUId_t RegisterDevice(MCoreDevice_t *Device)

@@ -662,7 +662,7 @@ int ScMemoryUnshare(UUId_t Target, Addr_t TranslatedAddress, size_t Size)
 /* Opens a new pipe for the calling Ash process
  * and allows communication to this port from other
  * processes */
-int ScPipeOpen(int Port, Flags_t Flags)
+OsStatus_t ScPipeOpen(int Port, Flags_t Flags)
 {
 	/* No need for any preperation on this call, the
 	 * underlying call takes care of validation as well */
@@ -671,7 +671,7 @@ int ScPipeOpen(int Port, Flags_t Flags)
 
 /* Closes an existing pipe on a given port and
  * shutdowns any communication on that port */
-int ScPipeClose(int Port)
+OsStatus_t ScPipeClose(int Port)
 {
 	/* No need for any preperation on this call, the
 	 * underlying call takes care of validation as well */
@@ -682,7 +682,7 @@ int ScPipeClose(int Port)
  * and consume the message, if no message 
  * is available, this function will block untill 
  * a message is available */
-int ScPipeRead(int Port, uint8_t *Container, size_t Length, int Peek)
+OsStatus_t ScPipeRead(int Port, uint8_t *Container, size_t Length, int Peek)
 {
 	/* Variables */
 	MCorePipe_t *Pipe = NULL;
@@ -692,18 +692,18 @@ int ScPipeRead(int Port, uint8_t *Container, size_t Length, int Peek)
 
 	/* Sanitize the pipe */
 	if (Pipe == NULL) {
-		return -2;
+		return OsError;
 	}
 
 	/* Read */
-	return PipeRead(Pipe, Container, Length, Peek);
+	return (PipeRead(Pipe, Container, Length, Peek) > 0) ? OsNoError : OsError;
 }
 
 /* Sends a message to another process, 
  * so far this system call is made in the fashion
  * that the recieving process must have room in their
  * message queue... dunno */
-int ScPipeWrite(UUId_t AshId, int Port, uint8_t *Message, size_t Length)
+OsStatus_t ScPipeWrite(UUId_t AshId, int Port, uint8_t *Message, size_t Length)
 {
 	/* Variables */
 	MCorePipe_t *Pipe = NULL;
@@ -711,7 +711,7 @@ int ScPipeWrite(UUId_t AshId, int Port, uint8_t *Message, size_t Length)
 	/* Santizie the parameters */
 	if (Message == NULL
 		|| Length == 0) {
-		return -1;
+		return OsError;
 	}
 
 	/* Lookup the pipe for the given port */
@@ -719,11 +719,11 @@ int ScPipeWrite(UUId_t AshId, int Port, uint8_t *Message, size_t Length)
 
 	/* Sanitize the pipe */
 	if (Pipe == NULL) {
-		return -2;
+		return OsError;
 	}
 
 	/* Write */
-	return PipeWrite(Pipe, Message, Length);
+	return (PipeWrite(Pipe, Message, Length) > 0) ? OsNoError : OsError;
 }
 
 /* This is a bit of a tricky synchronization method
@@ -785,7 +785,7 @@ OsStatus_t ScRpcResponse(MRemoteCall_t *Rpc)
 
 	/* Sanitize the lookups */
 	if (Ash == NULL || Pipe == NULL
-		|| Rpc->Result.InUse == 0) {
+		|| Rpc->Result.Type == ARGUMENT_NOTUSED) {
 		return OsError;
 	}
 
@@ -795,7 +795,7 @@ OsStatus_t ScRpcResponse(MRemoteCall_t *Rpc)
 	//	ToRead = PipeBytesAvailable(Pipe);
 
 	/* Read the data into the response-buffer */
-	PipeRead(Pipe, (uint8_t*)Rpc->Result.Buffer, ToRead, 0);
+	PipeRead(Pipe, (uint8_t*)Rpc->Result.Data.Buffer, ToRead, 0);
 
 	/* Done, it finally ran! */
 	return OsNoError;
@@ -829,8 +829,9 @@ OsStatus_t ScRpcExecute(MRemoteCall_t *Rpc, UUId_t Target, int Async)
 	 * and then iterate arguments and write them */
 	PipeWrite(Pipe, (uint8_t*)Rpc, sizeof(MRemoteCall_t));
 	for (i = 0; i < IPC_MAX_ARGUMENTS; i++) {
-		if (Rpc->Arguments[i].InUse) {
-			PipeWrite(Pipe, (uint8_t*)Rpc->Arguments[i].Buffer, Rpc->Arguments[i].Length);
+		if (Rpc->Arguments[i].Type == ARGUMENT_BUFFER) {
+			PipeWrite(Pipe, (uint8_t*)Rpc->Arguments[i].Data.Buffer, 
+				Rpc->Arguments[i].Length);
 		}
 	}
 
@@ -871,8 +872,9 @@ OsStatus_t ScEvtExecute(MEventMessage_t *Event, UUId_t Target)
 	* and then iterate arguments and write them */
 	PipeWrite(Pipe, (uint8_t*)Event, sizeof(MEventMessage_t));
 	for (i = 0; i < IPC_MAX_ARGUMENTS; i++) {
-		if (Event->Arguments[i].InUse) {
-			PipeWrite(Pipe, (uint8_t*)Event->Arguments[i].Buffer, Event->Arguments[i].Length);
+		if (Event->Arguments[i].Type == ARGUMENT_BUFFER) {
+			PipeWrite(Pipe, (uint8_t*)Event->Arguments[i].Data.Buffer, 
+				Event->Arguments[i].Length);
 		}
 	}
 

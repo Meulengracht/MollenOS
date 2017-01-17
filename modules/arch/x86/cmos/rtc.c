@@ -22,6 +22,7 @@
 
 /* Includes 
  * - System */
+#include <os/driver/contracts/clock.h>
 #include "cmos.h"
 
 /* Includes
@@ -59,6 +60,10 @@ OsStatus_t RtcInitialize(Cmos_t *Chip)
 	Chip->NsTick = 976;
 	Chip->NsCounter = 0;
 	Chip->AlarmTicks = 0;
+
+	/* Initialize the rtc-contract */
+	InitializeContract(&Chip->Timer, UUID_INVALID, 1,
+		ContractTimer, "CMOS RTC Timer Interface");
 
 	/* Disable RTC Irq */
 	StateB = CmosRead(CMOS_REGISTER_STATUS_B);

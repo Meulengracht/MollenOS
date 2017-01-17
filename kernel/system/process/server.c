@@ -178,8 +178,10 @@ MCoreServer_t *PhoenixGetServerByDriver(DevInfo_t VendorId,
 				return Server;
 			}
 
-			/* Check class/subclass combination then */
-			if (Server->DeviceClass == DeviceClass
+			/* Check class/subclass combination then 
+			 * However vendor can't be fixed */
+			if (Server->VendorId != 0xFFEF
+				&& Server->DeviceClass == DeviceClass
 				&& Server->DeviceSubClass == DeviceSubClass) {
 				return Server;
 			}

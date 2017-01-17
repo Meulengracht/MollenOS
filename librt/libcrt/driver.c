@@ -99,19 +99,20 @@ void _mDrvCrt(void)
 			switch (Message.Function) {
 				case __DRIVER_REGISTERINSTANCE: {
 					Key.Value = 0;
-					Message.Arguments[0].InUse = 0;
-					OnRegister((MCoreDevice_t*)Message.Arguments[0].Buffer);
+					Message.Arguments[0].Type = ARGUMENT_NOTUSED;
+					OnRegister((MCoreDevice_t*)Message.Arguments[0].Data.Buffer);
 					ListAppend(__GlbInstances, 
-						ListCreateNode(Key, Key, (void*)Message.Arguments[0].Buffer));
+						ListCreateNode(Key, Key, (void*)Message.Arguments[0].Data.Buffer));
 				} break;
 				case __DRIVER_UNREGISTERINSTANCE: {
-					OnUnregister((MCoreDevice_t*)Message.Arguments[0].Buffer);
+					OnUnregister((MCoreDevice_t*)Message.Arguments[0].Data.Buffer);
 				} break;
 				case __DRIVER_INTERRUPT: {
 					OnInterrupt();
 				} break;
 				case __DRIVER_QUERY: {
-					/* Not Implemented */
+					OnQuery((MContractType_t)Message.Arguments[0].Data.Value, 
+						Message.Sender, Message.ResponsePort);
 				} break;
 				case __DRIVER_UNLOAD: {
 					IsRunning = 0;

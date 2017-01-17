@@ -54,7 +54,7 @@
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <WarningLevel>EnableAllWarnings</WarningLevel>
       <Optimization>Full</Optimization>
-      <PreprocessorDefinitions>MOLLENOS;_X86_32;__DEVICEMANAGER_EXPORT;__SERVER_EXPORT</PreprocessorDefinitions>
+      <PreprocessorDefinitions>MOLLENOS;_X86_32;__DEVICEMANAGER_IMPL;__SERVER_IMPL</PreprocessorDefinitions>
       <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
       <TreatWarningAsError>true</TreatWarningAsError>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
