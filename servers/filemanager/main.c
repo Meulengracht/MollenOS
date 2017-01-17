@@ -35,10 +35,6 @@
 #include <string.h>
 #include <ctype.h>
 
-/* Prototypes in this file
- * since we want to avoid a header */
-OsStatus_t HandleQuery(MContractType_t Type, void *ResultBuffer);
-
 /* Globals */
 List_t *GlbDeviceList = NULL;
 List_t *GlbDriverList = NULL;
@@ -156,10 +152,6 @@ OsStatus_t OnEvent(MRemoteCall_t *Message)
 				Message->Arguments[0].Data.Value;
 			void *ResponseBuffer = 
 				malloc(Message->Result.Length);
-			if (HandleQuery(Type, ResponseBuffer) == OsNoError) {
-
-			}
-			free(ResponseBuffer);
 
 		} break;
 

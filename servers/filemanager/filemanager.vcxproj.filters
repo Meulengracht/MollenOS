@@ -1,6 +1,9 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
+    <None Include="drm.mdrv" />
+  </ItemGroup>
+  <ItemGroup>
     <ClCompile Include="main.c" />
     <ClCompile Include="arch\x86\pcienumerate.c">
       <Filter>arch\x86</Filter>
@@ -27,8 +30,5 @@
     <ClInclude Include="arch\x86\bus.h">
       <Filter>arch\x86</Filter>
     </ClInclude>
-  </ItemGroup>
-  <ItemGroup>
-    <None Include="devicemanager.mdrv" />
   </ItemGroup>
 </Project>

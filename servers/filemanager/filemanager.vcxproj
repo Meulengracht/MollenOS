@@ -7,17 +7,10 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
-    <None Include="devicemanager.mdrv" />
+    <None Include="filemanager.mdrv" />
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="arch\x86\pcienumerate.c" />
-    <ClCompile Include="arch\x86\pcihelpers.c" />
-    <ClCompile Include="arch\x86\pciio.c" />
-    <ClCompile Include="arch\x86\pcistrings.c" />
     <ClCompile Include="main.c" />
-  </ItemGroup>
-  <ItemGroup>
-    <ClInclude Include="arch\x86\bus.h" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <ProjectGuid>{DEA6F86E-257B-45FE-99D7-E9F0FF5E1928}</ProjectGuid>
