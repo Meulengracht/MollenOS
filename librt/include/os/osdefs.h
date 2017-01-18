@@ -70,6 +70,11 @@ typedef enum {
 	OsError
 } OsStatus_t;
 
+typedef enum {
+	InterruptHandled,
+	InterruptNotHandled
+} InterruptStatus_t;
+
 /* Define the standard os
  * rectangle used for ui
  * operations */

@@ -49,6 +49,7 @@
     <ClInclude Include="..\..\include\devices\disk.h" />
     <ClInclude Include="..\..\include\devices\timer.h" />
     <ClInclude Include="..\..\include\events.h" />
+    <ClInclude Include="..\..\include\interrupts.h" />
     <ClInclude Include="..\..\include\log.h" />
     <ClInclude Include="..\..\include\modules\modules.h" />
     <ClInclude Include="..\..\include\modules\ramdisk.h" />

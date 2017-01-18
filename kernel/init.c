@@ -28,6 +28,7 @@
 #include <garbagecollector.h>
 #include <modules/modules.h>
 #include <process/phoenix.h>
+#include <interrupts.h>
 #include <scheduler.h>
 #include <threading.h>
 #include <vfs\vfs.h>

@@ -26,7 +26,6 @@
     <ClCompile Include="..\..\arch\x86\interrupts\apic\apicipi.c" />
     <ClCompile Include="..\..\arch\x86\interrupts\exceptions.c" />
     <ClCompile Include="..\..\arch\x86\interrupts\interrupts.c" />
-    <ClCompile Include="..\..\arch\x86\interrupts\intinit.c" />
     <ClCompile Include="..\..\arch\x86\interrupts\pic\pic.c" />
     <ClCompile Include="..\..\arch\x86\components\cpu.c" />
     <ClCompile Include="..\..\arch\x86\main.c" />
@@ -37,7 +36,6 @@
     <ClInclude Include="..\..\arch\x86\apic.h" />
     <ClInclude Include="..\..\arch\x86\cpu.h" />
     <ClInclude Include="..\..\arch\x86\exceptions.h" />
-    <ClInclude Include="..\..\arch\x86\interrupts.h" />
     <ClInclude Include="..\..\arch\x86\memory.h" />
     <ClInclude Include="..\..\arch\x86\multiboot.h" />
     <ClInclude Include="..\..\arch\x86\pci.h" />

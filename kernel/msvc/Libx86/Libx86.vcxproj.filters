@@ -24,9 +24,6 @@
     <ClCompile Include="..\..\Arch\x86\Components\Thread.c">
       <Filter>components</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\Arch\x86\Interrupts\IntInit.c">
-      <Filter>interrupts</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\Arch\x86\Components\Smp.c">
       <Filter>components</Filter>
     </ClCompile>
@@ -99,9 +96,6 @@
       <Filter>include</Filter>
     </ClInclude>
     <ClInclude Include="..\..\Arch\x86\Video.h">
-      <Filter>include</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\Arch\x86\Interrupts.h">
       <Filter>include</Filter>
     </ClInclude>
     <ClInclude Include="..\..\Arch\x86\Apic.h">

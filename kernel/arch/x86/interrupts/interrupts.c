@@ -1,34 +1,39 @@
 /* MollenOS
-*
-* Copyright 2011 - 2014, Philip Meulengracht
-*
-* This program is free software : you can redistribute it and / or modify
-* it under the terms of the GNU General Public License as published by
-* the Free Software Foundation ? , either version 3 of the License, or
-* (at your option) any later version.
-*
-* This program is distributed in the hope that it will be useful,
-* but WITHOUT ANY WARRANTY; without even the implied warranty of
-* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.See the
-* GNU General Public License for more details.
-*
-* You should have received a copy of the GNU General Public License
-* along with this program.If not, see <http://www.gnu.org/licenses/>.
-*
-*
-* MollenOS x86-32 Interrupt Handlers & Init
-*/
+ *
+ * Copyright 2011 - 2017, Philip Meulengracht
+ *
+ * This program is free software : you can redistribute it and / or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation ? , either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.If not, see <http://www.gnu.org/licenses/>.
+ *
+ *
+ * MollenOS Interrupt Interface (X86)
+ * - Contains the shared kernel interrupt interface
+ *   that all sub-layers must conform to
+ */
 
-/* Includes */
-#include <AcpiInterface.h>
-#include <DeviceManager.h>
-#include <Interrupts.h>
-#include <Idt.h>
-#include <Pci.h>
-#include <Apic.h>
-#include <Log.h>
+/* Includes 
+ * - System */
+#include <acpiinterface.h>
+#include <interrupts.h>
+#include <threading.h>
+#include <thread.h>
+#include <idt.h>
+#include <pci.h>
+#include <apic.h>
+#include <log.h>
 
-/* CLib */
+/* Includes
+ * - Library */
 #include <assert.h>
 #include <stdio.h>
 #include <ds/list.h>
@@ -42,11 +47,14 @@ extern void __sti(void);
 extern uint32_t __getflags(void);
 extern List_t *GlbAcpiNodes;
 
+/* Interrupts tables needed for
+ * the x86-architecture */
 MCoreInterruptDescriptor_t *InterruptTable[IDT_DESCRIPTORS];
 int InterruptISATable[NUM_ISA_INTERRUPTS];
+UUId_t InterruptIdGen = 0;
 
 /* Parses Intiflags for Polarity */
-uint32_t InterruptGetPolarity(uint16_t IntiFlags, uint8_t IrqSource)
+Flags_t InterruptGetPolarity(uint16_t IntiFlags, uint8_t IrqSource)
 {
 	/* Returning 1 means LOW, returning 0 means HIGH */
 	switch (IntiFlags & ACPI_MADT_POLARITY_MASK)
@@ -70,7 +78,7 @@ uint32_t InterruptGetPolarity(uint16_t IntiFlags, uint8_t IrqSource)
 }
 
 /* Parses Intiflags for Trigger Mode */
-uint32_t InterruptGetTrigger(uint16_t IntiFlags, uint8_t IrqSource)
+Flags_t InterruptGetTrigger(uint16_t IntiFlags, uint8_t IrqSource)
 {
 	/* Returning 1 means LEVEL, returning 0 means EDGE */
 	switch (IntiFlags & ACPI_MADT_TRIGGER_MASK)
@@ -91,31 +99,6 @@ uint32_t InterruptGetTrigger(uint16_t IntiFlags, uint8_t IrqSource)
 	}
 
 	return 0;
-}
-
-/* InterruptInitialize
- * Initiates Interrupt Handlers */
-void InterruptInitialize(void)
-{
-	/* Variables */
-	int i, j;
-
-	/* Null out interrupt table */
-	memset((void*)InterruptTable, 0, sizeof(MCoreInterruptDescriptor_t*) * IDT_DESCRIPTORS);
-	memset((void*)&InterruptISATable, 0, sizeof(InterruptISATable));
-
-	/* Setup Stuff */
-	for (i = 0; i < X86_IDT_DESCRIPTORS; i++)
-	{
-		for (j = 4; j < X86_MAX_HANDLERS_PER_INTERRUPT; j++)
-		{
-			/* Mark reserved interrupts */
-			if (i < 0x20)
-				IrqTable[i][j].Installed = 1;
-			else
-				IrqTable[i][j].Installed = 0;
-		}
-	}
 }
 
 /* Pin conversion from behind a bridge */
@@ -561,44 +544,6 @@ int DeviceAllocateInterrupt(void *mCoreDevice)
 		return -4;
 }
 
-/* The common entry point for interrupts */
-void InterruptEntry(Registers_t *Regs)
-{
-	/* Determine Irq */
-	int Itr, Result = 0;
-	int Gsi = APIC_NO_GSI;
-	uint32_t Irq = Regs->Irq + 0x20;
-
-	/* Get handler(s) */
-	for (Itr = 0; Itr < X86_MAX_HANDLERS_PER_INTERRUPT; Itr++)
-	{
-		if (IrqTable[Irq][Itr].Installed
-			&& IrqTable[Irq][Itr].Function != NULL)
-		{
-			/* If no args are specified we give access
-			* to registers */
-			if (IrqTable[Irq][Itr].Data == NULL)
-				Result = IrqTable[Irq][Itr].Function((void*)Regs);
-			else
-				Result = IrqTable[Irq][Itr].Function(IrqTable[Irq][Itr].Data);
-
-			/* Only one device could make interrupt */
-			if (Result == X86_IRQ_HANDLED) {
-				Gsi = IrqTable[Irq][Itr].Gsi;
-				break;
-			}
-		}
-	}
-
-	if (Result == 0)
-		printf("Unhandled Irq 0x%x\n", Irq);
-
-	/* Send EOI (if not spurious) */
-	if (Irq != INTERRUPT_SPURIOUS7
-		&& Irq != INTERRUPT_SPURIOUS)
-		ApicSendEoi(Gsi, Irq);
-}
-
 /* Disables interrupts and returns
 * the state before disabling */
 IntStatus_t InterruptDisable(void)
@@ -642,4 +587,111 @@ IntStatus_t InterruptSaveState(void)
 IntStatus_t InterruptIsDisabled(void)
 {
 	return !InterruptSaveState();
+}
+
+/* InterruptInitialize
+ * Initializes the interrupt-manager code
+ * and initializes all the resources for
+ * allocating and freeing interrupts */
+void InterruptInitialize(void)
+{
+	/* Null out interrupt tables */
+	memset((void*)InterruptTable, 0, sizeof(MCoreInterruptDescriptor_t*) * IDT_DESCRIPTORS);
+	memset((void*)&InterruptISATable, 0, sizeof(InterruptISATable));
+	InterruptIdGen = 0;
+}
+
+/* InterruptRegister
+ * Tries to allocate the given interrupt source
+ * by the given descriptor and flags. On success
+ * it returns the id of the irq, and on failure it
+ * returns UUID_INVALID */
+UUId_t InterruptRegister(MCoreInterrupt_t *Interrupt, Flags_t Flags)
+{
+	/* Clear interrupt_kernel flag if it's not a kernel thread */
+}
+
+/* InterruptUnregister 
+ * Unregisters the interrupt from the system and removes
+ * any resources that was associated with that interrupt 
+ * also masks the interrupt if it was the only user */
+OsStatus_t InterruptUnregister(UUId_t Source)
+{
+
+}
+
+/* InterruptEntry
+ * The common entry point for interrupts, all
+ * non-exceptions will enter here, lookup a handler
+ * and execute the code */
+void InterruptEntry(Registers_t *Registers)
+{
+	/* Variables */
+	MCoreInterruptDescriptor_t *Entry = NULL;
+	InterruptStatus_t Result = InterruptNotHandled;
+	int TableIndex = (int)Registers->Irq + 32;
+	int Gsi = APIC_NO_GSI;
+
+	/* Iterate handlers in that table index */
+	Entry = InterruptTable[TableIndex];
+	while (Entry != NULL) {
+		if (Entry->Flags & INTERRUPT_FAST) 
+		{
+			/* Lookup the target thread */
+			MCoreThread_t *Thread = ThreadingGetThread(Entry->Thread);
+			AddressSpace_t *Current = AddressSpaceGetCurrent();
+
+			/* Switch address space + io-map */
+			if (Current != Thread->AddressSpace) {
+				
+			}
+
+			/* Call the fast handler */
+			Result = Entry->Interrupt.FastHandler(Entry->Interrupt.Data);
+
+			/* Restore address space + io-map */
+			if (Current != Thread->AddressSpace) {
+
+			}
+		}
+		else if (Entry->Flags & INTERRUPT_KERNEL) {
+			if (Entry->Interrupt.Data == NULL) {
+				Result = Entry->Interrupt.FastHandler((void*)Registers);
+			}
+			else {
+				Result = Entry->Interrupt.FastHandler(Entry->Interrupt.Data);
+			}
+		}
+		else {
+			/* Send a interrupt-event to this */
+			
+			/* Mark as handled, so we don't spit out errors */
+			Result = InterruptHandled;
+		}
+
+		/* Was it handled? 
+		 * - If entry is non-fast, non-kernel
+		 *   we don't break */
+		if (!(Entry->Flags & (INTERRUPT_FAST | INTERRUPT_KERNEL))) {
+			if (Result == InterruptHandled) {
+				Gsi = Entry->Source;
+				break;
+			}
+		}
+
+		/* Move on to next entry */
+		Entry = Entry->Link;
+	}
+
+	/* Sanitize the result of the
+	 * irq-handling */
+	if (Result != InterruptNotHandled) {
+		LogFatal("IRQS", "Unhandled interrupt %u", TableIndex);
+	}
+
+	/* Send EOI (if not spurious) */
+	if (TableIndex != INTERRUPT_SPURIOUS7
+		&& TableIndex != INTERRUPT_SPURIOUS) {
+		ApicSendEoi(Gsi, TableIndex);
+	}
 }

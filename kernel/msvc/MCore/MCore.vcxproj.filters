@@ -228,5 +228,8 @@
     <ClInclude Include="..\..\include\process\ash.h">
       <Filter>include\process</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\include\interrupts.h">
+      <Filter>include</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>
