@@ -113,6 +113,12 @@
 #define SYSCALL_SERVERREGISTER		0x73
 #define SYSCALL_RESOLVEDRIVER		0x74
 
+/* Driver System Calls 
+ * - Interrupt Support */
+#define SYSCALL_REGISTERIRQ			0x79
+#define SYSCALL_UNREGISTERIRQ		0x7A
+#define SYSCALL_REGISTERSYSTMR		0x7B
+
 /* Prototypes */
 _MOS_API int Syscall0(int Function);
 _MOS_API int Syscall1(int Function, int Arg0);

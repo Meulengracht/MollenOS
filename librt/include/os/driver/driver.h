@@ -105,7 +105,7 @@ static __CRT_INLINE OsStatus_t QueryDriver(MContract_t *Contract, void *Buffer, 
  * interrupt return OsNoError, otherwise the interrupt
  * won't be acknowledged */
 #ifdef __DRIVER_IMPL
-__CRT_EXTERN OsStatus_t OnInterrupt(void);
+__CRT_EXTERN OsStatus_t OnInterrupt(void *InterruptData);
 #else
 
 #endif

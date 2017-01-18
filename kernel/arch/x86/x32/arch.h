@@ -29,9 +29,6 @@
 /* Architecture Definitions */
 #define ARCHITECTURE_NAME		"x86-32"
 
-/* Architecture Typedefs */
-typedef uint32_t IntStatus_t;
-
 /* X86-32 Context */
 typedef struct _Registers
 {
@@ -104,7 +101,9 @@ typedef struct _x86_Thread {
  * as many as these as possible */
 #include "../Cpu.h"
 #include "../Video.h"
-#include "../Interrupts.h"
+
+/* Interrupt stuff */
+#define NUM_ISA_INTERRUPTS			16
 
 /* Port IO */
 __CRT_EXTERN uint8_t __CRTDECL inb(uint16_t port);

@@ -21,56 +21,59 @@
  *   and functionality, refer to the individual things for descriptions
  */
 
-#ifndef _INTERRUPT_INTERFACE_H_
-#define _INTERRUPT_INTERFACE_H_
-
-/* Includes
- * - C-Library */
-#include <os/osdefs.h>
-
 /* Includes
  * - System */
-#include <os/driver/device.h>
+#include <os/driver/driver.h>
+#include <os/syscall.h>
 
-/* Interrupt handler signature, this is only used for
- * fast-interrupts that does not need interrupts enabled
- * or does any processing work */
-#ifndef __INTERRUPTHANDLER
-#define __INTERRUPTHANDLER
-typedef OsStatus_t (*InterruptHandler_t)(void*);
-#endif
-
-/* Specail interrupt constants, use these when allocating
- * interrupts if neccessary */
-#define INTERRUPT_NONE					(int)-1
-
-/* Interrupt allocation flags, interrupts are initially
- * always shareable */
-#define INTERRUPT_NOTSHARABLE			0x1
-#define INTERRUPT_FAST					0x2
-
-/* The interrupt descriptor structure, this contains
- * information about the interrupt that needs to be registered
- * and special handling */
-typedef struct _MCoreInterrupt {
-	int						Line;
-	int						Pin; 
-	int						Direct[__DEVICEMANAGER_MAX_IRQS];
-
-	InterruptHandler_t		FastHandler;
-	void					*Data;
-} MCoreInterrupt_t;
+/* Includes
+ * - Contracts */
+#include <os/driver/contracts/timer.h>
 
 /* RegisterInterruptSource 
  * Allocates the given interrupt source for use by
  * the requesting driver, an id for the interrupt source
  * is returned. After a succesful register, OnInterrupt
  * can be called by the event-system */
-_MOS_API UUId_t RegisterInterruptSource(MCoreInterrupt_t *Interrupt, Flags_t Flags);
+UUId_t RegisterInterruptSource(MCoreInterrupt_t *Interrupt, Flags_t Flags)
+{
+	/* Validate parameters */
+	if (Interrupt == NULL) {
+		return UUID_INVALID;
+	}
+
+	/* Redirect to system call */
+	return (UUId_t)Syscall2(SYSCALL_REGISTERIRQ, SYSCALL_PARAM(Interrupt),
+		SYSCALL_PARAM(Flags));
+}
 
 /* UnregisterInterruptSource 
  * Unallocates the given interrupt source and disables
  * all events of OnInterrupt */
-_MOS_API OsStatus_t UnregisterInterruptSource(UUId_t Source);
+OsStatus_t UnregisterInterruptSource(UUId_t Source)
+{
+	/* Validate parameters */
+	if (Source == UUID_INVALID) {
+		return OsError;
+	}
 
-#endif //!_INTERRUPT_INTERFACE_H_
+	/* Redirect to system call */
+	return (OsStatus_t)Syscall1(SYSCALL_REGISTERIRQ, SYSCALL_PARAM(Source));
+}
+
+/* RegisterSystemTimer
+ * Registers the given interrupt source as a system
+ * timer source, with the given tick. This way the system
+ * can always keep track of timers */
+OsStatus_t RegisterSystemTimer(UUId_t Interrupt, size_t NsPerTick)
+{
+	/* Validate parameters */
+	if (Interrupt == UUID_INVALID
+		|| NsPerTick == 0) {
+		return OsError;
+	}
+
+	/* Redirect to system call */
+	return (OsStatus_t)Syscall2(SYSCALL_REGISTERIRQ, SYSCALL_PARAM(Interrupt),
+		SYSCALL_PARAM(NsPerTick));
+}

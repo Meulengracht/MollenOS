@@ -26,6 +26,7 @@
  * - System */
 #include <os/osdefs.h>
 #include <os/driver/io.h>
+#include <os/driver/interrupt.h>
 
 /* Includes
  * - Library */
@@ -70,12 +71,15 @@
 typedef struct _Cmos {
 	MContract_t			Clock;
 	MContract_t			Timer;
+	MCoreInterrupt_t	Interrupt;
 	DeviceIoSpace_t		IoSpace;
 	uint8_t				AcpiCentury;
 	int					UseRTC;
 	uint64_t			NsCounter;
+	clock_t				Ticks;
 	size_t				AlarmTicks;
 	size_t				NsTick;
+	UUId_t				Irq;
 } Cmos_t;
 #pragma pack(pop)
 

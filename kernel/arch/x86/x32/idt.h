@@ -1,100 +1,105 @@
 /* MollenOS
-*
-* Copyright 2011 - 2014, Philip Meulengracht
-*
-* This program is free software : you can redistribute it and / or modify
-* it under the terms of the GNU General Public License as published by
-* the Free Software Foundation ? , either version 3 of the License, or
-* (at your option) any later version.
-*
-* This program is distributed in the hope that it will be useful,
-* but WITHOUT ANY WARRANTY; without even the implied warranty of
-* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.See the
-* GNU General Public License for more details.
-*
-* You should have received a copy of the GNU General Public License
-* along with this program.If not, see <http://www.gnu.org/licenses/>.
-*
-*
-* MollenOS x86-32 Interrupt Descriptor Table
-*/
+ *
+ * Copyright 2011 - 2017, Philip Meulengracht
+ *
+ * This program is free software : you can redistribute it and / or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation ? , either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.If not, see <http://www.gnu.org/licenses/>.
+ *
+ *
+ * MollenOS x86-32 Descriptor Table
+ * - Interrupt Descriptor Table
+ */
 
-#ifndef _x86_IDT_H_
-#define _x86_IDT_H_
+#ifndef _IDT_H_
+#define _IDT_H_
 
-/* IDT Includes */
-#include <crtdefs.h>
-#include <stdint.h>
+/* Includes
+ * - System */
+#include <os/osdefs.h>
 
-/* IDT Definitions */
-#define X86_IDT_DESCRIPTORS			256
+/* IDT Definitions 
+ * In X86 it's possible to have up to 256 interrupt entries
+ * we use static allocation for the descriptors */
+#define IDT_DESCRIPTORS				256
 
-/* Types */
-#define X86_IDT_INTERRUPT_GATE16	0x6
-#define X86_IDT_TRAP_GATE16			0x7
-#define X86_IDT_TASK_GATE32			0x5		/* Task gates are for switching hardware tasks, not used */
-#define X86_IDT_INTERRUPT_GATE32	0xE		/* Interrupt gates automatically disable interrupts */
-#define X86_IDT_TRAP_GATE32			0xF		/* Trap gates do not */
+/* IDT Entry Types
+ * These are the possible interrupt gate types, we have:
+ * Interrupt-Gates 16/32 Bit - They automatically disable interrupts
+ * Trap-Gates 16/32 Bit - They don't disable interrupts 
+ * Task-Gates 32 Bit - Hardware Task Switching */
+#define IDT_INTERRUPT_GATE16		0x6
+#define IDT_INTERRUPT_GATE32		0xE
+#define IDT_TRAP_GATE16				0x7
+#define IDT_TRAP_GATE32				0xF
+#define IDT_TASK_GATE32				0x5
 
-/* Priveligies */
-#define X86_IDT_RING0				0x00
-#define X86_IDT_RING1				0x20
-#define X86_IDT_RING2				0x40
-#define X86_IDT_RING3				0x60	/* Always set this if interrupt can occur from userland */
+/* IDT Priveliege Types
+ * This specifies which ring can use/be interrupt by
+ * the idt-entry, we usually specify RING3 */
+#define IDT_RING0					0x00
+#define IDT_RING1					0x20
+#define IDT_RING2					0x40
+#define IDT_RING3					0x60
 
-/* Flags */
-#define X86_IDT_STORAGE_SEGMENT		0x10	/* Should not be set for interrupts gates */
-#define X86_IDT_PRESENT				0x80	/* Always set this! */
+/* IDT Flags
+ * Specifies any special attributes about the IDT entry
+ * Present must be set for all valid idt-entries */
+#define IDT_STORAGE_SEGMENT			0x10
+#define IDT_PRESENT					0x80
 
-/* IDT Structures */
+/* The IDT base structure, this is what the hardware
+ * will poin to, that describes the memory range where
+ * all the idt-descriptors reside */
 #pragma pack(push, 1)
-typedef struct _IdtObject
-{
-	/* Size */
-	uint16_t Limit;
-
-	/* Pointer to table */
-	uint32_t Base;
+typedef struct _IdtObject {
+	uint16_t			Limit;
+	uint32_t			Base;
 } Idt_t;
 #pragma pack(pop)
 
-/* IDT Entry */
+/* The IDT descriptor structure, this is the actual entry
+ * in the idt table, and keeps information about the 
+ * interrupt structure. */
 #pragma pack(push, 1)
 typedef struct _IdtEntry
 {
-	/* Base 0:15 */
-	uint16_t BaseLow;
+	uint16_t			BaseLow;	/* Base 0:15 */
+	uint16_t			Selector;	/* Selector */
+	uint8_t				Zero;		/* Reserved */
 
-	/* Selector */
-	uint16_t Selector;
-
-	/* Zero */
-	uint8_t Zero;
-
-	/* Descriptor Type 0:3 
-	 * Storage Segment 4 
-	 * DPL 5:6
-	 * Present 7 */
-	uint8_t Info;
-
-	/* Base 16:31 */
-	uint16_t BaseHigh;
-
+	/* IDT Entry Flags
+	 * Bits 0-3: Descriptor Entry Type
+	 * Bits   4: Storage Segment
+	 * Bits 5-6: Priveliege Level
+	 * Bits   7: Present */
+	uint8_t				Flags;
+	uint16_t			BaseHigh;	/* Base 16:31 */
 } IdtEntry_t;
 #pragma pack(pop)
 
-/* IDT Prototypes */
-__CRT_EXTERN void IdtInit(void);
-__CRT_EXTERN void IdtInstallDescriptor(uint32_t IntNum, uint32_t Base, 
-										uint16_t Selector, uint8_t Flags);
-
-/* Should be called by AP cores */
+/* Initialize the idt table with the 256 default
+ * descriptors for entering shared interrupt handlers
+ * and shared exception handlers */
+__CRT_EXTERN void IdtInitialize(void);
+/* This installs the current idt-object in the
+ * idt register for the calling cpu, use to setup idt */
 __CRT_EXTERN void IdtInstall(void);
 
-/* Syscall */
+/* Extern to the syscall-handler */
 __CRT_EXTERN void syscall_entry(void);
 
-/* IRQS */
+/* Irq-Handlers, all extenr assembly
+ * that point to shared entry handlers */
 __CRT_EXTERN void irq_handler32(void); 
 __CRT_EXTERN void irq_handler33(void);
 __CRT_EXTERN void irq_handler34(void);

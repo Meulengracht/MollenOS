@@ -45,8 +45,14 @@ __DEVAPI OsStatus_t TimerQuery(clock_t *clock)
 		PIPE_DEFAULT, __DEVICEMANAGER_QUERYCONTRACT);
 	RPCSetArgument(&Request, 0, (const void*)&Type,
 		sizeof(MContractType_t));
-	RPCSetResult(&Request, time, sizeof(clock_t));
+	RPCSetResult(&Request, clock, sizeof(clock_t));
 	return RPCEvaluate(&Request, __DEVICEMANAGER_TARGET);
 }
+
+/* RegisterSystemTimer
+ * Registers the given interrupt source as a system
+ * timer source, with the given tick. This way the system
+ * can always keep track of timers */
+_MOS_API OsStatus_t RegisterSystemTimer(UUId_t Interrupt, size_t NsPerTick);
 
 #endif //!_CONTRACT_TIMER_INTERFACE_H_

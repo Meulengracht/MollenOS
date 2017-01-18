@@ -156,12 +156,12 @@ void CmosGetTime(struct tm *Time)
  * produces an interrupt. On successful handled
  * interrupt return OsNoError, otherwise the interrupt
  * won't be acknowledged */
-OsStatus_t OnInterrupt(void)
+OsStatus_t OnInterrupt(void *InterruptData)
 {
 	/* Since the cmos doesn't use
-	 * interrupts, but the RTC does, we 
-	 * will redirect the interrupt to RTC code */
-	return RtcInterrupt(GlbCmos);
+	 * interrupts, just redirect the interrupt
+	 * to the RTC code*/
+	return RtcInterrupt((Cmos_t*)InterruptData);
 }
 
 /* OnLoad
@@ -182,6 +182,13 @@ OsStatus_t OnLoad(void)
 	GlbCmos->IoSpace.PhysicalBase = CMOS_IO_BASE;
 	GlbCmos->IoSpace.Size = CMOS_IO_LENGTH;
 	GlbCmos->UseRTC = 1;
+
+	/* Initialize the interrupt request */
+	GlbCmos->Interrupt.Line = CMOS_RTC_IRQ;
+	GlbCmos->Interrupt.Pin = INTERRUPT_NONE;
+	GlbCmos->Interrupt.Direct[0] = INTERRUPT_NONE;
+	GlbCmos->Interrupt.FastHandler = OnInterrupt;
+	GlbCmos->Interrupt.Data = GlbCmos;
 
 	/* Create the io-space in system */
 	if (CreateIoSpace(&GlbCmos->IoSpace) != OsNoError) {
@@ -294,7 +301,7 @@ OsStatus_t OnQuery(MContractType_t QueryType, UUId_t QueryTarget, int Port)
 		PipeSend(QueryTarget, Port, &_time, sizeof(struct tm));
 	}
 	else if (QueryType == ContractTimer) {
-
+		PipeSend(QueryTarget, Port, &GlbCmos->Ticks, sizeof(clock_t));
 	}
 
 	/* Done! */

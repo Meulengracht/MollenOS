@@ -23,6 +23,7 @@
 /* Includes 
  * - System */
 #include <os/driver/contracts/timer.h>
+#include <os/driver/interrupt.h>
 #include "cmos.h"
 
 /* Includes
@@ -38,6 +39,7 @@ OsStatus_t RtcInterrupt(Cmos_t *Chip)
 {
 	/* Update Peroidic Tick Counter */
 	Chip->NsCounter += Chip->NsTick;
+	Chip->Ticks++;
 
 	/* Acknowledge interrupt by reading register C */
 	CmosRead(CMOS_REGISTER_STATUS_C);
@@ -79,8 +81,15 @@ OsStatus_t RtcInitialize(Cmos_t *Chip)
 	/* Clear pending interrupt */
 	CmosRead(CMOS_REGISTER_STATUS_C);
 
-	/* Install interrupt in system */
-	//TODO
+	/* Install interrupt in system 
+	 * Install a fast interrupt handler */
+	Chip->Irq = RegisterInterruptSource(&Chip->Interrupt, 
+		INTERRUPT_NOTSHARABLE | INTERRUPT_FAST);
+
+	/* Register our irq as a system timer */
+	if (Chip->Irq != UUID_INVALID) {
+		RegisterSystemTimer(Chip->Irq, Chip->NsTick);
+	}
 
 	/* Enable Periodic Interrupts */
 	StateB = CmosRead(CMOS_REGISTER_STATUS_B);
@@ -107,9 +116,5 @@ OsStatus_t RtcCleanup(Cmos_t *Chip)
 	CmosWrite(CMOS_REGISTER_STATUS_B, StateB);
 
 	/* Uninstall interrupt in system */
-	_CRT_UNUSED(Chip);
-	//TODO
-
-	/* Done */
-	return OsNoError;
+	return UnregisterInterruptSource(Chip->Irq);
 }

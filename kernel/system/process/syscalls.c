@@ -1649,6 +1649,38 @@ OsStatus_t ScLoadDriver(MCoreDevice_t *Device)
 	return ScRpcExecute(&Message, Server->Base.Id, 1);
 }
 
+/* ScRegisterInterrupt 
+ * Allocates the given interrupt source for use by
+ * the requesting driver, an id for the interrupt source
+ * is returned. After a succesful register, OnInterrupt
+ * can be called by the event-system */
+UUId_t ScRegisterInterrupt(MCoreInterrupt_t *Interrupt, Flags_t Flags)
+{
+	_CRT_UNUSED(Interrupt);
+	_CRT_UNUSED(Flags);
+	return UUID_INVALID;
+}
+
+/* ScUnregisterInterrupt 
+ * Unallocates the given interrupt source and disables
+ * all events of OnInterrupt */
+OsStatus_t ScUnregisterInterrupt(UUId_t Source)
+{
+	_CRT_UNUSED(Source);
+	return OsError;
+}
+
+/* ScRegisterSystemTimer
+ * Registers the given interrupt source as a system
+ * timer source, with the given tick. This way the system
+ * can always keep track of timers */
+OsStatus_t ScRegisterSystemTimer(UUId_t Interrupt, size_t NsPerTick)
+{
+	_CRT_UNUSED(Interrupt);
+	_CRT_UNUSED(NsPerTick);
+	return OsError;
+}
+
 /***********************
 * System Functions     *
 ***********************/
@@ -1857,9 +1889,12 @@ Addr_t GlbSyscallTable[131] =
 	DefineSyscall(NoOperation),
 	DefineSyscall(NoOperation),
 	DefineSyscall(NoOperation),
-	DefineSyscall(NoOperation),
-	DefineSyscall(NoOperation),
-	DefineSyscall(NoOperation),
+
+	/* Driver Functions - 121
+	 * - Interrupt Support */
+	DefineSyscall(ScRegisterInterrupt),
+	DefineSyscall(ScUnregisterInterrupt),
+	DefineSyscall(ScRegisterSystemTimer),
 	DefineSyscall(NoOperation),
 	DefineSyscall(NoOperation),
 	DefineSyscall(NoOperation),

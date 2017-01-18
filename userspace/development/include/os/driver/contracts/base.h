@@ -21,8 +21,8 @@
  *   and functionality, refer to the individual things for descriptions
  */
 
-#ifndef _MCORE_CONTRACT_H_
-#define _MCORE_CONTRACT_H_
+#ifndef _CONTRACT_INTERFACE_H_
+#define _CONTRACT_INTERFACE_H_
 
 /* Includes 
  * - System */
@@ -115,4 +115,4 @@ __DEVAPI OsStatus_t RegisterContract(MContract_t *Contract)
 }
 #endif
 
-#endif //!_MCORE_CONTRACT_H_
+#endif //!_CONTRACT_INTERFACE_H_

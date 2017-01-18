@@ -1,6 +1,6 @@
 /* MollenOS
  *
- * Copyright 2011 - 2016, Philip Meulengracht
+ * Copyright 2011 - 2017, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -20,8 +20,8 @@
  * - MollenOS SDK 
  */
 
-#ifndef _MCORE_DRIVER_H_
-#define _MCORE_DRIVER_H_
+#ifndef _DRIVER_SDK_H_
+#define _DRIVER_SDK_H_
 
 /* Includes
  * - C-Library */
@@ -29,6 +29,7 @@
 
 /* Includes
  * - System */
+#include <os/driver/interrupt.h>
 #include <os/driver/io.h>
 #include <os/driver/acpi.h>
 #include <os/driver/device.h>
@@ -104,9 +105,9 @@ static __CRT_INLINE OsStatus_t QueryDriver(MContract_t *Contract, void *Buffer, 
  * interrupt return OsNoError, otherwise the interrupt
  * won't be acknowledged */
 #ifdef __DRIVER_IMPL
-__CRT_EXTERN OsStatus_t OnInterrupt(void);
+__CRT_EXTERN OsStatus_t OnInterrupt(void *InterruptData);
 #else
 
 #endif
 
-#endif //!_MCORE_DRIVER_H_
+#endif //!DRIVER_SDK

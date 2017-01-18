@@ -42,8 +42,8 @@ extern void __sti(void);
 extern uint32_t __getflags(void);
 extern List_t *GlbAcpiNodes;
 
-extern IrqEntry_t IrqTable[X86_IDT_DESCRIPTORS][X86_MAX_HANDLERS_PER_INTERRUPT];
-extern uint32_t IrqIsaTable[X86_NUM_ISA_INTERRUPTS];
+MCoreInterruptDescriptor_t *InterruptTable[IDT_DESCRIPTORS];
+int InterruptISATable[NUM_ISA_INTERRUPTS];
 
 /* Parses Intiflags for Polarity */
 uint32_t InterruptGetPolarity(uint16_t IntiFlags, uint8_t IrqSource)
@@ -91,6 +91,31 @@ uint32_t InterruptGetTrigger(uint16_t IntiFlags, uint8_t IrqSource)
 	}
 
 	return 0;
+}
+
+/* InterruptInitialize
+ * Initiates Interrupt Handlers */
+void InterruptInitialize(void)
+{
+	/* Variables */
+	int i, j;
+
+	/* Null out interrupt table */
+	memset((void*)InterruptTable, 0, sizeof(MCoreInterruptDescriptor_t*) * IDT_DESCRIPTORS);
+	memset((void*)&InterruptISATable, 0, sizeof(InterruptISATable));
+
+	/* Setup Stuff */
+	for (i = 0; i < X86_IDT_DESCRIPTORS; i++)
+	{
+		for (j = 4; j < X86_MAX_HANDLERS_PER_INTERRUPT; j++)
+		{
+			/* Mark reserved interrupts */
+			if (i < 0x20)
+				IrqTable[i][j].Installed = 1;
+			else
+				IrqTable[i][j].Installed = 0;
+		}
+	}
 }
 
 /* Pin conversion from behind a bridge */

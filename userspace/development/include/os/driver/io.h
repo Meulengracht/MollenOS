@@ -21,8 +21,8 @@
  *   and functionality, refer to the individual things for descriptions
  */
 
-#ifndef _MCORE_DEVICE_IO_H_
-#define _MCORE_DEVICE_IO_H_
+#ifndef _IO_INTEFACE_H_
+#define _IO_INTEFACE_H_
 
 /* Includes
  * - C-Library */
@@ -77,4 +77,4 @@ _MOS_API size_t ReadIoSpace(DeviceIoSpace_t *IoSpace, size_t Offset, size_t Leng
 _MOS_API void WriteIoSpace(DeviceIoSpace_t *IoSpace, 
 	size_t Offset, size_t Value, size_t Length);
 
-#endif //!_MCORE_DEVICE_IO_H_
+#endif //!_IO_INTEFACE_H_

@@ -30,6 +30,7 @@
 #include <idt.h>
 #include <interrupts.h>
 #include <apic.h>
+#include <pic.h>
 #include <log.h>
 
 /* Variables that we can share with our project
@@ -78,12 +79,8 @@ void HALInit(void *BootInfo, MCoreBootDescriptor *Descriptor)
 	/* Setup x86 descriptor-tables
 	 * which needs to happen on both 32/64 bit */
 	GdtInitialize();
-	IdtInit();
-
-	/* Install all the interrupt handlers, we 
-	 * install ALL 255 handlers, since we use a common
-	 * entry point */
-	InterruptInit();
+	IdtInitialize();
+	PicInit();
 
 	/* Memory setup! */
 	LogInformation("HAL0", "Initializing physical and virtual memory");

@@ -43,8 +43,7 @@ __DEVAPI OsStatus_t ClockQuery(struct tm *time)
 	/* Initialize RPC */
 	RPCInitialize(&Request, __DEVICEMANAGER_INTERFACE_VERSION,
 		PIPE_DEFAULT, __DEVICEMANAGER_QUERYCONTRACT);
-	RPCSetArgument(&Request, 0, (const void*)&Type,
-		sizeof(MContractType_t));
+	RPCSetArgument(&Request, 0, (const void*)&Type, sizeof(MContractType_t));
 	RPCSetResult(&Request, time, sizeof(struct tm));
 	return RPCEvaluate(&Request, __DEVICEMANAGER_TARGET);
 }

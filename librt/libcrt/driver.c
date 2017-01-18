@@ -108,7 +108,7 @@ void _mDrvCrt(void)
 					OnUnregister((MCoreDevice_t*)Message.Arguments[0].Data.Buffer);
 				} break;
 				case __DRIVER_INTERRUPT: {
-					OnInterrupt();
+					OnInterrupt((void*)Message.Arguments[0].Data.Value);
 				} break;
 				case __DRIVER_QUERY: {
 					OnQuery((MContractType_t)Message.Arguments[0].Data.Value, 
