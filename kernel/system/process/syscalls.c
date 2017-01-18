@@ -21,10 +21,11 @@
 
 /* Includes 
  * - System */
-#include <Arch.h>
+#include <arch.h>
 #include <process/process.h>
 #include <threading.h>
 #include <scheduler.h>
+#include <interrupts.h>
 #include <heap.h>
 #include <timers.h>
 #include <log.h>
@@ -1656,9 +1657,14 @@ OsStatus_t ScLoadDriver(MCoreDevice_t *Device)
  * can be called by the event-system */
 UUId_t ScRegisterInterrupt(MCoreInterrupt_t *Interrupt, Flags_t Flags)
 {
-	_CRT_UNUSED(Interrupt);
-	_CRT_UNUSED(Flags);
-	return UUID_INVALID;
+	/* Sanitize parameters */
+	if (Interrupt == NULL
+		|| (Flags & INTERRUPT_KERNEL)) {
+		return UUID_INVALID;
+	}
+
+	/* Just redirect the call */
+	return InterruptRegister(Interrupt, Flags);
 }
 
 /* ScUnregisterInterrupt 
@@ -1666,8 +1672,18 @@ UUId_t ScRegisterInterrupt(MCoreInterrupt_t *Interrupt, Flags_t Flags)
  * all events of OnInterrupt */
 OsStatus_t ScUnregisterInterrupt(UUId_t Source)
 {
-	_CRT_UNUSED(Source);
-	return OsError;
+	/* Just redirect the call */
+	return InterruptUnregister(Source);
+}
+
+/* ScAcknowledgeInterrupt 
+ * Acknowledges the interrupt source and unmasks
+ * the interrupt-line, allowing another interrupt
+ * to occur for the given driver */
+OsStatus_t ScAcknowledgeInterrupt(UUId_t Source)
+{
+	/* Just redirect the call */
+	return InterruptAcknowledge(Source);
 }
 
 /* ScRegisterSystemTimer
@@ -1894,8 +1910,8 @@ Addr_t GlbSyscallTable[131] =
 	 * - Interrupt Support */
 	DefineSyscall(ScRegisterInterrupt),
 	DefineSyscall(ScUnregisterInterrupt),
+	DefineSyscall(ScAcknowledgeInterrupt),
 	DefineSyscall(ScRegisterSystemTimer),
-	DefineSyscall(NoOperation),
 	DefineSyscall(NoOperation),
 	DefineSyscall(NoOperation),
 	DefineSyscall(NoOperation),

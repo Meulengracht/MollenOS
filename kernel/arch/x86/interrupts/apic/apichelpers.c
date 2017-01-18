@@ -156,6 +156,70 @@ uint32_t ApicGetTaskPriority(void)
 	return (ApicReadLocal(APIC_TASK_PRIORITY) & APIC_PRIORITY_MASK);
 }
 
+/* ApicMaskGsi 
+ * Masks the given gsi if possible by deriving
+ * the io-apic and pin from it. This makes sure
+ * the io-apic delivers no interrupts */
+void ApicMaskGsi(int Gsi)
+{
+	/* Variables */
+	uint64_t Entry = 0;
+	IoApic_t *IoApic = NULL;
+	int Pin = APIC_NO_GSI;
+
+	/* Get both the io-apic we need
+	* to update and the pin */
+	IoApic = ApicGetIoFromGsi(Gsi);
+	Pin = ApicGetPinFromGsi(Gsi);
+
+	/* Sanitize the lookup */
+	if (IoApic == NULL || Pin == APIC_NO_GSI) {
+		LogFatal("APIC", "Invalid Gsi %u\n", Gsi);
+		return;
+	}
+
+	/* Read entry from the io-apic */
+	Entry = ApicReadIoEntry(IoApic, Pin);
+
+	/* Unmask */
+	Entry |= APIC_MASKED;
+
+	/* Write the entry back */
+	ApicWriteIoEntry(IoApic, Pin, Entry);
+}
+
+/* ApicUnmaskGsi
+ * Unmasks the given gsi if possible by deriving
+ * the io-apic and pin from it. This allows the
+ * io-apic to deliver interrupts again */
+void ApicUnmaskGsi(int Gsi)
+{
+	/* Variables */
+	uint64_t Entry = 0;
+	IoApic_t *IoApic = NULL;
+	int Pin = APIC_NO_GSI;
+
+	/* Get both the io-apic we need
+	* to update and the pin */
+	IoApic = ApicGetIoFromGsi(Gsi);
+	Pin = ApicGetPinFromGsi(Gsi);
+
+	/* Sanitize the lookup */
+	if (IoApic == NULL || Pin == APIC_NO_GSI) {
+		LogFatal("APIC", "Invalid Gsi %u\n", Gsi);
+		return;
+	}
+
+	/* Read entry from the io-apic */
+	Entry = ApicReadIoEntry(IoApic, Pin);
+
+	/* Unmask */
+	Entry &= ~(APIC_MASKED);
+
+	/* Write the entry back */
+	ApicWriteIoEntry(IoApic, Pin, Entry);
+}
+
 /* Sends end of interrupt to the local
  * apic chip, and enables for a new interrupt
  * on that irq line to occur */

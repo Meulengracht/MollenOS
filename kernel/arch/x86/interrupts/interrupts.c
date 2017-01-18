@@ -544,51 +544,6 @@ int DeviceAllocateInterrupt(void *mCoreDevice)
 		return -4;
 }
 
-/* Disables interrupts and returns
-* the state before disabling */
-IntStatus_t InterruptDisable(void)
-{
-	IntStatus_t cur_state = InterruptSaveState();
-	__cli();
-	return cur_state;
-}
-
-/* Enables interrupts and returns
-* the state before enabling */
-IntStatus_t InterruptEnable(void)
-{
-	IntStatus_t cur_state = InterruptSaveState();
-	__sti();
-	return cur_state;
-}
-
-/* Restores the state to the given
-* state */
-IntStatus_t InterruptRestoreState(IntStatus_t state)
-{
-	if (state != 0)
-		return InterruptEnable();
-	else
-		return InterruptDisable();
-
-}
-
-/* Gets the current interrupt state */
-IntStatus_t InterruptSaveState(void)
-{
-	if (__getflags() & EFLAGS_INTERRUPT_FLAG)
-		return 1;
-	else
-		return 0;
-}
-
-/* Returns whether or not interrupts are
-* disabled */
-IntStatus_t InterruptIsDisabled(void)
-{
-	return !InterruptSaveState();
-}
-
 /* InterruptInitialize
  * Initializes the interrupt-manager code
  * and initializes all the resources for
@@ -617,7 +572,80 @@ UUId_t InterruptRegister(MCoreInterrupt_t *Interrupt, Flags_t Flags)
  * also masks the interrupt if it was the only user */
 OsStatus_t InterruptUnregister(UUId_t Source)
 {
+	/* Variables we'll need */
+	MCoreInterruptDescriptor_t *Entry = NULL, *Previous = NULL;
+	OsStatus_t Result = OsError;
+	uint16_t TableIndex = LOWORD(Source);
+	int Found = 0;
 
+	/* Sanitize the table-index */
+	if (TableIndex >= IDT_DESCRIPTORS) {
+		return OsError;
+	}
+
+	/* Iterate handlers in that table index 
+	 * and unlink the given entry */
+	Entry = InterruptTable[TableIndex];
+	while (Entry != NULL) {
+		if (Entry->Id == Source) {
+			Found = 1;
+			if (Previous == NULL) {
+				InterruptTable[TableIndex] = Entry->Link;
+			}
+			else {
+				Previous->Link = Entry->Link;
+			}
+			break;
+		}
+
+		/* Move on to next entry */
+		Previous = Entry;
+		Entry = Entry->Link;
+	}
+
+	/* Sanitize the found */
+	if (Found == 0) {
+		return OsError;
+	}
+
+	/* Entry is now unlinked, clean it up 
+	 * mask the interrupt again if neccessary */
+
+	/* Done, return result */
+	return Result;
+}
+
+/* InterruptAcknowledge 
+ * Acknowledges the interrupt source and unmasks
+ * the interrupt-line, allowing another interrupt
+ * to occur for the given driver */
+OsStatus_t InterruptAcknowledge(UUId_t Source)
+{
+	/* Variables we'll need */
+	MCoreInterruptDescriptor_t *Entry = NULL;
+	OsStatus_t Result = OsError;
+	uint16_t TableIndex = LOWORD(Source);
+
+	/* Sanitize the table-index */
+	if (TableIndex >= IDT_DESCRIPTORS) {
+		return OsError;
+	}
+
+	/* Iterate handlers in that table index */
+	Entry = InterruptTable[TableIndex];
+	while (Entry != NULL) {
+		if (Entry->Id == Source) {
+			ApicUnmaskGsi(Entry->Source);
+			Result = OsNoError;
+			break;
+		}
+
+		/* Move on to next entry */
+		Entry = Entry->Link;
+	}
+
+	/* Done, return result */
+	return Result;
 }
 
 /* InterruptEntry
@@ -639,19 +667,19 @@ void InterruptEntry(Registers_t *Registers)
 		{
 			/* Lookup the target thread */
 			MCoreThread_t *Thread = ThreadingGetThread(Entry->Thread);
-			AddressSpace_t *Current = AddressSpaceGetCurrent();
+			MCoreThread_t *Source = ThreadingGetCurrentThread(ApicGetCpu());
 
-			/* Switch address space + io-map */
-			if (Current != Thread->AddressSpace) {
-				
+			/* Impersonate the target thread*/
+			if (Source->AddressSpace != Thread->AddressSpace) {
+				IThreadImpersonate(Thread);
 			}
 
 			/* Call the fast handler */
 			Result = Entry->Interrupt.FastHandler(Entry->Interrupt.Data);
 
-			/* Restore address space + io-map */
-			if (Current != Thread->AddressSpace) {
-
+			/* Restore to our own context */
+			if (Source->AddressSpace != Thread->AddressSpace) {
+				IThreadImpersonate(Source);
 			}
 		}
 		else if (Entry->Flags & INTERRUPT_KERNEL) {
@@ -664,9 +692,13 @@ void InterruptEntry(Registers_t *Registers)
 		}
 		else {
 			/* Send a interrupt-event to this */
+			InterruptDriver(Entry->Ash, Entry->Interrupt.Data);
 			
 			/* Mark as handled, so we don't spit out errors */
 			Result = InterruptHandled;
+
+			/* Mask the GSI */
+			ApicMaskGsi(Entry->Source);
 		}
 
 		/* Was it handled? 
@@ -694,4 +726,58 @@ void InterruptEntry(Registers_t *Registers)
 		&& TableIndex != INTERRUPT_SPURIOUS) {
 		ApicSendEoi(Gsi, TableIndex);
 	}
+}
+
+/* InterruptDisable
+ * Disables interrupts and returns
+ * the state before disabling */
+IntStatus_t InterruptDisable(void)
+{
+	IntStatus_t CurrentState = InterruptSaveState();
+	__cli();
+	return CurrentState;
+}
+
+/* InterruptEnable
+ * Enables interrupts and returns 
+ * the state before enabling */
+IntStatus_t InterruptEnable(void)
+{
+	IntStatus_t CurrentState = InterruptSaveState();
+	__sti();
+	return CurrentState;
+}
+
+/* InterruptRestoreState
+ * Restores the interrupt-status to the given
+ * state, that must have been saved from SaveState */
+IntStatus_t InterruptRestoreState(IntStatus_t State)
+{
+	if (State != 0) {
+		return InterruptEnable();
+	}
+	else {
+		return InterruptDisable();
+	}
+}
+
+/* InterruptSaveState
+ * Retrieves the current state of interrupts */
+IntStatus_t InterruptSaveState(void)
+{
+	if (__getflags() & EFLAGS_INTERRUPT_FLAG) {
+		return 1;
+	}
+	else {
+		return 0;
+	}
+}
+
+/* InterruptIsDisabled
+ * Returns 1 if interrupts are currently
+ * disabled or 0 if interrupts are enabled */
+int InterruptIsDisabled(void)
+{
+	/* Just negate this state */
+	return !InterruptSaveState();
 }

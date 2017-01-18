@@ -106,8 +106,6 @@ static __CRT_INLINE OsStatus_t QueryDriver(MContract_t *Contract, void *Buffer, 
  * won't be acknowledged */
 #ifdef __DRIVER_IMPL
 __CRT_EXTERN OsStatus_t OnInterrupt(void *InterruptData);
-#else
-
 #endif
 
 #endif //!DRIVER_SDK

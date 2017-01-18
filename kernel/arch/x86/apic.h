@@ -150,6 +150,18 @@ __CRT_EXTERN void ApicWriteIoEntry(IoApic_t *IoApic, uint32_t Pin, uint64_t Data
  * on that irq line to occur */
 __CRT_EXTERN void ApicSendEoi(int Gsi, uint32_t Vector);
 
+/* ApicUnmaskGsi
+ * Unmasks the given gsi if possible by deriving
+ * the io-apic and pin from it. This allows the
+ * io-apic to deliver interrupts again */
+__CRT_EXTERN void ApicUnmaskGsi(int Gsi);
+
+/* ApicMaskGsi 
+ * Masks the given gsi if possible by deriving
+ * the io-apic and pin from it. This makes sure
+ * the io-apic delivers no interrupts */
+__CRT_EXTERN void ApicMaskGsi(int Gsi);
+
 /* Invoke an IPI request on either target
  * cpu, or on all cpu cores if a broadcast
  * has been requested. The supplied vector will

@@ -213,6 +213,32 @@ void SignalDispatch(MCoreAsh_t *Ash, MCoreSignal_t *Signal)
 	enter_signal(Regs, Signal->Handler, Signal->Signal, MEMORY_LOCATION_SIGNAL_RET);
 }
 
+/* This function switches the current runtime-context
+ * out with the given thread context, this should only
+ * be used as a temporary way of impersonating another
+ * thread */
+void IThreadImpersonate(MCoreThread_t *Thread)
+{
+	/* Variables we will need for the
+	* context switch */
+	x86Thread_t *Tx = NULL;
+	Cpu_t Cpu = 0;
+
+	/* Load cpu info */
+	Cpu = ApicGetCpu();
+
+	/* Initiate the x86 specific thread data pointer */
+	Tx = (x86Thread_t*)Thread->ThreadData;
+
+	/* Load io-map */
+	TssUpdateIo(Cpu, &Tx->IoMap[0]);
+
+	/* Load the address space */
+	MmVirtualSwitchPageDirectory(Cpu,
+		(PageDirectory_t*)Thread->AddressSpace->PageDirectory,
+		Thread->AddressSpace->Cr3);
+}
+
 /* This function loads a new task from the scheduler, it
  * implements the task-switching functionality, which MCore leaves
  * up to the underlying architecture */

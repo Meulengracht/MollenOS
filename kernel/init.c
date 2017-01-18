@@ -71,6 +71,11 @@ void MCoreInitialize(MCoreBootInfo_t *BootInfo)
 	 * from the static buffer */
 	LogUpgrade(LOG_PREFFERED_SIZE);
 
+	/* Initialize the interrupt sub-system
+	 * after we have a heap, so systems can
+	 * register interrupts */
+	InterruptInitialize();
+
 	/* We want to initialize IoSpaces as soon
 	 * as possible so devices and systems 
 	 * can register/claim their io-spaces */

@@ -26,7 +26,8 @@
 
 /* Includes 
  * - System */
-#include <os/driver/interrupt.h>
+#include <os/driver/driver.h>
+#include <os/ipc/ipc.h>
 #include <os/osdefs.h>
 
 /* Structures */
@@ -59,18 +60,56 @@ __CRT_EXTERN UUId_t InterruptRegister(MCoreInterrupt_t *Interrupt, Flags_t Flags
  * also masks the interrupt if it was the only user */
 __CRT_EXTERN OsStatus_t InterruptUnregister(UUId_t Source);
 
+/* InterruptAcknowledge 
+ * Acknowledges the interrupt source and unmasks
+ * the interrupt-line, allowing another interrupt
+ * to occur for the given driver */
+__CRT_EXTERN OsStatus_t InterruptAcknowledge(UUId_t Source);
+
 __CRT_EXTERN int InterruptAllocateISA(uint32_t Irq);
 __CRT_EXTERN void InterruptInstallISA(uint32_t Irq, uint32_t IdtEntry, IrqHandler_t Callback, void *Args);/* Install PCI Interrupt */
 __CRT_EXTERN void InterruptInstallIdtOnly(int Gsi, uint32_t IdtEntry, IrqHandler_t Callback, void *Args);
-__CRT_EXTERN uint32_t InterruptAllocatePCI(uint32_t Irqs[], uint32_t Count);
 
+/* InterruptDisable
+ * Disables interrupts and returns
+ * the state before disabling */
 __CRT_EXTERN IntStatus_t InterruptDisable(void);
+
+/* InterruptEnable
+ * Enables interrupts and returns 
+ * the state before enabling */
 __CRT_EXTERN IntStatus_t InterruptEnable(void);
+
+/* InterruptRestoreState
+ * Restores the interrupt-status to the given
+ * state, that must have been saved from SaveState */
+__CRT_EXTERN IntStatus_t InterruptRestoreState(IntStatus_t State);
+
+/* InterruptSaveState
+ * Retrieves the current state of interrupts */
 __CRT_EXTERN IntStatus_t InterruptSaveState(void);
-__CRT_EXTERN IntStatus_t InterruptRestoreState(IntStatus_t state);
+
+/* InterruptIsDisabled
+ * Returns 1 if interrupts are currently
+ * disabled or 0 if interrupts are enabled */
+__CRT_EXTERN int InterruptIsDisabled(void);
 
 /* Helpers */
 __CRT_EXTERN Flags_t InterruptGetPolarity(uint16_t IntiFlags, uint8_t IrqSource);
 __CRT_EXTERN Flags_t InterruptGetTrigger(uint16_t IntiFlags, uint8_t IrqSource);
+
+
+/* InterruptDriver
+ * Call this to send an interrupt into user-space
+ * the driver must acknowledge the interrupt once its handled
+ * to unmask the interrupt-line again */
+__CRT_EXTERN OsStatus_t ScRpcExecute(MRemoteCall_t *Rpc, UUId_t Target, int Async);
+static __CRT_INLINE OsStatus_t InterruptDriver(UUId_t Ash, void *Data)
+{
+	MRemoteCall_t Request;
+	RPCInitialize(&Request, 1, PIPE_DEFAULT, __DRIVER_INTERRUPT);
+	RPCSetArgument(&Request, 0, (const void*)Data, sizeof(void*));
+	return ScRpcExecute(&Request, Ash, 1);
+}
 
 #endif //!_MCORE_INTERRUPTS_H_
