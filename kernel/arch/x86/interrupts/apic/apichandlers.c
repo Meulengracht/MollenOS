@@ -45,7 +45,7 @@ __CRT_EXTERN void enter_thread(Registers_t *Regs);
  * apic timer is loaded by a configurable quantum
  * but should be calibrated as soon as a reliable timer
  * source is registered. */
-int ApicTimerHandler(void *Args)
+InterruptStatus_t ApicTimerHandler(void *Args)
 {
 	/* Variables we will need for loading
 	 * a new task */
@@ -85,22 +85,22 @@ int ApicTimerHandler(void *Args)
 	enter_thread(Regs);
 
 	/* Never reached */
-	return X86_IRQ_HANDLED;
+	return InterruptHandled;
 }
 
 /* Spurious handler, occurs on spurious
  * interrupts, don't acknowledge the interrupt */
-int ApicSpuriousHandler(void *Args)
+InterruptStatus_t ApicSpuriousHandler(void *Args)
 {
 	_CRT_UNUSED(Args);
-	return X86_IRQ_HANDLED;
+	return InterruptHandled;
 }
 
 /* The apic error handler interrupt
  * this occurs on errors, but i'm not really
  * sure yet what that entails, we leave it NA for now*/
-int ApicErrorHandler(void *Args)
+InterruptStatus_t ApicErrorHandler(void *Args)
 {
 	_CRT_UNUSED(Args);
-	return X86_IRQ_HANDLED;
+	return InterruptHandled;
 }

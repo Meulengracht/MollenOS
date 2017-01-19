@@ -53,9 +53,9 @@ __CRT_EXTERN List_t *GlbAcpiNodes;
 
 /* Handlers, they are defined in ApicHandlers.c
  * but are installed by the boot setup apic func */
-__CRT_EXTERN int ApicErrorHandler(void *Args);
-__CRT_EXTERN int ApicSpuriousHandler(void *Args);
-__CRT_EXTERN int ApicTimerHandler(void *Args);
+__CRT_EXTERN InterruptStatus_t ApicErrorHandler(void *Args);
+__CRT_EXTERN InterruptStatus_t ApicSpuriousHandler(void *Args);
+__CRT_EXTERN InterruptStatus_t ApicTimerHandler(void *Args);
 
 /* Setup LVT0/1 for the given cpu, it tries
  * to locate LVT information in the ACPI tables
@@ -432,6 +432,7 @@ void ApicInitBoot(void)
 {
 	/* Variables */
 	ACPI_TABLE_HEADER *Header = NULL;
+	MCoreInterrupt_t IrqInformation;
 	Cpu_t BspApicId = 0;
 	uint32_t Temp = 0;
 	DataKey_t Key;
@@ -476,14 +477,26 @@ void ApicInitBoot(void)
 	 * for this processor id */
 	ApicInitialSetup(BspApicId);
 
+	/* Prepare some irq information */
+	IrqInformation.Data = NULL;
+	IrqInformation.Line = APIC_NO_GSI;
+	IrqInformation.Pin = APIC_NO_GSI;
+
 	/* Install Apic Handlers 
 	 * - Spurious handlers
 	 * - LVT Error handler
 	 * - Timer handler */
-	InterruptInstallIdtOnly(0xFFFFFFFF, INTERRUPT_SPURIOUS7, ApicSpuriousHandler, NULL);
-	InterruptInstallIdtOnly(0xFFFFFFFF, INTERRUPT_SPURIOUS, ApicSpuriousHandler, NULL);
-	InterruptInstallIdtOnly(0xFFFFFFFF, INTERRUPT_LVTERROR, ApicErrorHandler, NULL);
-	InterruptInstallIdtOnly(0xFFFFFFFF, INTERRUPT_LAPIC, ApicTimerHandler, NULL);
+	IrqInformation.Direct[0] = INTERRUPT_SPURIOUS7;
+	IrqInformation.FastHandler = ApicSpuriousHandler;
+	InterruptRegister(&IrqInformation, INTERRUPT_KERNEL | INTERRUPT_SOFTWARE);
+	IrqInformation.Direct[0] = INTERRUPT_SPURIOUS;
+	InterruptRegister(&IrqInformation, INTERRUPT_KERNEL | INTERRUPT_SOFTWARE);
+	IrqInformation.Direct[0] = INTERRUPT_LVTERROR;
+	IrqInformation.FastHandler = ApicErrorHandler;
+	InterruptRegister(&IrqInformation, INTERRUPT_KERNEL | INTERRUPT_SOFTWARE);
+	IrqInformation.Direct[0] = INTERRUPT_LAPIC;
+	IrqInformation.FastHandler = ApicTimerHandler;
+	InterruptRegister(&IrqInformation, INTERRUPT_KERNEL | INTERRUPT_SOFTWARE);
 
 	/* Actually enable APIC on the
 	 * boot processor, afterwards

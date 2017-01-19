@@ -48,7 +48,6 @@ typedef InterruptStatus_t(*InterruptHandler_t)(void*);
  * always shareable */
 #define INTERRUPT_NOTSHARABLE			0x1
 #define INTERRUPT_FAST					0x2
-#define INTERRUPT_KERNEL				0x4
 
 /* The interrupt descriptor structure, this contains
  * information about the interrupt that needs to be registered

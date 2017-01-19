@@ -1659,7 +1659,7 @@ UUId_t ScRegisterInterrupt(MCoreInterrupt_t *Interrupt, Flags_t Flags)
 {
 	/* Sanitize parameters */
 	if (Interrupt == NULL
-		|| (Flags & INTERRUPT_KERNEL)) {
+		|| (Flags & (INTERRUPT_KERNEL | INTERRUPT_SOFTWARE))) {
 		return UUID_INVALID;
 	}
 

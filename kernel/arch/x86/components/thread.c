@@ -25,6 +25,7 @@
 #include "../../arch.h"
 #include <threading.h>
 #include <process/phoenix.h>
+#include <interrupts.h>
 #include <thread.h>
 #include <memory.h>
 #include <heap.h>
@@ -57,7 +58,7 @@ int __GlbThreadX86Initialized = 0;
  * and is controlled by software interrupts, the yield interrupt
  * also like the apic switch need to reload the apic timer as it
  * controlls the primary switch */
-int ThreadingYield(void *Args)
+InterruptStatus_t ThreadingYield(void *Args)
 {
 	/* Variables we will need for loading
 	 * a new task */
@@ -93,7 +94,7 @@ int ThreadingYield(void *Args)
 	enter_thread(Regs);
 
 	/* Never reached */
-	return X86_IRQ_HANDLED;
+	return InterruptHandled;
 }
 
 /* IThreadCreate
@@ -103,6 +104,7 @@ int ThreadingYield(void *Args)
 void *IThreadCreate(Flags_t ThreadFlags, Addr_t EntryPoint)
 {
 	/* Variables for initialization */
+	MCoreInterrupt_t Interrupt;
 	x86Thread_t *Thread = NULL;
 
 	/* Allocate a new thread context (x86) 
@@ -128,7 +130,12 @@ void *IThreadCreate(Flags_t ThreadFlags, Addr_t EntryPoint)
 	 * the yield interrupt */
 	if (__GlbThreadX86Initialized == 0) {
 		__GlbThreadX86Initialized = 1;
-		InterruptInstallIdtOnly(APIC_NO_GSI, INTERRUPT_YIELD, ThreadingYield, NULL);
+		Interrupt.Data = NULL;
+		Interrupt.Direct[0] = INTERRUPT_YIELD;
+		Interrupt.Line = APIC_NO_GSI;
+		Interrupt.Pin = APIC_NO_GSI;
+		Interrupt.FastHandler = ThreadingYield;
+		InterruptRegister(&Interrupt, INTERRUPT_SOFTWARE | INTERRUPT_KERNEL);
 	}
 
 	/* Done */

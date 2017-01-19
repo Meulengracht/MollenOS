@@ -27,6 +27,7 @@
 #include <interrupts.h>
 #include <threading.h>
 #include <thread.h>
+#include <heap.h>
 #include <idt.h>
 #include <pci.h>
 #include <apic.h>
@@ -38,30 +39,34 @@
 #include <stdio.h>
 #include <ds/list.h>
 
-/* Internal Defines */
-#define EFLAGS_INTERRUPT_FLAG (1 << 9)
+/* Internal definitons and helper
+ * contants */
+#define EFLAGS_INTERRUPT_FLAG		(1 << 9)
+#define APIC_FLAGS_DEFAULT			0x7F00000000000000
+#define APIC_FLAGS_ISA				0x7F00000000000900
 
 /* Externs */
-extern void __cli(void);
-extern void __sti(void);
-extern uint32_t __getflags(void);
-extern List_t *GlbAcpiNodes;
+__CRT_EXTERN void __cli(void);
+__CRT_EXTERN void __sti(void);
+__CRT_EXTERN uint32_t __getflags(void);
+__CRT_EXTERN List_t *GlbAcpiNodes;
 
 /* Interrupts tables needed for
  * the x86-architecture */
 MCoreInterruptDescriptor_t *InterruptTable[IDT_DESCRIPTORS];
 int InterruptISATable[NUM_ISA_INTERRUPTS];
+int GlbInterruptInitialized = 0;
 UUId_t InterruptIdGen = 0;
 
 /* Parses Intiflags for Polarity */
-Flags_t InterruptGetPolarity(uint16_t IntiFlags, uint8_t IrqSource)
+Flags_t InterruptGetPolarity(uint16_t IntiFlags, int IrqSource)
 {
 	/* Returning 1 means LOW, returning 0 means HIGH */
 	switch (IntiFlags & ACPI_MADT_POLARITY_MASK)
 	{
 		case ACPI_MADT_POLARITY_CONFORMS:
 		{
-			if (IrqSource == AcpiGbl_FADT.SciInterrupt)
+			if (IrqSource == (int)AcpiGbl_FADT.SciInterrupt)
 				return 1;
 			else
 				return 0;
@@ -78,14 +83,14 @@ Flags_t InterruptGetPolarity(uint16_t IntiFlags, uint8_t IrqSource)
 }
 
 /* Parses Intiflags for Trigger Mode */
-Flags_t InterruptGetTrigger(uint16_t IntiFlags, uint8_t IrqSource)
+Flags_t InterruptGetTrigger(uint16_t IntiFlags, int IrqSource)
 {
 	/* Returning 1 means LEVEL, returning 0 means EDGE */
 	switch (IntiFlags & ACPI_MADT_TRIGGER_MASK)
 	{
 		case ACPI_MADT_TRIGGER_CONFORMS:
 		{
-			if (IrqSource == AcpiGbl_FADT.SciInterrupt)
+			if (IrqSource == (int)AcpiGbl_FADT.SciInterrupt)
 				return 1;
 			else
 				return 0;
@@ -215,139 +220,94 @@ int AcpiDeviceGetIrq(void *PciDevice, int Pin,
 	return -1;
 }
 
-/* Install a interrupt handler */
-void InterruptInstallBase(uint32_t Irq, uint32_t IdtEntry, uint64_t ApicEntry, IrqHandler_t Callback, void *Args)
+/* InterruptAllocateISA
+ * Allocates the ISA interrupt source, if it's 
+ * already allocated it returns OsError */
+OsStatus_t InterruptAllocateISA(int Source)
 {
-	/* Determine Correct Irq */
-	uint32_t RealIrq = Irq;
-	uint64_t i_apic = ApicEntry;
-	uint64_t CheckApicEntry = 0;
-	uint32_t upper = 0;
-	uint32_t lower = 0;
-	IoApic_t *IoApic;
-	DataKey_t Key;
-
-	/* Sanity */
-	assert(Irq < X86_IDT_DESCRIPTORS);
-
-	/* Uh, check for ACPI redirection */
-	if (GlbAcpiNodes != NULL)
-	{
-		Key.Value = ACPI_MADT_TYPE_INTERRUPT_OVERRIDE;
-		ACPI_MADT_INTERRUPT_OVERRIDE *io_redirect = ListGetDataByKey(GlbAcpiNodes, Key, 0);
-		int n = 1;
-
-		while (io_redirect != NULL)
-		{
-			/* Do we need to redirect? */
-			if (io_redirect->SourceIrq == Irq)
-			{
-				/* Redirect */
-				RealIrq = io_redirect->GlobalIrq;
-
-				/* Re-adjust trigger & polarity */
-				i_apic &= ~(0x8000 | 0x2000);
-				i_apic |= (InterruptGetPolarity(io_redirect->IntiFlags, LOBYTE(Irq)) << 13);
-				i_apic |= (InterruptGetTrigger(io_redirect->IntiFlags, LOBYTE(Irq)) << 15);
-
-				break;
-			}
-
-			/* Get next io redirection */
-			io_redirect = ListGetDataByKey(GlbAcpiNodes, Key, n);
-			n++;
-		}
-	}
-
-	/* Isa? */
-	if (RealIrq < X86_NUM_ISA_INTERRUPTS)
-		InterruptAllocateISA(RealIrq);
-
-	/* Get correct Io Apic */
-	IoApic = ApicGetIoFromGsi(RealIrq);
-
-	/* If Apic Entry is located, we need to adjust */
-	CheckApicEntry = ApicReadIoEntry(IoApic, RealIrq);
-	lower = (uint32_t)(CheckApicEntry & 0xFFFFFFFF);
-	upper = (uint32_t)((CheckApicEntry >> 32) & 0xFFFFFFFF);
-
-	/* Sanity, we can't just override */
-	if (!(lower & 0x10000))
-	{
-		/* Retrieve Idt */
-		uint32_t eIdtEntry = (uint32_t)(CheckApicEntry & 0xFF);
-
-		/* Install into table */
-		InterruptInstallIdtOnly((int)RealIrq, eIdtEntry, Callback, Args);
-	}
-	else
-	{
-		/* Install into table */
-		InterruptInstallIdtOnly((int)RealIrq, IdtEntry, Callback, Args);
-
-		/* i_irq is the initial irq */
-		ApicWriteIoEntry(IoApic, RealIrq, i_apic);
-	}
-}
-
-/* ISA Interrupts will go to BSP */
-void InterruptInstallISA(uint32_t Irq, uint32_t IdtEntry, IrqHandler_t Callback, void *Args)
-{
-	/* Build APIC Flags */
-	uint64_t ApicFlags = 0;
-
-	ApicFlags = 0x7F00000000000000;	/* Target all groups */
-	ApicFlags |= 0x100;				/* Lowest Priority */
-	ApicFlags |= 0x800;				/* Logical Destination Mode */
-	ApicFlags |= IdtEntry;			/* Interrupt Vector */
-
-	/* Install to base */
-	InterruptInstallBase(Irq, IdtEntry, ApicFlags, Callback, Args);
-}
-
-/* Install only the interrupt handler, 
- *  this should be used for software interrupts */
-void InterruptInstallIdtOnly(int Gsi, uint32_t IdtEntry, IrqHandler_t Callback, void *Args)
-{
-	/* Install into table */
-	int i;
-	int found = 0;
-
-	/* Find a free interrupt */
-	for (i = 0; i < X86_MAX_HANDLERS_PER_INTERRUPT; i++)
-	{
-		if (IrqTable[IdtEntry][i].Installed != 0)
-			continue;
-
-		/* Install it */
-		IrqTable[IdtEntry][i].Function = Callback;
-		IrqTable[IdtEntry][i].Data = Args;
-		IrqTable[IdtEntry][i].Installed = 1;
-		IrqTable[IdtEntry][i].Gsi = Gsi;
-		found = 1;
-		break;
-	}
-
-	/* Sanity */
-	assert(found != 0);
-}
-
-/* Allocate ISA Interrupt */
-OsStatus_t InterruptAllocateISA(uint32_t Irq)
-{
-	/* Sanity */
-	if (Irq > 15)
+	/* Sanitize the source */
+	if (Source >= NUM_ISA_INTERRUPTS) {
 		return OsError;
+	}
 
 	/* Allocate if free */
-	if (IrqIsaTable[Irq] != 1)
-	{
-		IrqIsaTable[Irq] = 1;
+	if (InterruptISATable[Source] != 1) {
+		InterruptISATable[Source] = 1;
 		return OsNoError;
 	}
 	
 	/* Damn */
 	return OsError;
+}
+
+/* InterruptFinalize
+ * Performs all the remaining actions, initializes the io-apic
+ * entry, looks up for redirections and determines ISA stuff */
+OsStatus_t InterruptFinalize(MCoreInterruptDescriptor_t *Interrupt)
+{
+	/* Variables for finalizing */
+	int Source = Interrupt->Source;
+	uint16_t TableIndex = LOWORD(Interrupt->Id);
+	uint64_t ApicFlags = APIC_FLAGS_DEFAULT;
+	union {
+		uint64_t Value;
+		uint32_t Lo;
+		uint32_t Hi;
+	} ApicExisting;
+	
+	/* Variables for the lookup */
+	ListNode_t *iNode = NULL;
+	IoApic_t *IoApic = NULL;
+
+	/* Sanitize some stuff first */
+	assert(TableIndex < IDT_DESCRIPTORS);
+
+	/* Determine the kind of flags we want to set */
+
+
+	/* Now lookup in ACPI overrides if we should
+	 * change the global source */
+	_foreach(iNode, GlbAcpiNodes) {
+		if (iNode->Key.Value == ACPI_MADT_TYPE_INTERRUPT_OVERRIDE) {
+			ACPI_MADT_INTERRUPT_OVERRIDE *IoEntry =
+				(ACPI_MADT_INTERRUPT_OVERRIDE*)iNode->Data;
+			if (IoEntry->SourceIrq == Source) {
+				Interrupt->Source = Source = IoEntry->GlobalIrq;
+				ApicFlags &= ~(0x8000 | 0x2000);
+				ApicFlags |= (InterruptGetPolarity(IoEntry->IntiFlags, Source) << 13);
+				ApicFlags |= (InterruptGetTrigger(IoEntry->IntiFlags, Source) << 15);
+				break;
+			}
+		}
+	}
+
+	/* If it's an ISA interrupt, make sure it's not
+	 * allocated, and if it's not, allocate it */
+	if (Source < NUM_ISA_INTERRUPTS) {
+		if (InterruptAllocateISA(Source) != OsNoError) {
+			return OsError;
+		}
+	}
+
+	/* Get correct Io Apic */
+	IoApic = ApicGetIoFromGsi(Source);
+
+	/* If Apic Entry is located, we need to adjust */
+	if (IoApic != NULL) {
+		ApicExisting.Value = ApicReadIoEntry(IoApic, Source);
+
+		/* Sanity, we can't just override the existing interrupt vector
+		 * so if it's already installed, we modify the table-index */
+		if (!(ApicExisting.Lo & APIC_MASKED)) {
+			TableIndex = LOWORD(ApicExisting.Lo);
+			UUId_t Id = Interrupt->Id & 0xFFFF0000;
+			Interrupt->Id = Id | TableIndex;
+		}
+		else {
+			/* Unmask the irq in the io-apic */
+			ApicWriteIoEntry(IoApic, (uint32_t)Source, ApicFlags);
+		}
+	}
 }
 
 /* Check Irq Status */
@@ -553,6 +513,7 @@ void InterruptInitialize(void)
 	/* Null out interrupt tables */
 	memset((void*)InterruptTable, 0, sizeof(MCoreInterruptDescriptor_t*) * IDT_DESCRIPTORS);
 	memset((void*)&InterruptISATable, 0, sizeof(InterruptISATable));
+	GlbInterruptInitialized = 1;
 	InterruptIdGen = 0;
 }
 
@@ -563,7 +524,86 @@ void InterruptInitialize(void)
  * returns UUID_INVALID */
 UUId_t InterruptRegister(MCoreInterrupt_t *Interrupt, Flags_t Flags)
 {
-	/* Clear interrupt_kernel flag if it's not a kernel thread */
+	/* Variables */
+	MCoreInterruptDescriptor_t *Entry = NULL, 
+		*Iterator = NULL, *Previous = NULL;
+	UUId_t TableIndex = 0;
+	UUId_t Id = InterruptIdGen++;
+
+	/* Sanity */
+	assert(GlbInterruptInitialized == 1);
+
+	/* Allocate a new entry for the table */
+	Entry = (MCoreInterruptDescriptor_t*)kmalloc(sizeof(MCoreInterruptDescriptor_t));
+
+	/* Setup some initial information */
+	Entry->Id = (Id << 16);
+	Entry->Ash = UUID_INVALID;
+	Entry->Thread = ThreadingGetCurrentThreadId();
+	Entry->Flags = Flags;
+	Entry->Link = NULL;
+
+	/* Copy interrupt information over */
+	memcpy(&Entry->Interrupt, Interrupt, sizeof(MCoreInterrupt_t));
+
+	/* Ok -> So we have a bunch of different cases of interrupt 
+	 * Software (Kernel) interrupts
+	 * User (fast) interrupts
+	 * User (slow) interrupts */
+	if (Flags & INTERRUPT_KERNEL) {
+		TableIndex = (UUId_t)Interrupt->Direct[0];
+		Entry->Id |= TableIndex;
+		if (Flags & INTERRUPT_SOFTWARE) {
+			Entry->Source = APIC_NO_GSI;
+		}
+		else {
+			Entry->Source = Interrupt->Line;
+		}
+	}
+	else {
+		if (Flags & INTERRUPT_FAST)
+		{
+
+		}
+		else
+		{
+
+		}
+	}
+	
+	/* Sanitize the sharable status first */
+	if (Flags & INTERRUPT_NOTSHARABLE) {
+		if (InterruptTable[TableIndex] != NULL) {
+			free(Entry);
+			return UUID_INVALID;
+		}
+	}
+
+	/* Finalize the install */
+	if (Entry->Source != APIC_NO_GSI) {
+		if (InterruptFinalize(Entry) != OsNoError) {
+			LogFatal("INTM", "Failed to install interrupt source %i", Entry->Source);
+			free(Entry);
+			return UUID_INVALID;
+		}
+		TableIndex = LOWORD(Entry->Id);
+	}
+
+	/* First entry? */
+	if (InterruptTable[TableIndex] == NULL) {
+		InterruptTable[TableIndex] = Entry;
+	}
+	else {
+		Iterator = InterruptTable[TableIndex];
+		while (Iterator != NULL) {
+			Previous = Iterator;
+			Iterator = Iterator->Link;
+		}
+		Previous->Link = Entry;
+	}
+
+	/* Done! */
+	return Id;
 }
 
 /* InterruptUnregister 

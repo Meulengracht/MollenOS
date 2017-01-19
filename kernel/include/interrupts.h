@@ -30,6 +30,11 @@
 #include <os/ipc/ipc.h>
 #include <os/osdefs.h>
 
+/* Special flags that are available only
+ * in kernel context for special interrupts */
+#define INTERRUPT_KERNEL				0x10000000
+#define INTERRUPT_SOFTWARE				0x20000000
+
 /* Structures */
 typedef struct _MCoreInterruptDescriptor {
 	MCoreInterrupt_t					Interrupt;
@@ -66,10 +71,6 @@ __CRT_EXTERN OsStatus_t InterruptUnregister(UUId_t Source);
  * to occur for the given driver */
 __CRT_EXTERN OsStatus_t InterruptAcknowledge(UUId_t Source);
 
-__CRT_EXTERN int InterruptAllocateISA(uint32_t Irq);
-__CRT_EXTERN void InterruptInstallISA(uint32_t Irq, uint32_t IdtEntry, IrqHandler_t Callback, void *Args);/* Install PCI Interrupt */
-__CRT_EXTERN void InterruptInstallIdtOnly(int Gsi, uint32_t IdtEntry, IrqHandler_t Callback, void *Args);
-
 /* InterruptDisable
  * Disables interrupts and returns
  * the state before disabling */
@@ -94,10 +95,12 @@ __CRT_EXTERN IntStatus_t InterruptSaveState(void);
  * disabled or 0 if interrupts are enabled */
 __CRT_EXTERN int InterruptIsDisabled(void);
 
-/* Helpers */
-__CRT_EXTERN Flags_t InterruptGetPolarity(uint16_t IntiFlags, uint8_t IrqSource);
-__CRT_EXTERN Flags_t InterruptGetTrigger(uint16_t IntiFlags, uint8_t IrqSource);
-
+/* InterruptAllocateISA
+ * Allocates the ISA interrupt source, if it's 
+ * already allocated it returns OsError */
+__CRT_EXTERN OsStatus_t InterruptAllocateISA(int Source);
+__CRT_EXTERN Flags_t InterruptGetPolarity(uint16_t IntiFlags, int IrqSource);
+__CRT_EXTERN Flags_t InterruptGetTrigger(uint16_t IntiFlags, int IrqSource);
 
 /* InterruptDriver
  * Call this to send an interrupt into user-space

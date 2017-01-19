@@ -28,11 +28,6 @@
 #include <crtdefs.h>
 #include <stdint.h>
 
-#ifndef __IRQHANDLER
-#define __IRQHANDLER
-typedef int(*IrqHandler_t)(void*);
-#endif
-
 /* Definitions */
 #define X86_PCI_SELECT		0xCF8
 #define X86_PCI_DATA		0xCFC

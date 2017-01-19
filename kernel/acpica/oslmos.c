@@ -113,26 +113,27 @@
 *
 *****************************************************************************/
 
+/* Includes
+ * - ACPI */
 #include "include\acpi.h"
 #include "include\accommon.h"
 
 /* warning C4115: named type definition in parentheses (caused by rpcasync.h> */
 #pragma warning(disable:4115)   
 
-#ifdef MOLLENOS64
-#include "..\Arch\x86\x64\Arch.h"
-#else
-#include "..\Arch\x86\x32\Arch.h"
-#include "..\Arch\x86\Memory.h"
-#endif
+/* Includes
+ * - System */
+#include <arch.h>
+#include "..\arch\x86\pci.h"
+#include "..\arch\x86\memory.h"
+#include <threading.h>
+#include <interrupts.h>
+#include <semaphore.h>
+#include <timers.h>
+#include <heap.h>
 
-/* Shared */
-#include "..\Arch\x86\Pci.h"
-
-#include <Threading.h>
-#include <Heap.h>
-#include <Semaphore.h>
-#include <Timers.h>
+/* Includes
+ * - Library */
 #include <stdio.h>
 
 #define _COMPONENT          ACPI_OS_SERVICES
@@ -140,6 +141,7 @@ ACPI_MODULE_NAME("oslmos")
 
 /* Globals */
 volatile void *Acpi_RedirectionTarget = NULL;
+UUId_t GlbAcpiInterruptId = UUID_INVALID;
 
 /******************************************************************************
 *
@@ -155,9 +157,9 @@ volatile void *Acpi_RedirectionTarget = NULL;
 
 ACPI_STATUS AcpiOsInitialize(void)
 {
-	/* Init */
+	/* Initialize the globals */
 	Acpi_RedirectionTarget = NULL;
-
+	GlbAcpiInterruptId = UUID_INVALID;
 	return (AE_OK);
 }
 
@@ -434,9 +436,18 @@ UINT32 AcpiOsInstallInterruptHandler(
 		ACPI_OSD_HANDLER        ServiceRoutine,
 		void                    *Context)
 {
+	/* Variables */
+	MCoreInterrupt_t ACPIInterrupt;
+
+	/* Build the config */
+	ACPIInterrupt.Data = Context;
+	ACPIInterrupt.Line = InterruptNumber;
+	ACPIInterrupt.Pin = -1;
+	ACPIInterrupt.Direct[0] = INTERRUPT_ACPIBASE + InterruptNumber;
+	ACPIInterrupt.FastHandler = (InterruptHandler_t)ServiceRoutine;
+
 	/* Install it */
-	InterruptInstallISA(InterruptNumber, INTERRUPT_ACPIBASE + InterruptNumber,
-		(IrqHandler_t)ServiceRoutine, Context);
+	GlbAcpiInterruptId = InterruptRegister(&ACPIInterrupt, INTERRUPT_KERNEL);
 
 	/* Done */
 	return (AE_OK);
@@ -458,9 +469,8 @@ ACPI_STATUS AcpiOsRemoveInterruptHandler(
 			UINT32                  InterruptNumber,
 			ACPI_OSD_HANDLER        ServiceRoutine)
 {
-	/* Override it */
-	//interrupt_install(InterruptNumber, 0x20 + InterruptNumber, NULL, NULL);
-
+	/* Unregister the interrupt */
+	InterruptUnregister(GlbAcpiInterruptId);
 	return (AE_OK);
 }
 
