@@ -100,6 +100,7 @@
 #define SYSCALL_ACPIQUERY			0x65
 #define SYSCALL_ACPIGETTBLHEADER	0x66
 #define SYSCALL_ACPIGETTBLFULL		0x67
+#define SYSCALL_ACPIQUERYIRQ		0x68
 
 /* Driver System Calls 
  * - I/O Support */

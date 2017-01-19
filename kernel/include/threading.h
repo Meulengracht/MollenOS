@@ -35,6 +35,12 @@
 #include <os/osdefs.h>
 #include <ds/list.h>
 
+/* Define the thread entry point signature */
+#ifndef __THREADING_ENTRY
+#define __THREADING_ENTRY
+typedef void(*ThreadEntry_t)(void*);
+#endif
+
 /* Threading flags
  * The first two bits denode the thread
  * runtime mode, which is either:

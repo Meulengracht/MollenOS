@@ -25,6 +25,7 @@
  * - System */
 #include <mollenos.h>
 #include <process/phoenix.h>
+#include <interrupts.h>
 #include <threading.h>
 #include <scheduler.h>
 #include <ds/list.h>

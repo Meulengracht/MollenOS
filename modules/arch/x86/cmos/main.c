@@ -156,7 +156,7 @@ void CmosGetTime(struct tm *Time)
  * produces an interrupt. On successful handled
  * interrupt return OsNoError, otherwise the interrupt
  * won't be acknowledged */
-OsStatus_t OnInterrupt(void *InterruptData)
+InterruptStatus_t OnInterrupt(void *InterruptData)
 {
 	/* Since the cmos doesn't use
 	 * interrupts, just redirect the interrupt

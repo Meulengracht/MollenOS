@@ -24,9 +24,12 @@
 #ifndef _MCORE_INTERRUPTS_H_
 #define _MCORE_INTERRUPTS_H_
 
+/* Includes
+ * - Driver System */
+#include <os/driver/driver.h>
+
 /* Includes 
  * - System */
-#include <os/driver/driver.h>
 #include <os/ipc/ipc.h>
 #include <os/osdefs.h>
 
@@ -101,6 +104,13 @@ __CRT_EXTERN int InterruptIsDisabled(void);
 __CRT_EXTERN OsStatus_t InterruptAllocateISA(int Source);
 __CRT_EXTERN Flags_t InterruptGetPolarity(uint16_t IntiFlags, int IrqSource);
 __CRT_EXTERN Flags_t InterruptGetTrigger(uint16_t IntiFlags, int IrqSource);
+
+/* AcpiDeriveInterrupt
+ * Derives an interrupt by consulting
+ * the bus of the device, and spits out flags in
+ * AcpiConform and returns irq */
+__CRT_EXTERN int AcpiDeriveInterrupt(DevInfo_t Bus,
+	DevInfo_t Device, int Pin, Flags_t *AcpiConform);
 
 /* InterruptDriver
  * Call this to send an interrupt into user-space

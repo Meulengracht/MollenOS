@@ -29,9 +29,9 @@
 
 /* Includes
  * - System */
+#include <os/driver/acpi.h>
 #include <os/driver/interrupt.h>
 #include <os/driver/io.h>
-#include <os/driver/acpi.h>
 #include <os/driver/device.h>
 #include <os/driver/contracts/base.h>
 
@@ -105,9 +105,7 @@ static __CRT_INLINE OsStatus_t QueryDriver(MContract_t *Contract, void *Buffer, 
  * interrupt return OsNoError, otherwise the interrupt
  * won't be acknowledged */
 #ifdef __DRIVER_IMPL
-__CRT_EXTERN OsStatus_t OnInterrupt(void *InterruptData);
-#else
-
+__CRT_EXTERN InterruptStatus_t OnInterrupt(void *InterruptData);
 #endif
 
 #endif //!DRIVER_SDK

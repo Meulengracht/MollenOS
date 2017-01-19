@@ -1410,8 +1410,8 @@ int ScVfsResolvePath(int EnvPath, char *StrBuffer)
  * Driver Functions    *
  ***********************/
 #include <acpiinterface.h>
-#define __ACPI_EXCLUDE_TABLES
-#include <os/driver/driver.h>
+#include <os/driver/io.h>
+#include <os/driver/device.h>
 #include <modules/modules.h>
 
 /* ScAcpiQueryStatus
@@ -1492,6 +1492,18 @@ OsStatus_t ScAcpiQueryTable(const char *Signature, ACPI_TABLE_HEADER *Table)
 	return OsNoError;
 }
 
+/* ScAcpiQueryInterrupt 
+ * Queries the interrupt-line for the given bus, device and
+ * pin combination. The pin must be zero indexed. Conform flags
+ * are returned in the <AcpiConform> */
+OsStatus_t ScAcpiQueryInterrupt(DevInfo_t Bus, DevInfo_t Device, int Pin, 
+	int *Interrupt, Flags_t *AcpiConform)
+{
+	/* Redirect the call to the interrupt system */
+	*Interrupt = AcpiDeriveInterrupt(Bus, Device, Pin, AcpiConform);
+	return (*Interrupt == INTERRUPT_NONE) ? OsError : OsNoError;
+}
+ 
 /* Creates and registers a new IoSpace with our
  * architecture sub-layer, it must support io-spaces 
  * or atleast dummy-implementation */
@@ -1882,7 +1894,7 @@ Addr_t GlbSyscallTable[131] =
 	DefineSyscall(ScAcpiQueryStatus),
 	DefineSyscall(ScAcpiQueryTableHeader),
 	DefineSyscall(ScAcpiQueryTable),
-	DefineSyscall(NoOperation),
+	DefineSyscall(ScAcpiQueryInterrupt),
 	DefineSyscall(NoOperation),
 	DefineSyscall(NoOperation),
 	DefineSyscall(NoOperation),

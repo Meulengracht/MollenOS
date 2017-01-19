@@ -86,4 +86,11 @@ _MOS_API OsStatus_t AcpiQueryStatus(AcpiDescriptor_t *AcpiDescriptor);
  * the buffer is automatically allocated, and should be cleaned up afterwards  */
 _MOS_API OsStatus_t AcpiQueryTable(const char *Signature, ACPI_TABLE_HEADER **Table);
 
+/* AcpiQueryInterrupt
+ * Queries the interrupt-line for the given bus, device and
+ * pin combination. The pin must be zero indexed. Conform flags
+ * are returned in the <AcpiConform> */
+_MOS_API OsStatus_t AcpiQueryInterrupt(DevInfo_t Bus, DevInfo_t Device, int Pin,
+	int *Interrupt, Flags_t *AcpiConform);
+
 #endif //!_ACPI_INTEFACE_H_

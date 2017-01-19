@@ -49,6 +49,7 @@ typedef struct _McfgEntry {
 /* Globals, we want to
  * keep track of all pci-devices by having this root device */
 PciDevice_t *GlbRootBridge = NULL;
+int GlbAcpiAvailable = 0;
 
 /* Prototypes
  * we need access to this function again.. */
@@ -212,6 +213,13 @@ void PciReadBars(PciBus_t *Bus, MCoreDevice_t *Device, uint32_t HeaderType)
 	}
 }
 
+/* PciDerivePin
+ * Pin conversion from behind a bridge */
+int PciDerivePin(int Device, int Pin) 
+{
+	return (((Pin - 1) + Device) % 4) + 1;
+}
+
 /* PciCheckFunction
  * Create a new pci-device from a valid
  * bus/device/function location on the bus */
@@ -240,6 +248,7 @@ void PciCheckFunction(PciDevice_t *Parent, int Bus, int Device, int Function)
 	PciDevice->Device = Device;
 	PciDevice->Function = Function;
 	PciDevice->Children = NULL;
+	PciDevice->AcpiConform = 0;
 
 	/* Info 
 	 * Ignore the spam of device_id 0x7a0 in VMWare*/
@@ -260,7 +269,7 @@ void PciCheckFunction(PciDevice_t *Parent, int Bus, int Device, int Function)
 		PciWrite16(PciDevice->BusIo, Bus, Device, Function, 0x04,
 			PciSettings | PCI_COMMAND_INTDISABLE);
 	}
-	
+
 	/* Add to list */
 	if (Pcs->Class == PCI_CLASS_BRIDGE
 		&& Pcs->Subclass == PCI_BRIDGE_SUBCLASS_PCI) {
@@ -276,8 +285,37 @@ void PciCheckFunction(PciDevice_t *Parent, int Bus, int Device, int Function)
 		PciCheckBus(PciDevice, SecondBus);
 	}
 	else {
+		/* Wuhuu, query acpi interrupt information for device */
+		Flags_t AcpiConform = 0;
+		int InterruptLine = -1;
+		int Pin = Pcs->InterruptPin - 1;
+
+		/* We do need acpi for this */
+		if (GlbAcpiAvailable == 1) {
+			PciDevice_t *Iterator = PciDevice;
+			while (Iterator != NULL) {
+				if (AcpiQueryInterrupt(Iterator->Bus, Iterator->Device,
+					Pin, &InterruptLine, &AcpiConform) == OsNoError) {
+					break;
+				}
+				Pin = PciDerivePin((int)Iterator->Device, Pin);
+				Iterator = Iterator->Parent;
+			}
+
+			/* Update the irq-line if we found a new line */
+			if (InterruptLine != -1) {
+				PciWrite8(Parent->BusIo, (DevInfo_t)Bus, (DevInfo_t)Device, 
+					(DevInfo_t)Function, 0x3C, (uint8_t)InterruptLine);
+				PciDevice->Header->InterruptLine = (uint8_t)InterruptLine;
+				PciDevice->AcpiConform = AcpiConform;
+			}
+		}
+
+		/* Set keys and type */
 		PciDevice->IsBridge = 0;
 		lKey.Value = 0;
+
+		/* Add to list */
 		ListAppend((List_t*)Parent->Children, ListCreateNode(lKey, lKey, PciDevice));
 	}
 }
@@ -357,6 +395,7 @@ void PciCreateDeviceFromPci(PciDevice_t *PciDev)
 	mDevice->IrqLine = -1;
 	mDevice->IrqPin = (int)PciDev->Header->InterruptPin;
 	mDevice->IrqAvailable[0] = PciDev->Header->InterruptLine;
+	mDevice->AcpiConform = PciDev->AcpiConform;
 
 	/* Read Bars */
 	PciReadBars(PciDev->BusIo, mDevice, PciDev->Header->HeaderType);
@@ -429,6 +468,7 @@ void BusInstallFixed(DevInfo_t DeviceId, const char *Name)
 	Device->IrqPin = -1;
 	Device->IrqLine = -1;
 	Device->IrqAvailable[0] = -1;
+	Device->AcpiConform = 0;
 
 	/* Install driver */
 	RegisterDevice(Device, Name);
@@ -456,6 +496,7 @@ void BusEnumerate(void)
 	/* Query acpi information */
 	if (AcpiQueryStatus(&Acpi) == OsNoError) {
 		MollenOSSystemLog("ACPI-Version: 0x%x", Acpi.Version);
+		GlbAcpiAvailable = 1;
 
 		/* PCI-Express */
 		if (AcpiQueryTable(ACPI_SIG_MCFG, &Header) == OsNoError) {

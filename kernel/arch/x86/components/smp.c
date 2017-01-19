@@ -27,6 +27,7 @@
 #include <Gdt.h>
 #include <Thread.h>
 #include <Scheduler.h>
+#include <interrupts.h>
 #include <Memory.h>
 #include <Idt.h>
 #include <Cpu.h>

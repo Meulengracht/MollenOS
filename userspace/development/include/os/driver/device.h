@@ -42,25 +42,34 @@
 /* These definitions are in-place to allow a custom
  * setting of the device-manager, these are set to values
  * where in theory it should never be needed to have more */
-#define __DEVICEMANAGER_INTERFACE_VERSION	1
+#define __DEVICEMANAGER_INTERFACE_VERSION		1
 
-#define __DEVICEMANAGER_NAMEBUFFER_LENGTH	128
-#define __DEVICEMANAGER_MAX_IRQS			8
-#define __DEVICEMANAGER_MAX_IOSPACES		6
-#define __DEVICEMANAGER_IOSPACE_END			-1
+#define __DEVICEMANAGER_NAMEBUFFER_LENGTH		128
+#define __DEVICEMANAGER_MAX_IRQS				8
+#define __DEVICEMANAGER_MAX_IOSPACES			6
+#define __DEVICEMANAGER_IOSPACE_END				-1
+
+/* MCoreDevice ACPI Conform flags
+ * This is essentially some bonus information that is
+ * needed when registering interrupts */
+#define __DEVICEMANAGER_ACPICONFORM_PRESENT		0x1
+#define __DEVICEMANAGER_ACPICONFORM_TRIGGERMODE	0x2
+#define __DEVICEMANAGER_ACPICONFORM_POLARITY	0x4
+#define __DEVICEMANAGER_ACPICONFORM_SHAREABLE	0x8
+#define __DEVICEMANAGER_ACPICONFORM_FIXED		0x10
 
 /* These are the different IPC functions supported
  * by the devicemanager, note that some of them might
  * be changed in the different versions, and/or new
  * functions will be added */
-#define __DEVICEMANAGER_REGISTERDEVICE		IPC_DECL_FUNCTION(0)
-#define __DEVICEMANAGER_UNREGISTERDEVICE	IPC_DECL_FUNCTION(1)
-#define __DEVICEMANAGER_QUERYDEVICE			IPC_DECL_FUNCTION(2)
-#define __DEVICEMANAGER_IOCTLDEVICE			IPC_DECL_FUNCTION(3)
+#define __DEVICEMANAGER_REGISTERDEVICE			IPC_DECL_FUNCTION(0)
+#define __DEVICEMANAGER_UNREGISTERDEVICE		IPC_DECL_FUNCTION(1)
+#define __DEVICEMANAGER_QUERYDEVICE				IPC_DECL_FUNCTION(2)
+#define __DEVICEMANAGER_IOCTLDEVICE				IPC_DECL_FUNCTION(3)
 
-#define __DEVICEMANAGER_REGISTERCONTRACT	IPC_DECL_FUNCTION(4)
-#define __DEVICEMANAGER_UNREGISTERCONTRACT	IPC_DECL_FUNCTION(5)
-#define __DEVICEMANAGER_QUERYCONTRACT		IPC_DECL_FUNCTION(6)
+#define __DEVICEMANAGER_REGISTERCONTRACT		IPC_DECL_FUNCTION(4)
+#define __DEVICEMANAGER_UNREGISTERCONTRACT		IPC_DECL_FUNCTION(5)
+#define __DEVICEMANAGER_QUERYCONTRACT			IPC_DECL_FUNCTION(6)
 
 /* This is the base device structure definition
  * and is passed on to all drivers on their initialization
@@ -90,6 +99,7 @@ typedef struct _MCoreDevice
 	 * This information descripes the type of
 	 * irq, and the available irq lines when registering
 	 * the device for interrupts */
+	Flags_t						AcpiConform;
 	int							IrqLine;
 	int							IrqPin;
 	int							IrqAvailable[__DEVICEMANAGER_MAX_IRQS];

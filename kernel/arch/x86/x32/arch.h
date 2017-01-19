@@ -176,8 +176,7 @@ _CRT_EXPORT void kernel_panic(const char *str);
 
 /* Architecture Locked Interrupts */
 #define INTERRUPT_LAPIC					0xF0
-#define INTERRUPT_DEVICE_BASE			0xC0
-#define INTERRUPT_TIMER_BASE			0xA0		/* Allow up to 32 ints */
+#define INTERRUPT_DEVICE_BASE			0xA0
 
 #define INTERRUPT_SPURIOUS7				0x27
 #define INTERRUPT_SPURIOUS				0x7F

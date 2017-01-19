@@ -236,6 +236,7 @@
  * Add _ASSERTE(_CrtCheckMemory()); where needed to test memory integrity.
  * This can quickly localize the memory corruption.
  */
+#ifndef ACPI_DEBUG_INITIALIZE
 #define ACPI_DEBUG_INITIALIZE() \
     _CrtSetDbgFlag (\
         _CRTDBG_CHECK_ALWAYS_DF | \
@@ -243,7 +244,7 @@
         _CRTDBG_DELAY_FREE_MEM_DF | \
         _CRTDBG_LEAK_CHECK_DF | \
         _CrtSetDbgFlag(_CRTDBG_REPORT_FLAG));
-
+#endif
 #if 0
 /*
  * _CrtSetBreakAlloc can be used to set a breakpoint at a particular

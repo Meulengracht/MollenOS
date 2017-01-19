@@ -108,32 +108,32 @@ int VfsParsePartitionTable(UUId_t DiskId, uint64_t SectorBase,
 	void *TmpBuffer = (void*)kmalloc(SectorSize);
 //	MCoreModule_t *Module = NULL;
 	MCoreMasterBootRecord_t *Mbr = NULL;
-	MCoreDeviceRequest_t Request;
+	//MCoreDeviceRequest_t Request;
 	int PartitionCount = 0;
 	int i;
 
 	/* Null out request */
-	memset(&Request, 0, sizeof(MCoreDeviceRequest_t));
+	//memset(&Request, 0, sizeof(MCoreDeviceRequest_t));
 
-	/* Read sector */
+	/* Read sector 
 	Request.Base.Type = RequestRead;
 	Request.DeviceId = DiskId;
 	Request.SectorLBA = SectorBase;
 	Request.Buffer = (uint8_t*)TmpBuffer;
-	Request.Length = SectorSize;
+	Request.Length = SectorSize;*/ 
 
 	/* Create & Wait */
 	//DmCreateRequest(&Request);
 	//DmWaitRequest(&Request, 0);
 
-	/* Sanity */
+	/* Sanity 
 	if (Request.Base.State != EventOk)
 	{
-		/* Error */
+		/* Error 
 		LogFatal("VFSM", "REGISTERDISK: Error reading from disk - 0x%x\n", Request.ErrType);
 		kfree(TmpBuffer);
 		return 0;
-	}
+	}*/
 
 	/* We don't need sector count here */
 	_CRT_UNUSED(SectorCount);
@@ -253,17 +253,17 @@ void VfsRegisterDisk(UUId_t DiskId)
 	/* Query for disk stats */
 //	MCoreModule_t *Module = NULL;
 	char TmpBuffer[12];
-	MCoreDeviceRequest_t Request;
+	//MCoreDeviceRequest_t Request;
 
 	/* Null out request */
-	memset(&Request, 0, sizeof(MCoreDeviceRequest_t));
+	//memset(&Request, 0, sizeof(MCoreDeviceRequest_t));
 
-	/* Setup request */
+	/* Setup request 
 	Request.Base.Type = RequestQuery;
 	Request.DeviceId = DiskId;
 	Request.Buffer = (uint8_t*)&TmpBuffer[0];
 	Request.Length = 12;
-
+	*/
 	/* Memset */
 	memset(TmpBuffer, 0, sizeof(TmpBuffer));
 

@@ -25,10 +25,6 @@
 /* Includes */
 #include <os/osdefs.h>
 
-/* The definition of a thread id
-* used for identifying threads */
-typedef void(*ThreadEntry_t)(void*);
-
 /* Select Correct ARCH file */
 #if defined(_X86_32)
 #include "x86\x32\Arch.h"

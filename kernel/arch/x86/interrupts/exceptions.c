@@ -26,11 +26,12 @@
 #include "../Arch.h"
 #include <process/phoenix.h>
 #include <modules/modules.h>
-#include <Threading.h>
-#include <Thread.h>
-#include <Log.h>
-#include <Heap.h>
-#include "../Memory.h"
+#include <threading.h>
+#include <thread.h>
+#include <log.h>
+#include <heap.h>
+#include "../memory.h"
+#include <interrupts.h>
 #include <stdio.h>
 
 /* Extern Assembly */

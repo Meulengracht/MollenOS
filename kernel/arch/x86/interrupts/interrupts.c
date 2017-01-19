@@ -106,40 +106,31 @@ Flags_t InterruptGetTrigger(uint16_t IntiFlags, int IrqSource)
 	return 0;
 }
 
-/* Pin conversion from behind a bridge */
-int AcpiDerivePin(int Device, int Pin) {
-	return (((Pin - 1) + Device) % 4) + 1;
-}
-
-/* Get Irq by Bus / Dev / Pin
-* Returns -1 if no overrides exists */
-int AcpiDeviceGetIrq(void *PciDevice, int Pin,
-	uint8_t *TriggerMode, uint8_t *Polarity, uint8_t *Shareable,
-	uint8_t *Fixed)
+/* AcpiDeriveInterrupt
+ * Derives an interrupt by consulting
+ * the bus of the device, and spits out flags in
+ * AcpiConform and returns irq */
+int AcpiDeriveInterrupt(DevInfo_t Bus, 
+	DevInfo_t Device, int Pin, Flags_t *AcpiConform)
 {
-	/* Locate correct bus */
+	/* Variables */
 	AcpiDevice_t *Dev = NULL;
-	PciDevice_t *PciDev = (PciDevice_t*)PciDevice;
-	int pDevice = PciDev->Device, pPin = Pin;
 	DataKey_t iKey;
 
 	/* Calculate routing index */
-	int rIndex = (pDevice * 4) + Pin;
-
-	/* Set Key */
+	int rIndex = (Device * 4) + Pin;
 	iKey.Value = 0;
 
 	/* Start by checking if we can find the
 	 * routings by checking the given device */
-	Dev = AcpiLookupDevice(PciDev->Bus);
+	Dev = AcpiLookupDevice(Bus);
 
 	/* Sanitize */
 	if (Dev != NULL) {
 		/* Sanity */
 		if (Dev->Routings->Interrupts[rIndex].Entry != NULL) {
-
-			/* Extract the entry */
 			PciRoutingEntry_t *pEntry = NULL;
+			*AcpiConform = __DEVICEMANAGER_ACPICONFORM_PRESENT;
 
 			/* Either from list or raw */
 			if (Dev->Routings->InterruptInformation[rIndex] == 0) {
@@ -151,73 +142,29 @@ int AcpiDeviceGetIrq(void *PciDevice, int Pin,
 			}
 
 			/* Update IRQ Information */
-			if (pEntry->Trigger == ACPI_LEVEL_SENSITIVE)
-				*TriggerMode = 1;
-			else
-				*TriggerMode = 0;
+			if (pEntry->Trigger == ACPI_LEVEL_SENSITIVE) {
+				*AcpiConform |= __DEVICEMANAGER_ACPICONFORM_TRIGGERMODE;
+			}
 
-			if (pEntry->Polarity == ACPI_ACTIVE_LOW)
-				*Polarity = 1;
-			else
-				*Polarity = 0;
+			if (pEntry->Polarity == ACPI_ACTIVE_LOW) {
+				*AcpiConform |= __DEVICEMANAGER_ACPICONFORM_POLARITY;
+			}
 
-			*Shareable = pEntry->Shareable;
-			*Fixed = pEntry->Fixed;
+			if (pEntry->Shareable != 0) {
+				*AcpiConform |= __DEVICEMANAGER_ACPICONFORM_SHAREABLE;
+			}
+
+			if (pEntry->Fixed != 0) {
+				*AcpiConform |= __DEVICEMANAGER_ACPICONFORM_FIXED;
+			}
+
+			/* Done! Return the interrupt */
 			return pEntry->Interrupts;
 		}
 	}
 
-	/* Damn, check parents */
-	PciDev = PciDev->Parent;
-	while (PciDev) {
-
-		/* Correct the pin */
-		pPin = AcpiDerivePin(pDevice, pPin);
-		pDevice = PciDev->Device;
-
-		/* Calculate new corrected routing index */
-		rIndex = (pDevice * 4) + pPin;
-
-		/* Start by checking if we can find the
-		* routings by checking the given device */
-		Dev = AcpiLookupDevice(PciDev->Bus);
-
-		/* Sanitize */
-		if (Dev != NULL) {
-			/* Sanity */
-			if (Dev->Routings->Interrupts[rIndex].Entry != NULL) {
-
-				/* Extract the entry */
-				PciRoutingEntry_t *pEntry = NULL;
-
-				/* Either from list or raw */
-				if (Dev->Routings->InterruptInformation[rIndex] == 0) {
-					pEntry = Dev->Routings->Interrupts[rIndex].Entry;
-				}
-				else {
-					pEntry = (PciRoutingEntry_t*)
-						ListGetDataByKey(Dev->Routings->Interrupts[rIndex].Entries, iKey, 0);
-				}
-
-				/* Update IRQ Information */
-				if (pEntry->Trigger == ACPI_LEVEL_SENSITIVE)
-					*TriggerMode = 1;
-				else
-					*TriggerMode = 0;
-
-				if (pEntry->Polarity == ACPI_ACTIVE_LOW)
-					*Polarity = 1;
-				else
-					*Polarity = 0;
-
-				*Shareable = pEntry->Shareable;
-				*Fixed = pEntry->Fixed;
-				return pEntry->Interrupts;
-			}
-		}
-	}
-
-	return -1;
+	/* Return no :-/ */
+	return INTERRUPT_NONE;
 }
 
 /* InterruptAllocateISA
@@ -238,6 +185,75 @@ OsStatus_t InterruptAllocateISA(int Source)
 	
 	/* Damn */
 	return OsError;
+}
+
+/* InterruptDetermine
+ * Determines the correct APIC flags for the io-apic entry
+ * from the interrupt structure */
+uint64_t InterruptDetermine(MCoreInterrupt_t *Interrupt)
+{
+	/* Variables */
+	uint64_t ApicFlags = 0x7F00000000000000;
+	
+	/* Case 1 - ISA Interrupts - Must be Edge Triggered High Active */
+	if (Interrupt->Line < NUM_ISA_INTERRUPTS
+		&& Interrupt->Pin == INTERRUPT_NONE) {
+		ApicFlags |= 0x100;				/* Lowest Priority */
+		ApicFlags |= 0x800;				/* Logical Destination Mode */
+		ApicFlags |= (INTERRUPT_DEVICE_BASE + Interrupt->Line);
+	}
+	/* Case 2 - PCI Interrupts (No-Pin) - Must be Level Triggered Low-Active */
+	else if (Interrupt->Line >= NUM_ISA_INTERRUPTS
+		&& Interrupt->Pin == INTERRUPT_NONE) {
+		ApicFlags |= 0x100;						/* Lowest Priority */
+		ApicFlags |= 0x800;						/* Logical Destination Mode */
+		ApicFlags |= (1 << 13);					/* Set Polarity */
+		ApicFlags |= (1 << 15);					/* Set Trigger Mode */
+		ApicFlags |= (INTERRUPT_DEVICE_BASE + Interrupt->Line);
+	}
+	/* Case 3 - PCI Interrupts (Pin) - Usually Level Triggered Low-Active */
+	else if (Interrupt->Pin != INTERRUPT_NONE)
+	{
+		/* Idt, Irq entry */
+		int IdtEntry = INTERRUPT_DEVICE_BASE;
+		int IrqLine = 0;
+
+		/* If no routing exists use the pci interrupt line */
+		if (!(Interrupt->AcpiConform & __DEVICEMANAGER_ACPICONFORM_PRESENT)) {
+			IdtEntry += Interrupt->Line;
+			ApicFlags |= 0x100;				/* Lowest Priority */
+			ApicFlags |= 0x800;				/* Logical Destination Mode */
+		}
+		else {
+			/* Setup APIC flags */
+			ApicFlags |= 0x100;						/* Lowest Priority */
+			ApicFlags |= 0x800;						/* Logical Destination Mode */
+
+			/* Both trigger and polarity is either fixed or set by the
+			 * information we extracted earlier */
+			if (IrqLine >= NUM_ISA_INTERRUPTS) {
+				ApicFlags |= (1 << 13);
+				ApicFlags |= (1 << 15);
+			}
+			else {
+				/* Set Trigger Mode */
+				if (Interrupt->AcpiConform & __DEVICEMANAGER_ACPICONFORM_TRIGGERMODE)
+					ApicFlags |= (1 << 15);
+				/* Set Polarity */
+				if (Interrupt->AcpiConform & __DEVICEMANAGER_ACPICONFORM_POLARITY)
+					ApicFlags |= (1 << 13);
+			}
+
+			/* Calculate idt */
+			IdtEntry += IrqLine;
+		}
+
+		/* Set IDT Vector */
+		ApicFlags |= IdtEntry;
+	}
+
+	/* Done! */
+	return ApicFlags;
 }
 
 /* InterruptFinalize
@@ -263,7 +279,7 @@ OsStatus_t InterruptFinalize(MCoreInterruptDescriptor_t *Interrupt)
 	assert(TableIndex < IDT_DESCRIPTORS);
 
 	/* Determine the kind of flags we want to set */
-
+	ApicFlags = InterruptDetermine(&Interrupt->Interrupt);
 
 	/* Now lookup in ACPI overrides if we should
 	 * change the global source */
@@ -308,200 +324,71 @@ OsStatus_t InterruptFinalize(MCoreInterruptDescriptor_t *Interrupt)
 			ApicWriteIoEntry(IoApic, (uint32_t)Source, ApicFlags);
 		}
 	}
+
+	/* Done! */
+	return OsNoError;
 }
 
-/* Check Irq Status */
-int InterruptIrqCount(int Irq)
+/* InterruptIrqCount
+ * Returns a count of all the registered
+ * devices on that irq */
+int InterruptIrqCount(int Source)
 {
 	/* Vars */
-	int i, RetVal = 0;
+	MCoreInterruptDescriptor_t *Entry = NULL;
+	int RetVal = 0;
 
-	/* Sanity */
-	if (Irq < X86_NUM_ISA_INTERRUPTS)
-		return IrqIsaTable[Irq] == 1 ? -1 : 0;
-
-	/* Iterate */
-	for (i = 0; i < X86_MAX_HANDLERS_PER_INTERRUPT; i++) {
-		if (IrqTable[32 + Irq][i].Installed == 1)
-			RetVal++;
+	/* Sanitize the ISA table
+	 * first, if its ISA, only one can be share */
+	if (Source < NUM_ISA_INTERRUPTS) {
+		return InterruptISATable[Source] == 1 ? INTERRUPT_NONE : 0;
 	}
 
-	if (RetVal == X86_MAX_HANDLERS_PER_INTERRUPT)
-		return -1;
+	/* Now iterate the linked list and find count */
+	Entry = InterruptTable[32 + Source];
+	while (Entry != NULL) {
+		RetVal++;
+		Entry = Entry->Link;
+	}
 
 	/* Done */
 	return RetVal;
 }
 
-/* Allocate Shareable Interrupt */
+/* InterruptFindBest
+ * Allocates the least used sharable irq
+ * most useful for MSI devices */
 int InterruptFindBest(int Irqs[], int Count)
 {
-	/* Vars */
+	/* Variables for our needs */
+	int BestIrq = INTERRUPT_NONE;
 	int i;
-	int BestIrq = -1;
 
-	/* Iterate */
-	for (i = 0; i < Count; i++)
-	{
-		/* Sanity? */
-		if (Irqs[i] == -1)
+	/* Iterate all the available irqs
+	 * that the device-supports */
+	for (i = 0; i < Count; i++) {
+		/* Sanitize the end of list? */
+		if (Irqs[i] == INTERRUPT_NONE) {
 			break;
+		}
 
 		/* Check count */
 		int iCount = InterruptIrqCount(Irqs[i]);
 
-		/* Sanity - Unusable */
-		if (iCount == -1)
+		/* Sanitize status, if -1
+		 * then its not usable */
+		if (iCount == INTERRUPT_NONE) {
 			continue;
+		}
 
 		/* Is it better? */
-		if (iCount < BestIrq)
+		if (iCount < BestIrq) {
 			BestIrq = iCount;
+		}
 	}
 
 	/* Done */
 	return BestIrq;
-}
-
-/* Allocate interrupt for device */
-int DeviceAllocateInterrupt(void *mCoreDevice)
-{
-	/* Cast */
-	MCoreDevice_t *Device = (MCoreDevice_t*)mCoreDevice;
-
-	/* Setup initial Apic Flags */
-	uint64_t ApicFlags = 0x7F00000000000000;	/* Target all cpu groups */
-
-	/* Determine what kind of interrupt is needed */
-	if (Device->IrqLine == -1
-		&& Device->IrqPin == -1)
-	{
-		/* Choose from available irq's */
-		Device->IrqLine = InterruptFindBest(Device->IrqAvailable, DEVICEMANAGER_MAX_IRQS);
-	}
-	
-	/* Now actually do the allocation */
-	if (Device->IrqLine < X86_NUM_ISA_INTERRUPTS
-		&& Device->IrqPin == -1)
-	{
-		/* Request of a ISA interrupt */
-		int IdtEntry = INTERRUPT_DEVICE_BASE + Device->IrqLine;
-
-		/* Sanity */
-		if (IrqIsaTable[Device->IrqLine] == 1) {
-			LogFatal("SYST", "Interrupt %u is already allocated!!", Device->IrqLine);
-			return -1;
-		}
-
-		ApicFlags |= 0x100;				/* Lowest Priority */
-		ApicFlags |= 0x800;				/* Logical Destination Mode */
-		ApicFlags |= IdtEntry;
-
-		/* Install */
-		InterruptInstallBase(Device->IrqLine, IdtEntry, ApicFlags, Device->IrqHandler, Device);
-
-		/* Done! */
-		return 0;
-	}
-	else if (Device->IrqLine >= X86_NUM_ISA_INTERRUPTS
-		&& Device->IrqPin == -1)
-	{
-		/* Setup APIC flags */
-		int IdtEntry = 0;
-		ApicFlags |= 0x100;						/* Lowest Priority */
-		ApicFlags |= 0x800;						/* Logical Destination Mode */
-		ApicFlags |= (1 << 13);					/* Set Polarity */
-		ApicFlags |= (1 << 15);					/* Set Trigger Mode */
-
-		if (Device->Type == DeviceTimer)
-			IdtEntry = INTERRUPT_TIMER_BASE + Device->IrqLine;
-		else
-			IdtEntry = INTERRUPT_DEVICE_BASE + Device->IrqLine;
-
-		/* Set IDT Vector */
-		ApicFlags |= IdtEntry;
-
-		/* Is there already a handler? */
-		if (IrqTable[IdtEntry][0].Installed)
-			InterruptInstallIdtOnly(Device->IrqLine, IdtEntry, Device->IrqHandler, Device);
-		else
-			InterruptInstallBase(Device->IrqLine, IdtEntry, ApicFlags, Device->IrqHandler, Device);
-
-		/* Done */
-		return 0;
-	}
-	else if (Device->IrqPin != -1)
-	{
-		/* Vars, we need ACPI to determine a pin interrupt */
-		int DidExist = 0, ReducedPin = Device->IrqPin;
-
-		/* For irq information */
-		uint8_t IrqTriggerMode = 0, IrqPolarity = 0;
-		uint8_t IrqShareable = 0, Fixed = 0;
-
-		/* Idt, Irq entry */
-		int IrqLine = 0;
-		int IdtEntry = INTERRUPT_DEVICE_BASE;
-
-		/* Pin is not 0 indexed from PCI info */
-		ReducedPin--;
-
-		/* Get Interrupt Information */
-		DidExist = AcpiDeviceGetIrq(Device->BusDevice, ReducedPin,
-			&IrqTriggerMode, &IrqPolarity, &IrqShareable, &Fixed);
-
-		/* If no routing exists use the interrupt_line */
-		if (DidExist == -1)
-		{
-			Device->IrqLine = IrqLine = 
-				(int)PciRead8(Device->Bus, Device->Device, Device->Function, 0x3C);
-			IdtEntry += Device->IrqLine;
-
-			ApicFlags |= 0x100;				/* Lowest Priority */
-			ApicFlags |= 0x800;				/* Logical Destination Mode */
-		}
-		else
-		{
-			/* Update */
-			Device->IrqLine = IrqLine = DidExist;
-
-			/* Update PCI Interrupt Line */
-			PciWrite8(Device->Bus, Device->Device, Device->Function, 0x3C, (uint8_t)IrqLine);
-
-			/* Setup APIC flags */
-			ApicFlags |= 0x100;						/* Lowest Priority */
-			ApicFlags |= 0x800;						/* Logical Destination Mode */
-
-			/* Both trigger and polarity is either fixed or set by the
-			 * information we extracted earlier */
-			if (IrqLine >= X86_NUM_ISA_INTERRUPTS)
-			{
-				ApicFlags |= (1 << 13);
-				ApicFlags |= (1 << 15);
-			}
-			else
-			{
-				ApicFlags |= ((IrqPolarity & 0x1) << 13);		/* Set Polarity */
-				ApicFlags |= ((IrqTriggerMode & 0x1) << 15);	/* Set Trigger Mode */
-			}
-
-			/* Calculate idt */
-			IdtEntry += IrqLine;
-		}
-
-		/* Set IDT Vector */
-		ApicFlags |= IdtEntry;
-
-		if (IrqTable[IdtEntry][0].Installed)
-			InterruptInstallIdtOnly(IrqLine, IdtEntry, Device->IrqHandler, Device);
-		else
-			InterruptInstallBase(IrqLine, IdtEntry, ApicFlags, Device->IrqHandler, Device);
-
-		/* Done */
-		return 0;
-	}
-	else
-		return -4;
 }
 
 /* InterruptInitialize
@@ -554,36 +441,38 @@ UUId_t InterruptRegister(MCoreInterrupt_t *Interrupt, Flags_t Flags)
 		TableIndex = (UUId_t)Interrupt->Direct[0];
 		Entry->Id |= TableIndex;
 		if (Flags & INTERRUPT_SOFTWARE) {
-			Entry->Source = APIC_NO_GSI;
+			Entry->Source = INTERRUPT_NONE;
 		}
 		else {
 			Entry->Source = Interrupt->Line;
 		}
 	}
 	else {
-		if (Flags & INTERRUPT_FAST)
-		{
-
+		/* Sanitize the line and pin first, because
+		 * if neither is set, it's most likely a request for MSI */
+		if (Interrupt->Line == INTERRUPT_NONE
+			&& Interrupt->Pin == INTERRUPT_NONE) {
+			Interrupt->Line = 
+				InterruptFindBest(Interrupt->Direct, __DEVICEMANAGER_MAX_IRQS);
 		}
-		else
-		{
 
-		}
+		/* Lookup stuff */
+		Entry->Ash = ThreadingGetCurrentThread(ApicGetCpu())->AshId;
 	}
 	
 	/* Sanitize the sharable status first */
 	if (Flags & INTERRUPT_NOTSHARABLE) {
 		if (InterruptTable[TableIndex] != NULL) {
-			free(Entry);
+			kfree(Entry);
 			return UUID_INVALID;
 		}
 	}
 
 	/* Finalize the install */
-	if (Entry->Source != APIC_NO_GSI) {
+	if (Entry->Source != INTERRUPT_NONE) {
 		if (InterruptFinalize(Entry) != OsNoError) {
 			LogFatal("INTM", "Failed to install interrupt source %i", Entry->Source);
-			free(Entry);
+			kfree(Entry);
 			return UUID_INVALID;
 		}
 		TableIndex = LOWORD(Entry->Id);

@@ -28,11 +28,12 @@
 */
 
 /* Includes */
-#include <Arch.h>
-#include <Scheduler.h>
-#include <Threading.h>
-#include <Heap.h>
-#include <Log.h>
+#include <arch.h>
+#include <scheduler.h>
+#include <threading.h>
+#include <interrupts.h>
+#include <heap.h>
+#include <log.h>
 
 /* CLib */
 #include <stddef.h>

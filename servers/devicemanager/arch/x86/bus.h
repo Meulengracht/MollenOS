@@ -141,6 +141,7 @@ typedef struct _PciDevice {
 	DevInfo_t				Bus;
 	DevInfo_t				Device;
 	DevInfo_t				Function;
+	Flags_t					AcpiConform;
 	PciNativeHeader_t		*Header;
 	List_t					*Children;
 } PciDevice_t;

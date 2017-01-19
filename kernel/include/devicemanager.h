@@ -131,7 +131,6 @@ typedef struct _MCoreDevice
 	int IrqLine;
 	int IrqPin;
 	int IrqAvailable[DEVICEMANAGER_MAX_IRQS];
-	IrqHandler_t IrqHandler;
 
 	/* I/O Spaces */
 	DeviceIoSpace_t *IoSpaces[DEVICEMANAGER_MAX_IOSPACES];
@@ -151,42 +150,7 @@ typedef struct _MCoreDevice
 
 } MCoreDevice_t;
 
-/* Device Requests */
-#pragma pack(push, 1)
-typedef struct _MCoreDeviceRequest
-{
-	/* Event Base */
-	MCoreEvent_t Base;
-
-	/* Device Id */
-	UUId_t DeviceId;
-
-	/* Data */
-	uint64_t SectorLBA;
-	uint8_t *Buffer;
-	size_t Length;
-
-	/* Error Type if any */
-	DeviceErrorMessage_t ErrType;
-
-} MCoreDeviceRequest_t;
-#pragma pack(pop)
-
-/* Prototypes */
-__CRT_EXTERN void DmInit(void);
-__CRT_EXTERN void DmStart(void);
-
 /* Boot Video */
 __CRT_EXTERN void DmRegisterBootVideo(MCoreDevice_t *Video);
-
-/* Setup of devices */
-_CRT_EXPORT int DmRequestResource(MCoreDevice_t *Device, DeviceResourceType_t ResourceType);
-_CRT_EXPORT UUId_t DmCreateDevice(char *Name, MCoreDevice_t *Device);
-_CRT_EXPORT MCoreDevice_t *DmGetDevice(DeviceType_t Type);
-_CRT_EXPORT void DmDestroyDevice(UUId_t DeviceId);
-
-/* Device Requests */
-_CRT_EXPORT void DmCreateRequest(MCoreDeviceRequest_t *Request);
-_CRT_EXPORT void DmWaitRequest(MCoreDeviceRequest_t *Request, size_t Timeout);
 
 #endif //_MCORE_DRIVER_MANAGER_H_

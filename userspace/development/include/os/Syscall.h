@@ -100,6 +100,7 @@
 #define SYSCALL_ACPIQUERY			0x65
 #define SYSCALL_ACPIGETTBLHEADER	0x66
 #define SYSCALL_ACPIGETTBLFULL		0x67
+#define SYSCALL_ACPIQUERYIRQ		0x68
 
 /* Driver System Calls 
  * - I/O Support */
@@ -117,7 +118,8 @@
  * - Interrupt Support */
 #define SYSCALL_REGISTERIRQ			0x79
 #define SYSCALL_UNREGISTERIRQ		0x7A
-#define SYSCALL_REGISTERSYSTMR		0x7B
+#define SYSCALL_ACKNOWLEDGEIRQ		0x7B
+#define SYSCALL_REGISTERSYSTMR		0x7C
 
 /* Prototypes */
 _MOS_API int Syscall0(int Function);

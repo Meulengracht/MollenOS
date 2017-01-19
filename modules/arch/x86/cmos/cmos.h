@@ -105,6 +105,6 @@ __CRT_EXTERN OsStatus_t RtcCleanup(Cmos_t *Chip);
 /* RtcInterrupt
  * Handles the rtc interrupt and acknowledges
  * the interrupt by reading cmos */
-__CRT_EXTERN OsStatus_t RtcInterrupt(Cmos_t *Chip);
+__CRT_EXTERN InterruptStatus_t RtcInterrupt(Cmos_t *Chip);
 
 #endif // !__DRIVER_CMOS_H__

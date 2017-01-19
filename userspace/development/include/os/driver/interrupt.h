@@ -37,7 +37,7 @@
  * or does any processing work */
 #ifndef __INTERRUPTHANDLER
 #define __INTERRUPTHANDLER
-typedef OsStatus_t (*InterruptHandler_t)(void*);
+typedef InterruptStatus_t(*InterruptHandler_t)(void*);
 #endif
 
 /* Specail interrupt constants, use these when allocating
@@ -51,8 +51,10 @@ typedef OsStatus_t (*InterruptHandler_t)(void*);
 
 /* The interrupt descriptor structure, this contains
  * information about the interrupt that needs to be registered
- * and special handling */
+ * and special handling. The DevInfo_t only needs to be filled
+ * when a device/controller is registering interrupts */
 typedef struct _MCoreInterrupt {
+	Flags_t					AcpiConform;
 	int						Line;
 	int						Pin; 
 	int						Direct[__DEVICEMANAGER_MAX_IRQS];
