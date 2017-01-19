@@ -539,6 +539,10 @@ OsStatus_t InterruptUnregister(UUId_t Source)
 
 	/* Entry is now unlinked, clean it up 
 	 * mask the interrupt again if neccessary */
+	if (Found == 1) {
+		LogFatal("INTM", "Finish the code for unlinking interrupts!!");
+		for (;;);
+	}
 
 	/* Done, return result */
 	return Result;
