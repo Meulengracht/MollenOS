@@ -1,23 +1,25 @@
 /* MollenOS
-*
-* Copyright 2011 - 2016, Philip Meulengracht
-*
-* This program is free software : you can redistribute it and / or modify
-* it under the terms of the GNU General Public License as published by
-* the Free Software Foundation ? , either version 3 of the License, or
-* (at your option) any later version.
-*
-* This program is distributed in the hope that it will be useful,
-* but WITHOUT ANY WARRANTY; without even the implied warranty of
-* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.See the
-* GNU General Public License for more details.
-*
-* You should have received a copy of the GNU General Public License
-* along with this program.If not, see <http://www.gnu.org/licenses/>.
-*
-*
-* MollenOS MCORE - Timer Manager
-*/
+ *
+ * Copyright 2011 - 2017, Philip Meulengracht
+ *
+ * This program is free software : you can redistribute it and / or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation ? , either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.If not, see <http://www.gnu.org/licenses/>.
+ *
+ *
+ * MollenOS MCore - Timer Mangement Interface
+ * - Contains the timer interface system and its implementation
+ *   keeps track of system timers
+ */
 
 /* Includes */
 #include <DeviceManager.h>
@@ -201,4 +203,23 @@ void TimersApplyMs(size_t Ms)
 			}
 		}
 	}
+}
+
+/* TimersRegistrate
+ * Registrates a interrupt timer source with the
+ * timer management, which keeps track of which interrupts
+ * are available for time-keeping */
+OsStatus_t TimersRegister(UUId_t Source, size_t TickNs)
+{
+
+}
+
+/* TimersInterrupt
+ * Called by the interrupt-code to tell the timer-management system
+ * a new interrupt has occured from the given source. This allows
+ * the timer-management system to tell us if that was the active
+ * timer-source */
+OsStatus_t TimersInterrupt(UUId_t Source)
+{
+
 }

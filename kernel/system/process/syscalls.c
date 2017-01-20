@@ -1704,9 +1704,8 @@ OsStatus_t ScAcknowledgeInterrupt(UUId_t Source)
  * can always keep track of timers */
 OsStatus_t ScRegisterSystemTimer(UUId_t Interrupt, size_t NsPerTick)
 {
-	_CRT_UNUSED(Interrupt);
-	_CRT_UNUSED(NsPerTick);
-	return OsError;
+	/* Redirect the call to timer-management */
+	return TimersRegister(Interrupt, NsPerTick);
 }
 
 /***********************

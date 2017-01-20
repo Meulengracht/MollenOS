@@ -26,11 +26,11 @@
 #include <acpiinterface.h>
 #include <interrupts.h>
 #include <threading.h>
+#include <timers.h>
 #include <thread.h>
 #include <heap.h>
-#include <idt.h>
-#include <pci.h>
 #include <apic.h>
+#include <idt.h>
 #include <log.h>
 
 /* Includes
@@ -43,7 +43,6 @@
  * contants */
 #define EFLAGS_INTERRUPT_FLAG		(1 << 9)
 #define APIC_FLAGS_DEFAULT			0x7F00000000000000
-#define APIC_FLAGS_ISA				0x7F00000000000900
 
 /* Externs */
 __CRT_EXTERN void __cli(void);
@@ -596,9 +595,7 @@ void InterruptEntry(Registers_t *Registers)
 	/* Iterate handlers in that table index */
 	Entry = InterruptTable[TableIndex];
 	while (Entry != NULL) {
-		if (Entry->Flags & INTERRUPT_FAST) 
-		{
-			/* Lookup the target thread */
+		if (Entry->Flags & INTERRUPT_FAST) {
 			MCoreThread_t *Thread = ThreadingGetThread(Entry->Thread);
 			MCoreThread_t *Source = ThreadingGetCurrentThread(ApicGetCpu());
 
@@ -613,6 +610,13 @@ void InterruptEntry(Registers_t *Registers)
 			/* Restore to our own context */
 			if (Source->AddressSpace != Thread->AddressSpace) {
 				IThreadImpersonate(Source);
+			}
+
+			/* If it was handled
+			 * - Register it with system stuff
+			 * - System timers must be registered as fast-handlers */
+			if (Result == InterruptHandled) {
+				TimersInterrupt(Entry->Id);
 			}
 		}
 		else if (Entry->Flags & INTERRUPT_KERNEL) {
