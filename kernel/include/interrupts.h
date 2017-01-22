@@ -74,6 +74,11 @@ __CRT_EXTERN OsStatus_t InterruptUnregister(UUId_t Source);
  * to occur for the given driver */
 __CRT_EXTERN OsStatus_t InterruptAcknowledge(UUId_t Source);
 
+/* InterruptGet
+ * Retrieves the given interrupt source information
+ * as a MCoreInterruptDescriptor_t */
+__CRT_EXTERN MCoreInterruptDescriptor_t *InterruptGet(UUId_t Source);
+
 /* InterruptDisable
  * Disables interrupts and returns
  * the state before disabling */

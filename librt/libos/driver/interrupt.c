@@ -58,7 +58,7 @@ OsStatus_t UnregisterInterruptSource(UUId_t Source)
 	}
 
 	/* Redirect to system call */
-	return (OsStatus_t)Syscall1(SYSCALL_REGISTERIRQ, SYSCALL_PARAM(Source));
+	return (OsStatus_t)Syscall1(SYSCALL_UNREGISTERIRQ, SYSCALL_PARAM(Source));
 }
 
 /* RegisterSystemTimer
@@ -74,6 +74,6 @@ OsStatus_t RegisterSystemTimer(UUId_t Interrupt, size_t NsPerTick)
 	}
 
 	/* Redirect to system call */
-	return (OsStatus_t)Syscall2(SYSCALL_REGISTERIRQ, SYSCALL_PARAM(Interrupt),
+	return (OsStatus_t)Syscall2(SYSCALL_REGISTERSYSTMR, SYSCALL_PARAM(Interrupt),
 		SYSCALL_PARAM(NsPerTick));
 }

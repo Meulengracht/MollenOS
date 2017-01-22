@@ -31,6 +31,7 @@
 #include <interrupts.h>
 #include <scheduler.h>
 #include <threading.h>
+#include <timers.h>
 #include <vfs\vfs.h>
 #include <heap.h>
 #include <log.h>
@@ -71,10 +72,11 @@ void MCoreInitialize(MCoreBootInfo_t *BootInfo)
 	 * from the static buffer */
 	LogUpgrade(LOG_PREFFERED_SIZE);
 
-	/* Initialize the interrupt sub-system
+	/* Initialize the interrupt/timers sub-system
 	 * after we have a heap, so systems can
 	 * register interrupts */
 	InterruptInitialize();
+	TimersInitialize();
 
 	/* We want to initialize IoSpaces as soon
 	 * as possible so devices and systems 

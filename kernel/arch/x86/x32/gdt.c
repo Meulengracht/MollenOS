@@ -87,7 +87,7 @@ void GdtInitialize(void)
 	 * Kernel segments span the entire virtual
 	 * address space from 0 -> 0xFFFFFFFF */
 	//(MEMORY_SEGMENT_KERNEL_CODE_LIMIT - 1) / PAGE_SIZE
-	GdtInstallDescriptor(0, MEMORY_SEGMENT_KERNEL_DATA_LIMIT,
+	GdtInstallDescriptor(0, (MEMORY_SEGMNET_RING3_CODE_LIMIT - 1) / PAGE_SIZE,
 		GDT_RING0_CODE, GDT_GRANULARITY);
 	GdtInstallDescriptor(0, MEMORY_SEGMENT_KERNEL_DATA_LIMIT,
 		GDT_RING0_DATA, GDT_GRANULARITY);

@@ -21,27 +21,35 @@
  *   keeps track of system timers
  */
 
-/* Includes */
-#include <DeviceManager.h>
-#include <Devices\Timer.h>
-#include <Arch.h>
-#include <Timers.h>
-#include <Scheduler.h>
-#include <Heap.h>
-
-/* C-Library */
-#include <stddef.h>
+/* Includes 
+ * - System */
+#include <interrupts.h>
+#include <scheduler.h>
 #include <ds/list.h>
+#include <timers.h>
+#include <heap.h>
+
+/* Includes
+ * - Library */
+#include <stdlib.h>
+#include <stddef.h>
 
 /* Globals */
+MCoreSystemTimer_t *GlbActiveSystemTimer = NULL;
+List_t *GlbSystemTimers = NULL;
 List_t *GlbTimers = NULL;
 UUId_t GlbTimerIds = 0;
 int GlbTimersInitialized = 0;
 
-/* Init */
-void TimersInit(void)
+/* TimersInitialize
+ * Initializes the timer sub-system that supports
+ * registering of system timers and callback timers */
+void TimersInitialize(void)
 {
-	/* Create list */
+	/* Initialize all the globals 
+	 * including lists etc */
+	GlbActiveSystemTimer = NULL;
+	GlbSystemTimers = ListCreate(KeyInteger, LIST_SAFE);
 	GlbTimers = ListCreate(KeyInteger, LIST_SAFE);
 	GlbTimersInitialized = 1;
 	GlbTimerIds = 0;
@@ -54,10 +62,6 @@ UUId_t TimersCreateTimer(TimerHandler_t Callback,
 	MCoreTimer_t *TimerInfo;
 	DataKey_t Key;
 	UUId_t Id;
-
-	/* Sanity */
-	if (GlbTimersInitialized != 1)
-		TimersInit();
 
 	/* Allocate */
 	TimerInfo = (MCoreTimer_t*)kmalloc(sizeof(MCoreTimer_t));
@@ -104,101 +108,45 @@ void TimersDestroyTimer(UUId_t TimerId)
 /* Sleep function */
 void SleepMs(size_t MilliSeconds)
 {
-	/* Lookup */
-	MCoreDevice_t *tDevice = NULL;//DmGetDevice(DeviceTimer);
-
-	/* Sanity - 
-	 * we make sure there is a timer present 
-	 * in the system, otherwise we must induce delay */
-	if (tDevice == NULL) {
-		DelayMs(MilliSeconds);
-		return;
-	}
-
-	/* Enter sleep */
+	/* Redirect to the scheduler functionality
+	 * it allows us to sleep with time-out */
 	SchedulerSleepThread(NULL, MilliSeconds);
 }
 
 /* Stall functions */
 void StallMs(size_t MilliSeconds)
 {
-	/* Lookup */
-	MCoreDevice_t *tDevice = NULL;// DmGetDevice(DeviceTimer);
-	MCoreTimerDevice_t *Timer = NULL;
-
-	/* Sanity */
-	if (tDevice == NULL)
-	{
-		DelayMs(MilliSeconds);
-		return;
-	}
-
-	/* Cast */
-	Timer = (MCoreTimerDevice_t*)tDevice->Data;
-
-	/* Go */
-	Timer->Stall(tDevice, MilliSeconds);
+	DelayMs(MilliSeconds);
 }
 
-void StallNs(size_t NanoSeconds)
+/* TimersTick
+ * This method actually applies the new tick-delta to all
+ * active timers registered, and decreases the total */
+void TimersTick(size_t Tick)
 {
-	/* Lookup */
-	MCoreDevice_t *tDevice = NULL;// DmGetDevice(DevicePerfTimer);
-	MCoreTimerDevice_t *Timer = NULL;
-
-	/* Sanity */
-	if (tDevice == NULL)
-	{
-		DelayMs((NanoSeconds / 1000) + 1);
-		return;
-	}
-
-	/* Cast */
-	Timer = (MCoreTimerDevice_t*)tDevice->Data;
-
-	/* Go */
-	Timer->Stall(tDevice, NanoSeconds);
-}
-
-/* This should be called by only ONE periodic irq */
-void TimersApplyMs(size_t Ms)
-{
-	ListNode_t *i;
-
-	/* Sanity */
-	if (GlbTimersInitialized != 1)
-		return;
+	/* Variables needed */
+	ListNode_t *i = NULL;
+	size_t MsTick = DIVUP(Tick, NSEC_PER_MSEC);
 
 	/* Apply time to scheduler */
-	SchedulerApplyMs(Ms);
+	SchedulerApplyMs(MsTick);
 
 	/* Now iterate */
-	_foreach(i, GlbTimers)
-	{
-		/* Cast */
+	_foreach(i, GlbTimers) {
 		MCoreTimer_t *Timer = (MCoreTimer_t*)i->Data;
-
-		/* Decreament */
-		Timer->MsLeft -= Ms;
+		Timer->MsLeft -= MsTick;
 
 		/* Pop timer? */
-		if (Timer->MsLeft <= 0)
-		{
+		if (Timer->MsLeft <= 0) {
 			/* Yay! Pop! */
 			ThreadingCreateThread("Timer Callback", Timer->Callback, Timer->Args, 0);
 
 			/* Restart? */
 			if (Timer->Type == TimerPeriodic)
 				Timer->MsLeft = (ssize_t)Timer->PeriodicMs;
-			else
-			{
-				/* Remove */
+			else {
 				ListRemoveByNode(GlbTimers, i);
-
-				/* Free timer */
 				kfree(Timer);
-
-				/* Free node */
 				kfree(i);
 			}
 		}
@@ -211,7 +159,47 @@ void TimersApplyMs(size_t Ms)
  * are available for time-keeping */
 OsStatus_t TimersRegister(UUId_t Source, size_t TickNs)
 {
+	/* Variables we'll need */
+	MCoreInterruptDescriptor_t *Interrupt = NULL;
+	MCoreSystemTimer_t *SystemTimer = NULL;
+	DataKey_t tKey;
+	int Delta = abs(1000 - (int)TickNs);
 
+	/* Do some validation about the timer source 
+	 * the only system timers we want are fast_interrupts */
+	Interrupt = InterruptGet(Source);
+	if (Interrupt == NULL
+		|| !(Interrupt->Flags & (INTERRUPT_FAST | INTERRUPT_KERNEL))) {
+		return OsError;
+	}
+
+	/* Create a new instance of a system timer */
+	SystemTimer = (MCoreSystemTimer_t*)kmalloc(sizeof(MCoreSystemTimer_t));
+	SystemTimer->Source = Source;
+	SystemTimer->Tick = TickNs;
+	SystemTimer->Ticks = 0;
+
+	/* Add the new timer to the list */
+	tKey.Value = 0;
+	ListAppend(GlbSystemTimers, ListCreateNode(
+		tKey, tKey, SystemTimer));
+
+	/* Ok, for a system timer we want something optimum
+	 * of 1 ms per interrupt */
+	if (GlbActiveSystemTimer != NULL) {
+		int ActiveDelta = abs(1000 - GlbActiveSystemTimer->Tick);
+		if (ActiveDelta > Delta) {
+			/* Woohoo new active! */
+			GlbActiveSystemTimer = SystemTimer;
+		}
+	}
+	else {
+		/* Update the active system timer */
+		GlbActiveSystemTimer = SystemTimer;
+	}
+
+	/* Yay! */
+	return OsNoError;
 }
 
 /* TimersInterrupt
@@ -221,5 +209,14 @@ OsStatus_t TimersRegister(UUId_t Source, size_t TickNs)
  * timer-source */
 OsStatus_t TimersInterrupt(UUId_t Source)
 {
+	/* Sanitize if the source is ok */
+	if (GlbActiveSystemTimer != NULL) {
+		if (GlbActiveSystemTimer->Source == Source) {
+			TimersTick(GlbActiveSystemTimer->Tick);
+			return OsNoError;
+		}
+	}
 
+	/* No -> return not */
+	return OsError;
 }

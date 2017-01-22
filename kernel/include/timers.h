@@ -27,16 +27,7 @@
 /* Includes
  * - System */
 #include <os/osdefs.h>
-
-/* Definitions */
-typedef void(*TimerHandler_t)(void*);
-
-/* Time Stuff */
-#define FSEC_PER_NSEC   1000000L
-#define NSEC_PER_MSEC   1000L
-#define MSEC_PER_SEC    1000L
-#define NSEC_PER_SEC    1000000000L
-#define FSEC_PER_SEC    1000000000000000LL
+#include <os/timers.h>
 
 /* Timer Type */
 typedef enum _MCoreTimerType
@@ -46,23 +37,12 @@ typedef enum _MCoreTimerType
 } MCoreTimerType_t;
 
 /* Structures */
-typedef struct _MCoreTimer
-{
-	/* Callback */
-	TimerHandler_t Callback;
-
-	/* Argument for callback */
-	void *Args;
-
-	/* Type */
-	MCoreTimerType_t Type;
-
-	/* Periode MS */
-	size_t PeriodicMs;
-
-	/* Counter */
-	volatile ssize_t MsLeft;
-
+typedef struct _MCoreTimer {
+	TimerHandler_t		Callback;
+	void				*Args;
+	MCoreTimerType_t	Type;
+	size_t				PeriodicMs;
+	volatile ssize_t	MsLeft;
 } MCoreTimer_t;
 
 /* Prototypes */
@@ -73,7 +53,6 @@ _CRT_EXPORT void TimersDestroyTimer(UUId_t TimerId);
 /* Sleep, Stall, etc */
 _CRT_EXPORT void SleepMs(size_t MilliSeconds);
 _CRT_EXPORT void StallMs(size_t MilliSeconds);
-_CRT_EXPORT void StallNs(size_t NanoSeconds);
 
 /* Stall-No-Int */
 _CRT_EXPORT void DelayMs(size_t MilliSeconds);
@@ -108,7 +87,19 @@ _CRT_EXPORT void DelayMs(size_t MilliSeconds);
         DelayMs(wait);\
 						    }
 
+/* The system timer structure
+ * Contains information related to the
+ * registered system timers */
+typedef struct _MCoreSystemTimer {
+	UUId_t					Source;
+	size_t					Tick;
+	size_t					Ticks;
+} MCoreSystemTimer_t;
 
+/* TimersInitialize
+ * Initializes the timer sub-system that supports
+ * registering of system timers and callback timers */
+__CRT_EXTERN void TimersInitialize(void);
 
 /* TimersRegistrate 
  * Registrates a interrupt timer source with the

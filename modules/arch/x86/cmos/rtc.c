@@ -86,10 +86,10 @@ OsStatus_t RtcInitialize(Cmos_t *Chip)
 	Chip->Irq = RegisterInterruptSource(&Chip->Interrupt, 
 		INTERRUPT_NOTSHARABLE | INTERRUPT_FAST); 
 
-	/* Register our irq as a system timer 
+	/* Register our irq as a system timer */
 	if (Chip->Irq != UUID_INVALID) {
 		RegisterSystemTimer(Chip->Irq, Chip->NsTick);
-	}*/
+	}
 
 	/* Enable Periodic Interrupts */
 	StateB = CmosRead(CMOS_REGISTER_STATUS_B);
