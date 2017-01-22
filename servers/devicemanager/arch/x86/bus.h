@@ -36,7 +36,7 @@
 #define PCI_CMOS_RTC_DEVICEID				0x0010
 #define PCI_PIT_DEVICEID					0x0020
 #define PCI_PS2_DEVICEID					0x0030
-#define PCI_HPET_DEVICEID					0x0040
+#define PCI_HPET_DEVICEID					0x0100
 
 /* To be able to access bus data we need io-space
  * access, so lets define the io-ports neccessary

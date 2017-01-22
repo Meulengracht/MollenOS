@@ -16,13 +16,13 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS X86 PIT (Timer) Driver
- * http://wiki.osdev.org/PIT
+ * MollenOS X86 PS2 Controller (Controller) Driver
+ * http://wiki.osdev.org/PS2
  */
 
 /* Includes 
  * - System */
-#include <os/driver/contracts/timer.h>
+#include <os/driver/contracts/base.h>
 #include "ps2.h"
 
 /* Includes
@@ -31,10 +31,67 @@
 #include <string.h>
 #include <stdlib.h>
 
-/* Since there only exists a single pit
+/* Since there only exists a single ps2
  * chip on-board we keep some static information
  * in this driver */
-static Pit_t *GlbPit = NULL;
+static PS2Controller_t *GlbController = NULL;
+
+/* PS2ReadStatus
+ * Reads the status byte from the controller */
+uint8_t PS2ReadStatus(void)
+{
+	return (uint8_t)ReadIoSpace(&GlbController->CommandSpace,
+		PS2_REGISTER_STATUS, 1);
+}
+
+/* PS2Wait
+ * Waits for the given flag to clear by doing a
+ * number of iterations giving a fake-delay */
+OsStatus_t PS2Wait(uint8_t Flags)
+{
+	/* Wait for flag to clear */
+	for (int i = 0; i < 1000; i++) {
+		if (!(PS2ReadStatus() & Flags)) {
+			return OsNoError;
+		}
+	}
+
+	/* Damn.. */
+	return OsError;
+}
+
+/* PS2ReadData
+ * Reads a byte from the PS2 controller data port */
+uint8_t PS2ReadData(int Dummy)
+{
+	/* Hold response */
+	uint8_t Response = 0;
+
+	/* Only wait for input to be full in case
+	 * we don't do dummy reads */
+	if (Dummy == 0) {
+		if (PS2Wait(PS2_STATUS_OUTPUT_FULL) == OsError) {
+			return 0xFF;
+		}
+	}
+
+	/* Retrieve the data from data io space */
+	Response = (uint8_t)ReadIoSpace(&GlbController->DataSpace, 
+		PS2_REGISTER_DATA, 1);
+
+	/* Done */
+	return Response;
+}
+
+/* PS2SendCommand
+ * Writes the given command to the ps2-controller */
+void PS2SendCommand(uint8_t Command)
+{
+	/* Wait for flag to clear, then write data */
+	PS2Wait(PS2_STATUS_INPUT_FULL);
+	WriteIoSpace(&GlbController->CommandSpace, 
+		PS2_REGISTER_COMMAND, Command, 1);
+}
 
 /* OnInterrupt
  * Is called when one of the registered devices
@@ -43,13 +100,6 @@ static Pit_t *GlbPit = NULL;
  * won't be acknowledged */
 InterruptStatus_t OnInterrupt(void *InterruptData)
 {
-	/* Cast to the pit structure */
-	Pit_t *Pit = (Pit_t*)InterruptData;
-
-	/* Update stats */
-	Pit->NsCounter += Pit->NsTick;
-	Pit->Ticks++;
-
 	/* No further processing is needed */
 	return InterruptHandled;
 }
@@ -59,67 +109,41 @@ InterruptStatus_t OnInterrupt(void *InterruptData)
  * as soon as the driver is loaded in the system */
 OsStatus_t OnLoad(void)
 {
-	/* Variables */
-	size_t Divisor = 1193181;
-
 	/* Allocate a new instance of the pit-data */
-	GlbPit = (Pit_t*)malloc(sizeof(Pit_t));
-	memset(GlbPit, 0, sizeof(Pit_t));
+	GlbController = (PS2Controller_t*)malloc(sizeof(PS2Controller_t));
+	memset(GlbController, 0, sizeof(PS2Controller_t));
 
-	/* Create the io-space, again we have to create
+	/* Create the io-spaces, again we have to create
 	 * the io-space ourselves */
-	GlbPit->IoSpace.Type = IO_SPACE_IO;
-	GlbPit->IoSpace.PhysicalBase = PIT_IO_BASE;
-	GlbPit->IoSpace.Size = PIT_IO_LENGTH;
+	GlbController->DataSpace.Type = IO_SPACE_IO;
+	GlbController->DataSpace.PhysicalBase = PS2_IO_DATA_BASE;
+	GlbController->DataSpace.Size = PS2_IO_LENGTH;
 
-	/* Initialize the interrupt request */
-	GlbPit->Interrupt.Line = PIT_IRQ;
-	GlbPit->Interrupt.Pin = INTERRUPT_NONE;
-	GlbPit->Interrupt.Direct[0] = INTERRUPT_NONE;
-	GlbPit->Interrupt.FastHandler = OnInterrupt;
-	GlbPit->Interrupt.Data = GlbPit;
+	GlbController->CommandSpace.Type = IO_SPACE_IO;
+	GlbController->CommandSpace.PhysicalBase = PS2_IO_STATUS_BASE;
+	GlbController->CommandSpace.Size = PS2_IO_LENGTH;
 
-	/* Update */
-	GlbPit->NsTick = 1000;
-
-	/* Create the io-space in system */
-	if (CreateIoSpace(&GlbPit->IoSpace) != OsNoError) {
+	/* Create both the io-spaces in system */
+	if (CreateIoSpace(&GlbController->DataSpace) != OsNoError
+		|| CreateIoSpace(&GlbController->CommandSpace) != OsNoError) {
 		return OsError;
 	}
 
 	/* No problem, last thing is to acquire the
-	 * io-space, and just return that as result */
-	if (AcquireIoSpace(&GlbPit->IoSpace) != OsNoError) {
+	 * io-spaces, and just return that as result */
+	if (AcquireIoSpace(&GlbController->DataSpace) != OsNoError
+		|| AcquireIoSpace(&GlbController->CommandSpace) != OsNoError) {
 		return OsError;
 	}
 
-	/* Initialize the cmos-contract */
-	InitializeContract(&GlbPit->Timer, UUID_INVALID, 1,
-		ContractTimer, "PIT Timer Interface");
+	/* Initialize the ps2-contract */
+	InitializeContract(&GlbController->Controller, UUID_INVALID, 1,
+		ContractTimer, "PS2 Controller Interface");
 
-	/* Install interrupt in system
-	 * Install a fast interrupt handler */
-	GlbPit->Irq = RegisterInterruptSource(&GlbPit->Interrupt,
-		INTERRUPT_NOTSHARABLE | INTERRUPT_FAST);
-
-	/* Register our irq as a system timer */
-	if (GlbPit->Irq != UUID_INVALID) {
-		RegisterSystemTimer(GlbPit->Irq, GlbPit->NsTick);
-	}
-
-	/* We want a frequncy of 1000 hz */
-	Divisor /= 1000;
-
-	/* We use counter 0, select counter 0 and configure it */
-	WriteIoSpace(&GlbPit->IoSpace, PIT_REGISTER_COMMAND,
-		PIT_COMMAND_MODE3 | PIT_COMMAND_FULL |
-		PIT_COMMAND_COUNTER_0, 1);
-
-	/* Write divisor to the PIT chip */
-	WriteIoSpace(&GlbPit->IoSpace, PIT_REGISTER_COUNTER0,
-		(uint8_t)(Divisor & 0xFF), 1);
-	WriteIoSpace(&GlbPit->IoSpace, PIT_REGISTER_COUNTER0,
-		(uint8_t)((Divisor >> 8) & 0xFF), 1);
+	/* We register the ps2-controller contract
+	 * immediately since we need to support the
+	 * OnRegister/OnUnregister events */
+	RegisterContract(&GlbController->Controller);
 
 	/* Anddddd we are done */
 	return OsNoError;

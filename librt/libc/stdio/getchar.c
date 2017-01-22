@@ -20,8 +20,8 @@
 */
 
 /* Includes */
+#include <os/driver/input.h>
 #include <os/ipc/ipc.h>
-#include <os/ipc/input.h>
 #include <stdio.h>
 #include <errno.h>
 #include <string.h>

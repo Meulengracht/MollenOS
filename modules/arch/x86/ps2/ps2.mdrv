@@ -1,6 +1,6 @@
 #Driver Information
 VendorId = 0000FFEF
-DeviceId = 00000020
+DeviceId = 00000030
 Class = 00000000
 SubClass = 00000000
 Flags = 00000001

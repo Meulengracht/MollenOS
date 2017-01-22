@@ -16,12 +16,12 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS X86 PIT (Timer) Driver
- * http://wiki.osdev.org/PIT
+ * MollenOS X86 PS2 Controller (Controller) Driver
+ * http://wiki.osdev.org/PS2
  */
 
-#ifndef __DRIVER_PIT_H__
-#define __DRIVER_PIT_H___
+#ifndef _DRIVER_PS2_CONTROLLER_H_
+#define _DRIVER_PS2_CONTROLLER_H_
 
 /* Includes 
  * - System */
@@ -29,55 +29,69 @@
 #include <os/driver/io.h>
 #include <os/driver/interrupt.h>
 
-/* Io-space for accessing the PIT
- * Spans over 4 bytes from 0x40-0x44 */
-#define PIT_IO_BASE					0x40
-#define PIT_IO_LENGTH				0x04
-#define	PIT_REGISTER_COUNTER0		0x00
-#define PIT_REGISTER_COMMAND		0x03
+/* Io-space for accessing the PS2
+ * Spans over 2 bytes from 0x60 & 0x64 */
+#define PS2_IO_DATA_BASE			0x60
+#define PS2_IO_STATUS_BASE			0x64
+#define PS2_IO_LENGTH				0x01
 
-/* Bit definitions for the command register 
- * Bits	  0: BCD/Binary mode: 0 = 16-bit binary, 1 = four-digit BCD 
- * Bits 1-3: Operating Mode 
- * Bits 4-5: Access mode 
- * Bits 6-7: Channel */
-#define PIT_COMMAND_BCD				0x1
+#define PS2_REGISTER_DATA			0x00
+#define PS2_REGISTER_STATUS			0x00
+#define PS2_REGISTER_COMMAND		0x00
 
-#define PIT_COMMAND_MODE0			0x0		/* Interrupt on terminal count */
-#define PIT_COMMNAD_MODE1			0x2		/* hardware re-triggerable one-shot */
-#define PIT_COMMAND_MODE2			0x4		/* rate generator */
-#define PIT_COMMAND_MODE3			0x6		/* square wave generator */
-#define PIT_COMMNAD_MODE4			0x8		/* software triggered strobe */
-#define PIT_COMMAND_MODE5			0xA		/* hardware triggered strobe */
-#define PIT_COMMAND_MODE6			0xC		/* rate generator, same as 010b */
-#define PIT_COMMAND_MODE7			0xF		/* square wave generator, same as 011b */
+/* Some standard definitons for the PS2 controller 
+ * like port count etc */
+#define PS2_MAXPORTS				2
 
-#define PIT_COMMAND_LATCHCOUNT		0x0		/* Latch count value command */
-#define PIT_COMMAND_LOWBYTE			0x10	/* Access mode: lobyte only */
-#define PIT_COMMAND_HIGHBYTE		0x20	/* Access mode: hibyte only */
-#define	PIT_COMMAND_FULL			0x30	/* Access mode: lobyte/hibyte */
+/* Status Stuff */
+#define PS2_STATUS_OUTPUT_FULL	0x1
+#define PS2_STATUS_INPUT_FULL	0x2
 
-#define	PIT_COMMAND_COUNTER_0		0
-#define	PIT_COMMAND_COUNTER_1		0x40
-#define	PIT_COMMAND_COUNTER_2		0x80
+/* Command Stuff */
+#define PS2_CMD_GET_CONFIG		0x20
+#define PS2_CMD_SET_CONFIG		0x60
 
-/* The IRQ line the PIT uses, it's 
+#define PS2_CMD_SET_SCANCODE	0xF0
+
+#define PS2_CMD_DISABLE_PORT1	0xAD
+#define PS2_CMD_ENABLE_PORT1	0xAE
+#define PS2_CMD_IF_TEST_PORT1	0xAB
+
+#define PS2_CMD_DISABLE_PORT2	0xA7
+#define PS2_CMD_ENABLE_PORT2	0xA8
+#define PS2_CMD_IF_TEST_PORT2	0xA9
+
+#define PS2_CMD_IF_TEST_OK		0x00
+
+#define PS2_CMD_SELFTEST		0xAA
+#define PS2_CMD_SELFTEST_OK		0x55
+
+#define PS2_CMD_SELECT_PORT2	0xD4
+#define PS2_CMD_RESET_DEVICE	0xFF
+
+/* The IRQ lines the PS2 Controller uses, it's 
  * an ISA line so it's fixed */
-#define PIT_IRQ						0x0
+#define PS2_PORT1_IRQ				0x01
+#define PS2_PORT2_IRQ				0x0C
 
-/* The PIT driver structure
+/* The PS2 Controller Port driver structure
+ * contains information about port status and
+ * the current device */
+typedef struct _PS2Port {
+	MCoreDevice_t			Device;
+	MCoreInterrupt_t		Interrupt;
+	int						Enabled;
+	int						Connected;
+} PS2Port_t;
+
+/* The PS2 Controller driver structure
  * contains all driver information and chip
  * current status information */
-#pragma pack(push, 1)
-typedef struct _Pit {
-	MContract_t			Timer;
-	MCoreInterrupt_t	Interrupt;
-	DeviceIoSpace_t		IoSpace;
-	UUId_t				Irq;
-	size_t				NsTick;
-	size_t				NsCounter;
-	clock_t				Ticks;
-} Pit_t;
-#pragma pack(pop)
+typedef struct _PS2Controller {
+	MContract_t			Controller;
+	DeviceIoSpace_t		DataSpace;
+	DeviceIoSpace_t		CommandSpace;
+	PS2Port_t			Ports[PS2_MAXPORTS];
+} PS2Controller_t;
 
-#endif //!__DRIVER_PIT_H___
+#endif //!_DRIVER_PS2_CONTROLLER_H_

@@ -8,18 +8,12 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="main.c" />
-    <ClCompile Include="rtc.c" />
   </ItemGroup>
   <ItemGroup>
-    <None Include="cmos.mdrv">
-      <DeploymentContent Condition="'$(Configuration)|$(Platform)'=='Build_X86_32|Win32'">true</DeploymentContent>
-    </None>
-  </ItemGroup>
-  <ItemGroup>
-    <ClInclude Include="cmos.h" />
+    <None Include="ps2.mdrv" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
-    <ProjectGuid>{ACE6EF80-5884-43A7-B99B-94F153205E3A}</ProjectGuid>
+    <ProjectGuid>{73F0C938-D14E-48FB-90CC-9F9E189B5E28}</ProjectGuid>
     <Keyword>Win32Proj</Keyword>
     <RootNamespace>modules</RootNamespace>
   </PropertyGroup>
