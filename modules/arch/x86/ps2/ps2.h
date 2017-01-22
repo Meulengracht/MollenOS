@@ -25,6 +25,7 @@
 
 /* Includes 
  * - System */
+#include <os/driver/contracts/base.h>
 #include <os/osdefs.h>
 #include <os/driver/io.h>
 #include <os/driver/interrupt.h>
@@ -43,31 +44,41 @@
  * like port count etc */
 #define PS2_MAXPORTS				2
 
-/* Status Stuff */
-#define PS2_STATUS_OUTPUT_FULL	0x1
-#define PS2_STATUS_INPUT_FULL	0x2
+/* Status definitons from reading the status
+ * register in the PS2-Controller */
+#define PS2_STATUS_OUTPUT_FULL		0x1
+#define PS2_STATUS_INPUT_FULL		0x2
 
 /* Command Stuff */
-#define PS2_CMD_GET_CONFIG		0x20
-#define PS2_CMD_SET_CONFIG		0x60
+#define PS2_GET_CONFIGURATION		0x20
+#define PS2_SET_CONFIGURATION		0x60
+#define PS2_INTERFACETEST_PORT1		0xAB
+#define PS2_INTERFACETEST_PORT2		0xA9
+#define PS2_SELFTEST				0xAA
+#define PS2_SELECT_PORT2			0xD4
+#define PS2_RESET_PORT				0xFF
+#define PS2_DISABLE_SCANNING		0xF5
+#define PS2_IDENTIFY_PORT			0xF2
 
-#define PS2_CMD_SET_SCANCODE	0xF0
+#define PS2_SELFTEST_OK				0x55
+#define PS2_INTERFACETEST_OK		0x00
 
-#define PS2_CMD_DISABLE_PORT1	0xAD
-#define PS2_CMD_ENABLE_PORT1	0xAE
-#define PS2_CMD_IF_TEST_PORT1	0xAB
+#define PS2_DISABLE_PORT1			0xAD
+#define PS2_ENABLE_PORT1			0xAE
 
-#define PS2_CMD_DISABLE_PORT2	0xA7
-#define PS2_CMD_ENABLE_PORT2	0xA8
-#define PS2_CMD_IF_TEST_PORT2	0xA9
+#define PS2_DISABLE_PORT2			0xA7
+#define PS2_ENABLE_PORT2			0xA8
 
-#define PS2_CMD_IF_TEST_OK		0x00
+/* Configuration definitions used by the above
+ * commands to read/write the configuration of the PS 2 */
+#define PS2_CONFIG_PORT1_IRQ		0x01
+#define PS2_CONFIG_PORT2_IRQ		0x02
+#define PS2_CONFIG_POST				0x04
+#define PS2_CONFIG_PORT1_DISABLED	0x10
+#define PS2_CONFIG_PORT2_DISABLED	0x20
+#define PS2_CONFIG_TRANSLATION		0x40		/* First PS/2 port translation (1 = enabled, 0 = disabled) */
 
-#define PS2_CMD_SELFTEST		0xAA
-#define PS2_CMD_SELFTEST_OK		0x55
-
-#define PS2_CMD_SELECT_PORT2	0xD4
-#define PS2_CMD_RESET_DEVICE	0xFF
+#define PS2_CMD_SET_SCANCODE		0xF0
 
 /* The IRQ lines the PS2 Controller uses, it's 
  * an ISA line so it's fixed */
@@ -93,5 +104,22 @@ typedef struct _PS2Controller {
 	DeviceIoSpace_t		CommandSpace;
 	PS2Port_t			Ports[PS2_MAXPORTS];
 } PS2Controller_t;
+
+/* PS2InitializePort
+ * Initializes the given port and tries 
+ * to identify the device on the port */
+__CRT_EXTERN OsStatus_t PS2InitializePort(int Index, PS2Port_t *Port);
+
+/* PS2ReadData
+ * Reads a byte from the PS2 controller data port */
+__CRT_EXTERN uint8_t PS2ReadData(int Dummy);
+
+/* PS2WriteData
+ * Writes a data byte to the PS2 controller data port */
+__CRT_EXTERN OsStatus_t PS2WriteData(uint8_t Value);
+
+/* PS2SendCommand
+ * Writes the given command to the ps2-controller */
+__CRT_EXTERN void PS2SendCommand(uint8_t Command);
 
 #endif //!_DRIVER_PS2_CONTROLLER_H_

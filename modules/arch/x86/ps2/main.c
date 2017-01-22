@@ -47,13 +47,20 @@ uint8_t PS2ReadStatus(void)
 /* PS2Wait
  * Waits for the given flag to clear by doing a
  * number of iterations giving a fake-delay */
-OsStatus_t PS2Wait(uint8_t Flags)
+OsStatus_t PS2Wait(uint8_t Flags, int Negate)
 {
 	/* Wait for flag to clear */
 	for (int i = 0; i < 1000; i++) {
-		if (!(PS2ReadStatus() & Flags)) {
-			return OsNoError;
+		if (Negate == 1) {
+			if (PS2ReadStatus() & Flags) {
+				return OsNoError;
+			}
 		}
+		else {
+			if (!(PS2ReadStatus() & Flags)) {
+				return OsNoError;
+			}
+		}	
 	}
 
 	/* Damn.. */
@@ -70,7 +77,7 @@ uint8_t PS2ReadData(int Dummy)
 	/* Only wait for input to be full in case
 	 * we don't do dummy reads */
 	if (Dummy == 0) {
-		if (PS2Wait(PS2_STATUS_OUTPUT_FULL) == OsError) {
+		if (PS2Wait(PS2_STATUS_OUTPUT_FULL, 1) == OsError) {
 			return 0xFF;
 		}
 	}
@@ -83,14 +90,116 @@ uint8_t PS2ReadData(int Dummy)
 	return Response;
 }
 
+/* PS2WriteData
+ * Writes a data byte to the PS2 controller data port */
+OsStatus_t PS2WriteData(uint8_t Value)
+{
+	/* Sanitize buffer status */
+	if (PS2Wait(PS2_STATUS_INPUT_FULL, 0) != OsNoError) {
+		return OsError;
+	}
+
+	/* Write */
+	WriteIoSpace(&GlbController->DataSpace, PS2_REGISTER_DATA, Value, 1);
+
+	/* Done */
+	return OsNoError;
+}
+
 /* PS2SendCommand
  * Writes the given command to the ps2-controller */
 void PS2SendCommand(uint8_t Command)
 {
 	/* Wait for flag to clear, then write data */
-	PS2Wait(PS2_STATUS_INPUT_FULL);
+	PS2Wait(PS2_STATUS_INPUT_FULL, 0);
 	WriteIoSpace(&GlbController->CommandSpace, 
 		PS2_REGISTER_COMMAND, Command, 1);
+}
+
+/* PS2SelfTest
+ * Does 5 tries to perform a self-test of the
+ * ps2 controller */
+OsStatus_t PS2SelfTest(void)
+{
+	/* Variables */
+	uint8_t Temp = 0;
+	int i = 0;
+
+	/* Iterate through 5 tries */
+	for (; i < 5; i++) {
+		PS2SendCommand(PS2_SELFTEST);
+		Temp = PS2ReadData(0);
+		if (Temp == PS2_SELFTEST_OK)
+			break;
+	}
+
+	/* Yay ! */
+	return (i == 5) ? OsError : OsNoError;
+}
+
+/* PS2Initialize 
+ * Initializes the controller and initializes
+ * the attached ports */
+OsStatus_t PS2Initialize(void)
+{
+	/* Variables for initializing */
+	OsStatus_t Status = 0;
+	uint8_t Temp = 0;
+	int i;
+
+	/* Dummy reads, empty it's buffer */
+	PS2ReadData(1);
+	PS2ReadData(1);
+
+	/* Disable Devices */
+	PS2SendCommand(PS2_DISABLE_PORT1);
+	PS2SendCommand(PS2_DISABLE_PORT2);
+
+	/* Make sure it's empty, now devices cant fill it */
+	PS2ReadData(1);
+
+	/* Get Controller Configuration */
+	PS2SendCommand(PS2_GET_CONFIGURATION);
+	Temp = PS2ReadData(0);
+
+	/* Discover port status 
+	 * both ports should be disabled */
+	GlbController->Ports[0].Enabled = 1;
+	if (!(Temp & PS2_CONFIG_PORT2_DISABLED)) {
+		GlbController->Ports[1].Enabled = 0;
+	}
+	else {
+		/* This simply means we should test channel 2 */
+		GlbController->Ports[1].Enabled = 1;
+	}
+
+	/* Clear all irqs and translations */
+	Temp &= ~(PS2_CONFIG_PORT1_IRQ | PS2_CONFIG_PORT2_IRQ
+		| PS2_CONFIG_TRANSLATION);
+
+	/* Write back the configuration */
+	PS2SendCommand(PS2_SET_CONFIGURATION);
+	Status = PS2WriteData(Temp);
+
+	/* Perform Self Test */
+	if (Status != OsNoError 
+		|| PS2SelfTest() != OsNoError) {
+		//LogFatal("PS2C", "Ps2 Controller failed to initialize, giving up");
+		return OsError;
+	}
+
+	/* Initialize the ports */
+	for (i = 0; i < PS2_MAXPORTS; i++) {
+		if (GlbController->Ports[i].Enabled == 1) {
+			Status = PS2InitializePort(i, &GlbController->Ports[i]);
+			if (Status != OsNoError) {
+				//LogFatal("PS2C", "Ps2 Controller failed to initialize port %i", i);
+			}
+		}
+	}
+
+	/* Done! */
+	return OsNoError;
 }
 
 /* OnInterrupt
@@ -101,6 +210,7 @@ void PS2SendCommand(uint8_t Command)
 InterruptStatus_t OnInterrupt(void *InterruptData)
 {
 	/* No further processing is needed */
+	_CRT_UNUSED(InterruptData);
 	return InterruptHandled;
 }
 
@@ -145,8 +255,8 @@ OsStatus_t OnLoad(void)
 	 * OnRegister/OnUnregister events */
 	RegisterContract(&GlbController->Controller);
 
-	/* Anddddd we are done */
-	return OsNoError;
+	/* Now initialize the controller */
+	return PS2Initialize();
 }
 
 /* OnUnload
@@ -154,14 +264,19 @@ OsStatus_t OnLoad(void)
  * and should free all resources allocated by the system */
 OsStatus_t OnUnload(void)
 {
-	/* Destroy the io-space we created */
-	if (GlbPit->IoSpace.Id != 0) {
-		ReleaseIoSpace(&GlbPit->IoSpace);
-		DestroyIoSpace(GlbPit->IoSpace.Id);
+	/* Destroy the io-spaces we created */
+	if (GlbController->CommandSpace.Id != 0) {
+		ReleaseIoSpace(&GlbController->CommandSpace);
+		DestroyIoSpace(GlbController->CommandSpace.Id);
+	}
+
+	if (GlbController->DataSpace.Id != 0) {
+		ReleaseIoSpace(&GlbController->DataSpace);
+		DestroyIoSpace(GlbController->DataSpace.Id);
 	}
 
 	/* Free up allocated resources */
-	free(GlbPit);
+	free(GlbController);
 
 	/* Wuhuu */
 	return OsNoError;
@@ -172,16 +287,8 @@ OsStatus_t OnUnload(void)
  * instance of this driver for the given device */
 OsStatus_t OnRegister(MCoreDevice_t *Device)
 {
-	/* Update contracts to bind to id 
-	 * The CMOS/RTC is a fixed device
-	 * and thus we don't support multiple instances */
-	if (GlbPit->Timer.DeviceId == UUID_INVALID) {
-		GlbPit->Timer.DeviceId = Device->Id;
-	}
-
-	/* Now register the clock contract */
-	RegisterContract(&GlbPit->Timer);
-
+	_CRT_UNUSED(Device);
+	
 	/* Done, no more to do here */
 	return OsNoError;
 }
@@ -203,11 +310,9 @@ OsStatus_t OnUnregister(MCoreDevice_t *Device)
  * function that is defined in the contract */
 OsStatus_t OnQuery(MContractType_t QueryType, UUId_t QueryTarget, int Port)
 {
-	/* Which kind of query type is being done? */
-	if (QueryType == ContractTimer) {
-		PipeSend(QueryTarget, Port, &GlbPit->Ticks, sizeof(clock_t));
-	}
-
+	_CRT_UNUSED(QueryType);
+	_CRT_UNUSED(QueryTarget);
+	_CRT_UNUSED(Port);
 	/* Done! */
 	return OsNoError;
 }

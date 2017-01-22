@@ -8,6 +8,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="main.c" />
+    <ClCompile Include="port.c" />
   </ItemGroup>
   <ItemGroup>
     <None Include="ps2.mdrv" />
