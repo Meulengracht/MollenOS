@@ -58,6 +58,10 @@
 #define __DEVICEMANAGER_ACPICONFORM_SHAREABLE	0x8
 #define __DEVICEMANAGER_ACPICONFORM_FIXED		0x10
 
+/* MCoreDevice Register Flags
+ * Flags related to registering of new devices */
+#define __DEVICEMANAGER_REGISTER_STATIC			0x1
+
 /* These are the different IPC functions supported
  * by the devicemanager, note that some of them might
  * be changed in the different versions, and/or new
@@ -125,9 +129,9 @@ typedef struct _MCoreDevice
  * device-manager, and automatically queries
  * for a driver for the new device */
 #ifdef __DEVICEMANAGER_IMPL
-__DEVAPI UUId_t RegisterDevice(MCoreDevice_t *Device, const char *Name);
+__DEVAPI UUId_t RegisterDevice(MCoreDevice_t *Device, const char *Name, Flags_t Flags);
 #else
-__DEVAPI UUId_t RegisterDevice(MCoreDevice_t *Device)
+__DEVAPI UUId_t RegisterDevice(MCoreDevice_t *Device, Flags_t Flags)
 {
 	/* Variables */
 	MRemoteCall_t Request;
@@ -135,6 +139,7 @@ __DEVAPI UUId_t RegisterDevice(MCoreDevice_t *Device)
 	RPCInitialize(&Request, __DEVICEMANAGER_INTERFACE_VERSION, 
 		PIPE_DEFAULT, __DEVICEMANAGER_REGISTERDEVICE);
 	RPCSetArgument(&Request, 0, (const void*)Device, sizeof(MCoreDevice_t));
+	RPCSetArgument(&Request, 1, (const void*)&Flags, sizeof(Flags_t));
 	RPCSetResult(&Request, (const void*)&Result, sizeof(UUId_t));
 	RPCEvaluate(&Request, __DEVICEMANAGER_TARGET);
 	return Result;

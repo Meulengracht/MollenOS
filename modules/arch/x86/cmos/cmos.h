@@ -67,6 +67,9 @@
 /* RTC Irq */
 #define CMOS_RTC_IRQ			0x08
 
+/* The CMOS driver structure
+ * Contains information about the driver, the
+ * current chip status, the current RTC status etc */
 #pragma pack(push, 1)
 typedef struct _Cmos {
 	MContract_t			Clock;

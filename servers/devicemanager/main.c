@@ -97,7 +97,8 @@ OsStatus_t OnEvent(MRemoteCall_t *Message)
 			/* Evaluate request, but don't free
 			* the allocated device storage, we need it */
 			Message->Arguments[0].Type = ARGUMENT_NOTUSED;
-			Result = RegisterDevice((MCoreDevice_t*)Message->Arguments[0].Data.Buffer, NULL);
+			Result = RegisterDevice((MCoreDevice_t*)Message->Arguments[0].Data.Buffer, NULL,
+				(Flags_t)Message->Arguments[0].Data.Value);
 
 			/* Write the result back to the caller */
 			PipeSend(Message->Sender, Message->ResponsePort,
@@ -181,7 +182,7 @@ OsStatus_t OnEvent(MRemoteCall_t *Message)
  * Allows registering of a new device in the
  * device-manager, and automatically queries
  * for a driver for the new device */
-UUId_t RegisterDevice(MCoreDevice_t *Device, const char *Name)
+UUId_t RegisterDevice(MCoreDevice_t *Device, const char *Name, Flags_t Flags)
 {
 	/* Variables */
 	UUId_t DeviceId = GlbDeviceIdGen++;
@@ -200,9 +201,11 @@ UUId_t RegisterDevice(MCoreDevice_t *Device, const char *Name)
 
 	/* Now, we want to try to find a driver
 	 * for the new device */
-	if (InstallDriver(Device) == OsError) {
+	if (!(Flags & __DEVICEMANAGER_REGISTER_STATIC)) {
+		if (InstallDriver(Device) == OsError) {
+		}
 	}
-
+	
 	/* Done with processing of the new device */
 	return DeviceId;
 }

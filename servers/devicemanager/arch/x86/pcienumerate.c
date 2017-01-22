@@ -426,7 +426,7 @@ void PciCreateDeviceFromPci(PciDevice_t *PciDev)
 
 	/* Register */
 	RegisterDevice(mDevice, PciToString(PciDev->Header->Class, 
-		PciDev->Header->Subclass, PciDev->Header->Interface));
+		PciDev->Header->Subclass, PciDev->Header->Interface), 0);
 }
 
 /* PciInstallDriverCallback
@@ -471,7 +471,7 @@ void BusInstallFixed(DevInfo_t DeviceId, const char *Name)
 	Device->AcpiConform = 0;
 
 	/* Install driver */
-	RegisterDevice(Device, Name);
+	RegisterDevice(Device, Name, 0);
 }
 
 /* BusEnumerate
