@@ -7,6 +7,8 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="devices\keyboard.c" />
+    <ClCompile Include="devices\mouse.c" />
     <ClCompile Include="main.c" />
     <ClCompile Include="port.c" />
   </ItemGroup>

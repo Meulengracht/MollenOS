@@ -31,7 +31,8 @@
 #include <string.h>
 #include <stdlib.h>
 
-/* Perform Interface Tests */
+/* PS2InterfaceTest
+ * Performs an interface test on the given port*/
 OsStatus_t PS2InterfaceTest(int Port)
 {
 	/* Variables */
@@ -142,6 +143,41 @@ GetResponse:
 	return (Response << 8) | ResponseExtra;
 }
 
+/* PS2RegisterDevice
+ * Shortcut function for registering a new device */
+OsStatus_t PS2RegisterDevice(int Index, PS2Port_t *Port) 
+{
+	/* Keep some static storage */
+	MCoreDevice_t Device;
+
+	/* Initialize the device structure */
+	Device.VendorId = 0xFFEF;
+	Device.DeviceId = 0x0030;
+
+	/* Invalidate generics */
+	Device.Class = 0xFF0F;
+	Device.Subclass = 0xFF0F;
+
+	/* Initialize the irq */
+	Device.IrqPin = INTERRUPT_NONE;
+	Device.IrqAvailable[0] = INTERRUPT_NONE;
+	Device.AcpiConform = 0;
+
+	/* Depends on port index */
+	if (Index == 0) {
+		Device.IrqLine = PS2_PORT1_IRQ;
+	}
+	else {
+		Device.IrqLine = PS2_PORT2_IRQ;
+	}
+
+	/* Register device */
+	Port->Contract.DeviceId = RegisterDevice(&Device, 0);
+
+	/* Yay */
+	return OsNoError;
+}
+
 /* PS2InitializePort
  * Initializes the given port and tries
  * to identify the device on the port */
@@ -153,6 +189,7 @@ OsStatus_t PS2InitializePort(int Index, PS2Port_t *Port)
 	/* Start out by doing an interface
 	 * test on the given port */
 	if (PS2InterfaceTest(Index) != OsNoError) {
+		MollenOSSystemLog("PS2-Port (%i): Failed interface test", Index);
 		return OsError;
 	}
 
@@ -179,19 +216,24 @@ OsStatus_t PS2InitializePort(int Index, PS2Port_t *Port)
 	/* Write back the configuration */
 	PS2SendCommand(PS2_SET_CONFIGURATION);
 	if (PS2WriteData(Temp) != OsNoError) {
+		MollenOSSystemLog("PS2-Port (%i): Failed to update configuration", Index);
 		return OsError; /* Failed to update configuration */
 	}
 
 	/* Try to reset the port */
 	if (PS2ResetPort(Index) != OsNoError) {
+		MollenOSSystemLog("PS2-Port (%i): Failed port reset", Index);
 		return OsError;	/* Failed to reset */
 	}
 
 	/* Identify the device on the port */
-	MollenOSSystemLog("PS2-Port: Identified device 0x%x on port %i",
-		PS2IdentifyPort(Index), Index);
-	_CRT_UNUSED(Port);
+	Port->Signature = PS2IdentifyPort(Index);
+	
+	/* If valid -> Connected */
+	if (Port->Signature != 0xFFFFFFFF) {
+		Port->Connected = 1;
+	}
 
 	/* Done! */
-	return OsNoError;
+	return PS2RegisterDevice(Index, Port);
 }

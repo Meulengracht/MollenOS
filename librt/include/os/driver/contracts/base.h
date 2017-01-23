@@ -44,7 +44,8 @@ typedef enum _MContractType {
 	ContractUnknown,
 	ContractController,
 	ContractClock,
-	ContractTimer
+	ContractTimer,
+	ContractInput
 } MContractType_t;
 
 /* The available contract status's that

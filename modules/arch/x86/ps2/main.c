@@ -250,11 +250,6 @@ OsStatus_t OnLoad(void)
 	InitializeContract(&GlbController->Controller, UUID_INVALID, 1,
 		ContractTimer, "PS2 Controller Interface");
 
-	/* We register the ps2-controller contract
-	 * immediately since we need to support the
-	 * OnRegister/OnUnregister events */
-	RegisterContract(&GlbController->Controller);
-
 	/* Now initialize the controller */
 	return PS2Initialize();
 }
@@ -287,10 +282,47 @@ OsStatus_t OnUnload(void)
  * instance of this driver for the given device */
 OsStatus_t OnRegister(MCoreDevice_t *Device)
 {
-	_CRT_UNUSED(Device);
-	
-	/* Done, no more to do here */
-	return OsNoError;
+	/* Variables */
+	PS2Port_t *Port = NULL;
+	int Index = 0;
+
+	/* First register call is the ps2-controller
+	 * all sequent calls here is ps2-devices 
+	 * So install the contract as soon as it arrives */
+	if (GlbController->Controller.DeviceId == UUID_INVALID) {
+		GlbController->Controller.DeviceId = Device->Id;
+		return RegisterContract(&GlbController->Controller);
+	}
+
+	/* Select the port */
+	if (GlbController->Ports[0].Contract.DeviceId == Device->Id) {
+		Port = &GlbController->Ports[0];
+		Index = 0;
+	}
+	else if (GlbController->Ports[1].Contract.DeviceId == Device->Id) {
+		Port = &GlbController->Ports[1];
+		Index = 1;
+	}
+	else {
+		return OsError;
+	}
+
+	/* Ok .. It's a new device 
+	 * - What kind of device? */
+	if (Port->Signature == 0xAB41
+		|| Port->Signature == 0xABC1) {
+		/* MF2 Keyboard with translation enabled */
+	}
+	else if (Port->Signature == 0xAB00
+		|| Port->Signature == 0x8300) {
+		/* MF2 Keyboard */
+	}
+	else if (Port->Signature != 0xFFFFFFFF) {
+		return PS2MouseInitialize(Index, Port);
+	}
+	else {
+		return OsError;
+	}
 }
 
 /* OnUnregister

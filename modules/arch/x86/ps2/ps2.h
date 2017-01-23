@@ -57,6 +57,7 @@
 #define PS2_SELFTEST				0xAA
 #define PS2_SELECT_PORT2			0xD4
 #define PS2_RESET_PORT				0xFF
+#define PS2_ENABLE_SCANNING			0xF4
 #define PS2_DISABLE_SCANNING		0xF5
 #define PS2_IDENTIFY_PORT			0xF2
 
@@ -89,20 +90,21 @@
  * contains information about port status and
  * the current device */
 typedef struct _PS2Port {
-	MCoreDevice_t			Device;
+	MContract_t				Contract;
 	MCoreInterrupt_t		Interrupt;
 	int						Enabled;
 	int						Connected;
+	DevInfo_t				Signature;
 } PS2Port_t;
 
 /* The PS2 Controller driver structure
  * contains all driver information and chip
  * current status information */
 typedef struct _PS2Controller {
-	MContract_t			Controller;
-	DeviceIoSpace_t		DataSpace;
-	DeviceIoSpace_t		CommandSpace;
-	PS2Port_t			Ports[PS2_MAXPORTS];
+	MContract_t				Controller;
+	DeviceIoSpace_t			DataSpace;
+	DeviceIoSpace_t			CommandSpace;
+	PS2Port_t				Ports[PS2_MAXPORTS];
 } PS2Controller_t;
 
 /* PS2InitializePort
@@ -121,5 +123,15 @@ __CRT_EXTERN OsStatus_t PS2WriteData(uint8_t Value);
 /* PS2SendCommand
  * Writes the given command to the ps2-controller */
 __CRT_EXTERN void PS2SendCommand(uint8_t Command);
+
+/* PS2MouseInitialize 
+ * Initializes an instance of an ps2-mouse on
+ * the given PS2-Controller port */
+__CRT_EXTERN OsStatus_t PS2MouseInitialize(int Index, PS2Port_t *Port);
+
+/* PS2MouseCleanup 
+ * Cleans up the ps2-mouse instance on the
+ * given PS2-Controller port */
+__CRT_EXTERN OsStatus_t PS2MouseCleanup(int Index, PS2Port_t *Port);
 
 #endif //!_DRIVER_PS2_CONTROLLER_H_
