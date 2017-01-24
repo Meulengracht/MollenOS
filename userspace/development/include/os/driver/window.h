@@ -50,6 +50,7 @@
 #define __WINDOWMANAGER_DESTROY				IPC_DECL_FUNCTION(1)
 #define __WINDOWMANAGER_INVALIDATE			IPC_DECL_FUNCTION(2)
 #define __WINDOWMANAGER_QUERY				IPC_DECL_FUNCTION(3)
+#define __WINDOWMANAGER_NEWINPUT			IPC_DECL_FUNCTION(4)
 
 /* Structure to represent a surface in a 
  * window, it consists of a pixel-buffer

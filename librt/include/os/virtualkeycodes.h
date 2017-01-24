@@ -26,6 +26,7 @@
 typedef enum _VKey
 {
 	/* Mouse Codes */
+	VK_INVALID			= 0x00,
 	VK_LBUTTON			= 0x01,
 	VK_RBUTTON			= 0x02,
 	VK_MBUTTON			= 0x04,

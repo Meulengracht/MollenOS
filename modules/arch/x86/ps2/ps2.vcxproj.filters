@@ -9,6 +9,9 @@
     <ClCompile Include="devices\mouse.c">
       <Filter>devices</Filter>
     </ClCompile>
+    <ClCompile Include="devices\scancodes\scancodes2.c">
+      <Filter>scancodes</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <None Include="ps2.mdrv" />
@@ -16,6 +19,9 @@
   <ItemGroup>
     <Filter Include="devices">
       <UniqueIdentifier>{c3d152c1-005c-45fc-a9d8-45b901ba7dee}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="scancodes">
+      <UniqueIdentifier>{034c3fe4-939c-4d50-b725-f25d25ea82d0}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
 </Project>

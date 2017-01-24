@@ -134,4 +134,14 @@ __CRT_EXTERN OsStatus_t PS2MouseInitialize(int Index, PS2Port_t *Port);
  * given PS2-Controller port */
 __CRT_EXTERN OsStatus_t PS2MouseCleanup(int Index, PS2Port_t *Port);
 
+/* PS2KeyboardInitialize 
+ * Initializes an instance of an ps2-keyboard on
+ * the given PS2-Controller port */
+__CRT_EXTERN OsStatus_t PS2KeyboardInitialize(int Index, PS2Port_t *Port, int Translation);
+
+/* PS2KeyboardCleanup 
+ * Cleans up the ps2-keyboard instance on the
+ * given PS2-Controller port */
+__CRT_EXTERN OsStatus_t PS2KeyboardCleanup(int Index, PS2Port_t *Port);
+
 #endif //!_DRIVER_PS2_CONTROLLER_H_

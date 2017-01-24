@@ -60,9 +60,6 @@ typedef struct _PS2Mouse {
 	uint8_t				Buffer[4];
 	uint8_t				Index;
 	uint8_t				Buttons;
-	int					CurrentX;
-	int					CurrentY;
-	int					CurrentZ;
 } PS2Mouse_t;
 
 #endif //!_DRIVER_PS2_MOUSE_H_

@@ -312,10 +312,12 @@ OsStatus_t OnRegister(MCoreDevice_t *Device)
 	if (Port->Signature == 0xAB41
 		|| Port->Signature == 0xABC1) {
 		/* MF2 Keyboard with translation enabled */
+		return PS2KeyboardInitialize(Index, Port, 1);
 	}
 	else if (Port->Signature == 0xAB00
 		|| Port->Signature == 0x8300) {
 		/* MF2 Keyboard */
+		return PS2KeyboardInitialize(Index, Port, 0);
 	}
 	else if (Port->Signature != 0xFFFFFFFF) {
 		return PS2MouseInitialize(Index, Port);
@@ -330,10 +332,42 @@ OsStatus_t OnRegister(MCoreDevice_t *Device)
  * an instance of this driver from the system */
 OsStatus_t OnUnregister(MCoreDevice_t *Device)
 {
-	/* The PIT is a fixed device
-	 * and thus we don't support multiple instances */
-	_CRT_UNUSED(Device);
-	return OsNoError;
+	/* Variables */
+	PS2Port_t *Port = NULL;
+	int Index = 0;
+
+	/* Select the port */
+	if (GlbController->Ports[0].Contract.DeviceId == Device->Id) {
+		Port = &GlbController->Ports[0];
+		Index = 0;
+	}
+	else if (GlbController->Ports[1].Contract.DeviceId == Device->Id) {
+		Port = &GlbController->Ports[1];
+		Index = 1;
+	}
+	else {
+		/* Probably the controller itself */
+		return OsError;
+	}
+
+	/* Ok .. It's an device
+	 * - What kind of device? */
+	if (Port->Signature == 0xAB41
+		|| Port->Signature == 0xABC1) {
+		/* MF2 Keyboard with translation enabled */
+		return PS2KeyboardCleanup(Index, Port);
+	}
+	else if (Port->Signature == 0xAB00
+		|| Port->Signature == 0x8300) {
+		/* MF2 Keyboard */
+		return PS2KeyboardCleanup(Index, Port);
+	}
+	else if (Port->Signature != 0xFFFFFFFF) {
+		return PS2MouseCleanup(Index, Port);
+	}
+	else {
+		return OsError;
+	}
 }
 
 /* OnQuery

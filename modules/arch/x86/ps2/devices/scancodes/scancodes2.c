@@ -1,34 +1,60 @@
 /* MollenOS
-*
-* Copyright 2011 - 2014, Philip Meulengracht
-*
-* This program is free software : you can redistribute it and / or modify
-* it under the terms of the GNU General Public License as published by
-* the Free Software Foundation ? , either version 3 of the License, or
-* (at your option) any later version.
-*
-* This program is distributed in the hope that it will be useful,
-* but WITHOUT ANY WARRANTY; without even the implied warranty of
-* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.See the
-* GNU General Public License for more details.
-*
-* You should have received a copy of the GNU General Public License
-* along with this program.If not, see <http://www.gnu.org/licenses/>.
-*
-*
-* MollenOS Keyboard Scanset Lookup
-*/
+ *
+ * Copyright 2011 - 2017, Philip Meulengracht
+ *
+ * This program is free software : you can redistribute it and / or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation ? , either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.If not, see <http://www.gnu.org/licenses/>.
+ *
+ *
+ * MollenOS X86 PS2 Controller (Keyboard) - ScancodeSet 2 Driver
+ * http://wiki.osdev.org/PS2
+ */
 
 /* Includes */
-#include "../../include/scancodeset2.h"
+#include "../keyboard.h"
+#include "scancodes2.h"
 
-/* Convert */
-VKey ScancodeSet2ToMCore(ScancodeSet2 Key)
+/* ScancodeSet2ToVKey
+ * Converts a scancode 2 key to the standard-defined
+ * virtual key-layout */
+VKey ScancodeSet2ToVKey(uint8_t Scancode, unsigned *Buffer, unsigned *Flags)
 {
-	VKey ConvKey = 0;
+	/* Variables for conversion */
+	ScancodeSet2 Ss2Key = 0;
+	VKey ConvKey = VK_INVALID;;
+
+	/* Handle special cases */
+	if (Scancode == EXTENDED) {
+		*Buffer = 0xE000;
+		*Flags |= PS2_KEY_EXTENDED;
+
+		/* Done for now */
+		return ConvKey;
+	}
+	else if (Scancode == RELEASED) {
+		*Flags |= PS2_KEY_RELEASED;
+
+		/* Done for now */
+		return ConvKey;
+	}
+	else {
+		/* Normal */
+		*Buffer |= Scancode;
+		Ss2Key = (ScancodeSet2)*Buffer;
+	}
 
 	/* Laborious ... */
-	switch (Key)
+	switch (Ss2Key)
 	{
 		/* Digits */
 		case D0:
@@ -406,8 +432,8 @@ VKey ScancodeSet2ToMCore(ScancodeSet2 Key)
 			ConvKey = VK_RWIN;
 			break;
 
-	default:
-		break;
+		default:
+			break;
 	}
 
 	/* Done */

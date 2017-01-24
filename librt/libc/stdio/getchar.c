@@ -32,7 +32,7 @@ int getchar(void)
 {
 	/* Message */
 	MEventMessage_t Event;
-	MEventInput_t Input;
+	MInput_t Input;
 	int Run = 1;
 
 	/* Wait for input message, we need to discard 
@@ -47,7 +47,7 @@ int getchar(void)
 		/* The message must be of type input, otherwise
 		 * we should trash the message :( */
 		if (Event.Type == EVENT_INPUT) {
-			PipeRead(PIPE_EVENT, &Input, sizeof(MEventInput_t));
+			PipeRead(PIPE_EVENT, &Input, sizeof(MInput_t));
 			if (Input.Type == InputKeyboard
 				&& (Input.Flags & INPUT_BUTTON_CLICKED)) {
 				return (int)Input.Key;

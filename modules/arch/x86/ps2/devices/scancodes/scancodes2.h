@@ -1,31 +1,27 @@
 /* MollenOS
-*
-* Copyright 2011 - 2014, Philip Meulengracht
-*
-* This program is free software : you can redistribute it and / or modify
-* it under the terms of the GNU General Public License as published by
-* the Free Software Foundation ? , either version 3 of the License, or
-* (at your option) any later version.
-*
-* This program is distributed in the hope that it will be useful,
-* but WITHOUT ANY WARRANTY; without even the implied warranty of
-* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.See the
-* GNU General Public License for more details.
-*
-* You should have received a copy of the GNU General Public License
-* along with this program.If not, see <http://www.gnu.org/licenses/>.
-*
-*
-* MollenOS Keyboard Scanset Lookup
-*/
+ *
+ * Copyright 2011 - 2017, Philip Meulengracht
+ *
+ * This program is free software : you can redistribute it and / or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation ? , either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.If not, see <http://www.gnu.org/licenses/>.
+ *
+ *
+ * MollenOS X86 PS2 Controller (Keyboard) - ScancodeSet 2 Driver
+ * http://wiki.osdev.org/PS2
+ */
 
-#ifndef _MCORE_KEYBOARD_SCS2_H_
-#define _MCORE_KEYBOARD_SCS2_H_
-
-/* Includes */
-#include <os/virtualkeycodes.h>
-#include <stddef.h>
-#include <stdint.h>
+#ifndef _KEYBOARD_SCANCODESET2_H_
+#define _KEYBOARD_SCANCODESET2_H_
 
 /* Table */
 typedef enum _ScancodeSet2
@@ -163,7 +159,4 @@ typedef enum _ScancodeSet2
 	PAGEUP		= 0xE07D
 } ScancodeSet2;
 
-/* Translate to Mcore Userspace defs */
-__CRT_EXTERN VKey ScancodeSet2ToMCore(ScancodeSet2 Key);
-
-#endif
+#endif //!_KEYBOARD_SCANCODESET2_H_

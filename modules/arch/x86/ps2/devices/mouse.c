@@ -22,6 +22,7 @@
 
 /* Includes 
  * - System */
+#include <os/driver/input.h>
 #include <os/mollenos.h>
 #include "mouse.h"
 
@@ -36,8 +37,9 @@
  * data for processing - fast interrupt */
 InterruptStatus_t PS2MouseInterrupt(void *InterruptData)
 {
-	/* Initialize the data */
+	/* Initialize the data pointer */
 	PS2Mouse_t *Mouse = (PS2Mouse_t*)InterruptData;
+	MInput_t Input;
 	int Flush = 0;
 
 	/* Now, we keep track of the number of bytes that enter
@@ -81,8 +83,8 @@ InterruptStatus_t PS2MouseInterrupt(void *InterruptData)
 		int RelZ = 0;
 
 		/* Update relative x and y */
-		RelX = (int32_t)(Mouse->Buffer[1] - ((Mouse->Buffer[0] << 4) & 0x100));
-		RelY = (int32_t)(Mouse->Buffer[2] - ((Mouse->Buffer[0] << 3) & 0x100));
+		RelX = (int)(Mouse->Buffer[1] - ((Mouse->Buffer[0] << 4) & 0x100));
+		RelY = (int)(Mouse->Buffer[2] - ((Mouse->Buffer[0] << 3) & 0x100));
 
 		/* Get status of L-R-M buttons */
 		Buttons = Mouse->Buffer[0] & 0x7;
@@ -95,12 +97,28 @@ InterruptStatus_t PS2MouseInterrupt(void *InterruptData)
 			/* 4 bit signed value */
 			RelZ = (int)(char)(Mouse->Buffer[3] & 0xF);
 			if (Mouse->Buffer[3] & PS2_MOUSE_4BTN) {
-
+				Buttons |= 0x8;
 			}
 			if (Mouse->Buffer[3] & PS2_MOUSE_5BTN) {
-
+				Buttons |= 0x10;
 			}
 		}
+
+		/* Store a state of buttons */
+		Mouse->Buttons = Buttons;
+
+		/* Create a new input event */
+		Input.Type = InputMouse;
+		Input.Flags = INPUT_KEYS_PACKED;
+		Input.Key = (VKey)Buttons;
+
+		/* Set stuff */
+		Input.xRelative = RelX;
+		Input.yRelative = RelY;
+		Input.zRelative = RelZ;
+
+		/* Register input */
+		CreateInput(&Input);
 	}
 
 	/* Yay! */
@@ -160,7 +178,7 @@ OsStatus_t PS2EnableExtensions(int Index)
 	}
 
 	/* Ok - After performing this sequence the
-	* mouse id should equal 3 for success */
+	 * mouse id should equal 3 for success */
 	if (Index != 0) {
 		PS2SendCommand(PS2_SELECT_PORT2);
 	}
@@ -244,6 +262,7 @@ OsStatus_t PS2MouseInitialize(int Index, PS2Port_t *Port)
 
 	/* Register our contract for this device */
 	if (RegisterContract(&Port->Contract) != OsNoError) {
+		MollenOSSystemLog("PS2-Mouse: failed to install contract");
 		return OsError;
 	}
 
@@ -275,5 +294,21 @@ OsStatus_t PS2MouseInitialize(int Index, PS2Port_t *Port)
  * given PS2-Controller port */
 OsStatus_t PS2MouseCleanup(int Index, PS2Port_t *Port)
 {
+	/* Initialize the mouse pointer */
+	PS2Mouse_t *Mouse = (PS2Mouse_t*)Port->Interrupt.Data;
 
+	/* Disable scanning */
+	PS2SetStatus(Index, PS2_DISABLE_SCANNING);
+
+	/* Uninstall interrupt */
+	UnregisterInterruptSource(Mouse->Irq);
+
+	/* Free the mouse structure */
+	free(Mouse);
+
+	/* Set port connected = 0 */
+	Port->Connected = 0;
+
+	/* Done! */
+	return OsNoError;
 }
