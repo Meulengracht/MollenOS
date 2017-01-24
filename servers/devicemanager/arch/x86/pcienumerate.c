@@ -495,7 +495,8 @@ void BusEnumerate(void)
 
 	/* Query acpi information */
 	if (AcpiQueryStatus(&Acpi) == OsNoError) {
-		MollenOSSystemLog("ACPI-Version: 0x%x", Acpi.Version);
+		MollenOSSystemLog("ACPI-Version: 0x%x (BootFlags 0x%x)", 
+			Acpi.Version, Acpi.BootFlags);
 		GlbAcpiAvailable = 1;
 
 		/* PCI-Express */
@@ -522,7 +523,8 @@ void BusEnumerate(void)
 		BusInstallFixed(PCI_CMOS_RTC_DEVICEID, "CMOS/RTC Controller");
 
 		/* Does the PS2 exist in our system? */
-		if (Acpi.BootFlags & ACPI_IA_8042) {
+		if (Acpi.BootFlags & ACPI_IA_8042
+			|| Acpi.BootFlags == 0) {
 			BusInstallFixed(PCI_PS2_DEVICEID, "PS/2 Controller");
 		}
 	}

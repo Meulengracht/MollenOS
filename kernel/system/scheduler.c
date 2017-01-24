@@ -84,8 +84,8 @@ void SchedulerInit(Cpu_t Cpu)
 	Scheduler->BoostTimer = 0;
 	Scheduler->NumThreads = 0;
 
-	/* Reset lock */
-	SpinlockReset(&Scheduler->Lock);
+	/* Reset section */
+	CriticalSectionConstruct(&Scheduler->Lock, CRITICALSECTION_PLAIN);
 
 	/* Enable */
 	GlbSchedulers[Cpu] = Scheduler;
@@ -193,7 +193,7 @@ void SchedulerReadyThread(MCoreThread_t *Thread)
 	sKey.Value = (int)Thread->Priority;
 
 	/* Get lock */
-	SpinlockAcquire(&GlbSchedulers[CpuIndex]->Lock);
+	CriticalSectionEnter(&GlbSchedulers[CpuIndex]->Lock);
 
 	/* Get thread node if exists */
 	ThreadNode = ListGetNodeByKey(GlbSchedulers[CpuIndex]->Threads, iKey, 0);
@@ -210,7 +210,7 @@ void SchedulerReadyThread(MCoreThread_t *Thread)
 		SchedulerGetNode(iKey, sKey, Thread));
 
 	/* Release lock */
-	SpinlockRelease(&GlbSchedulers[CpuIndex]->Lock);
+	CriticalSectionLeave(&GlbSchedulers[CpuIndex]->Lock);
 
 	/* Wakeup CPU if sleeping */
 	if (ThreadingIsCurrentTaskIdle(Thread->CpuId) != 0)
@@ -229,7 +229,7 @@ void SchedulerDisarmThread(MCoreThread_t *Thread)
 		return;
 
 	/* Get lock */
-	SpinlockAcquire(&GlbSchedulers[Thread->CpuId]->Lock);
+	CriticalSectionEnter(&GlbSchedulers[Thread->CpuId]->Lock);
 
 	/* Find */
 	iKey.Value = (int)Thread->Id;
@@ -243,7 +243,7 @@ void SchedulerDisarmThread(MCoreThread_t *Thread)
 	}
 
 	/* Release lock */
-	SpinlockRelease(&GlbSchedulers[Thread->CpuId]->Lock);
+	CriticalSectionLeave(&GlbSchedulers[Thread->CpuId]->Lock);
 }
 
 /* This function is primarily used to remove a thread from
@@ -256,14 +256,14 @@ void SchedulerRemoveThread(MCoreThread_t *Thread)
 	DataKey_t iKey;
 
 	/* Get lock */
-	SpinlockAcquire(&GlbSchedulers[Thread->CpuId]->Lock);
+	CriticalSectionEnter(&GlbSchedulers[Thread->CpuId]->Lock);
 
 	/* Get thread node if exists */
 	iKey.Value = (int)Thread->Id;
 	ThreadNode = ListGetNodeByKey(GlbSchedulers[Thread->CpuId]->Threads, iKey, 0);
 
 	/* Release lock */
-	SpinlockRelease(&GlbSchedulers[Thread->CpuId]->Lock);
+	CriticalSectionLeave(&GlbSchedulers[Thread->CpuId]->Lock);
 
 	/* Sanity */
 	assert(ThreadNode != NULL);
@@ -272,14 +272,14 @@ void SchedulerRemoveThread(MCoreThread_t *Thread)
 	SchedulerDisarmThread(Thread);
 
 	/* Get lock */
-	SpinlockAcquire(&GlbSchedulers[Thread->CpuId]->Lock);
+	CriticalSectionEnter(&GlbSchedulers[Thread->CpuId]->Lock);
 
 	/* Remove the node */
 	ListRemoveByNode(GlbSchedulers[Thread->CpuId]->Threads, ThreadNode);
 	GlbSchedulers[Thread->CpuId]->NumThreads--;
 
 	/* Release lock */
-	SpinlockRelease(&GlbSchedulers[Thread->CpuId]->Lock);
+	CriticalSectionLeave(&GlbSchedulers[Thread->CpuId]->Lock);
 
 	/* Free */
 	kfree(ThreadNode);
@@ -484,7 +484,7 @@ MCoreThread_t *SchedulerGetNextTask(Cpu_t Cpu, MCoreThread_t *Thread, int PreEmp
 		TimeSlice = MCORE_INITIAL_TIMESLICE;
 
 	/* Acquire Lock */
-	SpinlockAcquire(&GlbSchedulers[Cpu]->Lock);
+	CriticalSectionEnter(&GlbSchedulers[Cpu]->Lock);
 
 	/* Append time-slice to current boost-watch */
 	GlbSchedulers[Cpu]->BoostTimer += TimeSlice;
@@ -515,7 +515,7 @@ MCoreThread_t *SchedulerGetNextTask(Cpu_t Cpu, MCoreThread_t *Thread, int PreEmp
 	}
 
 	/* Release Lock */
-	SpinlockRelease(&GlbSchedulers[Cpu]->Lock);
+	CriticalSectionLeave(&GlbSchedulers[Cpu]->Lock);
 
 	/* Return */
 	if (NextThreadNode == NULL)

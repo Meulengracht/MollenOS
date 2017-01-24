@@ -315,7 +315,8 @@ OsStatus_t OnRegister(MCoreDevice_t *Device)
 		return PS2KeyboardInitialize(Index, Port, 1);
 	}
 	else if (Port->Signature == 0xAB00
-		|| Port->Signature == 0x8300) {
+		|| Port->Signature == 0x8300
+		|| Port->Signature == 0xAB83) {
 		/* MF2 Keyboard */
 		return PS2KeyboardInitialize(Index, Port, 0);
 	}

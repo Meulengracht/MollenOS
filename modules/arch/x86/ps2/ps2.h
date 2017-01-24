@@ -79,8 +79,6 @@
 #define PS2_CONFIG_PORT2_DISABLED	0x20
 #define PS2_CONFIG_TRANSLATION		0x40		/* First PS/2 port translation (1 = enabled, 0 = disabled) */
 
-#define PS2_CMD_SET_SCANCODE		0xF0
-
 /* The IRQ lines the PS2 Controller uses, it's 
  * an ISA line so it's fixed */
 #define PS2_PORT1_IRQ				0x01

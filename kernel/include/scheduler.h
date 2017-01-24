@@ -31,11 +31,11 @@
 #define _MCORE_SCHEDULER_H_
 
 /* Includes */
-#include <crtdefs.h>
+#include <arch.h>
+#include <os/osdefs.h>
 #include <ds/list.h>
-
-#include <Arch.h>
-#include <Threading.h>
+#include <threading.h>
+#include <criticalsection.h>
 
 /* Definitions */
 #define MCORE_SYSTEM_QUEUE			60
@@ -45,23 +45,12 @@
 #define MCORE_SCHEDULER_BOOST_MS	2000
 
 /* Structures */
-typedef struct _MCoreScheduler
-{
-	/* Thread List */
-	List_t *Threads;
-
-	/* Queues */
-	List_t *Queues[MCORE_SCHEDULER_LEVELS];
-
-	/* Boost Timer */
-	size_t BoostTimer;
-
-	/* Number of threads */
-	int NumThreads;
-
-	/* Lock */
-	Spinlock_t Lock;
-
+typedef struct _MCoreScheduler {
+	List_t					*Threads;
+	List_t					*Queues[MCORE_SCHEDULER_LEVELS];
+	size_t					BoostTimer;
+	int						NumThreads;
+	CriticalSection_t		Lock;
 } Scheduler_t;
 
 /* Prototypes */

@@ -1,13 +1,14 @@
+setlocal enabledelayedexpansion
 ::Setup Paths
 @echo off
 @set path=C:\Users\Philip\AppData\Local\nasm;%path%
 
 ::Declare default vars
-@set arch=x86
-@set skip=false
-@set target=vmdk
-@set decl=0
-@set buildcfg=Build_X86_32
+set arch=x86
+set skip=false
+set target=vmdk
+set decl=0
+set buildcfg=Build_X86_32
 
 ::Check arguments
 for %%x in (%*) do (
@@ -24,30 +25,32 @@ for %%x in (%*) do (
     if "%%~x"=="-auto" (
         set decl=0
         set target=a
+	set consumed=1
     )
     if "%%~x"=="-install" (
         set decl=0
         set skip=true
+        set consumed=1
     )
 
     ::Handle arguments
-    if "%consumed%"=="1" (
-        if "%decl%"=="1" (
+    if "!consumed!"=="0" (
+        if "!decl!"=="1" (
             if "%%~x"=="x86" set arch=x86
             if "%%~x"=="X86" set arch=x86
             if "%%~x"=="i386" set arch=x86
         )
-        if "%decl%"=="2" (
+        if "!decl!"=="2" (
             set target=%%~x
         )
     )
 )
 
 ::Setup Environment
-CALL "C:\Program Files (x86)\Microsoft Visual Studio 12.0\VC\vcvarsall.bat" %arch%
+CALL "C:\Program Files (x86)\Microsoft Visual Studio 12.0\VC\vcvarsall.bat" !arch!
 
 ::Skip build stage?
-if "%skip%"=="true" goto :Install
+if "!skip!"=="true" goto :Install
 
 ::Build Stage1
 nasm.exe -f bin boot\Stage1\MFS1\Stage1.asm -o boot\Stage1\MFS1\Stage1.bin
@@ -56,7 +59,7 @@ nasm.exe -f bin boot\Stage1\MFS1\Stage1.asm -o boot\Stage1\MFS1\Stage1.bin
 START "NASM" /D %~dp0\boot\Stage2 /B /W nasm.exe -f bin Stage2.asm -o ssbl.stm
 
 ::Build Operation System
-MSBuild.exe MollenOS.sln /p:Configuration=%buildcfg% /t:Clean,Build
+MSBuild.exe MollenOS.sln /p:Configuration=!buildcfg! /t:Clean,Build
 
 ::Copy files for rd to modules folder
 xcopy /v /y librt\build\*.dll modules\build\
@@ -73,4 +76,4 @@ xcopy /v /y boot\Stage2\ssbl.stm install\ssbl.stm
 
 ::Install MOS
 :Install
-START "MOLLENOS INSTALLER" /D %~dp0\install /B /W "install\MfsTool.exe" -%target%
+START "MOLLENOS INSTALLER" /D %~dp0\install /B /W "install\MfsTool.exe" -!target!
