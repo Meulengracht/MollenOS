@@ -1,6 +1,6 @@
-setlocal enabledelayedexpansion
 ::Setup Paths
 @echo off
+setlocal enabledelayedexpansion
 @set path=C:\Users\Philip\AppData\Local\nasm;%path%
 
 ::Declare default vars

@@ -45,6 +45,7 @@
 #define APIC_SMI_ROUTE			0x200
 #define APIC_NMI_ROUTE			0x400
 #define APIC_EXTINT_ROUTE		0x700
+#define APIC_ACTIVE_LOW			0x2000
 #define APIC_LEVEL_TRIGGER		0x8000
 #define APIC_MASKED				0x10000
 #define APIC_ICR_BUSY			0x1000
@@ -89,11 +90,11 @@
  * the apic code, we keep track of id,
  * version and gsi information */
 typedef struct _IoApic {
-	int Id;
-	int Version;
-	int GsiStart;
-	int PinCount;
-	volatile Addr_t BaseAddress;
+	int					Id;
+	int					Version;
+	int					GsiStart;
+	int					PinCount;
+	volatile Addr_t		BaseAddress;
 } IoApic_t;
 
 /* Initialize the local APIC controller

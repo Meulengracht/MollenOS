@@ -95,11 +95,11 @@ void ApicIoWrite(IoApic_t *IoApic, uint32_t Register, uint32_t Data)
 	 * to protect against bad code */
 	assert(IoApic != NULL);
 
-	/* Select the given register 
-	 * and write the register */
+	/* Write the value, then re-read it to
+	 * ensure memory synchronization */
 	ApicSetIoRegister(IoApic, Register);
-	*(volatile Addr_t*)(IoApic->BaseAddress + 0x10) = Data;
-	MemoryBarrier();
+	*((volatile Addr_t*)(IoApic->BaseAddress + 0x10)) = Data;
+	Data = (*(volatile Addr_t*)(IoApic->BaseAddress + 0x10));
 }
 
 /* Writes interrupt data to the io-apic
@@ -107,13 +107,24 @@ void ApicIoWrite(IoApic_t *IoApic, uint32_t Register, uint32_t Data)
  * the given Pin (io-apic entry) offset. */
 void ApicWriteIoEntry(IoApic_t *IoApic, uint32_t Pin, uint64_t Data)
 {
+	/* Union this for easier 
+	 * memory access becuase we do 32 bit accesses */
+	union {
+		struct {
+			uint32_t Lo;
+			uint32_t Hi;
+		} Parts;
+		uint64_t Full;
+	} Value;
+
 	/* Get the correct IO APIC address */
 	uint32_t Register = 0x10 + (2 * Pin);
+	Value.Full = Data;
 
 	/* Write the dwords seperately as 
 	 * the writes has to be 32 bit */
-	ApicIoWrite(IoApic, Register + 1, ACPI_HIDWORD(Data));
-	ApicIoWrite(IoApic, Register, ACPI_LODWORD(Data));
+	ApicIoWrite(IoApic, Register + 1, Value.Parts.Hi);
+	ApicIoWrite(IoApic, Register, Value.Parts.Lo);
 }
 
 /* Reads interrupt data from the io-apic

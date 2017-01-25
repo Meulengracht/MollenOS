@@ -191,7 +191,7 @@ UUId_t RegisterDevice(MCoreDevice_t *Device, const char *Name, Flags_t Flags)
 	/* Update name and print debug information */
 	if (Name != NULL) {
 		memcpy(&Device->Name[0], Name, strlen(Name));
-		MollenOSSystemLog("Registered device %s", Name);
+		//MollenOSSystemLog("Registered device %s", Name);
 	}
 
 	/* Update id, add to list */
