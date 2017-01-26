@@ -61,10 +61,8 @@ UUId_t InterruptIdGen = 0;
 Flags_t InterruptGetPolarity(uint16_t IntiFlags, int IrqSource)
 {
 	/* Returning 1 means LOW, returning 0 means HIGH */
-	switch (IntiFlags & ACPI_MADT_POLARITY_MASK)
-	{
-		case ACPI_MADT_POLARITY_CONFORMS:
-		{
+	switch (IntiFlags & ACPI_MADT_POLARITY_MASK) {
+		case ACPI_MADT_POLARITY_CONFORMS: {
 			if (IrqSource == (int)AcpiGbl_FADT.SciInterrupt)
 				return 1;
 			else
@@ -85,10 +83,8 @@ Flags_t InterruptGetPolarity(uint16_t IntiFlags, int IrqSource)
 Flags_t InterruptGetTrigger(uint16_t IntiFlags, int IrqSource)
 {
 	/* Returning 1 means LEVEL, returning 0 means EDGE */
-	switch (IntiFlags & ACPI_MADT_TRIGGER_MASK)
-	{
-		case ACPI_MADT_TRIGGER_CONFORMS:
-		{
+	switch (IntiFlags & ACPI_MADT_TRIGGER_MASK) {
+		case ACPI_MADT_TRIGGER_CONFORMS: {
 			if (IrqSource == (int)AcpiGbl_FADT.SciInterrupt)
 				return 1;
 			else
@@ -314,7 +310,6 @@ OsStatus_t InterruptFinalize(MCoreInterruptDescriptor_t *Interrupt)
 
 	/* Get correct Io Apic */
 	IoApic = ApicGetIoFromGsi(Source);
-	LogFatal("INTM", "Source: %i -> TableIndex %u", Source, TableIndex);
 
 	/* If Apic Entry is located, we need to adjust */
 	if (IoApic != NULL) {
@@ -697,7 +692,11 @@ void InterruptEntry(Registers_t *Registers)
 	if (Result != InterruptHandled) {
 		LogFatal("IRQS", "Unhandled interrupt %u", TableIndex);
 		for (;;);
-	}
+	}/*
+	else if (Gsi > 0 && Gsi < 16 && Gsi != 8 && Gsi != 2) {
+		LogFatal("IRQS", "Interrupt %u (Gsi %i) was handled",
+			TableIndex, Gsi);
+	}*/
 
 	/* Send EOI (if not spurious) */
 	if (TableIndex != INTERRUPT_SPURIOUS7

@@ -54,6 +54,7 @@
 typedef struct _PS2Mouse {
 	PS2Port_t			*Port;
 	UUId_t				Irq;
+
 	int					Sampling;
 	int					Mode;
 	

@@ -36,8 +36,6 @@
 #define PS2_KEYBOARD_TYPEMATIC		0xF3
 #define PS2_KEYBOARD_SETDEFAULT		0xF6
 
-#define PS2_KEYBOARD_RESEND			0xFE
-#define PS2_KEYBOARD_ACK			0xFA
 #define PS2_KEYBOARD_ECHO			0xEE
 
 /* Typematic definitions for setting the different

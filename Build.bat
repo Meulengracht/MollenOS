@@ -8,6 +8,7 @@ set arch=x86
 set skip=false
 set target=vmdk
 set decl=0
+set action=build
 set buildcfg=Build_X86_32
 
 ::Check arguments
@@ -30,6 +31,11 @@ for %%x in (%*) do (
     if "%%~x"=="-install" (
         set decl=0
         set skip=true
+        set consumed=1
+    )
+    if "%%~x"=="-rebuild" (
+        set decl=0
+        set action=rebuild
         set consumed=1
     )
 
@@ -59,7 +65,8 @@ nasm.exe -f bin boot\Stage1\MFS1\Stage1.asm -o boot\Stage1\MFS1\Stage1.bin
 START "NASM" /D %~dp0\boot\Stage2 /B /W nasm.exe -f bin Stage2.asm -o ssbl.stm
 
 ::Build Operation System
-MSBuild.exe MollenOS.sln /p:Configuration=!buildcfg! /t:Clean,Build
+if "!action!"=="rebuild" MSBuild.exe MollenOS.sln /p:Configuration=!buildcfg! /t:Clean,Build
+if "!action!"=="build" MSBuild.exe MollenOS.sln /p:Configuration=!buildcfg! /t:Build
 
 ::Copy files for rd to modules folder
 xcopy /v /y librt\build\*.dll modules\build\

@@ -21,6 +21,7 @@
 
 /* Includes */
 #include <Devices/Video.h>
+#include <criticalsection.h>
 #include <Heap.h>
 #include <Log.h>
 #include <Vfs/VfsWrappers.h>
@@ -36,7 +37,7 @@ char GlbLogStatic[LOG_INITIAL_SIZE];
 LogTarget_t GlbLogTarget = LogMemory;
 LogLevel_t GlbLogLevel = LogLevel1;
 size_t GlbLogSize = 0;
-Spinlock_t GlbLogLock;
+CriticalSection_t GlbLogLock;
 char *GlbLog = NULL;
 int GlbLogIndex = 0;
 
@@ -61,7 +62,7 @@ void LogInit(void)
 	GlbLogIndex = 0;
 
 	/* Initialize Lock */
-	SpinlockReset(&GlbLogLock);
+	CriticalSectionConstruct(&GlbLogLock, CRITICALSECTION_PLAIN);
 }
 
 /* Upgrades the log 
@@ -301,7 +302,7 @@ void LogInternalPrint(int LogType, const char *Header, const char *Message)
 	int MessageLen = strlen(Message);
 
 	/* Acquire Lock */
-	SpinlockAcquire(&GlbLogLock);
+	CriticalSectionEnter(&GlbLogLock);
 
 	/* Log it into memory - if we have room */
 	if (GlbLogIndex + MessageLen < (int)GlbLogSize)
@@ -390,7 +391,7 @@ void LogInternalPrint(int LogType, const char *Header, const char *Message)
 	}
 
 	/* Release Lock */
-	SpinlockRelease(&GlbLogLock);
+	CriticalSectionLeave(&GlbLogLock);
 }
 
 /* Raw Log */

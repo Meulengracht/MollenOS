@@ -45,15 +45,22 @@ InterruptStatus_t PS2KeyboardInterrupt(void *InterruptData)
 	/* Read the scancode */
 	Scancode = PS2ReadData(1);
 
+	/* Handle any out-standing commands first */
+	if (PS2PortFinishCommand(Kybd->Port, Scancode) == OsNoError) {
+		return InterruptHandled;
+	}
+
 	/* Handle stuff depending on scancode
 	 * and translation status */
-	if (Kybd->ScancodeSet == 2) {
+	if (Kybd->ScancodeSet == 1) {
+		MollenOSSystemLog("PS2-Keyboard: Scancode set 1");
+	}
+	else if (Kybd->ScancodeSet == 2) {
 		Result = ScancodeSet2ToVKey(Scancode, &Kybd->Buffer, &Kybd->Flags);
 	}
 
 	/* Now, if it's not VK_INVALID 
 	 * we would like to send a new input package */
-	MollenOSSystemLog("PRESS");
 	if (Result != VK_INVALID) {
 		MollenOSSystemLog("KEY: 0x%x", Result);
 
@@ -67,99 +74,47 @@ InterruptStatus_t PS2KeyboardInterrupt(void *InterruptData)
 	return InterruptHandled;
 }
 
-/* PS2KeyboardWrite 
- * Writes the given command byte to the keyboard */
-OsStatus_t PS2KeyboardWrite(int Index, uint8_t Command, uint8_t Data)
-{
-	/* Response */
-	uint8_t Response = 0;
-
-	/* Always select port if neccessary */
-	if (Index != 0) {
-		PS2SendCommand(PS2_SELECT_PORT2);
-	}
-
-	/* Write command */
-	if (PS2WriteData(Command) != OsNoError) {
-		return OsError;
-	}
-
-	/* Write data */
-	if (Data != 0xFF) {
-		if (Index != 0) {
-			PS2SendCommand(PS2_SELECT_PORT2);
-		}
-		if (PS2WriteData(Data) != OsNoError) {
-			return OsError;
-		}
-	}
-
-	/* Get response */
-	Response = PS2ReadData(0);
-
-	/* Sanitize the byte */
-	if (Response == PS2_KEYBOARD_ACK) {
-		return OsNoError;
-	}
-	else if (Response == PS2_KEYBOARD_RESEND) {
-		return PS2KeyboardWrite(Index, Command, Data);
-	}
-	else {
-		return OsError;
-	}
-}
-
 /* PS2KeyboardGetScancode
  * Retrieves the current scancode-set for the keyboard */
-OsStatus_t PS2KeyboardGetScancode(int Index, int *ResultSet)
+OsStatus_t PS2KeyboardGetScancode(PS2Keyboard_t *Kybd, int *ResultSet)
 {
 	/* Variables */
-	uint8_t Result = 0;
+	uint8_t Response = 0;
 
 	/* Write the command to get scancode set */
-	if (PS2KeyboardWrite(Index, PS2_KEYBOARD_SCANCODE, 0xFF) != OsNoError
-		|| PS2KeyboardWrite(Index, 0, 0xFF) != OsNoError) {
+	if (PS2PortQueueCommand(Kybd->Port, PS2_KEYBOARD_SCANCODE, NULL) != OsNoError
+		|| PS2PortQueueCommand(Kybd->Port, 0, &Response) != OsNoError) {
 		return OsError;
 	}
 
-	/* Read the current scancode set */
-GetResponse:
-	Result = PS2ReadData(0);
-
-	/* Make sure it's not ACK */
-	if (Result == PS2_KEYBOARD_ACK) {
-		goto GetResponse;
-	}
-
-	/* Validate result */
-	if (Result > 0x03) {
+	/* Wuhu! -> Bit 6 is set in case its translation */
+	*ResultSet = (int)(Response & 0xF);
+	if (Response >= 0xF0) {
 		return OsError;
 	}
-
-	/* Update */
-	*ResultSet = (int)Result;
-
-	/* Wuhu! */
-	return OsNoError;
+	else {
+		return OsNoError;
+	}
 }
 
 /* PS2KeyboardSetScancode
  * Updates the current scancode-set for the keyboard */
-OsStatus_t PS2KeyboardSetScancode(int Index, uint8_t RequestSet, int *ResultSet)
+OsStatus_t PS2KeyboardSetScancode(PS2Keyboard_t *Kybd, uint8_t RequestSet, int *ResultSet)
 {
 	/* Write the command to set scancode set */
-	if (PS2KeyboardWrite(Index, PS2_KEYBOARD_SCANCODE, 0xFF) != OsNoError
-		|| PS2KeyboardWrite(Index, RequestSet, 0xFF) != OsNoError) {
+	if (PS2PortQueueCommand(Kybd->Port, PS2_KEYBOARD_SCANCODE, NULL) != OsNoError
+		|| PS2PortQueueCommand(Kybd->Port, RequestSet, NULL) != OsNoError) {
 		return OsError;
 	}
 	else {
-		return PS2KeyboardGetScancode(Index, ResultSet);
+		*ResultSet = (int)RequestSet;
+		return OsNoError;
 	}
 }
 
 /* PS2KeyboardSetTypematics
  * Updates the current typematics for the keyboard */
-OsStatus_t PS2KeyboardSetTypematics(int Index,
+OsStatus_t PS2KeyboardSetTypematics(PS2Keyboard_t *Kybd,
 	uint8_t TypematicRepeat, uint8_t Delay)
 {
 	/* Variables */
@@ -170,8 +125,8 @@ OsStatus_t PS2KeyboardSetTypematics(int Index,
 	Format |= Delay;
 
 	/* Write the command to get scancode set */
-	if (PS2KeyboardWrite(Index,
-			PS2_KEYBOARD_TYPEMATIC, Format) != OsNoError) {
+	if (PS2PortQueueCommand(Kybd->Port, PS2_KEYBOARD_TYPEMATIC, NULL) != OsNoError
+		|| PS2PortQueueCommand(Kybd->Port, Format, NULL) != OsNoError) {
 		return OsError;
 	}
 	else {
@@ -181,7 +136,7 @@ OsStatus_t PS2KeyboardSetTypematics(int Index,
 
 /* PS2KeyboardSetLEDs
  * Updates the LED statuses for the ps2 keyboard */
-OsStatus_t PS2KeyboardSetLEDs(int Index, 
+OsStatus_t PS2KeyboardSetLEDs(PS2Keyboard_t *Kybd,
 	int Scroll, int Number, int Caps)
 {
 	/* Variables */
@@ -193,8 +148,8 @@ OsStatus_t PS2KeyboardSetLEDs(int Index,
 	Format |= ((uint8_t)(Caps & 0x1) << 2);
 
 	/* Write the command to get scancode set */
-	if (PS2KeyboardWrite(Index,
-			PS2_KEYBOARD_SETLEDS, Format) != OsNoError) {
+	if (PS2PortQueueCommand(Kybd->Port, PS2_KEYBOARD_SETLEDS, NULL) != OsNoError
+		|| PS2PortQueueCommand(Kybd->Port, Format, NULL) != OsNoError) {
 		return OsError;
 	}
 	else {
@@ -205,10 +160,10 @@ OsStatus_t PS2KeyboardSetLEDs(int Index,
 /* PS2KeyboardInitialize 
  * Initializes an instance of an ps2-keyboard on
  * the given PS2-Controller port */
-OsStatus_t PS2KeyboardInitialize(int Index, PS2Port_t *Port, int Translation)
+OsStatus_t PS2KeyboardInitialize(PS2Port_t *Port, int Translation)
 {
 	/* Variables for initializing */
-	PS2Keyboard_t *Kybd = NULL;
+	PS2Keyboard_t *Kybd = NULL; 
 
 	/* Allocate a new instance of the ps2 mouse */
 	Kybd = (PS2Keyboard_t*)malloc(sizeof(PS2Keyboard_t));
@@ -233,7 +188,7 @@ OsStatus_t PS2KeyboardInitialize(int Index, PS2Port_t *Port, int Translation)
 	Port->Interrupt.Direct[0] = INTERRUPT_NONE;
 	
 	/* Select interrupt source */
-	if (Index == 0) {
+	if (Port->Index == 0) {
 		Port->Interrupt.Line = PS2_PORT1_IRQ;
 	}
 	else {
@@ -255,45 +210,45 @@ OsStatus_t PS2KeyboardInitialize(int Index, PS2Port_t *Port, int Translation)
 		INTERRUPT_NOTSHARABLE | INTERRUPT_FAST);
 
 	/* Reset keyboard LEDs status */
-	if (PS2KeyboardSetLEDs(Index, 0, 0, 0) != OsNoError) {
+	if (PS2KeyboardSetLEDs(Kybd, 0, 0, 0) != OsNoError) {
 		MollenOSSystemLog("PS2-Keyboard: failed to reset LEDs");
 	}
 
 	/* Update typematics to preffered settings */
-	if (PS2KeyboardSetTypematics(Index, 
+	if (PS2KeyboardSetTypematics(Kybd,
 			Kybd->TypematicRepeat, Kybd->TypematicDelay) != OsNoError) {
 		MollenOSSystemLog("PS2-Keyboard: failed to set typematic settings");
 	}
 	
 	/* Select our preffered scancode set */
-	if (PS2KeyboardSetScancode(Index, 2, &Kybd->ScancodeSet) != OsNoError) {
+	if (PS2KeyboardSetScancode(Kybd, 2, &Kybd->ScancodeSet) != OsNoError) {
 		MollenOSSystemLog("PS2-Keyboard: failed to select scancodeset 2 (%i)",
 			Kybd->ScancodeSet);
 	}
 
-	/* Enable scanning (Keyboard is now active) */
-	return PS2KeyboardWrite(Index, PS2_ENABLE_SCANNING, 0xFF);
+	/* Last step is to enable scanning for our port */
+	return PS2PortQueueCommand(Port, PS2_ENABLE_SCANNING, NULL);
 }
 
 /* PS2KeyboardCleanup 
  * Cleans up the ps2-keyboard instance on the
  * given PS2-Controller port */
-OsStatus_t PS2KeyboardCleanup(int Index, PS2Port_t *Port)
+OsStatus_t PS2KeyboardCleanup(PS2Port_t *Port)
 {
 	/* Initialize the keyboard pointer */
 	PS2Keyboard_t *Kybd = (PS2Keyboard_t*)Port->Interrupt.Data;
 
 	/* Disable scanning */
-	PS2KeyboardWrite(Index, PS2_DISABLE_SCANNING, 0xFF);
+	PS2PortQueueCommand(Port, PS2_DISABLE_SCANNING, NULL);
 
 	/* Uninstall interrupt */
 	UnregisterInterruptSource(Kybd->Irq);
 
-	/* Free the mouse structure */
+	/* Free the keyboard structure */
 	free(Kybd);
 
 	/* Set port connected = 0 */
-	Port->Connected = 0;
+	Port->Signature = 0;
 
 	/* Done! */
 	return OsNoError;

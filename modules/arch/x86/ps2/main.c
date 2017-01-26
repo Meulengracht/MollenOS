@@ -23,6 +23,7 @@
 /* Includes 
  * - System */
 #include <os/driver/contracts/base.h>
+#include <os/mollenos.h>
 #include "ps2.h"
 
 /* Includes
@@ -116,6 +117,25 @@ void PS2SendCommand(uint8_t Command)
 		PS2_REGISTER_COMMAND, Command, 1);
 }
 
+/* PS2SetScanning
+ * Updates the enable/disable status of the port */
+OsStatus_t PS2SetScanning(int Index, uint8_t Status)
+{
+	/* Always select port if neccessary */
+	if (Index != 0) {
+		PS2SendCommand(PS2_SELECT_PORT2);
+	}
+
+	/* Set sample rate to given value */
+	if (PS2WriteData(Status) != OsNoError
+		|| PS2ReadData(0) != PS2_ACK) {
+		return OsError;
+	}
+
+	/* Wuhuu! */
+	return OsNoError;
+}
+
 /* PS2SelfTest
  * Does 5 tries to perform a self-test of the
  * ps2 controller */
@@ -190,8 +210,9 @@ OsStatus_t PS2Initialize(void)
 
 	/* Initialize the ports */
 	for (i = 0; i < PS2_MAXPORTS; i++) {
+		GlbController->Ports[i].Index = i;
 		if (GlbController->Ports[i].Enabled == 1) {
-			Status = PS2InitializePort(i, &GlbController->Ports[i]);
+			Status = PS2PortInitialize(&GlbController->Ports[i]);
 			if (Status != OsNoError) {
 				//LogFatal("PS2C", "Ps2 Controller failed to initialize port %i", i);
 			}
@@ -283,8 +304,8 @@ OsStatus_t OnUnload(void)
 OsStatus_t OnRegister(MCoreDevice_t *Device)
 {
 	/* Variables */
+	OsStatus_t Result = OsNoError;
 	PS2Port_t *Port = NULL;
-	int Index = 0;
 
 	/* First register call is the ps2-controller
 	 * all sequent calls here is ps2-devices 
@@ -297,11 +318,9 @@ OsStatus_t OnRegister(MCoreDevice_t *Device)
 	/* Select the port */
 	if (GlbController->Ports[0].Contract.DeviceId == Device->Id) {
 		Port = &GlbController->Ports[0];
-		Index = 0;
 	}
 	else if (GlbController->Ports[1].Contract.DeviceId == Device->Id) {
 		Port = &GlbController->Ports[1];
-		Index = 1;
 	}
 	else {
 		return OsError;
@@ -312,20 +331,21 @@ OsStatus_t OnRegister(MCoreDevice_t *Device)
 	if (Port->Signature == 0xAB41
 		|| Port->Signature == 0xABC1) {
 		/* MF2 Keyboard with translation enabled */
-		return PS2KeyboardInitialize(Index, Port, 1);
+		Result = PS2KeyboardInitialize(Port, 1);
 	}
-	else if (Port->Signature == 0xAB00
-		|| Port->Signature == 0x8300
-		|| Port->Signature == 0xAB83) {
+	else if (Port->Signature == 0xAB83) {
 		/* MF2 Keyboard */
-		return PS2KeyboardInitialize(Index, Port, 0);
+		Result = PS2KeyboardInitialize(Port, 0);
 	}
 	else if (Port->Signature != 0xFFFFFFFF) {
-		return PS2MouseInitialize(Index, Port);
+		Result = PS2MouseInitialize(Port);
 	}
 	else {
-		return OsError;
+		Result = OsError;
 	}
+
+	/* Done! */
+	return Result;
 }
 
 /* OnUnregister
@@ -334,17 +354,15 @@ OsStatus_t OnRegister(MCoreDevice_t *Device)
 OsStatus_t OnUnregister(MCoreDevice_t *Device)
 {
 	/* Variables */
+	OsStatus_t Result = OsNoError;
 	PS2Port_t *Port = NULL;
-	int Index = 0;
 
 	/* Select the port */
 	if (GlbController->Ports[0].Contract.DeviceId == Device->Id) {
 		Port = &GlbController->Ports[0];
-		Index = 0;
 	}
 	else if (GlbController->Ports[1].Contract.DeviceId == Device->Id) {
 		Port = &GlbController->Ports[1];
-		Index = 1;
 	}
 	else {
 		/* Probably the controller itself */
@@ -356,19 +374,21 @@ OsStatus_t OnUnregister(MCoreDevice_t *Device)
 	if (Port->Signature == 0xAB41
 		|| Port->Signature == 0xABC1) {
 		/* MF2 Keyboard with translation enabled */
-		return PS2KeyboardCleanup(Index, Port);
+		Result = PS2KeyboardCleanup(Port);
 	}
-	else if (Port->Signature == 0xAB00
-		|| Port->Signature == 0x8300) {
+	else if (Port->Signature == 0xAB83) {
 		/* MF2 Keyboard */
-		return PS2KeyboardCleanup(Index, Port);
+		Result = PS2KeyboardCleanup(Port);
 	}
 	else if (Port->Signature != 0xFFFFFFFF) {
-		return PS2MouseCleanup(Index, Port);
+		Result = PS2MouseCleanup(Port);
 	}
 	else {
-		return OsError;
+		Result = OsError;
 	}
+
+	/* Done! */
+	return Result;
 }
 
 /* OnQuery
