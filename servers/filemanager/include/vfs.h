@@ -1,26 +1,28 @@
 /* MollenOS
-*
-* Copyright 2011 - 2016, Philip Meulengracht
-*
-* This program is free software : you can redistribute it and / or modify
-* it under the terms of the GNU General Public License as published by
-* the Free Software Foundation ? , either version 3 of the License, or
-* (at your option) any later version.
-*
-* This program is distributed in the hope that it will be useful,
-* but WITHOUT ANY WARRANTY; without even the implied warranty of
-* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.See the
-* GNU General Public License for more details.
-*
-* You should have received a copy of the GNU General Public License
-* along with this program.If not, see <http://www.gnu.org/licenses/>.
-*
-*
-* MollenOS MCore - Virtual FileSystem
-*/
+ *
+ * Copyright 2011 - 2017, Philip Meulengracht
+ *
+ * This program is free software : you can redistribute it and / or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation ? , either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.If not, see <http://www.gnu.org/licenses/>.
+ *
+ *
+ * MollenOS MCore - Virtual File Definitions & Structures
+ * - This header describes the base virtual file-structure, prototypes
+ *   and functionality, refer to the individual things for descriptions
+ */
 
-#ifndef _MCORE_VFS_H_
-#define _MCORE_VFS_H_
+#ifndef _VFS_INTERFACE_H_
+#define _VFS_INTERFACE_H_
 
 /* Includes 
  * - C-Library */
@@ -28,78 +30,11 @@
 #include <ds/mstring.h>
 #include <stddef.h>
 
-/* Includes 
- * - System */
-#include <events.h>
-#include <mutex.h>
-
 /* Includes
  * - VFS */
-#include <vfs/definitions.h>
-#include <vfs/partition.h>
-#include <vfs/file.h>
-
-/* VFS Request Types 
- * These are the possible requests
- * to make for the VFS */
-typedef enum _MCoreVfsRequestType
-{
-	/* Disk Operations */
-	VfsRequestRegisterDisk,
-	VfsRequestUnregisterDisk,
-
-	/* VFS Operations */
-	VfsRequestOpenFile,
-	VfsRequestCloseFile,
-	VfsRequestDeleteFile,
-	VfsRequestReadFile,
-	VfsRequestWriteFile,
-	VfsRequestSeekFile,
-	VfsRequestFlushFile
-
-} MCoreVfsRequestType_t;
-
-/* VFS Event System
- * This is the request structure for 
- * making any VFS related requests */
-typedef struct _MCoreVfsRequest
-{
-	/* Base */
-	MCoreEvent_t Base;
-
-	/* Pointer data (params) 
-	 * Which one is used depends on the request */
-	union {
-		MCoreFileInstance_t *Handle;
-		const char *Path;
-	} Pointer;
-
-	/* Buffer data (params)
-	 * This is used by read, write and query for buffers */
-	uint8_t *Buffer;
-
-	/* Value data (params)
-	 * Which and how this is used is based on request 
-	 * This supports up to 64 bit */
-	union {
-		union {
-			uint32_t Length;
-			UUId_t DiskId;
-			VfsQueryFunction_t Function;
-			VfsFileFlags_t Flags;
-			int Copy;
-		} Lo;
-		union {
-			uint32_t Length;
-			int Forced;
-		} Hi;
-	} Value;
-	
-	/* Error code if anything 
-	 * happened during ops */
-	VfsErrorCode_t Error;
-
-} MCoreVfsRequest_t;
+#include "definitions.h"
+#include "partition.h"
+#include "file.h"
 
 /* VFS FileSystem structure
  * this is the main file-system structure 
@@ -195,4 +130,4 @@ __CRT_EXTERN VfsErrorCode_t VfsQuery(MCoreFileInstance_t *Handle,
  * @Base - Environmental Path */
 __CRT_EXTERN MString_t *VfsResolveEnvironmentPath(VfsEnvironmentPath_t Base);
 
-#endif //!_MCORE_VFS_H_
+#endif //!_VFS_INTERFACE_H_

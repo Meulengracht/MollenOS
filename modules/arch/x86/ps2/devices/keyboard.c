@@ -39,6 +39,7 @@ InterruptStatus_t PS2KeyboardInterrupt(void *InterruptData)
 {
 	/* Initialize the keyboard pointer */
 	PS2Keyboard_t *Kybd = (PS2Keyboard_t*)InterruptData;
+	MInput_t Input;
 	VKey Result = VK_INVALID;
 	uint8_t Scancode = 0;
 
@@ -64,6 +65,20 @@ InterruptStatus_t PS2KeyboardInterrupt(void *InterruptData)
 	if (Result != VK_INVALID) {
 		MollenOSSystemLog("KEY: 0x%x", Result);
 
+		Input.Type = InputKeyboard;
+		Input.Scancode = Kybd->Buffer;
+		Input.Key = Result;
+
+		/* Determine flags */
+		if (Kybd->Flags & PS2_KEY_RELEASED) {
+			Input.Flags = INPUT_BUTTON_RELEASED;
+		}
+		else {
+			Input.Flags = INPUT_BUTTON_CLICKED;
+		}
+
+		/* Create input */
+		CreateInput(&Input);
 
 		/* Reset buffer and flags */
 		Kybd->Buffer = 0;

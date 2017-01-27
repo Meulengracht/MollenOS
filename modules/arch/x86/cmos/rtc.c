@@ -55,7 +55,7 @@ OsStatus_t RtcInitialize(Cmos_t *Chip)
 {
 	/* Variables for rtc initialization */
 	uint8_t StateB = 0;
-	uint8_t Rate = 0x08; /* must be between 3 and 15 */
+	uint8_t Rate = 0x06; /* must be between 3 and 15 */
 
 	/* Ms is .97, 1024 ints per sec */
 	/* Frequency = 32768 >> (rate-1), 15 = 2, 14 = 4, 13 = 8/s (125 ms) */

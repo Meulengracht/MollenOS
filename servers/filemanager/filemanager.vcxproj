@@ -11,9 +11,12 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="main.c" />
+    <ClCompile Include="vfsdisk.c" />
+    <ClCompile Include="vfsfunctions.c" />
+    <ClCompile Include="vfspath.c" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
-    <ProjectGuid>{DEA6F86E-257B-45FE-99D7-E9F0FF5E1928}</ProjectGuid>
+    <ProjectGuid>{14C86479-00C4-4A28-AA0E-04D8B740EEC6}</ProjectGuid>
     <Keyword>Win32Proj</Keyword>
     <RootNamespace>Modules</RootNamespace>
   </PropertyGroup>
@@ -47,7 +50,7 @@
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <WarningLevel>EnableAllWarnings</WarningLevel>
       <Optimization>Full</Optimization>
-      <PreprocessorDefinitions>MOLLENOS;_X86_32;__DEVICEMANAGER_IMPL;__SERVER_IMPL</PreprocessorDefinitions>
+      <PreprocessorDefinitions>MOLLENOS;_X86_32;__FILEMANAGER_IMPL;__SERVER_IMPL</PreprocessorDefinitions>
       <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
       <TreatWarningAsError>true</TreatWarningAsError>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>

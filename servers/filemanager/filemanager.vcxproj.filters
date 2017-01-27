@@ -1,34 +1,23 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
-    <None Include="drm.mdrv" />
+    <None Include="filemanager.mdrv" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="main.c" />
-    <ClCompile Include="arch\x86\pcienumerate.c">
-      <Filter>arch\x86</Filter>
+    <ClCompile Include="vfsdisk.c">
+      <Filter>vfs</Filter>
     </ClCompile>
-    <ClCompile Include="arch\x86\pcihelpers.c">
-      <Filter>arch\x86</Filter>
+    <ClCompile Include="vfsfunctions.c">
+      <Filter>vfs</Filter>
     </ClCompile>
-    <ClCompile Include="arch\x86\pciio.c">
-      <Filter>arch\x86</Filter>
-    </ClCompile>
-    <ClCompile Include="arch\x86\pcistrings.c">
-      <Filter>arch\x86</Filter>
+    <ClCompile Include="vfspath.c">
+      <Filter>vfs</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <Filter Include="arch">
-      <UniqueIdentifier>{81899270-cf14-4dc5-ab28-8f8a6fd34775}</UniqueIdentifier>
+    <Filter Include="vfs">
+      <UniqueIdentifier>{c59891af-85fe-4b21-81c7-28558cf2d467}</UniqueIdentifier>
     </Filter>
-    <Filter Include="arch\x86">
-      <UniqueIdentifier>{4373489d-c57d-42b1-b203-15fcd1114e97}</UniqueIdentifier>
-    </Filter>
-  </ItemGroup>
-  <ItemGroup>
-    <ClInclude Include="arch\x86\bus.h">
-      <Filter>arch\x86</Filter>
-    </ClInclude>
   </ItemGroup>
 </Project>

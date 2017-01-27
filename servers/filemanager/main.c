@@ -16,17 +16,16 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS MCore - Device Manager
+ * MollenOS MCore - Virtual FileSystem
  * - Initialization + Event Mechanism
  */
 
 /* Includes
  * - System */
-#include <os/driver/contracts/base.h>
-#include <os/driver/device.h>
+#include <os/driver/file.h>
 #include <os/mollenos.h>
 #include <ds/list.h>
-#include <bus.h>
+#include "include/vfs.h"
 
 /* Includes
  * - C-Library */
@@ -35,10 +34,23 @@
 #include <string.h>
 #include <ctype.h>
 
+/* Prototypes 
+ * - VFS Prototypes */
+void VfsRegisterDisk(UUId_t DiskId);
+void VfsUnregisterDisk(UUId_t DiskId, int Forced);
+MCoreFileInstance_t *VfsOpen(const char *Path, VfsFileFlags_t OpenFlags);
+VfsErrorCode_t VfsClose(MCoreFileInstance_t *Handle);
+VfsErrorCode_t VfsDelete(MCoreFileInstance_t *Handle);
+size_t VfsRead(MCoreFileInstance_t *Handle, uint8_t *Buffer, size_t Length);
+size_t VfsWrite(MCoreFileInstance_t *Handle, uint8_t *Buffer, size_t Length);
+VfsErrorCode_t VfsSeek(MCoreFileInstance_t *Handle, uint64_t Offset);
+VfsErrorCode_t VfsFlush(MCoreFileInstance_t *Handle);
+
 /* Globals */
-List_t *GlbDeviceList = NULL;
-List_t *GlbDriverList = NULL;
-UUId_t GlbDeviceIdGen = 0, GlbDriverIdGen = 0;
+List_t *GlbFileSystems = NULL;
+List_t *GlbOpenFiles = NULL;
+UUId_t GlbFileSystemId = 0;
+UUId_t GlbVfsFileIdGen = 0;
 int GlbInitialized = 0;
 int GlbRun = 0;
 
@@ -48,20 +60,17 @@ int GlbRun = 0;
 OsStatus_t OnLoad(void)
 {
 	/* Setup list */
-	GlbDeviceList = ListCreate(KeyInteger, LIST_NORMAL);
-	GlbDriverList = ListCreate(KeyInteger, LIST_NORMAL);
+	GlbFileSystems = ListCreate(KeyInteger, LIST_NORMAL);
+	GlbOpenFiles = ListCreate(KeyInteger, LIST_NORMAL);
 
 	/* Init variables */
-	GlbDeviceIdGen = 0;
-	GlbDriverIdGen = 0;
+	GlbFileSystemId = 0;
+	GlbVfsFileIdGen = 0;
 	GlbInitialized = 1;
 	GlbRun = 1;
 
 	/* Register us with server manager */
-	RegisterServer(__DEVICEMANAGER_TARGET);
-
-	/* Enumerate bus controllers/devices */
-	BusEnumerate();
+	RegisterServer(__FILEMANAGER_TARGET);
 
 	/* No error! */
 	return OsNoError;
@@ -83,75 +92,29 @@ OsStatus_t OnEvent(MRemoteCall_t *Message)
 	/* Which function is called? */
 	switch (Message->Function)
 	{
-		/* Handles registration of a new device 
+		/* Handles registration of a new disk 
 		 * and store it with a custom version of
-		 * our own MCoreDevice */
-		case __DEVICEMANAGER_REGISTERDEVICE: {
-			/* Variables for result */
-			UUId_t Result;
+		 * our own filesystem classs */
+		case __FILEMANAGER_REGISTERDISK: {
 
-			/* Evaluate request, but don't free
-			* the allocated device storage, we need it */
-			Message->Arguments[0].Type = ARGUMENT_NOTUSED;
-			Result = RegisterDevice((MCoreDevice_t*)Message->Arguments[0].Data.Buffer, NULL);
-
-			/* Write the result back to the caller */
-			PipeSend(Message->Sender, Message->ResponsePort,
-				&Result, sizeof(UUId_t));
 		} break;
 
 		/* Unregisters a device from the system, and 
 		 * signals all drivers that are attached to 
 		 * un-attach */
-		case __DEVICEMANAGER_UNREGISTERDEVICE: {
+		case __FILEMANAGER_UNREGISTERDISK: {
 
 		} break;
 
 		/* Queries device information and returns
 		 * information about the device and the drivers
 		 * attached */
-		case __DEVICEMANAGER_QUERYDEVICE: {
+		case __FILEMANAGER_OPENFILE: {
 
 		} break;
 
 		/* What do? */
-		case __DEVICEMANAGER_IOCTLDEVICE: {
-
-		} break;
-
-		/* Registers a driver for the given device 
-		 * We then store what contracts are related to 
-		 * which devices in order to keep track */
-		case __DEVICEMANAGER_REGISTERCONTRACT: {
-			/* Variables for result */
-			MContract_t *Contract = (MContract_t*)
-				Message->Arguments[0].Data.Buffer;
-			UUId_t Result = 1;
-
-			/* Evaluate request, but don't free
-			 * the allocated contract storage, we need it */
-			Message->Arguments[0].Type = ARGUMENT_NOTUSED;
-			Result = RegisterContract(Contract);
-
-			/* Write the result back to the caller */
-			PipeSend(Message->Sender, Message->ResponsePort,
-				&Result, sizeof(UUId_t));
-		} break;
-
-		/* For now this function is un-implemented */
-		case __DEVICEMANAGER_UNREGISTERCONTRACT: {
-			/* Not-Implemented */
-		} break;
-
-		/* Query a contract for information 
-		 * This usually redirects a message to
-		 * the corresponding driver */
-		case __DEVICEMANAGER_QUERYCONTRACT: {
-			/* Variables for result */
-			MContractType_t Type = (MContractType_t)
-				Message->Arguments[0].Data.Value;
-			void *ResponseBuffer = 
-				malloc(Message->Result.Length);
+		case __FILEMANAGER_CLOSEFILE: {
 
 		} break;
 
@@ -161,57 +124,4 @@ OsStatus_t OnEvent(MRemoteCall_t *Message)
 
 	/* Done! */
 	return OsNoError;
-}
-
-/* Device Registering
- * Allows registering of a new device in the
- * device-manager, and automatically queries
- * for a driver for the new device */
-UUId_t RegisterDevice(MCoreDevice_t *Device, const char *Name)
-{
-	/* Variables */
-	UUId_t DeviceId = GlbDeviceIdGen++;
-	DataKey_t Key;
-
-	/* Update name and print debug information */
-	if (Name != NULL) {
-		memcpy(&Device->Name[0], Name, strlen(Name));
-		MollenOSSystemLog("Registered device %s", Name);
-	}
-
-	/* Update id, add to list */
-	Key.Value = DeviceId;
-	Device->Id = DeviceId;
-	ListAppend(GlbDeviceList, ListCreateNode(Key, Key, Device));
-
-	/* Now, we want to try to find a driver
-	 * for the new device */
-	if (InstallDriver(Device) == OsError) {
-	}
-
-	/* Done with processing of the new device */
-	return DeviceId;
-}
-
-/* RegisterContract
- * Registers the given contact with the device-manager to let
- * the manager know we are handling this device, and what kind
- * of functionality the device supports */
-UUId_t RegisterContract(MContract_t *Contract)
-{
-	/* Variables */	
-	UUId_t ContractId = GlbDriverIdGen++;
-	DataKey_t Key;
-
-	/* Debug name */
-	MollenOSSystemLog("Registered driver for device %u: %s", 
-		Contract->DeviceId, &Contract->Name[0]);
-
-	/* Update id, add to list */
-	Contract->DriverId = ContractId;
-	Key.Value = ContractId;
-	ListAppend(GlbDriverList, ListCreateNode(Key, Key, Contract));
-
-	/* Done with processing of the new driver */
-	return ContractId;
 }
