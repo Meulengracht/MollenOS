@@ -1,60 +1,36 @@
 /* MollenOS
-*
-* Copyright 2011 - 2016, Philip Meulengracht
-*
-* This program is free software : you can redistribute it and / or modify
-* it under the terms of the GNU General Public License as published by
-* the Free Software Foundation ? , either version 3 of the License, or
-* (at your option) any later version.
-*
-* This program is distributed in the hope that it will be useful,
-* but WITHOUT ANY WARRANTY; without even the implied warranty of
-* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.See the
-* GNU General Public License for more details.
-*
-* You should have received a copy of the GNU General Public License
-* along with this program.If not, see <http://www.gnu.org/licenses/>.
-*
-*
-* MollenOS MCore - Virtual FileSystem
-* - File Definitions & Structures
-*/
+ *
+ * Copyright 2011 - 2017, Philip Meulengracht
+ *
+ * This program is free software : you can redistribute it and / or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation ? , either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.If not, see <http://www.gnu.org/licenses/>.
+ *
+ *
+ * MollenOS MCore - Virtual File Definitions & Structures
+ * - This header describes the base virtual file-structure, prototypes
+ *   and functionality, refer to the individual things for descriptions
+ */
 
-#ifndef _MCORE_VFS_FILE_H_
-#define _MCORE_VFS_FILE_H_
+#ifndef _VFS_FILE_INTERFACE_H_
+#define _VFS_FILE_INTERFACE_H_
 
 /* Includes
-* - C-Library */
+ * - C-Library */
 #include <os/osdefs.h>
 
 /* Includes
-* - VFS */
-#include <Vfs/Definitions.h>
-
-/* File flags, these are the different
-* types of options an open-file operation
-* can possess */
-typedef enum _VfsFileFlags
-{
-	/* Access Flags */
-	Read = 0x1,
-	Write = 0x2,
-
-	/* Utilities */
-	CreateIfNotExists = 0x4,
-	TruncateIfExists = 0x8,
-	FailIfExists = 0x10,
-
-	/* Data Flags */
-	Binary = 0x20,
-	NoBuffering = 0x40,
-	Append = 0x80,
-
-	/* Share Flags */
-	ReadShare = 0x100,
-	WriteShare = 0x200
-
-} VfsFileFlags_t;
+ * - File Systems */
+#include "definitions.h"
 
 /* Query Functions, these are the different
  * queries that can be made on file-handles 
@@ -110,8 +86,8 @@ typedef struct _MCoreFileInstance
 
 	/* Flags */
 	VfsErrorCode_t Code;
-	VfsFileFlags_t Flags;
-	VfsFileFlags_t LastOp;
+	Flags_t Flags;
+	Flags_t LastOp;
 	int IsEOF;
 
 	/* Position */

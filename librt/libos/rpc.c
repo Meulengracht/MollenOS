@@ -62,7 +62,7 @@ OsStatus_t RPCListen(MRemoteCall_t *Message)
 		for (i = 0; i < IPC_MAX_ARGUMENTS; i++) {
 			if (Message->Arguments[i].Type == ARGUMENT_BUFFER) {
 				Message->Arguments[i].Data.Buffer = 
-					(const void*)malloc(Message->Arguments[i].Length);
+					(__CRT_CONST void*)malloc(Message->Arguments[i].Length);
 				PipeRead(PIPE_DEFAULT, (void*)Message->Arguments[i].Data.Buffer, 
 					Message->Arguments[i].Length);
 			}
@@ -95,6 +95,17 @@ OsStatus_t RPCCleanup(MRemoteCall_t *Message)
 
 	/* Done */
 	return OsNoError;
+}
+
+/* RPCRespond
+ * This is a wrapper to return a respond message/buffer to the
+ * sender of the message, it's good practice to always wait for
+ * a result when there is going to be one */
+OsStatus_t RPCRespond(MRemoteCall_t *Rpc,
+	__CRT_CONST void *Buffer, size_t Length)
+{
+	/* Write the result back to the caller */
+	return PipeSend(Rpc->Sender, Rpc->ResponsePort, Buffer, Length);
 }
 
 /* IPC - Sleep

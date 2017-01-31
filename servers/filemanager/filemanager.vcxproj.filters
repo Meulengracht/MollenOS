@@ -5,15 +5,13 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="main.c" />
-    <ClCompile Include="vfsdisk.c">
-      <Filter>vfs</Filter>
-    </ClCompile>
     <ClCompile Include="vfsfunctions.c">
       <Filter>vfs</Filter>
     </ClCompile>
     <ClCompile Include="vfspath.c">
       <Filter>vfs</Filter>
     </ClCompile>
+    <ClCompile Include="disk.c" />
   </ItemGroup>
   <ItemGroup>
     <Filter Include="vfs">

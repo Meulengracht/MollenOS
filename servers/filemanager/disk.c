@@ -16,22 +16,18 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS MCore - Virtual FileSystem
- * - Disk/Partition related functions + Function for registering FS
+ * MollenOS - File Manager Service
+ * - Handles all file related services and disk services
  */
 
 /* Includes 
  * - System */
-#include <devicemanager.h>
-#include <modules/modules.h>
-#include <process/process.h>
-#include <vfs/vfs.h>
-#include <heap.h>
-#include <log.h>
+#include <os/driver/contracts/disk.h>
+#include <os/driver/file/vfs.h>
+#include <ds/list.h>
 
 /* Includes
  * - C-Library */
-#include <ds/list.h>
 #include <string.h>
 #include <ctype.h>
 
@@ -246,37 +242,33 @@ int VfsParsePartitionTable(UUId_t DiskId, uint64_t SectorBase,
 	return PartitionCount;
 }
 
-/* Registers a disk with the VFS
- * and parse all possible partiions */
-void VfsRegisterDisk(UUId_t DiskId)
+/* RegisterDisk
+ * Registers a disk with the file-manager and it will
+ * automatically be parsed (MBR, GPT, etc), and all filesystems
+ * on the disk will be brought online */
+OsStatus_t RegisterDisk(UUId_t Driver, UUId_t Device, Flags_t Flags)
 {
-	/* Query for disk stats */
-//	MCoreModule_t *Module = NULL;
-	char TmpBuffer[12];
-	MCoreDeviceRequest_t Request;
+	/* Variables */
+	DiskDescriptor_t Descriptor;
 
-	/* Null out request */
-	memset(&Request, 0, sizeof(MCoreDeviceRequest_t));
+	/* Step 1 - Query disk */
+	if (DiskQuery(Device, Driver, &Descriptor) != OsNoError) {
+		return OsError;
+	}
 
-	/* Setup request */
-	Request.Base.Type = RequestQuery;
-	Request.DeviceId = DiskId;
-	Request.Buffer = (uint8_t*)&TmpBuffer[0];
-	Request.Length = 12;
+	/* Step 2 - Build a disk descriptor */
 
-	/* Memset */
-	memset(TmpBuffer, 0, sizeof(TmpBuffer));
 
-	/* Perform */
-	//DmCreateRequest(&Request);
-	//DmWaitRequest(&Request, 0);
+	/* Step 3 - Parse MBR (legacy, gpt etc) */
 
-	/* Well, well */
-	uint64_t SectorCount = *(uint64_t*)&TmpBuffer[0];
-	size_t SectorSize = *(size_t*)&TmpBuffer[8];
+
+	/* Step 4 - Start loading file systems for appropriate partitions */
+
+
+	/* Step 5 - $$$ profit */
 
 	/* Sanity */
-	if (!VfsParsePartitionTable(DiskId, 0, SectorCount, SectorSize))
+	if (!VfsParsePartitionTable(DiskId, 0, Descriptor.SectorCount, Descriptor.SectorSize))
 	{
 		/* Only one global partition
 		* parse FS type from it */

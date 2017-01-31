@@ -31,7 +31,7 @@
 #include <os/driver/server.h>
 
 /* The export macro, and is only set by the
- * the actual implementation of the devicemanager */
+ * the actual implementation of the filemanager */
 #ifdef __FILEMANAGER_IMPL
 #define __FILEAPI __CRT_EXTERN
 #else
@@ -44,7 +44,7 @@
 #define __FILEMANAGER_INTERFACE_VERSION		1
 
 /* These are the different IPC functions supported
- * by the fielmanager, note that some of them might
+ * by the filemanager, note that some of them might
  * be changed in the different versions, and/or new
  * functions will be added */
 #define __FILEMANAGER_REGISTERDISK				IPC_DECL_FUNCTION(0)
@@ -57,18 +57,83 @@
 #define __FILEMANAGER_WRITEFILE					IPC_DECL_FUNCTION(6)
 #define __FILEMANAGER_SEEKFILE					IPC_DECL_FUNCTION(7)
 #define __FILEMANAGER_FLUSHFILE					IPC_DECL_FUNCTION(8)
+#define __FILEMANAGER_MOVEFILE					IPC_DECL_FUNCTION(9)
+
+/* Bit flag defintions for operations such as 
+ * registering / unregistering of disks, open flags
+ * for OpenFile and access flags */
+#define __DISK_REMOVABLE						0x00000001
+
+#define __DISK_FORCED_REMOVE					0x00000001
+
+#define __FILE_READ_ACCESS						0x00000001
+#define __FILE_WRITE_ACCESS						0x00000002
+#define __FILE_READ_SHARE						0x00000100
+#define __FILE_WRITE_SHARE						0x00000200
+
+#define __FILE_CREATE							0x00000001
+#define __FILE_TRUNCATE							0x00000002
+#define __FILE_MUSTEXIST						0x00000004
+#define __FILE_APPEND							0x00000008
 
 /* RegisterDisk
- * */
+ * Registers a disk with the file-manager and it will
+ * automatically be parsed (MBR, GPT, etc), and all filesystems
+ * on the disk will be brought online */
+#ifdef __FILEMANAGER_IMPL
+__FILEAPI OsStatus_t RegisterDisk(UUId_t Driver, UUId_t Device, Flags_t Flags);
+#else
+__FILEAPI OsStatus_t RegisterDisk(UUId_t Driver, UUId_t Device, Flags_t Flags)
+{
+
+}
+#endif
 
 /* UnregisterDisk
- * */
+ * Unregisters a disk from the system, and brings any filesystems
+ * registered on this disk offline */
+#ifdef __FILEMANAGER_IMPL
+__FILEAPI OsStatus_t UnregisterDisk(UUId_t DiskId, Flags_t Flags);
+#else
+__FILEAPI OsStatus_t UnregisterDisk(UUId_t DiskId, Flags_t Flags)
+{
+
+}
+#endif
 
 /* OpenFile
  * */
+#ifdef __FILEMANAGER_IMPL
+__FILEAPI UUId_t OpenFile(UUId_t Requester, 
+	const char *Path, Flags_t Options, Flags_t Access);
+#else
+__FILEAPI UUId_t OpenFile(const char *Path, Flags_t Options, Flags_t Access)
+{
+
+}
+#endif
 
 /* CloseFile
  * */
+#ifdef __FILEMANAGER_IMPL
+__FILEAPI OsStatus_t CloseFile(UUId_t Requester, UUId_t Handle);
+#else
+__FILEAPI OsStatus_t CloseFile(UUId_t Handle)
+{
+
+}
+#endif
+
+/* DeleteFile
+ * */
+#ifdef __FILEMANAGER_IMPL
+__FILEAPI OsStatus_t DeleteFile(UUId_t Requester, const char *Path);
+#else
+__FILEAPI OsStatus_t DeleteFile(const char *Path)
+{
+
+}
+#endif
 
 /* ReadFile
  * */
@@ -78,8 +143,37 @@
 
 /* SeekFile
  * */
+#ifdef __FILEMANAGER_IMPL
+__FILEAPI OsStatus_t SeekFile(UUId_t Requester, 
+	UUId_t Handle, uint32_t SeekLo, uint32_t SeekHi);
+#else
+__FILEAPI OsStatus_t SeekFile(UUId_t Handle, uint32_t SeekLo, uint32_t SeekHi)
+{
+
+}
+#endif
 
 /* FlushFile
  * */
+#ifdef __FILEMANAGER_IMPL
+__FILEAPI OsStatus_t FlushFile(UUId_t Requester, UUId_t Handle);
+#else
+__FILEAPI OsStatus_t FlushFile(UUId_t Handle)
+{
+
+}
+#endif
+
+/* MoveFile
+ * */
+#ifdef __FILEMANAGER_IMPL
+__FILEAPI OsStatus_t MoveFile(UUId_t Requester, 
+	const char *Source, const char *Destination, int Copy);
+#else
+__FILEAPI OsStatus_t MoveFile(const char *Source, const char *Destination, int Copy)
+{
+
+}
+#endif
 
 #endif //!_DEVICE_INTERFACE_H_

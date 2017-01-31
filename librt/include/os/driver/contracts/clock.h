@@ -21,8 +21,8 @@
  *   and functionality, refer to the individual things for descriptions
  */
 
-#ifndef _MCORE_CONTRACT_CLOCK_H_
-#define _MCORE_CONTRACT_CLOCK_H_
+#ifndef _CONTRACT_CLOCK_INTERFACE_H_
+#define _CONTRACT_CLOCK_INTERFACE_H_
 
 /* Includes 
  * - System */

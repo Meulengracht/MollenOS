@@ -16,8 +16,8 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS MCore - Virtual FileSystem
- * - Initialization + Event Mechanism
+ * MollenOS - File Manager Service
+ * - Handles all file related services and disk services
  */
 
 /* Includes
@@ -25,7 +25,6 @@
 #include <os/driver/file.h>
 #include <os/mollenos.h>
 #include <ds/list.h>
-#include "include/vfs.h"
 
 /* Includes
  * - C-Library */
@@ -33,18 +32,6 @@
 #include <stddef.h>
 #include <string.h>
 #include <ctype.h>
-
-/* Prototypes 
- * - VFS Prototypes */
-void VfsRegisterDisk(UUId_t DiskId);
-void VfsUnregisterDisk(UUId_t DiskId, int Forced);
-MCoreFileInstance_t *VfsOpen(const char *Path, VfsFileFlags_t OpenFlags);
-VfsErrorCode_t VfsClose(MCoreFileInstance_t *Handle);
-VfsErrorCode_t VfsDelete(MCoreFileInstance_t *Handle);
-size_t VfsRead(MCoreFileInstance_t *Handle, uint8_t *Buffer, size_t Length);
-size_t VfsWrite(MCoreFileInstance_t *Handle, uint8_t *Buffer, size_t Length);
-VfsErrorCode_t VfsSeek(MCoreFileInstance_t *Handle, uint64_t Offset);
-VfsErrorCode_t VfsFlush(MCoreFileInstance_t *Handle);
 
 /* Globals */
 List_t *GlbFileSystems = NULL;
@@ -93,28 +80,24 @@ OsStatus_t OnEvent(MRemoteCall_t *Message)
 	switch (Message->Function)
 	{
 		/* Handles registration of a new disk 
-		 * and store it with a custom version of
-		 * our own filesystem classs */
+		 * and and parses the disk-system for a MBR
+		 * or a GPT table */
 		case __FILEMANAGER_REGISTERDISK: {
 
+			/* Redirect the call */
+			RegisterDisk((UUId_t)Message->Arguments[0].Data.Value,
+				(UUId_t)Message->Arguments[1].Data.Value,
+				(Flags_t)Message->Arguments[2].Data.Value);
+
 		} break;
 
-		/* Unregisters a device from the system, and 
-		 * signals all drivers that are attached to 
-		 * un-attach */
+		/* Unregisters a disk from the system and
+		 * handles cleanup of all attached filesystems */
 		case __FILEMANAGER_UNREGISTERDISK: {
 
-		} break;
-
-		/* Queries device information and returns
-		 * information about the device and the drivers
-		 * attached */
-		case __FILEMANAGER_OPENFILE: {
-
-		} break;
-
-		/* What do? */
-		case __FILEMANAGER_CLOSEFILE: {
+			/* Redirect the call */
+			UnregisterDisk((UUId_t)Message->Arguments[0].Data.Value,
+				(Flags_t)Message->Arguments[1].Data.Value);
 
 		} break;
 
