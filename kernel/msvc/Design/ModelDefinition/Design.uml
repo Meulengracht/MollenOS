@@ -29,6 +29,27 @@
 Thoughts:
  - Move calibration code, timer code etc to later, initalize apic timer just for scheduling, not time-keeping with a sane value of 30000 (should give us around 5-100ms per task on cpus). Then calibrate it correctly when a timer is registered!</body>
     </comment>
+    <comment
+      Id="105f9529-54f6-4c47-9a63-246f58aaf9a8">
+      <body>QueryDriver(driver_id, type, Arg0, ...)</body>
+    </comment>
+    <comment
+      Id="e495a341-89ca-4c35-ba88-fa6587d4b8aa">
+      <body>QueryDriver(driver_id, type, Arg0, ...)</body>
+    </comment>
+    <comment
+      Id="6e8881e3-4119-44c6-a322-2b535d6d5623">
+      <body>QueryContract(type, Arg0, ...)</body>
+    </comment>
+    <comment
+      Id="e481a980-4cfa-485c-8b85-70bf7d8b345f">
+      <body>Type -&gt; Contract Type
+Arg0 -&gt; Function
+Arg1 -&gt; Variable
+Arg2 -&gt; Variable
+Arg3 -&gt; Variable
+Arg4 -&gt; Variable</body>
+    </comment>
   </ownedCommentsInternal>
   <profileInstances>
     <packageHasProfileInstances
@@ -70,6 +91,24 @@ Thoughts:
         isAbstract="false"
         isLeaf="false"
         isActiveClass="false" />
+    </packageHasNamedElement>
+    <packageHasNamedElement>
+      <packageMoniker
+        Id="2ca4abba-c45c-4be3-8e3d-cb992d045f65"
+        LastKnownName="Disk Driver (Ex..)"
+        LastKnownLocation="Package_1902.uml" />
+    </packageHasNamedElement>
+    <packageHasNamedElement>
+      <packageMoniker
+        Id="e9ed89e1-c8f7-4fea-a21c-493dbe542576"
+        LastKnownName="Device Manager"
+        LastKnownLocation="Package1_1902.uml" />
+    </packageHasNamedElement>
+    <packageHasNamedElement>
+      <packageMoniker
+        Id="bc077631-833a-4466-94a1-1389d20f3ef0"
+        LastKnownName="Application"
+        LastKnownLocation="Package2_1902.uml" />
     </packageHasNamedElement>
   </packagedElements>
   <primitiveType

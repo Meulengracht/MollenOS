@@ -30,23 +30,17 @@
 #include <os/osdefs.h>
 #include <time.h>
 
+/* Timer device query functions that must be implemented
+ * by the timer driver - those can then be used by this interface */
+#define __TIMER_QUERY_STAT				IPC_DECL_FUNCTION(0)
+
 /* TimerQuery
  * This queries the timer contract for data
  * and must be implemented by all contracts that
  * implement the timer interface */
-__DEVAPI OsStatus_t TimerQuery(clock_t *clock)
-{
-	/* Variables */
-	MRemoteCall_t Request;
-	MContractType_t Type = ContractTimer;
-
-	/* Initialize RPC */
-	RPCInitialize(&Request, __DEVICEMANAGER_INTERFACE_VERSION,
-		PIPE_DEFAULT, __DEVICEMANAGER_QUERYCONTRACT);
-	RPCSetArgument(&Request, 0, (const void*)&Type,
-		sizeof(MContractType_t));
-	RPCSetResult(&Request, clock, sizeof(clock_t));
-	return RPCEvaluate(&Request, __DEVICEMANAGER_TARGET);
+__DEVAPI OsStatus_t TimerQuery(clock_t *clock) {
+	return QueryContract(ContractTimer, __TIMER_QUERY_STAT,
+		NULL, 0, NULL, 0, NULL, 0, clock, sizeof(clock_t));
 }
 
 /* RegisterSystemTimer

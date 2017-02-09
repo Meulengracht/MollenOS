@@ -1,0 +1,77 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<logicalClassDesignerDiagram dslVersion="1.0.0.0" absoluteBounds="0, 0, 11, 8.75" name="DriverProtocol">
+  <logicalClassDesignerModelMoniker Id="ec7e0725-b3e2-4862-9c87-ca32b478c863" />
+  <nestedChildShapes>
+    <commentShape Id="884e0b51-c334-4f9e-a3d6-a895928fcd65" absoluteBounds="2.5, 4.375, 2.375, 0.25" customColor="251, 247, 200">
+      <commentMoniker Id="f0af8bee-59e9-4697-89c9-44854a324a1f" />
+      <relativeChildShapes />
+    </commentShape>
+    <commentShape Id="ecfc7e97-ad4f-4a6c-bb6b-906ffdbae7a8" absoluteBounds="5.375, 5.25, 2.375, 0.25" customColor="251, 247, 200">
+      <commentMoniker Id="b767beac-e15c-4d20-aed8-b48e020cdd50" />
+      <relativeChildShapes />
+    </commentShape>
+    <commentShape Id="7a427b9f-8998-4842-882c-748c8c62220d" absoluteBounds="4.75, 2.5, 1.75, 0.25" customColor="251, 247, 200">
+      <commentMoniker Id="d1d16a23-17e9-40af-b2bb-4d2bfd7f2f74" />
+      <relativeChildShapes />
+    </commentShape>
+    <commentShape Id="0a30c808-b87c-49a1-ab4a-03b136878677" absoluteBounds="0.5, 3.625, 1.5, 1.125" customColor="251, 247, 200">
+      <commentMoniker Id="049899a7-7b45-428d-b81a-50994dc550ea" />
+      <relativeChildShapes />
+    </commentShape>
+    <packageShape Id="de3e51dd-8c01-437e-bb10-15e7b5835862" absoluteBounds="2.25, 5.5, 3.5, 3" customColor="255, 249, 230" hideQualifiedName="false">
+      <packageMoniker Id="f264151c-8f67-4dc9-85e9-cc10e93d72e7" LastKnownName="Disk Driver (Ex..)" />
+    </packageShape>
+    <packageShape Id="d568c835-7e64-4aee-9524-b367c70a22c5" absoluteBounds="6.5, 1.375, 2.875, 3.125" customColor="255, 249, 230" hideQualifiedName="false">
+      <packageMoniker Id="d304235a-a51d-403c-adaa-790b62753626" LastKnownName="Device Manager" />
+      <nestedChildShapes>
+        <commentShape Id="255d2442-2714-459f-bc56-bd5e726d88bf" absoluteBounds="6.75, 1.875, 2.375, 2.375" customColor="251, 247, 200">
+          <commentMoniker Id="58112fbf-f2e7-4602-8c82-3beac8f3d8e1" />
+          <relativeChildShapes />
+        </commentShape>
+      </nestedChildShapes>
+    </packageShape>
+    <packageImportConnector edgePoints="[(8.59375 : 4.5); (8.59375 : 4.775653125); (7.92708333333333 : 4.775653125); (7.92708333333333 : 7.03125); (5.75 : 7.03125)]" manuallyRouted="true" fixedFrom="Algorithm" fixedTo="Algorithm" customColor="Black">
+      <packageImportMoniker Id="9fdb263b-eaf3-4295-a7c8-cefc95ffe90b" />
+      <relativeChildShapes />
+      <nodes>
+        <packageShapeMoniker Id="d568c835-7e64-4aee-9524-b367c70a22c5" />
+        <packageShapeMoniker Id="de3e51dd-8c01-437e-bb10-15e7b5835862" />
+      </nodes>
+    </packageImportConnector>
+    <packageShape Id="51bf86f4-8d33-4b6a-80e4-de2dfa9e331f" absoluteBounds="1.125, 0.625, 3.5, 2.25" customColor="255, 249, 230" hideQualifiedName="false">
+      <packageMoniker Id="8d1b6640-5304-4855-8f9e-e43cde09df4c" LastKnownName="Application" />
+      <nestedChildShapes>
+        <commentShape Id="e38b9060-cee7-4944-99ff-7e95e7768a4d" absoluteBounds="1.375, 1.125, 3, 0.75" customColor="251, 247, 200">
+          <commentMoniker Id="f05b969e-ba6a-42c2-b123-be8e41a8883b" />
+          <relativeChildShapes />
+        </commentShape>
+        <commentShape Id="9173395b-5700-4f47-900b-d74db1176bd9" absoluteBounds="1.375, 2, 3, 0.75" customColor="251, 247, 200">
+          <commentMoniker Id="57d4fb89-c8cc-40fb-8f39-ceec5adb11f2" />
+          <relativeChildShapes />
+        </commentShape>
+      </nestedChildShapes>
+    </packageShape>
+    <packageImportConnector edgePoints="[(2.36184210526316 : 2.875); (2.36184210526316 : 5.5)]" manuallyRouted="true" fixedFrom="Algorithm" fixedTo="Caller" customColor="Black">
+      <packageImportMoniker Id="c30e8848-f99d-4543-a856-3baa859259fe" />
+      <relativeChildShapes />
+      <moveableDecoratorHostShapes>
+        <moveableDecoratorHostShape manuallySized="true" manuallyPlaced="true" absoluteBounds="1.3125, 2.875, 1.0328052242596943, 0.14800345897674561" shapeFieldName="&lt;&lt;Import&gt;&gt;" />
+      </moveableDecoratorHostShapes>
+      <nodes>
+        <packageShapeMoniker Id="51bf86f4-8d33-4b6a-80e4-de2dfa9e331f" />
+        <packageShapeMoniker Id="de3e51dd-8c01-437e-bb10-15e7b5835862" />
+      </nodes>
+    </packageImportConnector>
+    <packageImportConnector edgePoints="[(4.625 : 2.37241379310345); (6.5 : 2.37241379310345)]" fixedFrom="Algorithm" fixedTo="Caller" customColor="Black">
+      <packageImportMoniker Id="64dd39b0-5ce5-4cf3-9e3b-e9f1b08bc30d" />
+      <relativeChildShapes />
+      <moveableDecoratorHostShapes>
+        <moveableDecoratorHostShape manuallyPlaced="true" absoluteBounds="5.6944444440305233, 2.4661637931034481, 0.125, 0.1341145783662796" shapeFieldName="Stereotype" />
+      </moveableDecoratorHostShapes>
+      <nodes>
+        <packageShapeMoniker Id="51bf86f4-8d33-4b6a-80e4-de2dfa9e331f" />
+        <packageShapeMoniker Id="d568c835-7e64-4aee-9524-b367c70a22c5" />
+      </nodes>
+    </packageImportConnector>
+  </nestedChildShapes>
+</logicalClassDesignerDiagram>

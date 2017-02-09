@@ -31,6 +31,7 @@
 
 /* Includes
  * - Library */
+#include <stddef.h>
 #include <string.h>
 
 /* Contract definitions, related to some limits
@@ -114,6 +115,65 @@ __DEVAPI OsStatus_t RegisterContract(MContract_t *Contract)
 	/* Update result, return */
 	Contract->ContractId = ContractId;
 	return Result;
+}
+#endif
+
+/* QueryContract 
+ * Handles the generic query function, by resolving
+ * the correct driver and asking for data */
+#ifdef __DEVICEMANAGER_IMPL
+__CRT_EXTERN
+OsStatus_t 
+QueryContract(_In_ MContractType_t Type, 
+			  _In_ int Function,
+			  _In_Opt_ __CRT_CONST void *Arg0,
+			  _In_Opt_ size_t Length0,
+			  _In_Opt_ __CRT_CONST void *Arg1,
+			  _In_Opt_ size_t Length1,
+			  _In_Opt_ __CRT_CONST void *Arg2,
+			  _In_Opt_ size_t Length2,
+			  _Out_Opt_ __CRT_CONST void *ResultBuffer,
+			  _In_Opt_ size_t ResultLength);
+#else
+static __CRT_INLINE 
+OsStatus_t 
+QueryContract(_In_ MContractType_t Type, 
+			  _In_ int Function,
+			  _In_Opt_ __CRT_CONST void *Arg0,
+			  _In_Opt_ size_t Length0,
+			  _In_Opt_ __CRT_CONST void *Arg1,
+			  _In_Opt_ size_t Length1,
+			  _In_Opt_ __CRT_CONST void *Arg2,
+			  _In_Opt_ size_t Length2,
+			  _Out_Opt_ __CRT_CONST void *ResultBuffer,
+			  _In_Opt_ size_t ResultLength)
+{
+	/* Variables */
+	MRemoteCall_t Request;
+
+	/* Initialize static RPC variables like
+	 * type of RPC, pipe and version */
+	RPCInitialize(&Request, __DEVICEMANAGER_INTERFACE_VERSION, 
+		PIPE_DEFAULT, __DEVICEMANAGER_QUERYCONTRACT);
+	RPCSetArgument(&Request, 0, (const void*)&Type, sizeof(MContractType_t));
+	RPCSetArgument(&Request, 1, (const void*)&Function, sizeof(int));
+
+	/* Setup arguments if given */
+	if (Arg0 != NULL && Length0 != 0) {
+		RPCSetArgument(&Request, 2, Arg0, Length0);
+	}
+
+	if (Arg1 != NULL && Length1 != 0) {
+		RPCSetArgument(&Request, 3, Arg1, Length1);
+	}
+
+	if (Arg2 != NULL && Length2 != 0) {
+		RPCSetArgument(&Request, 4, Arg2, Length2);
+	}
+
+	/* Fire off request */
+	RPCSetResult(&Request, ResultBuffer, ResultLength);
+	return RPCEvaluate(&Request, __DEVICEMANAGER_TARGET);
 }
 #endif
 

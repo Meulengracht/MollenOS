@@ -119,10 +119,12 @@
 
 #ifndef _In_
 #define _In_
+#define _In_Opt_
 #endif
 
 #ifndef _Out_
 #define _Out_
+#define _Out_Opt_
 #endif
 
 #ifndef _M_IX86

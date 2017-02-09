@@ -22,6 +22,19 @@
   </PropertyGroup>
   <Import Project="$(VSToolsPath)\ArchitectureTools\Microsoft.VisualStudio.TeamArchitect.ModelingProject.targets" Condition="'$(VSToolsPath)' != ''" />
   <ItemGroup>
+    <Content Include="DriverProtocol.classdiagram">
+      <SubType>Content</SubType>
+    </Content>
+    <Content Include="DriverProtocol.classdiagram.layout">
+      <SubType>Content</SubType>
+      <DependentUpon>DriverProtocol.classdiagram</DependentUpon>
+    </Content>
+    <Content Include="ModelDefinition\Package1_1902.uml">
+      <SubType>Content</SubType>
+    </Content>
+    <Content Include="ModelDefinition\Package2_1902.uml">
+      <SubType>Content</SubType>
+    </Content>
     <Content Include="ModelDefinition\Package_0039.uml">
       <SubType>Content</SubType>
     </Content>
@@ -29,6 +42,9 @@
       <SubType>Content</SubType>
     </Content>
     <Content Include="ModelDefinition\Package_0047.uml">
+      <SubType>Content</SubType>
+    </Content>
+    <Content Include="ModelDefinition\Package_1902.uml">
       <SubType>Content</SubType>
     </Content>
     <Folder Include="ModelDefinition\" />

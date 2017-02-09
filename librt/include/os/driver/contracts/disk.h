@@ -26,8 +26,14 @@
 
 /* Includes 
  * - System */
-#include <os/driver/contracts/base.h>
+#include <os/driver/driver.h>
 #include <os/osdefs.h>
+
+/* Disk device query functions that must be implemented
+ * by the disk driver - those can then be used by this interface */
+#define __DISK_QUERY_STAT				IPC_DECL_FUNCTION(0)
+#define __DISK_QUERY_READ				IPC_DECL_FUNCTION(1)
+#define __DISK_QUERY_WRITE				IPC_DECL_FUNCTION(2)
 
 /* The disk descriptor structure 
  * contains geometric and generic information
@@ -42,28 +48,104 @@ typedef struct _DiskDescriptor {
 	uint64_t			SectorCount;
 } DiskDescriptor_t;
 
+/* The disk operation structure 
+ * contains information related to disk operations
+ * like read and write */
+typedef struct _DiskOperation {
+	int					Direction;
+	uint64_t			AbsSector;
+	const void			*PhysicalBuffer;
+	size_t				SectorCount;
+} DiskOperation_t;
+
 /* DiskQuery
  * This queries the disk contract for data
  * and must be implemented by all contracts that
  * implement the disk interface */
-__DEVAPI OsStatus_t DiskQuery(UUId_t Disk, UUId_t Driver, 
-	DiskDescriptor_t *Descriptor)
+__DEVAPI 
+OsStatus_t 
+DiskQuery(_In_ UUId_t Driver, 
+		  _In_ UUId_t Disk,
+		  _Out_ DiskDescriptor_t *Descriptor)
 {
 	/* Variables */
-	MRemoteCall_t Request;
-	MContractType_t Type = ContractDisk;
+	MContract_t Contract;
 
-	/* Initialize RPC request */
-	RPCInitialize(&Request, __DEVICEMANAGER_INTERFACE_VERSION,
-		PIPE_DEFAULT, __DEVICEMANAGER_QUERYCONTRACT);
+	/* Setup contract stuff for request */
+	Contract.DriverId = Driver;
+	Contract.Type = ContractDisk;
+	Contract.Version = __DEVICEMANAGER_INTERFACE_VERSION;
 
-	RPCSetArgument(&Request, 0, (const void*)&Type, sizeof(MContractType_t));
-	RPCSetResult(&Request, time, sizeof(struct tm));
-	return RPCEvaluate(&Request, __DEVICEMANAGER_TARGET);
+	/* Query the driver directly */
+	return QueryDriver(NULL, __DISK_QUERY_STAT, 
+		&Disk, sizeof(UUId_t), NULL, 0, NULL, 0, 
+		Descriptor, sizeof(DiskDescriptor_t));
 }
 
-/* DiskRead */
+/* DiskRead 
+ * Sends a read request to the given disk, and attempts to
+ * read the number of bytes requested into the given buffer 
+ * at the absolute sector given */
+__DEVAPI 
+OsStatus_t 
+DiskRead(_In_ UUId_t Driver, 
+		 _In_ UUId_t Disk,
+		 _In_ uint64_t Sector, 
+		 _Out_ __CRT_CONST void *Buffer, 
+		 _In_ size_t SectorCount)
+{
+	/* Variables */
+	MContract_t Contract;
+	DiskOperation_t Operation;
 
-/* DiskWrite */
+	/* Setup contract stuff for request */
+	Contract.DriverId = Driver;
+	Contract.Type = ContractDisk;
+	Contract.Version = __DEVICEMANAGER_INTERFACE_VERSION;
+
+	/* Initialize the operation */
+	Operation.Direction = __DISK_QUERY_READ;
+	Operation.AbsSector = Sector;
+	Operation.PhysicalBuffer = NULL; //ResolveBufferPage
+	Operation.SectorCount = SectorCount;
+
+	/* Query the driver directly */
+	return QueryDriver(NULL, __DISK_QUERY_READ, 
+		&Disk, sizeof(UUId_t), &Operation, sizeof(DiskOperation_t),
+		NULL, 0, NULL, 0);
+}
+
+/* DiskWrite
+ * Sends a write request to the given disk, and attempts to
+ * write the number of bytes requested from the given buffer
+ * at the absolute sector given */
+__DEVAPI 
+OsStatus_t 
+DiskWrite(_In_ UUId_t Driver,
+		 _In_ UUId_t Disk,
+		 _In_ uint64_t Sector, 
+		 _Out_ __CRT_CONST void *Buffer, 
+		 _In_ size_t SectorCount)
+{
+	/* Variables */
+	MContract_t Contract;
+	DiskOperation_t Operation;
+
+	/* Setup contract stuff for request */
+	Contract.DriverId = Driver;
+	Contract.Type = ContractDisk;
+	Contract.Version = __DEVICEMANAGER_INTERFACE_VERSION;
+
+	/* Initialize the operation */
+	Operation.Direction = __DISK_QUERY_WRITE;
+	Operation.AbsSector = Sector;
+	Operation.PhysicalBuffer = NULL; //ResolveBufferPage
+	Operation.SectorCount = SectorCount;
+
+	/* Query the driver directly */
+	return QueryDriver(NULL, __DISK_QUERY_WRITE,
+		&Disk, sizeof(UUId_t), &Operation, sizeof(DiskOperation_t),
+		NULL, 0, NULL, 0);
+}
 
 #endif //!_CONTRACT_DISK_INTERFACE_H_

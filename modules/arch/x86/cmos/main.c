@@ -22,6 +22,7 @@
 
 /* Includes 
  * - System */
+#include <os/driver/contracts/timer.h>
 #include <os/driver/contracts/clock.h>
 #include <os/driver/acpi.h>
 #include "cmos.h"
@@ -289,19 +290,33 @@ OsStatus_t OnUnregister(MCoreDevice_t *Device)
  * Occurs when an external process or server quries
  * this driver for data, this will correspond to the query
  * function that is defined in the contract */
-OsStatus_t OnQuery(MContractType_t QueryType, UUId_t QueryTarget, int Port)
+OsStatus_t 
+OnQuery(_In_ MContractType_t QueryType, 
+		_In_ int QueryFunction, 
+		_In_Opt_ RPCArgument_t *Arg0,
+		_In_Opt_ RPCArgument_t *Arg1,
+		_In_Opt_ RPCArgument_t *Arg2, 
+		_In_ UUId_t Queryee, 
+		_In_ int ResponsePort)
 {
 	/* Static storage to avoid 
 	 * allocation and freeing */
 	struct tm _time;
+	
+	/* Unused parameters */
+	_CRT_UNUSED(Arg0);
+	_CRT_UNUSED(Arg1);
+	_CRT_UNUSED(Arg2);
 
 	/* Which kind of query type is being done? */
-	if (QueryType == ContractClock) {
+	if (QueryType == ContractClock
+		&& QueryFunction == __CLOCK_QUERY_STAT) {
 		CmosGetTime(&_time);
-		PipeSend(QueryTarget, Port, &_time, sizeof(struct tm));
+		PipeSend(Queryee, ResponsePort, &_time, sizeof(struct tm));
 	}
-	else if (QueryType == ContractTimer) {
-		PipeSend(QueryTarget, Port, &GlbCmos->Ticks, sizeof(clock_t));
+	else if (QueryType == ContractTimer
+		&& QueryFunction == __TIMER_QUERY_STAT) {
+		PipeSend(Queryee, ResponsePort, &GlbCmos->Ticks, sizeof(clock_t));
 	}
 
 	/* Done! */

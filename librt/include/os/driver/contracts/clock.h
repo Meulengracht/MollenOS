@@ -30,22 +30,17 @@
 #include <os/osdefs.h>
 #include <time.h>
 
+/* Clock device query functions that must be implemented
+ * by the clock driver - those can then be used by this interface */
+#define __CLOCK_QUERY_STAT				IPC_DECL_FUNCTION(0)
+
 /* ClockQuery
  * This queries the clock contract for data
  * and must be implemented by all contracts that
  * implement the clock interface */
-__DEVAPI OsStatus_t ClockQuery(struct tm *time)
-{
-	/* Variables */
-	MRemoteCall_t Request;
-	MContractType_t Type = ContractClock;
-
-	/* Initialize RPC */
-	RPCInitialize(&Request, __DEVICEMANAGER_INTERFACE_VERSION,
-		PIPE_DEFAULT, __DEVICEMANAGER_QUERYCONTRACT);
-	RPCSetArgument(&Request, 0, (const void*)&Type, sizeof(MContractType_t));
-	RPCSetResult(&Request, time, sizeof(struct tm));
-	return RPCEvaluate(&Request, __DEVICEMANAGER_TARGET);
+__DEVAPI OsStatus_t ClockQuery(struct tm *time) {
+	return QueryContract(ContractClock, __CLOCK_QUERY_STAT,
+		NULL, 0, NULL, 0, NULL, 0, time, sizeof(struct tm));
 }
 
 #endif //!_MCORE_CONTRACT_CLOCK_H_

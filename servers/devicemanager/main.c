@@ -35,10 +35,6 @@
 #include <string.h>
 #include <ctype.h>
 
-/* Prototypes in this file
- * since we want to avoid a header */
-OsStatus_t HandleQuery(MContractType_t Type, void *ResultBuffer, size_t Length);
-
 /* Globals */
 List_t *GlbDeviceList = NULL;
 List_t *GlbDriverList = NULL;
@@ -156,17 +152,28 @@ OsStatus_t OnEvent(MRemoteCall_t *Message)
 		 * the corresponding driver */
 		case __DEVICEMANAGER_QUERYCONTRACT: {
 			/* Variables for result */
-			MContractType_t Type = (MContractType_t)
-				Message->Arguments[0].Data.Value;
-			void *ResponseBuffer = 
-				malloc(Message->Result.Length);
-			if (HandleQuery(Type, ResponseBuffer, Message->Result.Length) == OsNoError) {
+			void *ResponseBuffer = malloc(Message->Result.Length);
+
+			/* Run the query */
+			if (QueryContract((MContractType_t)Message->Arguments[0].Data.Value, 
+					(int)Message->Arguments[1].Data.Value,
+					(Message->Arguments[2].Type == ARGUMENT_REGISTER) ?
+					&Message->Arguments[2].Data.Value : Message->Arguments[2].Data.Buffer,
+					Message->Arguments[2].Length,
+					(Message->Arguments[3].Type == ARGUMENT_REGISTER) ?
+					&Message->Arguments[3].Data.Value : Message->Arguments[3].Data.Buffer,
+					Message->Arguments[3].Length,
+					(Message->Arguments[4].Type == ARGUMENT_REGISTER) ?
+					&Message->Arguments[4].Data.Value : Message->Arguments[4].Data.Buffer,
+					Message->Arguments[4].Length,
+					ResponseBuffer, Message->Result.Length) == OsNoError) {
 				PipeSend(Message->Sender, Message->ResponsePort,
 					ResponseBuffer, Message->Result.Length);
 			}
 			else {
 				PipeSend(Message->Sender, Message->ResponsePort, NULL, sizeof(void*));
 			}
+
 			free(ResponseBuffer);
 		} break;
 
@@ -236,13 +243,25 @@ UUId_t RegisterContract(MContract_t *Contract)
 /* HandleQuery
  * Handles the generic query function, by resolving
  * the correct driver and asking for data */
-OsStatus_t HandleQuery(MContractType_t Type, void *ResultBuffer, size_t Length)
+OsStatus_t 
+QueryContract(_In_ MContractType_t Type, 
+			  _In_ int Function,
+			  _In_Opt_ __CRT_CONST void *Arg0,
+			  _In_Opt_ size_t Length0,
+			  _In_Opt_ __CRT_CONST void *Arg1,
+			  _In_Opt_ size_t Length1,
+			  _In_Opt_ __CRT_CONST void *Arg2,
+			  _In_Opt_ size_t Length2,
+			  _Out_Opt_ __CRT_CONST void *ResultBuffer,
+			  _In_Opt_ size_t ResultLength)
 {
 	/* Iterate driver nodes */
 	foreach(cNode, GlbDriverList) {
 		MContract_t *Contract = (MContract_t*)cNode->Data;
 		if (Contract->Type == Type) {
-			return QueryDriver(Contract, ResultBuffer, Length);
+			return QueryDriver(Contract, Function, 
+				Arg0, Length0, Arg1, Length1, Arg2, Length2,
+				ResultBuffer, ResultLength);
 		}
 	}
 

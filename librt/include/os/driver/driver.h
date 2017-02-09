@@ -84,17 +84,53 @@ __CRT_EXTERN OsStatus_t OnUnregister(MCoreDevice_t *Device);
  * this driver for data, this will correspond to the query
  * function that is defined in the contract */
 #ifdef __DRIVER_IMPL
-__CRT_EXTERN OsStatus_t OnQuery(MContractType_t QueryType, UUId_t QueryTarget, int Port);
+__CRT_EXTERN 
+OsStatus_t 
+OnQuery(_In_ MContractType_t QueryType, 
+		_In_ int QueryFunction, 
+		_In_Opt_ RPCArgument_t *Arg0,
+		_In_Opt_ RPCArgument_t *Arg1,
+		_In_Opt_ RPCArgument_t *Arg2,
+		_In_ UUId_t Queryee, 
+		_In_ int ResponsePort);
 #else
-static __CRT_INLINE OsStatus_t QueryDriver(MContract_t *Contract, void *Buffer, size_t Length)
+static __CRT_INLINE 
+OsStatus_t 
+QueryDriver(_In_ MContract_t *Contract, 
+			_In_ int Function, 
+			_In_Opt_ __CRT_CONST void *Arg0,
+			_In_Opt_ size_t Length0,
+			_In_Opt_ __CRT_CONST void *Arg1,
+			_In_Opt_ size_t Length1,
+			_In_Opt_ __CRT_CONST void *Arg2,
+			_In_Opt_ size_t Length2,
+			_Out_Opt_ __CRT_CONST void *ResultBuffer,
+			_In_Opt_ size_t ResultLength)
 {
 	/* Variables */
 	MRemoteCall_t Request;
 
-	/* Initialize RPC */
+	/* Initialize static RPC variables like
+	 * type of RPC, pipe and version */
 	RPCInitialize(&Request, Contract->Version, PIPE_DEFAULT, __DRIVER_QUERY);
 	RPCSetArgument(&Request, 0, (const void*)&Contract->Type, sizeof(MContractType_t));
-	RPCSetResult(&Request, Buffer, Length);
+	RPCSetArgument(&Request, 1, (const void*)&Function, sizeof(int));
+
+	/* Setup arguments if given */
+	if (Arg0 != NULL && Length0 != 0) {
+		RPCSetArgument(&Request, 2, Arg0, Length0);
+	}
+
+	if (Arg1 != NULL && Length1 != 0) {
+		RPCSetArgument(&Request, 3, Arg1, Length1);
+	}
+
+	if (Arg2 != NULL && Length2 != 0) {
+		RPCSetArgument(&Request, 4, Arg2, Length2);
+	}
+
+	/* Fire off request */
+	RPCSetResult(&Request, ResultBuffer, ResultLength);
 	return RPCEvaluate(&Request, Contract->DriverId);
 }
 #endif

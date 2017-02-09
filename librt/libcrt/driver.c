@@ -115,7 +115,9 @@ void _mDrvCrt(void)
 				} break;
 				case __DRIVER_QUERY: {
 					OnQuery((MContractType_t)Message.Arguments[0].Data.Value, 
-						Message.Sender, Message.ResponsePort);
+						(int)Message.Arguments[1].Data.Value, 
+						&Message.Arguments[2], &Message.Arguments[3], 
+						&Message.Arguments[4], Message.Sender, Message.ResponsePort);
 				} break;
 				case __DRIVER_UNLOAD: {
 					IsRunning = 0;

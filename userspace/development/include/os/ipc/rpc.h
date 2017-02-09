@@ -40,26 +40,26 @@
  * to an IPC function request, we support up
  * to 5 arguments */
 typedef struct _MRPCArgument {
-	int					Type;
+	int						Type;
 	union {
-		const void		*Buffer;
-		size_t			Value;
+		__CRT_CONST void	*Buffer;
+		size_t				Value;
 	} Data;
-	size_t				Length;
+	size_t					Length;
 } RPCArgument_t;
 
 /* The base event message structure, any IPC
  * action going through pipes in MollenOS must
  * inherit from this structure for security */
 typedef struct _MRemoteCall {
-	int					Version;
-	int					Function;
-	int					Port;
-	int					ResponsePort;
-	size_t				Length;		/* Excluding this header */
-	UUId_t				Sender;		/* Automatically set by OS */
-	RPCArgument_t		Arguments[IPC_MAX_ARGUMENTS];
-	RPCArgument_t		Result;
+	int						Version;
+	int						Function;
+	int						Port;
+	int						ResponsePort;
+	size_t					Length;		/* Excluding this header */
+	UUId_t					Sender;		/* Automatically set by OS */
+	RPCArgument_t			Arguments[IPC_MAX_ARGUMENTS];
+	RPCArgument_t			Result;
 } MRemoteCall_t;
 
 /* Cpp Guard */
@@ -70,7 +70,8 @@ extern "C" {
 /* RPCInitialize 
  * Initializes a new RPC message of the 
  * given type and length */
-static __CRT_INLINE void RPCInitialize(MRemoteCall_t *Ipc, int Version, int Port, int Function)
+static __CRT_INLINE void RPCInitialize(MRemoteCall_t *Ipc, 
+	int Version, int Port, int Function)
 {
 	/* Zero out structure */
 	memset((void*)Ipc, 0, sizeof(MRemoteCall_t));
@@ -89,7 +90,7 @@ static __CRT_INLINE void RPCInitialize(MRemoteCall_t *Ipc, int Version, int Port
  * the given argument index. It's not possible to override 
  * a current argument */
 static __CRT_INLINE void RPCSetArgument(MRemoteCall_t *Rpc,
-	int Index, const void *Data, size_t Length)
+	int Index, __CRT_CONST void *Data, size_t Length)
 {
 	/* Sanitize the index and the
 	 * current argument */
@@ -129,7 +130,7 @@ static __CRT_INLINE void RPCSetArgument(MRemoteCall_t *Rpc,
  * Installs a result buffer that will be filled
  * with the response from the RPC request */
 static __CRT_INLINE void RPCSetResult(MRemoteCall_t *Rpc,
-	const void *Data, size_t Length)
+	__CRT_CONST void *Data, size_t Length)
 {
 	/* Always a buffer element as we need
 	 * a target to copy the data into */
@@ -156,6 +157,13 @@ _MOS_API OsStatus_t RPCCleanup(MRemoteCall_t *Message);
  * and not block/wait for reply */
 _MOS_API OsStatus_t RPCEvaluate(MRemoteCall_t *Rpc, UUId_t Target);
 _MOS_API OsStatus_t RPCExecute(MRemoteCall_t *Rpc, UUId_t Target);
+
+/* RPCRespond
+ * This is a wrapper to return a respond message/buffer to the
+ * sender of the message, it's good practice to always wait for
+ * a result when there is going to be one */
+_MOS_API OsStatus_t RPCRespond(MRemoteCall_t *Rpc, 
+	__CRT_CONST void *Buffer, size_t Length);
 
 #ifdef __cplusplus
 }

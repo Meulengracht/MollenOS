@@ -68,6 +68,7 @@ OsStatus_t RPCListen(MRemoteCall_t *Message)
 			}
 			else if (Message->Arguments[i].Type == ARGUMENT_NOTUSED) {
 				Message->Arguments[i].Data.Buffer = NULL;
+				Message->Arguments[i].Length = 0;
 			}
 		}
 
@@ -105,7 +106,7 @@ OsStatus_t RPCRespond(MRemoteCall_t *Rpc,
 	__CRT_CONST void *Buffer, size_t Length)
 {
 	/* Write the result back to the caller */
-	return PipeSend(Rpc->Sender, Rpc->ResponsePort, Buffer, Length);
+	return PipeSend(Rpc->Sender, Rpc->ResponsePort, (void*)Buffer, Length);
 }
 
 /* IPC - Sleep
