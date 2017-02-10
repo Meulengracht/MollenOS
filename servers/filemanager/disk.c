@@ -22,20 +22,24 @@
 
 /* Includes 
  * - System */
-#include <os/driver/contracts/disk.h>
-#include <os/driver/file/vfs.h>
-#include <ds/list.h>
+#include <os/driver/contracts/filesystem.h>
+#include "vfs.h"
 
 /* Includes
  * - C-Library */
+#include <ds/list.h>
+#include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
 
-/* Externs 
- * We import from VFS */
-extern List_t *GlbFileSystems;
-extern int GlbVfsInitHasRun;
-extern int GlbFileSystemId;
+/* Globals
+ * to keep track of state */
+int GlbInitHasRun = 0;
+
+/* Externs
+ * Access needed from main.c */
+__CRT_EXTERN List_t *GlbFileSystems;
+__CRT_EXTERN UUId_t GlbFileSystemId;
 
 /* VfsInstallFileSystem 
  * - Register the given fs with our system and run init
@@ -242,6 +246,25 @@ int VfsParsePartitionTable(UUId_t DiskId, uint64_t SectorBase,
 	return PartitionCount;
 }
 
+/* DiskDetectFileSystem
+ * Detectes the kind of filesystem at the given absolute sector 
+ * with the given sector count. It then loads the correct driver
+ * and installs it */
+OsStatus_t DiskDetectFileSystem(FileSystemDisk_t *Disk,
+	uint64_t StartSector, uint64_t SectorCount)
+{
+
+}
+
+/* DiskDetectLayout
+ * Detects the kind of layout on the disk, be it
+ * MBR or GPT layout, if there is no layout it returns
+ * OsError to indicate the entire disk is a FS */
+OsStatus_t DiskDetectLayout(FileSystemDisk_t *Disk)
+{
+
+}
+
 /* RegisterDisk
  * Registers a disk with the file-manager and it will
  * automatically be parsed (MBR, GPT, etc), and all filesystems
@@ -249,69 +272,39 @@ int VfsParsePartitionTable(UUId_t DiskId, uint64_t SectorBase,
 OsStatus_t RegisterDisk(UUId_t Driver, UUId_t Device, Flags_t Flags)
 {
 	/* Variables */
-	DiskDescriptor_t Descriptor;
+	FileSystemDisk_t *Disk = NULL;
 
-	/* Step 1 - Query disk */
-	if (DiskQuery(Device, Driver, &Descriptor) != OsNoError) {
+	/* Allocate a new instance of a disk descriptor 
+	 * to store data and store initial data */
+	Disk = (FileSystemDisk_t*)malloc(sizeof(FileSystemDisk_t));
+	Disk->Driver = Driver;
+	Disk->Device = Device;
+	Disk->Flags = Flags;
+
+	/* Query disk for general device information and 
+	 * information about geometry */
+	if (DiskQuery(Driver, Device, &Disk->Descriptor) != OsNoError) {
+		free(Disk);
 		return OsError;
 	}
 
-	/* Step 2 - Build a disk descriptor */
-
-
-	/* Step 3 - Parse MBR (legacy, gpt etc) */
-
-
-	/* Step 4 - Start loading file systems for appropriate partitions */
-
-
-	/* Step 5 - $$$ profit */
-
-	/* Sanity */
-	if (!VfsParsePartitionTable(DiskId, 0, Descriptor.SectorCount, Descriptor.SectorSize))
-	{
-		/* Only one global partition
-		* parse FS type from it */
-
-		/* Allocate a filesystem structure */
-		MCoreFileSystem_t *Fs = (MCoreFileSystem_t*)kmalloc(sizeof(MCoreFileSystem_t));
-		Fs->State = VfsStateInit;
-		Fs->DiskId = DiskId;
-		Fs->ExtendedData = NULL;
-		Fs->Flags = 0;
-		Fs->Id = GlbFileSystemId;
-		Fs->SectorStart = 0;
-		Fs->SectorCount = SectorCount;
-		Fs->SectorSize = SectorSize;
-
-		/* Now we have to detect the type of filesystem used
-		* normally two types is used for full-partition
-		* MFS and FAT */
-		/* MFS 1 */
-		//TODO
-		//Module = ModuleFindGeneric(MODULE_FILESYSTEM, FILESYSTEM_MFS);
-
-		/* Load */
-//		if (Module != NULL)
-//			ModuleLoad(Module, Fs);
-
-		if (Fs->State != VfsStateActive)
-			; //FatInit()
-
-		/* Lastly */
-		if (Fs->State == VfsStateActive)
-			VfsInstallFileSystem(Fs);
-		else
-			kfree(Fs);
+	/* Detect the disk layout, and if it fails
+	 * try to detect which kind of filesystem is present */
+	if (DiskDetectLayout(Disk) != OsNoError) {
+		return DiskDetectFileSystem(Disk, 0, Disk->Descriptor.SectorCount);
+	}
+	else {
+		return OsNoError;
 	}
 }
 
-/* Unregisters a disk and all registered fs's on disk
- * Close all files currently open */
-void VfsUnregisterDisk(UUId_t DiskId, int Forced)
+/* UnregisterDisk
+ * Unregisters a disk from the system, and brings any filesystems
+ * registered on this disk offline */
+OsStatus_t UnregisterDisk(UUId_t Device, Flags_t Flags)
 {
 	/* Need this for the iteration */
-	ListNode_t *lNode;
+	ListNode_t *lNode = NULL;
 	DataKey_t Key;
 
 	/* Keep iterating untill no more FS's are present on disk */

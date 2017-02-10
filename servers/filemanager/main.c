@@ -39,7 +39,6 @@ List_t *GlbOpenFiles = NULL;
 UUId_t GlbFileSystemId = 0;
 UUId_t GlbVfsFileIdGen = 0;
 int GlbInitialized = 0;
-int GlbRun = 0;
 
 /* OnLoad
  * The entry-point of a server, this is called
@@ -54,7 +53,6 @@ OsStatus_t OnLoad(void)
 	GlbFileSystemId = 0;
 	GlbVfsFileIdGen = 0;
 	GlbInitialized = 1;
-	GlbRun = 1;
 
 	/* Register us with server manager */
 	RegisterServer(__FILEMANAGER_TARGET);

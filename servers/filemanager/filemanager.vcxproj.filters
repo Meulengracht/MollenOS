@@ -17,5 +17,14 @@
     <Filter Include="vfs">
       <UniqueIdentifier>{c59891af-85fe-4b21-81c7-28558cf2d467}</UniqueIdentifier>
     </Filter>
+    <Filter Include="layouts">
+      <UniqueIdentifier>{aa051391-2e11-4054-8dc8-5e88b1854b62}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="layouts\mbr">
+      <UniqueIdentifier>{3826ada4-a588-47e5-b9ae-01b99fcf3337}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="layouts\gpt">
+      <UniqueIdentifier>{a0a056ff-8a15-4d4d-a85c-fe96c29e2c2f}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
 </Project>

@@ -35,6 +35,9 @@
 #define __DISK_QUERY_READ				IPC_DECL_FUNCTION(1)
 #define __DISK_QUERY_WRITE				IPC_DECL_FUNCTION(2)
 
+#define __DISK_OPERATION_READ			0x00000001
+#define __DISK_OPERATION_WRITE			0x00000002
+
 /* The disk descriptor structure 
  * contains geometric and generic information
  * about the given disk */
@@ -77,7 +80,7 @@ DiskQuery(_In_ UUId_t Driver,
 	Contract.Version = __DEVICEMANAGER_INTERFACE_VERSION;
 
 	/* Query the driver directly */
-	return QueryDriver(NULL, __DISK_QUERY_STAT, 
+	return QueryDriver(&Contract, __DISK_QUERY_STAT,
 		&Disk, sizeof(UUId_t), NULL, 0, NULL, 0, 
 		Descriptor, sizeof(DiskDescriptor_t));
 }
@@ -91,7 +94,7 @@ OsStatus_t
 DiskRead(_In_ UUId_t Driver, 
 		 _In_ UUId_t Disk,
 		 _In_ uint64_t Sector, 
-		 _Out_ __CRT_CONST void *Buffer, 
+		 _Out_ __CRT_CONST void *PhysicalAddress, 
 		 _In_ size_t SectorCount)
 {
 	/* Variables */
@@ -104,13 +107,13 @@ DiskRead(_In_ UUId_t Driver,
 	Contract.Version = __DEVICEMANAGER_INTERFACE_VERSION;
 
 	/* Initialize the operation */
-	Operation.Direction = __DISK_QUERY_READ;
+	Operation.Direction = __DISK_OPERATION_READ;
 	Operation.AbsSector = Sector;
-	Operation.PhysicalBuffer = NULL; //ResolveBufferPage
+	Operation.PhysicalBuffer = PhysicalAddress;
 	Operation.SectorCount = SectorCount;
 
 	/* Query the driver directly */
-	return QueryDriver(NULL, __DISK_QUERY_READ, 
+	return QueryDriver(&Contract, __DISK_QUERY_READ,
 		&Disk, sizeof(UUId_t), &Operation, sizeof(DiskOperation_t),
 		NULL, 0, NULL, 0);
 }
@@ -124,7 +127,7 @@ OsStatus_t
 DiskWrite(_In_ UUId_t Driver,
 		 _In_ UUId_t Disk,
 		 _In_ uint64_t Sector, 
-		 _Out_ __CRT_CONST void *Buffer, 
+		 _Out_ __CRT_CONST void *PhysicalAddress,
 		 _In_ size_t SectorCount)
 {
 	/* Variables */
@@ -137,13 +140,13 @@ DiskWrite(_In_ UUId_t Driver,
 	Contract.Version = __DEVICEMANAGER_INTERFACE_VERSION;
 
 	/* Initialize the operation */
-	Operation.Direction = __DISK_QUERY_WRITE;
+	Operation.Direction = __DISK_OPERATION_WRITE;
 	Operation.AbsSector = Sector;
-	Operation.PhysicalBuffer = NULL; //ResolveBufferPage
+	Operation.PhysicalBuffer = PhysicalAddress;
 	Operation.SectorCount = SectorCount;
 
 	/* Query the driver directly */
-	return QueryDriver(NULL, __DISK_QUERY_WRITE,
+	return QueryDriver(&Contract, __DISK_QUERY_WRITE,
 		&Disk, sizeof(UUId_t), &Operation, sizeof(DiskOperation_t),
 		NULL, 0, NULL, 0);
 }
