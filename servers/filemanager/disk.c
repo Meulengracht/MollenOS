@@ -316,11 +316,6 @@ OsStatus_t UnregisterDisk(UUId_t Device, Flags_t Flags)
 		/* Cast */
 		MCoreFileSystem_t *Fs = (MCoreFileSystem_t*)lNode->Data;
 
-		/* Redirect system log */
-		if (Fs->Flags & VFS_MAIN_DRIVE) {
-			LogRedirect(LogConsole);
-		}
-
 		/* Destruct the FS */
 		if (Fs->Destroy(lNode->Data, Forced) != OsNoError)
 			LogFatal("VFSM", "UnregisterDisk:: Failed to destroy filesystem");
