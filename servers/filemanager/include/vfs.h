@@ -27,6 +27,7 @@
 /* Includes 
  * - System */
 #include <os/driver/contracts/filesystem.h>
+#include <os/driver/buffer.h>
 
 /* Includes 
  * - Library */
@@ -62,7 +63,20 @@ typedef struct _FileSystem {
 	UUId_t							Id;
 	MString_t						*Identifier;
 	FileSystemDescriptor_t			Descriptor;
-	FileSystemModule_t				Module;
+	FileSystemModule_t				*Module;
 } FileSystem_t;
+
+/* DiskDetectFileSystem
+ * Detectes the kind of filesystem at the given absolute sector 
+ * with the given sector count. It then loads the correct driver
+ * and installs it */
+__CRT_EXTERN OsStatus_t DiskDetectFileSystem(FileSystemDisk_t *Disk,
+	uint64_t StartSector, uint64_t SectorCount);
+
+/* DiskDetectLayout
+ * Detects the kind of layout on the disk, be it
+ * MBR or GPT layout, if there is no layout it returns
+ * OsError to indicate the entire disk is a FS */
+__CRT_EXTERN OsStatus_t DiskDetectLayout(FileSystemDisk_t *Disk);
 
 #endif //!_VFS_INTERFACE_H_

@@ -10,6 +10,9 @@
     <None Include="filemanager.mdrv" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="layouts\detect.c" />
+    <ClCompile Include="layouts\gpt.c" />
+    <ClCompile Include="layouts\mbr.c" />
     <ClCompile Include="main.c" />
     <ClCompile Include="disk.c" />
     <ClCompile Include="vfsfunctions.c" />

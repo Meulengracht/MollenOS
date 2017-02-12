@@ -122,6 +122,9 @@
     <ClCompile Include="..\..\libos\driver\interrupt.c">
       <Filter>driver</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\libos\driver\bufferobject.c">
+      <Filter>driver</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\libos\mstring\MStringPrivate.h">
