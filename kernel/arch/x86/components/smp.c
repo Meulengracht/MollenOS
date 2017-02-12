@@ -129,9 +129,6 @@ void SmpApEntry(void)
 		Idle();
 }
 
-/* Disable MSVC warning */
-#pragma warning(disable:4054)
-
 /* Setup Trampoline Code */
 void SmpApSetup(void)
 {

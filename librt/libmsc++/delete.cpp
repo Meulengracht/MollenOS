@@ -39,3 +39,15 @@ void __cdecl operator delete[](void *p)
 	/* Redirect call */
 	free(p);
 }
+
+void __cdecl operator delete(void *p, unsigned int sz)
+{
+	_CRT_UNUSED(sz);
+	free(p);
+}
+
+/* Todo */
+void __std_terminate(void)
+{
+
+}

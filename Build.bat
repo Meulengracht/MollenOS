@@ -53,7 +53,7 @@ for %%x in (%*) do (
 )
 
 ::Setup Environment
-CALL "C:\Program Files (x86)\Microsoft Visual Studio 12.0\VC\vcvarsall.bat" !arch!
+CALL "C:\Program Files (x86)\Microsoft Visual Studio\2017\Community\VC\Auxiliary\Build\vcvarsall.bat" !arch!
 
 ::Skip build stage?
 if "!skip!"=="true" goto :Install

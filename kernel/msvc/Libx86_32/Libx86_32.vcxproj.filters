@@ -12,13 +12,13 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="..\..\Arch\x86\x32\Gdt.c">
+    <ClCompile Include="..\..\arch\x86\x32\gdt.c">
       <Filter>descriptors</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\Arch\x86\x32\Idt.c">
+    <ClCompile Include="..\..\arch\x86\x32\idt.c">
       <Filter>descriptors</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\Arch\x86\x32\Context.c">
+    <ClCompile Include="..\..\arch\x86\x32\context.c">
       <Filter>threading</Filter>
     </ClCompile>
     <ClCompile Include="..\..\arch\x86\x32\memory\virtualmemory.c" />

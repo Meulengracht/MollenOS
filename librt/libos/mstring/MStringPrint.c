@@ -33,9 +33,9 @@
 void MStringPrint(MString_t *String)
 {
 #ifdef LIBC_KERNEL
-	LogInformation("MSTR", "%s", String->Data);
+	LogInformation("MSTR", "%s", (char*)String->Data);
 #else
 	/* Simply just print it out*/
-	printf("%s\n", String->Data);
+	printf("%s\n", (char*)String->Data);
 #endif
 }

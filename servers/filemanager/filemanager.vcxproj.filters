@@ -26,5 +26,13 @@
     <Filter Include="layouts\gpt">
       <UniqueIdentifier>{a0a056ff-8a15-4d4d-a85c-fe96c29e2c2f}</UniqueIdentifier>
     </Filter>
+    <Filter Include="include">
+      <UniqueIdentifier>{7d6072e0-9c50-4a21-b2e5-4405dd8634ad}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="include\vfs.h">
+      <Filter>include</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

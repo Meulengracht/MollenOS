@@ -88,7 +88,9 @@ DiskQuery(_In_ UUId_t Driver,
 /* DiskRead 
  * Sends a read request to the given disk, and attempts to
  * read the number of bytes requested into the given buffer 
- * at the absolute sector given */
+ * at the absolute sector given 
+ * @PhysicalAddress - Must be the contigious physical address
+ *                    buffer to read data into */
 __DEVAPI 
 OsStatus_t 
 DiskRead(_In_ UUId_t Driver, 
@@ -121,7 +123,9 @@ DiskRead(_In_ UUId_t Driver,
 /* DiskWrite
  * Sends a write request to the given disk, and attempts to
  * write the number of bytes requested from the given buffer
- * at the absolute sector given */
+ * at the absolute sector given. 
+ * @PhysicalAddress - Must be the contigious physical address
+ *                    buffer that contains the data to write */
 __DEVAPI 
 OsStatus_t 
 DiskWrite(_In_ UUId_t Driver,

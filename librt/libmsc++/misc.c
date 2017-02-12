@@ -88,6 +88,12 @@ void CxxThrowException(InternalException_t *ExcObject, const CxxExceptionType_t 
 	CxxRaiseException(CXX_EXCEPTION, EH_NONCONTINUABLE, 3, Arguments);
 }
 
+/* Todo */
+void _except_handler4(void)
+{
+
+}
+
 /* Detect whether or not it was a rethrow */
 int __CRTDECL __CxxDetectRethrow(PEXCEPTION_POINTERS Ptrs)
 {

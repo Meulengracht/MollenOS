@@ -93,9 +93,9 @@ __FILEAPI OsStatus_t RegisterDisk(UUId_t Driver, UUId_t Device, Flags_t Flags)
  * Unregisters a disk from the system, and brings any filesystems
  * registered on this disk offline */
 #ifdef __FILEMANAGER_IMPL
-__FILEAPI OsStatus_t UnregisterDisk(UUId_t DiskId, Flags_t Flags);
+__FILEAPI OsStatus_t UnregisterDisk(UUId_t Device, Flags_t Flags);
 #else
-__FILEAPI OsStatus_t UnregisterDisk(UUId_t DiskId, Flags_t Flags)
+__FILEAPI OsStatus_t UnregisterDisk(UUId_t Device, Flags_t Flags)
 {
 
 }

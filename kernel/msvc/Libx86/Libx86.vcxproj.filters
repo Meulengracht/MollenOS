@@ -18,22 +18,22 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="..\..\Arch\x86\Components\Video.c">
+    <ClCompile Include="..\..\arch\x86\components\video.c">
       <Filter>components</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\Arch\x86\Components\Thread.c">
+    <ClCompile Include="..\..\arch\x86\components\thread.c">
       <Filter>components</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\Arch\x86\Components\Smp.c">
+    <ClCompile Include="..\..\arch\x86\components\smp.c">
       <Filter>components</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\Arch\x86\Components\PhysicalMemory.c">
+    <ClCompile Include="..\..\arch\x86\components\physicalmemory.c">
       <Filter>components</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\Arch\x86\Components\AddressSpace.c">
+    <ClCompile Include="..\..\arch\x86\components\addressspace.c">
       <Filter>components</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\Arch\x86\Components\IoSpace.c">
+    <ClCompile Include="..\..\arch\x86\components\iospace.c">
       <Filter>components</Filter>
     </ClCompile>
     <ClCompile Include="..\..\arch\x86\main.c" />
@@ -69,36 +69,36 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <CustomBuild Include="..\..\Arch\x86\Components\Portio.asm">
+    <CustomBuild Include="..\..\arch\x86\components\portio.asm">
       <Filter>components</Filter>
     </CustomBuild>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\..\Arch\x86\Cpu.h">
+    <ClInclude Include="..\..\arch\x86\cpu.h">
       <Filter>include</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\Arch\x86\Exceptions.h">
+    <ClInclude Include="..\..\arch\x86\exceptions.h">
       <Filter>include</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\Arch\x86\Memory.h">
+    <ClInclude Include="..\..\arch\x86\memory.h">
       <Filter>include</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\Arch\x86\Multiboot.h">
+    <ClInclude Include="..\..\arch\x86\multiboot.h">
       <Filter>include</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\Arch\x86\Pci.h">
+    <ClInclude Include="..\..\arch\x86\pci.h">
       <Filter>include</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\Arch\x86\Pic.h">
+    <ClInclude Include="..\..\arch\x86\pic.h">
       <Filter>include</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\Arch\x86\Thread.h">
+    <ClInclude Include="..\..\arch\x86\thread.h">
       <Filter>include</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\Arch\x86\Video.h">
+    <ClInclude Include="..\..\arch\x86\video.h">
       <Filter>include</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\Arch\x86\Apic.h">
+    <ClInclude Include="..\..\arch\x86\apic.h">
       <Filter>include</Filter>
     </ClInclude>
   </ItemGroup>

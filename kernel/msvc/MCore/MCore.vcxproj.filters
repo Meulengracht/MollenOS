@@ -45,95 +45,95 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="..\..\System\Synchronization\Mutex.c">
+    <ClCompile Include="..\..\system\synchronization\mutex.c">
       <Filter>systems\synchronization</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\System\Synchronization\Semaphore.c">
+    <ClCompile Include="..\..\system\synchronization\semaphore.c">
       <Filter>systems\synchronization</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\System\Heap.c">
+    <ClCompile Include="..\..\system\heap.c">
       <Filter>systems</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\System\Scheduler.c">
+    <ClCompile Include="..\..\system\scheduler.c">
       <Filter>systems</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\System\Timers.c">
+    <ClCompile Include="..\..\system\timers.c">
       <Filter>systems</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\System\Devices\DeviceVideo.c">
+    <ClCompile Include="..\..\system\devices\devicevideo.c">
       <Filter>systems\devices\video</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\System\Threading.c">
+    <ClCompile Include="..\..\system\threading.c">
       <Filter>systems</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\System\Log.c">
+    <ClCompile Include="..\..\system\log.c">
       <Filter>systems</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\System\Synchronization\CriticalSection.c">
+    <ClCompile Include="..\..\system\synchronization\criticalsection.c">
       <Filter>systems\synchronization</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\System\Pipe.c">
+    <ClCompile Include="..\..\system\pipe.c">
       <Filter>systems</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\System\GarbageCollector.c">
+    <ClCompile Include="..\..\system\garbagecollector.c">
       <Filter>systems</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\Common\Bitmap.c">
+    <ClCompile Include="..\..\common\bitmap.c">
       <Filter>common</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\System\Events.c">
+    <ClCompile Include="..\..\system\events.c">
       <Filter>systems</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\System\Devices\Acpi\Acpi.c">
+    <ClCompile Include="..\..\system\devices\acpi\acpi.c">
       <Filter>systems\devices\acpi</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\System\Devices\Acpi\AcpiDevices.c">
+    <ClCompile Include="..\..\system\devices\acpi\acpidevices.c">
       <Filter>systems\devices\acpi</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\System\Devices\Acpi\AcpiEnumerate.c">
+    <ClCompile Include="..\..\system\devices\acpi\acpienumerate.c">
       <Filter>systems\devices\acpi</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\System\Devices\Acpi\AcpiScan.c">
+    <ClCompile Include="..\..\system\devices\acpi\acpiscan.c">
       <Filter>systems\devices\acpi</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\System\UserEvents.c">
+    <ClCompile Include="..\..\system\userevents.c">
       <Filter>systems</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\System\Vfs\Vfs.c">
+    <ClCompile Include="..\..\system\vfs\vfs.c">
       <Filter>systems\vfs</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\System\Vfs\VfsDisk.c">
+    <ClCompile Include="..\..\system\vfs\vfsdisk.c">
       <Filter>systems\vfs</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\System\Vfs\VfsFunctions.c">
+    <ClCompile Include="..\..\system\vfs\vfsfunctions.c">
       <Filter>systems\vfs</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\System\Vfs\VfsPath.c">
+    <ClCompile Include="..\..\system\vfs\vfspath.c">
       <Filter>systems\vfs</Filter>
     </ClCompile>
     <ClCompile Include="..\..\init.c" />
-    <ClCompile Include="..\..\System\modules.c">
+    <ClCompile Include="..\..\system\modules.c">
       <Filter>systems</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\System\process\ash.c">
+    <ClCompile Include="..\..\system\process\ash.c">
       <Filter>systems\process</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\System\process\phoenix.c">
+    <ClCompile Include="..\..\system\process\phoenix.c">
       <Filter>systems\process</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\System\process\process.c">
+    <ClCompile Include="..\..\system\process\process.c">
       <Filter>systems\process</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\System\process\server.c">
+    <ClCompile Include="..\..\system\process\server.c">
       <Filter>systems\process</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\System\process\signal.c">
+    <ClCompile Include="..\..\system\process\signal.c">
       <Filter>systems\process</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\System\process\syscalls.c">
+    <ClCompile Include="..\..\system\process\syscalls.c">
       <Filter>systems\process</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\System\process\loaders\pe.c">
+    <ClCompile Include="..\..\system\process\loaders\pe.c">
       <Filter>systems\process\loaders</Filter>
     </ClCompile>
     <ClCompile Include="..\..\system\devices\fonts\font6x12.c">
@@ -144,73 +144,73 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\..\Include\Heap.h">
+    <ClInclude Include="..\..\include\heap.h">
       <Filter>include</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\Include\InputManager.h">
+    <ClInclude Include="..\..\include\inputmanager.h">
       <Filter>include</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\Include\Mutex.h">
+    <ClInclude Include="..\..\include\mutex.h">
       <Filter>include</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\Include\Scheduler.h">
+    <ClInclude Include="..\..\include\scheduler.h">
       <Filter>include</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\Include\Semaphore.h">
+    <ClInclude Include="..\..\include\semaphore.h">
       <Filter>include</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\Include\Timers.h">
+    <ClInclude Include="..\..\include\timers.h">
       <Filter>include</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\Include\Devices\Cpu.h">
+    <ClInclude Include="..\..\include\devices\cpu.h">
       <Filter>include\devices</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\Include\Devices\Video.h">
+    <ClInclude Include="..\..\include\devices\video.h">
       <Filter>include\devices</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\Include\MollenOS.h">
+    <ClInclude Include="..\..\include\mollenos.h">
       <Filter>include</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\Include\Threading.h">
+    <ClInclude Include="..\..\include\threading.h">
       <Filter>include</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\Include\Devices\Disk.h">
+    <ClInclude Include="..\..\include\devices\disk.h">
       <Filter>include\devices</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\Include\Vfs\Partition.h">
+    <ClInclude Include="..\..\include\vfs\partition.h">
       <Filter>include\vfs</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\Include\Vfs\Vfs.h">
+    <ClInclude Include="..\..\include\vfs\vfs.h">
       <Filter>include\vfs</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\Include\Devices\Timer.h">
+    <ClInclude Include="..\..\include\devices\timer.h">
       <Filter>include\devices</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\Include\Devices\Clock.h">
+    <ClInclude Include="..\..\include\devices\clock.h">
       <Filter>include\devices</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\Include\Log.h">
+    <ClInclude Include="..\..\include\log.h">
       <Filter>include</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\Include\CriticalSection.h">
+    <ClInclude Include="..\..\include\criticalsection.h">
       <Filter>include</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\Arch\Arch.h">
+    <ClInclude Include="..\..\arch\arch.h">
       <Filter>include</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\Include\Pipe.h">
+    <ClInclude Include="..\..\include\pipe.h">
       <Filter>include</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\Include\Bitmap.h">
+    <ClInclude Include="..\..\include\bitmap.h">
       <Filter>include</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\Include\Events.h">
+    <ClInclude Include="..\..\include\events.h">
       <Filter>include</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\Include\Modules\Modules.h">
+    <ClInclude Include="..\..\include\modules\modules.h">
       <Filter>include\modules</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\Include\Modules\RamDisk.h">
+    <ClInclude Include="..\..\include\modules\ramdisk.h">
       <Filter>include\modules</Filter>
     </ClInclude>
     <ClInclude Include="..\..\include\process\pe.h">
