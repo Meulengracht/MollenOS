@@ -40,6 +40,14 @@ UUId_t GlbFileSystemId = 0;
 UUId_t GlbVfsFileIdGen = 0;
 int GlbInitialized = 0;
 
+/* VfsGetFileSystems
+ * Retrieves a list of all the current filesystems
+ * and provides access for manipulation */
+List_t *VfsGetFileSystems(void)
+{
+	return GlbFileSystems;
+}
+
 /* OnLoad
  * The entry-point of a server, this is called
  * as soon as the server is loaded in the system */

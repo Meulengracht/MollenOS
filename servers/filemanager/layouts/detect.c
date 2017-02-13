@@ -26,71 +26,49 @@
 #include "../include/gpt.h"
 #include "../include/mbr.h"
 
-/* VfsInstallFileSystem 
- * - Register the given fs with our system and run init
- *   if neccessary */
-OsStatus_t VfsInstallFileSystem(FileSystemDisk_t *Disk)
-{
-	/* Ready the buffer */
-	DataKey_t Key;
-	char IdentBuffer[8];
-	memset(IdentBuffer, 0, 8);
-
-	/* Copy the storage ident over 
-	 * We use St for hard media, and Rm for removables */
-	strcpy(IdentBuffer, "St");
-	itoa(GlbFileSystemId, (IdentBuffer + 2), 10);
-
-	/* Construct the identifier */
-	Fs->Identifier = MStringCreate(&IdentBuffer, StrASCII);
-
-	/* Add to list */
-	Key.Value = (int)Fs->DiskId;
-	ListAppend(GlbFileSystems, ListCreateNode(Key, Key, Fs));
-
-	/* Increament */
-	GlbFileSystemId++;
-
-	/* Start init? */
-	if ((Fs->Flags & VFS_MAIN_DRIVE)
-		&& !GlbVfsInitHasRun)
-	{
-		/* Process Request */
-		MCorePhoenixRequest_t *ProcRequest
-			= (MCorePhoenixRequest_t*)kmalloc(sizeof(MCorePhoenixRequest_t));
-
-		/* Reset request */
-		memset(ProcRequest, 0, sizeof(MCorePhoenixRequest_t));
-
-		/* Print */
-		LogInformation("VFSM", "Boot Drive Detected, Running Init");
-
-		/* Append init path */
-		MString_t *Path = MStringCreate((void*)MStringRaw(Fs->Identifier), StrUTF8);
-		MStringAppendCharacters(Path, FILESYSTEM_INIT, StrUTF8);
-
-		/* Create Request */
-		ProcRequest->Base.Type = AshSpawnProcess;
-		ProcRequest->Path = Path;
-		ProcRequest->Arguments.String = NULL;
-		ProcRequest->Base.Cleanup = 1;
-
-		/* Send */
-		PhoenixCreateRequest(ProcRequest);
-
-		/* Set */
-		GlbVfsInitHasRun = 1;
-	}
-}
-
 /* DiskDetectFileSystem
  * Detectes the kind of filesystem at the given absolute sector 
  * with the given sector count. It then loads the correct driver
  * and installs it */
 OsStatus_t DiskDetectFileSystem(FileSystemDisk_t *Disk,
-	uint64_t StartSector, uint64_t SectorCount)
+	BufferObject_t *Buffer, uint64_t Sector, uint64_t SectorCount)
 {
+	/* Variables */
+	MasterBootRecord_t *Mbr = NULL;
+	FileSystemType_t Type = FSUnknown;
 
+	/* Make sure the MBR is loaded */
+	if (DiskRead(Disk->Driver, Disk->Device, Sector, Buffer->Physical, 1) != OsNoError) {
+		return OsError;
+	}
+
+	/* Ok - we do some basic signature checks 
+	 * MFS - "MFS1" 
+	 * NTFS - "NTFS" 
+	 * exFAT - "EXFAT" */
+	if (!strncmp((const char*)Mbr->BootCode[3], "MFS1", 4)) {
+		Type = FSMFS;
+	}
+	else if (!strncmp((const char*)Mbr->BootCode[3], "NTFS", 4)) {
+		Type = FSNTFS;
+	}
+	else if (!strncmp((const char*)Mbr->BootCode[3], "EXFAT", 5)) {
+		Type = FSEXFAT;
+	}
+	else {
+		//HPFS
+		//EXT2
+		//HFS
+		//FAT12/16/32
+	}
+
+	/* Sanitize the type */
+	if (Type != FSUnknown) {
+		return DiskRegisterFileSystem(Disk, Sector, SectorCount, Type);
+	}
+	else {
+		return OsError;
+	}
 }
 
 /* DiskDetectLayout

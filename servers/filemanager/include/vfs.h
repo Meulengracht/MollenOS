@@ -32,7 +32,24 @@
 /* Includes 
  * - Library */
 #include <os/osdefs.h>
+#include <ds/list.h>
 #include <stddef.h>
+
+/* VFS Definitions */
+#define FILESYSTEM_INIT			":/System/Sapphire.mxi"
+
+/* VFS FileSystem Types
+ * The different supported built-in filesystems */
+typedef enum _FileSystemType {
+	FSUnknown,
+	FSFAT,
+	FSEXFAT,
+	FSNTFS,
+	FSHFS,
+	FSHPFS,
+	FSMFS,
+	FSEXT
+} FileSystemType_t;
 
 /* VFS FileSystem Module 
  * Contains all the protocols implemented
@@ -66,17 +83,29 @@ typedef struct _FileSystem {
 	FileSystemModule_t				*Module;
 } FileSystem_t;
 
+/* DiskRegisterFileSystem 
+ * Registers a new filesystem of the given type, on
+ * the given disk with the given position on the disk 
+ * and assigns it an identifier */
+__CRT_EXTERN OsStatus_t DiskRegisterFileSystem(FileSystemDisk_t *Disk,
+	uint64_t Sector, uint64_t SectorCount, FileSystemType_t Type);
+
 /* DiskDetectFileSystem
  * Detectes the kind of filesystem at the given absolute sector 
  * with the given sector count. It then loads the correct driver
  * and installs it */
 __CRT_EXTERN OsStatus_t DiskDetectFileSystem(FileSystemDisk_t *Disk,
-	uint64_t StartSector, uint64_t SectorCount);
+	BufferObject_t *Buffer, uint64_t Sector, uint64_t SectorCount);
 
 /* DiskDetectLayout
  * Detects the kind of layout on the disk, be it
  * MBR or GPT layout, if there is no layout it returns
  * OsError to indicate the entire disk is a FS */
 __CRT_EXTERN OsStatus_t DiskDetectLayout(FileSystemDisk_t *Disk);
+
+/* VfsGetFileSystems
+ * Retrieves a list of all the current filesystems
+ * and provides access for manipulation */
+__CRT_EXTERN List_t *VfsGetFileSystems(void);
 
 #endif //!_VFS_INTERFACE_H_

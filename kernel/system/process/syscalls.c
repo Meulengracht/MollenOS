@@ -112,7 +112,7 @@ int ScProcessJoin(UUId_t ProcessId)
 
 /* Attempts to kill the process 
  * with the given process-id */
-int ScProcessKill(UUId_t ProcessId)
+OsStatus_t ScProcessKill(UUId_t ProcessId)
 {
 	/* Alloc on stack */
 	MCorePhoenixRequest_t Request;
@@ -130,14 +130,14 @@ int ScProcessKill(UUId_t ProcessId)
 
 	/* Return the exit code */
 	if (Request.Base.State == EventOk)
-		return 0;
+		return OsNoError;
 	else
-		return -1;
+		return OsError;
 }
 
 /* Kills the current process with the 
  * error code given as argument */
-int ScProcessExit(int ExitCode)
+OsStatus_t ScProcessExit(int ExitCode)
 {
 	/* Retrieve crrent process */
 	MCoreAsh_t *Process = PhoenixGetAsh(PROCESS_CURRENT);
@@ -146,7 +146,7 @@ int ScProcessExit(int ExitCode)
 	/* Sanity 
 	 * We don't proceed in case it's not a process */
 	if (Process == NULL) {
-		return -1;
+		return OsError;
 	}
 
 	/* Log it and save return code */
@@ -173,7 +173,7 @@ int ScProcessExit(int ExitCode)
 	IThreadYield();
 
 	/* Done */
-	return 0;
+	return OsNoError;
 }
 
 /* Queries information about 

@@ -29,7 +29,7 @@
  * the new process id 
  * If startup is failed, the returned value 
  * is 0xFFFFFFFF */
-PId_t ProcessSpawn(const char *Path, const char *Arguments)
+UUId_t ProcessSpawn(const char *Path, const char *Arguments)
 {
 	/* Variables */
 	int RetVal = 0;
@@ -39,7 +39,7 @@ PId_t ProcessSpawn(const char *Path, const char *Arguments)
 		SYSCALL_PARAM(Path), SYSCALL_PARAM(Arguments));
 
 	/* Done */
-	return (PId_t)RetVal;
+	return (UUId_t)RetVal;
 }
 
 /* Process Join 
@@ -47,38 +47,26 @@ PId_t ProcessSpawn(const char *Path, const char *Arguments)
  * and waits for the process to quit
  * the return value is the return code
  * from the target process */
-int ProcessJoin(PId_t ProcessId)
+int ProcessJoin(UUId_t Process)
 {
-	/* Variables */
-	int RetVal = 0;
-
-	/* Syscall! */
-	RetVal = Syscall1(SYSCALL_PROCJOIN, SYSCALL_PARAM(ProcessId));
-
-	/* Done */
-	return RetVal;
+	/* Redirect call */
+	return Syscall1(SYSCALL_PROCJOIN, SYSCALL_PARAM(Process));
 }
 
 /* Process Kill 
  * Kills target process id 
  * On error, returns -1, or if the 
  * kill was succesful, returns 0 */
-int ProcessKill(PId_t ProcessId)
+OsStatus_t ProcessKill(UUId_t Process)
 {
-	/* Variables */
-	int RetVal = 0;
-
 	/* Sanity -- Who the 
 	 * fuck would try to kill 
 	 * window server */
-	if (ProcessId == 0)
-		return -1;
-
-	/* Syscall! */
-	RetVal = Syscall1(SYSCALL_PROCKILL, SYSCALL_PARAM(ProcessId));
+	if (Process == 0)
+		return OsError;
 
 	/* Done */
-	return RetVal;
+	return (OsStatus_t)Syscall1(SYSCALL_PROCKILL, SYSCALL_PARAM(Process));
 }
 
 /* Process Query
@@ -86,10 +74,10 @@ int ProcessKill(PId_t ProcessId)
  * given process id, or use 0
  * to query information about current
  * process */
-int ProcessQuery(PId_t ProcessId, ProcessQueryFunction_t Function, void *Buffer, size_t Length)
+int ProcessQuery(UUId_t Process, ProcessQueryFunction_t Function, void *Buffer, size_t Length)
 {
 	/* Prep for syscall */
-	return Syscall4(SYSCALL_PROCQUERY, SYSCALL_PARAM(ProcessId),
+	return Syscall4(SYSCALL_PROCQUERY, SYSCALL_PARAM(Process),
 		SYSCALL_PARAM(Function), SYSCALL_PARAM(Buffer),
 		SYSCALL_PARAM(Length));
 }

@@ -105,6 +105,19 @@
 #endif
 #endif
 
+#if (defined (__GNUC__))
+#define PACKED_STRUCT(name, body) struct name body __attribute__((packed))
+#define PACKED_TYPESTRUCT(name, body) typedef struct _##name body name##_t __attribute__((packed))
+#elif (defined (__arm__))
+#define PACKED_STRUCT(name, body) __packed struct name body
+#define PACKED_TYPESTRUCT(name, body) __packed typedef struct _##name body name##_t
+#elif (defined (_MSC_VER))
+#define PACKED_STRUCT(name, body) __pragma(pack(push, 1)) struct name body __pragma(pack(pop))
+#define PACKED_TYPESTRUCT(name, body) __pragma(pack(push, 1)) typedef struct _##name body name##_t __pragma(pack(pop))
+#else
+#error Please define packed struct for the used compiler
+#endif
+
 #ifndef _W64
  #if !defined(_midl) && defined(_X86_) && _MSC_VER >= 1300
   #define _W64 __w64

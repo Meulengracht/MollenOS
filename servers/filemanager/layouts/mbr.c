@@ -25,159 +25,118 @@
 #include "../include/vfs.h"
 #include "../include/mbr.h"
 
+/* Includes
+ * - Library */
+#include <stdlib.h>
+
 /* VfsParsePartitionTable 
  * - Partition table parser function for disks 
  *   and parses only MBR, not GPT */
-OsStatus_t MbrEnumeratePartitions(UUId_t DiskId, uint64_t SectorBase,
-	uint64_t SectorCount, size_t SectorSize)
+OsStatus_t MbrEnumeratePartitions(FileSystemDisk_t *Disk, 
+	BufferObject_t *Buffer, uint64_t Sector)
 {
-	/* Allocate structures */
-	void *TmpBuffer = (void*)kmalloc(SectorSize);
-//	MCoreModule_t *Module = NULL;
-	MCoreMasterBootRecord_t *Mbr = NULL;
-	MCoreDeviceRequest_t Request;
+	/* Variables */
+	MasterBootRecord_t *Mbr = NULL;
 	int PartitionCount = 0;
 	int i;
 
-	/* Null out request */
-	memset(&Request, 0, sizeof(MCoreDeviceRequest_t));
-
-	/* Read sector */
-	Request.Base.Type = RequestRead;
-	Request.DeviceId = DiskId;
-	Request.SectorLBA = SectorBase;
-	Request.Buffer = (uint8_t*)TmpBuffer;
-	Request.Length = SectorSize;
-
-	/* Create & Wait */
-	//DmCreateRequest(&Request);
-	//DmWaitRequest(&Request, 0);
-
-	/* Sanity */
-	if (Request.Base.State != EventOk)
-	{
-		/* Error */
-		LogFatal("VFSM", "REGISTERDISK: Error reading from disk - 0x%x\n", Request.ErrType);
-		kfree(TmpBuffer);
-		return 0;
+	/* Start out by reading the mbr to detect whether
+	 * or not there is a partition table */
+	if (DiskRead(Disk->Driver, Disk->Device, Sector, Buffer->Physical, 1) != OsNoError) {
+		return OsError;
 	}
 
-	/* We don't need sector count here */
-	_CRT_UNUSED(SectorCount);
+	/* Allocate a buffer where we can store a copy of the mbr 
+	 * it might be overwritten by recursion here */
+	Mbr = (MasterBootRecord_t*)malloc(sizeof(MasterBootRecord_t));
+	ReadBuffer(Buffer, (const void*)Mbr, sizeof(MasterBootRecord_t));
 
-	/* Cast */
-	Mbr = (MCoreMasterBootRecord_t*)TmpBuffer;
-
-	/* Valid partition table? */
-	for (i = 0; i < 4; i++)
-	{
-		/* Is it an active partition? */
-		if (Mbr->Partitions[i].Status == PARTITION_ACTIVE)
-		{
-			/* Inc */
+	/* Now try to see if there is any valid data
+	 * in any of the partitions */
+	for (i = 0; i < 4; i++) {
+		if (Mbr->Partitions[i].Status == MBR_PARTITION_ACTIVE) {
+			FileSystemType_t Type = FSUnknown;
 			PartitionCount++;
 
-			/* Allocate a filesystem structure */
-			MCoreFileSystem_t *Fs = (MCoreFileSystem_t*)kmalloc(sizeof(MCoreFileSystem_t));
-			Fs->State = VfsStateInit;
-			Fs->DiskId = DiskId;
-			Fs->ExtendedData = NULL;
-			Fs->SectorStart = SectorBase + Mbr->Partitions[i].LbaSector;
-			Fs->SectorCount = Mbr->Partitions[i].LbaSize;
-			Fs->Id = GlbFileSystemId;
-			Fs->SectorSize = SectorSize;
-
-			/* Check extended partitions first */
-			if (Mbr->Partitions[i].Type == 0x05)
-			{
-				/* Extended - CHS */
+			/* Check extended partitions first 
+			 * 0x05 = CHS
+			 * 0x0F = LBA
+			 * 0xCF = LBA */
+			if (Mbr->Partitions[i].Type == 0x05) {
 			}
 			else if (Mbr->Partitions[i].Type == 0x0F
-				|| Mbr->Partitions[i].Type == 0xCF)
-			{
-				/* Extended - LBA */
-				PartitionCount += VfsParsePartitionTable(DiskId,
-					SectorBase + Mbr->Partitions[i].LbaSector, Mbr->Partitions[i].LbaSize, SectorSize);
+					|| Mbr->Partitions[i].Type == 0xCF) {
+				MbrEnumeratePartitions(Disk, Buffer,
+					Sector + Mbr->Partitions[i].LbaSector);
 			}
-			else if (Mbr->Partitions[i].Type == 0xEE)
-			{
-				/* GPT Formatted */
+
+			/* GPT Formatted 
+			 * ??? Shouldn't happen ever we reach this
+			 * otherwise the GPT is invalid */
+			else if (Mbr->Partitions[i].Type == 0xEE) {
+				return OsError;
 			}
 
 			/* Check MFS */
-			else if (Mbr->Partitions[i].Type == 0x61)
-			{
-				/* MFS 1 */
-				//TODO
-				//Module = ModuleFindGeneric(MODULE_FILESYSTEM, FILESYSTEM_MFS);
-
-				/* Load */
-//				if (Module != NULL)
-//					ModuleLoad(Module, Fs);
+			else if (Mbr->Partitions[i].Type == 0x61) {
+				Type = FSMFS;
 			}
 
-			/* Check FAT */
-			else if (Mbr->Partitions[i].Type == 0x1
-				|| Mbr->Partitions[i].Type == 0x6
-				|| Mbr->Partitions[i].Type == 0x8 /* Might be FAT16 */
-				|| Mbr->Partitions[i].Type == 0x11 /* Might be FAT16 */
-				|| Mbr->Partitions[i].Type == 0x14 /* Might be FAT16 */
-				|| Mbr->Partitions[i].Type == 0x24 /* Might be FAT16 */
-				|| Mbr->Partitions[i].Type == 0x56 /* Might be FAT16 */
-				|| Mbr->Partitions[i].Type == 0x8D
-				|| Mbr->Partitions[i].Type == 0xAA
-				|| Mbr->Partitions[i].Type == 0xC1
-				|| Mbr->Partitions[i].Type == 0xD1
-				|| Mbr->Partitions[i].Type == 0xE1
-				|| Mbr->Partitions[i].Type == 0xE5
-				|| Mbr->Partitions[i].Type == 0xEF
-				|| Mbr->Partitions[i].Type == 0xF2)
-			{
-				/* Fat-12 */
-			}
-			else if (Mbr->Partitions[i].Type == 0x4
-				|| Mbr->Partitions[i].Type == 0x6
-				|| Mbr->Partitions[i].Type == 0xE
-				|| Mbr->Partitions[i].Type == 0x16
-				|| Mbr->Partitions[i].Type == 0x1E
-				|| Mbr->Partitions[i].Type == 0x90
-				|| Mbr->Partitions[i].Type == 0x92
-				|| Mbr->Partitions[i].Type == 0x9A
-				|| Mbr->Partitions[i].Type == 0xC4
-				|| Mbr->Partitions[i].Type == 0xC6
-				|| Mbr->Partitions[i].Type == 0xCE
-				|| Mbr->Partitions[i].Type == 0xD4
-				|| Mbr->Partitions[i].Type == 0xD6)
-			{
-				/* Fat16 */
-			}
-			else if (Mbr->Partitions[i].Type == 0x0B /* CHS */
-				|| Mbr->Partitions[i].Type == 0x0C /* LBA */
-				|| Mbr->Partitions[i].Type == 0x27
-				|| Mbr->Partitions[i].Type == 0xCB
-				|| Mbr->Partitions[i].Type == 0xCC)
-			{
-				/* Fat32 */
+			/* Check FAT 
+			 * - Both FAT12, 16 and 32 */
+			else if (Mbr->Partitions[i].Type == 0x1			/* Fat12 */
+					|| Mbr->Partitions[i].Type == 0x4		/* Fat16 */
+					|| Mbr->Partitions[i].Type == 0x6		/* Fat16B */
+					|| Mbr->Partitions[i].Type == 0xB		/* FAT32 - CHS */
+					|| Mbr->Partitions[i].Type == 0xC) {	/* Fat32 - LBA */
+				Type = FSFAT;
 			}
 
-			/* Lastly */
-			if (Fs->State == VfsStateActive)
-				VfsInstallFileSystem(Fs);
-			else
-				kfree(Fs);
+			/* Check HFS */
+			else if (Mbr->Partitions[i].Type == 0xAF) {
+				Type = FSHFS;
+			}
+
+			/* exFat or NTFS or HPFS
+			 * This requires some extra checks to determine
+			 * exactly which fs it is */
+			else if (Mbr->Partitions[i].Type == 0x7) {
+				if (!strncmp((const char*)&Mbr->BootCode[3], "EXFAT", 5)) {
+					Type = FSEXFAT;
+				}
+				else if (!strncmp((const char*)&Mbr->BootCode[3], "NTFS", 4)) {
+					Type = FSNTFS;
+				}
+				else {
+					Type = FSHPFS;
+				}
+			}
+
+			/* Register the FS */
+			DiskRegisterFileSystem(Disk, Sector + Mbr->Partitions[i].LbaSector,
+				Mbr->Partitions[i].LbaSize, Type);
 		}
 	}
 
-	/* Done */
-	kfree(TmpBuffer);
-	return PartitionCount;
-}
+	/* Cleanup the allocated mbr */
+	free(Mbr);
 
+	/* Done */
+	return PartitionCount != 0 ? OsNoError : OsError;
+}
 
 /* MbrEnumerate 
  * Enumerates a given disk with MBR data layout 
  * and automatically creates new filesystem objects */
-OsStatus_t MbrEnumerate(FileSystemDisk_t * Disk, BufferObject_t * Buffer)
+OsStatus_t MbrEnumerate(FileSystemDisk_t *Disk, BufferObject_t *Buffer)
 {
-	return OsNoError;
+	/* First of all, we want to detect whether or 
+	 * not there is a partition table available
+	 * otherwise we treat the entire disk as one partition */
+	if (MbrEnumeratePartitions(Disk, Buffer, 0) != OsNoError) {
+		return DiskDetectFileSystem(Disk, Buffer, 0, Disk->Descriptor.SectorCount);
+	}
+	else {
+		return OsNoError;
+	}
 }

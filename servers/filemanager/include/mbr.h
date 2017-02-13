@@ -46,7 +46,7 @@
  * Contains the structure of a mbr parition
  * that is contained in the MBR sector, up to
  * 4 partitions can be defined at a time */
-typedef struct _MbrPartitionEntry {
+PACKED_TYPESTRUCT(MbrPartitionEntry, {
 	uint8_t					Status;
 	uint8_t					StartHead;
 	uint8_t					StartSector;
@@ -57,16 +57,16 @@ typedef struct _MbrPartitionEntry {
 	uint8_t					EndCylinder;
 	uint32_t				LbaSector;
 	uint32_t				LbaSize;
-} MbrPartitionEntry_t;
+});
 
 /* MBR Header Structure
  * Describes the MBR header that must always
  * be present on a MBR formatted disk at LBA 0 */
-typedef struct _MasterBootRecord {
+PACKED_TYPESTRUCT(MasterBootRecord, {
 	uint8_t					BootCode[446];
 	MbrPartitionEntry_t		Partitions[4];
 	uint8_t					BootSignature[2];
-} MasterBootRecord_t;
+});
 
 /* MbrEnumerate 
  * Enumerates a given disk with MBR data layout 

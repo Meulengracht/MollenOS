@@ -23,11 +23,11 @@
 /* Includes 
  * - System */
 #include <os/driver/contracts/filesystem.h>
+#include <os/mollenos.h>
 #include "include/vfs.h"
 
 /* Includes
  * - C-Library */
-#include <ds/list.h>
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
@@ -36,9 +36,47 @@
  * to keep track of state */
 int GlbInitHasRun = 0;
 
-/* Externs
- * Access needed from main.c */
-__CRT_EXTERN List_t *GlbFileSystems;
+/* DiskRegisterFileSystem 
+ * Registers a new filesystem of the given type, on
+ * the given disk with the given position on the disk 
+ * and assigns it an identifier */
+OsStatus_t DiskRegisterFileSystem(FileSystemDisk_t *Disk,
+	uint64_t Sector, uint64_t SectorCount, FileSystemType_t Type) 
+{
+	/* Ready the buffer */
+	DataKey_t Key;
+	char IdentBuffer[8];
+	memset(IdentBuffer, 0, 8);
+
+	/* Copy the storage ident over 
+	 * We use St for hard media, and Rm for removables */
+	strcpy(IdentBuffer, "St");
+	itoa(GlbFileSystemId, (IdentBuffer + 2), 10);
+
+	/* Construct the identifier */
+	Fs->Identifier = MStringCreate(&IdentBuffer, StrASCII);
+
+	/* Add to list */
+	Key.Value = (int)Fs->DiskId;
+	ListAppend(VfsGetFileSystems(), ListCreateNode(Key, Key, Fs));
+
+	/* Increament */
+	GlbFileSystemId++;
+
+	/* Start init? */
+	if ((Fs->Flags & VFS_MAIN_DRIVE)
+		&& !GlbInitHasRun)
+	{
+		/* Create a path from the identifier and hardcoded path */
+		MString_t *Path = MStringCreate((void*)MStringRaw(Fs->Identifier), StrUTF8);
+		MStringAppendCharacters(Path, FILESYSTEM_INIT, StrUTF8);
+
+		/* Spawn the process */
+		if (ProcessSpawn(MStringRaw(Path), NULL) != UUID_INVALID) {
+			GlbInitHasRun = 1;
+		}
+	}
+}
 
 /* RegisterDisk
  * Registers a disk with the file-manager and it will
@@ -79,7 +117,7 @@ OsStatus_t UnregisterDisk(UUId_t Device, Flags_t Flags)
 
 	/* Setup pre-stuff */
 	Key.Value = (int)Device;
-	lNode = ListGetNodeByKey(GlbFileSystems, Key, 0);
+	lNode = ListGetNodeByKey(VfsGetFileSystems(), Key, 0);
 
 	/* Keep iterating untill no more FS's are present on disk */
 	while (lNode != NULL) {
@@ -107,10 +145,10 @@ OsStatus_t UnregisterDisk(UUId_t Device, Flags_t Flags)
 		free(Fs);
 
 		/* Remove it from list */
-		ListRemoveByNode(GlbFileSystems, lNode);
+		ListRemoveByNode(VfsGetFileSystems(), lNode);
 
 		/* Get next */
-		lNode = ListGetNodeByKey(GlbFileSystems, Key, 0);
+		lNode = ListGetNodeByKey(VfsGetFileSystems(), Key, 0);
 	}
 
 	/* Done! */
