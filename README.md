@@ -1,26 +1,45 @@
 
 # About MollenOS
 
-MollenOS is a hobby OS project, started back in 2011. I then took a long break and picked up development again in the start of 2015 by rewriting the entire OS. The aim is to create something usuable, just for trivial tasks in your every normal day like checking the web.
-It is written entirely from scratch, however the C Library is a custom variation of third party existing c libraries and my own implementations. 
+## The Goal
 
-## Screenshots
+The goal with MollenOS is to provide users with a free, modern operating system, capable of running on as many platforms as possible. Initially the goal will be to support the most popular platforms (Arm and x86). The focus will be in the user-experience as soon as I get that far with MollenOS.
 
-### Boot Screen
+## How it started
 
-ToDo
+MollenOS is a OS project that started back in 2011 as a hobby project. I then took a long break and picked up development again in the start of 2015 by rewriting the entire OS structure as it became apparant to me the initial design was really bad and not scalable nor modular enough to support multiple platforms. The project has then been in development from 2015, to the current date (as of writing this).
 
-### Usage
+## Current Progress
 
-ToDo
+Currently, the focus is on the modularity of MollenOS and its modules (/drivers). A lot of time is going into modelling and designing driver API a long with the user-API on how to use these drivers. The result of this will also be a unified driver framework that will allow any developer to easily write new drivers for MollenOS and contribute to the OS in that way.
 
-## Kernel Features
+Once the drivers and the driver-framework are in place, focus can be moved to userspace, and building the programming model along with essential userspace applications. (Window manager, Terminal driver etc)
 
-Since MollenOS uses it's own filesystem (MFS), it is not booted by the more traditional way of GRUB. Instead it has it's own advanced bootloader, which can be found under my other repositories. mBoot is written specifically for MollenOS, and supports booting from both FAT32 & MFS.
+## Project Structure
 
-MollenOS is written in the traditional layers (The kernel is built upon a hardware abstraction layer), which means it's easy to architectures to MollenOS and support any platform. The kernel has become modular (with modules transitioning to userspace at some point), which means it only loads device drivers that are actually present on the computer.
+- /boot (Contains bootloaders and anything boot-related)
+- /docs (Contains documentation about the project and the OS)
+- /install (Contains the deploy folder for installing the OS)
+- /kernel (Contains the MollenOS kernel source code)
+- /librt (Contains all support and runtime libraries needed for MollenOS)
+- /modules (Contains drivers for MollenOS)
+- /servers (Contains system services like the filemanager for MollenOS)
+- /tools (Contains tools for building and manipulating)
+- /userspace (Contains software projects for the user-applications)
+
+## Features
+
+MollenOS uses it's own filesystem (MFS), it is not booted by the more traditional way of GRUB. Instead it has it's own advanced bootloader, which can be found in the /boot directory. mBoot is written specifically for MollenOS, and supports booting from both FAT32 & MFS.
 
 MollenOS supports a wide array of features and has implementation for VFS, Processes, Pipes, an advanced PE loader (which is used as the file format in MollenOS), ACPICA built in and MollenOS natively uses UTF-8 in it's kernel. UTF-8 Is implemented in a library called MString which is written for MollenOS.
+
+### MollenOS FileSystem (MFS)
+
+ToDo
+
+### MString Library
+
+ToDo
 
 ## Drivers:
     - AHCI
@@ -37,9 +56,23 @@ MollenOS supports a wide array of features and has implementation for VFS, Proce
     - (x86) PS2 Mouse & Keyboard
     - (x86) APIC
 
-## Userspace
+## Documentation
 
-Userspace is still being fleshed out, and not much work has been done here yet.
+All documentation about design and implementation, and the theory behind is stored in the `/docs` folder. Right now there isn't any documentation, but it'll all come with the Documentation milestone.
+
+## Screenshots
+
+Showcase of MollenOS to get an idea of how the userspace will be once it's finished.
+
+### Boot Screen
+
+ToDo
+
+### Usage
+
+ToDo
+
+## Implementations & Essential Software
 
 ### The C-Library, C++ Library and OS Library
 
@@ -72,7 +105,7 @@ These are the various libraries ported to MollenOS userspace, and are primarily 
 ## Building MollenOS
 
 ### Pre-requisites
-In order to build MollenOS you need NASM installed on your system in order to assemble the bootloader and various assembler files in the visual studio projects, you also need Visual Studio 2013 installed on your system to build the projects. These are the only programs needed in order to build MollenOS, drivers, userspace etc. 
+In order to build MollenOS you need NASM installed on your system in order to assemble the bootloader and various assembler files in the visual studio projects, you also need Visual Studio 2017 installed on your system to build the projects. These are the only programs needed in order to build MollenOS, drivers, userspace etc. 
 
 ### Build Script Information
 The build and install process is almost fully automated on windows, and is controlled by Build.bat and MfsTool.exe, the only thing you have to run is the Build.bat. In order to customize your installation and build process, there is a number of switches you can give to Build.bat
