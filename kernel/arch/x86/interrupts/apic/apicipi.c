@@ -33,7 +33,7 @@
 
 /* Externs, we need access to the
  * acpi nodes */
-__CRT_EXTERN List_t *GlbAcpiNodes;
+__EXTERN List_t *GlbAcpiNodes;
 
 /* Utility function wait for 
  * wait the ICR register to clear

@@ -133,45 +133,45 @@ typedef struct _MCoreAsh
  * prepares the ash-environment, at this point
  * it won't be completely running yet, it needs
  * its own thread for that. Returns 0 on success */
-__CRT_EXTERN int PhoenixInitializeAsh(MCoreAsh_t *Ash, MString_t *Path);
+__EXTERN int PhoenixInitializeAsh(MCoreAsh_t *Ash, MString_t *Path);
 
 /* This is a wrapper for starting up a base Ash
  * and uses <PhoenixInitializeAsh> to setup the env
  * and do validation before starting */
-__CRT_EXTERN UUId_t PhoenixStartupAsh(MString_t *Path);
+__EXTERN UUId_t PhoenixStartupAsh(MString_t *Path);
 
 /* This is the finalizor function for starting
  * up a new base Ash, it finishes setting up the environment
  * and memory mappings, must be called on it's own thread */
-__CRT_EXTERN void PhoenixFinishAsh(MCoreAsh_t *Ash);
+__EXTERN void PhoenixFinishAsh(MCoreAsh_t *Ash);
 
 /* These function manipulate pipes on the given port
  * there are some pre-defined ports on which pipes
  * can be opened, window manager etc */
-__CRT_EXTERN OsStatus_t PhoenixOpenAshPipe(MCoreAsh_t *Ash, int Port, Flags_t Flags);
-__CRT_EXTERN OsStatus_t PhoenixWaitAshPipe(MCoreAsh_t *Ash, int Port);
-__CRT_EXTERN OsStatus_t PhoenixCloseAshPipe(MCoreAsh_t *Ash, int Port);
-__CRT_EXTERN MCorePipe_t *PhoenixGetAshPipe(MCoreAsh_t *Ash, int Port);
+__EXTERN OsStatus_t PhoenixOpenAshPipe(MCoreAsh_t *Ash, int Port, Flags_t Flags);
+__EXTERN OsStatus_t PhoenixWaitAshPipe(MCoreAsh_t *Ash, int Port);
+__EXTERN OsStatus_t PhoenixCloseAshPipe(MCoreAsh_t *Ash, int Port);
+__EXTERN MCorePipe_t *PhoenixGetAshPipe(MCoreAsh_t *Ash, int Port);
 
 /* Ash Function Prototypes
  * these are the interesting ones */
-__CRT_EXTERN int PhoenixQueryAsh(MCoreAsh_t *Ash,
+__EXTERN int PhoenixQueryAsh(MCoreAsh_t *Ash,
 	AshQueryFunction_t Function, void *Buffer, size_t Length);
-__CRT_EXTERN void PhoenixCleanupAsh(MCoreAsh_t *Ash);
-__CRT_EXTERN void PhoenixTerminateAsh(MCoreAsh_t *Ash);
+__EXTERN void PhoenixCleanupAsh(MCoreAsh_t *Ash);
+__EXTERN void PhoenixTerminateAsh(MCoreAsh_t *Ash);
 
 
 /* PhoenixRegisterAlias
  * Allows a server to register an alias for its id
  * which means that id (must be above PHOENIX_ALIAS_BASE)
  * will always refer the calling process */
-__CRT_EXTERN OsStatus_t PhoenixRegisterAlias(MCoreAsh_t *Ash, UUId_t Alias);
+__EXTERN OsStatus_t PhoenixRegisterAlias(MCoreAsh_t *Ash, UUId_t Alias);
 
 /* Lookup Ash
  * This function looks up a ash structure
  * by id, if either PHOENIX_CURRENT or PHOENIX_NO_ASH
  * is passed, it retrieves the current process */
-__CRT_EXTERN MCoreAsh_t *PhoenixGetAsh(UUId_t AshId);
-__CRT_EXTERN MCoreAsh_t *PhoenixGetAshByName(const char *Name);
+__EXTERN MCoreAsh_t *PhoenixGetAsh(UUId_t AshId);
+__EXTERN MCoreAsh_t *PhoenixGetAshByName(const char *Name);
 
 #endif //!_MCORE_ASH_H_

@@ -15,6 +15,7 @@
     <ClCompile Include="layouts\mbr.c" />
     <ClCompile Include="main.c" />
     <ClCompile Include="disk.c" />
+    <ClCompile Include="modules.c" />
     <ClCompile Include="vfsfunctions.c" />
     <ClCompile Include="vfspath.c" />
   </ItemGroup>

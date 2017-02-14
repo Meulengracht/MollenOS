@@ -39,11 +39,11 @@ MCoreBootInfo_t x86BootInfo;
 
 /* Extern, this function is declared in the MCore project
  * and all platform libs should enter this function */
-__CRT_EXTERN void MCoreInitialize(MCoreBootInfo_t*);
+__EXTERN void MCoreInitialize(MCoreBootInfo_t*);
 
 /* Stuff from our own project that we import
  * we need some information about the cpu config */
-__CRT_EXTERN x86CpuObject_t GlbBootCpuInfo;
+__EXTERN x86CpuObject_t GlbBootCpuInfo;
 
 /* Initializes the local apic (if present, it faults
  * in case it's not, we don't support less for now)

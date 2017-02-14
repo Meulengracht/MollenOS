@@ -32,51 +32,51 @@ extern "C" {
 /*******************************
  *       String Creation       *
  *******************************/
-_CRTIMP	char* strdup(__CRT_CONST char *str);
-_CRTIMP char *strndup(__CRT_CONST char *str, size_t len);
+_CRTIMP	char* strdup(__CONST char *str);
+_CRTIMP char *strndup(__CONST char *str, size_t len);
 
 /*******************************
  *       String Copying        *
  *******************************/
-_CRTIMP	void* memcpy(void *destination, __CRT_CONST void *source, size_t count);
-_CRTIMP	void* memmove(void *destination, __CRT_CONST void* source, size_t count);
-_CRTIMP	char* strcpy(char *to, __CRT_CONST char *from);
-_CRTIMP char* strncpy(char* destination, __CRT_CONST char* source, size_t num);
+_CRTIMP	void* memcpy(void *destination, __CONST void *source, size_t count);
+_CRTIMP	void* memmove(void *destination, __CONST void* source, size_t count);
+_CRTIMP	char* strcpy(char *to, __CONST char *from);
+_CRTIMP char* strncpy(char* destination, __CONST char* source, size_t num);
 
 /*******************************
  *       String Concenation    *
  *******************************/
-_CRTIMP	char* strcat(char* destination, __CRT_CONST char* source);
+_CRTIMP	char* strcat(char* destination, __CONST char* source);
 _CRTIMP	char* strncat(char* destination, char* source, size_t num);
 
 /*******************************
  *      String Comparison      *
  *******************************/
-_CRTIMP	int memcmp(__CRT_CONST void* ptr1, __CRT_CONST void* ptr2, size_t num);
-_CRTIMP	int strcmp(__CRT_CONST char* str1, __CRT_CONST char* str2);
-_CRTIMP	int strcoll(__CRT_CONST char* str1, __CRT_CONST char* str2);
-_CRTIMP	int strncmp(__CRT_CONST char* s1, __CRT_CONST char* s2, size_t n);
-_CRTIMP	size_t strxfrm(char* destination, __CRT_CONST char* source, size_t num);
+_CRTIMP	int memcmp(__CONST void* ptr1, __CONST void* ptr2, size_t num);
+_CRTIMP	int strcmp(__CONST char* str1, __CONST char* str2);
+_CRTIMP	int strcoll(__CONST char* str1, __CONST char* str2);
+_CRTIMP	int strncmp(__CONST char* s1, __CONST char* s2, size_t n);
+_CRTIMP	size_t strxfrm(char* destination, __CONST char* source, size_t num);
 
 /*******************************
  *      String S&D             *
  *******************************/
-_CRTIMP void* memchr(__CRT_CONST void* ptr, int value, size_t num);
-_CRTIMP char* strchr(__CRT_CONST char* str, int character);
-_CRTIMP	size_t strcspn(__CRT_CONST char* str1, __CRT_CONST char* str2);
-_CRTIMP char* strpbrk(__CRT_CONST char* str1, __CRT_CONST char* str2);
-_CRTIMP char* strrchr(__CRT_CONST char* str, int character);
-_CRTIMP	size_t strspn(__CRT_CONST char* str1, __CRT_CONST char* str2);
-_CRTIMP char* strstr(__CRT_CONST char* haystack, __CRT_CONST char* needle);
-_CRTIMP	char* strtok_r(char* s, __CRT_CONST char* delimiters, char** lasts);
-_CRTIMP	char* strtok(char* str, __CRT_CONST char* delimiters);
+_CRTIMP void* memchr(__CONST void* ptr, int value, size_t num);
+_CRTIMP char* strchr(__CONST char* str, int character);
+_CRTIMP	size_t strcspn(__CONST char* str1, __CONST char* str2);
+_CRTIMP char* strpbrk(__CONST char* str1, __CONST char* str2);
+_CRTIMP char* strrchr(__CONST char* str, int character);
+_CRTIMP	size_t strspn(__CONST char* str1, __CONST char* str2);
+_CRTIMP char* strstr(__CONST char* haystack, __CONST char* needle);
+_CRTIMP	char* strtok_r(char* s, __CONST char* delimiters, char** lasts);
+_CRTIMP	char* strtok(char* str, __CONST char* delimiters);
 
 /*******************************
  *       String Utility        *
  *******************************/
 _CRTIMP	void* memset(void *dest, int c, size_t count);
-_CRTIMP	size_t strlen(__CRT_CONST char* str);
-_CRTIMP size_t strnlen(__CRT_CONST char *str, size_t max);
+_CRTIMP	size_t strlen(__CONST char* str);
+_CRTIMP size_t strnlen(__CONST char *str, size_t max);
 
 /*******************************
  *     String Conversions      *
@@ -94,7 +94,7 @@ _CRTIMP	char *ultoa(unsigned long value, char *string, int radix);
 /*******************************
  *       WString Utility       *
  *******************************/
-_CRTIMP size_t wcsnlen(__CRT_CONST wchar_t * str, size_t count);
+_CRTIMP size_t wcsnlen(__CONST wchar_t * str, size_t count);
 
 #ifdef __cplusplus
 }

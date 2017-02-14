@@ -36,8 +36,8 @@
 /* Extern
  * - C/C++ Initialization
  * - C/C++ Cleanup */
-__CRT_EXTERN void __CppInit(void);
-__CRT_EXTERN void __CppFinit(void);
+__EXTERN void __CppInit(void);
+__EXTERN void __CppFinit(void);
 _MOS_API void __CppInitVectoredEH(void);
 
 /* Globals

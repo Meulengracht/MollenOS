@@ -58,27 +58,27 @@ typedef struct _MCoreScheduler {
 /* This initializes the scheduler for the
  * given cpu_id, the first call to this
  * will also initialize the scheduler enviornment */
-__CRT_EXTERN void SchedulerInit(Cpu_t Cpu);
+__EXTERN void SchedulerInit(Cpu_t Cpu);
 
 /* This function arms a thread for scheduling
  * in most cases this is called with a prefilled
  * priority of -1 to make it run almost immediately */
-__CRT_EXTERN void SchedulerReadyThread(MCoreThread_t *Thread);
+__EXTERN void SchedulerReadyThread(MCoreThread_t *Thread);
 
 /* This function is primarily used to remove a thread from
  * scheduling totally, but it can always be scheduld again
  * by calling SchedulerReadyThread */
-__CRT_EXTERN void SchedulerRemoveThread(MCoreThread_t *Thread);
+__EXTERN void SchedulerRemoveThread(MCoreThread_t *Thread);
 
 /* Schedule 
  * This should be called by the underlying archteicture code
  * to get the next thread that is to be run. */
-__CRT_EXTERN MCoreThread_t *SchedulerGetNextTask(Cpu_t Cpu, MCoreThread_t *Thread, int PreEmptive);
+__EXTERN MCoreThread_t *SchedulerGetNextTask(Cpu_t Cpu, MCoreThread_t *Thread, int PreEmptive);
 
 /* This is used by timer code to reduce threads's timeout
  * if this function wasn't called then sleeping threads and 
  * waiting threads would never be armed again. */
-__CRT_EXTERN void SchedulerApplyMs(size_t MilliSeconds);
+__EXTERN void SchedulerApplyMs(size_t MilliSeconds);
 
 /* This function sleeps the current thread either by resource,
  * by time, or both. If resource is NULL then it will wake the

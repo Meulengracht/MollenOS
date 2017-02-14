@@ -67,12 +67,12 @@ typedef struct _GptPartitionEntry {
 	uint64_t			StartLBA;
 	uint64_t			EndLBA;			/* Including this sector, eg: 0-755 */
 	uint64_t			Attributes;
-	uint8_t				NameUTF16[72]	/* Partition name (36 UTF-16LE code units) */
+	uint8_t				NameUTF16[72];	/* Partition name (36 UTF-16LE code units) */
 } GptPartitionEntry_t;
 
 /* GptEnumerate 
  * Enumerates a given disk with GPT data layout 
  * and automatically creates new filesystem objects */
-__CRT_EXTERN OsStatus_t GptEnumerate(FileSystemDisk_t *Disk, BufferObject_t *Buffer);
+__EXTERN OsStatus_t GptEnumerate(FileSystemDisk_t *Disk, BufferObject_t *Buffer);
 
 #endif //!_DISK_LAYOUT_GPT_H_

@@ -89,25 +89,25 @@ typedef struct _Cmos {
 /* CmosRead
  * Read the byte at given register offset
  * from the CMOS-Chip */
-__CRT_EXTERN uint8_t CmosRead(uint8_t Register);
+__EXTERN uint8_t CmosRead(uint8_t Register);
 
 /* CmosRead
  * Writes a byte to the given register offset
  * from the CMOS-Chip */
-__CRT_EXTERN void CmosWrite(uint8_t Register, uint8_t Data);
+__EXTERN void CmosWrite(uint8_t Register, uint8_t Data);
 
 /* RtcInitialize
  * Initializes the rtc-part of the cmos chip
  * and installs the interrupt needed */
-__CRT_EXTERN OsStatus_t RtcInitialize(Cmos_t *Chip);
+__EXTERN OsStatus_t RtcInitialize(Cmos_t *Chip);
 
 /* RtcCleanup
  * Disables the rtc and cleans up resources */
-__CRT_EXTERN OsStatus_t RtcCleanup(Cmos_t *Chip);
+__EXTERN OsStatus_t RtcCleanup(Cmos_t *Chip);
 
 /* RtcInterrupt
  * Handles the rtc interrupt and acknowledges
  * the interrupt by reading cmos */
-__CRT_EXTERN InterruptStatus_t RtcInterrupt(Cmos_t *Chip);
+__EXTERN InterruptStatus_t RtcInterrupt(Cmos_t *Chip);
 
 #endif // !__DRIVER_CMOS_H__

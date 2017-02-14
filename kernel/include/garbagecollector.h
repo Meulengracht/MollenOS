@@ -31,9 +31,9 @@
 #include <stdint.h>
 
 /* Initializes the gc */
-__CRT_EXTERN void GcInit(void);
+__EXTERN void GcInit(void);
 
 /* Adds garbage to the collector */
-__CRT_EXTERN void GcAddWork(void);
+__EXTERN void GcAddWork(void);
 
 #endif //!_MCORE_GARBAGECOLLECTOR_H_

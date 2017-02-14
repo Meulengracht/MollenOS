@@ -679,34 +679,34 @@ typedef struct _MCorePeFile {
  * Validates a file-buffer of the given length,
  * does initial header checks and performs a checksum
  * validation. Returns either PE_INVALID or PE_VALID */
-__CRT_EXTERN int PeValidate(uint8_t *Buffer, size_t Length);
+__EXTERN int PeValidate(uint8_t *Buffer, size_t Length);
 
 /* PeResolveLibrary
  * Resolves a dependancy or a given module path, a load address must be provided
  * together with a pe-file header to fill out and the parent that wants to resolve
  * the library */
-__CRT_EXTERN MCorePeFile_t *PeResolveLibrary(MCorePeFile_t *Parent,
+__EXTERN MCorePeFile_t *PeResolveLibrary(MCorePeFile_t *Parent,
 	MCorePeFile_t *PeFile, MString_t *LibraryName, Addr_t *LoadAddress);
 
 /* PeResolveFunction
  * Resolves a function by name in the given pe image, the return
  * value is the address of the function */
-__CRT_EXTERN Addr_t PeResolveFunction(MCorePeFile_t *Library, const char *Function);
+__EXTERN Addr_t PeResolveFunction(MCorePeFile_t *Library, const char *Function);
 
 /* PeLoadImage
  * Loads the given file-buffer as a pe image into the current address space 
  * at the given Base-Address, which is updated after load to reflect where
  * the next address is available for load */
-__CRT_EXTERN MCorePeFile_t *PeLoadImage(MCorePeFile_t *Parent, MString_t *Name,
+__EXTERN MCorePeFile_t *PeLoadImage(MCorePeFile_t *Parent, MString_t *Name,
 	uint8_t *Buffer, size_t Length, Addr_t *BaseAddress, int UsingInitRD);
 
 /* PeUnloadLibrary
  * Unload dynamically loaded library 
  * This only cleans up in the case there are no more references */
-__CRT_EXTERN void PeUnloadLibrary(MCorePeFile_t *Parent, MCorePeFile_t *Library);
+__EXTERN void PeUnloadLibrary(MCorePeFile_t *Parent, MCorePeFile_t *Library);
 
 /* PeUnloadImage
  * Unload executables, all it's dependancies and free it's resources */
-__CRT_EXTERN void PeUnloadImage(MCorePeFile_t *Executable);
+__EXTERN void PeUnloadImage(MCorePeFile_t *Executable);
 
 #endif //!__MCORE_PELOADER__

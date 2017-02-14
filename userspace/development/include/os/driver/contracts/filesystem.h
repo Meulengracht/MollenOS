@@ -54,23 +54,23 @@
 /* FileSystem Disk structure
  * Keeps information about the disk target and the
  * general information about the disk (geometry, string data) */
-typedef struct _FileSystemDisk {
+PACKED_TYPESTRUCT(FileSystemDisk, {
 	UUId_t					Driver;
 	UUId_t					Device;
 	Flags_t					Flags;
 	DiskDescriptor_t		Descriptor;
-} FileSystemDisk_t;
+});
 
 /* The filesystem descriptor structure 
  * Contains basic information about the filesystem
  * and holds a copy of the disk information to provide
  * disk access and information */
-typedef struct _FileSystemDescriptor {
+PACKED_TYPESTRUCT(FileSystemDescriptor, {
 	Flags_t					Flags;
 	FileSystemDisk_t		Disk;
 	uint64_t				SectorStart;
 	uint64_t				SectorCount;
-} FileSystemDescriptor_t;
+});
 
 /* FsInitialize 
  * Initializes a new instance of the file system
@@ -131,7 +131,7 @@ __FSAPI
 FileSystemCode_t
 __FSDECL(FsReadFile)(_In_ FileSystemDescriptor_t *Descriptor,
 					 _In_ FileSystemFileHandle_t *Handle,
-					 _Out_ __CRT_CONST void *Buffer,
+					 _Out_ __CONST void *Buffer,
 					 _In_ size_t BytesToRead,
 					 _Out_Opt_ size_t *BytesRead);
 
@@ -142,7 +142,7 @@ __FSAPI
 FileSystemCode_t
 __FSDECL(FsWriteFile)(_In_ FileSystemDescriptor_t *Descriptor,
 					  _In_ FileSystemFileHandle_t *Handle,
-					  _Out_ __CRT_CONST void *Buffer,
+					  _Out_ __CONST void *Buffer,
 					  _In_ size_t BytesToWrite,
 					  _Out_Opt_ size_t *BytesWritten);
 

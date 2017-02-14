@@ -33,12 +33,12 @@
 /* Externs 
  * We need access to a few of the variables
  * in the other apic files */
-__CRT_EXTERN volatile size_t GlbTimerTicks[64];
-__CRT_EXTERN size_t GlbTimerQuantum;
+__EXTERN volatile size_t GlbTimerTicks[64];
+__EXTERN size_t GlbTimerQuantum;
 
 /* Extern to our assembly function
  * it loads the new task context */
-__CRT_EXTERN void enter_thread(Registers_t *Regs);
+__EXTERN void enter_thread(Registers_t *Regs);
 
 /* The primary interrupt code for switching tasks
  * and is controlled by the apic timer, initially the

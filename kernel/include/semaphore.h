@@ -46,30 +46,30 @@ typedef struct _Semaphore {
 /* SemaphoreCreate
  * Initializes and allocates a new semaphore
  * Semaphores use safe passages to avoid race-conditions */
-__CRT_EXTERN Semaphore_t *SemaphoreCreate(int InitialValue);
+__EXTERN Semaphore_t *SemaphoreCreate(int InitialValue);
 
 /* SemaphoreCreateGlobal
  * Creates a global semaphore, identified by it's name
  * and makes sure only one can exist at the time. Returns
  * NULL if one already exists. */
-__CRT_EXTERN Semaphore_t *SemaphoreCreateGlobal(MString_t *Identifier, int InitialValue);
+__EXTERN Semaphore_t *SemaphoreCreateGlobal(MString_t *Identifier, int InitialValue);
 
 /* SemaphoreConstruct
  * Constructs an already allocated semaphore and resets
  * it's value to the given initial value */
-__CRT_EXTERN void SemaphoreConstruct(Semaphore_t *Semaphore, int InitialValue);
+__EXTERN void SemaphoreConstruct(Semaphore_t *Semaphore, int InitialValue);
 
 /* SemaphoreDestroy
  * Destroys and frees a semaphore, releasing any
  * resources associated with it */
-__CRT_EXTERN void SemaphoreDestroy(Semaphore_t *Semaphore);
+__EXTERN void SemaphoreDestroy(Semaphore_t *Semaphore);
 
 /* SemaphoreP (Wait) 
  * Waits for the semaphore signal with the optional time-out */
-__CRT_EXTERN void SemaphoreP(Semaphore_t *Semaphore, size_t Timeout);
+__EXTERN void SemaphoreP(Semaphore_t *Semaphore, size_t Timeout);
 
 /* SemaphoreV (Signal) 
  * Signals the semaphore with the given value, default is 1 */
-__CRT_EXTERN void SemaphoreV(Semaphore_t *Semaphore, int Value);
+__EXTERN void SemaphoreV(Semaphore_t *Semaphore, int Value);
 
 #endif // !_MCORE_SEMAPHORE_H_

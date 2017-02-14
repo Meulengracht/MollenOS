@@ -196,7 +196,7 @@ function.  */
 #endif /* !__cplusplus */
 
 /* For C++ backward-compatibility only.  */
-_CRTDATA(__CRT_EXTERN __CRT_CONST char _ctype_[]);
+_CRTDATA(__CRT_EXTERN __CONST char _ctype_[]);
 
 #ifdef __cplusplus
 }

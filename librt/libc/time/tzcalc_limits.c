@@ -14,7 +14,7 @@ int __tzcalc_limits(int year)
 {
   int days, year_days, years;
   int i, j;
-  __tzinfo_type *__CRT_CONST tz = __gettzinfo ();
+  __tzinfo_type *__CONST tz = __gettzinfo ();
 
   if (year < EPOCH_YEAR)
     return 0;
@@ -42,9 +42,9 @@ int __tzcalc_limits(int year)
 	days = year_days + tz->__tzrule[i].d;
       else
 	{
-		__CRT_CONST int yleap = isleap(year);
+		__CONST int yleap = isleap(year);
 	  int m_day, m_wday, wday_diff;
-	  __CRT_CONST int *__CRT_CONST ip = __month_lengths[yleap];
+	  __CONST int *__CONST ip = __month_lengths[yleap];
 
 	  days = year_days;
 

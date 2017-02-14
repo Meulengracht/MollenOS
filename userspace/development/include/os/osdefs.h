@@ -31,39 +31,44 @@
  * these will switch in size based upon target-arch */
 
 /* Fixed Width */
-typedef uint32_t reg32_t;
-typedef uint64_t reg64_t;
+typedef uint32_t			reg32_t;
+typedef uint64_t			reg64_t;
 
 /* Variable Width */
 #if defined(_X86_32)
-#define	__BITS		 32
-typedef unsigned int PhysAddr_t;
-typedef unsigned int VirtAddr_t;
-typedef unsigned int Addr_t;
-typedef int SAddr_t;
-typedef unsigned int Cpu_t;
-typedef reg32_t reg_t;
+#define	__BITS				32
+typedef unsigned int		PhysAddr_t;
+typedef unsigned int		VirtAddr_t;
+typedef unsigned int		Addr_t;
+typedef int					SAddr_t;
+typedef unsigned int		Cpu_t;
+typedef reg32_t				reg_t;
 #elif defined(_X86_64)
 #define	__BITS		 64
-typedef unsigned long long PhysAddr_t;
-typedef unsigned long long VirtAddr_t;
-typedef unsigned long long Addr_t;
-typedef long long SAddr_t;
-typedef unsigned long long Cpu_t;
-typedef reg64_t reg_t;
+typedef unsigned long long	PhysAddr_t;
+typedef unsigned long long	VirtAddr_t;
+typedef unsigned long long	Addr_t;
+typedef long long			SAddr_t;
+typedef unsigned long long	Cpu_t;
+typedef reg64_t				reg_t;
 #endif
 
 /* Operation System types below 
  * these are usually fixed no matter arch and include stuff
  * as threading, processing etc */
-typedef unsigned int IntStatus_t;
-typedef unsigned int UUId_t;
-typedef unsigned int Flags_t;
-typedef unsigned DevInfo_t;
+typedef unsigned int		IntStatus_t;
+typedef unsigned int		UUId_t;
+typedef unsigned int		Flags_t;
+typedef unsigned			DevInfo_t;
+typedef void *				Handle_t;
 
 /* Define some special UUId_t constants 
  * Especially a constant for invalid */
-#define UUID_INVALID			(unsigned int)-1
+#define UUID_INVALID		(UUId_t)-1
+
+/* Define some special UUId_t constants 
+ * Especially a constant for invalid */
+#define HANDLE_INVALID		(Handle_t)0
 
 /* This definies various possible results
  * from certain os-operations */

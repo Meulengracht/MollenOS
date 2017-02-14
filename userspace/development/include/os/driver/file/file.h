@@ -32,7 +32,7 @@
 /* The shared file structure
  * Used as a file-definition by the filemanager
  * and the loaded filesystem modules */
-typedef struct _FileSystemFile {
+PACKED_TYPESTRUCT(FileSystemFile, {
 	MString_t				*Path;
 	MString_t				*Name;
 	size_t					Hash;
@@ -40,12 +40,12 @@ typedef struct _FileSystemFile {
 	int						References;
 	uint64_t				Size;
 	uintptr_t				*ExtensionData;
-} FileSystemFile_t;
+});
 
 /* This is the per-handle file instance
  * structure, so multiple handles can be opened
  * on just a single file, it refers to a file structure */
-typedef struct _FileSystemFileHandle {
+PACKED_TYPESTRUCT(FileSystemFileHandle, {
 	UUId_t					Id;
 	Flags_t					Flags;
 	Flags_t					LastOperation;
@@ -54,6 +54,6 @@ typedef struct _FileSystemFileHandle {
 	size_t					oBufferPosition;
 	FileSystemFile_t		*File;
 	uintptr_t				*ExtensionData;
-} FileSystemFileHandle_t;
+});
 
 #endif //!_VFS_FILE_INTERFACE_H_

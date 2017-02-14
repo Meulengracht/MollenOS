@@ -94,10 +94,10 @@ ANSI C requires <<gmtime>>.
 
 /* Reentrency version of gmtime 
  * Modified implementation by newlib */
-struct tm *gmtime_r(__CRT_CONST time_t *__restrict tim_p, struct tm *__restrict res)
+struct tm *gmtime_r(__CONST time_t *__restrict tim_p, struct tm *__restrict res)
 {
 	long days, rem;
-	__CRT_CONST time_t lcltime = *tim_p;
+	__CONST time_t lcltime = *tim_p;
 	int era, weekday, year;
 	unsigned erayear, yearday, month, day;
 	unsigned long eraday;
@@ -148,7 +148,7 @@ struct tm *gmtime_r(__CRT_CONST time_t *__restrict tim_p, struct tm *__restrict 
 
 /* Normal version of gmtime 
  * Modified implementation by newlib */
-struct tm *gmtime(__CRT_CONST time_t *tim_p)
+struct tm *gmtime(__CONST time_t *tim_p)
 {
 	/* Get the TLS buffer for
 	* time-modification */

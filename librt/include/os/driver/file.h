@@ -33,7 +33,7 @@
 /* The export macro, and is only set by the
  * the actual implementation of the filemanager */
 #ifdef __FILEMANAGER_IMPL
-#define __FILEAPI __CRT_EXTERN
+#define __FILEAPI __EXTERN
 #else
 #define __FILEAPI static __CRT_INLINE
 #endif

@@ -122,30 +122,30 @@ __DEVAPI OsStatus_t RegisterContract(MContract_t *Contract)
  * Handles the generic query function, by resolving
  * the correct driver and asking for data */
 #ifdef __DEVICEMANAGER_IMPL
-__CRT_EXTERN
+__EXTERN
 OsStatus_t 
 QueryContract(_In_ MContractType_t Type, 
 			  _In_ int Function,
-			  _In_Opt_ __CRT_CONST void *Arg0,
+			  _In_Opt_ __CONST void *Arg0,
 			  _In_Opt_ size_t Length0,
-			  _In_Opt_ __CRT_CONST void *Arg1,
+			  _In_Opt_ __CONST void *Arg1,
 			  _In_Opt_ size_t Length1,
-			  _In_Opt_ __CRT_CONST void *Arg2,
+			  _In_Opt_ __CONST void *Arg2,
 			  _In_Opt_ size_t Length2,
-			  _Out_Opt_ __CRT_CONST void *ResultBuffer,
+			  _Out_Opt_ __CONST void *ResultBuffer,
 			  _In_Opt_ size_t ResultLength);
 #else
 static __CRT_INLINE 
 OsStatus_t 
 QueryContract(_In_ MContractType_t Type, 
 			  _In_ int Function,
-			  _In_Opt_ __CRT_CONST void *Arg0,
+			  _In_Opt_ __CONST void *Arg0,
 			  _In_Opt_ size_t Length0,
-			  _In_Opt_ __CRT_CONST void *Arg1,
+			  _In_Opt_ __CONST void *Arg1,
 			  _In_Opt_ size_t Length1,
-			  _In_Opt_ __CRT_CONST void *Arg2,
+			  _In_Opt_ __CONST void *Arg2,
 			  _In_Opt_ size_t Length2,
-			  _Out_Opt_ __CRT_CONST void *ResultBuffer,
+			  _Out_Opt_ __CONST void *ResultBuffer,
 			  _In_Opt_ size_t ResultLength)
 {
 	/* Variables */

@@ -42,7 +42,7 @@
 typedef struct _MRPCArgument {
 	int						Type;
 	union {
-		__CRT_CONST void	*Buffer;
+		__CONST void	*Buffer;
 		size_t				Value;
 	} Data;
 	size_t					Length;
@@ -90,7 +90,7 @@ static __CRT_INLINE void RPCInitialize(MRemoteCall_t *Ipc,
  * the given argument index. It's not possible to override 
  * a current argument */
 static __CRT_INLINE void RPCSetArgument(MRemoteCall_t *Rpc,
-	int Index, __CRT_CONST void *Data, size_t Length)
+	int Index, __CONST void *Data, size_t Length)
 {
 	/* Sanitize the index and the
 	 * current argument */
@@ -130,7 +130,7 @@ static __CRT_INLINE void RPCSetArgument(MRemoteCall_t *Rpc,
  * Installs a result buffer that will be filled
  * with the response from the RPC request */
 static __CRT_INLINE void RPCSetResult(MRemoteCall_t *Rpc,
-	__CRT_CONST void *Data, size_t Length)
+	__CONST void *Data, size_t Length)
 {
 	/* Always a buffer element as we need
 	 * a target to copy the data into */
@@ -163,7 +163,7 @@ _MOS_API OsStatus_t RPCExecute(MRemoteCall_t *Rpc, UUId_t Target);
  * sender of the message, it's good practice to always wait for
  * a result when there is going to be one */
 _MOS_API OsStatus_t RPCRespond(MRemoteCall_t *Rpc, 
-	__CRT_CONST void *Buffer, size_t Length);
+	__CONST void *Buffer, size_t Length);
 
 #ifdef __cplusplus
 }

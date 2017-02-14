@@ -115,27 +115,27 @@ _CRTIMP __tzinfo_type *__gettzinfo(void);
 /* Uses the value pointed by timer to fill a tm structure 
  * with the values that represent the corresponding time, 
  * expressed as a UTC time (i.e., the time at the GMT timezone). */
-_CRTIMP struct tm *gmtime(__CRT_CONST time_t*);
+_CRTIMP struct tm *gmtime(__CONST time_t*);
 
 /* Uses the value pointed by timer to fill a tm structure with the 
  * values that represent the corresponding time, expressed for the local timezone. */
-_CRTIMP struct tm *localtime(__CRT_CONST time_t*);
+_CRTIMP struct tm *localtime(__CONST time_t*);
 
 /* Formats a given timebuffer to a 
  * string of format Www Mmm dd hh:mm:ss yyyy */
-_CRTIMP char* asctime(__CRT_CONST struct tm*);
+_CRTIMP char* asctime(__CONST struct tm*);
 
 /* Interprets the value pointed by timer as a calendar time and 
  * converts it to a C-string containing a human-readable version 
  * of the corresponding time and date, in terms of local time. */
-_CRTIMP char *ctime(__CRT_CONST time_t*);
+_CRTIMP char *ctime(__CONST time_t*);
 
 /* Copies into ptr the content of format, expanding its format 
  * specifiers into the corresponding values that represent the 
  * time described in timeptr, with a limit of maxsize characters. */
 _CRTIMP size_t strftime(char *__restrict dest, size_t maxsize, 
-	__CRT_CONST char *__restrict format,
-	__CRT_CONST struct tm *__restrict tmptr);
+	__CONST char *__restrict format,
+	__CONST struct tm *__restrict tmptr);
 
 #ifdef __cplusplus
 }

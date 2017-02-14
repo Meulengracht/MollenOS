@@ -106,16 +106,16 @@ typedef struct _x86_Thread {
 #define NUM_ISA_INTERRUPTS			16
 
 /* Port IO */
-__CRT_EXTERN uint8_t __CRTDECL inb(uint16_t port);
-__CRT_EXTERN uint16_t __CRTDECL inw(uint16_t port);
-__CRT_EXTERN uint32_t __CRTDECL inl(uint16_t port);
+__EXTERN uint8_t __CRTDECL inb(uint16_t port);
+__EXTERN uint16_t __CRTDECL inw(uint16_t port);
+__EXTERN uint32_t __CRTDECL inl(uint16_t port);
 
-__CRT_EXTERN void __CRTDECL outb(uint16_t port, uint8_t data);
-__CRT_EXTERN void __CRTDECL outw(uint16_t port, uint16_t data);
-__CRT_EXTERN void __CRTDECL outl(uint16_t port, uint32_t data);
+__EXTERN void __CRTDECL outb(uint16_t port, uint8_t data);
+__EXTERN void __CRTDECL outw(uint16_t port, uint16_t data);
+__EXTERN void __CRTDECL outl(uint16_t port, uint32_t data);
 
 /* Initialises all available timers in system */
-__CRT_EXTERN void DevicesInitTimers(void);
+__EXTERN void DevicesInitTimers(void);
 
 /* Memory */
 #ifndef PAGE_SIZE
@@ -131,9 +131,9 @@ __CRT_EXTERN void DevicesInitTimers(void);
 #endif
 
 /* Utils */
-__CRT_EXTERN Cpu_t ApicGetCpu(void);
-__CRT_EXTERN void ApicSendIpi(Cpu_t CpuTarget, uint32_t Vector);
-__CRT_EXTERN void Idle(void);
+__EXTERN Cpu_t ApicGetCpu(void);
+__EXTERN void ApicSendIpi(Cpu_t CpuTarget, uint32_t Vector);
+__EXTERN void Idle(void);
 _CRT_EXPORT void kernel_panic(const char *str);
 
 /* Architecture Memory Layout, this

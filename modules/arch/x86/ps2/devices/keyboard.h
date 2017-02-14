@@ -70,6 +70,6 @@ typedef struct _PS2Keyboard {
 /* ScancodeSet2ToVKey
  * Converts a scancode 2 key to the standard-defined
  * virtual key-layout */
-__CRT_EXTERN VKey ScancodeSet2ToVKey(uint8_t Scancode, unsigned *Buffer, unsigned *Flags);
+__EXTERN VKey ScancodeSet2ToVKey(uint8_t Scancode, unsigned *Buffer, unsigned *Flags);
 
 #endif //!_DRIVER_PS2_KEYBOARD_H_

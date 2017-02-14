@@ -57,10 +57,10 @@ typedef enum _LogLevel
 #define LOG_TYPE_FATAL				0x03
 
 /* Functions */
-__CRT_EXTERN void LogInit(void);
-__CRT_EXTERN void LogUpgrade(size_t Size);
-__CRT_EXTERN void LogRedirect(LogTarget_t Output);
-__CRT_EXTERN void LogFlush(LogTarget_t Output);
+__EXTERN void LogInit(void);
+__EXTERN void LogUpgrade(size_t Size);
+__EXTERN void LogRedirect(LogTarget_t Output);
+__EXTERN void LogFlush(LogTarget_t Output);
 
 /* The log functions */
 _CRT_EXPORT void Log(const char *Message, ...);

@@ -26,6 +26,6 @@
 #include <crtdefs.h>
 
 /* Prototypes */
-__CRT_EXTERN void PicInit(void);
+__EXTERN void PicInit(void);
 
 #endif //!_X86_PIC_H_

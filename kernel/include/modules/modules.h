@@ -50,34 +50,34 @@ typedef struct _MCoreModule {
  * Loads the ramdisk, iterates all headers and 
  * builds a list of both available servers and 
  * available drivers */
-__CRT_EXTERN OsStatus_t ModulesInit(MCoreBootDescriptor *BootDescriptor);
+__EXTERN OsStatus_t ModulesInit(MCoreBootDescriptor *BootDescriptor);
 
 /* ModulesRunServers
  * Loads all iterated servers in the supplied ramdisk
  * by spawning each one as a new process */
-__CRT_EXTERN void ModulesRunServers(void);
+__EXTERN void ModulesRunServers(void);
 
 /* ModulesQueryPath
  * Retrieve a pointer to the file-buffer and its length 
  * based on the given <rd:/> path */
-__CRT_EXTERN OsStatus_t ModulesQueryPath(MString_t *Path, void **Buffer, size_t *Length);
+__EXTERN OsStatus_t ModulesQueryPath(MString_t *Path, void **Buffer, size_t *Length);
 
 /* ModulesFindGeneric
  * Resolve a 'generic' driver by its device-type and/or
  * its device sub-type, this is generally used if there is no
  * vendor specific driver available for the device. Returns NULL
  * if none is available */
-__CRT_EXTERN MCoreModule_t *ModulesFindGeneric(DevInfo_t DeviceType, DevInfo_t DeviceSubType);
+__EXTERN MCoreModule_t *ModulesFindGeneric(DevInfo_t DeviceType, DevInfo_t DeviceSubType);
 
 /* ModulesFindSpecific
  * Resolve a specific driver by its vendorid and deviceid 
  * this is to ensure optimal module load. Returns NULL 
  * if none is available */
-__CRT_EXTERN MCoreModule_t *ModulesFindSpecific(DevInfo_t VendorId, DevInfo_t DeviceId);
+__EXTERN MCoreModule_t *ModulesFindSpecific(DevInfo_t VendorId, DevInfo_t DeviceId);
 
 /* ModulesFindString
  * Resolve a module by its name. Returns NULL if none
  * is available */
-__CRT_EXTERN MCoreModule_t *ModulesFindString(MString_t *Module);
+__EXTERN MCoreModule_t *ModulesFindString(MString_t *Module);
 
 #endif //!_MCORE_MODULES_H_

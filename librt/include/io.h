@@ -100,7 +100,7 @@ extern "C" {
  *******************************/
 _CRTIMP int _fflags(int oflags);
 _CRTIMP int _fval(int ocode);
-_CRTIMP int _open(__CRT_CONST char *file, int oflags, int pmode);
+_CRTIMP int _open(__CONST char *file, int oflags, int pmode);
 _CRTIMP int _close(int handle);
 
 _CRTIMP int _read(int fd, void *buffer, unsigned int len);
@@ -109,7 +109,7 @@ _CRTIMP int _write(int fd, void *buffer, unsigned int length);
 _CRTIMP long _lseek(int fd, long offset, int mode);
 _CRTIMP long long _lseeki64(int fd, long long offset, int mode);
 _CRTIMP long _tell(int fd);
-_CRTIMP int _unlink(__CRT_CONST char *filename);
+_CRTIMP int _unlink(__CONST char *filename);
 
 _CRTIMP int _isatty(int fd);
 

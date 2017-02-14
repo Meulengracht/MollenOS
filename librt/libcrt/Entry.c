@@ -45,9 +45,9 @@ void __EntryLibCEmpty(void)
 #endif
 
 /* Extern */
-__CRT_EXTERN int main(int argc, char** argv);
-__CRT_EXTERN void __CppInit(void);
-__CRT_EXTERN void __CppFinit(void);
+__EXTERN int main(int argc, char** argv);
+__EXTERN void __CppInit(void);
+__EXTERN void __CppFinit(void);
 _MOS_API void __CppInitVectoredEH(void);
 
 /* Unescape Quotes in arguments */

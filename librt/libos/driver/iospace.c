@@ -32,12 +32,12 @@
 
 /* Externs, this is i/o
  * access and varies from architecture */
-__CRT_EXTERN uint8_t __readbyte(uint16_t Port);
-__CRT_EXTERN void __writebyte(uint16_t Port, uint8_t Value);
-__CRT_EXTERN uint16_t __readword(uint16_t Port);
-__CRT_EXTERN void __writeword(uint16_t Port, uint16_t Value);
-__CRT_EXTERN uint32_t __readlong(uint16_t Port);
-__CRT_EXTERN void __writelong(uint16_t Port, uint32_t Value);
+__EXTERN uint8_t __readbyte(uint16_t Port);
+__EXTERN void __writebyte(uint16_t Port, uint8_t Value);
+__EXTERN uint16_t __readword(uint16_t Port);
+__EXTERN void __writeword(uint16_t Port, uint16_t Value);
+__EXTERN uint32_t __readlong(uint16_t Port);
+__EXTERN void __writelong(uint16_t Port, uint32_t Value);
 
 /* Creates a new io-space and registers it with
  * the operation system, returns OsNoError if it's 

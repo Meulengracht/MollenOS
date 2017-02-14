@@ -131,50 +131,50 @@ typedef struct _PS2Controller {
 /* PS2PortInitialize
  * Initializes the given port and tries 
  * to identify the device on the port */
-__CRT_EXTERN OsStatus_t PS2PortInitialize(PS2Port_t *Port);
+__EXTERN OsStatus_t PS2PortInitialize(PS2Port_t *Port);
 
 /* PS2PortQueueCommand 
  * Queues the given command up for the given port
  * if a response is needed for the previous commnad
  * Set command = PS2_RESPONSE_COMMAND and pointer to response buffer */
-__CRT_EXTERN OsStatus_t PS2PortQueueCommand(PS2Port_t *Port,
+__EXTERN OsStatus_t PS2PortQueueCommand(PS2Port_t *Port,
 	uint8_t Command, uint8_t *Response);
 
 /* PS2PortFinishCommand 
  * Finalizes the current command and executes
  * the next command in queue (if any). */
-__CRT_EXTERN OsStatus_t PS2PortFinishCommand(PS2Port_t *Port, uint8_t Result);
+__EXTERN OsStatus_t PS2PortFinishCommand(PS2Port_t *Port, uint8_t Result);
 
 /* PS2ReadData
  * Reads a byte from the PS2 controller data port */
-__CRT_EXTERN uint8_t PS2ReadData(int Dummy);
+__EXTERN uint8_t PS2ReadData(int Dummy);
 
 /* PS2WriteData
  * Writes a data byte to the PS2 controller data port */
-__CRT_EXTERN OsStatus_t PS2WriteData(uint8_t Value);
+__EXTERN OsStatus_t PS2WriteData(uint8_t Value);
 
 /* PS2SendCommand
  * Writes the given command to the ps2-controller */
-__CRT_EXTERN void PS2SendCommand(uint8_t Command);
+__EXTERN void PS2SendCommand(uint8_t Command);
 
 /* PS2MouseInitialize 
  * Initializes an instance of an ps2-mouse on
  * the given PS2-Controller port */
-__CRT_EXTERN OsStatus_t PS2MouseInitialize(PS2Port_t *Port);
+__EXTERN OsStatus_t PS2MouseInitialize(PS2Port_t *Port);
 
 /* PS2MouseCleanup 
  * Cleans up the ps2-mouse instance on the
  * given PS2-Controller port */
-__CRT_EXTERN OsStatus_t PS2MouseCleanup(PS2Port_t *Port);
+__EXTERN OsStatus_t PS2MouseCleanup(PS2Port_t *Port);
 
 /* PS2KeyboardInitialize 
  * Initializes an instance of an ps2-keyboard on
  * the given PS2-Controller port */
-__CRT_EXTERN OsStatus_t PS2KeyboardInitialize(PS2Port_t *Port, int Translation);
+__EXTERN OsStatus_t PS2KeyboardInitialize(PS2Port_t *Port, int Translation);
 
 /* PS2KeyboardCleanup 
  * Cleans up the ps2-keyboard instance on the
  * given PS2-Controller port */
-__CRT_EXTERN OsStatus_t PS2KeyboardCleanup(PS2Port_t *Port);
+__EXTERN OsStatus_t PS2KeyboardCleanup(PS2Port_t *Port);
 
 #endif //!_DRIVER_PS2_CONTROLLER_H_

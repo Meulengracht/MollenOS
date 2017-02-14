@@ -29,7 +29,7 @@
 #include <os/MollenOS.h>
 
 /* Externs */
-__CRT_EXTERN int _ffill(FILE * stream, void *ptr, size_t size);
+__EXTERN int _ffill(FILE * stream, void *ptr, size_t size);
 
 /* The read 
  * This is the ANSI C version

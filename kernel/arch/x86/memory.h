@@ -82,24 +82,24 @@ typedef struct _SysMemMapping
 /* This is the physical memory manager initializor
 * It reads the multiboot memory descriptor(s), initialies
 * the bitmap and makes sure reserved regions are allocated */
-__CRT_EXTERN void MmPhyiscalInit(void *BootInfo, MCoreBootDescriptor *Descriptor);
+__EXTERN void MmPhyiscalInit(void *BootInfo, MCoreBootDescriptor *Descriptor);
 
 /* This is the primary function for allocating
 * physical memory pages, this takes an argument
 * <Mask> which determines where in memory the
 * allocation is OK */
-__CRT_EXTERN PhysAddr_t MmPhysicalAllocateBlock(Addr_t Mask, int Count);
+__EXTERN PhysAddr_t MmPhysicalAllocateBlock(Addr_t Mask, int Count);
 
 /* This is the primary function for
 * freeing physical pages, but NEVER free physical
 * pages if they exist in someones mapping */
-__CRT_EXTERN void MmPhysicalFreeBlock(PhysAddr_t Addr);
+__EXTERN void MmPhysicalFreeBlock(PhysAddr_t Addr);
 
 /* This function retrieves the virtual address 
  * of an mapped system mapping, this is to avoid
  * re-mapping and continous unmap of device memory 
  * Returns 0 if none exists */
-__CRT_EXTERN VirtAddr_t MmPhyiscalGetSysMappingVirtual(PhysAddr_t PhysicalAddr);
+__EXTERN VirtAddr_t MmPhyiscalGetSysMappingVirtual(PhysAddr_t PhysicalAddr);
 
 /**********************************/
 /* Virtual Memory Defs & Structs  */
@@ -173,18 +173,18 @@ typedef struct _PageDirectory
 } PageDirectory_t;
 
 /* Virtual Memory */
-__CRT_EXTERN void MmVirtualInit(void);
-__CRT_EXTERN void MmVirtualMap(void *PageDirectory, PhysAddr_t PhysicalAddr, VirtAddr_t VirtualAddr, uint32_t Flags);
-__CRT_EXTERN void MmVirtualUnmap(void *PageDirectory, VirtAddr_t VirtualAddr);
-__CRT_EXTERN PhysAddr_t MmVirtualGetMapping(void *PageDirectory, VirtAddr_t VirtualAddr);
+__EXTERN void MmVirtualInit(void);
+__EXTERN void MmVirtualMap(void *PageDirectory, PhysAddr_t PhysicalAddr, VirtAddr_t VirtualAddr, uint32_t Flags);
+__EXTERN void MmVirtualUnmap(void *PageDirectory, VirtAddr_t VirtualAddr);
+__EXTERN PhysAddr_t MmVirtualGetMapping(void *PageDirectory, VirtAddr_t VirtualAddr);
 
 /* Hihi */
-__CRT_EXTERN VirtAddr_t *MmReserveMemory(int Pages);
-__CRT_EXTERN VirtAddr_t MmReserveDriverMemory(size_t Pages);
-__CRT_EXTERN PageDirectory_t *MmVirtualGetCurrentDirectory(Cpu_t cpu);
-__CRT_EXTERN void MmVirtualSwitchPageDirectory(Cpu_t cpu, PageDirectory_t* PageDirectory, PhysAddr_t Pdb);
+__EXTERN VirtAddr_t *MmReserveMemory(int Pages);
+__EXTERN VirtAddr_t MmReserveDriverMemory(size_t Pages);
+__EXTERN PageDirectory_t *MmVirtualGetCurrentDirectory(Cpu_t cpu);
+__EXTERN void MmVirtualSwitchPageDirectory(Cpu_t cpu, PageDirectory_t* PageDirectory, PhysAddr_t Pdb);
 
 /* Install paging for AP Cores */
-__CRT_EXTERN void MmVirtualInstallPaging(Cpu_t cpu);
+__EXTERN void MmVirtualInstallPaging(Cpu_t cpu);
 
 #endif // !_X86_MEMORY_H_

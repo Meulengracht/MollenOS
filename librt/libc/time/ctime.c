@@ -24,6 +24,6 @@
 
 /* Returns the current time_t
  * as a string formatted by asctime */
-char *ctime(__CRT_CONST time_t *timer) {
+char *ctime(__CONST time_t *timer) {
   return asctime(localtime(timer));
 }

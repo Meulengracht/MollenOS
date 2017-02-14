@@ -31,8 +31,8 @@ extern "C" {
 /*******************************
  *     String Comparison       *
  *******************************/
-_CRTIMP int strcasecmp(__CRT_CONST char *, __CRT_CONST char *);
-_CRTIMP int strncasecmp(__CRT_CONST char *, __CRT_CONST char *, size_t);
+_CRTIMP int strcasecmp(__CONST char *, __CONST char *);
+_CRTIMP int strncasecmp(__CONST char *, __CONST char *, size_t);
 
 #ifdef __cplusplus
 }

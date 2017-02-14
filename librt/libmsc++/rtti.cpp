@@ -109,7 +109,7 @@ static inline const rtti_object_locator *CxxGetObjectLocator(void *Object)
  *  This function is usually called by compiler generated code as a result
  *  of using one of the C++ dynamic cast statements.
  */
-__CRT_EXTERN "C" void* __CRTDECL __RTtypeid(void *Object) throw()
+__EXTERN "C" void* __CRTDECL __RTtypeid(void *Object) throw()
 {
 	/* Variables */
 	const type_info *RetInfo;
@@ -236,7 +236,7 @@ void* __CRTDECL __RTDynamicCast(void *Object, int unknown,
  *  This function is usually called by compiler generated code as a result
  *  of using one of the C++ dynamic cast statements.
  */
-__CRT_EXTERN "C" void* __CRTDECL __RTCastToVoid(void *Object) throw()
+__EXTERN "C" void* __CRTDECL __RTCastToVoid(void *Object) throw()
 {
 	void *RetInfo;
 

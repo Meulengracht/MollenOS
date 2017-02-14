@@ -175,24 +175,24 @@ typedef struct _MCoreFileSystem
 /* VfsInit
  * Initializes the virtual filesystem and 
  * all resources related, and starts the VFSEventLoop */
-__CRT_EXTERN void VfsInit(void);
+__EXTERN void VfsInit(void);
 
 /* VfsRequestCreate
  * - Create a new request for the VFS */
-__CRT_EXTERN void VfsRequestCreate(MCoreVfsRequest_t *Request);
+__EXTERN void VfsRequestCreate(MCoreVfsRequest_t *Request);
 
 /* VfsRequestWait 
  * - Wait for a request to complete, thread 
  *   will sleep/block for the duration */
-__CRT_EXTERN void VfsRequestWait(MCoreVfsRequest_t *Request, size_t Timeout);
+__EXTERN void VfsRequestWait(MCoreVfsRequest_t *Request, size_t Timeout);
 
 /* The Query function, queries information
  * about a given file-handle */
-__CRT_EXTERN VfsErrorCode_t VfsQuery(MCoreFileInstance_t *Handle,
+__EXTERN VfsErrorCode_t VfsQuery(MCoreFileInstance_t *Handle,
 	VfsQueryFunction_t Function, void *Buffer, size_t Length);
 
 /* Vfs - Resolve Environmental Path
  * @Base - Environmental Path */
-__CRT_EXTERN MString_t *VfsResolveEnvironmentPath(VfsEnvironmentPath_t Base);
+__EXTERN MString_t *VfsResolveEnvironmentPath(VfsEnvironmentPath_t Base);
 
 #endif //!_MCORE_VFS_H_

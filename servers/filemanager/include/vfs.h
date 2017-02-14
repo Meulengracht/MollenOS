@@ -28,6 +28,7 @@
  * - System */
 #include <os/driver/contracts/filesystem.h>
 #include <os/driver/buffer.h>
+#include <os/sharedobject.h>
 
 /* Includes 
  * - Library */
@@ -56,8 +57,9 @@ typedef enum _FileSystemType {
  * by each filesystem module, also contains
  * the number of references the individual module */
 typedef struct _FileSystemModule {
-	UUId_t							Id;
+	FileSystemType_t				Type;
 	int								References;
+	Handle_t						Handle;
 
 	FsInitialize_t					Initialize;
 	FsDestroy_t						Destroy;
@@ -78,6 +80,7 @@ typedef struct _FileSystemModule {
  * represented in MCore */
 typedef struct _FileSystem {
 	UUId_t							Id;
+	FileSystemType_t				Type;
 	MString_t						*Identifier;
 	FileSystemDescriptor_t			Descriptor;
 	FileSystemModule_t				*Module;
@@ -87,25 +90,44 @@ typedef struct _FileSystem {
  * Registers a new filesystem of the given type, on
  * the given disk with the given position on the disk 
  * and assigns it an identifier */
-__CRT_EXTERN OsStatus_t DiskRegisterFileSystem(FileSystemDisk_t *Disk,
+__EXTERN OsStatus_t DiskRegisterFileSystem(FileSystemDisk_t *Disk,
 	uint64_t Sector, uint64_t SectorCount, FileSystemType_t Type);
 
 /* DiskDetectFileSystem
  * Detectes the kind of filesystem at the given absolute sector 
  * with the given sector count. It then loads the correct driver
  * and installs it */
-__CRT_EXTERN OsStatus_t DiskDetectFileSystem(FileSystemDisk_t *Disk,
+__EXTERN OsStatus_t DiskDetectFileSystem(FileSystemDisk_t *Disk,
 	BufferObject_t *Buffer, uint64_t Sector, uint64_t SectorCount);
 
 /* DiskDetectLayout
  * Detects the kind of layout on the disk, be it
  * MBR or GPT layout, if there is no layout it returns
  * OsError to indicate the entire disk is a FS */
-__CRT_EXTERN OsStatus_t DiskDetectLayout(FileSystemDisk_t *Disk);
+__EXTERN OsStatus_t DiskDetectLayout(FileSystemDisk_t *Disk);
+
+/* VfsResolveFileSystem
+ * Tries to resolve the given filesystem by locating
+ * the appropriate driver library for the given type */
+__EXTERN FileSystemModule_t *VfsResolveFileSystem(FileSystem_t *FileSystem);
 
 /* VfsGetFileSystems
  * Retrieves a list of all the current filesystems
  * and provides access for manipulation */
-__CRT_EXTERN List_t *VfsGetFileSystems(void);
+__EXTERN List_t *VfsGetFileSystems(void);
+
+/* VfsGetModules
+ * Retrieves a list of all the currently loaded
+ * modules, provides access for manipulation */
+__EXTERN List_t *VfsGetModules(void);
+
+/* VfsIdentifierAllocate 
+ * Allocates a free identifier index for the
+ * given disk, it varies based upon disk type */
+__EXTERN UUId_t VfsIdentifierAllocate(FileSystemDisk_t *Disk);
+
+/* VfsIdentifierFree 
+ * Frees a given identifier index */
+__EXTERN OsStatus_t VfsIdentifierFree(UUId_t Id);
 
 #endif //!_VFS_INTERFACE_H_

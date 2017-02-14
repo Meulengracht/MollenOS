@@ -48,14 +48,14 @@ int GlbIoApicI8259Apic = 0;
 
 /* Externs, we need access to some cpu information
  * and the ACPI nodes to get LVT information */
-__CRT_EXTERN x86CpuObject_t GlbBootCpuInfo;
-__CRT_EXTERN List_t *GlbAcpiNodes;
+__EXTERN x86CpuObject_t GlbBootCpuInfo;
+__EXTERN List_t *GlbAcpiNodes;
 
 /* Handlers, they are defined in ApicHandlers.c
  * but are installed by the boot setup apic func */
-__CRT_EXTERN InterruptStatus_t ApicErrorHandler(void *Args);
-__CRT_EXTERN InterruptStatus_t ApicSpuriousHandler(void *Args);
-__CRT_EXTERN InterruptStatus_t ApicTimerHandler(void *Args);
+__EXTERN InterruptStatus_t ApicErrorHandler(void *Args);
+__EXTERN InterruptStatus_t ApicSpuriousHandler(void *Args);
+__EXTERN InterruptStatus_t ApicTimerHandler(void *Args);
 
 /* Setup LVT0/1 for the given cpu, it tries
  * to locate LVT information in the ACPI tables

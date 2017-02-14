@@ -48,21 +48,21 @@ _MOS_API OsStatus_t RegisterServer(UUId_t Alias);
  * The entry-point of a server, this is called
  * as soon as the server is loaded in the system */
 #ifdef __SERVER_IMPL
-__CRT_EXTERN OsStatus_t OnLoad(void);
+__EXTERN OsStatus_t OnLoad(void);
 #endif
 
 /* OnUnload
  * This is called when the server is being unloaded
  * and should free all resources allocated by the system */
 #ifdef __SERVER_IMPL
-__CRT_EXTERN OsStatus_t OnUnload(void);
+__EXTERN OsStatus_t OnUnload(void);
 #endif
 
 /* OnEvent
  * This is called when the server recieved an external evnet
  * and should handle the given event*/
 #ifdef __SERVER_IMPL
-__CRT_EXTERN OsStatus_t OnEvent(MRemoteCall_t *Message);
+__EXTERN OsStatus_t OnEvent(MRemoteCall_t *Message);
 #endif
 
 #endif //!_MCORE_SERVER_H_

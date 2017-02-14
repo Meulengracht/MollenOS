@@ -151,6 +151,6 @@ typedef struct _MCoreDevice
 } MCoreDevice_t;
 
 /* Boot Video */
-__CRT_EXTERN void DmRegisterBootVideo(MCoreDevice_t *Video);
+__EXTERN void DmRegisterBootVideo(MCoreDevice_t *Video);
 
 #endif //_MCORE_DRIVER_MANAGER_H_

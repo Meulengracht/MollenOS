@@ -168,40 +168,40 @@ typedef struct _AcpiDevice
 /* Initializes Early access and enumerates 
  * ACPI Tables, returns -1 if ACPI is not
  * present on this system */
-__CRT_EXTERN int AcpiEnumerate(void);
+__EXTERN int AcpiEnumerate(void);
 
 /* Initializes the full access and functionality
  * of ACPICA / ACPI and allows for scanning of 
  * ACPI devices */
-__CRT_EXTERN void AcpiInitialize(void);
+__EXTERN void AcpiInitialize(void);
 
 /* Scans the ACPI bus/namespace for all available
  * ACPI devices/functions and initializes them */
-__CRT_EXTERN void AcpiScan(void);
+__EXTERN void AcpiScan(void);
 
 /* This returns ACPI_NOT_AVAILABLE if ACPI is not available
  * on the system, or ACPI_AVAILABLE if acpi is available */
-__CRT_EXTERN int AcpiAvailable(void);
+__EXTERN int AcpiAvailable(void);
 
 /* Lookup a bridge device for the given
  * bus that contains pci routings */
-__CRT_EXTERN AcpiDevice_t *AcpiLookupDevice(int Bus);
+__EXTERN AcpiDevice_t *AcpiLookupDevice(int Bus);
 
 /* Device Functions */
-__CRT_EXTERN ACPI_STATUS AcpiDeviceAttachData(AcpiDevice_t *Device, uint32_t Type);
+__EXTERN ACPI_STATUS AcpiDeviceAttachData(AcpiDevice_t *Device, uint32_t Type);
 
 /* Device Get's */
-__CRT_EXTERN ACPI_STATUS AcpiDeviceGetStatus(AcpiDevice_t* Device);
-__CRT_EXTERN ACPI_STATUS AcpiDeviceGetBusAndSegment(AcpiDevice_t* Device);
-__CRT_EXTERN ACPI_STATUS AcpiDeviceGetBusId(AcpiDevice_t *Device, uint32_t Type);
-__CRT_EXTERN ACPI_STATUS AcpiDeviceGetFeatures(AcpiDevice_t *Device);
-__CRT_EXTERN ACPI_STATUS AcpiDeviceGetIrqRoutings(AcpiDevice_t *Device);
-__CRT_EXTERN ACPI_STATUS AcpiDeviceGetHWInfo(AcpiDevice_t *Device, ACPI_HANDLE ParentHandle, uint32_t Type);
+__EXTERN ACPI_STATUS AcpiDeviceGetStatus(AcpiDevice_t* Device);
+__EXTERN ACPI_STATUS AcpiDeviceGetBusAndSegment(AcpiDevice_t* Device);
+__EXTERN ACPI_STATUS AcpiDeviceGetBusId(AcpiDevice_t *Device, uint32_t Type);
+__EXTERN ACPI_STATUS AcpiDeviceGetFeatures(AcpiDevice_t *Device);
+__EXTERN ACPI_STATUS AcpiDeviceGetIrqRoutings(AcpiDevice_t *Device);
+__EXTERN ACPI_STATUS AcpiDeviceGetHWInfo(AcpiDevice_t *Device, ACPI_HANDLE ParentHandle, uint32_t Type);
 
 /* Device Type Helpers */
-__CRT_EXTERN ACPI_STATUS AcpiDeviceIsVideo(AcpiDevice_t *Device);
-__CRT_EXTERN ACPI_STATUS AcpiDeviceIsDock(AcpiDevice_t *Device);
-__CRT_EXTERN ACPI_STATUS AcpiDeviceIsBay(AcpiDevice_t *Device);
-__CRT_EXTERN ACPI_STATUS AcpiDeviceIsBattery(AcpiDevice_t *Device);
+__EXTERN ACPI_STATUS AcpiDeviceIsVideo(AcpiDevice_t *Device);
+__EXTERN ACPI_STATUS AcpiDeviceIsDock(AcpiDevice_t *Device);
+__EXTERN ACPI_STATUS AcpiDeviceIsBay(AcpiDevice_t *Device);
+__EXTERN ACPI_STATUS AcpiDeviceIsBattery(AcpiDevice_t *Device);
 
 #endif //!_MOLLENOS_ACPI_SYSTEM_

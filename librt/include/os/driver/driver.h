@@ -49,14 +49,14 @@
  * The entry-point of a driver, this is called
  * as soon as the driver is loaded in the system */
 #ifdef __DRIVER_IMPL
-__CRT_EXTERN OsStatus_t OnLoad(void);
+__EXTERN OsStatus_t OnLoad(void);
 #endif
 
 /* OnUnload
  * This is called when the driver is being unloaded
  * and should free all resources allocated by the system */
 #ifdef __DRIVER_IMPL
-__CRT_EXTERN OsStatus_t OnUnload(void);
+__EXTERN OsStatus_t OnUnload(void);
 #else
 
 #endif
@@ -65,7 +65,7 @@ __CRT_EXTERN OsStatus_t OnUnload(void);
  * Is called when the device-manager registers a new
  * instance of this driver for the given device */
 #ifdef __DRIVER_IMPL
-__CRT_EXTERN OsStatus_t OnRegister(MCoreDevice_t *Device);
+__EXTERN OsStatus_t OnRegister(MCoreDevice_t *Device);
 #else
 
 #endif
@@ -74,7 +74,7 @@ __CRT_EXTERN OsStatus_t OnRegister(MCoreDevice_t *Device);
  * Is called when the device-manager wants to unload
  * an instance of this driver from the system */
 #ifdef __DRIVER_IMPL
-__CRT_EXTERN OsStatus_t OnUnregister(MCoreDevice_t *Device);
+__EXTERN OsStatus_t OnUnregister(MCoreDevice_t *Device);
 #else
 
 #endif
@@ -84,7 +84,7 @@ __CRT_EXTERN OsStatus_t OnUnregister(MCoreDevice_t *Device);
  * this driver for data, this will correspond to the query
  * function that is defined in the contract */
 #ifdef __DRIVER_IMPL
-__CRT_EXTERN 
+__EXTERN 
 OsStatus_t 
 OnQuery(_In_ MContractType_t QueryType, 
 		_In_ int QueryFunction, 
@@ -98,13 +98,13 @@ static __CRT_INLINE
 OsStatus_t 
 QueryDriver(_In_ MContract_t *Contract, 
 			_In_ int Function, 
-			_In_Opt_ __CRT_CONST void *Arg0,
+			_In_Opt_ __CONST void *Arg0,
 			_In_Opt_ size_t Length0,
-			_In_Opt_ __CRT_CONST void *Arg1,
+			_In_Opt_ __CONST void *Arg1,
 			_In_Opt_ size_t Length1,
-			_In_Opt_ __CRT_CONST void *Arg2,
+			_In_Opt_ __CONST void *Arg2,
 			_In_Opt_ size_t Length2,
-			_Out_Opt_ __CRT_CONST void *ResultBuffer,
+			_Out_Opt_ __CONST void *ResultBuffer,
 			_In_Opt_ size_t ResultLength)
 {
 	/* Variables */
@@ -141,7 +141,7 @@ QueryDriver(_In_ MContract_t *Contract,
  * interrupt return OsNoError, otherwise the interrupt
  * won't be acknowledged */
 #ifdef __DRIVER_IMPL
-__CRT_EXTERN InterruptStatus_t OnInterrupt(void *InterruptData);
+__EXTERN InterruptStatus_t OnInterrupt(void *InterruptData);
 #endif
 
 #endif //!DRIVER_SDK

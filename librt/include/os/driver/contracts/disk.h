@@ -96,7 +96,7 @@ OsStatus_t
 DiskRead(_In_ UUId_t Driver, 
 		 _In_ UUId_t Disk,
 		 _In_ uint64_t Sector, 
-		 _Out_ __CRT_CONST void *PhysicalAddress, 
+		 _Out_ __CONST void *PhysicalAddress, 
 		 _In_ size_t SectorCount)
 {
 	/* Variables */
@@ -131,7 +131,7 @@ OsStatus_t
 DiskWrite(_In_ UUId_t Driver,
 		 _In_ UUId_t Disk,
 		 _In_ uint64_t Sector, 
-		 _Out_ __CRT_CONST void *PhysicalAddress,
+		 _Out_ __CONST void *PhysicalAddress,
 		 _In_ size_t SectorCount)
 {
 	/* Variables */

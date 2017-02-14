@@ -34,12 +34,12 @@
 
 /* Externs, we need access to a lot of different
  * things for these helper functions */
-__CRT_EXTERN volatile size_t GlbTimerTicks[64];
-__CRT_EXTERN x86CpuObject_t GlbBootCpuInfo;
-__CRT_EXTERN volatile int GlbCpusBooted;
-__CRT_EXTERN Addr_t GlbLocalApicBase;
-__CRT_EXTERN List_t *GlbIoApics;
-__CRT_EXTERN List_t *GlbAcpiNodes;
+__EXTERN volatile size_t GlbTimerTicks[64];
+__EXTERN x86CpuObject_t GlbBootCpuInfo;
+__EXTERN volatile int GlbCpusBooted;
+__EXTERN Addr_t GlbLocalApicBase;
+__EXTERN List_t *GlbIoApics;
+__EXTERN List_t *GlbAcpiNodes;
 
 /* Retrieves the version of the 
  * onboard local apic chip, this is 

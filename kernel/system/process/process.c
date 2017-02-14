@@ -37,7 +37,7 @@
 #include <string.h>
 
 /* Externs */
-__CRT_EXTERN List_t *GlbAshes;
+__EXTERN List_t *GlbAshes;
 
 /* This is the finalizor function for starting
  * up a new Ash Process, it finishes setting up the environment

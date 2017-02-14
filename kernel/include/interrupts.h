@@ -53,75 +53,75 @@ typedef struct _MCoreInterruptDescriptor {
  * Initializes the interrupt-manager code
  * and initializes all the resources for
  * allocating and freeing interrupts */
-__CRT_EXTERN void InterruptInitialize(void);
+__EXTERN void InterruptInitialize(void);
 
 /* InterruptRegister
  * Tries to allocate the given interrupt source
  * by the given descriptor and flags. On success
  * it returns the id of the irq, and on failure it
  * returns UUID_INVALID */
-__CRT_EXTERN UUId_t InterruptRegister(MCoreInterrupt_t *Interrupt, Flags_t Flags);
+__EXTERN UUId_t InterruptRegister(MCoreInterrupt_t *Interrupt, Flags_t Flags);
 
 /* InterruptUnregister 
  * Unregisters the interrupt from the system and removes
  * any resources that was associated with that interrupt 
  * also masks the interrupt if it was the only user */
-__CRT_EXTERN OsStatus_t InterruptUnregister(UUId_t Source);
+__EXTERN OsStatus_t InterruptUnregister(UUId_t Source);
 
 /* InterruptAcknowledge 
  * Acknowledges the interrupt source and unmasks
  * the interrupt-line, allowing another interrupt
  * to occur for the given driver */
-__CRT_EXTERN OsStatus_t InterruptAcknowledge(UUId_t Source);
+__EXTERN OsStatus_t InterruptAcknowledge(UUId_t Source);
 
 /* InterruptGet
  * Retrieves the given interrupt source information
  * as a MCoreInterruptDescriptor_t */
-__CRT_EXTERN MCoreInterruptDescriptor_t *InterruptGet(UUId_t Source);
+__EXTERN MCoreInterruptDescriptor_t *InterruptGet(UUId_t Source);
 
 /* InterruptDisable
  * Disables interrupts and returns
  * the state before disabling */
-__CRT_EXTERN IntStatus_t InterruptDisable(void);
+__EXTERN IntStatus_t InterruptDisable(void);
 
 /* InterruptEnable
  * Enables interrupts and returns 
  * the state before enabling */
-__CRT_EXTERN IntStatus_t InterruptEnable(void);
+__EXTERN IntStatus_t InterruptEnable(void);
 
 /* InterruptRestoreState
  * Restores the interrupt-status to the given
  * state, that must have been saved from SaveState */
-__CRT_EXTERN IntStatus_t InterruptRestoreState(IntStatus_t State);
+__EXTERN IntStatus_t InterruptRestoreState(IntStatus_t State);
 
 /* InterruptSaveState
  * Retrieves the current state of interrupts */
-__CRT_EXTERN IntStatus_t InterruptSaveState(void);
+__EXTERN IntStatus_t InterruptSaveState(void);
 
 /* InterruptIsDisabled
  * Returns 1 if interrupts are currently
  * disabled or 0 if interrupts are enabled */
-__CRT_EXTERN int InterruptIsDisabled(void);
+__EXTERN int InterruptIsDisabled(void);
 
 /* InterruptAllocateISA
  * Allocates the ISA interrupt source, if it's 
  * already allocated it returns OsError */
-__CRT_EXTERN OsStatus_t InterruptAllocateISA(int Source);
-__CRT_EXTERN Flags_t InterruptGetPolarity(uint16_t IntiFlags, int IrqSource);
-__CRT_EXTERN Flags_t InterruptGetTrigger(uint16_t IntiFlags, int IrqSource);
+__EXTERN OsStatus_t InterruptAllocateISA(int Source);
+__EXTERN Flags_t InterruptGetPolarity(uint16_t IntiFlags, int IrqSource);
+__EXTERN Flags_t InterruptGetTrigger(uint16_t IntiFlags, int IrqSource);
 
 /* AcpiDeriveInterrupt
  * Derives an interrupt by consulting
  * the bus of the device, and spits out flags in
  * AcpiConform and returns irq */
-__CRT_EXTERN int AcpiDeriveInterrupt(DevInfo_t Bus,
+__EXTERN int AcpiDeriveInterrupt(DevInfo_t Bus,
 	DevInfo_t Device, int Pin, Flags_t *AcpiConform);
 
 /* InterruptDriver
  * Call this to send an interrupt into user-space
  * the driver must acknowledge the interrupt once its handled
  * to unmask the interrupt-line again */
-__CRT_EXTERN OsStatus_t ScRpcExecute(MRemoteCall_t *Rpc, UUId_t Target, int Async);
+__EXTERN OsStatus_t ScRpcExecute(MRemoteCall_t *Rpc, UUId_t Target, int Async);
 static __CRT_INLINE OsStatus_t InterruptDriver(UUId_t Ash, void *Data)
 {
 	MRemoteCall_t Request;

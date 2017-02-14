@@ -23,7 +23,7 @@
 /* Includes
  * - System */
 #include <os/driver/file.h>
-#include <os/mollenos.h>
+#include "include/vfs.h"
 #include <ds/list.h>
 
 /* Includes
@@ -36,9 +36,18 @@
 /* Globals */
 List_t *GlbFileSystems = NULL;
 List_t *GlbOpenFiles = NULL;
+List_t *GlbModules = NULL;
 UUId_t GlbFileSystemId = 0;
 UUId_t GlbVfsFileIdGen = 0;
 int GlbInitialized = 0;
+
+/* VfsGetModules
+ * Retrieves a list of all the currently loaded
+ * modules, provides access for manipulation */
+List_t *VfsGetModules(void)
+{
+	return GlbModules;
+}
 
 /* VfsGetFileSystems
  * Retrieves a list of all the current filesystems
@@ -46,6 +55,21 @@ int GlbInitialized = 0;
 List_t *VfsGetFileSystems(void)
 {
 	return GlbFileSystems;
+}
+
+/* VfsIdentifierAllocate 
+ * Allocates a free identifier index for the
+ * given disk, it varies based upon disk type */
+UUId_t VfsIdentifierAllocate(FileSystemDisk_t *Disk)
+{
+
+}
+
+/* VfsIdentifierFree 
+ * Frees a given identifier index */
+OsStatus_t VfsIdentifierFree(UUId_t Id)
+{
+
 }
 
 /* OnLoad
@@ -56,6 +80,7 @@ OsStatus_t OnLoad(void)
 	/* Setup list */
 	GlbFileSystems = ListCreate(KeyInteger, LIST_NORMAL);
 	GlbOpenFiles = ListCreate(KeyInteger, LIST_NORMAL);
+	GlbModules = ListCreate(KeyInteger, LIST_NORMAL);
 
 	/* Init variables */
 	GlbFileSystemId = 0;

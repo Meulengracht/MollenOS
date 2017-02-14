@@ -84,21 +84,21 @@ typedef struct _MCorePhoenixRequest
 
 /* These are maintience/initializor functions and 
  * should only be called by system processes */
-__CRT_EXTERN void PhoenixInit(void);
-__CRT_EXTERN void PhoenixReapZombies(void);
+__EXTERN void PhoenixInit(void);
+__EXTERN void PhoenixReapZombies(void);
 
 /* Methods for supporting events, use these
  * to send requests to the phoenix system */
-__CRT_EXTERN void PhoenixCreateRequest(MCorePhoenixRequest_t *Request);
-__CRT_EXTERN void PhoenixWaitRequest(MCorePhoenixRequest_t *Request, size_t Timeout);
+__EXTERN void PhoenixCreateRequest(MCorePhoenixRequest_t *Request);
+__EXTERN void PhoenixWaitRequest(MCorePhoenixRequest_t *Request, size_t Timeout);
 
 /* Signal Functions */
-__CRT_EXTERN void SignalHandle(UUId_t ThreadId);
-__CRT_EXTERN int SignalCreate(UUId_t AshId, int Signal);
-__CRT_EXTERN void SignalExecute(MCoreAsh_t *Ash, MCoreSignal_t *Signal);
+__EXTERN void SignalHandle(UUId_t ThreadId);
+__EXTERN int SignalCreate(UUId_t AshId, int Signal);
+__EXTERN void SignalExecute(MCoreAsh_t *Ash, MCoreSignal_t *Signal);
 
 /* Architecture Specific  
  * Must be implemented in the arch-layer */
-__CRT_EXTERN void SignalDispatch(MCoreAsh_t *Ash, MCoreSignal_t *Signal);
+__EXTERN void SignalDispatch(MCoreAsh_t *Ash, MCoreSignal_t *Signal);
 
 #endif //!_MCORE_PHOENIX_H_

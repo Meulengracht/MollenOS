@@ -99,20 +99,20 @@ typedef struct _MCoreSystemTimer {
 /* TimersInitialize
  * Initializes the timer sub-system that supports
  * registering of system timers and callback timers */
-__CRT_EXTERN void TimersInitialize(void);
+__EXTERN void TimersInitialize(void);
 
 /* TimersRegistrate 
  * Registrates a interrupt timer source with the
  * timer management, which keeps track of which interrupts
  * are available for time-keeping */
-__CRT_EXTERN OsStatus_t TimersRegister(UUId_t Source, size_t TickNs);
+__EXTERN OsStatus_t TimersRegister(UUId_t Source, size_t TickNs);
 
 /* TimersInterrupt
  * Called by the interrupt-code to tell the timer-management system
  * a new interrupt has occured from the given source. This allows
  * the timer-management system to tell us if that was the active
  * timer-source */
-__CRT_EXTERN OsStatus_t TimersInterrupt(UUId_t Source);
+__EXTERN OsStatus_t TimersInterrupt(UUId_t Source);
 
 #endif // !_MCORE_TIMERS_H_
 

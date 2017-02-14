@@ -40,19 +40,19 @@
 /* This function loads a new task from the scheduler, it
  * implements the task-switching functionality, which MCore leaves
  * up to the underlying architecture */
-__CRT_EXTERN Registers_t *_ThreadingSwitch(Registers_t *Regs, 
+__EXTERN Registers_t *_ThreadingSwitch(Registers_t *Regs, 
 	int PreEmptive, size_t *TimeSlice, int *TaskQueue);
 
 /* This function switches the current runtime-context
  * out with the given thread context, this should only
  * be used as a temporary way of impersonating another
  * thread */
-__CRT_EXTERN void IThreadImpersonate(MCoreThread_t *Thread);
+__EXTERN void IThreadImpersonate(MCoreThread_t *Thread);
 
 /* Stack manipulation / setup of stacks for given
  * threading. We need functions that create a new kernel
  * stack and user/driver stack. Pass threading flags */
-__CRT_EXTERN Registers_t *ContextCreate(Flags_t ThreadFlags, 
+__EXTERN Registers_t *ContextCreate(Flags_t ThreadFlags, 
 	Addr_t Eip, Addr_t *Arguments);
 
 #endif // !_MCORE_THREAD_H_

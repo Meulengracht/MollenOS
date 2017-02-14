@@ -45,21 +45,28 @@ OsStatus_t DiskDetectFileSystem(FileSystemDisk_t *Disk,
 	/* Ok - we do some basic signature checks 
 	 * MFS - "MFS1" 
 	 * NTFS - "NTFS" 
-	 * exFAT - "EXFAT" */
-	if (!strncmp((const char*)Mbr->BootCode[3], "MFS1", 4)) {
+	 * exFAT - "EXFAT" 
+	 * FAT - "FATXX" */
+	if (!strncmp((const char*)&Mbr->BootCode[3], "MFS1", 4)) {
 		Type = FSMFS;
 	}
-	else if (!strncmp((const char*)Mbr->BootCode[3], "NTFS", 4)) {
+	else if (!strncmp((const char*)&Mbr->BootCode[3], "NTFS", 4)) {
 		Type = FSNTFS;
 	}
-	else if (!strncmp((const char*)Mbr->BootCode[3], "EXFAT", 5)) {
+	else if (!strncmp((const char*)&Mbr->BootCode[3], "EXFAT", 5)) {
 		Type = FSEXFAT;
 	}
+	else if (!strncmp((const char*)&Mbr->BootCode[0x36], "FAT12", 5)
+		|| !strncmp((const char*)&Mbr->BootCode[0x36], "FAT16", 5)
+		|| !strncmp((const char*)&Mbr->BootCode[0x52], "FAT32", 5)) {
+		Type = FSFAT;
+	}
 	else {
+		//The following needs processing in other sectors to be determined
+		//TODO
 		//HPFS
-		//EXT2
+		//EXT
 		//HFS
-		//FAT12/16/32
 	}
 
 	/* Sanitize the type */

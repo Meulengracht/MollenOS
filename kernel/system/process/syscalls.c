@@ -1708,6 +1708,20 @@ OsStatus_t ScRegisterSystemTimer(UUId_t Interrupt, size_t NsPerTick)
 	return TimersRegister(Interrupt, NsPerTick);
 }
 
+/* ScBufferCreate
+ * */
+OsStatus_t ScBufferCreate(void)
+{
+
+}
+
+/* ScBufferDestroy
+ * */
+OsStatus_t ScBufferDestroy(void)
+{
+
+}
+
 /***********************
 * System Functions     *
 ***********************/
@@ -1765,7 +1779,7 @@ int NoOperation(void)
 }
 
 /* Syscall Table */
-Addr_t GlbSyscallTable[131] =
+Addr_t GlbSyscallTable[141] =
 {
 	/* Kernel Log */
 	DefineSyscall(LogDebug),
@@ -1923,6 +1937,19 @@ Addr_t GlbSyscallTable[131] =
 	DefineSyscall(ScUnregisterInterrupt),
 	DefineSyscall(ScAcknowledgeInterrupt),
 	DefineSyscall(ScRegisterSystemTimer),
+	DefineSyscall(NoOperation),
+	DefineSyscall(NoOperation),
+	DefineSyscall(NoOperation),
+	DefineSyscall(NoOperation),
+	DefineSyscall(NoOperation),
+	DefineSyscall(NoOperation),
+
+	/* Driver Functions - 131
+	 * - Buffer Object Support */
+	DefineSyscall(ScBufferCreate),
+	DefineSyscall(ScBufferDestroy),
+	DefineSyscall(NoOperation),
+	DefineSyscall(NoOperation),
 	DefineSyscall(NoOperation),
 	DefineSyscall(NoOperation),
 	DefineSyscall(NoOperation),

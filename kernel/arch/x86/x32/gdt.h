@@ -153,30 +153,30 @@ typedef struct _TssEntry  {
 
 /* Initialize the gdt table with the 5 default
  * descriptors for kernel/user mode data/code segments */
-__CRT_EXTERN void GdtInitialize(void);
+__EXTERN void GdtInitialize(void);
 
 /* This installs the current gdt-object in the
  * gdt register for the calling cpu, use to setup gdt */
-__CRT_EXTERN void GdtInstall(void);
+__EXTERN void GdtInstall(void);
 
 /* Helper for setting up a new task state segment for
  * the given cpu core, this should be done once per
  * core, and it will set default params for the TSS */
-__CRT_EXTERN void GdtInstallTss(Cpu_t Cpu, int Static);
+__EXTERN void GdtInstallTss(Cpu_t Cpu, int Static);
 
 /* Updates the kernel/interrupt stack for the current
  * cpu tss entry, this should be updated at each task-switch */
-__CRT_EXTERN void TssUpdateStack(Cpu_t Cpu, Addr_t Stack);
+__EXTERN void TssUpdateStack(Cpu_t Cpu, Addr_t Stack);
 
 /* Updates the io-map for the current runinng task, should
  * be updated each time there is a task-switch to reflect
  * io-privs. Iomap given must be length GDT_IOMAP_SIZE */
-__CRT_EXTERN void TssUpdateIo(Cpu_t Cpu, uint8_t *IoMap);
+__EXTERN void TssUpdateIo(Cpu_t Cpu, uint8_t *IoMap);
 
 /* Enables/Disables the given port in the given io-map, also updates
  * the change into the current tss for the given cpu to 
  * reflect the port-ownership instantly */
-__CRT_EXTERN void TssEnableIo(Cpu_t Cpu, uint8_t *IoMap, uint16_t Port);
-__CRT_EXTERN void TssDisableIo(Cpu_t Cpu, uint8_t *IoMap, uint16_t Port);
+__EXTERN void TssEnableIo(Cpu_t Cpu, uint8_t *IoMap, uint16_t Port);
+__EXTERN void TssDisableIo(Cpu_t Cpu, uint8_t *IoMap, uint16_t Port);
 
 #endif //!_GDT_H_

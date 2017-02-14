@@ -55,12 +55,12 @@ ANSI C requires <<asctime>>.
 
 /* Reentrency version of asctime 
  * Modified implementation by newlib */
-char *asctime_r(__CRT_CONST struct tm *__restrict tim_p, char *__restrict result)
+char *asctime_r(__CONST struct tm *__restrict tim_p, char *__restrict result)
 {
-	static __CRT_CONST char day_name[][4] = {
+	static __CONST char day_name[][4] = {
 		"Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"
 	};
-	static __CRT_CONST char mon_name[][4] = {
+	static __CONST char mon_name[][4] = {
 		"Jan", "Feb", "Mar", "Apr", "May", "Jun",
 		"Jul", "Aug", "Sep", "Oct", "Nov", "Dec"
 	};
@@ -75,7 +75,7 @@ char *asctime_r(__CRT_CONST struct tm *__restrict tim_p, char *__restrict result
 
 /* Formats a given timebuffer to a 
  * string of format Www Mmm dd hh:mm:ss yyyy */
-char *asctime(__CRT_CONST struct tm *tim_p)
+char *asctime(__CONST struct tm *tim_p)
 {
 	/* Get the TLS buffer for 
 	 * time-modification */

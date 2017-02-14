@@ -98,7 +98,7 @@ _MOS_API void MStringAppendCharacter(MString_t *String, mchar_t Character);
 /* Appends raw string data to a 
  * given mstring, you must indicate what format
  * the raw string is of so it converts correctly. */
-_MOS_API void MStringAppendCharacters(MString_t *String, __CRT_CONST char *Characters, MStringType_t DataType);
+_MOS_API void MStringAppendCharacters(MString_t *String, __CONST char *Characters, MStringType_t DataType);
 
 /* Append MString to MString 
  * This appends the given String the destination string */
@@ -121,7 +121,7 @@ _MOS_API int MStringFindReverse(MString_t *String, mchar_t Character);
 /* Find first occurence of the given UTF8 string
  * in the given string. This does not accept UTF16 or UTF32.
  * returns the index if found, otherwise MSTRING_NOT_FOUND */
-_MOS_API int MStringFindChars(MString_t *String, __CRT_CONST char *Chars);
+_MOS_API int MStringFindChars(MString_t *String, __CONST char *Chars);
 
 /* Get character at the given index and 
  * return the character found as UTF32 */
@@ -140,7 +140,7 @@ _MOS_API MString_t *MStringSubString(MString_t *String, int Index, int Length);
 /* Replace string occurences,
  * this function replaces occurence of <Old> string 
  * with <New> string. The strings must be of format of UTF8 */
-_MOS_API void MStringReplace(MString_t *String, __CRT_CONST char *Old, __CRT_CONST char *New);
+_MOS_API void MStringReplace(MString_t *String, __CONST char *Old, __CONST char *New);
 
 /* Get's the number of characters in a mstring
  * and not the actual byte length. */
@@ -153,7 +153,7 @@ _MOS_API size_t MStringSize(MString_t *String);
 /* Returns the raw data pointer 
  * of the given MString, which can be used for
  * usage, not recommended to edit data */
-_MOS_API __CRT_CONST char *MStringRaw(MString_t *String);
+_MOS_API __CONST char *MStringRaw(MString_t *String);
 
 /* Generate hash of a mstring
  * the hash will be either 32/64 depending

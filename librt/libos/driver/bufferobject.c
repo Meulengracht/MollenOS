@@ -37,7 +37,7 @@ BufferObject_t *CreateBuffer(_In_ size_t Length)
  * Reads <BytesToRead> into the given user-buffer
  * from the allocated buffer-object */
 OsStatus_t ReadBuffer(_In_ BufferObject_t *BufferObject, 
-					  _Out_ __CRT_CONST void *Buffer, 
+					  _Out_ __CONST void *Buffer, 
 					  _In_ size_t BytesToRead)
 {
 
@@ -47,7 +47,7 @@ OsStatus_t ReadBuffer(_In_ BufferObject_t *BufferObject,
  * Writes <BytesToWrite> into the allocated buffer-object
  * from the given user-buffer */
 OsStatus_t WriteBuffer(_In_ BufferObject_t *BufferObject, 
-					   _In_ __CRT_CONST void *Buffer, 
+					   _In_ __CONST void *Buffer, 
 					   _In_ size_t BytesToWrite)
 {
 

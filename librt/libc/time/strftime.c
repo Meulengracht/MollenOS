@@ -351,13 +351,13 @@ extern char **_tzname;
 #  error "YEAR_BASE < 0"
 #endif
 
-static __CRT_CONST int dname_len[7] =
+static __CONST int dname_len[7] =
 {6, 6, 7, 9, 8, 6, 8};
 
 /* Using the tm_year, tm_wday, and tm_yday components of TIM_P, return
    -1, 0, or 1 as the adjustment to add to the year for the ISO week
    numbering used in "%g%G%V", avoiding overflow.  */
-static int iso_year_adjust(__CRT_CONST struct tm *tim_p)
+static int iso_year_adjust(__CONST struct tm *tim_p)
 {
   /* Account for fact that tm_year==0 is year 1900.  */
   int leap = isleap (tim_p->tm_year + (YEAR_BASE
@@ -682,15 +682,15 @@ __strftime (CHAR *s, size_t maxsize, const CHAR *format,
 	    era_info_t **era_info, alt_digits_t **alt_digits)
 #else /* !_WANT_C99_TIME_FORMATS */
 static size_t
-__strftime(CHAR *s, size_t maxsize, __CRT_CONST CHAR *format, 
-__CRT_CONST struct tm *tim_p, struct __locale_t *locale)
+__strftime(CHAR *s, size_t maxsize, __CONST CHAR *format, 
+__CONST struct tm *tim_p, struct __locale_t *locale)
 
 #define __strftime(s,m,f,t,l,e,a)	__strftime((s),(m),(f),(t),(l))
 #endif /* !_WANT_C99_TIME_FORMATS */
 {
   size_t count = 0;
   int len = 0;
-  __CRT_CONST CHAR *ctloc;
+  __CONST CHAR *ctloc;
 #if defined (MAKE_WCSFTIME) && !defined (__HAVE_LOCALE_INFO_EXTENDED__)
   CHAR ctlocbuf[CTLOCBUFLEN];
 #endif
@@ -1439,8 +1439,8 @@ recurse:
 }
 
 size_t strftime(CHAR *__restrict s,
-	size_t maxsize, __CRT_CONST CHAR *__restrict format,
-	__CRT_CONST struct tm *__restrict tim_p)
+	size_t maxsize, __CONST CHAR *__restrict format,
+	__CONST struct tm *__restrict tim_p)
 {
 #ifdef _WANT_C99_TIME_FORMATS
   era_info_t *era_info = NULL;

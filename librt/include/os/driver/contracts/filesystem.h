@@ -131,7 +131,7 @@ __FSAPI
 FileSystemCode_t
 __FSDECL(FsReadFile)(_In_ FileSystemDescriptor_t *Descriptor,
 					 _In_ FileSystemFileHandle_t *Handle,
-					 _Out_ __CRT_CONST void *Buffer,
+					 _Out_ __CONST void *Buffer,
 					 _In_ size_t BytesToRead,
 					 _Out_Opt_ size_t *BytesRead);
 
@@ -142,7 +142,7 @@ __FSAPI
 FileSystemCode_t
 __FSDECL(FsWriteFile)(_In_ FileSystemDescriptor_t *Descriptor,
 					  _In_ FileSystemFileHandle_t *Handle,
-					  _Out_ __CRT_CONST void *Buffer,
+					  _Out_ __CONST void *Buffer,
 					  _In_ size_t BytesToWrite,
 					  _Out_Opt_ size_t *BytesWritten);
 

@@ -186,7 +186,7 @@ int __CRTDECL atexit(_PVFV fn)
 }
 
 /* Cpp Init */
-__CRT_EXTERN void __CppInit(void)
+__EXTERN void __CppInit(void)
 {
 	/* Initialize non-ret functions */
 	_initterm(__xc_a, __xc_z);
@@ -195,7 +195,7 @@ __CRT_EXTERN void __CppInit(void)
 	_initterm_e(__xi_a, __xi_z);
 }
 
-__CRT_EXTERN void __CppFinit(void)
+__EXTERN void __CppFinit(void)
 {
 	if (onexitbegin)
 	{
@@ -208,7 +208,7 @@ __CRT_EXTERN void __CppFinit(void)
 	_initterm(__xt_a, __xt_z);
 }
 
-__CRT_EXTERN int onexitinit(void)
+__EXTERN int onexitinit(void)
 {
 	onexitend = onexitbegin = onexitarray;
 	*onexitbegin = 0;

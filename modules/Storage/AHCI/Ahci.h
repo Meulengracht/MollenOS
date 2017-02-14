@@ -710,46 +710,46 @@ typedef struct _AhciDevice
 
 /* AHCIPortCreate
  * Initializes the port structure, but not memory structures yet */
-__CRT_EXTERN AhciPort_t *AhciPortCreate(AhciController_t *Controller, int Port, int Index);
+__EXTERN AhciPort_t *AhciPortCreate(AhciController_t *Controller, int Port, int Index);
 
 /* AHCIPortCleanup
  * Destroys a port, cleans up device, cleans up memory and resources */
-__CRT_EXTERN void AhciPortCleanup(AhciController_t *Controller, AhciPort_t *Port);
+__EXTERN void AhciPortCleanup(AhciController_t *Controller, AhciPort_t *Port);
 
 /* AHCIPortInit
  * Initializes the memory regions and enables them in the port */
-__CRT_EXTERN void AhciPortInit(AhciController_t *Controller, AhciPort_t *Port);
+__EXTERN void AhciPortInit(AhciController_t *Controller, AhciPort_t *Port);
 
 /* AHCIPortSetupDevice
  * Identifies connection on a port, and initializes connection/device */
-__CRT_EXTERN void AhciPortSetupDevice(AhciController_t *Controller, AhciPort_t *Port);
+__EXTERN void AhciPortSetupDevice(AhciController_t *Controller, AhciPort_t *Port);
 
 /* AHCIPortReset
  * Resets the port, and resets communication with the device on the port
  * if the communication was destroyed */
-__CRT_EXTERN OsStatus_t AhciPortReset(AhciController_t *Controller, AhciPort_t *Port);
+__EXTERN OsStatus_t AhciPortReset(AhciController_t *Controller, AhciPort_t *Port);
 
 /* AHCIPortAcquireCommandSlot
  * Allocates an available command slot on a port
  * returns index on success, otherwise -1 */
-__CRT_EXTERN int AhciPortAcquireCommandSlot(AhciController_t *Controller, AhciPort_t *Port);
+__EXTERN int AhciPortAcquireCommandSlot(AhciController_t *Controller, AhciPort_t *Port);
 
 /* AHCIPortReleaseCommandSlot
  * Deallocates a previously allocated command slot */
-__CRT_EXTERN void AhciPortReleaseCommandSlot(AhciPort_t *Port, int Slot);
+__EXTERN void AhciPortReleaseCommandSlot(AhciPort_t *Port, int Slot);
 
 /* AHCIPortStartCommandSlot
  * Starts a command slot on the given port */
-__CRT_EXTERN void AhciPortStartCommandSlot(AhciPort_t *Port, int Slot);
+__EXTERN void AhciPortStartCommandSlot(AhciPort_t *Port, int Slot);
 
 /* AHCIPortInterruptHandler
  * Port specific interrupt handler 
  * handles interrupt for a specific port */
-__CRT_EXTERN void AhciPortInterruptHandler(AhciController_t *Controller, AhciPort_t *Port);
+__EXTERN void AhciPortInterruptHandler(AhciController_t *Controller, AhciPort_t *Port);
 
 /* AHCIDeviceIdentify 
  * Identifies the device and type on a port
  * and sets it up accordingly */
-__CRT_EXTERN void AhciDeviceIdentify(AhciController_t *Controller, AhciPort_t *Port);
+__EXTERN void AhciDeviceIdentify(AhciController_t *Controller, AhciPort_t *Port);
 
 #endif //!_AHCI_H_

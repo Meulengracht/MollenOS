@@ -19,62 +19,66 @@
  * MollenOS - Process Functions
  */
 
-/* Includes */
-#include <os/MollenOS.h>
-#include <os/Syscall.h>
+/* Includes 
+ * - System */
+#include <os/process.h>
+#include <os/syscall.h>
 
-/* Process Spawn
- * This function spawns a new process 
- * in it's own address space, and returns
- * the new process id 
- * If startup is failed, the returned value 
- * is 0xFFFFFFFF */
-UUId_t ProcessSpawn(const char *Path, const char *Arguments)
+/* Includes
+ * - Library */
+#include <stddef.h>
+
+/* ProcessSpawn
+ * Spawns a new process by the given path and
+ * optionally the given parameters are passed 
+ * returns UUID_INVALID in case of failure */
+UUId_t ProcessSpawn(_In_ __CONST char *Path, 
+					_In_Opt_ __CONST char *Arguments)
 {
-	/* Variables */
-	int RetVal = 0;
+	/* Sanitize the given params */
+	if (Path == NULL) {
+		return UUID_INVALID;
+	}
 
-	/* Syscall! */
-	RetVal = Syscall2(SYSCALL_PROCSPAWN, 
+	/* Redirect the call */
+	return (UUId_t)Syscall2(SYSCALL_PROCSPAWN,
 		SYSCALL_PARAM(Path), SYSCALL_PARAM(Arguments));
-
-	/* Done */
-	return (UUId_t)RetVal;
 }
 
-/* Process Join 
- * Attaches to a running process 
- * and waits for the process to quit
- * the return value is the return code
- * from the target process */
-int ProcessJoin(UUId_t Process)
+/* ProcessJoin
+ * Waits for the given process to terminate and
+ * returns the return-code the process exit'ed with */
+int ProcessJoin(_In_ UUId_t Process)
 {
+	/* Sanitize the given id */
+	if (Process == UUID_INVALID) {
+		return -1;
+	}
+
 	/* Redirect call */
 	return Syscall1(SYSCALL_PROCJOIN, SYSCALL_PARAM(Process));
 }
 
-/* Process Kill 
- * Kills target process id 
- * On error, returns -1, or if the 
- * kill was succesful, returns 0 */
-OsStatus_t ProcessKill(UUId_t Process)
+/* Process Kill
+ * Terminates the process with the given id */
+OsStatus_t ProcessKill(_In_ UUId_t Process)
 {
-	/* Sanity -- Who the 
-	 * fuck would try to kill 
-	 * window server */
-	if (Process == 0)
+	/* Sanitize the given id */
+	if (Process == UUID_INVALID) {
 		return OsError;
+	}
 
-	/* Done */
+	/* Redirect the call */
 	return (OsStatus_t)Syscall1(SYSCALL_PROCKILL, SYSCALL_PARAM(Process));
 }
 
 /* Process Query
- * Queries information about the
- * given process id, or use 0
- * to query information about current
- * process */
-int ProcessQuery(UUId_t Process, ProcessQueryFunction_t Function, void *Buffer, size_t Length)
+ * Queries information about the given process
+ * based on the function it returns the requested information */
+OsStatus_t ProcessQuery(_In_ UUId_t Process, 
+						_In_ ProcessQueryFunction_t Function, 
+						_In_ void *Buffer, 
+						_In_ size_t Length)
 {
 	/* Prep for syscall */
 	return Syscall4(SYSCALL_PROCQUERY, SYSCALL_PARAM(Process),

@@ -57,12 +57,6 @@ typedef void(*TlsKeyDss_t)(void*);
 typedef int(*ThreadFunc_t)(void*);
 #endif
 
-/* Typedef the process id type */
-#ifndef MPROCESS_ID
-#define MPROCESS_ID
-typedef unsigned int PId_t;
-#endif
-
 /* This describes a window handle 
  * used by UI functions */
 #ifndef MWNDHANDLE
@@ -164,22 +158,6 @@ typedef struct _MollenOSVideoDescriptor
 
 } OSVideoDescriptor_t;
 
-/* Define the standard os 
- * rectangle used for ui 
- * operations */
-#ifndef MRECTANGLE_DEFINED
-#define MRECTANGLE_DEFINED
-typedef struct _mRectangle
-{
-	/* Origin */
-	int x, y;
-
-	/* Size */
-	int h, w;
-
-} Rect_t;
-#endif
-
 /* This is only hardcoded for now untill
  * we implement support for querying memory
  * options */
@@ -207,27 +185,27 @@ extern "C" {
  * the new process id
  * If startup is failed, the returned value
  * is 0xFFFFFFFF */
-_MOS_API PId_t ProcessSpawn(const char *Path, const char *Arguments);
+_MOS_API UUId_t ProcessSpawn(const char *Path, const char *Arguments);
 
 /* Process Join
  * Attaches to a running process
  * and waits for the process to quit
  * the return value is the return code
  * from the target process */
-_MOS_API int ProcessJoin(PId_t ProcessId);
+_MOS_API int ProcessJoin(UUId_t Process);
 
 /* Process Kill
  * Kills target process id
  * On error, returns -1, or if the
  * kill was succesful, returns 0 */
-_MOS_API int ProcessKill(PId_t ProcessId);
+_MOS_API OsStatus_t ProcessKill(UUId_t Process);
 
 /* Process Query
  * Queries information about the
  * given process id, or use 0
  * to query information about current
  * process */
-_MOS_API int ProcessQuery(PId_t ProcessId, ProcessQueryFunction_t Function, void *Buffer, size_t Length);
+_MOS_API int ProcessQuery(UUId_t Process, ProcessQueryFunction_t Function, void *Buffer, size_t Length);
 
 /***********************
  * Memory Prototypes
@@ -252,23 +230,6 @@ _MOS_API int MollenOSMemoryUnshare(UUId_t Target, void *MemoryHandle, size_t Siz
  * Device Prototypes
  ***********************/
 _MOS_API int MollenOSDeviceQuery(OSDeviceType_t Type, int Request, void *Buffer, size_t Length);
-
-/***********************
- * Shared Library Prototypes
- ***********************/
-
-/* Load a shared object given a path
- * path must exists otherwise NULL is returned */
-_MOS_API void *SharedObjectLoad(const char *SharedObject);
-
-/* Load a function-address given an shared object
- * handle and a function name, function must exist
- * otherwise null is returned */
-_MOS_API void *SharedObjectGetFunction(void *Handle, const char *Function);
-
-/* Unloads a valid shared object handle
- * returns 0 on success */
-_MOS_API void SharedObjectUnload(void *Handle);
 
 /***********************
  * Environment Prototypes

@@ -20,7 +20,7 @@
 
 int __tzcalc_limits(int __year);
 
-__CRT_EXTERN __CRT_CONST int __month_lengths[2][MONSPERYEAR];
+__EXTERN __CONST int __month_lengths[2][MONSPERYEAR];
 
 void _tzset_unlocked_r(void);
 void _tzset_unlocked(void);
@@ -37,4 +37,4 @@ void __tz_unlock(void);
 #endif
 
 /* Declare reentrency versions */
-__CRT_EXTERN struct tm *gmtime_r(__CRT_CONST time_t *__restrict tim_p, struct tm *__restrict res);
+__EXTERN struct tm *gmtime_r(__CONST time_t *__restrict tim_p, struct tm *__restrict res);

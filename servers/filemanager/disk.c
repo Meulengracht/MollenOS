@@ -23,7 +23,8 @@
 /* Includes 
  * - System */
 #include <os/driver/contracts/filesystem.h>
-#include <os/mollenos.h>
+#include <os/driver/file.h>
+#include <os/process.h>
 #include "include/vfs.h"
 
 /* Includes
@@ -43,29 +44,58 @@ int GlbInitHasRun = 0;
 OsStatus_t DiskRegisterFileSystem(FileSystemDisk_t *Disk,
 	uint64_t Sector, uint64_t SectorCount, FileSystemType_t Type) 
 {
-	/* Ready the buffer */
-	DataKey_t Key;
+	/* Variables */
+	FileSystem_t *Fs = NULL;
 	char IdentBuffer[8];
+	DataKey_t Key;
+	UUId_t Id = VfsIdentifierAllocate(Disk);
+
+	/* Prep the buffer so we can build
+	 * a new fs-identifier */
 	memset(IdentBuffer, 0, 8);
 
 	/* Copy the storage ident over 
-	 * We use St for hard media, and Rm for removables */
-	strcpy(IdentBuffer, "St");
-	itoa(GlbFileSystemId, (IdentBuffer + 2), 10);
+	 * We use "st" for hard media, and "rm" for removables */
+	strcpy(IdentBuffer, (Disk->Flags & __DISK_REMOVABLE) ? "rm" : "st");
+	itoa((int)Id, (IdentBuffer + 2), 10);
 
-	/* Construct the identifier */
+	/* Allocate a new copy of the fs-structure */
+	Fs = (FileSystem_t*)malloc(sizeof(FileSystem_t));
+	
+	/* Instantiate the new instance */
+	Fs->Id = Id;
+	Fs->Type = Type;
 	Fs->Identifier = MStringCreate(&IdentBuffer, StrASCII);
+	Fs->Descriptor.Flags = 0;
+	Fs->Descriptor.SectorStart = Sector;
+	Fs->Descriptor.SectorCount = SectorCount;
+	memcpy(&Fs->Descriptor.Disk, Disk, sizeof(FileSystemDisk_t));
 
-	/* Add to list */
-	Key.Value = (int)Fs->DiskId;
+	/* Resolve the module from the filesystem type */
+	Fs->Module = VfsResolveFileSystem(Fs);
+
+	/* Sanitize the module - must exist */
+	if (Fs->Module == NULL) {
+		MStringDestroy(Fs->Identifier);
+		VfsIdentifierFree(Fs->Id);
+		free(Fs);
+		return OsError;
+	}
+
+	/* Run initializor function */
+	if (Fs->Module->Initialize(&Fs->Descriptor) != OsNoError) {
+		MStringDestroy(Fs->Identifier);
+		VfsIdentifierFree(Fs->Id);
+		free(Fs);
+		return OsError;
+	}
+
+	/* Add to list, by using the disk id as identifier */
+	Key.Value = (int)Disk->Device;
 	ListAppend(VfsGetFileSystems(), ListCreateNode(Key, Key, Fs));
 
-	/* Increament */
-	GlbFileSystemId++;
-
 	/* Start init? */
-	if ((Fs->Flags & VFS_MAIN_DRIVE)
-		&& !GlbInitHasRun)
+	if (!GlbInitHasRun)
 	{
 		/* Create a path from the identifier and hardcoded path */
 		MString_t *Path = MStringCreate((void*)MStringRaw(Fs->Identifier), StrUTF8);
@@ -75,7 +105,13 @@ OsStatus_t DiskRegisterFileSystem(FileSystemDisk_t *Disk,
 		if (ProcessSpawn(MStringRaw(Path), NULL) != UUID_INVALID) {
 			GlbInitHasRun = 1;
 		}
+
+		/* Cleanup */
+		MStringDestroy(Path);
 	}
+
+	/* Done! */
+	return OsNoError;
 }
 
 /* RegisterDisk

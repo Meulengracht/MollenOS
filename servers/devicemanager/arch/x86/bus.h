@@ -149,84 +149,84 @@ typedef struct _PciDevice {
 /* BusEnumerate
  * Enumerates the pci-bus, on newer pcs its possbile for 
  * devices exists on TWO different busses. PCI and PCI Express. */
-__CRT_EXTERN void BusEnumerate(void);
+__EXTERN void BusEnumerate(void);
 
 /* PciRead32
  * Reads a 32 bit value from the pci-bus
  * at the specified location bus, device, function and register */
-__CRT_EXTERN uint32_t PciRead32(PciBus_t *Io,
+__EXTERN uint32_t PciRead32(PciBus_t *Io,
 	DevInfo_t Bus, DevInfo_t Device, DevInfo_t Function, size_t Register);
 
 /* PciRead16
  * Reads a 16 bit value from the pci-bus
  * at the specified location bus, device, function and register */
-__CRT_EXTERN uint16_t PciRead16(PciBus_t *Io,
+__EXTERN uint16_t PciRead16(PciBus_t *Io,
 	DevInfo_t Bus, DevInfo_t Device, DevInfo_t Function, size_t Register);
 
 /* PciRead8
  * Reads a 8 bit value from the pci-bus
  * at the specified location bus, device, function and register */
-__CRT_EXTERN uint8_t PciRead8(PciBus_t *Io,
+__EXTERN uint8_t PciRead8(PciBus_t *Io,
 	DevInfo_t Bus, DevInfo_t Device, DevInfo_t Function, size_t Register);
 
 /* PciWrite32
  * Writes a 32 bit value to the pci-bus
  * at the specified location bus, device, function and register */
-__CRT_EXTERN void PciWrite32(PciBus_t *Io,
+__EXTERN void PciWrite32(PciBus_t *Io,
 	DevInfo_t Bus, DevInfo_t Device, DevInfo_t Function, size_t Register, uint32_t Value);
 
 /* PciWrite16
  * Writes a 16 bit value to the pci-bus
  * at the specified location bus, device, function and register */
-__CRT_EXTERN void PciWrite16(PciBus_t *Io,
+__EXTERN void PciWrite16(PciBus_t *Io,
 	DevInfo_t Bus, DevInfo_t Device, DevInfo_t Function, size_t Register, uint16_t Value);
 
 /* PciWrite8
  * Writes a 8 bit value to the pci-bus
  * at the specified location bus, device, function and register */
-__CRT_EXTERN void PciWrite8(PciBus_t *Io,
+__EXTERN void PciWrite8(PciBus_t *Io,
 	DevInfo_t Bus, DevInfo_t Device, DevInfo_t Function, size_t Register, uint8_t Value);
 
 /* PciDeviceRead
  * Reads a value of the given length from the given register
  * and this function takes care of the rest */
-__CRT_EXTERN uint32_t PciDeviceRead(PciDevice_t *Device, 
+__EXTERN uint32_t PciDeviceRead(PciDevice_t *Device, 
 	size_t Register, size_t Length);
 
 /* PciDeviceWrite
  * Writes a value of the given length to the given register
  * and this function takes care of the rest */
-__CRT_EXTERN void PciDeviceWrite(PciDevice_t *Device, 
+__EXTERN void PciDeviceWrite(PciDevice_t *Device, 
 	size_t Register, uint32_t Value, size_t Length);
 
 /* PciReadVendorId
  * Reads the vendor id at given bus/device/function location */
-__CRT_EXTERN uint16_t PciReadVendorId(PciBus_t *BusIo, 
+__EXTERN uint16_t PciReadVendorId(PciBus_t *BusIo, 
 	DevInfo_t Bus, DevInfo_t Device, DevInfo_t Function);
 
 /* PciReadFunction
  * Reads in the pci header that exists at the given location
  * and fills out the information into <Pcs> */
-__CRT_EXTERN void PciReadFunction(PciNativeHeader_t *Pcs,
+__EXTERN void PciReadFunction(PciNativeHeader_t *Pcs,
 	PciBus_t *BusIo, DevInfo_t Bus, DevInfo_t Device, DevInfo_t Function);
 
 /* PciReadSecondaryBusNumber
  * Reads the secondary bus number at given pci device location
  * we can use this to get the bus-number behind a bridge */
-__CRT_EXTERN uint8_t PciReadSecondaryBusNumber(PciBus_t *BusIo, 
+__EXTERN uint8_t PciReadSecondaryBusNumber(PciBus_t *BusIo, 
 	DevInfo_t Bus, DevInfo_t Device, DevInfo_t Function);
 
 /* Reads the sub class at given location
  * Bit 7 - MultiFunction, Lower 4 bits is type.
  * Type 0 is standard, Type 1 is PCI-PCI Bridge,
  * Type 2 is CardBus Bridge */
-__CRT_EXTERN uint8_t PciReadHeaderType(PciBus_t *BusIo,
+__EXTERN uint8_t PciReadHeaderType(PciBus_t *BusIo,
 	DevInfo_t Bus, DevInfo_t Device, DevInfo_t Function);
 
 /* PciToString
  * Converts the given class, subclass and interface into
  * descriptive string to give the pci-entry a description */
-__CRT_EXTERN const char *PciToString(uint8_t Class, 
+__EXTERN const char *PciToString(uint8_t Class, 
 	uint8_t SubClass, uint8_t Interface);
 
 #endif //!_BUS_H_

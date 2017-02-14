@@ -70,7 +70,7 @@ extern "C" {
 #define EDOM 33
 #define ERANGE 34
 
-_CRTDATA(__CRT_EXTERN double __CRT_CONST _HUGE);
+_CRTDATA(__EXTERN double __CONST _HUGE);
 
 #define HUGE_VAL _HUGE
 
@@ -416,9 +416,9 @@ _CRTIMP float __CRTDECL copysignf(float, float);
 _CRTIMP long double __CRTDECL copysignl(long double, long double);
 
 /* 7.12.11.2 Return a NaN */
-_CRTIMP double __CRTDECL nan(__CRT_CONST char *tagp);
-_CRTIMP float __CRTDECL nanf(__CRT_CONST char *tagp);
-_CRTIMP long double __CRTDECL nanl(__CRT_CONST char *tagp);
+_CRTIMP double __CRTDECL nan(__CONST char *tagp);
+_CRTIMP float __CRTDECL nanf(__CONST char *tagp);
+_CRTIMP long double __CRTDECL nanl(__CONST char *tagp);
 
 #ifndef __STRICT_ANSI__
 #define _nan() nan("")
@@ -544,8 +544,8 @@ __fp_unordered_compare(long double x, long double y){
 
 #ifndef _CRT_ATOF_DEFINED
 #define _CRT_ATOF_DEFINED
-		_CRTIMP double __CRTDECL atof(__CRT_CONST char *str);
-		 double __CRTDECL _atof_l(__CRT_CONST char *str ,_locale_t locale);
+		_CRTIMP double __CRTDECL atof(__CONST char *str);
+		 double __CRTDECL _atof_l(__CONST char *str ,_locale_t locale);
 #endif
 #ifndef _SIGN_DEFINED
 #define _SIGN_DEFINED

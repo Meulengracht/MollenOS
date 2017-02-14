@@ -42,13 +42,13 @@
 /* Extern access, we need access
  * to the timer-quantum and a bunch of 
  * assembly functions */
-__CRT_EXTERN size_t GlbTimerQuantum;
-__CRT_EXTERN void save_fpu(Addr_t *buffer);
-__CRT_EXTERN void set_ts(void);
-__CRT_EXTERN void _yield(void);
-__CRT_EXTERN void enter_thread(Registers_t *Regs);
-__CRT_EXTERN void enter_signal(Registers_t *Regs, Addr_t Handler, int Signal, Addr_t Return);
-__CRT_EXTERN void RegisterDump(Registers_t *Regs);
+__EXTERN size_t GlbTimerQuantum;
+__EXTERN void save_fpu(Addr_t *buffer);
+__EXTERN void set_ts(void);
+__EXTERN void _yield(void);
+__EXTERN void enter_thread(Registers_t *Regs);
+__EXTERN void enter_signal(Registers_t *Regs, Addr_t Handler, int Signal, Addr_t Return);
+__EXTERN void RegisterDump(Registers_t *Regs);
 
 /* Globals,
  * Keep track of whether or not init code has run */

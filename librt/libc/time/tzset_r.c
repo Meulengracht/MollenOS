@@ -11,9 +11,9 @@ static char __tzname_std[11];
 static char __tzname_dst[11];
 static char *prev_tzenv = NULL;
 
-__CRT_EXTERN char **_tzname;
-__CRT_EXTERN int _daylight;
-__CRT_EXTERN long _timezone;
+__EXTERN char **_tzname;
+__EXTERN int _daylight;
+__EXTERN long _timezone;
 
 void _tzset_unlocked_r(void)
 {

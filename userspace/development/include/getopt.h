@@ -61,10 +61,10 @@ struct option {
 	int val;
 };
 
-_CRTIMP int	 getopt_long(int, char * __CRT_CONST *, __CRT_CONST char *,
-	__CRT_CONST struct option *, int *);
-_CRTIMP int	 getopt_long_only(int, char * __CRT_CONST *, __CRT_CONST char *,
-	__CRT_CONST struct option *, int *);
+_CRTIMP int	 getopt_long(int, char * __CONST *, __CONST char *,
+	__CONST struct option *, int *);
+_CRTIMP int	 getopt_long_only(int, char * __CONST *, __CONST char *,
+	__CONST struct option *, int *);
 #ifndef _GETOPT_DEFINED_
 #define _GETOPT_DEFINED_
 _CRTIMP int	 getopt(int, char * const *, const char *);

@@ -81,36 +81,36 @@ typedef Registers_t Context_t;
  * This only copies the data into a static global
  * storage, which means users should just pass something
  * temporary structure */
-__CRT_EXTERN void AddressSpaceInitKernel(AddressSpace_t *Kernel);
+__EXTERN void AddressSpaceInitKernel(AddressSpace_t *Kernel);
 
 /* AddressSpaceCreate
  * Initialize a new address space, depending on 
  * what user is requesting we might recycle a already
  * existing address space */
-__CRT_EXTERN AddressSpace_t *AddressSpaceCreate(Flags_t Flags);
+__EXTERN AddressSpace_t *AddressSpaceCreate(Flags_t Flags);
 
 /* AddressSpaceDestroy
  * Destroy and release all resources related
  * to an address space, only if there is no more
  * references */
-__CRT_EXTERN void AddressSpaceDestroy(AddressSpace_t *AddrSpace);
+__EXTERN void AddressSpaceDestroy(AddressSpace_t *AddrSpace);
 
 /* AddressSpaceSwitch
  * Switches the current address space out with the
  * the address space provided for the current cpu */
-__CRT_EXTERN void AddressSpaceSwitch(AddressSpace_t *AddrSpace);
+__EXTERN void AddressSpaceSwitch(AddressSpace_t *AddrSpace);
 
 /* AddressSpaceGetCurrent
  * Returns the current address space
  * if there is no active threads or threading
  * is not setup it returns the kernel address space */
-__CRT_EXTERN AddressSpace_t *AddressSpaceGetCurrent(void);
+__EXTERN AddressSpace_t *AddressSpaceGetCurrent(void);
 
 /* AddressSpaceTranslate
  * Translates the given address to the correct virtual
  * address, this can be used to correct any special cases on
  * virtual addresses in the sub-layer */
-__CRT_EXTERN Addr_t AddressSpaceTranslate(AddressSpace_t *AddrSpace, 
+__EXTERN Addr_t AddressSpaceTranslate(AddressSpace_t *AddrSpace, 
 	Addr_t VirtualAddress);
 
 _CRT_EXPORT Addr_t AddressSpaceMap(AddressSpace_t *AddrSpace, 
@@ -122,7 +122,7 @@ _CRT_EXPORT void AddressSpaceUnmap(AddressSpace_t *AddrSpace, VirtAddr_t Address
 /* AddressSpaceGetMap
  * Retrieves a physical mapping from an address space 
  * for x86 we can simply just redirect it to MmVirtual */
-__CRT_EXTERN PhysAddr_t AddressSpaceGetMap(AddressSpace_t *AddrSpace, VirtAddr_t Address);
+__EXTERN PhysAddr_t AddressSpaceGetMap(AddressSpace_t *AddrSpace, VirtAddr_t Address);
 
 /************************
  * Threading            *
@@ -135,27 +135,27 @@ typedef struct _MCoreThread MCoreThread_t;
  * Initializes a new x86-specific thread context
  * for the given threading flags, also initializes
  * the yield interrupt handler first time its called */
-__CRT_EXTERN void *IThreadCreate(Flags_t ThreadFlags, Addr_t EntryPoint);
+__EXTERN void *IThreadCreate(Flags_t ThreadFlags, Addr_t EntryPoint);
 
 /* IThreadSetupUserMode
  * Initializes user-mode data for the given thread, and
  * allocates all neccessary resources (x86 specific) for
  * usermode operations */
-__CRT_EXTERN void IThreadSetupUserMode(MCoreThread_t *Thread, Addr_t StackAddress);
+__EXTERN void IThreadSetupUserMode(MCoreThread_t *Thread, Addr_t StackAddress);
 
 /* IThreadDestroy
  * Free's all the allocated resources for x86
  * specific threading operations */
-__CRT_EXTERN void IThreadDestroy(MCoreThread_t *Thread);
+__EXTERN void IThreadDestroy(MCoreThread_t *Thread);
 
 /* IThreadWakeCpu
  * Wake's the target cpu from an idle thread
  * by sending it an yield IPI */
-__CRT_EXTERN void IThreadWakeCpu(Cpu_t Cpu);
+__EXTERN void IThreadWakeCpu(Cpu_t Cpu);
 
 /* IThreadYield
  * Yields the current thread control to the scheduler */
-__CRT_EXTERN void IThreadYield(void);
+__EXTERN void IThreadYield(void);
 
 /************************
  * Device Io Spaces     *
@@ -179,36 +179,36 @@ typedef struct _MCoreIoSpace {
 /* Initialize the Io Space manager so we 
  * can register io-spaces from drivers and the
  * bus code */
-__CRT_EXTERN void IoSpaceInitialize(void);
+__EXTERN void IoSpaceInitialize(void);
 
 /* Registers an io-space with the io space manager 
  * and assigns the io-space a unique id for later
  * identification */
-__CRT_EXTERN OsStatus_t IoSpaceRegister(DeviceIoSpace_t *IoSpace);
+__EXTERN OsStatus_t IoSpaceRegister(DeviceIoSpace_t *IoSpace);
 
 /* Acquires the given memory space by mapping it in
  * the current drivers memory space if needed, and sets
  * a lock on the io-space */
-__CRT_EXTERN OsStatus_t IoSpaceAcquire(DeviceIoSpace_t *IoSpace);
+__EXTERN OsStatus_t IoSpaceAcquire(DeviceIoSpace_t *IoSpace);
 
 /* Releases the given memory space by unmapping it from
  * the current drivers memory space if needed, and releases
  * the lock on the io-space */
-__CRT_EXTERN OsStatus_t IoSpaceRelease(DeviceIoSpace_t *IoSpace);
+__EXTERN OsStatus_t IoSpaceRelease(DeviceIoSpace_t *IoSpace);
 
 /* Destroys the given io-space by its id, the id
  * has the be valid, and the target io-space HAS to 
  * un-acquired by any process, otherwise its not possible */
-__CRT_EXTERN OsStatus_t IoSpaceDestroy(UUId_t IoSpace);
+__EXTERN OsStatus_t IoSpaceDestroy(UUId_t IoSpace);
 
 /* Tries to validate the given virtual address by 
  * checking if any process has an active io-space
  * that involves that virtual address */
-__CRT_EXTERN Addr_t IoSpaceValidate(Addr_t Address);
+__EXTERN Addr_t IoSpaceValidate(Addr_t Address);
 
 /***********************
 * Device Interface     *
 ***********************/
-__CRT_EXTERN int DeviceAllocateInterrupt(void *mCoreDevice);
+__EXTERN int DeviceAllocateInterrupt(void *mCoreDevice);
 
 #endif

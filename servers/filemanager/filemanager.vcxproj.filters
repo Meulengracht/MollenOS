@@ -23,6 +23,9 @@
     <ClCompile Include="layouts\mbr.c">
       <Filter>disk\layouts</Filter>
     </ClCompile>
+    <ClCompile Include="modules.c">
+      <Filter>disk</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <Filter Include="vfs">

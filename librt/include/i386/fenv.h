@@ -123,7 +123,7 @@ typedef struct {
 
 /*The C99 standard (7.6.9) allows us to define 
  * implementation-specific macros for different fp environments */
-_CRTIMP extern __CRT_CONST fenv_t __fe_dfl_env;
+_CRTIMP extern __CONST fenv_t __fe_dfl_env;
 #define	FE_DFL_ENV	(&__fe_dfl_env)
 
 /* The SSE status */
@@ -145,11 +145,11 @@ _CRTIMP int __test_sse(void);
 #endif
 
 /* Prototypes which we don't inline */
-_CRTIMP int fesetexceptflag(__CRT_CONST fexcept_t *__flagp, int __excepts);
+_CRTIMP int fesetexceptflag(__CONST fexcept_t *__flagp, int __excepts);
 _CRTIMP int feraiseexcept(int __excepts);
 _CRTIMP int fegetenv(fenv_t *__envp);
 _CRTIMP int feholdexcept(fenv_t *__envp);
-_CRTIMP int feupdateenv(__CRT_CONST fenv_t *__envp);
+_CRTIMP int feupdateenv(__CONST fenv_t *__envp);
 _CRTIMP int feenableexcept(int __mask);
 _CRTIMP int fedisableexcept(int __mask);
 
@@ -244,7 +244,7 @@ int fesetround(int __round)
  * function calls to clobber the i387 regs.  However, fesetenv() is
  * inlined, so we need to be more careful. */
 __fenv_static __CRT_INLINE 
-int fesetenv(__CRT_CONST fenv_t *__envp)
+int fesetenv(__CONST fenv_t *__envp)
 {
 	fenv_t __env = *__envp;
 	uint32_t __mxcsr = __env.__mxcsr;

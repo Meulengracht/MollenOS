@@ -32,7 +32,7 @@
 #include <string.h>
 
 /* Externs from assembly */
-__CRT_EXTERN void TssInstall(int GdtIndex);
+__EXTERN void TssInstall(int GdtIndex);
 
 /* We have no memory allocation system 
  * in place yet, so uhm, allocate in place */

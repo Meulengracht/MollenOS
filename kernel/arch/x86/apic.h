@@ -102,113 +102,113 @@ typedef struct _IoApic {
  * code also sets up the local APIC timer
  * with a default Quantum which is recalibrated
  * for accuracy once a timer is available */
-__CRT_EXTERN void ApicInitBoot(void);
-__CRT_EXTERN void ApicInitAp(void);
+__EXTERN void ApicInitBoot(void);
+__EXTERN void ApicInitAp(void);
 
 /* Recalibrates the the local apic 
  * timer, using an external timer source
  * this is to make the local apic timer more
  * accurate to make sure the quantum is 1 ms */
-__CRT_EXTERN void ApicTimerRecalibrate(void);
+__EXTERN void ApicTimerRecalibrate(void);
 
 /* Reloads the local apic timer with a default
  * divisor and the timer set to the given quantum
  * the timer is immediately started */
-__CRT_EXTERN void ApicReloadTimer(size_t Quantum);
+__EXTERN void ApicReloadTimer(size_t Quantum);
 
 /* Reads from the local apic registers 
  * Reads and writes from and to the local apic
  * registers must always be 32 bit */
-__CRT_EXTERN uint32_t ApicReadLocal(size_t Register);
+__EXTERN uint32_t ApicReadLocal(size_t Register);
 
 /* Write to the local apic registers 
  * Reads and writes from and to the local apic
  * registers must always be 32 bit */
-__CRT_EXTERN void ApicWriteLocal(size_t Register, uint32_t Value);
+__EXTERN void ApicWriteLocal(size_t Register, uint32_t Value);
 
 /* Read from io-apic registers
  * Reads and writes from and to the io apic
  * registers must always be 32 bit */
-__CRT_EXTERN uint32_t ApicIoRead(IoApic_t *IoApic, uint32_t Register);
+__EXTERN uint32_t ApicIoRead(IoApic_t *IoApic, uint32_t Register);
 
 /* Write to the io-apic registers
  * Reads and writes from and to the io apic
  * registers must always be 32 bit */
-__CRT_EXTERN void ApicIoWrite(IoApic_t *IoApic, uint32_t Register, uint32_t Data);
+__EXTERN void ApicIoWrite(IoApic_t *IoApic, uint32_t Register, uint32_t Data);
 
 /* Reads interrupt data from the io-apic
  * interrupt register. It reads the data from
  * the given Pin (io-apic entry) offset. */
-__CRT_EXTERN uint64_t ApicReadIoEntry(IoApic_t *IoApic, uint32_t Pin);
+__EXTERN uint64_t ApicReadIoEntry(IoApic_t *IoApic, uint32_t Pin);
 
 /* Writes interrupt data to the io-apic
  * interrupt register. It writes the data to
  * the given Pin (io-apic entry) offset. */
-__CRT_EXTERN void ApicWriteIoEntry(IoApic_t *IoApic, uint32_t Pin, uint64_t Data);
+__EXTERN void ApicWriteIoEntry(IoApic_t *IoApic, uint32_t Pin, uint64_t Data);
 
 /* Sends end of interrupt to the local
  * apic chip, and enables for a new interrupt
  * on that irq line to occur */
-__CRT_EXTERN void ApicSendEoi(int Gsi, uint32_t Vector);
+__EXTERN void ApicSendEoi(int Gsi, uint32_t Vector);
 
 /* ApicUnmaskGsi
  * Unmasks the given gsi if possible by deriving
  * the io-apic and pin from it. This allows the
  * io-apic to deliver interrupts again */
-__CRT_EXTERN void ApicUnmaskGsi(int Gsi);
+__EXTERN void ApicUnmaskGsi(int Gsi);
 
 /* ApicMaskGsi 
  * Masks the given gsi if possible by deriving
  * the io-apic and pin from it. This makes sure
  * the io-apic delivers no interrupts */
-__CRT_EXTERN void ApicMaskGsi(int Gsi);
+__EXTERN void ApicMaskGsi(int Gsi);
 
 /* Invoke an IPI request on either target
  * cpu, or on all cpu cores if a broadcast
  * has been requested. The supplied vector will
  * be the invoked interrupt */
-__CRT_EXTERN void ApicSendIpi(Cpu_t CpuTarget, uint32_t Vector);
+__EXTERN void ApicSendIpi(Cpu_t CpuTarget, uint32_t Vector);
 
 /* This function derives an io-apic from
  * the given gsi index, by locating which
  * io-apic owns the gsi and returns it.
  * Returns NULL if gsi is invalid */
-__CRT_EXTERN IoApic_t *ApicGetIoFromGsi(int Gsi);
+__EXTERN IoApic_t *ApicGetIoFromGsi(int Gsi);
 
 /* Calculates the pin from the 
  * given gsi, it tries to locate the
  * relevenat io-apic, if not found 
  * it returns -1, otherwise the pin */
-__CRT_EXTERN int ApicGetPinFromGsi(int Gsi);
+__EXTERN int ApicGetPinFromGsi(int Gsi);
 
 /* This only is something we need to check on 
  * 32-bit processors, all 64 bit cpus must use
  * the integrated APIC */
-__CRT_EXTERN int ApicIsIntegrated(void);
+__EXTERN int ApicIsIntegrated(void);
 
 /* Retrieve the max supported LVT for the
  * onboard local apic chip, this is used 
  * for the ESR among others */
-__CRT_EXTERN int ApicGetMaxLvt(void);
+__EXTERN int ApicGetMaxLvt(void);
 
 /* Retrieve the cpu id for the current cpu
  * can be used as an identifier when running
  * multicore */
-__CRT_EXTERN Cpu_t ApicGetCpu(void);
+__EXTERN Cpu_t ApicGetCpu(void);
 
 /* Creates the correct bit index for
  * the given cpu id, and converts the type
  * to uint, since thats what the apic needs */
-__CRT_EXTERN uint32_t ApicGetCpuMask(Cpu_t Cpu);
+__EXTERN uint32_t ApicGetCpuMask(Cpu_t Cpu);
 
 /* Helper for updating the task priority register
  * this register helps us using Lowest-Priority
  * delivery mode, as this controls which cpu to
  * interrupt */
-__CRT_EXTERN void ApicSetTaskPriority(uint32_t Priority);
+__EXTERN void ApicSetTaskPriority(uint32_t Priority);
 
 /* Retrives the current task priority
  * for the current cpu */
-__CRT_EXTERN uint32_t ApicGetTaskPriority(void);
+__EXTERN uint32_t ApicGetTaskPriority(void);
 
 #endif //!_X86_APIC_H_

@@ -62,37 +62,37 @@ typedef struct _MCorePipe {
 /* PipeCreate
  * Initialise a new pipe of the given size 
  * and with the given flags */
-__CRT_EXTERN MCorePipe_t *PipeCreate(size_t Size, Flags_t Flags);
+__EXTERN MCorePipe_t *PipeCreate(size_t Size, Flags_t Flags);
 
 /* PipeConstruct
  * Construct an already existing pipe by resetting the
  * pipe with the given parameters */
-__CRT_EXTERN void PipeConstruct(MCorePipe_t *Pipe, 
+__EXTERN void PipeConstruct(MCorePipe_t *Pipe, 
 	uint8_t *Buffer, size_t BufferLength, Flags_t Flags);
 
 /* PipeDestroy
  * Destroys a pipe and wakes up all sleeping threads, then
  * frees all resources allocated */
-__CRT_EXTERN void PipeDestroy(MCorePipe_t *Pipe);
+__EXTERN void PipeDestroy(MCorePipe_t *Pipe);
 
 /* PipeWrite
  * Writes the given data to the pipe-buffer, unless PIPE_NOBLOCK_WRITE
  * has been specified, it will block untill there is room in the pipe */
-__CRT_EXTERN int PipeWrite(MCorePipe_t *Pipe, uint8_t *Data, size_t Length);
+__EXTERN int PipeWrite(MCorePipe_t *Pipe, uint8_t *Data, size_t Length);
 
 /* PipeRead
  * Reads the requested data-length from the pipe buffer, unless PIPE_NOBLOCK_READ
  * has been specified, it will block untill data becomes available. If NULL is
  * given as the buffer it will just consume data instead */
-__CRT_EXTERN int PipeRead(MCorePipe_t *Pipe, 
+__EXTERN int PipeRead(MCorePipe_t *Pipe, 
 	uint8_t *Buffer, size_t Length, int Peek);
 
 /* PipeBytesAvailable
  * Returns how many bytes are available in buffer to be read */
-__CRT_EXTERN int PipeBytesAvailable(MCorePipe_t *Pipe);
+__EXTERN int PipeBytesAvailable(MCorePipe_t *Pipe);
 
 /* PipeBytesLeft
  * Returns how many bytes are ready for usage/able to be written */
-__CRT_EXTERN int PipeBytesLeft(MCorePipe_t *Pipe);
+__EXTERN int PipeBytesLeft(MCorePipe_t *Pipe);
 
 #endif // !_MCORE_PIPE_H_

@@ -153,7 +153,7 @@ _MOS_API void TLSInit(void);
  * by freeing resources and
  * calling c11 destructors 
  * Not callable manually */
-__CRT_EXTERN void TLSCleanup(TId_t ThreadId);
+__EXTERN void TLSCleanup(TId_t ThreadId);
 
 /* TLSInitInstance
  * Initializes a new thread-storage space

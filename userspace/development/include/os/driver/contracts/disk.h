@@ -41,25 +41,25 @@
 /* The disk descriptor structure 
  * contains geometric and generic information
  * about the given disk */
-typedef struct _DiskDescriptor {
+PACKED_TYPESTRUCT(DiskDescriptor, {
 	UUId_t				Device;
 	UUId_t				Driver;
 	Flags_t				Flags;
-	char				Manufactor[1];
-	char				Model[1];
+	char				Manufactor[32];
+	char				Model[64];
 	size_t				SectorSize;
 	uint64_t			SectorCount;
-} DiskDescriptor_t;
+});
 
 /* The disk operation structure 
  * contains information related to disk operations
  * like read and write */
-typedef struct _DiskOperation {
+PACKED_TYPESTRUCT(DiskOperation, {
 	int					Direction;
 	uint64_t			AbsSector;
 	const void			*PhysicalBuffer;
 	size_t				SectorCount;
-} DiskOperation_t;
+});
 
 /* DiskQuery
  * This queries the disk contract for data
@@ -96,7 +96,7 @@ OsStatus_t
 DiskRead(_In_ UUId_t Driver, 
 		 _In_ UUId_t Disk,
 		 _In_ uint64_t Sector, 
-		 _Out_ __CRT_CONST void *PhysicalAddress, 
+		 _Out_ __CONST void *PhysicalAddress, 
 		 _In_ size_t SectorCount)
 {
 	/* Variables */
@@ -131,7 +131,7 @@ OsStatus_t
 DiskWrite(_In_ UUId_t Driver,
 		 _In_ UUId_t Disk,
 		 _In_ uint64_t Sector, 
-		 _Out_ __CRT_CONST void *PhysicalAddress,
+		 _Out_ __CONST void *PhysicalAddress,
 		 _In_ size_t SectorCount)
 {
 	/* Variables */

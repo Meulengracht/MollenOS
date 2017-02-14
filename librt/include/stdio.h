@@ -77,7 +77,7 @@ extern "C" {
  * Limits and extern 
  * list of strings */
 #define _MAX_ERRNO	127
-_CRTIMP __CRT_CONST char *_errstrings[];
+_CRTIMP __CONST char *_errstrings[];
 
 /* The C-Library Error Codes 
  * These closely relate the the 
@@ -117,12 +117,12 @@ typedef struct _CLibraryFile
 /*******************************
  *       File Access           *
  *******************************/
-_CRTIMP int fflags(__CRT_CONST char * mode);
+_CRTIMP int fflags(__CONST char * mode);
 _CRTIMP int fclose(FILE * stream);
-_CRTIMP FILE *fopen(__CRT_CONST char * filename, __CRT_CONST char * mode);
-_CRTIMP FILE *fdopen(int fd, __CRT_CONST char *mode);
-_CRTIMP FILE *freopen(__CRT_CONST char * filename, __CRT_CONST char * mode, FILE * stream);
-_CRTIMP int remove(__CRT_CONST char * filename);
+_CRTIMP FILE *fopen(__CONST char * filename, __CONST char * mode);
+_CRTIMP FILE *fdopen(int fd, __CONST char *mode);
+_CRTIMP FILE *freopen(__CONST char * filename, __CONST char * mode, FILE * stream);
+_CRTIMP int remove(__CONST char * filename);
 _CRTIMP int fflush(FILE * stream);
 _CRTIMP int _fileno(FILE * stream);
 
@@ -136,27 +136,27 @@ _CRTIMP int _fileno(FILE * stream);
 /*******************************
  *       Formatted IO          *
  *******************************/
-_CRTIMP int sprintf(char *str, __CRT_CONST char *format, ...);
-_CRTIMP int snprintf(char *str, size_t size, __CRT_CONST char *format, ...);
-_CRTIMP int vnprintf(char *str, size_t size, __CRT_CONST char *format, ...);
-_CRTIMP int vsprintf(char *str, __CRT_CONST char *format, va_list ap);
-_CRTIMP int vsnprintf(char *str, size_t size, __CRT_CONST char *format, va_list ap);
-_CRTIMP int vasprintf(char **ret, __CRT_CONST char *format, va_list ap);
-_CRTIMP int sscanf(__CRT_CONST char *ibuf, __CRT_CONST char *fmt, ...);
-_CRTIMP int vsscanf(__CRT_CONST char *inp, char __CRT_CONST *fmt0, va_list ap);
+_CRTIMP int sprintf(char *str, __CONST char *format, ...);
+_CRTIMP int snprintf(char *str, size_t size, __CONST char *format, ...);
+_CRTIMP int vnprintf(char *str, size_t size, __CONST char *format, ...);
+_CRTIMP int vsprintf(char *str, __CONST char *format, va_list ap);
+_CRTIMP int vsnprintf(char *str, size_t size, __CONST char *format, va_list ap);
+_CRTIMP int vasprintf(char **ret, __CONST char *format, va_list ap);
+_CRTIMP int sscanf(__CONST char *ibuf, __CONST char *fmt, ...);
+_CRTIMP int vsscanf(__CONST char *inp, char __CONST *fmt0, va_list ap);
 
-_CRTIMP int fprintf(FILE * stream, __CRT_CONST char *format, ...);
-_CRTIMP int vfprintf(FILE *stream, __CRT_CONST char *format, va_list ap);
-_CRTIMP int fscanf(FILE *stream, __CRT_CONST char *format, ...);
-_CRTIMP int vfscanf(FILE * stream, __CRT_CONST char *format, va_list arg);
+_CRTIMP int fprintf(FILE * stream, __CONST char *format, ...);
+_CRTIMP int vfprintf(FILE *stream, __CONST char *format, va_list ap);
+_CRTIMP int fscanf(FILE *stream, __CONST char *format, ...);
+_CRTIMP int vfscanf(FILE * stream, __CONST char *format, va_list arg);
 
-_CRTIMP int printf(__CRT_CONST char *format, ...);
-_CRTIMP int vprintf(__CRT_CONST char *format, va_list ap);
-//_CRTIMP int scanf(__CRT_CONST char *format, ...);
-//_CRTIMP int vscanf(__CRT_CONST char * format, va_list arg);
+_CRTIMP int printf(__CONST char *format, ...);
+_CRTIMP int vprintf(__CONST char *format, va_list ap);
+//_CRTIMP int scanf(__CONST char *format, ...);
+//_CRTIMP int vscanf(__CONST char * format, va_list arg);
 
 /* Helpers */
-_CRTIMP int __svfscanf(FILE *fp, char __CRT_CONST * fmt0, va_list ap);
+_CRTIMP int __svfscanf(FILE *fp, char __CONST * fmt0, va_list ap);
 
 /*******************************
  *       Character IO          *
@@ -164,13 +164,13 @@ _CRTIMP int __svfscanf(FILE *fp, char __CRT_CONST * fmt0, va_list ap);
 _CRTIMP int putchar(int character);
 _CRTIMP int getchar(void);
 _CRTIMP char *gets(char *sstr);
-_CRTIMP int puts(__CRT_CONST char *sstr);
+_CRTIMP int puts(__CONST char *sstr);
 
 _CRTIMP int fpeekc(FILE * stream);
 _CRTIMP int fgetc(FILE * stream);
 _CRTIMP int fputc(int character, FILE * stream);
 _CRTIMP char *fgets(char * buf, size_t n, FILE * stream);
-_CRTIMP int fputs(__CRT_CONST char * str, FILE * stream);
+_CRTIMP int fputs(__CONST char * str, FILE * stream);
 _CRTIMP int fungetc (int character, FILE * stream);
 
 #define peekc(stream) fpeekc(stream)
@@ -182,13 +182,13 @@ _CRTIMP int fungetc (int character, FILE * stream);
  *         Direct IO           *
  *******************************/
 _CRTIMP size_t fread(void * vptr, size_t size, size_t count, FILE * stream);
-_CRTIMP size_t fwrite(__CRT_CONST void * vptr, size_t size, size_t count, FILE * stream);
+_CRTIMP size_t fwrite(__CONST void * vptr, size_t size, size_t count, FILE * stream);
 
 /*******************************
  *     File Positioning        *
  *******************************/
 _CRTIMP int fgetpos(FILE * stream, fpos_t * pos);
-_CRTIMP int fsetpos(FILE * stream, __CRT_CONST fpos_t * pos);
+_CRTIMP int fsetpos(FILE * stream, __CONST fpos_t * pos);
 _CRTIMP int fseek(FILE * stream, long int offset, int origin);
 _CRTIMP long int ftell(FILE * stream);
 _CRTIMP void rewind(FILE * stream);
@@ -202,7 +202,7 @@ _CRTIMP int fseeko(FILE *stream, off_t offset, int origin);
  *******************************/
 _CRTIMP void clearerr(FILE * stream);
 _CRTIMP int ferror(FILE * stream);
-_CRTIMP void perror(__CRT_CONST char * str);
+_CRTIMP void perror(__CONST char * str);
 _CRTIMP char *strerror(int errnum);
 
 #ifdef __cplusplus

@@ -32,7 +32,7 @@
 
 /* Externs we need for functions here, all
  * the i/o functions needs the base address */
-__CRT_EXTERN Addr_t GlbLocalApicBase;
+__EXTERN Addr_t GlbLocalApicBase;
 
 /* Reads from the local apic registers 
  * Reads and writes from and to the local apic

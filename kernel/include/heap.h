@@ -177,41 +177,41 @@ typedef struct _HeapRegion
  * Finds a suitable block for allocation
  * and allocates in that block, this is primary
  * allocator of the heap */
-__CRT_EXTERN Addr_t HeapAllocate(Heap_t *Heap, size_t Size,
+__EXTERN Addr_t HeapAllocate(Heap_t *Heap, size_t Size,
 	Flags_t Flags, size_t Alignment, Addr_t Mask, const char *Identifier);
 
 /* HeapFree
  * Finds the appropriate block
  * that should contain our node */
-__CRT_EXTERN void HeapFree(Heap_t *Heap, Addr_t Addr);
+__EXTERN void HeapFree(Heap_t *Heap, Addr_t Addr);
 
 /* HeapQueryMemoryInformation
  * Queries memory information about a heap
  * useful for processes and such */
-__CRT_EXTERN int HeapQueryMemoryInformation(Heap_t *Heap,
+__EXTERN int HeapQueryMemoryInformation(Heap_t *Heap,
 	size_t *BytesInUse, size_t *BlocksAllocated);
 
 /* HeapInit
  * This initializes the kernel heap and 
  * readies the first few blocks for allocation
  * this MUST be called before any calls to *mallocs */
-__CRT_EXTERN void HeapInit(void);
+__EXTERN void HeapInit(void);
 
 /* HeapCreate
  * This function allocates a 'third party' heap that
  * can be used like a memory region for allocations, usefull
  * for servers, shared memory, processes etc */
-__CRT_EXTERN Heap_t *HeapCreate(Addr_t HeapAddress, Addr_t HeapEnd, int UserHeap);
+__EXTERN Heap_t *HeapCreate(Addr_t HeapAddress, Addr_t HeapEnd, int UserHeap);
 
 /* Helper function that enumerates the given heap 
  * and prints out different allocation stats of heap */
-__CRT_EXTERN void HeapPrintStats(Heap_t *Heap);
-__CRT_EXTERN void HeapReap(void);
+__EXTERN void HeapPrintStats(Heap_t *Heap);
+__EXTERN void HeapReap(void);
 
 /* Used for validation that an address is allocated
  * within the given heap, this can be used for security
  * or validation purposes, use NULL for kernel heap */
-__CRT_EXTERN int HeapValidateAddress(Heap_t *Heap, Addr_t Address);
+__EXTERN int HeapValidateAddress(Heap_t *Heap, Addr_t Address);
 
 /* Simply just a wrapper for HeapAllocate
  * with the kernel heap as argument 
@@ -219,7 +219,7 @@ __CRT_EXTERN int HeapValidateAddress(Heap_t *Heap, Addr_t Address);
  * makes sure pages are mapped in memory
  * this function also returns the physical address 
  * of the allocation and aligned to PAGE_ALIGN with memory <Mask> */
-__CRT_EXTERN void *kmalloc_apm(size_t Size, Addr_t *Ptr, Addr_t Mask);
+__EXTERN void *kmalloc_apm(size_t Size, Addr_t *Ptr, Addr_t Mask);
 
 /* Simply just a wrapper for HeapAllocate
  * with the kernel heap as argument 
@@ -227,7 +227,7 @@ __CRT_EXTERN void *kmalloc_apm(size_t Size, Addr_t *Ptr, Addr_t Mask);
  * makes sure pages are mapped in memory
  * this function also returns the physical address 
  * of the allocation and aligned to PAGE_ALIGN */
-__CRT_EXTERN void *kmalloc_ap(size_t Size, Addr_t *Ptr);
+__EXTERN void *kmalloc_ap(size_t Size, Addr_t *Ptr);
 
 /* Simply just a wrapper for HeapAllocate
  * with the kernel heap as argument 
@@ -235,23 +235,23 @@ __CRT_EXTERN void *kmalloc_ap(size_t Size, Addr_t *Ptr);
  * makes sure pages are mapped in memory
  * this function also returns the physical address 
  * of the allocation */
-__CRT_EXTERN void *kmalloc_p(size_t Size, Addr_t *Ptr);
+__EXTERN void *kmalloc_p(size_t Size, Addr_t *Ptr);
 
 /* Simply just a wrapper for HeapAllocate
  * with the kernel heap as argument 
  * but this does some basic validation and
  * makes sure pages are mapped in memory 
  * the memory returned is PAGE_ALIGNED */
-__CRT_EXTERN void *kmalloc_a(size_t Size);
+__EXTERN void *kmalloc_a(size_t Size);
 
 /* Simply just a wrapper for HeapAllocate
  * but this does some basic validation and
  * makes sure pages are mapped in memory */
-__CRT_EXTERN void *kmalloc(size_t Size);
+__EXTERN void *kmalloc(size_t Size);
 
 /* kfree 
  * Wrapper for the HeapFree that essentially 
  * just calls it with the kernel heap as argument */
-__CRT_EXTERN void kfree(void *p);
+__EXTERN void kfree(void *p);
 
 #endif

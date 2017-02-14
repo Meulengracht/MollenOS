@@ -45,10 +45,10 @@
 #define APIC_FLAGS_DEFAULT			0x7F00000000000000
 
 /* Externs */
-__CRT_EXTERN void __cli(void);
-__CRT_EXTERN void __sti(void);
-__CRT_EXTERN uint32_t __getflags(void);
-__CRT_EXTERN List_t *GlbAcpiNodes;
+__EXTERN void __cli(void);
+__EXTERN void __sti(void);
+__EXTERN uint32_t __getflags(void);
+__EXTERN List_t *GlbAcpiNodes;
 
 /* Interrupts tables needed for
  * the x86-architecture */

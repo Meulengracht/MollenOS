@@ -69,12 +69,12 @@
 #define __CRT_INLINE __inline
 #endif
 
-#ifndef __CRT_EXTERN
-#define __CRT_EXTERN extern
+#ifndef __EXTERN
+#define __EXTERN extern
 #endif
 
-#ifndef __CRT_CONST
-#define __CRT_CONST const
+#ifndef __CONST
+#define __CONST const
 #endif
 
 /* Kernel/LibOS export definitions

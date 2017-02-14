@@ -63,8 +63,8 @@ _CRTIMP int	iswxdigit(wint_t);
 _CRTIMP wint_t towctrans(wint_t, wctrans_t);
 _CRTIMP wint_t towupper(wint_t);
 _CRTIMP wint_t towlower(wint_t);
-_CRTIMP wctrans_t wctrans(__CRT_CONST char *);
-_CRTIMP wctype_t wctype(__CRT_CONST char *);
+_CRTIMP wctrans_t wctrans(__CONST char *);
+_CRTIMP wctype_t wctype(__CONST char *);
 
 #if defined(__POSIX_VISIBLE)
 _CRTIMP int	iswalpha_l (wint_t, locale_t);
@@ -83,8 +83,8 @@ _CRTIMP int	iswxdigit_l (wint_t, locale_t);
 _CRTIMP wint_t	towctrans_l (wint_t, wctrans_t, locale_t);
 _CRTIMP wint_t	towupper_l (wint_t, locale_t);
 _CRTIMP wint_t	towlower_l (wint_t, locale_t);
-_CRTIMP wctrans_t wctrans_l (__CRT_CONST char *, locale_t);
-_CRTIMP wctype_t wctype_l (__CRT_CONST char *, locale_t);
+_CRTIMP wctrans_t wctrans_l (__CONST char *, locale_t);
+_CRTIMP wctype_t wctype_l (__CONST char *, locale_t);
 #endif
 
 #ifdef __cplusplus

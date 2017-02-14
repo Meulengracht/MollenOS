@@ -749,22 +749,22 @@ typedef struct _EhciController
 } EhciController_t;
 
 /* Prototypes */
-__CRT_EXTERN void EhciInitQueues(EhciController_t *Controller);
+__EXTERN void EhciInitQueues(EhciController_t *Controller);
 
 /* Endpoint Prototypes */
-__CRT_EXTERN void EhciEndpointSetup(void *cData, UsbHcEndpoint_t *Endpoint);
-__CRT_EXTERN void EhciEndpointDestroy(void *cData, UsbHcEndpoint_t *Endpoint);
+__EXTERN void EhciEndpointSetup(void *cData, UsbHcEndpoint_t *Endpoint);
+__EXTERN void EhciEndpointDestroy(void *cData, UsbHcEndpoint_t *Endpoint);
 
 /* Transaction Prototypes */
-__CRT_EXTERN void EhciTransactionInit(void *cData, UsbHcRequest_t *Request);
-__CRT_EXTERN UsbHcTransaction_t *EhciTransactionSetup(void *cData, UsbHcRequest_t *Request, UsbPacket_t *Packet);
-__CRT_EXTERN UsbHcTransaction_t *EhciTransactionIn(void *cData, UsbHcRequest_t *Request, void *Buffer, size_t Length);
-__CRT_EXTERN UsbHcTransaction_t *EhciTransactionOut(void *cData, UsbHcRequest_t *Request, void *Buffer, size_t Length);
-__CRT_EXTERN void EhciTransactionSend(void *cData, UsbHcRequest_t *Request);
-__CRT_EXTERN void EhciTransactionDestroy(void *cData, UsbHcRequest_t *Request);
+__EXTERN void EhciTransactionInit(void *cData, UsbHcRequest_t *Request);
+__EXTERN UsbHcTransaction_t *EhciTransactionSetup(void *cData, UsbHcRequest_t *Request, UsbPacket_t *Packet);
+__EXTERN UsbHcTransaction_t *EhciTransactionIn(void *cData, UsbHcRequest_t *Request, void *Buffer, size_t Length);
+__EXTERN UsbHcTransaction_t *EhciTransactionOut(void *cData, UsbHcRequest_t *Request, void *Buffer, size_t Length);
+__EXTERN void EhciTransactionSend(void *cData, UsbHcRequest_t *Request);
+__EXTERN void EhciTransactionDestroy(void *cData, UsbHcRequest_t *Request);
 
 /* Processing Functions */
-__CRT_EXTERN void EhciProcessTransfers(EhciController_t *Controller);
-__CRT_EXTERN void EhciProcessDoorBell(EhciController_t *Controller);
+__EXTERN void EhciProcessTransfers(EhciController_t *Controller);
+__EXTERN void EhciProcessDoorBell(EhciController_t *Controller);
 
 #endif

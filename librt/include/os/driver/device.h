@@ -34,7 +34,7 @@
 /* The export macro, and is only set by the
  * the actual implementation of the devicemanager */
 #ifdef __DEVICEMANAGER_IMPL
-#define __DEVAPI __CRT_EXTERN
+#define __DEVAPI __EXTERN
 #else
 #define __DEVAPI static __CRT_INLINE
 #endif

@@ -50,17 +50,17 @@ ANSI C requires <<localtime>>.
 #include "local.h"
 
 /* Externs to other files */
-__CRT_EXTERN int _daylight;
+__EXTERN int _daylight;
 
 /* Reentrency version of gmtime 
  * Modified implementation by newlib */
-struct tm *localtime_r(__CRT_CONST time_t *__restrict tim_p, struct tm *__restrict res)
+struct tm *localtime_r(__CONST time_t *__restrict tim_p, struct tm *__restrict res)
 {
 	long offset;
 	int hours, mins, secs;
 	int year;
-	__tzinfo_type *__CRT_CONST tz = __gettzinfo();
-	__CRT_CONST int *ip;
+	__tzinfo_type *__CONST tz = __gettzinfo();
+	__CONST int *ip;
 
 	res = gmtime_r(tim_p, res);
 
@@ -164,7 +164,7 @@ struct tm *localtime_r(__CRT_CONST time_t *__restrict tim_p, struct tm *__restri
 
 /* Normal version of localtime 
  * Modified implementation by newlib */
-struct tm *localtime(__CRT_CONST time_t * tim_p)
+struct tm *localtime(__CONST time_t * tim_p)
 {
 	/* Get the TLS buffer for
 	* time-modification */

@@ -35,9 +35,9 @@
 #include <stddef.h>
 
 /* Externs */
-__CRT_EXTERN UUId_t *GlbAliasMap;
-__CRT_EXTERN UUId_t GlbAshIdGenerator;
-__CRT_EXTERN List_t *GlbAshes;
+__EXTERN UUId_t *GlbAliasMap;
+__EXTERN UUId_t GlbAshIdGenerator;
+__EXTERN List_t *GlbAshes;
 
 /* This is the finalizor function for starting
  * up a new base Ash, it finishes setting up the environment

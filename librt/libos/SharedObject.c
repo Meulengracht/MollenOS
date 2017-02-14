@@ -24,33 +24,30 @@
 #include <os/Syscall.h>
 #include <stddef.h>
 
-#ifdef LIBC_KERNEL
-void __SharedObjectLibCEmpty(void)
-{
-}
-#else
-
-/* Load a shared object given a path
+/* SharedObjectLoad
+ * Load a shared object given a path
  * path must exists otherwise NULL is returned */
-void *SharedObjectLoad(const char *SharedObject)
+Handle_t SharedObjectLoad(_In_ __CONST char *SharedObject)
 {
 	/* Sanitize the path */
 	if (SharedObject == NULL) {
-		return NULL;
+		return HANDLE_INVALID;
 	}
 
 	/* Just deep call, we have 
 	 * all neccessary functionlity and validation already in place */
-	return (void*)Syscall1(SYSCALL_LOADSO, SYSCALL_PARAM(SharedObject));
+	return (Handle_t*)Syscall1(SYSCALL_LOADSO, SYSCALL_PARAM(SharedObject));
 }
 
-/* Load a function-address given an shared object
+/* SharedObjectGetFunction
+ * Load a function-address given an shared object
  * handle and a function name, function must exist
  * otherwise null is returned */
-void *SharedObjectGetFunction(void *Handle, const char *Function)
+void *SharedObjectGetFunction(_In_ Handle_t Handle, 
+							  _In_ __CONST char *Function)
 {
 	/* Sanitize the arguments */
-	if (Handle == NULL
+	if (Handle == HANDLE_INVALID
 		|| Function == NULL) {
 		return NULL;
 	}
@@ -61,18 +58,17 @@ void *SharedObjectGetFunction(void *Handle, const char *Function)
 		SYSCALL_PARAM(Handle), SYSCALL_PARAM(Function));
 }
 
-/* Unloads a valid shared object handle
- * returns 0 on success */
-void SharedObjectUnload(void *Handle)
+/* SharedObjectUnload
+ * Unloads a valid shared object handle
+ * returns OsError on failure */
+OsStatus_t SharedObjectUnload(_In_ Handle_t Handle)
 {
 	/* Sanitize the handle */
-	if (Handle == NULL) {
-		return;
+	if (Handle == HANDLE_INVALID) {
+		return OsError;
 	}
 
 	/* Just deep call, we have
 	* all neccessary functionlity and validation already in place */
-	Syscall1(SYSCALL_UNLOADSO, SYSCALL_PARAM(Handle));
+	return (OsStatus_t)Syscall1(SYSCALL_UNLOADSO, SYSCALL_PARAM(Handle));
 }
-
-#endif
