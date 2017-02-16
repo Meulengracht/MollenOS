@@ -30,29 +30,51 @@
  * - System */
 #include <os/osdefs.h>
 
+/* Define this here to allow for c++ interfacing */
+_CODE_BEGIN
+
 /* Pipe - Open
  * Opens a new communication pipe on the given
  * port for this process, if one already exists
  * SIGPIPE is signaled */
-_MOS_API UUId_t PipeOpen(int Port);
+_MOS_API 
+UUId_t 
+PipeOpen(
+	_In_ int Port);
 
 /* Pipe - Close
  * Closes an existing communication pipe on the given
  * port for this process, if one doesn't exists
  * SIGPIPE is signaled */
-_MOS_API OsStatus_t PipeClose(UUId_t Pipe);
+_MOS_API 
+OsStatus_t 
+PipeClose(
+	_In_ UUId_t Pipe);
 
 /* Pipe - Read
  * This returns -1 if something went wrong reading
  * a message from the message queue, otherwise it returns 0
  * and fills the structures with information about the message */
-_MOS_API OsStatus_t PipeRead(UUId_t Pipe, void *Buffer, size_t Length);
+_MOS_API 
+OsStatus_t 
+PipeRead(
+	_In_ UUId_t Pipe, 
+	_In_ void *Buffer, 
+	_In_ size_t Length);
 
 /* Pipe - Send
  * Returns -1 if message failed to send
  * Returns -2 if message-target didn't exist
  * Returns 0 if message was sent correctly to target */
-_MOS_API OsStatus_t PipeSend(UUId_t Target, int Port, void *Message, size_t Length);
+_MOS_API 
+OsStatus_t 
+PipeSend(
+	_In_ UUId_t Target, 
+	_In_ int Port, 
+	_In_ void *Message, 
+	_In_ size_t Length);
+
+_CODE_END
 
 #endif //!KERNEL_API
 #endif //!_MOLLENOS_PIPE_H_

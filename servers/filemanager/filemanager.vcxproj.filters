@@ -8,7 +8,7 @@
     <ClCompile Include="vfsfunctions.c">
       <Filter>vfs</Filter>
     </ClCompile>
-    <ClCompile Include="vfspath.c">
+    <ClCompile Include="path.c">
       <Filter>vfs</Filter>
     </ClCompile>
     <ClCompile Include="layouts\detect.c">

@@ -36,8 +36,11 @@
 #include <ds/list.h>
 #include <stddef.h>
 
-/* VFS Definitions */
-#define FILESYSTEM_INIT			":/System/Sapphire.mxi"
+/* VFS Definitions 
+ * - General identifiers can be used in paths */
+#define __FILEMANAGER_INITPROCESS		":/system/sapphire.mxi"
+#define __FILEMANAGER_RESOLVEQUEUE		IPC_DECL_FUNCTION(10000)
+#define __FILEMANAGER_MAXDISKS			64
 
 /* VFS FileSystem Types
  * The different supported built-in filesystems */
@@ -111,6 +114,21 @@ __EXTERN OsStatus_t DiskDetectLayout(FileSystemDisk_t *Disk);
  * the appropriate driver library for the given type */
 __EXTERN FileSystemModule_t *VfsResolveFileSystem(FileSystem_t *FileSystem);
 
+/* VfsResolveQueueExecute
+ * Resolves all remaining filesystems that have been
+ * waiting in the resolver-queue */
+__EXTERN OsStatus_t VfsResolveQueueExecute(void);
+
+/* VfsResolveQueueEvent
+ * Sends the event to ourself that we are ready to
+ * execute the resolver queue */
+__EXTERN OsStatus_t VfsResolveQueueEvent(void);
+
+/* VfsGetResolverQueue
+ * Retrieves a list of all the current filesystems
+ * that needs to be resolved, and is scheduled */
+__EXTERN List_t *VfsGetResolverQueue(void);
+
 /* VfsGetFileSystems
  * Retrieves a list of all the current filesystems
  * and provides access for manipulation */
@@ -128,6 +146,6 @@ __EXTERN UUId_t VfsIdentifierAllocate(FileSystemDisk_t *Disk);
 
 /* VfsIdentifierFree 
  * Frees a given identifier index */
-__EXTERN OsStatus_t VfsIdentifierFree(UUId_t Id);
+__EXTERN OsStatus_t VfsIdentifierFree(FileSystemDisk_t *Disk, UUId_t Id);
 
 #endif //!_VFS_INTERFACE_H_

@@ -34,12 +34,18 @@
 #include <ctype.h>
 
 /* Globals */
+List_t *GlbResolveQueue = NULL;
 List_t *GlbFileSystems = NULL;
 List_t *GlbOpenFiles = NULL;
 List_t *GlbModules = NULL;
 UUId_t GlbFileSystemId = 0;
-UUId_t GlbVfsFileIdGen = 0;
+UUId_t GlbFileId = 0;
 int GlbInitialized = 0;
+
+/* The disk id array, contains id's in the
+ * range of __FILEMANAGER_MAXDISKS/2 as half
+ * of them are reserved for rm/st */
+int GlbDiskIds[__FILEMANAGER_MAXDISKS];
 
 /* VfsGetModules
  * Retrieves a list of all the currently loaded
@@ -57,19 +63,52 @@ List_t *VfsGetFileSystems(void)
 	return GlbFileSystems;
 }
 
+/* VfsGetResolverQueue
+ * Retrieves a list of all the current filesystems
+ * that needs to be resolved, and is scheduled */
+List_t *VfsGetResolverQueue(void)
+{
+	return GlbResolveQueue;
+}
+
 /* VfsIdentifierAllocate 
  * Allocates a free identifier index for the
  * given disk, it varies based upon disk type */
 UUId_t VfsIdentifierAllocate(FileSystemDisk_t *Disk)
 {
+	/* Start out by determing start index */
+	int ArrayStartIndex = 0, ArrayEndIndex = __FILEMANAGER_MAXDISKS / 2, i;
+	if (Disk->Flags & __DISK_REMOVABLE) {
+		ArrayStartIndex = __FILEMANAGER_MAXDISKS / 2;
+		ArrayEndIndex = __FILEMANAGER_MAXDISKS;
+	}
 
+	/* Now iterate the range for the type of disk */
+	for (i = ArrayStartIndex; i < ArrayEndIndex; i++) {
+		if (GlbDiskIds[i] == 0) {
+			GlbDiskIds[i] = 1;
+			return (UUId_t)(i - ArrayStartIndex);
+		}
+	}
+
+	return UUID_INVALID;
 }
 
 /* VfsIdentifierFree 
  * Frees a given identifier index */
-OsStatus_t VfsIdentifierFree(UUId_t Id)
+OsStatus_t VfsIdentifierFree(FileSystemDisk_t *Disk, UUId_t Id)
 {
-
+	int ArrayIndex = (int)Id;
+	if (Disk->Flags & __DISK_REMOVABLE) {
+		ArrayIndex += __FILEMANAGER_MAXDISKS / 2;
+	}
+	if (ArrayIndex < __FILEMANAGER_MAXDISKS) {
+		GlbDiskIds[ArrayIndex] = 0;
+		return OsNoError;
+	}
+	else {
+		return OsError;
+	}
 }
 
 /* OnLoad
@@ -78,13 +117,15 @@ OsStatus_t VfsIdentifierFree(UUId_t Id)
 OsStatus_t OnLoad(void)
 {
 	/* Setup list */
+	GlbResolveQueue = ListCreate(KeyInteger, LIST_NORMAL);
 	GlbFileSystems = ListCreate(KeyInteger, LIST_NORMAL);
 	GlbOpenFiles = ListCreate(KeyInteger, LIST_NORMAL);
 	GlbModules = ListCreate(KeyInteger, LIST_NORMAL);
 
 	/* Init variables */
+	memset(&GlbDiskIds[0], 0, sizeof(int) * __FILEMANAGER_MAXDISKS);
 	GlbFileSystemId = 0;
-	GlbVfsFileIdGen = 0;
+	GlbFileId = 0;
 	GlbInitialized = 1;
 
 	/* Register us with server manager */
@@ -107,6 +148,9 @@ OsStatus_t OnUnload(void)
  * and should handle the given event*/
 OsStatus_t OnEvent(MRemoteCall_t *Message)
 {
+	/* Variables */
+	OsStatus_t Result = OsNoError;
+
 	/* Which function is called? */
 	switch (Message->Function)
 	{
@@ -114,28 +158,30 @@ OsStatus_t OnEvent(MRemoteCall_t *Message)
 		 * and and parses the disk-system for a MBR
 		 * or a GPT table */
 		case __FILEMANAGER_REGISTERDISK: {
-
-			/* Redirect the call */
-			RegisterDisk((UUId_t)Message->Arguments[0].Data.Value,
+			Result = RegisterDisk((UUId_t)Message->Arguments[0].Data.Value,
 				(UUId_t)Message->Arguments[1].Data.Value,
 				(Flags_t)Message->Arguments[2].Data.Value);
-
 		} break;
 
 		/* Unregisters a disk from the system and
 		 * handles cleanup of all attached filesystems */
 		case __FILEMANAGER_UNREGISTERDISK: {
-
-			/* Redirect the call */
-			UnregisterDisk((UUId_t)Message->Arguments[0].Data.Value,
+			Result = UnregisterDisk((UUId_t)Message->Arguments[0].Data.Value,
 				(Flags_t)Message->Arguments[1].Data.Value);
-
 		} break;
+
+		/* Resolves all stored filesystems that
+		 * has been waiting for boot-partition to be loaded */
+		case __FILEMANAGER_RESOLVEQUEUE: {
+			Result = VfsResolveQueueExecute();
+		} break;
+
+
 
 		default: {
 		} break;
 	}
 
 	/* Done! */
-	return OsNoError;
+	return Result;
 }

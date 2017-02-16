@@ -16,15 +16,15 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS Inter-Process Communication Interface
- * - Remote Procedure Call routines
+ * MollenOS MCore - Remote Procedure Definitions & Structures
+ * - This header describes the base remote procedure-structure, prototypes
+ *   and functionality, refer to the individual things for descriptions
  */
 
-#ifndef _MOLLENOS_RPC_H_
-#define _MOLLENOS_RPC_H_
+#ifndef _RPC_INTERFACE_H_
+#define _RPC_INTERFACE_H_
 
-/* Guard against inclusion */
-#ifndef _MOLLENOS_IPC_H_
+#ifndef _IPC_INTERFACE_H_
 #error "You must include ipc.h and not this directly"
 #endif
 
@@ -33,7 +33,7 @@
 #include <os/osdefs.h>
 
 /* Includes
- * - C-Library */
+ * - Library */
 #include <string.h>
 
 /* The argument package that can be passed
@@ -42,7 +42,7 @@
 typedef struct _MRPCArgument {
 	int						Type;
 	union {
-		__CONST void	*Buffer;
+		__CONST void		*Buffer;
 		size_t				Value;
 	} Data;
 	size_t					Length;
@@ -62,16 +62,19 @@ typedef struct _MRemoteCall {
 	RPCArgument_t			Result;
 } MRemoteCall_t;
 
-/* Cpp Guard */
-#ifdef __cplusplus
-extern "C" {
-#endif
+/* Start one of these before function prototypes */
+_CODE_BEGIN
 
 /* RPCInitialize 
  * Initializes a new RPC message of the 
  * given type and length */
-static __CRT_INLINE void RPCInitialize(MRemoteCall_t *Ipc, 
-	int Version, int Port, int Function)
+static __CRT_INLINE 
+void 
+RPCInitialize(
+	_In_ MRemoteCall_t *Ipc, 
+	_In_ int Version, 
+	_In_ int Port, 
+	_In_ int Function)
 {
 	/* Zero out structure */
 	memset((void*)Ipc, 0, sizeof(MRemoteCall_t));
@@ -89,8 +92,13 @@ static __CRT_INLINE void RPCInitialize(MRemoteCall_t *Ipc,
  * Adds a new argument for the RPC request at
  * the given argument index. It's not possible to override 
  * a current argument */
-static __CRT_INLINE void RPCSetArgument(MRemoteCall_t *Rpc,
-	int Index, __CONST void *Data, size_t Length)
+static __CRT_INLINE 
+void 
+RPCSetArgument(
+	_In_ MRemoteCall_t *Rpc,
+	_In_ int Index, 
+	_In_ __CONST void *Data, 
+	_In_ size_t Length)
 {
 	/* Sanitize the index and the
 	 * current argument */
@@ -129,8 +137,12 @@ static __CRT_INLINE void RPCSetArgument(MRemoteCall_t *Rpc,
 /* RPCSetResult
  * Installs a result buffer that will be filled
  * with the response from the RPC request */
-static __CRT_INLINE void RPCSetResult(MRemoteCall_t *Rpc,
-	__CONST void *Data, size_t Length)
+static __CRT_INLINE 
+void 
+RPCSetResult(
+	_In_ MRemoteCall_t *Rpc,
+	_In_ __CONST void *Data, 
+	_In_ size_t Length)
 {
 	/* Always a buffer element as we need
 	 * a target to copy the data into */
@@ -143,30 +155,47 @@ static __CRT_INLINE void RPCSetResult(MRemoteCall_t *Rpc,
  * Call this to wait for a new RPC message, it automatically
  * reads the message, and all the arguments. To avoid freeing
  * an argument, set InUse to 0 */
-_MOS_API OsStatus_t RPCListen(MRemoteCall_t *Message);
+_MOS_API 
+OsStatus_t 
+RPCListen(
+	_In_ MRemoteCall_t *Message);
 
 /* RPCCleanup 
  * Call this to cleanup the RPC message, it frees all
  * allocated resources by RPCListen */
-_MOS_API OsStatus_t RPCCleanup(MRemoteCall_t *Message);
+_MOS_API 
+OsStatus_t 
+RPCCleanup(
+	_In_ MRemoteCall_t *Message);
 
 /* RPCEvaluate/RPCExecute
  * To get a reply from the RPC request, the user
  * must use RPCEvaluate, this will automatically wait
  * for a reply, whereas RPCExecute will send the request
  * and not block/wait for reply */
-_MOS_API OsStatus_t RPCEvaluate(MRemoteCall_t *Rpc, UUId_t Target);
-_MOS_API OsStatus_t RPCExecute(MRemoteCall_t *Rpc, UUId_t Target);
+_MOS_API 
+OsStatus_t 
+RPCEvaluate(
+	_In_ MRemoteCall_t *Rpc, 
+	_In_ UUId_t Target);
+
+_MOS_API 
+OsStatus_t 
+RPCExecute(
+	_In_ MRemoteCall_t *Rpc, 
+	_In_ UUId_t Target);
 
 /* RPCRespond
  * This is a wrapper to return a respond message/buffer to the
  * sender of the message, it's good practice to always wait for
  * a result when there is going to be one */
-_MOS_API OsStatus_t RPCRespond(MRemoteCall_t *Rpc, 
-	__CONST void *Buffer, size_t Length);
+_MOS_API 
+OsStatus_t 
+RPCRespond(
+	_In_ MRemoteCall_t *Rpc,
+	_In_ __CONST void *Buffer, 
+	_In_ size_t Length);
 
-#ifdef __cplusplus
-}
-#endif
+_CODE_END
 
-#endif //!_MOLLENOS_RPC_H_
+#endif //!_RPC_INTERFACE_H_

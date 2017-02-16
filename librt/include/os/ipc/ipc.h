@@ -23,8 +23,8 @@
  * - Pipe routines
  */
 
-#ifndef _MOLLENOS_IPC_H_
-#define _MOLLENOS_IPC_H_
+#ifndef _IPC_INTERFACE_H_
+#define _IPC_INTERFACE_H_
 
 /* Includes
  * - C-Library */
@@ -48,7 +48,6 @@
  * of input and/or window events */
 #define EVENT_INPUT						IPC_DECL_EVENT(0)
 
-
 /* Argument type definitions 
  * Used by both RPC and Event argument systems */
 #define ARGUMENT_NOTUSED		0
@@ -61,4 +60,4 @@
 #include <os/ipc/rpc.h>
 #include <os/ipc/pipe.h>
 
-#endif //!_MOLLENOS_IPC_H_
+#endif //!_IPC_INTERFACE_H_

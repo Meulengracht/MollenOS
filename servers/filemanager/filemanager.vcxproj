@@ -17,7 +17,7 @@
     <ClCompile Include="disk.c" />
     <ClCompile Include="modules.c" />
     <ClCompile Include="vfsfunctions.c" />
-    <ClCompile Include="vfspath.c" />
+    <ClCompile Include="path.c" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="include\vfs.h" />

@@ -37,6 +37,58 @@
  * to keep track of state */
 int GlbInitHasRun = 0;
 
+/* VfsResolveQueueEvent
+ * Sends the event to ourself that we are ready to
+ * execute the resolver queue */
+OsStatus_t VfsResolveQueueEvent(void)
+{
+	/* Variables */
+	MRemoteCall_t Rpc;
+
+	/* Initialize the request */
+	RPCInitialize(&Rpc, __FILEMANAGER_INTERFACE_VERSION,
+		PIPE_DEFAULT, __FILEMANAGER_RESOLVEQUEUE);
+	return RPCExecute(&Rpc, __FILEMANAGER_TARGET);
+}
+
+/* VfsResolveQueueExecute
+ * Resolves all remaining filesystems that have been
+ * waiting in the resolver-queue */
+OsStatus_t VfsResolveQueueExecute(void)
+{
+	/* Iterate nodes */
+	foreach(fNode, VfsGetResolverQueue()) {
+		FileSystem_t *Fs = (FileSystem_t*)fNode->Data;
+		DataKey_t Key;
+		
+		/* Try to resolve it now */
+		Fs->Module = VfsResolveFileSystem(Fs);
+		Key.Value = (int)Fs->Descriptor.Disk.Device;
+
+		/* Sanitize the module - must exist */
+		if (Fs->Module == NULL) {
+			MStringDestroy(Fs->Identifier);
+			VfsIdentifierFree(&Fs->Descriptor.Disk, Fs->Id);
+			free(Fs);
+			continue;
+		}
+
+		/* Run initializor function */
+		if (Fs->Module->Initialize(&Fs->Descriptor) != OsNoError) {
+			MStringDestroy(Fs->Identifier);
+			VfsIdentifierFree(&Fs->Descriptor.Disk, Fs->Id);
+			free(Fs);
+			continue;
+		}
+
+		/* Add to list, by using the disk id as identifier */
+		ListAppend(VfsGetFileSystems(), ListCreateNode(Key, Key, Fs));
+	}
+
+	/* Done! */
+	return OsNoError;
+}
+
 /* DiskRegisterFileSystem 
  * Registers a new filesystem of the given type, on
  * the given disk with the given position on the disk 
@@ -48,7 +100,10 @@ OsStatus_t DiskRegisterFileSystem(FileSystemDisk_t *Disk,
 	FileSystem_t *Fs = NULL;
 	char IdentBuffer[8];
 	DataKey_t Key;
+
+	/* Allocate a new disk id */
 	UUId_t Id = VfsIdentifierAllocate(Disk);
+	Key.Value = (int)Disk->Device;
 
 	/* Prep the buffer so we can build
 	 * a new fs-identifier */
@@ -71,43 +126,53 @@ OsStatus_t DiskRegisterFileSystem(FileSystemDisk_t *Disk,
 	Fs->Descriptor.SectorCount = SectorCount;
 	memcpy(&Fs->Descriptor.Disk, Disk, sizeof(FileSystemDisk_t));
 
-	/* Resolve the module from the filesystem type */
-	Fs->Module = VfsResolveFileSystem(Fs);
-
-	/* Sanitize the module - must exist */
-	if (Fs->Module == NULL) {
-		MStringDestroy(Fs->Identifier);
-		VfsIdentifierFree(Fs->Id);
-		free(Fs);
-		return OsError;
+	/* Resolve the module from the filesystem type 
+	 * - Now there is a special case, if no FS are
+	 *   registered and init hasn't run, and it's not MFS
+	 *   then we add to a resolve-wait queue */
+	if (!GlbInitHasRun && Fs->Type != FSMFS) {
+		ListAppend(VfsGetResolverQueue(), ListCreateNode(Key, Key, Fs));
 	}
+	else {
+		Fs->Module = VfsResolveFileSystem(Fs);
 
-	/* Run initializor function */
-	if (Fs->Module->Initialize(&Fs->Descriptor) != OsNoError) {
-		MStringDestroy(Fs->Identifier);
-		VfsIdentifierFree(Fs->Id);
-		free(Fs);
-		return OsError;
-	}
-
-	/* Add to list, by using the disk id as identifier */
-	Key.Value = (int)Disk->Device;
-	ListAppend(VfsGetFileSystems(), ListCreateNode(Key, Key, Fs));
-
-	/* Start init? */
-	if (!GlbInitHasRun)
-	{
-		/* Create a path from the identifier and hardcoded path */
-		MString_t *Path = MStringCreate((void*)MStringRaw(Fs->Identifier), StrUTF8);
-		MStringAppendCharacters(Path, FILESYSTEM_INIT, StrUTF8);
-
-		/* Spawn the process */
-		if (ProcessSpawn(MStringRaw(Path), NULL) != UUID_INVALID) {
-			GlbInitHasRun = 1;
+		/* Sanitize the module - must exist */
+		if (Fs->Module == NULL) {
+			MStringDestroy(Fs->Identifier);
+			VfsIdentifierFree(&Fs->Descriptor.Disk, Fs->Id);
+			free(Fs);
+			return OsError;
 		}
 
-		/* Cleanup */
-		MStringDestroy(Path);
+		/* Run initializor function */
+		if (Fs->Module->Initialize(&Fs->Descriptor) != OsNoError) {
+			MStringDestroy(Fs->Identifier);
+			VfsIdentifierFree(&Fs->Descriptor.Disk, Fs->Id);
+			free(Fs);
+			return OsError;
+		}
+
+		/* Add to list, by using the disk id as identifier */
+		ListAppend(VfsGetFileSystems(), ListCreateNode(Key, Key, Fs));
+
+		/* Start init? */
+		if (!GlbInitHasRun)
+		{
+			/* Create a path from the identifier and hardcoded path */
+			MString_t *Path = MStringCreate((void*)MStringRaw(Fs->Identifier), StrUTF8);
+			MStringAppendCharacters(Path, __FILEMANAGER_INITPROCESS, StrUTF8);
+
+			/* Spawn the process 
+			 * If it was succesfully spawned we can start
+			 * resolving the previous file-systems */
+			if (ProcessSpawn(MStringRaw(Path), NULL) != UUID_INVALID) {
+				VfsResolveQueueEvent();
+				GlbInitHasRun = 1;
+			}
+
+			/* Cleanup */
+			MStringDestroy(Path);
+		}
 	}
 
 	/* Done! */
@@ -160,11 +225,11 @@ OsStatus_t UnregisterDisk(UUId_t Device, Flags_t Flags)
 		FileSystem_t *Fs = (FileSystem_t*)lNode->Data;
 
 		/* Close all open files that relate to this filesystem */
-
+		// TODO
 
 		/* Call destroy handler for that FS */
 		if (Fs->Module->Destroy(&Fs->Descriptor, Flags) != OsNoError) {
-
+			// What do?
 		}
 
 		/* Reduce the number of references to that module */
@@ -173,10 +238,11 @@ OsStatus_t UnregisterDisk(UUId_t Device, Flags_t Flags)
 		/* Sanitize the module references 
 		 * If there are no more refs then cleanup module */
 		if (Fs->Module->References <= 0) {
-
+			// Unload? Or keep loaded?
 		}
 
 		/* Cleanup resources allocated by the filesystem */
+		VfsIdentifierFree(&Fs->Descriptor.Disk, Fs->Id);
 		MStringDestroy(Fs->Identifier);
 		free(Fs);
 
