@@ -74,8 +74,14 @@ typedef struct _MContract {
 /* InitializeContract
  * Helper function to initialize an instance of 
  * the contract structure */
-static __CRT_INLINE void InitializeContract(MContract_t *Contract, UUId_t Device, 
-	int Version, MContractType_t Type, const char *ContractName)
+static __CRT_INLINE 
+void 
+InitializeContract(
+	_In_ MContract_t *Contract, 
+	_In_ UUId_t Device, 
+	_In_ int Version, 
+	_In_ MContractType_t Type, 
+	_In_ __CONST char *ContractName)
 {
 	/* Clean out structure */
 	memset(Contract, 0, sizeof(MContract_t));
@@ -98,7 +104,10 @@ static __CRT_INLINE void InitializeContract(MContract_t *Contract, UUId_t Device
 #ifdef __DEVICEMANAGER_IMPL
 __DEVAPI UUId_t RegisterContract(MContract_t *Contract);
 #else
-__DEVAPI OsStatus_t RegisterContract(MContract_t *Contract)
+__DEVAPI 
+OsStatus_t 
+RegisterContract(
+	_In_ MContract_t *Contract)
 {
 	/* Variables */
 	MRemoteCall_t Request;
@@ -124,29 +133,31 @@ __DEVAPI OsStatus_t RegisterContract(MContract_t *Contract)
 #ifdef __DEVICEMANAGER_IMPL
 __EXTERN
 OsStatus_t 
-QueryContract(_In_ MContractType_t Type, 
-			  _In_ int Function,
-			  _In_Opt_ __CONST void *Arg0,
-			  _In_Opt_ size_t Length0,
-			  _In_Opt_ __CONST void *Arg1,
-			  _In_Opt_ size_t Length1,
-			  _In_Opt_ __CONST void *Arg2,
-			  _In_Opt_ size_t Length2,
-			  _Out_Opt_ __CONST void *ResultBuffer,
-			  _In_Opt_ size_t ResultLength);
+QueryContract(
+	_In_ MContractType_t Type, 
+	_In_ int Function,
+	_In_Opt_ __CONST void *Arg0,
+	_In_Opt_ size_t Length0,
+	_In_Opt_ __CONST void *Arg1,
+	_In_Opt_ size_t Length1,
+	_In_Opt_ __CONST void *Arg2,
+	_In_Opt_ size_t Length2,
+	_Out_Opt_ __CONST void *ResultBuffer,
+	_In_Opt_ size_t ResultLength);
 #else
 static __CRT_INLINE 
 OsStatus_t 
-QueryContract(_In_ MContractType_t Type, 
-			  _In_ int Function,
-			  _In_Opt_ __CONST void *Arg0,
-			  _In_Opt_ size_t Length0,
-			  _In_Opt_ __CONST void *Arg1,
-			  _In_Opt_ size_t Length1,
-			  _In_Opt_ __CONST void *Arg2,
-			  _In_Opt_ size_t Length2,
-			  _Out_Opt_ __CONST void *ResultBuffer,
-			  _In_Opt_ size_t ResultLength)
+QueryContract(
+	_In_ MContractType_t Type, 
+	_In_ int Function,
+	_In_Opt_ __CONST void *Arg0,
+	_In_Opt_ size_t Length0,
+	_In_Opt_ __CONST void *Arg1,
+	_In_Opt_ size_t Length1,
+	_In_Opt_ __CONST void *Arg2,
+	_In_Opt_ size_t Length2,
+	_Out_Opt_ __CONST void *ResultBuffer,
+	_In_Opt_ size_t ResultLength)
 {
 	/* Variables */
 	MRemoteCall_t Request;

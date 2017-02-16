@@ -67,9 +67,10 @@ PACKED_TYPESTRUCT(DiskOperation, {
  * implement the disk interface */
 __DEVAPI 
 OsStatus_t 
-DiskQuery(_In_ UUId_t Driver, 
-		  _In_ UUId_t Disk,
-		  _Out_ DiskDescriptor_t *Descriptor)
+DiskQuery(
+	_In_ UUId_t Driver, 
+	_In_ UUId_t Disk,
+	_Out_ DiskDescriptor_t *Descriptor)
 {
 	/* Variables */
 	MContract_t Contract;
@@ -93,11 +94,12 @@ DiskQuery(_In_ UUId_t Driver,
  *                    buffer to read data into */
 __DEVAPI 
 OsStatus_t 
-DiskRead(_In_ UUId_t Driver, 
-		 _In_ UUId_t Disk,
-		 _In_ uint64_t Sector, 
-		 _Out_ __CONST void *PhysicalAddress, 
-		 _In_ size_t SectorCount)
+DiskRead(
+	_In_ UUId_t Driver, 
+	_In_ UUId_t Disk,
+	_In_ uint64_t Sector, 
+	_Out_ __CONST void *PhysicalAddress, 
+	_In_ size_t SectorCount)
 {
 	/* Variables */
 	MContract_t Contract;
@@ -128,11 +130,12 @@ DiskRead(_In_ UUId_t Driver,
  *                    buffer that contains the data to write */
 __DEVAPI 
 OsStatus_t 
-DiskWrite(_In_ UUId_t Driver,
-		 _In_ UUId_t Disk,
-		 _In_ uint64_t Sector, 
-		 _Out_ __CONST void *PhysicalAddress,
-		 _In_ size_t SectorCount)
+DiskWrite(
+	_In_ UUId_t Driver,
+	_In_ UUId_t Disk,
+	_In_ uint64_t Sector, 
+	_Out_ __CONST void *PhysicalAddress,
+	_In_ size_t SectorCount)
 {
 	/* Variables */
 	MContract_t Contract;

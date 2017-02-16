@@ -1425,6 +1425,7 @@ int ScVfsResolvePath(int EnvPath, char *StrBuffer)
 #include <acpiinterface.h>
 #include <os/driver/io.h>
 #include <os/driver/device.h>
+#include <os/driver/buffer.h>
 #include <modules/modules.h>
 
 /* ScAcpiQueryStatus
@@ -1724,14 +1725,14 @@ OsStatus_t ScRegisterSystemTimer(UUId_t Interrupt, size_t NsPerTick)
 
 /* ScBufferCreate
  * */
-OsStatus_t ScBufferCreate(void)
+OsStatus_t ScBufferCreate(BufferObject_t *BufferObject)
 {
 
 }
 
 /* ScBufferDestroy
  * */
-OsStatus_t ScBufferDestroy(void)
+OsStatus_t ScBufferDestroy(BufferObject_t *BufferObject)
 {
 
 }
@@ -1739,6 +1740,7 @@ OsStatus_t ScBufferDestroy(void)
 /***********************
 * System Functions     *
 ***********************/
+#include <inputmanager.h>
 
 /* This ends the boot sequence
  * and thus redirects logging

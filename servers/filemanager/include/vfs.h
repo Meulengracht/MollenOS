@@ -42,7 +42,7 @@
 /* VFS FileSystem Types
  * The different supported built-in filesystems */
 typedef enum _FileSystemType {
-	FSUnknown,
+	FSUnknown				= 0,
 	FSFAT,
 	FSEXFAT,
 	FSNTFS,

@@ -77,25 +77,28 @@ PACKED_TYPESTRUCT(FileSystemDescriptor, {
  * and allocates resources for the given descriptor */
 __FSAPI
 OsStatus_t
-__FSDECL(FsInitialize)(_In_ FileSystemDescriptor_t *Descriptor);
+__FSDECL(FsInitialize)(
+	_In_ FileSystemDescriptor_t *Descriptor);
 
 /* FsDestroy 
  * Destroys the given filesystem descriptor and cleans
  * up any resources allocated by the filesystem instance */
 __FSAPI
 OsStatus_t
-__FSDECL(FsDestroy)(_In_ FileSystemDescriptor_t *Descriptor,
-					_In_ Flags_t UnmountFlags);
+__FSDECL(FsDestroy)(
+	_In_ FileSystemDescriptor_t *Descriptor,
+	_In_ Flags_t UnmountFlags);
 
 /* FsOpenFile 
  * Opens a new link to a file and allocates resources
  * for a new open-file in the system */
 __FSAPI
 FileSystemCode_t 
-__FSDECL(FsOpenFile)(_In_ FileSystemDescriptor_t *Descriptor,
-					 _In_ FileSystemFile_t *File,
-					 _In_ MString_t *Path,
-					 _In_ Flags_t Flags);
+__FSDECL(FsOpenFile)(
+	_In_ FileSystemDescriptor_t *Descriptor,
+	_In_ FileSystemFile_t *File,
+	_In_ MString_t *Path,
+	_In_ Flags_t Flags);
 
 /* FsCloseFile 
  * Closes the given file-link and frees all resources
@@ -103,8 +106,9 @@ __FSDECL(FsOpenFile)(_In_ FileSystemDescriptor_t *Descriptor,
  * to that file link, or the file-system is unmounted */
 __FSAPI
 FileSystemCode_t
-__FSDECL(FsCloseFile)(_In_ FileSystemDescriptor_t *Descriptor, 
-					  _In_ FileSystemFile_t *File);
+__FSDECL(FsCloseFile)(
+	_In_ FileSystemDescriptor_t *Descriptor, 
+	_In_ FileSystemFile_t *File);
 
 /* FsOpenHandle 
  * Opens a new handle to a file, this allows various
@@ -113,38 +117,42 @@ __FSDECL(FsCloseFile)(_In_ FileSystemDescriptor_t *Descriptor,
  * should be done here too */
 __FSAPI
 FileSystemCode_t
-__FSDECL(FsOpenHandle)(_In_ FileSystemDescriptor_t *Descriptor,
-					   _In_ FileSystemFileHandle_t *Handle);
+__FSDECL(FsOpenHandle)(
+	_In_ FileSystemDescriptor_t *Descriptor,
+	_In_ FileSystemFileHandle_t *Handle);
 
 /* FsCloseHandle 
  * Closes the file handle and cleans up any resources allocated
  * by the OpenHandle equivelent. Renders the handle useless */
 __FSAPI
 FileSystemCode_t
-__FSDECL(FsCloseHandle)(_In_ FileSystemDescriptor_t *Descriptor,
-						_In_ FileSystemFileHandle_t *Handle);
+__FSDECL(FsCloseHandle)(
+	_In_ FileSystemDescriptor_t *Descriptor,
+	_In_ FileSystemFileHandle_t *Handle);
 
 /* FsReadFile 
  * Reads the requested number of bytes from the given
  * file handle and outputs the number of bytes actually read */
 __FSAPI
 FileSystemCode_t
-__FSDECL(FsReadFile)(_In_ FileSystemDescriptor_t *Descriptor,
-					 _In_ FileSystemFileHandle_t *Handle,
-					 _Out_ __CONST void *Buffer,
-					 _In_ size_t BytesToRead,
-					 _Out_Opt_ size_t *BytesRead);
+__FSDECL(FsReadFile)(
+	_In_ FileSystemDescriptor_t *Descriptor,
+	_In_ FileSystemFileHandle_t *Handle,
+	_Out_ __CONST void *Buffer,
+	_In_ size_t BytesToRead,
+	_Out_Opt_ size_t *BytesRead);
 
 /* FsWriteFile 
  * Writes the requested number of bytes to the given
  * file handle and outputs the number of bytes actually written */
 __FSAPI
 FileSystemCode_t
-__FSDECL(FsWriteFile)(_In_ FileSystemDescriptor_t *Descriptor,
-					  _In_ FileSystemFileHandle_t *Handle,
-					  _Out_ __CONST void *Buffer,
-					  _In_ size_t BytesToWrite,
-					  _Out_Opt_ size_t *BytesWritten);
+__FSDECL(FsWriteFile)(
+	_In_ FileSystemDescriptor_t *Descriptor,
+	_In_ FileSystemFileHandle_t *Handle,
+	_Out_ __CONST void *Buffer,
+	_In_ size_t BytesToWrite,
+	_Out_Opt_ size_t *BytesWritten);
 
 /* FsSeekFile 
  * Seeks in the given file-handle to the absolute position
@@ -152,9 +160,10 @@ __FSDECL(FsWriteFile)(_In_ FileSystemDescriptor_t *Descriptor,
  * take a place */
 __FSAPI
 FileSystemCode_t
-__FSDECL(FsSeekFile)(_In_ FileSystemDescriptor_t *Descriptor,
-					 _In_ FileSystemFileHandle_t *Handle,
-					 _In_ uint64_t AbsolutePosition);
+__FSDECL(FsSeekFile)(
+	_In_ FileSystemDescriptor_t *Descriptor,
+	_In_ FileSystemFileHandle_t *Handle,
+	_In_ uint64_t AbsolutePosition);
 
 /* FsDeleteFile 
  * Deletes the file connected to the file-handle, this
@@ -162,18 +171,20 @@ __FSDECL(FsSeekFile)(_In_ FileSystemDescriptor_t *Descriptor,
  * and make them fail on next access */
 __FSAPI
 FileSystemCode_t
-__FSDECL(FsDeleteFile)(_In_ FileSystemDescriptor_t *Descriptor,
-					   _In_ FileSystemFileHandle_t *Handle);
+__FSDECL(FsDeleteFile)(
+	_In_ FileSystemDescriptor_t *Descriptor,
+	_In_ FileSystemFileHandle_t *Handle);
 
 /* FsQueryFile 
  * Queries the given file handle for information, the kind of
  * information queried is determined by the function */
 __FSAPI
 FileSystemCode_t
-__FSDECL(FsQueryFile)(_In_ FileSystemDescriptor_t *Descriptor,
-					  _In_ FileSystemFileHandle_t *Handle,
-					  _In_ int Function,
-					  _Out_ void *Buffer,
-					  _In_ size_t MaxLength);
+__FSDECL(FsQueryFile)(
+	_In_ FileSystemDescriptor_t *Descriptor,
+	_In_ FileSystemFileHandle_t *Handle,
+	_In_ int Function,
+	_Out_ void *Buffer,
+	_In_ size_t MaxLength);
 
 #endif //!_CONTRACT_FILESYSTEM_INTERFACE_H_

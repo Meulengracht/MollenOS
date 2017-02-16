@@ -29,14 +29,7 @@
 #include <os/osdefs.h>
 #include <os/ipc/ipc.h>
 #include <os/driver/server.h>
-
-/* The export macro, and is only set by the
- * the actual implementation of the filemanager */
-#ifdef __FILEMANAGER_IMPL
-#define __FILEAPI __EXTERN
-#else
-#define __FILEAPI static __CRT_INLINE
-#endif
+#include <os/driver/buffer.h>
 
 /* These definitions are in-place to allow a custom
  * setting of the file-manager, these are set to values
@@ -81,9 +74,19 @@
  * automatically be parsed (MBR, GPT, etc), and all filesystems
  * on the disk will be brought online */
 #ifdef __FILEMANAGER_IMPL
-__FILEAPI OsStatus_t RegisterDisk(UUId_t Driver, UUId_t Device, Flags_t Flags);
+__EXTERN 
+OsStatus_t 
+RegisterDisk(
+	_In_ UUId_t Driver, 
+	_In_ UUId_t Device, 
+	_In_ Flags_t Flags);
 #else
-__FILEAPI OsStatus_t RegisterDisk(UUId_t Driver, UUId_t Device, Flags_t Flags)
+static __CRT_INLINE 
+OsStatus_t 
+RegisterDisk(
+	_In_ UUId_t Driver, 
+	_In_ UUId_t Device, 
+	_In_ Flags_t Flags)
 {
 
 }
@@ -93,9 +96,17 @@ __FILEAPI OsStatus_t RegisterDisk(UUId_t Driver, UUId_t Device, Flags_t Flags)
  * Unregisters a disk from the system, and brings any filesystems
  * registered on this disk offline */
 #ifdef __FILEMANAGER_IMPL
-__FILEAPI OsStatus_t UnregisterDisk(UUId_t Device, Flags_t Flags);
+__EXTERN 
+OsStatus_t 
+UnregisterDisk(
+	_In_ UUId_t Device, 
+	_In_ Flags_t Flags);
 #else
-__FILEAPI OsStatus_t UnregisterDisk(UUId_t Device, Flags_t Flags)
+static __CRT_INLINE 
+OsStatus_t 
+UnregisterDisk(
+	_In_ UUId_t Device,
+	_In_ Flags_t Flags)
 {
 
 }
@@ -104,10 +115,20 @@ __FILEAPI OsStatus_t UnregisterDisk(UUId_t Device, Flags_t Flags)
 /* OpenFile
  * */
 #ifdef __FILEMANAGER_IMPL
-__FILEAPI UUId_t OpenFile(UUId_t Requester, 
-	const char *Path, Flags_t Options, Flags_t Access);
+__EXTERN 
+UUId_t 
+OpenFile(
+	_In_ UUId_t Requester,
+	_In_ __CONST char *Path, 
+	_In_ Flags_t Options, 
+	_In_ Flags_t Access);
 #else
-__FILEAPI UUId_t OpenFile(const char *Path, Flags_t Options, Flags_t Access)
+static __CRT_INLINE 
+UUId_t 
+OpenFile(
+	_In_ __CONST char *Path, 
+	_In_ Flags_t Options, 
+	_In_ Flags_t Access)
 {
 
 }
@@ -116,9 +137,16 @@ __FILEAPI UUId_t OpenFile(const char *Path, Flags_t Options, Flags_t Access)
 /* CloseFile
  * */
 #ifdef __FILEMANAGER_IMPL
-__FILEAPI OsStatus_t CloseFile(UUId_t Requester, UUId_t Handle);
+__EXTERN 
+OsStatus_t 
+CloseFile(
+	_In_ UUId_t Requester, 
+	_In_ UUId_t Handle);
 #else
-__FILEAPI OsStatus_t CloseFile(UUId_t Handle)
+static __CRT_INLINE 
+OsStatus_t 
+CloseFile(
+	_In_ UUId_t Handle)
 {
 
 }
@@ -127,9 +155,16 @@ __FILEAPI OsStatus_t CloseFile(UUId_t Handle)
 /* DeleteFile
  * */
 #ifdef __FILEMANAGER_IMPL
-__FILEAPI OsStatus_t DeleteFile(UUId_t Requester, const char *Path);
+__EXTERN 
+OsStatus_t 
+DeleteFile(
+	_In_ UUId_t Requester, 
+	_In_ __CONST char *Path);
 #else
-__FILEAPI OsStatus_t DeleteFile(const char *Path)
+static __CRT_INLINE 
+OsStatus_t 
+DeleteFile(
+	_In_ __CONST char *Path)
 {
 
 }
@@ -137,17 +172,65 @@ __FILEAPI OsStatus_t DeleteFile(const char *Path)
 
 /* ReadFile
  * */
+#ifdef __FILEMANAGER_IMPL
+__EXTERN 
+OsStatus_t 
+ReadFile(
+	_In_ UUId_t Requester, 
+	_In_ UUId_t Handle,
+	_In_ BufferObject_t *BufferObject,
+	_In_ size_t Length);
+#else
+static __CRT_INLINE 
+OsStatus_t 
+ReadFile(
+	_In_ UUId_t Handle, 
+	_In_ BufferObject_t *BufferObject, 
+	_In_ size_t Length)
+{
+
+}
+#endif
 
 /* WriteFile
  * */
+#ifdef __FILEMANAGER_IMPL
+__EXTERN
+OsStatus_t
+WriteFile(
+	_In_ UUId_t Requester,
+	_In_ UUId_t Handle,
+	_In_ BufferObject_t *BufferObject,
+	_In_ size_t Length);
+#else
+static __CRT_INLINE
+OsStatus_t
+WriteFile(
+	_In_ UUId_t Handle,
+	_In_ BufferObject_t *BufferObject,
+	_In_ size_t Length)
+{
+
+}
+#endif
 
 /* SeekFile
  * */
 #ifdef __FILEMANAGER_IMPL
-__FILEAPI OsStatus_t SeekFile(UUId_t Requester, 
-	UUId_t Handle, uint32_t SeekLo, uint32_t SeekHi);
+__EXTERN 
+OsStatus_t 
+SeekFile(
+	_In_ UUId_t Requester,
+	_In_ UUId_t Handle, 
+	_In_ uint32_t SeekLo, 
+	_In_ uint32_t SeekHi);
 #else
-__FILEAPI OsStatus_t SeekFile(UUId_t Handle, uint32_t SeekLo, uint32_t SeekHi)
+static __CRT_INLINE 
+OsStatus_t 
+SeekFile(
+	_In_ UUId_t Handle, 
+	_In_ uint32_t SeekLo, 
+	_In_ uint32_t SeekHi)
 {
 
 }
@@ -156,9 +239,16 @@ __FILEAPI OsStatus_t SeekFile(UUId_t Handle, uint32_t SeekLo, uint32_t SeekHi)
 /* FlushFile
  * */
 #ifdef __FILEMANAGER_IMPL
-__FILEAPI OsStatus_t FlushFile(UUId_t Requester, UUId_t Handle);
+__EXTERN 
+OsStatus_t 
+FlushFile(
+	_In_ UUId_t Requester, 
+	_In_ UUId_t Handle);
 #else
-__FILEAPI OsStatus_t FlushFile(UUId_t Handle)
+static __CRT_INLINE
+OsStatus_t 
+FlushFile(
+	_In_ UUId_t Handle)
 {
 
 }
@@ -167,10 +257,20 @@ __FILEAPI OsStatus_t FlushFile(UUId_t Handle)
 /* MoveFile
  * */
 #ifdef __FILEMANAGER_IMPL
-__FILEAPI OsStatus_t MoveFile(UUId_t Requester, 
-	const char *Source, const char *Destination, int Copy);
+__EXTERN 
+OsStatus_t 
+MoveFile(
+	_In_ UUId_t Requester,
+	_In_ __CONST char *Source, 
+	_In_ __CONST char *Destination,
+	_In_ int Copy);
 #else
-__FILEAPI OsStatus_t MoveFile(const char *Source, const char *Destination, int Copy)
+static __CRT_INLINE 
+OsStatus_t 
+MoveFile(
+	_In_ __CONST char *Source,
+	_In_ __CONST char *Destination,
+	_In_ int Copy)
 {
 
 }

@@ -49,6 +49,9 @@ typedef struct _Mutex {
 	Spinlock_t			Lock;
 } Mutex_t;
 
+/* Start one of these before function prototypes */
+_CODE_BEGIN
+
 /* MutexCreate
  * Instantiates a new mutex of the given
  * type, it allocates all neccessary resources

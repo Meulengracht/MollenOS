@@ -28,6 +28,20 @@
  * - Library */
 #include <stdlib.h>
 
+/* Filesystem driver map
+ * This for now needs to be static unfortunately
+ * untill i figure out a smart protocol for it */
+const char *_GlbFileSystemDrivers[] = {
+	NULL,
+	"%sys%/drivers/filesystems/fat.dll",
+	"%sys%/drivers/filesystems/exfat.dll",
+	"%sys%/drivers/filesystems/ntfs.dll",
+	"%sys%/drivers/filesystems/hfs.dll",
+	"%sys%/drivers/filesystems/hpfs.dll",
+	"rd:/mfs.dll",
+	"%sys%/drivers/filesystems/ext.dll"
+};
+
 /* VfsResolveFileSystem
  * Tries to resolve the given filesystem by locating
  * the appropriate driver library for the given type */
@@ -52,9 +66,12 @@ FileSystemModule_t *VfsResolveFileSystem(FileSystem_t *FileSystem)
 	Module = (FileSystemModule_t*)malloc(sizeof(FileSystemModule_t));
 	Module->Type = FileSystem->Type;
 	Module->References = 1;
+	Module->Handle = HANDLE_INVALID;
 
 	/* Resolve the library path and load it */
-	Module->Handle = SharedObjectLoad("");
+	if (FileSystem->Type != FSUnknown) {
+		Module->Handle = SharedObjectLoad(_GlbFileSystemDrivers[(int)FileSystem->Type]);
+	}
 
 	/* Were we able to resolve? */
 	if (Module->Handle == HANDLE_INVALID) {
