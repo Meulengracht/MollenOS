@@ -1,185 +1,202 @@
 /* MollenOS
-*
-* Copyright 2011 - 2016, Philip Meulengracht
-*
-* This program is free software : you can redistribute it and / or modify
-* it under the terms of the GNU General Public License as published by
-* the Free Software Foundation ? , either version 3 of the License, or
-* (at your option) any later version.
-*
-* This program is distributed in the hope that it will be useful,
-* but WITHOUT ANY WARRANTY; without even the implied warranty of
-* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.See the
-* GNU General Public License for more details.
-*
-* You should have received a copy of the GNU General Public License
-* along with this program.If not, see <http://www.gnu.org/licenses/>.
-*
-*
-* MollenOS - Condition Synchronization Functions
-*/
+ *
+ * Copyright 2011 - 2017, Philip Meulengracht
+ *
+ * This program is free software : you can redistribute it and / or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation ? , either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.If not, see <http://www.gnu.org/licenses/>.
+ *
+ *
+ * MollenOS MCore - Condition Support Definitions & Structures
+ * - This header describes the base condition-structures, prototypes
+ *   and functionality, refer to the individual things for descriptions
+ */
 
-/* Includes */
-#include <os/MollenOS.h>
-#include <os/Syscall.h>
-#include <os/Thread.h>
+/* Includes
+ * - System */
+#include <os/thread.h>
+#include <os/syscall.h>
 
-/* C Library */
+/* Includes
+ * - Library */
 #include <stddef.h>
 #include <stdlib.h>
 #include <errno.h>
 #include <time.h>
 
-#ifdef LIBC_KERNEL
-void __ConditionLibCEmpty(void)
-{
-}
-#else
-
-/* Instantiates a new condition and allocates
+/* ConditionCreate
+ * Instantiates a new condition and allocates
  * all required resources for the condition */
-Condition_t *ConditionCreate(void)
+Condition_t *
+ConditionCreate(void)
 {
 	/* Allocate a handle */
 	Condition_t *Cond = (Condition_t*)malloc(sizeof(Condition_t));
 
 	/* Reuse the construct 
 	 * function */
-	ConditionConstruct(Cond);
+	if (ConditionConstruct(Cond) != OsNoError) {
+		return NULL;
+	}
 
 	/* Done! */
 	return Cond;
 }
 
-/* Constructs an already allocated condition
+/* ConditionConstruct
+ * Constructs an already allocated condition
  * handle and initializes it */
-int ConditionConstruct(Condition_t *Cond)
+OsStatus_t 
+ConditionConstruct(
+	_In_ Condition_t *Cond)
 {
-	/* Sanity!! */
-	if (Cond == NULL)
-		return -1;
+	/* Variables */
+	int RetVal = 0;
 
-	/* Contact OS */
-	int RetVal = Syscall0(SYSCALL_CONDCREATE);
+	/* Sanitize all _in_ */
+	if (Cond == NULL) {
+		return OsError;
+	}
 
-	/* Sanity */
+	/* Resolve with syscall */
+	RetVal = Syscall0(SYSCALL_CONDCREATE);
+
+	/* Sanitize result */
 	if (RetVal == 0) {
-		/* Fucked up */
-		return -1;
+		return OsError;
 	}
 
 	/* Store information */
 	*Cond = (Condition_t)RetVal;
-
-	/* Done! */
-	return 0;
+	return OsNoError;
 }
 
-/* Destroys a conditional variable and 
+/* ConditionDestroy
+ * Destroys a conditional variable and 
  * wakes up all remaining sleepers */
-void ConditionDestroy(Condition_t *Cond)
+OsStatus_t 
+ConditionDestroy(
+	_In_ Condition_t *Cond)
 {
-	/* Sanity!! */
-	if (Cond == NULL)
-		return;
+	/* Sanitize all _in_ */
+	if (Cond == NULL) {
+		return OsError;
+	}
 
-	/* Contact OS */
-	Syscall1(SYSCALL_CONDDESTROY, SYSCALL_PARAM(*Cond));
+	/* Redirect the call */
+	return (OsStatus_t)Syscall1(SYSCALL_CONDDESTROY, SYSCALL_PARAM(*Cond));
 }
 
-/* Signal the condition and wakes up a thread
+/* ConditionSignal
+ * Signal the condition and wakes up a thread
  * in the queue for the condition */
-int ConditionSignal(Condition_t *Cond)
+OsStatus_t 
+ConditionSignal(
+	_In_ Condition_t *Cond)
 {
-	/* Sanity!! */
-	if (Cond == NULL)
-		return -1;
+	/* Sanitize all _in_ */
+	if (Cond == NULL) {
+		return OsError;
+	}
 
-	/* Contact OS */
-	Syscall1(SYSCALL_SYNCWAKEONE, SYSCALL_PARAM(*Cond));
-
-	/* Done! */
-	return 0;
+	/* Redirect call */
+	return (OsStatus_t)Syscall1(SYSCALL_SYNCWAKEONE, SYSCALL_PARAM(*Cond));
 }
 
-/* Broadcast a signal to all condition waiters
+/* ConditionBroadcast
+ * Broadcast a signal to all condition waiters
  * and wakes threads up waiting for the cond */
-int ConditionBroadcast(Condition_t *Cond)
+OsStatus_t 
+ConditionBroadcast(
+	_In_ Condition_t *Cond)
 {
-	/* Sanity!! */
-	if (Cond == NULL)
-		return -1;
+	/* Sanitize all _in_ */
+	if (Cond == NULL) {
+		return OsError;
+	}
 
-	/* Contact OS */
-	Syscall1(SYSCALL_SYNCWAKEALL, SYSCALL_PARAM(*Cond));
-
-	/* Done! */
-	return 0;
+	/* Redirect call */
+	return Syscall1(SYSCALL_SYNCWAKEALL, SYSCALL_PARAM(*Cond));
 }
 
-/* Waits for condition to be signaled, and
- * acquires the given mutex, using multiple
+/* ConditionWait
+ * Waits for condition to be signaled, and 
+ * acquires the given mutex, using multiple 
  * mutexes for same condition is undefined behaviour */
-int ConditionWait(Condition_t *Cond, Mutex_t *Mutex)
+OsStatus_t 
+ConditionWait(
+	_In_ Condition_t *Cond,
+	_In_ Mutex_t *Mutex)
 {
-	/* Sanity!! */
-	if (Cond == NULL
-		|| Mutex == NULL)
-		return -1;
+	/* Sanitize all _in_ */
+	if (Cond == NULL || Mutex == NULL) {
+		return OsError;
+	}
 
 	/* Unlock mutex, enter sleep */
 	MutexUnlock(Mutex);
-
-	/* Enter sleep */
-	Syscall2(SYSCALL_SYNCSLEEP, 
-		SYSCALL_PARAM(*Cond), SYSCALL_PARAM(0));
+	Syscall2(SYSCALL_SYNCSLEEP, SYSCALL_PARAM(*Cond), 
+		SYSCALL_PARAM(0));
 
 	/* Ok, we have been woken up, acquire mutex */
 	if (MutexLock(Mutex) == MUTEX_SUCCESS) {
-		return 0;
+		return OsNoError;
 	}
-	else
-		return -1;
+	else {
+		return OsError;
+	}
 }
 
-/* This functions as the ConditionWait,
- * but also has a timeout specified, so that
+/* ConditionWaitTimed
+ * This functions as the ConditionWait, 
+ * but also has a timeout specified, so that 
  * we get waken up if the timeout expires (in seconds) */
-int ConditionWaitTimed(Condition_t *Cond, Mutex_t *Mutex, time_t Expiration)
+OsStatus_t 
+ConditionWaitTimed(
+	_In_ Condition_t *Cond, 
+	_In_ Mutex_t *Mutex, 
+	_In_ time_t Expiration)
 {
 	/* Variables */
-	int RetVal = 0;
+	OsStatus_t Result;
 	time_t Now;
 
 	/* Sanity!! */
-	if (Cond == NULL
-		|| Mutex == NULL)
-		return -1;
+	if (Cond == NULL || Mutex == NULL) {
+		return OsError;
+	}
 
-	/* Calculate timeout */
+	/* Initiate now and unlock mutex */
 	Now = time(NULL);
-
-	/* Unlock mutex, enter sleep */
 	MutexUnlock(Mutex);
 
 	/* Enter sleep */
-	RetVal = Syscall2(SYSCALL_SYNCSLEEP, SYSCALL_PARAM(*Cond),
+	Result = (OsStatus_t)Syscall2(SYSCALL_SYNCSLEEP, SYSCALL_PARAM(*Cond),
 		SYSCALL_PARAM(difftime(Expiration, Now) * 1000));
 
 	/* Did we timeout ? */
-	if (RetVal != 0) {
+	if (Result != OsNoError) {
 		_set_errno(ETIMEDOUT);
-		return -1;
+		return Result;
 	}
-	else
+	else {
 		_set_errno(EOK);
-
+	}
+	
 	/* Ok, we have been woken up, acquire mutex */
 	if (MutexLock(Mutex) == MUTEX_SUCCESS) {
-		return 0;
+		return OsNoError;
 	}
-	else
-		return -1;
+	else {
+		return OsError;
+	}
 }
-
-#endif

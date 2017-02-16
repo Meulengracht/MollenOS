@@ -1,6 +1,6 @@
 /* MollenOS
  *
- * Copyright 2011 - 2016, Philip Meulengracht
+ * Copyright 2011 - 2017, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,72 +16,89 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS - Spinlock Synchronization Functions
+ * MollenOS MCore - Spinlock Support Definitions & Structures
+ * - This header describes the base spinlock-structures, prototypes
+ *   and functionality, refer to the individual things for descriptions
  */
 
-/* Includes */
-#include <os/MollenOS.h>
-#include <os/Syscall.h>
-#include <os/Thread.h>
+/* Includes 
+ * - System */
+#include <os/thread.h>
+#include <os/syscall.h>
 
-/* C Library */
+/* Includes 
+ * - Library */
 #include <stddef.h>
 
-/* Externs to assembly */
-extern int _spinlock_acquire(Spinlock_t *Spinlock);
-extern int _spinlock_test(Spinlock_t *Spinlock);
-extern void _spinlock_release(Spinlock_t *Spinlock);
+/* Externs
+ * Access to platform specifics */
+__EXTERN int _spinlock_acquire(Spinlock_t *Spinlock);
+__EXTERN int _spinlock_test(Spinlock_t *Spinlock);
+__EXTERN void _spinlock_release(Spinlock_t *Spinlock);
 
-/* Spinlock Reset
+/* SpinlockReset
  * This initializes a spinlock
  * handle and sets it to default
  * value (unlocked) */
-void SpinlockReset(Spinlock_t *Lock)
+OsStatus_t 
+SpinlockReset(
+	_In_ Spinlock_t *Lock)
 {
 	/* Sanity */
-	if (Lock == NULL)
-		return;
+	if (Lock == NULL) {
+		return OsError;
+	}
 
 	/* Reset it to 0 */
 	*Lock = SPINLOCK_INIT;
+	return OsNoError;
 }
 
-/* Spinlock Acquire
- * Acquires the spinlock, this
- * is a blocking operation */
-int SpinlockAcquire(Spinlock_t *Lock)
+/* SpinlockAcquire
+ * Acquires the spinlock while busy-waiting
+ * for it to be ready if neccessary */
+OsStatus_t
+SpinlockAcquire(
+	_In_ Spinlock_t *Lock)
+{
+	/* Sanitize params */
+	if (Lock == NULL) {
+		return OsError;
+	}
+
+	/* Redirect to platform specific implementation */
+	return _spinlock_acquire(Lock) == 1 ? OsNoError : OsError;
+}
+
+/* SpinlockTryAcquire
+ * Makes an attempt to acquire the
+ * spinlock without blocking */
+OsStatus_t
+SpinlockTryAcquire(
+	_In_ Spinlock_t *Lock)
 {
 	/* Sanity */
-	if (Lock == NULL)
-		return 0;
+	if (Lock == NULL) {
+		return OsError;
+	}
 
-	/* Deep call */
-	return _spinlock_acquire(Lock);
+	/* Redirect to platform specific implementation */
+	return _spinlock_test(Lock) == 1 ? OsNoError : OsError;
 }
 
-/* Spinlock TryAcquire
- * TRIES to acquires the spinlock, 
- * returns 0 if failed, returns 1
- * if lock were acquired  */
-int SpinlockTryAcquire(Spinlock_t *Lock)
-{
-	/* Sanity */
-	if (Lock == NULL)
-		return 0;
-
-	/* Deep call */
-	return _spinlock_test(Lock);
-}
-
-/* Spinlock Release
+/* SpinlockRelease
  * Releases the spinlock, and lets
  * other threads access the lock */
-void SpinlockRelease(Spinlock_t *Lock)
+OsStatus_t 
+SpinlockRelease(
+	_In_ Spinlock_t *Lock)
 {
 	/* Sanity */
-	if (Lock == NULL)
-		return;
+	if (Lock == NULL) {
+		return OsError;
+	}
 
-	/* Deep call */
+	/* Redirect to platform specific implementation */
 	_spinlock_release(Lock);
+	return OsNoError;
 }

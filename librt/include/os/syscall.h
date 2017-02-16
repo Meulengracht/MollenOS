@@ -1,30 +1,32 @@
 /* MollenOS
-*
-* Copyright 2011 - 2016, Philip Meulengracht
-*
-* This program is free software : you can redistribute it and / or modify
-* it under the terms of the GNU General Public License as published by
-* the Free Software Foundation ? , either version 3 of the License, or
-* (at your option) any later version.
-*
-* This program is distributed in the hope that it will be useful,
-* but WITHOUT ANY WARRANTY; without even the implied warranty of
-* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.See the
-* GNU General Public License for more details.
-*
-* You should have received a copy of the GNU General Public License
-* along with this program.If not, see <http://www.gnu.org/licenses/>.
-*
-*
-* MollenOS Syscall Interface
-*/
+ *
+ * Copyright 2011 - 2017, Philip Meulengracht
+ *
+ * This program is free software : you can redistribute it and / or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation ? , either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.If not, see <http://www.gnu.org/licenses/>.
+ *
+ *
+ * MollenOS MCore - Syscalls Support Definitions & Structures
+ * - This header describes the base syscall-structures, prototypes
+ *   and functionality, refer to the individual things for descriptions
+ */
 
-/* Guard */
-#ifndef _MOLLENOS_SYSCALLS_H_
-#define _MOLLENOS_SYSCALLS_H_
+#ifndef _SYSCALL_INTEFACE_H_
+#define _SYSCALL_INTEFACE_H_
 
-/* Includes */
-#include <crtdefs.h>
+/* Includes 
+ * - Library */
+#include <os/osdefs.h>
 
 /* Definitions */
 #define SYSCALL_PARAM(Arg)			((int)Arg)
@@ -77,49 +79,43 @@
 #define SYSCALL_RPCWAIT				0x30
 #define SYSCALL_EVTEXEC				0x31
 
-/* VFS System Calls */
-#define SYSCALL_VFSOPEN				0x33
-#define SYSCALL_VFSCLOSE			0x34
-#define SYSCALL_VFSREAD				0x35
-#define SYSCALL_VFSWRITE			0x36
-#define SYSCALL_VFSSEEK				0x37
-#define SYSCALL_VFSFLUSH			0x38
-#define SYSCALL_VFSDELETE			0x39
-#define SYSCALL_VFSMOVE				0x3A
-#define SYSCALL_VFSQUERY			0x3B
-#define SYSCALL_VFSPATH				0x3C
-
-#define SYSCALL_DEVQUERY			0x51
-
-#define SYSCALL_ENDBOOT				0x5B
-#define SYSCALL_REGWM				0x5C
-#define SYSCALL_SYSTEMQUERY			0x5D
+#define SYSCALL_ENDBOOT				0x33
+#define SYSCALL_REGWM				0x34
+#define SYSCALL_SYSTEMQUERY			0x35
 
 /* Driver System Calls 
  * - ACPI Support */
-#define SYSCALL_ACPIQUERY			0x65
-#define SYSCALL_ACPIGETTBLHEADER	0x66
-#define SYSCALL_ACPIGETTBLFULL		0x67
-#define SYSCALL_ACPIQUERYIRQ		0x68
+#define SYSCALL_ACPIQUERY			0x3D
+#define SYSCALL_ACPIGETTBLHEADER	0x3E
+#define SYSCALL_ACPIGETTBLFULL		0x3F
+#define SYSCALL_ACPIQUERYIRQ		0x40
 
 /* Driver System Calls 
  * - I/O Support */
-#define SYSCALL_IOSREGISTER			0x6F
-#define SYSCALL_IOSACQUIRE			0x70
-#define SYSCALL_IOSRELEASE			0x71
-#define SYSCALL_IOSDESTROY			0x72
+#define SYSCALL_IOSREGISTER			0x47
+#define SYSCALL_IOSACQUIRE			0x48
+#define SYSCALL_IOSRELEASE			0x49
+#define SYSCALL_IOSDESTROY			0x4A
 
 /* Driver System Calls 
  * - Server Support */
-#define SYSCALL_SERVERREGISTER		0x73
-#define SYSCALL_RESOLVEDRIVER		0x74
+#define SYSCALL_SERVERREGISTER		0x4B
+#define SYSCALL_RESOLVEDRIVER		0x4C
 
 /* Driver System Calls 
  * - Interrupt Support */
-#define SYSCALL_REGISTERIRQ			0x79
-#define SYSCALL_UNREGISTERIRQ		0x7A
-#define SYSCALL_ACKNOWLEDGEIRQ		0x7B
-#define SYSCALL_REGISTERSYSTMR		0x7C
+#define SYSCALL_REGISTERIRQ			0x51
+#define SYSCALL_UNREGISTERIRQ		0x52
+#define SYSCALL_ACKNOWLEDGEIRQ		0x53
+#define SYSCALL_REGISTERSYSTMR		0x54
+
+/* Driver System Calls 
+ * - Buffer Object Support */
+#define SYSCALL_BUFFERCREATE		0x5B
+#define SYSCALL_BUFFERDESTROY		0x5C
+
+ /* Start one of these before function prototypes */
+_CODE_BEGIN
 
 /* Prototypes */
 _MOS_API int Syscall0(int Function);
@@ -129,4 +125,6 @@ _MOS_API int Syscall3(int Function, int Arg0, int Arg1, int Arg2);
 _MOS_API int Syscall4(int Function, int Arg0, int Arg1, int Arg2, int Arg3);
 _MOS_API int Syscall5(int Function, int Arg0, int Arg1, int Arg2, int Arg3, int Arg4);
 
-#endif //!_MOLLENOS_SYSCALLS_H_
+_CODE_END
+
+#endif //!_SYSCALL_INTEFACE_H_

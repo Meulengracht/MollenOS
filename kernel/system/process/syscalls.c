@@ -46,24 +46,23 @@
  * Process Functions   *
  ***********************/
 
-/* Spawns a new process with the
- * given executable + arguments 
- * and returns the id, will return
- * PROCESS_NO_PROCESS if failed */
+/* ScProcessSpawn
+ * Spawns a new process with the given path
+ * and the given arguments, returns UUID_INVALID 
+ * on failure */
 UUId_t ScProcessSpawn(char *Path, char *Arguments)
 {
-	/* Alloc on stack */
+	/* Variables */
 	MCorePhoenixRequest_t Request;
-
-	/* Convert to MSTrings */
 	MString_t *mPath = NULL;
 	MString_t *mArguments = NULL;
 
-	/* Sanity */
-	if (Path == NULL)
+	/* Sanitize the path only */
+	if (Path == NULL) {
 		return PROCESS_NO_PROCESS;
+	}
 
-	/* Allocate the mstrings */
+	/* Allocate the string instances */
 	mPath = MStringCreate(Path, StrUTF8);
 	mArguments = (Arguments == NULL) ? NULL : MStringCreate(Arguments, StrUTF8);
 
@@ -83,16 +82,17 @@ UUId_t ScProcessSpawn(char *Path, char *Arguments)
 	MStringDestroy(mPath);
 
 	/* Only cleanup arguments if not null */
-	if (mArguments != NULL)
+	if (mArguments != NULL) {
 		MStringDestroy(mArguments);
+	}
 
 	/* Done */
 	return Request.AshId;
 }
 
-/* This waits for a child process to 
- * finish executing, and does not wakeup
- * before that */
+/* ScProcessJoin
+ * This waits for a child process to 
+ * finish executing and returns it's exit-code */
 int ScProcessJoin(UUId_t ProcessId)
 {
 	/* Wait for process */
@@ -135,7 +135,8 @@ OsStatus_t ScProcessKill(UUId_t ProcessId)
 		return OsError;
 }
 
-/* Kills the current process with the 
+/* ScProcessExit
+ * Kills the current process with the 
  * error code given as argument */
 OsStatus_t ScProcessExit(int ExitCode)
 {
@@ -176,11 +177,12 @@ OsStatus_t ScProcessExit(int ExitCode)
 	return OsNoError;
 }
 
-/* Queries information about 
+/* ScProcessQuery
+ * Queries information about 
  * the given process id, if called
  * with -1 it queries information
  * about itself */
-int ScProcessQuery(UUId_t ProcessId, AshQueryFunction_t Function, void *Buffer, size_t Length)
+OsStatus_t ScProcessQuery(UUId_t ProcessId, AshQueryFunction_t Function, void *Buffer, size_t Length)
 {
 	/* Variables */
 	MCoreProcess_t *Process = NULL;
@@ -188,7 +190,7 @@ int ScProcessQuery(UUId_t ProcessId, AshQueryFunction_t Function, void *Buffer, 
 	/* Sanity arguments */
 	if (Buffer == NULL
 		|| Length == 0) {
-		return -1;
+		return OsError;
 	}
 
 	/* Lookup process */
@@ -196,11 +198,11 @@ int ScProcessQuery(UUId_t ProcessId, AshQueryFunction_t Function, void *Buffer, 
 
 	/* Sanity, found? */
 	if (Process == NULL) {
-		return -2;
+		return OsError;
 	}
 
 	/* Deep Call */
-	return PhoenixQueryAsh(&Process->Base, Function, Buffer, Length);
+	return (OsStatus_t)PhoenixQueryAsh(&Process->Base, Function, Buffer, Length);
 }
 
 /* Installs a signal handler for 
@@ -238,14 +240,14 @@ int ScProcessSignal(int Signal, Addr_t Handler)
 /* Dispatches a signal to the target process id 
  * It will get handled next time it's selected for execution 
  * so we yield instantly as well. If processid is -1, we select self */
-int ScProcessRaise(UUId_t ProcessId, int Signal)
+OsStatus_t ScProcessRaise(UUId_t ProcessId, int Signal)
 {
 	/* Variables */
 	MCoreProcess_t *Process = NULL;
 
 	/* Sanitize our params */
 	if (Signal > NUMSIGNALS) {
-		return -1;
+		return OsError;
 	}
 
 	/* Lookup process */
@@ -255,16 +257,16 @@ int ScProcessRaise(UUId_t ProcessId, int Signal)
 	 * This should never happen though
 	 * Only I write code that has no process */
 	if (Process == NULL) {
-		return -1;
+		return OsError;
 	}
 
 	/* Simply create a new signal 
 	 * and return it's value */
 	if (SignalCreate(ProcessId, Signal))
-		return -1;
+		return OsError;
 	else {
 		IThreadYield();
-		return 0;
+		return OsNoError;
 	}
 }
 
@@ -272,27 +274,28 @@ int ScProcessRaise(UUId_t ProcessId, int Signal)
 * Shared Object Functions *
 ***************************/
 
-/* Load a shared object given a path 
+/* ScSharedObjectLoad
+ * Load a shared object given a path 
  * path must exists otherwise NULL is returned */
-void *ScSharedObjectLoad(const char *SharedObject)
+Handle_t ScSharedObjectLoad(__CONST char *SharedObject)
 {
 	/* Locate Process */
 	MCoreProcess_t *Process = PhoenixGetProcess(PROCESS_CURRENT);
+	MString_t *Path = NULL;
 	Addr_t BaseAddress = 0;
+	Handle_t Handle = NULL;
 	
-	/* Vars for solving library */
-	void *Handle = NULL;
-
 	/* Sanity */
-	if (Process == NULL)
-		return NULL;
+	if (Process == NULL) {
+		return Handle;
+	}
 
 	/* Construct a mstring */
-	MString_t *Path = MStringCreate((void*)SharedObject, StrUTF8);
+	Path = MStringCreate((void*)SharedObject, StrUTF8);
 
 	/* Resolve Library */
 	BaseAddress = Process->Base.NextLoadingAddress;
-	Handle = PeResolveLibrary(Process->Base.Executable, NULL, Path, &BaseAddress);
+	Handle = (Handle_t)PeResolveLibrary(Process->Base.Executable, NULL, Path, &BaseAddress);
 	Process->Base.NextLoadingAddress = BaseAddress;
 
 	/* Cleanup Buffers */
@@ -302,13 +305,14 @@ void *ScSharedObjectLoad(const char *SharedObject)
 	return Handle;
 }
 
-/* Load a function-address given an shared object
+/* ScSharedObjectGetFunction
+ * Load a function-address given an shared object
  * handle and a function name, function must exist
  * otherwise null is returned */
-Addr_t ScSharedObjectGetFunction(void *Handle, const char *Function)
+Addr_t ScSharedObjectGetFunction(Handle_t Handle, __CONST char *Function)
 {
 	/* Validate */
-	if (Handle == NULL
+	if (Handle == HANDLE_INVALID
 		|| Function == NULL)
 		return 0;
 
@@ -318,59 +322,62 @@ Addr_t ScSharedObjectGetFunction(void *Handle, const char *Function)
 
 /* Unloads a valid shared object handle
  * returns 0 on success */
-int ScSharedObjectUnload(void *Handle)
+OsStatus_t ScSharedObjectUnload(Handle_t Handle)
 {
 	/* Locate Process */
 	MCoreProcess_t *Process = PhoenixGetProcess(PROCESS_CURRENT);
 
 	/* Sanity */
-	if (Process == NULL)
-		return -1;
+	if (Process == NULL || Handle == HANDLE_INVALID) {
+		return OsError;
+	}
 
 	/* Do the unload */
 	PeUnloadLibrary(Process->Base.Executable, (MCorePeFile_t*)Handle);
 
 	/* Done! */
-	return 0;
+	return OsNoError;
 }
 
 /***********************
 * Threading Functions  *
 ***********************/
 
-/* Creates a new thread bound to 
- * the calling process, with the given
- * entry point and arguments */
-int ScThreadCreate(ThreadEntry_t Entry, void *Data, int Flags)
+/* ScThreadCreate
+ * Creates a new thread bound to 
+ * the calling process, with the given entry point and arguments */
+UUId_t ScThreadCreate(ThreadEntry_t Entry, void *Data, Flags_t Flags)
 {
 	/* Sanity */
-	if (Entry == NULL)
-		return -1;
+	if (Entry == NULL) {
+		return UUID_INVALID;
+	}
 
 	/* Don't use flags for now */
 	_CRT_UNUSED(Flags);
 
 	/* Redirect call with flags inheritted from
 	 * the current thread, we don't spawn threads in other priv-modes */
-	return (int)ThreadingCreateThread(NULL, Entry, Data, 
+	return ThreadingCreateThread(NULL, Entry, Data, 
 		ThreadingGetCurrentMode() | THREADING_INHERIT);
 }
 
-/* Exits the current thread and 
+/* ScThreadExit
+ * Exits the current thread and 
  * instantly yields control to scheduler */
-int ScThreadExit(int ExitCode)
+OsStatus_t ScThreadExit(int ExitCode)
 {
 	/* Deep Call */
 	ThreadingExitThread(ExitCode);
 
 	/* We will never reach this 
 	 * statement */
-	return 0;
+	return OsNoError;
 }
 
-/* Thread join, waits for a given
- * thread to finish executing, and returns it's exit code, works 
- * like processjoin. Must be in same process as asking thread */
+/* ScThreadJoin
+ * Thread join, waits for a given
+ * thread to finish executing, and returns it's exit code */
 int ScThreadJoin(UUId_t ThreadId)
 {
 	/* Lookup process information */
@@ -378,8 +385,9 @@ int ScThreadJoin(UUId_t ThreadId)
 
 	/* Sanity */
 	if (ThreadingGetThread(ThreadId) == NULL
-		|| ThreadingGetThread(ThreadId)->AshId != CurrentPid)
+		|| ThreadingGetThread(ThreadId)->AshId != CurrentPid) {
 		return -1;
+	}
 
 	/* Simply deep call again 
 	 * the function takes care 
@@ -387,107 +395,98 @@ int ScThreadJoin(UUId_t ThreadId)
 	return ThreadingJoinThread(ThreadId);
 }
 
-/* Thread kill, kills the given thread
- * id, must belong to same process as the
- * thread that asks. */
-int ScThreadKill(UUId_t ThreadId)
+/* ScThreadKill
+ * Kills the thread with the given id, owner
+ * must be same process */
+OsStatus_t ScThreadKill(UUId_t ThreadId)
 {
 	/* Lookup process information */
 	UUId_t CurrentPid = ThreadingGetCurrentThread(ApicGetCpu())->AshId;
 
 	/* Sanity */
 	if (ThreadingGetThread(ThreadId) == NULL
-		|| ThreadingGetThread(ThreadId)->AshId != CurrentPid)
-		return -1;
+		|| ThreadingGetThread(ThreadId)->AshId != CurrentPid) {
+		return OsError;
+	}
 
 	/* Ok, we can kill it */
 	ThreadingKillThread(ThreadId);
 
 	/* Done! */
-	return 0;
+	return OsNoError;
 }
 
-/* Thread sleep,
+/* ScThreadSleep
  * Sleeps the current thread for the
  * given milliseconds. */
-int ScThreadSleep(size_t MilliSeconds)
+OsStatus_t ScThreadSleep(size_t MilliSeconds)
 {
-	/* Deep Call */
+	/* Redirect the call */
 	SleepMs(MilliSeconds);
-
-	/* Done, this call never fails */
-	return 0;
+	return OsNoError;
 }
 
-/* Thread get current id
- * Get's the current thread id */
-int ScThreadGetCurrentId(void)
+/* ScThreadGetCurrentId
+ * Retrieves the current thread id */
+UUId_t ScThreadGetCurrentId(void)
 {
-	/* Deep Call */
-	return (int)ThreadingGetCurrentThreadId();
+	return ThreadingGetCurrentThreadId();
 }
 
-/* This yields the current thread 
+/* ScThreadYield
+ * This yields the current thread 
  * and gives cpu time to another thread */
-int ScThreadYield(void)
+OsStatus_t ScThreadYield(void)
 {
-	/* Deep Call */
+	/* Redirect the call */
 	IThreadYield();
-
-	/* Done */
-	return 0;
+	return OsNoError;
 }
 
 /***********************
 * Synch Functions      *
 ***********************/
 
-/* Create a new shared handle 
- * that is unique for a condition
- * variable */
+/* ScConditionCreate
+ * Create a new shared handle 
+ * that is unique for a condition variable */
 Addr_t ScConditionCreate(void)
 {
-	/* Allocate an int or smthing */
+	/* Allocate a new unique address */
 	return (Addr_t)kmalloc(sizeof(int));
 }
 
-/* Destroys a shared handle
+/* ScConditionDestroy
+ * Destroys a shared handle
  * for a condition variable */
-int ScConditionDestroy(Addr_t *Handle)
+OsStatus_t ScConditionDestroy(Addr_t *Handle)
 {
-	/* Free handle */
 	kfree(Handle);
-
-	/* Done */
-	return 0;
+	return OsNoError;
 }
 
-/* Signals a handle for wakeup 
+/* ScSyncWakeUp
+ * Signals a handle for wakeup 
  * This is primarily used for condition
  * variables and semaphores */
-int ScSyncWakeUp(Addr_t *Handle)
+OsStatus_t ScSyncWakeUp(Addr_t *Handle)
 {
-	/* Deep Call */
-	return SchedulerWakeupOneThread(Handle);
+	return SchedulerWakeupOneThread(Handle) == 1 ? OsNoError : OsError;
 }
 
 /* Signals a handle for wakeup all
  * This is primarily used for condition
  * variables and semaphores */
-int ScSyncWakeUpAll(Addr_t *Handle)
+OsStatus_t ScSyncWakeUpAll(Addr_t *Handle)
 {
-	/* Deep Call */
 	SchedulerWakeupAllThreads(Handle);
-
-	/* Done! */
-	return 0;
+	return OsNoError;
 }
 
-/* Waits for a signal relating 
- * to the above function, this
- * function uses a timeout. Returns -1
- * if we timed-out, otherwise returns 0 */
-int ScSyncSleep(Addr_t *Handle, size_t Timeout)
+/* ScSyncSleep
+ * Waits for a signal relating to the above function, this
+ * function uses a timeout. Returns OsError on timed-out */
+OsStatus_t ScSyncSleep(Addr_t *Handle, size_t Timeout)
 {
 	/* Get current thread */
 	MCoreThread_t *Current = ThreadingGetCurrentThread(ApicGetCpu());
@@ -497,20 +496,21 @@ int ScSyncSleep(Addr_t *Handle, size_t Timeout)
 	IThreadYield();
 
 	/* Sanity */
-	if (Timeout != 0
-		&& Current->Sleep == 0)
-		return -1;
-	else
-		return 0;
+	if (Timeout != 0 && Current->Sleep == 0) {
+		return OsError;
+	}
+	else {
+		return OsNoError;
+	}
 }
 
 /***********************
 * Memory Functions     *
 ***********************/
 
-/* Allows a process to allocate memory
- * from the userheap, it takes a size and 
- * allocation flags which describe the type of allocation */
+/* ScMemoryAllocate
+ * Allows a process to allocate memory
+ * from the userheap, it takes a size and allocation flags */
 Addr_t ScMemoryAllocate(size_t Size, Flags_t Flags)
 {
 	/* Locate the current running process */
@@ -519,8 +519,9 @@ Addr_t ScMemoryAllocate(size_t Size, Flags_t Flags)
 
 	/* Sanitize the process we looked up
 	 * we want it to exist of course */
-	if (Ash == NULL)
+	if (Ash == NULL) {
 		return (Addr_t)-1;
+	}
 	
 	/* Now do the allocation in the user-bitmap 
 	 * since memory is managed in userspace for speed */
@@ -540,33 +541,35 @@ Addr_t ScMemoryAllocate(size_t Size, Flags_t Flags)
 
 /* Free's previous allocated memory, given an address
  * and a size (though not needed for now!) */
-int ScMemoryFree(Addr_t Address, size_t Size)
+OsStatus_t ScMemoryFree(Addr_t Address, size_t Size)
 {
 	/* Locate Process */
 	MCoreAsh_t *Ash = PhoenixGetAsh(PHOENIX_CURRENT);
 
 	/* Sanitize the process we looked up
 	 * we want it to exist of course */
-	if (Ash == NULL)
-		return (Addr_t)-1;
+	if (Ash == NULL) {
+		return OsError;
+	}
 
 	/* Now do the deallocation in the user-bitmap 
 	 * since memory is managed in userspace for speed */
 	BitmapFreeAddress(Ash->Heap, Address, Size);
 
 	/* Done */
-	return 0;
+	return OsNoError;
 }
 
 /* Queries information about a chunk of memory 
  * and returns allocation information or stats 
  * depending on query function */
-int ScMemoryQuery(void)
+OsStatus_t ScMemoryQuery(void)
 {
-	return 0;
+	return OsNoError;
 }
 
-/* Share memory with a process */
+/* ScMemoryShare
+ * Share a region of memory with the given process */
 Addr_t ScMemoryShare(UUId_t Target, Addr_t Address, size_t Size)
 {
 	/* Locate the current running process */
@@ -574,10 +577,10 @@ Addr_t ScMemoryShare(UUId_t Target, Addr_t Address, size_t Size)
 	size_t NumBlocks, i;
 
 	/* Sanity */
-	if (Ash == NULL
-		|| Address == 0
-		|| Size == 0)
+	if (Ash == NULL || Address == 0
+		|| Size == 0) {
 		return 0;
+	}
 
 	/* Start out by allocating memory 
 	 * in target process's shared memory space */
@@ -586,8 +589,9 @@ Addr_t ScMemoryShare(UUId_t Target, Addr_t Address, size_t Size)
 
 	/* Sanity -> If we cross a page boundary */
 	if (((Address + Size) & PAGE_MASK)
-		!= (Address & PAGE_MASK))
+		!= (Address & PAGE_MASK)) {
 		NumBlocks++;
+	}
 
 	/* Sanity */
 	assert(Shm != 0);
@@ -618,24 +622,28 @@ Addr_t ScMemoryShare(UUId_t Target, Addr_t Address, size_t Size)
 	return Shm + (Address & ATTRIBUTE_MASK);
 }
 
-/* Unshare memory with a process */
-int ScMemoryUnshare(UUId_t Target, Addr_t TranslatedAddress, size_t Size)
+/* ScMemoryUnshare
+ * Unshare a previously shared region of 
+ * memory with the given process */
+OsStatus_t ScMemoryUnshare(UUId_t Target, Addr_t TranslatedAddress, size_t Size)
 {
 	/* Locate the current running process */
 	MCoreAsh_t *Ash = PhoenixGetAsh(Target);
 	size_t NumBlocks, i;
 
 	/* Sanity */
-	if (Ash == NULL)
-		return -1;
+	if (Ash == NULL) {
+		return OsError;
+	}
 
 	/* Calculate */
 	NumBlocks = DIVUP(Size, PAGE_SIZE);
 
 	/* Sanity -> If we cross a page boundary */
 	if (((TranslatedAddress + Size) & PAGE_MASK)
-		!= (TranslatedAddress & PAGE_MASK))
+		!= (TranslatedAddress & PAGE_MASK)) {
 		NumBlocks++;
+	}
 
 	/* Start out by unmapping their 
 	 * memory in their address space */
@@ -650,17 +658,15 @@ int ScMemoryUnshare(UUId_t Target, Addr_t TranslatedAddress, size_t Size)
 
 	/* Now unallocate it in their bitmap */
 	BitmapFreeAddress(Ash->Shm, TranslatedAddress, Size);
-
-	/* Done */
-	return 0;
+	return OsNoError;
 }
 
 /***********************
 * IPC Functions        *
 ***********************/
-#include <InputManager.h>
 
-/* Opens a new pipe for the calling Ash process
+/* ScPipeOpen
+ * Opens a new pipe for the calling Ash process
  * and allows communication to this port from other
  * processes */
 OsStatus_t ScPipeOpen(int Port, Flags_t Flags)
@@ -670,7 +676,8 @@ OsStatus_t ScPipeOpen(int Port, Flags_t Flags)
 	return PhoenixOpenAshPipe(PhoenixGetAsh(PHOENIX_CURRENT), Port, Flags);
 }
 
-/* Closes an existing pipe on a given port and
+/* ScPipeClose
+ * Closes an existing pipe on a given port and
  * shutdowns any communication on that port */
 OsStatus_t ScPipeClose(int Port)
 {
@@ -679,7 +686,8 @@ OsStatus_t ScPipeClose(int Port)
 	return PhoenixCloseAshPipe(PhoenixGetAsh(PHOENIX_CURRENT), Port);
 }
 
-/* Get the top message for this process
+/* ScPipeRead
+ * Get the top message for this process
  * and consume the message, if no message 
  * is available, this function will block untill 
  * a message is available */
@@ -700,7 +708,8 @@ OsStatus_t ScPipeRead(int Port, uint8_t *Container, size_t Length, int Peek)
 	return (PipeRead(Pipe, Container, Length, Peek) > 0) ? OsNoError : OsError;
 }
 
-/* Sends a message to another process, 
+/* ScPipeWrite
+ * Sends a message to another process, 
  * so far this system call is made in the fashion
  * that the recieving process must have room in their
  * message queue... dunno */
@@ -727,10 +736,11 @@ OsStatus_t ScPipeWrite(UUId_t AshId, int Port, uint8_t *Message, size_t Length)
 	return (PipeWrite(Pipe, Message, Length) > 0) ? OsNoError : OsError;
 }
 
-/* This is a bit of a tricky synchronization method
+/* ScIpcSleep
+ * This is a bit of a tricky synchronization method
  * and should always be used with care and WITH the timeout
  * since it could hang a process */
-int ScIpcSleep(size_t Timeout)
+OsStatus_t ScIpcSleep(size_t Timeout)
 {
 	/* Locate Process */
 	MCoreAsh_t *Ash = PhoenixGetAsh(PHOENIX_CURRENT);
@@ -738,8 +748,9 @@ int ScIpcSleep(size_t Timeout)
 	/* Should never happen this 
 	 * Only threads associated with processes
 	 * can call this */
-	if (Ash == NULL)
-		return -1;
+	if (Ash == NULL) {
+		return OsError;
+	}
 
 	/* Sleep on process handle */
 	SchedulerSleepThread((Addr_t*)Ash, Timeout);
@@ -747,29 +758,31 @@ int ScIpcSleep(size_t Timeout)
 
 	/* Now we reach this when the timeout is 
 	 * is triggered or another process wakes us */
-	return 0;
+	return OsNoError;
 }
 
-/* This must be used in conjuction with the above function
+/* ScIpcWake
+ * This must be used in conjuction with the above function
  * otherwise this function has no effect, this is used for
  * very limited IPC synchronization */
-int ScIpcWake(UUId_t Target)
+OsStatus_t ScIpcWake(UUId_t Target)
 {
 	/* Locate Process */
 	MCoreAsh_t *Ash = PhoenixGetAsh(Target);
 
 	/* Sanity */
-	if (Ash == NULL)
-		return -1;
+	if (Ash == NULL) {
+		return OsError;
+	}
 
 	/* Send a wakeup signal */
 	SchedulerWakeupOneThread((Addr_t*)Ash);
 
 	/* Now we should have waked up the waiting process */
-	return 0;
+	return OsNoError;
 }
 
-/* ScRpcResponse (System Call)
+/* ScRpcResponse
  * Waits for IPC RPC request to finish 
  * by polling the default pipe for a rpc-response */
 OsStatus_t ScRpcResponse(MRemoteCall_t *Rpc)
@@ -802,7 +815,7 @@ OsStatus_t ScRpcResponse(MRemoteCall_t *Rpc)
 	return OsNoError;
 }
 
-/* ScRpcExecute (System Call)
+/* ScRpcExecute
  * Executes an IPC RPC request to the
  * given process and optionally waits for
  * a reply/response */
@@ -1504,7 +1517,8 @@ OsStatus_t ScAcpiQueryInterrupt(DevInfo_t Bus, DevInfo_t Device, int Pin,
 	return (*Interrupt == INTERRUPT_NONE) ? OsError : OsNoError;
 }
  
-/* Creates and registers a new IoSpace with our
+/* ScIoSpaceRegister
+ * Creates and registers a new IoSpace with our
  * architecture sub-layer, it must support io-spaces 
  * or atleast dummy-implementation */
 OsStatus_t ScIoSpaceRegister(DeviceIoSpace_t *IoSpace)
@@ -1521,7 +1535,8 @@ OsStatus_t ScIoSpaceRegister(DeviceIoSpace_t *IoSpace)
 	return IoSpaceRegister(IoSpace);
 }
 
-/* Tries to claim a given io-space, only one driver
+/* ScIoSpaceAcquire
+ * Tries to claim a given io-space, only one driver
  * can claim a single io-space at a time, to avoid
  * two drivers using the same device */
 OsStatus_t ScIoSpaceAcquire(DeviceIoSpace_t *IoSpace)
@@ -1537,7 +1552,8 @@ OsStatus_t ScIoSpaceAcquire(DeviceIoSpace_t *IoSpace)
 	return IoSpaceAcquire(IoSpace);
 }
 
-/* Tries to release a given io-space, only one driver
+/* ScIoSpaceRelease
+ * Tries to release a given io-space, only one driver
  * can claim a single io-space at a time, to avoid
  * two drivers using the same device */
 OsStatus_t ScIoSpaceRelease(DeviceIoSpace_t *IoSpace)
@@ -1547,7 +1563,8 @@ OsStatus_t ScIoSpaceRelease(DeviceIoSpace_t *IoSpace)
 	return IoSpaceRelease(IoSpace);
 }
 
-/* Destroys the io-space with the given id and removes
+/* ScIoSpaceDestroy
+ * Destroys the io-space with the given id and removes
  * it from the io-manage in the operation system, it
  * can only be removed if its not already acquired */
 OsStatus_t ScIoSpaceDestroy(UUId_t IoSpace)
@@ -1684,7 +1701,6 @@ UUId_t ScRegisterInterrupt(MCoreInterrupt_t *Interrupt, Flags_t Flags)
  * all events of OnInterrupt */
 OsStatus_t ScUnregisterInterrupt(UUId_t Source)
 {
-	/* Just redirect the call */
 	return InterruptUnregister(Source);
 }
 
@@ -1694,7 +1710,6 @@ OsStatus_t ScUnregisterInterrupt(UUId_t Source)
  * to occur for the given driver */
 OsStatus_t ScAcknowledgeInterrupt(UUId_t Source)
 {
-	/* Just redirect the call */
 	return InterruptAcknowledge(Source);
 }
 
@@ -1704,7 +1719,6 @@ OsStatus_t ScAcknowledgeInterrupt(UUId_t Source)
  * can always keep track of timers */
 OsStatus_t ScRegisterSystemTimer(UUId_t Interrupt, size_t NsPerTick)
 {
-	/* Redirect the call to timer-management */
 	return TimersRegister(Interrupt, NsPerTick);
 }
 
@@ -1779,7 +1793,7 @@ int NoOperation(void)
 }
 
 /* Syscall Table */
-Addr_t GlbSyscallTable[141] =
+Addr_t GlbSyscallTable[101] =
 {
 	/* Kernel Log */
 	DefineSyscall(LogDebug),
@@ -1844,53 +1858,7 @@ Addr_t GlbSyscallTable[141] =
 	DefineSyscall(ScEvtExecute),
 	DefineSyscall(NoOperation),
 
-	/* Vfs Functions - 51 */
-	DefineSyscall(ScVfsOpen),
-	DefineSyscall(ScVfsClose),
-	DefineSyscall(ScVfsRead),
-	DefineSyscall(ScVfsWrite),
-	DefineSyscall(ScVfsSeek),
-	DefineSyscall(ScVfsFlush),
-	DefineSyscall(ScVfsDelete),
-	DefineSyscall(ScVfsMove),
-	DefineSyscall(ScVfsQuery),
-	DefineSyscall(ScVfsResolvePath),
-	DefineSyscall(NoOperation),
-	DefineSyscall(NoOperation),
-	DefineSyscall(NoOperation),
-	DefineSyscall(NoOperation),
-	DefineSyscall(NoOperation),
-	DefineSyscall(NoOperation),
-	DefineSyscall(NoOperation),
-	DefineSyscall(NoOperation),
-	DefineSyscall(NoOperation),
-	DefineSyscall(NoOperation),
-
-	/* Timer Functions - 71 */
-	DefineSyscall(NoOperation),
-	DefineSyscall(NoOperation),
-	DefineSyscall(NoOperation),
-	DefineSyscall(NoOperation),
-	DefineSyscall(NoOperation),
-	DefineSyscall(NoOperation),
-	DefineSyscall(NoOperation),
-	DefineSyscall(NoOperation),
-	DefineSyscall(NoOperation),
-	DefineSyscall(NoOperation),
-
-	/* Device Functions - 81 */
-	DefineSyscall(NoOperation),
-	DefineSyscall(NoOperation),
-	DefineSyscall(NoOperation),
-	DefineSyscall(NoOperation),
-	DefineSyscall(NoOperation),
-	DefineSyscall(NoOperation),
-	DefineSyscall(NoOperation),
-	DefineSyscall(NoOperation),
-	DefineSyscall(NoOperation),
-	DefineSyscall(NoOperation),
-
-	/* System Functions - 91 */
+	/* System Functions - 51 */
 	DefineSyscall(ScEndBootSequence),
 	DefineSyscall(ScRegisterWindowManager),
 	DefineSyscall(ScEnvironmentQuery),
@@ -1902,7 +1870,7 @@ Addr_t GlbSyscallTable[141] =
 	DefineSyscall(NoOperation),
 	DefineSyscall(NoOperation),
 
-	/* Driver Functions - 101 
+	/* Driver Functions - 61 
 	 * - ACPI Support */
 	DefineSyscall(ScAcpiQueryStatus),
 	DefineSyscall(ScAcpiQueryTableHeader),
@@ -1915,14 +1883,14 @@ Addr_t GlbSyscallTable[141] =
 	DefineSyscall(NoOperation),
 	DefineSyscall(NoOperation),
 
-	/* Driver Functions - 111 
+	/* Driver Functions - 71 
 	 * - I/O Support */
 	DefineSyscall(ScIoSpaceRegister),
 	DefineSyscall(ScIoSpaceAcquire),
 	DefineSyscall(ScIoSpaceRelease),
 	DefineSyscall(ScIoSpaceDestroy),
 
-	/* Driver Functions - 115
+	/* Driver Functions - 75
 	 * - Support */
 	DefineSyscall(ScRegisterAliasId),
 	DefineSyscall(ScLoadDriver),
@@ -1931,7 +1899,7 @@ Addr_t GlbSyscallTable[141] =
 	DefineSyscall(NoOperation),
 	DefineSyscall(NoOperation),
 
-	/* Driver Functions - 121
+	/* Driver Functions - 81
 	 * - Interrupt Support */
 	DefineSyscall(ScRegisterInterrupt),
 	DefineSyscall(ScUnregisterInterrupt),
@@ -1944,7 +1912,7 @@ Addr_t GlbSyscallTable[141] =
 	DefineSyscall(NoOperation),
 	DefineSyscall(NoOperation),
 
-	/* Driver Functions - 131
+	/* Driver Functions - 91
 	 * - Buffer Object Support */
 	DefineSyscall(ScBufferCreate),
 	DefineSyscall(ScBufferDestroy),

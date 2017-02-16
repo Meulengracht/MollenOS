@@ -1,74 +1,89 @@
 /* MollenOS
-*
-* Copyright 2011 - 2016, Philip Meulengracht
-*
-* This program is free software : you can redistribute it and / or modify
-* it under the terms of the GNU General Public License as published by
-* the Free Software Foundation ? , either version 3 of the License, or
-* (at your option) any later version.
-*
-* This program is distributed in the hope that it will be useful,
-* but WITHOUT ANY WARRANTY; without even the implied warranty of
-* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.See the
-* GNU General Public License for more details.
-*
-* You should have received a copy of the GNU General Public License
-* along with this program.If not, see <http://www.gnu.org/licenses/>.
-*
-*
-* MollenOS MCore - SHA1 Implementation
-*/
+ *
+ * Copyright 2011 - 2017, Philip Meulengracht
+ *
+ * This program is free software : you can redistribute it and / or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation ? , either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.If not, see <http://www.gnu.org/licenses/>.
+ *
+ *
+ * MollenOS MCore - SHA1 Support Definitions & Structures
+ * - This header describes the base sha1-structures, prototypes
+ *   and functionality, refer to the individual things for descriptions
+ */
 
-#ifndef _MCORE_SHA1_H_
-#define _MCORE_SHA1_H_
+#ifndef _SHA1_INTERFACE_H_
+#define _SHA1_INTERFACE_H_
 
-/* Cpp Guard */
-#ifdef __cplusplus
-extern "C"
-{
-#endif
+/* Includes
+ * - System */
+#include <os/osdefs.h>
 
-/* Definitions */
+/* SHA1 Definitions 
+ * Fixed constants for calculating the SHA1 */
 #define SHA1_DIGEST_SIZE 20
 
-/* Structure describing the 
-	* sha context */
+/* The SHA1 Context
+ * Structure describing the needed
+ * variables for calculating the SHA1 */
 typedef struct {
-	/* Handsoff? */
-	int handsoff;
-
-	/* Sha1 Context State */
-	uint32_t state[5];
-
-	/* Count buffer */
-	uint32_t count[2];
-
-	/* Data buffer */
-	uint8_t buffer[64];
-
+	int					handsoff;
+	uint32_t			state[5];
+	uint32_t			count[2];
+	uint8_t				buffer[64];
 } Sha1Context_t;
 
-/* Initializes a new SHA1 context 
+/* Start one of these before function prototypes */
+_CODE_BEGIN
+
+/* Sha1Init
+ * Initializes a new SHA1 context 
  * using either an internal buffer for 
  * hashing by setting handsoff to 1, otherwise
  * it will destroy the given data buffers */
-_MOS_API void Sha1Init(Sha1Context_t *Context, int Handsoff);
+_MOS_API 
+OsStatus_t
+Sha1Init(
+	_In_ Sha1Context_t *Context, 
+	_In_ int Handsoff);
 
-/* Add data to the given SHA1 context,
+/* Sha1Add
+ * Add data to the given SHA1 context,
  * this is the function for using the context */
-_MOS_API void Sha1Add(Sha1Context_t *Context, const uint8_t *Data, const size_t Length);
+_MOS_API 
+OsStatus_t
+Sha1Add(
+	_In_ Sha1Context_t *Context, 
+	_In_ __CONST uint8_t *Data,
+	_In_ __CONST size_t Length);
 
-/* Finalizes the Sha1 context and outputs the
+/* Sha1Finalize
+ * Finalizes the Sha1 context and outputs the
  * result to a digest buffer the user must provide */
-_MOS_API void Sha1Finalize(Sha1Context_t *Context, uint8_t Digest[SHA1_DIGEST_SIZE]);
+_MOS_API 
+OsStatus_t
+Sha1Finalize(
+	_In_ Sha1Context_t *Context, 
+	_Out_ uint8_t Digest[SHA1_DIGEST_SIZE]);
 
-/* Converts the digest buffer to a hex-string 
+/* Sha1DigestToHex
+ * Converts the digest buffer to a hex-string 
  * by calling this function */
-_MOS_API void Sha1DigestToHex(const uint8_t Digest[SHA1_DIGEST_SIZE], char *Output);
+_MOS_API 
+OsStatus_t
+Sha1DigestToHex(
+	_In_ uint8_t Digest[SHA1_DIGEST_SIZE], 
+	_Out_ char *Output);
 
-/* Cpp end Guard */
-#ifdef __cplusplus
-}
-#endif
+_CODE_END
 
-#endif //!_MCORE_SHA1_H_
+#endif //!_SHA1_INTERFACE_H_

@@ -1,59 +1,66 @@
 /* MollenOS
-*
-* Copyright 2011 - 2016, Philip Meulengracht
-*
-* This program is free software : you can redistribute it and / or modify
-* it under the terms of the GNU General Public License as published by
-* the Free Software Foundation ? , either version 3 of the License, or
-* (at your option) any later version.
-*
-* This program is distributed in the hope that it will be useful,
-* but WITHOUT ANY WARRANTY; without even the implied warranty of
-* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.See the
-* GNU General Public License for more details.
-*
-* You should have received a copy of the GNU General Public License
-* along with this program.If not, see <http://www.gnu.org/licenses/>.
-*
-*
-* MollenOS - Mutex Synchronization Functions
-*/
+ *
+ * Copyright 2011 - 2017, Philip Meulengracht
+ *
+ * This program is free software : you can redistribute it and / or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation ? , either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.If not, see <http://www.gnu.org/licenses/>.
+ *
+ *
+ * MollenOS MCore - Mutex Support Definitions & Structures
+ * - This header describes the base mutex-structures, prototypes
+ *   and functionality, refer to the individual things for descriptions
+ */
 
-/* Includes */
-#include <os/MollenOS.h>
-#include <os/Syscall.h>
-#include <os/Thread.h>
+ /* Includes 
+  * - System */
+#include <os/thread.h>
+#include <os/syscall.h>
 
-/* C Library */
+/* Includes
+ * - Library */
 #include <stddef.h>
 #include <stdlib.h>
 #include <time.h>
 
-#ifdef LIBC_KERNEL
-void __MutexLibCEmpty(void)
-{
-}
-#else
-
-/* Instantiates a new mutex of the given
+/* MutexCreate
+ * Instantiates a new mutex of the given
  * type, it allocates all neccessary resources
  * as well. */
-Mutex_t *MutexCreate(int Flags)
+Mutex_t *
+MutexCreate(
+	_In_ Flags_t Flags)
 {
 	/* Allocate a new mutex instance */
 	Mutex_t* Mutex = malloc(sizeof(Mutex_t));
 
 	/* Reuse the construct
 	 * function for cleverness points */
-	MutexConstruct(Mutex, Flags);
+	if (MutexConstruct(Mutex, Flags) != OsNoError) {
+		free(Mutex);
+		return NULL;
+	}
 
 	/* Done, return the mutex */
 	return Mutex;
 }
 
-/* Instantiates a new mutex of the given
+/* MutexConstruct
+ * Instantiates a new mutex of the given
  * type, using pre-allocated memory */
-void MutexConstruct(Mutex_t *Mutex, int Flags)
+OsStatus_t 
+MutexConstruct(
+	_In_ Mutex_t *Mutex, 
+	_In_ Flags_t Flags)
 {
 	/* Reset */
 	Mutex->Flags = Flags;
@@ -61,24 +68,29 @@ void MutexConstruct(Mutex_t *Mutex, int Flags)
 	Mutex->Blocks = 0;
 
 	/* Reset spinlock */
-	SpinlockReset(&Mutex->Lock);
+	return SpinlockReset(&Mutex->Lock);
 }
 
-/* Destroys a mutex and frees resources
+/* MutexDestruct
+ * Destroys a mutex and frees resources
  * allocated by the mutex */
-void MutexDestruct(Mutex_t *Mutex)
+OsStatus_t
+MutexDestruct(
+	_In_ Mutex_t *Mutex)
 {
-	/* Make sure spinlock is released */
+	/* Make sure spinlock is released 
+	 * and free handle */
 	SpinlockRelease(&Mutex->Lock);
-
-	/* Free the mutex */
 	free(Mutex);
+	return OsNoError;
 }
 
-/* Tries to lock a mutex, if the
- * mutex is locked, this returns
- * MUTEX_BUSY, otherwise MUTEX_SUCCESS */
-int MutexTryLock(Mutex_t *Mutex)
+/* MutexTryLock
+ * Tries to lock a mutex, if the mutex is locked, this returns 
+ * MUTEX_BUSY, otherwise MUTEX_SUCCESS */ 
+int 
+MutexTryLock(
+	_In_ Mutex_t *Mutex)
 {
 	/* If this thread already holds the mutex,
 	 * increase ref count, but only if we're recursive */
@@ -91,8 +103,9 @@ int MutexTryLock(Mutex_t *Mutex)
 			Mutex->Blocks++;
 			return MUTEX_SUCCESS;
 		}
-		else
+		else {
 			return MUTEX_BUSY;
+		}
 	}
 
 	/* Try to acquire the lock */
@@ -108,9 +121,11 @@ int MutexTryLock(Mutex_t *Mutex)
 	return MUTEX_SUCCESS;
 }
 
-/* Lock a mutex, this is a
- * blocking call */
-int MutexLock(Mutex_t *Mutex)
+/* MutexLock
+ * Lock a mutex, this is a blocking call */
+int 
+MutexLock(
+	_In_ Mutex_t *Mutex)
 {
 	/* If this thread already holds the mutex,
 	* increase ref count, but only if we're recursive */
@@ -123,8 +138,9 @@ int MutexLock(Mutex_t *Mutex)
 			Mutex->Blocks++;
 			return MUTEX_SUCCESS;
 		}
-		else
+		else {
 			return MUTEX_BUSY;
+		}
 	}
 
 	/* Acquire the lock */
@@ -138,10 +154,14 @@ int MutexLock(Mutex_t *Mutex)
 	return MUTEX_SUCCESS;
 }
 
-/* Tries to lock a mutex, with a timeout
+/* MutexTimedLock
+ * Tries to lock a mutex, with a timeout
  * which means it'll keep retrying locking
- * for the given time (Seconds) */
-int MutexTimedLock(Mutex_t *Mutex, time_t Expiration)
+ * untill the time has passed */
+int
+MutexTimedLock(
+	_In_ Mutex_t *Mutex, 
+	_In_ time_t Expiration)
 {
 	/* If this thread already holds the mutex,
 	* increase ref count, but only if we're recursive */
@@ -154,19 +174,19 @@ int MutexTimedLock(Mutex_t *Mutex, time_t Expiration)
 			Mutex->Blocks++;
 			return MUTEX_SUCCESS;
 		}
-		else
+		else {
 			return MUTEX_BUSY;
+		}
 	}
 
 	/* Wait for mutex to become free */
 	while (SpinlockTryAcquire(&Mutex->Lock) == 0) {
-		
-		/* Get time now */
 		time_t Current = time(NULL);
 
 		/* Check if we are expired */
-		if (Expiration < Current)
+		if (Expiration < Current) {
 			return MUTEX_BUSY;
+		}
 
 		/* Yield.. */
 		ThreadYield();
@@ -180,14 +200,18 @@ int MutexTimedLock(Mutex_t *Mutex, time_t Expiration)
 	return MUTEX_SUCCESS;
 }
 
-/* Unlocks a mutex, reducing the blocker
+/* MutexUnlock
+ * Unlocks a mutex, reducing the blocker
  * count by 1 if recursive, otherwise it opens
  * the mutex */
-void MutexUnlock(Mutex_t *Mutex)
+OsStatus_t
+MutexUnlock(
+	_In_ Mutex_t *Mutex)
 {
-	/* Sanity */
-	if (Mutex->Blocks == 0)
-		return;
+	/* Sanitize blocks */
+	if (Mutex->Blocks == 0) {
+		return OsError;
+	}
 
 	/* Release one lock */
 	Mutex->Blocks--;
@@ -195,8 +219,9 @@ void MutexUnlock(Mutex_t *Mutex)
 	/* Are we done? */
 	if (Mutex->Blocks == 0) {
 		Mutex->Blocker = 0;
-		SpinlockRelease(&Mutex->Lock);
+		return SpinlockRelease(&Mutex->Lock);
 	}
-}
 
-#endif
+	/* Otherwise just return */
+	return OsNoError;
+}

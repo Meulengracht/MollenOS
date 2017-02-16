@@ -1,76 +1,74 @@
 /* MollenOS
-*
-* Copyright 2011 - 2016, Philip Meulengracht
-*
-* This program is free software : you can redistribute it and / or modify
-* it under the terms of the GNU General Public License as published by
-* the Free Software Foundation ? , either version 3 of the License, or
-* (at your option) any later version.
-*
-* This program is distributed in the hope that it will be useful,
-* but WITHOUT ANY WARRANTY; without even the implied warranty of
-* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.See the
-* GNU General Public License for more details.
-*
-* You should have received a copy of the GNU General Public License
-* along with this program.If not, see <http://www.gnu.org/licenses/>.
-*
-*
-* MollenOS C Library - Standard Spinlock
-* Contains Spinlock Synchronization Methods
-*/
+ *
+ * Copyright 2011 - 2017, Philip Meulengracht
+ *
+ * This program is free software : you can redistribute it and / or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation ? , either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.If not, see <http://www.gnu.org/licenses/>.
+ *
+ *
+ * MollenOS MCore - Spinlock Support Definitions & Structures
+ * - This header describes the base spinlock-structures, prototypes
+ *   and functionality, refer to the individual things for descriptions
+ */
 
-#ifndef __SPINLOCK_CLIB_H__
-#define __SPINLOCK_CLIB_H__
+#ifndef _SPINLOCK_INTERFACE_H_
+#define _SPINLOCK_INTERFACE_H_
 
-/* C-Library - Includes */
-#include <crtdefs.h>
-#include <stdint.h>
-
-/* CPP-Guard */
-#ifdef __cplusplus
-extern "C" {
-#endif
+/* Includes
+ * - System */
+#include <os/osdefs.h>
 
 /* The definition of a spinlock handle
  * used for primitive lock access */
-#ifndef MSPINLOCK_DEFINED
-#define MSPINLOCK_DEFINED
 typedef int Spinlock_t;
 #define SPINLOCK_INIT			0
-#define SPINLOCK_LOCKED			1
-#endif
 
-/***********************
- * Spinlock Prototypes
- ***********************/
+/* Start one of these before function prototypes */
+_CODE_BEGIN
 
-/* Spinlock Reset
+/* SpinlockReset
  * This initializes a spinlock
  * handle and sets it to default
  * value (unlocked) */
-_MOS_API void SpinlockReset(Spinlock_t *Lock);
+_MOS_API 
+OsStatus_t 
+SpinlockReset(
+	_In_ Spinlock_t *Lock);
 
-/* Spinlock Acquire
- * Acquires the spinlock, this
- * is a blocking operation.
- * Returns SPINLOCK_LOCKED on lock success */
-_MOS_API int SpinlockAcquire(Spinlock_t *Lock);
+/* SpinlockAcquire
+ * Acquires the spinlock while busy-waiting
+ * for it to be ready if neccessary */
+_MOS_API 
+OsStatus_t
+SpinlockAcquire(
+	_In_ Spinlock_t *Lock);
 
-/* Spinlock TryAcquire
- * TRIES to acquires the spinlock, 
- * returns 0 if failed, returns SPINLOCK_LOCKED
- * if lock were acquired  */
-_MOS_API int SpinlockTryAcquire(Spinlock_t *Lock);
+/* SpinlockTryAcquire
+ * Makes an attempt to acquire the
+ * spinlock without blocking */
+_MOS_API 
+OsStatus_t
+SpinlockTryAcquire(
+	_In_ Spinlock_t *Lock);
 
-/* Spinlock Release
+/* SpinlockRelease
  * Releases the spinlock, and lets
  * other threads access the lock */
-_MOS_API void SpinlockRelease(Spinlock_t *Lock);
+_MOS_API 
+OsStatus_t 
+SpinlockRelease(
+	_In_ Spinlock_t *Lock);
 
-/* CPP Guard */
-#ifdef __cplusplus
-}
-#endif
+_CODE_END
 
-#endif //!__SPINLOCK_CLIB_H__
+#endif //!_SPINLOCK_INTERFACE_H_

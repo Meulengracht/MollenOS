@@ -1,53 +1,51 @@
 /* MollenOS
-*
-* Copyright 2011 - 2016, Philip Meulengracht
-*
-* This program is free software : you can redistribute it and / or modify
-* it under the terms of the GNU General Public License as published by
-* the Free Software Foundation ? , either version 3 of the License, or
-* (at your option) any later version.
-*
-* This program is distributed in the hope that it will be useful,
-* but WITHOUT ANY WARRANTY; without even the implied warranty of
-* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.See the
-* GNU General Public License for more details.
-*
-* You should have received a copy of the GNU General Public License
-* along with this program.If not, see <http://www.gnu.org/licenses/>.
-*
-*
-* MollenOS - Threading Functions
-*/
+ *
+ * Copyright 2011 - 2017, Philip Meulengracht
+ *
+ * This program is free software : you can redistribute it and / or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation ? , either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.If not, see <http://www.gnu.org/licenses/>.
+ *
+ *
+ * MollenOS MCore - Threading Support Definitions & Structures
+ * - This header describes the base threading-structures, prototypes
+ *   and functionality, refer to the individual things for descriptions
+ */
 
-/* Includes */
-#include <os/MollenOS.h>
-#include <os/Syscall.h>
-#include <os/Thread.h>
+/* Includes 
+ * - System */
+#include <os/thread.h>
+#include <os/syscall.h>
 
-/* C Library */
-#include <crtdefs.h>
+/* Includes
+ * - Library */
 #include <stddef.h>
 #include <stdlib.h>
 
-/* Private Includes */
+/* Includes
+ * - Compiler */
 #if defined(_MSC_VER) && (_MSC_VER >= 1500)
 #include <intrin.h>
 #endif
 
-/* Structure (private) */
-typedef struct _ThreadPackage
-{
-	/* Entry point of 
-	 * the thread */
-	ThreadFunc_t Entry;
-
-	/* User-defined data
-	 * for the thread */
-	void *Data;
-
+/* Private thread initializor 
+ * package, used internally for starting threads */
+typedef struct _ThreadPackage {
+	ThreadFunc_t		 Entry;
+	void				*Data;
 } ThreadPackage_t;
 
-/* Thread CRT Entry Point */
+/* _ThreadCRT
+ * All new threads inherit this start function */
 void _ThreadCRT(void *Data)
 {
 	/* Allocate TSS */
@@ -57,25 +55,26 @@ void _ThreadCRT(void *Data)
 
 	/* Initialize the TLS */
 	TLSInitInstance(&Tls);
-
-	/* Cast */
 	Tp = (ThreadPackage_t*)Data;
 
 	/* Run entry */
 	RetVal = Tp->Entry(Tp->Data);
 
 	/* Cleanup */
+	TLSDestroyInstance(&Tls);
 	free(Tp);
-
-	/* Exit Thread */
 	ThreadExit(RetVal);
 }
 
-/* This is a support thread function
+/* ThreadOnce
+ * This is a support thread function
  * that makes sure that even with shared
  * functions between threads a function
  * only ever gets called once */
-void ThreadOnce(ThreadOnce_t *Control, ThreadOnceFunc_t Function)
+void 
+ThreadOnce(
+	_In_ ThreadOnce_t *Control,
+	_In_ ThreadOnceFunc_t Function)
 {
 	/* Use interlocked exchange 
 	 * for this operation */
@@ -83,14 +82,19 @@ void ThreadOnce(ThreadOnce_t *Control, ThreadOnceFunc_t Function)
 
 	/* Sanity, RunOnce is 1 
 	 * if first time */
-	if (RunOnce != 0)
+	if (RunOnce != 0) {
 		Function();
+	}
 }
 
-/* Creates a new thread bound to
+/* ThreadCreate
+ * Creates a new thread bound to 
  * the calling process, with the given
  * entry point and arguments */
-TId_t ThreadCreate(ThreadFunc_t Entry, void *Data)
+UUId_t 
+ThreadCreate(
+	_In_ ThreadFunc_t Entry, 
+	_In_Opt_ void *Data)
 {
 	/* Allocate thread data */
 	ThreadPackage_t *Tp = (ThreadPackage_t*)malloc(sizeof(ThreadPackage_t));
@@ -100,18 +104,19 @@ TId_t ThreadCreate(ThreadFunc_t Entry, void *Data)
 	Tp->Data = Data;
 
 	/* This is just a redirected syscall */
-	return (TId_t)Syscall3(SYSCALL_THREADID, SYSCALL_PARAM((ThreadFunc_t)_ThreadCRT),
+	return (UUId_t)Syscall3(SYSCALL_THREADID, SYSCALL_PARAM((ThreadFunc_t)_ThreadCRT),
 		SYSCALL_PARAM(Tp), SYSCALL_PARAM(0));
 }
 
-/* Exits the current thread and
+/* ThreadExit
+ * Exits the current thread and 
  * instantly yields control to scheduler */
-void ThreadExit(int ExitCode)
+void 
+ThreadExit(
+	_In_ int ExitCode)
 {
 	/* Cleanup TLS */
 	TLSCleanup(ThreadGetCurrentId());
-
-	/* Destroy TLS struct */
 	TLSDestroyInstance(TLSGetCurrent());
 
 	/* The syscall actually does most of
@@ -119,22 +124,26 @@ void ThreadExit(int ExitCode)
 	Syscall1(SYSCALL_THREADKILL, SYSCALL_PARAM(ExitCode));
 }
 
-/* Thread join, waits for a given
- * thread to finish executing, and
- * returns it's exit code, works
- * like processjoin. Must be in same
+/* ThreadJoin
+ * waits for a given thread to finish executing, and
+ * returns it's exit code, Must be in same
  * process as asking thread */
-int ThreadJoin(TId_t ThreadId)
+int 
+ThreadJoin(
+	_In_ UUId_t ThreadId)
 {
 	/* The syscall actually does most of
 	 * the validation for us, returns -1 on err */
 	return Syscall1(SYSCALL_THREADJOIN, SYSCALL_PARAM(ThreadId));
 }
 
-/* Thread kill, kills the given thread
+/* ThreadKill
+ * Thread kill, kills the given thread
  * id, must belong to same process as the
  * thread that asks. */
-int ThreadKill(TId_t ThreadId)
+OsStatus_t 
+ThreadKill(
+	_In_ UUId_t ThreadId)
 {
 	/* The syscall actually does most of 
 	 * the validation for us, this returns
@@ -142,24 +151,28 @@ int ThreadKill(TId_t ThreadId)
 	return Syscall1(SYSCALL_THREADKILL, SYSCALL_PARAM(ThreadId));
 }
 
-/* Thread sleep,
+/* ThreadSleep
  * Sleeps the current thread for the
  * given milliseconds. */
-void ThreadSleep(size_t MilliSeconds)
+void 
+ThreadSleep(
+	_In_ size_t MilliSeconds)
 {
 	/* This is also just a redirected syscall
 	 * we don't validate the asked time, it's 
 	 * up to the user not to fuck it up */
-	if (MilliSeconds == 0)
+	if (MilliSeconds == 0) {
 		return;
+	}
 
 	/* Gogo! */
 	Syscall1(SYSCALL_THREADSLEEP, SYSCALL_PARAM(MilliSeconds));
 }
 
-/* Thread get current id
- * Get's the current thread id */
-TId_t ThreadGetCurrentId(void)
+/* ThreadGetCurrentId
+ * Retrieves the current thread id */
+UUId_t 
+ThreadGetCurrentId(void)
 {
 	/* We save this in the reserved
 	 * space to speed up this call */
@@ -169,15 +182,17 @@ TId_t ThreadGetCurrentId(void)
 
 	/* This is just a redirected syscall
 	 * no arguments involved, no validation */
-	TLSGetCurrent()->Id = (TId_t)Syscall0(SYSCALL_THREADID);
+	TLSGetCurrent()->Id = (UUId_t)Syscall0(SYSCALL_THREADID);
 
 	/* Done! */
 	return TLSGetCurrent()->Id;
 }
 
-/* This yields the current thread
+/* ThreadYield
+ * This yields the current thread 
  * and gives cpu time to another thread */
-void ThreadYield(void)
+void 
+ThreadYield(void)
 {
 	/* This is just a redirected syscall 
      * no arguments involved, no validation */

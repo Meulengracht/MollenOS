@@ -38,28 +38,45 @@ typedef enum _ProcessQueryFunction {
 	ProcessQueryTopMostParent
 } ProcessQueryFunction_t;
 
+/* Start one of these before function prototypes */
+_CODE_BEGIN
+
 /* ProcessSpawn
  * Spawns a new process by the given path and
  * optionally the given parameters are passed 
  * returns UUID_INVALID in case of failure */
-_MOS_API UUId_t ProcessSpawn(_In_ __CONST char *Path, 
-							 _In_Opt_ __CONST char *Arguments);
+_MOS_API 
+UUId_t 
+ProcessSpawn(
+	_In_ __CONST char *Path,
+	_In_Opt_ __CONST char *Arguments);
 
 /* ProcessJoin
  * Waits for the given process to terminate and
  * returns the return-code the process exit'ed with */
-_MOS_API int ProcessJoin(_In_ UUId_t Process);
+_MOS_API 
+int 
+ProcessJoin(
+	_In_ UUId_t Process);
 
-/* Process Kill
+/* ProcessKill
  * Terminates the process with the given id */
-_MOS_API OsStatus_t ProcessKill(_In_ UUId_t Process);
+_MOS_API 
+OsStatus_t 
+ProcessKill(
+	_In_ UUId_t Process);
 
-/* Process Query
+/* ProcessQuery
  * Queries information about the given process
  * based on the function it returns the requested information */
-_MOS_API OsStatus_t ProcessQuery(_In_ UUId_t Process, 
-								 _In_ ProcessQueryFunction_t Function, 
-								 _In_ void *Buffer, 
-								 _In_ size_t Length);
+_MOS_API 
+OsStatus_t 
+ProcessQuery(
+	_In_ UUId_t Process, 
+	_In_ ProcessQueryFunction_t Function, 
+	_In_ void *Buffer, 
+	_In_ size_t Length);
+
+_CODE_END
 
 #endif //!_PROCESS_INTERFACE_H_

@@ -77,6 +77,17 @@
 #define __CONST const
 #endif
 
+#ifndef _CODE_TAGS
+#define _CODE_TAGS
+#ifdef __cplusplus
+#define _CODE_BEGIN extern "C" {
+#define _CODE_END }
+#else
+#define _CODE_BEGIN
+#define _CODE_END
+#endif
+#endif
+
 /* Kernel/LibOS export definitions
  * Used by kernel to export functions for modules
  * (Should soon be removed tho), and used by LibOS

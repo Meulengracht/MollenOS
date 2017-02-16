@@ -1,29 +1,35 @@
 /* MollenOS
-*
-* Copyright 2011 - 2016, Philip Meulengracht
-*
-* This program is free software : you can redistribute it and / or modify
-* it under the terms of the GNU General Public License as published by
-* the Free Software Foundation ? , either version 3 of the License, or
-* (at your option) any later version.
-*
-* This program is distributed in the hope that it will be useful,
-* but WITHOUT ANY WARRANTY; without even the implied warranty of
-* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.See the
-* GNU General Public License for more details.
-*
-* You should have received a copy of the GNU General Public License
-* along with this program.If not, see <http://www.gnu.org/licenses/>.
-*
-*
-* MollenOS MCore - SHA1 Implementation
-*/
+ *
+ * Copyright 2011 - 2017, Philip Meulengracht
+ *
+ * This program is free software : you can redistribute it and / or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation ? , either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.If not, see <http://www.gnu.org/licenses/>.
+ *
+ *
+ * MollenOS MCore - SHA1 Support Definitions & Structures
+ * - This header describes the base sha1-structures, prototypes
+ *   and functionality, refer to the individual things for descriptions
+ */
 #define SHA1HANDSOFF
 
-/* Includes */
+/* Includes 
+ * - System */
+#include <os/sha1.h>
+
+/* Includes
+ * - Library */
 #include <stdio.h>
 #include <string.h>
-#include <os/Sha1.h>
 
 void Sha1Transform(int handsoff, uint32_t state[5], const uint8_t buffer[64]);
 
@@ -107,11 +113,15 @@ void Sha1Transform(int handsoff, uint32_t state[5], const uint8_t buffer[64])
 	a = b = c = d = e = 0;
 }
 
-/* Initializes a new SHA1 context 
+/* Sha1Init
+ * Initializes a new SHA1 context 
  * using either an internal buffer for 
  * hashing by setting handsoff to 1, otherwise
  * it will destroy the given data buffers */
-void Sha1Init(Sha1Context_t *Context, int Handsoff)
+OsStatus_t
+Sha1Init(
+	_In_ Sha1Context_t *Context, 
+	_In_ int Handsoff)
 {
 	/* Save handsoff */
 	Context->handsoff = Handsoff;
@@ -125,9 +135,14 @@ void Sha1Init(Sha1Context_t *Context, int Handsoff)
 	Context->count[0] = Context->count[1] = 0;
 }
 
-/* Add data to the given SHA1 context,
+/* Sha1Add
+ * Add data to the given SHA1 context,
  * this is the function for using the context */
-void Sha1Add(Sha1Context_t *Context, const uint8_t *Data, const size_t Length)
+OsStatus_t
+Sha1Add(
+	_In_ Sha1Context_t *Context, 
+	_In_ __CONST uint8_t *Data,
+	_In_ __CONST size_t Length)
 {
 	/* Variables */
 	size_t i, j;
@@ -149,9 +164,13 @@ void Sha1Add(Sha1Context_t *Context, const uint8_t *Data, const size_t Length)
 	memcpy(&Context->buffer[j], &Data[i], Length - i);
 }
 
-/* Finalizes the Sha1 context and outputs the
+/* Sha1Finalize
+ * Finalizes the Sha1 context and outputs the
  * result to a digest buffer the user must provide */
-void Sha1Finalize(Sha1Context_t *Context, uint8_t Digest[SHA1_DIGEST_SIZE])
+OsStatus_t
+Sha1Finalize(
+	_In_ Sha1Context_t *Context, 
+	_Out_ uint8_t Digest[SHA1_DIGEST_SIZE])
 {
 	/* Variables */
 	uint32_t i;
@@ -184,9 +203,13 @@ void Sha1Finalize(Sha1Context_t *Context, uint8_t Digest[SHA1_DIGEST_SIZE])
 	}
 }
 
-/* Converts the digest buffer to a hex-string 
+/* Sha1DigestToHex
+ * Converts the digest buffer to a hex-string 
  * by calling this function */
-void Sha1DigestToHex(const uint8_t Digest[SHA1_DIGEST_SIZE], char *Output)
+OsStatus_t
+Sha1DigestToHex(
+	_In_ uint8_t Digest[SHA1_DIGEST_SIZE], 
+	_Out_ char *Output)
 {
 	/* Variables */
 	int i, j;

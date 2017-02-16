@@ -16,7 +16,9 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS - Threading Functions
+ * MollenOS MCore - Threading Support Definitions & Structures
+ * - This header describes the base threading-structures, prototypes
+ *   and functionality, refer to the individual things for descriptions
  */
 
 /* Includes 
@@ -64,36 +66,31 @@ static __CRT_INLINE void __set_reserved(size_t index, size_t value) {
 /* TLS Entry for threads 
  * keys are shared all over 
  * the place but values are t-specific */
-typedef struct _m_tls_entry
-{
-	/* This is used explicitly
-	* for c11 tls implementation */
-	TlsKey_t Key;
-	void *Value;
-	TlsKeyDss_t Destructor;
-
+typedef struct _m_tls_entry {
+	TlsKey_t			 Key;
+	void				*Value;
+	TlsKeyDss_t			 Destructor;
 } m_tls_entry;
 
 /* The local thread storage
 * space used by mollenos
 * to keep track of state
 * this structure is kept PER PROCESS */
-typedef struct _m_tls_process
-{
-	/* This is used explicitly
-	* for c11 tls implementation */
-	int Keys[TLS_MAX_KEYS];
-	TlsKeyDss_t Dss[TLS_MAX_KEYS];
-	List_t *Tls;
-
+typedef struct _m_tls_process {
+	int					 Keys[TLS_MAX_KEYS];
+	TlsKeyDss_t			 Dss[TLS_MAX_KEYS];
+	List_t				*Tls;
 } m_tls_process_t;
 
 /* Globals */
 m_tls_process_t __TLSGlobal;
 
-/* Initialises the TLS 
- * and allocates resources needed. */
-void TLSInit(void)
+/* TLSInit
+ * Initialises the TLS
+ * and allocates resources needed. 
+ * Not callable manually */
+OsStatus_t
+TLSInit(void)
 {
 	/* Setup all keys to 0 */
 	for (int i = 0; i < TLS_MAX_KEYS; i++) {
@@ -103,6 +100,7 @@ void TLSInit(void)
 
 	/* Instantiate the lists */
 	__TLSGlobal.Tls = ListCreate(KeyInteger, LIST_NORMAL);
+	return OsNoError;
 }
 
 /* Helper Callback
@@ -128,10 +126,14 @@ void TLSCallback(void *Data, int n, void *Userdata)
 	}
 }
 
-/* Destroys the TLS for the specific thread
- * by freeing resources and 
- * calling c11 destructors */
-void TLSCleanup(TId_t ThreadId)
+/* TLSCleanup
+ * Destroys the TLS for the specific thread
+ * by freeing resources and
+ * calling c11 destructors 
+ * Not callable manually */
+OsStatus_t
+TLSCleanup(
+	_In_ UUId_t ThreadId)
 {
 	/* Setup key */
 	int NumberOfValsLeft = 0;
@@ -147,12 +149,15 @@ void TLSCleanup(TId_t ThreadId)
 
 	/* Remove all nodes by thread id */
 	while (ListRemoveByKey(__TLSGlobal.Tls, Key));
+	return OsNoError;
 }
 
 /* TLSInitInstance
  * Initializes a new thread-storage space
  * should be called by thread crt */
-void TLSInitInstance(ThreadLocalStorage_t *Tls)
+OsStatus_t 
+TLSInitInstance(
+	_In_ ThreadLocalStorage_t *Tls)
 {
 	/* Setup base stuff */
 	memset(Tls, 0, sizeof(ThreadLocalStorage_t));
@@ -164,30 +169,36 @@ void TLSInitInstance(ThreadLocalStorage_t *Tls)
 
 	/* Set pointer */
 	__set_reserved(0, (size_t)Tls);
+	return OsNoError;
 }
 
 /* TLSDestroyInstance
  * Destroys a thread-storage space
  * should be called by thread crt */
-void TLSDestroyInstance(ThreadLocalStorage_t *Tls)
+OsStatus_t 
+TLSDestroyInstance(
+	_In_ ThreadLocalStorage_t *Tls)
 {
 	/* Nothing to do here yet */
 	Tls->Id = 0;
+	return OsNoError;
 }
 
 /* TLSGetCurrent 
  * Retrieves the local storage space
  * for the current thread */
-ThreadLocalStorage_t *TLSGetCurrent(void)
+ThreadLocalStorage_t *
+TLSGetCurrent(void)
 {
-	/* Done */
 	return (ThreadLocalStorage_t*)__get_reserved(0);
 }
 
-/* Create a new global
- * TLS-key, this can be used to save
+/* TLSCreateKey
+ * Create a new global TLS-key, this can be used to save
  * thread-specific data */
-TlsKey_t TLSCreateKey(TlsKeyDss_t Destructor)
+TlsKey_t 
+TLSCreateKey(
+	_In_ TlsKeyDss_t Destructor)
 {
 	/* Variables */
 	int i;
@@ -206,19 +217,22 @@ TlsKey_t TLSCreateKey(TlsKeyDss_t Destructor)
 	/* Sanity 
 	 * If we reach here no more keys */
 	_set_errno(EAGAIN);
-	return 0xFFFFFFFF;
+	return TLS_KEY_INVALID;
 }
 
-/* Deletes the global
- * but thread-specific key */
-void TLSDestroyKey(TlsKey_t Key)
+/* TLSDestroyKey
+ * Deletes the global but thread-specific key */ 
+OsStatus_t 
+TLSDestroyKey(
+	_In_ TlsKey_t Key)
 {
 	/* Variables */
 	ListNode_t *tNode;
 
 	/* Sanitize key */
-	if (Key >= TLS_MAX_KEYS)
-		return;
+	if (Key >= TLS_MAX_KEYS) {
+		return OsError;
+	}
 
 	/* Iterate nodes */
 	_foreach_nolink(tNode, __TLSGlobal.Tls)
@@ -250,13 +264,15 @@ void TLSDestroyKey(TlsKey_t Key)
 	/* Free Key */
 	__TLSGlobal.Keys[Key] = 0;
 	__TLSGlobal.Dss[Key] = NULL;
+	return OsNoError;
 }
 
-/* Get a key from the TLS
- * and returns it's value
- * will return NULL if not exists
- * and set errno */
-void *TLSGetKey(TlsKey_t Key)
+/* TLSGetKey
+ * Get a key from the TLS and returns it's value
+ * will return NULL if not exists and set errno */
+void *
+TLSGetKey(
+	_In_ TlsKey_t Key)
 {
 	/* Sanitize key */
 	if (Key >= TLS_MAX_KEYS)
@@ -265,7 +281,7 @@ void *TLSGetKey(TlsKey_t Key)
 	/* Get thread id */
 	ListNode_t *tNode;
 	DataKey_t tKey;
-	TId_t ThreadId = ThreadGetCurrentId();
+	UUId_t ThreadId = ThreadGetCurrentId();
 
 	/* Setup Key */
 	tKey.Value = ThreadId;
@@ -287,20 +303,24 @@ void *TLSGetKey(TlsKey_t Key)
 	return NULL;
 }
 
-/* Set a key in the TLS
- * and associates the given
- * data with the key */
-int TLSSetKey(TlsKey_t Key, void *Data)
+/* TLSSetKey
+ * Set a key in the TLS
+ * and associates the given data with the key */
+OsStatus_t 
+TLSSetKey(
+	_In_ TlsKey_t Key, 
+	_In_Opt_ void *Data)
 {
 	/* Sanitize key */
-	if (Key >= TLS_MAX_KEYS)
-		return -1;
+	if (Key >= TLS_MAX_KEYS) {
+		return OsError;
+	}
 
 	/* Get thread id */
 	m_tls_entry *NewTls;
 	ListNode_t *tNode;
 	DataKey_t tKey;
-	TId_t ThreadId = ThreadGetCurrentId();
+	UUId_t ThreadId = ThreadGetCurrentId();
 
 	/* Setup Key */
 	tKey.Value = ThreadId;
@@ -316,7 +336,7 @@ int TLSSetKey(TlsKey_t Key, void *Data)
 		if (!dsmatchkey(__TLSGlobal.Tls->KeyType, tKey, tNode->Key)
 			&& Tls->Key == Key) {
 			Tls->Value = Data;
-			return 0;
+			return OsNoError;
 		}
 	}
 
@@ -331,7 +351,5 @@ int TLSSetKey(TlsKey_t Key, void *Data)
 
 	/* Add it to list */
 	ListAppend(__TLSGlobal.Tls, ListCreateNode(tKey, tKey, Data));
-
-	/* Done!! */
-	return 0;
+	return OsNoError;
 }
