@@ -34,6 +34,7 @@
  * - File System */
 #include <os/driver/file/definitions.h>
 #include <os/driver/file/file.h>
+#include <os/driver/file/path.h>
 
 /* FileSystem Export 
  * This is define the interface between user (filemanager)

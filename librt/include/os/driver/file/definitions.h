@@ -21,8 +21,12 @@
  *   and functionality, refer to the individual things for descriptions
  */
 
-#ifndef _VFS_FILE_DEFINITIONS_H_
-#define _VFS_FILE_DEFINITIONS_H_
+#ifndef _FILE_DEFINITIONS_H_
+#define _FILE_DEFINITIONS_H_
+
+#ifndef _CONTRACT_FILESYSTEM_INTERFACE_H_
+#error "You must include filesystem.h and not this directly"
+#endif
 
 /* Error Codes 
  * Used in standard VFS operations as return codes */
@@ -38,4 +42,35 @@ typedef enum _FileSystemCode {
 	FsDiskError
 } FileSystemCode_t;
 
-#endif //!_VFS_FILE_DEFINITIONS_H_
+/* Special Paths
+ * Used for a combination of different things
+ * especially for the environment resolve */
+typedef enum _EnvironmentPath
+{
+	/* The default */
+	PathCurrentWorkingDirectory = 0,
+
+	/* Application Paths */
+	PathApplicationBase,
+	PathApplicationData,
+
+	/* System Directories */
+	PathRoot,
+	PathSystemDirectory,
+
+	/* Shared Directories */
+	PathCommonBin,
+	PathCommonDocuments,
+	PathCommonInclude,
+	PathCommonLib,
+	PathCommonMedia,
+
+	/* User Directories */
+	PathUserBase,
+
+	/* Special Directory Count */
+	PathEnvironmentCount
+
+} EnvironmentPath_t;
+
+#endif //!_FILE_DEFINITIONS_H_

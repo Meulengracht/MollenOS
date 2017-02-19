@@ -21,11 +21,15 @@
  *   and functionality, refer to the individual things for descriptions
  */
 
-#ifndef _VFS_FILE_INTERFACE_H_
-#define _VFS_FILE_INTERFACE_H_
+#ifndef _FILE_STRUCTURES_INTERFACE_H_
+#define _FILE_STRUCTURES_INTERFACE_H_
+
+#ifndef _CONTRACT_FILESYSTEM_INTERFACE_H_
+#error "You must include filesystem.h and not this directly"
+#endif
 
 /* Includes
- * - C-Library */
+ * - Library */
 #include <ds/mstring.h>
 #include <os/osdefs.h>
 
@@ -56,4 +60,4 @@ PACKED_TYPESTRUCT(FileSystemFileHandle, {
 	uintptr_t				*ExtensionData;
 });
 
-#endif //!_VFS_FILE_INTERFACE_H_
+#endif //!_FILE_STRUCTURES_INTERFACE_H_

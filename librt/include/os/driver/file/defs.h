@@ -23,38 +23,6 @@
 #ifndef _MCORE_VFS_DEFS_H_
 #define _MCORE_VFS_DEFS_H_
 
-/* Definitions
- * - Filesystem types for modules 
- *   used to load the correct module */
-#define FILESYSTEM_FAT			0x00000000
-#define FILESYSTEM_MFS			0x00000008
-
-/* Definitions 
- * - The INIT program to run for user-space
- *   usually the window manager */
-#define FILESYSTEM_INIT			":/System/Sapphire.mxi"
-
-/* Definitions 
- * - General identifiers can be used in paths */
-#define FILESYSTEM_IDENT_SYS	"%Sys%"
-
-/* Error Codes 
- * Used in standard VFS operations as return codes */
-typedef enum _FileSystemCode
-{
-	VfsOk,
-	VfsDeleted,
-	VfsInvalidParameters,
-	VfsInvalidPath,
-	VfsPathNotFound,
-	VfsAccessDenied,
-	VfsPathIsNotDirectory,
-	VfsPathExists,
-	VfsDiskError
-
-} FileSystemCode_t;
-
-
 /* Query Functions, these are the different
 * queries that can be made on file-handles
 * and varies from stats to children to security */
@@ -69,8 +37,6 @@ typedef enum _VfsQueryFunctions
 	QuerySetAccess
 
 } VfsQueryFunction_t;
-
-
 
 /* Vfs Query Function
 * - Query for file information */
@@ -119,36 +85,7 @@ typedef struct _VQDirEntry
 } VQDirEntry_t;
 #pragma pack(pop)
 
-/* Special Paths
- * Used for a combination of different things
- * especially for the environment resolve */
-typedef enum _VfsEnvironmentPaths
-{
-	/* The default */
-	PathCurrentWorkingDir = 0,
 
-	/* Application Paths */
-	PathApplicationBase,
-	PathApplicationData,
-
-	/* System Directories */
-	PathSystemBase,
-	PathSystemDirectory,
-
-	/* Shared Directories */
-	PathCommonBin,
-	PathCommonDocuments,
-	PathCommonInclude,
-	PathCommonLib,
-	PathCommonMedia,
-
-	/* User Directories */
-	PathUserBase,
-
-	/* Special Directory Count */
-	PathEnvironmentCount
-
-} VfsEnvironmentPath_t;
 
 
 #endif //!_MCORE_VFS_DEFS_H_

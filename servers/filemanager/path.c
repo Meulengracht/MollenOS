@@ -1,94 +1,98 @@
 /* MollenOS
-*
-* Copyright 2011 - 2016, Philip Meulengracht
-*
-* This program is free software : you can redistribute it and / or modify
-* it under the terms of the GNU General Public License as published by
-* the Free Software Foundation ? , either version 3 of the License, or
-* (at your option) any later version.
-*
-* This program is distributed in the hope that it will be useful,
-* but WITHOUT ANY WARRANTY; without even the implied warranty of
-* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.See the
-* GNU General Public License for more details.
-*
-* You should have received a copy of the GNU General Public License
-* along with this program.If not, see <http://www.gnu.org/licenses/>.
-*
-*
-* MollenOS MCore - Virtual FileSystem
-* - Path Functions
-*/
+ *
+ * Copyright 2011 - 2017, Philip Meulengracht
+ *
+ * This program is free software : you can redistribute it and / or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation ? , either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.If not, see <http://www.gnu.org/licenses/>.
+ *
+ *
+ * MollenOS - File Manager Service
+ * - Handles all file related services and disk services
+ */
 
 /* Includes 
  * - System */
-#include <process/process.h>
-#include <threading.h>
-#include <vfs/vfs.h>
+#include "include/vfs.h"
+#include <ds/list.h>
 
 /* Includes
  * - C-Library */
-#include <ds/list.h>
+#include <strings.h>
 #include <string.h>
 #include <ctype.h>
 
-/* Externs 
- * We import from VFS */
-extern List_t *GlbFileSystems;
-
-/* Environment String Array */
-const char *GlbEnvironmentalPaths[PathEnvironmentCount] = {
+/* Globals 
+ * These are default static environment strings 
+ * that can be resolved from an enum array */
+__CONST char *GlbEnvironmentalPaths[PathEnvironmentCount] = {
 	"./",
 
 	"./",
-	":/Shared/AppData/",
+	":/shared/appdata/",
 
 	":/",
-	":/System/",
+	":/system/",
 
-	":/Shared/Bin/",
-	":/Shared/Documents/",
-	":/Shared/Includes/",
-	":/Shared/Libraries/",
-	":/Shared/Media/",
+	":/shared/bin/",
+	":/shared/documents/",
+	":/shared/includes/",
+	":/shared/libraries/",
+	":/shared/media/",
 
-	":/Users/"
+	":/users/"
 };
 
+/* These are the default fixed identifiers that can
+ * be used in paths to denote access, mostly these
+ * identifers must be preceeding the rest of the path */
+struct {
+	__CONST char *Identifier;
+	EnvironmentPath_t Resolve;
+} GlbIdentifers[] = {
+	{ "%sys%", PathSystemDirectory },
+	{ NULL, PathCurrentWorkingDirectory }
+};
 
-/* Vfs - Resolve Environmental Path
- * @Base - Environmental Path */
-MString_t *VfsResolveEnvironmentPath(VfsEnvironmentPath_t Base)
+/* PathResolveEnvironment
+ * Resolves the given env-path identifier to a string
+ * that can be used to locate files. */
+MString_t *PathResolveEnvironment(EnvironmentPath_t Base)
 {
-	/* Handle Special Case - 0 & 1
-	* Just return the current working directory */
-	if (Base == PathCurrentWorkingDir
-		|| Base == PathApplicationBase)
-	{
-		/* Get current process */
-		Cpu_t CurrentCpu = ApicGetCpu();
-		MCoreThread_t *cThread = ThreadingGetCurrentThread(CurrentCpu);
-
-		if (Base == PathCurrentWorkingDir)
-			return PhoenixGetWorkingDirectory(cThread->AshId);
-		else
-			return PhoenixGetBaseDirectory(cThread->AshId);
-	}
-
-	/* Otherwise we have to lookup in a string table */
-	MString_t *ResolvedPath = MStringCreate(NULL, StrUTF8);
+	/* Variables */
+	MString_t *ResolvedPath = NULL;
 	ListNode_t *fNode = NULL;
 	int pIndex = (int)Base;
 	int pFound = 0;
 
-	/* Get system path */
-	_foreach(fNode, GlbFileSystems)
-	{
-		/* Cast */
-		MCoreFileSystem_t *Fs = (MCoreFileSystem_t*)fNode->Data;
+	/* Handle Special Case - 0 & 1
+	 * Just return the current working directory */
+	if (Base == PathCurrentWorkingDirectory
+		|| Base == PathApplicationBase) {
+		if (Base == PathCurrentWorkingDirectory) {
+			return NULL; //TODO
+		}
+		else {
+			return NULL; //TODO
+		}
+	}
 
-		/* Boot drive? */
-		if (Fs->Flags & VFS_MAIN_DRIVE) {
+	/* Create a new string instance */
+	ResolvedPath = MStringCreate(NULL, StrUTF8);
+
+	/* Get system path */
+	_foreach(fNode, VfsGetFileSystems()) {
+		FileSystem_t *Fs = (FileSystem_t*)fNode->Data;
+		if (Fs->Descriptor.Flags & __FILESYSTEM_BOOT) {
 			MStringAppendString(ResolvedPath, Fs->Identifier);
 			pFound = 1;
 			break;
@@ -102,128 +106,123 @@ MString_t *VfsResolveEnvironmentPath(VfsEnvironmentPath_t Base)
 	}
 
 	/* Now append the special paths */
-	MStringAppendCharacters(ResolvedPath, GlbEnvironmentalPaths[pIndex], StrUTF8);
+	MStringAppendCharacters(ResolvedPath, 
+		GlbEnvironmentalPaths[pIndex], StrUTF8);
 
 	/* Done! */
 	return ResolvedPath;
 }
 
-/* Vfs - Canonicalize Path
- * @Path - UTF-8 String */
-MString_t *VfsCanonicalizePath(VfsEnvironmentPath_t Base, const char *Path)
+/* PathCanonicalize
+ * Canonicalizes the path by removing extra characters
+ * and resolving all identifiers in path */
+MString_t *PathCanonicalize(EnvironmentPath_t Base, __CONST char *Path)
 {
 	/* Store result */
 	MString_t *AbsPath = MStringCreate(NULL, StrUTF8);
 	ListNode_t *fNode = NULL;
-	uint32_t Itr = 0;
+	int i = 0;
 
-	/* Start by copying cwd over
-	 * if Path is not absolute or specifier */
+	/* There must be either a FS indicator in a path
+	 * or an identifier that resolves one for us, otherwise
+	 * we must assume the path is relative */
 	if (strchr(Path, ':') == NULL
-		&& strchr(Path, '%') == NULL)
-	{
-		/* Get base directory */
-		MString_t *BasePath = VfsResolveEnvironmentPath(Base);
+		&& strchr(Path, '%') == NULL) {
+		MString_t *BasePath = PathResolveEnvironment(Base);
 
-		/* Unless Base is null, then we have a problem */
-		if (BasePath == NULL)
-		{
-			/* Fuck */
+		/* If base is NULL, then abort */
+		if (BasePath == NULL) {
 			MStringDestroy(AbsPath);
 			return NULL;
 		}
 		else {
-			/* Start in working directory */
 			MStringCopy(AbsPath, BasePath, -1);
-
-			/* Make sure the path ends on a '/' */
-			if (MStringGetCharAt(AbsPath, MStringLength(AbsPath) - 1) != '/')
+			if (MStringGetCharAt(AbsPath, MStringLength(AbsPath) - 1) != '/') {
 				MStringAppendCharacter(AbsPath, '/');
+			}
 		}
 	}
 
-	/* Now, we have to resolve the path in Path */
-	while (Path[Itr])
-	{
-		/* Sanity */
-		if (Path[Itr] == '/'
-			&& Itr == 0)
-		{
-			Itr++;
+	/* Iterate all characters and build a new string
+	 * containing the canonicalized path simoultanously */
+	while (Path[i]) {
+
+		/* Always skip initial '/' */
+		if (Path[i] == '/' && i == 0) {
+			i++;
 			continue;
 		}
 
-		/* Identifier/Keyword? */
-		if (Path[Itr] == '%')
-		{
-			/* Which kind of keyword? */
-			if ((Path[Itr + 1] == 'S' || Path[Itr + 1] == 's')
-				&& Path[Itr + 2] == 'y'
-				&& Path[Itr + 3] == 's'
-				&& Path[Itr + 4] == '%')
-			{
-				/* Get boot drive identifer */
-				_foreach(fNode, GlbFileSystems)
-				{
-					/* Cast */
-					MCoreFileSystem_t *Fs = (MCoreFileSystem_t*)fNode->Data;
+		/* Special Case 1 - Identifier */
+		if (Path[i] == '%') {
+			int j = 0;
 
-					/* Boot drive? */
-					if (Fs->Flags & VFS_MAIN_DRIVE) {
-						MStringAppendString(AbsPath, Fs->Identifier);
-						break;
+			/* Iterate all possible identifiers */
+			while (GlbIdentifers[j].Identifier != NULL) {
+				if (strcasecmp(GlbIdentifers[j].Identifier, 
+					(__CONST char*)&Path[i])) {
+
+					/* Resolve filesystem */
+					_foreach(fNode, VfsGetFileSystems()) {
+						FileSystem_t *Fs = (FileSystem_t*)fNode->Data;
+						if (Fs->Descriptor.Flags & __FILESYSTEM_BOOT) {
+							MStringAppendString(AbsPath, Fs->Identifier);
+							break;
+						}
 					}
+
+					/* Resolve identifier */
+					MStringAppendCharacters(AbsPath, 
+						GlbEnvironmentalPaths[GlbIdentifers[j].Resolve], StrUTF8);
+
+					/* Skip */
+					i += strlen(GlbIdentifers[j].Identifier);
+
+					/* Is the next char a '/'? If so skip */
+					if (Path[i] == '/' || Path[i] == '\\') {
+						i++;
+					}
+
+					/* Done! */
+					break;
 				}
+			}
 
-				/* Now append the system path */
-				MStringAppendCharacters(AbsPath, 
-					GlbEnvironmentalPaths[PathSystemDirectory], StrUTF8);
-
-				/* Skip */
-				Itr += 5;
-
-				/* Is the next char a '/'? If so skip */
-				if (Path[Itr] == '/' || Path[Itr] == '\\') {
-					Itr++;
-				}
-
-				/* Done! */
+			/* Did we find what we looked for? */
+			if (GlbIdentifers[j].Identifier != NULL) {
 				continue;
 			}
 		}
 
-		/* What char is it ? */
-		if (Path[Itr] == '.'
-			&& (Path[Itr + 1] == '/' || Path[Itr + 1] == '\\'))
-		{
-			/* Ignore */
-			Itr += 2;
+		/* Special Case 2, 3 and 4
+		 * 2 - If it's ./ or .\ ignore it
+		 * 3 - If it's ../ or ..\ go back 
+		 * 4 - Normal case, copy */
+		if (Path[i] == '.'
+			&& (Path[i + 1] == '/' || Path[i + 1] == '\\')) {
+			i += 2;
 			continue;
 		}
-		else if (Path[Itr] == '.'
-			&& Path[Itr + 1] == '.')
-		{
-			/* Go one directory back, if we are in one */
+		else if (Path[i] == '.' && Path[i + 1] == '.'
+			&& (Path[i + 2] == '/' || Path[i + 2] == '\\')) {
 			int Index = MStringFindReverse(AbsPath, '/');
-			if (MStringGetCharAt(AbsPath, Index - 1) != ':')
-			{
-				/* Build a new string */
-				MString_t *NewAbs = MStringSubString(AbsPath, 0, Index);
+			if (MStringGetCharAt(AbsPath, Index - 1) != ':') {
+				MString_t *Modified = MStringSubString(AbsPath, 0, Index);
 				MStringDestroy(AbsPath);
-				AbsPath = NewAbs;
+				AbsPath = Modified;
 			}
 		}
-		else
-		{
-			/* Copy over */
-			if (Path[Itr] == '\\')
+		else {
+			if (Path[i] == '\\') {
 				MStringAppendCharacter(AbsPath, '/');
-			else
-				MStringAppendCharacter(AbsPath, Path[Itr]);
+			}
+			else {
+				MStringAppendCharacter(AbsPath, Path[i]);
+			}
 		}
 
 		/* Increase */
-		Itr++;
+		i++;
 	}
 
 	/* Replace dublicate // with / */

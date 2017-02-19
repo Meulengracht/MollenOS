@@ -166,6 +166,7 @@ OsStatus_t DiskRegisterFileSystem(FileSystemDisk_t *Disk,
 			 * If it was succesfully spawned we can start
 			 * resolving the previous file-systems */
 			if (ProcessSpawn(MStringRaw(Path), NULL) != UUID_INVALID) {
+				Fs->Descriptor.Flags |= __FILESYSTEM_BOOT;
 				VfsResolveQueueEvent();
 				GlbInitHasRun = 1;
 			}
