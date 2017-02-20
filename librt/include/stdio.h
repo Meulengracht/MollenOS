@@ -117,7 +117,8 @@ typedef struct _CLibraryFile
 /*******************************
  *       File Access           *
  *******************************/
-_CRTIMP int fflags(__CONST char * mode);
+_CRTIMP Flags_t faccess(__CONST char * mode);
+_CRTIMP Flags_t fopts(__CONST char * mode);
 _CRTIMP int fclose(FILE * stream);
 _CRTIMP FILE *fopen(__CONST char * filename, __CONST char * mode);
 _CRTIMP FILE *fdopen(int fd, __CONST char *mode);

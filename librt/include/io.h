@@ -98,7 +98,8 @@ extern "C" {
 /*******************************
  *       File Access           *
  *******************************/
-_CRTIMP int _fflags(int oflags);
+_CRTIMP Flags_t _faccess(int oflags);
+_CRTIMP Flags_t _fopts(int oflags);
 _CRTIMP int _fval(int ocode);
 _CRTIMP int _open(__CONST char *file, int oflags, int pmode);
 _CRTIMP int _close(int handle);

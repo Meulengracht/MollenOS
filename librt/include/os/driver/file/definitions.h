@@ -24,10 +24,6 @@
 #ifndef _FILE_DEFINITIONS_H_
 #define _FILE_DEFINITIONS_H_
 
-#ifndef _CONTRACT_FILESYSTEM_INTERFACE_H_
-#error "You must include filesystem.h and not this directly"
-#endif
-
 /* Error Codes 
  * Used in standard VFS operations as return codes */
 typedef enum _FileSystemCode {

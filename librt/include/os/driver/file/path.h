@@ -41,7 +41,15 @@ MString_t *
 PathResolveEnvironment(
 	_In_ EnvironmentPath_t Base);
 #else
+static __CRT_INLINE
+OsStatus_t
+PathResolveEnvironment(
+	_In_ EnvironmentPath_t Base,
+	_Out_ char *Buffer,
+	_In_ size_t MaxLength)
+{
 
+}
 #endif
 
 /* PathCanonicalize
@@ -54,7 +62,16 @@ PathCanonicalize(
 	_In_ EnvironmentPath_t Base,
 	_In_ __CONST char *Path);
 #else
+static __CRT_INLINE
+OsStatus_t
+PathCanonicalize(
+	_In_ EnvironmentPath_t Base,
+	_In_ char *Path,
+	_Out_ char *Buffer,
+	_In_ size_t MaxLength)
+{
 
+}
 #endif
 
 #endif //!_PATH_INTERFACE_H_

@@ -16,21 +16,17 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS C Library - Standard OS Header
+ * MollenOS MCore - Definitions & Structures
+ * - This header describes the os-structure, prototypes
+ *   and functionality, refer to the individual things for descriptions
  */
 
-#ifndef __MOLLENOS_CLIB__
-#define __MOLLENOS_CLIB__
+#ifndef _MOLLENOS_INTERFACE_H_
+#define _MOLLENOS_INTERFACE_H_
 
 /* Includes
- * C-Library */
+ * System */
 #include <os/osdefs.h>
-
-/* The max path to expect from mollenos 
- * file/path operations */
-#ifndef MPATH_MAX
-#define MPATH_MAX		512
-#endif
 
 /* This describes a window handle 
  * used by UI functions */
@@ -40,8 +36,7 @@ typedef void *WndHandle_t;
 #endif
 
 /* Enumerators */
-typedef enum _MollenOSDeviceType
-{
+typedef enum _MollenOSDeviceType {
 	DeviceUnknown = 0,
 	DeviceCpu,
 	DeviceCpuCore,
@@ -53,48 +48,7 @@ typedef enum _MollenOSDeviceType
 	DeviceInput,
 	DeviceStorage,
 	DeviceVideo
-
 } OSDeviceType_t;
-
-/* Environment Paths */
-typedef enum _EnvironmentPaths
-{
-	/* The default */
-	PathCurrentWorkingDir = 0,
-
-	/* Application Paths */
-	PathApplicationBase,
-	PathApplicationData,
-
-	/* System Directories */
-	PathSystemBase,
-	PathSystemDirectory,
-
-	/* Shared Directories */
-	PathCommonBin,
-	PathCommonDocuments,
-	PathCommonInclude,
-	PathCommonLib,
-	PathCommonMedia,
-
-	/* User Directories */
-	PathUserBase,
-
-	/* Special Directory Count */
-	PathEnvironmentCount
-
-} EnvironmentPath_t;
-
-/* Environment Queries
- * List of the different options
- * for environment queries */
-typedef enum _EnvironmentQueryFunction
-{
-	EnvironmentQueryOS,
-	EnvironmentQueryCpuId,
-	EnvironmentQueryMemory
-
-} EnvironmentQueryFunction_t;
 
 /* Structures */
 typedef struct _MollenOSVideoDescriptor
@@ -121,70 +75,105 @@ typedef struct _MollenOSVideoDescriptor
 
 } OSVideoDescriptor_t;
 
+/* Memory Descriptor
+ * Describes the current memory state and setup
+ * thats available on the current machine */
+PACKED_TYPESTRUCT(MemoryDescriptor, {
+	size_t			PagesTotal;
+	size_t			PagesUsed;
+	size_t			PageSizeBytes;
+});
+
 /* This is only hardcoded for now untill
  * we implement support for querying memory
  * options */
 #ifndef MOS_PAGE_SIZE
-#define MOS_PAGE_SIZE	0x1000
+#define MOS_PAGE_SIZE		0x1000
 #endif
 
 /* The max-path we support in the OS
  * for file-paths, in MollenOS we support
  * rather long paths */
-#define _MAX_PATH 512
+#define _MAXPATH			512
 
 /* Cpp Guard */
-#ifdef __cplusplus
-extern "C" {
-#endif
+_CODE_BEGIN
 
-/***********************
- * Memory Prototypes
- ***********************/
-
-/* Memory - Share 
+/* MemoryShare
  * This shares a piece of memory with the 
  * target process. The function returns NULL
  * on failure to share the piece of memory
  * otherwise it returns the new buffer handle
  * that can be accessed by the other process */
-_MOS_API void *MollenOSMemoryShare(UUId_t Target, void *Buffer, size_t Size);
+_MOS_API 
+void *
+MemoryShare(
+	_In_ UUId_t Process, 
+	_In_ void *Buffer, 
+	_In_ size_t Size);
 
-/* Memory - Unshare 
+/* MemoryUnshare
  * This takes a previous shared memory handle 
- * and unshares it again from the target process
- * The function returns 0 if unshare was succesful, 
- * otherwise -1 */
-_MOS_API int MollenOSMemoryUnshare(UUId_t Target, void *MemoryHandle, size_t Size);
+ * and unshares it again from the target process */
+_MOS_API 
+OsStatus_t 
+MemoryUnshare(
+	_In_ UUId_t Process,
+	_In_ void *MemoryHandle, 
+	_In_ size_t Size);
 
-/***********************
- * Device Prototypes
- ***********************/
-_MOS_API int MollenOSDeviceQuery(OSDeviceType_t Type, int Request, void *Buffer, size_t Length);
+/* MemoryQuery
+ * Queries the underlying system for memory information 
+ * like memory used and the page-size */
+_MOS_API
+OsStatus_t
+MemoryQuery(
+	_Out_ MemoryDescriptor_t *Descriptor);
 
-/***********************
- * Environment Prototypes
- ***********************/
+/* DeviceQuery
+ * Queries the given device-type for information */
+_MOS_API 
+OsStatus_t 
+DeviceQuery(
+	_In_ OSDeviceType_t Type, 
+	_In_ int Request, 
+	_Out_ void *Buffer, 
+	_In_ size_t Length);
 
-/* Resolve Environmental Path
- * Resolves the environmental type
- * to an valid absolute path */
-_MOS_API void EnvironmentResolve(EnvironmentPath_t SpecialPath, char *StringBuffer);
+/* ScreenQueryGeometry
+ * This function returns screen geomemtry
+ * descriped as a rectangle structure */
+_MOS_API 
+OsStatus_t 
+ScreenQueryGeometry(
+	_Out_ Rect_t *Rectangle);
 
-/* Environment Query
- * Query the system environment 
- * for information, this could be
- * memory, cpu, etc information */
-_MOS_API int EnvironmentQuery(EnvironmentQueryFunction_t Function, void *Buffer, size_t Length);
+/* PathQueryWorkingDirectory
+ * Queries the current working directory path
+ * for the current process (See _MAXPATH) */
+_MOS_API
+OsStatus_t
+PathQueryWorkingDirectory(
+	_Out_ char *Buffer,
+	_In_ size_t MaxLength);
 
-/***********************
- * Screen Prototypes
- ***********************/
+/* PathChangeWorkingDirectory
+ * Performs changes to the current working directory
+ * by canonicalizing the given path modifier or absolute
+ * path */
+_MOS_API
+OsStatus_t
+PathChangeWorkingDirectory(
+	_In_ __CONST char *Path);
 
-/* This function returns screen geomemtry
- * descriped as a rectangle structure, which
- * must be pre-allocated */
-_MOS_API void MollenOSGetScreenGeometry(Rect_t *Rectangle);
+/* PathQueryApplication
+ * Queries the application path for
+ * the current process (See _MAXPATH) */
+_MOS_API
+OsStatus_t
+PathQueryApplication(
+	_Out_ char *Buffer,
+	_In_ size_t MaxLength);
 
 /***********************
  * System Misc Prototypes
@@ -199,8 +188,6 @@ _MOS_API void MollenOSSystemLog(const char *Format, ...);
 _MOS_API int MollenOSEndBoot(void);
 _MOS_API int MollenOSRegisterWM(void);
 
-#ifdef __cplusplus
-}
-#endif
+_CODE_END
 
-#endif //!__MOLLENOS_CLIB__
+#endif //!_MOLLENOS_INTERFACE_H_

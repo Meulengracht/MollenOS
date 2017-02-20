@@ -16,7 +16,7 @@
     <ClCompile Include="main.c" />
     <ClCompile Include="disk.c" />
     <ClCompile Include="modules.c" />
-    <ClCompile Include="vfsfunctions.c" />
+    <ClCompile Include="functions.c" />
     <ClCompile Include="path.c" />
   </ItemGroup>
   <ItemGroup>

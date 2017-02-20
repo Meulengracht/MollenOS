@@ -5,9 +5,6 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="main.c" />
-    <ClCompile Include="vfsfunctions.c">
-      <Filter>vfs</Filter>
-    </ClCompile>
     <ClCompile Include="layouts\detect.c">
       <Filter>disk\layouts</Filter>
     </ClCompile>
@@ -24,11 +21,9 @@
       <Filter>disk</Filter>
     </ClCompile>
     <ClCompile Include="path.c" />
+    <ClCompile Include="functions.c" />
   </ItemGroup>
   <ItemGroup>
-    <Filter Include="vfs">
-      <UniqueIdentifier>{c59891af-85fe-4b21-81c7-28558cf2d467}</UniqueIdentifier>
-    </Filter>
     <Filter Include="include">
       <UniqueIdentifier>{7d6072e0-9c50-4a21-b2e5-4405dd8634ad}</UniqueIdentifier>
     </Filter>

@@ -68,6 +68,11 @@
 #define SYSCALL_MEMSHARE			0x22
 #define SYSCALL_MEMUNSHARE			0x23
 
+/* Path System Calls */
+#define SYSCALL_QUERYCWD			0x26
+#define SYSCALL_CHANGECWD			0x27
+#define SYSCALL_QUERYCAD			0x28
+
 /* IPC System Calls */
 #define SYSCALL_OPENPIPE			0x29
 #define SYSCALL_CLOSEPIPE			0x2A

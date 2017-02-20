@@ -1,53 +1,55 @@
 /* MollenOS
-*
-* Copyright 2011 - 2016, Philip Meulengracht
-*
-* This program is free software : you can redistribute it and / or modify
-* it under the terms of the GNU General Public License as published by
-* the Free Software Foundation ? , either version 3 of the License, or
-* (at your option) any later version.
-*
-* This program is distributed in the hope that it will be useful,
-* but WITHOUT ANY WARRANTY; without even the implied warranty of
-* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.See the
-* GNU General Public License for more details.
-*
-* You should have received a copy of the GNU General Public License
-* along with this program.If not, see <http://www.gnu.org/licenses/>.
-*
-*
-* MollenOS C Library - FCLOSE
-*/
+ *
+ * Copyright 2011 - 2017, Philip Meulengracht
+ *
+ * This program is free software : you can redistribute it and / or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation ? , either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.If not, see <http://www.gnu.org/licenses/>.
+ *
+ *
+ * MollenOS C Library - FCLOSE
+ */
 
-/* Includes */
+/* Includes
+ * - System */
+#include <os/driver/file.h>
+#include <os/syscall.h>
+
+/* Includes 
+ * - Library */
 #include <io.h>
 #include <stdio.h>
 #include <errno.h>
 #include <string.h>
 #include <stdlib.h>
-#include <os/Syscall.h>
 
-/* Externs */
-extern int _ffillclean(FILE * stream);
+/* Externs, 
+ * We need access to _ffillclean to clean out
+ * the read buffers */
+__EXTERN int _ffillclean(FILE * stream);
 
 /* The _close 
- * This is ANSI C close 
- * function and works with 
- * filedescriptors */
+ * This is ANSI C close function and works 
+ * with filedescriptors */
 int _close(int handle)
 {
-	/* Variables */
-	int RetVal = 0;
-
-	/* Syscall */
-	RetVal = Syscall1(SYSCALL_VFSCLOSE, SYSCALL_PARAM(handle));
-
 	/* Validation 
 	 * we need to make sure everythis is ok */
-	if (_fval(RetVal))
+	if (_fval(CloseFile((UUId_t)handle))) {
 		return -1;
-	else
+	}	
+	else {
 		return 0;
+	}
 }
 
 /* The fclose 
@@ -65,8 +67,9 @@ int fclose(FILE * stream)
 	}
 
 	/* Flush the file? */
-	if (stream->code & _IOWRT)
+	if (stream->code & _IOWRT) {
 		fflush(stream);
+	}
 
 	/* Close the associated
 	 * file descriptor */

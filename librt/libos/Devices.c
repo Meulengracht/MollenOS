@@ -23,21 +23,19 @@
 #include <os/MollenOS.h>
 #include <os/Syscall.h>
 
-#ifdef LIBC_KERNEL
-void __DeviceLibCEmpty(void)
-{
-}
-#else
-
-/* Query */
-int MollenOSDeviceQuery(OSDeviceType_t Type, int Request, void *Buffer, size_t Length)
+/* DeviceQuery
+ * Queries the given device-type for information */
+OsStatus_t 
+DeviceQuery(
+	_In_ OSDeviceType_t Type, 
+	_In_ int Request, 
+	_Out_ void *Buffer, 
+	_In_ size_t Length)
 {
 	/* Not used atm */
 	_CRT_UNUSED(Request);
 
 	/* Prep for syscall */
-	return Syscall3(SYSCALL_DEVQUERY, SYSCALL_PARAM(Type), 
+	return Syscall3(0, SYSCALL_PARAM(Type), 
 		SYSCALL_PARAM(Buffer), SYSCALL_PARAM(Length));
 }
-
-#endif

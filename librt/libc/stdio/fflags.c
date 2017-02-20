@@ -1,127 +1,154 @@
 /* MollenOS
-*
-* Copyright 2011 - 2016, Philip Meulengracht
-*
-* This program is free software : you can redistribute it and / or modify
-* it under the terms of the GNU General Public License as published by
-* the Free Software Foundation ? , either version 3 of the License, or
-* (at your option) any later version.
-*
-* This program is distributed in the hope that it will be useful,
-* but WITHOUT ANY WARRANTY; without even the implied warranty of
-* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.See the
-* GNU General Public License for more details.
-*
-* You should have received a copy of the GNU General Public License
-* along with this program.If not, see <http://www.gnu.org/licenses/>.
-*
-*
-* MollenOS C Library - File mode flags
-*/
+ *
+ * Copyright 2011 - 2017, Philip Meulengracht
+ *
+ * This program is free software : you can redistribute it and / or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation ? , either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.If not, see <http://www.gnu.org/licenses/>.
+ *
+ *
+ * MollenOS C Library - OS-File Utilities
+ */
 
-/* Includes */
+/* Includes
+ * - System */
+#include <os/driver/file.h>
+#include <os/syscall.h>
+
+/* Includes 
+ * - Library */
 #include <io.h>
 #include <stdio.h>
 #include <errno.h>
 #include <string.h>
 #include <stdlib.h>
-#include <os/Syscall.h>
 
-/* MollenOS VFS Flags */
-#define VFS_READ			0x1
-#define VFS_WRITE			0x2
-#define VFS_CREATE			0x4
-#define VFS_TRUNCATE		0x8
-#define VFS_FAILONEXISTS	0x10
-#define VFS_BINARY			0x20
-#define VFS_NOBUFFERING		0x40
-#define VFS_APPEND			0x80
-
-/* The fflags 
- * Converts the C-mode
- * flags into our vfs flags */
-int fflags(const char * mode)
+/* The faccess 
+ * Converts the C-mode flags into our access flags */
+Flags_t faccess(__CONST char * mode)
 {
 	/* Variables */
-	int mFlags = 0;
+	Flags_t mFlags = 0;
 	int PlusConsumed = 1;
 
-	/* Convert mode to
-	* FileFlags */
 	/* Read modes first */
 	if (strchr(mode, 'r') != NULL) {
-		mFlags |= VFS_READ;
+		mFlags |= __FILE_READ_ACCESS;
 		if (strchr(mode, '+') != NULL) {
-			mFlags |= VFS_WRITE;
+			mFlags |= __FILE_WRITE_ACCESS;
 			PlusConsumed = 1;
 		}
 	}
 
 	/* Write modes */
 	if (strchr(mode, 'w') != NULL) {
-		mFlags |= VFS_WRITE | VFS_CREATE | VFS_TRUNCATE;
+		mFlags |= __FILE_WRITE_ACCESS;
 		if (!PlusConsumed
 			&& strchr(mode, '+') != NULL) {
-			mFlags |= VFS_READ;
+			mFlags |= __FILE_READ_ACCESS;
 			PlusConsumed = 1;
-		}
-		if (strchr(mode, 'x') != NULL) {
-			mFlags |= VFS_FAILONEXISTS;
 		}
 	}
 
 	/* Append modes */
 	if (strchr(mode, 'a') != NULL) {
-		mFlags |= VFS_APPEND | VFS_CREATE | VFS_WRITE;
+		mFlags |= __FILE_WRITE_ACCESS;
 		if (!PlusConsumed
 			&& strchr(mode, '+') != NULL) {
-			mFlags |= VFS_READ;
+			mFlags |= __FILE_READ_ACCESS;
+			PlusConsumed = 1;
+		}
+	}
+
+	/* Done */
+	return mFlags;
+}
+
+/* The faccess 
+ * Converts the C-mode flags into our option flags */
+Flags_t fopts(__CONST char * mode)
+{
+	/* Variables */
+	Flags_t mFlags = 0;
+	int PlusConsumed = 1;
+
+	/* Write modes */
+	if (strchr(mode, 'w') != NULL) {
+		mFlags |= __FILE_CREATE | __FILE_TRUNCATE;
+		if (!PlusConsumed
+			&& strchr(mode, '+') != NULL) {
+			PlusConsumed = 1;
+		}
+		if (strchr(mode, 'x') != NULL) {
+			mFlags |= __FILE_FAILONEXIST;
+		}
+	}
+
+	/* Append modes */
+	if (strchr(mode, 'a') != NULL) {
+		mFlags |= __FILE_APPEND | __FILE_CREATE;
+		if (!PlusConsumed
+			&& strchr(mode, '+') != NULL) {
 			PlusConsumed = 1;
 		}
 	}
 
 	/* Specials */
 	if (strchr(mode, 'b') != NULL) {
-		mFlags |= VFS_BINARY;
+		mFlags |= __FILE_BINARY;
 	}
-
-	/* Disable vfs buffering */
-	mFlags |= VFS_NOBUFFERING;
 
 	/* Done */
 	return mFlags;
 }
 
-/* The _fflags
+/* The _faccess
  * Converts the ANSI-C-mode
- * flags into our vfs flags */
-int _fflags(int oflags)
+ * flags into our access flags */
+Flags_t _faccess(int oflags)
 {
 	/* Variables */
-	int mFlags = VFS_READ;
+	Flags_t mFlags = __FILE_READ_ACCESS;
 
-	/* First we take care of 
-	 * read/write */
+	/* First we take care of read/write */
 	if (oflags & _O_WRONLY)
-		mFlags = VFS_WRITE;
+		mFlags = __FILE_WRITE_ACCESS;
 	if (oflags & _O_RDWR)
-		mFlags |= VFS_READ | VFS_WRITE;
+		mFlags |= __FILE_READ_ACCESS | __FILE_WRITE_ACCESS;
+
+	/* Done! */
+	return mFlags;
+}
+
+/* The _fopts
+ * Converts the ANSI-C-mode
+ * flags into our option flags */
+Flags_t _fopts(int oflags)
+{
+	/* Variables */
+	Flags_t mFlags = 0;
 
 	/* Now we take care of specials */
 	if (oflags & _O_CREAT)
-		mFlags |= VFS_CREATE;
+		mFlags |= __FILE_CREATE;
 	if (oflags & _O_TRUNC)
-		mFlags |= VFS_TRUNCATE;
+		mFlags |= __FILE_TRUNCATE;
 	if (oflags & _O_EXCL)
-		mFlags |= VFS_FAILONEXISTS;
+		mFlags |= __FILE_FAILONEXIST;
 
-	/* Now we take care of the 
-	 * different data modes */
+	/* Now we take care of the
+	* different data modes */
 	if (oflags & _O_BINARY)
-		mFlags |= VFS_BINARY;
-
-	/* Disable vfs buffering */
-	mFlags |= VFS_NOBUFFERING;
+		mFlags |= __FILE_BINARY;
 
 	/* Done */
 	return mFlags;

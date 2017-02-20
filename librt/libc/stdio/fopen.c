@@ -1,66 +1,67 @@
 /* MollenOS
-*
-* Copyright 2011 - 2016, Philip Meulengracht
-*
-* This program is free software : you can redistribute it and / or modify
-* it under the terms of the GNU General Public License as published by
-* the Free Software Foundation ? , either version 3 of the License, or
-* (at your option) any later version.
-*
-* This program is distributed in the hope that it will be useful,
-* but WITHOUT ANY WARRANTY; without even the implied warranty of
-* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.See the
-* GNU General Public License for more details.
-*
-* You should have received a copy of the GNU General Public License
-* along with this program.If not, see <http://www.gnu.org/licenses/>.
-*
-*
-* MollenOS C Library - FOPEN
-*/
+ *
+ * Copyright 2011 - 2017, Philip Meulengracht
+ *
+ * This program is free software : you can redistribute it and / or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation ? , either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.If not, see <http://www.gnu.org/licenses/>.
+ *
+ *
+ * MollenOS C Library - File Opening & File Creation
+ */
 
-/* Includes */
+/* Includes
+ * - System */
+#include <os/driver/file.h>
+#include <os/syscall.h>
+
+/* Includes 
+ * - Library */
 #include <io.h>
 #include <stdio.h>
 #include <errno.h>
 #include <string.h>
 #include <stdlib.h>
-#include <os/Syscall.h>
 
 /* _open_shared 
  * Shared open function 
  * between the handles */
-int _open_shared(const char *file, int mflags)
+int _open_shared(__CONST char *file, Flags_t Options, Flags_t Access)
 {
 	/* Variables */
-	int RetVal, ErrCode;
+	FileSystemCode_t ErrCode = 0;
+	int RetVal = 0;
 
-	/* System call time,
-	* get that file handle */
-	RetVal = Syscall3(SYSCALL_VFSOPEN, SYSCALL_PARAM(file),
-		SYSCALL_PARAM(mflags), SYSCALL_PARAM(&ErrCode));
+	/* System call time, get that file handle */
+	RetVal = (int)OpenFile(file, Options, Access, &ErrCode);
 
 	/* Ok, so we validate the error-code
-	* If it's wrong we have to close the file
-	* handle again, it almost always opens */
+	 * If it's wrong we have to close the file
+	 * handle again, it almost always opens */
 	if (_fval(ErrCode)) {
 		_close(RetVal);
 		_fval(ErrCode);
 		return -1;
 	}
-	else
+	else {
 		return RetVal;
+	}
 }
 
-/* The open 
- * This is the old ANSI 
- * C version, and is here for
+/* _open
+ * This is the old ANSI C version, and is here for
  * backwards compatability */
-int _open(const char *file, int oflags, int pmode)
+int _open(__CONST char *file, int oflags, int pmode)
 {
-	/* Variables */
-	int mFlags;
-
 	/* Sanity input */
 	if (file == NULL) {
 		_set_errno(EINVAL);
@@ -70,12 +71,8 @@ int _open(const char *file, int oflags, int pmode)
 	/* Silence warning */
 	_CRT_UNUSED(pmode);
 
-	/* Convert flags into 
-	 * our vfs flags */
-	mFlags = _fflags(oflags);
-
 	/* Deep call! */
-	return _open_shared(file, mFlags);
+	return _open_shared(file, _fopts(oflags), _faccess(oflags));
 }
 
 /* Information 
@@ -89,7 +86,7 @@ int _open(const char *file, int oflags, int pmode)
 	 Repositioning operations (fseek, fsetpos, rewind) affects the next input operations, but output operations move the position back to the end of file. The file is created if it does not exist.
 */
 
-FILE *fdopen(int fd, const char *mode)
+FILE *fdopen(int fd, __CONST char *mode)
 {
 	/* First of all, sanity the fd */
 	if (fd < 0)
@@ -136,28 +133,24 @@ FILE *fdopen(int fd, const char *mode)
 }
 
 /* The fopen */
-FILE *fopen(const char * filename, const char * mode)
+FILE *fopen(__CONST char * filename, __CONST char * mode)
 {
 	/* Variables */
-	int mFlags = 0;
 	int RetVal = 0;
 
 	/* Sanity input */
-	if (filename == NULL
-		|| mode == NULL) {
+	if (filename == NULL || mode == NULL) {
 		_set_errno(EINVAL);
 		return NULL;
 	}
 
-	/* Convert flags */
-	mFlags = fflags(mode);
-
 	/* Use the shared open */
-	RetVal = _open_shared(filename, mFlags);
+	RetVal = _open_shared(filename, fopts(mode), faccess(mode));
 
 	/* Sanity */
-	if (RetVal == -1)
+	if (RetVal == -1) {
 		return NULL;
+	}
 
 	/* Just return fdopen */
 	return fdopen(RetVal, NULL);

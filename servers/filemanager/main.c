@@ -178,6 +178,38 @@ OsStatus_t OnEvent(MRemoteCall_t *Message)
 
 
 
+
+
+		/* Resolves a special environment path for
+		 * the given the process and it returns it
+		 * as a buffer in the pipe */
+		case __FILEMANAGER_PATHRESOLVE: {
+			MString_t *Resolved = PathResolveEnvironment(
+				(EnvironmentPath_t)Message->Arguments[0].Data.Value);
+			if (Resolved != NULL) {
+				Result = RPCRespond(Message, MStringRaw(Resolved), 
+					strlen(MStringRaw(Resolved)));
+			}
+			else {
+				Result = RPCRespond(Message, NULL, sizeof(void*));
+			}
+		} break;
+
+		/* Resolves and combines the environment path together
+		 * and returns the newly concenated string */
+		case __FILEMANAGER_PATHCANONICALIZE: {
+			MString_t *Resolved = PathCanonicalize(
+				(EnvironmentPath_t)Message->Arguments[0].Data.Value,
+				Message->Arguments[1].Data.Buffer);
+			if (Resolved != NULL) {
+				Result = RPCRespond(Message, MStringRaw(Resolved),
+					strlen(MStringRaw(Resolved)));
+			}
+			else {
+				Result = RPCRespond(Message, NULL, sizeof(void*));
+			}
+		} break;
+
 		default: {
 		} break;
 	}

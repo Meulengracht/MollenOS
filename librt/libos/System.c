@@ -67,10 +67,12 @@ int MollenOSRegisterWM(void)
 	return Syscall0(SYSCALL_REGWM);
 }
 
-/* This function returns screen geomemtry
- * descriped as a rectangle structure, which
- * must be pre-allocated */
-void MollenOSGetScreenGeometry(Rect_t *Rectangle)
+/* ScreenQueryGeometry
+ * This function returns screen geomemtry
+ * descriped as a rectangle structure */
+OsStatus_t 
+ScreenQueryGeometry(
+	_Out_ Rect_t *Rectangle)
 {
 	/* Vars */
 	OSVideoDescriptor_t VidDescriptor;
@@ -83,41 +85,4 @@ void MollenOSGetScreenGeometry(Rect_t *Rectangle)
 	Rectangle->y = 0;
 	Rectangle->w = VidDescriptor.Width;
 	Rectangle->h = VidDescriptor.Height;
-}
-
-/* Memory - Share
- * This shares a piece of memory with the
- * target process. The function returns NULL
- * on failure to share the piece of memory
- * otherwise it returns the new buffer handle
- * that can be accessed by the other process */
-void *MollenOSMemoryShare(UUId_t Target, void *Buffer, size_t Size)
-{
-	/* Variables */
-	int RetVal = 0;
-
-	/* Syscall! */
-	RetVal = Syscall3(SYSCALL_MEMSHARE, SYSCALL_PARAM(Target),
-		SYSCALL_PARAM(Buffer), SYSCALL_PARAM(Size));
-
-	/* Done! */
-	return (void*)RetVal;
-}
-
-/* Memory - Unshare
- * This takes a previous shared memory handle
- * and unshares it again from the target process
- * The function returns 0 if unshare was succesful,
- * otherwise -1 */
-int MollenOSMemoryUnshare(UUId_t Target, void *MemoryHandle, size_t Size)
-{
-	/* Variables */
-	int RetVal = 0;
-
-	/* Syscall! */
-	RetVal = Syscall3(SYSCALL_MEMUNSHARE, SYSCALL_PARAM(Target),
-		SYSCALL_PARAM(MemoryHandle), SYSCALL_PARAM(Size));
-
-	/* Done! */
-	return RetVal;
 }

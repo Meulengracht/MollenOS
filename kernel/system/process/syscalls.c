@@ -662,6 +662,82 @@ OsStatus_t ScMemoryUnshare(UUId_t Target, Addr_t TranslatedAddress, size_t Size)
 }
 
 /***********************
+* Path Functions       *
+***********************/
+
+/* ScPathQueryWorkingDirectory
+ * Queries the current working directory path
+ * for the current process (See _MAXPATH) */
+OsStatus_t ScPathQueryWorkingDirectory(
+	char *Buffer, size_t MaxLength)
+{
+	/* Locate Process */
+	MCoreProcess_t *Process = PhoenixGetProcess(PROCESS_CURRENT);
+	size_t BytesToCopy = MaxLength;
+
+	/* Sanitize the lookup */
+	if (Process == NULL || Buffer == NULL) {
+		return OsError;
+	}
+
+	/* Make sure we copy optimal num of bytes */
+	if (strlen(MStringRaw(Process->WorkingDirectory)) < MaxLength) {
+		BytesToCopy = strlen(MStringRaw(Process->WorkingDirectory));
+	}
+
+	/* Copy data over into buffer */
+	memcpy(Buffer, MStringRaw(Process->WorkingDirectory), BytesToCopy);
+	return OsNoError;
+}
+
+/* ScPathChangeWorkingDirectory
+ * Performs changes to the current working directory
+ * by canonicalizing the given path modifier or absolute
+ * path */
+OsStatus_t ScPathChangeWorkingDirectory(__CONST char *Path)
+{
+	/* Variables */
+	MCoreProcess_t *Process = PhoenixGetProcess(PROCESS_CURRENT);
+	MString_t *Translated = NULL;
+
+	/* Sanitize the lookup */
+	if (Process == NULL || Path == NULL) {
+		return OsError;
+	}
+
+	/* Create a new string instead of modification */
+	Translated = MStringCreate(Path, StrUTF8);
+	MStringDestroy(Process->WorkingDirectory);
+	Process->WorkingDirectory = Translated;
+	return OsNoError;
+}
+
+/* ScPathQueryApplication
+ * Queries the application path for
+ * the current process (See _MAXPATH) */
+OsStatus_t ScPathQueryApplication(
+	char *Buffer, size_t MaxLength)
+{
+	/* Locate Process */
+	MCoreProcess_t *Process = PhoenixGetProcess(PROCESS_CURRENT);
+	size_t BytesToCopy = MaxLength;
+
+	/* Sanitize the lookup */
+	if (Process == NULL || Buffer == NULL) {
+		return OsError;
+	}
+
+	/* Make sure we copy optimal num of bytes */
+	if (strlen(MStringRaw(Process->BaseDirectory)) < MaxLength) {
+		BytesToCopy = strlen(MStringRaw(Process->BaseDirectory));
+	}
+
+	/* Copy data over into buffer */
+	memcpy(Buffer, MStringRaw(Process->BaseDirectory), BytesToCopy);
+	return OsNoError;
+}
+
+/***********************
 * IPC Functions        *
 ***********************/
 
@@ -1844,9 +1920,11 @@ Addr_t GlbSyscallTable[101] =
 	DefineSyscall(ScMemoryUnshare),
 	DefineSyscall(NoOperation),
 	DefineSyscall(NoOperation),
-	DefineSyscall(NoOperation),
-	DefineSyscall(NoOperation),
-	DefineSyscall(NoOperation),
+
+	/* Path Functions - 38 */
+	DefineSyscall(ScPathQueryWorkingDirectory),
+	DefineSyscall(ScPathChangeWorkingDirectory),
+	DefineSyscall(ScPathQueryApplication),
 
 	/* IPC Functions - 41 */
 	DefineSyscall(ScPipeOpen),

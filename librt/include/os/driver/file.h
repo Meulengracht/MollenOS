@@ -25,11 +25,12 @@
 #define _FILE_INTERFACE_H_
 
 /* Includes
- * - C-Library */
+ * - System */
 #include <os/osdefs.h>
-#include <os/ipc/ipc.h>
+#include <os/driver/file/definitions.h>
 #include <os/driver/server.h>
 #include <os/driver/buffer.h>
+#include <os/ipc/ipc.h>
 
 /* These definitions are in-place to allow a custom
  * setting of the file-manager, these are set to values
@@ -52,6 +53,9 @@
 #define __FILEMANAGER_FLUSHFILE					IPC_DECL_FUNCTION(8)
 #define __FILEMANAGER_MOVEFILE					IPC_DECL_FUNCTION(9)
 
+#define __FILEMANAGER_PATHRESOLVE				IPC_DECL_FUNCTION(10)
+#define __FILEMANAGER_PATHCANONICALIZE			IPC_DECL_FUNCTION(11)
+
 /* Bit flag defintions for operations such as 
  * registering / unregistering of disks, open flags
  * for OpenFile and access flags */
@@ -68,6 +72,8 @@
 #define __FILE_TRUNCATE							0x00000002
 #define __FILE_MUSTEXIST						0x00000004
 #define __FILE_APPEND							0x00000008
+#define __FILE_FAILONEXIST						0x00000010
+#define __FILE_BINARY							0x00000020
 
 /* RegisterDisk
  * Registers a disk with the file-manager and it will
@@ -128,7 +134,8 @@ UUId_t
 OpenFile(
 	_In_ __CONST char *Path, 
 	_In_ Flags_t Options, 
-	_In_ Flags_t Access)
+	_In_ Flags_t Access,
+	_Out_ FileSystemCode_t *Code)
 {
 
 }
@@ -138,13 +145,13 @@ OpenFile(
  * */
 #ifdef __FILEMANAGER_IMPL
 __EXTERN 
-OsStatus_t 
+FileSystemCode_t
 CloseFile(
 	_In_ UUId_t Requester, 
 	_In_ UUId_t Handle);
 #else
 static __CRT_INLINE 
-OsStatus_t 
+FileSystemCode_t 
 CloseFile(
 	_In_ UUId_t Handle)
 {
@@ -156,13 +163,13 @@ CloseFile(
  * */
 #ifdef __FILEMANAGER_IMPL
 __EXTERN 
-OsStatus_t 
+FileSystemCode_t
 DeleteFile(
 	_In_ UUId_t Requester, 
 	_In_ __CONST char *Path);
 #else
 static __CRT_INLINE 
-OsStatus_t 
+FileSystemCode_t
 DeleteFile(
 	_In_ __CONST char *Path)
 {
@@ -174,7 +181,7 @@ DeleteFile(
  * */
 #ifdef __FILEMANAGER_IMPL
 __EXTERN 
-OsStatus_t 
+FileSystemCode_t
 ReadFile(
 	_In_ UUId_t Requester, 
 	_In_ UUId_t Handle,
@@ -182,7 +189,7 @@ ReadFile(
 	_In_ size_t Length);
 #else
 static __CRT_INLINE 
-OsStatus_t 
+FileSystemCode_t
 ReadFile(
 	_In_ UUId_t Handle, 
 	_In_ BufferObject_t *BufferObject, 
@@ -196,7 +203,7 @@ ReadFile(
  * */
 #ifdef __FILEMANAGER_IMPL
 __EXTERN
-OsStatus_t
+FileSystemCode_t
 WriteFile(
 	_In_ UUId_t Requester,
 	_In_ UUId_t Handle,
@@ -204,7 +211,7 @@ WriteFile(
 	_In_ size_t Length);
 #else
 static __CRT_INLINE
-OsStatus_t
+FileSystemCode_t
 WriteFile(
 	_In_ UUId_t Handle,
 	_In_ BufferObject_t *BufferObject,
@@ -218,7 +225,7 @@ WriteFile(
  * */
 #ifdef __FILEMANAGER_IMPL
 __EXTERN 
-OsStatus_t 
+FileSystemCode_t
 SeekFile(
 	_In_ UUId_t Requester,
 	_In_ UUId_t Handle, 
@@ -226,7 +233,7 @@ SeekFile(
 	_In_ uint32_t SeekHi);
 #else
 static __CRT_INLINE 
-OsStatus_t 
+FileSystemCode_t
 SeekFile(
 	_In_ UUId_t Handle, 
 	_In_ uint32_t SeekLo, 
@@ -240,13 +247,13 @@ SeekFile(
  * */
 #ifdef __FILEMANAGER_IMPL
 __EXTERN 
-OsStatus_t 
+FileSystemCode_t
 FlushFile(
 	_In_ UUId_t Requester, 
 	_In_ UUId_t Handle);
 #else
 static __CRT_INLINE
-OsStatus_t 
+FileSystemCode_t
 FlushFile(
 	_In_ UUId_t Handle)
 {
@@ -258,7 +265,7 @@ FlushFile(
  * */
 #ifdef __FILEMANAGER_IMPL
 __EXTERN 
-OsStatus_t 
+FileSystemCode_t
 MoveFile(
 	_In_ UUId_t Requester,
 	_In_ __CONST char *Source, 
@@ -266,7 +273,7 @@ MoveFile(
 	_In_ int Copy);
 #else
 static __CRT_INLINE 
-OsStatus_t 
+FileSystemCode_t
 MoveFile(
 	_In_ __CONST char *Source,
 	_In_ __CONST char *Destination,

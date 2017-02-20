@@ -25,7 +25,6 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\libos\devices.c" />
-    <ClCompile Include="..\..\libos\environment.c" />
     <ClCompile Include="..\..\libos\exceptions.c" />
     <ClCompile Include="..\..\libos\sha1.c" />
     <ClCompile Include="..\..\libos\sharedobject.c" />
@@ -125,6 +124,8 @@
     <ClCompile Include="..\..\libos\driver\bufferobject.c">
       <Filter>driver</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\libos\memory.c" />
+    <ClCompile Include="..\..\libos\path.c" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\libos\mstring\MStringPrivate.h">

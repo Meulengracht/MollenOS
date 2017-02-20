@@ -23,6 +23,7 @@
 /* Includes 
  * - System */
 #include "include/vfs.h"
+#include <os/mollenos.h>
 #include <ds/list.h>
 
 /* Includes
@@ -69,6 +70,7 @@ struct {
 MString_t *PathResolveEnvironment(EnvironmentPath_t Base)
 {
 	/* Variables */
+	char PathBuffer[_MAXPATH];
 	MString_t *ResolvedPath = NULL;
 	ListNode_t *fNode = NULL;
 	int pIndex = (int)Base;
@@ -78,11 +80,22 @@ MString_t *PathResolveEnvironment(EnvironmentPath_t Base)
 	 * Just return the current working directory */
 	if (Base == PathCurrentWorkingDirectory
 		|| Base == PathApplicationBase) {
+		memset(&PathBuffer[0], 0, _MAXPATH);
 		if (Base == PathCurrentWorkingDirectory) {
-			return NULL; //TODO
+			if (PathQueryWorkingDirectory(&PathBuffer[0], _MAXPATH) != OsNoError) {
+				return NULL;
+			}
+			else {
+				return MStringCreate(&PathBuffer[0], StrUTF8);
+			}
 		}
 		else {
-			return NULL; //TODO
+			if (PathQueryApplication(&PathBuffer[0], _MAXPATH) != OsNoError) {
+				return NULL;
+			}
+			else {
+				return MStringCreate(&PathBuffer[0], StrUTF8);
+			}
 		}
 	}
 
