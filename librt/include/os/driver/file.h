@@ -32,6 +32,17 @@
 #include <os/driver/buffer.h>
 #include <os/ipc/ipc.h>
 
+/* This is the options structure used exclusively
+ * for multi-params readback from the ipc operations */
+PACKED_TYPESTRUCT(OpenFilePackage, {
+	FileSystemCode_t		Code;
+	UUId_t					Handle;
+});
+PACKED_TYPESTRUCT(ReadWriteFilePackage, {
+	FileSystemCode_t		Code;
+	size_t					ActualSize;
+});
+
 /* These definitions are in-place to allow a custom
  * setting of the file-manager, these are set to values
  * where in theory it should never be needed to have more */
@@ -71,9 +82,10 @@
 #define __FILE_CREATE							0x00000001
 #define __FILE_TRUNCATE							0x00000002
 #define __FILE_MUSTEXIST						0x00000004
-#define __FILE_APPEND							0x00000008
-#define __FILE_FAILONEXIST						0x00000010
-#define __FILE_BINARY							0x00000020
+#define __FILE_FAILONEXIST						0x00000008
+#define __FILE_APPEND							0x00000100
+#define __FILE_BINARY							0x00000200
+#define __FILE_VOLATILE							0x00000400
 
 /* RegisterDisk
  * Registers a disk with the file-manager and it will
@@ -119,30 +131,34 @@ UnregisterDisk(
 #endif
 
 /* OpenFile
- * */
+ * Opens or creates the given file path based on
+ * the given <Access> and <Options> flags. See the
+ * top of this file */
 #ifdef __FILEMANAGER_IMPL
 __EXTERN 
-UUId_t 
+FileSystemCode_t
 OpenFile(
 	_In_ UUId_t Requester,
 	_In_ __CONST char *Path, 
 	_In_ Flags_t Options, 
-	_In_ Flags_t Access);
+	_In_ Flags_t Access,
+	_Out_ UUId_t *Handle);
 #else
 static __CRT_INLINE 
-UUId_t 
+FileSystemCode_t
 OpenFile(
 	_In_ __CONST char *Path, 
 	_In_ Flags_t Options, 
 	_In_ Flags_t Access,
-	_Out_ FileSystemCode_t *Code)
+	_Out_ UUId_t *Handle)
 {
 
 }
 #endif
 
 /* CloseFile
- * */
+ * Closes the given file-handle, but does not necessarily
+ * close the link to the file. Returns the result */
 #ifdef __FILEMANAGER_IMPL
 __EXTERN 
 FileSystemCode_t
@@ -160,7 +176,9 @@ CloseFile(
 #endif
 
 /* DeleteFile
- * */
+ * Deletes the given file associated with the filehandle
+ * the caller must make sure there is no other references
+ * to the file - otherwise delete fails */
 #ifdef __FILEMANAGER_IMPL
 __EXTERN 
 FileSystemCode_t
@@ -178,29 +196,31 @@ DeleteFile(
 #endif
 
 /* ReadFile
- * */
+ * Reads the requested number of bytes into the given buffer
+ * from the current position in the filehandle */
 #ifdef __FILEMANAGER_IMPL
 __EXTERN 
 FileSystemCode_t
 ReadFile(
 	_In_ UUId_t Requester, 
 	_In_ UUId_t Handle,
-	_In_ BufferObject_t *BufferObject,
-	_In_ size_t Length);
+	_Out_ BufferObject_t *BufferObject,
+	_Out_ size_t *BytesRead);
 #else
 static __CRT_INLINE 
 FileSystemCode_t
 ReadFile(
 	_In_ UUId_t Handle, 
-	_In_ BufferObject_t *BufferObject, 
-	_In_ size_t Length)
+	_Out_ BufferObject_t *BufferObject,
+	_Out_Opt_ size_t *BytesRead)
 {
 
 }
 #endif
 
 /* WriteFile
- * */
+ * Writes the requested number of bytes from the given buffer
+ * into the current position in the filehandle */
 #ifdef __FILEMANAGER_IMPL
 __EXTERN
 FileSystemCode_t
@@ -208,21 +228,23 @@ WriteFile(
 	_In_ UUId_t Requester,
 	_In_ UUId_t Handle,
 	_In_ BufferObject_t *BufferObject,
-	_In_ size_t Length);
+	_Out_ size_t *BytesWritten);
 #else
 static __CRT_INLINE
 FileSystemCode_t
 WriteFile(
 	_In_ UUId_t Handle,
 	_In_ BufferObject_t *BufferObject,
-	_In_ size_t Length)
+	_Out_Opt_ size_t *BytesWritten)
 {
 
 }
 #endif
 
 /* SeekFile
- * */
+ * Sets the file-pointer for the given handle to the
+ * values given, the position is absolute and must
+ * be within range of the file size */
 #ifdef __FILEMANAGER_IMPL
 __EXTERN 
 FileSystemCode_t
@@ -283,4 +305,4 @@ MoveFile(
 }
 #endif
 
-#endif //!_DEVICE_INTERFACE_H_
+#endif //!_FILE_INTERFACE_H_

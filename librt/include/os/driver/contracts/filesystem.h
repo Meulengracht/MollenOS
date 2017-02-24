@@ -97,9 +97,9 @@ __FSAPI
 FileSystemCode_t 
 __FSDECL(FsOpenFile)(
 	_In_ FileSystemDescriptor_t *Descriptor,
-	_In_ FileSystemFile_t *File,
+	_Out_ FileSystemFile_t *File,
 	_In_ MString_t *Path,
-	_In_ Flags_t Flags);
+	_In_ Flags_t Access);
 
 /* FsCloseFile 
  * Closes the given file-link and frees all resources
@@ -139,9 +139,8 @@ FileSystemCode_t
 __FSDECL(FsReadFile)(
 	_In_ FileSystemDescriptor_t *Descriptor,
 	_In_ FileSystemFileHandle_t *Handle,
-	_Out_ __CONST void *Buffer,
-	_In_ size_t BytesToRead,
-	_Out_Opt_ size_t *BytesRead);
+	_Out_ BufferObject_t *BufferObject,
+	_Out_ size_t *BytesRead);
 
 /* FsWriteFile 
  * Writes the requested number of bytes to the given
@@ -151,9 +150,8 @@ FileSystemCode_t
 __FSDECL(FsWriteFile)(
 	_In_ FileSystemDescriptor_t *Descriptor,
 	_In_ FileSystemFileHandle_t *Handle,
-	_Out_ __CONST void *Buffer,
-	_In_ size_t BytesToWrite,
-	_Out_Opt_ size_t *BytesWritten);
+	_In_ BufferObject_t *BufferObject,
+	_Out_ size_t *BytesWritten);
 
 /* FsSeekFile 
  * Seeks in the given file-handle to the absolute position

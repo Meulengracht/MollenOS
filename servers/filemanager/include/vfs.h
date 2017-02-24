@@ -42,6 +42,9 @@
 #define __FILEMANAGER_RESOLVEQUEUE		IPC_DECL_FUNCTION(10000)
 #define __FILEMANAGER_MAXDISKS			64
 
+#define __FILE_OPERATION_READ			0x00000001
+#define __FILE_OPERATION_WRITE			0x00000002
+
 /* VFS FileSystem Types
  * The different supported built-in filesystems */
 typedef enum _FileSystemType {
@@ -138,6 +141,17 @@ __EXTERN List_t *VfsGetFileSystems(void);
  * Retrieves a list of all the currently loaded
  * modules, provides access for manipulation */
 __EXTERN List_t *VfsGetModules(void);
+
+/* VfsIdentifierFileGet
+ * Retrieves a new identifier for a file-handle that
+ * is system-wide unique */
+__EXTERN UUId_t VfsIdentifierFileGet(void);
+
+/* VfsGetOpenFiles / VfsGetOpenHandles
+ * Retrieves the list of open files /handles and allows
+ * access and manipulation of the list */
+__EXTERN List_t *VfsGetOpenFiles(void);
+__EXTERN List_t *VfsGetOpenHandles(void);
 
 /* VfsIdentifierAllocate 
  * Allocates a free identifier index for the

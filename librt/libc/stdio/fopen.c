@@ -38,22 +38,22 @@
 int _open_shared(__CONST char *file, Flags_t Options, Flags_t Access)
 {
 	/* Variables */
-	FileSystemCode_t ErrCode = 0;
-	int RetVal = 0;
+	FileSystemCode_t Code = 0;
+	UUId_t Handle = 0;
 
 	/* System call time, get that file handle */
-	RetVal = (int)OpenFile(file, Options, Access, &ErrCode);
+	Code = OpenFile(file, Options, Access, &Handle);
 
 	/* Ok, so we validate the error-code
 	 * If it's wrong we have to close the file
 	 * handle again, it almost always opens */
-	if (_fval(ErrCode)) {
-		_close(RetVal);
-		_fval(ErrCode);
+	if (_fval(Code)) {
+		_close((int)Handle);
+		_fval(Code);
 		return -1;
 	}
 	else {
-		return RetVal;
+		return (int)Handle;
 	}
 }
 

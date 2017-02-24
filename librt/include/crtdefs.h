@@ -94,6 +94,11 @@
  * to export functions */
 #ifdef MOLLENOS
 
+/* API Interfaces */
+#ifndef SERVICEAPI
+#define SERVICEAPI static __inline
+#endif
+
 /* Kernel Export for Modules */
 #ifndef _KERNEL_API
 #define _CRT_EXPORT __declspec(dllimport)
