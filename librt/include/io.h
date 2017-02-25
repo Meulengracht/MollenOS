@@ -23,7 +23,7 @@
 #define __ANSI_IO_INC__
 
 /* Includes */
-#include <crtdefs.h>
+#include <os/osdefs.h>
 
 #ifdef __cplusplus
 extern "C" {

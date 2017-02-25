@@ -30,5 +30,7 @@
  * and automatically creates new filesystem objects */
 OsStatus_t GptEnumerate(FileSystemDisk_t *Disk, BufferObject_t *Buffer)
 {
-
+	_CRT_UNUSED(Disk);
+	_CRT_UNUSED(Buffer);
+	return OsError;
 }

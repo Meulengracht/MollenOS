@@ -85,7 +85,6 @@ int _open(__CONST char *file, int oflags, int pmode)
 "a+" append/update: Open a file for update (both for input and output) with all output operations writing data at the end of the file. 
 	 Repositioning operations (fseek, fsetpos, rewind) affects the next input operations, but output operations move the position back to the end of file. The file is created if it does not exist.
 */
-
 FILE *fdopen(int fd, __CONST char *mode)
 {
 	/* First of all, sanity the fd */
@@ -98,31 +97,17 @@ FILE *fdopen(int fd, __CONST char *mode)
 	memset(stream, 0, sizeof(FILE));
 
 	/* Initialize instance */
-	stream->fd = fd;
+	stream->fd = (UUId_t)fd;
 	stream->code = _IOREAD | _IOFBF;
 
 	/* Do we need to change access mode ? */
 	if (mode != NULL) {
-		/* Convert flags */
-		int mFlags = fflags(mode);
-
-		/* Syscall */
-		Syscall4(SYSCALL_VFSQUERY, SYSCALL_PARAM(fd), SYSCALL_PARAM(3), 
-			SYSCALL_PARAM(&mFlags), SYSCALL_PARAM(sizeof(mFlags)));
-
-		/* Store */
-		stream->flags = mFlags;
+		stream->opts = fopts(mode);
+		stream->access = faccess(mode);
+		SetFileOptions((UUId_t)fd, stream->opts, stream->access);
 	}
 	else {
-		/* Convert flags */
-		int mFlags = 0;
-
-		/* Syscall */
-		Syscall4(SYSCALL_VFSQUERY, SYSCALL_PARAM(fd), SYSCALL_PARAM(2),
-			SYSCALL_PARAM(&mFlags), SYSCALL_PARAM(sizeof(mFlags)));
-
-		/* Store */
-		stream->flags = mFlags;
+		GetFileOptions((UUId_t)fd, &stream->opts, &stream->access);
 	}
 
 	/* Set code */

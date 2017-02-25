@@ -27,6 +27,7 @@
 /* Includes 
  * - System */
 #include <os/driver/contracts/disk.h>
+#include <os/driver/buffer.h>
 #include <os/driver/driver.h>
 #include <os/osdefs.h>
 

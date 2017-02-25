@@ -38,9 +38,24 @@ PACKED_TYPESTRUCT(OpenFilePackage, {
 	FileSystemCode_t		Code;
 	UUId_t					Handle;
 });
-PACKED_TYPESTRUCT(ReadWriteFilePackage, {
+PACKED_TYPESTRUCT(RWFilePackage, {
 	FileSystemCode_t		Code;
 	size_t					ActualSize;
+});
+PACKED_TYPESTRUCT(QueryFileValuePackage, {
+	FileSystemCode_t		Code;
+	union {
+		struct {
+			uint32_t Lo;
+			uint32_t Hi;
+		} Parts;
+		uint64_t Full;
+	} Value;
+});
+PACKED_TYPESTRUCT(QueryFileOptionsPackage, {
+	FileSystemCode_t		Code;
+	Flags_t					Options;
+	Flags_t					Access;
 });
 
 /* These definitions are in-place to allow a custom
@@ -64,8 +79,13 @@ PACKED_TYPESTRUCT(ReadWriteFilePackage, {
 #define __FILEMANAGER_FLUSHFILE					IPC_DECL_FUNCTION(8)
 #define __FILEMANAGER_MOVEFILE					IPC_DECL_FUNCTION(9)
 
-#define __FILEMANAGER_PATHRESOLVE				IPC_DECL_FUNCTION(10)
-#define __FILEMANAGER_PATHCANONICALIZE			IPC_DECL_FUNCTION(11)
+#define __FILEMANAGER_GETPOSITION				IPC_DECL_FUNCTION(10)
+#define __FILEMANAGER_GETOPTIONS				IPC_DECL_FUNCTION(11)
+#define __FILEMANAGER_SETOPTIONS				IPC_DECL_FUNCTION(12)
+#define __FILEMANAGER_GETSIZE					IPC_DECL_FUNCTION(13)
+
+#define __FILEMANAGER_PATHRESOLVE				IPC_DECL_FUNCTION(14)
+#define __FILEMANAGER_PATHCANONICALIZE			IPC_DECL_FUNCTION(15)
 
 /* Bit flag defintions for operations such as 
  * registering / unregistering of disks, open flags
@@ -266,7 +286,8 @@ SeekFile(
 #endif
 
 /* FlushFile
- * */
+ * Flushes the internal file buffers and ensures there are
+ * no pending file operations for the given file handle */
 #ifdef __FILEMANAGER_IMPL
 __EXTERN 
 FileSystemCode_t
@@ -284,7 +305,9 @@ FlushFile(
 #endif
 
 /* MoveFile
- * */
+ * Moves or copies a given file path to the destination path
+ * this can also be used for renamining if the dest/source paths
+ * match (except for filename/directoryname) */
 #ifdef __FILEMANAGER_IMPL
 __EXTERN 
 FileSystemCode_t
@@ -300,6 +323,97 @@ MoveFile(
 	_In_ __CONST char *Source,
 	_In_ __CONST char *Destination,
 	_In_ int Copy)
+{
+
+}
+#endif
+
+/* GetFilePosition 
+ * Queries the current file position that the given handle
+ * is at, it returns as two seperate unsigned values, the upper
+ * value is optional and should only be checked for large files */
+#ifdef __FILEMANAGER_IMPL
+__EXTERN
+OsStatus_t
+GetFilePosition(
+	_In_ UUId_t Requester,
+	_In_ UUId_t Handle,
+	_Out_ QueryFileValuePackage_t *Result);
+#else
+static __CRT_INLINE
+OsStatus_t
+GetFilePosition(
+	_In_ UUId_t Handle,
+	_Out_ uint32_t *PositionLo,
+	_Out_Opt_ uint32_t *PositionHi)
+{
+
+}
+#endif
+
+/* GetFileOptions 
+ * Queries the current file options and file access flags
+ * for the given file handle */
+#ifdef __FILEMANAGER_IMPL
+__EXTERN
+OsStatus_t
+GetFileOptions(
+	_In_ UUId_t Requester,
+	_In_ UUId_t Handle,
+	_Out_ QueryFileOptionsPackage_t *Result);
+#else
+static __CRT_INLINE
+OsStatus_t
+GetFileOptions(
+	_In_ UUId_t Handle,
+	_Out_ Flags_t *Options,
+	_Out_ Flags_t *Access)
+{
+
+}
+#endif
+
+/* SetFileOptions 
+ * Attempts to modify the current option and or access flags
+ * for the given file handle as specified by <Options> and <Access> */
+#ifdef __FILEMANAGER_IMPL
+__EXTERN
+OsStatus_t
+SetFileOptions(
+	_In_ UUId_t Requester,
+	_In_ UUId_t Handle,
+	_In_ Flags_t Options,
+	_In_ Flags_t Access);
+#else
+static __CRT_INLINE
+OsStatus_t
+SetFileOptions(
+	_In_ UUId_t Handle,
+	_In_ Flags_t Options,
+	_In_ Flags_t Access)
+{
+
+}
+#endif
+
+/* GetFileSize 
+ * Queries the current file size that the given handle
+ * has, it returns as two seperate unsigned values, the upper
+ * value is optional and should only be checked for large files */
+#ifdef __FILEMANAGER_IMPL
+__EXTERN
+OsStatus_t
+GetFileSize(
+	_In_ UUId_t Requester,
+	_In_ UUId_t Handle,
+	_Out_ QueryFileValuePackage_t *Result);
+#else
+static __CRT_INLINE
+OsStatus_t
+GetFileSize(
+	_In_ UUId_t Handle,
+	_Out_ uint32_t *SizeLo,
+	_Out_Opt_ uint32_t *SizeHi)
 {
 
 }

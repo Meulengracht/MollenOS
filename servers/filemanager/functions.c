@@ -18,6 +18,7 @@
  *
  * MollenOS - File Manager Service
  * - Handles all file related services and disk services
+ * - ToDo Buffering is not ported to BufferObjects yet
  */
 
 /* Includes 
@@ -48,7 +49,7 @@ VfsOpenHandleInternal(
 
 	/* Set some initial variables 
 	 * Id, Options, Access, Owner has been set */
-	Handle->LastOperation == __FILE_OPERATION_READ;
+	Handle->LastOperation = __FILE_OPERATION_NONE;
 	Handle->OutBuffer = NULL;
 	Handle->OutBufferPosition = 0;
 	Handle->Position = 0;
@@ -321,7 +322,7 @@ CloseFile(
 	/* If there has been allocated any buffers they should
 	 * be flushed and cleaned up */
 	if (!(fHandle->Options & __FILE_VOLATILE)) {
-		VfsFlush(Handle);
+		FlushFile(Requester, Handle);
 		free(fHandle->OutBuffer);
 	}
 
@@ -336,7 +337,7 @@ CloseFile(
 	Key.Value = (int)fHandle->File->Hash;
 	fHandle->File->References--;
 	if (fHandle->File->IsLocked == Requester) {
-		fHandle->File->IsLocked == UUID_INVALID;
+		fHandle->File->IsLocked = UUID_INVALID;
 	}
 
 	/* Last reference?
@@ -352,7 +353,7 @@ CloseFile(
 		/* Remove from list */
 		if (pNode != NULL) {
 			ListRemoveByNode(VfsGetOpenFiles(), pNode);
-			kfree(pNode);
+			free(pNode);
 		}
 	}
 
@@ -462,7 +463,7 @@ ReadFile(
 
 	/* Sanity -> Flush if we wrote and now read */
 	if (fHandle->LastOperation != __FILE_OPERATION_READ) {
-		Code = VfsFlush(Handle);
+		Code = FlushFile(Requester, Handle);
 	}
 
 	/* Instantiate the pointer and read */
@@ -518,7 +519,7 @@ WriteFile(
 
 	/* Sanity -> Clear read buffer if we are writing */
 	if (fHandle->LastOperation != __FILE_OPERATION_WRITE) {
-		Code = VfsFlush(Handle);
+		Code = FlushFile(Requester, Handle);
 	}
 
 	/* Instantiate the pointer */
@@ -599,74 +600,296 @@ SeekFile(
 	_In_ uint32_t SeekLo, 
 	_In_ uint32_t SeekHi)
 {
-	/* Vars */
-	VfsErrorCode_t ErrCode = VfsPathNotFound;
-	MCoreFileSystem_t *Fs = NULL;
+	/* Variables */
+	FileSystemFileHandle_t *fHandle = NULL;
+	FileSystemCode_t Code = FsOk;
+	ListNode_t *hNode = NULL;
+	FileSystem_t *Fs = NULL;
+	DataKey_t Key;
 
-	/* Sanity */
-	if (Handle == NULL
-		|| Handle->Code != VfsOk)
-		return VfsInvalidParameters;
+	/* Combine two u32 to form one big u64 
+	 * This is just the declaration */
+	union {
+		struct {
+			uint32_t Lo;
+			uint32_t Hi;
+		} Parts;
+		uint64_t Full;
+	} SeekAbs;
 
-	/* Flush buffers before seeking */
-	VfsFlush(Handle);
+	/* Fill in values */
+	SeekAbs.Parts.Lo = SeekLo;
+	SeekAbs.Parts.Hi = SeekHi;
 
-	/* Deep Seek */
-	Fs = (MCoreFileSystem_t*)Handle->File->Fs;
-	ErrCode = Fs->SeekFile(Fs, Handle, Offset);
+	/* Sanitize request parameters first
+	 * Is handle valid? */
+	Key.Value = (int)Handle;
+	hNode = ListGetNodeByKey(VfsGetOpenHandles(), Key, 0);
 
-	/* Clear last op */
-	Handle->LastOp = 0;
-	Handle->IsEOF = 0;
-
-	/* Done */
-	return ErrCode;
-}
-
-/* Vfs - Flush Handle
-* @Handle - A valid file handle */
-FileSystemCode_t VfsFlush(UUId_t Handle)
-{
-	/* Vars */
-	MCoreFileSystem_t *Fs = NULL;
-	size_t BytesWritten = 0;
-
-	/* Sanity */
-	if (Handle == NULL)
-		return VfsInvalidParameters;
-
-	/* Sanity */
-	if ((Handle->Flags & NoBuffering)
-		|| Handle->LastOp == 0)
-		return VfsOk;
-
-	/* Cast */
-	Fs = (MCoreFileSystem_t*)Handle->File->Fs;
-
-	/* Empty output buffer */
-	if (Handle->oBuffer != NULL
-		&& Handle->oBufferPosition != 0)
-	{
-		/* Write Buffer */
-		BytesWritten = Fs->WriteFile(Fs, Handle, Handle->oBuffer, Handle->oBufferPosition);
-
-		/* Sanity */
-		if (BytesWritten != Handle->oBufferPosition)
-			return VfsDiskError;
+	/* Case 1 - Not found */
+	if (hNode == NULL) {
+		return FsInvalidParameters;
 	}
 
-	/* Done */
-	return VfsOk;
+	/* Instantiate pointer for next check */
+	fHandle = (FileSystemFileHandle_t*)hNode->Data;
+
+	/* Case 2 - Invalid Owner */
+	if (fHandle->Owner != Requester) {
+		return FsAccessDenied;
+	}
+
+	/* Flush buffers before seeking */
+	if (!(fHandle->Options & __FILE_VOLATILE)) {
+		Code = FlushFile(Requester, Handle);
+	}
+
+	/* Instantiate the filesystem pointer */
+	Fs = (FileSystem_t*)fHandle->File->System;
+
+	/* Seek into file */
+	Code = Fs->Module->SeekFile(&Fs->Descriptor, fHandle, SeekAbs.Full);
+
+	/* Clear a few variables - needs to be
+	 * done at each seek */
+	fHandle->LastOperation = __FILE_OPERATION_NONE;
+	fHandle->OutBufferPosition = 0;
+	return Code;
 }
 
-/* Vfs - Move/Rename File
- * @Path - A valid file path
- * @NewPath - A valid file destination
- * @Copy - Whether or not to move the file or copy it there */
-VfsErrorCode_t VfsMove(const char *Path, const char *NewPath, int Copy)
+/* FlushFile
+ * Flushes the internal file buffers and ensures there are
+ * no pending file operations for the given file handle */
+FileSystemCode_t
+FlushFile(
+	_In_ UUId_t Requester, 
+	_In_ UUId_t Handle)
 {
-	_CRT_UNUSED(Path);
-	_CRT_UNUSED(NewPath);
+	/* Variables */
+	FileSystemFileHandle_t *fHandle = NULL;
+	FileSystemCode_t Code = FsOk;
+	ListNode_t *hNode = NULL;
+	FileSystem_t *Fs = NULL;
+	DataKey_t Key;
+
+	/* Sanitize request parameters first
+	 * Is handle valid? */
+	Key.Value = (int)Handle;
+	hNode = ListGetNodeByKey(VfsGetOpenHandles(), Key, 0);
+
+	/* Case 1 - Not found */
+	if (hNode == NULL) {
+		return FsInvalidParameters;
+	}
+
+	/* Instantiate pointer for next check */
+	fHandle = (FileSystemFileHandle_t*)hNode->Data;
+
+	/* Case 2 - Invalid Owner */
+	if (fHandle->Owner != Requester) {
+		return FsAccessDenied;
+	}
+
+	/* Case 3 - No buffering enabled */
+	if (fHandle->Options & __FILE_VOLATILE) {
+		return FsOk;
+	}
+
+	/* Instantiate the filesystem pointer */
+	Fs = (FileSystem_t*)fHandle->File->System;
+
+	/* Empty output buffer 
+	 * - But sanitize the buffers first */
+	if (fHandle->OutBuffer != NULL
+		&& fHandle->OutBufferPosition != 0) {
+		size_t BytesWritten = 0;
+#if 0
+		Code = Fs->Module->WriteFile(&Fs->Descriptor, fHandle, NULL, &BytesWritten);
+#endif
+		if (BytesWritten != fHandle->OutBufferPosition) {
+			return FsDiskError;
+		}
+	}
+
+	return Code;
+}
+
+/* MoveFile
+ * Moves or copies a given file path to the destination path
+ * this can also be used for renamining if the dest/source paths
+ * match (except for filename/directoryname) */
+FileSystemCode_t
+MoveFile(
+	_In_ UUId_t Requester,
+	_In_ __CONST char *Source, 
+	_In_ __CONST char *Destination,
+	_In_ int Copy)
+{
+	_CRT_UNUSED(Requester);
+	_CRT_UNUSED(Source);
+	_CRT_UNUSED(Destination);
 	_CRT_UNUSED(Copy);
-	return VfsOk;
+	return FsOk;
+}
+
+/* GetFilePosition 
+ * Queries the current file position that the given handle
+ * is at, it returns as two seperate unsigned values, the upper
+ * value is optional and should only be checked for large files */
+OsStatus_t
+GetFilePosition(
+	_In_ UUId_t Requester,
+	_In_ UUId_t Handle,
+	_Out_ QueryFileValuePackage_t *Result)
+{
+	/* Variables */
+	FileSystemFileHandle_t *fHandle = NULL;
+	ListNode_t *hNode = NULL;
+	DataKey_t Key;
+
+	/* Sanitize request parameters first
+	 * Is handle valid? */
+	Key.Value = (int)Handle;
+	hNode = ListGetNodeByKey(VfsGetOpenHandles(), Key, 0);
+
+	/* Case 1 - Not found */
+	if (hNode == NULL) {
+		Result->Code = FsInvalidParameters;
+		return OsError;
+	}
+
+	/* Instantiate pointer for next check */
+	fHandle = (FileSystemFileHandle_t*)hNode->Data;
+
+	/* Case 2 - Invalid Owner */
+	if (fHandle->Owner != Requester) {
+		Result->Code = FsAccessDenied;
+		return OsError;
+	}
+
+	/* Fill in information */
+	Result->Value.Full = fHandle->Position;
+	Result->Code = FsOk;
+	return OsNoError;
+}
+
+/* GetFileOptions
+ * Queries the current file options and file access flags
+ * for the given file handle */
+OsStatus_t
+GetFileOptions(
+	_In_ UUId_t Requester,
+	_In_ UUId_t Handle,
+	_Out_ QueryFileOptionsPackage_t *Result)
+{
+	/* Variables */
+	FileSystemFileHandle_t *fHandle = NULL;
+	ListNode_t *hNode = NULL;
+	DataKey_t Key;
+
+	/* Sanitize request parameters first
+	 * Is handle valid? */
+	Key.Value = (int)Handle;
+	hNode = ListGetNodeByKey(VfsGetOpenHandles(), Key, 0);
+
+	/* Case 1 - Not found */
+	if (hNode == NULL) {
+		Result->Code = FsInvalidParameters;
+		return OsError;
+	}
+
+	/* Instantiate pointer for next check */
+	fHandle = (FileSystemFileHandle_t*)hNode->Data;
+
+	/* Case 2 - Invalid Owner */
+	if (fHandle->Owner != Requester) {
+		Result->Code = FsAccessDenied;
+		return OsError;
+	}
+
+	/* Fill in information */
+	Result->Options = fHandle->Options;
+	Result->Access = fHandle->Access;
+	Result->Code = FsOk;
+	return OsNoError;
+}
+
+/* SetFileOptions 
+ * Attempts to modify the current option and or access flags
+ * for the given file handle as specified by <Options> and <Access> */
+OsStatus_t
+SetFileOptions(
+	_In_ UUId_t Requester,
+	_In_ UUId_t Handle,
+	_In_ Flags_t Options,
+	_In_ Flags_t Access)
+{
+	/* Variables */
+	FileSystemFileHandle_t *fHandle = NULL;
+	ListNode_t *hNode = NULL;
+	DataKey_t Key;
+
+	/* Sanitize request parameters first
+	 * Is handle valid? */
+	Key.Value = (int)Handle;
+	hNode = ListGetNodeByKey(VfsGetOpenHandles(), Key, 0);
+
+	/* Case 1 - Not found */
+	if (hNode == NULL) {
+		return OsError;
+	}
+
+	/* Instantiate pointer for next check */
+	fHandle = (FileSystemFileHandle_t*)hNode->Data;
+
+	/* Case 2 - Invalid Owner */
+	if (fHandle->Owner != Requester) {
+		return OsError;
+	}
+
+	/* Update the requested information */
+	fHandle->Options = Options;
+	fHandle->Access = Access;
+	return OsNoError;
+}
+
+/* GetFileSize 
+ * Queries the current file size that the given handle
+ * has, it returns as two seperate unsigned values, the upper
+ * value is optional and should only be checked for large files */
+OsStatus_t
+GetFileSize(
+	_In_ UUId_t Requester,
+	_In_ UUId_t Handle,
+	_Out_ QueryFileValuePackage_t *Result)
+{
+	/* Variables */
+	FileSystemFileHandle_t *fHandle = NULL;
+	ListNode_t *hNode = NULL;
+	DataKey_t Key;
+
+	/* Sanitize request parameters first
+	 * Is handle valid? */
+	Key.Value = (int)Handle;
+	hNode = ListGetNodeByKey(VfsGetOpenHandles(), Key, 0);
+
+	/* Case 1 - Not found */
+	if (hNode == NULL) {
+		Result->Code = FsInvalidParameters;
+		return OsError;
+	}
+
+	/* Instantiate pointer for next check */
+	fHandle = (FileSystemFileHandle_t*)hNode->Data;
+
+	/* Case 2 - Invalid Owner */
+	if (fHandle->Owner != Requester) {
+		Result->Code = FsAccessDenied;
+		return OsError;
+	}
+
+	/* Fill in information */
+	Result->Value.Full = fHandle->File->Size;
+	Result->Code = FsOk;
+	return OsNoError;
 }

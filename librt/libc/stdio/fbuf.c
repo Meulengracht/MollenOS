@@ -82,7 +82,7 @@ int _ffill(FILE * stream, void *ptr, size_t size)
 
 	/* Sanitize whther or not this file-stream has
 	 * stream-buffering disabled */
-	if (stream->flags & _IONBF) {
+	if (stream->code & _IONBF) {
 		int errcode = 0;
 		int retval = Syscall4(SYSCALL_VFSREAD, SYSCALL_PARAM(stream->fd),
 			SYSCALL_PARAM(ptr), SYSCALL_PARAM(size),

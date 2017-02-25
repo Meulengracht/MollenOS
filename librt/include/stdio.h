@@ -23,8 +23,7 @@
 #define __STDIO_INC__
 
 /* Includes */
-#include <stdint.h>
-#include <crtdefs.h>
+#include <os/osdefs.h>
 #include <stddef.h>
 #include <stdarg.h>
 
@@ -93,26 +92,13 @@ _CRTIMP __CONST char *_errstrings[];
 /*******************************
  *       File Structures       *
  *******************************/
-typedef struct _CLibraryFile
-{
-	/* The associated file
-	 * descriptor. The id */
-	int fd;
-
-	/* Buffering 
-	 * used for optimizations */
-	void *buffer;
-
-	/* Status Code 
-	 * Updated by sysops */
-	int code;
-
-	/* Access Flags 
-	 * Used for shortcuts */
-	int flags;
-
+typedef struct _CFILE {
+	UUId_t					 fd;
+	void					*buffer;
+	int						 code;
+	Flags_t					 opts;
+	Flags_t					 access;
 } FILE, *PFILE;
-
 
 /*******************************
  *       File Access           *
