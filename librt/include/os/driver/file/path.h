@@ -37,18 +37,28 @@
  * that can be used to locate files. */
 #ifdef __FILEMANAGER_IMPL
 __EXTERN 
-MString_t *
+MString_t*
+SERVICEABI
 PathResolveEnvironment(
 	_In_ EnvironmentPath_t Base);
 #else
-static __CRT_INLINE
+SERVICEAPI
 OsStatus_t
+SERVICEABI
 PathResolveEnvironment(
 	_In_ EnvironmentPath_t Base,
 	_Out_ char *Buffer,
 	_In_ size_t MaxLength)
 {
+	/* Variables */
+	MRemoteCall_t Request;
 
+	/* RPC Usage */
+	RPCInitialize(&Request, __FILEMANAGER_INTERFACE_VERSION,
+		PIPE_DEFAULT, __FILEMANAGER_PATHRESOLVE);
+	RPCSetArgument(&Request, 0, (__CONST void*)&Base, sizeof(EnvironmentPath_t));
+	RPCSetResult(&Request, (__CONST void*)Buffer, MaxLength);
+	return RPCEvaluate(&Request, __FILEMANAGER_TARGET);
 }
 #endif
 
@@ -57,20 +67,31 @@ PathResolveEnvironment(
  * and resolving all identifiers in path */
 #ifdef __FILEMANAGER_IMPL
 __EXTERN 
-MString_t *
+MString_t*
+SERVICEABI
 PathCanonicalize(
 	_In_ EnvironmentPath_t Base,
 	_In_ __CONST char *Path);
 #else
-static __CRT_INLINE
+SERVICEAPI
 OsStatus_t
+SERVICEABI
 PathCanonicalize(
 	_In_ EnvironmentPath_t Base,
 	_In_ char *Path,
 	_Out_ char *Buffer,
 	_In_ size_t MaxLength)
 {
+	/* Variables */
+	MRemoteCall_t Request;
 
+	/* RPC Usage */
+	RPCInitialize(&Request, __FILEMANAGER_INTERFACE_VERSION,
+		PIPE_DEFAULT, __FILEMANAGER_PATHCANONICALIZE);
+	RPCSetArgument(&Request, 0, (__CONST void*)&Base, sizeof(EnvironmentPath_t));
+	RPCSetArgument(&Request, 1, (__CONST void*)Path, strlen(Path));
+	RPCSetResult(&Request, (__CONST void*)Buffer, MaxLength);
+	return RPCEvaluate(&Request, __FILEMANAGER_TARGET);
 }
 #endif
 

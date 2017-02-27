@@ -65,8 +65,9 @@ PACKED_TYPESTRUCT(DiskOperation, {
  * This queries the disk contract for data
  * and must be implemented by all contracts that
  * implement the disk interface */
-__DEVAPI 
-OsStatus_t 
+SERVICEAPI
+OsStatus_t
+SERVICEABI
 DiskQuery(
 	_In_ UUId_t Driver, 
 	_In_ UUId_t Disk,
@@ -92,8 +93,9 @@ DiskQuery(
  * at the absolute sector given 
  * @PhysicalAddress - Must be the contigious physical address
  *                    buffer to read data into */
-__DEVAPI 
-OsStatus_t 
+SERVICEAPI
+OsStatus_t
+SERVICEABI
 DiskRead(
 	_In_ UUId_t Driver, 
 	_In_ UUId_t Disk,
@@ -128,8 +130,9 @@ DiskRead(
  * at the absolute sector given. 
  * @PhysicalAddress - Must be the contigious physical address
  *                    buffer that contains the data to write */
-__DEVAPI 
-OsStatus_t 
+SERVICEAPI
+OsStatus_t
+SERVICEABI
 DiskWrite(
 	_In_ UUId_t Driver,
 	_In_ UUId_t Disk,

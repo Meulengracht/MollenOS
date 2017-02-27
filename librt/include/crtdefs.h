@@ -97,6 +97,7 @@
 /* API Interfaces */
 #ifndef SERVICEAPI
 #define SERVICEAPI static __inline
+#define SERVICEABI __cdecl
 #endif
 
 /* Kernel Export for Modules */
@@ -109,6 +110,7 @@
 /* LibOS export for userspace programs. However
  * except for the usual stuff, we have a static case aswell */
 #ifndef _MOS_API
+#define MOSABI __cdecl
 #ifdef _LIBOS_DLL
 #define _MOS_API __declspec(dllexport)
 #else
