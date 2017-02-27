@@ -36,10 +36,6 @@
     <ClCompile Include="..\..\system\synchronization\semaphore.c" />
     <ClCompile Include="..\..\system\threading.c" />
     <ClCompile Include="..\..\system\timers.c" />
-    <ClCompile Include="..\..\system\vfs\vfs.c" />
-    <ClCompile Include="..\..\system\vfs\vfsdisk.c" />
-    <ClCompile Include="..\..\system\vfs\vfsfunctions.c" />
-    <ClCompile Include="..\..\system\vfs\vfspath.c" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\arch\arch.h" />
@@ -69,8 +65,6 @@
     <ClInclude Include="..\..\include\semaphore.h" />
     <ClInclude Include="..\..\include\threading.h" />
     <ClInclude Include="..\..\include\timers.h" />
-    <ClInclude Include="..\..\include\vfs\partition.h" />
-    <ClInclude Include="..\..\include\vfs\vfs.h" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <ProjectGuid>{E1811ABC-D002-44D1-8581-2ACF9C1DD0F9}</ProjectGuid>

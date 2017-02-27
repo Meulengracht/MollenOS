@@ -1,53 +1,70 @@
 /* MollenOS
-*
-* Copyright 2011 - 2016, Philip Meulengracht
-*
-* This program is free software : you can redistribute it and / or modify
-* it under the terms of the GNU General Public License as published by
-* the Free Software Foundation ? , either version 3 of the License, or
-* (at your option) any later version.
-*
-* This program is distributed in the hope that it will be useful,
-* but WITHOUT ANY WARRANTY; without even the implied warranty of
-* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.See the
-* GNU General Public License for more details.
-*
-* You should have received a copy of the GNU General Public License
-* along with this program.If not, see <http://www.gnu.org/licenses/>.
-*
-*
-* MollenOS C Library - File Fill Buffer
-*/
+ *
+ * Copyright 2011 - 2017, Philip Meulengracht
+ *
+ * This program is free software : you can redistribute it and / or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation ? , either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.If not, see <http://www.gnu.org/licenses/>.
+ *
+ *
+ * MollenOS C Library - Internal file-buffers
+ */
 
-/* Includes */
+/* Includes
+ * - System */
+#include <os/driver/file.h>
+#include <os/syscall.h>
+#include <os/thread.h>
+
+/* Includes 
+ * - Library */
 #include <io.h>
 #include <stdio.h>
 #include <errno.h>
 #include <string.h>
 #include <stdlib.h>
-#include <os/Syscall.h>
-#include <os/osdefs.h>
 
 /* Private structure 
  * it's not exposed for users */
-typedef struct _CLibraryFileBuffer {
-
-	/* Buffer 
-	 * The actual buffer */
-	void *Buffer;
-
-	/* The buffer pointer */
-	int Pointer;
-
-	/* The buffer size 
-	 * so we know the limit */
-	int Size;
-	int TempSize;
-
-	/* Cleanup ? */
-	int Cleanup;
-
+typedef struct _CFILEBUFFER {
+	void					*Buffer;
+	int						 Pointer;
+	int						 Size;
+	int						 TempSize;
+	int						 Cleanup;
 } FILEBUFFER, *PFILEBUFFER;
+
+/* _ffullread
+ * Reads not as a chunk, but as one entire transaction
+ * for speedup */
+int _ffullread(FILE * stream, void *ptr, size_t len)
+{
+	/* Variables */
+	BufferObject_t *Buffer = NULL;
+	size_t BytesRead = 0;
+
+	/* Create a new buffer for transfer */
+	Buffer = CreateBuffer(len);
+
+	/* Do the read */
+	_fval((int)ReadFile(stream->fd, Buffer, &BytesRead));
+	if (BytesRead != 0) {
+		ReadBuffer(Buffer, ptr, BytesRead);
+	}
+
+	/* Cleanup buffers */
+	DestroyBuffer(Buffer);
+	return BytesRead;
+}
 
 /* The _ffill
  * fills a file buffer */
@@ -83,13 +100,10 @@ int _ffill(FILE * stream, void *ptr, size_t size)
 	/* Sanitize whther or not this file-stream has
 	 * stream-buffering disabled */
 	if (stream->code & _IONBF) {
-		int errcode = 0;
-		int retval = Syscall4(SYSCALL_VFSREAD, SYSCALL_PARAM(stream->fd),
-			SYSCALL_PARAM(ptr), SYSCALL_PARAM(size),
-			SYSCALL_PARAM(&errcode));
+		int retval = _ffullread(stream, ptr, size);
 
 		/* Sanity */
-		if (_fval(errcode)) {
+		if (errno != EOK) {
 			return -1;
 		}
 		else {
@@ -103,29 +117,24 @@ int _ffill(FILE * stream, void *ptr, size_t size)
 	if (fbuffer->Pointer == -1
 		|| (fbuffer->Pointer == fbuffer->TempSize)) {
 		/* Read a complete block */
-		int errcode = 0;
 		int retval = 0;
 
 		/* Determine if we read more than a full buffer */
 		if (size >= (size_t)fbuffer->Size) {
-			retval = Syscall4(SYSCALL_VFSREAD, SYSCALL_PARAM(stream->fd),
-				SYSCALL_PARAM(ptr), SYSCALL_PARAM(size),
-				SYSCALL_PARAM(&errcode));
+			retval = _ffullread(stream, ptr, size);
 		}
 		else {
-			retval = Syscall4(SYSCALL_VFSREAD, SYSCALL_PARAM(stream->fd),
-				SYSCALL_PARAM(fbuffer->Buffer), SYSCALL_PARAM(fbuffer->Size),
-				SYSCALL_PARAM(&errcode));
+			retval = _read(stream->fd, fbuffer->Buffer, fbuffer->Size);
 		}
 
 		/* Sanity */
-		if (_fval(errcode)) {
+		if (errno != EOK) {
 			return -1;
 		}
 
 		/* If we read 0 bytes and errcode is ok,
 		 * then we are EOF */
-		if (retval == 0 && errcode == 0) 
+		if (retval == 0 && errno == EOK)
 		{
 			/* Set status code, 
 			 * invalidate buffer */

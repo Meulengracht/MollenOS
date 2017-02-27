@@ -28,21 +28,35 @@
  * - Library */
 #include <os/osdefs.h>
 
+ /* Start one of these before function prototypes */
+_CODE_BEGIN
+
 /* SharedObjectLoad
  * Load a shared object given a path
  * path must exists otherwise NULL is returned */
-_MOS_API Handle_t SharedObjectLoad(_In_ __CONST char *SharedObject);
+_MOS_API 
+Handle_t 
+SharedObjectLoad(
+	_In_ __CONST char *SharedObject);
 
 /* SharedObjectGetFunction
  * Load a function-address given an shared object
  * handle and a function name, function must exist
  * otherwise null is returned */
-_MOS_API void *SharedObjectGetFunction(_In_ Handle_t Handle, 
-									   _In_ __CONST char *Function);
+_MOS_API 
+void *
+SharedObjectGetFunction(
+	_In_ Handle_t Handle, 
+	_In_ __CONST char *Function);
 
 /* SharedObjectUnload
  * Unloads a valid shared object handle
  * returns OsError on failure */
-_MOS_API OsStatus_t SharedObjectUnload(_In_ Handle_t Handle);
+_MOS_API 
+OsStatus_t 
+SharedObjectUnload(
+	_In_ Handle_t Handle);
+
+_CODE_END
 
 #endif //!_SHARED_OBJECTS_INTERFACE_H_

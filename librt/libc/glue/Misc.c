@@ -27,13 +27,6 @@
 #include <string.h>
 #include <stdio.h>
 
-/* Private Definitions */
-#ifdef _X86_32
-#define MOLLENOS_RESERVED_SPACE	0xFFFFFFF4
-#elif defined(X86_64)
-#define MOLLENOS_RESERVED_SPACE	0xFFFFFFF4
-#endif
-
 /* Don't define any of this
  * if the static version of the library is
  * being build! */
@@ -57,24 +50,10 @@ void ThreadSleep(size_t MilliSeconds)
 /* TLSGetCurrent 
  * Retrieves the local storage space
  * for the current thread */
-ThreadLocalStorage_t *TLSGetCurrent(void)
+ThreadLocalStorage_t *
+TLSGetCurrent(void)
 {
-	/* Dereference the pointer */
-	size_t Address = *((size_t*)MOLLENOS_RESERVED_SPACE);
-
-	/* Done */
-	return (ThreadLocalStorage_t*)Address;
-}
-
-/* Query */
-int MollenOSDeviceQuery(OSDeviceType_t Type, int Request, void *Buffer, size_t Length)
-{
-	/* Not used atm */
-	_CRT_UNUSED(Request);
-
-	/* Prep for syscall */
-	return Syscall3(SYSCALL_DEVQUERY, SYSCALL_PARAM(Type), 
-		SYSCALL_PARAM(Buffer), SYSCALL_PARAM(Length));
+	return (ThreadLocalStorage_t*)__get_reserved(0);
 }
 
 /* Const Message */
@@ -99,28 +78,6 @@ void MollenOSSystemLog(const char *Format, ...)
 	/* Now spit it out */
 	Syscall2(0, SYSCALL_PARAM(__SysTypeMessage), 
 		SYSCALL_PARAM(&TmpBuffer[0]));
-}
-
-/* IPC - Read
- * This returns -1 if something went wrong reading
- * a message from the message queue, otherwise it returns 0
- * and fills the structures with information about the message */
-int PipeRead(int Pipe, void *Buffer, size_t Length)
-{
-	/* Variables */
-	int Result = 0;
-
-	/* Read is rather just calling the underlying syscall */
-	Result = Syscall4(SYSCALL_READPIPE, SYSCALL_PARAM(Pipe),
-		SYSCALL_PARAM(Buffer), SYSCALL_PARAM(Length), 0);
-
-	/* Sanitize the return parameters */
-	if (Result < 0) {
-		raise(SIGPIPE);
-	}
-
-	/* Done! */
-	return Result;
 }
 
 #endif

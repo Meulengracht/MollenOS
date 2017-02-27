@@ -1,58 +1,54 @@
 /* MollenOS
-*
-* Copyright 2011 - 2016, Philip Meulengracht
-*
-* This program is free software : you can redistribute it and / or modify
-* it under the terms of the GNU General Public License as published by
-* the Free Software Foundation ? , either version 3 of the License, or
-* (at your option) any later version.
-*
-* This program is distributed in the hope that it will be useful,
-* but WITHOUT ANY WARRANTY; without even the implied warranty of
-* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.See the
-* GNU General Public License for more details.
-*
-* You should have received a copy of the GNU General Public License
-* along with this program.If not, see <http://www.gnu.org/licenses/>.
-*
-*
-* MollenOS C Library - File Tell Position
-*/
+ *
+ * Copyright 2011 - 2017, Philip Meulengracht
+ *
+ * This program is free software : you can redistribute it and / or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation ? , either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.If not, see <http://www.gnu.org/licenses/>.
+ *
+ *
+ * MollenOS C Library - Get file position
+ */
 
-/* Includes */
+/* Includes
+ * - System */
+#include <os/driver/file.h>
+#include <os/syscall.h>
+
+/* Includes 
+ * - Library */
 #include <io.h>
 #include <stdio.h>
 #include <errno.h>
 #include <string.h>
 #include <stdlib.h>
-#include <os/Syscall.h>
-#include <os/MollenOS.h>
 
 /* Externs */
-extern int _favail(FILE * stream);
+__EXTERN int _favail(FILE * stream);
 
 /* _tell 
  * the ANSII C version of ftell */
 long _tell(int fd)
 {
 	/* Variables */
-	char Buffer[64];
-	int RetVal = 0;
-
-	/* Prepare a buffer */
-	memset(Buffer, 0, sizeof(Buffer));
+	uint32_t Position = 0;
 
 	/* Syscall */
-	RetVal = Syscall4(SYSCALL_VFSQUERY, SYSCALL_PARAM(fd),
-		SYSCALL_PARAM(0), SYSCALL_PARAM(&Buffer[0]),
-		SYSCALL_PARAM(sizeof(Buffer)));
-
-	/* Sanity the result */
-	if (!_fval(RetVal)) {
-		return *((long*)(&Buffer[16]));
-	}
-	else
+	if (GetFilePosition((UUId_t)fd, &Position, NULL) != OsNoError) {
 		return -1;
+	}
+	else {
+		return (long)Position;
+	}
 }
 
 /* The ftello
@@ -60,7 +56,10 @@ long _tell(int fd)
 off_t ftello(FILE * stream)
 {
 	/* Variables */
-	long Position = 0;	
+	off_t Position = 0;
+#if _FILE_OFFSET_BITS==64
+	uint32_t pLo, pHi;
+#endif
 	
 	/* Sanity */
 	if (stream == NULL
@@ -72,11 +71,21 @@ off_t ftello(FILE * stream)
 	}
 
 	/* Get current position */
-	Position = _tell(stream->fd);
-	
-	/* Sanity */
-	if (Position == -1)
+#if _FILE_OFFSET_BITS==64
+	if (GetFilePosition((UUId_t)fd, &pLo, &pHi) != OsNoError) {
 		return -1L;
+	}
+	else {
+		Position = (pHi << 32) | pLo;
+	}
+#else
+	Position = (off_t)_tell(stream->fd);
+
+	/* Sanity */
+	if (Position == -1) {
+		return -1L;
+	}
+#endif
 
 	/* Adjust for buffering */
 	if (_favail(stream) != 0) {
@@ -84,7 +93,7 @@ off_t ftello(FILE * stream)
 	}
 
 	/* Done */
-	return (off_t)Position;
+	return Position;
 }
 
 /* The ftell

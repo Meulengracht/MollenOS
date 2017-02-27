@@ -20,11 +20,10 @@
  * - Event Procedure Call routines
  */
 
-#ifndef _MOLLENOS_EVENT_H_
-#define _MOLLENOS_EVENT_H_
+#ifndef _EVENT_INTERFACE_H_
+#define _EVENT_INTERFACE_H_
 
-/* Guard against inclusion */
-#ifndef _MOLLENOS_IPC_H_
+#ifndef _IPC_INTERFACE_H_
 #error "You must include ipc.h and not this directly"
 #endif
 
@@ -60,16 +59,19 @@ typedef struct _MEventMessage {
 	EventArgument_t		Arguments[IPC_MAX_ARGUMENTS];
 } MEventMessage_t;
 
-/* Cpp Guard */
-#ifdef __cplusplus
-extern "C" {
-#endif
+/* Define this here to allow for c++ interfacing */
+_CODE_BEGIN
 
 /* EVTInitialize 
  * Initializes a new EVT message of the 
  * given type and length */
-static __CRT_INLINE void EVTInitialize(MEventMessage_t *Event, 
-	int Version, int Port, int EventType)
+static __CRT_INLINE 
+void 
+EVTInitialize(
+	_In_ MEventMessage_t *Event, 
+	_In_ int Version, 
+	_In_ int Port, 
+	_In_ int EventType)
 {
 	/* Zero out structure */
 	memset((void*)Event, 0, sizeof(MEventMessage_t));
@@ -84,8 +86,13 @@ static __CRT_INLINE void EVTInitialize(MEventMessage_t *Event,
  * Adds a new argument for the EVT request at
  * the given argument index. It's not possible to override 
  * a current argument */
-static __CRT_INLINE void EVTSetArgument(MEventMessage_t *Event,
-	int Index, const void *Data, size_t Length)
+static __CRT_INLINE 
+void 
+EVTSetArgument(
+	_In_ MEventMessage_t *Event,
+	_In_ int Index, 
+	_In_ __CONST void *Data,
+	_In_ size_t Length)
 {
 	/* Sanitize the index and the
 	 * current argument */
@@ -125,10 +132,12 @@ static __CRT_INLINE void EVTSetArgument(MEventMessage_t *Event,
  * Executes a new event to the desired target process
  * the process must be listening on PIPE_EVENT to be able
  * to recieve it. Events do not have replies */
-_MOS_API OsStatus_t EVTExecute(MEventMessage_t *Event, UUId_t Target);
+_MOS_API 
+OsStatus_t 
+EVTExecute(
+	_In_ MEventMessage_t *Event,
+	_In_ UUId_t Target);
 
-#ifdef __cplusplus
-}
-#endif
+_CODE_END
 
 #endif //!_MOLLENOS_EVENT_H_

@@ -22,7 +22,6 @@
 /* Includes 
  * - System */
 #include <process/process.h>
-#include <vfs/vfswrappers.h>
 #include <garbagecollector.h>
 #include <threading.h>
 #include <semaphore.h>

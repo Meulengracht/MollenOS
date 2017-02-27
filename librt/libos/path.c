@@ -72,7 +72,7 @@ PathChangeWorkingDirectory(
 	/* Have our filemanager validate the path 
 	 * changes before updating */
 	if (PathCanonicalize(PathCurrentWorkingDirectory, 
-		Path, &TempBuffer[0], _MAXPATH) != OsNoError) {
+		(char*)Path, &TempBuffer[0], _MAXPATH) != OsNoError) {
 		return OsError;
 	}
 

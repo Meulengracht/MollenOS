@@ -16,9 +16,6 @@
     <Filter Include="include\devices">
       <UniqueIdentifier>{4be81c73-69b8-4da0-b801-a1dc5c97a913}</UniqueIdentifier>
     </Filter>
-    <Filter Include="include\vfs">
-      <UniqueIdentifier>{0e80ab11-a5b7-4a43-9f37-0173341884dc}</UniqueIdentifier>
-    </Filter>
     <Filter Include="systems">
       <UniqueIdentifier>{3bcea2c0-a650-46ec-b90d-fefe4ec8eedb}</UniqueIdentifier>
     </Filter>
@@ -33,9 +30,6 @@
     </Filter>
     <Filter Include="systems\synchronization">
       <UniqueIdentifier>{ed808d43-58c2-4e5f-a44d-ddd1d6bc7dab}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="systems\vfs">
-      <UniqueIdentifier>{3b63c136-f228-470d-950a-a52c8b8ccbde}</UniqueIdentifier>
     </Filter>
     <Filter Include="systems\devices\acpi">
       <UniqueIdentifier>{5deed555-85d5-4a53-9ff6-1a3939859996}</UniqueIdentifier>
@@ -98,18 +92,6 @@
     </ClCompile>
     <ClCompile Include="..\..\system\userevents.c">
       <Filter>systems</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\system\vfs\vfs.c">
-      <Filter>systems\vfs</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\system\vfs\vfsdisk.c">
-      <Filter>systems\vfs</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\system\vfs\vfsfunctions.c">
-      <Filter>systems\vfs</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\system\vfs\vfspath.c">
-      <Filter>systems\vfs</Filter>
     </ClCompile>
     <ClCompile Include="..\..\init.c" />
     <ClCompile Include="..\..\system\modules.c">
@@ -176,12 +158,6 @@
     </ClInclude>
     <ClInclude Include="..\..\include\devices\disk.h">
       <Filter>include\devices</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\include\vfs\partition.h">
-      <Filter>include\vfs</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\include\vfs\vfs.h">
-      <Filter>include\vfs</Filter>
     </ClInclude>
     <ClInclude Include="..\..\include\devices\timer.h">
       <Filter>include\devices</Filter>

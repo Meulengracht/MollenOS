@@ -16,13 +16,13 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS Timer Interface
- * - Contains the shared timer API that can be used by applications
- *   to create timers with callbacks
+ * MollenOS MCore - Timer Support Definitions & Structures
+ * - This header describes the base timer-structures, prototypes
+ *   and functionality, refer to the individual things for descriptions
  */
 
-#ifndef _OS_TIMERS_H_
-#define _OS_TIMERS_H_
+#ifndef _TIMERS_INTERFACE_H_
+#define _TIMERS_INTERFACE_H_
 
 /* Includes 
  * - System */
@@ -45,4 +45,4 @@ typedef void(*TimerHandler_t)(void*);
 #define	TIMER_PERIODIC				0x1
 #define TIMER_FAST					0x2
 
-#endif //!_OS_TIMERS_H_
+#endif //!_TIMERS_INTERFACE_H_

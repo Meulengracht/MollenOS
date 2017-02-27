@@ -34,34 +34,51 @@
  * for any hardware transactions */
 typedef struct _BufferObject {
 	UUId_t					Id;
-	__CONST char		*Virtual;
-	__CONST char		*Physical;
+	__CONST char			*Virtual;
+	__CONST char			*Physical;
 	size_t					Length;
 	int						Pages;
 } BufferObject_t;
 
+/* Start one of these before function prototypes */
+_CODE_BEGIN
+
 /* CreateBuffer 
  * Creates a new buffer object with the given size, 
  * this allows hardware drivers to interact with the buffer */
-_MOS_API BufferObject_t *CreateBuffer(_In_ size_t Length);
+_MOS_API 
+BufferObject_t *
+CreateBuffer(
+	_In_ size_t Length);
 
 /* ReadBuffer 
  * Reads <BytesToRead> into the given user-buffer
  * from the allocated buffer-object */
-_MOS_API OsStatus_t ReadBuffer(_In_ BufferObject_t *BufferObject, 
-							   _Out_ __CONST void *Buffer, 
-							   _In_ size_t BytesToRead);
+_MOS_API 
+OsStatus_t 
+ReadBuffer(
+	_In_ BufferObject_t *BufferObject, 
+	_Out_ __CONST void *Buffer, 
+	_In_ size_t BytesToRead);
 
 /* WriteBuffer 
  * Writes <BytesToWrite> into the allocated buffer-object
  * from the given user-buffer */
-_MOS_API OsStatus_t WriteBuffer(_In_ BufferObject_t *BufferObject, 
-							    _In_ __CONST void *Buffer, 
-							    _In_ size_t BytesToWrite);
+_MOS_API 
+OsStatus_t 
+WriteBuffer(
+	_In_ BufferObject_t *BufferObject, 
+	_In_ __CONST void *Buffer, 
+	_In_ size_t BytesToWrite);
 
 /* DestroyBuffer 
  * Destroys the given buffer object and release resources
  * allocated with the CreateBuffer function */
-_MOS_API OsStatus_t DestroyBuffer(_In_ BufferObject_t *BufferObject);
+_MOS_API 
+OsStatus_t 
+DestroyBuffer(
+	_In_ BufferObject_t *BufferObject);
+
+_CODE_END
 
 #endif //!_BUFFER_INTERFACE_H_

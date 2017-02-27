@@ -1,32 +1,36 @@
 /* MollenOS
-*
-* Copyright 2011 - 2016, Philip Meulengracht
-*
-* This program is free software : you can redistribute it and / or modify
-* it under the terms of the GNU General Public License as published by
-* the Free Software Foundation ? , either version 3 of the License, or
-* (at your option) any later version.
-*
-* This program is distributed in the hope that it will be useful,
-* but WITHOUT ANY WARRANTY; without even the implied warranty of
-* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.See the
-* GNU General Public License for more details.
-*
-* You should have received a copy of the GNU General Public License
-* along with this program.If not, see <http://www.gnu.org/licenses/>.
-*
-*
-* MollenOS C Library - File Seek
-*/
+ *
+ * Copyright 2011 - 2017, Philip Meulengracht
+ *
+ * This program is free software : you can redistribute it and / or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation ? , either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.If not, see <http://www.gnu.org/licenses/>.
+ *
+ *
+ * MollenOS C Library - Set file position
+ */
 
-/* Includes */
+/* Includes
+ * - System */
+#include <os/driver/file.h>
+#include <os/syscall.h>
+
+/* Includes 
+ * - Library */
 #include <io.h>
 #include <stdio.h>
 #include <errno.h>
 #include <string.h>
 #include <stdlib.h>
-#include <os/Syscall.h>
-#include <os/MollenOS.h>
 
 /* Externs */
 extern int _finv(FILE * stream);
@@ -44,29 +48,27 @@ off64_t offabs(off64_t Value) {
  * function used by filedescriptors */
 off64_t _lseeki64(int fd, off64_t offset, int mode)
 {
-	/* Syscall Result */
+	/* Variables */
 	off_t SeekSpotLow = 0, SeekSpotHigh = 0;
-	char Buffer[64];
-	int RetVal = 0;
 
 	/* Depends on origin */
 	if (mode != SEEK_SET) 
 	{
 		/* We need current position / size */
-		uint64_t fPos = 0, fSize = 0;
 		off64_t CorrectedValue = offabs(offset);
-
-		/* Prepare a buffer */
-		memset(Buffer, 0, sizeof(Buffer));
+		uint64_t fPos = 0, fSize = 0;
+		uint32_t pLo = 0, pHi = 0, 
+			sLo = 0, sHi = 0;
 
 		/* Syscall */
-		RetVal = Syscall4(SYSCALL_VFSQUERY, SYSCALL_PARAM(fd),
-			SYSCALL_PARAM(0), SYSCALL_PARAM(&Buffer[0]),
-			SYSCALL_PARAM(sizeof(Buffer)));
-
-		/* Now we can calculate */
-		fPos = *((uint64_t*)(&Buffer[16]));
-		fSize = *((uint64_t*)(&Buffer[0]));
+		if (GetFilePosition((UUId_t)fd, &pLo, &pHi) != OsNoError
+			&& GetFileSize((UUId_t)fd, &sLo, &sHi) != OsNoError) {
+			return -1L;
+		}
+		else {
+			fSize = ((uint64_t)sHi << 32) | sLo;
+			fPos = ((uint64_t)pHi << 32) | pLo;
+		}
 
 		/* Sanity offset */
 		if ((size_t)fPos != fPos) {
@@ -76,7 +78,6 @@ off64_t _lseeki64(int fd, off64_t offset, int mode)
 
 		/* Lets see .. */
 		if (mode == SEEK_CUR) {
-			/* Handle negative */
 			if (offset < 0) {
 				offset = (long)fPos - CorrectedValue;
 			}
@@ -93,16 +94,13 @@ off64_t _lseeki64(int fd, off64_t offset, int mode)
 	SeekSpotLow = offset & 0xFFFFFFFF;
 	SeekSpotHigh = (offset >> 32) & 0xFFFFFFFF;
 
-	/* Seek to 0 */
-	RetVal = Syscall3(SYSCALL_VFSSEEK, SYSCALL_PARAM(fd), 
-		SYSCALL_PARAM(SeekSpotLow), SYSCALL_PARAM(SeekSpotHigh));
-
-	/* Done */
-	if (_fval(RetVal)) {
+	/* Seek to the position */
+	if (_fval(SeekFile((UUId_t)fd, SeekSpotLow, SeekSpotHigh))) {
 		return -1L;
 	}
-	else
+	else {
 		return ((off64_t)SeekSpotHigh << 32) | SeekSpotLow;
+	}
 }
 
 /* The lseek

@@ -208,7 +208,7 @@ OpenFile(
 	RPCSetArgument(&Request, 2, (__CONST void*)&Access, sizeof(Flags_t));
 	RPCSetResult(&Request, (__CONST void*)&Package, sizeof(OpenFilePackage_t));
 	if (RPCEvaluate(&Request, __FILEMANAGER_TARGET) != OsNoError) {
-		*Handle = HANDLE_INVALID;
+		*Handle = UUID_INVALID;
 		return FsInvalidParameters;
 	}
 

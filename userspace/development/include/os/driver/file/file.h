@@ -21,11 +21,15 @@
  *   and functionality, refer to the individual things for descriptions
  */
 
-#ifndef _VFS_FILE_INTERFACE_H_
-#define _VFS_FILE_INTERFACE_H_
+#ifndef _FILE_STRUCTURES_INTERFACE_H_
+#define _FILE_STRUCTURES_INTERFACE_H_
+
+#ifndef _CONTRACT_FILESYSTEM_INTERFACE_H_
+#error "You must include filesystem.h and not this directly"
+#endif
 
 /* Includes
- * - C-Library */
+ * - Library */
 #include <ds/mstring.h>
 #include <os/osdefs.h>
 
@@ -35,10 +39,11 @@
 PACKED_TYPESTRUCT(FileSystemFile, {
 	MString_t				*Path;
 	MString_t				*Name;
-	size_t					Hash;
-	int						IsLocked;
-	int						References;
-	uint64_t				Size;
+	size_t					 Hash;
+	UUId_t					 IsLocked;
+	int						 References;
+	uint64_t				 Size;
+	uintptr_t				*System;
 	uintptr_t				*ExtensionData;
 });
 
@@ -46,14 +51,17 @@ PACKED_TYPESTRUCT(FileSystemFile, {
  * structure, so multiple handles can be opened
  * on just a single file, it refers to a file structure */
 PACKED_TYPESTRUCT(FileSystemFileHandle, {
-	UUId_t					Id;
-	Flags_t					Flags;
-	Flags_t					LastOperation;
-	uint64_t				Position;
-	void					*oBuffer;
-	size_t					oBufferPosition;
+	UUId_t					 Id;
+	UUId_t					 Owner;
+	Flags_t					 Access;
+	Flags_t					 Options;
+	Flags_t					 LastOperation;
+	uint64_t				 Position;
+	void					*OutBuffer;
+	size_t					 OutBufferPosition;
+
 	FileSystemFile_t		*File;
 	uintptr_t				*ExtensionData;
 });
 
-#endif //!_VFS_FILE_INTERFACE_H_
+#endif //!_FILE_STRUCTURES_INTERFACE_H_

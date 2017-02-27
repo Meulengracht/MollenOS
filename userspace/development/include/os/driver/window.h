@@ -32,7 +32,7 @@
 /* The export macro, and is only set by the
  * the actual implementation of the windowmanager */
 #ifdef __WINDOWMANAGER_EXPORT
-#define __WNDAPI __CRT_EXTERN
+#define __WNDAPI __EXTERN
 #else
 #define __WNDAPI static __CRT_INLINE
 #endif

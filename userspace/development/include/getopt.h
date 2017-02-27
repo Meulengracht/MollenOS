@@ -70,12 +70,12 @@ _CRTIMP int	 getopt_long_only(int, char * __CONST *, __CONST char *,
 _CRTIMP int	 getopt(int, char * const *, const char *);
 _CRTIMP int	 getsubopt(char **, char * const *, char **);
 
-_CRTIMP __CRT_EXTERN char *optarg;                  /* getopt(3) external variables */
-_CRTIMP __CRT_EXTERN int opterr;
-_CRTIMP __CRT_EXTERN int optind;
-_CRTIMP __CRT_EXTERN int optopt;
-_CRTIMP __CRT_EXTERN int optreset;
-_CRTIMP __CRT_EXTERN char *suboptarg;               /* getsubopt(3) external variable */
+_CRTIMP __EXTERN char *optarg;                  /* getopt(3) external variables */
+_CRTIMP __EXTERN int opterr;
+_CRTIMP __EXTERN int optind;
+_CRTIMP __EXTERN int optopt;
+_CRTIMP __EXTERN int optreset;
+_CRTIMP __EXTERN char *suboptarg;               /* getsubopt(3) external variable */
 #endif
 
 #ifdef __cplusplus

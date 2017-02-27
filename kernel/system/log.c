@@ -24,7 +24,6 @@
 #include <criticalsection.h>
 #include <Heap.h>
 #include <Log.h>
-#include <Vfs/VfsWrappers.h>
 
 /* CLib */
 #include <stddef.h>

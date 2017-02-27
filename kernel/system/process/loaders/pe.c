@@ -23,7 +23,6 @@
  * - System */
 #include <process/pe.h>
 #include <modules/modules.h>
-#include <vfs/vfswrappers.h>
 #include <heap.h>
 #include <log.h>
 

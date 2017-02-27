@@ -675,6 +675,15 @@
     <ClCompile Include="..\..\libc\time\tzvars.c">
       <Filter>time</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\libos\rpc.c">
+      <Filter>glue</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\libos\driver\bufferobject.c">
+      <Filter>glue</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\libos\pipe.c">
+      <Filter>glue</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\libc\locale\setlocale.h">

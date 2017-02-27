@@ -69,12 +69,23 @@
 #define __CRT_INLINE __inline
 #endif
 
-#ifndef __CRT_EXTERN
-#define __CRT_EXTERN extern
+#ifndef __EXTERN
+#define __EXTERN extern
 #endif
 
 #ifndef __CONST
 #define __CONST const
+#endif
+
+#ifndef _CODE_TAGS
+#define _CODE_TAGS
+#ifdef __cplusplus
+#define _CODE_BEGIN extern "C" {
+#define _CODE_END }
+#else
+#define _CODE_BEGIN
+#define _CODE_END
+#endif
 #endif
 
 /* Kernel/LibOS export definitions
@@ -82,6 +93,12 @@
  * (Should soon be removed tho), and used by LibOS
  * to export functions */
 #ifdef MOLLENOS
+
+/* API Interfaces */
+#ifndef SERVICEAPI
+#define SERVICEAPI static __inline
+#define SERVICEABI __cdecl
+#endif
 
 /* Kernel Export for Modules */
 #ifndef _KERNEL_API
@@ -93,6 +110,7 @@
 /* LibOS export for userspace programs. However
  * except for the usual stuff, we have a static case aswell */
 #ifndef _MOS_API
+#define MOSABI __cdecl
 #ifdef _LIBOS_DLL
 #define _MOS_API __declspec(dllexport)
 #else

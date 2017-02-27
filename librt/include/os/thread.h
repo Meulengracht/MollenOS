@@ -32,6 +32,7 @@
 
 /* Includes
  * - System */
+#include <os/driver/buffer.h>
 #include <os/spinlock.h>
 #include <os/mutex.h>
 #include <os/condition.h>
@@ -69,6 +70,7 @@ PACKED_TYPESTRUCT(ThreadLocalStorage, {
 	char					*StrTokNext;
 	struct tm				 TmBuffer;
 	char					 AscBuffer[26];
+	BufferObject_t			*Transfer;
 
 	void					*TerminateHandler;
 	void					*UnexpectedHandler;

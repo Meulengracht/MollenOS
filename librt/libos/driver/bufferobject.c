@@ -104,7 +104,7 @@ WriteBuffer(
 	}
 
 	/* Do the copy operation */
-	memcpy(BufferObject->Virtual, Buffer, BytesToWrite);
+	memcpy((void*)BufferObject->Virtual, Buffer, BytesToWrite);
 	return OsNoError;
 }
 

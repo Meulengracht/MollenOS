@@ -163,7 +163,7 @@ _CRTIMP void quick_exit(int);
 _CRTIMP void _Exit(int);
 
 /* Terminate normally with cleanup, call all functions in atexit stack */
-__CRT_EXTERN int atexit(void(__CRTDECL *func)(void));
+__EXTERN int atexit(void(__CRTDECL *func)(void));
 _CRTIMP void exit(int);
 #define _exit(s)	exit(s);
 

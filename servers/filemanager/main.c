@@ -36,6 +36,7 @@
 /* Globals */
 List_t *GlbResolveQueue = NULL;
 List_t *GlbFileSystems = NULL;
+List_t *GlbOpenHandles = NULL;
 List_t *GlbOpenFiles = NULL;
 List_t *GlbModules = NULL;
 UUId_t GlbFileSystemId = 0;
@@ -46,6 +47,22 @@ int GlbInitialized = 0;
  * range of __FILEMANAGER_MAXDISKS/2 as half
  * of them are reserved for rm/st */
 int GlbDiskIds[__FILEMANAGER_MAXDISKS];
+
+/* VfsGetOpenFiles / VfsGetOpenHandles
+ * Retrieves the list of open files /handles and allows
+ * access and manipulation of the list */
+List_t *VfsGetOpenFiles(void)
+{
+	return GlbOpenFiles;
+}
+
+/* VfsGetOpenFiles / VfsGetOpenHandles
+ * Retrieves the list of open files /handles and allows
+ * access and manipulation of the list */
+List_t *VfsGetOpenHandles(void)
+{
+	return GlbOpenHandles;
+}
 
 /* VfsGetModules
  * Retrieves a list of all the currently loaded
@@ -69,6 +86,14 @@ List_t *VfsGetFileSystems(void)
 List_t *VfsGetResolverQueue(void)
 {
 	return GlbResolveQueue;
+}
+
+/* VfsIdentifierFileGet
+ * Retrieves a new identifier for a file-handle that
+ * is system-wide unique */
+UUId_t VfsIdentifierFileGet(void)
+{
+	return GlbFileId++;
 }
 
 /* VfsIdentifierAllocate 
@@ -119,6 +144,7 @@ OsStatus_t OnLoad(void)
 	/* Setup list */
 	GlbResolveQueue = ListCreate(KeyInteger, LIST_NORMAL);
 	GlbFileSystems = ListCreate(KeyInteger, LIST_NORMAL);
+	GlbOpenHandles = ListCreate(KeyInteger, LIST_NORMAL);
 	GlbOpenFiles = ListCreate(KeyInteger, LIST_NORMAL);
 	GlbModules = ListCreate(KeyInteger, LIST_NORMAL);
 

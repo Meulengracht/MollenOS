@@ -25,7 +25,6 @@
  * - System */
 #include <process/phoenix.h>
 #include <modules/modules.h>
-#include <vfs/vfswrappers.h>
 #include <scheduler.h>
 #include <threading.h>
 #include <log.h>

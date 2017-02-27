@@ -38,7 +38,12 @@
  * This queries the clock contract for data
  * and must be implemented by all contracts that
  * implement the clock interface */
-__DEVAPI OsStatus_t ClockQuery(struct tm *time) {
+SERVICEAPI
+OsStatus_t
+SERVICEABI
+ClockQuery(
+	_Out_ struct tm *time) 
+{
 	return QueryContract(ContractClock, __CLOCK_QUERY_STAT,
 		NULL, 0, NULL, 0, NULL, 0, time, sizeof(struct tm));
 }

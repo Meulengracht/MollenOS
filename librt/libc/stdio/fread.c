@@ -1,32 +1,37 @@
 /* MollenOS
-*
-* Copyright 2011 - 2016, Philip Meulengracht
-*
-* This program is free software : you can redistribute it and / or modify
-* it under the terms of the GNU General Public License as published by
-* the Free Software Foundation ? , either version 3 of the License, or
-* (at your option) any later version.
-*
-* This program is distributed in the hope that it will be useful,
-* but WITHOUT ANY WARRANTY; without even the implied warranty of
-* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.See the
-* GNU General Public License for more details.
-*
-* You should have received a copy of the GNU General Public License
-* along with this program.If not, see <http://www.gnu.org/licenses/>.
-*
-*
-* MollenOS C Library - File Read
-*/
+ *
+ * Copyright 2011 - 2017, Philip Meulengracht
+ *
+ * This program is free software : you can redistribute it and / or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation ? , either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.If not, see <http://www.gnu.org/licenses/>.
+ *
+ *
+ * MollenOS C Library - Read from file-handles
+ */
 
-/* Includes */
+/* Includes
+ * - System */
+#include <os/driver/file.h>
+#include <os/syscall.h>
+#include <os/thread.h>
+
+/* Includes 
+ * - Library */
 #include <io.h>
 #include <stdio.h>
 #include <errno.h>
 #include <string.h>
 #include <stdlib.h>
-#include <os/Syscall.h>
-#include <os/MollenOS.h>
 
 /* Externs */
 __EXTERN int _ffill(FILE * stream, void *ptr, size_t size);
@@ -37,19 +42,30 @@ __EXTERN int _ffill(FILE * stream, void *ptr, size_t size);
 int _read(int fd, void *buffer, unsigned int len)
 {
 	/* Variables */
-	int RetVal = 0, ErrCode = 0;
+	size_t BytesReadTotal = 0, BytesLeft = (size_t)len;
+	size_t OriginalSize = TLSGetCurrent()->Transfer->Length;
+	uint8_t *Pointer = (uint8_t*)buffer;
 
-	/* Syscall */
-	RetVal = Syscall4(SYSCALL_VFSREAD, SYSCALL_PARAM(fd),
-		SYSCALL_PARAM(buffer), SYSCALL_PARAM(len), SYSCALL_PARAM(&ErrCode));
-
-	/* Sanity */
-	if (_fval(ErrCode)) {
-		return -1;
+	/* Keep reading chunks of BUFSIZ */
+	while (BytesLeft > 0) {
+		size_t ChunkSize = MIN(OriginalSize, BytesLeft);
+		size_t BytesRead = 0;
+		TLSGetCurrent()->Transfer->Length = ChunkSize;
+		if (_fval(ReadFile((UUId_t)fd, TLSGetCurrent()->Transfer, &BytesRead))) {
+			break;
+		}
+		if (BytesRead == 0) {
+			break;
+		}
+		ReadBuffer(TLSGetCurrent()->Transfer, (__CONST void*)Pointer, BytesRead);
+		BytesReadTotal += BytesRead;
+		BytesLeft -= BytesRead;
+		Pointer += BytesRead;
 	}
 
-	/* Gj */
-	return RetVal;
+	/* Done! */
+	TLSGetCurrent()->Transfer->Length = OriginalSize;
+	return (unsigned int)BytesReadTotal;
 }
 
 /* The fread 

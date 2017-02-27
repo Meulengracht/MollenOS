@@ -130,16 +130,6 @@ OsStatus_t
 MemoryQuery(
 	_Out_ MemoryDescriptor_t *Descriptor);
 
-/* DeviceQuery
- * Queries the given device-type for information */
-_MOS_API 
-OsStatus_t 
-DeviceQuery(
-	_In_ OSDeviceType_t Type, 
-	_In_ int Request, 
-	_Out_ void *Buffer, 
-	_In_ size_t Length);
-
 /* ScreenQueryGeometry
  * This function returns screen geomemtry
  * descriped as a rectangle structure */
@@ -174,6 +164,37 @@ OsStatus_t
 PathQueryApplication(
 	_Out_ char *Buffer,
 	_In_ size_t MaxLength);
+
+/* Read and write the magic tls thread-specific
+ * pointer, we need to take into account the compiler here */
+#ifdef _MSC_VER
+SERVICEAPI
+size_t
+SERVICEABI
+__get_reserved(size_t index) {
+	size_t result = 0;
+	size_t base = (0 - ((index * sizeof(size_t)) + sizeof(size_t)));
+	__asm {
+		mov ebx, [base];
+		mov eax, ss:[ebx];
+		mov [result], eax;
+	}
+	return result;
+}
+SERVICEAPI
+void
+SERVICEABI
+__set_reserved(size_t index, size_t value) {
+	size_t base = (0 - ((index * sizeof(size_t)) + sizeof(size_t)));
+	__asm {
+		mov ebx, [base];
+		mov eax, [value];
+		mov ss:[ebx], eax;
+	}
+}
+#else
+#error "Implement rw for tls"
+#endif
 
 /***********************
  * System Misc Prototypes

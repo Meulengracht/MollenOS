@@ -70,7 +70,7 @@ extern "C" {
 #define EDOM 33
 #define ERANGE 34
 
-_CRTDATA(__CRT_EXTERN double __CONST _HUGE);
+_CRTDATA(__EXTERN double __CONST _HUGE);
 
 #define HUGE_VAL _HUGE
 

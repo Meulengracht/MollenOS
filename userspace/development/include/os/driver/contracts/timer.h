@@ -38,7 +38,12 @@
  * This queries the timer contract for data
  * and must be implemented by all contracts that
  * implement the timer interface */
-__DEVAPI OsStatus_t TimerQuery(clock_t *clock) {
+SERVICEAPI
+OsStatus_t
+SERVICEABI
+TimerQuery(
+	_Out_ clock_t *clock) 
+{
 	return QueryContract(ContractTimer, __TIMER_QUERY_STAT,
 		NULL, 0, NULL, 0, NULL, 0, clock, sizeof(clock_t));
 }
@@ -47,6 +52,11 @@ __DEVAPI OsStatus_t TimerQuery(clock_t *clock) {
  * Registers the given interrupt source as a system
  * timer source, with the given tick. This way the system
  * can always keep track of timers */
-_MOS_API OsStatus_t RegisterSystemTimer(UUId_t Interrupt, size_t NsPerTick);
+_MOS_API
+OsStatus_t
+MOSABI
+RegisterSystemTimer(
+	_In_ UUId_t Interrupt, 
+	_In_ size_t NsPerTick);
 
 #endif //!_CONTRACT_TIMER_INTERFACE_H_

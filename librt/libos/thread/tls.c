@@ -34,34 +34,10 @@
 #include <crtdefs.h>
 #include <stddef.h>
 #include <stdlib.h>
+#include <stdio.h>
 #include <assert.h>
 #include <errno.h>
 #include <string.h>
-
-/* Read and write the magic tls thread-specific
- * pointer, we need to take into account the compiler here */
-#ifdef _MSC_VER
-static __CRT_INLINE size_t __get_reserved(size_t index) {
-	size_t result = 0;
-	size_t base = (0 - ((index * sizeof(size_t)) + sizeof(size_t)));
-	__asm {
-		mov ebx, [base];
-		mov eax, ss:[ebx];
-		mov [result], eax;
-	}
-	return result;
-}
-static __CRT_INLINE void __set_reserved(size_t index, size_t value) {
-	size_t base = (0 - ((index * sizeof(size_t)) + sizeof(size_t)));
-	__asm {
-		mov ebx, [base];
-		mov eax, [value];
-		mov ss:[ebx], eax;
-	}
-}
-#else
-#error "Implement rw for tls"
-#endif
 
 /* TLS Entry for threads 
  * keys are shared all over 
@@ -167,6 +143,10 @@ TLSInitInstance(
 	Tls->Locale = __get_global_locale();
 	Tls->Seed = 1;
 
+	/* Setup a local transfer buffer of
+	 * size BUFSIZE */
+	Tls->Transfer = CreateBuffer(BUFSIZ);
+
 	/* Set pointer */
 	__set_reserved(0, (size_t)Tls);
 	return OsNoError;
@@ -179,6 +159,11 @@ OsStatus_t
 TLSDestroyInstance(
 	_In_ ThreadLocalStorage_t *Tls)
 {
+	/* Cleanup buffer */
+	if (Tls->Transfer != NULL) {
+		DestroyBuffer(Tls->Transfer);
+	}
+
 	/* Nothing to do here yet */
 	Tls->Id = 0;
 	return OsNoError;

@@ -69,7 +69,7 @@
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <AssemblerOutput>All</AssemblerOutput>
       <InlineFunctionExpansion>OnlyExplicitInline</InlineFunctionExpansion>
-      <DisableSpecificWarnings>4127;4702;4464</DisableSpecificWarnings>
+      <DisableSpecificWarnings>4127;4702;4464;4710</DisableSpecificWarnings>
     </ClCompile>
     <Link>
       <SubSystem>Native</SubSystem>

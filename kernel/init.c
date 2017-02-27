@@ -32,7 +32,6 @@
 #include <scheduler.h>
 #include <threading.h>
 #include <timers.h>
-#include <vfs\vfs.h>
 #include <heap.h>
 #include <log.h>
 
@@ -119,11 +118,6 @@ void MCoreInitialize(MCoreBootInfo_t *BootInfo)
 	/* Initialize the process manager (Phoenix)
 	 * We must do this before starting up servers */
 	PhoenixInit();
-	
-	/* Initialize the virtual filesystem 
-	 * This should be moved to its own server
-	 * at some point.. */
-	VfsInit();
 
 	/* Last step, boot up all available system servers
 	 * like device-managers, vfs, etc */

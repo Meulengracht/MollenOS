@@ -75,14 +75,17 @@ ScreenQueryGeometry(
 	_Out_ Rect_t *Rectangle)
 {
 	/* Vars */
-	OSVideoDescriptor_t VidDescriptor;
+	OSVideoDescriptor_t VidDescriptor = { 0 };
 
 	/* Do it */
-	MollenOSDeviceQuery(DeviceVideo, 0, &VidDescriptor, sizeof(OSVideoDescriptor_t));
+	// TODO
+	//MollenOSDeviceQuery(DeviceVideo, 0, &VidDescriptor, sizeof(OSVideoDescriptor_t));
 
 	/* Save info */
 	Rectangle->x = 0;
 	Rectangle->y = 0;
 	Rectangle->w = VidDescriptor.Width;
 	Rectangle->h = VidDescriptor.Height;
+
+	return OsNoError;
 }

@@ -1,6 +1,6 @@
 /* MollenOS
  *
- * Copyright 2011 - 2016, Philip Meulengracht
+ * Copyright 2011 - 2017, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,184 +16,217 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS C Library - Standard OS Threading Header
- * Contains threading methods + synchronization
+ * MollenOS MCore - Threading Support Definitions & Structures
+ * - This header describes the base threading-structures, prototypes
+ *   and functionality, refer to the individual things for descriptions
  */
 
-#if !defined(__THREADING_CLIB__) && !defined(CLIB_KERNEL)
-#define __THREADING_CLIB__
+#if !defined(_THREADING_INTERFACE_H_) && !defined(CLIB_KERNEL)
+#define _THREADING_INTERFACE_H_
 
-/* C-Library - Includes */
+/* Includes
+ * - Library */
+#include <os/osdefs.h>
 #include <sys/types.h>
 #include <time.h>
-#include <crtdefs.h>
-#include <stdint.h>
-#include <os/MollenOS.h>
 
-/* Synchronizations */
-#include <os/Spinlock.h>
-#include <os/Mutex.h>
-#include <os/Condition.h>
+/* Includes
+ * - System */
+#include <os/driver/buffer.h>
+#include <os/spinlock.h>
+#include <os/mutex.h>
+#include <os/condition.h>
 
-/* CPP-Guard */
-#ifdef __cplusplus
-extern "C" {
-#endif
+/* The definition of a thread id
+ * used for identifying threads */
+typedef long ThreadOnce_t;
+typedef void(*ThreadOnceFunc_t)(void);
 
-/* Definitons */
+/* The definition of a thread specifc
+ * storage key, used for saving data
+ * in a dictionary */
+typedef unsigned int TlsKey_t;
+typedef void(*TlsKeyDss_t)(void*);
+
+/* The definition of a thread entry point format */
+typedef int(*ThreadFunc_t)(void*);
+
+/* Thread and TLS Definitons */
 #define THREAD_ONCE_INIT		0x1
 
 #define TLS_MAX_KEYS			64
 #define TLS_KEY_INVALID			0xFFFFFFFF
 
-/***********************
- * Structures
- ***********************/
-
 /* The actual TLS
  * This is the actual thread local storage
  * that is created per thread and is purely
  * acccessible by the local thread only */
-#pragma pack(push, 1)
-typedef struct _ThreadLocalStorage 
-{
-	/* Thread Information */
-	TId_t			 Id;
+PACKED_TYPESTRUCT(ThreadLocalStorage, {
+	UUId_t					 Id;
+	void					*Handle;
+	errno_t					 Errno;
+	void					*Locale;
+	unsigned int			 Seed;
+	char					*StrTokNext;
+	struct tm				 TmBuffer;
+	char					 AscBuffer[26];
+	BufferObject_t			*Transfer;
 
-	/* C-Library Storage 
-	 * - Thread Local Storage */
-	void			*Handle;
-	errno_t			 Errno;
-	void			*Locale;
+	void					*TerminateHandler;
+	void					*UnexpectedHandler;
+	void					*SeTranslator;
+	void					*ExceptionInfo;
+	void					*ExceptionRecord;
+	void					*ExceptionList;
+	void					*StackLow;
+	void					*StackHigh;
+	int						 IsDebugging;
+});
 
-	/* Seed for rand() */
-	unsigned int	 Seed;
+/* Start one of these before function prototypes */
+_CODE_BEGIN
 
-	/* Ptr for strtok() */
-	char			*StrTokNext;
-
-	/* Buffer for time functions */
-	struct tm		 TmBuffer;
-	char			 AscBuffer[26];
-
-	/* Exceptions stuff */
-	void			*TerminateHandler;
-	void			*UnexpectedHandler;
-	void			*SeTranslator;
-	void			*ExceptionInfo;
-	void			*ExceptionRecord;
-	void			*ExceptionList;
-
-	/* Stack Information */
-	void			*StackLow;
-	void			*StackHigh;
-
-	/* Debugging */
-	int				 IsDebugging;
-
-} ThreadLocalStorage_t;
-#pragma pack(pop)
-
-/* Prototypes */
-
-/***********************
- * Threading Prototypes
- ***********************/
-
-/* This is a support thread function
+/* ThreadOnce
+ * This is a support thread function
  * that makes sure that even with shared
  * functions between threads a function
  * only ever gets called once */
-_MOS_API void ThreadOnce(ThreadOnce_t *Control, ThreadOnceFunc_t Function);
+_MOS_API 
+void 
+ThreadOnce(
+	_In_ ThreadOnce_t *Control,
+	_In_ ThreadOnceFunc_t Function);
 
-/* Creates a new thread bound to 
+/* ThreadCreate
+ * Creates a new thread bound to 
  * the calling process, with the given
  * entry point and arguments */
-_MOS_API TId_t ThreadCreate(ThreadFunc_t Entry, void *Data);
+_MOS_API 
+UUId_t 
+ThreadCreate(
+	_In_ ThreadFunc_t Entry, 
+	_In_Opt_ void *Data);
 
-/* Exits the current thread and 
+/* ThreadExit
+ * Exits the current thread and 
  * instantly yields control to scheduler */
-_MOS_API void ThreadExit(int ExitCode);
+_MOS_API 
+void 
+ThreadExit(
+	_In_ int ExitCode);
 
-/* Thread join, waits for a given
- * thread to finish executing, and
- * returns it's exit code, works 
- * like processjoin. Must be in same
+/* ThreadJoin
+ * waits for a given thread to finish executing, and
+ * returns it's exit code, Must be in same
  * process as asking thread */
-_MOS_API int ThreadJoin(TId_t ThreadId);
+_MOS_API 
+int 
+ThreadJoin(
+	_In_ UUId_t ThreadId);
 
-/* Thread kill, kills the given thread
+/* ThreadKill
+ * Thread kill, kills the given thread
  * id, must belong to same process as the
  * thread that asks. */
-_MOS_API int ThreadKill(TId_t ThreadId);
+_MOS_API 
+OsStatus_t 
+ThreadKill(
+	_In_ UUId_t ThreadId);
 
-/* Thread sleep,
+/* ThreadSleep
  * Sleeps the current thread for the
  * given milliseconds. */
-_MOS_API void ThreadSleep(size_t MilliSeconds);
+_MOS_API 
+void 
+ThreadSleep(
+	_In_ size_t MilliSeconds);
 
-/* Thread get current id
- * Get's the current thread id */
-_MOS_API TId_t ThreadGetCurrentId(void);
+/* ThreadGetCurrentId
+ * Retrieves the current thread id */
+_MOS_API 
+UUId_t 
+ThreadGetCurrentId(void);
 
-/* This yields the current thread 
+/* ThreadYield
+ * This yields the current thread 
  * and gives cpu time to another thread */
-_MOS_API void ThreadYield(void);
+_MOS_API 
+void 
+ThreadYield(void);
 
-/***********************
- * TLS Prototypes
- ***********************/
-
-/* Initialises the TLS
+/* TLSInit
+ * Initialises the TLS
  * and allocates resources needed. 
  * Not callable manually */
-_MOS_API void TLSInit(void);
+_MOS_API 
+OsStatus_t
+TLSInit(void);
 
-/* Destroys the TLS for the specific thread
+/* TLSCleanup
+ * Destroys the TLS for the specific thread
  * by freeing resources and
  * calling c11 destructors 
  * Not callable manually */
-__CRT_EXTERN void TLSCleanup(TId_t ThreadId);
+__EXTERN
+OsStatus_t
+TLSCleanup(
+	_In_ UUId_t ThreadId);
 
 /* TLSInitInstance
  * Initializes a new thread-storage space
  * should be called by thread crt */
-_MOS_API void TLSInitInstance(ThreadLocalStorage_t *Tls);
+_MOS_API 
+OsStatus_t 
+TLSInitInstance(
+	_In_ ThreadLocalStorage_t *Tls);
 
 /* TLSDestroyInstance
  * Destroys a thread-storage space
  * should be called by thread crt */
-_MOS_API void TLSDestroyInstance(ThreadLocalStorage_t *Tls);
+_MOS_API 
+OsStatus_t 
+TLSDestroyInstance(
+	_In_ ThreadLocalStorage_t *Tls);
 
 /* TLSGetCurrent 
  * Retrieves the local storage space
  * for the current thread */
-_MOS_API ThreadLocalStorage_t *TLSGetCurrent(void);
+_MOS_API 
+ThreadLocalStorage_t *
+TLSGetCurrent(void);
 
-/* Create a new global 
- * TLS-key, this can be used to save
+/* TLSCreateKey
+ * Create a new global TLS-key, this can be used to save
  * thread-specific data */
-_MOS_API TlsKey_t TLSCreateKey(TlsKeyDss_t Destructor);
+_MOS_API 
+TlsKey_t 
+TLSCreateKey(
+	_In_ TlsKeyDss_t Destructor);
 
-/* Deletes the global
- * but thread-specific key */
-_MOS_API void TLSDestroyKey(TlsKey_t Key);
+/* TLSDestroyKey
+ * Deletes the global but thread-specific key */
+_MOS_API 
+OsStatus_t 
+TLSDestroyKey(
+	_In_ TlsKey_t Key);
 
-/* Get a key from the TLS 
- * and returns it's value
- * will return NULL if not exists 
- * and set errno */
-_MOS_API void *TLSGetKey(TlsKey_t Key);
+/* TLSGetKey
+ * Get a key from the TLS and returns it's value
+ * will return NULL if not exists and set errno */
+_MOS_API 
+void *
+TLSGetKey(
+	_In_ TlsKey_t Key);
 
-/* Set a key in the TLS
- * and associates the given
- * data with the key 
- * returns -1 if no more room for keys */
-_MOS_API int TLSSetKey(TlsKey_t Key, void *Data);
+/* TLSSetKey
+ * Set a key in the TLS
+ * and associates the given data with the key */
+_MOS_API 
+OsStatus_t 
+TLSSetKey(
+	_In_ TlsKey_t Key, 
+	_In_Opt_ void *Data);
 
-/* CPP Guard */
-#ifdef __cplusplus
-}
-#endif
+_CODE_END
 
-#endif //!__THREADING_CLIB__
+#endif //!_THREADING_INTERFACE_H_

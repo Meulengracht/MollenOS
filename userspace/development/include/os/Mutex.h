@@ -1,42 +1,37 @@
 /* MollenOS
-*
-* Copyright 2011 - 2016, Philip Meulengracht
-*
-* This program is free software : you can redistribute it and / or modify
-* it under the terms of the GNU General Public License as published by
-* the Free Software Foundation ? , either version 3 of the License, or
-* (at your option) any later version.
-*
-* This program is distributed in the hope that it will be useful,
-* but WITHOUT ANY WARRANTY; without even the implied warranty of
-* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.See the
-* GNU General Public License for more details.
-*
-* You should have received a copy of the GNU General Public License
-* along with this program.If not, see <http://www.gnu.org/licenses/>.
-*
-*
-* MollenOS C Library - Standard Mutex
-* Contains Mutex Synchronization Methods
-*/
+ *
+ * Copyright 2011 - 2017, Philip Meulengracht
+ *
+ * This program is free software : you can redistribute it and / or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation ? , either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.If not, see <http://www.gnu.org/licenses/>.
+ *
+ *
+ * MollenOS MCore - Mutex Support Definitions & Structures
+ * - This header describes the base mutex-structures, prototypes
+ *   and functionality, refer to the individual things for descriptions
+ */
 
-#ifndef __MUTEX_CLIB_H__
-#define __MUTEX_CLIB_H__
+#ifndef _MUTEX_INTERFACE_H_
+#define _MUTEX_INTERFACE_H_
 
-/* C-Library - Includes */
-#include <crtdefs.h>
-#include <stdint.h>
-#include <os/MollenOS.h>
+/* Includes
+ * - System */
+#include <os/osdefs.h>
+#include <os/spinlock.h>
 
-/* Synchronizations */
-#include <os/Spinlock.h>
-
-/* CPP-Guard */
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-/* Definitions */
+/* Mutex Definitions 
+ * Magic constants and initializor constants for
+ * the mutex interface */
 #define MUTEX_INITIALIZOR		{0, 0, 0, 0}
 #define MUTEX_PLAIN				0x0
 #define MUTEX_RECURSIVE			0x1
@@ -44,68 +39,79 @@ extern "C" {
 #define MUTEX_SUCCESS			0x0
 #define MUTEX_BUSY				0x1
 
-/***********************
- * Structures
- ***********************/
-
 /* The mutex structure
  * used for exclusive access to a resource
  * between threads */
-typedef struct _Mutex
-{
-	/* Mutex flags/type */
-	int Flags;
-
-	/* Task that is blocking */
-	TId_t Blocker;
-
-	/* Total amout of blocking */
-	size_t Blocks;
-
-	/* The spinlock */
-	Spinlock_t Lock;
-
+typedef struct _Mutex {
+	Flags_t				Flags;
+	UUId_t				Blocker;
+	size_t				Blocks;
+	Spinlock_t			Lock;
 } Mutex_t;
 
-/***********************
- * Mutex Prototypes
- ***********************/
+/* Start one of these before function prototypes */
+_CODE_BEGIN
 
-/* Instantiates a new mutex of the given
+/* MutexCreate
+ * Instantiates a new mutex of the given
  * type, it allocates all neccessary resources
  * as well. */
-_MOS_API Mutex_t *MutexCreate(int Flags);
+_MOS_API 
+Mutex_t *
+MutexCreate(
+	_In_ Flags_t Flags);
 
-/* Instantiates a new mutex of the given
+/* MutexConstruct
+ * Instantiates a new mutex of the given
  * type, using pre-allocated memory */
-_MOS_API void MutexConstruct(Mutex_t *Mutex, int Flags);
+_MOS_API 
+OsStatus_t 
+MutexConstruct(
+	_In_ Mutex_t *Mutex, 
+	_In_ Flags_t Flags);
 
-/* Destroys a mutex and frees resources
+/* MutexDestruct
+ * Destroys a mutex and frees resources
  * allocated by the mutex */
-_MOS_API void MutexDestruct(Mutex_t *Mutex);
+_MOS_API 
+OsStatus_t
+MutexDestruct(
+	_In_ Mutex_t *Mutex);
 
-/* Lock a mutex, this is a
- * blocking call */
-_MOS_API int MutexLock(Mutex_t *Mutex);
+/* MutexLock
+ * Lock a mutex, this is a blocking call */
+_MOS_API 
+int 
+MutexLock(
+	_In_ Mutex_t *Mutex);
 
-/* Tries to lock a mutex, if the 
- * mutex is locked, this returns 
+/* MutexTryLock
+ * Tries to lock a mutex, if the mutex is locked, this returns 
  * MUTEX_BUSY, otherwise MUTEX_SUCCESS */
-_MOS_API int MutexTryLock(Mutex_t *Mutex);
+_MOS_API 
+int 
+MutexTryLock(
+	_In_ Mutex_t *Mutex);
 
-/* Tries to lock a mutex, with a timeout
+/* MutexTimedLock
+ * Tries to lock a mutex, with a timeout
  * which means it'll keep retrying locking
  * untill the time has passed */
-_MOS_API int MutexTimedLock(Mutex_t *Mutex, time_t Expiration);
+_MOS_API 
+int
+MutexTimedLock(
+	_In_ Mutex_t *Mutex, 
+	_In_ time_t Expiration);
 
-/* Unlocks a mutex, reducing the blocker
+/* MutexUnlock
+ * Unlocks a mutex, reducing the blocker
  * count by 1 if recursive, otherwise it opens
  * the mutex */
-_MOS_API void MutexUnlock(Mutex_t *Mutex);
+_MOS_API 
+OsStatus_t
+MutexUnlock(
+	_In_ Mutex_t *Mutex);
 
-/* CPP Guard */
-#ifdef __cplusplus
-}
-#endif
+_CODE_END
 
-#endif //!__MUTEX_CLIB_H__
+#endif //!_MUTEX_INTERFACE_H_

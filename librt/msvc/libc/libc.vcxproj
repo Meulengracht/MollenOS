@@ -281,6 +281,9 @@ xcopy $(SolutionDir)librt\build\libc.dll $(SolutionDir)userspace\development\bin
     <ClCompile Include="..\..\libc\time\tzset.c" />
     <ClCompile Include="..\..\libc\time\tzset_r.c" />
     <ClCompile Include="..\..\libc\time\tzvars.c" />
+    <ClCompile Include="..\..\libos\driver\bufferobject.c" />
+    <ClCompile Include="..\..\libos\pipe.c" />
+    <ClCompile Include="..\..\libos\rpc.c" />
     <ClCompile Include="..\..\libos\synchronization\spinlock.c" />
     <ClCompile Include="..\..\libos\syscalls.c" />
   </ItemGroup>
