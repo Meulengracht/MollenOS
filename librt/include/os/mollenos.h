@@ -28,28 +28,6 @@
  * System */
 #include <os/osdefs.h>
 
-/* This describes a window handle 
- * used by UI functions */
-#ifndef MWNDHANDLE
-#define MWNDHANDLE
-typedef void *WndHandle_t;
-#endif
-
-/* Enumerators */
-typedef enum _MollenOSDeviceType {
-	DeviceUnknown = 0,
-	DeviceCpu,
-	DeviceCpuCore,
-	DeviceController,
-	DeviceBus,
-	DeviceClock,
-	DeviceTimer,
-	DevicePerfTimer,
-	DeviceInput,
-	DeviceStorage,
-	DeviceVideo
-} OSDeviceType_t;
-
 /* Structures */
 typedef struct _MollenOSVideoDescriptor
 {
@@ -83,13 +61,6 @@ PACKED_TYPESTRUCT(MemoryDescriptor, {
 	size_t			PagesUsed;
 	size_t			PageSizeBytes;
 });
-
-/* This is only hardcoded for now untill
- * we implement support for querying memory
- * options */
-#ifndef MOS_PAGE_SIZE
-#define MOS_PAGE_SIZE		0x1000
-#endif
 
 /* The max-path we support in the OS
  * for file-paths, in MollenOS we support
@@ -165,7 +136,8 @@ PathQueryApplication(
 	_Out_ char *Buffer,
 	_In_ size_t MaxLength);
 
-/* Read and write the magic tls thread-specific
+/* __get_reserved
+ * Read and write the magic tls thread-specific
  * pointer, we need to take into account the compiler here */
 #ifdef _MSC_VER
 SERVICEAPI
@@ -181,6 +153,10 @@ __get_reserved(size_t index) {
 	}
 	return result;
 }
+
+/* __set_reserved
+ * Read and write the magic tls thread-specific
+ * pointer, we need to take into account the compiler here */
 SERVICEAPI
 void
 SERVICEABI
@@ -203,11 +179,28 @@ __set_reserved(size_t index, size_t value) {
  *   they are automatically used
  *   by systems
  ***********************/
-_MOS_API int WaitForSignal(size_t Timeout);
-_MOS_API int SignalProcess(UUId_t Target);
-_MOS_API void MollenOSSystemLog(const char *Format, ...);
-_MOS_API int MollenOSEndBoot(void);
-_MOS_API int MollenOSRegisterWM(void);
+_MOS_API
+int 
+WaitForSignal(
+	size_t Timeout);
+
+_MOS_API
+int 
+SignalProcess(
+	UUId_t Target);
+
+_MOS_API 
+void 
+MollenOSSystemLog(
+	const char *Format, ...);
+
+_MOS_API 
+int 
+MollenOSEndBoot(void);
+
+_MOS_API 
+int 
+MollenOSRegisterWM(void);
 
 _CODE_END
 

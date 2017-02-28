@@ -39,6 +39,7 @@ List_t *GlbFileSystems = NULL;
 List_t *GlbOpenHandles = NULL;
 List_t *GlbOpenFiles = NULL;
 List_t *GlbModules = NULL;
+List_t *GlbDisks = NULL;
 UUId_t GlbFileSystemId = 0;
 UUId_t GlbFileId = 0;
 int GlbInitialized = 0;
@@ -70,6 +71,14 @@ List_t *VfsGetOpenHandles(void)
 List_t *VfsGetModules(void)
 {
 	return GlbModules;
+}
+
+/* VfsGetDisks
+ * Retrieves a list of all the currently registered
+ * disks, provides access for manipulation */
+List_t *VfsGetDisks(void)
+{
+	return GlbDisks;
 }
 
 /* VfsGetFileSystems
@@ -147,6 +156,7 @@ OsStatus_t OnLoad(void)
 	GlbOpenHandles = ListCreate(KeyInteger, LIST_NORMAL);
 	GlbOpenFiles = ListCreate(KeyInteger, LIST_NORMAL);
 	GlbModules = ListCreate(KeyInteger, LIST_NORMAL);
+	GlbDisks = ListCreate(KeyInteger, LIST_NORMAL);
 
 	/* Init variables */
 	memset(&GlbDiskIds[0], 0, sizeof(int) * __FILEMANAGER_MAXDISKS);
@@ -196,15 +206,151 @@ OsStatus_t OnEvent(MRemoteCall_t *Message)
 				(Flags_t)Message->Arguments[1].Data.Value);
 		} break;
 
+		// TODO
+		case __FILEMANAGER_QUERYDISKS: {
+
+		} break;
+
 		/* Resolves all stored filesystems that
 		 * has been waiting for boot-partition to be loaded */
 		case __FILEMANAGER_RESOLVEQUEUE: {
 			Result = VfsResolveQueueExecute();
 		} break;
 
+		/* Opens or creates the given file path based on
+		 * the given <Access> and <Options> flags. */
+		case __FILEMANAGER_OPENFILE: {
+			OpenFilePackage_t Package;
+			Package.Code = OpenFile(Message->Sender,
+				(__CONST char*)Message->Arguments[0].Data.Buffer,
+				(Flags_t)Message->Arguments[1].Data.Value,
+				(Flags_t)Message->Arguments[2].Data.Value,
+				&Package.Handle);
+			Result = RPCRespond(Message, (__CONST void*)&Package,
+				sizeof(OpenFilePackage_t));
+		} break;
 
+		/* Closes the given file-handle, but does not necessarily
+		 * close the link to the file. */
+		case __FILEMANAGER_CLOSEFILE: {
+			FileSystemCode_t Code = CloseFile(Message->Sender,
+				(UUId_t)Message->Arguments[0].Data.Value);
+			Result = RPCRespond(Message,
+				(__CONST void*)&Code, sizeof(FileSystemCode_t));
+		} break;
 
+		/* Deletes the given file associated with the filehandle
+		 * the caller must make sure there is no other references
+		 * to the file - otherwise delete fails */
+		case __FILEMANAGER_DELETEFILE: {
+			FileSystemCode_t Code = DeleteFile(Message->Sender,
+				(__CONST char*)Message->Arguments[0].Data.Buffer);
+			Result = RPCRespond(Message,
+				(__CONST void*)&Code, sizeof(FileSystemCode_t));
+		} break;
 
+		/* Reads the requested number of bytes into the given buffer
+		 * from the current position in the file-handle */
+		case __FILEMANAGER_READFILE: {
+			RWFilePackage_t Package;
+			Package.Code = ReadFile(Message->Sender,
+				(UUId_t)Message->Arguments[0].Data.Value,
+				(BufferObject_t*)Message->Arguments[1].Data.Buffer,
+				&Package.ActualSize);
+			Result = RPCRespond(Message, (__CONST void*)&Package,
+				sizeof(RWFilePackage_t));
+		} break;
+
+		/* Writes the requested number of bytes from the given buffer
+		 * into the current position in the file-handle */
+		case __FILEMANAGER_WRITEFILE: {
+			RWFilePackage_t Package;
+			Package.Code = WriteFile(Message->Sender,
+				(UUId_t)Message->Arguments[0].Data.Value,
+				(BufferObject_t*)Message->Arguments[1].Data.Buffer,
+				&Package.ActualSize);
+			Result = RPCRespond(Message, (__CONST void*)&Package,
+				sizeof(RWFilePackage_t));
+		} break;
+
+		/* Sets the file-pointer for the given handle to the
+		 * values given, the position is absolute and must
+		 * be within range of the file size */
+		case __FILEMANAGER_SEEKFILE: {
+			FileSystemCode_t Code = SeekFile(Message->Sender,
+				(UUId_t)Message->Arguments[0].Data.Value,
+				(uint32_t)Message->Arguments[1].Data.Value,
+				(uint32_t)Message->Arguments[2].Data.Value);
+			Result = RPCRespond(Message,
+				(__CONST void*)&Code, sizeof(FileSystemCode_t));
+		} break;
+
+		/* Flushes the internal file buffers and ensures there are
+		 * no pending file operations for the given file handle */
+		case __FILEMANAGER_FLUSHFILE: {
+			FileSystemCode_t Code = FlushFile(Message->Sender,
+				(UUId_t)Message->Arguments[0].Data.Value);
+			Result = RPCRespond(Message,
+				(__CONST void*)&Code, sizeof(FileSystemCode_t));
+		} break;
+
+		/* Moves or copies a given file path to the destination path
+		 * this can also be used for renamining if the dest/source paths
+		 * match (except for filename/directoryname) */
+		case __FILEMANAGER_MOVEFILE: {
+			FileSystemCode_t Code = MoveFile(Message->Sender,
+				(__CONST char*)Message->Arguments[0].Data.Buffer,
+				(__CONST char*)Message->Arguments[1].Data.Buffer,
+				(int)Message->Arguments[2].Data.Value);
+			Result = RPCRespond(Message,
+				(__CONST void*)&Code, sizeof(FileSystemCode_t));
+		} break;
+
+		/* Queries the current file position that the given handle
+		 * is at, it returns as two separate unsigned values, the upper
+		 * value is optional and should only be checked for large files */
+		case __FILEMANAGER_GETPOSITION: {
+			QueryFileValuePackage_t Package;
+			Package.Code = GetFilePosition(Message->Sender,
+				(UUId_t)Message->Arguments[0].Data.Value,
+				&Package);
+			Result = RPCRespond(Message, (__CONST void*)&Package,
+				sizeof(QueryFileValuePackage_t));
+		} break;
+
+		/* Queries the current file options and file access flags
+		 * for the given file handle */
+		case __FILEMANAGER_GETOPTIONS: {
+			QueryFileOptionsPackage_t Package;
+			Package.Code = GetFileOptions(Message->Sender,
+				(UUId_t)Message->Arguments[0].Data.Value,
+				&Package);
+			Result = RPCRespond(Message, (__CONST void*)&Package,
+				sizeof(QueryFileOptionsPackage_t));
+		} break;
+
+		/* Attempts to modify the current option and or access flags
+		 * for the given file handle as specified by <Options> and <Access> */
+		case __FILEMANAGER_SETOPTIONS: {
+			Result = SetFileOptions(Message->Sender,
+				(UUId_t)Message->Arguments[0].Data.Value,
+				(Flags_t)Message->Arguments[1].Data.Value,
+				(Flags_t)Message->Arguments[2].Data.Value);
+			Result = RPCRespond(Message, 
+				(__CONST void*)&Result, sizeof(OsStatus_t));
+		} break;
+
+		/* Queries the current file size that the given handle
+		 * has, it returns as two separate unsigned values, the upper
+		 * value is optional and should only be checked for large files */
+		case __FILEMANAGER_GETSIZE: {
+			QueryFileValuePackage_t Package;
+			Package.Code = GetFileSize(Message->Sender,
+				(UUId_t)Message->Arguments[0].Data.Value,
+				&Package);
+			Result = RPCRespond(Message, (__CONST void*)&Package,
+				sizeof(QueryFileValuePackage_t));
+		} break;
 
 		/* Resolves a special environment path for
 		 * the given the process and it returns it

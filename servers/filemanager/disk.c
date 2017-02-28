@@ -188,6 +188,7 @@ OsStatus_t RegisterDisk(UUId_t Driver, UUId_t Device, Flags_t Flags)
 {
 	/* Variables */
 	FileSystemDisk_t *Disk = NULL;
+	DataKey_t Key;
 
 	/* Allocate a new instance of a disk descriptor 
 	 * to store data and store initial data */
@@ -195,6 +196,7 @@ OsStatus_t RegisterDisk(UUId_t Driver, UUId_t Device, Flags_t Flags)
 	Disk->Driver = Driver;
 	Disk->Device = Device;
 	Disk->Flags = Flags;
+	Key.Value = (int)Device;
 
 	/* Query disk for general device information and 
 	 * information about geometry */
@@ -202,6 +204,9 @@ OsStatus_t RegisterDisk(UUId_t Driver, UUId_t Device, Flags_t Flags)
 		free(Disk);
 		return OsError;
 	}
+
+	/* Add the registered disk to the list of disks */
+	ListAppend(VfsGetDisks(), ListCreateNode(Key, Key, Disk));
 
 	/* Detect the disk layout, and if it fails
 	 * try to detect which kind of filesystem is present */
@@ -214,6 +219,7 @@ OsStatus_t RegisterDisk(UUId_t Driver, UUId_t Device, Flags_t Flags)
 OsStatus_t UnregisterDisk(UUId_t Device, Flags_t Flags)
 {
 	/* Variables for iteration */
+	FileSystemDisk_t *Disk = NULL;
 	ListNode_t *lNode = NULL;
 	DataKey_t Key;
 
@@ -253,6 +259,11 @@ OsStatus_t UnregisterDisk(UUId_t Device, Flags_t Flags)
 		/* Get next */
 		lNode = ListGetNodeByKey(VfsGetFileSystems(), Key, 0);
 	}
+
+	/* Remove the disk from the list of disks */
+	Disk = ListGetDataByKey(VfsGetDisks(), Key, 0);
+	ListRemoveByKey(VfsGetDisks(), Key);
+	free(Disk);
 
 	/* Done! */
 	return OsNoError;

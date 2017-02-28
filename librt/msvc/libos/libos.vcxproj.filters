@@ -24,7 +24,6 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="..\..\libos\devices.c" />
     <ClCompile Include="..\..\libos\exceptions.c" />
     <ClCompile Include="..\..\libos\sha1.c" />
     <ClCompile Include="..\..\libos\sharedobject.c" />

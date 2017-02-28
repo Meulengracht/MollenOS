@@ -143,6 +143,11 @@ __EXTERN List_t *VfsGetFileSystems(void);
  * modules, provides access for manipulation */
 __EXTERN List_t *VfsGetModules(void);
 
+/* VfsGetDisks
+ * Retrieves a list of all the currently registered
+ * disks, provides access for manipulation */
+__EXTERN List_t *VfsGetDisks(void);
+
 /* VfsIdentifierFileGet
  * Retrieves a new identifier for a file-handle that
  * is system-wide unique */
