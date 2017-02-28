@@ -171,6 +171,9 @@ void ThreadingInitialize(Cpu_t Cpu)
 	Init->AshId = PHOENIX_NO_ASH;
 	Init->CpuId = Cpu;
 
+	/* Create the pipe for communiciation */
+	Init->Pipe = PipeCreate(PIPE_DEFAULT_SIZE, 0);
+
 	/* Release the lock */
 	SpinlockRelease(&GlbThreadLock);
 
@@ -246,6 +249,9 @@ UUId_t ThreadingCreateThread(const char *Name,
 	Thread->TimeSlice = MCORE_INITIAL_TIMESLICE;
 	Thread->Priority = PriorityNormal;
 
+	/* Create the pipe for communiciation */
+	Thread->Pipe = PipeCreate(PIPE_DEFAULT_SIZE, 0);
+
 	/* Flag-Special-Case:
 	 * If we are CPU bound */
 	if (Flags & THREADING_CPUBOUND) {
@@ -319,6 +325,7 @@ void ThreadingCleanupThread(MCoreThread_t *Thread)
 	IThreadDestroy(Thread);
 
 	/* Cleanup structure */
+	PipeDestroy(Thread->Pipe);
 	kfree((void*)Thread->Name);
 	kfree(Thread);
 }

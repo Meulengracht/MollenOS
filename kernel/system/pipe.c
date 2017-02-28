@@ -21,12 +21,14 @@
  *    as queues and locks
  */
 
-/* Includes */
-#include <Scheduler.h>
-#include <Pipe.h>
-#include <Heap.h>
+/* Includes 
+ * - System */
+#include <scheduler.h>
+#include <pipe.h>
+#include <heap.h>
 
-/* C-Library */
+/* Includes
+ * - Library */
 #include <stddef.h>
 
 /* PipeIncreaseWrite
@@ -217,6 +219,25 @@ int PipeRead(MCorePipe_t *Pipe, uint8_t *Buffer, size_t Length, int Peek)
 
 	/* Done! */
 	return (int)BytesRead;
+}
+
+/* PipeWait
+ * Waits for next data to enter pipe before continuing
+ * this sleeps/blocks the calling thread */
+OsStatus_t
+PipeWait(
+	_In_ MCorePipe_t *Pipe,
+	_In_ size_t Timeout)
+{
+	/* Sanitize parameters */
+	if (Pipe == NULL) {
+		return OsError;
+	}
+
+	/* Increase wait count */
+	Pipe->ReadQueueCount++;
+	SemaphoreP(&Pipe->ReadQueue, Timeout);
+	return OsNoError;
 }
 
 /* PipeBytesAvailable

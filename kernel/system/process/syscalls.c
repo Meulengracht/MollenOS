@@ -773,7 +773,12 @@ OsStatus_t ScPipeRead(int Port, uint8_t *Container, size_t Length, int Peek)
 	MCorePipe_t *Pipe = NULL;
 
 	/* Lookup the pipe for the given port */
-	Pipe = PhoenixGetAshPipe(PhoenixGetAsh(PHOENIX_CURRENT), Port);
+	if (Port == -1) {
+		Pipe = Pipe = ThreadingGetCurrentThread(ApicGetCpu())->Pipe;
+	}
+	else {
+		Pipe = PhoenixGetAshPipe(PhoenixGetAsh(PHOENIX_CURRENT), Port);
+	}
 
 	/* Sanitize the pipe */
 	if (Pipe == NULL) {
@@ -801,7 +806,13 @@ OsStatus_t ScPipeWrite(UUId_t AshId, int Port, uint8_t *Message, size_t Length)
 	}
 
 	/* Lookup the pipe for the given port */
-	Pipe = PhoenixGetAshPipe(PhoenixGetAsh(AshId), Port);
+	if (Port == -1
+		&& ThreadingGetThread(AshId) != NULL) {
+		Pipe = ThreadingGetThread(AshId)->Pipe;
+	}
+	else {
+		Pipe = PhoenixGetAshPipe(PhoenixGetAsh(AshId), Port);
+	}
 
 	/* Sanitize the pipe */
 	if (Pipe == NULL) {
@@ -868,21 +879,30 @@ OsStatus_t ScRpcResponse(MRemoteCall_t *Rpc)
 	MCorePipe_t *Pipe = NULL;
 	size_t ToRead = Rpc->Result.Length;
 
-	/* Resolve the current running process
-	 * and the default pipe in the rpc */
-	Ash = PhoenixGetAsh(ThreadingGetCurrentThread(ApicGetCpu())->AshId);
-	Pipe = PhoenixGetAshPipe(Ash, Rpc->ResponsePort);
+	/* There can be a special case where 
+	 * Sender == PHOENIX_NO_ASH 
+	 * Use the builtin thread pipe */
+	if (Rpc->Sender == PHOENIX_NO_ASH) {
+		Pipe = ThreadingGetCurrentThread(ApicGetCpu())->Pipe;
+	}
+	else {
+		/* Resolve the current running process
+		 * and the default pipe in the rpc */
+		Ash = PhoenixGetAsh(ThreadingGetCurrentThread(ApicGetCpu())->AshId);
+		Pipe = PhoenixGetAshPipe(Ash, Rpc->ResponsePort);
 
-	/* Sanitize the lookups */
-	if (Ash == NULL || Pipe == NULL
-		|| Rpc->Result.Type == ARGUMENT_NOTUSED) {
-		return OsError;
+		/* Sanitize the lookups */
+		if (Ash == NULL || Pipe == NULL
+			|| Rpc->Result.Type == ARGUMENT_NOTUSED) {
+			return OsError;
+		}
 	}
 
-	/* Wait for data to enter the pipe TODO */
-	//PipeWait();
-	//if (PipeBytesAvailable(Pipe) < ToRead)
-	//	ToRead = PipeBytesAvailable(Pipe);
+	/* Wait for data to enter the pipe */
+	PipeWait(Pipe, 0);
+	if ((size_t)PipeBytesAvailable(Pipe) < ToRead) {
+		ToRead = PipeBytesAvailable(Pipe);
+	}
 
 	/* Read the data into the response-buffer */
 	PipeRead(Pipe, (uint8_t*)Rpc->Result.Data.Buffer, ToRead, 0);
@@ -912,7 +932,7 @@ OsStatus_t ScRpcExecute(MRemoteCall_t *Rpc, UUId_t Target, int Async)
 		return OsError;
 	}
 
-	/* Install the sender */
+	/* Install Sender */
 	Rpc->Sender = ThreadingGetCurrentThread(ApicGetCpu())->AshId;
 
 	/* Write the base request 

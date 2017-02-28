@@ -159,6 +159,7 @@ DestroyBuffer(
 #ifdef LIBC_KERNEL
 	kfree((void*)BufferObject->Virtual);
 	kfree(BufferObject);
+	Result = OsNoError;
 #else
 	Result = (OsStatus_t)Syscall1(SYSCALL_BUFFERDESTROY, SYSCALL_PARAM(BufferObject));
 	free(BufferObject);

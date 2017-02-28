@@ -30,7 +30,7 @@
 
 /* Includes 
  * - System */
-#include <Semaphore.h>
+#include <semaphore.h>
 
 /* Customization of the pipe, these are some default
  * parameters for creation */
@@ -47,16 +47,16 @@
  * what equals to a ringbuffer, except it adds
  * read/write queues in order to block users */
 typedef struct _MCorePipe {
-	Flags_t					Flags;
+	Flags_t					 Flags;
 	uint8_t					*Buffer;
-	size_t					Length;
-	size_t					IndexWrite;
-	size_t					IndexRead;
-	Spinlock_t				Lock;
-	Semaphore_t				ReadQueue;
-	Semaphore_t				WriteQueue;
-	size_t					ReadQueueCount;
-	size_t					WriteQueueCount;
+	size_t					 Length;
+	size_t					 IndexWrite;
+	size_t					 IndexRead;
+	Spinlock_t				 Lock;
+	Semaphore_t				 ReadQueue;
+	Semaphore_t				 WriteQueue;
+	size_t					 ReadQueueCount;
+	size_t					 WriteQueueCount;
 } MCorePipe_t;
 
 /* PipeCreate
@@ -86,6 +86,15 @@ __EXTERN int PipeWrite(MCorePipe_t *Pipe, uint8_t *Data, size_t Length);
  * given as the buffer it will just consume data instead */
 __EXTERN int PipeRead(MCorePipe_t *Pipe, 
 	uint8_t *Buffer, size_t Length, int Peek);
+
+/* PipeWait
+ * Waits for next data to enter pipe before continuing
+ * this sleeps/blocks the calling thread */
+__EXTERN
+OsStatus_t
+PipeWait(
+	_In_ MCorePipe_t *Pipe, 
+	_In_ size_t Timeout);
 
 /* PipeBytesAvailable
  * Returns how many bytes are available in buffer to be read */

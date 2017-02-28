@@ -29,6 +29,7 @@
 #include <arch.h>
 #include <mollenos.h>
 #include <mutex.h>
+#include <pipe.h>
 
 /* Includes 
  * - C-Library */
@@ -81,39 +82,28 @@ typedef enum _MCoreThreadPriority {
  * architecture specific thread data, but rest
  * of the information here is shared in MCore */
 typedef struct _MCoreThread {
-	UUId_t Id;
-	UUId_t ParentId;
-	UUId_t AshId;
-	Cpu_t CpuId;
+	UUId_t						 Id;
+	UUId_t						 ParentId;
+	UUId_t						 AshId;
+	Cpu_t						 CpuId;
 	
-	/* Information related to this 
-	 * thread for it's usage */
-	AddressSpace_t *AddressSpace;
-	const char *Name;
-	Flags_t Flags;
-	int RetCode;
+	MCorePipe_t					*Pipe;
+	AddressSpace_t				*AddressSpace;
+	__CONST char				*Name;
+	Flags_t						 Flags;
+	int							 RetCode;
 
-	/* Scheduler Information 
-	 * Used by the scheduler to keep
-	 * track of time, priority and it's queue */
-	MCoreThreadPriority_t Priority;
-	size_t TimeSlice;
-	int Queue;
-	
-	/* Synchronization 
-	 * Used by semaphores and sleep */
-	Addr_t *SleepResource;
-	size_t Sleep;
+	MCoreThreadPriority_t		 Priority;
+	size_t						 TimeSlice;
+	int							 Queue;
 
-	/* Architecture specific extra data
-	 * this involves it's contexts and other task
-	 * only data */
-	void *ThreadData;
+	Addr_t						*SleepResource;
+	size_t						 Sleep;
 
-	/* Entry point */
-	ThreadEntry_t Function;
-	void *Args;
+	void						*ThreadData;
 
+	ThreadEntry_t				 Function;
+	void						*Args;
 } MCoreThread_t;
 
 /* ThreadingInitialize

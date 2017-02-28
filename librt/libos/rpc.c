@@ -28,12 +28,36 @@
  * - Library */
 #include <stdlib.h>
 
+/* This is for both a kernel solution and a userspace
+ * solution of IPC can co-exist */
+#ifdef LIBC_KERNEL
+__EXTERN OsStatus_t ScRpcExecute(MRemoteCall_t *Rpc, UUId_t Target, int Async);
+
 /* RPCEvaluate/RPCExecute
  * To get a reply from the RPC request, the user
  * must use RPCEvaluate, this will automatically wait
  * for a reply, whereas RPCExecute will send the request
  * and not block/wait for reply */
-OsStatus_t RPCEvaluate(MRemoteCall_t *Rpc, UUId_t Target)
+OsStatus_t
+RPCEvaluate(
+	_In_ MRemoteCall_t *Rpc,
+	_In_ UUId_t Target)
+{
+	Rpc->ResponsePort = -1;
+	return ScRpcExecute(Rpc, Target, 0);
+}
+
+#else
+
+/* RPCEvaluate/RPCExecute
+ * To get a reply from the RPC request, the user
+ * must use RPCEvaluate, this will automatically wait
+ * for a reply, whereas RPCExecute will send the request
+ * and not block/wait for reply */
+OsStatus_t 
+RPCEvaluate(
+	_In_ MRemoteCall_t *Rpc, 
+	_In_ UUId_t Target)
 {
 	return Syscall3(SYSCALL_RPCEVAL, SYSCALL_PARAM(Rpc), SYSCALL_PARAM(Target), 0);
 }
@@ -43,7 +67,10 @@ OsStatus_t RPCEvaluate(MRemoteCall_t *Rpc, UUId_t Target)
  * must use RPCEvaluate, this will automatically wait
  * for a reply, whereas RPCExecute will send the request
  * and not block/wait for reply */
-OsStatus_t RPCExecute(MRemoteCall_t *Rpc, UUId_t Target)
+OsStatus_t 
+RPCExecute(
+	_In_ MRemoteCall_t *Rpc, 
+	_In_ UUId_t Target)
 {
 	return Syscall3(SYSCALL_RPCEVAL, SYSCALL_PARAM(Rpc), SYSCALL_PARAM(Target), 1);
 }
@@ -52,7 +79,9 @@ OsStatus_t RPCExecute(MRemoteCall_t *Rpc, UUId_t Target)
  * Call this to wait for a new RPC message, it automatically
  * reads the message, and all the arguments. To avoid freeing
  * an argument, set InUse to 0 */
-OsStatus_t RPCListen(MRemoteCall_t *Message) 
+OsStatus_t 
+RPCListen(
+	_In_ MRemoteCall_t *Message)
 {
 	/* Storage for parameters */
 	int i = 0;
@@ -84,7 +113,9 @@ OsStatus_t RPCListen(MRemoteCall_t *Message)
 /* RPCCleanup 
  * Call this to cleanup the RPC message, it frees all
  * allocated resources by RPCListen */
-OsStatus_t RPCCleanup(MRemoteCall_t *Message)
+OsStatus_t 
+RPCCleanup(
+	_In_ MRemoteCall_t *Message)
 {
 	/* Cleanup buffers */
 	for (int i = 0; i < IPC_MAX_ARGUMENTS; i++) {
@@ -101,9 +132,12 @@ OsStatus_t RPCCleanup(MRemoteCall_t *Message)
 /* RPCRespond
  * This is a wrapper to return a respond message/buffer to the
  * sender of the message, it's good practice to always wait for
- * a result when there is going to be one */
-OsStatus_t RPCRespond(MRemoteCall_t *Rpc,
-	__CONST void *Buffer, size_t Length)
+ * a result when there is going to be one */ 
+OsStatus_t 
+RPCRespond(
+	_In_ MRemoteCall_t *Rpc,
+	_In_ __CONST void *Buffer, 
+	_In_ size_t Length)
 {
 	/* Write the result back to the caller */
 	return PipeSend(Rpc->Sender, Rpc->ResponsePort, (void*)Buffer, Length);
@@ -114,7 +148,9 @@ OsStatus_t RPCRespond(MRemoteCall_t *Rpc,
  * and puts it in a sleep state untill either
  * the timeout runs out or it recieves a wake
  * signal. */
-int WaitForSignal(size_t Timeout)
+OsStatus_t
+WaitForSignal(
+	_In_ size_t Timeout)
 {
 	return Syscall1(SYSCALL_PSIGWAIT, SYSCALL_PARAM(Timeout));
 }
@@ -123,7 +159,11 @@ int WaitForSignal(size_t Timeout)
  * This wakes up a thread in suspend mode on the
  * target. This should be used in conjunction with
  * the Sleep. */
-int SignalProcess(UUId_t Target)
+OsStatus_t
+SignalProcess(
+	_In_ UUId_t Target)
 {
 	return Syscall1(SYSCALL_PSIGSEND, SYSCALL_PARAM(Target));
 }
+
+#endif
