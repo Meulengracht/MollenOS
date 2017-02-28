@@ -24,7 +24,12 @@
 /* Includes
  * - System */
 #include <os/driver/buffer.h>
+
+#ifdef LIBC_KERNEL
+#include <heap.h>
+#else
 #include <os/syscall.h>
+#endif
 
 /* Includes
  * - Library */
@@ -49,19 +54,27 @@ CreateBuffer(
 	}
 
 	/* Allocate a new instance */
+#ifdef LIBC_KERNEL
+	Buffer = (BufferObject_t*)kmalloc(sizeof(BufferObject_t));
+	Buffer->Virtual = (__CONST char*)kmalloc_ap(
+		DIVUP(Length, PAGE_SIZE) * PAGE_SIZE, (Addr_t*)&Buffer->Physical);
+	Buffer->Pages = DIVUP(Length, PAGE_SIZE);
+	Result = OsNoError;
+#else
 	Buffer = (BufferObject_t*)malloc(sizeof(BufferObject_t));
-	Buffer->Length = Length;
 	Result = (OsStatus_t)Syscall1(SYSCALL_BUFFERCREATE, SYSCALL_PARAM(Buffer));
 
-	/* Sanitize the result and 
+	/* Sanitize the result and
 	 * return the newly created object */
 	if (Result != OsNoError) {
 		free(Buffer);
 		return NULL;
 	}
-	else {
-		return Buffer;
-	}
+
+#endif
+	Buffer->Length = Length;
+	Buffer->IndexWrite = 0;
+	return Buffer;
 }
 
 /* ReadBuffer 
@@ -90,21 +103,40 @@ ReadBuffer(
 
 /* WriteBuffer 
  * Writes <BytesToWrite> into the allocated buffer-object
- * from the given user-buffer */
+ * from the given user-buffer. It uses indexed writes, so
+ * the next write will be appended unless BytesToWrite == Size.
+ * Index is reset once it returns less bytes written than requested */
 OsStatus_t 
 WriteBuffer(
 	_In_ BufferObject_t *BufferObject, 
 	_In_ __CONST void *Buffer, 
-	_In_ size_t BytesToWrite)
+	_In_ size_t BytesToWrite,
+	_Out_Opt_ size_t *BytesWritten)
 {
+	/* Variables */
+	size_t Bytes = 0;
+
 	/* Sanitize all in-params */
 	if (BufferObject == NULL || Buffer == NULL
-		|| BytesToWrite == 0 || BytesToWrite > BufferObject->Length) {
+		|| BytesToWrite == 0) {
 		return OsError;
 	}
 
+	/* Calculate bytes we are going to write */
+	Bytes = MIN(BytesToWrite, BufferObject->Length - BufferObject->IndexWrite);
+	*BytesWritten = Bytes;
+
 	/* Do the copy operation */
-	memcpy((void*)BufferObject->Virtual, Buffer, BytesToWrite);
+	memcpy((void*)BufferObject->Virtual, Buffer, Bytes);
+
+	/* Increase Index */
+	if (Bytes != BufferObject->Length) {
+		BufferObject->IndexWrite += Bytes;
+		if (BufferObject->IndexWrite == BufferObject->Length) {
+			BufferObject->IndexWrite = 0;
+		}
+	}
+
 	return OsNoError;
 }
 
@@ -116,7 +148,6 @@ DestroyBuffer(
 	_In_ BufferObject_t *BufferObject)
 {
 	/* Variables */
-	BufferObject_t *Buffer = NULL;
 	OsStatus_t Result;
 
 	/* Sanitize the length */
@@ -125,7 +156,12 @@ DestroyBuffer(
 	}
 
 	/* Contact OS services and release buffer */
-	Result = (OsStatus_t)Syscall1(SYSCALL_BUFFERDESTROY, SYSCALL_PARAM(Buffer));
-	free(Buffer);
+#ifdef LIBC_KERNEL
+	kfree((void*)BufferObject->Virtual);
+	kfree(BufferObject);
+#else
+	Result = (OsStatus_t)Syscall1(SYSCALL_BUFFERDESTROY, SYSCALL_PARAM(BufferObject));
+	free(BufferObject);
+#endif
 	return Result;
 }

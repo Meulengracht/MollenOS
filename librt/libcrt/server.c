@@ -38,7 +38,7 @@
  * - C/C++ Cleanup */
 __EXTERN void __CppInit(void);
 __EXTERN void __CppFinit(void);
-_MOS_API void __CppInitVectoredEH(void);
+MOSAPI void __CppInitVectoredEH(void);
 
 /* CRT Initialization sequence
  * for a shared C/C++ environment

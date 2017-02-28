@@ -39,14 +39,14 @@ _CODE_BEGIN
 /* ConditionCreate
  * Instantiates a new condition and allocates
  * all required resources for the condition */
-_MOS_API 
+MOSAPI 
 Condition_t *
 ConditionCreate(void);
 
 /* ConditionConstruct
  * Constructs an already allocated condition
  * handle and initializes it */
-_MOS_API 
+MOSAPI 
 OsStatus_t 
 ConditionConstruct(
 	_In_ Condition_t *Cond);
@@ -54,7 +54,7 @@ ConditionConstruct(
 /* ConditionDestroy
  * Destroys a conditional variable and 
  * wakes up all remaining sleepers */
-_MOS_API 
+MOSAPI 
 OsStatus_t 
 ConditionDestroy(
 	_In_ Condition_t *Cond);
@@ -62,7 +62,7 @@ ConditionDestroy(
 /* ConditionSignal
  * Signal the condition and wakes up a thread
  * in the queue for the condition */
-_MOS_API 
+MOSAPI 
 OsStatus_t 
 ConditionSignal(
 	_In_ Condition_t *Cond);
@@ -70,7 +70,7 @@ ConditionSignal(
 /* ConditionBroadcast
  * Broadcast a signal to all condition waiters
  * and wakes threads up waiting for the cond */
-_MOS_API 
+MOSAPI 
 OsStatus_t 
 ConditionBroadcast(
 	_In_ Condition_t *Cond);
@@ -79,7 +79,7 @@ ConditionBroadcast(
  * Waits for condition to be signaled, and 
  * acquires the given mutex, using multiple 
  * mutexes for same condition is undefined behaviour */
-_MOS_API 
+MOSAPI 
 OsStatus_t 
 ConditionWait(
 	_In_ Condition_t *Cond,
@@ -89,7 +89,7 @@ ConditionWait(
  * This functions as the ConditionWait, 
  * but also has a timeout specified, so that 
  * we get waken up if the timeout expires (in seconds) */
-_MOS_API 
+MOSAPI 
 OsStatus_t 
 ConditionWaitTimed(
 	_In_ Condition_t *Cond, 

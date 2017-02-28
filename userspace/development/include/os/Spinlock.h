@@ -40,7 +40,7 @@ _CODE_BEGIN
  * This initializes a spinlock
  * handle and sets it to default
  * value (unlocked) */
-_MOS_API 
+MOSAPI 
 OsStatus_t 
 SpinlockReset(
 	_In_ Spinlock_t *Lock);
@@ -48,7 +48,7 @@ SpinlockReset(
 /* SpinlockAcquire
  * Acquires the spinlock while busy-waiting
  * for it to be ready if neccessary */
-_MOS_API 
+MOSAPI 
 OsStatus_t
 SpinlockAcquire(
 	_In_ Spinlock_t *Lock);
@@ -56,7 +56,7 @@ SpinlockAcquire(
 /* SpinlockTryAcquire
  * Makes an attempt to acquire the
  * spinlock without blocking */
-_MOS_API 
+MOSAPI 
 OsStatus_t
 SpinlockTryAcquire(
 	_In_ Spinlock_t *Lock);
@@ -64,7 +64,7 @@ SpinlockTryAcquire(
 /* SpinlockRelease
  * Releases the spinlock, and lets
  * other threads access the lock */
-_MOS_API 
+MOSAPI 
 OsStatus_t 
 SpinlockRelease(
 	_In_ Spinlock_t *Lock);

@@ -121,6 +121,7 @@
     <ClCompile Include="..\..\libc\string\strtok.c" />
     <ClCompile Include="..\..\libc\string\strxfrm.c" />
     <ClCompile Include="..\..\libc\string\wcsnlen.c" />
+    <ClCompile Include="..\..\libos\driver\bufferobject.c" />
     <ClCompile Include="..\..\libos\ds\ds.c" />
     <ClCompile Include="..\..\libos\ds\hashtable.c" />
     <ClCompile Include="..\..\libos\ds\list.c" />
@@ -140,6 +141,7 @@
     <ClCompile Include="..\..\libos\mstring\mstringresize.c" />
     <ClCompile Include="..\..\libos\mstring\mstringsubstring.c" />
     <ClCompile Include="..\..\libos\mstring\mstringutf8.c" />
+    <ClCompile Include="..\..\libos\rpc.c" />
     <ClCompile Include="..\..\libos\sha1.c" />
     <ClCompile Include="..\..\libos\synchronization\spinlock.c" />
   </ItemGroup>

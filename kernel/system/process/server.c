@@ -28,6 +28,7 @@
 #include <threading.h>
 #include <semaphore.h>
 #include <scheduler.h>
+#include <heap.h>
 #include <log.h>
 
 /* Includes

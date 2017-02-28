@@ -85,17 +85,17 @@ typedef struct _MWindowDescriptor {
  * value is the id of the newly created
  * window. Returns NULL on failure */
 #ifdef __WINDOWMANAGER_EXPORT
-__WNDAPI WndHandle_t CreateWindow(WindowParameters_t *Params);
+__WNDAPI Handle_t CreateWindow(WindowParameters_t *Params);
 #else
-__WNDAPI WndHandle_t CreateWindow(WindowParameters_t *Params)
+__WNDAPI Handle_t CreateWindow(WindowParameters_t *Params)
 {
 	/* Variables */
 	MRemoteCall_t Request;
-	WndHandle_t Result;
+	Handle_t Result;
 	RPCInitialize(&Request, __WINDOWMANAGER_INTERFACE_VERSION, 
 		PIPE_DEFAULT, __WINDOWMANAGER_CREATE);
 	RPCSetArgument(&Request, 0, (const void*)Params, sizeof(WindowParameters_t));
-	RPCSetResult(&Request, (const void*)&Result, sizeof(WndHandle_t));
+	RPCSetResult(&Request, (const void*)&Result, sizeof(Handle_t));
 	RPCEvaluate(&Request, __WINDOWMANAGER_TARGET);
 	return Result;
 }
@@ -105,15 +105,15 @@ __WNDAPI WndHandle_t CreateWindow(WindowParameters_t *Params)
  * Destroys a given window 
  * and frees the resources associated with it. */
 #ifdef __WINDOWMANAGER_EXPORT
-__WNDAPI void DestroyWindow(WndHandle_t Handle);
+__WNDAPI void DestroyWindow(Handle_t Handle);
 #else
-__WNDAPI OsStatus_t DestroyWindow(WndHandle_t Handle)
+__WNDAPI OsStatus_t DestroyWindow(Handle_t Handle)
 {
 	/* Variables */
 	MRemoteCall_t Request;
 	RPCInitialize(&Request, __WINDOWMANAGER_INTERFACE_VERSION,
 		PIPE_DEFAULT, __WINDOWMANAGER_DESTROY);
-	RPCSetArgument(&Request, 0, (const void*)Handle, sizeof(WndHandle_t));
+	RPCSetArgument(&Request, 0, (const void*)Handle, sizeof(Handle_t));
 	return RPCExecute(&Request, __WINDOWMANAGER_TARGET);
 }
 #endif
@@ -122,15 +122,15 @@ __WNDAPI OsStatus_t DestroyWindow(WndHandle_t Handle)
  * Queries the window for information about dimensions
  * and its surface, that can be used for direct pixel access */
 #ifdef __WINDOWMANAGER_EXPORT
-__WNDAPI void QueryWindow(WndHandle_t Handle, MWindowDescriptor_t *Descriptor);
+__WNDAPI void QueryWindow(Handle_t Handle, MWindowDescriptor_t *Descriptor);
 #else
-__WNDAPI OsStatus_t QueryWindow(WndHandle_t Handle, MWindowDescriptor_t *Descriptor)
+__WNDAPI OsStatus_t QueryWindow(Handle_t Handle, MWindowDescriptor_t *Descriptor)
 {
 	/* Variables */
 	MRemoteCall_t Request;
 	RPCInitialize(&Request, __WINDOWMANAGER_INTERFACE_VERSION,
 		PIPE_DEFAULT, __WINDOWMANAGER_QUERY);
-	RPCSetArgument(&Request, 0, (const void*)Handle, sizeof(WndHandle_t));
+	RPCSetArgument(&Request, 0, (const void*)Handle, sizeof(Handle_t));
 	RPCSetResult(&Request, (const void*)Descriptor, sizeof(MWindowDescriptor_t));
 	return RPCEvaluate(&Request, __WINDOWMANAGER_TARGET);
 }
@@ -141,15 +141,15 @@ __WNDAPI OsStatus_t QueryWindow(WndHandle_t Handle, MWindowDescriptor_t *Descrip
  * based on relative coordinates in the window 
  * if its called with NULL as dimensions it invalidates all */
 #ifdef __WINDOWMANAGER_EXPORT
-__WNDAPI void InvalidateWindow(WndHandle_t Handle, Rect_t *Rectangle);
+__WNDAPI void InvalidateWindow(Handle_t Handle, Rect_t *Rectangle);
 #else
-__WNDAPI OsStatus_t InvalidateWindow(WndHandle_t Handle, Rect_t *Rectangle)
+__WNDAPI OsStatus_t InvalidateWindow(Handle_t Handle, Rect_t *Rectangle)
 {
 	/* Variables */
 	MRemoteCall_t Request;
 	RPCInitialize(&Request, __WINDOWMANAGER_INTERFACE_VERSION,
 		PIPE_DEFAULT, __WINDOWMANAGER_INVALIDATE);
-	RPCSetArgument(&Request, 0, (const void*)Handle, sizeof(WndHandle_t));
+	RPCSetArgument(&Request, 0, (const void*)Handle, sizeof(Handle_t));
 	RPCSetArgument(&Request, 1, (const void*)Rectangle, sizeof(Rect_t));
 	return RPCExecute(&Request, __WINDOWMANAGER_TARGET);
 }

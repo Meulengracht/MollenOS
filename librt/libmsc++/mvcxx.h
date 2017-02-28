@@ -325,7 +325,7 @@ void RtlCaptureContext(PCONTEXT ContextRecord);
 void RtlpCaptureContext(PCONTEXT ContextRecord);
 
 /* LowLevel Exception Functions */
-_MOS_API uint32_t ZwContinue(PCONTEXT Context, int TestAlert);
-_MOS_API uint32_t ZwRaiseException(PEXCEPTION_RECORD ExceptionRecord, PCONTEXT Context, int FirstChance);
+MOSAPI uint32_t ZwContinue(PCONTEXT Context, int TestAlert);
+MOSAPI uint32_t ZwRaiseException(PEXCEPTION_RECORD ExceptionRecord, PCONTEXT Context, int FirstChance);
 
 #endif //!_MOLLENOS_VCXX_H_

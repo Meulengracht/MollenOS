@@ -99,86 +99,86 @@ typedef struct _List
 
 /* Instantiates a new list 
  * with the given attribs and keytype */
-_MOS_API List_t *ListCreate(KeyType_t KeyType, int Attributes);
+MOSAPI List_t *ListCreate(KeyType_t KeyType, int Attributes);
 
 /* Destroys the list and 
  * frees all resources associated
  * does also free all list elements
  * and keys */
-_MOS_API void ListDestroy(List_t *List);
+MOSAPI void ListDestroy(List_t *List);
 
 /* Returns the length of the 
  * given list */
-_MOS_API int ListLength(List_t *List);
+MOSAPI int ListLength(List_t *List);
 
 /* Instantiates a new list node 
  * that can be appended to the list 
  * by ListAppend. If using an unsorted list
  * set the sortkey == key */
-_MOS_API ListNode_t *ListCreateNode(DataKey_t Key, DataKey_t SortKey, void *Data);
+MOSAPI ListNode_t *ListCreateNode(DataKey_t Key, DataKey_t SortKey, void *Data);
 
 /* Cleans up a list node and frees 
  * all resources it had */
-_MOS_API void ListDestroyNode(List_t *List, ListNode_t *Node);
+MOSAPI void ListDestroyNode(List_t *List, ListNode_t *Node);
 
 /* Insert the node into a specific position
  * in the list, if position is invalid it is
  * inserted at the back. This function is not
  * available for sorted lists, it will simply 
  * call ListInsert instead */
-_MOS_API void ListInsertAt(List_t *List, ListNode_t *Node, int Position);
+MOSAPI void ListInsertAt(List_t *List, ListNode_t *Node, int Position);
 
 /* Inserts the node into the front of 
  * the list. This should be used for sorted
  * lists, but is available for unsorted lists
  * aswell */
-_MOS_API void ListInsert(List_t *List, ListNode_t *Node);
+MOSAPI void ListInsert(List_t *List, ListNode_t *Node);
 
 /* Inserts the node into the the back
  * of the list. This function is not
  * available for sorted lists, it will
  * simply redirect to ListInsert */
-_MOS_API void ListAppend(List_t *List, ListNode_t *Node);
+MOSAPI void ListAppend(List_t *List, ListNode_t *Node);
 
 /* List pop functions, the either 
  * remove an element from the back or 
  * the front of the given list and return
  * the node */
-_MOS_API ListNode_t *ListPopFront(List_t *List);
-_MOS_API ListNode_t *ListPopBack(List_t *List);
+MOSAPI ListNode_t *ListPopFront(List_t *List);
+MOSAPI ListNode_t *ListPopBack(List_t *List);
 
 /* These are the index-retriever functions 
  * they return the given index by either 
  * Key, data or node, return -1 if not found */
-_MOS_API int ListGetIndexByData(List_t *List, void *Data);
-_MOS_API int ListGetIndexByKey(List_t *List, DataKey_t Key);
-_MOS_API int ListGetIndexByNode(List_t *List, ListNode_t *Node);
+MOSAPI int ListGetIndexByData(List_t *List, void *Data);
+MOSAPI int ListGetIndexByKey(List_t *List, DataKey_t Key);
+MOSAPI int ListGetIndexByNode(List_t *List, ListNode_t *Node);
 
 /* These are the node-retriever functions 
  * they return the list-node by either key
  * data or index */
-_MOS_API ListNode_t *ListGetNodeByKey(List_t *List, DataKey_t Key, int n);
+MOSAPI ListNode_t *ListGetNodeByKey(List_t *List, DataKey_t Key, int n);
 
 /* These are the data-retriever functions 
  * they return the list-node by either key
  * node or index */
-_MOS_API void *ListGetDataByKey(List_t *List, DataKey_t Key, int n);
+MOSAPI void *ListGetDataByKey(List_t *List, DataKey_t Key, int n);
 
 /* These functions execute a given function
  * on all relevant nodes (see names) */
-_MOS_API void ListExecuteOnKey(List_t *List, void(*Function)(void*, int, void*), DataKey_t Key, void *UserData);
-_MOS_API void ListExecuteAll(List_t *List, void(*Function)(void*, int, void*), void *UserData);
+MOSAPI void ListExecuteOnKey(List_t *List, void(*Function)(void*, int, void*), DataKey_t Key, void *UserData);
+MOSAPI void ListExecuteAll(List_t *List, void(*Function)(void*, int, void*), void *UserData);
 
 /* This functions unlinks a node
  * and returns the next node for
  * usage */
-_MOS_API ListNode_t *ListUnlinkNode(List_t *List, ListNode_t *Node);
+MOSAPI ListNode_t *ListUnlinkNode(List_t *List, ListNode_t *Node);
 
 /* These are the deletion functions 
  * and remove based on either node 
  * index or key */
-_MOS_API void ListRemoveByNode(List_t *List, ListNode_t* Node);
-_MOS_API void ListRemoveByIndex(List_t *List, int Index);
-_MOS_API int ListRemoveByKey(List_t *List, DataKey_t Key);
+MOSAPI void ListRemoveByNode(List_t *List, ListNode_t* Node);
+MOSAPI void ListRemoveByIndex(List_t *List, int Index);
+MOSAPI int ListRemoveByKey(List_t *List, DataKey_t Key);
 
 #endif //!_GENERIC_LIST_H_

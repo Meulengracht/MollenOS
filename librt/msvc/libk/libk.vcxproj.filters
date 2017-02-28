@@ -276,6 +276,12 @@
     <ClCompile Include="..\..\libos\sha1.c">
       <Filter>glue</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\libos\driver\bufferobject.c">
+      <Filter>glue</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\libos\rpc.c">
+      <Filter>glue</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\libc\string\str-two-way.h">

@@ -143,30 +143,30 @@ typedef struct _MString
 /* Converts a single char (ASCII, UTF16, UTF32) to UTF8 
  * and returns the number of bytes the new utf8 
  * 'string' takes up. Returns 0 if conversion was good */
-_MOS_API int Utf8ConvertCharacterToUtf8(mchar_t Character, void* oBuffer, size_t *Length);
+MOSAPI int Utf8ConvertCharacterToUtf8(mchar_t Character, void* oBuffer, size_t *Length);
 
 /* Bytes used by given (ASCII, UTF16, UTF32) character in UTF-8 Encoding
  * If 0 is returned the character was invalid */
-_MOS_API size_t Utf8ByteSizeOfCharacterInUtf8(mchar_t Character);
+MOSAPI size_t Utf8ByteSizeOfCharacterInUtf8(mchar_t Character);
 
 /* Reads the next utf-8 sequence out of a string, updating an index 
  * the index keeps track of how many characters into the string
  * we are. Returns MSTRING_EOS on errors */
-_MOS_API mchar_t Utf8GetNextCharacterInString(const char *Str, int *Index);
+MOSAPI mchar_t Utf8GetNextCharacterInString(const char *Str, int *Index);
 
 /* Character Count of UTF8-String 
  * Returns the size of an UTF8 string in char-count 
  * this is used to tell how long strings are */
-_MOS_API size_t Utf8CharacterCountInString(const char *Str);
+MOSAPI size_t Utf8CharacterCountInString(const char *Str);
 
 /* Byte Count of UTF8-String 
  * Returns the size of an UTF8 string in bytes 
  * this is used to tell how long strings are */
-_MOS_API size_t Utf8ByteCountInString(const char *Str);
+MOSAPI size_t Utf8ByteCountInString(const char *Str);
 
 /* Helper for internal functions
  * to automatically resize the buffer 
  * of a string to be able to fit a certain size */
-_MOS_API void MStringResize(MString_t *String, size_t Length);
+MOSAPI void MStringResize(MString_t *String, size_t Length);
 
 #endif //!_MSTRING_PRIV_H_

@@ -85,7 +85,6 @@
 #define SYSCALL_EVTEXEC				0x31
 
 #define SYSCALL_ENDBOOT				0x33
-#define SYSCALL_REGWM				0x34
 #define SYSCALL_SYSTEMQUERY			0x35
 
 /* Driver System Calls 
@@ -123,12 +122,12 @@
 _CODE_BEGIN
 
 /* Prototypes */
-_MOS_API int Syscall0(int Function);
-_MOS_API int Syscall1(int Function, int Arg0);
-_MOS_API int Syscall2(int Function, int Arg0, int Arg1);
-_MOS_API int Syscall3(int Function, int Arg0, int Arg1, int Arg2);
-_MOS_API int Syscall4(int Function, int Arg0, int Arg1, int Arg2, int Arg3);
-_MOS_API int Syscall5(int Function, int Arg0, int Arg1, int Arg2, int Arg3, int Arg4);
+MOSAPI int Syscall0(int Function);
+MOSAPI int Syscall1(int Function, int Arg0);
+MOSAPI int Syscall2(int Function, int Arg0, int Arg1);
+MOSAPI int Syscall3(int Function, int Arg0, int Arg1, int Arg2);
+MOSAPI int Syscall4(int Function, int Arg0, int Arg1, int Arg2, int Arg3);
+MOSAPI int Syscall5(int Function, int Arg0, int Arg1, int Arg2, int Arg3, int Arg4);
 
 _CODE_END
 

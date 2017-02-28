@@ -33,7 +33,7 @@
 const char *__SysTypeMessage = "CLIB";
 
 /* Write to sysout */
-void MollenOSSystemLog(const char *Format, ...)
+void MollenOSSystemLog(__CONST char *Format, ...)
 {
 	/* We need a static, temporary buffer */
 	va_list Args;
@@ -54,17 +54,10 @@ void MollenOSSystemLog(const char *Format, ...)
 }
 
 /* End Boot Sequence */
-int MollenOSEndBoot(void)
+void MollenOSEndBoot(void)
 {
 	/* Prep for syscall */
-	return Syscall0(SYSCALL_ENDBOOT);
-}
-
-/* Register Event Target */
-int MollenOSRegisterWM(void)
-{
-	/* Prep for syscall */
-	return Syscall0(SYSCALL_REGWM);
+	Syscall0(SYSCALL_ENDBOOT);
 }
 
 /* ScreenQueryGeometry

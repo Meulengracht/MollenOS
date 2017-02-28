@@ -109,15 +109,15 @@
 
 /* LibOS export for userspace programs. However
  * except for the usual stuff, we have a static case aswell */
-#ifndef _MOS_API
+#ifndef MOSAPI
 #define MOSABI __cdecl
 #ifdef _LIBOS_DLL
-#define _MOS_API __declspec(dllexport)
+#define MOSAPI __declspec(dllexport)
 #else
 #if defined(_KRNL_DLL) || defined(CRTDLL) || defined(_CRTIMP_STATIC)
-#define _MOS_API
+#define MOSAPI
 #else
-#define _MOS_API __declspec(dllimport)
+#define MOSAPI __declspec(dllimport)
 #endif
 #endif
 #endif

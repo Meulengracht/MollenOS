@@ -20,10 +20,11 @@
 */
 
 /* Includes */
-#include <Devices/Video.h>
+#include <os/driver/file.h>
+#include <devices/video.h>
 #include <criticalsection.h>
-#include <Heap.h>
-#include <Log.h>
+#include <heap.h>
+#include <log.h>
 
 /* CLib */
 #include <stddef.h>
@@ -31,7 +32,8 @@
 #include <string.h>
 
 /* Globals */
-MCoreFileInstance_t *GlbLogFileHandle = NULL;
+UUId_t GlbLogFileHandle = UUID_INVALID;
+BufferObject_t *GlbLogBuffer = NULL;
 char GlbLogStatic[LOG_INITIAL_SIZE];
 LogTarget_t GlbLogTarget = LogMemory;
 LogLevel_t GlbLogLevel = LogLevel1;
@@ -52,7 +54,8 @@ void LogInit(void)
 	GlbLogLevel = LogLevel1;
 
 	/* Set log ptr to initial */
-	GlbLogFileHandle = NULL;
+	GlbLogFileHandle = UUID_INVALID;
+	GlbLogBuffer = NULL;
 	GlbLog = &GlbLogStatic[0];
 	GlbLogSize = LOG_INITIAL_SIZE;
 
@@ -112,14 +115,10 @@ void LogFlush(LogTarget_t Output)
 	/* If we are flushing to anything 
 	 * other than a file, and the logfile is 
 	 * opened, we close it */
-	if (GlbLogFileHandle != NULL
-		&& Output != LogFile) 
-	{
-		/* Close the handle */
-		VfsWrapperClose(GlbLogFileHandle);
-
-		/* Null it */
-		GlbLogFileHandle = NULL;
+	if (GlbLogFileHandle != UUID_INVALID
+		&& Output != LogFile)  {
+		CloseFile(GlbLogFileHandle);
+		GlbLogFileHandle = UUID_INVALID;
 	}
 
 	/* Flush to console? */
@@ -204,23 +203,20 @@ void LogFlush(LogTarget_t Output)
 		/* Open log file 
 		 * But only if handle doesn't exist */
 		int Index = 0;
-		if (GlbLogFileHandle == NULL) 
-		{
-			/* Open the handle */
-			GlbLogFileHandle = VfsWrapperOpen(FILESYSTEM_IDENT_SYS ":/System/Log.txt",
-				Read | Write | TruncateIfExists | CreateIfNotExists);
+		if (GlbLogFileHandle == UUID_INVALID)  {
+			FileSystemCode_t Code =
+				OpenFile("%sys%:/system/boot.txt",
+					__FILE_CREATE | __FILE_TRUNCATE,
+					__FILE_READ_ACCESS | __FILE_WRITE_ACCESS,
+					&GlbLogFileHandle);
 
-			/* Sanity */
-			if (GlbLogFileHandle->Code != VfsOk) {
-				LogFatal("SYST", "Failed to open/create system logfile: %u",
-					(size_t)GlbLogFileHandle->Code);
-				
-				/* Close the handle */
-				VfsWrapperClose(GlbLogFileHandle);
-
-				/* Null, return */
-				GlbLogFileHandle = NULL;
+			if (Code != FsOk) {
+				LogFatal("SYST", "Failed to open/create system logfile: %u", Code);
 				return;
+			}
+
+			if (GlbLogBuffer == NULL) {
+				GlbLogBuffer = CreateBuffer(BUFSIZ);
 			}
 		}
 
@@ -228,6 +224,7 @@ void LogFlush(LogTarget_t Output)
 		while (Index < GlbLogIndex)
 		{
 			/* Get header information */
+			size_t BytesCopied = 0;
 			char Type = GlbLog[Index];
 			char Length = GlbLog[Index + 1];
 
@@ -235,48 +232,63 @@ void LogFlush(LogTarget_t Output)
 			memset(TempBuffer, 0, 256);
 
 			/* What kind of line is this? */
-			if (Type == LOG_TYPE_RAW)
-			{
-				/* Copy data */
-				memcpy(TempBuffer, &GlbLog[Index + 2], (size_t)Length);
-
-				/* Write it to file */
-				VfsWrapperWrite(GlbLogFileHandle, (uint8_t*)TempBuffer, Length);
+			if (Type == LOG_TYPE_RAW) {
+				WriteBuffer(GlbLogBuffer,
+					(__CONST void*)&GlbLog[Index + 2],
+					(size_t)Length, &BytesCopied);
+				
+				/* Flush ? */
+				if (BytesCopied != (size_t)Length) {
+					WriteFile(GlbLogFileHandle, GlbLogBuffer, NULL);
+					WriteBuffer(GlbLogBuffer,
+						(__CONST void*)&GlbLog[Index + 2 + BytesCopied],
+						((size_t)Length) - BytesCopied, &BytesCopied);
+				}
 
 				/* Increase */
 				Index += 2 + Length;
 			}
-			else
-			{
-				/* We have two chunks to print */
+			else {
 				char HeaderBuffer[16];
 				char *StartPtr = &GlbLog[Index + 2];
 				char *StartMsgPtr = strchr(StartPtr, ' ');
 				int HeaderLen = (int)StartMsgPtr - (int)StartPtr;
 
-				/* Reset header buffer */
+				/* Build header in HeaderBuffer */
 				memset(HeaderBuffer, 0, 16);
-
-				/* Copy */
 				memcpy(TempBuffer, StartPtr, HeaderLen);
-
-				/* Format header */
 				sprintf(HeaderBuffer, "[%s] ", TempBuffer);
-				
-				/* Write it to file */
-				VfsWrapperWrite(GlbLogFileHandle, (uint8_t*)TempBuffer, HeaderLen + 3);
 
 				/* Clear */
 				memset(TempBuffer, 0, HeaderLen + 1);
-
-				/* Increament */
 				Index += 2 + HeaderLen + 1;
-
-				/* Copy data */
 				memcpy(TempBuffer, &GlbLog[Index], (size_t)Length);
 
-				/* Write it to file */
-				VfsWrapperWrite(GlbLogFileHandle, (uint8_t*)TempBuffer, Length);
+				/* Write */
+				WriteBuffer(GlbLogBuffer,
+					(__CONST void*)&HeaderBuffer[0],
+					strlen(&HeaderBuffer[0]), &BytesCopied);
+
+				/* Flush ? */
+				if (BytesCopied != strlen(&HeaderBuffer[0])) {
+					WriteFile(GlbLogFileHandle, GlbLogBuffer, NULL);
+					WriteBuffer(GlbLogBuffer,
+						(__CONST void*)&HeaderBuffer[BytesCopied],
+						strlen(&HeaderBuffer[0]) - BytesCopied, &BytesCopied);
+				}
+
+				/* Write again */
+				WriteBuffer(GlbLogBuffer,
+					(__CONST void*)&TempBuffer[0],
+					(size_t)Length, &BytesCopied);
+
+				/* Flush ? */
+				if (BytesCopied != (size_t)Length) {
+					WriteFile(GlbLogFileHandle, GlbLogBuffer, NULL);
+					WriteBuffer(GlbLogBuffer,
+						(__CONST void*)&TempBuffer[BytesCopied],
+						((size_t)Length) - BytesCopied, &BytesCopied);
+				}
 
 				/* Increase again */
 				Index += Length;
@@ -284,9 +296,7 @@ void LogFlush(LogTarget_t Output)
 		}
 
 		/* Done, flush */
-		VfsWrapperFlush(GlbLogFileHandle);
-
-		/* NOW it's ok to log to file */
+		FlushFile(GlbLogFileHandle);
 		GlbLogTarget = LogFile;
 	}
 }
@@ -368,10 +378,10 @@ void LogInternalPrint(int LogType, const char *Header, const char *Message)
 		GlbBootVideo.FgColor = LOG_COLOR_DEFAULT;
 	}
 	else if (GlbLogTarget == LogFile) {
-
-		/* Sanity */
-		if (GlbLogFileHandle == NULL)
+		size_t BytesCopied = 0;
+		if (GlbLogFileHandle == UUID_INVALID) {
 			return;
+		}
 
 		/* Zero the buffer */
 		memset(TempBuffer, 0, sizeof(TempBuffer));
@@ -384,9 +394,18 @@ void LogInternalPrint(int LogType, const char *Header, const char *Message)
 			sprintf(&TempBuffer[0], "[%s] %s\n", Header, Message);
 		}
 
-		/* Write to file */
-		VfsWrapperWrite(GlbLogFileHandle,
-			(uint8_t*)&TempBuffer[0], strlen((const char*)&TempBuffer[0]));
+		/* Write again */
+		WriteBuffer(GlbLogBuffer,
+			(__CONST void*)&TempBuffer[0],
+			strlen((const char*)&TempBuffer[0]), &BytesCopied);
+
+		/* Flush ? */
+		if (BytesCopied != strlen((const char*)&TempBuffer[0])) {
+			WriteFile(GlbLogFileHandle, GlbLogBuffer, NULL);
+			WriteBuffer(GlbLogBuffer,
+				(__CONST void*)&TempBuffer[BytesCopied],
+				strlen((const char*)&TempBuffer[0]) - BytesCopied, &BytesCopied);
+		}
 	}
 
 	/* Release Lock */

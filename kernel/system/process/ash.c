@@ -23,10 +23,12 @@
 
 /* Includes 
  * - System */
+#include <os/driver/file.h>
 #include <process/phoenix.h>
 #include <modules/modules.h>
 #include <scheduler.h>
 #include <threading.h>
+#include <heap.h>
 #include <log.h>
 
 /* Includes
@@ -112,9 +114,11 @@ void PhoenixBootAsh(void *Args)
 int PhoenixInitializeAsh(MCoreAsh_t *Ash, MString_t *Path)
 { 
 	/* Variables needed for init */
-	MCoreFileInstance_t *File = NULL;
+	BufferObject_t *BufferObject = NULL;
+	UUId_t fHandle = UUID_INVALID;
 	uint8_t *fBuffer = NULL;
-	size_t fSize = 0;
+	char *fPath = NULL;
+	size_t fSize = 0, fRead = 0;
 	int Index = 0;
 
 	/* Sanity */
@@ -136,28 +140,33 @@ int PhoenixInitializeAsh(MCoreAsh_t *Ash, MString_t *Path)
 		}
 	}
 	else {
-		File = VfsWrapperOpen(MStringRaw(Path), Read);
-
-		/* Sanity */
-		if (File->Code != VfsOk
-			|| File->File == NULL) {
-			VfsWrapperClose(File);
+		if (OpenFile(MStringRaw(Path), 
+			__FILE_MUSTEXIST, __FILE_READ_ACCESS, 
+			&fHandle) != FsOk) {
 			return -2;
 		}
 
 		/* Allocate a buffer */
-		fSize = (size_t)File->File->Size;
+		GetFileSize(fHandle, &fSize, NULL);
+		BufferObject = CreateBuffer(fSize);
 		fBuffer = (uint8_t*)kmalloc(fSize);
+		fPath = (char*)kmalloc(_MAXPATH);
+
+		/* Reset path buffer */
+		memset(fPath, 0, _MAXPATH);
 
 		/* Read */
-		VfsWrapperRead(File, fBuffer, fSize);
+		ReadFile(fHandle, BufferObject, &fRead);
+		ReadBuffer(BufferObject, (__CONST void*)fBuffer, fRead);
 
 		/* Save a copy of the path */
-		Ash->Path = MStringCreate(
-			(void*)MStringRaw(File->File->Path), StrUTF8);
+		GetFilePath(fHandle, fPath, _MAXPATH);
+		Ash->Path = MStringCreate(fPath, StrUTF8);
 
 		/* Close */
-		VfsWrapperClose(File);
+		DestroyBuffer(BufferObject);
+		CloseFile(fHandle);
+		kfree(fPath);
 	}
 
 	/* Validate File */

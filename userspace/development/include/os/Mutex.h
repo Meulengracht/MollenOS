@@ -56,7 +56,7 @@ _CODE_BEGIN
  * Instantiates a new mutex of the given
  * type, it allocates all neccessary resources
  * as well. */
-_MOS_API 
+MOSAPI 
 Mutex_t *
 MutexCreate(
 	_In_ Flags_t Flags);
@@ -64,7 +64,7 @@ MutexCreate(
 /* MutexConstruct
  * Instantiates a new mutex of the given
  * type, using pre-allocated memory */
-_MOS_API 
+MOSAPI 
 OsStatus_t 
 MutexConstruct(
 	_In_ Mutex_t *Mutex, 
@@ -73,14 +73,14 @@ MutexConstruct(
 /* MutexDestruct
  * Destroys a mutex and frees resources
  * allocated by the mutex */
-_MOS_API 
+MOSAPI 
 OsStatus_t
 MutexDestruct(
 	_In_ Mutex_t *Mutex);
 
 /* MutexLock
  * Lock a mutex, this is a blocking call */
-_MOS_API 
+MOSAPI 
 int 
 MutexLock(
 	_In_ Mutex_t *Mutex);
@@ -88,7 +88,7 @@ MutexLock(
 /* MutexTryLock
  * Tries to lock a mutex, if the mutex is locked, this returns 
  * MUTEX_BUSY, otherwise MUTEX_SUCCESS */
-_MOS_API 
+MOSAPI 
 int 
 MutexTryLock(
 	_In_ Mutex_t *Mutex);
@@ -97,7 +97,7 @@ MutexTryLock(
  * Tries to lock a mutex, with a timeout
  * which means it'll keep retrying locking
  * untill the time has passed */
-_MOS_API 
+MOSAPI 
 int
 MutexTimedLock(
 	_In_ Mutex_t *Mutex, 
@@ -107,7 +107,7 @@ MutexTimedLock(
  * Unlocks a mutex, reducing the blocker
  * count by 1 if recursive, otherwise it opens
  * the mutex */
-_MOS_API 
+MOSAPI 
 OsStatus_t
 MutexUnlock(
 	_In_ Mutex_t *Mutex);

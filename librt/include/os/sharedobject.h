@@ -34,7 +34,7 @@ _CODE_BEGIN
 /* SharedObjectLoad
  * Load a shared object given a path
  * path must exists otherwise NULL is returned */
-_MOS_API 
+MOSAPI 
 Handle_t 
 SharedObjectLoad(
 	_In_ __CONST char *SharedObject);
@@ -43,7 +43,7 @@ SharedObjectLoad(
  * Load a function-address given an shared object
  * handle and a function name, function must exist
  * otherwise null is returned */
-_MOS_API 
+MOSAPI 
 void *
 SharedObjectGetFunction(
 	_In_ Handle_t Handle, 
@@ -52,7 +52,7 @@ SharedObjectGetFunction(
 /* SharedObjectUnload
  * Unloads a valid shared object handle
  * returns OsError on failure */
-_MOS_API 
+MOSAPI 
 OsStatus_t 
 SharedObjectUnload(
 	_In_ Handle_t Handle);

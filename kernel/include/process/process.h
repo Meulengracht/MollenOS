@@ -44,12 +44,9 @@ typedef struct _MCoreProcess
 	/* We derive from Ashes */
 	MCoreAsh_t Base;
 
-	/* Working Directory */
+	/* Directories and arguments */
 	MString_t *WorkingDirectory;
 	MString_t *BaseDirectory;
-
-	/* Open Files */
-	List_t *OpenFiles;
 	MString_t *Arguments;
 
 } MCoreProcess_t;

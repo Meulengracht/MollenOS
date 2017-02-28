@@ -48,7 +48,7 @@ void __EntryLibCEmpty(void)
 __EXTERN int main(int argc, char** argv);
 __EXTERN void __CppInit(void);
 __EXTERN void __CppFinit(void);
-_MOS_API void __CppInitVectoredEH(void);
+MOSAPI void __CppInitVectoredEH(void);
 
 /* Unescape Quotes in arguments */
 void UnEscapeQuotes(char *Arg)

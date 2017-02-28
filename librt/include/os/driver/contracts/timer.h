@@ -52,7 +52,7 @@ TimerQuery(
  * Registers the given interrupt source as a system
  * timer source, with the given tick. This way the system
  * can always keep track of timers */
-_MOS_API
+MOSAPI
 OsStatus_t
 MOSABI
 RegisterSystemTimer(

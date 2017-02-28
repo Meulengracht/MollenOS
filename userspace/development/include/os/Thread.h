@@ -91,7 +91,7 @@ _CODE_BEGIN
  * that makes sure that even with shared
  * functions between threads a function
  * only ever gets called once */
-_MOS_API 
+MOSAPI 
 void 
 ThreadOnce(
 	_In_ ThreadOnce_t *Control,
@@ -101,7 +101,7 @@ ThreadOnce(
  * Creates a new thread bound to 
  * the calling process, with the given
  * entry point and arguments */
-_MOS_API 
+MOSAPI 
 UUId_t 
 ThreadCreate(
 	_In_ ThreadFunc_t Entry, 
@@ -110,7 +110,7 @@ ThreadCreate(
 /* ThreadExit
  * Exits the current thread and 
  * instantly yields control to scheduler */
-_MOS_API 
+MOSAPI 
 void 
 ThreadExit(
 	_In_ int ExitCode);
@@ -119,7 +119,7 @@ ThreadExit(
  * waits for a given thread to finish executing, and
  * returns it's exit code, Must be in same
  * process as asking thread */
-_MOS_API 
+MOSAPI 
 int 
 ThreadJoin(
 	_In_ UUId_t ThreadId);
@@ -128,7 +128,7 @@ ThreadJoin(
  * Thread kill, kills the given thread
  * id, must belong to same process as the
  * thread that asks. */
-_MOS_API 
+MOSAPI 
 OsStatus_t 
 ThreadKill(
 	_In_ UUId_t ThreadId);
@@ -136,21 +136,21 @@ ThreadKill(
 /* ThreadSleep
  * Sleeps the current thread for the
  * given milliseconds. */
-_MOS_API 
+MOSAPI 
 void 
 ThreadSleep(
 	_In_ size_t MilliSeconds);
 
 /* ThreadGetCurrentId
  * Retrieves the current thread id */
-_MOS_API 
+MOSAPI 
 UUId_t 
 ThreadGetCurrentId(void);
 
 /* ThreadYield
  * This yields the current thread 
  * and gives cpu time to another thread */
-_MOS_API 
+MOSAPI 
 void 
 ThreadYield(void);
 
@@ -158,7 +158,7 @@ ThreadYield(void);
  * Initialises the TLS
  * and allocates resources needed. 
  * Not callable manually */
-_MOS_API 
+MOSAPI 
 OsStatus_t
 TLSInit(void);
 
@@ -175,7 +175,7 @@ TLSCleanup(
 /* TLSInitInstance
  * Initializes a new thread-storage space
  * should be called by thread crt */
-_MOS_API 
+MOSAPI 
 OsStatus_t 
 TLSInitInstance(
 	_In_ ThreadLocalStorage_t *Tls);
@@ -183,7 +183,7 @@ TLSInitInstance(
 /* TLSDestroyInstance
  * Destroys a thread-storage space
  * should be called by thread crt */
-_MOS_API 
+MOSAPI 
 OsStatus_t 
 TLSDestroyInstance(
 	_In_ ThreadLocalStorage_t *Tls);
@@ -191,21 +191,21 @@ TLSDestroyInstance(
 /* TLSGetCurrent 
  * Retrieves the local storage space
  * for the current thread */
-_MOS_API 
+MOSAPI 
 ThreadLocalStorage_t *
 TLSGetCurrent(void);
 
 /* TLSCreateKey
  * Create a new global TLS-key, this can be used to save
  * thread-specific data */
-_MOS_API 
+MOSAPI 
 TlsKey_t 
 TLSCreateKey(
 	_In_ TlsKeyDss_t Destructor);
 
 /* TLSDestroyKey
  * Deletes the global but thread-specific key */
-_MOS_API 
+MOSAPI 
 OsStatus_t 
 TLSDestroyKey(
 	_In_ TlsKey_t Key);
@@ -213,7 +213,7 @@ TLSDestroyKey(
 /* TLSGetKey
  * Get a key from the TLS and returns it's value
  * will return NULL if not exists and set errno */
-_MOS_API 
+MOSAPI 
 void *
 TLSGetKey(
 	_In_ TlsKey_t Key);
@@ -221,7 +221,7 @@ TLSGetKey(
 /* TLSSetKey
  * Set a key in the TLS
  * and associates the given data with the key */
-_MOS_API 
+MOSAPI 
 OsStatus_t 
 TLSSetKey(
 	_In_ TlsKey_t Key, 

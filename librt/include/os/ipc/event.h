@@ -132,7 +132,7 @@ EVTSetArgument(
  * Executes a new event to the desired target process
  * the process must be listening on PIPE_EVENT to be able
  * to recieve it. Events do not have replies */
-_MOS_API 
+MOSAPI 
 OsStatus_t 
 EVTExecute(
 	_In_ MEventMessage_t *Event,

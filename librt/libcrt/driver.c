@@ -38,7 +38,7 @@
  * - C/C++ Cleanup */
 __EXTERN void __CppInit(void);
 __EXTERN void __CppFinit(void);
-_MOS_API void __CppInitVectoredEH(void);
+MOSAPI void __CppInitVectoredEH(void);
 
 /* Globals
  * We want to keep a list of all registered

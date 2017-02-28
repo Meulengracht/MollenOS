@@ -46,7 +46,7 @@ _CODE_BEGIN
 /* CreateBuffer 
  * Creates a new buffer object with the given size, 
  * this allows hardware drivers to interact with the buffer */
-_MOS_API 
+MOSAPI 
 BufferObject_t *
 CreateBuffer(
 	_In_ size_t Length);
@@ -54,7 +54,7 @@ CreateBuffer(
 /* ReadBuffer 
  * Reads <BytesToRead> into the given user-buffer
  * from the allocated buffer-object */
-_MOS_API 
+MOSAPI 
 OsStatus_t 
 ReadBuffer(
 	_In_ BufferObject_t *BufferObject, 
@@ -64,7 +64,7 @@ ReadBuffer(
 /* WriteBuffer 
  * Writes <BytesToWrite> into the allocated buffer-object
  * from the given user-buffer */
-_MOS_API 
+MOSAPI 
 OsStatus_t 
 WriteBuffer(
 	_In_ BufferObject_t *BufferObject, 
@@ -74,7 +74,7 @@ WriteBuffer(
 /* DestroyBuffer 
  * Destroys the given buffer object and release resources
  * allocated with the CreateBuffer function */
-_MOS_API 
+MOSAPI 
 OsStatus_t 
 DestroyBuffer(
 	_In_ BufferObject_t *BufferObject);

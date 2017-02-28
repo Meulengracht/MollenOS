@@ -45,7 +45,7 @@ _CODE_BEGIN
  * Spawns a new process by the given path and
  * optionally the given parameters are passed 
  * returns UUID_INVALID in case of failure */
-_MOS_API 
+MOSAPI 
 UUId_t 
 ProcessSpawn(
 	_In_ __CONST char *Path,
@@ -54,14 +54,14 @@ ProcessSpawn(
 /* ProcessJoin
  * Waits for the given process to terminate and
  * returns the return-code the process exit'ed with */
-_MOS_API 
+MOSAPI 
 int 
 ProcessJoin(
 	_In_ UUId_t Process);
 
 /* ProcessKill
  * Terminates the process with the given id */
-_MOS_API 
+MOSAPI 
 OsStatus_t 
 ProcessKill(
 	_In_ UUId_t Process);
@@ -69,7 +69,7 @@ ProcessKill(
 /* ProcessQuery
  * Queries information about the given process
  * based on the function it returns the requested information */
-_MOS_API 
+MOSAPI 
 OsStatus_t 
 ProcessQuery(
 	_In_ UUId_t Process, 

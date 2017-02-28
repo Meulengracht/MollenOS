@@ -155,7 +155,7 @@ RPCSetResult(
  * Call this to wait for a new RPC message, it automatically
  * reads the message, and all the arguments. To avoid freeing
  * an argument, set InUse to 0 */
-_MOS_API 
+MOSAPI 
 OsStatus_t 
 RPCListen(
 	_In_ MRemoteCall_t *Message);
@@ -163,7 +163,7 @@ RPCListen(
 /* RPCCleanup 
  * Call this to cleanup the RPC message, it frees all
  * allocated resources by RPCListen */
-_MOS_API 
+MOSAPI 
 OsStatus_t 
 RPCCleanup(
 	_In_ MRemoteCall_t *Message);
@@ -173,13 +173,13 @@ RPCCleanup(
  * must use RPCEvaluate, this will automatically wait
  * for a reply, whereas RPCExecute will send the request
  * and not block/wait for reply */
-_MOS_API 
+MOSAPI 
 OsStatus_t 
 RPCEvaluate(
 	_In_ MRemoteCall_t *Rpc, 
 	_In_ UUId_t Target);
 
-_MOS_API 
+MOSAPI 
 OsStatus_t 
 RPCExecute(
 	_In_ MRemoteCall_t *Rpc, 
@@ -189,7 +189,7 @@ RPCExecute(
  * This is a wrapper to return a respond message/buffer to the
  * sender of the message, it's good practice to always wait for
  * a result when there is going to be one */
-_MOS_API 
+MOSAPI 
 OsStatus_t 
 RPCRespond(
 	_In_ MRemoteCall_t *Rpc,

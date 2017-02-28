@@ -37,7 +37,7 @@ _CODE_BEGIN
  * Opens a new communication pipe on the given
  * port for this process, if one already exists
  * SIGPIPE is signaled */
-_MOS_API 
+MOSAPI 
 UUId_t 
 PipeOpen(
 	_In_ int Port);
@@ -46,7 +46,7 @@ PipeOpen(
  * Closes an existing communication pipe on the given
  * port for this process, if one doesn't exists
  * SIGPIPE is signaled */
-_MOS_API 
+MOSAPI 
 OsStatus_t 
 PipeClose(
 	_In_ UUId_t Pipe);
@@ -55,7 +55,7 @@ PipeClose(
  * This returns -1 if something went wrong reading
  * a message from the message queue, otherwise it returns 0
  * and fills the structures with information about the message */
-_MOS_API 
+MOSAPI 
 OsStatus_t 
 PipeRead(
 	_In_ UUId_t Pipe, 
@@ -66,7 +66,7 @@ PipeRead(
  * Returns -1 if message failed to send
  * Returns -2 if message-target didn't exist
  * Returns 0 if message was sent correctly to target */
-_MOS_API 
+MOSAPI 
 OsStatus_t 
 PipeSend(
 	_In_ UUId_t Target, 

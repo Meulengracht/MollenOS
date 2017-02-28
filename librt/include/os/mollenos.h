@@ -62,11 +62,6 @@ PACKED_TYPESTRUCT(MemoryDescriptor, {
 	size_t			PageSizeBytes;
 });
 
-/* The max-path we support in the OS
- * for file-paths, in MollenOS we support
- * rather long paths */
-#define _MAXPATH			512
-
 /* Cpp Guard */
 _CODE_BEGIN
 
@@ -76,8 +71,9 @@ _CODE_BEGIN
  * on failure to share the piece of memory
  * otherwise it returns the new buffer handle
  * that can be accessed by the other process */
-_MOS_API 
-void *
+MOSAPI 
+void*
+MOSABI
 MemoryShare(
 	_In_ UUId_t Process, 
 	_In_ void *Buffer, 
@@ -86,8 +82,9 @@ MemoryShare(
 /* MemoryUnshare
  * This takes a previous shared memory handle 
  * and unshares it again from the target process */
-_MOS_API 
-OsStatus_t 
+MOSAPI
+OsStatus_t
+MOSABI
 MemoryUnshare(
 	_In_ UUId_t Process,
 	_In_ void *MemoryHandle, 
@@ -96,24 +93,27 @@ MemoryUnshare(
 /* MemoryQuery
  * Queries the underlying system for memory information 
  * like memory used and the page-size */
-_MOS_API
+MOSAPI
 OsStatus_t
+MOSABI
 MemoryQuery(
 	_Out_ MemoryDescriptor_t *Descriptor);
 
 /* ScreenQueryGeometry
  * This function returns screen geomemtry
  * descriped as a rectangle structure */
-_MOS_API 
-OsStatus_t 
+MOSAPI
+OsStatus_t
+MOSABI
 ScreenQueryGeometry(
 	_Out_ Rect_t *Rectangle);
 
 /* PathQueryWorkingDirectory
  * Queries the current working directory path
  * for the current process (See _MAXPATH) */
-_MOS_API
+MOSAPI
 OsStatus_t
+MOSABI
 PathQueryWorkingDirectory(
 	_Out_ char *Buffer,
 	_In_ size_t MaxLength);
@@ -122,16 +122,18 @@ PathQueryWorkingDirectory(
  * Performs changes to the current working directory
  * by canonicalizing the given path modifier or absolute
  * path */
-_MOS_API
+MOSAPI
 OsStatus_t
+MOSABI
 PathChangeWorkingDirectory(
 	_In_ __CONST char *Path);
 
 /* PathQueryApplication
  * Queries the application path for
  * the current process (See _MAXPATH) */
-_MOS_API
+MOSAPI
 OsStatus_t
+MOSABI
 PathQueryApplication(
 	_Out_ char *Buffer,
 	_In_ size_t MaxLength);
@@ -179,28 +181,28 @@ __set_reserved(size_t index, size_t value) {
  *   they are automatically used
  *   by systems
  ***********************/
-_MOS_API
-int 
+MOSAPI
+OsStatus_t
+MOSABI
 WaitForSignal(
-	size_t Timeout);
+	_In_ size_t Timeout);
 
-_MOS_API
-int 
+MOSAPI
+OsStatus_t
+MOSABI
 SignalProcess(
-	UUId_t Target);
+	_In_ UUId_t Target);
 
-_MOS_API 
-void 
+MOSAPI 
+void
+MOSABI
 MollenOSSystemLog(
-	const char *Format, ...);
+	__CONST char *Format, ...);
 
-_MOS_API 
-int 
+MOSAPI 
+void
+MOSABI
 MollenOSEndBoot(void);
-
-_MOS_API 
-int 
-MollenOSRegisterWM(void);
 
 _CODE_END
 

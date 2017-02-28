@@ -21,6 +21,7 @@
 
 /* Includes 
  * - System */
+#include <os/driver/file.h>
 #include <process/pe.h>
 #include <modules/modules.h>
 #include <heap.h>
@@ -555,41 +556,46 @@ MCorePeFile_t *PeResolveLibrary(MCorePeFile_t *Parent,
 	/* Sanitize the exports, if its null
 	 * we have to resolve the library */
 	if (Exports == NULL) {
-		MCoreFileInstance_t *lFile = NULL;
+		BufferObject_t *BufferObject = NULL;
+		UUId_t fHandle = UUID_INVALID;
 		MCorePeFile_t *Library = NULL;
 		uint8_t *fBuffer = NULL;
-		size_t fSize = 0;
+		size_t fSize = 0, fRead = 0;
 
 		/* Open the file
 		 * We have a special case here that it might
 		 * be from the ramdisk we are loading */
 		if (ExportParent->UsingInitRD) {
 			if (ModulesQueryPath(LibraryName, &fBuffer, &fSize) != OsNoError) {
-				LogDebug("PELD", "Failed to load library %s (Code %i)",
-					MStringRaw(LibraryName), lFile->Code);
+				LogDebug("PELD", "Failed to load library %s", MStringRaw(LibraryName));
 				for (;;);
 			}
 		}
 		else {
 			/* Load the file */
-			lFile = VfsWrapperOpen(MStringRaw(LibraryName), Read);
-
-			/* Sanity */
-			if (lFile == NULL || lFile->Code != VfsOk || lFile->File == NULL) {
+			FileSystemCode_t Code = 
+				OpenFile(MStringRaw(LibraryName),
+				__FILE_MUSTEXIST, __FILE_READ_ACCESS, &fHandle);
+			
+			/* Sanitize the open file result */
+			if (Code != FsOk) {
 				LogDebug("PELD", "Failed to load library %s (Code %i)",
-					MStringRaw(LibraryName), lFile->Code);
+					MStringRaw(LibraryName), Code);
 				for (;;);
 			}
 
 			/* Allocate a new buffer */
-			fSize = (size_t)lFile->File->Size;
+			GetFileSize(fHandle, &fSize, NULL);
+			BufferObject = CreateBuffer(fSize);
 			fBuffer = (uint8_t*)kmalloc(fSize);
 
-			/* Read all data */
-			VfsWrapperRead(lFile, fBuffer, fSize);
+			/* Read */
+			ReadFile(fHandle, BufferObject, &fRead);
+			ReadBuffer(BufferObject, (__CONST void*)fBuffer, fRead);
 
 			/* Cleanup */
-			VfsWrapperClose(lFile);
+			DestroyBuffer(BufferObject);
+			CloseFile(fHandle);
 		}
 
 		/* After retrieving the data we can now

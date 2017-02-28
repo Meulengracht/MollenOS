@@ -33,11 +33,12 @@
  * buffers throughout the system, must be used
  * for any hardware transactions */
 typedef struct _BufferObject {
-	UUId_t					Id;
+	UUId_t					 Id;
 	__CONST char			*Virtual;
-	__CONST char			*Physical;
-	size_t					Length;
-	int						Pages;
+	uintptr_t				*Physical;
+	size_t					 Length;
+	int						 Pages;
+	size_t					 IndexWrite;
 } BufferObject_t;
 
 /* Start one of these before function prototypes */
@@ -46,7 +47,7 @@ _CODE_BEGIN
 /* CreateBuffer 
  * Creates a new buffer object with the given size, 
  * this allows hardware drivers to interact with the buffer */
-_MOS_API 
+MOSAPI 
 BufferObject_t *
 CreateBuffer(
 	_In_ size_t Length);
@@ -54,7 +55,7 @@ CreateBuffer(
 /* ReadBuffer 
  * Reads <BytesToRead> into the given user-buffer
  * from the allocated buffer-object */
-_MOS_API 
+MOSAPI 
 OsStatus_t 
 ReadBuffer(
 	_In_ BufferObject_t *BufferObject, 
@@ -63,18 +64,21 @@ ReadBuffer(
 
 /* WriteBuffer 
  * Writes <BytesToWrite> into the allocated buffer-object
- * from the given user-buffer */
-_MOS_API 
+ * from the given user-buffer. It uses indexed writes, so
+ * the next write will be appended unless BytesToWrite == Size.
+ * Index is reset once it returns less bytes written than requested */
+MOSAPI 
 OsStatus_t 
 WriteBuffer(
 	_In_ BufferObject_t *BufferObject, 
 	_In_ __CONST void *Buffer, 
-	_In_ size_t BytesToWrite);
+	_In_ size_t BytesToWrite,
+	_Out_Opt_ size_t *BytesWritten);
 
 /* DestroyBuffer 
  * Destroys the given buffer object and release resources
  * allocated with the CreateBuffer function */
-_MOS_API 
+MOSAPI 
 OsStatus_t 
 DestroyBuffer(
 	_In_ BufferObject_t *BufferObject);

@@ -151,6 +151,6 @@ __DEVAPI UUId_t RegisterDevice(MCoreDevice_t *Device, Flags_t Flags)
  * by searching storage-medias for the vendorid/deviceid 
  * combination or the class/subclass combination if specific
  * is not found */
-_MOS_API OsStatus_t InstallDriver(MCoreDevice_t *Device);
+MOSAPI OsStatus_t InstallDriver(MCoreDevice_t *Device);
 
 #endif //!_DEVICE_INTERFACE_H_

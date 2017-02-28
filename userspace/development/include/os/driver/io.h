@@ -49,32 +49,32 @@ typedef struct _DeviceIoSpace {
 /* Creates a new io-space and registers it with
  * the operation system, returns OsNoError if it's 
  * a valid io-space */
-_MOS_API OsStatus_t CreateIoSpace(DeviceIoSpace_t *IoSpace);
+MOSAPI OsStatus_t CreateIoSpace(DeviceIoSpace_t *IoSpace);
 
 /* Tries to claim a given io-space, only one driver
  * can claim a single io-space at a time, to avoid
  * two drivers using the same device */
-_MOS_API OsStatus_t AcquireIoSpace(DeviceIoSpace_t *IoSpace);
+MOSAPI OsStatus_t AcquireIoSpace(DeviceIoSpace_t *IoSpace);
 
 /* Tries to release a given io-space, only one driver
  * can claim a single io-space at a time, to avoid
  * two drivers using the same device */
-_MOS_API OsStatus_t ReleaseIoSpace(DeviceIoSpace_t *IoSpace);
+MOSAPI OsStatus_t ReleaseIoSpace(DeviceIoSpace_t *IoSpace);
 
 /* Destroys the io-space with the given id and removes
  * it from the io-manage in the operation system, it
  * can only be removed if its not already acquired */
-_MOS_API OsStatus_t DestroyIoSpace(UUId_t IoSpace);
+MOSAPI OsStatus_t DestroyIoSpace(UUId_t IoSpace);
 
 /* Read data from the given io-space at <offset> with 
  * the given <length>, the offset and length must be below 
  * the size of the io-space */
-_MOS_API size_t ReadIoSpace(DeviceIoSpace_t *IoSpace, size_t Offset, size_t Length);
+MOSAPI size_t ReadIoSpace(DeviceIoSpace_t *IoSpace, size_t Offset, size_t Length);
 
 /* Write data from the given io-space at <offset> with 
  * the given <length>, the offset and length must be below 
  * the size of the io-space */
-_MOS_API void WriteIoSpace(DeviceIoSpace_t *IoSpace, 
+MOSAPI void WriteIoSpace(DeviceIoSpace_t *IoSpace, 
 	size_t Offset, size_t Value, size_t Length);
 
 #endif //!_IO_INTEFACE_H_

@@ -78,108 +78,108 @@ typedef struct _MString MString_t;
  * The possible string-data types are ASCII, UTF8, UTF16, UTF32
  * and it automatically converts the data to an UTf8 representation
  * and keeps it as UTF8 internally */
-_MOS_API MString_t *MStringCreate(void *Data, MStringType_t DataType);
+MOSAPI MString_t *MStringCreate(void *Data, MStringType_t DataType);
 
 /* Destroys the string and frees any resourec
  * allocated by the structure */
-_MOS_API void MStringDestroy(MString_t *String);
+MOSAPI void MStringDestroy(MString_t *String);
 
 /* Copies some or all of string data 
  * from Source to Destination, it does NOT append
  * the string, but rather overrides in destination, 
  * if -1 is given in length, it copies the entire Source */
-_MOS_API void MStringCopy(MString_t *Destination, MString_t *Source, int Length);
+MOSAPI void MStringCopy(MString_t *Destination, MString_t *Source, int Length);
 
 /* Append Character to a given string 
  * the character is assumed to be either 
  * ASCII, UTF16 or UTF32 and NOT utf8 */
-_MOS_API void MStringAppendCharacter(MString_t *String, mchar_t Character);
+MOSAPI void MStringAppendCharacter(MString_t *String, mchar_t Character);
 
 /* Appends raw string data to a 
  * given mstring, you must indicate what format
  * the raw string is of so it converts correctly. */
-_MOS_API void MStringAppendCharacters(MString_t *String, __CONST char *Characters, MStringType_t DataType);
+MOSAPI void MStringAppendCharacters(MString_t *String, __CONST char *Characters, MStringType_t DataType);
 
 /* Append MString to MString 
  * This appends the given String the destination string */
-_MOS_API void MStringAppendString(MString_t *Destination, MString_t *String);
+MOSAPI void MStringAppendString(MString_t *Destination, MString_t *String);
 
-_MOS_API void MStringAppendInt32(MString_t *String, int32_t Value);
-_MOS_API void MStringAppendUInt32(MString_t *String, uint32_t Value);
-_MOS_API void MStringAppendHex32(MString_t *String, uint32_t Value);
+MOSAPI void MStringAppendInt32(MString_t *String, int32_t Value);
+MOSAPI void MStringAppendUInt32(MString_t *String, uint32_t Value);
+MOSAPI void MStringAppendHex32(MString_t *String, uint32_t Value);
 
-_MOS_API void MStringAppendInt64(MString_t *String, int64_t Value);
-_MOS_API void MStringAppendUInt64(MString_t *String, uint64_t Value);
-_MOS_API void MStringAppendHex64(MString_t *String, uint64_t Value);
+MOSAPI void MStringAppendInt64(MString_t *String, int64_t Value);
+MOSAPI void MStringAppendUInt64(MString_t *String, uint64_t Value);
+MOSAPI void MStringAppendHex64(MString_t *String, uint64_t Value);
 
 /* Find first/last occurence of the given character in the given string. 
  * The character given to this function should be UTF8
  * returns the index if found, otherwise MSTRING_NOT_FOUND */
-_MOS_API int MStringFind(MString_t *String, mchar_t Character);
-_MOS_API int MStringFindReverse(MString_t *String, mchar_t Character);
+MOSAPI int MStringFind(MString_t *String, mchar_t Character);
+MOSAPI int MStringFindReverse(MString_t *String, mchar_t Character);
 
 /* Find first occurence of the given UTF8 string
  * in the given string. This does not accept UTF16 or UTF32.
  * returns the index if found, otherwise MSTRING_NOT_FOUND */
-_MOS_API int MStringFindChars(MString_t *String, __CONST char *Chars);
+MOSAPI int MStringFindChars(MString_t *String, __CONST char *Chars);
 
 /* Get character at the given index and 
  * return the character found as UTF32 */
-_MOS_API mchar_t MStringGetCharAt(MString_t *String, int Index);
+MOSAPI mchar_t MStringGetCharAt(MString_t *String, int Index);
 
 /* Iterate through a MString, it returns the next
  * character each time untill MSTRING_EOS. Call with Iterator = NULL
  * the first time, it holds the state. And Index = 0. */
-_MOS_API mchar_t MStringIterate(MString_t *String, char **Iterator, size_t *Index);
+MOSAPI mchar_t MStringIterate(MString_t *String, char **Iterator, size_t *Index);
 
 /* Substring - build substring from the given mstring
  * starting at Index with the Length. If the length is -1
  * it takes the rest of string */
-_MOS_API MString_t *MStringSubString(MString_t *String, int Index, int Length);
+MOSAPI MString_t *MStringSubString(MString_t *String, int Index, int Length);
 
 /* Replace string occurences,
  * this function replaces occurence of <Old> string 
  * with <New> string. The strings must be of format of UTF8 */
-_MOS_API void MStringReplace(MString_t *String, __CONST char *Old, __CONST char *New);
+MOSAPI void MStringReplace(MString_t *String, __CONST char *Old, __CONST char *New);
 
 /* Get's the number of characters in a mstring
  * and not the actual byte length. */
-_MOS_API size_t MStringLength(MString_t *String);
+MOSAPI size_t MStringLength(MString_t *String);
 
 /* Retrieves the number of bytes used 
  * in the given mstring */
-_MOS_API size_t MStringSize(MString_t *String);
+MOSAPI size_t MStringSize(MString_t *String);
 
 /* Returns the raw data pointer 
  * of the given MString, which can be used for
  * usage, not recommended to edit data */
-_MOS_API __CONST char *MStringRaw(MString_t *String);
+MOSAPI __CONST char *MStringRaw(MString_t *String);
 
 /* Generate hash of a mstring
  * the hash will be either 32/64 depending
  * on the size of architecture */
-_MOS_API size_t MStringHash(MString_t *String);
+MOSAPI size_t MStringHash(MString_t *String);
 
 /* Compare two strings with either case-ignore or not. 
  * Returns MSTRING_FULL_MATCH if they are equal, or
  * MSTRING_PARTIAL_MATCH if they contain same text 
  * but one of the strings are longer. Returns MSTRING_NO_MATCH
  * if not match */
-_MOS_API int MStringCompare(MString_t *String1, MString_t *String2, int IgnoreCase);
+MOSAPI int MStringCompare(MString_t *String1, MString_t *String2, int IgnoreCase);
 
 /* Converts mstring-data to ASCII, if a character is non-ascii
  * the character is ignored. */
-_MOS_API void MStringToASCII(MString_t *String, void *Buffer);
+MOSAPI void MStringToASCII(MString_t *String, void *Buffer);
 
 /* Prints out a mstring to stdout */
-_MOS_API void MStringPrint(MString_t *String);
+MOSAPI void MStringPrint(MString_t *String);
 
 /* Casing */
-_MOS_API void MStringUpperCase(MString_t *String);
-_MOS_API MString_t *MStringUpperCaseCopy(MString_t *String);
+MOSAPI void MStringUpperCase(MString_t *String);
+MOSAPI MString_t *MStringUpperCaseCopy(MString_t *String);
 
-_MOS_API void MStringLowerCase(MString_t *String);
-_MOS_API MString_t *MStringLowerCaseCopy(MString_t *String);
+MOSAPI void MStringLowerCase(MString_t *String);
+MOSAPI MString_t *MStringLowerCaseCopy(MString_t *String);
 
 #ifdef __cplusplus
 }

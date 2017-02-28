@@ -50,7 +50,7 @@ _CODE_BEGIN
  * using either an internal buffer for 
  * hashing by setting handsoff to 1, otherwise
  * it will destroy the given data buffers */
-_MOS_API 
+MOSAPI 
 OsStatus_t
 Sha1Init(
 	_In_ Sha1Context_t *Context, 
@@ -59,7 +59,7 @@ Sha1Init(
 /* Sha1Add
  * Add data to the given SHA1 context,
  * this is the function for using the context */
-_MOS_API 
+MOSAPI 
 OsStatus_t
 Sha1Add(
 	_In_ Sha1Context_t *Context, 
@@ -69,7 +69,7 @@ Sha1Add(
 /* Sha1Finalize
  * Finalizes the Sha1 context and outputs the
  * result to a digest buffer the user must provide */
-_MOS_API 
+MOSAPI 
 OsStatus_t
 Sha1Finalize(
 	_In_ Sha1Context_t *Context, 
@@ -78,7 +78,7 @@ Sha1Finalize(
 /* Sha1DigestToHex
  * Converts the digest buffer to a hex-string 
  * by calling this function */
-_MOS_API 
+MOSAPI 
 OsStatus_t
 Sha1DigestToHex(
 	_In_ uint8_t Digest[SHA1_DIGEST_SIZE], 

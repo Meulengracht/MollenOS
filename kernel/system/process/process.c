@@ -26,6 +26,7 @@
 #include <threading.h>
 #include <semaphore.h>
 #include <scheduler.h>
+#include <heap.h>
 #include <log.h>
 
 /* Includes
@@ -48,9 +49,6 @@ void PhoenixBootProcess(void *Args)
 
 	/* Finish the standard setup of the ash */
 	PhoenixFinishAsh(&Process->Base);
-
-	/* Allocate a open file list */
-	Process->OpenFiles = ListCreate(KeyInteger, LIST_NORMAL);
 
 	/* Map in arguments */
 	AddressSpaceMap(AddressSpaceGetCurrent(), MEMORY_LOCATION_RING3_ARGS,
@@ -119,22 +117,10 @@ UUId_t PhoenixCreateProcess(MString_t *Path, MString_t *Arguments)
  * this this AshProcess, and afterwards call the base-cleanup */
 void PhoenixCleanupProcess(MCoreProcess_t *Process)
 {
-	/* Vars */
-	ListNode_t *fNode = NULL;
-
 	/* Cleanup Strings */
 	MStringDestroy(Process->Arguments);
 	MStringDestroy(Process->WorkingDirectory);
 	MStringDestroy(Process->BaseDirectory);
-
-	/* Go through open files, cleanup all handles */
-	_foreach(fNode, Process->OpenFiles) {
-		MCoreFileInstance_t *fHandle = (MCoreFileInstance_t*)fNode->Data;
-		VfsWrapperClose(fHandle);
-	}
-
-	/* Destroy list */
-	ListDestroy(Process->OpenFiles);
 
 	/* Now that we have cleaned up all 
 	 * process-specifics, we want to just use the base

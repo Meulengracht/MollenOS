@@ -42,7 +42,7 @@
  * Registers a server on the current alias, allowing
  * other applications and frameworks to send commands
  * and function requests */
-_MOS_API 
+MOSAPI 
 OsStatus_t 
 RegisterServer(
 	_In_ UUId_t Alias);
