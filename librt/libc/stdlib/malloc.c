@@ -1675,22 +1675,26 @@ unsigned char _BitScanReverse(unsigned long *index, unsigned long mask);
 
 #ifndef WIN32
 #ifdef MOLLENOS
-#include <os/Syscall.h>
+#include <os/mollenos.h>
 /* MollenOS MMAP via Syscall */
 static FORCEINLINE void* mosmmap(size_t Size) {
-	void* ptr = (void*)Syscall2(SYSCALL_MEMALLOC, (int)Size, 0);
-	return (ptr != 0)? ptr: MFAIL;
+	void* ptr = NULL;
+	if (MemoryAllocate(Size, 0, &ptr, NULL) != OsNoError) {
+		return MFAIL;
+	}
+	else {
+		return ptr;
+	}
 }
 
 /* Same same but different */
 static FORCEINLINE void* mosdirect_mmap(size_t Size) {
-	void* ptr = (void*)Syscall2(SYSCALL_MEMALLOC, (int)Size, 0);
-	return (ptr != 0) ? ptr : MFAIL;
+	return mosmmap(Size);
 }
 
 /* This function supports releasing coalesed segments */
 static FORCEINLINE int win32munmap(void* Ptr, size_t Size) {
-	return Syscall2(SYSCALL_MEMFREE, (int)Ptr, (int)Size);
+	return MemoryFree(Ptr, Size) == OsNoError ? 0 : -1;
 }
 
 #define MMAP_DEFAULT(s)             mosmmap(s)

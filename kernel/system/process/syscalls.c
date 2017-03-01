@@ -507,11 +507,17 @@ OsStatus_t ScSyncSleep(Addr_t *Handle, size_t Timeout)
 /***********************
 * Memory Functions     *
 ***********************/
+#include <os/mollenos.h>
 
 /* ScMemoryAllocate
  * Allows a process to allocate memory
  * from the userheap, it takes a size and allocation flags */
-Addr_t ScMemoryAllocate(size_t Size, Flags_t Flags)
+OsStatus_t
+ScMemoryAllocate(
+	_In_ size_t Size, 
+	_In_ Flags_t Flags, 
+	_Out_ void **Virtual, 
+	_Out_ uintptr_t *Physical)
 {
 	/* Locate the current running process */
 	MCoreAsh_t *Ash = PhoenixGetAsh(PHOENIX_CURRENT);
@@ -520,7 +526,7 @@ Addr_t ScMemoryAllocate(size_t Size, Flags_t Flags)
 	/* Sanitize the process we looked up
 	 * we want it to exist of course */
 	if (Ash == NULL) {
-		return (Addr_t)-1;
+		return OsError;
 	}
 	
 	/* Now do the allocation in the user-bitmap 
@@ -530,18 +536,31 @@ Addr_t ScMemoryAllocate(size_t Size, Flags_t Flags)
 	/* Sanitize the returned address */
 	assert(AllocatedAddress != 0);
 
-	/* Handle flags here */
-	if (Flags & ALLOCATION_COMMIT) {
-		/* Commit the pages */
+	/* Handle flags */
+	if (Flags & MEMORY_COMMIT) {
+		int ExtendedFlags = ADDRESS_SPACE_FLAG_APPLICATION;
+		if (Flags & MEMORY_CONTIGIOUS) {
+			ExtendedFlags |= ADDRESS_SPACE_FLAG_CONTIGIOUS;
+		}
+
+		*Physical = (uintptr_t)AddressSpaceMap(AddressSpaceGetCurrent(),
+			AllocatedAddress, Size, MEMORY_MASK_DEFAULT, ExtendedFlags);
+	}
+	else {
+		*Physical = 0;
 	}
 
-	/* Return the address */
-	return AllocatedAddress;
+	/* Update out and return */
+	*Virtual = (void*)AllocatedAddress;
+	return OsNoError;
 }
 
 /* Free's previous allocated memory, given an address
  * and a size (though not needed for now!) */
-OsStatus_t ScMemoryFree(Addr_t Address, size_t Size)
+OsStatus_t 
+ScMemoryFree(
+	_In_ Addr_t Address, 
+	_In_ size_t Size)
 {
 	/* Locate Process */
 	MCoreAsh_t *Ash = PhoenixGetAsh(PHOENIX_CURRENT);
@@ -1297,20 +1316,6 @@ OsStatus_t ScRegisterSystemTimer(UUId_t Interrupt, size_t NsPerTick)
 	return TimersRegister(Interrupt, NsPerTick);
 }
 
-/* ScBufferCreate
- * */
-OsStatus_t ScBufferCreate(BufferObject_t *BufferObject)
-{
-
-}
-
-/* ScBufferDestroy
- * */
-OsStatus_t ScBufferDestroy(BufferObject_t *BufferObject)
-{
-
-}
-
 /***********************
 * System Functions     *
 ***********************/
@@ -1369,7 +1374,7 @@ int NoOperation(void)
 }
 
 /* Syscall Table */
-Addr_t GlbSyscallTable[101] =
+Addr_t GlbSyscallTable[91] =
 {
 	/* Kernel Log */
 	DefineSyscall(LogDebug),
@@ -1483,19 +1488,6 @@ Addr_t GlbSyscallTable[101] =
 	DefineSyscall(ScUnregisterInterrupt),
 	DefineSyscall(ScAcknowledgeInterrupt),
 	DefineSyscall(ScRegisterSystemTimer),
-	DefineSyscall(NoOperation),
-	DefineSyscall(NoOperation),
-	DefineSyscall(NoOperation),
-	DefineSyscall(NoOperation),
-	DefineSyscall(NoOperation),
-	DefineSyscall(NoOperation),
-
-	/* Driver Functions - 91
-	 * - Buffer Object Support */
-	DefineSyscall(ScBufferCreate),
-	DefineSyscall(ScBufferDestroy),
-	DefineSyscall(NoOperation),
-	DefineSyscall(NoOperation),
 	DefineSyscall(NoOperation),
 	DefineSyscall(NoOperation),
 	DefineSyscall(NoOperation),

@@ -28,7 +28,7 @@
 #ifdef LIBC_KERNEL
 #include <heap.h>
 #else
-#include <os/syscall.h>
+#include <os/mollenos.h>
 #endif
 
 /* Includes
@@ -62,7 +62,9 @@ CreateBuffer(
 	Result = OsNoError;
 #else
 	Buffer = (BufferObject_t*)malloc(sizeof(BufferObject_t));
-	Result = (OsStatus_t)Syscall1(SYSCALL_BUFFERCREATE, SYSCALL_PARAM(Buffer));
+	Result = MemoryAllocate(Length,
+		MEMORY_COMMIT | MEMORY_CONTIGIOUS | MEMORY_LOWFIRST,
+		(void**)&Buffer->Virtual, &Buffer->Physical);
 
 	/* Sanitize the result and
 	 * return the newly created object */
@@ -161,7 +163,7 @@ DestroyBuffer(
 	kfree(BufferObject);
 	Result = OsNoError;
 #else
-	Result = (OsStatus_t)Syscall1(SYSCALL_BUFFERDESTROY, SYSCALL_PARAM(BufferObject));
+	Result = MemoryFree(BufferObject->Virtual, BufferObject->Length);
 	free(BufferObject);
 #endif
 	return Result;

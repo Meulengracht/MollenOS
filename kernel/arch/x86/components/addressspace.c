@@ -270,8 +270,9 @@ Addr_t AddressSpaceMap(AddressSpace_t *AddrSpace, VirtAddr_t Address,
 {
 	/* Calculate num of pages */
 	size_t PageCount = DIVUP(Size, PAGE_SIZE);
+	Addr_t PhysicalBase = 0;
 	Flags_t AllocFlags = 0;
-	Addr_t RetAddr = 0;
+	Addr_t RetAddress = 0;
 	size_t Itr = 0;
 
 	/* Add flags */
@@ -281,16 +282,24 @@ Addr_t AddressSpaceMap(AddressSpace_t *AddrSpace, VirtAddr_t Address,
 		AllocFlags |= PAGE_CACHE_DISABLE;
 	if (Flags & ADDRESS_SPACE_FLAG_VIRTUAL)
 		AllocFlags |= PAGE_VIRTUAL;
+	if (Flags & ADDRESS_SPACE_FLAG_CONTIGIOUS) {
+		RetAddress = PhysicalBase = MmPhysicalAllocateBlock(Mask, (int)PageCount);
+	}
 
 	/* Deep Call */
-	for (Itr = 0; Itr < PageCount; Itr++)
-	{
-		/* Alloc physical page */
-		Addr_t PhysBlock = MmPhysicalAllocateBlock(Mask, 1);
+	for (Itr = 0; Itr < PageCount; Itr++) {
+		Addr_t PhysBlock = 0;
+		if (PhysicalBase != 0) {
+			PhysBlock = PhysicalBase + (Itr * PAGE_SIZE);
+		}
+		else {
+			PhysBlock = MmPhysicalAllocateBlock(Mask, 1);
+		}
 
-		/* Sanity */
-		if (RetAddr == 0)
-			RetAddr = PhysBlock;
+		/* Sanitize return, we return the physical mapping */
+		if (RetAddress == 0) {
+			RetAddress = PhysBlock;
+		}
 
 		/* Do the actual map */
 		MmVirtualMap(AddrSpace->PageDirectory, PhysBlock,
@@ -298,7 +307,7 @@ Addr_t AddressSpaceMap(AddressSpace_t *AddrSpace, VirtAddr_t Address,
 	}
 
 	/* Done */
-	return RetAddr;
+	return RetAddress;
 }
 
 /* Map a virtual address to a fixed physical page */

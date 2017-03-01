@@ -35,7 +35,7 @@
 typedef struct _BufferObject {
 	UUId_t					 Id;
 	__CONST char			*Virtual;
-	uintptr_t				*Physical;
+	uintptr_t				 Physical;
 	size_t					 Length;
 	int						 Pages;
 	size_t					 IndexWrite;

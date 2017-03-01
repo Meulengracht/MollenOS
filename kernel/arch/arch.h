@@ -75,6 +75,7 @@ typedef Registers_t Context_t;
 #define ADDRESS_SPACE_FLAG_RESERVE		0x2
 #define ADDRESS_SPACE_FLAG_NOCACHE		0x4
 #define ADDRESS_SPACE_FLAG_VIRTUAL		0x8
+#define ADDRESS_SPACE_FLAG_CONTIGIOUS	0x10
 
 /* AddressSpaceInitKernel
  * Initializes the Kernel Address Space 

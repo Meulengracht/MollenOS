@@ -30,6 +30,58 @@
  * - Library */
 #include <stddef.h>
 
+/* MemoryAllocate
+ * Allocates a chunk of memory, controlled by the
+ * requested size of memory. The returned memory will always
+ * be rounded up to nearest page-size */
+OsStatus_t
+MemoryAllocate(
+	_In_ size_t Length,
+	_In_ Flags_t Flags,
+	_Out_ void **MemoryPointer,
+	_Out_Opt_ uintptr_t *PhysicalPointer)
+{
+	/* Variables */
+	uintptr_t Physical = 0;
+	OsStatus_t Result;
+
+	/* Sanitize parameters */
+	if (Length == 0
+		|| MemoryPointer == NULL) {
+		return OsError;
+	}
+
+	/* Redirect to OS sublayer */
+	Result = (OsStatus_t)Syscall4(SYSCALL_MEMALLOC,
+		SYSCALL_PARAM(Length), SYSCALL_PARAM(Flags),
+		SYSCALL_PARAM(MemoryPointer), SYSCALL_PARAM(&Physical));
+
+	/* Update outs and return */
+	if (PhysicalPointer != NULL) {
+		*PhysicalPointer = Physical;
+	}
+	return Result;
+}
+
+/* MemoryFree
+ * Frees previously allocated memory and releases
+ * the system resources associated. */
+OsStatus_t
+MemoryFree(
+	_In_ void *MemoryPointer,
+	_In_ size_t Length)
+{
+	/* Sanitize parameters */
+	if (Length == 0
+		|| MemoryPointer == NULL) {
+		return OsError;
+	}
+
+	/* Redirect call */
+	return (OsStatus_t)Syscall2(SYSCALL_MEMFREE,
+		SYSCALL_PARAM(MemoryPointer), SYSCALL_PARAM(Length));
+}
+
 /* MemoryShare
  * This shares a piece of memory with the 
  * target process. The function returns NULL
