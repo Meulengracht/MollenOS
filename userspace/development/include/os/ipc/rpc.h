@@ -39,19 +39,19 @@
 /* The argument package that can be passed
  * to an IPC function request, we support up
  * to 5 arguments */
-typedef struct _MRPCArgument {
+PACKED_TYPESTRUCT(RPCArgument, {
 	int						Type;
 	union {
 		__CONST void		*Buffer;
 		size_t				Value;
 	} Data;
 	size_t					Length;
-} RPCArgument_t;
+});
 
 /* The base event message structure, any IPC
  * action going through pipes in MollenOS must
  * inherit from this structure for security */
-typedef struct _MRemoteCall {
+PACKED_TYPESTRUCT(MRemoteCall, {
 	int						Version;
 	int						Function;
 	int						Port;
@@ -60,7 +60,7 @@ typedef struct _MRemoteCall {
 	UUId_t					Sender;		/* Automatically set by OS */
 	RPCArgument_t			Arguments[IPC_MAX_ARGUMENTS];
 	RPCArgument_t			Result;
-} MRemoteCall_t;
+});
 
 /* Start one of these before function prototypes */
 _CODE_BEGIN
@@ -68,8 +68,9 @@ _CODE_BEGIN
 /* RPCInitialize 
  * Initializes a new RPC message of the 
  * given type and length */
-static __CRT_INLINE 
-void 
+SERVICEAPI
+void
+SERVICEABI
 RPCInitialize(
 	_In_ MRemoteCall_t *Ipc, 
 	_In_ int Version, 
@@ -92,8 +93,9 @@ RPCInitialize(
  * Adds a new argument for the RPC request at
  * the given argument index. It's not possible to override 
  * a current argument */
-static __CRT_INLINE 
-void 
+SERVICEAPI
+void
+SERVICEABI
 RPCSetArgument(
 	_In_ MRemoteCall_t *Rpc,
 	_In_ int Index, 
@@ -137,8 +139,9 @@ RPCSetArgument(
 /* RPCSetResult
  * Installs a result buffer that will be filled
  * with the response from the RPC request */
-static __CRT_INLINE 
-void 
+SERVICEAPI 
+void
+SERVICEABI
 RPCSetResult(
 	_In_ MRemoteCall_t *Rpc,
 	_In_ __CONST void *Data, 

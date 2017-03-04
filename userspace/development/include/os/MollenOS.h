@@ -53,6 +53,12 @@ typedef struct _MollenOSVideoDescriptor
 
 } OSVideoDescriptor_t;
 
+/* Memory Allocation Definitions
+ * Flags that can be used when requesting virtual memory */
+#define MEMORY_COMMIT					0x00000001
+#define MEMORY_CONTIGIOUS				0x00000002
+#define MEMORY_LOWFIRST					0x00000004
+
 /* Memory Descriptor
  * Describes the current memory state and setup
  * thats available on the current machine */
@@ -62,13 +68,31 @@ PACKED_TYPESTRUCT(MemoryDescriptor, {
 	size_t			PageSizeBytes;
 });
 
-/* The max-path we support in the OS
- * for file-paths, in MollenOS we support
- * rather long paths */
-#define _MAXPATH			512
-
 /* Cpp Guard */
 _CODE_BEGIN
+
+/* MemoryAllocate
+ * Allocates a chunk of memory, controlled by the
+ * requested size of memory. The returned memory will always
+ * be rounded up to nearest page-size */
+MOSAPI
+OsStatus_t
+MOSABI
+MemoryAllocate(
+	_In_ size_t Length,
+	_In_ Flags_t Flags,
+	_Out_ void **MemoryPointer,
+	_Out_Opt_ uintptr_t *PhysicalPointer);
+
+/* MemoryFree
+ * Frees previously allocated memory and releases
+ * the system resources associated. */
+MOSAPI
+OsStatus_t
+MOSABI
+MemoryFree(
+	_In_ void *MemoryPointer,
+	_In_ size_t Length);
 
 /* MemoryShare
  * This shares a piece of memory with the 

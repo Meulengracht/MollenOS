@@ -131,6 +131,11 @@ static int LastSetBit(size_t Value)
 	return bIndex;
 }
 
+/* The max-path we support in the OS
+ * for file-paths, in MollenOS we support
+ * rather long paths */
+#define _MAXPATH			512
+
 /* Utils Definitions */
 #define MIN(a,b) (((a)<(b))?(a):(b))
 #define MAX(a,b) (((a)>(b))?(a):(b))

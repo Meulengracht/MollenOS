@@ -113,11 +113,6 @@
 #define SYSCALL_ACKNOWLEDGEIRQ		0x53
 #define SYSCALL_REGISTERSYSTMR		0x54
 
-/* Driver System Calls 
- * - Buffer Object Support */
-#define SYSCALL_BUFFERCREATE		0x5B
-#define SYSCALL_BUFFERDESTROY		0x5C
-
  /* Start one of these before function prototypes */
 _CODE_BEGIN
 

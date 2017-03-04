@@ -33,11 +33,12 @@
  * buffers throughout the system, must be used
  * for any hardware transactions */
 typedef struct _BufferObject {
-	UUId_t					Id;
+	UUId_t					 Id;
 	__CONST char			*Virtual;
-	__CONST char			*Physical;
-	size_t					Length;
-	int						Pages;
+	uintptr_t				 Physical;
+	size_t					 Length;
+	int						 Pages;
+	size_t					 IndexWrite;
 } BufferObject_t;
 
 /* Start one of these before function prototypes */
@@ -63,13 +64,16 @@ ReadBuffer(
 
 /* WriteBuffer 
  * Writes <BytesToWrite> into the allocated buffer-object
- * from the given user-buffer */
+ * from the given user-buffer. It uses indexed writes, so
+ * the next write will be appended unless BytesToWrite == Size.
+ * Index is reset once it returns less bytes written than requested */
 MOSAPI 
 OsStatus_t 
 WriteBuffer(
 	_In_ BufferObject_t *BufferObject, 
 	_In_ __CONST void *Buffer, 
-	_In_ size_t BytesToWrite);
+	_In_ size_t BytesToWrite,
+	_Out_Opt_ size_t *BytesWritten);
 
 /* DestroyBuffer 
  * Destroys the given buffer object and release resources

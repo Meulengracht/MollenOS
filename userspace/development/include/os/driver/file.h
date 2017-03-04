@@ -85,9 +85,10 @@ PACKED_TYPESTRUCT(QueryFileOptionsPackage, {
 #define __FILEMANAGER_GETOPTIONS				IPC_DECL_FUNCTION(12)
 #define __FILEMANAGER_SETOPTIONS				IPC_DECL_FUNCTION(13)
 #define __FILEMANAGER_GETSIZE					IPC_DECL_FUNCTION(14)
+#define __FILEMANAGER_GETPATH					IPC_DECL_FUNCTION(15)
 
-#define __FILEMANAGER_PATHRESOLVE				IPC_DECL_FUNCTION(15)
-#define __FILEMANAGER_PATHCANONICALIZE			IPC_DECL_FUNCTION(16)
+#define __FILEMANAGER_PATHRESOLVE				IPC_DECL_FUNCTION(16)
+#define __FILEMANAGER_PATHCANONICALIZE			IPC_DECL_FUNCTION(17)
 
 /* Bit flag defintions for operations such as 
  * registering / unregistering of disks, open flags
@@ -662,6 +663,48 @@ GetFileSize(
 	if (SizeHi != NULL) {
 		*SizeHi = Package.Value.Parts.Hi;
 	}
+	return OsNoError;
+}
+#endif
+
+/* GetFilePath 
+ * Queries the path of a file that the given handle
+ * has, it returns it as a UTF8 string with max length of _MAXPATH */
+#ifdef __FILEMANAGER_IMPL
+__EXTERN
+OsStatus_t
+SERVICEABI
+GetFilePath(
+	_In_ UUId_t Requester,
+	_In_ UUId_t Handle,
+	_Out_ __CONST char *Path);
+#else
+SERVICEAPI
+OsStatus_t
+SERVICEABI
+GetFilePath(
+	_In_ UUId_t Handle,
+	_Out_ char *Path,
+	_Out_ size_t MaxLength)
+{
+	/* Variables */
+	MRemoteCall_t Request;
+	char Buffer[_MAXPATH];
+
+	/* Reset buffer */
+	memset(&Buffer[0], 0, _MAXPATH);
+
+	/* RPC Usage */
+	RPCInitialize(&Request, __FILEMANAGER_INTERFACE_VERSION,
+		PIPE_DEFAULT, __FILEMANAGER_GETPATH);
+	RPCSetArgument(&Request, 0, (__CONST void*)&Handle, sizeof(UUId_t));
+	RPCSetResult(&Request, (__CONST void*)&Buffer[0], _MAXPATH);
+	if (RPCEvaluate(&Request, __FILEMANAGER_TARGET) != OsNoError) {
+		return OsError;
+	}
+
+	/* Update out and return */
+	memcpy(Path, &Buffer[0], MIN(MaxLength, strlen(&Buffer[0])));
 	return OsNoError;
 }
 #endif

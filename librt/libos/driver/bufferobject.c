@@ -163,7 +163,7 @@ DestroyBuffer(
 	kfree(BufferObject);
 	Result = OsNoError;
 #else
-	Result = MemoryFree(BufferObject->Virtual, BufferObject->Length);
+	Result = MemoryFree((void*)BufferObject->Virtual, BufferObject->Length);
 	free(BufferObject);
 #endif
 	return Result;

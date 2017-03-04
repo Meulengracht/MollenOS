@@ -50,7 +50,7 @@ int _write(int fd, void *buffer, unsigned int length)
 		size_t ChunkSize = MIN(OriginalSize, BytesLeft);
 		size_t BytesWritten = 0;
 		TLSGetCurrent()->Transfer->Length = ChunkSize;
-		WriteBuffer(TLSGetCurrent()->Transfer, (__CONST void*)Pointer, ChunkSize);
+		WriteBuffer(TLSGetCurrent()->Transfer, (__CONST void*)Pointer, ChunkSize, &BytesWritten);
 		if (WriteFile((UUId_t)fd, TLSGetCurrent()->Transfer, &BytesWritten) != FsOk) {
 			break;
 		}

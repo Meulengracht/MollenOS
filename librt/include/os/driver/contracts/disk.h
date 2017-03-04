@@ -57,7 +57,7 @@ PACKED_TYPESTRUCT(DiskDescriptor, {
 PACKED_TYPESTRUCT(DiskOperation, {
 	int					Direction;
 	uint64_t			AbsSector;
-	const void			*PhysicalBuffer;
+	uintptr_t			PhysicalBuffer;
 	size_t				SectorCount;
 });
 
@@ -100,7 +100,7 @@ DiskRead(
 	_In_ UUId_t Driver, 
 	_In_ UUId_t Disk,
 	_In_ uint64_t Sector, 
-	_Out_ __CONST void *PhysicalAddress, 
+	_Out_ uintptr_t PhysicalAddress, 
 	_In_ size_t SectorCount)
 {
 	/* Variables */
@@ -137,7 +137,7 @@ DiskWrite(
 	_In_ UUId_t Driver,
 	_In_ UUId_t Disk,
 	_In_ uint64_t Sector, 
-	_Out_ __CONST void *PhysicalAddress,
+	_Out_ uintptr_t PhysicalAddress,
 	_In_ size_t SectorCount)
 {
 	/* Variables */
