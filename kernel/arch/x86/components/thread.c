@@ -46,9 +46,9 @@ __EXTERN size_t GlbTimerQuantum;
 __EXTERN void save_fpu(Addr_t *buffer);
 __EXTERN void set_ts(void);
 __EXTERN void _yield(void);
-__EXTERN void enter_thread(Registers_t *Regs);
-__EXTERN void enter_signal(Registers_t *Regs, Addr_t Handler, int Signal, Addr_t Return);
-__EXTERN void RegisterDump(Registers_t *Regs);
+__EXTERN void enter_thread(Context_t *Regs);
+__EXTERN void enter_signal(Context_t *Regs, Addr_t Handler, int Signal, Addr_t Return);
+__EXTERN void RegisterDump(Context_t *Regs);
 
 /* Globals,
  * Keep track of whether or not init code has run */
@@ -62,7 +62,7 @@ InterruptStatus_t ThreadingYield(void *Args)
 {
 	/* Variables we will need for loading
 	 * a new task */
-	Registers_t *Regs = NULL;
+	Context_t *Regs = NULL;
 	Cpu_t CurrCpu = ApicGetCpu();
 
 	/* These will be assigned from the 
@@ -77,7 +77,7 @@ InterruptStatus_t ThreadingYield(void *Args)
 
 	/* Switch Task, if there is no threading enabled yet
 	 * it should return the same structure as we give */
-	Regs = _ThreadingSwitch((Registers_t*)Args, 0, &TimeSlice, &TaskPriority);
+	Regs = _ThreadingSwitch((Context_t*)Args, 0, &TimeSlice, &TaskPriority);
 
 	/* If we just got hold of idle task, well fuck it disable timer 
 	 * untill we get another task */
@@ -204,7 +204,7 @@ void SignalDispatch(MCoreAsh_t *Ash, MCoreSignal_t *Signal)
 	/* Variables */
 	MCoreThread_t *Thread = ThreadingGetThread(Ash->MainThread);
 	x86Thread_t *Thread86 = (x86Thread_t*)Thread->ThreadData;
-	Registers_t *Regs = NULL;
+	Context_t *Regs = NULL;
 
 	/* User or kernel mode thread? */
 	if (Thread->Flags & THREADING_USERMODE)
@@ -213,7 +213,7 @@ void SignalDispatch(MCoreAsh_t *Ash, MCoreSignal_t *Signal)
 		Regs = Thread86->Context;
 
 	/* Store current context */
-	memcpy(&Signal->Context, Regs, sizeof(Registers_t));
+	memcpy(&Signal->Context, Regs, sizeof(Context_t));
 
 	/* Now we can enter the signal context 
 	 * handler, we cannot return from this function */
@@ -249,7 +249,7 @@ void IThreadImpersonate(MCoreThread_t *Thread)
 /* This function loads a new task from the scheduler, it
  * implements the task-switching functionality, which MCore leaves
  * up to the underlying architecture */
-Registers_t *_ThreadingSwitch(Registers_t *Regs, 
+Context_t *_ThreadingSwitch(Context_t *Regs,
 	int PreEmptive, size_t *TimeSlice, int *TaskQueue)
 {
 	/* Variables we will need for the

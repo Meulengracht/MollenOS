@@ -116,25 +116,25 @@ typedef struct _MCoreEventHandler
 /* Event Init/Destruct 
  * Starts or stops handling events 
  * with the given callback */
-_CRT_EXPORT MCoreEventHandler_t *EventInit(const char *Name, EventCallback Callback, void *Data);
-_CRT_EXPORT void EventDestruct(MCoreEventHandler_t *EventHandler);
+KERNELAPI MCoreEventHandler_t *EventInit(const char *Name, EventCallback Callback, void *Data);
+KERNELAPI void EventDestruct(MCoreEventHandler_t *EventHandler);
 
 /* Event Create 
  * Queues up a new event for the
  * event handler to process 
  * Asynchronous operation */
-_CRT_EXPORT void EventCreate(MCoreEventHandler_t *EventHandler, MCoreEvent_t *Event);
+KERNELAPI void EventCreate(MCoreEventHandler_t *EventHandler, MCoreEvent_t *Event);
 
 /* Event Wait 
  * Waits for a specific event 
  * to either complete, fail or 
  * be cancelled */
-_CRT_EXPORT void EventWait(MCoreEvent_t *Event, size_t Timeout);
+KERNELAPI void EventWait(MCoreEvent_t *Event, size_t Timeout);
 
 /* Event Cancel 
  * Cancels a specific event, 
  * event might not be cancelled 
  * immediately */
-_CRT_EXPORT void EventCancel(MCoreEvent_t *Event);
+KERNELAPI void EventCancel(MCoreEvent_t *Event);
 
 #endif //!_MCORE_EVENTS_H_

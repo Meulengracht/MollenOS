@@ -58,6 +58,7 @@ typedef struct _MollenOSVideoDescriptor
 #define MEMORY_COMMIT					0x00000001
 #define MEMORY_CONTIGIOUS				0x00000002
 #define MEMORY_LOWFIRST					0x00000004
+#define MEMORY_CLEAN					0x00000008
 
 /* Memory Descriptor
  * Describes the current memory state and setup

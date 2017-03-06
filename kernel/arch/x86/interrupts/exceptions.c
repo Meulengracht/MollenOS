@@ -40,7 +40,7 @@ extern void init_fpu(void);
 extern void load_fpu(Addr_t *buffer);
 extern void clear_ts(void);
 extern void ThreadingDebugPrint(void);
-extern void enter_thread(Registers_t *Regs);
+extern void enter_thread(Context_t *Regs);
 
 /* Use this to lookup the faulty module or process */
 void LookupFault(Addr_t Address, Addr_t *Base, char **Name)
@@ -187,7 +187,7 @@ void MemoryDump(char *desc, void *addr, int len) {
 	printf("  %s\n", buff);
 }
 
-void RegisterDump(Registers_t *Regs)
+void RegisterDump(Context_t *Regs)
 {
 	/* Dump general regs */
 	printf("  EAX: 0x%x, EBX 0x%x, ECX 0x%x, EDX 0x%x\n",
@@ -207,7 +207,7 @@ void RegisterDump(Registers_t *Regs)
 }
 
 /* Common entry for all exceptions */
-void ExceptionEntry(Registers_t *regs)
+void ExceptionEntry(Context_t *regs)
 {
 	/* We'll need these */
 	MCoreThread_t *cThread;
@@ -345,7 +345,7 @@ void ExceptionEntry(Registers_t *regs)
 			if (!HeapValidateAddress(NULL, UnmappedAddr)) 
 			{
 				/* Map in in */
-				MmVirtualMap(NULL, MmPhysicalAllocateBlock(MEMORY_MASK_DEFAULT, 1), (UnmappedAddr & PAGE_MASK), 0);
+				MmVirtualMap(NULL, MmPhysicalAllocateBlock(__MASK, 1), (UnmappedAddr & PAGE_MASK), 0);
 
 				/* Issue is fixed */
 				IssueFixed = 1;
@@ -366,7 +366,7 @@ void ExceptionEntry(Registers_t *regs)
 				if (!BitmapValidateAddress(Ash->Heap, UnmappedAddr))
 				{
 					/* Map in in */
-					MmVirtualMap(NULL, MmPhysicalAllocateBlock(MEMORY_MASK_DEFAULT, 1),
+					MmVirtualMap(NULL, MmPhysicalAllocateBlock(__MASK, 1),
 						(UnmappedAddr & PAGE_MASK), PAGE_USER);
 
 					/* Issue is fixed */
@@ -377,7 +377,7 @@ void ExceptionEntry(Registers_t *regs)
 
 		/* User stack address? */
 		else if (UnmappedAddr >= MEMORY_LOCATION_STACK_END) {
-			MmVirtualMap(NULL, MmPhysicalAllocateBlock(MEMORY_MASK_DEFAULT, 1), (UnmappedAddr & PAGE_MASK), PAGE_USER);
+			MmVirtualMap(NULL, MmPhysicalAllocateBlock(__MASK, 1), (UnmappedAddr & PAGE_MASK), PAGE_USER);
 			IssueFixed = 1;
 		}
 		

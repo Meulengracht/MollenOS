@@ -57,25 +57,25 @@ typedef struct _CriticalSection
 
 /* Instantiate a new critical section
  * with allocation and resets it */
-_CRT_EXPORT CriticalSection_t *CriticalSectionCreate(int Flags);
+KERNELAPI CriticalSection_t *CriticalSectionCreate(int Flags);
 
 /* Constructs an already allocated section 
  * by resetting it's datamembers and initializing
  * the lock */
-_CRT_EXPORT void CriticalSectionConstruct(CriticalSection_t *Section, int Flags);
+KERNELAPI void CriticalSectionConstruct(CriticalSection_t *Section, int Flags);
 
 /* Destroy and release resources,
  * the lock MUST NOT be held when this
  * is called, so make sure its not used */
-_CRT_EXPORT void CriticalSectionDestroy(CriticalSection_t *Section);
+KERNELAPI void CriticalSectionDestroy(CriticalSection_t *Section);
 
 /* Enter a critical section, the critical
  * section supports reentrancy if set at creation */
-_CRT_EXPORT void CriticalSectionEnter(CriticalSection_t *Section);
+KERNELAPI void CriticalSectionEnter(CriticalSection_t *Section);
 
 /* Leave a critical section, the lock is 
  * not neccesarily released if held by multiple 
  * entrances */
-_CRT_EXPORT void CriticalSectionLeave(CriticalSection_t *Section);
+KERNELAPI void CriticalSectionLeave(CriticalSection_t *Section);
 
 #endif

@@ -24,46 +24,11 @@
 
 /* Architecture Includes */
 #include <os/osdefs.h>
-#include <os/Spinlock.h>
+#include <os/context.h>
+#include <os/spinlock.h>
 
 /* Architecture Definitions */
 #define ARCHITECTURE_NAME		"x86-32"
-
-/* X86-32 Context */
-typedef struct _Registers
-{
-	/* General Registers */
-	uint32_t Edi;
-	uint32_t Esi;
-	uint32_t Ebp;
-	uint32_t Esp;
-	uint32_t Ebx;
-	uint32_t Edx;
-	uint32_t Ecx;
-	uint32_t Eax;
-	
-	/* Segments */
-	uint32_t Gs;
-	uint32_t Fs;
-	uint32_t Es;
-	uint32_t Ds;
-
-	/* Stuff */
-	uint32_t Irq;
-	uint32_t ErrorCode;
-	uint32_t Eip;
-	uint32_t Cs;
-	uint32_t Eflags;
-
-	/* User Stuff */
-	uint32_t UserEsp;
-	uint32_t UserSs;
-	uint32_t UserArg;
-
-	/* 16 Bytes of reserved area */
-	uint32_t Reserved[4];
-
-} Registers_t;
 
 /* X86-32 Address Space */
 #define ADDRESSSPACE_MEMBERS		Addr_t Cr3; void *PageDirectory;
@@ -74,8 +39,8 @@ typedef struct _Registers
 typedef struct _x86_Thread {
 	Flags_t				Flags;
 	uint8_t				IoMap[GDT_IOMAP_SIZE];
-	Registers_t			*Context;
-	Registers_t			*UserContext;
+	Context_t			*Context;
+	Context_t			*UserContext;
 	Addr_t				*FpuBuffer;
 } x86Thread_t;
 

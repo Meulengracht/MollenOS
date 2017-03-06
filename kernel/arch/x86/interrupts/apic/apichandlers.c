@@ -38,7 +38,7 @@ __EXTERN size_t GlbTimerQuantum;
 
 /* Extern to our assembly function
  * it loads the new task context */
-__EXTERN void enter_thread(Registers_t *Regs);
+__EXTERN void enter_thread(Context_t *Regs);
 
 /* The primary interrupt code for switching tasks
  * and is controlled by the apic timer, initially the
@@ -49,7 +49,7 @@ InterruptStatus_t ApicTimerHandler(void *Args)
 {
 	/* Variables we will need for loading
 	 * a new task */
-	Registers_t *Regs = NULL;
+	Context_t *Regs = NULL;
 	Cpu_t CurrCpu = ApicGetCpu();
 
 	/* These will be assigned from the 
@@ -68,7 +68,7 @@ InterruptStatus_t ApicTimerHandler(void *Args)
 
 	/* Switch Task, if there is no threading enabled yet
 	 * it should return the same structure as we give */
-	Regs = _ThreadingSwitch((Registers_t*)Args, 1, &TimeSlice, &TaskPriority);
+	Regs = _ThreadingSwitch((Context_t*)Args, 1, &TimeSlice, &TaskPriority);
 
 	/* If we just got hold of idle task, well fuck it disable timer 
 	 * untill we get another task */

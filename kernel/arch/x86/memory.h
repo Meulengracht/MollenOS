@@ -148,12 +148,18 @@ KERNELABI
 MmPhyiscalGetSysMappingVirtual(
 	_In_ PhysAddr_t PhysicalAddress);
 
-/* Virtual Memory */
+/* MmVirtualInit
+ * Initializes the virtual memory system and
+ * installs default kernel mappings */
 KERNELAPI
 OsStatus_t
 KERNELABI
 MmVirtualInit(void);
 
+/* MmVirtualMap
+ * Installs a new page-mapping in the given
+ * page-directory. The type of mapping is controlled by
+ * the Flags parameter. */
 KERNELAPI
 OsStatus_t
 KERNELABI
@@ -163,6 +169,9 @@ MmVirtualMap(
 	_In_ VirtAddr_t vAddress, 
 	_In_ Flags_t Flags);
 
+/* MmVirtualUnmap
+ * Unmaps a previous mapping from the given page-directory
+ * the mapping must be present */
 KERNELAPI
 OsStatus_t
 KERNELABI
@@ -170,23 +179,39 @@ MmVirtualUnmap(
 	_In_ void *PageDirectory, 
 	_In_ VirtAddr_t Address);
 
+/* MmVirtualGetMapping
+ * Retrieves the physical address mapping of the
+ * virtual memory address given - from the page directory 
+ * that is given */
 KERNELAPI
 PhysAddr_t
+KERNELABI
 MmVirtualGetMapping(
 	_In_ void *PageDirectory, 
 	_In_ VirtAddr_t Address);
 
-/* Hihi */
+/* MmReserveMemory
+ * Reserves memory for system use - should be allocated
+ * from a fixed memory region that won't interfere with
+ * general usage */
 KERNELAPI
 VirtAddr_t*
+KERNELABI
 MmReserveMemory(
 	_In_ int Pages);
 
+/* MmVirtualGetCurrentDirectory
+ * Retrieves the current page-directory for the given cpu */
 KERNELAPI
 PageDirectory_t*
+KERNELABI
 MmVirtualGetCurrentDirectory(
 	_In_ Cpu_t Cpu);
 
+/* MmVirtualSwitchPageDirectory
+ * Switches page-directory for the current cpu
+ * but the current cpu should be given as parameter
+ * as well */
 KERNELAPI
 OsStatus_t
 KERNELABI
@@ -195,7 +220,8 @@ MmVirtualSwitchPageDirectory(
 	_In_ PageDirectory_t* PageDirectory, 
 	_In_ PhysAddr_t Pdb);
 
-/* Install paging for AP Cores */
+/* MmVirtualInstallPaging
+ * Initializes paging for the given cpu id */
 KERNELAPI
 OsStatus_t
 KERNELABI

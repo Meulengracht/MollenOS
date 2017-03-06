@@ -16,13 +16,14 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS X86 IO Space Interface
- *
+ * MollenOS IO Space Interface
+ * - Contains the shared kernel io space interface
+ *   that all sub-layers / architectures must conform to
  */
 
 /* Includes 
  * - System */
-#include "../arch.h"
+#include <system/iospace.h>
 #include <process/server.h>
 #include <memory.h>
 #include <heap.h>
@@ -36,25 +37,31 @@
 /* Globals 
  * We need to keep track of a few things
  * and keep a list of io-spaces in the system */
-Spinlock_t __GlbIoSpaceLock = SPINLOCK_INIT;
-UUId_t __GlbIoSpaceId = 1;
-List_t *__GlbIoSpaces = NULL;
-int __GlbIoSpaceInitialized = 0;
+static Spinlock_t __GlbIoSpaceLock = SPINLOCK_INIT;
+static UUId_t __GlbIoSpaceId = 1;
+static List_t *__GlbIoSpaces = NULL;
+static int __GlbIoSpaceInitialized = 0;
 
-/* Initialize the Io Space manager so we 
+/* IoSpaceInitialize
+ * Initialize the Io Space manager so we 
  * can register io-spaces from drivers and the
  * bus code */
-void IoSpaceInitialize(void)
+void
+IoSpaceInitialize(void)
 {
+	// Initialize globals
 	__GlbIoSpaces = ListCreate(KeyInteger, LIST_NORMAL);
 	__GlbIoSpaceInitialized = 1;
 	__GlbIoSpaceId = 1;
 }
 
-/* Registers an io-space with the io space manager 
+/* IoSpaceRegister
+ * Registers an io-space with the io space manager 
  * and assigns the io-space a unique id for later
  * identification */
-OsStatus_t IoSpaceRegister(DeviceIoSpace_t *IoSpace)
+OsStatus_t
+IoSpaceRegister(
+	_In_ DeviceIoSpace_t *IoSpace)
 {
 	/* Variables */
 	MCoreIoSpace_t *SysCopy = NULL;

@@ -40,7 +40,7 @@
 /* This function loads a new task from the scheduler, it
  * implements the task-switching functionality, which MCore leaves
  * up to the underlying architecture */
-__EXTERN Registers_t *_ThreadingSwitch(Registers_t *Regs, 
+__EXTERN Context_t *_ThreadingSwitch(Context_t *Regs,
 	int PreEmptive, size_t *TimeSlice, int *TaskQueue);
 
 /* This function switches the current runtime-context
@@ -52,7 +52,7 @@ __EXTERN void IThreadImpersonate(MCoreThread_t *Thread);
 /* Stack manipulation / setup of stacks for given
  * threading. We need functions that create a new kernel
  * stack and user/driver stack. Pass threading flags */
-__EXTERN Registers_t *ContextCreate(Flags_t ThreadFlags, 
+__EXTERN Context_t *ContextCreate(Flags_t ThreadFlags,
 	Addr_t Eip, Addr_t *Arguments);
 
 #endif // !_MCORE_THREAD_H_

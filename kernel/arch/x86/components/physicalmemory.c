@@ -22,10 +22,10 @@
 
 /* Includes 
  * - System */
-#include "../../Arch.h"
-#include <Memory.h>
-#include <Multiboot.h>
-#include <Log.h>
+#include <arch.h>
+#include <memory.h>
+#include <multiboot.h>
+#include <log.h>
 
 /* Includes 
  * - C-Library */
@@ -50,7 +50,7 @@ Spinlock_t MemoryLock;
 
 /* Reserved Regions 
  * This primarily comes from the region-descriptor */
-SysMemMapping_t SysMappings[32];
+SystemMemoryMapping_t SysMappings[32];
 
 /* This is a debug function for inspecting
  * the memory status, it spits out how many blocks
@@ -68,7 +68,7 @@ void MmMemoryDebugPrint(void)
  * make sure this is tested before and give
  * an error if its already allocated */
 void MmMemoryMapSetBit(int Bit) {
-	MemoryBitmap[Bit / MEMORY_BITS] |= (1 << (Bit % MEMORY_BITS));
+	MemoryBitmap[Bit / __BITS] |= (1 << (Bit % __BITS));
 }
 
 /* This is an inline helper for 
@@ -76,14 +76,14 @@ void MmMemoryMapSetBit(int Bit) {
  * make sure this is tested before and give
  * an error if it's not allocated */
 void MmMemoryMapUnsetBit(int Bit) {
-	MemoryBitmap[Bit / MEMORY_BITS] &= ~(1 << (Bit % MEMORY_BITS));
+	MemoryBitmap[Bit / __BITS] &= ~(1 << (Bit % __BITS));
 }
 
 /* This is an inline helper for 
  * testing whether or not a bit is set, it returns
  * 1 if allocated, or 0 if free */
 int MmMemoryMapTestBit(int Bit) {
-	return (MemoryBitmap[Bit / MEMORY_BITS] & (1 << (Bit % MEMORY_BITS))) > 0 ? 1 : 0;
+	return (MemoryBitmap[Bit / __BITS] & (1 << (Bit % __BITS))) > 0 ? 1 : 0;
 }
 
 /* This function can be used to retrieve
@@ -101,18 +101,18 @@ int MmGetFreeMapBitLow(int Count)
 	{
 		/* Quick-check, if it's maxxed we can skip it 
 		 * due to all being allocated */
-		if (MemoryBitmap[i] != MEMORY_LIMIT) {
-			for (j = 0; j < MEMORY_BITS; j++) {
+		if (MemoryBitmap[i] != __MASK) {
+			for (j = 0; j < __BITS; j++) {
 				if (!(MemoryBitmap[i] & 1 << j)) {
 					int Found = 1;
-					for (int k = 0, c = j; k < Count && c < MEMORY_BITS; k++, c++) {
+					for (int k = 0, c = j; k < Count && c < __BITS; k++, c++) {
 						if (MemoryBitmap[i] & 1 << c) {
 							Found = 0;
 							break;
 						}
 					}
 					if (Found == 1) {
-						Result = (int)((i * MEMORY_BITS) + j);
+						Result = (int)((i * __BITS) + j);
 						break;
 					}
 				}
@@ -144,18 +144,18 @@ int MmGetFreeMapBitHigh(int Count)
 	{
 		/* Quick-check, if it's maxxed we can skip it
 		 * due to all being allocated */
-		if (MemoryBitmap[i] != MEMORY_LIMIT) {
-			for (j = 0; j < MEMORY_BITS; j++) {
+		if (MemoryBitmap[i] != __MASK) {
+			for (j = 0; j < __BITS; j++) {
 				if (!(MemoryBitmap[i] & 1 << j)) {
 					int Found = 1;
-					for (int k = 0, c = j; k < Count && c < MEMORY_BITS; k++, c++) {
+					for (int k = 0, c = j; k < Count && c < __BITS; k++, c++) {
 						if (MemoryBitmap[i] & 1 << c) {
 							Found = 0;
 							break;
 						}
 					}
 					if (Found == 1) {
-						Result = (int)((i * MEMORY_BITS) + j);
+						Result = (int)((i * __BITS) + j);
 						break;
 					}
 				}
@@ -221,7 +221,7 @@ int MmSysMappingsContain(Addr_t Base, int Type)
 
 		/* Does type/address match ? */
 		if (SysMappings[i].Type == Type
-			&& SysMappings[i].PhysicalAddrStart == Base) {
+			&& SysMappings[i].pAddressStart == Base) {
 			return 1;
 		}
 	}
@@ -229,14 +229,18 @@ int MmSysMappingsContain(Addr_t Base, int Type)
 	return 0;
 }
 
-/* This is the physical memory manager initializor
+/* MmPhyiscalInit
+ * This is the physical memory manager initializor
  * It reads the multiboot memory descriptor(s), initialies
  * the bitmap and makes sure reserved regions are allocated */
-void MmPhyiscalInit(void *BootInfo, MCoreBootDescriptor *Descriptor)
+OsStatus_t
+MmPhyiscalInit(
+	_In_ void *BootInfo, 
+	_In_ MCoreBootDescriptor *Descriptor)
 {
 	/* Variables, cast neccessary data */
 	Multiboot_t *BootDesc = (Multiboot_t*)BootInfo;
-	MBootMemoryRegion_t *RegionItr = NULL;
+	BIOSMemoryRegion_t *RegionItr = NULL;
 	int i, j;
 	
 	/* Sanitize the bootdescriptor */
@@ -244,7 +248,7 @@ void MmPhyiscalInit(void *BootInfo, MCoreBootDescriptor *Descriptor)
 
 	/* Good, good ! 
 	 * Get a pointer to the region descriptors */
-	RegionItr = (MBootMemoryRegion_t*)BootDesc->MemoryMapAddress;
+	RegionItr = (BIOSMemoryRegion_t*)BootDesc->MemoryMapAddress;
 
 	/* Get information from multiboot struct 
 	 * The memory-high part is 64kb blocks 
@@ -272,8 +276,8 @@ void MmPhyiscalInit(void *BootInfo, MCoreBootDescriptor *Descriptor)
 	/* Let us make it possible to access 
 	 * the first page of memory, but not through normal means */
 	SysMappings[0].Type = 2;
-	SysMappings[0].PhysicalAddrStart = 0;
-	SysMappings[0].VirtualAddrStart = 0;
+	SysMappings[0].pAddressStart = 0;
+	SysMappings[0].vAddressStart = 0;
 	SysMappings[0].Length = PAGE_SIZE;
 
 	/* Loop through memory regions from bootloader */
@@ -291,8 +295,8 @@ void MmPhyiscalInit(void *BootInfo, MCoreBootDescriptor *Descriptor)
 			/* Setup a new system mapping, 
 			 * we cache this map for conveniance */
 			SysMappings[j].Type = RegionItr->Type;
-			SysMappings[j].PhysicalAddrStart = (PhysAddr_t)RegionItr->Address;
-			SysMappings[j].VirtualAddrStart = 0;
+			SysMappings[j].pAddressStart = (PhysAddr_t)RegionItr->Address;
+			SysMappings[j].vAddressStart = 0;
 			SysMappings[j].Length = (size_t)RegionItr->Size;
 
 			/* Advance */
@@ -330,19 +334,25 @@ void MmPhyiscalInit(void *BootInfo, MCoreBootDescriptor *Descriptor)
 
 	/* Debug */
 	MmMemoryDebugPrint();
+
+	// No problems
+	return OsNoError;
 }
 
-/* This is the primary function for 
+/* MmPhysicalFreeBlock
+ * This is the primary function for
  * freeing physical pages, but NEVER free physical
  * pages if they exist in someones mapping */
-void MmPhysicalFreeBlock(PhysAddr_t Addr)
+OsStatus_t
+MmPhysicalFreeBlock(
+	_In_ PhysAddr_t Address)
 {
 	/* Calculate the bitmap bit */
-	int Frame = (int)(Addr / PAGE_SIZE);
+	int Frame = (int)(Address / PAGE_SIZE);
 
 	/* Sanitize the address
 	 * parameter for ranges */
-	assert(Addr < MemorySize);
+	assert(Address < MemorySize);
 
 	/* Get Spinlock */
 	SpinlockAcquire(&MemoryLock);
@@ -360,13 +370,19 @@ void MmPhysicalFreeBlock(PhysAddr_t Addr)
 	/* Statistics */
 	if (MemoryBlocksUsed != 0)
 		MemoryBlocksUsed--;
+
+	// Done - no errors
+	return OsNoError;
 }
 
-/* This is the primary function for allocating
+/* MmPhysicalAllocateBlock
+ * This is the primary function for allocating
  * physical memory pages, this takes an argument
- * <Mask> which determines where in memory the
- * allocation is OK */
-PhysAddr_t MmPhysicalAllocateBlock(Addr_t Mask, int Count)
+ * <Mask> which determines where in memory the allocation is OK */
+PhysAddr_t
+MmPhysicalAllocateBlock(
+	_In_ Addr_t Mask, 
+	_In_ int Count)
 {
 	/* Variables, keep track of 
 	 * the frame allocated */
@@ -410,11 +426,14 @@ PhysAddr_t MmPhysicalAllocateBlock(Addr_t Mask, int Count)
 	return (PhysAddr_t)(Frame * PAGE_SIZE);
 }
 
-/* This function retrieves the virtual address 
+/* MmPhyiscalGetSysMappingVirtual
+ * This function retrieves the virtual address 
  * of an mapped system mapping, this is to avoid
  * re-mapping and continous unmap of device memory 
  * Returns 0 if none exists */
-VirtAddr_t MmPhyiscalGetSysMappingVirtual(PhysAddr_t PhysicalAddr)
+VirtAddr_t
+MmPhyiscalGetSysMappingVirtual(
+	_In_ PhysAddr_t PhysicalAddress)
 {
 	/* Iterate the sys-mappings, we only
 	 * have up to 32 at the moment, should always be enough */
@@ -424,13 +443,13 @@ VirtAddr_t MmPhyiscalGetSysMappingVirtual(PhysAddr_t PhysicalAddr)
 		{
 			/* Calculate start and end 
 			 * of this system memory region */
-			PhysAddr_t Start = SysMappings[i].PhysicalAddrStart;
-			PhysAddr_t End = SysMappings[i].PhysicalAddrStart + SysMappings[i].Length;
+			PhysAddr_t Start = SysMappings[i].pAddressStart;
+			PhysAddr_t End = SysMappings[i].pAddressStart + SysMappings[i].Length;
 
 			/* Is it in range? :) */
-			if (PhysicalAddr >= Start && PhysicalAddr < End) {
-				return SysMappings[i].VirtualAddrStart 
-					+ (PhysicalAddr - SysMappings[i].PhysicalAddrStart);
+			if (PhysicalAddress >= Start && PhysicalAddress < End) {
+				return SysMappings[i].vAddressStart 
+					+ (PhysicalAddress - SysMappings[i].pAddressStart);
 			}
 		}
 	}

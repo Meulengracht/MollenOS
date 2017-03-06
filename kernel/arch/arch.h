@@ -34,10 +34,6 @@
 #error "Unsupported Architecture :("
 #endif
 
-/* Typedef this */
-typedef Registers_t Context_t;
-
-
 /************************
  * Threading            *
  * Used for abstracting *
@@ -70,55 +66,6 @@ __EXTERN void IThreadWakeCpu(Cpu_t Cpu);
 /* IThreadYield
  * Yields the current thread control to the scheduler */
 __EXTERN void IThreadYield(void);
-
-/************************
- * Device Io Spaces     *
- * Used for abstracting *
- * device addressing    *
- ************************/
-#include <os/driver/io.h>
-
-/* Represents an io-space in MollenOS, they represent
- * some kind of communication between hardware and software
- * by either port or mmio */
-typedef struct _MCoreIoSpace {
-	UUId_t				Id;
-	UUId_t				Owner;
-	int					Type;
-	Addr_t				PhysicalBase;
-	Addr_t				VirtualBase;
-	size_t				Size;
-} MCoreIoSpace_t;
-
-/* Initialize the Io Space manager so we 
- * can register io-spaces from drivers and the
- * bus code */
-__EXTERN void IoSpaceInitialize(void);
-
-/* Registers an io-space with the io space manager 
- * and assigns the io-space a unique id for later
- * identification */
-__EXTERN OsStatus_t IoSpaceRegister(DeviceIoSpace_t *IoSpace);
-
-/* Acquires the given memory space by mapping it in
- * the current drivers memory space if needed, and sets
- * a lock on the io-space */
-__EXTERN OsStatus_t IoSpaceAcquire(DeviceIoSpace_t *IoSpace);
-
-/* Releases the given memory space by unmapping it from
- * the current drivers memory space if needed, and releases
- * the lock on the io-space */
-__EXTERN OsStatus_t IoSpaceRelease(DeviceIoSpace_t *IoSpace);
-
-/* Destroys the given io-space by its id, the id
- * has the be valid, and the target io-space HAS to 
- * un-acquired by any process, otherwise its not possible */
-__EXTERN OsStatus_t IoSpaceDestroy(UUId_t IoSpace);
-
-/* Tries to validate the given virtual address by 
- * checking if any process has an active io-space
- * that involves that virtual address */
-__EXTERN Addr_t IoSpaceValidate(Addr_t Address);
 
 /***********************
 * Device Interface     *

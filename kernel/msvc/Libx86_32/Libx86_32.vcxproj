@@ -44,7 +44,7 @@
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
       <InlineFunctionExpansion>OnlyExplicitInline</InlineFunctionExpansion>
       <WholeProgramOptimization>true</WholeProgramOptimization>
-      <PreprocessorDefinitions>MOLLENOS;UNICODE;_KERNEL_API;_X86_32;CLIB_KERNEL;_KRNL_DLL</PreprocessorDefinitions>
+      <PreprocessorDefinitions>MOLLENOS;UNICODE;_X86_32;CLIB_KERNEL;_KRNL_DLL</PreprocessorDefinitions>
       <MinimalRebuild>false</MinimalRebuild>
       <ExceptionHandling>false</ExceptionHandling>
       <BasicRuntimeChecks>Default</BasicRuntimeChecks>

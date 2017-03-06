@@ -538,13 +538,13 @@ ScMemoryAllocate(
 
 	/* Handle flags */
 	if (Flags & MEMORY_COMMIT) {
-		int ExtendedFlags = ADDRESS_SPACE_FLAG_APPLICATION;
+		int ExtendedFlags = AS_FLAG_APPLICATION;
 		if (Flags & MEMORY_CONTIGIOUS) {
-			ExtendedFlags |= ADDRESS_SPACE_FLAG_CONTIGIOUS;
+			ExtendedFlags |= AS_FLAG_CONTIGIOUS;
 		}
 
 		*Physical = (uintptr_t)AddressSpaceMap(AddressSpaceGetCurrent(),
-			AllocatedAddress, Size, MEMORY_MASK_DEFAULT, ExtendedFlags);
+			AllocatedAddress, Size, __MASK, ExtendedFlags);
 	}
 	else {
 		*Physical = 0;
@@ -627,14 +627,14 @@ Addr_t ScMemoryShare(UUId_t Target, Addr_t Address, size_t Size)
 		/* The address MUST be mapped in ours */
 		if (!AddressSpaceGetMap(AddressSpaceGetCurrent(), AdjustedAddr))
 			AddressSpaceMap(AddressSpaceGetCurrent(), AdjustedAddr, 
-			PAGE_SIZE, MEMORY_MASK_DEFAULT, ADDRESS_SPACE_FLAG_APPLICATION);
+			PAGE_SIZE, __MASK, AS_FLAG_APPLICATION);
 	
 		/* Get physical mapping */
 		PhysicalAddr = AddressSpaceGetMap(AddressSpaceGetCurrent(), AdjustedAddr);
 
 		/* Map it directly into target process */
 		AddressSpaceMapFixed(Ash->AddressSpace, PhysicalAddr,
-			AdjustedShm, PAGE_SIZE, ADDRESS_SPACE_FLAG_APPLICATION | ADDRESS_SPACE_FLAG_VIRTUAL);
+			AdjustedShm, PAGE_SIZE, AS_FLAG_APPLICATION | AS_FLAG_VIRTUAL);
 	}
 
 	/* Done! */

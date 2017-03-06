@@ -619,7 +619,7 @@ MCoreInterruptDescriptor_t *InterruptGet(UUId_t Source)
  * The common entry point for interrupts, all
  * non-exceptions will enter here, lookup a handler
  * and execute the code */
-void InterruptEntry(Registers_t *Registers)
+void InterruptEntry(Context_t *Registers)
 {
 	/* Variables */
 	MCoreInterruptDescriptor_t *Entry = NULL;

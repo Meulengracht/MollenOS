@@ -46,16 +46,16 @@ typedef struct _MCoreTimer {
 } MCoreTimer_t;
 
 /* Prototypes */
-_CRT_EXPORT UUId_t TimersCreateTimer(TimerHandler_t Callback,
+KERNELAPI UUId_t TimersCreateTimer(TimerHandler_t Callback,
 	void *Args, MCoreTimerType_t Type, size_t Timeout);
-_CRT_EXPORT void TimersDestroyTimer(UUId_t TimerId);
+KERNELAPI void TimersDestroyTimer(UUId_t TimerId);
 
 /* Sleep, Stall, etc */
-_CRT_EXPORT void SleepMs(size_t MilliSeconds);
-_CRT_EXPORT void StallMs(size_t MilliSeconds);
+KERNELAPI void SleepMs(size_t MilliSeconds);
+KERNELAPI void StallMs(size_t MilliSeconds);
 
 /* Stall-No-Int */
-_CRT_EXPORT void DelayMs(size_t MilliSeconds);
+KERNELAPI void DelayMs(size_t MilliSeconds);
 
 /* Tools */
 #define WaitForCondition(condition, runs, wait, message, ...)\

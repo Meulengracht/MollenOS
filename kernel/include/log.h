@@ -22,8 +22,7 @@
 #define _MCORE_LOG_H_
 
 /* Includes */
-#include <crtdefs.h>
-#include <stdint.h>
+#include <os/osdefs.h>
 
 /* Definitions */
 typedef enum _LogTarget
@@ -57,16 +56,16 @@ typedef enum _LogLevel
 #define LOG_TYPE_FATAL				0x03
 
 /* Functions */
-__EXTERN void LogInit(void);
-__EXTERN void LogUpgrade(size_t Size);
-__EXTERN void LogRedirect(LogTarget_t Output);
-__EXTERN void LogFlush(LogTarget_t Output);
+KERNELAPI void LogInit(void);
+KERNELAPI void LogUpgrade(size_t Size);
+KERNELAPI void LogRedirect(LogTarget_t Output);
+KERNELAPI void LogFlush(LogTarget_t Output);
 
 /* The log functions */
-_CRT_EXPORT void Log(const char *Message, ...);
-_CRT_EXPORT void LogRaw(const char *Message, ...);
-_CRT_EXPORT void LogInformation(const char *System, const char *Message, ...);
-_CRT_EXPORT void LogDebug(const char *System, const char *Message, ...);
-_CRT_EXPORT void LogFatal(const char *System, const char *Message, ...);
+KERNELAPI void Log(__CONST char *Message, ...);
+KERNELAPI void LogRaw(__CONST char *Message, ...);
+KERNELAPI void LogInformation(__CONST char *System, __CONST char *Message, ...);
+KERNELAPI void LogDebug(__CONST char *System, __CONST char *Message, ...);
+KERNELAPI void LogFatal(__CONST char *System, __CONST char *Message, ...);
 
 #endif

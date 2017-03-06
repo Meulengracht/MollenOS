@@ -84,11 +84,11 @@ __EXTERN void SchedulerApplyMs(size_t MilliSeconds);
  * by time, or both. If resource is NULL then it will wake the
  * thread after <timeout> ms. If infinite wait is required set
  * timeout to 0 */
-_CRT_EXPORT void SchedulerSleepThread(Addr_t *Resource, size_t Timeout);
+KERNELAPI void SchedulerSleepThread(Addr_t *Resource, size_t Timeout);
 
 /* These two functions either wakes one or all threads
  * waiting for a resource. */
-_CRT_EXPORT int SchedulerWakeupOneThread(Addr_t *Resource);
-_CRT_EXPORT void SchedulerWakeupAllThreads(Addr_t *Resource);
+KERNELAPI int SchedulerWakeupOneThread(Addr_t *Resource);
+KERNELAPI void SchedulerWakeupAllThreads(Addr_t *Resource);
 
 #endif // !_MCORE_SCHEDULER_H_
