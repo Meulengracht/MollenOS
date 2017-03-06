@@ -1,109 +1,32 @@
 /* MollenOS
-*
-* Copyright 2011 - 2016, Philip Meulengracht
-*
-* This program is free software : you can redistribute it and / or modify
-* it under the terms of the GNU General Public License as published by
-* the Free Software Foundation ? , either version 3 of the License, or
-* (at your option) any later version.
-*
-* This program is distributed in the hope that it will be useful,
-* but WITHOUT ANY WARRANTY; without even the implied warranty of
-* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.See the
-* GNU General Public License for more details.
-*
-* You should have received a copy of the GNU General Public License
-* along with this program.If not, see <http://www.gnu.org/licenses/>.
-*
-*
-* MollenOS x86 Memory Definitions, Structures, Explanations
-*/
+ *
+ * Copyright 2011 - 2017, Philip Meulengracht
+ *
+ * This program is free software : you can redistribute it and / or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation ? , either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.If not, see <http://www.gnu.org/licenses/>.
+ *
+ *
+ * MollenOS x86 Memory Definitions, Structures, Explanations
+ */
 
 #ifndef _X86_MEMORY_H_
 #define _X86_MEMORY_H_
 
 /* Includes 
  * - System */
-#include <MollenOS.h>
-#include <Mutex.h>
-
-/**********************************/
-/* Physical Memory Defs & Structs */
-/**********************************/
-
-/* Memory Map Structure 
- * This is the structure passed to us by
- * the mBoot bootloader */
-#pragma pack(push, 1)
-typedef struct _MBootMemoryRegion
-{
-	/* The 64 bit address of where this 
-	 * memory region starts */
-	uint64_t	Address;
-
-	/* The size of the this memory region 
-	 * also 64 bit value */
-	uint64_t	Size;
-
-	/* The type of this memory region
-	 * 1 => Available, 2 => ACPI, 3 => Reserved */
-	uint32_t	Type;
-
-	/* Null value, used for stuff i guess 
-	 * and 8 bytes padding to reach 32 bytes 
-	 * per entry */
-	uint32_t	Nil;
-	uint64_t	Padding;
-
-} MBootMemoryRegion_t;
-#pragma pack(pop)
-
-/* System reserved memory mappings
- * this is to faster/safer map in system
- * memory like ACPI/device memory etc etc */
-typedef struct _SysMemMapping
-{
-	/* Where this memory mapping starts
-	 * in physical address space */
-	PhysAddr_t PhysicalAddrStart;
-
-	/* Where we have mapped this in 
-	 * the virtual address space */
-	VirtAddr_t VirtualAddrStart;
-
-	/* Length of this memory mapping */
-	size_t Length;
-
-	/* Type. 2 - ACPI */
-	int Type;
-
-} SysMemMapping_t;
-
-/* This is the physical memory manager initializor
-* It reads the multiboot memory descriptor(s), initialies
-* the bitmap and makes sure reserved regions are allocated */
-__EXTERN void MmPhyiscalInit(void *BootInfo, MCoreBootDescriptor *Descriptor);
-
-/* This is the primary function for allocating
-* physical memory pages, this takes an argument
-* <Mask> which determines where in memory the
-* allocation is OK */
-__EXTERN PhysAddr_t MmPhysicalAllocateBlock(Addr_t Mask, int Count);
-
-/* This is the primary function for
-* freeing physical pages, but NEVER free physical
-* pages if they exist in someones mapping */
-__EXTERN void MmPhysicalFreeBlock(PhysAddr_t Addr);
-
-/* This function retrieves the virtual address 
- * of an mapped system mapping, this is to avoid
- * re-mapping and continous unmap of device memory 
- * Returns 0 if none exists */
-__EXTERN VirtAddr_t MmPhyiscalGetSysMappingVirtual(PhysAddr_t PhysicalAddr);
-
-/**********************************/
-/* Virtual Memory Defs & Structs  */
-/**********************************/
+#include <os/osdefs.h>
+#include <mollenos.h>
+#include <mutex.h>
 
 /* Structural Sizes */
 #define PAGES_PER_TABLE			1024
@@ -115,76 +38,168 @@ __EXTERN VirtAddr_t MmPhyiscalGetSysMappingVirtual(PhysAddr_t PhysicalAddr);
 #define MEMORY_INIT_MASK		0x3FFFFF
 
 /* Shared PT/Page Definitions */
-#define PAGE_PRESENT		0x1
-#define PAGE_WRITE			0x2
-#define PAGE_USER			0x4
-#define PAGE_WRITETHROUGH	0x8
-#define PAGE_CACHE_DISABLE	0x10
-#define PAGE_ACCESSED		0x20
+#define PAGE_PRESENT			0x1
+#define PAGE_WRITE				0x2
+#define PAGE_USER				0x4
+#define PAGE_WRITETHROUGH		0x8
+#define PAGE_CACHE_DISABLE		0x10
+#define PAGE_ACCESSED			0x20
 
 /* Page Table Definitions */
-#define PAGETABLE_UNUSED	0x40
-#define PAGETABLE_4MB		0x80
-#define PAGETABLE_IGNORED	0x100
+#define PAGETABLE_UNUSED		0x40
+#define PAGETABLE_4MB			0x80
+#define PAGETABLE_IGNORED		0x100
 
 /* Page Definitions */
-#define PAGE_DIRTY			0x40
-#define PAGE_UNUSED			0x80
-#define PAGE_GLOBAL			0x100
+#define PAGE_DIRTY				0x40
+#define PAGE_UNUSED				0x80
+#define PAGE_GLOBAL				0x100
 
 /* MollenOS PT/Page Definitions */
-#define PAGE_SYSTEM_MAP		0x200
-#define PAGE_INHERITED		0x400
-#define PAGE_VIRTUAL		0x800
+#define PAGE_SYSTEM_MAP			0x200
+#define PAGE_INHERITED			0x400
+#define PAGE_VIRTUAL			0x800
 
 /* Masks */
-#define PAGE_MASK			0xFFFFF000
-#define ATTRIBUTE_MASK		0x00000FFF
+#define PAGE_MASK				0xFFFFF000
+#define ATTRIBUTE_MASK			0x00000FFF
 
 /* Index's */
 #define PAGE_DIRECTORY_INDEX(x) (((x) >> 22) & 0x3FF)
 #define PAGE_TABLE_INDEX(x) (((x) >> 12) & 0x3FF)
 
-/* Page Table */
-typedef struct _PageTable
-{
-	/* Pages (Physical Bindings)
-	 * Seen by MMU */
-	uint32_t Pages[PAGES_PER_TABLE];
+/* Page Table Structure
+ * Denotes how the paging structure is for the X86-32
+ * platform, this is different from X86-64 */
+PACKED_TYPESTRUCT(PageTable, {
+	uint32_t				Pages[PAGES_PER_TABLE];
+});
 
-} PageTable_t;
+/* Page Directory Structure
+ * Denotes how the paging structure is for the X86-32
+ * platform, this is different from X86-64 */
+PACKED_TYPESTRUCT(PageDirectory, {
+	uint32_t				pTables[TABLES_PER_PDIR];	// Seen by MMU
+	uint32_t				vTables[TABLES_PER_PDIR];	// Not seen by MMU
+	Mutex_t					Lock;						// Not seen by MMU
+});
 
-/* Page Directory */
-typedef struct _PageDirectory
-{
-	/* Page Tables (Physical Bindings)
-	 * Seen by MMU */
-	uint32_t pTables[TABLES_PER_PDIR];
+/* Memory Map Structure 
+ * This is the structure passed to us by
+ * the mBoot bootloader */
+PACKED_TYPESTRUCT(BIOSMemoryRegion, {
+	uint64_t				Address;
+	uint64_t				Size;
+	uint32_t				Type;		//1 => Available, 2 => ACPI, 3 => Reserved
+	uint32_t				Nil;
+	uint64_t				Padding;
+});
 
-	/* Page Tables (Virtual Mappings)
-	 * Not seen by MMU */
-	uint32_t vTables[TABLES_PER_PDIR];
+/* System reserved memory mappings
+ * this is to faster/safer map in system
+ * memory like ACPI/device memory etc etc */
+PACKED_TYPESTRUCT(SystemMemoryMapping, {
+	PhysAddr_t				pAddressStart;
+	VirtAddr_t				vAddressStart;
+	size_t					Length;
+	int						Type;	//Type. 2 - ACPI
+});
 
-	/* Mutex to protect the page-directory
-	 * we don't want two different threads
-	 * fucking us up */
-	Mutex_t Lock;
+/* MmPhyiscalInit
+ * This is the physical memory manager initializor
+ * It reads the multiboot memory descriptor(s), initialies
+ * the bitmap and makes sure reserved regions are allocated */
+KERNELAPI
+OsStatus_t
+KERNELABI
+MmPhyiscalInit(
+	_In_ void *BootInfo, 
+	_In_ MCoreBootDescriptor *Descriptor);
 
-} PageDirectory_t;
+/* MmPhysicalAllocateBlock
+ * This is the primary function for allocating
+ * physical memory pages, this takes an argument
+ * <Mask> which determines where in memory the allocation is OK */
+KERNELAPI
+PhysAddr_t
+KERNELABI
+MmPhysicalAllocateBlock(
+	_In_ Addr_t Mask, 
+	_In_ int Count);
+
+/* MmPhysicalFreeBlock
+ * This is the primary function for
+ * freeing physical pages, but NEVER free physical
+ * pages if they exist in someones mapping */
+KERNELAPI
+OsStatus_t
+KERNELABI
+MmPhysicalFreeBlock(
+	_In_ PhysAddr_t Address);
+
+/* MmPhyiscalGetSysMappingVirtual
+ * This function retrieves the virtual address 
+ * of an mapped system mapping, this is to avoid
+ * re-mapping and continous unmap of device memory 
+ * Returns 0 if none exists */
+KERNELAPI
+VirtAddr_t
+KERNELABI
+MmPhyiscalGetSysMappingVirtual(
+	_In_ PhysAddr_t PhysicalAddress);
 
 /* Virtual Memory */
-__EXTERN void MmVirtualInit(void);
-__EXTERN void MmVirtualMap(void *PageDirectory, PhysAddr_t PhysicalAddr, VirtAddr_t VirtualAddr, uint32_t Flags);
-__EXTERN void MmVirtualUnmap(void *PageDirectory, VirtAddr_t VirtualAddr);
-__EXTERN PhysAddr_t MmVirtualGetMapping(void *PageDirectory, VirtAddr_t VirtualAddr);
+KERNELAPI
+OsStatus_t
+KERNELABI
+MmVirtualInit(void);
+
+KERNELAPI
+OsStatus_t
+KERNELABI
+MmVirtualMap(
+	_In_ void *PageDirectory, 
+	_In_ PhysAddr_t pAddress, 
+	_In_ VirtAddr_t vAddress, 
+	_In_ Flags_t Flags);
+
+KERNELAPI
+OsStatus_t
+KERNELABI
+MmVirtualUnmap(
+	_In_ void *PageDirectory, 
+	_In_ VirtAddr_t Address);
+
+KERNELAPI
+PhysAddr_t
+MmVirtualGetMapping(
+	_In_ void *PageDirectory, 
+	_In_ VirtAddr_t Address);
 
 /* Hihi */
-__EXTERN VirtAddr_t *MmReserveMemory(int Pages);
-__EXTERN VirtAddr_t MmReserveDriverMemory(size_t Pages);
-__EXTERN PageDirectory_t *MmVirtualGetCurrentDirectory(Cpu_t cpu);
-__EXTERN void MmVirtualSwitchPageDirectory(Cpu_t cpu, PageDirectory_t* PageDirectory, PhysAddr_t Pdb);
+KERNELAPI
+VirtAddr_t*
+MmReserveMemory(
+	_In_ int Pages);
+
+KERNELAPI
+PageDirectory_t*
+MmVirtualGetCurrentDirectory(
+	_In_ Cpu_t Cpu);
+
+KERNELAPI
+OsStatus_t
+KERNELABI
+MmVirtualSwitchPageDirectory(
+	_In_ Cpu_t Cpu, 
+	_In_ PageDirectory_t* PageDirectory, 
+	_In_ PhysAddr_t Pdb);
 
 /* Install paging for AP Cores */
-__EXTERN void MmVirtualInstallPaging(Cpu_t cpu);
+KERNELAPI
+OsStatus_t
+KERNELABI
+MmVirtualInstallPaging(
+	_In_ Cpu_t Cpu);
 
 #endif // !_X86_MEMORY_H_

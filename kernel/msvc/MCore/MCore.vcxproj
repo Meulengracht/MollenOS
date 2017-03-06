@@ -27,7 +27,6 @@
     <ClCompile Include="..\..\system\process\server.c" />
     <ClCompile Include="..\..\system\process\signal.c" />
     <ClCompile Include="..\..\system\process\syscalls.c" />
-    <ClCompile Include="..\..\system\userevents.c" />
     <ClCompile Include="..\..\system\log.c" />
     <ClCompile Include="..\..\system\pipe.c" />
     <ClCompile Include="..\..\system\scheduler.c" />
@@ -39,21 +38,16 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\arch\arch.h" />
+    <ClInclude Include="..\..\include\acpiinterface.h" />
     <ClInclude Include="..\..\include\bitmap.h" />
     <ClInclude Include="..\..\include\criticalsection.h" />
-    <ClInclude Include="..\..\include\devices\clock.h" />
-    <ClInclude Include="..\..\include\devices\disk.h" />
-    <ClInclude Include="..\..\include\devices\timer.h" />
     <ClInclude Include="..\..\include\events.h" />
     <ClInclude Include="..\..\include\interrupts.h" />
     <ClInclude Include="..\..\include\log.h" />
     <ClInclude Include="..\..\include\modules\modules.h" />
     <ClInclude Include="..\..\include\modules\ramdisk.h" />
     <ClInclude Include="..\..\include\mollenos.h" />
-    <ClInclude Include="..\..\include\devices\cpu.h" />
-    <ClInclude Include="..\..\include\devices\video.h" />
     <ClInclude Include="..\..\include\heap.h" />
-    <ClInclude Include="..\..\include\inputmanager.h" />
     <ClInclude Include="..\..\include\mutex.h" />
     <ClInclude Include="..\..\include\pipe.h" />
     <ClInclude Include="..\..\include\process\ash.h" />
@@ -63,6 +57,11 @@
     <ClInclude Include="..\..\include\process\server.h" />
     <ClInclude Include="..\..\include\scheduler.h" />
     <ClInclude Include="..\..\include\semaphore.h" />
+    <ClInclude Include="..\..\include\system\addresspace.h" />
+    <ClInclude Include="..\..\include\system\interrupt.h" />
+    <ClInclude Include="..\..\include\system\iospace.h" />
+    <ClInclude Include="..\..\include\system\thread.h" />
+    <ClInclude Include="..\..\include\system\utils.h" />
     <ClInclude Include="..\..\include\threading.h" />
     <ClInclude Include="..\..\include\timers.h" />
   </ItemGroup>
@@ -92,7 +91,7 @@
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Build_X86_32|Win32'">
     <GenerateManifest>false</GenerateManifest>
-    <IncludePath>..\..\acpica\include;..\..\arch;..\..\..\librt\include;..\..\include;..\..\msvc\MCoreConfig</IncludePath>
+    <IncludePath>..\..\acpica\include;..\..\arch\x86\x32\;..\..\..\librt\include;..\..\include;..\..\msvc\MCoreConfig</IncludePath>
     <LibraryWPath />
     <LibraryPath>..\..\..\librt\build;..\..\build\i386</LibraryPath>
     <OutDir>..\..\Build\</OutDir>

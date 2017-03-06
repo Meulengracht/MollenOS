@@ -1319,7 +1319,6 @@ OsStatus_t ScRegisterSystemTimer(UUId_t Interrupt, size_t NsPerTick)
 /***********************
 * System Functions     *
 ***********************/
-#include <inputmanager.h>
 
 /* This ends the boot sequence
  * and thus redirects logging
@@ -1332,26 +1331,6 @@ int ScEndBootSequence(void)
 
 	/* Redirect */
 	LogRedirect(LogFile);
-
-	/* Done */
-	return 0;
-}
-
-/* This registers the calling 
- * process as the active window
- * manager, and thus shall recieve
- * all input messages */
-int ScRegisterWindowManager(void)
-{
-	/* Locate Process */
-	MCoreAsh_t *Ash = PhoenixGetAsh(PHOENIX_CURRENT);
-
-	/* Sanity */
-	if (Ash == NULL)
-		return -1;
-
-	/* Register Us */
-	EmRegisterSystemTarget(Ash->Id);
 
 	/* Done */
 	return 0;
@@ -1443,7 +1422,7 @@ Addr_t GlbSyscallTable[91] =
 
 	/* System Functions - 51 */
 	DefineSyscall(ScEndBootSequence),
-	DefineSyscall(ScRegisterWindowManager),
+	DefineSyscall(NoOperation),
 	DefineSyscall(ScEnvironmentQuery),
 	DefineSyscall(NoOperation),
 	DefineSyscall(NoOperation),

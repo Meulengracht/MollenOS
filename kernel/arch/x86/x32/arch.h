@@ -66,25 +66,7 @@ typedef struct _Registers
 } Registers_t;
 
 /* X86-32 Address Space */
-typedef struct _AddressSpace
-{
-	/* Lock */
-	Spinlock_t Lock;
-
-	/* Reference Count */
-	int References;
-
-	/* Flags */
-	int Flags;
-
-	/* Physical Address of 
-	 * Paging Structure */
-	Addr_t Cr3;
-
-	/* The Page Directory */
-	void *PageDirectory;
-
-} AddressSpace_t;
+#define ADDRESSSPACE_MEMBERS		Addr_t Cr3; void *PageDirectory;
 
 #include "Gdt.h"
 
@@ -134,7 +116,7 @@ __EXTERN void DevicesInitTimers(void);
 __EXTERN Cpu_t ApicGetCpu(void);
 __EXTERN void ApicSendIpi(Cpu_t CpuTarget, uint32_t Vector);
 __EXTERN void Idle(void);
-_CRT_EXPORT void kernel_panic(const char *str);
+__EXTERN void kernel_panic(const char *str);
 
 /* Architecture Memory Layout, this
  * gives you an idea how memory layout

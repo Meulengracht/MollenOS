@@ -13,9 +13,6 @@
     <Filter Include="include\process">
       <UniqueIdentifier>{be22789a-2793-4e14-9216-0072167b2157}</UniqueIdentifier>
     </Filter>
-    <Filter Include="include\devices">
-      <UniqueIdentifier>{4be81c73-69b8-4da0-b801-a1dc5c97a913}</UniqueIdentifier>
-    </Filter>
     <Filter Include="systems">
       <UniqueIdentifier>{3bcea2c0-a650-46ec-b90d-fefe4ec8eedb}</UniqueIdentifier>
     </Filter>
@@ -36,6 +33,9 @@
     </Filter>
     <Filter Include="systems\devices\video">
       <UniqueIdentifier>{b5451050-12d1-48fc-95d2-d17ed531ed99}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="include\system">
+      <UniqueIdentifier>{d22a4e0d-ae62-4687-8802-ac041954d8b6}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>
@@ -90,9 +90,6 @@
     <ClCompile Include="..\..\system\devices\acpi\acpiscan.c">
       <Filter>systems\devices\acpi</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\system\userevents.c">
-      <Filter>systems</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\init.c" />
     <ClCompile Include="..\..\system\modules.c">
       <Filter>systems</Filter>
@@ -129,9 +126,6 @@
     <ClInclude Include="..\..\include\heap.h">
       <Filter>include</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\include\inputmanager.h">
-      <Filter>include</Filter>
-    </ClInclude>
     <ClInclude Include="..\..\include\mutex.h">
       <Filter>include</Filter>
     </ClInclude>
@@ -144,26 +138,11 @@
     <ClInclude Include="..\..\include\timers.h">
       <Filter>include</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\include\devices\cpu.h">
-      <Filter>include\devices</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\include\devices\video.h">
-      <Filter>include\devices</Filter>
-    </ClInclude>
     <ClInclude Include="..\..\include\mollenos.h">
       <Filter>include</Filter>
     </ClInclude>
     <ClInclude Include="..\..\include\threading.h">
       <Filter>include</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\include\devices\disk.h">
-      <Filter>include\devices</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\include\devices\timer.h">
-      <Filter>include\devices</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\include\devices\clock.h">
-      <Filter>include\devices</Filter>
     </ClInclude>
     <ClInclude Include="..\..\include\log.h">
       <Filter>include</Filter>
@@ -206,6 +185,24 @@
     </ClInclude>
     <ClInclude Include="..\..\include\interrupts.h">
       <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\acpiinterface.h">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\system\addresspace.h">
+      <Filter>include\system</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\system\interrupt.h">
+      <Filter>include\system</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\system\iospace.h">
+      <Filter>include\system</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\system\thread.h">
+      <Filter>include\system</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\system\utils.h">
+      <Filter>include\system</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

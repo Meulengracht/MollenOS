@@ -101,10 +101,9 @@
 #endif
 
 /* Kernel Export for Modules */
-#ifndef _KERNEL_API
-#define _CRT_EXPORT __declspec(dllimport)
-#else
-#define _CRT_EXPORT __declspec(dllexport)
+#ifndef KERNELAPI
+#define KERNELAPI __EXTERN
+#define KERNELABI __cdecl
 #endif
 
 /* LibOS export for userspace programs. However
