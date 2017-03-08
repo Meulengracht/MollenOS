@@ -58,7 +58,7 @@ typedef struct _MCoreScheduler {
 /* This initializes the scheduler for the
  * given cpu_id, the first call to this
  * will also initialize the scheduler enviornment */
-__EXTERN void SchedulerInit(Cpu_t Cpu);
+__EXTERN void SchedulerInit(UUId_t Cpu);
 
 /* This function arms a thread for scheduling
  * in most cases this is called with a prefilled
@@ -73,7 +73,7 @@ __EXTERN void SchedulerRemoveThread(MCoreThread_t *Thread);
 /* Schedule 
  * This should be called by the underlying archteicture code
  * to get the next thread that is to be run. */
-__EXTERN MCoreThread_t *SchedulerGetNextTask(Cpu_t Cpu, MCoreThread_t *Thread, int PreEmptive);
+__EXTERN MCoreThread_t *SchedulerGetNextTask(UUId_t Cpu, MCoreThread_t *Thread, int PreEmptive);
 
 /* This is used by timer code to reduce threads's timeout
  * if this function wasn't called then sleeping threads and 

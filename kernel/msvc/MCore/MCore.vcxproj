@@ -58,7 +58,6 @@
     <ClInclude Include="..\..\include\scheduler.h" />
     <ClInclude Include="..\..\include\semaphore.h" />
     <ClInclude Include="..\..\include\system\addresspace.h" />
-    <ClInclude Include="..\..\include\system\interrupt.h" />
     <ClInclude Include="..\..\include\system\iospace.h" />
     <ClInclude Include="..\..\include\system\thread.h" />
     <ClInclude Include="..\..\include\system\utils.h" />

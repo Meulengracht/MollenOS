@@ -85,7 +85,7 @@ typedef struct _MCoreThread {
 	UUId_t						 Id;
 	UUId_t						 ParentId;
 	UUId_t						 AshId;
-	Cpu_t						 CpuId;
+	UUId_t						 CpuId;
 	
 	MCorePipe_t					*Pipe;
 	AddressSpace_t				*AddressSpace;
@@ -111,7 +111,7 @@ typedef struct _MCoreThread {
  * and initializes the current 'context' as the
  * idle-thread, first time it's called it also
  * does initialization of threading system */
-__EXTERN void ThreadingInitialize(Cpu_t Cpu);
+__EXTERN void ThreadingInitialize(UUId_t Cpu);
 
 /* Create a new thread with the given name,
  * entry point, arguments and flags, if name 
@@ -152,7 +152,7 @@ __EXTERN int ThreadingIsEnabled(void);
 
 /* ThreadingIsCurrentTaskIdle
  * Is the given cpu running it's idle task? */
-__EXTERN int ThreadingIsCurrentTaskIdle(Cpu_t Cpu);
+__EXTERN int ThreadingIsCurrentTaskIdle(UUId_t Cpu);
 
 /* ThreadingGetCurrentMode
  * Returns the current run-mode for the current
@@ -162,7 +162,7 @@ __EXTERN Flags_t ThreadingGetCurrentMode(void);
 /* ThreadingGetCurrentThread
  * Retrieves the current thread on the given cpu
  * if there is any issues it returns NULL */
-__EXTERN MCoreThread_t *ThreadingGetCurrentThread(Cpu_t Cpu);
+__EXTERN MCoreThread_t *ThreadingGetCurrentThread(UUId_t Cpu);
 
 /* ThreadingGetCurrentThreadId
  * Retrives the current thread id on the current cpu
@@ -177,7 +177,7 @@ __EXTERN MCoreThread_t *ThreadingGetThread(UUId_t ThreadId);
 /* ThreadingWakeCpu
  * Wake's the target cpu from an idle thread
  * by sending it an yield IPI */
-__EXTERN void ThreadingWakeCpu(Cpu_t Cpu);
+__EXTERN void ThreadingWakeCpu(UUId_t Cpu);
 
 /* ThreadingReapZombies
  * Garbage-Collector function, it reaps and
@@ -188,7 +188,7 @@ __EXTERN void ThreadingReapZombies(void);
  * This is the thread-switch function and must be 
  * be called from the below architecture to get the
  * next thread to run */
-__EXTERN MCoreThread_t *ThreadingSwitch(Cpu_t Cpu, 
+__EXTERN MCoreThread_t *ThreadingSwitch(UUId_t Cpu, 
 	MCoreThread_t *Current, int PreEmptive);
 
 /* ThreadingDebugPrint

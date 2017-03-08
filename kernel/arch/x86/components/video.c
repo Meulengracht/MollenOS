@@ -1,47 +1,65 @@
 /* MollenOS
-*
-* Copyright 2011 - 2014, Philip Meulengracht
-*
-* This program is free software : you can redistribute it and / or modify
-* it under the terms of the GNU General Public License as published by
-* the Free Software Foundation ? , either version 3 of the License, or
-* (at your option) any later version.
-*
-* This program is distributed in the hope that it will be useful,
-* but WITHOUT ANY WARRANTY; without even the implied warranty of
-* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.See the
-* GNU General Public License for more details.
-*
-* You should have received a copy of the GNU General Public License
-* along with this program.If not, see <http://www.gnu.org/licenses/>.
-*
-*
-* MollenOS x86-32 Boot-Video Component
-*/
+ *
+ * Copyright 2011 - 2017, Philip Meulengracht
+ *
+ * This program is free software : you can redistribute it and / or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation ? , either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.If not, see <http://www.gnu.org/licenses/>.
+ *
+ *
+ * MollenOS x86-32 Boot-Video Component
+ */
 
-/* Includes */
-#include <MollenOS.h>
-#include <DeviceManager.h>
-#include <Devices/Video.h>
-#include "../Arch.h"
-#include <Video.h>
-#include <Multiboot.h>
-#include <string.h>
-#include <stddef.h>
+/* Includes 
+ * - System */
+#include <system/video.h>
 
-/* Globals */
-MCoreDevice_t GlbBootVideoDevice = { 0 };
-MCoreVideoDevice_t GlbBootVideo = { 0 };
-const char *GlbBootDriverName = "VESA Video Device";
+PACKED_TYPESTRUCT(VideoDevice, {
+	/* Type */
+	MCoreVideoType_t Type;
+	VideoDescriptor_t Info;
 
-/* Externs (Import from MCore) */
-extern const uint8_t MCoreFontBitmaps[];
-extern const uint32_t MCoreFontNumChars;
-extern const uint32_t MCoreFontHeight;
-extern const uint32_t MCoreFontWidth;
+	/* Cursor Position */
+	uint32_t CursorX;
+	uint32_t CursorY;
+
+	/* Cursor Limits */
+	uint32_t CursorStartX;
+	uint32_t CursorStartY;
+	uint32_t CursorLimitX;
+	uint32_t CursorLimitY;
+
+	/* Colors */
+	uint32_t FgColor;
+	uint32_t BgColor;
+
+	/* Spinlock */
+	Spinlock_t Lock;
+});
+
+/* Globals 
+ * We need to keep track of boot-video in this system */
+static VideoDevice_t __GlbVideoDevice;
+
+/* Externs
+ * We want to import the standard font from
+ * MCore system */
+__EXTERN const uint8_t MCoreFontBitmaps[];
+__EXTERN const uint32_t MCoreFontNumChars;
+__EXTERN const uint32_t MCoreFontHeight;
+__EXTERN const uint32_t MCoreFontWidth;
 
 #ifdef UNICODE
-extern const uint16_t MCoreFontIndex[];
+__EXTERN const uint16_t MCoreFontIndex[];
 #endif
 
 /* Draw Pixel */
@@ -280,7 +298,6 @@ int _VideoPutCharText(void *VideoData, int Character)
 void VideoInit(void *BootInfo)
 {
 	/* Cast */
-	MCoreVideoDevice_t *vDevice = &GlbBootVideo;
 	Multiboot_t *mboot = (Multiboot_t*)BootInfo;
 
 	/* Do we have VESA or is this text mode? */
@@ -391,16 +408,4 @@ void VideoInit(void *BootInfo)
 
 		} break;
 	}
-
-	/* Setup structure */
-	GlbBootVideoDevice.Type = DeviceVideo;
-	GlbBootVideoDevice.BusDevice = NULL;
-	GlbBootVideoDevice.Data = vDevice;
-	GlbBootVideoDevice.Driver.Name = (char*)GlbBootDriverName;
-	GlbBootVideoDevice.Driver.Version = 1;
-	GlbBootVideoDevice.Driver.Status = DriverActive;
-	GlbBootVideoDevice.Driver.Data = NULL;
-
-	/* Register boot video */
-	DmRegisterBootVideo(&GlbBootVideoDevice);
 }

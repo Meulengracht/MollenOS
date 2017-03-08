@@ -213,7 +213,7 @@ void ExceptionEntry(Context_t *regs)
 	MCoreThread_t *cThread;
 	x86Thread_t *cThreadx86;
 	int IssueFixed = 0;
-	Cpu_t Cpu;
+	UUId_t Cpu;
 	//char *instructions = NULL;
 
 	/* Determine Irq */
@@ -495,7 +495,7 @@ void ExceptionEntry(Context_t *regs)
 void kernel_panic(const char *Message)
 {
 	/* Get Cpu */
-	Cpu_t CurrCpu = ApicGetCpu();
+	UUId_t CurrCpu = ApicGetCpu();
 
 	/* Enable log */
 	LogRedirect(LogConsole);

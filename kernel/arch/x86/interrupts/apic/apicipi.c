@@ -132,7 +132,7 @@ void ApicSendIpiLoop(void *ApicInfo, int n, void *IrqVector)
  * cpu, or on all cpu cores if a broadcast
  * has been requested. The supplied vector will
  * be the invoked interrupt */
-void ApicSendIpi(Cpu_t CpuTarget, uint32_t Vector)
+void ApicSendIpi(UUId_t CpuTarget, uint32_t Vector)
 {
 	/* Broadcast or single request? */
 	if (CpuTarget == 0xFF) {

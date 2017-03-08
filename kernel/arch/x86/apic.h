@@ -167,7 +167,7 @@ __EXTERN void ApicMaskGsi(int Gsi);
  * cpu, or on all cpu cores if a broadcast
  * has been requested. The supplied vector will
  * be the invoked interrupt */
-__EXTERN void ApicSendIpi(Cpu_t CpuTarget, uint32_t Vector);
+__EXTERN void ApicSendIpi(UUId_t CpuTarget, uint32_t Vector);
 
 /* This function derives an io-apic from
  * the given gsi index, by locating which
@@ -194,12 +194,12 @@ __EXTERN int ApicGetMaxLvt(void);
 /* Retrieve the cpu id for the current cpu
  * can be used as an identifier when running
  * multicore */
-__EXTERN Cpu_t ApicGetCpu(void);
+__EXTERN UUId_t ApicGetCpu(void);
 
 /* Creates the correct bit index for
  * the given cpu id, and converts the type
  * to uint, since thats what the apic needs */
-__EXTERN uint32_t ApicGetCpuMask(Cpu_t Cpu);
+__EXTERN uint32_t ApicGetCpuMask(UUId_t Cpu);
 
 /* Helper for updating the task priority register
  * this register helps us using Lowest-Priority

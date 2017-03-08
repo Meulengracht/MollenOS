@@ -44,7 +44,6 @@ typedef unsigned int		PhysAddr_t;
 typedef unsigned int		VirtAddr_t;
 typedef unsigned int		Addr_t;
 typedef int					SAddr_t;
-typedef unsigned int		Cpu_t;
 typedef reg32_t				reg_t;
 #elif defined(_X86_64)
 #define	__BITS				64
@@ -53,7 +52,6 @@ typedef unsigned long long	PhysAddr_t;
 typedef unsigned long long	VirtAddr_t;
 typedef unsigned long long	Addr_t;
 typedef long long			SAddr_t;
-typedef unsigned long long	Cpu_t;
 typedef reg64_t				reg_t;
 #endif
 
@@ -89,13 +87,10 @@ typedef enum {
 /* Define the standard os
  * rectangle used for ui
  * operations */
-#ifndef MRECTANGLE_DEFINED
-#define MRECTANGLE_DEFINED
 typedef struct _mRectangle {
 	int x, y;
 	int w, h;
 } Rect_t;
-#endif
 
 /* Helper function, retrieves the first 
  * set bit in a set of bits */

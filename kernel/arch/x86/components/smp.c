@@ -39,7 +39,7 @@
 
 /* Externs */
 extern List_t *GlbAcpiNodes;
-extern Cpu_t GlbBootstrapCpuId;
+extern UUId_t GlbBootstrapCpuId;
 extern x86CpuObject_t GlbBootCpuInfo;
 
 /* These two are located in boot.asm */
@@ -85,7 +85,7 @@ unsigned char TrampolineCode[] = {
 /* Entry for AP Cores */
 void SmpApEntry(void)
 {
-	Cpu_t Cpu;
+	UUId_t Cpu;
 
 	/* Disable interrupts */
 	InterruptDisable();

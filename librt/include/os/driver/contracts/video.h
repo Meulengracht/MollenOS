@@ -16,42 +16,40 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS Utility Interface
- * - Contains the shared kernel utility interface
- *   that all sub-layers / architectures must conform to
+ * MollenOS MCore - Contract Definitions & Structures (Timer Contract)
+ * - This header describes the base contract-structure, prototypes
+ *   and functionality, refer to the individual things for descriptions
  */
 
-#ifndef _MCORE_UTILS_H_
-#define _MCORE_UTILS_H_
+#ifndef _CONTRACT_VIDEO_INTERFACE_H_
+#define _CONTRACT_VIDEO_INTERFACE_H_
 
 /* Includes 
- * - Library */
-#include <os/osdefs.h>
-#include <os/spinlock.h>
-
-/* Includes
  * - System */
-#include <arch.h>
+#include <os/driver/contracts/base.h>
+#include <os/osdefs.h>
 
-/* CpuGetCurrentId 
- * Retrieves the current cpu id for caller */
-KERNELAPI
-UUId_t
-KERNELABI
-CpuGetCurrentId(void);
+PACKED_TYPESTRUCT(VideoDescriptor, {
+	/* Framebuffer */
+	Addr_t FrameBufferAddress;
+	
+	/* Mode Information */
+	size_t BytesPerScanline;
+	size_t Height;
+	size_t Width;
+	int Depth;
 
-/* CpuIdle
- * Enters idle mode for the current cpu */
-KERNELAPI
-void
-KERNELABI
-CpuIdle(void);
+	/* Pixel Information */
+	int RedPosition;
+	int BluePosition;
+	int GreenPosition;
+	int ReservedPosition;
 
-/* CpuHalt
- * Halts the current cpu - rendering system useless */
-KERNELAPI
-void
-KERNELABI
-CpuHalt(void);
+	int RedMask;
+	int BlueMask;
+	int GreenMask;
+	int ReservedMask;
 
-#endif //!_MCORE_UTILS_H_
+});
+
+#endif //!_CONTRACT_VIDEO_INTERFACE_H_

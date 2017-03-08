@@ -46,7 +46,7 @@ __EXTERN List_t *GlbAshes;
 void PhoenixFinishAsh(MCoreAsh_t *Ash)
 {
 	/* Cast */
-	Cpu_t CurrentCpu = ApicGetCpu();
+	UUId_t CurrentCpu = ApicGetCpu();
 	MCoreThread_t *Thread = ThreadingGetCurrentThread(CurrentCpu);
 	Addr_t BaseAddress = 0;
 	int LoadedFromInitRD = 0;
@@ -479,7 +479,7 @@ MCoreAsh_t *PhoenixGetAsh(UUId_t AshId)
 {
 	/* Variables */
 	ListNode_t *pNode = NULL;
-	Cpu_t CurrentCpu = 0;
+	UUId_t CurrentCpu = 0;
 
 	/* Sanity the list, no need to check in
 	 * this case */

@@ -61,9 +61,6 @@ __EXTERN void __CRTDECL outb(uint16_t port, uint8_t data);
 __EXTERN void __CRTDECL outw(uint16_t port, uint16_t data);
 __EXTERN void __CRTDECL outl(uint16_t port, uint32_t data);
 
-/* Initialises all available timers in system */
-__EXTERN void DevicesInitTimers(void);
-
 /* Memory */
 #ifndef PAGE_SIZE
 #define PAGE_SIZE 0x1000
@@ -77,10 +74,7 @@ __EXTERN void DevicesInitTimers(void);
 #define ATTRIBUTE_MASK 0x00000FFF
 #endif
 
-/* Utils */
-__EXTERN Cpu_t ApicGetCpu(void);
-__EXTERN void ApicSendIpi(Cpu_t CpuTarget, uint32_t Vector);
-__EXTERN void Idle(void);
+__EXTERN void ApicSendIpi(UUId_t CpuTarget, uint32_t Vector);
 __EXTERN void kernel_panic(const char *str);
 
 /* Architecture Memory Layout, this

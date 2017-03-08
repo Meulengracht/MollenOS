@@ -73,7 +73,7 @@ AddressSpaceCreate(
 {
 	// Variables
 	AddressSpace_t *AddressSpace = NULL;
-	Cpu_t CurrentCpu = ApicGetCpu();
+	UUId_t CurrentCpu = ApicGetCpu();
 	int Itr = 0;
 
 	// If we want to create a new kernel address

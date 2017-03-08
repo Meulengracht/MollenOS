@@ -192,9 +192,6 @@
     <ClInclude Include="..\..\include\system\addresspace.h">
       <Filter>include\system</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\include\system\interrupt.h">
-      <Filter>include\system</Filter>
-    </ClInclude>
     <ClInclude Include="..\..\include\system\iospace.h">
       <Filter>include\system</Filter>
     </ClInclude>

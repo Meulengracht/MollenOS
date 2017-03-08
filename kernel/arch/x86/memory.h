@@ -206,7 +206,7 @@ KERNELAPI
 PageDirectory_t*
 KERNELABI
 MmVirtualGetCurrentDirectory(
-	_In_ Cpu_t Cpu);
+	_In_ UUId_t Cpu);
 
 /* MmVirtualSwitchPageDirectory
  * Switches page-directory for the current cpu
@@ -216,7 +216,7 @@ KERNELAPI
 OsStatus_t
 KERNELABI
 MmVirtualSwitchPageDirectory(
-	_In_ Cpu_t Cpu, 
+	_In_ UUId_t Cpu, 
 	_In_ PageDirectory_t* PageDirectory, 
 	_In_ PhysAddr_t Pdb);
 
@@ -226,6 +226,6 @@ KERNELAPI
 OsStatus_t
 KERNELABI
 MmVirtualInstallPaging(
-	_In_ Cpu_t Cpu);
+	_In_ UUId_t Cpu);
 
 #endif // !_X86_MEMORY_H_

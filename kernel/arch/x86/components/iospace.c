@@ -34,6 +34,18 @@
 #include <stddef.h>
 #include <ds/list.h>
 
+/* Represents an io-space in MollenOS, they represent
+ * some kind of communication between hardware and software
+ * by either port or mmio */
+PACKED_TYPESTRUCT(MCoreIoSpace, {
+	UUId_t				Id;
+	UUId_t				Owner;
+	int					Type;
+	Addr_t				PhysicalBase;
+	Addr_t				VirtualBase;
+	size_t				Size;
+});
+
 /* Globals 
  * We need to keep track of a few things
  * and keep a list of io-spaces in the system */
@@ -63,22 +75,22 @@ OsStatus_t
 IoSpaceRegister(
 	_In_ DeviceIoSpace_t *IoSpace)
 {
-	/* Variables */
+	// Variables
 	MCoreIoSpace_t *SysCopy = NULL;
 	DataKey_t Key;
 
-	/* Before doing anything, we should do a over-lap
-	 * check before trying to register this */
+	// Before doing anything, we should do a over-lap
+	// check before trying to register this 
 
-	/* Allocate a new system only copy of the io-space
-	 * as we don't want anyone to edit our copy */
+	// Allocate a new system only copy of the io-space
+	// as we don't want anyone to edit our copy
 	SysCopy = (MCoreIoSpace_t*)kmalloc(sizeof(MCoreIoSpace_t));
 
-	/* Acquire a lock on this as 
-	 * we assign it an id */
+	// Acquire a lock on this as 
+	// we assign it an id
 	SpinlockAcquire(&__GlbIoSpaceLock);
 
-	/* Initialize the system copy */
+	// Initialize the system copy
 	IoSpace->Id = SysCopy->Id = __GlbIoSpaceId++;
 	SysCopy->Owner = PHOENIX_NO_ASH;
 	SysCopy->Type = IoSpace->Type;
@@ -86,37 +98,40 @@ IoSpaceRegister(
 	SysCopy->VirtualBase = 0;
 	SysCopy->Size = IoSpace->Size;
 
-	/* Release the lock again, its ok from here
-	 * to allow other code to run */
+	// Release the lock again, its ok from here
+	// to allow other code to run 
 	SpinlockRelease(&__GlbIoSpaceLock);
 
-	/* Add to list */
+	// Add to list
 	Key.Value = (int)SysCopy->Id;
 	ListAppend(__GlbIoSpaces, ListCreateNode(Key, Key, (void*)SysCopy));
 
-	/* Done! */
+	// Done!
 	return OsNoError;
 }
 
-/* Acquires the given memory space by mapping it in
+/* IoSpaceAcquire
+ * Acquires the given memory space by mapping it in
  * the current drivers memory space if needed, and sets
  * a lock on the io-space */
-OsStatus_t IoSpaceAcquire(DeviceIoSpace_t *IoSpace)
+OsStatus_t
+IoSpaceAcquire(
+	_In_ DeviceIoSpace_t *IoSpace)
 {
-	/* Variables we need for this 
-	 * operation */
-	MCoreServer_t *Server = PhoenixGetServer(SERVER_CURRENT);
+	// Variables
 	MCoreIoSpace_t *SysCopy = NULL;
+	MCoreServer_t *Server = NULL;
 	DataKey_t Key;
-	Cpu_t Cpu;
+	UUId_t Cpu;
 
-	/* Lookup the system copy to validate this
-	 * requested operation */
+	// Lookup the system copy to validate this
+	// requested operation
+	Server = PhoenixGetServer(SERVER_CURRENT);
 	Cpu = ApicGetCpu();
 	Key.Value = (int)IoSpace->Id;
 	SysCopy = (MCoreIoSpace_t*)ListGetDataByKey(__GlbIoSpaces, Key, 0);
 
-	/* Sanitize the system copy */
+	// Sanitize the system copy
 	if (Server == NULL || SysCopy == NULL
 		|| SysCopy->Owner != PHOENIX_NO_ASH) {
 		if (Server == NULL) {
@@ -126,21 +141,21 @@ OsStatus_t IoSpaceAcquire(DeviceIoSpace_t *IoSpace)
 		return OsError;
 	}
 
-	/* Set owner! */
+	// Set owner
 	SysCopy->Owner = ThreadingGetCurrentThread(Cpu)->AshId;
 
-	/* Map it in (if the type equals mmio) */
+	// Map it in (if the type equals mmio)
 	if (SysCopy->Type == IO_SPACE_MMIO) {
 		int PageCount = DIVUP(SysCopy->Size, PAGE_SIZE);
 
-		/* Do we cross a page boundary? */
+		// Do we cross a page boundary?
 		if (((SysCopy->PhysicalBase + SysCopy->Size) / PAGE_SIZE)
 			!= (SysCopy->PhysicalBase / PAGE_SIZE)) {
 			PageCount++;
 		}
 
-		/* Ok, so when we map it in and reserver space
-		* for it, its important we set it with its offset */
+		// Ok, so when we map it in and reserver space
+		// for it, its important we set it with its offset
 		SysCopy->VirtualBase = IoSpace->VirtualBase = 
 			BitmapAllocateAddress(Server->DriverMemory, PageCount * PAGE_SIZE)
 				+ (SysCopy->PhysicalBase & ATTRIBUTE_MASK);
@@ -153,46 +168,49 @@ OsStatus_t IoSpaceAcquire(DeviceIoSpace_t *IoSpace)
 		}
 	}
 
-	/* Congrats, we did it! */
+	// Done - no errors
 	return OsNoError;
 }
 
-/* Releases the given memory space by unmapping it from
+/* IoSpaceRelease
+ * Releases the given memory space by unmapping it from
  * the current drivers memory space if needed, and releases
  * the lock on the io-space */
-OsStatus_t IoSpaceRelease(DeviceIoSpace_t *IoSpace)
+OsStatus_t
+IoSpaceRelease(
+	_In_ DeviceIoSpace_t *IoSpace)
 {
-	/* Variables we need for this 
-	 * operation */
-	MCoreServer_t *Server = PhoenixGetServer(SERVER_CURRENT);
+	// Variables
 	MCoreIoSpace_t *SysCopy = NULL;
+	MCoreServer_t *Server = NULL;
 	DataKey_t Key;
-	Cpu_t Cpu;
+	UUId_t Cpu;
 
-	/* Lookup the system copy to validate this
-	 * requested operation */
+	// Lookup the system copy to validate this
+	// requested operation 
+	Server = PhoenixGetServer(SERVER_CURRENT);
 	Cpu = ApicGetCpu();
 	Key.Value = (int)IoSpace->Id;
 	SysCopy = (MCoreIoSpace_t*)ListGetDataByKey(__GlbIoSpaces, Key, 0);
 
-	/* Sanitize the system copy and do
-	 * some security checks */
+	// Sanitize the system copy and do
+	// some security checks
 	if (Server == NULL || SysCopy == NULL
 		|| SysCopy->Owner != Server->Base.Id) {
 		return OsError;
 	}
 
-	/* Make sure we unmap all resources */
+	// Make sure we unmap all resources
 	if (SysCopy->Type == IO_SPACE_MMIO) {
 		int PageCount = DIVUP(SysCopy->Size, PAGE_SIZE);
 
-		/* Do we cross a page boundary? */
+		// Do we cross a page boundary?
 		if (((SysCopy->PhysicalBase + SysCopy->Size) / PAGE_SIZE)
 			!= (SysCopy->PhysicalBase / PAGE_SIZE)) {
 			PageCount++;
 		}
 
-		/* Unmap them */
+		// Unmap them
 		BitmapFreeAddress(Server->DriverMemory, SysCopy->VirtualBase,
 			PageCount * PAGE_SIZE);
 	}
@@ -204,67 +222,72 @@ OsStatus_t IoSpaceRelease(DeviceIoSpace_t *IoSpace)
 		}
 	}
 
-	/* Clear out some stuff */
+	// Clear out some stuff
 	SysCopy->VirtualBase = IoSpace->VirtualBase = 0;
 	SysCopy->Owner = PHOENIX_NO_ASH;
 
-	/* Done! */
+	// Done - no errors
 	return OsNoError;
 }
 
-/* Destroys the given io-space by its id, the id
+/* IoSpaceDestroy
+ * Destroys the given io-space by its id, the id
  * has the be valid, and the target io-space HAS to 
  * un-acquired by any process, otherwise its not possible */
-OsStatus_t IoSpaceDestroy(UUId_t IoSpace)
+OsStatus_t
+IoSpaceDestroy(
+	_In_ UUId_t IoSpace)
 {
-	/* Variables we need for this
-	 * operation */
-	MCoreIoSpace_t *SysCopy = NULL;
+	// Variables
+ 	MCoreIoSpace_t *SysCopy = NULL;
 	DataKey_t Key;
 
-	/* Lookup the system copy to validate this
-	 * requested operation */
+	// Lookup the system copy to validate this
+	// requested operation
 	Key.Value = (int)IoSpace;
 	SysCopy = (MCoreIoSpace_t*)ListGetDataByKey(__GlbIoSpaces, Key, 0);
 
-	/* Sanitize the system copy */
+	// Sanitize the system copy
 	if (SysCopy == NULL
 		|| SysCopy->Owner != PHOENIX_NO_ASH) {
 		return OsError;
 	}
 
-	/* Remove from list and cleanup 
-	 * the allocated resources */
+	// Remove from list and cleanup 
+	// the allocated resources
 	ListRemoveByKey(__GlbIoSpaces, Key);
 	kfree(SysCopy);
 
-	/* Done! */
+	// Done - no errors
 	return OsNoError;
 }
 
-/* Tries to validate the given virtual address by 
+/* IoSpaceValidate
+ * Tries to validate the given virtual address by 
  * checking if any process has an active io-space
  * that involves that virtual address */
-Addr_t IoSpaceValidate(Addr_t Address)
+Addr_t
+IoSpaceValidate(
+	_In_ Addr_t Address)
 {
-	/* Ok, first of all, we need to validate that
-	 * it's actually a process trying to do this */
+	// Ok, first of all, we need to validate that
+	// it's actually a process trying to do this
 	UUId_t ProcessId = ThreadingGetCurrentThread(ApicGetCpu())->AshId;
 
-	/* Sanitize the id */
+	// Sanitize the id
 	if (ProcessId == PHOENIX_NO_ASH) {
 		return 0;
 	}
 
-	/* Iterate and check each io-space
-	 * if anyone has this mapped in */
+	// Iterate and check each io-space
+	// if anyone has this mapped in
 	foreach(ioNode, __GlbIoSpaces) {
 		MCoreIoSpace_t *IoSpace =
 			(MCoreIoSpace_t*)ioNode->Data;
 
-		/* Two things has to be true before the io-space
-		 * is valid, it has to belong to the right process
-		 * and be in range */
+		// Two things has to be true before the io-space
+		// is valid, it has to belong to the right process
+		// and be in range 
 		if (IoSpace->Owner == ProcessId
 			&& (Address >= IoSpace->VirtualBase
 				&& Address < (IoSpace->VirtualBase + IoSpace->Size))) {
@@ -272,6 +295,6 @@ Addr_t IoSpaceValidate(Addr_t Address)
 		}
 	}
 
-	/* Damn */
+	// Nothing found - invalid
 	return 0;
 }

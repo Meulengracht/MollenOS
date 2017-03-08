@@ -162,21 +162,21 @@ __EXTERN void GdtInstall(void);
 /* Helper for setting up a new task state segment for
  * the given cpu core, this should be done once per
  * core, and it will set default params for the TSS */
-__EXTERN void GdtInstallTss(Cpu_t Cpu, int Static);
+__EXTERN void GdtInstallTss(UUId_t Cpu, int Static);
 
 /* Updates the kernel/interrupt stack for the current
  * cpu tss entry, this should be updated at each task-switch */
-__EXTERN void TssUpdateStack(Cpu_t Cpu, Addr_t Stack);
+__EXTERN void TssUpdateStack(UUId_t Cpu, Addr_t Stack);
 
 /* Updates the io-map for the current runinng task, should
  * be updated each time there is a task-switch to reflect
  * io-privs. Iomap given must be length GDT_IOMAP_SIZE */
-__EXTERN void TssUpdateIo(Cpu_t Cpu, uint8_t *IoMap);
+__EXTERN void TssUpdateIo(UUId_t Cpu, uint8_t *IoMap);
 
 /* Enables/Disables the given port in the given io-map, also updates
  * the change into the current tss for the given cpu to 
  * reflect the port-ownership instantly */
-__EXTERN void TssEnableIo(Cpu_t Cpu, uint8_t *IoMap, uint16_t Port);
-__EXTERN void TssDisableIo(Cpu_t Cpu, uint8_t *IoMap, uint16_t Port);
+__EXTERN void TssEnableIo(UUId_t Cpu, uint8_t *IoMap, uint16_t Port);
+__EXTERN void TssDisableIo(UUId_t Cpu, uint8_t *IoMap, uint16_t Port);
 
 #endif //!_GDT_H_

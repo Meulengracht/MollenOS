@@ -42,7 +42,7 @@ size_t GlbTimerQuantum = APIC_DEFAULT_QUANTUM;
 volatile size_t GlbTimerTicks[64];
 List_t *GlbIoApics = NULL;
 Addr_t GlbLocalApicBase = 0;
-Cpu_t GlbBootstrapCpuId = 0;
+UUId_t GlbBootstrapCpuId = 0;
 int GlbIoApicI8259Pin = 0;
 int GlbIoApicI8259Apic = 0;
 
@@ -61,7 +61,7 @@ __EXTERN InterruptStatus_t ApicTimerHandler(void *Args);
  * to locate LVT information in the ACPI tables
  * and if not it defaults to sane values defined in
  * the APIC spec */
-void ApicSetupLvt(Cpu_t Cpu, int Lvt)
+void ApicSetupLvt(UUId_t Cpu, int Lvt)
 {
 	/* Variables for iteration */
 	ListNode_t *Node;
@@ -305,7 +305,7 @@ void ApicClear(void)
 /* Basic initializationo of the local apic
  * chip, it resets the apic to a known default state
  * before we try and initialize */
-void ApicInitialSetup(Cpu_t Cpu)
+void ApicInitialSetup(UUId_t Cpu)
 {
 	/* Variables for init */
 	uint32_t Temp = 0;
@@ -433,7 +433,7 @@ void ApicInitBoot(void)
 	/* Variables */
 	ACPI_TABLE_HEADER *Header = NULL;
 	MCoreInterrupt_t IrqInformation;
-	Cpu_t BspApicId = 0;
+	UUId_t BspApicId = 0;
 	uint32_t Temp = 0;
 	DataKey_t Key;
 
@@ -542,7 +542,7 @@ void ApicInitBoot(void)
 void ApicInitAp(void)
 {
 	/* Variables for AP setup */
-	Cpu_t ApicApId = 0;
+	UUId_t ApicApId = 0;
 	ApicApId = (ApicReadLocal(APIC_PROCESSOR_ID) >> 24) & 0xFF;
 
 	/* Do some initial shared Apic setup

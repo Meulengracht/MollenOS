@@ -130,7 +130,7 @@ void GdtInitialize(void)
 /* Helper for setting up a new task state segment for
  * the given cpu core, this should be done once per
  * core, and it will set default params for the TSS */
-void GdtInstallTss(Cpu_t Cpu, int Static)
+void GdtInstallTss(UUId_t Cpu, int Static)
 {
 	/* Variables */
 	uint32_t tBase = 0;
@@ -175,7 +175,7 @@ void GdtInstallTss(Cpu_t Cpu, int Static)
 
 /* Updates the kernel/interrupt stack for the current
  * cpu tss entry, this should be updated at each task-switch */
-void TssUpdateStack(Cpu_t Cpu, Addr_t Stack)
+void TssUpdateStack(UUId_t Cpu, Addr_t Stack)
 {
 	TssDescriptors[Cpu]->Esp0 = Stack;
 }
@@ -183,7 +183,7 @@ void TssUpdateStack(Cpu_t Cpu, Addr_t Stack)
 /* Updates the io-map for the current runinng task, should
  * be updated each time there is a task-switch to reflect
  * io-privs. Iomap given must be length GDT_IOMAP_SIZE */
-void TssUpdateIo(Cpu_t Cpu, uint8_t *IoMap)
+void TssUpdateIo(UUId_t Cpu, uint8_t *IoMap)
 {
 	memcpy(&TssDescriptors[Cpu]->IoMap[0], IoMap, GDT_IOMAP_SIZE);
 }
@@ -191,7 +191,7 @@ void TssUpdateIo(Cpu_t Cpu, uint8_t *IoMap)
 /* Enables the given port in the given io-map, also updates
  * the change into the current tss for the given cpu to 
  * reflect the port-ownership instantly */
-void TssEnableIo(Cpu_t Cpu, uint8_t *IoMap, uint16_t Port)
+void TssEnableIo(UUId_t Cpu, uint8_t *IoMap, uint16_t Port)
 {
 	TssDescriptors[Cpu]->IoMap[Port / 8] &= ~(1 << (Port % 8));
 	IoMap[Port / 8] &= ~(1 << (Port % 8));
@@ -200,7 +200,7 @@ void TssEnableIo(Cpu_t Cpu, uint8_t *IoMap, uint16_t Port)
 /* Disables the given port in the given io-map, also updates
  * the change into the current tss for the given cpu to 
  * reflect the port-ownership instantly */
-void TssDisableIo(Cpu_t Cpu, uint8_t *IoMap, uint16_t Port)
+void TssDisableIo(UUId_t Cpu, uint8_t *IoMap, uint16_t Port)
 {    
 	TssDescriptors[Cpu]->IoMap[Port / 8] |= (1 << (Port % 8));
 	IoMap[Port / 8] |= (1 << (Port % 8));

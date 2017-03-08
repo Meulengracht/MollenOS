@@ -50,7 +50,7 @@ int GlbSchedulerEnabled = 0;
 /* This initializes the scheduler for the
  * given cpu_id, the first call to this
  * will also initialize the scheduler enviornment */
-void SchedulerInit(Cpu_t Cpu)
+void SchedulerInit(UUId_t Cpu)
 {
 	/* Variables needed */
 	Scheduler_t *Scheduler;
@@ -152,7 +152,7 @@ void SchedulerReadyThread(MCoreThread_t *Thread)
 {
 	/* Add task to a queue based on its priority */
 	ListNode_t *ThreadNode;
-	Cpu_t CpuIndex = 0;
+	UUId_t CpuIndex = 0;
 	DataKey_t iKey;
 	DataKey_t sKey;
 	int i = 0;
@@ -357,7 +357,7 @@ void SchedulerSleepThread(Addr_t *Resource, size_t Timeout)
 	 * This is a fragile operation */
 	MCoreThread_t *CurrentThread = NULL;
 	IntStatus_t IntrState = InterruptDisable();
-	Cpu_t Cpu = ApicGetCpu();
+	UUId_t Cpu = ApicGetCpu();
 	DataKey_t iKey;
 	DataKey_t sKey;
 
@@ -449,7 +449,7 @@ void SchedulerWakeupAllThreads(Addr_t *Resource)
 /* Schedule 
  * This should be called by the underlying archteicture code
  * to get the next thread that is to be run. */
-MCoreThread_t *SchedulerGetNextTask(Cpu_t Cpu, MCoreThread_t *Thread, int PreEmptive)
+MCoreThread_t *SchedulerGetNextTask(UUId_t Cpu, MCoreThread_t *Thread, int PreEmptive)
 {
 	/* Variables */
 	ListNode_t *NextThreadNode = NULL;

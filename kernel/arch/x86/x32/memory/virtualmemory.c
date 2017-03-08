@@ -144,7 +144,7 @@ MmVirtualIdentityMapMemoryRange(
  * as well */
 OsStatus_t
 MmVirtualSwitchPageDirectory(
-	_In_ Cpu_t Cpu, 
+	_In_ UUId_t Cpu, 
 	_In_ PageDirectory_t* PageDirectory, 
 	_In_ PhysAddr_t Pdb)
 {
@@ -163,7 +163,7 @@ MmVirtualSwitchPageDirectory(
  * Retrieves the current page-directory for the given cpu */
 PageDirectory_t*
 MmVirtualGetCurrentDirectory(
-	_In_ Cpu_t Cpu)
+	_In_ UUId_t Cpu)
 {
 	// Sanitize
 	assert(Cpu < MAX_SUPPORTED_CPUS);
@@ -176,7 +176,7 @@ MmVirtualGetCurrentDirectory(
  * Initializes paging for the given cpu id */
 OsStatus_t
 MmVirtualInstallPaging(
-	_In_ Cpu_t Cpu)
+	_In_ UUId_t Cpu)
 {
 	MmVirtualSwitchPageDirectory(Cpu, GlbKernelPageDirectory, 
 		(Addr_t)GlbKernelPageDirectory);

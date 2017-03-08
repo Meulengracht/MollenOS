@@ -63,7 +63,7 @@ InterruptStatus_t ThreadingYield(void *Args)
 	/* Variables we will need for loading
 	 * a new task */
 	Context_t *Regs = NULL;
-	Cpu_t CurrCpu = ApicGetCpu();
+	UUId_t CurrCpu = ApicGetCpu();
 
 	/* These will be assigned from the 
 	 * _switch function, but set them in
@@ -184,7 +184,7 @@ void IThreadDestroy(MCoreThread_t *Thread)
 /* IThreadWakeCpu
  * Wake's the target cpu from an idle thread
  * by sending it an yield IPI */
-void IThreadWakeCpu(Cpu_t Cpu)
+void IThreadWakeCpu(UUId_t Cpu)
 {
 	/* Send an IPI to the cpu */
 	ApicSendIpi(Cpu, INTERRUPT_YIELD);
@@ -229,7 +229,7 @@ void IThreadImpersonate(MCoreThread_t *Thread)
 	/* Variables we will need for the
 	* context switch */
 	x86Thread_t *Tx = NULL;
-	Cpu_t Cpu = 0;
+	UUId_t Cpu = 0;
 
 	/* Load cpu info */
 	Cpu = ApicGetCpu();
@@ -256,7 +256,7 @@ Context_t *_ThreadingSwitch(Context_t *Regs,
 	 * context switch */
 	MCoreThread_t *Thread = NULL;
 	x86Thread_t *Tx = NULL;
-	Cpu_t Cpu = 0;
+	UUId_t Cpu = 0;
 
 	/* Start out by sanitizing the state
 	 * of threading, don't schedule */

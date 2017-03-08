@@ -35,18 +35,6 @@
 #include <arch.h>
 #include <os/driver/io.h>
 
-/* Represents an io-space in MollenOS, they represent
- * some kind of communication between hardware and software
- * by either port or mmio */
-PACKED_TYPESTRUCT(MCoreIoSpace, {
-	UUId_t				Id;
-	UUId_t				Owner;
-	int					Type;
-	Addr_t				PhysicalBase;
-	Addr_t				VirtualBase;
-	size_t				Size;
-});
-
 /* IoSpaceInitialize
  * Initialize the Io Space manager so we 
  * can register io-spaces from drivers and the

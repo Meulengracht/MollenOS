@@ -21,55 +21,52 @@
 #ifndef _X86_VIDEO_
 #define _X86_VIDEO_
 
-
-/* Includes */
-#include <stdint.h>
+/* Includes 
+ * - Library */
+#include <os/osdefs.h>
 
 /* Definitions */
 #define STD_VIDEO_MEMORY		0xB8000
 
 /* This is the VBE Graphic Information
-* Descriptor which we have setup in
-* the bootloader */
-#pragma pack(push, 1)
-typedef struct _VbeMode
-{
-	uint16_t ModeInfo_ModeAttributes;
-	uint8_t ModeInfo_WinAAttributes;
-	uint8_t ModeInfo_WinBAttributes;
-	uint16_t ModeInfo_WinGranularity;
-	uint16_t ModeInfo_WinSize;
-	uint16_t ModeInfo_WinASegment;
-	uint16_t ModeInfo_WinBSegment;
-	uint32_t ModeInfo_WinFuncPtr;
-	uint16_t ModeInfo_BytesPerScanLine;
-	uint16_t ModeInfo_XResolution;
-	uint16_t ModeInfo_YResolution;
-	uint8_t ModeInfo_XCharSize;
-	uint8_t ModeInfo_YCharSize;
-	uint8_t ModeInfo_NumberOfPlanes;
-	uint8_t ModeInfo_BitsPerPixel;
-	uint8_t ModeInfo_NumberOfBanks;
-	uint8_t ModeInfo_MemoryModel;
-	uint8_t ModeInfo_BankSize;
-	uint8_t ModeInfo_NumberOfImagePages;
-	uint8_t ModeInfo_Reserved_page;
-	uint8_t ModeInfo_RedMaskSize;
-	uint8_t ModeInfo_RedMaskPos;
-	uint8_t ModeInfo_GreenMaskSize;
-	uint8_t ModeInfo_GreenMaskPos;
-	uint8_t ModeInfo_BlueMaskSize;
-	uint8_t ModeInfo_BlueMaskPos;
-	uint8_t ModeInfo_ReservedMaskSize;
-	uint8_t ModeInfo_ReservedMaskPos;
-	uint8_t ModeInfo_DirectColorModeInfo;
+ * Descriptor which we have setup in
+ * the bootloader */
+PACKED_TYPESTRUCT(VbeMode, {
+	uint16_t        ModeInfo_ModeAttributes;
+	uint8_t         ModeInfo_WinAAttributes;
+	uint8_t         ModeInfo_WinBAttributes;
+	uint16_t        ModeInfo_WinGranularity;
+	uint16_t        ModeInfo_WinSize;
+	uint16_t        ModeInfo_WinASegment;
+	uint16_t        ModeInfo_WinBSegment;
+	uint32_t        ModeInfo_WinFuncPtr;
+	uint16_t        ModeInfo_BytesPerScanLine;
+	uint16_t        ModeInfo_XResolution;
+	uint16_t        ModeInfo_YResolution;
+	uint8_t         ModeInfo_XCharSize;
+	uint8_t         ModeInfo_YCharSize;
+	uint8_t         ModeInfo_NumberOfPlanes;
+	uint8_t         ModeInfo_BitsPerPixel;
+	uint8_t         ModeInfo_NumberOfBanks;
+	uint8_t         ModeInfo_MemoryModel;
+	uint8_t         ModeInfo_BankSize;
+	uint8_t         ModeInfo_NumberOfImagePages;
+	uint8_t         ModeInfo_Reserved_page;
+	uint8_t         ModeInfo_RedMaskSize;
+	uint8_t         ModeInfo_RedMaskPos;
+	uint8_t         ModeInfo_GreenMaskSize;
+	uint8_t         ModeInfo_GreenMaskPos;
+	uint8_t         ModeInfo_BlueMaskSize;
+	uint8_t         ModeInfo_BlueMaskPos;
+	uint8_t         ModeInfo_ReservedMaskSize;
+	uint8_t         ModeInfo_ReservedMaskPos;
+	uint8_t         ModeInfo_DirectColorModeInfo;
 
 	/* VBE 2.0 Extensions */
-	uint32_t ModeInfo_PhysBasePtr;
-	uint32_t ModeInfo_OffScreenMemOffset;
-	uint16_t  ModeInfo_OffScreenMemSize;
-} VbeMode_t;
-#pragma pack(pop)
+	uint32_t        ModeInfo_PhysBasePtr;
+	uint32_t        ModeInfo_OffScreenMemOffset;
+	uint16_t        ModeInfo_OffScreenMemSize;
+});
 
 /* Video */
 __EXTERN void VideoInit(void *BootInfo);

@@ -16,13 +16,13 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS Utility Interface
- * - Contains the shared kernel utility interface
+ * MollenOS Video Interface (Boot)
+ * - Contains the shared kernel video interface
  *   that all sub-layers / architectures must conform to
  */
 
-#ifndef _MCORE_UTILS_H_
-#define _MCORE_UTILS_H_
+#ifndef _MCORE_VIDEO_H_
+#define _MCORE_VIDEO_H_
 
 /* Includes 
  * - Library */
@@ -31,27 +31,17 @@
 
 /* Includes
  * - System */
+#include <os/driver/contracts/video.h>
 #include <arch.h>
 
-/* CpuGetCurrentId 
- * Retrieves the current cpu id for caller */
-KERNELAPI
-UUId_t
-KERNELABI
-CpuGetCurrentId(void);
 
-/* CpuIdle
- * Enters idle mode for the current cpu */
-KERNELAPI
-void
-KERNELABI
-CpuIdle(void);
 
-/* CpuHalt
- * Halts the current cpu - rendering system useless */
-KERNELAPI
-void
-KERNELABI
-CpuHalt(void);
+// VideoType          (Text or Graphics)
+// VideoDrawPixel     (At Position)
+// VideoDrawCharacter (At Position)
+// VideoPutCharacter  (Terminal)
+// VideoQuery         (BootVideo Descriptor)
 
-#endif //!_MCORE_UTILS_H_
+
+
+#endif //!_MCORE_VIDEO_H_

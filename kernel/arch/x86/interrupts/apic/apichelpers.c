@@ -122,7 +122,7 @@ int ApicGetPinFromGsi(int Gsi)
 /* Creates the correct bit index for
  * the given cpu id, and converts the type
  * to uint, since thats what the apic needs */
-uint32_t ApicGetCpuMask(Cpu_t Cpu)
+uint32_t ApicGetCpuMask(UUId_t Cpu)
 {
 	/* Lets generate the bit */
 	return (1 << (uint32_t)Cpu);
@@ -270,7 +270,7 @@ void ApicSendEoi(int Gsi, uint32_t Vector)
 /* Retrieve the cpu id for the current cpu
  * can be used as an identifier when running
  * multicore */
-Cpu_t ApicGetCpu(void)
+UUId_t ApicGetCpu(void)
 {
 	/* Sanitize whether or not the
 	 * local apic has been initialized */

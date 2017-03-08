@@ -19,20 +19,18 @@
 * MollenOS x86-32 CPU Setup
 */
 
-/* MollenOS */
-#include <Devices/Cpu.h>
-#include <Log.h>
+/* Includes
+ * - System */
+#include <system/utils.h>
+#include <log.h>
 
-/* Includes */
-#include <Arch.h>
-#include <stdio.h>
-
-/* Globals */
+ /* Globals */
 MCoreCpuDevice_t GlbCpuDevice = { 0 };
 x86CpuObject_t GlbBootCpuInfo = { 0 };
 
 /* Externs */
 extern void __hlt(void);
+extern UUId_t ApicGetCpu(void);
 
 /* These three are located in boot.asm */
 extern void CpuEnableSse(void);
@@ -129,9 +127,32 @@ void CpuInit(void)
 		CpuEnableSse();
 }
 
-/* Idles using HALT */
-void Idle(void)
+/* CpuGetCurrentId 
+ * Retrieves the current cpu id for caller */
+UUId_t
+CpuGetCurrentId(void)
 {
+	// Get apic id
+	return ApicGetCpu();
+}
+
+/* CpuIdle
+ * Enters idle mode for the current cpu */
+void
+CpuIdle(void)
+{
+	// Don't disable interrupts
+	// simply just wait for the next
+	__hlt();
+}
+
+/* CpuHalt
+ * Halts the current cpu - rendering cpu useless */
+void
+CpuHalt(void)
+{
+	// Disable interrupts and idle
+	InterruptDisable();
 	__hlt();
 }
 

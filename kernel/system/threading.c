@@ -52,14 +52,14 @@ int GlbThreadingEnabled = 0;
 /* ThreadingGetCurrentNode
  * Helper function, retrieves the current 
  * list-node in our list of threads */
-ListNode_t *ThreadingGetCurrentNode(Cpu_t Cpu) {
+ListNode_t *ThreadingGetCurrentNode(UUId_t Cpu) {
 	return GlbCurrentThreads[Cpu];
 }
 
 /* ThreadingUpdateCurrent
  * Helper function, updates the current
  * list-node in our list of current threads */
-void ThreadingUpdateCurrent(Cpu_t Cpu, ListNode_t *Node) {
+void ThreadingUpdateCurrent(UUId_t Cpu, ListNode_t *Node) {
 	GlbCurrentThreads[Cpu] = Node;
 }
 
@@ -70,7 +70,7 @@ void ThreadingEntryPoint(void)
 {
 	/* Variables for setup */
 	MCoreThread_t *Thread = NULL;
-	Cpu_t Cpu = 0;
+	UUId_t Cpu = 0;
 
 	/* Retrieve the current cpu and
 	 * get the current thread */
@@ -96,7 +96,7 @@ void ThreadingEntryPointUserMode(void)
 {
 	/* Variables for setup */
 	MCoreThread_t *Thread = NULL;
-	Cpu_t Cpu = 0;
+	UUId_t Cpu = 0;
 
 	/* Retrieve the current cpu and
 	* get the current thread */
@@ -125,7 +125,7 @@ void ThreadingEntryPointUserMode(void)
  * and initializes the current 'context' as the
  * idle-thread, first time it's called it also
  * does initialization of threading system */
-void ThreadingInitialize(Cpu_t Cpu)
+void ThreadingInitialize(UUId_t Cpu)
 {
 	/* Variables for initializing the system */
 	MCoreThread_t *Init = NULL;
@@ -204,7 +204,7 @@ UUId_t ThreadingCreateThread(const char *Name,
 	MCoreThread_t *Thread = NULL, *Parent = NULL;
 	char NameBuffer[16];
 	DataKey_t Key;
-	Cpu_t Cpu = 0;
+	UUId_t Cpu = 0;
 
 	/* Acquire the thread lock */
 	SpinlockAcquire(&GlbThreadLock);
@@ -337,7 +337,7 @@ void ThreadingExitThread(int ExitCode)
 {
 	/* Variables for setup */
 	MCoreThread_t *Thread = NULL;
-	Cpu_t Cpu = 0;
+	UUId_t Cpu = 0;
 
 	/* Retrieve the current cpu and
 	* get the current thread */
@@ -461,7 +461,7 @@ void ThreadingTerminateAshThreads(UUId_t AshId)
 /* ThreadingGetCurrentThread
  * Retrieves the current thread on the given cpu
  * if there is any issues it returns NULL */
-MCoreThread_t *ThreadingGetCurrentThread(Cpu_t Cpu)
+MCoreThread_t *ThreadingGetCurrentThread(UUId_t Cpu)
 {
 	/* Sanitize the current threading status */
 	if (GlbThreadingEnabled != 1
@@ -482,7 +482,7 @@ MCoreThread_t *ThreadingGetCurrentThread(Cpu_t Cpu)
 UUId_t ThreadingGetCurrentThreadId(void)
 {
 	/* Get current cpu */
-	Cpu_t Cpu = ApicGetCpu();
+	UUId_t Cpu = ApicGetCpu();
 
 	/* If it's during startup phase for cpu's
 	 * we have to take precautions */
@@ -529,7 +529,7 @@ int ThreadingIsEnabled(void)
 
 /* ThreadingIsCurrentTaskIdle
  * Is the given cpu running it's idle task? */
-int ThreadingIsCurrentTaskIdle(Cpu_t Cpu)
+int ThreadingIsCurrentTaskIdle(UUId_t Cpu)
 {
 	/* Check the current threads flag */
 	if (ThreadingIsEnabled() == 1
@@ -558,7 +558,7 @@ Flags_t ThreadingGetCurrentMode(void)
 /* ThreadingWakeCpu
  * Wake's the target cpu from an idle thread
  * by sending it an yield IPI */
-void ThreadingWakeCpu(Cpu_t Cpu)
+void ThreadingWakeCpu(UUId_t Cpu)
 {
 	/* This is unfortunately arch-specific */
 	IThreadWakeCpu(Cpu);
@@ -602,7 +602,7 @@ void ThreadingDebugPrint(void)
  * This is the thread-switch function and must be 
  * be called from the below architecture to get the
  * next thread to run */
-MCoreThread_t *ThreadingSwitch(Cpu_t Cpu, MCoreThread_t *Current, int PreEmptive)
+MCoreThread_t *ThreadingSwitch(UUId_t Cpu, MCoreThread_t *Current, int PreEmptive)
 {
 	/* We'll need these */
 	MCoreThread_t *NextThread = NULL;

@@ -32,9 +32,9 @@
 
 /* Includes 
  * - System */
-#include <Arch.h>
-#include <Heap.h>
-#include <Log.h>
+#include <arch.h>
+#include <heap.h>
+#include <log.h>
 
 /* Includes 
  * - C-Library */

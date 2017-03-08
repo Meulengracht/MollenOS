@@ -50,7 +50,7 @@ InterruptStatus_t ApicTimerHandler(void *Args)
 	/* Variables we will need for loading
 	 * a new task */
 	Context_t *Regs = NULL;
-	Cpu_t CurrCpu = ApicGetCpu();
+	UUId_t CurrCpu = ApicGetCpu();
 
 	/* These will be assigned from the 
 	 * _switch function, but set them in
