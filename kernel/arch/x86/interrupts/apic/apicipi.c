@@ -22,10 +22,9 @@
 
 /* Includes 
  * - System */
-#include <DeviceManager.h>
-#include <Apic.h>
+#include <apic.h>
 #include <acpi.h>
-#include <Log.h>
+#include <log.h>
 
 /* Includes 
  * - C-Library */

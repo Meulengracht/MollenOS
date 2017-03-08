@@ -20,7 +20,7 @@
 */
 
 /* Includes */
-#include "../../arch.h"
+#include <arch.h>
 #include <Acpi.h>
 #include <Apic.h>
 #include <Timers.h>

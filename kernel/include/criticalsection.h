@@ -26,7 +26,6 @@
 
 /* Includes 
  * - System */
-#include "../arch/arch.h"
 #include <os/spinlock.h>
 
 /* Definitions */
@@ -34,26 +33,13 @@
 #define CRITICALSECTION_REENTRANCY		0x1
 
 /* Structures */
-typedef struct _CriticalSection
-{
-	/* Settings */
+typedef struct _CriticalSection {
 	int Flags;
-
-	/* Owner */
 	UUId_t Owner;
-
-	/* References */
 	size_t References;
-
-	/* Interrupt Status */
 	IntStatus_t IntrState;
-
-	/* Spinlock */
 	Spinlock_t Lock;
-
 } CriticalSection_t;
-
-/* Prototypes */
 
 /* Instantiate a new critical section
  * with allocation and resets it */

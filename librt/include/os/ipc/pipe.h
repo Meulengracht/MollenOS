@@ -24,7 +24,7 @@
 
 /* Do a kernel guard as similar functions
  * exists in kernel but for kernel stuff */
-#ifndef _KERNEL_API
+#ifndef _KAPI
 
 /* Includes 
  * - System */

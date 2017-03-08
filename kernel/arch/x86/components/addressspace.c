@@ -24,6 +24,7 @@
 /* Includes 
  * - System */
 #include <system/addresspace.h>
+#include <system/utils.h>
 #include <threading.h>
 #include <memory.h>
 #include <heap.h>
@@ -73,7 +74,7 @@ AddressSpaceCreate(
 {
 	// Variables
 	AddressSpace_t *AddressSpace = NULL;
-	UUId_t CurrentCpu = ApicGetCpu();
+	UUId_t CurrentCpu = CpuGetCurrentId();
 	int Itr = 0;
 
 	// If we want to create a new kernel address
@@ -231,7 +232,7 @@ AddressSpaceGetCurrent(void)
 {
 	// Lookup current thread
 	MCoreThread_t *CurrThread = 
-		ThreadingGetCurrentThread(ApicGetCpu());
+		ThreadingGetCurrentThread(CpuGetCurrentId());
 
 	// if no threads are active return
 	// the kernel address space
@@ -251,7 +252,7 @@ AddressSpaceSwitch(
 	_In_ AddressSpace_t *AddressSpace)
 {
 	// Redirect to our virtual memory manager
-	return MmVirtualSwitchPageDirectory(ApicGetCpu(),
+	return MmVirtualSwitchPageDirectory(CpuGetCurrentId(),
 		AddressSpace->PageDirectory, AddressSpace->Cr3);
 }
 

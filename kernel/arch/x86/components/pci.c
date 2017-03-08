@@ -23,6 +23,7 @@
 
 /* Includes 
  * - System */
+#include <arch.h>
 #include <pci.h>
 
 /* Includes

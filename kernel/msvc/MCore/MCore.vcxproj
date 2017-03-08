@@ -61,6 +61,7 @@
     <ClInclude Include="..\..\include\system\iospace.h" />
     <ClInclude Include="..\..\include\system\thread.h" />
     <ClInclude Include="..\..\include\system\utils.h" />
+    <ClInclude Include="..\..\include\system\video.h" />
     <ClInclude Include="..\..\include\threading.h" />
     <ClInclude Include="..\..\include\timers.h" />
   </ItemGroup>

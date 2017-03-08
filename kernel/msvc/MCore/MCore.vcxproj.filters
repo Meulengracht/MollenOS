@@ -201,5 +201,8 @@
     <ClInclude Include="..\..\include\system\utils.h">
       <Filter>include\system</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\include\system\video.h">
+      <Filter>include\system</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

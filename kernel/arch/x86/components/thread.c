@@ -22,7 +22,6 @@
 
 /* Includes 
  * - System */
-#include "../../arch.h"
 #include <threading.h>
 #include <process/phoenix.h>
 #include <interrupts.h>

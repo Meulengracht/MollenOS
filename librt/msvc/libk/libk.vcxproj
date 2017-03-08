@@ -29,7 +29,7 @@
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Build_X86_32|Win32'">
     <OutDir>$(SolutionDir)librt\build\</OutDir>
-    <IncludePath>..\..\include;..\..\..\kernel\Include;..\..\..\kernel\Arch</IncludePath>
+    <IncludePath>..\..\include;..\..\..\kernel\Include;..\..\..\kernel\arch\x86\x32</IncludePath>
     <ReferencePath />
     <LibraryPath>..\..\build</LibraryPath>
     <LibraryWPath />

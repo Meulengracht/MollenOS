@@ -23,10 +23,10 @@
 #ifndef _X86_PCI_H_
 #define _X86_PCI_H_
 
-/* Includes */
-#include "../Arch.h"
-#include <crtdefs.h>
-#include <stdint.h>
+/* Includes 
+ * - System */
+#include <os/osdefs.h>
+#include <os/driver/io.h>
 
 /* Definitions */
 #define X86_PCI_SELECT		0xCF8

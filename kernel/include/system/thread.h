@@ -41,6 +41,12 @@ typedef struct _MCoreThread MCoreThread_t;
  * the yield interrupt handler first time its called */
 __EXTERN void *IThreadCreate(Flags_t ThreadFlags, Addr_t EntryPoint);
 
+/* This function switches the current runtime-context
+ * out with the given thread context, this should only
+ * be used as a temporary way of impersonating another
+ * thread */
+__EXTERN void IThreadImpersonate(MCoreThread_t *Thread);
+
 /* IThreadSetupUserMode
  * Initializes user-mode data for the given thread, and
  * allocates all neccessary resources (x86 specific) for

@@ -111,8 +111,8 @@ void GdtInitialize(void)
 	/* Shared segments
 	 * Stack segment shared between drivers and applications
 	 * which goes into the highest page-table */
-	GdtInstallDescriptor(MEMORY_SEGMENT_STACK_BASE - MEMORY_LIMIT, 
-		((MEMORY_LIMIT - 1) - MEMORY_SEGMENT_STACK_LIMIT) / PAGE_SIZE,
+	GdtInstallDescriptor(MEMORY_SEGMENT_STACK_BASE - __MASK, 
+		((__MASK - 1) - MEMORY_SEGMENT_STACK_LIMIT) / PAGE_SIZE,
 		GDT_ACCESS_WRITABLE | GDT_ACCESS_DOWN | GDT_ACCESS_PRIV3 
 		| GDT_ACCESS_RESERVED | GDT_ACCESS_PRESENT, 
 		GDT_FLAG_32BIT | GDT_FLAG_PAGES);

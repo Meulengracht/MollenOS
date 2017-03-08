@@ -23,7 +23,7 @@
 */
 
 /* Includes */
-#include "../Arch.h"
+#include <arch.h>
 #include <process/phoenix.h>
 #include <modules/modules.h>
 #include <threading.h>

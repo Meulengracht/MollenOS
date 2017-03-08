@@ -47,7 +47,6 @@ typedef struct _x86_Thread {
 /* Architecture Prototypes, you should define 
  * as many as these as possible */
 #include "../Cpu.h"
-#include "../Video.h"
 
 /* Interrupt stuff */
 #define NUM_ISA_INTERRUPTS			16
@@ -75,7 +74,7 @@ __EXTERN void __CRTDECL outl(uint16_t port, uint32_t data);
 #endif
 
 __EXTERN void ApicSendIpi(UUId_t CpuTarget, uint32_t Vector);
-__EXTERN void kernel_panic(const char *str);
+__EXTERN void kernel_panic(__CONST char *str);
 
 /* Architecture Memory Layout, this
  * gives you an idea how memory layout

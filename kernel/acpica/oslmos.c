@@ -123,7 +123,7 @@
 
 /* Includes
  * - System */
-#include <arch.h>
+#include "..\arch\x86\x32\arch.h"
 #include "..\arch\x86\pci.h"
 #include "..\arch\x86\memory.h"
 #include <threading.h>

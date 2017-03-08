@@ -37,7 +37,7 @@
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Build_X86_32|Win32'">
     <TargetName>Acpica</TargetName>
-    <IncludePath>..\..\..\librt\include;..\..\..\kernel\arch;..\..\..\kernel\include</IncludePath>
+    <IncludePath>..\..\..\librt\include;..\..\..\kernel\arch;..\..\..\kernel\include;..\..\..\kernel\arch\x86\x32</IncludePath>
     <ReferencePath />
     <LibraryPath>
     </LibraryPath>
@@ -48,7 +48,7 @@
       <InlineFunctionExpansion>OnlyExplicitInline</InlineFunctionExpansion>
       <FavorSizeOrSpeed>Neither</FavorSizeOrSpeed>
       <AdditionalIncludeDirectories>..\..\acpica\Include</AdditionalIncludeDirectories>
-      <PreprocessorDefinitions>ACPI_LIBRARY;NDEBUG;_GEN;DRIVER;PROCESSOR_ARCHITECTURE=x86;MOLLENOS;UNICODE;_KERNEL_API;_X86_32;CLIB_KERNEL;_KRNL_DLL</PreprocessorDefinitions>
+      <PreprocessorDefinitions>ACPI_LIBRARY;NDEBUG;_GEN;DRIVER;PROCESSOR_ARCHITECTURE=x86;MOLLENOS;UNICODE;_KAPI;_X86_32;CLIB_KERNEL;_KRNL_DLL</PreprocessorDefinitions>
       <StringPooling>true</StringPooling>
       <ExceptionHandling>
       </ExceptionHandling>

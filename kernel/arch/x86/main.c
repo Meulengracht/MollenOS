@@ -22,16 +22,17 @@
 
 /* Includes 
  * - System */
-#include <mollenos.h>
-#include <arch.h>
+#include <system/utils.h>
 #include <multiboot.h>
+#include <mollenos.h>
 #include <memory.h>
+#include <arch.h>
+#include <apic.h>
 #include <gdt.h>
 #include <idt.h>
-#include <interrupts.h>
-#include <apic.h>
 #include <pic.h>
 #include <log.h>
+#include <vbe.h>
 
 /* Variables that we can share with our project
  * primarily just boot information in case */
@@ -53,7 +54,7 @@ void BootInitializeApic(void)
 	/* Initialize the APIC (if present) */
 	if (!(GlbBootCpuInfo.EdxFeatures & CPUID_FEAT_EDX_APIC)) {
 		LogFatal("APIC", "BootInitializeApic::NOT PRESENT!");
-		Idle();
+		CpuIdle();
 	}
 	else {
 		LogInformation("APIC", "Initializing local interrupt chip");

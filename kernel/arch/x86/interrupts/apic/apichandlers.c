@@ -22,7 +22,6 @@
 
 /* Includes 
  * - System */
-#include "../../arch.h"
 #include <acpi.h>
 #include <apic.h>
 #include <thread.h>

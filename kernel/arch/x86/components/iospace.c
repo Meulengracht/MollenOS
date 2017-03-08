@@ -24,6 +24,7 @@
 /* Includes 
  * - System */
 #include <system/iospace.h>
+#include <system/utils.h>
 #include <process/server.h>
 #include <memory.h>
 #include <heap.h>
@@ -127,7 +128,7 @@ IoSpaceAcquire(
 	// Lookup the system copy to validate this
 	// requested operation
 	Server = PhoenixGetServer(SERVER_CURRENT);
-	Cpu = ApicGetCpu();
+	Cpu = CpuGetCurrentId();
 	Key.Value = (int)IoSpace->Id;
 	SysCopy = (MCoreIoSpace_t*)ListGetDataByKey(__GlbIoSpaces, Key, 0);
 
@@ -189,7 +190,7 @@ IoSpaceRelease(
 	// Lookup the system copy to validate this
 	// requested operation 
 	Server = PhoenixGetServer(SERVER_CURRENT);
-	Cpu = ApicGetCpu();
+	Cpu = CpuGetCurrentId();
 	Key.Value = (int)IoSpace->Id;
 	SysCopy = (MCoreIoSpace_t*)ListGetDataByKey(__GlbIoSpaces, Key, 0);
 
@@ -272,7 +273,7 @@ IoSpaceValidate(
 {
 	// Ok, first of all, we need to validate that
 	// it's actually a process trying to do this
-	UUId_t ProcessId = ThreadingGetCurrentThread(ApicGetCpu())->AshId;
+	UUId_t ProcessId = ThreadingGetCurrentThread(CpuGetCurrentId())->AshId;
 
 	// Sanitize the id
 	if (ProcessId == PHOENIX_NO_ASH) {

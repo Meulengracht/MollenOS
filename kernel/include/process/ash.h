@@ -32,11 +32,11 @@
 
 /* Includes
  * - System */
-#include <Arch.h>
+#include <system/addresspace.h>
 #include <process/pe.h>
-#include <Bitmap.h>
-#include <Pipe.h>
-#include <Mutex.h>
+#include <bitmap.h>
+#include <mutex.h>
+#include <pipe.h>
 
 /* Settings for ashes in the system, they
  * should not really be tinkered with, these are

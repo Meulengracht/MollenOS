@@ -25,11 +25,10 @@
  * - System */
 #include <system/addresspace.h>
 #include <system/video.h>
-#include <process/server.h>
+#include <system/utils.h>
 #include <threading.h>
-#include <heap.h>
-#include <video.h>
 #include <memory.h>
+#include <heap.h>
 #include <log.h>
 
 /* Includes
@@ -49,7 +48,6 @@ static Addr_t GblReservedPtr = 0;
 /* Extern acess to system mappings in the
  * physical memory manager */
 __EXTERN SystemMemoryMapping_t SysMappings[32];
-//__EXTERN MCoreVideoDevice_t GlbBootVideo;
 
 /* Extern assembly functions that are
  * implemented in _paging.asm */
@@ -117,7 +115,7 @@ MmVirtualIdentityMapMemoryRange(
 	_In_ Flags_t Flags)
 {
 	// Variables
-	int i, k;
+	unsigned i, k;
 
 	// Iterate the afflicted page-tables
 	for (i = PAGE_DIRECTORY_INDEX(vAddressStart), k = 0;
@@ -204,12 +202,12 @@ MmVirtualMap(
 	// Determine page directory 
 	// If we were given null, select the cuyrrent
 	if (Directory == NULL) {
-		Directory = GlbPageDirectories[ApicGetCpu()];
+		Directory = GlbPageDirectories[CpuGetCurrentId()];
 	}
 
 	// Sanitizie if we are modifying the currently
 	// loaded page-directory
-	if (GlbPageDirectories[ApicGetCpu()] == Directory) {
+	if (GlbPageDirectories[CpuGetCurrentId()] == Directory) {
 		IsCurrent = 1;
 	}
 
@@ -277,7 +275,7 @@ MmVirtualMap(
 	}
 
 	// Done - no errors
-	return OsNoError;
+	return Result;
 }
 
 /* MmVirtualUnmap
@@ -297,12 +295,12 @@ MmVirtualUnmap(
 	// Determine page directory 
 	// if pDir is null we get for current cpu
 	if (Directory == NULL) {
-		Directory = GlbPageDirectories[ApicGetCpu()];
+		Directory = GlbPageDirectories[CpuGetCurrentId()];
 	}
 
 	// Sanitizie if we are modifying the currently
 	// loaded page-directory
-	if (GlbPageDirectories[ApicGetCpu()] == Directory) {
+	if (GlbPageDirectories[CpuGetCurrentId()] == Directory) {
 		IsCurrent = 1;
 	}
 
@@ -380,7 +378,7 @@ MmVirtualGetMapping(
 
 	// If none was given - use the current
 	if (Directory == NULL) {
-		Directory = GlbPageDirectories[ApicGetCpu()];
+		Directory = GlbPageDirectories[CpuGetCurrentId()];
 	}
 
 	// Sanitize the page-directory

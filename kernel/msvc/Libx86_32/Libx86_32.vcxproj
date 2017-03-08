@@ -28,7 +28,7 @@
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Build_X86_32|Win32'">
     <OutDir>..\..\Build\i386\</OutDir>
-    <IncludePath>..\..\acpica\include;..\..\include;..\..\Msvc\MCoreConfig;..\..\..\librt\include;..\..\arch\x86;..\..\arch\x86\x32</IncludePath>
+    <IncludePath>..\..\acpica\include;..\..\include;..\..\Msvc\MCoreConfig;..\..\..\librt\include;..\..\arch\x86\x32;..\..\arch\x86</IncludePath>
     <ReferencePath />
     <LibraryPath />
     <LibraryWPath />
@@ -44,7 +44,7 @@
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
       <InlineFunctionExpansion>OnlyExplicitInline</InlineFunctionExpansion>
       <WholeProgramOptimization>true</WholeProgramOptimization>
-      <PreprocessorDefinitions>MOLLENOS;UNICODE;_X86_32;CLIB_KERNEL;_KRNL_DLL</PreprocessorDefinitions>
+      <PreprocessorDefinitions>MOLLENOS;UNICODE;_KAPI;_X86_32;CLIB_KERNEL;_KRNL_DLL</PreprocessorDefinitions>
       <MinimalRebuild>false</MinimalRebuild>
       <ExceptionHandling>false</ExceptionHandling>
       <BasicRuntimeChecks>Default</BasicRuntimeChecks>

@@ -43,12 +43,6 @@
 __EXTERN Context_t *_ThreadingSwitch(Context_t *Regs,
 	int PreEmptive, size_t *TimeSlice, int *TaskQueue);
 
-/* This function switches the current runtime-context
- * out with the given thread context, this should only
- * be used as a temporary way of impersonating another
- * thread */
-__EXTERN void IThreadImpersonate(MCoreThread_t *Thread);
-
 /* Stack manipulation / setup of stacks for given
  * threading. We need functions that create a new kernel
  * stack and user/driver stack. Pass threading flags */
