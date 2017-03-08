@@ -24,6 +24,7 @@
 /* Includes
  * - System */
 #include <system/addresspace.h>
+#include <system/video.h>
 #include <process/server.h>
 #include <threading.h>
 #include <heap.h>
@@ -523,8 +524,8 @@ MmVirtualInit(void)
 
 	// Pre-map video region
 	LogInformation("VMEM", "Mapping video memory to 0x%x", MEMORY_LOCATION_VIDEO);
-	MmVirtualIdentityMapMemoryRange(GlbKernelPageDirectory, GlbBootVideo.Info.FrameBufferAddr,
-		MEMORY_LOCATION_VIDEO, (GlbBootVideo.Info.BytesPerScanline * GlbBootVideo.Info.Height), 
+	MmVirtualIdentityMapMemoryRange(GlbKernelPageDirectory, VideoGetTerminal()->Info.FrameBufferAddress,
+		MEMORY_LOCATION_VIDEO, (VideoGetTerminal()->Info.BytesPerScanline * VideoGetTerminal()->Info.Height),
 		1, PAGE_USER);
 
 	// Install the page table at the reserved system
@@ -551,7 +552,7 @@ MmVirtualInit(void)
 	}
 
 	// Update video address to the new
-	GlbBootVideo.Info.FrameBufferAddr = MEMORY_LOCATION_VIDEO;
+	VideoGetTerminal()->Info.FrameBufferAddress = MEMORY_LOCATION_VIDEO;
 
 	// Update and switch page-directory for boot-cpu
 	MmVirtualSwitchPageDirectory(0, GlbKernelPageDirectory, (Addr_t)GlbKernelPageDirectory);

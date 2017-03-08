@@ -1,50 +1,59 @@
 /* MollenOS
-*
-* Copyright 2011 - 2014, Philip Meulengracht
-*
-* This program is free software : you can redistribute it and / or modify
-* it under the terms of the GNU General Public License as published by
-* the Free Software Foundation ? , either version 3 of the License, or
-* (at your option) any later version.
-*
-* This program is distributed in the hope that it will be useful,
-* but WITHOUT ANY WARRANTY; without even the implied warranty of
-* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.See the
-* GNU General Public License for more details.
-*
-* You should have received a copy of the GNU General Public License
-* along with this program.If not, see <http://www.gnu.org/licenses/>.
-*
-*
-* MollenOS Video Device
-*/
+ *
+ * Copyright 2011 - 2017, Philip Meulengracht
+ *
+ * This program is free software : you can redistribute it and / or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation ? , either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.If not, see <http://www.gnu.org/licenses/>.
+ *
+ *
+ * MollenOS Video Device
+ */
 
-/* Video Includes */
-#include <MollenOS.h>
-#include <Arch.h>
-#include <DeviceManager.h>
-#include <Devices\Video.h>
-#include <Log.h>
+/* Includes
+ * - System */
+#include <system/video.h>
+#include <video.h>
+#include <log.h>
 
-/* CLib */
+/* Includes
+ * - Library */
 #include <string.h>
 #include <math.h>
 #include <stddef.h>
 
-/* Video */
-const char *GlbBootVideoWindowTitle = "MollenOS Boot Console";
-MCoreVideoDevice_t *GlbVideoPtr = NULL;
+/* Globals
+ * Window title for boot console */
+__CONST char *GlbBootVideoWindowTitle = "Startup Debug Console";
 
-/* Draw Line */
-void VideoDrawLine(MCoreVideoDevice_t *VideoDevice, 
-	uint32_t StartX, uint32_t StartY, uint32_t EndX, uint32_t EndY, uint32_t Color)
+/* VideoDrawLine
+ * Draw's a line from (StartX, StartY) -> (EndX, EndY) 
+ * with the given color */
+void 
+VideoDrawLine(
+	_In_ unsigned StartX, 
+	_In_ unsigned StartY,
+	_In_ unsigned EndX, 
+	_In_ unsigned EndY, 
+	_In_ unsigned Color)
 {
+	// Variables - clam some values
 	int dx = abs(EndX - StartX), sx = StartX < EndX ? 1 : -1;
 	int dy = abs(EndY - StartY), sy = StartY < EndY ? 1 : -1;
 	int err = (dx > dy ? dx : -dy) / 2, e2;
 
+	// Draw the line by brute force
 	for (;;) {
-		VideoDevice->DrawPixel(VideoDevice, StartX, StartY, Color);
+		VideoDrawPixel(StartX, StartY, Color);
 		if (StartX == EndX && StartY == EndY) break;
 		e2 = err;
 		if (e2 >-dx) { err -= dy; StartX += sx; }
@@ -52,84 +61,84 @@ void VideoDrawLine(MCoreVideoDevice_t *VideoDevice,
 	}
 }
 
-/* Draw Window */
-void VideoDrawBootTerminal(MCoreVideoDevice_t *VideoDevice, 
-	uint32_t X, uint32_t Y, uint32_t Width, uint32_t Height)
+/* VideoDrawBootTerminal
+ * Draws the crude initial boot-terminal without any
+ * fancy effects or anything */
+void
+VideoDrawBootTerminal(
+	_In_ unsigned X, 
+	_In_ unsigned Y,
+	_In_ size_t Width, 
+	_In_ size_t Height)
 {
-	/* Title pointer */
-	uint32_t TitleStartX = X + 8 + 32 + 8;
-	uint32_t TitleStartY = Y + 18;
+	// Variables
+	unsigned TitleStartX = X + 8 + 32 + 8;
+	unsigned TitleStartY = Y + 18;
 	int i;
+
+	// Instantiate a pointer to title
 	char *TitlePtr = (char*)GlbBootVideoWindowTitle;
 
-	/* Draw Borders */
-	for (i = 0; i < 48; i++)
-		VideoDrawLine(VideoDevice, X, Y + i, X + Width, Y + i, 0x2980B9);
-	VideoDrawLine(VideoDevice, X, Y, X, Y + Height, 0x2980B9);
-	VideoDrawLine(VideoDevice, X + Width, Y, X + Width, Y + Height, 0x2980B9);
-	VideoDrawLine(VideoDevice, X, Y + Height, X + Width, Y + Height, 0x2980B9);
+	// Draw the header
+	for (i = 0; i < 48; i++) {
+		VideoDrawLine(X, Y + i, X + Width, Y + i, 0x2980B9);
+	}
+	
+	// Draw remaining borders
+	VideoDrawLine(X, Y, X, Y + Height, 0x2980B9);
+	VideoDrawLine(X + Width, Y, X + Width, Y + Height, 0x2980B9);
+	VideoDrawLine(X, Y + Height, X + Width, Y + Height, 0x2980B9);
 
-	/* Draw Title */
-	while (*TitlePtr)
-	{
-		char Char = *TitlePtr;
-		VideoDevice->DrawCharacter(VideoDevice, 
-			(int)Char, TitleStartY, TitleStartX, 0xFFFFFF, 0x2980B9);
+	// Render title in middle of header
+	while (*TitlePtr) {
+		VideoDrawCharacter(TitleStartY, TitleStartX, *TitlePtr, 0xFFFFFF, 0x2980B9);
 		TitleStartX += 10;
-
 		TitlePtr++;
 	}
 
-	/* Define Virtual Borders */
-	VideoDevice->CursorX = VideoDevice->CursorStartX = X + 11;
-	VideoDevice->CursorLimitX = X + Width - 1;
-	VideoDevice->CursorY = VideoDevice->CursorStartY = Y + 49;
-	VideoDevice->CursorLimitY = Y + Height - 17;
+	// Define some virtual borders to prettify just a little
+	VideoGetTerminal()->CursorX = VideoGetTerminal()->CursorStartX = X + 11;
+	VideoGetTerminal()->CursorLimitX = X + Width - 1;
+	VideoGetTerminal()->CursorY = VideoGetTerminal()->CursorStartY = Y + 49;
+	VideoGetTerminal()->CursorLimitY = Y + Height - 17;
 }
 
-/* CPU Prototypes */
-OsStatus_t VideoBootInit(MCoreVideoDevice_t *BootVideo)
+/* VideoQuery
+ * Renders a character with default colors
+ * at the current terminal position */
+OsStatus_t
+VideoQuery(
+	_Out_ VideoDescriptor_t *Descriptor)
 {
-	/* Clear */
-	GlbVideoPtr = BootVideo;
+	// Sanitize
+	if (Descriptor == NULL || VideoGetTerminal() == NULL) {
+		return OsError;
+	}
 
-	/* Draw boot terminal */
-	if (BootVideo->Type == VideoTypeLFB)
-		VideoDrawBootTerminal(BootVideo, (BootVideo->CursorLimitX / 2) - 325,
-		(BootVideo->CursorLimitY / 2) - 260, 650, 520);
+	// Copy information over directly from
+	// the sub-layer descriptor
+	memcpy(&VideoGetTerminal()->Info, Descriptor, sizeof(VideoDescriptor_t));
 
-	/* Reset lock */
-	SpinlockReset(&BootVideo->Lock);
-
-	/* Now we have a terminal, 
-	 * Redirect the log */
-	LogRedirect(LogConsole);
-
-	/* Done */
+	// Done - no errors
 	return OsNoError;
 }
 
-/* PutChar Wrapper */
-int VideoPutChar(int Character)
+/* VideoInitialize
+ * Initializes boot-video environment untill a more
+ * complete driver can take-over the screen */
+OsStatus_t 
+VideoInitialize(void)
 {
-	/* Sanity */
-	if (GlbVideoPtr == NULL)
-		return Character;
+	// Draw boot terminal if we have graphics
+	if (VideoGetTerminal()->Type == VIDEO_GRAPHICS) {
+		VideoDrawBootTerminal((VideoGetTerminal()->CursorLimitX / 2) - 325,
+			(VideoGetTerminal()->CursorLimitY / 2) - 260, 650, 520);
+	}
+	
+	// Now we have a terminal, 
+	// Redirect the log
+	LogRedirect(LogConsole);
 
-	/* Do the deed */
-	GlbVideoPtr->Put(GlbVideoPtr, Character);
-
-	/* Done */
-	return Character;
-}
-
-/* Boot Video */
-MCoreDevice_t *GlbDmBootVideo = NULL;
-void DmRegisterBootVideo(MCoreDevice_t *Video)
-{
-	/* Set it */
-	GlbDmBootVideo = Video;
-
-	/* Now set it up */
-	VideoBootInit((MCoreVideoDevice_t*)Video->Data);
+	// Done - no errors
+	return OsNoError;
 }

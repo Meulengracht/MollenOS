@@ -23,32 +23,9 @@
  * - System */
 #include <system/video.h>
 
-PACKED_TYPESTRUCT(VideoDevice, {
-	/* Type */
-	MCoreVideoType_t Type;
-	VideoDescriptor_t Info;
-
-	/* Cursor Position */
-	uint32_t CursorX;
-	uint32_t CursorY;
-
-	/* Cursor Limits */
-	uint32_t CursorStartX;
-	uint32_t CursorStartY;
-	uint32_t CursorLimitX;
-	uint32_t CursorLimitY;
-
-	/* Colors */
-	uint32_t FgColor;
-	uint32_t BgColor;
-
-	/* Spinlock */
-	Spinlock_t Lock;
-});
-
 /* Globals 
  * We need to keep track of boot-video in this system */
-static VideoDevice_t __GlbVideoDevice;
+static BootTerminal_t __GlbVideoTerminal;
 
 /* Externs
  * We want to import the standard font from
@@ -66,11 +43,11 @@ __EXTERN const uint16_t MCoreFontIndex[];
 void _VideoDrawPixelVesa(void *VideoData, uint32_t X, uint32_t Y, uint32_t Color)
 {
 	/* Vars */
-	MCoreVideoDevice_t *vDevice = (MCoreVideoDevice_t*)VideoData;
+	BootTerminal_t *vDevice = (BootTerminal_t*)&__GlbVideoTerminal;
 	uint32_t *VideoPtr;
 
 	/* Calculate video offset */
-	VideoPtr = (uint32_t*)(vDevice->Info.FrameBufferAddr + ((Y * vDevice->Info.BytesPerScanline)
+	VideoPtr = (uint32_t*)(vDevice->Info.FrameBufferAddress + ((Y * vDevice->Info.BytesPerScanline)
 		+ (X * (vDevice->Info.Depth / 8))));
 
 	/* Set */
@@ -78,8 +55,8 @@ void _VideoDrawPixelVesa(void *VideoData, uint32_t X, uint32_t Y, uint32_t Color
 }
 
 /* Base write */
-void _VideoPutCharAtLocationVesa(void *VideoData, 
-	int Character, uint32_t CursorY, uint32_t CursorX, uint32_t FgColor, uint32_t BgColor)
+void _VideoPutCharAtLocationVesa(int Character, uint32_t CursorY, 
+	uint32_t CursorX, uint32_t FgColor, uint32_t BgColor)
 {
 	/* Decls */
 	uint32_t *vPtr;
@@ -87,10 +64,10 @@ void _VideoPutCharAtLocationVesa(void *VideoData,
 	uint32_t Row, i;
 
 	/* Cast */
-	MCoreVideoDevice_t *vDevice = (MCoreVideoDevice_t*)VideoData;
+	BootTerminal_t *vDevice = (BootTerminal_t*)&__GlbVideoTerminal;
 
 	/* Calculate video offset */
-	vPtr = (uint32_t*)(vDevice->Info.FrameBufferAddr + ((CursorY * vDevice->Info.BytesPerScanline)
+	vPtr = (uint32_t*)(vDevice->Info.FrameBufferAddress + ((CursorY * vDevice->Info.BytesPerScanline)
 		+ (CursorX * (vDevice->Info.Depth / 8))));
 
 	/* Cast */
@@ -129,10 +106,10 @@ void _VideoPutCharAtLocationVesa(void *VideoData,
 }
 
 /* Write a character in VESA mode */
-int _VideoPutCharVesa(void *VideoData, int Character)
+int _VideoPutCharVesa(int Character)
 {
 	/* Cast */
-	MCoreVideoDevice_t *vDevice = (MCoreVideoDevice_t*)VideoData;
+	BootTerminal_t *vDevice = (BootTerminal_t*)&__GlbVideoTerminal;
 
 	/* Get spinlock */
 	SpinlockAcquire(&vDevice->Lock);
@@ -157,8 +134,8 @@ int _VideoPutCharVesa(void *VideoData, int Character)
 		default:
 		{
 			/* Print */
-			vDevice->DrawCharacter(VideoData, 
-				Character, vDevice->CursorY, vDevice->CursorX, vDevice->FgColor, vDevice->BgColor);
+			vDevice->DrawCharacter(Character, 
+				vDevice->CursorY, vDevice->CursorX, vDevice->FgColor, vDevice->BgColor);
 
 			/* Increase position */
 			vDevice->CursorX += (MCoreFontWidth + 2);
@@ -180,7 +157,7 @@ int _VideoPutCharVesa(void *VideoData, int Character)
 		uint32_t BytesToCopy;
 		int i = 0;
 		int Lines = (vDevice->CursorLimitY - vDevice->CursorStartY);
-		VideoPtr = (uint8_t*)(vDevice->Info.FrameBufferAddr + 
+		VideoPtr = (uint8_t*)(vDevice->Info.FrameBufferAddress + 
 			((vDevice->CursorStartY * vDevice->Info.BytesPerScanline)
 			+ (vDevice->CursorStartX * (vDevice->Info.Depth / 8))));
 		BytesToCopy = ((vDevice->CursorLimitX - vDevice->CursorStartX) * (vDevice->Info.Depth / 8));
@@ -198,7 +175,7 @@ int _VideoPutCharVesa(void *VideoData, int Character)
 
 		/* Clear
 		 * Get X0, Y0 */
-		VideoPtr = (uint8_t*)(vDevice->Info.FrameBufferAddr + 
+		VideoPtr = (uint8_t*)(vDevice->Info.FrameBufferAddress + 
 			((vDevice->CursorStartX * (vDevice->Info.Depth / 8))));
 
 		/* Add up to Y(MAX-Height) */
@@ -224,9 +201,9 @@ int _VideoPutCharVesa(void *VideoData, int Character)
 }
 
 /* Write a character in TEXT mode */
-int _VideoPutCharText(void *VideoData, int Character)
+int _VideoPutCharText(int Character)
 {
-	MCoreVideoDevice_t *vDevice = (MCoreVideoDevice_t*)VideoData;
+	BootTerminal_t *vDevice = (BootTerminal_t*)&__GlbVideoTerminal;
 	uint16_t Attrib = (uint16_t)(vDevice->FgColor << 8);
 	uint16_t CursorLoc = 0;
 
@@ -247,7 +224,7 @@ int _VideoPutCharText(void *VideoData, int Character)
 	//Printable characters
 	else if (Character >= ' ')
 	{
-		uint16_t* VidLoc = (uint16_t*)vDevice->Info.FrameBufferAddr +
+		uint16_t* VidLoc = (uint16_t*)vDevice->Info.FrameBufferAddress +
 			(vDevice->CursorY * vDevice->Info.Width + vDevice->CursorX);
 		*VidLoc = (uint16_t)(Character | Attrib);
 		vDevice->CursorX++;
@@ -264,7 +241,7 @@ int _VideoPutCharText(void *VideoData, int Character)
 	if (vDevice->CursorY >= vDevice->Info.Height)
 	{
 		uint16_t CharAttrib = (uint16_t)(vDevice->FgColor << 8);
-		uint16_t *VidLoc = (uint16_t*)vDevice->Info.FrameBufferAddr;
+		uint16_t *VidLoc = (uint16_t*)vDevice->Info.FrameBufferAddress;
 		uint16_t i;
 
 		//Move display one line up
@@ -298,6 +275,7 @@ int _VideoPutCharText(void *VideoData, int Character)
 void VideoInit(void *BootInfo)
 {
 	/* Cast */
+	BootTerminal_t *vDevice = (BootTerminal_t*)&__GlbVideoTerminal;
 	Multiboot_t *mboot = (Multiboot_t*)BootInfo;
 
 	/* Do we have VESA or is this text mode? */
@@ -310,7 +288,7 @@ void VideoInit(void *BootInfo)
 			vDevice->Info.Height = 25;
 			vDevice->Info.Depth = 16;
 			vDevice->Info.BytesPerScanline = 2 * 80;
-			vDevice->Info.FrameBufferAddr = STD_VIDEO_MEMORY;
+			vDevice->Info.FrameBufferAddress = STD_VIDEO_MEMORY;
 
 			/* Set */
 			vDevice->Type = VideoTypeText;
@@ -321,11 +299,6 @@ void VideoInit(void *BootInfo)
 			vDevice->FgColor = (0 << 4) | (15 & 0x0F);
 			vDevice->BgColor = 0;
 
-			/* Set functions */
-			vDevice->DrawPixel = NULL;
-			vDevice->DrawCharacter = NULL;
-			vDevice->Put = _VideoPutCharText;
-
 		} break;
 		case 1:
 		{
@@ -334,7 +307,7 @@ void VideoInit(void *BootInfo)
 			vDevice->Info.Height = 50;
 			vDevice->Info.Depth = 16;
 			vDevice->Info.BytesPerScanline = 2 * 80;
-			vDevice->Info.FrameBufferAddr = STD_VIDEO_MEMORY;
+			vDevice->Info.FrameBufferAddress = STD_VIDEO_MEMORY;
 
 			/* Set */
 			vDevice->Type = VideoTypeText;
@@ -374,7 +347,7 @@ void VideoInit(void *BootInfo)
 			VbeMode_t *vbe = (VbeMode_t*)mboot->VbeModeInfo;
 
 			/* Fill our structure */
-			vDevice->Info.FrameBufferAddr = vbe->ModeInfo_PhysBasePtr;
+			vDevice->Info.FrameBufferAddress = vbe->ModeInfo_PhysBasePtr;
 			vDevice->Info.Width = vbe->ModeInfo_XResolution;
 			vDevice->Info.Height = vbe->ModeInfo_YResolution;
 			vDevice->Info.Depth = vbe->ModeInfo_BitsPerPixel;
@@ -392,7 +365,7 @@ void VideoInit(void *BootInfo)
 			vDevice->Type = VideoTypeLFB;
 
 			/* Clear background */
-			memset((void*)vDevice->Info.FrameBufferAddr, 0xFF,
+			memset((void*)vDevice->Info.FrameBufferAddress, 0xFF,
 				(vDevice->Info.BytesPerScanline * vDevice->Info.Height));
 
 			/* Initialise the TTY structure */
@@ -400,11 +373,6 @@ void VideoInit(void *BootInfo)
 			vDevice->CursorLimitY = vDevice->Info.Height;
 			vDevice->FgColor = 0;
 			vDevice->BgColor = 0xFFFFFFFF;
-
-			/* Set functions */
-			vDevice->DrawPixel = _VideoDrawPixelVesa;
-			vDevice->DrawCharacter = _VideoPutCharAtLocationVesa;
-			vDevice->Put = _VideoPutCharVesa;
 
 		} break;
 	}

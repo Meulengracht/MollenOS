@@ -21,8 +21,8 @@
  *   that all sub-layers / architectures must conform to
  */
 
-#ifndef _MCORE_VIDEO_H_
-#define _MCORE_VIDEO_H_
+#ifndef _MCORE_SYSVIDEO_H_
+#define _MCORE_SYSVIDEO_H_
 
 /* Includes 
  * - Library */
@@ -34,14 +34,68 @@
 #include <os/driver/contracts/video.h>
 #include <arch.h>
 
+PACKED_TYPESTRUCT(BootTerminal, {
+	Flags_t						Type;
+	Spinlock_t					Lock;
+	VideoDescriptor_t			Info;
 
+	unsigned					CursorX;
+	unsigned					CursorY;
+	
+	unsigned					CursorStartX;
+	unsigned					CursorStartY;
+	unsigned					CursorLimitX;
+	unsigned					CursorLimitY;
 
-// VideoType          (Text or Graphics)
-// VideoDrawPixel     (At Position)
-// VideoDrawCharacter (At Position)
-// VideoPutCharacter  (Terminal)
-// VideoQuery         (BootVideo Descriptor)
+	uint32_t					FgColor;
+	uint32_t					BgColor;
+});
 
+/* Video Type Definitions
+ * Currently only two kind of video types needs
+ * to be supported for boot - textmode or lfbmode */
+#define VIDEO_NONE				0x00000000
+#define VIDEO_TEXT				0x00000001
+#define VIDEO_GRAPHICS			0x00000002
 
+/* VideoGetTerminal
+ * Retrieves the current terminal information */
+KERNELAPI
+BootTerminal_t*
+KERNELABI
+VideoGetTerminal(void);
 
-#endif //!_MCORE_VIDEO_H_
+/* VideoDrawPixel
+ * Draws a pixel of the given color at the specified
+ * pixel-position */
+KERNELAPI
+OsStatus_t
+KERNELABI
+VideoDrawPixel(
+	_In_ unsigned X, 
+	_In_ unsigned Y, 
+	_In_ uint32_t Color);
+
+/* VideoDrawCharacter
+ * Renders a character of the given color(s) 
+ * at the specified pixel-position */
+KERNELAPI
+OsStatus_t
+KERNELABI
+VideoDrawCharacter(
+	_In_ unsigned X, 
+	_In_ unsigned Y, 
+	_In_ int Character, 
+	_In_ uint32_t Bg, 
+	_In_ uint32_t Fg);
+
+/* VideoPutCharacter
+ * Renders a character with default colors
+ * at the current terminal position */
+KERNELAPI
+OsStatus_t
+KERNELABI
+VideoPutCharacter(
+	_In_ int Character);
+
+#endif //!_MCORE_SYSVIDEO_H_

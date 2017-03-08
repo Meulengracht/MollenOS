@@ -16,36 +16,34 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS MCore - Contract Definitions & Structures (Timer Contract)
- * - This header describes the base contract-structure, prototypes
- *   and functionality, refer to the individual things for descriptions
+ * MollenOS Video Interface (Boot)
+ * - Contains the shared kernel video functionality
+ *   and structures that is primarily used by MCore
  */
 
-#ifndef _CONTRACT_VIDEO_INTERFACE_H_
-#define _CONTRACT_VIDEO_INTERFACE_H_
+#ifndef _MCORE_VIDEO_H_
+#define _MCORE_VIDEO_H_
 
 /* Includes 
- * - System */
-#include <os/driver/contracts/base.h>
+ * - Library */
 #include <os/osdefs.h>
+#include <os/spinlock.h>
 
-PACKED_TYPESTRUCT(VideoDescriptor, {
-	Addr_t				FrameBufferAddress;
-	
-	size_t				BytesPerScanline;
-	size_t				Height;
-	size_t				Width;
-	int					Depth;
+/* VideoInitialize
+ * Initializes boot-video environment untill a more
+ * complete driver can take-over the screen */
+KERNELAPI
+OsStatus_t
+KERNELABI
+VideoInitialize(void);
 
-	int					RedPosition;
-	int					BluePosition;
-	int					GreenPosition;
-	int					ReservedPosition;
+/* VideoQuery
+ * Renders a character with default colors
+ * at the current terminal position */
+KERNELAPI
+OsStatus_t
+KERNELABI
+VideoQuery(
+	_Out_ VideoDescriptor_t *Descriptor);
 
-	int					RedMask;
-	int					BlueMask;
-	int					GreenMask;
-	int					ReservedMask;
-});
-
-#endif //!_CONTRACT_VIDEO_INTERFACE_H_
+#endif //!_MCORE_VIDEO_H_
