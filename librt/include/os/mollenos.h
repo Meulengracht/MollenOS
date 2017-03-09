@@ -41,15 +41,15 @@ typedef struct _MollenOSVideoDescriptor
 	int Depth;
 
 	/* Pixel Information */
-	int RedPosition;
-	int BluePosition;
-	int GreenPosition;
-	int ReservedPosition;
-
-	int RedMask;
-	int BlueMask;
-	int GreenMask;
-	int ReservedMask;
+	unsigned RedPosition;
+	unsigned BluePosition;
+	unsigned GreenPosition;
+	unsigned ReservedPosition;
+	unsigned
+	unsigned RedMask;
+	unsigned BlueMask;
+	unsigned GreenMask;
+	unsigned ReservedMask;
 
 } OSVideoDescriptor_t;
 

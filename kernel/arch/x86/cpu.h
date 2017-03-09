@@ -1,34 +1,40 @@
 /* MollenOS
-*
-* Copyright 2011 - 2014, Philip Meulengracht
-*
-* This program is free software : you can redistribute it and / or modify
-* it under the terms of the GNU General Public License as published by
-* the Free Software Foundation ? , either version 3 of the License, or
-* (at your option) any later version.
-*
-* This program is distributed in the hope that it will be useful,
-* but WITHOUT ANY WARRANTY; without even the implied warranty of
-* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.See the
-* GNU General Public License for more details.
-*
-* You should have received a copy of the GNU General Public License
-* along with this program.If not, see <http://www.gnu.org/licenses/>.
-*
-*
-* MollenOS x86 CPU Init
-*/
+ *
+ * Copyright 2011 - 2017, Philip Meulengracht
+ *
+ * This program is free software : you can redistribute it and / or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation ? , either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.If not, see <http://www.gnu.org/licenses/>.
+ *
+ *
+ * MollenOS X86 Cpu Information Header
+ * - Contains some definitions and structures for helping around
+ *   in the sub-layer system
+ */
 
 #ifndef _x86_CPU_H_
 #define _x86_CPU_H_
 
-/* CPU Includes */
-#include <crtdefs.h>
-#include <stdint.h>
+/* Includes
+ * - Library */
+#include <os/osdefs.h>
 
-/* CPU Definitions */
+/* Definitions 
+ * Where in lower memory we want to keep trampoline code */
 #define TRAMPOLINE_CODE_MEM		0x5000
 
+/* Cpu Features 
+ * Tells us which kind of support there is available
+ * on the cpu */
 enum CpuFeatures{
 	//Features contained in ECX register
 	CPUID_FEAT_ECX_SSE3 = 1 << 0,
@@ -90,27 +96,28 @@ enum CpuFeatures{
 	CPUID_FEAT_EDX_PBE = 1 << 31
 };
 
-/* CPU Structures */
-typedef struct _x86CpuObject
-{
-	/* Apic Id */
-	char CpuLApicId;
+/* Avoid querying information all the time
+ * so store some so the rest of the layer can
+ * access this information */
+typedef struct _CpuInformation {
+	reg_t CpuIdLevel;
+	reg_t CpuIdExtensions;
+	reg_t EcxFeatures;
+	reg_t EdxFeatures;
+} CpuInformation_t;
 
-	/* Padding */
-	char Padding[3];
+/* CpuInitialize
+ * Initializes the CPU and gathers available
+ * information about it */
+__EXTERN
+void 
+CpuInitialize(void);
 
-	/* Cpuid Features */
-	uint32_t CpuIdLevel;
-	uint32_t CpuIdExtensions;
-
-	/* CPU Features */
-	uint32_t EcxFeatures;
-	uint32_t EdxFeatures;
-
-} x86CpuObject_t;
-
-/* CPU Prototypes */
-__EXTERN void CpuInit(void);
-__EXTERN void CpuSmpInit(void);
+/* CpuSmpInitialize
+ * Initializes an SMP environment and boots the
+ * available cores in the system */
+__EXTERN
+void
+CpuSmpInitialize(void);
 
 #endif // !_x86_CPU_H_

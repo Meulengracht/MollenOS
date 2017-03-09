@@ -64,6 +64,7 @@
     <ClInclude Include="..\..\include\system\video.h" />
     <ClInclude Include="..\..\include\threading.h" />
     <ClInclude Include="..\..\include\timers.h" />
+    <ClInclude Include="..\..\include\video.h" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <ProjectGuid>{E1811ABC-D002-44D1-8581-2ACF9C1DD0F9}</ProjectGuid>

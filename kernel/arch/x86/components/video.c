@@ -23,6 +23,12 @@
  * - System */
 #include <system/video.h>
 #include <multiboot.h>
+#include <video.h>
+#include <vbe.h>
+
+/* Includes
+ * - Library */
+#include <string.h>
 
 /* Globals 
  * We need to keep track of boot-video in this system */
@@ -40,116 +46,105 @@ __EXTERN const uint32_t MCoreFontWidth;
 __EXTERN const uint16_t MCoreFontIndex[];
 #endif
 
-/* We read the multiboot header for video 
- * information and setup the terminal accordingly */
-void VideoInit(Multiboot_t *BootInfo)
+/* VbeInitialize
+ * Initializes the X86 video sub-system and provides
+ * boot-video interface for the entire OS */
+void 
+VbeInitialize(
+	_In_ Multiboot_t *BootInfo)
 {
-	/* Cast */
-	BootTerminal_t *vDevice = (BootTerminal_t*)&__GlbVideoTerminal;
+	// Zero out structure
+	memset(&__GlbVideoTerminal, 0, sizeof(__GlbVideoTerminal));
 
-	/* Do we have VESA or is this text mode? */
-	switch (BootInfo->VbeMode)
-	{
-		case 0:
-		{
-			/* This means 80x25 text mode */
-			vDevice->Info.Width = 80;
-			vDevice->Info.Height = 25;
-			vDevice->Info.Depth = 16;
-			vDevice->Info.BytesPerScanline = 2 * 80;
-			vDevice->Info.FrameBufferAddress = STD_VIDEO_MEMORY;
+	// Initialize lock
+	SpinlockReset(&__GlbVideoTerminal.Lock);
 
-			/* Set */
-			vDevice->Type = VideoTypeText;
+	// Which kind of mode has been enabled for us
+	switch (BootInfo->VbeMode) {
 
-			/* Initialise the TTY structure */
-			vDevice->CursorLimitX = 80;
-			vDevice->CursorLimitY = 25;
-			vDevice->FgColor = (0 << 4) | (15 & 0x0F);
-			vDevice->BgColor = 0;
+		// Text-Mode (80x25)
+		case 0: {
+			__GlbVideoTerminal.Type == VIDEO_TEXT;
+			__GlbVideoTerminal.Info.Width = 80;
+			__GlbVideoTerminal.Info.Height = 25;
+			__GlbVideoTerminal.Info.Depth = 16;
+			__GlbVideoTerminal.Info.BytesPerScanline = 2 * 80;
+			__GlbVideoTerminal.Info.FrameBufferAddress = STD_VIDEO_MEMORY;
 
+			__GlbVideoTerminal.CursorLimitX = 80;
+			__GlbVideoTerminal.CursorLimitY = 25;
+			__GlbVideoTerminal.FgColor = (0 << 4) | (15 & 0x0F);
+			__GlbVideoTerminal.BgColor = 0;
 		} break;
-		case 1:
-		{
-			/* This means 80x50 text mode */
-			vDevice->Info.Width = 80;
-			vDevice->Info.Height = 50;
-			vDevice->Info.Depth = 16;
-			vDevice->Info.BytesPerScanline = 2 * 80;
-			vDevice->Info.FrameBufferAddress = STD_VIDEO_MEMORY;
 
-			/* Set */
-			vDevice->Type = VideoTypeText;
+		// Text-Mode (80x50)
+		case 1: {
+			__GlbVideoTerminal.Type == VIDEO_TEXT;
+			__GlbVideoTerminal.Info.Width = 80;
+			__GlbVideoTerminal.Info.Height = 50;
+			__GlbVideoTerminal.Info.Depth = 16;
+			__GlbVideoTerminal.Info.BytesPerScanline = 2 * 80;
+			__GlbVideoTerminal.Info.FrameBufferAddress = STD_VIDEO_MEMORY;
 
-			/* Initialise the TTY structure */
-			vDevice->CursorLimitX = 80;
-			vDevice->CursorLimitY = 50;
-			vDevice->FgColor = (0 << 4) | (15 & 0x0F);
-			vDevice->BgColor = 0;
-
-			/* Set functions */
-			vDevice->DrawPixel = NULL;
-			vDevice->DrawCharacter = NULL;
-			vDevice->Put = _VideoPutCharText;
-
+			__GlbVideoTerminal.CursorLimitX = 80;
+			__GlbVideoTerminal.CursorLimitY = 50;
+			__GlbVideoTerminal.FgColor = (0 << 4) | (15 & 0x0F);
+			__GlbVideoTerminal.BgColor = 0;
 		} break;
+
+		// VGA-Mode (Graphics)
 		case 2:
 		{
-			/* This means VGA Mode */
-			//N/A
+			__GlbVideoTerminal.Type == VIDEO_GRAPHICS;
 
-			/* Set */
-			vDevice->Type = VideoTypeVGA;
-
-			/* Initialise the TTY structure */
-			vDevice->CursorLimitX = vDevice->Info.Width / (MCoreFontWidth + 2);
-			vDevice->CursorLimitY = vDevice->Info.Height / MCoreFontHeight;
-			vDevice->FgColor = (0 << 4) | (15 & 0x0F);
-			vDevice->BgColor = 0;
+			__GlbVideoTerminal.CursorLimitX = __GlbVideoTerminal.Info.Width / (MCoreFontWidth + 2);
+			__GlbVideoTerminal.CursorLimitY = __GlbVideoTerminal.Info.Height / MCoreFontHeight;
+			__GlbVideoTerminal.FgColor = (0 << 4) | (15 & 0x0F);
+			__GlbVideoTerminal.BgColor = 0;
 		} break;
 
+		// VBE-Mode (Graphics)
 		default:
 		{
-			/* Assume VESA otherwise */
+			// Get active VBE information structure
+			VbeMode_t *vbe = (VbeMode_t*)BootInfo->VbeModeInfo;
 
-			/* Get info struct */
-			VbeMode_t *vbe = (VbeMode_t*)mboot->VbeModeInfo;
+			// Copy information over
+			__GlbVideoTerminal.Type == VIDEO_GRAPHICS;
+			__GlbVideoTerminal.Info.FrameBufferAddress = vbe->PhysBasePtr;
+			__GlbVideoTerminal.Info.Width = vbe->XResolution;
+			__GlbVideoTerminal.Info.Height = vbe->YResolution;
+			__GlbVideoTerminal.Info.Depth = vbe->BitsPerPixel;
+			__GlbVideoTerminal.Info.BytesPerScanline = vbe->BytesPerScanLine;
+			__GlbVideoTerminal.Info.RedPosition = vbe->RedMaskPos;
+			__GlbVideoTerminal.Info.BluePosition = vbe->BlueMaskPos;
+			__GlbVideoTerminal.Info.GreenPosition = vbe->GreenMaskPos;
+			__GlbVideoTerminal.Info.ReservedPosition = vbe->ReservedMaskPos;
+			__GlbVideoTerminal.Info.RedMask = vbe->RedMaskSize;
+			__GlbVideoTerminal.Info.BlueMask = vbe->BlueMaskSize;
+			__GlbVideoTerminal.Info.GreenMask = vbe->GreenMaskSize;
+			__GlbVideoTerminal.Info.ReservedMask = vbe->ReservedMaskSize;
 
-			/* Fill our structure */
-			vDevice->Info.FrameBufferAddress = vbe->ModeInfo_PhysBasePtr;
-			vDevice->Info.Width = vbe->ModeInfo_XResolution;
-			vDevice->Info.Height = vbe->ModeInfo_YResolution;
-			vDevice->Info.Depth = vbe->ModeInfo_BitsPerPixel;
-			vDevice->Info.BytesPerScanline = vbe->ModeInfo_BytesPerScanLine;
-			vDevice->Info.RedPosition = vbe->ModeInfo_RedMaskPos;
-			vDevice->Info.BluePosition = vbe->ModeInfo_BlueMaskPos;
-			vDevice->Info.GreenPosition = vbe->ModeInfo_GreenMaskPos;
-			vDevice->Info.ReservedPosition = vbe->ModeInfo_ReservedMaskPos;
-			vDevice->Info.RedMask = vbe->ModeInfo_RedMaskSize;
-			vDevice->Info.BlueMask = vbe->ModeInfo_BlueMaskSize;
-			vDevice->Info.GreenMask = vbe->ModeInfo_GreenMaskSize;
-			vDevice->Info.ReservedMask = vbe->ModeInfo_ReservedMaskSize;
+			// Clear out background (to white)
+			memset((void*)__GlbVideoTerminal.Info.FrameBufferAddress, 0xFF,
+				(__GlbVideoTerminal.Info.BytesPerScanline * __GlbVideoTerminal.Info.Height));
 
-			/* Set */
-			vDevice->Type = VideoTypeLFB;
-
-			/* Clear background */
-			memset((void*)vDevice->Info.FrameBufferAddress, 0xFF,
-				(vDevice->Info.BytesPerScanline * vDevice->Info.Height));
-
-			/* Initialise the TTY structure */
-			vDevice->CursorLimitX = vDevice->Info.Width;
-			vDevice->CursorLimitY = vDevice->Info.Height;
-			vDevice->FgColor = 0;
-			vDevice->BgColor = 0xFFFFFFFF;
+			__GlbVideoTerminal.CursorLimitX = __GlbVideoTerminal.Info.Width;
+			__GlbVideoTerminal.CursorLimitY = __GlbVideoTerminal.Info.Height;
+			__GlbVideoTerminal.FgColor = 0;
+			__GlbVideoTerminal.BgColor = 0xFFFFFFFF;
 
 		} break;
 	}
+
+	// Initialize OS video
+	VideoInitialize();
 }
 
 /* VesaDrawPixel
  * Uses the vesa-interface to plot a single pixel */
-OsStatus_t VesaDrawPixel(
+OsStatus_t 
+VesaDrawPixel(
 	_In_ unsigned X, 
 	_In_ unsigned Y, 
 	_In_ uint32_t Color)
@@ -173,7 +168,8 @@ OsStatus_t VesaDrawPixel(
 /* VesaDrawCharacter
  * Renders a ASCII/UTF16 character at the given pixel-position
  * on the screen */
-OsStatus_t VesaDrawCharacter(
+OsStatus_t 
+VesaDrawCharacter(
 	_In_ int Character, 
 	_In_ unsigned CursorY,
 	_In_ unsigned CursorX, 
@@ -221,167 +217,244 @@ OsStatus_t VesaDrawCharacter(
 	return OsNoError;
 }
 
+/* VesaScroll
+ * Scrolls the terminal <n> lines up by using the
+ * vesa-interface */
+OsStatus_t 
+VesaScroll(
+	_In_ int ByLines)
+{
+	// Variables
+	uint8_t *VideoPtr = NULL;
+	size_t BytesToCopy = 0;
+	int Lines = 0;
+	int i = 0, j = 0;
+
+	// How many lines do we need to modify?
+	Lines = (__GlbVideoTerminal.CursorLimitY - __GlbVideoTerminal.CursorStartY);
+
+	// Calculate the initial screen position
+	VideoPtr = (uint8_t*)(__GlbVideoTerminal.Info.FrameBufferAddress +
+		((__GlbVideoTerminal.CursorStartY * __GlbVideoTerminal.Info.BytesPerScanline)
+			+ (__GlbVideoTerminal.CursorStartX * (__GlbVideoTerminal.Info.Depth / 8))));
+
+	// Calculate num of bytes
+	BytesToCopy = ((__GlbVideoTerminal.CursorLimitX - __GlbVideoTerminal.CursorStartX)
+		* (__GlbVideoTerminal.Info.Depth / 8));
+
+	// Do the actual scroll
+	for (i = 0; i < ByLines; i++) {
+		for (j = 0; j < Lines; j++) {
+			memcpy(VideoPtr, VideoPtr +
+				(__GlbVideoTerminal.Info.BytesPerScanline * MCoreFontHeight), BytesToCopy);
+			VideoPtr += __GlbVideoTerminal.Info.BytesPerScanline;
+		}
+	}
+
+	// Clear out the lines that was scrolled
+	VideoPtr = (uint8_t*)(__GlbVideoTerminal.Info.FrameBufferAddress +
+		((__GlbVideoTerminal.CursorStartX * (__GlbVideoTerminal.Info.Depth / 8))));
+
+	// Scroll pointer down to bottom - n lines
+	VideoPtr += (__GlbVideoTerminal.Info.BytesPerScanline 
+		* (__GlbVideoTerminal.CursorLimitY - (MCoreFontHeight * ByLines)));
+
+	// Clear out lines
+	for (i = 0; i < ((int)MCoreFontHeight * ByLines); i++) {
+		memset(VideoPtr, 0xFF, BytesToCopy);
+		VideoPtr += __GlbVideoTerminal.Info.BytesPerScanline;
+	}
+
+	// We did the scroll, modify cursor
+	__GlbVideoTerminal.CursorY -= (MCoreFontHeight * ByLines);
+
+	// No errors
+	return OsNoError;
+}
+
 /* VesaPutCharacter
  * Uses the vesa-interface to print a new character
  * at the current terminal position */
-int VesaPutCharacter(int Character)
+OsStatus_t 
+VesaPutCharacter(
+	_In_ int Character)
 {
-	/* Get spinlock */
+	// Acquire terminal lock
 	SpinlockAcquire(&__GlbVideoTerminal.Lock);
 
-	/* Handle Special Characters */
-	switch (Character)
+	// The first step is to handle special
+	// case characters that we shouldn't print out
+	switch (Character) 
 	{
-		/* New line */
-	case '\n':
-	{
-		vDevice->CursorX = vDevice->CursorStartX;
-		vDevice->CursorY += MCoreFontHeight;
+		// New-Line
+		// Reset X and increase Y
+	case '\n': {
+		__GlbVideoTerminal.CursorX = __GlbVideoTerminal.CursorStartX;
+		__GlbVideoTerminal.CursorY += MCoreFontHeight;
 	} break;
 
-	/* Carriage Return */
-	case '\r':
-	{
-		vDevice->CursorX = vDevice->CursorStartX;
+	// Carriage Return
+	// Reset X don't increase Y
+	case '\r': {
+		__GlbVideoTerminal.CursorX = __GlbVideoTerminal.CursorStartX;
 	} break;
 
-	/* Default */
-	default:
-	{
-		/* Print */
-		vDevice->DrawCharacter(Character,
-			vDevice->CursorY, vDevice->CursorX, vDevice->FgColor, vDevice->BgColor);
-
-		/* Increase position */
-		vDevice->CursorX += (MCoreFontWidth + 2);
+	// Default
+	// Printable character
+	default: {
+		// Call print with the current location
+		// and use the current colors
+		VesaDrawCharacter(Character,
+			__GlbVideoTerminal.CursorY, __GlbVideoTerminal.CursorX,
+			__GlbVideoTerminal.FgColor, __GlbVideoTerminal.BgColor);
+		__GlbVideoTerminal.CursorX += (MCoreFontWidth + 2);
 	} break;
 	}
 
-	/* Newline check */
-	if ((vDevice->CursorX + (MCoreFontWidth + 2)) >= vDevice->CursorLimitX)
-	{
-		vDevice->CursorX = vDevice->CursorStartX;
-		vDevice->CursorY += MCoreFontHeight;
+	// Next step is to do some post-print
+	// checks, including new-line and scroll-checks
+
+	// Are we at last X position? - New-line
+	if ((__GlbVideoTerminal.CursorX + (MCoreFontWidth + 2)) >= __GlbVideoTerminal.CursorLimitX) {
+		__GlbVideoTerminal.CursorX = __GlbVideoTerminal.CursorStartX;
+		__GlbVideoTerminal.CursorY += MCoreFontHeight;
 	}
 
-	/* Do scroll check here */
-	if ((vDevice->CursorY + MCoreFontHeight) >= vDevice->CursorLimitY)
-	{
-		/* Calculate video offset */
-		uint8_t *VideoPtr;
-		uint32_t BytesToCopy;
-		int i = 0;
-		int Lines = (vDevice->CursorLimitY - vDevice->CursorStartY);
-		VideoPtr = (uint8_t*)(vDevice->Info.FrameBufferAddress +
-			((vDevice->CursorStartY * vDevice->Info.BytesPerScanline)
-				+ (vDevice->CursorStartX * (vDevice->Info.Depth / 8))));
-		BytesToCopy = ((vDevice->CursorLimitX - vDevice->CursorStartX) * (vDevice->Info.Depth / 8));
-
-		/* Do a scroll */
-		for (i = 0; i < Lines; i++)
-		{
-			/* Copy a line up */
-			memcpy(VideoPtr, VideoPtr +
-				(vDevice->Info.BytesPerScanline * MCoreFontHeight), BytesToCopy);
-
-			/* Increament */
-			VideoPtr += vDevice->Info.BytesPerScanline;
-		}
-
-		/* Clear
-		* Get X0, Y0 */
-		VideoPtr = (uint8_t*)(vDevice->Info.FrameBufferAddress +
-			((vDevice->CursorStartX * (vDevice->Info.Depth / 8))));
-
-		/* Add up to Y(MAX-Height) */
-		VideoPtr += (vDevice->Info.BytesPerScanline * (vDevice->CursorLimitY - MCoreFontHeight));
-
-		for (i = 0; i < (int)MCoreFontHeight; i++)
-		{
-			/* Clear low line */
-			memset(VideoPtr, 0xFF, BytesToCopy);
-
-			/* Increament */
-			VideoPtr += vDevice->Info.BytesPerScanline;
-		}
-
-		//We scrolled, set it back one line.
-		vDevice->CursorY -= MCoreFontHeight;
+	// Do we need to scroll the terminal?
+	if ((__GlbVideoTerminal.CursorY + MCoreFontHeight) >= __GlbVideoTerminal.CursorLimitY) {
+		VesaScroll(1);
 	}
 
-	/* Release spinlock */
-	SpinlockRelease(&vDevice->Lock);
-
-	return Character;
+	// Release lock and return OK
+	SpinlockRelease(&__GlbVideoTerminal.Lock);
+	return OsNoError;
 }
 
-/* Write a character in TEXT mode */
-int TextPutCharacter(int Character)
+/* TextDrawCharacter
+ * Renders an ASCII character at the given text-position
+ * on the screen by the given color combination */
+OsStatus_t 
+TextDrawCharacter(
+	_In_ int Character,
+	_In_ unsigned CursorY,
+	_In_ unsigned CursorX,
+	_In_ uint8_t Color)
 {
-	uint16_t Attrib = (uint16_t)(__GlbVideoTerminal.FgColor << 8);
+	// Variables
+	uint16_t *Video = NULL;
+	uint16_t Data = ((uint16_t)Color << 8) | (uint8_t)(Character & 0xFF);
+
+	// Calculate video position
+	Video = (uint16_t*)__GlbVideoTerminal.Info.FrameBufferAddress +
+		(__GlbVideoTerminal.CursorY * __GlbVideoTerminal.Info.Width 
+			+ __GlbVideoTerminal.CursorX);
+
+	// Plot it on the screen
+	*Video = Data;
+
+	// Done - no errors
+	return OsNoError;
+}
+
+/* TextScroll
+ * Scrolls the terminal <n> lines up by using the
+ * text-interface */
+OsStatus_t 
+TextScroll(
+	_In_ int ByLines)
+{
+	// Variables
+	uint16_t *Video = (uint16_t*)__GlbVideoTerminal.Info.FrameBufferAddress;
+	uint16_t Color = (uint16_t)(__GlbVideoTerminal.FgColor << 8);
+	int i, j;
+
+	// Move display n lines up
+	for (j = 0; j < ByLines; j++) {
+		for (i = 0; i < (__GlbVideoTerminal.Info.Height - 1) * __GlbVideoTerminal.Info.Width;
+			i++) {
+			Video[i] = Video[i + __GlbVideoTerminal.Info.Width];
+		}
+
+		// Clear last line
+		for (i = ((__GlbVideoTerminal.Info.Height - 1) * __GlbVideoTerminal.Info.Width);
+			i < (__GlbVideoTerminal.Info.Height * __GlbVideoTerminal.Info.Width);
+			i++) {
+			Video[i] = (uint16_t)(Color | ' ');
+		}
+	}
+
+	// Update new Y cursor position
+	__GlbVideoTerminal.CursorY = (__GlbVideoTerminal.Info.Height - ByLines);
+
+	// Done - no errors
+	return OsNoError;
+}
+
+/* TextPutCharacter
+ * Uses the text-interface to print a new character
+ * at the current terminal position */
+OsStatus_t 
+TextPutCharacter(
+	_In_ int Character)
+{
+	// Variables
 	uint16_t CursorLoc = 0;
 
-	/* Get spinlock */
-	SpinlockAcquire(&vDevice->Lock);
+	// Acquire terminal lock
+	SpinlockAcquire(&__GlbVideoTerminal.Lock);
 
-	/* Check special characters */
-	if (Character == 0x08 && vDevice->CursorX)		//Backspace
-		vDevice->CursorX--;
-	else if (Character == 0x09)					//Tab
-		vDevice->CursorX = (uint32_t)((vDevice->CursorX + 8) & ~(8 - 1));
-	else if (Character == '\r')					//Carriage return
-		vDevice->CursorX = 0;				//New line
+	// Special case characters
+	// Backspace
+	if (Character == 0x08 && __GlbVideoTerminal.CursorX)
+		__GlbVideoTerminal.CursorX--;
+
+	// Tab
+	else if (Character == 0x09)
+		__GlbVideoTerminal.CursorX = ((__GlbVideoTerminal.CursorX + 8) & ~(8 - 1));
+
+	// Carriage Return
+	else if (Character == '\r')
+		__GlbVideoTerminal.CursorX = 0;
+
+	// New Line
 	else if (Character == '\n') {
-		vDevice->CursorX = 0;
-		vDevice->CursorY++;
+		__GlbVideoTerminal.CursorX = 0;
+		__GlbVideoTerminal.CursorY++;
 	}
-	//Printable characters
-	else if (Character >= ' ')
-	{
-		uint16_t* VidLoc = (uint16_t*)vDevice->Info.FrameBufferAddress +
-			(vDevice->CursorY * vDevice->Info.Width + vDevice->CursorX);
-		*VidLoc = (uint16_t)(Character | Attrib);
-		vDevice->CursorX++;
-	}
-
-	//Go to new line?
-	if (vDevice->CursorX >= vDevice->Info.Width) {
-
-		vDevice->CursorX = 0;
-		vDevice->CursorY++;
+	
+	// Printable characters
+	else if (Character >= ' ') {
+		TextDrawCharacter(Character, __GlbVideoTerminal.CursorY, 
+			__GlbVideoTerminal.CursorX, LOBYTE(LOWORD(__GlbVideoTerminal.FgColor)));
+		__GlbVideoTerminal.CursorX++;
 	}
 
-	//Scroll if at last line
-	if (vDevice->CursorY >= vDevice->Info.Height)
-	{
-		uint16_t CharAttrib = (uint16_t)(vDevice->FgColor << 8);
-		uint16_t *VidLoc = (uint16_t*)vDevice->Info.FrameBufferAddress;
-		uint16_t i;
-
-		//Move display one line up
-		for (i = (uint16_t)(0 * vDevice->Info.Width); i < (uint16_t)(vDevice->Info.Height - 1) * vDevice->Info.Width; i++)
-			VidLoc[i] = VidLoc[i + vDevice->Info.Width];
-
-		//Clear last line
-		for (i = (uint16_t)((vDevice->Info.Height - 1) * vDevice->Info.Width);
-			i < (vDevice->Info.Height * vDevice->Info.Width); i++)
-			VidLoc[i] = (uint16_t)(CharAttrib | ' ');
-
-		vDevice->CursorY = (vDevice->Info.Height - 1);
+	// Go to new line?
+	if (__GlbVideoTerminal.CursorX >= __GlbVideoTerminal.Info.Width) {
+		__GlbVideoTerminal.CursorX = 0;
+		__GlbVideoTerminal.CursorY++;
 	}
 
-	//Update HW Cursor
-	CursorLoc = (uint16_t)((vDevice->CursorY * vDevice->Info.Width) + vDevice->CursorX);
+	// Scroll if at last line
+	if (__GlbVideoTerminal.CursorY >= __GlbVideoTerminal.Info.Height) {
+		TextScroll(1);
+	}
 
+	// Update HW Cursor
+	CursorLoc = (uint16_t)((__GlbVideoTerminal.CursorY * __GlbVideoTerminal.Info.Width) 
+		+ __GlbVideoTerminal.CursorX);
+
+	// Send the high byte.
 	outb(0x3D4, 14);
-	outb(0x3D5, (uint8_t)(CursorLoc >> 8)); // Send the high byte.
+	outb(0x3D5, (uint8_t)(CursorLoc >> 8));
+
+	// Send the low byte.
 	outb(0x3D4, 15);
-	outb(0x3D5, (uint8_t)CursorLoc);      // Send the low byte.
+	outb(0x3D5, (uint8_t)CursorLoc);
 
-										  /* Release spinlock */
-	SpinlockRelease(&vDevice->Lock);
-
-	return Character;
+	// Release lock and return
+	SpinlockRelease(&__GlbVideoTerminal.Lock);
+	return OsNoError;
 }
 
 /* VideoGetTerminal
@@ -440,7 +513,7 @@ VideoDrawCharacter(
 	{
 		// Text-Mode
 	case VIDEO_TEXT:
-		return OsError;
+		return TextDrawCharacter(Character, Y, X, __GlbVideoTerminal.FgColor);
 
 		// VBE
 	case VIDEO_GRAPHICS:
@@ -478,4 +551,7 @@ VideoPutCharacter(
 	case VIDEO_NONE:
 		return OsError;
 	}
+
+	// Uh?
+	return OsError;
 }

@@ -51,7 +51,7 @@ __EXTERN void RegisterDump(Context_t *Regs);
 
 /* Globals,
  * Keep track of whether or not init code has run */
-int __GlbThreadX86Initialized = 0;
+static int __GlbThreadX86Initialized = 0;
 
 /* The yield interrupt code for switching tasks
  * and is controlled by software interrupts, the yield interrupt

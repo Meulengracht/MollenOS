@@ -204,5 +204,8 @@
     <ClInclude Include="..\..\include\system\video.h">
       <Filter>include\system</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\include\video.h">
+      <Filter>include</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

@@ -40,7 +40,7 @@
 /* Externs */
 extern List_t *GlbAcpiNodes;
 extern UUId_t GlbBootstrapCpuId;
-extern x86CpuObject_t GlbBootCpuInfo;
+extern CpuInformation_t __CpuInformation;
 
 /* These two are located in boot.asm */
 extern void CpuEnableSse(void);
@@ -94,13 +94,15 @@ void SmpApEntry(void)
 	GdtInstall();
 	IdtInstall();
 
-	/* Enable FPU */
-	if (GlbBootCpuInfo.EdxFeatures & CPUID_FEAT_EDX_FPU)
+	// Can we enable FPU?
+	if (__CpuInformation.EdxFeatures & CPUID_FEAT_EDX_FPU) {
 		CpuEnableFpu();
+	}
 
-	/* Enable SSE */
-	if (GlbBootCpuInfo.EdxFeatures & CPUID_FEAT_EDX_SSE)
+	// Can we enable SSE?
+	if (__CpuInformation.EdxFeatures & CPUID_FEAT_EDX_SSE) {
 		CpuEnableSse();
+	}
 
 	/* Get Apic Id */
 	Cpu = (ApicReadLocal(APIC_PROCESSOR_ID) >> 24) & 0xFF;
@@ -208,8 +210,11 @@ void SmpBootCore(void *Data, int n, void *UserData)
 	printf(" booted!\n");
 }
 
-/* Go through ACPI nodes */
-void CpuSmpInit(void)
+/* CpuSmpInitialize
+ * Initializes an SMP environment and boots the
+ * available cores in the system */
+void
+CpuSmpInitialize(void)
 {
 	/* DataKey for list iteration */
 	DataKey_t Key;

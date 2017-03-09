@@ -44,7 +44,7 @@ __EXTERN void MCoreInitialize(MCoreBootInfo_t*);
 
 /* Stuff from our own project that we import
  * we need some information about the cpu config */
-__EXTERN x86CpuObject_t GlbBootCpuInfo;
+__EXTERN CpuInformation_t __CpuInformation;
 
 /* Initializes the local apic (if present, it faults
  * in case it's not, we don't support less for now)
@@ -52,7 +52,7 @@ __EXTERN x86CpuObject_t GlbBootCpuInfo;
 void BootInitializeApic(void)
 {
 	/* Initialize the APIC (if present) */
-	if (!(GlbBootCpuInfo.EdxFeatures & CPUID_FEAT_EDX_APIC)) {
+	if (!(__CpuInformation.EdxFeatures & CPUID_FEAT_EDX_APIC)) {
 		LogFatal("APIC", "BootInitializeApic::NOT PRESENT!");
 		CpuIdle();
 	}
@@ -72,7 +72,7 @@ void BootInitializeApic(void)
 void HALInit(void *BootInfo, MCoreBootDescriptor *Descriptor)
 {
 	/* Initialize output */
-	VideoInit(BootInfo);
+	VbeInitialize((Multiboot_t*)BootInfo);
 
 	/* Print */
 	LogInformation("HAL0", "Initializing hardware layer");
@@ -116,7 +116,7 @@ void InitX86(Multiboot_t *BootInfo, MCoreBootDescriptor *BootDescriptor)
 	x86BootInfo.InitPostSystems = BootInitializeApic;
 
 	/* Initialize Cpu */
-	CpuInit();
+	CpuInitialize();
 
 	/* Call Entry Point */
 	MCoreInitialize(&x86BootInfo);
