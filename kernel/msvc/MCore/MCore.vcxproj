@@ -37,7 +37,6 @@
     <ClCompile Include="..\..\system\timers.c" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\..\arch\arch.h" />
     <ClInclude Include="..\..\include\acpiinterface.h" />
     <ClInclude Include="..\..\include\bitmap.h" />
     <ClInclude Include="..\..\include\criticalsection.h" />

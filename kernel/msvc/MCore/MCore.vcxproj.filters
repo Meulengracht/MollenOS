@@ -150,9 +150,6 @@
     <ClInclude Include="..\..\include\criticalsection.h">
       <Filter>include</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\arch\arch.h">
-      <Filter>include</Filter>
-    </ClInclude>
     <ClInclude Include="..\..\include\pipe.h">
       <Filter>include</Filter>
     </ClInclude>

@@ -113,7 +113,7 @@ void MCoreInitialize(MCoreBootInfo_t *BootInfo)
 	/* Initialize the GC 
 	 * It recycles threads, ashes and 
 	 * keeps the heap clean ! */
-	GcInit();
+	GcInitialize();
 
 	/* Initialize the process manager (Phoenix)
 	 * We must do this before starting up servers */
