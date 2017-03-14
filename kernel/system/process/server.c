@@ -22,7 +22,7 @@
 
 /* Includes
 * - System */
-#include <arch.h>
+#include <system/thread.h>
 #include <process/server.h>
 #include <garbagecollector.h>
 #include <threading.h>
@@ -54,14 +54,14 @@ void PhoenixBootServer(void *Args)
 	PhoenixFinishAsh(&Server->Base);
 
 	/* Initialize the server io-space memory */
-	Server->DriverMemory = BitmapCreate(MEMORY_LOCATION_RING3_IOSPACE, 
+	Server->DriverMemory = BitmapCreate(MEMORY_LOCATION_RING3_IOSPACE,
 		MEMORY_LOCATION_RING3_IOSPACE_END, PAGE_SIZE);
 
 	/* Map in arguments */
 	if (Server->ArgumentLength != 0) {
 		AddressSpaceMap(AddressSpaceGetCurrent(),
 			MEMORY_LOCATION_RING3_ARGS, MAX(PAGE_SIZE, Server->ArgumentLength),
-			MEMORY_MASK_DEFAULT, ADDRESS_SPACE_FLAG_APPLICATION);
+			__MASK, AS_FLAG_APPLICATION);
 
 		/* Copy arguments */
 		memcpy((void*)MEMORY_LOCATION_RING3_ARGS,
@@ -115,7 +115,7 @@ UUId_t PhoenixCreateServer(MString_t *Path, void *Arguments, size_t Length)
 	ListAppend(GlbAshes, ListCreateNode(Key, Key, Server));
 
 	/* Create the loader thread */
-	ThreadingCreateThread((char*)MStringRaw(Server->Base.Name),
+	ThreadingCreateThread(MStringRaw(Server->Base.Name),
 		PhoenixBootServer, Server, THREADING_DRIVERMODE);
 
 	/* Done */

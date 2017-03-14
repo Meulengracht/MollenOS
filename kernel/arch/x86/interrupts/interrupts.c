@@ -23,6 +23,7 @@
 
 /* Includes 
  * - System */
+#include <system/thread.h>
 #include <acpiinterface.h>
 #include <interrupts.h>
 #include <threading.h>

@@ -42,17 +42,13 @@ MCoreBootInfo_t x86BootInfo;
  * and all platform libs should enter this function */
 __EXTERN void MCoreInitialize(MCoreBootInfo_t*);
 
-/* Stuff from our own project that we import
- * we need some information about the cpu config */
-__EXTERN CpuInformation_t __CpuInformation;
-
 /* Initializes the local apic (if present, it faults
  * in case it's not, we don't support less for now)
  * and it boots all the dormant cores (if any) */
 void BootInitializeApic(void)
 {
 	/* Initialize the APIC (if present) */
-	if (!(__CpuInformation.EdxFeatures & CPUID_FEAT_EDX_APIC)) {
+	if (CpuHasFeatures(0, CPUID_FEAT_EDX_APIC) != OsNoError) {
 		LogFatal("APIC", "BootInitializeApic::NOT PRESENT!");
 		CpuIdle();
 	}

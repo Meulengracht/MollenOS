@@ -23,7 +23,10 @@
  * - System */
 #include <revision.h>
 #include <mollenos.h>
-#include <arch.h>
+
+#include <system/iospace.h>
+#include <system/utils.h>
+
 #include <acpiinterface.h>
 #include <garbagecollector.h>
 #include <modules/modules.h>
@@ -86,7 +89,7 @@ void MCoreInitialize(MCoreBootInfo_t *BootInfo)
 	 * servers yet, this is not needed, but since there
 	 * is no dependancies yet, just do it */
 	if (ModulesInit(&BootInfo->Descriptor) != OsNoError) {
-		Idle();
+		CpuIdle();
 	}
 
 	/* Init Threading & Scheduler for boot cpu */
@@ -125,5 +128,5 @@ void MCoreInitialize(MCoreBootInfo_t *BootInfo)
 
 	/* Enter Idle Loop */
 	while (1)
-		Idle();
+		CpuIdle();
 }

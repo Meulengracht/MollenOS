@@ -21,7 +21,7 @@
 
 /* Includes */
 #include <os/driver/file.h>
-#include <devices/video.h>
+#include <system/video.h>
 #include <criticalsection.h>
 #include <heap.h>
 #include <log.h>
@@ -41,9 +41,6 @@ size_t GlbLogSize = 0;
 CriticalSection_t GlbLogLock;
 char *GlbLog = NULL;
 int GlbLogIndex = 0;
-
-/* Externs */
-extern MCoreVideoDevice_t GlbBootVideo;
 
 /* Instantiates the Log
  * with default params */
@@ -144,8 +141,8 @@ void LogFlush(LogTarget_t Output)
 				memcpy(TempBuffer, &GlbLog[Index + 2], (size_t)Length);
 
 				/* Flush it */
-				GlbBootVideo.FgColor = LOG_COLOR_DEFAULT;
-				printf("%s", TempBuffer);
+				VideoGetTerminal()->FgColor = LOG_COLOR_DEFAULT;
+				printf("%s", (const char*)&TempBuffer[0]);
 
 				/* Increase */
 				Index += 2 + Length;
@@ -162,14 +159,14 @@ void LogFlush(LogTarget_t Output)
 
 				/* Select Color */
 				if (Type == LOG_TYPE_INFORMATION)
-					GlbBootVideo.FgColor = LOG_COLOR_INFORMATION;
+					VideoGetTerminal()->FgColor = LOG_COLOR_INFORMATION;
 				else if (Type == LOG_TYPE_DEBUG)
-					GlbBootVideo.FgColor = LOG_COLOR_DEBUG;
+					VideoGetTerminal()->FgColor = LOG_COLOR_DEBUG;
 				else if (Type == LOG_TYPE_FATAL)
-					GlbBootVideo.FgColor = LOG_COLOR_ERROR;
+					VideoGetTerminal()->FgColor = LOG_COLOR_ERROR;
 
 				/* Print header */
-				printf("[%s] ", TempBuffer);
+				printf("[%s] ", (const char*)&TempBuffer[0]);
 
 				/* Clear */
 				memset(TempBuffer, 0, HeaderLen + 1);
@@ -182,13 +179,13 @@ void LogFlush(LogTarget_t Output)
 
 				/* Sanity */
 				if (Type != LOG_TYPE_FATAL)
-					GlbBootVideo.FgColor = LOG_COLOR_DEFAULT;
+					VideoGetTerminal()->FgColor = LOG_COLOR_DEFAULT;
 
 				/* Finally, flush */
-				printf("%s", TempBuffer);
+				printf("%s", (const char*)&TempBuffer[0]);
 
 				/* Restore */
-				GlbBootVideo.FgColor = LOG_COLOR_DEFAULT;
+				VideoGetTerminal()->FgColor = LOG_COLOR_DEFAULT;
 
 				/* Increase again */
 				Index += Length;
@@ -354,11 +351,11 @@ void LogInternalPrint(int LogType, const char *Header, const char *Message)
 		{
 			/* Select Color */
 			if (LogType == LOG_TYPE_INFORMATION)
-				GlbBootVideo.FgColor = LOG_COLOR_INFORMATION;
+				VideoGetTerminal()->FgColor = LOG_COLOR_INFORMATION;
 			else if (LogType == LOG_TYPE_DEBUG)
-				GlbBootVideo.FgColor = LOG_COLOR_DEBUG;
+				VideoGetTerminal()->FgColor = LOG_COLOR_DEBUG;
 			else if (LogType == LOG_TYPE_FATAL)
-				GlbBootVideo.FgColor = LOG_COLOR_ERROR;
+				VideoGetTerminal()->FgColor = LOG_COLOR_ERROR;
 
 			/* Print */
 			printf("[%s] ", Header);
@@ -366,7 +363,7 @@ void LogInternalPrint(int LogType, const char *Header, const char *Message)
 
 		/* Sanity */
 		if (LogType != LOG_TYPE_FATAL)
-			GlbBootVideo.FgColor = LOG_COLOR_DEFAULT;
+			VideoGetTerminal()->FgColor = LOG_COLOR_DEFAULT;
 
 		/* Print */
 		if (LogType == LOG_TYPE_RAW)
@@ -375,7 +372,7 @@ void LogInternalPrint(int LogType, const char *Header, const char *Message)
 			printf("%s\n", Message);
 
 		/* Restore */
-		GlbBootVideo.FgColor = LOG_COLOR_DEFAULT;
+		VideoGetTerminal()->FgColor = LOG_COLOR_DEFAULT;
 	}
 	else if (GlbLogTarget == LogFile) {
 		size_t BytesCopied = 0;

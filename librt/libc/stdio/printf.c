@@ -34,15 +34,13 @@ int printf(const char *format, ...)
 }
 
 #else
-
-#include <Arch.h>
 #include <stdio.h>
 #include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
 
 /* Directly call */
-extern int streamout(char **out, size_t size, const char *format, va_list argptr);
+__EXTERN int streamout(char **out, size_t size, const char *format, va_list argptr);
 
 /* However in kernel mode, we just print the damned string */
 int printf(const char *format, ...)

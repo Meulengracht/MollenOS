@@ -23,6 +23,7 @@
  * - System */
 #include <process/phoenix.h>
 #include <modules/modules.h>
+#include <interrupts.h>
 #include <heap.h>
 #include <log.h>
 
@@ -140,34 +141,44 @@ OsStatus_t ModulesInit(MCoreBootDescriptor *BootDescriptor)
  * by spawning each one as a new process */
 void ModulesRunServers(void)
 {
-	/* Sanitizie initialization status */
+	// Variables
+	IntStatus_t IrqState = 0;
+
+	// Sanitize init status
 	if (GlbModulesInitialized != 1) {
 		return;
 	}
 
-	/* Iterate the server list */
+	// Disable interrupts while doing this as
+	// we are still the idle thread -> as soon as a new
+	// work is spawned we hardly ever return to this
+	IrqState = InterruptDisable();
+
+	// Iterate module list and spawn all servers
+	// then they will "run" the system for us
 	foreach(sNode, GlbModules) {
-		/* Sanitize the key */
 		if (sNode->Key.Value == LIST_SERVER) {
-			/* Build Path */
 			MCorePhoenixRequest_t *Request = NULL;
 			MString_t *Path = MStringCreate("rd:/", StrUTF8);
 			MStringAppendString(Path, ((MCoreModule_t*)sNode->Data)->Name);
 
-			/* Create a phoenix request */
+			// Allocate a new request, let it cleanup itself
 			Request = (MCorePhoenixRequest_t*)kmalloc(sizeof(MCorePhoenixRequest_t));
 			Request->Base.Type = AshSpawnServer;
 			Request->Base.Cleanup = 1;
 
-			/* Set our parameters as well */
+			// Set parameters
 			Request->Path = Path;
-			Request->Arguments.Raw.Data = 0;
+			Request->Arguments.Raw.Data = NULL;
 			Request->Arguments.Raw.Length = 0;
 
-			/* Send off the request */
+			// Send off async requests
 			PhoenixCreateRequest(Request);
 		}
 	}
+
+	// Restore interrupt state
+	InterruptRestoreState(IrqState);
 }
 
 /* ModulesQueryPath

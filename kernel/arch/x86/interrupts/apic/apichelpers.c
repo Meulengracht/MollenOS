@@ -22,9 +22,9 @@
 
 /* Includes 
  * - System */
-#include <Apic.h>
+#include <apic.h>
 #include <acpi.h>
-#include <Log.h>
+#include <log.h>
 
 /* Includes
  * - C-Library */
@@ -35,7 +35,6 @@
 /* Externs, we need access to a lot of different
  * things for these helper functions */
 __EXTERN volatile size_t GlbTimerTicks[64];
-__EXTERN x86CpuObject_t GlbBootCpuInfo;
 __EXTERN volatile int GlbCpusBooted;
 __EXTERN Addr_t GlbLocalApicBase;
 __EXTERN List_t *GlbIoApics;

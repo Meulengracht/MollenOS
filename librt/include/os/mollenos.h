@@ -45,7 +45,7 @@ typedef struct _MollenOSVideoDescriptor
 	unsigned BluePosition;
 	unsigned GreenPosition;
 	unsigned ReservedPosition;
-	unsigned
+
 	unsigned RedMask;
 	unsigned BlueMask;
 	unsigned GreenMask;

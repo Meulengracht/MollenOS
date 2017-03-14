@@ -20,17 +20,17 @@
 */
 
 /* Includes */
-#include <arch.h>
-#include <Acpi.h>
-#include <Apic.h>
-#include <Timers.h>
+#include <system/utils.h>
+#include <timers.h>
+#include <acpi.h>
+#include <apic.h>
 #include <Gdt.h>
 #include <Thread.h>
 #include <Scheduler.h>
 #include <interrupts.h>
 #include <Memory.h>
 #include <Idt.h>
-#include <Cpu.h>
+#include <cpu.h>
 
 /* C-Library */
 #include <string.h>
@@ -40,11 +40,6 @@
 /* Externs */
 extern List_t *GlbAcpiNodes;
 extern UUId_t GlbBootstrapCpuId;
-extern CpuInformation_t __CpuInformation;
-
-/* These two are located in boot.asm */
-extern void CpuEnableSse(void);
-extern void CpuEnableFpu(void);
 
 /* Globals */
 Spinlock_t GlbApLock;
@@ -94,15 +89,8 @@ void SmpApEntry(void)
 	GdtInstall();
 	IdtInstall();
 
-	// Can we enable FPU?
-	if (__CpuInformation.EdxFeatures & CPUID_FEAT_EDX_FPU) {
-		CpuEnableFpu();
-	}
-
-	// Can we enable SSE?
-	if (__CpuInformation.EdxFeatures & CPUID_FEAT_EDX_SSE) {
-		CpuEnableSse();
-	}
+	// Initialize CPU
+	CpuInitialize();
 
 	/* Get Apic Id */
 	Cpu = (ApicReadLocal(APIC_PROCESSOR_ID) >> 24) & 0xFF;
@@ -128,7 +116,7 @@ void SmpApEntry(void)
 	InterruptEnable();
 
 	while (1)
-		Idle();
+		CpuIdle();
 }
 
 /* Setup Trampoline Code */

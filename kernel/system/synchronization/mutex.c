@@ -21,7 +21,7 @@
 */
 
 /* Includes */
-#include <Arch.h>
+#include <system/thread.h>
 #include <Mutex.h>
 #include <Scheduler.h>
 #include <Heap.h>

@@ -19,8 +19,8 @@
 * MollenOS C Library - Standard Definitions - C
 */
 
-#ifndef __STDDEF_INC__
-#define __STDDEF_INC__
+#ifndef _STDDEF_H
+#define _STDDEF_H
 
 /* Includes */
 #include <stdint.h>

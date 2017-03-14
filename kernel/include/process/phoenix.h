@@ -85,7 +85,6 @@ typedef struct _MCorePhoenixRequest
 /* These are maintience/initializor functions and 
  * should only be called by system processes */
 __EXTERN void PhoenixInit(void);
-__EXTERN void PhoenixReapZombies(void);
 
 /* Methods for supporting events, use these
  * to send requests to the phoenix system */

@@ -28,7 +28,7 @@
 */
 
 /* Includes */
-#include <arch.h>
+#include <system/utils.h>
 #include <scheduler.h>
 #include <threading.h>
 #include <interrupts.h>
@@ -158,33 +158,23 @@ void SchedulerReadyThread(MCoreThread_t *Thread)
 	int i = 0;
 	
 	/* Step 1. New thread? :) */
-	if (Thread->Queue == -1)
-	{
-		/* Reduce priority */
+	if (Thread->Queue == -1) {
 		Thread->Queue = 0;
-
-		/* Recalculate time-slice */
 		Thread->TimeSlice = MCORE_INITIAL_TIMESLICE;
 	}
 
-	/* Step 2. Find the least used CPU */
-	if (Thread->CpuId == 0xFF)
-	{
-		/* Yea, broadcast thread 
-		 * Locate the least used CPU 
-		 * TODO */
+	/* Step 2. Find the least used CPU 
+	 * Todo - new algorithm here */
+	if (Thread->CpuId == 0xFF) {
 		while (GlbSchedulers[i] != NULL) {
-			if (GlbSchedulers[i]->NumThreads < GlbSchedulers[CpuIndex]->NumThreads)
+			if (GlbSchedulers[i]->NumThreads < GlbSchedulers[CpuIndex]->NumThreads) {
 				CpuIndex = i;
+			}
 			i++;
 		}
-
-		/* Now lock the cpu at that core for now */
 		Thread->CpuId = CpuIndex;
 	}
-	else
-	{
-		/* Add it to appropriate list */
+	else {
 		CpuIndex = Thread->CpuId;
 	}
 
@@ -357,7 +347,7 @@ void SchedulerSleepThread(Addr_t *Resource, size_t Timeout)
 	 * This is a fragile operation */
 	MCoreThread_t *CurrentThread = NULL;
 	IntStatus_t IntrState = InterruptDisable();
-	UUId_t Cpu = ApicGetCpu();
+	UUId_t Cpu = CpuGetCurrentId();
 	DataKey_t iKey;
 	DataKey_t sKey;
 

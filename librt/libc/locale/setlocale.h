@@ -34,6 +34,7 @@
 #include <stdlib.h>
 #include <wchar.h>
 #include <locale.h>
+#include <stdint.h>
 
 /* Cpp-Guard */
 #ifdef __cplusplus

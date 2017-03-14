@@ -28,7 +28,6 @@
 #include <stddef.h>
 #include <string.h>
 
-
 /* HashTableCreate
  * Initializes a new hash table
  * of the given capacity */

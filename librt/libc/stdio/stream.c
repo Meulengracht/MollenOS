@@ -67,7 +67,7 @@ enum
 #define IsUTF8(Character) (((Character) & 0xC0) == 0x80)
 
 #ifdef LIBC_KERNEL
-extern int VideoPutChar(int Character);
+__EXTERN OsStatus_t VideoPutCharacter(int Character);
 #endif
 
 #ifdef _MSC_VER
@@ -178,12 +178,11 @@ static int StreamOutCharacter(char **oStream, uint32_t *oLen, uint32_t Character
 	}
 	else 
 	{
-		/* These routines need the 
-		 * unicode-point */
+		/* These routines need the unicode-point */
 #ifndef LIBC_KERNEL
 		return putchar(Character);
 #else
-		return VideoPutChar(Character);
+		return (VideoPutCharacter(Character) == OsNoError) ? Character : 0;
 #endif
 	}
 }
@@ -258,11 +257,10 @@ static int StreamOutString(char **oStream, uint32_t *oLen, const char *iStream, 
 				iLen -= Size;
 				iStream++;
 			}
-			else
-			{
-				/* Write the character to the stream */
-				if (StreamOutCharacter(oStream, oLen, (uint32_t)Character) == 0)
+			else {
+				if (StreamOutCharacter(oStream, oLen, (uint32_t)Character) == 0) {
 					return -1;
+				}
 
 				/* Inc */
 				bWritten++;

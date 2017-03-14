@@ -1,7 +1,7 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio 15
-VisualStudioVersion = 15.0.26206.0
+VisualStudioVersion = 15.0.26228.4
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "Libx86", "kernel\msvc\Libx86\Libx86.vcxproj", "{17145F88-DAEA-496B-A91F-2A78ED5673CC}"
 	ProjectSection(ProjectDependencies) = postProject
@@ -54,7 +54,7 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "libm", "librt\msvc\libm\lib
 		{1AD2E59E-5A05-43C7-A10B-236170B9B317} = {1AD2E59E-5A05-43C7-A10B-236170B9B317}
 	EndProjectSection
 EndProject
-Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "CRT", "CRT", "{1260A5D3-3369-4692-B6D7-BD9302D232CC}"
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Visual CRT", "Visual CRT", "{1260A5D3-3369-4692-B6D7-BD9302D232CC}"
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "libcrt", "librt\msvc\libcrt\libcrt.vcxproj", "{1AD2E59E-5A05-43C7-A10B-236170B9B317}"
 EndProject
@@ -121,8 +121,6 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "libmsc++", "librt\msvc\libm
 		{96CD5AF1-B1D1-4EC0-8B87-DF05A83590E7} = {96CD5AF1-B1D1-4EC0-8B87-DF05A83590E7}
 		{0C598AF6-FD13-40CB-948C-5B027A70A471} = {0C598AF6-FD13-40CB-948C-5B027A70A471}
 	EndProjectSection
-EndProject
-Project("{F088123C-0E9E-452A-89E6-6BA2F21D5CAC}") = "Design", "kernel\Msvc\Design\Design.modelproj", "{EAA9C080-C5D1-4220-BE45-9D29EC13EF3F}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Servers", "Servers", "{E63B52A1-7305-4284-85DE-B7F0BC7EA1E3}"
 EndProject
@@ -384,14 +382,6 @@ Global
 		{BC075CA9-559D-47EE-AEA7-B2175F141688}.Build_X86_32|MollenOS.Build.0 = Build_X86_32|Win32
 		{BC075CA9-559D-47EE-AEA7-B2175F141688}.Build_X86_32|Win32.ActiveCfg = Build_X86_32|Win32
 		{BC075CA9-559D-47EE-AEA7-B2175F141688}.Build_X86_32|Win32.Build.0 = Build_X86_32|Win32
-		{EAA9C080-C5D1-4220-BE45-9D29EC13EF3F}.All|Mixed Platforms.ActiveCfg = Debug|Any CPU
-		{EAA9C080-C5D1-4220-BE45-9D29EC13EF3F}.All|Mixed Platforms.Build.0 = Debug|Any CPU
-		{EAA9C080-C5D1-4220-BE45-9D29EC13EF3F}.All|MollenOS.ActiveCfg = Release|Any CPU
-		{EAA9C080-C5D1-4220-BE45-9D29EC13EF3F}.All|Win32.ActiveCfg = Debug|Any CPU
-		{EAA9C080-C5D1-4220-BE45-9D29EC13EF3F}.Build_X86_32|Mixed Platforms.ActiveCfg = Debug|Any CPU
-		{EAA9C080-C5D1-4220-BE45-9D29EC13EF3F}.Build_X86_32|Mixed Platforms.Build.0 = Debug|Any CPU
-		{EAA9C080-C5D1-4220-BE45-9D29EC13EF3F}.Build_X86_32|MollenOS.ActiveCfg = Release|Any CPU
-		{EAA9C080-C5D1-4220-BE45-9D29EC13EF3F}.Build_X86_32|Win32.ActiveCfg = Debug|Any CPU
 		{DEA6F86E-257B-45FE-99D7-E9F0FF5E1928}.All|Mixed Platforms.ActiveCfg = Build_X86_32|Win32
 		{DEA6F86E-257B-45FE-99D7-E9F0FF5E1928}.All|Mixed Platforms.Build.0 = Build_X86_32|Win32
 		{DEA6F86E-257B-45FE-99D7-E9F0FF5E1928}.All|MollenOS.ActiveCfg = Build_X86_32|Win32

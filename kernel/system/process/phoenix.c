@@ -41,13 +41,14 @@
 /* Prototypes 
  * They are defined later down this file */
 int PhoenixEventHandler(void *UserData, MCoreEvent_t *Event);
+OsStatus_t PhoenixReap(void *UserData);
 
 /* Globals */
 MCoreEventHandler_t *GlbPhoenixEventHandler = NULL;
 UUId_t GlbAshIdGenerator = 0;
 List_t *GlbAshes = NULL;
-List_t *GlbZombieAshes = NULL;
 UUId_t *GlbAliasMap = NULL;
+UUId_t GlbPhoenixGcId = 0;
 
 /* Initialize the Phoenix environment and 
  * start the event-handler loop, it handles all requests 
@@ -62,7 +63,7 @@ void PhoenixInit(void)
 
 	/* Create */
 	GlbAshes = ListCreate(KeyInteger, LIST_SAFE);
-	GlbZombieAshes = ListCreate(KeyInteger, LIST_SAFE);
+	GlbPhoenixGcId = GcRegister(PhoenixReap);
 
 	/* Initialize the global alias map */
 	GlbAliasMap = (UUId_t*)kmalloc(sizeof(UUId_t) * PHOENIX_MAX_ASHES);
@@ -175,45 +176,33 @@ void PhoenixTerminateAsh(MCoreAsh_t *Ash)
 	if (pNode == NULL)
 		return;
 
-	/* Remove it, add to zombies */
-	ListRemoveByNode(GlbAshes, pNode);
-	ListAppend(GlbZombieAshes, pNode);
-
 	/* Wake all that waits for this to finish */
 	SchedulerWakeupAllThreads((Addr_t*)pNode->Data);
 
-	/* Tell GC */
-	GcAddWork();
+	// Alert GC and destroy node
+	GcSignal(GlbPhoenixGcId, pNode->Data);
+	ListRemoveByNode(GlbAshes, pNode);
 }
 
-/* This function cleans up all processes and
+/* This function cleans up processes and
  * ashes and servers that might be queued up for
  * destruction, they can't handle all their cleanup themselves */
-void PhoenixReapZombies(void)
+OsStatus_t PhoenixReap(void *UserData)
 {
-	/* Reap untill list is empty */
-	ListNode_t *tNode = ListPopFront(GlbZombieAshes);
+	// Instantiate the base-pointer
+	MCoreAsh_t *Ash = (MCoreAsh_t*)UserData;
 
-	while (tNode != NULL)
-	{
-		/* Cast */
-		MCoreAsh_t *Ash = (MCoreAsh_t*)tNode->Data;
-
-		/* Clean it up */
-		if (Ash->Type == AshBase) {
-			PhoenixCleanupAsh(Ash);
-		}
-		else if (Ash->Type == AshProcess) {
-			PhoenixCleanupProcess((MCoreProcess_t*)Ash);
-		}
-		else {
-			//??
-		}
-
-		/* Clean up rest */
-		kfree(tNode);
-
-		/* Get next node */
-		tNode = ListPopFront(GlbZombieAshes);
+	// Clean up
+	if (Ash->Type == AshBase) {
+		PhoenixCleanupAsh(Ash);
 	}
+	else if (Ash->Type == AshProcess) {
+		PhoenixCleanupProcess((MCoreProcess_t*)Ash);
+	}
+	else {
+		//??
+		return OsError;
+	}
+
+	return OsNoError;
 }

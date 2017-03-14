@@ -179,11 +179,6 @@ __EXTERN MCoreThread_t *ThreadingGetThread(UUId_t ThreadId);
  * by sending it an yield IPI */
 __EXTERN void ThreadingWakeCpu(UUId_t Cpu);
 
-/* ThreadingReapZombies
- * Garbage-Collector function, it reaps and
- * cleans up all threads */
-__EXTERN void ThreadingReapZombies(void);
-
 /* ThreadingSwitch
  * This is the thread-switch function and must be 
  * be called from the below architecture to get the

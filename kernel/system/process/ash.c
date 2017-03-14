@@ -24,6 +24,8 @@
 /* Includes 
  * - System */
 #include <os/driver/file.h>
+#include <system/thread.h>
+#include <system/utils.h>
 #include <process/phoenix.h>
 #include <modules/modules.h>
 #include <scheduler.h>
@@ -46,7 +48,7 @@ __EXTERN List_t *GlbAshes;
 void PhoenixFinishAsh(MCoreAsh_t *Ash)
 {
 	/* Cast */
-	UUId_t CurrentCpu = ApicGetCpu();
+	UUId_t CurrentCpu = CpuGetCurrentId();
 	MCoreThread_t *Thread = ThreadingGetCurrentThread(CurrentCpu);
 	Addr_t BaseAddress = 0;
 	int LoadedFromInitRD = 0;
@@ -86,7 +88,7 @@ void PhoenixFinishAsh(MCoreAsh_t *Ash)
 
 	/* Map Stack */
 	AddressSpaceMap(AddressSpaceGetCurrent(), (MEMORY_SEGMENT_STACK_BASE & PAGE_MASK),
-		ASH_STACK_INIT, MEMORY_MASK_DEFAULT, ADDRESS_SPACE_FLAG_APPLICATION);
+		ASH_STACK_INIT, __MASK, AS_FLAG_APPLICATION);
 	Ash->StackStart = MEMORY_SEGMENT_STACK_BASE;
 
 	/* Setup signalling */
@@ -119,7 +121,7 @@ int PhoenixInitializeAsh(MCoreAsh_t *Ash, MString_t *Path)
 	uint8_t *fBuffer = NULL;
 	char *fPath = NULL;
 	size_t fSize = 0, fRead = 0;
-	int Index = 0;
+	int Index = 0, ShouldFree = 0;
 
 	/* Sanity */
 	if (Path == NULL) {
@@ -152,6 +154,9 @@ int PhoenixInitializeAsh(MCoreAsh_t *Ash, MString_t *Path)
 		fBuffer = (uint8_t*)kmalloc(fSize);
 		fPath = (char*)kmalloc(_MAXPATH);
 
+		// Set that we should free the buffer again
+		ShouldFree = 1;
+
 		/* Reset path buffer */
 		memset(fPath, 0, _MAXPATH);
 
@@ -171,13 +176,15 @@ int PhoenixInitializeAsh(MCoreAsh_t *Ash, MString_t *Path)
 
 	/* Validate File */
 	if (!PeValidate(fBuffer, fSize)) {
-		kfree(fBuffer);
+		if (ShouldFree == 1) {
+			kfree(fBuffer);
+		}
 		return -3;
 	}
 
 	/* Set initial */
 	Ash->Id = GlbAshIdGenerator++;
-	Ash->Parent = ThreadingGetCurrentThread(ApicGetCpu())->AshId;
+	Ash->Parent = ThreadingGetCurrentThread(CpuGetCurrentId())->AshId;
 	Ash->Type = AshBase;
 
 	/* Split path, even if a / is not found
@@ -492,7 +499,7 @@ MCoreAsh_t *PhoenixGetAsh(UUId_t AshId)
 		|| AshId == PHOENIX_NO_ASH)
 	{
 		/* Get current cpu id */
-		CurrentCpu = ApicGetCpu();
+		CurrentCpu = CpuGetCurrentId();
 
 		/* Sanitize threading is up */
 		if (ThreadingGetCurrentThread(CurrentCpu) != NULL) {

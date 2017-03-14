@@ -41,15 +41,15 @@ typedef struct _MollenOSVideoDescriptor
 	int Depth;
 
 	/* Pixel Information */
-	int RedPosition;
-	int BluePosition;
-	int GreenPosition;
-	int ReservedPosition;
+	unsigned RedPosition;
+	unsigned BluePosition;
+	unsigned GreenPosition;
+	unsigned ReservedPosition;
 
-	int RedMask;
-	int BlueMask;
-	int GreenMask;
-	int ReservedMask;
+	unsigned RedMask;
+	unsigned BlueMask;
+	unsigned GreenMask;
+	unsigned ReservedMask;
 
 } OSVideoDescriptor_t;
 
@@ -58,6 +58,7 @@ typedef struct _MollenOSVideoDescriptor
 #define MEMORY_COMMIT					0x00000001
 #define MEMORY_CONTIGIOUS				0x00000002
 #define MEMORY_LOWFIRST					0x00000004
+#define MEMORY_CLEAN					0x00000008
 
 /* Memory Descriptor
  * Describes the current memory state and setup

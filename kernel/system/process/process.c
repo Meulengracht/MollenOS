@@ -52,7 +52,7 @@ void PhoenixBootProcess(void *Args)
 
 	/* Map in arguments */
 	AddressSpaceMap(AddressSpaceGetCurrent(), MEMORY_LOCATION_RING3_ARGS,
-		PAGE_SIZE, MEMORY_MASK_DEFAULT, ADDRESS_SPACE_FLAG_APPLICATION);
+		PAGE_SIZE, __MASK, AS_FLAG_APPLICATION);
 
 	/* Copy arguments */
 	memcpy((void*)MEMORY_LOCATION_RING3_ARGS,

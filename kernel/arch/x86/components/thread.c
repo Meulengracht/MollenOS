@@ -122,7 +122,7 @@ void *IThreadCreate(Flags_t ThreadFlags, Addr_t EntryPoint)
 	/* Don't create contexts for idle threads 
 	 * Otherwise setup a kernel stack */
 	if (!(ThreadFlags & THREADING_IDLE)) {
-		Thread->Context = ContextCreate(THREADING_KERNELMODE, EntryPoint, NULL);
+		Thread->Context = ContextCreate(ThreadFlags, EntryPoint, NULL);
 	}
 
 	/* If its the first time we run, install

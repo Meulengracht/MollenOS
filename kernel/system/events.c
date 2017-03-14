@@ -114,9 +114,8 @@ void EventHandlerInternal(void *Args)
 	ListNode_t *eNode = NULL;
 
 	/* Start the while loop */
-	while (EventHandler->Running)
-	{
-		/* Get event */
+	while (EventHandler->Running) {
+		// Wait for next event
 		SemaphoreP(EventHandler->Lock, 0);
 
 		/* Sanitize our running status 
@@ -156,6 +155,9 @@ void EventHandlerInternal(void *Args)
 			kfree(Event);
 		}	
 	}
+
+	// Cleanup 
+	EventDestruct(EventHandler);
 }
 
 /* Event Create

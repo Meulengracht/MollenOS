@@ -91,7 +91,7 @@ VideoDrawBootTerminal(
 
 	// Render title in middle of header
 	while (*TitlePtr) {
-		VideoDrawCharacter(TitleStartY, TitleStartX, *TitlePtr, 0xFFFFFF, 0x2980B9);
+		VideoDrawCharacter(TitleStartX, TitleStartY, *TitlePtr, 0x2980B9, 0xFFFFFF);
 		TitleStartX += 10;
 		TitlePtr++;
 	}

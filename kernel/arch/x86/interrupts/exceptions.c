@@ -23,7 +23,8 @@
 */
 
 /* Includes */
-#include <arch.h>
+#include <system/iospace.h>
+#include <system/utils.h>
 #include <process/phoenix.h>
 #include <modules/modules.h>
 #include <threading.h>
@@ -242,7 +243,7 @@ void ExceptionEntry(Context_t *regs)
 		/* Device Not Available */
 		
 		/* This happens if FPU needs to be restored OR initialized */
-		Cpu = ApicGetCpu();
+		Cpu = CpuGetCurrentId();
 		cThread = ThreadingGetCurrentThread(Cpu);
 
 		/* If it is NULL shit has gone down */
@@ -292,7 +293,7 @@ void ExceptionEntry(Context_t *regs)
 			MCoreAsh_t *Ash = NULL;
 
 			/* Oh oh, someone has done the dirty signal */
-			Cpu = ApicGetCpu();
+			Cpu = CpuGetCurrentId();
 			cThread = ThreadingGetCurrentThread(Cpu);
 			Ash = PhoenixGetAsh(cThread->AshId);
 
@@ -311,7 +312,7 @@ void ExceptionEntry(Context_t *regs)
 
 			/* If we reach here, no more signals, 
 			 * and we should just enter the actual thread */
-			if (cThread->Flags & (THREADING_USERMODE | THREADING_DRIVERMODE))
+			if (cThread->Flags != THREADING_KERNELMODE)
 				enter_thread(((x86Thread_t*)cThread->ThreadData)->UserContext);
 			else
 				enter_thread(((x86Thread_t*)cThread->ThreadData)->Context);
@@ -389,7 +390,7 @@ void ExceptionEntry(Context_t *regs)
 			char *Name = NULL;
 
 			/* Get cpu */
-			Cpu = ApicGetCpu();
+			Cpu = CpuGetCurrentId();
 
 			/* Enable log */
 			LogRedirect(LogConsole);
@@ -424,7 +425,7 @@ void ExceptionEntry(Context_t *regs)
 	if (IssueFixed == 0)
 	{
 		/* Get cpu */
-		Cpu = ApicGetCpu();
+		Cpu = CpuGetCurrentId();
 
 		/* Enable log */
 		LogRedirect(LogConsole);
@@ -444,7 +445,7 @@ void ExceptionEntry(Context_t *regs)
 		/* Print it */
 		//printf("Disassembly of 0x%x:\n%s", regs->eip, instructions);
 
-		Idle();
+		CpuIdle();
 	}
 }
 
@@ -495,7 +496,7 @@ void ExceptionEntry(Context_t *regs)
 void kernel_panic(const char *Message)
 {
 	/* Get Cpu */
-	UUId_t CurrCpu = ApicGetCpu();
+	UUId_t CurrCpu = CpuGetCurrentId();
 
 	/* Enable log */
 	LogRedirect(LogConsole);

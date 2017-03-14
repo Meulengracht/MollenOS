@@ -32,7 +32,7 @@
 
 /* Includes 
  * - System */
-#include <arch.h>
+#include <system/addresspace.h>
 #include <heap.h>
 #include <log.h>
 
@@ -92,7 +92,7 @@ Addr_t *HeapSAllocator(Heap_t *Heap, size_t Size)
 
 		/* Map in the new memory */
 		AddressSpaceMap(AddressSpaceGetCurrent(), Heap->MemHeaderMax, PAGE_SIZE, 
-			MEMORY_MASK_DEFAULT, (Heap->IsUser == 1) ? ADDRESS_SPACE_FLAG_APPLICATION : 0);
+			__MASK, (Heap->IsUser == 1) ? AS_FLAG_APPLICATION : 0);
 
 		/* Reset the memory */
 		memset((void*)Heap->MemHeaderMax, 0, PAGE_SIZE);
@@ -858,9 +858,9 @@ void HeapInit(void)
 	/* Create initial nodes
 	 * so we save the initial creation */
 	GlbKernelHeap.Blocks = HeapCreateBlock(&GlbKernelHeap,
-		HEAP_NORMAL_BLOCK, MEMORY_MASK_DEFAULT, BLOCK_NORMAL, GlbKernelUnknown);
+		HEAP_NORMAL_BLOCK, __MASK, BLOCK_NORMAL, GlbKernelUnknown);
 	GlbKernelHeap.PageBlocks = HeapCreateBlock(&GlbKernelHeap,
-		HEAP_LARGE_BLOCK, MEMORY_MASK_DEFAULT, BLOCK_ALIGNED, GlbKernelUnknown);
+		HEAP_LARGE_BLOCK, __MASK, BLOCK_ALIGNED, GlbKernelUnknown);
 	GlbKernelHeap.CustomBlocks = NULL;
 
 	/* Reset Stats */
@@ -899,9 +899,9 @@ Heap_t *HeapCreate(Addr_t HeapAddress, Addr_t HeapEnd, int UserHeap)
 	/* Create a normal node + large node to 
 	 * save the initial creations */
 	Heap->Blocks = HeapCreateBlock(Heap, HEAP_NORMAL_BLOCK, 
-		MEMORY_MASK_DEFAULT,  BLOCK_NORMAL, GlbKernelUnknown);
+		__MASK,  BLOCK_NORMAL, GlbKernelUnknown);
 	Heap->PageBlocks = HeapCreateBlock(Heap, HEAP_LARGE_BLOCK,
-		MEMORY_MASK_DEFAULT, BLOCK_ALIGNED, GlbKernelUnknown);
+		__MASK, BLOCK_ALIGNED, GlbKernelUnknown);
 	Heap->CustomBlocks = NULL;
 
 	/* Reset Stats */
@@ -994,7 +994,7 @@ void *kmalloc_ap(size_t Size, Addr_t *Ptr)
 	/* Do the call */
 	RetAddr = HeapAllocate(&GlbKernelHeap, Size, 
 		ALLOCATION_COMMIT | ALLOCATION_PAGEALIGN, 
-		0, MEMORY_MASK_DEFAULT, GlbKernelUnknown);
+		0, __MASK, GlbKernelUnknown);
 
 	/* Sanitize null-allocs in kernel allocations
 	 * we need to extra sensitive, we also assert
@@ -1027,7 +1027,7 @@ void *kmalloc_p(size_t Size, Addr_t *Ptr)
 	/* Do the call */
 	RetAddr = HeapAllocate(&GlbKernelHeap, Size, 
 		ALLOCATION_COMMIT, HEAP_STANDARD_ALIGN, 
-		MEMORY_MASK_DEFAULT, NULL);
+		__MASK, NULL);
 
 	/* Sanitize size in kernel allocations 
 	 * we need to extra sensitive */
@@ -1058,7 +1058,7 @@ void *kmalloc_a(size_t Size)
 	/* Do the call */
 	RetAddr = HeapAllocate(&GlbKernelHeap, Size, 
 		ALLOCATION_COMMIT | ALLOCATION_PAGEALIGN, 
-		0, MEMORY_MASK_DEFAULT, GlbKernelUnknown);
+		0, __MASK, GlbKernelUnknown);
 
 	/* Sanitize null-allocs in kernel allocations
 	 * we need to extra sensitive, we also assert
@@ -1086,7 +1086,7 @@ void *kmalloc(size_t Size)
 	/* Do the call */
 	RetAddr = HeapAllocate(&GlbKernelHeap, Size, 
 		ALLOCATION_COMMIT, HEAP_STANDARD_ALIGN, 
-		MEMORY_MASK_DEFAULT, NULL);
+		__MASK, NULL);
 
 	/* Sanitize size in kernel allocations 
 	 * we need to extra sensitive */

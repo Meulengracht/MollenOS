@@ -59,28 +59,32 @@ CALL "C:\Program Files (x86)\Microsoft Visual Studio\2017\Community\VC\Auxiliary
 if "!skip!"=="true" goto :Install
 
 ::Build Stage1
-nasm.exe -f bin boot\Stage1\MFS1\Stage1.asm -o boot\Stage1\MFS1\Stage1.bin
+nasm.exe -f bin %~dp0\boot\Stage1\MFS1\Stage1.asm -o %~dp0\boot\Stage1\MFS1\Stage1.bin
 
 ::Build Stage2
 START "NASM" /D %~dp0\boot\Stage2 /B /W nasm.exe -f bin Stage2.asm -o ssbl.stm
 
 ::Build Operation System
-if "!action!"=="rebuild" MSBuild.exe MollenOS.sln /p:Configuration=!buildcfg! /t:Clean,Build
-if "!action!"=="build" MSBuild.exe MollenOS.sln /p:Configuration=!buildcfg! /t:Build
+if "!action!"=="rebuild" MSBuild.exe %~dp0\MollenOS.sln /p:Configuration=!buildcfg! /p:Platform="Mixed Platforms" /t:Clean,Build
+if "!action!"=="build" MSBuild.exe %~dp0\MollenOS.sln /p:Configuration=!buildcfg! /p:Platform="Mixed Platforms" /t:Build
 
 ::Copy files for rd to modules folder
-xcopy /v /y librt\build\*.dll modules\build\
+xcopy /v /y %~dp0\librt\build\*.dll %~dp0\modules\build\
 
 ::Build InitRd
-START "InitRD" /D %~dp0\modules /B /W "modules\RdBuilder.exe"
+START "InitRD" /D %~dp0\modules /B /W "%~dp0\modules\RdBuilder.exe"
 
 ::Copy files to install directory
-xcopy /v /y librt\build\*.dll install\Hdd\System\
-xcopy /v /y kernel\Build\MCore.mos install\Hdd\System\Sys32.mos
-xcopy /v /y modules\InitRd.mos install\Hdd\System\InitRd32.mos
-xcopy /v /y boot\Stage1\MFS1\Stage1.bin install\Stage1.bin
-xcopy /v /y boot\Stage2\ssbl.stm install\ssbl.stm
+xcopy /v /y %~dp0\librt\build\*.dll %~dp0\install\Hdd\System\
+xcopy /v /y %~dp0\kernel\Build\MCore.mos %~dp0\install\Hdd\System\Sys32.mos
+xcopy /v /y %~dp0\modules\InitRd.mos %~dp0\install\Hdd\System\InitRd32.mos
+xcopy /v /y %~dp0\boot\Stage1\MFS1\Stage1.bin %~dp0\install\Stage1.bin
+xcopy /v /y %~dp0\boot\Stage2\ssbl.stm %~dp0\install\ssbl.stm
 
 ::Install MOS
 :Install
-START "MOLLENOS INSTALLER" /D %~dp0\install /B /W "install\MfsTool.exe" -!target!
+del %~dp0\*.vmdk
+del %~dp0\*.img
+
+::Run Tool
+START "MOLLENOS INSTALLER" /D %~dp0\install /B /W "%~dp0\install\MfsTool.exe" -!target!

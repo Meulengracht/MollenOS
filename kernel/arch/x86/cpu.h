@@ -109,15 +109,24 @@ typedef struct _CpuInformation {
 /* CpuInitialize
  * Initializes the CPU and gathers available
  * information about it */
-__EXTERN
-void 
+KERNELAPI
+void
+KERNELABI
 CpuInitialize(void);
 
 /* CpuSmpInitialize
  * Initializes an SMP environment and boots the
  * available cores in the system */
-__EXTERN
+KERNELAPI
 void
+KERNELABI
 CpuSmpInitialize(void);
+
+/* CpuHasFeatures
+ * Determines if the cpu has the requested features */
+KERNELAPI
+OsStatus_t
+KERNELABI
+CpuHasFeatures(Flags_t Ecx, Flags_t Edx);
 
 #endif // !_x86_CPU_H_

@@ -24,6 +24,10 @@
 /* Includes 
  * - System */
 #include <mollenos.h>
+#include <system/thread.h>
+#include <system/utils.h>
+
+#include <garbagecollector.h>
 #include <process/phoenix.h>
 #include <interrupts.h>
 #include <threading.h>
@@ -38,12 +42,16 @@
 #include <string.h>
 #include <stdio.h>
 
+/* Prototypes
+ * The function handler for cleanup */
+OsStatus_t ThreadingReap(void *UserData);
+
 /* Globals, we need a few variables to
  * keep track of running threads, idle threads
  * and a thread resources lock */
+UUId_t GlbThreadGcId = 0;
 UUId_t GlbThreadId = 0;
 List_t *GlbThreads = NULL;
-List_t *GlbZombieThreads = NULL;
 ListNode_t *GlbCurrentThreads[MAX_SUPPORTED_CPUS];
 ListNode_t *GlbIdleThreads[MAX_SUPPORTED_CPUS];
 Spinlock_t GlbThreadLock = SPINLOCK_INIT;
@@ -74,7 +82,7 @@ void ThreadingEntryPoint(void)
 
 	/* Retrieve the current cpu and
 	 * get the current thread */
-	Cpu = ApicGetCpu();
+	Cpu = CpuGetCurrentId();
 	Thread = ThreadingGetCurrentThread(Cpu);
 
 	/* We don't need futther init, run the thread */
@@ -99,14 +107,14 @@ void ThreadingEntryPointUserMode(void)
 	UUId_t Cpu = 0;
 
 	/* Retrieve the current cpu and
-	* get the current thread */
-	Cpu = ApicGetCpu();
+	 * get the current thread */
+	Cpu = CpuGetCurrentId();
 	Thread = ThreadingGetCurrentThread(Cpu);
 
 	/* It's important to create 
 	 * and map the stack before setting up */
 	AddressSpaceMap(AddressSpaceGetCurrent(), (MEMORY_SEGMENT_STACK_BASE & PAGE_MASK),
-		ASH_STACK_INIT, MEMORY_MASK_DEFAULT, ADDRESS_SPACE_FLAG_APPLICATION);
+		ASH_STACK_INIT, __MASK, AS_FLAG_APPLICATION);
 
 	/* Let the architecture know we want to enter
 	 * user-mode */
@@ -142,7 +150,7 @@ void ThreadingInitialize(UUId_t Cpu)
 	{
 		/* Create threading list */
 		GlbThreads = ListCreate(KeyInteger, LIST_SAFE);
-		GlbZombieThreads = ListCreate(KeyInteger, LIST_SAFE);
+		GlbThreadGcId = GcRegister(ThreadingReap);
 		GlbThreadId = 0;
 
 		/* Zero all current threads out, together with idle */
@@ -179,7 +187,7 @@ void ThreadingInitialize(UUId_t Cpu)
 
 	/* Create resource spaces for the
 	 * underlying platform */
-	Init->AddressSpace = AddressSpaceCreate(ADDRESS_SPACE_KERNEL);
+	Init->AddressSpace = AddressSpaceCreate(AS_TYPE_KERNEL);
 	Init->ThreadData = IThreadCreate(Init->Flags, 0);
 
 	/* Create a list node */
@@ -211,7 +219,7 @@ UUId_t ThreadingCreateThread(const char *Name,
 
 	/* Lookup current thread and cpu */
 	Key.Value = (int)GlbThreadId++;
-	Cpu = ApicGetCpu();
+	Cpu = CpuGetCurrentId();
 	Parent = ThreadingGetCurrentThread(Cpu);
 
 	/* Release the lock, we don't need it for
@@ -273,20 +281,20 @@ UUId_t ThreadingCreateThread(const char *Name,
 	 * Determine the address space we want
 	 * to initialize for this thread */
 	if (THREADING_RUNMODE(Flags) == THREADING_KERNELMODE) {
-		Thread->AddressSpace = AddressSpaceCreate(ADDRESS_SPACE_INHERIT);
+		Thread->AddressSpace = AddressSpaceCreate(AS_TYPE_INHERIT);
 	}
 	else {
 		Flags_t ASFlags = 0;
 
 		if (THREADING_RUNMODE(Flags) == THREADING_DRIVERMODE) {
-			ASFlags |= ADDRESS_SPACE_DRIVER;
+			ASFlags |= AS_TYPE_DRIVER;
 		}
 		else {
-			ASFlags |= ADDRESS_SPACE_APPLICATION;
+			ASFlags |= AS_TYPE_APPLICATION;
 		}
 
 		if (Flags & THREADING_INHERIT) {
-			ASFlags |= ADDRESS_SPACE_INHERIT;
+			ASFlags |= AS_TYPE_INHERIT;
 		}
 
 		/* Create the address space */
@@ -341,7 +349,7 @@ void ThreadingExitThread(int ExitCode)
 
 	/* Retrieve the current cpu and
 	* get the current thread */
-	Cpu = ApicGetCpu();
+	Cpu = CpuGetCurrentId();
 	Thread = ThreadingGetCurrentThread(Cpu);
 
 	/* Store exit code */
@@ -415,7 +423,7 @@ void ThreadingEnterUserMode(void *AshInfo)
 	/* Sensitive */
 	MCoreAsh_t *Ash = (MCoreAsh_t*)AshInfo;
 	IntStatus_t IntrState = InterruptDisable();
-	MCoreThread_t *Thread = ThreadingGetCurrentThread(ApicGetCpu());
+	MCoreThread_t *Thread = ThreadingGetCurrentThread(CpuGetCurrentId());
 
 	/* Update this thread */
 	Thread->AshId = Ash->Id;
@@ -482,7 +490,7 @@ MCoreThread_t *ThreadingGetCurrentThread(UUId_t Cpu)
 UUId_t ThreadingGetCurrentThreadId(void)
 {
 	/* Get current cpu */
-	UUId_t Cpu = ApicGetCpu();
+	UUId_t Cpu = CpuGetCurrentId();
 
 	/* If it's during startup phase for cpu's
 	 * we have to take precautions */
@@ -548,7 +556,7 @@ Flags_t ThreadingGetCurrentMode(void)
 {
 	/* Sanitizie status first! */
 	if (ThreadingIsEnabled() == 1) {
-		return ThreadingGetCurrentThread(ApicGetCpu())->Flags & THREADING_MODEMASK;
+		return ThreadingGetCurrentThread(CpuGetCurrentId())->Flags & THREADING_MODEMASK;
 	}
 	else {
 		return 0;
@@ -567,22 +575,16 @@ void ThreadingWakeCpu(UUId_t Cpu)
 /* ThreadingReapZombies
  * Garbage-Collector function, it reaps and
  * cleans up all threads */
-void ThreadingReapZombies(void)
+OsStatus_t ThreadingReap(void *UserData)
 {
-	/* Reap untill list is empty */
-	ListNode_t *tNode = ListPopFront(GlbZombieThreads);
+	// Instantiate the thread pointer
+	MCoreThread_t *Thread = (MCoreThread_t*)UserData;
 
-	while (tNode != NULL) {
-		MCoreThread_t *Thread = 
-			(MCoreThread_t*)tNode->Data;
+	// Call the cleanup
+	ThreadingCleanupThread(Thread);
 
-		/* Clean it up */
-		ThreadingCleanupThread(Thread);
-		kfree(tNode);
-
-		/* Get next node */
-		tNode = ListPopFront(GlbZombieThreads);
-	}
+	// Done - no errors
+	return OsNoError;
 }
 
 /* ThreadingDebugPrint
@@ -604,12 +606,12 @@ void ThreadingDebugPrint(void)
  * next thread to run */
 MCoreThread_t *ThreadingSwitch(UUId_t Cpu, MCoreThread_t *Current, int PreEmptive)
 {
-	/* We'll need these */
+	// Variables
 	MCoreThread_t *NextThread = NULL;
 	ListNode_t *Node = NULL;
 	DataKey_t Key;
 
-	/* Get a new task! */
+	// Get the node for the current thread
 	Node = ThreadingGetCurrentNode(Cpu);
 
 	/* Unless this one is done.. */
@@ -617,23 +619,20 @@ GetNextThread:
 	if ((Current->Flags & THREADING_FINISHED) || (Current->Flags & THREADING_IDLE)
 		|| (Current->Flags & THREADING_ENTER_SLEEP))
 	{
-		/* Someone should really kill those zombies :/ */
-		if (Current->Flags & THREADING_FINISHED)
-		{
-			/* Deschedule it */
+		// If the thread is finished then add it to 
+		// garbagecollector
+		if (Current->Flags & THREADING_FINISHED) {
 			SchedulerRemoveThread(Current);
-
-			/* Remove it */
+			GcSignal(GlbThreadGcId, Current);
 			ListRemoveByNode(GlbThreads, Node);
-
-			/* Append to reaper list */
-			ListAppend(GlbZombieThreads, Node);
+			ListDestroyNode(GlbThreads, Node);
 		}
 
-		/* Remove flag so it does not happen again */
-		if (Current->Flags & THREADING_ENTER_SLEEP)
+		// Handle the sleep flag
+		if (Current->Flags & THREADING_ENTER_SLEEP) {
 			Current->Flags &= ~(THREADING_ENTER_SLEEP);
-
+		}
+		
 		/* Get next thread without scheduling the current */
 		NextThread = SchedulerGetNextTask(Cpu, NULL, PreEmptive);
 	}

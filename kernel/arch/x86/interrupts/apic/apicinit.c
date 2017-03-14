@@ -22,13 +22,14 @@
 
 /* Includes 
  * - System */
-#include <Apic.h>
-#include <AcpiInterface.h>
-#include <Memory.h>
-#include <Interrupts.h>
-#include <Timers.h>
-#include <Heap.h>
-#include <Log.h>
+#include <system/utils.h>
+#include <apic.h>
+#include <acpiinterface.h>
+#include <memory.h>
+#include <interrupts.h>
+#include <timers.h>
+#include <heap.h>
+#include <log.h>
 
 /* Includes
  * - C-Library */
@@ -48,7 +49,6 @@ int GlbIoApicI8259Apic = 0;
 
 /* Externs, we need access to some cpu information
  * and the ACPI nodes to get LVT information */
-__EXTERN x86CpuObject_t GlbBootCpuInfo;
 __EXTERN List_t *GlbAcpiNodes;
 
 /* Handlers, they are defined in ApicHandlers.c
@@ -466,7 +466,7 @@ void ApicInitBoot(void)
 	else {
 		LogFatal("APIC", "Failed to get LAPIC base address, ABORT!!!");
 		LogFatal("APIC", "Philip now we need MP-table support!");
-		Idle();
+		CpuIdle();
 	}
 
 	/* Get the bootstrap processor id, and save it */

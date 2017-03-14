@@ -21,7 +21,10 @@
 
 /* Includes 
  * - System */
-#include <arch.h>
+#include <system/iospace.h>
+#include <system/thread.h>
+#include <system/utils.h>
+
 #include <process/process.h>
 #include <threading.h>
 #include <scheduler.h>
@@ -381,7 +384,7 @@ OsStatus_t ScThreadExit(int ExitCode)
 int ScThreadJoin(UUId_t ThreadId)
 {
 	/* Lookup process information */
-	UUId_t CurrentPid = ThreadingGetCurrentThread(ApicGetCpu())->AshId;
+	UUId_t CurrentPid = ThreadingGetCurrentThread(CpuGetCurrentId())->AshId;
 
 	/* Sanity */
 	if (ThreadingGetThread(ThreadId) == NULL
@@ -401,7 +404,7 @@ int ScThreadJoin(UUId_t ThreadId)
 OsStatus_t ScThreadKill(UUId_t ThreadId)
 {
 	/* Lookup process information */
-	UUId_t CurrentPid = ThreadingGetCurrentThread(ApicGetCpu())->AshId;
+	UUId_t CurrentPid = ThreadingGetCurrentThread(CpuGetCurrentId())->AshId;
 
 	/* Sanity */
 	if (ThreadingGetThread(ThreadId) == NULL
@@ -489,7 +492,7 @@ OsStatus_t ScSyncWakeUpAll(Addr_t *Handle)
 OsStatus_t ScSyncSleep(Addr_t *Handle, size_t Timeout)
 {
 	/* Get current thread */
-	MCoreThread_t *Current = ThreadingGetCurrentThread(ApicGetCpu());
+	MCoreThread_t *Current = ThreadingGetCurrentThread(CpuGetCurrentId());
 
 	/* Sleep */
 	SchedulerSleepThread(Handle, Timeout);
@@ -793,7 +796,7 @@ OsStatus_t ScPipeRead(int Port, uint8_t *Container, size_t Length, int Peek)
 
 	/* Lookup the pipe for the given port */
 	if (Port == -1) {
-		Pipe = Pipe = ThreadingGetCurrentThread(ApicGetCpu())->Pipe;
+		Pipe = Pipe = ThreadingGetCurrentThread(CpuGetCurrentId())->Pipe;
 	}
 	else {
 		Pipe = PhoenixGetAshPipe(PhoenixGetAsh(PHOENIX_CURRENT), Port);
@@ -902,12 +905,12 @@ OsStatus_t ScRpcResponse(MRemoteCall_t *Rpc)
 	 * Sender == PHOENIX_NO_ASH 
 	 * Use the builtin thread pipe */
 	if (Rpc->Sender == PHOENIX_NO_ASH) {
-		Pipe = ThreadingGetCurrentThread(ApicGetCpu())->Pipe;
+		Pipe = ThreadingGetCurrentThread(CpuGetCurrentId())->Pipe;
 	}
 	else {
 		/* Resolve the current running process
 		 * and the default pipe in the rpc */
-		Ash = PhoenixGetAsh(ThreadingGetCurrentThread(ApicGetCpu())->AshId);
+		Ash = PhoenixGetAsh(ThreadingGetCurrentThread(CpuGetCurrentId())->AshId);
 		Pipe = PhoenixGetAshPipe(Ash, Rpc->ResponsePort);
 
 		/* Sanitize the lookups */
@@ -952,7 +955,7 @@ OsStatus_t ScRpcExecute(MRemoteCall_t *Rpc, UUId_t Target, int Async)
 	}
 
 	/* Install Sender */
-	Rpc->Sender = ThreadingGetCurrentThread(ApicGetCpu())->AshId;
+	Rpc->Sender = ThreadingGetCurrentThread(CpuGetCurrentId())->AshId;
 
 	/* Write the base request 
 	 * and then iterate arguments and write them */
@@ -995,7 +998,7 @@ OsStatus_t ScEvtExecute(MEventMessage_t *Event, UUId_t Target)
 	}
 
 	/* Install the sender */
-	Event->Sender = ThreadingGetCurrentThread(ApicGetCpu())->AshId;
+	Event->Sender = ThreadingGetCurrentThread(CpuGetCurrentId())->AshId;
 
 	/* Write the base request
 	* and then iterate arguments and write them */
@@ -1263,7 +1266,7 @@ OsStatus_t ScLoadDriver(MCoreDevice_t *Device)
 	/* Prepare the message */
 	RPCInitialize(&Message, 1, PIPE_DEFAULT, __DRIVER_REGISTERINSTANCE);
 	RPCSetArgument(&Message, 0, Device, sizeof(MCoreDevice_t));
-	Message.Sender = ThreadingGetCurrentThread(ApicGetCpu())->AshId;
+	Message.Sender = ThreadingGetCurrentThread(CpuGetCurrentId())->AshId;
 
 	/* Wait for the driver to open it's
 	 * communication pipe */

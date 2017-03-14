@@ -32,14 +32,14 @@
  * Sets a specific bit in the bitmap, which is
  * then marked as allocated */
 void BitmapSet(Bitmap_t *Bitmap, int Bit) {
-	Bitmap->Bitmap[Bit / MEMORY_BITS] |= (1 << (Bit % MEMORY_BITS));
+	Bitmap->Bitmap[Bit / __BITS] |= (1 << (Bit % __BITS));
 }
 
 /* Helper - Unset
  * Unsets a specific bit in the bitmap, which is
  * then marked as free for allocation */
 void BitmapUnset(Bitmap_t *Bitmap, int Bit) {
-	Bitmap->Bitmap[Bit / MEMORY_BITS] &= ~(1 << (Bit % MEMORY_BITS));
+	Bitmap->Bitmap[Bit / __BITS] &= ~(1 << (Bit % __BITS));
 }
 
 /* Helper - Test
@@ -48,8 +48,8 @@ void BitmapUnset(Bitmap_t *Bitmap, int Bit) {
 int BitmapTest(Bitmap_t *Bitmap, int Bit)
 {
 	/* Get block & index */
-	Addr_t Block = Bitmap->Bitmap[Bit / MEMORY_BITS];
-	Addr_t Index = (1 << (Bit % MEMORY_BITS));
+	Addr_t Block = Bitmap->Bitmap[Bit / __BITS];
+	Addr_t Index = (1 << (Bit % __BITS));
 
 	/* Test */
 	return ((Block & Index) != 0);
@@ -119,12 +119,12 @@ Addr_t BitmapAllocateAddress(Bitmap_t *Bitmap, size_t Size)
 	for (BlockItr = 0; BlockItr < Bitmap->BlockCount; BlockItr++)
 	{
 		/* Quick test, if all is allocated, damn */
-		if (Bitmap->Bitmap[BlockItr] == MEMORY_LIMIT) {
+		if (Bitmap->Bitmap[BlockItr] == __MASK) {
 			continue;
 		}
 
 		/* Test each bit in this part */
-		for (BitItr = 0; BitItr < MEMORY_BITS; BitItr++) {
+		for (BitItr = 0; BitItr < __BITS; BitItr++) {
 			size_t CurrentBit = 1 << BitItr;
 			if (Bitmap->Bitmap[BlockItr] & CurrentBit) {
 				continue;
@@ -135,9 +135,9 @@ Addr_t BitmapAllocateAddress(Bitmap_t *Bitmap, size_t Size)
 			for (k = 0; k < NumBlocks; k++) {
 				/* Sanitize that we haven't switched
 				 * block temporarily */
-				if ((BitItr + k) >= MEMORY_BITS) {
-					int TempI = BlockItr + ((BitItr + k) / MEMORY_BITS);
-					int OffsetI = (BitItr + k) % MEMORY_BITS;
+				if ((BitItr + k) >= __BITS) {
+					int TempI = BlockItr + ((BitItr + k) / __BITS);
+					int OffsetI = (BitItr + k) % __BITS;
 					size_t BlockBit = 1 << OffsetI;
 					if (Bitmap->Bitmap[TempI] & BlockBit) {
 						break;

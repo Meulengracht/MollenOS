@@ -64,7 +64,7 @@ VbeInitialize(
 
 		// Text-Mode (80x25)
 		case 0: {
-			__GlbVideoTerminal.Type == VIDEO_TEXT;
+			__GlbVideoTerminal.Type = VIDEO_TEXT;
 			__GlbVideoTerminal.Info.Width = 80;
 			__GlbVideoTerminal.Info.Height = 25;
 			__GlbVideoTerminal.Info.Depth = 16;
@@ -79,7 +79,7 @@ VbeInitialize(
 
 		// Text-Mode (80x50)
 		case 1: {
-			__GlbVideoTerminal.Type == VIDEO_TEXT;
+			__GlbVideoTerminal.Type = VIDEO_TEXT;
 			__GlbVideoTerminal.Info.Width = 80;
 			__GlbVideoTerminal.Info.Height = 50;
 			__GlbVideoTerminal.Info.Depth = 16;
@@ -95,7 +95,7 @@ VbeInitialize(
 		// VGA-Mode (Graphics)
 		case 2:
 		{
-			__GlbVideoTerminal.Type == VIDEO_GRAPHICS;
+			__GlbVideoTerminal.Type = VIDEO_GRAPHICS;
 
 			__GlbVideoTerminal.CursorLimitX = __GlbVideoTerminal.Info.Width / (MCoreFontWidth + 2);
 			__GlbVideoTerminal.CursorLimitY = __GlbVideoTerminal.Info.Height / MCoreFontHeight;
@@ -110,7 +110,7 @@ VbeInitialize(
 			VbeMode_t *vbe = (VbeMode_t*)BootInfo->VbeModeInfo;
 
 			// Copy information over
-			__GlbVideoTerminal.Type == VIDEO_GRAPHICS;
+			__GlbVideoTerminal.Type = VIDEO_GRAPHICS;
 			__GlbVideoTerminal.Info.FrameBufferAddress = vbe->PhysBasePtr;
 			__GlbVideoTerminal.Info.Width = vbe->XResolution;
 			__GlbVideoTerminal.Info.Height = vbe->YResolution;
@@ -170,9 +170,9 @@ VesaDrawPixel(
  * on the screen */
 OsStatus_t 
 VesaDrawCharacter(
-	_In_ int Character, 
+	_In_ unsigned CursorX,
 	_In_ unsigned CursorY,
-	_In_ unsigned CursorX, 
+	_In_ int Character,
 	_In_ uint32_t FgColor, 
 	_In_ uint32_t BgColor)
 {
@@ -304,9 +304,8 @@ VesaPutCharacter(
 	default: {
 		// Call print with the current location
 		// and use the current colors
-		VesaDrawCharacter(Character,
-			__GlbVideoTerminal.CursorY, __GlbVideoTerminal.CursorX,
-			__GlbVideoTerminal.FgColor, __GlbVideoTerminal.BgColor);
+		VesaDrawCharacter(__GlbVideoTerminal.CursorX, __GlbVideoTerminal.CursorY,
+			Character, __GlbVideoTerminal.FgColor, __GlbVideoTerminal.BgColor);
 		__GlbVideoTerminal.CursorX += (MCoreFontWidth + 2);
 	} break;
 	}
@@ -346,8 +345,7 @@ TextDrawCharacter(
 
 	// Calculate video position
 	Video = (uint16_t*)__GlbVideoTerminal.Info.FrameBufferAddress +
-		(__GlbVideoTerminal.CursorY * __GlbVideoTerminal.Info.Width 
-			+ __GlbVideoTerminal.CursorX);
+		(CursorY * __GlbVideoTerminal.Info.Width + CursorX);
 
 	// Plot it on the screen
 	*Video = Data;
@@ -366,7 +364,8 @@ TextScroll(
 	// Variables
 	uint16_t *Video = (uint16_t*)__GlbVideoTerminal.Info.FrameBufferAddress;
 	uint16_t Color = (uint16_t)(__GlbVideoTerminal.FgColor << 8);
-	int i, j;
+	unsigned i;
+	int j;
 
 	// Move display n lines up
 	for (j = 0; j < ByLines; j++) {
@@ -513,11 +512,11 @@ VideoDrawCharacter(
 	{
 		// Text-Mode
 	case VIDEO_TEXT:
-		return TextDrawCharacter(Character, Y, X, __GlbVideoTerminal.FgColor);
+		return TextDrawCharacter(Character, Y, X, LOBYTE(LOWORD(__GlbVideoTerminal.FgColor)));
 
 		// VBE
 	case VIDEO_GRAPHICS:
-		return VesaDrawCharacter(Character, Y, X, Fg, Bg);
+		return VesaDrawCharacter(X, Y, Character, Fg, Bg);
 
 		// No video?
 	case VIDEO_NONE:

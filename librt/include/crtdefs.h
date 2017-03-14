@@ -488,8 +488,8 @@ extern "C" {
 
 #ifndef _WCTYPE_T_DEFINED
 #define _WCTYPE_T_DEFINED
-  typedef unsigned short wint_t;
   typedef unsigned short wctype_t;
+  typedef unsigned short wint_t;
 #endif
 
 #ifndef _ERRCODE_DEFINED

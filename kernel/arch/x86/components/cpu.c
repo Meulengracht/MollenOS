@@ -24,12 +24,14 @@
 /* Includes
  * - System */
 #include <system/utils.h>
+#include <interrupts.h>
 #include <log.h>
 #include <cpu.h>
 
  /* Globals 
   * Keep a copy of cpu information in the system */
 static CpuInformation_t __CpuInformation = { 0 };
+static int __CpuInitialized = 0;
 
 /* Extern functions
  * We need access to these in order to implement
@@ -52,24 +54,28 @@ CpuInitialize(void)
 	// Variables
 	uint32_t _eax, _ebx, _ecx, _edx;
 
-	// Get base cpu-id information
-	CpuId(0, &_eax, &_ebx, &_ecx, &_edx);
+	// Has init already run?
+	if (__CpuInitialized != 1) {
 
-	// Store cpu-id level
-	__CpuInformation.CpuIdLevel = _eax;
+		// Get base cpu-id information
+		CpuId(0, &_eax, &_ebx, &_ecx, &_edx);
 
-	// Does it support retrieving features?
-	if (__CpuInformation.CpuIdLevel >= 1) {
-		CpuId(1, &_eax, &_ebx, &_ecx, &_edx);
-		__CpuInformation.EcxFeatures = _ecx;
-		__CpuInformation.EdxFeatures = _edx;
+		// Store cpu-id level
+		__CpuInformation.CpuIdLevel = _eax;
+
+		// Does it support retrieving features?
+		if (__CpuInformation.CpuIdLevel >= 1) {
+			CpuId(1, &_eax, &_ebx, &_ecx, &_edx);
+			__CpuInformation.EcxFeatures = _ecx;
+			__CpuInformation.EdxFeatures = _edx;
+		}
+
+		// Get extensions supported
+		CpuId(0x80000000, &_eax, &_ebx, &_ecx, &_edx);
+
+		// Store them
+		__CpuInformation.CpuIdExtensions = _eax;
 	}
-
-	// Get extensions supported
-	CpuId(0x80000000, &_eax, &_ebx, &_ecx, &_edx);
-
-	// Store them
-	__CpuInformation.CpuIdExtensions = _eax;
 
 	// Can we enable FPU?
 	if (__CpuInformation.EdxFeatures & CPUID_FEAT_EDX_FPU) {
@@ -80,6 +86,29 @@ CpuInitialize(void)
 	if (__CpuInformation.EdxFeatures & CPUID_FEAT_EDX_SSE) {
 		CpuEnableSse();
 	}
+}
+
+/* CpuHasFeatures
+ * Determines if the cpu has the requested features */
+OsStatus_t
+CpuHasFeatures(Flags_t Ecx, Flags_t Edx)
+{
+	// Check ECX features
+	if (Ecx != 0) {
+		if ((__CpuInformation.EcxFeatures & Ecx) != Ecx) {
+			return OsError;
+		}
+	}
+
+	// Check EDX features
+	if (Edx != 0) {
+		if ((__CpuInformation.EdxFeatures & Edx) != Edx) {
+			return OsError;
+		}
+	}
+
+	// All requested features present
+	return OsNoError;
 }
 
 /* CpuGetCurrentId 
@@ -124,7 +153,7 @@ void DelayMs(uint32_t MilliSeconds)
 	if (!(__CpuInformation.EdxFeatures & CPUID_FEAT_EDX_TSC))
 	{
 		LogFatal("TIMR", "DelayMs() was called, but no TSC support in CPU.");
-		Idle();
+		CpuIdle();
 	}
 
 	/* Use rdtsc for this */

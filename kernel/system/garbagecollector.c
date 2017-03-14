@@ -25,6 +25,7 @@
  * - System */
 #include <garbagecollector.h>
 #include <semaphore.h>
+#include <threading.h>
 #include <log.h>
 
 /* Includes
@@ -97,7 +98,7 @@ GcRegister(
 	Key.Value = (int)GlbGcId++;
 
 	// Cool thing - add the handler
-	ListAppend(GlbGcHandlers, ListCreateNode(Key, Key, Handler));
+	ListAppend(GlbGcHandlers, ListCreateNode(Key, Key, (void*)Handler));
 
 	// Done - no errors
 	return (UUId_t)Key.Value;

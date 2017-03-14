@@ -21,6 +21,8 @@
 
 /* Includes 
  * - System */
+#include <system/addresspace.h>
+
 #include <os/driver/file.h>
 #include <process/pe.h>
 #include <modules/modules.h>
@@ -183,8 +185,7 @@ Addr_t PeHandleSections(MCorePeFile_t *PeFile, uint8_t *Data,
 			Addr_t Calculated = (Addr_t)Destination + (j * PAGE_SIZE);
 			if (!AddressSpaceGetMap(AddressSpaceGetCurrent(), Calculated)) {
 				AddressSpaceMap(AddressSpaceGetCurrent(), Calculated, 
-					PAGE_SIZE, MEMORY_MASK_DEFAULT, 
-					(UserSpace == 1) ? ADDRESS_SPACE_FLAG_APPLICATION : 0);
+					PAGE_SIZE, __MASK, (UserSpace == 1) ? AS_FLAG_APPLICATION : 0);
 			}
 		}
 
