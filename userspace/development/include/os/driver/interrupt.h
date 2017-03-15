@@ -51,8 +51,7 @@ typedef InterruptStatus_t(*InterruptHandler_t)(void*);
 
 /* The interrupt descriptor structure, this contains
  * information about the interrupt that needs to be registered
- * and special handling. The DevInfo_t only needs to be filled
- * when a device/controller is registering interrupts */
+ * and special handling. */
 typedef struct _MCoreInterrupt {
 	Flags_t					AcpiConform;
 	int						Line;
@@ -63,16 +62,36 @@ typedef struct _MCoreInterrupt {
 	void					*Data;
 } MCoreInterrupt_t;
 
+/* InitializeInterrupt
+ * Initializes the interrupt from a given device
+ * and fills out the correct information from the
+ * device-structure */
+MOSAPI
+OsStatus_t
+MOSABI
+InitializeInterrupt(
+	_Out_ MCoreInterrupt_t *Interrupt,
+	_In_ MCoreDevice_t *Device);
+
 /* RegisterInterruptSource 
  * Allocates the given interrupt source for use by
  * the requesting driver, an id for the interrupt source
  * is returned. After a succesful register, OnInterrupt
  * can be called by the event-system */
-MOSAPI UUId_t RegisterInterruptSource(MCoreInterrupt_t *Interrupt, Flags_t Flags);
+MOSAPI
+UUId_t
+MOSABI
+RegisterInterruptSource(
+	_In_ MCoreInterrupt_t *Interrupt, 
+	_In_ Flags_t Flags);
 
 /* UnregisterInterruptSource 
  * Unallocates the given interrupt source and disables
  * all events of OnInterrupt */
-MOSAPI OsStatus_t UnregisterInterruptSource(UUId_t Source);
+MOSAPI
+OsStatus_t
+MOSABI
+UnregisterInterruptSource(
+	_In_ UUId_t Source);
 
 #endif //!_INTERRUPT_INTERFACE_H_

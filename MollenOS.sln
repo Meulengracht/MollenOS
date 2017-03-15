@@ -1,7 +1,7 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio 15
-VisualStudioVersion = 15.0.26228.4
+VisualStudioVersion = 15.0.26228.9
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "Libx86", "kernel\msvc\Libx86\Libx86.vcxproj", "{17145F88-DAEA-496B-A91F-2A78ED5673CC}"
 	ProjectSection(ProjectDependencies) = postProject
@@ -348,7 +348,6 @@ Global
 		{D8F98581-1110-445E-A24F-80C95A727318}.All|Win32.ActiveCfg = Build_X86_32|Win32
 		{D8F98581-1110-445E-A24F-80C95A727318}.All|Win32.Build.0 = Build_X86_32|Win32
 		{D8F98581-1110-445E-A24F-80C95A727318}.Build_X86_32|Mixed Platforms.ActiveCfg = Build_X86_32|Win32
-		{D8F98581-1110-445E-A24F-80C95A727318}.Build_X86_32|Mixed Platforms.Build.0 = Build_X86_32|Win32
 		{D8F98581-1110-445E-A24F-80C95A727318}.Build_X86_32|MollenOS.ActiveCfg = Build_X86_32|Win32
 		{D8F98581-1110-445E-A24F-80C95A727318}.Build_X86_32|Win32.ActiveCfg = Build_X86_32|Win32
 		{D8F98581-1110-445E-A24F-80C95A727318}.Build_X86_32|Win32.Build.0 = Build_X86_32|Win32

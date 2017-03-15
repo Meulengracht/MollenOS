@@ -32,6 +32,9 @@
 
 /* Includes
  * - System */
+#include <os/driver/contracts/base.h>
+#include <os/driver/io.h>
+#include <os/driver/interrupt.h>
 #include <os/driver/device.h>
 
 /* Includes
@@ -53,7 +56,7 @@
 
 /* AHCI Generic Host Control Registers 
  * Global, apply to all AHCI ops */
-PACKED_TYPESTRUCT(AHCIGenericRegisters, {
+PACKED_ATYPESTRUCT(volatile, AHCIGenericRegisters, {
 	reg32_t				Capabilities;
 	reg32_t				GlobalHostControl;
 	reg32_t				InterruptStatus;
@@ -73,7 +76,7 @@ PACKED_TYPESTRUCT(AHCIGenericRegisters, {
 /* AHCI Port Specific Registers
  * This is per port, which means these registers
  * only control a single port */
-PACKED_TYPESTRUCT(AHCIPortRegisters, {
+PACKED_ATYPESTRUCT(volatile, AHCIPortRegisters, {
 	reg32_t				CmdListBaseAddress;
 	reg32_t				CmdListBaseAddressUpper;
 	reg32_t				FISBaseAddress;
@@ -159,8 +162,7 @@ PACKED_TYPESTRUCT(AHCICommandList, {
 /* Received FIS 
  * There are four kinds of FIS which may be sent to the host 
  * by the device as indicated in the following structure declaration */
-#pragma pack(push, 1)
-typedef volatile struct _AHCIFIS {
+PACKED_ATYPESTRUCT(volatile, AHCIFis, {
 	FISDmaSetup_t				DmaSetup;
 	uint8_t						Padding0[4];
 	FISPioSetup_t				PioSetup;
@@ -170,8 +172,7 @@ typedef volatile struct _AHCIFIS {
 	FISDeviceBits_t				DeviceBits;
 	uint8_t						UnknownFIS[64];
 	uint8_t						ReservedArea[0x100 - 0xA0];		// Offset 0xA0 - Reserved
-} AHCIFis_t;
-#pragma pack(pop)
+});
 
 /* Capability Bits (Host Capabilities) 
  * - Generic Registers */
@@ -331,7 +332,7 @@ typedef struct _AhciPort {
 	int Connected;
 
 	/* Register Access for this port */
-	volatile AHCIPortRegisters_t *Registers;
+	AHCIPortRegisters_t *Registers;
 
 	/* Memory resources */
 	AHCICommandList_t *CommandList;
@@ -359,28 +360,20 @@ typedef struct _AhciPort {
  * It contains all information neccessary 
  * for us to use it for our functions */
 typedef struct _AhciController {
-	UUId_t Id;
+	MContract_t				 Contract;
+	UUId_t					 Interrupt;
+	Spinlock_t				 Lock;
 
-	/* Lock */
-	Spinlock_t Lock;
+	DeviceIoSpace_t			 IoBase;
+	AHCIGenericRegisters_t  *Registers;
 
-	/* Registers */
-	volatile AHCIGenericRegisters_t *Registers;
+	AhciPort_t				*Ports[AHCI_MAX_PORTS];
+	uint32_t				 ValidPorts;
 
-	/* Ports */
-	AhciPort_t *Ports[AHCI_MAX_PORTS];
-	uint32_t ValidPorts;
-
-	/* Number of command slots for ports 
-	 * So we can allocate stuff correctly */
 	size_t CmdSlotCount;
-
-	/* Shared resource bases 
-	 * Especially command lists for optimizing memory */
 	void *CmdListBase;
 	void *FisBase;
 	void *CmdTableBase;
-
 } AhciController_t;
 
 /* The AHCI Device Structure 

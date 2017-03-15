@@ -24,15 +24,20 @@
 
 /* Includes 
  * - System */
-#include <os/driver/contracts/base.h>
+#include <os/driver/contracts/disk.h>
 #include <os/mollenos.h>
 #include "ahci.h"
 
 /* Includes
  * - Library */
+#include <ds/list.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
+
+/* Globals
+ * State-tracking variables */
+static List_t *GlbControllers = NULL;
 
 /* OnInterrupt
  * Is called when one of the registered devices
@@ -74,7 +79,8 @@ InterruptStatus_t OnInterrupt(void *InterruptData)
  * as soon as the driver is loaded in the system */
 OsStatus_t OnLoad(void)
 {
-
+	// Initialize state for this driver
+	GlbControllers = ListCreate(KeyInteger, LIST_NORMAL);
 }
 
 /* OnUnload
@@ -82,8 +88,7 @@ OsStatus_t OnLoad(void)
  * and should free all resources allocated by the system */
 OsStatus_t OnUnload(void)
 {
-
-	/* Wuhuu */
+	// Uh - this should be done
 	return OsNoError;
 }
 
@@ -94,6 +99,7 @@ OsStatus_t OnRegister(MCoreDevice_t *Device)
 {
 	// Variables
 	AhciController_t *Controller = NULL;
+	DataKey_t Key;
 	
 	// Register the new controller
 	Controller = AhciControllerCreate(Device);
@@ -103,7 +109,11 @@ OsStatus_t OnRegister(MCoreDevice_t *Device)
 		return OsError;
 	}
 
-	// 
+	// Use the device-id as key
+	Key.Value = (int)Device->Id;
+
+	// Append the controller to our list
+	ListAppend(GlbControllers, ListCreateNode(Key, Key, Controller));
 
 	// Done - no error
 	return OsNoError;
@@ -114,11 +124,28 @@ OsStatus_t OnRegister(MCoreDevice_t *Device)
  * an instance of this driver from the system */
 OsStatus_t OnUnregister(MCoreDevice_t *Device)
 {
-	/* Variables */
-	OsStatus_t Result = OsNoError;
+	// Variables
+	AhciController_t *Controller = NULL;
+	DataKey_t Key;
 
-	/* Done! */
-	return Result;
+	// Set the key to the id of the device to find
+	// the bound controller
+	Key.Value = (int)Device->Id;
+
+	// Lookup controller
+	Controller = (AhciController_t*)
+		ListGetDataByKey(GlbControllers, Key, 0);
+
+	// Sanitize lookup
+	if (Controller == NULL) {
+		return OsError;
+	}
+
+	// Remove node from list
+	ListRemoveByKey(GlbControllers, Key);
+
+	// Destroy it
+	return AhciControllerDestroy(Controller);
 }
 
 /* OnQuery
@@ -134,15 +161,42 @@ OnQuery(_In_ MContractType_t QueryType,
 		_In_ UUId_t Queryee, 
 		_In_ int ResponsePort)
 {
-	/* Unused parameters */
-	_CRT_UNUSED(QueryType);
-	_CRT_UNUSED(QueryFunction);
-	_CRT_UNUSED(Arg0);
-	_CRT_UNUSED(Arg1);
+	// Unused params
 	_CRT_UNUSED(Arg2);
 	_CRT_UNUSED(Queryee);
 	_CRT_UNUSED(ResponsePort);
 
-	/* Done! */
+	// Sanitize the QueryType
+	if (QueryType != ContractDisk) {
+		return OsError;
+	}
+
+	// Which kind of function has been invoked?
+	switch (QueryFunction) {
+		// Query stats about a disk identifier in the form of
+		// a DiskDescriptor
+	case __DISK_QUERY_STAT: {
+		// Get parameters
+		UUId_t DiskId = (UUId_t)Arg0->Data.Value;
+	} break;
+
+		// Read or write sectors from a disk identifier
+		// They have same parameters with different direction
+	case __DISK_QUERY_WRITE:
+	case __DISK_QUERY_READ: {
+		// Get parameters
+		DiskOperation_t *Operation = (DiskOperation_t*)Arg1->Data.Buffer;
+		UUId_t DiskId = (UUId_t)Arg0->Data.Value;
+
+
+	} break;
+
+		// Other cases not supported
+	default: {
+		return OsError;
+	}
+	}
+
+	// Done - no errors!
 	return OsNoError;
 }

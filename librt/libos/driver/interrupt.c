@@ -30,6 +30,34 @@
  * - Contracts */
 #include <os/driver/contracts/timer.h>
 
+/* InitializeInterrupt
+ * Initializes the interrupt from a given device
+ * and fills out the correct information from the
+ * device-structure */
+MOSAPI
+OsStatus_t
+MOSABI
+InitializeInterrupt(
+	_Out_ MCoreInterrupt_t *Interrupt,
+	_In_ MCoreDevice_t *Device)
+{
+	// Variables
+	int i;
+
+	// Copy information over
+	Interrupt->AcpiConform = Device->AcpiConform;
+	Interrupt->Line = Device->IrqLine;
+	Interrupt->Pin = Device->IrqPin;
+
+	// Handle directs
+	for (i = 0; i < __DEVICEMANAGER_MAX_IRQS; i++) {
+		Interrupt->Direct[i] = Device->IrqAvailable[i];
+	}
+
+	// Done - no errors
+	return OsNoError;
+}
+
 /* RegisterInterruptSource 
  * Allocates the given interrupt source for use by
  * the requesting driver, an id for the interrupt source
