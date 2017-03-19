@@ -327,33 +327,26 @@ PACKED_ATYPESTRUCT(volatile, AHCIFis, {
  * Contains all memory structures neccessary
  * for port transactions */
 typedef struct _AhciPort {
-	UUId_t Id;
-	int Index;
-	int Connected;
+	UUId_t					 Id;
+	int						 Index;
+	int						 Connected;
+	Spinlock_t				 Lock;
 
-	/* Register Access for this port */
-	AHCIPortRegisters_t *Registers;
+	AHCIPortRegisters_t		*Registers;
+	AHCICommandList_t		*CommandList;
+	AHCIFis_t			   **RecievedFisTable;
+	AHCIFis_t				*RecievedFis;
+	void					*CommandTable;
 
-	/* Memory resources */
-	AHCICommandList_t *CommandList;
-	AHCIFis_t **RecievedFisTable;
-	AHCIFis_t *RecievedFis;
-	void *CommandTable;
+	// Status of command slots
+	// There can be max 32 slots,
+	// so we use a 32 bit unsigned
+	uint32_t				 SlotStatus;
 
-	/* Status of command slots
-	 * There can be max 32 slots,
-	 * so we use a 32 bit unsigned */
-	uint32_t SlotStatus;
-
-	/* Port lock/queue */
-	Semaphore_t **SlotQueues;
-	Spinlock_t Lock;
-
-	/* Transactions for this port 
-	 * Keeps track of active transfers. 
-	 * Key -> Slot, SubKey -> Multiplier */
-	List_t *Transactions;
-
+	// Transactions for this port 
+	// Keeps track of active transfers. 
+	// Key -> Slot, SubKey -> Multiplier
+	List_t					*Transactions;
 } AhciPort_t;
 
 /* The AHCI Controller 
@@ -369,11 +362,15 @@ typedef struct _AhciController {
 
 	AhciPort_t				*Ports[AHCI_MAX_PORTS];
 	uint32_t				 ValidPorts;
+	int						 PortCount;
 
-	size_t CmdSlotCount;
-	void *CmdListBase;
-	void *FisBase;
-	void *CmdTableBase;
+	size_t					 CommandSlotCount;
+	void					*CommandListBase;
+	uintptr_t				 CommandListBasePhysical;
+	void					*CommandTableBase;
+	uintptr_t				 CommandTableBasePhysical;
+	void					*FisBase;
+	uintptr_t				 FisBasePhysical;
 } AhciController_t;
 
 /* The AHCI Device Structure 
@@ -394,14 +391,16 @@ typedef struct _AhciDevice {
  * Registers a new controller with the AHCI driver */
 __EXTERN
 AhciController_t*
-AhciControllerCreate(MCoreDevice_t *Device);
+AhciControllerCreate(
+	_In_ MCoreDevice_t *Device);
 
 /* AhciControllerDestroy
  * Destroys an existing controller instance and cleans up
  * any resources related to it */
 __EXTERN
 OsStatus_t
-AhciControllerDestroy(AhciController_t *Controller);
+AhciControllerDestroy(
+	_In_ AhciController_t *Controller);
 
 /* AhciPortCreate
  * Initializes the port structure, but not memory structures yet */
@@ -420,13 +419,13 @@ AhciPortCleanup(
 	_In_ AhciController_t *Controller, 
 	_In_ AhciPort_t *Port);
 
-/* AhciPortInit
+/* AhciPortInitialize
  * Initializes the memory regions and enables them in the port */
 __EXTERN
 void
-AhciPortInit(
+AhciPortInitialize(
 	_In_ AhciController_t *Controller, 
-	_In_ AhciPort_t *Port);
+	_Out_ AhciPort_t *Port);
 
 /* AhciPortSetupDevice
  * Identifies connection on a port, and initializes connection/device */
@@ -447,12 +446,13 @@ AhciPortReset(
 
 /* AhciPortAcquireCommandSlot
  * Allocates an available command slot on a port
- * returns index on success, otherwise -1 */
+ * returns index on success, OsError */
 __EXTERN
-int
+OsStatus_t
 AhciPortAcquireCommandSlot(
-	_In_ AhciController_t *Controller, 
-	_In_ AhciPort_t *Port);
+	_In_ AhciController_t *Controller,
+	_In_ AhciPort_t *Port,
+	_Out_ int *Index);
 
 /* AhciPortReleaseCommandSlot
  * Deallocates a previously allocated command slot */

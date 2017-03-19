@@ -52,7 +52,7 @@ AhciControllerCreate(
 	int i;
 
 	// Allocate a new instance of the controller
-	Controller = (AhciController_t*)kmalloc(sizeof(AhciController_t));
+	Controller = (AhciController_t*)malloc(sizeof(AhciController_t));
 	memset(Controller, 0, sizeof(AhciController_t));
 
 	// Fill in some basic stuff needed for init
@@ -113,7 +113,13 @@ AhciControllerCreate(
 
 	// Now that all formalities has been taken care
 	// off we can actually setup controller
-	return AhciSetup(Controller);
+	if (AhciSetup(Controller) == OsNoError) {
+		return Controller;
+	}
+	else {
+		AhciControllerDestroy(Controller);
+		return NULL;
+	}
 }
 
 /* AhciControllerDestroy
@@ -135,14 +141,20 @@ AhciControllerDestroy(
 	}
 
 	// Free the controller resources
-	if (Controller->CmdListBase != NULL) {
-		free(Controller->CmdListBase);
+	if (Controller->CommandListBase != NULL) {
+		MemoryFree(Controller->CommandListBase, 1024 * Controller->PortCount);
+	}
+	if (Controller->CommandTableBase != NULL) {
+		MemoryFree(Controller->CommandListBase, 
+			(AHCI_COMMAND_TABLE_SIZE * 32) * Controller->PortCount);
 	}
 	if (Controller->FisBase != NULL) {
-		free(Controller->FisBase);
-	}
-	if (Controller->CmdTableBase != NULL) {
-		free(Controller->CmdTableBase);
+		if (Controller->Registers->Capabilities & AHCI_CAPABILITIES_FBSS) {
+			MemoryFree(Controller->FisBase, 0x1000 * Controller->PortCount);
+		}
+		else {
+			MemoryFree(Controller->FisBase, 256 * Controller->PortCount);
+		}
 	}
 
 	// Unregister the interrupt
@@ -296,7 +308,7 @@ AhciSetup(
 	// This bit map value will aid software in determining how many ports are 
 	// available and which port registers need to be initialized.
 	Controller->ValidPorts = Controller->Registers->PortsImplemented;
-	Controller->CmdSlotCount = AHCI_CAPABILITIES_NCS(Controller->Registers->Capabilities);
+	Controller->CommandSlotCount = AHCI_CAPABILITIES_NCS(Controller->Registers->Capabilities);
 
 	// Ensure that the controller is not in the running state by reading and 
 	// examining each implemented port’s PxCMD register
@@ -322,6 +334,9 @@ AhciSetup(
 		// Next port
 		PortItr++;
 	}
+
+	// Save the number of ports
+	Controller->PortCount = PortItr;
 
 	// Flush writes, just in case
 	MemoryBarrier();
@@ -357,28 +372,46 @@ AhciSetup(
 
 	// Allocate some shared resources, especially 
 	// command lists as we need 1K * portcount
-	Controller->CmdListBase = malloc(1024 * PortItr);
-	Controller->CmdTableBase = malloc((AHCI_COMMAND_TABLE_SIZE * 32) * PortItr);
+	if (MemoryAllocate(1024 * PortItr, MEMORY_LOWFIRST | MEMORY_CONTIGIOUS
+		| MEMORY_CLEAN | MEMORY_COMMIT, &Controller->CommandListBase,
+		&Controller->CommandListBasePhysical) != OsNoError) {
+		MollenOSSystemLog("AHCI::Failed to allocate memory for the command list.");
+		return OsError;
+	}
+	if (MemoryAllocate((AHCI_COMMAND_TABLE_SIZE * 32) * PortItr, 
+		MEMORY_LOWFIRST | MEMORY_CONTIGIOUS | MEMORY_CLEAN 
+		| MEMORY_COMMIT, &Controller->CommandTableBase,
+		&Controller->CommandTableBasePhysical) != OsNoError) {
+		MollenOSSystemLog("AHCI::Failed to allocate memory for the command table.");
+		return OsError;
+	}
+	
 	
 	// We have to take into account FIS based switching here, 
 	// if it's supported we need 4K
 	if (Controller->Registers->Capabilities & AHCI_CAPABILITIES_FBSS) {
-		Controller->FisBase = malloc(0x1000 * PortItr);
-		memset(Controller->FisBase, 0, 0x1000 * PortItr);
+		if (MemoryAllocate(0x1000 * PortItr,
+			MEMORY_LOWFIRST | MEMORY_CONTIGIOUS | MEMORY_CLEAN
+			| MEMORY_COMMIT, &Controller->FisBase,
+			&Controller->FisBasePhysical) != OsNoError) {
+			MollenOSSystemLog("AHCI::Failed to allocate memory for the fis-area.");
+			return OsError;
+		}
 	}
 	else {
-		Controller->FisBase = malloc(256 * PortItr);
-		memset(Controller->FisBase, 0, 256 * PortItr);
+		if (MemoryAllocate(256 * PortItr,
+			MEMORY_LOWFIRST | MEMORY_CONTIGIOUS | MEMORY_CLEAN
+			| MEMORY_COMMIT, &Controller->FisBase,
+			&Controller->FisBasePhysical) != OsNoError) {
+			MollenOSSystemLog("AHCI::Failed to allocate memory for the fis-area.");
+			return OsError;
+		}
 	}
-	
-	/* Zero out memory allocated */
-	memset(Controller->CmdListBase, 0, 1024 * PortItr);
-	memset(Controller->CmdTableBase, 0, (AHCI_COMMAND_TABLE_SIZE * 32) * PortItr);
 
-	/* For each implemented port, system software shall allocate memory */
+	// For each implemented port, system software shall allocate memory
 	for (i = 0; i < AHCI_MAX_PORTS; i++) {
 		if (Controller->Ports[i] != NULL) {
-			AhciPortInit(Controller, Controller->Ports[i]);
+			AhciPortInitialize(Controller, Controller->Ports[i]);
 		}
 	}
 

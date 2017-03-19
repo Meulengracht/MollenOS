@@ -106,6 +106,7 @@ DiskRead(
 	/* Variables */
 	MContract_t Contract;
 	DiskOperation_t Operation;
+	OsStatus_t Result;
 
 	/* Setup contract stuff for request */
 	Contract.DriverId = Driver;
@@ -119,9 +120,10 @@ DiskRead(
 	Operation.SectorCount = SectorCount;
 
 	/* Query the driver directly */
-	return QueryDriver(&Contract, __DISK_QUERY_READ,
+	QueryDriver(&Contract, __DISK_QUERY_READ,
 		&Disk, sizeof(UUId_t), &Operation, sizeof(DiskOperation_t),
-		NULL, 0, NULL, 0);
+		NULL, 0, &Result, sizeof(OsStatus_t));
+	return Result;
 }
 
 /* DiskWrite
@@ -143,6 +145,7 @@ DiskWrite(
 	/* Variables */
 	MContract_t Contract;
 	DiskOperation_t Operation;
+	OsStatus_t Result;
 
 	/* Setup contract stuff for request */
 	Contract.DriverId = Driver;
@@ -156,9 +159,10 @@ DiskWrite(
 	Operation.SectorCount = SectorCount;
 
 	/* Query the driver directly */
-	return QueryDriver(&Contract, __DISK_QUERY_WRITE,
+	QueryDriver(&Contract, __DISK_QUERY_WRITE,
 		&Disk, sizeof(UUId_t), &Operation, sizeof(DiskOperation_t),
-		NULL, 0, NULL, 0);
+		NULL, 0, &Result, sizeof(OsStatus_t));
+	return Result;
 }
 
 #endif //!_CONTRACT_DISK_INTERFACE_H_

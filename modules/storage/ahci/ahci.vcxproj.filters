@@ -16,6 +16,8 @@
     <ClCompile Include="port.c" />
     <ClCompile Include="functions.c" />
     <ClCompile Include="main.c" />
+    <ClCompile Include="dispatch.c" />
+    <ClCompile Include="manager.c" />
   </ItemGroup>
   <ItemGroup>
     <None Include="ahci.mdrv" />

@@ -34,7 +34,7 @@
 #define WaitForCondition(condition, runs, wait, message, ...)\
     for (unsigned int timeout_ = 0; !(condition); timeout_++) {\
         if (timeout_ >= runs) {\
-             printf(message, __VA_ARGS__);\
+             MollenOSSystemLog(message, __VA_ARGS__);\
              break;\
 												        }\
         ThreadSleep(wait);\
