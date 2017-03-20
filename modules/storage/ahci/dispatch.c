@@ -47,31 +47,30 @@ AhciCommandDispatch(
 {
 	// Variables
 	AHCICommandTable_t *CommandTable = NULL;
-	size_t BytesLeft = DIVUP(Transaction->Buffer->Length, 
-		Transaction->Device->SectorSize) * Transaction->Device->SectorSize;
+	size_t BytesLeft = Transaction->SectorCount * Transaction->Device->SectorSize;
 	uintptr_t BufferPointer = NULL;
 	ListNode_t *tNode = NULL;
 	DataKey_t Key, SubKey;
 	int PrdtIndex = 0;
 
 	// Assert that buffer is DWORD aligned, this must be true
-	if (((Addr_t)Transaction->Buffer->Virtual & 0x3) != 0) {
+	if (((Addr_t)Transaction->Address & 0x3) != 0) {
 		MollenOSSystemLog("AhciCommandDispatch::Buffer was not dword aligned (0x%x)", 
-			Transaction->Port->Id, (Addr_t)Transaction->Buffer->Virtual);
+			Transaction->Device->Port->Id, Transaction->Address);
 		goto Error;
 	}
 
 	// Assert that buffer length is an even byte-count requested
 	if ((BytesLeft & 0x1) != 0) {
 		MollenOSSystemLog("AhciCommandDispatch::BufferLength is odd, must be even",
-			Transaction->Port->Id);
+			Transaction->Device->Port->Id);
 		goto Error;
 	}
 
 	// Get a reference to the command slot and reset
 	// the data in the command table
 	CommandTable = (AHCICommandTable_t*)
-		((uint8_t*)Transaction->Port->CommandTable 
+		((uint8_t*)Transaction->Device->Port->CommandTable
 			+ (AHCI_COMMAND_TABLE_SIZE * Transaction->Slot));
 	memset(CommandTable, 0, AHCI_COMMAND_TABLE_SIZE);
 
@@ -92,7 +91,7 @@ AhciCommandDispatch(
 	}
 
 	// Build PRDT entries
-	BufferPointer = Transaction->Buffer->Physical;
+	BufferPointer = Transaction->Address;
 	while (BytesLeft > 0) {
 		AHCIPrdtEntry_t *Prdt = &CommandTable->PrdtEntry[PrdtIndex];
 		size_t TransferLength = MIN(AHCI_PRDT_MAX_LENGTH, BytesLeft);
@@ -114,25 +113,25 @@ AhciCommandDispatch(
 	}
 
 	// Update command table to the new command
-	Transaction->Port->CommandList->Headers[Transaction->Slot].TableLength = (uint16_t)PrdtIndex;
-	Transaction->Port->CommandList->Headers[Transaction->Slot].Flags = (uint16_t)(CommandLength / 4);
+	Transaction->Device->Port->CommandList->Headers[Transaction->Slot].TableLength = (uint16_t)PrdtIndex;
+	Transaction->Device->Port->CommandList->Headers[Transaction->Slot].Flags = (uint16_t)(CommandLength / 4);
 
 	// Update transfer with the dispatch flags
 	if (Flags & DISPATCH_ATAPI) {
-		Transaction->Port->CommandList->Headers[Transaction->Slot].Flags |= (1 << 5);
+		Transaction->Device->Port->CommandList->Headers[Transaction->Slot].Flags |= (1 << 5);
 	}
 	if (Flags & DISPATCH_WRITE) {
-		Transaction->Port->CommandList->Headers[Transaction->Slot].Flags |= (1 << 6);
+		Transaction->Device->Port->CommandList->Headers[Transaction->Slot].Flags |= (1 << 6);
 	}
 	if (Flags & DISPATCH_PREFETCH) {
-		Transaction->Port->CommandList->Headers[Transaction->Slot].Flags |= (1 << 7);
+		Transaction->Device->Port->CommandList->Headers[Transaction->Slot].Flags |= (1 << 7);
 	}
 	if (Flags & DISPATCH_CLEARBUSY) {
-		Transaction->Port->CommandList->Headers[Transaction->Slot].Flags |= (1 << 10);
+		Transaction->Device->Port->CommandList->Headers[Transaction->Slot].Flags |= (1 << 10);
 	}
 
 	// Set the port multiplier
-	Transaction->Port->CommandList->Headers[Transaction->Slot].Flags 
+	Transaction->Device->Port->CommandList->Headers[Transaction->Slot].Flags
 		|= (DISPATCH_MULTIPLIER(Flags) << 12);
 
 	// Setup key and sort key
@@ -141,10 +140,10 @@ AhciCommandDispatch(
 
 	// Add transaction to list
 	tNode = ListCreateNode(Key, SubKey, Transaction);
-	ListAppend(Transaction->Port->Transactions, tNode);
+	ListAppend(Transaction->Device->Port->Transactions, tNode);
 
 	// Enable command 
-	AhciPortStartCommandSlot(Transaction->Port, Transaction->Slot);
+	AhciPortStartCommandSlot(Transaction->Device->Port, Transaction->Slot);
 	return OsNoError;
 
 Error:
@@ -162,17 +161,17 @@ AhciVerifyRegisterFIS(
 	size_t Offset = Transaction->Slot * AHCI_RECIEVED_FIS_SIZE;
 
 	// Get a pointer to the FIS
-	Fis = (AHCIFis_t*)((uint8_t*)Transaction->Port->RecievedFisTable + Offset);
+	Fis = (AHCIFis_t*)((uint8_t*)Transaction->Device->Port->RecievedFisTable + Offset);
 
 	// Is the error bit set?
 	if (Fis->RegisterD2H.Status & ATA_STS_DEV_ERROR) {
 		if (Fis->RegisterD2H.Error & ATA_ERR_DEV_EOM) {
 			MollenOSSystemLog("AHCI::Port (%i): Transmission Error, Invalid LBA(sector) range given, end of media.",
-				Transaction->Port->Id, (size_t)Fis->RegisterD2H.Error);
+				Transaction->Device->Port->Id, (size_t)Fis->RegisterD2H.Error);
 		}
 		else {
 			MollenOSSystemLog("AHCI::Port (%i): Transmission Error, error 0x%x",
-				Transaction->Port->Id, (size_t)Fis->RegisterD2H.Error);
+				Transaction->Device->Port->Id, (size_t)Fis->RegisterD2H.Error);
 		}
 		return OsError;
 	}
@@ -180,7 +179,7 @@ AhciVerifyRegisterFIS(
 	// Is the fault bit set?
 	if (Fis->RegisterD2H.Status & ATA_STS_DEV_FAULT) {
 		MollenOSSystemLog("AHCI::Port (%i): Device Fault, error 0x%x",
-			Transaction->Port->Id, (size_t)Fis->RegisterD2H.Error);
+			Transaction->Device->Port->Id, (size_t)Fis->RegisterD2H.Error);
 		return OsError;
 	}
 
@@ -196,68 +195,62 @@ AhciCommandRegisterFIS(
 	_In_ AhciTransaction_t *Transaction,
 	_In_ ATACommandType_t Command, 
 	_In_ uint64_t SectorLBA, 
-	_In_ size_t SectorCount, 
 	_In_ int Device, 
-	_In_ int Write, 
-	_In_ int AddressingMode)
+	_In_ int Write)
 {
 	// Variables
 	FISRegisterH2D_t Fis;
 	OsStatus_t Status;
 	uint32_t Flags;
-	int Slot = 0;
 
-	/* Reset structure */
+	// Reset the fis structure as we have it on stack
 	memset((void*)&Fis, 0, sizeof(FISRegisterH2D_t));
 
-	/* Fill in FIS */
+	// Fill out initial information
 	Fis.Type = LOBYTE(FISRegisterH2D);
 	Fis.Flags |= FIS_HOST_TO_DEVICE;
 	Fis.Command = LOBYTE(Command);
 	Fis.Device = 0x40 | ((LOBYTE(Device) & 0x1) << 4);
 
-	/* Set CHS fields */
-	if (AddressingMode == 0) 
-	{
-		/* Variables */
+	// Handle LBA to CHS translation if disk uses
+	// the CHS scheme
+	if (Transaction->Device->AddressingMode == 0) {
 		//uint16_t Head = 0, Cylinder = 0, Sector = 0;
 
-		/* Step 1 -> Transform LBA into CHS */
+		// Step 1 -> Transform LBA into CHS
 
-		/* Set CHS params */
+		// Set CHS params
 
-
-
-		/* Set count */
-		Fis.Count = LOBYTE(SectorCount);
+		// Set count
+		Fis.Count = LOBYTE(Transaction->SectorCount);
 	}
-	else if (AddressingMode == 1
-		|| AddressingMode == 2) {
-		/* Set LBA28 params */
+	else if (Transaction->Device->AddressingMode == 1
+		|| Transaction->Device->AddressingMode == 2) {
+		// Set LBA 28 parameters
 		Fis.SectorNo = LOBYTE(SectorLBA);
 		Fis.CylinderLow = (uint8_t)((SectorLBA >> 8) & 0xFF);
 		Fis.CylinderHigh = (uint8_t)((SectorLBA >> 16) & 0xFF);
 		Fis.SectorNoExtended = (uint8_t)((SectorLBA >> 24) & 0xFF);
 
-		/* If it's an LBA48, set LBA48 params */
-		if (AddressingMode == 2) {
+		// If it's an LBA48, set LBA48 params as well
+		if (Transaction->Device->AddressingMode == 2) {
 			Fis.CylinderLowExtended = (uint8_t)((SectorLBA >> 32) & 0xFF);
 			Fis.CylinderHighExtended = (uint8_t)((SectorLBA >> 40) & 0xFF);
 
-			/* Set count */
-			Fis.Count = LOWORD(SectorCount);
+			// Count is 16 bit here
+			Fis.Count = LOWORD(Transaction->SectorCount);
 		}
 		else {
-			/* Set count */
-			Fis.Count = LOBYTE(SectorCount);
+			// COunt is 8 bit in lba28
+			Fis.Count = LOBYTE(Transaction->SectorCount);
 		}
 	}
 
-	/* Build flags */
+	// Start out by building dispatcher flags here
 	Flags = DISPATCH_MULTIPLIER(0);
 	
-	/* Is this an ATAPI? */
-	if (Port->Registers->Signature == SATA_SIGNATURE_ATAPI) {
+	// Atapi device?
+	if (Transaction->Device->Port->Registers->Signature == SATA_SIGNATURE_ATAPI) {
 		Flags |= DISPATCH_ATAPI;
 	}
 
@@ -267,21 +260,21 @@ AhciCommandRegisterFIS(
 	}
 
 	// Allocate a command slot for this transaction
-	if (AhciPortAcquireCommandSlot(Transaction->Controller, 
-		Transaction->Port, &Transaction->Slot) != OsNoError) {
+	if (AhciPortAcquireCommandSlot(Transaction->Device->Controller,
+		Transaction->Device->Port, &Transaction->Slot) != OsNoError) {
 		MollenOSSystemLog("AHCI::Port (%i): Failed to allocate a command slot",
-			Transaction->Port->Id);
+			Transaction->Device->Port->Id);
 		return OsError;
 	}
 
 	// Execute command - we do this asynchronously
 	// so we must handle the rest of this later on
-	Status = AhciCommandDispatch(Transaction->Controller, Transaction->Port, 
-		Transaction->Slot, Flags, &Fis, sizeof(FISRegisterH2D_t), NULL, 0);
+	Status = AhciCommandDispatch(Transaction, Flags, 
+		&Fis, sizeof(FISRegisterH2D_t), NULL, 0);
 
 	// Sanitize return, if it didn't start then handle right now
 	if (Status != OsNoError) {
-		AhciPortReleaseCommandSlot(Port, Slot);
+		AhciPortReleaseCommandSlot(Transaction->Device->Port, Transaction->Slot);
 	}
 	
 	// Return the success
@@ -300,15 +293,22 @@ AhciCommandFinish(
 
 	// Verify the command execution
 	Status = AhciVerifyRegisterFIS(
-		Transaction->Controller, Transaction->Port, Transaction->Slot);
+		Transaction->Device->Controller, 
+		Transaction->Device->Port, Transaction->Slot);
 
 	// Release the allocated slot
-	AhciPortReleaseCommandSlot(Transaction->Port, Transaction->Slot);
+	AhciPortReleaseCommandSlot(Transaction->Device->Port, Transaction->Slot);
 
-	// Write the result back to the requester
-	Rpc.Sender = Transaction->Requester;
-	Rpc.ResponsePort = Transaction->Pipe;
-	RPCRespond(&Rpc, &Status, sizeof(OsStatus_t));
+	// If this was an internal request we need to notify manager
+	if (Transaction->Requester == UUID_INVALID) {
+		AhciManagerCreateDeviceCallback(Transaction->Device);
+	}
+	else {
+		// Write the result back to the requester
+		Rpc.Sender = Transaction->Requester;
+		Rpc.ResponsePort = Transaction->Pipe;
+		RPCRespond(&Rpc, &Status, sizeof(OsStatus_t));
+	}
 
 	// Cleanup the transaction
 	free(Transaction);

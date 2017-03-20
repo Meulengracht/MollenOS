@@ -24,11 +24,10 @@
 
 /* Includes
  * - System */
-#include <os/condition.h>
 #include <os/mollenos.h>
 #include <os/thread.h>
 #include <os/utils.h>
-#include "ahci.h"
+#include "manager.h"
 
 /* Includes
  * - Library */
@@ -240,7 +239,7 @@ AhciPortReset(
 
 /* AhciPortSetupDevice
  * Identifies connection on a port, and initializes connection/device */
-void
+OsStatus_t
 AhciPortSetupDevice(
 	_In_ AhciController_t *Controller, 
 	_In_ AhciPort_t *Port)
@@ -262,7 +261,7 @@ AhciPortSetupDevice(
 	Port->Connected = 1;
 
 	// Identify device
-	AhciDeviceIdentify(Controller, Port);
+	return AhciManagerCreateDevice(Controller, Port);
 }
 
 /* AhciPortAcquireCommandSlot
@@ -352,9 +351,6 @@ AhciPortInterruptHandler(
 	DataKey_t Key;
 	int i;
 	
-	// Unused params
-	_CRT_UNUSED(Controller);
-
 	// Store a copy of IS so we can clear it
 	InterruptStatus = Port->Registers->InterruptStatus;
 
@@ -368,6 +364,22 @@ AhciPortInterruptHandler(
 			Port->Registers->CommandAndStatus, Port->Registers->CommandIssue,
 			Port->Registers->InterruptEnable, Port->Registers->InterruptStatus,
 			Port->Registers->TaskFileData);
+	}
+
+	// Check for hot-plugs
+	if (InterruptStatus & AHCI_PORT_IE_PCE) {
+		// Determine whether or not there is a device connected
+		// Detect present ports using
+		// PxTFD.STS.BSY = 0, PxTFD.STS.DRQ = 0, and PxSSTS.DET = 3
+		if (Port->Registers->TaskFileData & (AHCI_PORT_TFD_BSY | AHCI_PORT_TFD_DRQ)
+			|| (AHCI_PORT_STSS_DET(Port->Registers->AtaStatus)
+				!= AHCI_PORT_SSTS_DET_ENABLED)) {
+			AhciManagerRemoveDevice(Controller, Port);
+			Port->Connected = 0;
+		}
+		else {
+			AhciPortSetupDevice(Controller, Port);
+		}
 	}
 
 	// Get completed commands, by using our own slot-status
@@ -388,9 +400,8 @@ AhciPortInterruptHandler(
 					memcpy((void*)((uint8_t*)Port->RecievedFisTable + Offset), 
 						(void*)Port->RecievedFis, sizeof(AHCIFis_t));
 
-					// Signal the waiters
-					ConditionBroadcast((Condition_t*)tNode->Data);
-					ConditionDestroy((Condition_t*)tNode->Data);
+					// Take care of transaction
+					AhciCommandFinish((AhciTransaction_t*)tNode->Data);
 
 					// Unlink and cleanup node
 					ListRemoveByNode(Port->Transactions, tNode);

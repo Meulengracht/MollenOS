@@ -50,16 +50,9 @@ List_t *__GlbInstances = NULL;
  * call this in all entry points */
 void _mCrtInit(ThreadLocalStorage_t *Tls)
 {
-	/* Init Crt */
 	__CppInit();
-
-	/* Initialize the TLS */
 	TLSInitInstance(Tls);
-
-	/* Init TLS */
 	TLSInit();
-
-	/* Init EH */
 	__CppInitVectoredEH();
 }
 

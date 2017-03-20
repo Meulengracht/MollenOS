@@ -8,6 +8,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="ahci.h" />
+    <ClInclude Include="manager.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="ahci.c" />

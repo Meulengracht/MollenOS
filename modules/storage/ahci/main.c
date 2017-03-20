@@ -26,7 +26,7 @@
  * - System */
 #include <os/driver/contracts/disk.h>
 #include <os/mollenos.h>
-#include "ahci.h"
+#include "manager.h"
 
 /* Includes
  * - Library */
@@ -81,6 +81,9 @@ OsStatus_t OnLoad(void)
 {
 	// Initialize state for this driver
 	GlbControllers = ListCreate(KeyInteger, LIST_NORMAL);
+
+	// Initialize the device manager here
+	return AhciManagerInitialize();
 }
 
 /* OnUnload
@@ -88,8 +91,16 @@ OsStatus_t OnLoad(void)
  * and should free all resources allocated by the system */
 OsStatus_t OnUnload(void)
 {
-	// Uh - this should be done
-	return OsNoError;
+	// Iterate registered controllers
+	foreach(cNode, GlbControllers) {
+		AhciControllerDestroy((AhciController_t*)cNode->Data);
+	}
+
+	// Data is now cleaned up, destroy list
+	ListDestroy(GlbControllers);
+
+	// Cleanup the internal device manager
+	return AhciManagerDestroy();
 }
 
 /* OnRegister
@@ -163,8 +174,6 @@ OnQuery(_In_ MContractType_t QueryType,
 {
 	// Unused params
 	_CRT_UNUSED(Arg2);
-	_CRT_UNUSED(Queryee);
-	_CRT_UNUSED(ResponsePort);
 
 	// Sanitize the QueryType
 	if (QueryType != ContractDisk) {
@@ -177,7 +186,23 @@ OnQuery(_In_ MContractType_t QueryType,
 		// a DiskDescriptor
 	case __DISK_QUERY_STAT: {
 		// Get parameters
+		AhciDevice_t *Device = NULL;
 		UUId_t DiskId = (UUId_t)Arg0->Data.Value;
+
+		// Lookup device
+		Device = AhciManagerGetDevice(DiskId);
+
+		// Write the descriptor back
+		if (Device != NULL) {
+			return PipeSend(Queryee, ResponsePort,
+				(void*)&Device, sizeof(OsStatus_t));
+		}
+		else {
+			OsStatus_t Result = OsError;
+			return PipeSend(Queryee, ResponsePort,
+				(void*)&Result, sizeof(OsStatus_t));
+		}
+
 	} break;
 
 		// Read or write sectors from a disk identifier
@@ -188,6 +213,35 @@ OnQuery(_In_ MContractType_t QueryType,
 		DiskOperation_t *Operation = (DiskOperation_t*)Arg1->Data.Buffer;
 		UUId_t DiskId = (UUId_t)Arg0->Data.Value;
 
+		// Create a new transaction
+		AhciTransaction_t *Transaction =
+			(AhciTransaction_t*)malloc(sizeof(AhciTransaction_t));
+		
+		// Set sender stuff so we can send a response
+		Transaction->Requester = Queryee;
+		Transaction->Pipe = ResponsePort;
+		
+		// Store buffer-object stuff
+		Transaction->Address = Operation->PhysicalBuffer;
+		Transaction->SectorCount = Operation->SectorCount;
+
+		// Lookup device
+		Transaction->Device = AhciManagerGetDevice(DiskId);
+
+		// Determine the kind of operation
+		if (Transaction->Device != NULL
+			&& Operation->Direction == __DISK_OPERATION_READ) {
+			return AhciReadSectors(Transaction, Operation->AbsSector);
+		}
+		else if (Transaction->Device != NULL
+			&& Operation->Direction == __DISK_OPERATION_WRITE) {
+			return AhciWriteSectors(Transaction, Operation->AbsSector);
+		}
+		else {
+			OsStatus_t Result = OsError;
+			return PipeSend(Queryee, ResponsePort,
+				(void*)&Result, sizeof(OsStatus_t));
+		}
 
 	} break;
 

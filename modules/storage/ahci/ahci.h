@@ -33,9 +33,11 @@
 /* Includes
  * - System */
 #include <os/driver/contracts/base.h>
+#include <os/driver/contracts/disk.h>
 #include <os/driver/io.h>
 #include <os/driver/interrupt.h>
 #include <os/driver/device.h>
+#include <os/driver/buffer.h>
 
 /* Includes
  * - Sata */
@@ -327,10 +329,12 @@ PACKED_ATYPESTRUCT(volatile, AHCIFis, {
  * Contains all memory structures neccessary
  * for port transactions */
 typedef struct _AhciPort {
-	UUId_t					 Id;
+	int						 Id;
 	int						 Index;
-	int						 Connected;
+	int						 MultiplierIndex;
 	Spinlock_t				 Lock;
+
+	int						 Connected;
 
 	AHCIPortRegisters_t		*Registers;
 	AHCICommandList_t		*CommandList;
@@ -377,10 +381,14 @@ typedef struct _AhciController {
  * This describes an attached ahci device 
  * and the information neccessary to deal with it */
 typedef struct _AhciDevice {
+	DiskDescriptor_t			 Descriptor;
+
 	AhciController_t			*Controller;
 	AhciPort_t					*Port;
+	BufferObject_t				*Buffer;
+	int							 Index;
 
-	int							 DeviceType;		// 0 -> ATA, 1 -> ATAPI
+	int							 Type;				// 0 -> ATA, 1 -> ATAPI
 	int							 UseDMA;
 	uint64_t					 SectorsLBA;
 	int							 AddressingMode;	// (0) CHS, (1) LBA28, (2) LBA48
@@ -430,7 +438,7 @@ AhciPortInitialize(
 /* AhciPortSetupDevice
  * Identifies connection on a port, and initializes connection/device */
 __EXTERN
-void
+OsStatus_t
 AhciPortSetupDevice(
 	_In_ AhciController_t *Controller, 
 	_In_ AhciPort_t *Port);

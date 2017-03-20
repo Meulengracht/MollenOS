@@ -10,6 +10,9 @@
     <ClInclude Include="ahci.h">
       <Filter>include</Filter>
     </ClInclude>
+    <ClInclude Include="manager.h">
+      <Filter>include</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="ahci.c" />
