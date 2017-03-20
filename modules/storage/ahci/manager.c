@@ -35,6 +35,12 @@
 #include <stddef.h>
 #include <stdlib.h>
 
+/* Globals
+ * Keep track of the active disks and ids that relate
+ * to this driver. */
+static List_t *GlbDisks = NULL;
+static UUId_t GlbDiskId = 0;
+
 /* AHCIStringFlip 
  * Flips a string returned by an ahci command
  * so it's readable */
@@ -61,7 +67,9 @@ AhciStringFlip(
 OsStatus_t
 AhciManagerInitialize(void)
 {
-
+	// Create list and reset id
+	GlbDisks = ListCreate(KeyInteger, LIST_SAFE);
+	GlbDiskId = 0;
 }
 
 /* AhciManagerDestroy
@@ -103,6 +111,7 @@ AhciManagerCreateDevice(
 	Device->Controller = Controller;
 	Device->Port = Port;
 	Device->Buffer = Buffer;
+	Device->Index = 0;
 
 	// Initiate the transaction
 	Transaction->Requester = UUID_INVALID;
@@ -123,6 +132,7 @@ AhciManagerCreateDeviceCallback(
 {
 	// Variables
 	ATAIdentify_t *DeviceInformation;
+	DataKey_t Key;
 
 	// Instantiate pointer
 	DeviceInformation = (ATAIdentify_t*)Device->Buffer->Virtual;
@@ -165,13 +175,13 @@ AhciManagerCreateDeviceCallback(
 		Device->SectorSize = 512;
 	}
 
-	/* Calculate sector count per physical sector */
+	// Calculate sector count per physical sector
 	if (DeviceInformation->SectorSize & (1 << 13)) {
 		Device->SectorSize *= (DeviceInformation->SectorSize & 0xF);
 	}
 
-	/* Now, get the number of sectors for
-	* this particular disk */
+	// Now, get the number of sectors for
+	// this particular disk
 	if (DeviceInformation->SectorCountLBA48 != 0) {
 		Device->SectorsLBA = DeviceInformation->SectorCountLBA48;
 	}
@@ -180,16 +190,66 @@ AhciManagerCreateDeviceCallback(
 	}
 
 	// At this point the ahcidisk structure is filled
-	// and we can continue to fill out the mcoredisk */
-	Disk->Manufactor = NULL;
-	Disk->ModelNo = strndup((const char*)&DeviceInformation.ModelNo[0], 40);
-	Disk->Revision = strndup((const char*)&DeviceInformation.FWRevision[0], 8);
-	Disk->SerialNo = strndup((const char*)&DeviceInformation.SerialNo[0], 20);
+	// and we can continue to fill out the descriptor
+	memset(&Device->Descriptor, 0, sizeof(DiskDescriptor_t));
+	Device->Descriptor.Driver = UUID_INVALID;
+	Device->Descriptor.Device = GlbDiskId++;
+	Device->Descriptor.Flags = 0;
 
+	Device->Descriptor.SectorCount = Device->SectorsLBA;
+	Device->Descriptor.SectorSize = Device->SectorSize;
 
+	// Copy string data
+	memcpy(&Device->Descriptor.Model[0], DeviceInformation->ModelNo[0], 40);
+	memcpy(&Device->Descriptor.Serial[0], DeviceInformation->SerialNo[0], 20);
 
-
+	// Add disk to list
+	Key.Value = (int)Device->Descriptor.Device;
+	ListAppend(GlbDisks, ListCreateNode(Key, Key, Device));
 
 	// Lastly register disk
-	return RegisterDisk(0, 0, __DISK_REMOVABLE);
+	return RegisterDisk(Device->Descriptor.Device, 
+		Device->Descriptor.Flags);
+}
+
+/* AhciManagerRemoveDevice
+ * Removes an existing device from the ahci-manager */
+OsStatus_t
+AhciManagerRemoveDevice(
+	_In_ AhciController_t *Controller,
+	_In_ AhciPort_t *Port)
+{
+	// Variables
+	AhciDevice_t *Device = NULL;
+	ListNode_t *dNode = NULL;
+	DataKey_t Key;
+
+	// Set initial val
+	Key.Value = -1;
+
+	// Iterate all available devices and find
+	// the one that matches the port/controller
+	_foreach(dNode, GlbDisks) {
+		Device = (AhciDevice_t*)dNode->Data;
+		if (Device->Port == Port
+			&& Device->Controller == Controller) {
+			Key.Value = dNode->Key.Value;
+			break;
+		}
+	}
+
+	// Found? 
+	if (Key.Value == -1) {
+		return OsError;
+	}
+
+	// Step one is clean up from list
+	ListRemoveByKey(GlbDisks, Key);
+
+	// Cleanup resources
+	DestroyBuffer(Device->Buffer);
+	free(Device);
+
+	// Now handle post operations
+	return UnregisterDisk(Key.Value, __DISK_FORCED_REMOVE);
 }

@@ -271,20 +271,17 @@ TLSGetKey(
 	/* Setup Key */
 	tKey.Value = ThreadId;
 
-	/* Iterate and find */
-	_foreach(tNode, __TLSGlobal.Tls)
-	{
-		/* Cast */
+	// Iterate the list of TLS instances and 
+	// find the one that contains the tls-key
+	_foreach(tNode, __TLSGlobal.Tls) {
 		m_tls_entry *Tls = (m_tls_entry*)tNode->Data;
-
-		/* We delete all instances of the key */
-		if (!dsmatchkey(__TLSGlobal.Tls->KeyType, tKey, tNode->Key)
+		if (!dsmatchkey(KeyInteger, tKey, tNode->Key)
 			&& Tls->Key == Key) {
 			return Tls->Value;
 		}
 	}
 
-	/* Damn, not found... */
+	// We didn't find it, return NULL
 	return NULL;
 }
 
@@ -310,15 +307,11 @@ TLSSetKey(
 	/* Setup Key */
 	tKey.Value = ThreadId;
 
-	/* Iterate and find if it
-	 * exists, if exists we override */
-	_foreach(tNode, __TLSGlobal.Tls)
-	{
-		/* Cast */
+	// Iterate and find if it
+	// exists, if exists we override
+	_foreach(tNode, __TLSGlobal.Tls) {
 		m_tls_entry *Tls = (m_tls_entry*)tNode->Data;
-
-		/* We delete all instances of the key */
-		if (!dsmatchkey(__TLSGlobal.Tls->KeyType, tKey, tNode->Key)
+		if (!dsmatchkey(KeyInteger, tKey, tNode->Key)
 			&& Tls->Key == Key) {
 			Tls->Value = Data;
 			return OsNoError;

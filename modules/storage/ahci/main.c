@@ -195,7 +195,7 @@ OnQuery(_In_ MContractType_t QueryType,
 		// Write the descriptor back
 		if (Device != NULL) {
 			return PipeSend(Queryee, ResponsePort,
-				(void*)&Device, sizeof(OsStatus_t));
+				(void*)&Device->Descriptor, sizeof(DiskDescriptor_t));
 		}
 		else {
 			OsStatus_t Result = OsError;

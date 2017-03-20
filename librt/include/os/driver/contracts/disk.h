@@ -45,8 +45,8 @@ PACKED_TYPESTRUCT(DiskDescriptor, {
 	UUId_t				Device;
 	UUId_t				Driver;
 	Flags_t				Flags;
-	char				Manufactor[32];
 	char				Model[64];
+	char				Serial[32];
 	size_t				SectorSize;
 	uint64_t			SectorCount;
 });

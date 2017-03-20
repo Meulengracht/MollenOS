@@ -194,9 +194,9 @@ OsStatus_t OnEvent(MRemoteCall_t *Message)
 		 * and and parses the disk-system for a MBR
 		 * or a GPT table */
 		case __FILEMANAGER_REGISTERDISK: {
-			Result = RegisterDisk((UUId_t)Message->Arguments[0].Data.Value,
-				(UUId_t)Message->Arguments[1].Data.Value,
-				(Flags_t)Message->Arguments[2].Data.Value);
+			Result = RegisterDisk(Message->Sender,
+				(UUId_t)Message->Arguments[0].Data.Value,
+				(Flags_t)Message->Arguments[1].Data.Value);
 		} break;
 
 		/* Unregisters a disk from the system and

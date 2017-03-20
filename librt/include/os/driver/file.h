@@ -126,8 +126,7 @@ RegisterDisk(
 SERVICEAPI
 OsStatus_t
 SERVICEABI
-RegisterDisk(
-	_In_ UUId_t Driver, 
+RegisterDisk( 
 	_In_ UUId_t Device, 
 	_In_ Flags_t Flags)
 {
@@ -137,9 +136,8 @@ RegisterDisk(
 	/* RPC Usage */
 	RPCInitialize(&Request, __FILEMANAGER_INTERFACE_VERSION,
 		PIPE_DEFAULT, __FILEMANAGER_REGISTERDISK);
-	RPCSetArgument(&Request, 0, (__CONST void*)&Driver, sizeof(UUId_t));
-	RPCSetArgument(&Request, 1, (__CONST void*)&Device, sizeof(UUId_t));
-	RPCSetArgument(&Request, 2, (__CONST void*)&Flags, sizeof(Flags_t));
+	RPCSetArgument(&Request, 0, (__CONST void*)&Device, sizeof(UUId_t));
+	RPCSetArgument(&Request, 1, (__CONST void*)&Flags, sizeof(Flags_t));
 	return RPCExecute(&Request, __FILEMANAGER_TARGET);
 }
 #endif

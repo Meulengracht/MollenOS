@@ -1,144 +1,165 @@
 /* MollenOS
-*
-* Copyright 2011 - 2016, Philip Meulengracht
-*
-* This program is free software : you can redistribute it and / or modify
-* it under the terms of the GNU General Public License as published by
-* the Free Software Foundation ? , either version 3 of the License, or
-* (at your option) any later version.
-*
-* This program is distributed in the hope that it will be useful,
-* but WITHOUT ANY WARRANTY; without even the implied warranty of
-* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.See the
-* GNU General Public License for more details.
-*
-* You should have received a copy of the GNU General Public License
-* along with this program.If not, see <http://www.gnu.org/licenses/>.
-*
-*
-* MollenOS - Generic List
-* Insertion, Deletion runs at O(1) 
-* Lookup by key, or search runs at O(n)
-* Pop, push runs at O(1)
-*/
+ *
+ * Copyright 2011 - 2017, Philip Meulengracht
+ *
+ * This program is free software : you can redistribute it and / or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation ? , either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.If not, see <http://www.gnu.org/licenses/>.
+ *
+ *
+ * MollenOS - Generic List
+ * Insertion, Deletion runs at O(1) 
+ * Lookup by key, or search runs at O(n)
+ * Pop, push runs at O(1)
+ */
 
 #ifndef _GENERIC_LIST_H_
 #define _GENERIC_LIST_H_
 
-/* Includes */
-#include <crtdefs.h>
-#include <stdint.h>
+/* Includes 
+ * - Library */
+#include <os/osdefs.h>
 #include <ds/ds.h>
-
-/*******************************
- *    Data Structures          *
- *******************************/
 
 /* The list node structure 
  * this is a generic list item
- * that holds an ident (key)
- * and data */
-typedef struct _ListNode
-{
-	/* Key(s) */
-	DataKey_t Key;
-	DataKey_t SortKey;
+ * that holds an ident (key) and data */
+typedef struct _ListNode {
+	DataKey_t				 Key;
+	DataKey_t				 SortKey;
+	void					*Data;
 
-	/* Payload */
-	void *Data;
-
-	/* Link(s) */
-	struct _ListNode *Link;
-	struct _ListNode *Prev;
-
+	struct _ListNode		*Link;
+	struct _ListNode		*Prev;
 } ListNode_t;
 
 /* This is the list structure
- * it holds basic information
- * about the list */
-typedef struct _List
-{
-	/* Key type */
-	KeyType_t KeyType;
+ * it holds basic information about the list */
+typedef struct _ListNode ListIterator_t;
+typedef struct _List List_t;
 
-	/* Head and Tail */
-	ListNode_t *Headp, *Tailp;
-
-	/* Attributes */
-	int Attributes;
-
-	/* Length */
-	int Length;
-
-	/* Perhaps we use a lock */
-	Spinlock_t Lock;
-
-} List_t;
-
-/* List Definitions */
+/* List Definitions 
+ * Used to implement list with basic locking mechanisms */
 #define LIST_NORMAL				0x0
 #define LIST_SAFE				0x1
 
 /* Sorted list? Normally 
- * the list is unsorted 
- * but supports different sorts */
+ * the list is unsorted but supports different sorts */
 #define LIST_SORT_ONINSERT		0x2
 #define LIST_SORT_ONCALL		(0x4 | LIST_SORT_ONINSERT)
 
 /* Foreach Macro(s)
- * They help keeping the code 
- * clean and readable when coding
- * loops */
-#define foreach(i, List) ListNode_t *i; for (i = List->Headp; i != NULL; i = i->Link)
-#define _foreach(i, List) for (i = List->Headp; i != NULL; i = i->Link)
-#define _foreach_nolink(i, List) for (i = List->Headp; i != NULL; )
+ * They help keeping the code clean and readable when coding loops */
+#define foreach(i, List) ListNode_t *i; for (i = ListBegin(List); i != NULL; i = ListNext(i))
+#define _foreach(i, List) for (i = ListBegin(List); i != NULL; i = ListNext(i))
+#define _foreach_nolink(i, List) for (i = ListBegin(List); i != NULL; )
 
-/*******************************
- *         Prototypes          *
- *******************************/
+/* Protect against c++ files */
+_CODE_BEGIN
 
-/* Instantiates a new list 
- * with the given attribs and keytype */
-MOSAPI List_t *ListCreate(KeyType_t KeyType, int Attributes);
+/* ListCreate
+ * Instantiates a new list with the given attribs and keytype */
+MOSAPI
+List_t*
+MOSABI
+ListCreate(
+	_In_ KeyType_t KeyType, 
+	_In_ Flags_t Attributes);
 
-/* Destroys the list and 
- * frees all resources associated
- * does also free all list elements
- * and keys */
-MOSAPI void ListDestroy(List_t *List);
+/* ListDestroy
+ * Destroys the list and frees all resources associated
+ * does also free all list elements and keys */
+MOSAPI
+OsStatus_t
+MOSABI
+ListDestroy(
+	_In_ List_t *List);
 
-/* Returns the length of the 
- * given list */
-MOSAPI int ListLength(List_t *List);
+/* ListLength
+ * Returns the length of the given list */
+MOSAPI
+size_t
+MOSABI
+ListLength(
+	_In_ List_t *List);
 
-/* Instantiates a new list node 
- * that can be appended to the list 
- * by ListAppend. If using an unsorted list
- * set the sortkey == key */
-MOSAPI ListNode_t *ListCreateNode(DataKey_t Key, DataKey_t SortKey, void *Data);
+/* ListBegin
+ * Retrieves the starting element of the list */
+MOSAPI
+ListIterator_t*
+MOSABI
+ListBegin(
+	_In_ List_t *List);
 
-/* Cleans up a list node and frees 
- * all resources it had */
-MOSAPI void ListDestroyNode(List_t *List, ListNode_t *Node);
+/* ListNext
+ * Iterates to the next element in the list and returns
+ * NULL when the end has been reached */
+MOSAPI
+ListIterator_t*
+MOSABI
+ListNext(
+	_In_ ListIterator_t *It);
 
-/* Insert the node into a specific position
- * in the list, if position is invalid it is
- * inserted at the back. This function is not
- * available for sorted lists, it will simply 
+/* ListCreateNode
+ * Instantiates a new list node that can be appended to the list 
+ * by ListAppend. If using an unsorted list set the sortkey == key */
+MOSAPI
+ListNode_t*
+MOSABI
+ListCreateNode(
+	_In_ DataKey_t Key, 
+	_In_ DataKey_t SortKey, 
+	_In_ void *Data);
+
+/* ListDestroyNode
+ * Cleans up a list node and frees all resources it had */
+MOSAPI
+OsStatus_t
+MOSABI
+ListDestroyNode(
+	_In_ List_t *List,
+	_In_ ListNode_t *Node);
+
+/* ListInsertAt
+ * Insert the node into a specific position in the list, if position is invalid it is
+ * inserted at the back. This function is not available for sorted lists, it will simply 
  * call ListInsert instead */
-MOSAPI void ListInsertAt(List_t *List, ListNode_t *Node, int Position);
+MOSAPI
+OsStatus_t
+MOSABI
+ListInsertAt(
+	_In_ List_t *List, 
+	_In_ ListNode_t *Node, 
+	_In_ int Position);
 
-/* Inserts the node into the front of 
- * the list. This should be used for sorted
- * lists, but is available for unsorted lists
- * aswell */
-MOSAPI void ListInsert(List_t *List, ListNode_t *Node);
+/* ListInsert 
+ * Inserts the node into the front of the list. This should be used for sorted
+ * lists, but is available for unsorted lists aswell */
+MOSAPI
+OsStatus_t
+MOSABI
+ListInsert(
+	_In_ List_t *List, 
+	_In_ ListNode_t *Node);
 
-/* Inserts the node into the the back
- * of the list. This function is not
- * available for sorted lists, it will
- * simply redirect to ListInsert */
-MOSAPI void ListAppend(List_t *List, ListNode_t *Node);
+/* ListAppend
+ * Inserts the node into the the back of the list. This function is not
+ * available for sorted lists, it will simply redirect to ListInsert */
+MOSAPI
+OsStatus_t
+MOSABI
+ListAppend(
+	_In_ List_t *List,
+	_In_ ListNode_t *Node);
 
 /* List pop functions, the either 
  * remove an element from the back or 
@@ -154,31 +175,70 @@ MOSAPI int ListGetIndexByData(List_t *List, void *Data);
 MOSAPI int ListGetIndexByKey(List_t *List, DataKey_t Key);
 MOSAPI int ListGetIndexByNode(List_t *List, ListNode_t *Node);
 
-/* These are the node-retriever functions 
- * they return the list-node by either key
- * data or index */
-MOSAPI ListNode_t *ListGetNodeByKey(List_t *List, DataKey_t Key, int n);
+/* ListGetNodeByKey
+ * These are the node-retriever functions 
+ * they return the list-node by either key data or index */
+MOSAPI
+ListNode_t*
+MOSABI
+ListGetNodeByKey(
+	_In_ List_t *List,
+	_In_ DataKey_t Key, 
+	_In_ int n);
 
 /* These are the data-retriever functions 
  * they return the list-node by either key
  * node or index */
-MOSAPI void *ListGetDataByKey(List_t *List, DataKey_t Key, int n);
+MOSAPI
+void*
+MOSABI
+ListGetDataByKey(
+	_In_ List_t *List, 
+	_In_ DataKey_t Key, 
+	_In_ int n);
 
-/* These functions execute a given function
- * on all relevant nodes (see names) */
+/* ListExecute(s)
+ * These functions execute a given function on all relevant nodes (see names) */
 MOSAPI void ListExecuteOnKey(List_t *List, void(*Function)(void*, int, void*), DataKey_t Key, void *UserData);
 MOSAPI void ListExecuteAll(List_t *List, void(*Function)(void*, int, void*), void *UserData);
 
-/* This functions unlinks a node
- * and returns the next node for
- * usage */
-MOSAPI ListNode_t *ListUnlinkNode(List_t *List, ListNode_t *Node);
+/* ListUnlinkNode
+ * This functions unlinks a node and returns the next node for usage */
+MOSAPI
+ListNode_t*
+MOSABI
+ListUnlinkNode(
+	_In_ List_t *List, 
+	_In_ ListNode_t *Node);
 
-/* These are the deletion functions 
- * and remove based on either node 
- * index or key */
-MOSAPI void ListRemoveByNode(List_t *List, ListNode_t* Node);
-MOSAPI void ListRemoveByIndex(List_t *List, int Index);
-MOSAPI int ListRemoveByKey(List_t *List, DataKey_t Key);
+/* ListRemove
+ * These are the deletion functions 
+ * and remove based on either node index or key */
+MOSAPI
+OsStatus_t
+MOSABI
+ListRemoveByNode(
+	_In_ List_t *List,
+	_In_ ListNode_t* Node);
+
+/* ListRemove
+ * These are the deletion functions 
+ * and remove based on either node index or key */
+MOSAPI
+OsStatus_t
+MOSABI
+ListRemoveByIndex(
+	_In_ List_t *List, 
+	_In_ int Index);
+
+/* ListRemove
+ * These are the deletion functions 
+ * and remove based on either node index or key */
+MOSAPI
+OsStatus_t
+MOSABI
+ListRemoveByKey(
+	_In_ List_t *List, 
+	_In_ DataKey_t Key);
 
 #endif //!_GENERIC_LIST_H_
