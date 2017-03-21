@@ -30,6 +30,7 @@
 #include <os/ipc/ipc.h>
 #include <os/driver/io.h>
 #include <os/driver/server.h>
+#include <os/driver/interrupt.h>
 
 /* The export macro, and is only set by the
  * the actual implementation of the devicemanager */
@@ -60,7 +61,7 @@
 
 /* MCoreDevice Register Flags
  * Flags related to registering of new devices */
-#define __DEVICEMANAGER_REGISTER_STATIC			0x1
+#define __DEVICEMANAGER_REGISTER_LOADDRIVER		0x1
 
 /* These are the different IPC functions supported
  * by the devicemanager, note that some of them might
@@ -79,68 +80,68 @@
  * and is passed on to all drivers on their initialization
  * to give them an overview and description of their device 
  * and functions to read/write directly to the device */
-typedef struct _MCoreDevice
-{
-	/* Device Identifier
-	 * This is used when communicating with the
-	 * devicemanager server */
+PACKED_TYPESTRUCT(MCoreDevice, {
 	UUId_t						Id;
-
-	/* Device Name
-	 * Limited name buffer set by config 
-	 * Null terminated utf8 data */
 	char						Name[__DEVICEMANAGER_NAMEBUFFER_LENGTH];
 
-	/* Device Information
-	 * This is used both by the devicemanager
-	 * and by the driver to match */
+	// Device Information
+	// This is used both by the devicemanager
+	// and by the driver to match
 	DevInfo_t					VendorId;
 	DevInfo_t					DeviceId;
 	DevInfo_t					Class;
 	DevInfo_t					Subclass;
 
-	/* Device Irq Description
-	 * This information descripes the type of
-	 * irq, and the available irq lines when registering
-	 * the device for interrupts */
-	Flags_t						AcpiConform;
-	int							IrqLine;
-	int							IrqPin;
-	int							IrqAvailable[__DEVICEMANAGER_MAX_IRQS];
-
-	/* Device I/O Spaces 
-	 * These are the id's of the IO-spaces that
-	 * belong to this device. */
+	// Interrupt and I/O Space information
+	MCoreInterrupt_t			Interrupt;
 	DeviceIoSpace_t				IoSpaces[__DEVICEMANAGER_MAX_IOSPACES];
 
-	/* Device Bus Information 
-	 * This describes the location on
-	 * the bus, and these informations
-	 * can be used to control the bus-device */
+	// Device Bus Information 
+	// This describes the location on
+	// the bus, and these informations
+	// can be used to control the bus-device
 	DevInfo_t					Segment;
 	DevInfo_t					Bus;
 	DevInfo_t					Device;
 	DevInfo_t					Function;
 
-} MCoreDevice_t;
+});
 
 /* Device Registering
  * Allows registering of a new device in the
  * device-manager, and automatically queries
  * for a driver for the new device */
 #ifdef __DEVICEMANAGER_IMPL
-__DEVAPI UUId_t RegisterDevice(MCoreDevice_t *Device, const char *Name, Flags_t Flags);
+__DEVAPI
+UUId_t
+SERVICEABI
+RegisterDevice(
+	_In_ UUId_t Parent,
+	_In_ MCoreDevice_t *Device, 
+	_In_ __CONST char *Name,
+	_In_ Flags_t Flags);
 #else
-__DEVAPI UUId_t RegisterDevice(MCoreDevice_t *Device, Flags_t Flags)
+__DEVAPI
+UUId_t
+SERVICEABI
+RegisterDevice(
+	_In_ UUId_t Parent,
+	_In_ MCoreDevice_t *Device, 
+	_In_ Flags_t Flags)
 {
-	/* Variables */
+	// Variables
 	MRemoteCall_t Request;
 	UUId_t Result;
+
+	// Initialize RPC
 	RPCInitialize(&Request, __DEVICEMANAGER_INTERFACE_VERSION, 
 		PIPE_DEFAULT, __DEVICEMANAGER_REGISTERDEVICE);
-	RPCSetArgument(&Request, 0, (const void*)Device, sizeof(MCoreDevice_t));
-	RPCSetArgument(&Request, 1, (const void*)&Flags, sizeof(Flags_t));
-	RPCSetResult(&Request, (const void*)&Result, sizeof(UUId_t));
+	RPCSetArgument(&Request, 0, (__CONST void*)&Parent, sizeof(UUId_t));
+	RPCSetArgument(&Request, 1, (__CONST void*)Device, sizeof(MCoreDevice_t));
+	RPCSetArgument(&Request, 2, (__CONST void*)&Flags, sizeof(Flags_t));
+	RPCSetResult(&Request, (__CONST void*)&Result, sizeof(UUId_t));
+	
+	// Execute RPC
 	RPCEvaluate(&Request, __DEVICEMANAGER_TARGET);
 	return Result;
 }
@@ -151,6 +152,10 @@ __DEVAPI UUId_t RegisterDevice(MCoreDevice_t *Device, Flags_t Flags)
  * by searching storage-medias for the vendorid/deviceid 
  * combination or the class/subclass combination if specific
  * is not found */
-MOSAPI OsStatus_t InstallDriver(MCoreDevice_t *Device);
+MOSAPI
+OsStatus_t
+MOSABI
+InstallDriver(
+	_In_ MCoreDevice_t *Device);
 
 #endif //!_DEVICE_INTERFACE_H_

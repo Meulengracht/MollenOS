@@ -392,10 +392,11 @@ void PciCreateDeviceFromPci(PciDevice_t *PciDev)
 	mDevice->Device = PciDev->Device;
 	mDevice->Function = PciDev->Function;
 
-	mDevice->IrqLine = -1;
-	mDevice->IrqPin = (int)PciDev->Header->InterruptPin;
-	mDevice->IrqAvailable[0] = PciDev->Header->InterruptLine;
-	mDevice->AcpiConform = PciDev->AcpiConform;
+	mDevice->Interrupt.Line = -1;
+	mDevice->Interrupt.Pin = (int)PciDev->Header->InterruptPin;
+	mDevice->Interrupt.Direct[0] = PciDev->Header->InterruptLine;
+	mDevice->Interrupt.Direct[1] = -1;
+	mDevice->Interrupt.AcpiConform = PciDev->AcpiConform;
 
 	/* Read Bars */
 	PciReadBars(PciDev->BusIo, mDevice, PciDev->Header->HeaderType);
@@ -425,8 +426,9 @@ void PciCreateDeviceFromPci(PciDevice_t *PciDev)
 	}
 
 	/* Register */
-	RegisterDevice(mDevice, PciToString(PciDev->Header->Class, 
-		PciDev->Header->Subclass, PciDev->Header->Interface), 0);
+	RegisterDevice(UUID_INVALID, mDevice, PciToString(PciDev->Header->Class, 
+		PciDev->Header->Subclass, PciDev->Header->Interface), 
+		__DEVICEMANAGER_REGISTER_LOADDRIVER);
 }
 
 /* PciInstallDriverCallback
@@ -465,13 +467,14 @@ void BusInstallFixed(DevInfo_t DeviceId, const char *Name)
 	Device->Subclass = 0xFF0F;
 
 	/* Invalidate irqs */
-	Device->IrqPin = -1;
-	Device->IrqLine = -1;
-	Device->IrqAvailable[0] = -1;
-	Device->AcpiConform = 0;
+	Device->Interrupt.Pin = -1;
+	Device->Interrupt.Line = -1;
+	Device->Interrupt.Direct[0] = -1;
+	Device->Interrupt.AcpiConform = 0;
 
 	/* Install driver */
-	RegisterDevice(Device, Name, 0);
+	RegisterDevice(UUID_INVALID, Device, Name, 
+		__DEVICEMANAGER_REGISTER_LOADDRIVER);
 }
 
 /* BusEnumerate

@@ -189,7 +189,12 @@ OsStatus_t OnEvent(MRemoteCall_t *Message)
  * Allows registering of a new device in the
  * device-manager, and automatically queries
  * for a driver for the new device */
-UUId_t RegisterDevice(MCoreDevice_t *Device, const char *Name, Flags_t Flags)
+UUId_t
+RegisterDevice(
+	_In_ UUId_t Parent,
+	_In_ MCoreDevice_t *Device, 
+	_In_ __CONST char *Name,
+	_In_ Flags_t Flags)
 {
 	/* Variables */
 	UUId_t DeviceId = GlbDeviceIdGen++;
@@ -208,7 +213,7 @@ UUId_t RegisterDevice(MCoreDevice_t *Device, const char *Name, Flags_t Flags)
 
 	/* Now, we want to try to find a driver
 	 * for the new device */
-	if (!(Flags & __DEVICEMANAGER_REGISTER_STATIC)) {
+	if (Flags & __DEVICEMANAGER_REGISTER_LOADDRIVER) {
 		if (InstallDriver(Device) == OsError) {
 		}
 	}

@@ -28,10 +28,6 @@
  * - C-Library */
 #include <os/osdefs.h>
 
-/* Includes
- * - System */
-#include <os/driver/device.h>
-
 /* Interrupt handler signature, this is only used for
  * fast-interrupts that does not need interrupts enabled
  * or does any processing work */
@@ -43,6 +39,7 @@ typedef InterruptStatus_t(*InterruptHandler_t)(void*);
 /* Specail interrupt constants, use these when allocating
  * interrupts if neccessary */
 #define INTERRUPT_NONE					(int)-1
+#define INTERRUPT_MAXDIRECTS			8
 
 /* Interrupt allocation flags, interrupts are initially
  * always shareable */
@@ -56,7 +53,7 @@ typedef struct _MCoreInterrupt {
 	Flags_t					AcpiConform;
 	int						Line;
 	int						Pin; 
-	int						Direct[__DEVICEMANAGER_MAX_IRQS];
+	int						Direct[INTERRUPT_MAXDIRECTS];
 
 	InterruptHandler_t		FastHandler;
 	void					*Data;
