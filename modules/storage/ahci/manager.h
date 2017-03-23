@@ -99,7 +99,8 @@ AhciManagerRemoveDevice(
  * Retrieves device from the disk-id given */
 __EXTERN
 AhciDevice_t*
-AhciManagerGetDevice(UUId_t Disk);
+AhciManagerGetDevice(
+	_In_ UUId_t Disk);
 
 /* AhciCommandDispatch 
  * Dispatches a FIS command on a given port 

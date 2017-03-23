@@ -65,8 +65,8 @@ nasm.exe -f bin %~dp0\boot\Stage1\MFS1\Stage1.asm -o %~dp0\boot\Stage1\MFS1\Stag
 START "NASM" /D %~dp0\boot\Stage2 /B /W nasm.exe -f bin Stage2.asm -o ssbl.stm
 
 ::Build Operation System
-if "!action!"=="rebuild" MSBuild.exe %~dp0\MollenOS.sln /p:Configuration=!buildcfg! /p:Platform="Mixed Platforms" /t:Clean,Build
-if "!action!"=="build" MSBuild.exe %~dp0\MollenOS.sln /p:Configuration=!buildcfg! /p:Platform="Mixed Platforms" /t:Build
+if "!action!"=="rebuild" MSBuild.exe %~dp0\MollenOS.sln /p:Configuration=!buildcfg! /p:Platform="MollenOS" /t:Clean,Build
+if "!action!"=="build" MSBuild.exe %~dp0\MollenOS.sln /p:Configuration=!buildcfg! /p:Platform="MollenOS" /t:Build
 
 ::Copy files for rd to modules folder
 xcopy /v /y %~dp0\librt\build\*.dll %~dp0\modules\build\

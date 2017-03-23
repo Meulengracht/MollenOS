@@ -264,7 +264,8 @@ AhciManagerRemoveDevice(
 /* AhciManagerGetDevice 
  * Retrieves device from the disk-id given */
 AhciDevice_t*
-AhciManagerGetDevice(UUId_t Disk)
+AhciManagerGetDevice(
+	_In_ UUId_t Disk)
 {
 	// Variables
 	DataKey_t Key;
