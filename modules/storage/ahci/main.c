@@ -250,7 +250,4 @@ OnQuery(_In_ MContractType_t QueryType,
 		return OsError;
 	}
 	}
-
-	// Done - no errors!
-	return OsNoError;
 }

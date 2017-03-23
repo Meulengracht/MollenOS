@@ -70,6 +70,9 @@ AhciManagerInitialize(void)
 	// Create list and reset id
 	GlbDisks = ListCreate(KeyInteger, LIST_SAFE);
 	GlbDiskId = 0;
+
+	// No errors
+	return OsNoError;
 }
 
 /* AhciManagerDestroy
@@ -78,6 +81,10 @@ OsStatus_t
 AhciManagerDestroy(void)
 {
 
+
+
+	// Done
+	return OsNoError;
 }
 
 /* AhciManagerCreateDevice
@@ -252,4 +259,15 @@ AhciManagerRemoveDevice(
 
 	// Now handle post operations
 	return UnregisterDisk(Key.Value, __DISK_FORCED_REMOVE);
+}
+
+/* AhciManagerGetDevice 
+ * Retrieves device from the disk-id given */
+AhciDevice_t*
+AhciManagerGetDevice(UUId_t Disk)
+{
+	// Variables
+	DataKey_t Key;
+	Key.Value = (int)Disk;
+	return ListGetDataByKey(GlbDisks, Key, 0);
 }

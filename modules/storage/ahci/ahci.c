@@ -164,6 +164,9 @@ AhciControllerDestroy(
 
 	// Free the controller structure
 	free(Controller);
+
+	// Cleanup done
+	return OsNoError;
 }
 
 /* AHCIReset 
