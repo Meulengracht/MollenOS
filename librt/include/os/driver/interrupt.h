@@ -59,17 +59,6 @@ typedef struct _MCoreInterrupt {
 	void					*Data;
 } MCoreInterrupt_t;
 
-/* InitializeInterrupt
- * Initializes the interrupt from a given device
- * and fills out the correct information from the
- * device-structure */
-MOSAPI
-OsStatus_t
-MOSABI
-InitializeInterrupt(
-	_Out_ MCoreInterrupt_t *Interrupt,
-	_In_ MCoreDevice_t *Device);
-
 /* RegisterInterruptSource 
  * Allocates the given interrupt source for use by
  * the requesting driver, an id for the interrupt source
@@ -81,6 +70,15 @@ MOSABI
 RegisterInterruptSource(
 	_In_ MCoreInterrupt_t *Interrupt, 
 	_In_ Flags_t Flags);
+
+/* AcknowledgeInterrupt 
+ * Acknowledges an interrupt and allows the interrupt
+ * to occur from that device again */
+MOSAPI
+OsStatus_t
+MOSABI
+AcknowledgeInterrupt(
+	_In_ UUId_t Source);
 
 /* UnregisterInterruptSource 
  * Unallocates the given interrupt source and disables

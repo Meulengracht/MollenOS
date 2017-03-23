@@ -252,7 +252,7 @@ AhciPortSetupDevice(
 	if (Port->Registers->TaskFileData & (AHCI_PORT_TFD_BSY | AHCI_PORT_TFD_DRQ)
 		|| (AHCI_PORT_STSS_DET(Port->Registers->AtaStatus) 
 			!= AHCI_PORT_SSTS_DET_ENABLED)) {
-		return;
+		return OsError;
 	}
 
 	// Update port status

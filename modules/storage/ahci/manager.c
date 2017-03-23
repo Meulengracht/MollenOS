@@ -200,8 +200,8 @@ AhciManagerCreateDeviceCallback(
 	Device->Descriptor.SectorSize = Device->SectorSize;
 
 	// Copy string data
-	memcpy(&Device->Descriptor.Model[0], DeviceInformation->ModelNo[0], 40);
-	memcpy(&Device->Descriptor.Serial[0], DeviceInformation->SerialNo[0], 20);
+	memcpy(&Device->Descriptor.Model[0], (__CONST void*)&DeviceInformation->ModelNo[0], 40);
+	memcpy(&Device->Descriptor.Serial[0], (__CONST void*)&DeviceInformation->SerialNo[0], 20);
 
 	// Add disk to list
 	Key.Value = (int)Device->Descriptor.Device;

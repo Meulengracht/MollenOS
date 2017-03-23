@@ -37,14 +37,12 @@
  * the interrupt by reading cmos */
 InterruptStatus_t RtcInterrupt(Cmos_t *Chip)
 {
-	/* Update Peroidic Tick Counter */
+	// Update Peroidic Tick Counter
 	Chip->NsCounter += Chip->NsTick;
 	Chip->Ticks++;
 
-	/* Acknowledge interrupt by reading register C */
+	// Acknowledge interrupt by reading register C
 	CmosRead(CMOS_REGISTER_STATUS_C);
-
-	/* Done! */
 	return InterruptHandled;
 }
 
@@ -53,53 +51,51 @@ InterruptStatus_t RtcInterrupt(Cmos_t *Chip)
  * and installs the interrupt needed */
 OsStatus_t RtcInitialize(Cmos_t *Chip)
 {
-	/* Variables for rtc initialization */
+	// Variables
 	uint8_t StateB = 0;
-	uint8_t Rate = 0x06; /* must be between 3 and 15 */
+	uint8_t Rate = 0x06; // must be between 3 and 15
 
-	/* Ms is .97, 1024 ints per sec */
-	/* Frequency = 32768 >> (rate-1), 15 = 2, 14 = 4, 13 = 8/s (125 ms) */
+	// Ms is .97, 1024 ints per sec
+	// Frequency = 32768 >> (rate-1), 15 = 2, 14 = 4, 13 = 8/s (125 ms)
 	Chip->NsTick = 976;
 	Chip->NsCounter = 0;
 	Chip->AlarmTicks = 0;
 
-	/* Initialize the rtc-contract */
+	// Initialize the rtc-contract
 	InitializeContract(&Chip->Timer, UUID_INVALID, 1,
 		ContractTimer, "CMOS RTC Timer Interface");
 
-	/* Disable RTC Irq */
+	// Disable RTC Irq
 	StateB = CmosRead(CMOS_REGISTER_STATUS_B);
 	StateB &= ~(0x70);
 	CmosWrite(CMOS_REGISTER_STATUS_B, StateB);
 	
-	/* Update state_b */
+	// Update state_b
 	StateB = CmosRead(CMOS_REGISTER_STATUS_B);
 
-	/* Set Frequency */
+	// Set Frequency
 	CmosWrite(CMOS_REGISTER_STATUS_A, 0x20 | Rate);
 
-	/* Clear pending interrupt */
+	// Clear pending interrupt
 	CmosRead(CMOS_REGISTER_STATUS_C);
 
-	/* Install interrupt in system 
-	 * Install a fast interrupt handler */
+	// Install interrupt in system 
+	// Install a fast interrupt handler
 	Chip->Irq = RegisterInterruptSource(&Chip->Interrupt, 
 		INTERRUPT_NOTSHARABLE | INTERRUPT_FAST); 
 
-	/* Register our irq as a system timer */
+	// Register our irq as a system timer
 	if (Chip->Irq != UUID_INVALID) {
 		RegisterSystemTimer(Chip->Irq, Chip->NsTick);
 	}
 
-	/* Enable Periodic Interrupts */
+	// Enable Periodic Interrupts
 	StateB = CmosRead(CMOS_REGISTER_STATUS_B);
 	StateB |= CMOSB_RTC_PERIODIC;
 	CmosWrite(CMOS_REGISTER_STATUS_B, StateB);
 
-	/* Clear pending interrupt again */
+	// Clear pending interrupt again
 	CmosRead(CMOS_REGISTER_STATUS_C);
-
-	/* Done! */
 	return OsNoError;
 }
 
@@ -107,14 +103,14 @@ OsStatus_t RtcInitialize(Cmos_t *Chip)
  * Disables the rtc and cleans up resources */
 OsStatus_t RtcCleanup(Cmos_t *Chip)
 {
-	/* Variables for rtc cleanup */
+	// Variables
 	uint8_t StateB = 0;
 
-	/* Disable RTC Irq */
+	// Disable RTC Irq
 	StateB = CmosRead(CMOS_REGISTER_STATUS_B);
 	StateB &= ~(0x70);
 	CmosWrite(CMOS_REGISTER_STATUS_B, StateB);
 
-	/* Uninstall interrupt in system */
+	// Uninstall interrupt in system
 	return UnregisterInterruptSource(Chip->Irq);
 }

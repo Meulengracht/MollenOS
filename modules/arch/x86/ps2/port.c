@@ -35,10 +35,10 @@
  * Performs an interface test on the given port*/
 OsStatus_t PS2InterfaceTest(int Port)
 {
-	/* Variables */
+	// Variables
 	uint8_t Response = 0;
 
-	/* Send command */
+	// Send command based on port
 	if (Port == 0) {
 		PS2SendCommand(PS2_INTERFACETEST_PORT1);
 	}
@@ -46,10 +46,10 @@ OsStatus_t PS2InterfaceTest(int Port)
 		PS2SendCommand(PS2_INTERFACETEST_PORT2);
 	}
 
-	/* Wait for response */
+	// Wait for ACK
 	Response = PS2ReadData(0);
 
-	/* Done */
+	// Sanitize the response byte
 	return (Response == PS2_INTERFACETEST_OK) ? OsNoError : OsError;
 }
 
@@ -57,22 +57,22 @@ OsStatus_t PS2InterfaceTest(int Port)
  * Resets the given port and tests for a reset-ok */
 OsStatus_t PS2ResetPort(int Index)
 {
-	/* Variables */
+	// Variables
 	uint8_t Response = 0;
 
-	/* Select port 2 if needed */
+	// Select the correct port
 	if (Index != 0) {
 		PS2SendCommand(PS2_SELECT_PORT2);
 	}
 	
-	/* Perform the test */
+	// Perform the self-test
 	PS2WriteData(PS2_RESET_PORT);
 	Response = PS2ReadData(0);
 
-	/* Check */
-	if (Response == 0xAA
-		|| Response == 0xFA) {
-		/* Do a few extra dummy reads */
+	// Check the response byte
+	// Two results are ok, AA and FA
+	if (Response == PS2_SELFTEST
+		|| Response == PS2_ACK) {
 		Response = PS2ReadData(1);
 		Response = PS2ReadData(1);
 		return OsNoError;
@@ -87,59 +87,59 @@ OsStatus_t PS2ResetPort(int Index)
  * given port index, if fails it returns 0xFFFFFFFF */
 DevInfo_t PS2IdentifyPort(int Index)
 {
-	/* Variables needed for identification */
+	// Variables
 	uint8_t Response = 0, ResponseExtra = 0;
 
-	/* Select port 2 if needed */
+	// Select correct port
 	if (Index != 0) {
 		PS2SendCommand(PS2_SELECT_PORT2);
 	}
 
-	/* Disable Scanning */
+	// Disable scanning when identifying
 	if (PS2WriteData(PS2_DISABLE_SCANNING) != OsNoError) {
 		return 0xFFFFFFFF;
 	}
 
-	/* Wait for response */
+	// Wait for ACK
 	Response = PS2ReadData(0);
 
-	/* Sanitize the response */
-	if (Response != 0xFA) {
+	// Sanitize result
+	if (Response != PS2_ACK) {
 		return 0xFFFFFFFF;
 	}
 
-	/* Select port 2 if needed */
+	// Select correct port
 	if (Index != 0) {
 		PS2SendCommand(PS2_SELECT_PORT2);
 	}
 
-	/* Identify the port */
+	// Send the identify command
 	if (PS2WriteData(PS2_IDENTIFY_PORT) != OsNoError) {
 		return 0xFFFFFFFF;
 	}
 
-	/* Wait for response */
+	// Wait for ACK
 	Response = PS2ReadData(0);
 
-	/* Sanity */
-	if (Response != 0xFA) {
+	// Sanitize result
+	if (Response != PS2_ACK) {
 		return 0xFFFFFFFF;
 	}
 
-	/* Get response */
+	// Read response byte
 GetResponse:
 	Response = PS2ReadData(0);
-	if (Response == 0xFA) {
+	if (Response == PS2_ACK) {
 		goto GetResponse;
 	}
 
-	/* Get next byte if it exists */
+	// Read next response byte
 	ResponseExtra = PS2ReadData(0);
 	if (ResponseExtra == 0xFF) {
 		ResponseExtra = 0;
 	}
 
-	/* Done */
+	// Combine bytes
 	return (Response << 8) | ResponseExtra;
 }
 
@@ -147,34 +147,33 @@ GetResponse:
  * Shortcut function for registering a new device */
 OsStatus_t PS2RegisterDevice(PS2Port_t *Port) 
 {
-	/* Keep some static storage */
+	// Static Variables
 	MCoreDevice_t Device;
 
-	/* Initialize the device structure */
+	// Initialize VID/DID to us
 	Device.VendorId = 0xFFEF;
 	Device.DeviceId = 0x0030;
 
-	/* Invalidate generics */
+	// Invalidate generics
 	Device.Class = 0xFF0F;
 	Device.Subclass = 0xFF0F;
 
-	/* Initialize the irq */
-	Device.IrqPin = INTERRUPT_NONE;
-	Device.IrqAvailable[0] = INTERRUPT_NONE;
-	Device.AcpiConform = 0;
+	// Initialize the irq structure
+	Device.Interrupt.Pin = INTERRUPT_NONE;
+	Device.Interrupt.Direct[0] = INTERRUPT_NONE;
+	Device.Interrupt.AcpiConform = 0;
 
-	/* Depends on port index */
+	// Select source from port index
 	if (Port->Index == 0) {
-		Device.IrqLine = PS2_PORT1_IRQ;
+		Device.Interrupt.Line = PS2_PORT1_IRQ;
 	}
 	else {
-		Device.IrqLine = PS2_PORT2_IRQ;
+		Device.Interrupt.Line = PS2_PORT2_IRQ;
 	}
 
-	/* Register device */
-	Port->Contract.DeviceId = RegisterDevice(&Device, 0);
-
-	/* Yay */
+	// Lastly just register the device under the controller (todo)
+	Port->Contract.DeviceId = RegisterDevice(UUID_INVALID, &Device, 
+		__DEVICEMANAGER_REGISTER_LOADDRIVER);
 	return OsNoError;
 }
 
@@ -182,12 +181,12 @@ OsStatus_t PS2RegisterDevice(PS2Port_t *Port)
  * Writes the given data-byte to the ps2-port */
 OsStatus_t PS2PortWrite(PS2Port_t *Port, uint8_t Value)
 {
-	/* Always select port if neccessary */
+	// Select port 2 if neccessary
 	if (Port->Index != 0) {
 		PS2SendCommand(PS2_SELECT_PORT2);
 	}
 
-	/* Write the data */
+	// Write the data
 	return PS2WriteData(Value);
 }
 
@@ -197,13 +196,13 @@ OsStatus_t PS2PortWrite(PS2Port_t *Port, uint8_t Value)
  * Set command = PS2_RESPONSE_COMMAND and pointer to response buffer */
 OsStatus_t PS2PortQueueCommand(PS2Port_t *Port, uint8_t Command, uint8_t *Response)
 {
-	/* Variables */
+	// Variables
 	PS2Command_t *pCommand = NULL;
 	OsStatus_t Result = OsNoError;
 	int Execute = 0;
 	int i;
 
-	/* Find a free command spot */
+	// Find a free command spot for the queue
 FindCommand:
 	for (i = 0; i < PS2_MAXCOMMANDS; i++) {
 		if (Port->Commands[i].InUse == 0) {
@@ -216,29 +215,30 @@ FindCommand:
 		}
 	}
 
-	/* Sanitize the command */
+	// Did we find one? Or try again?
 	if (pCommand == NULL) {
 		goto FindCommand;
 	}
 
-	/* Build the packet */
+	// Initiate the packet data
 	pCommand->Executed = 0;
 	pCommand->Step = 0;
 	pCommand->Command = Command;
 	pCommand->Response = Response;
 	pCommand->InUse = 1;
 
-	/* Start the command ? */
+	// Is the queue already running?
+	// Otherwise start it by sending the command
 	if (Execute == 1) {
 		Result = PS2PortWrite(Port, Command);
 	}
 
-	/* Wait for response?? */
+	// Asynchronously? Or do we need response?
 	if (Response != NULL) {
 		while (pCommand->Executed != 2);
 	}
 
-	/* Done! */
+	// Queued successfully 
 	return Result;
 }
 
@@ -247,20 +247,21 @@ FindCommand:
  * the next command in queue (if any). */
 OsStatus_t PS2PortFinishCommand(PS2Port_t *Port, uint8_t Result)
 {
-	/* Variables */
+	// Variables
 	int Start = Port->CommandIndex + 1;
 	int i;
 
-	/* Sanitize ACKs */
+	// Always handle ACK's first
 	if (Result == PS2_ACK_COMMAND
 		&& Port->CommandIndex != -1) {
 		Port->Commands[Port->CommandIndex].Executed = 1;
 
-		/* Wait for response? */
+		// Does it need a response byte as-well?
+		// Otherwise we can handle it directly now
 		if (Port->Commands[Port->CommandIndex].Response == NULL) {
 			Port->Commands[Port->CommandIndex].InUse = 0;
 
-			/* Find next (continue) */
+			// Find next queued command from current position
 			for (i = Start; i < PS2_MAXCOMMANDS; i++) {
 				if (Port->Commands[i].InUse == 1) {
 					Port->CommandIndex = i;
@@ -272,7 +273,7 @@ OsStatus_t PS2PortFinishCommand(PS2Port_t *Port, uint8_t Result)
 				}
 			}
 
-			/* Find next (start) */
+			// Find next queued command from start
 			if (i == PS2_MAXCOMMANDS) {
 				for (i = 0; i < Start; i++) {
 					if (Port->Commands[i].InUse == 1) {
@@ -286,8 +287,6 @@ OsStatus_t PS2PortFinishCommand(PS2Port_t *Port, uint8_t Result)
 				}
 			}
 		}
-
-		/* Done - it was handled */
 		return OsNoError;
 	}
 	else if (Result == PS2_RESEND_COMMAND
@@ -300,7 +299,7 @@ OsStatus_t PS2PortFinishCommand(PS2Port_t *Port, uint8_t Result)
 			Port->Commands[Port->CommandIndex].Executed = 2;
 			Port->Commands[Port->CommandIndex].InUse = 0;
 
-			/* Find next (continue) */
+			// Find next queued command from current position
 			for (i = Start; i < PS2_MAXCOMMANDS; i++) {
 				if (Port->Commands[i].InUse == 1) {
 					Port->CommandIndex = i;
@@ -312,7 +311,7 @@ OsStatus_t PS2PortFinishCommand(PS2Port_t *Port, uint8_t Result)
 				}
 			}
 
-			/* Find next (start) */
+			// Find next queued command from start
 			if (i == PS2_MAXCOMMANDS) {
 				for (i = 0; i < Start; i++) {
 					if (Port->Commands[i].InUse == 1) {
@@ -326,20 +325,18 @@ OsStatus_t PS2PortFinishCommand(PS2Port_t *Port, uint8_t Result)
 				}
 			}
 		}
-
-		/* Done - it was handled */
 		return OsNoError;
 	}
 	else if (Port->CommandIndex != -1) {
 		Port->Commands[Port->CommandIndex].Executed = 2;
 		Port->Commands[Port->CommandIndex].InUse = 0;
 
-		/* Sanity */
+		// Sanitize whether or not there should be a response
 		if (Port->Commands[Port->CommandIndex].Response != NULL) {
 			*(Port->Commands[Port->CommandIndex].Response) = Result;
 		}
 
-		/* Find next (continue) */
+		// Find next queued command from current position
 		for (i = Start; i < PS2_MAXCOMMANDS; i++) {
 			if (Port->Commands[i].InUse == 1) {
 				Port->CommandIndex = i;
@@ -351,7 +348,7 @@ OsStatus_t PS2PortFinishCommand(PS2Port_t *Port, uint8_t Result)
 			}
 		}
 
-		/* Find next (start) */
+		// Find next queued command from start
 		if (i == PS2_MAXCOMMANDS) {
 			for (i = 0; i < Start; i++) {
 				if (Port->Commands[i].InUse == 1) {
@@ -364,8 +361,6 @@ OsStatus_t PS2PortFinishCommand(PS2Port_t *Port, uint8_t Result)
 				}
 			}
 		}
-
-		/* Done - it was handled */
 		return OsNoError;
 	}
 	else {
@@ -378,20 +373,20 @@ OsStatus_t PS2PortFinishCommand(PS2Port_t *Port, uint8_t Result)
  * to identify the device on the port */
 OsStatus_t PS2PortInitialize(PS2Port_t *Port)
 {
-	/* Variables */
+	// Variables
 	uint8_t Temp = 0;
 
-	/* Initialize some variables for the port */
+	// Initialize some variables for the port
 	Port->CommandIndex = PS2_NO_COMMAND;
 
-	/* Start out by doing an interface
-	 * test on the given port */
+	// Start out by doing an interface
+	// test on the given port
 	if (PS2InterfaceTest(Port->Index) != OsNoError) {
 		MollenOSSystemLog("PS2-Port (%i): Failed interface test", Port->Index);
 		return OsError;
 	}
 
-	/* We want to enable the port now */
+	// Select the correct port
 	if (Port->Index == 0) {
 		PS2SendCommand(PS2_ENABLE_PORT1);
 	}
@@ -399,39 +394,40 @@ OsStatus_t PS2PortInitialize(PS2Port_t *Port)
 		PS2SendCommand(PS2_ENABLE_PORT2);
 	}
 
-	/* Get controller configuration */
+	// Get controller configuration
 	PS2SendCommand(PS2_GET_CONFIGURATION);
 	Temp = PS2ReadData(0);
 
-	/* Check if the port is enabled */
+	// Check if the port is enabled
+	// Otherwise return error
 	if (Temp & (1 << (4 + Port->Index))) {
-		return OsError; /* It failed to enable.. */
+		return OsError; 
 	}
 
-	/* Enable irqs for the port */
+	// Enable IRQ
 	Temp |= (1 << Port->Index);
 
-	/* Write back the configuration */
+	// Write back the configuration
 	PS2SendCommand(PS2_SET_CONFIGURATION);
 	if (PS2WriteData(Temp) != OsNoError) {
 		MollenOSSystemLog("PS2-Port (%i): Failed to update configuration", Port->Index);
-		return OsError; /* Failed to update configuration */
+		return OsError;
 	}
 
-	/* Try to reset the port */
+	// Reset the port
 	if (PS2ResetPort(Port->Index) != OsNoError) {
 		MollenOSSystemLog("PS2-Port (%i): Failed port reset", Port->Index);
-		return OsError;	/* Failed to reset */
+		return OsError;
 	}
 
-	/* Identify the device on the port */
+	// Identify type of device on port
 	Port->Signature = PS2IdentifyPort(Port->Index);
 	
-	/* If valid -> Connected */
+	// If the signature is ok - device present
 	if (Port->Signature != 0xFFFFFFFF) {
 		Port->Connected = 1;
 	}
 
-	/* Done! */
+	// Lastly register device on port
 	return PS2RegisterDevice(Port);
 }

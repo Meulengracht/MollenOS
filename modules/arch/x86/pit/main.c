@@ -43,14 +43,14 @@ static Pit_t *GlbPit = NULL;
  * won't be acknowledged */
 InterruptStatus_t OnInterrupt(void *InterruptData)
 {
-	/* Cast to the pit structure */
+	// Initiate pointer
 	Pit_t *Pit = (Pit_t*)InterruptData;
 
-	/* Update stats */
+	// Update stats
 	Pit->NsCounter += Pit->NsTick;
 	Pit->Ticks++;
 
-	/* No further processing is needed */
+	// No further processing is needed
 	return InterruptHandled;
 }
 
@@ -59,69 +59,67 @@ InterruptStatus_t OnInterrupt(void *InterruptData)
  * as soon as the driver is loaded in the system */
 OsStatus_t OnLoad(void)
 {
-	/* Variables */
+	// Variables
 	size_t Divisor = 1193181;
 
-	/* Allocate a new instance of the pit-data */
+	// Allocate a new instance of the pit-data
 	GlbPit = (Pit_t*)malloc(sizeof(Pit_t));
 	memset(GlbPit, 0, sizeof(Pit_t));
 
-	/* Create the io-space, again we have to create
-	 * the io-space ourselves */
+	// Create the io-space, again we have to create
+	// the io-space ourselves
 	GlbPit->IoSpace.Type = IO_SPACE_IO;
 	GlbPit->IoSpace.PhysicalBase = PIT_IO_BASE;
 	GlbPit->IoSpace.Size = PIT_IO_LENGTH;
 
-	/* Initialize the interrupt request */
+	// Initialize the interrupt request
 	GlbPit->Interrupt.Line = PIT_IRQ;
 	GlbPit->Interrupt.Pin = INTERRUPT_NONE;
 	GlbPit->Interrupt.Direct[0] = INTERRUPT_NONE;
 	GlbPit->Interrupt.FastHandler = OnInterrupt;
 	GlbPit->Interrupt.Data = GlbPit;
 
-	/* Update */
+	// Update
 	GlbPit->NsTick = 1000;
 
-	/* Create the io-space in system */
+	// Create the io-space in system
 	if (CreateIoSpace(&GlbPit->IoSpace) != OsNoError) {
 		return OsError;
 	}
 
-	/* No problem, last thing is to acquire the
-	 * io-space, and just return that as result */
+	// No problem, last thing is to acquire the
+	// io-space, and just return that as result
 	if (AcquireIoSpace(&GlbPit->IoSpace) != OsNoError) {
 		return OsError;
 	}
 
-	/* Initialize the cmos-contract */
+	// Initialize the cmos-contract
 	InitializeContract(&GlbPit->Timer, UUID_INVALID, 1,
 		ContractTimer, "PIT Timer Interface");
 
-	/* Install interrupt in system
-	 * Install a fast interrupt handler */
+	// Install interrupt in system
+	// Install a fast interrupt handler
 	GlbPit->Irq = RegisterInterruptSource(&GlbPit->Interrupt,
 		INTERRUPT_NOTSHARABLE | INTERRUPT_FAST);
 
-	/* Register our irq as a system timer */
+	// Register our irq as a system timer
 	if (GlbPit->Irq != UUID_INVALID) {
 		RegisterSystemTimer(GlbPit->Irq, GlbPit->NsTick);
 	}
 
-	/* We want a frequncy of 1000 hz */
+	// We want a frequncy of 1000 hz
 	Divisor /= 1000;
 
-	/* We use counter 0, select counter 0 and configure it */
+	// We use counter 0, select counter 0 and configure it
 	WriteIoSpace(&GlbPit->IoSpace, PIT_REGISTER_COMMAND,
 		PIT_COMMAND_MODE3 | PIT_COMMAND_FULL |
 		PIT_COMMAND_COUNTER_0, 1);
 
-	/* Write divisor to the PIT chip */
+	// Write divisor to the PIT chip
 	WriteIoSpace(&GlbPit->IoSpace, PIT_REGISTER_COUNTER0,
 		(uint8_t)(Divisor & 0xFF), 1);
 	WriteIoSpace(&GlbPit->IoSpace, PIT_REGISTER_COUNTER0,
 		(uint8_t)((Divisor >> 8) & 0xFF), 1);
-
-	/* Anddddd we are done */
 	return OsNoError;
 }
 
@@ -130,16 +128,14 @@ OsStatus_t OnLoad(void)
  * and should free all resources allocated by the system */
 OsStatus_t OnUnload(void)
 {
-	/* Destroy the io-space we created */
+	// Destroy the io-space we created
 	if (GlbPit->IoSpace.Id != 0) {
 		ReleaseIoSpace(&GlbPit->IoSpace);
 		DestroyIoSpace(GlbPit->IoSpace.Id);
 	}
 
-	/* Free up allocated resources */
+	// Free up allocated resources
 	free(GlbPit);
-
-	/* Wuhuu */
 	return OsNoError;
 }
 
@@ -148,18 +144,15 @@ OsStatus_t OnUnload(void)
  * instance of this driver for the given device */
 OsStatus_t OnRegister(MCoreDevice_t *Device)
 {
-	/* Update contracts to bind to id 
-	 * The CMOS/RTC is a fixed device
-	 * and thus we don't support multiple instances */
+	// Update contracts to bind to id 
+	// The CMOS/RTC is a fixed device
+	// and thus we don't support multiple instances
 	if (GlbPit->Timer.DeviceId == UUID_INVALID) {
 		GlbPit->Timer.DeviceId = Device->Id;
 	}
 
-	/* Now register the clock contract */
-	RegisterContract(&GlbPit->Timer);
-
-	/* Done, no more to do here */
-	return OsNoError;
+	// Now register the clock contract
+	return RegisterContract(&GlbPit->Timer);
 }
 
 /* OnUnregister
@@ -167,8 +160,8 @@ OsStatus_t OnRegister(MCoreDevice_t *Device)
  * an instance of this driver from the system */
 OsStatus_t OnUnregister(MCoreDevice_t *Device)
 {
-	/* The PIT is a fixed device
-	 * and thus we don't support multiple instances */
+	// The PIT is a fixed device
+	// and thus we don't support multiple instances
 	_CRT_UNUSED(Device);
 	return OsNoError;
 }
@@ -186,17 +179,15 @@ OnQuery(_In_ MContractType_t QueryType,
 		_In_ UUId_t Queryee, 
 		_In_ int ResponsePort)
 {
-	/* Unused parameters */
+	// Unused parameters
 	_CRT_UNUSED(Arg0);
 	_CRT_UNUSED(Arg1);
 	_CRT_UNUSED(Arg2);
 
-	/* Which kind of query type is being done? */
+	// Which kind of query type is being done?
 	if (QueryType == ContractTimer
 		&& QueryFunction == __TIMER_QUERY_STAT) {
 		PipeSend(Queryee, ResponsePort, &GlbPit->Ticks, sizeof(clock_t));
 	}
-
-	/* Done! */
 	return OsNoError;
 }

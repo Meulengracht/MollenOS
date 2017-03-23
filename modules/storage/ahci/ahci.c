@@ -48,12 +48,12 @@ AhciControllerCreate(
 	// Variables
 	AhciController_t *Controller = NULL;
 	DeviceIoSpace_t *IoBase = NULL;
-	MCoreInterrupt_t Interrupt;
 	int i;
 
 	// Allocate a new instance of the controller
 	Controller = (AhciController_t*)malloc(sizeof(AhciController_t));
 	memset(Controller, 0, sizeof(AhciController_t));
+	memcpy(&Controller->Device, Device, sizeof(MCoreDevice_t));
 
 	// Fill in some basic stuff needed for init
 	Controller->Contract.DeviceId = Device->Id;
@@ -96,8 +96,7 @@ AhciControllerCreate(
 		(AHCIGenericRegisters_t*)IoBase->VirtualBase;
 
 	// Initialize the interrupt settings
-	InitializeInterrupt(&Interrupt, Device);
-	Interrupt.Data = Controller;
+	Controller->Device.Interrupt.Data = Controller;
 
 	// Register contract before interrupt
 	if (RegisterContract(&Controller->Contract) != OsNoError) {
@@ -109,7 +108,7 @@ AhciControllerCreate(
 
 	// Register interrupt
 	Controller->Interrupt = 
-		RegisterInterruptSource(&Interrupt, 0);
+		RegisterInterruptSource(&Controller->Device.Interrupt, 0);
 
 	// Now that all formalities has been taken care
 	// off we can actually setup controller

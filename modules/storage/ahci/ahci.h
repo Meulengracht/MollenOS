@@ -357,6 +357,7 @@ typedef struct _AhciPort {
  * It contains all information neccessary 
  * for us to use it for our functions */
 typedef struct _AhciController {
+	MCoreDevice_t			 Device;
 	MContract_t				 Contract;
 	UUId_t					 Interrupt;
 	Spinlock_t				 Lock;

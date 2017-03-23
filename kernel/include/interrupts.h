@@ -121,12 +121,30 @@ __EXTERN int AcpiDeriveInterrupt(DevInfo_t Bus,
  * Call this to send an interrupt into user-space
  * the driver must acknowledge the interrupt once its handled
  * to unmask the interrupt-line again */
-__EXTERN OsStatus_t ScRpcExecute(MRemoteCall_t *Rpc, UUId_t Target, int Async);
-static __CRT_INLINE OsStatus_t InterruptDriver(UUId_t Ash, void *Data)
+__EXTERN
+OsStatus_t
+ScRpcExecute(
+	_In_ MRemoteCall_t *Rpc, 
+	_In_ UUId_t Target,
+	_In_ int Async);
+
+SERVICEAPI
+OsStatus_t
+SERVICEABI
+InterruptDriver(
+	_In_ UUId_t Ash, 
+	_In_ UUId_t Id,
+	_In_ void *Data)
 {
+	// Variables
 	MRemoteCall_t Request;
+
+	// Initialze RPC
 	RPCInitialize(&Request, 1, PIPE_DEFAULT, __DRIVER_INTERRUPT);
-	RPCSetArgument(&Request, 0, (const void*)Data, sizeof(void*));
+	RPCSetArgument(&Request, 0, (__CONST void*)&Id, sizeof(UUId_t));
+	RPCSetArgument(&Request, 1, (__CONST void*)Data, sizeof(void*));
+
+	// Send
 	return ScRpcExecute(&Request, Ash, 1);
 }
 

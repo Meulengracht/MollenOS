@@ -30,34 +30,6 @@
  * - Contracts */
 #include <os/driver/contracts/timer.h>
 
-/* InitializeInterrupt
- * Initializes the interrupt from a given device
- * and fills out the correct information from the
- * device-structure */
-MOSAPI
-OsStatus_t
-MOSABI
-InitializeInterrupt(
-	_Out_ MCoreInterrupt_t *Interrupt,
-	_In_ MCoreDevice_t *Device)
-{
-	// Variables
-	int i;
-
-	// Copy information over
-	Interrupt->AcpiConform = Device->AcpiConform;
-	Interrupt->Line = Device->IrqLine;
-	Interrupt->Pin = Device->IrqPin;
-
-	// Handle directs
-	for (i = 0; i < __DEVICEMANAGER_MAX_IRQS; i++) {
-		Interrupt->Direct[i] = Device->IrqAvailable[i];
-	}
-
-	// Done - no errors
-	return OsNoError;
-}
-
 /* RegisterInterruptSource 
  * Allocates the given interrupt source for use by
  * the requesting driver, an id for the interrupt source
@@ -73,6 +45,20 @@ UUId_t RegisterInterruptSource(MCoreInterrupt_t *Interrupt, Flags_t Flags)
 	/* Redirect to system call */
 	return (UUId_t)Syscall2(SYSCALL_REGISTERIRQ, SYSCALL_PARAM(Interrupt),
 		SYSCALL_PARAM(Flags));
+}
+
+/* AcknowledgeInterrupt 
+ * Acknowledges an interrupt and allows the interrupt
+ * to occur from that device again */
+OsStatus_t AcknowledgeInterrupt(UUId_t Source)
+{
+	/* Validate parameters */
+	if (Source == UUID_INVALID) {
+		return OsError;
+	}
+
+	/* Redirect to system call */
+	return (OsStatus_t)Syscall1(SYSCALL_ACKNOWLEDGEIRQ, SYSCALL_PARAM(Source));
 }
 
 /* UnregisterInterruptSource 

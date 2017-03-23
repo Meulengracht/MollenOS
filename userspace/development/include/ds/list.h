@@ -163,17 +163,18 @@ ListAppend(
 
 /* List pop functions, the either 
  * remove an element from the back or 
- * the front of the given list and return
- * the node */
-MOSAPI ListNode_t *ListPopFront(List_t *List);
-MOSAPI ListNode_t *ListPopBack(List_t *List);
+ * the front of the given list and return the node */
+MOSAPI
+ListNode_t*
+MOSABI
+ListPopFront(
+	_In_ List_t *List);
 
-/* These are the index-retriever functions 
- * they return the given index by either 
- * Key, data or node, return -1 if not found */
-MOSAPI int ListGetIndexByData(List_t *List, void *Data);
-MOSAPI int ListGetIndexByKey(List_t *List, DataKey_t Key);
-MOSAPI int ListGetIndexByNode(List_t *List, ListNode_t *Node);
+MOSAPI
+ListNode_t*
+MOSABI
+ListPopBack(
+	_In_ List_t *List);
 
 /* ListGetNodeByKey
  * These are the node-retriever functions 
@@ -199,8 +200,24 @@ ListGetDataByKey(
 
 /* ListExecute(s)
  * These functions execute a given function on all relevant nodes (see names) */
-MOSAPI void ListExecuteOnKey(List_t *List, void(*Function)(void*, int, void*), DataKey_t Key, void *UserData);
-MOSAPI void ListExecuteAll(List_t *List, void(*Function)(void*, int, void*), void *UserData);
+MOSAPI
+void
+MOSABI
+ListExecuteOnKey(
+	_In_ List_t *List,
+	_In_ void(*Function)(void*, int, void*),
+	_In_ DataKey_t Key,
+	_In_ void *UserData);
+
+/* ListExecute(s)
+ * These functions execute a given function on all relevant nodes (see names) */
+MOSAPI
+void
+MOSABI
+ListExecuteAll(
+	_In_ List_t *List,
+	_In_ void(*Function)(void*, int, void*),
+	_In_ void *UserData);
 
 /* ListUnlinkNode
  * This functions unlinks a node and returns the next node for usage */

@@ -48,7 +48,7 @@ AhciCommandDispatch(
 	// Variables
 	AHCICommandTable_t *CommandTable = NULL;
 	size_t BytesLeft = Transaction->SectorCount * Transaction->Device->SectorSize;
-	uintptr_t BufferPointer = NULL;
+	uintptr_t BufferPointer = 0;
 	ListNode_t *tNode = NULL;
 	DataKey_t Key, SubKey;
 	int PrdtIndex = 0;
@@ -292,9 +292,7 @@ AhciCommandFinish(
 	OsStatus_t Status;
 
 	// Verify the command execution
-	Status = AhciVerifyRegisterFIS(
-		Transaction->Device->Controller, 
-		Transaction->Device->Port, Transaction->Slot);
+	Status = AhciVerifyRegisterFIS(Transaction);
 
 	// Release the allocated slot
 	AhciPortReleaseCommandSlot(Transaction->Device->Port, Transaction->Slot);

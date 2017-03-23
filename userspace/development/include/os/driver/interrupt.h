@@ -28,10 +28,6 @@
  * - C-Library */
 #include <os/osdefs.h>
 
-/* Includes
- * - System */
-#include <os/driver/device.h>
-
 /* Interrupt handler signature, this is only used for
  * fast-interrupts that does not need interrupts enabled
  * or does any processing work */
@@ -43,6 +39,7 @@ typedef InterruptStatus_t(*InterruptHandler_t)(void*);
 /* Specail interrupt constants, use these when allocating
  * interrupts if neccessary */
 #define INTERRUPT_NONE					(int)-1
+#define INTERRUPT_MAXDIRECTS			8
 
 /* Interrupt allocation flags, interrupts are initially
  * always shareable */
@@ -56,22 +53,11 @@ typedef struct _MCoreInterrupt {
 	Flags_t					AcpiConform;
 	int						Line;
 	int						Pin; 
-	int						Direct[__DEVICEMANAGER_MAX_IRQS];
+	int						Direct[INTERRUPT_MAXDIRECTS];
 
 	InterruptHandler_t		FastHandler;
 	void					*Data;
 } MCoreInterrupt_t;
-
-/* InitializeInterrupt
- * Initializes the interrupt from a given device
- * and fills out the correct information from the
- * device-structure */
-MOSAPI
-OsStatus_t
-MOSABI
-InitializeInterrupt(
-	_Out_ MCoreInterrupt_t *Interrupt,
-	_In_ MCoreDevice_t *Device);
 
 /* RegisterInterruptSource 
  * Allocates the given interrupt source for use by
@@ -84,6 +70,15 @@ MOSABI
 RegisterInterruptSource(
 	_In_ MCoreInterrupt_t *Interrupt, 
 	_In_ Flags_t Flags);
+
+/* AcknowledgeInterrupt 
+ * Acknowledges an interrupt and allows the interrupt
+ * to occur from that device again */
+MOSAPI
+OsStatus_t
+MOSABI
+AcknowledgeInterrupt(
+	_In_ UUId_t Source);
 
 /* UnregisterInterruptSource 
  * Unallocates the given interrupt source and disables

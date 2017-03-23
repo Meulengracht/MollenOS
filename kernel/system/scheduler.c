@@ -104,7 +104,7 @@ void SchedulerBoost(Scheduler_t *Scheduler)
 	 * Reset time-slices */
 	for (i = 1; i < MCORE_SCHEDULER_LEVELS; i++)
 	{
-		if (Scheduler->Queues[i]->Length > 0)
+		if (ListLength(Scheduler->Queues[i]) > 0)
 		{
 			mNode = ListPopFront(Scheduler->Queues[i]);
 
@@ -493,7 +493,7 @@ MCoreThread_t *SchedulerGetNextTask(UUId_t Cpu, MCoreThread_t *Thread, int PreEm
 	for (i = 0; i < MCORE_SCHEDULER_LEVELS; i++)
 	{
 		/* Do we even have any nodes in here ? */
-		if (GlbSchedulers[Cpu]->Queues[i]->Length > 0)
+		if (ListLength(GlbSchedulers[Cpu]->Queues[i]) > 0)
 		{
 			/* FIFO algorithm in queues */
 			NextThreadNode = ListPopFront(GlbSchedulers[Cpu]->Queues[i]);

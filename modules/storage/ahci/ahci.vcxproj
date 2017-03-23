@@ -69,8 +69,7 @@
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
-      <AdditionalDependencies>
-      </AdditionalDependencies>
+      <AdditionalDependencies>libdrv.lib;libmsc++.lib;libc.lib;libos.lib</AdditionalDependencies>
       <IgnoreAllDefaultLibraries>true</IgnoreAllDefaultLibraries>
       <GenerateMapFile>true</GenerateMapFile>
       <MapExports>true</MapExports>

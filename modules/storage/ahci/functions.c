@@ -45,7 +45,6 @@ AhciReadSectors(
 {
 	// Variables
 	ATACommandType_t Command;
-	OsStatus_t Status;
 
 	// The first thing we need to do is determine which type
 	// of ATA command we can use
@@ -81,7 +80,6 @@ AhciWriteSectors(
 {
 	// Variables
 	ATACommandType_t Command;
-	OsStatus_t Status;
 
 	// The first thing we need to do is determine which type
 	// of ATA command we can use

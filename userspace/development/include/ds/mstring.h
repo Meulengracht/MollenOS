@@ -60,8 +60,7 @@ typedef uint32_t mchar_t;
  * Used by MStringCreate to tell us
  * which type of data we are feeding the
  * constructor */
-typedef enum _MStringType
-{
+typedef enum _MStringType {
 	StrASCII,
 	StrUTF8,
 	StrUTF16,

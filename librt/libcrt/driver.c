@@ -21,12 +21,9 @@
 
 /* Includes 
  * - System */
+#include <os/driver/driver.h>
 #include <os/mollenos.h>
 #include <os/thread.h>
-
-/* Includes
- * - Driver */
-#include <os/driver/driver.h>
 
 /* Includes
  * - C-Library */
@@ -39,11 +36,6 @@
 __EXTERN void __CppInit(void);
 __EXTERN void __CppFinit(void);
 MOSAPI void __CppInitVectoredEH(void);
-
-/* Globals
- * We want to keep a list of all registered
- * driver-instances, to keep track of what is running */
-List_t *__GlbInstances = NULL;
 
 /* CRT Initialization sequence
  * for a shared C/C++ environment
@@ -60,50 +52,38 @@ void _mCrtInit(ThreadLocalStorage_t *Tls)
  * Use this entry point for drivers/servers/modules */
 void _mDrvCrt(void)
 {
-	/* Variables */
+	// Variables
 	ThreadLocalStorage_t Tls;
 	MRemoteCall_t Message;
-	DataKey_t Key;
 	int IsRunning = 1;
 
-	/* Initialize environment */
+	// Initialize environment
 	_mCrtInit(&Tls);
 
-	/* Initialize default pipes */
+	// Initialize default pipes
 	PipeOpen(PIPE_DEFAULT);
 	PipeOpen(PIPE_RPC);
 
-	/* Allocate the list of running instances */
-	__GlbInstances = ListCreate(KeyInteger, LIST_NORMAL);
-
-	/* Call the driver load function 
-	 * - This will be run once, before loop */
+	// Call the driver load function 
+	// - This will be run once, before loop
 	if (OnLoad() != OsNoError) {
 		OnUnload();
 		goto Cleanup;
 	}
 
-	/* Initialize the driver event loop */
-	while (IsRunning) 
-	{
-		/* Wait for call */
+	// Initialize the driver event loop
+	while (IsRunning) {
 		if (RPCListen(&Message) == OsNoError) {
-			/* Which function is called? */
 			switch (Message.Function) {
 				case __DRIVER_REGISTERINSTANCE: {
-					Key.Value = 0;
-					Message.Arguments[0].Type = ARGUMENT_NOTUSED;
 					OnRegister((MCoreDevice_t*)Message.Arguments[0].Data.Buffer);
-					ListAppend(__GlbInstances, 
-						ListCreateNode(Key, Key, (void*)Message.Arguments[0].Data.Buffer));
 				} break;
 				case __DRIVER_UNREGISTERINSTANCE: {
 					OnUnregister((MCoreDevice_t*)Message.Arguments[0].Data.Buffer);
 				} break;
 				case __DRIVER_INTERRUPT: {
-					if (OnInterrupt((void*)Message.Arguments[0].Data.Value)
-						== InterruptHandled) {
-						/* InterruptAcknowledge() */
+					if (OnInterrupt((void*)Message.Arguments[1].Data.Value) == InterruptHandled) {
+						AcknowledgeInterrupt((UUId_t)Message.Arguments[0].Data.Value);
 					}
 				} break;
 				case __DRIVER_QUERY: {
@@ -120,22 +100,17 @@ void _mDrvCrt(void)
 					break;
 				}
 			}
-
-			/* Cleanup message */
 			RPCCleanup(&Message);
 		}
-		else {
-			/* Something went wrong, wtf? */
-		}
+		else { }
 	}
 
-	/* Call unload, so driver can cleanup */
+	// Call unload, so driver can cleanup
 	OnUnload();
 
 Cleanup:
-	/* Cleanup allocated resources
-	 * and perform a normal exit */
-	ListDestroy(__GlbInstances);
+	// Cleanup allocated resources
+	// and perform a normal exit
 	PipeClose(PIPE_DEFAULT);
 	PipeClose(PIPE_RPC);
 	exit(-1);

@@ -93,8 +93,9 @@ OsStatus_t OnEvent(MRemoteCall_t *Message)
 			/* Evaluate request, but don't free
 			* the allocated device storage, we need it */
 			Message->Arguments[0].Type = ARGUMENT_NOTUSED;
-			Result = RegisterDevice((MCoreDevice_t*)Message->Arguments[0].Data.Buffer, NULL,
-				(Flags_t)Message->Arguments[0].Data.Value);
+			Result = RegisterDevice((UUId_t)Message->Arguments[0].Data.Value,
+				(MCoreDevice_t*)Message->Arguments[1].Data.Buffer, NULL,
+				(Flags_t)Message->Arguments[2].Data.Value);
 
 			/* Write the result back to the caller */
 			PipeSend(Message->Sender, Message->ResponsePort,
@@ -199,6 +200,9 @@ RegisterDevice(
 	/* Variables */
 	UUId_t DeviceId = GlbDeviceIdGen++;
 	DataKey_t Key;
+
+	// Not sure what to do with this rn
+	_CRT_UNUSED(Parent);
 
 	/* Update name and print debug information */
 	if (Name != NULL) {

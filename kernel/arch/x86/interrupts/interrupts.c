@@ -674,7 +674,7 @@ void InterruptEntry(Context_t *Registers)
 		}
 		else {
 			/* Send a interrupt-event to this */
-			InterruptDriver(Entry->Ash, Entry->Interrupt.Data);
+			InterruptDriver(Entry->Ash, Entry->Id, Entry->Interrupt.Data);
 			
 			/* Mark as handled, so we don't spit out errors */
 			Result = InterruptHandled;

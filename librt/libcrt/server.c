@@ -45,16 +45,9 @@ MOSAPI void __CppInitVectoredEH(void);
  * call this in all entry points */
 void _mCrtInit(ThreadLocalStorage_t *Tls)
 {
-	/* Init Crt */
 	__CppInit();
-
-	/* Initialize the TLS */
 	TLSInitInstance(Tls);
-
-	/* Init TLS */
 	TLSInit();
-
-	/* Init EH */
 	__CppInitVectoredEH();
 }
 
@@ -67,37 +60,35 @@ void _mDrvCrt(void)
 	MRemoteCall_t Message;
 	int IsRunning = 1;
 
-	/* Initialize environment */
+	// Initialize environment
 	_mCrtInit(&Tls);
 
-	/* Initialize default pipes */
+	// Initialize default pipes
 	PipeOpen(PIPE_DEFAULT);
 	PipeOpen(PIPE_RPC);
 
-	/* Call the driver load function 
-	 * - This will be run once, before loop */
+	// Call the driver load function 
+	// - This will be run once, before loop
 	if (OnLoad() != OsNoError) {
 		OnUnload();
 		goto Cleanup;
 	}
 
-	/* Initialize the server event loop */
+	// Initialize the server event loop
 	while (IsRunning) {
 		if (RPCListen(&Message) == OsNoError) {
 			OnEvent(&Message);
 			RPCCleanup(&Message);
 		}
-		else {
-			/* Something went wrong, wtf? */
-		}
+		else { }
 	}
 
-	/* Call unload, so driver can cleanup */
+	// Call unload, so driver can cleanup
 	OnUnload();
 
 Cleanup:
-	/* Cleanup allocated resources
-	 * and perform a normal exit */
+	// Cleanup allocated resources
+	// and perform a normal exit
 	PipeClose(PIPE_DEFAULT);
 	PipeClose(PIPE_RPC);
 	exit(-1);

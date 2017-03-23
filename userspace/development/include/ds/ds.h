@@ -26,45 +26,28 @@
 #include <crtdefs.h>
 #include <stdint.h>
 
-/*******************************
- *    Data Structures          *
- *******************************/
-
 /* The definition of a key
  * in generic data-structures
  * this can be values or data */
-typedef union _DataKey
-{
-	/* Integer Value */
+typedef union _DataKey {
 	int Value;
-
-	/* Data Pointer */
 	void *Pointer;
-
-	/* String */
 	char *String;
-
 } DataKey_t;
 
 /* This enumeration denotes
  * the kind of key that is
  * to be interpreted by the
  * data-structure */
-typedef enum _KeyType
-{
+typedef enum _KeyType {
 	KeyInteger,
 	KeyPointer,
 	KeyString
-
 } KeyType_t;
 
 /* Data-structure locking 
  * primitive definition */
-#include <os/Spinlock.h>
-
-/*******************************
- *         Prototypes          *
- *******************************/
+#include <os/spinlock.h>
 
 /* This is used by data-structures 
  * to allocate memory, since it will 

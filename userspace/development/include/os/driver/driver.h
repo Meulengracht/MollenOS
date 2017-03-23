@@ -29,11 +29,11 @@
 
 /* Includes
  * - System */
-#include <os/driver/acpi.h>
-#include <os/driver/interrupt.h>
-#include <os/driver/io.h>
-#include <os/driver/device.h>
 #include <os/driver/contracts/base.h>
+#include <os/driver/interrupt.h>
+#include <os/driver/device.h>
+#include <os/driver/acpi.h>
+#include <os/driver/io.h>
 
 /* These are the different IPC functions supported
  * by the driver, note that some of them might
