@@ -85,12 +85,26 @@ typedef enum {
 } InterruptStatus_t;
 
 /* Define the standard os
- * rectangle used for ui
- * operations */
+ * rectangle used for ui operations */
 typedef struct _mRectangle {
 	int x, y;
 	int w, h;
 } Rect_t;
+
+/* 64 Bit Integer
+ * The parts can be accessed in both unsigned and
+ * signed methods, but the quad-part is signed */
+typedef union _LargeInteger {
+	struct {
+		uint32_t LowPart;
+		int32_t HighPart;
+	};
+	struct {
+		uint32_t LowPart;
+		uint32_t HighPart;
+	} u;
+	int64_t QuadPart;
+} LargeInteger_t;
 
 /* Helper function, retrieves the first 
  * set bit in a set of bits */

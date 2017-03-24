@@ -305,12 +305,12 @@ OnQuery(_In_ MContractType_t QueryType,
 
 	// Which kind of query type is being done?
 	if (QueryType == ContractClock
-		&& QueryFunction == __CLOCK_QUERY_STAT) {
+		&& QueryFunction == __CLOCK_QUERY) {
 		CmosGetTime(&_time);
 		PipeSend(Queryee, ResponsePort, &_time, sizeof(struct tm));
 	}
 	else if (QueryType == ContractTimer
-		&& QueryFunction == __TIMER_QUERY_STAT) {
+		&& QueryFunction == __TIMER_QUERY) {
 		PipeSend(Queryee, ResponsePort, &GlbCmos->Ticks, sizeof(clock_t));
 	}
 

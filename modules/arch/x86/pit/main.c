@@ -186,7 +186,7 @@ OnQuery(_In_ MContractType_t QueryType,
 
 	// Which kind of query type is being done?
 	if (QueryType == ContractTimer
-		&& QueryFunction == __TIMER_QUERY_STAT) {
+		&& QueryFunction == __TIMER_QUERY) {
 		PipeSend(Queryee, ResponsePort, &GlbPit->Ticks, sizeof(clock_t));
 	}
 	return OsNoError;
