@@ -32,7 +32,7 @@
 
 /* Clock device query functions that must be implemented
  * by the clock driver - those can then be used by this interface */
-#define __CLOCK_QUERY_STAT				IPC_DECL_FUNCTION(0)
+#define __CLOCK_QUERY					IPC_DECL_FUNCTION(0)
 
 /* ClockQuery
  * This queries the clock contract for data
@@ -44,7 +44,7 @@ SERVICEABI
 ClockQuery(
 	_Out_ struct tm *time) 
 {
-	return QueryContract(ContractClock, __CLOCK_QUERY_STAT,
+	return QueryContract(ContractClock, __CLOCK_QUERY,
 		NULL, 0, NULL, 0, NULL, 0, time, sizeof(struct tm));
 }
 

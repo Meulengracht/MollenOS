@@ -46,6 +46,7 @@ typedef enum _MContractType {
 	ContractController,
 	ContractClock,
 	ContractTimer,
+	ContractTimerPerformance,
 	ContractInput,
 	ContractDisk
 } MContractType_t;
@@ -162,32 +163,43 @@ QueryContract(
 	_Out_Opt_ __CONST void *ResultBuffer,
 	_In_Opt_ size_t ResultLength)
 {
-	/* Variables */
+	// Variables
 	MRemoteCall_t Request;
+	OsStatus_t Result;
 
-	/* Initialize static RPC variables like
-	 * type of RPC, pipe and version */
+	// Initialize static RPC variables like
+	// type of RPC, pipe and version
 	RPCInitialize(&Request, __DEVICEMANAGER_INTERFACE_VERSION, 
 		PIPE_DEFAULT, __DEVICEMANAGER_QUERYCONTRACT);
-	RPCSetArgument(&Request, 0, (const void*)&Type, sizeof(MContractType_t));
-	RPCSetArgument(&Request, 1, (const void*)&Function, sizeof(int));
+	RPCSetArgument(&Request, 0, (__CONST void*)&Type, sizeof(MContractType_t));
+	RPCSetArgument(&Request, 1, (__CONST void*)&Function, sizeof(int));
 
-	/* Setup arguments if given */
+	// Handle arguments
 	if (Arg0 != NULL && Length0 != 0) {
 		RPCSetArgument(&Request, 2, Arg0, Length0);
 	}
-
 	if (Arg1 != NULL && Length1 != 0) {
 		RPCSetArgument(&Request, 3, Arg1, Length1);
 	}
-
 	if (Arg2 != NULL && Length2 != 0) {
 		RPCSetArgument(&Request, 4, Arg2, Length2);
 	}
 
-	/* Fire off request */
-	RPCSetResult(&Request, ResultBuffer, ResultLength);
-	return RPCEvaluate(&Request, __DEVICEMANAGER_TARGET);
+	// Handle result - if none is given we must always
+	// get a osstatus - we also execute the rpc here
+	if (ResultBuffer != NULL && ResultLength != 0) {
+		RPCSetResult(&Request, ResultBuffer, ResultLength);
+		return RPCEvaluate(&Request, __DEVICEMANAGER_TARGET);
+	}
+	else {
+		RPCSetResult(&Request, &Result, sizeof(OsStatus_t));
+		if (RPCEvaluate(&Request, __DEVICEMANAGER_TARGET) != OsNoError) {
+			return OsError;
+		}
+		else {
+			return Result;
+		}
+	}
 }
 #endif
 

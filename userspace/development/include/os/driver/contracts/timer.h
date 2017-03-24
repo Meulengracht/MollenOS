@@ -32,7 +32,10 @@
 
 /* Timer device query functions that must be implemented
  * by the timer driver - those can then be used by this interface */
-#define __TIMER_QUERY_STAT				IPC_DECL_FUNCTION(0)
+#define __TIMER_QUERY					IPC_DECL_FUNCTION(0)
+
+#define __TIMER_PERFORMANCE_FREQUENCY	IPC_DECL_FUNCTION(1)
+#define __TIMER_PERFORMANCE_QUERY		IPC_DECL_FUNCTION(2)
 
 /* TimerQuery
  * This queries the timer contract for data
@@ -44,8 +47,34 @@ SERVICEABI
 TimerQuery(
 	_Out_ clock_t *clock) 
 {
-	return QueryContract(ContractTimer, __TIMER_QUERY_STAT,
+	return QueryContract(ContractTimer, __TIMER_QUERY,
 		NULL, 0, NULL, 0, NULL, 0, clock, sizeof(clock_t));
+}
+
+/* TimerQueryPerformanceFrequency
+ * Returns how often the performance timer fires every
+ * second, the value will never be 0 */
+SERVICEAPI
+OsStatus_t
+SERVICEABI
+TimerQueryPerformanceFrequency(
+	_Out_ LargeInteger_t *Frequency)
+{
+	return QueryContract(ContractTimerPerformance, __TIMER_PERFORMANCE_FREQUENCY,
+		NULL, 0, NULL, 0, NULL, 0, Frequency, sizeof(LargeInteger_t));
+}
+
+/* TimerQueryPerformance 
+ * Queries the created performance timer and returns the
+ * information in the given structure */
+SERVICEAPI
+OsStatus_t
+SERVICEABI
+TimerQueryPerformance(
+	_Out_ LargeInteger_t *Value)
+{
+	return QueryContract(ContractTimerPerformance, __TIMER_PERFORMANCE_QUERY,
+		NULL, 0, NULL, 0, NULL, 0, Value, sizeof(LargeInteger_t));
 }
 
 /* RegisterSystemTimer

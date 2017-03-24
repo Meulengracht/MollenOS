@@ -98,7 +98,7 @@ typedef union _LargeInteger {
 	struct {
 		uint32_t LowPart;
 		int32_t HighPart;
-	};
+	} s;
 	struct {
 		uint32_t LowPart;
 		uint32_t HighPart;
@@ -110,17 +110,15 @@ typedef union _LargeInteger {
  * set bit in a set of bits */
 static int FirstSetBit(size_t Value)
 {
-	/* Vars */
+	// Variables
 	int bCount = 0;
 	size_t Cc = Value;
 
-	/* Keep bit-shifting */
+	// Keep bit-shifting
 	for (; Cc != 0;) {
 		bCount++;
 		Cc >>= 1;
 	}
-
-	/* Done */
 	return bCount;
 }
 
@@ -128,17 +126,15 @@ static int FirstSetBit(size_t Value)
  * set bit in a set of bits */
 static int LastSetBit(size_t Value)
 {
-	/* Variables */
+	// Variables
 	size_t _Val = Value;
 	int bIndex = 0;
 
-	/* Keep shifting untill we 
-	 * reach a zero value */
+	// Keep shifting untill we 
+	// reach a zero value 
 	while (_Val >>= 1) {
 		bIndex++;
 	}
-
-	/* Done! */
 	return bIndex;
 }
 
@@ -148,12 +144,12 @@ static int LastSetBit(size_t Value)
 #define _MAXPATH			512
 
 /* Utils Definitions */
-#define MIN(a,b) (((a)<(b))?(a):(b))
-#define MAX(a,b) (((a)>(b))?(a):(b))
-#define DIVUP(a, b) ((a / b) + (((a % b) > 0) ? 1 : 0))
-#define INCLIMIT(i, limit) i++; if (i == limit) i = 0;
-#define ALIGN(Val, Alignment, Roundup) ((Val & (Alignment-1)) > 0 ? (Roundup == 1 ? ((Val + Alignment) & ~(Alignment-1)) : Val & ~(Alignment-1)) : Val)
-#define ISALIGNED(Val, Alignment)	((Val & (Alignment-1)) == 0)
+#define MIN(a,b)						(((a)<(b))?(a):(b))
+#define MAX(a,b)						(((a)>(b))?(a):(b))
+#define DIVUP(a, b)						((a / b) + (((a % b) > 0) ? 1 : 0))
+#define INCLIMIT(i, limit)				i++; if (i == limit) i = 0;
+#define ALIGN(Val, Alignment, Roundup)	((Val & (Alignment-1)) > 0 ? (Roundup == 1 ? ((Val + Alignment) & ~(Alignment-1)) : Val & ~(Alignment-1)) : Val)
+#define ISALIGNED(Val, Alignment)		((Val & (Alignment-1)) == 0)
 
 /* Data manipulation macros */
 #ifndef LOWORD
@@ -199,7 +195,7 @@ static int LastSetBit(size_t Value)
 #endif
 
 #ifndef HIDWORD
-#define HIDWORD(l)                      ((uint32_t)(((*(val64_t*)(&l))).HighPart))
+#define HIDWORD(l)                      (((*(LargeInteger_t*)(&l))).u.HighPart)
 #endif
 #endif
 #endif
