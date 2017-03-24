@@ -80,11 +80,17 @@ AhciManagerInitialize(void)
 OsStatus_t
 AhciManagerDestroy(void)
 {
+	// Iterate through registered devices and
+	// unregister them with the filemanager
+	foreach(dNode, GlbDisks) {
+		AhciDevice_t *Device = (AhciDevice_t*)dNode->Data;
+		UnregisterDisk(Device->Descriptor.Device, __DISK_FORCED_REMOVE);
+		DestroyBuffer(Device->Buffer);
+		free(Device);
+	}
 
-
-
-	// Done
-	return OsNoError;
+	// Cleanup list
+	return ListDestroy(GlbDisks);
 }
 
 /* AhciManagerCreateDevice
