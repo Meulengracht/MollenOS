@@ -20,6 +20,8 @@
  * - Contains the timer interface system and its implementation
  *   keeps track of system timers
  */
+#define __MODULE		"TIMR"
+//#define __TRACE
 
 /* Includes 
  * - System */
@@ -27,6 +29,7 @@
 #include <scheduler.h>
 #include <ds/list.h>
 #include <timers.h>
+#include <debug.h>
 #include <heap.h>
 
 /* Includes
@@ -159,21 +162,25 @@ void TimersTick(size_t Tick)
  * are available for time-keeping */
 OsStatus_t TimersRegister(UUId_t Source, size_t TickNs)
 {
-	/* Variables we'll need */
+	// Variables
 	MCoreInterruptDescriptor_t *Interrupt = NULL;
 	MCoreSystemTimer_t *SystemTimer = NULL;
 	DataKey_t tKey;
 	int Delta = abs(1000 - (int)TickNs);
 
-	/* Do some validation about the timer source 
-	 * the only system timers we want are fast_interrupts */
+	// Trace
+	TRACE("TimersRegister()");
+
+	// Do some validation about the timer source 
+	// the only system timers we want are fast_interrupts
 	Interrupt = InterruptGet(Source);
 	if (Interrupt == NULL
-		|| !(Interrupt->Flags & (INTERRUPT_FAST | INTERRUPT_KERNEL))) {
+		|| (Interrupt->Flags & (INTERRUPT_FAST | INTERRUPT_KERNEL)) == 0) {
+		TRACE("Interrupt was not found for source %u", Source);
 		return OsError;
 	}
 
-	/* Create a new instance of a system timer */
+	// Create a new instance of a system timer
 	SystemTimer = (MCoreSystemTimer_t*)kmalloc(sizeof(MCoreSystemTimer_t));
 	SystemTimer->Source = Source;
 	SystemTimer->Tick = TickNs;
@@ -184,21 +191,22 @@ OsStatus_t TimersRegister(UUId_t Source, size_t TickNs)
 	ListAppend(GlbSystemTimers, ListCreateNode(
 		tKey, tKey, SystemTimer));
 
-	/* Ok, for a system timer we want something optimum
-	 * of 1 ms per interrupt */
+	// Ok, for a system timer we want something optimum
+	// of 1 ms per interrupt
 	if (GlbActiveSystemTimer != NULL) {
 		int ActiveDelta = abs(1000 - GlbActiveSystemTimer->Tick);
 		if (ActiveDelta > Delta) {
-			/* Woohoo new active! */
 			GlbActiveSystemTimer = SystemTimer;
 		}
 	}
 	else {
-		/* Update the active system timer */
 		GlbActiveSystemTimer = SystemTimer;
 	}
 
-	/* Yay! */
+	// Trace
+	TRACE("New system timer: %u", GlbActiveSystemTimer->Source);
+
+	// Done
 	return OsNoError;
 }
 

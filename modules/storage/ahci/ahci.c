@@ -375,9 +375,6 @@ AhciSetup(
 		}
 	}
 
-	// Debug
-	MollenOSSystemLog("AHCI::Allocating system memory");
-
 	// Allocate some shared resources, especially 
 	// command lists as we need 1K * portcount
 	if (MemoryAllocate(1024 * PortItr, MEMORY_LOWFIRST | MEMORY_CONTIGIOUS

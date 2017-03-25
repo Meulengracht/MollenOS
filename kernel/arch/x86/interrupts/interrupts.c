@@ -428,33 +428,33 @@ void InterruptInitialize(void)
  * returns UUID_INVALID */
 UUId_t InterruptRegister(MCoreInterrupt_t *Interrupt, Flags_t Flags)
 {
-	/* Variables */
+	// Variables
 	MCoreInterruptDescriptor_t *Entry = NULL, 
 		*Iterator = NULL, *Previous = NULL;
 	IntStatus_t InterruptStatus = 0;
 	UUId_t TableIndex = 0;
 	UUId_t Id = InterruptIdGen++;
 
-	/* Sanity */
+	// Sanitize initialization status
 	assert(GlbInterruptInitialized == 1);
 
-	/* Disable interrupts during this procedure */
+	// Disable interrupts during this procedure
 	InterruptStatus = InterruptDisable();
 
-	/* Allocate a new entry for the table */
+	// Allocate a new entry for the table
 	Entry = (MCoreInterruptDescriptor_t*)kmalloc(sizeof(MCoreInterruptDescriptor_t));
 
-	/* Setup some initial information */
+	// Setup some initial information
 	Entry->Id = (Id << 16);
 	Entry->Ash = UUID_INVALID;
 	Entry->Thread = ThreadingGetCurrentThreadId();
 	Entry->Flags = Flags;
 	Entry->Link = NULL;
 
-	/* Ok -> So we have a bunch of different cases of interrupt 
-	 * Software (Kernel) interrupts
-	 * User (fast) interrupts
-	 * User (slow) interrupts */
+	// Ok -> So we have a bunch of different cases of interrupt 
+	// Software (Kernel) interrupts
+	// User (fast) interrupts
+	// User (slow) interrupts */
 	if (Flags & INTERRUPT_KERNEL) {
 		TableIndex = (UUId_t)Interrupt->Direct[0];
 		Entry->Id |= TableIndex;
@@ -466,25 +466,25 @@ UUId_t InterruptRegister(MCoreInterrupt_t *Interrupt, Flags_t Flags)
 		}
 	}
 	else {
-		/* Sanitize the line and pin first, because
-		 * if neither is set, it's most likely a request for MSI */
+		// Sanitize the line and pin first, because
+		// if neither is set, it's most likely a request for MSI
 		if (Interrupt->Line == INTERRUPT_NONE
 			&& Interrupt->Pin == INTERRUPT_NONE) {
 			Interrupt->Line = 
 				InterruptFindBest(Interrupt->Direct, __DEVICEMANAGER_MAX_IRQS);
 		}
 
-		/* Lookup stuff */
+		// Lookup stuff
 		Entry->Ash = ThreadingGetCurrentThread(ApicGetCpu())->AshId;
 
-		/* Update the final source for this */
+		// Update the final source for this
 		Entry->Source = Interrupt->Line;
 	}
 
-	/* Copy interrupt information over */
+	// Copy interrupt information over
 	memcpy(&Entry->Interrupt, Interrupt, sizeof(MCoreInterrupt_t));
 	
-	/* Sanitize the sharable status first */
+	// Sanitize the sharable status first
 	if (Flags & INTERRUPT_NOTSHARABLE) {
 		if (InterruptTable[TableIndex] != NULL) {
 			kfree(Entry);
@@ -492,7 +492,7 @@ UUId_t InterruptRegister(MCoreInterrupt_t *Interrupt, Flags_t Flags)
 		}
 	}
 
-	/* Finalize the install */
+	// Finalize the install 
 	if (Entry->Source != INTERRUPT_NONE) {
 		if (InterruptFinalize(Entry) != OsNoError) {
 			LogFatal("INTM", "Failed to install interrupt source %i", Entry->Source);
@@ -502,7 +502,7 @@ UUId_t InterruptRegister(MCoreInterrupt_t *Interrupt, Flags_t Flags)
 		TableIndex = LOWORD(Entry->Id);
 	}
 
-	/* First entry? */
+	// First entry?
 	if (InterruptTable[TableIndex] == NULL) {
 		InterruptTable[TableIndex] = Entry;
 	}
@@ -515,11 +515,11 @@ UUId_t InterruptRegister(MCoreInterrupt_t *Interrupt, Flags_t Flags)
 		Previous->Link = Entry;
 	}
 
-	/* Done with sensitive setup, enable interrupts */
+	// Done with sensitive setup, enable interrupts
 	InterruptRestoreState(InterruptStatus);
 
-	/* Done! */
-	return Id;
+	// Return the newly generated id
+	return Entry->Id;
 }
 
 /* InterruptUnregister 

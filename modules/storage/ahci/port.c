@@ -203,7 +203,6 @@ AhciPortReset(
 	reg32_t Control;
 
 	// Unused parameters
-	MollenOSSystemLog("AHCI-Port::Resetting(%i)", Port->Id);
 	_CRT_UNUSED(Controller);
 
 	// Software causes a port reset (COMRESET) by writing 1h to the PxSCTL.DET
