@@ -22,6 +22,7 @@
 /* Includes 
  * - System */
 #include <process/phoenix.h>
+#include <system/utils.h>
 #include <threading.h>
 #include <heap.h>
 
@@ -110,42 +111,78 @@ int SignalCreate(UUId_t AshId, int Signal)
 	return 0;
 }
 
+/* SignalReturn
+ * Call upon returning from a signal, this will finish
+ * the signal-call and enter a new signal if any is queued up */
+OsStatus_t
+SignalReturn(void)
+{
+	// Variables
+	MCoreThread_t *cThread = NULL;
+	MCoreSignal_t *Signal = NULL;
+	MCoreAsh_t *Ash = NULL;
+	UUId_t Cpu;
+
+	// Oh oh, someone has done the dirty signal
+	Cpu = CpuGetCurrentId();
+	cThread = ThreadingGetCurrentThread(Cpu);
+	Ash = PhoenixGetAsh(cThread->AshId);
+
+	// Now.. get active signal
+	Signal = Ash->ActiveSignal;
+
+	// Restore context
+	// Neccessary?
+
+	// Cleanup signal
+	Ash->ActiveSignal = NULL;
+	kfree(Signal);
+
+	// Continue into next signal?
+	return SignalHandle(cThread->Id);
+}
+
 /* Handle Signal 
  * This checks if the process has any waiting signals
  * and if it has, it executes the first in list */
-void SignalHandle(UUId_t ThreadId)
+OsStatus_t
+SignalHandle(
+	_In_ UUId_t ThreadId)
 {
-	/* Variables */
-	MCoreAsh_t *Ash = NULL;
+	// Variables
 	MCoreThread_t *Thread = NULL;
 	MCoreSignal_t *Signal = NULL;
 	ListNode_t *sNode = NULL;
+	MCoreAsh_t *Ash = NULL;
 	
-	/* Lookup Thread */
+	// Lookup variables
 	Thread = ThreadingGetThread(ThreadId);
 	Ash = PhoenixGetAsh(Thread->AshId);
 
-	/* Sanitize, we might not have an Ash */
+	// Sanitize, we might not have an Ash
 	if (Ash == NULL) {
-		return;
+		return OsError;
 	}
 
-	/* Even if there is a Ash, we might want not
-	 * to Ash any signals ATM if there is already 
-	 * one active */
+	// Even if there is a Ash, we might want not
+	// to Ash any signals ATM if there is already 
+	// one active
 	if (Ash->ActiveSignal != NULL) {
-		return;
+		return OsError;
 	}
 
-	/* Ok.. pop off first signal */
+	// Ok.. pop off first signal
 	sNode = ListPopFront(Ash->SignalQueue);
 
-	/* Cast */
+	// Sanitize the node, no more signals?
 	if (sNode != NULL) {
 		Signal = (MCoreSignal_t*)sNode->Data;
 		ListDestroyNode(Ash->SignalQueue, sNode);
 		SignalExecute(Ash, Signal);
 	}
+
+	// No more signals
+	return OsNoError;
 }
 
 /* Execute Signal 

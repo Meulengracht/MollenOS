@@ -24,7 +24,6 @@
     <ClCompile Include="..\..\arch\x86\interrupts\apic\apicinit.c" />
     <ClCompile Include="..\..\arch\x86\interrupts\apic\apicio.c" />
     <ClCompile Include="..\..\arch\x86\interrupts\apic\apicipi.c" />
-    <ClCompile Include="..\..\arch\x86\interrupts\exceptions.c" />
     <ClCompile Include="..\..\arch\x86\interrupts\interrupts.c" />
     <ClCompile Include="..\..\arch\x86\interrupts\pic\pic.c" />
     <ClCompile Include="..\..\arch\x86\components\cpu.c" />

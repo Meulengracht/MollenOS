@@ -106,27 +106,27 @@ void *IThreadCreate(Flags_t ThreadFlags, Addr_t EntryPoint)
 	MCoreInterrupt_t Interrupt;
 	x86Thread_t *Thread = NULL;
 
-	/* Allocate a new thread context (x86) 
-	 * and zero it out */
+	// Allocate a new thread context (x86) 
+	// and zero it out
 	Thread = (x86Thread_t*)kmalloc(sizeof(x86Thread_t));
 	memset(Thread, 0, sizeof(x86Thread_t));
 
-	/* Allocate a new buffer for FPU operations  
-	 * and zero out the buffer space */
+	// Allocate a new buffer for FPU operations  
+	// and zero out the buffer space
 	Thread->FpuBuffer = kmalloc_a(0x1000);
 	memset(Thread->FpuBuffer, 0, 0x1000);
 
-	/* Initialize rest of params */
+	// Initialize rest of params
 	Thread->Flags = X86_THREAD_FPU_INITIALISED | X86_THREAD_USEDFPU;
 
-	/* Don't create contexts for idle threads 
-	 * Otherwise setup a kernel stack */
+	// Don't create contexts for idle threads 
+	// Otherwise setup a kernel stack 
 	if (!(ThreadFlags & THREADING_IDLE)) {
 		Thread->Context = ContextCreate(ThreadFlags, EntryPoint, NULL);
 	}
 
-	/* If its the first time we run, install
-	 * the yield interrupt */
+	// If its the first time we run, install
+	// the yield interrupt
 	if (__GlbThreadX86Initialized == 0) {
 		__GlbThreadX86Initialized = 1;
 		Interrupt.Data = NULL;
@@ -198,25 +198,33 @@ void IThreadYield(void)
 
 /* Dispatches a signal to the given process 
  * signals will always be dispatched to main thread */
-void SignalDispatch(MCoreAsh_t *Ash, MCoreSignal_t *Signal)
+OsStatus_t
+SignalDispatch(
+	_In_ MCoreAsh_t *Ash, 
+	_In_ MCoreSignal_t *Signal)
 {
-	/* Variables */
+	// Variables
 	MCoreThread_t *Thread = ThreadingGetThread(Ash->MainThread);
 	x86Thread_t *Thread86 = (x86Thread_t*)Thread->ThreadData;
 	Context_t *Regs = NULL;
 
 	/* User or kernel mode thread? */
-	if (Thread->Flags & THREADING_USERMODE)
+	if (Thread->Flags & THREADING_USERMODE) {
 		Regs = Thread86->UserContext;
-	else
+	}
+	else {
 		Regs = Thread86->Context;
+	}
 
-	/* Store current context */
+	// Store current context
 	memcpy(&Signal->Context, Regs, sizeof(Context_t));
 
-	/* Now we can enter the signal context 
-	 * handler, we cannot return from this function */
+	// Now we can enter the signal context 
+	// handler, we cannot return from this function 
 	enter_signal(Regs, Signal->Handler, Signal->Signal, MEMORY_LOCATION_SIGNAL_RET);
+
+	// We don't reach this
+	return OsNoError;
 }
 
 /* This function switches the current runtime-context

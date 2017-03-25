@@ -9,6 +9,7 @@
   <ItemGroup>
     <ClCompile Include="..\..\common\bitmap.c" />
     <ClCompile Include="..\..\init.c" />
+    <ClCompile Include="..\..\system\debug.c" />
     <ClCompile Include="..\..\system\devices\acpi\acpi.c" />
     <ClCompile Include="..\..\system\devices\acpi\acpidevices.c" />
     <ClCompile Include="..\..\system\devices\acpi\acpienumerate.c" />

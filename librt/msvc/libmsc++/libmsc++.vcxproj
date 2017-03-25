@@ -58,6 +58,8 @@
       <IgnoreAllDefaultLibraries>true</IgnoreAllDefaultLibraries>
       <SubSystem>Native</SubSystem>
       <ModuleDefinitionFile>libmsc++.def</ModuleDefinitionFile>
+      <GenerateMapFile>true</GenerateMapFile>
+      <MapExports>true</MapExports>
     </Link>
     <PostBuildEvent>
       <Command>xcopy $(SolutionDir)librt\build\libmsc++.lib $(SolutionDir)userspace\development\lib\* /v /y /i

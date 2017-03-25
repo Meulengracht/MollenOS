@@ -23,10 +23,11 @@
 #include <assert.h>
 
 #ifdef LIBC_KERNEL
-extern void kernel_panic(const char* str);
+#define __MODULE "LIBK"
+#include <debug.h>
 void _assert_panic(const char* str)
 {
-	kernel_panic(str);
+	DebugPanic(FATAL_SCOPE_KERNEL, __MODULE, str);
 }
 #else
 #include <os/MollenOS.h>

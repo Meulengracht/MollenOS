@@ -55,9 +55,6 @@
     <ClCompile Include="..\..\arch\x86\components\cpu.c">
       <Filter>components</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\arch\x86\interrupts\exceptions.c">
-      <Filter>interrupts</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\arch\x86\interrupts\interrupts.c">
       <Filter>interrupts</Filter>
     </ClCompile>

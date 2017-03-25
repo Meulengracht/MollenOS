@@ -121,6 +121,9 @@
     <ClCompile Include="..\..\system\devices\fonts\font8x16.c">
       <Filter>systems\devices\video</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\system\debug.c">
+      <Filter>systems</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\include\heap.h">

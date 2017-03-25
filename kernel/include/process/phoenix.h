@@ -91,13 +91,33 @@ __EXTERN void PhoenixInit(void);
 __EXTERN void PhoenixCreateRequest(MCorePhoenixRequest_t *Request);
 __EXTERN void PhoenixWaitRequest(MCorePhoenixRequest_t *Request, size_t Timeout);
 
-/* Signal Functions */
-__EXTERN void SignalHandle(UUId_t ThreadId);
+/* SignalReturn
+ * Call upon returning from a signal, this will finish
+ * the signal-call and enter a new signal if any is queued up */
+KERNELAPI
+OsStatus_t
+KERNELABI
+SignalReturn(void);
+
+/* Handle Signal 
+ * This checks if the process has any waiting signals
+ * and if it has, it executes the first in list */
+KERNELAPI
+OsStatus_t
+KERNELABI
+SignalHandle(
+	_In_ UUId_t ThreadId);
+
 __EXTERN int SignalCreate(UUId_t AshId, int Signal);
 __EXTERN void SignalExecute(MCoreAsh_t *Ash, MCoreSignal_t *Signal);
 
 /* Architecture Specific  
  * Must be implemented in the arch-layer */
-__EXTERN void SignalDispatch(MCoreAsh_t *Ash, MCoreSignal_t *Signal);
+KERNELAPI
+OsStatus_t
+KERNELABI
+SignalDispatch(
+	_In_ MCoreAsh_t *Ash, 
+	_In_ MCoreSignal_t *Signal);
 
 #endif //!_MCORE_PHOENIX_H_

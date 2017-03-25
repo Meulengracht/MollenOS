@@ -18,6 +18,8 @@
  *
  * MollenOS X86-32 Thread Contexts
  */
+#define __MODULE		"CTXT"
+//#define __TRACE
 
 /* Includes 
  * - System */
@@ -25,9 +27,9 @@
 #include <threading.h>
 #include <thread.h>
 #include <memory.h>
+#include <debug.h>
 #include <heap.h>
 #include <gdt.h>
-#include <log.h>
 
 /* Includes
  * - Library */
@@ -39,12 +41,16 @@
  * stack and user/driver stack. Pass threading flags */
 Context_t *ContextCreate(Flags_t ThreadFlags, Addr_t Eip, Addr_t *Arguments)
 {
-	/* Variables */
+	// Variables
 	Context_t *Context = NULL;
-	uint32_t DataSegment, CodeSegment, StackSegment;
+	uint32_t DataSegment = 0, CodeSegment = 0, StackSegment = 0;
 	Addr_t ContextAddress = 0, EbpInitial = 0;
 
-	/* Select proper segments */
+	// Trace
+	TRACE("ContextCreate(Flags 0x%x, Eip 0x%x, Args 0x%x)",
+		ThreadFlags, Eip, (Addr_t)Arguments);
+
+	// Select proper segments
 	if (THREADING_RUNMODE(ThreadFlags) == THREADING_KERNELMODE) {
 		ContextAddress = ((Addr_t)kmalloc_a(0x1000)) + 0x1000 - sizeof(Context_t);
 		CodeSegment = GDT_KCODE_SEGMENT;
@@ -66,19 +72,19 @@ Context_t *ContextCreate(Flags_t ThreadFlags, Addr_t Eip, Addr_t *Arguments)
 		EbpInitial = 0;
 	}
 	else {
-		kernel_panic("ContextCreate::INVALID THREADFLAGS");
+		FATAL(FATAL_SCOPE_KERNEL, "ContextCreate::INVALID THREADFLAGS(%u)", ThreadFlags);
 	}
 
-	/* Initialize the context pointer */
+	// Initialize the context pointer
 	Context = (Context_t*)ContextAddress;
 
-	/* Setup segments for the stack */
+	// Setup segments for the stack
 	Context->Ds = DataSegment;
 	Context->Fs = DataSegment;
 	Context->Es = DataSegment;
 	Context->Gs = DataSegment;
 
-	/* Initialize registers to zero value */
+	// Initialize registers to zero value
 	Context->Eax = 0;
 	Context->Ebx = 0;
 	Context->Ecx = 0;
@@ -88,18 +94,18 @@ Context_t *ContextCreate(Flags_t ThreadFlags, Addr_t Eip, Addr_t *Arguments)
 	Context->Ebp = EbpInitial;
 	Context->Esp = 0;
 
-	/* Initialize irq/error code for
-	 * interrupt values */
+	// Initialize irq/error code for
+	// interrupt values
 	Context->Irq = 0;
 	Context->ErrorCode = 0;
 
-	/* Setup entry, eflags and the code segment */
+	// Setup entry, eflags and the code segment
 	Context->Eip = Eip;
 	Context->Eflags = X86_THREAD_EFLAGS;
 	Context->Cs = CodeSegment;
 
-	/* Either initialize the ring3 stuff
-	 * or zero out the values */
+	// Either initialize the ring3 stuff
+	// or zero out the values
 	if (THREADING_RUNMODE(ThreadFlags) == THREADING_KERNELMODE) {
 		Context->UserEsp = 0;
 		Context->UserSs = 0;
@@ -111,6 +117,6 @@ Context_t *ContextCreate(Flags_t ThreadFlags, Addr_t Eip, Addr_t *Arguments)
 		Context->UserArg = (Addr_t)Arguments;
 	}
 
-	/* Return the newly created context */
+	// Return the newly created context
 	return Context;
 }

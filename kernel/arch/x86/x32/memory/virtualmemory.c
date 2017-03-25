@@ -20,6 +20,8 @@
  * - Contains the implementation of virtual memory management
  *   for the X86-32 Architecture 
  */
+#define __MODULE		"VMEM"
+//#define __TRACE
 
 /* Includes
  * - System */
@@ -28,8 +30,8 @@
 #include <system/utils.h>
 #include <threading.h>
 #include <memory.h>
+#include <debug.h>
 #include <heap.h>
-#include <log.h>
 
 /* Includes
  * - Library */
@@ -255,9 +257,9 @@ MmVirtualMap(
 	// Sanitize that the index isn't already
 	// mapped in, thats a fatality
 	if (Table->Pages[PAGE_TABLE_INDEX(vAddress)] != 0) {
-		LogFatal("VMEM", "Trying to remap virtual 0x%x to physical 0x%x (original mapping 0x%x)",
+		FATAL(FATAL_SCOPE_KERNEL, 
+			"Trying to remap virtual 0x%x to physical 0x%x (original mapping 0x%x)",
 			vAddress, pAddress, Table->Pages[PAGE_TABLE_INDEX(vAddress)]);
-		kernel_panic("This is not good");
 	}
 
 	// Map it, make sure we mask the page address

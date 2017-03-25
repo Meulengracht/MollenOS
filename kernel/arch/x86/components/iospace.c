@@ -20,6 +20,8 @@
  * - Contains the shared kernel io space interface
  *   that all sub-layers / architectures must conform to
  */
+#define __MODULE		"DVIO"
+//#define __TRACE
 
 /* Includes 
  * - System */
@@ -27,8 +29,8 @@
 #include <system/utils.h>
 #include <process/server.h>
 #include <memory.h>
+#include <debug.h>
 #include <heap.h>
-#include <log.h>
 
 /* Includes
  * - Library */
@@ -62,6 +64,9 @@ static int __GlbIoSpaceInitialized = 0;
 void
 IoSpaceInitialize(void)
 {
+	// Debugging
+	TRACE("IoSpaceInitialize()");
+
 	// Initialize globals
 	__GlbIoSpaces = ListCreate(KeyInteger, LIST_NORMAL);
 	__GlbIoSpaceInitialized = 1;
@@ -79,6 +84,10 @@ IoSpaceRegister(
 	// Variables
 	MCoreIoSpace_t *SysCopy = NULL;
 	DataKey_t Key;
+
+	// Debugging
+	TRACE("IoSpaceRegister(Type %u, Physical 0x%x, Size 0x%x)",
+		IoSpace->Type, IoSpace->PhysicalBase, IoSpace->Size);
 
 	// Before doing anything, we should do a over-lap
 	// check before trying to register this 
@@ -107,6 +116,9 @@ IoSpaceRegister(
 	Key.Value = (int)SysCopy->Id;
 	ListAppend(__GlbIoSpaces, ListCreateNode(Key, Key, (void*)SysCopy));
 
+	// Debugging
+	TRACE("Allocated Id %u", IoSpace->Id);
+
 	// Done!
 	return OsNoError;
 }
@@ -125,6 +137,9 @@ IoSpaceAcquire(
 	DataKey_t Key;
 	UUId_t Cpu;
 
+	// Debugging
+	TRACE("IoSpaceAcquire(Id %u)", IoSpace->Id);
+
 	// Lookup the system copy to validate this
 	// requested operation
 	Server = PhoenixGetServer(SERVER_CURRENT);
@@ -136,9 +151,9 @@ IoSpaceAcquire(
 	if (Server == NULL || SysCopy == NULL
 		|| SysCopy->Owner != PHOENIX_NO_ASH) {
 		if (Server == NULL) {
-			LogFatal("IOSP", "Non-server process tried to acquire io-space");
+			ERROR("Non-server process tried to acquire io-space");
 		}
-		LogFatal("IOSP", "Failed to find the requested io-space, id %u", IoSpace->Id);
+		ERROR("Failed to find the requested io-space, id %u", IoSpace->Id);
 		return OsError;
 	}
 
@@ -155,11 +170,17 @@ IoSpaceAcquire(
 			PageCount++;
 		}
 
+		// Debugging
+		TRACE("Allocating %i pages for MMIO space", PageCount);
+
 		// Ok, so when we map it in and reserver space
 		// for it, its important we set it with its offset
 		SysCopy->VirtualBase = IoSpace->VirtualBase = 
 			BitmapAllocateAddress(Server->DriverMemory, PageCount * PAGE_SIZE)
 				+ (SysCopy->PhysicalBase & ATTRIBUTE_MASK);
+
+		// Debugging
+		TRACE("Allocated virtual address 0x%x for region", IoSpace->VirtualBase);
 	}
 	else if (SysCopy->Type == IO_SPACE_IO) {
 		x86Thread_t *Tx = (x86Thread_t*)ThreadingGetCurrentThread(Cpu)->ThreadData;
@@ -167,6 +188,10 @@ IoSpaceAcquire(
 			TssEnableIo(Cpu, &Tx->IoMap[0],
 				((uint16_t)(SysCopy->PhysicalBase + i)));
 		}
+	}
+	else {
+		WARNING("Invalid Io-Space Type %u by Id %u",
+			SysCopy->Type, SysCopy->Id);
 	}
 
 	// Done - no errors
@@ -186,6 +211,9 @@ IoSpaceRelease(
 	MCoreServer_t *Server = NULL;
 	DataKey_t Key;
 	UUId_t Cpu;
+
+	// Debugging
+	TRACE("IoSpaceRelease(Id %u)", IoSpace->Id);
 
 	// Lookup the system copy to validate this
 	// requested operation 
@@ -211,9 +239,16 @@ IoSpaceRelease(
 			PageCount++;
 		}
 
+		// Debugging
+		TRACE("Freeing %i pages for MMIO space at address 0x%x", 
+			PageCount, SysCopy->VirtualBase);
+
 		// Unmap them
 		BitmapFreeAddress(Server->DriverMemory, SysCopy->VirtualBase,
 			PageCount * PAGE_SIZE);
+
+		// Should free pages
+		NOTIMPLEMENTED("Free pages from space!!");
 	}
 	else if (SysCopy->Type == IO_SPACE_IO) {
 		x86Thread_t *Tx = (x86Thread_t*)ThreadingGetCurrentThread(Cpu)->ThreadData;
@@ -242,6 +277,9 @@ IoSpaceDestroy(
 	// Variables
  	MCoreIoSpace_t *SysCopy = NULL;
 	DataKey_t Key;
+
+	// Debugging
+	TRACE("IoSpaceDestroy(Id %u)", IoSpace);
 
 	// Lookup the system copy to validate this
 	// requested operation
@@ -275,6 +313,10 @@ IoSpaceValidate(
 	// it's actually a process trying to do this
 	UUId_t ProcessId = ThreadingGetCurrentThread(CpuGetCurrentId())->AshId;
 
+	// Debugging
+	TRACE("IoSpaceValidate(Process %u, Address 0x%x)",
+		ProcessId, Address);
+
 	// Sanitize the id
 	if (ProcessId == PHOENIX_NO_ASH) {
 		return 0;
@@ -292,6 +334,8 @@ IoSpaceValidate(
 		if (IoSpace->Owner == ProcessId
 			&& (Address >= IoSpace->VirtualBase
 				&& Address < (IoSpace->VirtualBase + IoSpace->Size))) {
+			TRACE("Found IoSpace, calculated physical is 0x%x",
+				IoSpace->PhysicalBase + (Address - IoSpace->VirtualBase));
 			return IoSpace->PhysicalBase + (Address - IoSpace->VirtualBase);
 		}
 	}

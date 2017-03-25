@@ -100,6 +100,38 @@ __EXTERN void syscall_entry(void);
 
 /* Irq-Handlers, all extenr assembly
  * that point to shared entry handlers */
+__EXTERN void irq_handler0(void);
+__EXTERN void irq_handler1(void);
+__EXTERN void irq_handler2(void);
+__EXTERN void irq_handler3(void);
+__EXTERN void irq_handler4(void);
+__EXTERN void irq_handler5(void);
+__EXTERN void irq_handler6(void);
+__EXTERN void irq_handler7(void);
+__EXTERN void irq_handler8(void);
+__EXTERN void irq_handler9(void);
+__EXTERN void irq_handler10(void);
+__EXTERN void irq_handler11(void);
+__EXTERN void irq_handler12(void);
+__EXTERN void irq_handler13(void);
+__EXTERN void irq_handler14(void);
+__EXTERN void irq_handler15(void);
+__EXTERN void irq_handler16(void);
+__EXTERN void irq_handler17(void);
+__EXTERN void irq_handler18(void);
+__EXTERN void irq_handler19(void);
+__EXTERN void irq_handler20(void);
+__EXTERN void irq_handler21(void);
+__EXTERN void irq_handler22(void);
+__EXTERN void irq_handler23(void);
+__EXTERN void irq_handler24(void);
+__EXTERN void irq_handler25(void);
+__EXTERN void irq_handler26(void);
+__EXTERN void irq_handler27(void);
+__EXTERN void irq_handler28(void);
+__EXTERN void irq_handler29(void);
+__EXTERN void irq_handler30(void);
+__EXTERN void irq_handler31(void);
 __EXTERN void irq_handler32(void); 
 __EXTERN void irq_handler33(void);
 __EXTERN void irq_handler34(void);

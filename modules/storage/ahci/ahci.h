@@ -362,7 +362,7 @@ typedef struct _AhciController {
 	UUId_t					 Interrupt;
 	Spinlock_t				 Lock;
 
-	DeviceIoSpace_t			 IoBase;
+	DeviceIoSpace_t			*IoBase;
 	AHCIGenericRegisters_t  *Registers;
 
 	AhciPort_t				*Ports[AHCI_MAX_PORTS];

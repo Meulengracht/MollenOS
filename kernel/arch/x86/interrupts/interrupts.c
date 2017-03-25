@@ -20,35 +20,48 @@
  * - Contains the shared kernel interrupt interface
  *   that all sub-layers must conform to
  */
+#define __MODULE		"DBGI"
+ //#define __TRACE
 
 /* Includes 
  * - System */
 #include <system/thread.h>
+#include <system/utils.h>
+#include <process/phoenix.h>
 #include <acpiinterface.h>
 #include <interrupts.h>
 #include <threading.h>
+#include <memory.h>
 #include <timers.h>
 #include <thread.h>
+#include <debug.h>
 #include <heap.h>
 #include <apic.h>
 #include <idt.h>
-#include <log.h>
 
 /* Includes
  * - Library */
+#include <ds/list.h>
 #include <assert.h>
 #include <stdio.h>
-#include <ds/list.h>
 
-/* Internal definitons and helper
- * contants */
+/* Internal definitons and helper contants */
 #define EFLAGS_INTERRUPT_FLAG		(1 << 9)
 #define APIC_FLAGS_DEFAULT			0x7F00000000000000
 
-/* Externs */
+/* Externs 
+ * Extern assembly functions */
 __EXTERN void __cli(void);
 __EXTERN void __sti(void);
-__EXTERN uint32_t __getflags(void);
+__EXTERN reg_t __getflags(void);
+__EXTERN reg_t __getcr2(void);
+__EXTERN void init_fpu(void);
+__EXTERN void load_fpu(Addr_t *buffer);
+__EXTERN void clear_ts(void);
+__EXTERN void enter_thread(Context_t *Regs);
+
+/* Externs 
+ * These are for external access to some of the ACPI information */
 __EXTERN List_t *GlbAcpiNodes;
 
 /* Interrupts tables needed for
@@ -703,6 +716,150 @@ void InterruptEntry(Context_t *Registers)
 	if (TableIndex != INTERRUPT_SPURIOUS7
 		&& TableIndex != INTERRUPT_SPURIOUS) {
 		ApicSendEoi(Gsi, TableIndex);
+	}
+}
+
+/* ExceptionEntry
+ * Common entry for all exceptions */
+void ExceptionEntry(Context_t *Registers)
+{
+	// Variables
+	MCoreThread_t *cThread = NULL;
+	x86Thread_t *cT86 = NULL;
+	Addr_t Address = __MASK;
+	int IssueFixed = 0;
+	UUId_t Cpu;
+
+	// Handle IRQ
+	if (Registers->Irq == 0) {		// Divide By Zero
+
+	}
+	else if (Registers->Irq == 1) { // Single Step
+		if (DebugSingleStep(Registers) == OsNoError) {
+			// Re-enable single-step
+		}
+		IssueFixed = 1;
+	}
+	else if (Registers->Irq == 2) { // NMI
+		
+	}
+	else if (Registers->Irq == 3) { // Breakpoint
+		DebugBreakpoint(Registers);
+		IssueFixed = 1;
+	}
+	else if (Registers->Irq == 4) { // Overflow
+
+	}
+	else if (Registers->Irq == 5) { // Bound Range Exceeded
+
+	}
+	else if (Registers->Irq == 6) { // Invalid Opcode
+
+	}
+	else if (Registers->Irq == 7) { // DeviceNotAvailable 
+
+		// Lookup variables
+		Cpu = CpuGetCurrentId();
+		cThread = ThreadingGetCurrentThread(Cpu);
+
+		// Important asserts
+		assert(cThread != NULL);
+
+		// Get the x86 specific details
+		cT86 = (x86Thread_t*)cThread->ThreadData;
+
+		// Clear the task-switch bit
+		clear_ts();
+
+		// Either of two cases;
+		// 1 - We need to initialize the FPU
+		// 2 - We need to load the FPU
+		if (!(cT86->Flags & X86_THREAD_FPU_INITIALISED)) {
+			init_fpu();
+			cT86->Flags |= X86_THREAD_FPU_INITIALISED;
+			IssueFixed = 1;
+		}
+		else if (!(cT86->Flags & X86_THREAD_USEDFPU)) {
+			load_fpu(cT86->FpuBuffer);
+			cT86->Flags |= X86_THREAD_USEDFPU;
+			IssueFixed = 1;
+		}
+	}
+	else if (Registers->Irq == 8) { // Double Fault
+
+	}
+	else if (Registers->Irq == 9) { // Coprocessor Segment Overrun (Obsolete)
+
+	}
+	else if (Registers->Irq == 10) { // Invalid TSS
+
+	}
+	else if (Registers->Irq == 11) { // Segment Not Present
+
+	}
+	else if (Registers->Irq == 12) { // Stack Segment Fault
+
+	}
+	else if (Registers->Irq == 13) { // General Protection Fault
+
+	}
+	else if (Registers->Irq == 14) {	// Page Fault
+		Address = (Addr_t)__getcr2();
+
+		// The first thing we must check before propegating events
+		// is that we must check special locations
+		if (Address == MEMORY_LOCATION_SIGNAL_RET) {
+			SignalReturn();
+
+			// If we reach here, no more signals, 
+			// and we should just enter the actual thread
+			if (cThread->Flags != THREADING_KERNELMODE) {
+				enter_thread(((x86Thread_t*)cThread->ThreadData)->UserContext);
+			}	
+			else {
+				enter_thread(((x86Thread_t*)cThread->ThreadData)->Context);
+			}
+
+			// Never reach beyond here
+			FATAL(FATAL_SCOPE_KERNEL, "REACHED BEYOND enter_thread AFTER SIGNAL");
+		}
+
+		// Next step is to check whether or not the address is already
+		// mapped, because then it's due to accessibility
+		if (MmVirtualGetMapping(NULL, Address) != 0) {
+			FATAL(FATAL_SCOPE_KERNEL, "Page fault at address 0x%x, but page is already mapped, invalid access. (User tried to access kernel memory ex).");
+		}
+
+		// Final step is to see if kernel can handle the 
+		// unallocated address
+		if (DebugPageFault(Registers, Address) == OsNoError) {
+			IssueFixed = 1;
+		}
+	}
+
+	// Was the exception handled?
+	if (IssueFixed == 0) {
+		LogRedirect(LogConsole);
+
+		// Was it a page-fault?
+		if (Address != __MASK) {
+			LogDebug(__MODULE, "CR2 Address: 0x%x", Address);
+			char *Name = NULL;
+			Addr_t Base = 0;
+			if (DebugGetModuleByAddress(Registers->Eip, &Base, &Name) == OsNoError) {
+				Addr_t Diff = Registers->Eip - Base;
+				LogDebug(__MODULE, "Fauly Address: 0x%x (%s)", Diff, Name);
+			}
+			else {
+				LogDebug(__MODULE, "Faulty Address: 0x%x", Registers->Eip);
+				LogDebug(__MODULE, "Stack ptr: 0x%x", Registers->Esp);
+			}
+		}
+
+		// Enter panic handler
+		DebugPanic(FATAL_SCOPE_KERNEL, __MODULE,
+			"Unhandled or fatal interrupt %u, Error Code: %u, Faulty Address: 0x%x",
+			Registers->Irq, Registers->ErrorCode, Registers->Eip);
 	}
 }
 

@@ -23,7 +23,6 @@
 /* Includes
  * - System */
 #include <arch.h>
-#include <exceptions.h>
 #include <idt.h>
 #include <gdt.h>
 

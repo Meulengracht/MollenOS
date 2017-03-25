@@ -56,15 +56,15 @@ AhciControllerCreate(
 	memcpy(&Controller->Device, Device, sizeof(MCoreDevice_t));
 
 	// Fill in some basic stuff needed for init
-	Controller->Contract.DeviceId = Device->Id;
+	Controller->Contract.DeviceId = Controller->Device.Id;
 	SpinlockReset(&Controller->Lock);
 
 	// Get I/O Base, and for AHCI there might be between 1-5
 	// IO-spaces filled, so we always, ALWAYS go for the last one
 	for (i = __DEVICEMANAGER_MAX_IOSPACES - 1; i >= 0; i--) {
-		if (Device->IoSpaces[i].Size != 0
-			&& Device->IoSpaces[i].Type == IO_SPACE_MMIO) {
-			IoBase = &Device->IoSpaces[i];
+		if (Controller->Device.IoSpaces[i].Size != 0
+			&& Controller->Device.IoSpaces[i].Type == IO_SPACE_MMIO) {
+			IoBase = &Controller->Device.IoSpaces[i];
 			break;
 		}
 	}
@@ -77,14 +77,15 @@ AhciControllerCreate(
 	}
 
 	// Acquire the io-space
-	if (AcquireIoSpace(IoBase) != OsNoError) {
-		MollenOSSystemLog("Failed to acquire the io-space for ahci-controller");
+	if (CreateIoSpace(IoBase) != OsNoError
+		|| AcquireIoSpace(IoBase) != OsNoError) {
+		MollenOSSystemLog("Failed to create and acquire the io-space for ahci-controller");
 		free(Controller);
 		return NULL;
 	}
 	else {
 		// Store information
-		memcpy(&Controller->IoBase, IoBase, sizeof(DeviceIoSpace_t));
+		Controller->IoBase = IoBase;
 	}
 
 	// Start out by initializing the contract
@@ -101,7 +102,8 @@ AhciControllerCreate(
 	// Register contract before interrupt
 	if (RegisterContract(&Controller->Contract) != OsNoError) {
 		MollenOSSystemLog("Failed to register contract for ahci-controller");
-		ReleaseIoSpace(&Controller->IoBase);
+		ReleaseIoSpace(Controller->IoBase);
+		DestroyIoSpace(Controller->IoBase->Id);
 		free(Controller);
 		return NULL;
 	}
@@ -160,7 +162,8 @@ AhciControllerDestroy(
 	UnregisterInterruptSource(Controller->Interrupt);
 
 	// Release the io-space
-	ReleaseIoSpace(&Controller->IoBase);
+	ReleaseIoSpace(Controller->IoBase);
+	DestroyIoSpace(Controller->IoBase->Id);
 
 	// Free the controller structure
 	free(Controller);
@@ -371,6 +374,9 @@ AhciSetup(
 			return OsError;
 		}
 	}
+
+	// Debug
+	MollenOSSystemLog("AHCI::Allocating system memory");
 
 	// Allocate some shared resources, especially 
 	// command lists as we need 1K * portcount
