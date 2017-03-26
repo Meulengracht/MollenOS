@@ -25,7 +25,7 @@
  * - System */
 #include <os/driver/device.h>
 #include <os/driver/acpi.h>
-#include <os/mollenos.h>
+#include <os/utils.h>
 #include "bus.h"
 
 /* Includes
@@ -183,7 +183,7 @@ void PciReadBars(PciBus_t *Bus, MCoreDevice_t *Device, uint32_t HeaderType)
 
 			/* Sanitize the space */
 			if (sizeof(Addr_t) < 8 && Space64 > SIZE_MAX) {
-				MollenOSSystemLog("Found 64 bit device with 64 bit address, can't use it in 32 bit mode");
+				WARNING("Found 64 bit device with 64 bit address, can't use it in 32 bit mode");
 				return;
 			}
 
@@ -254,7 +254,7 @@ void PciCheckFunction(PciDevice_t *Parent, int Bus, int Device, int Function)
 	 * Ignore the spam of device_id 0x7a0 in VMWare*/
 #ifdef PCI_DIAGNOSE
 	if (Pcs->DeviceId != 0x7a0) {
-		MollenOSSystemLog("    * [%d:%d:%d][%d:%d:%d] Vendor 0x%x, Device 0x%x : %s\n",
+		TRACE("    * [%d:%d:%d][%d:%d:%d] Vendor 0x%x, Device 0x%x : %s\n",
 			Pcs->Class, Pcs->Subclass, Pcs->Interface,
 			Bus, Device, Function,
 			Pcs->VendorId, Pcs->DeviceId,
@@ -392,10 +392,9 @@ void PciCreateDeviceFromPci(PciDevice_t *PciDev)
 	mDevice->Device = PciDev->Device;
 	mDevice->Function = PciDev->Function;
 
-	mDevice->Interrupt.Line = -1;
+	mDevice->Interrupt.Line = (int)PciDev->Header->InterruptLine;
 	mDevice->Interrupt.Pin = (int)PciDev->Header->InterruptPin;
-	mDevice->Interrupt.Direct[0] = PciDev->Header->InterruptLine;
-	mDevice->Interrupt.Direct[1] = -1;
+	mDevice->Interrupt.Direct[0] = INTERRUPT_NONE;
 	mDevice->Interrupt.AcpiConform = PciDev->AcpiConform;
 
 	/* Read Bars */
@@ -498,13 +497,13 @@ void BusEnumerate(void)
 
 	/* Query acpi information */
 	if (AcpiQueryStatus(&Acpi) == OsNoError) {
-		MollenOSSystemLog("ACPI-Version: 0x%x (BootFlags 0x%x)", 
+		TRACE("ACPI-Version: 0x%x (BootFlags 0x%x)", 
 			Acpi.Version, Acpi.BootFlags);
 		GlbAcpiAvailable = 1;
 
 		/* PCI-Express */
 		if (AcpiQueryTable(ACPI_SIG_MCFG, &Header) == OsNoError) {
-			MollenOSSystemLog("PCI-Express Controller (mcfg length 0x%x)", Header->Length);
+			TRACE("PCI-Express Controller (mcfg length 0x%x)", Header->Length);
 			//McfgTable = (ACPI_TABLE_MCFG*)Header;
 			//remember to free(McfgTable)
 			free(Header);
@@ -599,13 +598,13 @@ void BusEnumerate(void)
 		
 		/* Register the io-space with the system */
 		if (CreateIoSpace(&Bus->IoSpace) != OsNoError) {
-			MollenOSSystemLog("Failed to initialize bus io");
+			ERROR("Failed to initialize bus io");
 			for (;;);
 		}
 
 		/* Now we acquire the io-space */
 		if (AcquireIoSpace(&Bus->IoSpace) != OsNoError) {
-			MollenOSSystemLog("Failed to acquire bus io with id %u", Bus->IoSpace.Id);
+			ERROR("Failed to acquire bus io with id %u", Bus->IoSpace.Id);
 			for (;;);
 		}
 		

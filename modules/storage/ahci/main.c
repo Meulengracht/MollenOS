@@ -21,11 +21,13 @@
  *	- Port Multiplier Support
  *	- Power Management
  */
+#define __TRACE
 
 /* Includes 
  * - System */
 #include <os/driver/contracts/disk.h>
 #include <os/mollenos.h>
+#include <os/utils.h>
 #include "manager.h"
 
 /* Includes
@@ -54,6 +56,9 @@ InterruptStatus_t OnInterrupt(void *InterruptData)
 	// Instantiate the pointer
 	Controller = (AhciController_t*)InterruptData;
 	InterruptStatus = Controller->Registers->InterruptStatus;
+
+	// Trace
+	TRACE("Interrupt - Status 0x%x", InterruptStatus);
 
 	// Was the interrupt even from this controller?
 	if (!InterruptStatus) {

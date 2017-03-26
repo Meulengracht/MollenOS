@@ -71,7 +71,7 @@ AhciControllerCreate(
 
 	// Sanitize that we found the io-space
 	if (IoBase == NULL) {
-		MollenOSSystemLog("No memory space found for ahci-controller");
+		ERROR("No memory space found for ahci-controller");
 		free(Controller);
 		return NULL;
 	}
@@ -79,7 +79,7 @@ AhciControllerCreate(
 	// Acquire the io-space
 	if (CreateIoSpace(IoBase) != OsNoError
 		|| AcquireIoSpace(IoBase) != OsNoError) {
-		MollenOSSystemLog("Failed to create and acquire the io-space for ahci-controller");
+		ERROR("Failed to create and acquire the io-space for ahci-controller");
 		free(Controller);
 		return NULL;
 	}
@@ -101,7 +101,7 @@ AhciControllerCreate(
 
 	// Register contract before interrupt
 	if (RegisterContract(&Controller->Contract) != OsNoError) {
-		MollenOSSystemLog("Failed to register contract for ahci-controller");
+		ERROR("Failed to register contract for ahci-controller");
 		ReleaseIoSpace(Controller->IoBase);
 		DestroyIoSpace(Controller->IoBase->Id);
 		free(Controller);
@@ -301,7 +301,7 @@ AhciSetup(
 
 	// Take ownership of the controller
 	if (AhciTakeOwnership(Controller) != OsNoError) {
-		MollenOSSystemLog("Failed to take ownership of the controller.");
+		ERROR("Failed to take ownership of the controller.");
 		return OsError;
 	}
 
@@ -345,7 +345,9 @@ AhciSetup(
 
 	// Flush writes, just in case
 	MemoryBarrier();
-	MollenOSSystemLog("Ports initializing: %i", PortItr);
+
+	// Trace
+	TRACE("Ports initializing: %i", PortItr);
 
 	// Software should wait at least 500 milliseconds for port idle to occur
 	ThreadSleep(650);
@@ -368,9 +370,9 @@ AhciSetup(
 	// If one of the ports reset fail, and ports  
 	// still don't clear properly, we should attempt a full reset
 	if (FullResetRequired) {
-		MollenOSSystemLog("Full reset of controller is required");
+		TRACE("Full reset of controller is required");
 		if (AhciReset(Controller) != OsNoError) {
-			MollenOSSystemLog("Failed to reset controller, as a full reset was required.");
+			ERROR("Failed to reset controller, as a full reset was required.");
 			return OsError;
 		}
 	}
@@ -380,14 +382,14 @@ AhciSetup(
 	if (MemoryAllocate(1024 * PortItr, MEMORY_LOWFIRST | MEMORY_CONTIGIOUS
 		| MEMORY_CLEAN | MEMORY_COMMIT, &Controller->CommandListBase,
 		&Controller->CommandListBasePhysical) != OsNoError) {
-		MollenOSSystemLog("AHCI::Failed to allocate memory for the command list.");
+		ERROR("AHCI::Failed to allocate memory for the command list.");
 		return OsError;
 	}
 	if (MemoryAllocate((AHCI_COMMAND_TABLE_SIZE * 32) * PortItr, 
 		MEMORY_LOWFIRST | MEMORY_CONTIGIOUS | MEMORY_CLEAN 
 		| MEMORY_COMMIT, &Controller->CommandTableBase,
 		&Controller->CommandTableBasePhysical) != OsNoError) {
-		MollenOSSystemLog("AHCI::Failed to allocate memory for the command table.");
+		ERROR("AHCI::Failed to allocate memory for the command table.");
 		return OsError;
 	}
 	
@@ -399,7 +401,7 @@ AhciSetup(
 			MEMORY_LOWFIRST | MEMORY_CONTIGIOUS | MEMORY_CLEAN
 			| MEMORY_COMMIT, &Controller->FisBase,
 			&Controller->FisBasePhysical) != OsNoError) {
-			MollenOSSystemLog("AHCI::Failed to allocate memory for the fis-area.");
+			ERROR("AHCI::Failed to allocate memory for the fis-area.");
 			return OsError;
 		}
 	}
@@ -408,7 +410,7 @@ AhciSetup(
 			MEMORY_LOWFIRST | MEMORY_CONTIGIOUS | MEMORY_CLEAN
 			| MEMORY_COMMIT, &Controller->FisBase,
 			&Controller->FisBasePhysical) != OsNoError) {
-			MollenOSSystemLog("AHCI::Failed to allocate memory for the fis-area.");
+			ERROR("AHCI::Failed to allocate memory for the fis-area.");
 			return OsError;
 		}
 	}
@@ -426,7 +428,7 @@ AhciSetup(
 	Controller->Registers->GlobalHostControl |= AHCI_HOSTCONTROL_IE;
 
 	// Debug
-	MollenOSSystemLog("Controller is up and running, enabling ports");
+	TRACE("Controller is up and running, enabling ports");
 
 	// Enumerate ports and devices
 	for (i = 0; i < AHCI_MAX_PORTS; i++) {

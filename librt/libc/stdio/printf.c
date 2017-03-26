@@ -4,7 +4,7 @@
 
 
 #ifndef LIBC_KERNEL
-#include <os/MollenOS.h>
+#include <os/utils.h>
 #include <stdio.h>
 #include <stddef.h>
 #include <stdlib.h>
@@ -27,7 +27,7 @@ int printf(const char *format, ...)
 	va_end(Arguments);
 
 	/* Now spit out data */
-	MollenOSSystemLog("%s", &Out[0]);
+	TRACE("%s", &Out[0]);
 
 	/* Done! */
 	return RetVal;

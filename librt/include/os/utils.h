@@ -28,13 +28,31 @@
  * - Library */
 #include <os/osdefs.h>
 
+/* Global <always-on> definitions
+ * These are enabled no matter which kind of debugging is enabled */
+#define SYSTEM_DEBUG_TRACE			0x00000000
+#define SYSTEM_DEBUG_WARNING		0x00000001
+#define SYSTEM_DEBUG_ERROR			0x00000002
+
+#define WARNING(...)				SystemDebug(SYSTEM_DEBUG_WARNING, __VA_ARGS__)
+#define ERROR(...)					SystemDebug(SYSTEM_DEBUG_WARNING, __VA_ARGS__)
+
+/* Global <toggable> definitions
+ * These can be turned on per-source file by pre-defining
+ * the __TRACE before inclusion */
+#ifdef __TRACE
+#define TRACE(...)					SystemDebug(SYSTEM_DEBUG_TRACE, __VA_ARGS__)
+#else
+#define TRACE(...)
+#endif
+
 /* Threading Utility
  * Waits for a condition to set in a busy-loop using
  * ThreadSleep */
 #define WaitForCondition(condition, runs, wait, message, ...)\
     for (unsigned int timeout_ = 0; !(condition); timeout_++) {\
         if (timeout_ >= runs) {\
-             MollenOSSystemLog(message, __VA_ARGS__);\
+             SystemDebug(SYSTEM_DEBUG_WARNING, message, __VA_ARGS__);\
              break;\
 												        }\
         ThreadSleep(wait);\
@@ -52,5 +70,21 @@
 										        }\
         ThreadSleep(wait);\
 					    }
+
+// Cpp Barrier
+_CODE_BEGIN
+
+/* SystemDebug 
+ * Debug/trace printing for userspace application and drivers */
+MOSAPI
+void
+MOSABI
+SystemDebug(
+	_In_ int Type,
+	_In_ __CONST char *Format, ...);
+
+
+// Cpp Barrier
+_CODE_END
 
 #endif //!_UTILS_INTERFACE_H_

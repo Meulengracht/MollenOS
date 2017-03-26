@@ -168,10 +168,10 @@ int __CRTDECL _purecall(void)
 	return 0;
 }
 #else
-#include <os/MollenOS.h>
+#include <os/utils.h>
 int __CRTDECL _purecall(void)
 {
-	MollenOSSystemLog("PURECALL HAS BEEN MADE");
+	ERROR("PURECALL HAS BEEN MADE");
 	return 0;
 }
 #endif

@@ -226,12 +226,6 @@ SignalProcess(
 MOSAPI 
 void
 MOSABI
-MollenOSSystemLog(
-	__CONST char *Format, ...);
-
-MOSAPI 
-void
-MOSABI
 MollenOSEndBoot(void);
 
 _CODE_END

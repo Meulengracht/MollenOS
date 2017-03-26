@@ -19,12 +19,13 @@
  * MollenOS MCore - Device Manager
  * - Initialization + Event Mechanism
  */
+#define __TRACE
 
 /* Includes
  * - System */
 #include <os/driver/contracts/base.h>
 #include <os/driver/driver.h>
-#include <os/mollenos.h>
+#include <os/utils.h>
 #include <ds/list.h>
 #include <bus.h>
 
@@ -207,7 +208,7 @@ RegisterDevice(
 	/* Update name and print debug information */
 	if (Name != NULL) {
 		memcpy(&Device->Name[0], Name, strlen(Name));
-		//MollenOSSystemLog("Registered device %s", Name);
+		//TRACE("Registered device %s", Name);
 	}
 
 	/* Update id, add to list */
@@ -237,7 +238,7 @@ UUId_t RegisterContract(MContract_t *Contract)
 	DataKey_t Key;
 
 	/* Debug name */
-	MollenOSSystemLog("Registered driver for device %u: %s", 
+	TRACE("Registered driver for device %u: %s", 
 		Contract->DeviceId, &Contract->Name[0]);
 
 	/* Update id, add to list */

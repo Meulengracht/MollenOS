@@ -22,7 +22,7 @@
 
 /* Includes 
  * - System */
-#include <os/mollenos.h>
+#include <os/utils.h>
 #include "ps2.h"
 
 /* Includes
@@ -382,7 +382,7 @@ OsStatus_t PS2PortInitialize(PS2Port_t *Port)
 	// Start out by doing an interface
 	// test on the given port
 	if (PS2InterfaceTest(Port->Index) != OsNoError) {
-		MollenOSSystemLog("PS2-Port (%i): Failed interface test", Port->Index);
+		ERROR("PS2-Port (%i): Failed interface test", Port->Index);
 		return OsError;
 	}
 
@@ -410,13 +410,13 @@ OsStatus_t PS2PortInitialize(PS2Port_t *Port)
 	// Write back the configuration
 	PS2SendCommand(PS2_SET_CONFIGURATION);
 	if (PS2WriteData(Temp) != OsNoError) {
-		MollenOSSystemLog("PS2-Port (%i): Failed to update configuration", Port->Index);
+		ERROR("PS2-Port (%i): Failed to update configuration", Port->Index);
 		return OsError;
 	}
 
 	// Reset the port
 	if (PS2ResetPort(Port->Index) != OsNoError) {
-		MollenOSSystemLog("PS2-Port (%i): Failed port reset", Port->Index);
+		ERROR("PS2-Port (%i): Failed port reset", Port->Index);
 		return OsError;
 	}
 

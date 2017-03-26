@@ -111,24 +111,28 @@ TLSGetCurrent(void)
 /* Const Message */
 const char *__SysTypeMessage = "CLIB";
 
-/* Write to sysout */
-void MollenOSSystemLog(const char *Format, ...)
+/* SystemDebug 
+ * Debug/trace printing for userspace application and drivers */
+void
+SystemDebug(
+	_In_ int Type,
+	_In_ __CONST char *Format, ...)
 {
-	/* We need a static, temporary buffer */
+	// Static storage
 	va_list Args;
 	char TmpBuffer[256];
 
-	/* Reset the buffer */
+	// Reset buffer
 	memset(&TmpBuffer[0], 0, sizeof(TmpBuffer));
 
-	/* Now use that one to format the string
-	 * in using sprintf */
+	// Now use that one to format the string
+	// in using sprintf
 	va_start(Args, Format);
 	vsprintf(&TmpBuffer[0], Format, Args);
 	va_end(Args);
 
-	/* Now spit it out */
-	Syscall2(0, SYSCALL_PARAM(__SysTypeMessage), 
+	// Now spit it out
+	Syscall3(0, SYSCALL_PARAM(Type), SYSCALL_PARAM(__SysTypeMessage), 
 		SYSCALL_PARAM(&TmpBuffer[0]));
 }
 

@@ -45,6 +45,34 @@
 /* Shorthand */
 #define DefineSyscall(_Sys) ((Addr_t)&_Sys)
 
+/* ScSystemDebug 
+ * Debug/trace printing for userspace application and drivers */
+OsStatus_t
+ScSystemDebug(
+	_In_ int Type,
+	_In_ __CONST char *Module,
+	_In_ __CONST char *Message)
+{
+	// Validate params
+	if (Module == NULL || Message == NULL) {
+		return OsError;
+	}
+
+	// Switch based on type
+	if (Type == 0) {
+		LogInformation(Module, Message);
+	}
+	else if (Type == 1) {
+		LogDebug(Module, Message);
+	}
+	else {
+		LogFatal(Module, Message);
+	}
+
+	// No more to be done
+	return OsNoError;
+}
+
 /***********************
  * Process Functions   *
  ***********************/
@@ -1359,7 +1387,7 @@ int NoOperation(void)
 Addr_t GlbSyscallTable[91] =
 {
 	/* Kernel Log */
-	DefineSyscall(LogDebug),
+	DefineSyscall(ScSystemDebug),
 
 	/* Process Functions - 1 */
 	DefineSyscall(ScProcessExit),

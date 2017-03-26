@@ -23,7 +23,7 @@
 /* Includes 
  * - System */
 #include <os/driver/input.h>
-#include <os/mollenos.h>
+#include <os/utils.h>
 #include "mouse.h"
 
 /* Includes
@@ -245,7 +245,7 @@ OsStatus_t PS2MouseInitialize(PS2Port_t *Port)
 
 	/* Register our contract for this device */
 	if (RegisterContract(&Port->Contract) != OsNoError) {
-		MollenOSSystemLog("PS2-Mouse: failed to install contract");
+		ERROR("PS2-Mouse: failed to install contract");
 		return OsError;
 	}
 

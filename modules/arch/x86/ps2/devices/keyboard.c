@@ -19,11 +19,12 @@
  * MollenOS X86 PS2 Controller (Mouse) Driver
  * http://wiki.osdev.org/PS2
  */
+//#define __TRACE
 
 /* Includes 
  * - System */
 #include <os/driver/input.h>
-#include <os/mollenos.h>
+#include <os/utils.h>
 #include "keyboard.h"
 
 /* Includes
@@ -54,7 +55,7 @@ InterruptStatus_t PS2KeyboardInterrupt(void *InterruptData)
 	/* Handle stuff depending on scancode
 	 * and translation status */
 	if (Kybd->ScancodeSet == 1) {
-		MollenOSSystemLog("PS2-Keyboard: Scancode set 1");
+		TRACE("PS2-Keyboard: Scancode set 1");
 	}
 	else if (Kybd->ScancodeSet == 2) {
 		Result = ScancodeSet2ToVKey(Scancode, &Kybd->Buffer, &Kybd->Flags);
@@ -63,7 +64,7 @@ InterruptStatus_t PS2KeyboardInterrupt(void *InterruptData)
 	/* Now, if it's not VK_INVALID 
 	 * we would like to send a new input package */
 	if (Result != VK_INVALID) {
-		MollenOSSystemLog("KEY: 0x%x", Result);
+		TRACE("KEY: 0x%x", Result);
 
 		Input.Type = InputKeyboard;
 		Input.Scancode = Kybd->Buffer;
@@ -216,7 +217,7 @@ OsStatus_t PS2KeyboardInitialize(PS2Port_t *Port, int Translation)
 
 	/* Register our contract for this device */
 	if (RegisterContract(&Port->Contract) != OsNoError) {
-		MollenOSSystemLog("PS2-Keyboard: failed to install contract");
+		ERROR("PS2-Keyboard: failed to install contract");
 		return OsError;
 	}
 
@@ -226,18 +227,18 @@ OsStatus_t PS2KeyboardInitialize(PS2Port_t *Port, int Translation)
 
 	/* Reset keyboard LEDs status */
 	if (PS2KeyboardSetLEDs(Kybd, 0, 0, 0) != OsNoError) {
-		MollenOSSystemLog("PS2-Keyboard: failed to reset LEDs");
+		ERROR("PS2-Keyboard: failed to reset LEDs");
 	}
 
 	/* Update typematics to preffered settings */
 	if (PS2KeyboardSetTypematics(Kybd,
 			Kybd->TypematicRepeat, Kybd->TypematicDelay) != OsNoError) {
-		MollenOSSystemLog("PS2-Keyboard: failed to set typematic settings");
+		WARNING("PS2-Keyboard: failed to set typematic settings");
 	}
 	
 	/* Select our preffered scancode set */
 	if (PS2KeyboardSetScancode(Kybd, 2, &Kybd->ScancodeSet) != OsNoError) {
-		MollenOSSystemLog("PS2-Keyboard: failed to select scancodeset 2 (%i)",
+		WARNING("PS2-Keyboard: failed to select scancodeset 2 (%i)",
 			Kybd->ScancodeSet);
 	}
 

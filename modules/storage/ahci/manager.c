@@ -110,7 +110,7 @@ AhciManagerCreateDevice(
 	// because then we should really enumerate it
 	if (Port->Registers->Signature == SATA_SIGNATURE_PM
 		|| Port->Registers->Signature == SATA_SIGNATURE_SEMB) {
-		MollenOSSystemLog("AHCI::Unsupported device type 0x%x on port %i",
+		WARNING("AHCI::Unsupported device type 0x%x on port %i",
 			Port->Registers->Signature, Port->Id);
 		return OsError;
 	}
@@ -125,6 +125,10 @@ AhciManagerCreateDevice(
 	Device->Port = Port;
 	Device->Buffer = Buffer;
 	Device->Index = 0;
+
+	// Important!
+	Device->AddressingMode = 1;
+	Device->SectorSize = sizeof(ATAIdentify_t);
 
 	// Initiate the transaction
 	Transaction->Requester = UUID_INVALID;

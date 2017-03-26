@@ -3,7 +3,7 @@
 */
 
 #ifndef LIBC_KERNEL
-#include <os/MollenOS.h>
+#include <os/utils.h>
 #include <stdio.h>
 #include <stddef.h>
 #include <string.h>
@@ -21,7 +21,7 @@ int vprintf(const char *format, va_list ap)
 	ReturnVal = vsprintf(&Out[0], format, ap);
 
 	/* Now print it out */
-	MollenOSSystemLog("%s", &Out[0]);
+	TRACE("%s", &Out[0]);
 
 	/* Done! */
 	return ReturnVal;

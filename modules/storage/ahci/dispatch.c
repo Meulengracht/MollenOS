@@ -21,6 +21,7 @@
  *	- Port Multiplier Support
  *	- Power Management
  */
+#define __TRACE
 
 /* Includes
  * - System */
@@ -53,16 +54,20 @@ AhciCommandDispatch(
 	DataKey_t Key, SubKey;
 	int PrdtIndex = 0;
 
+	// Trace
+	TRACE("AhciCommandDispatch(Port %u, Flags 0x%x, Length %u, TransferSize 0x%x)",
+		Transaction->Device->Port->Id, Flags, CommandLength, BytesLeft);
+
 	// Assert that buffer is DWORD aligned, this must be true
 	if (((Addr_t)Transaction->Address & 0x3) != 0) {
-		MollenOSSystemLog("AhciCommandDispatch::Buffer was not dword aligned (0x%x)", 
+		ERROR("AhciCommandDispatch::Buffer was not dword aligned (0x%x)",
 			Transaction->Device->Port->Id, Transaction->Address);
 		goto Error;
 	}
 
 	// Assert that buffer length is an even byte-count requested
 	if ((BytesLeft & 0x1) != 0) {
-		MollenOSSystemLog("AhciCommandDispatch::BufferLength is odd, must be even",
+		ERROR("AhciCommandDispatch::BufferLength is odd, must be even",
 			Transaction->Device->Port->Id);
 		goto Error;
 	}
@@ -77,7 +82,7 @@ AhciCommandDispatch(
 	// Sanitizie packet lenghts
 	if (CommandLength > 64
 		|| AtapiCmdLength > 16) {
-		MollenOSSystemLog("AHCI::Commands are exceeding the allowed length, FIS (%u), ATAPI (%u)",
+		ERROR("AHCI::Commands are exceeding the allowed length, FIS (%u), ATAPI (%u)",
 			CommandLength, AtapiCmdLength);
 		goto Error;
 	}
@@ -90,6 +95,9 @@ AhciCommandDispatch(
 		memcpy(&CommandTable->FISAtapi[0], AtapiCmd, AtapiCmdLength);
 	}
 
+	// Trace
+	TRACE("Building PRDT Table");
+
 	// Build PRDT entries
 	BufferPointer = Transaction->Address;
 	while (BytesLeft > 0) {
@@ -100,6 +108,10 @@ AhciCommandDispatch(
 		Prdt->DataBaseAddress = LODWORD(BufferPointer);
 		Prdt->DataBaseAddressUpper = (sizeof(void*) > 4) ? HIDWORD(BufferPointer) : 0;
 		Prdt->Descriptor = (TransferLength - 1); // N - 1
+
+		// Trace
+		TRACE("PRDT %u, Address 0x%x, Length 0x%x",
+			PrdtIndex, Prdt->DataBaseAddress, Prdt->Descriptor);
 
 		// Adjust counters
 		BufferPointer += TransferLength;
@@ -142,6 +154,9 @@ AhciCommandDispatch(
 	tNode = ListCreateNode(Key, SubKey, Transaction);
 	ListAppend(Transaction->Device->Port->Transactions, tNode);
 
+	// Trace
+	TRACE("Enabling command on slot %u", Transaction->Slot);
+
 	// Enable command 
 	AhciPortStartCommandSlot(Transaction->Device->Port, Transaction->Slot);
 	return OsNoError;
@@ -166,11 +181,11 @@ AhciVerifyRegisterFIS(
 	// Is the error bit set?
 	if (Fis->RegisterD2H.Status & ATA_STS_DEV_ERROR) {
 		if (Fis->RegisterD2H.Error & ATA_ERR_DEV_EOM) {
-			MollenOSSystemLog("AHCI::Port (%i): Transmission Error, Invalid LBA(sector) range given, end of media.",
+			ERROR("AHCI::Port (%i): Transmission Error, Invalid LBA(sector) range given, end of media.",
 				Transaction->Device->Port->Id, (size_t)Fis->RegisterD2H.Error);
 		}
 		else {
-			MollenOSSystemLog("AHCI::Port (%i): Transmission Error, error 0x%x",
+			ERROR("AHCI::Port (%i): Transmission Error, error 0x%x",
 				Transaction->Device->Port->Id, (size_t)Fis->RegisterD2H.Error);
 		}
 		return OsError;
@@ -178,7 +193,7 @@ AhciVerifyRegisterFIS(
 
 	// Is the fault bit set?
 	if (Fis->RegisterD2H.Status & ATA_STS_DEV_FAULT) {
-		MollenOSSystemLog("AHCI::Port (%i): Device Fault, error 0x%x",
+		ERROR("AHCI::Port (%i): Device Fault, error 0x%x",
 			Transaction->Device->Port->Id, (size_t)Fis->RegisterD2H.Error);
 		return OsError;
 	}
@@ -201,10 +216,14 @@ AhciCommandRegisterFIS(
 	// Variables
 	FISRegisterH2D_t Fis;
 	OsStatus_t Status;
-	uint32_t Flags;
+	Flags_t Flags;
 
 	// Reset the fis structure as we have it on stack
 	memset((void*)&Fis, 0, sizeof(FISRegisterH2D_t));
+
+	// Trace
+	TRACE("AhciCommandRegisterFIS(Cmd 0x%x, Sector 0x%x)",
+		LOBYTE(Command), LODWORD(SectorLBA));
 
 	// Fill out initial information
 	Fis.Type = LOBYTE(FISRegisterH2D);
@@ -241,7 +260,7 @@ AhciCommandRegisterFIS(
 			Fis.Count = LOWORD(Transaction->SectorCount);
 		}
 		else {
-			// COunt is 8 bit in lba28
+			// Count is 8 bit in lba28
 			Fis.Count = LOBYTE(Transaction->SectorCount);
 		}
 	}
@@ -262,7 +281,7 @@ AhciCommandRegisterFIS(
 	// Allocate a command slot for this transaction
 	if (AhciPortAcquireCommandSlot(Transaction->Device->Controller,
 		Transaction->Device->Port, &Transaction->Slot) != OsNoError) {
-		MollenOSSystemLog("AHCI::Port (%i): Failed to allocate a command slot",
+		ERROR("AHCI::Port (%i): Failed to allocate a command slot",
 			Transaction->Device->Port->Id);
 		return OsError;
 	}

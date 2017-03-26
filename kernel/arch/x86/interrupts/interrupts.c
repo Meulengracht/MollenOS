@@ -19,9 +19,11 @@
  * MollenOS Interrupt Interface (X86)
  * - Contains the shared kernel interrupt interface
  *   that all sub-layers must conform to
+ *
+ * - ISA Interrupts should be routed to boot-processor without lowest-prio?
  */
-#define __MODULE		"DBGI"
- //#define __TRACE
+#define __MODULE		"IRQS"
+#define __TRACE
 
 /* Includes 
  * - System */
@@ -201,67 +203,75 @@ OsStatus_t InterruptAllocateISA(int Source)
  * from the interrupt structure */
 uint64_t InterruptDetermine(MCoreInterrupt_t *Interrupt)
 {
-	/* Variables */
+	// Variables
 	uint64_t ApicFlags = APIC_FLAGS_DEFAULT;
 	
-	/* Case 1 - ISA Interrupts - Must be Edge Triggered High Active */
+	// Trace
+	TRACE("InterruptDetermine()");
+
+	// Case 1 - ISA Interrupts 
+	// - Must be Edge Triggered High Active
 	if (Interrupt->Line < NUM_ISA_INTERRUPTS
 		&& Interrupt->Pin == INTERRUPT_NONE) {
-		ApicFlags |= 0x100;				/* Lowest Priority */
-		ApicFlags |= 0x800;				/* Logical Destination Mode */
+		TRACE(" - ISA Interrupt (Active-High, Edge-Triggered)");
+		ApicFlags |= 0x100;					// Lowest Priority
+		ApicFlags |= 0x800;					// Logical Destination Mode
 		ApicFlags |= (INTERRUPT_DEVICE_BASE + Interrupt->Line);
 	}
-	/* Case 2 - PCI Interrupts (No-Pin) - Must be Level Triggered Low-Active */
+	
+	// Case 2 - PCI Interrupts (No-Pin) 
+	// - Must be Level Triggered Low-Active
 	else if (Interrupt->Line >= NUM_ISA_INTERRUPTS
 		&& Interrupt->Pin == INTERRUPT_NONE) {
-		ApicFlags |= 0x100;						/* Lowest Priority */
-		ApicFlags |= 0x800;						/* Logical Destination Mode */
-		ApicFlags |= (1 << 13);					/* Set Polarity */
-		ApicFlags |= (1 << 15);					/* Set Trigger Mode */
+		TRACE(" - PCI Interrupt (Active-Low, Level-Triggered)");
+		ApicFlags |= 0x100;						// Lowest Priority
+		ApicFlags |= 0x800;						// Logical Destination Mode
+		ApicFlags |= APIC_ACTIVE_LOW;			// Set Polarity
+		ApicFlags |= APIC_LEVEL_TRIGGER;		// Set Trigger Mode
 		ApicFlags |= (INTERRUPT_DEVICE_BASE + Interrupt->Line);
 	}
-	/* Case 3 - PCI Interrupts (Pin) - Usually Level Triggered Low-Active */
-	else if (Interrupt->Pin != INTERRUPT_NONE)
-	{
-		/* Idt, Irq entry */
-		int IdtEntry = INTERRUPT_DEVICE_BASE;
-		int IrqLine = 0;
 
-		/* If no routing exists use the pci interrupt line */
+	// Case 3 - PCI Interrupts (Pin) 
+	// - Usually Level Triggered Low-Active
+	else if (Interrupt->Pin != INTERRUPT_NONE) {
+		int IdtEntry = INTERRUPT_DEVICE_BASE;
+
+		// If no routing exists use the pci interrupt line
 		if (!(Interrupt->AcpiConform & __DEVICEMANAGER_ACPICONFORM_PRESENT)) {
+			TRACE(" - PCI Interrupt (Active-Low, Level-Triggered)");
 			IdtEntry += Interrupt->Line;
-			ApicFlags |= 0x100;				/* Lowest Priority */
-			ApicFlags |= 0x800;				/* Logical Destination Mode */
+			ApicFlags |= 0x100;					// Lowest Priority
+			ApicFlags |= 0x800;					// Logical Destination Mode
 		}
 		else {
-			/* Setup APIC flags */
-			ApicFlags |= 0x100;						/* Lowest Priority */
-			ApicFlags |= 0x800;						/* Logical Destination Mode */
+			TRACE(" - PCI Interrupt (Pin-Configured - 0x%x)", Interrupt->AcpiConform);
+			ApicFlags |= 0x100;					// Lowest Priority
+			ApicFlags |= 0x800;					// Logical Destination Mode
 
-			/* Both trigger and polarity is either fixed or set by the
-			 * information we extracted earlier */
-			if (IrqLine >= NUM_ISA_INTERRUPTS) {
-				ApicFlags |= (1 << 13);
-				ApicFlags |= (1 << 15);
+			// Both trigger and polarity is either fixed or set by the
+			// information we extracted earlier
+			if (Interrupt->Line >= NUM_ISA_INTERRUPTS) {
+				ApicFlags |= APIC_ACTIVE_LOW;
+				ApicFlags |= APIC_LEVEL_TRIGGER;
 			}
 			else {
-				/* Set Trigger Mode */
-				if (Interrupt->AcpiConform & __DEVICEMANAGER_ACPICONFORM_TRIGGERMODE)
-					ApicFlags |= (1 << 15);
-				/* Set Polarity */
-				if (Interrupt->AcpiConform & __DEVICEMANAGER_ACPICONFORM_POLARITY)
-					ApicFlags |= (1 << 13);
+				if (Interrupt->AcpiConform & __DEVICEMANAGER_ACPICONFORM_TRIGGERMODE) {
+					ApicFlags |= APIC_LEVEL_TRIGGER;
+				}
+				if (Interrupt->AcpiConform & __DEVICEMANAGER_ACPICONFORM_POLARITY) {
+					ApicFlags |= APIC_ACTIVE_LOW;
+				}
 			}
 
-			/* Calculate idt */
-			IdtEntry += IrqLine;
+			// Add to idt-entry
+			IdtEntry += Interrupt->Line;
 		}
 
-		/* Set IDT Vector */
+		// Set vector
 		ApicFlags |= IdtEntry;
 	}
 
-	/* Done! */
+	// Done
 	return ApicFlags;
 }
 
@@ -270,7 +280,7 @@ uint64_t InterruptDetermine(MCoreInterrupt_t *Interrupt)
  * entry, looks up for redirections and determines ISA stuff */
 OsStatus_t InterruptFinalize(MCoreInterruptDescriptor_t *Interrupt)
 {
-	/* Variables for finalizing */
+	// Variables
 	int Source = Interrupt->Source;
 	uint16_t TableIndex = LOWORD(Interrupt->Id);
 	uint64_t ApicFlags = APIC_FLAGS_DEFAULT;
@@ -282,24 +292,35 @@ OsStatus_t InterruptFinalize(MCoreInterruptDescriptor_t *Interrupt)
 		uint64_t Full;
 	} ApicExisting;
 
-	/* Variables for the lookup */
+	// Lookup
 	ListNode_t *iNode = NULL;
 	IoApic_t *IoApic = NULL;
 
-	/* Sanitize some stuff first */
+	// Sanitize operation critical variables
 	assert(TableIndex < IDT_DESCRIPTORS);
 
-	/* Determine the kind of flags we want to set */
+	// Trace
+	TRACE("InterruptFinalize(Id %u, Source %u)", 
+		Interrupt->Id, Interrupt->Source);
+
+	// Determine the kind of flags we want to set
 	ApicFlags = InterruptDetermine(&Interrupt->Interrupt);
 
-	/* Update table index in case */
+	// Trace
+	TRACE("Calculated flags for interrupt: 0x%x (TableIndex %u)", 
+		LODWORD(ApicFlags), TableIndex);
+
+	// Update table index in case
 	if (TableIndex == 0) {
 		Interrupt->Id |= LOBYTE(LOWORD(LODWORD(ApicFlags)));
 		TableIndex = LOBYTE(LOWORD(LODWORD(ApicFlags)));
 	}
 
-	/* Now lookup in ACPI overrides if we should
-	 * change the global source */
+	// Trace
+	TRACE("Updated TableIndex: %u", TableIndex);
+
+	// Now lookup in ACPI overrides if we should
+	// change the global source
 	_foreach(iNode, GlbAcpiNodes) {
 		if (iNode->Key.Value == ACPI_MADT_TYPE_INTERRUPT_OVERRIDE) {
 			ACPI_MADT_INTERRUPT_OVERRIDE *IoEntry =
@@ -314,35 +335,41 @@ OsStatus_t InterruptFinalize(MCoreInterruptDescriptor_t *Interrupt)
 		}
 	}
 
-	/* If it's an ISA interrupt, make sure it's not
-	 * allocated, and if it's not, allocate it */
+	// If it's an ISA interrupt, make sure it's not
+	// allocated, and if it's not, allocate it
 	if (Source < NUM_ISA_INTERRUPTS) {
 		if (InterruptAllocateISA(Source) != OsNoError) {
+			ERROR("Failed to allocate ISA Interrupt");
 			return OsError;
 		}
 	}
 
-	/* Get correct Io Apic */
+	// Get correct Io Apic
 	IoApic = ApicGetIoFromGsi(Source);
 
-	/* If Apic Entry is located, we need to adjust */
+	// If Apic Entry is located, we need to adjust
 	if (IoApic != NULL) {
 		ApicExisting.Full = ApicReadIoEntry(IoApic, (uint32_t)Source);
 
-		/* Sanity, we can't just override the existing interrupt vector
-		 * so if it's already installed, we modify the table-index */
+		// Sanity, we can't just override the existing interrupt vector
+		// so if it's already installed, we modify the table-index
 		if (!(ApicExisting.Parts.Lo & APIC_MASKED)) {
 			TableIndex = LOBYTE(LOWORD(ApicExisting.Parts.Lo));
 			UUId_t Id = HIWORD(Interrupt->Id);
 			Interrupt->Id = Id | TableIndex;
+			TRACE("Updated table index for already installed interrupt: %u", 
+				TableIndex);
 		}
 		else {
-			/* Unmask the irq in the io-apic */
+			// Unmask the irq in the io-apic
 			ApicWriteIoEntry(IoApic, (uint32_t)Source, ApicFlags);
 		}
 	}
+	else {
+		ERROR("Failed to derive io-apic for source %u", Source);
+	}
 
-	/* Done! */
+	// Done
 	return OsNoError;
 }
 
@@ -355,20 +382,20 @@ int InterruptIrqCount(int Source)
 	MCoreInterruptDescriptor_t *Entry = NULL;
 	int RetVal = 0;
 
-	/* Sanitize the ISA table
-	 * first, if its ISA, only one can be share */
+	// Sanitize the ISA table
+	// first, if its ISA, only one can be share
 	if (Source < NUM_ISA_INTERRUPTS) {
 		return InterruptISATable[Source] == 1 ? INTERRUPT_NONE : 0;
 	}
 
-	/* Now iterate the linked list and find count */
+	// Now iterate the linked list and find count
 	Entry = InterruptTable[32 + Source];
 	while (Entry != NULL) {
 		RetVal++;
 		Entry = Entry->Link;
 	}
 
-	/* Done */
+	// Finished
 	return RetVal;
 }
 
@@ -438,6 +465,10 @@ UUId_t InterruptRegister(MCoreInterrupt_t *Interrupt, Flags_t Flags)
 	// Sanitize initialization status
 	assert(GlbInterruptInitialized == 1);
 
+	// Trace
+	TRACE("InterruptRegister(Line %u, Pin %u, Flags 0x%x)",
+		Interrupt->Line, Interrupt->Pin, Flags);
+
 	// Disable interrupts during this procedure
 	InterruptStatus = InterruptDisable();
 
@@ -471,7 +502,7 @@ UUId_t InterruptRegister(MCoreInterrupt_t *Interrupt, Flags_t Flags)
 		if (Interrupt->Line == INTERRUPT_NONE
 			&& Interrupt->Pin == INTERRUPT_NONE) {
 			Interrupt->Line = 
-				InterruptFindBest(Interrupt->Direct, __DEVICEMANAGER_MAX_IRQS);
+				InterruptFindBest(Interrupt->Direct, INTERRUPT_MAXDIRECTS);
 		}
 
 		// Lookup stuff
@@ -481,12 +512,16 @@ UUId_t InterruptRegister(MCoreInterrupt_t *Interrupt, Flags_t Flags)
 		Entry->Source = Interrupt->Line;
 	}
 
+	// Trace
+	TRACE("Updated line %u and pin %u", Interrupt->Line, Interrupt->Pin);
+
 	// Copy interrupt information over
 	memcpy(&Entry->Interrupt, Interrupt, sizeof(MCoreInterrupt_t));
 	
 	// Sanitize the sharable status first
 	if (Flags & INTERRUPT_NOTSHARABLE) {
 		if (InterruptTable[TableIndex] != NULL) {
+			ERROR("Failed to install interrupt as it was not sharable");
 			kfree(Entry);
 			return UUID_INVALID;
 		}
@@ -495,7 +530,7 @@ UUId_t InterruptRegister(MCoreInterrupt_t *Interrupt, Flags_t Flags)
 	// Finalize the install 
 	if (Entry->Source != INTERRUPT_NONE) {
 		if (InterruptFinalize(Entry) != OsNoError) {
-			LogFatal("INTM", "Failed to install interrupt source %i", Entry->Source);
+			ERROR("Failed to install interrupt source %i", Entry->Source);
 			kfree(Entry);
 			return UUID_INVALID;
 		}
@@ -517,6 +552,9 @@ UUId_t InterruptRegister(MCoreInterrupt_t *Interrupt, Flags_t Flags)
 
 	// Done with sensitive setup, enable interrupts
 	InterruptRestoreState(InterruptStatus);
+
+	// Trace
+	TRACE("Interrupt Id 0x%x", Entry->Id);
 
 	// Return the newly generated id
 	return Entry->Id;
@@ -613,11 +651,11 @@ OsStatus_t InterruptAcknowledge(UUId_t Source)
  * as a MCoreInterruptDescriptor_t */
 MCoreInterruptDescriptor_t *InterruptGet(UUId_t Source)
 {
-	/* Variables needed */
+	// Variables
 	MCoreInterruptDescriptor_t *Iterator = NULL;
 	uint16_t TableIndex = LOWORD(Source);
 
-	/* Iterate at the correct entry */
+	// Iterate at the correct entry
 	Iterator = InterruptTable[TableIndex];
 	while (Iterator != NULL) {
 		if (Iterator->Id == Source) {
@@ -625,7 +663,7 @@ MCoreInterruptDescriptor_t *InterruptGet(UUId_t Source)
 		}
 	}
 
-	/* If we reach here, no found */
+	// We didn't find it
 	return NULL;
 }
 
@@ -635,13 +673,13 @@ MCoreInterruptDescriptor_t *InterruptGet(UUId_t Source)
  * and execute the code */
 void InterruptEntry(Context_t *Registers)
 {
-	/* Variables */
+	// Interrupts
 	MCoreInterruptDescriptor_t *Entry = NULL;
 	InterruptStatus_t Result = InterruptNotHandled;
 	int TableIndex = (int)Registers->Irq + 32;
 	int Gsi = APIC_NO_GSI;
 
-	/* Iterate handlers in that table index */
+	// Iterate handlers in that table index
 	Entry = InterruptTable[TableIndex];
 	while (Entry != NULL) {
 		if (Entry->Flags & INTERRUPT_FAST) {
@@ -661,9 +699,9 @@ void InterruptEntry(Context_t *Registers)
 				IThreadImpersonate(Source);
 			}
 
-			/* If it was handled
-			 * - Register it with system stuff
-			 * - System timers must be registered as fast-handlers */
+			// If it was handled
+			// - Register it with system stuff
+			// - System timers must be registered as fast-handlers
 			if (Result == InterruptHandled) {
 				TimersInterrupt(Entry->Id);
 				Gsi = Entry->Source;
@@ -678,41 +716,43 @@ void InterruptEntry(Context_t *Registers)
 				Result = Entry->Interrupt.FastHandler(Entry->Interrupt.Data);
 			}
 
-			/* If it was handled we can break
-			 * early as there is no need to check rest */
+			// If it was handled we can break
+			// early as there is no need to check rest
 			if (Result == InterruptHandled) {
 				Gsi = Entry->Source;
 				break;
 			}
 		}
 		else {
-			/* Send a interrupt-event to this */
+			// Trace
+			TRACE("Interrupt 0x%x for process %u is being dispatched",
+				Entry->Ash, Entry->Id);
+
+			// Send a interrupt-event to this
 			InterruptDriver(Entry->Ash, Entry->Id, Entry->Interrupt.Data);
 			
-			/* Mark as handled, so we don't spit out errors */
+			// Mark as handled, so we don't spit out errors
 			Result = InterruptHandled;
 
-			/* Mask the GSI and store it */
+			// Mask the GSI and store it
 			ApicMaskGsi(Entry->Source);
 			Gsi = Entry->Source;
 		}
 
-		/* Move on to next entry */
+		// Move on to next entry
 		Entry = Entry->Link;
 	}
 
-	/* Sanitize the result of the
-	 * irq-handling - all irqs must be handled */
+	// Sanitize the result of the
+	// irq-handling - all irqs must be handled
 	if (Result != InterruptHandled) {
-		LogFatal("IRQS", "Unhandled interrupt %u", TableIndex);
-		for (;;);
-	}/*
+		FATAL(FATAL_SCOPE_KERNEL, "Unhandled interrupt %u", TableIndex);
+	}
 	else if (Gsi > 0 && Gsi < 16 && Gsi != 8 && Gsi != 2) {
-		LogFatal("IRQS", "Interrupt %u (Gsi %i) was handled",
-			TableIndex, Gsi);
-	}*/
+		//TRACE("Interrupt %u (Gsi %i) was handled", TableIndex, Gsi);
+	}
 
-	/* Send EOI (if not spurious) */
+	// Send EOI (if not spurious)
 	if (TableIndex != INTERRUPT_SPURIOUS7
 		&& TableIndex != INTERRUPT_SPURIOUS) {
 		ApicSendEoi(Gsi, TableIndex);
@@ -868,7 +908,13 @@ void ExceptionEntry(Context_t *Registers)
  * the state before disabling */
 IntStatus_t InterruptDisable(void)
 {
-	IntStatus_t CurrentState = InterruptSaveState();
+	// Variables
+	IntStatus_t CurrentState;
+
+	// Save status
+	CurrentState = InterruptSaveState();
+
+	// Disable interrupts and return
 	__cli();
 	return CurrentState;
 }
@@ -878,7 +924,13 @@ IntStatus_t InterruptDisable(void)
  * the state before enabling */
 IntStatus_t InterruptEnable(void)
 {
-	IntStatus_t CurrentState = InterruptSaveState();
+	// Variables
+	IntStatus_t CurrentState;
+
+	// Save current status
+	CurrentState = InterruptSaveState();
+
+	// Enable interrupts and return
 	__sti();
 	return CurrentState;
 }

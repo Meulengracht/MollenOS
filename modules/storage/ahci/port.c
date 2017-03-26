@@ -21,6 +21,7 @@
  *	- Port Multiplier Support
  *	- Power Management
  */
+#define __TRACE
 
 /* Includes
  * - System */
@@ -256,7 +257,7 @@ AhciPortSetupDevice(
 	}
 
 	// Update port status
-	MollenOSSystemLog("AHCI::Device present 0x%x on port %i",
+	TRACE("AHCI::Device present 0x%x on port %i",
 		Port->Registers->Signature, Port->Id);
 	Port->Connected = 1;
 
@@ -360,7 +361,7 @@ AhciPortInterruptHandler(
 	// Check for errors status's
 	if (InterruptStatus & (AHCI_PORT_IE_TFEE | AHCI_PORT_IE_HBFE 
 		| AHCI_PORT_IE_HBDE | AHCI_PORT_IE_IFE | AHCI_PORT_IE_INFE)) {
-		MollenOSSystemLog("AHCI::Port ERROR %i, CMD: 0x%x, CI 0x%x, IE: 0x%x, IS 0x%x, TFD: 0x%x", Port->Id,
+		ERROR("AHCI::Port ERROR %i, CMD: 0x%x, CI 0x%x, IE: 0x%x, IS 0x%x, TFD: 0x%x", Port->Id,
 			Port->Registers->CommandAndStatus, Port->Registers->CommandIssue,
 			Port->Registers->InterruptEnable, Port->Registers->InterruptStatus,
 			Port->Registers->TaskFileData);

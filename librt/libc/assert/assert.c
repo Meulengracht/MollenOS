@@ -30,13 +30,13 @@ void _assert_panic(const char* str)
 	DebugPanic(FATAL_SCOPE_KERNEL, __MODULE, str);
 }
 #else
-#include <os/MollenOS.h>
+#include <os/utils.h>
 #include <stdlib.h>
 
 /* Redirect output and exit thread */
 void _assert_panic(const char* str)
 {
-	MollenOSSystemLog(str);
+	ERROR(str);
 	abort();
 }
 
