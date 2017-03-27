@@ -201,7 +201,7 @@ OsStatus_t ModulesQueryPath(MString_t *Path, void **Buffer, size_t *Length)
 		MCoreModule_t *Mod = (MCoreModule_t*)sNode->Data;
 		if (MStringCompare(Token, Mod->Name, 1) != MSTRING_NO_MATCH) {
 			*Buffer = (void*)(
-				(Addr_t)Mod->Header + sizeof(MCoreRamDiskModuleHeader_t));
+				(uintptr_t)Mod->Header + sizeof(MCoreRamDiskModuleHeader_t));
 			*Length = Mod->Header->Length;
 			Result = OsNoError;
 			break;

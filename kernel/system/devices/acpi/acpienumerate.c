@@ -192,8 +192,8 @@ int AcpiEnumerate(void)
 		MadtTable = (ACPI_TABLE_MADT*)Header;
 
 		/* Enumerate MADT */
-		AcpiEnumarateMADT((void*)((Addr_t)MadtTable + sizeof(ACPI_TABLE_MADT)),
-			(void*)((Addr_t)MadtTable + MadtTable->Header.Length));
+		AcpiEnumarateMADT((void*)((uintptr_t)MadtTable + sizeof(ACPI_TABLE_MADT)),
+			(void*)((uintptr_t)MadtTable + MadtTable->Header.Length));
 	}
 
 	/* Enumerate SRAT */
@@ -209,8 +209,8 @@ int AcpiEnumerate(void)
 		SratTable = (ACPI_TABLE_SRAT*)Header;
 
 		/* Gogo */
-		AcpiEnumerateSRAT((void*)((Addr_t)SratTable + sizeof(ACPI_TABLE_MADT)),
-			(void*)((Addr_t)SratTable + SratTable->Header.Length));
+		AcpiEnumerateSRAT((void*)((uintptr_t)SratTable + sizeof(ACPI_TABLE_MADT)),
+			(void*)((uintptr_t)SratTable + SratTable->Header.Length));
 	}
 
 	/* Enumerate SRAT */

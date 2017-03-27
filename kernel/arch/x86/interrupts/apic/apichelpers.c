@@ -36,7 +36,7 @@
  * things for these helper functions */
 __EXTERN volatile size_t GlbTimerTicks[64];
 __EXTERN volatile int GlbCpusBooted;
-__EXTERN Addr_t GlbLocalApicBase;
+__EXTERN uintptr_t GlbLocalApicBase;
 __EXTERN List_t *GlbIoApics;
 __EXTERN List_t *GlbAcpiNodes;
 

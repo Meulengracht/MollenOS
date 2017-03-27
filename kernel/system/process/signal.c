@@ -97,7 +97,7 @@ int SignalCreate(UUId_t AshId, int Signal)
 
 	/* Append signal to list */
 	Sig = (MCoreSignal_t*)kmalloc(sizeof(MCoreSignal_t));
-	Sig->Handler = (Addr_t)Target->Signals.Handlers[Signal];
+	Sig->Handler = (uintptr_t)Target->Signals.Handlers[Signal];
 	Sig->Signal = Signal;
 
 	/* Zero the context */

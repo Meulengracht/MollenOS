@@ -102,8 +102,8 @@ void PipeConstruct(MCorePipe_t *Pipe, uint8_t *Buffer, size_t BufferLength, Flag
 void PipeDestroy(MCorePipe_t *Pipe)
 {
 	/* Awake all */
-	SchedulerWakeupAllThreads((Addr_t*)&Pipe->ReadQueue);
-	SchedulerWakeupAllThreads((Addr_t*)&Pipe->WriteQueue);
+	SchedulerWakeupAllThreads((uintptr_t*)&Pipe->ReadQueue);
+	SchedulerWakeupAllThreads((uintptr_t*)&Pipe->WriteQueue);
 
 	/* Free stuff */
 	kfree(Pipe->Buffer);

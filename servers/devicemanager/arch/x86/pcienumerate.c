@@ -74,7 +74,7 @@ DevInfo_t PciToDevSubClass(uint32_t Interface)
 /* PciSetIoSpace
  * Helper function to construct a new
  * io-space that uses static memory */
-void PciSetIoSpace(MCoreDevice_t *Device, int Index, int Type, Addr_t Base, size_t Length)
+void PciSetIoSpace(MCoreDevice_t *Device, int Index, int Type, uintptr_t Base, size_t Length)
 {
 	Device->IoSpaces[Index].Type = Type;
 	Device->IoSpaces[Index].PhysicalBase = Base;
@@ -155,7 +155,7 @@ void PciReadBars(PciBus_t *Bus, MCoreDevice_t *Device, uint32_t HeaderType)
 
 			/* Sanity */
 			if (Space64 != 0 && Size64 != 0) {
-				PciSetIoSpace(Device, i, IO_SPACE_IO, (Addr_t)Space64, (size_t)Size64);
+				PciSetIoSpace(Device, i, IO_SPACE_IO, (uintptr_t)Space64, (size_t)Size64);
 			}
 		}
 		/* Ok, its memory, but is it 64 bit or 32 bit? 
@@ -182,7 +182,7 @@ void PciReadBars(PciBus_t *Bus, MCoreDevice_t *Device, uint32_t HeaderType)
 			Size64 |= ((uint64_t)Size32 << 32);
 
 			/* Sanitize the space */
-			if (sizeof(Addr_t) < 8 && Space64 > SIZE_MAX) {
+			if (sizeof(uintptr_t) < 8 && Space64 > SIZE_MAX) {
 				WARNING("Found 64 bit device with 64 bit address, can't use it in 32 bit mode");
 				return;
 			}
@@ -192,7 +192,7 @@ void PciReadBars(PciBus_t *Bus, MCoreDevice_t *Device, uint32_t HeaderType)
 
 			/* Create */
 			if (Space64 != 0 && Size64 != 0) {
-				PciSetIoSpace(Device, i, IO_SPACE_MMIO, (Addr_t)Space64, (size_t)Size64);
+				PciSetIoSpace(Device, i, IO_SPACE_MMIO, (uintptr_t)Space64, (size_t)Size64);
 			}
 		}
 		else {
@@ -207,7 +207,7 @@ void PciReadBars(PciBus_t *Bus, MCoreDevice_t *Device, uint32_t HeaderType)
 			/* Create */
 			if (Space64 != 0
 				&& Size64 != 0) {
-				PciSetIoSpace(Device, i, IO_SPACE_MMIO, (Addr_t)Space64, (size_t)Size64);
+				PciSetIoSpace(Device, i, IO_SPACE_MMIO, (uintptr_t)Space64, (size_t)Size64);
 			}
 		}
 	}
@@ -555,7 +555,7 @@ void BusEnumerate(void)
 
 			/* Setup io-space */
 			Bus->IoSpace.Type = IO_SPACE_MMIO;
-			Bus->IoSpace.PhysicalBase = (Addr_t)Entry->BaseAddress;
+			Bus->IoSpace.PhysicalBase = (uintptr_t)Entry->BaseAddress;
 			Bus->IoSpace.Size = (1024 * 1024 * 256);
 
 			/* Memory Map 256 MB!!!!! Oh fucking god */

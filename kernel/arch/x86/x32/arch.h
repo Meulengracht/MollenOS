@@ -31,7 +31,7 @@
 #define ARCHITECTURE_NAME		"x86-32"
 
 /* X86-32 Address Space */
-#define ADDRESSSPACE_MEMBERS		Addr_t Cr3; void *PageDirectory;
+#define ADDRESSSPACE_MEMBERS		uintptr_t Cr3; void *PageDirectory;
 
 #include "Gdt.h"
 
@@ -41,7 +41,7 @@ typedef struct _x86_Thread {
 	uint8_t				IoMap[GDT_IOMAP_SIZE];
 	Context_t			*Context;
 	Context_t			*UserContext;
-	Addr_t				*FpuBuffer;
+	uintptr_t				*FpuBuffer;
 } x86Thread_t;
 
 /* Architecture Prototypes, you should define 

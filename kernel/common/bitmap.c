@@ -48,8 +48,8 @@ void BitmapUnset(Bitmap_t *Bitmap, int Bit) {
 int BitmapTest(Bitmap_t *Bitmap, int Bit)
 {
 	/* Get block & index */
-	Addr_t Block = Bitmap->Bitmap[Bit / __BITS];
-	Addr_t Index = (1 << (Bit % __BITS));
+	uintptr_t Block = Bitmap->Bitmap[Bit / __BITS];
+	uintptr_t Index = (1 << (Bit % __BITS));
 
 	/* Test */
 	return ((Block & Index) != 0);
@@ -58,7 +58,7 @@ int BitmapTest(Bitmap_t *Bitmap, int Bit)
 /* Instantiate a new bitmap that keeps track of a
  * memory range between Start -> End with a
  * given block size */
-Bitmap_t *BitmapCreate(Addr_t Base, Addr_t End, size_t BlockSize)
+Bitmap_t *BitmapCreate(uintptr_t Base, uintptr_t End, size_t BlockSize)
 {
 	/* Allocate bitmap structure */
 	Bitmap_t *Bitmap = (Bitmap_t*)kmalloc(sizeof(Bitmap_t));
@@ -76,7 +76,7 @@ Bitmap_t *BitmapCreate(Addr_t Base, Addr_t End, size_t BlockSize)
 	Bitmap->BitmapSize = DIVUP((Bitmap->BlockCount + 1), 8);
 
 	/* Now allocate bitmap */
-	Bitmap->Bitmap = (Addr_t*)kmalloc(Bitmap->BitmapSize);
+	Bitmap->Bitmap = (uintptr_t*)kmalloc(Bitmap->BitmapSize);
 
 	/* Reset bitmap */
 	memset(Bitmap->Bitmap, 0, Bitmap->BitmapSize);
@@ -104,7 +104,7 @@ void BitmapDestroy(Bitmap_t *Bitmap)
 /* Allocates a number of bytes in the bitmap (rounded up in blocks)
  * and returns the calculated address of
  * the start of block allocated (continously) */
-Addr_t BitmapAllocateAddress(Bitmap_t *Bitmap, size_t Size)
+uintptr_t BitmapAllocateAddress(Bitmap_t *Bitmap, size_t Size)
 {
 	/* Variables */
 	size_t NumBlocks = DIVUP(Size, Bitmap->BlockSize);
@@ -181,7 +181,7 @@ Addr_t BitmapAllocateAddress(Bitmap_t *Bitmap, size_t Size)
 	 * Only calculate the resulting 
 	 * address if we found a bit */
 	if (StartBit != -1) {
-		return Bitmap->Base + (Addr_t)(StartBit * Bitmap->BlockSize);
+		return Bitmap->Base + (uintptr_t)(StartBit * Bitmap->BlockSize);
 	}
 	else
 		return 0;
@@ -189,7 +189,7 @@ Addr_t BitmapAllocateAddress(Bitmap_t *Bitmap, size_t Size)
 
 /* Deallocates a given address translated into offsets
  * into the given bitmap, and frees them in the bitmap */
-void BitmapFreeAddress(Bitmap_t *Bitmap, Addr_t Address, size_t Size)
+void BitmapFreeAddress(Bitmap_t *Bitmap, uintptr_t Address, size_t Size)
 {
 	/* Start out by calculating the bit index */
 	int StartBit = (Address - Bitmap->Base) / Bitmap->BlockSize;
@@ -220,7 +220,7 @@ void BitmapFreeAddress(Bitmap_t *Bitmap, Addr_t Address, size_t Size)
 
 /* Validates the given address that it's within
  * range of our bitmap and that it has in fact, been allocated */
-int BitmapValidateAddress(Bitmap_t *Bitmap, Addr_t Address)
+int BitmapValidateAddress(Bitmap_t *Bitmap, uintptr_t Address)
 {
 	/* Start out by calculating the bit index */
 	int StartBit = (Address - Bitmap->Base) / Bitmap->BlockSize;

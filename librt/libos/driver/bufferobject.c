@@ -57,7 +57,7 @@ CreateBuffer(
 #ifdef LIBC_KERNEL
 	Buffer = (BufferObject_t*)kmalloc(sizeof(BufferObject_t));
 	Buffer->Virtual = (__CONST char*)kmalloc_ap(
-		DIVUP(Length, PAGE_SIZE) * PAGE_SIZE, (Addr_t*)&Buffer->Physical);
+		DIVUP(Length, PAGE_SIZE) * PAGE_SIZE, (uintptr_t*)&Buffer->Physical);
 	Buffer->Pages = DIVUP(Length, PAGE_SIZE);
 	Result = OsNoError;
 #else

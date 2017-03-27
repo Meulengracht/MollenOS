@@ -117,25 +117,26 @@ AddressSpaceGetCurrent(void);
  * address, this can be used to correct any special cases on
  * virtual addresses in the sub-layer */
 KERNELAPI
-VirtAddr_t
+VirtualAddress_t
 KERNELABI
 AddressSpaceTranslate(
 	_In_ AddressSpace_t *AddressSpace,
-	_In_ VirtAddr_t Address);
+	_In_ VirtualAddress_t Address);
 
 /* AddressSpaceMap
  * Maps the given virtual address into the given address space
  * automatically allocates physical pages based on the passed Flags
  * It returns the start address of the allocated physical region */
 KERNELAPI
-PhysAddr_t
+OsStatus_t
 KERNELABI
 AddressSpaceMap(
 	_In_ AddressSpace_t *AddressSpace,
-	_In_ VirtAddr_t Address, 
+	_In_ VirtualAddress_t Address, 
 	_In_ size_t Size,
-	_In_ Addr_t Mask, 
-	_In_ Flags_t Flags);
+	_In_ uintptr_t Mask, 
+	_In_ Flags_t Flags,
+	_Out_Opt_ uintptr_t *Physical);
 
 /* AddressSpaceMapFixed
  * Maps the given virtual address into the given address space
@@ -146,8 +147,8 @@ OsStatus_t
 KERNELABI
 AddressSpaceMapFixed(
 	_In_ AddressSpace_t *AddressSpace,
-	_In_ PhysAddr_t pAddress, 
-	_In_ VirtAddr_t vAddress, 
+	_In_ PhysicalAddress_t pAddress, 
+	_In_ VirtualAddress_t vAddress, 
 	_In_ size_t Size, 
 	_In_ Flags_t Flags);
 
@@ -158,17 +159,17 @@ OsStatus_t
 KERNELABI
 AddressSpaceUnmap(
 	_In_ AddressSpace_t *AddressSpace, 
-	_In_ VirtAddr_t Address, 
+	_In_ VirtualAddress_t Address, 
 	_In_ size_t Size);
 
 /* AddressSpaceGetMap
  * Retrieves a physical mapping from an address space determined
  * by the virtual address given */
 KERNELAPI
-PhysAddr_t
+PhysicalAddress_t
 KERNELABI
 AddressSpaceGetMap(
 	_In_ AddressSpace_t *AddressSpace, 
-	_In_ VirtAddr_t Address);
+	_In_ VirtualAddress_t Address);
 
 #endif //!_MCORE_ADDRESSINGSPACE_H_

@@ -658,7 +658,7 @@ typedef struct _PeImportDescriptor
 typedef struct _MCorePeExportFunction {
 	char *Name;
 	int Ordinal;
-	Addr_t Address; /* Absolute Address */
+	uintptr_t Address; /* Absolute Address */
 } MCorePeExportFunction_t;
 
 /* The Pe-Image file structure, this contains the
@@ -667,8 +667,8 @@ typedef struct _MCorePeExportFunction {
 typedef struct _MCorePeFile {
 	MString_t *Name;
 	uint32_t Architecture;
-	Addr_t VirtualAddress;
-	Addr_t EntryAddress;
+	uintptr_t VirtualAddress;
+	uintptr_t EntryAddress;
 	int References;
 	int UsingInitRD;
 	List_t *ExportedFunctions;
@@ -686,19 +686,19 @@ __EXTERN int PeValidate(uint8_t *Buffer, size_t Length);
  * together with a pe-file header to fill out and the parent that wants to resolve
  * the library */
 __EXTERN MCorePeFile_t *PeResolveLibrary(MCorePeFile_t *Parent,
-	MCorePeFile_t *PeFile, MString_t *LibraryName, Addr_t *LoadAddress);
+	MCorePeFile_t *PeFile, MString_t *LibraryName, uintptr_t *LoadAddress);
 
 /* PeResolveFunction
  * Resolves a function by name in the given pe image, the return
  * value is the address of the function */
-__EXTERN Addr_t PeResolveFunction(MCorePeFile_t *Library, const char *Function);
+__EXTERN uintptr_t PeResolveFunction(MCorePeFile_t *Library, const char *Function);
 
 /* PeLoadImage
  * Loads the given file-buffer as a pe image into the current address space 
  * at the given Base-Address, which is updated after load to reflect where
  * the next address is available for load */
 __EXTERN MCorePeFile_t *PeLoadImage(MCorePeFile_t *Parent, MString_t *Name,
-	uint8_t *Buffer, size_t Length, Addr_t *BaseAddress, int UsingInitRD);
+	uint8_t *Buffer, size_t Length, uintptr_t *BaseAddress, int UsingInitRD);
 
 /* PeUnloadLibrary
  * Unload dynamically loaded library 

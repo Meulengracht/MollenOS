@@ -41,22 +41,25 @@ MemoryAllocate(
 	_Out_ void **MemoryPointer,
 	_Out_Opt_ uintptr_t *PhysicalPointer)
 {
-	/* Variables */
+	// Variables
 	uintptr_t Physical = 0;
+	uintptr_t Virtual = 0;
 	OsStatus_t Result;
 
-	/* Sanitize parameters */
-	if (Length == 0
-		|| MemoryPointer == NULL) {
+	// Sanitize parameters
+	if (Length == 0 || MemoryPointer == NULL) {
 		return OsError;
 	}
 
-	/* Redirect to OS sublayer */
+	// Redirect call to OS
 	Result = (OsStatus_t)Syscall4(SYSCALL_MEMALLOC,
 		SYSCALL_PARAM(Length), SYSCALL_PARAM(Flags),
-		SYSCALL_PARAM(MemoryPointer), SYSCALL_PARAM(&Physical));
+		SYSCALL_PARAM(&Virtual), SYSCALL_PARAM(&Physical));
 
-	/* Update outs and return */
+	// Update memory-pointer
+	*MemoryPointer = (void*)Virtual;
+
+	// Update the physical out in case its given
 	if (PhysicalPointer != NULL) {
 		*PhysicalPointer = Physical;
 	}
@@ -71,13 +74,12 @@ MemoryFree(
 	_In_ void *MemoryPointer,
 	_In_ size_t Length)
 {
-	/* Sanitize parameters */
-	if (Length == 0
-		|| MemoryPointer == NULL) {
+	// Sanitize parameters
+	if (Length == 0 || MemoryPointer == NULL) {
 		return OsError;
 	}
 
-	/* Redirect call */
+	// Redirect call to OS - no post ops here
 	return (OsStatus_t)Syscall2(SYSCALL_MEMFREE,
 		SYSCALL_PARAM(MemoryPointer), SYSCALL_PARAM(Length));
 }
@@ -94,12 +96,12 @@ MemoryShare(
 	_In_ void *Buffer,
 	_In_ size_t Size)
 {
-	/* Sanitize parameters */
+	// Sanitize parameters
 	if (Buffer == NULL || Size == 0) {
 		return NULL;
 	}
 
-	/* Redirect to os-sublayer */
+	// Redirect call to OS - no post ops here
 	return (void*)Syscall3(SYSCALL_MEMSHARE, SYSCALL_PARAM(Process),
 		SYSCALL_PARAM(Buffer), SYSCALL_PARAM(Size));
 }
@@ -113,12 +115,12 @@ MemoryUnshare(
 	_In_ void *MemoryHandle,
 	_In_ size_t Size)
 {
-	/* Sanitize parameters */
+	// Sanitize parameters
 	if (MemoryHandle == NULL || Size == 0) {
 		return OsError;
 	}
 
-	/* Redirect to os-sublayer */
+	// Redirect call to OS - no post ops here
 	return (OsStatus_t)Syscall3(SYSCALL_MEMUNSHARE, SYSCALL_PARAM(Process),
 		SYSCALL_PARAM(MemoryHandle), SYSCALL_PARAM(Size));
 }
@@ -130,12 +132,12 @@ OsStatus_t
 MemoryQuery(
 	_Out_ MemoryDescriptor_t *Descriptor)
 {
-	/* Sanitize parameters */
+	// Sanitize parameters
 	if (Descriptor == NULL) {
 		return OsError;
 	}
 
-	/* Redirect to os-sublayer */
+	// Redirect call to OS - no post ops here
 	return (OsStatus_t)Syscall1(
 		SYSCALL_MEMQUERY, SYSCALL_PARAM(Descriptor));
 }

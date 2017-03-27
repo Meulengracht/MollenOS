@@ -166,7 +166,7 @@ __EXTERN void GdtInstallTss(UUId_t Cpu, int Static);
 
 /* Updates the kernel/interrupt stack for the current
  * cpu tss entry, this should be updated at each task-switch */
-__EXTERN void TssUpdateStack(UUId_t Cpu, Addr_t Stack);
+__EXTERN void TssUpdateStack(UUId_t Cpu, uintptr_t Stack);
 
 /* Updates the io-map for the current runinng task, should
  * be updated each time there is a task-switch to reflect

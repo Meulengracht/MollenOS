@@ -89,9 +89,9 @@ IoSpaceDestroy(
  * checking if any process has an active io-space
  * that involves that virtual address */
 KERNELAPI
-Addr_t
+uintptr_t
 KERNELABI
 IoSpaceValidate(
-	_In_ Addr_t Address);
+	_In_ uintptr_t Address);
 
 #endif //!_MCORE_IOSPACE_H_

@@ -102,28 +102,28 @@ void ThreadingEntryPoint(void)
  * Threads started like this MUST use ThreadingExitThread */
 void ThreadingEntryPointUserMode(void)
 {
-	/* Variables for setup */
+	// Variables
 	MCoreThread_t *Thread = NULL;
 	UUId_t Cpu = 0;
 
-	/* Retrieve the current cpu and
-	 * get the current thread */
+	// Retrieve the current cpu and
+	// get the current thread
 	Cpu = CpuGetCurrentId();
 	Thread = ThreadingGetCurrentThread(Cpu);
 
-	/* It's important to create 
-	 * and map the stack before setting up */
+	// It's important to create 
+	// and map the stack before setting up
 	AddressSpaceMap(AddressSpaceGetCurrent(), (MEMORY_SEGMENT_STACK_BASE & PAGE_MASK),
-		ASH_STACK_INIT, __MASK, AS_FLAG_APPLICATION);
+		ASH_STACK_INIT, __MASK, AS_FLAG_APPLICATION, NULL);
 
-	/* Let the architecture know we want to enter
-	 * user-mode */
+	// Let the architecture know we want to enter
+	// user-mode
 	IThreadSetupUserMode(Thread, MEMORY_SEGMENT_STACK_BASE);
 
-	/* Nothing actually happens before this flag is set */
+	// Nothing actually happens before this flag is set
 	Thread->Flags |= THREADING_TRANSITION;
 
-	/* Yield control, with safety-catch */
+	// Yield control, with safety-catch
 	IThreadYield();
 	for (;;);
 }
@@ -306,10 +306,10 @@ UUId_t ThreadingCreateThread(const char *Name,
 	 * based upon usermode thread or kernel mode thread */
 	if (THREADING_RUNMODE(Flags) == THREADING_KERNELMODE
 		|| !(Flags & THREADING_INHERIT)) {
-		Thread->ThreadData = IThreadCreate(THREADING_KERNELMODE, (Addr_t)&ThreadingEntryPoint);
+		Thread->ThreadData = IThreadCreate(THREADING_KERNELMODE, (uintptr_t)&ThreadingEntryPoint);
 	}
 	else {
-		Thread->ThreadData = IThreadCreate(THREADING_KERNELMODE, (Addr_t)&ThreadingEntryPointUserMode);
+		Thread->ThreadData = IThreadCreate(THREADING_KERNELMODE, (uintptr_t)&ThreadingEntryPointUserMode);
 	}
 
 	/* Append it to list & scheduler */
@@ -360,7 +360,7 @@ void ThreadingExitThread(int ExitCode)
 
 	/* Wakeup people that were 
 	 * waiting for the thread to finish */
-	SchedulerWakeupAllThreads((Addr_t*)Thread);
+	SchedulerWakeupAllThreads((uintptr_t*)Thread);
 
 	/* Yield control */
 	IThreadYield();
@@ -387,7 +387,7 @@ void ThreadingKillThread(UUId_t ThreadId)
 
 	/* Wakeup people that were
 	* waiting for the thread to finish */
-	SchedulerWakeupAllThreads((Addr_t*)Target);
+	SchedulerWakeupAllThreads((uintptr_t*)Target);
 
 	/* This means that it will be 
 	 * cleaned up at next schedule */
@@ -406,7 +406,7 @@ int ThreadingJoinThread(UUId_t ThreadId)
 		return -1;
 
 	/* Wait... */
-	SchedulerSleepThread((Addr_t*)Target, 0);
+	SchedulerSleepThread((uintptr_t*)Target, 0);
 	IThreadYield();
 
 	/* When we reach this point 

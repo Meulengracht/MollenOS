@@ -47,34 +47,32 @@ __EXTERN List_t *GlbAshes;
  * and memory mappings, must be called on it's own thread */
 void PhoenixBootServer(void *Args)
 {
-	/* Cast the arguments */
+	// Initiate pointer
 	MCoreServer_t *Server = (MCoreServer_t*)Args;
 
-	/* Finish the standard setup of the ash */
+	// Finish the standard setup of the ash
 	PhoenixFinishAsh(&Server->Base);
 
-	/* Initialize the server io-space memory */
+	// Initialize the server io-space memory
 	Server->DriverMemory = BitmapCreate(MEMORY_LOCATION_RING3_IOSPACE,
 		MEMORY_LOCATION_RING3_IOSPACE_END, PAGE_SIZE);
 
-	/* Map in arguments */
+	// Map in arguments
 	if (Server->ArgumentLength != 0) {
 		AddressSpaceMap(AddressSpaceGetCurrent(),
 			MEMORY_LOCATION_RING3_ARGS, MAX(PAGE_SIZE, Server->ArgumentLength),
-			__MASK, AS_FLAG_APPLICATION);
+			__MASK, AS_FLAG_APPLICATION, NULL);
 
-		/* Copy arguments */
+		// Copy arguments
 		memcpy((void*)MEMORY_LOCATION_RING3_ARGS,
 			Server->ArgumentBuffer, Server->ArgumentLength);
 	}
 
-	/* Go to user-land */
+	// Enter userland - should never return
 	ThreadingEnterUserMode(Server);
 
-	/* Catch */
+	// Yield and safety catch
 	IThreadYield();
-
-	/* SHOULD NEVER reach this point */
 	for (;;);
 }
 

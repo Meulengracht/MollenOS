@@ -61,52 +61,47 @@ Heap_t GlbKernelHeap = { 0 };
 /* The heap-structure allocation function
  * this allocates heap memory in the reserved
  * header space */
-Addr_t *HeapSAllocator(Heap_t *Heap, size_t Size)
+uintptr_t *HeapSAllocator(Heap_t *Heap, size_t Size)
 {
-	/* The return address */
-	Addr_t *RetAddr = NULL;
+	// Variables
+	uintptr_t *ReturnAddress = NULL;
 
-	/* Sanitize the size 
-	 * if we ask for invalid size something has
-	 * gone VERY wrong */
+	// Sanitize the size 
+	// if we ask for invalid size something has
+	// gone VERY wrong */
 	assert(Size > 0);
 
-	/* Sanitize our max-addr
-	 * We might need to map in new memory */
-	if ((Heap->MemHeaderCurrent + Size) >= Heap->MemHeaderMax)
-	{
-		/* Sanitize end of header memory */
+	// Sanitize our max-addr
+	// We might need to map in new memory
+	if ((Heap->MemHeaderCurrent + Size) >= Heap->MemHeaderMax) {
+		// Sanitize end of header memory
 		if ((Heap->MemHeaderMax + PAGE_SIZE) >= 
 			(Heap->HeapBase + MEMORY_STATIC_OFFSET))
 		{
-			/* Debug */
+			// Debug
 			LogFatal("HEAP", "OUT OF MEM, HeaderMax: 0x%x, HeaderCurrent 0x%x", 
 				Heap->MemHeaderMax, Heap->MemHeaderCurrent);
 			HeapPrintStats(Heap);
 
-			/* Daaamn 
-			 * we don't have to assert here, we can simply
-			 * just return null, another assert will catch it */
-			return RetAddr;
+			// Daaamn 
+			// we don't have to assert here, we can simply
+			// just return null, another assert will catch it 
+			return ReturnAddress;
 		}
 
-		/* Map in the new memory */
+		// Map in the new memory and zero it
 		AddressSpaceMap(AddressSpaceGetCurrent(), Heap->MemHeaderMax, PAGE_SIZE, 
-			__MASK, (Heap->IsUser == 1) ? AS_FLAG_APPLICATION : 0);
-
-		/* Reset the memory */
+			__MASK, (Heap->IsUser == 1) ? AS_FLAG_APPLICATION : 0, NULL);
 		memset((void*)Heap->MemHeaderMax, 0, PAGE_SIZE);
 
-		/* Increase limit */
+		// Increase the limit to next page
 		Heap->MemHeaderMax += PAGE_SIZE;
 	}
 
-	/* Get next new memory */
-	RetAddr = (Addr_t*)Heap->MemHeaderCurrent;
+	// Get next new memory
+	ReturnAddress = (uintptr_t*)Heap->MemHeaderCurrent;
 	Heap->MemHeaderCurrent += Size;
-
-	/* Done! */
-	return RetAddr;
+	return ReturnAddress;
 }
 
 /* Helper function that appends a block 
@@ -239,7 +234,7 @@ void HeapPrintStats(Heap_t *Heap)
 /* Helper to allocate and create a block for a given heap
  * it will allocate from the recycler if possible */
 HeapBlock_t *HeapCreateBlock(Heap_t *Heap, 
-	size_t Size, Addr_t Mask, Flags_t Flags, const char *Identifier)
+	size_t Size, uintptr_t Mask, Flags_t Flags, const char *Identifier)
 {
 	/* Allocate a block & node */
 	HeapBlock_t *hBlock = NULL;
@@ -302,7 +297,7 @@ HeapBlock_t *HeapCreateBlock(Heap_t *Heap,
 
 /* Helper to expand the heap with a given size, now 
  * it also heavily depends on which kind of allocation is being made */
-void HeapExpand(Heap_t *Heap, size_t Size, Addr_t Mask, Flags_t Flags, const char *Identifier)
+void HeapExpand(Heap_t *Heap, size_t Size, uintptr_t Mask, Flags_t Flags, const char *Identifier)
 {
 	/* Variable */
 	HeapBlock_t *hBlock;
@@ -328,13 +323,13 @@ void HeapExpand(Heap_t *Heap, size_t Size, Addr_t Mask, Flags_t Flags, const cha
 
 /* Helper function for the primary allocation function, this 
  * 'sub'-allocates <size> in a given <block> from the heap */
-Addr_t HeapAllocateSizeInBlock(Heap_t *Heap, HeapBlock_t *Block, 
+uintptr_t HeapAllocateSizeInBlock(Heap_t *Heap, HeapBlock_t *Block, 
 	size_t Size, size_t Alignment, const char *Identifier)
 {
 	/* Variables needed for node iteration */
 	HeapNode_t *CurrNode = Block->Nodes, 
 			   *PrevNode = NULL;
-	Addr_t RetAddr = 0;
+	uintptr_t RetAddr = 0;
 
 	/* Standard block allocation algorithm */
 	while (CurrNode)
@@ -451,39 +446,39 @@ Addr_t HeapAllocateSizeInBlock(Heap_t *Heap, HeapBlock_t *Block,
 
 /* Helper for mapping in pages as soon as they
  * are allocated, used by allocation flags */
-void HeapCommitPages(Addr_t Address, size_t Size, Addr_t Mask)
+void HeapCommitPages(uintptr_t Address, size_t Size, uintptr_t Mask)
 {
-	/* Variables  */
+	// Variables
 	size_t Pages = DIVUP(Size, PAGE_SIZE);
 	size_t i = 0;
 
-	/* Sanitize the page boundary
-	 * Do we step across page boundary? */
-	if ((Address & PAGE_MASK)
-		!= ((Address + Size - 1) & PAGE_MASK))
+	// Sanitize the page boundary
+	// Do we step across page boundary?
+	if ((Address & PAGE_MASK) != ((Address + Size - 1) & PAGE_MASK)) {
 		Pages++;
+	}
 
-	/* Map in the pages */
-	for (; i < Pages; i++)
-	{
-		if (!AddressSpaceGetMap(AddressSpaceGetCurrent(), Address + (i * PAGE_SIZE)))
-			AddressSpaceMap(AddressSpaceGetCurrent(), 
-				Address + (i * PAGE_SIZE), PAGE_SIZE, Mask, 0);
+	// Do the actual mapping
+	for (; i < Pages; i++) {
+		if (!AddressSpaceGetMap(AddressSpaceGetCurrent(), Address + (i * PAGE_SIZE))) {
+			AddressSpaceMap(AddressSpaceGetCurrent(),
+				Address + (i * PAGE_SIZE), PAGE_SIZE, Mask, 0, NULL);
+		}
 	}
 }
 
 /* Finds a suitable block for allocation
  * and allocates in that block, this is primary 
  * allocator of the heap */
-Addr_t HeapAllocate(Heap_t *Heap, size_t Size, 
-	Flags_t Flags, size_t Alignment, Addr_t Mask, const char *Identifier)
+uintptr_t HeapAllocate(Heap_t *Heap, size_t Size, 
+	Flags_t Flags, size_t Alignment, uintptr_t Mask, const char *Identifier)
 {
 	/* Find a block that match our 
 	 * requirements */
 	HeapBlock_t *CurrentBlock = NULL;
 	size_t AdjustedAlign = Alignment;
 	size_t AdjustedSize = Size;
-	Addr_t RetVal = 0;
+	uintptr_t RetVal = 0;
 
 	/* Add some block-type flags 
 	 * based upon size of requested allocation 
@@ -578,7 +573,7 @@ Addr_t HeapAllocate(Heap_t *Heap, size_t Size,
 /* Helper for the primary freeing routine, it free's 
  * an address in the correct block, it's a bit more complicated
  * as it supports merging with sibling nodes  */
-void HeapFreeAddressInNode(Heap_t *Heap, HeapBlock_t *Block, Addr_t Address)
+void HeapFreeAddressInNode(Heap_t *Heap, HeapBlock_t *Block, uintptr_t Address)
 {
 	/* Variables for iteration */
 	HeapNode_t *CurrNode = Block->Nodes, *PrevNode = NULL;
@@ -587,8 +582,8 @@ void HeapFreeAddressInNode(Heap_t *Heap, HeapBlock_t *Block, Addr_t Address)
 	while (CurrNode != NULL)
 	{
 		/* Calculate end and start */
-		Addr_t aStart = CurrNode->Address;
-		Addr_t aEnd = CurrNode->Address + CurrNode->Length - 1;
+		uintptr_t aStart = CurrNode->Address;
+		uintptr_t aEnd = CurrNode->Address + CurrNode->Length - 1;
 
 		/* Check if address is a part of this node 
 		 * And we do need to check like this as address
@@ -674,7 +669,7 @@ void HeapFreeAddressInNode(Heap_t *Heap, HeapBlock_t *Block, Addr_t Address)
 /* Helper for locating the correct block, as we have
  * three different lists with blocks in, not very quick
  * untill we convert it to a binary tree */
-HeapBlock_t *HeapFreeLocator(HeapBlock_t *List, Addr_t Address)
+HeapBlock_t *HeapFreeLocator(HeapBlock_t *List, uintptr_t Address)
 {
 	/* Find a block that match the 
 	 * given address */
@@ -695,7 +690,7 @@ HeapBlock_t *HeapFreeLocator(HeapBlock_t *List, Addr_t Address)
 
 /* Finds the appropriate block
  * that should contain our node */
-void HeapFree(Heap_t *Heap, Addr_t Address)
+void HeapFree(Heap_t *Heap, uintptr_t Address)
 {
 	/* Find a block that match our address */
 	HeapBlock_t *Block = NULL;
@@ -728,7 +723,7 @@ void HeapFree(Heap_t *Heap, Addr_t Address)
 
 /* This function is basicilly just a node-lookup function
  * that's used to find information about the node */
-HeapNode_t *HeapQueryAddressInNode(HeapBlock_t *Block, Addr_t Address)
+HeapNode_t *HeapQueryAddressInNode(HeapBlock_t *Block, uintptr_t Address)
 {
 	/* Vars */
 	HeapNode_t *CurrNode = Block->Nodes, *PrevNode = NULL;
@@ -737,8 +732,8 @@ HeapNode_t *HeapQueryAddressInNode(HeapBlock_t *Block, Addr_t Address)
 	while (CurrNode != NULL)
 	{
 		/* Calculate end and start */
-		Addr_t aStart = CurrNode->Address;
-		Addr_t aEnd = CurrNode->Address + CurrNode->Length - 1;
+		uintptr_t aStart = CurrNode->Address;
+		uintptr_t aEnd = CurrNode->Address + CurrNode->Length - 1;
 
 		/* Check if address is a part of this node */
 		if (aStart <= Address && aEnd >= Address)
@@ -758,7 +753,7 @@ HeapNode_t *HeapQueryAddressInNode(HeapBlock_t *Block, Addr_t Address)
 
 /* Finds the appropriate block
  * that should contain our node */
-HeapNode_t *HeapQuery(Heap_t *Heap, Addr_t Addr)
+HeapNode_t *HeapQuery(Heap_t *Heap, uintptr_t Addr)
 {
 	/* Find a block that match our
 	* address */
@@ -875,7 +870,7 @@ void HeapInit(void)
 /* This function allocates a 'third party' heap that
  * can be used like a memory region for allocations, usefull
  * for servers, shared memory, processes etc */
-Heap_t *HeapCreate(Addr_t HeapAddress, Addr_t HeapEnd, int UserHeap)
+Heap_t *HeapCreate(uintptr_t HeapAddress, uintptr_t HeapEnd, int UserHeap)
 {
 	/* Allocate a heap on the heap
 	 * Heapception */
@@ -921,7 +916,7 @@ Heap_t *HeapCreate(Addr_t HeapAddress, Addr_t HeapEnd, int UserHeap)
 /* Used for validation that an address is allocated
  * within the given heap, this can be used for security
  * or validation purposes, use NULL for kernel heap */
-int HeapValidateAddress(Heap_t *Heap, Addr_t Address)
+int HeapValidateAddress(Heap_t *Heap, uintptr_t Address)
 {
 	/* Vars */
 	Heap_t *pHeap = Heap;
@@ -948,11 +943,11 @@ int HeapValidateAddress(Heap_t *Heap, Addr_t Address)
  * makes sure pages are mapped in memory
  * this function also returns the physical address 
  * of the allocation and aligned to PAGE_ALIGN with memory <Mask> */
-void *kmalloc_apm(size_t Size, Addr_t *Ptr, Addr_t Mask)
+void *kmalloc_apm(size_t Size, uintptr_t *Ptr, uintptr_t Mask)
 {
 	/* Variables for kernel allocation
 	 * Setup some default stuff */
-	Addr_t RetAddr = 0;
+	uintptr_t RetAddr = 0;
 
 	/* Sanitize size in kernel allocations 
 	 * we need to extra sensitive */
@@ -981,11 +976,11 @@ void *kmalloc_apm(size_t Size, Addr_t *Ptr, Addr_t Mask)
  * makes sure pages are mapped in memory
  * this function also returns the physical address 
  * of the allocation and aligned to PAGE_ALIGN */
-void *kmalloc_ap(size_t Size, Addr_t *Ptr)
+void *kmalloc_ap(size_t Size, uintptr_t *Ptr)
 {
 	/* Variables for kernel allocation
 	 * Setup some default stuff */
-	Addr_t RetAddr = 0;
+	uintptr_t RetAddr = 0;
 
 	/* Sanitize size in kernel allocations 
 	 * we need to extra sensitive */
@@ -1014,11 +1009,11 @@ void *kmalloc_ap(size_t Size, Addr_t *Ptr)
  * makes sure pages are mapped in memory
  * this function also returns the physical address 
  * of the allocation */
-void *kmalloc_p(size_t Size, Addr_t *Ptr)
+void *kmalloc_p(size_t Size, uintptr_t *Ptr)
 {
 	/* Variables for kernel allocation
 	 * Setup some default stuff */
-	Addr_t RetAddr = 0;
+	uintptr_t RetAddr = 0;
 
 	/* Sanitize size in kernel allocations 
 	 * we need to extra sensitive */
@@ -1049,7 +1044,7 @@ void *kmalloc_a(size_t Size)
 {
 	/* Variables for kernel allocation
 	 * Setup some default stuff */
-	Addr_t RetAddr = 0;
+	uintptr_t RetAddr = 0;
 
 	/* Sanitize size in kernel allocations 
 	 * we need to extra sensitive */
@@ -1077,7 +1072,7 @@ void *kmalloc(size_t Size)
 {
 	/* Variables for kernel allocation
 	 * Setup some default stuff */
-	Addr_t RetAddr = 0;
+	uintptr_t RetAddr = 0;
 
 	/* Sanitize size in kernel allocations 
 	 * we need to extra sensitive */
@@ -1105,7 +1100,7 @@ void kfree(void *p)
 	assert(p != NULL);
 
 	/* Free */
-	HeapFree(&GlbKernelHeap, (Addr_t)p);
+	HeapFree(&GlbKernelHeap, (uintptr_t)p);
 }
 
 /**************************************/

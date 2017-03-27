@@ -155,13 +155,13 @@ int PeValidate(uint8_t *Buffer, size_t Length)
 /* PeHandleSections
  * Relocates and initializes all sections in the pe image
  * It also returns the last memory address of the relocations */
-Addr_t PeHandleSections(MCorePeFile_t *PeFile, uint8_t *Data, 
-	Addr_t SectionAddress, int NumSections, int UserSpace)
+uintptr_t PeHandleSections(MCorePeFile_t *PeFile, uint8_t *Data, 
+	uintptr_t SectionAddress, int NumSections, int UserSpace)
 {
 	/* Initialize pointers and some of the
 	 * variables needed for iteration of sections*/
 	PeSectionHeader_t *Section = (PeSectionHeader_t*)SectionAddress;
-	Addr_t CurrentAddress = PeFile->VirtualAddress;
+	uintptr_t CurrentAddress = PeFile->VirtualAddress;
 	char SectionName[PE_SECTION_NAME_LENGTH + 1];
 	int i, j;
 
@@ -182,10 +182,10 @@ Addr_t PeHandleSections(MCorePeFile_t *PeFile, uint8_t *Data,
 
 		/* Iterate pages and map them in our memory space */
 		for (j = 0; j < PageCount; j++) {
-			Addr_t Calculated = (Addr_t)Destination + (j * PAGE_SIZE);
+			uintptr_t Calculated = (uintptr_t)Destination + (j * PAGE_SIZE);
 			if (!AddressSpaceGetMap(AddressSpaceGetCurrent(), Calculated)) {
 				AddressSpaceMap(AddressSpaceGetCurrent(), Calculated, 
-					PAGE_SIZE, __MASK, (UserSpace == 1) ? AS_FLAG_APPLICATION : 0);
+					PAGE_SIZE, __MASK, (UserSpace == 1) ? AS_FLAG_APPLICATION : 0, NULL);
 			}
 		}
 
@@ -231,7 +231,7 @@ Addr_t PeHandleSections(MCorePeFile_t *PeFile, uint8_t *Data,
 /* PeHandleRelocations
  * Initializes and handles the code relocations in the pe image */
 void PeHandleRelocations(MCorePeFile_t *PeFile, 
-	PeDataDirectory_t *RelocDirectory, Addr_t ImageBase)
+	PeDataDirectory_t *RelocDirectory, uintptr_t ImageBase)
 {
 	/* Get a pointer to the table */
 	uint32_t BytesLeft = RelocDirectory->Size;
@@ -292,18 +292,18 @@ void PeHandleRelocations(MCorePeFile_t *PeFile,
 			{
 				/* Create a pointer, the low 12 bits have 
 				 * an offset into the PageRVA */
-				Addr_t Offset = (PeFile->VirtualAddress + PageRVA + Value);
-				Addr_t Translated = AddressSpaceTranslate(AddressSpaceGetCurrent(), 
+				uintptr_t Offset = (PeFile->VirtualAddress + PageRVA + Value);
+				uintptr_t Translated = AddressSpaceTranslate(AddressSpaceGetCurrent(), 
 					PeFile->VirtualAddress);
 
 				/* Should we add or subtract? */
 				if (Translated >= ImageBase) {
-					Addr_t Delta = (Addr_t)(Translated - ImageBase);
-					*((Addr_t*)Offset) += Delta;
+					uintptr_t Delta = (uintptr_t)(Translated - ImageBase);
+					*((uintptr_t*)Offset) += Delta;
 				}
 				else {
-					Addr_t Delta = (Addr_t)(ImageBase - Translated);
-					*((Addr_t*)Offset) -= Delta;
+					uintptr_t Delta = (uintptr_t)(ImageBase - Translated);
+					*((uintptr_t*)Offset) -= Delta;
 				}
 			}
 			else if (Type == PE_RELOCATION_ALIGN) {
@@ -363,7 +363,7 @@ void PeHandleExports(MCorePeFile_t *PeFile, PeDataDirectory_t *ExportDirectory)
 		ExFunc->Name = (char*)(PeFile->VirtualAddress + FunctionNamesPtr[i]);
 		ExFunc->Ordinal = FunctionOrdinalsPtr[i];
 		ExFunc->Address = AddressSpaceTranslate(AddressSpaceGetCurrent(), 
-			(Addr_t)(PeFile->VirtualAddress + FunctionAddrPtr[ExFunc->Ordinal]));
+			(uintptr_t)(PeFile->VirtualAddress + FunctionAddrPtr[ExFunc->Ordinal]));
 
 		/* Add to list */
 		Key.Value = (int)ExFunc->Ordinal;
@@ -374,7 +374,7 @@ void PeHandleExports(MCorePeFile_t *PeFile, PeDataDirectory_t *ExportDirectory)
 /* PeHandleImports
  * Parses and resolves all image imports by parsing the import address table */
 void PeHandleImports(MCorePeFile_t *Parent, MCorePeFile_t *PeFile, 
-	PeDataDirectory_t *ImportDirectory, Addr_t *NextImageBase)
+	PeDataDirectory_t *ImportDirectory, uintptr_t *NextImageBase)
 {
 	/* Variables for import */
 	PeImportDescriptor_t *ImportDescriptor = NULL;
@@ -528,7 +528,7 @@ void PeHandleImports(MCorePeFile_t *Parent, MCorePeFile_t *PeFile,
  * together with a pe-file header to fill out and the parent that wants to resolve
  * the library */
 MCorePeFile_t *PeResolveLibrary(MCorePeFile_t *Parent, 
-	MCorePeFile_t *PeFile, MString_t *LibraryName, Addr_t *LoadAddress)
+	MCorePeFile_t *PeFile, MString_t *LibraryName, uintptr_t *LoadAddress)
 {
 	/* Variables needed */
 	MCorePeFile_t *ExportParent = Parent;
@@ -633,7 +633,7 @@ MCorePeFile_t *PeResolveLibrary(MCorePeFile_t *Parent,
 /* PeResolveFunction
  * Resolves a function by name in the given pe image, the return
  * value is the address of the function. 0 If not found */
-Addr_t PeResolveFunction(MCorePeFile_t *Library, const char *Function)
+uintptr_t PeResolveFunction(MCorePeFile_t *Library, const char *Function)
 {
 	/* Variables for finding the function */
 	List_t *Exports = Library->ExportedFunctions;
@@ -657,7 +657,7 @@ Addr_t PeResolveFunction(MCorePeFile_t *Library, const char *Function)
  * at the given Base-Address, which is updated after load to reflect where
  * the next address is available for load */
 MCorePeFile_t *PeLoadImage(MCorePeFile_t *Parent, MString_t *Name, 
-	uint8_t *Buffer, size_t Length, Addr_t *BaseAddress, int UsingInitRD)
+	uint8_t *Buffer, size_t Length, uintptr_t *BaseAddress, int UsingInitRD)
 {
 	/* Base Headers */
 	MzHeader_t *DosHeader = NULL;
@@ -669,8 +669,8 @@ MCorePeFile_t *PeLoadImage(MCorePeFile_t *Parent, MString_t *Name,
 	PeOptionalHeader64_t *OptHeader64 = NULL;
 
 	/* Variables for loading the image */
-	Addr_t SectionAddress = 0;
-	Addr_t ImageBase = 0;
+	uintptr_t SectionAddress = 0;
+	uintptr_t ImageBase = 0;
 	PeDataDirectory_t *DirectoryPtr = NULL;
 	MCorePeFile_t *PeInfo = NULL;
 
@@ -692,15 +692,15 @@ MCorePeFile_t *PeLoadImage(MCorePeFile_t *Parent, MString_t *Name,
 		OptHeader32 = (PeOptionalHeader32_t*)(Buffer 
 			+ DosHeader->PeAddr + sizeof(PeHeader_t));
 		ImageBase = OptHeader32->BaseAddress;
-		SectionAddress = (Addr_t)(Buffer + DosHeader->PeAddr 
+		SectionAddress = (uintptr_t)(Buffer + DosHeader->PeAddr 
 			+ sizeof(PeHeader_t) + sizeof(PeOptionalHeader32_t));
 		DirectoryPtr = (PeDataDirectory_t*)&OptHeader32->Directories[0];
 	}
 	else if (OptHeader->Architecture == PE_ARCHITECTURE_64) {
 		OptHeader64 = (PeOptionalHeader64_t*)(Buffer 
 			+ DosHeader->PeAddr + sizeof(PeHeader_t));
-		ImageBase = (Addr_t)OptHeader64->BaseAddress;
-		SectionAddress = (Addr_t)(Buffer + DosHeader->PeAddr 
+		ImageBase = (uintptr_t)OptHeader64->BaseAddress;
+		SectionAddress = (uintptr_t)(Buffer + DosHeader->PeAddr 
 			+ sizeof(PeHeader_t) + sizeof(PeOptionalHeader64_t));
 		DirectoryPtr = (PeDataDirectory_t*)&OptHeader64->Directories[0];
 	}

@@ -40,18 +40,14 @@ typedef uint64_t			reg64_t;
 #if defined(_X86_32)
 #define	__BITS				32
 #define __MASK				0xFFFFFFFF
-typedef unsigned int		PhysAddr_t;
-typedef unsigned int		VirtAddr_t;
-typedef unsigned int		Addr_t;
-typedef int					SAddr_t;
+typedef unsigned int		PhysicalAddress_t;
+typedef unsigned int		VirtualAddress_t;
 typedef reg32_t				reg_t;
 #elif defined(_X86_64)
 #define	__BITS				64
 #define __MASK				0xFFFFFFFFFFFFFFFF
-typedef unsigned long long	PhysAddr_t;
-typedef unsigned long long	VirtAddr_t;
-typedef unsigned long long	Addr_t;
-typedef long long			SAddr_t;
+typedef unsigned long long	PhysicalAddress_t;
+typedef unsigned long long	VirtualAddress_t;
 typedef reg64_t				reg_t;
 #endif
 

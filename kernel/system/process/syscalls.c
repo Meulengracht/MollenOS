@@ -43,7 +43,7 @@
 #include <string.h>
 
 /* Shorthand */
-#define DefineSyscall(_Sys) ((Addr_t)&_Sys)
+#define DefineSyscall(_Sys) ((uintptr_t)&_Sys)
 
 /* ScSystemDebug 
  * Debug/trace printing for userspace application and drivers */
@@ -134,7 +134,7 @@ int ScProcessJoin(UUId_t ProcessId)
 		return -1;
 
 	/* Sleep */
-	SchedulerSleepThread((Addr_t*)Process, 0);
+	SchedulerSleepThread((uintptr_t*)Process, 0);
 	IThreadYield();
 
 	/* Return the exit code */
@@ -239,7 +239,7 @@ OsStatus_t ScProcessQuery(UUId_t ProcessId, AshQueryFunction_t Function, void *B
 /* Installs a signal handler for 
  * the given signal number, it's then invokable
  * by other threads/processes etc */
-int ScProcessSignal(int Signal, Addr_t Handler) 
+int ScProcessSignal(int Signal, uintptr_t Handler) 
 {
 	/* Variables */
 	MCoreProcess_t *Process = NULL;
@@ -261,7 +261,7 @@ int ScProcessSignal(int Signal, Addr_t Handler)
 
 	/* Always retrieve the old handler 
 	 * and return it, so temp store it before updating */
-	Addr_t OldHandler = Process->Base.Signals.Handlers[Signal];
+	uintptr_t OldHandler = Process->Base.Signals.Handlers[Signal];
 	Process->Base.Signals.Handlers[Signal] = Handler;
 
 	/* Done, return the old ! */
@@ -313,7 +313,7 @@ Handle_t ScSharedObjectLoad(__CONST char *SharedObject)
 	/* Locate Process */
 	MCoreProcess_t *Process = PhoenixGetProcess(PROCESS_CURRENT);
 	MString_t *Path = NULL;
-	Addr_t BaseAddress = 0;
+	uintptr_t BaseAddress = 0;
 	Handle_t Handle = NULL;
 	
 	/* Sanity */
@@ -340,7 +340,7 @@ Handle_t ScSharedObjectLoad(__CONST char *SharedObject)
  * Load a function-address given an shared object
  * handle and a function name, function must exist
  * otherwise null is returned */
-Addr_t ScSharedObjectGetFunction(Handle_t Handle, __CONST char *Function)
+uintptr_t ScSharedObjectGetFunction(Handle_t Handle, __CONST char *Function)
 {
 	/* Validate */
 	if (Handle == HANDLE_INVALID
@@ -481,16 +481,16 @@ OsStatus_t ScThreadYield(void)
 /* ScConditionCreate
  * Create a new shared handle 
  * that is unique for a condition variable */
-Addr_t ScConditionCreate(void)
+uintptr_t ScConditionCreate(void)
 {
 	/* Allocate a new unique address */
-	return (Addr_t)kmalloc(sizeof(int));
+	return (uintptr_t)kmalloc(sizeof(int));
 }
 
 /* ScConditionDestroy
  * Destroys a shared handle
  * for a condition variable */
-OsStatus_t ScConditionDestroy(Addr_t *Handle)
+OsStatus_t ScConditionDestroy(uintptr_t *Handle)
 {
 	kfree(Handle);
 	return OsNoError;
@@ -500,7 +500,7 @@ OsStatus_t ScConditionDestroy(Addr_t *Handle)
  * Signals a handle for wakeup 
  * This is primarily used for condition
  * variables and semaphores */
-OsStatus_t ScSyncWakeUp(Addr_t *Handle)
+OsStatus_t ScSyncWakeUp(uintptr_t *Handle)
 {
 	return SchedulerWakeupOneThread(Handle) == 1 ? OsNoError : OsError;
 }
@@ -508,7 +508,7 @@ OsStatus_t ScSyncWakeUp(Addr_t *Handle)
 /* Signals a handle for wakeup all
  * This is primarily used for condition
  * variables and semaphores */
-OsStatus_t ScSyncWakeUpAll(Addr_t *Handle)
+OsStatus_t ScSyncWakeUpAll(uintptr_t *Handle)
 {
 	SchedulerWakeupAllThreads(Handle);
 	return OsNoError;
@@ -517,7 +517,7 @@ OsStatus_t ScSyncWakeUpAll(Addr_t *Handle)
 /* ScSyncSleep
  * Waits for a signal relating to the above function, this
  * function uses a timeout. Returns OsError on timed-out */
-OsStatus_t ScSyncSleep(Addr_t *Handle, size_t Timeout)
+OsStatus_t ScSyncSleep(uintptr_t *Handle, size_t Timeout)
 {
 	/* Get current thread */
 	MCoreThread_t *Current = ThreadingGetCurrentThread(CpuGetCurrentId());
@@ -547,42 +547,72 @@ OsStatus_t
 ScMemoryAllocate(
 	_In_ size_t Size, 
 	_In_ Flags_t Flags, 
-	_Out_ void **Virtual, 
-	_Out_ uintptr_t *Physical)
+	_Out_ uintptr_t *VirtualAddress,
+	_Out_ uintptr_t *PhysicalAddress)
 {
-	/* Locate the current running process */
-	MCoreAsh_t *Ash = PhoenixGetAsh(PHOENIX_CURRENT);
-	Addr_t AllocatedAddress = 0;
+	// Variables
+	MCoreAsh_t *Ash = NULL;
+	uintptr_t AllocatedAddress = 0;
 
-	/* Sanitize the process we looked up
-	 * we want it to exist of course */
-	if (Ash == NULL) {
+	// Locate the current running process
+	Ash = PhoenixGetAsh(PHOENIX_CURRENT);
+
+	// Sanitize the process we looked up
+	// we want it to exist of course
+	if (Ash == NULL || Size == 0) {
 		return OsError;
 	}
 	
-	/* Now do the allocation in the user-bitmap 
-	 * since memory is managed in userspace for speed */
+	// Now do the allocation in the user-bitmap 
+	// since memory is managed in userspace for speed
 	AllocatedAddress = BitmapAllocateAddress(Ash->Heap, Size);
 
-	/* Sanitize the returned address */
-	assert(AllocatedAddress != 0);
+	// Sanitize the returned address
+	if (AllocatedAddress == 0) {
+		return OsError;
+	}
 
-	/* Handle flags */
+	// Force a commit of memory if any flags
+	// is given, because we can't apply flags later
+	if (Flags != 0) {
+		Flags |= MEMORY_COMMIT;
+	}
+
+	// Handle flags
+	// If the commit flag is not given the flags won't be applied
 	if (Flags & MEMORY_COMMIT) {
 		int ExtendedFlags = AS_FLAG_APPLICATION;
+
+		// Build extensions
 		if (Flags & MEMORY_CONTIGIOUS) {
 			ExtendedFlags |= AS_FLAG_CONTIGIOUS;
 		}
+		if (Flags & MEMORY_UNCHACHEABLE) {
+			ExtendedFlags |= AS_FLAG_NOCACHE;
+		}
+		if (Flags & MEMORY_LOWFIRST) {
+			// Handle mask
+		}
 
-		*Physical = (uintptr_t)AddressSpaceMap(AddressSpaceGetCurrent(),
-			AllocatedAddress, Size, __MASK, ExtendedFlags);
+		// Do the actual mapping
+		if (AddressSpaceMap(AddressSpaceGetCurrent(),
+			AllocatedAddress, Size, __MASK, ExtendedFlags, PhysicalAddress) != OsNoError) {
+			BitmapFreeAddress(Ash->Heap, AllocatedAddress, Size);
+			*VirtualAddress = 0;
+			return OsError;
+		}
+
+		// Handle post allocation flags
+		if (Flags & MEMORY_CLEAN) {
+			memset((void*)AllocatedAddress, 0, Size);
+		}
 	}
 	else {
-		*Physical = 0;
+		*PhysicalAddress = 0;
 	}
 
-	/* Update out and return */
-	*Virtual = (void*)AllocatedAddress;
+	// Update out and return
+	*VirtualAddress = (uintptr_t)AllocatedAddress;
 	return OsNoError;
 }
 
@@ -590,92 +620,103 @@ ScMemoryAllocate(
  * and a size (though not needed for now!) */
 OsStatus_t 
 ScMemoryFree(
-	_In_ Addr_t Address, 
+	_In_ uintptr_t Address, 
 	_In_ size_t Size)
 {
-	/* Locate Process */
-	MCoreAsh_t *Ash = PhoenixGetAsh(PHOENIX_CURRENT);
+	// Variables
+	MCoreAsh_t *Ash = NULL;
 
-	/* Sanitize the process we looked up
-	 * we want it to exist of course */
-	if (Ash == NULL) {
+	// Locate the current running process
+	Ash = PhoenixGetAsh(PHOENIX_CURRENT);
+
+	// Sanitize the process we looked up
+	// we want it to exist of course
+	if (Ash == NULL || Size == 0) {
 		return OsError;
 	}
 
-	/* Now do the deallocation in the user-bitmap 
-	 * since memory is managed in userspace for speed */
+	// Now do the deallocation in the user-bitmap 
+	// since memory is managed in userspace for speed
 	BitmapFreeAddress(Ash->Heap, Address, Size);
 
-	/* Done */
+	// Return no error
 	return OsNoError;
 }
 
 /* Queries information about a chunk of memory 
  * and returns allocation information or stats 
  * depending on query function */
-OsStatus_t ScMemoryQuery(void)
+OsStatus_t
+ScMemoryQuery(
+	_Out_ MemoryDescriptor_t *Descriptor)
 {
+	// Implement a system query in utils.h
+
+	// Copy relevant data over
+	Descriptor->PageSizeBytes = PAGE_SIZE;
+	Descriptor->PagesTotal = 0;
+	Descriptor->PagesUsed = 0;
+
+	// Return no error, should never fail
 	return OsNoError;
 }
 
 /* ScMemoryShare
  * Share a region of memory with the given process */
-Addr_t ScMemoryShare(UUId_t Target, Addr_t Address, size_t Size)
+uintptr_t ScMemoryShare(UUId_t Target, uintptr_t Address, size_t Size)
 {
-	/* Locate the current running process */
-	MCoreAsh_t *Ash = PhoenixGetAsh(Target);
-	size_t NumBlocks, i;
+	// Variables
+	MCoreAsh_t *Ash = NULL;
+	size_t NumBlocks = 0, i = 0;
 
-	/* Sanity */
-	if (Ash == NULL || Address == 0
-		|| Size == 0) {
+	// Locate the current running process
+	Ash = PhoenixGetAsh(Target);
+
+	// Sanity
+	if (Ash == NULL || Address == 0 || Size == 0) {
 		return 0;
 	}
 
-	/* Start out by allocating memory 
-	 * in target process's shared memory space */
-	Addr_t Shm = BitmapAllocateAddress(Ash->Shm, Size);
+	// Start out by allocating memory 
+	// in target process's shared memory space
+	uintptr_t Shm = BitmapAllocateAddress(Ash->Shm, Size);
 	NumBlocks = DIVUP(Size, PAGE_SIZE);
 
-	/* Sanity -> If we cross a page boundary */
+	// Sanity -> If we cross a page boundary
 	if (((Address + Size) & PAGE_MASK)
 		!= (Address & PAGE_MASK)) {
 		NumBlocks++;
 	}
 
-	/* Sanity */
+	// Sanitize the memory allocation
 	assert(Shm != 0);
 
-	/* Now we have to transfer our physical mappings 
-	 * to their new virtual */
-	for (i = 0; i < NumBlocks; i++) 
-	{
-		/* Adjust address */
-		Addr_t AdjustedAddr = (Address & PAGE_MASK) + (i * PAGE_SIZE);
-		Addr_t AdjustedShm = Shm + (i * PAGE_SIZE);
-		Addr_t PhysicalAddr = 0;
+	// Now we have to transfer our physical mappings 
+	// to their new virtual
+	for (i = 0; i < NumBlocks; i++) {
+		uintptr_t AdjustedAddr = (Address & PAGE_MASK) + (i * PAGE_SIZE);
+		uintptr_t AdjustedShm = Shm + (i * PAGE_SIZE);
+		uintptr_t PhysicalAddress = 0;
 
-		/* The address MUST be mapped in ours */
-		if (!AddressSpaceGetMap(AddressSpaceGetCurrent(), AdjustedAddr))
-			AddressSpaceMap(AddressSpaceGetCurrent(), AdjustedAddr, 
-			PAGE_SIZE, __MASK, AS_FLAG_APPLICATION);
-	
-		/* Get physical mapping */
-		PhysicalAddr = AddressSpaceGetMap(AddressSpaceGetCurrent(), AdjustedAddr);
+		// The address MUST be mapped in ours
+		if (!AddressSpaceGetMap(AddressSpaceGetCurrent(), AdjustedAddr)) {
+			AddressSpaceMap(AddressSpaceGetCurrent(), AdjustedAddr,
+				PAGE_SIZE, __MASK, AS_FLAG_APPLICATION, &PhysicalAddress);
+		}
 
-		/* Map it directly into target process */
-		AddressSpaceMapFixed(Ash->AddressSpace, PhysicalAddr,
+		// Map it directly into target process
+		AddressSpaceMapFixed(Ash->AddressSpace, PhysicalAddress,
 			AdjustedShm, PAGE_SIZE, AS_FLAG_APPLICATION | AS_FLAG_VIRTUAL);
 	}
 
-	/* Done! */
+	// Done
 	return Shm + (Address & ATTRIBUTE_MASK);
 }
 
 /* ScMemoryUnshare
  * Unshare a previously shared region of 
  * memory with the given process */
-OsStatus_t ScMemoryUnshare(UUId_t Target, Addr_t TranslatedAddress, size_t Size)
+OsStatus_t ScMemoryUnshare(UUId_t Target, uintptr_t TranslatedAddress, size_t Size)
 {
 	/* Locate the current running process */
 	MCoreAsh_t *Ash = PhoenixGetAsh(Target);
@@ -700,7 +741,7 @@ OsStatus_t ScMemoryUnshare(UUId_t Target, Addr_t TranslatedAddress, size_t Size)
 	for (i = 0; i < NumBlocks; i++)
 	{
 		/* Adjust address */
-		Addr_t AdjustedAddr = (TranslatedAddress & PAGE_MASK) + (i * PAGE_SIZE);
+		uintptr_t AdjustedAddr = (TranslatedAddress & PAGE_MASK) + (i * PAGE_SIZE);
 
 		/* Map it directly into target process */
 		AddressSpaceUnmap(Ash->AddressSpace, AdjustedAddr, PAGE_SIZE);
@@ -890,7 +931,7 @@ OsStatus_t ScIpcSleep(size_t Timeout)
 	}
 
 	/* Sleep on process handle */
-	SchedulerSleepThread((Addr_t*)Ash, Timeout);
+	SchedulerSleepThread((uintptr_t*)Ash, Timeout);
 	IThreadYield();
 
 	/* Now we reach this when the timeout is 
@@ -913,7 +954,7 @@ OsStatus_t ScIpcWake(UUId_t Target)
 	}
 
 	/* Send a wakeup signal */
-	SchedulerWakeupOneThread((Addr_t*)Ash);
+	SchedulerWakeupOneThread((uintptr_t*)Ash);
 
 	/* Now we should have waked up the waiting process */
 	return OsNoError;
@@ -1384,7 +1425,7 @@ int NoOperation(void)
 }
 
 /* Syscall Table */
-Addr_t GlbSyscallTable[91] =
+uintptr_t GlbSyscallTable[91] =
 {
 	/* Kernel Log */
 	DefineSyscall(ScSystemDebug),

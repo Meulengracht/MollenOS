@@ -44,21 +44,21 @@ __EXTERN List_t *GlbAshes;
  * and memory mappings, must be called on it's own thread */
 void PhoenixBootProcess(void *Args)
 {
-	/* Cast the arguments */
+	// Instantiate the pointer
 	MCoreProcess_t *Process = (MCoreProcess_t*)Args;
 
-	/* Finish the standard setup of the ash */
+	// Finish the standard setup of the ash
 	PhoenixFinishAsh(&Process->Base);
 
-	/* Map in arguments */
+	// Map space for arguments
 	AddressSpaceMap(AddressSpaceGetCurrent(), MEMORY_LOCATION_RING3_ARGS,
-		PAGE_SIZE, __MASK, AS_FLAG_APPLICATION);
+		PAGE_SIZE, __MASK, AS_FLAG_APPLICATION, NULL);
 
-	/* Copy arguments */
+	// Copy in arguments
 	memcpy((void*)MEMORY_LOCATION_RING3_ARGS,
 		MStringRaw(Process->Arguments), MStringSize(Process->Arguments));
 
-	/* Go to user-land */
+	// Enter user-land, never to return
 	ThreadingEnterUserMode(Process);
 }
 

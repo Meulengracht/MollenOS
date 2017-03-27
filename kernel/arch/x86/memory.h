@@ -99,8 +99,8 @@ PACKED_TYPESTRUCT(BIOSMemoryRegion, {
  * this is to faster/safer map in system
  * memory like ACPI/device memory etc etc */
 PACKED_TYPESTRUCT(SystemMemoryMapping, {
-	PhysAddr_t				pAddressStart;
-	VirtAddr_t				vAddressStart;
+	PhysicalAddress_t				pAddressStart;
+	VirtualAddress_t				vAddressStart;
 	size_t					Length;
 	int						Type;	//Type. 2 - ACPI
 });
@@ -121,10 +121,10 @@ MmPhyiscalInit(
  * physical memory pages, this takes an argument
  * <Mask> which determines where in memory the allocation is OK */
 KERNELAPI
-PhysAddr_t
+PhysicalAddress_t
 KERNELABI
 MmPhysicalAllocateBlock(
-	_In_ Addr_t Mask, 
+	_In_ uintptr_t Mask, 
 	_In_ int Count);
 
 /* MmPhysicalFreeBlock
@@ -135,7 +135,7 @@ KERNELAPI
 OsStatus_t
 KERNELABI
 MmPhysicalFreeBlock(
-	_In_ PhysAddr_t Address);
+	_In_ PhysicalAddress_t Address);
 
 /* MmPhyiscalGetSysMappingVirtual
  * This function retrieves the virtual address 
@@ -143,10 +143,10 @@ MmPhysicalFreeBlock(
  * re-mapping and continous unmap of device memory 
  * Returns 0 if none exists */
 KERNELAPI
-VirtAddr_t
+VirtualAddress_t
 KERNELABI
 MmPhyiscalGetSysMappingVirtual(
-	_In_ PhysAddr_t PhysicalAddress);
+	_In_ PhysicalAddress_t PhysicalAddress);
 
 /* MmVirtualInit
  * Initializes the virtual memory system and
@@ -165,8 +165,8 @@ OsStatus_t
 KERNELABI
 MmVirtualMap(
 	_In_ void *PageDirectory, 
-	_In_ PhysAddr_t pAddress, 
-	_In_ VirtAddr_t vAddress, 
+	_In_ PhysicalAddress_t pAddress, 
+	_In_ VirtualAddress_t vAddress, 
 	_In_ Flags_t Flags);
 
 /* MmVirtualUnmap
@@ -177,25 +177,25 @@ OsStatus_t
 KERNELABI
 MmVirtualUnmap(
 	_In_ void *PageDirectory, 
-	_In_ VirtAddr_t Address);
+	_In_ VirtualAddress_t Address);
 
 /* MmVirtualGetMapping
  * Retrieves the physical address mapping of the
  * virtual memory address given - from the page directory 
  * that is given */
 KERNELAPI
-PhysAddr_t
+PhysicalAddress_t
 KERNELABI
 MmVirtualGetMapping(
 	_In_ void *PageDirectory, 
-	_In_ VirtAddr_t Address);
+	_In_ VirtualAddress_t Address);
 
 /* MmReserveMemory
  * Reserves memory for system use - should be allocated
  * from a fixed memory region that won't interfere with
  * general usage */
 KERNELAPI
-VirtAddr_t*
+VirtualAddress_t*
 KERNELABI
 MmReserveMemory(
 	_In_ int Pages);
@@ -218,7 +218,7 @@ KERNELABI
 MmVirtualSwitchPageDirectory(
 	_In_ UUId_t Cpu, 
 	_In_ PageDirectory_t* PageDirectory, 
-	_In_ PhysAddr_t Pdb);
+	_In_ PhysicalAddress_t Pdb);
 
 /* MmVirtualInstallPaging
  * Initializes paging for the given cpu id */

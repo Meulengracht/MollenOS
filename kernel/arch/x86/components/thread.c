@@ -42,11 +42,11 @@
  * to the timer-quantum and a bunch of 
  * assembly functions */
 __EXTERN size_t GlbTimerQuantum;
-__EXTERN void save_fpu(Addr_t *buffer);
+__EXTERN void save_fpu(uintptr_t *buffer);
 __EXTERN void set_ts(void);
 __EXTERN void _yield(void);
 __EXTERN void enter_thread(Context_t *Regs);
-__EXTERN void enter_signal(Context_t *Regs, Addr_t Handler, int Signal, Addr_t Return);
+__EXTERN void enter_signal(Context_t *Regs, uintptr_t Handler, int Signal, uintptr_t Return);
 __EXTERN void RegisterDump(Context_t *Regs);
 
 /* Globals,
@@ -100,7 +100,7 @@ InterruptStatus_t ThreadingYield(void *Args)
  * Initializes a new x86-specific thread context
  * for the given threading flags, also initializes
  * the yield interrupt handler first time its called */
-void *IThreadCreate(Flags_t ThreadFlags, Addr_t EntryPoint)
+void *IThreadCreate(Flags_t ThreadFlags, uintptr_t EntryPoint)
 {
 	/* Variables for initialization */
 	MCoreInterrupt_t Interrupt;
@@ -145,7 +145,7 @@ void *IThreadCreate(Flags_t ThreadFlags, Addr_t EntryPoint)
  * Initializes user-mode data for the given thread, and
  * allocates all neccessary resources (x86 specific) for
  * usermode operations */
-void IThreadSetupUserMode(MCoreThread_t *Thread, Addr_t StackAddress)
+void IThreadSetupUserMode(MCoreThread_t *Thread, uintptr_t StackAddress)
 {
 	/* Initialize a pointer to x86 specific data */
 	x86Thread_t *tData = (x86Thread_t*)Thread->ThreadData;
@@ -154,7 +154,7 @@ void IThreadSetupUserMode(MCoreThread_t *Thread, Addr_t StackAddress)
 	/* Initialize a user/driver-context based on
 	 * the requested runmode */
 	tData->UserContext = ContextCreate(Thread->Flags,
-		(Addr_t)Thread->Function, (Addr_t*)Thread->Args);
+		(uintptr_t)Thread->Function, (uintptr_t*)Thread->Args);
 
 	/* Disable all port-access */
 	memset(&tData->IoMap[0], 0xFF, GDT_IOMAP_SIZE);
@@ -313,7 +313,7 @@ Context_t *_ThreadingSwitch(Context_t *Regs,
 		Thread->AddressSpace->Cr3);
 
 	/* Update TSS information (stack/iomap) */
-	TssUpdateStack(Cpu, (Addr_t)Tx->Context);
+	TssUpdateStack(Cpu, (uintptr_t)Tx->Context);
 	TssUpdateIo(Cpu, &Tx->IoMap[0]);
 
 	/* Clear FPU/MMX/SSE flags */

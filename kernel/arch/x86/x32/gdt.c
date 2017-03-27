@@ -175,7 +175,7 @@ void GdtInstallTss(UUId_t Cpu, int Static)
 
 /* Updates the kernel/interrupt stack for the current
  * cpu tss entry, this should be updated at each task-switch */
-void TssUpdateStack(UUId_t Cpu, Addr_t Stack)
+void TssUpdateStack(UUId_t Cpu, uintptr_t Stack)
 {
 	TssDescriptors[Cpu]->Esp0 = Stack;
 }

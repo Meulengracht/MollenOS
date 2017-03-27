@@ -115,7 +115,7 @@ void SemaphoreDestroy(Semaphore_t *Semaphore)
 	}
 
 	/* Wake up all */
-	SchedulerWakeupAllThreads((Addr_t*)Semaphore);
+	SchedulerWakeupAllThreads((uintptr_t*)Semaphore);
 
 	/* Free it */
 	kfree(Semaphore);
@@ -154,7 +154,7 @@ void SemaphoreP(Semaphore_t *Semaphore, size_t Timeout)
 		/* It's important we leave safe-mode before
 		 * waking up others, otherwise lock is kept */
 		CriticalSectionLeave(&Semaphore->Lock);
-		SchedulerSleepThread((Addr_t*)Semaphore, Timeout);
+		SchedulerSleepThread((uintptr_t*)Semaphore, Timeout);
 		IThreadYield();
 	}
 	else {
@@ -175,7 +175,7 @@ void SemaphoreV(Semaphore_t *Semaphore, int Value)
 	 * and check if we should wake up others */
 	Semaphore->Value += Value;
 	if (Semaphore->Value <= 0) {
-		SchedulerWakeupOneThread((Addr_t*)Semaphore);
+		SchedulerWakeupOneThread((uintptr_t*)Semaphore);
 	}
 
 	/* Make sure to leave safe passage again! */

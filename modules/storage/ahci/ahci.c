@@ -393,7 +393,6 @@ AhciSetup(
 		return OsError;
 	}
 	
-	
 	// We have to take into account FIS based switching here, 
 	// if it's supported we need 4K
 	if (Controller->Registers->Capabilities & AHCI_CAPABILITIES_FBSS) {

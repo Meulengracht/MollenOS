@@ -99,7 +99,7 @@ AddressSpaceCreate(
 	{
 		// This is the only case where we should create a 
 		// new and seperate address space, user processes!
-		Addr_t PhysAddr = 0;
+		uintptr_t PhysAddr = 0;
 		PageDirectory_t *NewPd = (PageDirectory_t*)kmalloc_ap(sizeof(PageDirectory_t), &PhysAddr);
 		PageDirectory_t *CurrPd = (PageDirectory_t*)AddressSpaceGetCurrent()->PageDirectory;
 		PageDirectory_t *KernPd = (PageDirectory_t*)GlbKernelAddressSpace.PageDirectory;
@@ -260,10 +260,10 @@ AddressSpaceSwitch(
  * Translates the given address to the correct virtual
  * address, this can be used to correct any special cases on
  * virtual addresses in the sub-layer */
-VirtAddr_t
+VirtualAddress_t
 AddressSpaceTranslate(
 	_In_ AddressSpace_t *AddressSpace,
-	_In_ VirtAddr_t Address)
+	_In_ VirtualAddress_t Address)
 {
 	// Sanitize on the address, and the
 	// the type of addressing space 
@@ -279,19 +279,19 @@ AddressSpaceTranslate(
  * Maps the given virtual address into the given address space
  * automatically allocates physical pages based on the passed Flags
  * It returns the start address of the allocated physical region */
-PhysAddr_t
+OsStatus_t
 AddressSpaceMap(
 	_In_ AddressSpace_t *AddressSpace,
-	_In_ VirtAddr_t Address, 
+	_In_ VirtualAddress_t Address,
 	_In_ size_t Size,
-	_In_ Addr_t Mask, 
-	_In_ Flags_t Flags)
+	_In_ uintptr_t Mask,
+	_In_ Flags_t Flags,
+	_Out_Opt_ uintptr_t *Physical)
 {
 	// Variables
 	size_t PageCount = DIVUP(Size, PAGE_SIZE);
-	PhysAddr_t PhysicalBase = 0;
+	PhysicalAddress_t PhysicalBase = 0;
 	Flags_t AllocFlags = 0;
-	Addr_t RetAddress = 0;
 	size_t Itr = 0;
 
 	// Parse and convert flags
@@ -305,12 +305,12 @@ AddressSpaceMap(
 		AllocFlags |= PAGE_VIRTUAL;
 	}
 	if (Flags & AS_FLAG_CONTIGIOUS) {
-		RetAddress = PhysicalBase = MmPhysicalAllocateBlock(Mask, (int)PageCount);
+		PhysicalBase = MmPhysicalAllocateBlock(Mask, (int)PageCount);
 	}
 
 	// Iterate the number of pages to map 
 	for (Itr = 0; Itr < PageCount; Itr++) {
-		Addr_t PhysBlock = 0;
+		uintptr_t PhysBlock = 0;
 		if (PhysicalBase != 0) {
 			PhysBlock = PhysicalBase + (Itr * PAGE_SIZE);
 		}
@@ -319,17 +319,22 @@ AddressSpaceMap(
 		}
 
 		// Only return the base physical page
-		if (RetAddress == 0) {
-			RetAddress = PhysBlock;
+		if (PhysicalBase == 0) {
+			PhysicalBase = PhysBlock;
 		}
 
 		// Redirect call to our virtual page manager
-		MmVirtualMap(AddressSpace->PageDirectory, PhysBlock,
-			(Address + (Itr * PAGE_SIZE)), AllocFlags);
+		if (MmVirtualMap(AddressSpace->PageDirectory, PhysBlock,
+			(Address + (Itr * PAGE_SIZE)), AllocFlags) != OsNoError) {
+			return OsError;
+		}
 	}
 
-	/* Done */
-	return RetAddress;
+	// Update out and return
+	if (Physical != NULL) {
+		*Physical = PhysicalBase;
+	}
+	return OsNoError;
 }
 
 /* AddressSpaceMapFixed
@@ -339,8 +344,8 @@ AddressSpaceMap(
 OsStatus_t
 AddressSpaceMapFixed(
 	_In_ AddressSpace_t *AddressSpace,
-	_In_ PhysAddr_t pAddress, 
-	_In_ VirtAddr_t vAddress, 
+	_In_ PhysicalAddress_t pAddress, 
+	_In_ VirtualAddress_t vAddress, 
 	_In_ size_t Size, 
 	_In_ Flags_t Flags)
 {
@@ -376,7 +381,7 @@ AddressSpaceMapFixed(
 OsStatus_t
 AddressSpaceUnmap(
 	_In_ AddressSpace_t *AddressSpace, 
-	_In_ VirtAddr_t Address, 
+	_In_ VirtualAddress_t Address, 
 	_In_ size_t Size)
 {
 	// Variables
@@ -395,9 +400,9 @@ AddressSpaceUnmap(
 /* AddressSpaceGetMap
  * Retrieves a physical mapping from an address space determined
  * by the virtual address given */
-PhysAddr_t
+PhysicalAddress_t
 AddressSpaceGetMap(
 	_In_ AddressSpace_t *AddressSpace, 
-	_In_ VirtAddr_t Address) {
+	_In_ VirtualAddress_t Address) {
 	return MmVirtualGetMapping(AddressSpace->PageDirectory, Address);
 }

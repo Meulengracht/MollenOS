@@ -44,8 +44,8 @@ PACKED_TYPESTRUCT(MCoreIoSpace, {
 	UUId_t				Id;
 	UUId_t				Owner;
 	int					Type;
-	Addr_t				PhysicalBase;
-	Addr_t				VirtualBase;
+	uintptr_t				PhysicalBase;
+	uintptr_t				VirtualBase;
 	size_t				Size;
 });
 
@@ -305,9 +305,9 @@ IoSpaceDestroy(
  * Tries to validate the given virtual address by 
  * checking if any process has an active io-space
  * that involves that virtual address */
-Addr_t
+uintptr_t
 IoSpaceValidate(
-	_In_ Addr_t Address)
+	_In_ uintptr_t Address)
 {
 	// Ok, first of all, we need to validate that
 	// it's actually a process trying to do this

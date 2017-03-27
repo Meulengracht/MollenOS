@@ -58,7 +58,7 @@ __EXTERN void __sti(void);
 __EXTERN reg_t __getflags(void);
 __EXTERN reg_t __getcr2(void);
 __EXTERN void init_fpu(void);
-__EXTERN void load_fpu(Addr_t *buffer);
+__EXTERN void load_fpu(uintptr_t *buffer);
 __EXTERN void clear_ts(void);
 __EXTERN void enter_thread(Context_t *Regs);
 
@@ -766,7 +766,7 @@ void ExceptionEntry(Context_t *Registers)
 	// Variables
 	MCoreThread_t *cThread = NULL;
 	x86Thread_t *cT86 = NULL;
-	Addr_t Address = __MASK;
+	uintptr_t Address = __MASK;
 	int IssueFixed = 0;
 	UUId_t Cpu;
 
@@ -844,7 +844,7 @@ void ExceptionEntry(Context_t *Registers)
 
 	}
 	else if (Registers->Irq == 14) {	// Page Fault
-		Address = (Addr_t)__getcr2();
+		Address = (uintptr_t)__getcr2();
 
 		// The first thing we must check before propegating events
 		// is that we must check special locations
@@ -885,9 +885,9 @@ void ExceptionEntry(Context_t *Registers)
 		if (Address != __MASK) {
 			LogDebug(__MODULE, "CR2 Address: 0x%x", Address);
 			char *Name = NULL;
-			Addr_t Base = 0;
+			uintptr_t Base = 0;
 			if (DebugGetModuleByAddress(Registers->Eip, &Base, &Name) == OsNoError) {
-				Addr_t Diff = Registers->Eip - Base;
+				uintptr_t Diff = Registers->Eip - Base;
 				LogDebug(__MODULE, "Fauly Address: 0x%x (%s)", Diff, Name);
 			}
 			else {

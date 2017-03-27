@@ -68,7 +68,7 @@ typedef struct _HeapNode
 
 	/* Base Address of the allocation
 	 * made, used for finding the allocation */
-	Addr_t Address;
+	uintptr_t Address;
 
 	/* Node Flags 
 	 * Used to set different status flags for
@@ -95,8 +95,8 @@ typedef struct _HeapBlock
 {
 	/* Block Address Range 
 	 * Describes the Start - End Address */
-	Addr_t AddressStart;
-	Addr_t AddressEnd;
+	uintptr_t AddressStart;
+	uintptr_t AddressEnd;
 
 	/* Block Flags 
 	 * Used to set different status flags for
@@ -106,7 +106,7 @@ typedef struct _HeapBlock
 	/* Block Address Mask
 	 * This is for masked allocations 
 	 * The mask must match or be less than this */
-	Addr_t Mask;
+	uintptr_t Mask;
 
 	/* Shortcut stats for quickly checking
 	 * whether an allocation can be made */
@@ -136,11 +136,11 @@ typedef struct _HeapRegion
 	/* Heap Region 
 	 * Stat variables, keep track of current allocations
 	 * for headers and base memory */
-	Addr_t HeapBase;
-	Addr_t MemStartData;
-	Addr_t MemHeaderCurrent;
-	Addr_t MemHeaderMax;
-	Addr_t HeapEnd;
+	uintptr_t HeapBase;
+	uintptr_t MemStartData;
+	uintptr_t MemHeaderCurrent;
+	uintptr_t MemHeaderMax;
+	uintptr_t HeapEnd;
 
 	/* Whether or not this is a user heap
 	 * we need to know this when mapping in memory */
@@ -177,13 +177,13 @@ typedef struct _HeapRegion
  * Finds a suitable block for allocation
  * and allocates in that block, this is primary
  * allocator of the heap */
-__EXTERN Addr_t HeapAllocate(Heap_t *Heap, size_t Size,
-	Flags_t Flags, size_t Alignment, Addr_t Mask, const char *Identifier);
+__EXTERN uintptr_t HeapAllocate(Heap_t *Heap, size_t Size,
+	Flags_t Flags, size_t Alignment, uintptr_t Mask, const char *Identifier);
 
 /* HeapFree
  * Finds the appropriate block
  * that should contain our node */
-__EXTERN void HeapFree(Heap_t *Heap, Addr_t Addr);
+__EXTERN void HeapFree(Heap_t *Heap, uintptr_t Addr);
 
 /* HeapQueryMemoryInformation
  * Queries memory information about a heap
@@ -201,7 +201,7 @@ __EXTERN void HeapInit(void);
  * This function allocates a 'third party' heap that
  * can be used like a memory region for allocations, usefull
  * for servers, shared memory, processes etc */
-__EXTERN Heap_t *HeapCreate(Addr_t HeapAddress, Addr_t HeapEnd, int UserHeap);
+__EXTERN Heap_t *HeapCreate(uintptr_t HeapAddress, uintptr_t HeapEnd, int UserHeap);
 
 /* Helper function that enumerates the given heap 
  * and prints out different allocation stats of heap */
@@ -211,7 +211,7 @@ __EXTERN void HeapReap(void);
 /* Used for validation that an address is allocated
  * within the given heap, this can be used for security
  * or validation purposes, use NULL for kernel heap */
-__EXTERN int HeapValidateAddress(Heap_t *Heap, Addr_t Address);
+__EXTERN int HeapValidateAddress(Heap_t *Heap, uintptr_t Address);
 
 /* Simply just a wrapper for HeapAllocate
  * with the kernel heap as argument 
@@ -219,7 +219,7 @@ __EXTERN int HeapValidateAddress(Heap_t *Heap, Addr_t Address);
  * makes sure pages are mapped in memory
  * this function also returns the physical address 
  * of the allocation and aligned to PAGE_ALIGN with memory <Mask> */
-__EXTERN void *kmalloc_apm(size_t Size, Addr_t *Ptr, Addr_t Mask);
+__EXTERN void *kmalloc_apm(size_t Size, uintptr_t *Ptr, uintptr_t Mask);
 
 /* Simply just a wrapper for HeapAllocate
  * with the kernel heap as argument 
@@ -227,7 +227,7 @@ __EXTERN void *kmalloc_apm(size_t Size, Addr_t *Ptr, Addr_t Mask);
  * makes sure pages are mapped in memory
  * this function also returns the physical address 
  * of the allocation and aligned to PAGE_ALIGN */
-__EXTERN void *kmalloc_ap(size_t Size, Addr_t *Ptr);
+__EXTERN void *kmalloc_ap(size_t Size, uintptr_t *Ptr);
 
 /* Simply just a wrapper for HeapAllocate
  * with the kernel heap as argument 
@@ -235,7 +235,7 @@ __EXTERN void *kmalloc_ap(size_t Size, Addr_t *Ptr);
  * makes sure pages are mapped in memory
  * this function also returns the physical address 
  * of the allocation */
-__EXTERN void *kmalloc_p(size_t Size, Addr_t *Ptr);
+__EXTERN void *kmalloc_p(size_t Size, uintptr_t *Ptr);
 
 /* Simply just a wrapper for HeapAllocate
  * with the kernel heap as argument 

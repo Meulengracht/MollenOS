@@ -39,20 +39,20 @@
 /* Stack manipulation / setup of stacks for given
  * threading. We need functions that create a new kernel
  * stack and user/driver stack. Pass threading flags */
-Context_t *ContextCreate(Flags_t ThreadFlags, Addr_t Eip, Addr_t *Arguments)
+Context_t *ContextCreate(Flags_t ThreadFlags, uintptr_t Eip, uintptr_t *Arguments)
 {
 	// Variables
 	Context_t *Context = NULL;
 	uint32_t DataSegment = 0, CodeSegment = 0, StackSegment = 0;
-	Addr_t ContextAddress = 0, EbpInitial = 0;
+	uintptr_t ContextAddress = 0, EbpInitial = 0;
 
 	// Trace
 	TRACE("ContextCreate(Flags 0x%x, Eip 0x%x, Args 0x%x)",
-		ThreadFlags, Eip, (Addr_t)Arguments);
+		ThreadFlags, Eip, (uintptr_t)Arguments);
 
 	// Select proper segments
 	if (THREADING_RUNMODE(ThreadFlags) == THREADING_KERNELMODE) {
-		ContextAddress = ((Addr_t)kmalloc_a(0x1000)) + 0x1000 - sizeof(Context_t);
+		ContextAddress = ((uintptr_t)kmalloc_a(0x1000)) + 0x1000 - sizeof(Context_t);
 		CodeSegment = GDT_KCODE_SEGMENT;
 		StackSegment = DataSegment = GDT_KDATA_SEGMENT;
 		EbpInitial = (ContextAddress + sizeof(Context_t));
@@ -114,7 +114,7 @@ Context_t *ContextCreate(Flags_t ThreadFlags, Addr_t Eip, Addr_t *Arguments)
 	else {
 		Context->UserEsp = 0xFFFFFFF0;
 		Context->UserSs = StackSegment;
-		Context->UserArg = (Addr_t)Arguments;
+		Context->UserArg = (uintptr_t)Arguments;
 	}
 
 	// Return the newly created context

@@ -59,7 +59,7 @@ typedef enum _AshQueryFunction {
  * This is used for interrupt-signals
  * across threads and processes */
 typedef struct _MCoreSignalTable {
-	Addr_t Handlers[NUMSIGNALS + 1];
+	uintptr_t Handlers[NUMSIGNALS + 1];
 } MCoreSignalTable_t;
 
 /* A Signal Entry 
@@ -67,7 +67,7 @@ typedef struct _MCoreSignalTable {
  * that is waiting for execution */
 typedef struct _MCoreSignal {
 	int Signal;
-	Addr_t Handler;
+	uintptr_t Handler;
 	Context_t Context;
 } MCoreSignal_t;
 
@@ -118,10 +118,10 @@ typedef struct _MCoreAsh
 	 * the startup and the executable information
 	 * that the Ash has */
 	MCorePeFile_t *Executable;
-	Addr_t NextLoadingAddress;
+	uintptr_t NextLoadingAddress;
 	uint8_t *FileBuffer;
 	size_t FileBufferLength;
-	Addr_t StackStart;
+	uintptr_t StackStart;
 
 	/* This is the return/code
 	 * that gets set upon ash-exit */

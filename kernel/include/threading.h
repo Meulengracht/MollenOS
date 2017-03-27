@@ -97,7 +97,7 @@ typedef struct _MCoreThread {
 	size_t						 TimeSlice;
 	int							 Queue;
 
-	Addr_t						*SleepResource;
+	uintptr_t						*SleepResource;
 	size_t						 Sleep;
 
 	void						*ThreadData;

@@ -49,7 +49,7 @@ void InterruptInstallDefaultGates(void);
  * Helper for installing a new idt descriptor into
  * the descriptor table, a memory base, interrupt
  * flags and a segment selector */
-void IdtInstallDescriptor(int IntNum, Addr_t Base,
+void IdtInstallDescriptor(int IntNum, uintptr_t Base,
 	uint16_t Selector, uint8_t Flags)
 {
 	/* Set Address */

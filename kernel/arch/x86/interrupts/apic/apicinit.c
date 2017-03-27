@@ -42,7 +42,7 @@
 size_t GlbTimerQuantum = APIC_DEFAULT_QUANTUM;
 volatile size_t GlbTimerTicks[64];
 List_t *GlbIoApics = NULL;
-Addr_t GlbLocalApicBase = 0;
+uintptr_t GlbLocalApicBase = 0;
 UUId_t GlbBootstrapCpuId = 0;
 int GlbIoApicI8259Pin = 0;
 int GlbIoApicI8259Apic = 0;
@@ -141,7 +141,7 @@ void AcpiSetupIoApic(void *Data, int Nr, void *UserData)
 	int IoEntries, i, j;
 	int IoApicNum = Nr;
 	IoApic_t *IoListEntry = NULL;
-	Addr_t RemapTo = (Addr_t)MmReserveMemory(1);
+	uintptr_t RemapTo = (uintptr_t)MmReserveMemory(1);
 
 	/* Debug */
 	LogInformation("APIC", "Initializing I/O Apic %u", IoApic->Id);
@@ -452,7 +452,7 @@ void ApicInitBoot(void)
 	 * we should fallback to MP tables, but not rn..) */
 	if (ACPI_SUCCESS(AcpiGetTable(ACPI_SIG_MADT, 0, &Header))) {
 		ACPI_TABLE_MADT *MadtTable = (ACPI_TABLE_MADT*)Header;
-		Addr_t RemapTo = (Addr_t)MmReserveMemory(1);
+		uintptr_t RemapTo = (uintptr_t)MmReserveMemory(1);
 
 		/* We don't identity map it for several reasons, as we use
 		 * higher space memory for stuff, so we allocate a new address

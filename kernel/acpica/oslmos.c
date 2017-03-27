@@ -314,7 +314,7 @@ void *AcpiOsMapMemory(
 	ACPI_SIZE               Length)
 { 
 	/* Vars */
-	Addr_t Acpi_Mapping = MmPhyiscalGetSysMappingVirtual((PhysAddr_t)Where);
+	uintptr_t Acpi_Mapping = MmPhyiscalGetSysMappingVirtual((PhysicalAddress_t)Where);
 	int Acpi_Pages = (Length / PAGE_SIZE) + ((Length % PAGE_SIZE) != 0 ? 1 : 0);
 
 	/* We should handle the case where it crosses a page boundary :o */
@@ -332,11 +332,11 @@ void *AcpiOsMapMemory(
 	{
 		/* This is the last special case, we already IMAP some space */
 		if (Where >= 0x1000 && Where < TABLE_SPACE_SIZE)
-			Acpi_Mapping = (Addr_t)Where;
+			Acpi_Mapping = (uintptr_t)Where;
 		else
 		{
 			/* Sigh... Imap it and hope stuff do not break :(((( */
-			Addr_t ReservedMem = (Addr_t)MmReserveMemory(Acpi_Pages);
+			uintptr_t ReservedMem = (uintptr_t)MmReserveMemory(Acpi_Pages);
 			int i = 0;
 
 			/* Map it in */
@@ -345,7 +345,7 @@ void *AcpiOsMapMemory(
 					MmVirtualMap(NULL, (Where & PAGE_MASK) + (i * PAGE_SIZE), ReservedMem + (i * PAGE_SIZE), 0);
 			}
 
-			return (void*)(ReservedMem + ((Addr_t)Where & ATTRIBUTE_MASK));
+			return (void*)(ReservedMem + ((uintptr_t)Where & ATTRIBUTE_MASK));
 		}
 	}
 

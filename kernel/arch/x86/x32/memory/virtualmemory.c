@@ -45,7 +45,7 @@
 static PageDirectory_t *GlbKernelPageDirectory = NULL;
 static PageDirectory_t *GlbPageDirectories[MAX_SUPPORTED_CPUS];
 static Spinlock_t GlbVmLock = SPINLOCK_INIT;
-static Addr_t GblReservedPtr = 0;
+static uintptr_t GblReservedPtr = 0;
 
 /* Extern acess to system mappings in the
  * physical memory manager */
@@ -54,9 +54,9 @@ __EXTERN SystemMemoryMapping_t SysMappings[32];
 /* Extern assembly functions that are
  * implemented in _paging.asm */
 __EXTERN void memory_set_paging(int enable);
-__EXTERN void memory_load_cr3(Addr_t pda);
+__EXTERN void memory_load_cr3(uintptr_t pda);
 __EXTERN void memory_reload_cr3(void);
-__EXTERN void memory_invalidate_addr(Addr_t pda);
+__EXTERN void memory_invalidate_addr(uintptr_t pda);
 __EXTERN uint32_t memory_get_cr3(void);
 
 /* MmVirtualCreatePageTable
@@ -66,7 +66,7 @@ MmVirtualCreatePageTable(void)
 {
 	// Variables
 	PageTable_t *Table = NULL;
-	PhysAddr_t Address = 0;
+	PhysicalAddress_t Address = 0;
 
 	// Allocate a new page-table instance
 	Address = MmPhysicalAllocateBlock(MEMORY_INIT_MASK, 1);
@@ -86,12 +86,12 @@ MmVirtualCreatePageTable(void)
 void 
 MmVirtualFillPageTable(
 	_Out_ PageTable_t *pTable, 
-	_In_ PhysAddr_t pAddressStart, 
-	_In_ VirtAddr_t vAddressStart, 
+	_In_ PhysicalAddress_t pAddressStart, 
+	_In_ VirtualAddress_t vAddressStart, 
 	_In_ Flags_t Flags)
 {
 	// Variables
-	Addr_t pAddress, vAddress;
+	uintptr_t pAddress, vAddress;
 	int i;
 
 	// Iterate through pages and map them
@@ -110,9 +110,9 @@ MmVirtualFillPageTable(
 void 
 MmVirtualIdentityMapMemoryRange(
 	_Out_ PageDirectory_t* PageDirectory,
-	_In_ PhysAddr_t pAddressStart, 
-	_In_ VirtAddr_t vAddressStart, 
-	_In_ Addr_t Length, 
+	_In_ PhysicalAddress_t pAddressStart, 
+	_In_ VirtualAddress_t vAddressStart, 
+	_In_ uintptr_t Length, 
 	_In_ int Fill, 
 	_In_ Flags_t Flags)
 {
@@ -124,8 +124,8 @@ MmVirtualIdentityMapMemoryRange(
 		i < (PAGE_DIRECTORY_INDEX(vAddressStart + Length - 1) + 1);
 		i++, k++) {
 		PageTable_t *Table = MmVirtualCreatePageTable();
-		Addr_t pAddress = pAddressStart + (k * TABLE_SPACE_SIZE);
-		Addr_t vAddress = vAddressStart + (k * TABLE_SPACE_SIZE);
+		uintptr_t pAddress = pAddressStart + (k * TABLE_SPACE_SIZE);
+		uintptr_t vAddress = vAddressStart + (k * TABLE_SPACE_SIZE);
 
 		// Fill it with pages?
 		if (Fill != 0) {
@@ -133,9 +133,9 @@ MmVirtualIdentityMapMemoryRange(
 		}
 
 		// Install the table into the given page-directory
-		PageDirectory->pTables[i] = (PhysAddr_t)Table 
+		PageDirectory->pTables[i] = (PhysicalAddress_t)Table 
 			| (PAGE_SYSTEM_MAP | PAGE_PRESENT | PAGE_WRITE | Flags);
-		PageDirectory->vTables[i] = (Addr_t)Table;
+		PageDirectory->vTables[i] = (uintptr_t)Table;
 	}
 }
 
@@ -147,7 +147,7 @@ OsStatus_t
 MmVirtualSwitchPageDirectory(
 	_In_ UUId_t Cpu, 
 	_In_ PageDirectory_t* PageDirectory, 
-	_In_ PhysAddr_t Pdb)
+	_In_ PhysicalAddress_t Pdb)
 {
 	// Sanitize the parameter
 	assert(PageDirectory != NULL);
@@ -180,7 +180,7 @@ MmVirtualInstallPaging(
 	_In_ UUId_t Cpu)
 {
 	MmVirtualSwitchPageDirectory(Cpu, GlbKernelPageDirectory, 
-		(Addr_t)GlbKernelPageDirectory);
+		(uintptr_t)GlbKernelPageDirectory);
 	memory_set_paging(1);
 }
 
@@ -191,8 +191,8 @@ MmVirtualInstallPaging(
 OsStatus_t
 MmVirtualMap(
 	_In_ void *PageDirectory, 
-	_In_ PhysAddr_t pAddress, 
-	_In_ VirtAddr_t vAddress, 
+	_In_ PhysicalAddress_t pAddress, 
+	_In_ VirtualAddress_t vAddress, 
 	_In_ Flags_t Flags)
 {
 	// Variabes
@@ -225,7 +225,7 @@ MmVirtualMap(
 	// If the page-table is not even mapped in we need to 
 	// do that beforehand
 	if (!(Directory->pTables[PAGE_DIRECTORY_INDEX(vAddress)] & PAGE_PRESENT)) {
-		Addr_t Physical = 0;
+		uintptr_t Physical = 0;
 		Table = (PageTable_t*)kmalloc_ap(PAGE_SIZE, &Physical);
 
 		// Sanitize the newly allocated table
@@ -238,7 +238,7 @@ MmVirtualMap(
 		Directory->pTables[PAGE_DIRECTORY_INDEX(vAddress)] =
 			Physical | PAGE_PRESENT | PAGE_WRITE | Flags;
 		Directory->vTables[PAGE_DIRECTORY_INDEX(vAddress)] =
-			(Addr_t)Table;
+			(uintptr_t)Table;
 
 		// Reload CR3 directory to force 
 		// the MMIO to see our changes 
@@ -286,7 +286,7 @@ MmVirtualMap(
 OsStatus_t
 MmVirtualUnmap(
 	_In_ void *PageDirectory, 
-	_In_ VirtAddr_t Address)
+	_In_ VirtualAddress_t Address)
 {
 	// Variables needed for finding out page index
 	OsStatus_t Result = OsNoError;
@@ -336,7 +336,7 @@ MmVirtualUnmap(
 	else
 	{
 		// Ok, step one is to extract the physical page of this index
-		PhysAddr_t Physical = Table->Pages[PAGE_TABLE_INDEX(Address)];
+		PhysicalAddress_t Physical = Table->Pages[PAGE_TABLE_INDEX(Address)];
 
 		// Clear the mapping out
 		Table->Pages[PAGE_TABLE_INDEX(Address)] = 0;
@@ -368,15 +368,15 @@ Leave:
  * Retrieves the physical address mapping of the
  * virtual memory address given - from the page directory 
  * that is given */
-PhysAddr_t
+PhysicalAddress_t
 MmVirtualGetMapping(
 	_In_ void *PageDirectory, 
-	_In_ VirtAddr_t Address)
+	_In_ VirtualAddress_t Address)
 {
 	// Initiate our variables
 	PageDirectory_t *Directory = (PageDirectory_t*)PageDirectory;
 	PageTable_t *Table = NULL;
-	PhysAddr_t Mapping = 0;
+	PhysicalAddress_t Mapping = 0;
 
 	// If none was given - use the current
 	if (Directory == NULL) {
@@ -430,8 +430,8 @@ NotMapped:
  * is used */
 void 
 MmVirtualInitialMap(
-	_In_ PhysAddr_t pAddress, 
-	_In_ VirtAddr_t vAddress)
+	_In_ PhysicalAddress_t pAddress, 
+	_In_ VirtualAddress_t vAddress)
 {
 	// Variables
 	PageDirectory_t *Directory = GlbKernelPageDirectory;
@@ -441,9 +441,9 @@ MmVirtualInitialMap(
 	// we must allocate a new one and install it
 	if (!(Directory->pTables[PAGE_DIRECTORY_INDEX(vAddress)] & PAGE_PRESENT)) {
 		Table = MmVirtualCreatePageTable();
-		Directory->pTables[PAGE_DIRECTORY_INDEX(vAddress)] = (PhysAddr_t)Table
+		Directory->pTables[PAGE_DIRECTORY_INDEX(vAddress)] = (PhysicalAddress_t)Table
 			| PAGE_PRESENT | PAGE_WRITE;
-		Directory->vTables[PAGE_DIRECTORY_INDEX(vAddress)] = (PhysAddr_t)Table;
+		Directory->vTables[PAGE_DIRECTORY_INDEX(vAddress)] = (PhysicalAddress_t)Table;
 	}
 	else {
 		Table = (PageTable_t*)Directory->vTables[PAGE_DIRECTORY_INDEX(vAddress)];
@@ -462,12 +462,12 @@ MmVirtualInitialMap(
  * Reserves memory for system use - should be allocated
  * from a fixed memory region that won't interfere with
  * general usage */
-VirtAddr_t*
+VirtualAddress_t*
 MmReserveMemory(
 	_In_ int Pages)
 {
 	// Variables
-	VirtAddr_t ReturnAddress = 0;
+	VirtualAddress_t ReturnAddress = 0;
 
 	// Calculate new address 
 	// this is a locked operation
@@ -477,7 +477,7 @@ MmReserveMemory(
 	SpinlockRelease(&GlbVmLock);
 
 	// Done - return address
-	return (VirtAddr_t*)ReturnAddress;
+	return (VirtualAddress_t*)ReturnAddress;
 }
 
 /* MmVirtualInit
@@ -509,9 +509,9 @@ MmVirtualInit(void)
 	MmVirtualFillPageTable(iTable, 0x1000, 0x1000, 0);
 
 	// Install the first page-table
-	GlbKernelPageDirectory->pTables[0] = (PhysAddr_t)iTable | PAGE_USER
+	GlbKernelPageDirectory->pTables[0] = (PhysicalAddress_t)iTable | PAGE_USER
 		| PAGE_PRESENT | PAGE_WRITE | PAGE_SYSTEM_MAP;
-	GlbKernelPageDirectory->vTables[0] = (Addr_t)iTable;
+	GlbKernelPageDirectory->vTables[0] = (uintptr_t)iTable;
 	
 	// Initialize locks
 	MutexConstruct(&GlbKernelPageDirectory->Lock);
@@ -555,12 +555,12 @@ MmVirtualInit(void)
 	VideoGetTerminal()->Info.FrameBufferAddress = MEMORY_LOCATION_VIDEO;
 
 	// Update and switch page-directory for boot-cpu
-	MmVirtualSwitchPageDirectory(0, GlbKernelPageDirectory, (Addr_t)GlbKernelPageDirectory);
+	MmVirtualSwitchPageDirectory(0, GlbKernelPageDirectory, (uintptr_t)GlbKernelPageDirectory);
 	memory_set_paging(1);
 
 	// Setup kernel addressing space
 	KernelSpace.Flags = AS_TYPE_KERNEL;
-	KernelSpace.Cr3 = (Addr_t)GlbKernelPageDirectory;
+	KernelSpace.Cr3 = (uintptr_t)GlbKernelPageDirectory;
 	KernelSpace.PageDirectory = GlbKernelPageDirectory;
 
 	// Done! 

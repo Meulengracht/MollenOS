@@ -95,7 +95,7 @@ OsStatus_t
 KERNELABI
 DebugPageFault(
 	_In_ Context_t *Context,
-	_In_ Addr_t Address);
+	_In_ uintptr_t Address);
 
 /* DebugPanic
  * Kernel panic function - Call this to enter panic mode
@@ -115,8 +115,8 @@ KERNELAPI
 OsStatus_t
 KERNELABI
 DebugGetModuleByAddress(
-	_In_ Addr_t Address, 
-	_Out_ Addr_t *Base, 
+	_In_ uintptr_t Address, 
+	_Out_ uintptr_t *Base, 
 	_Out_ char **Name);
 
 /* DebugStackTrace

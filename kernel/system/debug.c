@@ -82,7 +82,7 @@ DebugBreakpoint(
 OsStatus_t
 DebugPageFault(
 	_In_ Context_t *Context,
-	_In_ Addr_t Address)
+	_In_ uintptr_t Address)
 {
 	// Trace
 	TRACE("DebugPageFault(IP 0x%x, Address 0x%x)",
@@ -93,13 +93,12 @@ DebugPageFault(
 	// Case 1 - Userspace
 	if (Address >= MEMORY_LOCATION_RING3_IOSPACE
 		&& Address < MEMORY_LOCATION_RING3_IOSPACE_END) {
-		Addr_t Physical = IoSpaceValidate(Address);
+		uintptr_t Physical = IoSpaceValidate(Address);
 		if (Physical != 0) {
 			// Try to map it in and return the result
-			AddressSpaceMapFixed(AddressSpaceGetCurrent(),
+			return AddressSpaceMapFixed(AddressSpaceGetCurrent(),
 				(Physical & PAGE_MASK), (Address & PAGE_MASK), PAGE_SIZE,
 				AS_FLAG_NOCACHE | AS_FLAG_APPLICATION);
-			return OsNoError;
 		}
 	}
 
@@ -108,9 +107,8 @@ DebugPageFault(
 		&& Address < MEMORY_LOCATION_HEAP_END) {
 		if (!HeapValidateAddress(NULL, Address)) {
 			// Try to map it in and return the result
-			AddressSpaceMap(AddressSpaceGetCurrent(),
-				(Address & PAGE_MASK), PAGE_SIZE, __MASK, 0);
-			return OsNoError;
+			return AddressSpaceMap(AddressSpaceGetCurrent(),
+				(Address & PAGE_MASK), PAGE_SIZE, __MASK, 0, NULL);
 		}
 	}
 
@@ -121,10 +119,9 @@ DebugPageFault(
 		if (Ash != NULL) {
 			if (!BitmapValidateAddress(Ash->Heap, Address)) {
 				// Try to map it in and return the result
-				AddressSpaceMap(AddressSpaceGetCurrent(),
-					(Address & PAGE_MASK), PAGE_SIZE, __MASK, 
-					AS_FLAG_APPLICATION);
-				return OsNoError;
+				return AddressSpaceMap(AddressSpaceGetCurrent(),
+					(Address & PAGE_MASK), PAGE_SIZE, __MASK,
+					AS_FLAG_APPLICATION, NULL);
 			}
 		}
 	}
@@ -132,10 +129,9 @@ DebugPageFault(
 	// Case 4 - User Stack
 	else if (Address >= MEMORY_LOCATION_STACK_END) {
 		// Try to map it in and return the result
-		AddressSpaceMap(AddressSpaceGetCurrent(),
+		return AddressSpaceMap(AddressSpaceGetCurrent(),
 			(Address & PAGE_MASK), PAGE_SIZE, __MASK,
-			AS_FLAG_APPLICATION);
-		return OsNoError;
+			AS_FLAG_APPLICATION, NULL);
 	}
 
 	// If we reach here, it was invalid
@@ -205,8 +201,8 @@ DebugPanic(
  * Retrieves the module (Executable) at the given address */
 OsStatus_t
 DebugGetModuleByAddress(
-	_In_ Addr_t Address,
-	_Out_ Addr_t *Base,
+	_In_ uintptr_t Address,
+	_Out_ uintptr_t *Base,
 	_Out_ char **Name)
 {
 	// Validate that the address is within userspace
@@ -217,7 +213,7 @@ DebugGetModuleByAddress(
 		// Sanitize whether or not a process was running
 		if (Ash != NULL && Ash->Executable != NULL) {
 			char *PmName = (char*)MStringRaw(Ash->Executable->Name);
-			Addr_t PmBase = Ash->Executable->VirtualAddress;
+			uintptr_t PmBase = Ash->Executable->VirtualAddress;
 
 			// Iterate libraries to find the sinner
 			// We only want one 
@@ -252,13 +248,13 @@ DebugStackTrace(
 	_In_ size_t MaxFrames)
 {
 	// Derive stack pointer from the argument
-	Addr_t *StackPtr = (Addr_t*)&MaxFrames;
+	uintptr_t *StackPtr = (uintptr_t*)&MaxFrames;
 	size_t Itr = MaxFrames;
 
 	// Iterate the stack frames by retrieving EBP
 	while (Itr != 0 && StackPtr != NULL) {
-		Addr_t Ip = StackPtr[2];
-		Addr_t Base = 0;
+		uintptr_t Ip = StackPtr[2];
+		uintptr_t Base = 0;
 		char *Name = NULL;
 
 		// Santize IP
@@ -270,7 +266,7 @@ DebugStackTrace(
 
 		// Lookup module if the address is within userspace
 		if (DebugGetModuleByAddress(Ip, &Base, &Name) == OsNoError) {
-			Addr_t Diff = Ip - Base;
+			uintptr_t Diff = Ip - Base;
 			LogInformation("CSTK", "%u - 0x%x (%s)",
 				MaxFrames - Itr, Diff, Name);
 		}
@@ -293,7 +289,7 @@ DebugStackTrace(
 		StackPtr--;
 
 		/* Sanitize */
-		if (AddressSpaceGetMap(AddressSpaceGetCurrent(), (VirtAddr_t)StackPtr) == 0) {
+		if (AddressSpaceGetMap(AddressSpaceGetCurrent(), (VirtualAddress_t)StackPtr) == 0) {
 			break;
 		}
 
@@ -393,13 +389,13 @@ DebugContext(
 }
 
 /* Disassembles Memory */
-//char *get_instructions_at_mem(addr_t address)
+//char *get_instructions_at_mem(uintptr_t address)
 //{
 //	/* We debug 50 bytes of memory */
 //	int n;
 //	int num_instructions = 1; /* Debug, normal 50 */
 //	char *instructions = (char*)kmalloc(0x1000);
-//	addr_t pointer = address;
+//	uintptr_t pointer = address;
 //
 //	/* Null */
 //	memset(instructions, 0, 0x1000);

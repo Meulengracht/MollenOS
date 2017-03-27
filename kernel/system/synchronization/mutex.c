@@ -52,7 +52,7 @@ void MutexConstruct(Mutex_t *Mutex)
 void MutexDestruct(Mutex_t *Mutex)
 {
 	/* Wake all remaining tasks waiting for this mutex */
-	SchedulerWakeupAllThreads((Addr_t*)Mutex);
+	SchedulerWakeupAllThreads((uintptr_t*)Mutex);
 
 	/* Free resources */
 	kfree(Mutex);
@@ -73,7 +73,7 @@ int MutexLock(Mutex_t *Mutex)
 	while (Mutex->Blocks != 0)
 	{
 		/* Wait for signal */
-		SchedulerSleepThread((Addr_t*)Mutex, MUTEX_DEFAULT_TIMEOUT);
+		SchedulerSleepThread((uintptr_t*)Mutex, MUTEX_DEFAULT_TIMEOUT);
 
 		/* Yield */
 		IThreadYield();
@@ -98,5 +98,5 @@ void MutexUnlock(Mutex_t *Mutex)
 
 	/* Are we done? */
 	if (Mutex->Blocks == 0)
-		SchedulerWakeupOneThread((Addr_t*)Mutex);
+		SchedulerWakeupOneThread((uintptr_t*)Mutex);
 }

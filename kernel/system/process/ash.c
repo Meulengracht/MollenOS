@@ -47,51 +47,51 @@ __EXTERN List_t *GlbAshes;
  * and memory mappings, must be called on it's own thread */
 void PhoenixFinishAsh(MCoreAsh_t *Ash)
 {
-	/* Cast */
+	// Variables
 	UUId_t CurrentCpu = CpuGetCurrentId();
 	MCoreThread_t *Thread = ThreadingGetCurrentThread(CurrentCpu);
-	Addr_t BaseAddress = 0;
+	uintptr_t BaseAddress = 0;
 	int LoadedFromInitRD = 0;
 
-	/* Sanitize the loaded path, if we were
-	 * using the initrd set flags accordingly */
+	// Sanitize the loaded path, if we were
+	// using the initrd set flags accordingly
 	if (MStringFindChars(Ash->Path, "rd:/") != MSTRING_NOT_FOUND) {
 		LoadedFromInitRD = 1;
 	}
 
-	/* Update this thread */
+	// Update currently running thread
 	Ash->MainThread = Thread->Id;
 	Thread->AshId = Ash->Id;
 
-	/* Save address space */
+	// Store current address space
 	Ash->AddressSpace = AddressSpaceGetCurrent();
 
-	/* Never translate here */
+	// Setup base address for code data
 	BaseAddress = MEMORY_LOCATION_RING3_CODE;
 
-	/* Load Executable */
+	// Load Executable
 	Ash->Executable = PeLoadImage(NULL, Ash->Name, Ash->FileBuffer, 
 		Ash->FileBufferLength, &BaseAddress, LoadedFromInitRD);
 	Ash->NextLoadingAddress = BaseAddress;
 
-	/* Cleanup file buffer */
+	// Cleanup file buffer
 	if (!LoadedFromInitRD) {
 		kfree(Ash->FileBuffer);
 	}
 	Ash->FileBuffer = NULL;
 
-	/* Create the memory allocators */
+	// Initialize the memory bitmaps
 	Ash->Heap = BitmapCreate(AddressSpaceTranslate(Ash->AddressSpace, MEMORY_LOCATION_RING3_HEAP),
 		AddressSpaceTranslate(Ash->AddressSpace, MEMORY_LOCATION_RING3_SHM), PAGE_SIZE);
 	Ash->Shm = BitmapCreate(AddressSpaceTranslate(Ash->AddressSpace, MEMORY_LOCATION_RING3_SHM),
 		AddressSpaceTranslate(Ash->AddressSpace, MEMORY_LOCATION_RING3_IOSPACE), PAGE_SIZE);
 
-	/* Map Stack */
+	// Create the stack mapping
 	AddressSpaceMap(AddressSpaceGetCurrent(), (MEMORY_SEGMENT_STACK_BASE & PAGE_MASK),
-		ASH_STACK_INIT, __MASK, AS_FLAG_APPLICATION);
+		ASH_STACK_INIT, __MASK, AS_FLAG_APPLICATION, NULL);
 	Ash->StackStart = MEMORY_SEGMENT_STACK_BASE;
 
-	/* Setup signalling */
+	// Initialize signal queue
 	Ash->SignalQueue = ListCreate(KeyInteger, LIST_NORMAL);
 }
 
@@ -262,7 +262,7 @@ int PhoenixOpenAshPipe(MCoreAsh_t *Ash, int Port, Flags_t Flags)
 
 	/* Add it to the list */
 	ListAppend(Ash->Pipes, ListCreateNode(Key, Key, Pipe));
-	SchedulerWakeupAllThreads((Addr_t*)Ash->Pipes);
+	SchedulerWakeupAllThreads((uintptr_t*)Ash->Pipes);
 
 	/* The pipe is now created and ready
 	 * for use by the process */
@@ -291,7 +291,7 @@ int PhoenixWaitAshPipe(MCoreAsh_t *Ash, int Port)
 		if (ListGetDataByKey(Ash->Pipes, Key, 0) != NULL) {
 			break;
 		}
-		SchedulerSleepThread((Addr_t*)Ash->Pipes, 0);
+		SchedulerSleepThread((uintptr_t*)Ash->Pipes, 0);
 		IThreadYield();
  	}
 

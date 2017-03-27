@@ -94,7 +94,7 @@ typedef struct _IoApic {
 	int					Version;
 	int					GsiStart;
 	int					PinCount;
-	volatile Addr_t		BaseAddress;
+	volatile uintptr_t		BaseAddress;
 } IoApic_t;
 
 /* Initialize the local APIC controller

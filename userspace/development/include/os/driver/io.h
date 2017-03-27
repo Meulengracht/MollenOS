@@ -41,8 +41,8 @@
 typedef struct _DeviceIoSpace {
 	UUId_t						Id;
 	int							Type;
-	Addr_t						PhysicalBase;
-	Addr_t						VirtualBase;
+	uintptr_t						PhysicalBase;
+	uintptr_t						VirtualBase;
 	size_t						Size;
 } DeviceIoSpace_t;
 

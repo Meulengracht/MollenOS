@@ -341,7 +341,7 @@ void SchedulerApplyMs(size_t Ms)
  * by time, or both. If resource is NULL then it will wake the
  * thread after <timeout> ms. If infinite wait is required set
  * timeout to 0 */
-void SchedulerSleepThread(Addr_t *Resource, size_t Timeout)
+void SchedulerSleepThread(uintptr_t *Resource, size_t Timeout)
 {
 	/* Disable Interrupts 
 	 * This is a fragile operation */
@@ -375,7 +375,7 @@ void SchedulerSleepThread(Addr_t *Resource, size_t Timeout)
 
 /* These two functions either wakes one or all threads
  * waiting for a resource. */
-int SchedulerWakeupOneThread(Addr_t *Resource)
+int SchedulerWakeupOneThread(uintptr_t *Resource)
 {
 	/* Find first thread matching resource */
 	ListNode_t *SleepMatch = NULL;
@@ -425,7 +425,7 @@ int SchedulerWakeupOneThread(Addr_t *Resource)
 
 /* These two functions either wakes one or all threads
  * waiting for a resource. */
-void SchedulerWakeupAllThreads(Addr_t *Resource)
+void SchedulerWakeupAllThreads(uintptr_t *Resource)
 {
 	/* Just keep iterating till no more sleep-matches */
 	while (1)

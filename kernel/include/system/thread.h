@@ -39,7 +39,7 @@ typedef struct _MCoreThread MCoreThread_t;
  * Initializes a new x86-specific thread context
  * for the given threading flags, also initializes
  * the yield interrupt handler first time its called */
-__EXTERN void *IThreadCreate(Flags_t ThreadFlags, Addr_t EntryPoint);
+__EXTERN void *IThreadCreate(Flags_t ThreadFlags, uintptr_t EntryPoint);
 
 /* This function switches the current runtime-context
  * out with the given thread context, this should only
@@ -51,7 +51,7 @@ __EXTERN void IThreadImpersonate(MCoreThread_t *Thread);
  * Initializes user-mode data for the given thread, and
  * allocates all neccessary resources (x86 specific) for
  * usermode operations */
-__EXTERN void IThreadSetupUserMode(MCoreThread_t *Thread, Addr_t StackAddress);
+__EXTERN void IThreadSetupUserMode(MCoreThread_t *Thread, uintptr_t StackAddress);
 
 /* IThreadDestroy
  * Free's all the allocated resources for x86

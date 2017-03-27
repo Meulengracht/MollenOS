@@ -105,7 +105,7 @@ size_t ReadIoSpace(DeviceIoSpace_t *IoSpace, size_t Offset, size_t Length)
 		}
 	}
 	else if (IoSpace->Type == IO_SPACE_MMIO) {
-		Addr_t MmAddr = IoSpace->VirtualBase + Offset;
+		uintptr_t MmAddr = IoSpace->VirtualBase + Offset;
 		assert(IoSpace->VirtualBase != 0);
 		switch (Length) {
 			case 1:
@@ -158,7 +158,7 @@ void WriteIoSpace(DeviceIoSpace_t *IoSpace, size_t Offset, size_t Value, size_t 
 		}
 	}
 	else if (IoSpace->Type == IO_SPACE_MMIO) {
-		Addr_t MmAddr = IoSpace->VirtualBase + Offset;
+		uintptr_t MmAddr = IoSpace->VirtualBase + Offset;
 		assert(IoSpace->VirtualBase != 0);
 		switch (Length) {
 			case 1:

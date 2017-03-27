@@ -41,7 +41,7 @@ __yield:
 	; Return
 	ret 
 
-; void save_fpu(addr_t *buffer)
+; void save_fpu(uintptr_t *buffer)
 ; Save MMX and MMX registers
 _save_fpu:
 	; Stack Frame
@@ -62,7 +62,7 @@ _save_fpu:
 	pop ebp
 	ret 
 
-; void load_fpu(addr_t *buffer)
+; void load_fpu(uintptr_t *buffer)
 ; Load MMX and MMX registers
 _load_fpu:
 	; Stack Frame
@@ -164,7 +164,7 @@ _enter_thread:
 	; Return
 	iret
 
-; void enter_signal(registers_t *stack, addr_t handler, int sig)
+; void enter_signal(registers_t *stack, uintptr_t handler, int sig)
 ; Switches stack and far jumps to next task
 _enter_signal:
 

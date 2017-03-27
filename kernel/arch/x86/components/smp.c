@@ -123,7 +123,7 @@ void SmpApEntry(void)
 void SmpApSetup(void)
 {
 	/* Set AP entry point */
-	Addr_t ApEntry = (Addr_t)(Addr_t*)SmpApEntry;
+	uintptr_t ApEntry = (uintptr_t)(uintptr_t*)SmpApEntry;
 
 	/* Edit Trampoline Code */
 	memcpy((char*)TrampolineCode + 0xB, &ApEntry, sizeof(ApEntry));

@@ -30,7 +30,7 @@
 #include <os/osdefs.h>
 
 PACKED_TYPESTRUCT(VideoDescriptor, {
-	Addr_t				FrameBufferAddress;
+	uintptr_t				FrameBufferAddress;
 	
 	size_t				BytesPerScanline;
 	size_t				Height;

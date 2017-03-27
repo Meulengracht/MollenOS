@@ -32,7 +32,7 @@
 
 /* Externs we need for functions here, all
  * the i/o functions needs the base address */
-__EXTERN Addr_t GlbLocalApicBase;
+__EXTERN uintptr_t GlbLocalApicBase;
 
 /* Reads from the local apic registers 
  * Reads and writes from and to the local apic
@@ -98,8 +98,8 @@ void ApicIoWrite(IoApic_t *IoApic, uint32_t Register, uint32_t Data)
 	/* Write the value, then re-read it to
 	 * ensure memory synchronization */
 	ApicSetIoRegister(IoApic, Register);
-	*((volatile Addr_t*)(IoApic->BaseAddress + 0x10)) = Data;
-	Data = (*(volatile Addr_t*)(IoApic->BaseAddress + 0x10));
+	*((volatile uintptr_t*)(IoApic->BaseAddress + 0x10)) = Data;
+	Data = (*(volatile uintptr_t*)(IoApic->BaseAddress + 0x10));
 }
 
 /* Writes interrupt data to the io-apic

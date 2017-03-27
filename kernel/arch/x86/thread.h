@@ -47,6 +47,6 @@ __EXTERN Context_t *_ThreadingSwitch(Context_t *Regs,
  * threading. We need functions that create a new kernel
  * stack and user/driver stack. Pass threading flags */
 __EXTERN Context_t *ContextCreate(Flags_t ThreadFlags,
-	Addr_t Eip, Addr_t *Arguments);
+	uintptr_t Eip, uintptr_t *Arguments);
 
 #endif // !_MCORE_THREAD_H_

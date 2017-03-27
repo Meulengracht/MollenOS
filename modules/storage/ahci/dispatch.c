@@ -59,7 +59,7 @@ AhciCommandDispatch(
 		Transaction->Device->Port->Id, Flags, CommandLength, BytesLeft);
 
 	// Assert that buffer is DWORD aligned, this must be true
-	if (((Addr_t)Transaction->Address & 0x3) != 0) {
+	if (((uintptr_t)Transaction->Address & 0x3) != 0) {
 		ERROR("AhciCommandDispatch::Buffer was not dword aligned (0x%x)",
 			Transaction->Device->Port->Id, Transaction->Address);
 		goto Error;

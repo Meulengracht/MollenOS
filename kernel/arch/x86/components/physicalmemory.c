@@ -38,7 +38,7 @@
  * This is primarily stats and 
  * information about the memory
  * bitmap */
-Addr_t *MemoryBitmap = NULL;
+uintptr_t *MemoryBitmap = NULL;
 size_t MemoryBitmapSize = 0;
 size_t MemoryBlocks = 0;
 size_t MemoryBlocksUsed = 0;
@@ -175,7 +175,7 @@ int MmGetFreeMapBitHigh(int Count)
 /* One of the two region functions
  * they are helpers in order to either free
  * or allocate a region of memory */
-void MmFreeRegion(Addr_t Base, size_t Size)
+void MmFreeRegion(uintptr_t Base, size_t Size)
 {
 	/* Calculate the frame */
 	int Frame = (int)(Base / PAGE_SIZE);
@@ -195,7 +195,7 @@ void MmFreeRegion(Addr_t Base, size_t Size)
 /* One of the two region functions
  * they are helpers in order to either free
  * or allocate a region of memory */
-void MmAllocateRegion(Addr_t Base, size_t Size)
+void MmAllocateRegion(uintptr_t Base, size_t Size)
 {
 	/* Calculate the frame */
 	int Frame = (int)(Base / PAGE_SIZE);
@@ -210,7 +210,7 @@ void MmAllocateRegion(Addr_t Base, size_t Size)
 /* This validates if a system mapping already
  * exists at the given <Physical> address and of
  * the given type */
-int MmSysMappingsContain(Addr_t Base, int Type)
+int MmSysMappingsContain(uintptr_t Base, int Type)
 {
 	/* Find address, if it exists! */
 	for (int i = 0; i < 32; i++)
@@ -261,7 +261,7 @@ MmPhyiscalInit(
 
 	/* Set storage variables 
 	 * We have the bitmap normally at 2mb mark */
-	MemoryBitmap = (Addr_t*)MEMORY_LOCATION_BITMAP;
+	MemoryBitmap = (uintptr_t*)MEMORY_LOCATION_BITMAP;
 	MemoryBlocks = MemorySize / PAGE_SIZE;
 	MemoryBlocksUsed = MemoryBlocks;
 	MemoryBitmapSize = DIVUP(MemoryBlocks, 8); /* 8 blocks per byte, 32/64 per int */
@@ -282,20 +282,20 @@ MmPhyiscalInit(
 
 	/* Loop through memory regions from bootloader */
 	for (i = 0, j = 1; i < (int)BootDesc->MemoryMapLength; i++) {
-		if (!MmSysMappingsContain((PhysAddr_t)RegionItr->Address, (int)RegionItr->Type))
+		if (!MmSysMappingsContain((PhysicalAddress_t)RegionItr->Address, (int)RegionItr->Type))
 		{
 			/* Available Region? 
 			 * It has to be of type 1 */
 			if (RegionItr->Type == 1)
-				MmFreeRegion((Addr_t)RegionItr->Address, (size_t)RegionItr->Size);
+				MmFreeRegion((uintptr_t)RegionItr->Address, (size_t)RegionItr->Size);
 
 			/*printf("      > Memory Region %u: Address: 0x%x, Size 0x%x\n",
-				region->type, (physaddr_t)region->address, (size_t)region->size);*/
+				region->type, (PhysicalAddress_t)region->address, (size_t)region->size);*/
 
 			/* Setup a new system mapping, 
 			 * we cache this map for conveniance */
 			SysMappings[j].Type = RegionItr->Type;
-			SysMappings[j].pAddressStart = (PhysAddr_t)RegionItr->Address;
+			SysMappings[j].pAddressStart = (PhysicalAddress_t)RegionItr->Address;
 			SysMappings[j].vAddressStart = 0;
 			SysMappings[j].Length = (size_t)RegionItr->Size;
 
@@ -345,7 +345,7 @@ MmPhyiscalInit(
  * pages if they exist in someones mapping */
 OsStatus_t
 MmPhysicalFreeBlock(
-	_In_ PhysAddr_t Address)
+	_In_ PhysicalAddress_t Address)
 {
 	/* Calculate the bitmap bit */
 	int Frame = (int)(Address / PAGE_SIZE);
@@ -379,9 +379,9 @@ MmPhysicalFreeBlock(
  * This is the primary function for allocating
  * physical memory pages, this takes an argument
  * <Mask> which determines where in memory the allocation is OK */
-PhysAddr_t
+PhysicalAddress_t
 MmPhysicalAllocateBlock(
-	_In_ Addr_t Mask, 
+	_In_ uintptr_t Mask, 
 	_In_ int Count)
 {
 	/* Variables, keep track of 
@@ -423,7 +423,7 @@ MmPhysicalAllocateBlock(
 
 	/* Calculate the return 
 	 * address by multiplying by block size */
-	return (PhysAddr_t)(Frame * PAGE_SIZE);
+	return (PhysicalAddress_t)(Frame * PAGE_SIZE);
 }
 
 /* MmPhyiscalGetSysMappingVirtual
@@ -431,9 +431,9 @@ MmPhysicalAllocateBlock(
  * of an mapped system mapping, this is to avoid
  * re-mapping and continous unmap of device memory 
  * Returns 0 if none exists */
-VirtAddr_t
+VirtualAddress_t
 MmPhyiscalGetSysMappingVirtual(
-	_In_ PhysAddr_t PhysicalAddress)
+	_In_ PhysicalAddress_t PhysicalAddress)
 {
 	/* Iterate the sys-mappings, we only
 	 * have up to 32 at the moment, should always be enough */
@@ -443,8 +443,8 @@ MmPhyiscalGetSysMappingVirtual(
 		{
 			/* Calculate start and end 
 			 * of this system memory region */
-			PhysAddr_t Start = SysMappings[i].pAddressStart;
-			PhysAddr_t End = SysMappings[i].pAddressStart + SysMappings[i].Length;
+			PhysicalAddress_t Start = SysMappings[i].pAddressStart;
+			PhysicalAddress_t End = SysMappings[i].pAddressStart + SysMappings[i].Length;
 
 			/* Is it in range? :) */
 			if (PhysicalAddress >= Start && PhysicalAddress < End) {

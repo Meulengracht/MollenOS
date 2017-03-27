@@ -84,7 +84,7 @@ _memory_get_cr3:
 	; Return
 	ret 
 
-;void _memory_load_cr3(addr_t pda)
+;void _memory_load_cr3(uintptr_t pda)
 ;Loads the cr3 register
 _memory_load_cr3:
 	; Stack Frame
@@ -105,7 +105,7 @@ _memory_load_cr3:
 	pop ebp
 	ret 
 
-;void _memory_invalidate_addr(addr_t pda)
+;void _memory_invalidate_addr(uintptr_t pda)
 ;Invalidates a page address
 _memory_invalidate_addr:
 	; Stack Frame
