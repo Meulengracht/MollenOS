@@ -21,6 +21,7 @@
  *	- Port Multiplier Support
  *	- Power Management
  */
+//#define __TRACE
 
 /* Includes
  * - System */
@@ -76,6 +77,10 @@ AhciControllerCreate(
 		return NULL;
 	}
 
+	// Trace
+	TRACE("Found Io-Space (Type %u, Physical 0x%x, Size 0x%x)",
+		IoBase->Type, IoBase->PhysicalBase, IoBase->Size);
+
 	// Acquire the io-space
 	if (CreateIoSpace(IoBase) != OsNoError
 		|| AcquireIoSpace(IoBase) != OsNoError) {
@@ -91,6 +96,9 @@ AhciControllerCreate(
 	// Start out by initializing the contract
 	InitializeContract(&Controller->Contract, Controller->Contract.DeviceId, 1,
 		ContractController, "AHCI Controller Interface");
+
+	// Trace
+	TRACE("Io-Space was assigned virtual address 0x%x", IoBase->VirtualBase);
 
 	// Instantiate the register-access
 	Controller->Registers = 
@@ -315,6 +323,10 @@ AhciSetup(
 	Controller->ValidPorts = Controller->Registers->PortsImplemented;
 	Controller->CommandSlotCount = AHCI_CAPABILITIES_NCS(Controller->Registers->Capabilities);
 
+	// Trace
+	TRACE("Ports Implemented 0x%x, Capabilities 0x%x",
+		Controller->Registers->PortsImplemented, Controller->Registers->Capabilities);
+
 	// Ensure that the controller is not in the running state by reading and 
 	// examining each implemented port’s PxCMD register
 	for (i = 0; i < AHCI_MAX_PORTS; i++) {
@@ -392,6 +404,14 @@ AhciSetup(
 		ERROR("AHCI::Failed to allocate memory for the command table.");
 		return OsError;
 	}
+
+	// Trace allocations
+	TRACE("Command List memory at 0x%x (Physical 0x%x), size 0x%x",
+		Controller->CommandListBase, Controller->CommandListBasePhysical,
+		1024 * PortItr);
+	TRACE("Command Table memory at 0x%x (Physical 0x%x), size 0x%x",
+		Controller->CommandTableBase, Controller->CommandTableBasePhysical,
+		(AHCI_COMMAND_TABLE_SIZE * 32) * PortItr);
 	
 	// We have to take into account FIS based switching here, 
 	// if it's supported we need 4K
@@ -413,6 +433,10 @@ AhciSetup(
 			return OsError;
 		}
 	}
+
+	TRACE("FIS-Area memory at 0x%x (Physical 0x%x), size 0x%x",
+		Controller->FisBase, Controller->FisBasePhysical,
+		(AHCI_COMMAND_TABLE_SIZE * 32) * PortItr);
 
 	// For each implemented port, system software shall allocate memory
 	for (i = 0; i < AHCI_MAX_PORTS; i++) {

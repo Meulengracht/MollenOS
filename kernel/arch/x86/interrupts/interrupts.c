@@ -23,7 +23,7 @@
  * - ISA Interrupts should be routed to boot-processor without lowest-prio?
  */
 #define __MODULE		"IRQS"
-#define __TRACE
+//#define __TRACE
 
 /* Includes 
  * - System */
@@ -124,26 +124,31 @@ Flags_t InterruptGetTrigger(uint16_t IntiFlags, int IrqSource)
 int AcpiDeriveInterrupt(DevInfo_t Bus, 
 	DevInfo_t Device, int Pin, Flags_t *AcpiConform)
 {
-	/* Variables */
+	// Variables
 	AcpiDevice_t *Dev = NULL;
 	DataKey_t iKey;
 
-	/* Calculate routing index */
-	int rIndex = (Device * 4) + Pin;
+	// Calculate routing index
+	unsigned rIndex = (Device * 4) + (Pin - 1);
 	iKey.Value = 0;
 
-	/* Start by checking if we can find the
-	 * routings by checking the given device */
+	// Trace
+	TRACE("AcpiDeriveInterrupt(Bus %u, Device %u, Pin %i)",
+		Bus, Device, Pin);
+
+	// Start by checking if we can find the
+	// routings by checking the given device
 	Dev = AcpiLookupDevice(Bus);
 
-	/* Sanitize */
+	// Make sure there was a bus device for it
 	if (Dev != NULL) {
-		/* Sanity */
+		TRACE("Found bus-device <%s>, accessing index %u", 
+			&Dev->HID[0], rIndex);
 		if (Dev->Routings->Interrupts[rIndex].Entry != NULL) {
 			PciRoutingEntry_t *pEntry = NULL;
 			*AcpiConform = __DEVICEMANAGER_ACPICONFORM_PRESENT;
 
-			/* Either from list or raw */
+			// Either from list or raw
 			if (Dev->Routings->InterruptInformation[rIndex] == 0) {
 				pEntry = Dev->Routings->Interrupts[rIndex].Entry;
 			}
@@ -152,7 +157,7 @@ int AcpiDeriveInterrupt(DevInfo_t Bus,
 					ListGetDataByKey(Dev->Routings->Interrupts[rIndex].Entries, iKey, 0);
 			}
 
-			/* Update IRQ Information */
+			// Update IRQ Information
 			if (pEntry->Trigger == ACPI_LEVEL_SENSITIVE) {
 				*AcpiConform |= __DEVICEMANAGER_ACPICONFORM_TRIGGERMODE;
 			}
@@ -169,12 +174,14 @@ int AcpiDeriveInterrupt(DevInfo_t Bus,
 				*AcpiConform |= __DEVICEMANAGER_ACPICONFORM_FIXED;
 			}
 
-			/* Done! Return the interrupt */
+			// Return found interrupt
+			TRACE("Found interrupt %i", pEntry->Interrupts);
 			return pEntry->Interrupts;
 		}
 	}
 
-	/* Return no :-/ */
+	// None found
+	TRACE("No interrupt found");
 	return INTERRUPT_NONE;
 }
 

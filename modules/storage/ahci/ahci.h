@@ -302,6 +302,7 @@ PACKED_ATYPESTRUCT(volatile, AHCIFis, {
  * - Port Registers */
 #define AHCI_PORT_TFD_ERR					0x1
 #define AHCI_PORT_TFD_DRQ					0x8
+#define AHCI_PORT_TFD_RDY					0x40
 #define AHCI_PORT_TFD_BSY					0x80
 
 /* Port Ata Control (AtaControl)

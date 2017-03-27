@@ -37,35 +37,32 @@ int GlbBusCounter = 0;
  * bus that contains pci routings */
 AcpiDevice_t *AcpiLookupDevice(int Bus) 
 {
-	/* Variables */
+	// Variables
 	AcpiDevice_t *Dev = NULL;
 	DataKey_t Key;
 	int Index = 0;
 
-	/* Keep looping untill no more
-	* buses */
-	while (1)
-	{
-		/* Get the index */
+	// Loop through buses
+	while (1) {
 		Key.Value = ACPI_BUS_ROOT_BRIDGE;
 		Dev = (AcpiDevice_t*)ListGetDataByKey(GlbPciAcpiDevices, Key, Index);
 
-		/* Sanity, if this returns
-		 * null we are out of data */
-		if (Dev == NULL)
+		// Sanity, if this returns
+		// null we are out of data
+		if (Dev == NULL) {
 			break;
+		}
 
-		/* Match the bus plx */
-		if (Dev->Bus == Bus
-			&& Dev->Routings != NULL) {
+		// Match the bus 
+		if (Dev->Bus == Bus && Dev->Routings != NULL) {
 			return Dev;
 		}
 
-		/* Increase N */
+		// Next bus
 		Index++;
 	}
 
-	/* Noooooooo */
+	// Not found
 	return NULL;
 }
 
@@ -179,10 +176,8 @@ AcpiDevice_t *PciAddObject(ACPI_HANDLE Handle, ACPI_HANDLE Parent, uint32_t Type
 	}
 
 	/* Does it contain routings */
-	if (Device->Features & ACPI_FEATURE_PRT)
-	{
+	if (Device->Features & ACPI_FEATURE_PRT) {
 		Status = AcpiDeviceGetIrqRoutings(Device);
-
 		if (ACPI_FAILURE(Status))
 			LogDebug("ACPI", "Failed to retrieve pci irq routings from device %s (%u)", Device->BusId, Status);
 	}

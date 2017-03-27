@@ -19,12 +19,17 @@
 * MollenOS ACPI Interface (Uses ACPICA)
 */
 
-/* Includes */
-#include <Arch.h>
+/* Includes 
+ * - System */
+#include <system/utils.h>
 #include <AcpiInterface.h>
 #include <Heap.h>
 #include <Log.h>
+
+/* Includes
+ * - Library */
 #include <stdio.h>
+#include <assert.h>
 
 /* Internal Use */
 typedef struct _IrqResource
@@ -552,84 +557,79 @@ ACPI_STATUS AcpiDeviceIrqRoutingCallback(ACPI_RESOURCE *Resource, void *Context)
 	return AE_OK;
 }
 
-/* Gets IRQ Routings */
-ACPI_STATUS AcpiDeviceGetIrqRoutings(AcpiDevice_t *Device)
+/* AcpiDeviceGetIrqRoutings
+ * Utilizies ACPICA to retrieve all the irq-routings from
+ * the ssdt information. */
+ACPI_STATUS
+AcpiDeviceGetIrqRoutings(
+	_In_ AcpiDevice_t *Device)
 {
+	// Variables
+	ACPI_PCI_ROUTING_TABLE *PciTable = NULL;
+	PciRoutings_t *Table = NULL;
+	IrqResource_t IrqResource;
 	ACPI_STATUS Status;
 	ACPI_BUFFER aBuff;
-	ACPI_PCI_ROUTING_TABLE *PciTable;
-	PciRoutings_t *Table;
-	int i;
 
-	/* Setup Buffer */
+	// Setup a buffer for the routing table
 	aBuff.Length = 0x2000;
 	aBuff.Pointer = (char*)kmalloc(0x2000);
 
-	/* Try to get routings */
+	// Try to get routings
 	Status = AcpiGetIrqRoutingTable(Device->Handle, &aBuff);
-	if (ACPI_FAILURE(Status))
+	if (ACPI_FAILURE(Status)) {
 		goto done;
-
-	/* Allocate Table */
-	Table = (PciRoutings_t*)kmalloc(sizeof(PciRoutings_t));
-	
-	/* Reset it */
-	for (i = 0; i < 128; i++) {
-		Table->Interrupts[i].Entry = NULL;
-		Table->InterruptInformation[i] = 0;
 	}
+	
+	// Allocate a new table for the device
+	Table = (PciRoutings_t*)kmalloc(sizeof(PciRoutings_t));
+	memset(Table, 0, sizeof(PciRoutings_t));
 
-	/* Link it */
+	// Store it in device
 	Device->Routings = Table;
 
-	/* Enumerate */
+	// Enumerate entries
 	for (PciTable = (ACPI_PCI_ROUTING_TABLE *)aBuff.Pointer; PciTable->Length;
-		PciTable = (ACPI_PCI_ROUTING_TABLE *)
-		((char *)PciTable + PciTable->Length))
-	{
-		/* Variables */
+		PciTable = (ACPI_PCI_ROUTING_TABLE *)((char *)PciTable + PciTable->Length)) {
 		ACPI_HANDLE SourceHandle;
-		IrqResource_t IrqRes;
 
-		/* Wub, we have a routing */
-		if (*(char*)PciTable->Source == '\0')
-		{
-			/* Ok, eol */
-			PciRoutingEntry_t *pEntry = (PciRoutingEntry_t*)kmalloc(sizeof(PciRoutingEntry_t));
+		// Check if the first byte is 0, then there is no irq-resource
+		// Then the SourceIndex is the actual IRQ
+		if (PciTable->Source[0] == '\0') {
+			PciRoutingEntry_t *pEntry = 
+				(PciRoutingEntry_t*)kmalloc(sizeof(PciRoutingEntry_t));
 
-			/* Set it */
-			int _dev = (ACPI_HIWORD(ACPI_LODWORD(PciTable->Address)));
-			int offset = (_dev * 4) + PciTable->Pin;
+			// Extract the relevant information
+			unsigned DeviceIndex = (ACPI_HIWORD(ACPI_LODWORD(PciTable->Address))) & 0xFFFF;
+			unsigned InterruptIndex = (DeviceIndex * 4) + PciTable->Pin;
 
-			/* Fixed GSI */
-			pEntry->Interrupts = PciTable->SourceIndex;
+			// Store information in the entry
+			pEntry->Interrupts = (int)PciTable->SourceIndex;
 			pEntry->Polarity = ACPI_ACTIVE_LOW;
 			pEntry->Trigger = ACPI_LEVEL_SENSITIVE;
 			pEntry->Fixed = 1;
 
-			/* Set entry */
-			Table->Interrupts[offset].Entry = pEntry;
-
-			/* Done! */
+			// Save interrupt
+			Table->Interrupts[InterruptIndex].Entry = pEntry;
 			continue;
 		}
 
-		/* Get handle of source */
+		// Get handle of the source-table
 		Status = AcpiGetHandle(Device->Handle, PciTable->Source, &SourceHandle);
 		if (ACPI_FAILURE(Status)) {
 			printf("Failed AcpiGetHandle\n");
 			continue;
 		}
 
-		/* Get all IRQ resources */
-		IrqRes.Device = (void*)Device;
-		IrqRes.Table = (void*)PciTable;
+		// Store the information for the callback
+		IrqResource.Device = (void*)Device;
+		IrqResource.Table = (void*)PciTable;
 		
-		/* Walk the handle */
+		// Walk the handle and call all __CRS methods
 		Status = AcpiWalkResources(SourceHandle, 
-			METHOD_NAME__CRS, AcpiDeviceIrqRoutingCallback, &IrqRes);
+			METHOD_NAME__CRS, AcpiDeviceIrqRoutingCallback, &IrqResource);
 		
-		/* Sanitize the return status */
+		// Sanitize status
 		if (ACPI_FAILURE(Status)) {
 			printf("Failed IRQ resource\n");
 			continue;

@@ -21,7 +21,7 @@
  *	- Port Multiplier Support
  *	- Power Management
  */
-#define __TRACE
+//#define __TRACE
 
 /* Includes
  * - System */
@@ -159,6 +159,28 @@ AhciCommandDispatch(
 
 	// Enable command 
 	AhciPortStartCommandSlot(Transaction->Device->Port, Transaction->Slot);
+	ThreadSleep(1000);
+
+	// Dump registers
+	TRACE("AHCI.GlobalHostControl 0x%x",
+		Transaction->Device->Controller->Registers->GlobalHostControl);
+	TRACE("AHCI.InterruptStatus 0x%x",
+		Transaction->Device->Controller->Registers->InterruptStatus);
+	TRACE("AHCI.CcControl 0x%x",
+		Transaction->Device->Controller->Registers->CcControl);
+
+	TRACE("AHCI.Port[%i].CommandAndStatus 0x%x", Transaction->Device->Port->Id,
+		Transaction->Device->Port->Registers->CommandAndStatus);
+	TRACE("AHCI.Port[%i].InterruptEnable 0x%x", Transaction->Device->Port->Id,
+		Transaction->Device->Port->Registers->InterruptEnable);
+	TRACE("AHCI.Port[%i].InterruptStatus 0x%x", Transaction->Device->Port->Id,
+		Transaction->Device->Port->Registers->InterruptStatus);
+	TRACE("AHCI.Port[%i].CommandIssue 0x%x", Transaction->Device->Port->Id,
+		Transaction->Device->Port->Registers->CommandIssue);
+	TRACE("AHCI.Port[%i].TaskFileData 0x%x", Transaction->Device->Port->Id,
+		Transaction->Device->Port->Registers->TaskFileData);
+
+	// No error, transaction in progress
 	return OsNoError;
 
 Error:

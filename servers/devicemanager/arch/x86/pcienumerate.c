@@ -20,6 +20,7 @@
  * - Enumerates the bus and registers the devices/controllers
  *   available in the system
  */
+#define __TRACE
 
 /* Includes 
  * - System */
@@ -215,8 +216,7 @@ void PciReadBars(PciBus_t *Bus, MCoreDevice_t *Device, uint32_t HeaderType)
 
 /* PciDerivePin
  * Pin conversion from behind a bridge */
-int PciDerivePin(int Device, int Pin) 
-{
+int PciDerivePin(int Device, int Pin) {
 	return (((Pin - 1) + Device) % 4) + 1;
 }
 
@@ -225,22 +225,22 @@ int PciDerivePin(int Device, int Pin)
  * bus/device/function location on the bus */
 void PciCheckFunction(PciDevice_t *Parent, int Bus, int Device, int Function)
 {
-	/* Vars */
+	// Variables
 	PciDevice_t *PciDevice = NULL;
 	PciNativeHeader_t *Pcs = NULL;
 	int SecondBus = 0;
 	DataKey_t lKey;
 
-	/* Allocate new instances of both the pci-header information
-	 * and the pci-device structure */
+	// Allocate new instances of both the pci-header information
+	// and the pci-device structure
 	Pcs = (PciNativeHeader_t*)malloc(sizeof(PciNativeHeader_t));
 	PciDevice = (PciDevice_t*)malloc(sizeof(PciDevice_t));
 
-	/* Read entire function information */
+	// Read entire function information
 	PciReadFunction(Pcs, Parent->BusIo, 
 		(DevInfo_t)Bus, (DevInfo_t)Device, (DevInfo_t)Function);
 
-	/* Set initial stuff */
+	// Set initial stuff 
 	PciDevice->Parent = Parent;
 	PciDevice->BusIo = Parent->BusIo;
 	PciDevice->Header = Pcs;
@@ -250,19 +250,16 @@ void PciCheckFunction(PciDevice_t *Parent, int Bus, int Device, int Function)
 	PciDevice->Children = NULL;
 	PciDevice->AcpiConform = 0;
 
-	/* Info 
-	 * Ignore the spam of device_id 0x7a0 in VMWare*/
-#ifdef PCI_DIAGNOSE
+	// Trace Information about device 
+	// Ignore the spam of device_id 0x7a0 in VMWare
 	if (Pcs->DeviceId != 0x7a0) {
-		TRACE("    * [%d:%d:%d][%d:%d:%d] Vendor 0x%x, Device 0x%x : %s\n",
+		TRACE(" - [%d:%d:%d][%d:%d:%d] %s",
 			Pcs->Class, Pcs->Subclass, Pcs->Interface,
 			Bus, Device, Function,
-			Pcs->VendorId, Pcs->DeviceId,
 			PciToString(Pcs->Class, Pcs->Subclass, Pcs->Interface));
 	}
-#endif
 
-	/* Do some disabling, but NOT on the video or bridge */
+	// Do some disabling, but NOT on the video or bridge
 	if ((Pcs->Class != PCI_CLASS_BRIDGE)
 		&& (Pcs->Class != PCI_CLASS_VIDEO)) {
 		uint16_t PciSettings = PciRead16(PciDevice->BusIo, Bus, Device, Function, 0x04);
@@ -270,40 +267,50 @@ void PciCheckFunction(PciDevice_t *Parent, int Bus, int Device, int Function)
 			PciSettings | PCI_COMMAND_INTDISABLE);
 	}
 
-	/* Add to list */
+	// Add to list
 	if (Pcs->Class == PCI_CLASS_BRIDGE
 		&& Pcs->Subclass == PCI_BRIDGE_SUBCLASS_PCI) {
 		PciDevice->IsBridge = 1;
 		lKey.Value = 1;
 		ListAppend((List_t*)Parent->Children, ListCreateNode(lKey, lKey, PciDevice));
-
-		/* Uh oh, this dude has children */
 		PciDevice->Children = ListCreate(KeyInteger, LIST_NORMAL);
 
-		/* Get secondary bus no and iterate */
+		// Extract secondary bus
 		SecondBus = PciReadSecondaryBusNumber(PciDevice->BusIo, Bus, Device, Function);
 		PciCheckBus(PciDevice, SecondBus);
 	}
 	else {
-		/* Wuhuu, query acpi interrupt information for device */
-		Flags_t AcpiConform = 0;
-		int InterruptLine = -1;
-		int Pin = Pcs->InterruptPin - 1;
+		// Trace
+		TRACE("  * Initial Line %u, Pin %i", Pcs->InterruptLine, Pcs->InterruptPin);
 
-		/* We do need acpi for this */
+		// We do need acpi for this 
+		// query acpi interrupt information for device
 		if (GlbAcpiAvailable == 1) {
 			PciDevice_t *Iterator = PciDevice;
-			while (Iterator != NULL) {
-				if (AcpiQueryInterrupt(Iterator->Bus, Iterator->Device,
-					Pin, &InterruptLine, &AcpiConform) == OsNoError) {
-					break;
-				}
-				Pin = PciDerivePin((int)Iterator->Device, Pin);
-				Iterator = Iterator->Parent;
+			Flags_t AcpiConform = 0;
+			int InterruptLine = -1;
+			int Pin = Pcs->InterruptPin;
+
+			// Sanitize legals
+			if (Pin > 4) {
+				Pin = 1;
 			}
 
-			/* Update the irq-line if we found a new line */
-			if (InterruptLine != -1) {
+			// Swizzle till we reach root
+			while (Iterator->Parent != GlbRootBridge) {
+				Pin = PciDerivePin((int)Iterator->Device, Pin);
+				Iterator = Iterator->Parent;
+				TRACE("  * Derived Pin %i", Pin);
+			}
+
+			// Now query interrupt
+			if (AcpiQueryInterrupt(Iterator->Bus, Iterator->Device, Pin, 
+					&InterruptLine, &AcpiConform) == OsNoError) {
+				TRACE("  * Final Line %u - Final Pin %i", InterruptLine, Pin);
+			}
+
+			// Update the irq-line if we found a new line
+			if (InterruptLine != INTERRUPT_NONE) {
 				PciWrite8(Parent->BusIo, (DevInfo_t)Bus, (DevInfo_t)Device, 
 					(DevInfo_t)Function, 0x3C, (uint8_t)InterruptLine);
 				PciDevice->Header->InterruptLine = (uint8_t)InterruptLine;
@@ -311,11 +318,11 @@ void PciCheckFunction(PciDevice_t *Parent, int Bus, int Device, int Function)
 			}
 		}
 
-		/* Set keys and type */
+		// Set keys and type
 		PciDevice->IsBridge = 0;
 		lKey.Value = 0;
 
-		/* Add to list */
+		// Add to list
 		ListAppend((List_t*)Parent->Children, ListCreateNode(lKey, lKey, PciDevice));
 	}
 }

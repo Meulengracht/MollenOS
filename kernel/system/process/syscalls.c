@@ -1184,7 +1184,7 @@ OsStatus_t ScAcpiQueryTable(const char *Signature, ACPI_TABLE_HEADER *Table)
 OsStatus_t ScAcpiQueryInterrupt(DevInfo_t Bus, DevInfo_t Device, int Pin, 
 	int *Interrupt, Flags_t *AcpiConform)
 {
-	/* Redirect the call to the interrupt system */
+	// Redirect the call to the interrupt system
 	*Interrupt = AcpiDeriveInterrupt(Bus, Device, Pin, AcpiConform);
 	return (*Interrupt == INTERRUPT_NONE) ? OsError : OsNoError;
 }
