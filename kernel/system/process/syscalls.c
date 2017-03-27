@@ -650,12 +650,18 @@ OsStatus_t
 ScMemoryQuery(
 	_Out_ MemoryDescriptor_t *Descriptor)
 {
-	// Implement a system query in utils.h
+	// Variables
+	SystemInformation_t SystemInfo;
+
+	// Query information
+	if (SystemInformationQuery(&SystemInfo) != OsNoError) {
+		return OsError;
+	}
 
 	// Copy relevant data over
 	Descriptor->PageSizeBytes = PAGE_SIZE;
-	Descriptor->PagesTotal = 0;
-	Descriptor->PagesUsed = 0;
+	Descriptor->PagesTotal = SystemInfo.PagesTotal;
+	Descriptor->PagesUsed = SystemInfo.PagesAllocated;
 
 	// Return no error, should never fail
 	return OsNoError;

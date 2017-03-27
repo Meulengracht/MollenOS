@@ -33,6 +33,36 @@
  * - System */
 #include <arch.h>
 
+/* System Information structure
+ * Contains information related to the OS and the system
+ * like Cpu, Memory, Architecture etc */
+typedef struct _SystemInformation {
+
+	// Architecture
+	char					Architecture[16];
+	char					Author[32];
+	char					Date[16];
+	unsigned				VersionMajor;
+	unsigned				VersionMinor;
+	unsigned				VersionRevision;
+
+	// Cpu
+
+	// Memory
+	size_t					PagesTotal;
+	size_t					PagesAllocated;
+
+} SystemInformation_t;
+
+/* SystemInformationQuery 
+ * Queries information about the running system
+ * and the underlying architecture */
+KERNELAPI
+OsStatus_t
+KERNELABI
+SystemInformationQuery(
+	_Out_ SystemInformation_t *Information);
+
 /* CpuGetCurrentId 
  * Retrieves the current cpu id for caller */
 KERNELAPI

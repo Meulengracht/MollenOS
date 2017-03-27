@@ -99,8 +99,8 @@ PACKED_TYPESTRUCT(BIOSMemoryRegion, {
  * this is to faster/safer map in system
  * memory like ACPI/device memory etc etc */
 PACKED_TYPESTRUCT(SystemMemoryMapping, {
-	PhysicalAddress_t				pAddressStart;
-	VirtualAddress_t				vAddressStart;
+	PhysicalAddress_t		pAddressStart;
+	VirtualAddress_t		vAddressStart;
 	size_t					Length;
 	int						Type;	//Type. 2 - ACPI
 });
@@ -115,6 +115,15 @@ KERNELABI
 MmPhyiscalInit(
 	_In_ void *BootInfo, 
 	_In_ MCoreBootDescriptor *Descriptor);
+
+/* MmPhysicalQuery
+ * Queries information about current block status */
+KERNELAPI
+OsStatus_t
+KERNELABI
+MmPhysicalQuery(
+	_Out_Opt_ size_t *BlocksTotal,
+	_Out_Opt_ size_t *BlocksAllocated);
 
 /* MmPhysicalAllocateBlock
  * This is the primary function for allocating

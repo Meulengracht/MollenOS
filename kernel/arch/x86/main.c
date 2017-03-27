@@ -38,9 +38,22 @@
  * primarily just boot information in case */
 MCoreBootInfo_t x86BootInfo;
 
-/* Extern, this function is declared in the MCore project
- * and all platform libs should enter this function */
-__EXTERN void MCoreInitialize(MCoreBootInfo_t*);
+/* SystemInformationQuery 
+ * Queries information about the running system
+ * and the underlying architecture */
+OsStatus_t
+SystemInformationQuery(
+	_Out_ SystemInformation_t *Information)
+{
+	// Copy memory information
+	if (MmPhysicalQuery(&Information->PagesTotal, 
+		&Information->PagesAllocated) != OsNoError) {
+		return OsError;
+	}
+
+	// Done
+	return OsNoError;
+}
 
 /* Initializes the local apic (if present, it faults
  * in case it's not, we don't support less for now)

@@ -51,22 +51,20 @@ typedef struct _MCoreBootDescriptor
 
 /* This structure is needed in order to
 * setup MCore */
-typedef struct _MCoreBootInfo
-{
-	/* Bootloader Name */
-	char *BootloaderName;
+typedef struct _MCoreBootInfo {
+	char					*BootloaderName;
+	MCoreBootDescriptor		 Descriptor;
+	void					*ArchBootInfo;
 
-	/* The boot descriptor */
-	MCoreBootDescriptor Descriptor;
-
-	/* Data that will be passed to setup functions */
-	void *ArchBootInfo;
-
-	/* Setup Functions */
 	void(*InitHAL)(void *ArchBootInfo, MCoreBootDescriptor *Descriptor);
 	void(*InitPostSystems)(void);
-
 } MCoreBootInfo_t;
 
+/* Extern, this function is declared in the MCore project
+ * and all platform libs should enter this function */
+__EXTERN
+void
+MCoreInitialize(
+	_In_ MCoreBootInfo_t*);
 
 #endif //!_MCORE_BOOT_INFO_H_

@@ -55,7 +55,7 @@ typedef reg64_t				reg_t;
  * these are usually fixed no matter arch and include stuff
  * as threading, processing etc */
 typedef unsigned int		IntStatus_t;
-typedef unsigned int		UUId_t;
+typedef unsigned int		UUId_t; 
 typedef unsigned int		Flags_t;
 typedef unsigned			DevInfo_t;
 typedef void *				Handle_t;

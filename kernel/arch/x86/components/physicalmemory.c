@@ -52,15 +52,36 @@ Spinlock_t MemoryLock;
  * This primarily comes from the region-descriptor */
 SystemMemoryMapping_t SysMappings[32];
 
-/* This is a debug function for inspecting
- * the memory status, it spits out how many blocks
- * are in use */
-void MmMemoryDebugPrint(void)
+/* MmMemoryDebugPrint
+ * This is a debug function for inspecting
+ * the memory status, it spits out how many blocks are in use */
+void
+MmMemoryDebugPrint(void)
 {
-	/* Debug */
 	LogInformation("PMEM", "Bitmap size: %u Bytes", MemoryBitmapSize);
 	LogInformation("PMEM", "Memory in use %u Bytes", MemoryBlocksUsed * PAGE_SIZE);
 	LogInformation("PMEM", "Block status %u/%u", MemoryBlocksUsed, MemoryBlocks);
+}
+
+/* MmPhysicalQuery
+ * Queries information about current block status */
+OsStatus_t
+MmPhysicalQuery(
+	_Out_Opt_ size_t *BlocksTotal, 
+	_Out_Opt_ size_t *BlocksAllocated)
+{
+	// Update total
+	if (BlocksTotal != NULL) {
+		*BlocksTotal = MemoryBlocks;
+	}
+
+	// Update allocated
+	if (BlocksAllocated != NULL) {
+		*BlocksAllocated = MemoryBlocksUsed;
+	}
+
+	// Never fails
+	return OsNoError;
 }
 
 /* This is an inline helper for 
