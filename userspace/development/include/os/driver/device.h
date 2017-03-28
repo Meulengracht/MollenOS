@@ -52,15 +52,26 @@
 /* MCoreDevice ACPI Conform flags
  * This is essentially some bonus information that is
  * needed when registering interrupts */
-#define __DEVICEMANAGER_ACPICONFORM_PRESENT		0x1
-#define __DEVICEMANAGER_ACPICONFORM_TRIGGERMODE	0x2
-#define __DEVICEMANAGER_ACPICONFORM_POLARITY	0x4
-#define __DEVICEMANAGER_ACPICONFORM_SHAREABLE	0x8
-#define __DEVICEMANAGER_ACPICONFORM_FIXED		0x10
+#define __DEVICEMANAGER_ACPICONFORM_PRESENT		0x00000001
+#define __DEVICEMANAGER_ACPICONFORM_TRIGGERMODE	0x00000002
+#define __DEVICEMANAGER_ACPICONFORM_POLARITY	0x00000004
+#define __DEVICEMANAGER_ACPICONFORM_SHAREABLE	0x00000008
+#define __DEVICEMANAGER_ACPICONFORM_FIXED		0x00000010
 
 /* MCoreDevice Register Flags
  * Flags related to registering of new devices */
-#define __DEVICEMANAGER_REGISTER_LOADDRIVER		0x1
+#define __DEVICEMANAGER_REGISTER_LOADDRIVER		0x00000001
+
+/* MCoreDevice IoCtrl Flags
+ * Flags related to registering of new devices */
+#define __DEVICEMANAGER_IOCTL_BUS				0x00000000
+
+// Ioctl-Bus Specific Flags
+#define __DEVICEMANAGER_IOCTL_ENABLE			0x00000001
+#define __DEVICEMANAGER_IOCTL_IO_ENABLE			0x00000002
+#define __DEVICEMANAGER_IOCTL_MMIO_ENABLE		(0x00000002 | 0x00000004)
+#define __DEVICEMANAGER_IOCTL_BUSMASTER_ENABLE	0x00000008
+#define __DEVICEMANAGER_IOCTL_FASTBTB_ENABLE	0x00000010  // Fast Back-To-Back
 
 /* These are the different IPC functions supported
  * by the devicemanager, note that some of them might
@@ -101,7 +112,7 @@ PACKED_TYPESTRUCT(MCoreDevice, {
 	// can be used to control the bus-device
 	DevInfo_t					Segment;
 	DevInfo_t					Bus;
-	DevInfo_t					Device;
+	DevInfo_t					Slot;
 	DevInfo_t					Function;
 
 });
@@ -112,13 +123,14 @@ PACKED_TYPESTRUCT(MCoreDevice, {
  * for a driver for the new device */
 #ifdef __DEVICEMANAGER_IMPL
 __DEVAPI
-UUId_t
+OsStatus_t
 SERVICEABI
 RegisterDevice(
 	_In_ UUId_t Parent,
 	_In_ MCoreDevice_t *Device, 
 	_In_ __CONST char *Name,
-	_In_ Flags_t Flags);
+	_In_ Flags_t Flags,
+	_Out_ UUId_t *Id);
 #else
 __DEVAPI
 UUId_t
@@ -139,6 +151,44 @@ RegisterDevice(
 	RPCSetArgument(&Request, 1, (__CONST void*)Device, sizeof(MCoreDevice_t));
 	RPCSetArgument(&Request, 2, (__CONST void*)&Flags, sizeof(Flags_t));
 	RPCSetResult(&Request, (__CONST void*)&Result, sizeof(UUId_t));
+	
+	// Execute RPC
+	RPCEvaluate(&Request, __DEVICEMANAGER_TARGET);
+	return Result;
+}
+#endif
+
+/* Device I/O Control
+ * Allows manipulation of a given device to either disable
+ * or enable, or configure the device */
+#ifdef __DEVICEMANAGER_IMPL
+__DEVAPI
+OsStatus_t
+SERVICEABI
+IoctlDevice(
+	_In_ UUId_t Device,
+	_In_ Flags_t Command,
+	_In_ Flags_t Flags);
+#else
+__DEVAPI
+OsStatus_t
+SERVICEABI
+IoctlDevice(
+	_In_ UUId_t Device,
+	_In_ Flags_t Command,
+	_In_ Flags_t Flags)
+{
+	// Variables
+	MRemoteCall_t Request;
+	OsStatus_t Result;
+
+	// Initialize RPC
+	RPCInitialize(&Request, __DEVICEMANAGER_INTERFACE_VERSION, 
+		PIPE_DEFAULT, __DEVICEMANAGER_IOCTLDEVICE);
+	RPCSetArgument(&Request, 0, (__CONST void*)&Device, sizeof(UUId_t));
+	RPCSetArgument(&Request, 1, (__CONST void*)&Command, sizeof(Flags_t));
+	RPCSetArgument(&Request, 2, (__CONST void*)&Flags, sizeof(Flags_t));
+	RPCSetResult(&Request, (__CONST void*)&Result, sizeof(OsStatus_t));
 	
 	// Execute RPC
 	RPCEvaluate(&Request, __DEVICEMANAGER_TARGET);

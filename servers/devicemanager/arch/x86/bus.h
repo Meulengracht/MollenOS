@@ -26,7 +26,7 @@
 
 /* Includes 
  * - System */
-#include <os/driver/io.h>
+#include <os/driver/device.h>
 #include <os/osdefs.h>
 #include <ds/list.h>
 
@@ -87,8 +87,7 @@
 /* The PCI base entry on the pci-databus
  * It describes a device on the pci-bus, the resources
  * its command register, status and its system bars */
-#pragma pack(push, 1)
-typedef struct _PciLegacyEntry {
+PACKED_TYPESTRUCT(PciNativeHeader, {
 	uint16_t				VendorId;				/* 0x00 */
 	uint16_t				DeviceId;				/* 0x02 */
 	uint16_t				Command;				/* 0x04 */
@@ -117,8 +116,7 @@ typedef struct _PciLegacyEntry {
 	uint8_t					InterruptPin;			/* 0x3D */
 	uint8_t					MinGrant;				/* 0x3E */
 	uint8_t					MaxLatency;				/* 0x3F */
-} PciNativeHeader_t;
-#pragma pack(pop)
+});
 
 /* The PCI bus header, this is used
  * by the bus code, and is not related to any hardware structure. 
@@ -136,12 +134,14 @@ typedef struct _PciBus {
  * about location, children, and a parent device/controller */
 typedef struct _PciDevice {
 	struct _PciDevice		*Parent;
-	int						IsBridge;
 	PciBus_t				*BusIo;
-	DevInfo_t				Bus;
-	DevInfo_t				Slot;
-	DevInfo_t				Function;
-	Flags_t					AcpiConform;
+	int						 IsBridge;
+
+	DevInfo_t				 Bus;
+	DevInfo_t				 Slot;
+	DevInfo_t				 Function;
+	Flags_t					 AcpiConform;
+
 	PciNativeHeader_t		*Header;
 	List_t					*Children;
 } PciDevice_t;
@@ -149,13 +149,29 @@ typedef struct _PciDevice {
 /* BusEnumerate
  * Enumerates the pci-bus, on newer pcs its possbile for 
  * devices exists on TWO different busses. PCI and PCI Express. */
-__EXTERN void BusEnumerate(void);
+__EXTERN
+OsStatus_t
+BusEnumerate(void);
+
+/* BusDeviceEnable 
+ * Performs any neccessary actions to control the device on the bus */
+__EXTERN
+OsStatus_t
+BusDeviceIoctl(
+	_In_ MCoreDevice_t *Device,
+	_In_ Flags_t Flags);
 
 /* PciRead32
  * Reads a 32 bit value from the pci-bus
- * at the specified location bus, device, function and register */
-__EXTERN uint32_t PciRead32(PciBus_t *Io,
-	DevInfo_t Bus, DevInfo_t Device, DevInfo_t Function, size_t Register);
+ * at the specified location bus, slot, function and register */
+__EXTERN
+uint32_t
+PciRead32(
+	_In_ PciBus_t *Io,
+	_In_ DevInfo_t Bus, 
+	_In_ DevInfo_t Slot, 
+	_In_ DevInfo_t Function, 
+	_In_ size_t Register);
 
 /* PciRead16
  * Reads a 16 bit value from the pci-bus

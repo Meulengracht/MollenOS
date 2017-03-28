@@ -160,6 +160,10 @@
 #define _Out_Opt_
 #endif
 
+#ifndef _InOut_
+#define _InOut_
+#endif
+
 #ifndef _M_IX86
 #define _M_IX86 600
 #endif

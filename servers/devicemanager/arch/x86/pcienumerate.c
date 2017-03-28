@@ -20,7 +20,7 @@
  * - Enumerates the bus and registers the devices/controllers
  *   available in the system
  */
-#define __TRACE
+//#define __TRACE
 
 /* Includes 
  * - System */
@@ -49,8 +49,9 @@ typedef struct _McfgEntry {
 
 /* Globals, we want to
  * keep track of all pci-devices by having this root device */
-PciDevice_t *GlbRootBridge = NULL;
-int GlbAcpiAvailable = 0;
+static List_t *__GlbPciDevices = NULL;
+static PciDevice_t *__GlbRoot = NULL;
+static int __GlbAcpiAvailable = 0;
 
 /* Prototypes
  * we need access to this function again.. */
@@ -59,23 +60,27 @@ void PciCheckBus(PciDevice_t *Parent, int Bus);
 /* PciToDevClass
  * Helper to construct the class from
  * available pci-information */
-DevInfo_t PciToDevClass(uint32_t Class, uint32_t SubClass)
-{
+DevInfo_t PciToDevClass(uint32_t Class, uint32_t SubClass) {
 	return ((Class & 0xFFFF) << 16 | SubClass & 0xFFFF);
 }
 
 /* PciToDevSubClass
  * Helper to construct the sub-class from
  * available pci-information */
-DevInfo_t PciToDevSubClass(uint32_t Interface)
-{
+DevInfo_t PciToDevSubClass(uint32_t Interface) {
 	return ((Interface & 0xFFFF) << 16 | 0);
 }
 
 /* PciSetIoSpace
  * Helper function to construct a new
  * io-space that uses static memory */
-void PciSetIoSpace(MCoreDevice_t *Device, int Index, int Type, uintptr_t Base, size_t Length)
+void
+PciSetIoSpace(
+	_In_ MCoreDevice_t *Device, 
+	_In_ int Index, 
+	_In_ int Type, 
+	_In_ uintptr_t Base, 
+	_In_ size_t Length)
 {
 	Device->IoSpaces[Index].Type = Type;
 	Device->IoSpaces[Index].PhysicalBase = Base;
@@ -129,10 +134,10 @@ void PciReadBars(PciBus_t *Bus, MCoreDevice_t *Device, uint32_t HeaderType)
 		Mask32 = (HeaderType & 0x1) == 0x1 ? ~0x7FF : 0xFFFFFFFF;
 
 		/* Read all the bar information */
-		Space32 = PciRead32(Bus, Device->Bus, Device->Device, Device->Function, Offset);
-		PciWrite32(Bus, Device->Bus, Device->Device, Device->Function, Offset, Space32 | Mask32);
-		Size32 = PciRead32(Bus, Device->Bus, Device->Device, Device->Function, Offset);
-		PciWrite32(Bus, Device->Bus, Device->Device, Device->Function, Offset, Space32);
+		Space32 = PciRead32(Bus, Device->Bus, Device->Slot, Device->Function, Offset);
+		PciWrite32(Bus, Device->Bus, Device->Slot, Device->Function, Offset, Space32 | Mask32);
+		Size32 = PciRead32(Bus, Device->Bus, Device->Slot, Device->Function, Offset);
+		PciWrite32(Bus, Device->Bus, Device->Slot, Device->Function, Offset, Space32);
 
 		/* Sanitize the size and space values */
 		if (Size32 == 0xFFFFFFFF) {
@@ -173,10 +178,10 @@ void PciReadBars(PciBus_t *Bus, MCoreDevice_t *Device, uint32_t HeaderType)
 			Offset = 0x10 + (i << 2);
 
 			/* Get the size of the spaces */
-			Space32 = PciRead32(Bus, Device->Bus, Device->Device, Device->Function, Offset);
-			PciWrite32(Bus, Device->Bus, Device->Device, Device->Function, Offset, 0xFFFFFFFF);
-			Size32 = PciRead32(Bus, Device->Bus, Device->Device, Device->Function, Offset);
-			PciWrite32(Bus, Device->Bus, Device->Device, Device->Function, Offset, Space32);
+			Space32 = PciRead32(Bus, Device->Bus, Device->Slot, Device->Function, Offset);
+			PciWrite32(Bus, Device->Bus, Device->Slot, Device->Function, Offset, 0xFFFFFFFF);
+			Size32 = PciRead32(Bus, Device->Bus, Device->Slot, Device->Function, Offset);
+			PciWrite32(Bus, Device->Bus, Device->Slot, Device->Function, Offset, Space32);
 
 			/* Add it to our current */
 			Space64 |= ((uint64_t)Space32 << 32);
@@ -223,10 +228,15 @@ int PciDerivePin(int Device, int Pin) {
 /* PciCheckFunction
  * Create a new pci-device from a valid
  * bus/device/function location on the bus */
-void PciCheckFunction(PciDevice_t *Parent, int Bus, int Device, int Function)
+void
+PciCheckFunction(
+	_In_ PciDevice_t *Parent, 
+	_In_ int Bus, 
+	_In_ int Slot, 
+	_In_ int Function)
 {
 	// Variables
-	PciDevice_t *PciDevice = NULL;
+	PciDevice_t *Device = NULL;
 	PciNativeHeader_t *Pcs = NULL;
 	int SecondBus = 0;
 	DataKey_t lKey;
@@ -234,49 +244,52 @@ void PciCheckFunction(PciDevice_t *Parent, int Bus, int Device, int Function)
 	// Allocate new instances of both the pci-header information
 	// and the pci-device structure
 	Pcs = (PciNativeHeader_t*)malloc(sizeof(PciNativeHeader_t));
-	PciDevice = (PciDevice_t*)malloc(sizeof(PciDevice_t));
+	Device = (PciDevice_t*)malloc(sizeof(PciDevice_t));
 
 	// Read entire function information
 	PciReadFunction(Pcs, Parent->BusIo, 
-		(DevInfo_t)Bus, (DevInfo_t)Device, (DevInfo_t)Function);
+		(DevInfo_t)Bus, (DevInfo_t)Slot, (DevInfo_t)Function);
 
 	// Set initial stuff 
-	PciDevice->Parent = Parent;
-	PciDevice->BusIo = Parent->BusIo;
-	PciDevice->Header = Pcs;
-	PciDevice->Bus = Bus;
-	PciDevice->Slot = Device;
-	PciDevice->Function = Function;
-	PciDevice->Children = NULL;
-	PciDevice->AcpiConform = 0;
+	Device->Parent = Parent;
+	Device->BusIo = Parent->BusIo;
+	Device->Header = Pcs;
+	Device->Bus = Bus;
+	Device->Slot = Slot;
+	Device->Function = Function;
+	Device->Children = NULL;
+	Device->AcpiConform = 0;
 
 	// Trace Information about device 
 	// Ignore the spam of device_id 0x7a0 in VMWare
 	if (Pcs->DeviceId != 0x7a0) {
-		TRACE(" - [%d:%d:%d] %s",
-			Bus, Device, Function,
+		TRACE(" - [%d:%d:%d] %s", Bus, Device, Function,
 			PciToString(Pcs->Class, Pcs->Subclass, Pcs->Interface));
 	}
 
 	// Do some disabling, but NOT on the video or bridge
 	if ((Pcs->Class != PCI_CLASS_BRIDGE)
 		&& (Pcs->Class != PCI_CLASS_VIDEO)) {
-		uint16_t PciSettings = PciRead16(PciDevice->BusIo, Bus, Device, Function, 0x04);
-		PciWrite16(PciDevice->BusIo, Bus, Device, Function, 0x04,
+		uint16_t PciSettings = PciRead16(Device->BusIo, Bus, Slot, Function, 0x04);
+		PciWrite16(Device->BusIo, Bus, Slot, Function, 0x04,
 			PciSettings | PCI_COMMAND_INTDISABLE);
 	}
+
+	// Add to the flat list
+	lKey.Value = 0;
+	ListAppend(__GlbPciDevices, ListCreateNode(lKey, lKey, Device));
 
 	// Add to list
 	if (Pcs->Class == PCI_CLASS_BRIDGE
 		&& Pcs->Subclass == PCI_BRIDGE_SUBCLASS_PCI) {
-		PciDevice->IsBridge = 1;
+		Device->IsBridge = 1;
 		lKey.Value = 1;
-		ListAppend((List_t*)Parent->Children, ListCreateNode(lKey, lKey, PciDevice));
-		PciDevice->Children = ListCreate(KeyInteger, LIST_NORMAL);
+		ListAppend((List_t*)Parent->Children, ListCreateNode(lKey, lKey, Device));
+		Device->Children = ListCreate(KeyInteger, LIST_NORMAL);
 
 		// Extract secondary bus
-		SecondBus = PciReadSecondaryBusNumber(PciDevice->BusIo, Bus, Device, Function);
-		PciCheckBus(PciDevice, SecondBus);
+		SecondBus = PciReadSecondaryBusNumber(Device->BusIo, Bus, Slot, Function);
+		PciCheckBus(Device, SecondBus);
 	}
 	else {
 		// Trace
@@ -284,8 +297,8 @@ void PciCheckFunction(PciDevice_t *Parent, int Bus, int Device, int Function)
 
 		// We do need acpi for this 
 		// query acpi interrupt information for device
-		if (GlbAcpiAvailable == 1) {
-			PciDevice_t *Iterator = PciDevice;
+		if (__GlbAcpiAvailable == 1) {
+			PciDevice_t *Iterator = Device;
 			Flags_t AcpiConform = 0;
 			int InterruptLine = -1;
 			int Pin = Pcs->InterruptPin;
@@ -305,7 +318,7 @@ void PciCheckFunction(PciDevice_t *Parent, int Bus, int Device, int Function)
 				//           -> Swizzle-pin
 				//           -> Get parent device
 				//           -> Go-To 1
-				while (Iterator != GlbRootBridge) {
+				while (Iterator != __GlbRoot) {
 					OsStatus_t HasFilter = AcpiQueryInterrupt(
 						Iterator->Bus, Iterator->Slot, Pin, 
 						&InterruptLine, &AcpiConform);
@@ -326,52 +339,56 @@ void PciCheckFunction(PciDevice_t *Parent, int Bus, int Device, int Function)
 
 				// Update the irq-line if we found a new line
 				if (InterruptLine != INTERRUPT_NONE) {
-					PciWrite8(Parent->BusIo, (DevInfo_t)Bus, (DevInfo_t)Device,
+					PciWrite8(Parent->BusIo, (DevInfo_t)Bus, (DevInfo_t)Slot,
 						(DevInfo_t)Function, 0x3C, (uint8_t)InterruptLine);
-					PciDevice->Header->InterruptLine = (uint8_t)InterruptLine;
-					PciDevice->AcpiConform = AcpiConform;
+					Device->Header->InterruptLine = (uint8_t)InterruptLine;
+					Device->AcpiConform = AcpiConform;
 				}
 			}
 		}
 
 		// Set keys and type
-		PciDevice->IsBridge = 0;
+		Device->IsBridge = 0;
 		lKey.Value = 0;
 
 		// Add to list
-		ListAppend((List_t*)Parent->Children, ListCreateNode(lKey, lKey, PciDevice));
+		ListAppend((List_t*)Parent->Children, ListCreateNode(lKey, lKey, Device));
 	}
 }
 
 /* PciCheckDevice
  * Checks if there is any connection on the given
  * pci-location, and enumerates it's function if available */
-void PciCheckDevice(PciDevice_t *Parent, int Bus, int Device)
+void
+PciCheckDevice(
+	_In_ PciDevice_t *Parent, 
+	_In_ int Bus, 
+	_In_ int Slot)
 {
-	/* Variables */
+	// Variables
 	uint16_t VendorId = 0;
 	int Function = 0;
 
-	/* Validate the vendor id, it's invalid only
-	 * if there is no device on that location */
+	// Validate the vendor id, it's invalid only
+	// if there is no device on that location
 	VendorId = PciReadVendorId(Parent->BusIo, 
-		(DevInfo_t)Bus, (DevInfo_t)Device, (DevInfo_t)Function);
+		(DevInfo_t)Bus, (DevInfo_t)Slot, (DevInfo_t)Function);
 
-	/* Sanitize */
+	// Sanitize if device is present
 	if (VendorId == 0xFFFF) {
 		return;
 	}
 
-	/* Check base function */
-	PciCheckFunction(Parent, Bus, Device, Function);
+	// Check base function
+	PciCheckFunction(Parent, Bus, Slot, Function);
 
-	/* Multi-function or single? 
-	 * If it is a multi-function device, check remaining functions */
+	// Multi-function or single? 
+	// If it is a multi-function device, check remaining functions
 	if (PciReadHeaderType(Parent->BusIo, 
-		(DevInfo_t)Bus, (DevInfo_t)Device, (DevInfo_t)Function) & 0x80) {
+		(DevInfo_t)Bus, (DevInfo_t)Slot, (DevInfo_t)Function) & 0x80) {
 		for (Function = 1; Function < 8; Function++) {
-			if (PciReadVendorId(Parent->BusIo, Bus, Device, Function) != 0xFFFF) {
-				PciCheckFunction(Parent, Bus, Device, Function);
+			if (PciReadVendorId(Parent->BusIo, Bus, Slot, Function) != 0xFFFF) {
+				PciCheckFunction(Parent, Bus, Slot, Function);
 			}
 		}
 	}
@@ -379,17 +396,20 @@ void PciCheckDevice(PciDevice_t *Parent, int Bus, int Device)
 
 /* PciCheckBus
  * Enumerates all possible devices on the given bus */
-void PciCheckBus(PciDevice_t *Parent, int Bus)
+void
+PciCheckBus(
+	_In_ PciDevice_t *Parent, 
+	_In_ int Bus)
 {
-	/* Variables */
+	// Variables
 	int Device;
 
-	/* Sanitize parameters */
+	// Sanitize parameters
 	if (Parent == NULL || Bus < 0) {
 		return;
 	}
 
-	/* Iterate all possible 32 devices on the pci-bus */
+	// Iterate all possible 32 devices on the pci-bus
 	for (Device = 0; Device < 32; Device++) {
 		PciCheckDevice(Parent, Bus, Device);
 	}
@@ -398,59 +418,63 @@ void PciCheckBus(PciDevice_t *Parent, int Bus)
 /* PciCreateDeviceFromPci
  * Creates a new MCoreDevice_t from a pci-device 
  * and registers it with the device-manager */
-void PciCreateDeviceFromPci(PciDevice_t *PciDev)
+OsStatus_t
+PciCreateDeviceFromPci(
+	_In_ PciDevice_t *PciDevice)
 {
-	/* Allocate a new instance of the device structure */
-	MCoreDevice_t *mDevice = (MCoreDevice_t*)malloc(sizeof(MCoreDevice_t));
-	memset(mDevice, 0, sizeof(MCoreDevice_t));
+	// Variables
+	MCoreDevice_t Device;
+
+	// Zero out structure
+	memset(&Device, 0, sizeof(MCoreDevice_t));
 
 	/* Setup information */
-	mDevice->VendorId = PciDev->Header->VendorId;
-	mDevice->DeviceId = PciDev->Header->DeviceId;
-	mDevice->Class = PciToDevClass(PciDev->Header->Class, PciDev->Header->Subclass);
-	mDevice->Subclass = PciToDevSubClass(PciDev->Header->Interface);
+	Device.VendorId = PciDevice->Header->VendorId;
+	Device.DeviceId = PciDevice->Header->DeviceId;
+	Device.Class = PciToDevClass(PciDevice->Header->Class, PciDevice->Header->Subclass);
+	Device.Subclass = PciToDevSubClass(PciDevice->Header->Interface);
 
-	mDevice->Segment = (DevInfo_t)PciDev->BusIo->Segment;
-	mDevice->Bus = PciDev->Bus;
-	mDevice->Device = PciDev->Slot;
-	mDevice->Function = PciDev->Function;
+	Device.Segment = (DevInfo_t)PciDevice->BusIo->Segment;
+	Device.Bus = PciDevice->Bus;
+	Device.Slot = PciDevice->Slot;
+	Device.Function = PciDevice->Function;
 
-	mDevice->Interrupt.Line = (int)PciDev->Header->InterruptLine;
-	mDevice->Interrupt.Pin = (int)PciDev->Header->InterruptPin;
-	mDevice->Interrupt.Direct[0] = INTERRUPT_NONE;
-	mDevice->Interrupt.AcpiConform = PciDev->AcpiConform;
+	Device.Interrupt.Line = (int)PciDevice->Header->InterruptLine;
+	Device.Interrupt.Pin = (int)PciDevice->Header->InterruptPin;
+	Device.Interrupt.Direct[0] = INTERRUPT_NONE;
+	Device.Interrupt.AcpiConform = PciDevice->AcpiConform;
 
-	/* Read Bars */
-	PciReadBars(PciDev->BusIo, mDevice, PciDev->Header->HeaderType);
+	// Handle bars attached to device
+	PciReadBars(PciDevice->BusIo, &Device, PciDevice->Header->HeaderType);
 
-	/* PCI - IDE Bar Fixup
-	 * From experience ide-bars don't always show up (ex: Oracle VM)
-	 * but only the initial 4 bars don't, the BM bar
-	 * always seem to show up */
-	if (PciDev->Header->Class == PCI_CLASS_STORAGE
-		&& PciDev->Header->Subclass == PCI_STORAGE_SUBCLASS_IDE)
-	{
-		/* Controller 1 */
-		if ((PciDev->Header->Interface & 0x1) == 0) {
-			if (mDevice->IoSpaces[0].Type == IO_SPACE_INVALID) 
-				PciSetIoSpace(mDevice, 0, IO_SPACE_IO, 0x1F0, 8);
-			if (mDevice->IoSpaces[1].Type == IO_SPACE_INVALID)
-				PciSetIoSpace(mDevice, 1, IO_SPACE_IO, 0x3F6, 4);
+	// PCI - IDE Bar Fixup
+	// From experience ide-bars don't always show up (ex: Oracle VM)
+	// but only the initial 4 bars don't, the BM bar
+	// always seem to show up 
+	if (PciDevice->Header->Class == PCI_CLASS_STORAGE
+		&& PciDevice->Header->Subclass == PCI_STORAGE_SUBCLASS_IDE) {
+		if ((PciDevice->Header->Interface & 0x1) == 0) {
+			if (Device.IoSpaces[0].Type == IO_SPACE_INVALID) {
+				PciSetIoSpace(&Device, 0, IO_SPACE_IO, 0x1F0, 8);
+			}
+			if (Device.IoSpaces[1].Type == IO_SPACE_INVALID) {
+				PciSetIoSpace(&Device, 1, IO_SPACE_IO, 0x3F6, 4);
+			}
 		}
-
-		/* Controller 2 */
-		if ((PciDev->Header->Interface & 0x4) == 0) {
-			if (mDevice->IoSpaces[2].Type == IO_SPACE_INVALID)
-				PciSetIoSpace(mDevice, 2, IO_SPACE_IO, 0x170, 8);
-			if (mDevice->IoSpaces[3].Type == IO_SPACE_INVALID)
-				PciSetIoSpace(mDevice, 3, IO_SPACE_IO, 0x376, 4);
+		if ((PciDevice->Header->Interface & 0x4) == 0) {
+			if (Device.IoSpaces[2].Type == IO_SPACE_INVALID) {
+				PciSetIoSpace(&Device, 2, IO_SPACE_IO, 0x170, 8);
+			}
+			if (Device.IoSpaces[3].Type == IO_SPACE_INVALID) {
+				PciSetIoSpace(&Device, 3, IO_SPACE_IO, 0x376, 4);
+			}
 		}
 	}
 
-	/* Register */
-	RegisterDevice(UUID_INVALID, mDevice, PciToString(PciDev->Header->Class, 
-		PciDev->Header->Subclass, PciDev->Header->Interface), 
-		__DEVICEMANAGER_REGISTER_LOADDRIVER);
+	// Register the device
+	return RegisterDevice(UUID_INVALID, &Device, PciToString(PciDevice->Header->Class,
+		PciDevice->Header->Subclass, PciDevice->Header->Interface),
+		__DEVICEMANAGER_REGISTER_LOADDRIVER, &Device.Id);
 }
 
 /* PciInstallDriverCallback
@@ -458,12 +482,12 @@ void PciCreateDeviceFromPci(PciDevice_t *PciDev)
  * and loads drivers for the them */
 void PciInstallDriverCallback(void *Data, int No, void *Context)
 {
-	/* Initialize a pci-dev pointer */
+	// Variables
 	PciDevice_t *PciDev = (PciDevice_t*)Data;
 	_CRT_UNUSED(No);
 
-	/* Bridge or device? 
-	 * If a bridge, we keep iterating, device, load driver */
+	// Bridge or device? 
+	// If a bridge, we keep iterating, device, load driver
 	if (PciDev->IsBridge) {
 		ListExecuteAll((List_t*)PciDev->Children, PciInstallDriverCallback, Context);
 	}
@@ -474,55 +498,64 @@ void PciInstallDriverCallback(void *Data, int No, void *Context)
 
 /* BusInstallFixed
  * Loads a fixed driver for the vendorid/deviceid */
-void BusInstallFixed(DevInfo_t DeviceId, const char *Name)
+OsStatus_t
+BusInstallFixed(
+	_In_ DevInfo_t DeviceId,
+	_In_ __CONST char *Name)
 {
-	/* Allocate a new instance of the device structure */
-	MCoreDevice_t *Device = (MCoreDevice_t*)malloc(sizeof(MCoreDevice_t));
-	memset(Device, 0, sizeof(MCoreDevice_t));
+	// Variables
+	MCoreDevice_t Device;
 
-	/* Update parameters */
-	Device->VendorId = PCI_FIXED_VENDORID;
-	Device->DeviceId = DeviceId;
+	// Zero out structure
+	memset(&Device, 0, sizeof(MCoreDevice_t));
 
-	/* Invalidate generics */
-	Device->Class = 0xFF0F;
-	Device->Subclass = 0xFF0F;
+	// Set some magic constants
+	Device.VendorId = PCI_FIXED_VENDORID;
+	Device.DeviceId = DeviceId;
 
-	/* Invalidate irqs */
-	Device->Interrupt.Pin = -1;
-	Device->Interrupt.Line = -1;
-	Device->Interrupt.Direct[0] = -1;
-	Device->Interrupt.AcpiConform = 0;
+	// Set more magic constants to ignore class and subclass
+	Device.Class = 0xFF0F;
+	Device.Subclass = 0xFF0F;
 
-	/* Install driver */
-	RegisterDevice(UUID_INVALID, Device, Name, 
-		__DEVICEMANAGER_REGISTER_LOADDRIVER);
+	// Invalidate irqs, this must be set by fixed drivers
+	Device.Interrupt.Pin = -1;
+	Device.Interrupt.Line = -1;
+	Device.Interrupt.Direct[0] = -1;
+	Device.Interrupt.AcpiConform = 0;
+
+	// Install the driver
+	return RegisterDevice(UUID_INVALID, &Device, Name, 
+		__DEVICEMANAGER_REGISTER_LOADDRIVER, &Device.Id);
 }
 
 /* BusEnumerate
  * Enumerates the pci-bus, on newer pcs its possbile for 
  * devices exists on TWO different busses. PCI and PCI Express. */
-void BusEnumerate(void)
+OsStatus_t
+BusEnumerate(void)
 {
-	/* We need these */
-	AcpiDescriptor_t Acpi;
+	// Variables
 	ACPI_TABLE_HEADER *Header = NULL;
 	ACPI_TABLE_MCFG *McfgTable = NULL;
+	AcpiDescriptor_t Acpi;
 	int Function;
 
-	/* Initialize the root bridge element */
-	GlbRootBridge = (PciDevice_t*)malloc(sizeof(PciDevice_t));
-	memset(GlbRootBridge, 0, sizeof(PciDevice_t));
+	// Initialize the root bridge element
+	__GlbRoot = (PciDevice_t*)malloc(sizeof(PciDevice_t));
+	memset(__GlbRoot, 0, sizeof(PciDevice_t));
 
-	/* Set some initial vars */
-	GlbRootBridge->Children = ListCreate(KeyInteger, LIST_NORMAL);
-	GlbRootBridge->IsBridge = 1;
+	// Initialize a flat list of devices
+	__GlbPciDevices = ListCreate(KeyInteger, LIST_NORMAL);
+
+	// Initiate root-bridge
+	__GlbRoot->Children = ListCreate(KeyInteger, LIST_NORMAL);
+	__GlbRoot->IsBridge = 1;
 
 	/* Query acpi information */
 	if (AcpiQueryStatus(&Acpi) == OsNoError) {
 		TRACE("ACPI-Version: 0x%x (BootFlags 0x%x)", 
 			Acpi.Version, Acpi.BootFlags);
-		GlbAcpiAvailable = 1;
+		__GlbAcpiAvailable = 1;
 
 		/* PCI-Express */
 		if (AcpiQueryTable(ACPI_SIG_MCFG, &Header) == OsNoError) {
@@ -588,11 +621,11 @@ void BusEnumerate(void)
 			Bus->Segment = Entry->SegmentGroup;
 
 			/* Store bus */
-			GlbRootBridge->BusIo = Bus;
+			__GlbRoot->BusIo = Bus;
 
 			/* Enumerate devices */
 			for (Function = Bus->BusStart; Function <= Bus->BusEnd; Function++) {
-				PciCheckBus(GlbRootBridge, Function);
+				PciCheckBus(__GlbRoot, Function);
 			}
 
 			/* Next */
@@ -609,7 +642,7 @@ void BusEnumerate(void)
 		memset(Bus, 0, sizeof(PciBus_t));
 
 		/* Store the newly allocated bus in root bridge */
-		GlbRootBridge->BusIo = Bus;
+		__GlbRoot->BusIo = Bus;
 
 		/* Setup some initial stuff */
 		Bus->BusEnd = 7;
@@ -634,18 +667,88 @@ void BusEnumerate(void)
 		/* We can check whether or not it's a multi-function
 		 * root-bridge, in that case there are multiple buses */
 		if (!(PciReadHeaderType(Bus, 0, 0, 0) & 0x80)) {
-			PciCheckBus(GlbRootBridge, 0);
+			PciCheckBus(__GlbRoot, 0);
 		}
 		else {
 			for (Function = 0; Function < 8; Function++) {
 				if (PciReadVendorId(Bus, 0, 0, Function) != 0xFFFF)
 					break;
-				PciCheckBus(GlbRootBridge, Function);
+				PciCheckBus(__GlbRoot, Function);
 			}
 		}
 	}
 
 	/* Now, that the bus is enumerated, we can
 	 * iterate the found devices and load drivers */
-	ListExecuteAll(GlbRootBridge->Children, PciInstallDriverCallback, NULL);
+	ListExecuteAll(__GlbRoot->Children, PciInstallDriverCallback, NULL);
+
+	// No errors
+	return OsNoError;
+}
+
+/* BusDeviceIoctl 
+ * Performs any neccessary actions to control the device on the bus */
+__EXTERN
+OsStatus_t
+BusDeviceIoctl(
+	_In_ MCoreDevice_t *Device,
+	_In_ Flags_t Flags)
+{
+	// Variables
+	PciDevice_t *PciDevice = NULL;
+	uint16_t Settings;
+
+	// Lookup pci-device
+	foreach(dNode, __GlbPciDevices) {
+		PciDevice_t *Entry = (PciDevice_t*)dNode->Data;
+		if (Entry->Bus == Device->Bus
+			&& Entry->Slot == Device->Slot
+			&& Entry->Function == Device->Function) {
+			PciDevice = Entry;
+			break;
+		}
+	}
+
+	// Sanitize
+	if (PciDevice == NULL) {
+		return OsError;
+	}
+
+	// Read value, modify and write back
+	Settings = PciRead16(PciDevice->BusIo, Device->Bus,
+		Device->Slot, Device->Function, 0x04);
+
+	// Clear all possible flags first
+	Settings &= ~(PCI_COMMAND_BUSMASTER | PCI_COMMAND_FASTBTB 
+		| PCI_COMMAND_MMIO | PCI_COMMAND_PORTIO | PCI_COMMAND_INTDISABLE);
+
+	// Handle enable
+	if (!(Flags & __DEVICEMANAGER_IOCTL_ENABLE)) {
+		Settings |= PCI_COMMAND_INTDISABLE;
+	}
+
+	// Handle io/mmio
+	if (Flags & __DEVICEMANAGER_IOCTL_MMIO_ENABLE) {
+		Settings |= PCI_COMMAND_MMIO;
+	}
+	else if (Flags & __DEVICEMANAGER_IOCTL_IO_ENABLE) {
+		Settings |= PCI_COMMAND_PORTIO;
+	}
+
+	// Handle busmaster
+	if (Flags & __DEVICEMANAGER_IOCTL_BUSMASTER_ENABLE) {
+		Settings |= PCI_COMMAND_BUSMASTER;
+	}
+
+	// Handle fast-b2b
+	if (Flags & __DEVICEMANAGER_IOCTL_FASTBTB_ENABLE) {
+		Settings |= PCI_COMMAND_FASTBTB;
+	}
+
+	// Write back settings
+	PciWrite16(PciDevice->BusIo, Device->Bus, 
+		Device->Slot, Device->Function, 0x04, Settings);
+
+	// Done
+	return OsNoError;
 }

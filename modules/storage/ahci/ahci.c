@@ -120,6 +120,18 @@ AhciControllerCreate(
 	Controller->Interrupt = 
 		RegisterInterruptSource(&Controller->Device.Interrupt, 0);
 
+	// Enable device
+	if (IoctlDevice(Controller->Device.Id, __DEVICEMANAGER_IOCTL_BUS,
+		(__DEVICEMANAGER_IOCTL_ENABLE | __DEVICEMANAGER_IOCTL_MMIO_ENABLE
+			| __DEVICEMANAGER_IOCTL_BUSMASTER_ENABLE)) != OsNoError) {
+		ERROR("Failed to enable the ahci-controller");
+		UnregisterInterruptSource(Controller->Interrupt);
+		ReleaseIoSpace(Controller->IoBase);
+		DestroyIoSpace(Controller->IoBase->Id);
+		free(Controller);
+		return NULL;
+	}
+
 	// Now that all formalities has been taken care
 	// off we can actually setup controller
 	if (AhciSetup(Controller) == OsNoError) {

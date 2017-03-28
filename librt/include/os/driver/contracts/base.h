@@ -104,7 +104,11 @@ InitializeContract(
  * the manager know we are handling this device, and what kind
  * of functionality the device supports */
 #ifdef __DEVICEMANAGER_IMPL
-__DEVAPI UUId_t RegisterContract(MContract_t *Contract);
+__DEVAPI
+OsStatus_t
+RegisterContract(
+	_In_ MContract_t *Contract,
+	_Out_ UUId_t *Id);
 #else
 SERVICEAPI
 OsStatus_t
