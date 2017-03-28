@@ -245,7 +245,7 @@ void PciCheckFunction(PciDevice_t *Parent, int Bus, int Device, int Function)
 	PciDevice->BusIo = Parent->BusIo;
 	PciDevice->Header = Pcs;
 	PciDevice->Bus = Bus;
-	PciDevice->Device = Device;
+	PciDevice->Slot = Device;
 	PciDevice->Function = Function;
 	PciDevice->Children = NULL;
 	PciDevice->AcpiConform = 0;
@@ -253,8 +253,7 @@ void PciCheckFunction(PciDevice_t *Parent, int Bus, int Device, int Function)
 	// Trace Information about device 
 	// Ignore the spam of device_id 0x7a0 in VMWare
 	if (Pcs->DeviceId != 0x7a0) {
-		TRACE(" - [%d:%d:%d][%d:%d:%d] %s",
-			Pcs->Class, Pcs->Subclass, Pcs->Interface,
+		TRACE(" - [%d:%d:%d] %s",
 			Bus, Device, Function,
 			PciToString(Pcs->Class, Pcs->Subclass, Pcs->Interface));
 	}
@@ -296,25 +295,42 @@ void PciCheckFunction(PciDevice_t *Parent, int Bus, int Device, int Function)
 				Pin = 1;
 			}
 
-			// Swizzle till we reach root
-			while (Iterator->Parent != GlbRootBridge) {
-				Pin = PciDerivePin((int)Iterator->Device, Pin);
-				Iterator = Iterator->Parent;
-				TRACE("  * Derived Pin %i", Pin);
-			}
+			// Does device even use interrupts?
+			if (Pin != 0) {
+				// Swizzle till we reach root
+				// Case 1 - Query device for ACPI filter
+				//        -> 1.1: It has an routing for our Dev/Pin
+				//			 -> Exit
+				//	      -> 1.2: It does not have an routing
+				//           -> Swizzle-pin
+				//           -> Get parent device
+				//           -> Go-To 1
+				while (Iterator != GlbRootBridge) {
+					OsStatus_t HasFilter = AcpiQueryInterrupt(
+						Iterator->Bus, Iterator->Slot, Pin, 
+						&InterruptLine, &AcpiConform);
 
-			// Now query interrupt
-			if (AcpiQueryInterrupt(Iterator->Bus, Iterator->Device, Pin, 
-					&InterruptLine, &AcpiConform) == OsNoError) {
-				TRACE("  * Final Line %u - Final Pin %i", InterruptLine, Pin);
-			}
+					// Did routing exist?
+					if (HasFilter == OsNoError) {
+						TRACE("  * Final Line %u - Final Pin %i", InterruptLine, Pin);
+						break;
+					}
 
-			// Update the irq-line if we found a new line
-			if (InterruptLine != INTERRUPT_NONE) {
-				PciWrite8(Parent->BusIo, (DevInfo_t)Bus, (DevInfo_t)Device, 
-					(DevInfo_t)Function, 0x3C, (uint8_t)InterruptLine);
-				PciDevice->Header->InterruptLine = (uint8_t)InterruptLine;
-				PciDevice->AcpiConform = AcpiConform;
+					// Nope, swizzle pin, move up the ladder
+					Pin = PciDerivePin((int)Iterator->Slot, Pin);
+					Iterator = Iterator->Parent;
+
+					// Trace
+					TRACE("  * Derived Pin %i", Pin);
+				}
+
+				// Update the irq-line if we found a new line
+				if (InterruptLine != INTERRUPT_NONE) {
+					PciWrite8(Parent->BusIo, (DevInfo_t)Bus, (DevInfo_t)Device,
+						(DevInfo_t)Function, 0x3C, (uint8_t)InterruptLine);
+					PciDevice->Header->InterruptLine = (uint8_t)InterruptLine;
+					PciDevice->AcpiConform = AcpiConform;
+				}
 			}
 		}
 
@@ -396,7 +412,7 @@ void PciCreateDeviceFromPci(PciDevice_t *PciDev)
 
 	mDevice->Segment = (DevInfo_t)PciDev->BusIo->Segment;
 	mDevice->Bus = PciDev->Bus;
-	mDevice->Device = PciDev->Device;
+	mDevice->Device = PciDev->Slot;
 	mDevice->Function = PciDev->Function;
 
 	mDevice->Interrupt.Line = (int)PciDev->Header->InterruptLine;

@@ -139,7 +139,7 @@ typedef struct _PciDevice {
 	int						IsBridge;
 	PciBus_t				*BusIo;
 	DevInfo_t				Bus;
-	DevInfo_t				Device;
+	DevInfo_t				Slot;
 	DevInfo_t				Function;
 	Flags_t					AcpiConform;
 	PciNativeHeader_t		*Header;

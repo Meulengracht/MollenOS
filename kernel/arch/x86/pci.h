@@ -124,7 +124,7 @@ typedef struct _PciDevice
 
 	/* Location */
 	uint32_t Bus;
-	uint32_t Device;
+	uint32_t Slot;
 	uint32_t Function;
 
 	/* Information (Header) */

@@ -153,13 +153,13 @@ void PciWrite8(PciBus_t *Io,
 uint32_t PciDeviceRead(PciDevice_t *Device, size_t Register, size_t Length)
 {
 	if (Length == 1) {
-		return (uint32_t)PciRead8(Device->BusIo, Device->Bus, Device->Device, Device->Function, Register);
+		return (uint32_t)PciRead8(Device->BusIo, Device->Bus, Device->Slot, Device->Function, Register);
 	}
 	else if (Length == 2) {
-		return (uint32_t)PciRead16(Device->BusIo, Device->Bus, Device->Device, Device->Function, Register);
+		return (uint32_t)PciRead16(Device->BusIo, Device->Bus, Device->Slot, Device->Function, Register);
 	}
 	else {
-		return PciRead32(Device->BusIo, Device->Bus, Device->Device, Device->Function, Register);
+		return PciRead32(Device->BusIo, Device->Bus, Device->Slot, Device->Function, Register);
 	}
 }
 
@@ -169,12 +169,12 @@ uint32_t PciDeviceRead(PciDevice_t *Device, size_t Register, size_t Length)
 void PciDeviceWrite(PciDevice_t *Device, size_t Register, uint32_t Value, size_t Length)
 {
 	if (Length == 1) {
-		PciWrite8(Device->BusIo, Device->Bus, Device->Device, Device->Function, Register, (uint8_t)(Value & 0xFF));
+		PciWrite8(Device->BusIo, Device->Bus, Device->Slot, Device->Function, Register, (uint8_t)(Value & 0xFF));
 	}
 	else if (Length == 2) {
-		PciWrite16(Device->BusIo, Device->Bus, Device->Device, Device->Function, Register, (uint16_t)(Value & 0xFFFFF));
+		PciWrite16(Device->BusIo, Device->Bus, Device->Slot, Device->Function, Register, (uint16_t)(Value & 0xFFFFF));
 	}
 	else {
-		PciWrite32(Device->BusIo, Device->Bus, Device->Device, Device->Function, Register, Value);
+		PciWrite32(Device->BusIo, Device->Bus, Device->Slot, Device->Function, Register, Value);
 	}
 }
