@@ -1,85 +1,79 @@
 /* MollenOS
-*
-* Copyright 2011 - 2014, Philip Meulengracht
-*
-* This program is free software : you can redistribute it and / or modify
-* it under the terms of the GNU General Public License as published by
-* the Free Software Foundation ? , either version 3 of the License, or
-* (at your option) any later version.
-*
-* This program is distributed in the hope that it will be useful,
-* but WITHOUT ANY WARRANTY; without even the implied warranty of
-* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.See the
-* GNU General Public License for more details.
-*
-* You should have received a copy of the GNU General Public License
-* along with this program.If not, see <http://www.gnu.org/licenses/>.
-*
-*
-* MollenOS ACPI - HPET Driver
-*/
+ *
+ * Copyright 2011 - 2017, Philip Meulengracht
+ *
+ * This program is free software : you can redistribute it and / or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation ? , either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.If not, see <http://www.gnu.org/licenses/>.
+ *
+ *
+ * MollenOS - High Performance Event Timer (HPET) Driver
+ *  - Contains the implementation of the HPET driver for mollenos
+ */
 
-/* Includes */
-#include <acpi.h>
-#include <Module.h>
-#include <DeviceManager.h>
-#include <Devices\Timer.h>
-#include <Timers.h>
-#include "Hpet.h"
-#include <Heap.h>
-#include <Log.h>
+/* Includes
+ * - System */
+#include "hpet.h"
 
-/* Structures */
-#pragma pack(push, 1)
-typedef struct _HpetManager
+/* HpRead
+ * Reads the 32-bit value from the given register offset */
+OsStatus_t
+HpRead(
+	_In_ HpController_t *Controller,
+	_In_ size_t Offset,
+	_Out_ reg32_t *Value)
 {
-
-	/* List of timers */
-	Hpet_t **HpetTimers;
-
-} HpetManager_t;
-#pragma pack(pop)
-
-/* Globals */
-DeviceIoSpace_t *GlbHpetBaseAddress = NULL;
-uint32_t GlbHpetMinimumTick = 0;
-uint8_t GlbHpetTimerCount = 0;
-uint64_t GlbHpetFrequency = 0;
-volatile uint64_t GlbHpetCounter = 0;
-Hpet_t **GlbHpetTimers = NULL;
-const char *GlbHpetDriverName = "MollenOS ACPI HPET Driver";
-
-/* Helpers */
-
-/* Read from Hpet */
-uint32_t HpetRead32(uint32_t Offset)
-{
-	/* Deep Call */
-	return IoSpaceRead(GlbHpetBaseAddress, Offset, 4);
+	
 }
 
-/* Write to Hpet */
-void HpetWrite32(uint32_t Offset, uint32_t Value)
+/* HpWrite
+ * Writes the given 32-bit value to the given register offset */
+OsStatus_t
+HpWrite(
+	_In_ HpController_t *Controller,
+	_In_ size_t Offset,
+	_In_ reg32_t Value)
 {
-	/* Deep Call */
-	IoSpaceWrite(GlbHpetBaseAddress, Offset, Value, 4);
+
 }
 
-/* Stop main counter */
-void HpetStop(void)
+/* HpStop
+ * Stops the given controller's main counter */
+OsStatus_t
+HpStop(
+	_In_ HpController_t *Controller)
 {
-	/* Disable main counter */
-	uint32_t Temp = HpetRead32(X86_HPET_REGISTER_CONFIG);
-	Temp &= ~X86_HPET_CONFIG_ENABLED;
-	HpetWrite32(X86_HPET_REGISTER_CONFIG, Temp);
+	// Variables
+	reg32_t Config;
+
+	// Read, modify and write back
+	HpRead(Controller, HPET_REGISTER_CONFIG, &Config);
+	Config &= ~HPET_CONFIG_ENABLED;
+	return HpWrite(Controller, HPET_REGISTER_CONFIG, Config);
 }
 
-/* Start main counter */
-void HpetStart(void)
+/* HpStart
+ * Starts the given controller's main counter */
+OsStatus_t
+HpStart(
+	_In_ HpController_t *Controller)
 {
-	uint32_t Temp = HpetRead32(X86_HPET_REGISTER_CONFIG);
-	Temp |= X86_HPET_CONFIG_ENABLED;
-	HpetWrite32(X86_HPET_REGISTER_CONFIG, Temp);
+	// Variables
+	reg32_t Config;
+
+	// Read, modify and write back
+	HpRead(Controller, HPET_REGISTER_CONFIG, &Config);
+	Config |= HPET_CONFIG_ENABLED;
+	return HpWrite(Controller, HPET_REGISTER_CONFIG, Config);
 }
 
 /* Irq Handler */
@@ -285,8 +279,11 @@ OsStatus_t HpetComparatorSetup(uint32_t Comparator)
 	return OsNoError;
 }
 
-/* Entry point of a module */
-MODULES_API void ModuleInit(void *Data)
+/* HpControllerCreate 
+ * Creates a new controller from the given device descriptor */
+HpController_t*
+HpControllerCreate(
+	_In_ MCoreDevice_t *Device)
 {
 	/* We need these */
 	ACPI_TABLE_HPET *Hpet = (ACPI_TABLE_HPET*)Data;
@@ -444,35 +441,12 @@ MODULES_API void ModuleInit(void *Data)
 	}
 }
 
-/* Pit Ticks */
-uint64_t HpetGetClocks(void* Device)
+/* HpControllerDestroy
+ * Destroys an already registered controller and all its 
+ * registers sub-timers */
+OsStatus_t
+HpControllerDestroy(
+	_In_ HpController_t *Controller)
 {
-	/* Not used */
-	_CRT_UNUSED(Device);
 
-	/* Return global counter 
-	 * since there is only one HPET-periodic */
-	return GlbHpetCounter;
-}
-
-/* Sleep for ms */
-void HpetSleep(void* Device, size_t MilliSeconds)
-{
-	/* Calculate TickEnd in mSeconds */
-	uint64_t TickEnd = MilliSeconds + HpetGetClocks(Device);
-
-	/* While */
-	while (TickEnd > HpetGetClocks(Device))
-		IThreadYield();
-}
-
-/* Stall for ms */
-void HpetStall(void* Device, size_t MilliSeconds)
-{
-	/* Calculate TickEnd in mSeconds */
-	uint64_t TickEnd = MilliSeconds + HpetGetClocks(Device);
-
-	/* While */
-	while (TickEnd > HpetGetClocks(Device))
-		_asm nop;
 }
