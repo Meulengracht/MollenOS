@@ -92,14 +92,14 @@ typedef struct _mRectangle {
  * signed methods, but the quad-part is signed */
 typedef union _LargeInteger {
 	struct {
-		uint32_t LowPart;
-		int32_t HighPart;
+		uint32_t	LowPart;
+		int32_t		HighPart;
 	} s;
 	struct {
-		uint32_t LowPart;
-		uint32_t HighPart;
+		uint32_t	LowPart;
+		uint32_t	HighPart;
 	} u;
-	int64_t QuadPart;
+	int64_t			QuadPart;
 } LargeInteger_t;
 
 /* Helper function, retrieves the first 
@@ -146,6 +146,14 @@ static int LastSetBit(size_t Value)
 #define INCLIMIT(i, limit)				i++; if (i == limit) i = 0;
 #define ALIGN(Val, Alignment, Roundup)	((Val & (Alignment-1)) > 0 ? (Roundup == 1 ? ((Val + Alignment) & ~(Alignment-1)) : Val & ~(Alignment-1)) : Val)
 #define ISALIGNED(Val, Alignment)		((Val & (Alignment-1)) == 0)
+
+/* Time definitions that can help with 
+ * conversion of the different time-units */
+#define FSEC_PER_NSEC					1000000L
+#define NSEC_PER_MSEC					1000L
+#define MSEC_PER_SEC					1000L
+#define NSEC_PER_SEC					1000000000L
+#define FSEC_PER_SEC					1000000000000000LL
 
 /* Data manipulation macros */
 #ifndef LOWORD

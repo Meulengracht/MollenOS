@@ -510,6 +510,9 @@ UUId_t InterruptRegister(MCoreInterrupt_t *Interrupt, Flags_t Flags)
 			&& Interrupt->Pin == INTERRUPT_NONE) {
 			Interrupt->Line = 
 				InterruptFindBest(Interrupt->Direct, INTERRUPT_MAXDIRECTS);
+			if (Interrupt->Line < NUM_ISA_INTERRUPTS) {
+				Flags |= INTERRUPT_NOTSHARABLE;
+			}
 		}
 
 		// Lookup stuff

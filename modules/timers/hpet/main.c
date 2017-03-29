@@ -37,6 +37,8 @@
 
 /* Globals
  * State-tracking variables */
+static ACPI_TABLE_HPET *__GlbHPET = NULL;
+static AcpiDescriptor_t __GlbACPI;
 static List_t *GlbControllers = NULL;
 
 /* OnInterrupt
@@ -66,8 +68,15 @@ InterruptStatus_t OnInterrupt(void *InterruptData)
 	// Iterate the port-map and check if the interrupt
 	// came from that timer
 	for (i = 0; i < HPET_MAXTIMERCOUNT; i++) {
-		if (Controller->Timers[i].Enabled) {
-			
+		if (InterruptStatus & (1 << i)
+			&& Controller->Timers[i].Enabled) {
+			if (Controller->Timers[i].SystemTimer) {
+				Controller->Clock++;
+			}
+			if (!Controller->Timers[i].PeriodicSupport) {
+				// Non periodic timer fired, what now?
+				WARNING("HPET::NON-PERIODIC TIMER FIRED");
+			}
 		}
 	}
 
@@ -81,8 +90,30 @@ InterruptStatus_t OnInterrupt(void *InterruptData)
  * as soon as the driver is loaded in the system */
 OsStatus_t OnLoad(void)
 {
+	// Variables
+	ACPI_TABLE_HEADER *Header = NULL;
+
 	// Initialize state for this driver
 	GlbControllers = ListCreate(KeyInteger, LIST_NORMAL);
+
+	// Load ACPI
+	// If it's not present we should abort driver
+	if (AcpiQueryStatus(&__GlbACPI) != OsNoError) {
+		__GlbHPET = NULL;
+		return OsError;
+	}
+
+	// Find the HPET table
+	// If it's not present we should abort driver
+	if (AcpiQueryTable(ACPI_SIG_HPET, &Header) != OsNoError) {
+		__GlbHPET = NULL;
+		return OsError;
+	}
+
+	// Update pointer
+	__GlbHPET = (ACPI_TABLE_HPET*)Header;
+
+	// No errors
 	return OsNoError;
 }
 
@@ -109,9 +140,14 @@ OsStatus_t OnRegister(MCoreDevice_t *Device)
 	// Variables
 	HpController_t *Controller = NULL;
 	DataKey_t Key;
+
+	// Sanitize hpet status
+	if (__GlbHPET == NULL) {
+		return OsError;
+	}
 	
 	// Register the new controller
-	Controller = HpControllerCreate(Device);
+	Controller = HpControllerCreate(Device, __GlbHPET);
 
 	// Sanitize
 	if (Controller == NULL) {
@@ -136,6 +172,11 @@ OsStatus_t OnUnregister(MCoreDevice_t *Device)
 	// Variables
 	HpController_t *Controller = NULL;
 	DataKey_t Key;
+
+	// Sanitize hpet status
+	if (__GlbHPET == NULL) {
+		return OsError;
+	}
 
 	// Set the key to the id of the device to find
 	// the bound controller
@@ -170,7 +211,12 @@ OnQuery(_In_ MContractType_t QueryType,
 		_In_ UUId_t Queryee, 
 		_In_ int ResponsePort)
 {
+	// Variables
+	HpController_t *Controller = NULL;
+
 	// Unused params
+	_CRT_UNUSED(Arg0);
+	_CRT_UNUSED(Arg1);
 	_CRT_UNUSED(Arg2);
 
 	// Sanitize the QueryType
@@ -179,20 +225,34 @@ OnQuery(_In_ MContractType_t QueryType,
 		return OsError;
 	}
 
+	// Sanitize controller count
+	if (ListLength(GlbControllers) == 0) {
+		return OsError;
+	}
+
+	// Lookup first controller
+	Controller = (HpController_t*)ListBegin(GlbControllers)->Data;
+
 	// Which kind of function has been invoked?
 	switch (QueryFunction) {
 		// Query stats about a disk identifier in the form of
 		// a DiskDescriptor
 	case __TIMER_QUERY: {
-
+		return PipeSend(Queryee, ResponsePort, 
+			&Controller->Clock, sizeof(clock_t));
 	} break;
 
 	case __TIMER_PERFORMANCE_FREQUENCY: {
-
+		return PipeSend(Queryee, ResponsePort,
+			&Controller->Frequency, sizeof(LargeInteger_t));
 	} break;
 
 	case __TIMER_PERFORMANCE_QUERY: {
-
+		// Get a reading first
+		LargeInteger_t Value;
+		HpReadPerformanceCounter(Controller, &Value);
+		return PipeSend(Queryee, ResponsePort,
+			&Value, sizeof(LargeInteger_t));
 	} break;
 
 		// Other cases not supported

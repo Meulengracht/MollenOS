@@ -26,21 +26,24 @@
  * - Library */
 #include <os/spinlock.h>
 #include <os/osdefs.h>
+#include <time.h>
 
 /* Includes
  * - System */
 #include <os/driver/contracts/base.h>
-#include <os/driver/io.h>
 #include <os/driver/interrupt.h>
 #include <os/driver/device.h>
 #include <os/driver/buffer.h>
+#include <os/driver/acpi.h>
 
 /* HPET Definitions
  * Magic constants and things like that which won't change */
 #define HPET_MAXTIMERCOUNT		32
-#define HPET_MAXTICK			0x05F5E100
-#define HPET_MAXPERIOD			100000000UL
-#define HPET_MINPERIOD			100000UL
+#define HPET_IOSPACE_LENGTH		0x800
+
+#define HPET_MAXPERIOD			0x05F5E100
+#define HPET_MAXTICK			100000000UL
+#define HPET_MINTICK			100000UL
 
 /* HPET Registers
  * - General Registers */
@@ -57,11 +60,11 @@
  * Bits 16 - 31: Vendor Id of HPET 
  * Bits 32 - 63: Main counter period tick */
 #define HPET_REVISION(Capabilities)		(Capabilities & 0xFF)
-#define HPET_TIMERCOUNT(Capabailities)	((Capabilities >> 8) & 0x1F)
+#define HPET_TIMERCOUNT(Capabilities)	((Capabilities >> 8) & 0x1F)
 #define HPET_64BITSUPPORT				0x2000
 #define HPET_LEGACYMODESUPPORT			0x8000
-#define HPET_VENDORID(Capabailities)	((Capabilities >> 16) & 0xFFFF)
-#define HPET_MAINPERIOD(Capabailities)	((Capabilities >> 32) & 0xFFFFFFFF)
+#define HPET_VENDORID(Capabilities)		((Capabilities >> 16) & 0xFFFF)
+#define HPET_MAINPERIOD(Capabilities)	((Capabilities >> 32) & 0xFFFFFFFF)
 
 /* General Configuration Register
  * Bit        0: HPET Enabled/Disabled 
@@ -89,25 +92,25 @@
 #define HPET_TIMER_CONFIG_64BITMODESUPPORT	0x20
 #define HPET_TIMER_CONFIG_SET_CMP_VALUE		0x40
 #define HPET_TIMER_CONFIG_32BITMODE			0x100
+#define HPET_TIMER_CONFIG_IRQ(Irq)			((Irq & 0x1F) << 9)
 #define HPET_TIMER_CONFIG_FSBMODE			0x4000
 #define HPET_TIMER_CONFIG_FSBSUPPORT		0x8000
 #define HPET_TIMER_CONFIG_IRQMAP			0xFFFFFFFF00000000
 
 /* Hpet Timer Access Macros
  * Use these to access a specific timer registers */
-#define HPET_TIMER_CONFIG(Index)			((0x100 + (0x20 * Timer)))
-#define HPET_TIMER_COMPARATOR(Index)		((0x108 + (0x20 * Timer)))
-#define HPET_TIMER_FSBINTERRUPT(Index)		((0x110 + (0x20 * Timer)))
+#define HPET_TIMER_CONFIG(Index)			((0x100 + (0x20 * Index)))
+#define HPET_TIMER_COMPARATOR(Index)		((0x108 + (0x20 * Index)))
+#define HPET_TIMER_FSBINTERRUPT(Index)		((0x110 + (0x20 * Index)))
 
 typedef struct _HpTimer {
-	MCoreDevice_t			 Device;
-	MContract_t				 Contract;
 	UUId_t					 Interrupt;
 	Spinlock_t				 Lock;
 
 	int						 Present;
 	int						 Enabled;
 	int						 SystemTimer;
+	int						 Irq;
 	reg32_t					 InterruptMap;
 
 	int						 Is64Bit;
@@ -117,12 +120,16 @@ typedef struct _HpTimer {
 
 typedef struct _HpController {
 	MCoreDevice_t			 Device;
+	MContract_t				 ContractTimer;
+	MContract_t				 ContractPerformance;
 	DeviceIoSpace_t			 IoSpace;
 	HpTimer_t				 Timers[HPET_MAXTIMERCOUNT];
 
+	int						 Is64Bit;
 	size_t					 TickMinimum;
+	size_t					 Period;
 	LargeInteger_t			 Frequency;
-	LargeInteger_t			 Clock;
+	clock_t					 Clock;
 } HpController_t;
 
 /* HpControllerCreate 
@@ -130,7 +137,8 @@ typedef struct _HpController {
 __EXTERN
 HpController_t*
 HpControllerCreate(
-	_In_ MCoreDevice_t *Device);
+	_In_ MCoreDevice_t *Device,
+	_In_ ACPI_TABLE_HPET *Table);
 
 /* HpControllerDestroy
  * Destroys an already registered controller and all its 
@@ -139,6 +147,14 @@ __EXTERN
 OsStatus_t
 HpControllerDestroy(
 	_In_ HpController_t *Controller);
+
+/* HpReadPerformanceCounter
+ * Reads the main counter register into the given structure */
+__EXTERN
+OsStatus_t
+HpReadPerformanceCounter(
+	_In_ HpController_t *Controller,
+	_Out_ LargeInteger_t *Value);
 
 /* HpRead
  * Reads the 32-bit value from the given register offset */

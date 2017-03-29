@@ -19,10 +19,17 @@
  * MollenOS - High Performance Event Timer (HPET) Driver
  *  - Contains the implementation of the HPET driver for mollenos
  */
+#define __TRACE
 
 /* Includes
  * - System */
+#include <os/driver/driver.h>
+#include <os/utils.h>
 #include "hpet.h"
+
+/* Includes
+ * - Library */
+#include <stdlib.h>
 
 /* HpRead
  * Reads the 32-bit value from the given register offset */
@@ -32,7 +39,8 @@ HpRead(
 	_In_ size_t Offset,
 	_Out_ reg32_t *Value)
 {
-	
+	*Value = ReadIoSpace(&Controller->IoSpace, Offset, 4);
+	return OsNoError;
 }
 
 /* HpWrite
@@ -43,7 +51,8 @@ HpWrite(
 	_In_ size_t Offset,
 	_In_ reg32_t Value)
 {
-
+	WriteIoSpace(&Controller->IoSpace, Offset, Value, 4);
+	return OsNoError;
 }
 
 /* HpStop
@@ -76,369 +85,325 @@ HpStart(
 	return HpWrite(Controller, HPET_REGISTER_CONFIG, Config);
 }
 
-/* Irq Handler */
-int HpetTimerHandler(void *Args)
+/* HpReadPerformanceCounter
+ * Reads the main counter register into the given structure */
+OsStatus_t
+HpReadPerformanceCounter(
+	_In_ HpController_t *Controller,
+	_Out_ LargeInteger_t *Value)
 {
-	/* Cast */
-	MCoreDevice_t *DevTimer = (MCoreDevice_t*)Args;
-	MCoreTimerDevice_t *pTimer = (MCoreTimerDevice_t*)DevTimer->Data;
-	Hpet_t *Timer = (Hpet_t*)DevTimer->Driver.Data;
+	// Reset value
+	Value->QuadPart = 0;
 
-	/* Vars */
-	uint32_t TimerBit = (1 << Timer->Id);
+	// Read lower 32 bit
+	HpRead(Controller, HPET_REGISTER_MAINCOUNTER, &Value->u.LowPart);
 
-	/* Did we even fire? (Shared Only) */
-	if (Timer->Irq > 15)
-	{
-		if (!(HpetRead32(X86_HPET_REGISTER_INTR) & TimerBit))
-			return X86_IRQ_NOT_HANDLED;
-		else
-			HpetWrite32(X86_HPET_REGISTER_INTR, TimerBit);
+	// Copy upper 64 bit into structure
+	if (Controller->Is64Bit) {
+		HpRead(Controller, HPET_REGISTER_MAINCOUNTER + 4,
+			&Value->u.HighPart);
 	}
 
-	/* If timer is not in periodic mode
-	* and is meant to be periodic, restart */
-	if (Timer->Type == 1)
-	{
-		/* Inc Counter */
-		GlbHpetCounter++;
-
-		/* Apply time (1ms) */
-		if (pTimer->ReportMs != NULL)
-			pTimer->ReportMs(1);
-
-		/* If we are not periodic restart us */
-		if (Timer->Periodic != 1)
-		{
-			LogFatal("HPET", "Philip implement retarting of non-peridoic timers please!");
-			for (;;);
-		}
-	}
-
-	/* Done */
-	return X86_IRQ_HANDLED;
+	// Done
+	return OsNoError;
 }
 
-/* Start Comparator */
-OsStatus_t HpetComparatorStart(uint32_t Comparator, uint32_t Periodic, uint32_t Freq, MCoreDevice_t *Device)
+/* HpComparatorInitialize 
+ * Initializes a given comparator in the HPET controller */
+OsStatus_t
+HpComparatorInitialize(
+	_In_ HpController_t *Controller,
+	_In_ int Index)
 {
-	/* Stop main counter */
-	uint32_t Now;
+	// Variables
+	HpTimer_t *Timer = &Controller->Timers[Index];
+	reg32_t Configuration = 0;
+	reg32_t InterruptMap = 0;
+
+	// Read values
+	HpRead(Controller, HPET_TIMER_CONFIG(Index), &Configuration);
+	HpRead(Controller, HPET_TIMER_CONFIG(Index) + 4, &InterruptMap);
+
+	// Setup basic information
+	Timer->Present = 1;
+	Timer->Irq = INTERRUPT_NONE;
+	Timer->InterruptMap = InterruptMap;
+
+	// Store some features
+	if (Configuration & HPET_TIMER_CONFIG_64BITMODESUPPORT) {
+		Timer->Is64Bit = 1;
+	}
+	if (Configuration & HPET_TIMER_CONFIG_FSBSUPPORT) {
+		Timer->MsiSupport = 1;
+	}
+	if (Configuration & HPET_TIMER_CONFIG_PERIODICSUPPORT) {
+		Timer->PeriodicSupport = 1;
+	}
+	
+	// Process timer configuration and disable it for now
+	Configuration &= ~(HPET_TIMER_CONFIG_IRQENABLED
+		| HPET_TIMER_CONFIG_POLARITY | HPET_TIMER_CONFIG_FSBMODE);
+
+	// Handle 32/64 bit
+	if (!Controller->Is64Bit || !Timer->Is64Bit) {
+		Configuration |= HPET_TIMER_CONFIG_32BITMODE;
+	}
+
+	// Write back configuration
+	return HpWrite(Controller, HPET_TIMER_CONFIG(Index), Configuration);
+}
+
+/* HpComparatorStart
+ * Starts a given comparator in the HPET controller with the
+ * given frequency (hz) */
+OsStatus_t
+HpComparatorStart(
+	_In_ HpController_t *Controller,
+	_In_ int Index,
+	_In_ uint64_t Frequency,
+	_In_ int Periodic)
+{
+	// Variables
+	HpTimer_t *Timer = &Controller->Timers[Index];
+	MCoreInterrupt_t Interrupt;
+	LargeInteger_t Now;
 	uint64_t Delta;
-	uint32_t Temp;
+	reg32_t TempValue;
+	int i, j;
 
-	/* Disable main counter */
-	HpetStop();
+	// Stop main timer
+	HpStop(Controller);
 
-	/* Get now */
-	Now = HpetRead32(X86_HPET_REGISTER_COUNTER);
+	// Calculate the delta
+	HpReadPerformanceCounter(Controller, &Now);
+	Delta = (uint64_t)Controller->Frequency.QuadPart / Frequency;
+	Now.QuadPart += Delta;
 
-	/* We have the hertz of hpet and the fsec */
-	Delta = GlbHpetFrequency / Freq;
-	Now += (uint32_t)Delta;
+	// Allocate interrupt for timer?
+	if (Timer->Irq == INTERRUPT_NONE) {
+		// Initialize interrupt structure
+		Interrupt.Line = INTERRUPT_NONE;
+		Interrupt.Pin = INTERRUPT_NONE;
+		Interrupt.AcpiConform = 0;
 
-#ifdef X86_HPET_DIAGNOSE
-	LogInformation("HPET", "Delta 0x%x, Frequency 0x%x", (uint32_t)Delta, (uint32_t)GlbHpetFrequency);
-#endif
+		// Set handler and data
+		Interrupt.Data = Controller;
+		Interrupt.FastHandler = OnInterrupt;
 
-	/* Sanity */
-	if (GlbHpetTimers[Comparator]->Irq == 0xFFFFFFFF) {
-		/* Irq has not been allocated yet 
-		 * Get device interface and allocate one */
-		int IrqItr = 0, DevIrqItr = 0;
-		
-		/* Get a list of avail irqs */
-		for (IrqItr = 0; IrqItr < 32; IrqItr++)
-		{
-			/* Can we allocate an interrupt for this? */
-			if (GlbHpetTimers[Comparator]->Map & (1 << IrqItr))
-				Device->IrqAvailable[DevIrqItr++] = IrqItr;
-
-			/* Do we have enough? */
-			if (DevIrqItr == DEVICEMANAGER_MAX_IRQS)
-				break;
+		// From the interrupt map, calculate possible int's
+		for (i = 0, j = 0; i < 32; i++) {
+			if (Timer->InterruptMap & (1 << i)) {
+				Interrupt.Direct[j++] = i;
+				if (j == INTERRUPT_MAXDIRECTS) {
+					break;
+				}
+			}
 		}
 
-		/* End of list */
-		if (DevIrqItr != DEVICEMANAGER_MAX_IRQS)
-			Device->IrqAvailable[DevIrqItr] = -1;
-
-		Device->IrqHandler = HpetTimerHandler;
-
-		/* Register us for an irq */
-		if (DmRequestResource(Device, ResourceIrq)) {
-			LogFatal("HPET", "Failed to allocate irq for use, bailing out!");
-
-			/* Done */
-			return OsError;
+		// Place an end marker
+		if (j != INTERRUPT_MAXDIRECTS) {
+			Interrupt.Direct[j] = INTERRUPT_NONE;
 		}
 
-		/* Update */
-		GlbHpetTimers[Comparator]->Irq = Device->IrqLine;
+		// Todo - MSI
+		Timer->Interrupt =
+			RegisterInterruptSource(&Interrupt, INTERRUPT_FAST);
+		Timer->Irq = Interrupt.Line;
+	}
+	
+	// Process configuration
+	HpRead(Controller, HPET_TIMER_CONFIG(Index), &TempValue);
+	TempValue |= HPET_TIMER_CONFIG_IRQENABLED;
+	TempValue |= HPET_TIMER_CONFIG_IRQ(Timer->Irq);
+
+	// Set polarity if irq is shared
+	if (Timer->Irq > 15) {
+		TempValue |= HPET_TIMER_CONFIG_POLARITY;
 	}
 
-	/* Update Irq */
-	Temp = HpetRead32(X86_HPET_TIMER_REGISTER_CONFIG(Comparator));
-#ifdef X86_HPET_DIAGNOSE
-	LogInformation("HPET", "Old TimerInfo: 0x%x", Temp);
-#endif
-	Temp |= (GlbHpetTimers[Comparator]->Irq << 9) | X86_HPET_TIMER_CONFIG_IRQENABLED
-		 | X86_HPET_TIMER_CONFIG_SET_CMP_VALUE;
-
-	if (GlbHpetTimers[Comparator]->Irq > 15)
-		Temp |= X86_HPET_TIMER_CONFIG_POLARITY;
-
-	if (Periodic == 1)
-		Temp |= X86_HPET_TIMER_CONFIG_PERIODIC;
-
-#ifdef X86_HPET_DIAGNOSE
-	LogInformation("HPET", "New TimerInfo: 0x%x", Temp);
-#endif
-	HpetWrite32(X86_HPET_TIMER_REGISTER_CONFIG(Comparator), Temp);
-#ifdef X86_HPET_DIAGNOSE
-	LogInformation("HPET", "New TimeEnd: 0x%x", Now);
-#endif
-	HpetWrite32(X86_HPET_TIMER_REGISTER_COMPARATOR(Comparator), Now);
-
-#ifdef X86_HPET_DIAGNOSE
-	LogInformation("HPET", "New Delta: 0x%x", (uint32_t)Delta);
-#endif
-
-	/*
-	 * HPET on AMD 81xx needs a second write (with HPET_TN_SETVAL
-	 * cleared) to T0_CMP to set the period. The HPET_TN_SETVAL	
-	 * bit is automatically cleared after the first write.
-	 * (See AMD-8111 HyperTransport I/O Hub Data Sheet,
-	 * Publication # 24674)
-	 */
-	if (Periodic)
-		HpetWrite32(X86_HPET_TIMER_REGISTER_COMPARATOR(Comparator), (uint32_t)Delta);
-
-	/* If this is not the periodic shitcake then make sure that 
-	 * hpet has not already */
-	if (Periodic != 1)
-	{
-		uint32_t CurrTime = HpetRead32(X86_HPET_REGISTER_COUNTER);
-
-		if (CurrTime > Now)
-		{
-			/* Make sure callback is fired */
-		}
+	// Set some extra bits if periodic
+	if (Timer->PeriodicSupport && Periodic) {
+		TempValue |= HPET_TIMER_CONFIG_PERIODIC;
+		TempValue |= HPET_TIMER_CONFIG_SET_CMP_VALUE;
 	}
 
-	/* Set as active */
-	GlbHpetTimers[Comparator]->Active = 1;
+	// Update configuration and comparator
+	HpWrite(Controller, HPET_TIMER_CONFIG(Index), TempValue);
+	HpWrite(Controller, HPET_TIMER_COMPARATOR(Index), Now.u.LowPart);
+	if (!(TempValue & HPET_TIMER_CONFIG_32BITMODE)) {
+		HpWrite(Controller, HPET_TIMER_COMPARATOR(Index) + 4, Now.u.HighPart);
+	}
 
-	/* Clear */
-	HpetWrite32(X86_HPET_REGISTER_INTR, (1 << Comparator));
+	// Write delta if periodic
+	if (Timer->PeriodicSupport && Periodic) {
+		HpWrite(Controller, HPET_TIMER_COMPARATOR(Index), LODWORD(Delta));
+	}
 
-	/* Start main counter */
-	HpetStart();
+	// Set enabled
+	Timer->Enabled = 1;
 
-	/* Done */
-	return OsNoError;
-}
+	// Clear interrupt
+	HpWrite(Controller, HPET_REGISTER_INTSTATUS, (1 << Index));
 
-/* Setup Comparator */
-OsStatus_t HpetComparatorSetup(uint32_t Comparator)
-{
-	/* Read info about the timer */
-	uint32_t TimerInfo = HpetRead32(X86_HPET_TIMER_REGISTER_CONFIG(Comparator));
-	uint32_t TimerIrqMap = HpetRead32(X86_HPET_TIMER_REGISTER_CONFIG(Comparator) + 4);
-
-	/* Debug */
-#ifdef X86_HPET_DIAGNOSE
-	LogInformation("HPET", "Timer %u, IrqMap 0x%x, Info 0x%x", Comparator, TimerIrqMap, TimerInfo);
-#endif
-
-	/* Disable Timer */
-	TimerInfo &= ~(X86_HPET_TIMER_CONFIG_IRQENABLED | X86_HPET_TIMER_CONFIG_FSBMODE | X86_HPET_TIMER_CONFIG_POLARITY);
-
-	/* Set info */
-	GlbHpetTimers[Comparator]->Id = (uint32_t)Comparator;
-	GlbHpetTimers[Comparator]->Map = TimerIrqMap;
-	GlbHpetTimers[Comparator]->Active = 0;
-	GlbHpetTimers[Comparator]->Type = 0;
-	GlbHpetTimers[Comparator]->Irq = 0xFFFFFFFF;
-
-	if (TimerInfo & X86_HPET_TIMER_CONFIG_PERIODICSUPPORT)
-		GlbHpetTimers[Comparator]->Periodic = 1;
-	if (TimerInfo & X86_HPET_TIMER_CONFIG_FSBSUPPORT)
-		GlbHpetTimers[Comparator]->MsiSupport = 1;
-
-	/* Force timers to 32 bit */
-	if (TimerInfo & X86_HPET_TIMER_CONFIG_64BITMODESUPPORT)
-		TimerInfo |= X86_HPET_TIMER_CONFIG_32BITMODE;
-
-	HpetWrite32(X86_HPET_TIMER_REGISTER_CONFIG(Comparator), TimerInfo);
-
-#ifdef X86_HPET_DIAGNOSE
-	LogInformation("HPET", "New TimerInfo: 0x%x", TimerInfo);
-#endif
-
-	return OsNoError;
+	// Start main timer
+	return HpStart(Controller);
 }
 
 /* HpControllerCreate 
  * Creates a new controller from the given device descriptor */
 HpController_t*
 HpControllerCreate(
-	_In_ MCoreDevice_t *Device)
+	_In_ MCoreDevice_t *Device,
+	_In_ ACPI_TABLE_HPET *Table)
 {
-	/* We need these */
-	ACPI_TABLE_HPET *Hpet = (ACPI_TABLE_HPET*)Data;
-	uint8_t Itr = 0;
-	volatile uint32_t Temp = 0;
-	IntStatus_t IntState;
+	// Variables
+	HpController_t *Controller = NULL;
+	int Legacy = 0, FoundPeriodic = 0;
+	reg32_t TempValue;
+	int i, NumTimers;
 
-	/* Sanity */
-	if (Data == NULL)
-		return;
+	// Trace
+	TRACE("HpControllerCreate(Address 0x%x, Sequence %u)",
+		(uintptr_t)(Table->Address.Address & __MASK),
+		Table->Sequence);
 
-	/* Disable Interrupts */
-	IntState = InterruptDisable();
+	// Allocate a new controller instance
+	Controller = (HpController_t*)malloc(sizeof(HpController_t));
+	memset(Controller, 0, sizeof(HpController_t));
+	memcpy(&Controller->Device, Device, sizeof(MCoreDevice_t));
 
-#ifdef X86_HPET_DIAGNOSE
-	LogInformation("HPET", "Setting up Hpet");
-#endif
+	// Initialize io-space
+	Controller->IoSpace.PhysicalBase = 
+		(uintptr_t)(Table->Address.Address & __MASK);
+	Controller->IoSpace.Size = HPET_IOSPACE_LENGTH;
 
-	/* Save base address */
-	if (Hpet->Address.SpaceId == 0)
-		GlbHpetBaseAddress = IoSpaceCreate(DEVICE_IO_SPACE_MMIO, (Addr_t)Hpet->Address.Address, PAGE_SIZE);
-	else
-		GlbHpetBaseAddress = IoSpaceCreate(DEVICE_IO_SPACE_IO, (Addr_t)Hpet->Address.Address, 512);
+	// Determine type
+	if (Table->Address.SpaceId == 0) {
+		Controller->IoSpace.Type = IO_SPACE_MMIO;
+	}
+	else {
+		Controller->IoSpace.Type = IO_SPACE_IO;
+	}
 
-	/* Save minimum tick */
-	GlbHpetMinimumTick = Hpet->MinimumTick;
+	// Initialize the contracts
+	InitializeContract(&Controller->ContractTimer, Device->Id, 1,
+		ContractTimer, "HPET Timer Controller");
+	InitializeContract(&Controller->ContractPerformance, Device->Id, 1,
+		ContractTimerPerformance, "HPET Performance Controller");
 
-	/* Reset counter */
-	GlbHpetCounter = 0;
+	// Create the io-space
+	if (CreateIoSpace(&Controller->IoSpace) != OsNoError
+		&& AcquireIoSpace(&Controller->IoSpace) != OsNoError) {
+		ERROR("Failed to acquire HPET io-space");
+		free(Controller);
+		return NULL;
+	}
 
-#ifdef X86_HPET_DIAGNOSE
-	LogInformation("HPET", "Base Address: 0x%x, Address Type: 0x%x",
-		GlbHpetBaseAddress, GlbHpetBaseAddressType);
-#endif
+	// Store some data
+	Controller->TickMinimum = Table->MinimumTick;
+	HpRead(Controller, HPET_REGISTER_CAPABILITIES + 4, &Controller->Period);
 
-	/* Get period,  Upper 32 bits */
-	volatile uint32_t ClockPeriod = HpetRead32(X86_HPET_REGISTER_CAP_ID + 4);
+	// Trace
+	TRACE("Hpet (Minimum Tick 0x%x, Period 0x%x)",
+		Controller->TickMinimum, Controller->Period);
 
-#ifdef X86_HPET_DIAGNOSE
-	LogInformation("HPET", "Base Address: 0x%x, Clock Period: 0x%x, Min Tick: 0x%x",
-		(uint32_t)GlbHpetBaseAddress, ClockPeriod, GlbHpetMinimumTick);
-#endif
-
-	/* AMD SB700 Systems initialise HPET on first register access,
-	* wait for it to setup HPET, its config register reads 0xFFFFFFFF meanwhile */
-	for (Itr = 0; Itr < 10000; Itr++)
-	{
-		/* Read */
-		if (HpetRead32(X86_HPET_REGISTER_CONFIG) != 0xFFFFFFFF)
+	// AMD SB700 Systems initialise HPET on first register access,
+	// wait for it to setup HPET, its config register reads 0xFFFFFFFF meanwhile
+	for (i = 0; i < 10000; i++) {
+		HpRead(Controller, HPET_REGISTER_CONFIG, &TempValue);
+		if (TempValue != 0xFFFFFFFF) {
 			break;
-
-		/* Sanity */
-		if (Itr == 9999)
-			return;
-	}
-
-	/* Sanity */
-	if (ClockPeriod > X86_HPET_MAX_PERIOD || ClockPeriod < X86_HPET_MIN_PERIOD)
-		return;
-
-	/* Get count of comparators */
-	GlbHpetTimerCount = (uint8_t)(((HpetRead32(X86_HPET_REGISTER_CAP_ID) & X86_HPET_CAP_TIMERCOUNT) >> 8) & 0x1F);
-
-	/* Debug */
-#ifdef X86_HPET_DIAGNOSE
-	LogInformation("HPET", "Hpet Timer Count: %u", (uint32_t)GlbHpetTimerCount);
-#endif
-
-	/* Sanity check this */
-	if (ClockPeriod > X86_HPET_MAXTICK || ClockPeriod == 0 || GlbHpetTimerCount == 0)
-		return;
-
-	/* Allocate */
-	GlbHpetTimers = (Hpet_t**)kmalloc(sizeof(Addr_t*) * GlbHpetTimerCount);
-
-	for (Itr = 0; Itr < GlbHpetTimerCount; Itr++)
-		GlbHpetTimers[Itr] = (Hpet_t*)kmalloc(sizeof(Hpet_t));
-
-	/* Now all sanity checks are in place, we can configure it */
-	/* Step 1: Halt Timer & Disable legacy */
-	Temp = HpetRead32(X86_HPET_REGISTER_CONFIG);
-#ifdef X86_HPET_DIAGNOSE
-	LogInformation("HPET", "Original Hpet Config 0x%x", Temp);
-#endif
-	Temp &= ~(X86_HPET_CONFIG_ENABLED);
-	HpetWrite32(X86_HPET_REGISTER_CONFIG, Temp);
-
-	/* Reset timer */
-	HpetWrite32(X86_HPET_REGISTER_COUNTER, 0);
-	HpetWrite32(X86_HPET_REGISTER_COUNTER + 4, 0);
-
-	/* Step 2: Calculate HPET Frequency */
-	uint64_t Frequency = FSEC_PER_SEC / ClockPeriod;
-	GlbHpetFrequency = Frequency;
-
-	/* Initialize Comparators */
-	for (Itr = 0; Itr < GlbHpetTimerCount; Itr++)
-		HpetComparatorSetup(Itr);
-
-	/* Enable Interrupts before initializing the periodic */
-	InterruptRestoreState(IntState);
-
-	/* Setup main system timer 1 ms, this also starts the main counter */
-	uint32_t PeriodicInstalled = 0;
-	for (Itr = 0; Itr < GlbHpetTimerCount; Itr++)
-	{
-		/* Which one supported periodic? */
-		if (GlbHpetTimers[Itr]->Periodic == 1
-			&& !PeriodicInstalled)
-		{
-			/* Setup device */
-			MCoreDevice_t *pDevice = (MCoreDevice_t*)kmalloc(sizeof(MCoreDevice_t));
-			MCoreTimerDevice_t *pTimer = (MCoreTimerDevice_t*)kmalloc(sizeof(MCoreTimerDevice_t));
-			memset(pDevice, 0, sizeof(MCoreDevice_t));
-
-			/* Setup information */
-			pDevice->VendorId = 0x8086;
-			pDevice->DeviceId = 0x0;
-			pDevice->Class = DEVICEMANAGER_ACPI_CLASS;
-			pDevice->Subclass = 0x00000008;
-
-			/* Setup Irq's */
-			pDevice->IrqLine = -1;
-			pDevice->IrqPin = -1;
-			
-			/* Type */
-			pDevice->Type = DeviceTimer;
-			pDevice->Data = pTimer;
-
-			/* Initial */
-			pDevice->Driver.Name = (char*)GlbHpetDriverName;
-			pDevice->Driver.Version = 1;
-			pDevice->Driver.Data = GlbHpetTimers[Itr];
-			pDevice->Driver.Status = DriverActive;
-
-			/* Setup timer */
-			pTimer->Sleep = HpetSleep;
-			pTimer->Stall = HpetStall;
-			pTimer->GetTicks = HpetGetClocks;
-
-			/* Set type */
-			GlbHpetTimers[Itr]->Type = 1;
-			GlbHpetTimers[Itr]->DeviceId = DmCreateDevice("HPet Timer", pDevice);
-
-			/* Start it */
-			HpetComparatorStart(Itr, 1, 1000, pDevice);
-
-			/* Done! */
-			PeriodicInstalled = 1;
-		}
-		else
-		{
-			/* Create Perf */
 		}
 	}
+
+	// Did system fail to initialize
+	if (TempValue == 0xFFFFFFFF 
+		|| (Controller->Period == 0)
+		|| (Controller->Period > HPET_MAXPERIOD)) {
+		ERROR("Failed to initialize HPET (AMD SB700) or period is invalid.");
+		ReleaseIoSpace(&Controller->IoSpace);
+		DestroyIoSpace(Controller->IoSpace.Id);
+		free(Controller);
+		return NULL;
+	}
+
+	// Calculate the frequency
+	Controller->Frequency.QuadPart = (int64_t)
+		(uint64_t)(FSEC_PER_SEC / (uint64_t)Controller->Period);
+
+	// Process the capabilities
+	HpRead(Controller, HPET_REGISTER_CAPABILITIES, &TempValue);
+	Controller->Is64Bit = (TempValue & HPET_64BITSUPPORT) ? 1 : 0;
+	Legacy = (TempValue & HPET_LEGACYMODESUPPORT) ? 1 : 0;
+	NumTimers = (int)HPET_TIMERCOUNT(TempValue);
+
+	// Trace
+	TRACE("Hpet (Caps 0x%x, Timers 0x%x, Frequency 0x%x)", 
+		TempValue, NumTimers, Controller->Frequency.u.LowPart);
+
+	// Sanitize the number of timers, must be above 0
+	if (NumTimers == 0 || NumTimers > HPET_MAXTIMERCOUNT) {
+		ERROR("There was no timers present in HPET");
+		ReleaseIoSpace(&Controller->IoSpace);
+		DestroyIoSpace(Controller->IoSpace.Id);
+		free(Controller);
+		return NULL;
+	}
+
+	// Halt the main timer and start configuring it
+	// We want to disable the legacy if its supported and enabled
+	HpRead(Controller, HPET_REGISTER_CONFIG, &TempValue);
+
+	// Disable legacy and counter
+	TempValue &= ~(HPET_CONFIG_ENABLED);
+	if (Legacy != 0) {
+		TempValue &= ~(HPET_CONFIG_LEGACY);
+	}
+
+	// Update config and reset main counter
+	HpWrite(Controller, HPET_REGISTER_CONFIG, TempValue);
+	HpWrite(Controller, HPET_REGISTER_MAINCOUNTER, 0);
+	HpWrite(Controller, HPET_REGISTER_MAINCOUNTER + 4, 0);
+
+	// Loop through all comparators and configurate them
+	for (i = 0; i < NumTimers; i++) {
+		if (HpComparatorInitialize(Controller, i) == OsError) {
+			ERROR("HPET Failed to initialize comparator %i", i);
+			Controller->Timers[i].Present = 0;
+		}
+	}
+
+	// Register the contract before setting up rest
+	if (RegisterContract(&Controller->ContractTimer) != OsNoError
+		&& RegisterContract(&Controller->ContractPerformance) != OsNoError) {
+		ERROR("Failed to register HPET Contracts");
+		ReleaseIoSpace(&Controller->IoSpace);
+		DestroyIoSpace(Controller->IoSpace.Id);
+		free(Controller);
+		return NULL;
+	}
+
+	// Iterate and find periodic timer
+	// and install that one as system timer
+	for (i = 0; i < NumTimers; i++) {
+		if (Controller->Timers[i].Present
+			&& Controller->Timers[i].PeriodicSupport) {
+			if (HpComparatorStart(Controller, i, 1000, 1) != OsNoError) {
+				ERROR("HPET Failed to initialize periodic timer %i", i);
+			}
+			else {
+				FoundPeriodic = 1;
+				break;
+			}
+		}
+	}
+
+	// If we didn't find periodic, use the first present
+	// timer as one-shot and reinit it every interrupt
+
+
+	// Success!
+	return Controller;
 }
 
 /* HpControllerDestroy
@@ -448,5 +413,6 @@ OsStatus_t
 HpControllerDestroy(
 	_In_ HpController_t *Controller)
 {
-
+	// Todo
+	_CRT_UNUSED(Controller);
 }
