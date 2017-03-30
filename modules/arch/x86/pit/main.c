@@ -75,7 +75,7 @@ OsStatus_t OnLoad(void)
 	// Initialize the interrupt request
 	GlbPit->Interrupt.Line = PIT_IRQ;
 	GlbPit->Interrupt.Pin = INTERRUPT_NONE;
-	GlbPit->Interrupt.Direct[0] = INTERRUPT_NONE;
+	GlbPit->Interrupt.Vectors[0] = INTERRUPT_NONE;
 	GlbPit->Interrupt.FastHandler = OnInterrupt;
 	GlbPit->Interrupt.Data = GlbPit;
 

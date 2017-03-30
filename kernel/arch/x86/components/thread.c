@@ -130,7 +130,7 @@ void *IThreadCreate(Flags_t ThreadFlags, uintptr_t EntryPoint)
 	if (__GlbThreadX86Initialized == 0) {
 		__GlbThreadX86Initialized = 1;
 		Interrupt.Data = NULL;
-		Interrupt.Direct[0] = INTERRUPT_YIELD;
+		Interrupt.Vectors[0] = INTERRUPT_YIELD;
 		Interrupt.Line = APIC_NO_GSI;
 		Interrupt.Pin = APIC_NO_GSI;
 		Interrupt.FastHandler = ThreadingYield;

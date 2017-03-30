@@ -28,14 +28,6 @@
  * - System */
 #include <os/osdefs.h>
 
-/* Time definitions that can help with 
- * conversion of the different time-units */
-#define FSEC_PER_NSEC				1000000L
-#define NSEC_PER_MSEC				1000L
-#define MSEC_PER_SEC				1000L
-#define NSEC_PER_SEC				1000000000L
-#define FSEC_PER_SEC				1000000000000000LL
-
 /* Timer callback definition, the
  * function proto-type for a timer callback */
 typedef void(*TimerHandler_t)(void*);

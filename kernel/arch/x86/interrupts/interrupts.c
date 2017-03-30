@@ -223,7 +223,7 @@ uint64_t InterruptDetermine(MCoreInterrupt_t *Interrupt)
 		TRACE(" - ISA Interrupt (Active-High, Edge-Triggered)");
 		ApicFlags |= 0x100;					// Lowest Priority
 		ApicFlags |= 0x800;					// Logical Destination Mode
-		ApicFlags |= (INTERRUPT_DEVICE_BASE + Interrupt->Line);
+		ApicFlags |= (INTERRUPT_BASE_DEVICE + Interrupt->Line);
 	}
 	
 	// Case 2 - PCI Interrupts (No-Pin) 
@@ -235,13 +235,13 @@ uint64_t InterruptDetermine(MCoreInterrupt_t *Interrupt)
 		ApicFlags |= 0x800;						// Logical Destination Mode
 		ApicFlags |= APIC_ACTIVE_LOW;			// Set Polarity
 		ApicFlags |= APIC_LEVEL_TRIGGER;		// Set Trigger Mode
-		ApicFlags |= (INTERRUPT_DEVICE_BASE + Interrupt->Line);
+		ApicFlags |= (INTERRUPT_BASE_DEVICE + Interrupt->Line);
 	}
 
 	// Case 3 - PCI Interrupts (Pin) 
 	// - Usually Level Triggered Low-Active
 	else if (Interrupt->Pin != INTERRUPT_NONE) {
-		int IdtEntry = INTERRUPT_DEVICE_BASE;
+		int IdtEntry = INTERRUPT_BASE_DEVICE;
 
 		// If no routing exists use the pci interrupt line
 		if (!(Interrupt->AcpiConform & __DEVICEMANAGER_ACPICONFORM_PRESENT)) {
@@ -332,7 +332,7 @@ OsStatus_t InterruptFinalize(MCoreInterruptDescriptor_t *Interrupt)
 		if (iNode->Key.Value == ACPI_MADT_TYPE_INTERRUPT_OVERRIDE) {
 			ACPI_MADT_INTERRUPT_OVERRIDE *IoEntry =
 				(ACPI_MADT_INTERRUPT_OVERRIDE*)iNode->Data;
-			if (IoEntry->SourceIrq == Source) {
+			if ((int)IoEntry->SourceIrq == Source) {
 				Interrupt->Source = Source = IoEntry->GlobalIrq;
 				ApicFlags &= ~(APIC_LEVEL_TRIGGER | APIC_ACTIVE_LOW);
 				ApicFlags |= (InterruptGetPolarity(IoEntry->IntiFlags, Source) << 13);
@@ -385,9 +385,14 @@ OsStatus_t InterruptFinalize(MCoreInterruptDescriptor_t *Interrupt)
  * devices on that irq */
 int InterruptIrqCount(int Source)
 {
-	/* Vars */
+	// Variables
 	MCoreInterruptDescriptor_t *Entry = NULL;
 	int RetVal = 0;
+
+	// Sanitize the requested source
+	if (Source < 0 || Source > (IDT_DESCRIPTORS - 32)) {
+		return INTERRUPT_NONE;
+	}
 
 	// Sanitize the ISA table
 	// first, if its ISA, only one can be share
@@ -411,35 +416,34 @@ int InterruptIrqCount(int Source)
  * most useful for MSI devices */
 int InterruptFindBest(int Irqs[], int Count)
 {
-	/* Variables for our needs */
-	int BestIrq = INTERRUPT_NONE;
+	// Variables
+	int Best = INTERRUPT_NONE;
 	int i;
 
-	/* Iterate all the available irqs
-	 * that the device-supports */
+	// Iterate all the available irqs
+	// that the device-supports
 	for (i = 0; i < Count; i++) {
-		/* Sanitize the end of list? */
 		if (Irqs[i] == INTERRUPT_NONE) {
 			break;
 		}
 
-		/* Check count */
+		// Calculate count
 		int iCount = InterruptIrqCount(Irqs[i]);
 
-		/* Sanitize status, if -1
-		 * then its not usable */
+		// Sanitize status, if -1
+		// then its not usable
 		if (iCount == INTERRUPT_NONE) {
 			continue;
 		}
 
-		/* Is it better? */
-		if (iCount < BestIrq) {
-			BestIrq = iCount;
+		// Store best
+		if (iCount < Best) {
+			Best = iCount;
 		}
 	}
 
-	/* Done */
-	return BestIrq;
+	// Done
+	return Best;
 }
 
 /* InterruptInitialize
@@ -491,10 +495,11 @@ UUId_t InterruptRegister(MCoreInterrupt_t *Interrupt, Flags_t Flags)
 
 	// Ok -> So we have a bunch of different cases of interrupt 
 	// Software (Kernel) interrupts
+	// Software (User) interrupts
 	// User (fast) interrupts
 	// User (slow) interrupts */
 	if (Flags & INTERRUPT_KERNEL) {
-		TableIndex = (UUId_t)Interrupt->Direct[0];
+		TableIndex = (UUId_t)Interrupt->Vectors[0];
 		Entry->Id |= TableIndex;
 		if (Flags & INTERRUPT_SOFTWARE) {
 			Entry->Source = INTERRUPT_NONE;
@@ -503,13 +508,51 @@ UUId_t InterruptRegister(MCoreInterrupt_t *Interrupt, Flags_t Flags)
 			Entry->Source = Interrupt->Line;
 		}
 	}
+	else if (Flags & INTERRUPT_MSI) {
+		// MSI interrupts are treated like software
+		// interrupts
+		int Vectors[INTERRUPT_BASE_DEVICE_END - INTERRUPT_BASE_DEVICE];
+		int i;
+
+		Entry->Ash = ThreadingGetCurrentThread(ApicGetCpu())->AshId;
+		Entry->Source = INTERRUPT_NONE;
+
+		// Find a suitable interrupt vector for this
+		for (i = 0; i < (INTERRUPT_BASE_DEVICE_END - INTERRUPT_BASE_DEVICE); i++) {
+			Vectors[i] = INTERRUPT_BASE_DEVICE + i;
+		}
+		TableIndex = InterruptFindBest(Vectors, 
+			INTERRUPT_BASE_DEVICE_END - INTERRUPT_BASE_DEVICE);
+
+		// Update the id
+		Entry->Id |= TableIndex;
+
+		// Fill in MSI data
+		// MSI Message Address Register (0xFEE00000 LAPIC)
+		// Bits 31-20: Must be 0xFEE
+		// Bits 19-11: Destination ID
+		// Bits 11-04: Reserved
+		// Bit      3: 0 = Destination is ONE CPU, 1 = Destination is Group
+		// Bit      2: Destination Mode (1 Logical, 0 Physical)
+		// Bits 00-01: X
+		Interrupt->MsiAddress = 0xFEE00000 | (0x0007F0000) 
+			| (0x8 | 0x4);
+
+		// Message Data Register Format
+		// Bits 31-16: Reserved
+		// Bit     15: Trigger Mode (1 Level, 0 Edge)
+		// Bit     14: If edge, this is not used, if level, 1 = Assert, 0 = Deassert
+		// Bits 13-11: Reserved
+		// Bits 10-08: Delivery Mode, standard
+		// Bits 07-00: Vector
+		Interrupt->MsiValue = (0x100 | (TableIndex & 0xFF));
+	}
 	else {
 		// Sanitize the line and pin first, because
-		// if neither is set, it's most likely a request for MSI
-		if (Interrupt->Line == INTERRUPT_NONE
-			&& Interrupt->Pin == INTERRUPT_NONE) {
+		// if neither is set, choose one from the directs
+		if (Flags & INTERRUPT_VECTOR) {
 			Interrupt->Line = 
-				InterruptFindBest(Interrupt->Direct, INTERRUPT_MAXDIRECTS);
+				InterruptFindBest(Interrupt->Vectors, INTERRUPT_MAXVECTORS);
 			if (Interrupt->Line < NUM_ISA_INTERRUPTS) {
 				Flags |= INTERRUPT_NOTSHARABLE;
 			}

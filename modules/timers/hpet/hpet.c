@@ -23,6 +23,7 @@
 
 /* Includes
  * - System */
+#include <os/driver/contracts/timer.h>
 #include <os/driver/driver.h>
 #include <os/utils.h>
 #include "hpet.h"
@@ -193,32 +194,50 @@ HpComparatorStart(
 		// From the interrupt map, calculate possible int's
 		for (i = 0, j = 0; i < 32; i++) {
 			if (Timer->InterruptMap & (1 << i)) {
-				Interrupt.Direct[j++] = i;
-				if (j == INTERRUPT_MAXDIRECTS) {
+				Interrupt.Vectors[j++] = i;
+				if (j == INTERRUPT_MAXVECTORS) {
 					break;
 				}
 			}
 		}
 
 		// Place an end marker
-		if (j != INTERRUPT_MAXDIRECTS) {
-			Interrupt.Direct[j] = INTERRUPT_NONE;
+		if (j != INTERRUPT_MAXVECTORS) {
+			Interrupt.Vectors[j] = INTERRUPT_NONE;
 		}
 
-		// Todo - MSI
-		Timer->Interrupt =
-			RegisterInterruptSource(&Interrupt, INTERRUPT_FAST);
-		Timer->Irq = Interrupt.Line;
+		// Handle MSI interrupts > normal
+		if (Timer->MsiSupport) {
+			Timer->Interrupt =
+				RegisterInterruptSource(&Interrupt, INTERRUPT_FAST | INTERRUPT_MSI);
+			Timer->MsiAddress = (reg32_t)Interrupt.MsiAddress;
+			Timer->MsiValue = (reg32_t)Interrupt.MsiValue;
+		}
+		else {
+			Timer->Interrupt =
+				RegisterInterruptSource(&Interrupt, INTERRUPT_FAST | INTERRUPT_VECTOR);
+			Timer->Irq = Interrupt.Line;
+		}
 	}
 	
 	// Process configuration
 	HpRead(Controller, HPET_TIMER_CONFIG(Index), &TempValue);
 	TempValue |= HPET_TIMER_CONFIG_IRQENABLED;
-	TempValue |= HPET_TIMER_CONFIG_IRQ(Timer->Irq);
+	
+	// Set interrupt vector
+	// MSI must be set to edge-triggered
+	if (Timer->MsiSupport) {
+		TempValue |= HPET_TIMER_CONFIG_FSBMODE;
 
-	// Set polarity if irq is shared
-	if (Timer->Irq > 15) {
-		TempValue |= HPET_TIMER_CONFIG_POLARITY;
+		// Update FSB registers
+		HpWrite(Controller, HPET_TIMER_FSB(Index), Timer->MsiValue);
+		HpWrite(Controller, HPET_TIMER_FSB(Index) + 4, Timer->MsiAddress);
+	}
+	else {
+		TempValue |= HPET_TIMER_CONFIG_IRQ(Timer->Irq);
+		if (Timer->Irq > 15) {
+			TempValue |= HPET_TIMER_CONFIG_POLARITY;
+		}
 	}
 
 	// Set some extra bits if periodic
@@ -392,15 +411,23 @@ HpControllerCreate(
 				ERROR("HPET Failed to initialize periodic timer %i", i);
 			}
 			else {
-				FoundPeriodic = 1;
-				break;
+				if (RegisterSystemTimer(Controller->Timers[i].Interrupt, 1000) != OsNoError) {
+					ERROR("HPET Failed register timer %i as the system timer", i);
+				}
+				else {
+					Controller->Timers[i].SystemTimer = 1;
+					FoundPeriodic = 1;
+					break;
+				}
 			}
 		}
 	}
 
 	// If we didn't find periodic, use the first present
 	// timer as one-shot and reinit it every interrupt
-
+	if (!FoundPeriodic) {
+		ERROR("HPET (No periodic timer present!)");
+	}
 
 	// Success!
 	return Controller;
@@ -415,4 +442,5 @@ HpControllerDestroy(
 {
 	// Todo
 	_CRT_UNUSED(Controller);
+	return OsNoError;
 }

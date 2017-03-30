@@ -57,7 +57,7 @@
     <OutDir>$(SolutionDir)modules\build\</OutDir>
     <IncludePath>..\..\include;..\..\..\librt\include</IncludePath>
     <ReferencePath />
-    <LibraryPath>..\..\..\..\librt\build</LibraryPath>
+    <LibraryPath>..\..\..\librt\build</LibraryPath>
     <LibraryWPath />
     <LinkIncremental>false</LinkIncremental>
   </PropertyGroup>

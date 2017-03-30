@@ -101,7 +101,7 @@
  * Use these to access a specific timer registers */
 #define HPET_TIMER_CONFIG(Index)			((0x100 + (0x20 * Index)))
 #define HPET_TIMER_COMPARATOR(Index)		((0x108 + (0x20 * Index)))
-#define HPET_TIMER_FSBINTERRUPT(Index)		((0x110 + (0x20 * Index)))
+#define HPET_TIMER_FSB(Index)				((0x110 + (0x20 * Index)))
 
 typedef struct _HpTimer {
 	UUId_t					 Interrupt;
@@ -110,8 +110,14 @@ typedef struct _HpTimer {
 	int						 Present;
 	int						 Enabled;
 	int						 SystemTimer;
+
+	// Normal interrupt
 	int						 Irq;
 	reg32_t					 InterruptMap;
+
+	// Msi interrupt
+	reg32_t					 MsiAddress;
+	reg32_t					 MsiValue;
 
 	int						 Is64Bit;
 	int						 MsiSupport;

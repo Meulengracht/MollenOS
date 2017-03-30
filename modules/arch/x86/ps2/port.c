@@ -160,7 +160,7 @@ OsStatus_t PS2RegisterDevice(PS2Port_t *Port)
 
 	// Initialize the irq structure
 	Device.Interrupt.Pin = INTERRUPT_NONE;
-	Device.Interrupt.Direct[0] = INTERRUPT_NONE;
+	Device.Interrupt.Vectors[0] = INTERRUPT_NONE;
 	Device.Interrupt.AcpiConform = 0;
 
 	// Select source from port index

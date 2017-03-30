@@ -441,7 +441,7 @@ PciCreateDeviceFromPci(
 
 	Device.Interrupt.Line = (int)PciDevice->Header->InterruptLine;
 	Device.Interrupt.Pin = (int)PciDevice->Header->InterruptPin;
-	Device.Interrupt.Direct[0] = INTERRUPT_NONE;
+	Device.Interrupt.Vectors[0] = INTERRUPT_NONE;
 	Device.Interrupt.AcpiConform = PciDevice->AcpiConform;
 
 	// Handle bars attached to device
@@ -518,9 +518,9 @@ BusInstallFixed(
 	Device.Subclass = 0xFF0F;
 
 	// Invalidate irqs, this must be set by fixed drivers
-	Device.Interrupt.Pin = -1;
-	Device.Interrupt.Line = -1;
-	Device.Interrupt.Direct[0] = -1;
+	Device.Interrupt.Pin = INTERRUPT_NONE;
+	Device.Interrupt.Line = INTERRUPT_NONE;
+	Device.Interrupt.Vectors[0] = INTERRUPT_NONE;
 	Device.Interrupt.AcpiConform = 0;
 
 	// Install the driver

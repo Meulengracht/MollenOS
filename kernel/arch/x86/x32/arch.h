@@ -37,11 +37,11 @@
 
 /* X86-32 Thread */
 typedef struct _x86_Thread {
-	Flags_t				Flags;
-	uint8_t				IoMap[GDT_IOMAP_SIZE];
+	Flags_t				 Flags;
+	uint8_t				 IoMap[GDT_IOMAP_SIZE];
 	Context_t			*Context;
 	Context_t			*UserContext;
-	uintptr_t				*FpuBuffer;
+	uintptr_t			*FpuBuffer;
 } x86Thread_t;
 
 /* Architecture Prototypes, you should define 
@@ -115,7 +115,9 @@ __EXTERN void ApicSendIpi(UUId_t CpuTarget, uint32_t Vector);
 
 /* Architecture Locked Interrupts */
 #define INTERRUPT_LAPIC					0xF0
-#define INTERRUPT_DEVICE_BASE			0xA0
+
+#define INTERRUPT_BASE_DEVICE			0xA0
+#define INTERRUPT_BASE_DEVICE_END		0xF0
 
 #define INTERRUPT_SPURIOUS7				0x27
 #define INTERRUPT_SPURIOUS				0x7F
@@ -123,10 +125,5 @@ __EXTERN void ApicSendIpi(UUId_t CpuTarget, uint32_t Vector);
 #define INTERRUPT_YIELD					0x81
 #define INTERRUPT_LVTERROR				0x82
 #define INTERRUPT_ACPIBASE				0x90
-
-/* Free ISA interrupts */
-#define INTERRUPT_FREE0					0x3
-#define INTERRUPT_FREE1					0x4
-#define INTERRUPT_FREE2					0x5
 
 #endif // !_MCORE_X86_ARCH_

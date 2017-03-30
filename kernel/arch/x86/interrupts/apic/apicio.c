@@ -22,7 +22,7 @@
 
 /* Includes 
  * - System */
-#include <Apic.h>
+#include <apic.h>
 #include <acpi.h>
 
 /* Includes 

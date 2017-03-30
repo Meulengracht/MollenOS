@@ -440,10 +440,12 @@ UINT32 AcpiOsInstallInterruptHandler(
 	MCoreInterrupt_t ACPIInterrupt;
 
 	/* Build the config */
+	ACPIInterrupt.AcpiConform = 0;
 	ACPIInterrupt.Data = Context;
 	ACPIInterrupt.Line = InterruptNumber;
-	ACPIInterrupt.Pin = -1;
-	ACPIInterrupt.Direct[0] = INTERRUPT_ACPIBASE + InterruptNumber;
+	ACPIInterrupt.Pin = INTERRUPT_NONE;
+	ACPIInterrupt.Vectors[0] = INTERRUPT_ACPIBASE + InterruptNumber;
+	ACPIInterrupt.Vectors[1] = INTERRUPT_NONE;
 	ACPIInterrupt.FastHandler = (InterruptHandler_t)ServiceRoutine;
 
 	/* Install it */

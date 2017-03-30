@@ -229,7 +229,7 @@ OsStatus_t PS2MouseInitialize(PS2Port_t *Port)
 	/* Initialize the interrupt descriptor */
 	Port->Interrupt.AcpiConform = 0;
 	Port->Interrupt.Pin = INTERRUPT_NONE;
-	Port->Interrupt.Direct[0] = INTERRUPT_NONE;
+	Port->Interrupt.Vectors[0] = INTERRUPT_NONE;
 	
 	/* Select interrupt source */
 	if (Port->Index == 0) {

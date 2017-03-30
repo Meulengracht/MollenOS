@@ -235,18 +235,19 @@ OnQuery(_In_ MContractType_t QueryType,
 
 	// Which kind of function has been invoked?
 	switch (QueryFunction) {
-		// Query stats about a disk identifier in the form of
-		// a DiskDescriptor
+	// Query the clock counter
 	case __TIMER_QUERY: {
 		return PipeSend(Queryee, ResponsePort, 
 			&Controller->Clock, sizeof(clock_t));
 	} break;
 
+	// Query the frequency of the HPET main counter
 	case __TIMER_PERFORMANCE_FREQUENCY: {
 		return PipeSend(Queryee, ResponsePort,
 			&Controller->Frequency, sizeof(LargeInteger_t));
 	} break;
 
+	// Query the current readings of the main counter
 	case __TIMER_PERFORMANCE_QUERY: {
 		// Get a reading first
 		LargeInteger_t Value;

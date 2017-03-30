@@ -430,37 +430,37 @@ void ApicReloadTimer(size_t Quantum)
  * for accuracy once a timer is available */
 void ApicInitBoot(void)
 {
-	/* Variables */
+	// Variables
 	ACPI_TABLE_HEADER *Header = NULL;
 	MCoreInterrupt_t IrqInformation;
 	UUId_t BspApicId = 0;
 	uint32_t Temp = 0;
 	DataKey_t Key;
 
-	/* Step 1. Disable IMCR if present (to-do..) 
-	 * But the bit that tells us if IMCR is present
-	 * is located in the MP tables */
+	// Step 1. Disable IMCR if present (to-do..) 
+	// But the bit that tells us if IMCR is present
+	// is located in the MP tables
 	outb(0x22, 0x70);
 	outb(0x23, 0x1);
 
-	/* Clear out the global timer-tick counter
-	 * we don't want any values in it previously :-) */
+	// Clear out the global timer-tick counter
+	// we don't want any values in it previously :-)
 	memset((void*)GlbTimerTicks, 0, sizeof(GlbTimerTicks));
 
-	/* Step 2. Get MADT and the LAPIC base 
-	 * So we lookup the MADT table if it exists (if it doesn't
-	 * we should fallback to MP tables, but not rn..) */
+	// Step 2. Get MADT and the LAPIC base 
+	// So we lookup the MADT table if it exists (if it doesn't
+	// we should fallback to MP tables, but not rn..) 
 	if (ACPI_SUCCESS(AcpiGetTable(ACPI_SIG_MADT, 0, &Header))) {
 		ACPI_TABLE_MADT *MadtTable = (ACPI_TABLE_MADT*)Header;
 		uintptr_t RemapTo = (uintptr_t)MmReserveMemory(1);
 
-		/* We don't identity map it for several reasons, as we use
-		 * higher space memory for stuff, so we allocate a new address
-		 * for it! */
+		// We don't identity map it for several reasons, as we use
+		// higher space memory for stuff, so we allocate a new address
+		// for it!
 		LogInformation("APIC", "LAPIC address at 0x%x", MadtTable->Address);
 		MmVirtualMap(NULL, MadtTable->Address, RemapTo, PAGE_CACHE_DISABLE);
 		
-		/* Now we can set it */
+		// Now we can set it
 		GlbLocalApicBase = RemapTo + (MadtTable->Address & 0xFFF);
 	}
 	else {
@@ -469,69 +469,69 @@ void ApicInitBoot(void)
 		CpuIdle();
 	}
 
-	/* Get the bootstrap processor id, and save it */
+	// Get the bootstrap processor id, and save it
 	BspApicId = (ApicReadLocal(APIC_PROCESSOR_ID) >> 24) & 0xFF;
 	GlbBootstrapCpuId = BspApicId;
 
-	/* Do some initial shared Apic setup
-	 * for this processor id */
+	// Do some initial shared Apic setup
+	// for this processor id
 	ApicInitialSetup(BspApicId);
 
-	/* Prepare some irq information */
+	// Prepare some irq information
 	IrqInformation.Data = NULL;
 	IrqInformation.Line = APIC_NO_GSI;
 	IrqInformation.Pin = APIC_NO_GSI;
 
-	/* Install Apic Handlers 
-	 * - Spurious handlers
-	 * - LVT Error handler
-	 * - Timer handler */
-	IrqInformation.Direct[0] = INTERRUPT_SPURIOUS7;
+	// Install Apic Handlers 
+	// - Spurious handlers
+	// - LVT Error handler
+	// - Timer handler
+	IrqInformation.Vectors[0] = INTERRUPT_SPURIOUS7;
 	IrqInformation.FastHandler = ApicSpuriousHandler;
 	InterruptRegister(&IrqInformation, INTERRUPT_KERNEL | INTERRUPT_SOFTWARE);
-	IrqInformation.Direct[0] = INTERRUPT_SPURIOUS;
+	IrqInformation.Vectors[0] = INTERRUPT_SPURIOUS;
 	InterruptRegister(&IrqInformation, INTERRUPT_KERNEL | INTERRUPT_SOFTWARE);
-	IrqInformation.Direct[0] = INTERRUPT_LVTERROR;
+	IrqInformation.Vectors[0] = INTERRUPT_LVTERROR;
 	IrqInformation.FastHandler = ApicErrorHandler;
 	InterruptRegister(&IrqInformation, INTERRUPT_KERNEL | INTERRUPT_SOFTWARE);
-	IrqInformation.Direct[0] = INTERRUPT_LAPIC;
+	IrqInformation.Vectors[0] = INTERRUPT_LAPIC;
 	IrqInformation.FastHandler = ApicTimerHandler;
 	InterruptRegister(&IrqInformation, INTERRUPT_KERNEL | INTERRUPT_SOFTWARE);
 
-	/* Actually enable APIC on the
-	 * boot processor, afterwards
-	 * we do some more setup */
+	// Actually enable APIC on the
+	// boot processor, afterwards
+	// we do some more setup
 	ApicEnable();
 
-	/* Setup LVT0 & LVT1 */
+	// Setup LVT0 & LVT1
 	ApicSetupLvt(BspApicId, 0);
 	ApicSetupLvt(BspApicId, 1);
 
-	/* Do the last shared setup code, which 
-	 * sets up error registers */
+	// Do the last shared setup code, which 
+	// sets up error registers 
 	ApicSetupESR();
 
-	/* Disable Apic Timer while we setup the io-apics 
-	 * we need to be careful still */
+	// Disable Apic Timer while we setup the io-apics 
+	// we need to be careful still
 	Temp = ApicReadLocal(APIC_TIMER_VECTOR);
 	Temp |= (APIC_MASKED | INTERRUPT_LAPIC);
 	ApicWriteLocal(APIC_TIMER_VECTOR, Temp);
 
-	/* Setup IO apics 
-	 * this is done by the AcpiSetupIoApic code
-	 * that is called for all present io-apics */
+	// Setup IO apics 
+	// this is done by the AcpiSetupIoApic code
+	// that is called for all present io-apics 
 	GlbIoApics = ListCreate(KeyInteger, LIST_NORMAL);
 	Key.Value = ACPI_MADT_TYPE_IO_APIC;
 	ListExecuteOnKey(GlbAcpiNodes, AcpiSetupIoApic, Key, NULL);
 
-	/* We can now enable the interrupts, as 
-	 * the IVT table is in place and the local apic
-	 * has been configured! */
+	// We can now enable the interrupts, as 
+	// the IVT table is in place and the local apic
+	// has been configured!
 	LogInformation("APIC", "Enabling Interrupts");
 	InterruptEnable();
 	ApicSendEoi(0, 0);
 
-	/* Start the timer to a defualt time-length */
+	// Start the timer to a defualt time-length
 	ApicReloadTimer(GlbTimerQuantum * 20);
 }
 

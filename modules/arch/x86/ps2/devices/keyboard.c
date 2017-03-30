@@ -201,7 +201,7 @@ OsStatus_t PS2KeyboardInitialize(PS2Port_t *Port, int Translation)
 	/* Initialize the interrupt descriptor */
 	Port->Interrupt.AcpiConform = 0;
 	Port->Interrupt.Pin = INTERRUPT_NONE;
-	Port->Interrupt.Direct[0] = INTERRUPT_NONE;
+	Port->Interrupt.Vectors[0] = INTERRUPT_NONE;
 	
 	/* Select interrupt source */
 	if (Port->Index == 0) {

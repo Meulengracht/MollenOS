@@ -184,7 +184,7 @@ OsStatus_t OnLoad(void)
 	// Initialize the interrupt request
 	GlbCmos->Interrupt.Line = CMOS_RTC_IRQ;
 	GlbCmos->Interrupt.Pin = INTERRUPT_NONE;
-	GlbCmos->Interrupt.Direct[0] = INTERRUPT_NONE;
+	GlbCmos->Interrupt.Vectors[0] = INTERRUPT_NONE;
 	GlbCmos->Interrupt.FastHandler = OnInterrupt;
 	GlbCmos->Interrupt.Data = GlbCmos;
 
