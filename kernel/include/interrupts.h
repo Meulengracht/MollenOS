@@ -142,7 +142,7 @@ InterruptDriver(
 	// Initialze RPC
 	RPCInitialize(&Request, 1, PIPE_DEFAULT, __DRIVER_INTERRUPT);
 	RPCSetArgument(&Request, 0, (__CONST void*)&Id, sizeof(UUId_t));
-	RPCSetArgument(&Request, 1, (__CONST void*)Data, sizeof(void*));
+	RPCSetArgument(&Request, 1, (__CONST void*)&Data, sizeof(void*));
 
 	// Send
 	return ScRpcExecute(&Request, Ash, 1);

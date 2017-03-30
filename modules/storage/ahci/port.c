@@ -357,6 +357,8 @@ AhciPortInterruptHandler(
 
 	// Check interrupt services 
 	// Cold port detect, recieved fis etc
+	TRACE("AhciPortInterruptHandler(Port %i, Interrupt Status 0x%x)",
+		Port->Id, InterruptStatus);
 
 	// Check for errors status's
 	if (InterruptStatus & (AHCI_PORT_IE_TFEE | AHCI_PORT_IE_HBFE 
@@ -389,8 +391,9 @@ AhciPortInterruptHandler(
 	// Check for command completion
 	// by iterating through the command slots
 	if (DoneCommands != 0) {
-		for (i = 0; i < 32; i++) {
+		for (i = 0; i < AHCI_MAX_PORTS; i++) {
 			if (DoneCommands & (1 << i)) {
+				TRACE("Handling command slot %i", i);
 				Key.Value = i;
 				tNode = ListGetNodeByKey(Port->Transactions, Key, 0);
 				if (tNode != NULL) {

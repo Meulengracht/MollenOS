@@ -9,7 +9,7 @@ set skip=false
 set target=vmdk
 set decl=0
 set action=build
-set buildcfg=Build_X86_32
+set buildcfg=i386
 
 ::Check arguments
 for %%x in (%*) do (

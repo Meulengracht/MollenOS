@@ -332,6 +332,9 @@ AhciCommandFinish(
 	MRemoteCall_t Rpc;
 	OsStatus_t Status;
 
+	// Trace
+	TRACE("AhciCommandFinish()");
+
 	// Verify the command execution
 	Status = AhciVerifyRegisterFIS(Transaction);
 

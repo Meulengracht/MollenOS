@@ -34,7 +34,6 @@
  * - System */
 #include <os/driver/contracts/base.h>
 #include <os/driver/contracts/disk.h>
-#include <os/driver/io.h>
 #include <os/driver/interrupt.h>
 #include <os/driver/device.h>
 #include <os/driver/buffer.h>
