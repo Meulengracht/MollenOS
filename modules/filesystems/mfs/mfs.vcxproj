@@ -7,18 +7,20 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="Mfs.c" />
+    <ClCompile Include="main.c" />
+    <ClCompile Include="utilities.c" />
   </ItemGroup>
   <ItemGroup>
-    <None Include="Mfs.mdrv" />
+    <ClInclude Include="mfs.h" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="Mfs.h" />
+    <None Include="mfs.mdrv" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
-    <ProjectGuid>{1835FDB8-C07F-4A34-B19D-528A84310040}</ProjectGuid>
+    <ProjectGuid>{9351EDF6-2E57-437E-BDC1-984E5793E0C4}</ProjectGuid>
     <Keyword>Win32Proj</Keyword>
     <RootNamespace>Modules</RootNamespace>
+    <WindowsTargetPlatformVersion>10.0.14393.0</WindowsTargetPlatformVersion>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Build_X86_32|Win32'" Label="Configuration">
@@ -29,6 +31,12 @@
     <CharacterSet>Unicode</CharacterSet>
     <UseOfMfc />
   </PropertyGroup>
+  <PropertyGroup Label="Configuration" Condition="'$(Configuration)|$(Platform)'=='Build_X86_32|Win32'">
+    <PlatformToolset>v141</PlatformToolset>
+    <ConfigurationType>DynamicLibrary</ConfigurationType>
+    <UseOfMfc />
+    <WholeProgramOptimization>true</WholeProgramOptimization>
+  </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
   <ImportGroup Label="ExtensionSettings">
   </ImportGroup>
@@ -38,12 +46,20 @@
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Build_X86_32|Win32'">
     <LinkIncremental>false</LinkIncremental>
-    <TargetExt>.mod</TargetExt>
     <OutDir>$(SolutionDir)modules\build\</OutDir>
-    <IncludePath>..\..\include;..\..\..\librt\include;..\..\..\kernel\include;..\..\..\kernel\arch</IncludePath>
+    <TargetExt>.mod</TargetExt>
+    <IncludePath>..\..\include;..\..\..\librt\include;..\..\..\kernel\include;..\..\..\kernel\arch;..\..\..\kernel\acpica\include</IncludePath>
     <ReferencePath />
     <LibraryPath>..\..\..\librt\build;..\..\..\kernel\build</LibraryPath>
     <LibraryWPath />
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Build_X86_32|Win32'">
+    <OutDir>$(SolutionDir)modules\build\</OutDir>
+    <IncludePath>..\..\include;..\..\..\librt\include</IncludePath>
+    <ReferencePath />
+    <LibraryPath>..\..\..\librt\build</LibraryPath>
+    <LibraryWPath />
+    <LinkIncremental>false</LinkIncremental>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Build_X86_32|Win32'">
     <ClCompile>
@@ -55,9 +71,6 @@
       <PreprocessorDefinitions>MOLLENOS;_X86_32;MODULES_EXPORTS;_KRNL_DLL</PreprocessorDefinitions>
       <TreatWarningAsError>true</TreatWarningAsError>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
-      <BufferSecurityCheck Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">false</BufferSecurityCheck>
-      <AssemblerOutput Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">All</AssemblerOutput>
-      <BufferSecurityCheck Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">false</BufferSecurityCheck>
       <BufferSecurityCheck>false</BufferSecurityCheck>
       <AssemblerOutput>All</AssemblerOutput>
     </ClCompile>
@@ -71,6 +84,39 @@
       <GenerateMapFile>true</GenerateMapFile>
       <MapExports>true</MapExports>
       <AdditionalOptions>/include:_memcpy /include:_memset %(AdditionalOptions)</AdditionalOptions>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Build_X86_32|Win32'">
+    <ClCompile>
+      <WarningLevel>Level4</WarningLevel>
+    </ClCompile>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Build_X86_32|Win32'">
+    <ClCompile>
+      <TreatWarningAsError>true</TreatWarningAsError>
+    </ClCompile>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Build_X86_32|Win32'">
+    <ClCompile>
+      <MultiProcessorCompilation>true</MultiProcessorCompilation>
+      <Optimization>Full</Optimization>
+      <IntrinsicFunctions>true</IntrinsicFunctions>
+      <PreprocessorDefinitions>MOLLENOS;_X86_32</PreprocessorDefinitions>
+      <BufferSecurityCheck>false</BufferSecurityCheck>
+      <FunctionLevelLinking>true</FunctionLevelLinking>
+      <AssemblerOutput>All</AssemblerOutput>
+    </ClCompile>
+    <Link>
+      <AdditionalDependencies>libdrv.lib;libmsc++.lib;libc.lib;libos.lib</AdditionalDependencies>
+    </Link>
+    <Link>
+      <IgnoreAllDefaultLibraries>true</IgnoreAllDefaultLibraries>
+      <GenerateMapFile>true</GenerateMapFile>
+      <MapExports>true</MapExports>
+      <SubSystem>Native</SubSystem>
+      <OptimizeReferences>true</OptimizeReferences>
+      <EnableCOMDATFolding>true</EnableCOMDATFolding>
+      <EntryPointSymbol>_mDrvCrt</EntryPointSymbol>
     </Link>
   </ItemDefinitionGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
