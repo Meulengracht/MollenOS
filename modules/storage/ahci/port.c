@@ -410,6 +410,9 @@ AhciPortInterruptHandler(
 					// Unlink and cleanup node
 					ListRemoveByNode(Port->Transactions, tNode);
 					ListDestroyNode(Port->Transactions, tNode);
+
+					// Trace
+					TRACE("Handling complete");
 				}
 			}
 		}

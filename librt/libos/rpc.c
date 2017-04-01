@@ -31,7 +31,12 @@
 /* This is for both a kernel solution and a userspace
  * solution of IPC can co-exist */
 #ifdef LIBC_KERNEL
-__EXTERN OsStatus_t ScRpcExecute(MRemoteCall_t *Rpc, UUId_t Target, int Async);
+__EXTERN
+OsStatus_t 
+ScRpcExecute(
+	_In_ MRemoteCall_t *Rpc, 
+	_In_ UUId_t Target, 
+	_In_ int Async);
 
 /* RPCExecute/RPCEvent
  * To get a reply from the RPC request, the user
@@ -83,11 +88,11 @@ OsStatus_t
 RPCListen(
 	_In_ MRemoteCall_t *Message)
 {
-	/* Storage for parameters */
+	// Variables
 	int i = 0;
 
-	/* Wait for a new rpc message */
-	if (!PipeRead(PIPE_RPCOUT, Message, sizeof(MRemoteCall_t))) {
+	// Wait for a new rpc message
+	if (PipeRead(PIPE_RPCOUT, Message, sizeof(MRemoteCall_t)) == OsNoError) {
 		for (i = 0; i < IPC_MAX_ARGUMENTS; i++) {
 			if (Message->Arguments[i].Type == ARGUMENT_BUFFER) {
 				Message->Arguments[i].Data.Buffer = 
@@ -101,11 +106,10 @@ RPCListen(
 			}
 		}
 
-		/* Done! */
+		// We handled it
 		return OsNoError;
 	}
 	else {
-		/* Something went wrong, wtf? */
 		return OsError;
 	}
 }
@@ -117,15 +121,13 @@ OsStatus_t
 RPCCleanup(
 	_In_ MRemoteCall_t *Message)
 {
-	/* Cleanup buffers */
+	// Do a cleanup of allocated buffers
 	for (int i = 0; i < IPC_MAX_ARGUMENTS; i++) {
 		if (Message->Arguments[i].Type == ARGUMENT_BUFFER) {
 			free((void*)Message->Arguments[i].Data.Buffer);
 			Message->Arguments[i].Data.Buffer = NULL;
 		}
 	}
-
-	/* Done */
 	return OsNoError;
 }
 
@@ -139,7 +141,7 @@ RPCRespond(
 	_In_ __CONST void *Buffer, 
 	_In_ size_t Length)
 {
-	/* Write the result back to the caller */
+	// Write the result back to the caller
 	return PipeSend(Rpc->Sender, Rpc->ResponsePort, (void*)Buffer, Length);
 }
 

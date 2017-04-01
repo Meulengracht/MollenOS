@@ -19,10 +19,12 @@
  * MollenOS - File Manager Service
  * - Handles all file related services and disk services
  */
+#define __TRACE
 
 /* Includes
  * - System */
 #include <os/driver/file.h>
+#include <os/utils.h>
 #include "include/vfs.h"
 #include <ds/list.h>
 
@@ -34,12 +36,12 @@
 #include <ctype.h>
 
 /* Globals */
-List_t *GlbResolveQueue = NULL;
-List_t *GlbFileSystems = NULL;
-List_t *GlbOpenHandles = NULL;
-List_t *GlbOpenFiles = NULL;
-List_t *GlbModules = NULL;
-List_t *GlbDisks = NULL;
+static List_t *GlbResolveQueue = NULL;
+static List_t *GlbFileSystems = NULL;
+static List_t *GlbOpenHandles = NULL;
+static List_t *GlbOpenFiles = NULL;
+static List_t *GlbModules = NULL;
+static List_t *GlbDisks = NULL;
 UUId_t GlbFileSystemId = 0;
 UUId_t GlbFileId = 0;
 int GlbInitialized = 0;
@@ -150,7 +152,10 @@ OsStatus_t VfsIdentifierFree(FileSystemDisk_t *Disk, UUId_t Id)
  * as soon as the server is loaded in the system */
 OsStatus_t OnLoad(void)
 {
-	/* Setup list */
+	// Trace
+	TRACE("Filemanager.OnLoad()");
+
+	// Initialize lists
 	GlbResolveQueue = ListCreate(KeyInteger, LIST_NORMAL);
 	GlbFileSystems = ListCreate(KeyInteger, LIST_NORMAL);
 	GlbOpenHandles = ListCreate(KeyInteger, LIST_NORMAL);
@@ -158,16 +163,16 @@ OsStatus_t OnLoad(void)
 	GlbModules = ListCreate(KeyInteger, LIST_NORMAL);
 	GlbDisks = ListCreate(KeyInteger, LIST_NORMAL);
 
-	/* Init variables */
+	// Initialize variables
 	memset(&GlbDiskIds[0], 0, sizeof(int) * __FILEMANAGER_MAXDISKS);
 	GlbFileSystemId = 0;
 	GlbFileId = 0;
 	GlbInitialized = 1;
 
-	/* Register us with server manager */
+	// Register us with server manager
 	RegisterServer(__FILEMANAGER_TARGET);
 
-	/* No error! */
+	// Done
 	return OsNoError;
 }
 
@@ -184,16 +189,17 @@ OsStatus_t OnUnload(void)
  * and should handle the given event*/
 OsStatus_t OnEvent(MRemoteCall_t *Message)
 {
-	/* Variables */
+	// Variables
 	OsStatus_t Result = OsNoError;
 
-	/* Which function is called? */
+	// Which function is called?
 	switch (Message->Function)
 	{
-		/* Handles registration of a new disk 
-		 * and and parses the disk-system for a MBR
-		 * or a GPT table */
+		// Handles registration of a new disk 
+		// and and parses the disk-system for a MBR
+		// or a GPT table 
 		case __FILEMANAGER_REGISTERDISK: {
+			TRACE("Filemanager.OnEvent RegisterDisk");
 			Result = RegisterDisk(Message->Sender,
 				(UUId_t)Message->Arguments[0].Data.Value,
 				(Flags_t)Message->Arguments[1].Data.Value);
@@ -202,18 +208,20 @@ OsStatus_t OnEvent(MRemoteCall_t *Message)
 		/* Unregisters a disk from the system and
 		 * handles cleanup of all attached filesystems */
 		case __FILEMANAGER_UNREGISTERDISK: {
+			TRACE("Filemanager.OnEvent UnregisterDisk");
 			Result = UnregisterDisk((UUId_t)Message->Arguments[0].Data.Value,
 				(Flags_t)Message->Arguments[1].Data.Value);
 		} break;
 
 		// TODO
 		case __FILEMANAGER_QUERYDISKS: {
-
+			TRACE("Filemanager.OnEvent QueryDisk");
 		} break;
 
 		/* Resolves all stored filesystems that
 		 * has been waiting for boot-partition to be loaded */
 		case __FILEMANAGER_RESOLVEQUEUE: {
+			TRACE("Filemanager.OnEvent ResolveQueue");
 			Result = VfsResolveQueueExecute();
 		} break;
 
@@ -221,6 +229,7 @@ OsStatus_t OnEvent(MRemoteCall_t *Message)
 		 * the given <Access> and <Options> flags. */
 		case __FILEMANAGER_OPENFILE: {
 			OpenFilePackage_t Package;
+			TRACE("Filemanager.OnEvent OpenFile");
 			Package.Code = OpenFile(Message->Sender,
 				(__CONST char*)Message->Arguments[0].Data.Buffer,
 				(Flags_t)Message->Arguments[1].Data.Value,
@@ -235,6 +244,7 @@ OsStatus_t OnEvent(MRemoteCall_t *Message)
 		case __FILEMANAGER_CLOSEFILE: {
 			FileSystemCode_t Code = CloseFile(Message->Sender,
 				(UUId_t)Message->Arguments[0].Data.Value);
+			TRACE("Filemanager.OnEvent CloseFile");
 			Result = RPCRespond(Message,
 				(__CONST void*)&Code, sizeof(FileSystemCode_t));
 		} break;
@@ -245,6 +255,7 @@ OsStatus_t OnEvent(MRemoteCall_t *Message)
 		case __FILEMANAGER_DELETEFILE: {
 			FileSystemCode_t Code = DeleteFile(Message->Sender,
 				(__CONST char*)Message->Arguments[0].Data.Buffer);
+			TRACE("Filemanager.OnEvent DeleteFile");
 			Result = RPCRespond(Message,
 				(__CONST void*)&Code, sizeof(FileSystemCode_t));
 		} break;
@@ -253,6 +264,7 @@ OsStatus_t OnEvent(MRemoteCall_t *Message)
 		 * from the current position in the file-handle */
 		case __FILEMANAGER_READFILE: {
 			RWFilePackage_t Package;
+			TRACE("Filemanager.OnEvent ReadFile");
 			Package.Code = ReadFile(Message->Sender,
 				(UUId_t)Message->Arguments[0].Data.Value,
 				(BufferObject_t*)Message->Arguments[1].Data.Buffer,
@@ -265,6 +277,7 @@ OsStatus_t OnEvent(MRemoteCall_t *Message)
 		 * into the current position in the file-handle */
 		case __FILEMANAGER_WRITEFILE: {
 			RWFilePackage_t Package;
+			TRACE("Filemanager.OnEvent WriteFile");
 			Package.Code = WriteFile(Message->Sender,
 				(UUId_t)Message->Arguments[0].Data.Value,
 				(BufferObject_t*)Message->Arguments[1].Data.Buffer,
@@ -281,6 +294,7 @@ OsStatus_t OnEvent(MRemoteCall_t *Message)
 				(UUId_t)Message->Arguments[0].Data.Value,
 				(uint32_t)Message->Arguments[1].Data.Value,
 				(uint32_t)Message->Arguments[2].Data.Value);
+			TRACE("Filemanager.OnEvent SeekFile");
 			Result = RPCRespond(Message,
 				(__CONST void*)&Code, sizeof(FileSystemCode_t));
 		} break;
@@ -290,6 +304,7 @@ OsStatus_t OnEvent(MRemoteCall_t *Message)
 		case __FILEMANAGER_FLUSHFILE: {
 			FileSystemCode_t Code = FlushFile(Message->Sender,
 				(UUId_t)Message->Arguments[0].Data.Value);
+			TRACE("Filemanager.OnEvent FlushFile");
 			Result = RPCRespond(Message,
 				(__CONST void*)&Code, sizeof(FileSystemCode_t));
 		} break;
@@ -302,6 +317,7 @@ OsStatus_t OnEvent(MRemoteCall_t *Message)
 				(__CONST char*)Message->Arguments[0].Data.Buffer,
 				(__CONST char*)Message->Arguments[1].Data.Buffer,
 				(int)Message->Arguments[2].Data.Value);
+			TRACE("Filemanager.OnEvent MoveFile");
 			Result = RPCRespond(Message,
 				(__CONST void*)&Code, sizeof(FileSystemCode_t));
 		} break;
@@ -311,6 +327,7 @@ OsStatus_t OnEvent(MRemoteCall_t *Message)
 		 * value is optional and should only be checked for large files */
 		case __FILEMANAGER_GETPOSITION: {
 			QueryFileValuePackage_t Package;
+			TRACE("Filemanager.OnEvent GetPosition");
 			Package.Code = GetFilePosition(Message->Sender,
 				(UUId_t)Message->Arguments[0].Data.Value,
 				&Package);
@@ -322,6 +339,7 @@ OsStatus_t OnEvent(MRemoteCall_t *Message)
 		 * for the given file handle */
 		case __FILEMANAGER_GETOPTIONS: {
 			QueryFileOptionsPackage_t Package;
+			TRACE("Filemanager.OnEvent GetOptions");
 			Package.Code = GetFileOptions(Message->Sender,
 				(UUId_t)Message->Arguments[0].Data.Value,
 				&Package);
@@ -336,6 +354,7 @@ OsStatus_t OnEvent(MRemoteCall_t *Message)
 				(UUId_t)Message->Arguments[0].Data.Value,
 				(Flags_t)Message->Arguments[1].Data.Value,
 				(Flags_t)Message->Arguments[2].Data.Value);
+			TRACE("Filemanager.OnEvent SetOptions");
 			Result = RPCRespond(Message, 
 				(__CONST void*)&Result, sizeof(OsStatus_t));
 		} break;
@@ -345,6 +364,7 @@ OsStatus_t OnEvent(MRemoteCall_t *Message)
 		 * value is optional and should only be checked for large files */
 		case __FILEMANAGER_GETSIZE: {
 			QueryFileValuePackage_t Package;
+			TRACE("Filemanager.OnEvent GetSize");
 			Package.Code = GetFileSize(Message->Sender,
 				(UUId_t)Message->Arguments[0].Data.Value,
 				&Package);
@@ -358,6 +378,7 @@ OsStatus_t OnEvent(MRemoteCall_t *Message)
 		case __FILEMANAGER_PATHRESOLVE: {
 			MString_t *Resolved = PathResolveEnvironment(
 				(EnvironmentPath_t)Message->Arguments[0].Data.Value);
+			TRACE("Filemanager.OnEvent ResolvePath");
 			if (Resolved != NULL) {
 				Result = RPCRespond(Message, MStringRaw(Resolved), 
 					strlen(MStringRaw(Resolved)));
@@ -373,6 +394,7 @@ OsStatus_t OnEvent(MRemoteCall_t *Message)
 			MString_t *Resolved = PathCanonicalize(
 				(EnvironmentPath_t)Message->Arguments[0].Data.Value,
 				Message->Arguments[1].Data.Buffer);
+			TRACE("Filemanager.OnEvent CanonicalizePath");
 			if (Resolved != NULL) {
 				Result = RPCRespond(Message, MStringRaw(Resolved),
 					strlen(MStringRaw(Resolved)));

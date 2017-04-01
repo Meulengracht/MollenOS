@@ -844,8 +844,8 @@ OsStatus_t ScPathQueryApplication(
  * processes */
 OsStatus_t ScPipeOpen(int Port, Flags_t Flags)
 {
-	/* No need for any preperation on this call, the
-	 * underlying call takes care of validation as well */
+	// No need for any preperation on this call, the
+	// underlying call takes care of validation as well
 	return PhoenixOpenAshPipe(PhoenixGetAsh(PHOENIX_CURRENT), Port, Flags);
 }
 
@@ -854,8 +854,8 @@ OsStatus_t ScPipeOpen(int Port, Flags_t Flags)
  * shutdowns any communication on that port */
 OsStatus_t ScPipeClose(int Port)
 {
-	/* No need for any preperation on this call, the
-	 * underlying call takes care of validation as well */
+	// No need for any preperation on this call, the
+	// underlying call takes care of validation as well
 	return PhoenixCloseAshPipe(PhoenixGetAsh(PHOENIX_CURRENT), Port);
 }
 
@@ -1014,26 +1014,28 @@ OsStatus_t ScRpcResponse(MRemoteCall_t *Rpc)
  * a reply/response */
 OsStatus_t ScRpcExecute(MRemoteCall_t *Rpc, UUId_t Target, int Async)
 {
-	/* Variables */
-	MCoreAsh_t *Ash = NULL;
+	// Variables
 	MCorePipe_t *Pipe = NULL;
+	MCoreAsh_t *Ash = NULL;
 	int i = 0;
 
-	/* Start out by resolving both the
-	 * process and pipe */
+	// Start out by resolving both the
+	// process and pipe
 	Ash = PhoenixGetAsh(Target);
 	Pipe = PhoenixGetAshPipe(Ash, Rpc->Port);
 
-	/* Sanitize the lookups */
+	// Sanitize the lookups
 	if (Ash == NULL || Pipe == NULL) {
+		LogFatal("SYSC", "Either target 0x%x or port %u did not exist in target",
+			Target, Rpc->Port);
 		return OsError;
 	}
 
-	/* Install Sender */
+	// Install Sender
 	Rpc->Sender = ThreadingGetCurrentThread(CpuGetCurrentId())->AshId;
 
-	/* Write the base request 
-	 * and then iterate arguments and write them */
+	// Write the base request 
+	// and then iterate arguments and write them
 	PipeWrite(Pipe, (uint8_t*)Rpc, sizeof(MRemoteCall_t));
 	for (i = 0; i < IPC_MAX_ARGUMENTS; i++) {
 		if (Rpc->Arguments[i].Type == ARGUMENT_BUFFER) {
@@ -1042,13 +1044,13 @@ OsStatus_t ScRpcExecute(MRemoteCall_t *Rpc, UUId_t Target, int Async)
 		}
 	}
 
-	/* Async request? Because if yes, don't
-	 * wait for response */
+	// Async request? Because if yes, don't
+	// wait for response
 	if (Async) {
 		return OsNoError;
 	}
 
-	/* Ok, wait for response */
+	// Ok, wait for response
 	return ScRpcResponse(Rpc);
 }
 
@@ -1218,7 +1220,7 @@ OsStatus_t ScIoSpaceDestroy(UUId_t IoSpace)
  * its id if it changes */
 OsStatus_t ScRegisterAliasId(UUId_t Alias)
 {
-	/* Redirect call */
+	// Redirect call to phoenix
 	return PhoenixRegisterAlias(
 		PhoenixGetAsh(PHOENIX_CURRENT), Alias);
 }

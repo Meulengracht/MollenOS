@@ -464,17 +464,18 @@ void PhoenixCleanupAsh(MCoreAsh_t *Ash)
  * will always refer the calling process */
 OsStatus_t PhoenixRegisterAlias(MCoreAsh_t *Ash, UUId_t Alias)
 {
-	/* Sanitize both the server and alias */
+	// Sanitize both the server and alias 
 	if (Ash == NULL
-		|| Alias < PHOENIX_ALIAS_BASE
-		|| GlbAliasMap[PHOENIX_ALIAS_BASE - Alias] != PHOENIX_NO_ASH) {
+		|| (Alias < PHOENIX_ALIAS_BASE)
+		|| GlbAliasMap[Alias - PHOENIX_ALIAS_BASE] != PHOENIX_NO_ASH) {
+		LogFatal("PHNX", "Failed to register alias 0x%x for ash %u (0x%x)",
+			Alias, (Ash == NULL ? UUID_INVALID : Ash->Id),
+			GlbAliasMap[Alias - PHOENIX_ALIAS_BASE]);
 		return OsError;
 	}
 
-	/* Register */
-	GlbAliasMap[PHOENIX_ALIAS_BASE - Alias] = Ash->Id;
-
-	/* Return no error */
+	// Register
+	GlbAliasMap[Alias - PHOENIX_ALIAS_BASE] = Ash->Id;
 	return OsNoError;
 }
 
@@ -514,7 +515,7 @@ MCoreAsh_t *PhoenixGetAsh(UUId_t AshId)
 	 * like alias */
 	if (AshId >= PHOENIX_ALIAS_BASE
 		&& AshId < (PHOENIX_ALIAS_BASE + PHOENIX_MAX_ASHES)) {
-		AshId = GlbAliasMap[PHOENIX_ALIAS_BASE - AshId];
+		AshId = GlbAliasMap[AshId - PHOENIX_ALIAS_BASE];
 	}
 
 	/* Iterate the list and try

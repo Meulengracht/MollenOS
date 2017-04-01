@@ -19,12 +19,14 @@
  * MollenOS - File Manager Service
  * - Handles all file related services and disk services
  */
+#define __TRACE
 
 /* Includes 
  * - System */
 #include <os/driver/contracts/filesystem.h>
 #include <os/driver/file.h>
 #include <os/process.h>
+#include <os/utils.h>
 #include "include/vfs.h"
 
 /* Includes
@@ -35,7 +37,7 @@
 
 /* Globals
  * to keep track of state */
-int GlbInitHasRun = 0;
+static int GlbInitHasRun = 0;
 
 /* VfsResolveQueueEvent
  * Sends the event to ourself that we are ready to
@@ -186,30 +188,34 @@ OsStatus_t DiskRegisterFileSystem(FileSystemDisk_t *Disk,
  * on the disk will be brought online */
 OsStatus_t RegisterDisk(UUId_t Driver, UUId_t Device, Flags_t Flags)
 {
-	/* Variables */
+	// Variables
 	FileSystemDisk_t *Disk = NULL;
 	DataKey_t Key;
 
-	/* Allocate a new instance of a disk descriptor 
-	 * to store data and store initial data */
+	// Trace 
+	TRACE("RegisterDisk(Driver %u, Device %u, Flags 0x%x)",
+		Driver, Device, Flags);
+
+	// Allocate a new instance of a disk descriptor 
+	// to store data and store initial data
 	Disk = (FileSystemDisk_t*)malloc(sizeof(FileSystemDisk_t));
 	Disk->Driver = Driver;
 	Disk->Device = Device;
 	Disk->Flags = Flags;
 	Key.Value = (int)Device;
 
-	/* Query disk for general device information and 
-	 * information about geometry */
+	// Query disk for general device information and 
+	// information about geometry
 	if (DiskQuery(Driver, Device, &Disk->Descriptor) != OsNoError) {
 		free(Disk);
 		return OsError;
 	}
 
-	/* Add the registered disk to the list of disks */
+	// Add the registered disk to the list of disks
 	ListAppend(VfsGetDisks(), ListCreateNode(Key, Key, Disk));
 
-	/* Detect the disk layout, and if it fails
-	 * try to detect which kind of filesystem is present */
+	// Detect the disk layout, and if it fails
+	// try to detect which kind of filesystem is present
 	return DiskDetectLayout(Disk);
 }
 
