@@ -30,34 +30,28 @@
 /* The getchar */
 int getchar(void)
 {
-	/* Message */
-	MEventMessage_t Event;
-	MInput_t Input;
+	// Variables
+	MRemoteCall_t Event;
+	MInput_t *Input = NULL;
+	int Character = 0;
 	int Run = 1;
 
-	/* Wait for input message, we need to discard 
-	 * everything else as this is a polling op */
-	while (Run) 
-	{
-		/* Listen for events */
-		if (PipeRead(PIPE_EVENT, &Event, sizeof(MEventMessage_t))) {
-			return -1;
-		}
-
-		/* The message must be of type input, otherwise
-		 * we should trash the message :( */
-		if (Event.Type == EVENT_INPUT) {
-			PipeRead(PIPE_EVENT, &Input, sizeof(MInput_t));
-			if (Input.Type == InputKeyboard
-				&& (Input.Flags & INPUT_BUTTON_CLICKED)) {
-				return (int)Input.Key;
+	// Wait for input message, we need to discard 
+	// everything else as this is a polling op
+	while (Run) {
+		if (RPCListen(&Event) == OsNoError) {
+			Input = (MInput_t*)Event.Arguments[0].Data.Buffer;
+			if (Event.Function == EVENT_INPUT) {
+				if (Input->Type == InputKeyboard
+					&& (Input->Flags & INPUT_BUTTON_CLICKED)) {
+					Character = (int)Input->Key;
+					Run = 0;
+				}
 			}
 		}
-		else {
-			PipeRead(PIPE_EVENT, NULL, Event.Length);
-		}
+		RPCCleanup(&Event);
 	}
 
-	/* Done! */
-	return 0;
+	// Return the resulting read character
+	return Character;
 }

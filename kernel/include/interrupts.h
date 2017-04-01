@@ -140,7 +140,7 @@ InterruptDriver(
 	MRemoteCall_t Request;
 
 	// Initialze RPC
-	RPCInitialize(&Request, 1, PIPE_DEFAULT, __DRIVER_INTERRUPT);
+	RPCInitialize(&Request, 1, PIPE_RPCOUT, __DRIVER_INTERRUPT);
 	RPCSetArgument(&Request, 0, (__CONST void*)&Id, sizeof(UUId_t));
 	RPCSetArgument(&Request, 1, (__CONST void*)&Data, sizeof(void*));
 

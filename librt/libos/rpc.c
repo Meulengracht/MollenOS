@@ -33,13 +33,13 @@
 #ifdef LIBC_KERNEL
 __EXTERN OsStatus_t ScRpcExecute(MRemoteCall_t *Rpc, UUId_t Target, int Async);
 
-/* RPCEvaluate/RPCExecute
+/* RPCExecute/RPCEvent
  * To get a reply from the RPC request, the user
- * must use RPCEvaluate, this will automatically wait
- * for a reply, whereas RPCExecute will send the request
+ * must use RPCExecute, this will automatically wait
+ * for a reply, whereas RPCEvent will send the request
  * and not block/wait for reply */
 OsStatus_t
-RPCEvaluate(
+RPCExecute(
 	_In_ MRemoteCall_t *Rpc,
 	_In_ UUId_t Target)
 {
@@ -49,26 +49,26 @@ RPCEvaluate(
 
 #else
 
-/* RPCEvaluate/RPCExecute
+/* RPCExecute/RPCEvent
  * To get a reply from the RPC request, the user
- * must use RPCEvaluate, this will automatically wait
- * for a reply, whereas RPCExecute will send the request
+ * must use RPCExecute, this will automatically wait
+ * for a reply, whereas RPCEvent will send the request
  * and not block/wait for reply */
 OsStatus_t 
-RPCEvaluate(
+RPCExecute(
 	_In_ MRemoteCall_t *Rpc, 
 	_In_ UUId_t Target)
 {
 	return Syscall3(SYSCALL_RPCEVAL, SYSCALL_PARAM(Rpc), SYSCALL_PARAM(Target), 0);
 }
 
-/* RPCEvaluate/RPCExecute
+/* RPCExecute/RPCEvent
  * To get a reply from the RPC request, the user
- * must use RPCEvaluate, this will automatically wait
- * for a reply, whereas RPCExecute will send the request
+ * must use RPCExecute, this will automatically wait
+ * for a reply, whereas RPCEvent will send the request
  * and not block/wait for reply */
 OsStatus_t 
-RPCExecute(
+RPCEvent(
 	_In_ MRemoteCall_t *Rpc, 
 	_In_ UUId_t Target)
 {
@@ -87,12 +87,12 @@ RPCListen(
 	int i = 0;
 
 	/* Wait for a new rpc message */
-	if (!PipeRead(PIPE_DEFAULT, Message, sizeof(MRemoteCall_t))) {
+	if (!PipeRead(PIPE_RPCOUT, Message, sizeof(MRemoteCall_t))) {
 		for (i = 0; i < IPC_MAX_ARGUMENTS; i++) {
 			if (Message->Arguments[i].Type == ARGUMENT_BUFFER) {
 				Message->Arguments[i].Data.Buffer = 
 					(__CONST void*)malloc(Message->Arguments[i].Length);
-				PipeRead(PIPE_DEFAULT, (void*)Message->Arguments[i].Data.Buffer, 
+				PipeRead(PIPE_RPCOUT, (void*)Message->Arguments[i].Data.Buffer, 
 					Message->Arguments[i].Length);
 			}
 			else if (Message->Arguments[i].Type == ARGUMENT_NOTUSED) {

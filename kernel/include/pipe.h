@@ -34,7 +34,7 @@
 
 /* Customization of the pipe, these are some default
  * parameters for creation */
-#define PIPE_DEFAULT_SIZE			0x1000
+#define PIPE_RPCOUT_SIZE			0x1000
 
 /* Customization of the pipe, we allow sleeping
  * behaviour when waiting for data, or we can

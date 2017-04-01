@@ -86,7 +86,7 @@ RPCInitialize(
 	Ipc->Port = Port;
 
 	/* Standard response pipe */
-	Ipc->ResponsePort = PIPE_RPC;
+	Ipc->ResponsePort = PIPE_RPCIN;
 }
 
 /* RPCSetArgument
@@ -171,20 +171,20 @@ OsStatus_t
 RPCCleanup(
 	_In_ MRemoteCall_t *Message);
 
-/* RPCEvaluate/RPCExecute
+/* RPCExecute/RPCEvent
  * To get a reply from the RPC request, the user
- * must use RPCEvaluate, this will automatically wait
- * for a reply, whereas RPCExecute will send the request
+ * must use RPCExecute, this will automatically wait
+ * for a reply, whereas RPCEvent will send the request
  * and not block/wait for reply */
 MOSAPI 
 OsStatus_t 
-RPCEvaluate(
+RPCExecute(
 	_In_ MRemoteCall_t *Rpc, 
 	_In_ UUId_t Target);
 
 MOSAPI 
 OsStatus_t 
-RPCExecute(
+RPCEvent(
 	_In_ MRemoteCall_t *Rpc, 
 	_In_ UUId_t Target);
 

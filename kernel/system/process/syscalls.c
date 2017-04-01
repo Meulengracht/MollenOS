@@ -1052,43 +1052,6 @@ OsStatus_t ScRpcExecute(MRemoteCall_t *Rpc, UUId_t Target, int Async)
 	return ScRpcResponse(Rpc);
 }
 
-/* ScEvtExecute (System Call)
- * Executes an IPC EVT request to the
- * given process, does not give a reply */
-OsStatus_t ScEvtExecute(MEventMessage_t *Event, UUId_t Target)
-{
-	/* Variables */
-	MCoreAsh_t *Ash = NULL;
-	MCorePipe_t *Pipe = NULL;
-	int i = 0;
-
-	/* Start out by resolving both the
-	* process and pipe */
-	Ash = PhoenixGetAsh(Target);
-	Pipe = PhoenixGetAshPipe(Ash, Event->Port);
-
-	/* Sanitize the lookups */
-	if (Ash == NULL || Pipe == NULL) {
-		return OsError;
-	}
-
-	/* Install the sender */
-	Event->Sender = ThreadingGetCurrentThread(CpuGetCurrentId())->AshId;
-
-	/* Write the base request
-	* and then iterate arguments and write them */
-	PipeWrite(Pipe, (uint8_t*)Event, sizeof(MEventMessage_t));
-	for (i = 0; i < IPC_MAX_ARGUMENTS; i++) {
-		if (Event->Arguments[i].Type == ARGUMENT_BUFFER) {
-			PipeWrite(Pipe, (uint8_t*)Event->Arguments[i].Data.Buffer, 
-				Event->Arguments[i].Length);
-		}
-	}
-
-	/* Ok, we are done! */
-	return OsNoError;
-}
-
 /***********************
  * Driver Functions    *
  ***********************/
@@ -1339,13 +1302,13 @@ OsStatus_t ScLoadDriver(MCoreDevice_t *Device)
 	}
 
 	/* Prepare the message */
-	RPCInitialize(&Message, 1, PIPE_DEFAULT, __DRIVER_REGISTERINSTANCE);
+	RPCInitialize(&Message, 1, PIPE_RPCOUT, __DRIVER_REGISTERINSTANCE);
 	RPCSetArgument(&Message, 0, Device, sizeof(MCoreDevice_t));
 	Message.Sender = ThreadingGetCurrentThread(CpuGetCurrentId())->AshId;
 
 	/* Wait for the driver to open it's
 	 * communication pipe */
-	PhoenixWaitAshPipe(&Server->Base, PIPE_DEFAULT);
+	PhoenixWaitAshPipe(&Server->Base, PIPE_RPCOUT);
 
 	/* Done! */
 	return ScRpcExecute(&Message, Server->Base.Id, 1);
@@ -1495,7 +1458,7 @@ uintptr_t GlbSyscallTable[91] =
 	DefineSyscall(ScIpcWake),
 	DefineSyscall(ScRpcExecute),
 	DefineSyscall(ScRpcResponse),
-	DefineSyscall(ScEvtExecute),
+	DefineSyscall(NoOperation),
 	DefineSyscall(NoOperation),
 
 	/* System Functions - 51 */

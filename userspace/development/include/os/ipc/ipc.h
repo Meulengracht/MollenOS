@@ -33,15 +33,14 @@
 /* IPC Declaration definitions that can
  * be used by the different IPC systems */
 #define IPC_DECL_FUNCTION(FunctionNo)			(int)FunctionNo
-#define IPC_DECL_EVENT(EventNo)					(int)EventNo
+#define IPC_DECL_EVENT(EventNo)					(int)(0x100 + EventNo)
 #define IPC_MAX_ARGUMENTS						5
 
 /* Predefined system pipe-ports that should not
  * be used by user pipes. Trying to open new pipes
  * on these ports will result in error */
-#define PIPE_DEFAULT					0
-#define PIPE_EVENT						1
-#define PIPE_RPC						2
+#define PIPE_RPCOUT						0
+#define PIPE_RPCIN						1
 
 /* Predefined system events that is common for
  * all userspace applications, these primarily consists
@@ -50,13 +49,12 @@
 
 /* Argument type definitions 
  * Used by both RPC and Event argument systems */
-#define ARGUMENT_NOTUSED		0
-#define ARGUMENT_BUFFER			1
-#define ARGUMENT_REGISTER		2
+#define ARGUMENT_NOTUSED				0
+#define ARGUMENT_BUFFER					1
+#define ARGUMENT_REGISTER				2
 
 /* Include 
  * - Systems */
-#include <os/ipc/event.h>
 #include <os/ipc/rpc.h>
 #include <os/ipc/pipe.h>
 

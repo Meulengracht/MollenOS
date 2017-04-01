@@ -128,7 +128,7 @@ QueryDriver(
 
 	// Initialize static RPC variables like
 	// type of RPC, pipe and version
-	RPCInitialize(&Request, Contract->Version, PIPE_DEFAULT, __DRIVER_QUERY);
+	RPCInitialize(&Request, Contract->Version, PIPE_RPCOUT, __DRIVER_QUERY);
 	RPCSetArgument(&Request, 0, (const void*)&Contract->Type, sizeof(MContractType_t));
 	RPCSetArgument(&Request, 1, (const void*)&Function, sizeof(int));
 
@@ -147,7 +147,7 @@ QueryDriver(
 
 	// Execute RPC
 	RPCSetResult(&Request, ResultBuffer, ResultLength);
-	return RPCEvaluate(&Request, Contract->DriverId);
+	return RPCExecute(&Request, Contract->DriverId);
 }
 
 #endif //!DRIVER_SDK

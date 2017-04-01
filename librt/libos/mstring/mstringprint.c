@@ -1,6 +1,6 @@
 /* MollenOS
  *
- * Copyright 2011 - 2017, Philip Meulengracht
+ * Copyright 2011 - 2016, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,19 +16,26 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS Inter-Process Communication Interface
+ * MollenOS MCore - String Format
  */
 
-/* Includes
+/* Includes 
  * - System */
-#include <os/syscall.h>
-#include <os/ipc/ipc.h>
+#include "MStringPrivate.h"
 
-/* EVTExecute
- * Executes a new event to the desired target process
- * the process must be listening on PIPE_EVENT to be able
- * to recieve it. Events do not have replies */
-OsStatus_t EVTExecute(MEventMessage_t *Event, UUId_t Target)
+#ifdef LIBC_KERNEL
+#include <Log.h>
+#endif
+
+/* Prints out a mstring to stdout
+ * Switches functionality based on kernel
+ * or user-space */
+void MStringPrint(MString_t *String)
 {
-	return Syscall2(SYSCALL_EVTEXEC, SYSCALL_PARAM(Event), SYSCALL_PARAM(Target));
+#ifdef LIBC_KERNEL
+	LogInformation("MSTR", "%s", (char*)String->Data);
+#else
+	/* Simply just print it out*/
+	printf("%s\n", (char*)String->Data);
+#endif
 }

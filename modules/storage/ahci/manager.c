@@ -21,6 +21,7 @@
  *	- Port Multiplier Support
  *	- Power Management
  */
+#define __TRACE
 
 /* Includes
  * - System */
@@ -67,6 +68,9 @@ AhciStringFlip(
 OsStatus_t
 AhciManagerInitialize(void)
 {
+	// Trace
+	TRACE("AhciManagerInitialize()");
+
 	// Create list and reset id
 	GlbDisks = ListCreate(KeyInteger, LIST_SAFE);
 	GlbDiskId = 0;
@@ -80,6 +84,9 @@ AhciManagerInitialize(void)
 OsStatus_t
 AhciManagerDestroy(void)
 {
+	// Trace
+	TRACE("AhciManagerDestroy()");
+
 	// Iterate through registered devices and
 	// unregister them with the filemanager
 	foreach(dNode, GlbDisks) {
@@ -114,6 +121,10 @@ AhciManagerCreateDevice(
 			Port->Registers->Signature, Port->Id);
 		return OsError;
 	}
+
+	// Trace
+	TRACE("AhciManagerCreateDevice(Controller %i, Port %i)",
+		Controller->Device.Id, Port->Id);
 
 	// Allocate data-structures
 	Transaction = (AhciTransaction_t*)malloc(sizeof(AhciTransaction_t));
@@ -158,6 +169,10 @@ AhciManagerCreateDeviceCallback(
 	AhciStringFlip(DeviceInformation->SerialNo, 20);
 	AhciStringFlip(DeviceInformation->ModelNo, 40);
 	AhciStringFlip(DeviceInformation->FWRevision, 8);
+
+	// Trace
+	TRACE("AhciManagerCreateDeviceCallback(%s)",
+		&DeviceInformation->ModelNo[0]);
 
 	// Determine device type
 	if (Device->Port->Registers->Signature == SATA_SIGNATURE_ATAPI) {
@@ -240,6 +255,10 @@ AhciManagerRemoveDevice(
 	AhciDevice_t *Device = NULL;
 	ListNode_t *dNode = NULL;
 	DataKey_t Key;
+
+	// Trace
+	TRACE("AhciManagerRemoveDevice(Controller %i, Port %i)",
+		Controller->Device.Id, Port->Id);
 
 	// Set initial val
 	Key.Value = -1;

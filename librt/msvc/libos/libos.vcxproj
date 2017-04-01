@@ -79,7 +79,6 @@ xcopy $(SolutionDir)librt\build\libos.dll $(SolutionDir)userspace\development\bi
     <ClCompile Include="..\..\libos\ds\hashtable.c" />
     <ClCompile Include="..\..\libos\ds\list.c" />
     <ClCompile Include="..\..\libos\ds\ringbuffer.c" />
-    <ClCompile Include="..\..\libos\event.c" />
     <ClCompile Include="..\..\libos\exceptions.c" />
     <ClCompile Include="..\..\libos\memory.c" />
     <ClCompile Include="..\..\libos\path.c" />

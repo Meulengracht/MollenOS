@@ -21,7 +21,7 @@
  *	- Port Multiplier Support
  *	- Power Management
  */
-#define __TRACE
+//#define __TRACE
 
 /* Includes 
  * - System */

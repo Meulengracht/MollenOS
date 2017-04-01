@@ -130,15 +130,19 @@ RegisterDisk(
 	_In_ UUId_t Device, 
 	_In_ Flags_t Flags)
 {
-	/* Variables */
+	// Variables
 	MRemoteCall_t Request;
 
-	/* RPC Usage */
+	// Initialize RPC
 	RPCInitialize(&Request, __FILEMANAGER_INTERFACE_VERSION,
-		PIPE_DEFAULT, __FILEMANAGER_REGISTERDISK);
+		PIPE_RPCOUT, __FILEMANAGER_REGISTERDISK);
+
+	// Setup arguments
 	RPCSetArgument(&Request, 0, (__CONST void*)&Device, sizeof(UUId_t));
 	RPCSetArgument(&Request, 1, (__CONST void*)&Flags, sizeof(Flags_t));
-	return RPCExecute(&Request, __FILEMANAGER_TARGET);
+
+	// Send event, no response
+	return RPCEvent(&Request, __FILEMANAGER_TARGET);
 }
 #endif
 
@@ -165,10 +169,10 @@ UnregisterDisk(
 
 	/* RPC Usage */
 	RPCInitialize(&Request, __FILEMANAGER_INTERFACE_VERSION,
-		PIPE_DEFAULT, __FILEMANAGER_UNREGISTERDISK);
+		PIPE_RPCOUT, __FILEMANAGER_UNREGISTERDISK);
 	RPCSetArgument(&Request, 0, (__CONST void*)&Device, sizeof(UUId_t));
 	RPCSetArgument(&Request, 1, (__CONST void*)&Flags, sizeof(Flags_t));
-	return RPCExecute(&Request, __FILEMANAGER_TARGET);
+	return RPCEvent(&Request, __FILEMANAGER_TARGET);
 }
 #endif
 
@@ -202,12 +206,12 @@ OpenFile(
 
 	/* RPC Usage */
 	RPCInitialize(&Request, __FILEMANAGER_INTERFACE_VERSION,
-		PIPE_DEFAULT, __FILEMANAGER_OPENFILE);
+		PIPE_RPCOUT, __FILEMANAGER_OPENFILE);
 	RPCSetArgument(&Request, 0, (__CONST void*)Path, strlen(Path));
 	RPCSetArgument(&Request, 1, (__CONST void*)&Options, sizeof(Flags_t));
 	RPCSetArgument(&Request, 2, (__CONST void*)&Access, sizeof(Flags_t));
 	RPCSetResult(&Request, (__CONST void*)&Package, sizeof(OpenFilePackage_t));
-	if (RPCEvaluate(&Request, __FILEMANAGER_TARGET) != OsNoError) {
+	if (RPCExecute(&Request, __FILEMANAGER_TARGET) != OsNoError) {
 		*Handle = UUID_INVALID;
 		return FsInvalidParameters;
 	}
@@ -241,10 +245,10 @@ CloseFile(
 
 	/* RPC Usage */
 	RPCInitialize(&Request, __FILEMANAGER_INTERFACE_VERSION,
-		PIPE_DEFAULT, __FILEMANAGER_CLOSEFILE);
+		PIPE_RPCOUT, __FILEMANAGER_CLOSEFILE);
 	RPCSetArgument(&Request, 0, (__CONST void*)&Handle, sizeof(UUId_t));
 	RPCSetResult(&Request, (__CONST void*)&Result, sizeof(FileSystemCode_t));
-	if (RPCEvaluate(&Request, __FILEMANAGER_TARGET) != OsNoError) {
+	if (RPCExecute(&Request, __FILEMANAGER_TARGET) != OsNoError) {
 		return FsInvalidParameters;
 	}
 	return Result;
@@ -275,10 +279,10 @@ DeleteFile(
 
 	/* RPC Usage */
 	RPCInitialize(&Request, __FILEMANAGER_INTERFACE_VERSION,
-		PIPE_DEFAULT, __FILEMANAGER_DELETEFILE);
+		PIPE_RPCOUT, __FILEMANAGER_DELETEFILE);
 	RPCSetArgument(&Request, 0, (__CONST void*)Path, strlen(Path));
 	RPCSetResult(&Request, (__CONST void*)&Result, sizeof(FileSystemCode_t));
-	if (RPCEvaluate(&Request, __FILEMANAGER_TARGET) != OsNoError) {
+	if (RPCExecute(&Request, __FILEMANAGER_TARGET) != OsNoError) {
 		return FsInvalidParameters;
 	}
 	return Result;
@@ -312,11 +316,11 @@ ReadFile(
 
 	/* RPC Usage */
 	RPCInitialize(&Request, __FILEMANAGER_INTERFACE_VERSION,
-		PIPE_DEFAULT, __FILEMANAGER_READFILE);
+		PIPE_RPCOUT, __FILEMANAGER_READFILE);
 	RPCSetArgument(&Request, 0, (__CONST void*)&Handle, sizeof(UUId_t));
 	RPCSetArgument(&Request, 1, (__CONST void*)BufferObject, sizeof(BufferObject_t));
 	RPCSetResult(&Request, (__CONST void*)&Package, sizeof(RWFilePackage_t));
-	if (RPCEvaluate(&Request, __FILEMANAGER_TARGET) != OsNoError) {
+	if (RPCExecute(&Request, __FILEMANAGER_TARGET) != OsNoError) {
 		if (BytesRead != NULL) {
 			*BytesRead = 0;
 		}
@@ -358,11 +362,11 @@ WriteFile(
 
 	/* RPC Usage */
 	RPCInitialize(&Request, __FILEMANAGER_INTERFACE_VERSION,
-		PIPE_DEFAULT, __FILEMANAGER_WRITEFILE);
+		PIPE_RPCOUT, __FILEMANAGER_WRITEFILE);
 	RPCSetArgument(&Request, 0, (__CONST void*)&Handle, sizeof(UUId_t));
 	RPCSetArgument(&Request, 1, (__CONST void*)BufferObject, sizeof(BufferObject_t));
 	RPCSetResult(&Request, (__CONST void*)&Package, sizeof(RWFilePackage_t));
-	if (RPCEvaluate(&Request, __FILEMANAGER_TARGET) != OsNoError) {
+	if (RPCExecute(&Request, __FILEMANAGER_TARGET) != OsNoError) {
 		if (BytesWritten != NULL) {
 			*BytesWritten = 0;
 		}
@@ -405,12 +409,12 @@ SeekFile(
 
 	/* RPC Usage */
 	RPCInitialize(&Request, __FILEMANAGER_INTERFACE_VERSION,
-		PIPE_DEFAULT, __FILEMANAGER_SEEKFILE);
+		PIPE_RPCOUT, __FILEMANAGER_SEEKFILE);
 	RPCSetArgument(&Request, 0, (__CONST void*)&Handle, sizeof(UUId_t));
 	RPCSetArgument(&Request, 1, (__CONST void*)&SeekLo, sizeof(uint32_t));
 	RPCSetArgument(&Request, 2, (__CONST void*)&SeekHi, sizeof(uint32_t));
 	RPCSetResult(&Request, (__CONST void*)&Result, sizeof(FileSystemCode_t));
-	if (RPCEvaluate(&Request, __FILEMANAGER_TARGET) != OsNoError) {
+	if (RPCExecute(&Request, __FILEMANAGER_TARGET) != OsNoError) {
 		return FsInvalidParameters;
 	}
 	return Result;
@@ -440,10 +444,10 @@ FlushFile(
 
 	/* RPC Usage */
 	RPCInitialize(&Request, __FILEMANAGER_INTERFACE_VERSION,
-		PIPE_DEFAULT, __FILEMANAGER_FLUSHFILE);
+		PIPE_RPCOUT, __FILEMANAGER_FLUSHFILE);
 	RPCSetArgument(&Request, 0, (__CONST void*)&Handle, sizeof(UUId_t));
 	RPCSetResult(&Request, (__CONST void*)&Result, sizeof(FileSystemCode_t));
-	if (RPCEvaluate(&Request, __FILEMANAGER_TARGET) != OsNoError) {
+	if (RPCExecute(&Request, __FILEMANAGER_TARGET) != OsNoError) {
 		return FsInvalidParameters;
 	}
 	return Result;
@@ -478,12 +482,12 @@ MoveFile(
 
 	/* RPC Usage */
 	RPCInitialize(&Request, __FILEMANAGER_INTERFACE_VERSION,
-		PIPE_DEFAULT, __FILEMANAGER_MOVEFILE);
+		PIPE_RPCOUT, __FILEMANAGER_MOVEFILE);
 	RPCSetArgument(&Request, 0, (__CONST void*)Source, strlen(Source));
 	RPCSetArgument(&Request, 1, (__CONST void*)Destination, strlen(Destination));
 	RPCSetArgument(&Request, 2, (__CONST void*)&Copy, sizeof(int));
 	RPCSetResult(&Request, (__CONST void*)&Result, sizeof(FileSystemCode_t));
-	if (RPCEvaluate(&Request, __FILEMANAGER_TARGET) != OsNoError) {
+	if (RPCExecute(&Request, __FILEMANAGER_TARGET) != OsNoError) {
 		return FsInvalidParameters;
 	}
 	return Result;
@@ -517,10 +521,10 @@ GetFilePosition(
 
 	/* RPC Usage */
 	RPCInitialize(&Request, __FILEMANAGER_INTERFACE_VERSION,
-		PIPE_DEFAULT, __FILEMANAGER_GETPOSITION);
+		PIPE_RPCOUT, __FILEMANAGER_GETPOSITION);
 	RPCSetArgument(&Request, 0, (__CONST void*)&Handle, sizeof(UUId_t));
 	RPCSetResult(&Request, (__CONST void*)&Package, sizeof(QueryFileValuePackage_t));
-	if (RPCEvaluate(&Request, __FILEMANAGER_TARGET) != OsNoError) {
+	if (RPCExecute(&Request, __FILEMANAGER_TARGET) != OsNoError) {
 		*PositionLo = 0;
 		if (PositionHi != NULL) {
 			*PositionHi = 0;
@@ -563,10 +567,10 @@ GetFileOptions(
 
 	/* RPC Usage */
 	RPCInitialize(&Request, __FILEMANAGER_INTERFACE_VERSION,
-		PIPE_DEFAULT, __FILEMANAGER_GETOPTIONS);
+		PIPE_RPCOUT, __FILEMANAGER_GETOPTIONS);
 	RPCSetArgument(&Request, 0, (__CONST void*)&Handle, sizeof(UUId_t));
 	RPCSetResult(&Request, (__CONST void*)&Package, sizeof(QueryFileOptionsPackage_t));
-	if (RPCEvaluate(&Request, __FILEMANAGER_TARGET) != OsNoError) {
+	if (RPCExecute(&Request, __FILEMANAGER_TARGET) != OsNoError) {
 		*Options = 0;
 		*Access = 0;
 		return OsError;
@@ -606,12 +610,12 @@ SetFileOptions(
 
 	/* RPC Usage */
 	RPCInitialize(&Request, __FILEMANAGER_INTERFACE_VERSION,
-		PIPE_DEFAULT, __FILEMANAGER_SETOPTIONS);
+		PIPE_RPCOUT, __FILEMANAGER_SETOPTIONS);
 	RPCSetArgument(&Request, 0, (__CONST void*)&Handle, sizeof(UUId_t));
 	RPCSetArgument(&Request, 1, (__CONST void*)&Options, sizeof(Flags_t));
 	RPCSetArgument(&Request, 2, (__CONST void*)&Access, sizeof(Flags_t));
 	RPCSetResult(&Request, (__CONST void*)&Result, sizeof(OsStatus_t));
-	if (RPCEvaluate(&Request, __FILEMANAGER_TARGET) != OsNoError) {
+	if (RPCExecute(&Request, __FILEMANAGER_TARGET) != OsNoError) {
 		return OsError;
 	}
 	return Result;
@@ -645,10 +649,10 @@ GetFileSize(
 
 	/* RPC Usage */
 	RPCInitialize(&Request, __FILEMANAGER_INTERFACE_VERSION,
-		PIPE_DEFAULT, __FILEMANAGER_GETSIZE);
+		PIPE_RPCOUT, __FILEMANAGER_GETSIZE);
 	RPCSetArgument(&Request, 0, (__CONST void*)&Handle, sizeof(UUId_t));
 	RPCSetResult(&Request, (__CONST void*)&Package, sizeof(QueryFileValuePackage_t));
-	if (RPCEvaluate(&Request, __FILEMANAGER_TARGET) != OsNoError) {
+	if (RPCExecute(&Request, __FILEMANAGER_TARGET) != OsNoError) {
 		*SizeLo = 0;
 		if (SizeHi != NULL) {
 			*SizeHi = 0;
@@ -694,10 +698,10 @@ GetFilePath(
 
 	/* RPC Usage */
 	RPCInitialize(&Request, __FILEMANAGER_INTERFACE_VERSION,
-		PIPE_DEFAULT, __FILEMANAGER_GETPATH);
+		PIPE_RPCOUT, __FILEMANAGER_GETPATH);
 	RPCSetArgument(&Request, 0, (__CONST void*)&Handle, sizeof(UUId_t));
 	RPCSetResult(&Request, (__CONST void*)&Buffer[0], _MAXPATH);
-	if (RPCEvaluate(&Request, __FILEMANAGER_TARGET) != OsNoError) {
+	if (RPCExecute(&Request, __FILEMANAGER_TARGET) != OsNoError) {
 		return OsError;
 	}
 

@@ -75,9 +75,9 @@ __WNDAPI OsStatus_t CreateInput(MInput_t *Input)
 	/* Variables */
 	MRemoteCall_t Request;
 	RPCInitialize(&Request, __WINDOWMANAGER_INTERFACE_VERSION, 
-		PIPE_DEFAULT, __WINDOWMANAGER_NEWINPUT);
-	RPCSetArgument(&Request, 0, (const void*)Input, sizeof(MInput_t));
-	return RPCExecute(&Request, __WINDOWMANAGER_TARGET);
+		PIPE_RPCOUT, __WINDOWMANAGER_NEWINPUT);
+	RPCSetArgument(&Request, 0, (__CONST void*)Input, sizeof(MInput_t));
+	return RPCEvent(&Request, __WINDOWMANAGER_TARGET);
 }
 #endif
 

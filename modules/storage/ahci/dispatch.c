@@ -21,7 +21,7 @@
  *	- Port Multiplier Support
  *	- Power Management
  */
-//#define __TRACE
+#define __TRACE
 
 /* Includes
  * - System */
@@ -34,6 +34,33 @@
  * - Library */
 #include <stddef.h>
 #include <stdlib.h>
+
+/* AhciDumpCurrentState
+ * Dumps the registers and state of the controller and given port */
+void
+AhciDumpCurrentState(
+	_In_ AhciController_t *Controller, 
+	_In_ AhciPort_t *Port)
+{
+	// Dump registers
+	TRACE("AHCI.GlobalHostControl 0x%x",
+		Controller->Registers->GlobalHostControl);
+	TRACE("AHCI.InterruptStatus 0x%x",
+		Controller->Registers->InterruptStatus);
+	TRACE("AHCI.CcControl 0x%x",
+		Controller->Registers->CcControl);
+
+	TRACE("AHCI.Port[%i].CommandAndStatus 0x%x", Port->Id,
+		Port->Registers->CommandAndStatus);
+	TRACE("AHCI.Port[%i].InterruptEnable 0x%x", Port->Id,
+		Port->Registers->InterruptEnable);
+	TRACE("AHCI.Port[%i].InterruptStatus 0x%x", Port->Id,
+		Port->Registers->InterruptStatus);
+	TRACE("AHCI.Port[%i].CommandIssue 0x%x", Port->Id,
+		Port->Registers->CommandIssue);
+	TRACE("AHCI.Port[%i].TaskFileData 0x%x", Port->Id,
+		Port->Registers->TaskFileData);
+}
 
 /* AhciCommandDispatch 
  * Dispatches a FIS command on a given port 
@@ -161,25 +188,9 @@ AhciCommandDispatch(
 	AhciPortStartCommandSlot(Transaction->Device->Port, Transaction->Slot);
 	ThreadSleep(1000);
 
-	// Dump registers
-	TRACE("AHCI.GlobalHostControl 0x%x",
-		Transaction->Device->Controller->Registers->GlobalHostControl);
-	TRACE("AHCI.InterruptStatus 0x%x",
-		Transaction->Device->Controller->Registers->InterruptStatus);
-	TRACE("AHCI.CcControl 0x%x",
-		Transaction->Device->Controller->Registers->CcControl);
-
-	TRACE("AHCI.Port[%i].CommandAndStatus 0x%x", Transaction->Device->Port->Id,
-		Transaction->Device->Port->Registers->CommandAndStatus);
-	TRACE("AHCI.Port[%i].InterruptEnable 0x%x", Transaction->Device->Port->Id,
-		Transaction->Device->Port->Registers->InterruptEnable);
-	TRACE("AHCI.Port[%i].InterruptStatus 0x%x", Transaction->Device->Port->Id,
-		Transaction->Device->Port->Registers->InterruptStatus);
-	TRACE("AHCI.Port[%i].CommandIssue 0x%x", Transaction->Device->Port->Id,
-		Transaction->Device->Port->Registers->CommandIssue);
-	TRACE("AHCI.Port[%i].TaskFileData 0x%x", Transaction->Device->Port->Id,
-		Transaction->Device->Port->Registers->TaskFileData);
-
+	// Dump state
+	AhciDumpCurrentState(Transaction->Device->Controller, Transaction->Device->Port);
+	
 	// No error, transaction in progress
 	return OsNoError;
 

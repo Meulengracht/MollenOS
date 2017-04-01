@@ -107,7 +107,6 @@
     </ClCompile>
     <ClCompile Include="..\..\libos\pipe.c" />
     <ClCompile Include="..\..\libos\rpc.c" />
-    <ClCompile Include="..\..\libos\event.c" />
     <ClCompile Include="..\..\libos\driver\iospace.c">
       <Filter>driver</Filter>
     </ClCompile>

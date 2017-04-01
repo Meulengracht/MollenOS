@@ -93,10 +93,10 @@ __WNDAPI Handle_t CreateWindow(WindowParameters_t *Params)
 	MRemoteCall_t Request;
 	Handle_t Result;
 	RPCInitialize(&Request, __WINDOWMANAGER_INTERFACE_VERSION, 
-		PIPE_DEFAULT, __WINDOWMANAGER_CREATE);
+		PIPE_RPCOUT, __WINDOWMANAGER_CREATE);
 	RPCSetArgument(&Request, 0, (const void*)Params, sizeof(WindowParameters_t));
 	RPCSetResult(&Request, (const void*)&Result, sizeof(Handle_t));
-	RPCEvaluate(&Request, __WINDOWMANAGER_TARGET);
+	RPCExecute(&Request, __WINDOWMANAGER_TARGET);
 	return Result;
 }
 #endif
@@ -112,9 +112,9 @@ __WNDAPI OsStatus_t DestroyWindow(Handle_t Handle)
 	/* Variables */
 	MRemoteCall_t Request;
 	RPCInitialize(&Request, __WINDOWMANAGER_INTERFACE_VERSION,
-		PIPE_DEFAULT, __WINDOWMANAGER_DESTROY);
+		PIPE_RPCOUT, __WINDOWMANAGER_DESTROY);
 	RPCSetArgument(&Request, 0, (const void*)Handle, sizeof(Handle_t));
-	return RPCExecute(&Request, __WINDOWMANAGER_TARGET);
+	return RPCEvent(&Request, __WINDOWMANAGER_TARGET);
 }
 #endif
 
@@ -129,10 +129,10 @@ __WNDAPI OsStatus_t QueryWindow(Handle_t Handle, MWindowDescriptor_t *Descriptor
 	/* Variables */
 	MRemoteCall_t Request;
 	RPCInitialize(&Request, __WINDOWMANAGER_INTERFACE_VERSION,
-		PIPE_DEFAULT, __WINDOWMANAGER_QUERY);
+		PIPE_RPCOUT, __WINDOWMANAGER_QUERY);
 	RPCSetArgument(&Request, 0, (const void*)Handle, sizeof(Handle_t));
 	RPCSetResult(&Request, (const void*)Descriptor, sizeof(MWindowDescriptor_t));
-	return RPCEvaluate(&Request, __WINDOWMANAGER_TARGET);
+	return RPCExecute(&Request, __WINDOWMANAGER_TARGET);
 }
 #endif
 
@@ -148,10 +148,10 @@ __WNDAPI OsStatus_t InvalidateWindow(Handle_t Handle, Rect_t *Rectangle)
 	/* Variables */
 	MRemoteCall_t Request;
 	RPCInitialize(&Request, __WINDOWMANAGER_INTERFACE_VERSION,
-		PIPE_DEFAULT, __WINDOWMANAGER_INVALIDATE);
+		PIPE_RPCOUT, __WINDOWMANAGER_INVALIDATE);
 	RPCSetArgument(&Request, 0, (const void*)Handle, sizeof(Handle_t));
 	RPCSetArgument(&Request, 1, (const void*)Rectangle, sizeof(Rect_t));
-	return RPCExecute(&Request, __WINDOWMANAGER_TARGET);
+	return RPCEvent(&Request, __WINDOWMANAGER_TARGET);
 }
 #endif
 

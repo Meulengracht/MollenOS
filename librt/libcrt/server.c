@@ -64,8 +64,8 @@ void _mDrvCrt(void)
 	_mCrtInit(&Tls);
 
 	// Initialize default pipes
-	PipeOpen(PIPE_DEFAULT);
-	PipeOpen(PIPE_RPC);
+	PipeOpen(PIPE_RPCOUT);
+	PipeOpen(PIPE_RPCIN);
 
 	// Call the driver load function 
 	// - This will be run once, before loop
@@ -89,7 +89,7 @@ void _mDrvCrt(void)
 Cleanup:
 	// Cleanup allocated resources
 	// and perform a normal exit
-	PipeClose(PIPE_DEFAULT);
-	PipeClose(PIPE_RPC);
+	PipeClose(PIPE_RPCOUT);
+	PipeClose(PIPE_RPCIN);
 	exit(-1);
 }

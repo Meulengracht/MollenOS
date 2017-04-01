@@ -180,7 +180,7 @@ void ThreadingInitialize(UUId_t Cpu)
 	Init->CpuId = Cpu;
 
 	/* Create the pipe for communiciation */
-	Init->Pipe = PipeCreate(PIPE_DEFAULT_SIZE, 0);
+	Init->Pipe = PipeCreate(PIPE_RPCOUT_SIZE, 0);
 
 	/* Release the lock */
 	SpinlockRelease(&GlbThreadLock);
@@ -258,7 +258,7 @@ UUId_t ThreadingCreateThread(const char *Name,
 	Thread->Priority = PriorityNormal;
 
 	/* Create the pipe for communiciation */
-	Thread->Pipe = PipeCreate(PIPE_DEFAULT_SIZE, 0);
+	Thread->Pipe = PipeCreate(PIPE_RPCOUT_SIZE, 0);
 
 	/* Flag-Special-Case:
 	 * If we are CPU bound */
