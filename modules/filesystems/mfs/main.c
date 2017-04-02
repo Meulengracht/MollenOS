@@ -721,10 +721,16 @@ OsStatus_t
 FsInitialize(
 	_In_ FileSystemDescriptor_t *Descriptor)
 {
-	/* Allocate structures */
-	MCoreFileSystem_t *Fs = (MCoreFileSystem_t*)Data;
-	void *TmpBuffer = (void*)kmalloc(Fs->SectorSize);
-	MfsBootRecord_t *BootRecord = NULL;
+	// Variables
+	MasterRecord_t *MasterRecord = NULL;
+	BootRecord_t *BootRecord = NULL;
+	BufferObject_t *Buffer = NULL;
+	MfsInstance_t *Mfs = NULL;
+
+	// Create a generic transferbuffer for us to use
+	Buffer = CreateBuffer(Descriptor->Disk.Descriptor.SectorSize);
+
+	// Read the boot-sector
 
 	/* Read bootsector */
 	if (MfsReadSectors(Fs, 0, TmpBuffer, 1) != RequestNoError)

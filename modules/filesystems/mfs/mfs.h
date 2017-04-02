@@ -45,22 +45,6 @@
 #define MFS_ACTION_CREATE	0x1
 #define MFS_ACTION_DELETE	0x2
 
-/* MFS Entry Status Codes */
-#define MFS_STATUS_END		0x0
-#define MFS_STATUS_OK		0x1
-#define MFS_STATUS_DELETED	0x2
-
-/* MFS Entry Flags */
-#define MFS_FILE			0x1
-#define MFS_SECURITY		0x2		/* User must possess the right key to unlock */
-#define MFS_DIRECTORY		0x4
-#define MFS_SYSTEM			0x8		/* Readable, nothing else */
-#define MFS_HIDDEN			0x10	/* Don't show */
-#define MFS_LINK			0x20	/* Link to another file */
-#define MFS_INLINE			0x40	/* Data is inlined */
-#define MFS_CHAINED			0x80	/* Means all buckets are adjacent */
-#define MFS_LOCKED			0x100	/* File is deep-locked */
-
 /* The MFS-MBR */
 PACKED_TYPESTRUCT(BootRecord, {
 	uint8_t					JumpCode[3];
@@ -82,7 +66,6 @@ PACKED_TYPESTRUCT(BootRecord, {
 	uint16_t				SectorsPerBucket;
 	uint64_t				MasterBucketSector;
 	uint64_t				MasterBucketMirror;
-	uint8_t					BootLabel[8];		// Note: remove this
 
 	uint8_t					BootCode[460];	//512 - 48
 });
@@ -104,6 +87,7 @@ PACKED_TYPESTRUCT(BootRecord, {
 PACKED_TYPESTRUCT(MasterRecord, {
 	uint32_t				Magic;
 	uint32_t				Flags;
+	uint8_t					PartitionName[64];
 
 	uint32_t				FreeBucket;	// Pointer to first free index
 	uint32_t				RootIndex;		// Pointer to root directory
@@ -112,45 +96,64 @@ PACKED_TYPESTRUCT(MasterRecord, {
 
 	uint64_t				BucketMapSector;// Start sector of bucket-map
 	uint64_t				BucketMapSize;	// Size of bucket map
-
-	// Note, add this
-	//uint8_t PartitionName[64]
 });
 
-/* The MFT-Entry
- * 1024 Bytes */
+/* The file-time structure
+ * Keeps track of the last time records were modified */
+PACKED_TYPESTRUCT(DateTimeRecord, {
+	// Date Information
+	uint16_t				Year;
+	uint8_t					Month;
+	uint8_t					Day;
+
+	// Time Information
+	uint8_t					Hour;
+	uint8_t					Minute;
+	uint8_t					Second;
+	uint8_t					Reserved;
+});
+
+/* The file-record structure
+ * Describes a record contained in a directory 
+ * which can consist of multiple types, with the common types being
+ * both directories and files, and file-links */
 PACKED_TYPESTRUCT(FileRecord, {
-	/* Status - 0x0 */
-	uint16_t Status;
+	uint16_t				Status;		 // 0x0 - Record Status
+	uint16_t				Flags;		 // 0x2 - Record Flags
+	uint32_t				StartBucket; // 0x4 - First data bucket
+	uint32_t				StartLength; // 0x8 - Length of first data bucket
 
-	/* Type - 0x2 */
-	uint16_t Flags;
-
-	/* Index - 0x4 */
-	uint32_t StartBucket;
-	uint32_t StartLength;
-
-	/* Stats - 0xC */
-	uint64_t CreatedTime;
-	uint64_t CreatedDate;  /* 0x14 */
-
-	uint64_t ModifiedTime; /* 0x1C */
-	uint64_t ModifedDate;  /* 0x24 */
-
-	uint64_t ReadTime;	   /* 0x2C */
-	uint64_t ReadDate;	   /* 0x34 */
+	// DateTime Records (8 bytes each, 64 bit)
+	DateTimeRecord_t		CreatedAt;	 // 0xC
+	DateTimeRecord_t		ModifiedAt;	 // 0x14
+	DateTimeRecord_t		AccessedAt;  // 0x1C
 	
-	/* More interesting */
-	uint64_t Size;		   /* 0x3C */
-	uint64_t AllocatedSize; /* 0x44 */
+	uint64_t				Size;		   // 0x24 - Actual size
+	uint64_t				AllocatedSize; // 0x2C - Allocated size on disk
 
-	/* Name Block 0x4C */
-	uint8_t Name[436];
-
-	/* Opt Data Block */
-	uint8_t Data[512];
-
+	uint8_t					Name[460];		 // 0x34
+	uint8_t					Integrated[512]; // 0x200
 });
+
+/* MFS FileRecord-Status Definitions
+ * Contains constants and bitfield definitions for FileRecord::Status */
+#define MFS_FILERECORD_ENDOFTABLE		0x0
+#define MFS_FILERECORD_INUSE			0x1
+#define MFS_FILERECORD_DELETED			0x2
+
+/* MFS FileRecord-Flags Definitions
+ * Contains constants and bitfield definitions for FileRecord::Flags */
+#define MFS_FILERECORD_FILE				0x0		
+#define MFS_FILERECORD_DIRECTORY		0x1
+#define MFS_FILERECORD_LINK				0x2
+#define MFS_FILERECORD_TYPE(Flags)		(Flags & 0x3)
+
+#define MFS_FILERECORD_SECURITY			0x4		// User must possess the right key to unlock
+#define MFS_FILERECORD_SYSTEM			0x8		// Readable, nothing else
+#define MFS_FILERECORD_HIDDEN			0x10	// Don't show
+#define MFS_FILERECORD_INLINE			0x20	// Data is inlined
+#define MFS_FILERECORD_CHAINED			0x40	// Means all buckets are adjacent
+#define MFS_FILERECORD_LOCKED			0x80	// File is deep-locked
 
 /* FileSystem File Data */
 #pragma pack(push, 1)
@@ -194,9 +197,7 @@ typedef struct _MfsFileInstance
 #pragma pack(pop)
 
 /* FileSystem Data */
-#pragma pack(push, 1)
-typedef struct _MfsData
-{
+typedef struct _MfsInstance {
 	/* Identifier */
 	char *VolumeLabel;
 
@@ -224,7 +225,6 @@ typedef struct _MfsData
 	void *BucketBuffer;
 	size_t BucketBufferOffset;
 
-} MfsData_t;
-#pragma pack(pop)
+} MfsInstance_t;
 
 #endif //!_MFS_H_
