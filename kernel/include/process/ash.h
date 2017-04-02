@@ -85,46 +85,46 @@ typedef enum _MCoreAshType
 * Whether it's a process or a server */
 typedef struct _MCoreAsh
 {
-	/* Ids related to this Ash,
-	 * both it's own id, it's main thread
-	 * and it's parent ash */
+	// Ids related to this Ash,
+	// both it's own id, it's main thread
+	// and it's parent ash
 	UUId_t MainThread;
 	UUId_t Id;
 	UUId_t Parent;
 	MCoreAshType_t Type;
 
-	/* The name of the Ash, this is usually
-	 * derived from the file that spawned it */
+	// The name of the Ash, this is usually
+	// derived from the file that spawned it
 	MString_t *Name;
 	MString_t *Path;
 
-	/* The communication line for this Ash
-	 * all types of ash need some form of com */
+	// The communication line for this Ash
+	// all types of ash need some form of com
 	List_t *Pipes;
 
-	/* Memory management and information,
-	 * Ashes run in their own space, and have their
-	 * own bitmap allocators */
+	// Memory management and information,
+	// Ashes run in their own space, and have their
+	// own bitmap allocators
 	AddressSpace_t *AddressSpace;
 	Bitmap_t *Heap;
 	Bitmap_t *Shm;
 
-	/* Signal support for Ashes */
+	// Signal support for Ashes
 	MCoreSignalTable_t Signals;
 	MCoreSignal_t *ActiveSignal;
 	List_t *SignalQueue;
 
-	/* Below is everything related to
-	 * the startup and the executable information
-	 * that the Ash has */
+	// Below is everything related to
+	// the startup and the executable information
+	// that the Ash has
 	MCorePeFile_t *Executable;
 	uintptr_t NextLoadingAddress;
 	uint8_t *FileBuffer;
 	size_t FileBufferLength;
 	uintptr_t StackStart;
 
-	/* This is the return/code
-	 * that gets set upon ash-exit */
+	// This is the return/code
+	// that gets set upon ash-exit
 	int Code;
 
 } MCoreAsh_t;
@@ -133,45 +133,66 @@ typedef struct _MCoreAsh
  * prepares the ash-environment, at this point
  * it won't be completely running yet, it needs
  * its own thread for that. Returns 0 on success */
-__EXTERN int PhoenixInitializeAsh(MCoreAsh_t *Ash, MString_t *Path);
+KERNELAPI int PhoenixInitializeAsh(MCoreAsh_t *Ash, MString_t *Path);
 
 /* This is a wrapper for starting up a base Ash
  * and uses <PhoenixInitializeAsh> to setup the env
  * and do validation before starting */
-__EXTERN UUId_t PhoenixStartupAsh(MString_t *Path);
+KERNELAPI UUId_t PhoenixStartupAsh(MString_t *Path);
 
 /* This is the finalizor function for starting
  * up a new base Ash, it finishes setting up the environment
  * and memory mappings, must be called on it's own thread */
-__EXTERN void PhoenixFinishAsh(MCoreAsh_t *Ash);
+KERNELAPI void PhoenixFinishAsh(MCoreAsh_t *Ash);
 
 /* These function manipulate pipes on the given port
  * there are some pre-defined ports on which pipes
  * can be opened, window manager etc */
-__EXTERN OsStatus_t PhoenixOpenAshPipe(MCoreAsh_t *Ash, int Port, Flags_t Flags);
-__EXTERN OsStatus_t PhoenixWaitAshPipe(MCoreAsh_t *Ash, int Port);
-__EXTERN OsStatus_t PhoenixCloseAshPipe(MCoreAsh_t *Ash, int Port);
-__EXTERN MCorePipe_t *PhoenixGetAshPipe(MCoreAsh_t *Ash, int Port);
+KERNELAPI OsStatus_t PhoenixOpenAshPipe(MCoreAsh_t *Ash, int Port, Flags_t Flags);
+KERNELAPI OsStatus_t PhoenixWaitAshPipe(MCoreAsh_t *Ash, int Port);
+KERNELAPI OsStatus_t PhoenixCloseAshPipe(MCoreAsh_t *Ash, int Port);
+KERNELAPI MCorePipe_t *PhoenixGetAshPipe(MCoreAsh_t *Ash, int Port);
 
 /* Ash Function Prototypes
  * these are the interesting ones */
-__EXTERN int PhoenixQueryAsh(MCoreAsh_t *Ash,
+KERNELAPI int PhoenixQueryAsh(MCoreAsh_t *Ash,
 	AshQueryFunction_t Function, void *Buffer, size_t Length);
-__EXTERN void PhoenixCleanupAsh(MCoreAsh_t *Ash);
-__EXTERN void PhoenixTerminateAsh(MCoreAsh_t *Ash);
+KERNELAPI void PhoenixCleanupAsh(MCoreAsh_t *Ash);
+KERNELAPI void PhoenixTerminateAsh(MCoreAsh_t *Ash);
 
 
 /* PhoenixRegisterAlias
  * Allows a server to register an alias for its id
  * which means that id (must be above PHOENIX_ALIAS_BASE)
  * will always refer the calling process */
-__EXTERN OsStatus_t PhoenixRegisterAlias(MCoreAsh_t *Ash, UUId_t Alias);
+KERNELAPI
+OsStatus_t
+KERNELABI
+PhoenixRegisterAlias(
+	_In_ MCoreAsh_t *Ash, 
+	_In_ UUId_t Alias);
 
-/* Lookup Ash
- * This function looks up a ash structure
- * by id, if either PHOENIX_CURRENT or PHOENIX_NO_ASH
- * is passed, it retrieves the current process */
-__EXTERN MCoreAsh_t *PhoenixGetAsh(UUId_t AshId);
-__EXTERN MCoreAsh_t *PhoenixGetAshByName(const char *Name);
+/* PhoenixGetAsh
+ * This function looks up a ash structure by the given id */
+KERNELAPI
+MCoreAsh_t*
+KERNELABI
+PhoenixGetAsh(
+	_In_ UUId_t AshId);
+
+/* PhoenixGetCurrentAsh
+ * Retrives the current ash for the running thread */
+KERNELAPI 
+MCoreAsh_t*
+KERNELABI
+PhoenixGetCurrentAsh(void);
+
+/* PhoenixGetAshByName
+ * This function looks up a ash structure by the given name */
+KERNELAPI
+MCoreAsh_t*
+KERNELABI
+PhoenixGetAshByName(
+	_In_ __CONST char *Name);
 
 #endif //!_MCORE_ASH_H_

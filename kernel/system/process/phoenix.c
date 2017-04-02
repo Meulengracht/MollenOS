@@ -43,34 +43,42 @@
 int PhoenixEventHandler(void *UserData, MCoreEvent_t *Event);
 OsStatus_t PhoenixReap(void *UserData);
 
-/* Globals */
-MCoreEventHandler_t *GlbPhoenixEventHandler = NULL;
+/* Globals 
+ * State-keeping and data-storage */
+static MCoreEventHandler_t *GlbPhoenixEventHandler = NULL;
+static UUId_t GlbPhoenixGcId = 0;
+
+/* These are getting externed, not good */
 UUId_t GlbAshIdGenerator = 0;
 List_t *GlbAshes = NULL;
 UUId_t *GlbAliasMap = NULL;
-UUId_t GlbPhoenixGcId = 0;
 
 /* Initialize the Phoenix environment and 
  * start the event-handler loop, it handles all requests 
  * and nothing happens if it isn't started */
 void PhoenixInit(void)
 {
-	/* Debug */
+	// Variables
+	int i;
+
+	// Trace
 	LogInformation("PHNX", "Initializing environment and event handler");
 
-	/* Reset */
+	// Set initial ash-id to 1
 	GlbAshIdGenerator = 1;
 
-	/* Create */
+	// Initialize lists
 	GlbAshes = ListCreate(KeyInteger, LIST_SAFE);
 	GlbPhoenixGcId = GcRegister(PhoenixReap);
 
-	/* Initialize the global alias map */
+	// Initialize the global alias map
 	GlbAliasMap = (UUId_t*)kmalloc(sizeof(UUId_t) * PHOENIX_MAX_ASHES);
-	memset(GlbAliasMap, 0xFF, sizeof(sizeof(UUId_t) * PHOENIX_MAX_ASHES));
+	for (i = 0; i < PHOENIX_MAX_ASHES; i++) {
+		GlbAliasMap[i] = UUID_INVALID;
+	}
 
-	/* Create event handler */
-	GlbPhoenixEventHandler = EventInit("Phoenix Event Handler", PhoenixEventHandler, NULL);
+	// Create event handler
+	GlbPhoenixEventHandler = EventInit("phoenix", PhoenixEventHandler, NULL);
 }
 
 /* Create Request
@@ -118,7 +126,7 @@ int PhoenixEventHandler(void *UserData, MCoreEvent_t *Event)
 			}
 
 			/* Sanity */
-			if (Request->AshId != PHOENIX_NO_ASH)
+			if (Request->AshId != UUID_INVALID)
 				Request->Base.State = EventOk;
 			else
 				Request->Base.State = EventFailed;

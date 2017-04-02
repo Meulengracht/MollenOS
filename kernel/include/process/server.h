@@ -32,11 +32,6 @@
 #include <process/phoenix.h>
 #include <bitmap.h>
 
-/* Redirection of definitions from Ash.h
- * to make it more sensible for server tasks */
-#define SERVER_CURRENT			PHOENIX_CURRENT
-#define SERVER_NO_SERVER		PHOENIX_NO_ASH
-
 /* The base of an server process, servers
  * are derived from Ashes, and merely extensions
  * to support userland stuff, and run in a larger
@@ -69,23 +64,33 @@ typedef struct _MCoreServer
  * This function loads the executable and
  * prepares the ash-server-environment, at this point
  * it won't be completely running yet, it needs its own thread for that */
-__EXTERN UUId_t PhoenixCreateServer(MString_t *Path, void *Arguments, size_t Length);
+KERNELAPI UUId_t PhoenixCreateServer(MString_t *Path, void *Arguments, size_t Length);
 
 /* PhoenixCleanupServer
  * Cleans up all the server-specific resources allocated
  * this this AshServer, and afterwards call the base-cleanup */
-__EXTERN void PhoenixCleanupServer(MCoreServer_t *Server);
+KERNELAPI void PhoenixCleanupServer(MCoreServer_t *Server);
 
-/* Get Server 
- * This function looks up a server structure 
- * by id, if either SERVER_CURRENT or SERVER_NO_SERVER 
- * is passed, it retrieves the current server */
-__EXTERN MCoreServer_t *PhoenixGetServer(UUId_t ServerId);
+/* PhoenixGetServer
+ * This function looks up a server structure by id */
+KERNELAPI
+MCoreServer_t*
+KERNELABI
+PhoenixGetServer(
+	_In_ UUId_t ServerId);
+
+/* PhoenixGetCurrentServer
+ * If the current running process is a server then it
+ * returns the server structure, otherwise NULL */
+KERNELAPI
+MCoreServer_t*
+KERNELABI
+PhoenixGetCurrentServer(void);
 
 /* GetServerByDriver
  * Retrieves a running server by driver-information
  * to avoid spawning multiple servers */
-__EXTERN MCoreServer_t *PhoenixGetServerByDriver(DevInfo_t VendorId,
+KERNELAPI MCoreServer_t *PhoenixGetServerByDriver(DevInfo_t VendorId,
 	DevInfo_t DeviceId, DevInfo_t DeviceClass, DevInfo_t DeviceSubClass);
 
 #endif //!_MCORE_SERVER_H_

@@ -102,7 +102,7 @@ IoSpaceRegister(
 
 	// Initialize the system copy
 	IoSpace->Id = SysCopy->Id = __GlbIoSpaceId++;
-	SysCopy->Owner = PHOENIX_NO_ASH;
+	SysCopy->Owner = UUID_INVALID;
 	SysCopy->Type = IoSpace->Type;
 	SysCopy->PhysicalBase = IoSpace->PhysicalBase;
 	SysCopy->VirtualBase = 0;
@@ -142,14 +142,14 @@ IoSpaceAcquire(
 
 	// Lookup the system copy to validate this
 	// requested operation
-	Server = PhoenixGetServer(SERVER_CURRENT);
+	Server = PhoenixGetCurrentServer();
 	Cpu = CpuGetCurrentId();
 	Key.Value = (int)IoSpace->Id;
 	SysCopy = (MCoreIoSpace_t*)ListGetDataByKey(__GlbIoSpaces, Key, 0);
 
 	// Sanitize the system copy
 	if (Server == NULL || SysCopy == NULL
-		|| SysCopy->Owner != PHOENIX_NO_ASH) {
+		|| SysCopy->Owner != UUID_INVALID) {
 		if (Server == NULL) {
 			ERROR("Non-server process tried to acquire io-space");
 		}
@@ -217,7 +217,7 @@ IoSpaceRelease(
 
 	// Lookup the system copy to validate this
 	// requested operation 
-	Server = PhoenixGetServer(SERVER_CURRENT);
+	Server = PhoenixGetCurrentServer();
 	Cpu = CpuGetCurrentId();
 	Key.Value = (int)IoSpace->Id;
 	SysCopy = (MCoreIoSpace_t*)ListGetDataByKey(__GlbIoSpaces, Key, 0);
@@ -260,7 +260,7 @@ IoSpaceRelease(
 
 	// Clear out some stuff
 	SysCopy->VirtualBase = IoSpace->VirtualBase = 0;
-	SysCopy->Owner = PHOENIX_NO_ASH;
+	SysCopy->Owner = UUID_INVALID;
 
 	// Done - no errors
 	return OsNoError;
@@ -288,7 +288,7 @@ IoSpaceDestroy(
 
 	// Sanitize the system copy
 	if (SysCopy == NULL
-		|| SysCopy->Owner != PHOENIX_NO_ASH) {
+		|| SysCopy->Owner != UUID_INVALID) {
 		return OsError;
 	}
 
@@ -318,7 +318,7 @@ IoSpaceValidate(
 		ProcessId, Address);
 
 	// Sanitize the id
-	if (ProcessId == PHOENIX_NO_ASH) {
+	if (ProcessId == UUID_INVALID) {
 		return 0;
 	}
 

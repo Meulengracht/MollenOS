@@ -35,8 +35,6 @@
 
 /* Definitions for special identifiers
  * these can be used to lookup special ashes/processes */
-#define PHOENIX_NO_ASH			UUID_INVALID
-#define PHOENIX_CURRENT			0
 #define PHOENIX_MAX_ASHES		512
 #define PHOENIX_ALIAS_BASE		0x8000
 

@@ -21,7 +21,7 @@
  *	- Port Multiplier Support
  *	- Power Management
  */
-#define __TRACE
+//#define __TRACE
 
 /* Includes
  * - System */
@@ -42,6 +42,10 @@ AhciDumpCurrentState(
 	_In_ AhciController_t *Controller, 
 	_In_ AhciPort_t *Port)
 {
+	// When trace is disabled
+	_CRT_UNUSED(Controller);
+	_CRT_UNUSED(Port);
+
 	// Dump registers
 	TRACE("AHCI.GlobalHostControl 0x%x",
 		Controller->Registers->GlobalHostControl);

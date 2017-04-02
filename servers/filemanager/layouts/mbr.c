@@ -19,9 +19,11 @@
  * MollenOS - File Manager Service
  * - Handles all file related services and disk services
  */
+#define __TRACE
 
 /* Includes
  * - System */
+#include <os/utils.h>
 #include "../include/vfs.h"
 #include "../include/mbr.h"
 
@@ -35,33 +37,37 @@
 OsStatus_t MbrEnumeratePartitions(FileSystemDisk_t *Disk, 
 	BufferObject_t *Buffer, uint64_t Sector)
 {
-	/* Variables */
+	// Variables
 	MasterBootRecord_t *Mbr = NULL;
 	int PartitionCount = 0;
 	int i;
 
-	/* Start out by reading the mbr to detect whether
-	 * or not there is a partition table */
+	// Trace
+	TRACE("MbrEnumeratePartitions(Sector %u)",
+		LODWORD(Sector));
+
+	// Start out by reading the mbr to detect whether
+	// or not there is a partition table
 	if (DiskRead(Disk->Driver, Disk->Device, Sector, Buffer->Physical, 1) != OsNoError) {
 		return OsError;
 	}
 
-	/* Allocate a buffer where we can store a copy of the mbr 
-	 * it might be overwritten by recursion here */
+	// Allocate a buffer where we can store a copy of the mbr 
+	// it might be overwritten by recursion here
 	Mbr = (MasterBootRecord_t*)malloc(sizeof(MasterBootRecord_t));
 	ReadBuffer(Buffer, (const void*)Mbr, sizeof(MasterBootRecord_t));
 
-	/* Now try to see if there is any valid data
-	 * in any of the partitions */
+	// Now try to see if there is any valid data
+	// in any of the partitions
 	for (i = 0; i < 4; i++) {
 		if (Mbr->Partitions[i].Status == MBR_PARTITION_ACTIVE) {
 			FileSystemType_t Type = FSUnknown;
 			PartitionCount++;
 
-			/* Check extended partitions first 
-			 * 0x05 = CHS
-			 * 0x0F = LBA
-			 * 0xCF = LBA */
+			// Check extended partitions first 
+			// 0x05 = CHS
+			// 0x0F = LBA
+			// 0xCF = LBA
 			if (Mbr->Partitions[i].Type == 0x05) {
 			}
 			else if (Mbr->Partitions[i].Type == 0x0F
@@ -70,20 +76,20 @@ OsStatus_t MbrEnumeratePartitions(FileSystemDisk_t *Disk,
 					Sector + Mbr->Partitions[i].LbaSector);
 			}
 
-			/* GPT Formatted 
-			 * ??? Shouldn't happen ever we reach this
-			 * otherwise the GPT is invalid */
+			// GPT Formatted 
+			// ??? Shouldn't happen ever we reach this
+			// otherwise the GPT is invalid
 			else if (Mbr->Partitions[i].Type == 0xEE) {
 				return OsError;
 			}
 
-			/* Check MFS */
+			// Check MFS
 			else if (Mbr->Partitions[i].Type == 0x61) {
 				Type = FSMFS;
 			}
 
-			/* Check FAT 
-			 * - Both FAT12, 16 and 32 */
+			// Check FAT 
+			// - Both FAT12, 16 and 32
 			else if (Mbr->Partitions[i].Type == 0x1			/* Fat12 */
 					|| Mbr->Partitions[i].Type == 0x4		/* Fat16 */
 					|| Mbr->Partitions[i].Type == 0x6		/* Fat16B */
@@ -92,14 +98,14 @@ OsStatus_t MbrEnumeratePartitions(FileSystemDisk_t *Disk,
 				Type = FSFAT;
 			}
 
-			/* Check HFS */
+			// Check HFS
 			else if (Mbr->Partitions[i].Type == 0xAF) {
 				Type = FSHFS;
 			}
 
-			/* exFat or NTFS or HPFS
-			 * This requires some extra checks to determine
-			 * exactly which fs it is */
+			// exFat or NTFS or HPFS
+			// This requires some extra checks to determine
+			// exactly which fs it is
 			else if (Mbr->Partitions[i].Type == 0x7) {
 				if (!strncmp((const char*)&Mbr->BootCode[3], "EXFAT", 5)) {
 					Type = FSEXFAT;
@@ -112,16 +118,16 @@ OsStatus_t MbrEnumeratePartitions(FileSystemDisk_t *Disk,
 				}
 			}
 
-			/* Register the FS */
+			// Register the FS
 			DiskRegisterFileSystem(Disk, Sector + Mbr->Partitions[i].LbaSector,
 				Mbr->Partitions[i].LbaSize, Type);
 		}
 	}
 
-	/* Cleanup the allocated mbr */
+	// Cleanup the allocated mbr
 	free(Mbr);
 
-	/* Done */
+	// Return status
 	return PartitionCount != 0 ? OsNoError : OsError;
 }
 
@@ -130,9 +136,12 @@ OsStatus_t MbrEnumeratePartitions(FileSystemDisk_t *Disk,
  * and automatically creates new filesystem objects */
 OsStatus_t MbrEnumerate(FileSystemDisk_t *Disk, BufferObject_t *Buffer)
 {
-	/* First of all, we want to detect whether or 
-	 * not there is a partition table available
-	 * otherwise we treat the entire disk as one partition */
+	// Trace
+	TRACE("MbrEnumerate()");
+
+	// First of all, we want to detect whether or 
+	// not there is a partition table available
+	// otherwise we treat the entire disk as one partition
 	if (MbrEnumeratePartitions(Disk, Buffer, 0) != OsNoError) {
 		return DiskDetectFileSystem(Disk, Buffer, 0, Disk->Descriptor.SectorCount);
 	}

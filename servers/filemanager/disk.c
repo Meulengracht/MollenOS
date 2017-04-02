@@ -98,28 +98,32 @@ OsStatus_t VfsResolveQueueExecute(void)
 OsStatus_t DiskRegisterFileSystem(FileSystemDisk_t *Disk,
 	uint64_t Sector, uint64_t SectorCount, FileSystemType_t Type) 
 {
-	/* Variables */
+	// Variables
 	FileSystem_t *Fs = NULL;
 	char IdentBuffer[8];
 	DataKey_t Key;
 
-	/* Allocate a new disk id */
+	// Trace
+	TRACE("DiskRegisterFileSystem(Sector %u, Size %u, Type %u)",
+		LODWORD(Sector), LODWORD(SectorCount), Type);
+
+	// Allocate a new disk id
 	UUId_t Id = VfsIdentifierAllocate(Disk);
 	Key.Value = (int)Disk->Device;
 
-	/* Prep the buffer so we can build
-	 * a new fs-identifier */
+	// Prep the buffer so we can build
+	// a new fs-identifier
 	memset(IdentBuffer, 0, 8);
 
-	/* Copy the storage ident over 
-	 * We use "st" for hard media, and "rm" for removables */
+	// Copy the storage ident over 
+	// We use "st" for hard media, and "rm" for removables
 	strcpy(IdentBuffer, (Disk->Flags & __DISK_REMOVABLE) ? "rm" : "st");
 	itoa((int)Id, (IdentBuffer + 2), 10);
 
-	/* Allocate a new copy of the fs-structure */
+	// Allocate a new copy of the fs-structure
 	Fs = (FileSystem_t*)malloc(sizeof(FileSystem_t));
 	
-	/* Instantiate the new instance */
+	// Initialize the structure
 	Fs->Id = Id;
 	Fs->Type = Type;
 	Fs->Identifier = MStringCreate(&IdentBuffer, StrASCII);
@@ -128,57 +132,60 @@ OsStatus_t DiskRegisterFileSystem(FileSystemDisk_t *Disk,
 	Fs->Descriptor.SectorCount = SectorCount;
 	memcpy(&Fs->Descriptor.Disk, Disk, sizeof(FileSystemDisk_t));
 
-	/* Resolve the module from the filesystem type 
-	 * - Now there is a special case, if no FS are
-	 *   registered and init hasn't run, and it's not MFS
-	 *   then we add to a resolve-wait queue */
+	// Resolve the module from the filesystem type 
+	// - Now there is a special case, if no FS are
+	//   registered and init hasn't run, and it's not MFS
+	//   then we add to a resolve-wait queue
 	if (!GlbInitHasRun && Fs->Type != FSMFS) {
 		ListAppend(VfsGetResolverQueue(), ListCreateNode(Key, Key, Fs));
 	}
 	else {
+		TRACE("Resolving filesystem");
 		Fs->Module = VfsResolveFileSystem(Fs);
 
-		/* Sanitize the module - must exist */
+		// Sanitize the module - must exist
 		if (Fs->Module == NULL) {
+			ERROR("Filesystem driver did not exist");
 			MStringDestroy(Fs->Identifier);
 			VfsIdentifierFree(&Fs->Descriptor.Disk, Fs->Id);
 			free(Fs);
 			return OsError;
 		}
 
-		/* Run initializor function */
+		// Run initializor function
 		if (Fs->Module->Initialize(&Fs->Descriptor) != OsNoError) {
+			ERROR("Filesystem driver failed to initialize");
 			MStringDestroy(Fs->Identifier);
 			VfsIdentifierFree(&Fs->Descriptor.Disk, Fs->Id);
 			free(Fs);
 			return OsError;
 		}
 
-		/* Add to list, by using the disk id as identifier */
+		// Add to list, by using the disk id as identifier
 		ListAppend(VfsGetFileSystems(), ListCreateNode(Key, Key, Fs));
 
-		/* Start init? */
+		// Start init?
 		if (!GlbInitHasRun)
 		{
-			/* Create a path from the identifier and hardcoded path */
+			// Create a path from the identifier and hardcoded path
 			MString_t *Path = MStringCreate((void*)MStringRaw(Fs->Identifier), StrUTF8);
 			MStringAppendCharacters(Path, __FILEMANAGER_INITPROCESS, StrUTF8);
 
-			/* Spawn the process 
-			 * If it was succesfully spawned we can start
-			 * resolving the previous file-systems */
+			// Spawn the process 
+			// If it was succesfully spawned we can start
+			// resolving the previous file-systems
 			if (ProcessSpawn(MStringRaw(Path), NULL) != UUID_INVALID) {
 				Fs->Descriptor.Flags |= __FILESYSTEM_BOOT;
 				VfsResolveQueueEvent();
 				GlbInitHasRun = 1;
 			}
 
-			/* Cleanup */
+			// Cleanup
 			MStringDestroy(Path);
 		}
 	}
 
-	/* Done! */
+	// Done
 	return OsNoError;
 }
 

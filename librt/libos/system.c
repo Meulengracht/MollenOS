@@ -31,7 +31,7 @@
 #include <string.h>
 
 /* Const Message */
-const char *__SysTypeMessage = "CLIB";
+const char *__SysTypeMessage = "LIBC";
 
 /* SystemDebug 
  * Debug/trace printing for userspace application and drivers */

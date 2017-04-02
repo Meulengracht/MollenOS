@@ -115,7 +115,7 @@ DebugPageFault(
 	// Case 3 - User Heap
 	else if (Address >= MEMORY_LOCATION_RING3_HEAP
 		&& Address < MEMORY_LOCATION_RING3_SHM) {
-		MCoreAsh_t *Ash = PhoenixGetAsh(PHOENIX_CURRENT);
+		MCoreAsh_t *Ash = PhoenixGetCurrentAsh();
 		if (Ash != NULL) {
 			if (!BitmapValidateAddress(Ash->Heap, Address)) {
 				// Try to map it in and return the result
@@ -208,7 +208,7 @@ DebugGetModuleByAddress(
 	// Validate that the address is within userspace
 	if (Address >= MEMORY_LOCATION_RING3_CODE
 		&& Address < MEMORY_LOCATION_RING3_HEAP) {
-		MCoreAsh_t *Ash = PhoenixGetAsh(PHOENIX_CURRENT);
+		MCoreAsh_t *Ash = PhoenixGetCurrentAsh();
 
 		// Sanitize whether or not a process was running
 		if (Ash != NULL && Ash->Executable != NULL) {
@@ -220,7 +220,8 @@ DebugGetModuleByAddress(
 			if (Ash->Executable->LoadedLibraries != NULL) {
 				foreach(lNode, Ash->Executable->LoadedLibraries) {
 					MCorePeFile_t *Lib = (MCorePeFile_t*)lNode->Data;
-					if (Address >= Lib->VirtualAddress) {
+					if (Address >= Lib->VirtualAddress
+						&& Lib->VirtualAddress > PmBase) {
 						PmName = (char*)MStringRaw(Lib->Name);
 						PmBase = Lib->VirtualAddress;
 					}

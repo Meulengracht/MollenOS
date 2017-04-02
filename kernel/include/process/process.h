@@ -31,11 +31,6 @@
  * - System */
 #include <process/phoenix.h>
 
-/* Redirection of definitions from Ash.h
- * to make it more sensible for processing */
-#define PROCESS_CURRENT			PHOENIX_CURRENT
-#define PROCESS_NO_PROCESS		PHOENIX_NO_ASH
-
 /* The base of an process, processes
  * are derived from Ashes, and merely extensions
  * to support userland stuff */
@@ -55,28 +50,38 @@ typedef struct _MCoreProcess
  * prepares the ash-process-environment, at this point
  * it won't be completely running yet, it needs
  * its own thread for that */
-__EXTERN UUId_t PhoenixCreateProcess(MString_t *Path, MString_t *Arguments);
+KERNELAPI UUId_t PhoenixCreateProcess(MString_t *Path, MString_t *Arguments);
 
 /* Cleans up all the process-specific resources allocated
  * this this AshProcess, and afterwards call the base-cleanup */
-__EXTERN void PhoenixCleanupProcess(MCoreProcess_t *Process);
+KERNELAPI void PhoenixCleanupProcess(MCoreProcess_t *Process);
 
-/* Get Process 
- * This function looks up a process structure 
- * by id, if either PROCESS_CURRENT or PROCESS_NO_PROCESS 
- * is passed, it retrieves the current process */
-__EXTERN MCoreProcess_t *PhoenixGetProcess(UUId_t ProcessId);
+/* PhoenixGetProcess
+ * This function looks up a server structure by id */
+KERNELAPI
+MCoreProcess_t*
+KERNELABI
+PhoenixGetProcess(
+	_In_ UUId_t ProcessId);
+
+/* PhoenixGetCurrentProcess
+ * If the current running process is a server then it
+ * returns the server structure, otherwise NULL */
+KERNELAPI
+MCoreProcess_t*
+KERNELABI
+PhoenixGetCurrentProcess(void);
 
  /* Get the working directory 
  * This function looks up the working directory for a process 
  * by id, if either PROCESS_CURRENT or PROCESS_NO_PROCESS 
  * is passed, it retrieves the current process's working directory */
-__EXTERN MString_t *PhoenixGetWorkingDirectory(UUId_t ProcessId);
+KERNELAPI MString_t *PhoenixGetWorkingDirectory(UUId_t ProcessId);
 
 /* Get the base directory 
  * This function looks up the base directory for a process 
  * by id, if either PROCESS_CURRENT or PROCESS_NO_PROCESS 
  * is passed, it retrieves the current process's base directory */
-__EXTERN MString_t *PhoenixGetBaseDirectory(UUId_t ProcessId);
+KERNELAPI MString_t *PhoenixGetBaseDirectory(UUId_t ProcessId);
 
 #endif //!_MCORE_PROCESS_H_

@@ -176,7 +176,7 @@ void ThreadingInitialize(UUId_t Cpu)
 	Init->Priority = PriorityLow;
 	Init->ParentId = 0xDEADBEEF;
 	Init->Id = GlbThreadId++;
-	Init->AshId = PHOENIX_NO_ASH;
+	Init->AshId = UUID_INVALID;
 	Init->CpuId = Cpu;
 
 	/* Create the pipe for communiciation */
@@ -208,31 +208,31 @@ void ThreadingInitialize(UUId_t Cpu)
 UUId_t ThreadingCreateThread(const char *Name,
 	ThreadEntry_t Function, void *Arguments, Flags_t Flags)
 {
-	/* Variables needed for thread creation */
+	// Variables
 	MCoreThread_t *Thread = NULL, *Parent = NULL;
 	char NameBuffer[16];
 	DataKey_t Key;
 	UUId_t Cpu = 0;
 
-	/* Acquire the thread lock */
+	// Acquire the thread lock
 	SpinlockAcquire(&GlbThreadLock);
 
-	/* Lookup current thread and cpu */
+	// Lookup current thread and cpu
 	Key.Value = (int)GlbThreadId++;
 	Cpu = CpuGetCurrentId();
 	Parent = ThreadingGetCurrentThread(Cpu);
 
-	/* Release the lock, we don't need it for
-	 * anything else than id */
+	// Release the lock, we don't need it for
+	// anything else than id
 	SpinlockRelease(&GlbThreadLock);
 
-	/* Allocate a new thread instance and 
-	 * zero out the allocated instance */
+	// Allocate a new thread instance and 
+	// zero out the allocated instance
 	Thread = (MCoreThread_t*)kmalloc(sizeof(MCoreThread_t));
 	memset(Thread, 0, sizeof(MCoreThread_t));
 
-	/* Sanitize name, if NULL generate a new
-	 * thread name of format 'Thread X' */
+	// Sanitize name, if NULL generate a new
+	// thread name of format 'Thread X'
 	if (Name == NULL) {
 		memset(&NameBuffer[0], 0, sizeof(NameBuffer));
 		sprintf(&NameBuffer[0], "Thread %u", GlbThreadId);
@@ -242,12 +242,12 @@ UUId_t ThreadingCreateThread(const char *Name,
 		Thread->Name = strdup(Name);
 	}
 
-	/* Initialize some basic thread information 
-	 * The only flags we want to copy for now are
-	 * the running-mode */
+	// Initialize some basic thread information 
+	// The only flags we want to copy for now are
+	// the running-mode
 	Thread->Id = (UUId_t)Key.Value;
 	Thread->ParentId = Parent->Id;
-	Thread->AshId = PHOENIX_NO_ASH;
+	Thread->AshId = Parent->AshId;
 	Thread->Flags = (Flags & THREADING_MODEMASK);
 	Thread->Function = Function;
 	Thread->Args = Arguments;

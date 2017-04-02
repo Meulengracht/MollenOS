@@ -75,7 +75,7 @@ GcInitialize(void)
 	}
 
 	// Start the worker thread, no arguments needed
-	ThreadingCreateThread("Garbage Collector", GcWorker, NULL, 0);
+	ThreadingCreateThread("gc-worker", GcWorker, NULL, 0);
 }
 
 /* GcRegister

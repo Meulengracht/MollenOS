@@ -21,7 +21,7 @@
  *	- Port Multiplier Support
  *	- Power Management
  */
-#define __TRACE
+//#define __TRACE
 
 /* Includes
  * - System */
@@ -393,7 +393,6 @@ AhciPortInterruptHandler(
 	if (DoneCommands != 0) {
 		for (i = 0; i < AHCI_MAX_PORTS; i++) {
 			if (DoneCommands & (1 << i)) {
-				TRACE("Handling command slot %i", i);
 				Key.Value = i;
 				tNode = ListGetNodeByKey(Port->Transactions, Key, 0);
 				if (tNode != NULL) {
@@ -410,9 +409,6 @@ AhciPortInterruptHandler(
 					// Unlink and cleanup node
 					ListRemoveByNode(Port->Transactions, tNode);
 					ListDestroyNode(Port->Transactions, tNode);
-
-					// Trace
-					TRACE("Handling complete");
 				}
 			}
 		}

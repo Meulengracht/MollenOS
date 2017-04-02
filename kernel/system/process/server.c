@@ -45,7 +45,9 @@ __EXTERN List_t *GlbAshes;
 /* This is the finalizor function for starting
  * up a new Ash Server, it finishes setting up the environment
  * and memory mappings, must be called on it's own thread */
-void PhoenixBootServer(void *Args)
+void
+PhoenixBootServer(
+	_In_ void *Args)
 {
 	// Initiate pointer
 	MCoreServer_t *Server = (MCoreServer_t*)Args;
@@ -79,9 +81,13 @@ void PhoenixBootServer(void *Args)
 /* This function loads the executable and
  * prepares the ash-server-environment, at this point
  * it won't be completely running yet, it needs its own thread for that */
-UUId_t PhoenixCreateServer(MString_t *Path, void *Arguments, size_t Length)
+UUId_t
+PhoenixCreateServer(
+	_In_ MString_t *Path,
+	_In_ void *Arguments, 
+	_In_ size_t Length)
 {
-	/* Vars */
+	// Variables
 	MCoreServer_t *Server = NULL;
 	DataKey_t Key;
 
@@ -92,7 +98,7 @@ UUId_t PhoenixCreateServer(MString_t *Path, void *Arguments, size_t Length)
 	if (PhoenixInitializeAsh(&Server->Base, Path)) {
 		LogFatal("SERV", "Failed to spawn server %s", MStringRaw(Path));
 		kfree(Server);
-		return PHOENIX_NO_ASH;
+		return UUID_INVALID;
 	}
 
 	/* Set type of base to process */
@@ -138,22 +144,41 @@ void PhoenixCleanupServer(MCoreServer_t *Server)
 	PhoenixCleanupAsh((MCoreAsh_t*)Server);
 }
 
-/* Get Server 
- * This function looks up a server structure 
- * by id, if either SERVER_CURRENT or SERVER_NO_SERVER 
- * is passed, it retrieves the current server */
-MCoreServer_t *PhoenixGetServer(UUId_t ServerId)
+/* PhoenixGetServer
+ * This function looks up a server structure by id */
+MCoreServer_t*
+PhoenixGetServer(
+	_In_ UUId_t ServerId)
 {
-	/* Use the default Ash lookup */
+	// Use the default ash-lookup
 	MCoreAsh_t *Ash = PhoenixGetAsh(ServerId);
 
-	/* Other than null check, we do a process-check */
+	// Do a null check and type-check
 	if (Ash != NULL && Ash->Type != AshServer) {
 		return NULL;
 	}
 
-	/* Return the result, but cast it to
-	* the process structure */
+	// Return the result, but cast it to
+	// the process structure
+	return (MCoreServer_t*)Ash;
+}
+
+/* PhoenixGetCurrentServer
+ * If the current running process is a server then it
+ * returns the server structure, otherwise NULL */
+MCoreServer_t*
+PhoenixGetCurrentServer(void)
+{
+	// Use the default get current
+	MCoreAsh_t *Ash = PhoenixGetCurrentAsh();
+
+	// Do a null check and type-check
+	if (Ash != NULL && Ash->Type != AshServer) {
+		return NULL;
+	}
+
+	// Return the result, but cast it to
+	// the process structure
 	return (MCoreServer_t*)Ash;
 }
 

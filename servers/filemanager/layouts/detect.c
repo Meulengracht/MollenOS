@@ -19,9 +19,11 @@
  * MollenOS - File Manager Service
  * - Handles all file related services and disk services
  */
+#define __TRACE
 
 /* Includes
  * - System */
+#include <os/utils.h>
 #include "../include/vfs.h"
 #include "../include/gpt.h"
 #include "../include/mbr.h"
@@ -33,20 +35,27 @@
 OsStatus_t DiskDetectFileSystem(FileSystemDisk_t *Disk,
 	BufferObject_t *Buffer, uint64_t Sector, uint64_t SectorCount)
 {
-	/* Variables */
+	// Variables
 	MasterBootRecord_t *Mbr = NULL;
 	FileSystemType_t Type = FSUnknown;
 
-	/* Make sure the MBR is loaded */
+	// Trace
+	TRACE("DiskDetectFileSystem(Sector %u, Count %u)",
+		LODWORD(Sector), LODWORD(SectorCount));
+
+	// Make sure the MBR is loaded
 	if (DiskRead(Disk->Driver, Disk->Device, Sector, Buffer->Physical, 1) != OsNoError) {
 		return OsError;
 	}
 
-	/* Ok - we do some basic signature checks 
-	 * MFS - "MFS1" 
-	 * NTFS - "NTFS" 
-	 * exFAT - "EXFAT" 
-	 * FAT - "FATXX" */
+	// Instantiate the mbr-pointer
+	Mbr = (MasterBootRecord_t*)Buffer->Virtual;
+
+	// Ok - we do some basic signature checks 
+	// MFS - "MFS1" 
+	// NTFS - "NTFS" 
+	// exFAT - "EXFAT" 
+	// FAT - "FATXX"
 	if (!strncmp((const char*)&Mbr->BootCode[3], "MFS1", 4)) {
 		Type = FSMFS;
 	}
@@ -62,14 +71,14 @@ OsStatus_t DiskDetectFileSystem(FileSystemDisk_t *Disk,
 		Type = FSFAT;
 	}
 	else {
-		//The following needs processing in other sectors to be determined
+		// The following needs processing in other sectors to be determined
 		//TODO
 		//HPFS
 		//EXT
 		//HFS
 	}
 
-	/* Sanitize the type */
+	// Sanitize the type
 	if (Type != FSUnknown) {
 		return DiskRegisterFileSystem(Disk, Sector, SectorCount, Type);
 	}
@@ -84,29 +93,32 @@ OsStatus_t DiskDetectFileSystem(FileSystemDisk_t *Disk,
  * OsError to indicate the entire disk is a FS */
 OsStatus_t DiskDetectLayout(FileSystemDisk_t *Disk)
 {
-	/* Variables */
+	// Variables
 	BufferObject_t *Buffer = NULL;
 	GptHeader_t *Gpt = NULL;
 	OsStatus_t Result;
 
-	/* Allocate a generic transfer buffer for disk operations
-	 * on the given disk, we need it to parse the disk */
+	// Trace
+	TRACE("DiskDetectLayout()");
+
+	// Allocate a generic transfer buffer for disk operations
+	// on the given disk, we need it to parse the disk
 	Buffer = CreateBuffer(Disk->Descriptor.SectorSize);
 
-	/* In order to detect the schema that is used
-	 * for the disk - we can easily just read sector LBA 1
-	 * and look for the GPT signature */
+	// In order to detect the schema that is used
+	// for the disk - we can easily just read sector LBA 1
+	// and look for the GPT signature
 	if (DiskRead(Disk->Driver, Disk->Device, 1, Buffer->Physical, 1) != OsNoError) {
 		DestroyBuffer(Buffer);
 		return OsError;
 	}
 
-	/* Initiate the gpt pointer directly from the buffer-object
-	 * to avoid doing double allocates when its not needed */
+	// Initiate the gpt pointer directly from the buffer-object
+	// to avoid doing double allocates when its not needed
 	Gpt = (GptHeader_t*)Buffer->Virtual;
 
-	/* Check the GPT signature if it matches 
-	 * - If it doesn't match, it can only be a MBR disk */
+	// Check the GPT signature if it matches 
+	// - If it doesn't match, it can only be a MBR disk
 	if (!strncmp((const char*)&Gpt->Signature[0], GPT_SIGNATURE, 8)) {
 		Result = GptEnumerate(Disk, Buffer);
 	}
@@ -114,9 +126,7 @@ OsStatus_t DiskDetectLayout(FileSystemDisk_t *Disk)
 		Result = MbrEnumerate(Disk, Buffer);
 	}
 
-	/* Cleanup buffer */
+	// Cleanup buffer
 	DestroyBuffer(Buffer);
-
-	/* Return the previous result */
 	return Result;
 }

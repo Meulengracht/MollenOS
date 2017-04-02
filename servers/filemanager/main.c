@@ -152,9 +152,6 @@ OsStatus_t VfsIdentifierFree(FileSystemDisk_t *Disk, UUId_t Id)
  * as soon as the server is loaded in the system */
 OsStatus_t OnLoad(void)
 {
-	// Trace
-	TRACE("Filemanager.OnLoad()");
-
 	// Initialize lists
 	GlbResolveQueue = ListCreate(KeyInteger, LIST_NORMAL);
 	GlbFileSystems = ListCreate(KeyInteger, LIST_NORMAL);
@@ -205,11 +202,12 @@ OsStatus_t OnEvent(MRemoteCall_t *Message)
 				(Flags_t)Message->Arguments[1].Data.Value);
 		} break;
 
-		/* Unregisters a disk from the system and
-		 * handles cleanup of all attached filesystems */
+		// Unregisters a disk from the system and
+		// handles cleanup of all attached filesystems
 		case __FILEMANAGER_UNREGISTERDISK: {
 			TRACE("Filemanager.OnEvent UnregisterDisk");
-			Result = UnregisterDisk((UUId_t)Message->Arguments[0].Data.Value,
+			Result = UnregisterDisk(
+				(UUId_t)Message->Arguments[0].Data.Value,
 				(Flags_t)Message->Arguments[1].Data.Value);
 		} break;
 

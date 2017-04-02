@@ -79,7 +79,7 @@ UUId_t PhoenixCreateProcess(MString_t *Path, MString_t *Arguments)
 	/* Sanitize the created Ash */
 	if (PhoenixInitializeAsh(&Process->Base, Path)) {
 		kfree(Process);
-		return PHOENIX_NO_ASH;
+		return UUID_INVALID;
 	}
 
 	/* Set type of base to process */
@@ -128,23 +128,41 @@ void PhoenixCleanupProcess(MCoreProcess_t *Process)
 	PhoenixCleanupAsh((MCoreAsh_t*)Process);
 }
 
-/* Get Process 
- * This function looks up a process structure 
- * by id, if either PROCESS_CURRENT or PROCESS_NO_PROCESS 
- * is passed, it retrieves the current process */
-MCoreProcess_t *PhoenixGetProcess(UUId_t ProcessId)
+/* PhoenixGetProcess
+ * This function looks up a server structure by id */
+MCoreProcess_t*
+PhoenixGetProcess(
+	_In_ UUId_t ProcessId)
 {
-	/* Use the default Ash lookup */
+	// Use the default ash-lookup
 	MCoreAsh_t *Ash = PhoenixGetAsh(ProcessId);
 
-	/* Other than null check, we do a process-check */
-	if (Ash != NULL
-		&& Ash->Type != AshProcess) {
+	// Do a null check and type-check
+	if (Ash != NULL && Ash->Type != AshProcess) {
 		return NULL;
 	}
 
-	/* Return the result, but cast it to 
-	 * the process structure */
+	// Return the result, but cast it to
+	// the process structure
+	return (MCoreProcess_t*)Ash;
+}
+
+/* PhoenixGetCurrentProcess
+ * If the current running process is a server then it
+ * returns the server structure, otherwise NULL */
+MCoreProcess_t*
+PhoenixGetCurrentProcess(void)
+{
+	// Use the default get current
+	MCoreAsh_t *Ash = PhoenixGetCurrentAsh();
+
+	// Do a null check and type-check
+	if (Ash != NULL && Ash->Type != AshProcess) {
+		return NULL;
+	}
+
+	// Return the result, but cast it to
+	// the process structure
 	return (MCoreProcess_t*)Ash;
 }
 

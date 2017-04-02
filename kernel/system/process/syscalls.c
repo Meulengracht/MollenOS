@@ -90,7 +90,7 @@ UUId_t ScProcessSpawn(char *Path, char *Arguments)
 
 	/* Sanitize the path only */
 	if (Path == NULL) {
-		return PROCESS_NO_PROCESS;
+		return UUID_INVALID;
 	}
 
 	/* Allocate the string instances */
@@ -172,7 +172,7 @@ OsStatus_t ScProcessKill(UUId_t ProcessId)
 OsStatus_t ScProcessExit(int ExitCode)
 {
 	/* Retrieve crrent process */
-	MCoreAsh_t *Process = PhoenixGetAsh(PROCESS_CURRENT);
+	MCoreAsh_t *Process = PhoenixGetCurrentAsh();
 	IntStatus_t IntrState;
 
 	/* Sanity 
@@ -241,30 +241,28 @@ OsStatus_t ScProcessQuery(UUId_t ProcessId, AshQueryFunction_t Function, void *B
  * by other threads/processes etc */
 int ScProcessSignal(int Signal, uintptr_t Handler) 
 {
-	/* Variables */
+	// Process
 	MCoreProcess_t *Process = NULL;
 
-	/* Sanitize our params */
+	// Sanitize the signal
 	if (Signal > NUMSIGNALS) {
 		return -1;
 	}
 
-	/* Lookup process */
-	Process = PhoenixGetProcess(PROCESS_CURRENT);
+	// Get current process
+	Process = PhoenixGetCurrentProcess();
 
-	/* Sanity... 
-	 * This should never happen though
-	 * Only I write code that has no process */
+	// Sanity... 
+	// This should never happen though
+	// Only I write code that has no process
 	if (Process == NULL) {
 		return -1;
 	}
 
-	/* Always retrieve the old handler 
-	 * and return it, so temp store it before updating */
+	// Always retrieve the old handler 
+	// and return it, so temp store it before updating
 	uintptr_t OldHandler = Process->Base.Signals.Handlers[Signal];
 	Process->Base.Signals.Handlers[Signal] = Handler;
-
-	/* Done, return the old ! */
 	return (int)OldHandler;
 }
 
@@ -308,31 +306,31 @@ OsStatus_t ScProcessRaise(UUId_t ProcessId, int Signal)
 /* ScSharedObjectLoad
  * Load a shared object given a path 
  * path must exists otherwise NULL is returned */
-Handle_t ScSharedObjectLoad(__CONST char *SharedObject)
+Handle_t
+ScSharedObjectLoad(
+	_In_ __CONST char *SharedObject)
 {
-	/* Locate Process */
-	MCoreProcess_t *Process = PhoenixGetProcess(PROCESS_CURRENT);
+	// Variables
+	MCoreProcess_t *Process = PhoenixGetCurrentProcess();
 	MString_t *Path = NULL;
 	uintptr_t BaseAddress = 0;
 	Handle_t Handle = NULL;
 	
-	/* Sanity */
+	// Sanitize the process
 	if (Process == NULL) {
 		return Handle;
 	}
 
-	/* Construct a mstring */
+	// Create a mstring object from the string
 	Path = MStringCreate((void*)SharedObject, StrUTF8);
 
-	/* Resolve Library */
+	// Try to resolve the library
 	BaseAddress = Process->Base.NextLoadingAddress;
 	Handle = (Handle_t)PeResolveLibrary(Process->Base.Executable, NULL, Path, &BaseAddress);
 	Process->Base.NextLoadingAddress = BaseAddress;
 
-	/* Cleanup Buffers */
+	// Cleanup the mstring object
 	MStringDestroy(Path);
-
-	/* Done */
 	return Handle;
 }
 
@@ -355,18 +353,16 @@ uintptr_t ScSharedObjectGetFunction(Handle_t Handle, __CONST char *Function)
  * returns 0 on success */
 OsStatus_t ScSharedObjectUnload(Handle_t Handle)
 {
-	/* Locate Process */
-	MCoreProcess_t *Process = PhoenixGetProcess(PROCESS_CURRENT);
+	// Variables
+	MCoreProcess_t *Process = PhoenixGetCurrentProcess();
 
-	/* Sanity */
+	// Sanitize the parameters and lookup
 	if (Process == NULL || Handle == HANDLE_INVALID) {
 		return OsError;
 	}
 
-	/* Do the unload */
+	// Unload library
 	PeUnloadLibrary(Process->Base.Executable, (MCorePeFile_t*)Handle);
-
-	/* Done! */
 	return OsNoError;
 }
 
@@ -555,7 +551,7 @@ ScMemoryAllocate(
 	uintptr_t AllocatedAddress = 0;
 
 	// Locate the current running process
-	Ash = PhoenixGetAsh(PHOENIX_CURRENT);
+	Ash = PhoenixGetCurrentAsh();
 
 	// Sanitize the process we looked up
 	// we want it to exist of course
@@ -627,7 +623,7 @@ ScMemoryFree(
 	MCoreAsh_t *Ash = NULL;
 
 	// Locate the current running process
-	Ash = PhoenixGetAsh(PHOENIX_CURRENT);
+	Ash = PhoenixGetCurrentAsh();
 
 	// Sanitize the process we looked up
 	// we want it to exist of course
@@ -768,21 +764,21 @@ OsStatus_t ScMemoryUnshare(UUId_t Target, uintptr_t TranslatedAddress, size_t Si
 OsStatus_t ScPathQueryWorkingDirectory(
 	char *Buffer, size_t MaxLength)
 {
-	/* Locate Process */
-	MCoreProcess_t *Process = PhoenixGetProcess(PROCESS_CURRENT);
+	// Variables
+	MCoreProcess_t *Process = PhoenixGetCurrentProcess();
 	size_t BytesToCopy = MaxLength;
 
-	/* Sanitize the lookup */
+	// Sanitize parameters
 	if (Process == NULL || Buffer == NULL) {
 		return OsError;
 	}
 
-	/* Make sure we copy optimal num of bytes */
+	// Make sure we copy optimal num of bytes
 	if (strlen(MStringRaw(Process->WorkingDirectory)) < MaxLength) {
 		BytesToCopy = strlen(MStringRaw(Process->WorkingDirectory));
 	}
 
-	/* Copy data over into buffer */
+	// Copy data over into buffer
 	memcpy(Buffer, MStringRaw(Process->WorkingDirectory), BytesToCopy);
 	return OsNoError;
 }
@@ -793,16 +789,16 @@ OsStatus_t ScPathQueryWorkingDirectory(
  * path */
 OsStatus_t ScPathChangeWorkingDirectory(__CONST char *Path)
 {
-	/* Variables */
-	MCoreProcess_t *Process = PhoenixGetProcess(PROCESS_CURRENT);
+	// Variables
+	MCoreProcess_t *Process = PhoenixGetCurrentProcess();
 	MString_t *Translated = NULL;
 
-	/* Sanitize the lookup */
+	// Sanitize parameters
 	if (Process == NULL || Path == NULL) {
 		return OsError;
 	}
 
-	/* Create a new string instead of modification */
+	// Create a new string instead of modification
 	Translated = MStringCreate((void*)Path, StrUTF8);
 	MStringDestroy(Process->WorkingDirectory);
 	Process->WorkingDirectory = Translated;
@@ -815,21 +811,21 @@ OsStatus_t ScPathChangeWorkingDirectory(__CONST char *Path)
 OsStatus_t ScPathQueryApplication(
 	char *Buffer, size_t MaxLength)
 {
-	/* Locate Process */
-	MCoreProcess_t *Process = PhoenixGetProcess(PROCESS_CURRENT);
+	// Variables
+	MCoreProcess_t *Process = PhoenixGetCurrentProcess();
 	size_t BytesToCopy = MaxLength;
 
-	/* Sanitize the lookup */
+	// Sanitize parameters
 	if (Process == NULL || Buffer == NULL) {
 		return OsError;
 	}
 
-	/* Make sure we copy optimal num of bytes */
+	// Make sure we copy optimal num of bytes
 	if (strlen(MStringRaw(Process->BaseDirectory)) < MaxLength) {
 		BytesToCopy = strlen(MStringRaw(Process->BaseDirectory));
 	}
 
-	/* Copy data over into buffer */
+	// Copy data over into buffer
 	memcpy(Buffer, MStringRaw(Process->BaseDirectory), BytesToCopy);
 	return OsNoError;
 }
@@ -846,7 +842,7 @@ OsStatus_t ScPipeOpen(int Port, Flags_t Flags)
 {
 	// No need for any preperation on this call, the
 	// underlying call takes care of validation as well
-	return PhoenixOpenAshPipe(PhoenixGetAsh(PHOENIX_CURRENT), Port, Flags);
+	return PhoenixOpenAshPipe(PhoenixGetCurrentAsh(), Port, Flags);
 }
 
 /* ScPipeClose
@@ -856,7 +852,7 @@ OsStatus_t ScPipeClose(int Port)
 {
 	// No need for any preperation on this call, the
 	// underlying call takes care of validation as well
-	return PhoenixCloseAshPipe(PhoenixGetAsh(PHOENIX_CURRENT), Port);
+	return PhoenixCloseAshPipe(PhoenixGetCurrentAsh(), Port);
 }
 
 /* ScPipeRead
@@ -874,7 +870,7 @@ OsStatus_t ScPipeRead(int Port, uint8_t *Container, size_t Length, int Peek)
 		Pipe = Pipe = ThreadingGetCurrentThread(CpuGetCurrentId())->Pipe;
 	}
 	else {
-		Pipe = PhoenixGetAshPipe(PhoenixGetAsh(PHOENIX_CURRENT), Port);
+		Pipe = PhoenixGetAshPipe(PhoenixGetCurrentAsh(), Port);
 	}
 
 	/* Sanitize the pipe */
@@ -927,7 +923,7 @@ OsStatus_t ScPipeWrite(UUId_t AshId, int Port, uint8_t *Message, size_t Length)
 OsStatus_t ScIpcSleep(size_t Timeout)
 {
 	/* Locate Process */
-	MCoreAsh_t *Ash = PhoenixGetAsh(PHOENIX_CURRENT);
+	MCoreAsh_t *Ash = PhoenixGetCurrentAsh();
 
 	/* Should never happen this 
 	 * Only threads associated with processes
@@ -979,7 +975,7 @@ OsStatus_t ScRpcResponse(MRemoteCall_t *Rpc)
 	/* There can be a special case where 
 	 * Sender == PHOENIX_NO_ASH 
 	 * Use the builtin thread pipe */
-	if (Rpc->Sender == PHOENIX_NO_ASH) {
+	if (Rpc->Sender == UUID_INVALID) {
 		Pipe = ThreadingGetCurrentThread(CpuGetCurrentId())->Pipe;
 	}
 	else {
@@ -1222,7 +1218,7 @@ OsStatus_t ScRegisterAliasId(UUId_t Alias)
 {
 	// Redirect call to phoenix
 	return PhoenixRegisterAlias(
-		PhoenixGetAsh(PHOENIX_CURRENT), Alias);
+		PhoenixGetCurrentAsh(), Alias);
 }
 
 /* ScLoadDriver
