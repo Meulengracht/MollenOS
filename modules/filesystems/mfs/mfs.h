@@ -37,8 +37,10 @@
 #include <os/osdefs.h>
 #include <ds/mstring.h>
 
-/* Definitions */
-#define MFS_END_OF_CHAIN	0xFFFFFFFF
+/* MFS Definitions and Utilities
+ * Contains magic constant values and utility macros for conversion */
+#define MFS_ENDOFCHAIN							0xFFFFFFFF
+#define MFS_GETSECTOR(mInstance, Bucket)		((Mfs->SectorsPerBucket * Bucket))
 
 /* MFS Update Entry Action Codes */
 #define MFS_ACTION_UPDATE	0x0
@@ -64,8 +66,8 @@ PACKED_TYPESTRUCT(BootRecord, {
 	// MFS Information
 	uint16_t				ReservedSectors;
 	uint16_t				SectorsPerBucket;
-	uint64_t				MasterBucketSector;
-	uint64_t				MasterBucketMirror;
+	uint64_t				MasterRecordSector;
+	uint64_t				MasterRecordMirror;
 
 	uint8_t					BootCode[460];	//512 - 48
 });
@@ -89,13 +91,13 @@ PACKED_TYPESTRUCT(MasterRecord, {
 	uint32_t				Flags;
 	uint8_t					PartitionName[64];
 
-	uint32_t				FreeBucket;	// Pointer to first free index
+	uint32_t				FreeBucket;		// Pointer to first free index
 	uint32_t				RootIndex;		// Pointer to root directory
 	uint32_t				BadBucketIndex;	// Pointer to list of bad buckets
-	uint32_t				JournalIndex; // Pointer to journal file
+	uint32_t				JournalIndex;	// Pointer to journal file
 
-	uint64_t				BucketMapSector;// Start sector of bucket-map
-	uint64_t				BucketMapSize;	// Size of bucket map
+	uint64_t				MapSector;		// Start sector of bucket-map
+	uint64_t				MapSize;		// Size of bucket map
 });
 
 /* The file-time structure
@@ -196,35 +198,58 @@ typedef struct _MfsFileInstance
 } MfsFileInstance_t;
 #pragma pack(pop)
 
-/* FileSystem Data */
+/* Mfs Instance data
+ * Keeps track of the current state of an instance of
+ * the mollenos-filesystem and keeps cached data as well */
 typedef struct _MfsInstance {
-	/* Identifier */
-	char *VolumeLabel;
+	Flags_t					 Flags;
+	int						 Version;
+	size_t					 SectorsPerBucket;
+	BufferObject_t			*TransferBuffer;
+	
+	uint64_t				 MasterRecordSector;
+	uint64_t				 MasterRecordMirrorSector;
+							 
+	uint64_t				 BucketCount;
+	uint64_t				 BucketsPerSectorInMap;
 
-	/* Mb Positions */
-	uint64_t MbSector;
-	uint64_t MbMirrorSector;
+	// Cached map
+	uint32_t				*BucketMap;
 
-	/* Information */
-	size_t BucketSize;
-	Flags_t Flags;
-	int Version;
-
-	uint64_t BucketCount;
-	uint64_t BucketMapSize;
-	uint64_t BucketMapSector;
-	uint64_t BucketsPerSector;
-
-	/* For easier restructuring */
-	uint32_t RootIndex;
-	uint32_t FreeIndex;
-	uint32_t BadIndex;
-	uint32_t MbFlags;
-
-	/* Bucket Buffer */
-	void *BucketBuffer;
-	size_t BucketBufferOffset;
-
+	// Keep a cached copy of master-record
+	MasterRecord_t			 MasterRecord;
 } MfsInstance_t;
+
+/* MfsReadSectors 
+ * A wrapper for reading sectors from the disk associated
+ * with the file-system descriptor */
+__EXTERN
+OsStatus_t
+MfsReadSectors(
+	_In_ FileSystemDescriptor_t *Descriptor,
+	_In_ BufferObject_t *Buffer,
+	_In_ uint64_t Sector,
+	_In_ size_t Count);
+
+/* MfsWriteSectors 
+ * A wrapper for writing sectors to the disk associated
+ * with the file-system descriptor */
+__EXTERN
+OsStatus_t
+MfsWriteSectors(
+	_In_ FileSystemDescriptor_t *Descriptor,
+	_In_ BufferObject_t *Buffer,
+	_In_ uint64_t Sector,
+	_In_ size_t Count);
+
+/* MfsZeroBucket
+ * Wipes the given bucket and count with zero values
+ * useful for clearing clusters of sectors */
+__EXTERN
+OsStatus_t
+MfsZeroBucket(
+	_In_ FileSystemDescriptor_t *Descriptor,
+	_In_ uint32_t Bucket,
+	_In_ size_t Count);
 
 #endif //!_MFS_H_

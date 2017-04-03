@@ -79,6 +79,22 @@ CreateBuffer(
 	return Buffer;
 }
 
+/* ZeroBuffer 
+ * Clears the entire buffer and resets the internal indexes */
+OsStatus_t
+ZeroBuffer(
+	_In_ BufferObject_t *BufferObject)
+{
+	// Reset buffer
+	memset(BufferObject->Virtual, 0, BufferObject->Length);
+
+	// Reset counters
+	BufferObject->IndexWrite = 0;
+
+	// Done
+	return OsNoError;
+}
+
 /* ReadBuffer 
  * Reads <BytesToRead> into the given user-buffer
  * from the allocated buffer-object */
@@ -88,16 +104,16 @@ ReadBuffer(
 	_Out_ __CONST void *Buffer, 
 	_In_ size_t BytesToRead)
 {
-	/* Variables */
+	// Variables
 	size_t BytesNormalized = 0;
 
-	/* Sanitize all in-params */
+	// Sanitize all in-params
 	if (BufferObject == NULL || Buffer == NULL
 		|| BytesToRead == 0) {
 		return OsError;
 	}
 
-	/* Normalize and read */
+	// Normalize and read
 	BytesNormalized = MIN(BytesToRead, BufferObject->Length);
 	memcpy((void*)Buffer, BufferObject->Virtual, BytesNormalized);
 	return OsNoError;

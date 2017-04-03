@@ -22,18 +22,23 @@
 
 /* Includes
  * - System */
+#include <os/utils.h>
 #include "mfs.h"
 
 /* Includes
  * - Library */
+#include <stdlib.h>
 #include <string.h>
 
-/* Open File - This function
- * handles both the opening of files
- * and creation of files depending on the
- * given flags */
-VfsErrorCode_t MfsOpenFile(void *FsData, 
-	MCoreFile_t *Handle, MString_t *Path, VfsFileFlags_t Flags)
+/* FsOpenFile 
+ * Opens a new link to a file and allocates resources
+ * for a new open-file in the system */
+FileSystemCode_t 
+FsOpenFile(
+	_In_ FileSystemDescriptor_t *Descriptor,
+	_Out_ FileSystemFile_t *File,
+	_In_ MString_t *Path,
+	_In_ Flags_t Access)
 {
 	/* Cast */
 	MCoreFileSystem_t *Fs = (MCoreFileSystem_t*)FsData;
@@ -690,27 +695,37 @@ VfsErrorCode_t MfsQuery(void *FsData, MCoreFileInstance_t *Instance,
 	return VfsOk;
 }
 
-/* Unload MFS Driver 
- * If it's forced, we can't save
- * stuff back to the disk :/ */
-OsStatus_t MfsDestroy(void *FsData, int Forced)
+/* FsDestroy 
+ * Destroys the given filesystem descriptor and cleans
+ * up any resources allocated by the filesystem instance */
+OsStatus_t
+FsDestroy(
+	_InOut_ FileSystemDescriptor_t *Descriptor,
+	_In_ Flags_t UnmountFlags)
 {
-	/* Cast */
-	MCoreFileSystem_t *Fs = (MCoreFileSystem_t*)FsData;
-	MfsData_t *mData = (MfsData_t*)Fs->ExtendedData;
+	// Variables
+	MfsInstance_t *Mfs = NULL;
 
-	/* Sanity */
-	if (!Forced)
-	{
-		/* Flush operation buffer and buffers - TODO */
+	// Instantiate the mfs pointer
+	Mfs = (MfsInstance_t*)Descriptor->ExtendedData;
+
+	// Sanity
+	if (Mfs == NULL) {
+		return OsError;
 	}
 
-	/* Free resources */
-	kfree(mData->BucketBuffer);
-	kfree(mData->VolumeLabel);
-	kfree(mData);
+	// Which kind of unmount is it?
+	if (!(UnmountFlags & __DISK_FORCED_REMOVE)) {
+		// Flush everything
+	}
 
-	/* Done */
+	// Cleanup all allocated resources
+	if (Mfs->TransferBuffer != NULL) {
+		DestroyBuffer(Mfs->TransferBuffer);
+	}
+
+	// Free structure and return
+	free(Mfs);
 	return OsNoError;
 }
 
@@ -719,7 +734,7 @@ OsStatus_t MfsDestroy(void *FsData, int Forced)
  * and allocates resources for the given descriptor */
 OsStatus_t
 FsInitialize(
-	_In_ FileSystemDescriptor_t *Descriptor)
+	_InOut_ FileSystemDescriptor_t *Descriptor)
 {
 	// Variables
 	MasterRecord_t *MasterRecord = NULL;
@@ -727,108 +742,105 @@ FsInitialize(
 	BufferObject_t *Buffer = NULL;
 	MfsInstance_t *Mfs = NULL;
 
+	// Trace
+	TRACE("FsInitialize()");
+
 	// Create a generic transferbuffer for us to use
 	Buffer = CreateBuffer(Descriptor->Disk.Descriptor.SectorSize);
 
 	// Read the boot-sector
-
-	/* Read bootsector */
-	if (MfsReadSectors(Fs, 0, TmpBuffer, 1) != RequestNoError)
-	{
-		/* Error */
-		Fs->State = VfsStateFailed;
-		LogFatal("MFS1", "INIT: Error reading from disk");
-		kfree(TmpBuffer);
-		return;
+	if (MfsReadSectors(Descriptor, Buffer, 0, 1) != OsNoError) {
+		ERROR("Failed to read mfs boot-sector record");
+		goto Error;
 	}
 
-	/* Cast */
-	BootRecord = (MfsBootRecord_t*)TmpBuffer;
+	// Allocate a new instance of mfs
+	Mfs = (MfsInstance_t*)malloc(sizeof(MfsInstance_t));
+
+	// Instantiate the boot-record pointer
+	BootRecord = (BootRecord_t*)Buffer->Virtual;
+
+	// Process the boot-record
+	if (BootRecord->Magic != MFS_BOOTRECORD_MAGIC) {
+		ERROR("Failed to validate boot-record signature (0x%x, expected 0x%x)",
+			BootRecord->Magic, MFS_BOOTRECORD_MAGIC);
+		goto Error;
+	}
+
+	// Trace
+	TRACE("Fs-Version: %u", BootRecord->Version);
+
+	// Store some data from the boot-record
+	Mfs->Version = (int)BootRecord->Version;
+	Mfs->Flags = (Flags_t)BootRecord->Flags;
+	Mfs->MasterRecordSector = BootRecord->MasterRecordSector;
+	Mfs->MasterRecordMirrorSector = BootRecord->MasterRecordMirror;
+	Mfs->SectorsPerBucket = BootRecord->SectorsPerBucket;
+
+	// Calculate where our map sector is
+	Mfs->BucketCount = Descriptor->SectorCount / Mfs->SectorsPerBucket;
 	
-	/* Validate Magic */
-	if (BootRecord->Magic != MFS_MAGIC)
-	{
-		Fs->State = VfsStateFailed;
-		LogFatal("MFS1", "INIT: Invalid Magic 0x%x", BootRecord->Magic);
-		kfree(TmpBuffer);
-		return;
+	// Bucket entries are 64 bit (8 bytes) in map
+	Mfs->BucketsPerSectorInMap = Descriptor->Disk.Descriptor.SectorSize / 8;
+
+	// Read the master-record
+	if (MfsReadSectors(Descriptor, Buffer, Mfs->MasterRecordSector, 1) != OsNoError) {
+		ERROR("Failed to read mfs master-sector record");
+		goto Error;
 	}
 
-	/* Validate Version */
-	if (BootRecord->Version != 0x1)
-	{
-		Fs->State = VfsStateFailed;
-		LogFatal("MFS1", "INIT: Invalid Version");
-		kfree(TmpBuffer);
-		return;
+	// Instantiate the master-record pointer
+	MasterRecord = (MasterRecord_t*)Buffer->Virtual;
+
+	// Process the master-record
+	if (MasterRecord->Magic != MFS_BOOTRECORD_MAGIC) {
+		ERROR("Failed to validate master-record signature (0x%x, expected 0x%x)",
+			MasterRecord->Magic, MFS_BOOTRECORD_MAGIC);
+		goto Error;
 	}
 
-	/* Allocate */
-	MfsData_t *mData = (MfsData_t*)kmalloc(sizeof(MfsData_t));
+	// Trace
+	TRACE("Partition-name: %s", &MasterRecord->PartitionName[0]);
 
-	/* Save some of the data */
-	mData->MbSector = BootRecord->MasterBucketSector;
-	mData->MbMirrorSector = BootRecord->MasterBucketMirror;
-	mData->Version = (uint32_t)BootRecord->Version;
-	mData->BucketSize = (uint32_t)BootRecord->SectorsPerBucket;
-	mData->Flags = (uint32_t)BootRecord->Flags;
+	// Copy the master-record data
+	memcpy(&Mfs->MasterRecord, MasterRecord, sizeof(MasterRecord_t));
 
-	/* Boot Drive? */
-	if (BootRecord->Flags & MFS_OSDRIVE)
-		Fs->Flags |= VFS_MAIN_DRIVE;
+	// Cleanup the transfer buffer
+	DestroyBuffer(Buffer);
 
-	/* Calculate the bucket-map sector */
-	mData->BucketCount = Fs->SectorCount / mData->BucketSize;
-	mData->BucketsPerSector = Fs->SectorSize / 8;
+	// Allocate a new in the size of a bucket
+	Buffer = CreateBuffer(Mfs->SectorsPerBucket * Descriptor->Disk.Descriptor.SectorSize);
+	Mfs->TransferBuffer = Buffer;
 
-	/* Copy the volume label over */
-	mData->VolumeLabel = (char*)kmalloc(8 + 1);
-	memset(mData->VolumeLabel, 0, 9);
-	memcpy(mData->VolumeLabel, BootRecord->BootLabel, 8);
+	// Allocate a buffer for the map
+	Mfs->BucketMap = (uint32_t*)malloc(Mfs->MasterRecord.MapSize);
 
-	/* Read the MB */
-	if (MfsReadSectors(Fs, mData->MbSector, TmpBuffer, 1) != RequestNoError)
-	{
-		/* Error */
-		Fs->State = VfsStateFailed;
-		LogFatal("MFS1", "INIT: Error reading MB from disk");
-		kfree(TmpBuffer);
-		kfree(mData->VolumeLabel);
-		kfree(mData);
-		return;
+	// Trace
+	TRACE("Caching bucket-map (Sector %u - Size %u)",
+		LODWORD(Mfs->MasterRecord.MapSector),
+		LODWORD(Mfs->MasterRecord.MapSize));
+
+	// Load map
+	uint8_t *bMap = (uint8_t*)Mfs->BucketMap;
+	size_t BucketCount = DIVUP(Mfs->MasterRecord.MapSize, Mfs->SectorsPerBucket);
+	size_t i;
+	for (i = 0; i < BucketCount; i++) {
+		MfsReadSectors();
+		ReadBuffer(Buffer, (__CONST void*)bMap, 0);
+		bMap += 1;
 	}
 
-	/* Validate MB */
-	MfsMasterBucket_t *Mb = (MfsMasterBucket_t*)TmpBuffer;
+	// Update the structure
+	Descriptor->ExtendedData = (uintptr_t*)Mfs;
+	return OsNoError;
 
-	/* Sanity */
-	if (Mb->Magic != MFS_MAGIC)
-	{
-		Fs->State = VfsStateFailed;
-		LogFatal("MFS1", "INIT: Invalid MB-Magic 0x%x", Mb->Magic);
-		kfree(TmpBuffer);
-		kfree(mData->VolumeLabel);
-		kfree(mData);
-		return;
+Error:
+	// Cleanup mfs
+	if (Mfs != NULL) {
+		free(Mfs);
 	}
 
-	/* Parse */
-	mData->RootIndex = Mb->RootIndex;
-	mData->FreeIndex = Mb->FreeBucket;
-	mData->BadIndex = Mb->BadBucketIndex;
-	mData->MbFlags = Mb->Flags;
-	mData->BucketMapSector = Mb->BucketMapSector;
-	mData->BucketMapSize = Mb->BucketMapSize;
-
-	/* Setup buffer */
-	mData->BucketBuffer = kmalloc(Fs->SectorSize);
-	mData->BucketBufferOffset = 0xFFFFFFFF;
-
-	/* Setup Fs */
-	Fs->State = VfsStateActive;
-	Fs->ExtendedData = mData;
-
-	/* Done, cleanup */
-	kfree(TmpBuffer);
-	return;
+	// Cleanup the transfer buffer
+	DestroyBuffer(Buffer);
+	return OsError;
 }

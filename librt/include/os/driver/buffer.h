@@ -48,15 +48,25 @@ _CODE_BEGIN
  * Creates a new buffer object with the given size, 
  * this allows hardware drivers to interact with the buffer */
 MOSAPI 
-BufferObject_t *
+BufferObject_t*
+MOSABI
 CreateBuffer(
 	_In_ size_t Length);
+
+/* ZeroBuffer 
+ * Clears the entire buffer and resets the internal indexes */
+MOSAPI 
+OsStatus_t
+MOSABI
+ZeroBuffer(
+	_In_ BufferObject_t *BufferObject);
 
 /* ReadBuffer 
  * Reads <BytesToRead> into the given user-buffer
  * from the allocated buffer-object */
 MOSAPI 
-OsStatus_t 
+OsStatus_t
+MOSABI
 ReadBuffer(
 	_In_ BufferObject_t *BufferObject, 
 	_Out_ __CONST void *Buffer, 
@@ -68,7 +78,8 @@ ReadBuffer(
  * the next write will be appended unless BytesToWrite == Size.
  * Index is reset once it returns less bytes written than requested */
 MOSAPI 
-OsStatus_t 
+OsStatus_t
+MOSABI
 WriteBuffer(
 	_In_ BufferObject_t *BufferObject, 
 	_In_ __CONST void *Buffer, 
@@ -79,7 +90,8 @@ WriteBuffer(
  * Destroys the given buffer object and release resources
  * allocated with the CreateBuffer function */
 MOSAPI 
-OsStatus_t 
+OsStatus_t
+MOSABI
 DestroyBuffer(
 	_In_ BufferObject_t *BufferObject);
 
