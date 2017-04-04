@@ -107,10 +107,14 @@ FsOpenFile(
 	return RetCode;
 }
 
-/* Close File 
- * frees resources allocated by Open File
- * and cleans up */
-VfsErrorCode_t MfsCloseFile(void *FsData, MCoreFile_t *Handle)
+/* FsCloseFile 
+ * Closes the given file-link and frees all resources
+ * this is only invoked once all handles has been closed
+ * to that file link, or the file-system is unmounted */
+FileSystemCode_t
+FsCloseFile(
+	_In_ FileSystemDescriptor_t *Descriptor, 
+	_In_ FileSystemFile_t *File)
 {
 	/* Not used */
 	_CRT_UNUSED(FsData);
@@ -741,6 +745,9 @@ FsInitialize(
 	BootRecord_t *BootRecord = NULL;
 	BufferObject_t *Buffer = NULL;
 	MfsInstance_t *Mfs = NULL;
+	uint8_t *bMap = NULL;
+	size_t BucketCount;
+	size_t i;
 
 	// Trace
 	TRACE("FsInitialize()");
@@ -821,13 +828,19 @@ FsInitialize(
 		LODWORD(Mfs->MasterRecord.MapSize));
 
 	// Load map
-	uint8_t *bMap = (uint8_t*)Mfs->BucketMap;
-	size_t BucketCount = DIVUP(Mfs->MasterRecord.MapSize, Mfs->SectorsPerBucket);
-	size_t i;
+	bMap = (uint8_t*)Mfs->BucketMap;
+	BucketCount = DIVUP(Mfs->MasterRecord.MapSize, Mfs->SectorsPerBucket);
 	for (i = 0; i < BucketCount; i++) {
-		MfsReadSectors();
-		ReadBuffer(Buffer, (__CONST void*)bMap, 0);
-		bMap += 1;
+		uint64_t MapSector = Mfs->MasterRecord.MapSector 
+			+ (i * Mfs->SectorsPerBucket);
+		if (MfsReadSectors(Descriptor, Buffer, MapSector, Mfs->SectorsPerBucket) != OsNoError) {
+			ERROR("Failed to read sector 0x%x (map) into cache", LODWORD(MapSector));
+			goto Error;
+		}
+
+		// Read the data into the map
+		ReadBuffer(Buffer, (__CONST void*)bMap, Buffer->Length);
+		bMap += Buffer->Length;
 	}
 
 	// Update the structure

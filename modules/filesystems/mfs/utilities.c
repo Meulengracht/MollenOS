@@ -108,167 +108,170 @@ MfsUpdateMasterRecord(
 	return OsNoError;
 }
 
-/* Get next bucket in chain
- * by looking up next pointer in bucket-map
- * Todo: Have this in memory */
-int MfsGetNextBucket(
+/* MfsGetBucketLink
+ * Looks up the next bucket link by utilizing the cached
+ * in-memory version of the bucketmap */
+OsStatus_t
+MfsGetBucketLink(
 	_In_ FileSystemDescriptor_t *Descriptor,
-	uint32_t Bucket, uint32_t *NextBucket, uint32_t *BucketLength)
+	_In_ uint32_t Bucket, 
+	_Out_ MapRecord_t *Link)
 {
-	/* Vars */
-	MfsData_t *mData = (MfsData_t*)Fs->ExtendedData;
+	// Variables
+	MfsInstance_t *Mfs = NULL;
 
-	/* Calculate Index */
-	uint32_t SectorOffset = Bucket / (uint32_t)mData->BucketsPerSector;
-	uint32_t SectorIndex = Bucket % (uint32_t)mData->BucketsPerSector;
+	// Trace
+	TRACE("MfsGetBucketLink(Bucket %u)", Bucket);
 
-	/* Read sector */
-	if (mData->BucketBufferOffset != SectorOffset)
-	{
-		/* Read */
-		if (MfsReadSectors(Fs, mData->BucketMapSector + SectorOffset, 
-			mData->BucketBuffer, 1) != RequestNoError)
-		{
-			/* Error */
-			LogFatal("MFS1", "GETNEXTBUCKET: Error reading from disk (Bucket %u, Sector %u)",
-				Bucket, (size_t)(mData->BucketMapSector + SectorOffset));
-			return -1;
-		}
+	// Instantiate the pointers
+	Mfs = (MfsInstance_t*)Descriptor->ExtendedData;
 
-		/* Update */
-		mData->BucketBufferOffset = SectorOffset;
-	}
-	
-	/* Pointer to array */
-	uint8_t *BufPtr = (uint8_t*)mData->BucketBuffer;
+	// Access the entry and update out
+	Link->Link = Mfs->BucketMap[(Bucket * 2)];
+	Link->Length = Mfs->BucketMap[(Bucket * 2) + 1];
 
-	/* Done */
-	*NextBucket = *(uint32_t*)&BufPtr[SectorIndex * 8];
-	*BucketLength = *(uint32_t*)&BufPtr[SectorIndex * 8 + 4]; 
-	return 0;
+	// Done
+	return OsNoError;
 }
 
-/* Set next bucket in chain 
- * by looking up next pointer in bucket-map
- * Todo: have this in memory */
-int MfsSetNextBucket(
+/* MfsSetBucketLink
+ * Updates the next link for the given bucket and flushes
+ * the changes to disk */
+OsStatus_t 
+MfsSetBucketLink(
 	_In_ FileSystemDescriptor_t *Descriptor,
-	uint32_t Bucket, uint32_t NextBucket, uint32_t BucketLength, int UpdateLength)
+	_In_ uint32_t Bucket, 
+	_In_ MapRecord_t *Link,
+	_In_ int UpdateLength)
 {
-	/* Vars */
-	MfsData_t *mData = (MfsData_t*)Fs->ExtendedData;
+	// Variables
+	MfsInstance_t *Mfs = NULL;
+	uint8_t *BufferOffset;
+	size_t SectorOffset;
 
-	/* Calculate Index */
-	uint32_t SectorOffset = Bucket / (uint32_t)mData->BucketsPerSector;
-	uint32_t SectorIndex = Bucket % (uint32_t)mData->BucketsPerSector;
+	// Trace
+	TRACE("MfsSetBucketLink(Bucket %u, Link %u)", 
+		Bucket, Link->Link);
 
-	/* Read sector */
-	if (mData->BucketBufferOffset != SectorOffset)
-	{
-		/* Read */
-		if (MfsReadSectors(Fs, mData->BucketMapSector + SectorOffset, 
-			mData->BucketBuffer, 1) != RequestNoError)
-		{
-			/* Error */
-			LogFatal("MFS1", "SETNEXTBUCKET: Error reading from disk");
-			return -1;
-		}
+	// Instantiate the pointers
+	Mfs = (MfsInstance_t*)Descriptor->ExtendedData;
 
-		/* Update */
-		mData->BucketBufferOffset = SectorOffset;
+	// Update in-memory map first
+	Mfs->BucketMap[(Bucket * 2)] = Link->Link;
+	if (UpdateLength) {
+		Mfs->BucketMap[(Bucket * 2) + 1] = Link->Length;
 	}
 
-	/* Pointer to array */
-	uint8_t *BufPtr = (uint8_t*)mData->BucketBuffer;
+	// Calculate which sector that is dirty now
+	SectorOffset = Bucket / Mfs->BucketsPerSectorInMap;
 
-	/* Edit */
-	*(uint32_t*)&BufPtr[SectorIndex * 8] = NextBucket;
+	// Calculate offset into buffer
+	BufferOffset = (uint8_t*)Mfs->BucketMap;
+	BufferOffset += (SectorOffset * Descriptor->Disk.Descriptor.SectorSize);
 
-	/* Only update if neccessary */
-	if (UpdateLength)
-		*(uint32_t*)&BufPtr[SectorIndex * 8 + 4] = BucketLength;
+	// Copy a sector's worth of data into the buffer
+	ZeroBuffer(Mfs->TransferBuffer);
+	WriteBuffer(Mfs->TransferBuffer, BufferOffset, 
+		Descriptor->Disk.Descriptor.SectorSize, NULL);
 
-	/* Write it back */
-	if (MfsWriteSectors(Fs, mData->BucketMapSector + SectorOffset, 
-		mData->BucketBuffer, 1) != RequestNoError)
-	{
-		/* Error */
-		LogFatal("MFS1", "SETNEXTBUCKET: Error writing to disk");
-		return -1;
+	// Flush buffer to disk
+	if (MfsWriteSectors(Descriptor, Mfs->TransferBuffer, 
+		Mfs->MasterRecord.MapSector + SectorOffset, 1) != OsNoError) {
+		ERROR("Failed to update the given map-sector %u on disk",
+			LODWORD(Mfs->MasterRecord.MapSector + SectorOffset));
+		return OsError;
 	}
 
-	/* Done! */
-	return 0;
+	// Done
+	return OsNoError;
 }
 
-/* Allocates a number of buckets from the 
- * bucket map, and returns the size of the first
- * bucket-allocation */
-int MfsAllocateBucket(
-	_In_ FileSystemDescriptor_t *Descriptor, uint32_t NumBuckets, uint32_t *InitialBucketSize)
+/* MfsAllocateBuckets
+ * Allocates the number of requested buckets in the bucket-map
+ * if the allocation could not be done, it'll return OsError */
+OsStatus_t
+MfsAllocateBuckets(
+	_In_ FileSystemDescriptor_t *Descriptor, 
+	_In_ size_t BucketCount, 
+	_Out_ MapRecord_t *RecordResult)
 {
-	/* Vars */
-	MfsData_t *mData = (MfsData_t*)Fs->ExtendedData;
+	// Variables
+	MfsInstance_t *Mfs = NULL;
+	uint32_t Bucket, BucketPrevious;
+	size_t Counter;
 
-	/* We'll keep track */
-	uint32_t Counter = NumBuckets;
-	uint32_t BucketPtr = mData->FreeIndex;
-	uint32_t BucketPrevPtr = 0;
-	uint32_t FirstBucketSize = 0;
+	// Trace
+	TRACE("MfsAllocateBuckets(Bucket %u, Link %u)",
+		Bucket, Link->Link);
 
-	/* Iterate untill we are done */
-	while (Counter > 0)
-	{
-		/* Size storage */
-		uint32_t BucketLength = 0;
+	// Instantiate the pointers
+	Mfs = (MfsInstance_t*)Descriptor->ExtendedData;
 
-		/* Deep Call */
-		BucketPrevPtr = BucketPtr;
-		if (MfsGetNextBucket(Fs, BucketPtr, &BucketPtr, &BucketLength))
-			return -1;
+	// Instantiate out
+	RecordResult->Link = Mfs->MasterRecord.FreeBucket;
+	RecordResult->Length = 0;
 
-		/* Sanity */
-		if (BucketLength > Counter)
-		{
-			/* Calculate next free */
+	// Instantiate our varibles
+	Counter = BucketCount;
+	Bucket = Mfs->MasterRecord.FreeBucket;
+	BucketPrevious = 0;
+
+	// Do allocation in a for-loop as bucket-sizes
+	// are variable and thus we might need multiple
+	// allocations to satisfy the demand
+	while (Counter > 0) {
+		MapRecord_t Record;
+
+		// Store the current bucket as previous
+		BucketPrevious = Bucket;
+
+		// Get next free bucket
+		if (MfsGetBucketLink(Descriptor, Bucket, &Record) != OsNoError) {
+
+		}
+
+		// We now have two cases, either the next block is
+		// larger than the number of buckets we are asking for
+		// or it's smaller
+		if (Record.Length > Counter) {
 			uint32_t NextFreeBucket = BucketPrevPtr + Counter;
 			uint32_t NextFreeCount = BucketLength - Counter;
 
-			if (FirstBucketSize == 0)
-				FirstBucketSize = BucketLength;
+			// Make sure only to update out once, we just need
+			// the initial size, not for each new allocation
+			if (RecordResult->Length == 0) {
+				RecordResult->Length = Record.Length;
+			}
 
-			/* We have to adjust now,
-			* since we are taking only a chunk
-			* of the available length */
+			// We have to adjust now, since we are taking 
+			// only a chunk of the available length
 			if (MfsSetNextBucket(Fs, BucketPrevPtr, MFS_END_OF_CHAIN, Counter, 1)
 				|| MfsSetNextBucket(Fs, NextFreeBucket, BucketPtr, NextFreeCount, 1))
 				return -1;
 
-			/* Update */
-			*InitialBucketSize = FirstBucketSize;
-			mData->FreeIndex = NextFreeBucket;
-
-			/* Done */
-			return MfsUpdateMb(Fs);
+			// Update the master-record and we are done
+			Mfs->MasterRecord.FreeBucket = NextFreeBucket;
+			return MfsUpdateMasterRecord(Fs);
 		}
 		else
 		{
-			/* We can just take the whole cake
-			* no need to modify it's length */
-			if (FirstBucketSize == 0)
-				FirstBucketSize = BucketLength;
+			// Make sure only to update out once, we just need
+			// the initial size, not for each new allocation
+			if (RecordResult->Length == 0) {
+				RecordResult->Length = Record.Length;
+			}
 
-			/* Next */
-			Counter -= BucketLength;
+			// Decrease allocation amount
+			Counter -= Record.Length;
 		}
 	}
 
 	/* Update BucketPrevPtr to 0xFFFFFFFF */
 	MfsSetNextBucket(Fs, BucketPrevPtr, MFS_END_OF_CHAIN, 0, 0);
-	mData->FreeIndex = BucketPtr;
-
-	/* Update MB */
-	return MfsUpdateMb(Fs);
+	
+	// Update the master-record and we are done
+	Mfs->MasterRecord.FreeBucket = Bucket;
+	return MfsUpdateMasterRecord(Fs);
 }
 
 /* Frees an entire chain of buckets
@@ -281,9 +284,8 @@ MfsFreeBuckets(
 {
 	// Variables
 	MfsInstance_t *Mfs = NULL;
-	uint32_t PreviousBucketIterator;
-	uint32_t BucketIterator;
-	uint32_t BucketLength;
+	MapRecord_t Record;
+	uint32_t PreviousBucket;
 
 	// Trace
 	TRACE("MfsFreeBuckets(Bucket %u, Length %u)",
@@ -291,7 +293,7 @@ MfsFreeBuckets(
 
 	// Instantiate the variables
 	Mfs = (MfsInstance_t*)Descriptor->ExtendedData;
-	BucketIterator = StartBucket;
+	Record.Link = StartBucket;
 
 	// Sanitize params
 	if (StartBucket == MFS_ENDOFCHAIN || StartLength == 0) {
@@ -308,16 +310,21 @@ MfsFreeBuckets(
 	// So I'm already limited by time due to life, so i'll with the quick
 
 	// Start by iterating to the last bucket
-	while (BucketIterator != MFS_ENDOFCHAIN) {
-		PreviousBucketIterator = BucketIterator;
-		if (MfsGetNextBucket(Descriptor, BucketIterator, &BucketIterator, &BucketLength)) {
-			return -1;
+	while (Record.Link != MFS_ENDOFCHAIN) {
+		PreviousBucket = Record.Link;
+		if (MfsGetBucketLink(Descriptor, Record.Link, &Record) != OsNoError) {
+			ERROR("Failed to retrieve the next bucket-link");
+			return OsError;
 		}
 	}
 
+	// Update record
+	Record.Link = Mfs->MasterRecord.FreeBucket;
+
 	// Ok, so now update the pointer to free list
-	if (MfsSetNextBucket(Fs, PreviousBucketIterator, mData->FreeIndex, BucketLength, 0)) {
-		return -1;
+	if (MfsSetBucketLink(Descriptor, PreviousBucket, &Record, 0)) {
+		ERROR("Failed to update the next bucket-link");
+		return OsError;
 	}
 
 	// Update initial free bucket

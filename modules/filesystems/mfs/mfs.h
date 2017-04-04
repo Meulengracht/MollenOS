@@ -100,6 +100,14 @@ PACKED_TYPESTRUCT(MasterRecord, {
 	uint64_t				MapSize;		// Size of bucket map
 });
 
+/* The bucket-map record
+ * Streches over two values and describes the next
+ * link (or end of link) and the length of the entry */
+PACKED_TYPESTRUCT(MapRecord, {
+	uint32_t				Link;
+	uint32_t				Length;
+});
+
 /* The file-time structure
  * Keeps track of the last time records were modified */
 PACKED_TYPESTRUCT(DateTimeRecord, {
@@ -242,6 +250,27 @@ MfsWriteSectors(
 	_In_ uint64_t Sector,
 	_In_ size_t Count);
 
+/* MfsGetBucketLink
+ * Looks up the next bucket link by utilizing the cached
+ * in-memory version of the bucketmap */
+__EXTERN
+OsStatus_t
+MfsGetBucketLink(
+	_In_ FileSystemDescriptor_t *Descriptor,
+	_In_ uint32_t Bucket,
+	_Out_ MapRecord_t *Link);
+
+/* MfsSetBucketLink
+ * Updates the next link for the given bucket and flushes
+ * the changes to disk */
+__EXTERN
+OsStatus_t
+MfsSetBucketLink(
+	_In_ FileSystemDescriptor_t *Descriptor,
+	_In_ uint32_t Bucket,
+	_In_ MapRecord_t *Link,
+	_In_ int UpdateLength);
+
 /* MfsZeroBucket
  * Wipes the given bucket and count with zero values
  * useful for clearing clusters of sectors */
@@ -251,5 +280,15 @@ MfsZeroBucket(
 	_In_ FileSystemDescriptor_t *Descriptor,
 	_In_ uint32_t Bucket,
 	_In_ size_t Count);
+
+/* MfsAllocateBuckets
+ * Allocates the number of requested buckets in the bucket-map
+ * if the allocation could not be done, it'll return OsError */
+__EXTERN
+OsStatus_t
+MfsAllocateBuckets(
+	_In_ FileSystemDescriptor_t *Descriptor,
+	_In_ size_t BucketCount,
+	_Out_ MapRecord_t *RecordResult);
 
 #endif //!_MFS_H_
