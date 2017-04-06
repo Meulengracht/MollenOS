@@ -1,8 +1,8 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup Label="ProjectConfigurations">
-    <ProjectConfiguration Include="Build_X86_32|Win32">
-      <Configuration>Build_X86_32</Configuration>
+    <ProjectConfiguration Include="i386|Win32">
+      <Configuration>i386</Configuration>
       <Platform>Win32</Platform>
     </ProjectConfiguration>
   </ItemGroup>
@@ -12,7 +12,7 @@
     <WindowsTargetPlatformVersion>10.0.14393.0</WindowsTargetPlatformVersion>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Build_X86_32|Win32'" Label="Configuration">
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='i386|Win32'" Label="Configuration">
     <ConfigurationType>StaticLibrary</ConfigurationType>
     <UseDebugLibraries>false</UseDebugLibraries>
     <PlatformToolset>v141</PlatformToolset>
@@ -27,7 +27,7 @@
   <ImportGroup Label="ExtensionSettings">
     <Import Project="$(VCTargetsPath)\BuildCustomizations\masm.props" />
   </ImportGroup>
-  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Build_X86_32|Win32'">
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='i386|Win32'">
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
@@ -38,14 +38,14 @@
     <LibraryPath />
     <LibraryWPath />
   </PropertyGroup>
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Build_X86_32|Win32'">
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='i386|Win32'">
     <OutDir>$(SolutionDir)librt\build\</OutDir>
     <IncludePath>..\..\include</IncludePath>
     <ReferencePath />
     <LibraryPath />
     <LibraryWPath />
   </PropertyGroup>
-  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Build_X86_32|Win32'">
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='i386|Win32'">
     <ClCompile>
       <WarningLevel>Level4</WarningLevel>
       <Optimization>Full</Optimization>
@@ -82,69 +82,69 @@
   <ItemGroup>
     <MASM Include="..\..\libcrt\vscrt\alldiv.S">
       <FileType>Document</FileType>
-      <Command Condition="'$(Configuration)|$(Platform)'=='Build_X86_32|Win32'">nasm -f win32 -Xvc -o $(IntDir)\%(Filename).obj %(FullPath)</Command>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='Build_X86_32|Win32'">$(IntDir)\%(Filename).obj</Outputs>
+      <Command Condition="'$(Configuration)|$(Platform)'=='i386|Win32'">nasm -f win32 -Xvc -o $(IntDir)\%(Filename).obj %(FullPath)</Command>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='i386|Win32'">$(IntDir)\%(Filename).obj</Outputs>
     </MASM>
     <MASM Include="..\..\libcrt\vscrt\alldvrm.S">
       <FileType>Document</FileType>
-      <Command Condition="'$(Configuration)|$(Platform)'=='Build_X86_32|Win32'">nasm -f win32 -Xvc -o $(IntDir)\%(Filename).obj %(FullPath)</Command>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='Build_X86_32|Win32'">$(IntDir)\%(Filename).obj</Outputs>
+      <Command Condition="'$(Configuration)|$(Platform)'=='i386|Win32'">nasm -f win32 -Xvc -o $(IntDir)\%(Filename).obj %(FullPath)</Command>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='i386|Win32'">$(IntDir)\%(Filename).obj</Outputs>
     </MASM>
     <MASM Include="..\..\libcrt\vscrt\aulldiv.S">
       <FileType>Document</FileType>
-      <Command Condition="'$(Configuration)|$(Platform)'=='Build_X86_32|Win32'">nasm -f win32 -Xvc -o $(IntDir)\%(Filename).obj %(FullPath)</Command>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='Build_X86_32|Win32'">$(IntDir)\%(Filename).obj</Outputs>
+      <Command Condition="'$(Configuration)|$(Platform)'=='i386|Win32'">nasm -f win32 -Xvc -o $(IntDir)\%(Filename).obj %(FullPath)</Command>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='i386|Win32'">$(IntDir)\%(Filename).obj</Outputs>
     </MASM>
     <MASM Include="..\..\libcrt\vscrt\aulldvrm.S">
       <FileType>Document</FileType>
-      <Command Condition="'$(Configuration)|$(Platform)'=='Build_X86_32|Win32'">nasm -f win32 -Xvc -o $(IntDir)\%(Filename).obj %(FullPath)</Command>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='Build_X86_32|Win32'">$(IntDir)\%(Filename).obj</Outputs>
+      <Command Condition="'$(Configuration)|$(Platform)'=='i386|Win32'">nasm -f win32 -Xvc -o $(IntDir)\%(Filename).obj %(FullPath)</Command>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='i386|Win32'">$(IntDir)\%(Filename).obj</Outputs>
     </MASM>
     <MASM Include="..\..\libcrt\vscrt\aullrem.S">
       <FileType>Document</FileType>
-      <Command Condition="'$(Configuration)|$(Platform)'=='Build_X86_32|Win32'">nasm -f win32 -Xvc -o $(IntDir)\%(Filename).obj %(FullPath)</Command>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='Build_X86_32|Win32'">$(IntDir)\%(Filename).obj</Outputs>
+      <Command Condition="'$(Configuration)|$(Platform)'=='i386|Win32'">nasm -f win32 -Xvc -o $(IntDir)\%(Filename).obj %(FullPath)</Command>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='i386|Win32'">$(IntDir)\%(Filename).obj</Outputs>
     </MASM>
     <MASM Include="..\..\libcrt\vscrt\aullshr.S">
       <FileType>Document</FileType>
-      <Command Condition="'$(Configuration)|$(Platform)'=='Build_X86_32|Win32'">nasm -f win32 -Xvc -o $(IntDir)\%(Filename).obj %(FullPath)</Command>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='Build_X86_32|Win32'">$(IntDir)\%(Filename).obj</Outputs>
+      <Command Condition="'$(Configuration)|$(Platform)'=='i386|Win32'">nasm -f win32 -Xvc -o $(IntDir)\%(Filename).obj %(FullPath)</Command>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='i386|Win32'">$(IntDir)\%(Filename).obj</Outputs>
     </MASM>
     <MASM Include="..\..\libcrt\vscrt\chkstk.S">
       <FileType>Document</FileType>
-      <Command Condition="'$(Configuration)|$(Platform)'=='Build_X86_32|Win32'">nasm -f win32 -Xvc -o $(IntDir)\%(Filename).obj %(FullPath)</Command>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='Build_X86_32|Win32'">$(IntDir)\%(Filename).obj</Outputs>
+      <Command Condition="'$(Configuration)|$(Platform)'=='i386|Win32'">nasm -f win32 -Xvc -o $(IntDir)\%(Filename).obj %(FullPath)</Command>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='i386|Win32'">$(IntDir)\%(Filename).obj</Outputs>
     </MASM>
     <MASM Include="..\..\libcrt\vscrt\constants.S">
       <FileType>Document</FileType>
-      <Command Condition="'$(Configuration)|$(Platform)'=='Build_X86_32|Win32'">nasm -f win32 -Xvc -o $(IntDir)\%(Filename).obj %(FullPath)</Command>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='Build_X86_32|Win32'">$(IntDir)\%(Filename).obj</Outputs>
+      <Command Condition="'$(Configuration)|$(Platform)'=='i386|Win32'">nasm -f win32 -Xvc -o $(IntDir)\%(Filename).obj %(FullPath)</Command>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='i386|Win32'">$(IntDir)\%(Filename).obj</Outputs>
     </MASM>
     <MASM Include="..\..\libcrt\vscrt\ints.S">
       <FileType>Document</FileType>
-      <Command Condition="'$(Configuration)|$(Platform)'=='Build_X86_32|Win32'">nasm -f win32 -Xvc -o $(IntDir)\%(Filename).obj %(FullPath)</Command>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='Build_X86_32|Win32'">$(IntDir)\%(Filename).obj</Outputs>
+      <Command Condition="'$(Configuration)|$(Platform)'=='i386|Win32'">nasm -f win32 -Xvc -o $(IntDir)\%(Filename).obj %(FullPath)</Command>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='i386|Win32'">$(IntDir)\%(Filename).obj</Outputs>
     </MASM>
     <MASM Include="..\..\libcrt\vscrt\llmul.S">
       <FileType>Document</FileType>
-      <Command Condition="'$(Configuration)|$(Platform)'=='Build_X86_32|Win32'">nasm -f win32 -Xvc -o $(IntDir)\%(Filename).obj %(FullPath)</Command>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='Build_X86_32|Win32'">$(IntDir)\%(Filename).obj</Outputs>
-      <WarningLevel Condition="'$(Configuration)|$(Platform)'=='Build_X86_32|Win32'">0</WarningLevel>
+      <Command Condition="'$(Configuration)|$(Platform)'=='i386|Win32'">nasm -f win32 -Xvc -o $(IntDir)\%(Filename).obj %(FullPath)</Command>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='i386|Win32'">$(IntDir)\%(Filename).obj</Outputs>
+      <WarningLevel Condition="'$(Configuration)|$(Platform)'=='i386|Win32'">0</WarningLevel>
     </MASM>
     <MASM Include="..\..\libcrt\vscrt\llrem.S">
       <FileType>Document</FileType>
-      <Command Condition="'$(Configuration)|$(Platform)'=='Build_X86_32|Win32'">nasm -f win32 -Xvc -o $(IntDir)\%(Filename).obj %(FullPath)</Command>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='Build_X86_32|Win32'">$(IntDir)\%(Filename).obj</Outputs>
+      <Command Condition="'$(Configuration)|$(Platform)'=='i386|Win32'">nasm -f win32 -Xvc -o $(IntDir)\%(Filename).obj %(FullPath)</Command>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='i386|Win32'">$(IntDir)\%(Filename).obj</Outputs>
     </MASM>
     <MASM Include="..\..\libcrt\vscrt\llshl.S">
       <FileType>Document</FileType>
-      <Command Condition="'$(Configuration)|$(Platform)'=='Build_X86_32|Win32'">nasm -f win32 -Xvc -o $(IntDir)\%(Filename).obj %(FullPath)</Command>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='Build_X86_32|Win32'">$(IntDir)\%(Filename).obj</Outputs>
+      <Command Condition="'$(Configuration)|$(Platform)'=='i386|Win32'">nasm -f win32 -Xvc -o $(IntDir)\%(Filename).obj %(FullPath)</Command>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='i386|Win32'">$(IntDir)\%(Filename).obj</Outputs>
     </MASM>
     <MASM Include="..\..\libcrt\vscrt\llshr.S">
       <FileType>Document</FileType>
-      <Command Condition="'$(Configuration)|$(Platform)'=='Build_X86_32|Win32'">nasm -f win32 -Xvc -o $(IntDir)\%(Filename).obj %(FullPath)</Command>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='Build_X86_32|Win32'">$(IntDir)\%(Filename).obj</Outputs>
+      <Command Condition="'$(Configuration)|$(Platform)'=='i386|Win32'">nasm -f win32 -Xvc -o $(IntDir)\%(Filename).obj %(FullPath)</Command>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='i386|Win32'">$(IntDir)\%(Filename).obj</Outputs>
     </MASM>
   </ItemGroup>
   <ItemGroup>

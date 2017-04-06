@@ -1,8 +1,8 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup Label="ProjectConfigurations">
-    <ProjectConfiguration Include="Build_X86_32|Win32">
-      <Configuration>Build_X86_32</Configuration>
+    <ProjectConfiguration Include="i386|Win32">
+      <Configuration>i386</Configuration>
       <Platform>Win32</Platform>
     </ProjectConfiguration>
   </ItemGroup>
@@ -23,7 +23,7 @@
     <WindowsTargetPlatformVersion>10.0.14393.0</WindowsTargetPlatformVersion>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Build_X86_32|Win32'" Label="Configuration">
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='i386|Win32'" Label="Configuration">
     <ConfigurationType>DynamicLibrary</ConfigurationType>
     <UseDebugLibraries>false</UseDebugLibraries>
     <PlatformToolset>v141</PlatformToolset>
@@ -31,7 +31,7 @@
     <CharacterSet>Unicode</CharacterSet>
     <UseOfMfc />
   </PropertyGroup>
-  <PropertyGroup Label="Configuration" Condition="'$(Configuration)|$(Platform)'=='Build_X86_32|Win32'">
+  <PropertyGroup Label="Configuration" Condition="'$(Configuration)|$(Platform)'=='i386|Win32'">
     <PlatformToolset>v141</PlatformToolset>
     <ConfigurationType>DynamicLibrary</ConfigurationType>
     <UseOfMfc />
@@ -40,11 +40,11 @@
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
   <ImportGroup Label="ExtensionSettings">
   </ImportGroup>
-  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Build_X86_32|Win32'">
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='i386|Win32'">
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Build_X86_32|Win32'">
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='i386|Win32'">
     <LinkIncremental>false</LinkIncremental>
     <OutDir>$(SolutionDir)modules\build\</OutDir>
     <TargetExt>.dll</TargetExt>
@@ -53,7 +53,7 @@
     <LibraryPath>..\..\..\librt\build;..\..\..\kernel\build</LibraryPath>
     <LibraryWPath />
   </PropertyGroup>
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Build_X86_32|Win32'">
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='i386|Win32'">
     <OutDir>$(SolutionDir)modules\build\</OutDir>
     <IncludePath>..\..\include;..\..\..\librt\include</IncludePath>
     <ReferencePath />
@@ -61,7 +61,7 @@
     <LibraryWPath />
     <LinkIncremental>false</LinkIncremental>
   </PropertyGroup>
-  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Build_X86_32|Win32'">
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='i386|Win32'">
     <ClCompile>
       <WarningLevel>Level4</WarningLevel>
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
@@ -86,17 +86,17 @@
       <AdditionalOptions>/include:_memcpy /include:_memset %(AdditionalOptions)</AdditionalOptions>
     </Link>
   </ItemDefinitionGroup>
-  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Build_X86_32|Win32'">
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='i386|Win32'">
     <ClCompile>
       <WarningLevel>Level4</WarningLevel>
     </ClCompile>
   </ItemDefinitionGroup>
-  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Build_X86_32|Win32'">
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='i386|Win32'">
     <ClCompile>
       <TreatWarningAsError>true</TreatWarningAsError>
     </ClCompile>
   </ItemDefinitionGroup>
-  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Build_X86_32|Win32'">
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='i386|Win32'">
     <ClCompile>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
       <Optimization>Full</Optimization>

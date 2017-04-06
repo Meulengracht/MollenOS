@@ -86,7 +86,7 @@ ZeroBuffer(
 	_In_ BufferObject_t *BufferObject)
 {
 	// Reset buffer
-	memset(BufferObject->Virtual, 0, BufferObject->Length);
+	memset((void*)BufferObject->Virtual, 0, BufferObject->Length);
 
 	// Reset counters
 	BufferObject->IndexWrite = 0;

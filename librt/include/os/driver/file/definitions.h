@@ -30,7 +30,6 @@ typedef enum _FileSystemCode {
 	FsOk,
 	FsDeleted,
 	FsInvalidParameters,
-	FsInvalidPath,
 	FsPathNotFound,
 	FsAccessDenied,
 	FsPathIsNotDirectory,

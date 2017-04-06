@@ -68,10 +68,11 @@ PACKED_TYPESTRUCT(FileSystemDisk, {
  * and holds a copy of the disk information to provide
  * disk access and information */
 PACKED_TYPESTRUCT(FileSystemDescriptor, {
-	Flags_t					Flags;
-	FileSystemDisk_t		Disk;
-	uint64_t				SectorStart;
-	uint64_t				SectorCount;
+	Flags_t					 Flags;
+	FileSystemDisk_t		 Disk;
+	uint64_t				 SectorStart;
+	uint64_t				 SectorCount;
+	uintptr_t				*ExtendedData;
 });
 
 /* FsInitialize 
@@ -80,7 +81,7 @@ PACKED_TYPESTRUCT(FileSystemDescriptor, {
 __FSAPI
 OsStatus_t
 __FSDECL(FsInitialize)(
-	_In_ FileSystemDescriptor_t *Descriptor);
+	_InOut_ FileSystemDescriptor_t *Descriptor);
 
 /* FsDestroy 
  * Destroys the given filesystem descriptor and cleans
@@ -88,7 +89,7 @@ __FSDECL(FsInitialize)(
 __FSAPI
 OsStatus_t
 __FSDECL(FsDestroy)(
-	_In_ FileSystemDescriptor_t *Descriptor,
+	_InOut_ FileSystemDescriptor_t *Descriptor,
 	_In_ Flags_t UnmountFlags);
 
 /* FsOpenFile 

@@ -165,27 +165,22 @@ PACKED_TYPESTRUCT(FileRecord, {
 #define MFS_FILERECORD_CHAINED			0x40	// Means all buckets are adjacent
 #define MFS_FILERECORD_LOCKED			0x80	// File is deep-locked
 
-/* FileSystem File Data */
-#pragma pack(push, 1)
-typedef struct _MfsFile
-{
-	/* Information */
-	MString_t *Name;
-	
-	uint16_t Flags;
-
-	uint32_t DataBucket;
-	uint32_t InitialBucketLength;
-	
-	uint64_t Size;
-	uint64_t AllocatedSize;
-
-	/* Location */
-	uint32_t DirBucket;
-	uint32_t DirOffset;
-
-} MfsFile_t;
-#pragma pack(pop)
+/* The in-memory version of the file-record
+ * Describes which data we cache of files and the position
+ * the record is in it's parent directory. */
+PACKED_TYPESTRUCT(MfsFile, {
+	MString_t				*Name;
+	uint16_t				 Flags;
+							 
+	uint32_t				 StartBucket;
+	uint32_t				 StartLength;
+							 
+	uint64_t				 Size;
+	uint64_t				 AllocatedSize;
+							 
+	uint32_t				 DirectoryBucket;
+	size_t					 DirectoryIndex;
+});
 
 #pragma pack(push, 1)
 typedef struct _MfsFileInstance
@@ -290,5 +285,63 @@ MfsAllocateBuckets(
 	_In_ FileSystemDescriptor_t *Descriptor,
 	_In_ size_t BucketCount,
 	_Out_ MapRecord_t *RecordResult);
+
+/* MfsFreeBuckets
+ * Frees an entire chain of buckets that has been allocated for 
+ * a file-record */
+__EXTERN
+OsStatus_t
+MfsFreeBuckets(
+	_In_ FileSystemDescriptor_t *Descriptor,
+	_In_ uint32_t StartBucket,
+	_In_ uint32_t StartLength);
+
+/* MfsUpdateRecord
+ * Conveniance function for updating a given file on
+ * the disk, not data related to file, but the metadata */
+__EXTERN
+FileSystemCode_t
+MfsUpdateRecord(
+	_In_ FileSystemDescriptor_t *Descriptor,
+	_In_ MfsFile_t *Handle,
+	_In_ int Action);
+
+/* MfsLocateRecord
+ * Locates a given file-record by the path given, all sub
+ * entries must be directories. File is only allocated and set
+ * if the function returns FsOk */
+__EXTERN
+FileSystemCode_t
+MfsLocateRecord(
+	_In_ FileSystemDescriptor_t *Descriptor,
+	_In_ uint32_t BucketOfDirectory,
+	_In_ MString_t *Path,
+	_Out_ MfsFile_t **File);
+
+/* MfsLocateFreeRecord
+ * Very alike to the MfsLocateRecord
+ * except instead of locating a file entry
+ * it locates a free entry in the last token of
+ * the path, and validates the path as it goes */
+__EXTERN
+FileSystemCode_t
+MfsLocateFreeRecord(
+	_In_ FileSystemDescriptor_t *Descriptor,
+	_In_ uint32_t BucketOfDirectory,
+	_In_ MString_t *Path,
+	_Out_ MfsFile_t **File);
+
+/* MfsCreateRecord
+ * Creates a new file-record in a directory
+ * It internally calls MfsLocateFreeRecord to
+ * find a viable entry and validate the path */
+__EXTERN
+FileSystemCode_t
+MfsCreateRecord(
+	_In_ FileSystemDescriptor_t *Descriptor,
+	_In_ uint32_t BucketOfDirectory,
+	_In_ MString_t *Path,
+	_In_ Flags_t Flags,
+	_Out_ MfsFile_t **File);
 
 #endif //!_MFS_H_
