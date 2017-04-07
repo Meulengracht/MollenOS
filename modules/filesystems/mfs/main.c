@@ -40,13 +40,21 @@ FsOpenFile(
 	_In_ MString_t *Path,
 	_In_ Flags_t Access)
 {
-	/* Cast */
-	MCoreFileSystem_t *Fs = (MCoreFileSystem_t*)FsData;
-	MfsData_t *mData = (MfsData_t*)Fs->ExtendedData;
-	VfsErrorCode_t RetCode = VfsOk;
+	// Variables
+	MfsInstance_t *Mfs = NULL;
+	MfsFile_t *fInformation = NULL;
+	FileSystemCode_t Result;
 
-	/* This will be a recursive parse of path */
-	MfsFile_t *FileInfo = MfsLocateEntry(Fs, mData->RootIndex, Path, &RetCode);
+	// Trace
+	TRACE("FsOpenFile(Path %u, Access %u)", 
+		MStringRaw(Path), Access);
+
+	// Instantiate the pointers
+	Mfs = (MfsInstance_t*)Descriptor->ExtendedData;
+
+	// Try to locate the given file-record
+	Result = MfsLocateRecord(Descriptor, Mfs->MasterRecord.RootIndex, 
+		Path, &fInformation);
 
 	/* Validation Phase
 	 * So how should we handle this? */

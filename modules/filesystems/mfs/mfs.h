@@ -214,7 +214,7 @@ typedef struct _MfsInstance {
 	uint64_t				 MasterRecordMirrorSector;
 							 
 	uint64_t				 BucketCount;
-	uint64_t				 BucketsPerSectorInMap;
+	size_t					 BucketsPerSectorInMap;
 
 	// Cached map
 	uint32_t				*BucketMap;
