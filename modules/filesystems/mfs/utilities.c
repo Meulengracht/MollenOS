@@ -88,7 +88,7 @@ MfsUpdateMasterRecord(
 	TRACE("MfsUpdateMasterRecord()");
 
 	// Instantiate the pointers
-	Mfs = (MfsInstance_t*)Descriptor->ExtendedData;
+	Mfs = (MfsInstance_t*)Descriptor->ExtensionData;
 
 	// Clear buffer
 	ZeroBuffer(Mfs->TransferBuffer);
@@ -124,7 +124,7 @@ MfsGetBucketLink(
 	TRACE("MfsGetBucketLink(Bucket %u)", Bucket);
 
 	// Instantiate the pointers
-	Mfs = (MfsInstance_t*)Descriptor->ExtendedData;
+	Mfs = (MfsInstance_t*)Descriptor->ExtensionData;
 
 	// Access the entry and update out
 	Link->Link = Mfs->BucketMap[(Bucket * 2)];
@@ -154,7 +154,7 @@ MfsSetBucketLink(
 		Bucket, Link->Link);
 
 	// Instantiate the pointers
-	Mfs = (MfsInstance_t*)Descriptor->ExtendedData;
+	Mfs = (MfsInstance_t*)Descriptor->ExtensionData;
 
 	// Update in-memory map first
 	Mfs->BucketMap[(Bucket * 2)] = Link->Link;
@@ -206,7 +206,7 @@ MfsAllocateBuckets(
 		Bucket, Link->Link);
 
 	// Instantiate the pointers
-	Mfs = (MfsInstance_t*)Descriptor->ExtendedData;
+	Mfs = (MfsInstance_t*)Descriptor->ExtensionData;
 
 	// Instantiate out
 	RecordResult->Link = Mfs->MasterRecord.FreeBucket;
@@ -227,8 +227,8 @@ MfsAllocateBuckets(
 		}
 
 		// Bucket points to the free bucket index
-		// Record.Link holds the next free block
-		// Record.Length holds the length of the block bucket points too
+		// Record.Link holds the link of <Bucket>
+		// Record.Length holds the length of <Bucket>
 
 		// We now have two cases, either the next block is
 		// larger than the number of buckets we are asking for
@@ -237,7 +237,7 @@ MfsAllocateBuckets(
 			// Ok, this block is larger than what we need
 			// We now need to first, update the free index to these values
 			// Map[Bucket] = (Counter) | (MFS_ENDOFCHAIN)
-			// Map[Bucket + Counter] = (Length - Counter) | PreviousLink
+			// Map[Bucket + Counter] = (Length - Counter) | Link
 			MapRecord_t Update, Next;
 
 			// Set update
@@ -328,7 +328,7 @@ MfsFreeBuckets(
 		StartBucket, StartLength);
 
 	// Instantiate the variables
-	Mfs = (MfsInstance_t*)Descriptor->ExtendedData;
+	Mfs = (MfsInstance_t*)Descriptor->ExtensionData;
 	Record.Link = StartBucket;
 
 	// Sanitize params
@@ -388,7 +388,7 @@ MfsZeroBucket(
 		Bucket, Count);
 
 	// Instantiate the mfs pointer
-	Mfs = (MfsInstance_t*)Descriptor->ExtendedData;
+	Mfs = (MfsInstance_t*)Descriptor->ExtensionData;
 
 	// Reset buffer
 	ZeroBuffer(Mfs->TransferBuffer);
@@ -426,7 +426,7 @@ MfsUpdateRecord(
 	TRACE("MfsUpdateEntry(File %s)", MStringRaw(Handle->Name));
 
 	// Instantiate the mfs pointer
-	Mfs = (MfsInstance_t*)Descriptor->ExtendedData;
+	Mfs = (MfsInstance_t*)Descriptor->ExtensionData;
 
 	// Read the stored data bucket where the record is
 	if (MfsReadSectors(Descriptor, Mfs->TransferBuffer, 
@@ -546,7 +546,7 @@ MfsLocateRecord(
 		BucketOfDirectory, MStringRaw(Path));
 
 	// Instantiate the mfs pointer
-	Mfs = (MfsInstance_t*)Descriptor->ExtendedData;
+	Mfs = (MfsInstance_t*)Descriptor->ExtensionData;
 
 	// Get next token
 	MfsExtractToken(Path, &Remaining, &Token);
@@ -695,7 +695,7 @@ MfsLocateFreeRecord(
 		BucketOfDirectory, MStringRaw(Path));
 
 	// Instantiate the mfs pointer
-	Mfs = (MfsInstance_t*)Descriptor->ExtendedData;
+	Mfs = (MfsInstance_t*)Descriptor->ExtensionData;
 
 	// Get next token
 	MfsExtractToken(Path, &Remaining, &Token);

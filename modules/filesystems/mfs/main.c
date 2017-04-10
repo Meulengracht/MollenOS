@@ -37,8 +37,7 @@ FileSystemCode_t
 FsOpenFile(
 	_In_ FileSystemDescriptor_t *Descriptor,
 	_Out_ FileSystemFile_t *File,
-	_In_ MString_t *Path,
-	_In_ Flags_t Access)
+	_In_ MString_t *Path)
 {
 	// Variables
 	MfsInstance_t *Mfs = NULL;
@@ -46,73 +45,67 @@ FsOpenFile(
 	FileSystemCode_t Result;
 
 	// Trace
-	TRACE("FsOpenFile(Path %u, Access %u)", 
-		MStringRaw(Path), Access);
+	TRACE("FsOpenFile(Path %u)", MStringRaw(Path));
 
 	// Instantiate the pointers
-	Mfs = (MfsInstance_t*)Descriptor->ExtendedData;
+	Mfs = (MfsInstance_t*)Descriptor->ExtensionData;
 
 	// Try to locate the given file-record
 	Result = MfsLocateRecord(Descriptor, Mfs->MasterRecord.RootIndex, 
 		Path, &fInformation);
 
-	/* Validation Phase
-	 * So how should we handle this? */
-	if (RetCode == VfsPathNotFound
-		&& Flags & CreateIfNotExists) 
-	{
-		/* Try to create the file */
-		FileInfo = MfsCreateEntry(Fs, mData->RootIndex, Path, MFS_FILE, &RetCode);
-
-		/* Invalid path or path not found 
-		 * is enough cause for early break */
-		if (RetCode != VfsOk
-			&& RetCode != VfsPathExists) {
-			return RetCode;
-		}
-	}
-	else if (RetCode != VfsOk) {
-		/* This means we have tried to open 
-		 * a file normally - and it failed */
-		return RetCode;
+	// Sanitize the result
+	if (Result != FsOk) {
+		return Result;
 	}
 
-	/* File exists */
-	if (RetCode == VfsPathExists
-		&& (Flags & FailIfExists)) {
-		/* File already exists (and we didn't just create it)
-		 * and for some reason that is not ok */
-		kfree(FileInfo);
-		return RetCode;
+	// Fill out information in _out_
+	File->Name = fInformation->Name;
+	File->Size = fInformation->Size;
+	File->ExtensionData = fInformation;
+
+	// Done
+	return Result;
+}
+
+/* FsCreateFile 
+ * Creates a new link to a file and allocates resources
+ * for a new open-file in the system */
+FileSystemCode_t 
+FsCreateFile(
+	_In_ FileSystemDescriptor_t *Descriptor,
+	_Out_ FileSystemFile_t *File,
+	_In_ MString_t *Path,
+	_In_ Flags_t Options)
+{
+	// Variables
+	MfsInstance_t *Mfs = NULL;
+	MfsFile_t *fInformation = NULL;
+	FileSystemCode_t Result;
+
+	// Trace
+	TRACE("FsCreateFile(Path %u, Options 0x%x)", 
+		MStringRaw(Path), Options);
+
+	// Instantiate the pointers
+	Mfs = (MfsInstance_t*)Descriptor->ExtensionData;
+
+	// Create the record
+	Result = MfsCreateRecord(Descriptor, Mfs->MasterRecord.RootIndex,
+		Path, 0, &fInformation);
+
+	// Sanitize the result
+	if (Result != FsOk) {
+		return Result;
 	}
 
-	/* Post functions */
-	if (RetCode == VfsPathExists
-		&& (Flags & TruncateIfExists))
-	{
-		/* Free */
-		int fRes = MfsFreeBuckets(Fs, FileInfo->DataBucket, FileInfo->InitialBucketLength);
+	// Fill out information in _out_
+	File->Name = fInformation->Name;
+	File->Size = fInformation->Size;
+	File->ExtensionData = fInformation;
 
-		/* Only update entry if needs to be updated */
-		if (!fRes) 
-		{
-			/* Update Stats */
-			FileInfo->DataBucket = MFS_END_OF_CHAIN;
-			FileInfo->InitialBucketLength = 0;
-			FileInfo->Size = 0;
-			
-			/* Update Entry */
-			RetCode = MfsUpdateEntry(Fs, FileInfo, MFS_ACTION_UPDATE);
-		}
-	}
-
-	/* Fill out Handle */
-	Handle->Name = FileInfo->Name;
-	Handle->Size = FileInfo->Size;
-	Handle->Data = FileInfo;
-
-	/* Done */
-	return RetCode;
+	// Done
+	return Result;
 }
 
 /* FsCloseFile 
@@ -124,87 +117,98 @@ FsCloseFile(
 	_In_ FileSystemDescriptor_t *Descriptor, 
 	_In_ FileSystemFile_t *File)
 {
-	/* Not used */
-	_CRT_UNUSED(FsData);
+	// Variables
+	MfsInstance_t *Mfs = NULL;
+	MfsFile_t *fInformation = NULL;
+	FileSystemCode_t Result;
 
-	/* Cast */
-	MfsFile_t *FileInfo = (MfsFile_t*)Handle->Data;
-	VfsErrorCode_t RetCode = VfsOk;
+	// Trace
+	TRACE("FsCloseFile(Hash 0x%x)", File->Hash);
 
-	/* Sanity */
-	if (Handle->Data == NULL)
-		return RetCode;
+	// Instantiate the pointers
+	Mfs = (MfsInstance_t*)Descriptor->ExtensionData;
+	fInformation = (MfsFile_t*)File->ExtensionData;
 
-	/* Cleanup */
-	kfree(FileInfo);
+	// Sanitize the pointer
+	if (fInformation == NULL) {
+		return FsOk;
+	}
 
-	/* Done */
-	return RetCode;
+	// Cleanup data
+	MStringDestroy(fInformation->Name);
+	free(fInformation);
+	return FsOk;
 }
 
-/* Open Handle - This function
- * initializes a new handle for a file entry 
- * this means we can reuse MCoreFiles */
-VfsErrorCode_t MfsOpenHandle(void *FsData, MCoreFile_t *Handle, MCoreFileInstance_t *Instance)
+/* FsOpenHandle 
+ * Opens a new handle to a file, this allows various
+ * interactions with the base file, like read and write.
+ * Neccessary resources and initialization of the Handle
+ * should be done here too */
+FileSystemCode_t
+FsOpenHandle(
+	_In_ FileSystemDescriptor_t *Descriptor,
+	_In_ FileSystemFileHandle_t *Handle)
 {
-	/* Vars */
-	MCoreFileSystem_t *Fs = (MCoreFileSystem_t*)FsData;
-	MfsData_t *mData = (MfsData_t*)Fs->ExtendedData;
-	MfsFileInstance_t *mInstance = NULL;
-	MfsFile_t *FileInfo = NULL;
+	// Variables
+	MfsFileInstance_t *fInstance = NULL;
+	MfsFile_t *fInformation = NULL;
+	MfsInstance_t *Mfs = NULL;
 
-	/* Sanity */
-	if (Handle == NULL
-		|| Instance == NULL)
-		return VfsInvalidParameters;
+	// Trace
+	TRACE("FsOpenHandle(Id 0x%x)", Handle->Id);
 
-	/* Cast */
-	FileInfo = (MfsFile_t*)Handle->Data;
+	// Instantiate the pointers
+	Mfs = (MfsInstance_t*)Descriptor->ExtensionData;
+	fInformation = (MfsFile_t*)Handle->File->ExtensionData;
 
-	/* Allocate mFile instance */
-	mInstance = (MfsFileInstance_t*)kmalloc(sizeof(MfsFileInstance_t));
+	// Sanitize the parameters
+	if (fInformation == NULL) {
+		return FsInvalidParameters;
+	}
 
-	/* Setup */
-	mInstance->BucketByteBoundary = 0;
-	mInstance->DataBucketLength = FileInfo->InitialBucketLength;
-	mInstance->DataBucketPosition = FileInfo->DataBucket;
+	// Allocate a new file-handle
+	fInstance = (MfsFileInstance_t*)malloc(sizeof(MfsFileInstance_t));
 
-	/* Allocate */
-	mInstance->BucketBuffer = (uint8_t*)kmalloc((mData->BucketSize * Fs->SectorSize));
+	// Initiate per-instance members
+	fInstance->BucketByteBoundary = 0;
+	fInstance->DataBucketPosition = fInformation->StartBucket;
+	fInstance->DataBucketLength = fInformation->StartLength;
 
-	/* Set */
-	Instance->Instance = mInstance;
+	// Update out
+	Handle->ExtensionData = fInstance;
 
-	/* Done! */
-	return VfsOk;
+	// Done
+	return FsOk;
 }
 
-/* Close Handle - This function cleans
- * up a previously allocated file instance handle */
-VfsErrorCode_t MfsCloseHandle(void *FsData, MCoreFileInstance_t *Instance)
+/* FsCloseHandle 
+ * Closes the file handle and cleans up any resources allocated
+ * by the OpenHandle equivelent. Renders the handle useless */
+FileSystemCode_t
+FsCloseHandle(
+	_In_ FileSystemDescriptor_t *Descriptor,
+	_In_ FileSystemFileHandle_t *Handle)
 {
-	/* Vars */
-	MfsFileInstance_t *mInstance = NULL;
+	// Variables
+	MfsFileInstance_t *fHandle = NULL;
+	MfsInstance_t *Mfs = NULL;
 
-	/* Sanity */
-	if (Instance == NULL
-		|| Instance->Instance == NULL)
-		return VfsInvalidParameters;
+	// Trace
+	TRACE("FsCloseHandle(Id 0x%x)", Handle->Id);
 
-	/* Unused */
-	_CRT_UNUSED(FsData);
+	// Instantiate the pointers
+	Mfs = (MfsInstance_t*)Descriptor->ExtensionData;
+	fHandle = (MfsFileInstance_t*)Handle->ExtensionData;
 
-	/* Cast */
-	mInstance = (MfsFileInstance_t*)Instance->Instance;
+	// Sanitize the parameters
+	if (fHandle == NULL) {
+		return FsInvalidParameters;
+	}
 
-	/* Free buffer */
-	kfree(mInstance->BucketBuffer);
-
-	/* Cleanup */
-	kfree(mInstance);
-
-	/* Done! */
-	return VfsOk;
+	// Cleanup the instance
+	free(fHandle);
+	return FsOk;
 }
 
 /* Read File - Reads from a 
@@ -537,123 +541,152 @@ size_t MfsWriteFile(void *FsData, MCoreFileInstance_t *Instance, uint8_t *Buffer
 	return BytesWritten;
 }
 
-/* Delete File - Frees all 
- * buckets associated with the file entry
- * and <nulls> the entry in the directory it
- * resides (marks it deleted) */
-VfsErrorCode_t MfsDeleteFile(void *FsData, MCoreFile_t *Handle)
+/* FsDeleteFile 
+ * Deletes the file connected to the file-handle, this
+ * will disconnect all existing file-handles to the file
+ * and make them fail on next access */
+FileSystemCode_t
+FsDeleteFile(
+	_In_ FileSystemDescriptor_t *Descriptor,
+	_In_ FileSystemFileHandle_t *Handle)
 {
-	/* Cast */
-	MCoreFileSystem_t *Fs = (MCoreFileSystem_t*)FsData;
-	MfsFile_t *FileInfo = (MfsFile_t*)Handle->Data;
-	VfsErrorCode_t ErrCode = VfsOk;
+	// Variables
+	MfsFileInstance_t *fHandle = NULL;
+	MfsFile_t *fInformation = NULL;
+	MfsInstance_t *Mfs = NULL;
 
-	/* Step 1 - Free buckets */
-	MfsFreeBuckets(Fs, FileInfo->DataBucket, FileInfo->InitialBucketLength);
+	// Trace
+	TRACE("FsDeleteFile(Id 0x%x)", Handle->Id);
 
-	/* Step 2 - Mark entry deleted */
-	ErrCode = MfsUpdateEntry(Fs, FileInfo, MFS_ACTION_DELETE);
+	// Instantiate the pointers
+	Mfs = (MfsInstance_t*)Descriptor->ExtensionData;
+	fHandle = (MfsFileInstance_t*)Handle->ExtensionData;
+	fInformation = (MfsFile_t*)Handle->File->ExtensionData;
 
-	/* Done! */
-	return ErrCode;
+	// Free all buckets allocated
+	if (MfsFreeBuckets(Descriptor, fInformation->StartBucket, 
+		fInformation->StartLength) != OsNoError) {
+		ERROR("Failed to free the buckets at start 0x%x, length 0x%x",
+			fInformation->StartBucket, fInformation->StartLength);
+		return FsDiskError;
+	}
+
+	// Update the record to being deleted
+	return MfsUpdateRecord(Descriptor, fInformation, MFS_ACTION_DELETE);
 }
 
-/* Seek - Sets the current position
- * in a file, we must iterate through the
- * bucket chain to reposition our bucket 
- * iterator correctly as well */
-VfsErrorCode_t MfsSeek(void *FsData, MCoreFileInstance_t *Instance, uint64_t Position)
+/* FsSeekFile 
+ * Seeks in the given file-handle to the absolute position
+ * given, must be within boundaries otherwise a seek won't
+ * take a place */
+FileSystemCode_t
+FsSeekFile(
+	_In_ FileSystemDescriptor_t *Descriptor,
+	_In_ FileSystemFileHandle_t *Handle,
+	_In_ uint64_t AbsolutePosition)
 {
-	/* Vars */
-	MCoreFileSystem_t *Fs = (MCoreFileSystem_t*)FsData;
-	MfsFileInstance_t *mInstance = (MfsFileInstance_t*)Instance->Instance;
-	MfsData_t *mData = (MfsData_t*)Fs->ExtendedData;
-	MfsFile_t *mFile = (MfsFile_t*)Instance->File->Data;
+	// Variables
+	MfsFileInstance_t *fInstance = NULL;
+	MfsFile_t *fInformation = NULL;
+	MfsInstance_t *Mfs = NULL;
+	size_t InitialBucketMax;
 	int ConstantLoop = 1;
 
-	/* Sanity */
-	if (Position > Instance->File->Size)
-		return VfsInvalidParameters;
-	if (Instance->File->Size == 0)
-		return VfsOk;
+	// Trace
+	TRACE("FsSeekFile(Id 0x%x, Position 0x%x)", 
+		Handle->Id, LODWORD(AbsolutePosition));
 
-	/* Step 1, if the new position is in
-	 * initial bucket, we need to do no actual
-	 * seeking */
-	size_t InitialBucketMax = (mFile->InitialBucketLength * (mData->BucketSize * Fs->SectorSize));
+	// Instantiate the pointers
+	Mfs = (MfsInstance_t*)Descriptor->ExtensionData;
+	fInstance = (MfsFileInstance_t*)Handle->ExtensionData;
+	fInformation = (MfsFile_t*)Handle->File->ExtensionData;
 
-	/* Lets see */
-	if (Position < InitialBucketMax) {
-		mInstance->DataBucketPosition = mFile->DataBucket;
-		mInstance->DataBucketLength = mFile->InitialBucketLength;
-		mInstance->BucketByteBoundary = 0;
+	// Sanitize seeking bounds
+	if (AbsolutePosition > fInformation->Size
+		|| fInformation->Size == 0) {
+		return FsInvalidParameters;
 	}
-	else
-	{
-		/* Step 2. We might still get out easy
-		 * if we are setting a new position that's 
-		 * within the current bucket */
 
-		/* Do we cross a boundary? */
-		uint64_t OldBucketLow = mInstance->BucketByteBoundary;
-		uint64_t OldBucketHigh = OldBucketLow +
-			(mInstance->DataBucketLength * (mData->BucketSize * Fs->SectorSize));
+	// Step 1, if the new position is in
+	// initial bucket, we need to do no actual
+	// seeking
+	InitialBucketMax = (fInformation->StartLength * 
+		(Mfs->SectorsPerBucket * Descriptor->Disk.Descriptor.SectorSize));
+	if (AbsolutePosition < InitialBucketMax) {
+		fInstance->DataBucketPosition = fInformation->StartBucket;
+		fInstance->DataBucketLength = fInformation->StartLength;
+		fInstance->BucketByteBoundary = 0;
+	}
+	else {
+		// Step 2. We might still get out easy
+		// if we are setting a new position that's 
+		// within the current bucket
+		uint64_t OldBucketLow, OldBucketHigh;
 
-		/* Are we still in the same current bucket? */
-		if (Position >= OldBucketLow
-			&& Position < OldBucketHigh) {
-			/* Do Nothing */
+		// Calculate bucket boundaries
+		OldBucketLow = fInstance->BucketByteBoundary;
+		OldBucketHigh = OldBucketLow + (fInstance->DataBucketLength 
+			* (Mfs->SectorsPerBucket * Descriptor->Disk.Descriptor.SectorSize));
+
+		// If we are seeking inside the same bucket no need
+		// to do anything else
+		if (AbsolutePosition >= OldBucketLow
+			&& AbsolutePosition < OldBucketHigh) {
+			// Same bucket
 		}
-		else
-		{
-			/* We need to do stuff... 
-			 * Start over.. */
-
-			/* Keep Track */
+		else {
+			// We need to figure out which bucket the position is in
 			uint64_t PositionBoundLow = 0;
 			uint64_t PositionBoundHigh = InitialBucketMax;
+			MapRecord_t Link;
 
-			/* Spool to correct bucket */
-			uint32_t BucketPtr = mFile->DataBucket;
-			uint32_t BucketLength = mFile->InitialBucketLength;
-			while (ConstantLoop)
-			{
-				/* Sanity */
-				if (Position >= PositionBoundLow
-					&& Position < (PositionBoundLow + PositionBoundHigh)) {
-					mInstance->BucketByteBoundary = PositionBoundLow;
+			// Start at the file-bucket
+			uint32_t BucketPtr = fInformation->StartBucket;
+			uint32_t BucketLength = fInformation->StartLength;
+			while (ConstantLoop) {
+				// Check if we reached correct bucket
+				if (AbsolutePosition >= PositionBoundLow
+					&& AbsolutePosition < (PositionBoundLow + PositionBoundHigh)) {
+					fInstance->BucketByteBoundary = PositionBoundLow;
 					break;
 				}
 
-				/* Get next */
-				if (MfsGetNextBucket(Fs, BucketPtr, &BucketPtr, &BucketLength))
-					break;
+				// Get link
+				if (MfsGetBucketLink(Descriptor, BucketPtr, &Link) != OsNoError) {
+					ERROR("Failed to get link for bucket %u", BucketPtr);
+					return FsDiskError;
+				}
 
-				/* This should NOT happen */
-				if (BucketPtr == MFS_END_OF_CHAIN)
-					break;
+				// If we do reach end of chain, something went terribly wrong
+				if (Link.Link == MFS_ENDOFCHAIN) {
+					ERROR("Reached end of chain during seek");
+					return FsInvalidParameters;
+				}
 
-				/* Calc new bounds */
+				// Update
+				BucketPtr = Link.Link;
+
+				// Get length of link
+				BucketLength = Link.Length;
+
+				// Calculate bounds for the new bucket
 				PositionBoundLow += PositionBoundHigh;
-				PositionBoundHigh = (BucketLength * (mData->BucketSize * Fs->SectorSize));
+				PositionBoundHigh = (BucketLength * 
+					(Mfs->SectorsPerBucket * Descriptor->Disk.Descriptor.SectorSize));
 			}
 
-			/* Update bucket ptr */
-			if (BucketPtr != MFS_END_OF_CHAIN)
-				mInstance->DataBucketPosition = BucketPtr;
+			// Update bucket pointer
+			if (BucketPtr != MFS_ENDOFCHAIN) {
+				fInstance->DataBucketPosition = BucketPtr;
+			}
 		}
 	}
 	
-	/* Update pointer */
-	Instance->Position = Position;
+	// Update the new position since everything went ok
+	Handle->Position = AbsolutePosition;
 
-	/* Set EOF */
-	if (Instance->Position == Instance->File->Size) {
-		Instance->IsEOF = 1;
-	}
-	
-	/* Done */
-	return VfsOk;
+	// Done
+	return FsOk;
 }
 
 /* Query information - This function
@@ -852,7 +885,7 @@ FsInitialize(
 	}
 
 	// Update the structure
-	Descriptor->ExtendedData = (uintptr_t*)Mfs;
+	Descriptor->ExtensionData = (uintptr_t*)Mfs;
 	return OsNoError;
 
 Error:

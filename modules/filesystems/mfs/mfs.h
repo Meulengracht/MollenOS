@@ -101,8 +101,10 @@ PACKED_TYPESTRUCT(MasterRecord, {
 });
 
 /* The bucket-map record
- * Streches over two values and describes the next
- * link (or end of link) and the length of the entry */
+ * A map entry consists of the length of the bucket, and it's link
+ * To get the length of the link, you must lookup it's length by accessing Map[Link]
+ * Length of bucket 0 is HIDWORD(Map[0]), Link of bucket 0 is LODWORD(Map[0])
+ * If the link equals 0xFFFFFFFF there is no link */
 PACKED_TYPESTRUCT(MapRecord, {
 	uint32_t				Link;
 	uint32_t				Length;
@@ -182,24 +184,16 @@ PACKED_TYPESTRUCT(MfsFile, {
 	size_t					 DirectoryIndex;
 });
 
-#pragma pack(push, 1)
-typedef struct _MfsFileInstance
-{
-	/* Information */
+/* Mfs File Instance 
+ * */
+typedef struct _MfsFileInstance {
 	uint32_t DataBucketPosition;
 	uint32_t DataBucketLength;
 
-	/* Variable bucket sizes
-	 * is a pain in the butt */
+	// Variable bucket sizes
+	// is a pain in the butt
 	uint64_t BucketByteBoundary;
-
-	/* Bucket Buffer 
-	 * Temporary buffer used for 
-	 * for read/write operations */
-	uint8_t *BucketBuffer;
-
 } MfsFileInstance_t;
-#pragma pack(pop)
 
 /* Mfs Instance data
  * Keeps track of the current state of an instance of

@@ -97,11 +97,13 @@ PACKED_TYPESTRUCT(QueryFileOptionsPackage, {
 
 #define __DISK_FORCED_REMOVE					0x00000001
 
+// Access flags
 #define __FILE_READ_ACCESS						0x00000001
 #define __FILE_WRITE_ACCESS						0x00000002
 #define __FILE_READ_SHARE						0x00000100
 #define __FILE_WRITE_SHARE						0x00000200
 
+// Options flag
 #define __FILE_CREATE							0x00000001
 #define __FILE_TRUNCATE							0x00000002
 #define __FILE_MUSTEXIST						0x00000004

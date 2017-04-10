@@ -23,8 +23,6 @@ namespace DiskUtility
         private Object vDiskHandle;
         private SafeFileHandle sfHandle;
         private Stream fStream;
-
-        public UInt16 BucketSize;
         
         // Seek offsets
         public enum EMoveMethod : uint

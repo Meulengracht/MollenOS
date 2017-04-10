@@ -1,9 +1,4 @@
 using System;
-using System.Collections;
-using System.Collections.Generic;
-using System.IO;
-using System.Linq;
-using System.Text;
 
 namespace DiskUtility
 {
@@ -22,6 +17,10 @@ namespace DiskUtility
         /* AddPartition 
          * Adds a new partition of the filesystem given, with the given size */
         bool AddPartition(IFileSystem FileSystem, UInt64 SectorCount);
+
+        /* Finalize
+         * Finalizes a disk opened or created by Open/Create */
+        bool Finalize();
 
         /* GetFreeSectorCount 
          * Retrieves the number of free sectors available for the next partition */

@@ -42,6 +42,9 @@ namespace DiskUtility
             m_bSinglePartition = SinglePartition;
             m_pDisk = Disk;
 
+            // Open disn
+            m_pDisk.Open();
+
             // Prepare boot-sector if it's a multi-partition layout
             if (!m_bSinglePartition)
             {
@@ -50,6 +53,19 @@ namespace DiskUtility
             }
             else
                 return true;
+        }
+
+        /* Finalize
+         * Finalizes a disk opened or created by Open/Create */
+        public bool Finalize()
+        {
+            // Finalize all filesystems and dispose them
+
+            // Close disk
+            m_pDisk.Close();
+
+            // Done
+            return true;
         }
 
         /* AddPartition 

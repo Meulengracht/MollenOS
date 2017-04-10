@@ -71,6 +71,7 @@ typedef struct _FileSystemModule {
 	FsInitialize_t					Initialize;
 	FsDestroy_t						Destroy;
 	FsOpenFile_t					OpenFile;
+	FsCreateFile_t					CreateFile;
 	FsCloseFile_t					CloseFile;
 	FsOpenHandle_t					OpenHandle;
 	FsCloseHandle_t					CloseHandle;

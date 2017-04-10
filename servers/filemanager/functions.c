@@ -149,7 +149,7 @@ VfsOpenInternal(
 			File->Hash = PathHash;
 
 			/* Let the module do the rest */
-			Code = Fs->Module->OpenFile(&Fs->Descriptor, File, SubPath, Handle->Access);
+			Code = Fs->Module->OpenFile(&Fs->Descriptor, File, SubPath, Handle->Options);
 
 			/* Sanitize the open
 			 * otherwise we must cleanup */
@@ -227,7 +227,7 @@ OpenFile(
 
 			/* Sanitize that the path is valid */
 			if (mPath == NULL) {
-				Code = FsInvalidPath;
+				Code = FsPathNotFound;
 				continue;
 			}
 			else {
@@ -239,8 +239,7 @@ OpenFile(
 
 			/* Sanitize the status in which we tried to
 			 * open the current path */
-			if ((Code == FsInvalidPath
-				|| Code == FsPathNotFound
+			if ((Code == FsPathNotFound
 				|| Code == FsPathIsNotDirectory)
 				&& i < ((int)PathEnvironmentCount - 1)) {
 				Code = FsPathNotFound;
@@ -259,7 +258,7 @@ OpenFile(
 
 		/* Sanitize that the path is valid */
 		if (mPath == NULL) {
-			Code = FsInvalidPath;
+			Code = FsPathNotFound;
 		}
 		else {
 			Code = VfsOpenInternal(hFile, mPath);
