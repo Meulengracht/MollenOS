@@ -1,9 +1,9 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio 2013
-VisualStudioVersion = 12.0.40629.0
+# Visual Studio 15
+VisualStudioVersion = 15.0.26228.12
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MfsTool", "MfsTool\MfsTool.csproj", "{B0B3ACF8-B896-4698-91C5-77C46E03923E}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "diskutility", "mfstool\diskutility.csproj", "{B0B3ACF8-B896-4698-91C5-77C46E03923E}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

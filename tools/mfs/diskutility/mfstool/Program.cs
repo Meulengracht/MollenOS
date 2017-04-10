@@ -1,5 +1,4 @@
-﻿using Microsoft.Win32.SafeHandles;
-using System;
+﻿using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.IO;
@@ -9,69 +8,10 @@ using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace MfsTool
+namespace DiskUtility
 {
     class Program
     {
-        public enum EMoveMethod : uint
-        {
-            Begin = 0,
-            Current = 1,
-            End = 2
-        }
-
-        /* Needed for direct disk access */
-        [DllImport("kernel32.dll", CharSet = CharSet.Auto, SetLastError = true)]
-        internal static extern SafeFileHandle CreateFile(string lpFileName, uint
-        dwDesiredAccess, uint dwShareMode,
-        IntPtr lpSecurityAttributes, uint dwCreationDisposition, uint
-        dwFlagsAndAttributes,
-        SafeFileHandle hTemplateFile);
-        const uint GENERIC_READ = 0x80000000;
-        const uint GENERIC_WRITE = 0x050000000;
-        public const int FILE_FLAG_NO_BUFFERING = 0x20000000;
-        internal const int OPEN_EXISTING = 3;
-
-        [DllImport("kernel32.dll", ExactSpelling = true, SetLastError = true, CharSet = CharSet.Auto)]
-        private static extern bool DeviceIoControl(
-            IntPtr hDevice,
-            uint dwIoControlCode,
-            IntPtr lpInBuffer,
-            uint nInBufferSize,
-            IntPtr lpOutBuffer,
-            uint nOutBufferSize,
-            out uint lpBytesReturned,
-            IntPtr lpOverlapped
-        );
-        const int FSCTL_LOCK_VOLUME = 0x00090018;
-        const int FSCTL_DISMOUNT_VOLUME = 0x00090020;
-        const int FSCTL_UNLOCK_VOLUME = 0x00090022;
-
-        [DllImport("kernel32", SetLastError = true)]
-        static extern bool ReadFile(
-            IntPtr hFile,
-            byte[] lpBuffer,
-            uint numBytesToRead,
-            out uint numBytesRead,
-            IntPtr lpOverlapped
-        );
-
-        [DllImport("kernel32.dll")]
-        static extern bool WriteFile(
-            IntPtr hFile,
-            byte[] lpBuffer,
-            uint nNumberOfBytesToWrite,
-            out uint lpNumberOfBytesWritten,
-            IntPtr lpOverlapped
-        );
-
-        [DllImport("kernel32.dll", EntryPoint = "SetFilePointer")]
-        static extern uint SetFilePointer(
-              [In] SafeFileHandle hFile,
-              [In] int lDistanceToMove,
-              [In, Out] ref int lpDistanceToMoveHigh,
-              [In] EMoveMethod dwMoveMethod);
-
         public enum MfsEntryFlags
         {
             MFS_FILE = 0x1,
@@ -81,127 +21,9 @@ namespace MfsTool
             MFS_HIDDEN = 0x10,
             MFS_LINK = 0x20
         }
-
-        /* Helpers */
-        static bool OpenDisk(MfsDisk mDisk)
-        {
-            /* Sanity */
-            if (mDisk.DeviceId == "VMDK"
-                || mDisk.DeviceId == "IMG") {
-                /* We already have disk access */
-                return true;
-            }
-
-            /* Open Disk */
-            mDisk.sfHandle = CreateFile(mDisk.DeviceId,
-                GENERIC_READ | GENERIC_WRITE, 0, IntPtr.Zero,
-                OPEN_EXISTING, FILE_FLAG_NO_BUFFERING, new SafeFileHandle(IntPtr.Zero, true));
-
-            if (mDisk.sfHandle.IsInvalid)
-            {
-                mDisk.sfHandle = null;
-                Console.WriteLine("Handle was invalid");
-                return false;
-            }
-
-            /* Lock Disk */
-            uint lpBytesReturned = 0;
-            if (!DeviceIoControl(mDisk.sfHandle.DangerousGetHandle(), FSCTL_LOCK_VOLUME, IntPtr.Zero, 0, IntPtr.Zero, 0, out lpBytesReturned, IntPtr.Zero))
-                Console.WriteLine("Failed to lock!");
-            if (!DeviceIoControl(mDisk.sfHandle.DangerousGetHandle(), FSCTL_DISMOUNT_VOLUME, IntPtr.Zero, 0, IntPtr.Zero, 0, out lpBytesReturned, IntPtr.Zero))
-                Console.WriteLine("Failed to unmount!");
-
-            /* Done */
-            return true;
-        }
-
-        /* Close Disk */
-        static void CloseDisk(MfsDisk mDisk)
-        {
-            /* Sanity */
-            if (mDisk.DeviceId == "VMDK"
-                || mDisk.DeviceId == "IMG") {
-                return;
-            }
-            else
-                mDisk.sfHandle.Close();
-
-            /* Null */
-            mDisk.vDiskHandle = null;
-            mDisk.sfHandle = null;
-        }
-
-        /* Seek in disk */
-        static void SeekDisk(MfsDisk mDisk, Int64 Offset)
-        {
-            /* Sanity */
-            if (mDisk.DeviceId == "VMDK") {
-                ((DiscUtils.Vmdk.Disk)mDisk.vDiskHandle).Content.Seek((long)Offset, SeekOrigin.Begin);
-            }
-            else if (mDisk.DeviceId == "IMG") {
-                ((DiscUtils.Raw.Disk)mDisk.vDiskHandle).Content.Seek((long)Offset, SeekOrigin.Begin);
-            }
-            else
-            {
-                int DistHigh = (int)((Offset >> 32) & 0xFFFFFFFF);
-                int DistLow = (int)(Offset & 0xFFFFFFFF);
-                SetFilePointer(mDisk.sfHandle, DistLow, ref DistHigh, EMoveMethod.Begin);
-            }
-        }
-
-        /* Write */
-        static void WriteDisk(MfsDisk mDisk, UInt64 Sector, Byte[] Buffer, Boolean Seek)
-        {
-            /* Calculate offset */
-            Int64 ValToMove = ((Int64)Sector * (int)mDisk.BytesPerSector);
-
-            /* Seek to offset */
-            if (Seek)
-                SeekDisk(mDisk, ValToMove);
-
-            /* Sanity */
-            if (mDisk.DeviceId == "VMDK") {
-                ((DiscUtils.Vmdk.Disk)mDisk.vDiskHandle).Content.Write(Buffer, 0, Buffer.Length);
-            }
-            else if (mDisk.DeviceId == "IMG") {
-                ((DiscUtils.Raw.Disk)mDisk.vDiskHandle).Content.Write(Buffer, 0, Buffer.Length);
-            }
-            else {
-                uint BytesWritten = 0;
-                WriteFile(mDisk.sfHandle.DangerousGetHandle(), Buffer, (uint)Buffer.Length, out BytesWritten, IntPtr.Zero);
-            }
-        }
-
-        /* Read */
-        static Byte[] ReadDisk(MfsDisk mDisk, UInt64 Sector, UInt64 SectorCount)
-        {
-            /* Alloc buffer */
-            Byte[] RetBuf = new Byte[SectorCount * mDisk.BytesPerSector];
-
-            /* Seek to offset */
-            SeekDisk(mDisk, (Int64)((Int64)Sector * mDisk.BytesPerSector));
-
-            /* Sanity */
-            if (mDisk.DeviceId == "VMDK") {
-                /* Read */
-                ((DiscUtils.Vmdk.Disk)mDisk.vDiskHandle).Content.Read(RetBuf, 0, RetBuf.Length);
-            }
-            else if (mDisk.DeviceId == "IMG") {
-                /* Read */
-                ((DiscUtils.Raw.Disk)mDisk.vDiskHandle).Content.Read(RetBuf, 0, RetBuf.Length);
-            }
-            else {
-                /* Read */
-                uint bRead = 0;
-                ReadFile(mDisk.sfHandle.DangerousGetHandle(), RetBuf, (uint)RetBuf.Length, out bRead, IntPtr.Zero);
-            }
-            
-            /* Done */
-            return RetBuf;
-        }
-
+        
         /* Allocate a bucket */
-        static UInt32 AllocateBucket(MfsDisk mDisk, UInt32 FreeBucketIndex, UInt64 NumBuckets, out UInt32 InitialSize)
+        static UInt32 AllocateBucket(CDisk mDisk, UInt32 FreeBucketIndex, UInt64 NumBuckets, out UInt32 InitialSize)
         {
             /* Calculate Bucket Map */
             UInt64 Buckets = mDisk.TotalSectors / mDisk.BucketSize;
@@ -1470,10 +1292,10 @@ namespace MfsTool
             UInt32 RootBucket = BitConverter.ToUInt32(Mb, 12);
 
             /* Setup directories */
-            String BaseRoot = "Hdd\\";
+            String BaseRoot = "hdd\\";
             Console.WriteLine("Creating system file tree");
-            Console.WriteLine("Root: " + AppDomain.CurrentDomain.BaseDirectory + "Hdd\\");
-            String[] Dirs = Directory.GetDirectories("Hdd\\", "*", SearchOption.AllDirectories);
+            Console.WriteLine("Root: " + AppDomain.CurrentDomain.BaseDirectory + "hdd\\");
+            String[] Dirs = Directory.GetDirectories("hdd\\", "*", SearchOption.AllDirectories);
 
             foreach (String pDir in Dirs)
             {
@@ -1494,7 +1316,7 @@ namespace MfsTool
 
             /* Setup files */
             Console.WriteLine("Copying system files");
-            String[] Files = Directory.GetFiles("Hdd\\", "*.*", SearchOption.AllDirectories);
+            String[] Files = Directory.GetFiles("hdd\\", "*.*", SearchOption.AllDirectories);
 
             foreach (String pFile in Files)
             {
@@ -1506,151 +1328,18 @@ namespace MfsTool
             }
         }
 
-        /* Entry */
-        static int Main(string[] args)
+        /* InstallMollenOS
+         * Installs mollenos on to the given filesystem and prepares
+         * the proper boot-sectors for the partition */
+        static void InstallMollenOS(IFileSystem FileSystem)
         {
-            /* Print Header */
-            Console.WriteLine("MFS Utility Software");
-            Console.WriteLine("Software Capabilities include formatting, read, write to/from MFS.\n");
-            
-            /* Get a list of physical drives */
-            Hashtable Drives = new Hashtable();
-            Console.WriteLine("Available Drives:");
-            WqlObjectQuery q = new WqlObjectQuery("SELECT * FROM Win32_DiskDrive");
-            ManagementObjectSearcher res = new ManagementObjectSearcher(q);
-            int Itr = 0;
-            foreach (ManagementObject o in res.Get()) {
-                
-                /* Sanity */
-                if (o["DeviceID"].ToString().Contains("PHYSICALDRIVE0"))
-                    continue;
 
-                Console.WriteLine(Itr.ToString() + ". " + o["Caption"] + " (DeviceID = " + o["DeviceID"] + ")");
-                
-                /* Create Object */
-                MfsDisk nDisk = new MfsDisk();
-                nDisk.BytesPerSector = (UInt32)o["BytesPerSector"];
-                nDisk.DeviceId = (String)o["DeviceID"];
-                nDisk.TotalSectors = (UInt64)o["TotalSectors"];
-                nDisk.SectorsPerTrack = (UInt32)o["SectorsPerTrack"];
-                nDisk.TracksPerCylinder = (UInt32)o["TracksPerCylinder"];
-                nDisk.vDiskHandle = null;
-                nDisk.sfHandle = null;
+        }
 
-                Drives.Add(Itr, nDisk);
-                Itr++;
-            }
-
-            /* Automation? */
-            if (args != null && args.Length == 1 && args[0].Length > 1 
-                && ((int)args[0][0] == 45 || (int)args[0][0] == 47))
-            {
-                switch (args[0].Substring(1).ToLower())
-                {
-                    case "auto":
-                    case "a":
-                    {
-                        /* Ok, so we pick the first drive */
-                        if (Drives.Count == 0)
-                            return -1;
-
-                        /* Do the format */
-                        Format((MfsDisk)Drives[0]);
-
-                        /* Do the install */
-                        InstallMOS((MfsDisk)Drives[0]);
-
-                        /* Done */
-                        return 0;
-
-                    }
-
-                    case "vmdk":
-                    {
-                        /* Create a 128 MB disk image */
-                        ulong SizeOfHdd = 128 * 1024 * 1024;
-
-                        /* Delete if exists */
-                        if (File.Exists(@"..\mollenos.vmdk"))
-                            File.Delete(@"..\mollenos.vmdk");
-
-                        Console.WriteLine("Creating vmdk disk image...");
-
-                        /* Create disk handle */
-                        DiscUtils.Vmdk.Disk dHandle = DiscUtils.Vmdk.Disk.Initialize(@"..\mollenos.vmdk", (long)SizeOfHdd, DiscUtils.Vmdk.DiskCreateType.MonolithicSparse);
-                        
-                        /* Setup mfs disk */
-                        MfsDisk vDisk = new MfsDisk();
-                        vDisk.BytesPerSector = 512;
-                        vDisk.DeviceId = "VMDK";
-                        vDisk.vDiskHandle = dHandle;
-                        vDisk.TotalSectors = SizeOfHdd / 512;
-                        vDisk.SectorsPerTrack = 63;
-                        vDisk.TracksPerCylinder = 255;
-
-                        Console.WriteLine("Formatting drive...");
-
-                        /* Do the format */
-                        Format(vDisk);
-
-                        Console.WriteLine("Installing MOS...");
-
-                        /* Do the install */
-                        InstallMOS(vDisk);
-
-                        /* Dispose disk handle */
-                        dHandle.Dispose();
-
-                        /* Done! */
-                        return 0;
-                    }
-
-                    case "img":
-                    {
-                        /* Create a 128 MB disk image */
-                        ulong SizeOfHdd = 128 * 1024 * 1024;
-
-                        /* Delete if exists */
-                        if (File.Exists(@"..\mollenos.img"))
-                            File.Delete(@"..\mollenos.img");
-
-                        Console.WriteLine("Creating vmdk disk image...");
-
-                        /* Create disk handle */
-                        using (Stream imgStream = File.Create(@"..\mollenos.img"))
-                        {
-                            /* Initialize */
-                            DiscUtils.Raw.Disk dHandle = DiscUtils.Raw.Disk.Initialize(imgStream, DiscUtils.Ownership.None, (long)SizeOfHdd);
-
-                            /* Setup mfs disk */
-                            MfsDisk vDisk = new MfsDisk();
-                            vDisk.BytesPerSector = 512;
-                            vDisk.DeviceId = "IMG";
-                            vDisk.vDiskHandle = dHandle;
-                            vDisk.TotalSectors = SizeOfHdd / 512;
-                            vDisk.SectorsPerTrack = 63;
-                            vDisk.TracksPerCylinder = 255;
-
-                            Console.WriteLine("Formatting drive...");
-
-                            /* Do the format */
-                            Format(vDisk);
-
-                            Console.WriteLine("Installing MOS...");
-
-                            /* Do the install */
-                            InstallMOS(vDisk);
-
-                            /* Dispose disk handle */
-                            dHandle.Dispose();
-                        }
-
-                        /* Done! */
-                        return 0;
-                    }
-                }
-            }
-
+        /* LaunchCLI
+         * Launches the CLI and provides commands for manipluating disks */
+        static void LaunchCLI(Hashtable Drives)
+        {
             Console.WriteLine("\nAvailable Commands:");
             Console.WriteLine("format <drive>");
             Console.WriteLine("write <file> <drive>");
@@ -1680,7 +1369,8 @@ namespace MfsTool
                             /* Do the format */
                             Format((MfsDisk)Drives[Option]);
 
-                        } break;
+                        }
+                        break;
                     case "write":
                         {
                             /* Path */
@@ -1692,7 +1382,8 @@ namespace MfsTool
                             /* Gogo */
                             WriteToMfs((MfsDisk)Drives[Option], Path, "");
 
-                        } break;
+                        }
+                        break;
                     case "ls":
                         {
                             /* Path */
@@ -1704,7 +1395,8 @@ namespace MfsTool
                             /* Gogo */
                             ListDirectory((MfsDisk)Drives[Option], Path);
 
-                        } break;
+                        }
+                        break;
                     case "install":
                         {
                             /* Parse */
@@ -1713,9 +1405,10 @@ namespace MfsTool
                             /* Gogo */
                             InstallMOS((MfsDisk)Drives[Option]);
 
-                        } break;
+                        }
+                        break;
                     case "quit":
-                            return 0;
+                        return 0;
 
                     default:
                         break;
@@ -1724,31 +1417,113 @@ namespace MfsTool
                 /* Clean */
                 GC.Collect();
             }
+        }
 
+        /* DiskUtility Entry 
+         * Handles all command line switches and initializes the utility */
+        static int Main(string[] args)
+        {
+            // Variables
+            IDiskScheme Scheme;
+            String Target = "live";
+            String SchemeType = "mbr";
+            bool Automatic = false;
 
-            /* No Err */
+            // Debug print header
+            Console.WriteLine("MFS Utility Software");
+            Console.WriteLine("Software Capabilities include formatting, read, write to/from MFS.\n");
+            
+            // Retrieve a list of physical drives
+            Hashtable Drives = new Hashtable();
+            Console.WriteLine("Available Drives:");
+            WqlObjectQuery q = new WqlObjectQuery("SELECT * FROM Win32_DiskDrive");
+            ManagementObjectSearcher res = new ManagementObjectSearcher(q);
+            int Itr = 0;
+            foreach (ManagementObject o in res.Get()) {
+                
+                // Never take main-drive into account
+                if (o["DeviceID"].ToString().Contains("PHYSICALDRIVE0"))
+                    continue;
+
+                // Debug
+                Console.WriteLine(Itr.ToString() + ". " + o["Caption"] + " (DeviceID = " + o["DeviceID"] + ")");
+
+                // Create and store the disk
+                Drives.Add(Itr++, new CDisk((String)o["DeviceID"], (UInt32)o["BytesPerSector"],
+                    (UInt32)o["SectorsPerTrack"], (UInt32)o["TracksPerCylinder"], (UInt64)o["TotalSectors"]));
+            }
+
+            // Parse arguments
+            if (args != null && args.Length > 0) {
+                for (int i = 0; i < args.Length; i++) {
+                    switch (args[i].ToLower()) {
+                        case "-auto":
+                        case "-a": {
+                                Automatic = true;
+                            } break;
+
+                        case "-target": {
+                                Target = args[i + 1];
+                                i++;
+                            } break;
+
+                        case "-scheme": {
+                                SchemeType = args[i + 1];
+                                i++;
+                            } break;
+                    }
+                }
+            }
+
+            // Should we automate the process?
+            if (Automatic)
+            {
+                // Variables
+                IFileSystem FileSystem;
+                CDisk Disk = null;
+
+                // Which kind of target?
+                if (Target.ToLower() == "live" && Drives.Count > 0)
+                    Disk = (CDisk)Drives[0];
+                else if (Target.ToLower() == "vmdk")
+                    Disk = new CDisk("VMDK", 512, 63, 255, 262144);
+                else if (Target.ToLower() == "img")
+                    Disk = new CDisk("IMG", 512, 63, 255, 262144);
+                else {
+                    Console.WriteLine("Invalid option for -target");
+                    return -1;
+                }
+
+                // Which kind of disk-scheme?
+                if (SchemeType.ToLower() == "mbr")
+                    Scheme = new SchemeMBR();
+                else if (SchemeType.ToLower() == "gpt")
+                    Scheme = null;
+                else {
+                    Console.WriteLine("Invalid option for -scheme");
+                    return -1;
+                }
+
+                // Partition setup?
+                FileSystem = new CMollenOSFileSystem();
+
+                // Setup disk partition layout
+                Scheme.Create(Disk);
+
+                // Create the requested partition setup
+                Scheme.AddPartition(FileSystem, Scheme.GetFreeSectorCount());
+
+                // Install mollenos on the disk
+                InstallMollenOS(FileSystem);
+            }
+
+            // Launch CLI if none-automatic
+            if (!Automatic)
+                LaunchCLI(Drives);
+
+            // Return
             return 0;
         }
-    }
-
-    /* Represents a disk */
-    public class MfsDisk
-    {
-        /* Bytes Per Sector */
-        public UInt32 BytesPerSector;
-        public UInt32 SectorsPerTrack;
-        public UInt32 TracksPerCylinder;
-
-        /* Capacity */
-        public UInt64 TotalSectors;
-
-        /* Physical Drive No */
-        public String DeviceId;
-        public Object vDiskHandle;
-        public SafeFileHandle sfHandle;
-
-        /* Used by reading */
-        public UInt16 BucketSize;
     }
 
     /* Represents a Mfs Entry */
