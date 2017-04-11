@@ -309,9 +309,9 @@ FsReadFile(
 			break;
 		}
 
-		// Perform the read
-		if (DiskRead(Descriptor->Disk.Driver, Descriptor->Disk.Device, 
-			Sector, DataPointer, SectorCount) != OsNoError) {
+		// Perform the read (Raw - as we need to pass the datapointer)
+		if (MfsReadSectors(Descriptor->Disk.Driver, Descriptor->Disk.Device, 
+			Descriptor->SectorStart + Sector, DataPointer, SectorCount) != OsNoError) {
 			ERROR("Failed to read sector");
 			Result = FsDiskError;
 			break;
@@ -365,11 +365,15 @@ FsReadFile(
 	return Result;
 }
 
-/* Write File - Writes to a 
- * given MCoreFile entry, the position
- * is stored in our structures and thus not neccessary 
- * File must be opened with write permissions */
-size_t MfsWriteFile(void *FsData, MCoreFileInstance_t *Instance, uint8_t *Buffer, size_t Size)
+/* FsWriteFile 
+ * Writes the requested number of bytes to the given
+ * file handle and outputs the number of bytes actually written */
+FileSystemCode_t
+FsWriteFile(
+	_In_ FileSystemDescriptor_t *Descriptor,
+	_In_ FileSystemFileHandle_t *Handle,
+	_In_ BufferObject_t *BufferObject,
+	_Out_ size_t *BytesWritten)
 {
 	/* Vars */
 	MCoreFileSystem_t *Fs = (MCoreFileSystem_t*)FsData;

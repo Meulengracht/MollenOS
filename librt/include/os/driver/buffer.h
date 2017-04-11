@@ -33,6 +33,7 @@
  * buffers throughout the system, must be used
  * for any hardware transactions */
 typedef struct _BufferObject {
+	UUId_t					 Creator;
 	__CONST char			*Virtual;
 	uintptr_t				 Physical;
 	size_t					 Length;
@@ -52,12 +53,48 @@ MOSABI
 CreateBuffer(
 	_In_ size_t Length);
 
+/* DestroyBuffer 
+ * Destroys the given buffer object and release resources
+ * allocated with the CreateBuffer function */
+MOSAPI 
+OsStatus_t
+MOSABI
+DestroyBuffer(
+	_In_ BufferObject_t *BufferObject);
+
+/* AcquireBuffer
+ * Acquires the buffer for access in this addressing space
+ * It's impossible to access the data by normal means before calling this */
+MOSAPI 
+OsStatus_t
+MOSABI
+AcquireBuffer(
+	_In_ BufferObject_t *BufferObject);
+
+/* ReleaseBuffer 
+ * Releases the buffer access and frees resources needed for accessing 
+ * this buffer */
+MOSAPI
+OsStatus_t
+MOSABI
+ReleaseBuffer(
+	_In_ BufferObject_t *BufferObject);
+
 /* ZeroBuffer 
- * Clears the entire buffer and resets the internal indexes */
+ * Clears the entire buffer and resets the internal indices */
 MOSAPI 
 OsStatus_t
 MOSABI
 ZeroBuffer(
+	_In_ BufferObject_t *BufferObject);
+
+/* ResetBuffer
+ * Resets the write and read indices for the buffer, does not
+ * wipe the data in the buffer */
+MOSAPI
+OsStatus_t
+MOSABI
+ResetBuffer(
 	_In_ BufferObject_t *BufferObject);
 
 /* ReadBuffer 
@@ -84,15 +121,6 @@ WriteBuffer(
 	_In_ __CONST void *Buffer, 
 	_In_ size_t BytesToWrite,
 	_Out_Opt_ size_t *BytesWritten);
-
-/* DestroyBuffer 
- * Destroys the given buffer object and release resources
- * allocated with the CreateBuffer function */
-MOSAPI 
-OsStatus_t
-MOSABI
-DestroyBuffer(
-	_In_ BufferObject_t *BufferObject);
 
 _CODE_END
 
