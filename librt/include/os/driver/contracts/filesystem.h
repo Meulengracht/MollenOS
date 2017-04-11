@@ -152,6 +152,7 @@ __FSDECL(FsReadFile)(
 	_In_ FileSystemDescriptor_t *Descriptor,
 	_In_ FileSystemFileHandle_t *Handle,
 	_Out_ BufferObject_t *BufferObject,
+	_Out_ size_t *BytesAt,
 	_Out_ size_t *BytesRead);
 
 /* FsWriteFile 

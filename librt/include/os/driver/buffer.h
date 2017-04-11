@@ -33,11 +33,10 @@
  * buffers throughout the system, must be used
  * for any hardware transactions */
 typedef struct _BufferObject {
-	UUId_t					 Id;
 	__CONST char			*Virtual;
 	uintptr_t				 Physical;
 	size_t					 Length;
-	int						 Pages;
+	size_t					 Capacity;
 	size_t					 IndexWrite;
 } BufferObject_t;
 

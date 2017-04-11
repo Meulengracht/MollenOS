@@ -211,138 +211,158 @@ FsCloseHandle(
 	return FsOk;
 }
 
-/* Read File - Reads from a 
- * given MCoreFile entry, the position
- * is stored in our structures and thus not neccessary 
- * File must be opened with read permissions */
-size_t MfsReadFile(void *FsData, MCoreFileInstance_t *Instance, uint8_t *Buffer, size_t Size)
+/* FsReadFile 
+ * Reads the requested number of bytes from the given
+ * file handle and outputs the number of bytes actually read */
+FileSystemCode_t
+FsReadFile(
+	_In_ FileSystemDescriptor_t *Descriptor,
+	_In_ FileSystemFileHandle_t *Handle,
+	_Out_ BufferObject_t *BufferObject,
+	_Out_ size_t *BytesAt,
+	_Out_ size_t *BytesRead)
 {
-	/* Variables, cast the neccessary information
-	 * and retrieve data */
-	MCoreFileSystem_t *Fs = (MCoreFileSystem_t*)FsData;
-	MfsFileInstance_t *mInstance = (MfsFileInstance_t*)Instance->Instance;
-	MfsData_t *mData = (MfsData_t*)Fs->ExtendedData;
+	// Variables
+	MfsFileInstance_t *fInstance = NULL;
+	MfsFile_t *fInformation = NULL;
+	MfsInstance_t *Mfs = NULL;
+	FileSystemCode_t Result = FsOk;
+	uintptr_t DataPointer;
+	uint64_t Position;
+	size_t BucketSizeBytes;
+	size_t BytesToRead;
 
-	/* Variables for iteration and 
-	 * state-keeping */
-	size_t SizeOfBucket = (mData->BucketSize * Fs->SectorSize);
-	uint64_t Position = Instance->Position;
-	VfsErrorCode_t RetCode = VfsOk;
-	uint8_t *BufPtr = Buffer;
-	size_t BytesToRead = Size;
-	size_t BytesRead = 0;
+	// Trace
+	TRACE("FsReadFile(Id 0x%x, Position %u, Length %u)",
+		Handle->Id, LODWORD(Handle->Position), BufferObject->Length);
 
-	/* Sanitize the amount of bytes we want
-	 * to read, cap it at bytes available */
-	if ((Position + Size) > Instance->File->Size)
-		BytesToRead = (size_t)(Instance->File->Size - Position);
+	// Instantiate the pointers
+	Mfs = (MfsInstance_t*)Descriptor->ExtensionData;
+	fInstance = (MfsFileInstance_t*)Handle->ExtensionData;
+	fInformation = (MfsFile_t*)Handle->File->ExtensionData;
 
-	/* Keep reeeading */
-	while (BytesToRead)
-	{
-		/* Calculate initial variables we will need
-		 * to read the data, since we MUST read in sector-size boundaries
-		 * it's possible we will have to use a temporary buffer */
-		uint64_t SectorLba = mData->BucketSize * mInstance->DataBucketPosition;
-		uint64_t BucketClusterOffset = Position - mInstance->BucketByteBoundary;
-		size_t SizeOfBucketCluster = (mInstance->DataBucketLength * SizeOfBucket);
-		size_t nBuckets = (size_t)(BucketClusterOffset / SizeOfBucket);
-		size_t AdjustedByteCount = nBuckets * (mData->BucketSize * Fs->SectorSize);
+	// Instantiate some of the consants
+	BucketSizeBytes = Mfs->SectorsPerBucket * Descriptor->Disk.Descriptor.SectorSize;
+	DataPointer = BufferObject->Physical;
+	Position = Handle->Position;
+	BytesToRead = BufferObject->Length;
+	*BytesRead = 0;
+	*BytesAt = __MASK;
 
-		/* These are WHERE and HOW much will actually 
-		 * be transfered for this iteration */
-		uint8_t *TransferBuffer = mInstance->BucketBuffer;
-		size_t TransferSize = mData->BucketSize;
-
-		/* Special large case, this is for speedups 
-		 * if we are trying to read more than the entirety of
-		 * this bucket cluster, we can just use the buffer provided 
-		if (BytesToRead >= SizeOfBucket && BucketClusterOffset == 0) {
-			TransferBuffer = BufPtr;
-			TransferSize = (BytesToRead / SizeOfBucket) * mData->BucketSize;
-		}*/
-
-		/* Adjust SectorLba, because the bucket we are reading in
-		 * might actually consist of a lot of buckets, so nBuckets
-		 * contain the bucket offset in the bucket-cluster */
-		SectorLba += (nBuckets * mData->BucketSize);
-
-		/* Read the bucket */
-		if (MfsReadSectors(Fs, SectorLba, TransferBuffer, TransferSize) != RequestNoError) {
-			RetCode = VfsDiskError;
-			LogFatal("MFS1", "READFILE: Error reading sector %u from disk",
-				(size_t)(mData->BucketSize * mInstance->DataBucketPosition));
-			LogFatal("MFS1", "Bucket Position %u, mFile Position %u, mFile Size %u",
-				mInstance->DataBucketPosition, (size_t)Position, (size_t)Instance->File->Size);
-			break;
-		}
-
-		/* Use this to indicate how much
-		 * we moved forward with bytes */
-		size_t BytesCopied = 0;
-
-		if (TransferBuffer != BufPtr) {
-			/* We have to calculate the offset into this buffer we must transfer data */
-			size_t bOffset = (size_t)(Position - (mInstance->BucketByteBoundary + AdjustedByteCount));
-			size_t BytesLeft = (TransferSize * Fs->SectorSize) - bOffset;
-
-			/* We have a few cases
-			* Case 1: We have enough data here
-			* Case 2: We have to read more than is here */
-			if (BytesToRead > BytesLeft) {
-				/* Start out by copying remainder */
-				memcpy(BufPtr, (TransferBuffer + bOffset), BytesLeft);
-				BytesCopied = BytesLeft;
-			}
-			else {
-				/* Just copy */
-				memcpy(BufPtr, (TransferBuffer + bOffset), BytesToRead);
-				BytesCopied = BytesToRead;
-			}
-		}
-		else {
-			BytesCopied = (TransferSize * Fs->SectorSize);
-		}
-
-		/* Advance pointer(s) */
-		BytesRead += BytesCopied;
-		BufPtr += BytesCopied;
-		BytesToRead -= BytesCopied;
-		Position += BytesCopied;
-
-		/* Switch to next bucket? */
-		if (Position == (mInstance->BucketByteBoundary + SizeOfBucketCluster)) {
-			uint32_t NextBucket = 0, BucketLength = 0;
-
-			/* Go to next */
-			if (MfsGetNextBucket(Fs, mInstance->DataBucketPosition, &NextBucket, &BucketLength))
-				break;
-
-			/* Sanity */
-			if (NextBucket != MFS_END_OF_CHAIN) {
-				mInstance->DataBucketPosition = NextBucket;
-				mInstance->DataBucketLength = BucketLength;
-
-				/* Update bucket boundary */
-				mInstance->BucketByteBoundary +=
-					(BucketLength * mData->BucketSize * Fs->SectorSize);
-			}
-			else
-				Instance->IsEOF = 1;
-		}
-
-		/* Sanity */
-		if (Instance->IsEOF)
-			break;
+	// Sanitize the amount of bytes we want
+	// to read, cap it at bytes available
+	if ((Position + BytesToRead) > Handle->File->Size) {
+		BytesToRead = (size_t)(Handle->File->Size - Position);
 	}
 
-	/* Sanity */
-	if (Position >= Instance->File->Size)
-		Instance->IsEOF = 1;
+	// Read the current sector, update index to where data starts
+	// Keep reading consecutive after that untill all bytes requested have
+	// been read
 
-	/* Done! */
-	Instance->Code = RetCode;
-	return BytesRead;
+	// Read in a loop to make sure we read all requested bytes
+	while (BytesToRead) {
+		// Calculate which bucket, then the sector offset
+		// Then calculate how many sectors of the bucket we need to read
+		uint64_t Sector = MFS_GETSECTOR(Mfs, fInstance->DataBucketPosition);
+		uint64_t SectorOffset = (Position - fInstance->BucketByteBoundary) 
+			% Descriptor->Disk.Descriptor.SectorSize;
+		size_t SectorIndex = (Position - fInstance->BucketByteBoundary)
+			/ Descriptor->Disk.Descriptor.SectorSize;
+		size_t SectorsLeft = fInstance->DataBucketLength - SectorIndex;
+		size_t SectorCount = 0, ByteCount = 0;
+		
+		// Update the data-offset
+		if (*BytesAt == __MASK) {
+			*BytesAt = SectorOffset;
+		}
+
+		// Calculate the sector index into bucket
+		Sector += SectorIndex;
+
+		// Calculate how many sectors we should read in
+		SectorCount = DIVUP(BytesToRead, Descriptor->Disk.Descriptor.SectorSize);
+
+		// Do we cross a boundary?
+		if (SectorOffset + BytesToRead > Descriptor->Disk.Descriptor.SectorSize) {
+			SectorCount++;
+		}
+
+		// Adjust for bucket boundary
+		SectorCount = MIN(SectorsLeft, SectorCount);
+
+		// Adjust for number of bytes read
+		ByteCount = MIN(BytesToRead, (SectorCount * Descriptor->Disk.Descriptor.SectorSize) - SectorOffset);
+
+		// Ex pos 490 - length 50
+		// SectorIndex = 0, SectorOffset = 490, SectorCount = 2 - ByteCount = 50 (Capacity 4096)
+		// Ex pos 1109 - length 450
+		// SectorIndex = 2, SectorOffset = 85, SectorCount = 2 - ByteCount = 450 (Capacity 4096)
+		// Ex pos 490 - length 4000
+		// SectorIndex = 0, SectorOffset = 490, SectorCount = 8 - ByteCount = 3606 (Capacity 4096)
+		TRACE("Read metrics - Sector %u + %u, Count %u, ByteOffset %u, ByteCount %u",
+			LODWORD(Sector), SectorIndex, SectorCount, SectorOffset, ByteCount);
+
+		// If there is less than one sector left - break
+		if ((Descriptor->Disk.Descriptor.SectorSize + *BytesRead) > BufferObject->Capacity) {
+			WARNING("Ran out of buffer space, BytesRead %u, BytesLeft %u, Capacity %u",
+				*BytesRead, BytesToRead, BufferObject->Capacity);
+			break;
+		}
+
+		// Perform the read
+		if (DiskRead(Descriptor->Disk.Driver, Descriptor->Disk.Device, 
+			Sector, DataPointer, SectorCount) != OsNoError) {
+			ERROR("Failed to read sector");
+			Result = FsDiskError;
+			break;
+		}
+
+		// Increase the pointers and decrease with bytes read
+		DataPointer += Descriptor->Disk.Descriptor.SectorSize * SectorCount;
+		*BytesRead += ByteCount;
+		Position += ByteCount;
+		BytesToRead -= ByteCount;
+
+		// Do we need to switch bucket?
+		// We do if the position we have read to equals end of bucket
+		if (Position == (fInstance->BucketByteBoundary 
+			+ (fInstance->DataBucketLength * BucketSizeBytes))) {
+			MapRecord_t Link;
+
+			// We have to lookup the link for current bucket
+			if (MfsGetBucketLink(Descriptor, 
+				fInstance->DataBucketPosition, &Link) != OsNoError) {
+				ERROR("Failed to get link for bucket %u", fInstance->DataBucketPosition);
+				Result = FsDiskError;
+				break;
+			}
+
+			// Check for EOL
+			if (Link.Link == MFS_ENDOFCHAIN) {
+				break;
+			}
+
+			// Store link
+			fInstance->DataBucketPosition = Link.Link;
+
+			// Lookup length of link
+			if (MfsGetBucketLink(Descriptor,
+				fInstance->DataBucketPosition, &Link) != OsNoError) {
+				ERROR("Failed to get length for bucket %u", fInstance->DataBucketPosition);
+				Result = FsDiskError;
+				break;
+			}
+
+			// Store length
+			fInstance->DataBucketLength = Link.Length;
+
+			// Update bucket boundary
+			fInstance->BucketByteBoundary += (Link.Length * BucketSizeBytes);
+		}
+	}
+
+	// Return error code
+	return Result;
 }
 
 /* Write File - Writes to a 
@@ -667,6 +687,12 @@ FsSeekFile(
 				BucketPtr = Link.Link;
 
 				// Get length of link
+				if (MfsGetBucketLink(Descriptor, BucketPtr, &Link) != OsNoError) {
+					ERROR("Failed to get length for bucket %u", BucketPtr);
+					return FsDiskError;
+				}
+
+				// Update length of link
 				BucketLength = Link.Length;
 
 				// Calculate bounds for the new bucket
@@ -689,55 +715,34 @@ FsSeekFile(
 	return FsOk;
 }
 
-/* Query information - This function
- * is used to query a file for information 
- * or a directory for it's entries etc */
-VfsErrorCode_t MfsQuery(void *FsData, MCoreFileInstance_t *Instance, 
-	VfsQueryFunction_t Function, void *Buffer, size_t Length)
+/* FsQueryFile 
+ * Queries the given file handle for information, the kind of
+ * information queried is determined by the function */
+FileSystemCode_t
+FsQueryFile(
+	_In_ FileSystemDescriptor_t *Descriptor,
+	_In_ FileSystemFileHandle_t *Handle,
+	_In_ int Function,
+	_Out_ void *Buffer,
+	_In_ size_t MaxLength)
 {
-	/* Vars & Casts */
-	MCoreFileSystem_t *Fs = (MCoreFileSystem_t*)FsData;
-	MfsFile_t *mFile = (MfsFile_t*)Instance->File->Data;
+	// Variables
+	MfsFileInstance_t *fInstance = NULL;
+	MfsFile_t *fInformation = NULL;
+	MfsInstance_t *Mfs = NULL;
 
-	/* Unused */
-	_CRT_UNUSED(Fs);
+	// Trace
+	TRACE("FsQueryFile(Id 0x%x, Function %i, Length %u)",
+		Handle->Id, Function, MaxLength);
 
-	/* Which function are we requesting? */
-	switch (Function) {
+	// Instantiate the pointers
+	Mfs = (MfsInstance_t*)Descriptor->ExtensionData;
+	fInstance = (MfsFileInstance_t*)Handle->ExtensionData;
+	fInformation = (MfsFile_t*)Handle->File->ExtensionData;
+	_CRT_UNUSED(Buffer);
 
-		/* Get stats and information about an handle */
-		case QueryStats: 
-		{
-			/* Cast Handle */
-			VQFileStats_t *Stats = (VQFileStats_t*)Buffer;
-
-			/* Sanity length */
-			if (Length < sizeof(VQFileStats_t))
-				return VfsInvalidParameters;
-
-			/* Copy Stats */
-			Stats->Size = mFile->Size;
-			Stats->SizeOnDisk = mFile->AllocatedSize;
-			Stats->Position = Instance->Position + Instance->oBufferPosition;
-			Stats->Access = (int)Instance->Flags;
-
-			/* Should prolly convert this to a generic vfs format .. */
-			Stats->Flags = (int)mFile->Flags;
-
-		} break;
-
-		/* Get children of a node -> Must be a directory */
-		case QueryChildren: {
-
-		} break;
-
-		/* Ehhh */
-		default:
-			break;
-	}
-
-	/* Done! */
-	return VfsOk;
+	// Not implemented atm
+	return FsOk;
 }
 
 /* FsDestroy 
@@ -752,7 +757,7 @@ FsDestroy(
 	MfsInstance_t *Mfs = NULL;
 
 	// Instantiate the mfs pointer
-	Mfs = (MfsInstance_t*)Descriptor->ExtendedData;
+	Mfs = (MfsInstance_t*)Descriptor->ExtensionData;
 
 	// Sanity
 	if (Mfs == NULL) {

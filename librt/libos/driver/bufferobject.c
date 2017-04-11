@@ -58,13 +58,14 @@ CreateBuffer(
 	Buffer = (BufferObject_t*)kmalloc(sizeof(BufferObject_t));
 	Buffer->Virtual = (__CONST char*)kmalloc_ap(
 		DIVUP(Length, PAGE_SIZE) * PAGE_SIZE, (uintptr_t*)&Buffer->Physical);
-	Buffer->Pages = DIVUP(Length, PAGE_SIZE);
+	Buffer->Capacity = DIVUP(Length, PAGE_SIZE) * PAGE_SIZE;
 	Result = OsNoError;
 #else
 	Buffer = (BufferObject_t*)malloc(sizeof(BufferObject_t));
 	Result = MemoryAllocate(Length,
 		MEMORY_COMMIT | MEMORY_CONTIGIOUS | MEMORY_LOWFIRST,
 		(void**)&Buffer->Virtual, &Buffer->Physical);
+	Buffer->Capacity = DIVUP(Length, 0x1000) * 0x1000;
 
 	/* Sanitize the result and
 	 * return the newly created object */

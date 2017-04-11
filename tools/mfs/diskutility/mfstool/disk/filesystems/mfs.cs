@@ -15,47 +15,46 @@ namespace DiskUtility
         private UInt64 m_iSectorCount;
         private UInt16 m_iBucketSize;
 
-        /* Allocate a bucket */
-        UInt32 AllocateBucket(UInt32 FreeBucketIndex, UInt64 NumBuckets, out UInt32 InitialSize)
+        /* AllocateBuckets
+         * Allocates the number of requested buckets, and spits out the initial allocation size */
+        UInt32 AllocateBuckets(UInt32 FreeBucketIndex, UInt64 NumBuckets, out UInt32 InitialSize)
         {
-            /* Calculate Bucket Map */
-            UInt64 Buckets = mDisk.TotalSectors / mDisk.BucketSize;
-            UInt64 BucketMapSize = Buckets * 8; /* One bucket descriptor is 8 bytes */
-            UInt64 BucketMapSector = (mDisk.TotalSectors - ((BucketMapSize / mDisk.BytesPerSector) + 1));
-            UInt32 BucketsPerSector = mDisk.BytesPerSector / 8;
+            // Calculates the position of the bucket-map
+            UInt64 Buckets = m_pDisk.TotalSectors / m_iBucketSize;
+            UInt64 BucketMapSize = Buckets * 8; // One bucket descriptor is 8 bytes
+            UInt64 BucketMapSector = (m_pDisk.TotalSectors - ((BucketMapSize / m_pDisk.BytesPerSector) + 1));
+            UInt32 BucketsPerSector = m_pDisk.BytesPerSector / 8;
 
+            // Iterate and allocate the buckets
             UInt64 Counter = NumBuckets;
             UInt32 BucketPtr = FreeBucketIndex;
             UInt32 BucketPrevPtr = 0;
             UInt32 FirstFreeSize = 0;
-            while (Counter > 0)
-            {
-                /* Which sector is the next bucket in? */
+            while (Counter > 0) {
                 UInt32 FreeCount = 0;
                 UInt32 SectorOffset = BucketPtr / BucketsPerSector;
                 UInt32 SectorIndex = BucketPtr % BucketsPerSector;
 
-                /* Read sector */
-                Byte[] Sector = ReadDisk(mDisk, BucketMapSector + SectorOffset, 1);
+                // Read the map sector
+                Byte[] Sector = m_pDisk.Read(BucketMapSector + SectorOffset, 1);
 
-                /* Done */
+                // Convert
                 BucketPrevPtr = BucketPtr;
                 BucketPtr = BitConverter.ToUInt32(Sector, (int)(SectorIndex * 8));
                 FreeCount = BitConverter.ToUInt32(Sector, (int)((SectorIndex * 8) + 4));
 
-                /* How many buckets? */
-                if (FreeCount > Counter)
-                {
-                    /* Calculate next free */
+                // Did this block have enough for us?
+                if (FreeCount > Counter) {
+                    // Yes, we need to split it up to two blocks now
                     UInt32 NextFreeBucket = BucketPrevPtr + (UInt32)Counter;
                     UInt32 NextFreeCount = FreeCount - (UInt32)Counter;
 
                     if (FirstFreeSize == 0)
                         FirstFreeSize = (UInt32)Counter;
 
-                    /* We have to adjust now, 
-                     * since we are taking only a chunk
-                     * of the available length */
+                    // We have to adjust now, 
+                    // since we are taking only a chunk
+                    // of the available length 
                     Sector[SectorIndex * 8] = 0xFF;
                     Sector[SectorIndex * 8 + 1] = 0xFF;
                     Sector[SectorIndex * 8 + 2] = 0xFF;
@@ -65,17 +64,17 @@ namespace DiskUtility
                     Sector[SectorIndex * 8 + 6] = (Byte)((Counter >> 16) & 0xFF);
                     Sector[SectorIndex * 8 + 7] = (Byte)((Counter >> 24) & 0xFF);
 
-                    /* Write it back */
-                    WriteDisk(mDisk, BucketMapSector + SectorOffset, Sector, true);
+                    // Update map sector
+                    m_pDisk.Write(Sector, BucketMapSector + SectorOffset, true);
 
-                    /* Setup new block */
+                    // Create new block
                     SectorOffset = NextFreeBucket / BucketsPerSector;
                     SectorIndex = NextFreeBucket % BucketsPerSector;
 
-                    /* Read */
-                    Sector = ReadDisk(mDisk, BucketMapSector + SectorOffset, 1);
+                    // Read the map sector
+                    Sector = m_pDisk.Read(BucketMapSector + SectorOffset, 1);
 
-                    /* Modify */
+                    // Update the link
                     Sector[SectorIndex * 8] = (Byte)(BucketPtr & 0xFF);
                     Sector[SectorIndex * 8 + 1] = (Byte)((BucketPtr >> 8) & 0xFF);
                     Sector[SectorIndex * 8 + 2] = (Byte)((BucketPtr >> 16) & 0xFF);
@@ -85,42 +84,42 @@ namespace DiskUtility
                     Sector[SectorIndex * 8 + 6] = (Byte)((NextFreeCount >> 16) & 0xFF);
                     Sector[SectorIndex * 8 + 7] = (Byte)((NextFreeCount >> 24) & 0xFF);
 
-                    /* Write it back */
-                    WriteDisk(mDisk, BucketMapSector + SectorOffset, Sector, true);
+                    // Update the map sector again
+                    m_pDisk.Write(Sector, BucketMapSector + SectorOffset, true);
 
-                    /* Done */
+                    // Done
                     InitialSize = FirstFreeSize;
                     return NextFreeBucket;
                 }
                 else
                 {
-                    /* We can just take the whole cake
-                     * no need to modify it's length */
+                    // We can just take the whole cake
+                    // no need to modify it's length 
                     if (FirstFreeSize == 0)
                         FirstFreeSize = FreeCount;
 
-                    /* Next */
                     Counter -= FreeCount;
                 }
             }
 
-            /* Update BucketPrevPtr to 0xFFFFFFFF */
+            // Update BucketPrevPtr to 0xFFFFFFFF
             UInt32 _SecOff = BucketPrevPtr / BucketsPerSector;
             UInt32 _SecInd = BucketPrevPtr % BucketsPerSector;
 
-            /* Read sector */
-            Byte[] _Sec = ReadDisk(mDisk, BucketMapSector + _SecOff, 1);
+            
+            // Read the sector
+            Byte[] _Sec = m_pDisk.Read(BucketMapSector + _SecOff, 1);
 
-            /* Modify Sector */
+            // Modify link
             _Sec[_SecInd * 8] = 0xFF;
             _Sec[_SecInd * 8 + 1] = 0xFF;
             _Sec[_SecInd * 8 + 2] = 0xFF;
             _Sec[_SecInd * 8 + 3] = 0xFF;
 
-            /* Write it back */
-            WriteDisk(mDisk, BucketMapSector + _SecOff, _Sec, true);
+            // Update sector
+            m_pDisk.Write(_Sec, BucketMapSector + _SecOff, true);
 
-            /* Done */
+            // Done
             InitialSize = FirstFreeSize;
             return BucketPtr;
         }
