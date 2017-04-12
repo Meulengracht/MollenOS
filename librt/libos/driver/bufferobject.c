@@ -37,6 +37,19 @@
 #include <stdlib.h>
 #include <string.h>
 
+/* BufferObject Structure (Private)
+ * This is the way to interact with transfer
+ * buffers throughout the system, must be used
+ * for any hardware transactions */
+typedef struct _BufferObject {
+	UUId_t					 Creator;
+	__CONST char			*Virtual;
+	uintptr_t				 Physical;
+	size_t					 Length;
+	size_t					 Capacity;
+	size_t					 Position;
+} BufferObject_t;
+
 /* CreateBuffer 
  * Creates a new buffer object with the given size, 
  * this allows hardware drivers to interact with the buffer */
@@ -80,6 +93,51 @@ CreateBuffer(
 	return Buffer;
 }
 
+/* DestroyBuffer 
+ * Destroys the given buffer object and release resources
+ * allocated with the CreateBuffer function */
+OsStatus_t
+DestroyBuffer(
+	_In_ BufferObject_t *BufferObject)
+{
+	/* Variables */
+	OsStatus_t Result;
+
+	/* Sanitize the length */
+	if (BufferObject == NULL) {
+		return OsError;
+	}
+
+	/* Contact OS services and release buffer */
+#ifdef LIBC_KERNEL
+	kfree((void*)BufferObject->Virtual);
+	kfree(BufferObject);
+	Result = OsNoError;
+#else
+	Result = MemoryFree((void*)BufferObject->Virtual, BufferObject->Length);
+	free(BufferObject);
+#endif
+	return Result;
+}
+
+/* AcquireBuffer
+ * Acquires the buffer for access in this addressing space
+ * It's impossible to access the data by normal means before calling this */
+MOSAPI 
+OsStatus_t
+MOSABI
+AcquireBuffer(
+	_In_ BufferObject_t *BufferObject);
+
+/* ReleaseBuffer 
+ * Releases the buffer access and frees resources needed for accessing 
+ * this buffer */
+MOSAPI
+OsStatus_t
+MOSABI
+ReleaseBuffer(
+	_In_ BufferObject_t *BufferObject);
+
 /* ZeroBuffer 
  * Clears the entire buffer and resets the internal indexes */
 OsStatus_t
@@ -90,15 +148,34 @@ ZeroBuffer(
 	memset((void*)BufferObject->Virtual, 0, BufferObject->Length);
 
 	// Reset counters
-	BufferObject->IndexWrite = 0;
+	BufferObject->Position = 0;
 
 	// Done
 	return OsNoError;
 }
 
+/* SeekBuffer
+ * Seeks the current write/read marker to a specified point
+ * in the buffer */
+OsStatus_t
+SeekBuffer(
+	_In_ BufferObject_t *BufferObject,
+	_In_ size_t Position)
+{
+	// Sanitize parameters
+	if (BufferObject == NULL || BufferObject->Length < Position) {
+		return OsError;
+	}
+
+	// Update position
+	BufferObject->Position = Position;
+	return OsNoError;
+}
+
 /* ReadBuffer 
- * Reads <BytesToRead> into the given user-buffer
- * from the allocated buffer-object */
+ * Reads <BytesToWrite> into the given user-buffer
+ * from the given buffer-object. It uses indexed reads, so
+ * the read will be from the current position */
 OsStatus_t 
 ReadBuffer(
 	_In_ BufferObject_t *BufferObject, 
@@ -123,8 +200,7 @@ ReadBuffer(
 /* WriteBuffer 
  * Writes <BytesToWrite> into the allocated buffer-object
  * from the given user-buffer. It uses indexed writes, so
- * the next write will be appended unless BytesToWrite == Size.
- * Index is reset once it returns less bytes written than requested */
+ * the next write will be appended to the current position */
 OsStatus_t 
 WriteBuffer(
 	_In_ BufferObject_t *BufferObject, 
@@ -159,29 +235,80 @@ WriteBuffer(
 	return OsNoError;
 }
 
-/* DestroyBuffer 
- * Destroys the given buffer object and release resources
- * allocated with the CreateBuffer function */
+/* CombineBuffer 
+ * Writes <BytesToTransfer> into the destination from the given
+ * source buffer, make sure the position in both buffers are correct.
+ * The number of bytes transferred is set as output */
+MOSAPI 
 OsStatus_t
-DestroyBuffer(
+MOSABI
+CombineBuffer(
+	_Out_ BufferObject_t *Destination,
+	_In_ BufferObject_t *Source,
+	_In_ size_t BytesToTransfer,
+	_Out_Opt_ size_t *BytesTransferred)
+{
+
+}
+
+/* GetBufferSize
+ * Retrieves the current size of the given buffer, note that the capacity
+ * and current size of the buffer may differ because of the current subsystem */
+size_t
+GetBufferSize(
 	_In_ BufferObject_t *BufferObject)
 {
-	/* Variables */
-	OsStatus_t Result;
-
-	/* Sanitize the length */
+	// Sanitize
 	if (BufferObject == NULL) {
-		return OsError;
+		return 0;
 	}
 
-	/* Contact OS services and release buffer */
-#ifdef LIBC_KERNEL
-	kfree((void*)BufferObject->Virtual);
-	kfree(BufferObject);
-	Result = OsNoError;
-#else
-	Result = MemoryFree((void*)BufferObject->Virtual, BufferObject->Length);
-	free(BufferObject);
-#endif
-	return Result;
+	// Return the buffer length
+	return BufferObject->Length;
+}
+
+/* GetBufferCapacity
+ * Retrieves the capacity of the given buffer-object */
+size_t
+GetBufferCapacity(
+	_In_ BufferObject_t *BufferObject)
+{
+	// Sanitize
+	if (BufferObject == NULL) {
+		return 0;
+	}
+
+	// Return the buffer capacity
+	return BufferObject->Capacity;
+}
+
+/* GetBufferData
+ * Returns a pointer to the raw data currently in the buffer */
+uintptr_t*
+GetBufferData(
+	_In_ BufferObject_t *BufferObject)
+{
+	// Sanitize
+	if (BufferObject == NULL) {
+		return NULL;
+	}
+
+	// Return the virtual address
+	return (uintptr_t*)BufferObject->Virtual;
+}
+
+/* GetBufferAddress
+ * Returns the physical address of the buffer in memory. This address
+ * is not accessible by normal means. */
+uintptr_t
+GetBufferAddress(
+	_In_ BufferObject_t *BufferObject)
+{
+	// Sanitize
+	if (BufferObject == NULL) {
+		return 0;
+	}
+
+	// Return the physical address
+	return BufferObject->Physical;
 }

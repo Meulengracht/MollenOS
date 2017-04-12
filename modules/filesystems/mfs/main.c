@@ -62,7 +62,7 @@ FsOpenFile(
 	// Fill out information in _out_
 	File->Name = fInformation->Name;
 	File->Size = fInformation->Size;
-	File->ExtensionData = fInformation;
+	File->ExtensionData = (uintptr_t*)fInformation;
 
 	// Done
 	return Result;
@@ -92,7 +92,7 @@ FsCreateFile(
 
 	// Create the record
 	Result = MfsCreateRecord(Descriptor, Mfs->MasterRecord.RootIndex,
-		Path, 0, &fInformation);
+		Path, Options, &fInformation);
 
 	// Sanitize the result
 	if (Result != FsOk) {
@@ -102,7 +102,7 @@ FsCreateFile(
 	// Fill out information in _out_
 	File->Name = fInformation->Name;
 	File->Size = fInformation->Size;
-	File->ExtensionData = fInformation;
+	File->ExtensionData = (uintptr_t*)fInformation;
 
 	// Done
 	return Result;
@@ -120,7 +120,6 @@ FsCloseFile(
 	// Variables
 	MfsInstance_t *Mfs = NULL;
 	MfsFile_t *fInformation = NULL;
-	FileSystemCode_t Result;
 
 	// Trace
 	TRACE("FsCloseFile(Hash 0x%x)", File->Hash);
@@ -176,7 +175,7 @@ FsOpenHandle(
 	fInstance->DataBucketLength = fInformation->StartLength;
 
 	// Update out
-	Handle->ExtensionData = fInstance;
+	Handle->ExtensionData = (uintptr_t*)fInstance;
 
 	// Done
 	return FsOk;
@@ -241,11 +240,11 @@ FsReadFile(
 	fInstance = (MfsFileInstance_t*)Handle->ExtensionData;
 	fInformation = (MfsFile_t*)Handle->File->ExtensionData;
 
-	// Instantiate some of the consants
+	// Instantiate some of the contents
 	BucketSizeBytes = Mfs->SectorsPerBucket * Descriptor->Disk.Descriptor.SectorSize;
-	DataPointer = BufferObject->Physical;
+	DataPointer = GetBufferAddress(BufferObject);
 	Position = Handle->Position;
-	BytesToRead = BufferObject->Length;
+	BytesToRead = GetBufferSize(BufferObject);
 	*BytesRead = 0;
 	*BytesAt = __MASK;
 
@@ -266,14 +265,14 @@ FsReadFile(
 		uint64_t Sector = MFS_GETSECTOR(Mfs, fInstance->DataBucketPosition);
 		uint64_t SectorOffset = (Position - fInstance->BucketByteBoundary) 
 			% Descriptor->Disk.Descriptor.SectorSize;
-		size_t SectorIndex = (Position - fInstance->BucketByteBoundary)
-			/ Descriptor->Disk.Descriptor.SectorSize;
+		size_t SectorIndex = (size_t)((Position - fInstance->BucketByteBoundary)
+			/ Descriptor->Disk.Descriptor.SectorSize);
 		size_t SectorsLeft = fInstance->DataBucketLength - SectorIndex;
 		size_t SectorCount = 0, ByteCount = 0;
 		
 		// Update the data-offset
 		if (*BytesAt == __MASK) {
-			*BytesAt = SectorOffset;
+			*BytesAt = (size_t)SectorOffset;
 		}
 
 		// Calculate the sector index into bucket
@@ -291,7 +290,7 @@ FsReadFile(
 		SectorCount = MIN(SectorsLeft, SectorCount);
 
 		// Adjust for number of bytes read
-		ByteCount = MIN(BytesToRead, (SectorCount * Descriptor->Disk.Descriptor.SectorSize) - SectorOffset);
+		ByteCount = (size_t)MIN(BytesToRead, (SectorCount * Descriptor->Disk.Descriptor.SectorSize) - SectorOffset);
 
 		// Ex pos 490 - length 50
 		// SectorIndex = 0, SectorOffset = 490, SectorCount = 2 - ByteCount = 50 (Capacity 4096)
@@ -303,14 +302,14 @@ FsReadFile(
 			LODWORD(Sector), SectorIndex, SectorCount, SectorOffset, ByteCount);
 
 		// If there is less than one sector left - break
-		if ((Descriptor->Disk.Descriptor.SectorSize + *BytesRead) > BufferObject->Capacity) {
+		if ((Descriptor->Disk.Descriptor.SectorSize + *BytesRead) > GetBufferCapacity(BufferObject)) {
 			WARNING("Ran out of buffer space, BytesRead %u, BytesLeft %u, Capacity %u",
-				*BytesRead, BytesToRead, BufferObject->Capacity);
+				*BytesRead, BytesToRead, GetBufferCapacity(BufferObject));
 			break;
 		}
 
 		// Perform the read (Raw - as we need to pass the datapointer)
-		if (MfsReadSectors(Descriptor->Disk.Driver, Descriptor->Disk.Device, 
+		if (DiskRead(Descriptor->Disk.Driver, Descriptor->Disk.Device, 
 			Descriptor->SectorStart + Sector, DataPointer, SectorCount) != OsNoError) {
 			ERROR("Failed to read sector");
 			Result = FsDiskError;
@@ -375,194 +374,213 @@ FsWriteFile(
 	_In_ BufferObject_t *BufferObject,
 	_Out_ size_t *BytesWritten)
 {
-	/* Vars */
-	MCoreFileSystem_t *Fs = (MCoreFileSystem_t*)FsData;
-	MfsFileInstance_t *mInstance = (MfsFileInstance_t*)Instance->Instance;
-	MfsData_t *mData = (MfsData_t*)Fs->ExtendedData;
-	MfsFile_t *mFile = (MfsFile_t*)Instance->File->Data;
-	VfsErrorCode_t RetCode = VfsOk;
-	uint8_t *BufPtr = Buffer;
-	uint64_t Position = Instance->Position;
+	// Variables
+	MfsFileInstance_t *fInstance = NULL;
+	MfsFile_t *fInformation = NULL;
+	MfsInstance_t *Mfs = NULL;
+	FileSystemCode_t Result = FsOk;
+	uint64_t Position;
+	size_t BucketSizeBytes;
+	size_t BytesToWrite;
 
-	/* BucketPtr for iterating */
-	size_t BytesWritten = 0;
-	size_t BytesToWrite = Size;
+	// Trace
+	TRACE("FsWriteFile(Id 0x%x, Position %u, Length %u)",
+		Handle->Id, LODWORD(Handle->Position), BufferObject->Length);
 
-	/* Make sure there is enough room */
-	if ((Instance->Position + Size) > mFile->AllocatedSize
-		|| mFile->DataBucket == MFS_END_OF_CHAIN)
-	{
-		/* Well... Uhh */
-		
-		/* Allocate more */
-		uint64_t NumSectors = DIVUP(((Instance->Position + Size) - mFile->AllocatedSize), Fs->SectorSize);
-		uint64_t NumBuckets = DIVUP(NumSectors, mData->BucketSize);
+	// Instantiate the pointers
+	Mfs = (MfsInstance_t*)Descriptor->ExtensionData;
+	fInstance = (MfsFileInstance_t*)Handle->ExtensionData;
+	fInformation = (MfsFile_t*)Handle->File->ExtensionData;
 
-		/* Allocate buckets */
-		uint32_t FreeBucket = mData->FreeIndex;
-		uint32_t FreeLength = 0;
-		MfsAllocateBucket(Fs, (uint32_t)NumBuckets, &FreeLength);
+	// Instantiate some of the variables
+	BucketSizeBytes = Mfs->SectorsPerBucket * Descriptor->Disk.Descriptor.SectorSize;
+	Position = Handle->Position;
+	BytesToWrite = GetBufferSize(BufferObject);
+	*BytesWritten = 0;
 
-		/* Get last bucket in chain */
-		uint32_t BucketPtr = mFile->DataBucket;
-		uint32_t BucketPrevPtr = mFile->DataBucket;
-		uint32_t BucketLength = 0;
+	// Make sure record has enough disk-space allocated for 
+	// the write operations
+	if ((Position + BytesToWrite) > fInformation->AllocatedSize) {
+		// Calculate the number of sectors, then number of buckets
+		size_t NumSectors = (size_t)(DIVUP(((Position + BytesToWrite) - fInformation->AllocatedSize),
+			Descriptor->Disk.Descriptor.SectorSize));
+		size_t NumBuckets = DIVUP(NumSectors, Mfs->SectorsPerBucket);
+		uint32_t BucketPointer, PreviousBucketPointer;
+		MapRecord_t Iterator, Link;
 
-		/* Iterate to last entry */
-		while (BucketPtr != MFS_END_OF_CHAIN) {
-			BucketPrevPtr = BucketPtr;
-			MfsGetNextBucket(Fs, BucketPtr, &BucketPtr, &BucketLength);
+		// Perform the allocation of buckets
+		if (MfsAllocateBuckets(Descriptor, NumBuckets, &Link) != OsNoError) {
+			ERROR("Failed to allocate %u buckets for file", NumBuckets);
+			return FsDiskError;
 		}
 
-		/* Adjust allocated size */
-		mFile->AllocatedSize += (NumBuckets * mData->BucketSize * Fs->SectorSize);
+		// Now iterate to end
+		BucketPointer = fInformation->StartBucket;
+		PreviousBucketPointer = MFS_ENDOFCHAIN;
+		while (BucketPointer != MFS_ENDOFCHAIN) {
+			PreviousBucketPointer = BucketPointer;
+			if (MfsGetBucketLink(Descriptor, BucketPointer, &Iterator) != OsNoError) {
+				ERROR("Failed to get link for bucket %u", BucketPointer);
+				return FsDiskError;
+			}
+			BucketPointer = Iterator.Link;
+		}
 
-		/* Sanity -> First bucket?? */
-		if (BucketPrevPtr == MFS_END_OF_CHAIN) {
-			mInstance->DataBucketPosition = mFile->DataBucket = FreeBucket;
-			mFile->InitialBucketLength = mInstance->DataBucketLength = FreeLength;
+		// We have a special case if previous == MFS_ENDOFCHAIN
+		if (PreviousBucketPointer == MFS_ENDOFCHAIN) {
+			// This means file had nothing allocated
+			fInformation->StartBucket = Link.Link;
+			fInformation->StartLength = Link.Length;
+			fInstance->DataBucketPosition = Link.Link;
+			fInstance->DataBucketLength = Link.Length;
+			fInstance->BucketByteBoundary = 0;
 		}
 		else {
-			/* Update pointer */
-			MfsSetNextBucket(Fs, BucketPrevPtr, FreeBucket, FreeLength, 1);
+			if (MfsSetBucketLink(Descriptor, PreviousBucketPointer, &Link, 1) != OsNoError) {
+				ERROR("Failed to set link for bucket %u", PreviousBucketPointer);
+				return FsDiskError;
+			}
 		}
 
-		/* Now, update entry on disk 
-		 * thats important if next steps fail */
-		RetCode = MfsUpdateEntry(Fs, mFile, MFS_ACTION_UPDATE);
+		// Adjust the allocated-size of record
+		fInformation->AllocatedSize += (NumBuckets * BucketSizeBytes);
 
-		/* Sanity */
-		if (RetCode != VfsOk) {
-			Instance->Code = RetCode;
-			return 0;
+		// Now, update entry on disk 
+		// thats important if next steps fail
+		Result = MfsUpdateRecord(Descriptor, fInformation, MFS_ACTION_UPDATE);
+
+		// Sanitize update operation
+		if (Result != FsOk) {
+			ERROR("Failed to update record");
+			return Result;
 		}
 	}
+	
+	// Figure out the sector that we need to modify
+	// Then figure out if we need to modify a full sector or a partial
+	// sector.
+	if (AcquireBuffer(BufferObject) != OsNoError) {
+		ERROR("Failed to acquire the buffer for writing");
+		return FsInvalidParameters;
+	}
 
-	/* Keep wriiiting */
-	while (BytesToWrite)
-	{
-		uint64_t SectorLba = mData->BucketSize * mInstance->DataBucketPosition;
-		uint64_t bbOffset = Position - mInstance->BucketByteBoundary;
-		size_t SizeOfBucket = (mData->BucketSize * Fs->SectorSize);
-		size_t SizeOfThisBucket = (mInstance->DataBucketLength * SizeOfBucket);
-		size_t nBuckets = (size_t)(bbOffset / SizeOfBucket);
-		size_t AdjustedByteCount = 0;
+	// Write in a loop to make sure we write all requested bytes
+	while (BytesToWrite) {
+		// Calculate which bucket, then the sector offset
+		// Then calculate how many sectors of the bucket we need to read
+		uint64_t Sector = MFS_GETSECTOR(Mfs, fInstance->DataBucketPosition);
+		uint64_t SectorOffset = (Position - fInstance->BucketByteBoundary)
+			% Descriptor->Disk.Descriptor.SectorSize;
+		size_t SectorIndex = (size_t)((Position - fInstance->BucketByteBoundary)
+			/ Descriptor->Disk.Descriptor.SectorSize);
+		size_t SectorsLeft = fInstance->DataBucketLength - SectorIndex;
+		size_t SectorCount = 0, ByteCount = 0;
 
-		/* Allocate buffer for data */
-		uint8_t *TransferBuffer = NULL;
-		size_t TransferSize = 0;
+		// Ok - so sectorindex contains the index in the bucket
+		// and sector offset contains the byte-offset in that sector
 
-		/* Determine optimal transfer buffer */
-		if (BytesToWrite <= SizeOfBucket
-			|| SizeOfThisBucket == SizeOfBucket) {
-			/* Use ours */
-			TransferBuffer = mInstance->BucketBuffer;
-			TransferSize = mData->BucketSize;
-		}
-		else {
-			/* Find optimal size */
-			size_t BucketsNeeded = DIVUP(BytesToWrite, SizeOfBucket);
-			TransferBuffer = (uint8_t*)kmalloc(BucketsNeeded * SizeOfBucket);
-			TransferSize = BucketsNeeded * mData->BucketSize;
-		}
+		// Calculate the sector index into bucket
+		Sector += SectorIndex;
 
-		/* Adjust SectorLba */
-		AdjustedByteCount = nBuckets * (mData->BucketSize * Fs->SectorSize);
-		SectorLba += nBuckets * mData->BucketSize;
+		// First of all, calculate the bounds as we might need to read
+		// in existing data - Start out by clearing our combination buffer
+		ZeroBuffer(Mfs->TransferBuffer);
 
-		/* We have to calculate the offset into this buffer we must transfer data */
-		size_t bOffset = (size_t)(Position - mInstance->BucketByteBoundary - AdjustedByteCount);
-		size_t BytesLeft = (TransferSize * Fs->SectorSize) - bOffset;
-		size_t BytesCopied = 0;
-
-		/* Are we on a bucket boundary ?
-		 * and we need to write atleast an entire bucket */
-		if (bOffset == 0 && BytesToWrite >= (TransferSize * Fs->SectorSize))
-		{
-			/* Then we don't care about content */
-			memcpy(TransferBuffer, BufPtr, (TransferSize * Fs->SectorSize));
-			BytesCopied = (TransferSize * Fs->SectorSize);
-		}
-		else
-		{
-			/* Means we are modifying */
-
-			/* Read the old bucket */
-			if (MfsReadSectors(Fs, SectorLba, TransferBuffer, TransferSize) != RequestNoError)
-			{
-				/* Error */
-				RetCode = VfsDiskError;
-				LogFatal("MFS1", "WRITEFILE: Error reading sector %u from disk",
-					(size_t)(mData->BucketSize * mInstance->DataBucketPosition));
-				LogFatal("MFS1", "Bucket Position %u, mFile Position %u, mFile Size %u",
-					mInstance->DataBucketPosition, (size_t)Position, (size_t)Instance->File->Size);
-				break;
-			}
-			
-			/* Buuuut, we have quite a few cases here 
-			 * Case 1 - We need to write less than what is left, easy */
-			if (BytesToWrite <= BytesLeft)
-			{
-				/* Write it */
-				memcpy((TransferBuffer + bOffset), BufPtr, BytesToWrite);
-				BytesCopied = BytesToWrite;
-			}
-			else
-			{
-				/* Write whats left */
-				memcpy((TransferBuffer + bOffset), BufPtr, BytesLeft);
-				BytesCopied = BytesLeft;
+		// Case 1 - Handle pre-padding
+		if (SectorOffset != 0) {
+			// Start building the sector
+			if (MfsReadSectors(Descriptor, Mfs->TransferBuffer, Sector, 1) != OsNoError) {
+				ERROR("Failed to read sector %u for combination step", 
+					LODWORD(Sector));
+				return FsDiskError;
 			}
 		}
 
-		/* Write back bucket */
-		if (MfsWriteSectors(Fs, SectorLba, TransferBuffer, TransferSize) != RequestNoError)
-		{
-			/* Error */
-			RetCode = VfsDiskError;
-			LogFatal("MFS1", "WRITEFILE: Error writing to disk");
+		// Case 2 - Handle post-padding
+		// It combined size must be in a middle of a sector
+		// and it must have spanned over more than the same sector
+		if ((SectorOffset + BytesToWrite) % Descriptor->Disk.Descriptor.SectorSize) {
+			if (SectorCount > 1) {
+				// We should calculate index and read the existing sector
+				// into the buffer
+			}
+		}
+
+		// Calculate how many bytes we should write in this iteration
+
+		// Now write the data to the sector
+		SeekBuffer(Mfs->TransferBuffer, (size_t)SectorOffset);
+		CombineBuffer(Mfs->TransferBuffer, BufferObject, ByteCount, NULL);
+
+		// Perform the write (Raw - as we need to pass the datapointer)
+		if (MfsWriteSectors(Descriptor, Mfs->TransferBuffer, Sector, SectorCount) != OsNoError) {
+			ERROR("Failed to write sector %u", LODWORD(Sector));
+			Result = FsDiskError;
 			break;
 		}
 
-		/* Done with buffer */
-		if (TransferSize != mData->BucketSize)
-			kfree(TransferBuffer);
+		// Increase the pointers and decrease with bytes read
+		*BytesWritten += ByteCount;
+		Position += ByteCount;
+		BytesToWrite -= ByteCount;
 
-		/* Advance pointer(s) */
-		BytesWritten += BytesCopied;
-		BufPtr += BytesCopied;
-		BytesToWrite -= BytesCopied;
-		Position += BytesCopied;
+		// Do we need to switch bucket?
+		// We do if the position we have read to equals end of bucket
+		if (Position == (fInstance->BucketByteBoundary
+			+ (fInstance->DataBucketLength * BucketSizeBytes))) {
+			MapRecord_t Link;
 
-		/* Switch to next bucket? */
-		if (Position == mInstance->BucketByteBoundary + SizeOfThisBucket)
-		{
-			/* Go to next */
-			uint32_t NextBucket = 0;
-			uint32_t BucketLength = 0;
-			MfsGetNextBucket(Fs, mInstance->DataBucketPosition, &NextBucket, &BucketLength);
+			// We have to lookup the link for current bucket
+			if (MfsGetBucketLink(Descriptor,
+				fInstance->DataBucketPosition, &Link) != OsNoError) {
+				ERROR("Failed to get link for bucket %u", fInstance->DataBucketPosition);
+				Result = FsDiskError;
+				break;
+			}
 
-			/* Sanity */
-			if (NextBucket != MFS_END_OF_CHAIN)
-				mInstance->DataBucketPosition = NextBucket;
+			// Check for EOL
+			if (Link.Link == MFS_ENDOFCHAIN) {
+				break;
+			}
+
+			// Store link
+			fInstance->DataBucketPosition = Link.Link;
+
+			// Lookup length of link
+			if (MfsGetBucketLink(Descriptor,
+				fInstance->DataBucketPosition, &Link) != OsNoError) {
+				ERROR("Failed to get length for bucket %u", fInstance->DataBucketPosition);
+				Result = FsDiskError;
+				break;
+			}
+
+			// Store length
+			fInstance->DataBucketLength = Link.Length;
+
+			// Update bucket boundary
+			fInstance->BucketByteBoundary += (Link.Length * BucketSizeBytes);
 		}
 	}
 
-	/* Update position */
-	Instance->Position = Position;
-
-	/* Sanity */
-	if (Instance->Position > Instance->File->Size) {
-		Instance->File->Size = Instance->Position;
-		mFile->Size = Instance->Position;
+	// Release buffer
+	if (ReleaseBuffer(BufferObject) != OsNoError) {
+		ERROR("Failed to release the buffer");
 	}
 
-	/* Update entry */
-	RetCode = MfsUpdateEntry(Fs, mFile, MFS_ACTION_UPDATE);
+	// Update file position
+	Handle->Position = Position;
 
-	/* Done! */
-	Instance->Code = RetCode;
-	return BytesWritten;
+	// Do we need to update the on-disk record with the
+	// new file-size? 
+	if (Handle->Position > Handle->File->Size) {
+		Handle->File->Size = Handle->Position;
+		fInformation->Size = Handle->Position;
+	}
+
+	// Update time-modified
+
+	// Update on-disk record
+	return MfsUpdateRecord(Descriptor, fInformation, MFS_ACTION_UPDATE);
 }
 
 /* FsDeleteFile 
@@ -743,7 +761,10 @@ FsQueryFile(
 	Mfs = (MfsInstance_t*)Descriptor->ExtensionData;
 	fInstance = (MfsFileInstance_t*)Handle->ExtensionData;
 	fInformation = (MfsFile_t*)Handle->File->ExtensionData;
+	
+	_CRT_UNUSED(Function);
 	_CRT_UNUSED(Buffer);
+	_CRT_UNUSED(MaxLength);
 
 	// Not implemented atm
 	return FsOk;
@@ -815,7 +836,7 @@ FsInitialize(
 	Mfs = (MfsInstance_t*)malloc(sizeof(MfsInstance_t));
 
 	// Instantiate the boot-record pointer
-	BootRecord = (BootRecord_t*)Buffer->Virtual;
+	BootRecord = (BootRecord_t*)GetBufferData(Buffer);
 
 	// Process the boot-record
 	if (BootRecord->Magic != MFS_BOOTRECORD_MAGIC) {
@@ -847,7 +868,7 @@ FsInitialize(
 	}
 
 	// Instantiate the master-record pointer
-	MasterRecord = (MasterRecord_t*)Buffer->Virtual;
+	MasterRecord = (MasterRecord_t*)GetBufferData(Buffer);
 
 	// Process the master-record
 	if (MasterRecord->Magic != MFS_BOOTRECORD_MAGIC) {
@@ -870,7 +891,7 @@ FsInitialize(
 	Mfs->TransferBuffer = Buffer;
 
 	// Allocate a buffer for the map
-	Mfs->BucketMap = (uint32_t*)malloc(Mfs->MasterRecord.MapSize);
+	Mfs->BucketMap = (uint32_t*)malloc((size_t)Mfs->MasterRecord.MapSize);
 
 	// Trace
 	TRACE("Caching bucket-map (Sector %u - Size %u)",
@@ -879,7 +900,7 @@ FsInitialize(
 
 	// Load map
 	bMap = (uint8_t*)Mfs->BucketMap;
-	BucketCount = DIVUP(Mfs->MasterRecord.MapSize, Mfs->SectorsPerBucket);
+	BucketCount = (size_t)(DIVUP(Mfs->MasterRecord.MapSize, Mfs->SectorsPerBucket));
 	for (i = 0; i < BucketCount; i++) {
 		uint64_t MapSector = Mfs->MasterRecord.MapSector 
 			+ (i * Mfs->SectorsPerBucket);
@@ -889,8 +910,8 @@ FsInitialize(
 		}
 
 		// Read the data into the map
-		ReadBuffer(Buffer, (__CONST void*)bMap, Buffer->Length);
-		bMap += Buffer->Length;
+		ReadBuffer(Buffer, (__CONST void*)bMap, GetBufferSize(Buffer));
+		bMap += GetBufferSize(Buffer);
 	}
 
 	// Update the structure

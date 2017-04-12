@@ -49,7 +49,7 @@ MfsReadSectors(
 	// Do the actual read
 	return DiskRead(Descriptor->Disk.Driver,
 		Descriptor->Disk.Device, AbsoluteSector, 
-		Buffer->Physical, Count);
+		GetBufferAddress(Buffer), Count);
 }
 
 /* MfsWriteSectors 
@@ -71,7 +71,7 @@ MfsWriteSectors(
 	// Do the actual read
 	return DiskWrite(Descriptor->Disk.Driver,
 		Descriptor->Disk.Device, AbsoluteSector,
-		Buffer->Physical, Count);
+		GetBufferAddress(Buffer), Count);
 }
 
 /* MfsUpdateMasterRecord
@@ -437,7 +437,7 @@ MfsUpdateRecord(
 	}
 	
 	// Fast-forward to the correct entry
-	Record = (FileRecord_t*)Mfs->TransferBuffer->Virtual;
+	Record = (FileRecord_t*)GetBufferData(Mfs->TransferBuffer);
 	for (i = 0; i < Handle->DirectoryIndex; i++) {
 		Record++;
 	}
@@ -570,7 +570,7 @@ MfsLocateRecord(
 
 		// Iterate the number of records in a bucket
 		// A record spans two sectors
-		Record = (FileRecord_t*)Mfs->TransferBuffer->Virtual;
+		Record = (FileRecord_t*)GetBufferData(Mfs->TransferBuffer);
 		for (i = 0; i < (Mfs->SectorsPerBucket / 2); i++) {
 			// Variables
 			MString_t *Filename = NULL;
@@ -719,7 +719,7 @@ MfsLocateFreeRecord(
 
 		// Iterate the number of records in a bucket
 		// A record spans two sectors
-		Record = (FileRecord_t*)Mfs->TransferBuffer->Virtual;
+		Record = (FileRecord_t*)GetBufferData(Mfs->TransferBuffer);
 		for (i = 0; i < (Mfs->SectorsPerBucket / 2); i++) {
 			// Variables
 			MString_t *Filename = NULL;
