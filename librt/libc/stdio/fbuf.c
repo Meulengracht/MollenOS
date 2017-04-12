@@ -50,15 +50,16 @@ int _ffullread(FILE * stream, void *ptr, size_t len)
 {
 	/* Variables */
 	BufferObject_t *Buffer = NULL;
-	size_t BytesRead = 0;
+	size_t BytesRead = 0, BytesIndex = 0;
 
 	/* Create a new buffer for transfer */
 	Buffer = CreateBuffer(len);
 
 	/* Do the read */
-	_fval((int)ReadFile(stream->fd, Buffer, &BytesRead));
+	_fval((int)ReadFile(stream->fd, Buffer, &BytesIndex, &BytesRead));
 	if (BytesRead != 0) {
-		ReadBuffer(Buffer, ptr, BytesRead);
+		SeekBuffer(Buffer, BytesIndex);
+		ReadBuffer(Buffer, ptr, BytesRead, &BytesRead);
 	}
 
 	/* Cleanup buffers */

@@ -663,20 +663,30 @@ ScMemoryQuery(
 	return OsNoError;
 }
 
-/* ScMemoryShare
- * Share a region of memory with the given process */
-uintptr_t ScMemoryShare(UUId_t Target, uintptr_t Address, size_t Size)
+/* ScMemoryAcquire
+ * Acquires a given physical memory region described by a starting address
+ * and region size. This is then mapped into the caller's address space and
+ * is then accessible. The virtual address pointer is returned. */
+OsStatus_t
+ScMemoryAcquire(
+	_In_ uintptr_t PhysicalAddress,
+	_In_ size_t Size,
+	_Out_ uintptr_t *VirtualAddress)
 {
 	// Variables
 	MCoreAsh_t *Ash = NULL;
 	size_t NumBlocks = 0, i = 0;
 
+	// Assumptions:
+	// PhysicalAddress is page aligned
+	// Size is page-aligned
+
 	// Locate the current running process
-	Ash = PhoenixGetAsh(Target);
+	Ash = PhoenixGetCurrentAsh();
 
 	// Sanity
-	if (Ash == NULL || Address == 0 || Size == 0) {
-		return 0;
+	if (Ash == NULL || PhysicalAddress == 0 || Size == 0) {
+		return OsError;
 	}
 
 	// Start out by allocating memory 
@@ -685,72 +695,69 @@ uintptr_t ScMemoryShare(UUId_t Target, uintptr_t Address, size_t Size)
 	NumBlocks = DIVUP(Size, PAGE_SIZE);
 
 	// Sanity -> If we cross a page boundary
-	if (((Address + Size) & PAGE_MASK)
-		!= (Address & PAGE_MASK)) {
+	if (((PhysicalAddress + Size) & PAGE_MASK)
+		!= (PhysicalAddress & PAGE_MASK)) {
 		NumBlocks++;
 	}
 
 	// Sanitize the memory allocation
 	assert(Shm != 0);
 
+	// Update out
+	*VirtualAddress = Shm + (PhysicalAddress & ATTRIBUTE_MASK);
+
 	// Now we have to transfer our physical mappings 
 	// to their new virtual
 	for (i = 0; i < NumBlocks; i++) {
-		uintptr_t AdjustedAddr = (Address & PAGE_MASK) + (i * PAGE_SIZE);
-		uintptr_t AdjustedShm = Shm + (i * PAGE_SIZE);
-		uintptr_t PhysicalAddress = 0;
-
-		// The address MUST be mapped in ours
-		if (!AddressSpaceGetMap(AddressSpaceGetCurrent(), AdjustedAddr)) {
-			AddressSpaceMap(AddressSpaceGetCurrent(), AdjustedAddr,
-				PAGE_SIZE, __MASK, AS_FLAG_APPLICATION, &PhysicalAddress);
-		}
-
 		// Map it directly into target process
-		AddressSpaceMapFixed(Ash->AddressSpace, PhysicalAddress,
-			AdjustedShm, PAGE_SIZE, AS_FLAG_APPLICATION | AS_FLAG_VIRTUAL);
+		AddressSpaceMapFixed(Ash->AddressSpace, 
+			PhysicalAddress + (i * PAGE_SIZE),
+			Shm + (i * PAGE_SIZE),
+			PAGE_SIZE, AS_FLAG_APPLICATION | AS_FLAG_VIRTUAL);
 	}
 
 	// Done
-	return Shm + (Address & ATTRIBUTE_MASK);
+	return OsNoError;
 }
 
-/* ScMemoryUnshare
- * Unshare a previously shared region of 
- * memory with the given process */
-OsStatus_t ScMemoryUnshare(UUId_t Target, uintptr_t TranslatedAddress, size_t Size)
+/* ScMemoryRelease
+ * Releases a previously acquired memory region and unmaps it from the caller's
+ * address space. The virtual address pointer will no longer be accessible. */
+OsStatus_t
+ScMemoryRelease(
+	_In_ uintptr_t VirtualAddress, 
+	_In_ size_t Size)
 {
-	/* Locate the current running process */
-	MCoreAsh_t *Ash = PhoenixGetAsh(Target);
+	// Variables
+	MCoreAsh_t *Ash = PhoenixGetCurrentAsh();
 	size_t NumBlocks, i;
 
-	/* Sanity */
-	if (Ash == NULL) {
+	// Assumptions:
+	// VirtualAddress is page aligned
+	// Size is page-aligned
+
+	// Sanitize the running process
+	if (Ash == NULL || VirtualAddress == 0 || Size == 0) {
 		return OsError;
 	}
 
-	/* Calculate */
+	// Calculate the number of blocks
 	NumBlocks = DIVUP(Size, PAGE_SIZE);
 
-	/* Sanity -> If we cross a page boundary */
-	if (((TranslatedAddress + Size) & PAGE_MASK)
-		!= (TranslatedAddress & PAGE_MASK)) {
+	// Sanity -> If we cross a page boundary
+	if (((VirtualAddress + Size) & PAGE_MASK)
+		!= (VirtualAddress & PAGE_MASK)) {
 		NumBlocks++;
 	}
 
-	/* Start out by unmapping their 
-	 * memory in their address space */
-	for (i = 0; i < NumBlocks; i++)
-	{
-		/* Adjust address */
-		uintptr_t AdjustedAddr = (TranslatedAddress & PAGE_MASK) + (i * PAGE_SIZE);
-
-		/* Map it directly into target process */
-		AddressSpaceUnmap(Ash->AddressSpace, AdjustedAddr, PAGE_SIZE);
+	// Iterate through allocated pages and free them
+	for (i = 0; i < NumBlocks; i++) {
+		AddressSpaceUnmap(Ash->AddressSpace, 
+			VirtualAddress + (i * PAGE_SIZE), PAGE_SIZE);
 	}
 
-	/* Now unallocate it in their bitmap */
-	BitmapFreeAddress(Ash->Shm, TranslatedAddress, Size);
+	// Free it in bitmap
+	BitmapFreeAddress(Ash->Shm, VirtualAddress, Size);
 	return OsNoError;
 }
 
@@ -1437,8 +1444,8 @@ uintptr_t GlbSyscallTable[91] =
 	DefineSyscall(ScMemoryAllocate),
 	DefineSyscall(ScMemoryFree),
 	DefineSyscall(ScMemoryQuery),
-	DefineSyscall(ScMemoryShare),
-	DefineSyscall(ScMemoryUnshare),
+	DefineSyscall(ScMemoryAcquire),
+	DefineSyscall(ScMemoryRelease),
 	DefineSyscall(NoOperation),
 	DefineSyscall(NoOperation),
 

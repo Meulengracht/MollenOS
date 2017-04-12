@@ -97,7 +97,7 @@ FileSystemModule_t *VfsResolveFileSystem(FileSystem_t *FileSystem)
 		SharedObjectGetFunction(Module->Handle, "FsDestroy");
 	Module->OpenFile = (FsOpenFile_t)
 		SharedObjectGetFunction(Module->Handle, "FsOpenFile");
-	Module->CreateFile = (FsOpenFile_t)
+	Module->CreateFile = (FsCreateFile_t)
 		SharedObjectGetFunction(Module->Handle, "FsCreateFile");
 	Module->CloseFile = (FsCloseFile_t)
 		SharedObjectGetFunction(Module->Handle, "FsCloseFile");

@@ -41,6 +41,7 @@ PACKED_TYPESTRUCT(OpenFilePackage, {
 });
 PACKED_TYPESTRUCT(RWFilePackage, {
 	FileSystemCode_t		Code;
+	size_t					Index;
 	size_t					ActualSize;
 });
 PACKED_TYPESTRUCT(QueryFileValuePackage, {
@@ -97,11 +98,13 @@ PACKED_TYPESTRUCT(QueryFileOptionsPackage, {
 
 #define __DISK_FORCED_REMOVE					0x00000001
 
+// Access flags
 #define __FILE_READ_ACCESS						0x00000001
 #define __FILE_WRITE_ACCESS						0x00000002
 #define __FILE_READ_SHARE						0x00000100
 #define __FILE_WRITE_SHARE						0x00000200
 
+// Options flag
 #define __FILE_CREATE							0x00000001
 #define __FILE_TRUNCATE							0x00000002
 #define __FILE_MUSTEXIST						0x00000004
@@ -293,13 +296,14 @@ DeleteFile(
  * Reads the requested number of bytes into the given buffer
  * from the current position in the file-handle */
 #ifdef __FILEMANAGER_IMPL
-__EXTERN 
+__EXTERN
 FileSystemCode_t
 SERVICEABI
 ReadFile(
-	_In_ UUId_t Requester, 
+	_In_ UUId_t Requester,
 	_In_ UUId_t Handle,
 	_Out_ BufferObject_t *BufferObject,
+	_Out_ size_t *BytesIndex,
 	_Out_ size_t *BytesRead);
 #else
 SERVICEAPI
@@ -308,6 +312,7 @@ SERVICEABI
 ReadFile(
 	_In_ UUId_t Handle, 
 	_Out_ BufferObject_t *BufferObject,
+	_Out_Opt_ size_t *BytesIndex,
 	_Out_Opt_ size_t *BytesRead)
 {
 	/* Variables */
@@ -318,11 +323,15 @@ ReadFile(
 	RPCInitialize(&Request, __FILEMANAGER_INTERFACE_VERSION,
 		PIPE_RPCOUT, __FILEMANAGER_READFILE);
 	RPCSetArgument(&Request, 0, (__CONST void*)&Handle, sizeof(UUId_t));
-	RPCSetArgument(&Request, 1, (__CONST void*)BufferObject, sizeof(BufferObject_t));
+	RPCSetArgument(&Request, 1, (__CONST void*)BufferObject, 
+		GetBufferObjectSize(BufferObject));
 	RPCSetResult(&Request, (__CONST void*)&Package, sizeof(RWFilePackage_t));
 	if (RPCExecute(&Request, __FILEMANAGER_TARGET) != OsNoError) {
 		if (BytesRead != NULL) {
 			*BytesRead = 0;
+		}
+		if (BytesRead != NULL) {
+			*BytesIndex = 0;
 		}
 		return FsInvalidParameters;
 	}
@@ -330,6 +339,9 @@ ReadFile(
 	/* Update out */
 	if (BytesRead != NULL) {
 		*BytesRead = Package.ActualSize;
+	}
+	if (BytesIndex != NULL) {
+		*BytesIndex = Package.Index;
 	}
 	return Package.Code;
 }
@@ -364,7 +376,8 @@ WriteFile(
 	RPCInitialize(&Request, __FILEMANAGER_INTERFACE_VERSION,
 		PIPE_RPCOUT, __FILEMANAGER_WRITEFILE);
 	RPCSetArgument(&Request, 0, (__CONST void*)&Handle, sizeof(UUId_t));
-	RPCSetArgument(&Request, 1, (__CONST void*)BufferObject, sizeof(BufferObject_t));
+	RPCSetArgument(&Request, 1, (__CONST void*)BufferObject, 
+		GetBufferObjectSize(BufferObject));
 	RPCSetResult(&Request, (__CONST void*)&Package, sizeof(RWFilePackage_t));
 	if (RPCExecute(&Request, __FILEMANAGER_TARGET) != OsNoError) {
 		if (BytesWritten != NULL) {

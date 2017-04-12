@@ -43,28 +43,30 @@ int _read(int fd, void *buffer, unsigned int len)
 {
 	/* Variables */
 	size_t BytesReadTotal = 0, BytesLeft = (size_t)len;
-	size_t OriginalSize = TLSGetCurrent()->Transfer->Length;
+	size_t OriginalSize = GetBufferSize(TLSGetCurrent()->Transfer);
 	uint8_t *Pointer = (uint8_t*)buffer;
 
 	/* Keep reading chunks of BUFSIZ */
 	while (BytesLeft > 0) {
 		size_t ChunkSize = MIN(OriginalSize, BytesLeft);
-		size_t BytesRead = 0;
-		TLSGetCurrent()->Transfer->Length = ChunkSize;
-		if (_fval(ReadFile((UUId_t)fd, TLSGetCurrent()->Transfer, &BytesRead))) {
+		size_t BytesRead = 0, BytesIndex = 0;
+		ChangeBufferSize(TLSGetCurrent()->Transfer, ChunkSize);
+		if (_fval(ReadFile((UUId_t)fd, TLSGetCurrent()->Transfer, &BytesIndex, &BytesRead))) {
 			break;
 		}
 		if (BytesRead == 0) {
 			break;
 		}
-		ReadBuffer(TLSGetCurrent()->Transfer, (__CONST void*)Pointer, BytesRead);
+		SeekBuffer(TLSGetCurrent()->Transfer, BytesIndex);
+		ReadBuffer(TLSGetCurrent()->Transfer, (__CONST void*)Pointer, BytesRead, NULL);
+		SeekBuffer(TLSGetCurrent()->Transfer, 0);
 		BytesReadTotal += BytesRead;
 		BytesLeft -= BytesRead;
 		Pointer += BytesRead;
 	}
 
 	/* Done! */
-	TLSGetCurrent()->Transfer->Length = OriginalSize;
+	ChangeBufferSize(TLSGetCurrent()->Transfer, OriginalSize);
 	return (unsigned int)BytesReadTotal;
 }
 

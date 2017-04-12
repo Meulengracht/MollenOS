@@ -72,7 +72,7 @@ PACKED_TYPESTRUCT(FileSystemDescriptor, {
 	FileSystemDisk_t		 Disk;
 	uint64_t				 SectorStart;
 	uint64_t				 SectorCount;
-	uintptr_t				*ExtendedData;
+	uintptr_t				*ExtensionData;
 });
 
 /* FsInitialize 
@@ -100,8 +100,18 @@ FileSystemCode_t
 __FSDECL(FsOpenFile)(
 	_In_ FileSystemDescriptor_t *Descriptor,
 	_Out_ FileSystemFile_t *File,
+	_In_ MString_t *Path);
+
+/* FsCreateFile 
+ * Creates a new link to a file and allocates resources
+ * for a new open-file in the system */
+__FSAPI
+FileSystemCode_t 
+__FSDECL(FsCreateFile)(
+	_In_ FileSystemDescriptor_t *Descriptor,
+	_Out_ FileSystemFile_t *File,
 	_In_ MString_t *Path,
-	_In_ Flags_t Access);
+	_In_ Flags_t Options);
 
 /* FsCloseFile 
  * Closes the given file-link and frees all resources
@@ -115,7 +125,7 @@ __FSDECL(FsCloseFile)(
 
 /* FsOpenHandle 
  * Opens a new handle to a file, this allows various
- * interactions with the base fiele, like read and write.
+ * interactions with the base file, like read and write.
  * Neccessary resources and initialization of the Handle
  * should be done here too */
 __FSAPI
@@ -142,6 +152,7 @@ __FSDECL(FsReadFile)(
 	_In_ FileSystemDescriptor_t *Descriptor,
 	_In_ FileSystemFileHandle_t *Handle,
 	_Out_ BufferObject_t *BufferObject,
+	_Out_ size_t *BytesAt,
 	_Out_ size_t *BytesRead);
 
 /* FsWriteFile 

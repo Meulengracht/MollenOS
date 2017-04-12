@@ -42,14 +42,14 @@ int _write(int fd, void *buffer, unsigned int length)
 {
 	/* Variables */
 	size_t BytesWrittenTotal = 0, BytesLeft = (size_t)length;
-	size_t OriginalSize = TLSGetCurrent()->Transfer->Length;
+	size_t OriginalSize = GetBufferSize(TLSGetCurrent()->Transfer);
 	uint8_t *Pointer = (uint8_t*)buffer;
 
 	/* Keep reading chunks of BUFSIZ */
 	while (BytesLeft > 0) {
 		size_t ChunkSize = MIN(OriginalSize, BytesLeft);
 		size_t BytesWritten = 0;
-		TLSGetCurrent()->Transfer->Length = ChunkSize;
+		ChangeBufferSize(TLSGetCurrent()->Transfer, ChunkSize);
 		WriteBuffer(TLSGetCurrent()->Transfer, (__CONST void*)Pointer, ChunkSize, &BytesWritten);
 		if (WriteFile((UUId_t)fd, TLSGetCurrent()->Transfer, &BytesWritten) != FsOk) {
 			break;
@@ -63,7 +63,7 @@ int _write(int fd, void *buffer, unsigned int length)
 	}
 
 	/* Done! */
-	TLSGetCurrent()->Transfer->Length = OriginalSize;
+	ChangeBufferSize(TLSGetCurrent()->Transfer, OriginalSize);
 	return (int)BytesWrittenTotal;
 }
 

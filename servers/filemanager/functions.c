@@ -149,7 +149,7 @@ VfsOpenInternal(
 			File->Hash = PathHash;
 
 			/* Let the module do the rest */
-			Code = Fs->Module->OpenFile(&Fs->Descriptor, File, SubPath, Handle->Options);
+			Code = Fs->Module->OpenFile(&Fs->Descriptor, File, SubPath);
 
 			/* Sanitize the open
 			 * otherwise we must cleanup */
@@ -422,6 +422,7 @@ ReadFile(
 	_In_ UUId_t Requester,
 	_In_ UUId_t Handle,
 	_Out_ BufferObject_t *BufferObject,
+	_Out_ size_t *BytesIndex,
 	_Out_ size_t *BytesRead)
 {
 	/* Variables */
@@ -439,7 +440,7 @@ ReadFile(
 	/* Case 1 - Not found / Invalid parameters */
 	if (hNode == NULL
 		|| BufferObject == NULL
-		|| BufferObject->Length == 0) {
+		|| GetBufferSize(BufferObject) == 0) {
 		return FsInvalidParameters;
 	}
 
@@ -467,7 +468,8 @@ ReadFile(
 
 	/* Instantiate the pointer and read */
 	Fs = (FileSystem_t*)fHandle->File->System;
-	Code = Fs->Module->ReadFile(&Fs->Descriptor, fHandle, BufferObject, BytesRead);
+	Code = Fs->Module->ReadFile(&Fs->Descriptor, fHandle, 
+		BufferObject, BytesIndex, BytesRead);
 
 	/* Update stats for the handle */
 	fHandle->LastOperation = __FILE_OPERATION_READ;
@@ -501,7 +503,7 @@ WriteFile(
 	/* Case 1 - Not found / Invalid parameters */
 	if (hNode == NULL
 		|| BufferObject == NULL
-		|| BufferObject->Length == 0) {
+		|| GetBufferSize(BufferObject) == 0) {
 		return FsInvalidParameters;
 	}
 

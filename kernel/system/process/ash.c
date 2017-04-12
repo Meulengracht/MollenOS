@@ -120,7 +120,7 @@ int PhoenixInitializeAsh(MCoreAsh_t *Ash, MString_t *Path)
 	UUId_t fHandle = UUID_INVALID;
 	uint8_t *fBuffer = NULL;
 	char *fPath = NULL;
-	size_t fSize = 0, fRead = 0;
+	size_t fSize = 0, fRead = 0, fIndex = 0;
 	int Index = 0, ShouldFree = 0;
 
 	/* Sanity */
@@ -161,8 +161,8 @@ int PhoenixInitializeAsh(MCoreAsh_t *Ash, MString_t *Path)
 		memset(fPath, 0, _MAXPATH);
 
 		/* Read */
-		ReadFile(fHandle, BufferObject, &fRead);
-		ReadBuffer(BufferObject, (__CONST void*)fBuffer, fRead);
+		ReadFile(fHandle, BufferObject, &fIndex, &fRead);
+		ReadBuffer(BufferObject, (__CONST void*)fBuffer, fRead, NULL);
 
 		/* Save a copy of the path */
 		GetFilePath(fHandle, fPath, _MAXPATH);

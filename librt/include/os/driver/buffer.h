@@ -101,7 +101,8 @@ MOSABI
 ReadBuffer(
 	_In_ BufferObject_t *BufferObject, 
 	_Out_ __CONST void *Buffer, 
-	_In_ size_t BytesToRead);
+	_In_ size_t BytesToRead,
+	_Out_Opt_ size_t *BytesRead);
 
 /* WriteBuffer 
  * Writes <BytesToWrite> into the allocated buffer-object
@@ -138,12 +139,31 @@ MOSABI
 GetBufferSize(
 	_In_ BufferObject_t *BufferObject);
 
+/* ChangeBufferSize
+ * Changes the current size of the buffer, but may only be changed within the
+ * limits of the capacity of the buffer. This operation resets position */
+MOSAPI
+OsStatus_t
+MOSABI
+ChangeBufferSize(
+	_In_ BufferObject_t *BufferObject,
+	_In_ size_t Size);
+
 /* GetBufferCapacity
  * Retrieves the capacity of the given buffer-object */
 MOSAPI
 size_t
 MOSABI
 GetBufferCapacity(
+	_In_ BufferObject_t *BufferObject);
+
+/* GetBufferObjectSize
+ * Retrieves the size of the buffer-object structure as it can be dynamic
+ * in size due to the memory regions it allocates */
+MOSAPI
+size_t
+MOSABI
+GetBufferObjectSize(
 	_In_ BufferObject_t *BufferObject);
 
 /* GetBufferData

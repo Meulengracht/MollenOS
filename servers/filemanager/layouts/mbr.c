@@ -48,14 +48,15 @@ OsStatus_t MbrEnumeratePartitions(FileSystemDisk_t *Disk,
 
 	// Start out by reading the mbr to detect whether
 	// or not there is a partition table
-	if (DiskRead(Disk->Driver, Disk->Device, Sector, Buffer->Physical, 1) != OsNoError) {
+	if (DiskRead(Disk->Driver, Disk->Device, Sector, GetBufferAddress(Buffer), 1) != OsNoError) {
 		return OsError;
 	}
 
 	// Allocate a buffer where we can store a copy of the mbr 
 	// it might be overwritten by recursion here
+	SeekBuffer(Buffer, 0);
 	Mbr = (MasterBootRecord_t*)malloc(sizeof(MasterBootRecord_t));
-	ReadBuffer(Buffer, (const void*)Mbr, sizeof(MasterBootRecord_t));
+	ReadBuffer(Buffer, (const void*)Mbr, sizeof(MasterBootRecord_t), NULL);
 
 	// Now try to see if there is any valid data
 	// in any of the partitions

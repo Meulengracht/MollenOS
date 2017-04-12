@@ -84,47 +84,6 @@ MemoryFree(
 		SYSCALL_PARAM(MemoryPointer), SYSCALL_PARAM(Length));
 }
 
-/* MemoryShare
- * This shares a piece of memory with the 
- * target process. The function returns NULL
- * on failure to share the piece of memory
- * otherwise it returns the new buffer handle
- * that can be accessed by the other process */ 
-void *
-MemoryShare(
-	_In_ UUId_t Process,
-	_In_ void *Buffer,
-	_In_ size_t Size)
-{
-	// Sanitize parameters
-	if (Buffer == NULL || Size == 0) {
-		return NULL;
-	}
-
-	// Redirect call to OS - no post ops here
-	return (void*)Syscall3(SYSCALL_MEMSHARE, SYSCALL_PARAM(Process),
-		SYSCALL_PARAM(Buffer), SYSCALL_PARAM(Size));
-}
-
-/* MemoryUnshare
- * This takes a previous shared memory handle 
- * and unshares it again from the target process */ 
-OsStatus_t 
-MemoryUnshare(
-	_In_ UUId_t Process,
-	_In_ void *MemoryHandle,
-	_In_ size_t Size)
-{
-	// Sanitize parameters
-	if (MemoryHandle == NULL || Size == 0) {
-		return OsError;
-	}
-
-	// Redirect call to OS - no post ops here
-	return (OsStatus_t)Syscall3(SYSCALL_MEMUNSHARE, SYSCALL_PARAM(Process),
-		SYSCALL_PARAM(MemoryHandle), SYSCALL_PARAM(Size));
-}
-
 /* MemoryQuery
  * Queries the underlying system for memory information 
  * like memory used and the page-size */

@@ -266,6 +266,7 @@ OsStatus_t OnEvent(MRemoteCall_t *Message)
 			Package.Code = ReadFile(Message->Sender,
 				(UUId_t)Message->Arguments[0].Data.Value,
 				(BufferObject_t*)Message->Arguments[1].Data.Buffer,
+				&Package.Index,
 				&Package.ActualSize);
 			Result = RPCRespond(Message, (__CONST void*)&Package,
 				sizeof(RWFilePackage_t));

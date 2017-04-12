@@ -561,7 +561,7 @@ MCorePeFile_t *PeResolveLibrary(MCorePeFile_t *Parent,
 		UUId_t fHandle = UUID_INVALID;
 		MCorePeFile_t *Library = NULL;
 		uint8_t *fBuffer = NULL;
-		size_t fSize = 0, fRead = 0;
+		size_t fSize = 0, fRead = 0, fIndex = 0;
 
 		/* Open the file
 		 * We have a special case here that it might
@@ -591,8 +591,8 @@ MCorePeFile_t *PeResolveLibrary(MCorePeFile_t *Parent,
 			fBuffer = (uint8_t*)kmalloc(fSize);
 
 			/* Read */
-			ReadFile(fHandle, BufferObject, &fRead);
-			ReadBuffer(BufferObject, (__CONST void*)fBuffer, fRead);
+			ReadFile(fHandle, BufferObject, &fIndex, &fRead);
+			ReadBuffer(BufferObject, (__CONST void*)fBuffer, fRead, NULL);
 
 			/* Cleanup */
 			DestroyBuffer(BufferObject);

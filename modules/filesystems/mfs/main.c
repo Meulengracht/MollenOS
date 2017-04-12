@@ -910,7 +910,7 @@ FsInitialize(
 		}
 
 		// Read the data into the map
-		ReadBuffer(Buffer, (__CONST void*)bMap, GetBufferSize(Buffer));
+		ReadBuffer(Buffer, (__CONST void*)bMap, GetBufferSize(Buffer), NULL);
 		bMap += GetBufferSize(Buffer);
 	}
 

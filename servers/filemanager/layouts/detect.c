@@ -44,12 +44,12 @@ OsStatus_t DiskDetectFileSystem(FileSystemDisk_t *Disk,
 		LODWORD(Sector), LODWORD(SectorCount));
 
 	// Make sure the MBR is loaded
-	if (DiskRead(Disk->Driver, Disk->Device, Sector, Buffer->Physical, 1) != OsNoError) {
+	if (DiskRead(Disk->Driver, Disk->Device, Sector, GetBufferAddress(Buffer), 1) != OsNoError) {
 		return OsError;
 	}
 
 	// Instantiate the mbr-pointer
-	Mbr = (MasterBootRecord_t*)Buffer->Virtual;
+	Mbr = (MasterBootRecord_t*)GetBufferData(Buffer);
 
 	// Ok - we do some basic signature checks 
 	// MFS - "MFS1" 
@@ -108,14 +108,14 @@ OsStatus_t DiskDetectLayout(FileSystemDisk_t *Disk)
 	// In order to detect the schema that is used
 	// for the disk - we can easily just read sector LBA 1
 	// and look for the GPT signature
-	if (DiskRead(Disk->Driver, Disk->Device, 1, Buffer->Physical, 1) != OsNoError) {
+	if (DiskRead(Disk->Driver, Disk->Device, 1, GetBufferAddress(Buffer), 1) != OsNoError) {
 		DestroyBuffer(Buffer);
 		return OsError;
 	}
 
 	// Initiate the gpt pointer directly from the buffer-object
 	// to avoid doing double allocates when its not needed
-	Gpt = (GptHeader_t*)Buffer->Virtual;
+	Gpt = (GptHeader_t*)GetBufferData(Buffer);
 
 	// Check the GPT signature if it matches 
 	// - If it doesn't match, it can only be a MBR disk

@@ -143,7 +143,7 @@ AhciManagerCreateDevice(
 
 	// Initiate the transaction
 	Transaction->Requester = UUID_INVALID;
-	Transaction->Address = Buffer->Physical;
+	Transaction->Address = GetBufferAddress(Buffer);
 	Transaction->SectorCount = 1;
 	Transaction->Device = Device;
 
@@ -163,7 +163,7 @@ AhciManagerCreateDeviceCallback(
 	DataKey_t Key;
 
 	// Instantiate pointer
-	DeviceInformation = (ATAIdentify_t*)Device->Buffer->Virtual;
+	DeviceInformation = (ATAIdentify_t*)GetBufferData(Device->Buffer);
 
 	// Flip the data in the strings as it's inverted
 	AhciStringFlip(DeviceInformation->SerialNo, 20);
