@@ -19,6 +19,7 @@
  * MollenOS - General File System (MFS) Driver
  *  - Contains the implementation of the MFS driver for mollenos
  */
+#define __TRACE
 
 /* Includes
  * - System */
@@ -233,7 +234,7 @@ FsReadFile(
 
 	// Trace
 	TRACE("FsReadFile(Id 0x%x, Position %u, Length %u)",
-		Handle->Id, LODWORD(Handle->Position), BufferObject->Length);
+		Handle->Id, LODWORD(Handle->Position), GetBufferSize(BufferObject));
 
 	// Instantiate the pointers
 	Mfs = (MfsInstance_t*)Descriptor->ExtensionData;
@@ -385,7 +386,7 @@ FsWriteFile(
 
 	// Trace
 	TRACE("FsWriteFile(Id 0x%x, Position %u, Length %u)",
-		Handle->Id, LODWORD(Handle->Position), BufferObject->Length);
+		Handle->Id, LODWORD(Handle->Position), GetBufferSize(BufferObject));
 
 	// Instantiate the pointers
 	Mfs = (MfsInstance_t*)Descriptor->ExtensionData;
@@ -482,31 +483,42 @@ FsWriteFile(
 		// Calculate the sector index into bucket
 		Sector += SectorIndex;
 
+		// Calculate how many sectors we should read in
+		SectorCount = DIVUP(BytesToWrite, Descriptor->Disk.Descriptor.SectorSize);
+
+		// Do we cross a boundary?
+		if (SectorOffset + BytesToWrite > Descriptor->Disk.Descriptor.SectorSize) {
+			SectorCount++;
+		}
+
+		// Adjust for bucket boundary
+		SectorCount = MIN(SectorsLeft, SectorCount);
+
+		// Adjust for number of bytes read
+		ByteCount = (size_t)MIN(BytesToWrite, (SectorCount * Descriptor->Disk.Descriptor.SectorSize) - SectorOffset);
+
+		// Ex pos 490 - length 50
+		// SectorIndex = 0, SectorOffset = 490, SectorCount = 2 - ByteCount = 50 (Capacity 4096)
+		// Ex pos 1109 - length 450
+		// SectorIndex = 2, SectorOffset = 85, SectorCount = 2 - ByteCount = 450 (Capacity 4096)
+		// Ex pos 490 - length 4000
+		// SectorIndex = 0, SectorOffset = 490, SectorCount = 8 - ByteCount = 3606 (Capacity 4096)
+		TRACE("Write metrics - Sector %u + %u, Count %u, ByteOffset %u, ByteCount %u",
+			LODWORD(Sector), SectorIndex, SectorCount, SectorOffset, ByteCount);
+
 		// First of all, calculate the bounds as we might need to read
 		// in existing data - Start out by clearing our combination buffer
 		ZeroBuffer(Mfs->TransferBuffer);
 
-		// Case 1 - Handle pre-padding
-		if (SectorOffset != 0) {
+		// Case 1 - Handle padding
+		if (SectorOffset != 0 || ByteCount != Descriptor->Disk.Descriptor.SectorSize) {
 			// Start building the sector
-			if (MfsReadSectors(Descriptor, Mfs->TransferBuffer, Sector, 1) != OsNoError) {
+			if (MfsReadSectors(Descriptor, Mfs->TransferBuffer, Sector, SectorCount) != OsNoError) {
 				ERROR("Failed to read sector %u for combination step", 
 					LODWORD(Sector));
 				return FsDiskError;
 			}
 		}
-
-		// Case 2 - Handle post-padding
-		// It combined size must be in a middle of a sector
-		// and it must have spanned over more than the same sector
-		if ((SectorOffset + BytesToWrite) % Descriptor->Disk.Descriptor.SectorSize) {
-			if (SectorCount > 1) {
-				// We should calculate index and read the existing sector
-				// into the buffer
-			}
-		}
-
-		// Calculate how many bytes we should write in this iteration
 
 		// Now write the data to the sector
 		SeekBuffer(Mfs->TransferBuffer, (size_t)SectorOffset);
@@ -735,6 +747,52 @@ FsSeekFile(
 
 	// Done
 	return FsOk;
+}
+
+/* FsChangeFileSize 
+ * Either expands or shrinks the allocated space for the given
+ * file-handle to the requested size. */
+FileSystemCode_t
+FsChangeFileSize(
+	_In_ FileSystemDescriptor_t *Descriptor,
+	_In_ FileSystemFile_t *Handle,
+	_In_ uint64_t Size)
+{
+	// Variables
+	MfsInstance_t *Mfs = NULL;
+	MfsFile_t *fInformation = NULL;
+
+	// Trace
+	TRACE("FsChangeFileSize(Name %s, Size 0x%x)",
+		MStringRaw(Handle->Name), LODWORD(Size));
+
+	// Instantiate the pointers
+	Mfs = (MfsInstance_t*)Descriptor->ExtensionData;
+	fInformation = (MfsFile_t*)Handle->ExtensionData;
+
+	// Handle a special case of 0
+	if (Size == 0) {
+		// Free all buckets allocated
+		if (MfsFreeBuckets(Descriptor, fInformation->StartBucket,
+			fInformation->StartLength) != OsNoError) {
+			ERROR("Failed to free the buckets at start 0x%x, length 0x%x",
+				fInformation->StartBucket, fInformation->StartLength);
+			return FsDiskError;
+		}
+
+		// Set new allocated size
+		fInformation->AllocatedSize = 0;
+		fInformation->StartBucket = MFS_ENDOFCHAIN;
+		fInformation->StartLength = 0;
+	}
+
+	// Set new size
+	fInformation->Size = Size;
+
+	// Update time
+
+	// Update the record on disk
+	return MfsUpdateRecord(Descriptor, fInformation, MFS_ACTION_UPDATE);
 }
 
 /* FsQueryFile 

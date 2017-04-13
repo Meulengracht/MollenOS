@@ -94,8 +94,9 @@ VfsOpenInternal(
 	_Out_ FileSystemFileHandle_t *Handle, 
 	_In_ MString_t *Path)
 {
-	/* Variables */
+	// Variables
 	ListNode_t *fNode = NULL, *pNode = NULL;
+	FileSystemFile_t *File = NULL;
 	FileSystemCode_t Code = FsOk;
 	MString_t *Identifier = NULL;
 	MString_t *SubPath = NULL;
@@ -103,73 +104,120 @@ VfsOpenInternal(
 	DataKey_t Key;
 	int Index = 0;
 
-	/* To ensure that we don't spend resources doing
-	 * the wheel all over again, compute the hash 
-	 * and check cache */
+	// To ensure that we don't spend resources doing
+	// the wheel all over again, compute the hash 
+	// and check cache 
 	PathHash = MStringHash(Path);
 	Key.Value = (int)PathHash;
 	pNode = ListGetNodeByKey(VfsGetOpenFiles(), Key, 0);
-
-	/* Did it exist? */
+	
 	if (pNode != NULL) {
-		FileSystemFile_t *File = (FileSystemFile_t*)pNode->Data;
+		FileSystemFile_t *NodeFile = (FileSystemFile_t*)pNode->Data;
 
-		/* If file is locked, bad luck 
-		 * - Otherwise open a handle and increase ref-count */
-		if (File->IsLocked != UUID_INVALID) {
+		// If file is locked, bad luck 
+		// - Otherwise open a handle and increase ref-count
+		if (NodeFile->IsLocked != UUID_INVALID) {
 			return FsAccessDenied;
 		}
 		else {
-			Code = VfsOpenHandleInternal(Handle, File);
-			if (Code == FsOk) {
-				File->References++;
+			// It's important here that we check if the flag
+			// __FILE_FAILONEXIST has been set, then we return
+			// the appropriate code instead of opening a new handle
+			if (Handle->Options & __FILE_FAILONEXIST) {
+				return FsPathExists;
 			}
-			return Code;
+
+			// Store it
+			File = NodeFile;
 		}
 	}
 
-	/* To open a new file we need to find the correct
-	 * filesystem identifier and seperate it from it's absolute path */
-	Index = MStringFind(Path, ':');
-	Identifier = MStringSubString(Path, 0, Index);
-	SubPath = MStringSubString(Path, Index + 2, -1);
+	// Ok if it didn't exist in cache it's a new lookup
+	if (File != NULL) {
+		// To open a new file we need to find the correct
+		// filesystem identifier and seperate it from it's absolute path
+		Index = MStringFind(Path, ':');
+		Identifier = MStringSubString(Path, 0, Index);
+		SubPath = MStringSubString(Path, Index + 2, -1);
 
-	/* Iterate all the filesystems and find the one
-	 * that matches */
-	_foreach(fNode, VfsGetFileSystems()) {
-		FileSystem_t *Fs = (FileSystem_t*)fNode->Data;
-		if (MStringCompare(Identifier, Fs->Identifier, 1)) 
-		{
-			/* We found it, allocate a new file structure and prefill
-			 * some information, the module call will fill rest */
-			FileSystemFile_t *File = (FileSystemFile_t*)malloc(sizeof(FileSystemFile_t));
-			memset(File, 0, sizeof(FileSystemFile_t));
-			File->System = (uintptr_t*)&Fs->Descriptor;
-			File->Path = MStringCreate((void*)MStringRaw(Path), StrUTF8);
-			File->Hash = PathHash;
+		// Iterate all the filesystems and find the one
+		// that matches
+		_foreach(fNode, VfsGetFileSystems()) {
+			FileSystem_t *Fs = (FileSystem_t*)fNode->Data;
+			if (MStringCompare(Identifier, Fs->Identifier, 1)) {
+				// Variables
+				int Created = 0;
 
-			/* Let the module do the rest */
-			Code = Fs->Module->OpenFile(&Fs->Descriptor, File, SubPath);
+				// We found it, allocate a new file structure and prefill
+				// some information, the module call will fill rest
+				File = (FileSystemFile_t*)malloc(sizeof(FileSystemFile_t));
+				memset(File, 0, sizeof(FileSystemFile_t));
+				File->System = (uintptr_t*)Fs;
+				File->Path = MStringCreate((void*)MStringRaw(Path), StrUTF8);
+				File->Hash = PathHash;
 
-			/* Sanitize the open
-			 * otherwise we must cleanup */
-			if (Code == FsOk) {
-				Code = VfsOpenHandleInternal(Handle, File);
-				ListAppend(VfsGetOpenFiles(), ListCreateNode(Key, Key, File));
-				File->References = 1;
+				// Let the module do the rest
+				Code = Fs->Module->OpenFile(&Fs->Descriptor, File, SubPath);
+
+				// Handle the creation flag
+				if (Code == FsPathNotFound && (Handle->Options & __FILE_CREATE)) {
+					Code = Fs->Module->CreateFile(&Fs->Descriptor, File, SubPath, 0);
+					Created = 1;
+				}
+
+				// Sanitize the open
+				// otherwise we must cleanup
+				if (Code == FsOk) {
+					// It's important here that we check if the flag
+					// __FILE_FAILONEXIST has been set, then we return
+					// the appropriate code instead of opening a new handle
+					// Also this is ok if file was just created
+					if (Handle->Options & __FILE_FAILONEXIST) {
+						if (Created == 0) {
+							Code = Fs->Module->CloseFile(&Fs->Descriptor, File);
+							MStringDestroy(File->Path);
+							free(File);
+							File = NULL;
+							break;
+						}
+					}
+
+					// Take care of truncation flag
+					if (Handle->Options & __FILE_TRUNCATE) {
+						Code = Fs->Module->ChangeFileSize(&Fs->Descriptor, File, 0);
+					}
+
+					// Append file handle
+					ListAppend(VfsGetOpenFiles(), ListCreateNode(Key, Key, File));
+					File->References = 1;
+				}
+				else {
+					MStringDestroy(File->Path);
+					free(File);
+					File = NULL;
+				}
+
+				// Done - break out
+				break;
 			}
-			else {
-				MStringDestroy(File->Path);
-				free(File);
-			}
-
-			break;
 		}
+
+		// Cleanup
+		MStringDestroy(Identifier);
+		MStringDestroy(SubPath);
 	}
 
-	/* Cleanup */
-	MStringDestroy(Identifier);
-	MStringDestroy(SubPath);
+	// Now we can open the handle
+	// Open Handle Internal takes care of these flags
+	// APPEND/VOLATILE/BINARY
+	if (File != NULL) {
+		Code = VfsOpenHandleInternal(Handle, File);
+		if (Code == FsOk) {
+			File->References++;
+		}
+	}
+	
+	// Return the result
 	return Code;
 }
 

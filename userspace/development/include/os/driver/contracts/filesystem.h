@@ -123,6 +123,16 @@ __FSDECL(FsCloseFile)(
 	_In_ FileSystemDescriptor_t *Descriptor, 
 	_In_ FileSystemFile_t *File);
 
+/* FsChangeFileSize 
+ * Either expands or shrinks the allocated space for the given
+ * file-handle to the requested size. */
+__FSAPI
+FileSystemCode_t
+__FSDECL(FsChangeFileSize)(
+	_In_ FileSystemDescriptor_t *Descriptor,
+	_In_ FileSystemFile_t *Handle,
+	_In_ uint64_t Size);
+
 /* FsOpenHandle 
  * Opens a new handle to a file, this allows various
  * interactions with the base file, like read and write.

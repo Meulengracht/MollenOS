@@ -167,14 +167,18 @@ UnregisterDisk(
 	_In_ UUId_t Device,
 	_In_ Flags_t Flags)
 {
-	/* Variables */
+	// Variables
 	MRemoteCall_t Request;
 
-	/* RPC Usage */
+	// Initialize RPC
 	RPCInitialize(&Request, __FILEMANAGER_INTERFACE_VERSION,
 		PIPE_RPCOUT, __FILEMANAGER_UNREGISTERDISK);
+
+	// Setup arguments
 	RPCSetArgument(&Request, 0, (__CONST void*)&Device, sizeof(UUId_t));
 	RPCSetArgument(&Request, 1, (__CONST void*)&Flags, sizeof(Flags_t));
+
+	// Send event, no response
 	return RPCEvent(&Request, __FILEMANAGER_TARGET);
 }
 #endif
@@ -203,24 +207,32 @@ OpenFile(
 	_In_ Flags_t Access,
 	_Out_ UUId_t *Handle)
 {
-	/* Variables */
+	// Variables
 	OpenFilePackage_t Package;
 	MRemoteCall_t Request;
 
-	/* RPC Usage */
+	// Initialize the request
 	RPCInitialize(&Request, __FILEMANAGER_INTERFACE_VERSION,
 		PIPE_RPCOUT, __FILEMANAGER_OPENFILE);
+
+	// Set arguments
 	RPCSetArgument(&Request, 0, (__CONST void*)Path, strlen(Path));
 	RPCSetArgument(&Request, 1, (__CONST void*)&Options, sizeof(Flags_t));
 	RPCSetArgument(&Request, 2, (__CONST void*)&Access, sizeof(Flags_t));
+
+	// Set result buffer
 	RPCSetResult(&Request, (__CONST void*)&Package, sizeof(OpenFilePackage_t));
+
+	// Execute the rpc request
 	if (RPCExecute(&Request, __FILEMANAGER_TARGET) != OsNoError) {
 		*Handle = UUID_INVALID;
 		return FsInvalidParameters;
 	}
 
-	/* Update out */
+	// Update out variables
 	*Handle = Package.Handle;
+
+	// Return the result code
 	return Package.Code;
 }
 #endif
@@ -242,18 +254,26 @@ SERVICEABI
 CloseFile(
 	_In_ UUId_t Handle)
 {
-	/* Variables */
+	// Variables
 	FileSystemCode_t Result;
 	MRemoteCall_t Request;
 
-	/* RPC Usage */
+	// Initialize the request
 	RPCInitialize(&Request, __FILEMANAGER_INTERFACE_VERSION,
 		PIPE_RPCOUT, __FILEMANAGER_CLOSEFILE);
+
+	// Set request arguments
 	RPCSetArgument(&Request, 0, (__CONST void*)&Handle, sizeof(UUId_t));
+
+	// Set result buffer
 	RPCSetResult(&Request, (__CONST void*)&Result, sizeof(FileSystemCode_t));
+
+	// Execute the request 
 	if (RPCExecute(&Request, __FILEMANAGER_TARGET) != OsNoError) {
 		return FsInvalidParameters;
 	}
+
+	// Return the result code
 	return Result;
 }
 #endif
@@ -276,18 +296,26 @@ SERVICEABI
 DeleteFile(
 	_In_ __CONST char *Path)
 {
-	/* Variables */
+	// Variables
 	FileSystemCode_t Result;
 	MRemoteCall_t Request;
 
-	/* RPC Usage */
+	// Initialize the request
 	RPCInitialize(&Request, __FILEMANAGER_INTERFACE_VERSION,
 		PIPE_RPCOUT, __FILEMANAGER_DELETEFILE);
+
+	// Set request arguments
 	RPCSetArgument(&Request, 0, (__CONST void*)Path, strlen(Path));
+
+	// Set result buffer
 	RPCSetResult(&Request, (__CONST void*)&Result, sizeof(FileSystemCode_t));
+
+	// Execute the request 
 	if (RPCExecute(&Request, __FILEMANAGER_TARGET) != OsNoError) {
 		return FsInvalidParameters;
 	}
+
+	// Return the result code
 	return Result;
 }
 #endif
@@ -315,34 +343,37 @@ ReadFile(
 	_Out_Opt_ size_t *BytesIndex,
 	_Out_Opt_ size_t *BytesRead)
 {
-	/* Variables */
+	// Variables
 	RWFilePackage_t Package;
 	MRemoteCall_t Request;
 
-	/* RPC Usage */
+	// Initialize the request
 	RPCInitialize(&Request, __FILEMANAGER_INTERFACE_VERSION,
 		PIPE_RPCOUT, __FILEMANAGER_READFILE);
+
+	// Set request arguments
 	RPCSetArgument(&Request, 0, (__CONST void*)&Handle, sizeof(UUId_t));
-	RPCSetArgument(&Request, 1, (__CONST void*)BufferObject, 
-		GetBufferObjectSize(BufferObject));
+	RPCSetArgument(&Request, 1, (__CONST void*)BufferObject, GetBufferObjectSize(BufferObject));
+
+	// Set result buffer
 	RPCSetResult(&Request, (__CONST void*)&Package, sizeof(RWFilePackage_t));
+
+	// Execute the request 
 	if (RPCExecute(&Request, __FILEMANAGER_TARGET) != OsNoError) {
-		if (BytesRead != NULL) {
-			*BytesRead = 0;
-		}
-		if (BytesRead != NULL) {
-			*BytesIndex = 0;
-		}
-		return FsInvalidParameters;
+		Package.ActualSize = 0;
+		Package.Index = 0;
+		Package.Code = FsInvalidParameters;
 	}
 
-	/* Update out */
+	// Update out's
 	if (BytesRead != NULL) {
 		*BytesRead = Package.ActualSize;
 	}
 	if (BytesIndex != NULL) {
 		*BytesIndex = Package.Index;
 	}
+	
+	// Return the result code
 	return Package.Code;
 }
 #endif
@@ -368,28 +399,34 @@ WriteFile(
 	_In_ BufferObject_t *BufferObject,
 	_Out_Opt_ size_t *BytesWritten)
 {
-	/* Variables */
+	// Variables
 	RWFilePackage_t Package;
 	MRemoteCall_t Request;
 
-	/* RPC Usage */
+	// Initialize the request
 	RPCInitialize(&Request, __FILEMANAGER_INTERFACE_VERSION,
 		PIPE_RPCOUT, __FILEMANAGER_WRITEFILE);
+
+	// Set the request arguments
 	RPCSetArgument(&Request, 0, (__CONST void*)&Handle, sizeof(UUId_t));
-	RPCSetArgument(&Request, 1, (__CONST void*)BufferObject, 
-		GetBufferObjectSize(BufferObject));
+	RPCSetArgument(&Request, 1, (__CONST void*)BufferObject, GetBufferObjectSize(BufferObject));
+
+	// Set the request result buffer
 	RPCSetResult(&Request, (__CONST void*)&Package, sizeof(RWFilePackage_t));
+
+	// Execute the request
 	if (RPCExecute(&Request, __FILEMANAGER_TARGET) != OsNoError) {
-		if (BytesWritten != NULL) {
-			*BytesWritten = 0;
-		}
-		return FsInvalidParameters;
+		Package.ActualSize = 0;
+		Package.Index = 0;
+		Package.Code = FsInvalidParameters;
 	}
 
-	/* Update out */
+	// Update out's
 	if (BytesWritten != NULL) {
 		*BytesWritten = Package.ActualSize;
 	}
+
+	// Return the result code
 	return Package.Code;
 }
 #endif
@@ -416,20 +453,28 @@ SeekFile(
 	_In_ uint32_t SeekLo, 
 	_In_ uint32_t SeekHi)
 {
-	/* Variables */
+	// Variables
 	FileSystemCode_t Result;
 	MRemoteCall_t Request;
 
-	/* RPC Usage */
+	// Initialize the request
 	RPCInitialize(&Request, __FILEMANAGER_INTERFACE_VERSION,
 		PIPE_RPCOUT, __FILEMANAGER_SEEKFILE);
+
+	// Set the request arguments
 	RPCSetArgument(&Request, 0, (__CONST void*)&Handle, sizeof(UUId_t));
 	RPCSetArgument(&Request, 1, (__CONST void*)&SeekLo, sizeof(uint32_t));
 	RPCSetArgument(&Request, 2, (__CONST void*)&SeekHi, sizeof(uint32_t));
+
+	// Set the request result buffer
 	RPCSetResult(&Request, (__CONST void*)&Result, sizeof(FileSystemCode_t));
+
+	// Execute the request
 	if (RPCExecute(&Request, __FILEMANAGER_TARGET) != OsNoError) {
 		return FsInvalidParameters;
 	}
+
+	// Return the result code
 	return Result;
 }
 #endif
@@ -451,18 +496,26 @@ SERVICEABI
 FlushFile(
 	_In_ UUId_t Handle)
 {
-	/* Variables */
+	// Variables
 	FileSystemCode_t Result;
 	MRemoteCall_t Request;
 
-	/* RPC Usage */
+	// Initialize the request
 	RPCInitialize(&Request, __FILEMANAGER_INTERFACE_VERSION,
 		PIPE_RPCOUT, __FILEMANAGER_FLUSHFILE);
+
+	// Set the request arguments
 	RPCSetArgument(&Request, 0, (__CONST void*)&Handle, sizeof(UUId_t));
+
+	// Set the request result buffer
 	RPCSetResult(&Request, (__CONST void*)&Result, sizeof(FileSystemCode_t));
+
+	// Execute the request
 	if (RPCExecute(&Request, __FILEMANAGER_TARGET) != OsNoError) {
 		return FsInvalidParameters;
 	}
+
+	// Return the result code
 	return Result;
 }
 #endif
@@ -489,20 +542,28 @@ MoveFile(
 	_In_ __CONST char *Destination,
 	_In_ int Copy)
 {
-	/* Variables */
+	// Variables
 	FileSystemCode_t Result;
 	MRemoteCall_t Request;
 
-	/* RPC Usage */
+	// Initialize the request
 	RPCInitialize(&Request, __FILEMANAGER_INTERFACE_VERSION,
 		PIPE_RPCOUT, __FILEMANAGER_MOVEFILE);
+
+	// Set the request arguments
 	RPCSetArgument(&Request, 0, (__CONST void*)Source, strlen(Source));
 	RPCSetArgument(&Request, 1, (__CONST void*)Destination, strlen(Destination));
 	RPCSetArgument(&Request, 2, (__CONST void*)&Copy, sizeof(int));
+	
+	// Set the request result buffer
 	RPCSetResult(&Request, (__CONST void*)&Result, sizeof(FileSystemCode_t));
+	
+	// Execute the request
 	if (RPCExecute(&Request, __FILEMANAGER_TARGET) != OsNoError) {
 		return FsInvalidParameters;
 	}
+
+	// Return the result code
 	return Result;
 }
 #endif
@@ -528,15 +589,21 @@ GetFilePosition(
 	_Out_ uint32_t *PositionLo,
 	_Out_Opt_ uint32_t *PositionHi)
 {
-	/* Variables */
+	// Variables
 	QueryFileValuePackage_t Package;
 	MRemoteCall_t Request;
 
-	/* RPC Usage */
+	// Initialize the request
 	RPCInitialize(&Request, __FILEMANAGER_INTERFACE_VERSION,
 		PIPE_RPCOUT, __FILEMANAGER_GETPOSITION);
+	
+	// Set the request arguments
 	RPCSetArgument(&Request, 0, (__CONST void*)&Handle, sizeof(UUId_t));
+	
+	// Set the request result buffer
 	RPCSetResult(&Request, (__CONST void*)&Package, sizeof(QueryFileValuePackage_t));
+	
+	// Execute the request
 	if (RPCExecute(&Request, __FILEMANAGER_TARGET) != OsNoError) {
 		*PositionLo = 0;
 		if (PositionHi != NULL) {
@@ -545,11 +612,13 @@ GetFilePosition(
 		return OsError;
 	}
 
-	/* Update out */
+	// Update out's
 	*PositionLo = Package.Value.Parts.Lo;
 	if (PositionHi != NULL) {
 		*PositionHi = Package.Value.Parts.Hi;
 	}
+
+	// Return the result code
 	return OsNoError;
 }
 #endif
@@ -574,24 +643,32 @@ GetFileOptions(
 	_Out_ Flags_t *Options,
 	_Out_ Flags_t *Access)
 {
-	/* Variables */
+	// Variables
 	QueryFileOptionsPackage_t Package;
 	MRemoteCall_t Request;
 
-	/* RPC Usage */
+	// Initialize the request
 	RPCInitialize(&Request, __FILEMANAGER_INTERFACE_VERSION,
 		PIPE_RPCOUT, __FILEMANAGER_GETOPTIONS);
+
+	// Set the request arguments
 	RPCSetArgument(&Request, 0, (__CONST void*)&Handle, sizeof(UUId_t));
+	
+	// Set the request result buffer
 	RPCSetResult(&Request, (__CONST void*)&Package, sizeof(QueryFileOptionsPackage_t));
+	
+	// Execute the request
 	if (RPCExecute(&Request, __FILEMANAGER_TARGET) != OsNoError) {
 		*Options = 0;
 		*Access = 0;
 		return OsError;
 	}
 
-	/* Update out */
+	// Update out's
 	*Options = Package.Options;
 	*Access = Package.Access;
+	
+	// Return no error
 	return OsNoError;
 }
 #endif
@@ -617,20 +694,28 @@ SetFileOptions(
 	_In_ Flags_t Options,
 	_In_ Flags_t Access)
 {
-	/* Variables */
+	// Variables
 	MRemoteCall_t Request;
 	OsStatus_t Result;
 
-	/* RPC Usage */
+	// Initialize the request
 	RPCInitialize(&Request, __FILEMANAGER_INTERFACE_VERSION,
 		PIPE_RPCOUT, __FILEMANAGER_SETOPTIONS);
+	
+	// Set the request arguments
 	RPCSetArgument(&Request, 0, (__CONST void*)&Handle, sizeof(UUId_t));
 	RPCSetArgument(&Request, 1, (__CONST void*)&Options, sizeof(Flags_t));
 	RPCSetArgument(&Request, 2, (__CONST void*)&Access, sizeof(Flags_t));
+	
+	// Set the request result buffer
 	RPCSetResult(&Request, (__CONST void*)&Result, sizeof(OsStatus_t));
+	
+	// Execute the request
 	if (RPCExecute(&Request, __FILEMANAGER_TARGET) != OsNoError) {
 		return OsError;
 	}
+
+	// Return the result
 	return Result;
 }
 #endif
@@ -656,15 +741,21 @@ GetFileSize(
 	_Out_ uint32_t *SizeLo,
 	_Out_Opt_ uint32_t *SizeHi)
 {
-	/* Variables */
+	// Variables
 	QueryFileValuePackage_t Package;
 	MRemoteCall_t Request;
 
-	/* RPC Usage */
+	// Initialize the request
 	RPCInitialize(&Request, __FILEMANAGER_INTERFACE_VERSION,
 		PIPE_RPCOUT, __FILEMANAGER_GETSIZE);
+
+	// Set the request arguments
 	RPCSetArgument(&Request, 0, (__CONST void*)&Handle, sizeof(UUId_t));
+
+	// Set the request result buffer
 	RPCSetResult(&Request, (__CONST void*)&Package, sizeof(QueryFileValuePackage_t));
+
+	// Execute the request
 	if (RPCExecute(&Request, __FILEMANAGER_TARGET) != OsNoError) {
 		*SizeLo = 0;
 		if (SizeHi != NULL) {
@@ -673,11 +764,13 @@ GetFileSize(
 		return OsError;
 	}
 
-	/* Update out */
+	// Update out's
 	*SizeLo = Package.Value.Parts.Lo;
 	if (SizeHi != NULL) {
 		*SizeHi = Package.Value.Parts.Hi;
 	}
+
+	// Return the result
 	return OsNoError;
 }
 #endif
@@ -702,24 +795,32 @@ GetFilePath(
 	_Out_ char *Path,
 	_Out_ size_t MaxLength)
 {
-	/* Variables */
+	// Variables
 	MRemoteCall_t Request;
 	char Buffer[_MAXPATH];
 
-	/* Reset buffer */
+	// Reset local buffer
 	memset(&Buffer[0], 0, _MAXPATH);
 
-	/* RPC Usage */
+	// Initialize the request
 	RPCInitialize(&Request, __FILEMANAGER_INTERFACE_VERSION,
 		PIPE_RPCOUT, __FILEMANAGER_GETPATH);
+
+	// Set the request arguments
 	RPCSetArgument(&Request, 0, (__CONST void*)&Handle, sizeof(UUId_t));
+
+	// Set the request result buffer
 	RPCSetResult(&Request, (__CONST void*)&Buffer[0], _MAXPATH);
+
+	// Execute the request
 	if (RPCExecute(&Request, __FILEMANAGER_TARGET) != OsNoError) {
 		return OsError;
 	}
 
-	/* Update out and return */
+	// Copy the result into the given buffer
 	memcpy(Path, &Buffer[0], MIN(MaxLength, strlen(&Buffer[0])));
+
+	// Done
 	return OsNoError;
 }
 #endif

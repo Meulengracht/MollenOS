@@ -78,6 +78,7 @@ typedef struct _FileSystemModule {
 	FsReadFile_t					ReadFile;
 	FsWriteFile_t					WriteFile;
 	FsSeekFile_t					SeekFile;
+	FsChangeFileSize_t				ChangeFileSize;
 	FsDeleteFile_t					DeleteFile;
 	FsQueryFile_t					QueryFile;
 } FileSystemModule_t;

@@ -83,12 +83,14 @@ FileSystemModule_t *VfsResolveFileSystem(FileSystem_t *FileSystem)
 	 * - FsInitialize
 	 * - FsDestroy
 	 * - FsOpenFile
+	 * - FsCreateFile
 	 * - FsCloseFile
 	 * - FsOpenHandle
 	 * - FsCloseHandle
 	 * - FsReadFile
 	 * - FsWriteFile
 	 * - FsSeekFile
+	 * - FsChangeFileSize
 	 * - FsDeleteFile
 	 * - FsQueryFile */
 	Module->Initialize = (FsInitialize_t)
@@ -111,6 +113,8 @@ FileSystemModule_t *VfsResolveFileSystem(FileSystem_t *FileSystem)
 		SharedObjectGetFunction(Module->Handle, "FsWriteFile");
 	Module->SeekFile = (FsSeekFile_t)
 		SharedObjectGetFunction(Module->Handle, "FsSeekFile");
+	Module->ChangeFileSize = (FsChangeFileSize_t)
+		SharedObjectGetFunction(Module->Handle, "FsChangeFileSize");
 	Module->DeleteFile = (FsDeleteFile_t)
 		SharedObjectGetFunction(Module->Handle, "FsDeleteFile");
 	Module->QueryFile = (FsQueryFile_t)

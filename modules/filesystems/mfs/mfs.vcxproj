@@ -47,7 +47,7 @@
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='i386|Win32'">
     <LinkIncremental>false</LinkIncremental>
     <OutDir>$(SolutionDir)modules\build\</OutDir>
-    <TargetExt>.mod</TargetExt>
+    <TargetExt>.dll</TargetExt>
     <IncludePath>..\..\include;..\..\..\librt\include;..\..\..\kernel\include;..\..\..\kernel\arch;..\..\..\kernel\acpica\include</IncludePath>
     <ReferencePath />
     <LibraryPath>..\..\..\librt\build;..\..\..\kernel\build</LibraryPath>
@@ -116,7 +116,9 @@
       <SubSystem>Native</SubSystem>
       <OptimizeReferences>true</OptimizeReferences>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
-      <EntryPointSymbol>_mDrvCrt</EntryPointSymbol>
+      <EntryPointSymbol>
+      </EntryPointSymbol>
+      <NoEntryPoint>true</NoEntryPoint>
     </Link>
   </ItemDefinitionGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

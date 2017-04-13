@@ -211,6 +211,7 @@ MfsAllocateBuckets(
 	// Instantiate out
 	RecordResult->Link = Mfs->MasterRecord.FreeBucket;
 	RecordResult->Length = 0;
+	PreviousBucket = 0;
 
 	// Instantiate our varibles
 	Bucket = Mfs->MasterRecord.FreeBucket;
@@ -346,6 +347,7 @@ MfsFreeBuckets(
 	// So I'm already limited by time due to life, so i'll with the quick
 
 	// Start by iterating to the last bucket
+	PreviousBucket = MFS_ENDOFCHAIN;
 	while (Record.Link != MFS_ENDOFCHAIN) {
 		PreviousBucket = Record.Link;
 		if (MfsGetBucketLink(Descriptor, Record.Link, &Record) != OsNoError) {
@@ -354,20 +356,27 @@ MfsFreeBuckets(
 		}
 	}
 
-	// Update record
-	Record.Link = Mfs->MasterRecord.FreeBucket;
+	// If there was no allocated buckets to start with
+	// then do nothing
+	if (PreviousBucket == MFS_ENDOFCHAIN) {
+		// Update record
+		Record.Link = Mfs->MasterRecord.FreeBucket;
 
-	// Ok, so now update the pointer to free list
-	if (MfsSetBucketLink(Descriptor, PreviousBucket, &Record, 0)) {
-		ERROR("Failed to update the next bucket-link");
-		return OsError;
+		// Ok, so now update the pointer to free list
+		if (MfsSetBucketLink(Descriptor, PreviousBucket, &Record, 0)) {
+			ERROR("Failed to update the next bucket-link");
+			return OsError;
+		}
+
+		// Update initial free bucket
+		Mfs->MasterRecord.FreeBucket = StartBucket;
+
+		// As a last step update the master-record
+		return MfsUpdateMasterRecord(Descriptor);
 	}
-
-	// Update initial free bucket
-	Mfs->MasterRecord.FreeBucket = StartBucket;
-
-	// As a last step update the master-record
-	return MfsUpdateMasterRecord(Descriptor);
+	else {
+		return FsOk;
+	}
 }
 
 /* MfsZeroBucket
@@ -417,9 +426,9 @@ MfsUpdateRecord(
 	_In_ int Action)
 {
 	// Variables
+	FileSystemCode_t Result = FsOk;
 	MfsInstance_t *Mfs = NULL;
 	FileRecord_t *Record = NULL;
-	FileSystemCode_t Result;
 	size_t i;
 
 	// Trace
@@ -533,8 +542,8 @@ MfsLocateRecord(
 	_Out_ MfsFile_t **File)
 {
 	// Variables
+	FileSystemCode_t Result = FsOk;
 	MfsInstance_t *Mfs = NULL;
-	FileSystemCode_t Result;
 	MString_t *Token = NULL, *Remaining = NULL;
 
 	int IsEndOfFolder = 0, IsEndOfPath = 0;
@@ -682,8 +691,8 @@ MfsLocateFreeRecord(
 	_Out_ MfsFile_t **File)
 {
 	// Variables
+	FileSystemCode_t Result = FsOk;
 	MfsInstance_t *Mfs = NULL;
-	FileSystemCode_t Result;
 	MString_t *Token = NULL, *Remaining = NULL;
 
 	int IsEndOfFolder = 0, IsEndOfPath = 0;
