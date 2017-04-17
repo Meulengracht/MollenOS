@@ -3,6 +3,7 @@
   <ItemGroup>
     <ClCompile Include="utilities.c" />
     <ClCompile Include="main.c" />
+    <ClCompile Include="records.c" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="mfs.h" />

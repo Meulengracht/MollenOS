@@ -132,18 +132,22 @@ PACKED_TYPESTRUCT(DateTimeRecord, {
 PACKED_TYPESTRUCT(FileRecord, {
 	uint16_t				Status;		 // 0x0 - Record Status
 	uint16_t				Flags;		 // 0x2 - Record Flags
-	uint32_t				StartBucket; // 0x4 - First data bucket
-	uint32_t				StartLength; // 0x8 - Length of first data bucket
+
+	uint64_t				Key;		 // 0x4 - Record Key
+	uint32_t				Link;		 // 0xC - Record Link
+
+	uint32_t				StartBucket; // 0x10 - First data bucket
+	uint32_t				StartLength; // 0x14 - Length of first data bucket
 
 	// DateTime Records (8 bytes each, 64 bit)
-	DateTimeRecord_t		CreatedAt;	 // 0xC
-	DateTimeRecord_t		ModifiedAt;	 // 0x14
-	DateTimeRecord_t		AccessedAt;  // 0x1C
+	DateTimeRecord_t		CreatedAt;	 // 0x18
+	DateTimeRecord_t		ModifiedAt;	 // 0x20
+	DateTimeRecord_t		AccessedAt;  // 0x28
 	
-	uint64_t				Size;		   // 0x24 - Actual size
-	uint64_t				AllocatedSize; // 0x2C - Allocated size on disk
+	uint64_t				Size;		   // 0x30 - Actual size
+	uint64_t				AllocatedSize; // 0x38 - Allocated size on disk
 
-	uint8_t					Name[460];		 // 0x34
+	uint8_t					Name[448];		 // 0x40
 	uint8_t					Integrated[512]; // 0x200
 });
 

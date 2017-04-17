@@ -8,6 +8,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="main.c" />
+    <ClCompile Include="records.c" />
     <ClCompile Include="utilities.c" />
   </ItemGroup>
   <ItemGroup>
