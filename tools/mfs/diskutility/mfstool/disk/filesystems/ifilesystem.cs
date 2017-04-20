@@ -19,6 +19,14 @@ namespace DiskUtility
          * Formats the partition with the filesystem - wipes all data from the partition */
         bool Format();
 
+        /* MakeBoot
+         * Readies the filesystem for being the primary bootable filesystem by preparing a bootsector */
+        bool MakeBoot();
+
+        /* ListDirectory
+         * List's the contents of the given path - that must be a directory path */
+        bool ListDirectory(String Path);
+
         /* WriteFile 
          * Creates a new file or directory with the given path, flags and data */
         bool WriteFile(String Path, FileFlags Flags, Byte[] Data);

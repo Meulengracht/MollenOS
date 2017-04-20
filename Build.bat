@@ -59,10 +59,10 @@ CALL "C:\Program Files (x86)\Microsoft Visual Studio\2017\Community\VC\Auxiliary
 if "!skip!"=="true" goto :Install
 
 ::Build Stage1
-nasm.exe -f bin %~dp0\boot\Stage1\MFS1\Stage1.asm -o %~dp0\boot\Stage1\MFS1\Stage1.bin
+nasm.exe -f bin %~dp0\boot\stage1\mfs\stage1.asm -o %~dp0\boot\stage1\mfs\stage1.sys
 
 ::Build Stage2
-START "NASM" /D %~dp0\boot\Stage2 /B /W nasm.exe -f bin Stage2.asm -o ssbl.stm
+START "NASM" /D %~dp0\boot\stage2 /B /W nasm.exe -f bin stage2.asm -o stage2.sys
 
 ::Build Operation System
 if "!action!"=="rebuild" MSBuild.exe %~dp0\MollenOS.sln /p:Configuration=!buildcfg! /p:Platform="MollenOS" /t:Clean,Build
@@ -75,11 +75,11 @@ xcopy /v /y %~dp0\librt\build\*.dll %~dp0\modules\build\
 START "InitRD" /D %~dp0\modules /B /W "%~dp0\modules\RdBuilder.exe"
 
 ::Copy files to install directory
-xcopy /v /y %~dp0\librt\build\*.dll %~dp0\install\Hdd\System\
-xcopy /v /y %~dp0\kernel\Build\MCore.mos %~dp0\install\Hdd\System\Sys32.mos
-xcopy /v /y %~dp0\modules\InitRd.mos %~dp0\install\Hdd\System\InitRd32.mos
-xcopy /v /y %~dp0\boot\Stage1\MFS1\Stage1.bin %~dp0\install\Stage1.bin
-xcopy /v /y %~dp0\boot\Stage2\ssbl.stm %~dp0\install\ssbl.stm
+xcopy /v /y %~dp0\librt\build\*.dll %~dp0\install\hdd\system\
+xcopy /v /y %~dp0\kernel\build\MCore.mos %~dp0\install\hdd\system\syskrnl.mos
+xcopy /v /y %~dp0\modules\InitRd.mos %~dp0\install\hdd\system\initrd.mos
+xcopy /v /y %~dp0\boot\stage1\mfs\stage1.sys %~dp0\install\stage1.sys
+xcopy /v /y %~dp0\boot\stage2\stage2.sys %~dp0\install\stage2.sys
 
 ::Install MOS
 :Install
@@ -87,4 +87,4 @@ del %~dp0\*.vmdk
 del %~dp0\*.img
 
 ::Run Tool
-START "MOLLENOS INSTALLER" /D %~dp0\install /B /W "%~dp0\install\MfsTool.exe" -!target!
+START "MOLLENOS INSTALLER" /D %~dp0\install /B /W "%~dp0\install\diskutility.exe" -auto -target !target! -scheme mbr
