@@ -456,13 +456,13 @@ MfsUpdateRecord(
 	// we zero out the entry and set the status to deleted
 	if (Action == MFS_ACTION_DELETE) {
 		memset((void*)Record, 0, sizeof(FileRecord_t));
-		Record->Status = MFS_FILERECORD_DELETED;
+		Record->Flags = 0;
 	}
 	else {
 		// Now we have two sub cases, but create just needs some
 		// extra updates otherwise they share
 		if (Action == MFS_ACTION_CREATE) {
-			Record->Status = MFS_FILERECORD_INUSE;
+			Record->Flags = MFS_FILERECORD_INUSE;
 			memcpy(&Record->Name[0],
 				MStringRaw(Handle->Name), MStringSize(Handle->Name));
 			memset(&Record->Integrated[0], 0, 512);

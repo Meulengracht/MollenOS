@@ -122,15 +122,8 @@ MfsLocateRecord(
 			// Variables
 			MString_t *Filename = NULL;
 
-			// If we reach end of table, then it's not found
-			if (Record->Status == MFS_FILERECORD_ENDOFTABLE) {
-				Result = FsPathNotFound;
-				IsEndOfFolder = 1;
-				break;
-			}
-
-			// Skip deleted records
-			if (Record->Status == MFS_FILERECORD_DELETED) {
+			// Skip unused records
+			if (!(Record->Flags & MFS_FILERECORD_INUSE)) {
 				Record++;
 				continue;
 			}
@@ -273,8 +266,7 @@ MfsLocateFreeRecord(
 
 			// Look for a file-record that's either deleted or
 			// if we encounter the end of the file-record table
-			if (Record->Status == MFS_FILERECORD_DELETED
-				|| Record->Status == MFS_FILERECORD_ENDOFTABLE) {
+			if (!(Record->Flags & MFS_FILERECORD_INUSE)) {
 				// Are we at end of path? If we are - we have found our
 				// free entry in the file-record-table
 				if (IsEndOfPath) {
@@ -293,16 +285,8 @@ MfsLocateFreeRecord(
 					goto Cleanup;
 				}
 				else {
-					// If we aren't at end of path, then fail if it's
-					// end of table, otherwise just continue
-					if (Record->Status == MFS_FILERECORD_ENDOFTABLE) {
-						Result = FsPathNotFound;
-						goto Cleanup;
-					}
-					else {
-						Record++;
-						continue;
-					}
+					Record++;
+					continue;
 				}
 			}
 
