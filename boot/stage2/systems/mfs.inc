@@ -43,7 +43,6 @@ struc MfsBootSectorStruct
 	.SectorsPerBucket	resw	1
 	.MasterBucketSector	resq	1
 	.MasterBucketMirror	resq	1
-	.VolumeLabel		resb	8
 endstruc
 
 ; **************************
@@ -244,7 +243,12 @@ MfsLoadFile:
 		
 		; ReadCluster returns next cluster in chain
 		push	ecx
-		mov 	eax, 1
+
+		; Get length of the current bucket first by saving
+		; the current bucket, length is retrieved in eax
+		push 	esi
+		call 	GetNextBucket
+		pop 	esi
 		call 	ReadBucket
 		pop		ecx
 		push 	esi
@@ -265,13 +269,14 @@ MfsLoadFile:
 		pop		ecx
 
 		; End of root?
+		; Unused entries have 0
 		.EntryLoop:
 			cmp 	[es:edi], ch
-			je 		.ExitLoop
+			jne 	.Next
 
 			; No, phew, lets check if filename matches
 			pushad
-			add		edi, 0x4C
+			add		edi, 0x44
         	repe    cmpsb
         	popad
         	jne 	.Next
@@ -298,7 +303,7 @@ MfsLoadFile:
 			.LoadKernel:
         	; Get filesize 
         	push 	eax
-        	mov 	eax, dword [es:di + 0x3C]
+        	mov 	eax, dword [es:di + 0x30]
         	mov 	dword [dMFSLoadFileFSize], eax
 
         	; Lets load the fuck out of this file
@@ -385,10 +390,10 @@ SetupMfs:
 	call	ReadSector
 
 	mov		eax, MEMLOCATION_FAT_GETCLUSTER
-	mov		ebx, 12
+	mov		ebx, 80
 	mov		ecx, [eax + ebx]
 	mov		dword [dRootBucket], ecx
-	mov 	ebx, 24
+	mov 	ebx, 92
 	mov 	ecx, [eax + ebx]
 	mov 	dword [qBucketMapSector], ecx
 	mov 	ecx, [eax + ebx + 4]
@@ -494,7 +499,6 @@ istruc MfsBootSectorStruct
 	at MfsBootSectorStruct.SectorsPerBucket,		dw	0
 	at MfsBootSectorStruct.MasterBucketSector,		dq	0
 	at MfsBootSectorStruct.MasterBucketMirror,		dq	0
-	at MfsBootSectorStruct.VolumeLabel,				db	0, 0, 0, 0, 0, 0, 0, 0
 iend
 
 %endif
