@@ -75,11 +75,11 @@ xcopy /v /y %~dp0\librt\build\*.dll %~dp0\modules\build\
 START "InitRD" /D %~dp0\modules /B /W "%~dp0\modules\RdBuilder.exe"
 
 ::Copy files to install directory
-xcopy /v /y %~dp0\librt\build\*.dll %~dp0\install\hdd\system\
-xcopy /v /y %~dp0\kernel\build\MCore.mos %~dp0\install\hdd\system\syskrnl.mos
-xcopy /v /y %~dp0\modules\InitRd.mos %~dp0\install\hdd\system\initrd.mos
-xcopy /v /y %~dp0\boot\stage1\mfs\stage1.sys %~dp0\install\stage1.sys
-xcopy /v /y %~dp0\boot\stage2\stage2.sys %~dp0\install\stage2.sys
+xcopy /v /y %~dp0librt\build\*.dll %~dp0install\hdd\system\
+xcopy /v /y %~dp0kernel\build\MCore.mos %~dp0install\hdd\system\syskrnl.mos
+xcopy /v /y %~dp0modules\InitRd.mos %~dp0install\hdd\system\initrd.mos
+xcopy /v /y %~dp0boot\stage1\mfs\stage1.sys %~dp0install\stage1.sys
+xcopy /v /y %~dp0boot\stage2\stage2.sys %~dp0install\stage2.sys
 
 ::Install MOS
 :Install
