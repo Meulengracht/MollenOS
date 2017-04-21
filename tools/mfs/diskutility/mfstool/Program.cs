@@ -35,7 +35,7 @@ namespace DiskUtility
                 Console.WriteLine("Creating: " + RelPath + "  (" + DirToCreate + ")");
 
                 // Create the directory
-                if (!FileSystem.WriteFile(DirToCreate, FileFlags.Directory | FileFlags.System, null)) {
+                if (!FileSystem.WriteFile(RelPath, FileFlags.Directory | FileFlags.System, null)) {
                     Console.WriteLine("Failed to create directory: " + DirToCreate);
                     return;
                 }

@@ -123,8 +123,7 @@ namespace DiskUtility
                 if (DeviceId == "VMDK")
                     vDiskHandle =  DiscUtils.Vmdk.Disk.Initialize(@"..\mollenos." + DeviceId.ToLower(), (long)SizeOfHdd, 
                         DiscUtils.Vmdk.DiskCreateType.MonolithicSparse);
-                else if (DeviceId == "IMG")
-                {
+                else if (DeviceId == "IMG") {
                     fStream = File.Create(@"..\mollenos." + DeviceId.ToLower());
                     vDiskHandle = DiscUtils.Raw.Disk.Initialize(fStream, DiscUtils.Ownership.None, (long)SizeOfHdd);
                 }
@@ -176,17 +175,13 @@ namespace DiskUtility
             Console.WriteLine("Finishing disk image on target " + DeviceId);
 
             // Check for disk identifiers
-            if (DeviceId == "VMDK" || DeviceId == "IMG")
-            {
-                if (DeviceId == "VMDK")
-                {
+            if (DeviceId == "VMDK" || DeviceId == "IMG") {
+                if (DeviceId == "VMDK") {
                     ((DiscUtils.Vmdk.Disk)vDiskHandle).Dispose();
                 }
-                else if (DeviceId == "IMG")
-                {
+                else if (DeviceId == "IMG") {
                     ((DiscUtils.Raw.Disk)vDiskHandle).Dispose();
                     fStream.Close();
-                    fStream.Dispose();
                 }
             }
             else
@@ -197,23 +192,20 @@ namespace DiskUtility
             sfHandle = null;
             fStream = null;
         }
-        
+
         /* Seek
          * Seeks the disk-position to the given offset, offset provided must
          * be both absolute and within bounds */
         public void Seek(Int64 pOffset)
         {
             // We have to handle each case differently
-            if (DeviceId == "VMDK")
-            {
+            if (DeviceId == "VMDK") {
                 ((DiscUtils.Vmdk.Disk)vDiskHandle).Content.Seek((long)pOffset, SeekOrigin.Begin);
             }
-            else if (DeviceId == "IMG")
-            {
+            else if (DeviceId == "IMG") {
                 ((DiscUtils.Raw.Disk)vDiskHandle).Content.Seek((long)pOffset, SeekOrigin.Begin);
             }
-            else
-            {
+            else {
                 int DistHigh = (int)((pOffset >> 32) & 0xFFFFFFFF);
                 int DistLow = (int)(pOffset & 0xFFFFFFFF);
                 SetFilePointer(sfHandle, DistLow, ref DistHigh, EMoveMethod.Begin);
@@ -222,28 +214,26 @@ namespace DiskUtility
 
         /* Write 
          * Writes sector-aligned buffers to the disk, if it needs to be
-         * written at a given sector, specifiy pSeek = true*/
+         * written at a given sector, specifiy pSeek = true */
         public void Write(Byte[] pBuffer, UInt64 pSector = 0, Boolean pSeek = false)
         {
             // If we asked to seek, then handle the case
-            if (pSeek)
-            {
+            if (pSeek) {
                 // Calculate the absolute offset
                 Int64 ValToMove = ((Int64)pSector * (Int64)BytesPerSector);
                 Seek(ValToMove);
             }
 
             // We must handle all these cases differently again
-            if (DeviceId == "VMDK")
-            {
+            if (DeviceId == "VMDK") {
                 ((DiscUtils.Vmdk.Disk)vDiskHandle).Content.Write(pBuffer, 0, pBuffer.Length);
+                ((DiscUtils.Vmdk.Disk)vDiskHandle).Content.Flush();
             }
-            else if (DeviceId == "IMG")
-            {
+            else if (DeviceId == "IMG") {
                 ((DiscUtils.Raw.Disk)vDiskHandle).Content.Write(pBuffer, 0, pBuffer.Length);
+                ((DiscUtils.Raw.Disk)vDiskHandle).Content.Flush();
             }
-            else
-            {
+            else {
                 uint BytesWritten = 0;
                 WriteFile(sfHandle.DangerousGetHandle(), pBuffer, (uint)pBuffer.Length, out BytesWritten, IntPtr.Zero);
             }

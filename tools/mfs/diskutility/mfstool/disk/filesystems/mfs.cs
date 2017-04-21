@@ -360,13 +360,14 @@ namespace DiskUtility
                         fBuffer[i + 67] = 0xFF;
 
                         // Name at 68 + 300
-                        Byte[] NameData = System.Text.Encoding.UTF8.GetBytes(Name);
+                        Byte[] NameData = Encoding.UTF8.GetBytes(Name);
                         for (int j = 0; j < NameData.Length; j++)
                             fBuffer[i + 68 + j] = NameData[j];
 
                         // Everything else 0
                         // Write new entry to disk and return
                         m_pDisk.Write(fBuffer, m_iSector + Sector, true);
+                        Console.WriteLine("  - Writing " + fBuffer.Length.ToString() + " bytes to disk at sector " + (m_iSector + Sector).ToString());
                         return;
                     }
 
@@ -600,7 +601,7 @@ namespace DiskUtility
             if (mPath.EndsWith("/"))
                 mPath = mPath.Substring(0, mPath.Length - 1);
 
-            /* Get token */
+            // Get token
             int iDex = mPath.IndexOf("/");
             String LookFor = mPath.Substring(0, iDex == -1 ? mPath.Length : iDex);
 
@@ -610,6 +611,7 @@ namespace DiskUtility
                 UInt32 IteratorBucket = DirectoryBucket, PreviousBucket = MFS_ENDOFCHAIN;
                 UInt32 DirectoryLength = 0;
                 int End = 0;
+                int i = 0;
 
                 while (End == 0) {
                     // Get length of bucket
@@ -620,7 +622,7 @@ namespace DiskUtility
                     Byte[] fBuffer = m_pDisk.Read(m_iSector + Sector, m_iBucketSize * DirectoryLength);
 
                     // Iterate the number of records
-                    for (int i = 0; i < (m_iBucketSize * m_pDisk.BytesPerSector * DirectoryLength); i++) {
+                    for (i = 0; i < (m_iBucketSize * m_pDisk.BytesPerSector * DirectoryLength); i++) {
                         if (fBuffer[i] == 0) {
                             End = 1;
                             break;
@@ -664,7 +666,7 @@ namespace DiskUtility
                 MfsRecord nEntry = new MfsRecord();
                 nEntry.DirectoryBucket = (IteratorBucket == MFS_ENDOFCHAIN) ? PreviousBucket : IteratorBucket;
                 nEntry.DirectoryLength = DirectoryLength;
-                nEntry.DirectoryIndex = 0;
+                nEntry.DirectoryIndex = (uint)i;
                 return nEntry;
             }
             else {
@@ -1230,16 +1232,21 @@ namespace DiskUtility
             Byte[] MasterRecord = m_pDisk.Read(m_iSector + MasterRecordSector, 1);
             UInt32 FreeBucket = BitConverter.ToUInt32(MasterRecord, 76);
             UInt32 RootBucket = BitConverter.ToUInt32(MasterRecord, 80);
+            UInt64 SectorsRequired = 0;
+            UInt64 BucketsRequired = 0;
 
-            // Calculate number of sectors required
-            UInt64 SectorsRequired = (ulong)Data.LongLength / m_pDisk.BytesPerSector;
-            if (((ulong)Data.LongLength % m_pDisk.BytesPerSector) > 0)
-                SectorsRequired++;
+            // Sanitize
+            if (Data != null) {
+                // Calculate number of sectors required
+                SectorsRequired = (ulong)Data.LongLength / m_pDisk.BytesPerSector;
+                if (((ulong)Data.LongLength % m_pDisk.BytesPerSector) > 0)
+                    SectorsRequired++;
 
-            // Calculate the number of buckets required
-            UInt64 BucketsRequired = SectorsRequired / m_iBucketSize;
-            if ((SectorsRequired % m_iBucketSize) > 0)
-                BucketsRequired++;
+                // Calculate the number of buckets required
+                BucketsRequired = SectorsRequired / m_iBucketSize;
+                if ((SectorsRequired % m_iBucketSize) > 0)
+                    BucketsRequired++;
+            }
 
             // Try to locate if the record exists already
             // Because if it exists - then we update it
@@ -1333,7 +1340,7 @@ namespace DiskUtility
                 m_pDisk.Write(fBuffer, m_iSector + (nEntry.DirectoryBucket * m_iBucketSize), true);
             }
             else {
-                Console.WriteLine("/" + Path.GetFileName(LocalPath) + " is a new " 
+                Console.WriteLine("/" + LocalPath + " is a new " 
                     + (Flags.HasFlag(FileFlags.Directory) ? "directory" : "file"));
                 MfsRecord cInfo = CreateRecursive(RootBucket, LocalPath);
                 if (cInfo == null) {
@@ -1341,27 +1348,32 @@ namespace DiskUtility
                     return false;
                 }
 
+                Console.WriteLine("  - room in bucket " + cInfo.DirectoryBucket.ToString() + " at index " + cInfo.DirectoryIndex.ToString());
+
                 // Reload master-record and update free-bucket variable 
                 // as it could have changed when expanding directory
-                MasterRecord = m_pDisk.Read(m_iSector + MasterRecordSector, 1);
-                FreeBucket = BitConverter.ToUInt32(MasterRecord, 76);
-
-                // Do the allocation
-                Console.WriteLine("  - allocating " + BucketsRequired.ToString() + " buckets");
-                Console.WriteLine("  - old free pointer " + FreeBucket.ToString());
-                UInt32 StartBucket = FreeBucket;
+                UInt32 StartBucket = MFS_ENDOFCHAIN;
                 UInt32 InitialBucketSize = 0;
-                FreeBucket = AllocateBuckets(FreeBucket, BucketsRequired, out InitialBucketSize);
-                Console.WriteLine("  - new free pointer " + FreeBucket.ToString());
+                if (Data != null) {
+                    MasterRecord = m_pDisk.Read(m_iSector + MasterRecordSector, 1);
+                    FreeBucket = BitConverter.ToUInt32(MasterRecord, 76);
 
-                // Update the master-record
-                MasterRecord[76] = (Byte)(FreeBucket & 0xFF);
-                MasterRecord[77] = (Byte)((FreeBucket >> 8) & 0xFF);
-                MasterRecord[78] = (Byte)((FreeBucket >> 16) & 0xFF);
-                MasterRecord[79] = (Byte)((FreeBucket >> 24) & 0xFF);
-                m_pDisk.Write(MasterRecord, m_iSector + MasterRecordSector, true);
-                m_pDisk.Write(MasterRecord, m_iSector + MasterRecordMirrorSector, true);
+                    // Do the allocation
+                    Console.WriteLine("  - allocating " + BucketsRequired.ToString() + " buckets");
+                    Console.WriteLine("  - old free pointer " + FreeBucket.ToString());
+                    StartBucket = FreeBucket;
+                    FreeBucket = AllocateBuckets(FreeBucket, BucketsRequired, out InitialBucketSize);
+                    Console.WriteLine("  - new free pointer " + FreeBucket.ToString());
 
+                    // Update the master-record
+                    MasterRecord[76] = (Byte)(FreeBucket & 0xFF);
+                    MasterRecord[77] = (Byte)((FreeBucket >> 8) & 0xFF);
+                    MasterRecord[78] = (Byte)((FreeBucket >> 16) & 0xFF);
+                    MasterRecord[79] = (Byte)((FreeBucket >> 24) & 0xFF);
+                    m_pDisk.Write(MasterRecord, m_iSector + MasterRecordSector, true);
+                    m_pDisk.Write(MasterRecord, m_iSector + MasterRecordMirrorSector, true);
+                }
+                
                 // Build flags
                 RecordFlags rFlags = RecordFlags.InUse | RecordFlags.Chained;
                 if (Flags.HasFlag(FileFlags.Directory))
@@ -1374,8 +1386,10 @@ namespace DiskUtility
                 CreateFileRecord(Path.GetFileName(LocalPath), rFlags, StartBucket, InitialBucketSize, Data, cInfo.DirectoryBucket);
 
                 // Now fill the allocated buckets with data
-                Console.WriteLine("  - writing file-data");
-                FillBucketChain(StartBucket, InitialBucketSize, Data);
+                if (Data != null) {
+                    Console.WriteLine("  - writing file-data");
+                    FillBucketChain(StartBucket, InitialBucketSize, Data);
+                }
             }
 
             // Done
