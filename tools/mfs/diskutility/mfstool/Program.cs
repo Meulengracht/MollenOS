@@ -88,7 +88,7 @@ namespace DiskUtility
                             int Option = int.Parse(Tokens[1]);
 
                             /* Do the format */
-                            Format((MfsDisk)Drives[Option]);
+                            //Format((MfsDisk)Drives[Option]);
 
                         }
                         break;
@@ -101,7 +101,7 @@ namespace DiskUtility
                             int Option = int.Parse(Tokens[2]);
 
                             /* Gogo */
-                            WriteToMfs((MfsDisk)Drives[Option], Path, "");
+                            //WriteToMfs((MfsDisk)Drives[Option], Path, "");
 
                         }
                         break;
@@ -114,7 +114,7 @@ namespace DiskUtility
                             int Option = int.Parse(Tokens[2]);
 
                             /* Gogo */
-                            ListDirectory((MfsDisk)Drives[Option], Path);
+                            //ListDirectory((MfsDisk)Drives[Option], Path);
 
                         }
                         break;
@@ -124,7 +124,7 @@ namespace DiskUtility
                             int Option = int.Parse(Tokens[1]);
 
                             /* Gogo */
-                            InstallMOS((MfsDisk)Drives[Option]);
+                            //InstallMOS((MfsDisk)Drives[Option]);
 
                         }
                         break;
@@ -248,19 +248,5 @@ namespace DiskUtility
             // Return
             return 0;
         }
-    }
-
-    /* Represents a Mfs Entry */
-    public class MfsEntry
-    {
-        /* Name */
-        public String Name;
-        public UInt64 Size;
-        public UInt64 AllocatedSize;
-        public UInt32 Bucket;
-        public UInt32 BucketLength;
-
-        public UInt32 DirBucket;
-        public UInt32 DirIndex;
     }
 }

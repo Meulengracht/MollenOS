@@ -178,8 +178,8 @@ PACKED_TYPESTRUCT(FileRecord, {
 #define MFS_FILERECORD_SECURITY			0x4			// User must possess the right key to unlock
 #define MFS_FILERECORD_SYSTEM			0x8			// Readable, nothing else
 #define MFS_FILERECORD_HIDDEN			0x10		// Don't show
-#define MFS_FILERECORD_CHAINED			0x40		// Means all buckets are adjacent
-#define MFS_FILERECORD_LOCKED			0x80		// File is deep-locked
+#define MFS_FILERECORD_CHAINED			0x20		// Means all buckets are adjacent
+#define MFS_FILERECORD_LOCKED			0x40		// File is deep-locked
 
 #define MFS_FILERECORD_VERSIONED		0x10000000	// Record is versioned
 #define MFS_FILERECORD_INLINE			0x20000000	// Inline data is present

@@ -97,8 +97,8 @@ namespace DiskUtility
             TotalSectors = pTotalSectors;
 
             // Initialize rest to 0
-            nDisk.vDiskHandle = null;
-            nDisk.sfHandle = null;
+            vDiskHandle = null;
+            sfHandle = null;
         }
 
         /* Open
@@ -113,7 +113,7 @@ namespace DiskUtility
             if (DeviceId == "VMDK" || DeviceId == "IMG")
             {
                 // Calculate size of harddisk in bytes
-                UInt64 SizeOfHdd = pBytesPerSector * pTotalSectors;
+                UInt64 SizeOfHdd = BytesPerSector * TotalSectors;
 
                 // Always create the image with this name
                 if (File.Exists(@"..\mollenos." + DeviceId.ToLower()))
@@ -151,13 +151,13 @@ namespace DiskUtility
                 }
 
                 // Lock disk and unmount
-                if (!DeviceIoControl(mDisk.sfHandle.DangerousGetHandle(), FSCTL_LOCK_VOLUME, IntPtr.Zero, 0, IntPtr.Zero, 0, out lpBytesReturned, IntPtr.Zero))
+                if (!DeviceIoControl(sfHandle.DangerousGetHandle(), FSCTL_LOCK_VOLUME, IntPtr.Zero, 0, IntPtr.Zero, 0, out lpBytesReturned, IntPtr.Zero))
                 {
                     Console.WriteLine("Failed to lock disk with id " + DeviceId);
                     return false;
                 }
                     
-                if (!DeviceIoControl(mDisk.sfHandle.DangerousGetHandle(), FSCTL_DISMOUNT_VOLUME, IntPtr.Zero, 0, IntPtr.Zero, 0, out lpBytesReturned, IntPtr.Zero))
+                if (!DeviceIoControl(sfHandle.DangerousGetHandle(), FSCTL_DISMOUNT_VOLUME, IntPtr.Zero, 0, IntPtr.Zero, 0, out lpBytesReturned, IntPtr.Zero))
                 {
                     Console.WriteLine("Failed to unmount disk with id " + DeviceId);
                     return false;
@@ -204,11 +204,11 @@ namespace DiskUtility
         public void Seek(Int64 pOffset)
         {
             // We have to handle each case differently
-            if (mDisk.DeviceId == "VMDK")
+            if (DeviceId == "VMDK")
             {
                 ((DiscUtils.Vmdk.Disk)vDiskHandle).Content.Seek((long)pOffset, SeekOrigin.Begin);
             }
-            else if (mDisk.DeviceId == "IMG")
+            else if (DeviceId == "IMG")
             {
                 ((DiscUtils.Raw.Disk)vDiskHandle).Content.Seek((long)pOffset, SeekOrigin.Begin);
             }
@@ -234,11 +234,11 @@ namespace DiskUtility
             }
 
             // We must handle all these cases differently again
-            if (mDisk.DeviceId == "VMDK")
+            if (DeviceId == "VMDK")
             {
                 ((DiscUtils.Vmdk.Disk)vDiskHandle).Content.Write(pBuffer, 0, pBuffer.Length);
             }
-            else if (mDisk.DeviceId == "IMG")
+            else if (DeviceId == "IMG")
             {
                 ((DiscUtils.Raw.Disk)vDiskHandle).Content.Write(pBuffer, 0, pBuffer.Length);
             }
@@ -261,15 +261,15 @@ namespace DiskUtility
             Seek((Int64)pSector * (Int64)BytesPerSector);
 
             // Handle each output case differently
-            if (mDisk.DeviceId == "VMDK") {
-                ((DiscUtils.Vmdk.Disk)mDisk.vDiskHandle).Content.Read(RetBuf, 0, RetBuf.Length);
+            if (DeviceId == "VMDK") {
+                ((DiscUtils.Vmdk.Disk)vDiskHandle).Content.Read(RetBuf, 0, RetBuf.Length);
             }
-            else if (mDisk.DeviceId == "IMG") {
-                ((DiscUtils.Raw.Disk)mDisk.vDiskHandle).Content.Read(RetBuf, 0, RetBuf.Length);
+            else if (DeviceId == "IMG") {
+                ((DiscUtils.Raw.Disk)vDiskHandle).Content.Read(RetBuf, 0, RetBuf.Length);
             }
             else {
                 uint bRead = 0;
-                ReadFile(mDisk.sfHandle.DangerousGetHandle(), RetBuf, (uint)RetBuf.Length, out bRead, IntPtr.Zero);
+                ReadFile(sfHandle.DangerousGetHandle(), RetBuf, (uint)RetBuf.Length, out bRead, IntPtr.Zero);
             }
 
             // Return the buffer created

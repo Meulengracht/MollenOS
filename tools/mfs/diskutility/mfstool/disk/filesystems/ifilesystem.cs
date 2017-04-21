@@ -29,6 +29,6 @@ namespace DiskUtility
 
         /* WriteFile 
          * Creates a new file or directory with the given path, flags and data */
-        bool WriteFile(String Path, FileFlags Flags, Byte[] Data);
+        bool WriteFile(String LocalPath, FileFlags Flags, Byte[] Data);
     }
 }
