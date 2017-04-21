@@ -439,7 +439,8 @@ MfsUpdateRecord(
 
 	// Read the stored data bucket where the record is
 	if (MfsReadSectors(Descriptor, Mfs->TransferBuffer, 
-		MFS_GETSECTOR(Mfs, Handle->DirectoryBucket), Mfs->SectorsPerBucket) != OsNoError) {
+		MFS_GETSECTOR(Mfs, Handle->DirectoryBucket), 
+		Mfs->SectorsPerBucket * Handle->DirectoryLength) != OsNoError) {
 		ERROR("Failed to read bucket %u", Handle->DirectoryBucket);
 		Result = FsDiskError;
 		goto Cleanup;
@@ -482,7 +483,8 @@ MfsUpdateRecord(
 	
 	// Write the bucket back to the disk
 	if (MfsWriteSectors(Descriptor, Mfs->TransferBuffer,
-		MFS_GETSECTOR(Mfs, Handle->DirectoryBucket), Mfs->SectorsPerBucket) != OsNoError) {
+		MFS_GETSECTOR(Mfs, Handle->DirectoryBucket), 
+		Mfs->SectorsPerBucket * Handle->DirectoryLength) != OsNoError) {
 		ERROR("Failed to update bucket %u", Handle->DirectoryBucket);
 		Result = FsDiskError;
 	}

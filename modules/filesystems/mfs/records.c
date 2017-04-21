@@ -106,10 +106,19 @@ MfsLocateRecord(
 	// Iterate untill we reach end of folder
 	while (!IsEndOfFolder) {
 		FileRecord_t *Record = NULL;
+		MapRecord_t Link;
+
+		// Get the length of the bucket
+		if (MfsGetBucketLink(Descriptor, CurrentBucket, &Link) != OsNoError) {
+			ERROR("Failed to get length of bucket %u", CurrentBucket);
+			Result = FsDiskError;
+			goto Cleanup;
+		}
 
 		// Start out by loading the bucket buffer with data
 		if (MfsReadSectors(Descriptor, Mfs->TransferBuffer, 
-			MFS_GETSECTOR(Mfs, CurrentBucket), Mfs->SectorsPerBucket) != OsNoError) {
+			MFS_GETSECTOR(Mfs, CurrentBucket), 
+			Mfs->SectorsPerBucket * Link.Length) != OsNoError) {
 			ERROR("Failed to read directory-bucket %u", CurrentBucket);
 			Result = FsDiskError;
 			goto Cleanup;
@@ -168,6 +177,7 @@ MfsLocateRecord(
 
 					// Save where in the directory we found it
 					(*File)->DirectoryBucket = CurrentBucket;
+					(*File)->DirectoryLength = Link.Length;
 					(*File)->DirectoryIndex = i;
 					Result = FsOk;
 					goto Cleanup;
@@ -180,15 +190,7 @@ MfsLocateRecord(
 
 		// Retrieve the next part of the directory if
 		// we aren't at the end of directory
-		if (!IsEndOfFolder) {
-			MapRecord_t Link;
-			if (MfsGetBucketLink(Descriptor, CurrentBucket, &Link) != OsNoError) {
-				ERROR("Failed to retrieve next link for bucket %u",
-					CurrentBucket);
-				Result = FsDiskError;
-				goto Cleanup;
-			}
-			
+		if (!IsEndOfFolder) {			
 			// End of link?
 			if (Link.Link == MFS_ENDOFCHAIN) {
 				Result = FsPathNotFound;
@@ -248,10 +250,19 @@ MfsLocateFreeRecord(
 	// Iterate untill we reach end of folder
 	while (!IsEndOfFolder) {
 		FileRecord_t *Record = NULL;
+		MapRecord_t Link;
+
+		// Get the length of the bucket
+		if (MfsGetBucketLink(Descriptor, CurrentBucket, &Link) != OsNoError) {
+			ERROR("Failed to get length of bucket %u", CurrentBucket);
+			Result = FsDiskError;
+			goto Cleanup;
+		}
 
 		// Start out by loading the bucket buffer with data
 		if (MfsReadSectors(Descriptor, Mfs->TransferBuffer,
-			MFS_GETSECTOR(Mfs, CurrentBucket), Mfs->SectorsPerBucket) != OsNoError) {
+			MFS_GETSECTOR(Mfs, CurrentBucket), 
+			Mfs->SectorsPerBucket * Link.Length) != OsNoError) {
 			ERROR("Failed to read directory-bucket %u", CurrentBucket);
 			Result = FsDiskError;
 			goto Cleanup;
@@ -278,6 +289,7 @@ MfsLocateFreeRecord(
 
 					// Store it's position in the directory
 					(*File)->DirectoryBucket = CurrentBucket;
+					(*File)->DirectoryLength = Link.Length;
 					(*File)->DirectoryIndex = i;
 
 					// Set code and cleanup
@@ -358,6 +370,7 @@ MfsLocateFreeRecord(
 
 					// Save where in the directory we found it
 					(*File)->DirectoryBucket = CurrentBucket;
+					(*File)->DirectoryLength = Link.Length;
 					(*File)->DirectoryIndex = i;
 					Result = FsOk;
 					goto Cleanup;
@@ -371,14 +384,6 @@ MfsLocateFreeRecord(
 		// Retrieve the next part of the directory if
 		// we aren't at the end of directory
 		if (!IsEndOfFolder) {
-			MapRecord_t Link;
-			if (MfsGetBucketLink(Descriptor, CurrentBucket, &Link) != OsNoError) {
-				ERROR("Failed to retrieve next link for bucket %u",
-					CurrentBucket);
-				Result = FsDiskError;
-				goto Cleanup;
-			}
-
 			// End of link?
 			// Expand directory
 			if (Link.Link == MFS_ENDOFCHAIN) {
@@ -446,7 +451,7 @@ MfsCreateRecord(
 	(*File)->StartLength = 0;
 	(*File)->Size = 0;
 	(*File)->AllocatedSize = 0;
-	(*File)->Flags = (uint16_t)Flags;
+	(*File)->Flags = Flags | MFS_FILERECORD_INUSE;
 
 	// Update the on-disk record with the new data
 	return MfsUpdateRecord(Descriptor, *File, MFS_ACTION_CREATE);

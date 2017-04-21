@@ -832,10 +832,10 @@ namespace DiskUtility
             UInt64 MirrorMasterBucketSector = 0;
 
             // Determine bucket size 
-            // if <1gb = 2 Kb (8 sectors) 
-            // If <64gb = 4 Kb (16 sectors)
-            // If >64gb = 8 Kb (32 sectors)
-            // If >256gb = 16 Kb (64 sectors)
+            // if <1gb = 4 Kb (8 sectors) 
+            // If <64gb = 8 Kb (16 sectors)
+            // If >64gb = 16 Kb (32 sectors)
+            // If >256gb = 32 Kb (64 sectors)
             if (DriveSizeBytes >= (256 * GigaByte))
                 BucketSize = 64;
             else if (DriveSizeBytes >= (64 * GigaByte))
@@ -1159,9 +1159,9 @@ namespace DiskUtility
             Console.WriteLine("Install - loading bootsector (stage1.sys)");
             Byte[] Bootsector = File.ReadAllBytes("stage1.sys");
 
-            // Modify boot-sector by preserving the header
+            // Modify boot-sector by preserving the header 44
             Byte[] Existing = m_pDisk.Read(m_iSector, 1);
-            Buffer.BlockCopy(Existing, 3, Bootsector, 3, 49);
+            Buffer.BlockCopy(Existing, 3, Bootsector, 3, 41);
 
             // Mark the partition as os-partition
             Bootsector[8] = 0x1;

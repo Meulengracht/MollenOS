@@ -70,7 +70,7 @@ PACKED_TYPESTRUCT(BootRecord, {
 	uint64_t				MasterRecordSector;
 	uint64_t				MasterRecordMirror;
 
-	uint8_t					BootCode[460];	//512 - 48
+	uint8_t					BootCode[468];	//512 - 44
 });
 
 /* MFS Magic Value 
@@ -200,6 +200,7 @@ PACKED_TYPESTRUCT(MfsFile, {
 	uint64_t				 AllocatedSize;
 							 
 	uint32_t				 DirectoryBucket;
+	uint32_t				 DirectoryLength;
 	size_t					 DirectoryIndex;
 });
 

@@ -124,6 +124,7 @@ GetNextBucket:
 ; MFS ReadBucket
 ; IN: 
 ; 	- EAX BucketLength
+;	- EDX BucketIndex
 ;	- ESI Bucket
 ;	- ES:BX Buffer
 ;
@@ -140,8 +141,9 @@ ReadBucket:
 	push 	eax
 
 	; Calculate Sector
-	; Sector = Bucket * SectorsPerBucket
+	; Sector = (Bucket + Index) * SectorsPerBucket
 	mov		eax, esi
+	add 	eax, edx
 	xor		esi, esi
 	mov		si, word [MfsBootSector + MfsBootSectorStruct.SectorsPerBucket]
 	xor		ecx, ecx
@@ -182,16 +184,22 @@ ReadBucket:
 	call 	GetNextBucket
 	mov 	dword [wMfsTemporary1], esi
 	mov 	dword [dMfsTemporary2], eax
+	cmp 	esi, 0xFFFFFFFF
+	je 		.SkipLength
+	push 	esi
+	call 	GetNextBucket
+	pop 	esi
 
-	; Restore
-	pop 	es
+	.SkipLength:
+		; Restore
+		pop 	es
 
-	; Done
-	popad
-	mov 	bx, word [wMfsTemporary0]
-	mov 	esi, dword [wMfsTemporary1]
-	mov 	eax, dword [dMfsTemporary2]
-	ret
+		; Done
+		popad
+		mov 	bx, word [wMfsTemporary0]
+		mov 	esi, dword [wMfsTemporary1]
+		mov 	eax, dword [dMfsTemporary2]
+		ret
 
 
 ; ****************************
@@ -249,77 +257,100 @@ MfsLoadFile:
 		push 	esi
 		call 	GetNextBucket
 		pop 	esi
-		call 	ReadBucket
-		pop		ecx
-		push 	esi
 
-		; Step 3. Parse entries and look for esi
-		mov 	edi, MEMLOCATION_FAT_FATTABLE
-		mov 	esi, dword [dMFSLoadFileFName]
+		; Give an index each time due to the fact we can only load 1 bucket at the time
+		; But always reduce to take 0 indexing into account
+		dec 	eax
+		mov 	byte [bMfsBucketIndex], al
 
-		; Entry Count (dx)
-		; Length of name in CX
-		xor 	eax, eax
-		xor 	ebx, ebx
-		push	ecx
-		xor		ecx, ecx
-		mov 	bx, word [MfsBootSector + MfsBootSectorStruct.SectorsPerBucket]
-		shr		ebx, 1
-		mov 	edx, ebx
-		pop		ecx
+		.LoadNextIndex:
+			mov 	eax, 0x1
+			push 	edx
+			xor 	edx, edx
+			mov 	dl, byte [bMfsBucketIndex]
+			cmp 	dl, 0
+			je 		.ReadNormal
+			push 	esi
+			call 	ReadBucket
+			pop 	esi
+			jmp 	.MoveOn
 
-		; End of root?
-		; Unused entries have 0
-		.EntryLoop:
-			cmp 	[es:edi], ch
-			jne 	.Next
+			.ReadNormal:
+			call 	ReadBucket
 
-			; No, phew, lets check if filename matches
-			pushad
-			add		edi, 0x44
-        	repe    cmpsb
-        	popad
-        	jne 	.Next
+			.MoveOn:
+			pop 	edx
+			pop		ecx		
+			push 	esi
 
-        	; YAY WE FOUND IT!
-        	; Get bucket
-        	mov	    esi, dword [es:edi + 0x4]
-        	mov 	eax, dword [es:edi + 0x8]
+			; Step 3. Parse entries and look for esi
+			mov 	edi, MEMLOCATION_FAT_FATTABLE
+			mov 	esi, dword [dMFSLoadFileFName]
 
-			; Was it end of chain?
-			cmp		byte [bMfsEndOfString], 1
-			je		.LoadKernel
+			; Entry Count (dx)
+			; Length of name in CX
+			xor 	eax, eax
+			xor 	ebx, ebx
+			push	ecx
+			xor		ecx, ecx
+			mov 	bx, word [MfsBootSector + MfsBootSectorStruct.SectorsPerBucket]
+			shr		ebx, 1
+			mov 	edx, ebx
+			pop		ecx
 
-			; Ok, so go deeper, set bucket as next
-			mov		eax, esi
-			pop		esi
-			mov		esi, dword [dMFSLoadFileFName]
-			add		esi, ecx
-			inc		esi
-			mov		dword [dMFSLoadFileFName], esi
-			mov		esi, eax
-			jmp		.cLoop
+			; End of root?
+			; Unused entries have 0
+			.EntryLoop:
+				cmp 	byte [es:edi], 0
+				je		.Next
+
+				; No, phew, lets check if filename matches
+				pushad
+				add		edi, 0x44
+        		repe    cmpsb
+        		popad
+        		jne 	.Next
+
+        		; YAY WE FOUND IT!
+        		; Get bucket
+        		mov	    esi, dword [es:edi + 0x4]
+        		mov 	eax, dword [es:edi + 0x8]
+
+				; Was it end of chain?
+				cmp		byte [bMfsEndOfString], 1
+				je		.LoadKernel
+
+				; Ok, so go deeper, set bucket as next
+				mov		eax, esi
+				pop		esi
+				mov		esi, dword [dMFSLoadFileFName]
+				add		esi, ecx
+				inc		esi
+				mov		dword [dMFSLoadFileFName], esi
+				mov		esi, eax
+				jmp		.cLoop
 
 			.LoadKernel:
-        	; Get filesize 
-        	push 	eax
-        	mov 	eax, dword [es:di + 0x30]
-        	mov 	dword [dMFSLoadFileFSize], eax
+        		; Get filesize 
+        		push 	eax
+        		mov 	eax, dword [es:di + 0x30]
+        		mov 	dword [dMFSLoadFileFSize], eax
 
-        	; Lets load the fuck out of this file
-			mov 	ax, word [wMFSLoadFileFSegment]
-			mov 	es, ax
-			mov 	bx, word [wMFSLoadFileFOffset]
-			pop 	eax
+        		; Lets load the fuck out of this file
+				mov 	ax, word [wMFSLoadFileFSegment]
+				mov 	es, ax
+				mov 	bx, word [wMFSLoadFileFOffset]
+				pop 	eax
 
-			; Load 
-			.dLoop:
-				; Clustertime
-				call 	ReadBucket
+				; Load 
+				.dLoop:
+					; Clustertime
+					xor 	edx, edx
+					call 	ReadBucket
 
-				; Check
-				cmp 	esi, 0xFFFFFFFF
-				jne		.dLoop
+					; Check
+					cmp 	esi, 0xFFFFFFFF
+					jne		.dLoop
 
 
         	; We are done, end this
@@ -332,6 +363,18 @@ MfsLoadFile:
         		dec 	dx
         		jnz 	.EntryLoop
 
+        ; If index is zero - next
+        cmp 	byte [bMfsBucketIndex], 0
+        je 		.OutOfIndex
+        dec 	byte [bMfsBucketIndex]
+        mov 	bx, 0x0000
+		mov 	es, bx
+		mov 	bx, MEMLOCATION_FAT_FATTABLE
+		pop 	esi
+		push 	ecx
+        jmp 	.LoadNextIndex
+
+    .OutOfIndex:
 		; Dont loop if esi is 0xFFFFFFFF
 		pop 	esi
 		cmp 	esi, 0xFFFFFFFF
@@ -361,7 +404,6 @@ MfsLoadFile:
 SetupMfs:
 	; Save State
 	pushad
-	xchg bx, bx
 
 	; Save data
 	mov 	byte [bMfsDriveNumber], ah
@@ -369,7 +411,7 @@ SetupMfs:
 	; Copy bootcode to our structure
 	mov 	esi, MEMLOCATION_BOOTCODE
 	mov 	edi, MfsBootSector
-	mov 	ecx, 0x34
+	mov 	ecx, 0x2C
 	rep 	movsb
 
 	; Done, I don't need distractions
@@ -380,7 +422,7 @@ SetupMfs:
 	xor 	ebx, ebx
 	xor		ecx, ecx
 
-	; Get master bucket
+	; Get master record
 	mov		eax, dword [MfsBootSector + MfsBootSectorStruct.MasterBucketSector]
 	mov		esi, dword [MfsBootSector + MfsBootSectorStruct.MasterBucketSector + 4]
 	mov		ecx, 1
@@ -468,6 +510,7 @@ Mul64:
 
 
 ; Etc
+bMfsBucketIndex					db		0
 bMfsDriveNumber					db 		0
 bMfsEndOfString					db		0
 qBucketMapSector				dq 		0
