@@ -397,8 +397,8 @@ szFinishBootMsg 				db 		"Finishing Boot Sequence", 0x0D, 0x0A, 0x00
 
 szKernel						db 		"MCORE   MOS"
 szRamDisk						db		"INITRD  MOS"
-szKernelUtf						db		"System/syskrnl.mos", 0x0
-szRamDiskUtf					db		"System/initrd.mos", 0x0
+szKernelUtf						db		"system/syskrnl.mos", 0x0
+szRamDiskUtf					db		"system/initrd.mos", 0x0
 
 ; Practical stuff
 bDriveNumber 					db 		0

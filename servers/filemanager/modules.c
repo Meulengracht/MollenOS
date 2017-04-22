@@ -23,6 +23,7 @@
 /* Includes
  * - System */
 #include "include/vfs.h"
+#include <os/utils.h>
 
 /* Includes
  * - Library */
@@ -75,6 +76,7 @@ FileSystemModule_t *VfsResolveFileSystem(FileSystem_t *FileSystem)
 
 	/* Were we able to resolve? */
 	if (Module->Handle == HANDLE_INVALID) {
+		ERROR("Failed to load driver %s", _GlbFileSystemDrivers[(int)FileSystem->Type]);
 		free(Module);
 		return NULL;
 	}

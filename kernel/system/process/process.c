@@ -148,8 +148,8 @@ PhoenixGetProcess(
 }
 
 /* PhoenixGetCurrentProcess
- * If the current running process is a server then it
- * returns the server structure, otherwise NULL */
+ * If the current running process is a process then it
+ * returns the process structure, otherwise NULL */
 MCoreProcess_t*
 PhoenixGetCurrentProcess(void)
 {

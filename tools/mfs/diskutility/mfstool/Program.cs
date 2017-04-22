@@ -169,9 +169,15 @@ namespace DiskUtility
                 // Debug
                 Console.WriteLine(Itr.ToString() + ". " + o["Caption"] + " (DeviceID = " + o["DeviceID"] + ")");
 
+                var bps = o.GetPropertyValue("BytesPerSector");
+                var spt = o["SectorsPerTrack"];
+                var tpc = o["TracksPerCylinder"];
+                var ts = o["TotalSectors"];
+
                 // Create and store the disk
-                Drives.Add(Itr++, new CDisk((String)o["DeviceID"], (UInt32)o["BytesPerSector"],
+                Drives.Add(Itr, new CDisk((String)o["DeviceID"], (UInt32)o["BytesPerSector"],
                     (UInt32)o["SectorsPerTrack"], (UInt32)o["TracksPerCylinder"], (UInt64)o["TotalSectors"]));
+                Itr++;
             }
 
             // Parse arguments

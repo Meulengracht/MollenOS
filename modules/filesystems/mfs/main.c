@@ -857,6 +857,11 @@ FsDestroy(
 		DestroyBuffer(Mfs->TransferBuffer);
 	}
 
+	// Free the bucket-map
+	if (Mfs->BucketMap != NULL) {
+		free(Mfs->BucketMap);
+	}
+
 	// Free structure and return
 	free(Mfs);
 	return OsNoError;
@@ -952,16 +957,20 @@ FsInitialize(
 	Mfs->BucketMap = (uint32_t*)malloc((size_t)Mfs->MasterRecord.MapSize);
 
 	// Trace
-	TRACE("Caching bucket-map (Sector %u - Size %u)",
+	TRACE("Caching bucket-map (Sector %u - Size %u Bytes)",
 		LODWORD(Mfs->MasterRecord.MapSector),
 		LODWORD(Mfs->MasterRecord.MapSize));
 
 	// Load map
 	bMap = (uint8_t*)Mfs->BucketMap;
-	BucketCount = (size_t)(DIVUP(Mfs->MasterRecord.MapSize, Mfs->SectorsPerBucket));
+	BucketCount = (size_t)(DIVUP(Mfs->MasterRecord.MapSize, 
+		(Mfs->SectorsPerBucket * Descriptor->Disk.Descriptor.SectorSize)));
 	for (i = 0; i < BucketCount; i++) {
-		uint64_t MapSector = Mfs->MasterRecord.MapSector 
-			+ (i * Mfs->SectorsPerBucket);
+		// Variables
+		uint64_t MapSector = Mfs->MasterRecord.MapSector + (i * Mfs->SectorsPerBucket);
+
+		// Reset buffer
+		SeekBuffer(Buffer, 0);
 		if (MfsReadSectors(Descriptor, Buffer, MapSector, Mfs->SectorsPerBucket) != OsNoError) {
 			ERROR("Failed to read sector 0x%x (map) into cache", LODWORD(MapSector));
 			goto Error;

@@ -165,8 +165,7 @@ OsStatus_t DiskRegisterFileSystem(FileSystemDisk_t *Disk,
 		ListAppend(VfsGetFileSystems(), ListCreateNode(Key, Key, Fs));
 
 		// Start init?
-		if (!GlbInitHasRun)
-		{
+		if (!GlbInitHasRun) {
 			// Create a path from the identifier and hardcoded path
 			MString_t *Path = MStringCreate((void*)MStringRaw(Fs->Identifier), StrUTF8);
 			MStringAppendCharacters(Path, __FILEMANAGER_INITPROCESS, StrUTF8);

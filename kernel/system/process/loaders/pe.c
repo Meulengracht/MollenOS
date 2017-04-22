@@ -18,14 +18,16 @@
  *
  * MollenOS MCore - PE Format Loader
  */
+#define __MODULE		"PELD"
+//#define __TRACE
 
 /* Includes 
  * - System */
 #include <system/addresspace.h>
-
+#include <modules/modules.h>
 #include <os/driver/file.h>
 #include <process/pe.h>
-#include <modules/modules.h>
+#include <debug.h>
 #include <heap.h>
 #include <log.h>
 
@@ -530,15 +532,19 @@ void PeHandleImports(MCorePeFile_t *Parent, MCorePeFile_t *PeFile,
 MCorePeFile_t *PeResolveLibrary(MCorePeFile_t *Parent, 
 	MCorePeFile_t *PeFile, MString_t *LibraryName, uintptr_t *LoadAddress)
 {
-	/* Variables needed */
+	// Variables
 	MCorePeFile_t *ExportParent = Parent;
 	MCorePeFile_t *Exports = NULL;
 
-	/* Sanitize the parent, because the parent will
-	 * be null when it's the root module */
+	// Sanitize the parent, because the parent will
+	// be null when it's the root module
 	if (ExportParent == NULL) {
 		ExportParent = PeFile;
 	}
+
+	// Trace
+	TRACE("PeResolveLibrary(Name %s, Address 0x%x)",
+		MStringRaw(LibraryName), *LoadAddress);
 
 	/* Before actually loading the file, we want to
 	 * try to locate the library in the parent first. */
@@ -548,6 +554,7 @@ MCorePeFile_t *PeResolveLibrary(MCorePeFile_t *Parent,
 		/* If we find it, then increase the ref count
 		 * and use its exports */
 		if (MStringCompare(Library->Name, LibraryName, 1) == MSTRING_FULL_MATCH) {
+			TRACE("Library was already resolved, increasing ref count");
 			Library->References++;
 			Exports = Library;
 			break;
@@ -567,8 +574,9 @@ MCorePeFile_t *PeResolveLibrary(MCorePeFile_t *Parent,
 		 * We have a special case here that it might
 		 * be from the ramdisk we are loading */
 		if (ExportParent->UsingInitRD) {
+			TRACE("Loading from ramdisk");
 			if (ModulesQueryPath(LibraryName, &fBuffer, &fSize) != OsNoError) {
-				LogDebug("PELD", "Failed to load library %s", MStringRaw(LibraryName));
+				ERROR("Failed to load library %s", MStringRaw(LibraryName));
 				for (;;);
 			}
 		}
@@ -599,18 +607,19 @@ MCorePeFile_t *PeResolveLibrary(MCorePeFile_t *Parent,
 			CloseFile(fHandle);
 		}
 
-		/* After retrieving the data we can now
-		 * load the actual image */
+		// After retrieving the data we can now
+		// load the actual image
+		TRACE("Parsing pe-image");
 		Library = PeLoadImage(ExportParent, 
 			LibraryName, fBuffer, fSize, LoadAddress, ExportParent->UsingInitRD);
 		Exports = Library;
 
-		/* Cleanup buffer, we are done with it now */
+		// Cleanup buffer, we are done with it now
 		if (!ExportParent->UsingInitRD) {
 			kfree(fBuffer);
 		}
 
-		/* Add library to loaded libs */
+		// Add library to loaded libs
 		if (Exports != NULL) {
 			DataKey_t Key;
 			Key.Value = 0;
@@ -619,14 +628,14 @@ MCorePeFile_t *PeResolveLibrary(MCorePeFile_t *Parent,
 		}
 	}
 
-	/* Sanitize exports again, it's only NULL
-	 * if all our attempts failed! */
+	// Sanitize exports again, it's only NULL
+	// if all our attempts failed!
 	if (Exports == NULL) {
-		LogFatal("PELD", "Library %s was unable to be resolved", 
+		ERROR("Library %s was unable to be resolved", 
 			MStringRaw(LibraryName));
 	}
 
-	/* Done */
+	// Exporting done
 	return Exports;
 }
 

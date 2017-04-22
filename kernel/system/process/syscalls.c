@@ -311,7 +311,7 @@ ScSharedObjectLoad(
 	_In_ __CONST char *SharedObject)
 {
 	// Variables
-	MCoreProcess_t *Process = PhoenixGetCurrentProcess();
+	MCoreAsh_t *Process = PhoenixGetCurrentAsh();
 	MString_t *Path = NULL;
 	uintptr_t BaseAddress = 0;
 	Handle_t Handle = NULL;
@@ -325,9 +325,9 @@ ScSharedObjectLoad(
 	Path = MStringCreate((void*)SharedObject, StrUTF8);
 
 	// Try to resolve the library
-	BaseAddress = Process->Base.NextLoadingAddress;
-	Handle = (Handle_t)PeResolveLibrary(Process->Base.Executable, NULL, Path, &BaseAddress);
-	Process->Base.NextLoadingAddress = BaseAddress;
+	BaseAddress = Process->NextLoadingAddress;
+	Handle = (Handle_t)PeResolveLibrary(Process->Executable, NULL, Path, &BaseAddress);
+	Process->NextLoadingAddress = BaseAddress;
 
 	// Cleanup the mstring object
 	MStringDestroy(Path);
@@ -354,7 +354,7 @@ uintptr_t ScSharedObjectGetFunction(Handle_t Handle, __CONST char *Function)
 OsStatus_t ScSharedObjectUnload(Handle_t Handle)
 {
 	// Variables
-	MCoreProcess_t *Process = PhoenixGetCurrentProcess();
+	MCoreAsh_t *Process = PhoenixGetCurrentAsh();
 
 	// Sanitize the parameters and lookup
 	if (Process == NULL || Handle == HANDLE_INVALID) {
@@ -362,7 +362,7 @@ OsStatus_t ScSharedObjectUnload(Handle_t Handle)
 	}
 
 	// Unload library
-	PeUnloadLibrary(Process->Base.Executable, (MCorePeFile_t*)Handle);
+	PeUnloadLibrary(Process->Executable, (MCorePeFile_t*)Handle);
 	return OsNoError;
 }
 
@@ -635,8 +635,8 @@ ScMemoryFree(
 	// since memory is managed in userspace for speed
 	BitmapFreeAddress(Ash->Heap, Address, Size);
 
-	// Return no error
-	return OsNoError;
+	// Return the result from unmap
+	return AddressSpaceUnmap(AddressSpaceGetCurrent(), Address, Size);
 }
 
 /* Queries information about a chunk of memory 
