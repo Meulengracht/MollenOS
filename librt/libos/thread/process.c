@@ -33,20 +33,23 @@
 /* ProcessSpawn
  * Spawns a new process by the given path and
  * optionally the given parameters are passed 
- * returns UUID_INVALID in case of failure */
+ * returns UUID_INVALID in case of failure unless Asynchronous is set
+ * then this call will always result in UUID_INVALID. */
 UUId_t 
 ProcessSpawn(
 	_In_ __CONST char *Path,
-	_In_Opt_ __CONST char *Arguments)
+	_In_Opt_ __CONST char *Arguments,
+	_In_ int Asynchronous)
 {
-	/* Sanitize the given params */
+	// Sanitize parameters
 	if (Path == NULL) {
 		return UUID_INVALID;
 	}
 
-	/* Redirect the call */
-	return (UUId_t)Syscall2(SYSCALL_PROCSPAWN,
-		SYSCALL_PARAM(Path), SYSCALL_PARAM(Arguments));
+	// Redirect the call to the OS
+	return (UUId_t)Syscall3(SYSCALL_PROCSPAWN,
+		SYSCALL_PARAM(Path), SYSCALL_PARAM(Arguments),
+		SYSCALL_PARAM(Asynchronous));
 }
 
 /* ProcessJoin

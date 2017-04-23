@@ -81,44 +81,58 @@ ScSystemDebug(
  * Spawns a new process with the given path
  * and the given arguments, returns UUID_INVALID 
  * on failure */
-UUId_t ScProcessSpawn(char *Path, char *Arguments)
+UUId_t ScProcessSpawn(char *Path, char *Arguments, int Async)
 {
-	/* Variables */
-	MCorePhoenixRequest_t Request;
+	// Variables
+	MCorePhoenixRequest_t *Request = NULL;
 	MString_t *mPath = NULL;
 	MString_t *mArguments = NULL;
+	UUId_t Result;
 
-	/* Sanitize the path only */
+	// Only the path cannot be null
+	// Arguments are allowed to be null
 	if (Path == NULL) {
 		return UUID_INVALID;
 	}
 
-	/* Allocate the string instances */
+	// Allocate resources for the spawn
+	Request = (MCorePhoenixRequest_t*)kmalloc(sizeof(MCorePhoenixRequest_t));
 	mPath = MStringCreate(Path, StrUTF8);
 	mArguments = (Arguments == NULL) ? NULL : MStringCreate(Arguments, StrUTF8);
 
-	/* Clean out structure */
-	memset(&Request, 0, sizeof(MCorePhoenixRequest_t));
-
-	/* Setup */
-	Request.Base.Type = AshSpawnProcess;
-	Request.Path = mPath;
-	Request.Arguments.String = mArguments;
+	// Reset structure and set it up
+	memset(Request, 0, sizeof(MCorePhoenixRequest_t));
+	Request->Base.Type = AshSpawnProcess;
+	Request->Path = mPath;
+	Request->Arguments.String = mArguments;
+	Request->Base.Cleanup = Async;
 	
-	/* Fire! */
-	PhoenixCreateRequest(&Request);
-	PhoenixWaitRequest(&Request, 0);
+	// Set the request in water
+	PhoenixCreateRequest(Request);
 
-	/* Cleanup */
+	// If it's an async request we return immediately
+	// We return an invalid UUID as it cannot be used
+	// for queries
+	if (Async != 0) {
+		return UUID_INVALID;
+	}
+
+	// Otherwise wait for request to complete
+	// and then cleanup and return the process id
+	PhoenixWaitRequest(Request, 0);
+
+	// Cleanup 
 	MStringDestroy(mPath);
-
-	/* Only cleanup arguments if not null */
 	if (mArguments != NULL) {
 		MStringDestroy(mArguments);
 	}
 
-	/* Done */
-	return Request.AshId;
+	// Store result and cleanup
+	Result = Request->AshId;
+	kfree(Request);
+
+	// Return the result
+	return Result;
 }
 
 /* ScProcessJoin

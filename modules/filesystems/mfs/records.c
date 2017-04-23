@@ -19,6 +19,7 @@
  * MollenOS - General File System (MFS) Driver
  *  - Contains the implementation of the MFS driver for mollenos
  */
+#define __TRACE
 
 /* Includes
  * - System */
@@ -115,6 +116,10 @@ MfsLocateRecord(
 			goto Cleanup;
 		}
 
+		// Trace
+		TRACE("Reading bucket %u with length %u",
+			CurrentBucket, Link.Length);
+
 		// Start out by loading the bucket buffer with data
 		if (MfsReadSectors(Descriptor, Mfs->TransferBuffer, 
 			MFS_GETSECTOR(Mfs, CurrentBucket), 
@@ -140,6 +145,12 @@ MfsLocateRecord(
 			// Convert the filename into a mstring object
 			// and try to match it with our token (ignore case)
 			Filename = MStringCreate(&Record->Name[0], StrUTF8);
+
+			// Trace
+			TRACE("Matching token %s to record %s",
+				MStringRaw(Token), MStringRaw(Filename));
+
+			// Compare
 			if (MStringCompare(Token, Filename, 1) != MSTRING_NO_MATCH) {
 				// Two cases, if we are not at end of given path, then this
 				// entry must be a directory and it must have data
@@ -157,6 +168,10 @@ MfsLocateRecord(
 						Result = FsPathNotFound;
 						goto Cleanup;
 					}
+
+					// Trace
+					TRACE("Following the trail into bucket %u with the remaining path %s",
+						Record->StartBucket, MStringRaw(Remaining));
 
 					// Now search for the next token inside this directory
 					Result = MfsLocateRecord(Descriptor, Record->StartBucket,

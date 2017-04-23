@@ -46,6 +46,11 @@ AhciReadSectors(
 	// Variables
 	ATACommandType_t Command;
 
+	// Sanitize bounds
+	if ((SectorLBA + Transaction->SectorCount) >= Transaction->Device->SectorsLBA) {
+		return OsError;
+	}
+
 	// The first thing we need to do is determine which type
 	// of ATA command we can use
 	if (Transaction->Device->UseDMA) {
@@ -80,6 +85,11 @@ AhciWriteSectors(
 {
 	// Variables
 	ATACommandType_t Command;
+
+	// Sanitize bounds
+	if ((SectorLBA + Transaction->SectorCount) >= Transaction->Device->SectorsLBA) {
+		return OsError;
+	}
 
 	// The first thing we need to do is determine which type
 	// of ATA command we can use

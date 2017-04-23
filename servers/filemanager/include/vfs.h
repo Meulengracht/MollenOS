@@ -38,7 +38,7 @@
 
 /* VFS Definitions 
  * - General identifiers can be used in paths */
-#define __FILEMANAGER_INITPROCESS		":/system/sapphire.mxi"
+#define __FILEMANAGER_INITPROCESS		"system/sapphire.mxi"
 #define __FILEMANAGER_RESOLVEQUEUE		IPC_DECL_FUNCTION(10000)
 #define __FILEMANAGER_MAXDISKS			64
 

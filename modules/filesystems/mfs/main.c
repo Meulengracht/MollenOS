@@ -46,7 +46,7 @@ FsOpenFile(
 	FileSystemCode_t Result;
 
 	// Trace
-	TRACE("FsOpenFile(Path %u)", MStringRaw(Path));
+	TRACE("FsOpenFile(Path %s)", MStringRaw(Path));
 
 	// Instantiate the pointers
 	Mfs = (MfsInstance_t*)Descriptor->ExtensionData;
@@ -85,7 +85,7 @@ FsCreateFile(
 	FileSystemCode_t Result;
 
 	// Trace
-	TRACE("FsCreateFile(Path %u, Options 0x%x)", 
+	TRACE("FsCreateFile(Path %s, Options 0x%x)", 
 		MStringRaw(Path), Options);
 
 	// Instantiate the pointers

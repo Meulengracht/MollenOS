@@ -167,20 +167,36 @@ OsStatus_t DiskRegisterFileSystem(FileSystemDisk_t *Disk,
 		// Start init?
 		if (!GlbInitHasRun) {
 			// Create a path from the identifier and hardcoded path
-			MString_t *Path = MStringCreate((void*)MStringRaw(Fs->Identifier), StrUTF8);
-			MStringAppendCharacters(Path, __FILEMANAGER_INITPROCESS, StrUTF8);
+			FileSystemFile_t *File = (FileSystemFile_t*)malloc(sizeof(FileSystemFile_t));
+			MString_t *Path = MStringCreate((void*)__FILEMANAGER_INITPROCESS, StrUTF8);
 
-			// Spawn the process 
-			// If it was succesfully spawned we can start
-			// resolving the previous file-systems
-			if (ProcessSpawn(MStringRaw(Path), NULL) != UUID_INVALID) {
+			// Check if file exists on this filesystem
+			// If it exists - close up and spawn a new process
+			if (Fs->Module->OpenFile(&Fs->Descriptor, File, Path) == FsOk) {
+				MString_t *FullPath = MStringCreate((void*)MStringRaw(Fs->Identifier), StrUTF8);
+				MStringAppendCharacters(FullPath, ":/", StrUTF8);
+				MStringAppendCharacters(FullPath, __FILEMANAGER_INITPROCESS, StrUTF8);
+				
+				// Close file
+				Fs->Module->CloseFile(&Fs->Descriptor, File);
+
+				// Trace
+				TRACE("Startup existed on this filesystem - spawning %s", 
+					MStringRaw(FullPath));
+
+				// Spawn the process
+				//ProcessSpawn(MStringRaw(FullPath), NULL, 1);
 				Fs->Descriptor.Flags |= __FILESYSTEM_BOOT;
 				VfsResolveQueueEvent();
 				GlbInitHasRun = 1;
+
+				// Cleanup path
+				MStringDestroy(FullPath);
 			}
 
 			// Cleanup
 			MStringDestroy(Path);
+			free(File);
 		}
 	}
 
