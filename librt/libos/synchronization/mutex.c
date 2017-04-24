@@ -95,7 +95,7 @@ MutexTryLock(
 	/* If this thread already holds the mutex,
 	 * increase ref count, but only if we're recursive */
 	if (Mutex->Blocks != 0
-		&& Mutex->Blocker == ThreadGetCurrentId())
+		&& Mutex->Blocker == ThreadGetId())
 	{
 		/* We must be recursive for this 
 		 * property to hold true */
@@ -115,7 +115,7 @@ MutexTryLock(
 
 	/* Yay! We got the lock */
 	Mutex->Blocks = 1;
-	Mutex->Blocker = ThreadGetCurrentId();
+	Mutex->Blocker = ThreadGetId();
 
 	/* Done! */
 	return MUTEX_SUCCESS;
@@ -130,7 +130,7 @@ MutexLock(
 	/* If this thread already holds the mutex,
 	* increase ref count, but only if we're recursive */
 	if (Mutex->Blocks != 0
-		&& Mutex->Blocker == ThreadGetCurrentId())
+		&& Mutex->Blocker == ThreadGetId())
 	{
 		/* We must be recursive for this
 		* property to hold true */
@@ -148,7 +148,7 @@ MutexLock(
 
 	/* Yay! We got the lock */
 	Mutex->Blocks = 1;
-	Mutex->Blocker = ThreadGetCurrentId();
+	Mutex->Blocker = ThreadGetId();
 
 	/* Done! */
 	return MUTEX_SUCCESS;
@@ -166,7 +166,7 @@ MutexTimedLock(
 	/* If this thread already holds the mutex,
 	* increase ref count, but only if we're recursive */
 	if (Mutex->Blocks != 0
-		&& Mutex->Blocker == ThreadGetCurrentId())
+		&& Mutex->Blocker == ThreadGetId())
 	{
 		/* We must be recursive for this
 		* property to hold true */
@@ -194,7 +194,7 @@ MutexTimedLock(
 
 	/* Yay! We got the lock */
 	Mutex->Blocks = 1;
-	Mutex->Blocker = ThreadGetCurrentId();
+	Mutex->Blocker = ThreadGetId();
 
 	/* Done! */
 	return MUTEX_SUCCESS;

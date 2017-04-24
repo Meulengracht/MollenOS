@@ -101,6 +101,7 @@ xcopy $(SolutionDir)librt\build\libos.dll $(SolutionDir)userspace\development\bi
     <ClCompile Include="..\..\libos\pipe.c" />
     <ClCompile Include="..\..\libos\sha1.c" />
     <ClCompile Include="..\..\libos\sharedobject.c" />
+    <ClCompile Include="..\..\libos\synchronization\binarysemaphore.c" />
     <ClCompile Include="..\..\libos\synchronization\condition.c" />
     <ClCompile Include="..\..\libos\synchronization\mutex.c" />
     <ClCompile Include="..\..\libos\synchronization\spinlock.c" />
@@ -108,6 +109,7 @@ xcopy $(SolutionDir)librt\build\libos.dll $(SolutionDir)userspace\development\bi
     <ClCompile Include="..\..\libos\system.c" />
     <ClCompile Include="..\..\libos\thread\process.c" />
     <ClCompile Include="..\..\libos\thread\thread.c" />
+    <ClCompile Include="..\..\libos\thread\threadpool.c" />
     <ClCompile Include="..\..\libos\thread\tls.c" />
     <ClCompile Include="..\..\libos\timer.c" />
   </ItemGroup>

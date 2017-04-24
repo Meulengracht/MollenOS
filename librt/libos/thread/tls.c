@@ -139,6 +139,7 @@ TLSInitInstance(
 	memset(Tls, 0, sizeof(ThreadLocalStorage_t));
 
 	/* Setup c-library stuff */
+	Tls->Id = UUID_INVALID;
 	Tls->Errno = EOK;
 	Tls->Locale = __get_global_locale();
 	Tls->Seed = 1;
@@ -266,7 +267,7 @@ TLSGetKey(
 	/* Get thread id */
 	ListNode_t *tNode;
 	DataKey_t tKey;
-	UUId_t ThreadId = ThreadGetCurrentId();
+	UUId_t ThreadId = ThreadGetId();
 
 	/* Setup Key */
 	tKey.Value = ThreadId;
@@ -302,7 +303,7 @@ TLSSetKey(
 	m_tls_entry *NewTls;
 	ListNode_t *tNode;
 	DataKey_t tKey;
-	UUId_t ThreadId = ThreadGetCurrentId();
+	UUId_t ThreadId = ThreadGetId();
 
 	/* Setup Key */
 	tKey.Value = ThreadId;

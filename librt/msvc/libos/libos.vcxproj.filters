@@ -124,6 +124,12 @@
     </ClCompile>
     <ClCompile Include="..\..\libos\memory.c" />
     <ClCompile Include="..\..\libos\path.c" />
+    <ClCompile Include="..\..\libos\thread\threadpool.c">
+      <Filter>thread</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\libos\synchronization\binarysemaphore.c">
+      <Filter>synchronization</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\libos\mstring\MStringPrivate.h">

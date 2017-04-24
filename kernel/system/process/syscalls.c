@@ -352,20 +352,26 @@ ScSharedObjectLoad(
  * Load a function-address given an shared object
  * handle and a function name, function must exist
  * otherwise null is returned */
-uintptr_t ScSharedObjectGetFunction(Handle_t Handle, __CONST char *Function)
+uintptr_t
+ScSharedObjectGetFunction(
+	_In_ Handle_t Handle, 
+	_In_ __CONST char *Function)
 {
-	/* Validate */
+	// Validate parameters
 	if (Handle == HANDLE_INVALID
-		|| Function == NULL)
+		|| Function == NULL) {
 		return 0;
+	}
 
-	/* Try to resolve function */
+	// Simply redirect to resolver
 	return PeResolveFunction((MCorePeFile_t*)Handle, Function);
 }
 
 /* Unloads a valid shared object handle
  * returns 0 on success */
-OsStatus_t ScSharedObjectUnload(Handle_t Handle)
+OsStatus_t
+ScSharedObjectUnload(
+	_In_ Handle_t Handle)
 {
 	// Variables
 	MCoreAsh_t *Process = PhoenixGetCurrentAsh();
@@ -387,99 +393,112 @@ OsStatus_t ScSharedObjectUnload(Handle_t Handle)
 /* ScThreadCreate
  * Creates a new thread bound to 
  * the calling process, with the given entry point and arguments */
-UUId_t ScThreadCreate(ThreadEntry_t Entry, void *Data, Flags_t Flags)
+UUId_t
+ScThreadCreate(
+	_In_ ThreadEntry_t Entry, 
+	_In_ void *Data, 
+	_In_ Flags_t Flags)
 {
-	/* Sanity */
+	// Sanitize parameters
 	if (Entry == NULL) {
 		return UUID_INVALID;
 	}
 
-	/* Don't use flags for now */
-	_CRT_UNUSED(Flags);
-
-	/* Redirect call with flags inheritted from
-	 * the current thread, we don't spawn threads in other priv-modes */
+	// Redirect call with flags inheritted from
+	// the current thread, we don't spawn threads in other priv-modes
 	return ThreadingCreateThread(NULL, Entry, Data, 
-		ThreadingGetCurrentMode() | THREADING_INHERIT);
+		ThreadingGetCurrentMode() | THREADING_INHERIT | Flags);
 }
 
 /* ScThreadExit
  * Exits the current thread and 
  * instantly yields control to scheduler */
-OsStatus_t ScThreadExit(int ExitCode)
+OsStatus_t
+ScThreadExit(
+	_In_ int ExitCode)
 {
-	/* Deep Call */
+	// Redirect to this function, there is no return
 	ThreadingExitThread(ExitCode);
-
-	/* We will never reach this 
-	 * statement */
 	return OsNoError;
 }
 
 /* ScThreadJoin
  * Thread join, waits for a given
  * thread to finish executing, and returns it's exit code */
-int ScThreadJoin(UUId_t ThreadId)
+int
+ScThreadJoin(
+	_In_ UUId_t ThreadId)
 {
-	/* Lookup process information */
-	UUId_t CurrentPid = ThreadingGetCurrentThread(CpuGetCurrentId())->AshId;
+	// Variables
+	UUId_t PId;
 
-	/* Sanity */
+	// Lookup process id
+	PId = ThreadingGetCurrentThread(CpuGetCurrentId())->AshId;
+
+	// Perform security checks
 	if (ThreadingGetThread(ThreadId) == NULL
-		|| ThreadingGetThread(ThreadId)->AshId != CurrentPid) {
+		|| ThreadingGetThread(ThreadId)->AshId != PId) {
 		return -1;
 	}
 
-	/* Simply deep call again 
-	 * the function takes care 
-	 * of validation as well */
+	// Redirect to thread function
 	return ThreadingJoinThread(ThreadId);
 }
 
-/* ScThreadKill
+/* ScThreadSignal
  * Kills the thread with the given id, owner
  * must be same process */
-OsStatus_t ScThreadKill(UUId_t ThreadId)
+OsStatus_t
+ScThreadSignal(
+	_In_ UUId_t ThreadId,
+	_In_ int SignalCode)
 {
-	/* Lookup process information */
-	UUId_t CurrentPid = ThreadingGetCurrentThread(CpuGetCurrentId())->AshId;
+	// Variables
+	UUId_t PId;
 
-	/* Sanity */
+	// Unused
+	_CRT_UNUSED(SignalCode);
+
+	// Lookup process id
+	PId = ThreadingGetCurrentThread(CpuGetCurrentId())->AshId;
+
+	// Perform security checks
 	if (ThreadingGetThread(ThreadId) == NULL
-		|| ThreadingGetThread(ThreadId)->AshId != CurrentPid) {
-		return OsError;
+		|| ThreadingGetThread(ThreadId)->AshId != PId) {
+		return -1;
 	}
 
-	/* Ok, we can kill it */
-	ThreadingKillThread(ThreadId);
-
-	/* Done! */
+	// Error
+	LogFatal("SYSC", "ThreadSignal invoked, not implemented");
 	return OsNoError;
 }
 
 /* ScThreadSleep
- * Sleeps the current thread for the
- * given milliseconds. */
-OsStatus_t ScThreadSleep(size_t MilliSeconds)
+ * Sleeps the current thread for the given milliseconds. */
+OsStatus_t
+ScThreadSleep(
+	_In_ size_t MilliSeconds)
 {
-	/* Redirect the call */
 	SleepMs(MilliSeconds);
 	return OsNoError;
 }
 
 /* ScThreadGetCurrentId
- * Retrieves the current thread id */
-UUId_t ScThreadGetCurrentId(void)
+ * Retrieves the thread id of the calling thread */
+UUId_t
+ScThreadGetCurrentId(void)
 {
+	// Simple
 	return ThreadingGetCurrentThreadId();
 }
 
 /* ScThreadYield
  * This yields the current thread 
  * and gives cpu time to another thread */
-OsStatus_t ScThreadYield(void)
+OsStatus_t
+ScThreadYield(void)
 {
-	/* Redirect the call */
+	// Invoke yield and return
 	IThreadYield();
 	return OsNoError;
 }
@@ -1433,7 +1452,7 @@ uintptr_t GlbSyscallTable[91] =
 	/* Threading Functions - 11 */
 	DefineSyscall(ScThreadCreate),
 	DefineSyscall(ScThreadExit),
-	DefineSyscall(ScThreadKill),
+	DefineSyscall(ScThreadSignal),
 	DefineSyscall(ScThreadJoin),
 	DefineSyscall(ScThreadSleep),
 	DefineSyscall(ScThreadYield),

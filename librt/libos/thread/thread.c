@@ -30,6 +30,7 @@
  * - Library */
 #include <stddef.h>
 #include <stdlib.h>
+#include <signal.h>
 
 /* Includes
  * - Compiler */
@@ -48,143 +49,149 @@ typedef struct _ThreadPackage {
  * All new threads inherit this start function */
 void _ThreadCRT(void *Data)
 {
-	/* Allocate TSS */
+	// Variables (and TLS)
 	ThreadLocalStorage_t Tls;
 	ThreadPackage_t *Tp;
 	int RetVal = 0;
 
-	/* Initialize the TLS */
+	// Initialize TLS and package pointer
 	TLSInitInstance(&Tls);
 	Tp = (ThreadPackage_t*)Data;
 
-	/* Run entry */
+	// Call the thread entry
 	RetVal = Tp->Entry(Tp->Data);
 
-	/* Cleanup */
+	// Cleanup and call threadexit
 	TLSDestroyInstance(&Tls);
 	free(Tp);
 	ThreadExit(RetVal);
 }
 
 /* ThreadOnce
- * This is a support thread function
- * that makes sure that even with shared
- * functions between threads a function
- * only ever gets called once */
+ * Executes the ThreadOnceFunc_t object exactly once, even if 
+ * called from several threads. */
 void 
 ThreadOnce(
 	_In_ ThreadOnce_t *Control,
 	_In_ ThreadOnceFunc_t Function)
 {
-	/* Use interlocked exchange 
-	 * for this operation */
+	// Use interlocked exchange for this operation
+#if defined(_MSC_VER) && (_MSC_VER >= 1500)
 	long RunOnce = _InterlockedExchange(Control, 0);
+#else
+#error "Implement ThreadOnce support for given compiler"
+#endif
 
-	/* Sanity, RunOnce is 1 
-	 * if first time */
+	// Sanity, RunOnce is 1 if first time
 	if (RunOnce != 0) {
 		Function();
 	}
 }
 
 /* ThreadCreate
- * Creates a new thread bound to 
- * the calling process, with the given
- * entry point and arguments */
+ * Creates a new thread executing the given function and with the
+ * given arguments. The id of the new thread is returned. */
 UUId_t 
 ThreadCreate(
 	_In_ ThreadFunc_t Entry, 
 	_In_Opt_ void *Data)
 {
-	/* Allocate thread data */
-	ThreadPackage_t *Tp = (ThreadPackage_t*)malloc(sizeof(ThreadPackage_t));
+	// Variables
+	ThreadPackage_t *Tp = NULL;
 
-	/* Set data */
+	// Allocate a new startup-package
+	Tp = (ThreadPackage_t*)malloc(sizeof(ThreadPackage_t));
 	Tp->Entry = Entry;
 	Tp->Data = Data;
 
-	/* This is just a redirected syscall */
-	return (UUId_t)Syscall3(SYSCALL_THREADID, SYSCALL_PARAM((ThreadFunc_t)_ThreadCRT),
+	// Redirect to operating system to handle rest
+	return (UUId_t)Syscall3(SYSCALL_THREADCREATE,
+		SYSCALL_PARAM((ThreadFunc_t)_ThreadCRT),
 		SYSCALL_PARAM(Tp), SYSCALL_PARAM(0));
 }
 
 /* ThreadExit
- * Exits the current thread and 
- * instantly yields control to scheduler */
-void 
+ * Signals to the operating system that the caller thread is now
+ * done and can be cleaned up. This does not terminate the process
+ * unless it's the last thread alive */
+OsStatus_t
 ThreadExit(
 	_In_ int ExitCode)
 {
-	/* Cleanup TLS */
-	TLSCleanup(ThreadGetCurrentId());
+	// Perform cleanup of TLS
+	TLSCleanup(ThreadGetId());
 	TLSDestroyInstance(TLSGetCurrent());
 
-	/* The syscall actually does most of
-	 * the validation for us */
-	Syscall1(SYSCALL_THREADKILL, SYSCALL_PARAM(ExitCode));
+	// Redirect to os-function, there is no return
+	Syscall1(SYSCALL_THREADEXIT, SYSCALL_PARAM(ExitCode));
+	return OsNoError;
 }
 
 /* ThreadJoin
- * waits for a given thread to finish executing, and
- * returns it's exit code, Must be in same
- * process as asking thread */
+ * Waits for the given thread to finish executing. The returned value
+ * is either the return-code from the running thread or -1 in case of
+ * invalid thread-id. */
 int 
 ThreadJoin(
 	_In_ UUId_t ThreadId)
 {
-	/* The syscall actually does most of
-	 * the validation for us, returns -1 on err */
+	// The syscall actually does most of
+	// the validation for us, returns -1 on error
 	return Syscall1(SYSCALL_THREADJOIN, SYSCALL_PARAM(ThreadId));
 }
 
+/* ThreadSignal
+ * Invokes a signal on the given thread id, for security reasons
+ * it's only possible to signal threads local to the running process. */
+OsStatus_t
+ThreadSignal(
+	_In_ UUId_t ThreadId,
+	_In_ int SignalCode)
+{
+	// Simply redirect
+	return (OsStatus_t)Syscall2(SYSCALL_THREADSIGNAL,
+		SYSCALL_PARAM(ThreadId), SYSCALL_PARAM(SignalCode));
+}
+
 /* ThreadKill
- * Thread kill, kills the given thread
- * id, must belong to same process as the
- * thread that asks. */
+ * Kill's the given thread by sending a SIGKILL to the thread, forcing
+ * it to run cleanup and terminate. Thread might not terminate immediately. */
 OsStatus_t 
 ThreadKill(
 	_In_ UUId_t ThreadId)
 {
-	/* The syscall actually does most of 
-	 * the validation for us, this returns
-	 * 0 if everything went ok */
-	return Syscall1(SYSCALL_THREADKILL, SYSCALL_PARAM(ThreadId));
+	// Simply signal the thread to kill itself
+	return (OsStatus_t)Syscall2(SYSCALL_THREADSIGNAL,
+		SYSCALL_PARAM(ThreadId), SYSCALL_PARAM(SIGKILL));
 }
 
 /* ThreadSleep
- * Sleeps the current thread for the
- * given milliseconds. */
+ * Sleeps the current thread for the given milliseconds. */
 void 
 ThreadSleep(
 	_In_ size_t MilliSeconds)
 {
-	/* This is also just a redirected syscall
-	 * we don't validate the asked time, it's 
-	 * up to the user not to fuck it up */
+	// Sanitize just in case - to save a syscall
 	if (MilliSeconds == 0) {
 		return;
 	}
 
-	/* Gogo! */
+	// Redirect the call
 	Syscall1(SYSCALL_THREADSLEEP, SYSCALL_PARAM(MilliSeconds));
 }
 
-/* ThreadGetCurrentId
- * Retrieves the current thread id */
-UUId_t 
-ThreadGetCurrentId(void)
+/* ThreadGetId
+ * Retrieves the thread id of the calling thread. */
+UUId_t
+ThreadGetId(void)
 {
-	/* We save this in the reserved
-	 * space to speed up this call */
-	if (TLSGetCurrent()->Id != 0) {
+	// If it's already cached, use that
+	if (TLSGetCurrent()->Id != UUID_INVALID) {
 		return TLSGetCurrent()->Id;
 	}
 
-	/* This is just a redirected syscall
-	 * no arguments involved, no validation */
+	// Otherwise invoke OS to refresh id
 	TLSGetCurrent()->Id = (UUId_t)Syscall0(SYSCALL_THREADID);
-
-	/* Done! */
 	return TLSGetCurrent()->Id;
 }
 
@@ -194,7 +201,6 @@ ThreadGetCurrentId(void)
 void 
 ThreadYield(void)
 {
-	/* This is just a redirected syscall 
-     * no arguments involved, no validation */
+	// Nothing to validate, just call
 	Syscall0(SYSCALL_THREADYIELD);
 }

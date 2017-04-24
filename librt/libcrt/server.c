@@ -21,8 +21,8 @@
 
 /* Includes 
  * - System */
+#include <os/threadpool.h>
 #include <os/mollenos.h>
-#include <os/thread.h>
 
 /* Includes
  * - Driver */
@@ -51,13 +51,31 @@ void _mCrtInit(ThreadLocalStorage_t *Tls)
 	__CppInitVectoredEH();
 }
 
+/* Server event entry point
+ * Used in multi-threading environment as means to cleanup
+ * all allocated resources properly */
+int _mDrvEvent(void *Argument)
+{
+	// Initiate the message pointer
+	MRemoteCall_t *Message = (MRemoteCall_t*)Argument;
+	OsStatus_t Result = OnEvent(Message);
+	
+	// Cleanup and return result
+	RPCCleanup(Message);
+	free(Message);
+	return Result == OsNoError ? 0 : -1;
+}
+
 /* Server Entry Point
  * Use this entry point for servers */
 void _mDrvCrt(void)
 {
-	/* Variables */
+	// Variables
 	ThreadLocalStorage_t Tls;
 	MRemoteCall_t Message;
+#ifdef __SERVER_MULTITHREADED
+	ThreadPool_t *ThreadPool;
+#endif
 	int IsRunning = 1;
 
 	// Initialize environment
@@ -74,14 +92,42 @@ void _mDrvCrt(void)
 		goto Cleanup;
 	}
 
+	// Initialize threadpool
+#ifdef __SERVER_MULTITHREADED
+	if (ThreadPoolInitialize(THREADPOOL_DEFAULT_WORKERS, 
+		&ThreadPool) != OsNoError) {
+		OnUnload();
+		goto Cleanup;
+	}
+
+	// Initialize the server event loop
+	while (IsRunning) {
+		if (RPCListen(&Message) == OsNoError) {
+			MRemoteCall_t *RpcCopy = (MRemoteCall_t*)malloc(sizeof(MRemoteCall_t));
+			memcpy(RpcCopy, &Message, sizeof(MRemoteCall_t));
+			ThreadPoolAddWork(ThreadPool, _mDrvEvent, RpcCopy);
+		}
+		else {}
+	}
+
+	// Wait for threads to finish
+	if (ThreadPoolGetWorkingCount(ThreadPool) != 0) {
+		ThreadPoolWait(ThreadPool);
+	}
+
+	// Destroy thread-pool
+	ThreadPoolDestroy(ThreadPool);
+
+#else
 	// Initialize the server event loop
 	while (IsRunning) {
 		if (RPCListen(&Message) == OsNoError) {
 			OnEvent(&Message);
 			RPCCleanup(&Message);
 		}
-		else { }
+		else {}
 	}
+#endif
 
 	// Call unload, so driver can cleanup
 	OnUnload();

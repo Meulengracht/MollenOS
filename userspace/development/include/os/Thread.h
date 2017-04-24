@@ -37,30 +37,28 @@
 #include <os/mutex.h>
 #include <os/condition.h>
 
-/* The definition of a thread id
- * used for identifying threads */
+/* ThreadOnce Library Definitions
+ * The definition of a thread id used for identifying threads */
 typedef long ThreadOnce_t;
 typedef void(*ThreadOnceFunc_t)(void);
-
-/* The definition of a thread specifc
- * storage key, used for saving data
- * in a dictionary */
-typedef unsigned int TlsKey_t;
-typedef void(*TlsKeyDss_t)(void*);
-
-/* The definition of a thread entry point format */
-typedef int(*ThreadFunc_t)(void*);
-
-/* Thread and TLS Definitons */
 #define THREAD_ONCE_INIT		0x1
 
+/* Thread TLS Library Definitions 
+ * The definition of a thread specifc storage key, 
+ * used for saving data in a dictionary */
+typedef unsigned int TlsKey_t;
+typedef void(*TlsKeyDss_t)(void*);
 #define TLS_MAX_KEYS			64
 #define TLS_KEY_INVALID			0xFFFFFFFF
 
-/* The actual TLS
- * This is the actual thread local storage
- * that is created per thread and is purely
- * acccessible by the local thread only */
+/* Thread Library Definitions 
+ * Includes the prototype of a thread entry point */
+typedef int(*ThreadFunc_t)(void*);
+
+/* Thread Local Storage
+ * This is the structure that exists seperately for each running
+ * thread, and can be retrieved with TLSGetCurrent() which returns
+ * the local copy of this structure */
 PACKED_TYPESTRUCT(ThreadLocalStorage, {
 	UUId_t					 Id;
 	void					*Handle;
@@ -72,6 +70,7 @@ PACKED_TYPESTRUCT(ThreadLocalStorage, {
 	char					 AscBuffer[26];
 	BufferObject_t			*Transfer;
 
+	// Exception & RTTI Support
 	void					*TerminateHandler;
 	void					*UnexpectedHandler;
 	void					*SeTranslator;
@@ -87,88 +86,102 @@ PACKED_TYPESTRUCT(ThreadLocalStorage, {
 _CODE_BEGIN
 
 /* ThreadOnce
- * This is a support thread function
- * that makes sure that even with shared
- * functions between threads a function
- * only ever gets called once */
-MOSAPI 
-void 
+ * Executes the ThreadOnceFunc_t object exactly once, even if 
+ * called from several threads. */
+MOSAPI
+void
+MOSABI
 ThreadOnce(
 	_In_ ThreadOnce_t *Control,
 	_In_ ThreadOnceFunc_t Function);
 
 /* ThreadCreate
- * Creates a new thread bound to 
- * the calling process, with the given
- * entry point and arguments */
+ * Creates a new thread executing the given function and with the
+ * given arguments. The id of the new thread is returned. */
 MOSAPI 
-UUId_t 
+UUId_t
+MOSABI
 ThreadCreate(
 	_In_ ThreadFunc_t Entry, 
 	_In_Opt_ void *Data);
 
 /* ThreadExit
- * Exits the current thread and 
- * instantly yields control to scheduler */
-MOSAPI 
-void 
+ * Signals to the operating system that the caller thread is now
+ * done and can be cleaned up. This does not terminate the process
+ * unless it's the last thread alive */
+MOSAPI
+OsStatus_t
+MOSABI
 ThreadExit(
 	_In_ int ExitCode);
 
 /* ThreadJoin
- * waits for a given thread to finish executing, and
- * returns it's exit code, Must be in same
- * process as asking thread */
+ * Waits for the given thread to finish executing. The returned value
+ * is either the return-code from the running thread or -1 in case of
+ * invalid thread-id. */
 MOSAPI 
-int 
+int
+MOSABI
 ThreadJoin(
 	_In_ UUId_t ThreadId);
 
+/* ThreadSignal
+ * Invokes a signal on the given thread id, for security reasons
+ * it's only possible to signal threads local to the running process. */
+MOSAPI
+OsStatus_t
+MOSABI
+ThreadSignal(
+	_In_ UUId_t ThreadId,
+	_In_ int SignalCode);
+
 /* ThreadKill
- * Thread kill, kills the given thread
- * id, must belong to same process as the
- * thread that asks. */
-MOSAPI 
-OsStatus_t 
+ * Kill's the given thread by sending a SIGKILL to the thread, forcing
+ * it to run cleanup and terminate. Thread might not terminate immediately. */
+MOSAPI
+OsStatus_t
+MOSABI
 ThreadKill(
 	_In_ UUId_t ThreadId);
 
 /* ThreadSleep
- * Sleeps the current thread for the
- * given milliseconds. */
-MOSAPI 
-void 
+ * Sleeps the current thread for the given milliseconds. */
+MOSAPI
+void
+MOSABI
 ThreadSleep(
 	_In_ size_t MilliSeconds);
 
-/* ThreadGetCurrentId
- * Retrieves the current thread id */
-MOSAPI 
-UUId_t 
-ThreadGetCurrentId(void);
+/* ThreadGetId
+ * Retrieves the thread id of the calling thread. */
+MOSAPI
+UUId_t
+MOSABI
+ThreadGetId(void);
 
 /* ThreadYield
- * This yields the current thread 
- * and gives cpu time to another thread */
+ * Signals to the operating system that this thread can be yielded
+ * and will wait another turn before proceeding. */
 MOSAPI 
-void 
+void
+MOSABI
 ThreadYield(void);
 
 /* TLSInit
- * Initialises the TLS
- * and allocates resources needed. 
+ * Initialises the TLS and allocates resources needed. 
  * Not callable manually */
-MOSAPI 
+MOSAPI
 OsStatus_t
+MOSABI
 TLSInit(void);
 
 /* TLSCleanup
  * Destroys the TLS for the specific thread
- * by freeing resources and
- * calling c11 destructors 
+ * by freeing resources and calling c11 destructors 
  * Not callable manually */
 __EXTERN
 OsStatus_t
+MOSABI
 TLSCleanup(
 	_In_ UUId_t ThreadId);
 
@@ -176,15 +189,17 @@ TLSCleanup(
  * Initializes a new thread-storage space
  * should be called by thread crt */
 MOSAPI 
-OsStatus_t 
+OsStatus_t
+MOSABI
 TLSInitInstance(
 	_In_ ThreadLocalStorage_t *Tls);
 
 /* TLSDestroyInstance
  * Destroys a thread-storage space
  * should be called by thread crt */
-MOSAPI 
-OsStatus_t 
+MOSAPI
+OsStatus_t
+MOSABI
 TLSDestroyInstance(
 	_In_ ThreadLocalStorage_t *Tls);
 
@@ -192,21 +207,24 @@ TLSDestroyInstance(
  * Retrieves the local storage space
  * for the current thread */
 MOSAPI 
-ThreadLocalStorage_t *
+ThreadLocalStorage_t*
+MOSABI
 TLSGetCurrent(void);
 
 /* TLSCreateKey
  * Create a new global TLS-key, this can be used to save
  * thread-specific data */
-MOSAPI 
-TlsKey_t 
+MOSAPI
+TlsKey_t
+MOSABI
 TLSCreateKey(
 	_In_ TlsKeyDss_t Destructor);
 
 /* TLSDestroyKey
  * Deletes the global but thread-specific key */
-MOSAPI 
-OsStatus_t 
+MOSAPI
+OsStatus_t
+MOSABI
 TLSDestroyKey(
 	_In_ TlsKey_t Key);
 
@@ -214,15 +232,17 @@ TLSDestroyKey(
  * Get a key from the TLS and returns it's value
  * will return NULL if not exists and set errno */
 MOSAPI 
-void *
+void*
+MOSABI
 TLSGetKey(
 	_In_ TlsKey_t Key);
 
 /* TLSSetKey
  * Set a key in the TLS
  * and associates the given data with the key */
-MOSAPI 
-OsStatus_t 
+MOSAPI
+OsStatus_t
+MOSABI
 TLSSetKey(
 	_In_ TlsKey_t Key, 
 	_In_Opt_ void *Data);
