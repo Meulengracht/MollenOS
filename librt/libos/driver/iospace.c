@@ -40,7 +40,7 @@ __EXTERN uint32_t __readlong(uint16_t Port);
 __EXTERN void __writelong(uint16_t Port, uint32_t Value);
 
 /* Creates a new io-space and registers it with
- * the operation system, returns OsNoError if it's 
+ * the operation system, returns OsSuccess if it's 
  * a valid io-space */
 OsStatus_t CreateIoSpace(DeviceIoSpace_t *IoSpace)
 {

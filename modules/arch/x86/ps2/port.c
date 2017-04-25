@@ -50,7 +50,7 @@ OsStatus_t PS2InterfaceTest(int Port)
 	Response = PS2ReadData(0);
 
 	// Sanitize the response byte
-	return (Response == PS2_INTERFACETEST_OK) ? OsNoError : OsError;
+	return (Response == PS2_INTERFACETEST_OK) ? OsSuccess : OsError;
 }
 
 /* PS2ResetPort
@@ -75,7 +75,7 @@ OsStatus_t PS2ResetPort(int Index)
 		|| Response == PS2_ACK) {
 		Response = PS2ReadData(1);
 		Response = PS2ReadData(1);
-		return OsNoError;
+		return OsSuccess;
 	}
 	else {
 		return OsError;
@@ -96,7 +96,7 @@ DevInfo_t PS2IdentifyPort(int Index)
 	}
 
 	// Disable scanning when identifying
-	if (PS2WriteData(PS2_DISABLE_SCANNING) != OsNoError) {
+	if (PS2WriteData(PS2_DISABLE_SCANNING) != OsSuccess) {
 		return 0xFFFFFFFF;
 	}
 
@@ -114,7 +114,7 @@ DevInfo_t PS2IdentifyPort(int Index)
 	}
 
 	// Send the identify command
-	if (PS2WriteData(PS2_IDENTIFY_PORT) != OsNoError) {
+	if (PS2WriteData(PS2_IDENTIFY_PORT) != OsSuccess) {
 		return 0xFFFFFFFF;
 	}
 
@@ -174,7 +174,7 @@ OsStatus_t PS2RegisterDevice(PS2Port_t *Port)
 	// Lastly just register the device under the controller (todo)
 	Port->Contract.DeviceId = RegisterDevice(UUID_INVALID, &Device, 
 		__DEVICEMANAGER_REGISTER_LOADDRIVER);
-	return OsNoError;
+	return OsSuccess;
 }
 
 /* PS2PortWrite 
@@ -198,7 +198,7 @@ OsStatus_t PS2PortQueueCommand(PS2Port_t *Port, uint8_t Command, uint8_t *Respon
 {
 	// Variables
 	PS2Command_t *pCommand = NULL;
-	OsStatus_t Result = OsNoError;
+	OsStatus_t Result = OsSuccess;
 	int Execute = 0;
 	int i;
 
@@ -287,7 +287,7 @@ OsStatus_t PS2PortFinishCommand(PS2Port_t *Port, uint8_t Result)
 				}
 			}
 		}
-		return OsNoError;
+		return OsSuccess;
 	}
 	else if (Result == PS2_RESEND_COMMAND
 		&& Port->CommandIndex != -1) {
@@ -325,7 +325,7 @@ OsStatus_t PS2PortFinishCommand(PS2Port_t *Port, uint8_t Result)
 				}
 			}
 		}
-		return OsNoError;
+		return OsSuccess;
 	}
 	else if (Port->CommandIndex != -1) {
 		Port->Commands[Port->CommandIndex].Executed = 2;
@@ -361,7 +361,7 @@ OsStatus_t PS2PortFinishCommand(PS2Port_t *Port, uint8_t Result)
 				}
 			}
 		}
-		return OsNoError;
+		return OsSuccess;
 	}
 	else {
 		return OsError;
@@ -381,7 +381,7 @@ OsStatus_t PS2PortInitialize(PS2Port_t *Port)
 
 	// Start out by doing an interface
 	// test on the given port
-	if (PS2InterfaceTest(Port->Index) != OsNoError) {
+	if (PS2InterfaceTest(Port->Index) != OsSuccess) {
 		ERROR("PS2-Port (%i): Failed interface test", Port->Index);
 		return OsError;
 	}
@@ -409,13 +409,13 @@ OsStatus_t PS2PortInitialize(PS2Port_t *Port)
 
 	// Write back the configuration
 	PS2SendCommand(PS2_SET_CONFIGURATION);
-	if (PS2WriteData(Temp) != OsNoError) {
+	if (PS2WriteData(Temp) != OsSuccess) {
 		ERROR("PS2-Port (%i): Failed to update configuration", Port->Index);
 		return OsError;
 	}
 
 	// Reset the port
-	if (PS2ResetPort(Port->Index) != OsNoError) {
+	if (PS2ResetPort(Port->Index) != OsSuccess) {
 		ERROR("PS2-Port (%i): Failed port reset", Port->Index);
 		return OsError;
 	}

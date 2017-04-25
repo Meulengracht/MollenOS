@@ -197,7 +197,7 @@ QueryContract(
 	}
 	else {
 		RPCSetResult(&Request, &Result, sizeof(OsStatus_t));
-		if (RPCExecute(&Request, __DEVICEMANAGER_TARGET) != OsNoError) {
+		if (RPCExecute(&Request, __DEVICEMANAGER_TARGET) != OsSuccess) {
 			return OsError;
 		}
 		else {

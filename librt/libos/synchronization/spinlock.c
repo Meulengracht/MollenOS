@@ -23,7 +23,7 @@
 
 /* Includes 
  * - System */
-#include <os/thread.h>
+#include <os/spinlock.h>
 #include <os/syscall.h>
 
 /* Includes 
@@ -51,7 +51,7 @@ SpinlockReset(
 
 	/* Reset it to 0 */
 	*Lock = SPINLOCK_INIT;
-	return OsNoError;
+	return OsSuccess;
 }
 
 /* SpinlockAcquire
@@ -67,7 +67,7 @@ SpinlockAcquire(
 	}
 
 	/* Redirect to platform specific implementation */
-	return _spinlock_acquire(Lock) == 1 ? OsNoError : OsError;
+	return _spinlock_acquire(Lock) == 1 ? OsSuccess : OsError;
 }
 
 /* SpinlockTryAcquire
@@ -83,7 +83,7 @@ SpinlockTryAcquire(
 	}
 
 	/* Redirect to platform specific implementation */
-	return _spinlock_test(Lock) == 1 ? OsNoError : OsError;
+	return _spinlock_test(Lock) == 1 ? OsSuccess : OsError;
 }
 
 /* SpinlockRelease
@@ -100,5 +100,5 @@ SpinlockRelease(
 
 	/* Redirect to platform specific implementation */
 	_spinlock_release(Lock);
-	return OsNoError;
+	return OsSuccess;
 }

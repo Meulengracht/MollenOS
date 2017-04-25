@@ -54,12 +54,12 @@ OsStatus_t PS2Wait(uint8_t Flags, int Negate)
 	for (int i = 0; i < 1000; i++) {
 		if (Negate == 1) {
 			if (PS2ReadStatus() & Flags) {
-				return OsNoError;
+				return OsSuccess;
 			}
 		}
 		else {
 			if (!(PS2ReadStatus() & Flags)) {
-				return OsNoError;
+				return OsSuccess;
 			}
 		}	
 	}
@@ -90,13 +90,13 @@ uint8_t PS2ReadData(int Dummy)
 OsStatus_t PS2WriteData(uint8_t Value)
 {
 	// Sanitize buffer status
-	if (PS2Wait(PS2_STATUS_INPUT_FULL, 0) != OsNoError) {
+	if (PS2Wait(PS2_STATUS_INPUT_FULL, 0) != OsSuccess) {
 		return OsError;
 	}
 
 	// Write the data and return
 	WriteIoSpace(&GlbController->DataSpace, PS2_REGISTER_DATA, Value, 1);
-	return OsNoError;
+	return OsSuccess;
 }
 
 /* PS2SendCommand
@@ -119,13 +119,13 @@ OsStatus_t PS2SetScanning(int Index, uint8_t Status)
 	}
 
 	// Set sample rate to given value
-	if (PS2WriteData(Status) != OsNoError
+	if (PS2WriteData(Status) != OsSuccess
 		|| PS2ReadData(0) != PS2_ACK) {
 		return OsError;
 	}
 
 	// Done - no error
-	return OsNoError;
+	return OsSuccess;
 }
 
 /* PS2SelfTest
@@ -146,7 +146,7 @@ OsStatus_t PS2SelfTest(void)
 	}
 
 	// Determine success or not
-	return (i == 5) ? OsError : OsNoError;
+	return (i == 5) ? OsError : OsSuccess;
 }
 
 /* PS2Initialize 
@@ -194,8 +194,8 @@ OsStatus_t PS2Initialize(void)
 	Status = PS2WriteData(Temp);
 
 	// Perform Self Test
-	if (Status != OsNoError 
-		|| PS2SelfTest() != OsNoError) {
+	if (Status != OsSuccess 
+		|| PS2SelfTest() != OsSuccess) {
 		//LogFatal("PS2C", "Ps2 Controller failed to initialize, giving up");
 		return OsError;
 	}
@@ -205,20 +205,20 @@ OsStatus_t PS2Initialize(void)
 		GlbController->Ports[i].Index = i;
 		if (GlbController->Ports[i].Enabled == 1) {
 			Status = PS2PortInitialize(&GlbController->Ports[i]);
-			if (Status != OsNoError) {
+			if (Status != OsSuccess) {
 				//LogFatal("PS2C", "Ps2 Controller failed to initialize port %i", i);
 			}
 		}
 	}
 
 	// No errors
-	return OsNoError;
+	return OsSuccess;
 }
 
 /* OnInterrupt
  * Is called when one of the registered devices
  * produces an interrupt. On successful handled
- * interrupt return OsNoError, otherwise the interrupt
+ * interrupt return OsSuccess, otherwise the interrupt
  * won't be acknowledged */
 InterruptStatus_t OnInterrupt(void *InterruptData)
 {
@@ -247,15 +247,15 @@ OsStatus_t OnLoad(void)
 	GlbController->CommandSpace.Size = PS2_IO_LENGTH;
 
 	// Create both the io-spaces in system
-	if (CreateIoSpace(&GlbController->DataSpace) != OsNoError
-		|| CreateIoSpace(&GlbController->CommandSpace) != OsNoError) {
+	if (CreateIoSpace(&GlbController->DataSpace) != OsSuccess
+		|| CreateIoSpace(&GlbController->CommandSpace) != OsSuccess) {
 		return OsError;
 	}
 
 	// No problem, last thing is to acquire the
 	// io-spaces, and just return that as result
-	if (AcquireIoSpace(&GlbController->DataSpace) != OsNoError
-		|| AcquireIoSpace(&GlbController->CommandSpace) != OsNoError) {
+	if (AcquireIoSpace(&GlbController->DataSpace) != OsSuccess
+		|| AcquireIoSpace(&GlbController->CommandSpace) != OsSuccess) {
 		return OsError;
 	}
 
@@ -285,7 +285,7 @@ OsStatus_t OnUnload(void)
 
 	// Free up allocated resources
 	free(GlbController);
-	return OsNoError;
+	return OsSuccess;
 }
 
 /* OnRegister
@@ -294,7 +294,7 @@ OsStatus_t OnUnload(void)
 OsStatus_t OnRegister(MCoreDevice_t *Device)
 {
 	// Variables
-	OsStatus_t Result = OsNoError;
+	OsStatus_t Result = OsSuccess;
 	PS2Port_t *Port = NULL;
 
 	// First register call is the ps2-controller
@@ -342,7 +342,7 @@ OsStatus_t OnRegister(MCoreDevice_t *Device)
 OsStatus_t OnUnregister(MCoreDevice_t *Device)
 {
 	// Variables
-	OsStatus_t Result = OsNoError;
+	OsStatus_t Result = OsSuccess;
 	PS2Port_t *Port = NULL;
 
 	// Select port from device-id
@@ -397,5 +397,5 @@ OnQuery(_In_ MContractType_t QueryType,
 	_CRT_UNUSED(Arg2);
 	_CRT_UNUSED(Queryee);
 	_CRT_UNUSED(ResponsePort);
-	return OsNoError;
+	return OsSuccess;
 }

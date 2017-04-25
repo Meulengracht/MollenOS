@@ -47,7 +47,7 @@ typedef struct _DeviceIoSpace {
 } DeviceIoSpace_t;
 
 /* Creates a new io-space and registers it with
- * the operation system, returns OsNoError if it's 
+ * the operation system, returns OsSuccess if it's 
  * a valid io-space */
 MOSAPI OsStatus_t CreateIoSpace(DeviceIoSpace_t *IoSpace);
 

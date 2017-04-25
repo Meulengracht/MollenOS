@@ -91,7 +91,7 @@ ListDestroy(
 	// Free the list structure and we
 	// are done
 	dsfree(List);
-	return OsNoError;
+	return OsSuccess;
 }
 
 /* ListLength
@@ -208,7 +208,7 @@ ListDestroyNode(
 
 	// Cleanup node and return
 	dsfree(Node);
-	return OsNoError;
+	return OsSuccess;
 }
 
 /* ListInsertAt
@@ -236,7 +236,7 @@ ListInsertAt(
 	_CRT_UNUSED(Position);
 
 	// todo
-	return OsNoError;
+	return OsSuccess;
 }
 
 /* ListInsert 
@@ -333,7 +333,7 @@ ListInsert(
 	}
 
 	// Done - no errors
-	return OsNoError;
+	return OsSuccess;
 }
 
 /* ListAppend
@@ -382,7 +382,7 @@ ListAppend(
 	}
 
 	// Done - no errors
-	return OsNoError;
+	return OsSuccess;
 }
 
 /* List pop functions, the either
@@ -666,7 +666,7 @@ ListRemoveByNode(
 	Node->Prev = NULL;
 
 	// Done - no errors
-	return OsNoError;
+	return OsSuccess;
 }
 
 /* ListRemove
@@ -679,7 +679,7 @@ ListRemoveByIndex(
 {
 	_CRT_UNUSED(List);
 	_CRT_UNUSED(Index);
-	return OsNoError;
+	return OsSuccess;
 }
 
 /* ListRemove
@@ -703,12 +703,12 @@ ListRemoveByKey(
 
 	// If found, unlink it and destroy it
 	if (Node != NULL) {
-		if (ListRemoveByNode(List, Node) != OsNoError
-			|| ListDestroyNode(List, Node) != OsNoError) {
+		if (ListRemoveByNode(List, Node) != OsSuccess
+			|| ListDestroyNode(List, Node) != OsSuccess) {
 			return OsError;
 		}
 		else {
-			return OsNoError;
+			return OsSuccess;
 		}
 	}
 

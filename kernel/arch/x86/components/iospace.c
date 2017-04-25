@@ -120,7 +120,7 @@ IoSpaceRegister(
 	TRACE("Allocated Id %u", IoSpace->Id);
 
 	// Done!
-	return OsNoError;
+	return OsSuccess;
 }
 
 /* IoSpaceAcquire
@@ -195,7 +195,7 @@ IoSpaceAcquire(
 	}
 
 	// Done - no errors
-	return OsNoError;
+	return OsSuccess;
 }
 
 /* IoSpaceRelease
@@ -263,7 +263,7 @@ IoSpaceRelease(
 	SysCopy->Owner = UUID_INVALID;
 
 	// Done - no errors
-	return OsNoError;
+	return OsSuccess;
 }
 
 /* IoSpaceDestroy
@@ -298,7 +298,7 @@ IoSpaceDestroy(
 	kfree(SysCopy);
 
 	// Done - no errors
-	return OsNoError;
+	return OsSuccess;
 }
 
 /* IoSpaceValidate

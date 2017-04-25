@@ -76,7 +76,7 @@ AhciManagerInitialize(void)
 	GlbDiskId = 0;
 
 	// No errors
-	return OsNoError;
+	return OsSuccess;
 }
 
 /* AhciManagerDestroy

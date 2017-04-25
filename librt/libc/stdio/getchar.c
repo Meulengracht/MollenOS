@@ -39,7 +39,7 @@ int getchar(void)
 	// Wait for input message, we need to discard 
 	// everything else as this is a polling op
 	while (Run) {
-		if (RPCListen(&Event) == OsNoError) {
+		if (RPCListen(&Event) == OsSuccess) {
 			Input = (MInput_t*)Event.Arguments[0].Data.Buffer;
 			if (Event.Function == EVENT_INPUT) {
 				if (Input->Type == InputKeyboard

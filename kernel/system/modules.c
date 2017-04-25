@@ -60,7 +60,7 @@ OsStatus_t ModulesInit(MCoreBootDescriptor *BootDescriptor)
 		|| BootDescriptor->RamDiskAddress == 0
 		|| BootDescriptor->RamDiskSize == 0) {
 		LogDebug("MODS", "No ramdisk detected");
-		return OsNoError;
+		return OsSuccess;
 	}
 	else {
 		LogInformation("MODS", "Loading and parsing ramdisk");
@@ -133,7 +133,7 @@ OsStatus_t ModulesInit(MCoreBootDescriptor *BootDescriptor)
 	GlbModulesInitialized = 1;
 
 	/* Return success */
-	return OsNoError;
+	return OsSuccess;
 }
 
 /* ModulesRunServers
@@ -203,7 +203,7 @@ OsStatus_t ModulesQueryPath(MString_t *Path, void **Buffer, size_t *Length)
 			*Buffer = (void*)(
 				(uintptr_t)Mod->Header + sizeof(MCoreRamDiskModuleHeader_t));
 			*Length = Mod->Header->Length;
-			Result = OsNoError;
+			Result = OsSuccess;
 			break;
 		}
 	}

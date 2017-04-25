@@ -819,7 +819,7 @@ GetFilePosition(
 	/* Fill in information */
 	Result->Value.Full = fHandle->Position;
 	Result->Code = FsOk;
-	return OsNoError;
+	return OsSuccess;
 }
 
 /* GetFileOptions
@@ -860,7 +860,7 @@ GetFileOptions(
 	Result->Options = fHandle->Options;
 	Result->Access = fHandle->Access;
 	Result->Code = FsOk;
-	return OsNoError;
+	return OsSuccess;
 }
 
 /* SetFileOptions 
@@ -899,7 +899,7 @@ SetFileOptions(
 	/* Update the requested information */
 	fHandle->Options = Options;
 	fHandle->Access = Access;
-	return OsNoError;
+	return OsSuccess;
 }
 
 /* GetFileSize 
@@ -940,5 +940,5 @@ GetFileSize(
 	/* Fill in information */
 	Result->Value.Full = fHandle->File->Size;
 	Result->Code = FsOk;
-	return OsNoError;
+	return OsSuccess;
 }

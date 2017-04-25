@@ -212,5 +212,5 @@ OsStatus_t PhoenixReap(void *UserData)
 		return OsError;
 	}
 
-	return OsNoError;
+	return OsSuccess;
 }

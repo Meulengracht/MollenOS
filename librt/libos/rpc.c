@@ -92,7 +92,7 @@ RPCListen(
 	int i = 0;
 
 	// Wait for a new rpc message
-	if (PipeRead(PIPE_RPCOUT, Message, sizeof(MRemoteCall_t)) == OsNoError) {
+	if (PipeRead(PIPE_RPCOUT, Message, sizeof(MRemoteCall_t)) == OsSuccess) {
 		for (i = 0; i < IPC_MAX_ARGUMENTS; i++) {
 			if (Message->Arguments[i].Type == ARGUMENT_BUFFER) {
 				Message->Arguments[i].Data.Buffer = 
@@ -107,7 +107,7 @@ RPCListen(
 		}
 
 		// We handled it
-		return OsNoError;
+		return OsSuccess;
 	}
 	else {
 		return OsError;
@@ -128,7 +128,7 @@ RPCCleanup(
 			Message->Arguments[i].Data.Buffer = NULL;
 		}
 	}
-	return OsNoError;
+	return OsSuccess;
 }
 
 /* RPCRespond

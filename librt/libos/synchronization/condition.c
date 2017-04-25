@@ -23,8 +23,9 @@
 
 /* Includes
  * - System */
-#include <os/thread.h>
+#include <os/condition.h>
 #include <os/syscall.h>
+#include <os/mutex.h>
 
 /* Includes
  * - Library */
@@ -44,7 +45,7 @@ ConditionCreate(void)
 
 	/* Reuse the construct 
 	 * function */
-	if (ConditionConstruct(Cond) != OsNoError) {
+	if (ConditionConstruct(Cond) != OsSuccess) {
 		return NULL;
 	}
 
@@ -77,7 +78,7 @@ ConditionConstruct(
 
 	/* Store information */
 	*Cond = (Condition_t)RetVal;
-	return OsNoError;
+	return OsSuccess;
 }
 
 /* ConditionDestroy
@@ -149,7 +150,7 @@ ConditionWait(
 
 	/* Ok, we have been woken up, acquire mutex */
 	if (MutexLock(Mutex) == MUTEX_SUCCESS) {
-		return OsNoError;
+		return OsSuccess;
 	}
 	else {
 		return OsError;
@@ -184,7 +185,7 @@ ConditionWaitTimed(
 		SYSCALL_PARAM(difftime(Expiration, Now) * 1000));
 
 	/* Did we timeout ? */
-	if (Result != OsNoError) {
+	if (Result != OsSuccess) {
 		_set_errno(ETIMEDOUT);
 		return Result;
 	}
@@ -194,7 +195,7 @@ ConditionWaitTimed(
 	
 	/* Ok, we have been woken up, acquire mutex */
 	if (MutexLock(Mutex) == MUTEX_SUCCESS) {
-		return OsNoError;
+		return OsSuccess;
 	}
 	else {
 		return OsError;

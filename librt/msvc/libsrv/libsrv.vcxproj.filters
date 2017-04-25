@@ -50,6 +50,6 @@
     <ClCompile Include="..\..\libcrt\vscrt\crt.c">
       <Filter>vscrt</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\libcrt\server.c" />
+    <ClCompile Include="..\..\libcrt\service.c" />
   </ItemGroup>
 </Project>

@@ -89,7 +89,7 @@ DebugBreakpoint(
 /* DebugPageFault
  * Handles page-fault and either validates or invalidates
  * that the address is valid. In case of valid address it automatically
- * maps in the page and returns OsNoError */
+ * maps in the page and returns OsSuccess */
 KERNELAPI
 OsStatus_t
 KERNELABI

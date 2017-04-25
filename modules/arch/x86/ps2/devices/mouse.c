@@ -47,7 +47,7 @@ InterruptStatus_t PS2MouseInterrupt(void *InterruptData)
 	Data = PS2ReadData(1);
 
 	/* Handle any out-standing commands first */
-	if (PS2PortFinishCommand(Mouse->Port, Data) == OsNoError) {
+	if (PS2PortFinishCommand(Mouse->Port, Data) == OsSuccess) {
 		return InterruptHandled;
 	}
 
@@ -139,13 +139,13 @@ InterruptStatus_t PS2MouseInterrupt(void *InterruptData)
 OsStatus_t PS2SetSampling(PS2Mouse_t *Mouse, uint8_t Sampling)
 {
 	/* Retrieve the mouse id */
-	if (PS2PortQueueCommand(Mouse->Port, PS2_MOUSE_SETSAMPLE, NULL) != OsNoError
-		|| PS2PortQueueCommand(Mouse->Port, Sampling, NULL) != OsNoError) {
+	if (PS2PortQueueCommand(Mouse->Port, PS2_MOUSE_SETSAMPLE, NULL) != OsSuccess
+		|| PS2PortQueueCommand(Mouse->Port, Sampling, NULL) != OsSuccess) {
 		return OsError;
 	}
 
 	/* Wuhuu! */
-	return OsNoError;
+	return OsSuccess;
 }
 
 /* PS2EnableExtensions
@@ -157,20 +157,20 @@ OsStatus_t PS2EnableExtensions(PS2Mouse_t *Mouse)
 	uint8_t MouseId = 0;
 
 	/* Perform the magic sequence */
-	if (PS2SetSampling(Mouse, 200) != OsNoError
-		|| PS2SetSampling(Mouse, 200) != OsNoError
-		|| PS2SetSampling(Mouse, 80) != OsNoError) {
+	if (PS2SetSampling(Mouse, 200) != OsSuccess
+		|| PS2SetSampling(Mouse, 200) != OsSuccess
+		|| PS2SetSampling(Mouse, 80) != OsSuccess) {
 		return OsError;
 	}
 
 	/* Retrieve the mouse id */
-	if (PS2PortQueueCommand(Mouse->Port, PS2_MOUSE_GETID, &MouseId) != OsNoError) {
+	if (PS2PortQueueCommand(Mouse->Port, PS2_MOUSE_GETID, &MouseId) != OsSuccess) {
 		return OsError;
 	}
 
 	/* Sanitize the mouse-id */
 	if (MouseId == PS2_MOUSE_ID_EXTENDED2) {
-		return OsNoError;
+		return OsSuccess;
 	}
 	else {
 		return OsError;
@@ -186,20 +186,20 @@ OsStatus_t PS2EnableScroll(PS2Mouse_t *Mouse)
 	uint8_t MouseId = 0;
 
 	/* Perform the magic sequence */
-	if (PS2SetSampling(Mouse, 200) != OsNoError
-		|| PS2SetSampling(Mouse, 100) != OsNoError
-		|| PS2SetSampling(Mouse, 80) != OsNoError) {
+	if (PS2SetSampling(Mouse, 200) != OsSuccess
+		|| PS2SetSampling(Mouse, 100) != OsSuccess
+		|| PS2SetSampling(Mouse, 80) != OsSuccess) {
 		return OsError;
 	}
 
 	/* Retrieve the mouse id */
-	if (PS2PortQueueCommand(Mouse->Port, PS2_MOUSE_GETID, &MouseId) != OsNoError) {
+	if (PS2PortQueueCommand(Mouse->Port, PS2_MOUSE_GETID, &MouseId) != OsSuccess) {
 		return OsError;
 	}
 
 	/* Sanitize the mouse-id */
 	if (MouseId == PS2_MOUSE_ID_EXTENDED) {
-		return OsNoError;
+		return OsSuccess;
 	}
 	else {
 		return OsError;
@@ -244,7 +244,7 @@ OsStatus_t PS2MouseInitialize(PS2Port_t *Port)
 	Port->Interrupt.Data = Mouse;
 
 	/* Register our contract for this device */
-	if (RegisterContract(&Port->Contract) != OsNoError) {
+	if (RegisterContract(&Port->Contract) != OsSuccess) {
 		ERROR("PS2-Mouse: failed to install contract");
 		return OsError;
 	}
@@ -256,15 +256,15 @@ OsStatus_t PS2MouseInitialize(PS2Port_t *Port)
 	/* The mouse is in default state at this point
 	 * since all ports suffer a reset - We want to test
 	 * if the mouse is a 4-byte mouse */
-	if (PS2EnableScroll(Mouse) == OsNoError) {
+	if (PS2EnableScroll(Mouse) == OsSuccess) {
 		Mouse->Mode = 1;
-		if (PS2EnableExtensions(Mouse) == OsNoError) {
+		if (PS2EnableExtensions(Mouse) == OsSuccess) {
 			Mouse->Mode = 2;
 		}
 	}
 
 	/* Update sampling to 60, no need for faster updates */
-	if (PS2SetSampling(Mouse, 60) == OsNoError) {
+	if (PS2SetSampling(Mouse, 60) == OsSuccess) {
 		Mouse->Sampling = 60;
 	}
 
@@ -293,5 +293,5 @@ OsStatus_t PS2MouseCleanup(PS2Port_t *Port)
 	Port->Signature = 0;
 
 	/* Done! */
-	return OsNoError;
+	return OsSuccess;
 }

@@ -66,14 +66,14 @@ void _mDrvCrt(void)
 
 	// Call the driver load function 
 	// - This will be run once, before loop
-	if (OnLoad() != OsNoError) {
+	if (OnLoad() != OsSuccess) {
 		OnUnload();
 		goto Cleanup;
 	}
 
 	// Initialize the driver event loop
 	while (IsRunning) {
-		if (RPCListen(&Message) == OsNoError) {
+		if (RPCListen(&Message) == OsSuccess) {
 			switch (Message.Function) {
 				case __DRIVER_REGISTERINSTANCE: {
 					OnRegister((MCoreDevice_t*)Message.Arguments[0].Data.Buffer);

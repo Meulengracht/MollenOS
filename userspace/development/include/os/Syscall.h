@@ -102,7 +102,7 @@
 
 /* Driver System Calls 
  * - Server Support */
-#define SYSCALL_SERVERREGISTER		0x4B
+#define SYSCALL_SERVICEREGISTER		0x4B
 #define SYSCALL_RESOLVEDRIVER		0x4C
 
 /* Driver System Calls 

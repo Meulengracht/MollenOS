@@ -60,7 +60,7 @@ OsStatus_t OnLoad(void)
 	GlbRun = 1;
 
 	// Register us with server manager
-	RegisterServer(__DEVICEMANAGER_TARGET);
+	RegisterService(__DEVICEMANAGER_TARGET);
 
 	// Enumerate bus controllers/devices */
 	return BusEnumerate();
@@ -71,7 +71,7 @@ OsStatus_t OnLoad(void)
  * and should free all resources allocated by the system */
 OsStatus_t OnUnload(void)
 {
-	return OsNoError;
+	return OsSuccess;
 }
 
 /* OnEvent
@@ -91,7 +91,7 @@ OsStatus_t OnEvent(MRemoteCall_t *Message)
 			// the allocated device storage, we need it
 			if (RegisterDevice((UUId_t)Message->Arguments[0].Data.Value,
 				(MCoreDevice_t*)Message->Arguments[1].Data.Buffer, NULL,
-				(Flags_t)Message->Arguments[2].Data.Value, &Result) != OsNoError) {
+				(Flags_t)Message->Arguments[2].Data.Value, &Result) != OsSuccess) {
 				Result = UUID_INVALID;
 			}
 
@@ -151,7 +151,7 @@ OsStatus_t OnEvent(MRemoteCall_t *Message)
 
 			// Evaluate request, but don't free
 			// the allocated contract storage, we need it
-			if (RegisterContract(Contract, &Result) != OsNoError) {
+			if (RegisterContract(Contract, &Result) != OsSuccess) {
 				Result = UUID_INVALID;
 			}
 
@@ -184,7 +184,7 @@ OsStatus_t OnEvent(MRemoteCall_t *Message)
 					(Message->Arguments[4].Type == ARGUMENT_REGISTER) ?
 					&Message->Arguments[4].Data.Value : Message->Arguments[4].Data.Buffer,
 					Message->Arguments[4].Length,
-					ResponseBuffer, Message->Result.Length) == OsNoError) {
+					ResponseBuffer, Message->Result.Length) == OsSuccess) {
 				PipeSend(Message->Sender, Message->ResponsePort,
 					ResponseBuffer, Message->Result.Length);
 			}
@@ -200,7 +200,7 @@ OsStatus_t OnEvent(MRemoteCall_t *Message)
 		} break;
 	}
 
-	return OsNoError;
+	return OsSuccess;
 }
 
 /* Device Registering
@@ -247,7 +247,7 @@ RegisterDevice(
 	}
 	
 	// Done with task
-	return OsNoError;
+	return OsSuccess;
 }
 
 /* RegisterContract
@@ -292,7 +292,7 @@ RegisterContract(
 	ListAppend(__GlbContracts, ListCreateNode(Key, Key, CopyContract));
 
 	// Done
-	return OsNoError;
+	return OsSuccess;
 }
 
 /* HandleQuery

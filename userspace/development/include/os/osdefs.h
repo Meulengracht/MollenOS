@@ -71,7 +71,7 @@ typedef void *				Handle_t;
 /* This definies various possible results
  * from certain os-operations */
 typedef enum {
-	OsNoError,
+	OsSuccess,
 	OsError
 } OsStatus_t;
 

@@ -126,7 +126,7 @@ GcUnregister(
 	ListRemoveByKey(GlbGcHandlers, Key);
 
 	// Done - no further cleanup needed
-	return OsNoError;
+	return OsSuccess;
 }
 
 /* GcSignal
@@ -153,7 +153,7 @@ GcSignal(
 	SemaphoreV(GlbGcEventLock, 1);
 
 	// Done - no errors
-	return OsNoError;
+	return OsSuccess;
 }
 
 /* GcWorker

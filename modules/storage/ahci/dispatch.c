@@ -196,7 +196,7 @@ AhciCommandDispatch(
 	AhciDumpCurrentState(Transaction->Device->Controller, Transaction->Device->Port);
 	
 	// No error, transaction in progress
-	return OsNoError;
+	return OsSuccess;
 
 Error:
 	return OsError;
@@ -237,7 +237,7 @@ AhciVerifyRegisterFIS(
 
 	// If we reach here, all checks has been 
 	// passed succesfully, and we return no err
-	return OsNoError;
+	return OsSuccess;
 }
 
 /* AhciCommandRegisterFIS 
@@ -317,7 +317,7 @@ AhciCommandRegisterFIS(
 
 	// Allocate a command slot for this transaction
 	if (AhciPortAcquireCommandSlot(Transaction->Device->Controller,
-		Transaction->Device->Port, &Transaction->Slot) != OsNoError) {
+		Transaction->Device->Port, &Transaction->Slot) != OsSuccess) {
 		ERROR("AHCI::Port (%i): Failed to allocate a command slot",
 			Transaction->Device->Port->Id);
 		return OsError;
@@ -329,7 +329,7 @@ AhciCommandRegisterFIS(
 		&Fis, sizeof(FISRegisterH2D_t), NULL, 0);
 
 	// Sanitize return, if it didn't start then handle right now
-	if (Status != OsNoError) {
+	if (Status != OsSuccess) {
 		AhciPortReleaseCommandSlot(Transaction->Device->Port, Transaction->Slot);
 	}
 	

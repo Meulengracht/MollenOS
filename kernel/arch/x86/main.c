@@ -47,12 +47,12 @@ SystemInformationQuery(
 {
 	// Copy memory information
 	if (MmPhysicalQuery(&Information->PagesTotal, 
-		&Information->PagesAllocated) != OsNoError) {
+		&Information->PagesAllocated) != OsSuccess) {
 		return OsError;
 	}
 
 	// Done
-	return OsNoError;
+	return OsSuccess;
 }
 
 /* Initializes the local apic (if present, it faults
@@ -61,7 +61,7 @@ SystemInformationQuery(
 void BootInitializeApic(void)
 {
 	/* Initialize the APIC (if present) */
-	if (CpuHasFeatures(0, CPUID_FEAT_EDX_APIC) != OsNoError) {
+	if (CpuHasFeatures(0, CPUID_FEAT_EDX_APIC) != OsSuccess) {
 		LogFatal("APIC", "BootInitializeApic::NOT PRESENT!");
 		CpuIdle();
 	}

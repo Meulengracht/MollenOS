@@ -76,7 +76,7 @@ OsStatus_t VfsResolveQueueExecute(void)
 		}
 
 		/* Run initializor function */
-		if (Fs->Module->Initialize(&Fs->Descriptor) != OsNoError) {
+		if (Fs->Module->Initialize(&Fs->Descriptor) != OsSuccess) {
 			MStringDestroy(Fs->Identifier);
 			VfsIdentifierFree(&Fs->Descriptor.Disk, Fs->Id);
 			free(Fs);
@@ -88,7 +88,7 @@ OsStatus_t VfsResolveQueueExecute(void)
 	}
 
 	/* Done! */
-	return OsNoError;
+	return OsSuccess;
 }
 
 /* DiskRegisterFileSystem 
@@ -153,7 +153,7 @@ OsStatus_t DiskRegisterFileSystem(FileSystemDisk_t *Disk,
 		}
 
 		// Run initializor function
-		if (Fs->Module->Initialize(&Fs->Descriptor) != OsNoError) {
+		if (Fs->Module->Initialize(&Fs->Descriptor) != OsSuccess) {
 			ERROR("Filesystem driver failed to initialize");
 			MStringDestroy(Fs->Identifier);
 			VfsIdentifierFree(&Fs->Descriptor.Disk, Fs->Id);
@@ -201,7 +201,7 @@ OsStatus_t DiskRegisterFileSystem(FileSystemDisk_t *Disk,
 	}
 
 	// Done
-	return OsNoError;
+	return OsSuccess;
 }
 
 /* RegisterDisk
@@ -228,7 +228,7 @@ OsStatus_t RegisterDisk(UUId_t Driver, UUId_t Device, Flags_t Flags)
 
 	// Query disk for general device information and 
 	// information about geometry
-	if (DiskQuery(Driver, Device, &Disk->Descriptor) != OsNoError) {
+	if (DiskQuery(Driver, Device, &Disk->Descriptor) != OsSuccess) {
 		free(Disk);
 		return OsError;
 	}
@@ -263,7 +263,7 @@ OsStatus_t UnregisterDisk(UUId_t Device, Flags_t Flags)
 		// TODO
 
 		/* Call destroy handler for that FS */
-		if (Fs->Module->Destroy(&Fs->Descriptor, Flags) != OsNoError) {
+		if (Fs->Module->Destroy(&Fs->Descriptor, Flags) != OsSuccess) {
 			// What do?
 		}
 
@@ -294,5 +294,5 @@ OsStatus_t UnregisterDisk(UUId_t Device, Flags_t Flags)
 	free(Disk);
 
 	/* Done! */
-	return OsNoError;
+	return OsSuccess;
 }

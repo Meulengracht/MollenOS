@@ -182,7 +182,7 @@ SignalHandle(
 	}
 
 	// No more signals
-	return OsNoError;
+	return OsSuccess;
 }
 
 /* Execute Signal 

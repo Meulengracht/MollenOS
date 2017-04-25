@@ -584,7 +584,7 @@ OsStatus_t ThreadingReap(void *UserData)
 	ThreadingCleanupThread(Thread);
 
 	// Done - no errors
-	return OsNoError;
+	return OsSuccess;
 }
 
 /* ThreadingDebugPrint

@@ -80,7 +80,7 @@ OnUnregister(
 /* OnInterrupt
  * Is called when one of the registered devices
  * produces an interrupt. On successful handled
- * interrupt return OsNoError, otherwise the interrupt
+ * interrupt return OsSuccess, otherwise the interrupt
  * won't be acknowledged */
 __EXTERN 
 InterruptStatus_t 

@@ -33,9 +33,6 @@
 /* Includes
  * - System */
 #include <os/driver/buffer.h>
-#include <os/spinlock.h>
-#include <os/mutex.h>
-#include <os/condition.h>
 
 /* ThreadOnce Library Definitions
  * The definition of a thread id used for identifying threads */
@@ -48,6 +45,7 @@ typedef void(*ThreadOnceFunc_t)(void);
  * used for saving data in a dictionary */
 typedef unsigned int TlsKey_t;
 typedef void(*TlsKeyDss_t)(void*);
+#define TLS_MAX_PASSES			4
 #define TLS_MAX_KEYS			64
 #define TLS_KEY_INVALID			0xFFFFFFFF
 

@@ -1,0 +1,34 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <ClCompile Include="sapphire.c" />
+    <ClCompile Include="core\scene.c">
+      <Filter>systems</Filter>
+    </ClCompile>
+    <ClCompile Include="core\scenemanager.c">
+      <Filter>systems</Filter>
+    </ClCompile>
+    <ClCompile Include="core\shape.c">
+      <Filter>systems</Filter>
+    </ClCompile>
+    <ClCompile Include="core\window.c">
+      <Filter>systems</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="core\scene.h">
+      <Filter>systems</Filter>
+    </ClInclude>
+    <ClInclude Include="core\scenemanager.h">
+      <Filter>systems</Filter>
+    </ClInclude>
+    <ClInclude Include="core\window.h">
+      <Filter>systems</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="systems">
+      <UniqueIdentifier>{8a75e9d4-f738-49f6-8157-5d23fde0ee86}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+</Project>

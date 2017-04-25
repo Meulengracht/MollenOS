@@ -16,63 +16,64 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS MCore - Server Definitions & Structures
- * - This header describes the base server-structure, prototypes
+ * MollenOS MCore - Service Definitions & Structures
+ * - This header describes the base service-structure, prototypes
  *   and functionality, refer to the individual things for descriptions
  */
 
-#ifndef _SERVER_H_
-#define _SERVER_H_
+#ifndef _SERVICE_H_
+#define _SERVICE_H_
 
 /* Includes
  * - System */
 #include <os/ipc/ipc.h>
 #include <os/osdefs.h>
 
-/* Server base definitions, includes things
+/* Service base definitions, includes things
  * like the base server-target */
-#define __SERVER_TARGET(Index)				((UUId_t)0x8000 + Index)
+#define __SERVICE_TARGET(Index)				((UUId_t)0x8000 + Index)
 
-/* MollenOS possible server targets */
-#define __DEVICEMANAGER_TARGET				__SERVER_TARGET(0)
-#define __FILEMANAGER_TARGET				__SERVER_TARGET(1)
-#define __WINDOWMANAGER_TARGET				__SERVER_TARGET(2)
+/* MollenOS possible Service targets */
+#define __DEVICEMANAGER_TARGET				__SERVICE_TARGET(0)
+#define __FILEMANAGER_TARGET				__SERVICE_TARGET(1)
+#define __WINDOWMANAGER_TARGET				__SERVICE_TARGET(2)
 
-/* RegisterServer 
- * Registers a server on the current alias, allowing
+/* RegisterService 
+ * Registers a service on the current alias, allowing
  * other applications and frameworks to send commands
  * and function requests */
 MOSAPI 
-OsStatus_t 
-RegisterServer(
+OsStatus_t
+MOSABI
+RegisterService(
 	_In_ UUId_t Alias);
 
 /* OnLoad
- * The entry-point of a server, this is called
+ * The entry-point of a service, this is called
  * as soon as the server is loaded in the system */
-#ifdef __SERVER_IMPL
+#ifdef __SERVICE_IMPL
 __EXTERN 
 OsStatus_t
 OnLoad(void);
 #endif
 
 /* OnUnload
- * This is called when the server is being unloaded
+ * This is called when the service is being unloaded
  * and should free all resources allocated by the system */
-#ifdef __SERVER_IMPL
+#ifdef __SERVICE_IMPL
 __EXTERN 
 OsStatus_t 
 OnUnload(void);
 #endif
 
 /* OnEvent
- * This is called when the server recieved an external evnet
+ * This is called when the service recieved an external event
  * and should handle the given event*/
-#ifdef __SERVER_IMPL
+#ifdef __SERVICE_IMPL
 __EXTERN 
 OsStatus_t 
 OnEvent(
 	_In_ MRemoteCall_t *Message);
 #endif
 
-#endif //!_MCORE_SERVER_H_
+#endif //!_SERVICE_H_

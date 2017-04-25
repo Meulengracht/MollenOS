@@ -224,7 +224,7 @@ SignalDispatch(
 	enter_signal(Regs, Signal->Handler, Signal->Signal, MEMORY_LOCATION_SIGNAL_RET);
 
 	// We don't reach this
-	return OsNoError;
+	return OsSuccess;
 }
 
 /* This function switches the current runtime-context

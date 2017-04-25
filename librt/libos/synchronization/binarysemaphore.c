@@ -48,7 +48,7 @@ BinarySemaphoreConstruct(
 	BinarySemaphore->Value = Value;
 
 	// Done
-	return OsNoError;
+	return OsSuccess;
 }
 
 /* BinarySemaphoreReset

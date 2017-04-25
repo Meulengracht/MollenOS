@@ -152,7 +152,7 @@ void CmosGetTime(struct tm *Time)
 /* OnInterrupt
  * Is called when one of the registered devices
  * produces an interrupt. On successful handled
- * interrupt return OsNoError, otherwise the interrupt
+ * interrupt return OsSuccess, otherwise the interrupt
  * won't be acknowledged */
 InterruptStatus_t OnInterrupt(void *InterruptData)
 {
@@ -189,14 +189,14 @@ OsStatus_t OnLoad(void)
 	GlbCmos->Interrupt.Data = GlbCmos;
 
 	// Create the io-space in system
-	if (CreateIoSpace(&GlbCmos->IoSpace) != OsNoError) {
+	if (CreateIoSpace(&GlbCmos->IoSpace) != OsSuccess) {
 		return OsError;
 	}
 
 	// Query the system for acpi-information 
 	// - Check for century register
 	// - Check if we should disable rtc
-	if (AcpiQueryStatus(&Acpi) == OsNoError) {
+	if (AcpiQueryStatus(&Acpi) == OsSuccess) {
 		GlbCmos->AcpiCentury = Acpi.Century;
 		if (Acpi.BootFlags & ACPI_IA_NO_CMOS_RTC) {
 			GlbCmos->UseRTC = 0;
@@ -205,7 +205,7 @@ OsStatus_t OnLoad(void)
 
 	// No problem, last thing is to acquire the
 	// io-space, and just return that as result
-	if (AcquireIoSpace(&GlbCmos->IoSpace) != OsNoError) {
+	if (AcquireIoSpace(&GlbCmos->IoSpace) != OsSuccess) {
 		return OsError;
 	}
 
@@ -219,7 +219,7 @@ OsStatus_t OnLoad(void)
 		return RtcInitialize(GlbCmos);
 	}
 	else {
-		return OsNoError;
+		return OsSuccess;
 	}
 }
 
@@ -242,7 +242,7 @@ OsStatus_t OnUnload(void)
 
 	// Free up allocated resources
 	free(GlbCmos);
-	return OsNoError;
+	return OsSuccess;
 }
 
 /* OnRegister
@@ -266,7 +266,7 @@ OsStatus_t OnRegister(MCoreDevice_t *Device)
 		return RegisterContract(&GlbCmos->Timer);
 	}
 	else {
-		return OsNoError;
+		return OsSuccess;
 	}
 }
 
@@ -278,7 +278,7 @@ OsStatus_t OnUnregister(MCoreDevice_t *Device)
 	// The CMOS/RTC is a fixed device
 	// and thus we don't support multiple instances
 	_CRT_UNUSED(Device);
-	return OsNoError;
+	return OsSuccess;
 }
 
 /* OnQuery
@@ -315,5 +315,5 @@ OnQuery(_In_ MContractType_t QueryType,
 	}
 
 	// Done!
-	return OsNoError;
+	return OsSuccess;
 }

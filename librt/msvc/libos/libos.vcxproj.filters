@@ -113,9 +113,6 @@
     <ClCompile Include="..\..\libos\driver\acsupport.c">
       <Filter>driver</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\libos\driver\server.c">
-      <Filter>driver</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\libos\driver\interrupt.c">
       <Filter>driver</Filter>
     </ClCompile>
@@ -129,6 +126,9 @@
     </ClCompile>
     <ClCompile Include="..\..\libos\synchronization\binarysemaphore.c">
       <Filter>synchronization</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\libos\driver\service.c">
+      <Filter>driver</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>

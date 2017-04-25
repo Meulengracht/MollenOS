@@ -324,7 +324,7 @@ PciCheckFunction(
 						&InterruptLine, &AcpiConform);
 
 					// Did routing exist?
-					if (HasFilter == OsNoError) {
+					if (HasFilter == OsSuccess) {
 						TRACE("  * Final Line %u - Final Pin %i", InterruptLine, Pin);
 						break;
 					}
@@ -552,13 +552,13 @@ BusEnumerate(void)
 	__GlbRoot->IsBridge = 1;
 
 	/* Query acpi information */
-	if (AcpiQueryStatus(&Acpi) == OsNoError) {
+	if (AcpiQueryStatus(&Acpi) == OsSuccess) {
 		TRACE("ACPI-Version: 0x%x (BootFlags 0x%x)", 
 			Acpi.Version, Acpi.BootFlags);
 		__GlbAcpiAvailable = 1;
 
 		/* PCI-Express */
-		if (AcpiQueryTable(ACPI_SIG_MCFG, &Header) == OsNoError) {
+		if (AcpiQueryTable(ACPI_SIG_MCFG, &Header) == OsSuccess) {
 			TRACE("PCI-Express Controller (mcfg length 0x%x)", Header->Length);
 			//McfgTable = (ACPI_TABLE_MCFG*)Header;
 			//remember to free(McfgTable)
@@ -566,7 +566,7 @@ BusEnumerate(void)
 		}
 
 		/* HPET */
-		if (AcpiQueryTable(ACPI_SIG_HPET, &Header) == OsNoError) {
+		if (AcpiQueryTable(ACPI_SIG_HPET, &Header) == OsSuccess) {
 			free(Header);
 			BusInstallFixed(PCI_HPET_DEVICEID, "HPET Controller");
 		}
@@ -653,13 +653,13 @@ BusEnumerate(void)
 		Bus->IoSpace.Size = PCI_IO_LENGTH;
 		
 		/* Register the io-space with the system */
-		if (CreateIoSpace(&Bus->IoSpace) != OsNoError) {
+		if (CreateIoSpace(&Bus->IoSpace) != OsSuccess) {
 			ERROR("Failed to initialize bus io");
 			for (;;);
 		}
 
 		/* Now we acquire the io-space */
-		if (AcquireIoSpace(&Bus->IoSpace) != OsNoError) {
+		if (AcquireIoSpace(&Bus->IoSpace) != OsSuccess) {
 			ERROR("Failed to acquire bus io with id %u", Bus->IoSpace.Id);
 			for (;;);
 		}
@@ -683,7 +683,7 @@ BusEnumerate(void)
 	ListExecuteAll(__GlbRoot->Children, PciInstallDriverCallback, NULL);
 
 	// No errors
-	return OsNoError;
+	return OsSuccess;
 }
 
 /* BusDeviceIoctl 
@@ -750,5 +750,5 @@ BusDeviceIoctl(
 		Device->Slot, Device->Function, 0x04, Settings);
 
 	// Done
-	return OsNoError;
+	return OsSuccess;
 }

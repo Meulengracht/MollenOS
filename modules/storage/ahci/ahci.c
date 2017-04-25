@@ -82,8 +82,8 @@ AhciControllerCreate(
 		IoBase->Type, IoBase->PhysicalBase, IoBase->Size);
 
 	// Acquire the io-space
-	if (CreateIoSpace(IoBase) != OsNoError
-		|| AcquireIoSpace(IoBase) != OsNoError) {
+	if (CreateIoSpace(IoBase) != OsSuccess
+		|| AcquireIoSpace(IoBase) != OsSuccess) {
 		ERROR("Failed to create and acquire the io-space for ahci-controller");
 		free(Controller);
 		return NULL;
@@ -108,7 +108,7 @@ AhciControllerCreate(
 	Controller->Device.Interrupt.Data = Controller;
 
 	// Register contract before interrupt
-	if (RegisterContract(&Controller->Contract) != OsNoError) {
+	if (RegisterContract(&Controller->Contract) != OsSuccess) {
 		ERROR("Failed to register contract for ahci-controller");
 		ReleaseIoSpace(Controller->IoBase);
 		DestroyIoSpace(Controller->IoBase->Id);
@@ -123,7 +123,7 @@ AhciControllerCreate(
 	// Enable device
 	if (IoctlDevice(Controller->Device.Id, __DEVICEMANAGER_IOCTL_BUS,
 		(__DEVICEMANAGER_IOCTL_ENABLE | __DEVICEMANAGER_IOCTL_MMIO_ENABLE
-			| __DEVICEMANAGER_IOCTL_BUSMASTER_ENABLE)) != OsNoError) {
+			| __DEVICEMANAGER_IOCTL_BUSMASTER_ENABLE)) != OsSuccess) {
 		ERROR("Failed to enable the ahci-controller");
 		UnregisterInterruptSource(Controller->Interrupt);
 		ReleaseIoSpace(Controller->IoBase);
@@ -134,7 +134,7 @@ AhciControllerCreate(
 
 	// Now that all formalities has been taken care
 	// off we can actually setup controller
-	if (AhciSetup(Controller) == OsNoError) {
+	if (AhciSetup(Controller) == OsSuccess) {
 		return Controller;
 	}
 	else {
@@ -189,7 +189,7 @@ AhciControllerDestroy(
 	free(Controller);
 
 	// Cleanup done
-	return OsNoError;
+	return OsSuccess;
 }
 
 /* AHCIReset 
@@ -260,7 +260,7 @@ AhciReset(
 				& (AHCI_PORT_CR | AHCI_PORT_FR))) {
 				// Port did not go idle
 				// Attempt a port reset and if that fails destroy it
-				if (AhciPortReset(Controller, Controller->Ports[i]) != OsNoError) {
+				if (AhciPortReset(Controller, Controller->Ports[i]) != OsSuccess) {
 					AhciPortCleanup(Controller, Controller->Ports[i]);
 				}
 			}
@@ -268,7 +268,7 @@ AhciReset(
 	}
 
 	// No errors 
-	return OsNoError;
+	return OsSuccess;
 }
 
 /* AHCITakeOwnership
@@ -304,7 +304,7 @@ AhciTakeOwnership(
 		return OsError;
 	}
 	else {
-		return OsNoError;
+		return OsSuccess;
 	}
 }
 
@@ -320,7 +320,7 @@ AhciSetup(
 	int i;
 
 	// Take ownership of the controller
-	if (AhciTakeOwnership(Controller) != OsNoError) {
+	if (AhciTakeOwnership(Controller) != OsSuccess) {
 		ERROR("Failed to take ownership of the controller.");
 		return OsError;
 	}
@@ -383,7 +383,7 @@ AhciSetup(
 				& (AHCI_PORT_CR | AHCI_PORT_FR))) {
 				// Port did not go idle 
 				// Attempt a port reset
-				if (AhciPortReset(Controller, Controller->Ports[i]) != OsNoError) {
+				if (AhciPortReset(Controller, Controller->Ports[i]) != OsSuccess) {
 					FullResetRequired = 1;
 					break;
 				}
@@ -395,7 +395,7 @@ AhciSetup(
 	// still don't clear properly, we should attempt a full reset
 	if (FullResetRequired) {
 		TRACE("Full reset of controller is required");
-		if (AhciReset(Controller) != OsNoError) {
+		if (AhciReset(Controller) != OsSuccess) {
 			ERROR("Failed to reset controller, as a full reset was required.");
 			return OsError;
 		}
@@ -405,14 +405,14 @@ AhciSetup(
 	// command lists as we need 1K * portcount
 	if (MemoryAllocate(1024 * PortItr, MEMORY_LOWFIRST | MEMORY_CONTIGIOUS
 		| MEMORY_CLEAN | MEMORY_COMMIT, &Controller->CommandListBase,
-		&Controller->CommandListBasePhysical) != OsNoError) {
+		&Controller->CommandListBasePhysical) != OsSuccess) {
 		ERROR("AHCI::Failed to allocate memory for the command list.");
 		return OsError;
 	}
 	if (MemoryAllocate((AHCI_COMMAND_TABLE_SIZE * 32) * PortItr, 
 		MEMORY_LOWFIRST | MEMORY_CONTIGIOUS | MEMORY_CLEAN 
 		| MEMORY_COMMIT, &Controller->CommandTableBase,
-		&Controller->CommandTableBasePhysical) != OsNoError) {
+		&Controller->CommandTableBasePhysical) != OsSuccess) {
 		ERROR("AHCI::Failed to allocate memory for the command table.");
 		return OsError;
 	}
@@ -431,7 +431,7 @@ AhciSetup(
 		if (MemoryAllocate(0x1000 * PortItr,
 			MEMORY_LOWFIRST | MEMORY_CONTIGIOUS | MEMORY_CLEAN
 			| MEMORY_COMMIT, &Controller->FisBase,
-			&Controller->FisBasePhysical) != OsNoError) {
+			&Controller->FisBasePhysical) != OsSuccess) {
 			ERROR("AHCI::Failed to allocate memory for the fis-area.");
 			return OsError;
 		}
@@ -440,7 +440,7 @@ AhciSetup(
 		if (MemoryAllocate(256 * PortItr,
 			MEMORY_LOWFIRST | MEMORY_CONTIGIOUS | MEMORY_CLEAN
 			| MEMORY_COMMIT, &Controller->FisBase,
-			&Controller->FisBasePhysical) != OsNoError) {
+			&Controller->FisBasePhysical) != OsSuccess) {
 			ERROR("AHCI::Failed to allocate memory for the fis-area.");
 			return OsError;
 		}
@@ -473,5 +473,5 @@ AhciSetup(
 	}
 
 	// Done - no errors!
-	return OsNoError;
+	return OsSuccess;
 }

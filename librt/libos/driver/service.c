@@ -16,8 +16,8 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS MCore - Server Definitions & Structures
- * - This header describes the base server-structure, prototypes
+ * MollenOS MCore - Service Definitions & Structures
+ * - This header describes the base service-structure, prototypes
  *   and functionality, refer to the individual things for descriptions
  */
 
@@ -26,15 +26,15 @@
 #include <os/driver/device.h>
 #include <os/syscall.h>
 
-/* RegisterServer 
- * Registers a server on the current alias, allowing
+/* RegisterService 
+ * Registers a service on the current alias, allowing
  * other applications and frameworks to send commands
  * and function requests */
-OsStatus_t RegisterServer(UUId_t Alias)
+OsStatus_t RegisterService(UUId_t Alias)
 {
 	/* Redirect a syscall, it does all */
 	return (OsStatus_t)Syscall1(
-		SYSCALL_SERVERREGISTER, SYSCALL_PARAM(Alias));
+		SYSCALL_SERVICEREGISTER, SYSCALL_PARAM(Alias));
 }
 
 /* InstallDriver 

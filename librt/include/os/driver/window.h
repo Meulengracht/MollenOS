@@ -27,15 +27,11 @@
 #include <os/mollenos.h>
 #include <os/osdefs.h>
 #include <os/ipc/ipc.h>
-#include <os/driver/server.h>
 
-/* The export macro, and is only set by the
- * the actual implementation of the windowmanager */
-#ifdef __WINDOWMANAGER_EXPORT
-#define __WNDAPI __EXTERN
-#else
-#define __WNDAPI static __CRT_INLINE
-#endif
+/* Includes
+ * - System */
+#include <os/driver/service.h>
+#include <os/driver/buffer.h>
 
 /* These definitions are in-place to allow a custom
  * setting of the windowmanager, these are set to values
@@ -49,25 +45,32 @@
 #define __WINDOWMANAGER_CREATE				IPC_DECL_FUNCTION(0)
 #define __WINDOWMANAGER_DESTROY				IPC_DECL_FUNCTION(1)
 #define __WINDOWMANAGER_INVALIDATE			IPC_DECL_FUNCTION(2)
-#define __WINDOWMANAGER_QUERY				IPC_DECL_FUNCTION(3)
-#define __WINDOWMANAGER_NEWINPUT			IPC_DECL_FUNCTION(4)
+#define __WINDOWMANAGER_CONFIGURE			IPC_DECL_FUNCTION(3)
+#define __WINDOWMANAGER_SWAPBUFFER			IPC_DECL_FUNCTION(4)
+#define __WINDOWMANAGER_QUERY				IPC_DECL_FUNCTION(5)
+#define __WINDOWMANAGER_NEWINPUT			IPC_DECL_FUNCTION(6)
 
-/* Structure to represent a surface in a 
- * window, it consists of a pixel-buffer
- * and information about the buffer size */
+/* SurfaceFormat 
+ * Describes the types of pixel formats that are available
+ * for surfaces */
+typedef enum _MSurfaceFormat {
+	ARGB32
+} SurfaceFormat_t;
+
+/* SurfaceDescriptor
+ * Structure to represent a surface in a 
+ * window and information about the buffer size */
 typedef struct _MSurfaceDescriptor {
-	Rect_t					Dimensions;
-	const void				*Backbuffer;
-	size_t					BufferSize;
-	size_t					BufferPitch;
-} MSurfaceDescriptor_t;
+	Rect_t					 Dimensions;
+	SurfaceFormat_t			 Format;
+	size_t					 Pitch;			// Bytes
+} SurfaceDescriptor_t;
 
-/* Structure used by the the create
- * window function call, the structure 
- * specifies creation details and flags about
- * the window */
+/* WindowParameters_t
+ * Structure used by the the create window function call, the structure 
+ * specifies creation details and flags about the window */
 typedef struct _MWindowParameters {
-	Rect_t					Dimensions;
+	SurfaceDescriptor_t		Surface;
 	unsigned				Flags;
 } WindowParameters_t;
 
@@ -76,8 +79,8 @@ typedef struct _MWindowParameters {
  * and the dimensions of the inner/outer region */
 typedef struct _MWindowDescriptor {
 	Rect_t					Dimensions;
-	MSurfaceDescriptor_t	Surface;
-} MWindowDescriptor_t;
+	SurfaceDescriptor_t		Surface;
+} WindowDescriptor_t;
 
 /* CreateWindow 
  * Creates a window of the given
@@ -87,17 +90,32 @@ typedef struct _MWindowDescriptor {
 #ifdef __WINDOWMANAGER_EXPORT
 __WNDAPI Handle_t CreateWindow(WindowParameters_t *Params);
 #else
-__WNDAPI Handle_t CreateWindow(WindowParameters_t *Params)
+SERVICEAPI
+OsStatus_t
+SERVICEABI
+CreateWindow(
+	_In_ WindowParameters_t *Params,
+	_In_ BufferObject_t *SurfaceBuffer,
+	_Out_ Handle_t *Handle)
 {
-	/* Variables */
+	// Variables
 	MRemoteCall_t Request;
-	Handle_t Result;
+
+	// Initialize rpc request
 	RPCInitialize(&Request, __WINDOWMANAGER_INTERFACE_VERSION, 
 		PIPE_RPCOUT, __WINDOWMANAGER_CREATE);
-	RPCSetArgument(&Request, 0, (const void*)Params, sizeof(WindowParameters_t));
-	RPCSetResult(&Request, (const void*)&Result, sizeof(Handle_t));
-	RPCExecute(&Request, __WINDOWMANAGER_TARGET);
-	return Result;
+
+	// Setup rpc arguments
+	RPCSetArgument(&Request, 0, (__CONST void*)Params, 
+		sizeof(WindowParameters_t));
+	RPCSetArgument(&Request, 1, (__CONST void*)SurfaceBuffer,
+		GetBufferObjectSize(SurfaceBuffer));
+
+	// Install result buffer
+	RPCSetResult(&Request, (__CONST void*)Handle, sizeof(Handle_t));
+	
+	// Execute the request
+	return RPCExecute(&Request, __WINDOWMANAGER_TARGET);
 }
 #endif
 
@@ -107,13 +125,24 @@ __WNDAPI Handle_t CreateWindow(WindowParameters_t *Params)
 #ifdef __WINDOWMANAGER_EXPORT
 __WNDAPI void DestroyWindow(Handle_t Handle);
 #else
-__WNDAPI OsStatus_t DestroyWindow(Handle_t Handle)
+SERVICEAPI
+OsStatus_t
+SERVICEABI
+DestroyWindow(
+	_In_ Handle_t Handle)
 {
-	/* Variables */
+	// Variables
 	MRemoteCall_t Request;
+
+	// Initialize rpc request
 	RPCInitialize(&Request, __WINDOWMANAGER_INTERFACE_VERSION,
 		PIPE_RPCOUT, __WINDOWMANAGER_DESTROY);
-	RPCSetArgument(&Request, 0, (const void*)Handle, sizeof(Handle_t));
+
+	// Setup rpc arguments
+	RPCSetArgument(&Request, 0, (__CONST void*)&Handle, 
+		sizeof(Handle_t));
+	
+	// Fire off asynchronous event
 	return RPCEvent(&Request, __WINDOWMANAGER_TARGET);
 }
 #endif
@@ -124,14 +153,29 @@ __WNDAPI OsStatus_t DestroyWindow(Handle_t Handle)
 #ifdef __WINDOWMANAGER_EXPORT
 __WNDAPI void QueryWindow(Handle_t Handle, MWindowDescriptor_t *Descriptor);
 #else
-__WNDAPI OsStatus_t QueryWindow(Handle_t Handle, MWindowDescriptor_t *Descriptor)
+SERVICEAPI
+OsStatus_t
+SERVICEABI
+QueryWindow(
+	_In_ Handle_t Handle, 
+	_Out_ WindowDescriptor_t *Descriptor)
 {
-	/* Variables */
+	// Variables
 	MRemoteCall_t Request;
+
+	// Initialize rpc request
 	RPCInitialize(&Request, __WINDOWMANAGER_INTERFACE_VERSION,
 		PIPE_RPCOUT, __WINDOWMANAGER_QUERY);
-	RPCSetArgument(&Request, 0, (const void*)Handle, sizeof(Handle_t));
-	RPCSetResult(&Request, (const void*)Descriptor, sizeof(MWindowDescriptor_t));
+
+	// Setup rpc arguments
+	RPCSetArgument(&Request, 0, (__CONST void*)&Handle, 
+		sizeof(Handle_t));
+
+	// Install result buffer
+	RPCSetResult(&Request, (const void*)Descriptor, 
+		sizeof(MWindowDescriptor_t));
+
+	// Execute the request
 	return RPCExecute(&Request, __WINDOWMANAGER_TARGET);
 }
 #endif
@@ -143,14 +187,27 @@ __WNDAPI OsStatus_t QueryWindow(Handle_t Handle, MWindowDescriptor_t *Descriptor
 #ifdef __WINDOWMANAGER_EXPORT
 __WNDAPI void InvalidateWindow(Handle_t Handle, Rect_t *Rectangle);
 #else
-__WNDAPI OsStatus_t InvalidateWindow(Handle_t Handle, Rect_t *Rectangle)
+SERVICEAPI
+OsStatus_t
+SERVICEABI
+InvalidateWindow(
+	_In_ Handle_t Handle, 
+	_In_ Rect_t *Rectangle)
 {
-	/* Variables */
+	// Variables
 	MRemoteCall_t Request;
+
+	// Initialize rpc request
 	RPCInitialize(&Request, __WINDOWMANAGER_INTERFACE_VERSION,
 		PIPE_RPCOUT, __WINDOWMANAGER_INVALIDATE);
-	RPCSetArgument(&Request, 0, (const void*)Handle, sizeof(Handle_t));
-	RPCSetArgument(&Request, 1, (const void*)Rectangle, sizeof(Rect_t));
+	
+	// Setup rpc arguments
+	RPCSetArgument(&Request, 0, (__CONST void*)&Handle, 
+		sizeof(Handle_t));
+	RPCSetArgument(&Request, 1, (__CONST void*)Rectangle, 
+		sizeof(Rect_t));
+	
+	// Fire off asynchronous event
 	return RPCEvent(&Request, __WINDOWMANAGER_TARGET);
 }
 #endif

@@ -78,7 +78,7 @@ CreateBuffer(
 	Buffer->Virtual = (__CONST char*)kmalloc_ap(
 		DIVUP(Length, PAGE_SIZE) * PAGE_SIZE, (uintptr_t*)&Buffer->Physical);
 	Buffer->Capacity = DIVUP(Length, PAGE_SIZE) * PAGE_SIZE;
-	Result = OsNoError;
+	Result = OsSuccess;
 #else
 	Buffer = (BufferObject_t*)malloc(sizeof(BufferObject_t));
 	Result = MemoryAllocate(Length,
@@ -88,7 +88,7 @@ CreateBuffer(
 
 	// Sanitize the result and
 	// return the newly created object
-	if (Result != OsNoError) {
+	if (Result != OsSuccess) {
 		free(Buffer);
 		return NULL;
 	}
@@ -120,7 +120,7 @@ DestroyBuffer(
 	// Just free buffers
 	kfree((void*)BufferObject->Virtual);
 	kfree(BufferObject);
-	Result = OsNoError;
+	Result = OsSuccess;
 #else
 	// Call memory services
 	Result = MemoryFree((void*)BufferObject->Virtual, BufferObject->Length);
@@ -191,7 +191,7 @@ ZeroBuffer(
 	BufferObject->Position = 0;
 
 	// Done
-	return OsNoError;
+	return OsSuccess;
 }
 
 /* SeekBuffer
@@ -209,7 +209,7 @@ SeekBuffer(
 
 	// Update position
 	BufferObject->Position = Position;
-	return OsNoError;
+	return OsSuccess;
 }
 
 /* ReadBuffer 
@@ -236,7 +236,7 @@ ReadBuffer(
 		if (BytesRead != NULL) {
 			*BytesRead = 0;
 		}
-		return OsNoError;
+		return OsSuccess;
 	}
 
 	// Normalize and read
@@ -254,7 +254,7 @@ ReadBuffer(
 	if (BytesRead != NULL) {
 		*BytesRead = BytesNormalized;
 	}
-	return OsNoError;
+	return OsSuccess;
 }
 
 /* WriteBuffer 
@@ -281,7 +281,7 @@ WriteBuffer(
 		if (BytesWritten != NULL) {
 			*BytesWritten = 0;
 		}
-		return OsNoError;
+		return OsSuccess;
 	}
 
 	// Normalize and write
@@ -299,7 +299,7 @@ WriteBuffer(
 	if (BytesWritten != NULL) {
 		*BytesWritten = BytesNormalized;
 	}
-	return OsNoError;
+	return OsSuccess;
 }
 
 /* CombineBuffer 
@@ -326,7 +326,7 @@ CombineBuffer(
 		if (BytesTransferred != NULL) {
 			*BytesTransferred = 0;
 		}
-		return OsNoError;
+		return OsSuccess;
 	}
 
 	// Normalize and write
@@ -347,7 +347,7 @@ CombineBuffer(
 	if (BytesTransferred != NULL) {
 		*BytesTransferred = BytesNormalized;
 	}
-	return OsNoError;
+	return OsSuccess;
 }
 
 /* GetBufferSize
@@ -383,7 +383,7 @@ ChangeBufferSize(
 	// Update the new size and reset position
 	BufferObject->Length = Size;
 	BufferObject->Position = 0;
-	return OsNoError;
+	return OsSuccess;
 }
 
 /* GetBufferCapacity

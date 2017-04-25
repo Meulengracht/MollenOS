@@ -48,7 +48,7 @@ OsStatus_t MbrEnumeratePartitions(FileSystemDisk_t *Disk,
 
 	// Start out by reading the mbr to detect whether
 	// or not there is a partition table
-	if (DiskRead(Disk->Driver, Disk->Device, Sector, GetBufferAddress(Buffer), 1) != OsNoError) {
+	if (DiskRead(Disk->Driver, Disk->Device, Sector, GetBufferAddress(Buffer), 1) != OsSuccess) {
 		return OsError;
 	}
 
@@ -129,7 +129,7 @@ OsStatus_t MbrEnumeratePartitions(FileSystemDisk_t *Disk,
 	free(Mbr);
 
 	// Return status
-	return PartitionCount != 0 ? OsNoError : OsError;
+	return PartitionCount != 0 ? OsSuccess : OsError;
 }
 
 /* MbrEnumerate 
@@ -143,10 +143,10 @@ OsStatus_t MbrEnumerate(FileSystemDisk_t *Disk, BufferObject_t *Buffer)
 	// First of all, we want to detect whether or 
 	// not there is a partition table available
 	// otherwise we treat the entire disk as one partition
-	if (MbrEnumeratePartitions(Disk, Buffer, 0) != OsNoError) {
+	if (MbrEnumeratePartitions(Disk, Buffer, 0) != OsSuccess) {
 		return DiskDetectFileSystem(Disk, Buffer, 0, Disk->Descriptor.SectorCount);
 	}
 	else {
-		return OsNoError;
+		return OsSuccess;
 	}
 }

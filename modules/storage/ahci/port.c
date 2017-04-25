@@ -25,6 +25,7 @@
 
 /* Includes
  * - System */
+#include <os/condition.h>
 #include <os/mollenos.h>
 #include <os/thread.h>
 #include <os/utils.h>
@@ -235,7 +236,7 @@ AhciPortReset(
 	// When PxSCTL.DET is set to 1h, the HBA shall reset PxTFD.STS to 7Fh and 
 	// shall reset PxSSTS.DET to 0h. When PxSCTL.DET is set to 0h, upon receiving a 
 	// COMINIT from the attached device, PxTFD.STS.BSY shall be set to ’1’ by the HBA.
-	return OsNoError;
+	return OsSuccess;
 }
 
 /* AhciPortSetupDevice
@@ -298,7 +299,7 @@ AhciPortAcquireCommandSlot(
 		}
 
 		// Allocate slot and update the out variables
-		Status = OsNoError;
+		Status = OsSuccess;
 		Port->SlotStatus |= (1 << i);
 		*Index = i;
 		break;

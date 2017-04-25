@@ -48,7 +48,7 @@ InterruptStatus_t PS2KeyboardInterrupt(void *InterruptData)
 	Scancode = PS2ReadData(1);
 
 	/* Handle any out-standing commands first */
-	if (PS2PortFinishCommand(Kybd->Port, Scancode) == OsNoError) {
+	if (PS2PortFinishCommand(Kybd->Port, Scancode) == OsSuccess) {
 		return InterruptHandled;
 	}
 
@@ -98,8 +98,8 @@ OsStatus_t PS2KeyboardGetScancode(PS2Keyboard_t *Kybd, int *ResultSet)
 	uint8_t Response = 0;
 
 	/* Write the command to get scancode set */
-	if (PS2PortQueueCommand(Kybd->Port, PS2_KEYBOARD_SCANCODE, NULL) != OsNoError
-		|| PS2PortQueueCommand(Kybd->Port, 0, &Response) != OsNoError) {
+	if (PS2PortQueueCommand(Kybd->Port, PS2_KEYBOARD_SCANCODE, NULL) != OsSuccess
+		|| PS2PortQueueCommand(Kybd->Port, 0, &Response) != OsSuccess) {
 		return OsError;
 	}
 
@@ -109,7 +109,7 @@ OsStatus_t PS2KeyboardGetScancode(PS2Keyboard_t *Kybd, int *ResultSet)
 		return OsError;
 	}
 	else {
-		return OsNoError;
+		return OsSuccess;
 	}
 }
 
@@ -118,13 +118,13 @@ OsStatus_t PS2KeyboardGetScancode(PS2Keyboard_t *Kybd, int *ResultSet)
 OsStatus_t PS2KeyboardSetScancode(PS2Keyboard_t *Kybd, uint8_t RequestSet, int *ResultSet)
 {
 	/* Write the command to set scancode set */
-	if (PS2PortQueueCommand(Kybd->Port, PS2_KEYBOARD_SCANCODE, NULL) != OsNoError
-		|| PS2PortQueueCommand(Kybd->Port, RequestSet, NULL) != OsNoError) {
+	if (PS2PortQueueCommand(Kybd->Port, PS2_KEYBOARD_SCANCODE, NULL) != OsSuccess
+		|| PS2PortQueueCommand(Kybd->Port, RequestSet, NULL) != OsSuccess) {
 		return OsError;
 	}
 	else {
 		*ResultSet = (int)RequestSet;
-		return OsNoError;
+		return OsSuccess;
 	}
 }
 
@@ -141,12 +141,12 @@ OsStatus_t PS2KeyboardSetTypematics(PS2Keyboard_t *Kybd,
 	Format |= Delay;
 
 	/* Write the command to get scancode set */
-	if (PS2PortQueueCommand(Kybd->Port, PS2_KEYBOARD_TYPEMATIC, NULL) != OsNoError
-		|| PS2PortQueueCommand(Kybd->Port, Format, NULL) != OsNoError) {
+	if (PS2PortQueueCommand(Kybd->Port, PS2_KEYBOARD_TYPEMATIC, NULL) != OsSuccess
+		|| PS2PortQueueCommand(Kybd->Port, Format, NULL) != OsSuccess) {
 		return OsError;
 	}
 	else {
-		return OsNoError;
+		return OsSuccess;
 	}
 }
 
@@ -164,12 +164,12 @@ OsStatus_t PS2KeyboardSetLEDs(PS2Keyboard_t *Kybd,
 	Format |= ((uint8_t)(Caps & 0x1) << 2);
 
 	/* Write the command to get scancode set */
-	if (PS2PortQueueCommand(Kybd->Port, PS2_KEYBOARD_SETLEDS, NULL) != OsNoError
-		|| PS2PortQueueCommand(Kybd->Port, Format, NULL) != OsNoError) {
+	if (PS2PortQueueCommand(Kybd->Port, PS2_KEYBOARD_SETLEDS, NULL) != OsSuccess
+		|| PS2PortQueueCommand(Kybd->Port, Format, NULL) != OsSuccess) {
 		return OsError;
 	}
 	else {
-		return OsNoError;
+		return OsSuccess;
 	}
 }
 
@@ -216,7 +216,7 @@ OsStatus_t PS2KeyboardInitialize(PS2Port_t *Port, int Translation)
 	Port->Interrupt.Data = Kybd;
 
 	/* Register our contract for this device */
-	if (RegisterContract(&Port->Contract) != OsNoError) {
+	if (RegisterContract(&Port->Contract) != OsSuccess) {
 		ERROR("PS2-Keyboard: failed to install contract");
 		return OsError;
 	}
@@ -226,18 +226,18 @@ OsStatus_t PS2KeyboardInitialize(PS2Port_t *Port, int Translation)
 		INTERRUPT_NOTSHARABLE | INTERRUPT_FAST);
 
 	/* Reset keyboard LEDs status */
-	if (PS2KeyboardSetLEDs(Kybd, 0, 0, 0) != OsNoError) {
+	if (PS2KeyboardSetLEDs(Kybd, 0, 0, 0) != OsSuccess) {
 		ERROR("PS2-Keyboard: failed to reset LEDs");
 	}
 
 	/* Update typematics to preffered settings */
 	if (PS2KeyboardSetTypematics(Kybd,
-			Kybd->TypematicRepeat, Kybd->TypematicDelay) != OsNoError) {
+			Kybd->TypematicRepeat, Kybd->TypematicDelay) != OsSuccess) {
 		WARNING("PS2-Keyboard: failed to set typematic settings");
 	}
 	
 	/* Select our preffered scancode set */
-	if (PS2KeyboardSetScancode(Kybd, 2, &Kybd->ScancodeSet) != OsNoError) {
+	if (PS2KeyboardSetScancode(Kybd, 2, &Kybd->ScancodeSet) != OsSuccess) {
 		WARNING("PS2-Keyboard: failed to select scancodeset 2 (%i)",
 			Kybd->ScancodeSet);
 	}
@@ -267,5 +267,5 @@ OsStatus_t PS2KeyboardCleanup(PS2Port_t *Port)
 	Port->Signature = 0;
 
 	/* Done! */
-	return OsNoError;
+	return OsSuccess;
 }

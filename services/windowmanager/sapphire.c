@@ -1,34 +1,41 @@
 /* MollenOS
-*
-* Copyright 2011 - 2016, Philip Meulengracht
-*
-* This program is free software : you can redistribute it and / or modify
-* it under the terms of the GNU General Public License as published by
-* the Free Software Foundation ? , either version 3 of the License, or
-* (at your option) any later version.
-*
-* This program is distributed in the hope that it will be useful,
-* but WITHOUT ANY WARRANTY; without even the implied warranty of
-* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.See the
-* GNU General Public License for more details.
-*
-* You should have received a copy of the GNU General Public License
-* along with this program.If not, see <http://www.gnu.org/licenses/>.
-*
-*
-* MollenOS Window Manager
-*/
+ *
+ * Copyright 2011 - 2017, Philip Meulengracht
+ *
+ * This program is free software : you can redistribute it and / or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation ? , either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.If not, see <http://www.gnu.org/licenses/>.
+ *
+ *
+ * MollenOS - Window Manager Service
+ */
+#define __TRACE
 
-/* Includes */
-#include <os/MollenOS.h>
+/* Includes
+ * - System */
+#include <os/driver/window.h>
+#include <os/mollenos.h>
+#include <os/utils.h>
+#include "core/scenemanager.h"
 
-/* UI Includes */
-#include <SDL.h>
-#include <SDL_image.h>
+/* Includes
+ * - Ui */
+#include <SDL/SDL.h>
+#include <SDL/SDL_image.h>
 
-/* Sapphire System */
-#include "Core/SceneManager.h"
-#include "Core/WindowIpc.h"
+/* Globals 
+ * Static variables with shared data from init/finit and events */
+static SDL_Renderer *__GlbRenderer = NULL;
+static SDL_Window *__GlbWindow = NULL;
 
 /* Handle Message */
 void HandleMessage(SDL_Renderer *Target, MEventMessage_t *Message)
@@ -151,99 +158,127 @@ void HandleMessage(SDL_Renderer *Target, MEventMessage_t *Message)
 	}
 }
 
-/* Sdl Event Loop */
-void EventLoop(SDL_Renderer *Target)
+/* OnLoad
+ * The entry-point of a server, this is called
+ * as soon as the server is loaded in the system */
+OsStatus_t OnLoad(void)
 {
-	/* Vars */
-	MEventMessage_t Message;
-	int bQuit = 0;
+	// Variables
+	Rect_t ScreenSize;
 
-	/* Pre-Render */
-	SceneManagerUpdate(NULL);
-	SceneManagerRender(Target);
+	// Trace
+	TRACE("WindowManager.OnLoad");
 
-	/* Start terminal */
-	ProcessSpawn("%Sys%/Terminal.mxi", NULL);
-
-	/* Loop forever */
-	while (!bQuit) 
-	{
-		/* Wait for message */
-		MollenOSMessageWait(&Message);
-
-		/* Handle Message */
-		HandleMessage(Target, &Message);
-
-		/* Render updates */
-		SceneManagerRender(Target);
+	// Initialize our rendering engine
+	SDL_SetMainReady();
+	if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_EVENTS) != 0) {
+		ERROR("Failed to initialize SDL: %s", SDL_GetError());
+		return OsError;
 	}
+
+	// Query screen dimensions
+	ScreenQueryGeometry(&ScreenSize);
+
+	// Create the primary window
+	__GlbWindow = SDL_CreateWindow("Sapphire", 0, 0,
+		ScreenSize.w, ScreenSize.h,
+		SDL_WINDOW_SHOWN | SDL_WINDOW_FULLSCREEN);
+	
+	// Sanitize result
+	if (__GlbWindow == NULL) {
+		ERROR("Failed to create SDL window: %s", SDL_GetError());
+		SDL_Quit();
+		return OsError;
+	}
+
+	// Create the primary renderer
+	__GlbRenderer = SDL_CreateRenderer(__GlbWindow, -1,
+		SDL_RENDERER_SOFTWARE | SDL_RENDERER_TARGETTEXTURE);
+	
+	// Sanitize result
+	if (__GlbRenderer == NULL) {
+		ERROR("Failed to create SDL renderer: %s", SDL_GetError());
+		SDL_DestroyWindow(__GlbWindow);
+		__GlbWindow = NULL;
+		SDL_Quit();
+		return OsError;
+	}
+
+	// Initialize image libraries
+	if (!IMG_Init(IMG_INIT_PNG)) {
+		ERROR("Failed to initialize image-libraries");
+		SDL_DestroyRenderer(__GlbRenderer);
+		SDL_DestroyWindow(__GlbWindow);
+		SDL_Quit();
+		return OsError;
+	}
+
+	// Last - initialize scene manager
+	SceneManagerInit(__GlbRenderer, &ScreenSize);
+
+	// Register us with server manager
+	RegisterService(__WINDOWMANAGER_TARGET);
+
+	// End boot
+	//MollenOSEndBoot();
+	
+	// Perform initial update
+	SceneManagerUpdate(NULL);
+	SceneManagerRender(__GlbRenderer);
+
+	// Done
+	return OsSuccess;
 }
 
-/* Entry Point */
-int main(int argc, char* argv[])
+/* OnUnload
+ * This is called when the server is being unloaded
+ * and should free all resources allocated by the system */
+OsStatus_t OnUnload(void)
 {
-	/* Variables */
-	SDL_Window *MainWnd;
-	SDL_Renderer *MainRenderer;
-	Rect_t ScreenDims;
-
-	/* Init SDL (Main) */
-	SDL_SetMainReady();
-
-	/* Init SDL (Video, Events) */
-	if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_EVENTS) != 0) {
-		MollenOSSystemLog(SDL_GetError());
-		return -1;
-	}
-
-	/* Get screen dimensions */
-	MollenOSGetScreenGeometry(&ScreenDims);
-
-	/* Create a window */
-	MainWnd = SDL_CreateWindow("Sapphire", 0, 0, 
-		ScreenDims.w, ScreenDims.h, SDL_WINDOW_SHOWN | SDL_WINDOW_FULLSCREEN);
-	if (MainWnd == NULL) {
-		MollenOSSystemLog(SDL_GetError());
-		SDL_Quit();
-		return -2;
-	}
-
-	/* Create renderer */
-	MainRenderer = SDL_CreateRenderer(MainWnd, -1, SDL_RENDERER_SOFTWARE | SDL_RENDERER_TARGETTEXTURE);
-	if (MainRenderer == NULL) {
-		MollenOSSystemLog(SDL_GetError());
-		SDL_DestroyWindow(MainWnd);
-		SDL_Quit();
-		return -3;
-	}
-
-	/* Initialize SDL Image */
-	if (!IMG_Init(IMG_INIT_PNG)) {
-		MollenOSSystemLog("Failed to initialize SdlImage");
-		SDL_DestroyRenderer(MainRenderer);
-		SDL_DestroyWindow(MainWnd);
-		SDL_Quit();
-		return -4;
-	}
-
-	/* End Boot */
-	//MollenOSEndBoot();
-	//MollenOSRegisterWM();
-
-	/* Initialize Sapphire */
-	SceneManagerInit(MainRenderer, &ScreenDims);
-
-	/* Event Loop */
-	EventLoop(MainRenderer);
-
-	/* Destroy Sapphire */
+	// Destroy sapphire
 	SceneManagerDestruct();
 
-	/* Cleanup */
-	SDL_DestroyRenderer(MainRenderer);
-	SDL_DestroyWindow(MainWnd);
+	// Cleanup engine resources
+	if (__GlbRenderer != NULL) {
+		SDL_DestroyRenderer(__GlbRenderer);
+	}
+	if (__GlbWindow != NULL) {
+		SDL_DestroyWindow(__GlbWindow);
+	}
+	
+	// Quit
 	SDL_Quit();
+	return OsSuccess;
+}
 
-	/* Done! */
-	return 0;
+/* OnEvent
+ * This is called when the server recieved an external evnet
+ * and should handle the given event*/
+OsStatus_t OnEvent(MRemoteCall_t *Message)
+{
+	// Variables
+	OsStatus_t Result = OsSuccess;
+
+	// Which function is called?
+	switch (Message->Function)
+	{
+		case __WINDOWMANAGER_CREATE: {
+
+		} break;
+		case __WINDOWMANAGER_DESTROY: {
+
+		} break;
+		case __WINDOWMANAGER_INVALIDATE: {
+
+		} break;
+		case __WINDOWMANAGER_QUERY: {
+
+		} break;
+		case __WINDOWMANAGER_NEWINPUT: {
+
+		} break;
+	}
+
+	// Done
+	return Result;
 }

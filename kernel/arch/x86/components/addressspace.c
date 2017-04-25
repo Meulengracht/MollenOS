@@ -61,7 +61,7 @@ AddressSpaceInitKernel(
 	GlbKernelAddressSpace.References = 1;
 
 	// No errors
-	return OsNoError;
+	return OsSuccess;
 }
 
 /* AddressSpaceCreate
@@ -220,7 +220,7 @@ AddressSpaceDestroy(
 	}
 
 	// No errors
-	return OsNoError;
+	return OsSuccess;
 }
 
 /* AddressSpaceGetCurrent
@@ -325,7 +325,7 @@ AddressSpaceMap(
 
 		// Redirect call to our virtual page manager
 		if (MmVirtualMap(AddressSpace->PageDirectory, PhysBlock,
-			(Address + (Itr * PAGE_SIZE)), AllocFlags) != OsNoError) {
+			(Address + (Itr * PAGE_SIZE)), AllocFlags) != OsSuccess) {
 			return OsError;
 		}
 	}
@@ -334,7 +334,7 @@ AddressSpaceMap(
 	if (Physical != NULL) {
 		*Physical = PhysicalBase;
 	}
-	return OsNoError;
+	return OsSuccess;
 }
 
 /* AddressSpaceMapFixed
@@ -373,7 +373,7 @@ AddressSpaceMapFixed(
 	}
 
 	// No errors
-	return OsNoError;
+	return OsSuccess;
 }
 
 /* AddressSpaceUnmap
@@ -394,7 +394,7 @@ AddressSpaceUnmap(
 	}
 	
 	// Done - no errors
-	return OsNoError;
+	return OsSuccess;
 }
 
 /* AddressSpaceGetMap

@@ -53,7 +53,7 @@ DebugSingleStep(
 	_CRT_UNUSED(Context);
 
 	// Done
-	return OsNoError;
+	return OsSuccess;
 }
 
 /* DebugBreakpoint
@@ -72,13 +72,13 @@ DebugBreakpoint(
 	_CRT_UNUSED(Context);
 
 	// Done
-	return OsNoError;
+	return OsSuccess;
 }
 
 /* DebugPageFault
  * Handles page-fault and either validates or invalidates
  * that the address is valid. In case of valid address it automatically
- * maps in the page and returns OsNoError */
+ * maps in the page and returns OsSuccess */
 OsStatus_t
 DebugPageFault(
 	_In_ Context_t *Context,
@@ -194,7 +194,7 @@ DebugPanic(
 	}
 
 	// Never reached
-	return OsNoError;
+	return OsSuccess;
 }
 
 /* DebugGetModuleByAddress
@@ -231,7 +231,7 @@ DebugGetModuleByAddress(
 			// Update out's
 			*Base = PmBase;
 			*Name = PmName;
-			return OsNoError;
+			return OsSuccess;
 		}
 	}
 
@@ -266,7 +266,7 @@ DebugStackTrace(
 		}
 
 		// Lookup module if the address is within userspace
-		if (DebugGetModuleByAddress(Ip, &Base, &Name) == OsNoError) {
+		if (DebugGetModuleByAddress(Ip, &Base, &Name) == OsSuccess) {
 			uintptr_t Diff = Ip - Base;
 			LogInformation("CSTK", "%u - 0x%x (%s)",
 				MaxFrames - Itr, Diff, Name);
@@ -299,7 +299,7 @@ DebugStackTrace(
 	}
 
 	// Always succeed
-	return OsNoError;
+	return OsSuccess;
 }
 
 /* DebugMemory 
@@ -386,7 +386,7 @@ DebugContext(
 		Context->Irq, Context->ErrorCode, Context->UserSs);
 
 	// Return 
-	return OsNoError;
+	return OsSuccess;
 }
 
 /* Disassembles Memory */

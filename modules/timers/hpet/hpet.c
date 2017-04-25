@@ -41,7 +41,7 @@ HpRead(
 	_Out_ reg32_t *Value)
 {
 	*Value = ReadIoSpace(&Controller->IoSpace, Offset, 4);
-	return OsNoError;
+	return OsSuccess;
 }
 
 /* HpWrite
@@ -53,7 +53,7 @@ HpWrite(
 	_In_ reg32_t Value)
 {
 	WriteIoSpace(&Controller->IoSpace, Offset, Value, 4);
-	return OsNoError;
+	return OsSuccess;
 }
 
 /* HpStop
@@ -106,7 +106,7 @@ HpReadPerformanceCounter(
 	}
 
 	// Done
-	return OsNoError;
+	return OsSuccess;
 }
 
 /* HpComparatorInitialize 
@@ -311,8 +311,8 @@ HpControllerCreate(
 		ContractTimerPerformance, "HPET Performance Controller");
 
 	// Create the io-space
-	if (CreateIoSpace(&Controller->IoSpace) != OsNoError
-		&& AcquireIoSpace(&Controller->IoSpace) != OsNoError) {
+	if (CreateIoSpace(&Controller->IoSpace) != OsSuccess
+		&& AcquireIoSpace(&Controller->IoSpace) != OsSuccess) {
 		ERROR("Failed to acquire HPET io-space");
 		free(Controller);
 		return NULL;
@@ -393,8 +393,8 @@ HpControllerCreate(
 	}
 
 	// Register the contract before setting up rest
-	if (RegisterContract(&Controller->ContractTimer) != OsNoError
-		&& RegisterContract(&Controller->ContractPerformance) != OsNoError) {
+	if (RegisterContract(&Controller->ContractTimer) != OsSuccess
+		&& RegisterContract(&Controller->ContractPerformance) != OsSuccess) {
 		ERROR("Failed to register HPET Contracts");
 		ReleaseIoSpace(&Controller->IoSpace);
 		DestroyIoSpace(Controller->IoSpace.Id);
@@ -407,11 +407,11 @@ HpControllerCreate(
 	for (i = 0; i < NumTimers; i++) {
 		if (Controller->Timers[i].Present
 			&& Controller->Timers[i].PeriodicSupport) {
-			if (HpComparatorStart(Controller, i, 1000, 1) != OsNoError) {
+			if (HpComparatorStart(Controller, i, 1000, 1) != OsSuccess) {
 				ERROR("HPET Failed to initialize periodic timer %i", i);
 			}
 			else {
-				if (RegisterSystemTimer(Controller->Timers[i].Interrupt, 1000) != OsNoError) {
+				if (RegisterSystemTimer(Controller->Timers[i].Interrupt, 1000) != OsSuccess) {
 					ERROR("HPET Failed register timer %i as the system timer", i);
 				}
 				else {
@@ -442,5 +442,5 @@ HpControllerDestroy(
 {
 	// Todo
 	_CRT_UNUSED(Controller);
-	return OsNoError;
+	return OsSuccess;
 }

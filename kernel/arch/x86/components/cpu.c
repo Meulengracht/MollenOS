@@ -108,7 +108,7 @@ CpuHasFeatures(Flags_t Ecx, Flags_t Edx)
 	}
 
 	// All requested features present
-	return OsNoError;
+	return OsSuccess;
 }
 
 /* CpuGetCurrentId 

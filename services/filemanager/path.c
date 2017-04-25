@@ -82,7 +82,7 @@ MString_t *PathResolveEnvironment(EnvironmentPath_t Base)
 		|| Base == PathApplicationBase) {
 		memset(&PathBuffer[0], 0, _MAXPATH);
 		if (Base == PathCurrentWorkingDirectory) {
-			if (PathQueryWorkingDirectory(&PathBuffer[0], _MAXPATH) != OsNoError) {
+			if (PathQueryWorkingDirectory(&PathBuffer[0], _MAXPATH) != OsSuccess) {
 				return NULL;
 			}
 			else {
@@ -90,7 +90,7 @@ MString_t *PathResolveEnvironment(EnvironmentPath_t Base)
 			}
 		}
 		else {
-			if (PathQueryApplication(&PathBuffer[0], _MAXPATH) != OsNoError) {
+			if (PathQueryApplication(&PathBuffer[0], _MAXPATH) != OsSuccess) {
 				return NULL;
 			}
 			else {

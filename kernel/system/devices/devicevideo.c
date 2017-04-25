@@ -120,7 +120,7 @@ VideoQuery(
 	memcpy(&VideoGetTerminal()->Info, Descriptor, sizeof(VideoDescriptor_t));
 
 	// Done - no errors
-	return OsNoError;
+	return OsSuccess;
 }
 
 /* VideoInitialize
@@ -140,5 +140,5 @@ VideoInitialize(void)
 	LogRedirect(LogConsole);
 
 	// Done - no errors
-	return OsNoError;
+	return OsSuccess;
 }

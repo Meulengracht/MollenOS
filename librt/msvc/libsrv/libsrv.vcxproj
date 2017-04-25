@@ -56,7 +56,7 @@
       <TreatWarningAsError>true</TreatWarningAsError>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
       <InlineFunctionExpansion>Disabled</InlineFunctionExpansion>
-      <PreprocessorDefinitions>MOLLENOS;_X86_32;__SERVER_IMPL</PreprocessorDefinitions>
+      <PreprocessorDefinitions>MOLLENOS;_X86_32;__SERVICE_IMPL</PreprocessorDefinitions>
       <BufferSecurityCheck>false</BufferSecurityCheck>
       <EnableEnhancedInstructionSet>NoExtensions</EnableEnhancedInstructionSet>
       <DisableSpecificWarnings>4702</DisableSpecificWarnings>
@@ -149,7 +149,7 @@
     </MASM>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="..\..\libcrt\server.c" />
+    <ClCompile Include="..\..\libcrt\service.c" />
     <ClCompile Include="..\..\libcrt\vscrt\crt.c" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

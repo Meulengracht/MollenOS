@@ -44,7 +44,7 @@ static List_t *GlbControllers = NULL;
 /* OnInterrupt
  * Is called when one of the registered devices
  * produces an interrupt. On successful handled
- * interrupt return OsNoError, otherwise the interrupt
+ * interrupt return OsSuccess, otherwise the interrupt
  * won't be acknowledged */
 InterruptStatus_t OnInterrupt(void *InterruptData)
 {
@@ -132,7 +132,7 @@ OsStatus_t OnRegister(MCoreDevice_t *Device)
 	ListAppend(GlbControllers, ListCreateNode(Key, Key, Controller));
 
 	// Done - no error
-	return OsNoError;
+	return OsSuccess;
 }
 
 /* OnUnregister

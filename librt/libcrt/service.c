@@ -26,7 +26,7 @@
 
 /* Includes
  * - Driver */
-#include <os/driver/server.h>
+#include <os/driver/service.h>
 
 /* Includes
  * - C-Library */
@@ -63,7 +63,7 @@ int _mDrvEvent(void *Argument)
 	// Cleanup and return result
 	RPCCleanup(Message);
 	free(Message);
-	return Result == OsNoError ? 0 : -1;
+	return Result == OsSuccess ? 0 : -1;
 }
 
 /* Server Entry Point
@@ -87,7 +87,7 @@ void _mDrvCrt(void)
 
 	// Call the driver load function 
 	// - This will be run once, before loop
-	if (OnLoad() != OsNoError) {
+	if (OnLoad() != OsSuccess) {
 		OnUnload();
 		goto Cleanup;
 	}
@@ -95,14 +95,14 @@ void _mDrvCrt(void)
 	// Initialize threadpool
 #ifdef __SERVER_MULTITHREADED
 	if (ThreadPoolInitialize(THREADPOOL_DEFAULT_WORKERS, 
-		&ThreadPool) != OsNoError) {
+		&ThreadPool) != OsSuccess) {
 		OnUnload();
 		goto Cleanup;
 	}
 
 	// Initialize the server event loop
 	while (IsRunning) {
-		if (RPCListen(&Message) == OsNoError) {
+		if (RPCListen(&Message) == OsSuccess) {
 			MRemoteCall_t *RpcCopy = (MRemoteCall_t*)malloc(sizeof(MRemoteCall_t));
 			memcpy(RpcCopy, &Message, sizeof(MRemoteCall_t));
 			ThreadPoolAddWork(ThreadPool, _mDrvEvent, RpcCopy);
@@ -121,7 +121,7 @@ void _mDrvCrt(void)
 #else
 	// Initialize the server event loop
 	while (IsRunning) {
-		if (RPCListen(&Message) == OsNoError) {
+		if (RPCListen(&Message) == OsSuccess) {
 			OnEvent(&Message);
 			RPCCleanup(&Message);
 		}

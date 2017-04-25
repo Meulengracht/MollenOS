@@ -44,7 +44,7 @@ static List_t *GlbControllers = NULL;
 /* OnInterrupt
  * Is called when one of the registered devices
  * produces an interrupt. On successful handled
- * interrupt return OsNoError, otherwise the interrupt
+ * interrupt return OsSuccess, otherwise the interrupt
  * won't be acknowledged */
 InterruptStatus_t OnInterrupt(void *InterruptData)
 {
@@ -98,14 +98,14 @@ OsStatus_t OnLoad(void)
 
 	// Load ACPI
 	// If it's not present we should abort driver
-	if (AcpiQueryStatus(&__GlbACPI) != OsNoError) {
+	if (AcpiQueryStatus(&__GlbACPI) != OsSuccess) {
 		__GlbHPET = NULL;
 		return OsError;
 	}
 
 	// Find the HPET table
 	// If it's not present we should abort driver
-	if (AcpiQueryTable(ACPI_SIG_HPET, &Header) != OsNoError) {
+	if (AcpiQueryTable(ACPI_SIG_HPET, &Header) != OsSuccess) {
 		__GlbHPET = NULL;
 		return OsError;
 	}
@@ -114,7 +114,7 @@ OsStatus_t OnLoad(void)
 	__GlbHPET = (ACPI_TABLE_HPET*)Header;
 
 	// No errors
-	return OsNoError;
+	return OsSuccess;
 }
 
 /* OnUnload
@@ -129,7 +129,7 @@ OsStatus_t OnUnload(void)
 
 	// Data is now cleaned up, destroy list
 	ListDestroy(GlbControllers);
-	return OsNoError;
+	return OsSuccess;
 }
 
 /* OnRegister
@@ -161,7 +161,7 @@ OsStatus_t OnRegister(MCoreDevice_t *Device)
 	ListAppend(GlbControllers, ListCreateNode(Key, Key, Controller));
 
 	// Done - no error
-	return OsNoError;
+	return OsSuccess;
 }
 
 /* OnUnregister

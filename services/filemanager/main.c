@@ -140,7 +140,7 @@ OsStatus_t VfsIdentifierFree(FileSystemDisk_t *Disk, UUId_t Id)
 	}
 	if (ArrayIndex < __FILEMANAGER_MAXDISKS) {
 		GlbDiskIds[ArrayIndex] = 0;
-		return OsNoError;
+		return OsSuccess;
 	}
 	else {
 		return OsError;
@@ -167,10 +167,10 @@ OsStatus_t OnLoad(void)
 	GlbInitialized = 1;
 
 	// Register us with server manager
-	RegisterServer(__FILEMANAGER_TARGET);
+	RegisterService(__FILEMANAGER_TARGET);
 
 	// Done
-	return OsNoError;
+	return OsSuccess;
 }
 
 /* OnUnload
@@ -178,7 +178,7 @@ OsStatus_t OnLoad(void)
  * and should free all resources allocated by the system */
 OsStatus_t OnUnload(void)
 {
-	return OsNoError;
+	return OsSuccess;
 }
 
 /* OnEvent
@@ -187,7 +187,7 @@ OsStatus_t OnUnload(void)
 OsStatus_t OnEvent(MRemoteCall_t *Message)
 {
 	// Variables
-	OsStatus_t Result = OsNoError;
+	OsStatus_t Result = OsSuccess;
 
 	// Which function is called?
 	switch (Message->Function)

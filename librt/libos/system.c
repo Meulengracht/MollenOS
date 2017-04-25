@@ -85,5 +85,5 @@ ScreenQueryGeometry(
 	Rectangle->w = VidDescriptor.Width;
 	Rectangle->h = VidDescriptor.Height;
 
-	return OsNoError;
+	return OsSuccess;
 }

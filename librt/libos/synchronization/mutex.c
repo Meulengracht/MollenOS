@@ -23,8 +23,10 @@
 
  /* Includes 
   * - System */
-#include <os/thread.h>
+#include <os/spinlock.h>
 #include <os/syscall.h>
+#include <os/thread.h>
+#include <os/mutex.h>
 
 /* Includes
  * - Library */
@@ -45,7 +47,7 @@ MutexCreate(
 
 	/* Reuse the construct
 	 * function for cleverness points */
-	if (MutexConstruct(Mutex, Flags) != OsNoError) {
+	if (MutexConstruct(Mutex, Flags) != OsSuccess) {
 		free(Mutex);
 		return NULL;
 	}
@@ -82,7 +84,7 @@ MutexDestruct(
 	 * and free handle */
 	SpinlockRelease(&Mutex->Lock);
 	free(Mutex);
-	return OsNoError;
+	return OsSuccess;
 }
 
 /* MutexTryLock
@@ -223,5 +225,5 @@ MutexUnlock(
 	}
 
 	/* Otherwise just return */
-	return OsNoError;
+	return OsSuccess;
 }

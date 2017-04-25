@@ -29,7 +29,7 @@
 #include <os/osdefs.h>
 #include <os/ipc/ipc.h>
 #include <os/driver/io.h>
-#include <os/driver/server.h>
+#include <os/driver/service.h>
 #include <os/driver/interrupt.h>
 
 /* The export macro, and is only set by the

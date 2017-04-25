@@ -51,6 +51,11 @@ AhciReadSectors(
 		return OsError;
 	}
 
+	// Sanitize requested sector-count
+	if (Transaction->SectorCount == 0) {
+		return OsError;
+	}
+
 	// The first thing we need to do is determine which type
 	// of ATA command we can use
 	if (Transaction->Device->UseDMA) {
@@ -88,6 +93,11 @@ AhciWriteSectors(
 
 	// Sanitize bounds
 	if ((SectorLBA + Transaction->SectorCount) >= Transaction->Device->SectorsLBA) {
+		return OsError;
+	}
+
+	// Sanitize requested sector-count
+	if (Transaction->SectorCount == 0) {
 		return OsError;
 	}
 

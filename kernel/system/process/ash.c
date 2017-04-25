@@ -137,7 +137,7 @@ int PhoenixInitializeAsh(MCoreAsh_t *Ash, MString_t *Path)
 	 * in case we are loading from RD */
 	if (MStringFindChars(Path, "rd:/") != MSTRING_NOT_FOUND) { 
 		Ash->Path = MStringCreate((void*)MStringRaw(Path), StrUTF8);
-		if (ModulesQueryPath(Path, &fBuffer, &fSize) != OsNoError) {
+		if (ModulesQueryPath(Path, &fBuffer, &fSize) != OsSuccess) {
 			return -2;
 		}
 	}
@@ -479,7 +479,7 @@ PhoenixRegisterAlias(
 
 	// Register
 	GlbAliasMap[Alias - PHOENIX_ALIAS_BASE] = Ash->Id;
-	return OsNoError;
+	return OsSuccess;
 }
 
 /* PhoenixGetCurrentAsh

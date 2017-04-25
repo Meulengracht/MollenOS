@@ -157,7 +157,7 @@ MmVirtualSwitchPageDirectory(
 	memory_load_cr3(Pdb);
 
 	// Done - no errors
-	return OsNoError;
+	return OsSuccess;
 }
 
 /* MmVirtualGetCurrentDirectory
@@ -196,7 +196,7 @@ MmVirtualMap(
 	_In_ Flags_t Flags)
 {
 	// Variabes
-	OsStatus_t Result = OsNoError;
+	OsStatus_t Result = OsSuccess;
 	PageDirectory_t *Directory = (PageDirectory_t*)PageDirectory;
 	PageTable_t *Table = NULL;
 	int IsCurrent = 0;
@@ -289,7 +289,7 @@ MmVirtualUnmap(
 	_In_ VirtualAddress_t Address)
 {
 	// Variables needed for finding out page index
-	OsStatus_t Result = OsNoError;
+	OsStatus_t Result = OsSuccess;
 	PageDirectory_t *Directory = (PageDirectory_t*)PageDirectory;
 	PageTable_t *Table = NULL;
 	int IsCurrent = 0;

@@ -207,7 +207,7 @@ OsStatus_t TimersRegister(UUId_t Source, size_t TickNs)
 	TRACE("New system timer: %u", GlbActiveSystemTimer->Source);
 
 	// Done
-	return OsNoError;
+	return OsSuccess;
 }
 
 /* TimersInterrupt
@@ -221,7 +221,7 @@ OsStatus_t TimersInterrupt(UUId_t Source)
 	if (GlbActiveSystemTimer != NULL) {
 		if (GlbActiveSystemTimer->Source == Source) {
 			TimersTick(GlbActiveSystemTimer->Tick);
-			return OsNoError;
+			return OsSuccess;
 		}
 	}
 

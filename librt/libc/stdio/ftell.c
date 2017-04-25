@@ -43,7 +43,7 @@ long _tell(int fd)
 	uint32_t Position = 0;
 
 	/* Syscall */
-	if (GetFilePosition((UUId_t)fd, &Position, NULL) != OsNoError) {
+	if (GetFilePosition((UUId_t)fd, &Position, NULL) != OsSuccess) {
 		return -1;
 	}
 	else {
@@ -72,7 +72,7 @@ off_t ftello(FILE * stream)
 
 	/* Get current position */
 #if _FILE_OFFSET_BITS==64
-	if (GetFilePosition((UUId_t)fd, &pLo, &pHi) != OsNoError) {
+	if (GetFilePosition((UUId_t)fd, &pLo, &pHi) != OsSuccess) {
 		return -1L;
 	}
 	else {

@@ -81,7 +81,7 @@ MmPhysicalQuery(
 	}
 
 	// Never fails
-	return OsNoError;
+	return OsSuccess;
 }
 
 /* This is an inline helper for 
@@ -357,7 +357,7 @@ MmPhyiscalInit(
 	MmMemoryDebugPrint();
 
 	// No problems
-	return OsNoError;
+	return OsSuccess;
 }
 
 /* MmPhysicalFreeBlock
@@ -393,7 +393,7 @@ MmPhysicalFreeBlock(
 		MemoryBlocksUsed--;
 
 	// Done - no errors
-	return OsNoError;
+	return OsSuccess;
 }
 
 /* MmPhysicalAllocateBlock

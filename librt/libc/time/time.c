@@ -40,7 +40,7 @@ time_t time(time_t *timer)
 	time_t Converted = 0;
 
 	/* Query for clock support */
-	if (ClockQuery(&TimeStruct) != OsNoError) {
+	if (ClockQuery(&TimeStruct) != OsSuccess) {
 		return 0;
 	}
 

@@ -70,7 +70,7 @@ ScSystemDebug(
 	}
 
 	// No more to be done
-	return OsNoError;
+	return OsSuccess;
 }
 
 /***********************
@@ -175,7 +175,7 @@ OsStatus_t ScProcessKill(UUId_t ProcessId)
 
 	/* Return the exit code */
 	if (Request.Base.State == EventOk)
-		return OsNoError;
+		return OsSuccess;
 	else
 		return OsError;
 }
@@ -219,7 +219,7 @@ OsStatus_t ScProcessExit(int ExitCode)
 	IThreadYield();
 
 	/* Done */
-	return OsNoError;
+	return OsSuccess;
 }
 
 /* ScProcessQuery
@@ -309,7 +309,7 @@ OsStatus_t ScProcessRaise(UUId_t ProcessId, int Signal)
 		return OsError;
 	else {
 		IThreadYield();
-		return OsNoError;
+		return OsSuccess;
 	}
 }
 
@@ -383,7 +383,7 @@ ScSharedObjectUnload(
 
 	// Unload library
 	PeUnloadLibrary(Process->Executable, (MCorePeFile_t*)Handle);
-	return OsNoError;
+	return OsSuccess;
 }
 
 /***********************
@@ -419,7 +419,7 @@ ScThreadExit(
 {
 	// Redirect to this function, there is no return
 	ThreadingExitThread(ExitCode);
-	return OsNoError;
+	return OsSuccess;
 }
 
 /* ScThreadJoin
@@ -470,7 +470,7 @@ ScThreadSignal(
 
 	// Error
 	LogFatal("SYSC", "ThreadSignal invoked, not implemented");
-	return OsNoError;
+	return OsSuccess;
 }
 
 /* ScThreadSleep
@@ -480,7 +480,7 @@ ScThreadSleep(
 	_In_ size_t MilliSeconds)
 {
 	SleepMs(MilliSeconds);
-	return OsNoError;
+	return OsSuccess;
 }
 
 /* ScThreadGetCurrentId
@@ -500,7 +500,7 @@ ScThreadYield(void)
 {
 	// Invoke yield and return
 	IThreadYield();
-	return OsNoError;
+	return OsSuccess;
 }
 
 /***********************
@@ -522,7 +522,7 @@ uintptr_t ScConditionCreate(void)
 OsStatus_t ScConditionDestroy(uintptr_t *Handle)
 {
 	kfree(Handle);
-	return OsNoError;
+	return OsSuccess;
 }
 
 /* ScSyncWakeUp
@@ -531,7 +531,7 @@ OsStatus_t ScConditionDestroy(uintptr_t *Handle)
  * variables and semaphores */
 OsStatus_t ScSyncWakeUp(uintptr_t *Handle)
 {
-	return SchedulerWakeupOneThread(Handle) == 1 ? OsNoError : OsError;
+	return SchedulerWakeupOneThread(Handle) == 1 ? OsSuccess : OsError;
 }
 
 /* Signals a handle for wakeup all
@@ -540,7 +540,7 @@ OsStatus_t ScSyncWakeUp(uintptr_t *Handle)
 OsStatus_t ScSyncWakeUpAll(uintptr_t *Handle)
 {
 	SchedulerWakeupAllThreads(Handle);
-	return OsNoError;
+	return OsSuccess;
 }
 
 /* ScSyncSleep
@@ -560,7 +560,7 @@ OsStatus_t ScSyncSleep(uintptr_t *Handle, size_t Timeout)
 		return OsError;
 	}
 	else {
-		return OsNoError;
+		return OsSuccess;
 	}
 }
 
@@ -625,7 +625,7 @@ ScMemoryAllocate(
 
 		// Do the actual mapping
 		if (AddressSpaceMap(AddressSpaceGetCurrent(),
-			AllocatedAddress, Size, __MASK, ExtendedFlags, PhysicalAddress) != OsNoError) {
+			AllocatedAddress, Size, __MASK, ExtendedFlags, PhysicalAddress) != OsSuccess) {
 			BitmapFreeAddress(Ash->Heap, AllocatedAddress, Size);
 			*VirtualAddress = 0;
 			return OsError;
@@ -642,7 +642,7 @@ ScMemoryAllocate(
 
 	// Update out and return
 	*VirtualAddress = (uintptr_t)AllocatedAddress;
-	return OsNoError;
+	return OsSuccess;
 }
 
 /* Free's previous allocated memory, given an address
@@ -683,7 +683,7 @@ ScMemoryQuery(
 	SystemInformation_t SystemInfo;
 
 	// Query information
-	if (SystemInformationQuery(&SystemInfo) != OsNoError) {
+	if (SystemInformationQuery(&SystemInfo) != OsSuccess) {
 		return OsError;
 	}
 
@@ -693,7 +693,7 @@ ScMemoryQuery(
 	Descriptor->PagesUsed = SystemInfo.PagesAllocated;
 
 	// Return no error, should never fail
-	return OsNoError;
+	return OsSuccess;
 }
 
 /* ScMemoryAcquire
@@ -750,7 +750,7 @@ ScMemoryAcquire(
 	}
 
 	// Done
-	return OsNoError;
+	return OsSuccess;
 }
 
 /* ScMemoryRelease
@@ -791,7 +791,7 @@ ScMemoryRelease(
 
 	// Free it in bitmap
 	BitmapFreeAddress(Ash->Shm, VirtualAddress, Size);
-	return OsNoError;
+	return OsSuccess;
 }
 
 /***********************
@@ -820,7 +820,7 @@ OsStatus_t ScPathQueryWorkingDirectory(
 
 	// Copy data over into buffer
 	memcpy(Buffer, MStringRaw(Process->WorkingDirectory), BytesToCopy);
-	return OsNoError;
+	return OsSuccess;
 }
 
 /* ScPathChangeWorkingDirectory
@@ -842,7 +842,7 @@ OsStatus_t ScPathChangeWorkingDirectory(__CONST char *Path)
 	Translated = MStringCreate((void*)Path, StrUTF8);
 	MStringDestroy(Process->WorkingDirectory);
 	Process->WorkingDirectory = Translated;
-	return OsNoError;
+	return OsSuccess;
 }
 
 /* ScPathQueryApplication
@@ -867,7 +867,7 @@ OsStatus_t ScPathQueryApplication(
 
 	// Copy data over into buffer
 	memcpy(Buffer, MStringRaw(Process->BaseDirectory), BytesToCopy);
-	return OsNoError;
+	return OsSuccess;
 }
 
 /***********************
@@ -919,7 +919,7 @@ OsStatus_t ScPipeRead(int Port, uint8_t *Container, size_t Length, int Peek)
 	}
 
 	/* Read */
-	return (PipeRead(Pipe, Container, Length, Peek) > 0) ? OsNoError : OsError;
+	return (PipeRead(Pipe, Container, Length, Peek) > 0) ? OsSuccess : OsError;
 }
 
 /* ScPipeWrite
@@ -953,7 +953,7 @@ OsStatus_t ScPipeWrite(UUId_t AshId, int Port, uint8_t *Message, size_t Length)
 	}
 
 	/* Write */
-	return (PipeWrite(Pipe, Message, Length) > 0) ? OsNoError : OsError;
+	return (PipeWrite(Pipe, Message, Length) > 0) ? OsSuccess : OsError;
 }
 
 /* ScIpcSleep
@@ -978,7 +978,7 @@ OsStatus_t ScIpcSleep(size_t Timeout)
 
 	/* Now we reach this when the timeout is 
 	 * is triggered or another process wakes us */
-	return OsNoError;
+	return OsSuccess;
 }
 
 /* ScIpcWake
@@ -999,7 +999,7 @@ OsStatus_t ScIpcWake(UUId_t Target)
 	SchedulerWakeupOneThread((uintptr_t*)Ash);
 
 	/* Now we should have waked up the waiting process */
-	return OsNoError;
+	return OsSuccess;
 }
 
 /* ScRpcResponse
@@ -1041,7 +1041,7 @@ OsStatus_t ScRpcResponse(MRemoteCall_t *Rpc)
 	PipeRead(Pipe, (uint8_t*)Rpc->Result.Data.Buffer, ToRead, 0);
 
 	/* Done, it finally ran! */
-	return OsNoError;
+	return OsSuccess;
 }
 
 /* ScRpcExecute
@@ -1083,7 +1083,7 @@ OsStatus_t ScRpcExecute(MRemoteCall_t *Rpc, UUId_t Target, int Async)
 	// Async request? Because if yes, don't
 	// wait for response
 	if (Async) {
-		return OsNoError;
+		return OsSuccess;
 	}
 
 	// Ok, wait for response
@@ -1101,7 +1101,7 @@ OsStatus_t ScRpcExecute(MRemoteCall_t *Rpc, UUId_t Target, int Async)
 #include <process/server.h>
 
 /* ScAcpiQueryStatus
- * Queries basic acpi information and returns either OsNoError
+ * Queries basic acpi information and returns either OsSuccess
  * or OsError if Acpi is not supported on the running platform */
 OsStatus_t ScAcpiQueryStatus(AcpiDescriptor_t *AcpiDescriptor)
 {
@@ -1122,7 +1122,7 @@ OsStatus_t ScAcpiQueryStatus(AcpiDescriptor_t *AcpiDescriptor)
 		AcpiDescriptor->Version = ACPI_VERSION_6_0;
 
 		/* Wuhu! */
-		return OsNoError;
+		return OsSuccess;
 	}
 }
 
@@ -1149,7 +1149,7 @@ OsStatus_t ScAcpiQueryTableHeader(const char *Signature, ACPI_TABLE_HEADER *Head
 	/* Wuhuu, the requested table exists, copy the
 	 * header information over */
 	memcpy(Header, PointerToHeader, sizeof(ACPI_TABLE_HEADER));
-	return OsNoError;
+	return OsSuccess;
 }
 
 /* ScAcpiQueryTable
@@ -1175,7 +1175,7 @@ OsStatus_t ScAcpiQueryTable(const char *Signature, ACPI_TABLE_HEADER *Table)
 	/* Wuhuu, the requested table exists, copy the
 	 * table information over */
 	memcpy(Header, Table, Header->Length);
-	return OsNoError;
+	return OsSuccess;
 }
 
 /* ScAcpiQueryInterrupt 
@@ -1187,7 +1187,7 @@ OsStatus_t ScAcpiQueryInterrupt(DevInfo_t Bus, DevInfo_t Device, int Pin,
 {
 	// Redirect the call to the interrupt system
 	*Interrupt = AcpiDeriveInterrupt(Bus, Device, Pin, AcpiConform);
-	return (*Interrupt == INTERRUPT_NONE) ? OsError : OsNoError;
+	return (*Interrupt == INTERRUPT_NONE) ? OsError : OsSuccess;
 }
  
 /* ScIoSpaceRegister

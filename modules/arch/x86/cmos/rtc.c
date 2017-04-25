@@ -96,7 +96,7 @@ OsStatus_t RtcInitialize(Cmos_t *Chip)
 
 	// Clear pending interrupt again
 	CmosRead(CMOS_REGISTER_STATUS_C);
-	return OsNoError;
+	return OsSuccess;
 }
 
 /* RtcCleanup

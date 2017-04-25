@@ -162,7 +162,7 @@ VesaDrawPixel(
 	(*VideoPtr) = (0xFF000000 | Color);
 
 	// No error
-	return OsNoError;
+	return OsSuccess;
 }
 
 /* VesaDrawCharacter
@@ -214,7 +214,7 @@ VesaDrawCharacter(
 	}
 
 	// Done - no errors
-	return OsNoError;
+	return OsSuccess;
 }
 
 /* VesaScroll
@@ -269,7 +269,7 @@ VesaScroll(
 	__GlbVideoTerminal.CursorY -= (MCoreFontHeight * ByLines);
 
 	// No errors
-	return OsNoError;
+	return OsSuccess;
 }
 
 /* VesaPutCharacter
@@ -326,7 +326,7 @@ VesaPutCharacter(
 
 	// Release lock and return OK
 	SpinlockRelease(&__GlbVideoTerminal.Lock);
-	return OsNoError;
+	return OsSuccess;
 }
 
 /* TextDrawCharacter
@@ -351,7 +351,7 @@ TextDrawCharacter(
 	*Video = Data;
 
 	// Done - no errors
-	return OsNoError;
+	return OsSuccess;
 }
 
 /* TextScroll
@@ -386,7 +386,7 @@ TextScroll(
 	__GlbVideoTerminal.CursorY = (__GlbVideoTerminal.Info.Height - ByLines);
 
 	// Done - no errors
-	return OsNoError;
+	return OsSuccess;
 }
 
 /* TextPutCharacter
@@ -453,7 +453,7 @@ TextPutCharacter(
 
 	// Release lock and return
 	SpinlockRelease(&__GlbVideoTerminal.Lock);
-	return OsNoError;
+	return OsSuccess;
 }
 
 /* VideoGetTerminal

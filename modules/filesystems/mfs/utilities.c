@@ -98,14 +98,14 @@ MfsUpdateMasterRecord(
 		sizeof(MasterRecord_t), NULL);
 
 	// Write the master-record to harddisk
-	if (MfsWriteSectors(Descriptor, Mfs->TransferBuffer, Mfs->MasterRecordSector, 1) != OsNoError
-		|| MfsWriteSectors(Descriptor, Mfs->TransferBuffer, Mfs->MasterRecordMirrorSector, 1) != OsNoError) {
+	if (MfsWriteSectors(Descriptor, Mfs->TransferBuffer, Mfs->MasterRecordSector, 1) != OsSuccess
+		|| MfsWriteSectors(Descriptor, Mfs->TransferBuffer, Mfs->MasterRecordMirrorSector, 1) != OsSuccess) {
 		ERROR("Failed to write master-record to disk");
 		return OsError;
 	}
 
 	// Done
-	return OsNoError;
+	return OsSuccess;
 }
 
 /* MfsGetBucketLink
@@ -131,7 +131,7 @@ MfsGetBucketLink(
 	Link->Length = Mfs->BucketMap[(Bucket * 2) + 1];
 
 	// Done
-	return OsNoError;
+	return OsSuccess;
 }
 
 /* MfsSetBucketLink
@@ -176,14 +176,14 @@ MfsSetBucketLink(
 
 	// Flush buffer to disk
 	if (MfsWriteSectors(Descriptor, Mfs->TransferBuffer, 
-		Mfs->MasterRecord.MapSector + SectorOffset, 1) != OsNoError) {
+		Mfs->MasterRecord.MapSector + SectorOffset, 1) != OsSuccess) {
 		ERROR("Failed to update the given map-sector %u on disk",
 			LODWORD(Mfs->MasterRecord.MapSector + SectorOffset));
 		return OsError;
 	}
 
 	// Done
-	return OsNoError;
+	return OsSuccess;
 }
 
 /* MfsAllocateBuckets
@@ -222,7 +222,7 @@ MfsAllocateBuckets(
 	// allocations to satisfy the demand
 	while (Counter > 0) {
 		// Get next free bucket
-		if (MfsGetBucketLink(Descriptor, Bucket, &Record) != OsNoError) {
+		if (MfsGetBucketLink(Descriptor, Bucket, &Record) != OsSuccess) {
 			ERROR("Failed to retrieve link for bucket %u", Bucket);
 			return OsError;
 		}
@@ -259,8 +259,8 @@ MfsAllocateBuckets(
 			// only a chunk of the available length
 			// Map[Bucket] = (Counter) | (MFS_ENDOFCHAIN)
 			// Map[Bucket + Counter] = (Length - Counter) | PreviousLink
-			if (MfsSetBucketLink(Descriptor, Bucket, &Update, 1) != OsNoError
-				&& MfsSetBucketLink(Descriptor, Bucket + Counter, &Next, 1) != OsNoError) {
+			if (MfsSetBucketLink(Descriptor, Bucket, &Update, 1) != OsSuccess
+				&& MfsSetBucketLink(Descriptor, Bucket + Counter, &Next, 1) != OsSuccess) {
 				ERROR("Failed to update link for bucket %u and %u", 
 					Bucket, Bucket + Counter);
 				return OsError;
@@ -300,7 +300,7 @@ MfsAllocateBuckets(
 	Record.Link = MFS_ENDOFCHAIN;
 
 	// Update the previous bucket to MFS_ENDOFCHAIN
-	if (MfsSetBucketLink(Descriptor, PreviousBucket, &Record, 0) != OsNoError) {
+	if (MfsSetBucketLink(Descriptor, PreviousBucket, &Record, 0) != OsSuccess) {
 		ERROR("Failed to update link for bucket %u", PreviousBucket);
 		return OsError;
 	}
@@ -350,7 +350,7 @@ MfsFreeBuckets(
 	PreviousBucket = MFS_ENDOFCHAIN;
 	while (Record.Link != MFS_ENDOFCHAIN) {
 		PreviousBucket = Record.Link;
-		if (MfsGetBucketLink(Descriptor, Record.Link, &Record) != OsNoError) {
+		if (MfsGetBucketLink(Descriptor, Record.Link, &Record) != OsSuccess) {
 			ERROR("Failed to retrieve the next bucket-link");
 			return OsError;
 		}
@@ -406,14 +406,14 @@ MfsZeroBucket(
 	for (i = 0; i < Count; i++) {
 		// Calculate the sector
 		uint64_t AbsoluteSector = MFS_GETSECTOR(Mfs, Bucket + i);
-		if (MfsWriteSectors(Descriptor, Mfs->TransferBuffer, AbsoluteSector, Mfs->SectorsPerBucket) != OsNoError) {
+		if (MfsWriteSectors(Descriptor, Mfs->TransferBuffer, AbsoluteSector, Mfs->SectorsPerBucket) != OsSuccess) {
 			ERROR("Failed to write bucket to disk");
 			return OsError;
 		}
 	}
 	
 	// We are done
-	return OsNoError;
+	return OsSuccess;
 }
 
 /* MfsUpdateRecord
@@ -440,7 +440,7 @@ MfsUpdateRecord(
 	// Read the stored data bucket where the record is
 	if (MfsReadSectors(Descriptor, Mfs->TransferBuffer, 
 		MFS_GETSECTOR(Mfs, Handle->DirectoryBucket), 
-		Mfs->SectorsPerBucket * Handle->DirectoryLength) != OsNoError) {
+		Mfs->SectorsPerBucket * Handle->DirectoryLength) != OsSuccess) {
 		ERROR("Failed to read bucket %u", Handle->DirectoryBucket);
 		Result = FsDiskError;
 		goto Cleanup;
@@ -484,7 +484,7 @@ MfsUpdateRecord(
 	// Write the bucket back to the disk
 	if (MfsWriteSectors(Descriptor, Mfs->TransferBuffer,
 		MFS_GETSECTOR(Mfs, Handle->DirectoryBucket), 
-		Mfs->SectorsPerBucket * Handle->DirectoryLength) != OsNoError) {
+		Mfs->SectorsPerBucket * Handle->DirectoryLength) != OsSuccess) {
 		ERROR("Failed to update bucket %u", Handle->DirectoryBucket);
 		Result = FsDiskError;
 	}

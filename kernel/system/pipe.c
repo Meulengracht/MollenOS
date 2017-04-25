@@ -237,7 +237,7 @@ PipeWait(
 	/* Increase wait count */
 	Pipe->ReadQueueCount++;
 	SemaphoreP(&Pipe->ReadQueue, Timeout);
-	return OsNoError;
+	return OsSuccess;
 }
 
 /* PipeBytesAvailable

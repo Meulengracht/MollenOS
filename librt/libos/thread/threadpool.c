@@ -103,7 +103,7 @@ JobQueueInitialize(
 	BinarySemaphoreConstruct(JobQueue->HasJobs, 0);
 
 	// Done
-	return OsNoError;
+	return OsSuccess;
 }
 
 /* JobQueuePush
@@ -209,7 +209,7 @@ JobQueueClear(
 	JobQueue->Length = 0;
 	
 	// Done
-	return OsNoError;
+	return OsSuccess;
 }
 
 /* JobQueueDestroy
@@ -379,7 +379,7 @@ ThreadPoolInitialize(
 	Tp->ThreadsKeepAlive = 1;
 
 	// Initialize job queue
-	if (JobQueueInitialize(&Tp->JobQueue) != OsNoError) {
+	if (JobQueueInitialize(&Tp->JobQueue) != OsSuccess) {
 		free(Tp);
 		return OsError;
 	}
@@ -403,7 +403,7 @@ ThreadPoolInitialize(
 	*ThreadPool = Tp;
 
 	// Done - no errors
-	return OsNoError;
+	return OsSuccess;
 }
 
 /* ThreadPoolAddWork
@@ -456,7 +456,7 @@ ThreadPoolWait(
 
 	// Done, unlock again
 	MutexUnlock(&ThreadPool->ThreadLock);
-	return OsNoError;
+	return OsSuccess;
 }
 
 /* ThreadPoolPause
@@ -481,7 +481,7 @@ ThreadPoolPause(
 	}
 
 	// Done
-	return OsNoError;
+	return OsSuccess;
 }
 
 /* ThreadPoolResume
@@ -497,7 +497,7 @@ ThreadPoolResume(
 
 	// Resume
 	ThreadPool->ThreadsOnHold = 0;
-	return OsNoError;
+	return OsSuccess;
 }
 
 /* ThreadPoolDestroy
@@ -548,7 +548,7 @@ ThreadPoolDestroy(
 	// Cleanup
 	free(ThreadPool->Threads);
 	free(ThreadPool);
-	return OsNoError;
+	return OsSuccess;
 }
 
 /* ThreadPoolGetWorkingCount

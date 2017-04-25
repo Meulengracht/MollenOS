@@ -311,7 +311,7 @@ FsReadFile(
 
 		// Perform the read (Raw - as we need to pass the datapointer)
 		if (DiskRead(Descriptor->Disk.Driver, Descriptor->Disk.Device, 
-			Descriptor->SectorStart + Sector, DataPointer, SectorCount) != OsNoError) {
+			Descriptor->SectorStart + Sector, DataPointer, SectorCount) != OsSuccess) {
 			ERROR("Failed to read sector");
 			Result = FsDiskError;
 			break;
@@ -331,7 +331,7 @@ FsReadFile(
 
 			// We have to lookup the link for current bucket
 			if (MfsGetBucketLink(Descriptor, 
-				fInstance->DataBucketPosition, &Link) != OsNoError) {
+				fInstance->DataBucketPosition, &Link) != OsSuccess) {
 				ERROR("Failed to get link for bucket %u", fInstance->DataBucketPosition);
 				Result = FsDiskError;
 				break;
@@ -347,7 +347,7 @@ FsReadFile(
 
 			// Lookup length of link
 			if (MfsGetBucketLink(Descriptor,
-				fInstance->DataBucketPosition, &Link) != OsNoError) {
+				fInstance->DataBucketPosition, &Link) != OsSuccess) {
 				ERROR("Failed to get length for bucket %u", fInstance->DataBucketPosition);
 				Result = FsDiskError;
 				break;
@@ -410,7 +410,7 @@ FsWriteFile(
 		MapRecord_t Iterator, Link;
 
 		// Perform the allocation of buckets
-		if (MfsAllocateBuckets(Descriptor, NumBuckets, &Link) != OsNoError) {
+		if (MfsAllocateBuckets(Descriptor, NumBuckets, &Link) != OsSuccess) {
 			ERROR("Failed to allocate %u buckets for file", NumBuckets);
 			return FsDiskError;
 		}
@@ -420,7 +420,7 @@ FsWriteFile(
 		PreviousBucketPointer = MFS_ENDOFCHAIN;
 		while (BucketPointer != MFS_ENDOFCHAIN) {
 			PreviousBucketPointer = BucketPointer;
-			if (MfsGetBucketLink(Descriptor, BucketPointer, &Iterator) != OsNoError) {
+			if (MfsGetBucketLink(Descriptor, BucketPointer, &Iterator) != OsSuccess) {
 				ERROR("Failed to get link for bucket %u", BucketPointer);
 				return FsDiskError;
 			}
@@ -437,7 +437,7 @@ FsWriteFile(
 			fInstance->BucketByteBoundary = 0;
 		}
 		else {
-			if (MfsSetBucketLink(Descriptor, PreviousBucketPointer, &Link, 1) != OsNoError) {
+			if (MfsSetBucketLink(Descriptor, PreviousBucketPointer, &Link, 1) != OsSuccess) {
 				ERROR("Failed to set link for bucket %u", PreviousBucketPointer);
 				return FsDiskError;
 			}
@@ -460,7 +460,7 @@ FsWriteFile(
 	// Figure out the sector that we need to modify
 	// Then figure out if we need to modify a full sector or a partial
 	// sector.
-	if (AcquireBuffer(BufferObject) != OsNoError) {
+	if (AcquireBuffer(BufferObject) != OsSuccess) {
 		ERROR("Failed to acquire the buffer for writing");
 		return FsInvalidParameters;
 	}
@@ -513,7 +513,7 @@ FsWriteFile(
 		// Case 1 - Handle padding
 		if (SectorOffset != 0 || ByteCount != Descriptor->Disk.Descriptor.SectorSize) {
 			// Start building the sector
-			if (MfsReadSectors(Descriptor, Mfs->TransferBuffer, Sector, SectorCount) != OsNoError) {
+			if (MfsReadSectors(Descriptor, Mfs->TransferBuffer, Sector, SectorCount) != OsSuccess) {
 				ERROR("Failed to read sector %u for combination step", 
 					LODWORD(Sector));
 				return FsDiskError;
@@ -525,7 +525,7 @@ FsWriteFile(
 		CombineBuffer(Mfs->TransferBuffer, BufferObject, ByteCount, NULL);
 
 		// Perform the write (Raw - as we need to pass the datapointer)
-		if (MfsWriteSectors(Descriptor, Mfs->TransferBuffer, Sector, SectorCount) != OsNoError) {
+		if (MfsWriteSectors(Descriptor, Mfs->TransferBuffer, Sector, SectorCount) != OsSuccess) {
 			ERROR("Failed to write sector %u", LODWORD(Sector));
 			Result = FsDiskError;
 			break;
@@ -544,7 +544,7 @@ FsWriteFile(
 
 			// We have to lookup the link for current bucket
 			if (MfsGetBucketLink(Descriptor,
-				fInstance->DataBucketPosition, &Link) != OsNoError) {
+				fInstance->DataBucketPosition, &Link) != OsSuccess) {
 				ERROR("Failed to get link for bucket %u", fInstance->DataBucketPosition);
 				Result = FsDiskError;
 				break;
@@ -560,7 +560,7 @@ FsWriteFile(
 
 			// Lookup length of link
 			if (MfsGetBucketLink(Descriptor,
-				fInstance->DataBucketPosition, &Link) != OsNoError) {
+				fInstance->DataBucketPosition, &Link) != OsSuccess) {
 				ERROR("Failed to get length for bucket %u", fInstance->DataBucketPosition);
 				Result = FsDiskError;
 				break;
@@ -575,7 +575,7 @@ FsWriteFile(
 	}
 
 	// Release buffer
-	if (ReleaseBuffer(BufferObject) != OsNoError) {
+	if (ReleaseBuffer(BufferObject) != OsSuccess) {
 		ERROR("Failed to release the buffer");
 	}
 
@@ -619,7 +619,7 @@ FsDeleteFile(
 
 	// Free all buckets allocated
 	if (MfsFreeBuckets(Descriptor, fInformation->StartBucket, 
-		fInformation->StartLength) != OsNoError) {
+		fInformation->StartLength) != OsSuccess) {
 		ERROR("Failed to free the buckets at start 0x%x, length 0x%x",
 			fInformation->StartBucket, fInformation->StartLength);
 		return FsDiskError;
@@ -706,7 +706,7 @@ FsSeekFile(
 				}
 
 				// Get link
-				if (MfsGetBucketLink(Descriptor, BucketPtr, &Link) != OsNoError) {
+				if (MfsGetBucketLink(Descriptor, BucketPtr, &Link) != OsSuccess) {
 					ERROR("Failed to get link for bucket %u", BucketPtr);
 					return FsDiskError;
 				}
@@ -721,7 +721,7 @@ FsSeekFile(
 				BucketPtr = Link.Link;
 
 				// Get length of link
-				if (MfsGetBucketLink(Descriptor, BucketPtr, &Link) != OsNoError) {
+				if (MfsGetBucketLink(Descriptor, BucketPtr, &Link) != OsSuccess) {
 					ERROR("Failed to get length for bucket %u", BucketPtr);
 					return FsDiskError;
 				}
@@ -774,7 +774,7 @@ FsChangeFileSize(
 	if (Size == 0) {
 		// Free all buckets allocated
 		if (MfsFreeBuckets(Descriptor, fInformation->StartBucket,
-			fInformation->StartLength) != OsNoError) {
+			fInformation->StartLength) != OsSuccess) {
 			ERROR("Failed to free the buckets at start 0x%x, length 0x%x",
 				fInformation->StartBucket, fInformation->StartLength);
 			return FsDiskError;
@@ -864,7 +864,7 @@ FsDestroy(
 
 	// Free structure and return
 	free(Mfs);
-	return OsNoError;
+	return OsSuccess;
 }
 
 /* FsInitialize 
@@ -890,7 +890,7 @@ FsInitialize(
 	Buffer = CreateBuffer(Descriptor->Disk.Descriptor.SectorSize);
 
 	// Read the boot-sector
-	if (MfsReadSectors(Descriptor, Buffer, 0, 1) != OsNoError) {
+	if (MfsReadSectors(Descriptor, Buffer, 0, 1) != OsSuccess) {
 		ERROR("Failed to read mfs boot-sector record");
 		goto Error;
 	}
@@ -925,7 +925,7 @@ FsInitialize(
 	Mfs->BucketsPerSectorInMap = Descriptor->Disk.Descriptor.SectorSize / 8;
 
 	// Read the master-record
-	if (MfsReadSectors(Descriptor, Buffer, Mfs->MasterRecordSector, 1) != OsNoError) {
+	if (MfsReadSectors(Descriptor, Buffer, Mfs->MasterRecordSector, 1) != OsSuccess) {
 		ERROR("Failed to read mfs master-sector record");
 		goto Error;
 	}
@@ -971,7 +971,7 @@ FsInitialize(
 
 		// Reset buffer
 		SeekBuffer(Buffer, 0);
-		if (MfsReadSectors(Descriptor, Buffer, MapSector, Mfs->SectorsPerBucket) != OsNoError) {
+		if (MfsReadSectors(Descriptor, Buffer, MapSector, Mfs->SectorsPerBucket) != OsSuccess) {
 			ERROR("Failed to read sector 0x%x (map) into cache", LODWORD(MapSector));
 			goto Error;
 		}
@@ -983,7 +983,7 @@ FsInitialize(
 
 	// Update the structure
 	Descriptor->ExtensionData = (uintptr_t*)Mfs;
-	return OsNoError;
+	return OsSuccess;
 
 Error:
 	// Cleanup mfs

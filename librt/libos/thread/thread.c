@@ -38,8 +38,8 @@
 #include <intrin.h>
 #endif
 
-/* Private thread initializor 
- * package, used internally for starting threads */
+/* ThreadPackage (Private)
+ * Startup-package, used internally for starting threads */
 typedef struct _ThreadPackage {
 	ThreadFunc_t		 Entry;
 	void				*Data;
@@ -124,7 +124,7 @@ ThreadExit(
 
 	// Redirect to os-function, there is no return
 	Syscall1(SYSCALL_THREADEXIT, SYSCALL_PARAM(ExitCode));
-	return OsNoError;
+	return OsSuccess;
 }
 
 /* ThreadJoin

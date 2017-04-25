@@ -85,7 +85,7 @@ FILE *freopen(const char * filename, const char * mode, FILE * stream)
 			stream->opts = fopts(mode);
 
 			/* Update them */
-			if (SetFileOptions(stream->fd, stream->opts, stream->access) != OsNoError) {
+			if (SetFileOptions(stream->fd, stream->opts, stream->access) != OsSuccess) {
 				_fval((int)CloseFile((stream->fd)));
 				free(stream);
 				return NULL;

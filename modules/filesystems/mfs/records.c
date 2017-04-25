@@ -55,7 +55,7 @@ MfsExtractToken(
 		|| StrIndex == (int)(MStringLength(Path) - 1)) {
 		*Token = MStringCreate((void*)MStringRaw(Path), StrUTF8);
 		*RemainingPath = NULL;
-		return OsNoError;
+		return OsSuccess;
 	}
 	
 	// Create token string
@@ -66,7 +66,7 @@ MfsExtractToken(
 		(MStringLength(Path) - (StrIndex + 1)));
 
 	// Done
-	return OsNoError;
+	return OsSuccess;
 }
 
 /* MfsLocateRecord
@@ -110,7 +110,7 @@ MfsLocateRecord(
 		MapRecord_t Link;
 
 		// Get the length of the bucket
-		if (MfsGetBucketLink(Descriptor, CurrentBucket, &Link) != OsNoError) {
+		if (MfsGetBucketLink(Descriptor, CurrentBucket, &Link) != OsSuccess) {
 			ERROR("Failed to get length of bucket %u", CurrentBucket);
 			Result = FsDiskError;
 			goto Cleanup;
@@ -123,7 +123,7 @@ MfsLocateRecord(
 		// Start out by loading the bucket buffer with data
 		if (MfsReadSectors(Descriptor, Mfs->TransferBuffer, 
 			MFS_GETSECTOR(Mfs, CurrentBucket), 
-			Mfs->SectorsPerBucket * Link.Length) != OsNoError) {
+			Mfs->SectorsPerBucket * Link.Length) != OsSuccess) {
 			ERROR("Failed to read directory-bucket %u", CurrentBucket);
 			Result = FsDiskError;
 			goto Cleanup;
@@ -268,7 +268,7 @@ MfsLocateFreeRecord(
 		MapRecord_t Link;
 
 		// Get the length of the bucket
-		if (MfsGetBucketLink(Descriptor, CurrentBucket, &Link) != OsNoError) {
+		if (MfsGetBucketLink(Descriptor, CurrentBucket, &Link) != OsSuccess) {
 			ERROR("Failed to get length of bucket %u", CurrentBucket);
 			Result = FsDiskError;
 			goto Cleanup;
@@ -277,7 +277,7 @@ MfsLocateFreeRecord(
 		// Start out by loading the bucket buffer with data
 		if (MfsReadSectors(Descriptor, Mfs->TransferBuffer,
 			MFS_GETSECTOR(Mfs, CurrentBucket), 
-			Mfs->SectorsPerBucket * Link.Length) != OsNoError) {
+			Mfs->SectorsPerBucket * Link.Length) != OsSuccess) {
 			ERROR("Failed to read directory-bucket %u", CurrentBucket);
 			Result = FsDiskError;
 			goto Cleanup;
@@ -338,7 +338,7 @@ MfsLocateFreeRecord(
 						MapRecord_t Expansion;
 
 						// Allocate bucket
-						if (MfsAllocateBuckets(Descriptor, 1, &Expansion) != OsNoError) {
+						if (MfsAllocateBuckets(Descriptor, 1, &Expansion) != OsSuccess) {
 							ERROR("Failed to allocate bucket");
 							Result = FsDiskError;
 							goto Cleanup;
@@ -352,14 +352,14 @@ MfsLocateFreeRecord(
 
 						// Write back record bucket
 						if (MfsWriteSectors(Descriptor, Mfs->TransferBuffer,
-							MFS_GETSECTOR(Mfs, CurrentBucket), Mfs->SectorsPerBucket) != OsNoError) {
+							MFS_GETSECTOR(Mfs, CurrentBucket), Mfs->SectorsPerBucket) != OsSuccess) {
 							ERROR("Failed to update bucket %u", CurrentBucket);
 							Result = FsDiskError;
 							goto Cleanup;
 						}
 
 						// Zero the bucket
-						if (MfsZeroBucket(Descriptor, Record->StartBucket, Record->StartLength) != OsNoError) {
+						if (MfsZeroBucket(Descriptor, Record->StartBucket, Record->StartLength) != OsSuccess) {
 							ERROR("Failed to zero bucket %u", Record->StartBucket);
 							Result = FsDiskError;
 							goto Cleanup;
@@ -403,21 +403,21 @@ MfsLocateFreeRecord(
 			// Expand directory
 			if (Link.Link == MFS_ENDOFCHAIN) {
 				// Allocate bucket
-				if (MfsAllocateBuckets(Descriptor, 1, &Link) != OsNoError) {
+				if (MfsAllocateBuckets(Descriptor, 1, &Link) != OsSuccess) {
 					ERROR("Failed to allocate bucket for expansion");
 					Result = FsDiskError;
 					goto Cleanup;
 				}
 
 				// Update link
-				if (MfsSetBucketLink(Descriptor, CurrentBucket, &Link, 1) != OsNoError) {
+				if (MfsSetBucketLink(Descriptor, CurrentBucket, &Link, 1) != OsSuccess) {
 					ERROR("Failed to update bucket-link for expansion");
 					Result = FsDiskError;
 					goto Cleanup;
 				}
 
 				// Zero the bucket
-				if (MfsZeroBucket(Descriptor, Link.Link, Link.Length) != OsNoError) {
+				if (MfsZeroBucket(Descriptor, Link.Link, Link.Length) != OsSuccess) {
 					ERROR("Failed to zero bucket %u", Link.Link);
 					Result = FsDiskError;
 					goto Cleanup;

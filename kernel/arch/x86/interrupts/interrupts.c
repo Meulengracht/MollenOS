@@ -198,7 +198,7 @@ OsStatus_t InterruptAllocateISA(int Source)
 	/* Allocate if free */
 	if (InterruptISATable[Source] != 1) {
 		InterruptISATable[Source] = 1;
-		return OsNoError;
+		return OsSuccess;
 	}
 	
 	/* Damn */
@@ -345,7 +345,7 @@ OsStatus_t InterruptFinalize(MCoreInterruptDescriptor_t *Interrupt)
 	// If it's an ISA interrupt, make sure it's not
 	// allocated, and if it's not, allocate it
 	if (Source < NUM_ISA_INTERRUPTS) {
-		if (InterruptAllocateISA(Source) != OsNoError) {
+		if (InterruptAllocateISA(Source) != OsSuccess) {
 			ERROR("Failed to allocate ISA Interrupt");
 			return OsError;
 		}
@@ -377,7 +377,7 @@ OsStatus_t InterruptFinalize(MCoreInterruptDescriptor_t *Interrupt)
 	}
 
 	// Done
-	return OsNoError;
+	return OsSuccess;
 }
 
 /* InterruptIrqCount
@@ -582,7 +582,7 @@ UUId_t InterruptRegister(MCoreInterrupt_t *Interrupt, Flags_t Flags)
 
 	// Finalize the install 
 	if (Entry->Source != INTERRUPT_NONE) {
-		if (InterruptFinalize(Entry) != OsNoError) {
+		if (InterruptFinalize(Entry) != OsSuccess) {
 			ERROR("Failed to install interrupt source %i", Entry->Source);
 			kfree(Entry);
 			return UUID_INVALID;
@@ -687,7 +687,7 @@ OsStatus_t InterruptAcknowledge(UUId_t Source)
 	while (Entry != NULL) {
 		if (Entry->Id == Source) {
 			ApicUnmaskGsi(Entry->Source);
-			Result = OsNoError;
+			Result = OsSuccess;
 			break;
 		}
 
@@ -828,7 +828,7 @@ void ExceptionEntry(Context_t *Registers)
 
 	}
 	else if (Registers->Irq == 1) { // Single Step
-		if (DebugSingleStep(Registers) == OsNoError) {
+		if (DebugSingleStep(Registers) == OsSuccess) {
 			// Re-enable single-step
 		}
 		IssueFixed = 1;
@@ -925,7 +925,7 @@ void ExceptionEntry(Context_t *Registers)
 
 		// Final step is to see if kernel can handle the 
 		// unallocated address
-		if (DebugPageFault(Registers, Address) == OsNoError) {
+		if (DebugPageFault(Registers, Address) == OsSuccess) {
 			IssueFixed = 1;
 		}
 	}
@@ -939,7 +939,7 @@ void ExceptionEntry(Context_t *Registers)
 			LogDebug(__MODULE, "CR2 Address: 0x%x", Address);
 			char *Name = NULL;
 			uintptr_t Base = 0;
-			if (DebugGetModuleByAddress(Registers->Eip, &Base, &Name) == OsNoError) {
+			if (DebugGetModuleByAddress(Registers->Eip, &Base, &Name) == OsSuccess) {
 				uintptr_t Diff = Registers->Eip - Base;
 				LogDebug(__MODULE, "Fauly Address: 0x%x (%s)", Diff, Name);
 			}

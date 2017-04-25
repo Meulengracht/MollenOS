@@ -46,7 +46,7 @@ UUId_t PipeOpen(int Port)
 	Result = Syscall1(SYSCALL_OPENPIPE, SYSCALL_PARAM(Port));
 
 	/* Sanitize the return parameters */
-	if (Result != OsNoError) {
+	if (Result != OsSuccess) {
 		raise(SIGPIPE);
 	}
 
@@ -72,7 +72,7 @@ OsStatus_t PipeClose(UUId_t Pipe)
 	Result = (OsStatus_t)Syscall1(SYSCALL_OPENPIPE, SYSCALL_PARAM(Pipe));
 
 	/* Sanitize the return parameters */
-	if (Result != OsNoError) {
+	if (Result != OsSuccess) {
 		raise(SIGPIPE);
 		return OsError;
 	}
@@ -100,7 +100,7 @@ OsStatus_t PipeRead(UUId_t Pipe, void *Buffer, size_t Length)
 		SYSCALL_PARAM(Buffer), SYSCALL_PARAM(Length), 0);
 
 	/* Sanitize the return parameters */
-	if (Result != OsNoError) {
+	if (Result != OsSuccess) {
 		raise(SIGPIPE);
 	}
 
@@ -127,7 +127,7 @@ OsStatus_t PipeSend(UUId_t Target, int Port, void *Message, size_t Length)
 		SYSCALL_PARAM(Port), SYSCALL_PARAM(Message), SYSCALL_PARAM(Length));
 
 	/* Sanitize the return parameters */
-	if (Result != OsNoError) {
+	if (Result != OsSuccess) {
 		raise(SIGPIPE);
 	}
 

@@ -61,8 +61,8 @@ off64_t _lseeki64(int fd, off64_t offset, int mode)
 			sLo = 0, sHi = 0;
 
 		/* Syscall */
-		if (GetFilePosition((UUId_t)fd, &pLo, &pHi) != OsNoError
-			&& GetFileSize((UUId_t)fd, &sLo, &sHi) != OsNoError) {
+		if (GetFilePosition((UUId_t)fd, &pLo, &pHi) != OsSuccess
+			&& GetFileSize((UUId_t)fd, &sLo, &sHi) != OsSuccess) {
 			return -1L;
 		}
 		else {

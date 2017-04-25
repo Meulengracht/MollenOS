@@ -88,7 +88,7 @@ void MCoreInitialize(MCoreBootInfo_t *BootInfo)
 	/* Parse the ramdisk early, but we don't run
 	 * servers yet, this is not needed, but since there
 	 * is no dependancies yet, just do it */
-	if (ModulesInit(&BootInfo->Descriptor) != OsNoError) {
+	if (ModulesInit(&BootInfo->Descriptor) != OsSuccess) {
 		CpuIdle();
 	}
 

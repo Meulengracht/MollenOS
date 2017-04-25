@@ -28,7 +28,7 @@
  * - System */
 #include <os/osdefs.h>
 #include <os/driver/file/definitions.h>
-#include <os/driver/server.h>
+#include <os/driver/service.h>
 #include <os/driver/buffer.h>
 #include <os/ipc/ipc.h>
 #include <stddef.h>
@@ -224,7 +224,7 @@ OpenFile(
 	RPCSetResult(&Request, (__CONST void*)&Package, sizeof(OpenFilePackage_t));
 
 	// Execute the rpc request
-	if (RPCExecute(&Request, __FILEMANAGER_TARGET) != OsNoError) {
+	if (RPCExecute(&Request, __FILEMANAGER_TARGET) != OsSuccess) {
 		*Handle = UUID_INVALID;
 		return FsInvalidParameters;
 	}
@@ -269,7 +269,7 @@ CloseFile(
 	RPCSetResult(&Request, (__CONST void*)&Result, sizeof(FileSystemCode_t));
 
 	// Execute the request 
-	if (RPCExecute(&Request, __FILEMANAGER_TARGET) != OsNoError) {
+	if (RPCExecute(&Request, __FILEMANAGER_TARGET) != OsSuccess) {
 		return FsInvalidParameters;
 	}
 
@@ -311,7 +311,7 @@ DeleteFile(
 	RPCSetResult(&Request, (__CONST void*)&Result, sizeof(FileSystemCode_t));
 
 	// Execute the request 
-	if (RPCExecute(&Request, __FILEMANAGER_TARGET) != OsNoError) {
+	if (RPCExecute(&Request, __FILEMANAGER_TARGET) != OsSuccess) {
 		return FsInvalidParameters;
 	}
 
@@ -359,7 +359,7 @@ ReadFile(
 	RPCSetResult(&Request, (__CONST void*)&Package, sizeof(RWFilePackage_t));
 
 	// Execute the request 
-	if (RPCExecute(&Request, __FILEMANAGER_TARGET) != OsNoError) {
+	if (RPCExecute(&Request, __FILEMANAGER_TARGET) != OsSuccess) {
 		Package.ActualSize = 0;
 		Package.Index = 0;
 		Package.Code = FsInvalidParameters;
@@ -415,7 +415,7 @@ WriteFile(
 	RPCSetResult(&Request, (__CONST void*)&Package, sizeof(RWFilePackage_t));
 
 	// Execute the request
-	if (RPCExecute(&Request, __FILEMANAGER_TARGET) != OsNoError) {
+	if (RPCExecute(&Request, __FILEMANAGER_TARGET) != OsSuccess) {
 		Package.ActualSize = 0;
 		Package.Index = 0;
 		Package.Code = FsInvalidParameters;
@@ -470,7 +470,7 @@ SeekFile(
 	RPCSetResult(&Request, (__CONST void*)&Result, sizeof(FileSystemCode_t));
 
 	// Execute the request
-	if (RPCExecute(&Request, __FILEMANAGER_TARGET) != OsNoError) {
+	if (RPCExecute(&Request, __FILEMANAGER_TARGET) != OsSuccess) {
 		return FsInvalidParameters;
 	}
 
@@ -511,7 +511,7 @@ FlushFile(
 	RPCSetResult(&Request, (__CONST void*)&Result, sizeof(FileSystemCode_t));
 
 	// Execute the request
-	if (RPCExecute(&Request, __FILEMANAGER_TARGET) != OsNoError) {
+	if (RPCExecute(&Request, __FILEMANAGER_TARGET) != OsSuccess) {
 		return FsInvalidParameters;
 	}
 
@@ -559,7 +559,7 @@ MoveFile(
 	RPCSetResult(&Request, (__CONST void*)&Result, sizeof(FileSystemCode_t));
 	
 	// Execute the request
-	if (RPCExecute(&Request, __FILEMANAGER_TARGET) != OsNoError) {
+	if (RPCExecute(&Request, __FILEMANAGER_TARGET) != OsSuccess) {
 		return FsInvalidParameters;
 	}
 
@@ -604,7 +604,7 @@ GetFilePosition(
 	RPCSetResult(&Request, (__CONST void*)&Package, sizeof(QueryFileValuePackage_t));
 	
 	// Execute the request
-	if (RPCExecute(&Request, __FILEMANAGER_TARGET) != OsNoError) {
+	if (RPCExecute(&Request, __FILEMANAGER_TARGET) != OsSuccess) {
 		*PositionLo = 0;
 		if (PositionHi != NULL) {
 			*PositionHi = 0;
@@ -619,7 +619,7 @@ GetFilePosition(
 	}
 
 	// Return the result code
-	return OsNoError;
+	return OsSuccess;
 }
 #endif
 
@@ -658,7 +658,7 @@ GetFileOptions(
 	RPCSetResult(&Request, (__CONST void*)&Package, sizeof(QueryFileOptionsPackage_t));
 	
 	// Execute the request
-	if (RPCExecute(&Request, __FILEMANAGER_TARGET) != OsNoError) {
+	if (RPCExecute(&Request, __FILEMANAGER_TARGET) != OsSuccess) {
 		*Options = 0;
 		*Access = 0;
 		return OsError;
@@ -669,7 +669,7 @@ GetFileOptions(
 	*Access = Package.Access;
 	
 	// Return no error
-	return OsNoError;
+	return OsSuccess;
 }
 #endif
 
@@ -711,7 +711,7 @@ SetFileOptions(
 	RPCSetResult(&Request, (__CONST void*)&Result, sizeof(OsStatus_t));
 	
 	// Execute the request
-	if (RPCExecute(&Request, __FILEMANAGER_TARGET) != OsNoError) {
+	if (RPCExecute(&Request, __FILEMANAGER_TARGET) != OsSuccess) {
 		return OsError;
 	}
 
@@ -756,7 +756,7 @@ GetFileSize(
 	RPCSetResult(&Request, (__CONST void*)&Package, sizeof(QueryFileValuePackage_t));
 
 	// Execute the request
-	if (RPCExecute(&Request, __FILEMANAGER_TARGET) != OsNoError) {
+	if (RPCExecute(&Request, __FILEMANAGER_TARGET) != OsSuccess) {
 		*SizeLo = 0;
 		if (SizeHi != NULL) {
 			*SizeHi = 0;
@@ -771,7 +771,7 @@ GetFileSize(
 	}
 
 	// Return the result
-	return OsNoError;
+	return OsSuccess;
 }
 #endif
 
@@ -813,7 +813,7 @@ GetFilePath(
 	RPCSetResult(&Request, (__CONST void*)&Buffer[0], _MAXPATH);
 
 	// Execute the request
-	if (RPCExecute(&Request, __FILEMANAGER_TARGET) != OsNoError) {
+	if (RPCExecute(&Request, __FILEMANAGER_TARGET) != OsSuccess) {
 		return OsError;
 	}
 
@@ -821,7 +821,7 @@ GetFilePath(
 	memcpy(Path, &Buffer[0], MIN(MaxLength, strlen(&Buffer[0])));
 
 	// Done
-	return OsNoError;
+	return OsSuccess;
 }
 #endif
 

@@ -31,7 +31,7 @@
 #include <stdlib.h>
 
 /* AcpiQueryStatus
- * Queries basic acpi information and returns either OsNoError
+ * Queries basic acpi information and returns either OsSuccess
  * or OsError if Acpi is not supported on the running platform */
 OsStatus_t AcpiQueryStatus(AcpiDescriptor_t *AcpiDescriptor)
 {
@@ -54,7 +54,7 @@ OsStatus_t AcpiQueryTable(const char *Signature, ACPI_TABLE_HEADER **Table)
 		SYSCALL_PARAM(Signature), SYSCALL_PARAM(&Header));
 
 	/* Sanitize the result */
-	if (Result != OsNoError) {
+	if (Result != OsSuccess) {
 		return Result;
 	}
 

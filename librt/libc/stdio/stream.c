@@ -182,7 +182,7 @@ static int StreamOutCharacter(char **oStream, uint32_t *oLen, uint32_t Character
 #ifndef LIBC_KERNEL
 		return putchar(Character);
 #else
-		return (VideoPutCharacter(Character) == OsNoError) ? Character : 0;
+		return (VideoPutCharacter(Character) == OsSuccess) ? Character : 0;
 #endif
 	}
 }

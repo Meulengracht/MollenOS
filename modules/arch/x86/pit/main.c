@@ -39,7 +39,7 @@ static Pit_t *GlbPit = NULL;
 /* OnInterrupt
  * Is called when one of the registered devices
  * produces an interrupt. On successful handled
- * interrupt return OsNoError, otherwise the interrupt
+ * interrupt return OsSuccess, otherwise the interrupt
  * won't be acknowledged */
 InterruptStatus_t OnInterrupt(void *InterruptData)
 {
@@ -83,13 +83,13 @@ OsStatus_t OnLoad(void)
 	GlbPit->NsTick = 1000;
 
 	// Create the io-space in system
-	if (CreateIoSpace(&GlbPit->IoSpace) != OsNoError) {
+	if (CreateIoSpace(&GlbPit->IoSpace) != OsSuccess) {
 		return OsError;
 	}
 
 	// No problem, last thing is to acquire the
 	// io-space, and just return that as result
-	if (AcquireIoSpace(&GlbPit->IoSpace) != OsNoError) {
+	if (AcquireIoSpace(&GlbPit->IoSpace) != OsSuccess) {
 		return OsError;
 	}
 
@@ -120,7 +120,7 @@ OsStatus_t OnLoad(void)
 		(uint8_t)(Divisor & 0xFF), 1);
 	WriteIoSpace(&GlbPit->IoSpace, PIT_REGISTER_COUNTER0,
 		(uint8_t)((Divisor >> 8) & 0xFF), 1);
-	return OsNoError;
+	return OsSuccess;
 }
 
 /* OnUnload
@@ -136,7 +136,7 @@ OsStatus_t OnUnload(void)
 
 	// Free up allocated resources
 	free(GlbPit);
-	return OsNoError;
+	return OsSuccess;
 }
 
 /* OnRegister
@@ -163,7 +163,7 @@ OsStatus_t OnUnregister(MCoreDevice_t *Device)
 	// The PIT is a fixed device
 	// and thus we don't support multiple instances
 	_CRT_UNUSED(Device);
-	return OsNoError;
+	return OsSuccess;
 }
 
 /* OnQuery
@@ -189,5 +189,5 @@ OnQuery(_In_ MContractType_t QueryType,
 		&& QueryFunction == __TIMER_QUERY) {
 		PipeSend(Queryee, ResponsePort, &GlbPit->Ticks, sizeof(clock_t));
 	}
-	return OsNoError;
+	return OsSuccess;
 }

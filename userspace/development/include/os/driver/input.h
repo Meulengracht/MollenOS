@@ -70,13 +70,23 @@ typedef struct _MInput {
 #ifdef __WINDOWMANAGER_EXPORT
 __WNDAPI OsStatus_t CreateInput(MInput_t *Params);
 #else
-__WNDAPI OsStatus_t CreateInput(MInput_t *Input)
+SERVICEAPI
+OsStatus_t
+SERVICEABI
+CreateInput(MInput_t *Input)
 {
-	/* Variables */
+	// Variables
 	MRemoteCall_t Request;
+	
+	// Initialize rpc request
 	RPCInitialize(&Request, __WINDOWMANAGER_INTERFACE_VERSION, 
 		PIPE_RPCOUT, __WINDOWMANAGER_NEWINPUT);
-	RPCSetArgument(&Request, 0, (__CONST void*)Input, sizeof(MInput_t));
+	
+	// Setup rpc arguments
+	RPCSetArgument(&Request, 0, (__CONST void*)Input, 
+		sizeof(MInput_t));
+	
+	// Fire off asynchronous event
 	return RPCEvent(&Request, __WINDOWMANAGER_TARGET);
 }
 #endif
