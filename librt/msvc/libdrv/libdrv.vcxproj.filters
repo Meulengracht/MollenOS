@@ -1,0 +1,55 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="vscrt">
+      <UniqueIdentifier>{aba7d292-b8e0-4982-b790-3e306d2860da}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <MASM Include="..\..\libcrt\vscrt\alldiv.S">
+      <Filter>vscrt</Filter>
+    </MASM>
+    <MASM Include="..\..\libcrt\vscrt\alldvrm.S">
+      <Filter>vscrt</Filter>
+    </MASM>
+    <MASM Include="..\..\libcrt\vscrt\aulldiv.S">
+      <Filter>vscrt</Filter>
+    </MASM>
+    <MASM Include="..\..\libcrt\vscrt\aulldvrm.S">
+      <Filter>vscrt</Filter>
+    </MASM>
+    <MASM Include="..\..\libcrt\vscrt\aullrem.S">
+      <Filter>vscrt</Filter>
+    </MASM>
+    <MASM Include="..\..\libcrt\vscrt\aullshr.S">
+      <Filter>vscrt</Filter>
+    </MASM>
+    <MASM Include="..\..\libcrt\vscrt\chkstk.S">
+      <Filter>vscrt</Filter>
+    </MASM>
+    <MASM Include="..\..\libcrt\vscrt\constants.S">
+      <Filter>vscrt</Filter>
+    </MASM>
+    <MASM Include="..\..\libcrt\vscrt\ints.S">
+      <Filter>vscrt</Filter>
+    </MASM>
+    <MASM Include="..\..\libcrt\vscrt\llmul.S">
+      <Filter>vscrt</Filter>
+    </MASM>
+    <MASM Include="..\..\libcrt\vscrt\llrem.S">
+      <Filter>vscrt</Filter>
+    </MASM>
+    <MASM Include="..\..\libcrt\vscrt\llshl.S">
+      <Filter>vscrt</Filter>
+    </MASM>
+    <MASM Include="..\..\libcrt\vscrt\llshr.S">
+      <Filter>vscrt</Filter>
+    </MASM>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="..\..\libcrt\vscrt\crt.c">
+      <Filter>vscrt</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\libcrt\driver.c" />
+  </ItemGroup>
+</Project>
