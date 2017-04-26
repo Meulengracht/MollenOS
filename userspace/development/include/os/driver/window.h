@@ -27,7 +27,11 @@
 #include <os/mollenos.h>
 #include <os/osdefs.h>
 #include <os/ipc/ipc.h>
+
+/* Includes
+ * - System */
 #include <os/driver/service.h>
+#include <os/driver/buffer.h>
 
 /* These definitions are in-place to allow a custom
  * setting of the windowmanager, these are set to values
@@ -41,25 +45,32 @@
 #define __WINDOWMANAGER_CREATE				IPC_DECL_FUNCTION(0)
 #define __WINDOWMANAGER_DESTROY				IPC_DECL_FUNCTION(1)
 #define __WINDOWMANAGER_INVALIDATE			IPC_DECL_FUNCTION(2)
-#define __WINDOWMANAGER_QUERY				IPC_DECL_FUNCTION(3)
-#define __WINDOWMANAGER_NEWINPUT			IPC_DECL_FUNCTION(4)
+#define __WINDOWMANAGER_CONFIGURE			IPC_DECL_FUNCTION(3)
+#define __WINDOWMANAGER_SWAPBUFFER			IPC_DECL_FUNCTION(4)
+#define __WINDOWMANAGER_QUERY				IPC_DECL_FUNCTION(5)
+#define __WINDOWMANAGER_NEWINPUT			IPC_DECL_FUNCTION(6)
 
-/* Structure to represent a surface in a 
- * window, it consists of a pixel-buffer
- * and information about the buffer size */
+/* SurfaceFormat 
+ * Describes the types of pixel formats that are available
+ * for surfaces */
+typedef enum _MSurfaceFormat {
+	ARGB32
+} SurfaceFormat_t;
+
+/* SurfaceDescriptor
+ * Structure to represent a surface in a 
+ * window and information about the buffer size */
 typedef struct _MSurfaceDescriptor {
-	Rect_t					Dimensions;
-	const void				*Backbuffer;
-	size_t					BufferSize;
-	size_t					BufferPitch;
-} MSurfaceDescriptor_t;
+	Rect_t					 Dimensions;
+	SurfaceFormat_t			 Format;
+	size_t					 Pitch;			// Bytes
+} SurfaceDescriptor_t;
 
-/* Structure used by the the create
- * window function call, the structure 
- * specifies creation details and flags about
- * the window */
+/* WindowParameters_t
+ * Structure used by the the create window function call, the structure 
+ * specifies creation details and flags about the window */
 typedef struct _MWindowParameters {
-	Rect_t					Dimensions;
+	SurfaceDescriptor_t		Surface;
 	unsigned				Flags;
 } WindowParameters_t;
 
@@ -68,8 +79,8 @@ typedef struct _MWindowParameters {
  * and the dimensions of the inner/outer region */
 typedef struct _MWindowDescriptor {
 	Rect_t					Dimensions;
-	MSurfaceDescriptor_t	Surface;
-} MWindowDescriptor_t;
+	SurfaceDescriptor_t		Surface;
+} WindowDescriptor_t;
 
 /* CreateWindow 
  * Creates a window of the given
@@ -84,6 +95,7 @@ OsStatus_t
 SERVICEABI
 CreateWindow(
 	_In_ WindowParameters_t *Params,
+	_In_ BufferObject_t *SurfaceBuffer,
 	_Out_ Handle_t *Handle)
 {
 	// Variables
@@ -96,7 +108,9 @@ CreateWindow(
 	// Setup rpc arguments
 	RPCSetArgument(&Request, 0, (__CONST void*)Params, 
 		sizeof(WindowParameters_t));
-	
+	RPCSetArgument(&Request, 1, (__CONST void*)SurfaceBuffer,
+		GetBufferObjectSize(SurfaceBuffer));
+
 	// Install result buffer
 	RPCSetResult(&Request, (__CONST void*)Handle, sizeof(Handle_t));
 	
@@ -144,7 +158,7 @@ OsStatus_t
 SERVICEABI
 QueryWindow(
 	_In_ Handle_t Handle, 
-	_Out_ MWindowDescriptor_t *Descriptor)
+	_Out_ WindowDescriptor_t *Descriptor)
 {
 	// Variables
 	MRemoteCall_t Request;
@@ -159,7 +173,7 @@ QueryWindow(
 
 	// Install result buffer
 	RPCSetResult(&Request, (const void*)Descriptor, 
-		sizeof(MWindowDescriptor_t));
+		sizeof(WindowDescriptor_t));
 
 	// Execute the request
 	return RPCExecute(&Request, __WINDOWMANAGER_TARGET);

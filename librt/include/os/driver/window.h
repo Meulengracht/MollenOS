@@ -173,7 +173,7 @@ QueryWindow(
 
 	// Install result buffer
 	RPCSetResult(&Request, (const void*)Descriptor, 
-		sizeof(MWindowDescriptor_t));
+		sizeof(WindowDescriptor_t));
 
 	// Execute the request
 	return RPCExecute(&Request, __WINDOWMANAGER_TARGET);
