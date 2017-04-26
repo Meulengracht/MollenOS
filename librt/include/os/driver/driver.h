@@ -43,7 +43,8 @@
 #define __DRIVER_UNREGISTERINSTANCE		IPC_DECL_FUNCTION(1)
 #define __DRIVER_INTERRUPT				IPC_DECL_FUNCTION(2)
 #define __DRIVER_QUERY					IPC_DECL_FUNCTION(3)
-#define __DRIVER_UNLOAD					IPC_DECL_FUNCTION(4)
+#define __DRIVER_TIMEOUT				IPC_DECL_FUNCTION(4)
+#define __DRIVER_UNLOAD					IPC_DECL_FUNCTION(5)
 
 #ifdef __DRIVER_IMPL
 
@@ -86,6 +87,16 @@ __EXTERN
 InterruptStatus_t 
 OnInterrupt(
 	_In_Opt_ void *InterruptData);
+
+/* OnTimeout
+ * Is called when one of the registered timer-handles
+ * times-out. A new timeout event is generated and passed
+ * on to the below handler */
+__EXTERN 
+OsStatus_t
+OnTimeout(
+	_In_ UUId_t Timer,
+	_In_ void *Data);
 
 /* OnQuery
  * Occurs when an external process or server quries

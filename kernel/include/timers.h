@@ -27,7 +27,7 @@
 /* Includes
  * - System */
 #include <os/osdefs.h>
-#include <os/timers.h>
+#include <os/driver/timers.h>
 
 /* Timer Type */
 typedef enum _MCoreTimerType
@@ -99,20 +99,32 @@ typedef struct _MCoreSystemTimer {
 /* TimersInitialize
  * Initializes the timer sub-system that supports
  * registering of system timers and callback timers */
-__EXTERN void TimersInitialize(void);
+KERNELAPI
+void
+KERNELABI
+TimersInitialize(void);
 
 /* TimersRegistrate 
  * Registrates a interrupt timer source with the
  * timer management, which keeps track of which interrupts
  * are available for time-keeping */
-__EXTERN OsStatus_t TimersRegister(UUId_t Source, size_t TickNs);
+KERNELAPI
+OsStatus_t
+KERNELABI
+TimersRegister(
+	_In_ UUId_t Source,
+	_In_ size_t TickNs);
 
 /* TimersInterrupt
  * Called by the interrupt-code to tell the timer-management system
  * a new interrupt has occured from the given source. This allows
  * the timer-management system to tell us if that was the active
  * timer-source */
-__EXTERN OsStatus_t TimersInterrupt(UUId_t Source);
+KERNELAPI
+OsStatus_t
+KERNELABI
+TimersInterrupt(
+	_In_ UUId_t Source);
 
 #endif // !_MCORE_TIMERS_H_
 

@@ -38,19 +38,20 @@
 #include <stddef.h>
 
 /* Globals */
-MCoreSystemTimer_t *GlbActiveSystemTimer = NULL;
-List_t *GlbSystemTimers = NULL;
-List_t *GlbTimers = NULL;
-UUId_t GlbTimerIds = 0;
-int GlbTimersInitialized = 0;
+static MCoreSystemTimer_t *GlbActiveSystemTimer = NULL;
+static List_t *GlbSystemTimers = NULL;
+static List_t *GlbTimers = NULL;
+static UUId_t GlbTimerIds = 0;
+static int GlbTimersInitialized = 0;
 
 /* TimersInitialize
  * Initializes the timer sub-system that supports
  * registering of system timers and callback timers */
-void TimersInitialize(void)
+void
+TimersInitialize(void)
 {
-	/* Initialize all the globals 
-	 * including lists etc */
+	// Initialize all the globals 
+	// including lists etc
 	GlbActiveSystemTimer = NULL;
 	GlbSystemTimers = ListCreate(KeyInteger, LIST_SAFE);
 	GlbTimers = ListCreate(KeyInteger, LIST_SAFE);
@@ -58,8 +59,12 @@ void TimersInitialize(void)
 	GlbTimerIds = 0;
 }
 
-UUId_t TimersCreateTimer(TimerHandler_t Callback,
-	void *Args, MCoreTimerType_t Type, size_t Timeout)
+UUId_t
+TimersCreateTimer(
+	TimerHandler_t Callback,
+	void *Args, 
+	MCoreTimerType_t Type, 
+	size_t Timeout)
 {
 	/* Variables */
 	MCoreTimer_t *TimerInfo;
@@ -125,28 +130,29 @@ void StallMs(size_t MilliSeconds)
 /* TimersTick
  * This method actually applies the new tick-delta to all
  * active timers registered, and decreases the total */
-void TimersTick(size_t Tick)
+void
+TimersTick(
+	_In_ size_t Tick)
 {
-	/* Variables needed */
+	// Variables
 	ListNode_t *i = NULL;
-	size_t MsTick = DIVUP(Tick, NSEC_PER_MSEC);
+	size_t MilliTicks = 0;
 
-	/* Apply time to scheduler */
-	SchedulerApplyMs(MsTick);
+	// Calculate how many milliseconds
+	MilliTicks = DIVUP(Tick, NSEC_PER_MSEC);
 
-	/* Now iterate */
+	// Update scheduler with the milliticks
+	SchedulerApplyMs(MilliTicks);
+
+	// Now loop through timers registered
 	_foreach(i, GlbTimers) {
 		MCoreTimer_t *Timer = (MCoreTimer_t*)i->Data;
-		Timer->MsLeft -= MsTick;
-
-		/* Pop timer? */
+		Timer->MsLeft -= MilliTicks;
 		if (Timer->MsLeft <= 0) {
-			/* Yay! Pop! */
 			ThreadingCreateThread("Timer Callback", Timer->Callback, Timer->Args, 0);
-
-			/* Restart? */
-			if (Timer->Type == TimerPeriodic)
+			if (Timer->Type == TimerPeriodic) {
 				Timer->MsLeft = (ssize_t)Timer->PeriodicMs;
+			}
 			else {
 				ListRemoveByNode(GlbTimers, i);
 				kfree(Timer);
@@ -160,7 +166,10 @@ void TimersTick(size_t Tick)
  * Registrates a interrupt timer source with the
  * timer management, which keeps track of which interrupts
  * are available for time-keeping */
-OsStatus_t TimersRegister(UUId_t Source, size_t TickNs)
+OsStatus_t
+TimersRegister(
+	_In_ UUId_t Source, 
+	_In_ size_t TickNs)
 {
 	// Variables
 	MCoreInterruptDescriptor_t *Interrupt = NULL;
@@ -186,7 +195,7 @@ OsStatus_t TimersRegister(UUId_t Source, size_t TickNs)
 	SystemTimer->Tick = TickNs;
 	SystemTimer->Ticks = 0;
 
-	/* Add the new timer to the list */
+	// Add the new timer to the list
 	tKey.Value = 0;
 	ListAppend(GlbSystemTimers, ListCreateNode(
 		tKey, tKey, SystemTimer));
@@ -215,9 +224,11 @@ OsStatus_t TimersRegister(UUId_t Source, size_t TickNs)
  * a new interrupt has occured from the given source. This allows
  * the timer-management system to tell us if that was the active
  * timer-source */
-OsStatus_t TimersInterrupt(UUId_t Source)
+OsStatus_t
+TimersInterrupt(
+	_In_ UUId_t Source)
 {
-	/* Sanitize if the source is ok */
+	// Sanitize if the source is ok
 	if (GlbActiveSystemTimer != NULL) {
 		if (GlbActiveSystemTimer->Source == Source) {
 			TimersTick(GlbActiveSystemTimer->Tick);
@@ -225,6 +236,6 @@ OsStatus_t TimersInterrupt(UUId_t Source)
 		}
 	}
 
-	/* No -> return not */
+	// Return error
 	return OsError;
 }
