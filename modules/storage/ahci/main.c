@@ -236,16 +236,27 @@ OnQuery(_In_ MContractType_t QueryType,
 		// Determine the kind of operation
 		if (Transaction->Device != NULL
 			&& Operation->Direction == __DISK_OPERATION_READ) {
-			return AhciReadSectors(Transaction, Operation->AbsSector);
+			if (AhciReadSectors(Transaction, Operation->AbsSector) != OsSuccess) {
+				OsStatus_t Result = OsError;
+				return PipeSend(Queryee, ResponsePort, (void*)&Result, sizeof(OsStatus_t));
+			}
+			else {
+				return OsSuccess;
+			}
 		}
 		else if (Transaction->Device != NULL
 			&& Operation->Direction == __DISK_OPERATION_WRITE) {
-			return AhciWriteSectors(Transaction, Operation->AbsSector);
+			if (AhciWriteSectors(Transaction, Operation->AbsSector) != OsSuccess) {
+				OsStatus_t Result = OsError;
+				return PipeSend(Queryee, ResponsePort, (void*)&Result, sizeof(OsStatus_t));
+			}
+			else {
+				return OsSuccess;
+			}
 		}
 		else {
 			OsStatus_t Result = OsError;
-			return PipeSend(Queryee, ResponsePort,
-				(void*)&Result, sizeof(OsStatus_t));
+			return PipeSend(Queryee, ResponsePort, (void*)&Result, sizeof(OsStatus_t));
 		}
 
 	} break;

@@ -37,13 +37,13 @@ Handle_t
 SharedObjectLoad(
 	_In_ __CONST char *SharedObject)
 {
-	/* Sanitize the path */
+	// Sanitize parameters
 	if (SharedObject == NULL) {
 		return HANDLE_INVALID;
 	}
 
-	/* Just deep call, we have 
-	 * all neccessary functionlity and validation already in place */
+	// Just deep call, we have 
+	// all neccessary functionlity and validation already in place
 	return (Handle_t*)Syscall1(SYSCALL_LOADSO, SYSCALL_PARAM(SharedObject));
 }
 

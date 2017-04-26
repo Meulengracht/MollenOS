@@ -327,8 +327,8 @@ ScSharedObjectLoad(
 	// Variables
 	MCoreAsh_t *Process = PhoenixGetCurrentAsh();
 	MString_t *Path = NULL;
-	uintptr_t BaseAddress = 0;
 	Handle_t Handle = NULL;
+	uintptr_t BaseAddress = 0;
 	
 	// Sanitize the process
 	if (Process == NULL) {

@@ -117,9 +117,8 @@ MfsLocateRecord(
 		}
 
 		// Trace
-		TRACE("Reading bucket %u with length %u",
-			CurrentBucket, Link.Length);
-
+		TRACE("Reading bucket %u with length %u", CurrentBucket, Link.Length);
+		
 		// Start out by loading the bucket buffer with data
 		if (MfsReadSectors(Descriptor, Mfs->TransferBuffer, 
 			MFS_GETSECTOR(Mfs, CurrentBucket), 

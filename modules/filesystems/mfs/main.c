@@ -880,7 +880,7 @@ FsInitialize(
 	BufferObject_t *Buffer = NULL;
 	MfsInstance_t *Mfs = NULL;
 	uint8_t *bMap = NULL;
-	size_t BucketCount;
+	uint64_t BytesLeft;
 	size_t i;
 
 	// Trace
@@ -897,6 +897,7 @@ FsInitialize(
 
 	// Allocate a new instance of mfs
 	Mfs = (MfsInstance_t*)malloc(sizeof(MfsInstance_t));
+	Descriptor->ExtensionData = (uintptr_t*)Mfs;
 
 	// Instantiate the boot-record pointer
 	BootRecord = (BootRecord_t*)GetBufferData(Buffer);
@@ -963,26 +964,30 @@ FsInitialize(
 
 	// Load map
 	bMap = (uint8_t*)Mfs->BucketMap;
-	BucketCount = (size_t)(DIVUP(Mfs->MasterRecord.MapSize, 
-		(Mfs->SectorsPerBucket * Descriptor->Disk.Descriptor.SectorSize)));
-	for (i = 0; i < BucketCount; i++) {
+	BytesLeft = Mfs->MasterRecord.MapSize;
+	i = 0;
+	while (BytesLeft) {
 		// Variables
 		uint64_t MapSector = Mfs->MasterRecord.MapSector + (i * Mfs->SectorsPerBucket);
+		size_t TransferSize = MIN((Mfs->SectorsPerBucket * Descriptor->Disk.Descriptor.SectorSize), (size_t)BytesLeft);
+		size_t SectorCount = DIVUP(TransferSize, Descriptor->Disk.Descriptor.SectorSize);
+		MapRecord_t Record;
 
-		// Reset buffer
-		SeekBuffer(Buffer, 0);
-		if (MfsReadSectors(Descriptor, Buffer, MapSector, Mfs->SectorsPerBucket) != OsSuccess) {
+		// Read sectors
+		if (MfsReadSectors(Descriptor, Buffer, MapSector, SectorCount) != OsSuccess) {
 			ERROR("Failed to read sector 0x%x (map) into cache", LODWORD(MapSector));
 			goto Error;
 		}
 
-		// Read the data into the map
-		ReadBuffer(Buffer, (__CONST void*)bMap, GetBufferSize(Buffer), NULL);
-		bMap += GetBufferSize(Buffer);
+		// Reset buffer position to 0 and read the data into the map
+		SeekBuffer(Buffer, 0);
+		ReadBuffer(Buffer, (__CONST void*)bMap, TransferSize, NULL);
+		BytesLeft -= TransferSize;
+		bMap += TransferSize;
+		i++;
 	}
 
 	// Update the structure
-	Descriptor->ExtensionData = (uintptr_t*)Mfs;
 	return OsSuccess;
 
 Error:
@@ -990,6 +995,9 @@ Error:
 	if (Mfs != NULL) {
 		free(Mfs);
 	}
+
+	// Clear extension data
+	Descriptor->ExtensionData = NULL;
 
 	// Cleanup the transfer buffer
 	DestroyBuffer(Buffer);

@@ -19,6 +19,7 @@
  * MollenOS - File Manager Service
  * - Handles all file related services and disk services
  */
+//#define __TRACE
 
 /* Includes
  * - System */
@@ -48,13 +49,16 @@ const char *_GlbFileSystemDrivers[] = {
  * the appropriate driver library for the given type */
 FileSystemModule_t *VfsResolveFileSystem(FileSystem_t *FileSystem)
 {
-	/* Variables */
+	// Variables
 	FileSystemModule_t *Module = NULL;
 	ListNode_t *fNode = NULL;
 	DataKey_t Key;
 
-	/* Iterate the module list and
-	 * try to locate an already loaded module */
+	// Trace
+	TRACE("VfsResolveFileSystem(Type %u)", FileSystem->Type);
+
+	// Iterate the module list and
+	// try to locate an already loaded module
 	_foreach(fNode, VfsGetModules()) {
 		Module = (FileSystemModule_t*)fNode->Data;
 		if (Module->Type == FileSystem->Type) {
@@ -63,38 +67,44 @@ FileSystemModule_t *VfsResolveFileSystem(FileSystem_t *FileSystem)
 		}
 	}
 
-	/* Not found, allocate a new instance */
+	// Trace
+	TRACE("New resolve - loading module");
+
+	// Not found, allocate a new instance 
 	Module = (FileSystemModule_t*)malloc(sizeof(FileSystemModule_t));
 	Module->Type = FileSystem->Type;
 	Module->References = 1;
 	Module->Handle = HANDLE_INVALID;
 
-	/* Resolve the library path and load it */
+	// Resolve the library path and load it 
 	if (FileSystem->Type != FSUnknown) {
 		Module->Handle = SharedObjectLoad(_GlbFileSystemDrivers[(int)FileSystem->Type]);
 	}
 
-	/* Were we able to resolve? */
+	// Were we able to resolve?
 	if (Module->Handle == HANDLE_INVALID) {
 		ERROR("Failed to load driver %s", _GlbFileSystemDrivers[(int)FileSystem->Type]);
 		free(Module);
 		return NULL;
 	}
 
-	/* Resolve all functions, they MUST exist
-	 * - FsInitialize
-	 * - FsDestroy
-	 * - FsOpenFile
-	 * - FsCreateFile
-	 * - FsCloseFile
-	 * - FsOpenHandle
-	 * - FsCloseHandle
-	 * - FsReadFile
-	 * - FsWriteFile
-	 * - FsSeekFile
-	 * - FsChangeFileSize
-	 * - FsDeleteFile
-	 * - FsQueryFile */
+	// Trace
+	TRACE("System was resolved, retrieving function table");
+
+	// Resolve all functions, they MUST exist
+	// - FsInitialize
+	// - FsDestroy
+	// - FsOpenFile
+	// - FsCreateFile
+	// - FsCloseFile
+	// - FsOpenHandle
+	// - FsCloseHandle
+	// - FsReadFile
+	// - FsWriteFile
+	// - FsSeekFile
+	// - FsChangeFileSize
+	// - FsDeleteFile
+	// - FsQueryFile 
 	Module->Initialize = (FsInitialize_t)
 		SharedObjectGetFunction(Module->Handle, "FsInitialize");
 	Module->Destroy = (FsDestroy_t)
@@ -122,7 +132,7 @@ FileSystemModule_t *VfsResolveFileSystem(FileSystem_t *FileSystem)
 	Module->QueryFile = (FsQueryFile_t)
 		SharedObjectGetFunction(Module->Handle, "FsQueryFile");
 
-	/* Sanitize functions */
+	// Sanitize functions
 	if (Module->Initialize == NULL
 		|| Module->Destroy == NULL
 		|| Module->OpenFile == NULL
@@ -140,10 +150,13 @@ FileSystemModule_t *VfsResolveFileSystem(FileSystem_t *FileSystem)
 		return NULL;
 	}
 
-	/* Last thing is to add it to the list */
+	// Trace
+	TRACE("Function table present, loading was successful");
+
+	// Last thing is to add it to the list
 	Key.Value = 0;
 	ListAppend(VfsGetModules(), ListCreateNode(Key, Key, Module));
 
-	/* Return the newly created module */
+	// Return the newly created module
 	return Module;
 }
