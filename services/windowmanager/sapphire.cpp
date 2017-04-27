@@ -25,17 +25,9 @@
 #include <os/driver/window.h>
 #include <os/mollenos.h>
 #include <os/utils.h>
+
 #include "core/scenemanager.h"
-
-/* Includes
- * - Ui */
-#include <SDL/SDL.h>
-#include <SDL/SDL_image.h>
-
-/* Globals 
- * Static variables with shared data from init/finit and events */
-static SDL_Renderer *__GlbRenderer = NULL;
-static SDL_Window *__GlbWindow = NULL;
+#include "core/backends/sdl/sdlrenderer.h"
 
 /* Handle Message */
 void HandleMessage(SDL_Renderer *Target, MEventMessage_t *Message)
@@ -169,52 +161,22 @@ OsStatus_t OnLoad(void)
 	// Trace
 	TRACE("WindowManager.OnLoad");
 
-	// Initialize our rendering engine
-	SDL_SetMainReady();
-	if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_EVENTS) != 0) {
-		ERROR("Failed to initialize SDL: %s", SDL_GetError());
-		return OsError;
-	}
-
 	// Query screen dimensions
 	ScreenQueryGeometry(&ScreenSize);
 
-	// Create the primary window
-	__GlbWindow = SDL_CreateWindow("Sapphire", 0, 0,
-		ScreenSize.w, ScreenSize.h,
-		SDL_WINDOW_SHOWN | SDL_WINDOW_FULLSCREEN);
-	
-	// Sanitize result
-	if (__GlbWindow == NULL) {
-		ERROR("Failed to create SDL window: %s", SDL_GetError());
-		SDL_Quit();
+	// Create renderer
+	IRenderer *Renderer = new CSdlRenderer();
+	if (!Renderer->Create(&ScreenSize)) {
+		delete Renderer;
+		ERROR("Failed to initialize the renderer");
 		return OsError;
 	}
 
-	// Create the primary renderer
-	__GlbRenderer = SDL_CreateRenderer(__GlbWindow, -1,
-		SDL_RENDERER_SOFTWARE | SDL_RENDERER_TARGETTEXTURE);
-	
-	// Sanitize result
-	if (__GlbRenderer == NULL) {
-		ERROR("Failed to create SDL renderer: %s", SDL_GetError());
-		SDL_DestroyWindow(__GlbWindow);
-		__GlbWindow = NULL;
-		SDL_Quit();
+	// Initialize the scenemanager
+	if (!sSceneManager.Initialize(Renderer, &ScreenSize)) {
+		ERROR("Failed to initialize the scene-manager");
 		return OsError;
 	}
-
-	// Initialize image libraries
-	if (!IMG_Init(IMG_INIT_PNG)) {
-		ERROR("Failed to initialize image-libraries");
-		SDL_DestroyRenderer(__GlbRenderer);
-		SDL_DestroyWindow(__GlbWindow);
-		SDL_Quit();
-		return OsError;
-	}
-
-	// Last - initialize scene manager
-	SceneManagerInit(__GlbRenderer, &ScreenSize);
 
 	// Register us with server manager
 	RegisterService(__WINDOWMANAGER_TARGET);
@@ -223,8 +185,8 @@ OsStatus_t OnLoad(void)
 	//MollenOSEndBoot();
 	
 	// Perform initial update
-	SceneManagerUpdate(NULL);
-	SceneManagerRender(__GlbRenderer);
+	sSceneManager.Invalidate(NULL);
+	sSceneManager.Update();
 
 	// Done
 	return OsSuccess;
@@ -235,19 +197,8 @@ OsStatus_t OnLoad(void)
  * and should free all resources allocated by the system */
 OsStatus_t OnUnload(void)
 {
-	// Destroy sapphire
-	SceneManagerDestruct();
-
 	// Cleanup engine resources
-	if (__GlbRenderer != NULL) {
-		SDL_DestroyRenderer(__GlbRenderer);
-	}
-	if (__GlbWindow != NULL) {
-		SDL_DestroyWindow(__GlbWindow);
-	}
-	
-	// Quit
-	SDL_Quit();
+	delete &sSceneManager;
 	return OsSuccess;
 }
 

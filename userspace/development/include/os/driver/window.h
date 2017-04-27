@@ -82,6 +82,8 @@ typedef struct _MWindowDescriptor {
 	SurfaceDescriptor_t		Surface;
 } WindowDescriptor_t;
 
+_CODE_BEGIN
+
 /* CreateWindow 
  * Creates a window of the given
  * dimensions and flags. The returned
@@ -211,5 +213,7 @@ InvalidateWindow(
 	return RPCEvent(&Request, __WINDOWMANAGER_TARGET);
 }
 #endif
+
+_CODE_END
 
 #endif //!_MOLLENOS_WINDOW_H_

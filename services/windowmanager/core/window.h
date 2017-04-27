@@ -1,6 +1,6 @@
 /* MollenOS
 *
-* Copyright 2011 - 2016, Philip Meulengracht
+* Copyright 2011 - 2017, Philip Meulengracht
 *
 * This program is free software : you can redistribute it and / or modify
 * it under the terms of the GNU General Public License as published by
@@ -22,14 +22,13 @@
 #ifndef _SAPPHIRE_WINDOW_H_
 #define _SAPPHIRE_WINDOW_H_
 
-/* Includes */
-#include <crtdefs.h>
-#include <stddef.h>
-#include <stdint.h>
-#include <os/Ipc.h>
+/* Includes
+ * - Library */
+#include <os/osdefs.h>
 
-/* Ui Includes */
-#include <SDL.h>
+/* Includes
+ * - Ui */
+#include <SDL/SDL.h>
 
 /* Definitions */
 #define WINDOW_CONSOLE	0x1
@@ -41,7 +40,7 @@ typedef struct _sWindow {
 	/* Window Information
 	 * Id, owner, flags */
 	int Id;
-	IpcComm_t Owner;
+	UUId_t Owner;
 	int Flags;
 
 	/* Window Z-Index */
@@ -73,21 +72,21 @@ typedef struct _sWindow {
 /* Constructor 
  * Allocates a new window of the given
  * dimensions and initializes it */
-__CRT_EXTERN Window_t *WindowCreate(IpcComm_t Owner, Rect_t *Dimensions, int Flags, SDL_Renderer *Renderer);
+__EXTERN Window_t *WindowCreate(UUId_t Owner, Rect_t *Dimensions, int Flags, SDL_Renderer *Renderer);
 
 /* Destructor
  * Cleans up and releases 
  * resources allocated */
-__CRT_EXTERN void WindowDestroy(Window_t *Window);
+__EXTERN void WindowDestroy(Window_t *Window);
 
 /* Update
  * Updates all neccessary state and 
  * buffers before rendering */
-__CRT_EXTERN void WindowUpdate(Window_t *Window, Rect_t *DirtyArea);
+__EXTERN void WindowUpdate(Window_t *Window, Rect_t *DirtyArea);
 
 /* Render
  * Renders the window to the 
  * given renderer */
-__CRT_EXTERN void WindowRender(Window_t *Window, SDL_Renderer *Renderer, Rect_t *DirtyArea);
+__EXTERN void WindowRender(Window_t *Window, SDL_Renderer *Renderer, Rect_t *DirtyArea);
 
 #endif //!_SAPPHIRE_WINDOW_H_

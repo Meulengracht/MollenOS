@@ -48,7 +48,7 @@
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <WarningLevel>EnableAllWarnings</WarningLevel>
       <Optimization>Full</Optimization>
-      <PreprocessorDefinitions>MOLLENOS;_X86_32;__FILEMANAGER_IMPL;__SERVICE_IMPL</PreprocessorDefinitions>
+      <PreprocessorDefinitions>MOLLENOS;_X86_32;__USBMANAGER_IMPL;__SERVICE_IMPL</PreprocessorDefinitions>
       <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
       <TreatWarningAsError>true</TreatWarningAsError>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>

@@ -24,3 +24,37 @@
 /* Includes
  * - System */
 #include <os/driver/usb.h>
+
+/* OnLoad
+ * The entry-point of a server, this is called
+ * as soon as the server is loaded in the system */
+OsStatus_t OnLoad(void)
+{
+
+}
+
+/* OnUnload
+ * This is called when the server is being unloaded
+ * and should free all resources allocated by the system */
+OsStatus_t OnUnload(void)
+{
+
+}
+
+/* OnEvent
+ * This is called when the server recieved an external evnet
+ * and should handle the given event*/
+OsStatus_t OnEvent(MRemoteCall_t *Message)
+{
+	// Variables
+	OsStatus_t Result = OsSuccess;
+
+	// Which function is called?
+	switch (Message->Function)
+	{
+
+	}
+
+	// Done
+	return Result;
+}

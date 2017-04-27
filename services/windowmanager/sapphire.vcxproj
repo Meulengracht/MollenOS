@@ -49,13 +49,16 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="core\shape.c" />
-    <ClCompile Include="core\scene.c" />
-    <ClCompile Include="core\scenemanager.c" />
-    <ClCompile Include="core\window.c" />
-    <ClCompile Include="sapphire.c" />
+    <ClCompile Include="core\backends\sdl\sdlrenderer.cpp" />
+    <ClCompile Include="core\shape.cpp" />
+    <ClCompile Include="core\scene.cpp" />
+    <ClCompile Include="core\scenemanager.cpp" />
+    <ClCompile Include="core\window.cpp" />
+    <ClCompile Include="sapphire.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="core\backends\irenderer.h" />
+    <ClInclude Include="core\backends\sdl\sdlrenderer.h" />
     <ClInclude Include="core\scene.h" />
     <ClInclude Include="core\scenemanager.h" />
     <ClInclude Include="core\window.h" />

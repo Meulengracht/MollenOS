@@ -1,42 +1,50 @@
 /* MollenOS
-*
-* Copyright 2011 - 2016, Philip Meulengracht
-*
-* This program is free software : you can redistribute it and / or modify
-* it under the terms of the GNU General Public License as published by
-* the Free Software Foundation ? , either version 3 of the License, or
-* (at your option) any later version.
-*
-* This program is distributed in the hope that it will be useful,
-* but WITHOUT ANY WARRANTY; without even the implied warranty of
-* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.See the
-* GNU General Public License for more details.
-*
-* You should have received a copy of the GNU General Public License
-* along with this program.If not, see <http://www.gnu.org/licenses/>.
-*
-*
-* MollenOS Scene - Sapphire
-*/
+ *
+ * Copyright 2011 - 2017, Philip Meulengracht
+ *
+ * This program is free software : you can redistribute it and / or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation ? , either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.If not, see <http://www.gnu.org/licenses/>.
+ *
+ *
+ * MollenOS Sapphire - Scene
+ * - Contains the scene implementation that acts as a virtual desktop
+ */
 
 #ifndef _SAPPHIRE_SCENE_H_
 #define _SAPPHIRE_SCENE_H_
 
-/* Includes */
-#include <crtdefs.h>
-#include <stddef.h>
-#include <stdint.h>
-
-/* Ui Includes */
-#include <SDL.h>
-
-/* List -> Windows */
-#include <os/MollenOS.h>
+/* Includes
+ * - Library */
+#include <os/osdefs.h>
 #include <ds/list.h>
-#include "Window.h"
 
-/* Definitions */
+/* Includes
+ * - Ui */
+#include "backends/irenderer.h"
+#include "window.h"
 
+/* CScene
+ * Acts a virtual desktop, managing a bunch of windows */
+class CScene
+{
+public:
+	CScene();
+	~CScene();
+
+
+private:
+
+};
 
 /* Structures */
 typedef struct _sScene {

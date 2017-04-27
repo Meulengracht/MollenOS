@@ -25,13 +25,16 @@
 #define _FILE_INTERFACE_H_
 
 /* Includes
- * - System */
+ * - Library */
 #include <os/osdefs.h>
+#include <stddef.h>
+
+/* Includes
+ * - System */
 #include <os/driver/file/definitions.h>
 #include <os/driver/service.h>
 #include <os/driver/buffer.h>
 #include <os/ipc/ipc.h>
-#include <stddef.h>
 
 /* This is the options structure used exclusively
  * for multi-params readback from the ipc operations */

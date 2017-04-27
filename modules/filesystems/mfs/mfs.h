@@ -42,6 +42,7 @@
  * Contains magic constant values and utility macros for conversion */
 #define MFS_ENDOFCHAIN							0xFFFFFFFF
 #define MFS_GETSECTOR(mInstance, Bucket)		((Mfs->SectorsPerBucket * Bucket))
+#define MFS_ROOTSIZE							8
 
 /* MFS Update Entry Action Codes */
 #define MFS_ACTION_UPDATE	0x0

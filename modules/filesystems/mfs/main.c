@@ -951,7 +951,8 @@ FsInitialize(
 	DestroyBuffer(Buffer);
 
 	// Allocate a new in the size of a bucket
-	Buffer = CreateBuffer(Mfs->SectorsPerBucket * Descriptor->Disk.Descriptor.SectorSize);
+	Buffer = CreateBuffer(Mfs->SectorsPerBucket 
+		* Descriptor->Disk.Descriptor.SectorSize * MFS_ROOTSIZE);
 	Mfs->TransferBuffer = Buffer;
 
 	// Allocate a buffer for the map

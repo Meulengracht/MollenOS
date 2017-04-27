@@ -1,6 +1,6 @@
 /* MollenOS
  *
- * Copyright 2011 - 2016, Philip Meulengracht
+ * Copyright 2011 - 2017, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,78 +16,123 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS Scene Manager - Sapphire
+ * MollenOS Sapphire - Scene Manager
+ * - Contains the scene-manager implementation that acts as a 
+ *   virtual desktop manager
  */
 
 #ifndef _SAPPHIRE_SCENEMGR_H_
 #define _SAPPHIRE_SCENEMGR_H_
 
-/* Includes */
-#include <crtdefs.h>
-#include <stddef.h>
-#include <stdint.h>
-
-/* Ui Includes */
-#include <SDL.h>
-
-/* List -> Scenes */
-#include <os/MollenOS.h>
+/* Includes
+ * - Library */
+#include <os/osdefs.h>
 #include <ds/list.h>
-#include "Window.h"
 
-/* Definitions */
+/* Includes
+ * - Ui */
+#include "backends/irenderer.h"
+#include "scene.h"
+#include "window.h"
 
+/* CSceneManager
+ * Acts a virtual desktop manager, managing a bunch of desktops
+ * which allows the user to quickly switch between desktops */
+class CSceneManager
+{
+public:
+	static CSceneManager& GetInstance() {
+		// Guaranteed to be destroyed.
+		// Is instantiated on first use
+		static CSceneManager _Instance;
+		return _Instance;
+	}
+private:
+	CSceneManager() {}                    // Constructor? (the {} brackets) are needed here.
+	CSceneManager(CSceneManager const&);  // Don't Implement
+	void operator=(CSceneManager const&); // Don't implement
 
-/* Structures */
-typedef struct _sSceneManager {
+public:
+	CSceneManager(CSceneManager const&) = delete;
+	void operator=(CSceneManager const&) = delete;
 
-	/* Id Generator */
-	int IdGen;
-	int IdWindowGen;
+	// Initialize
+	// Initializes the scene manager and creates the first scene
+	bool Initialize(IRenderer *Renderer, Rect_t *Size);
 
-	/* List of scenes */
-	List_t *Scenes;
+	// CreateScene
+	// Creates a new scene and returns a pointer to the newly
+	// created scene
+	
 
-} SceneManager_t;
+	// Invalidate
+	// This updates the current scene and makes all neccessary 
+	// changes to windows a call with NULL invalidates entire scene
+	bool Invalidate(Rect_t *Area);
 
+	// Update
+	// Flushes all the changes since last call to the renderer
+	bool Update();
 
-/* Prototypes */
+private:
+	int				m_iSceneId;
+	int				m_iWindowId;
+	List_t*			m_pScenes;
+};
 
-/* Initializor
- * Sets up the scene manager
- * and creates the default scene */
-__CRT_EXTERN void SceneManagerInit(SDL_Renderer *Renderer, Rect_t *ScreenDims);
+// Shorthand for the scenemanager
+#define sSceneManager CSceneManager::GetInstance()
 
-/* Destructor
- * Cleans up all scenes
- * and releases resources allocated */
-__CRT_EXTERN void SceneManagerDestruct(void);
+/* SceneManagerInitialize
+ * Sets up the scene manager and creates the default scene */
+__EXTERN
+void
+SceneManagerInitialize(
+	_In_ SDL_Renderer *Renderer, 
+	_In_ Rect_t *ScreenSize);
 
-/* Add Window 
- * Adds a newly created window to the 
- * current scene. The window is not immediately 
- * rendered before a call to Render */
-__CRT_EXTERN void SceneManagerAddWindow(Window_t *Window);
+/* SceneManagerDestroy
+ * Cleans up all scenes and releases resources allocated */
+__EXTERN
+void
+SceneManagerDestroy(void);
 
-/* Get Window 
+/* SceneManagerAddWindow
+ * Adds a newly created window to the current scene. 
+ * The window is not immediately rendered before a call to Render */
+__EXTERN
+void
+SceneManagerAddWindow(
+	_In_ Window_t *Window);
+
+/* SceneManagerGetWindow
  * This looks up a window by id in the current
  * active scene, if not found, NULL is returned */
-__CRT_EXTERN Window_t *SceneManagerGetWindow(int WindowId);
+__EXTERN
+Window_t*
+SceneManagerGetWindow(
+	_In_ int WindowId);
 
-/* Get Active Window
+/* SceneManagerGetActiveWindow
  * This looks up the active window by in the current
  * active scene, if not found, NULL is returned */
-__CRT_EXTERN Window_t *SceneManagerGetActiveWindow(void);
+__EXTERN
+Window_t*
+SceneManagerGetActiveWindow(void);
 
-/* Update 
- * This updates the current scene 
- * and makes all neccessary changes to windows 
- * a call with NULL updates entire scene */
-__CRT_EXTERN void SceneManagerUpdate(Rect_t *DirtyArea);
+/* SceneManagerUpdate 
+ * This updates the current scene and makes all neccessary 
+ * changes to windows a call with NULL updates entire scene */
+__EXTERN
+void
+SceneManagerUpdate(
+	_In_ Rect_t *DirtyArea);
 
-/* Render
- * This renders the current scene 
- * to the screen */
-__CRT_EXTERN void SceneManagerRender(SDL_Renderer *Renderer);
+/* SceneManagerRender
+ * This renders the current scene to the screen */
+__EXTERN
+void
+SceneManagerRender(
+	_In_ SDL_Renderer *Renderer);
 
 #endif //!_SAPPHIRE_SCENEMGR_H_
