@@ -1,41 +1,39 @@
 /* MollenOS
-*
-* Copyright 2011 - 2016, Philip Meulengracht
-*
-* This program is free software : you can redistribute it and / or modify
-* it under the terms of the GNU General Public License as published by
-* the Free Software Foundation ? , either version 3 of the License, or
-* (at your option) any later version.
-*
-* This program is distributed in the hope that it will be useful,
-* but WITHOUT ANY WARRANTY; without even the implied warranty of
-* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.See the
-* GNU General Public License for more details.
-*
-* You should have received a copy of the GNU General Public License
-* along with this program.If not, see <http://www.gnu.org/licenses/>.
-*
-*
-* MollenOS USB OHCI Controller Driver
-*/
+ *
+ * Copyright 2011 - 2017, Philip Meulengracht
+ *
+ * This program is free software : you can redistribute it and / or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation ? , either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.If not, see <http://www.gnu.org/licenses/>.
+ *
+ *
+ * MollenOS MCore - Open Host Controller Interface Driver
+ * TODO:
+ *	- Power Management
+ */
 
 #ifndef _USB_OHCI_H_
 #define _USB_OHCI_H_
 
-/* Includes */
-#include <Module.h>
-#include <DeviceManager.h>
+/* Includes
+ * - Library */
+#include <os/osdefs.h>
 
 /* Definitions */
 #define OHCI_STRUCT_ALIGN			32
 #define OHCI_STRUCT_ALIGN_BITS		0x1F
 
-/* Structures */
-
 /* Must be 16 byte aligned */
-#pragma pack(push, 1)
-typedef struct _OhciEndpointDescriptor
-{
+PACKED_TYPESTRUCT(OhciEndpointDescriptor, {
 	/* Flags 
 	 * Bits 0 - 6: Usb Address of Function
 	 * Bits 7 - 10: (Endpoint Nr) Usb Address of this endpoint
@@ -79,9 +77,7 @@ typedef struct _OhciEndpointDescriptor
 	 * Bit 24: Schedule 
 	 * Bit 25: Unschedule */
 	uint32_t HcdFlags;
-
-} OhciEndpointDescriptor_t;
-#pragma pack(pop)
+});
 
 /* Bit Defintions */
 #define OHCI_EP_ADDRESS_MASK		0x7F
@@ -115,9 +111,7 @@ typedef struct _OhciEndpointDescriptor
 
 /* Must be 16 byte aligned 
  * General Transfer Descriptor */
-#pragma pack(push, 1)
-typedef struct _OhciGTransferDescriptor
-{
+PACKED_TYPESTRUCT(OhciGTransferDescriptor, {
 	/* Flags
 	 * Bits 0-17:  Available
 	 * Bits 18:    If 0, Requires the data to be recieved from an endpoint to exactly fill buffer
@@ -143,8 +137,7 @@ typedef struct _OhciGTransferDescriptor
 	 * while using cbp */
 	uint32_t BufferEnd;
 
-} OhciGTransferDescriptor_t;
-#pragma pack(pop)
+});
 
 /* Transfer Definitions */
 #define OHCI_LINK_END						0x1

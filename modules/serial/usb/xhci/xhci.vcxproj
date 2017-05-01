@@ -1,18 +1,25 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup Label="ProjectConfigurations">
-    <ProjectConfiguration Include="Build_X86_32|Win32">
-      <Configuration>Build_X86_32</Configuration>
+    <ProjectConfiguration Include="i386|Win32">
+      <Configuration>i386</Configuration>
       <Platform>Win32</Platform>
     </ProjectConfiguration>
   </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="main.c" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="xhci.mdrv" />
+  </ItemGroup>
   <PropertyGroup Label="Globals">
-    <ProjectGuid>{5B870E7F-3EF4-4A5E-A79E-53DA4138E1AE}</ProjectGuid>
+    <ProjectGuid>{F094ECD8-4A2C-4EBE-9D97-88C9CE820D38}</ProjectGuid>
     <Keyword>Win32Proj</Keyword>
     <RootNamespace>Modules</RootNamespace>
+    <WindowsTargetPlatformVersion>10.0.14393.0</WindowsTargetPlatformVersion>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Build_X86_32|Win32'" Label="Configuration">
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='i386|Win32'" Label="Configuration">
     <ConfigurationType>DynamicLibrary</ConfigurationType>
     <UseDebugLibraries>false</UseDebugLibraries>
     <PlatformToolset>v141</PlatformToolset>
@@ -23,27 +30,27 @@
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
   <ImportGroup Label="ExtensionSettings">
   </ImportGroup>
-  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Build_X86_32|Win32'">
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='i386|Win32'">
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Build_X86_32|Win32'">
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='i386|Win32'">
     <LinkIncremental>false</LinkIncremental>
     <OutDir>$(SolutionDir)modules\build\</OutDir>
-    <TargetExt>.mod</TargetExt>
-    <IncludePath>..\..\include;..\..\..\librt\include;..\..\..\kernel\include;..\..\..\kernel\arch</IncludePath>
+    <TargetExt>.dll</TargetExt>
+    <IncludePath>..\..\..\include;..\..\..\..\librt\include;..\common;</IncludePath>
     <ReferencePath />
-    <LibraryPath>..\..\..\librt\build;..\..\..\kernel\build;..\..\build</LibraryPath>
+    <LibraryPath>..\..\..\..\librt\build</LibraryPath>
     <LibraryWPath />
   </PropertyGroup>
-  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Build_X86_32|Win32'">
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='i386|Win32'">
     <ClCompile>
       <WarningLevel>Level4</WarningLevel>
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <Optimization>Full</Optimization>
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
-      <PreprocessorDefinitions>MOLLENOS;_X86_32;MODULES_EXPORTS;_KRNL_DLL</PreprocessorDefinitions>
+      <PreprocessorDefinitions>MOLLENOS;_X86_32;__DRIVER_IMPL</PreprocessorDefinitions>
       <TreatWarningAsError>true</TreatWarningAsError>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
       <BufferSecurityCheck>false</BufferSecurityCheck>
@@ -54,22 +61,14 @@
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
-      <AdditionalDependencies>libcrt.lib;libk.lib;MCore.lib;UsbCore.lib</AdditionalDependencies>
+      <AdditionalDependencies>libdrv.lib;libmsc++.lib;libc.lib;libos.lib</AdditionalDependencies>
       <IgnoreAllDefaultLibraries>true</IgnoreAllDefaultLibraries>
       <GenerateMapFile>true</GenerateMapFile>
       <MapExports>true</MapExports>
       <AdditionalOptions>/include:_memcpy /include:_memset %(AdditionalOptions)</AdditionalOptions>
+      <EntryPointSymbol>_mDrvCrt</EntryPointSymbol>
     </Link>
   </ItemDefinitionGroup>
-  <ItemGroup>
-    <ClInclude Include="Ohci.h" />
-  </ItemGroup>
-  <ItemGroup>
-    <ClCompile Include="Ohci.c" />
-  </ItemGroup>
-  <ItemGroup>
-    <None Include="Ohci.mdrv" />
-  </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>
