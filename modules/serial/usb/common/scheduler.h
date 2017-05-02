@@ -22,10 +22,10 @@
 #ifndef __USB_SCHEDULER__
 #define __USB_SCHEDULER__
 
-/* Includes */
-#include <Arch.h>
-#include <crtdefs.h>
-#include <stdint.h>
+/* Includes
+ * - Library */
+#include <os/osdefs.h>
+#include <os/driver/usb.h>
 
 /* Sanity */
 #ifdef __USBCORE

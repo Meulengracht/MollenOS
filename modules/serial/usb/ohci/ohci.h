@@ -28,58 +28,40 @@
  * - Library */
 #include <os/osdefs.h>
 
-/* Definitions */
+/* OHCI Controller Definitions 
+ * Contains generic magic constants and definitions */
 #define OHCI_STRUCT_ALIGN			32
 #define OHCI_STRUCT_ALIGN_BITS		0x1F
 
-/* Must be 16 byte aligned */
+/* OhciEndpointDescriptor 
+ * Endpoint descriptor, which acts as a queue-head in an
+ * ohci-context. It contains both horizontal links and vertical
+ * links. It will always process vertical links first. When a 
+ * vertical link has processed, the current is updated. 
+ * It will stop processing when Current == Tail.
+ * Structure must always be 16 byte aligned */
 PACKED_TYPESTRUCT(OhciEndpointDescriptor, {
-	/* Flags 
-	 * Bits 0 - 6: Usb Address of Function
-	 * Bits 7 - 10: (Endpoint Nr) Usb Address of this endpoint
-	 * Bits 11 - 12: (Direction) Indicates Dataflow, either IN or OUT. (01 -> OUT, 10 -> IN). Otherwise we leave it to the TD descriptor
-	 * Bits 13: Speed. 0 indicates full speed, 1 indicates low-speed.
-	 * Bits 14: If set, it skips the TD queues and moves on to next EP descriptor
-	 * Bits 15: (Format). 0 = Bulk/Control/Interrupt Endpoint. 1 = Isochronous TD format.
-	 * Bits 16-26: Maximum Packet Size per data packet.
-	 * Bits 27-31: Type -> 0000 (Control), 0001 (Bulk), 0010 (Interrupt) 0011 (Isoc).
-	 */
-	uint32_t Flags;
-
-	/* TD Queue Tail Pointer
-	 * Lower 4 bits not used 
-	 * If tail == head, no TD will be used 
-	 * We queue to the TAIL, always! */
-	uint32_t TailPtr;
-
-	/* TD Queue Head Pointer 
-	 * Bits 0: Halted. Indicates that processing of a TD has failed. 
-	 * Bits 1: Carry Bit: When a TD is retired this bit is set to last data toggle value.
-	 * Bits 2:3 Must be 0. */
-	uint32_t HeadPtr;
-
-	/* Next EP Descriptor
-	 * Lower 4 bits not used */
-	uint32_t NextED;
-
-	/* Next EP Descriptor (Virtual) */
-	uint32_t NextEDVirtual;
-
-	/* Bandwidth */
-	uint32_t Bandwidth;
-	uint32_t Interval;
-
-	/* Bit Flags 
-	 * Bit 0: Allocated
-	 * Bit 1-7: Queue Number 
-	 * Bit 8-15: Period
-	 * Bit 16-23: Index 
-	 * Bit 24: Schedule 
-	 * Bit 25: Unschedule */
-	uint32_t HcdFlags;
+	reg32_t					Flags;
+	reg32_t					TailPointer;	// Lower 4 bits not used
+	reg32_t					Current;		// (Physical) Bit 0 - Halted, Bit 1 - Carry
+	reg32_t					Link;			// Next EP (Physical)
+	reg32_t					LinkVirtual;	// Next EP (Virtual)
+	reg32_t					Bandwidth;		// Scheduling
+	reg32_t					Interval;		// Scheduling
+	reg32_t					HcdFlags;		// Extra flags
 });
 
-/* Bit Defintions */
+/* OhciEndpointDescriptor::Flags
+ * Contains definitions and bitfield definitions for OhciEndpointDescriptor::Flags
+ * Bits 0 - 6: Usb Address of Function
+ * Bits 7 - 10: (Endpoint Nr) Usb Address of this endpoint
+ * Bits 11 - 12: (Direction) Indicates Dataflow, either IN or OUT. (01 -> OUT, 10 -> IN). Otherwise we leave it to the TD descriptor
+ * Bits 13: Speed. 0 indicates full speed, 1 indicates low-speed.
+ * Bits 14: If set, it skips the TD queues and moves on to next EP descriptor
+ * Bits 15: (Format). 0 = Bulk/Control/Interrupt Endpoint. 1 = Isochronous TD format.
+ * Bits 16-26: Maximum Packet Size per data packet.
+ * Bits 27-31: Type -> 0000 (Control), 0001 (Bulk), 0010 (Interrupt) 0011 (Isoc).
+ */
 #define OHCI_EP_ADDRESS_MASK		0x7F
 #define OHCI_EP_ENDPOINT_MASK		0xF
 #define OHCI_EP_LENGTH_MASK			0x3FF
@@ -93,6 +75,14 @@ PACKED_TYPESTRUCT(OhciEndpointDescriptor, {
 #define OHCI_EP_MAXLEN(n)			((n & OHCI_EP_LENGTH_MASK) << 16)
 #define OHCI_EP_TYPE(n)				(((uint32_t)n & 0xF) << 27)
 
+/* OhciEndpointDescriptor::HcdFlags
+ * Contains definitions and bitfield definitions for OhciEndpointDescriptor::HcdFlags
+ * Bit 0: Allocated
+ * Bit 1-7: Queue Number
+ * Bit 8-15: Period
+ * Bit 16-23: Index
+ * Bit 24: Schedule
+ * Bit 25: Unschedule */
 #define OHCI_ED_ALLOCATED			(1 << 0)
 #define OHCI_ED_SCHEDULE			(1 << 24)
 #define OHCI_ED_UNSCHEDULE			(1 << 25)
@@ -109,37 +99,27 @@ PACKED_TYPESTRUCT(OhciEndpointDescriptor, {
 #define OHCI_ED_CLR_INDEX(n)		(n & 0xFF00FFFF)
 #define OHCI_ED_GET_INDEX(n)		((n & 0xFF0000) >> 16)
 
-/* Must be 16 byte aligned 
- * General Transfer Descriptor */
+/* OhciGTransferDescriptor
+ * Describes a transfer operation that can have 3 operations, either
+ * SETUP, IN or OUT. It must have a pointer to the buffer of data
+ * and it must have a pointer to the end of the buffer of data. 
+ * Structure must be 16 byte aligned. */
 PACKED_TYPESTRUCT(OhciGTransferDescriptor, {
-	/* Flags
-	 * Bits 0-17:  Available
-	 * Bits 18:    If 0, Requires the data to be recieved from an endpoint to exactly fill buffer
-	 * Bits 19-20: Direction, 00 = Setup (to ep), 01 = OUT (to ep), 10 = IN (from ep)
-	 * Bits 21-23: Interrupt delay count for this TD. This means the HC can delay interrupt a specific amount of frames after TD completion.
-	 * Bits 24-25: Data Toggle. It is updated after each successful transmission.
-	 * Bits 26-27: Error Count. Updated each transmission that fails. It is 0 on success.
-	 * Bits 28-31: Condition Code, if error count is 2 and it fails a third time, this contains error code.
-	 * */
-	uint32_t Flags;
-
-	/* Current Buffer Pointer 
-	 * Size must always be lower than the Maximum Packet Size at the endpoint */
-	uint32_t Cbp;
-
-	/* Next TD 
-	 * Lower 4 bits must be 0 (aka 16 byte aligned) */
-	uint32_t NextTD;
-
-	/* Buffer End 
-	 * This is the next 4K page address that can be 
-	 * accessed in case of a page boundary crossing 
-	 * while using cbp */
-	uint32_t BufferEnd;
-
+	reg32_t					Flags;
+	reg32_t					Cbp;		// Size must be lower than MPS
+	reg32_t					Link;		// TD Link (Physical)
+	reg32_t					BufferEnd;	// End of buffer pointer
 });
 
-/* Transfer Definitions */
+/* OhciGTransferDescriptor::Flags
+ * Contains definitions and bitfield definitions for OhciGTransferDescriptor::Flags
+ * Bits 0-17:  Available
+ * Bits 18:    If 0, Requires the data to be recieved from an endpoint to exactly fill buffer
+ * Bits 19-20: Direction, 00 = Setup (to ep), 01 = OUT (to ep), 10 = IN (from ep)
+ * Bits 21-23: Interrupt delay count for this TD. This means the HC can delay interrupt a specific amount of frames after TD completion.
+ * Bits 24-25: Data Toggle. It is updated after each successful transmission.
+ * Bits 26-27: Error Count. Updated each transmission that fails. It is 0 on success.
+ * Bits 28-31: Condition Code, if error count is 2 and it fails a third time, this contains error code. */
 #define OHCI_LINK_END						0x1
 #define OHCI_TD_ALLOCATED					(1 << 17)
 #define OHCI_TD_SHORTPACKET					(1 << 18)
@@ -151,13 +131,11 @@ PACKED_TYPESTRUCT(OhciGTransferDescriptor, {
 #define OHCI_TD_TOGGLE						(1 << 24)
 #define OHCI_TD_TOGGLE_LOCAL				(1 << 25)
 #define OHCI_TD_ACTIVE						((1 << 28) | (1 << 29) | (1 << 30) | (1 << 31))
-
 #define OHCI_TD_GET_CC(n)					((n & 0xF0000000) >> 28)
 
 /* Must be 32 byte aligned
  * Isochronous Transfer Descriptor */
-typedef struct _OhciITransferDescriptor
-{
+PACKED_TYPESTRUCT(OhciITransferDescriptor, {
 	/* Flags
 	 * Bits 0-15:	Starting Frame of transaction.
 	 * Bits 16-20:	Available
@@ -188,12 +166,11 @@ typedef struct _OhciITransferDescriptor
 	 * Bits 12-15:	Condition Code (Error Code) */
 	uint16_t Offsets[8];
 
-} OhciITransferDescriptor_t;
+});
 
 /* Host Controller Communcations Area 
  * must be 256-byte aligned */
-typedef struct _OhciHCCA
-{
+PACKED_ATYPESTRUCT(volatile, OhciHCCA, {
 	/* Interrupt Table 
 	 * 32 pointers to interrupt ed's */
 	uint32_t InterruptTable[32];
@@ -211,11 +188,10 @@ typedef struct _OhciHCCA
 	/* Reserved for HC */
 	uint8_t Reserved[116];
 
-} OhciHCCA_t;
+});
 
 /* Register Space */
-typedef struct _OhciRegisters
-{
+PACKED_ATYPESTRUCT(volatile, OhciRegisters, {
 	uint32_t	HcRevision;
 	uint32_t	HcControl;
 	uint32_t	HcCommandStatus;
@@ -243,7 +219,7 @@ typedef struct _OhciRegisters
 	uint32_t	HcRhStatus;
 	uint32_t	HcRhPortStatus[15];
 
-} OhciRegisters_t;
+});
 
 /* Bit Defintions */
 #define OHCI_REVISION					0x10
