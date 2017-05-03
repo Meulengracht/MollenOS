@@ -86,6 +86,10 @@ void _mDrvCrt(void)
 						AcknowledgeInterrupt((UUId_t)Message.Arguments[0].Data.Value);
 					}
 				} break;
+				case __DRIVER_TIMEOUT: {
+					OnTimeout((UUId_t)Message.Arguments[0].Data.Value,
+						(void*)Message.Arguments[1].Data.Value);
+				} break;
 				case __DRIVER_QUERY: {
 					OnQuery((MContractType_t)Message.Arguments[0].Data.Value, 
 						(int)Message.Arguments[1].Data.Value, 

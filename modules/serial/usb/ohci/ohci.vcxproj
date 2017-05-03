@@ -8,8 +8,10 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="controller.c" />
+    <ClCompile Include="functions.c" />
     <ClCompile Include="main.c" />
     <ClCompile Include="port.c" />
+    <ClCompile Include="queue.c" />
   </ItemGroup>
   <ItemGroup>
     <None Include="ohci.mdrv" />

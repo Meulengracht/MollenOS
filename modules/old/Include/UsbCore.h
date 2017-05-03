@@ -156,15 +156,6 @@ typedef struct _UsbHcDevice
 } UsbHcDevice_t;
 #pragma pack(pop)
 
-/* Transaction Type */
-typedef enum _UsbTransactionType
-{
-	SetupTransaction,
-	InTransaction,
-	OutTransaction
-
-} UsbTransactionType_t;
-
 /* The Abstract Transaction 
  * A request consists of several transactions */
 typedef struct _UsbHcTransaction
@@ -225,16 +216,6 @@ typedef enum _UsbTransferStatus
 	TransferBabble
 
 } UsbTransferStatus_t;
-
-/* Device Speed */
-typedef enum _UsbSpeed
-{
-	LowSpeed,		/* 1.0 / 1.1 */
-	FullSpeed,		/* 1.0 / 1.1 */
-	HighSpeed,		/* 2.0 */
-	SuperSpeed		/* 3.0 */
-
-} UsbSpeed_t;
 
 /* The Abstract Usb Callback */
 typedef struct _UsbInterruptCallback

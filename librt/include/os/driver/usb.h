@@ -35,6 +35,23 @@
 #include <os/driver/buffer.h>
 #include <os/ipc/ipc.h>
 
+/* UsbSpeed 
+ * Describes the possible speeds for usb devices */
+typedef enum _UsbSpeed {
+	LowSpeed,		// 1.0 / 1.1
+	FullSpeed,		// 1.0 / 1.1 / 2.0 (HID)
+	HighSpeed,		// 2.0
+	SuperSpeed		// 3.0
+} UsbSpeed_t;
+
+/* UsbTransactionType 
+ * Describes the possible types of usb transactions */
+typedef enum _UsbTransactionType {
+	SetupTransaction,
+	InTransaction,
+	OutTransaction
+} UsbTransactionType_t;
+
 /* UsbControllerRegister
  * Registers a new controller with the given type and setup */
 #ifdef __USBMANAGER_IMPL

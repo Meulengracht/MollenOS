@@ -27,11 +27,14 @@
 /* Includes
  * - Library */
 #include <os/osdefs.h>
+#include <os/driver/usb.h>
+#include <os/driver/device.h>
+#include <os/driver/driver.h>
 
 /* OHCI Controller Definitions 
  * Contains generic magic constants and definitions */
-#define OHCI_STRUCT_ALIGN			32
-#define OHCI_STRUCT_ALIGN_BITS		0x1F
+#define OHCI_MAXPORTS				15
+#define OHCI_ALIGN					32
 
 /* OhciEndpointDescriptor 
  * Endpoint descriptor, which acts as a queue-head in an
@@ -136,113 +139,91 @@ PACKED_TYPESTRUCT(OhciGTransferDescriptor, {
 /* Must be 32 byte aligned
  * Isochronous Transfer Descriptor */
 PACKED_TYPESTRUCT(OhciITransferDescriptor, {
-	/* Flags
-	 * Bits 0-15:	Starting Frame of transaction.
-	 * Bits 16-20:	Available
-	 * Bits 21-23:	Interrupt Delay
-	 * Bits 24-26:	Frame Count in this TD, 0 implies 1, and 7 implies 8. (always +1)
-	 * Bits 27:		Reserved
-	 * Bits 28-31:	Condition Code (Error Code)
-	 * */
-	uint32_t Flags;
-
-	/* Buffer Page 0 
-	 * shall point to first byte of data buffer */
-	uint32_t Bp0;
-
-	/* Next TD
-	* Lower 4 bits must be 0 (aka 16 byte aligned) */
-	uint32_t NextTD;
-
-	/* Buffer End
-	* This is the next 4K page address that can be
-	* accessed in case of a page boundary crossing
-	* while using cbp */
-	uint32_t BufferEnd;
-
-	/* Offsets 
-	 * Bits 0-11:	Packet Size on IN-transmissions 
-	 * Bits 12:		CrossPage Field
-	 * Bits 12-15:	Condition Code (Error Code) */
-	uint16_t Offsets[8];
-
+	uint32_t				Flags;
+	uint32_t				Bp0;		// Points to the first byte of data
+	uint32_t				Link;		// TD Link (Physical)
+	uint32_t				BufferEnd;	// Points to the last byte of data
+	uint16_t				Offsets[8];	// Contains sub-transactions table
 });
 
-/* Host Controller Communcations Area 
- * must be 256-byte aligned */
+/* OhciITransferDescriptor::Flags
+ * Contains definitions and bitfield definitions for OhciITransferDescriptor::Flags
+ * Bits 0-15:	Starting Frame of transaction.
+ * Bits 16-20:	Available
+ * Bits 21-23:	Interrupt Delay
+ * Bits 24-26:	Frame Count in this TD, 0 implies 1, and 7 implies 8. (always +1)
+ * Bits 27:		Reserved
+ * Bits 28-31:	Condition Code (Error Code) */
+
+/* OhciITransferDescriptor::Offsets
+ * Contains definitions and bitfield definitions for OhciITransferDescriptor::Offsets
+ * Bits 0-11:	Packet Size on IN-transmissions
+ * Bits 12:		CrossPage Field
+ * Bits 12-15:	Condition Code (Error Code) */
+
+/* OhciHCCA
+ * Host Controller Communcations Area.
+ * This is a transfer area, where we can setup the interrupt-table
+ * and where the HC will update us. The structure must be on a 256 byte boundary */
 PACKED_ATYPESTRUCT(volatile, OhciHCCA, {
-	/* Interrupt Table 
-	 * 32 pointers to interrupt ed's */
-	uint32_t InterruptTable[32];
-
-	/* Current Frame Number */
-	uint16_t CurrentFrame;
-
-	/* It is 0 */
-	uint16_t Pad1;
-
-	/* Which head is done, it gets set to this pointer at end of frame
-	 * and generates an interrupt */
-	uint32_t HeadDone;
-
-	/* Reserved for HC */
-	uint8_t Reserved[116];
-
+	uint32_t				InterruptTable[32];	// Points to the 32 root nodes
+	uint16_t				CurrentFrame;		// Current Frame Number
+	uint16_t				Pad1;
+	uint32_t				HeadDone;			// Indicates which head is done
+	uint8_t					Reserved[116];		// Work area of OHCI
 });
 
-/* Register Space */
+/* OhciRegisters
+ * Contains all the registers that are present in the memory mapped region
+ * of the OHCI controller. The address of this structure is found in the PCI space */
 PACKED_ATYPESTRUCT(volatile, OhciRegisters, {
-	uint32_t	HcRevision;
-	uint32_t	HcControl;
-	uint32_t	HcCommandStatus;
-	uint32_t	HcInterruptStatus;
-	uint32_t	HcInterruptEnable;
-	uint32_t	HcInterruptDisable;
+	reg32_t					HcRevision;
+	reg32_t					HcControl;
+	reg32_t					HcCommandStatus;
+	reg32_t					HcInterruptStatus;
+	reg32_t					HcInterruptEnable;
+	reg32_t					HcInterruptDisable;
 
-	uint32_t	HcHCCA;
-	uint32_t	HcPeriodCurrentED;
-	uint32_t	HcControlHeadED;
-	uint32_t	HcControlCurrentED;
-	uint32_t	HcBulkHeadED;
-	uint32_t	HcBulkCurrentED;
-	uint32_t	HcDoneHead;
+	reg32_t					HcHCCA;
+	reg32_t					HcPeriodCurrentED;
+	reg32_t					HcControlHeadED;
+	reg32_t					HcControlCurrentED;
+	reg32_t					HcBulkHeadED;
+	reg32_t					HcBulkCurrentED;
+	reg32_t					HcDoneHead;
 
-	uint32_t	HcFmInterval;
-	uint32_t	HcFmRemaining;
-	uint32_t	HcFmNumber;
-	uint32_t	HcPeriodicStart;
-	uint32_t	HcLSThreshold;
+	reg32_t					HcFmInterval;
+	reg32_t					HcFmRemaining;
+	reg32_t					HcFmNumber;
+	reg32_t					HcPeriodicStart;
+	reg32_t					HcLSThreshold;
 
-	/* Max of 15 ports */
-	uint32_t	HcRhDescriptorA;
-	uint32_t	HcRhDescriptorB;
-	uint32_t	HcRhStatus;
-	uint32_t	HcRhPortStatus[15];
-
+	reg32_t					HcRhDescriptorA;
+	reg32_t					HcRhDescriptorB;
+	reg32_t					HcRhStatus;
+	reg32_t					HcRhPortStatus[OHCI_MAXPORTS];
 });
 
-/* Bit Defintions */
-#define OHCI_REVISION					0x10
-#define OHCI_REVISION_11				0x11
+/* OhciRegisters::HcRevision
+ * Contains definitions and bitfield definitions for OhciRegisters::HcRevision */
+#define OHCI_REVISION1					0x10
+#define OHCI_REVISION11					0x11
 
+/* OhciRegisters::HcCommandStatus
+ * Contains definitions and bitfield definitions for OhciRegisters::HcCommandStatus */
 #define OHCI_COMMAND_RESET				(1 << 0)
 #define OHCI_COMMAND_CONTROL_ACTIVE		(1 << 1)
 #define OHCI_COMMAND_BULK_ACTIVE		(1 << 2)
 #define OHCI_COMMAND_OWNERSHIP			(1 << 3)
 
+/* OhciRegisters::HcControl
+ * Contains definitions and bitfield definitions for OhciRegisters::HcControl */
 #define OHCI_CONTROL_ALL_QUEUES			0x3C
-
 #define OHCI_CONTROL_RESET				0x0
 #define OHCI_CONTROL_RESUME				0x40
 #define OHCI_CONTROL_ACTIVE				0x80
 #define OHCI_CONTROL_SUSPEND			0xC0
 
-#define OHCI_FMINTERVAL_FI				0x2EDF
-#define OHCI_FMINTERVAL_FIMASK			0x3FFF
-#define OHCI_FMINTERVAL_GETFSMP(fi)		((fi >> 16) & 0x7FFF)
-#define OHCI_FMINTERVAL_FSMP(fi)		(0x7FFF & ((6 * ((fi) - 210)) / 7))
-
-/* Bits 0 and 1 */
 #define OHCI_CONTROL_RATIO_MASK			(1 << 0) | (1 << 1)
 #define OHCI_CONTROL_PERIODIC_ACTIVE	(1 << 2)
 #define OHCI_CONTROL_ISOC_ACTIVE		(1 << 3)
@@ -252,6 +233,13 @@ PACKED_ATYPESTRUCT(volatile, OhciRegisters, {
 #define OHCI_CONTROL_FSTATE_BITS		(1 << 6) | (1 << 7) 
 #define OHCI_CONTROL_IR					(1 << 8)
 #define OHCI_CONTROL_REMOTEWAKE			(1 << 10)
+
+/* OhciRegisters::HcFmInterval
+ * Contains definitions and bitfield definitions for OhciRegisters::HcFmInterval */
+#define OHCI_FMINTERVAL_FI				0x2EDF
+#define OHCI_FMINTERVAL_FIMASK			0x3FFF
+#define OHCI_FMINTERVAL_GETFSMP(fi)		((fi >> 16) & 0x7FFF)
+#define OHCI_FMINTERVAL_FSMP(fi)		(0x7FFF & ((6 * ((fi) - 210)) / 7))
 
 #define OHCI_INTR_SCHEDULING_OVERRUN	0x1
 #define OHCI_INTR_PROCESS_HEAD			0x2
@@ -293,33 +281,34 @@ typedef struct _OhciEndpoint
 
 	/* TD Pool */
 	OhciGTransferDescriptor_t **TDPool;
-	Addr_t *TDPoolPhysical;
-	Addr_t **TDPoolBuffers;
+	uintptr_t *TDPoolPhysical;
+	uintptr_t **TDPoolBuffers;
 
 	/* Lock */
 	Spinlock_t Lock;
 
 } OhciEndpoint_t;
 
-/* Controller Structure */
-typedef struct _OhciController
-{
-	/* Id */
-	uint32_t Id;
-	int HcdId;
+/* OhciController 
+ * Contains all per-controller information that is
+ * needed to control, queue and handle devices on a
+ * ohci-controller. */
+typedef struct _OhciController {
+	MCoreDevice_t			 Device;
+	MContract_t				 Contract;
+	UUId_t					 Interrupt;
+	Spinlock_t				 Lock;
+	DeviceIoSpace_t			*IoBase;
 
-	/* Device */
-	MCoreDevice_t *Device;
+	// Registers and resources
+	OhciRegisters_t			*Registers;
+	OhciHCCA_t				*Hcca;
+	uintptr_t				 HccaPhysical;
 
-	/* Lock */
-	Spinlock_t Lock;
-
-	/* Register Space (Physical) */
-	Addr_t HccaSpace;
-
-	/* Registers */
-	volatile OhciRegisters_t *Registers;
-	volatile OhciHCCA_t *HCCA;
+	// State information
+	size_t					 PowerOnDelayMs;
+	int						 PowerMode;
+	size_t					 PortCount;
 
 	/* ED Pool */
 	OhciEndpointDescriptor_t *EDPool[OHCI_POOL_NUM_ED];
@@ -332,18 +321,11 @@ typedef struct _OhciController
 	int Bandwidth[OHCI_BANDWIDTH_PHASES];
 	int TotalBandwidth;
 
-	/* Power */
-	int PowerMode;
-	size_t PowerOnDelayMs;
-
-	/* Port Count */
-	size_t Ports;
-
 	/* Transaction Queue */
 	int TransactionsWaitingControl;
 	int TransactionsWaitingBulk;
-	Addr_t TransactionQueueControl;
-	Addr_t TransactionQueueBulk;
+	uintptr_t TransactionQueueControl;
+	uintptr_t TransactionQueueBulk;
 
 	/* Transaction List 
 	 * Contains transactions
@@ -357,4 +339,29 @@ typedef struct _OhciController
 #define OHCI_PWM_PORT_CONTROLLED		1
 #define OHCI_PWN_GLOBAL					2
 
-#endif // !_X86_USB_OHCI_H_
+/* OhciControllerCreate 
+ * Initializes and creates a new Ohci Controller instance
+ * from a given new system device on the bus. */
+__EXTERN
+OhciController_t*
+OhciControllerCreate(
+	_In_ MCoreDevice_t *Device);
+
+/* OhciControllerDestroy
+ * Destroys an existing controller instance and cleans up
+ * any resources related to it */
+__EXTERN
+OsStatus_t
+OhciControllerDestroy(
+	_In_ OhciController_t *Controller);
+
+/* OhciPortInitialize
+ * Initializes a port when the port has changed it's connection
+ * state, no allocations are done here */
+__EXTERN
+OsStatus_t
+OhciPortInitialize(
+	_In_ OhciController_t *Controller,
+	_In_ int Index);
+
+#endif // !_USB_OHCI_H_

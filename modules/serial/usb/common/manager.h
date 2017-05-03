@@ -16,141 +16,54 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS MCore - Advanced Host Controller Interface Driver
- * TODO:
- *	- Port Multiplier Support
- *	- Power Management
+ * MollenOS MCore - USB Controller Manager
+ * - Contains the implementation of a shared controller manager
+ *   for all the usb drivers
  */
 
-#ifndef _AHCI_MANAGER_H_
-#define _AHCI_MANAGER_H_
+#ifndef _USB_MANAGER_H_
+#define _USB_MANAGER_H_
 
 /* Includes 
  * - Library */
 #include <os/osdefs.h>
 #include <ds/list.h>
 
-/* Includes
- * - System */
-#include <os/driver/buffer.h>
-#include "ahci.h"
-
-/* Dispatcher Flags 
- * Used to setup transfer flags for ahci-transactions */
-#define DISPATCH_MULTIPLIER(Pmp)		(Pmp & 0xF)
-#define DISPATCH_WRITE					0x10
-#define DISPATCH_PREFETCH				0x20
-#define DISPATCH_CLEARBUSY				0x40
-#define DISPATCH_ATAPI					0x80
-
-/* AhciTransaction 
- * Describes the ahci-transaction object and contains
- * information about the buffer and the requester */
-typedef struct _AhciTransaction {
-	UUId_t						 Requester;
-	int							 Pipe;
-	
-	uintptr_t					 Address;
-	size_t						 SectorCount;
-
-	AhciDevice_t				*Device;
-	int							 Slot;
-} AhciTransaction_t;
-
-/* AhciManagerInitialize
- * Initializes the ahci manager that keeps track of
+/* UsbManagerInitialize
+ * Initializes the usb manager that keeps track of
  * all controllers and all attached devices */
 __EXTERN
 OsStatus_t
-AhciManagerInitialize(void);
+UsbManagerInitialize(void);
 
-/* AhciManagerDestroy
+/* UsbManagerDestroy
  * Cleans up the manager and releases resources allocated */
 __EXTERN
 OsStatus_t
-AhciManagerDestroy(void);
+UsbManagerDestroy(void);
 
-/* AhciManagerCreateDevice
- * Registers a new device with the ahci-manager on the specified
+/* UsbManagerCreateDevice
+ * Registers a new device with the usb-manager on the specified
  * port and controller. Identifies and registers with neccessary services */
 __EXTERN
 OsStatus_t
-AhciManagerCreateDevice(
-	_In_ AhciController_t *Controller,
-	_In_ AhciPort_t *Port);
+UsbManagerCreateDevice(
+	_In_ void *Controller,
+	_In_ void *Port);
 
-/* AhciManagerCreateDeviceCallback
- * Needs to be called once the identify command has
- * finished executing */
+/* UsbManagerRemoveDevice
+ * Removes an existing device from the usb-manager */
 __EXTERN
 OsStatus_t
-AhciManagerCreateDeviceCallback(
-	_In_ AhciDevice_t *Device);
+UsbManagerRemoveDevice(
+	_In_ void *Controller,
+	_In_ void *Port);
 
-/* AhciManagerRemoveDevice
- * Removes an existing device from the ahci-manager */
+/* UsbManagerGetDevice 
+ * Retrieves device from the usb-id given */
 __EXTERN
-OsStatus_t
-AhciManagerRemoveDevice(
-	_In_ AhciController_t *Controller,
-	_In_ AhciPort_t *Port);
+void*
+UsbManagerGetDevice(
+	_In_ UUId_t Id);
 
-/* AhciManagerGetDevice 
- * Retrieves device from the disk-id given */
-__EXTERN
-AhciDevice_t*
-AhciManagerGetDevice(
-	_In_ UUId_t Disk);
-
-/* AhciCommandDispatch 
- * Dispatches a FIS command on a given port 
- * This function automatically allocates everything neccessary
- * for the transfer */
-__EXTERN
-OsStatus_t
-AhciCommandDispatch(
-	_In_ AhciTransaction_t *Transaction,
-	_In_ Flags_t Flags,
-	_In_ void *Command, _In_ size_t CommandLength,
-	_In_ void *AtapiCmd, _In_ size_t AtapiCmdLength);
-
-
-/* AhciCommandFinish
- * Verifies and cleans up a transaction made by dispatch */
-__EXTERN
-OsStatus_t
-AhciCommandFinish(
-	_In_ AhciTransaction_t *Transaction);
-
-/* AhciCommandRegisterFIS 
- * Builds a new AHCI Transaction based on a register FIS */
-__EXTERN
-OsStatus_t
-AhciCommandRegisterFIS(
-	_In_ AhciTransaction_t *Transaction,
-	_In_ ATACommandType_t Command,
-	_In_ uint64_t SectorLBA,
-	_In_ int Device,
-	_In_ int Write);
-
-/* AhciReadSectors 
- * The wrapper function for reading data from an 
- * ahci-drive. It also auto-selects the command needed and everything.
- * Should return 0 on no error */
-__EXTERN
-OsStatus_t
-AhciReadSectors(
-	_In_ AhciTransaction_t *Transaction,
-	_In_ uint64_t SectorLBA);
-
-/* AhciWriteSectors 
- * The wrapper function for writing data to an 
- * ahci-drive. It also auto-selects the command needed and everything.
- * Should return 0 on no error */
-__EXTERN
-OsStatus_t
-AhciWriteSectors(
-	_In_ AhciTransaction_t *Transaction,
-	_In_ uint64_t SectorLBA);
-
-#endif //!_AHCI_MANAGER_H_
+#endif //!_USB_MANAGER_H_

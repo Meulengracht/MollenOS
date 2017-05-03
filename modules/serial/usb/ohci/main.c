@@ -26,6 +26,8 @@
  * - System */
 #include <os/mollenos.h>
 #include <os/utils.h>
+
+#include "../common/manager.h"
 #include "ohci.h"
 
 /* Includes
@@ -47,13 +49,30 @@ static List_t *GlbControllers = NULL;
 InterruptStatus_t OnInterrupt(void *InterruptData)
 {
 	// Variables
-	AhciController_t *Controller = NULL;
+	OhciController_t *Controller = NULL;
 	reg32_t InterruptStatus;
 	int i;
 
 	// Instantiate the pointer
-	Controller = (AhciController_t*)InterruptData;
-	InterruptStatus = Controller->Registers->InterruptStatus;
+	Controller = (OhciController_t*)InterruptData;
+
+	// There are two cases where it might be, just to be sure
+	// we don't miss an interrupt, if the HeadDone is set or the
+	// intr is set
+	if (Controller->Hcca->HeadDone != 0) {
+		InterruptStatus = OHCI_INTR_PROCESS_HEAD;
+		// If halted bit is set, get rest of interrupt
+		if (Controller->Hcca->HeadDone & 0x1) {
+			InterruptStatus |= (Controller->Registers->HcInterruptStatus
+				& Controller->Registers->HcInterruptEnable);
+		}
+	}
+	else {
+		// Was it this Controller that made the interrupt?
+		// We only want the interrupts we have set as enabled
+		InterruptStatus = (Controller->Registers->HcInterruptStatus
+			& Controller->Registers->HcInterruptEnable);
+	}
 
 	// Trace
 	TRACE("Interrupt - Status 0x%x", InterruptStatus);
@@ -63,18 +82,103 @@ InterruptStatus_t OnInterrupt(void *InterruptData)
 		return InterruptNotHandled;
 	}
 
-	// Iterate the port-map and check if the interrupt
-	// came from that port
-	for (i = 0; i < 32; i++) {
-		if (Controller->Ports[i] != NULL
-			&& ((InterruptStatus & (1 << i)) != 0)) {
-			AhciPortInterruptHandler(Controller, Controller->Ports[i]);
-		}
+	// Disable interrupts
+	//Controller->Registers->HcInterruptDisable = (reg32_t)OHCI_INTR_MASTER;
+
+	// Fatal Error Check
+	if (InterruptStatus & OHCI_INTR_FATAL_ERROR) {
+		// Reset controller and restart transactions
+		ERROR("Fatal Error (OHCI)");
 	}
 
-	// Write clear interrupt register and return
-	Controller->Registers->InterruptStatus = InterruptStatus;
+	// Flag for end of frame Type interrupts
+	if (InterruptStatus & (OHCI_INTR_SCHEDULING_OVERRUN | OHCI_INTR_PROCESS_HEAD
+		| OHCI_INTR_SOF | OHCI_INTR_FRAME_OVERFLOW)) {
+		InterruptStatus |= OHCI_INTR_MASTER;
+	}
+
+	// Scheduling Overrun?
+	if (InterruptStatus & OHCI_INTR_SCHEDULING_OVERRUN) {
+		ERROR("Scheduling Overrun");
+
+		// Acknowledge
+		Controller->Registers->HcInterruptStatus = OHCI_INTR_SCHEDULING_OVERRUN;
+		InterruptStatus = InterruptStatus & ~(OHCI_INTR_SCHEDULING_OVERRUN);
+	}
+
+	/* Resume Detection? */
+	if (InterruptStatus & OHCI_INTR_RESUMEDETECT) {
+		/* We must wait 20 ms before putting Controller to Operational */
+		DelayMs(20);
+		OhciSetMode(Controller, OHCI_CONTROL_ACTIVE);
+
+		// Acknowledge
+		Controller->Registers->HcInterruptStatus = OHCI_INTR_RESUMEDETECT;
+		InterruptStatus = InterruptStatus & ~(OHCI_INTR_RESUMEDETECT);
+	}
+
+	// Frame Overflow
+	// Happens when it rolls over from 0xFFFF to 0
+	if (InterruptStatus & OHCI_INTR_FRAME_OVERFLOW) {
+		// Acknowledge
+		Controller->Registers->HcInterruptStatus = OHCI_INTR_FRAME_OVERFLOW;
+		InterruptStatus = InterruptStatus & ~(OHCI_INTR_FRAME_OVERFLOW);
+	}
+
+	// This happens if a transaction has completed
+	if (InterruptStatus & OHCI_INTR_PROCESS_HEAD) {
+		reg32_t TdAddress = (Controller->Hcca->HeadDone & ~(0x00000001));
+		OhciProcessDoneQueue(Controller, TdAddress);
+
+		// Acknowledge
+		Controller->Hcca->HeadDone = 0;
+		Controller->Registers->HcInterruptStatus = OHCI_INTR_PROCESS_HEAD;
+		InterruptStatus = InterruptStatus & ~(OHCI_INTR_PROCESS_HEAD);
+	}
+
+	// Root Hub Status Change
+	// This occurs on disconnect/connect events
+	if (InterruptStatus & OHCI_INTR_ROOTHUB_EVENT) {
+		// PortCheck
+
+		// Acknowledge
+		Controller->Registers->HcInterruptStatus = OHCI_INTR_ROOTHUB_EVENT;
+		InterruptStatus = InterruptStatus & ~(OHCI_INTR_ROOTHUB_EVENT);
+	}
+
+	// Start of frame only comes if we should link in or unlink
+	// an interrupt td, this is a safe way of doing it
+	if (InterruptStatus & OHCI_INTR_SOF) {
+		// If this occured we have linking/unlinking to do!
+		OhciProcessTransactions(Controller);
+
+		// Acknowledge Interrupt
+		// - But mask this interrupt again
+		Controller->Registers->HcInterruptStatus = OHCI_INTR_SOF;
+	}
+
+	// Mask out remaining interrupts, we dont use them
+	if (InterruptStatus & ~(OHCI_INTR_MASTER)) {
+		Controller->Registers->HcInterruptDisable = InterruptStatus;
+	}
+
+	// Enable interrupts again
+	//Controller->Registers->HcInterruptEnable = (uint32_t)OHCI_INTR_MASTER;
+
+	// Done
 	return InterruptHandled;
+}
+
+/* OnTimeout
+ * Is called when one of the registered timer-handles
+ * times-out. A new timeout event is generated and passed
+ * on to the below handler */
+OsStatus_t
+OnTimeout(
+	_In_ UUId_t Timer,
+	_In_ void *Data)
+{
+
 }
 
 /* OnLoad
@@ -86,7 +190,7 @@ OsStatus_t OnLoad(void)
 	GlbControllers = ListCreate(KeyInteger, LIST_NORMAL);
 
 	// Initialize the device manager here
-	return AhciManagerInitialize();
+	return UsbManagerInitialize();
 }
 
 /* OnUnload
@@ -96,14 +200,14 @@ OsStatus_t OnUnload(void)
 {
 	// Iterate registered controllers
 	foreach(cNode, GlbControllers) {
-		AhciControllerDestroy((AhciController_t*)cNode->Data);
+		UsbControllerDestroy(cNode->Data);
 	}
 
 	// Data is now cleaned up, destroy list
 	ListDestroy(GlbControllers);
 
 	// Cleanup the internal device manager
-	return AhciManagerDestroy();
+	return UsbManagerDestroy();
 }
 
 /* OnRegister
@@ -112,11 +216,11 @@ OsStatus_t OnUnload(void)
 OsStatus_t OnRegister(MCoreDevice_t *Device)
 {
 	// Variables
-	AhciController_t *Controller = NULL;
+	OhciController_t *Controller = NULL;
 	DataKey_t Key;
 	
 	// Register the new controller
-	Controller = AhciControllerCreate(Device);
+	Controller = OhciControllerCreate(Device);
 
 	// Sanitize
 	if (Controller == NULL) {
@@ -139,7 +243,7 @@ OsStatus_t OnRegister(MCoreDevice_t *Device)
 OsStatus_t OnUnregister(MCoreDevice_t *Device)
 {
 	// Variables
-	AhciController_t *Controller = NULL;
+	OhciController_t *Controller = NULL;
 	DataKey_t Key;
 
 	// Set the key to the id of the device to find
@@ -147,7 +251,7 @@ OsStatus_t OnUnregister(MCoreDevice_t *Device)
 	Key.Value = (int)Device->Id;
 
 	// Lookup controller
-	Controller = (AhciController_t*)
+	Controller = (OhciController_t*)
 		ListGetDataByKey(GlbControllers, Key, 0);
 
 	// Sanitize lookup
@@ -159,7 +263,7 @@ OsStatus_t OnUnregister(MCoreDevice_t *Device)
 	ListRemoveByKey(GlbControllers, Key);
 
 	// Destroy it
-	return AhciControllerDestroy(Controller);
+	return OhciControllerDestroy(Controller);
 }
 
 /* OnQuery
@@ -176,92 +280,10 @@ OnQuery(_In_ MContractType_t QueryType,
 		_In_ int ResponsePort)
 {
 	// Unused params
+	_CRT_UNUSED(QueryFunction);
+	_CRT_UNUSED(Arg0);
+	_CRT_UNUSED(Arg1);
 	_CRT_UNUSED(Arg2);
 
-	// Sanitize the QueryType
-	if (QueryType != ContractDisk) {
-		return OsError;
-	}
-
-	// Which kind of function has been invoked?
-	switch (QueryFunction) {
-		// Query stats about a disk identifier in the form of
-		// a DiskDescriptor
-	case __DISK_QUERY_STAT: {
-		// Get parameters
-		AhciDevice_t *Device = NULL;
-		UUId_t DiskId = (UUId_t)Arg0->Data.Value;
-
-		// Lookup device
-		Device = AhciManagerGetDevice(DiskId);
-
-		// Write the descriptor back
-		if (Device != NULL) {
-			return PipeSend(Queryee, ResponsePort,
-				(void*)&Device->Descriptor, sizeof(DiskDescriptor_t));
-		}
-		else {
-			OsStatus_t Result = OsError;
-			return PipeSend(Queryee, ResponsePort,
-				(void*)&Result, sizeof(OsStatus_t));
-		}
-
-	} break;
-
-		// Read or write sectors from a disk identifier
-		// They have same parameters with different direction
-	case __DISK_QUERY_WRITE:
-	case __DISK_QUERY_READ: {
-		// Get parameters
-		DiskOperation_t *Operation = (DiskOperation_t*)Arg1->Data.Buffer;
-		UUId_t DiskId = (UUId_t)Arg0->Data.Value;
-
-		// Create a new transaction
-		AhciTransaction_t *Transaction =
-			(AhciTransaction_t*)malloc(sizeof(AhciTransaction_t));
-		
-		// Set sender stuff so we can send a response
-		Transaction->Requester = Queryee;
-		Transaction->Pipe = ResponsePort;
-		
-		// Store buffer-object stuff
-		Transaction->Address = Operation->PhysicalBuffer;
-		Transaction->SectorCount = Operation->SectorCount;
-
-		// Lookup device
-		Transaction->Device = AhciManagerGetDevice(DiskId);
-
-		// Determine the kind of operation
-		if (Transaction->Device != NULL
-			&& Operation->Direction == __DISK_OPERATION_READ) {
-			if (AhciReadSectors(Transaction, Operation->AbsSector) != OsSuccess) {
-				OsStatus_t Result = OsError;
-				return PipeSend(Queryee, ResponsePort, (void*)&Result, sizeof(OsStatus_t));
-			}
-			else {
-				return OsSuccess;
-			}
-		}
-		else if (Transaction->Device != NULL
-			&& Operation->Direction == __DISK_OPERATION_WRITE) {
-			if (AhciWriteSectors(Transaction, Operation->AbsSector) != OsSuccess) {
-				OsStatus_t Result = OsError;
-				return PipeSend(Queryee, ResponsePort, (void*)&Result, sizeof(OsStatus_t));
-			}
-			else {
-				return OsSuccess;
-			}
-		}
-		else {
-			OsStatus_t Result = OsError;
-			return PipeSend(Queryee, ResponsePort, (void*)&Result, sizeof(OsStatus_t));
-		}
-
-	} break;
-
-		// Other cases not supported
-	default: {
-		return OsError;
-	}
-	}
+	
 }
