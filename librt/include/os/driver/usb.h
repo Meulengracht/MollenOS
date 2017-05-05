@@ -52,6 +52,16 @@ typedef enum _UsbTransactionType {
 	OutTransaction
 } UsbTransactionType_t;
 
+/* UsbTransferType 
+ * Describes the type of transfer, it can be one of 4 that describe
+ * either Control, Bulk, Interrupt or Isochronous */
+typedef enum _UsbTransferType {
+	ControlTransfer,
+	BulkTransfer,
+	InterruptTransfer,
+	IsochronousTransfer
+} UsbTransferType_t;
+
 /* UsbTransaction
  * Describes a single transaction in an usb-transfer operation */
 PACKED_TYPESTRUCT(UsbTransaction, {
@@ -64,7 +74,7 @@ PACKED_TYPESTRUCT(UsbTransaction, {
  * Describes an usb-transfer, that consists of transfer information
  * and a bunch of transactions. */
 PACKED_TYPESTRUCT(UsbTransfer, {
-	UsbTransactionType_t				Type;
+	UsbTransferType_t					Type;
 });
 
 /* UsbPortDescriptor 

@@ -49,111 +49,109 @@ uintptr_t OhciAlign(uintptr_t Address, uintptr_t AlignmentBitMask, uintptr_t Ali
 	return AlignedAddr;
 }
 
-/* Stop/Start */
-void OhciStop(OhciController_t *Controller)
+/* OhciQueueInitialize
+ * Initialize the controller's queue resources and resets counters */
+OsStatus_t
+OhciQueueInitialize(
+	_In_ OhciController_t *Controller)
 {
-	uint32_t Temp;
-
-	/* Disable BULK and CONTROL queues */
-	Temp = Controller->Registers->HcControl;
-	Temp = (Temp & ~0x00000030);
-	Controller->Registers->HcControl = Temp;
-
-	/* Tell Command Status we dont have the list filled */
-	Temp = Controller->Registers->HcCommandStatus;
-	Temp = (Temp & ~0x00000006);
-	Controller->Registers->HcCommandStatus = Temp;
-}
-
-/* Initializes Controller Queues */
-void OhciQueueInitialize(OhciController_t *Controller)
-{
-	/* Vars */
-	Addr_t aSpace = 0, NullPhys = 0;
+	// Variables
+	OhciGTransferDescriptor_t *NullTd = NULL;
+	OhciControl_t *Queue = &Controller->QueueControl;
+	uintptr_t PoolPhysical = 0, NullPhysical = 0;
+	size_t PoolSize;
+	void *Pool = NULL;
 	int i;
 
-	/* Create the NULL Td */
-	Controller->NullTd = (OhciGTransferDescriptor_t*)
-		OhciAlign(((Addr_t)kmalloc(sizeof(OhciGTransferDescriptor_t) + OHCI_STRUCT_ALIGN)), 
-			OHCI_STRUCT_ALIGN_BITS, OHCI_STRUCT_ALIGN);
+	// Trace
+	TRACE("OhciQueueInitialize()");
 
-	Controller->NullTd->BufferEnd = 0;
-	Controller->NullTd->Cbp = 0;
-	Controller->NullTd->NextTD = 0x0;
-	Controller->NullTd->Flags = 0;
+	// Null out queue-control
+	memset(Queue, 0, sizeof(OhciControl_t));
 
-	/* Get physical */
-	NullPhys = AddressSpaceGetMap(AddressSpaceGetCurrent(), (Addr_t)Controller->NullTd);
+	// Calculate how many bytes of memory we will need
+	PoolSize = (OHCI_POOL_EDS + 32) * sizeof(OhciEndpointDescriptor_t);
+	PoolSize += OHCI_POOL_TDS * sizeof(OhciGTransferDescriptor_t);
 
-	/* Allocate the ED pool */
-	aSpace = (Addr_t)kmalloc((sizeof(OhciEndpointDescriptor_t) * OHCI_POOL_NUM_ED) + OHCI_STRUCT_ALIGN);
-
-	/* Zero it out */
-	memset((void*)aSpace, 0, (sizeof(OhciEndpointDescriptor_t) * OHCI_POOL_NUM_ED) + OHCI_STRUCT_ALIGN);
-
-	/* Align it */
-	aSpace = ALIGN(aSpace, OHCI_STRUCT_ALIGN, 1);
-
-	/* Initialise ED Pool */
-	for (i = 0; i < OHCI_POOL_NUM_ED; i++)
-	{
-		/* Allocate */
-		Controller->EDPool[i] = (OhciEndpointDescriptor_t*)aSpace;
-
-		/* Link to previous */
-		Controller->EDPool[i]->NextED = 0;
-
-		/* Set to skip and valid null Td */
-		Controller->EDPool[i]->HcdFlags = 0;
-		Controller->EDPool[i]->Flags = OHCI_EP_SKIP;
-		Controller->EDPool[i]->HeadPtr = 
-			(Controller->EDPool[i]->TailPtr = NullPhys) | 0x1;
-
-		/* Increase */
-		aSpace += sizeof(OhciEndpointDescriptor_t);
+	// Allocate both TD's and ED's pool
+	if (MemoryAllocate(PoolSize, MEMORY_CLEAN | MEMORY_COMMIT
+		| MEMORY_LOWFIRST | MEMORY_CONTIGIOUS, &Pool, &PoolPhysical) != OsSuccess) {
+		ERROR("Failed to allocate memory for resource-pool");
+		return OsError;
 	}
 
-	/* Allocate a Transaction list */
-	Controller->TransactionsWaitingBulk = 0;
-	Controller->TransactionsWaitingControl = 0;
-	Controller->TransactionQueueBulk = 0;
-	Controller->TransactionQueueControl = 0;
-	Controller->TransactionList = ListCreate(KeyInteger, LIST_SAFE);
+	// Initialize pointers
+	Queue->EDPool = (OhciEndpointDescriptor_t**)Pool;
+	Queue->EDPoolPhysical = PoolPhysical;
+	Queue->TDPool = (OhciGTransferDescriptor_t**)((uint8_t*)Pool +
+		(OHCI_POOL_EDS + 32) * sizeof(OhciEndpointDescriptor_t));
+	Queue->TDPoolPhysical = PoolPhysical + 
+		(OHCI_POOL_EDS + 32) * sizeof(OhciEndpointDescriptor_t);
+
+	// Initialize the null-td
+	NullTd = Queue->TDPool[OHCI_POOL_TDNULL];
+	NullTd->BufferEnd = 0;
+	NullTd->Cbp = 0;
+	NullTd->Link = 0x0;
+	NullTd->Flags = 0;
+	NullPhysical = OHCI_POOL_TDINDEX(Queue->TDPoolPhysical, OHCI_POOL_TDNULL);
+
+	// Enumerate the ED pool and set their links
+	// to the NULL descriptor
+	for (i = 0; i < (OHCI_POOL_EDS + 32); i++) {
+		// Mark it skippable and set a NULL td
+		Queue->EDPool[i]->Flags = OHCI_EP_SKIP;
+		Queue->EDPool[i]->Current =
+			(Queue->EDPool[i]->TailPointer = NullPhysical) | 0x1;
+	}
+
+	// Initialize transaction counters
+	// and the transaction list
+	Queue->TransactionList = ListCreate(KeyInteger, LIST_SAFE);
+	return OsSuccess;
 }
 
-void OhciQueueDestroy(OhciController_t *Controller)
+/* OhciQueueDestroy
+ * Unschedules any scheduled ed's and frees all resources allocated
+ * by the initialize function */
+OsStatus_t
+OhciQueueDestroy(
+	_In_ OhciController_t *Controller)
 {
 
 }
 
-/* Try to visualize the IntrTable */
-void OhciVisualizeQueue(OhciController_t *Controller)
+/* OhciVisualizeQueue
+ * Visualizes (by text..) the current interrupt table queue 
+ * by going through all 32 base nodes and their links */
+void
+OhciVisualizeQueue(
+	_In_ OhciController_t *Controller)
 {
-	/* For each of the 32 base's */
+	// Variables
 	int i;
 
-	for (i = 0; i < 32; i++)
-	{
-		/* Get a base */
-		OhciEndpointDescriptor_t *EpPtr = Controller->ED32[i];
+	// Enumerate the 32 entries
+	for (i = 0; i < 32; i++) {
+		OhciEndpointDescriptor_t *Ed = 
+			Controller->QueueControl.EDPool[OHCI_POOL_EDS + i];
 
-		/* Keep going */
-		while (EpPtr)
-		{
-			/* Print */
-			LogRaw("0x%x -> ", (EpPtr->Flags & OHCI_EP_SKIP));
-
-			/* Get next */
-			EpPtr = (OhciEndpointDescriptor_t*)EpPtr->NextEDVirtual;
+		// Enumerate links
+		while (Ed) {
+			// TRACE
+			TRACE("0x%x -> ", (EpPtr->Flags & OHCI_EP_SKIP));
+			Ed = (OhciEndpointDescriptor_t*)Ed->LinkVirtual;
 		}
-
-		/* Newline */
-		LogRaw("\n");
 	}
 }
 
-/* ED Functions */
-OhciEndpointDescriptor_t *OhciAllocateEp(OhciController_t *Controller, UsbTransferType_t Type)
+/* OhciEdAllocate
+ * Allocates a new ED for usage with the transaction. If this returns
+ * NULL we are out of ED's and we should wait till next transfer. */
+OhciEndpointDescriptor_t*
+OhciEdAllocate(
+	_In_ OhciController_t *Controller, 
+	_In_ UsbTransferType_t Type)
 {
 	/* Vars */
 	OhciEndpointDescriptor_t *Ed = NULL;
@@ -199,47 +197,6 @@ OhciEndpointDescriptor_t *OhciAllocateEp(OhciController_t *Controller, UsbTransf
 
 	/* Done! */
 	return Ed;
-}
-
-/* Initialises an EP descriptor */
-void OhciEpInit(OhciEndpointDescriptor_t *Ed, UsbHcTransaction_t *FirstTd, UsbTransferType_t Type,
-	size_t Address, size_t Endpoint, size_t PacketSize, UsbSpeed_t Speed)
-{
-	/* Set Head & Tail Td */
-	if ((Addr_t)FirstTd->TransferDescriptor == OHCI_LINK_END)
-	{
-		Ed->HeadPtr = OHCI_LINK_END;
-		Ed->TailPtr = 0;
-	}
-	else
-	{
-		/* Vars */
-		Addr_t FirstTdAddr = (Addr_t)FirstTd->TransferDescriptor;
-		Addr_t LastTd = 0;
-
-		/* Get tail */
-		UsbHcTransaction_t *FirstLink = FirstTd;
-		while (FirstLink->Link)
-			FirstLink = FirstLink->Link;
-		LastTd = (Addr_t)FirstLink->TransferDescriptor;
-
-		/* Get physical addresses */
-		Ed->TailPtr = AddressSpaceGetMap(AddressSpaceGetCurrent(), (Addr_t)LastTd);
-		Ed->HeadPtr = AddressSpaceGetMap(AddressSpaceGetCurrent(), (Addr_t)FirstTdAddr) | OHCI_LINK_END;
-	}
-
-	/* Shared flags */
-	Ed->Flags = OHCI_EP_SKIP;
-	Ed->Flags |= (Address & OHCI_EP_ADDRESS_MASK);
-	Ed->Flags |= OHCI_EP_ENDPOINT(Endpoint);
-	Ed->Flags |= OHCI_EP_INOUT_TD; /* Get PID from Td */
-	Ed->Flags |= OHCP_EP_LOWSPEED((Speed == LowSpeed) ? 1 : 0);
-	Ed->Flags |= OHCI_EP_MAXLEN(PacketSize);
-	Ed->Flags |= OHCI_EP_TYPE(Type);
-
-	/* Add for IsoChro */
-	if (Type == IsochronousTransfer)
-		Ed->Flags |= OHCI_EP_ISOCHRONOUS;
 }
 
 /* Td Functions */
@@ -301,6 +258,57 @@ Addr_t OhciAllocateTd(OhciEndpoint_t *Ep, UsbTransferType_t Type)
 	SpinlockRelease(&Ep->Lock);
 
 	return cIndex;
+}
+
+/* OhciEdInitialize
+ * Initializes and sets up the endpoint descriptor with 
+ * the given values */
+void
+OhciEdInitialize(
+	_Out_ OhciEndpointDescriptor_t *Ed, 
+	_In_ uintptr_t HeadPhysical, 
+	_In_ UsbTransferType_t Type,
+	_In_ size_t Address, 
+	_In_ size_t Endpoint, 
+	_In_ size_t PacketSize,
+	_In_ UsbSpeed_t Speed)
+{
+	/* Set Head & Tail Td */
+	if (HeadPhysical == OHCI_LINK_END) {
+		Ed->Current = OHCI_LINK_END;
+		Ed->TailPointer = 0;
+	}
+	else
+	{
+		/* Vars */
+		Addr_t FirstTdAddr = (Addr_t)FirstTd->TransferDescriptor;
+		Addr_t LastTd = 0;
+
+		/* Get tail */
+		UsbHcTransaction_t *FirstLink = FirstTd;
+		while (FirstLink->Link)
+			FirstLink = FirstLink->Link;
+		LastTd = (Addr_t)FirstLink->TransferDescriptor;
+
+		/* Get physical addresses */
+		Ed->TailPtr = AddressSpaceGetMap(AddressSpaceGetCurrent(), (Addr_t)LastTd);
+		Ed->HeadPtr = AddressSpaceGetMap(AddressSpaceGetCurrent(), (Addr_t)FirstTdAddr) | OHCI_LINK_END;
+	}
+
+	// Initialize flags
+	Ed->Flags = OHCI_EP_SKIP;
+	Ed->Flags |= (Address & OHCI_EP_ADDRESS_MASK);
+	Ed->Flags |= OHCI_EP_ENDPOINT(Endpoint);
+	Ed->Flags |= OHCI_EP_INOUT_TD; /* Get PID from Td */
+	Ed->Flags |= OHCP_EP_LOWSPEED((Speed == LowSpeed) ? 1 : 0);
+	Ed->Flags |= OHCI_EP_MAXLEN(PacketSize);
+	Ed->Flags |= OHCI_EP_TYPE(Type);
+
+	// If it's isochronous add a special flag to indicate
+	// the type of td's used
+	if (Type == IsochronousTransfer) {
+		Ed->Flags |= OHCI_EP_ISOCHRONOUS;
+	}
 }
 
 /* Setup TD */
@@ -460,120 +468,127 @@ OhciGTransferDescriptor_t *OhciTdIo(OhciEndpoint_t *OhciEp, UsbTransferType_t Ty
 	return Td;
 }
 
-/* Bandwidth Functions */
-int OhciCalculateQueue(OhciController_t *Controller, size_t Interval, uint32_t Bandwidth)
+/* OhciCalculateQueue
+ * Calculates the queue the ed should get linked to by analyzing the
+ * current bandwidth load, and the requested load. Returns -1 on error */
+int
+OhciCalculateQueue(
+	_In_ OhciController_t *Controller, 
+	_In_ size_t Interval, 
+	_In_ size_t Bandwidth)
 {
-	/* Vars */
-	int	Queue = -1;
+	// Variables
+	OhciControl_t *Queue = &Controller->QueueControl;
+	int	Index = -1;
 	size_t i;
 
-	/* iso periods can be huge; iso tds specify frame numbers */
-	if (Interval > OHCI_BANDWIDTH_PHASES)
+	// iso periods can be huge; iso tds specify frame numbers
+	if (Interval > OHCI_BANDWIDTH_PHASES) {
 		Interval = OHCI_BANDWIDTH_PHASES;
+	}
 
-	/* Find the least loaded queue */
+	// Find the least loaded queue
 	for (i = 0; i < Interval; i++) {
-		if (Queue < 0 || Controller->Bandwidth[Queue] > Controller->Bandwidth[i]) {
+		if (Index < 0 || Queue->Bandwidth[Index] > Queue->Bandwidth[i]) {
 			int	j;
 
-			/* Usb 1.1 says 90% of one frame must be ISOC / INTR */
+			// Usb 1.1 says 90% of one frame must be isoc or intr
 			for (j = i; j < OHCI_BANDWIDTH_PHASES; j += Interval) {
-				if ((Controller->Bandwidth[j] + Bandwidth) > 900)
+				if ((Queue->Bandwidth[j] + Bandwidth) > 900)
 					break;
 			}
 
-			/* Sanity */
-			if (j < OHCI_BANDWIDTH_PHASES)
+			// Sanity bounds of j
+			if (j < OHCI_BANDWIDTH_PHASES) {
 				continue;
+			}
 
-			/* Store */
-			Queue = i;
+			// Update queue index
+			Index = i;
 		}
 	}
 
-	/* Done! */
-	return Queue;
+	// Return found index
+	return Index;
 }
 
 /* Linking Functions */
-void OhciLinkGeneric(OhciController_t *Controller, UsbHcRequest_t *Request)
+OsStatus_t
+OhciLinkGeneric(
+	_In_ OhciController_t *Controller, 
+	_In_ UsbHcRequest_t *Request)
 {
-	/* Variables */
+	// Variables
+	OhciControl_t *Queue = &Controller->QueueControl;
 	OhciEndpointDescriptor_t *Ep = (OhciEndpointDescriptor_t*)Request->Data;
 	Addr_t EdAddress = 0;
 
 	/* Get physical */
 	EdAddress = AddressSpaceGetMap(AddressSpaceGetCurrent(), (VirtAddr_t)Ep);
 
-	if (Request->Type == ControlTransfer)
-	{
-		if (Controller->TransactionsWaitingControl > 0)
-		{
-			/* Insert it */
-			if (Controller->TransactionQueueControl == 0)
-				Controller->TransactionQueueControl = (uint32_t)Request->Data;
+	if (Request->Type == ControlTransfer) {
+		if (Queue->TransactionsWaitingControl > 0) {
+			// Insert into front if 0
+			if (Queue->TransactionQueueControl == 0)
+				Queue->TransactionQueueControl = (uint32_t)Request->Data;
 			else
 			{
-				OhciEndpointDescriptor_t *Ed = (OhciEndpointDescriptor_t*)Controller->TransactionQueueControl;
+				OhciEndpointDescriptor_t *Ed = 
+					(OhciEndpointDescriptor_t*)Queue->TransactionQueueControl;
 
-				/* Find tail */
-				while (Ed->NextED)
-					Ed = (OhciEndpointDescriptor_t*)Ed->NextEDVirtual;
+				// Iterate until end of chain
+				while (Ed->Link) {
+					Ed = (OhciEndpointDescriptor_t*)Ed->LinkVirtual;
+				}
 
-				/* Insert it */
-				Ed->NextED = EdAddress;
-				Ed->NextEDVirtual = (Addr_t)Request->Data;
+				// Insert it
+				Ed->Link = EdAddress;
+				Ed->LinkVirtual = (reg32_t)Request->Data;
 			}
 
 			/* Increase */
-			Controller->TransactionsWaitingControl++;
+			Queue->TransactionsWaitingControl++;
 		}
 		else
 		{
-			/* Add it HcControl/BulkCurrentED */
+			// Add it HcControl/BulkCurrentED
 			Controller->Registers->HcControlHeadED =
 				Controller->Registers->HcControlCurrentED = EdAddress;
+			Queue->TransactionsWaitingControl++;
 
-			/* Increase */
-			Controller->TransactionsWaitingControl++;
-
-			/* Set Lists Filled (Enable Them) */
+			// Enable control list
 			Controller->Registers->HcCommandStatus |= OHCI_COMMAND_CONTROL_ACTIVE;
 		}
 	}
-	else if (Request->Type == BulkTransfer)
-	{
-		if (Controller->TransactionsWaitingBulk > 0)
-		{
-			/* Insert it */
-			if (Controller->TransactionQueueBulk == 0)
-				Controller->TransactionQueueBulk = (Addr_t)Request->Data;
-			else
-			{
-				OhciEndpointDescriptor_t *Ed = (OhciEndpointDescriptor_t*)Controller->TransactionQueueBulk;
+	else if (Request->Type == BulkTransfer) {
+		if (Queue->TransactionsWaitingBulk > 0) {
+			// Insert into front if 0
+			if (Queue->TransactionQueueBulk == 0) {
+				Queue->TransactionQueueBulk = (uintptr_t)Request->Data;
+			}
+			else {
+				OhciEndpointDescriptor_t *Ed = 
+					(OhciEndpointDescriptor_t*)Queue->TransactionQueueBulk;
 
-				/* Find tail */
-				while (Ed->NextED)
-					Ed = (OhciEndpointDescriptor_t*)Ed->NextEDVirtual;
+				// Iterate until end of chain
+				while (Ed->Link) {
+					Ed = (OhciEndpointDescriptor_t*)Ed->LinkVirtual;
+				}
 
-				/* Insert it */
-				Ed->NextED = EdAddress;
-				Ed->NextEDVirtual = (uint32_t)Request->Data;
+				// Insert it
+				Ed->Link = EdAddress;
+				Ed->LinkVirtual = (reg32_t)Request->Data;
 			}
 
-			/* Increase */
-			Controller->TransactionsWaitingBulk++;
+			Queue->TransactionsWaitingBulk++;
 		}
-		else
-		{
-			/* Add it HcControl/BulkCurrentED */
+		else {
+			// Add it HcControl/BulkCurrentED
 			Controller->Registers->HcBulkHeadED =
 				Controller->Registers->HcBulkCurrentED = EdAddress;
-
-			/* Increase */
-			Controller->TransactionsWaitingBulk++;
-
-			/* Set Lists Filled (Enable Them) */
+			Queue->TransactionsWaitingBulk++;
+			
+			// Enable bulk list
 			Controller->Registers->HcCommandStatus |= OHCI_COMMAND_BULK_ACTIVE;
 		}
 	}
@@ -870,8 +885,7 @@ void OhciProcessDoneQueue(OhciController_t *Controller, Addr_t DoneHeadAddr)
 }
 
 /* Process Transactions 
- * This code unlinks / links 
- * pending endpoint descriptors */
+ * This code unlinks / links pending endpoint descriptors */
 void OhciProcessTransactions(OhciController_t *Controller)
 {
 	/* Get transaction list */

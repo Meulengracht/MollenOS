@@ -36,6 +36,13 @@
 #define OHCI_MAXPORTS				15
 #define OHCI_ALIGN					32
 
+#define OHCI_POOL_EDS					50
+#define OHCI_POOL_TDS					200
+#define OHCI_POOL_TDNULL				(OHCI_POOL_TDS - 1)
+#define OHCI_POOL_EDINDEX(Base, Index)	(Base + (Index * sizeof(OhciEndpointDescriptor_t)))
+#define OHCI_POOL_TDINDEX(Base, Index)	(Base + (Index * sizeof(OhciGTransferDescriptor_t)))
+#define OHCI_BANDWIDTH_PHASES			32
+
 /* OhciEndpointDescriptor 
  * Endpoint descriptor, which acts as a queue-head in an
  * ohci-context. It contains both horizontal links and vertical
@@ -268,26 +275,27 @@ PACKED_ATYPESTRUCT(volatile, OhciRegisters, {
 #define OHCI_PORT_OVR_CURRENT_EVENT		(1 << 19)
 #define OHCI_PORT_RESET_EVENT			(1 << 20)
 
-/* Pool Definitions */
-#define OHCI_POOL_NUM_ED				50
-#define OHCI_ENDPOINT_MIN_ALLOCATED		25
-#define OHCI_BANDWIDTH_PHASES			32
+/* OhciControl
+ * Contains all necessary Queue related information
+ * and information needed to schedule */
+typedef struct _OhciControl {
+	// Resources
+	OhciEndpointDescriptor_t   **EDPool;
+	OhciGTransferDescriptor_t  **TDPool;
+	uintptr_t					 EDPoolPhysical;
+	uintptr_t					 TDPoolPhysical;
 
-/* Endpoint Data */
-typedef struct _OhciEndpoint
-{
-	/* Td's allocated */
-	size_t TdsAllocated;
+	// Bandwidth
+	int							 Bandwidth[OHCI_BANDWIDTH_PHASES];
+	int							 TotalBandwidth;
 
-	/* TD Pool */
-	OhciGTransferDescriptor_t **TDPool;
-	uintptr_t *TDPoolPhysical;
-	uintptr_t **TDPoolBuffers;
-
-	/* Lock */
-	Spinlock_t Lock;
-
-} OhciEndpoint_t;
+	// Transactions
+	int							 TransactionsWaitingControl;
+	int							 TransactionsWaitingBulk;
+	uintptr_t					 TransactionQueueControl;
+	uintptr_t					 TransactionQueueBulk;
+	List_t						*TransactionList;
+} OhciControl_t;
 
 /* OhciController 
  * Contains all per-controller information that is
@@ -310,28 +318,8 @@ typedef struct _OhciController {
 	int						 PowerMode;
 	size_t					 PortCount;
 
-	/* ED Pool */
-	OhciEndpointDescriptor_t *EDPool[OHCI_POOL_NUM_ED];
-	OhciGTransferDescriptor_t *NullTd;
-
-	/* Interrupt Table & List */
-	OhciEndpointDescriptor_t *ED32[32];
-
-	/* Scheduling Loads */
-	int Bandwidth[OHCI_BANDWIDTH_PHASES];
-	int TotalBandwidth;
-
-	/* Transaction Queue */
-	int TransactionsWaitingControl;
-	int TransactionsWaitingBulk;
-	uintptr_t TransactionQueueControl;
-	uintptr_t TransactionQueueBulk;
-
-	/* Transaction List 
-	 * Contains transactions
-	 * in progress */
-	void *TransactionList;
-
+	// Queuing
+	OhciControl_t			 QueueControl;
 } OhciController_t;
 
 /* Power Mode Flags */
@@ -353,6 +341,21 @@ OhciControllerCreate(
 __EXTERN
 OsStatus_t
 OhciControllerDestroy(
+	_In_ OhciController_t *Controller);
+
+/* OhciQueueInitialize
+ * Initialize the controller's queue resources and resets counters */
+__EXTERN
+OsStatus_t
+OhciQueueInitialize(
+	_In_ OhciController_t *Controller);
+
+/* OhciQueueDestroy
+ * Unschedules any scheduled ed's and frees all resources allocated
+ * by the initialize function */
+__EXTERN
+OsStatus_t
+OhciQueueDestroy(
 	_In_ OhciController_t *Controller);
 
 /* OhciPortInitialize
