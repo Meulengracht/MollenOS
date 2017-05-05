@@ -35,11 +35,10 @@
 #include <string.h>
 #include <stdlib.h>
 
-
- /* Aligns address (with roundup if alignment is set) */
-Addr_t OhciAlign(Addr_t Address, Addr_t AlignmentBitMask, Addr_t Alignment)
+/* Aligns address (with roundup if alignment is set) */
+uintptr_t OhciAlign(uintptr_t Address, uintptr_t AlignmentBitMask, uintptr_t Alignment)
 {
-	Addr_t AlignedAddr = Address;
+	uintptr_t AlignedAddr = Address;
 
 	if (AlignedAddr & AlignmentBitMask)
 	{
@@ -66,9 +65,8 @@ void OhciStop(OhciController_t *Controller)
 	Controller->Registers->HcCommandStatus = Temp;
 }
 
-
 /* Initializes Controller Queues */
-void OhciInitQueues(OhciController_t *Controller)
+void OhciQueueInitialize(OhciController_t *Controller)
 {
 	/* Vars */
 	Addr_t aSpace = 0, NullPhys = 0;
@@ -121,6 +119,11 @@ void OhciInitQueues(OhciController_t *Controller)
 	Controller->TransactionQueueBulk = 0;
 	Controller->TransactionQueueControl = 0;
 	Controller->TransactionList = ListCreate(KeyInteger, LIST_SAFE);
+}
+
+void OhciQueueDestroy(OhciController_t *Controller)
+{
+
 }
 
 /* Try to visualize the IntrTable */

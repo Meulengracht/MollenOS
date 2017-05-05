@@ -25,6 +25,7 @@
 /* Includes 
  * - System */
 #include <os/mollenos.h>
+#include <os/thread.h>
 #include <os/utils.h>
 #include "ohci.h"
 
@@ -35,24 +36,32 @@
 #include <string.h>
 #include <stdlib.h>
 
-/* This resets a Port */
-void OhciPortReset(OhciController_t *Controller, size_t Port)
+/* OhciPortReset
+ * Resets the given port and returns the result of the reset */
+OsStatus_t
+OhciPortReset(
+	_In_ OhciController_t *Controller, 
+	_In_ int Index)
 {
-	/* Set reset */
-	Controller->Registers->HcRhPortStatus[Port] = OHCI_PORT_RESET;
+	// Set reset bit to initialize reset-procedure
+	Controller->Registers->HcRhPortStatus[Index] = OHCI_PORT_RESET;
 
-	/* Wait with timeout */
-	WaitForCondition((Controller->Registers->HcRhPortStatus[Port] & OHCI_PORT_RESET) == 0,
-		200, 10, "USB_OHCI: Failed to reset device on port %u\n", Port);
+	// Wait for it to clear, with timeout
+	WaitForCondition((Controller->Registers->HcRhPortStatus[Index] & OHCI_PORT_RESET) == 0,
+		200, 10, "Failed to reset device on port %i\n", Index);
 
-	/* Set Enable */
-	if (Controller->PowerMode == OHCI_PWM_PORT_CONTROLLED)
-		Controller->Registers->HcRhPortStatus[Port] = OHCI_PORT_ENABLED | OHCI_PORT_POWER;
-	else
-		Controller->Registers->HcRhPortStatus[Port] = OHCI_PORT_ENABLED;
+	// Don't matter if timeout, try to enable it
+	// If power-mode is port-power, also power it
+	if (Controller->PowerMode == OHCI_PWM_PORT_CONTROLLED) {
+		Controller->Registers->HcRhPortStatus[Index] = OHCI_PORT_ENABLED | OHCI_PORT_POWER;
+	}
+	else {
+		Controller->Registers->HcRhPortStatus[Index] = OHCI_PORT_ENABLED;
+	}
 
-	/* Delay before we make first transaction, it's important! */
-	StallMs(50);
+	// We need a delay here to allow the port to settle
+	ThreadSleep(50);
+	return OsSuccess;
 }
 
 /* OhciPortInitialize
@@ -63,133 +72,138 @@ OhciPortInitialize(
 	_In_ OhciController_t *Controller, 
 	_In_ int Index)
 {
+	// Wait for port-power to stabilize
+	ThreadSleep(Controller->PowerOnDelayMs);
+
+	// Run reset procedure
+	OhciPortReset(Controller, Index);
+
+	// Clear connection event
+	if (Controller->Registers->HcRhPortStatus[Index] & OHCI_PORT_CONNECT_EVENT) {
+		Controller->Registers->HcRhPortStatus[Index] = OHCI_PORT_CONNECT_EVENT;
+	}
+
+	// Clear enable event
+	if (Controller->Registers->HcRhPortStatus[Index] & OHCI_PORT_ENABLE_EVENT) {
+		Controller->Registers->HcRhPortStatus[Index] = OHCI_PORT_ENABLE_EVENT;
+	}
+
+	// Clear suspend event
+	if (Controller->Registers->HcRhPortStatus[Index] & OHCI_PORT_SUSPEND_EVENT) {
+		Controller->Registers->HcRhPortStatus[Index] = OHCI_PORT_SUSPEND_EVENT;
+	}
+
+	// Clear over-current event
+	if (Controller->Registers->HcRhPortStatus[Index] & OHCI_PORT_OVR_CURRENT_EVENT) {
+		Controller->Registers->HcRhPortStatus[Index] = OHCI_PORT_OVR_CURRENT_EVENT;
+	}
+
+	// Clear reset event
+	if (Controller->Registers->HcRhPortStatus[Index] & OHCI_PORT_RESET_EVENT) {
+		Controller->Registers->HcRhPortStatus[Index] = OHCI_PORT_RESET_EVENT;
+	}
+
+	// Run usb port event
+	UsbEventPort(Controller->Id, Index);
+}
+
+/* OhciPortGetStatus 
+ * Retrieve the current port status, with connected and enabled information */
+void 
+OhciPortGetStatus(
+	_In_ OhciController_t *Controller,
+	_In_ int Index,
+	_Out_ UsbPortDescriptor_t *Port)
+{
 	// Variables
 	reg32_t Status;
 
-	/* Wait for power to stabilize */
-	StallMs(Controller->PowerOnDelayMs);
+	// Now we can get current port status
+	Status = Controller->Registers->HcRhPortStatus[Index];
 
-	/* Reset Port */
-	OhciPortReset(Controller, Port->Id);
-
-	/* Update information in Port */
-	Status = Controller->Registers->HcRhPortStatus[Port->Id];
-
-	/* Is it connected? */
-	if (Status & OHCI_PORT_CONNECTED)
+	// Is port connected?
+	if (Status & OHCI_PORT_CONNECTED) {
 		Port->Connected = 1;
-	else
+	}
+	else {
 		Port->Connected = 0;
-
-	/* Is it enabled? */
-	if (Status & OHCI_PORT_ENABLED)
-		Port->Enabled = 1;
-	else
-		Port->Enabled = 0;
-
-	/* Is it full-speed? */
-	if (Status & OHCI_PORT_LOW_SPEED)
-		Port->Speed = LowSpeed;
-	else
-		Port->Speed = FullSpeed;
-
-	/* Clear Connect Event */
-	if (Controller->Registers->HcRhPortStatus[Port->Id] & OHCI_PORT_CONNECT_EVENT)
-		Controller->Registers->HcRhPortStatus[Port->Id] = OHCI_PORT_CONNECT_EVENT;
-
-	/* If Enable Event bit is set, clear it */
-	if (Controller->Registers->HcRhPortStatus[Port->Id] & OHCI_PORT_ENABLE_EVENT)
-		Controller->Registers->HcRhPortStatus[Port->Id] = OHCI_PORT_ENABLE_EVENT;
-
-	/* If Suspend Event is set, clear it */
-	if (Controller->Registers->HcRhPortStatus[Port->Id] & OHCI_PORT_SUSPEND_EVENT)
-		Controller->Registers->HcRhPortStatus[Port->Id] = OHCI_PORT_SUSPEND_EVENT;
-
-	/* If Over Current Event is set, clear it */
-	if (Controller->Registers->HcRhPortStatus[Port->Id] & OHCI_PORT_OVR_CURRENT_EVENT)
-		Controller->Registers->HcRhPortStatus[Port->Id] = OHCI_PORT_OVR_CURRENT_EVENT;
-
-	/* If reset bit is set, clear it */
-	if (Controller->Registers->HcRhPortStatus[Port->Id] & OHCI_PORT_RESET_EVENT)
-		Controller->Registers->HcRhPortStatus[Port->Id] = OHCI_PORT_RESET_EVENT;
-}
-
-/* Port Functions */
-void OhciPortCheck(OhciController_t *Controller, int Port)
-{
-	/* Vars */
-	UsbHc_t *HcCtrl;
-
-	/* Was it connect event and not disconnect ? */
-	if (Controller->Registers->HcRhPortStatus[Port] & OHCI_PORT_CONNECT_EVENT)
-	{
-		/* Reset on Attach */
-		OhciPortReset(Controller, Port);
-
-		if (!(Controller->Registers->HcRhPortStatus[Port] & OHCI_PORT_CONNECTED))
-		{
-			/* Nah, disconnect event */
-			/* Get HCD data */
-			HcCtrl = UsbGetHcd(Controller->HcdId);
-
-			/* Sanity */
-			if (HcCtrl == NULL)
-				return;
-
-			/* Disconnect */
-			UsbEventCreate(HcCtrl, Port, HcdDisconnectedEvent);
-		}
-
-		/* If Device is enabled, and powered, set it up */
-		if ((Controller->Registers->HcRhPortStatus[Port] & OHCI_PORT_ENABLED)
-			&& (Controller->Registers->HcRhPortStatus[Port] & OHCI_PORT_POWER))
-		{
-			/* Get HCD data */
-			HcCtrl = UsbGetHcd(Controller->HcdId);
-
-			/* Sanity */
-			if (HcCtrl == NULL)
-			{
-				LogDebug("OHCI", "Controller %u is zombie and is trying to register Ports!!", Controller->Id);
-				return;
-			}
-
-			/* Register Device */
-			UsbEventCreate(HcCtrl, Port, HcdConnectedEvent);
-		}
 	}
 
-	/* Clear Connect Event */
-	if (Controller->Registers->HcRhPortStatus[Port] & OHCI_PORT_CONNECT_EVENT)
-		Controller->Registers->HcRhPortStatus[Port] = OHCI_PORT_CONNECT_EVENT;
+	// Is port enabled?
+	if (Status & OHCI_PORT_ENABLED) {
+		Port->Enabled = 1;
+	}
+	else {
+		Port->Enabled = 0;
+	}
 
-	/* If Enable Event bit is set, clear it */
-	if (Controller->Registers->HcRhPortStatus[Port] & OHCI_PORT_ENABLE_EVENT)
-		Controller->Registers->HcRhPortStatus[Port] = OHCI_PORT_ENABLE_EVENT;
-
-	/* If Suspend Event is set, clear it */
-	if (Controller->Registers->HcRhPortStatus[Port] & OHCI_PORT_SUSPEND_EVENT)
-		Controller->Registers->HcRhPortStatus[Port] = OHCI_PORT_SUSPEND_EVENT;
-
-	/* If Over Current Event is set, clear it */
-	if (Controller->Registers->HcRhPortStatus[Port] & OHCI_PORT_OVR_CURRENT_EVENT)
-		Controller->Registers->HcRhPortStatus[Port] = OHCI_PORT_OVR_CURRENT_EVENT;
-
-	/* If reset bit is set, clear it */
-	if (Controller->Registers->HcRhPortStatus[Port] & OHCI_PORT_RESET_EVENT)
-		Controller->Registers->HcRhPortStatus[Port] = OHCI_PORT_RESET_EVENT;
+	// Detect speed of the connected device/port
+	if (Status & OHCI_PORT_LOW_SPEED) {
+		Port->Speed = LowSpeed;
+	}
+	else {
+		Port->Speed = FullSpeed;
+	}
 }
 
-/* Port Check */
+/* OhciPortCheck
+ * Detects connection/error events on the given port */
+void 
+OhciPortCheck(
+	_In_ OhciController_t *Controller, 
+	_In_ int Index)
+{
+	// We only care about connection events here
+	if (Controller->Registers->HcRhPortStatus[Index] & OHCI_PORT_CONNECT_EVENT) {
+		if (!(Controller->Registers->HcRhPortStatus[Index] & OHCI_PORT_CONNECTED)) {
+			// Wait for port-power to stabilize
+			ThreadSleep(Controller->PowerOnDelayMs);
+
+			// All ports must be reset when attached
+			OhciPortReset(Controller, Index);
+		}
+
+		// Send out an event
+		UsbEventPort(Controller->Id, Index);
+	}
+
+	// Clear connection event
+	if (Controller->Registers->HcRhPortStatus[Index] & OHCI_PORT_CONNECT_EVENT) {
+		Controller->Registers->HcRhPortStatus[Index] = OHCI_PORT_CONNECT_EVENT;
+	}
+
+	// Clear enable event
+	if (Controller->Registers->HcRhPortStatus[Index] & OHCI_PORT_ENABLE_EVENT) {
+		Controller->Registers->HcRhPortStatus[Index] = OHCI_PORT_ENABLE_EVENT;
+	}
+
+	// Clear suspend event
+	if (Controller->Registers->HcRhPortStatus[Index] & OHCI_PORT_SUSPEND_EVENT) {
+		Controller->Registers->HcRhPortStatus[Index] = OHCI_PORT_SUSPEND_EVENT;
+	}
+
+	// Clear over-current event
+	if (Controller->Registers->HcRhPortStatus[Index] & OHCI_PORT_OVR_CURRENT_EVENT) {
+		Controller->Registers->HcRhPortStatus[Index] = OHCI_PORT_OVR_CURRENT_EVENT;
+	}
+
+	// Clear reset event
+	if (Controller->Registers->HcRhPortStatus[Index] & OHCI_PORT_RESET_EVENT) {
+		Controller->Registers->HcRhPortStatus[Index] = OHCI_PORT_RESET_EVENT;
+	}
+}
+
+/* OhciPortsCheck
+ * Enumerates all the ports and detects for connection/error events */
 OsStatus_t
 OhciPortsCheck(
 	_In_ OhciController_t *Controller)
 {
 	// Variables
-	size_t i;
+	int i;
 
 	// Iterate ports and check for changes
-	for (i = 0; i < Controller->Ports; i++) {
+	for (i = 0; i < (int)(Controller->PortCount); i++) {
 		OhciPortCheck(Controller, i);
 	}
 }

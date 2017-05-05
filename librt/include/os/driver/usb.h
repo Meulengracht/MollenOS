@@ -52,6 +52,29 @@ typedef enum _UsbTransactionType {
 	OutTransaction
 } UsbTransactionType_t;
 
+/* UsbTransaction
+ * Describes a single transaction in an usb-transfer operation */
+PACKED_TYPESTRUCT(UsbTransaction, {
+	UsbTransactionType_t				Type;
+	uintptr_t							BufferAddress;
+	size_t								Length;
+});
+
+/* UsbTransfer 
+ * Describes an usb-transfer, that consists of transfer information
+ * and a bunch of transactions. */
+PACKED_TYPESTRUCT(UsbTransfer, {
+	UsbTransactionType_t				Type;
+});
+
+/* UsbPortDescriptor 
+ * Describes the current port information */
+PACKED_TYPESTRUCT(UsbPortDescriptor, {
+	UsbSpeed_t							Speed;
+	int									Enabled;
+	int									Connected;
+});
+
 /* UsbControllerRegister
  * Registers a new controller with the given type and setup */
 #ifdef __USBMANAGER_IMPL
@@ -90,6 +113,25 @@ OsStatus_t
 SERVICEABI
 UsbControllerUnregister(
 	_In_ UUId_t Controller)
+{
+
+}
+#endif
+
+/* UsbEventPort */
+#ifdef __USBMANAGER_IMPL
+__EXTERN
+OsStatus_t
+SERVICEABI
+UsbEventPort(
+	_In_ UUId_t Controller);
+#else
+SERVICEAPI
+OsStatus_t
+SERVICEABI
+UsbEventPort(
+	_In_ UUId_t Controller,
+	_In_ int Index)
 {
 
 }

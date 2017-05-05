@@ -261,25 +261,6 @@ typedef struct _UsbHcRequest
 
 } UsbHcRequest_t;
 
-/* The Abstract Port */
-typedef struct _UsbHcPort
-{
-	/* Port Number */
-	size_t Id;
-
-	/* Connection Status */
-	int Connected;
-
-	/* Enabled Status */
-	int Enabled;
-
-	/* Speed */
-	UsbSpeed_t Speed;
-
-	/* Device Connected */
-	UsbHcDevice_t *Device;
-
-} UsbHcPort_t;
 
 /* Controller Type */
 typedef enum _UsbControllerType

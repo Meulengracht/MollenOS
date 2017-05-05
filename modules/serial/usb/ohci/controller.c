@@ -178,12 +178,12 @@ OhciControllerDestroy(
 	// Variables
 	int i;
 
-	// First step is to clear out all ports
-	// this releases devices and resources
-	for (i = 0; i < OHCI_MAXPORTS; i++) {
-		if (Controller->Ports[i] != NULL) {
-			//AhciPortCleanup(Controller, Controller->Ports[i]);
-		}
+	// Cleanup scheduler
+	OhciQueueDestroy(Controller);
+
+	// Free resources
+	if (Controller->Hcca != NULL) {
+		MemoryFree(Controller->Hcca, 0x1000);
 	}
 
 	// Unregister the interrupt
@@ -399,7 +399,7 @@ OhciSetup(
 	}
 
 	// Initialize the queue system
-	OhciInitQueues(Controller);
+	OhciQueueInitialize(Controller);
 
 	// Last step is to take ownership, reset the controller and initialize
 	// the registers, all resource must be allocated before this

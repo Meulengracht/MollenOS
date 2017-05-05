@@ -291,9 +291,9 @@ typedef struct _OhciEndpoint
 
 /* OhciController 
  * Contains all per-controller information that is
- * needed to control, queue and handle devices on a
- * ohci-controller. */
+ * needed to control, queue and handle devices on an ohci-controller. */
 typedef struct _OhciController {
+	UUId_t					 Id;
 	MCoreDevice_t			 Device;
 	MContract_t				 Contract;
 	UUId_t					 Interrupt;
@@ -363,5 +363,21 @@ OsStatus_t
 OhciPortInitialize(
 	_In_ OhciController_t *Controller,
 	_In_ int Index);
+
+/* OhciPortGetStatus 
+ * Retrieve the current port status, with connected and enabled information */
+__EXTERN
+void
+OhciPortGetStatus(
+	_In_ OhciController_t *Controller,
+	_In_ int Index,
+	_Out_ UsbPortDescriptor_t *Port);
+
+/* OhciPortsCheck
+ * Enumerates all the ports and detects for connection/error events */
+__EXTERN
+OsStatus_t
+OhciPortsCheck(
+	_In_ OhciController_t *Controller);
 
 #endif // !_USB_OHCI_H_
