@@ -972,7 +972,6 @@ FsInitialize(
 		uint64_t MapSector = Mfs->MasterRecord.MapSector + (i * Mfs->SectorsPerBucket);
 		size_t TransferSize = MIN((Mfs->SectorsPerBucket * Descriptor->Disk.Descriptor.SectorSize), (size_t)BytesLeft);
 		size_t SectorCount = DIVUP(TransferSize, Descriptor->Disk.Descriptor.SectorSize);
-		MapRecord_t Record;
 
 		// Read sectors
 		if (MfsReadSectors(Descriptor, Buffer, MapSector, SectorCount) != OsSuccess) {

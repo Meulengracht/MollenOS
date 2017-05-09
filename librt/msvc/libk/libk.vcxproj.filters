@@ -126,51 +126,6 @@
     <ClCompile Include="..\..\libc\string\wcsnlen.c">
       <Filter>string</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\libc\ctype\ctype_.c">
-      <Filter>ctype</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\libc\ctype\isalnum.c">
-      <Filter>ctype</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\libc\ctype\isalpha.c">
-      <Filter>ctype</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\libc\ctype\isascii.c">
-      <Filter>ctype</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\libc\ctype\isblank.c">
-      <Filter>ctype</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\libc\ctype\iscntrl.c">
-      <Filter>ctype</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\libc\ctype\isdigit.c">
-      <Filter>ctype</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\libc\ctype\islower.c">
-      <Filter>ctype</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\libc\ctype\isprint.c">
-      <Filter>ctype</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\libc\ctype\ispunct.c">
-      <Filter>ctype</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\libc\ctype\isspace.c">
-      <Filter>ctype</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\libc\ctype\isupper.c">
-      <Filter>ctype</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\libc\ctype\toascii.c">
-      <Filter>ctype</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\libc\ctype\tolower.c">
-      <Filter>ctype</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\libc\ctype\toupper.c">
-      <Filter>ctype</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\libc\stdlib\itoa.c">
       <Filter>stdlib</Filter>
     </ClCompile>
@@ -185,33 +140,6 @@
     </ClCompile>
     <ClCompile Include="..\..\libc\locale\locale.c">
       <Filter>locale</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\libc\stdio\printf.c">
-      <Filter>stdio</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\libc\stdio\snprintf.c">
-      <Filter>stdio</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\libc\stdio\sprintf.c">
-      <Filter>stdio</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\libc\stdio\stream.c">
-      <Filter>stdio</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\libc\stdio\vasprintf.c">
-      <Filter>stdio</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\libc\stdio\vfprintf.c">
-      <Filter>stdio</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\libc\stdio\vprintf.c">
-      <Filter>stdio</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\libc\stdio\vsnprintf.c">
-      <Filter>stdio</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\libc\stdio\vsprintf.c">
-      <Filter>stdio</Filter>
     </ClCompile>
     <ClCompile Include="..\..\libos\synchronization\spinlock.c">
       <Filter>glue</Filter>
@@ -282,22 +210,97 @@
     <ClCompile Include="..\..\libos\rpc.c">
       <Filter>glue</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\libc\ctype\common\ctype_.c">
+      <Filter>ctype</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\libc\ctype\common\isalnum.c">
+      <Filter>ctype</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\libc\ctype\common\isalpha.c">
+      <Filter>ctype</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\libc\ctype\common\isascii.c">
+      <Filter>ctype</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\libc\ctype\common\isblank.c">
+      <Filter>ctype</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\libc\ctype\common\iscntrl.c">
+      <Filter>ctype</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\libc\ctype\common\isdigit.c">
+      <Filter>ctype</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\libc\ctype\common\islower.c">
+      <Filter>ctype</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\libc\ctype\common\isprint.c">
+      <Filter>ctype</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\libc\ctype\common\ispunct.c">
+      <Filter>ctype</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\libc\ctype\common\isspace.c">
+      <Filter>ctype</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\libc\ctype\common\isupper.c">
+      <Filter>ctype</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\libc\ctype\common\isxdigit.c">
+      <Filter>ctype</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\libc\ctype\common\toascii.c">
+      <Filter>ctype</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\libc\ctype\common\tolower.c">
+      <Filter>ctype</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\libc\ctype\common\toupper.c">
+      <Filter>ctype</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\libc\stdio\common\printf.c">
+      <Filter>stdio</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\libc\stdio\common\snprintf.c">
+      <Filter>stdio</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\libc\stdio\common\sprintf.c">
+      <Filter>stdio</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\libc\stdio\common\stream.c">
+      <Filter>stdio</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\libc\stdio\common\vasprintf.c">
+      <Filter>stdio</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\libc\stdio\common\vfprintf.c">
+      <Filter>stdio</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\libc\stdio\common\vprintf.c">
+      <Filter>stdio</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\libc\stdio\common\vsnprintf.c">
+      <Filter>stdio</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\libc\stdio\common\vsprintf.c">
+      <Filter>stdio</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\libc\string\str-two-way.h">
       <Filter>string</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\libc\ctype\ctype_.h">
-      <Filter>ctype</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\libc\ctype\ctype_cp.h">
-      <Filter>ctype</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\libc\ctype\ctype_iso.h">
-      <Filter>ctype</Filter>
-    </ClInclude>
     <ClInclude Include="..\..\libos\mstring\MStringPrivate.h">
       <Filter>mstring</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\libc\ctype\common\ctype_.h">
+      <Filter>ctype</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\libc\ctype\common\ctype_cp.h">
+      <Filter>ctype</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\libc\ctype\common\ctype_iso.h">
+      <Filter>ctype</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

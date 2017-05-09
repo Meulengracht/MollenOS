@@ -79,6 +79,20 @@ InterruptStatus_t OnInterrupt(void *InterruptData)
 	return InterruptHandled;
 }
 
+/* OnTimeout
+ * Is called when one of the registered timer-handles
+ * times-out. A new timeout event is generated and passed
+ * on to the below handler */
+OsStatus_t
+OnTimeout(
+	_In_ UUId_t Timer,
+	_In_ void *Data)
+{
+	_CRT_UNUSED(Timer);
+	_CRT_UNUSED(Data);
+	return OsSuccess;
+}
+
 /* OnLoad
  * The entry-point of a driver, this is called
  * as soon as the driver is loaded in the system */

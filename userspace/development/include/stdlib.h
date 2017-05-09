@@ -194,7 +194,8 @@ _CRTIMP long long llabs(long long);
 #endif
 
 /* Multibyte functions
- * Not implemented yet, no support for conversion and such yet */
+ * Not implemented yet, no support for conversion
+ * and such yet */
 //_CRTIMP int mblen(__CONST char* pmb, size_t max);
 //_CRTIMP int mbtowc(wchar_t *pwc, __CONST char *pmb, size_t max);
 //_CRTIMP int wctomb(char *pmb, wchar_t wc);

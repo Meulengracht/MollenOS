@@ -2,14 +2,12 @@
 export CC = clang
 export CXX = clang++
 export LD = lld
-export ASM = nasm -f bin
+export ASFLAGS = -f bin
+export AS = nasm
 export DEBUG = -g
-export FCOPY = copy
+export FCOPY = cp
 export arch = i386
 target = vmdk
-
-CFLAGS = -Wall -c $(DEBUG)
-LFLAGS = /nodefaultlib /subsystem:native /entry:_kmain
 
 all: boot_loader libraries kernel initrd
 	$(FCOPY) boot/build/stage1.sys install/stage1.sys
@@ -41,8 +39,8 @@ install:
 
 .PHONY: clean
 clean:
-	$(MAKE) -C boot/make clean
-	$(MAKE) -C librt/make clean
-	$(MAKE) -C kernel/make clean
+	$(MAKE) -C boot -f makefile clean
+	$(MAKE) -C librt -f makefile clean
+	$(MAKE) -C kernel-f makefile clean
 	rm *.vmdk
 	rm *.img

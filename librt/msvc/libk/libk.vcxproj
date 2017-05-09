@@ -66,21 +66,22 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="..\..\libc\assert\assert.c" />
-    <ClCompile Include="..\..\libc\ctype\ctype_.c" />
-    <ClCompile Include="..\..\libc\ctype\isalnum.c" />
-    <ClCompile Include="..\..\libc\ctype\isalpha.c" />
-    <ClCompile Include="..\..\libc\ctype\isascii.c" />
-    <ClCompile Include="..\..\libc\ctype\isblank.c" />
-    <ClCompile Include="..\..\libc\ctype\iscntrl.c" />
-    <ClCompile Include="..\..\libc\ctype\isdigit.c" />
-    <ClCompile Include="..\..\libc\ctype\islower.c" />
-    <ClCompile Include="..\..\libc\ctype\isprint.c" />
-    <ClCompile Include="..\..\libc\ctype\ispunct.c" />
-    <ClCompile Include="..\..\libc\ctype\isspace.c" />
-    <ClCompile Include="..\..\libc\ctype\isupper.c" />
-    <ClCompile Include="..\..\libc\ctype\toascii.c" />
-    <ClCompile Include="..\..\libc\ctype\tolower.c" />
-    <ClCompile Include="..\..\libc\ctype\toupper.c" />
+    <ClCompile Include="..\..\libc\ctype\common\ctype_.c" />
+    <ClCompile Include="..\..\libc\ctype\common\isalnum.c" />
+    <ClCompile Include="..\..\libc\ctype\common\isalpha.c" />
+    <ClCompile Include="..\..\libc\ctype\common\isascii.c" />
+    <ClCompile Include="..\..\libc\ctype\common\isblank.c" />
+    <ClCompile Include="..\..\libc\ctype\common\iscntrl.c" />
+    <ClCompile Include="..\..\libc\ctype\common\isdigit.c" />
+    <ClCompile Include="..\..\libc\ctype\common\islower.c" />
+    <ClCompile Include="..\..\libc\ctype\common\isprint.c" />
+    <ClCompile Include="..\..\libc\ctype\common\ispunct.c" />
+    <ClCompile Include="..\..\libc\ctype\common\isspace.c" />
+    <ClCompile Include="..\..\libc\ctype\common\isupper.c" />
+    <ClCompile Include="..\..\libc\ctype\common\isxdigit.c" />
+    <ClCompile Include="..\..\libc\ctype\common\toascii.c" />
+    <ClCompile Include="..\..\libc\ctype\common\tolower.c" />
+    <ClCompile Include="..\..\libc\ctype\common\toupper.c" />
     <ClCompile Include="..\..\libc\errno\errno.c" />
     <ClCompile Include="..\..\libc\errno\errstrings.c" />
     <ClCompile Include="..\..\libc\locale\locale.c" />
@@ -89,15 +90,15 @@
     <ClCompile Include="..\..\libc\mem\memcpy.c" />
     <ClCompile Include="..\..\libc\mem\memmove.c" />
     <ClCompile Include="..\..\libc\mem\memset.c" />
-    <ClCompile Include="..\..\libc\stdio\printf.c" />
-    <ClCompile Include="..\..\libc\stdio\snprintf.c" />
-    <ClCompile Include="..\..\libc\stdio\sprintf.c" />
-    <ClCompile Include="..\..\libc\stdio\stream.c" />
-    <ClCompile Include="..\..\libc\stdio\vasprintf.c" />
-    <ClCompile Include="..\..\libc\stdio\vfprintf.c" />
-    <ClCompile Include="..\..\libc\stdio\vprintf.c" />
-    <ClCompile Include="..\..\libc\stdio\vsnprintf.c" />
-    <ClCompile Include="..\..\libc\stdio\vsprintf.c" />
+    <ClCompile Include="..\..\libc\stdio\common\printf.c" />
+    <ClCompile Include="..\..\libc\stdio\common\snprintf.c" />
+    <ClCompile Include="..\..\libc\stdio\common\sprintf.c" />
+    <ClCompile Include="..\..\libc\stdio\common\stream.c" />
+    <ClCompile Include="..\..\libc\stdio\common\vasprintf.c" />
+    <ClCompile Include="..\..\libc\stdio\common\vfprintf.c" />
+    <ClCompile Include="..\..\libc\stdio\common\vprintf.c" />
+    <ClCompile Include="..\..\libc\stdio\common\vsnprintf.c" />
+    <ClCompile Include="..\..\libc\stdio\common\vsprintf.c" />
     <ClCompile Include="..\..\libc\stdlib\itoa.c" />
     <ClCompile Include="..\..\libc\stdlib\strtoul.c" />
     <ClCompile Include="..\..\libc\string\strcasecmp.c" />
@@ -162,9 +163,9 @@
     </CustomBuild>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\..\libc\ctype\ctype_.h" />
-    <ClInclude Include="..\..\libc\ctype\ctype_cp.h" />
-    <ClInclude Include="..\..\libc\ctype\ctype_iso.h" />
+    <ClInclude Include="..\..\libc\ctype\common\ctype_.h" />
+    <ClInclude Include="..\..\libc\ctype\common\ctype_cp.h" />
+    <ClInclude Include="..\..\libc\ctype\common\ctype_iso.h" />
     <ClInclude Include="..\..\libc\string\str-two-way.h" />
     <ClInclude Include="..\..\libos\mstring\MStringPrivate.h" />
   </ItemGroup>
