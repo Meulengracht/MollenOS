@@ -214,7 +214,7 @@ __CRT_INLINE struct __locale_t *__get_global_locale(void) {
 
 /* Per thread locale. */
 #ifndef LIBC_KERNEL
-#include <os/Thread.h>
+#include <os/thread.h>
 __CRT_INLINE struct __locale_t *__get_locale_r(void)
 {
 	/* Access the per thread storage locale */

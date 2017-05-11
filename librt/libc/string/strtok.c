@@ -20,7 +20,7 @@
 */
 
 /* Includes */
-#include <os/Thread.h>
+#include <os/thread.h>
 #include <string.h>
 #include <stdint.h>
 #include <stdbool.h>

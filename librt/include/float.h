@@ -1,107 +1,137 @@
-#ifndef __FLOAT_INC__
-#define __FLOAT_INC__
+/*===---- float.h - Characteristics of floating point types ----------------===
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+ * THE SOFTWARE.
+ *
+ *===-----------------------------------------------------------------------===
+ */
 
-   /* Radix of exponent representation */
-#undef FLT_RADIX
-#define FLT_RADIX 2
-   /* Number of base-FLT_RADIX digits in the significand of a float */
-#undef FLT_MANT_DIG
-#define FLT_MANT_DIG 24
-   /* Number of decimal digits of precision in a float */
-#undef FLT_DIG
-#define FLT_DIG 6
-   /* Addition rounds to 0: zero, 1: nearest, 2: +inf, 3: -inf, -1: unknown */
-#undef FLT_ROUNDS
-#define FLT_ROUNDS 1
-   /* Difference between 1.0 and the minimum float greater than 1.0 */
-#undef FLT_EPSILON
-#define FLT_EPSILON 1.19209290e-07F
-   /* Minimum int x such that FLT_RADIX**(x-1) is a normalised float */
-#undef FLT_MIN_EXP
-#define FLT_MIN_EXP (-125)
-   /* Minimum normalised float */
-#undef FLT_MIN
-#define FLT_MIN 1.175494351e-38F
-   /* Minimum int x such that 10**x is a normalised float */
-#undef FLT_MIN_10_EXP
-#define FLT_MIN_10_EXP (-37)
-   /* Maximum int x such that FLT_RADIX**(x-1) is a representable float */
-#undef FLT_MAX_EXP
-#define FLT_MAX_EXP 128
-   /* Maximum float */
-#undef FLT_MAX
-#define FLT_MAX 3.402823466e+38F
-   /* Maximum int x such that 10**x is a representable float */
-#undef FLT_MAX_10_EXP
-#define FLT_MAX_10_EXP 38
+#ifndef __FLOAT_H
+#define __FLOAT_H
 
-   /* Number of base-FLT_RADIX digits in the significand of a double */
-#undef DBL_MANT_DIG
-#define DBL_MANT_DIG 53
-   /* Number of decimal digits of precision in a double */
-#undef DBL_DIG
-#define DBL_DIG 15
-   /* Difference between 1.0 and the minimum double greater than 1.0 */
-#undef DBL_EPSILON
-#define DBL_EPSILON 2.2204460492503131e-016
-   /* Minimum int x such that FLT_RADIX**(x-1) is a normalised double */
-#undef DBL_MIN_EXP
-#define DBL_MIN_EXP (-1021)
-   /* Minimum normalised double */
-#undef DBL_MIN
-#define DBL_MIN 2.2250738585072014e-308
-   /* Minimum int x such that 10**x is a normalised double */
-#undef DBL_MIN_10_EXP
-#define DBL_MIN_10_EXP (-307)
-   /* Maximum int x such that FLT_RADIX**(x-1) is a representable double */
-#undef DBL_MAX_EXP
-#define DBL_MAX_EXP 1024
-   /* Maximum double */
-#undef DBL_MAX
-#define DBL_MAX 1.7976931348623157e+308
-   /* Maximum int x such that 10**x is a representable double */
-#undef DBL_MAX_10_EXP
-#define DBL_MAX_10_EXP 308
+/* If we're on MinGW, fall back to the system's float.h, which might have
+ * additional definitions provided for Windows.
+ * For more details see http://msdn.microsoft.com/en-us/library/y0ybw9fy.aspx
+ *
+ * Also fall back on Darwin to allow additional definitions and
+ * implementation-defined values.
+ */
+#if (defined(__APPLE__) || (defined(__MINGW32__) || defined(_MSC_VER))) && \
+    __STDC_HOSTED__ && __has_include_next(<float.h>)
+#  include_next <float.h>
 
-   /* Number of base-FLT_RADIX digits in the significand of a long double */
-#undef LDBL_MANT_DIG
-#define LDBL_MANT_DIG 53
-   /* Number of decimal digits of precision in a long double */
-#undef LDBL_DIG
-#define LDBL_DIG 15
-   /* Difference between 1.0 and the minimum long double greater than 1.0 */
-#undef LDBL_EPSILON
-#define LDBL_EPSILON 2.2204460492503131e-016L
-   /* Minimum int x such that FLT_RADIX**(x-1) is a normalised long double */
-#undef LDBL_MIN_EXP
-#define LDBL_MIN_EXP (-1021)
-   /* Minimum normalised long double */
-#undef LDBL_MIN
-#define LDBL_MIN 2.2250738585072014e-308L
-   /* Minimum int x such that 10**x is a normalised long double */
-#undef LDBL_MIN_10_EXP
-#define LDBL_MIN_10_EXP (-307)
-   /* Maximum int x such that FLT_RADIX**(x-1) is a representable long double */
-#undef LDBL_MAX_EXP
-#define LDBL_MAX_EXP 1024
-   /* Maximum long double */
-#undef LDBL_MAX
-#define LDBL_MAX 1.7976931348623157e+308L
-   /* Maximum int x such that 10**x is a representable long double */
-#undef LDBL_MAX_10_EXP
-#define LDBL_MAX_10_EXP 308
+/* Undefine anything that we'll be redefining below. */
+#  undef FLT_EVAL_METHOD
+#  undef FLT_ROUNDS
+#  undef FLT_RADIX
+#  undef FLT_MANT_DIG
+#  undef DBL_MANT_DIG
+#  undef LDBL_MANT_DIG
+#  if __STDC_VERSION__ >= 199901L || !defined(__STRICT_ANSI__)
+#    undef DECIMAL_DIG
+#  endif
+#  undef FLT_DIG
+#  undef DBL_DIG
+#  undef LDBL_DIG
+#  undef FLT_MIN_EXP
+#  undef DBL_MIN_EXP
+#  undef LDBL_MIN_EXP
+#  undef FLT_MIN_10_EXP
+#  undef DBL_MIN_10_EXP
+#  undef LDBL_MIN_10_EXP
+#  undef FLT_MAX_EXP
+#  undef DBL_MAX_EXP
+#  undef LDBL_MAX_EXP
+#  undef FLT_MAX_10_EXP
+#  undef DBL_MAX_10_EXP
+#  undef LDBL_MAX_10_EXP
+#  undef FLT_MAX
+#  undef DBL_MAX
+#  undef LDBL_MAX
+#  undef FLT_EPSILON
+#  undef DBL_EPSILON
+#  undef LDBL_EPSILON
+#  undef FLT_MIN
+#  undef DBL_MIN
+#  undef LDBL_MIN
+#  if __STDC_VERSION__ >= 201112L || !defined(__STRICT_ANSI__)
+#    undef FLT_TRUE_MIN
+#    undef DBL_TRUE_MIN
+#    undef LDBL_TRUE_MIN
+#    undef FLT_DECIMAL_DIG
+#    undef DBL_DECIMAL_DIG
+#    undef LDBL_DECIMAL_DIG
+#  endif
+#endif
 
-/*  Floating point error signals and return codes */
-#define _FPE_INVALID		0x81
-#define _FPE_DENORMAL		0x82
-#define _FPE_ZERODIVIDE		0x83
-#define _FPE_OVERFLOW		0x84
-#define _FPE_UNDERFLOW		0x85
-#define _FPE_INEXACT		0x86
-#define _FPE_UNEMULATED		0x87
-#define _FPE_SQRTNEG		0x88
-#define _FPE_STACKOVERFLOW	0x8a
-#define _FPE_STACKUNDERFLOW	0x8b
-#define _FPE_EXPLICITGEN	0x8c    /* raise( SIGFPE ); */
+/* Characteristics of floating point types, C99 5.2.4.2.2 */
 
-#endif /*__FLOAT_INC__*/
+#define FLT_EVAL_METHOD __FLT_EVAL_METHOD__
+#define FLT_ROUNDS (__builtin_flt_rounds())
+#define FLT_RADIX __FLT_RADIX__
+
+#define FLT_MANT_DIG __FLT_MANT_DIG__
+#define DBL_MANT_DIG __DBL_MANT_DIG__
+#define LDBL_MANT_DIG __LDBL_MANT_DIG__
+
+#if __STDC_VERSION__ >= 199901L || !defined(__STRICT_ANSI__)
+#  define DECIMAL_DIG __DECIMAL_DIG__
+#endif
+
+#define FLT_DIG __FLT_DIG__
+#define DBL_DIG __DBL_DIG__
+#define LDBL_DIG __LDBL_DIG__
+
+#define FLT_MIN_EXP __FLT_MIN_EXP__
+#define DBL_MIN_EXP __DBL_MIN_EXP__
+#define LDBL_MIN_EXP __LDBL_MIN_EXP__
+
+#define FLT_MIN_10_EXP __FLT_MIN_10_EXP__
+#define DBL_MIN_10_EXP __DBL_MIN_10_EXP__
+#define LDBL_MIN_10_EXP __LDBL_MIN_10_EXP__
+
+#define FLT_MAX_EXP __FLT_MAX_EXP__
+#define DBL_MAX_EXP __DBL_MAX_EXP__
+#define LDBL_MAX_EXP __LDBL_MAX_EXP__
+
+#define FLT_MAX_10_EXP __FLT_MAX_10_EXP__
+#define DBL_MAX_10_EXP __DBL_MAX_10_EXP__
+#define LDBL_MAX_10_EXP __LDBL_MAX_10_EXP__
+
+#define FLT_MAX __FLT_MAX__
+#define DBL_MAX __DBL_MAX__
+#define LDBL_MAX __LDBL_MAX__
+
+#define FLT_EPSILON __FLT_EPSILON__
+#define DBL_EPSILON __DBL_EPSILON__
+#define LDBL_EPSILON __LDBL_EPSILON__
+
+#define FLT_MIN __FLT_MIN__
+#define DBL_MIN __DBL_MIN__
+#define LDBL_MIN __LDBL_MIN__
+
+#if __STDC_VERSION__ >= 201112L || !defined(__STRICT_ANSI__)
+#  define FLT_TRUE_MIN __FLT_DENORM_MIN__
+#  define DBL_TRUE_MIN __DBL_DENORM_MIN__
+#  define LDBL_TRUE_MIN __LDBL_DENORM_MIN__
+#  define FLT_DECIMAL_DIG __FLT_DECIMAL_DIG__
+#  define DBL_DECIMAL_DIG __DBL_DECIMAL_DIG__
+#  define LDBL_DECIMAL_DIG __LDBL_DECIMAL_DIG__
+#endif
+
+#endif /* __FLOAT_H */

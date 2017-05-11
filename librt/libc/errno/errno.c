@@ -20,7 +20,7 @@
 */
 
 /* Includes */
-#include <os/Thread.h>
+#include <os/thread.h>
 #include <errno.h>
 
 #ifdef LIBC_KERNEL

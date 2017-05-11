@@ -21,7 +21,7 @@
 #endif
 #endif
 
-#ifdef _MSC_VER
+#if defined(_MSC_VER) && !defined(__clang__)
 #pragma function(strcat)
 #endif
 

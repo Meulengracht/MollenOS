@@ -23,6 +23,7 @@
 #include <string.h>
 #include <stdint.h>
 #include <internal/_string.h>
+#include <stddef.h>
 
 #ifdef _MSC_VER
 #include <intrin.h>
@@ -170,7 +171,7 @@ void *MemCpySelect(void *Destination, const void *Source, size_t Count)
 	}
 }
 
-#ifdef _MSC_VER
+#if defined(_MSC_VER) && !defined(__clang__)
 #pragma function(memcpy)
 #endif
 

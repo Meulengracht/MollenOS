@@ -1,53 +1,43 @@
-#ifndef __ISO646_INC__
-#define __ISO646_INC__
+/*===---- iso646.h - Standard header for alternate spellings of operators---===
+ *
+ * Copyright (c) 2008 Eli Friedman
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+ * THE SOFTWARE.
+ *
+ *===-----------------------------------------------------------------------===
+ */
 
-/* AND OPERATOR */
-#undef and
-#define and &&
+#ifndef __ISO646_H
+#define __ISO646_H
 
-
-/* AND OPERATOR */
-#undef and
-#define and &&
-
-/* AND_EQ OPERATOR */
-#undef and_eq
+#ifndef __cplusplus
+#define and    &&
 #define and_eq &=
-
-/* BITAND OPERATOR */
-#undef bitand
 #define bitand &
-
-/* BITOR OPERATOR */
-#undef bitor
-#define bitor |
-
-/* COMPL OPERATOR */
-#undef compl
-#define compl ~
-
-/* NOT OPERATOR */
-#undef not
-#define not !
-
-/* NOT_EQ OPERATOR */
-#undef not_eq
+#define bitor  |
+#define compl  ~
+#define not    !
 #define not_eq !=
-
-/* OR OPERATOR */
-#undef or
-#define or ||
-
-/* OR_EQ OPERATOR */
-#undef or_eq
-#define or_eq |=
-
-/* XOR OPERATOR */
-#undef xor
-#define xor ^
-
-/* XOR_EQ OPERATOR */
-#undef xor_eq
+#define or     ||
+#define or_eq  |=
+#define xor    ^
 #define xor_eq ^=
+#endif
 
-#endif //__ISO646_INC__
+#endif /* __ISO646_H */

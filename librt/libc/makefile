@@ -1,5 +1,5 @@
 # Makefile for building the standard c-libraries for both userspace and kernel
-# - libk
+# - libk LIBC_KERNEL
 # - libc
 ASM_SRCS = $(wildcard arch/$(arch)/*.s) \
 		   $(wildcard ../libos/arch/$(arch)/*.s)
@@ -11,6 +11,8 @@ COMMON_SRCS = $(wildcard assert/*.c) \
        		  $(wildcard ctype/common/*.c) \
        		  $(wildcard stdio/common/*.c)
 
+COMMON_INCS = -I../include
+
 LIBK_SRCS = $(wildcard ../libos/ds/*.c) \
 			$(wildcard ../libos/mstring/*.c) \
 			locale/locale.c \
@@ -21,7 +23,7 @@ LIBC_SRCS =
 LIBK_OBJS = $(ASM_SRCS:.s=.o) $(COMMON_SRCS:.c=.o) $(LIBK_SRCS:.c=.o)
 LIBC_OBJS = $(ASM_SRCS:.s=.o) $(COMMON_SRCS:.c=.o) $(LIBC_SRCS:.c=.o)
 
-CFLAGS = -Wall $(DEBUG)
+CFLAGS = $(GCFLAGS) $(COMMON_INCS)
 LFLAGS = /nodefaultlib /subsystem:native /entry:_kmain
 
 .PHONY: all
@@ -46,4 +48,7 @@ libc: ../build/libc.dll
 	$(AS) $(ASFLAGS) $< -o $@
 
 .PHONY: clean
-	rm $(LIBC_OBJS) $(LIBK_OBJS)
+clean:
+	rm -f ../build/libk.lib
+	rm -f ../build/libc.dll
+	rm -f $(LIBC_OBJS) $(LIBK_OBJS)

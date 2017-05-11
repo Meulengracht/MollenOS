@@ -111,21 +111,33 @@
 #ifndef MOSAPI
 #define MOSABI __cdecl
 #ifdef _LIBOS_DLL
+#ifdef _MSC_VER
 #define MOSAPI __declspec(dllexport)
+#else
+#define MOSAPI
+#endif
 #else
 #if defined(_KRNL_DLL) || defined(CRTDLL) || defined(_CRTIMP_STATIC)
 #define MOSAPI
 #else
+#ifdef _MSC_VER
 #define MOSAPI __declspec(dllimport)
+#else
+#define MOSAPI
 #endif
 #endif
 #endif
-#endif
+#endif // !LIBOS_DLL
+#endif // !MOSAPI
 
 #if (defined (__GNUC__))
 #define PACKED_STRUCT(name, body) struct name body __attribute__((packed))
 #define PACKED_TYPESTRUCT(name, body) typedef struct _##name body name##_t __attribute__((packed))
 #define PACKED_ATYPESTRUCT(opts, name, body) typedef opts struct _##name body name##_t __attribute__((packed))
+#elif (defined (__clang__))
+#define PACKED_STRUCT(name, body) struct __attribute__((packed)) name body 
+#define PACKED_TYPESTRUCT(name, body) typedef struct __attribute__((packed)) _##name body name##_t
+#define PACKED_ATYPESTRUCT(opts, name, body) typedef opts struct __attribute__((packed)) _##name body name##_t
 #elif (defined (__arm__))
 #define PACKED_STRUCT(name, body) __packed struct name body
 #define PACKED_TYPESTRUCT(name, body) __packed typedef struct _##name body name##_t

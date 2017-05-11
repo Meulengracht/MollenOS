@@ -1,298 +1,193 @@
-/****
-* Copyright (C) 2007-2008 Advanced Micro Devices Inc.  All rights reserved.
-*
-*  The information and source code contained herein is the exclusive
-*  property of Advanced Micro Devices and may not be disclosed, examined
-*  or reproduced in whole or in part without explicit written authorization
-*  from the company.
-*
-*  ammintrin.h - Definitions for AMD-specific intrinsics
-*
-****/
-
-#pragma once
-#ifndef __midl
-#ifndef _INCLUDED_AMM
-#define _INCLUDED_AMM
-
-#if defined (_M_CEE_PURE)
-  #error ERROR: This file is not supported in the pure mode!
-#else  /* defined (_M_CEE_PURE) */
-
-#if defined __cplusplus
-extern "C" { /* Intrinsics use C name-mangling. */
-#endif  /* defined __cplusplus */
-
-/*
- * Vector integer comparison control macros
+/*===---- ammintrin.h - SSE4a intrinsics -----------------------------------===
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+ * THE SOFTWARE.
+ *
+ *===-----------------------------------------------------------------------===
  */
 
-#define _MM_PCOMCTRL_LT    0
-#define _MM_PCOMCTRL_LE    1
-#define _MM_PCOMCTRL_GT    2
-#define _MM_PCOMCTRL_GE    3
-#define _MM_PCOMCTRL_EQ    4
-#define _MM_PCOMCTRL_NEQ   5
-#define _MM_PCOMCTRL_FALSE 6
-#define _MM_PCOMCTRL_TRUE  7
+#ifndef __AMMINTRIN_H
+#define __AMMINTRIN_H
 
-/*
- * MACRO functions for vector integer comparisons
- */
+#include <pmmintrin.h>
 
-#define _mm_comlt_epu8(v1, v2)      _mm_com_epu8(v1, v2, _MM_PCOMCTRL_LT)
-#define _mm_comle_epu8(v1, v2)      _mm_com_epu8(v1, v2, _MM_PCOMCTRL_LE)
-#define _mm_comgt_epu8(v1, v2)      _mm_com_epu8(v1, v2, _MM_PCOMCTRL_GT)
-#define _mm_comge_epu8(v1, v2)      _mm_com_epu8(v1, v2, _MM_PCOMCTRL_GE)
-#define _mm_comeq_epu8(v1, v2)      _mm_com_epu8(v1, v2, _MM_PCOMCTRL_EQ)
-#define _mm_comneq_epu8(v1, v2)     _mm_com_epu8(v1, v2, _MM_PCOMCTRL_NEQ)
-#define _mm_comfalse_epu8(v1, v2)   _mm_com_epu8(v1, v2, _MM_PCOMCTRL_FALSE)
-#define _mm_comtrue_epu8(v1, v2)    _mm_com_epu8(v1, v2, _MM_PCOMCTRL_TRUE)
+/* Define the default attributes for the functions in this file. */
+#define __DEFAULT_FN_ATTRS __attribute__((__always_inline__, __nodebug__, __target__("sse4a")))
 
-#define _mm_comlt_epu16(v1, v2)     _mm_com_epu16(v1, v2, _MM_PCOMCTRL_LT)
-#define _mm_comle_epu16(v1, v2)     _mm_com_epu16(v1, v2, _MM_PCOMCTRL_LE)
-#define _mm_comgt_epu16(v1, v2)     _mm_com_epu16(v1, v2, _MM_PCOMCTRL_GT)
-#define _mm_comge_epu16(v1, v2)     _mm_com_epu16(v1, v2, _MM_PCOMCTRL_GE)
-#define _mm_comeq_epu16(v1, v2)     _mm_com_epu16(v1, v2, _MM_PCOMCTRL_EQ)
-#define _mm_comneq_epu16(v1, v2)    _mm_com_epu16(v1, v2, _MM_PCOMCTRL_NEQ)
-#define _mm_comfalse_epu16(v1, v2)  _mm_com_epu16(v1, v2, _MM_PCOMCTRL_FALSE)
-#define _mm_comtrue_epu16(v1, v2)   _mm_com_epu16(v1, v2, _MM_PCOMCTRL_TRUE)
+/// \brief Extracts the specified bits from the lower 64 bits of the 128-bit
+///    integer vector operand at the index \a idx and of the length \a len.
+///
+/// \headerfile <x86intrin.h>
+///
+/// \code
+/// __m128i _mm_extracti_si64(__m128i x, const int len, const int idx);
+/// \endcode
+///
+/// This intrinsic corresponds to the <c> EXTRQ </c> instruction.
+///
+/// \param x
+///    The value from which bits are extracted.
+/// \param len
+///    Bits [5:0] specify the length; the other bits are ignored. If bits [5:0]
+///    are zero, the length is interpreted as 64.
+/// \param idx
+///    Bits [5:0] specify the index of the least significant bit; the other
+///    bits are ignored. If the sum of the index and length is greater than 64,
+///    the result is undefined. If the length and index are both zero, bits
+///    [63:0] of parameter \a x are extracted. If the length is zero but the
+///    index is non-zero, the result is undefined.
+/// \returns A 128-bit integer vector whose lower 64 bits contain the bits
+///    extracted from the source operand.
+#define _mm_extracti_si64(x, len, idx) \
+  ((__m128i)__builtin_ia32_extrqi((__v2di)(__m128i)(x), \
+                                  (char)(len), (char)(idx)))
 
-#define _mm_comlt_epu32(v1, v2)     _mm_com_epu32(v1, v2, _MM_PCOMCTRL_LT)
-#define _mm_comle_epu32(v1, v2)     _mm_com_epu32(v1, v2, _MM_PCOMCTRL_LE)
-#define _mm_comgt_epu32(v1, v2)     _mm_com_epu32(v1, v2, _MM_PCOMCTRL_GT)
-#define _mm_comge_epu32(v1, v2)     _mm_com_epu32(v1, v2, _MM_PCOMCTRL_GE)
-#define _mm_comeq_epu32(v1, v2)     _mm_com_epu32(v1, v2, _MM_PCOMCTRL_EQ)
-#define _mm_comneq_epu32(v1, v2)    _mm_com_epu32(v1, v2, _MM_PCOMCTRL_NEQ)
-#define _mm_comfalse_epu32(v1, v2)  _mm_com_epu32(v1, v2, _MM_PCOMCTRL_FALSE)
-#define _mm_comtrue_epu32(v1, v2)   _mm_com_epu32(v1, v2, _MM_PCOMCTRL_TRUE)
+/// \brief Extracts the specified bits from the lower 64 bits of the 128-bit
+///    integer vector operand at the index and of the length specified by
+///    \a __y.
+///
+/// \headerfile <x86intrin.h>
+///
+/// This intrinsic corresponds to the <c> EXTRQ </c> instruction.
+///
+/// \param __x
+///    The value from which bits are extracted.
+/// \param __y
+///    Specifies the index of the least significant bit at [13:8] and the
+///    length at [5:0]; all other bits are ignored. If bits [5:0] are zero, the
+///    length is interpreted as 64. If the sum of the index and length is
+///    greater than 64, the result is undefined. If the length and index are
+///    both zero, bits [63:0] of parameter \a __x are extracted. If the length
+///    is zero but the index is non-zero, the result is undefined.
+/// \returns A 128-bit vector whose lower 64 bits contain the bits extracted
+///    from the source operand.
+static __inline__ __m128i __DEFAULT_FN_ATTRS
+_mm_extract_si64(__m128i __x, __m128i __y)
+{
+  return (__m128i)__builtin_ia32_extrq((__v2di)__x, (__v16qi)__y);
+}
 
-#define _mm_comlt_epu64(v1, v2)     _mm_com_epu64(v1, v2, _MM_PCOMCTRL_LT)
-#define _mm_comle_epu64(v1, v2)     _mm_com_epu64(v1, v2, _MM_PCOMCTRL_LE)
-#define _mm_comgt_epu64(v1, v2)     _mm_com_epu64(v1, v2, _MM_PCOMCTRL_GT)
-#define _mm_comge_epu64(v1, v2)     _mm_com_epu64(v1, v2, _MM_PCOMCTRL_GE)
-#define _mm_comeq_epu64(v1, v2)     _mm_com_epu64(v1, v2, _MM_PCOMCTRL_EQ)
-#define _mm_comneq_epu64(v1, v2)    _mm_com_epu64(v1, v2, _MM_PCOMCTRL_NEQ)
-#define _mm_comfalse_epu64(v1, v2)  _mm_com_epu64(v1, v2, _MM_PCOMCTRL_FALSE)
-#define _mm_comtrue_epu64(v1, v2)   _mm_com_epu64(v1, v2, _MM_PCOMCTRL_TRUE)
+/// \brief Inserts bits of a specified length from the source integer vector
+///    \a y into the lower 64 bits of the destination integer vector \a x at
+///    the index \a idx and of the length \a len.
+///
+/// \headerfile <x86intrin.h>
+///
+/// \code
+/// __m128i _mm_inserti_si64(__m128i x, __m128i y, const int len,
+/// const int idx);
+/// \endcode
+///
+/// This intrinsic corresponds to the <c> INSERTQ </c> instruction.
+///
+/// \param x
+///    The destination operand where bits will be inserted. The inserted bits
+///    are defined by the length \a len and by the index \a idx specifying the
+///    least significant bit.
+/// \param y
+///    The source operand containing the bits to be extracted. The extracted
+///    bits are the least significant bits of operand \a y of length \a len.
+/// \param len
+///    Bits [5:0] specify the length; the other bits are ignored. If bits [5:0]
+///    are zero, the length is interpreted as 64.
+/// \param idx
+///    Bits [5:0] specify the index of the least significant bit; the other
+///    bits are ignored. If the sum of the index and length is greater than 64,
+///    the result is undefined. If the length and index are both zero, bits
+///    [63:0] of parameter \a y are inserted into parameter \a x. If the length
+///    is zero but the index is non-zero, the result is undefined.
+/// \returns A 128-bit integer vector containing the original lower 64-bits of
+///    destination operand \a x with the specified bitfields replaced by the
+///    lower bits of source operand \a y. The upper 64 bits of the return value
+///    are undefined.
+#define _mm_inserti_si64(x, y, len, idx) \
+  ((__m128i)__builtin_ia32_insertqi((__v2di)(__m128i)(x), \
+                                    (__v2di)(__m128i)(y), \
+                                    (char)(len), (char)(idx)))
 
-#define _mm_comlt_epi8(v1, v2)      _mm_com_epi8(v1, v2, _MM_PCOMCTRL_LT)
-#define _mm_comle_epi8(v1, v2)      _mm_com_epi8(v1, v2, _MM_PCOMCTRL_LE)
-#define _mm_comgt_epi8(v1, v2)      _mm_com_epi8(v1, v2, _MM_PCOMCTRL_GT)
-#define _mm_comge_epi8(v1, v2)      _mm_com_epi8(v1, v2, _MM_PCOMCTRL_GE)
-#define _mm_comeq_epi8(v1, v2)      _mm_com_epi8(v1, v2, _MM_PCOMCTRL_EQ)
-#define _mm_comneq_epi8(v1, v2)     _mm_com_epi8(v1, v2, _MM_PCOMCTRL_NEQ)
-#define _mm_comfalse_epi8(v1, v2)   _mm_com_epi8(v1, v2, _MM_PCOMCTRL_FALSE)
-#define _mm_comtrue_epi8(v1, v2)    _mm_com_epi8(v1, v2, _MM_PCOMCTRL_TRUE)
+/// \brief Inserts bits of a specified length from the source integer vector
+///    \a __y into the lower 64 bits of the destination integer vector \a __x
+///    at the index and of the length specified by \a __y.
+///
+/// \headerfile <x86intrin.h>
+///
+/// This intrinsic corresponds to the <c> INSERTQ </c> instruction.
+///
+/// \param __x
+///    The destination operand where bits will be inserted. The inserted bits
+///    are defined by the length and by the index of the least significant bit
+///    specified by operand \a __y.
+/// \param __y
+///    The source operand containing the bits to be extracted. The extracted
+///    bits are the least significant bits of operand \a __y with length
+///    specified by bits [69:64]. These are inserted into the destination at the
+///    index specified by bits [77:72]; all other bits are ignored. If bits
+///    [69:64] are zero, the length is interpreted as 64. If the sum of the
+///    index and length is greater than 64, the result is undefined. If the
+///    length and index are both zero, bits [63:0] of parameter \a __y are
+///    inserted into parameter \a __x. If the length is zero but the index is
+///    non-zero, the result is undefined.
+/// \returns A 128-bit integer vector containing the original lower 64-bits of
+///    destination operand \a __x with the specified bitfields replaced by the
+///    lower bits of source operand \a __y. The upper 64 bits of the return
+///    value are undefined.
+static __inline__ __m128i __DEFAULT_FN_ATTRS
+_mm_insert_si64(__m128i __x, __m128i __y)
+{
+  return (__m128i)__builtin_ia32_insertq((__v2di)__x, (__v2di)__y);
+}
 
-#define _mm_comlt_epi16(v1, v2)     _mm_com_epi16(v1, v2, _MM_PCOMCTRL_LT)
-#define _mm_comle_epi16(v1, v2)     _mm_com_epi16(v1, v2, _MM_PCOMCTRL_LE)
-#define _mm_comgt_epi16(v1, v2)     _mm_com_epi16(v1, v2, _MM_PCOMCTRL_GT)
-#define _mm_comge_epi16(v1, v2)     _mm_com_epi16(v1, v2, _MM_PCOMCTRL_GE)
-#define _mm_comeq_epi16(v1, v2)     _mm_com_epi16(v1, v2, _MM_PCOMCTRL_EQ)
-#define _mm_comneq_epi16(v1, v2)    _mm_com_epi16(v1, v2, _MM_PCOMCTRL_NEQ)
-#define _mm_comfalse_epi16(v1, v2)  _mm_com_epi16(v1, v2, _MM_PCOMCTRL_FALSE)
-#define _mm_comtrue_epi16(v1, v2)   _mm_com_epi16(v1, v2, _MM_PCOMCTRL_TRUE)
+/// \brief Stores a 64-bit double-precision value in a 64-bit memory location.
+///    To minimize caching, the data is flagged as non-temporal (unlikely to be
+///    used again soon).
+///
+/// \headerfile <x86intrin.h>
+///
+/// This intrinsic corresponds to the <c> MOVNTSD </c> instruction.
+///
+/// \param __p
+///    The 64-bit memory location used to store the register value.
+/// \param __a
+///    The 64-bit double-precision floating-point register value to be stored.
+static __inline__ void __DEFAULT_FN_ATTRS
+_mm_stream_sd(double *__p, __m128d __a)
+{
+  __builtin_ia32_movntsd(__p, (__v2df)__a);
+}
 
-#define _mm_comlt_epi32(v1, v2)     _mm_com_epi32(v1, v2, _MM_PCOMCTRL_LT)
-#define _mm_comle_epi32(v1, v2)     _mm_com_epi32(v1, v2, _MM_PCOMCTRL_LE)
-#define _mm_comgt_epi32(v1, v2)     _mm_com_epi32(v1, v2, _MM_PCOMCTRL_GT)
-#define _mm_comge_epi32(v1, v2)     _mm_com_epi32(v1, v2, _MM_PCOMCTRL_GE)
-#define _mm_comeq_epi32(v1, v2)     _mm_com_epi32(v1, v2, _MM_PCOMCTRL_EQ)
-#define _mm_comneq_epi32(v1, v2)    _mm_com_epi32(v1, v2, _MM_PCOMCTRL_NEQ)
-#define _mm_comfalse_epi32(v1, v2)  _mm_com_epi32(v1, v2, _MM_PCOMCTRL_FALSE)
-#define _mm_comtrue_epi32(v1, v2)   _mm_com_epi32(v1, v2, _MM_PCOMCTRL_TRUE)
+/// \brief Stores a 32-bit single-precision floating-point value in a 32-bit
+///    memory location. To minimize caching, the data is flagged as
+///    non-temporal (unlikely to be used again soon).
+///
+/// \headerfile <x86intrin.h>
+///
+/// This intrinsic corresponds to the <c> MOVNTSS </c> instruction.
+///
+/// \param __p
+///    The 32-bit memory location used to store the register value.
+/// \param __a
+///    The 32-bit single-precision floating-point register value to be stored.
+static __inline__ void __DEFAULT_FN_ATTRS
+_mm_stream_ss(float *__p, __m128 __a)
+{
+  __builtin_ia32_movntss(__p, (__v4sf)__a);
+}
 
-#define _mm_comlt_epi64(v1, v2)     _mm_com_epi64(v1, v2, _MM_PCOMCTRL_LT)
-#define _mm_comle_epi64(v1, v2)     _mm_com_epi64(v1, v2, _MM_PCOMCTRL_LE)
-#define _mm_comgt_epi64(v1, v2)     _mm_com_epi64(v1, v2, _MM_PCOMCTRL_GT)
-#define _mm_comge_epi64(v1, v2)     _mm_com_epi64(v1, v2, _MM_PCOMCTRL_GE)
-#define _mm_comeq_epi64(v1, v2)     _mm_com_epi64(v1, v2, _MM_PCOMCTRL_EQ)
-#define _mm_comneq_epi64(v1, v2)    _mm_com_epi64(v1, v2, _MM_PCOMCTRL_NEQ)
-#define _mm_comfalse_epi64(v1, v2)  _mm_com_epi64(v1, v2, _MM_PCOMCTRL_FALSE)
-#define _mm_comtrue_epi64(v1, v2)   _mm_com_epi64(v1, v2, _MM_PCOMCTRL_TRUE)
+#undef __DEFAULT_FN_ATTRS
 
-/* SSE5 intrinsics */
-
-/* Float/double multiply-accumulate */
-__m128 _mm_macc_ps(__m128, __m128, __m128);
-__m128d _mm_macc_pd(__m128d, __m128d, __m128d);
-__m128 _mm_macc_ss(__m128, __m128, __m128);
-__m128d _mm_macc_sd(__m128d, __m128d, __m128d);
-__m128 _mm_maddsub_ps(__m128, __m128, __m128);
-__m128d _mm_maddsub_pd(__m128d, __m128d, __m128d);
-__m128 _mm_msubadd_ps(__m128, __m128, __m128);
-__m128d _mm_msubadd_pd(__m128d, __m128d, __m128d);
-__m128 _mm_msub_ps(__m128, __m128, __m128);
-__m128d _mm_msub_pd(__m128d, __m128d, __m128d);
-__m128 _mm_msub_ss(__m128, __m128, __m128);
-__m128d _mm_msub_sd(__m128d, __m128d, __m128d);
-__m128 _mm_nmacc_ps(__m128, __m128, __m128);
-__m128d _mm_nmacc_pd(__m128d, __m128d, __m128d);
-__m128 _mm_nmacc_ss(__m128, __m128, __m128);
-__m128d _mm_nmacc_sd(__m128d, __m128d, __m128d);
-__m128 _mm_nmsub_ps(__m128, __m128, __m128);
-__m128d _mm_nmsub_pd(__m128d, __m128d, __m128d);
-__m128 _mm_nmsub_ss(__m128, __m128, __m128);
-__m128d _mm_nmsub_sd(__m128d, __m128d, __m128d);
-
-/* Integer multiply-accumulate */
-__m128i _mm_maccs_epi16(__m128i, __m128i, __m128i);
-__m128i _mm_macc_epi16(__m128i, __m128i, __m128i);
-__m128i _mm_maccsd_epi16(__m128i, __m128i, __m128i);
-__m128i _mm_maccd_epi16(__m128i, __m128i, __m128i);
-__m128i _mm_maccs_epi32(__m128i, __m128i, __m128i);
-__m128i _mm_macc_epi32(__m128i, __m128i, __m128i);
-__m128i _mm_maccslo_epi32(__m128i, __m128i, __m128i);
-__m128i _mm_macclo_epi32(__m128i, __m128i, __m128i);
-__m128i _mm_maccshi_epi32(__m128i, __m128i, __m128i);
-__m128i _mm_macchi_epi32(__m128i, __m128i, __m128i);
-__m128i _mm_maddsd_epi16(__m128i, __m128i, __m128i);
-__m128i _mm_maddd_epi16(__m128i, __m128i, __m128i);
-
-/* Horizontal add/subtract */
-__m128i _mm_haddw_epi8(__m128i);
-__m128i _mm_haddd_epi8(__m128i);
-__m128i _mm_haddq_epi8(__m128i);
-__m128i _mm_haddd_epi16(__m128i);
-__m128i _mm_haddq_epi16(__m128i);
-__m128i _mm_haddq_epi32(__m128i);
-__m128i _mm_haddw_epu8(__m128i);
-__m128i _mm_haddd_epu8(__m128i);
-__m128i _mm_haddq_epu8(__m128i);
-__m128i _mm_haddd_epu16(__m128i);
-__m128i _mm_haddq_epu16(__m128i);
-__m128i _mm_haddq_epu32(__m128i);
-__m128i _mm_hsubw_epi8(__m128i);
-__m128i _mm_hsubd_epi16(__m128i);
-__m128i _mm_hsubq_epi32(__m128i);
-
-/* Vector conditional moves */
-__m128i _mm_cmov_si128(__m128i, __m128i, __m128i);
-__m128i _mm_perm_epi8(__m128i, __m128i, __m128i);
-
-/* Vector shifts and rotates */
-__m128i _mm_rot_epi8(__m128i, __m128i);
-__m128i _mm_rot_epi16(__m128i, __m128i);
-__m128i _mm_rot_epi32(__m128i, __m128i);
-__m128i _mm_rot_epi64(__m128i, __m128i);
-__m128i _mm_roti_epi8(__m128i, int);
-__m128i _mm_roti_epi16(__m128i, int);
-__m128i _mm_roti_epi32(__m128i, int);
-__m128i _mm_roti_epi64(__m128i, int);
-__m128i _mm_shl_epi8(__m128i, __m128i);
-__m128i _mm_shl_epi16(__m128i, __m128i);
-__m128i _mm_shl_epi32(__m128i, __m128i);
-__m128i _mm_shl_epi64(__m128i, __m128i);
-__m128i _mm_sha_epi8(__m128i, __m128i);
-__m128i _mm_sha_epi16(__m128i, __m128i);
-__m128i _mm_sha_epi32(__m128i, __m128i);
-__m128i _mm_sha_epi64(__m128i, __m128i);
-
-/* Vector integer comparisons */
-
-__m128i _mm_com_epu8(__m128i, __m128i, int);
-__m128i _mm_com_epu16(__m128i, __m128i, int);
-__m128i _mm_com_epu32(__m128i, __m128i, int);
-__m128i _mm_com_epu64(__m128i, __m128i, int);
-__m128i _mm_com_epi8(__m128i, __m128i, int);
-__m128i _mm_com_epi16(__m128i, __m128i, int);
-__m128i _mm_com_epi32(__m128i, __m128i, int);
-__m128i _mm_com_epi64(__m128i, __m128i, int);
-
-/* Precision control */
-
-__m128 _mm_frcz_ps(__m128);
-__m128d _mm_frcz_pd(__m128d);
-__m128 _mm_frcz_ss(__m128, __m128);
-__m128d _mm_frcz_sd(__m128d, __m128d);
-
-/* Control values for permute2 intrinsics */
-#define _MM_PERMUTE2_COPY    0 /* just copy the selected value */
-/* Note that using the constant 1 would have the same effect as 0 */
-#define _MM_PERMUTE2_ZEROIF1 2 /* zero selected value if src3 bit is 1 */
-#define _MM_PERMUTE2_ZEROIF0 3 /* zero selected value if src3 bit is 3 */
-
-/* Permutation */
-__m128 _mm_permute2_ps(__m128, __m128, __m128i, int);
-__m128d _mm_permute2_pd(__m128d, __m128d, __m128i, int);
-
-
-/* YMM versions */
-__m256 _mm256_macc_ps(__m256, __m256, __m256);
-__m256d _mm256_macc_pd(__m256d, __m256d, __m256d);
-__m256 _mm256_maddsub_ps(__m256, __m256, __m256);
-__m256d _mm256_maddsub_pd(__m256d, __m256d, __m256d);
-__m256 _mm256_msubadd_ps(__m256, __m256, __m256);
-__m256d _mm256_msubadd_pd(__m256d, __m256d, __m256d);
-__m256 _mm256_msub_ps(__m256, __m256, __m256);
-__m256d _mm256_msub_pd(__m256d, __m256d, __m256d);
-__m256 _mm256_nmacc_ps(__m256, __m256, __m256);
-__m256d _mm256_nmacc_pd(__m256d, __m256d, __m256d);
-__m256 _mm256_nmsub_ps(__m256, __m256, __m256);
-__m256d _mm256_nmsub_pd(__m256d, __m256d, __m256d);
-__m256i _mm256_cmov_si256(__m256i, __m256i, __m256i);
-__m256 _mm256_frcz_ps(__m256);
-__m256d _mm256_frcz_pd(__m256d);
-__m256 _mm256_permute2_ps(__m256, __m256, __m256i, int);
-__m256d _mm256_permute2_pd(__m256d, __m256d, __m256i, int);
-
-/* LWP intrinsics */
-void __llwpcb(void *);
-void *__slwpcb();
-void __lwpval32(unsigned int, unsigned int, unsigned int);
-unsigned char __lwpins32(unsigned int, unsigned int, unsigned int);
-#if defined (_M_X64)
-void __lwpval64(unsigned __int64, unsigned int, unsigned int);
-unsigned char __lwpins64(unsigned __int64, unsigned int, unsigned int);
-#endif  /* defined (_M_X64) */
-
-/*BMI intrinsics */
-unsigned int _bextr_u32(unsigned int, unsigned int, unsigned int);
-unsigned int _andn_u32(unsigned int, unsigned int);
-unsigned int _tzcnt_u32(unsigned int);
-unsigned int _lzcnt_u32(unsigned int);
-unsigned int _blsr_u32(unsigned int);
-unsigned int _blsmsk_u32(unsigned int);
-unsigned int _blsi_u32(unsigned int);
-#if defined (_M_X64)
-unsigned __int64 _bextr_u64(unsigned __int64, unsigned int, unsigned int);
-unsigned __int64 _andn_u64(unsigned __int64, unsigned __int64);
-unsigned __int64 _tzcnt_u64(unsigned __int64);
-unsigned __int64 _lzcnt_u64(unsigned __int64);
-unsigned __int64 _blsr_u64(unsigned __int64);
-unsigned __int64 _blsmsk_u64(unsigned __int64);
-unsigned __int64 _blsi_u64(unsigned __int64);
-#endif  /* defined (_M_X64) */
-
-/* TBM intrinsics */
-unsigned int _bextri_u32(unsigned int, unsigned int);
-unsigned int _blcfill_u32(unsigned int);
-unsigned int _blsfill_u32(unsigned int);
-unsigned int _blcs_u32(unsigned int);
-unsigned int _tzmsk_u32(unsigned int);
-unsigned int _blcic_u32(unsigned int);
-unsigned int _blsic_u32(unsigned int);
-unsigned int _t1mskc_u32(unsigned int);
-unsigned int _blcmsk_u32(unsigned int);
-unsigned int _blci_u32(unsigned int);
-#if defined (_M_X64)
-unsigned __int64 _bextri_u64(unsigned __int64, unsigned int);
-unsigned __int64 _blcfill_u64(unsigned __int64);
-unsigned __int64 _blsfill_u64(unsigned __int64);
-unsigned __int64 _blcs_u64(unsigned __int64);
-unsigned __int64 _tzmsk_u64(unsigned __int64);
-unsigned __int64 _blcic_u64(unsigned __int64);
-unsigned __int64 _blsic_u64(unsigned __int64);
-unsigned __int64 _t1mskc_u64(unsigned __int64);
-unsigned __int64 _blcmsk_u64(unsigned __int64);
-unsigned __int64 _blci_u64(unsigned __int64);
-#endif  /* defined (_M_X64) */
-
-#if defined __cplusplus
-}; /* End "C" */
-#endif  /* defined __cplusplus */
-
-#endif  /* defined (_M_CEE_PURE) */
-#endif  /* _INCLUDED_AMM */
-#endif  /* __midl */
+#endif /* __AMMINTRIN_H */

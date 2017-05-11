@@ -1,254 +1,106 @@
-/* MollenOS
-*
-* Copyright 2011 - 2016, Philip Meulengracht
-*
-* This program is free software : you can redistribute it and / or modify
-* it under the terms of the GNU General Public License as published by
-* the Free Software Foundation ? , either version 3 of the License, or
-* (at your option) any later version.
-*
-* This program is distributed in the hope that it will be useful,
-* but WITHOUT ANY WARRANTY; without even the implied warranty of
-* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.See the
-* GNU General Public License for more details.
-*
-* You should have received a copy of the GNU General Public License
-* along with this program.If not, see <http://www.gnu.org/licenses/>.
-*
-*
-* MollenOS C Library - Int Types
-*/
+/*===---- inttypes.h - Standard header for integer printf macros ----------===*\
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+ * THE SOFTWARE.
+ *
+\*===----------------------------------------------------------------------===*/
 
-#ifndef _INTTYPES
-#define _INTTYPES
+#ifndef __CLANG_INTTYPES_H
+#define __CLANG_INTTYPES_H
 
-/* Includes */
-#include <stdint.h>
-
-/* C Guard */
-#ifdef __cplusplus
-extern "C" {
-#endif  /* __cplusplus */
-/*
-typedef struct
-{  
-// result of long long divide
-  intmax_t quot;
-  intmax_t rem;
-} _Lldiv_t;
-
-typedef _Lldiv_t imaxdiv_t;
-
-
-intmax_t _CRT_EXTERN __cdecl imaxabs(_In_ intmax_t);
-imaxdiv_t _CRT_EXTERN __cdecl imaxdiv(_In_ intmax_t, _In_ intmax_t);
-
-intmax_t _CRT_EXTERN __cdecl strtoimax(_In_z_ const char *, _Out_opt_ _Deref_post_z_ char **, int);
-intmax_t _CRT_EXTERN __cdecl _strtoimax_l(_In_z_ const char *, _Out_opt_ _Deref_post_z_ char **, int, _In_opt_ _locale_t);
-uintmax_t _CRT_EXTERN __cdecl strtoumax(_In_z_ const char *, _Out_opt_ _Deref_post_z_ char **, int);
-uintmax_t _CRT_EXTERN __cdecl _strtoumax_l(_In_z_ const char *, _Out_opt_ _Deref_post_z_ char **, int, _In_opt_ _locale_t);
-intmax_t _CRT_EXTERN __cdecl wcstoimax(_In_z_ const wchar_t *, _Out_opt_ _Deref_post_z_ wchar_t **, int);
-intmax_t _CRT_EXTERN __cdecl _wcstoimax_l(_In_z_ const wchar_t *, _Out_opt_ _Deref_post_z_ wchar_t **, int, _In_opt_ _locale_t);
-uintmax_t _CRT_EXTERN __cdecl wcstoumax(_In_z_ const wchar_t *, _Out_opt_ _Deref_post_z_ wchar_t **, int);
-uintmax_t _CRT_EXTERN __cdecl _wcstoumax_l(_In_z_ const wchar_t *, _Out_opt_ _Deref_post_z_ wchar_t **, int, _In_opt_ _locale_t); */
-
-#define _PFX_8   "hh"
-#define _PFX_16  "h"
-#define _PFX_32  "l"
-#define _PFX_64  "ll"
-
-#ifdef _WIN64
-#define _PFX_PTR  "ll"
-#else
-#define _PFX_PTR  "l"
+#if defined(_MSC_VER) && _MSC_VER < 1800
+#error MSVC does not have inttypes.h prior to Visual Studio 2013
 #endif
 
-#ifdef _FAST16_IS_32 /* compiler test */
-#define _PFX_F16  _PFX_32
-#else /* _FAST16_IS_32 */
-#define _PFX_F16  _PFX_16
-#endif /* _FAST16_IS_32 */
+#include_next <inttypes.h>
 
-/* PRINT FORMAT MACROS */
-#define PRId8        _PFX_8 "d"
-#define PRId16       _PFX_16 "d"
-#define PRId32       _PFX_32 "d"
-#define PRIdLEAST8   _PFX_8 "d"
-#define PRIdLEAST16  _PFX_16 "d"
-#define PRIdLEAST32  _PFX_32 "d"
-#define PRIdFAST8    _PFX_8 "d"
-#define PRIdFAST16   _PFX_F16 "d"
-#define PRIdFAST32   _PFX_32 "d"
+#if defined(_MSC_VER) && _MSC_VER < 1900
+/* MSVC headers define int32_t as int, but PRIx32 as "lx" instead of "x".
+ * This triggers format warnings, so fix it up here. */
+#undef PRId32
+#undef PRIdLEAST32
+#undef PRIdFAST32
+#undef PRIi32
+#undef PRIiLEAST32
+#undef PRIiFAST32
+#undef PRIo32
+#undef PRIoLEAST32
+#undef PRIoFAST32
+#undef PRIu32
+#undef PRIuLEAST32
+#undef PRIuFAST32
+#undef PRIx32
+#undef PRIxLEAST32
+#undef PRIxFAST32
+#undef PRIX32
+#undef PRIXLEAST32
+#undef PRIXFAST32
 
-#define PRIi8        _PFX_8 "i"
-#define PRIi16       _PFX_16 "i"
-#define PRIi32       _PFX_32 "i"
-#define PRIiLEAST8   _PFX_8 "i"
-#define PRIiLEAST16  _PFX_16 "i"
-#define PRIiLEAST32  _PFX_32 "i"
-#define PRIiFAST8    _PFX_8 "i"
-#define PRIiFAST16   _PFX_F16 "i"
-#define PRIiFAST32   _PFX_32 "i"
+#undef SCNd32
+#undef SCNdLEAST32
+#undef SCNdFAST32
+#undef SCNi32
+#undef SCNiLEAST32
+#undef SCNiFAST32
+#undef SCNo32
+#undef SCNoLEAST32
+#undef SCNoFAST32
+#undef SCNu32
+#undef SCNuLEAST32
+#undef SCNuFAST32
+#undef SCNx32
+#undef SCNxLEAST32
+#undef SCNxFAST32
 
-#define PRIo8        _PFX_8 "o"
-#define PRIo16       _PFX_16 "o"
-#define PRIo32       _PFX_32 "o"
-#define PRIoLEAST8   _PFX_8 "o"
-#define PRIoLEAST16  _PFX_16 "o"
-#define PRIoLEAST32  _PFX_32 "o"
-#define PRIoFAST8    _PFX_8 "o"
-#define PRIoFAST16   _PFX_F16 "o"
-#define PRIoFAST32   _PFX_32 "o"
+#define PRId32 "d"
+#define PRIdLEAST32 "d"
+#define PRIdFAST32 "d"
+#define PRIi32 "i"
+#define PRIiLEAST32 "i"
+#define PRIiFAST32 "i"
+#define PRIo32 "o"
+#define PRIoLEAST32 "o"
+#define PRIoFAST32 "o"
+#define PRIu32 "u"
+#define PRIuLEAST32 "u"
+#define PRIuFAST32 "u"
+#define PRIx32 "x"
+#define PRIxLEAST32 "x"
+#define PRIxFAST32 "x"
+#define PRIX32 "X"
+#define PRIXLEAST32 "X"
+#define PRIXFAST32 "X"
 
-#define PRIu8        _PFX_8 "u"
-#define PRIu16       _PFX_16 "u"
-#define PRIu32       _PFX_32 "u"
-#define PRIuLEAST8   _PFX_8 "u"
-#define PRIuLEAST16  _PFX_16 "u"
-#define PRIuLEAST32  _PFX_32 "u"
-#define PRIuFAST8    _PFX_8 "u"
-#define PRIuFAST16   _PFX_F16 "u"
-#define PRIuFAST32   _PFX_32 "u"
+#define SCNd32 "d"
+#define SCNdLEAST32 "d"
+#define SCNdFAST32 "d"
+#define SCNi32 "i"
+#define SCNiLEAST32 "i"
+#define SCNiFAST32 "i"
+#define SCNo32 "o"
+#define SCNoLEAST32 "o"
+#define SCNoFAST32 "o"
+#define SCNu32 "u"
+#define SCNuLEAST32 "u"
+#define SCNuFAST32 "u"
+#define SCNx32 "x"
+#define SCNxLEAST32 "x"
+#define SCNxFAST32 "x"
+#endif
 
-#define PRIx8        _PFX_8 "x"
-#define PRIx16       _PFX_16 "x"
-#define PRIx32       _PFX_32 "x"
-#define PRIxLEAST8   _PFX_8 "x"
-#define PRIxLEAST16  _PFX_16 "x"
-#define PRIxLEAST32  _PFX_32 "x"
-#define PRIxFAST8    _PFX_8 "x"
-#define PRIxFAST16   _PFX_F16 "x"
-#define PRIxFAST32   _PFX_32 "x"
-
-#define PRIX8        _PFX_8 "X"
-#define PRIX16       _PFX_16 "X"
-#define PRIX32       _PFX_32 "X"
-#define PRIXLEAST8   _PFX_8 "X"
-#define PRIXLEAST16  _PFX_16 "X"
-#define PRIXLEAST32  _PFX_32 "X"
-#define PRIXFAST8    _PFX_8 "X"
-#define PRIXFAST16   _PFX_F16 "X"
-#define PRIXFAST32   _PFX_32 "X"
-
-#define PRId64       _PFX_64 "d"
-#define PRIdLEAST64  _PFX_64 "d"
-#define PRIdFAST64   _PFX_64 "d"
-#define PRIdMAX      _PFX_64 "d"
-#define PRIdPTR      _PFX_PTR "d"
-
-#define PRIi64       _PFX_64 "i"
-#define PRIiLEAST64  _PFX_64 "i"
-#define PRIiFAST64   _PFX_64 "i"
-#define PRIiMAX      _PFX_64 "i"
-#define PRIiPTR      _PFX_PTR "i"
-
-#define PRIo64       _PFX_64 "o"
-#define PRIoLEAST64  _PFX_64 "o"
-#define PRIoFAST64   _PFX_64 "o"
-#define PRIoMAX      _PFX_64 "o"
-#define PRIoPTR      _PFX_PTR "o"
-
-#define PRIu64       _PFX_64 "u"
-#define PRIuLEAST64  _PFX_64 "u"
-#define PRIuFAST64   _PFX_64 "u"
-#define PRIuMAX      _PFX_64 "u"
-#define PRIuPTR      _PFX_PTR "u"
-
-#define PRIx64       _PFX_64 "x"
-#define PRIxLEAST64  _PFX_64 "x"
-#define PRIxFAST64   _PFX_64 "x"
-#define PRIxMAX      _PFX_64 "x"
-#define PRIxPTR      _PFX_PTR "x"
-
-#define PRIX64       _PFX_64 "X"
-#define PRIXLEAST64  _PFX_64 "X"
-#define PRIXFAST64   _PFX_64 "X"
-#define PRIXMAX      _PFX_64 "X"
-#define PRIXPTR      _PFX_PTR "X"
-
-/* SCAN FORMAT MACROS */
-#define SCNd8        _PFX_8 "d"
-#define SCNd16       _PFX_16 "d"
-#define SCNd32       _PFX_32 "d"
-#define SCNdLEAST8   _PFX_8 "d"
-#define SCNdLEAST16  _PFX_16 "d"
-#define SCNdLEAST32  _PFX_32 "d"
-#define SCNdFAST8    _PFX_8 "d"
-#define SCNdFAST16   _PFX_F16 "d"
-#define SCNdFAST32   _PFX_32 "d"
-
-#define SCNi8        _PFX_8 "i"
-#define SCNi16       _PFX_16 "i"
-#define SCNi32       _PFX_32 "i"
-#define SCNiLEAST8   _PFX_8 "i"
-#define SCNiLEAST16  _PFX_16 "i"
-#define SCNiLEAST32  _PFX_32 "i"
-#define SCNiFAST8    _PFX_8 "i"
-#define SCNiFAST16   _PFX_F16 "i"
-#define SCNiFAST32   _PFX_32 "i"
-
-#define SCNo8        _PFX_8 "o"
-#define SCNo16       _PFX_16 "o"
-#define SCNo32       _PFX_32 "o"
-#define SCNoLEAST8   _PFX_8 "o"
-#define SCNoLEAST16  _PFX_16 "o"
-#define SCNoLEAST32  _PFX_32 "o"
-#define SCNoFAST8    _PFX_8 "o"
-#define SCNoFAST16   _PFX_F16 "o"
-#define SCNoFAST32   _PFX_32 "o"
-
-#define SCNu8        _PFX_8 "u"
-#define SCNu16       _PFX_16 "u"
-#define SCNu32       _PFX_32 "u"
-#define SCNuLEAST8   _PFX_8 "u"
-#define SCNuLEAST16  _PFX_16 "u"
-#define SCNuLEAST32  _PFX_32 "u"
-#define SCNuFAST8    _PFX_8 "u"
-#define SCNuFAST16   _PFX_F16 "u"
-#define SCNuFAST32   _PFX_32 "u"
-
-#define SCNx8        _PFX_8 "x"
-#define SCNx16       _PFX_16 "x"
-#define SCNx32       _PFX_32 "x"
-#define SCNxLEAST8   _PFX_8 "x"
-#define SCNxLEAST16  _PFX_16 "x"
-#define SCNxLEAST32  _PFX_32 "x"
-#define SCNxFAST8    _PFX_8 "x"
-#define SCNxFAST16   _PFX_F16 "x"
-#define SCNxFAST32   _PFX_32 "x"
-
-#define SCNd64       _PFX_64 "d"
-#define SCNdLEAST64  _PFX_64 "d"
-#define SCNdFAST64   _PFX_64 "d"
-#define SCNdMAX      _PFX_64 "d"
-#define SCNdPTR      _PFX_PTR "d"
-
-#define SCNi64       _PFX_64 "i"
-#define SCNiLEAST64  _PFX_64 "i"
-#define SCNiFAST64   _PFX_64 "i"
-#define SCNiMAX      _PFX_64 "i"
-#define SCNiPTR      _PFX_PTR "i"
-
-#define SCNo64       _PFX_64 "o"
-#define SCNoLEAST64  _PFX_64 "o"
-#define SCNoFAST64   _PFX_64 "o"
-#define SCNoMAX      _PFX_64 "o"
-#define SCNoPTR      _PFX_PTR "o"
-
-#define SCNu64       _PFX_64 "u"
-#define SCNuLEAST64  _PFX_64 "u"
-#define SCNuFAST64   _PFX_64 "u"
-#define SCNuMAX      _PFX_64 "u"
-#define SCNuPTR      _PFX_PTR "u"
-
-#define SCNx64       _PFX_64 "x"
-#define SCNxLEAST64  _PFX_64 "x"
-#define SCNxFAST64   _PFX_64 "x"
-#define SCNxMAX      _PFX_64 "x"
-#define SCNxPTR      _PFX_PTR "x"
-
-#ifdef __cplusplus
-}
-#endif /* __cplusplus */
-
-#endif /* _INTTYPES */
+#endif /* __CLANG_INTTYPES_H */

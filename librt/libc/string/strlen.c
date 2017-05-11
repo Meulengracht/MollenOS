@@ -25,7 +25,7 @@
 #error long int is not a 32bit or 64bit byte
 #endif
 
-#ifdef _MSC_VER
+#if defined(_MSC_VER) && !defined(__clang__)
 #pragma function(strlen)
 #endif
 

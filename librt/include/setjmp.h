@@ -32,7 +32,7 @@
 extern "C" {
 #endif
 
-#if (defined(_X86_) && !defined(__x86_64)) || defined(_X86_32)
+#if (defined(_X86_) && !defined(__x86_64)) || defined(_X86_32) || defined(i386)
 
 #define _JBLEN 16
 #define _JBTYPE int

@@ -1,136 +1,30 @@
-/***
-*** Copyright (C) 1985-2007 Intel Corporation.  All rights reserved.
-***
-*** The information and source code contained herein is the exclusive
-*** property of Intel Corporation and may not be disclosed, examined
-*** or reproduced in whole or in part without explicit written authorization
-*** from the company.
-***
-****/
-
-/*
- * nmmintrin.h
+/*===---- nmmintrin.h - SSE4 intrinsics ------------------------------------===
  *
- * Principal header file for Intel(R) Core(TM) 2 Duo processor
- * SSE4.2 intrinsics.
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+ * THE SOFTWARE.
+ *
+ *===-----------------------------------------------------------------------===
  */
 
-#pragma once
-#ifndef __midl
-#ifndef _INCLUDED_NMM
-#define _INCLUDED_NMM
+#ifndef _NMMINTRIN_H
+#define _NMMINTRIN_H
 
-#if defined (_M_CEE_PURE)
-        #error ERROR: EMM intrinsics not supported in the pure mode!
-#else  /* defined (_M_CEE_PURE) */
-
+/* To match expectations of gcc we put the sse4.2 definitions into smmintrin.h,
+   just include it now then.  */
 #include <smmintrin.h>
-
-
-#if __cplusplus
-extern "C" {
-#endif  /* __cplusplus */
-
-/*
- * These defines are used to determine the kind of units to be compared
- */
-#define _SIDD_UBYTE_OPS                0x00
-#define _SIDD_UWORD_OPS                0x01
-#define _SIDD_SBYTE_OPS                0x02
-#define _SIDD_SWORD_OPS                0x03
-
-
-/*
- * These defines are used to determine the comparison operation
- */
-#define _SIDD_CMP_EQUAL_ANY            0x00
-#define _SIDD_CMP_RANGES               0x04
-#define _SIDD_CMP_EQUAL_EACH           0x08
-#define _SIDD_CMP_EQUAL_ORDERED        0x0C
-
-
-/*
- * These defines are used to determine the polarity
- */
-#define _SIDD_POSITIVE_POLARITY        0x00
-#define _SIDD_NEGATIVE_POLARITY        0x10
-#define _SIDD_MASKED_POSITIVE_POLARITY 0x20
-#define _SIDD_MASKED_NEGATIVE_POLARITY 0x30
-
-
-/*
- * These defines are used in _mm_cmpXstri()
- */
-#define _SIDD_LEAST_SIGNIFICANT        0x00
-#define _SIDD_MOST_SIGNIFICANT         0x40
-
-/*
- * These defines are used _mm_cmpXstrm()
- */
-#define _SIDD_BIT_MASK                 0x00
-#define _SIDD_UNIT_MASK                0x40
-
-
-/*
- * Intrinsics for text/string processing.
- */
-
-    extern __m128i _mm_cmpistrm (__m128i a, __m128i b, const int mode);
-    extern int     _mm_cmpistri (__m128i a, __m128i b, const int mode);
-
-    extern __m128i _mm_cmpestrm (__m128i a, int la, __m128i b, int lb, const int mode);
-    extern int     _mm_cmpestri (__m128i a, int la, __m128i b, int lb, const int mode);
-
-/*
- * Intrinsics for text/string processing and reading values of EFlags.
- */
-
-    extern int     _mm_cmpistrz (__m128i a, __m128i b, const int mode);
-    extern int     _mm_cmpistrc (__m128i a, __m128i b, const int mode);
-    extern int     _mm_cmpistrs (__m128i a, __m128i b, const int mode);
-    extern int     _mm_cmpistro (__m128i a, __m128i b, const int mode);
-    extern int     _mm_cmpistra (__m128i a, __m128i b, const int mode);
-
-    extern int     _mm_cmpestrz (__m128i a, int la, __m128i b, int lb, const int mode);
-    extern int     _mm_cmpestrc (__m128i a, int la, __m128i b, int lb, const int mode);
-    extern int     _mm_cmpestrs (__m128i a, int la, __m128i b, int lb, const int mode);
-    extern int     _mm_cmpestro (__m128i a, int la, __m128i b, int lb, const int mode);
-    extern int     _mm_cmpestra (__m128i a, int la, __m128i b, int lb, const int mode);
-
-/*
- * Packed integer 64-bit comparison, zeroing or filling with ones
- * corresponding parts of result
- */
-
-    extern __m128i _mm_cmpgt_epi64(__m128i val1, __m128i val2);
-
-/*
- * Calculate a number of bits set to 1
- */
-
-    extern int _mm_popcnt_u32(unsigned int v);
-
-#if defined (_M_X64)
-    extern __int64 _mm_popcnt_u64(unsigned __int64 v);
-#endif  /* defined (_M_X64) */
-
-/*
- * Accumulate CRC32 (polynomial 0x11EDC6F41) value
- */
-
-    extern unsigned int _mm_crc32_u8 (unsigned int crc, unsigned char v);
-    extern unsigned int _mm_crc32_u16(unsigned int crc, unsigned short v);
-    extern unsigned int _mm_crc32_u32(unsigned int crc, unsigned int v);
-
-#if defined (_M_X64)
-    extern unsigned __int64 _mm_crc32_u64(unsigned __int64 crc, unsigned __int64 v);
-#endif  /* defined (_M_X64) */
-
-#if defined __cplusplus
-}; /* End "C" */
-#endif  /* defined __cplusplus */
-
-#endif  /* defined (_M_CEE_PURE) */
-
-#endif  /* _INCLUDED_NMM */
-#endif  /* __midl */
+#endif /* _NMMINTRIN_H */

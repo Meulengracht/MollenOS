@@ -1,12 +1,12 @@
 # Definitions
-export CC = clang
-export CXX = clang++
-export LD = lld
+export arch = i386
+export CC = $(CROSS)/bin/clang
+export CXX = $(CROSS)/bin/clang++
+export LD = $(CROSS)/bin/lld
 export ASFLAGS = -f bin
 export AS = nasm
-export DEBUG = -g
+export GCFLAGS = -Wall -Wno-unused-function -fms-extensions -ffreestanding -g -nostdlib -O2 -DMOLLENOS -D$(arch)
 export FCOPY = cp
-export arch = i386
 target = vmdk
 
 all: boot_loader libraries kernel initrd
