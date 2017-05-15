@@ -21,7 +21,7 @@
 
 /* Includes 
  * - System */
-#include "MStringPrivate.h"
+#include "mstringprivate.h"
 
 /* Copies some or all of string data
  * from Source to Destination, it does NOT append

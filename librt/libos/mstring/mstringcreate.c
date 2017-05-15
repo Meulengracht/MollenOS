@@ -21,7 +21,7 @@
 
 /* Includes 
  * - System */
-#include "MStringPrivate.h"
+#include "mstringprivate.h"
 
 /* Helper 
  * Converts ASCII to UTF-8 

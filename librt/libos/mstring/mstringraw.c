@@ -21,7 +21,7 @@
 
 /* Includes
 * - System */
-#include "MStringPrivate.h"
+#include "mstringprivate.h"
 
 /* Returns the raw data pointer 
  * of the given MString, which can be used for

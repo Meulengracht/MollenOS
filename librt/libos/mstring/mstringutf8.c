@@ -21,7 +21,7 @@
 
 /* Includes 
  * - System */
-#include "MStringPrivate.h"
+#include "mstringprivate.h"
 
 /* Helpers */
 #define IsUTF8(Character) (((Character) & 0xC0) == 0x80)

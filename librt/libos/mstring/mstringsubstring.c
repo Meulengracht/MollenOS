@@ -21,7 +21,7 @@
 
 /* Includes 
  * - System */
-#include "MStringPrivate.h"
+#include "mstringprivate.h"
 
 /* Substring - build substring from the given mstring
  * starting at Index with the Length. If the length is -1

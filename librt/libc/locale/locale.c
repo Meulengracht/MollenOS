@@ -177,7 +177,7 @@ No supporting OS subroutines are required.
 #include <stdlib.h>
 #include <wchar.h>
 #include "setlocale.h"
-#include "../ctype/ctype_.h"
+#include "../ctype/common/ctype_.h"
 #include "../stdlib/local.h"
 
 #ifdef __CYGWIN__ /* Has to be kept available as exported symbol for

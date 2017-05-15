@@ -21,7 +21,7 @@
 
 /* Includes 
  * - System */
-#include "MStringPrivate.h"
+#include "mstringprivate.h"
 
 /* Destroys the string and frees any resourec
  * allocated by the structure */

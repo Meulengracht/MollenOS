@@ -21,7 +21,7 @@
 
 /* Includes
  * - System */
-#include "MStringPrivate.h"
+#include "mstringprivate.h"
 
 /* Get character at the given index and 
  * return the character found as UTF32 */

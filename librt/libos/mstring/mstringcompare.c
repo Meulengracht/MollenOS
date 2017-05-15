@@ -21,7 +21,7 @@
 
 /* Includes 
  * - System */
-#include "MStringPrivate.h"
+#include "mstringprivate.h"
 
 /* Compare two strings with either case-ignore or not. 
  * Returns MSTRING_FULL_MATCH if they are equal, or

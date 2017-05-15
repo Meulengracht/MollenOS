@@ -21,7 +21,7 @@
 
 /* Includes 
  * - System */
-#include "MStringPrivate.h"
+#include "mstringprivate.h"
 
 /* Find first occurence of the given character in the given string. 
  * The character given to this function should be UTF8

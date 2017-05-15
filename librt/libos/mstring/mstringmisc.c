@@ -21,7 +21,7 @@
 
 /* Includes
  * - System */
-#include "MStringPrivate.h"
+#include "mstringprivate.h"
 
 /* Find first occurence of the given UTF8 string
  * in the given string. This does not accept UTF16 or UTF32.

@@ -24,7 +24,7 @@
 #include <string.h>
 
 #ifdef LIBC_KERNEL
-#include <Heap.h>
+#include <heap.h>
 #else
 #include <stdlib.h>
 #endif

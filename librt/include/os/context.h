@@ -31,7 +31,7 @@
 /* The context depends on the current running 
  * architecture - and describes which kind of
  * information is stored for each context */
-#if defined(_X86_32)
+#if defined(_X86_32) || defined(i386)
 PACKED_TYPESTRUCT(Context, {
 	uint32_t                Edi;
 	uint32_t                Esi;

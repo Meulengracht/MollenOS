@@ -21,10 +21,10 @@
 
 /* Includes 
  * - System */
-#include "MStringPrivate.h"
+#include "mstringprivate.h"
 
 #ifdef LIBC_KERNEL
-#include <Log.h>
+#include <log.h>
 #endif
 
 /* Prints out a mstring to stdout

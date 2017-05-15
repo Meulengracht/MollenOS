@@ -1,8 +1,9 @@
-# Definitions
+# Definitions - /entry:_kmain 
 export arch = i386
 export CC = $(CROSS)/bin/clang
 export CXX = $(CROSS)/bin/clang++
-export LD = $(CROSS)/bin/lld
+export LD = $(CROSS)/bin/lld-link
+export LIB = $(CROSS)/bin/llvm-lib
 export ASFLAGS = -f bin
 export AS = nasm
 export GCFLAGS = -Wall -Wno-unused-function -fms-extensions -ffreestanding -g -nostdlib -O2 -DMOLLENOS -D$(arch)

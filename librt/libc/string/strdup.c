@@ -6,7 +6,7 @@
 #include <stdlib.h>
 
 #ifdef LIBC_KERNEL
-#include <Heap.h>
+#include <heap.h>
 char *strdup(const char *str)
 {
 	size_t len = strlen(str);
