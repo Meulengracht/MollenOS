@@ -34,7 +34,7 @@
 
 static const double one = 1.0, shuge = 1.0e307;
 
-#ifdef _MSC_VER
+#if defined(_MSC_VER) && !defined(__clang__)
 #pragma function(sinh)
 #endif
 

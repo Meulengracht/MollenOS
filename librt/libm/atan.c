@@ -65,7 +65,7 @@ static const double
 one = 1.0,
 huge = 1.0e300;
 
-#ifdef _MSC_VER
+#if defined(_MSC_VER) && !defined(__clang__)
 #pragma function(atan)
 #endif
 

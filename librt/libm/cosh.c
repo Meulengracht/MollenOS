@@ -37,7 +37,7 @@
 
 static const double one = 1.0, half = 0.5, huge = 1.0e300;
 
-#ifdef _MSC_VER
+#if defined(_MSC_VER) && !defined(__clang__)
 #pragma function(cosh)
 #pragma warning(disable:4756)
 #endif
@@ -80,7 +80,7 @@ __ieee754_cosh(double x)
 	return huge*huge;
 }
 
-#ifdef _MSC_VER
+#if defined(_MSC_VER) && !defined(__clang__)
 #pragma warning(default:4756)
 #endif
 

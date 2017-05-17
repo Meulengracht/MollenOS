@@ -46,6 +46,7 @@ ANSI C requires <<localtime>>.
 
 /* Includes */
 #include <os/thread.h>
+#include <string.h>
 #include <time.h>
 #include "local.h"
 

@@ -1928,7 +1928,7 @@ static FORCEINLINE void x86_clear_lock(int* sl) {
 #if defined(_MSC_VER)
 #define SLEEP_EX_DURATION     50 /* delay for yield/sleep */
 #ifdef MOLLENOS
-#include <os/Thread.h>
+#include <os/thread.h>
 #define SPIN_LOCK_YIELD  ThreadSleep(SLEEP_EX_DURATION)
 #else
 #define SPIN_LOCK_YIELD  SleepEx(SLEEP_EX_DURATION, FALSE)

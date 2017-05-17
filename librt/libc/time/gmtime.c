@@ -62,6 +62,7 @@ ANSI C requires <<gmtime>>.
 /* Includes */
 #include <os/thread.h>
 #include <stdlib.h>
+#include <string.h>
 #include "local.h"
 
 #define _GMT_OFFSET 0

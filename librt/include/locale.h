@@ -24,6 +24,7 @@
 
 /* Includes */
 #define __need_NULL
+#include <crtdefs.h>
 #include <stddef.h>
 
 /* Shorthands for the locale-structures

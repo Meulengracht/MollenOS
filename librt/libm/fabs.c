@@ -17,7 +17,7 @@
 #include "private.h"
 #include <math.h>
 
-#ifdef _MSC_VER
+#if defined(_MSC_VER) && !defined(__clang__)
 #pragma function(fabs)
 #endif
 

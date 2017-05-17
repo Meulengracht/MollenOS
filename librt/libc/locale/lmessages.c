@@ -33,7 +33,7 @@
 		(offsetof(struct lc_messages_T, yesstr) / sizeof(char *))
 
 #ifndef __CYGWIN__
-static char empty[] = "";
+//static char empty[] = "";
 #endif
 
 const struct lc_messages_T _C_messages_locale = {
@@ -51,9 +51,9 @@ const struct lc_messages_T _C_messages_locale = {
 };
 
 #ifndef __CYGWIN__
-static struct lc_messages_T _messages_locale;
-static int	_messages_using_locale;
-static char	*_messages_locale_buf;
+//static struct lc_messages_T _messages_locale;
+//static int	_messages_using_locale;
+//static char	*_messages_locale_buf;
 #endif
 
 int __messages_load_locale (struct __locale_t *locale, const char *name,

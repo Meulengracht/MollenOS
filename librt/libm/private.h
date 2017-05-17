@@ -17,7 +17,7 @@
 #include <float.h>
 
 /* Include arch-specfic files */
-#if defined(_X86_32)
+#if defined(_X86_32) || defined(i386)
 #include "i386\fpmath.h"
 #elif defined(_X86_64)
 #include "amd64\fpmath.h"

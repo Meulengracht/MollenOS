@@ -67,7 +67,7 @@
 /* Inline helpers for both MSVC assembler, 
  * but also for GCC assembler, unfortunately
  * i don't know how to do the clober thing in msvc */
-#ifdef _MSC_VER
+#if defined(_MSC_VER) && !defined(__clang__)
 #define	__fldcw(__cw)		_asm fldcw dword ptr [__cw]
 #define	__fldenv(__env)		_asm fldenv dword ptr [__env]
 #define	__fldenvx(__env)	_asm fldenv dword ptr [__env]

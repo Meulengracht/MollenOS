@@ -90,9 +90,8 @@ __ldexp_cexp(double complex z, int expt)
 	exp_x = __frexp_exp(x, &ex_expt);
 	expt += ex_expt;
 
-	/*
-	* Arrange so that scale1 * scale2 == 2**expt.  We use this to
-	* compensate for scalbn being horrendously slow. *
+	// Arrange so that scale1 * scale2 == 2**expt.  We use this to
+	// compensate for scalbn being horrendously slow.
 	half_expt = expt / 2;
 	INSERT_WORDS(scale1, (0x3ff + half_expt) << 20, 0);
 	half_expt = expt - half_expt;

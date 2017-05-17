@@ -49,7 +49,7 @@ __flt_rounds(void)
 	int x;
 
 	/* Assume that the x87 and the SSE unit agree on the rounding mode. */
-#ifdef _MSC_VER
+#if defined(_MSC_VER) && !defined(__clang__)
 	_asm fnstcw dword ptr [x]
 #else
 	__asm("fnstcw %0" : "=m" (x));

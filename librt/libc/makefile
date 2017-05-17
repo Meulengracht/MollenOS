@@ -24,44 +24,58 @@ LIBK_SRCS = $(wildcard ../libos/ds/*.c) \
 			stdlib/itoa.c \
 			stdlib/strtoul.c
 
-LIBC_SRCS = 
+LIBC_SRCS = $(wildcard glue/*.c) \
+			$(wildcard ctype/*.c) \
+			$(wildcard getop/*.c) \
+			$(wildcard locale/*.c) \
+			$(wildcard signal/*.c) \
+			$(wildcard stdio/*.c) \
+			$(wildcard stdlib/*.c) \
+			$(wildcard time/*.c)
 
-LIBC_INCS = 
+# Setup flags and stuff each for individual build  $(subst ../,,$(ASM_SRCS))
+ifeq ($(MAKECMDGOALS),libk)
+	OBJECTS = $(join $(addprefix obk/, $(dir $(ASM_SRCS))), $(notdir $(ASM_SRCS:.s=.o))) \
+			  $(join $(addprefix obk/, $(dir $(COMMON_SRCS))), $(notdir $(COMMON_SRCS:.c=.o))) \
+			  $(join $(addprefix obk/, $(dir $(LIBK_SRCS))), $(notdir $(LIBK_SRCS:.c=.o)))
+	CFLAGS = $(GCFLAGS) -DLIBC_KERNEL -D_KRNL_DLL $(COMMON_INCS) $(LIBK_INCS)
+	LFLAGS = /lib
+	OBJDIR = obk
+else
+	OBJECTS = $(join $(addprefix obc/, $(dir $(ASM_SRCS))), $(notdir $(ASM_SRCS:.s=.o))) \
+			  $(join $(addprefix obc/, $(dir $(COMMON_SRCS))), $(notdir $(COMMON_SRCS:.c=.o))) \
+			  $(join $(addprefix obc/, $(dir $(LIBC_SRCS))), $(notdir $(LIBC_SRCS:.c=.o)))
+	CFLAGS = $(GCFLAGS) -D_HAVE_LONG_DOUBLE -D_LDBL_EQ_DBL -DCRTDLL $(COMMON_INCS)
+	LFLAGS = /nodefaultlib /subsystem:native /noentry /dll
+	OBJDIR = obc
+endif
 
-LIBK_OBJS = $(ASM_SRCS:.s=.o) $(COMMON_SRCS:.c=.o) $(LIBK_SRCS:.c=.o)
-LIBC_OBJS = $(ASM_SRCS:.s=.o) $(COMMON_SRCS:.c=.o) $(LIBC_SRCS:.c=.o)
-
-# LibK flags - 
-libk: CFLAGS = $(GCFLAGS) -DLIBC_KERNEL -D_KRNL_DLL $(COMMON_INCS) $(LIBK_INCS) 
-libk: LFLAGS = /lib
-
-# LibC flags
-libc: CFLAGS = $(GCFLAGS) -D_HAVE_LONG_DOUBLE -D_LDBL_EQ_DBL -DCRTDLL $(COMMON_INCS)
-libc: LFLAGS = /nodefaultlib /subsystem:native /DLL
-
-.PHONY: all
-all: ../build/libk.lib ../build/libc.dll
-
+# libk-target
 .PHONY: libk
 libk: ../build/libk.lib
 
+# libc-target
 .PHONY: libc
 libc: ../build/libc.dll
 
-../build/libk.lib: $(LIBK_OBJS)
-	$(LD) $(LFLAGS) $(LIBK_OBJS) /out:$@
+../build/libk.lib: $(OBJECTS)
+	$(LD) $(LFLAGS) $(OBJECTS) /out:$@
 
-../build/libc.dll: $(LIBC_OBJS)
-	$(LD) $(LFLAGS) $(LIBC_OBJS) /out:$@
+../build/libc.dll: $(OBJECTS)
+	$(LD) $(LFLAGS) $(OBJECTS) /out:$@
 
-%.o : %.c
+$(OBJDIR)/%.o : %.c
+	@mkdir -p $(dir $@)
 	$(CC) -c $(CFLAGS) -o $@ $<
 
-%.o : %.s
+$(OBJDIR)/%.o : %.s
+	@mkdir -p $(dir $@)
 	$(AS) $(ASFLAGS) $< -o $@
 
 .PHONY: clean
 clean:
-	rm -f ../build/libk.lib
-	rm -f ../build/libc.dll
-	rm -f $(LIBC_OBJS) $(LIBK_OBJS)
+	@rm -f ../build/libk.lib
+	@rm -f ../build/libc.dll
+	@rm -rf obk
+	@rm -rf obc
+	@rm -rf libos

@@ -6,7 +6,7 @@ export LD = $(CROSS)/bin/lld-link
 export LIB = $(CROSS)/bin/llvm-lib
 export ASFLAGS = -f bin
 export AS = nasm
-export GCFLAGS = -Wall -Wno-unused-function -fms-extensions -ffreestanding -g -nostdlib -O2 -DMOLLENOS -D$(arch)
+export GCFLAGS = -Wall -Wno-self-assign -Wno-unused-function -fms-extensions -ffreestanding -g -nostdlib -O2 -DMOLLENOS -D$(arch)
 export FCOPY = cp
 target = vmdk
 

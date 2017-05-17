@@ -19,7 +19,7 @@
  */
 
 /* Includes */
-#include <os/Spinlock.h>
+#include <os/spinlock.h>
 #include <stdlib.h>
 #include <errno.h>
 

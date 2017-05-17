@@ -20,7 +20,7 @@
 */
 
 /* Includes */
-#include <os/Thread.h>
+#include <os/thread.h>
 #include <stdlib.h>
 
 /* Generate a new random value based on

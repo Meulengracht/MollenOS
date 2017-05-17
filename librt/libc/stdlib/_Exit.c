@@ -20,7 +20,7 @@
  */
 
 /* Includes */
-#include <os/Syscall.h>
+#include <os/syscall.h>
 #include <stdlib.h>
 
 /* Terminate normally, no cleanup. No calls to anything. 

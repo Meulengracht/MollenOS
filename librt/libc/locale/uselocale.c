@@ -51,7 +51,7 @@ PORTABILITY
 */
 
 /* Includes */
-#include <os/Thread.h>
+#include <os/thread.h>
 #include <stdlib.h>
 #include "setlocale.h"
 

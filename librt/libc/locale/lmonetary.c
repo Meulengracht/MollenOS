@@ -71,9 +71,9 @@ const struct lc_monetary_T _C_monetary_locale = {
 };
 
 #ifndef __CYGWIN__
-static struct lc_monetary_T _monetary_locale;
-static int	_monetary_using_locale;
-static char	*_monetary_locale_buf;
+//static struct lc_monetary_T _monetary_locale;
+//static int	_monetary_using_locale;
+//static char	*_monetary_locale_buf;
 
 static char cnv(const char *str) {
 	int i = strtol(str, NULL, 10);

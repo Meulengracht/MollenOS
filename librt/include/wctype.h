@@ -23,6 +23,7 @@
 #define _WCTYPE_H_
 
 /* Includes */
+#include <crtdefs.h>
 #include <stdint.h>
 #include <stddef.h>
 

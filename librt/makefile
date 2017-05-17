@@ -8,7 +8,7 @@
 # The remaining libraries are run-time libraries for C++ support
 
 .PHONY: all
-all: build/libk.lib build/libm.dll build/libc.dll build/libos.dll
+all: build build/libk.lib build/libm.dll build/libc.dll build/libos.dll
 
 build:
 	mkdir -p $@
@@ -30,4 +30,4 @@ clean:
 	$(MAKE) -C libm -f makefile clean
 	$(MAKE) -C libc -f makefile clean
 	$(MAKE) -C libos -f makefile clean
-	rm -rf build
+	@rm -rf build

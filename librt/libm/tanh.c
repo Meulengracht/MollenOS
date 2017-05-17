@@ -39,7 +39,7 @@
 
 static const double one = 1.0, two = 2.0, tiny = 1.0e-300, huge = 1.0e300;
 
-#ifdef _MSC_VER
+#if defined(_MSC_VER) && !defined(__clang__)
 #pragma function(tanh)
 #endif
 

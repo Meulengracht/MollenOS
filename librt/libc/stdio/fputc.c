@@ -24,7 +24,6 @@
 #include <errno.h>
 #include <string.h>
 #include <stdlib.h>
-#include <os/Syscall.h>
 
 /* Size of an UTF-8 Character */
 int __fgetcharbytes(unsigned long Character)

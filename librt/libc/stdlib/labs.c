@@ -23,7 +23,7 @@
 #include <stdlib.h>
 
 /* Disable warning + pragma */
-#ifdef _MSC_VER
+#if defined(_MSC_VER) && !defined(__clang__)
 #pragma warning(disable: 4164)
 #pragma function(labs)
 #endif

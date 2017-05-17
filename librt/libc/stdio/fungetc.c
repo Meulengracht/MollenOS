@@ -24,7 +24,6 @@
 #include <errno.h>
 #include <string.h>
 #include <stdlib.h>
-#include <os/Syscall.h>
 
 /* The fungetc
  * Restores given input character

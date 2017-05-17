@@ -112,7 +112,7 @@ struct  savexmm {
 	} sv_fp[8];
 	struct xmmacc	sv_xmm[8];
 	unsigned char sv_pad[224];
-#ifdef _MSC_VER
+#if defined(_MSC_VER) && !defined(__clang__)
 } __declspec(align(16));
 #else
 }  __attribute__((__aligned__(16)));
