@@ -38,7 +38,7 @@ void __EntryLibCEmpty(void)
 #else
 
 /* Private Definitions */
-#ifdef _X86_32
+#if defined(_X86_32) || defined(i386)
 #define MOLLENOS_ARGUMENT_ADDR	0x1F000000
 #elif defined(X86_64)
 #define MOLLENOS_ARGUMENT_ADDR	0x1F000000
@@ -85,7 +85,7 @@ int ParseCommandLine(char *CmdLine, char **ArgBuffer)
 	ArgCount = LastArgC = 0;
 	for (BufPtr = CmdLine; *BufPtr;) {
 		/* Skip leading whitespace */
-		while (isspace(*BufPtr)) {
+		while (isspace((int)(*BufPtr))) {
 			++BufPtr;
 		}
 		/* Skip over argument */
@@ -112,7 +112,7 @@ int ParseCommandLine(char *CmdLine, char **ArgBuffer)
 				++ArgCount;
 			}
 			/* Skip over word */
-			while (*BufPtr && !isspace(*BufPtr)) {
+			while (*BufPtr && !isspace((int)(*BufPtr))) {
 				++BufPtr;
 			}
 		}

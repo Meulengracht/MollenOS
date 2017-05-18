@@ -20,6 +20,7 @@
 */
 
 /* Includes */
+#include <crtdefs.h>
 #include <stddef.h>
 
 /* Typedefs */

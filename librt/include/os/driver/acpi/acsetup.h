@@ -27,7 +27,7 @@
 /* ACPI_MACHINE_WIDTH must be specified in an OS- or compiler-dependent header
  * and must be either 32 or 64. 16-bit ACPICA is no longer supported, as of
  * 12/2006. */
-#if defined(_X86_32)
+#if defined(_X86_32) || defined(i386)
 #define ACPI_MACHINE_WIDTH 32
 #elif defined (_X86_64)
 #define ACPI_MACHINE_WIDTH 64

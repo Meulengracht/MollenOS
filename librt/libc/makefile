@@ -31,7 +31,12 @@ LIBC_SRCS = $(wildcard glue/*.c) \
 			$(wildcard signal/*.c) \
 			$(wildcard stdio/*.c) \
 			$(wildcard stdlib/*.c) \
-			$(wildcard time/*.c)
+			$(wildcard time/*.c) \
+			../libos/synchronization/spinlock.c \
+			../libos/driver/bufferobject.c \
+			../libos/syscalls.c \
+			../libos/pipe.c \
+			../libos/rpc.c
 
 # Setup flags and stuff each for individual build  $(subst ../,,$(ASM_SRCS))
 ifeq ($(MAKECMDGOALS),libk)
@@ -46,7 +51,7 @@ else
 			  $(join $(addprefix obc/, $(dir $(COMMON_SRCS))), $(notdir $(COMMON_SRCS:.c=.o))) \
 			  $(join $(addprefix obc/, $(dir $(LIBC_SRCS))), $(notdir $(LIBC_SRCS:.c=.o)))
 	CFLAGS = $(GCFLAGS) -D_HAVE_LONG_DOUBLE -D_LDBL_EQ_DBL -DCRTDLL $(COMMON_INCS)
-	LFLAGS = /nodefaultlib /subsystem:native /noentry /dll
+	LFLAGS = /nodefaultlib /subsystem:native /noentry /dll ../build/libcrt.lib ../build/libm.lib
 	OBJDIR = obc
 endif
 
