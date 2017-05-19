@@ -13,20 +13,16 @@
 ;                           _ldused
 ;
 ;*******************************************************************************
-
-        .686
-        .model  flat,c
+bits 32
 
 ; offset, with respect to FS, of pointer to currently active exception handler.
 ; referenced by compiler generated code for SEH and by _setjmp().
 
-        public  _except_list
-_except_list    equ     0
+global _except_list
+_except_list    dd     0
 
-        public  _fltused
-_fltused        equ     9876h
+global _fltused
+_fltused        dd     9876h
 
-        public  _ldused
-_ldused         equ     9876h
-
-        end
+global _ldused
+_ldused         dd     9876h

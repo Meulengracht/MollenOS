@@ -20,9 +20,9 @@
 */
 
 /* Includes */
-#include <Bitmap.h>
-#include <Heap.h>
-#include <Log.h>
+#include <bitmap.h>
+#include <heap.h>
+#include <log.h>
 
 /* C-Library */
 #include <stddef.h>

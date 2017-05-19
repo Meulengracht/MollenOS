@@ -1,4 +1,4 @@
-        title   llshr - long shift right
+;title   llshr - long shift right
 ;***
 ;llshr.asm - long shift right
 ;
@@ -9,12 +9,11 @@
 ;           __allshr
 ;
 ;*******************************************************************************
-                .386
-_TEXT           segment use32 para public 'CODE'
-                public  __allshr
+bits 32
+segment .text
 
-LOWORD  equ     [0]
-HIWORD  equ     [4]
+;Functions in this asm 
+global __allshr
 
 ;***
 ;llshr - long shift right
@@ -36,9 +35,7 @@ HIWORD  equ     [4]
 ;Exceptions:
 ;
 ;*******************************************************************************
-__allshr       proc    near
-              assume  cs:_TEXT
-
+__allshr:
 ;
 ; Handle shifts of 64 bits or more (if shifting 64 bits or more, the result
 ; depends only on the high order bit of edx).
@@ -72,8 +69,3 @@ RETSIGN:
         sar     edx,31
         mov     eax,edx
         ret
-
-__allshr ENDP
-
-_TEXT           ends
-                end

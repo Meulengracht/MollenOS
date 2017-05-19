@@ -1,5 +1,5 @@
-        page    ,132
-        title   enable - enable/disable interrupts
+;page    ,132
+;title   enable - enable/disable interrupts
 ;***
 ;enable.asm - contains _enable() and _disable() routines
 ;
@@ -9,7 +9,7 @@
 ;
 ;*******************************************************************************
 
-page
+;page
 ;***
 ;void _enable(void)  - enables interrupts
 ;void _disable(void) - disables interrupts
@@ -27,27 +27,17 @@ page
 ;Exceptions:
 ;
 ;*******************************************************************************
+bits 32
+segment .text
 
-                .386
-_TEXT           segment use32 para public 'CODE'
-				public  _enable, _disable
+;Functions in this asm 
+global _enable
+global _disable
 
-_enable proc
-
+_enable:
         sti
         ret
 
-_enable endp
-
-        align   4
-
-_disable proc
-
+_disable:
         cli
         ret
-
-_disable endp
-
-
-_TEXT           ends
-                end

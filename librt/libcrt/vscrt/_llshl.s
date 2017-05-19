@@ -1,4 +1,4 @@
-        title   llshl - long shift left
+;title   llshl - long shift left
 ;***
 ;llshl.asm - long shift left
 ;
@@ -9,12 +9,11 @@
 ;           __allshl
 ;
 ;*******************************************************************************
-                .386
-_TEXT           segment use32 para public 'CODE'
-                public  __allshl
+bits 32
+segment .text
 
-LOWORD  equ     [0]
-HIWORD  equ     [4]
+;Functions in this asm 
+global __allshl
 
 ;***
 ;llshl - long shift left
@@ -36,8 +35,7 @@ HIWORD  equ     [4]
 ;Exceptions:
 ;
 ;*******************************************************************************
-__allshl       proc    near
-              assume  cs:_TEXT
+__allshl:
 ;
 ; Handle shifts of 64 or more bits (all get 0)
 ;
@@ -70,8 +68,3 @@ RETZERO:
         xor     eax,eax
         xor     edx,edx
         ret
-
-__allshl ENDP
-
-_TEXT           ends
-                end

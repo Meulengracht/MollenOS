@@ -28,8 +28,8 @@
 
 /* Includes
  * - System */
-#include <Arch.h>
-#include <os/Spinlock.h>
+#include <arch.h>
+#include <os/spinlock.h>
 
 /* Structures */
 typedef struct _Bitmap

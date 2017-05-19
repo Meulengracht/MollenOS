@@ -1,6 +1,6 @@
-        title   ullrem - unsigned long remainder routine
+;title   ullrem - unsigned long remainder routine
 ;***
-;ullrem.asm - unsigned long remainder routine
+;_aullrem.s - unsigned long remainder routine
 ;
 ;       Copyright (c) Microsoft Corporation. All rights reserved.
 ;
@@ -9,13 +9,11 @@
 ;           __aullrem
 ;
 ;*******************************************************************************
+bits 32
+segment .text
 
-                .386
-_TEXT           segment use32 para public 'CODE'
-                public  __aullrem
-
-LOWORD  equ     [0]
-HIWORD  equ     [4]
+;Functions in this asm 
+global __aullrem
 
 ;***
 ;ullrem - unsigned long remainder
@@ -39,9 +37,7 @@ HIWORD  equ     [4]
 ;Exceptions:
 ;
 ;*******************************************************************************
-__aullrem       proc    near
-				assume  cs:_TEXT
-
+__aullrem:
         push    ebx
 
 ; Set up the local stack and save the index registers.  When this is done
@@ -65,22 +61,24 @@ __aullrem       proc    near
 ;               -----------------
 ;
 
-DVND    equ     [esp + 8]       ; stack address of dividend (a)
-DVSR    equ     [esp + 16]      ; stack address of divisor (b)
+%define DVND     [esp + 8]       ; stack address of dividend (a)
+%define DVNDU    [esp + 12]       ; stack address of dividend (a)
+%define DVSR     [esp + 16]      ; stack address of divisor (b)
+%define DVSRU    [esp + 20]      ; stack address of divisor (b)
 
 ; Now do the divide.  First look to see if the divisor is less than 4194304K.
 ; If so, then we can use a simple algorithm with word divides, otherwise
 ; things get a little more complex.
 ;
 
-        mov     eax,HIWORD(DVSR) ; check to see if divisor < 4194304K
+        mov     eax, DVSRU ; check to see if divisor < 4194304K
         or      eax,eax
         jnz     short L1        ; nope, gotta do this the hard way
-        mov     ecx,LOWORD(DVSR) ; load divisor
-        mov     eax,HIWORD(DVND) ; load high word of dividend
+        mov     ecx, DVSR ; load divisor
+        mov     eax, DVNDU ; load high word of dividend
         xor     edx,edx
         div     ecx             ; edx <- remainder, eax <- quotient
-        mov     eax,LOWORD(DVND) ; edx:eax <- remainder:lo word of dividend
+        mov     eax, DVND ; edx:eax <- remainder:lo word of dividend
         div     ecx             ; edx <- final remainder
         mov     eax,edx         ; edx:eax <- remainder
         xor     edx,edx
@@ -92,9 +90,9 @@ DVSR    equ     [esp + 16]      ; stack address of divisor (b)
 
 L1:
         mov     ecx,eax         ; ecx:ebx <- divisor
-        mov     ebx,LOWORD(DVSR)
-        mov     edx,HIWORD(DVND) ; edx:eax <- dividend
-        mov     eax,LOWORD(DVND)
+        mov     ebx, DVSR
+        mov     edx, DVNDU ; edx:eax <- dividend
+        mov     eax, DVND
 L3:
         shr     ecx,1           ; shift divisor right one bit; hi bit <- 0
         rcr     ebx,1
@@ -112,9 +110,9 @@ L3:
 ;
 
         mov     ecx,eax         ; save a copy of quotient in ECX
-        mul     dword ptr HIWORD(DVSR)
+        mul     dword DVSRU
         xchg    ecx,eax         ; put partial product in ECX, get quotient in EAX
-        mul     dword ptr LOWORD(DVSR)
+        mul     dword DVSR
         add     edx,ecx         ; EDX:EAX = QUOT * DVSR
         jc      short L4        ; carry means Quotient is off by 1
 
@@ -124,14 +122,14 @@ L3:
 ; subtract the original divisor from the result.
 ;
 
-        cmp     edx,HIWORD(DVND) ; compare hi words of result and original
+        cmp     edx, DVNDU ; compare hi words of result and original
         ja      short L4        ; if result > original, do subtract
         jb      short L5        ; if result < original, we're ok
-        cmp     eax,LOWORD(DVND) ; hi words are equal, compare lo words
+        cmp     eax, DVND ; hi words are equal, compare lo words
         jbe     short L5        ; if less or equal we're ok, else subtract
 L4:
-        sub     eax,LOWORD(DVSR) ; subtract divisor from result
-        sbb     edx,HIWORD(DVSR)
+        sub     eax, DVSR ; subtract divisor from result
+        sbb     edx, DVSRU
 L5:
 
 ;
@@ -140,8 +138,8 @@ L5:
 ; the opposite direction and negate the result to make it positive.
 ;
 
-        sub     eax,LOWORD(DVND) ; subtract original dividend from result
-        sbb     edx,HIWORD(DVND)
+        sub     eax, DVND ; subtract original dividend from result
+        sbb     edx, DVNDU
         neg     edx             ; and negate it
         neg     eax
         sbb     edx,0
@@ -156,8 +154,3 @@ L2:
         pop     ebx
 
         ret     16
-
-__aullrem       ENDP
-
-_TEXT           ends
-                end

@@ -20,8 +20,8 @@
 */
 
 /* Includes */
-#include <os/MollenOS.h>
-#include <os/Syscall.h>
+#include <os/mollenos.h>
+#include <os/syscall.h>
 
 /* Kernel Guard */
 #ifdef LIBC_KERNEL

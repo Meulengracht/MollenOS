@@ -3,12 +3,11 @@
 ; Adapted from Visual Studio C runtime library
 ; Portions Copyright (c) Microsoft Corporation. All rights reserved. 
 ;-----------------------------------------------------------------------------
-                .386
-_TEXT           segment use32 para public 'CODE'
-                public  __aulldvrm
+bits 32
+segment .text
 
-LOWORD  equ     [0]
-HIWORD  equ     [4]
+;Functions in this asm 
+global __aulldvrm
 
 ;
 ; ulldvrm - unsigned long divide and remainder
@@ -31,9 +30,7 @@ HIWORD  equ     [4]
 ;       ECX
 ;
 
-__aulldvrm      proc    near
-                assume  cs:_TEXT
-
+__aulldvrm:
         push    esi
 
 ; Set up the local stack and save the index registers.  When this is done
@@ -57,8 +54,10 @@ __aulldvrm      proc    near
 ;               -----------------
 ;
 
-DVND    equ     [esp + 8]       ; stack address of dividend (a)
-DVSR    equ     [esp + 16]      ; stack address of divisor (b)
+%define DVND     [esp + 8]       ; stack address of dividend (a)
+%define DVNDU    [esp + 12]       ; stack address of dividend (a)
+%define DVSR     [esp + 16]      ; stack address of divisor (b)
+%define DVSRU    [esp + 20]      ; stack address of divisor (b)
 
 ;
 ; Now do the divide.  First look to see if the divisor is less than 4194304K.
@@ -66,15 +65,15 @@ DVSR    equ     [esp + 16]      ; stack address of divisor (b)
 ; things get a little more complex.
 ;
 
-        mov     eax,HIWORD(DVSR) ; check to see if divisor < 4194304K
+        mov     eax,DVSRU ; check to see if divisor < 4194304K
         or      eax,eax
         jnz     short L1        ; nope, gotta do this the hard way
-        mov     ecx,LOWORD(DVSR) ; load divisor
-        mov     eax,HIWORD(DVND) ; load high word of dividend
+        mov     ecx,DVSR ; load divisor
+        mov     eax,DVNDU ; load high word of dividend
         xor     edx,edx
         div     ecx             ; get high order bits of quotient
         mov     ebx,eax         ; save high bits of quotient
-        mov     eax,LOWORD(DVND) ; edx:eax <- remainder:lo word of dividend
+        mov     eax,DVND ; edx:eax <- remainder:lo word of dividend
         div     ecx             ; get low order bits of quotient
         mov     esi,eax         ; ebx:esi <- quotient
 
@@ -82,10 +81,10 @@ DVSR    equ     [esp + 16]      ; stack address of divisor (b)
 ; Now we need to do a multiply so that we can compute the remainder.
 ;
         mov     eax,ebx         ; set up high word of quotient
-        mul     dword ptr LOWORD(DVSR) ; HIWORD(QUOT) * DVSR
+        mul     dword DVSR ; HIWORD(QUOT) * DVSR
         mov     ecx,eax         ; save the result in ecx
         mov     eax,esi         ; set up low word of quotient
-        mul     dword ptr LOWORD(DVSR) ; LOWORD(QUOT) * DVSR
+        mul     dword DVSR ; LOWORD(QUOT) * DVSR
         add     edx,ecx         ; EDX:EAX = QUOT * DVSR
         jmp     short L2        ; complete remainder calculation
 
@@ -95,9 +94,9 @@ DVSR    equ     [esp + 16]      ; stack address of divisor (b)
 
 L1:
         mov     ecx,eax         ; ecx:ebx <- divisor
-        mov     ebx,LOWORD(DVSR)
-        mov     edx,HIWORD(DVND) ; edx:eax <- dividend
-        mov     eax,LOWORD(DVND)
+        mov     ebx,DVSR
+        mov     edx,DVNDU ; edx:eax <- dividend
+        mov     eax,DVND
 L3:
         shr     ecx,1           ; shift divisor right one bit; hi bit <- 0
         rcr     ebx,1
@@ -115,10 +114,10 @@ L3:
 ; dividend is close to 2**64 and the quotient is off by 1.
 ;
 
-        mul     dword ptr HIWORD(DVSR) ; QUOT * HIWORD(DVSR)
+        mul     dword DVSRU ; QUOT * DVSRU
         mov     ecx,eax
-        mov     eax,LOWORD(DVSR)
-        mul     esi             ; QUOT * LOWORD(DVSR)
+        mov     eax,DVSR
+        mul     esi             ; QUOT * DVSR
         add     edx,ecx         ; EDX:EAX = QUOT * DVSR
         jc      short L4        ; carry means Quotient is off by 1
 
@@ -128,15 +127,15 @@ L3:
 ; subtract one (1) from the quotient.
 ;
 
-        cmp     edx,HIWORD(DVND) ; compare hi words of result and original
+        cmp     edx,DVNDU ; compare hi words of result and original
         ja      short L4        ; if result > original, do subtract
         jb      short L5        ; if result < original, we are ok
-        cmp     eax,LOWORD(DVND) ; hi words are equal, compare lo words
+        cmp     eax,DVND ; hi words are equal, compare lo words
         jbe     short L5        ; if less or equal we are ok, else subtract
 L4:
         dec     esi             ; subtract 1 from quotient
-        sub     eax,LOWORD(DVSR) ; subtract divisor from result
-        sbb     edx,HIWORD(DVSR)
+        sub     eax,DVSR ; subtract divisor from result
+        sbb     edx,DVSRU
 L5:
         xor     ebx,ebx         ; ebx:esi <- quotient
 
@@ -147,8 +146,8 @@ L2:
 ; opposite direction and negate the result.
 ;
 
-        sub     eax,LOWORD(DVND) ; subtract dividend from result
-        sbb     edx,HIWORD(DVND)
+        sub     eax,DVND ; subtract dividend from result
+        sbb     edx,DVNDU
         neg     edx             ; otherwise, negate the result
         neg     eax
         sbb     edx,0
@@ -169,8 +168,3 @@ L2:
         pop     esi
 
         ret     16
-
-__aulldvrm      endp
-
-_TEXT           ends
-                end

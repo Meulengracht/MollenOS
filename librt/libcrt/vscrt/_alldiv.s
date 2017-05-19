@@ -1,4 +1,4 @@
-        title   lldiv - signed long divide routine
+; title   lldiv - signed long divide routine
 ;***
 ;lldiv.asm - signed long divide routine
 ;
@@ -9,12 +9,11 @@
 ;           __alldiv
 ;
 ;*******************************************************************************
-                .386
-_TEXT           segment use32 para public 'CODE'
-                public  __alldiv
+bits 32
+segment .text
 
-LOWORD  equ     [0]
-HIWORD  equ     [4]
+;Functions in this asm 
+global __alldiv
 
 ;***
 ;lldiv - signed long divide
@@ -38,9 +37,7 @@ HIWORD  equ     [4]
 ;Exceptions:
 ;
 ;*******************************************************************************
-__alldiv       proc    near
-              assume  cs:_TEXT
-
+__alldiv:
         push    edi
         push    esi
         push    ebx
@@ -70,36 +67,37 @@ __alldiv       proc    near
 ;               -----------------
 ;
 
-DVND    equ     [esp + 16]      ; stack address of dividend (a)
-DVSR    equ     [esp + 24]      ; stack address of divisor (b)
-
+%define DVND     [esp + 16]       ; stack address of dividend (a)
+%define DVNDU    [esp + 20]       ; stack address of dividend (a)
+%define DVSR     [esp + 24]      ; stack address of divisor (b)
+%define DVSRU    [esp + 28]      ; stack address of divisor (b)
 
 ; Determine sign of the result (edi = 0 if result is positive, non-zero
 ; otherwise) and make operands positive.
 
         xor     edi,edi         ; result sign assumed positive
 
-        mov     eax,HIWORD(DVND) ; hi word of a
-        or      eax,eax         ; test to see if signed
+        mov     eax, DVNDU ; hi word of a
+        or      eax, eax         ; test to see if signed
         jge     short L1        ; skip rest if a is already positive
         inc     edi             ; complement result sign flag
-        mov     edx,LOWORD(DVND) ; lo word of a
+        mov     edx, DVND ; lo word of a
         neg     eax             ; make a positive
         neg     edx
         sbb     eax,0
-        mov     HIWORD(DVND),eax ; save positive value
-        mov     LOWORD(DVND),edx
+        mov     DVNDU, eax ; save positive value
+        mov     DVND, edx
 L1:
-        mov     eax,HIWORD(DVSR) ; hi word of b
+        mov     eax, DVSRU ; hi word of b
         or      eax,eax         ; test to see if signed
         jge     short L2        ; skip rest if b is already positive
         inc     edi             ; complement the result sign flag
-        mov     edx,LOWORD(DVSR) ; lo word of a
+        mov     edx, DVSR ; lo word of a
         neg     eax             ; make b positive
         neg     edx
         sbb     eax,0
-        mov     HIWORD(DVSR),eax ; save positive value
-        mov     LOWORD(DVSR),edx
+        mov     DVSRU, eax ; save positive value
+        mov     DVSR, edx
 L2:
 
 ;
@@ -112,12 +110,12 @@ L2:
 
         or      eax,eax         ; check to see if divisor < 4194304K
         jnz     short L3        ; nope, gotta do this the hard way
-        mov     ecx,LOWORD(DVSR) ; load divisor
-        mov     eax,HIWORD(DVND) ; load high word of dividend
+        mov     ecx, DVSR ; load divisor
+        mov     eax, DVNDU ; load high word of dividend
         xor     edx,edx
         div     ecx             ; eax <- high order bits of quotient
         mov     ebx,eax         ; save high bits of quotient
-        mov     eax,LOWORD(DVND) ; edx:eax <- remainder:lo word of dividend
+        mov     eax, DVND ; edx:eax <- remainder:lo word of dividend
         div     ecx             ; eax <- low order bits of quotient
         mov     edx,ebx         ; edx:eax <- quotient
         jmp     short L4        ; set sign, restore stack and return
@@ -128,9 +126,9 @@ L2:
 
 L3:
         mov     ebx,eax         ; ebx:ecx <- divisor
-        mov     ecx,LOWORD(DVSR)
-        mov     edx,HIWORD(DVND) ; edx:eax <- dividend
-        mov     eax,LOWORD(DVND)
+        mov     ecx, DVSR
+        mov     edx, DVNDU ; edx:eax <- dividend
+        mov     eax, DVND
 L5:
         shr     ebx,1           ; shift divisor right one bit
         rcr     ecx,1
@@ -148,9 +146,9 @@ L5:
 ; dividend is close to 2**64 and the quotient is off by 1.
 ;
 
-        mul     dword ptr HIWORD(DVSR) ; QUOT * HIWORD(DVSR)
+        mul     dword DVSRU ; QUOT * HIWORD(DVSR)
         mov     ecx,eax
-        mov     eax,LOWORD(DVSR)
+        mov     eax, DVSR
         mul     esi             ; QUOT * LOWORD(DVSR)
         add     edx,ecx         ; EDX:EAX = QUOT * DVSR
         jc      short L6        ; carry means Quotient is off by 1
@@ -161,10 +159,10 @@ L5:
 ; subtract one (1) from the quotient.
 ;
 
-        cmp     edx,HIWORD(DVND) ; compare hi words of result and original
+        cmp     edx, DVNDU ; compare hi words of result and original
         ja      short L6        ; if result > original, do subtract
         jb      short L7        ; if result < original, we are ok
-        cmp     eax,LOWORD(DVND) ; hi words are equal, compare lo words
+        cmp     eax, DVND ; hi words are equal, compare lo words
         jbe     short L7        ; if less or equal we are ok, else subtract
 L6:
         dec     esi             ; subtract 1 from quotient
@@ -194,8 +192,3 @@ L8:
         pop     edi
 
         ret     16
-
-__alldiv ENDP
-
-_TEXT           ends
-                end

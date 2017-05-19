@@ -114,7 +114,7 @@
 #ifdef _MSC_VER
 #define MOSAPI __declspec(dllexport)
 #else
-#define MOSAPI
+#define MOSAPI __EXTERN
 #endif
 #else
 #if defined(_KRNL_DLL) || defined(CRTDLL) || defined(_CRTIMP_STATIC)
@@ -123,7 +123,7 @@
 #ifdef _MSC_VER
 #define MOSAPI __declspec(dllimport)
 #else
-#define MOSAPI
+#define MOSAPI __EXTERN
 #endif
 #endif
 #endif

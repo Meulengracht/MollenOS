@@ -1,4 +1,4 @@
-        title   llmul - long multiply routine
+;title   llmul - long multiply routine
 ;***
 ;llmul.asm - long multiply routine
 ;
@@ -12,12 +12,11 @@
 ;           __allmul
 ;
 ;*******************************************************************************
-                .386
-_TEXT           segment use32 para public 'CODE'
-                public  __allmul
+bits 32
+segment .text
 
-LOWORD  equ     [0]
-HIWORD  equ     [4]
+;Functions in this asm 
+global __allmul
 
 ;***
 ;llmul - long multiply routine
@@ -41,11 +40,11 @@ HIWORD  equ     [4]
 ;Exceptions:
 ;
 ;*******************************************************************************
-__allmul       proc    near
-              assume  cs:_TEXT
-
-A       EQU     [esp + 4]       ; stack address of a
-B       EQU     [esp + 12]      ; stack address of b
+__allmul:
+%define A     [esp + 4]       ; stack address of dividend (a)
+%define AU    [esp + 8]       ; stack address of dividend (a)
+%define B     [esp + 12]      ; stack address of divisor (b)
+%define BU    [esp + 16]      ; stack address of divisor (b)
 
 ;
 ;       AHI, BHI : upper 32 bits of A and B
@@ -57,42 +56,37 @@ B       EQU     [esp + 12]      ; stack address of b
 ; ---------------------
 ;
 
-        mov     eax,HIWORD(A)
-        mov     ecx,HIWORD(B)
+        mov     eax,AU
+        mov     ecx,BU
         or      ecx,eax         ;test for both hiwords zero.
-        mov     ecx,LOWORD(B)
+        mov     ecx,B
         jnz     short hard      ;both are zero, just mult ALO and BLO
 
-        mov     eax,LOWORD(A)
+        mov     eax,A
         mul     ecx
 
         ret     16              ; callee restores the stack
 
 hard:
         push    ebx
-.FPO (1, 4, 0, 0, 0, 0)
 
 ; must redefine A and B since esp has been altered
-
-A2      EQU     [esp + 8]       ; stack address of a
-B2      EQU     [esp + 16]      ; stack address of b
+%define A2     [esp + 8]       ; stack address of dividend (a)
+%define A2U    [esp + 12]       ; stack address of dividend (a)
+%define B2     [esp + 16]      ; stack address of divisor (b)
+%define B2U    [esp + 20]      ; stack address of divisor (b)
 
         mul     ecx             ;eax has AHI, ecx has BLO, so AHI * BLO
         mov     ebx,eax         ;save result
 
-        mov     eax,LOWORD(A2)
-        mul     dword ptr HIWORD(B2) ;ALO * BHI
+        mov     eax,A2
+        mul     dword B2U ;ALO * BHI
         add     ebx,eax         ;ebx = ((ALO * BHI) + (AHI * BLO))
 
-        mov     eax,LOWORD(A2)  ;ecx = BLO
+        mov     eax,A2  ;ecx = BLO
         mul     ecx             ;so edx:eax = ALO*BLO
         add     edx,ebx         ;now edx has all the LO*HI stuff
 
         pop     ebx
 
         ret     16              ; callee restores the stack
-
-__allmul ENDP
-
-_TEXT           ends
-                end

@@ -33,7 +33,7 @@ build/libc.dll:
 	$(MAKE) -C libc -f makefile libc
 
 build/libos.dll:
-	$(MAKE) -C libos -f makefile clean
+	$(MAKE) -C libos -f makefile
 
 .PHONY: clean
 clean:

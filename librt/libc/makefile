@@ -50,8 +50,8 @@ else
 	OBJECTS = $(join $(addprefix obc/, $(dir $(ASM_SRCS))), $(notdir $(ASM_SRCS:.s=.o))) \
 			  $(join $(addprefix obc/, $(dir $(COMMON_SRCS))), $(notdir $(COMMON_SRCS:.c=.o))) \
 			  $(join $(addprefix obc/, $(dir $(LIBC_SRCS))), $(notdir $(LIBC_SRCS:.c=.o)))
-	CFLAGS = $(GCFLAGS) -D_HAVE_LONG_DOUBLE -D_LDBL_EQ_DBL -DCRTDLL $(COMMON_INCS)
-	LFLAGS = /nodefaultlib /subsystem:native /noentry /dll ../build/libcrt.lib ../build/libm.lib
+	CFLAGS = $(GCFLAGS) -D_HAVE_LONG_DOUBLE -D_LDBL_EQ_DBL -D_DLL -DCRTDLL $(COMMON_INCS)
+	LFLAGS = /nodefaultlib /subsystem:native /def:libc.def /noentry /dll ../build/libcrt.lib ../build/libm.lib
 	OBJDIR = obc
 endif
 
@@ -79,8 +79,9 @@ $(OBJDIR)/%.o : %.s
 
 .PHONY: clean
 clean:
-	@rm -f ../build/libk.lib
-	@rm -f ../build/libc.dll
-	@rm -rf obk
-	@rm -rf obc
-	@rm -rf libos
+	rm -f ../build/libk.lib
+	rm -f ../build/libc.dll
+	rm -f ../build/libc.lib
+	rm -rf obk
+	rm -rf obc
+	rm -rf libos
