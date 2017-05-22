@@ -24,12 +24,12 @@
 #include <timers.h>
 #include <acpi.h>
 #include <apic.h>
-#include <Gdt.h>
-#include <Thread.h>
-#include <Scheduler.h>
+#include <gdt.h>
+#include <thread.h>
+#include <scheduler.h>
 #include <interrupts.h>
-#include <Memory.h>
-#include <Idt.h>
+#include <memory.h>
+#include <idt.h>
 #include <cpu.h>
 
 /* C-Library */

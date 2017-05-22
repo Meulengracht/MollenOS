@@ -20,9 +20,9 @@
 */
 
 /* Includes */
-#include <Scheduler.h>
-#include <Events.h>
-#include <Heap.h>
+#include <scheduler.h>
+#include <events.h>
+#include <heap.h>
 #include <log.h>
 
 /* C-Library */

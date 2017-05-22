@@ -2,7 +2,7 @@
 # Includes sub-libraries as
 # - acpica
 # - arch sub-layer
-INCLUDES = -I../librt/include -Iinclude
+INCLUDES = -I../librt/include -Iacpica/include -Imsvc/MCoreConfig -Iinclude
 SOURCES = $(wildcard common/*.c) \
 		  $(wildcard system/devices/acpi/*.c) \
 		  $(wildcard system/devices/fonts/*.c) \
@@ -14,18 +14,20 @@ SOURCES = $(wildcard common/*.c) \
 		  init.c
 OBJECTS = $(SOURCES:.c=.o)
 
-CFLAGS = $(GCFLAGS) $(INCLUDES)
-LFLAGS = /nodefaultlib /subsystem:native /entry:_kentry build/acpica.lib build/$(arch).lib
+CFLAGS = $(GCFLAGS) -D_KAPI -DUNICODE -DLIBC_KERNEL -D_KRNL_DLL $(INCLUDES)
+LFLAGS = /nodefaultlib /subsystem:native /entry:kentry ../librt/build/libk.lib build/acpica.lib build/$(arch).lib
 
 .PHONY: all
-all: build acpica arch build/mcore.mos
+all: build arch acpica build/mcore.mos
 
 build:
 	@mkdir -p $@
 
+.PHONY: acpica
 acpica:
 	$(MAKE) -C acpica -f makefile
 
+.PHONY: arch
 arch:
 	$(MAKE) -C arch -f makefile
 

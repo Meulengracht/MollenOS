@@ -17,7 +17,7 @@ ifeq ($(MAKECMDGOALS),libcrt)
 else 
 	ifeq ($(MAKECMDGOALS),libdrv)
 		SOURCES = $(wildcard vscrt/*.c) driver.c
-		CFLAGS = $(GCFLAGS) $(INCLUDES)
+		CFLAGS = $(GCFLAGS) -D__DRIVER_IMPL $(INCLUDES)
 	else
 		SOURCES = $(wildcard vscrt/*.c) service.c
 		CFLAGS = $(GCFLAGS) -D__SERVICE_IMPL $(INCLUDES)

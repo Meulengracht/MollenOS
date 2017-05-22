@@ -23,8 +23,8 @@
 
 /* Includes 
  * - Systems */
-#include <MollenOS.h>
-#include <Modules/RamDisk.h>
+#include <mollenos.h>
+#include <modules/ramdisk.h>
 
 /* Includes
  * - C-Library */

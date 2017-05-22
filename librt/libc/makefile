@@ -22,7 +22,8 @@ LIBK_SRCS = $(wildcard ../libos/ds/*.c) \
 			$(wildcard ../libos/mstring/*.c) \
 			locale/locale.c \
 			stdlib/itoa.c \
-			stdlib/strtoul.c
+			stdlib/strtoul.c \
+			stdlib/abs.c
 
 LIBC_SRCS = $(wildcard glue/*.c) \
 			$(wildcard ctype/*.c) \

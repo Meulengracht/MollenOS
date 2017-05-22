@@ -20,10 +20,10 @@
 */
 
 /* Includes */
-#include <Arch.h>
-#include <AcpiInterface.h>
-#include <Log.h>
-#include <Heap.h>
+#include <arch.h>
+#include <acpiinterface.h>
+#include <log.h>
+#include <heap.h>
 
 /* C-Library */
 #include <assert.h>

@@ -22,9 +22,9 @@
 /* Includes 
  * - System */
 #include <system/utils.h>
-#include <AcpiInterface.h>
-#include <Heap.h>
-#include <Log.h>
+#include <acpiinterface.h>
+#include <heap.h>
+#include <log.h>
 
 /* Includes
  * - Library */

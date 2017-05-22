@@ -21,8 +21,8 @@
 */
 
 /* Includes */
-#include <Arch.h>
-#include <Pic.h>
+#include <arch.h>
+#include <pic.h>
 
 /* Initializes and disables */
 void PicInit(void)

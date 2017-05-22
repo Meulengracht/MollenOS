@@ -24,7 +24,7 @@
 #define _X86_APIC_H_
 
 /* Includes */
-#include <Arch.h>
+#include <arch.h>
 #include <os/osdefs.h>
 
 /* Local apic timer definitions */

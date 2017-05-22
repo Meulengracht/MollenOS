@@ -21,7 +21,7 @@
 */
 
 /* Includes */
-#include <AcpiInterface.h>
+#include <acpiinterface.h>
 #include <DeviceManager.h>
 #include <Modules/Modules.h>
 #include "../Arch.h"

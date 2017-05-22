@@ -42,6 +42,6 @@ install:
 clean:
 	$(MAKE) -C boot -f makefile clean
 	$(MAKE) -C librt -f makefile clean
-	$(MAKE) -C kernel-f makefile clean
+	$(MAKE) -C kernel -f makefile clean
 	rm *.vmdk
 	rm *.img

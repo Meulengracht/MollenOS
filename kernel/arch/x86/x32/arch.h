@@ -33,7 +33,9 @@
 /* X86-32 Address Space */
 #define ADDRESSSPACE_MEMBERS		uintptr_t Cr3; void *PageDirectory;
 
-#include "gdt.h"
+#ifndef GDT_IOMAP_SIZE
+#define GDT_IOMAP_SIZE				2048
+#endif
 
 /* X86-32 Thread */
 typedef struct _x86_Thread {
@@ -43,10 +45,6 @@ typedef struct _x86_Thread {
 	Context_t			*UserContext;
 	uintptr_t			*FpuBuffer;
 } x86Thread_t;
-
-/* Architecture Prototypes, you should define 
- * as many as these as possible */
-#include "../cpu.h"
 
 /* Interrupt stuff */
 #define NUM_ISA_INTERRUPTS			16

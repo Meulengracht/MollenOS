@@ -101,8 +101,8 @@
  * some information about the current build, this
  * is so we can do proper validation of the loaded
  * binary */
-#if defined(_X86_32) || defined(_X86_64)
-#ifdef _X86_32
+#if (defined(_X86_32) || defined(i386)) || defined(_X86_64)
+#if defined(_X86_32) || defined(i386)
 #define PE_CURRENT_MACHINE	PE_MACHINE_X32
 #define PE_CURRENT_ARCH		PE_ARCHITECTURE_32
 #else

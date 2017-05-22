@@ -28,6 +28,7 @@
 #include <memory.h>
 #include <arch.h>
 #include <apic.h>
+#include <cpu.h>
 #include <gdt.h>
 #include <idt.h>
 #include <pic.h>

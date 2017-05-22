@@ -119,7 +119,7 @@
 /*! [Begin] no source code translation (Keep the include) */
 
 /* MollenOS uses VC */
-#ifdef _MSC_VER
+#if defined(_MSC_VER)
 #include "acmsvc.h"
 #endif
 
@@ -177,6 +177,53 @@ typedef COMPILER_DEPENDENT_UINT64       u64;
  *
  * Note: Handles case where the FACS pointer is null
  */
+#if defined(__clang__)
+#define ACPI_ACQUIRE_GLOBAL_LOCK(FacsPtr, Acq)  __asm \
+{                                                   \
+        __asm mov           eax, 0xFF               \
+        __asm mov           ecx, FacsPtr            \
+        __asm or            ecx, ecx                \
+        __asm jz            exit_acq                \
+        __asm lea           ecx, [ecx + 0x10]		\
+                                                    \
+        __asm acq10:                                \
+        __asm mov           eax, [ecx]              \
+        __asm mov           edx, eax                \
+        __asm and           edx, 0xFFFFFFFE         \
+        __asm bts           edx, 1                  \
+        __asm adc           edx, 0                  \
+        __asm lock cmpxchg  dword ptr [ecx], edx    \
+        __asm jnz           acq10                   \
+                                                    \
+        __asm cmp           dl, 3                   \
+        __asm sbb           eax, eax                \
+                                                    \
+        __asm exit_acq:                             \
+        __asm mov           Acq, al                 \
+}
+
+#define ACPI_RELEASE_GLOBAL_LOCK(FacsPtr, Pnd) __asm \
+{                                                   \
+        __asm xor           eax, eax                \
+        __asm mov           ecx, FacsPtr            \
+        __asm or            ecx, ecx                \
+        __asm jz            exit_rel                \
+        __asm lea           ecx, [ecx + 0x10]		\
+                                                    \
+        __asm Rel10:                                \
+        __asm mov           eax, [ecx]              \
+        __asm mov           edx, eax                \
+        __asm and           edx, 0xFFFFFFFC         \
+        __asm lock cmpxchg  dword ptr [ecx], edx    \
+        __asm jnz           Rel10                   \
+                                                    \
+        __asm cmp           dl, 3                   \
+        __asm and           eax, 1                  \
+                                                    \
+        __asm exit_rel:                             \
+        __asm mov           Pnd, al                 \
+}
+#else
 #define ACPI_ACQUIRE_GLOBAL_LOCK(FacsPtr, Acq)  __asm \
 {                                                   \
         __asm mov           eax, 0xFF               \
@@ -222,5 +269,6 @@ typedef COMPILER_DEPENDENT_UINT64       u64;
         __asm exit_rel:                             \
         __asm mov           Pnd, al                 \
 }
+#endif
 
 #endif /* __ACMOS_H__ */

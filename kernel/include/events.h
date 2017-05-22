@@ -29,7 +29,7 @@
 
 /* Includes
  * - System */
-#include <Semaphore.h>
+#include <semaphore.h>
 
 /* This describes the current state
  * of an event, this means the sender

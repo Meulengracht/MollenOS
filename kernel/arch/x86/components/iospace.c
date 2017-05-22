@@ -31,6 +31,7 @@
 #include <memory.h>
 #include <debug.h>
 #include <heap.h>
+#include <gdt.h>
 
 /* Includes
  * - Library */

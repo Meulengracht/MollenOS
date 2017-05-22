@@ -22,9 +22,9 @@
 
 /* Includes */
 #include <system/thread.h>
-#include <Mutex.h>
-#include <Scheduler.h>
-#include <Heap.h>
+#include <mutex.h>
+#include <scheduler.h>
+#include <heap.h>
 #include <assert.h>
 
 /* Allocates and initializes a mutex */
