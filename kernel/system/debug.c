@@ -361,6 +361,7 @@ DebugMemory(
 
 	// And print the final ASCII bit.
 	LogRaw("  %s\n", Buffer);
+	return OsSuccess;
 }
 
 /* DebugContext 

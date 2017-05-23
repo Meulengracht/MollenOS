@@ -118,8 +118,8 @@ RegisterContract(
 {
 	/* Variables */
 	MRemoteCall_t Request;
-	OsStatus_t Result;
-	UUId_t ContractId;
+	OsStatus_t Result = OsSuccess;
+	UUId_t ContractId = UUID_INVALID;
 
 	/* Initialize RPC */
 	RPCInitialize(&Request, __DEVICEMANAGER_INTERFACE_VERSION,
@@ -169,7 +169,7 @@ QueryContract(
 {
 	// Variables
 	MRemoteCall_t Request;
-	OsStatus_t Result;
+	OsStatus_t Result = OsSuccess;
 
 	// Initialize static RPC variables like
 	// type of RPC, pipe and version

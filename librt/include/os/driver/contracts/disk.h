@@ -106,7 +106,7 @@ DiskRead(
 	/* Variables */
 	MContract_t Contract;
 	DiskOperation_t Operation;
-	OsStatus_t Result;
+	OsStatus_t Result = OsSuccess;
 
 	/* Setup contract stuff for request */
 	Contract.DriverId = Driver;
@@ -145,7 +145,7 @@ DiskWrite(
 	/* Variables */
 	MContract_t Contract;
 	DiskOperation_t Operation;
-	OsStatus_t Result;
+	OsStatus_t Result = OsSuccess;
 
 	/* Setup contract stuff for request */
 	Contract.DriverId = Driver;

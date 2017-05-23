@@ -1,0 +1,11 @@
+## Customize dependencies
+dependencies:
+  pre:
+    - chmod +x ./init.sh # Give permissions
+    - sudo bash ./init.sh # Run initializor script
+
+  # we automatically cache and restore many dependencies between
+  # builds. If you need to, you can add custom paths to cache:
+  cache_directories:
+    - "/usr/local/cross/" # Cache the bin directory
+	- "./toolchain" # Cache the toolchain directory

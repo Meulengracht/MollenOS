@@ -142,7 +142,7 @@ RegisterDevice(
 {
 	// Variables
 	MRemoteCall_t Request;
-	UUId_t Result;
+	UUId_t Result = UUID_INVALID;
 
 	// Initialize RPC
 	RPCInitialize(&Request, __DEVICEMANAGER_INTERFACE_VERSION, 
@@ -180,7 +180,7 @@ IoctlDevice(
 {
 	// Variables
 	MRemoteCall_t Request;
-	OsStatus_t Result;
+	OsStatus_t Result = OsSuccess;
 
 	// Initialize RPC
 	RPCInitialize(&Request, __DEVICEMANAGER_INTERFACE_VERSION, 

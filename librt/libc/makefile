@@ -20,6 +20,9 @@ LIBK_INCS = -I../../kernel/include \
 
 LIBK_SRCS = $(wildcard ../libos/ds/*.c) \
 			$(wildcard ../libos/mstring/*.c) \
+			../libos/synchronization/spinlock.c \
+			bufferobject_kernel.c \
+			rpc_kernel.c \
 			locale/locale.c \
 			stdlib/itoa.c \
 			stdlib/strtoul.c \
@@ -58,7 +61,14 @@ endif
 
 # libk-target
 .PHONY: libk
-libk: ../build/libk.lib
+libk: rpc_kernel.c bufferobject_kernel.c ../build/libk.lib
+
+# libk-dependency on its own version
+rpc_kernel.c: ../libos/rpc.c
+	cp $< $@
+
+bufferobject_kernel.c: ../libos/driver/bufferobject.c
+	cp $< $@
 
 # libc-target
 .PHONY: libc
@@ -80,6 +90,8 @@ $(OBJDIR)/%.o : %.s
 
 .PHONY: clean
 clean:
+	rm -f rpc_kernel.c
+	rm -f bufferobject_kernel.c
 	rm -f ../build/libk.lib
 	rm -f ../build/libc.dll
 	rm -f ../build/libc.lib

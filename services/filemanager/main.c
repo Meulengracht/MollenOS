@@ -327,7 +327,7 @@ OsStatus_t OnEvent(MRemoteCall_t *Message)
 		case __FILEMANAGER_GETPOSITION: {
 			QueryFileValuePackage_t Package;
 			TRACE("Filemanager.OnEvent GetPosition");
-			Package.Code = GetFilePosition(Message->Sender,
+			Result = GetFilePosition(Message->Sender,
 				(UUId_t)Message->Arguments[0].Data.Value,
 				&Package);
 			Result = RPCRespond(Message, (__CONST void*)&Package,
@@ -339,7 +339,7 @@ OsStatus_t OnEvent(MRemoteCall_t *Message)
 		case __FILEMANAGER_GETOPTIONS: {
 			QueryFileOptionsPackage_t Package;
 			TRACE("Filemanager.OnEvent GetOptions");
-			Package.Code = GetFileOptions(Message->Sender,
+			Result = GetFileOptions(Message->Sender,
 				(UUId_t)Message->Arguments[0].Data.Value,
 				&Package);
 			Result = RPCRespond(Message, (__CONST void*)&Package,
@@ -364,7 +364,7 @@ OsStatus_t OnEvent(MRemoteCall_t *Message)
 		case __FILEMANAGER_GETSIZE: {
 			QueryFileValuePackage_t Package;
 			TRACE("Filemanager.OnEvent GetSize");
-			Package.Code = GetFileSize(Message->Sender,
+			Result = GetFileSize(Message->Sender,
 				(UUId_t)Message->Arguments[0].Data.Value,
 				&Package);
 			Result = RPCRespond(Message, (__CONST void*)&Package,

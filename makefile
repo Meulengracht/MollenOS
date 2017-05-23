@@ -10,7 +10,8 @@ export GCFLAGS = -Wall -Wno-self-assign -Wno-unused-function -fms-extensions -ff
 export FCOPY = cp
 target = vmdk
 
-all: boot_loader libraries kernel initrd
+.PHONY: all
+all: boot_loader libraries kernel drivers initrd
 	$(FCOPY) boot/build/stage1.sys install/stage1.sys
 	$(FCOPY) boot/build/stage2.sys install/stage2.sys
 	$(FCOPY) librt/build/*.dll modules/build/
@@ -20,11 +21,20 @@ all: boot_loader libraries kernel initrd
 
 .PHONY: initrd
 initrd:
-	modules/rdbuilder.exe
+	mkdir -p initrd
+	$(FCOPY) services/build/*.dll initrd/
+	$(FCOPY) services/build/*.mdrv initrd/
+	$(FCOPY) modules/build/*.dll initrd/
+	$(FCOPY) modules/build/*.mdrv initrd/
+	$(FCOPY) librt/build/*.dll initrd/
 
 .PHONY: kernel
 kernel:
 	$(MAKE) -C kernel -f makefile
+
+.PHONY: drivers
+drivers:
+	$(MAKE) -C services -f makefile
 
 .PHONY: libraries
 libraries:
@@ -42,6 +52,8 @@ install:
 clean:
 	$(MAKE) -C boot -f makefile clean
 	$(MAKE) -C librt -f makefile clean
+	$(MAKE) -C services -f makefile clean
 	$(MAKE) -C kernel -f makefile clean
-	rm *.vmdk
-	rm *.img
+	rm -rf initrd
+	rm -f *.vmdk
+	rm -f *.img

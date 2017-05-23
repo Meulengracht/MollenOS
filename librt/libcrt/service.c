@@ -38,7 +38,9 @@
  * - C/C++ Cleanup */
 __EXTERN void __CppInit(void);
 __EXTERN void __CppFinit(void);
+#ifndef __clang__
 MOSAPI void __CppInitVectoredEH(void);
+#endif
 
 /* CRT Initialization sequence
  * for a shared C/C++ environment
@@ -48,7 +50,9 @@ void _mCrtInit(ThreadLocalStorage_t *Tls)
 	__CppInit();
 	TLSInitInstance(Tls);
 	TLSInit();
+#ifndef __clang__
 	__CppInitVectoredEH();
+#endif
 }
 
 /* Server event entry point

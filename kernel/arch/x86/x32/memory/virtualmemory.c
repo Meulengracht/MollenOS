@@ -182,6 +182,7 @@ MmVirtualInstallPaging(
 	MmVirtualSwitchPageDirectory(Cpu, GlbKernelPageDirectory, 
 		(uintptr_t)GlbKernelPageDirectory);
 	memory_set_paging(1);
+	return OsSuccess;
 }
 
 /* MmVirtualMap

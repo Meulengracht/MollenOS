@@ -61,7 +61,7 @@ void PciCheckBus(PciDevice_t *Parent, int Bus);
  * Helper to construct the class from
  * available pci-information */
 DevInfo_t PciToDevClass(uint32_t Class, uint32_t SubClass) {
-	return ((Class & 0xFFFF) << 16 | SubClass & 0xFFFF);
+	return ((Class & 0xFFFF) << 16 | (SubClass & 0xFFFF));
 }
 
 /* PciToDevSubClass

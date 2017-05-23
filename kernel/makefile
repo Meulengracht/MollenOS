@@ -15,10 +15,10 @@ SOURCES = $(wildcard common/*.c) \
 OBJECTS = $(SOURCES:.c=.o)
 
 CFLAGS = $(GCFLAGS) -D_KAPI -DUNICODE -DLIBC_KERNEL -D_KRNL_DLL $(INCLUDES)
-LFLAGS = /nodefaultlib /subsystem:native /entry:kentry ../librt/build/libk.lib build/acpica.lib build/$(arch).lib
+LFLAGS = /nodefaultlib /subsystem:native /entry:kentry ../librt/build/libcrt.lib ../librt/build/libk.lib build/acpica.lib build/$(arch).lib
 
 .PHONY: all
-all: build arch acpica build/mcore.mos
+all: build arch acpica build/syskrnl.mos
 
 build:
 	@mkdir -p $@
@@ -31,7 +31,7 @@ acpica:
 arch:
 	$(MAKE) -C arch -f makefile
 
-build/mcore.mos: $(OBJECTS)
+build/syskrnl.mos: $(OBJECTS)
 	$(LD) $(LFLAGS) $(OBJECTS) /out:$@
 	
 %.o : %.c

@@ -258,7 +258,7 @@ CloseFile(
 	_In_ UUId_t Handle)
 {
 	// Variables
-	FileSystemCode_t Result;
+	FileSystemCode_t Result = FsOk;
 	MRemoteCall_t Request;
 
 	// Initialize the request
@@ -300,7 +300,7 @@ DeleteFile(
 	_In_ __CONST char *Path)
 {
 	// Variables
-	FileSystemCode_t Result;
+	FileSystemCode_t Result = FsOk;
 	MRemoteCall_t Request;
 
 	// Initialize the request
@@ -457,7 +457,7 @@ SeekFile(
 	_In_ uint32_t SeekHi)
 {
 	// Variables
-	FileSystemCode_t Result;
+	FileSystemCode_t Result = FsOk;
 	MRemoteCall_t Request;
 
 	// Initialize the request
@@ -500,7 +500,7 @@ FlushFile(
 	_In_ UUId_t Handle)
 {
 	// Variables
-	FileSystemCode_t Result;
+	FileSystemCode_t Result = FsOk;
 	MRemoteCall_t Request;
 
 	// Initialize the request
@@ -546,7 +546,7 @@ MoveFile(
 	_In_ int Copy)
 {
 	// Variables
-	FileSystemCode_t Result;
+	FileSystemCode_t Result = FsOk;
 	MRemoteCall_t Request;
 
 	// Initialize the request
@@ -699,7 +699,7 @@ SetFileOptions(
 {
 	// Variables
 	MRemoteCall_t Request;
-	OsStatus_t Result;
+	OsStatus_t Result = OsSuccess;
 
 	// Initialize the request
 	RPCInitialize(&Request, __FILEMANAGER_INTERFACE_VERSION,
