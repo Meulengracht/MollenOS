@@ -16,10 +16,9 @@ if [ ! -f /usr/local/cross/bin/clang ]; then
     tar xvzf cmake-3.8.1.tar.gz
     rm cmake-3.8.1.tar.gz
     cd cmake-3.8.1
-	if ! [ -x "$(command -v cmake)" ]; then
+	if [ -x "$(command -v cmake)" ]; then
+	  apt-get remove "^cmake.*"
       ./bootstrap 
-	else
-	  cmake .
     fi
     make
     make install
