@@ -67,7 +67,7 @@ typedef struct
 	{
 		wint_t __wch;
 		unsigned char __wchb[4];
-} __val;		/* Value so far.  */
+	} __val;		/* Value so far.  */
 } _mbstate_t;
 
 typedef _mbstate_t mbstate_t;

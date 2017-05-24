@@ -375,7 +375,7 @@ MfsFreeBuckets(
 		return MfsUpdateMasterRecord(Descriptor);
 	}
 	else {
-		return FsOk;
+		return OsSuccess;
 	}
 }
 

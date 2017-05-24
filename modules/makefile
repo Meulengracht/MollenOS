@@ -1,39 +1,44 @@
-# Makefile for building the mollenos services
-# Includes services that run both user-space and kernel apis
-# - devices
-# - files
-# - sessions
-# - usb
-# - windows
+# Makefile for building the mollenos drivers
+# Includes drivers that run user-space apis
+# - drivers
 
 .PHONY: all
-all: build devicemanager filemanager
+all: build mfs ahci hpet $(arch)
 
 build:
 	@mkdir -p $@
 
-.PHONY: devicemanager
-devicemanager:
-	$(MAKE) -C devicemanager -f makefile
+# Architecture specific drivers
+.PHONY: i386
+i386:
+	$(MAKE) -C arch/x86/cmos -f makefile
+	$(MAKE) -C arch/x86/pit -f makefile
+	$(MAKE) -C arch/x86/ps2 -f makefile
 
-.PHONY: filemanager
-filemanager:
-	$(MAKE) -C filemanager -f makefile
+# Shared architecture targets below
+.PHONY: mfs
+mfs:
+	$(MAKE) -C filesystems/mfs -f makefile
 
-.PHONY: sessionmanager
-sessionmanager:
-	$(MAKE) -C sessionmanager -f makefile
+.PHONY: ahci
+ahci:
+	$(MAKE) -C storage/ahci -f makefile
 
-.PHONY: usbmanager
-usbmanager:
-	$(MAKE) -C usbmanager -f makefile
+.PHONY: hpet
+hpet:
+	$(MAKE) -C timers/hpet -f makefile
 
-.PHONY: windowmanager
-windowmanager:
-	$(MAKE) -C windowmanager -f makefile
+# Cleanup - architecture i386
+.PHONY: clean_i386
+clean_i386:
+	$(MAKE) -C arch/x86/cmos -f makefile clean
+	$(MAKE) -C arch/x86/pit -f makefile clean
+	$(MAKE) -C arch/x86/ps2 -f makefile clean
 
+# Cleanup - shared
 .PHONY: clean
-clean:
-	$(MAKE) -C devicemanager -f makefile clean
-	$(MAKE) -C filemanager -f makefile clean
+clean: clean_$(arch)
+	$(MAKE) -C filesystems/mfs -f makefile clean
+	$(MAKE) -C storage/ahci -f makefile clean
+	$(MAKE) -C timers/hpet -f makefile clean
 	rm -rf build

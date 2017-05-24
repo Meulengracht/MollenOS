@@ -575,7 +575,7 @@ MCorePeFile_t *PeResolveLibrary(MCorePeFile_t *Parent,
 		 * be from the ramdisk we are loading */
 		if (ExportParent->UsingInitRD) {
 			TRACE("Loading from ramdisk");
-			if (ModulesQueryPath(LibraryName, &fBuffer, &fSize) != OsSuccess) {
+			if (ModulesQueryPath(LibraryName, (void**)&fBuffer, &fSize) != OsSuccess) {
 				ERROR("Failed to load library %s", MStringRaw(LibraryName));
 				for (;;);
 			}

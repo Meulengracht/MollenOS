@@ -43,7 +43,7 @@ namespace RdBuilder
 //            }
  
             /* Get a list of all *.mod */
-            String[] lFiles = Directory.GetFiles(Arch + "build/", "*.dll");
+            String[] lFiles = Directory.GetFiles(Arch + "initrd/", "*.dll");
 
             /* Iterate */
             Console.WriteLine("Drivers Found:");
@@ -59,7 +59,7 @@ namespace RdBuilder
             Console.WriteLine("Building RamDisk...");
 
             /* Open File */
-            using (FileStream rdWriter = new FileStream("InitRd.mos", FileMode.Create))
+            using (FileStream rdWriter = new FileStream("initrd.mos", FileMode.Create))
             {
                 /* Setup Header */
                 Byte[] Header = new Byte[16];

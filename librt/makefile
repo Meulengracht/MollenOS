@@ -35,10 +35,14 @@ build/libc.dll:
 build/libos.dll:
 	$(MAKE) -C libos -f makefile
 
+build/libcxxabi.lib:
+	$(MAKE) -C libcxxabi -f makefile
+
 .PHONY: clean
 clean:
 	$(MAKE) -C libm -f makefile clean
 	$(MAKE) -C libc -f makefile clean
 	$(MAKE) -C libos -f makefile clean
 	$(MAKE) -C libcrt -f makefile clean
+	$(MAKE) -C libcxxabi -f makefile clean
 	@rm -rf build

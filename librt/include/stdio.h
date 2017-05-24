@@ -45,9 +45,9 @@ extern "C" {
 #define SEEK_END        2
 
 /* Standard I/O */
-#define stdout						(void*)1 //1
-#define stdin						(void*)2 //2
-#define	stderr						(void*)3 //3
+#define stdout						(FILE*)1 //1
+#define stdin						(FILE*)2 //2
+#define	stderr						(FILE*)3 //3
 #define BUFSIZ						(int)2048
 
 /* Set fpos_t to the arch-specific width */
@@ -113,7 +113,7 @@ _CRTIMP int remove(__CONST char * filename);
 _CRTIMP int fflush(FILE * stream);
 _CRTIMP int _fileno(FILE * stream);
 
-//Rename
+//rename
 //tmpfile
 //tmpnam
 

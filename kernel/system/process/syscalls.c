@@ -907,7 +907,7 @@ OsStatus_t ScPipeRead(int Port, uint8_t *Container, size_t Length, int Peek)
 
 	/* Lookup the pipe for the given port */
 	if (Port == -1) {
-		Pipe = Pipe = ThreadingGetCurrentThread(CpuGetCurrentId())->Pipe;
+		Pipe = ThreadingGetCurrentThread(CpuGetCurrentId())->Pipe;
 	}
 	else {
 		Pipe = PhoenixGetAshPipe(PhoenixGetCurrentAsh(), Port);

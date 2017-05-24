@@ -21,7 +21,7 @@
  */
 
 #ifndef __DRIVER_PIT_H__
-#define __DRIVER_PIT_H___
+#define __DRIVER_PIT_H__
 
 /* Includes 
  * - System */

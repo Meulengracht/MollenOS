@@ -20,7 +20,7 @@
  */
 
 #ifndef __DRIVER_CMOS_H__
-#define __DRIVER_CMOS_H___
+#define __DRIVER_CMOS_H__
 
 /* Includes 
  * - System */
