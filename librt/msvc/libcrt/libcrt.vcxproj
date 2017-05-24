@@ -80,68 +80,68 @@
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <MASM Include="..\..\libcrt\vscrt\alldiv.S">
+    <MASM Include="..\..\libcrt\vscrt\_alldiv.s">
       <FileType>Document</FileType>
       <Command Condition="'$(Configuration)|$(Platform)'=='i386|Win32'">nasm -f win32 -Xvc -o $(IntDir)\%(Filename).obj %(FullPath)</Command>
       <Outputs Condition="'$(Configuration)|$(Platform)'=='i386|Win32'">$(IntDir)\%(Filename).obj</Outputs>
     </MASM>
-    <MASM Include="..\..\libcrt\vscrt\alldvrm.S">
+    <MASM Include="..\..\libcrt\vscrt\_alldvrm.s">
       <FileType>Document</FileType>
       <Command Condition="'$(Configuration)|$(Platform)'=='i386|Win32'">nasm -f win32 -Xvc -o $(IntDir)\%(Filename).obj %(FullPath)</Command>
       <Outputs Condition="'$(Configuration)|$(Platform)'=='i386|Win32'">$(IntDir)\%(Filename).obj</Outputs>
     </MASM>
-    <MASM Include="..\..\libcrt\vscrt\aulldiv.S">
+    <MASM Include="..\..\libcrt\vscrt\_aulldiv.s">
       <FileType>Document</FileType>
       <Command Condition="'$(Configuration)|$(Platform)'=='i386|Win32'">nasm -f win32 -Xvc -o $(IntDir)\%(Filename).obj %(FullPath)</Command>
       <Outputs Condition="'$(Configuration)|$(Platform)'=='i386|Win32'">$(IntDir)\%(Filename).obj</Outputs>
     </MASM>
-    <MASM Include="..\..\libcrt\vscrt\aulldvrm.S">
+    <MASM Include="..\..\libcrt\vscrt\_aulldvrm.s">
       <FileType>Document</FileType>
       <Command Condition="'$(Configuration)|$(Platform)'=='i386|Win32'">nasm -f win32 -Xvc -o $(IntDir)\%(Filename).obj %(FullPath)</Command>
       <Outputs Condition="'$(Configuration)|$(Platform)'=='i386|Win32'">$(IntDir)\%(Filename).obj</Outputs>
     </MASM>
-    <MASM Include="..\..\libcrt\vscrt\aullrem.S">
+    <MASM Include="..\..\libcrt\vscrt\_aullrem.s">
       <FileType>Document</FileType>
       <Command Condition="'$(Configuration)|$(Platform)'=='i386|Win32'">nasm -f win32 -Xvc -o $(IntDir)\%(Filename).obj %(FullPath)</Command>
       <Outputs Condition="'$(Configuration)|$(Platform)'=='i386|Win32'">$(IntDir)\%(Filename).obj</Outputs>
     </MASM>
-    <MASM Include="..\..\libcrt\vscrt\aullshr.S">
+    <MASM Include="..\..\libcrt\vscrt\_aullshr.s">
       <FileType>Document</FileType>
       <Command Condition="'$(Configuration)|$(Platform)'=='i386|Win32'">nasm -f win32 -Xvc -o $(IntDir)\%(Filename).obj %(FullPath)</Command>
       <Outputs Condition="'$(Configuration)|$(Platform)'=='i386|Win32'">$(IntDir)\%(Filename).obj</Outputs>
     </MASM>
-    <MASM Include="..\..\libcrt\vscrt\chkstk.S">
+    <MASM Include="..\..\libcrt\vscrt\_chkstk.s">
       <FileType>Document</FileType>
       <Command Condition="'$(Configuration)|$(Platform)'=='i386|Win32'">nasm -f win32 -Xvc -o $(IntDir)\%(Filename).obj %(FullPath)</Command>
       <Outputs Condition="'$(Configuration)|$(Platform)'=='i386|Win32'">$(IntDir)\%(Filename).obj</Outputs>
     </MASM>
-    <MASM Include="..\..\libcrt\vscrt\constants.S">
+    <MASM Include="..\..\libcrt\vscrt\_constants.s">
       <FileType>Document</FileType>
       <Command Condition="'$(Configuration)|$(Platform)'=='i386|Win32'">nasm -f win32 -Xvc -o $(IntDir)\%(Filename).obj %(FullPath)</Command>
       <Outputs Condition="'$(Configuration)|$(Platform)'=='i386|Win32'">$(IntDir)\%(Filename).obj</Outputs>
     </MASM>
-    <MASM Include="..\..\libcrt\vscrt\ints.S">
+    <MASM Include="..\..\libcrt\vscrt\_ints.s">
       <FileType>Document</FileType>
       <Command Condition="'$(Configuration)|$(Platform)'=='i386|Win32'">nasm -f win32 -Xvc -o $(IntDir)\%(Filename).obj %(FullPath)</Command>
       <Outputs Condition="'$(Configuration)|$(Platform)'=='i386|Win32'">$(IntDir)\%(Filename).obj</Outputs>
     </MASM>
-    <MASM Include="..\..\libcrt\vscrt\llmul.S">
+    <MASM Include="..\..\libcrt\vscrt\_llmul.s">
       <FileType>Document</FileType>
       <Command Condition="'$(Configuration)|$(Platform)'=='i386|Win32'">nasm -f win32 -Xvc -o $(IntDir)\%(Filename).obj %(FullPath)</Command>
       <Outputs Condition="'$(Configuration)|$(Platform)'=='i386|Win32'">$(IntDir)\%(Filename).obj</Outputs>
       <WarningLevel Condition="'$(Configuration)|$(Platform)'=='i386|Win32'">0</WarningLevel>
     </MASM>
-    <MASM Include="..\..\libcrt\vscrt\llrem.S">
+    <MASM Include="..\..\libcrt\vscrt\_llrem.s">
       <FileType>Document</FileType>
       <Command Condition="'$(Configuration)|$(Platform)'=='i386|Win32'">nasm -f win32 -Xvc -o $(IntDir)\%(Filename).obj %(FullPath)</Command>
       <Outputs Condition="'$(Configuration)|$(Platform)'=='i386|Win32'">$(IntDir)\%(Filename).obj</Outputs>
     </MASM>
-    <MASM Include="..\..\libcrt\vscrt\llshl.S">
+    <MASM Include="..\..\libcrt\vscrt\_llshl.s">
       <FileType>Document</FileType>
       <Command Condition="'$(Configuration)|$(Platform)'=='i386|Win32'">nasm -f win32 -Xvc -o $(IntDir)\%(Filename).obj %(FullPath)</Command>
       <Outputs Condition="'$(Configuration)|$(Platform)'=='i386|Win32'">$(IntDir)\%(Filename).obj</Outputs>
     </MASM>
-    <MASM Include="..\..\libcrt\vscrt\llshr.S">
+    <MASM Include="..\..\libcrt\vscrt\_llshr.s">
       <FileType>Document</FileType>
       <Command Condition="'$(Configuration)|$(Platform)'=='i386|Win32'">nasm -f win32 -Xvc -o $(IntDir)\%(Filename).obj %(FullPath)</Command>
       <Outputs Condition="'$(Configuration)|$(Platform)'=='i386|Win32'">$(IntDir)\%(Filename).obj</Outputs>

@@ -129,25 +129,25 @@
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
-    <CustomBuild Include="..\..\libm\i386\_atan2.S">
+    <CustomBuild Include="..\..\libm\i386\_atan2.s">
       <Filter>arch\i386</Filter>
     </CustomBuild>
-    <CustomBuild Include="..\..\libm\i386\_ceil.S">
+    <CustomBuild Include="..\..\libm\i386\_ceil.s">
       <Filter>arch\i386</Filter>
     </CustomBuild>
-    <CustomBuild Include="..\..\libm\i386\_copysign.S">
+    <CustomBuild Include="..\..\libm\i386\_copysign.s">
       <Filter>arch\i386</Filter>
     </CustomBuild>
-    <CustomBuild Include="..\..\libm\i386\_cos.S">
+    <CustomBuild Include="..\..\libm\i386\_cos.s">
       <Filter>arch\i386</Filter>
     </CustomBuild>
-    <CustomBuild Include="..\..\libm\i386\_exp.S">
+    <CustomBuild Include="..\..\libm\i386\_exp.s">
       <Filter>arch\i386</Filter>
     </CustomBuild>
-    <CustomBuild Include="..\..\libm\i386\_floor.S">
+    <CustomBuild Include="..\..\libm\i386\_floor.s">
       <Filter>arch\i386</Filter>
     </CustomBuild>
-    <CustomBuild Include="..\..\libm\i386\_fmod.S">
+    <CustomBuild Include="..\..\libm\i386\_fmod.s">
       <Filter>arch\i386</Filter>
     </CustomBuild>
     <CustomBuild Include="..\..\libm\i386\_ftol.s">
@@ -156,43 +156,43 @@
     <CustomBuild Include="..\..\libm\i386\_ftol2.s">
       <Filter>arch\i386</Filter>
     </CustomBuild>
-    <CustomBuild Include="..\..\libm\i386\_llrint.S">
+    <CustomBuild Include="..\..\libm\i386\_llrint.s">
       <Filter>arch\i386</Filter>
     </CustomBuild>
-    <CustomBuild Include="..\..\libm\i386\_log.S">
+    <CustomBuild Include="..\..\libm\i386\_log.s">
       <Filter>arch\i386</Filter>
     </CustomBuild>
-    <CustomBuild Include="..\..\libm\i386\_log2.S">
+    <CustomBuild Include="..\..\libm\i386\_log2.s">
       <Filter>arch\i386</Filter>
     </CustomBuild>
-    <CustomBuild Include="..\..\libm\i386\_log10.S">
+    <CustomBuild Include="..\..\libm\i386\_log10.s">
       <Filter>arch\i386</Filter>
     </CustomBuild>
-    <CustomBuild Include="..\..\libm\i386\_logb.S">
+    <CustomBuild Include="..\..\libm\i386\_logb.s">
       <Filter>arch\i386</Filter>
     </CustomBuild>
-    <CustomBuild Include="..\..\libm\i386\_lrint.S">
+    <CustomBuild Include="..\..\libm\i386\_lrint.s">
       <Filter>arch\i386</Filter>
     </CustomBuild>
-    <CustomBuild Include="..\..\libm\i386\_remainder.S">
+    <CustomBuild Include="..\..\libm\i386\_remainder.s">
       <Filter>arch\i386</Filter>
     </CustomBuild>
-    <CustomBuild Include="..\..\libm\i386\_rint.S">
+    <CustomBuild Include="..\..\libm\i386\_rint.s">
       <Filter>arch\i386</Filter>
     </CustomBuild>
-    <CustomBuild Include="..\..\libm\i386\_scalbn.S">
+    <CustomBuild Include="..\..\libm\i386\_scalbn.s">
       <Filter>arch\i386</Filter>
     </CustomBuild>
-    <CustomBuild Include="..\..\libm\i386\_sin.S">
+    <CustomBuild Include="..\..\libm\i386\_sin.s">
       <Filter>arch\i386</Filter>
     </CustomBuild>
-    <CustomBuild Include="..\..\libm\i386\_sqrt.S">
+    <CustomBuild Include="..\..\libm\i386\_sqrt.s">
       <Filter>arch\i386</Filter>
     </CustomBuild>
-    <CustomBuild Include="..\..\libm\i386\_tan.S">
+    <CustomBuild Include="..\..\libm\i386\_tan.s">
       <Filter>arch\i386</Filter>
     </CustomBuild>
-    <CustomBuild Include="..\..\libm\i386\_trunc.S">
+    <CustomBuild Include="..\..\libm\i386\_trunc.s">
       <Filter>arch\i386</Filter>
     </CustomBuild>
   </ItemGroup>

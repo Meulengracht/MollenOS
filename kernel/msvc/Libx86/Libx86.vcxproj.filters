@@ -66,11 +66,6 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <CustomBuild Include="..\..\arch\x86\components\portio.asm">
-      <Filter>components</Filter>
-    </CustomBuild>
-  </ItemGroup>
-  <ItemGroup>
     <ClInclude Include="..\..\arch\x86\cpu.h">
       <Filter>include</Filter>
     </ClInclude>
@@ -98,5 +93,10 @@
     <ClInclude Include="..\..\arch\x86\apic.h">
       <Filter>include</Filter>
     </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <CustomBuild Include="..\..\arch\x86\components\portio.s">
+      <Filter>components</Filter>
+    </CustomBuild>
   </ItemGroup>
 </Project>

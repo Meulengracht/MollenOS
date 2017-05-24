@@ -175,37 +175,37 @@ xcopy $(SolutionDir)librt\build\libm.dll $(SolutionDir)userspace\development\bin
     <ClInclude Include="..\..\libm\private.h" />
   </ItemGroup>
   <ItemGroup>
-    <CustomBuild Include="..\..\libm\i386\_atan2.S">
+    <CustomBuild Include="..\..\libm\i386\_atan2.s">
       <FileType>Document</FileType>
       <Command Condition="'$(Configuration)|$(Platform)'=='i386|Win32'">nasm -f win32 -Xvc -o $(IntDir)\%(Filename).obj %(FullPath)</Command>
       <Outputs Condition="'$(Configuration)|$(Platform)'=='i386|Win32'">$(IntDir)\%(Filename).obj</Outputs>
     </CustomBuild>
-    <CustomBuild Include="..\..\libm\i386\_ceil.S">
+    <CustomBuild Include="..\..\libm\i386\_ceil.s">
       <FileType>Document</FileType>
       <Command Condition="'$(Configuration)|$(Platform)'=='i386|Win32'">nasm -f win32 -Xvc -o $(IntDir)\%(Filename).obj %(FullPath)</Command>
       <Outputs Condition="'$(Configuration)|$(Platform)'=='i386|Win32'">$(IntDir)\%(Filename).obj</Outputs>
     </CustomBuild>
-    <CustomBuild Include="..\..\libm\i386\_copysign.S">
+    <CustomBuild Include="..\..\libm\i386\_copysign.s">
       <FileType>Document</FileType>
       <Command Condition="'$(Configuration)|$(Platform)'=='i386|Win32'">nasm -f win32 -Xvc -o $(IntDir)\%(Filename).obj %(FullPath)</Command>
       <Outputs Condition="'$(Configuration)|$(Platform)'=='i386|Win32'">$(IntDir)\%(Filename).obj</Outputs>
     </CustomBuild>
-    <CustomBuild Include="..\..\libm\i386\_cos.S">
+    <CustomBuild Include="..\..\libm\i386\_cos.s">
       <FileType>Document</FileType>
       <Command Condition="'$(Configuration)|$(Platform)'=='i386|Win32'">nasm -f win32 -Xvc -o $(IntDir)\%(Filename).obj %(FullPath)</Command>
       <Outputs Condition="'$(Configuration)|$(Platform)'=='i386|Win32'">$(IntDir)\%(Filename).obj</Outputs>
     </CustomBuild>
-    <CustomBuild Include="..\..\libm\i386\_exp.S">
+    <CustomBuild Include="..\..\libm\i386\_exp.s">
       <FileType>Document</FileType>
       <Command Condition="'$(Configuration)|$(Platform)'=='i386|Win32'">nasm -f win32 -Xvc -o $(IntDir)\%(Filename).obj %(FullPath)</Command>
       <Outputs Condition="'$(Configuration)|$(Platform)'=='i386|Win32'">$(IntDir)\%(Filename).obj</Outputs>
     </CustomBuild>
-    <CustomBuild Include="..\..\libm\i386\_floor.S">
+    <CustomBuild Include="..\..\libm\i386\_floor.s">
       <FileType>Document</FileType>
       <Command Condition="'$(Configuration)|$(Platform)'=='i386|Win32'">nasm -f win32 -Xvc -o $(IntDir)\%(Filename).obj %(FullPath)</Command>
       <Outputs Condition="'$(Configuration)|$(Platform)'=='i386|Win32'">$(IntDir)\%(Filename).obj</Outputs>
     </CustomBuild>
-    <CustomBuild Include="..\..\libm\i386\_fmod.S">
+    <CustomBuild Include="..\..\libm\i386\_fmod.s">
       <FileType>Document</FileType>
       <Command Condition="'$(Configuration)|$(Platform)'=='i386|Win32'">nasm -f win32 -Xvc -o $(IntDir)\%(Filename).obj %(FullPath)</Command>
       <Outputs Condition="'$(Configuration)|$(Platform)'=='i386|Win32'">$(IntDir)\%(Filename).obj</Outputs>
@@ -220,67 +220,67 @@ xcopy $(SolutionDir)librt\build\libm.dll $(SolutionDir)userspace\development\bin
       <Command Condition="'$(Configuration)|$(Platform)'=='i386|Win32'">nasm -f win32 -Xvc -o $(IntDir)\%(Filename).obj %(FullPath)</Command>
       <Outputs Condition="'$(Configuration)|$(Platform)'=='i386|Win32'">$(IntDir)\%(Filename).obj</Outputs>
     </CustomBuild>
-    <CustomBuild Include="..\..\libm\i386\_llrint.S">
+    <CustomBuild Include="..\..\libm\i386\_llrint.s">
       <FileType>Document</FileType>
       <Command Condition="'$(Configuration)|$(Platform)'=='i386|Win32'">nasm -f win32 -Xvc -o $(IntDir)\%(Filename).obj %(FullPath)</Command>
       <Outputs Condition="'$(Configuration)|$(Platform)'=='i386|Win32'">$(IntDir)\%(Filename).obj</Outputs>
     </CustomBuild>
-    <CustomBuild Include="..\..\libm\i386\_log.S">
+    <CustomBuild Include="..\..\libm\i386\_log.s">
       <FileType>Document</FileType>
       <Command Condition="'$(Configuration)|$(Platform)'=='i386|Win32'">nasm -f win32 -Xvc -o $(IntDir)\%(Filename).obj %(FullPath)</Command>
       <Outputs Condition="'$(Configuration)|$(Platform)'=='i386|Win32'">$(IntDir)\%(Filename).obj</Outputs>
     </CustomBuild>
-    <CustomBuild Include="..\..\libm\i386\_log10.S">
+    <CustomBuild Include="..\..\libm\i386\_log10.s">
       <FileType>Document</FileType>
       <Command Condition="'$(Configuration)|$(Platform)'=='i386|Win32'">nasm -f win32 -Xvc -o $(IntDir)\%(Filename).obj %(FullPath)</Command>
       <Outputs Condition="'$(Configuration)|$(Platform)'=='i386|Win32'">$(IntDir)\%(Filename).obj</Outputs>
     </CustomBuild>
-    <CustomBuild Include="..\..\libm\i386\_log2.S">
+    <CustomBuild Include="..\..\libm\i386\_log2.s">
       <FileType>Document</FileType>
       <Command Condition="'$(Configuration)|$(Platform)'=='i386|Win32'">nasm -f win32 -Xvc -o $(IntDir)\%(Filename).obj %(FullPath)</Command>
       <Outputs Condition="'$(Configuration)|$(Platform)'=='i386|Win32'">$(IntDir)\%(Filename).obj</Outputs>
     </CustomBuild>
-    <CustomBuild Include="..\..\libm\i386\_logb.S">
+    <CustomBuild Include="..\..\libm\i386\_logb.s">
       <FileType>Document</FileType>
       <Command Condition="'$(Configuration)|$(Platform)'=='i386|Win32'">nasm -f win32 -Xvc -o $(IntDir)\%(Filename).obj %(FullPath)</Command>
       <Outputs Condition="'$(Configuration)|$(Platform)'=='i386|Win32'">$(IntDir)\%(Filename).obj</Outputs>
     </CustomBuild>
-    <CustomBuild Include="..\..\libm\i386\_lrint.S">
+    <CustomBuild Include="..\..\libm\i386\_lrint.s">
       <FileType>Document</FileType>
       <Command Condition="'$(Configuration)|$(Platform)'=='i386|Win32'">nasm -f win32 -Xvc -o $(IntDir)\%(Filename).obj %(FullPath)</Command>
       <Outputs Condition="'$(Configuration)|$(Platform)'=='i386|Win32'">$(IntDir)\%(Filename).obj</Outputs>
     </CustomBuild>
-    <CustomBuild Include="..\..\libm\i386\_remainder.S">
+    <CustomBuild Include="..\..\libm\i386\_remainder.s">
       <FileType>Document</FileType>
       <Command Condition="'$(Configuration)|$(Platform)'=='i386|Win32'">nasm -f win32 -Xvc -o $(IntDir)\%(Filename).obj %(FullPath)</Command>
       <Outputs Condition="'$(Configuration)|$(Platform)'=='i386|Win32'">$(IntDir)\%(Filename).obj</Outputs>
     </CustomBuild>
-    <CustomBuild Include="..\..\libm\i386\_rint.S">
+    <CustomBuild Include="..\..\libm\i386\_rint.s">
       <FileType>Document</FileType>
       <Command Condition="'$(Configuration)|$(Platform)'=='i386|Win32'">nasm -f win32 -Xvc -o $(IntDir)\%(Filename).obj %(FullPath)</Command>
       <Outputs Condition="'$(Configuration)|$(Platform)'=='i386|Win32'">$(IntDir)\%(Filename).obj</Outputs>
     </CustomBuild>
-    <CustomBuild Include="..\..\libm\i386\_scalbn.S">
+    <CustomBuild Include="..\..\libm\i386\_scalbn.s">
       <FileType>Document</FileType>
       <Command Condition="'$(Configuration)|$(Platform)'=='i386|Win32'">nasm -f win32 -Xvc -o $(IntDir)\%(Filename).obj %(FullPath)</Command>
       <Outputs Condition="'$(Configuration)|$(Platform)'=='i386|Win32'">$(IntDir)\%(Filename).obj</Outputs>
     </CustomBuild>
-    <CustomBuild Include="..\..\libm\i386\_sin.S">
+    <CustomBuild Include="..\..\libm\i386\_sin.s">
       <FileType>Document</FileType>
       <Command Condition="'$(Configuration)|$(Platform)'=='i386|Win32'">nasm -f win32 -Xvc -o $(IntDir)\%(Filename).obj %(FullPath)</Command>
       <Outputs Condition="'$(Configuration)|$(Platform)'=='i386|Win32'">$(IntDir)\%(Filename).obj</Outputs>
     </CustomBuild>
-    <CustomBuild Include="..\..\libm\i386\_sqrt.S">
+    <CustomBuild Include="..\..\libm\i386\_sqrt.s">
       <FileType>Document</FileType>
       <Command Condition="'$(Configuration)|$(Platform)'=='i386|Win32'">nasm -f win32 -Xvc -o $(IntDir)\%(Filename).obj %(FullPath)</Command>
       <Outputs Condition="'$(Configuration)|$(Platform)'=='i386|Win32'">$(IntDir)\%(Filename).obj</Outputs>
     </CustomBuild>
-    <CustomBuild Include="..\..\libm\i386\_tan.S">
+    <CustomBuild Include="..\..\libm\i386\_tan.s">
       <FileType>Document</FileType>
       <Command Condition="'$(Configuration)|$(Platform)'=='i386|Win32'">nasm -f win32 -Xvc -o $(IntDir)\%(Filename).obj %(FullPath)</Command>
       <Outputs Condition="'$(Configuration)|$(Platform)'=='i386|Win32'">$(IntDir)\%(Filename).obj</Outputs>
     </CustomBuild>
-    <CustomBuild Include="..\..\libm\i386\_trunc.S">
+    <CustomBuild Include="..\..\libm\i386\_trunc.s">
       <FileType>Document</FileType>
       <Command Condition="'$(Configuration)|$(Platform)'=='i386|Win32'">nasm -f win32 -Xvc -o $(IntDir)\%(Filename).obj %(FullPath)</Command>
       <Outputs Condition="'$(Configuration)|$(Platform)'=='i386|Win32'">$(IntDir)\%(Filename).obj</Outputs>

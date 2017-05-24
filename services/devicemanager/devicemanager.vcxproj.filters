@@ -2,30 +2,30 @@
 <Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
     <ClCompile Include="main.c" />
-    <ClCompile Include="arch\x86\pcienumerate.c">
-      <Filter>arch\x86</Filter>
+    <ClCompile Include="arch\i386\pcienumerate.c">
+      <Filter>arch\i386</Filter>
     </ClCompile>
-    <ClCompile Include="arch\x86\pcihelpers.c">
-      <Filter>arch\x86</Filter>
+    <ClCompile Include="arch\i386\pcihelpers.c">
+      <Filter>arch\i386</Filter>
     </ClCompile>
-    <ClCompile Include="arch\x86\pciio.c">
-      <Filter>arch\x86</Filter>
+    <ClCompile Include="arch\i386\pciio.c">
+      <Filter>arch\i386</Filter>
     </ClCompile>
-    <ClCompile Include="arch\x86\pcistrings.c">
-      <Filter>arch\x86</Filter>
+    <ClCompile Include="arch\i386\pcistrings.c">
+      <Filter>arch\i386</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <Filter Include="arch">
       <UniqueIdentifier>{81899270-cf14-4dc5-ab28-8f8a6fd34775}</UniqueIdentifier>
     </Filter>
-    <Filter Include="arch\x86">
+    <Filter Include="arch\i386">
       <UniqueIdentifier>{4373489d-c57d-42b1-b203-15fcd1114e97}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="arch\x86\bus.h">
-      <Filter>arch\x86</Filter>
+    <ClInclude Include="arch\i386\bus.h">
+      <Filter>arch\i386</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

@@ -6,43 +6,43 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <MASM Include="..\..\libcrt\vscrt\alldiv.S">
+    <MASM Include="..\..\libcrt\vscrt\_alldiv.s">
       <Filter>vscrt</Filter>
     </MASM>
-    <MASM Include="..\..\libcrt\vscrt\alldvrm.S">
+    <MASM Include="..\..\libcrt\vscrt\_alldvrm.s">
       <Filter>vscrt</Filter>
     </MASM>
-    <MASM Include="..\..\libcrt\vscrt\aulldiv.S">
+    <MASM Include="..\..\libcrt\vscrt\_aulldiv.s">
       <Filter>vscrt</Filter>
     </MASM>
-    <MASM Include="..\..\libcrt\vscrt\aulldvrm.S">
+    <MASM Include="..\..\libcrt\vscrt\_aulldvrm.s">
       <Filter>vscrt</Filter>
     </MASM>
-    <MASM Include="..\..\libcrt\vscrt\aullrem.S">
+    <MASM Include="..\..\libcrt\vscrt\_aullrem.s">
       <Filter>vscrt</Filter>
     </MASM>
-    <MASM Include="..\..\libcrt\vscrt\aullshr.S">
+    <MASM Include="..\..\libcrt\vscrt\_aullshr.s">
       <Filter>vscrt</Filter>
     </MASM>
-    <MASM Include="..\..\libcrt\vscrt\chkstk.S">
+    <MASM Include="..\..\libcrt\vscrt\_chkstk.s">
       <Filter>vscrt</Filter>
     </MASM>
-    <MASM Include="..\..\libcrt\vscrt\constants.S">
+    <MASM Include="..\..\libcrt\vscrt\_constants.s">
       <Filter>vscrt</Filter>
     </MASM>
-    <MASM Include="..\..\libcrt\vscrt\ints.S">
+    <MASM Include="..\..\libcrt\vscrt\_ints.s">
       <Filter>vscrt</Filter>
     </MASM>
-    <MASM Include="..\..\libcrt\vscrt\llmul.S">
+    <MASM Include="..\..\libcrt\vscrt\_llmul.s">
       <Filter>vscrt</Filter>
     </MASM>
-    <MASM Include="..\..\libcrt\vscrt\llrem.S">
+    <MASM Include="..\..\libcrt\vscrt\_llrem.s">
       <Filter>vscrt</Filter>
     </MASM>
-    <MASM Include="..\..\libcrt\vscrt\llshl.S">
+    <MASM Include="..\..\libcrt\vscrt\_llshl.s">
       <Filter>vscrt</Filter>
     </MASM>
-    <MASM Include="..\..\libcrt\vscrt\llshr.S">
+    <MASM Include="..\..\libcrt\vscrt\_llshr.s">
       <Filter>vscrt</Filter>
     </MASM>
   </ItemGroup>

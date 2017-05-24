@@ -35,15 +35,15 @@
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
-    <CustomBuild Include="..\..\arch\x86\x32\_thread.asm">
+    <CustomBuild Include="..\..\arch\x86\x32\_thread.s">
       <Filter>threading</Filter>
     </CustomBuild>
-    <CustomBuild Include="..\..\arch\x86\x32\_irq.asm">
+    <CustomBuild Include="..\..\arch\x86\x32\_irq.s">
       <Filter>threading</Filter>
     </CustomBuild>
-    <CustomBuild Include="..\..\arch\x86\x32\boot\boot.asm" />
-    <CustomBuild Include="..\..\arch\x86\x32\memory\_paging.asm" />
-    <CustomBuild Include="..\..\arch\x86\x32\_descriptors.asm">
+    <CustomBuild Include="..\..\arch\x86\x32\boot\boot.s" />
+    <CustomBuild Include="..\..\arch\x86\x32\memory\_paging.s" />
+    <CustomBuild Include="..\..\arch\x86\x32\_descriptors.s">
       <Filter>descriptors</Filter>
     </CustomBuild>
   </ItemGroup>

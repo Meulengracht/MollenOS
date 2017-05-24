@@ -7,13 +7,6 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
-    <CustomBuild Include="..\..\arch\x86\components\portio.asm">
-      <FileType>Document</FileType>
-      <Command Condition="'$(Configuration)|$(Platform)'=='i386|Win32'">nasm -f win32 -Xvc -o $(IntDir)\%(Filename).obj %(FullPath)</Command>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='i386|Win32'">$(IntDir)\%(Filename).obj</Outputs>
-    </CustomBuild>
-  </ItemGroup>
-  <ItemGroup>
     <ClCompile Include="..\..\arch\x86\components\addressspace.c" />
     <ClCompile Include="..\..\arch\x86\components\iospace.c" />
     <ClCompile Include="..\..\arch\x86\components\pci.c" />
@@ -41,6 +34,13 @@
     <ClInclude Include="..\..\arch\x86\pic.h" />
     <ClInclude Include="..\..\arch\x86\thread.h" />
     <ClInclude Include="..\..\arch\x86\video.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <CustomBuild Include="..\..\arch\x86\components\portio.s">
+      <FileType>Document</FileType>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='i386|Win32'">$(IntDir)\%(Filename).obj</Outputs>
+      <Command Condition="'$(Configuration)|$(Platform)'=='i386|Win32'">nasm -f win32 -Xvc -o $(IntDir)\%(Filename).obj %(FullPath)</Command>
+    </CustomBuild>
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <ProjectGuid>{17145F88-DAEA-496B-A91F-2A78ED5673CC}</ProjectGuid>
