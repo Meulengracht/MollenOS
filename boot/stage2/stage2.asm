@@ -49,6 +49,7 @@ jmp Entry
 %define 		MEMLOCATION_FLOAD_LOWER			0xB000 
 %define 		MEMLOCATION_KERNEL_UPPER		0x100000
 %define 		MEMLOCATION_RAMDISK_UPPER		0x200000
+%define			MEMLOCATION_UNPACK_AREA			0x300000
 
 ; Includes
 %include "systems/common.inc"
@@ -290,6 +291,7 @@ BITS 32
 
 ; 32 Bit Includes
 %include "systems/cpu.inc"
+%include "systems/lz.inc"
 
 LoadKernel32:
 	; Disable Interrupts
@@ -305,8 +307,13 @@ LoadKernel32:
 	mov 	es, ax
 	mov 	esp, 0x7BFF
 
+	; Unpack kernel
+	mov	esi, MEMLOCATION_FLOAD_LOWER
+	mov	edi, MEMLOCATION_UNPACK_AREA
+	call	LZLoad
+
 	; Kernel Relocation to 1mb (PE, ELF, binary)
-	mov 	esi, MEMLOCATION_FLOAD_LOWER
+	mov 	esi, MEMLOCATION_UNPACK_AREA
 	mov 	edi, MEMLOCATION_KERNEL_UPPER
 	call 	PELoad
 
@@ -317,15 +324,15 @@ LoadKernel32:
 	; So we can load the RD
 	
 	; Load 16-bit protected mode descriptor
-	mov eax, DATA16_DESC
-	mov ds, eax
-	mov es, eax
-	mov fs, eax
-	mov gs, eax
-	mov ss, eax
+	mov 	eax, DATA16_DESC
+	mov 	ds, eax
+	mov 	es, eax
+	mov 	fs, eax
+	mov 	gs, eax
+	mov 	ss, eax
 
 	; Jump to protected real mode, set CS!
-	jmp		CODE16_DESC:LoadRamDisk
+	jmp	CODE16_DESC:LoadRamDisk
 
 Entry32:
 	; Setup Segments, Stack etc
@@ -346,13 +353,19 @@ Entry32:
 	; But we cli aswell
 	cli
 
+	; Unpack ramdisk - new size returned in eax
+	mov	esi, MEMLOCATION_FLOAD_LOWER
+	mov	edi, MEMLOCATION_UNPACK_AREA
+	call	LZLoad
+	mov	dword [BootDescriptor + MollenOsBootDescriptor.RamDiskSize], eax
+
 	; RamDisk Relocation to 2mb
-	mov 	esi, MEMLOCATION_FLOAD_LOWER
+	mov 	esi, MEMLOCATION_UNPACK_AREA
 	mov 	edi, MEMLOCATION_RAMDISK_UPPER
-	mov		ecx, dword [BootDescriptor + MollenOsBootDescriptor.RamDiskSize]
-	shr		ecx, 2
-	inc		ecx
-	rep		movsd
+	mov	ecx, dword [BootDescriptor + MollenOsBootDescriptor.RamDiskSize]
+	shr	ecx, 2
+	inc	ecx
+	rep	movsd
 
 	; Setup Cpu
 	call	CpuInit

@@ -6,13 +6,13 @@ export LD = $(CROSS)/bin/lld-link
 export LIB = $(CROSS)/bin/llvm-lib
 export ASFLAGS = -f bin
 export AS = nasm
-export GCFLAGS = -Wall -Wno-self-assign -Wno-unused-function -fms-extensions -ffreestanding -g -nostdlib -O2 -DMOLLENOS -D$(arch)
-export GCXXFLAGS = -Wall -Wno-self-assign -Wno-unused-function -ffreestanding -g -nostdlib -O2 -DMOLLENOS -D$(arch)
+export GCFLAGS = -Wall -Wno-self-assign -Wno-unused-function -fms-extensions -ffreestanding -nostdlib -O3 -DMOLLENOS -D$(arch)
+export GCXXFLAGS = -Wall -Wno-self-assign -Wno-unused-function -ffreestanding -nostdlib -O3 -DMOLLENOS -D$(arch)
 export FCOPY = cp
 target = vmdk
 
 .PHONY: all
-all: boot_loader libraries kernel drivers initrd
+all: boot_loader libraries kernel drivers tools initrd
 
 .PHONY: initrd
 initrd:
@@ -22,6 +22,11 @@ initrd:
 	$(FCOPY) services/build/*.mdrv initrd/
 	$(FCOPY) modules/build/*.dll initrd/
 	$(FCOPY) modules/build/*.mdrv initrd/
+
+.PHONY: tools
+tools:
+	$(MAKE) -C tools/lzss -f makefile
+	$(MAKE) -C tools/rd -f makefile
 
 .PHONY: kernel
 kernel:
@@ -45,10 +50,13 @@ install:
 	mkdir -p deploy/hdd
 	mkdir -p deploy/hdd/shared
 	mkdir -p deploy/hdd/system
-	$(FCOPY) -a resources/. deploy/hdd/system/
+	$(FCOPY) -a resources/system/. deploy/hdd/system/
+	$(FCOPY) -a resources/shared/. deploy/hdd/shared/
 	$(FCOPY) -a boot/build/. deploy/
 	$(FCOPY) librt/build/*.dll deploy/hdd/system/
-	$(FCOPY) kernel/build/syskrnl.mos deploy/hdd/system/syskrnl.mos
+	./rd $(arch) initrd.mos
+	./lzss c initrd.mos deploy/hdd/system/initrd.mos
+	./lzss c kernel/build/syskrnl.mos deploy/hdd/system/syskrnl.mos
 
 .PHONY: clean
 clean:
@@ -57,6 +65,9 @@ clean:
 	$(MAKE) -C services -f makefile clean
 	$(MAKE) -C modules -f makefile clean
 	$(MAKE) -C kernel -f makefile clean
+	$(MAKE) -C tools/lzss -f makefile clean
+	$(MAKE) -C tools/rd -f makefile clean
+	rm -f initrd.mos
 	rm -rf deploy
 	rm -rf initrd
 	rm -f *.vmdk

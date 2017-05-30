@@ -8,7 +8,7 @@ INCLUDES = -I../include
 
 OBJECTS = $(ASM_SRCS:.s=.o) $(ARCH_SRCS:.c=.o) $(SOURCES:.c=.o)
 
-CFLAGS = $(GCFLAGS) $(INCLUDES)
+CFLAGS = $(GCFLAGS) -D_HAVE_LONG_DOUBLE -D_LDBL_EQ_DBL -DCRTDLL $(INCLUDES)
 LFLAGS = /nodefaultlib /subsystem:native /noentry /dll /def:libm.def
 ASFLAGS = -f win32 -Xvc
 

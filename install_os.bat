@@ -34,11 +34,8 @@ for %%x in (%*) do (
     )
 )
 
-::Build the initial ramdisk
-START "initrd-builder" /B /W "%~dp0rdbuild.exe"
-
 ::Copy files to install directory
-xcopy /v /y %~dp0initrd.mos %~dp0deploy\hdd\system\initrd.mos
+xcopy /v /y %~dp0diskutility.exe %~dp0deploy\diskutility.exe
 
 ::Install MOS
 :Install
