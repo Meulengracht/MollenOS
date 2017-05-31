@@ -3,7 +3,7 @@ dependencies:
   pre:
     - chmod +x ./depends.sh  # Give permissions
     - sudo bash ./depends.sh # Run initializor script
-	- export CROSS=/usr/local/cross # Export path
+    - export CROSS=/usr/local/cross # Export path
 
   override:
     - chmod +x ./init.sh  # Give permissions
