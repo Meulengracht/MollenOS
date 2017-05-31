@@ -1,4 +1,11 @@
-# Definitions - /entry:_kmain 
+# Primary make-file for building and preparing the OS image
+# Required tools for building
+# - nasm assembler
+# - clang cross-compiler (requires cmake, svn, libelf)
+# - monodevelop
+# Required environmental stuff:
+# - CROSS=/path/to/cross/home
+#
 export arch = i386
 export CC = $(CROSS)/bin/clang
 export CXX = $(CROSS)/bin/clang++
@@ -27,6 +34,7 @@ initrd:
 tools:
 	$(MAKE) -C tools/lzss -f makefile
 	$(MAKE) -C tools/rd -f makefile
+	$(MAKE) -C tools/diskutility -f makefile
 
 .PHONY: kernel
 kernel:
@@ -57,6 +65,7 @@ install:
 	./rd $(arch) initrd.mos
 	./lzss c initrd.mos deploy/hdd/system/initrd.mos
 	./lzss c kernel/build/syskrnl.mos deploy/hdd/system/syskrnl.mos
+	./mono diskutility -auto -target $(target) -scheme mbr
 
 .PHONY: clean
 clean:
@@ -67,6 +76,7 @@ clean:
 	$(MAKE) -C kernel -f makefile clean
 	$(MAKE) -C tools/lzss -f makefile clean
 	$(MAKE) -C tools/rd -f makefile clean
+	$(MAKE) -C tools/diskutility -f makefile clean
 	rm -f initrd.mos
 	rm -rf deploy
 	rm -rf initrd

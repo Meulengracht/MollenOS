@@ -1,0 +1,23 @@
+{
+    "configurations": [
+        {
+            "name": "MollenOS",
+            "includePath": [
+                "${workspaceRoot}",
+                "${workspaceRoot}/librt/include"
+            ],
+            "defines": [
+                "MOLLENOS",
+                "i386",
+                "UNICODE"
+            ],
+            "browse": {
+                "path": [
+                    "${workspaceRoot}/librt/include"
+                ],
+                "limitSymbolsToIncludedHeaders": true,
+                "databaseFilename": ""
+            }
+        }
+    ]
+}

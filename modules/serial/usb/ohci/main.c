@@ -106,10 +106,10 @@ InterruptStatus_t OnInterrupt(void *InterruptData)
 		InterruptStatus = InterruptStatus & ~(OHCI_INTR_SCHEDULING_OVERRUN);
 	}
 
-	/* Resume Detection? */
+	// Resume Detection? 
+	// We must wait 20 ms before putting Controller to Operational
 	if (InterruptStatus & OHCI_INTR_RESUMEDETECT) {
-		/* We must wait 20 ms before putting Controller to Operational */
-		DelayMs(20);
+		ThreadSleep(20);
 		OhciSetMode(Controller, OHCI_CONTROL_ACTIVE);
 
 		// Acknowledge

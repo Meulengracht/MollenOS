@@ -1,29 +1,7 @@
 #!/bin/sh
 
 if [ ! -f /usr/local/cross/bin/clang ]; then
-  clear
-  mkdir -p toolchain
   cd toolchain
-  
-  if ! [ -x "$(command -v svn)" ]; then
-    apt-get install subversion
-  fi
-  
-  CMAKE_VERSION="$(cmake --version)"
-  echo ${CMAKE_VERSION}
-  if ! [[ "$CMAKE_VERSION" =~ "cmake version 3" ]]; then
-    wget https://cmake.org/files/v3.8/cmake-3.8.1.tar.gz
-    tar xvzf cmake-3.8.1.tar.gz
-    rm cmake-3.8.1.tar.gz
-    cd cmake-3.8.1
-	if [ -x "$(command -v cmake)" ]; then
-	  apt-get remove "^cmake.*" 
-    fi
-	./bootstrap
-    make
-    make install
-    cd ..
-  fi
   
   if ! [ -x "$(command -v clang)" ]; then
     if [ ! -f ./llvm ]; then
@@ -59,5 +37,3 @@ if [ ! -f /usr/local/cross/bin/clang ]; then
   make 
   make install
 fi
-
-export CROSS=/usr/local/cross
