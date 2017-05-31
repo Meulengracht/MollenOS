@@ -69,7 +69,7 @@ union IEEEd2bits {
 
 /* This is a shortcut for MSVC double intrinsincs
  * that are generated ONLY by msvc, used by __CI* functions */
-#if defined(__GNUC__)
+#if defined(__GNUC__) || defined(__clang__)
 #define FPU_DOUBLE(var) double var; \
 	__asm__ __volatile__( "fstpl %0;fwait" : "=m" (var) : )
 #define FPU_DOUBLES(var1,var2) double var1,var2; \
