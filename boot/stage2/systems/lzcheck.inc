@@ -8,26 +8,22 @@
 ;;
 ;; http://www.ibsensoftware.com/
 ;;
+BITS 32
 
-format MS COFF
+%include "systems/lzcrc32.inc"
 
-public aPsafe_check as '_aPsafe_check'
-
-extrn '_aP_crc32' as aP_crc32
-
-; =============================================================
-
-section '.text' code readable executable
-
-aPsafe_check:
-    ; aPsafe_check(const void *source)
-
-    .ret$  equ 7*4
-    .src$  equ 8*4 + 4
-
-    pushad
-
-    mov    esi, [esp + .src$] ; esi -> buffer
+; lz_validate(const void *source, void *destination)
+; ********************************
+; lz_validate
+; IN:
+; 	- ESI: Source Data Package Address
+; OUT:
+;       - EAX: -1 if error, length of unpacked
+; ********************************
+lz_validate:
+    push   ebx
+    push   ecx
+    push   esi
 
     test   esi, esi
     jz     .return_error
@@ -42,11 +38,12 @@ aPsafe_check:
     jb     .return_error
 
     add    ebx, esi           ; ebx -> packed data
+    push   esi
+    mov    esi, ebx
 
-    push   dword [esi + 8]    ; push header.packed_size
-    push   ebx
-    call   aP_crc32
-    add    esp, 8
+    mov    ecx, dword [esi + 8]    ; push header.packed_size
+    call   lz_crc32
+    pop    esi
 
     cmp    eax, [esi + 12]    ; check eax == header.packed_crc
 
@@ -57,11 +54,9 @@ aPsafe_check:
   .return_error:
     or     eax, -1            ; eax = -1
 
+   ; return unpacked length in eax
   .return_eax:
-    mov    [esp + .ret$], eax ; return unpacked length in eax
-
-    popad
-
+    pop   esi
+    pop   ecx
+    pop   ebx
     ret
-
-; =============================================================

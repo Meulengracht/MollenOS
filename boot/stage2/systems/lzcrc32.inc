@@ -8,58 +8,49 @@
 ;;
 ;; http://www.ibsensoftware.com/
 ;;
-
 ; CRC32 calculation taken from the zlib source, which is
 ; Copyright (C) 1995-1998 Jean-loup Gailly and Mark Adler
+BITS 32
 
-format MS COFF
+; Exception with no error code
+%macro docrcM 0
+  mov    ebx, 0x000000ff
+  and    ebx, eax
+  shr    eax, 8
+  xor    eax, [edi+ebx*4]
+%endmacro
 
-public aP_crc32 as '_aP_crc32'
+%macro docrcbyteM 0
+  xor    al, [esi]
+  inc    esi
+  docrcM
+%endmacro
 
-; =============================================================
+%macro docrcdwordM 0
+  xor    eax, [esi]
+  add    esi, 4
+  docrcM
+  docrcM
+  docrcM
+  docrcM
+%endmacro
 
-macro docrcM
-{
-    mov    ebx, 0x000000ff
-    and    ebx, eax
-    shr    eax, 8
-    xor    eax, [edi+ebx*4]
-}
+; lz_crc32(cconst void *source, unsigned int length)
+; ********************************
+; lz_crc32
+; IN:
+; 	- ESI: Source Data Package Address
+;	- ECX: Length
+; OUT:
+;       - EAX: 0 for success, error otherwise
+; ********************************
+lz_crc32:
+    push   edi
+    push   ebx
+    push   ecx
+    push   esi
 
-macro docrcbyteM
-{
-    xor    al, [esi]
-    inc    esi
-    docrcM
-}
-
-macro docrcdwordM
-{
-    xor    eax, [esi]
-    add    esi, 4
-    docrcM
-    docrcM
-    docrcM
-    docrcM
-}
-
-; =============================================================
-
-section '.text' code readable executable
-
-aP_crc32:
-    ; aP_crc32(const void *source, unsigned int length)
-
-    .ret$  equ 7*4
-    .src$  equ 8*4 + 4
-    .len$  equ 8*4 + 8
-
-    pushad
-
-    mov    esi, [esp + .src$] ; esi -> buffer
-    mov    ecx, [esp + .len$] ; ecx =  length
     mov    edi, aP_crctab     ; edi -> crctab
-
     sub    eax, eax
 
     test   esi, esi
@@ -103,15 +94,16 @@ aP_crc32:
     not    eax
 
   .c_exit:
-    mov    [esp + .ret$], eax ; return crc32 in eax
-
-    popad
-
+    ; return crc32 in eax
+    pop    esi
+    pop    ecx
+    pop    ebx
+    pop    edi
     ret
 
-; =============================================================
-
-section '.rdata' data readable
+; ****************************
+; Variables
+; ****************************
 
 aP_crctab  dd 000000000h, 077073096h, 0ee0e612ch, 0990951bah, 0076dc419h
            dd 0706af48fh, 0e963a535h, 09e6495a3h, 00edb8832h, 079dcb8a4h
@@ -165,5 +157,3 @@ aP_crctab  dd 000000000h, 077073096h, 0ee0e612ch, 0990951bah, 0076dc419h
            dd 0cdd70693h, 054de5729h, 023d967bfh, 0b3667a2eh, 0c4614ab8h
            dd 05d681b02h, 02a6f2b94h, 0b40bbe37h, 0c30c8ea1h, 05a05df1bh
            dd 02d02ef8dh
-
-; =============================================================

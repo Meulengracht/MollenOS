@@ -308,9 +308,12 @@ LoadKernel32:
 	mov 	esp, 0x7BFF
 
 	; Unpack kernel
+	xchg	bx, bx
 	mov	esi, MEMLOCATION_FLOAD_LOWER
 	mov	edi, MEMLOCATION_UNPACK_AREA
 	call	LZLoad
+	cmp	eax, -1
+	je	EndOfStage
 
 	; Kernel Relocation to 1mb (PE, ELF, binary)
 	mov 	esi, MEMLOCATION_UNPACK_AREA
@@ -357,6 +360,8 @@ Entry32:
 	mov	esi, MEMLOCATION_FLOAD_LOWER
 	mov	edi, MEMLOCATION_UNPACK_AREA
 	call	LZLoad
+	cmp	eax, -1
+	je	EndOfStage
 	mov	dword [BootDescriptor + MollenOsBootDescriptor.RamDiskSize], eax
 
 	; RamDisk Relocation to 2mb
@@ -388,6 +393,7 @@ Entry32:
 	jmp 	ecx
 
 	; Safety
+EndOfStage:
 	cli
 	hlt
 
