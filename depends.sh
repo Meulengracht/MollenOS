@@ -5,6 +5,21 @@ clear
 mkdir -p toolchain
 cd toolchain
 
+# make is required
+if ! [ -x "$(command -v make)" ]; then
+  apt-get install make
+fi
+
+# gcc is required
+if ! [ -x "$(command -v gcc)" ]; then
+  apt-get install gcc
+fi
+
+# g++ is required
+if ! [ -x "$(command -v g++)" ]; then
+  apt-get install g++
+fi
+
 # svn is required
 if ! [ -x "$(command -v svn)" ]; then
   apt-get install subversion
