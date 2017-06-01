@@ -131,7 +131,8 @@ PACKED_TYPESTRUCT(OhciGTransferDescriptor, {
  * Bits 26-27: Error Count. Updated each transmission that fails. It is 0 on success.
  * Bits 28-31: Condition Code, if error count is 2 and it fails a third time, this contains error code. */
 #define OHCI_LINK_END						0x1
-#define OHCI_TD_ALLOCATED					(1 << 17)
+#define OHCI_TD_ALLOCATED					(1 << 16)
+#define OHCI_TD_ISOCHRONOUS					(1 << 17)
 #define OHCI_TD_SHORTPACKET					(1 << 18)
 #define OHCI_TD_PID_SETUP					0
 #define OHCI_TD_PID_OUT						(1 << 19)

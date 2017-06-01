@@ -65,7 +65,7 @@ install:
 	./rd $(arch) initrd.mos
 	./lzss c initrd.mos deploy/hdd/system/initrd.mos
 	./lzss c kernel/build/syskrnl.mos deploy/hdd/system/syskrnl.mos
-	./mono diskutility -auto -target $(target) -scheme mbr
+	mono diskutility -auto -target $(target) -scheme mbr
 
 .PHONY: clean
 clean:

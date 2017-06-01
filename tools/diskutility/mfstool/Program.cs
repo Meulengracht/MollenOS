@@ -24,10 +24,10 @@ namespace DiskUtility
             }
 
             // Iterate through and create all directories
-            String BaseRoot = "hdd\\";
+            String BaseRoot = "deploy/hdd/";
             Console.WriteLine("Creating system file tree");
-            Console.WriteLine("Root: " + AppDomain.CurrentDomain.BaseDirectory + "hdd\\");
-            String[] Dirs = Directory.GetDirectories("hdd\\", "*", SearchOption.AllDirectories);
+            Console.WriteLine("Root: " + AppDomain.CurrentDomain.BaseDirectory + "deploy/hdd/");
+            String[] Dirs = Directory.GetDirectories("deploy/hdd/", "*", SearchOption.AllDirectories);
 
             foreach (String pDir in Dirs) {
                 String RelPath = pDir.Substring(BaseRoot.Length).Replace('\\', '/');
@@ -43,7 +43,7 @@ namespace DiskUtility
 
             // Iterate through deployment folder and install system files
             Console.WriteLine("Copying system files");
-            String[] Files = Directory.GetFiles("hdd\\", "*.*", SearchOption.AllDirectories);
+            String[] Files = Directory.GetFiles("deploy/hdd/", "*", SearchOption.AllDirectories);
 
             foreach (String pFile in Files) {
                 String RelPath = pFile.Substring(BaseRoot.Length).Replace('\\', '/');
@@ -153,32 +153,6 @@ namespace DiskUtility
             // Debug print header
             Console.WriteLine("MFS Utility Software");
             Console.WriteLine("Software Capabilities include formatting, read, write to/from MFS.\n");
-            
-            // Retrieve a list of physical drives
-            Hashtable Drives = new Hashtable();
-            Console.WriteLine("Available Drives:");
-            WqlObjectQuery q = new WqlObjectQuery("SELECT * FROM Win32_DiskDrive");
-            ManagementObjectSearcher res = new ManagementObjectSearcher(q);
-            int Itr = 0;
-            foreach (ManagementObject o in res.Get()) {
-                
-                // Never take main-drive into account
-                if (o["DeviceID"].ToString().Contains("PHYSICALDRIVE0"))
-                    continue;
-
-                // Debug
-                Console.WriteLine(Itr.ToString() + ". " + o["Caption"] + " (DeviceID = " + o["DeviceID"] + ")");
-
-                var bps = o.GetPropertyValue("BytesPerSector");
-                var spt = o["SectorsPerTrack"];
-                var tpc = o["TracksPerCylinder"];
-                var ts = o["TotalSectors"];
-
-                // Create and store the disk
-                Drives.Add(Itr, new CDisk((String)o["DeviceID"], (UInt32)o["BytesPerSector"],
-                    (UInt32)o["SectorsPerTrack"], (UInt32)o["TracksPerCylinder"], (UInt64)o["TotalSectors"]));
-                Itr++;
-            }
 
             // Parse arguments
             if (args != null && args.Length > 0) {
@@ -201,7 +175,37 @@ namespace DiskUtility
                     }
                 }
             }
+            
+            // Retrieve a list of physical drives
+            Hashtable Drives = new Hashtable();
 
+            if (Target == "live") {
+                Console.WriteLine("Available Drives:");
+                WqlObjectQuery q = new WqlObjectQuery("SELECT * FROM Win32_DiskDrive");
+                ManagementObjectSearcher res = new ManagementObjectSearcher(q);
+                int Itr = 0;
+                foreach (ManagementObject o in res.Get())
+                {
+
+                    // Never take main-drive into account
+                    if (o["DeviceID"].ToString().Contains("PHYSICALDRIVE0"))
+                        continue;
+
+                    // Debug
+                    Console.WriteLine(Itr.ToString() + ". " + o["Caption"] + " (DeviceID = " + o["DeviceID"] + ")");
+
+                    var bps = o.GetPropertyValue("BytesPerSector");
+                    var spt = o["SectorsPerTrack"];
+                    var tpc = o["TracksPerCylinder"];
+                    var ts = o["TotalSectors"];
+
+                    // Create and store the disk
+                    Drives.Add(Itr, new CDisk((String)o["DeviceID"], (UInt32)o["BytesPerSector"],
+                        (UInt32)o["SectorsPerTrack"], (UInt32)o["TracksPerCylinder"], (UInt64)o["TotalSectors"]));
+                    Itr++;
+                }
+            }
+            
             // Should we automate the process?
             if (Automatic)
             {

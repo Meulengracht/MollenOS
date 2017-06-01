@@ -3,7 +3,7 @@
 # - drivers
 
 .PHONY: all
-all: build mfs ahci hpet $(arch)
+all: build mfs ahci hpet ohci $(arch)
 
 build:
 	@mkdir -p $@
@@ -11,6 +11,12 @@ build:
 # Architecture specific drivers
 .PHONY: i386
 i386:
+	$(MAKE) -C arch/x86/cmos -f makefile
+	$(MAKE) -C arch/x86/pit -f makefile
+	$(MAKE) -C arch/x86/ps2 -f makefile
+
+.PHONY: amd64
+amd64:
 	$(MAKE) -C arch/x86/cmos -f makefile
 	$(MAKE) -C arch/x86/pit -f makefile
 	$(MAKE) -C arch/x86/ps2 -f makefile
@@ -28,9 +34,33 @@ ahci:
 hpet:
 	$(MAKE) -C timers/hpet -f makefile
 
+# Usb drivers below here
+.PHONY: ohci
+ohci:
+	$(MAKE) -C serial/usb/ohci -f makefile
+
+.PHONY: uhci
+uhci:
+	$(MAKE) -C serial/usb/uhci -f makefile
+
+.PHONY: ehci
+ehci:
+	$(MAKE) -C serial/usb/ehci -f makefile
+
+.PHONY: xhci
+xhci:
+	$(MAKE) -C serial/usb/xhci -f makefile
+
 # Cleanup - architecture i386
 .PHONY: clean_i386
 clean_i386:
+	$(MAKE) -C arch/x86/cmos -f makefile clean
+	$(MAKE) -C arch/x86/pit -f makefile clean
+	$(MAKE) -C arch/x86/ps2 -f makefile clean
+
+# Cleanup - architecture amd64
+.PHONY: clean_amd64
+clean_amd64:
 	$(MAKE) -C arch/x86/cmos -f makefile clean
 	$(MAKE) -C arch/x86/pit -f makefile clean
 	$(MAKE) -C arch/x86/ps2 -f makefile clean
@@ -41,4 +71,5 @@ clean: clean_$(arch)
 	$(MAKE) -C filesystems/mfs -f makefile clean
 	$(MAKE) -C storage/ahci -f makefile clean
 	$(MAKE) -C timers/hpet -f makefile clean
+	$(MAKE) -C serial/usb/ohci -f makefile clean
 	rm -rf build

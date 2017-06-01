@@ -116,15 +116,15 @@ namespace DiskUtility
                 UInt64 SizeOfHdd = BytesPerSector * TotalSectors;
 
                 // Always create the image with this name
-                if (File.Exists(@"..\mollenos." + DeviceId.ToLower()))
-                    File.Delete(@"..\mollenos." + DeviceId.ToLower());
+                if (File.Exists("mollenos." + DeviceId.ToLower()))
+                    File.Delete("mollenos." + DeviceId.ToLower());
 
                 // Initialize disk-handle
                 if (DeviceId == "VMDK")
-                    vDiskHandle =  DiscUtils.Vmdk.Disk.Initialize(@"..\mollenos." + DeviceId.ToLower(), (long)SizeOfHdd, 
+                    vDiskHandle =  DiscUtils.Vmdk.Disk.Initialize("mollenos." + DeviceId.ToLower(), (long)SizeOfHdd, 
                         DiscUtils.Vmdk.DiskCreateType.MonolithicSparse);
                 else if (DeviceId == "IMG") {
-                    fStream = File.Create(@"..\mollenos." + DeviceId.ToLower());
+                    fStream = File.Create("mollenos." + DeviceId.ToLower());
                     vDiskHandle = DiscUtils.Raw.Disk.Initialize(fStream, DiscUtils.Ownership.None, (long)SizeOfHdd);
                 }
 

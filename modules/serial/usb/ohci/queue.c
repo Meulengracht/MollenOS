@@ -93,7 +93,7 @@ OhciQueueInitialize(
 	NullTd->BufferEnd = 0;
 	NullTd->Cbp = 0;
 	NullTd->Link = 0x0;
-	NullTd->Flags = 0;
+	NullTd->Flags = OHCI_TD_ALLOCATED;
 	NullPhysical = OHCI_POOL_TDINDEX(Queue->TDPoolPhysical, OHCI_POOL_TDNULL);
 
 	// Enumerate the ED pool and set their links
@@ -153,111 +153,90 @@ OhciEdAllocate(
 	_In_ OhciController_t *Controller, 
 	_In_ UsbTransferType_t Type)
 {
-	/* Vars */
+	// Variables
 	OhciEndpointDescriptor_t *Ed = NULL;
 	int i;
 
-	/* Pick a QH */
+	// Unused for now
+	_CRT_UNUSED(Type);
+
+	// Lock access to the queue
 	SpinlockAcquire(&Controller->Lock);
 
-	/* Grap it, locked operation */
-	if (Type == ControlTransfer
-		|| Type == BulkTransfer)
-	{
-		/* Grap Index */
-		for (i = 0; i < OHCI_POOL_NUM_ED; i++)
-		{
-			/* Sanity */
-			if (Controller->EDPool[i]->HcdFlags & OHCI_ED_ALLOCATED)
-				continue;
-
-			/* Yay!! */
-			Controller->EDPool[i]->HcdFlags = OHCI_ED_ALLOCATED;
-			Ed = Controller->EDPool[i];
-			break;
+	// Now, we usually allocated new endpoints for interrupts
+	// and isoc, but it doesn't make sense for us as we keep one
+	// large pool of ED's, just allocate from that in any case
+	for (i = 0; i < OHCI_POOL_NUM_ED; i++) {
+		// Skip in case already allocated
+		if (Controller.QueueControl->EDPool[i]->HcdFlags & OHCI_ED_ALLOCATED) {
+			continue;
 		}
 
-		/* Sanity */
-		if (i == 50)
-			kernel_panic("USB_OHCI::WTF RAN OUT OF EDS\n");
+		// We found a free ed - mark it allocated and end
+		// but reset the ED first
+		memset(Controller.QueueControl->EDPool[i], 0, sizeof(OhciEndpointDescriptor_t));
+		Controller.QueueControl->EDPool[i]->HcdFlags = OHCI_ED_ALLOCATED;
+		
+		// Store pointer
+		Ed = Controller.QueueControl->EDPool[i];
+		break;
 	}
-	else if (Type == InterruptTransfer
-		|| Type == IsochronousTransfer)
-	{
-		/* Allocate */
-		Addr_t aSpace = (Addr_t)kmalloc(sizeof(OhciEndpointDescriptor_t) + OHCI_STRUCT_ALIGN);
-		Ed = (OhciEndpointDescriptor_t*)OhciAlign(aSpace, OHCI_STRUCT_ALIGN_BITS, OHCI_STRUCT_ALIGN);
+	
 
-		/* Zero it out */
-		memset(Ed, 0, sizeof(OhciEndpointDescriptor_t));
-	}
-
-	/* Release Lock */
+	// Release the lock, let others pass
 	SpinlockRelease(&Controller->Lock);
-
-	/* Done! */
 	return Ed;
 }
 
-/* Td Functions */
-Addr_t OhciAllocateTd(OhciEndpoint_t *Ep, UsbTransferType_t Type)
+/* OhciTdAllocate
+ * Allocates a new TD for usage with the transaction. If this returns
+ * NULL we are out of TD's and we should wait till next transfer. */
+OhciGTransferDescriptor_t*
+OhciTdAllocate(
+	_In_ OhciController_t *Controller,
+	_In_ UsbTransferType_t Type)
 {
-	/* Vars */
-	OhciGTransferDescriptor_t *Td;
-	Addr_t cIndex = 0;
-	size_t i;
+	// Variables
+	OhciGTransferDescriptor_t *Td = NULL;
+	int i;
 
-	/* Pick a QH */
-	SpinlockAcquire(&Ep->Lock);
+	// Unused for now
+	_CRT_UNUSED(Type);
 
-	/* Sanity */
-	if (Type == ControlTransfer
-		|| Type == BulkTransfer)
-	{
-		/* Grap it, locked operation */
-		for (i = 0; i < Ep->TdsAllocated; i++)
-		{
-			/* Sanity */
-			if (Ep->TDPool[i]->Flags & OHCI_TD_ALLOCATED)
-				continue;
+	// Lock access to the queue
+	SpinlockAcquire(&Controller->Lock);
 
-			/* Yay!! */
-			Ep->TDPool[i]->Flags |= OHCI_TD_ALLOCATED;
-			cIndex = (Addr_t)i;
-			break;
+	// Now, we usually allocated new descriptors for interrupts
+	// and isoc, but it doesn't make sense for us as we keep one
+	// large pool of ED's, just allocate from that in any case
+	for (i = 0; i < OHCI_POOL_TDS; i++) {
+		// Skip ahead if allocated, skip twice if isoc
+		if (Controller.QueueControl->TDPool[i]->Flags & OHCI_TD_ALLOCATED) {
+			if (Controller.QueueControl->TDPool[i]->Flags & OHCI_TD_ISOCHRONOUS) {
+				i++;
+			}
+			continue;
 		}
 
-		/* Sanity */
-		if (i == Ep->TdsAllocated)
-			kernel_panic("USB_OHCI::WTF ran out of TD's!!!!\n");
-	}
-	else if (Type == InterruptTransfer)
-	{
-		/* Allocate a new */
-		Td = (OhciGTransferDescriptor_t*)OhciAlign(((Addr_t)kmalloc(sizeof(OhciGTransferDescriptor_t) + OHCI_STRUCT_ALIGN)), OHCI_STRUCT_ALIGN_BITS, OHCI_STRUCT_ALIGN);
+		// If we asked for isoc, make sure secondary is available
+		if (Type == IsochronousTransfer) {
+			if (Controller.QueueControl->TDPool[i + 1]->Flags & OHCI_TD_ALLOCATED) {
+				continue;
+			}
+			else {
+				Controller.QueueControl->TDPool[i]->Flags = OHCI_TD_ISOCHRONOUS;
+			}
+		}
 
-		/* Null it */
-		memset((void*)Td, 0, sizeof(OhciGTransferDescriptor_t));
-
-		/* Set as index */
-		cIndex = (Addr_t)Td;
-	}
-	else
-	{
-		/* Allocate iDescriptor */
-		OhciITransferDescriptor_t *iTd = (OhciITransferDescriptor_t*)OhciAlign(((Addr_t)kmalloc(sizeof(OhciITransferDescriptor_t) + OHCI_STRUCT_ALIGN)), OHCI_STRUCT_ALIGN_BITS, OHCI_STRUCT_ALIGN);
-
-		/* Null it */
-		memset((void*)iTd, 0, sizeof(OhciITransferDescriptor_t));
-
-		/* Set as index */
-		cIndex = (Addr_t)iTd;
+		// Found one, reset
+		Controller.QueueControl->TDPool[i]->Flags |= OHCI_TD_ALLOCATED;
+		Td = Controller.QueueControl->TDPool[i];
+		break;
 	}
 
-	/* Release Lock */
-	SpinlockRelease(&Ep->Lock);
-
-	return cIndex;
+	// Release the lock, let others pass
+	SpinlockRelease(&Controller->Lock);
+	return Td;
 }
 
 /* OhciEdInitialize

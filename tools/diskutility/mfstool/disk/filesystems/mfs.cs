@@ -850,14 +850,14 @@ namespace DiskUtility
             Console.WriteLine("Format - Bucket Size: " + BucketSize.ToString());
 
             // Sanitize that bootloaders are present
-            if (!File.Exists("stage2.sys") || !File.Exists("stage1.sys"))
+            if (!File.Exists("deploy/stage2.sys") || !File.Exists("deploy/stage1.sys"))
             {
                 Console.WriteLine("Format - Bootloaders are missing (stage1.sys & stage2.sys)");
                 return false;
             }
 
             // We need to calculate size of bootloader
-            Byte[] Stage2Data = File.ReadAllBytes("stage2.sys");
+            Byte[] Stage2Data = File.ReadAllBytes("deploy/stage2.sys");
 
             // Calculate reserved sector count
             Int64 ReservedSectors = 1 + ((Stage2Data.Length / m_pDisk.BytesPerSector) + 1);
@@ -1157,7 +1157,7 @@ namespace DiskUtility
 
             // Load up boot-sector
             Console.WriteLine("Install - loading bootsector (stage1.sys)");
-            Byte[] Bootsector = File.ReadAllBytes("stage1.sys");
+            Byte[] Bootsector = File.ReadAllBytes("deploy/stage1.sys");
 
             // Modify boot-sector by preserving the header 44
             Byte[] Existing = m_pDisk.Read(m_iSector, 1);
@@ -1172,7 +1172,7 @@ namespace DiskUtility
 
             // Write stage2 to disk
             Console.WriteLine("Install - loading stage2 (stage2.sys)");
-            Byte[] Stage2Data = File.ReadAllBytes("stage2.sys");
+            Byte[] Stage2Data = File.ReadAllBytes("deploy/stage2.sys");
 
             // Make sure we allocate a sector-aligned buffer
             Console.WriteLine("Install - writing stage2 to disk");
