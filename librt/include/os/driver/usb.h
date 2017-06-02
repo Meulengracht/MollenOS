@@ -44,39 +44,6 @@ typedef enum _UsbSpeed {
 	SuperSpeed		// 3.0
 } UsbSpeed_t;
 
-/* UsbTransactionType 
- * Describes the possible types of usb transactions */
-typedef enum _UsbTransactionType {
-	SetupTransaction,
-	InTransaction,
-	OutTransaction
-} UsbTransactionType_t;
-
-/* UsbTransferType 
- * Describes the type of transfer, it can be one of 4 that describe
- * either Control, Bulk, Interrupt or Isochronous */
-typedef enum _UsbTransferType {
-	ControlTransfer,
-	BulkTransfer,
-	InterruptTransfer,
-	IsochronousTransfer
-} UsbTransferType_t;
-
-/* UsbTransaction
- * Describes a single transaction in an usb-transfer operation */
-PACKED_TYPESTRUCT(UsbTransaction, {
-	UsbTransactionType_t				Type;
-	uintptr_t							BufferAddress;
-	size_t								Length;
-});
-
-/* UsbTransfer 
- * Describes an usb-transfer, that consists of transfer information
- * and a bunch of transactions. */
-PACKED_TYPESTRUCT(UsbTransfer, {
-	UsbTransferType_t					Type;
-});
-
 /* UsbPortDescriptor 
  * Describes the current port information */
 PACKED_TYPESTRUCT(UsbPortDescriptor, {

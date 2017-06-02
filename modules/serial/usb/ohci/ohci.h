@@ -30,6 +30,7 @@
 #include <os/driver/usb.h>
 #include <os/driver/device.h>
 #include <os/driver/driver.h>
+#include <ds/list.h>
 
 /* OHCI Controller Definitions 
  * Contains generic magic constants and definitions */
@@ -55,6 +56,7 @@ PACKED_TYPESTRUCT(OhciEndpointDescriptor, {
 	reg32_t					TailPointer;	// Lower 4 bits not used
 	reg32_t					Current;		// (Physical) Bit 0 - Halted, Bit 1 - Carry
 	reg32_t					Link;			// Next EP (Physical)
+	
 	reg32_t					LinkVirtual;	// Next EP (Virtual)
 	reg32_t					Bandwidth;		// Scheduling
 	reg32_t					Interval;		// Scheduling
@@ -109,20 +111,26 @@ PACKED_TYPESTRUCT(OhciEndpointDescriptor, {
 #define OHCI_ED_CLR_INDEX(n)		(n & 0xFF00FFFF)
 #define OHCI_ED_GET_INDEX(n)		((n & 0xFF0000) >> 16)
 
-/* OhciGTransferDescriptor
+/* OhciTransferDescriptor
  * Describes a transfer operation that can have 3 operations, either
  * SETUP, IN or OUT. It must have a pointer to the buffer of data
  * and it must have a pointer to the end of the buffer of data. 
- * Structure must be 16 byte aligned. */
-PACKED_TYPESTRUCT(OhciGTransferDescriptor, {
+ * Td's must be 16 byte aligned, but iTd's must be 32 byte aligned
+ * so we 32 byte align all */
+PACKED_TYPESTRUCT(OhciTransferDescriptor, {
 	reg32_t					Flags;
 	reg32_t					Cbp;		// Size must be lower than MPS
 	reg32_t					Link;		// TD Link (Physical)
 	reg32_t					BufferEnd;	// End of buffer pointer
+	uint16_t				Offsets[8]; // Isochronous offsets
+
+	// Metadata
+	int16_t 				LinkIndex;	// Next TD, -1 if none
+	uint8_t					Padding[30];// Padding
 });
 
-/* OhciGTransferDescriptor::Flags
- * Contains definitions and bitfield definitions for OhciGTransferDescriptor::Flags
+/* OhciTransferDescriptor::Flags
+ * Contains definitions and bitfield definitions for OhciTransferDescriptor::Flags
  * Bits 0-17:  Available
  * Bits 18:    If 0, Requires the data to be recieved from an endpoint to exactly fill buffer
  * Bits 19-20: Direction, 00 = Setup (to ep), 01 = OUT (to ep), 10 = IN (from ep)
@@ -144,27 +152,8 @@ PACKED_TYPESTRUCT(OhciGTransferDescriptor, {
 #define OHCI_TD_ACTIVE						((1 << 28) | (1 << 29) | (1 << 30) | (1 << 31))
 #define OHCI_TD_GET_CC(n)					((n & 0xF0000000) >> 28)
 
-/* Must be 32 byte aligned
- * Isochronous Transfer Descriptor */
-PACKED_TYPESTRUCT(OhciITransferDescriptor, {
-	uint32_t				Flags;
-	uint32_t				Bp0;		// Points to the first byte of data
-	uint32_t				Link;		// TD Link (Physical)
-	uint32_t				BufferEnd;	// Points to the last byte of data
-	uint16_t				Offsets[8];	// Contains sub-transactions table
-});
-
-/* OhciITransferDescriptor::Flags
- * Contains definitions and bitfield definitions for OhciITransferDescriptor::Flags
- * Bits 0-15:	Starting Frame of transaction.
- * Bits 16-20:	Available
- * Bits 21-23:	Interrupt Delay
- * Bits 24-26:	Frame Count in this TD, 0 implies 1, and 7 implies 8. (always +1)
- * Bits 27:		Reserved
- * Bits 28-31:	Condition Code (Error Code) */
-
-/* OhciITransferDescriptor::Offsets
- * Contains definitions and bitfield definitions for OhciITransferDescriptor::Offsets
+/* OhciTransferDescriptor::Offsets
+ * Contains definitions and bitfield definitions for OhciTransferDescriptor::Offsets
  * Bits 0-11:	Packet Size on IN-transmissions
  * Bits 12:		CrossPage Field
  * Bits 12-15:	Condition Code (Error Code) */
@@ -282,7 +271,7 @@ PACKED_ATYPESTRUCT(volatile, OhciRegisters, {
 typedef struct _OhciControl {
 	// Resources
 	OhciEndpointDescriptor_t   **EDPool;
-	OhciGTransferDescriptor_t  **TDPool;
+	OhciTransferDescriptor_t   **TDPool;
 	uintptr_t					 EDPoolPhysical;
 	uintptr_t					 TDPoolPhysical;
 
@@ -293,8 +282,8 @@ typedef struct _OhciControl {
 	// Transactions
 	int							 TransactionsWaitingControl;
 	int							 TransactionsWaitingBulk;
-	uintptr_t					 TransactionQueueControl;
-	uintptr_t					 TransactionQueueBulk;
+	int					 		 TransactionQueueControlIndex;
+	int					 		 TransactionQueueBulkIndex;
 	List_t						*TransactionList;
 } OhciControl_t;
 

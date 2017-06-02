@@ -4,6 +4,11 @@
         "__mutex_base": "cpp",
         "memory": "cpp",
         "mutex": "cpp",
-        "shared_mutex": "cpp"
+        "shared_mutex": "cpp",
+        "__functional_03": "cpp",
+        "__tree": "cpp",
+        "memory_resource": "cpp",
+        "functional": "cpp",
+        "future": "cpp"
     }
 }

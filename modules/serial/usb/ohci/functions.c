@@ -36,133 +36,6 @@
 #include <string.h>
 #include <stdlib.h>
 
-
-/* Endpoint Functions */
-void OhciEndpointSetup(void *Controller, UsbHcEndpoint_t *Endpoint)
-{
-	/* Cast */
-	OhciController_t *oCtrl = (OhciController_t*)Controller;
-	Addr_t BufAddr = 0, BufAddrMax = 0;
-	Addr_t Pool, PoolPhys;
-	size_t i;
-
-	/* Allocate a structure */
-	OhciEndpoint_t *oEp = (OhciEndpoint_t*)kmalloc(sizeof(OhciEndpoint_t));
-
-	/* Construct the lock */
-	SpinlockReset(&oEp->Lock);
-
-	/* Woah */
-	_CRT_UNUSED(oCtrl);
-
-	/* Now, we want to allocate some TD's 
-	 * but it largely depends on what kind of endpoint this is */
-	if (Endpoint->Type == EndpointControl)
-		oEp->TdsAllocated = OHCI_ENDPOINT_MIN_ALLOCATED;
-	else if (Endpoint->Type == EndpointBulk)
-	{
-		/* Depends on the maximum transfer */
-		oEp->TdsAllocated = DEVICEMANAGER_MAX_IO_SIZE / Endpoint->MaxPacketSize;
-		
-		/* Take in account control packets and other stuff */
-		oEp->TdsAllocated += OHCI_ENDPOINT_MIN_ALLOCATED;
-	}
-	else
-	{
-		/* We handle interrupt & iso dynamically 
-		 * we don't predetermine their sizes */
-		oEp->TdsAllocated = 0;
-		Endpoint->AttachedData = oEp;
-		return;
-	}
-
-	/* Now, we do the actual allocation */
-	oEp->TDPool = (OhciGTransferDescriptor_t**)kmalloc(sizeof(OhciGTransferDescriptor_t*) * oEp->TdsAllocated);
-	oEp->TDPoolBuffers = (Addr_t**)kmalloc(sizeof(Addr_t*) * oEp->TdsAllocated);
-	oEp->TDPoolPhysical = (Addr_t*)kmalloc(sizeof(Addr_t) * oEp->TdsAllocated);
-
-	/* Allocate a TD block */
-	Pool = (Addr_t)kmalloc((sizeof(OhciGTransferDescriptor_t) * oEp->TdsAllocated) + OHCI_STRUCT_ALIGN);
-	Pool = OhciAlign(Pool, OHCI_STRUCT_ALIGN_BITS, OHCI_STRUCT_ALIGN);
-	PoolPhys = AddressSpaceGetMap(AddressSpaceGetCurrent(), Pool);
-
-	/* Allocate buffers */
-	BufAddr = (Addr_t)kmalloc_a(PAGE_SIZE);
-	BufAddrMax = BufAddr + PAGE_SIZE - 1;
-
-	/* Memset it */
-	memset((void*)Pool, 0, sizeof(OhciGTransferDescriptor_t) * oEp->TdsAllocated);
-
-	/* Iterate it */
-	for (i = 0; i < oEp->TdsAllocated; i++)
-	{
-		/* Set */
-		oEp->TDPool[i] = (OhciGTransferDescriptor_t*)Pool;
-		oEp->TDPoolPhysical[i] = PoolPhys;
-
-		/* Allocate another page? */
-		if (BufAddr > BufAddrMax)
-		{
-			BufAddr = (Addr_t)kmalloc_a(PAGE_SIZE);
-			BufAddrMax = BufAddr + PAGE_SIZE - 1;
-		}
-
-		/* Setup Buffer */
-		oEp->TDPoolBuffers[i] = (Addr_t*)BufAddr;
-		oEp->TDPool[i]->Cbp = AddressSpaceGetMap(AddressSpaceGetCurrent(), BufAddr);
-		oEp->TDPool[i]->NextTD = 0x1;
-
-		/* Increase */
-		Pool += sizeof(OhciGTransferDescriptor_t);
-		PoolPhys += sizeof(OhciGTransferDescriptor_t);
-		BufAddr += Endpoint->MaxPacketSize;
-	}
-
-	/* Done! Save */
-	Endpoint->AttachedData = oEp;
-}
-
-void OhciEndpointDestroy(void *Controller, UsbHcEndpoint_t *Endpoint)
-{
-	/* Cast */
-	OhciController_t *oCtrl = (OhciController_t*)Controller;
-	OhciEndpoint_t *oEp = (OhciEndpoint_t*)Endpoint->AttachedData;
-	
-	/* Sanity */
-	if (oEp == NULL)
-		return;
-
-	/* Woah */
-	_CRT_UNUSED(oCtrl);
-
-	/* Sanity */
-	if (oEp->TdsAllocated != 0)
-	{
-		/* Vars */
-		OhciGTransferDescriptor_t *oTd = oEp->TDPool[0];
-		size_t i;
-
-		/* Let's free all those resources */
-		for (i = 0; i < oEp->TdsAllocated; i++)
-		{
-			/* free buffer */
-			kfree(oEp->TDPoolBuffers[i]);
-		}
-
-		/* Free blocks */
-		kfree(oTd);
-		kfree(oEp->TDPoolBuffers);
-		kfree(oEp->TDPoolPhysical);
-		kfree(oEp->TDPool);
-	}
-
-	/* Free the descriptor */
-	kfree(oEp);
-}
-
-
-/* Transaction Functions */
-
 /* This one prepaires an ED */
 void OhciTransactionInit(void *Controller, UsbHcRequest_t *Request)
 {
@@ -584,4 +457,25 @@ void OhciTransactionDestroy(void *Controller, UsbHcRequest_t *Request)
 			kfree(Node);
 		}
 	}
+}
+
+/* UsbQueueTransferImpl */
+OsStatus_t
+UsbQueueTransferImpl()
+{
+
+}
+
+/* UsbWaitTransferImpl */
+OsStatus_t
+UsbWaitTransferImpl()
+{
+	
+}
+
+/* UsbDequeueTransferImpl */
+OsStatus_t
+UsbDequeueTransferImpl()
+{
+	
 }

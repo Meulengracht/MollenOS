@@ -16,7 +16,7 @@ export AS = nasm
 export GCFLAGS = -Wall -Wno-self-assign -Wno-unused-function -fms-extensions -ffreestanding -nostdlib -O3 -DMOLLENOS -D$(arch)
 export GCXXFLAGS = -Wall -Wno-self-assign -Wno-unused-function -ffreestanding -nostdlib -O3 -DMOLLENOS -D$(arch)
 export FCOPY = cp
-target = vmdk
+target = img
 
 .PHONY: all
 all: boot_loader libraries kernel drivers tools initrd

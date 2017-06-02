@@ -24,6 +24,7 @@
 
 /* Includes 
  * - System */
+#include <os/driver/contracts/usbhost.h>
 #include <os/mollenos.h>
 #include <os/thread.h>
 #include <os/utils.h>
@@ -43,7 +44,6 @@ OhciSetup(
 	_In_ OhciController_t *Controller);
 
 /* Error Codes */
-static const int _Balance[] = { 0, 8, 4, 12, 2, 10, 6, 14, 1, 9, 5, 13, 3, 11, 7, 15 };
 const char *OhciErrorMessages[] =
 {
 	"No Error",
@@ -175,15 +175,12 @@ OsStatus_t
 OhciControllerDestroy(
 	_In_ OhciController_t *Controller)
 {
-	// Variables
-	int i;
-
 	// Cleanup scheduler
 	OhciQueueDestroy(Controller);
 
 	// Free resources
 	if (Controller->Hcca != NULL) {
-		MemoryFree(Controller->Hcca, 0x1000);
+		MemoryFree((void*)Controller->Hcca, 0x1000);
 	}
 
 	// Unregister the interrupt
@@ -254,12 +251,12 @@ OhciTakeControl(
 		// If it's suspended, resume and wait 10 ms
 		if ((Controller->Registers->HcControl & OHCI_CONTROL_FSTATE_BITS) != OHCI_CONTROL_ACTIVE) {
 			OhciSetMode(Controller, OHCI_CONTROL_ACTIVE);
-			StallMs(10);
+			ThreadSleep(10);
 		}
 	}
 	else {
 		// Cold boot, wait 10 ms
-		StallMs(10);
+		ThreadSleep(10);
 	}
 
 	return OsSuccess;
@@ -362,6 +359,9 @@ OhciReset(
 	Temporary |= (0x3 | OHCI_CONTROL_ACTIVE);
 	Controller->Registers->HcControl = Temporary |
 		OHCI_CONTROL_ENABLE_ALL | OHCI_CONTROL_REMOTEWAKE;
+
+	// Success
+	return OsSuccess;
 }
 
 /* OhciSetup
@@ -489,4 +489,7 @@ OhciSetup(
 			OhciPortInitialize(Controller, i);
 		}
 	}
+
+	// Done!
+	return OsSuccess;
 }
