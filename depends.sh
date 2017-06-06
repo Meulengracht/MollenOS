@@ -5,6 +5,12 @@ clear
 mkdir -p toolchain
 cd toolchain
 
+# Dev-libraries
+apt-get install libelf1
+apt-get install libelf-dev
+apt-get install libffi6
+apt-get install libffi-dev
+
 # make is required
 if ! [ -x "$(command -v make)" ]; then
   apt-get install make

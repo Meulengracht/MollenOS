@@ -163,17 +163,17 @@ OhciEdAllocate(
 	// large pool of ED's, just allocate from that in any case
 	for (i = 0; i < OHCI_POOL_NUM_ED; i++) {
 		// Skip in case already allocated
-		if (Controller.QueueControl->EDPool[i]->HcdFlags & OHCI_ED_ALLOCATED) {
+		if (Controller->QueueControl.EDPool[i]->HcdFlags & OHCI_ED_ALLOCATED) {
 			continue;
 		}
 
 		// We found a free ed - mark it allocated and end
 		// but reset the ED first
-		memset(Controller.QueueControl->EDPool[i], 0, sizeof(OhciEndpointDescriptor_t));
-		Controller.QueueControl->EDPool[i]->HcdFlags = OHCI_ED_ALLOCATED;
+		memset(Controller->QueueControl.EDPool[i], 0, sizeof(OhciEndpointDescriptor_t));
+		Controller->QueueControl.EDPool[i]->HcdFlags = OHCI_ED_ALLOCATED;
 		
 		// Store pointer
-		Ed = Controller.QueueControl->EDPool[i];
+		Ed = Controller->QueueControl.EDPool[i];
 		break;
 	}
 	
@@ -206,8 +206,8 @@ OhciTdAllocate(
 	// large pool of ED's, just allocate from that in any case
 	for (i = 0; i < OHCI_POOL_TDS; i++) {
 		// Skip ahead if allocated, skip twice if isoc
-		if (Controller.QueueControl->TDPool[i]->Flags & OHCI_TD_ALLOCATED) {
-			if (Controller.QueueControl->TDPool[i]->Flags & OHCI_TD_ISOCHRONOUS) {
+		if (Controller->QueueControl.TDPool[i]->Flags & OHCI_TD_ALLOCATED) {
+			if (Controller->QueueControl.TDPool[i]->Flags & OHCI_TD_ISOCHRONOUS) {
 				i++;
 			}
 			continue;
@@ -215,17 +215,17 @@ OhciTdAllocate(
 
 		// If we asked for isoc, make sure secondary is available
 		if (Type == IsochronousTransfer) {
-			if (Controller.QueueControl->TDPool[i + 1]->Flags & OHCI_TD_ALLOCATED) {
+			if (Controller->QueueControl.TDPool[i + 1]->Flags & OHCI_TD_ALLOCATED) {
 				continue;
 			}
 			else {
-				Controller.QueueControl->TDPool[i]->Flags = OHCI_TD_ISOCHRONOUS;
+				Controller->QueueControl.TDPool[i]->Flags = OHCI_TD_ISOCHRONOUS;
 			}
 		}
 
 		// Found one, reset
-		Controller.QueueControl->TDPool[i]->Flags |= OHCI_TD_ALLOCATED;
-		Td = Controller.QueueControl->TDPool[i];
+		Controller->QueueControl.TDPool[i]->Flags |= OHCI_TD_ALLOCATED;
+		Td = Controller->QueueControl.TDPool[i];
 		break;
 	}
 
@@ -258,19 +258,19 @@ OhciEdInitialize(
 		Ed->TailPointer = 0;
 	}
 	else {
-		Td = Controller.QueueControl->TDPool[HeadIndex];
+		Td = Controller->QueueControl.TDPool[HeadIndex];
 
 		// Set physical of head
-		Ed->HeadPtr = OHCI_POOL_TDINDEX(Controller.QueueControl->TDPoolPhysical, HeadIndex) | OHCI_LINK_END;
+		Ed->HeadPtr = OHCI_POOL_TDINDEX(Controller->QueueControl.TDPoolPhysical, HeadIndex) | OHCI_LINK_END;
 
 		// Iterate untill tail
 		while (Td->LinkIndex != -1) {
 			LastIndex = Td->LinkIndex;
-			Td = Controller.QueueControl->TDPool[Td->LinkIndex];
+			Td = Controller->QueueControl.TDPool[Td->LinkIndex];
 		}
 
 		// Update tail
-		Ed->TailPtr = OHCI_POOL_TDINDEX(Controller.QueueControl->TDPoolPhysical, LastIndex);
+		Ed->TailPtr = OHCI_POOL_TDINDEX(Controller->QueueControl.TDPoolPhysical, LastIndex);
 	}
 
 	// Initialize flags

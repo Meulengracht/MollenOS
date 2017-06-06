@@ -19,6 +19,7 @@ if [ ! -f /usr/local/cross/bin/clang ]; then
       svn co http://llvm.org/svn/llvm-project/libcxxabi/trunk libcxxabi
       svn co http://llvm.org/svn/llvm-project/libcxx/trunk libcxx
       svn co http://llvm.org/svn/llvm-project/openmp/trunk openmp
+      svn co http://llvm.org/svn/llvm-project/lld/trunk lld
       cd ../..
 	fi
     

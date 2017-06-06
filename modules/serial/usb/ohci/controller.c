@@ -24,7 +24,6 @@
 
 /* Includes 
  * - System */
-#include <os/driver/contracts/usbhost.h>
 #include <os/mollenos.h>
 #include <os/thread.h>
 #include <os/utils.h>

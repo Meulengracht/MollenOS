@@ -27,9 +27,10 @@
 /* Includes
  * - Library */
 #include <os/osdefs.h>
-#include <os/driver/usb.h>
+#include <os/driver/contracts/usbhost.h>
 #include <os/driver/device.h>
 #include <os/driver/driver.h>
+#include <os/driver/usb.h>
 #include <ds/list.h>
 
 /* OHCI Controller Definitions 
@@ -41,7 +42,7 @@
 #define OHCI_POOL_TDS					200
 #define OHCI_POOL_TDNULL				(OHCI_POOL_TDS - 1)
 #define OHCI_POOL_EDINDEX(Base, Index)	(Base + (Index * sizeof(OhciEndpointDescriptor_t)))
-#define OHCI_POOL_TDINDEX(Base, Index)	(Base + (Index * sizeof(OhciGTransferDescriptor_t)))
+#define OHCI_POOL_TDINDEX(Base, Index)	(Base + (Index * sizeof(OhciTransferDescriptor_t)))
 #define OHCI_BANDWIDTH_PHASES			32
 
 /* OhciEndpointDescriptor 
