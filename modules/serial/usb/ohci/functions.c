@@ -24,6 +24,7 @@
 
 /* Includes 
  * - System */
+#include <os/condition.h>
 #include <os/mollenos.h>
 #include <os/thread.h>
 #include <os/utils.h>
@@ -36,159 +37,39 @@
 #include <string.h>
 #include <stdlib.h>
 
-/* This one prepaires an ED */
-void OhciTransactionInit(void *Controller, UsbHcRequest_t *Request)
+/* OhciTransactionInitialize
+ * Initializes a transaction by allocating a new endpoint-descriptor
+ * and preparing it for usage */
+OhciEndpointDescriptor_t
+OhciTransactionInitialize(
+	_In_ OhciController_t *Controller, 
+	_In_ UsbTransfer_t *Transfer)
 {
-	/* Vars */
-	OhciController_t *Ctrl = (OhciController_t*)Controller;
+	// Variables
 	OhciEndpointDescriptor_t *Ed = NULL;
 
-	/* Allocate an EP */
-	Ed = OhciAllocateEp(Ctrl, Request->Type);
+	// Allocate a new descriptor
+	Ed = OhciEdAllocate(Controller, Transfer->Type);
+	if (Ed == NULL) {
+		return NULL;
+	}
 
-	/* Mark it inactive for now */
+	// Mark it inactive untill ready
 	Ed->Flags |= OHCI_EP_SKIP;
 
-	/* Calculate bus time */
+	// Calculate bandwidth and interval
 	Ed->Bandwidth =
-		(UsbCalculateBandwidth(Request->Speed, 
-		Request->Endpoint->Direction, Request->Type, Request->Endpoint->MaxPacketSize) / 1000);
-	Ed->Interval = Request->Endpoint->Interval;
-
-	/* Store */
-	Request->Data = Ed;
-
-	/* Set as not Completed for start */
-	Request->Status = TransferNotProcessed;
-}
-
-/* This one prepaires an setup Td */
-UsbHcTransaction_t *OhciTransactionSetup(void *Controller, UsbHcRequest_t *Request, UsbPacket_t *Packet)
-{
-	/* Vars */
-	OhciController_t *Ctrl = (OhciController_t*)Controller;
-	UsbHcTransaction_t *Transaction;
-
-	/* Unused */
-	_CRT_UNUSED(Ctrl);
-
-	/* Allocate Transaction */
-	Transaction = (UsbHcTransaction_t*)kmalloc(sizeof(UsbHcTransaction_t));
-	memset(Transaction, 0, sizeof(UsbHcTransaction_t));
-
-	/* Create the Td */
-	Transaction->TransferDescriptor = (void*)OhciTdSetup(Request->Endpoint->AttachedData, 
-		Request->Type, Packet, &Transaction->TransferBuffer);
-
-	/* Done */
-	return Transaction;
-}
-
-/* This one prepaires an in Td */
-UsbHcTransaction_t *OhciTransactionIn(void *Controller, UsbHcRequest_t *Request, void *Buffer, size_t Length)
-{
-	/* Vars */
-	OhciController_t *Ctrl = (OhciController_t*)Controller;
-	UsbHcTransaction_t *Transaction;
-
-	/* Unused */
-	_CRT_UNUSED(Ctrl);
-
-	/* Allocate Transaction */
-	Transaction = (UsbHcTransaction_t*)kmalloc(sizeof(UsbHcTransaction_t));
-	memset(Transaction, 0, sizeof(UsbHcTransaction_t));
-
-	/* Set Vars */
-	Transaction->Buffer = Buffer;
-	Transaction->Length = Length;
-
-	/* Setup Td */
-	Transaction->TransferDescriptor = (void*)OhciTdIo(Request->Endpoint->AttachedData, 
-		Request->Type, Request->Endpoint, OHCI_TD_PID_IN, Length,
-		&Transaction->TransferBuffer);
-
-	/* If previous Transaction */
-	if (Request->Transactions != NULL)
-	{
-		OhciGTransferDescriptor_t *PrevTd;
-		UsbHcTransaction_t *cTrans = Request->Transactions;
-
-		while (cTrans->Link)
-			cTrans = cTrans->Link;
-
-		PrevTd = (OhciGTransferDescriptor_t*)cTrans->TransferDescriptor;
-		PrevTd->NextTD = AddressSpaceGetMap(AddressSpaceGetCurrent(), 
-			(VirtAddr_t)Transaction->TransferDescriptor);
-	}
-
-	/* We might need a copy */
-	if (Request->Type == InterruptTransfer
-		|| Request->Type == IsochronousTransfer)
-	{
-		/* Allocate TD */
-		Transaction->TransferDescriptorCopy = 
-			(void*)OhciAllocateTd(Request->Endpoint->AttachedData, Request->Type);
-	}
-
-	/* Done */
-	return Transaction;
-}
-
-/* This one prepaires an out Td */
-UsbHcTransaction_t *OhciTransactionOut(void *Controller, UsbHcRequest_t *Request, void *Buffer, size_t Length)
-{
-	/* Vars */
-	OhciController_t *Ctrl = (OhciController_t*)Controller;
-	UsbHcTransaction_t *Transaction;
-
-	/* Unused */
-	_CRT_UNUSED(Ctrl);
-
-	/* Allocate Transaction */
-	Transaction = (UsbHcTransaction_t*)kmalloc(sizeof(UsbHcTransaction_t));
-	memset(Transaction, 0, sizeof(UsbHcTransaction_t));
-
-	/* Set Vars */
-	Transaction->Buffer = Buffer;
-	Transaction->Length = Length;
-
-	/* Setup Td */
-	Transaction->TransferDescriptor = (void*)OhciTdIo(Request->Endpoint->AttachedData, 
-		Request->Type, Request->Endpoint, OHCI_TD_PID_OUT, Length,
-		&Transaction->TransferBuffer);
-
-	/* Copy Data */
-	if (Buffer != NULL && Length != 0)
-		memcpy(Transaction->TransferBuffer, Buffer, Length);
-
-	/* If previous Transaction */
-	if (Request->Transactions != NULL)
-	{
-		OhciGTransferDescriptor_t *PrevTd;
-		UsbHcTransaction_t *cTrans = Request->Transactions;
-
-		while (cTrans->Link)
-			cTrans = cTrans->Link;
-
-		PrevTd = (OhciGTransferDescriptor_t*)cTrans->TransferDescriptor;
-		PrevTd->NextTD = AddressSpaceGetMap(AddressSpaceGetCurrent(), (VirtAddr_t)Transaction->TransferDescriptor);
-	}
-
-	/* We might need a copy */
-	if (Request->Type == InterruptTransfer
-		|| Request->Type == IsochronousTransfer)
-	{
-		/* Allocate TD */
-		Transaction->TransferDescriptorCopy =
-			(void*)OhciAllocateTd(Request->Endpoint->AttachedData, Request->Type);
-	}
-
-	/* Done */
-	return Transaction;
+		(UsbCalculateBandwidth(Transfer->Speed, 
+		Transfer->Endpoint.Direction, Transfer->Type, 
+		Transfer->Endpoint.MaxPacketSize) / 1000);
+	Ed->Interval = (uint16_t)Request->Endpoint.Interval;
 }
 
 /* This one queues the Transaction up for processing */
-void OhciTransactionSend(void *Controller, UsbHcRequest_t *Request)
+void
+OhciTransactionSend(
+	void *Controller,
+	UsbHcRequest_t *Request)
 {
 	/* Wuhu */
 	UsbHcTransaction_t *Transaction = Request->Transactions;
@@ -459,16 +340,105 @@ void OhciTransactionDestroy(void *Controller, UsbHcRequest_t *Request)
 	}
 }
 
-/* UsbQueueTransferImpl */
-OsStatus_t
-UsbQueueTransferImpl()
+/* UsbQueueTransferImpl 
+ * Queues a new Control or Bulk transfer for the given driver
+ * and pipe. They must exist. The function blocks untill execution */
+UsbTransferStatus_t
+UsbQueueTransferImpl(
+	_In_ UUId_t Device,
+	_In_ UUId_t Pipe,
+	_In_ UsbTransfer_t *Transfer)
 {
+	// Variables
+	OhciEndpointDescriptor_t *EndpointDescriptor = NULL;
+	OhciTransferDescriptor_t *FirstTd = NULL, *ItrTd = NULL;
+	OhciController_t *Controller = NULL;
+	UsbTransferStatus_t Status;
+	size_t Address, Endpoint;
+	int i;
 
+	// Get Controller
+	Controller = (OhciController_t*)UsbManagerGetController(Device);
+
+	// Initialize
+	EndpointDescriptor = OhciTransactionInitialize(Controller, Transfer);
+
+	// Now iterate and add the td's
+	for (i = 0; i < 3; i++) {
+		// Bytes
+		size_t BytesToTransfer = Transfer->Transactions[i].Length;
+		size_t ByteOffset = 0;
+
+		while (BytesToTransfer) {
+			// Variables
+			OhciTransferDescriptor_t *Td = NULL;
+			size_t BytesStep = 0;
+			int Toggle;
+
+			// Get toggle status
+			Toggle = UsbManagerGetToggle(Device, Pipe);
+
+			// Allocate a new Td
+			if (Transfer->Transactions[i].Type == SetupTransaction) {
+				Td = OhciTdSetup(Controller, &Transfer->Transactions[i], 
+					Transfer->Type);
+
+				// Consume entire setup-package
+				BytesStep = BytesToTransfer;
+			}
+			else {
+				// Depending on how much we are able to take in
+				// 1 page per non-isoc, Isochronous can handle 2 pages
+				BytesStep = MIN(BytesToTransfer, 0x1000);
+
+				Td = OhciTdIo(Controller, Transfer->Type, 
+					(Transfer->Transactions[i].Type == InTransaction ? OHCI_TD_PID_IN : OHCI_TD_PID_OUT), 
+					Toggle, Transfer->Transactions[i].BufferAddress + ByteOffset, BytesStep);
+			}
+
+			// Store first
+			if (FirstTd == NULL) {
+				FirstTd = Td;
+				ItrTd = Td;
+			}
+			else {
+				// Update physical link
+				ItrTd->Link = OHCI_POOL_TDINDEX(Controller->QueueControl.TDPoolPhysical, Td->Index);
+
+				// Not first, update links
+				ItrTd->LinkIndex = Td->Index;
+				ItrTd = Td;
+			}
+
+			// Update toggle by flipping
+			UsbManagerSetToggle(Device, Pipe, Toggle ^ 1);
+
+			// Reduce
+			BytesToTransfer -= BytesStep;
+			ByteOffset += BytesStep;
+		}
+	}
+	
+	// Extract address and endpoint
+	Address = HIWORD(Pipe);
+	Endpoint = LOWORD(Pipe);
+
+	// Finalize the endpoint-descriptor
+	OhciEdInitialize(Controller, EndpointDescriptor,
+		(int)FirstTd->Index, Transfer->Type, Address, Endpoint, 
+		Transfer->Endpoint.MaxPacketSize, Transfer->Speed);
+
+	// Send the transaction and wait for completion
+
+	// Done
+	return Status;
 }
 
-/* UsbWaitTransferImpl */
+/* UsbQueuePeriodicImpl 
+ * Queues a new Interrupt or Isochronous transfer. This transfer is 
+ * persistant untill device is disconnected or Dequeue is called. */
 OsStatus_t
-UsbWaitTransferImpl()
+UsbQueuePeriodicImpl()
 {
 	
 }

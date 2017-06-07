@@ -35,6 +35,11 @@
 #include <os/driver/buffer.h>
 #include <os/ipc/ipc.h>
 
+/* These definitions are in-place to allow a custom
+ * setting of the device-manager, these are set to values
+ * where in theory it should never be needed to have more */
+#define __USBMANAGER_INTERFACE_VERSION		1
+
 /* UsbSpeed 
  * Describes the possible speeds for usb devices */
 typedef enum _UsbSpeed {
@@ -51,6 +56,24 @@ PACKED_TYPESTRUCT(UsbPortDescriptor, {
 	int									Enabled;
 	int									Connected;
 });
+
+/* UsbEndpointDescriptor 
+ * Describes a generic endpoint for an usb device */
+PACKED_TYPESTRUCT(UsbEndpointDescriptor, {
+	UsbEndpointType_t 					Type;
+	UsbEndpointSynchronization_t		Synchronization;
+	size_t 								Address;
+	size_t 								Direction;
+	size_t 								MaxPacketSize;
+	size_t 								Bandwidth;
+	size_t 								Interval;
+});
+
+/* Bit-fields and definitions for field UsbEndpointDescriptor::Direction
+ * Defined below */
+#define USB_ENDPOINT_IN					0x0
+#define USB_ENDPOINT_OUT				0x1
+#define USB_ENDPOINT_BOTH				0x2
 
 /* UsbControllerRegister
  * Registers a new controller with the given type and setup */
@@ -114,4 +137,21 @@ UsbEventPort(
 }
 #endif
 
+/* UsbQueryControllers 
+ * Queries the available usb controllers and their status in the system
+ * The given array must be of size USB_MAX_CONTROLLERS. */
+
+/* UsbQueryPorts 
+ * Queries the available ports and their status on the given usb controller
+ * the given array must be of size USB_MAX_PORTS. */
+
+/* UsbQueryPipes 
+ * Queries the available interfaces and endpoints on a given
+ * port and controller. Querying with NULL pointers returns the count
+ * otherwise fills the array given with information */
+
+ /* UsbQueryDescriptor
+  * Queries a common usb-descriptor from the given usb port and 
+  * usb controller. The given array is filled with the descriptor information */
+ 
 #endif //!_USB_INTERFACE_H_

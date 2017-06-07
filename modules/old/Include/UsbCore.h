@@ -33,39 +33,6 @@
 /* Definitions */
 #define USB_WATCHDOG_INTERVAL	1000
 
-/* The Abstract Usb Endpoint */
-typedef struct _UsbHcEndpoint
-{
-	/* Type */
-	UsbHcEndpointType_t Type;
-
-	/* Address */
-	size_t Address;
-
-	/* Direction (IN, OUT) */
-	size_t Direction;
-
-	/* Max Packet Size */
-	size_t MaxPacketSize;
-
-	/* Bandwidth */
-	size_t Bandwidth;
-
-	/* Data Toggle */
-	size_t Toggle;
-
-	/* Poll Interval */
-	size_t Interval;
-
-	/* Endpoint Data */
-	void *AttachedData;
-
-} UsbHcEndpoint_t;
-
-#define USB_EP_DIRECTION_IN		0x0
-#define USB_EP_DIRECTION_OUT	0x1
-#define USB_EP_DIRECTION_BOTH	0x2
-
 /* The Abstract Usb Interface Version */
 typedef struct _UsbHcInterfaceVersion
 {

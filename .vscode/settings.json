@@ -9,6 +9,11 @@
         "__tree": "cpp",
         "memory_resource": "cpp",
         "functional": "cpp",
-        "future": "cpp"
+        "future": "cpp",
+        "ios": "cpp",
+        "regex": "cpp",
+        "algorithm": "cpp",
+        "__locale": "cpp",
+        "variant": "cpp"
     }
 }

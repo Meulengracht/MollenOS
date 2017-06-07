@@ -29,6 +29,12 @@
 #include <os/osdefs.h>
 #include <ds/list.h>
 
+struct _UsbManagerTransfer {
+	UUId_t					Requester;
+	int						Pipe;
+	void*					EndpointDescriptor;
+};
+
 /* UsbManagerInitialize
  * Initializes the usb manager that keeps track of
  * all controllers and all attached devices */
@@ -42,28 +48,44 @@ __EXTERN
 OsStatus_t
 UsbManagerDestroy(void);
 
-/* UsbManagerCreateDevice
- * Registers a new device with the usb-manager on the specified
- * port and controller. Identifies and registers with neccessary services */
+/* UsbManagerCreateController
+ * Registers a new controller with the usb-manager.
+ * Identifies and registers with neccessary services */
 __EXTERN
 OsStatus_t
-UsbManagerCreateDevice(
-	_In_ void *Controller,
-	_In_ void *Port);
+UsbManagerCreateController(
+	_In_ void *Controller);
 
-/* UsbManagerRemoveDevice
- * Removes an existing device from the usb-manager */
+/* UsbManagerDestroyController
+ * Unregisters a controller with the usb-manager.
+ * Identifies and unregisters with neccessary services */
 __EXTERN
 OsStatus_t
-UsbManagerRemoveDevice(
-	_In_ void *Controller,
-	_In_ void *Port);
+UsbManagerDestroyController(
+	_In_ void *Controller);
 
-/* UsbManagerGetDevice 
- * Retrieves device from the usb-id given */
+/* UsbManagerGetController 
+ * Returns a controller by the given device-id */
 __EXTERN
 void*
-UsbManagerGetDevice(
-	_In_ UUId_t Id);
+UsbManagerGetController(
+	_In_ UUId_t Device);
+
+/* UsbManagerGetToggle 
+ * Retrieves the toggle status for a given pipe */
+__EXTERN
+int
+UsbManagerGetToggle(
+	_In_ UUId_t Device,
+	_In_ UUId_t Pipe);
+
+/* UsbManagetSetToggle 
+ * Updates the toggle status for a given pipe */
+__EXTERN
+void
+UsbManagerSetToggle(
+	_In_ UUId_t Device,
+	_In_ UUId_t Pipe,
+	_In_ int Toggle);
 
 #endif //!_USB_MANAGER_H_

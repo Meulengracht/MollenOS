@@ -225,6 +225,8 @@ OhciTdAllocate(
 
 		// Found one, reset
 		Controller->QueueControl.TDPool[i]->Flags |= OHCI_TD_ALLOCATED;
+		Controller->QueueControl.TDPool[i]->Index = (int16_t)i;
+		Controller->QueueControl.TDPool[i]->LinkIndex = (int16_t)-1;
 		Td = Controller->QueueControl.TDPool[i];
 		break;
 	}
@@ -273,11 +275,14 @@ OhciEdInitialize(
 		Ed->TailPtr = OHCI_POOL_TDINDEX(Controller->QueueControl.TDPoolPhysical, LastIndex);
 	}
 
+	// Update head-index
+	Ed->HeadIndex = (int16_t)HeadIndex;
+
 	// Initialize flags
 	Ed->Flags = OHCI_EP_SKIP;
 	Ed->Flags |= (Address & OHCI_EP_ADDRESS_MASK);
 	Ed->Flags |= OHCI_EP_ENDPOINT(Endpoint);
-	Ed->Flags |= OHCI_EP_INOUT_TD; /* Get PID from Td */
+	Ed->Flags |= OHCI_EP_INOUT_TD; // Retrieve from TD
 	Ed->Flags |= OHCP_EP_LOWSPEED((Speed == LowSpeed) ? 1 : 0);
 	Ed->Flags |= OHCI_EP_MAXLEN(PacketSize);
 	Ed->Flags |= OHCI_EP_TYPE(Type);
@@ -289,152 +294,141 @@ OhciEdInitialize(
 	}
 }
 
-/* Setup TD */
-OhciTransferDescriptor_t *OhciTdSetup(OhciEndpoint_t *Ep, UsbTransferType_t Type,
-	UsbPacket_t *pPacket, void **TDBuffer)
+/* OhciTdSetup 
+ * Creates a new setup token td and initializes all the members.
+ * The Td is immediately ready for execution. */
+OhciTransferDescriptor_t*
+OhciTdSetup(
+	_In_ OhciController_t *Controller, 
+	_In_ UsbTransaction_t *Transaction, 
+	_In_ UsbTransferType_t Type)
 {
-	/* Vars */
-	OhciGTransferDescriptor_t *Td;
-	Addr_t TDIndex;
-	void *Buffer;
+	// Variables
+	OhciTransferDescriptor_t *Td = NULL;
 
-	/* Allocate a Td */
-	TDIndex = OhciAllocateTd(Ep, Type);
+	// Allocate a new Td
+	Td = OhciTdAllocate(Controller, Type);
+	if (Td == NULL) {
+		return NULL;
+	}
 
-	/* Grab a Td and a Buffer */
-	Td = Ep->TDPool[TDIndex];
-	Buffer = Ep->TDPoolBuffers[TDIndex];
+	// Set no link
+	Td->Link = OHCI_LINK_END;
 
-	/* Set no link */
-	Td->NextTD = OHCI_LINK_END;
-
-	/* Setup the Td for a SETUP Td */
+	// Initialize the Td flags
 	Td->Flags = OHCI_TD_ALLOCATED;
 	Td->Flags |= OHCI_TD_PID_SETUP;
 	Td->Flags |= OHCI_TD_NO_IOC;
 	Td->Flags |= OHCI_TD_TOGGLE_LOCAL;
 	Td->Flags |= OHCI_TD_ACTIVE;
 
-	/* Setup the SETUP Request */
-	*TDBuffer = Buffer;
-	memcpy(Buffer, (void*)pPacket, sizeof(UsbPacket_t));
-
-	/* Set Td Buffer */
-	Td->Cbp = AddressSpaceGetMap(AddressSpaceGetCurrent(), (VirtAddr_t)Buffer);
+	// Install the buffer
+	Td->Cbp = Transaction->BufferAddress;
 	Td->BufferEnd = Td->Cbp + sizeof(UsbPacket_t) - 1;
 
+	// Done
 	return Td;
 }
 
-OhciTransferDescriptor_t *OhciTdIo(OhciEndpoint_t *OhciEp, UsbTransferType_t Type,
-	UsbHcEndpoint_t *Endpoint, uint32_t PId, size_t Length, void **TDBuffer)
+/* OhciTdIo 
+ * Creates a new io token td and initializes all the members.
+ * The Td is immediately ready for execution. */
+OhciTransferDescriptor_t*
+OhciTdIo(
+	_In_ OhciController_t *Controller,
+	_In_ UsbTransferType_t Type,
+	_In_ uint32_t PId,
+	_In_ int Toggle,
+	_In_ uintptr_t Address,
+	_In_ size_t Length)
 {
-	/* Vars */
-	OhciGTransferDescriptor_t *Td = NULL;
-	OhciITransferDescriptor_t *iTd = NULL;
-	Addr_t TDIndex;
-	void *Buffer;
-
-	/* Allocate a Td */
-	TDIndex = OhciAllocateTd(OhciEp, Type);
-
-	/* Sanity */
-	if (Type == ControlTransfer || Type == BulkTransfer) {
-		Td = OhciEp->TDPool[TDIndex];
-		Buffer = OhciEp->TDPoolBuffers[TDIndex];
+	// Variables
+	OhciTransferDescriptor_t *Td = NULL;
+	
+	// Allocate a new Td
+	Td = OhciTdAllocate(Controller, Type);
+	if (Td == NULL) {
+		return NULL;
 	}
-	else if (Type == InterruptTransfer) {
-		Td = (OhciGTransferDescriptor_t*)TDIndex;
-		Buffer = (void*)kmalloc_a(PAGE_SIZE);
-	}
-	else
-	{
-		/* Calculate frame count - Maximum packet size is 1023 bytes */
-		uint32_t FrameCount = DIVUP(Length, 1023);
-		uint32_t BufItr = 0;
-		uint32_t FrameItr = 0;
-		uint32_t Crossed = 0;
 
-		/* If direction is out and mod 1023 is 0
-		* add a zero-length frame */
+	// Handle Isochronous Transfers a little bit differently
+	// Max packet size is 1023 for isoc
+	if (Type == IsochronousTransfer) {
+		uintptr_t BufItr = 0;
+		int FrameCount = DIVUP(Length, 1023);
+		int FrameItr = 0;
+		int Crossed = 0;
 
-		/* Cast */
-		iTd = (OhciITransferDescriptor_t*)TDIndex;
-
-		/* Allocate a buffer */
-		Buffer = (void*)kmalloc_a(Length);
-
-		/* IF framecount is > 8, nono */
-		if (FrameCount > 8)
+		// If direction is out and mod 1023 is 0
+		// add a zero-length frame
+		// If framecount is > 8, nono
+		if (FrameCount > 8) {
 			FrameCount = 8;
+		}
+		
+		// Initialize flags
+		Td->Flags = 0;
+		Td->Flags |= OHCI_TD_FRAMECOUNT(FrameCount - 1);
+		Td->Flags |= OHCI_TD_NO_IOC;
 
-		/* Setup */
-		iTd->Flags = 0;
-		iTd->Flags |= OHCI_TD_FRAMECOUNT(FrameCount - 1);
-		iTd->Flags |= OHCI_TD_NO_IOC;
+		// Initialize buffer access
+		Td->Cbp = Address;
+		Td->BufferEnd = Td->Cbp + Length - 1;
 
-		/* Buffer */
-		iTd->Bp0 = AddressSpaceGetMap(AddressSpaceGetCurrent(), (VirtAddr_t)Buffer);
-		iTd->BufferEnd = iTd->Bp0 + Length - 1;
-
-		/* Setup offsets */
-		while (FrameCount)
-		{
-			/* Set offset 0 */
-			iTd->Offsets[FrameItr] = (BufItr & 0xFFF);
-			iTd->Offsets[FrameItr] = ((Crossed & 0x1) << 12);
-
-			/* Increase buffer */
+		// Iterate frames and setup
+		while (FrameCount) {
+			// Set offset 0 and increase bufitr
+			Td->Offsets[FrameItr] = (BufItr & 0xFFF);
+			Td->Offsets[FrameItr] = ((Crossed & 0x1) << 12);
 			BufItr += 1023;
 
-			/* Sanity */
-			if (BufItr >= PAGE_SIZE)
-			{
-				/* Reduce, set crossed */
+			// Sanity on page-crossover
+			if (BufItr >= PAGE_SIZE) {
 				BufItr -= PAGE_SIZE;
 				Crossed = 1;
 			}
 
-			/* Set iterators */
+			// Update iterators
 			FrameItr++;
 			FrameCount--;
 		}
 
-		/* EOL */
-		iTd->NextTD = OHCI_LINK_END;
+		// Set this is as end of chain
+		Td->Link = OHCI_LINK_END;
 
-		/* Done */
-		return (OhciGTransferDescriptor_t*)iTd;
+		// Setup done
+		return Td;
 	}
 
-	/* EOL */
-	Td->NextTD = OHCI_LINK_END;
+	// Set this is as end of chain
+	Td->Link = OHCI_LINK_END;
 
-	/* Setup the Td for a IO Td */
+	// Initialize flags as a IO Td
 	Td->Flags = OHCI_TD_ALLOCATED;
 	Td->Flags |= PId;
 	Td->Flags |= OHCI_TD_NO_IOC;
 	Td->Flags |= OHCI_TD_TOGGLE_LOCAL;
 	Td->Flags |= OHCI_TD_ACTIVE;
 
-	/* Allow short packet? */
+	// We have to allow short-packets in some cases
+	// where data returned or send might be shorter
 	if (Type == ControlTransfer) {
-		if (PId == OHCI_TD_PID_IN && Length > 0)
+		if (PId == OHCI_TD_PID_IN && Length > 0) {
 			Td->Flags |= OHCI_TD_SHORTPACKET;
+		}
 	}
-	else if (PId == OHCI_TD_PID_IN)
+	else if (PId == OHCI_TD_PID_IN) {
 		Td->Flags |= OHCI_TD_SHORTPACKET;
+	}
 
-	/* Toggle? */
-	if (Endpoint->Toggle)
+	// Set the data-toggle?
+	if (Toggle) {
 		Td->Flags |= OHCI_TD_TOGGLE;
+	}
 
-	/* Store buffer */
-	*TDBuffer = Buffer;
-
-	/* Bytes to transfer?? */
+	// Is there bytes to transfer or null packet?
 	if (Length > 0) {
-		Td->Cbp = AddressSpaceGetMap(AddressSpaceGetCurrent(), (VirtAddr_t)Buffer);
+		Td->Cbp = Address;
 		Td->BufferEnd = Td->Cbp + Length - 1;
 	}
 	else {
@@ -442,7 +436,7 @@ OhciTransferDescriptor_t *OhciTdIo(OhciEndpoint_t *OhciEp, UsbTransferType_t Typ
 		Td->BufferEnd = 0;
 	}
 
-	/* Done! */
+	// Setup done
 	return Td;
 }
 

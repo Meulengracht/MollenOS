@@ -466,12 +466,7 @@ OhciSetup(
 
 	TRACE("Ports %u (power mode %u, power delay %u)\n",
 		Controller->Ports, Controller->PowerMode, Temporary);
-
-	/* We want a max of two pages on isocs */
-	// Isochronous interrupts can handle max 2 pages
-	// per td
-	//HcCtrl->IsocOverride = 2 * PAGE_SIZE;
-
+		
 	// Now we can enable hub events (and clear interrupts)
 	Controller->Registers->HcInterruptStatus &= ~(uint32_t)0;
 	Controller->Registers->HcInterruptEnable = OHCI_INTR_ROOTHUB_EVENT;

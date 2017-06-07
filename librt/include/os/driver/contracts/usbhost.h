@@ -28,13 +28,14 @@
  * - System */
 #include <os/driver/usb/definitions.h>
 #include <os/driver/driver.h>
+#include <os/driver/usb.h>
 #include <os/osdefs.h>
 
 /* Usb host controller query functions that must be implemented
  * by the usb host driver - those can then be used by this interface */
-#define __USBHOST_QUEUE				IPC_DECL_FUNCTION(0)
-#define __USBHOST_WAIT				IPC_DECL_FUNCTION(1)
-#define __USBHOST_DEQUEUE			IPC_DECL_FUNCTION(2)
+#define __USBHOST_QUEUETRANSFER		IPC_DECL_FUNCTION(0)
+#define __USBHOST_QUEUEPERIODIC		IPC_DECL_FUNCTION(1)
+#define __USBHOST_DEQUEUEPERIODIC	IPC_DECL_FUNCTION(2)
 
 /* UsbTransactionType 
  * Describes the possible types of usb transactions */
@@ -54,6 +55,20 @@ typedef enum _UsbTransferType {
 	IsochronousTransfer
 } UsbTransferType_t;
 
+/* UsbTransferStatus
+ * Describes a unified way of reporting how a transfer ended.
+ * Where the initial state is NotProcessed */
+typedef enum _UsbTransferStatus {
+	TransferNotProcessed,
+	TransferFinished,
+	TransferStalled,
+	TransferNotResponding,
+	TransferInvalidToggles,
+	TransferInvalidData,
+	TransferNAK,
+	TransferBabble
+} UsbTransferStatus_t;
+
 /* UsbTransaction
  * Describes a single transaction in an usb-transfer operation */
 PACKED_TYPESTRUCT(UsbTransaction, {
@@ -68,15 +83,73 @@ PACKED_TYPESTRUCT(UsbTransaction, {
  * Describes an usb-transfer, that consists of transfer information
  * and a bunch of transactions. */
 PACKED_TYPESTRUCT(UsbTransfer, {
+	// Generic Information
 	UsbTransferType_t					Type;
+	UsbSpeed_t							Speed;
 	UsbTransaction_t					Transactions[3];
+
+	// Endpoint Information
+	UsbEndpointDescriptor_t				Endpoint;
+
+	// Periodic Information
+	__CONST void*						PeriodicData;
 });
 
-/* UsbQueueTransfer */
+/* UsbQueueTransfer 
+ * Queues a new Control or Bulk transfer for the given driver
+ * and pipe. They must exist. The function blocks untill execution */
+SERVICEAPI
+OsStatus_t
+SERVICEABI
+UsbQueueTransfer(
+	_In_ UUId_t Driver,
+	_In_ UUId_t Device,
+	_In_ int Pipe,
+	_In_ UsbTransfer_t *Transfer)
+{
+	// Variables
+	UsbTransferStatus_t Status = TransferNotProcessed;
+	MContract_t Contract;
 
-/* UsbWaitTransfer */
+	// Setup contract stuff for request
+	Contract.DriverId = Driver;
+	Contract.Type = ContractController;
+	Contract.Version = __USBMANAGER_INTERFACE_VERSION;
 
-/* UsbDequeueTransfer */
+	// Query the driver directly
+	return QueryDriver(&Contract, __USBHOST_QUEUETRANSFER,
+		&Pipe, sizeof(int), NULL, 0, NULL, 0, 
+		&Status, sizeof(UsbTransferStatus_t));
+}
+
+/* UsbQueuePeriodic 
+ * Queues a new Interrupt or Isochronous transfer. This transfer is 
+ * persistant untill device is disconnected or Dequeue is called. */
+SERVICEAPI
+OsStatus_t
+SERVICEABI
+UsbQueuePeriodic(
+	_In_ UUId_t Driver,
+	_In_ UUId_t Device,
+	_In_ int Pipe,
+	_In_ UsbTransfer_t *Transfer)
+{
+	// Variables
+	UsbTransferStatus_t Status = TransferNotProcessed;
+	MContract_t Contract;
+
+	// Setup contract stuff for request
+	Contract.DriverId = Driver;
+	Contract.Type = ContractController;
+	Contract.Version = __USBMANAGER_INTERFACE_VERSION;
+
+	// Query the driver directly
+	return QueryDriver(&Contract, __USBHOST_QUEUEPERIODIC,
+		&Pipe, sizeof(int), NULL, 0, NULL, 0, 
+		&Status, sizeof(UsbTransferStatus_t));
+}
+
+/* UsbDequeuePeriodic */
 
 
 

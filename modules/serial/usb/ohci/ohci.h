@@ -60,7 +60,8 @@ PACKED_TYPESTRUCT(OhciEndpointDescriptor, {
 	
 	reg32_t					LinkVirtual;	// Next EP (Virtual)
 	reg32_t					Bandwidth;		// Scheduling
-	reg32_t					Interval;		// Scheduling
+	reg16_t					Interval;		// Scheduling
+	int16_t					HeadIndex;		// First Td (Index)
 	reg32_t					HcdFlags;		// Extra flags
 });
 
@@ -126,8 +127,9 @@ PACKED_TYPESTRUCT(OhciTransferDescriptor, {
 	uint16_t				Offsets[8]; // Isochronous offsets
 
 	// Metadata
+	int16_t					Index;		// Index of this TD
 	int16_t 				LinkIndex;	// Next TD, -1 if none
-	uint8_t					Padding[30];// Padding
+	uint8_t					Padding[28];// Padding
 });
 
 /* OhciTransferDescriptor::Flags
@@ -373,5 +375,38 @@ __EXTERN
 OsStatus_t
 OhciPortsCheck(
 	_In_ OhciController_t *Controller);
+
+/* OhciEdAllocate
+ * Allocates a new ED for usage with the transaction. If this returns
+ * NULL we are out of ED's and we should wait till next transfer. */
+__EXTERN
+OhciEndpointDescriptor_t*
+OhciEdAllocate(
+	_In_ OhciController_t *Controller, 
+	_In_ UsbTransferType_t Type);
+
+/* OhciEdInitialize
+ * Initializes and sets up the endpoint descriptor with 
+ * the given values */
+__EXTERN
+void
+OhciEdInitialize(
+	_In_ OhciController_t *Controller,
+	_Out_ OhciEndpointDescriptor_t *Ed, 
+	_In_ int HeadIndex, 
+	_In_ UsbTransferType_t Type,
+	_In_ size_t Address, 
+	_In_ size_t Endpoint, 
+	_In_ size_t PacketSize,
+	_In_ UsbSpeed_t Speed);
+
+/* OhciTdAllocate
+ * Allocates a new TD for usage with the transaction. If this returns
+ * NULL we are out of TD's and we should wait till next transfer. */
+__EXTERN
+OhciTransferDescriptor_t*
+OhciTdAllocate(
+	_In_ OhciController_t *Controller,
+	_In_ UsbTransferType_t Type);
 
 #endif // !_USB_OHCI_H_
