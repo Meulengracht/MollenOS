@@ -49,17 +49,17 @@ typedef enum _UsbSpeed {
 	SuperSpeed		// 3.0
 } UsbSpeed_t;
 
-/* UsbPortDescriptor 
+/* UsbHcPortDescriptor 
  * Describes the current port information */
-PACKED_TYPESTRUCT(UsbPortDescriptor, {
+PACKED_TYPESTRUCT(UsbHcPortDescriptor, {
 	UsbSpeed_t							Speed;
 	int									Enabled;
 	int									Connected;
 });
 
-/* UsbEndpointDescriptor 
+/* UsbHcEndpointDescriptor 
  * Describes a generic endpoint for an usb device */
-PACKED_TYPESTRUCT(UsbEndpointDescriptor, {
+PACKED_TYPESTRUCT(UsbHcEndpointDescriptor, {
 	UsbEndpointType_t 					Type;
 	UsbEndpointSynchronization_t		Synchronization;
 	size_t 								Address;
@@ -69,7 +69,7 @@ PACKED_TYPESTRUCT(UsbEndpointDescriptor, {
 	size_t 								Interval;
 });
 
-/* Bit-fields and definitions for field UsbEndpointDescriptor::Direction
+/* Bit-fields and definitions for field UsbHcEndpointDescriptor::Direction
  * Defined below */
 #define USB_ENDPOINT_IN					0x0
 #define USB_ENDPOINT_OUT				0x1

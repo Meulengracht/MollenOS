@@ -26,14 +26,27 @@
 
 /* Includes 
  * - Library */
+#include <os/driver/contracts/usbhost.h>
+#include <os/driver/usb.h>
 #include <os/osdefs.h>
 #include <ds/list.h>
 
-struct _UsbManagerTransfer {
+/* UsbManagerTransfer
+ * Describes a generic transfer with information needed
+ * in order to execute a callback for the requester */
+typedef struct _UsbManagerTransfer {
+	UsbTransfer_t			Transfer;
 	UUId_t					Requester;
-	int						Pipe;
+	int						RpcPipe;
+
+	// Transfer Metadata
+	UUId_t					Id;
+	UUId_t					Device;
+	UUId_t					Pipe;
 	void*					EndpointDescriptor;
-};
+	size_t					BytesTransferred;
+	UsbTransferStatus_t 	Status;
+} UsbManagerTransfer_t;
 
 /* UsbManagerInitialize
  * Initializes the usb manager that keeps track of

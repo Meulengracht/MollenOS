@@ -25,6 +25,7 @@
 /* Includes 
  * - System */
 #include <os/mollenos.h>
+#include <os/thread.h>
 #include <os/utils.h>
 
 #include "../common/manager.h"
@@ -37,10 +38,6 @@
 #include <string.h>
 #include <stdlib.h>
 
-/* Globals
- * State-tracking variables */
-static List_t *GlbControllers = NULL;
-
 /* OnInterrupt
  * Is called when one of the registered devices
  * produces an interrupt. On successful handled
@@ -51,7 +48,6 @@ InterruptStatus_t OnInterrupt(void *InterruptData)
 	// Variables
 	OhciController_t *Controller = NULL;
 	reg32_t InterruptStatus;
-	int i;
 
 	// Instantiate the pointer
 	Controller = (OhciController_t*)InterruptData;
@@ -186,9 +182,6 @@ OnTimeout(
  * as soon as the driver is loaded in the system */
 OsStatus_t OnLoad(void)
 {
-	// Initialize state for this driver
-	GlbControllers = ListCreate(KeyInteger, LIST_NORMAL);
-
 	// Initialize the device manager here
 	return UsbManagerInitialize();
 }
@@ -198,14 +191,6 @@ OsStatus_t OnLoad(void)
  * and should free all resources allocated by the system */
 OsStatus_t OnUnload(void)
 {
-	// Iterate registered controllers
-	foreach(cNode, GlbControllers) {
-		UsbControllerDestroy(cNode->Data);
-	}
-
-	// Data is now cleaned up, destroy list
-	ListDestroy(GlbControllers);
-
 	// Cleanup the internal device manager
 	return UsbManagerDestroy();
 }
@@ -217,7 +202,6 @@ OsStatus_t OnRegister(MCoreDevice_t *Device)
 {
 	// Variables
 	OhciController_t *Controller = NULL;
-	DataKey_t Key;
 	
 	// Register the new controller
 	Controller = OhciControllerCreate(Device);
@@ -227,14 +211,8 @@ OsStatus_t OnRegister(MCoreDevice_t *Device)
 		return OsError;
 	}
 
-	// Use the device-id as key
-	Key.Value = (int)Device->Id;
-
-	// Append the controller to our list
-	ListAppend(GlbControllers, ListCreateNode(Key, Key, Controller));
-
-	// Done - no error
-	return OsSuccess;
+	// Done - Register with service
+	return UsbManagerCreateController(Controller);
 }
 
 /* OnUnregister
@@ -244,23 +222,17 @@ OsStatus_t OnUnregister(MCoreDevice_t *Device)
 {
 	// Variables
 	OhciController_t *Controller = NULL;
-	DataKey_t Key;
-
-	// Set the key to the id of the device to find
-	// the bound controller
-	Key.Value = (int)Device->Id;
-
+	
 	// Lookup controller
-	Controller = (OhciController_t*)
-		ListGetDataByKey(GlbControllers, Key, 0);
+	Controller = UsbManagerGetController(Device->Id);
 
 	// Sanitize lookup
 	if (Controller == NULL) {
 		return OsError;
 	}
 
-	// Remove node from list
-	ListRemoveByKey(GlbControllers, Key);
+	// Unregister, then destroy
+	UsbManagerDestroyController(Controller);
 
 	// Destroy it
 	return OhciControllerDestroy(Controller);
@@ -279,11 +251,52 @@ OnQuery(_In_ MContractType_t QueryType,
 		_In_ UUId_t Queryee, 
 		_In_ int ResponsePort)
 {
+	// Variables
+	OhciController_t *Controller = NULL;
+	UUId_t Device = UUID_INVALID;
+
+	// Instantiate some variables
+	Device = (UUId_t)Arg0->Data.Value;
+	
+	// Lookup controller
+	Controller = UsbManagerGetController(Device);
+
+	// Sanitize we have a controller
+	if (Controller == NULL) {
+		// Null response
+
+		// Return
+		return OsError;
+	}
+
 	// Unused params
-	_CRT_UNUSED(QueryFunction);
-	_CRT_UNUSED(Arg0);
 	_CRT_UNUSED(Arg1);
 	_CRT_UNUSED(Arg2);
 
-	
+	switch (QueryFunction) {
+		// Generic Queue
+		case __USBHOST_QUEUETRANSFER: {
+			// Create and setup new transfer
+
+		} break;
+
+		// Periodic Queue
+		case __USBHOST_QUEUEPERIODIC: {
+
+		} break;
+
+		// Dequeue Transfer
+		case __USBHOST_DEQUEUEPERIODIC: {
+
+		} break;
+
+		// Fall-through, error
+		default:
+			break;
+	}
+
+	// Dunno, fall-through case
+	// Return null response
+
+	return OsError;
 }

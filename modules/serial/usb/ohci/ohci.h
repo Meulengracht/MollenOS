@@ -30,8 +30,10 @@
 #include <os/driver/contracts/usbhost.h>
 #include <os/driver/device.h>
 #include <os/driver/driver.h>
-#include <os/driver/usb.h>
 #include <ds/list.h>
+
+#include "../common/manager.h"
+#include "../common/scheduler.h"
 
 /* OHCI Controller Definitions 
  * Contains generic magic constants and definitions */
@@ -60,7 +62,7 @@ PACKED_TYPESTRUCT(OhciEndpointDescriptor, {
 	
 	reg32_t					LinkVirtual;	// Next EP (Virtual)
 	reg32_t					Bandwidth;		// Scheduling
-	reg16_t					Interval;		// Scheduling
+	uint16_t				Interval;		// Scheduling
 	int16_t					HeadIndex;		// First Td (Index)
 	reg32_t					HcdFlags;		// Extra flags
 });
@@ -367,7 +369,7 @@ void
 OhciPortGetStatus(
 	_In_ OhciController_t *Controller,
 	_In_ int Index,
-	_Out_ UsbPortDescriptor_t *Port);
+	_Out_ UsbHcPortDescriptor_t *Port);
 
 /* OhciPortsCheck
  * Enumerates all the ports and detects for connection/error events */
@@ -408,5 +410,52 @@ OhciTransferDescriptor_t*
 OhciTdAllocate(
 	_In_ OhciController_t *Controller,
 	_In_ UsbTransferType_t Type);
+
+/* OhciTdSetup 
+ * Creates a new setup token td and initializes all the members.
+ * The Td is immediately ready for execution. */
+__EXTERN
+OhciTransferDescriptor_t*
+OhciTdSetup(
+	_In_ OhciController_t *Controller, 
+	_In_ UsbTransaction_t *Transaction, 
+	_In_ UsbTransferType_t Type);
+
+/* OhciTdIo 
+ * Creates a new io token td and initializes all the members.
+ * The Td is immediately ready for execution. */
+__EXTERN
+OhciTransferDescriptor_t*
+OhciTdIo(
+	_In_ OhciController_t *Controller,
+	_In_ UsbTransferType_t Type,
+	_In_ uint32_t PId,
+	_In_ int Toggle,
+	_In_ uintptr_t Address,
+	_In_ size_t Length);
+
+/* OhciTransactionFinalize
+ * Cleans up the transfer, deallocates resources and validates the td's */
+__EXTERN
+OsStatus_t
+OhciTransactionFinalize(
+	_In_ OhciController_t *Controller,
+	_In_ UsbManagerTransfer_t *Transfer,
+	_In_ int Validate);
+
+/* UsbQueueTransferGeneric 
+ * Queues a new transfer for the given driver
+ * and pipe. They must exist. The function does not block*/
+__EXTERN
+OsStatus_t
+UsbQueueTransferGeneric(
+	_InOut_ UsbManagerTransfer_t *Transfer);
+
+/* UsbDequeueTransferGeneric 
+ * Removes a queued transfer from the controller's framelist */
+__EXTERN
+OsStatus_t
+UsbDequeueTransferGeneric(
+	_In_ UsbManagerTransfer_t *Transfer);
 
 #endif // !_USB_OHCI_H_

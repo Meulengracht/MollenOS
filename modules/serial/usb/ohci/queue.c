@@ -113,7 +113,7 @@ OsStatus_t
 OhciQueueDestroy(
 	_In_ OhciController_t *Controller)
 {
-
+	return OsError;
 }
 
 /* OhciVisualizeQueue
@@ -161,7 +161,7 @@ OhciEdAllocate(
 	// Now, we usually allocated new endpoints for interrupts
 	// and isoc, but it doesn't make sense for us as we keep one
 	// large pool of ED's, just allocate from that in any case
-	for (i = 0; i < OHCI_POOL_NUM_ED; i++) {
+	for (i = 0; i < OHCI_POOL_EDS; i++) {
 		// Skip in case already allocated
 		if (Controller->QueueControl.EDPool[i]->HcdFlags & OHCI_ED_ALLOCATED) {
 			continue;
@@ -171,6 +171,7 @@ OhciEdAllocate(
 		// but reset the ED first
 		memset(Controller->QueueControl.EDPool[i], 0, sizeof(OhciEndpointDescriptor_t));
 		Controller->QueueControl.EDPool[i]->HcdFlags = OHCI_ED_ALLOCATED;
+		Controller->QueueControl.EDPool[i]->HcdFlags |= OHCI_ED_SET_INDEX(i);
 		
 		// Store pointer
 		Ed = Controller->QueueControl.EDPool[i];
@@ -263,7 +264,7 @@ OhciEdInitialize(
 		Td = Controller->QueueControl.TDPool[HeadIndex];
 
 		// Set physical of head
-		Ed->HeadPtr = OHCI_POOL_TDINDEX(Controller->QueueControl.TDPoolPhysical, HeadIndex) | OHCI_LINK_END;
+		Ed->Current = OHCI_POOL_TDINDEX(Controller->QueueControl.TDPoolPhysical, HeadIndex) | OHCI_LINK_END;
 
 		// Iterate untill tail
 		while (Td->LinkIndex != -1) {
@@ -272,7 +273,7 @@ OhciEdInitialize(
 		}
 
 		// Update tail
-		Ed->TailPtr = OHCI_POOL_TDINDEX(Controller->QueueControl.TDPoolPhysical, LastIndex);
+		Ed->TailPointer = OHCI_POOL_TDINDEX(Controller->QueueControl.TDPoolPhysical, LastIndex);
 	}
 
 	// Update head-index
@@ -314,6 +315,7 @@ OhciTdSetup(
 
 	// Set no link
 	Td->Link = OHCI_LINK_END;
+	Td->LinkIndex = -1;
 
 	// Initialize the Td flags
 	Td->Flags = OHCI_TD_ALLOCATED;
@@ -383,8 +385,8 @@ OhciTdIo(
 			BufItr += 1023;
 
 			// Sanity on page-crossover
-			if (BufItr >= PAGE_SIZE) {
-				BufItr -= PAGE_SIZE;
+			if (BufItr >= 0x1000) {
+				BufItr -= 0x1000;
 				Crossed = 1;
 			}
 
@@ -402,6 +404,7 @@ OhciTdIo(
 
 	// Set this is as end of chain
 	Td->Link = OHCI_LINK_END;
+	Td->LinkIndex = -1;
 
 	// Initialize flags as a IO Td
 	Td->Flags = OHCI_TD_ALLOCATED;
@@ -489,25 +492,26 @@ OhciCalculateQueue(
  * Both interrupt and isoc-transfers are not handled by this. */
 OsStatus_t
 OhciLinkGeneric(
-	_In_ OhciController_t *Controller, 
+	_In_ OhciController_t *Controller,
+	_In_ UsbTransferType_t Type,
 	_In_ int EndpointDescriptorIndex)
 {
 	// Variables
 	OhciControl_t *Queue = &Controller->QueueControl;
 	OhciEndpointDescriptor_t *Ep = Queue->EDPool[EndpointDescriptorIndex];
-	uinptr_t EpAddress = 0;
+	uintptr_t EpAddress = 0;
 
 	// Lookup physical
 	EpAddress = OHCI_POOL_EDINDEX(Queue->EDPoolPhysical, EndpointDescriptorIndex);
 
 	// Switch based on type of transfer
-	if (Request->Type == ControlTransfer) {
+	if (Type == ControlTransfer) {
 		if (Queue->TransactionsWaitingControl > 0) {
 			// Insert into front if 0
-			if (Queue->TransactionQueueControlIndex == -1)
+			if (Queue->TransactionQueueControlIndex == -1) {
 				Queue->TransactionQueueControlIndex = EndpointDescriptorIndex;
-			else
-			{
+			}
+			else {
 				// Iterate to end of descriptor-chain
 				OhciEndpointDescriptor_t *EpItr = 
 					(OhciEndpointDescriptor_t*)Queue->TransactionQueueControl;
@@ -525,8 +529,7 @@ OhciLinkGeneric(
 			// Increase number of transactions waiting
 			Queue->TransactionsWaitingControl++;
 		}
-		else
-		{
+		else {
 			// Add it HcControl/BulkCurrentED
 			Controller->Registers->HcControlHeadED =
 				Controller->Registers->HcControlCurrentED = EpAddress;
@@ -539,7 +542,7 @@ OhciLinkGeneric(
 		// Done
 		return OsSuccess;
 	}
-	else if (Request->Type == BulkTransfer) {
+	else if (Type == BulkTransfer) {
 		if (Queue->TransactionsWaitingBulk > 0) {
 			// Insert into front if 0
 			if (Queue->TransactionQueueBulkIndex == -1) {
@@ -587,21 +590,22 @@ OhciLinkGeneric(
  * OsError */
 OsStatus_t
 OhciLinkPeriodic(
-	_In_ OhciController_t *Controller, 
+	_In_ OhciController_t *Controller,
 	_In_ int EndpointDescriptorIndex)
 {
 	// Variables
 	OhciEndpointDescriptor_t *Ep = 
-		Queue->EDPool[EndpointDescriptorIndex];
-	Addr_t EpAddress = 0;
+		Controller->QueueControl.EDPool[EndpointDescriptorIndex];
+	uintptr_t EpAddress = 0;
 	int Queue = 0;
 	int i;
 
 	// Lookup physical
-	EpAddress = OHCI_POOL_EDINDEX(Queue->EDPoolPhysical, EndpointDescriptorIndex);
+	EpAddress = OHCI_POOL_EDINDEX(Controller->QueueControl.EDPoolPhysical, EndpointDescriptorIndex);
 
 	// Calculate a queue
-	Queue = OhciCalculateQueue(Controller, Ep->Interval, Ep->Bandwidth);
+	Queue = OhciCalculateQueue(Controller, 
+		Ep->Interval, Ep->Bandwidth);
 
 	// Sanitize that it's valid queue
 	if (Queue < 0) {
@@ -623,16 +627,16 @@ OhciLinkPeriodic(
 			}
 			
 			// Get next
-			PrevEd = &((OhciEndpointDescriptor_t*)Here->NextEDVirtual);
-			PrevPtr = &Here->NextED;
+			PrevEd = &((OhciEndpointDescriptor_t*)Here->LinkVirtual);
+			PrevPtr = &Here->Link;
 			Here = *PrevEd;
 		}
 
 		// Sanitize the found
 		if (Ep != Here) {
-			Ep->NextEDVirtual = (uint32_t)Here;
+			Ep->LinkVirtual = (uint32_t)Here;
 			if (Here) {
-				Ep->NextED = *PrevPtr;
+				Ep->Link = *PrevPtr;
 			}
 
 			// Update the link with barriers

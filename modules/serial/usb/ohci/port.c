@@ -113,7 +113,7 @@ void
 OhciPortGetStatus(
 	_In_ OhciController_t *Controller,
 	_In_ int Index,
-	_Out_ UsbPortDescriptor_t *Port)
+	_Out_ UsbHcPortDescriptor_t *Port)
 {
 	// Variables
 	reg32_t Status;

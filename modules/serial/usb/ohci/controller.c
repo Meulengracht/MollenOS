@@ -42,27 +42,6 @@ OsStatus_t
 OhciSetup(
 	_In_ OhciController_t *Controller);
 
-/* Error Codes */
-const char *OhciErrorMessages[] =
-{
-	"No Error",
-	"CRC Error",
-	"Bit Stuffing Violation",
-	"Data Toggle Mismatch",
-	"Stall PID recieved",
-	"Device Not Responding",
-	"PID Check Failure",
-	"Unexpected PID",
-	"Data Overrun",
-	"Data Underrun",
-	"Reserved",
-	"Reserved",
-	"Buffer Overrun",
-	"Buffer Underrun",
-	"Not Accessed",
-	"Not Accessed"
-};
-
 /* OhciControllerCreate 
  * Initializes and creates a new Ohci Controller instance
  * from a given new system device on the bus. */
@@ -468,7 +447,7 @@ OhciSetup(
 		Controller->Ports, Controller->PowerMode, Temporary);
 		
 	// Now we can enable hub events (and clear interrupts)
-	Controller->Registers->HcInterruptStatus &= ~(uint32_t)0;
+	Controller->Registers->HcInterruptStatus &= ~(reg32_t)0;
 	Controller->Registers->HcInterruptEnable = OHCI_INTR_ROOTHUB_EVENT;
 
 	// Enumerate the ports

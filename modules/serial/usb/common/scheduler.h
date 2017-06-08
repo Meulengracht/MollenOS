@@ -27,13 +27,6 @@
 #include <os/osdefs.h>
 #include <os/driver/usb.h>
 
-/* Sanity */
-#ifdef __USBCORE
-#define _USBSCHED_API __declspec(dllexport)
-#else
-#define _USBSCHED_API __declspec(dllimport)
-#endif
-
 /* Definitions */
 /* Generic bandwidth allocation constants/support */
 #define FRAME_TIME_USECS				1000L
@@ -64,21 +57,13 @@
 #define HS_USECS_ISO(bytes)     NS_TO_US(HS_NSECS_ISO(bytes))
 
 /* Structures */
-typedef struct _UsbScheduler
-{
-	/* Scheduler Info */
+typedef struct _UsbScheduler {
 	size_t Size;
 	size_t MaskSize;
 	size_t MaxBandwidth;
 	size_t MaxMaskBandwidth;
-
-	/* Stats */
 	size_t TotalBandwidth;
-
-	/* The frames */
 	size_t *Frames;
-
-	/* Scheduler Lock */
 	Spinlock_t Lock;
 
 } UsbScheduler_t;
@@ -87,18 +72,18 @@ typedef struct _UsbScheduler
 
 /* Init, Destruct, set mask size 
  * General Setup */
-_USBSCHED_API UsbScheduler_t *UsbSchedulerInit(size_t Size, size_t MaxBandwidth, size_t MaskSize);
-_USBSCHED_API void UsbSchedulerDestroy(UsbScheduler_t *Schedule);
+UsbScheduler_t *UsbSchedulerInit(size_t Size, size_t MaxBandwidth, size_t MaskSize);
+void UsbSchedulerDestroy(UsbScheduler_t *Schedule);
 
 /* This function calculates the approx time a transfer 
  * needs to spend on the bus in NS. */
-_USBSCHED_API long UsbCalculateBandwidth(UsbSpeed_t Speed, int Direction, UsbTransferType_t Type, size_t Length);
+long UsbCalculateBandwidth(UsbSpeed_t Speed, int Direction, UsbTransferType_t Type, size_t Length);
 
 /* The actual meat of the scheduling */
-_USBSCHED_API int UsbSchedulerValidate(UsbScheduler_t *Schedule, size_t Period, size_t Bandwidth, size_t TransferCount);
-_USBSCHED_API int UsbSchedulerReserveBandwidth(UsbScheduler_t *Schedule, size_t Period, size_t Bandwidth, 
+int UsbSchedulerValidate(UsbScheduler_t *Schedule, size_t Period, size_t Bandwidth, size_t TransferCount);
+int UsbSchedulerReserveBandwidth(UsbScheduler_t *Schedule, size_t Period, size_t Bandwidth, 
 												size_t TransferCount, size_t *StartFrame, size_t *FrameMask);
-_USBSCHED_API int UsbSchedulerReleaseBandwidth(UsbScheduler_t *Schedule, size_t Period, 
+int UsbSchedulerReleaseBandwidth(UsbScheduler_t *Schedule, size_t Period, 
 												size_t Bandwidth, size_t StartFrame, size_t FrameMask);
 
 #endif //!__USB_SCHEDULER__

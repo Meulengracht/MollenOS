@@ -89,7 +89,7 @@ PACKED_TYPESTRUCT(UsbTransfer, {
 	UsbTransaction_t					Transactions[3];
 
 	// Endpoint Information
-	UsbEndpointDescriptor_t				Endpoint;
+	UsbHcEndpointDescriptor_t			Endpoint;
 
 	// Periodic Information
 	__CONST void*						PeriodicData;
@@ -104,7 +104,7 @@ SERVICEABI
 UsbQueueTransfer(
 	_In_ UUId_t Driver,
 	_In_ UUId_t Device,
-	_In_ int Pipe,
+	_In_ UUId_t Pipe,
 	_In_ UsbTransfer_t *Transfer)
 {
 	// Variables
@@ -118,7 +118,8 @@ UsbQueueTransfer(
 
 	// Query the driver directly
 	return QueryDriver(&Contract, __USBHOST_QUEUETRANSFER,
-		&Pipe, sizeof(int), NULL, 0, NULL, 0, 
+		&Device, sizeof(UUId_t), &Pipe, sizeof(UUId_t), 
+		Transfer, sizeof(UsbTransfer_t), 
 		&Status, sizeof(UsbTransferStatus_t));
 }
 
@@ -131,7 +132,7 @@ SERVICEABI
 UsbQueuePeriodic(
 	_In_ UUId_t Driver,
 	_In_ UUId_t Device,
-	_In_ int Pipe,
+	_In_ UUId_t Pipe,
 	_In_ UsbTransfer_t *Transfer)
 {
 	// Variables
@@ -145,7 +146,8 @@ UsbQueuePeriodic(
 
 	// Query the driver directly
 	return QueryDriver(&Contract, __USBHOST_QUEUEPERIODIC,
-		&Pipe, sizeof(int), NULL, 0, NULL, 0, 
+		&Device, sizeof(UUId_t), &Pipe, sizeof(UUId_t), 
+		Transfer, sizeof(UsbTransfer_t), 
 		&Status, sizeof(UsbTransferStatus_t));
 }
 

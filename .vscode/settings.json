@@ -14,6 +14,20 @@
         "regex": "cpp",
         "algorithm": "cpp",
         "__locale": "cpp",
-        "variant": "cpp"
+        "variant": "cpp",
+        "iterator": "cpp",
+        "__hash_table": "cpp",
+        "__split_buffer": "cpp",
+        "array": "cpp",
+        "bitset": "cpp",
+        "deque": "cpp",
+        "string_view": "cpp",
+        "initializer_list": "cpp",
+        "map": "cpp",
+        "stack": "cpp",
+        "string": "cpp",
+        "utility": "cpp",
+        "valarray": "cpp",
+        "vector": "cpp"
     }
 }
