@@ -514,7 +514,7 @@ OhciLinkGeneric(
 			else {
 				// Iterate to end of descriptor-chain
 				OhciEndpointDescriptor_t *EpItr = 
-					(OhciEndpointDescriptor_t*)Queue->TransactionQueueControl;
+					Queue->EDPool[Queue->TransactionQueueControlIndex];
 
 				// Iterate until end of chain
 				while (EpItr->Link) {
@@ -551,7 +551,7 @@ OhciLinkGeneric(
 			else {
 				// Iterate to end of descriptor-chain
 				OhciEndpointDescriptor_t *EpItr = 
-					(OhciEndpointDescriptor_t*)Queue->TransactionQueueBulk;
+					Queue->EDPool[Queue->TransactionQueueBulkIndex];
 
 				// Iterate until end of chain
 				while (EpItr->Link) {
@@ -625,9 +625,13 @@ OhciLinkPeriodic(
 			if (Ep->Interval > Here->Interval) {
 				break;
 			}
+
+			// Instantiate an ed pointer
+			OhciEndpointDescriptor_t *CurrentEp = 
+				(OhciEndpointDescriptor_t*)Here->LinkVirtual;
 			
 			// Get next
-			PrevEd = &((OhciEndpointDescriptor_t*)Here->LinkVirtual);
+			PrevEd = &CurrentEp;
 			PrevPtr = &Here->Link;
 			Here = *PrevEd;
 		}
@@ -657,7 +661,9 @@ OhciLinkPeriodic(
 	return OsSuccess;
 }
 
-/* Unlinking Functions */
+/* OhciUnlinkPeriodic
+ * Removes an already queued up periodic transfer (interrupt/isoc) from the
+ * controllers scheduler. Also unallocates the bandwidth */
 void
 OhciUnlinkPeriodic(
 	_In_ OhciController_t *Controller, 
@@ -678,14 +684,17 @@ OhciUnlinkPeriodic(
 
 		// Iterate till we find the endpoint descriptor
 		while (*PrevEd && (Temp = *PrevEd) != Ep) {
-			PrevPtr = &Temp->NextED;
-			PrevEd = &((OhciEndpointDescriptor_t*)Temp->NextEDVirtual);
+			// Instantiate a ed pointer
+			OhciEndpointDescriptor_t *CurrentEp = 
+				(OhciEndpointDescriptor_t*)Temp->LinkVirtual;
+			PrevPtr = &Temp->Link;
+			PrevEd = &CurrentEp;
 		}
 
 		// Make sure we actually found it
 		if (*PrevEd) {
-			*PrevPtr = Ep->NextED;
-			*PrevEd = (OhciEndpointDescriptor_t*)Ep->NextEDVirtual;
+			*PrevPtr = Ep->Link;
+			*PrevEd = (OhciEndpointDescriptor_t*)Ep->LinkVirtual;
 		}
 
 		// Decrease the bandwidth
@@ -707,10 +716,10 @@ OhciReloadControlBulk(
 	// Now the step is to check whether or not there is any
 	// transfers awaiting for the requested type
 	if (TransferType == ControlTransfer) {
-		if (Controller->TransactionsWaitingControl > 0) {
+		if (Controller->QueueControl.TransactionsWaitingControl > 0) {
 			// Retrieve the physical address
-			uintptr_t EpPhysical = OHCI_POOL_EDINDEX(Queue->EDPoolPhysical, 
-				Controller->TransactionQueueControlIndex);
+			uintptr_t EpPhysical = OHCI_POOL_EDINDEX(Controller->QueueControl.EDPoolPhysical, 
+				Controller->QueueControl.TransactionQueueControlIndex);
 			
 			// Update new start and kick off queue
 			Controller->Registers->HcControlHeadED =
@@ -719,14 +728,14 @@ OhciReloadControlBulk(
 		}
 
 		// Reset control queue
-		Controller->TransactionQueueControlIndex = -1;
-		Controller->TransactionsWaitingControl = 0;
+		Controller->QueueControl.TransactionQueueControlIndex = -1;
+		Controller->QueueControl.TransactionsWaitingControl = 0;
 	}
 	else if (TransferType == BulkTransfer) {
-		if (Controller->TransactionsWaitingBulk > 0) {
+		if (Controller->QueueControl.TransactionsWaitingBulk > 0) {
 			// Retrieve the physical address
-			uintptr_t EpPhysical = OHCI_POOL_EDINDEX(Queue->EDPoolPhysical, 
-				Controller->TransactionQueueBulkIndex);
+			uintptr_t EpPhysical = OHCI_POOL_EDINDEX(Controller->QueueControl.EDPoolPhysical, 
+				Controller->QueueControl.TransactionQueueBulkIndex);
 
 			// Update new start and kick off queue
 			Controller->Registers->HcBulkHeadED =
@@ -735,205 +744,167 @@ OhciReloadControlBulk(
 		}
 
 		// Reset bulk queue
-		Controller->TransactionQueueBulkIndex = -1;
-		Controller->TransactionsWaitingBulk = 0;
+		Controller->QueueControl.TransactionQueueBulkIndex = -1;
+		Controller->QueueControl.TransactionsWaitingBulk = 0;
 	}
 }
 
-/* Process Done Queue */
-void OhciProcessDoneQueue(OhciController_t *Controller, Addr_t DoneHeadAddr)
+/* OhciProcessDoneQueue
+ * Iterates all active transfers and handles completion/error events */
+void
+OhciProcessDoneQueue(
+	_In_ OhciController_t *Controller, 
+	_In_ uintptr_t DoneHeadAddress)
 {
-	/* Get transaction list */
-	List_t *Transactions = (List_t*)Controller->TransactionList;
+	// Variables
+	OhciTransferDescriptor_t *Td = NULL, *Td2 = NULL;
+	List_t *Transactions = Controller->QueueControl.TransactionList;
 
-	/* Get Ed with the same td address as DoneHeadAddr */
-	foreach(Node, Transactions)
-	{
-		/* Cast UsbRequest */
-		UsbHcRequest_t *HcRequest = (UsbHcRequest_t*)Node->Data;
+	// Go through active transactions and locate the EP that was done
+	foreach(Node, Transactions) {
 
-		/* Get Ed */
-		OhciEndpointDescriptor_t *Ed = (OhciEndpointDescriptor_t*)HcRequest->Data;
-		UsbTransferType_t TransferType = (UsbTransferType_t)((Ed->Flags >> 27) & 0xF);
+		// Instantiate the usb-transfer pointer, and then the EP
+		UsbManagerTransfer_t *Transfer = 
+			(UsbManagerTransfer_t*)Node->Data;
+		OhciEndpointDescriptor_t *EndpointDescriptor = 
+			(OhciEndpointDescriptor_t*)Transfer->EndpointDescriptor;
 
-		/* Get transaction list */
-		UsbHcTransaction_t *tList = (UsbHcTransaction_t*)HcRequest->Transactions;
+		// Skip?
+		if (Transfer->Cleanup != 0) {
+			continue;
+		}
 
-		/* Is it this? */
-		while (tList)
-		{
-			/* Get physical of TD */
-			Addr_t TdPhysical = AddressSpaceGetMap(AddressSpaceGetCurrent(), 
-				(VirtAddr_t)tList->TransferDescriptor);
+		// Iterate through all td's in this transaction
+		// and find the guilty
+		Td = Controller->QueueControl.TDPool[EndpointDescriptor->HeadIndex];
+		while (Td) {
+			// Retrieve the physical address
+			uintptr_t TdPhysical = OHCI_POOL_TDINDEX(
+				Controller->QueueControl.TDPoolPhysical, Td->Index);
 
-			/* Is it this one? */
-			if (DoneHeadAddr == TdPhysical)
-			{
-				/* Depending on type */
-				if (TransferType == ControlTransfer
-					|| TransferType == BulkTransfer)
-				{
-					/* Reload */
-					OhciReloadControlBulk(Controller, TransferType);
-
-					/* Wake a node */
-					SchedulerWakeupOneThread((Addr_t*)Ed);
-
-					/* Remove from list */
-					ListRemoveByNode(Transactions, Node);
-
-					/* Cleanup node */
-					kfree(Node);
+			// Does the addresses match?
+			if (DoneHeadAddress == TdPhysical) {
+				// Which kind of transfer is this?
+				if (Transfer->Transfer.Type == ControlTransfer
+					|| Transfer->Transfer.Type == BulkTransfer) {
+					// Reload and finalize transfer
+					OhciReloadControlBulk(Controller, Transfer->Transfer.Type);
+					// Instead of finalizing here, wakeup a finalizer thread?
+					Transfer->Cleanup = 1;
 				}
-				else if (TransferType == InterruptTransfer
-					|| TransferType == IsochronousTransfer)
-				{
-					/* Re-Iterate */
-					UsbHcTransaction_t *lIterator = HcRequest->Transactions;
-					int SwitchToggles = HcRequest->TransactionCount % 2;
+				else {
+					// Reload td's and synchronize toggles
+					int SwitchToggles = Transfer->TransactionCount % 2;
 					int ErrorTransfer = 0;
 
-					/* Copy data if not dummy */
-					while (lIterator)
-					{
-						/* Get Td */
-						OhciGTransferDescriptor_t *Td =
-							(OhciGTransferDescriptor_t*)lIterator->TransferDescriptor;
+					// Re-iterate all td's
+					Td2 = Controller->QueueControl.TDPool[EndpointDescriptor->HeadIndex];
+					while (Td2) {
+						// Extract error code
+						int ErrorCode = OHCI_TD_GET_CC(Td2->Flags);
 						
-						/* Get condition-code */
-						int ConditionCode = OHCI_TD_GET_CC(Td->Flags);
-
-						/* Sanity */
-						if ((ConditionCode != 0 
-								&& ConditionCode != 15)
+						// Sanitize the error code
+						if ((ErrorCode != 0 && ErrorCode != 15)
 							|| ErrorTransfer) {
 							ErrorTransfer = 1;
 						}
-						else
-						{
-							/* Let's see 
-							 * Only copy data */
-							if (lIterator->Length != 0
-								&& Td->Flags & OHCI_TD_PID_IN)
-								memcpy(lIterator->Buffer, lIterator->TransferBuffer, lIterator->Length);
+						else {
+							// Update toggle if neccessary (in original data)
+							if (Transfer->Transfer.Type == InterruptTransfer 
+								&& SwitchToggles) {
+								int Toggle = UsbManagerGetToggle(
+									Transfer->Device, Transfer->Pipe);
+								
+								// First clear toggle, then get if we should set it
+								Td2->OriginalFlags &= ~OHCI_TD_TOGGLE;
+								Td2->OriginalFlags |= (Toggle << 24);
 
-							/* Switch toggle */
-							if (TransferType == InterruptTransfer
-								&& SwitchToggles)
-							{
-								OhciGTransferDescriptor_t *__Td =
-									(OhciGTransferDescriptor_t*)lIterator->TransferDescriptorCopy;
-
-								/* Clear Toggle */
-								__Td->Flags &= ~OHCI_TD_TOGGLE;
-
-								/* Set it? */
-								if (HcRequest->Endpoint->Toggle)
-									__Td->Flags |= OHCI_TD_TOGGLE;
-
-								/* Switch toggle bit */
-								HcRequest->Endpoint->Toggle =
-									(HcRequest->Endpoint->Toggle == 1) ? 0 : 1;
+								// Update again if it's not dummy
+								if (Td2->LinkIndex != -1) {
+									UsbManagerSetToggle(Transfer->Device, 
+										Transfer->Pipe, Toggle ^ 1);
+								}
 							}
 
-							/* Restart Td */
-							memcpy(lIterator->TransferDescriptor,
-								lIterator->TransferDescriptorCopy,
-								TransferType == InterruptTransfer ?
-								sizeof(OhciGTransferDescriptor_t) : sizeof(OhciITransferDescriptor_t));
+							// Restart Td
+							Td2->Flags = Td2->OriginalFlags;
+							Td2->Cbp = Td2->OriginalCbp;
 						}
 
-						/* Eh, next link */
-						lIterator = lIterator->Link;
+						// Notify process of transfer of the status
+
+						// Restart endpoint
+						if (!ErrorTransfer) {
+							EndpointDescriptor->Current = 
+								OHCI_POOL_TDINDEX(Controller->QueueControl.TDPoolPhysical, 
+									EndpointDescriptor->HeadIndex); 
+						}
+
+						// Go to next td or terminate
+						if (Td2->LinkIndex != -1) {
+							Td2 = Controller->QueueControl.TDPool[Td2->LinkIndex];
+						}
+						else {
+							break;
+						}
 					}
-
-					/* Callback */
-					if (HcRequest->Callback != NULL)
-						HcRequest->Callback->Callback(HcRequest->Callback->Args, 
-							ErrorTransfer == 1 ? TransferStalled : TransferFinished);
-
-					/* Restore data for 
-					 * out transfers */
-					lIterator = HcRequest->Transactions;
-					while (lIterator)
-					{
-						/* Get Td */
-						OhciGTransferDescriptor_t *Td =
-							(OhciGTransferDescriptor_t*)lIterator->TransferDescriptor;
-
-						/* Let's see
-						* Only copy data */
-						if (lIterator->Length != 0
-							&& Td->Flags & OHCI_TD_PID_OUT)
-							memcpy(lIterator->TransferBuffer, lIterator->Buffer, lIterator->Length);
-
-						/* Eh, next link */
-						lIterator = lIterator->Link;
-					}
-
-					/* Restart Ed */
-					if (!ErrorTransfer)
-						Ed->HeadPtr = 
-							AddressSpaceGetMap(AddressSpaceGetCurrent(), 
-								(VirtAddr_t)HcRequest->Transactions->TransferDescriptor);
 				}
-
-				/* Done */
-				return;
 			}
 
-			/* Go to next */
-			tList = tList->Link;
+			// Go to next td or terminate
+			if (Td->LinkIndex != -1) {
+				Td = Controller->QueueControl.TDPool[Td->LinkIndex];
+			}
+			else {
+				break;
+			}
 		}
 	}
 }
 
 /* Process Transactions 
- * This code unlinks / links pending endpoint descriptors */
-void OhciProcessTransactions(OhciController_t *Controller)
+ * This code unlinks / links pending endpoint descriptors. 
+ * Should be called from interrupt-context */
+void
+OhciProcessTransactions(
+	_In_ OhciController_t *Controller)
 {
-	/* Get transaction list */
-	List_t *Transactions = (List_t*)Controller->TransactionList;
+	// Variables
+	List_t *Transactions = Controller->QueueControl.TransactionList;
 
-	/* Iterate list */
-	foreach(Node, Transactions)
-	{
-		/* Cast UsbRequest */
-		UsbHcRequest_t *HcRequest = (UsbHcRequest_t*)Node->Data;
+	// Iterate all active transactions and see if any
+	// one of them needs unlinking or linking
+	foreach(Node, Transactions) {
+		
+		// Instantiate the usb-transfer pointer, and then the EP
+		UsbManagerTransfer_t *Transfer = 
+			(UsbManagerTransfer_t*)Node->Data;
+		OhciEndpointDescriptor_t *EndpointDescriptor = 
+			(OhciEndpointDescriptor_t*)Transfer->EndpointDescriptor;
 
-		/* Get Ed */
-		OhciEndpointDescriptor_t *Ed = (OhciEndpointDescriptor_t*)HcRequest->Data;
+		// Extract index
+		int Index = OHCI_ED_GET_INDEX(EndpointDescriptor->HcdFlags);
 
-		/* Has this Ed requested linkage? */
-		if (Ed->HcdFlags & OHCI_ED_SCHEDULE)
-		{
-			/* What kind of scheduling is requested? */
-			if (HcRequest->Type == ControlTransfer
-				|| HcRequest->Type == BulkTransfer) {
-				/* Link */
-				OhciLinkGeneric(Controller, HcRequest);
+		// Check flags for any requests, either schedule or unschedule
+		if (EndpointDescriptor->HcdFlags & OHCI_ED_SCHEDULE) {
+			if (Transfer->Transfer.Type == ControlTransfer
+				|| Transfer->Transfer.Type == BulkTransfer) {
+				OhciLinkGeneric(Controller, Transfer->Transfer.Type, Index);
 			}
 			else {
-				/* Link */
-				OhciLinkPeriodic(Controller, HcRequest);
-
-				/* Make sure periodic list is active */
+				// Link it in, and activate list
+				OhciLinkPeriodic(Controller, Index);
 				Controller->Registers->HcControl |= OHCI_CONTROL_PERIODIC_ACTIVE | OHCI_CONTROL_ISOC_ACTIVE;
 			}
 
-			/* Remove scheduling flag */
-			Ed->HcdFlags &= ~OHCI_ED_SCHEDULE;
+			// Remove the schedule flag
+			EndpointDescriptor->HcdFlags &= ~OHCI_ED_SCHEDULE;
 		}
-		else if (Ed->HcdFlags & OHCI_ED_UNSCHEDULE)
-		{
-			/* Only interrupt and isoc requests unscheduling */
-			OhciUnlinkPeriodic(Controller, HcRequest);
-
-			/* Remove unscheduling flag */
-			Ed->HcdFlags &= ~OHCI_ED_UNSCHEDULE;
-
-			/* Wake up process if anyone was waiting for us to unlink */
-			SchedulerWakeupOneThread((Addr_t*)HcRequest->Data);
+		else if (EndpointDescriptor->HcdFlags & OHCI_ED_UNSCHEDULE) {
+			// Only interrupt and isoc requests unscheduling
+			// And remove the unschedule flag
+			OhciUnlinkPeriodic(Controller, Index);
+			EndpointDescriptor->HcdFlags &= ~OHCI_ED_UNSCHEDULE;
 		}
 	}
 }

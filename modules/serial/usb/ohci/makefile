@@ -5,7 +5,7 @@ SOURCES = $(wildcard ./*.c)
 INCLUDES = -I../../../../librt/include
 OBJECTS = $(SOURCES:.c=.o)
 
-CFLAGS = $(GCFLAGS) -D_DLL -D__DRIVER_IMPL $(INCLUDES)
+CFLAGS = $(GCFLAGS) -Wno-address-of-packed-member -D_DLL -D__DRIVER_IMPL $(INCLUDES)
 LFLAGS = /nodefaultlib /subsystem:native /entry:_mDrvCrt /dll ../../../../librt/build/libc.lib ../../../../librt/build/libdrv.lib ../../../../librt/build/libos.lib
 
 .PHONY: all

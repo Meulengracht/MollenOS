@@ -42,6 +42,13 @@ OsStatus_t
 OhciSetup(
 	_In_ OhciController_t *Controller);
 
+/* Externs
+ * We need access to the interrupt-handler in main.c */
+ __EXTERN
+ InterruptStatus_t
+ OnInterrupt(
+	 _In_ void *InterruptData);
+
 /* OhciControllerCreate 
  * Initializes and creates a new Ohci Controller instance
  * from a given new system device on the bus. */
@@ -108,6 +115,7 @@ OhciControllerCreate(
 		(OhciRegisters_t*)IoBase->VirtualBase;
 
 	// Initialize the interrupt settings
+	Controller->Device.Interrupt.FastHandler = OnInterrupt;
 	Controller->Device.Interrupt.Data = Controller;
 
 	// Register contract before interrupt
@@ -121,7 +129,7 @@ OhciControllerCreate(
 
 	// Register interrupt
 	Controller->Interrupt =
-		RegisterInterruptSource(&Controller->Device.Interrupt, 0);
+		RegisterInterruptSource(&Controller->Device.Interrupt, INTERRUPT_FAST);
 
 	// Enable device
 	if (IoctlDevice(Controller->Device.Id, __DEVICEMANAGER_IOCTL_BUS,

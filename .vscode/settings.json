@@ -28,6 +28,10 @@
         "string": "cpp",
         "utility": "cpp",
         "valarray": "cpp",
-        "vector": "cpp"
+        "vector": "cpp",
+        "*.ipp": "cpp",
+        "atomic": "cpp",
+        "filesystem": "cpp",
+        "system_error": "cpp"
     }
 }

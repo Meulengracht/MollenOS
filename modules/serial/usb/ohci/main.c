@@ -79,7 +79,7 @@ InterruptStatus_t OnInterrupt(void *InterruptData)
 	}
 
 	// Disable interrupts
-	//Controller->Registers->HcInterruptDisable = (reg32_t)OHCI_INTR_MASTER;
+	Controller->Registers->HcInterruptDisable = (reg32_t)OHCI_INTR_MASTER;
 
 	// Fatal Error Check
 	if (InterruptStatus & OHCI_INTR_FATAL_ERROR) {
@@ -159,7 +159,7 @@ InterruptStatus_t OnInterrupt(void *InterruptData)
 	}
 
 	// Enable interrupts again
-	//Controller->Registers->HcInterruptEnable = (uint32_t)OHCI_INTR_MASTER;
+	Controller->Registers->HcInterruptEnable = (reg32_t)OHCI_INTR_MASTER;
 
 	// Done
 	return InterruptHandled;
@@ -174,7 +174,7 @@ OnTimeout(
 	_In_ UUId_t Timer,
 	_In_ void *Data)
 {
-
+	return OsSuccess;
 }
 
 /* OnLoad

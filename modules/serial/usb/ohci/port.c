@@ -104,7 +104,7 @@ OhciPortInitialize(
 	}
 
 	// Run usb port event
-	UsbEventPort(Controller->Id, Index);
+	return UsbEventPort(Controller->Id, Index);
 }
 
 /* OhciPortGetStatus 
@@ -206,4 +206,7 @@ OhciPortsCheck(
 	for (i = 0; i < (int)(Controller->PortCount); i++) {
 		OhciPortCheck(Controller, i);
 	}
+
+	// Return no error
+	return OsSuccess;
 }

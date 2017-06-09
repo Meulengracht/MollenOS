@@ -131,7 +131,9 @@ PACKED_TYPESTRUCT(OhciTransferDescriptor, {
 	// Metadata
 	int16_t					Index;		// Index of this TD
 	int16_t 				LinkIndex;	// Next TD, -1 if none
-	uint8_t					Padding[28];// Padding
+	reg32_t					OriginalFlags; // Copy of flags
+	reg32_t					OriginalCbp; // Copy of buffer pointer
+	uint8_t					Padding[24];// Padding
 });
 
 /* OhciTransferDescriptor::Flags
@@ -442,6 +444,22 @@ OhciTransactionFinalize(
 	_In_ OhciController_t *Controller,
 	_In_ UsbManagerTransfer_t *Transfer,
 	_In_ int Validate);
+
+/* Process Transactions 
+ * This code unlinks / links pending endpoint descriptors. 
+ * Should be called from interrupt-context */
+__EXTERN
+void
+OhciProcessTransactions(
+	_In_ OhciController_t *Controller);
+
+/* OhciProcessDoneQueue
+ * Iterates all active transfers and handles completion/error events */
+__EXTERN
+void
+OhciProcessDoneQueue(
+	_In_ OhciController_t *Controller, 
+	_In_ uintptr_t DoneHeadAddress);
 
 /* UsbQueueTransferGeneric 
  * Queues a new transfer for the given driver

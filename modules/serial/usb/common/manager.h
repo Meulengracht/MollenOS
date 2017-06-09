@@ -44,8 +44,10 @@ typedef struct _UsbManagerTransfer {
 	UUId_t					Device;
 	UUId_t					Pipe;
 	void*					EndpointDescriptor;
+	int						TransactionCount;
 	size_t					BytesTransferred;
 	UsbTransferStatus_t 	Status;
+	int						Cleanup;
 } UsbManagerTransfer_t;
 
 /* UsbManagerInitialize

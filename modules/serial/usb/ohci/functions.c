@@ -286,9 +286,11 @@ UsbQueueTransferGeneric(
 	EndpointDescriptor = OhciTransactionInitialize(Controller, &Transfer->Transfer);
 
 	// Update the stored information
+	Transfer->TransactionCount = 0;
 	Transfer->EndpointDescriptor = EndpointDescriptor;
 	Transfer->Status = TransferNotProcessed;
 	Transfer->BytesTransferred = 0;
+	Transfer->Cleanup = 0;
 
 	// Now iterate and add the td's
 	for (i = 0; i < 3; i++) {
@@ -340,6 +342,9 @@ UsbQueueTransferGeneric(
 			// Update toggle by flipping
 			UsbManagerSetToggle(Transfer->Device, Transfer->Pipe, Toggle ^ 1);
 
+			// Increase count
+			Transfer->TransactionCount++;
+
 			// Reduce
 			BytesToTransfer -= BytesStep;
 			ByteOffset += BytesStep;
@@ -351,14 +356,16 @@ UsbQueueTransferGeneric(
 
 	// Add a null-transaction (Out, Zero)
 	// But do NOT update the endpoint toggle, and Isoc does not need this
-	ZeroTd = OhciTdIo(Controller, Transfer->Transfer.Type, OHCI_TD_PID_OUT, 
+	if (Transfer->Transfer.Type != IsochronousTransfer) {
+		ZeroTd = OhciTdIo(Controller, Transfer->Transfer.Type, OHCI_TD_PID_OUT, 
 		UsbManagerGetToggle(Transfer->Device, Transfer->Pipe), 0, 0);
 
-	// Update physical link
-	ItrTd->Link = OHCI_POOL_TDINDEX(Controller->QueueControl.TDPoolPhysical, ZeroTd->Index);
+		// Update physical link
+		ItrTd->Link = OHCI_POOL_TDINDEX(Controller->QueueControl.TDPoolPhysical, ZeroTd->Index);
 
-	// Not first, update links
-	ItrTd->LinkIndex = ZeroTd->Index;
+		// Not first, update links
+		ItrTd->LinkIndex = ZeroTd->Index;
+	}
 	
 	// Extract address and endpoint
 	Address = HIWORD(Transfer->Pipe);
