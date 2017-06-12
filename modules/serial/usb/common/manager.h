@@ -63,6 +63,12 @@ __EXTERN
 OsStatus_t
 UsbManagerDestroy(void);
 
+/* UsbManagerGetControllers
+ * Retrieve a list of all attached controllers to the system. */
+__EXTERN
+List_t*
+UsbManagerGetControllers(void);
+
 /* UsbManagerCreateTransfer
  * Creates a new transfer with the usb-manager.
  * Identifies and registers with neccessary services */

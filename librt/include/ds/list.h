@@ -60,6 +60,7 @@ typedef struct _List List_t;
 /* Foreach Macro(s)
  * They help keeping the code clean and readable when coding loops */
 #define foreach(i, List) ListNode_t *i; for (i = ListBegin(List); i != NULL; i = ListNext(i))
+#define foreach_nolink(i, List) ListNode_t *i; for (i = ListBegin(List); i != NULL; )
 #define _foreach(i, List) for (i = ListBegin(List); i != NULL; i = ListNext(i))
 #define _foreach_nolink(i, List) for (i = ListBegin(List); i != NULL; )
 

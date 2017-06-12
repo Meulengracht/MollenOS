@@ -50,6 +50,7 @@ static Condition_t *__GlbFinalizerEvent = NULL;
 int FinalizerEntry(void *Argument)
 {
 	// Variables
+	ListNode_t *cNode = NULL;
 	Mutex_t EventLock;
 
 	// Unused
@@ -64,7 +65,40 @@ int FinalizerEntry(void *Argument)
 		ConditionWait(__GlbFinalizerEvent, &EventLock);
 
 		// Iterate through all transactions for all controllers
+		_foreach(cNode, UsbManagerGetControllers()) {
+			// Instantiate a controller pointer
+			OhciController_t *Controller = 
+				(OhciController_t*)cNode->Data;
+			
+			// Iterate transactions
+			foreach_nolink(tNode, Controller->QueueControl.TransactionList) {
+				// Instantiate a transaction pointer
+				UsbManagerTransfer_t *Transfer = 
+					(UsbManagerTransfer_t*)tNode->Data;
 
+				// Cleanup?
+				if (Transfer->Cleanup) {
+					// Temporary copy of pointer
+					ListNode_t *Temp = tNode;
+
+					// Notify requester and finalize
+					OhciTransactionFinalize(Controller, Transfer, 1);
+				
+					// Remove from list (in-place, tricky)
+					tNode = ListUnlinkNode(
+						Controller->QueueControl.TransactionList,
+						tNode);
+
+					// Cleanup
+					ListDestroyNode(
+						Controller->QueueControl.TransactionList, 
+						Temp);
+				}
+				else {
+					tNode = ListNext(tNode);
+				}
+			}
+		}
 	}
 
 	// Done
@@ -314,9 +348,8 @@ OnQuery(_In_ MContractType_t QueryType,
 	// Sanitize we have a controller
 	if (Controller == NULL) {
 		// Null response
-
-		// Return
-		return OsError;
+		return PipeSend(Queryee, ResponsePort, 
+			(void*)&Result, sizeof(OsStatus_t));
 	}
 
 	switch (QueryFunction) {

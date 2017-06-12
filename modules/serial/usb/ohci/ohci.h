@@ -380,6 +380,14 @@ OsStatus_t
 OhciPortsCheck(
 	_In_ OhciController_t *Controller);
 
+/* OhciSetMode
+ * Changes the state of the OHCI controller to the given mode */
+__EXTERN
+void
+OhciSetMode(
+	_In_ OhciController_t *Controller, 
+	_In_ reg32_t Mode);
+
 /* OhciEdAllocate
  * Allocates a new ED for usage with the transaction. If this returns
  * NULL we are out of ED's and we should wait till next transfer. */
