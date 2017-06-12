@@ -832,6 +832,9 @@ OhciProcessDoneQueue(
 						}
 
 						// Notify process of transfer of the status
+						if (Transfer->Transfer.UpdatesOn) {
+							
+						}
 
 						// Restart endpoint
 						if (!ErrorTransfer) {

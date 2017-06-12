@@ -92,7 +92,17 @@ PACKED_TYPESTRUCT(UsbTransfer, {
 	UsbHcEndpointDescriptor_t			Endpoint;
 
 	// Periodic Information
+	int									UpdatesOn;
 	__CONST void*						PeriodicData;
+});
+
+/* UsbTransferResult
+ * Describes the result of an usb-transfer */
+PACKED_TYPESTRUCT(UsbTransferResult, {
+	// Generic Information
+	UUId_t					Id;
+	size_t					BytesTransferred;
+	UsbTransferStatus_t 	Status;
 });
 
 /* UsbQueueTransfer 
@@ -105,10 +115,10 @@ UsbQueueTransfer(
 	_In_ UUId_t Driver,
 	_In_ UUId_t Device,
 	_In_ UUId_t Pipe,
-	_In_ UsbTransfer_t *Transfer)
+	_In_ UsbTransfer_t *Transfer,
+	_Out_ UsbTransferResult_t *Result)
 {
 	// Variables
-	UsbTransferStatus_t Status = TransferNotProcessed;
 	MContract_t Contract;
 
 	// Setup contract stuff for request
@@ -120,7 +130,7 @@ UsbQueueTransfer(
 	return QueryDriver(&Contract, __USBHOST_QUEUETRANSFER,
 		&Device, sizeof(UUId_t), &Pipe, sizeof(UUId_t), 
 		Transfer, sizeof(UsbTransfer_t), 
-		&Status, sizeof(UsbTransferStatus_t));
+		Result, sizeof(UsbTransferResult_t));
 }
 
 /* UsbQueuePeriodic 
@@ -133,10 +143,11 @@ UsbQueuePeriodic(
 	_In_ UUId_t Driver,
 	_In_ UUId_t Device,
 	_In_ UUId_t Pipe,
-	_In_ UsbTransfer_t *Transfer)
+	_In_ UsbTransfer_t *Transfer,
+	_Out_ UUId_t *TransferId)
 {
 	// Variables
-	UsbTransferStatus_t Status = TransferNotProcessed;
+	UsbTransferResult_t Result;
 	MContract_t Contract;
 
 	// Setup contract stuff for request
@@ -148,7 +159,7 @@ UsbQueuePeriodic(
 	return QueryDriver(&Contract, __USBHOST_QUEUEPERIODIC,
 		&Device, sizeof(UUId_t), &Pipe, sizeof(UUId_t), 
 		Transfer, sizeof(UsbTransfer_t), 
-		&Status, sizeof(UsbTransferStatus_t));
+		&Result, sizeof(UsbTransferResult_t));
 }
 
 /* UsbDequeuePeriodic */

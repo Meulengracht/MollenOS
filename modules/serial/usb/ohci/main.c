@@ -25,6 +25,7 @@
 /* Includes 
  * - System */
 #include <os/mollenos.h>
+#include <os/condition.h>
 #include <os/thread.h>
 #include <os/utils.h>
 
@@ -38,12 +39,46 @@
 #include <string.h>
 #include <stdlib.h>
 
+/* Globals
+ * Use these for state-keeping the thread */
+static UUId_t __GlbFinalizerThreadId = UUID_INVALID;
+static Condition_t *__GlbFinalizerEvent = NULL;
+
+/* FinalizerEntry 
+ * Entry of the finalizer thread, this thread handles
+ * all completed transactions to notify users */
+int FinalizerEntry(void *Argument)
+{
+	// Variables
+	Mutex_t EventLock;
+
+	// Unused
+	_CRT_UNUSED(Argument);
+
+	// Create the mutex
+	MutexConstruct(&EventLock, MUTEX_PLAIN);
+
+	// Forever-loop
+	while (1) {
+		// Wait for events
+		ConditionWait(__GlbFinalizerEvent, &EventLock);
+
+		// Iterate through all transactions for all controllers
+
+	}
+
+	// Done
+	return 0;
+}
+
 /* OnInterrupt
  * Is called when one of the registered devices
  * produces an interrupt. On successful handled
  * interrupt return OsSuccess, otherwise the interrupt
  * won't be acknowledged */
-InterruptStatus_t OnInterrupt(void *InterruptData)
+InterruptStatus_t
+OnInterrupt(
+	_In_ void *InterruptData)
 {
 	// Variables
 	OhciController_t *Controller = NULL;
@@ -182,6 +217,12 @@ OnTimeout(
  * as soon as the driver is loaded in the system */
 OsStatus_t OnLoad(void)
 {
+	// Create event semaphore
+	__GlbFinalizerEvent = ConditionCreate();
+
+	// Start finalizer thread
+	__GlbFinalizerThreadId = ThreadCreate(FinalizerEntry, NULL);
+
 	// Initialize the device manager here
 	return UsbManagerInitialize();
 }
@@ -191,6 +232,12 @@ OsStatus_t OnLoad(void)
  * and should free all resources allocated by the system */
 OsStatus_t OnUnload(void)
 {
+	// Stop thread
+	ThreadKill(__GlbFinalizerThreadId);
+
+	// Cleanup semaphore
+	ConditionDestroy(__GlbFinalizerEvent);
+
 	// Cleanup the internal device manager
 	return UsbManagerDestroy();
 }
@@ -252,11 +299,14 @@ OnQuery(_In_ MContractType_t QueryType,
 		_In_ int ResponsePort)
 {
 	// Variables
+	UsbManagerTransfer_t *Transfer = NULL;
 	OhciController_t *Controller = NULL;
-	UUId_t Device = UUID_INVALID;
+	UUId_t Device = UUID_INVALID, Pipe = UUID_INVALID;
+	OsStatus_t Result = OsError;
 
 	// Instantiate some variables
 	Device = (UUId_t)Arg0->Data.Value;
+	Pipe = (UUId_t)Arg1->Data.Value;
 	
 	// Lookup controller
 	Controller = UsbManagerGetController(Device);
@@ -269,25 +319,60 @@ OnQuery(_In_ MContractType_t QueryType,
 		return OsError;
 	}
 
-	// Unused params
-	_CRT_UNUSED(Arg1);
-	_CRT_UNUSED(Arg2);
-
 	switch (QueryFunction) {
 		// Generic Queue
 		case __USBHOST_QUEUETRANSFER: {
 			// Create and setup new transfer
+			Transfer = UsbManagerCreateTransfer(
+				(UsbTransfer_t*)Arg2->Data.Buffer,
+				Queryee, ResponsePort, Device, Pipe);
 
+			// Queue the generic transfer
+			return UsbQueueTransferGeneric(Transfer);
 		} break;
 
 		// Periodic Queue
 		case __USBHOST_QUEUEPERIODIC: {
+			// Variables
+			UsbTransferResult_t ResPackage;
 
+			// Create and setup new transfer
+			Transfer = UsbManagerCreateTransfer(
+				(UsbTransfer_t*)Arg2->Data.Buffer,
+				Queryee, ResponsePort, Device, Pipe);
+
+			// Queue the periodic transfer
+			Result = UsbQueueTransferGeneric(Transfer);
+
+			// Get id
+			ResPackage.Id = Transfer->Id;
+			ResPackage.BytesTransferred = 0;
+			if (Result == OsSuccess) {
+				ResPackage.Status = TransferNotProcessed;
+			}
+			else {
+				ResPackage.Status = TransferInvalidData;
+			}
+
+			// Send back package
+			return PipeSend(Queryee, ResponsePort, 
+				(void*)&ResPackage, sizeof(UsbTransferResult_t));
 		} break;
 
 		// Dequeue Transfer
 		case __USBHOST_DEQUEUEPERIODIC: {
+			
+			// Extract transfer-id
+			UsbManagerTransfer_t *Transfer = NULL;
+			UUId_t Id = (UUId_t)Arg0->Data.Value;
 
+			// Lookup transfer
+			Transfer = UsbManagerGetTransfer(Id);
+
+			// Dequeue and send result back
+			if (Transfer != NULL) {
+				Result = UsbDequeueTransferGeneric(Transfer);
+			}
 		} break;
 
 		// Fall-through, error
@@ -296,7 +381,6 @@ OnQuery(_In_ MContractType_t QueryType,
 	}
 
 	// Dunno, fall-through case
-	// Return null response
-
-	return OsError;
+	// Return status response
+	return PipeSend(Queryee, ResponsePort, (void*)&Result, sizeof(OsStatus_t));
 }

@@ -159,7 +159,8 @@ OhciTransactionDispatch(
 		Controller->Registers->HcControl, Controller->Registers->HcCommandStatus);
 
 	// Validate
-	OhciTransactionFinalize(Controller, Transfer);
+	Transfer->Requester = UUID_INVALID;
+	OhciTransactionFinalize(Controller, Transfer, 1);
 
 	// Don't go further
 	for (;;);
@@ -181,6 +182,7 @@ OhciTransactionFinalize(
 	OhciEndpointDescriptor_t *EndpointDescriptor = 
 		(OhciEndpointDescriptor_t*)Transfer->EndpointDescriptor;
 	OhciTransferDescriptor_t *Td = NULL;
+	UsbTransferResult_t Result;
 	uint ErrorCode = 0;
 
 	/*************************
@@ -260,6 +262,16 @@ OhciTransactionFinalize(
 	Transfer->EndpointDescriptor = NULL;
 
 	// Should we notify the user here?...
+	if (Transfer->Requester != UUID_INVALID) {
+		Result.Id = Transfer->Id;
+		Result.BytesTransferred = Transfer->BytesTransferred;
+		Result.Status = Transfer->Status;
+		PipeSend(Transfer->Requester, Transfer->ResponsePort, 
+			(void*)&Result, sizeof(UsbTransferResult_t));
+	}
+
+	// Cleanup the transfer
+	free(Transfer);
 
 	// Done
 	return OsSuccess;

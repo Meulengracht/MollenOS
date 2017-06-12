@@ -37,7 +37,7 @@
 typedef struct _UsbManagerTransfer {
 	UsbTransfer_t			Transfer;
 	UUId_t					Requester;
-	int						RpcPipe;
+	int						ResponsePort;
 
 	// Transfer Metadata
 	UUId_t					Id;
@@ -62,6 +62,26 @@ UsbManagerInitialize(void);
 __EXTERN
 OsStatus_t
 UsbManagerDestroy(void);
+
+/* UsbManagerCreateTransfer
+ * Creates a new transfer with the usb-manager.
+ * Identifies and registers with neccessary services */
+__EXTERN
+UsbManagerTransfer_t*
+UsbManagerCreateTransfer(
+	_In_ UsbTransfer_t *Transfer,
+	_In_ UUId_t Requester,
+	_In_ int ResponsePort,
+	_In_ UUId_t Device,
+	_In_ UUId_t Pipe);
+
+/* UsbManagerGetTransfer
+ * Retrieves a single transfer from the given transfer-id
+ * the id is unique so no other information is needed. */
+__EXTERN
+UsbManagerTransfer_t*
+UsbManagerGetTransfer(
+	_In_ UUId_t Id);
 
 /* UsbManagerCreateController
  * Registers a new controller with the usb-manager.
