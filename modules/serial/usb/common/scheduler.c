@@ -1,39 +1,45 @@
 /* MollenOS
-*
-* Copyright 2011 - 2016, Philip Meulengracht
-*
-* This program is free software : you can redistribute it and / or modify
-* it under the terms of the GNU General Public License as published by
-* the Free Software Foundation ? , either version 3 of the License, or
-* (at your option) any later version.
-*
-* This program is distributed in the hope that it will be useful,
-* but WITHOUT ANY WARRANTY; without even the implied warranty of
-* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.See the
-* GNU General Public License for more details.
-*
-* You should have received a copy of the GNU General Public License
-* along with this program.If not, see <http://www.gnu.org/licenses/>.
-*
-*
-* MollenOS USB Periodic Scheduling Code
-*/
+ *
+ * Copyright 2011 - 2017, Philip Meulengracht
+ *
+ * This program is free software : you can redistribute it and / or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation ? , either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.If not, see <http://www.gnu.org/licenses/>.
+ *
+ *
+ * MollenOS MCore - USB Controller Scheduler
+ * - Contains the implementation of a shared controller scheduker
+ *   for all the usb drivers
+ */
+//#define __TRACE
 
-/* Includes */
-#include <UsbCore.h>
-#include <UsbScheduler.h>
-#include <Heap.h>
+/* Includes
+ * - System */
+#include <os/mollenos.h>
+#include <os/thread.h>
+#include <os/utils.h>
+#include "scheduler.h"
 
-/* CLib */
+/* Includes
+ * - Library */
 #include <stddef.h>
-#include <string.h>
-
+#include <stdlib.h>
 
 /* Initializor 
  * Instantiates a new scheduler with the given size
  * and max-bandwidth per period 
  * MaxBandwidth is usually either 800 or 900 */
-UsbScheduler_t *UsbSchedulerInit(size_t Size, size_t MaxBandwidth, size_t MaskSize)
+UsbScheduler_t*
+UsbSchedulerInit(size_t Size, size_t MaxBandwidth, size_t MaskSize)
 {
 	/* Allocate a new instance 
 	 * and zero it out */

@@ -782,7 +782,7 @@ void InterruptEntry(Context_t *Registers)
 				Entry->Ash, Entry->Id);
 
 			// Send a interrupt-event to this
-			InterruptDriver(Entry->Ash, Entry->Id, Entry->Interrupt.Data);
+			__KernelInterruptDriver(Entry->Ash, Entry->Id, Entry->Interrupt.Data);
 			
 			// Mark as handled, so we don't spit out errors
 			Result = InterruptHandled;

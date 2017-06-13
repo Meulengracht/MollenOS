@@ -162,8 +162,31 @@ UsbQueuePeriodic(
 		&Result, sizeof(UsbTransferResult_t));
 }
 
-/* UsbDequeuePeriodic */
+/* UsbDequeuePeriodic 
+ * Dequeues an existing periodic transfer from the given controller. The transfer
+ * and the controller must be valid. */
+SERVICEAPI
+OsStatus_t
+SERVICEABI
+UsbDequeuePeriodic(
+	_In_ UUId_t Driver,
+	_In_ UUId_t Device,
+	_In_ UUId_t TransferId)
+{
+	// Variables
+	MContract_t Contract;
+	OsStatus_t Result;
 
+	// Setup contract stuff for request
+	Contract.DriverId = Driver;
+	Contract.Type = ContractController;
+	Contract.Version = __USBMANAGER_INTERFACE_VERSION;
 
+	// Query the driver directly
+	return QueryDriver(&Contract, __USBHOST_QUEUETRANSFER,
+		&Device, sizeof(UUId_t), 
+		&TransferId, sizeof(UUId_t), 
+		NULL, 0, &Result, sizeof(OsStatus_t));
+}
 
 #endif //!_CONTRACT_USBHOST_INTERFACE_H_

@@ -397,10 +397,19 @@ OnQuery(_In_ MContractType_t QueryType,
 			
 			// Extract transfer-id
 			UsbManagerTransfer_t *Transfer = NULL;
-			UUId_t Id = (UUId_t)Arg0->Data.Value;
+			UUId_t Id = (UUId_t)Arg1->Data.Value;
 
-			// Lookup transfer
-			Transfer = UsbManagerGetTransfer(Id);
+			// Lookup transfer by iterating through
+			// available transfers
+			foreach(tNode, Controller->QueueControl.TransactionList) {
+				// Cast data to our type
+				UsbManagerTransfer_t *NodeTransfer = 
+					(UsbManagerTransfer_t*)tNode->Data;
+				if (NodeTransfer->Id == Id) {
+					Transfer = NodeTransfer;
+					break;
+				}
+			}
 
 			// Dequeue and send result back
 			if (Transfer != NULL) {

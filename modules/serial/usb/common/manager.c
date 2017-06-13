@@ -60,6 +60,12 @@ UsbManagerDestroy(void)
 {
 	// It's important cleanup in transactions are done
 	// before this function is called
+	foreach(cNode, __GlbControllers) {
+		free(cNode->Data);
+	}
+
+	// Destroy list
+	return ListDestroy(__GlbControllers);
 }
 
 /* UsbManagerGetControllers
@@ -82,17 +88,25 @@ UsbManagerCreateTransfer(
 	_In_ UUId_t Device,
 	_In_ UUId_t Pipe)
 {
-	
-}
+	// Variables
+	UsbManagerTransfer_t *UsbTransfer = NULL;
 
-/* UsbManagerGetTransfer
- * Retrieves a single transfer from the given transfer-id
- * the id is unique so no other information is needed. */
-UsbManagerTransfer_t*
-UsbManagerGetTransfer(
-	_In_ UUId_t Id)
-{
+	// Allocate a new instance
+	UsbTransfer = (UsbManagerTransfer_t*)malloc(sizeof(UsbManagerTransfer_t));
+	memset(UsbTransfer, 0, sizeof(UsbManagerTransfer_t));
 
+	// Copy information over
+	memcpy(&UsbTransfer->Transfer, Transfer, sizeof(UsbTransfer_t));
+	UsbTransfer->Requester = Requester;
+	UsbTransfer->ResponsePort = ResponsePort;
+	UsbTransfer->Device = Device;
+	UsbTransfer->Pipe = Pipe;
+
+	// Generate an id
+	UsbTransfer->Id = __GlbTransferId++;
+
+	// Done
+	return UsbTransfer;
 }
 
 /* UsbManagerCreateController
@@ -100,9 +114,23 @@ UsbManagerGetTransfer(
  * Identifies and registers with neccessary services */
 OsStatus_t
 UsbManagerCreateController(
-	_In_ void *Controller)
+	_In_ UsbManagerController_t *Controller)
 {
+	// Variables
+	DataKey_t Key;
 
+	// Update key with deviceid
+	Key.Value = (int)Controller->Device.Id;
+
+	// Register controller with usbmanager service
+	if (UsbControllerRegister(Controller->Device.Id, 
+			Controller->Type, Controller->PortCount) != OsSuccess) {
+		return OsError;
+	}
+
+	// Add to list
+	return ListAppend(__GlbControllers, 
+		ListCreateNode(Key, Key, Controller));
 }
 
 /* UsbManagerDestroyController
@@ -110,18 +138,34 @@ UsbManagerCreateController(
  * Identifies and unregisters with neccessary services */
 OsStatus_t
 UsbManagerDestroyController(
-	_In_ void *Controller)
+	_In_ UsbManagerController_t *Controller)
 {
+	// Unregister controller with usbmanager service
+	if (UsbControllerUnregister(Controller->Device.Id) != OsSuccess) {
+		return OsError;
+	}
 
+	// Remove from list
 }
 
 /* UsbManagerGetController 
  * Returns a controller by the given device-id */
-void*
+UsbManagerController_t*
 UsbManagerGetController(
 	_In_ UUId_t Device)
 {
+	// Iterate list of controllers
+	foreach(cNode, __GlbControllers) {
+		// Cast data of node to our type
+		UsbManagerController_t *Controller = 
+			(UsbManagerController_t*)cNode->Data;
+		if (Controller->Device.Id == Device) {
+			return Controller;
+		}
+	}
 
+	// Not found - error
+	return NULL;
 }
 
 /* UsbManagerGetToggle 

@@ -833,7 +833,8 @@ OhciProcessDoneQueue(
 
 						// Notify process of transfer of the status
 						if (Transfer->Transfer.UpdatesOn) {
-							
+							InterruptDriver(Transfer->Requester, 
+								Transfer->Transfer.PeriodicData);
 						}
 
 						// Restart endpoint

@@ -27,9 +27,25 @@
 /* Includes 
  * - Library */
 #include <os/driver/contracts/usbhost.h>
+#include <os/driver/device.h>
+#include <os/driver/driver.h>
 #include <os/driver/usb.h>
 #include <os/osdefs.h>
 #include <ds/list.h>
+
+/* UsbManagerController
+ * Describes a generic controller with information needed
+ * in order for the manager to function */
+typedef struct _UsbManagerController {
+	UUId_t					 Id;
+	MCoreDevice_t			 Device;
+	MContract_t				 Contract;
+	UUId_t					 Interrupt;
+	Spinlock_t				 Lock;
+	DeviceIoSpace_t			*IoBase;
+	UsbControllerType_t		 Type;
+	size_t					 PortCount;
+} UsbManagerController_t;
 
 /* UsbManagerTransfer
  * Describes a generic transfer with information needed
@@ -81,21 +97,13 @@ UsbManagerCreateTransfer(
 	_In_ UUId_t Device,
 	_In_ UUId_t Pipe);
 
-/* UsbManagerGetTransfer
- * Retrieves a single transfer from the given transfer-id
- * the id is unique so no other information is needed. */
-__EXTERN
-UsbManagerTransfer_t*
-UsbManagerGetTransfer(
-	_In_ UUId_t Id);
-
 /* UsbManagerCreateController
  * Registers a new controller with the usb-manager.
  * Identifies and registers with neccessary services */
 __EXTERN
 OsStatus_t
 UsbManagerCreateController(
-	_In_ void *Controller);
+	_In_ UsbManagerController_t *Controller);
 
 /* UsbManagerDestroyController
  * Unregisters a controller with the usb-manager.
@@ -103,12 +111,12 @@ UsbManagerCreateController(
 __EXTERN
 OsStatus_t
 UsbManagerDestroyController(
-	_In_ void *Controller);
+	_In_ UsbManagerController_t *Controller);
 
 /* UsbManagerGetController 
  * Returns a controller by the given device-id */
 __EXTERN
-void*
+UsbManagerController_t*
 UsbManagerGetController(
 	_In_ UUId_t Device);
 

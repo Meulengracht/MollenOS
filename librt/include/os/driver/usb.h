@@ -40,6 +40,15 @@
  * where in theory it should never be needed to have more */
 #define __USBMANAGER_INTERFACE_VERSION		1
 
+/* UsbControllerType
+ * Describes the possible types of usb controllers */
+typedef enum _UsbControllerType {
+	UsbOHCI,
+	UsbUHCI,
+	UsbEHCI,
+	UsbXHCI
+} UsbControllerType_t;
+
 /* UsbSpeed 
  * Describes the possible speeds for usb devices */
 typedef enum _UsbSpeed {
@@ -90,8 +99,8 @@ SERVICEAPI
 OsStatus_t
 SERVICEABI
 UsbControllerRegister(
-	_In_ void *Data,
-	_In_ int Type,
+	_In_ UUId_t Device,
+	_In_ UsbControllerType_t Type,
 	_In_ size_t Ports)
 {
 
@@ -112,7 +121,7 @@ SERVICEAPI
 OsStatus_t
 SERVICEABI
 UsbControllerUnregister(
-	_In_ UUId_t Controller)
+	_In_ UUId_t Device)
 {
 
 }

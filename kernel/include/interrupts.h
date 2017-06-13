@@ -131,7 +131,7 @@ ScRpcExecute(
 SERVICEAPI
 OsStatus_t
 SERVICEABI
-InterruptDriver(
+__KernelInterruptDriver(
 	_In_ UUId_t Ash, 
 	_In_ UUId_t Id,
 	_In_ void *Data)

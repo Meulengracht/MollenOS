@@ -26,10 +26,8 @@
 
 /* Includes
  * - Library */
-#include <os/osdefs.h>
 #include <os/driver/contracts/usbhost.h>
-#include <os/driver/device.h>
-#include <os/driver/driver.h>
+#include <os/osdefs.h>
 #include <ds/list.h>
 
 #include "../common/manager.h"
@@ -298,12 +296,7 @@ typedef struct _OhciControl {
  * Contains all per-controller information that is
  * needed to control, queue and handle devices on an ohci-controller. */
 typedef struct _OhciController {
-	UUId_t					 Id;
-	MCoreDevice_t			 Device;
-	MContract_t				 Contract;
-	UUId_t					 Interrupt;
-	Spinlock_t				 Lock;
-	DeviceIoSpace_t			*IoBase;
+	UsbManagerController_t	Base;
 
 	// Registers and resources
 	OhciRegisters_t			*Registers;
@@ -313,7 +306,6 @@ typedef struct _OhciController {
 	// State information
 	size_t					 PowerOnDelayMs;
 	int						 PowerMode;
-	size_t					 PortCount;
 
 	// Queuing
 	OhciControl_t			 QueueControl;

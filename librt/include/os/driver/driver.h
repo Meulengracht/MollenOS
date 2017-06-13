@@ -115,6 +115,30 @@ OnQuery(
 
 #endif
 
+/* InterruptDriver
+ * Call this to send an interrupt into user-space
+ * the driver must acknowledge the interrupt once its handled
+ * to unmask the interrupt-line again */
+SERVICEAPI
+OsStatus_t
+SERVICEABI
+InterruptDriver(
+	_In_ UUId_t Driver,
+	_In_ void *Data)
+{
+	// Variables
+	MRemoteCall_t Request;
+	UUId_t NoId = UUID_INVALID;
+
+	// Initialze RPC
+	RPCInitialize(&Request, 1, PIPE_RPCOUT, __DRIVER_INTERRUPT);
+	RPCSetArgument(&Request, 0, (__CONST void*)&NoId, sizeof(UUId_t));
+	RPCSetArgument(&Request, 1, (__CONST void*)&Data, sizeof(void*));
+
+	// Send
+	return RPCEvent(&Request, Driver);
+}
+
 /* OnQuery
  * Occurs when an external process or server quries
  * this driver for data, this will correspond to the query
