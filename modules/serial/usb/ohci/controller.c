@@ -68,6 +68,7 @@ OhciControllerCreate(
 
 	// Fill in some basic stuff needed for init
 	Controller->Base.Contract.DeviceId = Controller->Base.Device.Id;
+	Controller->Base.Type = UsbOHCI;
 	SpinlockReset(&Controller->Base.Lock);
 
 	// Get I/O Base, and for OHCI it'll be the first address we encounter

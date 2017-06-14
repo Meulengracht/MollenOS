@@ -7,7 +7,7 @@
 # - windows
 
 .PHONY: all
-all: build devicemanager filemanager
+all: build devicemanager filemanager usbmanager
 
 build:
 	@mkdir -p $@

@@ -30,9 +30,17 @@ mfs:
 ahci:
 	$(MAKE) -C storage/ahci -f makefile
 
+.PHONY: msd
+msd:
+	$(MAKE) -C storage/msd -f makefile
+
 .PHONY: hpet
 hpet:
 	$(MAKE) -C timers/hpet -f makefile
+
+.PHONY: hid
+hid:
+	$(MAKE) -C input/hid -f makefile
 
 # Usb drivers below here
 .PHONY: ohci

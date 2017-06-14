@@ -40,6 +40,16 @@
  * where in theory it should never be needed to have more */
 #define __USBMANAGER_INTERFACE_VERSION		1
 
+/* These are the different IPC functions supported
+ * by the usbmanager, note that some of them might
+ * be changed in the different versions, and/or new
+ * functions will be added */
+#define __USBMANAGER_REGISTERCONTROLLER			IPC_DECL_FUNCTION(0)
+#define __USBMANAGER_UNREGISTERCONTROLLER		IPC_DECL_FUNCTION(1)
+#define __USBMANAGER_QUERYCONTROLLERS			IPC_DECL_FUNCTION(2)
+
+#define __USBMANAGER_PORTEVENT					IPC_DECL_FUNCTION(3)
+
 /* UsbControllerType
  * Describes the possible types of usb controllers */
 typedef enum _UsbControllerType {
@@ -91,8 +101,9 @@ __EXTERN
 OsStatus_t
 SERVICEABI
 UsbControllerRegister(
-	_In_ void *Data,
-	_In_ int Type,
+	_In_ UUId_t Driver,
+	_In_ UUId_t Device,
+	_In_ UsbControllerType_t Type,
 	_In_ size_t Ports);
 #else
 SERVICEAPI
@@ -103,7 +114,20 @@ UsbControllerRegister(
 	_In_ UsbControllerType_t Type,
 	_In_ size_t Ports)
 {
+	// Variables
+	MRemoteCall_t Rpc;
 
+	// Initialize RPC
+	RPCInitialize(&Request, __USBMANAGER_INTERFACE_VERSION,
+		PIPE_RPCOUT, __USBMANAGER_REGISTERCONTROLLER);
+
+	// Setup arguments
+	RPCSetArgument(&Request, 0, (__CONST void*)&Device, sizeof(UUId_t));
+	RPCSetArgument(&Request, 1, (__CONST void*)&Type, sizeof(UsbControllerType_t));
+	RPCSetArgument(&Request, 2, (__CONST void*)&Ports, sizeof(size_t));
+
+	// Send event, no response
+	return RPCEvent(&Request, __USBMANAGER_TARGET);
 }
 #endif
 
@@ -115,7 +139,8 @@ __EXTERN
 OsStatus_t
 SERVICEABI
 UsbControllerUnregister(
-	_In_ UUId_t Controller);
+	_In_ UUId_t Driver,
+	_In_ UUId_t Device);
 #else
 SERVICEAPI
 OsStatus_t
@@ -123,17 +148,33 @@ SERVICEABI
 UsbControllerUnregister(
 	_In_ UUId_t Device)
 {
+	// Variables
+	MRemoteCall_t Rpc;
 
+	// Initialize RPC
+	RPCInitialize(&Request, __USBMANAGER_INTERFACE_VERSION,
+		PIPE_RPCOUT, __USBMANAGER_UNREGISTERCONTROLLER);
+
+	// Setup arguments
+	RPCSetArgument(&Request, 0, (__CONST void*)&Device, sizeof(UUId_t));
+
+	// Send event, no response
+	return RPCEvent(&Request, __USBMANAGER_TARGET);
 }
 #endif
 
-/* UsbEventPort */
+/* UsbEventPort 
+ * Fired by a usbhost controller driver whenever there is a change
+ * in port-status. The port-status is then queried automatically by
+ * the usbmanager. */
 #ifdef __USBMANAGER_IMPL
 __EXTERN
 OsStatus_t
 SERVICEABI
 UsbEventPort(
-	_In_ UUId_t Controller);
+	_In_ UUId_t Driver,
+	_In_ UUId_t Device,
+	_In_ int Index);
 #else
 SERVICEAPI
 OsStatus_t
@@ -142,7 +183,19 @@ UsbEventPort(
 	_In_ UUId_t Device,
 	_In_ int Index)
 {
+	// Variables
+	MRemoteCall_t Rpc;
 
+	// Initialize RPC
+	RPCInitialize(&Request, __USBMANAGER_INTERFACE_VERSION,
+		PIPE_RPCOUT, __USBMANAGER_PORTEVENT);
+
+	// Setup arguments
+	RPCSetArgument(&Request, 0, (__CONST void*)&Device, sizeof(UUId_t));
+	RPCSetArgument(&Request, 1, (__CONST void*)&Index, sizeof(int));
+
+	// Send event, no response
+	return RPCEvent(&Request, __USBMANAGER_TARGET);
 }
 #endif
 
