@@ -156,7 +156,7 @@ OhciEdAllocate(
 	_CRT_UNUSED(Type);
 
 	// Lock access to the queue
-	SpinlockAcquire(&Controller->Lock);
+	SpinlockAcquire(&Controller->Base.Lock);
 
 	// Now, we usually allocated new endpoints for interrupts
 	// and isoc, but it doesn't make sense for us as we keep one
@@ -180,7 +180,7 @@ OhciEdAllocate(
 	
 
 	// Release the lock, let others pass
-	SpinlockRelease(&Controller->Lock);
+	SpinlockRelease(&Controller->Base.Lock);
 	return Ed;
 }
 
@@ -200,7 +200,7 @@ OhciTdAllocate(
 	_CRT_UNUSED(Type);
 
 	// Lock access to the queue
-	SpinlockAcquire(&Controller->Lock);
+	SpinlockAcquire(&Controller->Base.Lock);
 
 	// Now, we usually allocated new descriptors for interrupts
 	// and isoc, but it doesn't make sense for us as we keep one
@@ -233,7 +233,7 @@ OhciTdAllocate(
 	}
 
 	// Release the lock, let others pass
-	SpinlockRelease(&Controller->Lock);
+	SpinlockRelease(&Controller->Base.Lock);
 	return Td;
 }
 
@@ -834,7 +834,7 @@ OhciProcessDoneQueue(
 						// Notify process of transfer of the status
 						if (Transfer->Transfer.UpdatesOn) {
 							InterruptDriver(Transfer->Requester, 
-								Transfer->Transfer.PeriodicData);
+								(void*)Transfer->Transfer.PeriodicData);
 						}
 
 						// Restart endpoint

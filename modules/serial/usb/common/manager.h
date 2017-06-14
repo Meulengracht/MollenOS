@@ -33,6 +33,13 @@
 #include <os/osdefs.h>
 #include <ds/list.h>
 
+/* UsbManagerEndpoint 
+ * Keeps track of the active endpoints for a controller. */
+typedef struct _UsbManagerEndpoint {
+	UUId_t					Pipe;
+	int 					Toggle;
+} UsbManagerEndpoint_t;
+
 /* UsbManagerController
  * Describes a generic controller with information needed
  * in order for the manager to function */
@@ -45,6 +52,7 @@ typedef struct _UsbManagerController {
 	DeviceIoSpace_t			*IoBase;
 	UsbControllerType_t		 Type;
 	size_t					 PortCount;
+	List_t					*Endpoints;
 } UsbManagerController_t;
 
 /* UsbManagerTransfer
@@ -131,7 +139,7 @@ UsbManagerGetToggle(
 /* UsbManagetSetToggle 
  * Updates the toggle status for a given pipe */
 __EXTERN
-void
+OsStatus_t
 UsbManagerSetToggle(
 	_In_ UUId_t Device,
 	_In_ UUId_t Pipe,

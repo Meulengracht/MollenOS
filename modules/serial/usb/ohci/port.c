@@ -104,7 +104,7 @@ OhciPortInitialize(
 	}
 
 	// Run usb port event
-	return UsbEventPort(Controller->Id, Index);
+	return UsbEventPort(Controller->Base.Id, Index);
 }
 
 /* OhciPortGetStatus 
@@ -164,7 +164,7 @@ OhciPortCheck(
 		}
 
 		// Send out an event
-		UsbEventPort(Controller->Id, Index);
+		UsbEventPort(Controller->Base.Id, Index);
 	}
 
 	// Clear connection event
@@ -203,7 +203,7 @@ OhciPortsCheck(
 	int i;
 
 	// Iterate ports and check for changes
-	for (i = 0; i < (int)(Controller->PortCount); i++) {
+	for (i = 0; i < (int)(Controller->Base.PortCount); i++) {
 		OhciPortCheck(Controller, i);
 	}
 

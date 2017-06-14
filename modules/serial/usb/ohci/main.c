@@ -205,6 +205,7 @@ OnInterrupt(
 	// This occurs on disconnect/connect events
 	if (InterruptStatus & OHCI_INTR_ROOTHUB_EVENT) {
 		// PortCheck
+		OhciPortsCheck(Controller);
 
 		// Acknowledge
 		Controller->Registers->HcInterruptStatus = OHCI_INTR_ROOTHUB_EVENT;
@@ -293,7 +294,7 @@ OsStatus_t OnRegister(MCoreDevice_t *Device)
 	}
 
 	// Done - Register with service
-	return UsbManagerCreateController(Controller);
+	return UsbManagerCreateController(&Controller->Base);
 }
 
 /* OnUnregister
@@ -305,7 +306,7 @@ OsStatus_t OnUnregister(MCoreDevice_t *Device)
 	OhciController_t *Controller = NULL;
 	
 	// Lookup controller
-	Controller = UsbManagerGetController(Device->Id);
+	Controller = (OhciController_t*)UsbManagerGetController(Device->Id);
 
 	// Sanitize lookup
 	if (Controller == NULL) {
@@ -313,7 +314,7 @@ OsStatus_t OnUnregister(MCoreDevice_t *Device)
 	}
 
 	// Unregister, then destroy
-	UsbManagerDestroyController(Controller);
+	UsbManagerDestroyController(&Controller->Base);
 
 	// Destroy it
 	return OhciControllerDestroy(Controller);
@@ -343,7 +344,7 @@ OnQuery(_In_ MContractType_t QueryType,
 	Pipe = (UUId_t)Arg1->Data.Value;
 	
 	// Lookup controller
-	Controller = UsbManagerGetController(Device);
+	Controller = (OhciController_t*)UsbManagerGetController(Device);
 
 	// Sanitize we have a controller
 	if (Controller == NULL) {

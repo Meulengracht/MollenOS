@@ -140,12 +140,27 @@ OsStatus_t
 UsbManagerDestroyController(
 	_In_ UsbManagerController_t *Controller)
 {
+	// Variables
+	ListNode_t *cNode = NULL;
+	DataKey_t Key;
+
+	// Update key with deviceid
+	Key.Value = (int)Controller->Device.Id;
+
 	// Unregister controller with usbmanager service
 	if (UsbControllerUnregister(Controller->Device.Id) != OsSuccess) {
 		return OsError;
 	}
 
 	// Remove from list
+	cNode = ListGetNodeByKey(__GlbControllers, Key, 0);
+	if (cNode != NULL) {
+		ListUnlinkNode(__GlbControllers, cNode);
+		return ListDestroyNode(__GlbControllers, cNode);
+	}
+
+	// Didn't exist
+	return OsError;
 }
 
 /* UsbManagerGetController 
@@ -175,16 +190,105 @@ UsbManagerGetToggle(
 	_In_ UUId_t Device,
 	_In_ UUId_t Pipe)
 {
+	// Variables
+	DataKey_t Key;
 
+	// Set key
+	Key.Value = (int)Pipe;
+
+	// Iterate list of controllers
+	foreach(cNode, __GlbControllers) {
+		// Cast data of node to our type
+		UsbManagerController_t *Controller = 
+			(UsbManagerController_t*)cNode->Data;
+		if (Controller->Device.Id == Device) {
+			// Locate the correct endpoint
+			foreach(eNode, Controller->Endpoints) {
+				// Cast data again
+				UsbManagerEndpoint_t *Endpoint =
+					(UsbManagerEndpoint_t*)eNode->Data;
+				if (Endpoint->Pipe == Pipe) {
+					return Endpoint->Toggle;
+				}
+			}
+		}
+	}
+
+	// Not found, create a new endpoint with toggle 0
+	// Iterate list of controllers
+	_foreach(cNode, __GlbControllers) {
+		// Cast data of node to our type
+		UsbManagerController_t *Controller = 
+			(UsbManagerController_t*)cNode->Data;
+		if (Controller->Device.Id == Device) {
+			// Create the endpoint
+			UsbManagerEndpoint_t *Endpoint = NULL;
+			Endpoint = (UsbManagerEndpoint_t*)malloc(sizeof(UsbManagerEndpoint_t));
+			Endpoint->Pipe = Pipe;
+			Endpoint->Toggle = 0;
+
+			// Add it to the list
+			ListAppend(Controller->Endpoints, 
+				ListCreateNode(Key, Key, Endpoint));
+		}
+	}
+
+	// Done - return 0
+	return 0;
 }
 
 /* UsbManagetSetToggle 
  * Updates the toggle status for a given pipe */
-void
+OsStatus_t
 UsbManagerSetToggle(
 	_In_ UUId_t Device,
 	_In_ UUId_t Pipe,
 	_In_ int Toggle)
 {
+	// Variables
+	DataKey_t Key;
 
+	// Set key
+	Key.Value = (int)Pipe;
+
+	// Iterate list of controllers
+	foreach(cNode, __GlbControllers) {
+		// Cast data of node to our type
+		UsbManagerController_t *Controller = 
+			(UsbManagerController_t*)cNode->Data;
+		if (Controller->Device.Id == Device) {
+			// Locate the correct endpoint
+			foreach(eNode, Controller->Endpoints) {
+				// Cast data again
+				UsbManagerEndpoint_t *Endpoint =
+					(UsbManagerEndpoint_t*)eNode->Data;
+				if (Endpoint->Pipe == Pipe) {
+					Endpoint->Toggle = Toggle;
+					return OsSuccess;
+				}
+			}
+		}
+	}
+
+	// Not found, create a new endpoint with given toggle
+	// Iterate list of controllers
+	_foreach(cNode, __GlbControllers) {
+		// Cast data of node to our type
+		UsbManagerController_t *Controller = 
+			(UsbManagerController_t*)cNode->Data;
+		if (Controller->Device.Id == Device) {
+			// Create the endpoint
+			UsbManagerEndpoint_t *Endpoint = NULL;
+			Endpoint = (UsbManagerEndpoint_t*)malloc(sizeof(UsbManagerEndpoint_t));
+			Endpoint->Pipe = Pipe;
+			Endpoint->Toggle = Toggle;
+
+			// Add it to the list
+			return ListAppend(Controller->Endpoints, 
+				ListCreateNode(Key, Key, Endpoint));
+		}
+	}
+
+	// Fail
+	return OsError;
 }

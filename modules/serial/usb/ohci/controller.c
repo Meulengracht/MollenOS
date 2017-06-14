@@ -64,18 +64,18 @@ OhciControllerCreate(
 	// Allocate a new instance of the controller
 	Controller = (OhciController_t*)malloc(sizeof(OhciController_t));
 	memset(Controller, 0, sizeof(OhciController_t));
-	memcpy(&Controller->Device, Device, sizeof(MCoreDevice_t));
+	memcpy(&Controller->Base.Device, Device, sizeof(MCoreDevice_t));
 
 	// Fill in some basic stuff needed for init
-	Controller->Contract.DeviceId = Controller->Device.Id;
-	SpinlockReset(&Controller->Lock);
+	Controller->Base.Contract.DeviceId = Controller->Base.Device.Id;
+	SpinlockReset(&Controller->Base.Lock);
 
 	// Get I/O Base, and for OHCI it'll be the first address we encounter
 	// of type MMIO
 	for (i = 0; i < __DEVICEMANAGER_MAX_IOSPACES; i++) {
-		if (Controller->Device.IoSpaces[i].Size != 0
-			&& Controller->Device.IoSpaces[i].Type == IO_SPACE_MMIO) {
-			IoBase = &Controller->Device.IoSpaces[i];
+		if (Controller->Base.Device.IoSpaces[i].Size != 0
+			&& Controller->Base.Device.IoSpaces[i].Type == IO_SPACE_MMIO) {
+			IoBase = &Controller->Base.Device.IoSpaces[i];
 			break;
 		}
 	}
@@ -100,11 +100,11 @@ OhciControllerCreate(
 	}
 	else {
 		// Store information
-		Controller->IoBase = IoBase;
+		Controller->Base.IoBase = IoBase;
 	}
 
 	// Start out by initializing the contract
-	InitializeContract(&Controller->Contract, Controller->Contract.DeviceId, 1,
+	InitializeContract(&Controller->Base.Contract, Controller->Base.Contract.DeviceId, 1,
 		ContractController, "OHCI Controller Interface");
 
 	// Trace
@@ -115,33 +115,36 @@ OhciControllerCreate(
 		(OhciRegisters_t*)IoBase->VirtualBase;
 
 	// Initialize the interrupt settings
-	Controller->Device.Interrupt.FastHandler = OnInterrupt;
-	Controller->Device.Interrupt.Data = Controller;
+	Controller->Base.Device.Interrupt.FastHandler = OnInterrupt;
+	Controller->Base.Device.Interrupt.Data = Controller;
 
 	// Register contract before interrupt
-	if (RegisterContract(&Controller->Contract) != OsSuccess) {
+	if (RegisterContract(&Controller->Base.Contract) != OsSuccess) {
 		ERROR("Failed to register contract for ohci-controller");
-		ReleaseIoSpace(Controller->IoBase);
-		DestroyIoSpace(Controller->IoBase->Id);
+		ReleaseIoSpace(Controller->Base.IoBase);
+		DestroyIoSpace(Controller->Base.IoBase->Id);
 		free(Controller);
 		return NULL;
 	}
 
 	// Register interrupt
-	Controller->Interrupt =
-		RegisterInterruptSource(&Controller->Device.Interrupt, INTERRUPT_FAST);
+	Controller->Base.Interrupt =
+		RegisterInterruptSource(&Controller->Base.Device.Interrupt, INTERRUPT_FAST);
 
 	// Enable device
-	if (IoctlDevice(Controller->Device.Id, __DEVICEMANAGER_IOCTL_BUS,
+	if (IoctlDevice(Controller->Base.Device.Id, __DEVICEMANAGER_IOCTL_BUS,
 		(__DEVICEMANAGER_IOCTL_ENABLE | __DEVICEMANAGER_IOCTL_MMIO_ENABLE
 			| __DEVICEMANAGER_IOCTL_BUSMASTER_ENABLE)) != OsSuccess) {
 		ERROR("Failed to enable the ohci-controller");
-		UnregisterInterruptSource(Controller->Interrupt);
-		ReleaseIoSpace(Controller->IoBase);
-		DestroyIoSpace(Controller->IoBase->Id);
+		UnregisterInterruptSource(Controller->Base.Interrupt);
+		ReleaseIoSpace(Controller->Base.IoBase);
+		DestroyIoSpace(Controller->Base.IoBase->Id);
 		free(Controller);
 		return NULL;
 	}
+
+	// Allocate a list of endpoints
+	Controller->Base.Endpoints = ListCreate(KeyInteger, LIST_SAFE);
 
 	// Now that all formalities has been taken care
 	// off we can actually setup controller
@@ -170,11 +173,14 @@ OhciControllerDestroy(
 	}
 
 	// Unregister the interrupt
-	UnregisterInterruptSource(Controller->Interrupt);
+	UnregisterInterruptSource(Controller->Base.Interrupt);
 
 	// Release the io-space
-	ReleaseIoSpace(Controller->IoBase);
-	DestroyIoSpace(Controller->IoBase->Id);
+	ReleaseIoSpace(Controller->Base.IoBase);
+	DestroyIoSpace(Controller->Base.IoBase->Id);
+
+	// Free the list of endpoints
+	ListDestroy(Controller->Base.Endpoints);
 
 	// Free the controller structure
 	free(Controller);
@@ -425,9 +431,9 @@ OhciSetup(
 	}
 
 	// Get Port count from (DescriptorA & 0x7F)
-	Controller->PortCount = Controller->Registers->HcRhDescriptorA & 0x7F;
-	if (Controller->PortCount > OHCI_MAXPORTS) {
-		Controller->PortCount = OHCI_MAXPORTS;
+	Controller->Base.PortCount = Controller->Registers->HcRhDescriptorA & 0x7F;
+	if (Controller->Base.PortCount > OHCI_MAXPORTS) {
+		Controller->Base.PortCount = OHCI_MAXPORTS;
 	}
 
 	// Clear RhA
@@ -459,7 +465,7 @@ OhciSetup(
 	Controller->Registers->HcInterruptEnable = OHCI_INTR_ROOTHUB_EVENT;
 
 	// Enumerate the ports
-	for (i = 0; i < (int)Controller->PortCount; i++) {
+	for (i = 0; i < (int)Controller->Base.PortCount; i++) {
 		// If power has been disabled, enable it
 		if (!(Controller->Registers->HcRhPortStatus[i] & OHCI_PORT_POWER)) {
 			Controller->Registers->HcRhPortStatus[i] = OHCI_PORT_POWER;

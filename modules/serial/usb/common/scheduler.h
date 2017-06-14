@@ -26,6 +26,8 @@
 
 /* Includes
  * - Library */
+#include <os/driver/contracts/usbhost.h>
+#include <os/spinlock.h>
 #include <os/osdefs.h>
 #include <os/driver/usb.h>
 
@@ -43,12 +45,10 @@
 #define BW_HOST_DELAY   1000L
 #define BW_HUB_LS_SETUP 333L
 
-/*
-* Ceiling [nano/micro]seconds (typical) for that many bytes at high speed
-* ISO is a bit less, no ACK ... from USB 2.0 spec, 5.11.3 (and needed
-* to preallocate bandwidth)
-*/
-#define USB2_HOST_DELAY 5       /* nsec, guess */
+/* Ceiling [nano/micro]seconds (typical) for that many bytes at high speed
+ * ISO is a bit less, no ACK ... from USB 2.0 spec, 5.11.3 (and needed
+ * to preallocate bandwidth) */
+#define USB2_HOST_DELAY 5       // nsec, guess
 #define HS_NSECS(bytes) (((55 * 8 * 2083) \
         + (2083UL * (3 + BitTime(bytes))))/1000 \
         + USB2_HOST_DELAY)
@@ -58,31 +58,85 @@
 #define HS_USECS(bytes)         NS_TO_US(HS_NSECS(bytes))
 #define HS_USECS_ISO(bytes)     NS_TO_US(HS_NSECS_ISO(bytes))
 
-/* Structures */
+/* UsbScheduler
+ * Contains information neccessary to keep track of scheduling
+ * bandwidths and which frames are occupied. As generic as possible
+ * to be usuable by all controllers */
 typedef struct _UsbScheduler {
-	size_t Size;
-	size_t MaskSize;
-	size_t MaxBandwidth;
-	size_t MaxMaskBandwidth;
-	size_t TotalBandwidth;
-	size_t *Frames;
-	Spinlock_t Lock;
+	size_t					 Size;
+	size_t 					 MaskSize;
+	size_t 					 MaxBandwidth;
+	size_t 					 MaxMaskBandwidth;
+	size_t 					 TotalBandwidth;
+	size_t 					*Frames;
+	Spinlock_t 				 Lock;
 } UsbScheduler_t;
 
-/* Init, Destruct, set mask size 
- * General Setup */
-UsbScheduler_t *UsbSchedulerInit(size_t Size, size_t MaxBandwidth, size_t MaskSize);
-void UsbSchedulerDestroy(UsbScheduler_t *Schedule);
+/* UsbSchedulerInitialize 
+ * Initializes a new instance of a scheduler that can be used to
+ * keep track of controller bandwidth and which frames are active.
+ * MaxBandwidth is usually either 800 or 900. */
+__EXTERN
+UsbScheduler_t*
+UsbSchedulerInitialize(
+	_In_ size_t Size,
+	_In_ size_t MaxBandwidth,
+	_In_ size_t MaskSize);
 
-/* This function calculates the approx time a transfer 
+/* UsbSchedulerDestroy 
+ * Cleans up any resources allocated by the scheduler */
+__EXTERN
+OsStatus_t
+UsbSchedulerDestroy(
+	_In_ UsbScheduler_t *Schedule);
+
+/* UsbCalculateBandwidth
+ * This function calculates the approx time a transfer 
  * needs to spend on the bus in NS. */
-long UsbCalculateBandwidth(UsbSpeed_t Speed, int Direction, UsbTransferType_t Type, size_t Length);
+__EXTERN
+long
+UsbCalculateBandwidth(
+	_In_ UsbSpeed_t Speed, 
+	_In_ int Direction,
+	_In_ UsbTransferType_t Type,
+	_In_ size_t Length);
 
-/* The actual meat of the scheduling */
-int UsbSchedulerValidate(UsbScheduler_t *Schedule, size_t Period, size_t Bandwidth, size_t TransferCount);
-int UsbSchedulerReserveBandwidth(UsbScheduler_t *Schedule, size_t Period, size_t Bandwidth, 
-												size_t TransferCount, size_t *StartFrame, size_t *FrameMask);
-int UsbSchedulerReleaseBandwidth(UsbScheduler_t *Schedule, size_t Period, 
-												size_t Bandwidth, size_t StartFrame, size_t FrameMask);
+/* UsbSchedulerValidate
+ * This function makes sure there is enough 
+ * room for the requested bandwidth 
+ * Period => Is the actual frequency we want it occuring in ms
+ * Bandwidth => Is the NS required for allocation */
+__EXTERN
+OsStatus_t
+UsbSchedulerValidate(
+	_In_ UsbScheduler_t *Schedule,
+	_In_ size_t Period,
+	_In_ size_t Bandwidth,
+	_In_ size_t TransferCount);
+
+/* UsbSchedulerReserveBandwidth
+ * This function actually makes the reservation 
+ * Validate Bandwith should have been called first */
+__EXTERN
+OsStatus_t
+UsbSchedulerReserveBandwidth(
+	_In_ UsbScheduler_t *Schedule, 
+	_In_ size_t Period, 
+	_In_ size_t Bandwidth, 
+	_In_ size_t TransferCount,
+	_Out_ size_t *StartFrame,
+	_Out_ size_t *FrameMask);
+
+/* UsbSchedulerReleaseBandwidth 
+ * Release the given amount of bandwidth, the StartFrame and FrameMask must
+ * be obtained from the ReserveBandwidth function */
+__EXTERN
+OsStatus_t
+UsbSchedulerReleaseBandwidth(
+	_In_ UsbScheduler_t *Schedule, 
+	_In_ size_t Period, 
+	_In_ size_t Bandwidth, 
+	_In_ size_t StartFrame, 
+	_In_ size_t FrameMask);
 
 #endif //!__USB_SCHEDULER__

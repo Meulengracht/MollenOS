@@ -139,7 +139,7 @@ SERVICEAPI
 OsStatus_t
 SERVICEABI
 UsbEventPort(
-	_In_ UUId_t Controller,
+	_In_ UUId_t Device,
 	_In_ int Index)
 {
 

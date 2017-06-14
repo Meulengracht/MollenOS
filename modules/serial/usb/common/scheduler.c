@@ -34,224 +34,238 @@
 #include <stddef.h>
 #include <stdlib.h>
 
-/* Initializor 
- * Instantiates a new scheduler with the given size
- * and max-bandwidth per period 
- * MaxBandwidth is usually either 800 or 900 */
+/* UsbSchedulerInitialize 
+ * Initializes a new instance of a scheduler that can be used to
+ * keep track of controller bandwidth and which frames are active.
+ * MaxBandwidth is usually either 800 or 900. */
 UsbScheduler_t*
-UsbSchedulerInit(size_t Size, size_t MaxBandwidth, size_t MaskSize)
+UsbSchedulerInitialize(
+	_In_ size_t Size,
+	_In_ size_t MaxBandwidth,
+	_In_ size_t MaskSize)
 {
-	/* Allocate a new instance 
-	 * and zero it out */
-	UsbScheduler_t *Schedule = (UsbScheduler_t*)kmalloc(sizeof(UsbScheduler_t));
+	// Variables
+	UsbScheduler_t *Schedule = NULL;
+
+	// Allocate a new instance and zero it out
+	Schedule = (UsbScheduler_t*)malloc(sizeof(UsbScheduler_t));
 	memset(Schedule, 0, sizeof(UsbScheduler_t));
 
-	/* Sanity, if mask size is not 1 
-	 * we must allow for even more 
-	 * to allow both an 'overview' and their submembers */
-	if (MaskSize != 1)
+	// Sanity, if mask size is not 1 we must allow for even more 
+	// to allow both an 'overview' and their submembers
+	if (MaskSize != 1) {
 		MaskSize++;
+	}
 
-	/* Set members */
+	// Set initial members of the scheduler
 	Schedule->Size = Size * MaskSize;
 	Schedule->MaskSize = MaskSize;
 	Schedule->MaxBandwidth = MaxBandwidth;
-
-	/* Sanity */
-	if (MaskSize != 1)
-		Schedule->MaxMaskBandwidth = (MaxBandwidth * (MaskSize - 1));
-	else
-		Schedule->MaxMaskBandwidth = MaxBandwidth;
-	
-	/* Allocate frame list 
-	 * and make sure it's zero'd out */
-	Schedule->Frames = (size_t*)kmalloc(sizeof(size_t) * Schedule->Size);
-	memset(Schedule->Frames, 0, sizeof(size_t) * Schedule->Size);
-
-	/* Reset Lock */
 	SpinlockReset(&Schedule->Lock);
 
-	/* Done! */
+	// Adjust max-mask bandwidth based on masksize if set
+	if (MaskSize != 1) {
+		Schedule->MaxMaskBandwidth = (MaxBandwidth * (MaskSize - 1));
+	}
+	else {
+		Schedule->MaxMaskBandwidth = MaxBandwidth;
+	}
+	
+	// Allocate frame list 
+	// and make sure it's zero'd out
+	Schedule->Frames = (size_t*)malloc(sizeof(size_t) * Schedule->Size);
+	memset(Schedule->Frames, 0, sizeof(size_t) * Schedule->Size);
+
+	// Setup done
 	return Schedule;
 }
 
-/* Destructor 
- * Cleans up an usb-schedule */
-void UsbSchedulerDestroy(UsbScheduler_t *Schedule)
+/* UsbSchedulerDestroy 
+ * Cleans up any resources allocated by the scheduler */
+OsStatus_t
+UsbSchedulerDestroy(
+	_In_ UsbScheduler_t *Schedule)
 {
-	/* Free the frame list */
-	kfree(Schedule->Frames);
-
-	/* Free the base */
-	kfree(Schedule);
+	// Free the frame-list and the base structure
+	free(Schedule->Frames);
+	free(Schedule);
+	return OsSuccess;
 }
 
-/* Calculates bus-time in nano-seconds (approximately) */
-long UsbCalculateBandwidth(UsbSpeed_t Speed, int Direction, UsbTransferType_t Type, size_t Length)
+/* UsbCalculateBandwidth
+ * This function calculates the approx time a transfer 
+ * needs to spend on the bus in NS. */
+long
+UsbCalculateBandwidth(
+	_In_ UsbSpeed_t Speed, 
+	_In_ int Direction,
+	_In_ UsbTransferType_t Type,
+	_In_ size_t Length)
 {
-	/* Vars */
-	unsigned long Temp = 0;
+	// Variables
+	long Result = 0;
 
-	/* Depends on device speed */
+	// The bandwidth calculations are based entirely
+	// on the speed of the transfer
 	switch (Speed) {
 	case LowSpeed:
-		if (Direction == USB_EP_DIRECTION_IN) {
-			Temp = (67667L * (31L + 10L * BitTime(Length))) / 1000L;
-			return 64060L + (2 * BW_HUB_LS_SETUP) + BW_HOST_DELAY + Temp;
+		if (Direction == USB_ENDPOINT_IN) {
+			Result = (67667L * (31L + 10L * BitTime(Length))) / 1000L;
+			return 64060L + (2 * BW_HUB_LS_SETUP) + BW_HOST_DELAY + Result;
 		}
 		else {
-			Temp = (66700L * (31L + 10L * BitTime(Length))) / 1000L;
-			return 64107L + (2 * BW_HUB_LS_SETUP) + BW_HOST_DELAY + Temp;
+			Result = (66700L * (31L + 10L * BitTime(Length))) / 1000L;
+			return 64107L + (2 * BW_HUB_LS_SETUP) + BW_HOST_DELAY + Result;
 		}
 	case FullSpeed:
 		if (Type == IsochronousTransfer) {
-			Temp = (8354L * (31L + 10L * BitTime(Length))) / 1000L;
-			return ((Direction == USB_EP_DIRECTION_IN) ? 7268L : 6265L) + BW_HOST_DELAY + Temp;
+			Result = (8354L * (31L + 10L * BitTime(Length))) / 1000L;
+			return ((Direction == USB_ENDPOINT_IN) ? 7268L : 6265L) + BW_HOST_DELAY + Result;
 		}
 		else {
-			Temp = (8354L * (31L + 10L * BitTime(Length))) / 1000L;
-			return 9107L + BW_HOST_DELAY + Temp;
+			Result = (8354L * (31L + 10L * BitTime(Length))) / 1000L;
+			return 9107L + BW_HOST_DELAY + Result;
 		}
 	case SuperSpeed:
 	case HighSpeed:
 		if (Type == IsochronousTransfer)
-			Temp = HS_NSECS_ISO(Length);
+			Result = HS_NSECS_ISO(Length);
 		else
-			Temp = HS_NSECS(Length);
+			Result = HS_NSECS(Length);
 	}
 
-	/* Catch */
-	return Temp;
+	// Return the computed value
+	return Result;
 }
 
-/* Validate Bandwidth 
+/* UsbSchedulerValidate
  * This function makes sure there is enough 
  * room for the requested bandwidth 
  * Period => Is the actual frequency we want it occuring in ms
  * Bandwidth => Is the NS required for allocation */
-int UsbSchedulerValidate(UsbScheduler_t *Schedule, size_t Period, size_t Bandwidth, size_t TransferCount)
+OsStatus_t
+UsbSchedulerValidate(
+	_In_ UsbScheduler_t *Schedule,
+	_In_ size_t Period,
+	_In_ size_t Bandwidth,
+	_In_ size_t TransferCount)
 {
-	/* Vars */
+	// Variables
 	int Locked = 0;
 	size_t i, j;
 
-	/* Sanitize period */
+	// Sanitize some bounds for period
+	// to be considered if it should fail instead
 	if (Period == 0) Period = 1;
 	if (Period > Schedule->Size) Period = Schedule->Size;
 
-	/* Iterate requested period */
-	for (i = 0; i < Schedule->Size; )
-	{
-		/* Sanitize initial bandwidth */
-		if ((Schedule->Frames[i] + Bandwidth) > Schedule->MaxMaskBandwidth) 
-		{
-			/* Try to validate on uneven frames 
-			 * if period is not 1 */
-
-			/* Sanity */
-			if (Period == 1
-				|| Locked == 1)
-				return -1;
+	// Iterate the requested period and make sure
+	// there is actually room
+	for (i = 0; i < Schedule->Size; ) {
+		if ((Schedule->Frames[i] + Bandwidth) > Schedule->MaxMaskBandwidth) {
+			// Try to validate on uneven frames 
+			// if period is not 1
+			if (Period == 1 || Locked == 1) {
+				return OsError;
+			}
 			else {
 				i += (1 * Schedule->MaskSize);
 				continue;
 			}
 		}
 
-		/* Yay */
+		// We are now locked
 		Locked = 1;
 
-		/* For EHCI we must support bandwidth sizes 
-		 * instead of having a scheduler with multiple
-		 * levels, we have it flattened */
-		if (TransferCount > 1
-			&& Schedule->MaskSize > 1)
-		{
-			/* Vars 
-			 * We know the initial frame is free 
-			 * so we don't check it */
+		// For EHCI we must support bandwidth sizes 
+		// instead of having a scheduler with multiple
+		// levels, we have it flattened
+		if (TransferCount > 1 && Schedule->MaskSize > 1) {
+			// We know the initial frame is free 
+			// so we don't check it
 			size_t FreeFrames = 1;
 
-			/* Find space in 'sub' schedule */
+			// Find space in 'sub' schedule
 			for (j = 1; j < Schedule->MaskSize; j++) {
-				/* Validate Bandwidth on this mask */
-				if ((Schedule->Frames[i + j] + Bandwidth) <= Schedule->MaxBandwidth)
+				if ((Schedule->Frames[i + j] + Bandwidth) 
+						<= Schedule->MaxBandwidth) {
 					FreeFrames++;
+				}
 			}
 
-			/* Sanity */
-			if (TransferCount > FreeFrames)
-				return -1;
+			// Do we have enough free frames?
+			if (TransferCount > FreeFrames) {
+				return OsError;
+			}
 		}
 
-		/* Increase by period */
+		// Increase by period to get next index
 		i += (Period * Schedule->MaskSize);
 	}
 
-	/* Done */
-	return 0;
+	// Success
+	return OsSuccess;
 }
 
-/* Reservate Bandwidth 
+/* UsbSchedulerReserveBandwidth
  * This function actually makes the reservation 
  * Validate Bandwith should have been called first */
-int UsbSchedulerReserveBandwidth(UsbScheduler_t *Schedule, size_t Period, size_t Bandwidth, 
-	size_t TransferCount, size_t *StartFrame, size_t *FrameMask)
+OsStatus_t
+UsbSchedulerReserveBandwidth(
+	_In_ UsbScheduler_t *Schedule, 
+	_In_ size_t Period, 
+	_In_ size_t Bandwidth, 
+	_In_ size_t TransferCount,
+	_Out_ size_t *StartFrame,
+	_Out_ size_t *FrameMask)
 {
-	/* Vars */
+	// Variables
+	OsStatus_t Result = OsSuccess;
 	size_t sMask = 0, sFrame = 0;
-	int RetVal = 0;
 	size_t i, j;
 
-	/* Sanitize period */
+	// Sanitize some bounds for period
+	// to be considered if it should fail instead
 	if (Period == 0) Period = 1;
 	if (Period > Schedule->Size) Period = Schedule->Size;
 
-	/* Request lock */
+	// Acquire the lock, as we can't be interfered with
 	SpinlockAcquire(&Schedule->Lock);
 
-	/* Validate (With Lock)! */
+	// Validate the bandwidth again
 	if (UsbSchedulerValidate(Schedule, Period, Bandwidth, TransferCount)) {
-		RetVal = -1;
+		Result = OsError;
 		goto GoOut;
 	}
 
-	/* Iterate requested period */
-	for (i = 0; i < Schedule->Size; )
-	{
-		/* Sanitize initial bandwidth */
-		if ((Schedule->Frames[i] + Bandwidth) > Schedule->MaxMaskBandwidth)
-		{
-			/* Try to allocate on uneven frames
-			* if period is not 1 */
-
-			/* Sanity */
-			if (Period == 1
-				|| sFrame != 0)
-				return -1;
+	// Iterate the requested period and make sure
+	// there is actually room
+	for (i = 0; i < Schedule->Size; ) {
+		if ((Schedule->Frames[i] + Bandwidth) > Schedule->MaxMaskBandwidth) {
+			// Try to allocate on uneven frames
+			// if period is not 1
+			if (Period == 1 || sFrame != 0) {
+				Result = OsError;
+				goto GoOut;
+			}
 			else {
 				i += (1 * Schedule->MaskSize);
 				continue;
 			}
 		}
 
-		/* Lock this frame-period */
+		// Lock this frame-period
 		sFrame = i;
 
-		/* For EHCI we must support bandwidth sizes
-		* instead of having a scheduler with multiple
-		* levels, we have it flattened */
-		if (TransferCount > 1
-			&& Schedule->MaskSize > 1)
-		{
-			/* Either we create a mask
-			 * or we allocate a mask */
-			if (sMask == 0)
-			{
-				/* Vars */
+		// For EHCI we must support bandwidth sizes
+		// instead of having a scheduler with multiple
+		// levels, we have it flattened
+		if (TransferCount > 1 && Schedule->MaskSize > 1) {
+			// Either we create a mask
+			// or we allocate a mask
+			if (sMask == 0) {
 				int Counter = TransferCount;
-
-				/* Find space in 'sub' schedule */
+				// Find space in 'sub' schedule
 				for (j = 1; j < Schedule->MaskSize && Counter; j++) {
 					if ((Schedule->Frames[i + j] + Bandwidth) <= Schedule->MaxBandwidth) {
 						Schedule->Frames[i + j] += Bandwidth;
@@ -260,9 +274,8 @@ int UsbSchedulerReserveBandwidth(UsbScheduler_t *Schedule, size_t Period, size_t
 					}
 				}
 			}
-			else
-			{
-				/* Allocate bandwidth in 'sub' schedule */
+			else {
+				// Allocate bandwidth in 'sub' schedule
 				for (j = 1; j < Schedule->MaskSize; j++) {
 					if (sMask & (1 << j)) {
 						Schedule->Frames[i + j] += Bandwidth;
@@ -271,55 +284,59 @@ int UsbSchedulerReserveBandwidth(UsbScheduler_t *Schedule, size_t Period, size_t
 			}
 		}
 
-		/* Allocate outer */
+		// Increase bandwidth and update index by period
 		Schedule->Frames[i] += Bandwidth;
-
-		/* Increase by period */
 		i += (Period * Schedule->MaskSize);
 	}
 
 GoOut:
-	/* Release lock */
+	// Release the lock and save parameters
 	SpinlockRelease(&Schedule->Lock);
-
-	/* Save parameters */
-	if (StartFrame != NULL)
+	if (StartFrame != NULL) {
 		*StartFrame = sFrame;
-	if (FrameMask != NULL)
+	}
+	if (FrameMask != NULL) {
 		*FrameMask = sMask;
-
-	/* Done */
-	return RetVal;
+	}
+	
+	// Done
+	return Result;
 }
 
-/* Release Bandwidth */
-int UsbSchedulerReleaseBandwidth(UsbScheduler_t *Schedule, size_t Period, 
-	size_t Bandwidth, size_t StartFrame, size_t FrameMask)
+/* UsbSchedulerReleaseBandwidth 
+ * Release the given amount of bandwidth, the StartFrame and FrameMask must
+ * be obtained from the ReserveBandwidth function */
+OsStatus_t
+UsbSchedulerReleaseBandwidth(
+	_In_ UsbScheduler_t *Schedule, 
+	_In_ size_t Period, 
+	_In_ size_t Bandwidth, 
+	_In_ size_t StartFrame, 
+	_In_ size_t FrameMask)
 {
-	/* Vars */
-	int RetVal = 0;
+	// Variables
+	OsStatus_t Result = OsSuccess;
 	size_t i, j;
 
-	/* Sanitize period */
+	// Sanitize some bounds for period
+	// to be considered if it should fail instead
 	if (Period == 0) Period = 1;
 	if (Period > Schedule->Size) Period = Schedule->Size;
 
-	/* Request lock */
+	// Acquire the lock, as we can't be interfered with
 	SpinlockAcquire(&Schedule->Lock);
 
-	/* Iterate requested period */
-	for (i = StartFrame; i < Schedule->Size; i += (Period * Schedule->MaskSize))
-	{
-		/* Allocate outer */
+	// Iterate the requested period and make sure
+	// there is actually room
+	for (i = StartFrame; i < Schedule->Size; i += (Period * Schedule->MaskSize)) {
+		// Reduce allocated bandwidth
 		Schedule->Frames[i] -= MIN(Bandwidth, Schedule->Frames[i]);
 
-		/* For EHCI we must support bandwidth sizes
-		* instead of having a scheduler with multiple
-		* levels, we have it flattened */
-		if (FrameMask != 0
-			&& Schedule->MaskSize > 1)
-		{
-			/* Free bandwidth in 'sub' schedule */
+		// For EHCI we must support bandwidth sizes
+		// instead of having a scheduler with multiple
+		// levels, we have it flattened
+		if (FrameMask != 0 && Schedule->MaskSize > 1) {
+			// Free bandwidth in 'sub' schedule
 			for (j = 1; j < Schedule->MaskSize; j++) {
 				if (FrameMask & (1 << j)) {
 					Schedule->Frames[i + j] -= Bandwidth;
@@ -328,9 +345,7 @@ int UsbSchedulerReleaseBandwidth(UsbScheduler_t *Schedule, size_t Period,
 		}
 	}
 
-	/* Release lock */
+	// Release the lock and return
 	SpinlockRelease(&Schedule->Lock);
-
-	/* Done */
-	return RetVal;
+	return Result;
 }
