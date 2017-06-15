@@ -228,65 +228,6 @@ typedef struct _UsbHcRequest
 
 } UsbHcRequest_t;
 
-
-/* Controller Type */
-typedef enum _UsbControllerType
-{
-	OhciController,
-	UhciController,
-	EhciController,
-	XhciController
-
-} UsbControllerType_t;
-
-/* The Abstract Controller */
-typedef struct _UsbHc
-{
-	/* Controller Type */
-	UsbControllerType_t Type;
-
-	/* Controller Data */
-	void *Hc;
-
-	/* Controller Info */
-	size_t NumPorts;
-
-	/* Address Map 
-	 * 4 x 32 bits = 128 possible addresses
-	 * which match the max in usb-spec */
-	uint32_t AddressMap[4];
-
-	/* Transaction Split Behaviors */
-	size_t ControlOverride;
-	size_t BulkOverride;
-	size_t InterruptOverride;
-	size_t IsocOverride;
-
-	/* Ports */
-	UsbHcPort_t *Ports[USB_MAX_PORTS];
-
-	/* Port Functions */
-	void(*PortSetup)(void*, UsbHcPort_t*);
-	
-	/* Endpoint Functions */
-	void (*EndpointSetup)(void*, UsbHcEndpoint_t*);
-	void (*EndpointDestroy)(void*, UsbHcEndpoint_t*);
-
-	/* Callback Functions */
-	void (*RootHubCheck)(void*);
-	void (*Reset)(void*);
-	void (*Watchdog)(void*);
-
-	/* Transaction Functions */
-	void (*TransactionInit)(void*, UsbHcRequest_t*);
-	UsbHcTransaction_t *(*TransactionSetup)(void*, UsbHcRequest_t*, UsbPacket_t *Packet);
-	UsbHcTransaction_t *(*TransactionIn)(void*, UsbHcRequest_t*, void *Buffer, size_t Length);
-	UsbHcTransaction_t *(*TransactionOut)(void*, UsbHcRequest_t*, void *Buffer, size_t Length);
-	void (*TransactionSend)(void*, UsbHcRequest_t*);
-	void (*TransactionDestroy)(void*, UsbHcRequest_t*);
-
-} UsbHc_t;
-
 /* Usb Event Types */
 typedef enum _UsbEventType
 {

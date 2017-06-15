@@ -115,7 +115,7 @@ UsbControllerRegister(
 	_In_ size_t Ports)
 {
 	// Variables
-	MRemoteCall_t Rpc;
+	MRemoteCall_t Request;
 
 	// Initialize RPC
 	RPCInitialize(&Request, __USBMANAGER_INTERFACE_VERSION,
@@ -149,7 +149,7 @@ UsbControllerUnregister(
 	_In_ UUId_t Device)
 {
 	// Variables
-	MRemoteCall_t Rpc;
+	MRemoteCall_t Request;
 
 	// Initialize RPC
 	RPCInitialize(&Request, __USBMANAGER_INTERFACE_VERSION,
@@ -184,7 +184,7 @@ UsbEventPort(
 	_In_ int Index)
 {
 	// Variables
-	MRemoteCall_t Rpc;
+	MRemoteCall_t Request;
 
 	// Initialize RPC
 	RPCInitialize(&Request, __USBMANAGER_INTERFACE_VERSION,

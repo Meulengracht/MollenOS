@@ -36,6 +36,7 @@
 #define __USBHOST_QUEUETRANSFER		IPC_DECL_FUNCTION(0)
 #define __USBHOST_QUEUEPERIODIC		IPC_DECL_FUNCTION(1)
 #define __USBHOST_DEQUEUEPERIODIC	IPC_DECL_FUNCTION(2)
+#define __USBHOST_QUERYPORT			IPC_DECL_FUNCTION(3)
 
 /* UsbTransactionType 
  * Describes the possible types of usb transactions */
@@ -187,6 +188,32 @@ UsbDequeuePeriodic(
 		&Device, sizeof(UUId_t), 
 		&TransferId, sizeof(UUId_t), 
 		NULL, 0, &Result, sizeof(OsStatus_t));
+}
+
+/* UsbHostQueryPort 
+ * Queries the port-descriptor of host-controller port. */
+ SERVICEAPI
+OsStatus_t
+SERVICEABI
+UsbHostQueryPort(
+	_In_ UUId_t Driver,
+	_In_ UUId_t Device,
+	_In_ int Index,
+	_Out_ UsbHcPortDescriptor_t *Descriptor)
+{
+	// Variables
+	MContract_t Contract;
+
+	// Setup contract stuff for request
+	Contract.DriverId = Driver;
+	Contract.Type = ContractController;
+	Contract.Version = __USBMANAGER_INTERFACE_VERSION;
+
+	// Query the driver directly
+	return QueryDriver(&Contract, __USBHOST_QUERYPORT,
+		&Device, sizeof(UUId_t), 
+		&Index, sizeof(int), NULL, 0, 
+		Descriptor, sizeof(UsbHcPortDescriptor_t));
 }
 
 #endif //!_CONTRACT_USBHOST_INTERFACE_H_

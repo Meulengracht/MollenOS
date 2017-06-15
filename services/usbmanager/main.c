@@ -24,35 +24,81 @@
 /* Includes
  * - System */
 #include <os/driver/usb.h>
+#include "manager.h"
 
 /* OnLoad
  * The entry-point of a server, this is called
  * as soon as the server is loaded in the system */
-OsStatus_t OnLoad(void)
+OsStatus_t
+OnLoad(void)
 {
-
+	// Initialize core-systems
+	return UsbCoreInitialize();
 }
 
 /* OnUnload
  * This is called when the server is being unloaded
  * and should free all resources allocated by the system */
-OsStatus_t OnUnload(void)
+OsStatus_t
+OnUnload(void)
 {
-
+	// Destroy core-systems and let them cleanup
+	return UsbCoreDestroy();
 }
 
 /* OnEvent
  * This is called when the server recieved an external evnet
  * and should handle the given event*/
-OsStatus_t OnEvent(MRemoteCall_t *Message)
+OsStatus_t
+OnEvent(
+	_In_ MRemoteCall_t *Message)
 {
 	// Variables
 	OsStatus_t Result = OsSuccess;
 
 	// Which function is called?
-	switch (Message->Function)
-	{
+	switch (Message->Function) {
+		case __USBMANAGER_REGISTERCONTROLLER: {
+			// Variables
 
+			// Extract them from message
+
+			// Register controller
+			return UsbControllerRegister(Message->Sender, 
+				0, 0, 0);
+		} break;
+
+		case __USBMANAGER_UNREGISTERCONTROLLER: {
+			// Variables
+
+			// Extract them from message
+
+			// Unregister controller
+			return UsbControllerUnregister(Message->Sender, 0);
+		} break;
+
+		case __USBMANAGER_QUERYCONTROLLERS: {
+			// Variables
+
+			// Extract them from message
+
+			// Query all existing controllers
+
+			// Send response
+		} break;
+
+		case __USBMANAGER_PORTEVENT: {
+			// Variables
+
+			// Extract them from message
+
+			// Handle port event
+			return UsbEventPort(Message->Sender, 0, 0);
+		} break;
+
+		// Don't handle anything else tbh
+		default:
+			break;
 	}
 
 	// Done

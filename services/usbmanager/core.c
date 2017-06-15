@@ -1,187 +1,164 @@
 /* MollenOS
-*
-* Copyright 2011 - 2016, Philip Meulengracht
-*
-* This program is free software : you can redistribute it and / or modify
-* it under the terms of the GNU General Public License as published by
-* the Free Software Foundation ? , either version 3 of the License, or
-* (at your option) any later version.
-*
-* This program is distributed in the hope that it will be useful,
-* but WITHOUT ANY WARRANTY; without even the implied warranty of
-* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.See the
-* GNU General Public License for more details.
-*
-* You should have received a copy of the GNU General Public License
-* along with this program.If not, see <http://www.gnu.org/licenses/>.
-*
-*
-* MollenOS USB Core Driver
-*/
+ *
+ * Copyright 2011 - 2017, Philip Meulengracht
+ *
+ * This program is free software : you can redistribute it and / or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation ? , either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.If not, see <http://www.gnu.org/licenses/>.
+ *
+ *
+ * MollenOS Service - Usb Manager
+ * - Contains the implementation of the usb-manager which keeps track
+ *   of all usb-controllers and their devices
+ */
 
-/* Includes */
-#include <UsbCore.h>
-#include <Module.h>
+/* Includes 
+ * - System */
+#include "manager.h"
 
-/* Kernel */
-#include <Threading.h>
-#include <Timers.h>
-#include <Semaphore.h>
-#include <Heap.h>
-#include <Log.h>
+/* Includes
+ * - Library */
+#include <stddef.h>
 
-/* Drivers */
-#include <UsbHid.h>
-#include <UsbMsd.h>
+/* Globals 
+ * To keep track of all data since system startup */
+static List_t *GlbUsbControllers = NULL;
+static List_t *GlbUsbDevices = NULL;
 
-/* CLib */
-#include <ds/list.h>
-#include <string.h>
-
-/* Globals */
-List_t *GlbUsbControllers = NULL;
-List_t *GlbUsbDevices = NULL;
-List_t *GlbUsbEvents = NULL;
-Semaphore_t *GlbEventLock = NULL;
-volatile int GlbUsbInitialized = 0;
-volatile int GlbUsbControllerId = 0;
-
-/* Prototypes */
-void UsbWatchdog(void*);
-void UsbEventHandler(void*);
-void UsbDeviceSetup(UsbHc_t *Hc, int Port);
-void UsbDeviceDestroy(UsbHc_t *Hc, int Port);
-UsbHcPort_t *UsbPortCreate(int Port);
-
-/* Entry point of a module */
-MODULES_API void ModuleInit(void *Data)
+/* UsbReserveAddress 
+ * Iterate all 128 addresses in an controller and find one not allocated */
+OsStatus_t
+UsbReserveAddress(
+	_In_ UsbController_t *Controller,
+	_Out_ int *Address)
 {
-	/* Save */
-	_CRT_UNUSED(Data);
+	// We find the first free bit in map
+	int Itr = 0, Jtr = 0;
 
-	/* Init */
-	GlbUsbInitialized = 1;
-	GlbUsbDevices = ListCreate(KeyInteger, LIST_SAFE);
-	GlbUsbControllers = ListCreate(KeyInteger, LIST_SAFE);
-	GlbUsbEvents = ListCreate(KeyInteger, LIST_SAFE);
-	GlbUsbControllerId = 0;
-
-	/* Initialize Event Semaphore */
-	GlbEventLock = SemaphoreCreate(0);
-
-	/* Start Event Thread */
-	ThreadingCreateThread("Usb Event Thread", UsbEventHandler, NULL, 0);
-
-	/* Install Usb Watchdog */
-	TimersCreateTimer(UsbWatchdog, NULL, TimerPeriodic, USB_WATCHDOG_INTERVAL);
-}
-
-/* Registrate an OHCI/UHCI/EHCI/XHCI controller */
-UsbHc_t *UsbInitController(void *Data, UsbControllerType_t Type, size_t Ports)
-{
-	UsbHc_t *Controller;
-
-	/* Allocate Resources */
-	Controller = (UsbHc_t*)kmalloc(sizeof(UsbHc_t));
-	memset(Controller, 0, sizeof(UsbHc_t));
-
-	/* Fill data */
-	Controller->Hc = Data;
-	Controller->Type = Type;
-	Controller->NumPorts = Ports;
-
-	/* Reserve address 0 */
-	Controller->AddressMap[0] |= 0x1;
-
-	/* Done! */
-	return Controller;
-}
-
-/* Unregistrate an OHCI/UHCI/EHCI/XHCI controller */
-int UsbRegisterController(UsbHc_t *Controller)
-{
-	/* Vars */
-	DataKey_t Key;
-
-	/* Get id */
-	Key.Value = GlbUsbControllerId;
-	GlbUsbControllerId++;
-
-	/* Add to list */
-	ListAppend(GlbUsbControllers, ListCreateNode(Key, Key, Controller));
-
-	/* Done */
-	return Key.Value;
-}
-
-/* Create Event */
-void UsbEventCreate(UsbHc_t *Hc, int Port, UsbEventType_t Type)
-{
-	UsbEvent_t *Event;
-	DataKey_t Key;
-
-	/* Allocate */
-	Event = (UsbEvent_t*)kmalloc(sizeof(UsbEvent_t));
-	Event->Controller = Hc;
-	Event->Port = Port;
-	Event->Type = Type;
-
-	/* Append */
-	Key.Value = (int)Type;
-	ListAppend(GlbUsbEvents, ListCreateNode(Key, Key, Event));
-
-	/* Signal */
-	SemaphoreV(GlbEventLock);
-}
-
-/* Reserve an Address */
-size_t UsbReserveAddress(UsbHc_t *Hc)
-{
-	/* Find first free bit */
-	size_t Itr = 0, Jtr = 0;
-
-	/* Check map */
+	// Iterate all 128 bits in map and find one not set
 	for (; Itr < 4; Itr++) {
 		for (Jtr = 0; Jtr < 32; Jtr++) {
-			if (!(Hc->AddressMap[Itr] & (1 << Jtr))) {
-				Hc->AddressMap[Itr] |= (1 << Jtr);
-				return (Itr * 4) + Jtr;
+			if (!(Controller->AddressMap[Itr] & (1 << Jtr))) {
+				Controller->AddressMap[Itr] |= (1 << Jtr);
+				*Address = (Itr * 4) + Jtr;
+				return OsSuccess;
 			}
 		}
 	}
 
-	/* Wtf? No address?! */
-	return 255;
+	// Ok this is not plausible and should never happen
+	return OsError;
 }
 
-/* Release an Address */
-void UsbReleaseAddress(UsbHc_t *Hc, size_t Address)
+/* UsbReleaseAddress 
+ * Frees an given address in the controller for an usb-device */
+OsStatus_t
+UsbReleaseAddress(
+	_In_ UsbController_t *Controller, 
+	_In_ int Address)
 {
-	/* Sanity */
-	if (Address == 0
-		|| Address > 127)
-		return;
+	// Sanitize bounds of address
+	if (Address <= 0 || Address > 127) {
+		return OsError;
+	}
 
-	/* Which map-part? */
-	size_t mSegment = (Address / 32);
-	size_t mOffset = (Address % 32);
+	// Calculate offset
+	int mSegment = (Address / 32);
+	int mOffset = (Address % 32);
 
-	/* Unset */
-	Hc->AddressMap[mSegment] &= ~(1 << mOffset);
+	// Release it
+	Controller->AddressMap[mSegment] &= ~(1 << mOffset);
+	return OsSuccess;
 }
 
-/* Device Connected */
-void UsbDeviceSetup(UsbHc_t *Hc, int Port)
+/* UsbCoreInitialize
+ * Initializes the usb-core stack driver. Allocates all neccessary resources
+ * for managing usb controllers devices in the system. */
+OsStatus_t
+UsbCoreInitialize(void)
+{
+	// Initialize globals to a known state
+	GlbUsbControllers = ListCreate(KeyInteger, LIST_SAFE);
+	GlbUsbDevices = ListCreate(KeyInteger, LIST_SAFE);
+
+	// No error
+	return OsSuccess;
+}
+
+/* UsbCoreDestroy
+ * Cleans up and frees any resouces allocated by the usb-core stack */
+OsStatus_t
+UsbCoreDestroy(void)
+{
+
+}
+
+/* UsbControllerRegister
+ * Registers a new controller with the given type and setup */
+OsStatus_t
+UsbControllerRegister(
+	_In_ UUId_t Driver,
+	_In_ UUId_t Device,
+	_In_ UsbControllerType_t Type,
+	_In_ size_t Ports)
+{
+	// Variables
+	UsbController_t *Controller = NULL;
+	DataKey_t Key;
+
+	// Allocate a new instance and reset all members
+	Controller = (UsbController_t*)kmalloc(sizeof(UsbController_t));
+	memset(Controller, 0, sizeof(UsbController_t));
+
+	// Store initial data
+	Controller->Driver = Driver;
+	Controller->Device = Device;
+	Controller->Type = Type;
+	Controller->PortCount = Ports;
+
+	// Reserve address 0, it's setup address
+	Controller->AddressMap[0] |= 0x1;
+
+	// Set key 0
+	Key.Value = 0;
+
+	// Add to list of controllers
+	return ListAppend(GlbUsbControllers, 
+		ListCreateNode(Key, Key, Controller));
+}
+
+/* UsbControllerUnregister
+ * Unregisters the given usb-controller from the manager and
+ * unregisters any devices registered by the controller */
+OsStatus_t
+UsbControllerUnregister(
+	_In_ UUId_t Driver,
+	_In_ UUId_t Device)
+{
+
+}
+
+/* UsbDeviceSetup 
+ * Initializes and enumerates a device if present on the given port */
+OsStatus_t
+UsbDeviceSetup(
+	_In_ UsbController_t *Controller, 
+	_In_ UsbPort_t *Port)
 {
 	/* Vars */
 	UsbTransferStatus_t tStatus;
 	UsbHcDevice_t *Device;
 	size_t ReservedAddr;
 	int i, j;
-
-	/* Make sure we have the port allocated */
-	if (Hc->Ports[Port] == NULL)
-		Hc->Ports[Port] = UsbPortCreate(Port);
 
 	/* Sanity */
 	if (Hc->Ports[Port]->Connected
@@ -385,8 +362,12 @@ DevError:
 	Hc->Ports[Port]->Device = NULL;
 }
 
-/* Device Disconnected */
-void UsbDeviceDestroy(UsbHc_t *Hc, int Port)
+/* UsbDeviceDestroy 
+ * */
+OsStatus_t
+UsbDeviceDestroy(
+	_In_ UsbController_t *Controller,
+	_In_ UsbPort_t *Port)
 {
 	/* Shortcut */
 	UsbHcDevice_t *Device = NULL;
@@ -465,133 +446,102 @@ void UsbDeviceDestroy(UsbHc_t *Hc, int Port)
 	Hc->Ports[Port]->Device = NULL;
 }
 
-/* Ports */
-UsbHcPort_t *UsbPortCreate(int Port)
+/* UsbPortCreate
+ * Creates a port with the given index */
+UsbPort_t*
+UsbPortCreate(
+	_In_ int Index)
 {
-	UsbHcPort_t *HcPort;
+	// Variables
+	UsbPort_t *Port = NULL;
 
-	/* Allocate Resources */
-	HcPort = kmalloc(sizeof(UsbHcPort_t));
-	memset(HcPort, 0, sizeof(UsbHcPort_t));
+	// Allocate a new instance and reset all members to 0
+	Port = kmalloc(sizeof(UsbPort_t));
+	memset(Port, 0, sizeof(UsbPort_t));
 
-	/* Set Port Id */
-	HcPort->Id = Port;
-
-	/* Done */
-	return HcPort;
+	// All set
+	return Port;
 }
 
-/* Usb Watchdog */
-void UsbWatchdog(void* Data)
+/* UsbGetController 
+ * Looks up the controller that matches the device-identifier */
+UsbController_t*
+UsbGetController(
+	_In_ UUId_t Device)
 {
-	/* Unused */
-	_CRT_UNUSED(Data);
-
-	/* Iterate controllers */
-	foreach(Node, GlbUsbControllers)
-	{
-		/* Cast */
-		UsbHc_t *Controller = (UsbHc_t*)Node->Data;
-
-		/* Invoke the controllers watchdog */
-		if (Controller->Watchdog != NULL)
-			Controller->Watchdog(Controller->Hc);
-	}
-}
-
-/* USB Events */
-void UsbEventHandler(void *args)
-{
-	UsbEvent_t *Event;
-	ListNode_t *lNode;
-	int Run = 1;
-
-	/* Unused */
-	_CRT_UNUSED(args);
-
-	while (Run)
-	{
-		/* Acquire Semaphore */
-		SemaphoreP(GlbEventLock, 0);
-
-		/* Pop Event */
-		lNode = ListPopFront(GlbUsbEvents);
-
-		/* Sanity */
-		if (lNode == NULL)
-			continue;
-
-		/* Cast */
-		Event = (UsbEvent_t*)lNode->Data;
-
-		/* Free the node */
-		kfree(lNode);
-
-		/* Again, sanity */
-		if (Event == NULL)
-			continue;
-
-		/* Handle Event */
-		switch (Event->Type)
-		{
-			case HcdConnectedEvent:
-			{
-				/* Setup Device */
-				LogInformation("USBC", "Setting up Port %i", Event->Port);
-				UsbDeviceSetup(Event->Controller, Event->Port);
-
-			} break;
-
-			case HcdDisconnectedEvent:
-			{
-				/* Destroy Device */
-				LogInformation("USBC", "Destroying Port %i", Event->Port);
-				UsbDeviceDestroy(Event->Controller, Event->Port);
-
-			} break;
-
-			case HcdFatalEvent:
-			{
-				/* Reset Controller */
-				LogInformation("USBC", "Resetting Controller");
-				Event->Controller->Reset(Event->Controller->Hc);
-
-			} break;
-
-			case HcdRootHubEvent:
-			{
-				/* Check Ports for Activity */
-				Event->Controller->RootHubCheck(Event->Controller->Hc);
-
-			} break;
-
-			default:
-			{
-				LogFatal("USBC", "Unhandled Event: %u on port %i", Event->Type, Event->Port);
-			} break;
+	// Iterate all registered controllers
+	foreach(cNode, GlbUsbControllers) {
+		// Cast data pointer to known type
+		UsbController_t *Controller = 
+			(UsbController_t*)cNode->Data;
+		if (Controller->Device == Device) {
+			return Controller;
 		}
-
-		/* Cleanup Event */
-		kfree(Event);
 	}
+
+	// Not found
+	return NULL;
 }
 
-/* Gets */
-UsbHc_t *UsbGetHcd(int ControllerId)
+/* UsbEventPort 
+ * Fired by a usbhost controller driver whenever there is a change
+ * in port-status. The port-status is then queried automatically by
+ * the usbmanager. */
+OsStatus_t
+UsbEventPort(
+	_In_ UUId_t Driver,
+	_In_ UUId_t Device,
+	_In_ int Index)
 {
-	/* Setup datakey */
-	DataKey_t Key;
-	Key.Value = ControllerId;
+	// Variables
+	UsbController_t *Controller = NULL;
+	UsbPort_t *Port = NULL;
+	UsbHcPortDescriptor_t Descriptor;
+	OsStatus_t Result = OsSuccess;
 
-	/* Find it */
-	return (UsbHc_t*)ListGetDataByKey(GlbUsbControllers, Key, 0);
-}
+	// Lookup controller first to only handle events
+	// from registered controllers
+	Controller = UsbGetController(Device);
+	if (Controller == NULL) {
+		return OsError;
+	}
 
-UsbHcPort_t *UsbGetPort(UsbHc_t *Controller, int Port)
-{
-	/* Sanity */
-	if (Controller == NULL || Port >= (int)Controller->NumPorts)
-		return NULL;
+	// Query port status so we know the status of the port
+	// Also compare to the current state to see if the change was valid
+	if (UsbHostQueryPort(Driver, Device, Index, &Descriptor) != OsSuccess) {
+		return OsError;
+	}
 
-	return Controller->Ports[Port];
+	// Make sure port exists
+	if (Controller->Ports[Index] == NULL) {
+		Controller->Ports[Index] = UsbPortCreate(Index);
+	}
+
+	// Shorthand the port
+	Port = Controller->Ports[Index];
+
+	// Now handle connection events
+	if (Descriptor.Enabled == 1) {
+		if (Descriptor.Connected == 1
+		&& Port->Connected == 0) {
+			// Connected event
+			Result = UsbDeviceSetup(Controller, Port);
+		}
+		else if (Descriptor.Connected == 0
+			&& Port->Connected == 1) {
+			// Disconnected event
+			Result = UsbDeviceDestroy(Controller, Port);
+		}
+		else {
+			// Ignore
+		}
+	}
+	
+	// Update members
+	Port->Speed = Descriptor.Speed;
+	Port->Enabled = Descriptor.Enabled;
+	Port->Connected = Descriptor.Connected;
+
+	// Event handled
+	return Result;
 }
