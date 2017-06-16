@@ -304,13 +304,26 @@ UsbQueueTransferGeneric(
 	Transfer->BytesTransferred = 0;
 	Transfer->Cleanup = 0;
 
+	// If it's a control transfer set initial toggle 0
+	if (Transfer->Transfer.Type == ControlTransfer) {
+		UsbManagerSetToggle(Transfer->Device, Transfer->Pipe, 0);
+	}
+
 	// Now iterate and add the td's
 	for (i = 0; i < 3; i++) {
 		// Bytes
 		size_t BytesToTransfer = Transfer->Transfer.Transactions[i].Length;
 		size_t ByteOffset = 0;
+		int AddZeroLength = 0;
 
-		while (BytesToTransfer) {
+		// If it's a handshake package then set toggle
+		if (Transfer->Transfer.Transactions[i].Handshake) {
+			UsbManagerSetToggle(Transfer->Device, Transfer->Pipe, 1);
+		}
+
+		while (BytesToTransfer 
+			|| Transfer->Transfer.Transactions[i].ZeroLength == 1
+			|| AddZeroLength == 1) {
 			// Variables
 			OhciTransferDescriptor_t *Td = NULL;
 			size_t BytesStep = 0;
@@ -330,7 +343,13 @@ UsbQueueTransferGeneric(
 			else {
 				// Depending on how much we are able to take in
 				// 1 page per non-isoc, Isochronous can handle 2 pages
-				BytesStep = MIN(BytesToTransfer, 0x1000);
+				if (Transfer->Transfer.Type != IsochronousTransfer) {
+					BytesStep = MIN(BytesToTransfer, 
+						Transfer->Transfer.Endpoint.MaxPacketSize);
+				}
+				else {
+					BytesStep = MIN(BytesToTransfer, 0x1000);
+				}
 
 				Td = OhciTdIo(Controller, Transfer->Transfer.Type, 
 					(Transfer->Transfer.Transactions[i].Type == InTransaction ? OHCI_TD_PID_IN : OHCI_TD_PID_OUT), 
@@ -357,9 +376,23 @@ UsbQueueTransferGeneric(
 			// Increase count
 			Transfer->TransactionCount++;
 
+			// Break out on zero lengths
+			if (Transfer->Transfer.Transactions[i].ZeroLength == 1
+				|| AddZeroLength == 1) {
+				break;
+			}
+
 			// Reduce
 			BytesToTransfer -= BytesStep;
 			ByteOffset += BytesStep;
+
+			// If it was out, and we had a multiple of MPS, then ZLP
+			if (BytesStep == Transfer->Transfer.Endpoint.MaxPacketSize 
+				&& BytesToTransfer == 0
+				&& Transfer->Transfer.Type == BulkTransfer
+				&& Transfer->Transfer.Transactions[i].Type == OutTransaction) {
+				AddZeroLength = 1;
+			}
 		}
 	}
 

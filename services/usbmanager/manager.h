@@ -26,16 +26,45 @@
 
 /* Includes 
  * - System */
+#include <os/driver/contracts/usbhost.h>
 #include <os/driver/usb.h>
 #include <os/osdefs.h>
 #include <ds/list.h>
 
+/* UsbInterfaceVersion_t 
+ * */
+typedef struct _UsbInterfaceVersion {
+	UsbHcInterfaceVersion_t		Base;
+	UsbHcEndpointDescriptor_t	Endpoints[USB_MAX_ENDPOINTS];
+} UsbInterfaceVersion_t;
+
+/* UsbInterface_t 
+ * */
+typedef struct _UsbInterface {
+	UsbHcInterface_t			Base;
+	UsbInterfaceVersion_t		Versions[USB_MAX_VERSIONS];
+} UsbInterface_t;
+
+/* UsbDevice_t 
+ * */
+typedef struct _UsbDevice {
+	UsbHcDevice_t				Base;
+	void*						Descriptors;
+	size_t						DescriptorsBufferLength;
+	
+	// Buffers
+	UsbInterface_t				Interfaces[USB_MAX_INTERFACES];
+	UsbHcEndpointDescriptor_t 	ControlEndpoint;
+} UsbDevice_t;
+
 /* UsbPort_t
  * */
 typedef struct _UsbPort {
-	UsbSpeed_t			Speed;
-	int					Enabled;
-	int					Connected;
+	int					 Index;
+	UsbSpeed_t			 Speed;
+	int					 Enabled;
+	int					 Connected;
+	UsbDevice_t			*Device;
 } UsbPort_t;
 
 /* UsbController_t

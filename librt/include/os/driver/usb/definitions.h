@@ -35,6 +35,7 @@
 #define USB_MAX_VERSIONS				4
 #define USB_MAX_INTERFACES				8
 #define USB_MAX_ENDPOINTS				16
+#define USB_MAX_LANGUAGES				16
 
 /* Usb Class Definitions
  * Contains the different overall usb-classes that a device can exhibit */

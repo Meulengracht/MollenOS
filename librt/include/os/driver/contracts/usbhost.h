@@ -36,7 +36,8 @@
 #define __USBHOST_QUEUETRANSFER		IPC_DECL_FUNCTION(0)
 #define __USBHOST_QUEUEPERIODIC		IPC_DECL_FUNCTION(1)
 #define __USBHOST_DEQUEUEPERIODIC	IPC_DECL_FUNCTION(2)
-#define __USBHOST_QUERYPORT			IPC_DECL_FUNCTION(3)
+#define __USBHOST_RESETPORT			IPC_DECL_FUNCTION(3)
+#define __USBHOST_QUERYPORT			IPC_DECL_FUNCTION(4)
 
 /* UsbTransactionType 
  * Describes the possible types of usb transactions */
@@ -74,6 +75,8 @@ typedef enum _UsbTransferStatus {
  * Describes a single transaction in an usb-transfer operation */
 PACKED_TYPESTRUCT(UsbTransaction, {
 	UsbTransactionType_t				Type;
+	int									Handshake;	// ACK always end in 1
+	int									ZeroLength;
 
 	// Data Information
 	uintptr_t							BufferAddress;
@@ -190,9 +193,37 @@ UsbDequeuePeriodic(
 		NULL, 0, &Result, sizeof(OsStatus_t));
 }
 
+/* UsbHostResetPort
+ * Resets the given port on the given controller and queries it's
+ * status afterwards. This returns an updated status of the port after
+ * the reset. */
+SERVICEAPI
+OsStatus_t
+SERVICEABI
+UsbHostResetPort(
+	_In_ UUId_t Driver,
+	_In_ UUId_t Device,
+	_In_ int Index,
+	_Out_ UsbHcPortDescriptor_t *Descriptor)
+{
+	// Variables
+	MContract_t Contract;
+
+	// Setup contract stuff for request
+	Contract.DriverId = Driver;
+	Contract.Type = ContractController;
+	Contract.Version = __USBMANAGER_INTERFACE_VERSION;
+
+	// Query the driver directly
+	return QueryDriver(&Contract, __USBHOST_RESETPORT,
+		&Device, sizeof(UUId_t), 
+		&Index, sizeof(int), NULL, 0, 
+		Descriptor, sizeof(UsbHcPortDescriptor_t));
+}
+
 /* UsbHostQueryPort 
  * Queries the port-descriptor of host-controller port. */
- SERVICEAPI
+SERVICEAPI
 OsStatus_t
 SERVICEABI
 UsbHostQueryPort(

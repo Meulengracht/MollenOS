@@ -20,13 +20,17 @@
  * - Contains the implementation of the usb-manager which keeps track
  *   of all usb-controllers and their devices
  */
+//#define __TRACE
 
 /* Includes 
  * - System */
+#include <os/thread.h>
+#include <os/utils.h>
 #include "manager.h"
 
 /* Includes
  * - Library */
+#include <stdlib.h>
 #include <stddef.h>
 
 /* Globals 
@@ -154,212 +158,140 @@ UsbDeviceSetup(
 	_In_ UsbController_t *Controller, 
 	_In_ UsbPort_t *Port)
 {
-	/* Vars */
+	// Variables
+	UsbHcPortDescriptor_t Descriptor;
 	UsbTransferStatus_t tStatus;
-	UsbHcDevice_t *Device;
-	size_t ReservedAddr;
+	UsbDevice_t *Device = NULL;
+	int ReservedAddress = 0;
 	int i, j;
 
-	/* Sanity */
-	if (Hc->Ports[Port]->Connected
-		&& Hc->Ports[Port]->Device != NULL)
-		return;
-
-	/* Create a device */
-	Device = (UsbHcDevice_t*)kmalloc(sizeof(UsbHcDevice_t));
-
-	/* Reset structure */
-	memset(Device, 0, sizeof(UsbHcDevice_t));
-
-	/* Set Hc & Port */
-	Device->HcDriver = Hc;
-	Device->Port = (size_t)Port;
-	
-	/* Initial Address must be 0 */
-	Device->Address = 0;
-
-	/* Allocate control endpoint */
-	Device->CtrlEndpoint = (UsbHcEndpoint_t*)kmalloc(sizeof(UsbHcEndpoint_t));
-	memset(Device->CtrlEndpoint, 0, sizeof(UsbHcEndpoint_t));
-	Device->CtrlEndpoint->Type = EndpointControl;
-	Device->CtrlEndpoint->Bandwidth = 1;
-	Device->CtrlEndpoint->MaxPacketSize = 8;
-	Device->CtrlEndpoint->Direction = USB_EP_DIRECTION_BOTH;
-
-	/* Bind it */
-	Hc->Ports[Port]->Device = Device;
-
-	/* Setup Port */
-	Hc->PortSetup(Hc->Hc, Hc->Ports[Port]);
-
-	/* Sanity */
-	if (Hc->Ports[Port]->Connected != 1
-		&& Hc->Ports[Port]->Enabled != 1)
-		goto DevError;
-
-	/* Determine control size */
-	if (Hc->Ports[Port]->Speed == FullSpeed
-		|| Hc->Ports[Port]->Speed == HighSpeed) {
-		Device->CtrlEndpoint->MaxPacketSize = 64;
-	}
-	else if (Hc->Ports[Port]->Speed == SuperSpeed) {
-		Device->CtrlEndpoint->MaxPacketSize = 512;
+	// Make sure that there isn't already one device
+	// setup on the port
+	if (Port->Connected
+		&& Port->Device != NULL) {
+		return OsError;
 	}
 
-	/* Setup Endpoint */
-	Hc->EndpointSetup(Hc->Hc, Device->CtrlEndpoint);
+	// Allocate a new instance of the usb device and reset it
+	Device = (UsbDevice_t*)kmalloc(sizeof(UsbDevice_t));
+	memset(Device, 0, sizeof(UsbDevice_t));
 
-	/* Allocate Address */
-	ReservedAddr = UsbReserveAddress(Hc);
+	// Initialize the control-endpoint
+	Device->ControlEndpoint.Type = EndpointControl;
+	Device->ControlEndpoint.Bandwidth = 1;
+	Device->ControlEndpoint.MaxPacketSize = 8;
+	Device->ControlEndpoint.Direction = USB_ENDPOINT_BOTH;
 
-	/* Sanity */
-	if (ReservedAddr == 0
-		|| ReservedAddr > 127) {
-		LogFatal("USBC", "(UsbReserveAddress %u) Failed to setup port %i", ReservedAddr, Port);
+	// Bind it to port
+	Port->Device = Device;
+
+	// Initialize the port by resetting it
+	if (UsbHostResetPort(Controller->Driver, Controller->Device,
+		Port->Index, &Descriptor) != OsSuccess) {
+		ERROR("(UsbHostResetPort %u) Failed to reset port %i",
+			Controller->Device, Port->Index);
 		goto DevError;
 	}
 
-	/* Set Device Address */
-	tStatus = UsbFunctionSetAddress(Hc, Port, ReservedAddr);
-	if (tStatus != TransferFinished)
-	{
-		/* Try again */
-		tStatus = UsbFunctionSetAddress(Hc, Port, ReservedAddr);
+	// Sanitize device is still present after reset
+	if (Descriptor.Connected != 1 
+		&& Descriptor.Enabled != 1) {
+		goto DevError;
+	}
+
+	// Determine the MPS of the control endpoint
+	if (Port->Speed == FullSpeed
+		|| Port->Speed == HighSpeed) {
+		Device->ControlEndpoint.MaxPacketSize = 64;
+	}
+	else if (Port->Speed == SuperSpeed) {
+		Device->ControlEndpoint.MaxPacketSize = 512;
+	}
+
+	// Allocate a device-address
+	if (UsbReserveAddress(Controller, &ReservedAddress) != OsSuccess) {
+		ERROR("(UsbReserveAddress %u) Failed to setup port %i",
+			Controller->Device, Port->Index);
+		goto DevError;
+	}
+
+	// Set device address for the new device
+	tStatus = UsbFunctionSetAddress(Controller, Port, ReservedAddress);
+	if (tStatus != TransferFinished) {
+		tStatus = UsbFunctionSetAddress(Controller, Port, ReservedAddress);
 		if (tStatus != TransferFinished) {
-			LogFatal("USBC", "(Set_Address) Failed to setup port %i: %u", Port, (size_t)tStatus);
+			ERROR("(Set_Address) Failed to setup port %i: %u", 
+				Port->Index, (size_t)tStatus);
 			goto DevError;
 		}
 	}
 
-	/* After SetAddress device is allowed 2 ms recovery */
-	StallMs(2);
+	// After SetAddress device is allowed 2 ms recovery
+	ThreadSleep(2);
 
-	/* Get Device Descriptor */
-	if (UsbFunctionGetDeviceDescriptor(Hc, Port) != TransferFinished)
-	{
-		/* Try Again */
-		if (UsbFunctionGetDeviceDescriptor(Hc, Port) != TransferFinished)
-		{
-			LogFatal("USBC", "(Get_Device_Desc) Failed to setup port %i", Port);
+	// Query Device Descriptor
+	if (UsbFunctionGetDeviceDescriptor(Controller, Port) != TransferFinished) {
+		if (UsbFunctionGetDeviceDescriptor(Controller, Port) != TransferFinished) {
+			ERROR("(Get_Device_Desc) Failed to setup port %i", 
+				Port->Index);
 			goto DevError;
 		}
 	}
 
-	/* Get Config Descriptor */
-	if (UsbFunctionGetConfigDescriptor(Hc, Port) != TransferFinished)
-	{
-		/* Try Again */
-		if (UsbFunctionGetConfigDescriptor(Hc, Port) != TransferFinished)
-		{
-			LogFatal("USBC", "(Get_Config_Desc) Failed to setup port %i", Port);
+	// Query Config Descriptor
+	if (UsbFunctionGetConfigDescriptor(Controller, Port) != TransferFinished) {
+		if (UsbFunctionGetConfigDescriptor(Controller, Port) != TransferFinished) {
+			ERROR("(Get_Config_Desc) Failed to setup port %i", 
+				Port->Index);
 			goto DevError;
 		}
 	}
 
-	/* Set Configuration */
-	if (UsbFunctionSetConfiguration(Hc, Port, Hc->Ports[Port]->Device->Configuration) != TransferFinished)
-	{
-		/* Try Again */
-		if (UsbFunctionSetConfiguration(Hc, Port, Hc->Ports[Port]->Device->Configuration) != TransferFinished)
-		{
-			LogFatal("USBC", "(Set_Configuration) Failed to setup port %i", Port);
+	// Update Configuration
+	if (UsbFunctionSetConfiguration(Controller, Port, Port->Device->Base.Configuration) != TransferFinished) {
+		if (UsbFunctionSetConfiguration(Controller, Port, Port->Device->Base.Configuration) != TransferFinished) {
+			ERROR("(Set_Configuration) Failed to setup port %i", 
+				Port->Index);
 			goto DevError;
 		}
 	}
 
-	/* Go through interfaces and add them */
-	for (i = 0; i < (int)Hc->Ports[Port]->Device->NumInterfaces; i++)
-	{
-		/* We want to support Hubs, HIDs and MSDs*/
-		uint32_t IfIndex = (uint32_t)i;
-
-		/* Is this an HID Interface? :> */
-		if (Hc->Ports[Port]->Device->Interfaces[i]->Class == USB_CLASS_HID)
-		{
-			/* Registrate us with HID Manager */
-			UsbHidInit(Hc->Ports[Port]->Device, IfIndex);
+	// Iterate discovered interfaces
+	for (i = 0; i < Device->Base.InterfaceCount; i++) {
+		if (Device->Interfaces[i].Base.Class == USB_CLASS_HID) {
+			//UsbHidInit(Device, i);
 		}
-
-		/* Is this an MSD Interface? :> */
-		if (Hc->Ports[Port]->Device->Interfaces[i]->Class == USB_CLASS_MSD)
-		{
-			/* Registrate us with MSD Manager */
-			UsbMsdInit(Hc->Ports[Port]->Device, IfIndex);
+		if (Device->Interfaces[i].Base.Class == USB_CLASS_MSD) {
+			//UsbMsdInit(Device, i);
 		}
-
-		/* Is this an HUB Interface? :> */
-		if (Hc->Ports[Port]->Device->Interfaces[i]->Class == USB_CLASS_HUB)
-		{
-			/* Protocol specifies usb interface (high or low speed) */
-
-			/* Registrate us with Hub Manager */
+		if (Device->Interfaces[i].Base.Class == USB_CLASS_HUB) {
+			// Protocol specifies usb interface (high or low speed)
 		}
 	}
 
-	/* Done */
-	LogInformation("USBC", "Setup of port %i done!", Port);
-	return;
+	// Setup succeeded
+	TRACE("Setup of port %i done!", Port->Index);
+	return OsSuccess;
 
+	// All errors are handled here
 DevError:
-	LogInformation("USBC", "Setup of port %i failed!", Port);
+	TRACE("Setup of port %i failed!", Port->Index);
 
-	/* Destruct */
-	Hc->EndpointDestroy(Hc->Hc, Device->CtrlEndpoint);
-
-	/* Free Control Endpoint */
-	kfree(Device->CtrlEndpoint);
-
-	/* Free Address */
-	if (Device->Address != 0)
-		UsbReleaseAddress(Hc, Device->Address);
-
-	/* Free Interfaces */
-	for (i = 0; i < (int)Device->NumInterfaces; i++)
-	{
-		/* Sanity */
-		if (Device->Interfaces[i] == NULL)
-			continue;
-
-		/* Free Endpoints */
-		for (j = 0; j < USB_MAX_VERSIONS; j++) {
-			if (Device->Interfaces[i]->Versions[j] != NULL
-				&& Device->Interfaces[i]->Versions[j]->Endpoints != NULL)
-				kfree(Device->Interfaces[i]->Versions[j]->Endpoints);
-			if (Device->Interfaces[i]->Versions[j] != NULL)
-				kfree(Device->Interfaces[i]->Versions[j]);
-		}
-
-		/* Free the string if any */
-		if (Device->Interfaces[i]->Name != NULL)
-			kfree(Device->Interfaces[i]->Name);
-
-		/* Free the Interface */
-		kfree(Device->Interfaces[i]);
+	// Release allocated address
+	if (Device->Base.Address != 0) {
+		UsbReleaseAddress(Controller, Device->Base.Address);
 	}
 
-	/* Free Descriptor Buffer */
-	if (Device->Descriptors != NULL)
-		kfree(Device->Descriptors);
+	// Free the buffer that contains the descriptors
+	if (Device->Descriptors != NULL) {
+		free(Device->Descriptors);
+	}
 
-	/* Free Languages / Strings */
-	if (Device->NumLanguages != 0)
-		kfree(Device->Languages);
+	// Free base
+	free(Device);
 
-	if (Device->Name != NULL)
-		MStringDestroy(Device->Name);
-	if (Device->Manufactor != NULL)
-		MStringDestroy(Device->Manufactor);
-	if (Device->SerialNumber != NULL)
-		MStringDestroy(Device->SerialNumber);
-
-	/* Free base */
-	kfree(Device);
-
-	/* Update Port */
-	Hc->Ports[Port]->Connected = 0;
-	Hc->Ports[Port]->Enabled = 0;
-	Hc->Ports[Port]->Speed = LowSpeed;
-	Hc->Ports[Port]->Device = NULL;
+	// Reset device pointer
+	Port->Device = NULL;
 }
 
 /* UsbDeviceDestroy 
@@ -369,81 +301,38 @@ UsbDeviceDestroy(
 	_In_ UsbController_t *Controller,
 	_In_ UsbPort_t *Port)
 {
-	/* Shortcut */
-	UsbHcDevice_t *Device = NULL;
+	// Variables
+	UsbDevice_t *Device = NULL;
 	int i, j;
 
-	/* Sanity */
-	if (Hc->Ports[Port] == NULL
-		|| Hc->Ports[Port]->Device == NULL)
-		return;
-
-	/* Cast */
-	Device = Hc->Ports[Port]->Device;
-
-	/* Notify Driver(s) */
-	for (i = 0; i < (int)Device->NumInterfaces; i++) {
-		if (Device->Interfaces[i]->Destroy != NULL)
-			Device->Interfaces[i]->Destroy((void*)Device, i);
+	// Sanitize parameters
+	if (Port == NULL || Port->Device == NULL) {
+		return OsError;
 	}
 
-	/* Destruct */
-	Hc->EndpointDestroy(Hc->Hc, Device->CtrlEndpoint);
+	// Instantiate the device pointer
+	Device = Port->Device;
 
-	/* Free Control Endpoint */
-	kfree(Device->CtrlEndpoint);
-
-	/* Free Address */
-	if (Device->Address != 0)
-		UsbReleaseAddress(Hc, Device->Address);
-
-	/* Free Interfaces */
-	for (i = 0; i < (int)Device->NumInterfaces; i++)
-	{
-		/* Sanity */
-		if (Device->Interfaces[i] == NULL)
-			continue;
-
-		/* Free Endpoints */
-		for (j = 0; j < USB_MAX_VERSIONS; j++) {
-			if (Device->Interfaces[i]->Versions[j] != NULL 
-				&& Device->Interfaces[i]->Versions[j]->Endpoints != NULL)
-				kfree(Device->Interfaces[i]->Versions[j]->Endpoints);
-			if (Device->Interfaces[i]->Versions[j] != NULL)
-				kfree(Device->Interfaces[i]->Versions[j]);
-		}
-
-		/* Free the string if any */
-		if (Device->Interfaces[i]->Name != NULL)
-			kfree(Device->Interfaces[i]->Name);
-
-		/* Free the Interface */
-		kfree(Device->Interfaces[i]);
+	// Iterate all interfaces and send unregister
+	for (i = 0; i < Device->Base.InterfaceCount; i++) {
+		// Send unregister
 	}
 
-	/* Free Descriptor Buffer */
-	if (Device->Descriptors != NULL)
-		kfree(Device->Descriptors);
+	// Release allocated address
+	if (Device->Base.Address != 0) {
+		UsbReleaseAddress(Controller, Device->Base.Address);
+	}
 
-	/* Free Languages / Strings */
-	if (Device->NumLanguages != 0)
-		kfree(Device->Languages);
+	// Free the buffer that contains the descriptors
+	if (Device->Descriptors != NULL) {
+		free(Device->Descriptors);
+	}
 
-	if (Device->Name != NULL)
-		MStringDestroy(Device->Name);
-	if (Device->Manufactor != NULL)
-		MStringDestroy(Device->Manufactor);
-	if (Device->SerialNumber != NULL)
-		MStringDestroy(Device->SerialNumber);
+	// Free base
+	free(Device);
 
-	/* Free base */
-	kfree(Device);
-
-	/* Update Port */
-	Hc->Ports[Port]->Connected = 0;
-	Hc->Ports[Port]->Enabled = 0;
-	Hc->Ports[Port]->Speed = LowSpeed;
-	Hc->Ports[Port]->Device = NULL;
+	// Reset device pointer
+	Port->Device = NULL;
 }
 
 /* UsbPortCreate
@@ -458,6 +347,9 @@ UsbPortCreate(
 	// Allocate a new instance and reset all members to 0
 	Port = kmalloc(sizeof(UsbPort_t));
 	memset(Port, 0, sizeof(UsbPort_t));
+
+	// Store index
+	Port->Index = Index;
 
 	// All set
 	return Port;

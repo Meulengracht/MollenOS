@@ -1,247 +1,154 @@
 /* MollenOS
-*
-* Copyright 2011 - 2016, Philip Meulengracht
-*
-* This program is free software : you can redistribute it and / or modify
-* it under the terms of the GNU General Public License as published by
-* the Free Software Foundation ? , either version 3 of the License, or
-* (at your option) any later version.
-*
-* This program is distributed in the hope that it will be useful,
-* but WITHOUT ANY WARRANTY; without even the implied warranty of
-* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.See the
-* GNU General Public License for more details.
-*
-* You should have received a copy of the GNU General Public License
-* along with this program.If not, see <http://www.gnu.org/licenses/>.
-*
-*
-* MollenOS USB Functions Core Driver
-*/
+ *
+ * Copyright 2011 - 2017, Philip Meulengracht
+ *
+ * This program is free software : you can redistribute it and / or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation ? , either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.If not, see <http://www.gnu.org/licenses/>.
+ *
+ *
+ * MollenOS Service - Usb Manager
+ * - Contains the implementation of the usb-manager which keeps track
+ *   of all usb-controllers and their devices
+ */
+//#define __TRACE
 
-/* Includes */
-#include <UsbCore.h>
-#include <Module.h>
+/* Includes 
+ * - System */
+#include <os/thread.h>
+#include <os/utils.h>
+#include "manager.h"
 
-/* Kernel */
-#include <Heap.h>
-#include <Log.h>
-
-/* CLib */
+/* Includes
+ * - Library */
+#include <stdlib.h>
+#include <stddef.h>
 #include <string.h>
 
-/* Transaction List Functions */
-void UsbTransactionAppend(UsbHcRequest_t *Request, UsbHcTransaction_t *Transaction)
+/* UsbTransferInitialize
+ * Initializes the transfer with the given information and sets up
+ * all target parameters */
+OsStatus_t
+UsbTransferInitialize(
+	_In_ UsbPort_t *Port,
+	_In_ UsbTransferType_t Type,
+	_In_ UsbHcEndpointDescriptor_t *Endpoint,
+	_Out_ UsbTransfer_t *Transfer)
 {
-	/* Sanity */
-	if (Request->Transactions == NULL)
-		Request->Transactions = Transaction;
-	else
-	{
-		UsbHcTransaction_t *Head = Request->Transactions;
+	// Reset entire transfer structure
+	memset(Transfer, 0, sizeof(UsbTransfer_t));
 
-		/* Go to last element */
-		while (Head->Link != NULL)
-			Head = Head->Link;
+	// Set speed, type and endpoint data
+	Transfer->Type = Type;
+	Transfer->Speed = Port->Speed;
+	memcpy(&Transfer->Endpoint, Endpoint, 
+		sizeof(UsbHcEndpointDescriptor_t));
 
-		/* Append */
-		Head->Link = Transaction;
-		Transaction->Link = NULL;
-	}
-
-	/* Update Counter */
-	Request->TransactionCount++;
+	// Done
+	return OsSuccess;
 }
 
-/* Transaction Wrappers */
-void UsbTransactionInit(UsbHc_t *Hc, UsbHcRequest_t *Request, UsbTransferType_t Type,
-	UsbHcDevice_t *Device, UsbHcEndpoint_t *Endpoint)
+/* UsbTransactionSetup
+ * Never neccessary to pass an index here since it'll always be the 
+ * initial transfer. The transfer buffer here is allocated automatically. */
+OsStatus_t
+UsbTransferSetup(
+	_Out_ UsbTransfer_t *Transfer, 
+	_In_ UsbPacket_t *Packet)
 {
-	/* Control - Endpoint 0 */
-	Request->Type = Type;
-	Request->Data = NULL;
-	Request->Device = Device;
-	Request->Endpoint = Endpoint;
-	Request->Speed = Hc->Ports[Device->Port]->Speed;
-	Request->Transactions = NULL;
-	Request->TransactionCount = 0;
+	// Variables
+	UsbTransaction_t *Transaction = &Transfer->Transactions[0];
 
-	/* Perform */
-	Hc->TransactionInit(Hc->Hc, Request);
-}
-
-/* The Setup Transaction */
-void UsbTransactionSetup(UsbHc_t *Hc, UsbHcRequest_t *Request, UsbPacket_t *Packet)
-{
-	UsbHcTransaction_t *Transaction;
-
-	/* Set toggle to 0, all control transferts 
-	 * must have an initial toggle of 0 */
-	Request->Endpoint->Toggle = 0;
-
-	/* Perform it */
-	Transaction = Hc->TransactionSetup(Hc->Hc, Request, Packet);
-
-	/* Append it */
+	// Initialize variables
 	Transaction->Type = SetupTransaction;
-	UsbTransactionAppend(Request, Transaction);
 
-	/* Toggle Goggle */
-	Request->Endpoint->Toggle = 1;
-}
-
-/* The In Data Transaction */
-void UsbTransactionIn(UsbHc_t *Hc, UsbHcRequest_t *Request, int Handshake, void *Buffer, size_t Length)
-{
-	/* Get length */
-	UsbHcTransaction_t *Transaction;
-
-	/* Either it's maxpacket size or remaining len */
-	size_t SplitSize = Request->Endpoint->MaxPacketSize;
-	size_t TransfersLeft = 0;
-	size_t FixedLen = 0;
-	int RemainingLen = 0;
-
-	/* Has controller split size overrides? */
-	if (Request->Type == ControlTransfer && (Hc->ControlOverride != 0))
-		SplitSize = Hc->ControlOverride;
-	else if (Request->Type == BulkTransfer && (Hc->BulkOverride != 0))
-		SplitSize = Hc->BulkOverride;
-	else if (Request->Type == InterruptTransfer && (Hc->InterruptOverride != 0))
-		SplitSize = Hc->InterruptOverride;
-	else if (Request->Type == IsochronousTransfer && (Hc->IsocOverride != 0))
-		SplitSize = Hc->IsocOverride;
-
-	/* Update */
-	FixedLen = MIN(SplitSize, Length);
-
-	/* Calculate rest */
-	RemainingLen = Length - FixedLen;
-	TransfersLeft = 0;
-
-	/* Sanity */
-	if (RemainingLen <= 0)
-	{
-		RemainingLen = 0;
-		TransfersLeft = 0;
-	}
-	else
-		TransfersLeft = DIVUP(RemainingLen, SplitSize);
+	// Allocate some buffer space
 	
-	/* Sanity, ACK */
-	if (Handshake)
-		Request->Endpoint->Toggle = 1;
+	// Copy packet data to buffer
 
-	/* Perform */
-	Transaction = Hc->TransactionIn(Hc->Hc, Request, Buffer, FixedLen);
+	// Done
+	return OsSuccess;
+}
 
-	/* Append Transaction */
+/* UsbTransferIn */
+OsStatus_t
+UsbTransferIn(
+	_Out_ UsbTransfer_t *Transfer,
+	_In_ int Index,
+	_In_ uintptr_t BufferAddress, 
+	_In_ size_t Length,
+	_In_ int Handshake)
+{
+	// Variables
+	UsbTransaction_t *Transaction = &Transfer->Transactions[Index];
+
+	// Initialize variables
 	Transaction->Type = InTransaction;
-	UsbTransactionAppend(Request, Transaction);
+	Transaction->Handshake = Handshake;
+	Transaction->BufferAddress = BufferAddress;
+	Transaction->Length = Length;
 
-	/* Toggle Goggle */
-	Request->Endpoint->Toggle = (Request->Endpoint->Toggle == 0) ? 1 : 0;
+	// Zero-length?
+	if (Length == 0) {
+		Transaction->ZeroLength = 1;
+	}
 
-	/* Do we need more transfers? */
-	if (TransfersLeft > 0)
-		UsbTransactionIn(Hc, Request, 0, (void*)((uint8_t*)Buffer + FixedLen), RemainingLen);
+	// Done
+	return OsSuccess;
 }
 
-/* The Out Data Transaction */
-void UsbTransactionOut(UsbHc_t *Hc, UsbHcRequest_t *Request, int Handshake, void *Buffer, size_t Length)
+/* UsbTransferOut */
+OsStatus_t
+UsbTransferOut(
+	_Out_ UsbTransfer_t *Transfer,
+	_In_ int Index,
+	_In_ uintptr_t BufferAddress, 
+	_In_ size_t Length,
+	_In_ int Handshake)
 {
-	/* Get length */
-	UsbHcTransaction_t *Transaction;
+	// Variables
+	UsbTransaction_t *Transaction = &Transfer->Transactions[Index];
 
-	/* Either it's maxpacket size or remaining len */
-	size_t SplitSize = Request->Endpoint->MaxPacketSize;
-	size_t TransfersLeft = 0;
-	size_t FixedLen = 0;
-	int RemainingLen = 0;
-	int AddZeroLength = 0;
-
-	/* Has controller split size overrides? */
-	if (Request->Type == ControlTransfer && (Hc->ControlOverride != 0))
-		SplitSize = Hc->ControlOverride;
-	else if (Request->Type == BulkTransfer && (Hc->BulkOverride != 0))
-		SplitSize = Hc->BulkOverride;
-	else if (Request->Type == InterruptTransfer && (Hc->InterruptOverride != 0))
-		SplitSize = Hc->InterruptOverride;
-	else if (Request->Type == IsochronousTransfer && (Hc->IsocOverride != 0))
-		SplitSize = Hc->IsocOverride;
-
-	/* Update */
-	FixedLen = MIN(SplitSize, Length);
-
-	/* Calculate rest */
-	RemainingLen = Length - FixedLen;
-	TransfersLeft = 0;
-
-	/* Sanity */
-	if (RemainingLen <= 0)
-	{
-		/* Update our variables */
-		RemainingLen = 0;
-		TransfersLeft = 0;
-
-		/* Will we need a ZLP? 
-		 * But never, EVER do it on zero length transfers
-		 * otherwise it'll loop forever */
-		if (Request->Type == BulkTransfer
-			&& Length != 0
-			&& (Length % SplitSize) == 0)
-			AddZeroLength = 1;
-	}
-	else
-		TransfersLeft = DIVUP(RemainingLen, SplitSize);
-
-	/* Sanity, ACK packet */
-	if (Handshake)
-		Request->Endpoint->Toggle = 1;
-
-	/* Perform */
-	Transaction = Hc->TransactionOut(Hc->Hc, Request, Buffer, FixedLen);
-
-	/* Append Transaction */
+	// Initialize variables
 	Transaction->Type = OutTransaction;
-	UsbTransactionAppend(Request, Transaction);
+	Transaction->Handshake = Handshake;
+	Transaction->BufferAddress = BufferAddress;
+	Transaction->Length = Length;
 
-	/* Toggle Goggle */
-	Request->Endpoint->Toggle = (Request->Endpoint->Toggle == 0) ? 1 : 0;
+	// Zero-length?
+	if (Length == 0) {
+		Transaction->ZeroLength = 1;
+	}
 
-	/* Check up on this ! !*/
-	if (TransfersLeft > 0)
-		UsbTransactionOut(Hc, Request, 0, (void*)((uint8_t*)Buffer + FixedLen), RemainingLen);
-	/* Add zero length */
-	else if (AddZeroLength != 0)
-		UsbTransactionOut(Hc, Request, 0, NULL, 0);
+	// Done
+	return OsSuccess;
 }
 
-/* Send to Device */
-void UsbTransactionSend(UsbHc_t *Hc, UsbHcRequest_t *Request)
+/* UsbTransferSend
+ *  */
+OsStatus_t
+UsbTransferSend(
+	_In_ UsbController_t *Controller, 
+	_In_ UsbTransfer_t *Transfer,
+	_Out_ UsbTransferResult_t *Result)
 {
-	/* Variables */
-	UsbHcTransaction_t *Transaction = Request->Transactions;
+	// Variables
+	UsbTransferResult_t Result;
 
-	/* Perform */
-	Hc->TransactionSend(Hc->Hc, Request);
+	// Build pipe-id
 
-	/* Copy data if neccessary */
-	if (Request->Status == TransferFinished)
-	{
-		while (Transaction)
-		{
-			/* Copy Data? */
-			if (Transaction->Type == InTransaction
-				&& Transaction->Buffer != NULL
-				&& Transaction->Length != 0) {
-				memcpy(Transaction->Buffer, Transaction->TransferBuffer, Transaction->Length);
-			}
-
-			/* Next Link */
-			Transaction = Transaction->Link;
-		}
-	}
+	// Send
+	return UsbQueueTransfer(Controller->Driver, Controller->Device,
+		0, Transfer, &Result);
 }
 
 /* Cleanup Transaction */
@@ -268,7 +175,11 @@ void UsbTransactionDestroy(UsbHc_t *Hc, UsbHcRequest_t *Request)
 }
 
 /* Set address of an usb device */
-UsbTransferStatus_t UsbFunctionSetAddress(UsbHc_t *Hc, int Port, size_t Address)
+UsbTransferStatus_t
+UsbFunctionSetAddress(
+	UsbHc_t *Hc, 
+	int Port, 
+	size_t Address)
 {
 	/* Vars */
 	UsbHcRequest_t Request = { 0 };

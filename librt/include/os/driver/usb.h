@@ -88,6 +88,58 @@ PACKED_TYPESTRUCT(UsbHcEndpointDescriptor, {
 	size_t 								Interval;
 });
 
+/* UsbHcInterfaceVersion 
+ * Describes a version of an interface and it's endpoint count. */
+PACKED_TYPESTRUCT(UsbHcInterfaceVersion, {
+	int 								Id;
+	int 								EndpointCoint;
+});
+
+/* UsbHcInterface 
+ * Describes a generic interface for an usb device. There can be 
+ * multiple versions each with a number of different endpoints. */
+PACKED_TYPESTRUCT(UsbHcInterface, {
+	size_t						 		Id;
+	size_t 						 		Class;
+	size_t 								Subclass;
+	size_t 								Protocol;
+	size_t 								StringIndex;
+	int									VersionCount;
+	UsbHcInterfaceVersion_t 			Versions[USB_MAX_VERSIONS];
+});
+
+/* UsbHcDevice 
+ * Describes a device present on a port of a usb-host controller. 
+ * A device then further has a bunch of interfaces, and those interfaces
+ * have a bunch of endpoints. */
+PACKED_TYPESTRUCT(UsbHcDevice, {
+	int							Address;
+	int							InterfaceCount;
+	int 						LanguageCount;
+
+	// Information
+	uint8_t 					Class;
+	uint8_t 					Subclass;
+	uint8_t 					Protocol;
+	uint16_t 					VendorId;
+	uint16_t 					ProductId;
+
+	// Configurations
+	uint8_t 					ConfigurationCount;
+	uint16_t 					ConfigMaxLength;
+	uint16_t 					MaxPowerConsumption;
+	uint16_t 					MaxPacketSize;
+	uint8_t 					Configuration;
+
+	// String indexes
+	uint8_t 					StringIndexProduct;
+	uint8_t 					StringIndexManufactor;
+	uint8_t 					StringIndexSerialNumber;
+
+	// Integrated buffers
+	uint16_t					Languages[USB_MAX_LANGUAGES];
+});
+
 /* Bit-fields and definitions for field UsbHcEndpointDescriptor::Direction
  * Defined below */
 #define USB_ENDPOINT_IN					0x0
