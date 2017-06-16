@@ -48,7 +48,7 @@ typedef enum _MContractType {
 	ContractTimer,
 	ContractTimerPerformance,
 	ContractInput,
-	ContractDisk
+	ContractStorage
 } MContractType_t;
 
 /* The available contract status's that
