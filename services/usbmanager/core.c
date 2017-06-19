@@ -37,6 +37,8 @@
  * To keep track of all data since system startup */
 static List_t *GlbUsbControllers = NULL;
 static List_t *GlbUsbDevices = NULL;
+static BufferObject_t *GlbBuffer = NULL;
+static BufferPool_t *GlbBufferPool = NULL;
 
 /* UsbReserveAddress 
  * Iterate all 128 addresses in an controller and find one not allocated */
@@ -84,6 +86,15 @@ UsbReleaseAddress(
 	return OsSuccess;
 }
 
+/* UsbCoreGetBufferPool
+ * Retrieves the buffer-pool that can be used for internal
+ * usb-transfers. Usefull for enumeration. */
+BufferPool_t*
+UsbCoreGetBufferPool(void)
+{
+	return GlbBufferPool;
+}
+
 /* UsbCoreInitialize
  * Initializes the usb-core stack driver. Allocates all neccessary resources
  * for managing usb controllers devices in the system. */
@@ -94,8 +105,9 @@ UsbCoreInitialize(void)
 	GlbUsbControllers = ListCreate(KeyInteger, LIST_SAFE);
 	GlbUsbDevices = ListCreate(KeyInteger, LIST_SAFE);
 
-	// No error
-	return OsSuccess;
+	// Allocate buffers
+	GlbBuffer = CreateBuffer(0x1000);
+	return BufferPoolCreate(GlbBuffer, &GlbBufferPool);
 }
 
 /* UsbCoreDestroy
@@ -120,7 +132,7 @@ UsbControllerRegister(
 	DataKey_t Key;
 
 	// Allocate a new instance and reset all members
-	Controller = (UsbController_t*)kmalloc(sizeof(UsbController_t));
+	Controller = (UsbController_t*)malloc(sizeof(UsbController_t));
 	memset(Controller, 0, sizeof(UsbController_t));
 
 	// Store initial data
@@ -163,7 +175,7 @@ UsbDeviceSetup(
 	UsbTransferStatus_t tStatus;
 	UsbDevice_t *Device = NULL;
 	int ReservedAddress = 0;
-	int i, j;
+	int i;
 
 	// Make sure that there isn't already one device
 	// setup on the port
@@ -303,7 +315,7 @@ UsbDeviceDestroy(
 {
 	// Variables
 	UsbDevice_t *Device = NULL;
-	int i, j;
+	int i;
 
 	// Sanitize parameters
 	if (Port == NULL || Port->Device == NULL) {
@@ -345,7 +357,7 @@ UsbPortCreate(
 	UsbPort_t *Port = NULL;
 
 	// Allocate a new instance and reset all members to 0
-	Port = kmalloc(sizeof(UsbPort_t));
+	Port = (UsbPort_t*)malloc(sizeof(UsbPort_t));
 	memset(Port, 0, sizeof(UsbPort_t));
 
 	// Store index

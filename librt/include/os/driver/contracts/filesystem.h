@@ -26,7 +26,7 @@
 
 /* Includes 
  * - System */
-#include <os/driver/contracts/disk.h>
+#include <os/driver/contracts/storage.h>
 #include <os/driver/buffer.h>
 #include <os/driver/driver.h>
 #include <os/osdefs.h>
@@ -60,7 +60,7 @@ PACKED_TYPESTRUCT(FileSystemDisk, {
 	UUId_t					Driver;
 	UUId_t					Device;
 	Flags_t					Flags;
-	DiskDescriptor_t		Descriptor;
+	StorageDescriptor_t		Descriptor;
 });
 
 /* The filesystem descriptor structure 

@@ -92,7 +92,7 @@ PACKED_TYPESTRUCT(UsbHcEndpointDescriptor, {
  * Describes a version of an interface and it's endpoint count. */
 PACKED_TYPESTRUCT(UsbHcInterfaceVersion, {
 	int 								Id;
-	int 								EndpointCoint;
+	int 								EndpointCount;
 });
 
 /* UsbHcInterface 

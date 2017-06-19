@@ -162,11 +162,11 @@ PACKED_TYPESTRUCT(UsbDeviceDescriptor, {
 	uint8_t						MaxPacketSize;			// Endpoint 0 - (8, 16, 32, or 64 are the only valid options)
 	uint16_t					VendorId;
 	uint16_t					ProductId;
-	uint16_t					DeviceReleaseNumberBCD;	/* Binary-Coded Decimal (i.e, 2.10 is expressed as 210h) */
-	uint8_t						StrIndexManufactor;		// Index for manufactorer
-	uint8_t						StrIndexProduct;		// Index for product
-	uint8_t						StrIndexSerialNum;		// Index for serial number
-	uint8_t						NumConfigurations;		// Possible configurations
+	uint16_t					DeviceReleaseNumberBCD;	// Binary-Coded Decimal (i.e, 2.10 is expressed as 210h)
+	uint8_t						StringIndexManufactor;	// Index for manufactorer
+	uint8_t						StringIndexProduct;		// Index for product
+	uint8_t						StringIndexSerialNumber;// Index for serial number
+	uint8_t						ConfigurationCount;		// Possible configurations
 });
 
 /* UsbConfigDescriptor (Shared)

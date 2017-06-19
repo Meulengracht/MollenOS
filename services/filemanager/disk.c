@@ -228,7 +228,7 @@ OsStatus_t RegisterDisk(UUId_t Driver, UUId_t Device, Flags_t Flags)
 
 	// Query disk for general device information and 
 	// information about geometry
-	if (DiskQuery(Driver, Device, &Disk->Descriptor) != OsSuccess) {
+	if (StorageQuery(Driver, Device, &Disk->Descriptor) != OsSuccess) {
 		free(Disk);
 		return OsError;
 	}

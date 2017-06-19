@@ -27,6 +27,7 @@
 /* Includes 
  * - System */
 #include <os/driver/contracts/usbhost.h>
+#include <os/driver/bufferpool.h>
 #include <os/driver/usb.h>
 #include <os/osdefs.h>
 #include <ds/list.h>
@@ -35,6 +36,7 @@
  * */
 typedef struct _UsbInterfaceVersion {
 	UsbHcInterfaceVersion_t		Base;
+	int							Exists;
 	UsbHcEndpointDescriptor_t	Endpoints[USB_MAX_ENDPOINTS];
 } UsbInterfaceVersion_t;
 
@@ -42,6 +44,7 @@ typedef struct _UsbInterfaceVersion {
  * */
 typedef struct _UsbInterface {
 	UsbHcInterface_t			Base;
+	int							Exists;
 	UsbInterfaceVersion_t		Versions[USB_MAX_VERSIONS];
 } UsbInterface_t;
 
@@ -96,5 +99,30 @@ UsbCoreInitialize(void);
 __EXTERN
 OsStatus_t
 UsbCoreDestroy(void);
+
+/* UsbCoreGetBufferPool
+ * Retrieves the buffer-pool that can be used for internal
+ * usb-transfers. Usefull for enumeration. */
+ __EXTERN
+ BufferPool_t*
+ UsbCoreGetBufferPool(void);
+
+/* UsbFunctionSetAddress
+ * Set address of an usb device - the device structure is automatically updated. */
+__EXTERN
+UsbTransferStatus_t
+UsbFunctionSetAddress(
+	_In_ UsbController_t *Controller, 
+	_In_ UsbPort_t *Port, 
+	_In_ int Address);
+
+/* UsbFunctionGetDeviceDescriptor
+ * Queries the device descriptor of an usb device on a given port. The information
+ * is automatically filled in, in the device structure */
+__EXTERN
+UsbTransferStatus_t
+UsbFunctionGetDeviceDescriptor(
+	_In_ UsbController_t *Controller, 
+	_In_ UsbPort_t *Port);
 
 #endif //!__USBMANAGER_H__

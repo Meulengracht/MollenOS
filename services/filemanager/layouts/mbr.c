@@ -48,7 +48,8 @@ OsStatus_t MbrEnumeratePartitions(FileSystemDisk_t *Disk,
 
 	// Start out by reading the mbr to detect whether
 	// or not there is a partition table
-	if (DiskRead(Disk->Driver, Disk->Device, Sector, GetBufferAddress(Buffer), 1) != OsSuccess) {
+	if (StorageRead(Disk->Driver, Disk->Device, 
+		Sector, GetBufferAddress(Buffer), 1) != OsSuccess) {
 		return OsError;
 	}
 

@@ -32,6 +32,16 @@
         "*.ipp": "cpp",
         "atomic": "cpp",
         "filesystem": "cpp",
-        "system_error": "cpp"
+        "system_error": "cpp",
+        "__string": "cpp",
+        "__functional_base": "cpp",
+        "__functional_base_03": "cpp",
+        "__tuple": "cpp",
+        "any": "cpp",
+        "chrono": "cpp",
+        "type_traits": "cpp",
+        "limits": "cpp",
+        "ratio": "cpp",
+        "tuple": "cpp"
     }
 }
