@@ -223,7 +223,7 @@ AhciManagerCreateDeviceCallback(
 
 	// At this point the ahcidisk structure is filled
 	// and we can continue to fill out the descriptor
-	memset(&Device->Descriptor, 0, sizeof(DiskDescriptor_t));
+	memset(&Device->Descriptor, 0, sizeof(StorageDescriptor_t));
 	Device->Descriptor.Driver = UUID_INVALID;
 	Device->Descriptor.Device = GlbDiskId++;
 	Device->Descriptor.Flags = 0;

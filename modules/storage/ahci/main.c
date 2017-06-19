@@ -25,7 +25,7 @@
 
 /* Includes 
  * - System */
-#include <os/driver/contracts/disk.h>
+#include <os/driver/contracts/storage.h>
 #include <os/mollenos.h>
 #include <os/utils.h>
 #include "manager.h"
@@ -195,15 +195,15 @@ OnQuery(_In_ MContractType_t QueryType,
 	_CRT_UNUSED(Arg2);
 
 	// Sanitize the QueryType
-	if (QueryType != ContractDisk) {
+	if (QueryType != ContractStorage) {
 		return OsError;
 	}
 
 	// Which kind of function has been invoked?
 	switch (QueryFunction) {
 		// Query stats about a disk identifier in the form of
-		// a DiskDescriptor
-	case __DISK_QUERY_STAT: {
+		// a StorageDescriptor
+	case __STORAGE_QUERY_STAT: {
 		// Get parameters
 		AhciDevice_t *Device = NULL;
 		UUId_t DiskId = (UUId_t)Arg0->Data.Value;
@@ -214,7 +214,7 @@ OnQuery(_In_ MContractType_t QueryType,
 		// Write the descriptor back
 		if (Device != NULL) {
 			return PipeSend(Queryee, ResponsePort,
-				(void*)&Device->Descriptor, sizeof(DiskDescriptor_t));
+				(void*)&Device->Descriptor, sizeof(StorageDescriptor_t));
 		}
 		else {
 			OsStatus_t Result = OsError;
@@ -226,10 +226,10 @@ OnQuery(_In_ MContractType_t QueryType,
 
 		// Read or write sectors from a disk identifier
 		// They have same parameters with different direction
-	case __DISK_QUERY_WRITE:
-	case __DISK_QUERY_READ: {
+	case __STORAGE_QUERY_WRITE:
+	case __STORAGE_QUERY_READ: {
 		// Get parameters
-		DiskOperation_t *Operation = (DiskOperation_t*)Arg1->Data.Buffer;
+		StorageOperation_t *Operation = (StorageOperation_t*)Arg1->Data.Buffer;
 		UUId_t DiskId = (UUId_t)Arg0->Data.Value;
 
 		// Create a new transaction
@@ -249,7 +249,7 @@ OnQuery(_In_ MContractType_t QueryType,
 
 		// Determine the kind of operation
 		if (Transaction->Device != NULL
-			&& Operation->Direction == __DISK_OPERATION_READ) {
+			&& Operation->Direction == __STORAGE_OPERATION_READ) {
 			if (AhciReadSectors(Transaction, Operation->AbsSector) != OsSuccess) {
 				OsStatus_t Result = OsError;
 				return PipeSend(Queryee, ResponsePort, (void*)&Result, sizeof(OsStatus_t));
@@ -259,7 +259,7 @@ OnQuery(_In_ MContractType_t QueryType,
 			}
 		}
 		else if (Transaction->Device != NULL
-			&& Operation->Direction == __DISK_OPERATION_WRITE) {
+			&& Operation->Direction == __STORAGE_OPERATION_WRITE) {
 			if (AhciWriteSectors(Transaction, Operation->AbsSector) != OsSuccess) {
 				OsStatus_t Result = OsError;
 				return PipeSend(Queryee, ResponsePort, (void*)&Result, sizeof(OsStatus_t));

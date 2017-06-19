@@ -185,7 +185,7 @@ UsbDeviceSetup(
 	}
 
 	// Allocate a new instance of the usb device and reset it
-	Device = (UsbDevice_t*)kmalloc(sizeof(UsbDevice_t));
+	Device = (UsbDevice_t*)malloc(sizeof(UsbDevice_t));
 	memset(Device, 0, sizeof(UsbDevice_t));
 
 	// Initialize the control-endpoint

@@ -310,7 +310,7 @@ FsReadFile(
 		}
 
 		// Perform the read (Raw - as we need to pass the datapointer)
-		if (DiskRead(Descriptor->Disk.Driver, Descriptor->Disk.Device, 
+		if (StorageRead(Descriptor->Disk.Driver, Descriptor->Disk.Device, 
 			Descriptor->SectorStart + Sector, DataPointer, SectorCount) != OsSuccess) {
 			ERROR("Failed to read sector");
 			Result = FsDiskError;

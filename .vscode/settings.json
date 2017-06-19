@@ -42,6 +42,7 @@
         "type_traits": "cpp",
         "limits": "cpp",
         "ratio": "cpp",
-        "tuple": "cpp"
+        "tuple": "cpp",
+        "*.inc": "cpp"
     }
 }

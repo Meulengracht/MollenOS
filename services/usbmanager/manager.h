@@ -125,4 +125,64 @@ UsbFunctionGetDeviceDescriptor(
 	_In_ UsbController_t *Controller, 
 	_In_ UsbPort_t *Port);
 
+/* UsbFunctionGetConfigDescriptor
+ * Queries the full configuration descriptor setup including all endpoints and interfaces.
+ * This relies on the GetInitialConfigDescriptor. Also allocates all resources neccessary. */
+__EXTERN
+UsbTransferStatus_t
+UsbFunctionGetConfigDescriptor(
+	_In_ UsbController_t *Controller, 
+	_In_ UsbPort_t *Port);
+
+/* UsbFunctionSetConfiguration
+ * Updates the configuration of an usb-device. This changes active endpoints. */
+__EXTERN
+UsbTransferStatus_t
+UsbFunctionSetConfiguration(
+	_In_ UsbController_t *Controller, 
+	_In_ UsbPort_t *Port,
+	_In_ size_t Configuration);
+
+/* UsbFunctionGetStringLanguages
+ * Gets the device string language descriptors (Index 0). This automatically stores the available
+ * languages in the device structure. */
+__EXTERN
+UsbTransferStatus_t
+UsbFunctionGetStringLanguages(
+	_In_ UsbController_t *Controller, 
+	_In_ UsbPort_t *Port);
+
+/* UsbFunctionGetStringDescriptor
+ * Queries the usb device for a string with the given language and index. */
+__EXTERN
+UsbTransferStatus_t
+UsbFunctionGetStringDescriptor(
+	_In_ UsbController_t *Controller, 
+	_In_ UsbPort_t *Port, 
+	_In_ size_t LanguageId, 
+	_In_ size_t StringIndex, 
+	_Out_ char *String);
+
+/* UsbFunctionClearFeature
+ * Indicates to an usb-device that we want to request a feature/state disabled. */
+__EXTERN
+UsbTransferStatus_t
+UsbFunctionClearFeature(
+	_In_ UsbController_t *Controller, 
+	_In_ UsbPort_t *Port,
+	_In_ uint8_t Target, 
+	_In_ uint16_t Index, 
+	_In_ uint16_t Feature);
+
+/* UsbFunctionSetFeature
+ * Indicates to an usb-device that we want to request a feature/state enabled. */
+__EXTERN
+UsbTransferStatus_t
+UsbFunctionSetFeature(
+	_In_ UsbController_t *Controller, 
+	_In_ UsbPort_t *Port,
+	_In_ uint8_t Target, 
+	_In_ uint16_t Index, 
+	_In_ uint16_t Feature);
+
 #endif //!__USBMANAGER_H__

@@ -47,7 +47,7 @@ MfsReadSectors(
 	AbsoluteSector = Descriptor->SectorStart + Sector;
 
 	// Do the actual read
-	return DiskRead(Descriptor->Disk.Driver,
+	return StorageRead(Descriptor->Disk.Driver,
 		Descriptor->Disk.Device, AbsoluteSector, 
 		GetBufferAddress(Buffer), Count);
 }
@@ -69,7 +69,7 @@ MfsWriteSectors(
 	AbsoluteSector = Descriptor->SectorStart + Sector;
 
 	// Do the actual read
-	return DiskWrite(Descriptor->Disk.Driver,
+	return StorageWrite(Descriptor->Disk.Driver,
 		Descriptor->Disk.Device, AbsoluteSector,
 		GetBufferAddress(Buffer), Count);
 }

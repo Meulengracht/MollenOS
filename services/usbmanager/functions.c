@@ -346,7 +346,7 @@ UsbFunctionGetInitialConfigDescriptor(
 	UsbTransferInitialize(Port, ControlTransfer,
 		&Port->Device->ControlEndpoint, &Transfer);
 
-	// GetDeviceDescriptor request consists of three transactions
+	// GetInitialConfigDescriptor request consists of three transactions
 	// Setup, In (Data) and Out (ACK)
 	UsbTransferSetup(&Transfer, &Packet, &PacketBuffer);
 	UsbTransferIn(&Transfer, 1, DescriptorPhysical, sizeof(UsbConfigDescriptor_t), 0);
@@ -372,7 +372,9 @@ UsbFunctionGetInitialConfigDescriptor(
 	return Result.Status;
 }
 
-/* Gets the config descriptor */
+/* UsbFunctionGetConfigDescriptor
+ * Queries the full configuration descriptor setup including all endpoints and interfaces.
+ * This relies on the GetInitialConfigDescriptor. Also allocates all resources neccessary. */
 UsbTransferStatus_t
 UsbFunctionGetConfigDescriptor(
 	_In_ UsbController_t *Controller, 
@@ -511,393 +513,355 @@ UsbFunctionGetConfigDescriptor(
 				memcpy(UsbIfVersion, &UsbIfVersionMeta->Base, 
 					sizeof(UsbHcInterfaceVersion_t));
 			}
-			else if ((length == 7 || length == 9)
-				&& type == USB_DESC_TYPE_ENDPOINT)
-			{
-				/* Null Ep's ? ?*/
-				if (Hc->Ports[Port]->Device->NumInterfaces == 0)
+			else if ((Length == 7 || Length == 9)
+				&& Type == USB_DESCRIPTOR_ENDPOINT) {
+				
+				// Variables
+				UsbHcEndpointDescriptor_t *HcEndpoint = NULL;
+				UsbEndpointDescriptor_t *Endpoint = NULL;
+				UsbEndpointType_t EndpointType;
+				size_t EndpointAddress = 0;
+
+				// Protect against null interface-endpoints
+				if (Port->Device->Base.InterfaceCount == 0) {
 					goto NextEntry;
-
-				/* Cast */
-				UsbEndpointDescriptor_t *Ep = (UsbEndpointDescriptor_t*)BufPtr;
-				UsbHcEndpoint_t *HcdEp = (UsbHcEndpoint_t*)kmalloc(sizeof(UsbHcEndpoint_t));
-
-				/* Get Info */
-				size_t EpAddr = Ep->Address & 0xF;
-				UsbHcEndpointType_t EpType = (UsbHcEndpointType_t)(Ep->Attributes & 0x3);
-
-				/* Debug */
-				LogInformation("USBC", "Endpoint %u (%s) - Attributes 0x%x (MaxPacketSize 0x%x)",
-					EpAddr, ((Ep->Address & 0x80) != 0 ? "IN" : "OUT"), Ep->Attributes, Ep->MaxPacketSize);
-
-				/* Update Device */
-				HcdEp->Address = EpAddr;
-				HcdEp->MaxPacketSize = (Ep->MaxPacketSize & 0x7FF);
-				HcdEp->Bandwidth = ((Ep->MaxPacketSize >> 11) & 0x3) + 1;
-				HcdEp->Interval = Ep->Interval;
-				HcdEp->Toggle = 0;
-				HcdEp->Type = EpType;
-
-				/* In or Out? */
-				if (Ep->Address & 0x80)
-					HcdEp->Direction = USB_EP_DIRECTION_IN;
-				else
-					HcdEp->Direction = USB_EP_DIRECTION_OUT;
-
-				/* Sanity */
-				if (Hc->Ports[Port]->Device->Interfaces[
-					Hc->Ports[Port]->Device->NumInterfaces - 1]->
-						Versions[CurrentIfVersion]->NumEndpoints < (EpIterator + 1))
-				{
-					/* The fuck?? -.- */
-					if (Hc->Ports[Port]->Device->Interfaces[
-						Hc->Ports[Port]->Device->NumInterfaces - 1]->
-							Versions[CurrentIfVersion]->Endpoints == NULL)
-					{
-						/* Dummy Allocate */
-						Hc->Ports[Port]->Device->Interfaces[
-							Hc->Ports[Port]->Device->NumInterfaces - 1]->
-								Versions[CurrentIfVersion]->Endpoints =
-								(UsbHcEndpoint_t**)kmalloc(sizeof(UsbHcEndpoint_t*) * 16);
-					}
-
-					/* Increament */
-					Hc->Ports[Port]->Device->Interfaces[
-						Hc->Ports[Port]->Device->NumInterfaces - 1]->
-							Versions[CurrentIfVersion]->NumEndpoints++;
 				}
 
-				/* Set */
-				Hc->Ports[Port]->Device->Interfaces[
-					Hc->Ports[Port]->Device->NumInterfaces - 1]->
-						Versions[CurrentIfVersion]->Endpoints[EpIterator] = HcdEp;
+				// Instantiate pointer
+				Endpoint = (UsbEndpointDescriptor_t*)BufferPointer;
+				HcEndpoint = &Port->Device->Interfaces[
+					Port->Device->Base.InterfaceCount - 1].
+						Versions[CurrentIfVersion].Endpoints[EpIterator];
 
-				/* Next */
+				// Extract some information
+				EndpointAddress = (Endpoint->Address & 0xF);
+				EndpointType = (UsbEndpointType_t)(Endpoint->Attributes & 0x3);
+
+				// Trace some information
+				TRACE("Endpoint %u (%s) - Attributes 0x%x (MaxPacketSize 0x%x)",
+					EndpointAddress, ((Endpoint->Address & 0x80) != 0 ? "IN" : "OUT"), 
+					Endpoint->Attributes, Endpoint->MaxPacketSize);
+
+				// Update the hc-endpoint
+				HcEndpoint->Address = EndpointAddress;
+				HcEndpoint->MaxPacketSize = (Endpoint->MaxPacketSize & 0x7FF);
+				HcEndpoint->Bandwidth = ((Endpoint->MaxPacketSize >> 11) & 0x3) + 1;
+				HcEndpoint->Interval = Endpoint->Interval;
+				HcEndpoint->Type = EndpointType;
+
+				// Determine the direction of the EP
+				if (Endpoint->Address & 0x80) {
+					HcEndpoint->Direction = USB_ENDPOINT_IN;
+				}	
+				else {
+					HcEndpoint->Direction = USB_ENDPOINT_OUT;
+				}
+				
+				// Sanitize the endpoint count, we've experienced they
+				// don't always match... which is awkward.
+				if (Port->Device->Interfaces[Port->Device->Base.InterfaceCount - 1].
+						Versions[CurrentIfVersion].Base.EndpointCount < (EpIterator + 1)) {
+
+					// Yeah we got to correct it. Bad implementation
+					Port->Device->Interfaces[
+						Port->Device->Base.InterfaceCount - 1].
+							Versions[CurrentIfVersion].Base.EndpointCount++;
+				}
+
+				// Increase the EP index
 				EpIterator++;
 			}
 
-			/* Increase */
+			// Go to next descriptor entry
 		NextEntry:
-			BufPtr += length;
-			BytesLeft -= (int32_t)length;
+			BufferPointer += Length;
+			BytesLeft -= Length;
 		}
 	}
-	else
-	{
-		/* Cleanup */
-		kfree(Buffer);
-		Hc->Ports[Port]->Device->Descriptors = NULL;
+	else {
+		// Cleanup the allocated buffer
+		free(Port->Device->Descriptors);
+		Port->Device->Descriptors = NULL;
 	}
 
 	// Done
 	return Result.Status;
 }
 
-/* Set configuration of an usb device */
-UsbTransferStatus_t UsbFunctionSetConfiguration(UsbHc_t *Hc, int Port, size_t Configuration)
+/* UsbFunctionSetConfiguration
+ * Updates the configuration of an usb-device. This changes active endpoints. */
+UsbTransferStatus_t
+UsbFunctionSetConfiguration(
+	_In_ UsbController_t *Controller, 
+	_In_ UsbPort_t *Port, 
+	_In_ size_t Configuration)
 {
-	/* Vars */
-	UsbHcRequest_t Request = { 0 };
+	// Variables
+	uintptr_t *PacketBuffer = NULL;
+
+	// Buffers
+	UsbTransferResult_t Result = { 0 };
+	UsbTransfer_t Transfer = { 0 };
 	UsbPacket_t Packet = { 0 };
 
-	/* Setup Packet */
-	Packet.Direction = USB_REQUEST_DIR_OUT;
-	Packet.Type = USB_REQUEST_SET_CONFIG;
+	// Initialize the packet
+	Packet.Direction = USBPACKET_DIRECTION_OUT;
+	Packet.Type = USBPACKET_TYPE_SET_CONFIG;
 	Packet.ValueHi = 0;
 	Packet.ValueLo = (Configuration & 0xFF);
 	Packet.Index = 0;
-	Packet.Length = 0;		/* We do not want data */
+	Packet.Length = 0;		// No data for us
 
-	/* Init transfer */
-	UsbTransactionInit(Hc, &Request, ControlTransfer,
-		Hc->Ports[Port]->Device, Hc->Ports[Port]->Device->CtrlEndpoint);
+	// Initialize transfer
+	UsbTransferInitialize(Port, ControlTransfer,
+		&Port->Device->ControlEndpoint, &Transfer);
 
-	/* Setup Transfer */
-	UsbTransactionSetup(Hc, &Request, &Packet);
+	// SetConfiguration request consists of two transactions
+	// Setup and In (ACK)
+	UsbTransferSetup(&Transfer, &Packet, &PacketBuffer);
+	UsbTransferIn(&Transfer, 1, 0, 0, 1);
 
-	/* ACK Transfer */
-	UsbTransactionIn(Hc, &Request, 1, NULL, 0);
+	// Execute the transaction and cleanup
+	// the buffer
+	UsbTransferSend(Controller, Port, &Transfer, &Result);
 
-	/* Send it */
-	UsbTransactionSend(Hc, &Request);
+	// Cleanup allocations
+	BufferPoolFree(UsbCoreGetBufferPool(), PacketBuffer);
 
-	/* Cleanup */
-	UsbTransactionDestroy(Hc, &Request);
-
-	/* Done */
-	return Request.Status;
+	// Done!
+	return Result.Status;
 }
 
-/* Gets the device string language descriptors (Index 0) */
-UsbTransferStatus_t UsbFunctionGetStringLanguages(UsbHc_t *Hc, int Port)
+/* UsbFunctionGetStringLanguages
+ * Gets the device string language descriptors (Index 0). This automatically stores the available
+ * languages in the device structure. */
+UsbTransferStatus_t
+UsbFunctionGetStringLanguages(
+	_In_ UsbController_t *Controller, 
+	_In_ UsbPort_t *Port)
 {
-	/* Vars */
-	UsbStringDescriptor_t StringDesc;
-	UsbHcRequest_t Request = { 0 };
+	// Variables
+	UsbStringDescriptor_t *Descriptor = NULL;
+	uintptr_t *DescriptorVirtual = NULL;
+	uintptr_t DescriptorPhysical = 0;
+	uintptr_t *PacketBuffer = NULL;
+	int i;
+
+	// Buffers
+	UsbTransferResult_t Result = { 0 };
+	UsbTransfer_t Transfer = { 0 };
 	UsbPacket_t Packet = { 0 };
 
-	/* Setup Packet */
-	Packet.Direction = USB_REQUEST_DIR_IN;
-	Packet.Type = USB_REQUEST_GET_DESC;
-	Packet.ValueHi = USB_DESC_TYPE_STRING;
+	// Initialize the packet
+	Packet.Direction = USBPACKET_DIRECTION_IN;
+	Packet.Type = USBPACKET_TYPE_GET_DESC;
+	Packet.ValueHi = USB_DESCRIPTOR_STRING;
 	Packet.ValueLo = 0;
 	Packet.Index = 0;
 	Packet.Length = sizeof(UsbStringDescriptor_t);
 
-	/* Init transfer */
-	UsbTransactionInit(Hc, &Request, ControlTransfer,
-		Hc->Ports[Port]->Device, Hc->Ports[Port]->Device->CtrlEndpoint);
+	// Allocate a data-buffer
+	if (BufferPoolAllocate(UsbCoreGetBufferPool(),
+		sizeof(UsbStringDescriptor_t), &DescriptorVirtual, 
+		&DescriptorPhysical) != OsSuccess) {
+		return TransferInvalidData;
+	}
 
-	/* Setup Transfer */
-	UsbTransactionSetup(Hc, &Request, &Packet);
+	// Initialize pointer
+	Descriptor = (UsbStringDescriptor_t*)DescriptorVirtual;
 
-	/* In Transfer, we want to fill the descriptor */
-	UsbTransactionIn(Hc, &Request, 0, &StringDesc, sizeof(UsbStringDescriptor_t));
+	// Initialize transfer
+	UsbTransferInitialize(Port, ControlTransfer,
+		&Port->Device->ControlEndpoint, &Transfer);
 
-	/* Out Transfer, STATUS Stage */
-	UsbTransactionOut(Hc, &Request, 1, NULL, 0);
+	// GetInitialConfigDescriptor request consists of three transactions
+	// Setup, In (Data) and Out (ACK)
+	UsbTransferSetup(&Transfer, &Packet, &PacketBuffer);
+	UsbTransferIn(&Transfer, 1, DescriptorPhysical, sizeof(UsbStringDescriptor_t), 0);
+	UsbTransferOut(&Transfer, 2, 0, 0, 1);
 
-	/* Send it */
-	UsbTransactionSend(Hc, &Request);
+	// Execute the transaction and cleanup
+	// the buffer
+	UsbTransferSend(Controller, Port, &Transfer, &Result);
 
-	/* Update Device Information */
-	if (Request.Status == TransferFinished)
-	{
-		/* Build a list of available languages */
-		Hc->Ports[Port]->Device->NumLanguages = (StringDesc.Length - 2) / 2;
+	// Update the device structure with the queried langauges
+	if (Result.Status == TransferFinished) {
+		
+		// Get count
+		Port->Device->Base.LanguageCount = (Descriptor->Length - 2) / 2;
 
-		/* Allocate List */
-		if (Hc->Ports[Port]->Device->NumLanguages > 0) {
-			uint16_t *LangList = (uint16_t*)kmalloc(2 * Hc->Ports[Port]->Device->NumLanguages);
-			int i;
-			for (i = 0; i < Hc->Ports[Port]->Device->NumLanguages; i++)
-				LangList[i] = StringDesc.WString[i];
+		// Fill the list
+		if (Port->Device->Base.LanguageCount > 0) {
+			for (i = 0; i < Port->Device->Base.LanguageCount; i++) {
+				Port->Device->Base.Languages[i] = Descriptor->Data[i];
+			}
 		}
 	}
 
-	/* Cleanup */
-	UsbTransactionDestroy(Hc, &Request);
+	// Cleanup allocations
+	BufferPoolFree(UsbCoreGetBufferPool(), DescriptorVirtual);
+	BufferPoolFree(UsbCoreGetBufferPool(), PacketBuffer);
 
-	/* Done */
-	return Request.Status;
+	// Done
+	return Result.Status;
 }
 
-/* Gets a string descriptor */
-UsbTransferStatus_t UsbFunctionGetStringDescriptor(UsbHc_t *Hc, 
-	int Port, size_t LanguageId, size_t StringIndex, char *StrBuffer)
+/* UsbFunctionGetStringDescriptor
+ * Queries the usb device for a string with the given language and index. */
+UsbTransferStatus_t
+UsbFunctionGetStringDescriptor(
+	_In_ UsbController_t *Controller, 
+	_In_ UsbPort_t *Port, 
+	_In_ size_t LanguageId, 
+	_In_ size_t StringIndex, 
+	_Out_ char *String)
 {
-	/* Vars */
-	UsbHcRequest_t Request = { 0 };
-	UsbPacket_t Packet = { 0 };
-	char TempBuffer[64];
+	// Variables
+	char *StringBuffer = NULL;
+	uintptr_t *DescriptorVirtual = NULL;
+	uintptr_t DescriptorPhysical = 0;
+	uintptr_t *PacketBuffer = NULL;
 
-	/* Setup Packet */
-	Packet.Direction = USB_REQUEST_DIR_IN;
-	Packet.Type = USB_REQUEST_GET_DESC;
-	Packet.ValueHi = USB_DESC_TYPE_STRING;
+	// Buffers
+	UsbTransferResult_t Result = { 0 };
+	UsbTransfer_t Transfer = { 0 };
+	UsbPacket_t Packet = { 0 };
+
+	// Initialize the packet
+	Packet.Direction = USBPACKET_DIRECTION_IN;
+	Packet.Type = USBPACKET_TYPE_GET_DESC;
+	Packet.ValueHi = USB_DESCRIPTOR_STRING;
 	Packet.ValueLo = (uint8_t)StringIndex;
 	Packet.Index = (uint16_t)LanguageId;
 	Packet.Length = 64;
 
-	/* Init transfer */
-	UsbTransactionInit(Hc, &Request, ControlTransfer,
-		Hc->Ports[Port]->Device, Hc->Ports[Port]->Device->CtrlEndpoint);
+	// Allocate a data-buffer
+	if (BufferPoolAllocate(UsbCoreGetBufferPool(),
+		64, &DescriptorVirtual, 
+		&DescriptorPhysical) != OsSuccess) {
+		return TransferInvalidData;
+	}
 
-	/* Setup Transfer */
-	UsbTransactionSetup(Hc, &Request, &Packet);
+	// Initialize pointer
+	StringBuffer = (char*)DescriptorVirtual;
 
-	/* In Transfer, we want to fill the descriptor */
-	UsbTransactionIn(Hc, &Request, 0, TempBuffer, 64);
+	// Initialize transfer
+	UsbTransferInitialize(Port, ControlTransfer,
+		&Port->Device->ControlEndpoint, &Transfer);
 
-	/* Out Transfer, STATUS Stage */
-	UsbTransactionOut(Hc, &Request, 1, NULL, 0);
+	// GetInitialConfigDescriptor request consists of three transactions
+	// Setup, In (Data) and Out (ACK)
+	UsbTransferSetup(&Transfer, &Packet, &PacketBuffer);
+	UsbTransferIn(&Transfer, 1, DescriptorPhysical, 64, 0);
+	UsbTransferOut(&Transfer, 2, 0, 0, 1);
 
-	/* Send it */
-	UsbTransactionSend(Hc, &Request);
+	// Execute the transaction and cleanup
+	// the buffer
+	UsbTransferSend(Controller, Port, &Transfer, &Result);
 
-	/* Update Device Information */
-	if (Request.Status == TransferFinished)
-	{
+	// Update the out variable with the string
+	if (Result.Status == TransferFinished) {
 		/* Convert to Utf8 */
 		//size_t StringLength = (*((uint8_t*)TempBuffer + 1) - 2);
-		_CRT_UNUSED(StrBuffer);
-
-		/* Create a MString */
+		_CRT_UNUSED(StringBuffer);
 	}
 
-	/* Cleanup */
-	UsbTransactionDestroy(Hc, &Request);
+	// Cleanup allocations
+	BufferPoolFree(UsbCoreGetBufferPool(), DescriptorVirtual);
+	BufferPoolFree(UsbCoreGetBufferPool(), PacketBuffer);
 
-	/* Done */
-	return Request.Status;
+	// Done
+	return Result.Status;
 }
 
-/* Clear Feature */
-UsbTransferStatus_t UsbFunctionClearFeature(UsbHc_t *Hc, int Port,
-	uint8_t Target, uint16_t Index, uint16_t Feature)
+/* UsbFunctionClearFeature
+ * Indicates to an usb-device that we want to request a feature/state disabled. */
+UsbTransferStatus_t
+UsbFunctionClearFeature(
+	_In_ UsbController_t *Controller, 
+	_In_ UsbPort_t *Port,
+	_In_ uint8_t Target, 
+	_In_ uint16_t Index, 
+	_In_ uint16_t Feature)
 {
-	/* Vars */
-	UsbHcRequest_t Request = { 0 };
+	// Variables
+	uintptr_t *PacketBuffer = NULL;
+
+	// Buffers
+	UsbTransferResult_t Result = { 0 };
+	UsbTransfer_t Transfer = { 0 };
 	UsbPacket_t Packet = { 0 };
 
-	/* Setup Packet */
+	// Initialize the packet
 	Packet.Direction = Target;
-	Packet.Type = USB_REQUEST_CLR_FEATURE;
+	Packet.Type = USBPACKET_TYPE_CLR_FEATURE;
 	Packet.ValueHi = ((Feature >> 8) & 0xFF);
 	Packet.ValueLo = (Feature & 0xFF);
 	Packet.Index = Index;
-	Packet.Length = 0;
+	Packet.Length = 0;		// No data for us
 
-	/* Init transfer */
-	UsbTransactionInit(Hc, &Request, ControlTransfer,
-		Hc->Ports[Port]->Device, Hc->Ports[Port]->Device->CtrlEndpoint);
+	// Initialize transfer
+	UsbTransferInitialize(Port, ControlTransfer,
+		&Port->Device->ControlEndpoint, &Transfer);
 
-	/* Setup Transfer */
-	UsbTransactionSetup(Hc, &Request, &Packet);
+	// SetConfiguration request consists of two transactions
+	// Setup and In (ACK)
+	UsbTransferSetup(&Transfer, &Packet, &PacketBuffer);
+	UsbTransferIn(&Transfer, 1, 0, 0, 1);
 
-	/* ACK Transfer */
-	UsbTransactionIn(Hc, &Request, 1, NULL, 0);
+	// Execute the transaction and cleanup
+	// the buffer
+	UsbTransferSend(Controller, Port, &Transfer, &Result);
 
-	/* Send it */
-	UsbTransactionSend(Hc, &Request);
+	// Cleanup allocations
+	BufferPoolFree(UsbCoreGetBufferPool(), PacketBuffer);
 
-	/* Cleanup */
-	UsbTransactionDestroy(Hc, &Request);
-
-	/* Done */
-	return Request.Status;
+	// Done!
+	return Result.Status;
 }
 
-/* Set Feature */
-UsbTransferStatus_t UsbFunctionSetFeature(UsbHc_t *Hc, int Port,
-	uint8_t Target, uint16_t Index, uint16_t Feature)
+/* UsbFunctionSetFeature
+ * Indicates to an usb-device that we want to request a feature/state enabled. */
+UsbTransferStatus_t
+UsbFunctionSetFeature(
+	_In_ UsbController_t *Controller, 
+	_In_ UsbPort_t *Port,
+	_In_ uint8_t Target, 
+	_In_ uint16_t Index, 
+	_In_ uint16_t Feature)
 {
-	/* Vars */
-	UsbHcRequest_t Request = { 0 };
+	// Variables
+	uintptr_t *PacketBuffer = NULL;
+
+	// Buffers
+	UsbTransferResult_t Result = { 0 };
+	UsbTransfer_t Transfer = { 0 };
 	UsbPacket_t Packet = { 0 };
 
-	/* Setup Packet */
+	// Initialize the packet
 	Packet.Direction = Target;
-	Packet.Type = USB_REQUEST_SET_FEATURE;
+	Packet.Type = USBPACKET_TYPE_SET_FEATURE;
 	Packet.ValueHi = ((Feature >> 8) & 0xFF);
 	Packet.ValueLo = (Feature & 0xFF);
 	Packet.Index = Index;
-	Packet.Length = 0;
+	Packet.Length = 0;		// No data for us
 
-	/* Init transfer */
-	UsbTransactionInit(Hc, &Request, ControlTransfer,
-		Hc->Ports[Port]->Device, Hc->Ports[Port]->Device->CtrlEndpoint);
+	// Initialize transfer
+	UsbTransferInitialize(Port, ControlTransfer,
+		&Port->Device->ControlEndpoint, &Transfer);
 
-	/* Setup Transfer */
-	UsbTransactionSetup(Hc, &Request, &Packet);
+	// SetConfiguration request consists of two transactions
+	// Setup and In (ACK)
+	UsbTransferSetup(&Transfer, &Packet, &PacketBuffer);
+	UsbTransferIn(&Transfer, 1, 0, 0, 1);
 
-	/* ACK Transfer */
-	UsbTransactionIn(Hc, &Request, 1, NULL, 0);
+	// Execute the transaction and cleanup
+	// the buffer
+	UsbTransferSend(Controller, Port, &Transfer, &Result);
 
-	/* Send it */
-	UsbTransactionSend(Hc, &Request);
+	// Cleanup allocations
+	BufferPoolFree(UsbCoreGetBufferPool(), PacketBuffer);
 
-	/* Cleanup */
-	UsbTransactionDestroy(Hc, &Request);
-
-	/* Done! */
-	return Request.Status;
-}
-
-/* Get specific descriptor */
-UsbTransferStatus_t UsbFunctionGetDescriptor(UsbHc_t *Hc, int Port, void *Buffer, uint8_t Direction,
-	uint8_t DescriptorType, uint8_t SubType, uint8_t DescriptorIndex, uint16_t DescriptorLength)
-{
-	/* Vars */
-	UsbHcRequest_t Request = { 0 };
-	UsbPacket_t Packet = { 0 };
-
-	/* Setup Packet */
-	Packet.Direction = Direction;
-	Packet.Type = USB_REQUEST_GET_DESC;
-	Packet.ValueHi = DescriptorType;
-	Packet.ValueLo = SubType;
-	Packet.Index = DescriptorIndex;
-	Packet.Length = DescriptorLength;
-
-	/* Init transfer */
-	UsbTransactionInit(Hc, &Request, ControlTransfer,
-		Hc->Ports[Port]->Device, Hc->Ports[Port]->Device->CtrlEndpoint);
-
-	/* Setup Transfer */
-	UsbTransactionSetup(Hc, &Request, &Packet);
-
-	/* In Transfer, we want to fill the descriptor */
-	UsbTransactionIn(Hc, &Request, 0, Buffer, DescriptorLength);
-
-	/* Out Transfer, STATUS Stage */
-	UsbTransactionOut(Hc, &Request, 1, NULL, 0);
-
-	/* Send it */
-	UsbTransactionSend(Hc, &Request);
-
-	/* Cleanup */
-	UsbTransactionDestroy(Hc, &Request);
-
-	/* Done! */
-	return Request.Status;
-}
-
-/* Send packet */
-UsbTransferStatus_t UsbFunctionSendPacket(UsbHc_t *Hc, int Port, void *Buffer, uint8_t RequestType,
-	uint8_t pRequest, uint8_t ValueHi, uint8_t ValueLo, uint16_t Index, uint16_t Length)
-{
-	/* Vars */
-	UsbHcRequest_t Request = { 0 };
-	UsbPacket_t Packet = { 0 };
-
-	/* Setup Packet */
-	Packet.Direction = RequestType;
-	Packet.Type = pRequest;
-	Packet.ValueHi = ValueHi;
-	Packet.ValueLo = ValueLo;
-	Packet.Index = Index;
-	Packet.Length = Length;
-
-	/* Init transfer */
-	UsbTransactionInit(Hc, &Request, ControlTransfer,
-		Hc->Ports[Port]->Device, Hc->Ports[Port]->Device->CtrlEndpoint);
-
-	/* Setup Transfer */
-	UsbTransactionSetup(Hc, &Request, &Packet);
-
-	/* In/Out Transfer, we want to fill data */
-	if (Length != 0)
-	{
-		if (RequestType & USB_REQUEST_DIR_IN)
-		{
-			UsbTransactionIn(Hc, &Request, 0, Buffer, Length);
-
-			/* Out Transfer, STATUS Stage */
-			UsbTransactionOut(Hc, &Request, 1, NULL, 0);
-		}
-			
-		else
-		{
-			UsbTransactionOut(Hc, &Request, 0, Buffer, Length);
-
-			/* In Transfer, ACK Stage */
-			UsbTransactionIn(Hc, &Request, 1, NULL, 0);
-		}
-			
-	}
-	else
-	{
-		/* In Transfer, ACK Stage */
-		UsbTransactionIn(Hc, &Request, 1, NULL, 0);
-	}
-	
-	/* Send it */
-	UsbTransactionSend(Hc, &Request);
-
-	/* Cleanup */
-	UsbTransactionDestroy(Hc, &Request);
-
-	/* Done! */
-	return Request.Status;
+	// Done!
+	return Result.Status;
 }

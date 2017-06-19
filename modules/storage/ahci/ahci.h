@@ -33,7 +33,7 @@
 /* Includes
  * - System */
 #include <os/driver/contracts/base.h>
-#include <os/driver/contracts/disk.h>
+#include <os/driver/contracts/storage.h>
 #include <os/driver/interrupt.h>
 #include <os/driver/device.h>
 #include <os/driver/buffer.h>
@@ -382,7 +382,7 @@ typedef struct _AhciController {
  * This describes an attached ahci device 
  * and the information neccessary to deal with it */
 typedef struct _AhciDevice {
-	DiskDescriptor_t			 Descriptor;
+	StorageDescriptor_t			 Descriptor;
 
 	AhciController_t			*Controller;
 	AhciPort_t					*Port;
