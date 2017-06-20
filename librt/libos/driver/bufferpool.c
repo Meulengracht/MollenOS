@@ -25,10 +25,12 @@
  * - Library */
 #include <os/driver/bufferpool.h>
 #include <os/osdefs.h>
+#include "../common/bytepool.h"
+#include <stdlib.h>
+#include <stddef.h>
 
 typedef struct _BufferPool {
-    uintptr_t               Base;
-    size_t                  ObjectSize;
+    BufferObject_t*             Buffer;
 } BufferPool_t;
 
 /* BufferPoolCreate
@@ -39,7 +41,15 @@ BufferPoolCreate(
     _In_ BufferObject_t *Buffer,
     _Out_ BufferPool_t **Pool)
 {
+    // Initiate the pool
+    bpool((void*)GetBufferData(Buffer), GetBufferCapacity(Buffer));
 
+    // Allocate the pool
+    *Pool = (BufferPool_t*)malloc(sizeof(BufferPool_t));
+    (*Pool)->Buffer = Buffer;
+
+    // Done
+    return OsSuccess;
 }
 
 /* BufferPoolDestroy
@@ -49,7 +59,9 @@ OsStatus_t
 BufferPoolDestroy(
     _In_ BufferPool_t *Pool)
 {
-
+    // Cleanup structure
+    free(Pool);
+    return OsSuccess;
 }
 
 /* BufferPoolAllocate
@@ -63,7 +75,22 @@ BufferPoolAllocate(
     _Out_ uintptr_t **VirtualPointer,
     _Out_ uintptr_t *PhysicalAddress)
 {
+    // Variables
+    void *Allocation = NULL;
 
+    // Perform an allocation
+    Allocation = bget(Size);
+    if (Allocation == NULL) {
+        return OsError;
+    }
+
+    // Calculate the addresses and update out's
+    *VirtualPointer = (uintptr_t*)Allocation;
+    *PhysicalAddress = GetBufferAddress(Pool->Buffer) 
+        + ((uintptr_t)Allocation - (uintptr_t)GetBufferData(Pool->Buffer));
+
+    // Done
+    return OsSuccess;
 }
 
 /* BufferPoolFree
@@ -74,5 +101,7 @@ BufferPoolFree(
     _In_ BufferPool_t *Pool,
     _In_ uintptr_t *VirtualPointer)
 {
-
+    // Free it in brel
+    brel((void*)VirtualPointer);
+    return OsSuccess;
 }

@@ -33,6 +33,20 @@
 #include <stdlib.h>
 #include <stddef.h>
 
+/* UsbDeviceDestroy 
+ * Unregisters an usb device on a given port, and cleans up all resources
+ * that has been allocated, and notifies the driver of unload. */
+OsStatus_t
+UsbDeviceDestroy(
+	_In_ UsbController_t *Controller,
+	_In_ UsbPort_t *Port);
+
+/* UsbGetController 
+ * Looks up the controller that matches the device-identifier */
+UsbController_t*
+UsbGetController(
+	_In_ UUId_t Device);
+
 /* Globals 
  * To keep track of all data since system startup */
 static List_t *GlbUsbControllers = NULL;
@@ -115,7 +129,22 @@ UsbCoreInitialize(void)
 OsStatus_t
 UsbCoreDestroy(void)
 {
+	// Iterate all registered controllers
+	// and clean them up
+	foreach(cNode, GlbUsbControllers) {
+		// Instantiate a pointer of correct type
+		UsbController_t *Controller =
+			(UsbController_t*)cNode->Data;
+		UsbControllerUnregister(Controller->Driver, Controller->Device);
+	}
 
+	// Destroy lists
+	ListDestroy(GlbUsbControllers);
+	ListDestroy(GlbUsbDevices);
+
+	// Cleanup resources
+	BufferPoolDestroy(GlbBufferPool);
+	return DestroyBuffer(GlbBuffer);
 }
 
 /* UsbControllerRegister
@@ -160,7 +189,31 @@ UsbControllerUnregister(
 	_In_ UUId_t Driver,
 	_In_ UUId_t Device)
 {
+	// Variables
+	UsbController_t *Controller = NULL;
+	int i;
 
+	// Lookup controller and verify existance
+	Controller = UsbGetController(Device);
+	if (Controller == NULL) {
+		return OsError;
+	}
+
+	// Iterate ports that has connected devices and cleanup
+	for (i = 0; i < USB_MAX_PORTS; i++) {
+		if (Controller->Ports[i] != NULL) {
+			if (Controller->Ports[i]->Device != NULL) {
+				UsbDeviceDestroy(Controller, Controller->Ports[i]);
+			}
+			free(Controller->Ports[i]);
+		}
+	}
+
+	// Don't remove from list
+	free(Controller);
+
+	// Done
+	return OsSuccess;
 }
 
 /* UsbDeviceSetup 
@@ -304,10 +357,12 @@ DevError:
 
 	// Reset device pointer
 	Port->Device = NULL;
+	return OsError;
 }
 
 /* UsbDeviceDestroy 
- * */
+ * Unregisters an usb device on a given port, and cleans up all resources
+ * that has been allocated, and notifies the driver of unload. */
 OsStatus_t
 UsbDeviceDestroy(
 	_In_ UsbController_t *Controller,
@@ -345,6 +400,7 @@ UsbDeviceDestroy(
 
 	// Reset device pointer
 	Port->Device = NULL;
+	return OsSuccess;
 }
 
 /* UsbPortCreate

@@ -36,4 +36,5 @@ windowmanager:
 clean:
 	$(MAKE) -C devicemanager -f makefile clean
 	$(MAKE) -C filemanager -f makefile clean
+	$(MAKE) -C usbmanager -f makefile clean
 	rm -rf build
