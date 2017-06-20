@@ -197,7 +197,7 @@ IoctlDevice(
 #endif
 
 /* InstallDriver 
- * Tries to	find a suitable driver for the given device
+ * Tries to find a suitable driver for the given device
  * by searching storage-medias for the vendorid/deviceid 
  * combination or the class/subclass combination if specific
  * is not found */
