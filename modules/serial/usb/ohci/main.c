@@ -418,6 +418,16 @@ OnQuery(_In_ MContractType_t QueryType,
 			}
 		} break;
 
+		// Reset port
+		case __USBHOST_RESETPORT: {
+
+		} break;
+
+		// Query port
+		case __USBHOST_QUERYPORT: {
+
+		} break;
+
 		// Fall-through, error
 		default:
 			break;
