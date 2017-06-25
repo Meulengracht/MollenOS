@@ -31,6 +31,7 @@
 
 typedef struct _BufferPool {
     BufferObject_t*             Buffer;
+    BytePool_t*                 Pool;
 } BufferPool_t;
 
 /* BufferPoolCreate
@@ -41,15 +42,12 @@ BufferPoolCreate(
     _In_ BufferObject_t *Buffer,
     _Out_ BufferPool_t **Pool)
 {
-    // Initiate the pool
-    bpool((void*)GetBufferData(Buffer), GetBufferCapacity(Buffer));
-
     // Allocate the pool
     *Pool = (BufferPool_t*)malloc(sizeof(BufferPool_t));
     (*Pool)->Buffer = Buffer;
 
-    // Done
-    return OsSuccess;
+    // Initiate the pool
+    return bpool((void*)GetBufferData(Buffer), GetBufferCapacity(Buffer), &(*Pool)->Pool);
 }
 
 /* BufferPoolDestroy
@@ -60,6 +58,7 @@ BufferPoolDestroy(
     _In_ BufferPool_t *Pool)
 {
     // Cleanup structure
+    free(Pool->Pool);
     free(Pool);
     return OsSuccess;
 }
@@ -79,7 +78,7 @@ BufferPoolAllocate(
     void *Allocation = NULL;
 
     // Perform an allocation
-    Allocation = bget(Size);
+    Allocation = bget(Pool->Pool, Size);
     if (Allocation == NULL) {
         return OsError;
     }
@@ -102,6 +101,6 @@ BufferPoolFree(
     _In_ uintptr_t *VirtualPointer)
 {
     // Free it in brel
-    brel((void*)VirtualPointer);
+    brel(Pool->Pool, (void*)VirtualPointer);
     return OsSuccess;
 }

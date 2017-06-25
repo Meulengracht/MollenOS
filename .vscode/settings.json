@@ -43,6 +43,10 @@
         "limits": "cpp",
         "ratio": "cpp",
         "tuple": "cpp",
-        "*.inc": "cpp"
+        "*.inc": "cpp",
+        "propagate_const": "cpp",
+        "istream": "cpp",
+        "locale": "cpp",
+        "thread": "cpp"
     }
 }

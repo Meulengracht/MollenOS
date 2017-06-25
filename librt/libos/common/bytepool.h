@@ -397,21 +397,76 @@
     BGET CONFIGURATION
     ==================
 */
+
+#ifndef __BYTEPOOL_INTERFACE_H__
+#define __BYTEPOOL_INTERFACE_H__
+
+/* Includes 
+ * - Library */
+#include <os/osdefs.h>
+
 #define  _(x)  x
 
-typedef long bufsize;
-void	bpool	    _((void *buffer, bufsize len));
-void   *bget	    _((bufsize size));
-void   *bgetz	    _((bufsize size));
-void   *bgetr	    _((void *buffer, bufsize newsize));
+/* Bytepool Definitions
+ * Typedefs and definitions for use with the bytepool */
+typedef struct _BytePool BytePool_t;
+
+/* bpool
+ * Add a region of memory to the buffer pool. If the pointer to the bytepool is passed as
+ * null, it is treated as a new memory region and thus initialized. Otherwise memory is
+ * added to the existing pool. */
+MOSAPI
+OsStatus_t
+MOSABI
+bpool(
+	_In_ void *buf, 
+	_In_ ssize_t len,
+	_Out_ BytePool_t **out);
+
+/* bget
+ * Used for buffer allocation with the given pool. Returns NULL if there
+ * is no more room available.  */
+MOSAPI
+void*
+MOSABI
+bget(
+	_In_ BytePool_t *pool, 
+	_In_ ssize_t requested_size);
+
+/* bgetz
+ * Allocate a buffer and clear its contents to zero.  We clear
+ * the  entire  contents  of  the buffer to zero, not just the
+ * region requested by the caller. */
+MOSAPI
+void*
+MOSABI
+bgetz(
+	_In_ BytePoolt_t *pool,
+	_In_ ssize_t size);
+
+/* bgetr
+ * Reallocate a buffer.  This is a minimal implementation,
+ * simply in terms of brel()  and  bget().	 It  could  be
+ * enhanced to allow the buffer to grow into adjacent free
+ * blocks and to avoid moving data unnecessarily.  */
+MOSAPI
+void*
+MOSABI
+bgetr(
+	_In_ BytePool_t *pool, 
+	_In_ void *buf, 
+	_In_ ssize_t size);
+
 void	brel	    _((void *buf));
-void	bectl	    _((int (*compact)(bufsize sizereq, int sequence),
-		       void *(*acquire)(bufsize size),
-		       void (*release)(void *buf), bufsize pool_incr));
-void	bstats	    _((bufsize *curalloc, bufsize *totfree, bufsize *maxfree,
+void	bectl	    _((int (*compact)(ssize_t sizereq, int sequence),
+		       void *(*acquire)(ssize_t size),
+		       void (*release)(void *buf), ssize_t pool_incr));
+void	bstats	    _((ssize_t *curalloc, ssize_t *totfree, ssize_t *maxfree,
 		       long *nget, long *nrel));
-void	bstatse     _((bufsize *pool_incr, long *npool, long *npget,
+void	bstatse     _((ssize_t *pool_incr, long *npool, long *npget,
 		       long *nprel, long *ndget, long *ndrel));
 void	bufdump     _((void *buf));
 void	bpoold	    _((void *pool, int dumpalloc, int dumpfree));
 int	bpoolv	    _((void *pool));
+
+#endif //!__BYTEPOOL_INTERFACE_H__
