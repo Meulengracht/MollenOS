@@ -328,6 +328,10 @@ OhciTdSetup(
 	Td->Cbp = Transaction->BufferAddress;
 	Td->BufferEnd = Td->Cbp + sizeof(UsbPacket_t) - 1;
 
+	// Store copy of original content
+	Td->OriginalFlags = Td->Flags;
+	Td->OriginalCbp = Td->Cbp;
+
 	// Done
 	return Td;
 }
@@ -398,6 +402,10 @@ OhciTdIo(
 		// Set this is as end of chain
 		Td->Link = OHCI_LINK_END;
 
+		// Store copy of original content
+		Td->OriginalFlags = Td->Flags;
+		Td->OriginalCbp = Td->Cbp;
+
 		// Setup done
 		return Td;
 	}
@@ -438,6 +446,10 @@ OhciTdIo(
 		Td->Cbp = 0;
 		Td->BufferEnd = 0;
 	}
+
+	// Store copy of original content
+	Td->OriginalFlags = Td->Flags;
+	Td->OriginalCbp = Td->Cbp;
 
 	// Setup done
 	return Td;
