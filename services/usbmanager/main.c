@@ -59,22 +59,17 @@ OnEvent(
 	// Which function is called?
 	switch (Message->Function) {
 		case __USBMANAGER_REGISTERCONTROLLER: {
-			// Variables
-
-			// Extract them from message
-
 			// Register controller
 			return UsbControllerRegister(Message->Sender, 
-				0, 0, 0);
+				(UUId_t)Message->Arguments[0].Data.Value, 
+				(UsbControllerType_t)Message->Arguments[1].Data.Value,
+				Message->Arguments[2].Data.Value);
 		} break;
 
 		case __USBMANAGER_UNREGISTERCONTROLLER: {
-			// Variables
-
-			// Extract them from message
-
 			// Unregister controller
-			return UsbControllerUnregister(Message->Sender, 0);
+			return UsbControllerUnregister(Message->Sender, 
+				(UUId_t)Message->Arguments[0].Data.Value);
 		} break;
 
 		case __USBMANAGER_QUERYCONTROLLERS: {
@@ -88,12 +83,10 @@ OnEvent(
 		} break;
 
 		case __USBMANAGER_PORTEVENT: {
-			// Variables
-
-			// Extract them from message
-
 			// Handle port event
-			return UsbEventPort(Message->Sender, 0, 0);
+			return UsbEventPort(Message->Sender, 
+				(UUId_t)Message->Arguments[0].Data.Value, 
+				(int)Message->Arguments[1].Data.Value);
 		} break;
 
 		// Don't handle anything else tbh

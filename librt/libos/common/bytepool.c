@@ -1,42 +1,36 @@
-#define SizeQuant   4		      /* Buffer allocation size quantum:
-					 all buffers allocated are a
-					 multiple of this size.  This
-					 MUST be a power of two. */
+/* Buffer allocation size quantum: all buffers allocated are a
+ * multiple of this size.  This MUST be a power of two. */
+#define SizeQuant   4
 
-#define BufDump     1		      /* Define this symbol to enable the
-					 bpoold() function which dumps the
-					 buffers in a buffer pool. */
+/* Define this symbol to enable the bpoold() function which dumps the
+ * buffers in a buffer pool. */
+#define BufDump     1
 
-#define BufValid    1		      /* Define this symbol to enable the
-					 bpoolv() function for validating
-					 a buffer pool. */ 
+/* Define this symbol to enable the bpoolv() function for validating
+ * a buffer pool. */ 
+#define BufValid    1
 
-#define DumpData    1		      /* Define this symbol to enable the
-					 bufdump() function which allows
-					 dumping the contents of an allocated
-					 or free buffer. */
+/* Define this symbol to enable the bufdump() function which allows
+ * dumping the contents of an allocated or free buffer. */
+#define DumpData    1
 
-#define BufStats    1		      /* Define this symbol to enable the
-					 bstats() function which calculates
-					 the total free space in the buffer
-					 pool, the largest available
-					 buffer, and the total space
-					 currently allocated. */
+/* Define this symbol to enable the bstats() function which calculates
+ * the total free space in the buffer pool, the largest available
+ * buffer, and the total space currently allocated. */
+#define BufStats    1
 
-#define FreeWipe    1		      /* Wipe free buffers to a guaranteed
-					 pattern of garbage to trip up
-					 miscreants who attempt to use
-					 pointers into released buffers. */
+/* Wipe free buffers to a guaranteed pattern of garbage to trip up
+ * miscreants who attempt to use pointers into released buffers. */
+#define FreeWipe    1
 
-#define BestFit     1		      /* Use a best fit algorithm when
-					 searching for space for an
-					 allocation request.  This uses
-					 memory more efficiently, but
-					 allocation will be much slower. */
+/* Use a best fit algorithm when searching for space for an
+ * allocation request.  This uses memory more efficiently, but
+ * allocation will be much slower. */
+#define BestFit     1
 
-#define BECtl	    1		      /* Define this symbol to enable the
-					 bectl() function for automatic
-					 pool space control.  */
+/* Define this symbol to enable the bectl() function for automatic
+ * pool space control. */
+#define BECtl	    1
 
 #include <stdio.h>
 
@@ -48,8 +42,10 @@ extern char *sprintf();               /* Sun includes don't define sprintf */
 
 #include <assert.h>
 #include <string.h>
+#include <stdlib.h>
 
-#ifdef BufDump			      /* BufDump implies DumpData */
+/* BufDump implies DumpData */
+#ifdef BufDump
 #ifndef DumpData
 #define DumpData    1
 #endif
@@ -124,9 +120,9 @@ typedef struct _BytePool {
 
 #ifdef BECtl
 	/* Automatic expansion block management functions */
-	int (*compfcn) _((ssize_t sizereq, int sequence));
-	void *(*acqfcn) _((ssize_t size));
-	void (*relfcn) _((void *buf));
+	int (*compfcn) (ssize_t sizereq, int sequence);
+	void *(*acqfcn) (ssize_t size);
+	void (*relfcn) (void *buf);
 	ssize_t exp_incr;	      /* Expansion block size */
 	ssize_t pool_len;	      /* 0: no bpool calls have been made
 					 -1: not all pool blocks are
@@ -136,7 +132,6 @@ typedef struct _BytePool {
 				      */
 #endif
 } BytePool_t;
-
 
 /* bget
  * Used for buffer allocation with the given pool. Returns NULL if there
@@ -176,7 +171,6 @@ bget(
     /* If a compact function was provided in the call to bectl(), wrap
        a loop around the allocation process  to  allow	compaction  to
        intervene in case we don't find a suitable buffer in the chain. */
-
     while (1) {
 #endif
 	b = pool->freelist.ql.flink;
@@ -184,14 +178,12 @@ bget(
 	best = &pool->freelist;
 #endif
 
-
 	/* Scan the free list searching for the first buffer big enough
 	   to hold the requested size buffer. */
-
 #ifdef BestFit
-	while (b != &freelist) {
+	while (b != &pool->freelist) {
 	    if (b->bh.bsize >= size) {
-		if ((best == &freelist) || (b->bh.bsize < best->bh.bsize)) {
+		if ((best == &pool->freelist) || (b->bh.bsize < best->bh.bsize)) {
 		    best = b;
 		}
 	    }
@@ -200,7 +192,7 @@ bget(
 	b = best;
 #endif /* BestFit */
 
-	while (b != &freelist) {
+	while (b != &pool->freelist) {
 	    if ((ssize_t) b->bh.bsize >= size) {
 
 		/* Buffer  is big enough to satisfy  the request.  Allocate it
@@ -211,7 +203,6 @@ bget(
 		   given to the caller in its entirety.   We  only  split  the
 		   buffer if enough room remains for a header plus the minimum
 		   quantum of allocation. */
-
 		if ((b->bh.bsize - size) > (SizeQ + (sizeof(struct bhead)))) {
 		    struct bhead *ba, *bn;
 
@@ -239,9 +230,8 @@ bget(
 		    ba = BH(((char *) b) + b->bh.bsize);
 		    assert(ba->prevfree == b->bh.bsize);
 
-                    /* The buffer isn't big enough to split.  Give  the  whole
+			/* The buffer isn't big enough to split.  Give  the  whole
 		       shebang to the caller and remove it from the free list. */
-
 		    assert(b->ql.blink->ql.flink == b);
 		    assert(b->ql.flink->ql.blink == b);
 		    b->ql.blink->ql.flink = b->ql.flink;
@@ -267,25 +257,21 @@ bget(
 	}
 #ifdef BECtl
 
-        /* We failed to find a buffer.  If there's a compact  function
+	/* We failed to find a buffer.  If there's a compact  function
 	   defined,  notify  it  of the size requested.  If it returns
 	   TRUE, try the allocation again. */
-
 	if ((pool->compfcn == NULL) || (!(*pool->compfcn)(size, ++compactseq))) {
 	    break;
 	}
     }
 
     /* No buffer available with requested size free. */
-
     /* Don't give up yet -- look in the reserve supply. */
-
     if (pool->acqfcn != NULL) {
 	if (size > pool->exp_incr - sizeof(struct bhead)) {
 
 	    /* Request	is  too  large	to  fit in a single expansion
 	       block.  Try to satisy it by a direct buffer acquisition. */
-
 	    struct bdhead *bdh;
 
 	    size += sizeof(struct bdhead) - sizeof(struct bhead);
@@ -308,11 +294,10 @@ bget(
 	} else {
 
 	    /*	Try to obtain a new expansion block */
-
 	    void *newpool;
 
-	    if ((newpool = (*pool->acqfcn)((ssize_t) exp_incr)) != NULL) {
-		bpool(newpool, exp_incr, &pool);
+	    if ((newpool = (*pool->acqfcn)((ssize_t) pool->exp_incr)) != NULL) {
+		bpool(newpool, pool->exp_incr, &pool);
                 buf =  bget(pool, requested_size);  /* This can't, I say, can't
 						 get into a loop. */
 		return buf;
@@ -321,9 +306,7 @@ bget(
     }
 
     /*	Still no buffer available */
-
 #endif /* BECtl */
-
     return NULL;
 }
 
@@ -333,7 +316,7 @@ bget(
  * region requested by the caller. */
 void*
 bgetz(
-	_In_ BytePoolt_t *pool,
+	_In_ BytePool_t *pool,
 	_In_ ssize_t size)
 {
     char *buf = (char *) bget(pool, size);
@@ -395,20 +378,22 @@ bgetr(
     assert(osize > 0);
     V memcpy((char *) nbuf, (char *) buf, /* Copy the data */
 	     (MemSize) ((size < osize) ? size : osize));
-    brel(buf);
+    brel(pool, buf);
     return nbuf;
 }
 
-/*  BREL  --  Release a buffer.  */
-
-void brel(buf)
-  void *buf;
+/* brel
+ * Release a previous allocated buffer in the given pool. */
+void
+brel(
+	_In_ BytePool_t *pool, 
+	_In_ void *buf)
 {
     struct bfhead *b, *bn;
 
     b = BFH(((char *) buf) - sizeof(struct bhead));
 #ifdef BufStats
-    numrel++;			      /* Increment number of brel() calls */
+    pool->numrel++;			      /* Increment number of brel() calls */
 #endif
     assert(buf != NULL);
 
@@ -419,23 +404,22 @@ void brel(buf)
 	bdh = BDH(((char *) buf) - sizeof(struct bdhead));
 	assert(b->bh.prevfree == 0);
 #ifdef BufStats
-	totalloc -= bdh->tsize;
-	assert(totalloc >= 0);
-	numdrel++;		      /* Number of direct releases */
+	pool->totalloc -= bdh->tsize;
+	assert(pool->totalloc >= 0);
+	pool->numdrel++;		      /* Number of direct releases */
 #endif /* BufStats */
 #ifdef FreeWipe
 	V memset((char *) buf, 0x55,
 		 (MemSize) (bdh->tsize - sizeof(struct bdhead)));
 #endif /* FreeWipe */
-	assert(relfcn != NULL);
-	(*relfcn)((void *) bdh);      /* Release it directly. */
+	assert(pool->relfcn != NULL);
+	(*pool->relfcn)((void *) bdh);      /* Release it directly. */
 	return;
     }
 #endif /* BECtl */
 
     /* Buffer size must be negative, indicating that the buffer is
        allocated. */
-
     if (b->bh.bsize >= 0) {
 	bn = NULL;
     }
@@ -443,16 +427,14 @@ void brel(buf)
 
     /*	Back pointer in next buffer must be zero, indicating the
 	same thing: */
-
     assert(BH((char *) b - b->bh.bsize)->prevfree == 0);
 
 #ifdef BufStats
-    totalloc += b->bh.bsize;
-    assert(totalloc >= 0);
+    pool->totalloc += b->bh.bsize;
+    assert(pool->totalloc >= 0);
 #endif
 
     /* If the back link is nonzero, the previous buffer is free.  */
-
     if (b->bh.prevfree != 0) {
 
 	/* The previous buffer is free.  Consolidate this buffer  with	it
@@ -460,7 +442,6 @@ void brel(buf)
 	   buffer.  Note that we subtract the size  in	the  buffer  being
            released,  since  it's  negative to indicate that the buffer is
 	   allocated. */
-
 	register ssize_t size = b->bh.bsize;
 
         /* Make the previous buffer the one we're working on. */
@@ -469,14 +450,13 @@ void brel(buf)
 	b->bh.bsize -= size;
     } else {
 
-        /* The previous buffer isn't allocated.  Insert this buffer
+	/* The previous buffer isn't allocated.  Insert this buffer
 	   on the free list as an isolated free block. */
-
-	assert(freelist.ql.blink->ql.flink == &freelist);
-	assert(freelist.ql.flink->ql.blink == &freelist);
-	b->ql.flink = &freelist;
-	b->ql.blink = freelist.ql.blink;
-	freelist.ql.blink = b;
+	assert(pool->freelist.ql.blink->ql.flink == &pool->freelist);
+	assert(pool->freelist.ql.flink->ql.blink == &pool->freelist);
+	b->ql.flink = &pool->freelist;
+	b->ql.blink = pool->freelist.ql.blink;
+	pool->freelist.ql.blink = b;
 	b->ql.blink->ql.flink = b;
 	b->bh.bsize = -b->bh.bsize;
     }
@@ -485,13 +465,11 @@ void brel(buf)
        the  start  of  this  buffer  by its size, to see if that buffer is
        free.  If it is, we combine  this  buffer  with	the  next  one	in
        memory, dechaining the second buffer from the free list. */
-
     bn =  BFH(((char *) b) + b->bh.bsize);
     if (bn->bh.bsize > 0) {
 
 	/* The buffer is free.	Remove it from the free list and add
 	   its size to that of our buffer. */
-
 	assert(BH((char *) bn + bn->bh.bsize)->prevfree == bn->bh.bsize);
 	assert(bn->ql.blink->ql.flink == bn);
 	assert(bn->ql.flink->ql.blink == bn);
@@ -505,7 +483,6 @@ void brel(buf)
 	   must be an allocated block because the process of recombination
 	   guarantees  that  two  free	blocks will never be contiguous in
 	   memory.  */
-
 	bn = BFH(((char *) b) + b->bh.bsize);
     }
 #ifdef FreeWipe
@@ -516,7 +493,6 @@ void brel(buf)
 
     /* The next buffer is allocated.  Set the backpointer in it  to  point
        to this buffer; the previous free buffer in memory. */
-
     bn->bh.prevfree = b->bh.bsize;
 
 #ifdef BECtl
@@ -525,9 +501,8 @@ void brel(buf)
 	constitutes the entire block, release it.  Note that  pool_len
 	is  defined  in  such a way that the test will fail unless all
 	pool blocks are the same size.	*/
-
-    if (relfcn != NULL &&
-	((ssize_t) b->bh.bsize) == (pool_len - sizeof(struct bhead))) {
+    if (pool->relfcn != NULL &&
+	((ssize_t) b->bh.bsize) == (pool->pool_len - sizeof(struct bhead))) {
 
 	assert(b->bh.prevfree == 0);
 	assert(BH((char *) b + b->bh.bsize)->bsize == ESent);
@@ -536,11 +511,11 @@ void brel(buf)
 	b->ql.blink->ql.flink = b->ql.flink;
 	b->ql.flink->ql.blink = b->ql.blink;
 
-	(*relfcn)(b);
+	(*pool->relfcn)(b);
 #ifdef BufStats
-	numprel++;		      /* Nr of expansion block releases */
-	numpblk--;		      /* Total number of blocks */
-	assert(numpblk == numpget - numprel);
+	pool->numprel++;		      /* Nr of expansion block releases */
+	pool->numpblk--;		      /* Total number of blocks */
+	assert(pool->numpblk == pool->numpget - pool->numprel);
 #endif /* BufStats */
     }
 #endif /* BECtl */
@@ -553,9 +528,9 @@ void brel(buf)
 void
 bectl(
 	_In_ BytePool_t *pool,
-	_In_ int (*compact) _((ssize_t sizereq, int sequence)),
-	_In_ void *(*acquire) _((ssize_t size)),
-	_In_ void (*release) _((void *buf)),
+	_In_ int (*compact) (ssize_t sizereq, int sequence),
+	_In_ void *(*acquire) (ssize_t size),
+	_In_ void (*release) (void *buf),
 	_In_ ssize_t pool_incr)
 {
     pool->compfcn = compact;
@@ -576,6 +551,7 @@ bpool(
 	_In_ ssize_t len,
 	_Out_ BytePool_t **out)
 {
+	// Variables
     struct bfhead *b = BFH(buf);
     struct bhead *bn;
 
@@ -599,7 +575,7 @@ bpool(
 #ifdef BufStats
     (*out)->numpget++;			      /* Number of block acquisitions */
     (*out)->numpblk++;			      /* Number of blocks total */
-    assert(numpblk == numpget - numprel);
+    assert((*out)->numpblk == (*out)->numpget - (*out)->numprel);
 #endif /* BufStats */
 #endif /* BECtl */
 
@@ -616,8 +592,8 @@ bpool(
     /* Chain the new block to the free list. */
     assert((*out)->freelist.ql.blink->ql.flink == &(*out)->freelist);
     assert((*out)->freelist.ql.flink->ql.blink == &(*out)->freelist);
-    b->ql.flink = &freelist;
-    b->ql.blink = freelist.ql.blink;
+    b->ql.flink = &(*out)->freelist;
+    b->ql.blink = (*out)->freelist.ql.blink;
     (*out)->freelist.ql.blink = b;
     b->ql.blink->ql.flink = b;
 
@@ -644,19 +620,26 @@ bpool(
 
 #ifdef BufStats
 
-/*  BSTATS  --	Return buffer allocation free space statistics.  */
-void bstats(curalloc, totfree, maxfree, nget, nrel)
-  ssize_t *curalloc, *totfree, *maxfree;
-  long *nget, *nrel;
+/* bstats
+ * Return buffer allocation free space statistics.  */
+void
+bstats(
+	_In_ BytePool_t *pool,
+	_Out_ ssize_t *curalloc, 
+	_Out_ ssize_t *totfree, 
+	_Out_ ssize_t *maxfree, 
+	_Out_ long *nget, 
+	_Out_ long *nrel)
 {
-    struct bfhead *b = freelist.ql.flink;
+	// Variables
+    struct bfhead *b = pool->freelist.ql.flink;
 
-    *nget = numget;
-    *nrel = numrel;
-    *curalloc = totalloc;
+    *nget = pool->numget;
+    *nrel = pool->numrel;
+    *curalloc = pool->totalloc;
     *totfree = 0;
     *maxfree = -1;
-    while (b != &freelist) {
+    while (b != &pool->freelist) {
 	assert(b->bh.bsize > 0);
 	*totfree += b->bh.bsize;
 	if (b->bh.bsize > *maxfree) {
@@ -668,31 +651,40 @@ void bstats(curalloc, totfree, maxfree, nget, nrel)
 
 #ifdef BECtl
 
-/*  BSTATSE  --  Return extended statistics  */
-
-void bstatse(pool_incr, npool, npget, nprel, ndget, ndrel)
-  ssize_t *pool_incr;
-  long *npool, *npget, *nprel, *ndget, *ndrel;
+/* bstatse
+ * Return extended statistics */
+void
+bstatse(
+	_In_ BytePool_t *pool,
+	_Out_ ssize_t *pool_incr, 
+	_Out_ long *npool, 
+	_Out_ long *npget, 
+	_Out_ long *nprel, 
+	_Out_ long *ndget, 
+	_Out_ long *ndrel)
 {
-    *pool_incr = (pool_len < 0) ? -exp_incr : exp_incr;
-    *npool = numpblk;
-    *npget = numpget;
-    *nprel = numprel;
-    *ndget = numdget;
-    *ndrel = numdrel;
+    *pool_incr = (pool->pool_len < 0) ? -pool->exp_incr : pool->exp_incr;
+    *npool = pool->numpblk;
+    *npget = pool->numpget;
+    *nprel = pool->numprel;
+    *ndget = pool->numdget;
+    *ndrel = pool->numdrel;
 }
 #endif /* BECtl */
 #endif /* BufStats */
 
 #ifdef DumpData
 
-/*  BUFDUMP  --  Dump the data in a buffer.  This is called with the  user
-		 data pointer, and backs up to the buffer header.  It will
-		 dump either a free block or an allocated one.	*/
-
-void bufdump(buf)
-  void *buf;
+/* bufdump
+ * Dump the data in a buffer.  This is called with the  user
+ * data pointer, and backs up to the buffer header.  It will
+ * dump either a free block or an allocated one. */
+void
+bufdump(
+	_In_ BytePool_t *pool,
+	_In_ void *buf)
 {
+	// Variables
     struct bfhead *b;
     unsigned char *bdump;
     ssize_t bdlen;
@@ -744,15 +736,18 @@ void bufdump(buf)
 
 #ifdef BufDump
 
-/*  BPOOLD  --	Dump a buffer pool.  The buffer headers are always listed.
-		If DUMPALLOC is nonzero, the contents of allocated buffers
-		are  dumped.   If  DUMPFREE  is  nonzero,  free blocks are
-		dumped as well.  If FreeWipe  checking	is  enabled,  free
-		blocks	which  have  been clobbered will always be dumped. */
-
-void bpoold(buf, dumpalloc, dumpfree)
-  void *buf;
-  int dumpalloc, dumpfree;
+/* bpoold
+ * Dump a buffer pool. The buffer headers are always listed.
+ * If DUMPALLOC is nonzero, the contents of allocated buffers
+ * are dumped. If DUMPFREE is nonzero, free blocks are
+ * dumped as well. If FreeWipe  checking is  enabled, free
+ * blocks which have been clobbered will always be dumped. */
+void
+bpoold(
+	_In_ BytePool_t *pool,
+	_In_ void *buf, 
+	_In_ int dumpalloc, 
+	_In_ int dumpfree)
 {
     struct bfhead *b = BFH(buf);
 
@@ -763,7 +758,7 @@ void bpoold(buf, dumpalloc, dumpfree)
 	    bs = -bs;
             V printf("Allocated buffer: size %6ld bytes.\n", (long) bs);
 	    if (dumpalloc) {
-		bufdump((void *) (((char *) b) + sizeof(struct bhead)));
+		bufdump(pool, (void *) (((char *) b) + sizeof(struct bhead)));
 	    }
 	} else {
             char *lerr = "";
@@ -782,11 +777,11 @@ void bpoold(buf, dumpalloc, dumpfree)
 		  (MemSize) (bs - (sizeof(struct bfhead) + 1))) != 0))) {
 		V printf(
                     "(Contents of above free block have been overstored.)\n");
-		bufdump((void *) (((char *) b) + sizeof(struct bhead)));
+		bufdump(pool, (void *) (((char *) b) + sizeof(struct bhead)));
 	    } else
 #endif
 	    if (dumpfree) {
-		bufdump((void *) (((char *) b) + sizeof(struct bhead)));
+		bufdump(pool, (void *) (((char *) b) + sizeof(struct bhead)));
 	    }
 	}
 	b = BFH(((char *) b) + bs);
@@ -796,11 +791,13 @@ void bpoold(buf, dumpalloc, dumpfree)
 
 #ifdef BufValid
 
-/*  BPOOLV  --  Validate a buffer pool.  If NDEBUG isn't defined,
-		any error generates an assertion failure.  */
-
-int bpoolv(buf)
-  void *buf;
+/* bpoolv
+ * Validate a buffer pool. If NDEBUG isn't defined,
+ * any error generates an assertion failure. */
+OsStatus_t
+bpoolv(
+	_In_ BytePool_t *pool,
+	_In_ void *buf)
 {
     struct bfhead *b = BFH(buf);
 
@@ -814,14 +811,14 @@ int bpoolv(buf)
 
 	    assert(bs > 0);
 	    if (bs <= 0) {
-		return 0;
+		return OsError;
 	    }
 	    if ((b->ql.blink->ql.flink != b) ||
 		(b->ql.flink->ql.blink != b)) {
                 V printf("Free block: size %6ld bytes.  (Bad free list links)\n",
 		     (long) bs);
 		assert(0);
-		return 0;
+		return OsError;
 	    }
 #ifdef FreeWipe
 	    lerr = ((char *) b) + sizeof(struct bfhead);
@@ -830,14 +827,14 @@ int bpoolv(buf)
 		  (MemSize) (bs - (sizeof(struct bfhead) + 1))) != 0))) {
 		V printf(
                     "(Contents of above free block have been overstored.)\n");
-		bufdump((void *) (((char *) b) + sizeof(struct bhead)));
+		bufdump(pool, (void *) (((char *) b) + sizeof(struct bhead)));
 		assert(0);
-		return 0;
+		return OsError;
 	    }
 #endif
 	}
 	b = BFH(((char *) b) + bs);
     }
-    return 1;
+    return OsSuccess;
 }
 #endif /* BufValid */

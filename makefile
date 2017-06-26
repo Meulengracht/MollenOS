@@ -6,6 +6,14 @@
 # Required environmental stuff:
 # - CROSS=/path/to/cross/home
 #
+
+# MollenOS Configuration, comment in or out for specific features
+config_flags = 
+
+# Don't load drivers, run it without for debug
+#config_flags += -D__OSCONFIG_NODRIVERS
+
+
 export arch = i386
 export CC = $(CROSS)/bin/clang
 export CXX = $(CROSS)/bin/clang++
@@ -13,8 +21,8 @@ export LD = $(CROSS)/bin/lld-link
 export LIB = $(CROSS)/bin/llvm-lib
 export ASFLAGS = -f bin
 export AS = nasm
-export GCFLAGS = -Wall -Wno-self-assign -Wno-unused-function -fms-extensions -ffreestanding -nostdlib -O3 -DMOLLENOS -D$(arch)
-export GCXXFLAGS = -Wall -Wno-self-assign -Wno-unused-function -ffreestanding -nostdlib -O3 -DMOLLENOS -D$(arch)
+export GCFLAGS = -Wall -Wno-self-assign -Wno-unused-function -fms-extensions -ffreestanding -nostdlib -O3 -DMOLLENOS -D$(arch) $(config_flags)
+export GCXXFLAGS = -Wall -Wno-self-assign -Wno-unused-function -ffreestanding -nostdlib -O3 -DMOLLENOS -D$(arch) $(config_flags)
 export FCOPY = cp
 target = img
 

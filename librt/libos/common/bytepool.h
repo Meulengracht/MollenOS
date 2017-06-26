@@ -10,6 +10,7 @@
     Reimplemented in 1975 by John Walker for the Interdata 70.
     Reimplemented in 1977 by John Walker for the Marinchip 9900.
     Reimplemented in 1982 by Duff Kurland for the Intel 8080.
+    Reimplemented in 2017 by Philip Meulengracht for MollenOS.
 
     Portable C version implemented in September of 1990 by an older, wiser
     instance of the original implementor.
@@ -23,6 +24,9 @@
     Bug in built-in test program fixed, ANSI compiler warnings eradicated,
     buffer pool validator  implemented,  and  guaranteed  repeatable  test
     added by John Walker in October of 1995.
+
+    Instanced C version implemented in June of 2017 by a young, naive but
+    aspiring C/C++ developer.
 
     This program is in the public domain.
 
@@ -405,8 +409,6 @@
  * - Library */
 #include <os/osdefs.h>
 
-#define  _(x)  x
-
 /* Bytepool Definitions
  * Typedefs and definitions for use with the bytepool */
 typedef struct _BytePool BytePool_t;
@@ -441,7 +443,7 @@ MOSAPI
 void*
 MOSABI
 bgetz(
-	_In_ BytePoolt_t *pool,
+	_In_ BytePool_t *pool,
 	_In_ ssize_t size);
 
 /* bgetr
@@ -457,16 +459,88 @@ bgetr(
 	_In_ void *buf, 
 	_In_ ssize_t size);
 
-void	brel	    _((void *buf));
-void	bectl	    _((int (*compact)(ssize_t sizereq, int sequence),
-		       void *(*acquire)(ssize_t size),
-		       void (*release)(void *buf), ssize_t pool_incr));
-void	bstats	    _((ssize_t *curalloc, ssize_t *totfree, ssize_t *maxfree,
-		       long *nget, long *nrel));
-void	bstatse     _((ssize_t *pool_incr, long *npool, long *npget,
-		       long *nprel, long *ndget, long *ndrel));
-void	bufdump     _((void *buf));
-void	bpoold	    _((void *pool, int dumpalloc, int dumpfree));
-int	bpoolv	    _((void *pool));
+/* brel
+ * Release a previous allocated buffer in the given pool. */
+MOSAPI
+void
+MOSABI
+brel(
+	_In_ BytePool_t *pool, 
+	_In_ void *buf);
+
+/* bectl
+ * Establish automatic pool expansion control */
+MOSAPI
+void
+MOSABI
+bectl(
+	_In_ BytePool_t *pool,
+	_In_ int (*compact) (ssize_t sizereq, int sequence),
+	_In_ void *(*acquire) (ssize_t size),
+	_In_ void (*release) (void *buf),
+	_In_ ssize_t pool_incr);
+
+/* bstats
+ * Return buffer allocation free space statistics.  */
+MOSAPI
+void
+MOSABI
+bstats(
+	_In_ BytePool_t *pool,
+	_Out_ ssize_t *curalloc, 
+	_Out_ ssize_t *totfree, 
+	_Out_ ssize_t *maxfree, 
+	_Out_ long *nget, 
+	_Out_ long *nrel);
+
+/* bstatse
+ * Return extended statistics */
+MOSAPI
+void
+MOSABI
+bstatse(
+	_In_ BytePool_t *pool,
+	_Out_ ssize_t *pool_incr, 
+	_Out_ long *npool, 
+	_Out_ long *npget, 
+	_Out_ long *nprel, 
+	_Out_ long *ndget, 
+	_Out_ long *ndrel);
+
+/* bufdump
+ * Dump the data in a buffer.  This is called with the  user
+ * data pointer, and backs up to the buffer header.  It will
+ * dump either a free block or an allocated one. */
+MOSAPI
+void
+MOSABI
+bufdump(
+	_In_ BytePool_t *pool,
+	_In_ void *buf);
+
+/* bpoold
+ * Dump a buffer pool. The buffer headers are always listed.
+ * If DUMPALLOC is nonzero, the contents of allocated buffers
+ * are dumped. If DUMPFREE is nonzero, free blocks are
+ * dumped as well. If FreeWipe  checking is  enabled, free
+ * blocks which have been clobbered will always be dumped. */
+MOSAPI
+void
+MOSABI
+bpoold(
+	_In_ BytePool_t *pool,
+	_In_ void *buf, 
+	_In_ int dumpalloc, 
+	_In_ int dumpfree);
+
+/* bpoolv
+ * Validate a buffer pool. If NDEBUG isn't defined,
+ * any error generates an assertion failure. */
+MOSAPI
+OsStatus_t
+MOSABI
+bpoolv(
+	_In_ BytePool_t *pool,
+	_In_ void *buf);
 
 #endif //!__BYTEPOOL_INTERFACE_H__

@@ -420,12 +420,21 @@ OnQuery(_In_ MContractType_t QueryType,
 
 		// Reset port
 		case __USBHOST_RESETPORT: {
-
-		} break;
-
+			// Call reset procedure, then let it fall through
+			// to QueryPort
+			OhciPortPrepare(Controller, (int)Pipe);
+		};
 		// Query port
 		case __USBHOST_QUERYPORT: {
+			// Variables
+			UsbHcPortDescriptor_t Descriptor;
 
+			// Fill port descriptor
+			OhciPortGetStatus(Controller, (int)Pipe, &Descriptor);
+
+			// Send descriptor back
+			return PipeSend(Queryee, ResponsePort, 
+				(void*)&Descriptor, sizeof(UsbHcPortDescriptor_t));
 		} break;
 
 		// Fall-through, error

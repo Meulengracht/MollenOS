@@ -347,6 +347,14 @@ OsStatus_t
 OhciQueueDestroy(
 	_In_ OhciController_t *Controller);
 
+/* OhciPortPrepare
+ * Resets the port and also clears out any event on the port line. */
+__EXTERN
+OsStatus_t
+OhciPortPrepare(
+	_In_ OhciController_t *Controller, 
+	_In_ int Index);
+
 /* OhciPortInitialize
  * Initializes a port when the port has changed it's connection
  * state, no allocations are done here */

@@ -64,17 +64,13 @@ OhciPortReset(
 	return OsSuccess;
 }
 
-/* OhciPortInitialize
- * Initializes a port when the port has changed it's connection
- * state, no allocations are done here */
+/* OhciPortPrepare
+ * Resets the port and also clears out any event on the port line. */
 OsStatus_t
-OhciPortInitialize(
+OhciPortPrepare(
 	_In_ OhciController_t *Controller, 
 	_In_ int Index)
 {
-	// Wait for port-power to stabilize
-	ThreadSleep(Controller->PowerOnDelayMs);
-
 	// Run reset procedure
 	OhciPortReset(Controller, Index);
 
@@ -102,6 +98,24 @@ OhciPortInitialize(
 	if (Controller->Registers->HcRhPortStatus[Index] & OHCI_PORT_RESET_EVENT) {
 		Controller->Registers->HcRhPortStatus[Index] = OHCI_PORT_RESET_EVENT;
 	}
+
+	// Done
+	return OsSuccess;
+}
+
+/* OhciPortInitialize
+ * Initializes a port when the port has changed it's connection
+ * state, no allocations are done here */
+OsStatus_t
+OhciPortInitialize(
+	_In_ OhciController_t *Controller, 
+	_In_ int Index)
+{
+	// Wait for port-power to stabilize
+	ThreadSleep(Controller->PowerOnDelayMs);
+
+	// Run reset procedure
+	OhciPortPrepare(Controller, Index);
 
 	// Run usb port event
 	return UsbEventPort(Controller->Base.Id, Index);
