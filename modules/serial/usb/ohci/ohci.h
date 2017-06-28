@@ -296,7 +296,7 @@ typedef struct _OhciControl {
  * Contains all per-controller information that is
  * needed to control, queue and handle devices on an ohci-controller. */
 typedef struct _OhciController {
-	UsbManagerController_t	Base;
+	UsbManagerController_t	 Base;
 
 	// Registers and resources
 	OhciRegisters_t			*Registers;

@@ -16,19 +16,21 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS MCore - Advanced Host Controller Interface Driver
+ * MollenOS MCore - Universal Host Controller Interface Driver
  * TODO:
- *	- Port Multiplier Support
  *	- Power Management
  */
 //#define __TRACE
 
 /* Includes 
  * - System */
-#include <os/driver/contracts/disk.h>
 #include <os/mollenos.h>
+#include <os/condition.h>
+#include <os/thread.h>
 #include <os/utils.h>
-#include "manager.h"
+
+#include "../common/manager.h"
+#include "uhci.h"
 
 /* Includes
  * - Library */
@@ -38,24 +40,104 @@
 #include <stdlib.h>
 
 /* Globals
- * State-tracking variables */
-static List_t *GlbControllers = NULL;
+ * Use these for state-keeping the thread */
+static UUId_t __GlbFinalizerThreadId = UUID_INVALID;
+static Condition_t *__GlbFinalizerEvent = NULL;
+
+/* FinalizerEntry 
+ * Entry of the finalizer thread, this thread handles
+ * all completed transactions to notify users */
+int FinalizerEntry(void *Argument)
+{
+	// Variables
+	ListNode_t *cNode = NULL;
+	Mutex_t EventLock;
+
+	// Unused
+	_CRT_UNUSED(Argument);
+
+	// Create the mutex
+	MutexConstruct(&EventLock, MUTEX_PLAIN);
+
+	// Forever-loop
+	while (1) {
+		// Wait for events
+		ConditionWait(__GlbFinalizerEvent, &EventLock);
+
+		// Iterate through all transactions for all controllers
+		_foreach(cNode, UsbManagerGetControllers()) {
+			// Instantiate a controller pointer
+			OhciController_t *Controller = 
+				(OhciController_t*)cNode->Data;
+			
+			// Iterate transactions
+			foreach_nolink(tNode, Controller->QueueControl.TransactionList) {
+				// Instantiate a transaction pointer
+				UsbManagerTransfer_t *Transfer = 
+					(UsbManagerTransfer_t*)tNode->Data;
+
+				// Cleanup?
+				if (Transfer->Cleanup) {
+					// Temporary copy of pointer
+					ListNode_t *Temp = tNode;
+
+					// Notify requester and finalize
+					OhciTransactionFinalize(Controller, Transfer, 1);
+				
+					// Remove from list (in-place, tricky)
+					tNode = ListUnlinkNode(
+						Controller->QueueControl.TransactionList,
+						tNode);
+
+					// Cleanup
+					ListDestroyNode(
+						Controller->QueueControl.TransactionList, 
+						Temp);
+				}
+				else {
+					tNode = ListNext(tNode);
+				}
+			}
+		}
+	}
+
+	// Done
+	return 0;
+}
 
 /* OnInterrupt
  * Is called when one of the registered devices
  * produces an interrupt. On successful handled
  * interrupt return OsSuccess, otherwise the interrupt
  * won't be acknowledged */
-InterruptStatus_t OnInterrupt(void *InterruptData)
+InterruptStatus_t
+OnInterrupt(
+	_In_ void *InterruptData)
 {
 	// Variables
-	AhciController_t *Controller = NULL;
+	OhciController_t *Controller = NULL;
 	reg32_t InterruptStatus;
-	int i;
 
 	// Instantiate the pointer
-	Controller = (AhciController_t*)InterruptData;
-	InterruptStatus = Controller->Registers->InterruptStatus;
+	Controller = (OhciController_t*)InterruptData;
+
+	// There are two cases where it might be, just to be sure
+	// we don't miss an interrupt, if the HeadDone is set or the
+	// intr is set
+	if (Controller->Hcca->HeadDone != 0) {
+		InterruptStatus = OHCI_INTR_PROCESS_HEAD;
+		// If halted bit is set, get rest of interrupt
+		if (Controller->Hcca->HeadDone & 0x1) {
+			InterruptStatus |= (Controller->Registers->HcInterruptStatus
+				& Controller->Registers->HcInterruptEnable);
+		}
+	}
+	else {
+		// Was it this Controller that made the interrupt?
+		// We only want the interrupts we have set as enabled
+		InterruptStatus = (Controller->Registers->HcInterruptStatus
+			& Controller->Registers->HcInterruptEnable);
+	}
 
 	// Trace
 	TRACE("Interrupt - Status 0x%x", InterruptStatus);
@@ -65,18 +147,104 @@ InterruptStatus_t OnInterrupt(void *InterruptData)
 		return InterruptNotHandled;
 	}
 
-	// Iterate the port-map and check if the interrupt
-	// came from that port
-	for (i = 0; i < 32; i++) {
-		if (Controller->Ports[i] != NULL
-			&& ((InterruptStatus & (1 << i)) != 0)) {
-			AhciPortInterruptHandler(Controller, Controller->Ports[i]);
-		}
+	// Disable interrupts
+	Controller->Registers->HcInterruptDisable = (reg32_t)OHCI_INTR_MASTER;
+
+	// Fatal Error Check
+	if (InterruptStatus & OHCI_INTR_FATAL_ERROR) {
+		// Reset controller and restart transactions
+		ERROR("Fatal Error (OHCI)");
 	}
 
-	// Write clear interrupt register and return
-	Controller->Registers->InterruptStatus = InterruptStatus;
+	// Flag for end of frame Type interrupts
+	if (InterruptStatus & (OHCI_INTR_SCHEDULING_OVERRUN | OHCI_INTR_PROCESS_HEAD
+		| OHCI_INTR_SOF | OHCI_INTR_FRAME_OVERFLOW)) {
+		InterruptStatus |= OHCI_INTR_MASTER;
+	}
+
+	// Scheduling Overrun?
+	if (InterruptStatus & OHCI_INTR_SCHEDULING_OVERRUN) {
+		ERROR("Scheduling Overrun");
+
+		// Acknowledge
+		Controller->Registers->HcInterruptStatus = OHCI_INTR_SCHEDULING_OVERRUN;
+		InterruptStatus = InterruptStatus & ~(OHCI_INTR_SCHEDULING_OVERRUN);
+	}
+
+	// Resume Detection? 
+	// We must wait 20 ms before putting Controller to Operational
+	if (InterruptStatus & OHCI_INTR_RESUMEDETECT) {
+		ThreadSleep(20);
+		OhciSetMode(Controller, OHCI_CONTROL_ACTIVE);
+
+		// Acknowledge
+		Controller->Registers->HcInterruptStatus = OHCI_INTR_RESUMEDETECT;
+		InterruptStatus = InterruptStatus & ~(OHCI_INTR_RESUMEDETECT);
+	}
+
+	// Frame Overflow
+	// Happens when it rolls over from 0xFFFF to 0
+	if (InterruptStatus & OHCI_INTR_FRAME_OVERFLOW) {
+		// Acknowledge
+		Controller->Registers->HcInterruptStatus = OHCI_INTR_FRAME_OVERFLOW;
+		InterruptStatus = InterruptStatus & ~(OHCI_INTR_FRAME_OVERFLOW);
+	}
+
+	// This happens if a transaction has completed
+	if (InterruptStatus & OHCI_INTR_PROCESS_HEAD) {
+		reg32_t TdAddress = (Controller->Hcca->HeadDone & ~(0x00000001));
+		OhciProcessDoneQueue(Controller, TdAddress);
+
+		// Acknowledge
+		Controller->Hcca->HeadDone = 0;
+		Controller->Registers->HcInterruptStatus = OHCI_INTR_PROCESS_HEAD;
+		InterruptStatus = InterruptStatus & ~(OHCI_INTR_PROCESS_HEAD);
+	}
+
+	// Root Hub Status Change
+	// This occurs on disconnect/connect events
+	if (InterruptStatus & OHCI_INTR_ROOTHUB_EVENT) {
+		// PortCheck
+		OhciPortsCheck(Controller);
+
+		// Acknowledge
+		Controller->Registers->HcInterruptStatus = OHCI_INTR_ROOTHUB_EVENT;
+		InterruptStatus = InterruptStatus & ~(OHCI_INTR_ROOTHUB_EVENT);
+	}
+
+	// Start of frame only comes if we should link in or unlink
+	// an interrupt td, this is a safe way of doing it
+	if (InterruptStatus & OHCI_INTR_SOF) {
+		// If this occured we have linking/unlinking to do!
+		OhciProcessTransactions(Controller);
+
+		// Acknowledge Interrupt
+		// - But mask this interrupt again
+		Controller->Registers->HcInterruptStatus = OHCI_INTR_SOF;
+	}
+
+	// Mask out remaining interrupts, we dont use them
+	if (InterruptStatus & ~(OHCI_INTR_MASTER)) {
+		Controller->Registers->HcInterruptDisable = InterruptStatus;
+	}
+
+	// Enable interrupts again
+	Controller->Registers->HcInterruptEnable = (reg32_t)OHCI_INTR_MASTER;
+
+	// Done
 	return InterruptHandled;
+}
+
+/* OnTimeout
+ * Is called when one of the registered timer-handles
+ * times-out. A new timeout event is generated and passed
+ * on to the below handler */
+OsStatus_t
+OnTimeout(
+	_In_ UUId_t Timer,
+	_In_ void *Data)
+{
+	return OsSuccess;
 }
 
 /* OnLoad
@@ -84,11 +252,14 @@ InterruptStatus_t OnInterrupt(void *InterruptData)
  * as soon as the driver is loaded in the system */
 OsStatus_t OnLoad(void)
 {
-	// Initialize state for this driver
-	GlbControllers = ListCreate(KeyInteger, LIST_NORMAL);
+	// Create event semaphore
+	__GlbFinalizerEvent = ConditionCreate();
+
+	// Start finalizer thread
+	__GlbFinalizerThreadId = ThreadCreate(FinalizerEntry, NULL);
 
 	// Initialize the device manager here
-	return AhciManagerInitialize();
+	return UsbManagerInitialize();
 }
 
 /* OnUnload
@@ -96,16 +267,14 @@ OsStatus_t OnLoad(void)
  * and should free all resources allocated by the system */
 OsStatus_t OnUnload(void)
 {
-	// Iterate registered controllers
-	foreach(cNode, GlbControllers) {
-		AhciControllerDestroy((AhciController_t*)cNode->Data);
-	}
+	// Stop thread
+	ThreadKill(__GlbFinalizerThreadId);
 
-	// Data is now cleaned up, destroy list
-	ListDestroy(GlbControllers);
+	// Cleanup semaphore
+	ConditionDestroy(__GlbFinalizerEvent);
 
 	// Cleanup the internal device manager
-	return AhciManagerDestroy();
+	return UsbManagerDestroy();
 }
 
 /* OnRegister
@@ -114,25 +283,18 @@ OsStatus_t OnUnload(void)
 OsStatus_t OnRegister(MCoreDevice_t *Device)
 {
 	// Variables
-	AhciController_t *Controller = NULL;
-	DataKey_t Key;
+	UhciController_t *Controller = NULL;
 	
 	// Register the new controller
-	Controller = AhciControllerCreate(Device);
+	Controller = UhciControllerCreate(Device);
 
 	// Sanitize
 	if (Controller == NULL) {
 		return OsError;
 	}
 
-	// Use the device-id as key
-	Key.Value = (int)Device->Id;
-
-	// Append the controller to our list
-	ListAppend(GlbControllers, ListCreateNode(Key, Key, Controller));
-
-	// Done - no error
-	return OsSuccess;
+	// Done - Register with service
+	return UsbManagerCreateController(&Controller->Base);
 }
 
 /* OnUnregister
@@ -141,27 +303,21 @@ OsStatus_t OnRegister(MCoreDevice_t *Device)
 OsStatus_t OnUnregister(MCoreDevice_t *Device)
 {
 	// Variables
-	AhciController_t *Controller = NULL;
-	DataKey_t Key;
-
-	// Set the key to the id of the device to find
-	// the bound controller
-	Key.Value = (int)Device->Id;
-
+	UhciController_t *Controller = NULL;
+	
 	// Lookup controller
-	Controller = (AhciController_t*)
-		ListGetDataByKey(GlbControllers, Key, 0);
+	Controller = (UhciController_t*)UsbManagerGetController(Device->Id);
 
 	// Sanitize lookup
 	if (Controller == NULL) {
 		return OsError;
 	}
 
-	// Remove node from list
-	ListRemoveByKey(GlbControllers, Key);
+	// Unregister, then destroy
+	UsbManagerDestroyController(&Controller->Base);
 
 	// Destroy it
-	return AhciControllerDestroy(Controller);
+	return UhciControllerDestroy(Controller);
 }
 
 /* OnQuery
@@ -177,93 +333,116 @@ OnQuery(_In_ MContractType_t QueryType,
 		_In_ UUId_t Queryee, 
 		_In_ int ResponsePort)
 {
-	// Unused params
-	_CRT_UNUSED(Arg2);
+	// Variables
+	UsbManagerTransfer_t *Transfer = NULL;
+	UhciController_t *Controller = NULL;
+	UUId_t Device = UUID_INVALID, Pipe = UUID_INVALID;
+	OsStatus_t Result = OsError;
 
-	// Sanitize the QueryType
-	if (QueryType != ContractDisk) {
-		return OsError;
+	// Instantiate some variables
+	Device = (UUId_t)Arg0->Data.Value;
+	Pipe = (UUId_t)Arg1->Data.Value;
+	
+	// Lookup controller
+	Controller = (UhciController_t*)UsbManagerGetController(Device);
+
+	// Sanitize we have a controller
+	if (Controller == NULL) {
+		// Null response
+		return PipeSend(Queryee, ResponsePort, 
+			(void*)&Result, sizeof(OsStatus_t));
 	}
 
-	// Which kind of function has been invoked?
 	switch (QueryFunction) {
-		// Query stats about a disk identifier in the form of
-		// a DiskDescriptor
-	case __DISK_QUERY_STAT: {
-		// Get parameters
-		AhciDevice_t *Device = NULL;
-		UUId_t DiskId = (UUId_t)Arg0->Data.Value;
+		// Generic Queue
+		case __USBHOST_QUEUETRANSFER: {
+			// Create and setup new transfer
+			Transfer = UsbManagerCreateTransfer(
+				(UsbTransfer_t*)Arg2->Data.Buffer,
+				Queryee, ResponsePort, Device, Pipe);
 
-		// Lookup device
-		Device = AhciManagerGetDevice(DiskId);
+			// Queue the generic transfer
+			return UsbQueueTransferGeneric(Transfer);
+		} break;
 
-		// Write the descriptor back
-		if (Device != NULL) {
-			return PipeSend(Queryee, ResponsePort,
-				(void*)&Device->Descriptor, sizeof(DiskDescriptor_t));
-		}
-		else {
-			OsStatus_t Result = OsError;
-			return PipeSend(Queryee, ResponsePort,
-				(void*)&Result, sizeof(OsStatus_t));
-		}
+		// Periodic Queue
+		case __USBHOST_QUEUEPERIODIC: {
+			// Variables
+			UsbTransferResult_t ResPackage;
 
-	} break;
+			// Create and setup new transfer
+			Transfer = UsbManagerCreateTransfer(
+				(UsbTransfer_t*)Arg2->Data.Buffer,
+				Queryee, ResponsePort, Device, Pipe);
 
-		// Read or write sectors from a disk identifier
-		// They have same parameters with different direction
-	case __DISK_QUERY_WRITE:
-	case __DISK_QUERY_READ: {
-		// Get parameters
-		DiskOperation_t *Operation = (DiskOperation_t*)Arg1->Data.Buffer;
-		UUId_t DiskId = (UUId_t)Arg0->Data.Value;
+			// Queue the periodic transfer
+			Result = UsbQueueTransferGeneric(Transfer);
 
-		// Create a new transaction
-		AhciTransaction_t *Transaction =
-			(AhciTransaction_t*)malloc(sizeof(AhciTransaction_t));
-		
-		// Set sender stuff so we can send a response
-		Transaction->Requester = Queryee;
-		Transaction->Pipe = ResponsePort;
-		
-		// Store buffer-object stuff
-		Transaction->Address = Operation->PhysicalBuffer;
-		Transaction->SectorCount = Operation->SectorCount;
-
-		// Lookup device
-		Transaction->Device = AhciManagerGetDevice(DiskId);
-
-		// Determine the kind of operation
-		if (Transaction->Device != NULL
-			&& Operation->Direction == __DISK_OPERATION_READ) {
-			if (AhciReadSectors(Transaction, Operation->AbsSector) != OsSuccess) {
-				OsStatus_t Result = OsError;
-				return PipeSend(Queryee, ResponsePort, (void*)&Result, sizeof(OsStatus_t));
+			// Get id
+			ResPackage.Id = Transfer->Id;
+			ResPackage.BytesTransferred = 0;
+			if (Result == OsSuccess) {
+				ResPackage.Status = TransferNotProcessed;
 			}
 			else {
-				return OsSuccess;
+				ResPackage.Status = TransferInvalidData;
 			}
-		}
-		else if (Transaction->Device != NULL
-			&& Operation->Direction == __DISK_OPERATION_WRITE) {
-			if (AhciWriteSectors(Transaction, Operation->AbsSector) != OsSuccess) {
-				OsStatus_t Result = OsError;
-				return PipeSend(Queryee, ResponsePort, (void*)&Result, sizeof(OsStatus_t));
-			}
-			else {
-				return OsSuccess;
-			}
-		}
-		else {
-			OsStatus_t Result = OsError;
-			return PipeSend(Queryee, ResponsePort, (void*)&Result, sizeof(OsStatus_t));
-		}
 
-	} break;
+			// Send back package
+			return PipeSend(Queryee, ResponsePort, 
+				(void*)&ResPackage, sizeof(UsbTransferResult_t));
+		} break;
 
-		// Other cases not supported
-	default: {
-		return OsError;
+		// Dequeue Transfer
+		case __USBHOST_DEQUEUEPERIODIC: {
+			
+			// Extract transfer-id
+			UsbManagerTransfer_t *Transfer = NULL;
+			UUId_t Id = (UUId_t)Arg1->Data.Value;
+
+			// Lookup transfer by iterating through
+			// available transfers
+			foreach(tNode, Controller->QueueControl.TransactionList) {
+				// Cast data to our type
+				UsbManagerTransfer_t *NodeTransfer = 
+					(UsbManagerTransfer_t*)tNode->Data;
+				if (NodeTransfer->Id == Id) {
+					Transfer = NodeTransfer;
+					break;
+				}
+			}
+
+			// Dequeue and send result back
+			if (Transfer != NULL) {
+				Result = UsbDequeueTransferGeneric(Transfer);
+			}
+		} break;
+
+		// Reset port
+		case __USBHOST_RESETPORT: {
+			// Call reset procedure, then let it fall through
+			// to QueryPort
+			UhciPortPrepare(Controller, (int)Pipe);
+		};
+		// Query port
+		case __USBHOST_QUERYPORT: {
+			// Variables
+			UsbHcPortDescriptor_t Descriptor;
+
+			// Fill port descriptor
+			UhciPortGetStatus(Controller, (int)Pipe, &Descriptor);
+
+			// Send descriptor back
+			return PipeSend(Queryee, ResponsePort, 
+				(void*)&Descriptor, sizeof(UsbHcPortDescriptor_t));
+		} break;
+
+		// Fall-through, error
+		default:
+			break;
 	}
-	}
+
+	// Dunno, fall-through case
+	// Return status response
+	return PipeSend(Queryee, ResponsePort, (void*)&Result, sizeof(OsStatus_t));
 }

@@ -1,30 +1,37 @@
 /* MollenOS
-*
-* Copyright 2011 - 2016, Philip Meulengracht
-*
-* This program is free software : you can redistribute it and / or modify
-* it under the terms of the GNU General Public License as published by
-* the Free Software Foundation ? , either version 3 of the License, or
-* (at your option) any later version.
-*
-* This program is distributed in the hope that it will be useful,
-* but WITHOUT ANY WARRANTY; without even the implied warranty of
-* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.See the
-* GNU General Public License for more details.
-*
-* You should have received a copy of the GNU General Public License
-* along with this program.If not, see <http://www.gnu.org/licenses/>.
-*
-*
-* MollenOS USB UHCI Controller Driver
-*/
+ *
+ * Copyright 2011 - 2017, Philip Meulengracht
+ *
+ * This program is free software : you can redistribute it and / or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation ? , either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.If not, see <http://www.gnu.org/licenses/>.
+ *
+ *
+ * MollenOS MCore - Universal Host Controller Interface Driver
+ * TODO:
+ *	- Power Management
+ */
 
 #ifndef _USB_UHCI_H_
 #define _USB_UHCI_H_
 
-/* Includes */
-#include <Module.h>
-#include <DeviceManager.h>
+/* Includes
+ * - Library */
+#include <os/driver/contracts/usbhost.h>
+#include <os/osdefs.h>
+#include <ds/list.h>
+
+#include "../common/manager.h"
+#include "../common/scheduler.h"
 
 /* Definitions */
 #define UHCI_MAX_PORTS				7
@@ -250,68 +257,83 @@ typedef struct _UhciQueueHead
 #define UHCI_POOL_START				14
 #define UHCI_BANDWIDTH_PHASES		32
 
-/* Endpoint Data */
-typedef struct _UhciEndpoint
-{
-	/* Max Packet Size */
-	size_t MaxPacketSize;
+/* UhciControl
+ * Contains all necessary Queue related information
+ * and information needed to schedule */
+typedef struct _UhciControl {
+	// Resources
+	UhciQueueHead_t			   **QHPool;
+	UhciTransferDescriptor_t   **TDPool;
+	uintptr_t					 QHPoolPhysical;
+	uintptr_t					 TDPoolPhysical;
 
-	/* Td's allocated */
-	size_t TdsAllocated;
+	// Frames
+	void*						 FrameList;
+	uintptr_t 					 FrameListPhysical;
+	size_t 					 	 Frame;
 
-	/* TD Pool */
-	UhciTransferDescriptor_t **TDPool;
-	Addr_t *TDPoolPhysical;
-	Addr_t **TDPoolBuffers;
+	// Bandwidth
+	int							 Bandwidth[UHCI_BANDWIDTH_PHASES];
+	int							 TotalBandwidth;
 
-	/* Lock */
-	Spinlock_t Lock;
+	// Transactions
+	List_t						*TransactionList;
+} UhciControl_t;
 
-} UhciEndpoint_t;
-
-#pragma pack(push, 1)
-/* Controller Structure */
-typedef struct _UhciController
-{
-	/* Id */
-	uint32_t Id;
-	int HcdId;
-
-	/* Device */
-	MCoreDevice_t *Device;
-
-	/* Lock */
-	Spinlock_t Lock;
-
-	/* I/O Registers */
-	DeviceIoSpace_t *IoBase;
-
-	/* Frame List */
-	void *FrameList;
-	Addr_t FrameListPhys;
-	uint32_t Frame;
-
-	/* Null Td */
-	UhciTransferDescriptor_t *NullTd;
-	Addr_t NullTdPhysical;
-
-	/* QH Pool */
-	UhciQueueHead_t *QhPool[UHCI_POOL_NUM_QH];
-	Addr_t QhPoolPhys[UHCI_POOL_NUM_QH];
-
-	/* Scheduling Loads */
-	int Bandwidth[UHCI_BANDWIDTH_PHASES];
-	int TotalBandwidth;
-
-	/* Port Count */
-	uint32_t NumPorts;
-
-	/* Transaction List
-	* Contains transactions
-	* in progress */
-	void *TransactionList;
-
+/* UhciController 
+ * Contains all per-controller information that is
+ * needed to control, queue and handle devices on an uhci-controller. */
+typedef struct _UhciController {
+	UsbManagerController_t	 Base;
+	UhciControl_t			 QueueControl;
 } UhciController_t;
-#pragma pack(pop)
 
-#endif // !_X86_USB_UHCI_H
+/* UhciControllerCreate 
+ * Initializes and creates a new Uhci Controller instance
+ * from a given new system device on the bus. */
+__EXTERN
+UhciController_t*
+UhciControllerCreate(
+	_In_ MCoreDevice_t *Device);
+
+/* UhciControllerDestroy
+ * Destroys an existing controller instance and cleans up
+ * any resources related to it */
+__EXTERN
+OsStatus_t
+UhciControllerDestroy(
+	_In_ UhciController_t *Controller);
+
+/* UhciPortPrepare
+ * Resets the port and also clears out any event on the port line. */
+__EXTERN
+OsStatus_t
+UhciPortPrepare(
+	_In_ UhciController_t *Controller, 
+	_In_ int Index);
+
+/* UhciPortGetStatus 
+ * Retrieve the current port status, with connected and enabled information */
+__EXTERN
+void
+UhciPortGetStatus(
+	_In_ UhciController_t *Controller,
+	_In_ int Index,
+	_Out_ UsbHcPortDescriptor_t *Port);
+
+/* UsbQueueTransferGeneric 
+ * Queues a new transfer for the given driver
+ * and pipe. They must exist. The function does not block*/
+__EXTERN
+OsStatus_t
+UsbQueueTransferGeneric(
+	_InOut_ UsbManagerTransfer_t *Transfer);
+
+/* UsbDequeueTransferGeneric 
+ * Removes a queued transfer from the controller's framelist */
+__EXTERN
+OsStatus_t
+UsbDequeueTransferGeneric(
+	_In_ UsbManagerTransfer_t *Transfer);
+
+#endif // !_USB_UHCI_H_
