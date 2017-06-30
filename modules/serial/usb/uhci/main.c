@@ -115,121 +115,54 @@ OnInterrupt(
 	_In_ void *InterruptData)
 {
 	// Variables
-	OhciController_t *Controller = NULL;
-	reg32_t InterruptStatus;
+	UhciController_t *Controller = NULL;
+	uint16_t InterruptStatus;
 
 	// Instantiate the pointer
-	Controller = (OhciController_t*)InterruptData;
+	Controller = (UhciController_t*)InterruptData;
 
-	// There are two cases where it might be, just to be sure
-	// we don't miss an interrupt, if the HeadDone is set or the
-	// intr is set
-	if (Controller->Hcca->HeadDone != 0) {
-		InterruptStatus = OHCI_INTR_PROCESS_HEAD;
-		// If halted bit is set, get rest of interrupt
-		if (Controller->Hcca->HeadDone & 0x1) {
-			InterruptStatus |= (Controller->Registers->HcInterruptStatus
-				& Controller->Registers->HcInterruptEnable);
-		}
-	}
-	else {
-		// Was it this Controller that made the interrupt?
-		// We only want the interrupts we have set as enabled
-		InterruptStatus = (Controller->Registers->HcInterruptStatus
-			& Controller->Registers->HcInterruptEnable);
-	}
-
-	// Trace
-	TRACE("Interrupt - Status 0x%x", InterruptStatus);
-
+	// Read interrupt status from i/o
+	InterruptStatus = UhciRead16(Controller, UHCI_REGISTER_STATUS);
+	
 	// Was the interrupt even from this controller?
-	if (!InterruptStatus) {
+	if (!(InterruptStatus & 0x1F)) {
 		return InterruptNotHandled;
 	}
 
-	// Disable interrupts
-	Controller->Registers->HcInterruptDisable = (reg32_t)OHCI_INTR_MASTER;
+	// Trace
+	TRACE("UHCI Interrupt - Status 0x%x", InterruptStatus);
 
-	// Fatal Error Check
-	if (InterruptStatus & OHCI_INTR_FATAL_ERROR) {
-		// Reset controller and restart transactions
-		ERROR("Fatal Error (OHCI)");
+	// Clear interrupt bits
+	UhciWrite16(Controller, UHCI_REGISTER_STATUS, InterruptStatus);
+
+	/* So.. Either completion or failed */
+	if (InterruptStatus & (UHCI_STATUS_USBINT | UHCI_STATUS_INTR_ERROR))
+		UhciProcessTransfers(Controller);
+
+	/* Resume Detected */
+	if (InterruptStatus & UHCI_STATUS_RESUME_DETECT)
+	{
+		/* Send run command */
+		uint16_t OldCmd = UhciRead16(Controller, UHCI_REGISTER_COMMAND);
+		OldCmd |= (UHCI_CMD_CONFIGFLAG | UHCI_CMD_RUN | UHCI_CMD_MAXPACKET64);
+		UhciWrite16(Controller, UHCI_REGISTER_COMMAND, OldCmd);
 	}
 
-	// Flag for end of frame Type interrupts
-	if (InterruptStatus & (OHCI_INTR_SCHEDULING_OVERRUN | OHCI_INTR_PROCESS_HEAD
-		| OHCI_INTR_SOF | OHCI_INTR_FRAME_OVERFLOW)) {
-		InterruptStatus |= OHCI_INTR_MASTER;
+	/* Host Error */
+	if (InterruptStatus & UHCI_STATUS_HOST_SYSERR)
+	{
+		/* Fatal Error
+		* Unschedule TDs and restart controller */
+		UsbEventCreate(UsbGetHcd(Controller->Id), 0, HcdFatalEvent);
 	}
 
-	// Scheduling Overrun?
-	if (InterruptStatus & OHCI_INTR_SCHEDULING_OVERRUN) {
-		ERROR("Scheduling Overrun");
-
-		// Acknowledge
-		Controller->Registers->HcInterruptStatus = OHCI_INTR_SCHEDULING_OVERRUN;
-		InterruptStatus = InterruptStatus & ~(OHCI_INTR_SCHEDULING_OVERRUN);
+	/* TD Processing Error */
+	if (InterruptStatus & UHCI_STATUS_PROCESS_ERR)
+	{
+		/* Fatal Error 
+		 * Unschedule TDs and restart controller */
+		LogInformation("UHCI", "Processing Error :/");
 	}
-
-	// Resume Detection? 
-	// We must wait 20 ms before putting Controller to Operational
-	if (InterruptStatus & OHCI_INTR_RESUMEDETECT) {
-		ThreadSleep(20);
-		OhciSetMode(Controller, OHCI_CONTROL_ACTIVE);
-
-		// Acknowledge
-		Controller->Registers->HcInterruptStatus = OHCI_INTR_RESUMEDETECT;
-		InterruptStatus = InterruptStatus & ~(OHCI_INTR_RESUMEDETECT);
-	}
-
-	// Frame Overflow
-	// Happens when it rolls over from 0xFFFF to 0
-	if (InterruptStatus & OHCI_INTR_FRAME_OVERFLOW) {
-		// Acknowledge
-		Controller->Registers->HcInterruptStatus = OHCI_INTR_FRAME_OVERFLOW;
-		InterruptStatus = InterruptStatus & ~(OHCI_INTR_FRAME_OVERFLOW);
-	}
-
-	// This happens if a transaction has completed
-	if (InterruptStatus & OHCI_INTR_PROCESS_HEAD) {
-		reg32_t TdAddress = (Controller->Hcca->HeadDone & ~(0x00000001));
-		OhciProcessDoneQueue(Controller, TdAddress);
-
-		// Acknowledge
-		Controller->Hcca->HeadDone = 0;
-		Controller->Registers->HcInterruptStatus = OHCI_INTR_PROCESS_HEAD;
-		InterruptStatus = InterruptStatus & ~(OHCI_INTR_PROCESS_HEAD);
-	}
-
-	// Root Hub Status Change
-	// This occurs on disconnect/connect events
-	if (InterruptStatus & OHCI_INTR_ROOTHUB_EVENT) {
-		// PortCheck
-		OhciPortsCheck(Controller);
-
-		// Acknowledge
-		Controller->Registers->HcInterruptStatus = OHCI_INTR_ROOTHUB_EVENT;
-		InterruptStatus = InterruptStatus & ~(OHCI_INTR_ROOTHUB_EVENT);
-	}
-
-	// Start of frame only comes if we should link in or unlink
-	// an interrupt td, this is a safe way of doing it
-	if (InterruptStatus & OHCI_INTR_SOF) {
-		// If this occured we have linking/unlinking to do!
-		OhciProcessTransactions(Controller);
-
-		// Acknowledge Interrupt
-		// - But mask this interrupt again
-		Controller->Registers->HcInterruptStatus = OHCI_INTR_SOF;
-	}
-
-	// Mask out remaining interrupts, we dont use them
-	if (InterruptStatus & ~(OHCI_INTR_MASTER)) {
-		Controller->Registers->HcInterruptDisable = InterruptStatus;
-	}
-
-	// Enable interrupts again
-	Controller->Registers->HcInterruptEnable = (reg32_t)OHCI_INTR_MASTER;
 
 	// Done
 	return InterruptHandled;

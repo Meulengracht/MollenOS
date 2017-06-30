@@ -17,8 +17,10 @@
  *
  *
  * MollenOS MCore - Universal Host Controller Interface Driver
- * TODO:
- *	- Power Management
+ * Todo:
+ * Power Management
+ * Finish the FSBR implementation, right now there is no guarantee of order ls/fs/bul
+ * The isochronous unlink/link needs improvements, it does not support multiple isocs in same frame 
  */
 
 #ifndef _USB_UHCI_H_
