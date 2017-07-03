@@ -2,7 +2,7 @@
 # Includes sub-libraries as
 # - acpica
 # - arch sub-layer
-INCLUDES = -I../librt/include -Iacpica/include -Imsvc/MCoreConfig -Iinclude
+INCLUDES = -I../librt/include -Iacpica/include -Iinclude
 SOURCES = $(wildcard common/*.c) \
 		  $(wildcard system/devices/acpi/*.c) \
 		  $(wildcard system/devices/fonts/*.c) \

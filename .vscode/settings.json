@@ -94,6 +94,9 @@
         "device.h": "c",
         "cmos.h": "c",
         "pit.h": "c",
-        "scancodes2.h": "c"
+        "scancodes2.h": "c",
+        "sdl_test_common.h": "c",
+        "ios.cpp": "c",
+        "dirent.h": "c"
     }
 }

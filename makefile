@@ -27,7 +27,7 @@ export FCOPY = cp
 target = img
 
 .PHONY: all
-all: boot_loader libraries kernel drivers tools initrd
+all: tools gen_revision boot_loader libraries kernel drivers initrd
 
 .PHONY: initrd
 initrd:
@@ -43,6 +43,12 @@ tools:
 	$(MAKE) -C tools/lzss -f makefile
 	$(MAKE) -C tools/rd -f makefile
 	$(MAKE) -C tools/diskutility -f makefile
+	$(MAKE) -C tools/revision -f makefile
+
+.PHONY: gen_revision
+gen_revision:
+	./revision gen clang
+	$(FCOPY) revision.h kernel/include/revision.h
 
 .PHONY: kernel
 kernel:
@@ -85,6 +91,7 @@ clean:
 	$(MAKE) -C tools/lzss -f makefile clean
 	$(MAKE) -C tools/rd -f makefile clean
 	$(MAKE) -C tools/diskutility -f makefile clean
+	$(MAKE) -C tools/revision -f makefile clean
 	rm -f initrd.mos
 	rm -rf deploy
 	rm -rf initrd
