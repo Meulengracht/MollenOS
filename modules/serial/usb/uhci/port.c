@@ -22,144 +22,175 @@
  * Finish the FSBR implementation, right now there is no guarantee of order ls/fs/bul
  * The isochronous unlink/link needs improvements, it does not support multiple isocs in same frame 
  */
+//#define __TRACE
 
 /* Includes
  * - System */
+#include <os/thread.h>
+#include <os/utils.h>
 #include "uhci.h"
 
 /* Includes
  * - Library */
 #include <string.h>
 
-/* Ports */
-void UhciPortReset(UhciController_t *Controller, uint32_t Port)
+/* UhciPortReset
+ * Resets the given on port on the controller and clears out any
+ * events on the port. The port is left in usable state. */
+OsStatus_t
+UhciPortReset(
+	_In_ UhciController_t *Controller, 
+	_In_ int Index)
 {
-	/* Calc */
-	uint16_t Temp;
-	uint16_t pOffset = (UHCI_REGISTER_PORT_BASE + ((uint16_t)Port * 2));
+	// Variables
+	uint16_t pOffset = (UHCI_REGISTER_PORT_BASE + (Index * 2));
+	uint16_t TempValue = 0;
 
-	/* Step 1. Send reset signal */
+	// Send reset-signal to controller
 	UhciWrite16(Controller, pOffset, UHCI_PORT_RESET);
 
-	/* Wait atlest 50 ms (per USB specification) */
-	StallMs(60);
+	// Wait atlest 50 ms (per USB specification)
+	ThreadSleep(60);
 
-	/* Now deassert reset signal */
-	Temp = UhciRead16(Controller, pOffset);
-	UhciWrite16(Controller, pOffset, Temp & ~UHCI_PORT_RESET);
+	// Now re-read port and deassert the signal
+	// We preserve the state now
+	TempValue = UhciRead16(Controller, pOffset);
+	UhciWrite16(Controller, pOffset, TempValue & ~UHCI_PORT_RESET);
 
-	/* Wait for CSC */
-	Temp = 0;
-	WaitForConditionWithFault(Temp,
+	// Now wait for the connection-status bit
+	TempValue = 0;
+	WaitForConditionWithFault(TempValue,
 		(UhciRead16(Controller, pOffset) & UHCI_PORT_CONNECT_STATUS), 10, 1);
 
-	/* Even if it fails, try to enable anyway */
-	if (Temp) {
-		LogDebug("UHCI", "Port failed to come online in a timely manner after reset...");
+	// Even if it fails, try to enable anyway
+	if (TempValue != 0) {
+		WARNING("UHCI: Port %i failed to come online in a timely manner after reset...", Index);
 	}
 
-	/* Step 2. Enable Port & clear event bits */
-	Temp = UhciRead16(Controller, pOffset);
+	// Enable port & clear event bits
+	TempValue = UhciRead16(Controller, pOffset);
 	UhciWrite16(Controller, pOffset, 
-		Temp | UHCI_PORT_CONNECT_EVENT | UHCI_PORT_ENABLED_EVENT | UHCI_PORT_ENABLED);
+		TempValue | UHCI_PORT_CONNECT_EVENT 
+		| UHCI_PORT_ENABLED_EVENT | UHCI_PORT_ENABLED);
 
-	/* Wait for enable, with timeout */
-	Temp = 0;
-	WaitForConditionWithFault(Temp,
+	// Wait for enable, with timeout
+	TempValue = 0;
+	WaitForConditionWithFault(TempValue,
 		(UhciRead16(Controller, pOffset) & UHCI_PORT_ENABLED), 25, 10);
 
-	/* Sanity */
-	if (Temp) {
-		LogDebug("UHCI", "Port %u enable time-out!", Port);
+	// Sanitize the result
+	if (TempValue != 0) {
+		WARNING("UHCI: Port %u enable time-out!", Index);
+		return OsError;
 	}
 
-	/* Wait 30 ms more 
-	 * I found this wait to be EXTREMELY 
-	 * crucical, otherwise devices would stall. 
-	 * because I accessed them to quickly after the reset */
-	StallMs(30);
+	// Wait 30 ms more 
+	// I found this wait to be EXTREMELY 
+	// crucical, otherwise devices would stall. 
+	// because I accessed them to quickly after the reset
+	ThreadSleep(30);
+
+	// Done
+	return OsSuccess;
 }
 
-/* Detect any port changes */
-void UhciPortCheck(UhciController_t *Controller, int Port)
+/* UhciPortGetStatus 
+ * Retrieve the current port status, with connected and enabled information */
+void 
+UhciPortGetStatus(
+	_In_ UhciController_t *Controller,
+	_In_ int Index,
+	_Out_ UsbHcPortDescriptor_t *Port)
 {
-	/* Get port status */
-	uint16_t pStatus = UhciRead16(Controller, (UHCI_REGISTER_PORT_BASE + ((uint16_t)Port * 2)));
-	UsbHc_t *Hcd;
-
-	/* Has there been a connection event? */
-	if (!(pStatus & UHCI_PORT_CONNECT_EVENT))
-		return;
-
-	/* Clear connection event */
-	UhciWrite16(Controller, 
-		(UHCI_REGISTER_PORT_BASE + ((uint16_t)Port * 2)), UHCI_PORT_CONNECT_EVENT);
-
-	/* Get HCD data */
-	Hcd = UsbGetHcd(Controller->HcdId);
-
-	/* Sanity */
-	if (Hcd == NULL)
-		return;
-
-	/* Connect event? */
-	if (pStatus & UHCI_PORT_CONNECT_STATUS)
-	{
-		/* Connection Event */
-		UsbEventCreate(Hcd, Port, HcdConnectedEvent);
-	}
-	else
-	{
-		/* Disconnect Event */
-		UsbEventCreate(Hcd, Port, HcdDisconnectedEvent);
-	}
-}
-
-/* Go through ports */
-void UhciPortsCheck(void *Data)
-{
-	/* Cast & Vars */
-	UhciController_t *Controller = (UhciController_t*)Data;
-	int i;
-
-	/* Iterate ports and check */
-	for (i = 0; i < (int)Controller->NumPorts; i++)
-		UhciPortCheck(Controller, i);
-
-	/* Disable FSBR */
-}
-
-/* Gets port status */
-void UhciPortSetup(void *Data, UsbHcPort_t *Port)
-{
-	UhciController_t *Controller = (UhciController_t*)Data;
+	// Variables
 	uint16_t pStatus = 0;
 
-	/* Reset Port */
-	UhciPortReset(Controller, Port->Id);
+	// Now we can get current port status
+	pStatus = UhciRead16(Controller, (UHCI_REGISTER_PORT_BASE + (Index * 2)));
 
-	/* Dump info */
-	pStatus = UhciRead16(Controller, (UHCI_REGISTER_PORT_BASE + ((uint16_t)Port->Id * 2)));
-
-#ifdef UHCI_DIAGNOSTICS
-	LogDebug("UHCI", "UHCI %u.%u Status: 0x%x", Controller->Id, Port->Id, pStatus);
-#endif
-
-	/* Is it connected? */
-	if (pStatus & UHCI_PORT_CONNECT_STATUS)
+	// Is port connected?
+	if (pStatus & UHCI_PORT_CONNECT_STATUS) {
 		Port->Connected = 1;
-	else
+	}
+	else {
 		Port->Connected = 0;
+	}
 
-	/* Enabled? */
-	if (pStatus & UHCI_PORT_ENABLED)
+	// Is port enabled?
+	if (pStatus & UHCI_PORT_ENABLED) {
 		Port->Enabled = 1;
-	else
+	}
+	else {
 		Port->Enabled = 0;
+	}
 
-	/* Lowspeed? */
-	if (pStatus & UHCI_PORT_LOWSPEED)
+	// Detect speed of the connected device/port
+	if (pStatus & UHCI_PORT_LOWSPEED) {
 		Port->Speed = LowSpeed;
-	else
+	}
+	else {
 		Port->Speed = FullSpeed;
+	}
+}
+
+/* UhciPortCheck
+ * Detects if any connection activity has occurred on the given port and
+ * controller. If any activity was detected, usb service will be contacted. */
+OsStatus_t
+UhciPortCheck(
+	_In_ UhciController_t *Controller, 
+	_In_ int Index)
+{
+	// Variables
+	uint16_t pStatus = UhciRead16(Controller, 
+		(UHCI_REGISTER_PORT_BASE + (Index * 2)));
+
+	// Sanitize the port-activity
+	if (!(pStatus & UHCI_PORT_CONNECT_EVENT)) {
+		return OsSuccess;
+	}
+
+	// Clear connection event so we don't redetect
+	UhciWrite16(Controller, 
+		(UHCI_REGISTER_PORT_BASE + (Index * 2)), 
+		UHCI_PORT_CONNECT_EVENT);
+
+	// Notify usb-service
+	return UsbEventPort(Controller->Base.Device.Id, Index);
+}
+
+/* UhciPortsCheck
+ * Enumerates ports and checks for any pending events. This also
+ * notifies the usb-service if any connection changes appear */
+OsStatus_t
+UhciPortsCheck(
+	_In_ UhciController_t *Controller)
+{
+	// Variables
+	int i;
+
+	// Iterate all available ports
+	for (i = 0; i < (int)(Controller->Base.PortCount); i++) {
+		UhciPortCheck(Controller, i);
+	}
+
+	// Disable FSBR
+	// @todo
+
+	// Done
+	return OsSuccess
+}
+
+/* UhciPortPrepare
+ * Resets the port and also clears out any event on the port line. */
+OsStatus_t
+UhciPortPrepare(
+	_In_ UhciController_t *Controller, 
+	_In_ int Index)
+{
+	// Trace
+	TRACE("UhciPortPrepare(Port %i)", Index);
+
+	// Done
+	return UhciPortReset(Controller, Index);
 }

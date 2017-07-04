@@ -127,11 +127,11 @@ PACKED_TYPESTRUCT(OhciTransferDescriptor, {
 	uint16_t				Offsets[8]; // Isochronous offsets
 
 	// Metadata
-	int16_t					Index;		// Index of this TD
-	int16_t 				LinkIndex;	// Next TD, -1 if none
-	reg32_t					OriginalFlags; // Copy of flags
-	reg32_t					OriginalCbp; // Copy of buffer pointer
-	uint8_t					Padding[24];// Padding
+	int16_t					Index;			// Index of this TD
+	int16_t 				LinkIndex;		// Next TD, -1 if none
+	reg32_t					OriginalFlags;  // Copy of flags
+	reg32_t					OriginalCbp; 	// Copy of buffer pointer
+	uint8_t					Padding[20];	// Padding
 });
 
 /* OhciTransferDescriptor::Flags

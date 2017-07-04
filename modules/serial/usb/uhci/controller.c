@@ -46,37 +46,62 @@ UhciSetup(
  OnInterrupt(
 	 _In_ void *InterruptData);
 
-//#define UHCI_FSBR
-
-/* Helpers */
-uint16_t UhciRead16(UhciController_t *Controller, uint16_t Register)
+/* UhciRead16
+ * Reads a 2-byte value from the control-space of the controller */
+uint16_t
+UhciRead16(
+	_In_ UhciController_t *Controller, 
+	_In_ uint16_t Register)
 {
-	/* Deep Call! */
-	return (uint16_t)IoSpaceRead(Controller->Base.IoBase, Register, 2);
+	// Wrapper for reading the io-space
+	return (uint16_t)ReadIoSpace(Controller->Base.IoBase, Register, 2);
 }
 
-uint32_t UhciRead32(UhciController_t *Controller, uint16_t Register)
+/* UhciRead32
+ * Reads a 4-byte value from the control-space of the controller */
+uint32_t
+UhciRead32(
+	_In_ UhciController_t *Controller, 
+	_In_ uint16_t Register)
 {
-	/* Deep Call! */
-	return (uint32_t)IoSpaceRead(Controller->IoBase, Register, 4);
+	// Wrapper for reading the io-space
+	return (uint32_t)ReadIoSpace(Controller->Base.IoBase, Register, 4);
 }
 
-void UhciWrite8(UhciController_t *Controller, uint16_t Register, uint8_t Value)
+/* UhciWrite8
+ * Writes a single byte value to the control-space of the controller */
+void
+UhciWrite8(
+	_In_ UhciController_t *Controller, 
+	_In_ uint16_t Register, 
+	_In_ uint8_t Value)
 {
-	/* Write new state */
-	IoSpaceWrite(Controller->IoBase, Register, Value, 1);
+	// Wrapper for writing to the io-space
+	WriteIoSpace(Controller->Base.IoBase, Register, Value, 1);
 }
 
-void UhciWrite16(UhciController_t *Controller, uint16_t Register, uint16_t Value)
+/* UhciWrite16
+ * Writes a 2-byte value to the control-space of the controller */
+void
+UhciWrite16(
+	_In_ UhciController_t *Controller, 
+	_In_ uint16_t Register, 
+	_In_ uint16_t Value)
 { 
-	/* Write new state */
-	IoSpaceWrite(Controller->IoBase, Register, Value, 2);
+	// Wrapper for writing to the io-space
+	WriteIoSpace(Controller->Base.IoBase, Register, Value, 2);
 }
 
-void UhciWrite32(UhciController_t *Controller, uint16_t Register, uint32_t Value)
+/* UhciWrite32
+ * Writes a 4-byte value to the control-space of the controller */
+void 
+UhciWrite32(
+	_In_ UhciController_t *Controller, 
+	_In_ uint16_t Register, 
+	_In_ uint32_t Value)
 {
-	/* Write new state */
-	IoSpaceWrite(Controller->IoBase, Register, Value, 4);
+	// Wrapper for writing to the io-space
+	WriteIoSpace(Controller->Base.IoBase, Register, Value, 4);
 }
 
 /* UhciControllerCreate 
@@ -208,31 +233,55 @@ UhciControllerDestroy(
 	return OsSuccess;
 }
 
-/* Start / Stop */
+/* UhciStart
+ * Boots the controller, if it succeeds OsSuccess is returned. */
 OsStatus_t
 UhciStart(
 	_In_ UhciController_t *Controller)
 {
-	/* Send run command */
-	uint16_t OldCmd = UhciRead16(Controller, UHCI_REGISTER_COMMAND);
-	OldCmd |= (UHCI_CMD_CONFIGFLAG | UHCI_CMD_RUN | UHCI_CMD_MAXPACKET64);
+	// Variables
+	uint16_t OldCmd = 0;
+
+	// Read current command register
+	// to preserve information, then assert some flags
+	OldCmd = UhciRead16(Controller, UHCI_REGISTER_COMMAND);
+	OldCmd |= (UHCI_COMMAND_CONFIGFLAG 
+		| UHCI_COMMAND_RUN | UHCI_COMMAND_MAXPACKET64);
+
+	// Update
 	UhciWrite16(Controller, UHCI_REGISTER_COMMAND, OldCmd);
 
-	/* Wait for it to start */	
+	// Wait for controller to start
 	OldCmd = 0;
 	WaitForConditionWithFault(OldCmd, 
 		(UhciRead16(Controller, UHCI_REGISTER_STATUS) & UHCI_STATUS_HALTED) == 0, 100, 10);
+
+	return (OldCmd == 0) ? OsSuccess : OsError;
 }
 
-void UhciStop(UhciController_t *Controller)
+/* UhciStop
+ * Stops the controller, if it succeeds OsSuccess is returned. */
+OsStatus_t
+UhciStop(
+	_In_ UhciController_t *Controller)
 {
-	/* Send stop command */
-	uint16_t OldCmd = UhciRead16(Controller, UHCI_REGISTER_COMMAND);
-	OldCmd &= ~(UHCI_CMD_RUN);
+	// Variables
+	uint16_t OldCmd = 0;
+	
+	// Read current command register
+	// to preserve information, then deassert run flag
+	OldCmd = UhciRead16(Controller, UHCI_REGISTER_COMMAND);
+	OldCmd &= ~(UHCI_COMMAND_RUN);
+
+	// Update
 	UhciWrite16(Controller, UHCI_REGISTER_COMMAND, OldCmd);
+
+	// We don't wait..
+	return OsSuccess;
 }
 
-/* Resets the Controller */
+/* UhciReset
+ * Resets the controller back to usable state */
 void UhciReset(UhciController_t *Controller)
 {
 	/* Vars */

@@ -35,201 +35,149 @@
 #include "../common/manager.h"
 #include "../common/scheduler.h"
 
-/* Definitions */
-#define UHCI_MAX_PORTS				7
-#define UHCI_STRUCT_ALIGN			16
-#define UHCI_STRUCT_ALIGN_BITS		0xF
-#define UHCI_NUM_FRAMES				1024
-#define UHCI_FRAME_MASK				2047
-#define UHCI_USBLEGEACY				0xC0
-#define UHCI_USBRES_INTEL			0xC4
+//#define UHCI_FSBR
 
-/* Registers */
-#define UHCI_REGISTER_COMMAND		0x00
-#define UHCI_REGISTER_STATUS		0x02
-#define UHCI_REGISTER_INTR			0x04
-#define UHCI_REGISTER_FRNUM			0x06
-#define UHCI_REGISTER_FRBASEADDR	0x08
-#define UHCI_REGISTER_SOFMOD		0x0C
-#define UHCI_REGISTER_PORT_BASE		0x10
+/* UHCI Definitions 
+ * Definitions and constants used in general for the controller setup */
+#define UHCI_MAX_PORTS					7
+#define UHCI_NUM_FRAMES					1024
+#define UHCI_FRAME_MASK					2047
+#define UHCI_USBLEGEACY					0xC0
+#define UHCI_USBRES_INTEL				0xC4
 
-/* Command bit switches */
-#define UHCI_CMD_RUN				0x1
-#define UHCI_CMD_HCRESET			0x2
-#define UHCI_CMD_GRESET				0x4
-#define UHCI_CMD_SUSPENDMODE		0x8
-#define UHCI_CMD_GLBRESUME			0x10
-#define UHCI_CMD_DEBUG				0x20
-#define UHCI_CMD_CONFIGFLAG			0x40
-#define UHCI_CMD_MAXPACKET64		0x80
+#define UHCI_STRUCT_ALIGN				16
+#define UHCI_STRUCT_ALIGN_BITS			0xF
 
-/* Status bit switches */
-#define UHCI_STATUS_USBINT			0x1
-#define UHCI_STATUS_INTR_ERROR		0x2
-#define UHCI_STATUS_RESUME_DETECT	0x4
-#define UHCI_STATUS_HOST_SYSERR		0x8
-#define UHCI_STATUS_PROCESS_ERR		0x10
-#define UHCI_STATUS_HALTED			0x20
+/* UHCI Register Definitions
+ * A list of all the fixed-offsets registers that exist in the io-space of
+ * the uhci-controller. */
+#define UHCI_REGISTER_COMMAND			0x00
+#define UHCI_REGISTER_STATUS			0x02
+#define UHCI_REGISTER_INTR				0x04
+#define UHCI_REGISTER_FRNUM				0x06
+#define UHCI_REGISTER_FRBASEADDR		0x08
+#define UHCI_REGISTER_SOFMOD			0x0C
+#define UHCI_REGISTER_PORT_BASE			0x10
 
-/* Interrupt bit switches */
-#define UHCI_INTR_TIMEOUT			0x1
-#define UHCI_INTR_RESUME			0x2
-#define UHCI_INTR_COMPLETION		0x4
-#define UHCI_INTR_SHORT_PACKET		0x8
+/* UHCI Register Definitions
+ * Bit definitions for the Command register */
+#define UHCI_COMMAND_RUN				0x1
+#define UHCI_COMMAND_HCRESET			0x2
+#define UHCI_COMMAND_GRESET				0x4
+#define UHCI_COMMAND_SUSPENDMODE		0x8
+#define UHCI_COMMAND_GLBRESUME			0x10
+#define UHCI_COMMAND_DEBUG				0x20
+#define UHCI_COMMAND_CONFIGFLAG			0x40
+#define UHCI_COMMAND_MAXPACKET64		0x80
 
-/* Port bit switches */
-#define UHCI_PORT_CONNECT_STATUS	0x1
-#define UHCI_PORT_CONNECT_EVENT		0x2
-#define UHCI_PORT_ENABLED			0x4
-#define UHCI_PORT_ENABLED_EVENT		0x8
-#define UHCI_PORT_LINE_STATUS		0x30
-#define UHCI_PORT_RESUME_DETECT		0x40
-#define UHCI_PORT_RESERVED			0x80
-#define UHCI_PORT_LOWSPEED			0x100
-#define UHCI_PORT_RESET				0x200
-#define UHCI_PORT_RESERVED1			0x400
-#define UHCI_PORT_RESERVED2			0x800
-#define UHCI_PORT_SUSPEND			0x1000
+/* UHCI Register Definitions
+ * Bit definitions for the Status register */
+#define UHCI_STATUS_USBINT				0x1
+#define UHCI_STATUS_INTR_ERROR			0x2
+#define UHCI_STATUS_RESUME_DETECT		0x4
+#define UHCI_STATUS_HOST_SYSERR			0x8
+#define UHCI_STATUS_PROCESS_ERR			0x10
+#define UHCI_STATUS_HALTED				0x20
 
-/* Structures */
-#define UHCI_STRUCT_ALIGN		16
-#define UHCI_STRUCT_ALIGN_BITS	0xF
+/* UHCI Register Definitions
+ * Bit definitions for the Interrupt register */
+#define UHCI_INTR_TIMEOUT				0x1
+#define UHCI_INTR_RESUME				0x2
+#define UHCI_INTR_COMPLETION			0x4
+#define UHCI_INTR_SHORT_PACKET			0x8
 
-/* Must be 16 byte aligned */
-typedef struct _UhciTransferDescriptor
-{
-	/* Link Pointer 
-	 * Bit 0: If set, end of chain
-	 * Bit 1: 1 = QH, 0 = TD.
-	 * Bit 2: 1 = Depth, 0 = Breadth.
-	 * Bit 3: Must be 0 */
-	uint32_t Link;
+/* UHCI Register Definitions
+ * Bit definitions for the Port register */
+#define UHCI_PORT_CONNECT_STATUS		0x1
+#define UHCI_PORT_CONNECT_EVENT			0x2
+#define UHCI_PORT_ENABLED				0x4
+#define UHCI_PORT_ENABLED_EVENT			0x8
+#define UHCI_PORT_LINE_STATUS			0x30
+#define UHCI_PORT_RESUME_DETECT			0x40
+#define UHCI_PORT_RESERVED				0x80
+#define UHCI_PORT_LOWSPEED				0x100
+#define UHCI_PORT_RESET					0x200
+#define UHCI_PORT_RESERVED1				0x400
+#define UHCI_PORT_RESERVED2				0x800
+#define UHCI_PORT_SUSPEND				0x1000
 
-	/* Control & Status 
-	 * Bit 0-10: Actual Length (Bytes Transfered)
-	 * Bit 11-15: Reserved
-	 * Bit 16: Reserved (1 on most controllers)
-	 * Bit 17: Bitstuff Error 
-	 * Bit 18: CRC/Timeout Error
-	 * Bit 19: NAK Recieved
-	 * Bit 20: Babble Detected 
-	 * Bit 21: Data Buffer Error
-	 * Bit 22: Stalled
-	 * Bit 23: Active 
-	 * Bit 24: Interrupt on Completion
-	 * Bit 25: If set, this is isochronous TD 
-	 * Bit 26: Lowspeed Transfer
-	 * Bit 27-28: Error Count
-	 * Bit 29: Short Packet Detection
-	 * Bit 30-31: Reserved */
-	uint32_t Flags;
+/* UhciTransferDescriptor
+ * Describes a generic transfer-descriptor that can be either of all
+ * four different transaction types. Must be 16 byte aligned. */
+PACKED_TYPESTRUCT(UhciTransferDescriptor, {
+	uint32_t					Link;
+	uint32_t 					Flags;
+	uint32_t 					Header;
+	uint32_t 					Buffer;
 
-	/* Packet Header
-	* Bit 0-7: PID. IN (0x69), OUT (E1), SETUP (2D) 
-	* Bit 8-14: Device Address
-	* Bit 15-18: Endpoint Address
-	* Bit 19: Data Toggle
-	* Bit 20: Reserved
-	* Bit 21-31: Maximum Length */
-	uint32_t Header;
+	// 16 Byte software meta-data
+	uint32_t 					HcdFlags;
+	uint32_t 					PhysicalAddress;
+	uint32_t 					Frame;
+	uint32_t 					Unused;
+});
 
-	/* Buffer Pointer */
-	uint32_t Buffer;
+/* UhciTransferDescriptor::Link & UhciQueueHead::Link,Child
+ * Contains definitions and bitfield definitions for UhciTransferDescriptor::Link */
+#define UHCI_LINK_END					0x1
+#define UHCI_LINK_QH					0x2		// 1 => Qh, 0 => Td
+#define UHCI_LINK_DEPTH					0x4		// 1 => Depth, 0 => Breadth
 
-	/* 4 Reserved dwords 
-	 * for software use */
+/* UhciTransferDescriptor::HcdFlags
+ * Contains definitions and bitfield definitions for UhciTransferDescriptor::HcdFlags */
+#define UHCI_TD_ALLOCATED				0x1
 
-	/* HcdFlags 
-	 * Bit 0: Allocation status */
-	uint32_t HcdFlags;
-
-	/* Scheduling Information */
-	uint32_t PhysicalAddr;
-	uint32_t Frame;
-
-	/* Padding */
-	uint32_t Padding[1];
-
-} UhciTransferDescriptor_t;
-
-/* Hcd Flags */
-#define UHCI_TD_HCD_ALLOCATED			0x1
-
-/* Link bit switches */
-#define UHCI_TD_LINK_END				0x1
-#define UHCI_TD_LINK_QH					0x2
-#define UHCI_TD_LINK_DEPTH				0x4
-
-/* Control / Status bit switches */
-#define UHCI_TD_ACTUAL_LENGTH_BITS		0x7FF
+/* UhciTransferDescriptor::Flags
+ * Contains definitions and bitfield definitions for UhciTransferDescriptor::Flags */
+#define UHCI_TD_LENGTH_MASK				0x7FF
 #define UHCI_TD_ACTIVE					0x800000
 #define UHCI_TD_IOC						0x1000000
 #define UHCI_TD_ISOCHRONOUS				0x2000000
 #define UHCI_TD_LOWSPEED				0x4000000
-#define UHCI_TD_SET_ERR_CNT(n)			((n & 0x3) << 27)
+#define UHCI_TD_SETCOUNT(n)				((n & 0x3) << 27)
 #define UHCI_TD_SHORT_PACKET			(1 << 29)
-#define UHCI_TD_ACT_LEN(n)				(n & 0x7FF)
+#define UHCI_TD_ACTUALLENGTH(n)			(n & UHCI_TD_LENGTH_MASK)
 
-#define UHCI_TD_ERROR_COUNT(n)			((n >> 27) & 0x3)
+#define UHCI_TD_GETCOUNT(n)				((n >> 27) & 0x3)
 #define UHCI_TD_STATUS(n)				((n >> 17) & 0x3F)
 
-/* Header bit switches */
+/* UhciTransferDescriptor::Header
+ * Contains definitions and bitfield definitions for UhciTransferDescriptor::Header */
 #define UHCI_TD_PID_SETUP				0x2D
 #define UHCI_TD_PID_IN					0x69
 #define UHCI_TD_PID_OUT					0xE1
 #define UHCI_TD_DEVICE_ADDR(n)			((n & 0x7F) << 8)
 #define UHCI_TD_EP_ADDR(n)				((n & 0xF) << 15)
 #define UHCI_TD_DATA_TOGGLE				(1 << 19)
-#define UHCI_TD_MAX_LEN(n)				((n & 0x7FF) << 21)
-#define UHCI_TD_GET_LEN(n)				((n >> 21) & 0x7FF)
+#define UHCI_TD_MAX_LEN(n)				((n & UHCI_TD_LENGTH_MASK) << 21)
+#define UHCI_TD_GET_LEN(n)				((n >> 21) & UHCI_TD_LENGTH_MASK)
 
 /* Queue Head, 16 byte align 
  * 8 Bytes used by HC 
  * 24 Bytes used by HCD */
-typedef struct _UhciQueueHead
-{
-	/* Queue Head Link Pointer 
-	* Bit 0 - Terminate if set
-	* Bit 1 - 1 = QH, 0 = TD */
-	uint32_t Link;
+PACKED_TYPESTRUCT(UhciQueueHead, {
+	uint32_t 					Link;
+	uint32_t 					Child;
 
-	/* Queue Element Link Pointer
-	 * Bit 0 - Terminate if set
-	 * Bit 1 - 1 = QH, 0 = TD */
-	uint32_t Child;
+	// 24 Byte software meta-data
+	uint32_t 					Flags;
+	uint32_t 					LinkVirtual;	// Virtual address of Link
+	uint32_t 					ChildVirtual;	// Virtual address of Child
+	uint16_t 					Phase;
+	uint16_t					Period;
+	uint32_t 					Bandwidth;
+	uint32_t 					Unused;
+});
 
-
-	/* Everything below here is used by HCD
-	 * and is not seen by the controller
-	 */
-
-	/* Controller Driver Specific 
-	 * Bit 0: Allocation status
-	 * Bit 1-7: Pool Number
-	 * Bit 8-15: Queue Head Index 
-	 * Bit 16-17: Queue Head Type (00 Control, 01 Bulk, 10 Interrupt, 11 Isochronous) 
-	 * Bit 18: Bandwidth allocated 
-	 * Bit 19: FSBR 
-	 * Bit 20: Unschedule */
-	uint32_t Flags;
-
-	/* Virtual Address of next QH */
-	uint32_t LinkVirtual;
-
-	/* Virtual Address of TD Head */
-	uint32_t ChildVirtual;
-
-	/* Bandwidth Specs */
-	uint16_t Phase;
-	uint16_t Period;
-	uint32_t Bandwidth;
-
-	/* Padding */
-	uint32_t Padding[1];
-
-} UhciQueueHead_t;
-
-/* Flag bit switches */
+/* UhciQueueHead::Flags
+ * Contains definitions and bitfield definitions for UhciQueueHead::Flags
+ * Bit 0: Allocation status
+ * Bit 1-7: Pool Number
+ * Bit 8-15: Queue Head Index 
+ * Bit 16-17: Queue Head Type (00 Control, 01 Bulk, 10 Interrupt, 11 Isochronous) 
+ * Bit 18: Bandwidth allocated 
+ * Bit 19: FSBR 
+ * Bit 20: Unschedule */
 #define UHCI_QH_ACTIVE				0x1
 #define UHCI_QH_INDEX(n)			((n & 0xFF) << 8)
 #define UHCI_QH_TYPE(n)				((n & 0x3) << 16)
@@ -289,6 +237,63 @@ typedef struct _UhciController {
 	UsbManagerController_t	 Base;
 	UhciControl_t			 QueueControl;
 } UhciController_t;
+
+/* UhciRead16
+ * Reads a 2-byte value from the control-space of the controller */
+__EXTERN
+uint16_t
+UhciRead16(
+	_In_ UhciController_t *Controller, 
+	_In_ uint16_t Register);
+
+/* UhciRead32
+ * Reads a 4-byte value from the control-space of the controller */
+__EXTERN
+uint32_t
+UhciRead32(
+	_In_ UhciController_t *Controller, 
+	_In_ uint16_t Register);
+
+/* UhciWrite8
+ * Writes a single byte value to the control-space of the controller */
+__EXTERN
+void
+UhciWrite8(
+	_In_ UhciController_t *Controller, 
+	_In_ uint16_t Register, 
+	_In_ uint8_t Value);
+
+/* UhciWrite16
+ * Writes a 2-byte value to the control-space of the controller */
+__EXTERN
+void
+UhciWrite16(
+	_In_ UhciController_t *Controller, 
+	_In_ uint16_t Register, 
+	_In_ uint16_t Value);
+
+/* UhciWrite32
+ * Writes a 4-byte value to the control-space of the controller */
+__EXTERN
+void 
+UhciWrite32(
+	_In_ UhciController_t *Controller, 
+	_In_ uint16_t Register, 
+	_In_ uint32_t Value);
+
+/* UhciStart
+ * Boots the controller, if it succeeds OsSuccess is returned. */
+__EXTERN
+OsStatus_t
+UhciStart(
+	_In_ UhciController_t *Controller);
+
+/* UhciStop
+ * Stops the controller, if it succeeds OsSuccess is returned. */
+__EXTERN
+OsStatus_t
+UhciStop(
+	_In_ UhciController_t *Controller);
 
 /* UhciControllerCreate 
  * Initializes and creates a new Uhci Controller instance
