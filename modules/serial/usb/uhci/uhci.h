@@ -204,6 +204,8 @@ PACKED_TYPESTRUCT(UhciQueueHead, {
 #define UHCI_POOL_FSBR				UHCI_POOL_FCTRL
 
 /* Where shared alloc starts */
+#define OHCI_POOL_QHINDEX(Base, Index)	(Base + (Index * sizeof(UhciQueueHead_t)))
+#define OHCI_POOL_TDINDEX(Base, Index)	(Base + (Index * sizeof(UhciTransferDescriptor_t)))
 #define UHCI_POOL_START				14
 #define UHCI_BANDWIDTH_PHASES		32
 
@@ -286,13 +288,21 @@ UhciWrite32(
 __EXTERN
 OsStatus_t
 UhciStart(
-	_In_ UhciController_t *Controller);
+	_In_ UhciController_t *Controller,
+	_In_ int Wait);
 
 /* UhciStop
  * Stops the controller, if it succeeds OsSuccess is returned. */
 __EXTERN
 OsStatus_t
 UhciStop(
+	_In_ UhciController_t *Controller);
+
+/* UhciReset
+ * Resets the controller back to usable state, does not restart the controller. */
+__EXTERN
+OsStatus_t
+UhciReset(
 	_In_ UhciController_t *Controller);
 
 /* UhciControllerCreate 
@@ -327,6 +337,15 @@ UhciPortGetStatus(
 	_In_ UhciController_t *Controller,
 	_In_ int Index,
 	_Out_ UsbHcPortDescriptor_t *Port);
+
+/* UhciTransactionFinalize
+ * Cleans up the transfer, deallocates resources and validates the td's */
+__EXTERN
+OsStatus_t
+UhciTransactionFinalize(
+	_In_ UhciController_t *Controller,
+	_In_ UsbManagerTransfer_t *Transfer,
+	_In_ int Validate);
 
 /* UsbQueueTransferGeneric 
  * Queues a new transfer for the given driver

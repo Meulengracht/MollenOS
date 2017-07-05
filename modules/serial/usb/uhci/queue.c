@@ -22,9 +22,11 @@
  * Finish the FSBR implementation, right now there is no guarantee of order ls/fs/bul
  * The isochronous unlink/link needs improvements, it does not support multiple isocs in same frame 
  */
+//#define __TRACE
 
 /* Includes
  * - System */
+#include <os/utils.h>
 #include "uhci.h"
 
 /* Includes
@@ -162,64 +164,60 @@ Addr_t UhciAlign(Addr_t BaseAddr, Addr_t AlignmentBits, Addr_t Alignment)
 	return AlignedAddr;
 }
 
-/* The two functions below are to setup QH Frame List */
-uint32_t UhciFFS(uint32_t Value)
+/* UhciFFS
+ * This function calculates the first free set of bits in a value */
+size_t
+UhciFFS(
+	_In_ size_t Value)
 {
-	/* Return Value */
-	uint32_t RetNum = 0;
+	// Variables
+	size_t RetNum = 0;
 
-	/* 16 Bits */
-	if (!(Value & 0xFFFF))
-	{
+	if (!(Value & 0xFFFF)) { // 16 Bits
 		RetNum += 16;
 		Value >>= 16;
 	}
-
-	/* 8 Bits */
-	if (!(Value & 0xFF))
-	{
+	if (!(Value & 0xFF)) { // 8 Bits
 		RetNum += 8;
 		Value >>= 8;
 	}
-
-	/* 4 Bits */
-	if (!(Value & 0xF))
-	{
+	if (!(Value & 0xF)) { // 4 Bits
 		RetNum += 4;
 		Value >>= 4;
 	}
-
-	/* 2 Bits */
-	if (!(Value & 0x3))
-	{
+	if (!(Value & 0x3)) { // 2 Bits
 		RetNum += 2;
 		Value >>= 2;
 	}
-
-	/* 1 Bit */
-	if (!(Value & 0x1))
+	if (!(Value & 0x1)) { // 1 Bit
 		RetNum++;
+	}
 
-	/* Done */
+	// Done
 	return RetNum;
 }
 
-/* Determine Qh for Interrupt Transfer */
-uint32_t UhciDetermineInterruptQh(UhciController_t *Controller, uint32_t Frame)
+/* UhciDetermineInterruptQh
+ * Determine Qh for Interrupt Transfer */
+reg32_t
+UhciDetermineInterruptQh(
+	_In_ UhciController_t *Controller, 
+	_In_ size_t Frame)
 {
-	/* Resulting Index */
-	uint32_t Index;
+	// Variables
+	int Index = 0;
 
-	/* Determine index from first free bit 
-	 * 8 queues */
+	// Determine index from first free bit 8 queues
 	Index = 8 - UhciFFS(Frame | UHCI_NUM_FRAMES);
 
-	/* Sanity */
-	if (Index < 2 || Index > 8)
+	// If we are out of bounds then assume async queue
+	if (Index < 2 || Index > 8) {
 		Index = UHCI_POOL_ASYNC;
+	}
 
-	/* Return Phys */
-	return (Controller->QhPoolPhys[Index] | UHCI_TD_LINK_QH);
+	// Retrieve physical address of the calculated qh
+	return (UHCI_POOL_QHINDEX(
+		Controller->QueueControl.QHPoolPhysical, Index) | UHCI_LINK_QH);
 }
 
 /* Read current frame number */

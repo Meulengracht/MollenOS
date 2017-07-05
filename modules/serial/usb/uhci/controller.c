@@ -237,7 +237,8 @@ UhciControllerDestroy(
  * Boots the controller, if it succeeds OsSuccess is returned. */
 OsStatus_t
 UhciStart(
-	_In_ UhciController_t *Controller)
+	_In_ UhciController_t *Controller,
+	_In_ int Wait)
 {
 	// Variables
 	uint16_t OldCmd = 0;
@@ -250,6 +251,11 @@ UhciStart(
 
 	// Update
 	UhciWrite16(Controller, UHCI_REGISTER_COMMAND, OldCmd);
+
+	// Break here?
+	if (Wait == 0) {
+		return OsSuccess;
+	}
 
 	// Wait for controller to start
 	OldCmd = 0;
@@ -281,38 +287,44 @@ UhciStop(
 }
 
 /* UhciReset
- * Resets the controller back to usable state */
-void UhciReset(UhciController_t *Controller)
+ * Resets the controller back to usable state, does not restart the controller. */
+OsStatus_t
+UhciReset(
+	_In_ UhciController_t *Controller)
 {
-	/* Vars */
+	// Variables
 	uint16_t Temp = 0;
 
-	/* Write HCReset */
-	UhciWrite16(Controller, UHCI_REGISTER_COMMAND, UHCI_CMD_HCRESET);
+	// Assert the host-controller reset bit
+	UhciWrite16(Controller, UHCI_REGISTER_COMMAND, UHCI_COMMAND_HCRESET);
 
-	/* Wait */
-	WaitForConditionWithFault(Temp, (UhciRead16(Controller, UHCI_REGISTER_COMMAND) & UHCI_CMD_HCRESET) == 0, 100, 10);
+	// Wait for it to stop being asserted
+	WaitForConditionWithFault(Temp, 
+		(UhciRead16(Controller, UHCI_REGISTER_COMMAND) & UHCI_COMMAND_HCRESET) == 0, 100, 10);
 
-	/* Sanity */
-	if (Temp == 1)
-		LogDebug("UHCI", "Reset signal is still active..");
+	// Make sure it actually stopped
+	if (Temp == 1) {
+		ERROR("UHCI: Reset signal is still active..");
+	}
 
-	/* Clear out to be safe */
+	// Clear out command and interrupt register
 	UhciWrite16(Controller, UHCI_REGISTER_COMMAND, 0x0000);
 	UhciWrite16(Controller, UHCI_REGISTER_INTR, 0x0000);
 
-	/* Now re-configure it */
-	UhciWrite8(Controller, UHCI_REGISTER_SOFMOD, 64); /* Frame Length 1 ms */
-	UhciWrite32(Controller, UHCI_REGISTER_FRBASEADDR, Controller->FrameListPhys);
-	UhciWrite16(Controller, UHCI_REGISTER_FRNUM, (Controller->Frame & UHCI_FRAME_MASK));
+	// Now reconfigure the controller
+	UhciWrite8(Controller, UHCI_REGISTER_SOFMOD, 64); // Frame length 1 ms
+	UhciWrite32(Controller, UHCI_REGISTER_FRBASEADDR, 
+		Controller->QueueControl.FrameListPhysical);
+	UhciWrite16(Controller, UHCI_REGISTER_FRNUM, 
+		(Controller->QueueControl.Frame & UHCI_FRAME_MASK));
 
-	/* Enable interrupts */
+	// Enable the interrupts that are relevant
 	UhciWrite16(Controller, UHCI_REGISTER_INTR,
 		(UHCI_INTR_TIMEOUT | UHCI_INTR_SHORT_PACKET
 		| UHCI_INTR_RESUME | UHCI_INTR_COMPLETION));
 
-	/* Start Controller */
-	UhciStart(Controller);
+	// Done
+	return OsSuccess;
 }
 
 /* UhciSetup
@@ -324,71 +336,49 @@ UhciSetup(
 	// Variables
 	uint16_t Temp = 0, i = 0;
 
-	/* Disable interrupts while configuring (and stop controller) */
+	// Disable interrupts while configuring (and stop controller)
 	UhciWrite16(Controller, UHCI_REGISTER_COMMAND, 0x0000);
 	UhciWrite16(Controller, UHCI_REGISTER_INTR, 0x0000);
 
-	/* Global Reset */
-	UhciWrite16(Controller, UHCI_REGISTER_COMMAND, UHCI_CMD_GRESET);
-	StallMs(100);
+	// Perform a global reset, we must wait 100 ms for this complete
+	UhciWrite16(Controller, UHCI_REGISTER_COMMAND, UHCI_COMMAND_GRESET);
+	ThreadSleep(100);
 	UhciWrite16(Controller, UHCI_REGISTER_COMMAND, 0x0000);
 
-	/* Disable stuff again, we don't know what state is set after reset */
-	UhciWrite16(Controller, UHCI_REGISTER_COMMAND, 0x0000);
-	UhciWrite16(Controller, UHCI_REGISTER_INTR, 0x0000);
-
-	/* Setup Queues */
+	// Initialize queues
 	UhciInitQueues(Controller);
 
-	/* Reset */
-	UhciWrite16(Controller, UHCI_REGISTER_COMMAND, UHCI_CMD_HCRESET);
+	// Reset controller
+	UhciReset(Controller);
 
-	/* Wait */
-	WaitForConditionWithFault(Temp, (UhciRead16(Controller, UHCI_REGISTER_COMMAND) & UHCI_CMD_HCRESET) == 0, 100, 10);
-
-	/* Sanity */
-	if (Temp == 1)
-		LogDebug("UHCI", "Reset signal is still active..");
-
-	/* Clear out to be safe */
-	UhciWrite16(Controller, UHCI_REGISTER_COMMAND, 0x0000);
-	UhciWrite16(Controller, UHCI_REGISTER_INTR, 0x0000);
-
-	/* Now re-configure it */
-	UhciWrite8(Controller, UHCI_REGISTER_SOFMOD, 64); /* Frame Length 1 ms */
-	UhciWrite32(Controller, UHCI_REGISTER_FRBASEADDR, Controller->FrameListPhys);
-	UhciWrite16(Controller, UHCI_REGISTER_FRNUM, (Controller->Frame & UHCI_FRAME_MASK));
-
-	/* We get port count & 0 them */
-	for (i = 0; i <= UHCI_MAX_PORTS; i++)
-	{
+	// Enumerate all available ports
+	for (i = 0; i <= UHCI_MAX_PORTS; i++) {
 		Temp = UhciRead16(Controller, (UHCI_REGISTER_PORT_BASE + (i * 2)));
 
-		/* Is it a valid port? */
+		// Is port valid?
 		if (!(Temp & UHCI_PORT_RESERVED)
-			|| Temp == 0xFFFF)
-		{
-			/* This reserved bit must be 1 */
-			/* And we must have 2 ports atleast */
+			|| Temp == 0xFFFF) {
+			// This reserved bit must be 1
+			// And we must have 2 ports atleast
 			break;
 		}
 	}
 
-	/* Ports are now i */
-	Controller->NumPorts = i;
+	// Store the number of available ports
+	Controller->Base.PortCount = i;
 
-	/* Enable PCI Interrupts */
-	PciDeviceWrite(Controller->Device->BusDevice, UHCI_USBLEGEACY, 0x2000, 2);
+	// Enable PCI Interrupts
+	if (IoctlDeviceEx(Controller->Base.Device.Id, UHCI_USBLEGEACY, 0x2000, 2) != OsSuccess) {
+		return OsError;
+	}
 
-	/* If vendor is Intel we null out the intel register */
-	if (Controller->Device->VendorId == 0x8086)
-		PciDeviceWrite(Controller->Device->BusDevice, UHCI_USBRES_INTEL, 0x00, 1);
-
-	/* Enable interrupts */
-	UhciWrite16(Controller, UHCI_REGISTER_INTR,
-		(UHCI_INTR_TIMEOUT | UHCI_INTR_SHORT_PACKET
-		| UHCI_INTR_RESUME | UHCI_INTR_COMPLETION));
+	// If vendor is Intel we null out the intel register
+	if (Controller->Base.Device.VendorId == 0x8086) {
+		if (IoctlDeviceEx(Controller->Base.Device.Id, UHCI_USBRES_INTEL, 0x00, 1) != OsSuccess) {
+			return OsError;
+		}
+	}
 
 	// Start the controller and return result from that
-	return UhciStart(Controller);
+	return UhciStart(Controller, 1);
 }

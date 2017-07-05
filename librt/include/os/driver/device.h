@@ -65,6 +65,7 @@
 /* MCoreDevice IoCtrl Flags
  * Flags related to registering of new devices */
 #define __DEVICEMANAGER_IOCTL_BUS				0x00000000
+#define __DEVICEMANAGER_IOCTL_EXT				0x00000001
 
 // Ioctl-Bus Specific Flags
 #define __DEVICEMANAGER_IOCTL_ENABLE			0x00000001
@@ -188,6 +189,49 @@ IoctlDevice(
 	RPCSetArgument(&Request, 0, (__CONST void*)&Device, sizeof(UUId_t));
 	RPCSetArgument(&Request, 1, (__CONST void*)&Command, sizeof(Flags_t));
 	RPCSetArgument(&Request, 2, (__CONST void*)&Flags, sizeof(Flags_t));
+	RPCSetResult(&Request, (__CONST void*)&Result, sizeof(OsStatus_t));
+	
+	// Execute RPC
+	RPCExecute(&Request, __DEVICEMANAGER_TARGET);
+	return Result;
+}
+#endif
+
+/* Device I/O Control (Extended)
+ * Allows manipulation of a given device to either disable
+ * or enable, or configure the device */
+#ifdef __DEVICEMANAGER_IMPL
+__DEVAPI
+OsStatus_t
+SERVICEABI
+IoctlDeviceEx(
+	_In_ UUId_t Device,
+	_In_ Flags_t Register,
+	_In_ Flags_t Command,
+	_In_ size_t Width);
+#else
+__DEVAPI
+OsStatus_t
+SERVICEABI
+IoctlDeviceEx(
+	_In_ UUId_t Device,
+	_In_ Flags_t Register,
+	_In_ Flags_t Command,
+	_In_ size_t Width)
+{
+	// Variables
+	MRemoteCall_t Request;
+	OsStatus_t Result = OsSuccess;
+	Flags_t Select = __DEVICEMANAGER_IOCTL_EXT;
+
+	// Initialize RPC
+	RPCInitialize(&Request, __DEVICEMANAGER_INTERFACE_VERSION, 
+		PIPE_RPCOUT, __DEVICEMANAGER_IOCTLDEVICE);
+	RPCSetArgument(&Request, 0, (__CONST void*)&Device, sizeof(UUId_t));
+	RPCSetArgument(&Request, 1, (__CONST void*)&Select, sizeof(Flags_t));
+	RPCSetArgument(&Request, 2, (__CONST void*)&Register, sizeof(Flags_t));
+	RPCSetArgument(&Request, 3, (__CONST void*)&Command, sizeof(Flags_t));
+	RPCSetArgument(&Request, 4, (__CONST void*)&Width, sizeof(size_t));
 	RPCSetResult(&Request, (__CONST void*)&Result, sizeof(OsStatus_t));
 	
 	// Execute RPC

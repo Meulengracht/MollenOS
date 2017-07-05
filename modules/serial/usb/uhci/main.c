@@ -67,8 +67,8 @@ int FinalizerEntry(void *Argument)
 		// Iterate through all transactions for all controllers
 		_foreach(cNode, UsbManagerGetControllers()) {
 			// Instantiate a controller pointer
-			OhciController_t *Controller = 
-				(OhciController_t*)cNode->Data;
+			UhciController_t *Controller = 
+				(UhciController_t*)cNode->Data;
 			
 			// Iterate transactions
 			foreach_nolink(tNode, Controller->QueueControl.TransactionList) {
@@ -82,7 +82,7 @@ int FinalizerEntry(void *Argument)
 					ListNode_t *Temp = tNode;
 
 					// Notify requester and finalize
-					OhciTransactionFinalize(Controller, Transfer, 1);
+					UhciTransactionFinalize(Controller, Transfer, 1);
 				
 					// Remove from list (in-place, tricky)
 					tNode = ListUnlinkNode(
@@ -135,33 +135,29 @@ OnInterrupt(
 	// Clear interrupt bits
 	UhciWrite16(Controller, UHCI_REGISTER_STATUS, InterruptStatus);
 
-	/* So.. Either completion or failed */
-	if (InterruptStatus & (UHCI_STATUS_USBINT | UHCI_STATUS_INTR_ERROR))
+	// If either interrupt or error is present, it means a change happened
+	// in one of our transactions
+	if (InterruptStatus & (UHCI_STATUS_USBINT | UHCI_STATUS_INTR_ERROR)) {
 		UhciProcessTransfers(Controller);
-
-	/* Resume Detected */
-	if (InterruptStatus & UHCI_STATUS_RESUME_DETECT)
-	{
-		/* Send run command */
-		uint16_t OldCmd = UhciRead16(Controller, UHCI_REGISTER_COMMAND);
-		OldCmd |= (UHCI_CMD_CONFIGFLAG | UHCI_CMD_RUN | UHCI_CMD_MAXPACKET64);
-		UhciWrite16(Controller, UHCI_REGISTER_COMMAND, OldCmd);
 	}
 
-	/* Host Error */
-	if (InterruptStatus & UHCI_STATUS_HOST_SYSERR)
-	{
-		/* Fatal Error
-		* Unschedule TDs and restart controller */
-		UsbEventCreate(UsbGetHcd(Controller->Id), 0, HcdFatalEvent);
+	// The controller is telling us to perform resume
+	if (InterruptStatus & UHCI_STATUS_RESUME_DETECT) {
+		UhciStart(Controller, 0);
 	}
 
-	/* TD Processing Error */
-	if (InterruptStatus & UHCI_STATUS_PROCESS_ERR)
-	{
-		/* Fatal Error 
-		 * Unschedule TDs and restart controller */
-		LogInformation("UHCI", "Processing Error :/");
+	// If an host error occurs we should restart controller
+	if (InterruptStatus & UHCI_STATUS_HOST_SYSERR) {
+		UhciReset(Controller);
+		UhciStart(Controller, 0);
+	}
+
+	// Processing error, queue stopped
+	if (InterruptStatus & UHCI_STATUS_PROCESS_ERR) {
+		ERROR("UHCI: Processing Error :/");
+		//Clear queue and all waiting
+		//UhciReset(Controller);
+		//UhciStart(Controller, 0);
 	}
 
 	// Done
