@@ -346,7 +346,7 @@ UhciSetup(
 	UhciWrite16(Controller, UHCI_REGISTER_COMMAND, 0x0000);
 
 	// Initialize queues
-	UhciInitQueues(Controller);
+	UhciQueueInitialize(Controller);
 
 	// Reset controller
 	UhciReset(Controller);

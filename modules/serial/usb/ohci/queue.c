@@ -76,15 +76,15 @@ OhciQueueInitialize(
 	}
 
 	// Initialize pointers
-	Queue->EDPool = (OhciEndpointDescriptor_t**)Pool;
+	Queue->EDPool = (OhciEndpointDescriptor_t*)Pool;
 	Queue->EDPoolPhysical = PoolPhysical;
-	Queue->TDPool = (OhciTransferDescriptor_t**)((uint8_t*)Pool +
-		(OHCI_POOL_EDS + 32) * sizeof(OhciEndpointDescriptor_t));
+	Queue->TDPool = (OhciTransferDescriptor_t*)((uint8_t*)Pool +
+		((OHCI_POOL_EDS + 32) * sizeof(OhciEndpointDescriptor_t)));
 	Queue->TDPoolPhysical = PoolPhysical + 
-		(OHCI_POOL_EDS + 32) * sizeof(OhciEndpointDescriptor_t);
+		((OHCI_POOL_EDS + 32) * sizeof(OhciEndpointDescriptor_t));
 
 	// Initialize the null-td
-	NullTd = Queue->TDPool[OHCI_POOL_TDNULL];
+	NullTd = &Queue->TDPool[OHCI_POOL_TDNULL];
 	NullTd->BufferEnd = 0;
 	NullTd->Cbp = 0;
 	NullTd->Link = 0x0;
@@ -95,9 +95,9 @@ OhciQueueInitialize(
 	// to the NULL descriptor
 	for (i = 0; i < (OHCI_POOL_EDS + 32); i++) {
 		// Mark it skippable and set a NULL td
-		Queue->EDPool[i]->Flags = OHCI_EP_SKIP;
-		Queue->EDPool[i]->Current =
-			(Queue->EDPool[i]->TailPointer = NullPhysical) | 0x1;
+		Queue->EDPool[i].Flags = OHCI_EP_SKIP;
+		Queue->EDPool[i].Current =
+			(Queue->EDPool[i].TailPointer = NullPhysical) | 0x1;
 	}
 
 	// Initialize transaction counters
@@ -129,7 +129,7 @@ OhciVisualizeQueue(
 	// Enumerate the 32 entries
 	for (i = 0; i < 32; i++) {
 		OhciEndpointDescriptor_t *Ed = 
-			Controller->QueueControl.EDPool[OHCI_POOL_EDS + i];
+			&Controller->QueueControl.EDPool[OHCI_POOL_EDS + i];
 
 		// Enumerate links
 		while (Ed) {
@@ -163,18 +163,18 @@ OhciEdAllocate(
 	// large pool of ED's, just allocate from that in any case
 	for (i = 0; i < OHCI_POOL_EDS; i++) {
 		// Skip in case already allocated
-		if (Controller->QueueControl.EDPool[i]->HcdFlags & OHCI_ED_ALLOCATED) {
+		if (Controller->QueueControl.EDPool[i].HcdFlags & OHCI_ED_ALLOCATED) {
 			continue;
 		}
 
 		// We found a free ed - mark it allocated and end
 		// but reset the ED first
-		memset(Controller->QueueControl.EDPool[i], 0, sizeof(OhciEndpointDescriptor_t));
-		Controller->QueueControl.EDPool[i]->HcdFlags = OHCI_ED_ALLOCATED;
-		Controller->QueueControl.EDPool[i]->HcdFlags |= OHCI_ED_SET_INDEX(i);
+		memset(&Controller->QueueControl.EDPool[i], 0, sizeof(OhciEndpointDescriptor_t));
+		Controller->QueueControl.EDPool[i].HcdFlags = OHCI_ED_ALLOCATED;
+		Controller->QueueControl.EDPool[i].HcdFlags |= OHCI_ED_SET_INDEX(i);
 		
 		// Store pointer
-		Ed = Controller->QueueControl.EDPool[i];
+		Ed = &Controller->QueueControl.EDPool[i];
 		break;
 	}
 	
@@ -207,8 +207,8 @@ OhciTdAllocate(
 	// large pool of ED's, just allocate from that in any case
 	for (i = 0; i < OHCI_POOL_TDS; i++) {
 		// Skip ahead if allocated, skip twice if isoc
-		if (Controller->QueueControl.TDPool[i]->Flags & OHCI_TD_ALLOCATED) {
-			if (Controller->QueueControl.TDPool[i]->Flags & OHCI_TD_ISOCHRONOUS) {
+		if (Controller->QueueControl.TDPool[i].Flags & OHCI_TD_ALLOCATED) {
+			if (Controller->QueueControl.TDPool[i].Flags & OHCI_TD_ISOCHRONOUS) {
 				i++;
 			}
 			continue;
@@ -216,19 +216,19 @@ OhciTdAllocate(
 
 		// If we asked for isoc, make sure secondary is available
 		if (Type == IsochronousTransfer) {
-			if (Controller->QueueControl.TDPool[i + 1]->Flags & OHCI_TD_ALLOCATED) {
+			if (Controller->QueueControl.TDPool[i + 1].Flags & OHCI_TD_ALLOCATED) {
 				continue;
 			}
 			else {
-				Controller->QueueControl.TDPool[i]->Flags = OHCI_TD_ISOCHRONOUS;
+				Controller->QueueControl.TDPool[i].Flags = OHCI_TD_ISOCHRONOUS;
 			}
 		}
 
 		// Found one, reset
-		Controller->QueueControl.TDPool[i]->Flags |= OHCI_TD_ALLOCATED;
-		Controller->QueueControl.TDPool[i]->Index = (int16_t)i;
-		Controller->QueueControl.TDPool[i]->LinkIndex = (int16_t)-1;
-		Td = Controller->QueueControl.TDPool[i];
+		Controller->QueueControl.TDPool[i].Flags |= OHCI_TD_ALLOCATED;
+		Controller->QueueControl.TDPool[i].Index = (int16_t)i;
+		Controller->QueueControl.TDPool[i].LinkIndex = (int16_t)-1;
+		Td = &Controller->QueueControl.TDPool[i];
 		break;
 	}
 
@@ -261,7 +261,7 @@ OhciEdInitialize(
 		Ed->TailPointer = 0;
 	}
 	else {
-		Td = Controller->QueueControl.TDPool[HeadIndex];
+		Td = &Controller->QueueControl.TDPool[HeadIndex];
 
 		// Set physical of head
 		Ed->Current = OHCI_POOL_TDINDEX(Controller->QueueControl.TDPoolPhysical, HeadIndex) | OHCI_LINK_END;
@@ -269,7 +269,7 @@ OhciEdInitialize(
 		// Iterate untill tail
 		while (Td->LinkIndex != -1) {
 			LastIndex = Td->LinkIndex;
-			Td = Controller->QueueControl.TDPool[Td->LinkIndex];
+			Td = &Controller->QueueControl.TDPool[Td->LinkIndex];
 		}
 
 		// Update tail
@@ -510,7 +510,7 @@ OhciLinkGeneric(
 {
 	// Variables
 	OhciControl_t *Queue = &Controller->QueueControl;
-	OhciEndpointDescriptor_t *Ep = Queue->EDPool[EndpointDescriptorIndex];
+	OhciEndpointDescriptor_t *Ep = &Queue->EDPool[EndpointDescriptorIndex];
 	uintptr_t EpAddress = 0;
 
 	// Lookup physical
@@ -526,7 +526,7 @@ OhciLinkGeneric(
 			else {
 				// Iterate to end of descriptor-chain
 				OhciEndpointDescriptor_t *EpItr = 
-					Queue->EDPool[Queue->TransactionQueueControlIndex];
+					&Queue->EDPool[Queue->TransactionQueueControlIndex];
 
 				// Iterate until end of chain
 				while (EpItr->Link) {
@@ -563,7 +563,7 @@ OhciLinkGeneric(
 			else {
 				// Iterate to end of descriptor-chain
 				OhciEndpointDescriptor_t *EpItr = 
-					Queue->EDPool[Queue->TransactionQueueBulkIndex];
+					&Queue->EDPool[Queue->TransactionQueueBulkIndex];
 
 				// Iterate until end of chain
 				while (EpItr->Link) {
@@ -607,7 +607,7 @@ OhciLinkPeriodic(
 {
 	// Variables
 	OhciEndpointDescriptor_t *Ep = 
-		Controller->QueueControl.EDPool[EndpointDescriptorIndex];
+		&Controller->QueueControl.EDPool[EndpointDescriptorIndex];
 	uintptr_t EpAddress = 0;
 	int Queue = 0;
 	int i;
@@ -626,7 +626,8 @@ OhciLinkPeriodic(
 
 	// Now loop through the bandwidth-phases and link it
 	for (i = Queue; i < OHCI_BANDWIDTH_PHASES; i += (int)Ep->Interval) {
-		OhciEndpointDescriptor_t **PrevEd = &Controller->QueueControl.EDPool[OHCI_POOL_EDS + i];
+		OhciEndpointDescriptor_t *EdPtr = &Controller->QueueControl.EDPool[OHCI_POOL_EDS + i];
+		OhciEndpointDescriptor_t **PrevEd = &EdPtr;
 		OhciEndpointDescriptor_t *Here = *PrevEd;
 		uint32_t *PrevPtr = (uint32_t*)&Controller->Hcca->InterruptTable[i];
 
@@ -683,15 +684,15 @@ OhciUnlinkPeriodic(
 {
 	// Variables
 	OhciEndpointDescriptor_t *Ep = 
-		Controller->QueueControl.EDPool[EndpointDescriptorIndex];
+		&Controller->QueueControl.EDPool[EndpointDescriptorIndex];
 	int Queue = OHCI_ED_GET_QUEUE(Ep->HcdFlags);
 	int i;
 
 	// Iterate the bandwidth phases
 	for (i = Queue; i < OHCI_BANDWIDTH_PHASES; i += (int)Ep->Interval) {
+		OhciEndpointDescriptor_t *EdPtr = &Controller->QueueControl.EDPool[OHCI_POOL_EDS + i];
 		OhciEndpointDescriptor_t *Temp = NULL;
-		OhciEndpointDescriptor_t **PrevEd = 
-			&Controller->QueueControl.EDPool[OHCI_POOL_EDS + i];
+		OhciEndpointDescriptor_t **PrevEd = &EdPtr;
 		uint32_t *PrevPtr = (uint32_t*)&Controller->Hcca->InterruptTable[i];
 
 		// Iterate till we find the endpoint descriptor
@@ -788,7 +789,7 @@ OhciProcessDoneQueue(
 
 		// Iterate through all td's in this transaction
 		// and find the guilty
-		Td = Controller->QueueControl.TDPool[EndpointDescriptor->HeadIndex];
+		Td = &Controller->QueueControl.TDPool[EndpointDescriptor->HeadIndex];
 		while (Td) {
 			// Retrieve the physical address
 			uintptr_t TdPhysical = OHCI_POOL_TDINDEX(
@@ -810,7 +811,7 @@ OhciProcessDoneQueue(
 					int ErrorTransfer = 0;
 
 					// Re-iterate all td's
-					Td2 = Controller->QueueControl.TDPool[EndpointDescriptor->HeadIndex];
+					Td2 = &Controller->QueueControl.TDPool[EndpointDescriptor->HeadIndex];
 					while (Td2) {
 						// Extract error code
 						int ErrorCode = OHCI_TD_GET_CC(Td2->Flags);
@@ -858,7 +859,7 @@ OhciProcessDoneQueue(
 
 						// Go to next td or terminate
 						if (Td2->LinkIndex != -1) {
-							Td2 = Controller->QueueControl.TDPool[Td2->LinkIndex];
+							Td2 = &Controller->QueueControl.TDPool[Td2->LinkIndex];
 						}
 						else {
 							break;
@@ -869,7 +870,7 @@ OhciProcessDoneQueue(
 
 			// Go to next td or terminate
 			if (Td->LinkIndex != -1) {
-				Td = Controller->QueueControl.TDPool[Td->LinkIndex];
+				Td = &Controller->QueueControl.TDPool[Td->LinkIndex];
 			}
 			else {
 				break;

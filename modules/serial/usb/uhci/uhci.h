@@ -45,9 +45,6 @@
 #define UHCI_USBLEGEACY					0xC0
 #define UHCI_USBRES_INTEL				0xC4
 
-#define UHCI_STRUCT_ALIGN				16
-#define UHCI_STRUCT_ALIGN_BITS			0xF
-
 /* UHCI Register Definitions
  * A list of all the fixed-offsets registers that exist in the io-space of
  * the uhci-controller. */
@@ -112,9 +109,8 @@ PACKED_TYPESTRUCT(UhciTransferDescriptor, {
 
 	// 16 Byte software meta-data
 	uint32_t 					HcdFlags;
-	uint32_t 					PhysicalAddress;
 	uint32_t 					Frame;
-	uint32_t 					Unused;
+	uint32_t 					Unused[2];
 });
 
 /* UhciTransferDescriptor::Link & UhciQueueHead::Link,Child
@@ -126,6 +122,9 @@ PACKED_TYPESTRUCT(UhciTransferDescriptor, {
 /* UhciTransferDescriptor::HcdFlags
  * Contains definitions and bitfield definitions for UhciTransferDescriptor::HcdFlags */
 #define UHCI_TD_ALLOCATED				0x1
+#define UHCI_TD_SET_INDEX(n)			((n << 1) & 0xFE)	
+#define UHCI_TD_CLR_INDEX(n)			(n & 0xFFFFFF01)
+#define UHCI_TD_GET_INDEX(n)			((n & 0xFE) >> 1)
 
 /* UhciTransferDescriptor::Flags
  * Contains definitions and bitfield definitions for UhciTransferDescriptor::Flags */
@@ -190,39 +189,37 @@ PACKED_TYPESTRUCT(UhciQueueHead, {
 #define UHCI_QT_GET_QUEUE(n)		((n & 0xFE) >> 1)
 
 /* Pool Definitions */
-#define UHCI_POOL_NUM_QH			60
-#define UHCI_ENDPOINT_MIN_ALLOCATED 25
-
-#define UHCI_POOL_UNSCHEDULE		0
-#define UHCI_POOL_ISOCHRONOUS		1
-#define UHCI_POOL_ASYNC				9
-#define UHCI_POOL_NULL				10
-
-#define UHCI_POOL_LCTRL				11
-#define UHCI_POOL_FCTRL				12
-#define UHCI_POOL_FBULK				13
-#define UHCI_POOL_FSBR				UHCI_POOL_FCTRL
-
-/* Where shared alloc starts */
-#define OHCI_POOL_QHINDEX(Base, Index)	(Base + (Index * sizeof(UhciQueueHead_t)))
-#define OHCI_POOL_TDINDEX(Base, Index)	(Base + (Index * sizeof(UhciTransferDescriptor_t)))
+#define UHCI_POOL_QHINDEX(Ctrl, Index)	(Ctrl->QueueControl.QHPoolPhysical + (Index * sizeof(UhciQueueHead_t)))
+#define UHCI_POOL_TDINDEX(Ctrl, Index)	(Ctrl->QueueControl.TDPoolPhysical + (Index * sizeof(UhciTransferDescriptor_t)))
 #define UHCI_POOL_START				14
 #define UHCI_BANDWIDTH_PHASES		32
+#define UHCI_POOL_QHS				60
+#define UHCI_POOL_TDS				200
+#define UHCI_POOL_TDNULL			(UHCI_POOL_TDS - 1)
+
+#define UHCI_QH_UNSCHEDULE			0
+#define UHCI_QH_ISOCHRONOUS			1
+#define UHCI_QH_ASYNC				9
+#define UHCI_QH_NULL				10
+#define UHCI_QH_LCTRL				11
+#define UHCI_QH_FCTRL				12
+#define UHCI_QH_FBULK				13
+#define UHCI_QH_FSBR				UHCI_POOL_FCTRL
 
 /* UhciControl
  * Contains all necessary Queue related information
  * and information needed to schedule */
 typedef struct _UhciControl {
 	// Resources
-	UhciQueueHead_t			   **QHPool;
-	UhciTransferDescriptor_t   **TDPool;
+	UhciQueueHead_t			    *QHPool;
+	UhciTransferDescriptor_t    *TDPool;
 	uintptr_t					 QHPoolPhysical;
 	uintptr_t					 TDPoolPhysical;
 
 	// Frames
-	void*						 FrameList;
+	uintptr_t*					 FrameList;
 	uintptr_t 					 FrameListPhysical;
-	size_t 					 	 Frame;
+	int 					 	 Frame;
 
 	// Bandwidth
 	int							 Bandwidth[UHCI_BANDWIDTH_PHASES];
@@ -320,6 +317,13 @@ __EXTERN
 OsStatus_t
 UhciControllerDestroy(
 	_In_ UhciController_t *Controller);
+
+/* UhciQueueInitialize
+ * Initialize the controller's queue resources and resets counters */
+__EXTERN
+OsStatus_t
+UhciQueueInitialize(
+    _In_ UhciController_t *Controller);
 
 /* UhciPortPrepare
  * Resets the port and also clears out any event on the port line. */

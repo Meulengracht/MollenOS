@@ -275,8 +275,8 @@ PACKED_ATYPESTRUCT(volatile, OhciRegisters, {
  * and information needed to schedule */
 typedef struct _OhciControl {
 	// Resources
-	OhciEndpointDescriptor_t   **EDPool;
-	OhciTransferDescriptor_t   **TDPool;
+	OhciEndpointDescriptor_t    *EDPool;
+	OhciTransferDescriptor_t    *TDPool;
 	uintptr_t					 EDPoolPhysical;
 	uintptr_t					 TDPoolPhysical;
 

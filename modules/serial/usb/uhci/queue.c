@@ -26,6 +26,7 @@
 
 /* Includes
  * - System */
+#include <os/mollenos.h>
 #include <os/utils.h>
 #include "uhci.h"
 
@@ -33,6 +34,7 @@
  * - Library */
 #include <string.h>
 
+// Transaction Error Messages
 const char *UhciErrorMessages[] =
 {
 	"No Error",
@@ -45,123 +47,108 @@ const char *UhciErrorMessages[] =
 	"Active"
 };
 
-/* UhciInitQueues
- * Initialises Queue Heads & Interrupt Queeue */
+/* UhciQueueInitialize
+ * Initialize the controller's queue resources and resets counters */
 OsStatus_t
-UhciInitQueues(
+UhciQueueInitialize(
     _In_ UhciController_t *Controller)
 {
-	/* Setup Vars */
-	uint32_t *FrameListPtr = (uint32_t*)Controller->FrameList;
-	Addr_t Pool = 0, PoolPhysical = 0;
-	uint32_t i;
+	// Variables
+	UhciTransferDescriptor_t *NullTd = NULL;
+	UhciControl_t *Queue = &Controller->QueueControl;
+	uintptr_t PoolPhysical = 0, NullTdPhysical = 0, NullQhPhysical = 0;
+	reg32_t *FrameList = NULL;
+	size_t PoolSize;
+	void *Pool = NULL;
+	int i;
 
-    /* Allocate in lower memory as controllers have
-	 * a problem with higher memory */
-	Controller->FrameList = 
-		kmalloc_apm(PAGE_SIZE, &Controller->FrameListPhys, 0x00FFFFFF);
+	// Trace
+	TRACE("UhciQueueInitialize()");
 
-	/* Setup Null Td */
-	Pool = (Addr_t)kmalloc(sizeof(UhciTransferDescriptor_t) + UHCI_STRUCT_ALIGN);
-	Controller->NullTd = (UhciTransferDescriptor_t*)UhciAlign(Pool, UHCI_STRUCT_ALIGN_BITS, UHCI_STRUCT_ALIGN);
-	Controller->NullTdPhysical = 
-		AddressSpaceGetMap(AddressSpaceGetCurrent(), (VirtAddr_t)Controller->NullTd);
+	// Null out queue-control
+	memset(Queue, 0, sizeof(UhciControl_t));
 
-	/* Memset it */
-	memset((void*)Controller->NullTd, 0, sizeof(UhciTransferDescriptor_t));
+	// Calculate how many bytes of memory we will need
+	PoolSize = 0x1000;
+	PoolSize += UHCI_POOL_QHS * sizeof(UhciQueueHead_t);
+	PoolSize += UHCI_POOL_TDS * sizeof(UhciTransferDescriptor_t);
 
-	/* Set link invalid */
-	Controller->NullTd->Header = (uint32_t)(UHCI_TD_PID_IN | UHCI_TD_DEVICE_ADDR(0x7F) | UHCI_TD_MAX_LEN(0x7FF));
-	Controller->NullTd->Link = UHCI_TD_LINK_END;
-
-	/* Setup Qh Pool */
-	Pool = (Addr_t)kmalloc((sizeof(UhciQueueHead_t) * UHCI_POOL_NUM_QH) + UHCI_STRUCT_ALIGN);
-	Pool = UhciAlign(Pool, UHCI_STRUCT_ALIGN_BITS, UHCI_STRUCT_ALIGN);
-	PoolPhysical = (Addr_t)AddressSpaceGetMap(AddressSpaceGetCurrent(), Pool);
-
-	/* Null out pool */
-	memset((void*)Pool, 0, sizeof(UhciQueueHead_t) * UHCI_POOL_NUM_QH);
-
-	/* Set them up */
-	for (i = 0; i < UHCI_POOL_NUM_QH; i++)
-	{
-		/* Set QH */
-		Controller->QhPool[i] = (UhciQueueHead_t*)Pool;
-		Controller->QhPoolPhys[i] = PoolPhysical;
-
-		/* Set its index */
-		Controller->QhPool[i]->Flags = UHCI_QH_INDEX(i);
-
-		/* Increase */
-		Pool += sizeof(UhciQueueHead_t);
-		PoolPhysical += sizeof(UhciQueueHead_t);
+	// Perform the allocation
+	if (MemoryAllocate(PoolSize, MEMORY_CLEAN | MEMORY_COMMIT
+		| MEMORY_LOWFIRST | MEMORY_CONTIGIOUS, &Pool, &PoolPhysical) != OsSuccess) {
+		ERROR("Failed to allocate memory for resource-pool");
+		return OsError;
 	}
 
-	/* Setup interrupt queues */
-	for (i = UHCI_POOL_ISOCHRONOUS + 1; i < UHCI_POOL_ASYNC; i++)
-	{
-		/* Set QH Link */
-		Controller->QhPool[i]->Link = (Controller->QhPoolPhys[UHCI_POOL_ASYNC] | UHCI_TD_LINK_QH);
-		Controller->QhPool[i]->LinkVirtual = (uint32_t)Controller->QhPool[UHCI_POOL_ASYNC];
+	// Initialize pointers
+	Queue->QHPool = (UhciQueueHead_t*)((uint8_t*)Pool + 0x1000);
+	Queue->QHPoolPhysical = PoolPhysical + 0x1000;
+	Queue->TDPool = (UhciTransferDescriptor_t*)((uint8_t*)Pool + 0x1000 +
+		(UHCI_POOL_QHS * sizeof(UhciTransferDescriptor_t)));
+	Queue->TDPoolPhysical = PoolPhysical + 0x1000 +
+		(UHCI_POOL_QHS * sizeof(UhciTransferDescriptor_t));
+	
+	// Update frame-list
+	FrameList = (reg32_t*)Pool;
+	Queue->FrameList = (uintptr_t*)Pool;
+	Queue->FrameListPhysical = PoolPhysical;
 
-		/* Disable TD List */
-		Controller->QhPool[i]->Child = UHCI_TD_LINK_END;
-		Controller->QhPool[i]->ChildVirtual = 0;
+	// Initialize null-td
+	NullTd = &Queue->TDPool[UHCI_POOL_TDNULL];
+	NullTd->Header = (uint32_t)(UHCI_TD_PID_IN | UHCI_TD_DEVICE_ADDR(0x7F) | UHCI_TD_MAX_LEN(0x7FF));
+	NullTd->Link = UHCI_LINK_END;
+	NullTdPhysical = UHCI_POOL_TDINDEX(Controller, UHCI_POOL_TDNULL);
 
-		/* Set in use */
-		Controller->QhPool[i]->Flags |= (UHCI_QH_SET_QUEUE(i) | UHCI_QH_ACTIVE);
+	// Enumerate all Qh's and initialize them
+	for (i = 0; i < UHCI_POOL_QHS; i++) {
+		Queue->QHPool[i].Flags = UHCI_QH_INDEX(i);
 	}
 
-	/* Setup null QH */
-	Controller->QhPool[UHCI_POOL_NULL]->Link =
-		(Controller->QhPoolPhys[UHCI_POOL_NULL] | UHCI_TD_LINK_QH);
-	Controller->QhPool[UHCI_POOL_NULL]->LinkVirtual =
-		(uint32_t)Controller->QhPool[UHCI_POOL_NULL];
-	Controller->QhPool[UHCI_POOL_NULL]->Child = Controller->NullTdPhysical;
-	Controller->QhPool[UHCI_POOL_NULL]->ChildVirtual = (uint32_t)Controller->NullTd;
-	Controller->QhPool[UHCI_POOL_NULL]->Flags |= UHCI_QH_ACTIVE;
+	// Initialize interrupt-queue
+	for (i = UHCI_QH_ISOCHRONOUS + 1; i < UHCI_QH_ASYNC; i++) {
+		// All interrupts queues need to end in the async-head
+		Queue->QHPool[i].Link = (UHCI_POOL_QHINDEX(Controller, UHCI_QH_ASYNC) 
+			| UHCI_LINK_QH);
+		Queue->QHPool[i].LinkVirtual = (uint32_t)&Queue->QHPool[UHCI_QH_ASYNC];
 
-	/* Setup async Qh */
-	Controller->QhPool[UHCI_POOL_ASYNC]->Link = UHCI_TD_LINK_END;
-	Controller->QhPool[UHCI_POOL_ASYNC]->LinkVirtual = 0;
-	Controller->QhPool[UHCI_POOL_ASYNC]->Child = Controller->NullTdPhysical;
-	Controller->QhPool[UHCI_POOL_ASYNC]->ChildVirtual = (uint32_t)Controller->NullTd;
-	Controller->QhPool[UHCI_POOL_ASYNC]->Flags |= UHCI_QH_ACTIVE;
-
-	/* Set all queues to end in the async QH 
-	 * This way we handle iso & ints before bulk/control */
-	for (i = UHCI_POOL_ISOCHRONOUS + 1; i < UHCI_POOL_ASYNC; i++) {
-		Controller->QhPool[i]->Link = 
-			Controller->QhPoolPhys[UHCI_POOL_ASYNC] | UHCI_TD_LINK_QH;
-		Controller->QhPool[i]->LinkVirtual = 
-			(uint32_t)Controller->QhPool[UHCI_POOL_ASYNC];
+		// Initialize qh
+		Queue->QHPool[i].Child = UHCI_LINK_END;
+		Queue->QHPool[i].ChildVirtual = 0;
+		Queue->QHPool[i].Flags |= (UHCI_QH_SET_QUEUE(i) | UHCI_QH_ACTIVE);
 	}
 
-	/* 1024 Entries
-	* Set all entries to the 8 interrupt queues, and we
-	* want them interleaved such that some queues get visited more than others */
-	for (i = 0; i < UHCI_NUM_FRAMES; i++)
-		FrameListPtr[i] = UhciDetermineInterruptQh(Controller, i);
+	// Initialize the null QH
+	NullQhPhysical = UHCI_POOL_QHINDEX(Controller, UHCI_QH_NULL);
+	Queue->QHPool[UHCI_QH_NULL].Link = (NullQhPhysical | UHCI_LINK_QH);
+	Queue->QHPool[UHCI_QH_NULL].LinkVirtual = (uint32_t)&Queue->QHPool[UHCI_QH_NULL];
+	Queue->QHPool[UHCI_QH_NULL].Child = NullTdPhysical;
+	Queue->QHPool[UHCI_QH_NULL].ChildVirtual = (uint32_t)NullTd;
+	Queue->QHPool[UHCI_QH_NULL].Flags |= UHCI_QH_ACTIVE;
 
-	/* Init transaction list */
-	Controller->TransactionList = ListCreate(KeyInteger, LIST_SAFE);
-}
+	// Initialize the async QH
+	Queue->QHPool[UHCI_QH_ASYNC].Link = UHCI_LINK_END;
+	Queue->QHPool[UHCI_QH_ASYNC].LinkVirtual = 0;
+	Queue->QHPool[UHCI_QH_ASYNC].Child = NullTdPhysical;
+	Queue->QHPool[UHCI_QH_ASYNC].ChildVirtual = (uint32_t)NullTd;
+	Queue->QHPool[UHCI_QH_ASYNC].Flags |= UHCI_QH_ACTIVE;
 
-/* Aligns address (with roundup if alignment is set) */
-Addr_t UhciAlign(Addr_t BaseAddr, Addr_t AlignmentBits, Addr_t Alignment)
-{
-	/* Save, so we can modify */
-	Addr_t AlignedAddr = BaseAddr;
-
-	/* Only align if unaligned */
-	if (AlignedAddr & AlignmentBits)
-	{
-		AlignedAddr &= ~AlignmentBits;
-		AlignedAddr += Alignment;
+	// Set all queues to end in the async QH 
+	// This way we handle iso & ints before bulk/control
+	for (i = UHCI_QH_ISOCHRONOUS + 1; i < UHCI_QH_ASYNC; i++) {
+		Queue->QHPool[i].Link = 
+			UHCI_POOL_QHINDEX(Controller, UHCI_QH_ASYNC) | UHCI_LINK_QH;
+		Queue->QHPool[i].LinkVirtual = (uint32_t)&Queue->QHPool[UHCI_QH_ASYNC];
 	}
 
-	/* Done */
-	return AlignedAddr;
+	// 1024 Entries
+	// Set all entries to the 8 interrupt queues, and we
+	// want them interleaved such that some queues get visited more than others
+	for (i = 0; i < UHCI_NUM_FRAMES; i++) {
+		FrameList[i] = UhciDetermineInterruptQh(Controller, (size_t)i);
+	}
+
+	// Initialize the transaction list
+	Queue->TransactionList = ListCreate(KeyInteger, LIST_SAFE);
 }
 
 /* UhciFFS
@@ -212,160 +199,148 @@ UhciDetermineInterruptQh(
 
 	// If we are out of bounds then assume async queue
 	if (Index < 2 || Index > 8) {
-		Index = UHCI_POOL_ASYNC;
+		Index = UHCI_QH_ASYNC;
 	}
 
 	// Retrieve physical address of the calculated qh
-	return (UHCI_POOL_QHINDEX(
-		Controller->QueueControl.QHPoolPhysical, Index) | UHCI_LINK_QH);
+	return (UHCI_POOL_QHINDEX(Controller, Index) | UHCI_LINK_QH);
 }
 
-/* Read current frame number */
-void UhciGetCurrentFrame(UhciController_t *Controller)
+/* UhciUpdateCurrentFrame
+ * Updates the current frame and stores it in the controller given.
+ * OBS: Needs to be called regularly */
+void
+UhciUpdateCurrentFrame(
+	_In_ UhciController_t *Controller)
 {
-	/* Vars */
-	uint16_t FrameNo = 0, Diff = 0;
+	// Variables
+	uint16_t FrameNo = 0;
+	int Delta = 0;
 
-	/* Read */
+	// Read the current frame, and use the last read frame to calculate the delta
+	// then add to current frame
 	FrameNo = UhciRead16(Controller, UHCI_REGISTER_FRNUM);
-
-	/* Calc diff */
-	Diff = (FrameNo - Controller->Frame) & (UHCI_FRAME_MASK - 1);
-
-	/* Add */
-	Controller->Frame += Diff;
+	Delta = (FrameNo - Controller->QueueControl.Frame) & (UHCI_FRAME_MASK - 1);
+	Controller->QueueControl.Frame += Delta;
 }
 
-/* Convert condition code to nr */
-int UhciConditionCodeToIndex(int ConditionCode)
+/* UhciConditionCodeToIndex
+ * Converts the given condition-code in a TD to a string-index */
+int
+UhciConditionCodeToIndex(
+	_In_ int ConditionCode)
 {
-	/* Vars */
+	// Variables
 	int bCount = 0;
 	int Cc = ConditionCode;
 
-	/* Keep bit-shifting */
+	// Keep bit-shifting and count which bit is set
 	for (; Cc != 0;) {
 		bCount++;
 		Cc >>= 1;
 	}
 
-	/* Done */
+	// Boundary check
+	if (bCount >= 8) {
+		bCount = 0;
+	}
+
+	// Done
 	return bCount;
 }
 
-/* Determine transfer status from a td */
-UsbTransferStatus_t UhciGetTransferStatus(UhciTransferDescriptor_t *Td)
+/* UhciGetTransferStatus
+ * Determine an universal transfer-status from a given transfer-descriptor */
+UsbTransferStatus_t
+UhciGetTransferStatus(
+	_In_ UhciTransferDescriptor_t *Td)
 {
-	/* Get condition index from flags */
-	UsbTransferStatus_t RetStatus = TransferFinished;
-	int CondCode = UhciConditionCodeToIndex(UHCI_TD_STATUS(Td->Flags));
+	// Variables
+	UsbTransferStatus_t ReturnStatus = TransferFinished;
+	int ConditionIndex = 0;
 
-	/* Switch */
-	if (CondCode == 6)
-		RetStatus = TransferStalled;
-	else if (CondCode == 1)
-		RetStatus = TransferInvalidToggles;
-	else if (CondCode == 2)
-		RetStatus = TransferNotResponding;
-	else if (CondCode == 3)
-		RetStatus = TransferNAK;
-	else if (CondCode == 4)
-		RetStatus = TransferBabble;
-	else if (CondCode == 5)
-		RetStatus = TransferInvalidData;
+	// Get condition index from flags
+	ConditionIndex = UhciConditionCodeToIndex(UHCI_TD_STATUS(Td->Flags));
 
-	/* Done! */
-	return RetStatus;
+	// We love if-else-if-else-if
+	if (ConditionIndex == 6)
+		ReturnStatus = TransferStalled;
+	else if (ConditionIndex == 1)
+		ReturnStatus = TransferInvalidToggles;
+	else if (ConditionIndex == 2)
+		ReturnStatus = TransferNotResponding;
+	else if (ConditionIndex == 3)
+		ReturnStatus = TransferNAK;
+	else if (ConditionIndex == 4)
+		ReturnStatus = TransferBabble;
+	else if (ConditionIndex == 5)
+		ReturnStatus = TransferInvalidData;
+
+	// Done
+	return ReturnStatus;
 }
 
-/* QH Functions */
-UhciQueueHead_t *UhciAllocateQh(UhciController_t *Controller, UsbTransferType_t Type, UsbSpeed_t Speed)
+/* UhciAllocateQh 
+ * Allocates and prepares a new Qh for a usb-transfer. */
+UhciQueueHead_t*
+UhciAllocateQh(
+	_In_ UhciController_t *Controller,
+	_In_ UsbTransferType_t Type,
+	_In_ UsbSpeed_t Speed)
 {
-	/* Vars */
+	// Variables
 	UhciQueueHead_t *Qh = NULL;
 	int i;
 
-	/* Pick a QH */
-	SpinlockAcquire(&Controller->Lock);
+	// Lock access to the queue
+	SpinlockAcquire(&Controller->Base.Lock);
 
-	/* Grap it, locked operation */
-	if (Type == ControlTransfer
-		|| Type == BulkTransfer)
-	{
-		/* Grap Index */
-		for (i = UHCI_POOL_START; i < UHCI_POOL_NUM_QH; i++)
-		{
-			/* Sanity */
-			if (Controller->QhPool[i]->Flags & UHCI_QH_ACTIVE)
-				continue;
-
-			/* First thing to do is setup flags */
-			Controller->QhPool[i]->Flags = 
-				UHCI_QH_ACTIVE | UHCI_QH_INDEX(i)
-				| UHCI_QH_TYPE((uint32_t)Type) | UHCI_QH_BANDWIDTH_ALLOC;
-
-			/* Set qh */
-			if (Speed == LowSpeed
-				&& Type == ControlTransfer)
-				Controller->QhPool[i]->Flags |= UHCI_QH_SET_QUEUE(UHCI_POOL_LCTRL);
-			else if (Speed == FullSpeed
-				&& Type == ControlTransfer)
-				Controller->QhPool[i]->Flags |= UHCI_QH_SET_QUEUE(UHCI_POOL_FCTRL) | UHCI_QH_FSBR;
-			else if (Type == BulkTransfer)
-				Controller->QhPool[i]->Flags |= UHCI_QH_SET_QUEUE(UHCI_POOL_FBULK) | UHCI_QH_FSBR;
-
-			/* Set index */
-			Qh = Controller->QhPool[i];
-			break;
+	// Now, we usually allocated new endpoints for interrupts
+	// and isoc, but it doesn't make sense for us as we keep one
+	// large pool of QH's, just allocate from that in any case
+	for (i = UHCI_POOL_START; i < UHCI_POOL_QHS; i++) {
+		// Skip in case already allocated
+		if (Controller->QueueControl.QHPool[i].Flags & UHCI_QH_ACTIVE) {
+			continue;
 		}
 
-		/* Sanity */
-		if (i == UHCI_POOL_NUM_QH)
-			kernel_panic("USB_UHCI::WTF RAN OUT OF QH's\n");
+		// We found a free qh - mark it allocated and end
+		// but reset the QH first
+		memset(&Controller->QueueControl.QHPool[i], 0, sizeof(UhciQueueHead_t));
+		Controller->QueueControl.QHPool[i].Flags = UHCI_QH_ACTIVE | UHCI_QH_INDEX(i)
+				| UHCI_QH_TYPE((uint32_t)Type) | UHCI_QH_BANDWIDTH_ALLOC;
+		
+		// Determine which queue-priority
+		if (Speed == LowSpeed && Type == ControlTransfer) {
+			Controller->QueueControl.QHPool[i].Flags |= UHCI_QH_SET_QUEUE(UHCI_QH_LCTRL);
+		}
+		else if (Speed == FullSpeed && Type == ControlTransfer) {
+			Controller->QueueControl.QHPool[i].Flags |= UHCI_QH_SET_QUEUE(UHCI_QH_FCTRL) | UHCI_QH_FSBR;
+		}
+		else if (Type == BulkTransfer) {
+			Controller->QueueControl.QHPool[i].Flags |= UHCI_QH_SET_QUEUE(UHCI_QH_FBULK) | UHCI_QH_FSBR;
+		}
+		
+		// Store pointer
+		Qh = &Controller->QueueControl.QHPool[i];
+		break;
 	}
-	else
-	{
-		/* Iso & Int */
+	
 
-		/* Allocate */
-		Addr_t aSpace = (Addr_t)kmalloc(sizeof(UhciQueueHead_t) + UHCI_STRUCT_ALIGN);
-		Qh = (UhciQueueHead_t*)UhciAlign(aSpace, UHCI_STRUCT_ALIGN_BITS, UHCI_STRUCT_ALIGN);
-
-		/* Zero it out */
-		memset((void*)Qh, 0, sizeof(UhciQueueHead_t));
-
-		/* Setup flags */
-		Qh->Flags =
-			UHCI_QH_ACTIVE | UHCI_QH_INDEX(0xFF) | UHCI_QH_TYPE((uint32_t)Type);
-	}
-
-	/* Release lock */
-	SpinlockRelease(&Controller->Lock);
-
-	/* Done */
+	// Release the lock, let others pass
+	SpinlockRelease(&Controller->Base.Lock);
 	return Qh;
 }
 
-/* Initializes the Qh */
-void UhciQhInit(UhciQueueHead_t *Qh, UsbHcTransaction_t *FirstTd)
-{
-	/* Set link pointer */
-	Qh->Link = UHCI_TD_LINK_END;
-	Qh->LinkVirtual = 0;
-
-	/* Set Td list */
-	Qh->Child = AddressSpaceGetMap(AddressSpaceGetCurrent(), 
-		(Addr_t)FirstTd->TransferDescriptor);
-	Qh->ChildVirtual = (uint32_t)FirstTd->TransferDescriptor;
-}
-
-/* TD Functions */
-Addr_t OhciAllocateTd(UhciEndpoint_t *Ep, UsbTransferType_t Type)
+/* UhciAllocateTd
+ * Allocates a new TD for usage with the transaction. If this returns
+ * NULL we are out of TD's and we should wait till next transfer. */
+UhciTransferDescriptor_t*
+UhciAllocateTd(UhciEndpoint_t *Ep, UsbTransferType_t Type)
 {
 	/* Vars */
-	size_t i;
-	Addr_t cIndex = 0;
 	UhciTransferDescriptor_t *Td;
+	size_t i;
 
 	/* Pick a QH */
 	SpinlockAcquire(&Ep->Lock);
@@ -420,6 +395,19 @@ Addr_t OhciAllocateTd(UhciEndpoint_t *Ep, UsbTransferType_t Type)
 
 	/* Done! */
 	return cIndex;
+}
+
+/* Initializes the Qh */
+void UhciQhInit(UhciQueueHead_t *Qh, UsbHcTransaction_t *FirstTd)
+{
+	/* Set link pointer */
+	Qh->Link = UHCI_TD_LINK_END;
+	Qh->LinkVirtual = 0;
+
+	/* Set Td list */
+	Qh->Child = AddressSpaceGetMap(AddressSpaceGetCurrent(), 
+		(Addr_t)FirstTd->TransferDescriptor);
+	Qh->ChildVirtual = (uint32_t)FirstTd->TransferDescriptor;
 }
 
 /* Setup TD */
@@ -538,133 +526,6 @@ UhciTransferDescriptor_t *UhciTdIo(UhciEndpoint_t *Ep, UsbTransferType_t Type,
 
 	/* Done */
 	return Td;
-}
-
-
-/* Endpoint Functions */
-void UhciEndpointSetup(void *Controller, UsbHcEndpoint_t *Endpoint)
-{
-	/* Cast */
-	UhciController_t *uCtrl = (UhciController_t*)Controller;
-	Addr_t BufAddr = 0, BufAddrMax = 0;
-	Addr_t Pool, PoolPhys;
-	size_t i;
-
-	/* Allocate a structure */
-	UhciEndpoint_t *uEp = (UhciEndpoint_t*)kmalloc(sizeof(UhciEndpoint_t));
-
-	/* Construct the lock */
-	SpinlockReset(&uEp->Lock);
-
-	/* Set initial info */
-	uEp->MaxPacketSize = Endpoint->MaxPacketSize;
-
-	/* Woah */
-	_CRT_UNUSED(uCtrl);
-
-	/* Now, we want to allocate some TD's
-	* but it largely depends on what kind of endpoint this is */
-	if (Endpoint->Type == EndpointControl)
-		uEp->TdsAllocated = UHCI_ENDPOINT_MIN_ALLOCATED;
-	else if (Endpoint->Type == EndpointBulk)
-	{
-		/* Depends on the maximum transfer */
-		uEp->TdsAllocated = DEVICEMANAGER_MAX_IO_SIZE / Endpoint->MaxPacketSize;
-
-		/* Take in account control packets and other stuff */
-		uEp->TdsAllocated += UHCI_ENDPOINT_MIN_ALLOCATED;
-	}
-	else
-	{
-		/* We handle interrupt & iso dynamically
-		* we don't predetermine their sizes */
-		uEp->TdsAllocated = 0;
-		Endpoint->AttachedData = uEp;
-		return;
-	}
-
-	/* Now, we do the actual allocation */
-	uEp->TDPool = (UhciTransferDescriptor_t**)kmalloc(sizeof(UhciTransferDescriptor_t*) * uEp->TdsAllocated);
-	uEp->TDPoolBuffers = (Addr_t**)kmalloc(sizeof(Addr_t*) * uEp->TdsAllocated);
-	uEp->TDPoolPhysical = (Addr_t*)kmalloc(sizeof(Addr_t) * uEp->TdsAllocated);
-
-	/* Allocate a TD block */
-	Pool = (Addr_t)kmalloc((sizeof(UhciTransferDescriptor_t) * uEp->TdsAllocated) + UHCI_STRUCT_ALIGN);
-	Pool = UhciAlign(Pool, UHCI_STRUCT_ALIGN_BITS, UHCI_STRUCT_ALIGN);
-	PoolPhys = AddressSpaceGetMap(AddressSpaceGetCurrent(), Pool);
-
-	/* Allocate buffers */
-	BufAddr = (Addr_t)kmalloc_a(PAGE_SIZE);
-	BufAddrMax = BufAddr + PAGE_SIZE - 1;
-
-	/* Memset it */
-	memset((void*)Pool, 0, sizeof(UhciTransferDescriptor_t) * uEp->TdsAllocated);
-
-	/* Iterate it */
-	for (i = 0; i < uEp->TdsAllocated; i++)
-	{
-		/* Set */
-		uEp->TDPool[i] = (UhciTransferDescriptor_t*)Pool;
-		uEp->TDPoolPhysical[i] = PoolPhys;
-
-		/* Allocate another page? */
-		if (BufAddr > BufAddrMax)
-		{
-			BufAddr = (Addr_t)kmalloc_a(PAGE_SIZE);
-			BufAddrMax = BufAddr + PAGE_SIZE - 1;
-		}
-
-		/* Setup Buffer */
-		uEp->TDPoolBuffers[i] = (Addr_t*)BufAddr;
-		uEp->TDPool[i]->Buffer = AddressSpaceGetMap(AddressSpaceGetCurrent(), BufAddr);
-		uEp->TDPool[i]->Link = UHCI_TD_LINK_END;
-
-		/* Increase */
-		Pool += sizeof(UhciTransferDescriptor_t);
-		PoolPhys += sizeof(UhciTransferDescriptor_t);
-		BufAddr += Endpoint->MaxPacketSize;
-	}
-
-	/* Done! Save */
-	Endpoint->AttachedData = uEp;
-}
-
-void UhciEndpointDestroy(void *Controller, UsbHcEndpoint_t *Endpoint)
-{
-	/* Cast */
-	UhciController_t *uCtrl = (UhciController_t*)Controller;
-	UhciEndpoint_t *uEp = (UhciEndpoint_t*)Endpoint->AttachedData;
-
-	/* Sanity */
-	if (uEp == NULL)
-		return;
-
-	/* Woah */
-	_CRT_UNUSED(uCtrl);
-
-	/* Sanity */
-	if (uEp->TdsAllocated != 0)
-	{
-		/* Vars */
-		UhciTransferDescriptor_t *uTd = uEp->TDPool[0];
-		size_t i;
-
-		/* Let's free all those resources */
-		for (i = 0; i < uEp->TdsAllocated; i++)
-		{
-			/* free buffer */
-			kfree(uEp->TDPoolBuffers[i]);
-		}
-
-		/* Free blocks */
-		kfree(uTd);
-		kfree(uEp->TDPoolBuffers);
-		kfree(uEp->TDPoolPhysical);
-		kfree(uEp->TDPool);
-	}
-
-	/* Free the descriptor */
-	kfree(uEp);
 }
 
 /* Bandwidth Functions */

@@ -196,7 +196,7 @@ OhciTransactionFinalize(
 			EndpointDescriptor->Current);
 
 		// Get first td
-		Td = Controller->QueueControl.TDPool[EndpointDescriptor->HeadIndex];
+		Td = &Controller->QueueControl.TDPool[EndpointDescriptor->HeadIndex];
 		while (Td->LinkIndex != -1) {
 			// Extract the error code
 			ErrorCode = OHCI_TD_GET_CC(Td->Flags);
@@ -232,13 +232,13 @@ OhciTransactionFinalize(
 			}
 			
 			// Go to next td
-			Td = Controller->QueueControl.TDPool[Td->LinkIndex];
+			Td = &Controller->QueueControl.TDPool[Td->LinkIndex];
 		}
 	}
 
 	// Step one is to unallocate the td's
 	// Get first td
-	Td = Controller->QueueControl.TDPool[EndpointDescriptor->HeadIndex];
+	Td = &Controller->QueueControl.TDPool[EndpointDescriptor->HeadIndex];
 	while (Td) {
 		// Save link-index before resetting
 		int LinkIndex = Td->LinkIndex;
@@ -248,7 +248,7 @@ OhciTransactionFinalize(
 
 		// Go to next td or terminate
 		if (LinkIndex != -1) {
-			Td = Controller->QueueControl.TDPool[LinkIndex];
+			Td = &Controller->QueueControl.TDPool[LinkIndex];
 		}
 		else {
 			break;
