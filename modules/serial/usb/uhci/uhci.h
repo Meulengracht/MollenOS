@@ -102,15 +102,19 @@
  * Describes a generic transfer-descriptor that can be either of all
  * four different transaction types. Must be 16 byte aligned. */
 PACKED_TYPESTRUCT(UhciTransferDescriptor, {
-	uint32_t					Link;
-	uint32_t 					Flags;
-	uint32_t 					Header;
-	uint32_t 					Buffer;
+	reg32_t						Link;
+	reg32_t 					Flags;
+	reg32_t 					Header;
+	reg32_t 					Buffer;
 
 	// 16 Byte software meta-data
-	uint32_t 					HcdFlags;
-	uint32_t 					Frame;
-	uint32_t 					Unused[2];
+	reg32_t 					HcdFlags;
+	int16_t						LinkIndex;
+	uint16_t 					Frame;
+
+	// Backup data
+	reg32_t 					OriginalFlags;
+	reg32_t						OriginalHeader;
 });
 
 /* UhciTransferDescriptor::Link & UhciQueueHead::Link,Child
@@ -118,13 +122,14 @@ PACKED_TYPESTRUCT(UhciTransferDescriptor, {
 #define UHCI_LINK_END					0x1
 #define UHCI_LINK_QH					0x2		// 1 => Qh, 0 => Td
 #define UHCI_LINK_DEPTH					0x4		// 1 => Depth, 0 => Breadth
+#define UHCI_NO_INDEX					(int16_t)-1
 
 /* UhciTransferDescriptor::HcdFlags
  * Contains definitions and bitfield definitions for UhciTransferDescriptor::HcdFlags */
 #define UHCI_TD_ALLOCATED				0x1
-#define UHCI_TD_SET_INDEX(n)			((n << 1) & 0xFE)	
-#define UHCI_TD_CLR_INDEX(n)			(n & 0xFFFFFF01)
-#define UHCI_TD_GET_INDEX(n)			((n & 0xFE) >> 1)
+#define UHCI_TD_SET_INDEX(n)			((n << 1) & 0x1FE)	
+#define UHCI_TD_CLR_INDEX(n)			(n & 0xFFFFFE01)
+#define UHCI_TD_GET_INDEX(n)			((n & 0x1FE) >> 1)
 
 /* UhciTransferDescriptor::Flags
  * Contains definitions and bitfield definitions for UhciTransferDescriptor::Flags */
@@ -155,17 +160,18 @@ PACKED_TYPESTRUCT(UhciTransferDescriptor, {
  * 8 Bytes used by HC 
  * 24 Bytes used by HCD */
 PACKED_TYPESTRUCT(UhciQueueHead, {
-	uint32_t 					Link;
-	uint32_t 					Child;
+	reg32_t 					Link;
+	reg32_t 					Child;
 
 	// 24 Byte software meta-data
-	uint32_t 					Flags;
-	uint32_t 					LinkVirtual;	// Virtual address of Link
-	uint32_t 					ChildVirtual;	// Virtual address of Child
+	reg32_t 					Flags;
+	int16_t 					LinkIndex;	// Virtual address of Link
+	int16_t 					ChildIndex;	// Virtual address of Child
 	uint16_t 					Phase;
 	uint16_t					Period;
-	uint32_t 					Bandwidth;
-	uint32_t 					Unused;
+	reg32_t 					Bandwidth;
+	reg32_t						StartFrame;
+	reg32_t 					Unused[2];
 });
 
 /* UhciQueueHead::Flags
@@ -186,7 +192,7 @@ PACKED_TYPESTRUCT(UhciQueueHead, {
 
 #define UHCI_QH_SET_QUEUE(n)		((n << 1) & 0xFE)	
 #define UHCI_QH_CLR_QUEUE(n)		(n & 0xFFFFFF01)
-#define UHCI_QT_GET_QUEUE(n)		((n & 0xFE) >> 1)
+#define UHCI_QH_GET_QUEUE(n)		((n & 0xFE) >> 1)
 
 /* Pool Definitions */
 #define UHCI_POOL_QHINDEX(Ctrl, Index)	(Ctrl->QueueControl.QHPoolPhysical + (Index * sizeof(UhciQueueHead_t)))
@@ -197,14 +203,14 @@ PACKED_TYPESTRUCT(UhciQueueHead, {
 #define UHCI_POOL_TDS				200
 #define UHCI_POOL_TDNULL			(UHCI_POOL_TDS - 1)
 
-#define UHCI_QH_UNSCHEDULE			0
+#define UHCI_QH_REMOVE				0
 #define UHCI_QH_ISOCHRONOUS			1
 #define UHCI_QH_ASYNC				9
 #define UHCI_QH_NULL				10
 #define UHCI_QH_LCTRL				11
 #define UHCI_QH_FCTRL				12
 #define UHCI_QH_FBULK				13
-#define UHCI_QH_FSBR				UHCI_POOL_FCTRL
+#define UHCI_QH_FSBRQ				UHCI_POOL_FCTRL
 
 /* UhciControl
  * Contains all necessary Queue related information
@@ -235,6 +241,7 @@ typedef struct _UhciControl {
 typedef struct _UhciController {
 	UsbManagerController_t	 Base;
 	UhciControl_t			 QueueControl;
+	UsbScheduler_t			*Scheduler;
 } UhciController_t;
 
 /* UhciRead16
@@ -325,6 +332,13 @@ OsStatus_t
 UhciQueueInitialize(
     _In_ UhciController_t *Controller);
 
+/* UhciQueueDestroy
+ * Cleans up any resources allocated by QueueInitialize */
+__EXTERN
+OsStatus_t
+UhciQueueDestroy(
+	_In_ UhciController_t *Controller);
+
 /* UhciPortPrepare
  * Resets the port and also clears out any event on the port line. */
 __EXTERN
@@ -341,6 +355,23 @@ UhciPortGetStatus(
 	_In_ UhciController_t *Controller,
 	_In_ int Index,
 	_Out_ UsbHcPortDescriptor_t *Port);
+
+/* UhciQhAllocate 
+ * Allocates and prepares a new Qh for a usb-transfer. */
+__EXTERN
+UhciQueueHead_t*
+UhciQhAllocate(
+	_In_ UhciController_t *Controller,
+	_In_ UsbTransferType_t Type,
+	_In_ UsbSpeed_t Speed);
+
+/* UhciProcessTransfers 
+ * Goes through all active transfers and handles them if they require
+ * any handling. */
+__EXTERN
+void
+UhciProcessTransfers(
+	_In_ UhciController_t *Controller);
 
 /* UhciTransactionFinalize
  * Cleans up the transfer, deallocates resources and validates the td's */

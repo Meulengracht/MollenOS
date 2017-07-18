@@ -26,11 +26,13 @@
 
 /* Includes
  * - System */
+#include <os/thread.h>
 #include <os/utils.h>
 #include "uhci.h"
 
 /* Includes
  * - Library */
+#include <stdlib.h>
 #include <string.h>
 
 /* Prototypes 

@@ -1,0 +1,94 @@
+/* Bandwidth Functions */
+
+/* Find highest current load for a given Phase/Period 
+ * Used for calculating optimal bandwidth for a scheduler-queue */
+int UhciCalculateBandwidth(UhciController_t *Controller, int Phase, int Period)
+{
+	/* Get current load */
+	int HighestBw = Controller->Bandwidth[Phase];
+
+	/* Iterate and check the bandwidth */
+	for (Phase += Period; Phase < UHCI_BANDWIDTH_PHASES; Phase += Period)
+		HighestBw = MAX(HighestBw, Controller->Bandwidth[Phase]);
+
+	/* Done! */
+	return HighestBw;
+}
+
+/* Max 90% of the bandwidth in a queue can go to iso/int 
+ * thus we must make sure we don't go over that, this 
+ * calculates if there is enough "room" for our Qh */
+int UhciValidateBandwidth(UhciController_t *Controller, UhciQueueHead_t *Qh)
+{
+	/* Vars */
+	int MinimalBw = 0;
+
+	/* Find the optimal phase (unless it is already set) and get
+	 * its load value. */
+	if (Qh->Phase >= 0)
+		MinimalBw = UhciCalculateBandwidth(Controller, Qh->Phase, Qh->Period);
+	else 
+	{
+		/* Vars */
+		int Phase, Bandwidth;
+		int MaxPhase = MIN(UHCI_BANDWIDTH_PHASES, Qh->Period);
+
+		/* Set initial */
+		Qh->Phase = 0;
+		MinimalBw = UhciCalculateBandwidth(Controller, Qh->Phase, Qh->Period);
+
+		/* Iterate untill we locate the optimal phase */
+		for (Phase = 1; Phase < MaxPhase; ++Phase)
+		{
+			/* Get bandwidth for this phase & period */
+			Bandwidth = UhciCalculateBandwidth(Controller, Phase, Qh->Period);
+			
+			/* Sanity */
+			if (Bandwidth < MinimalBw) {
+				MinimalBw = Bandwidth;
+				Qh->Phase = (uint16_t)Phase;
+			}
+		}
+	}
+
+	/* Maximum allowable periodic bandwidth is 90%, or 900 us per frame */
+	if (MinimalBw + Qh->Bandwidth > 900)
+		return -1;
+	
+	/* Done, Ok! */
+	return 0;
+}
+
+/* Reserve Bandwidth */
+void UhciReserveBandwidth(UhciController_t *Controller, UhciQueueHead_t *Qh)
+{
+	/* Vars */
+	int Bandwidth = Qh->Bandwidth;
+	int i;
+
+	/* Iterate phase & period */
+	for (i = Qh->Phase; i < UHCI_BANDWIDTH_PHASES; i += Qh->Period) {
+		Controller->Bandwidth[i] += Bandwidth;
+		Controller->TotalBandwidth += Bandwidth;
+	}
+
+	/* Set allocated */
+	Qh->Flags |= UHCI_QH_BANDWIDTH_ALLOC;
+}
+
+/* Release Bandwidth */
+void UhciReleaseBandwidth(UhciController_t *Controller, UhciQueueHead_t *Qh)
+{
+	/* Vars */
+	int Bandwidth = Qh->Bandwidth;
+	int i;
+
+	/* Iterate and free */
+	for (i = Qh->Phase; i < UHCI_BANDWIDTH_PHASES; i += Qh->Period) {
+		Controller->Bandwidth[i] -= Bandwidth;
+		Controller->TotalBandwidth -= Bandwidth;
+	}
+	
+	/* Set not-allocated */
+	Qh->Flags &= ~(UHCI_QH_BANDWIDTH_ALLOC);
+}

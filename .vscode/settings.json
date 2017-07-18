@@ -203,6 +203,11 @@
         "partition.h": "c",
         "condition_variable": "c",
         "condition_variable.cpp": "c",
-        "future.cpp": "c"
+        "future.cpp": "c",
+        "ringbuffer.h": "c",
+        "_time.h": "c",
+        "time.h": "c",
+        "thread.h": "c",
+        "scheduler.c": "cpp"
     }
 }
