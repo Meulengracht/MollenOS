@@ -194,6 +194,8 @@ PACKED_TYPESTRUCT(UhciQueueHead, {
 #define UHCI_QH_CLR_QUEUE(n)		(n & 0xFFFFFF01)
 #define UHCI_QH_GET_QUEUE(n)		((n & 0xFE) >> 1)
 
+#define UHCI_QH_GET_INDEX(n)		((n & 0xFF00) >> 8)
+
 /* Pool Definitions */
 #define UHCI_POOL_QHINDEX(Ctrl, Index)	(Ctrl->QueueControl.QHPoolPhysical + (Index * sizeof(UhciQueueHead_t)))
 #define UHCI_POOL_TDINDEX(Ctrl, Index)	(Ctrl->QueueControl.TDPoolPhysical + (Index * sizeof(UhciTransferDescriptor_t)))
@@ -226,10 +228,6 @@ typedef struct _UhciControl {
 	uintptr_t*					 FrameList;
 	uintptr_t 					 FrameListPhysical;
 	int 					 	 Frame;
-
-	// Bandwidth
-	int							 Bandwidth[UHCI_BANDWIDTH_PHASES];
-	int							 TotalBandwidth;
 
 	// Transactions
 	List_t						*TransactionList;
@@ -356,6 +354,21 @@ UhciPortGetStatus(
 	_In_ int Index,
 	_Out_ UsbHcPortDescriptor_t *Port);
 
+/* UhciUpdateCurrentFrame
+ * Updates the current frame and stores it in the controller given.
+ * OBS: Needs to be called regularly */
+__EXTERN
+void
+UhciUpdateCurrentFrame(
+	_In_ UhciController_t *Controller);
+
+/* UhciConditionCodeToIndex
+ * Converts the given condition-code in a TD to a string-index */
+__EXTERN
+int
+UhciConditionCodeToIndex(
+	_In_ int ConditionCode);
+
 /* UhciQhAllocate 
  * Allocates and prepares a new Qh for a usb-transfer. */
 __EXTERN
@@ -364,6 +377,63 @@ UhciQhAllocate(
 	_In_ UhciController_t *Controller,
 	_In_ UsbTransferType_t Type,
 	_In_ UsbSpeed_t Speed);
+
+/* UhciQhInitialize 
+ * Initializes the links of the QH. */
+ __EXTERN
+void
+UhciQhInitialize(
+	_In_ UhciController_t *Controller,
+	_In_ UhciQueueHead_t *Qh, 
+	_In_ int HeadIndex);
+
+/* UhciTdSetup 
+ * Creates a new setup token td and initializes all the members.
+ * The Td is immediately ready for execution. */
+__EXTERN
+UhciTransferDescriptor_t*
+UhciTdSetup(
+	_In_ UhciController_t *Controller, 
+	_In_ UsbTransaction_t *Transaction,
+	_In_ size_t Address, 
+	_In_ size_t Endpoint,
+	_In_ UsbTransferType_t Type,
+	_In_ UsbSpeed_t Speed);
+
+/* UhciTdIo 
+ * Creates a new io token td and initializes all the members.
+ * The Td is immediately ready for execution. */
+__EXTERN
+UhciTransferDescriptor_t*
+UhciTdIo(
+	_In_ UhciController_t *Controller,
+	_In_ UsbTransferType_t Type,
+	_In_ uint32_t PId,
+	_In_ int Toggle,
+	_In_ size_t Address, 
+	_In_ size_t Endpoint,
+	_In_ size_t MaxPacketSize,
+	_In_ UsbSpeed_t Speed,
+	_In_ uintptr_t BufferAddress,
+	_In_ size_t Length);
+
+/* UhciLinkIsochronous
+ * Queue's up a isochronous transfer. The bandwidth must be allocated
+ * before this function is called. */
+__EXTERN
+OsStatus_t
+UhciLinkIsochronous(
+	_In_ UhciController_t *Controller,
+	_In_ UhciQueueHead_t *Qh);
+
+/* UhciUnlinkIsochronous
+ * Dequeues an isochronous queue-head from the scheduler. This does not do
+ * any cleanup. */
+__EXTERN
+OsStatus_t
+UhciUnlinkIsochronous(
+	_In_ UhciController_t *Controller,
+	_In_ UhciQueueHead_t *Qh);
 
 /* UhciProcessTransfers 
  * Goes through all active transfers and handles them if they require

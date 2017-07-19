@@ -178,7 +178,7 @@ UhciPortsCheck(
 	// @todo
 
 	// Done
-	return OsSuccess
+	return OsSuccess;
 }
 
 /* UhciPortPrepare

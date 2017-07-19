@@ -208,6 +208,13 @@
         "_time.h": "c",
         "time.h": "c",
         "thread.h": "c",
-        "scheduler.c": "cpp"
+        "scheduler.c": "cpp",
+        "scheduler.h": "c",
+        "cxa_thread_atexit.cpp": "c",
+        "context.h": "c",
+        "lzcrc32.inc": "c",
+        "exception_fallback.ipp": "c",
+        "exception_msvc.ipp": "c",
+        "cxa_handlers.cpp": "c"
     }
 }

@@ -34,6 +34,61 @@
  * - Library */
 #include <string.h>
 
+/* UhciFFS
+ * This function calculates the first free set of bits in a value */
+size_t
+UhciFFS(
+	_In_ size_t Value)
+{
+	// Variables
+	size_t RetNum = 0;
+
+	if (!(Value & 0xFFFF)) { // 16 Bits
+		RetNum += 16;
+		Value >>= 16;
+	}
+	if (!(Value & 0xFF)) { // 8 Bits
+		RetNum += 8;
+		Value >>= 8;
+	}
+	if (!(Value & 0xF)) { // 4 Bits
+		RetNum += 4;
+		Value >>= 4;
+	}
+	if (!(Value & 0x3)) { // 2 Bits
+		RetNum += 2;
+		Value >>= 2;
+	}
+	if (!(Value & 0x1)) { // 1 Bit
+		RetNum++;
+	}
+
+	// Done
+	return RetNum;
+}
+
+/* UhciDetermineInterruptQh
+ * Determine Qh for Interrupt Transfer */
+reg32_t
+UhciDetermineInterruptQh(
+	_In_ UhciController_t *Controller, 
+	_In_ size_t Frame)
+{
+	// Variables
+	int Index = 0;
+
+	// Determine index from first free bit 8 queues
+	Index = 8 - UhciFFS(Frame | UHCI_NUM_FRAMES);
+
+	// If we are out of bounds then assume async queue
+	if (Index < 2 || Index > 8) {
+		Index = UHCI_QH_ASYNC;
+	}
+
+	// Retrieve physical address of the calculated qh
+	return (UHCI_POOL_QHINDEX(Controller, Index) | UHCI_LINK_QH);
+}
+
 /* UhciQueueInitialize
  * Initialize the controller's queue resources and resets counters */
 OsStatus_t
@@ -96,27 +151,27 @@ UhciQueueInitialize(
 		// All interrupts queues need to end in the async-head
 		Queue->QHPool[i].Link = (UHCI_POOL_QHINDEX(Controller, UHCI_QH_ASYNC) 
 			| UHCI_LINK_QH);
-		Queue->QHPool[i].LinkVirtual = (uint32_t)&Queue->QHPool[UHCI_QH_ASYNC];
+		Queue->QHPool[i].LinkIndex = UHCI_QH_ASYNC;
 
 		// Initialize qh
 		Queue->QHPool[i].Child = UHCI_LINK_END;
-		Queue->QHPool[i].ChildVirtual = 0;
+		Queue->QHPool[i].ChildIndex = UHCI_NO_INDEX;
 		Queue->QHPool[i].Flags |= (UHCI_QH_SET_QUEUE(i) | UHCI_QH_ACTIVE);
 	}
 
 	// Initialize the null QH
 	NullQhPhysical = UHCI_POOL_QHINDEX(Controller, UHCI_QH_NULL);
 	Queue->QHPool[UHCI_QH_NULL].Link = (NullQhPhysical | UHCI_LINK_QH);
-	Queue->QHPool[UHCI_QH_NULL].LinkVirtual = (uint32_t)&Queue->QHPool[UHCI_QH_NULL];
+	Queue->QHPool[UHCI_QH_NULL].LinkIndex = UHCI_QH_NULL;
 	Queue->QHPool[UHCI_QH_NULL].Child = NullTdPhysical;
-	Queue->QHPool[UHCI_QH_NULL].ChildVirtual = (uint32_t)NullTd;
+	Queue->QHPool[UHCI_QH_NULL].ChildIndex = UHCI_POOL_TDNULL;
 	Queue->QHPool[UHCI_QH_NULL].Flags |= UHCI_QH_ACTIVE;
 
 	// Initialize the async QH
 	Queue->QHPool[UHCI_QH_ASYNC].Link = UHCI_LINK_END;
-	Queue->QHPool[UHCI_QH_ASYNC].LinkVirtual = 0;
+	Queue->QHPool[UHCI_QH_ASYNC].LinkIndex = UHCI_NO_INDEX;
 	Queue->QHPool[UHCI_QH_ASYNC].Child = NullTdPhysical;
-	Queue->QHPool[UHCI_QH_ASYNC].ChildVirtual = (uint32_t)NullTd;
+	Queue->QHPool[UHCI_QH_ASYNC].ChildIndex = UHCI_POOL_TDNULL;
 	Queue->QHPool[UHCI_QH_ASYNC].Flags |= UHCI_QH_ACTIVE;
 
 	// Set all queues to end in the async QH 
@@ -124,7 +179,7 @@ UhciQueueInitialize(
 	for (i = UHCI_QH_ISOCHRONOUS + 1; i < UHCI_QH_ASYNC; i++) {
 		Queue->QHPool[i].Link = 
 			UHCI_POOL_QHINDEX(Controller, UHCI_QH_ASYNC) | UHCI_LINK_QH;
-		Queue->QHPool[i].LinkVirtual = (uint32_t)&Queue->QHPool[UHCI_QH_ASYNC];
+		Queue->QHPool[i].LinkIndex = UHCI_QH_ASYNC;
 	}
 
 	// 1024 Entries
@@ -150,62 +205,7 @@ OsStatus_t
 UhciQueueDestroy(
 	_In_ UhciController_t *Controller)
 {
-
-}
-
-/* UhciFFS
- * This function calculates the first free set of bits in a value */
-size_t
-UhciFFS(
-	_In_ size_t Value)
-{
-	// Variables
-	size_t RetNum = 0;
-
-	if (!(Value & 0xFFFF)) { // 16 Bits
-		RetNum += 16;
-		Value >>= 16;
-	}
-	if (!(Value & 0xFF)) { // 8 Bits
-		RetNum += 8;
-		Value >>= 8;
-	}
-	if (!(Value & 0xF)) { // 4 Bits
-		RetNum += 4;
-		Value >>= 4;
-	}
-	if (!(Value & 0x3)) { // 2 Bits
-		RetNum += 2;
-		Value >>= 2;
-	}
-	if (!(Value & 0x1)) { // 1 Bit
-		RetNum++;
-	}
-
-	// Done
-	return RetNum;
-}
-
-/* UhciDetermineInterruptQh
- * Determine Qh for Interrupt Transfer */
-reg32_t
-UhciDetermineInterruptQh(
-	_In_ UhciController_t *Controller, 
-	_In_ size_t Frame)
-{
-	// Variables
-	int Index = 0;
-
-	// Determine index from first free bit 8 queues
-	Index = 8 - UhciFFS(Frame | UHCI_NUM_FRAMES);
-
-	// If we are out of bounds then assume async queue
-	if (Index < 2 || Index > 8) {
-		Index = UHCI_QH_ASYNC;
-	}
-
-	// Retrieve physical address of the calculated qh
-	return (UHCI_POOL_QHINDEX(Controller, Index) | UHCI_LINK_QH);
+	return OsError;
 }
 
 /* UhciUpdateCurrentFrame
@@ -363,7 +363,7 @@ UhciTdAllocate(
 
 		// Found one, reset
 		memset(&Controller->QueueControl.TDPool[i], 0, sizeof(UhciTransferDescriptor_t));
-		Controller->QueueControl.TDPool[i].LinkIndex = UHCI_NO_LINK;
+		Controller->QueueControl.TDPool[i].LinkIndex = UHCI_NO_INDEX;
 		Controller->QueueControl.TDPool[i].HcdFlags = UHCI_TD_ALLOCATED;
 		Controller->QueueControl.TDPool[i].HcdFlags |= UHCI_TD_SET_INDEX(i);
 		Td = &Controller->QueueControl.TDPool[i];
@@ -429,7 +429,7 @@ UhciTdSetup(
 
 	// Setup td flags
 	Td->Flags = UHCI_TD_ACTIVE;
-	Td->Flags |= UHCI_TD_SET_ERR_CNT(3);
+	Td->Flags |= UHCI_TD_SETCOUNT(3);
 	if (Speed == LowSpeed) {
 		Td->Flags |= UHCI_TD_LOWSPEED;
 	}
@@ -482,7 +482,7 @@ UhciTdIo(
 
 	// Setup td flags
 	Td->Flags = UHCI_TD_ACTIVE;
-	Td->Flags |= UHCI_TD_SET_ERR_CNT(3);
+	Td->Flags |= UHCI_TD_SETCOUNT(3);
 	if (Speed == LowSpeed) {
 		Td->Flags |= UHCI_TD_LOWSPEED;
 	}
@@ -534,127 +534,154 @@ UhciTdIo(
 	return Td;
 }
 
+/* UhciLinkIsochronous
+ * Queue's up a isochronous transfer. The bandwidth must be allocated
+ * before this function is called. */
 OsStatus_t
-UhciLinkIsochronousRequest(
-	UhciController_t *Controller,
-	UsbHcRequest_t *Request, 
-	uint32_t Frame)
+UhciLinkIsochronous(
+	_In_ UhciController_t *Controller,
+	_In_ UhciQueueHead_t *Qh)
 {
-	/* Vars */
-	UsbHcTransaction_t *Transaction = Request->Transactions;
-	uint32_t *Frames = (uint32_t*)Controller->FrameList;
+	// Variables
+	uint32_t *Frames = (uint32_t*)Controller->QueueControl.FrameList;
 	UhciTransferDescriptor_t *Td = NULL;
-	UhciQueueHead_t *Qh = NULL; 
+	uintptr_t PhysicalAddress = 0;
+	size_t Frame = Qh->StartFrame;
 
-	/* Cast */
-	Qh = (UhciQueueHead_t*)Request->Data;
-
-	/* Iterate */
-	while (Transaction)
-	{
-		/* Get TD */
-		Td = (UhciTransferDescriptor_t*)Transaction->TransferDescriptor;
-
-		/* Calculate Frame */
+	// Iterate through all td's in this transaction
+	// and find the guilty
+	Td = &Controller->QueueControl.TDPool[Qh->ChildIndex];
+	PhysicalAddress = UHCI_POOL_TDINDEX(Controller, Qh->ChildIndex);
+	while (Td) {
+		
+		// Calculate the next frame
 		Td->Frame = Frame;
-		Frame += UHCI_QT_GET_QUEUE(Qh->Flags);
+		Frame += UHCI_QH_GET_QUEUE(Qh->Flags);
 
-		/* Get previous */
+		// Insert td at start of frame
 		Td->Link = Frames[Td->Frame];
-
-		/* MemB */
 		MemoryBarrier();
+		Frames[Td->Frame] = PhysicalAddress;
 
-		/* Link it */
-		Frames[Td->Frame] = Td->PhysicalAddr;
-
-		/* Next! */
-		Transaction = Transaction->Link;
+		// Go to next td or terminate
+		if (Td->LinkIndex != UHCI_NO_INDEX) {
+			Td = &Controller->QueueControl.TDPool[Td->LinkIndex];
+			PhysicalAddress = UHCI_POOL_TDINDEX(Controller, Td->LinkIndex);
+		}
+		else {
+			break;
+		}
 	}
+
+	// Done
+	return OsSuccess;
 }
 
+/* UhciUnlinkIsochronous
+ * Dequeues an isochronous queue-head from the scheduler. This does not do
+ * any cleanup. */
 OsStatus_t
-UhciUnlinkIsochronousRequest(
-	UhciController_t *Controller,
-	UsbHcRequest_t *Request)
+UhciUnlinkIsochronous(
+	_In_ UhciController_t *Controller,
+	_In_ UhciQueueHead_t *Qh)
 {
-	/* Vars */
-	UsbHcTransaction_t *Transaction = Request->Transactions;
-	uint32_t *Frames = (uint32_t*)Controller->FrameList;
+	// Variables
+	uint32_t *Frames = (uint32_t*)Controller->QueueControl.FrameList;
+	UhciTransferDescriptor_t *Td = NULL;
+	uintptr_t PhysicalAddress = 0;
+
+	// Iterate through all td's in this transaction
+	// and find the guilty
+	Td = &Controller->QueueControl.TDPool[Qh->ChildIndex];
+	PhysicalAddress = UHCI_POOL_TDINDEX(Controller, Qh->ChildIndex);
+	while (Td) {
+		if (Frames[Td->Frame] == PhysicalAddress) {
+			Frames[Td->Frame] = Td->Link;
+		}
+
+		// Go to next td or terminate
+		if (Td->LinkIndex != UHCI_NO_INDEX) {
+			Td = &Controller->QueueControl.TDPool[Td->LinkIndex];
+			PhysicalAddress = UHCI_POOL_TDINDEX(Controller, Td->LinkIndex);
+		}
+		else {
+			break;
+		}
+	}
+
+	// Done
+	return OsSuccess;
+}
+
+/* UhciFixupToggles
+ * Fixup toggles for a failed transaction, where the stored toggle might have
+ * left the endpoint unsynchronized. */
+void
+UhciFixupToggles(
+	_In_ UhciController_t *Controller,
+	_In_ UsbManagerTransfer_t *Transfer)
+{
+	// Variables
 	UhciTransferDescriptor_t *Td = NULL;
 	UhciQueueHead_t *Qh = NULL;
-
-	/* Cast */
-	Qh = (UhciQueueHead_t*)Request->Data;
-
-	/* Iterate */
-	while (Transaction)
-	{
-		/* Get TD */
-		Td = (UhciTransferDescriptor_t*)Transaction->TransferDescriptor;
-
-		/* Unlink */
-		if (Frames[Td->Frame] == Td->PhysicalAddr)
-			Frames[Td->Frame] = Td->Link;
-
-		/* Next! */
-		Transaction = Transaction->Link;
-	}
-}
-
-/* Fixup toggles for a failed transaction */
-void UhciFixupToggles(UsbHcRequest_t *Request)
-{
-	/* Iterate */
-	UsbHcTransaction_t *lIterator = Request->Transactions;
 	int Toggle = 0;
 
-	/* Now we iterate untill it went wrong, storing
-	* the toggle-state, and when we reach the wrong
-	* we flip the toggle and set it to EP */
-	while (lIterator) {
-		/* Get td */
-		UhciTransferDescriptor_t *Td =
-			(UhciTransferDescriptor_t*)lIterator->TransferDescriptor;
+	// Get qh from transfer
+	Qh = (UhciQueueHead_t*)Transfer->EndpointDescriptor;
 
-		/* Store toggle */
-		if (Td->Header & UHCI_TD_DATA_TOGGLE)
+	// Now we iterate untill it went wrong, storing
+	// the toggle-state, and when we reach the wrong
+	// we flip the toggle and set it to EP
+	Td = &Controller->QueueControl.TDPool[Qh->ChildIndex];
+	while (Td) {
+		if (Td->Header & UHCI_TD_DATA_TOGGLE) {
 			Toggle = 1;
-		else
+		}
+		else {
 			Toggle = 0;
+		}
 
-		/* At the unproccessed? */
-		if (Td->Flags & UHCI_TD_ACTIVE)
+		// If the td is unprocessed we breakout
+		if (Td->Flags & UHCI_TD_ACTIVE) {
 			break;
+		}
+
+		// Go to next td or terminate
+		if (Td->LinkIndex != UHCI_NO_INDEX) {
+			Td = &Controller->QueueControl.TDPool[Td->LinkIndex];
+		}
+		else {
+			break;
+		}
 	}
 
-	/* Update EP */
-	Request->Endpoint->Toggle = Toggle;
+	// Update endpoint toggle
+	UsbManagerSetToggle(Transfer->Device, Transfer->Pipe, Toggle);
 }
 
-/* Processes a QH */
-void UhciProcessRequest(UhciController_t *Controller, ListNode_t *Node, 
-	UsbHcRequest_t *Request, int FixupToggles, int ErrorTransfer)
+/* UhciProcessRequest
+ * Processes a QH */
+void
+UhciProcessRequest(
+	_In_ UhciController_t *Controller,
+	_In_ UsbManagerTransfer_t *Transfer,
+	_In_ ListNode_t *Node,
+	_In_ int FixupToggles,
+	_In_ int ErrorTransfer)
 {
-	/* What kind of transfer was this? */
-	if (Request->Type == ControlTransfer
-		|| Request->Type == BulkTransfer)
-	{
-		/* Perhaps we need to fixup toggles? */
-		if (Request->Type == BulkTransfer && FixupToggles)
-			UhciFixupToggles(Request);
+	// Handle the transfer
+	if (Transfer->Transfer.Type == ControlTransfer
+		|| Transfer->Transfer.Type == BulkTransfer) {
 
-		/* Wake a node */
-		SchedulerWakeupOneThread((Addr_t*)Request->Data);
+		// If neccessary fixup toggles
+		if (Transfer->Transfer.Type == BulkTransfer && FixupToggles) {
+			UhciFixupToggles(Controller, Transfer);
+		}
 
-		/* Remove from list */
-		ListRemoveByNode((List_t*)Controller->TransactionList, Node);
-
-		/* Cleanup node */
-		kfree(Node);
+		// Notice finalizer-thread to finish us
+		// @todo
 	}
-	else if (Request->Type == InterruptTransfer)
-	{
+	else if (Transfer->Transfer.Type == InterruptTransfer) {
 		/* Re-Iterate */
 		UhciQueueHead_t *Qh = (UhciQueueHead_t*)Request->Data;
 		UsbHcTransaction_t *lIterator = Request->Transactions;
@@ -886,7 +913,7 @@ UhciProcessTransfers(
 			}
 
 			// Go to next td or terminate
-			if (Td->LinkIndex != -1) {
+			if (Td->LinkIndex != UHCI_NO_INDEX) {
 				Td = &Controller->QueueControl.TDPool[Td->LinkIndex];
 			}
 			else {

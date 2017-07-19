@@ -56,14 +56,17 @@ const char *UhciErrorMessages[] = {
 UhciQueueHead_t*
 UhciTransactionInitialize(
 	_In_ UhciController_t *Controller, 
-	_In_ UsbTransfer_t *Transfer,
-	_In_ size_t TransactionCount)
+	_In_ UsbTransfer_t *Transfer)
 {
 	// Variables
 	UhciQueueHead_t *Qh = NULL;
+	size_t TransactionCount = 0;
 
 	// Allocate a new queue-head
 	Qh = UhciQhAllocate(Controller, Transfer->Type, Transfer->Speed);
+
+	// Calculate transaction count
+	TransactionCount = DIVUP(Transfer->Length, Transfer->Endpoint.MaxPacketSize);
 
 	// Handle bandwidth allocation if neccessary
 	if (Qh != NULL && 
@@ -160,17 +163,17 @@ UhciTransactionDispatch(
 {
 	// Variables
 	UhciQueueHead_t *Qh = NULL;
-	int QhIndex = -1;
-	UhciTransferDescriptor_t *Td = NULL;
 	uintptr_t QhAddress;
 	DataKey_t Key;
-	int CondCode, Queue;
+	int QhIndex = -1;
+	int Queue = -1;
 
 	/*************************
 	 ****** SETUP PHASE ******
 	 *************************/
 	Qh = (UhciQueueHead_t*)Transfer->EndpointDescriptor;
-	QhIndex = UHCI_QH_INDEX(Qh->HcdFlags);
+	QhIndex = UHCI_QH_GET_INDEX(Qh->Flags);
+	Queue = UHCI_QH_GET_QUEUE(Qh->Flags);
 
 	// Lookup physical
 	QhAddress = UHCI_POOL_QHINDEX(Controller, QhIndex);
@@ -180,49 +183,42 @@ UhciTransactionDispatch(
 	ListAppend(Controller->QueueControl.TransactionList, 
 		ListCreateNode(Key, Key, Transfer));
 
+	// Trace
+	TRACE("UHCI: QH at 0x%x, FirstTd 0x%x, NextQh 0x%x", 
+		QhAddress, Qh->Child, Qh->Link);
+	TRACE("UHCI: Bandwidth %u, StartFrame %u, Flags 0x%x", 
+		Qh->Bandwidth, Qh->StartFrame, Qh->Flags);
+
 	/*************************
 	 **** LINKING PHASE ******
 	 *************************/
-	UhciGetCurrentFrame(Controller);
+	UhciUpdateCurrentFrame(Controller);
 
-	/* Get queue */
-	Queue = UHCI_QT_GET_QUEUE(Qh->Flags);
+	// Asynchronous requests, Control & Bulk
+	if (Queue >= UHCI_QH_ASYNC) {
+		
+		// Variables
+		UhciQueueHead_t *PrevQh = &Controller->QueueControl.QHPool[UHCI_QH_ASYNC];
+		int PrevQueue = UHCI_QH_GET_QUEUE(PrevQh->Flags);
 
-	/* Now lets try the Transaction */
-	SpinlockAcquire(&Ctrl->Lock);
-
-	/* For Control & Bulk, we link into async list */
-	if (Queue >= UHCI_POOL_ASYNC)
-	{
-		/* Just append to async */
-		UhciQueueHead_t *PrevQh = Ctrl->QhPool[UHCI_POOL_ASYNC];
-		int PrevQueue = UHCI_QT_GET_QUEUE(PrevQh->Flags);
-
-		/* Iterate to end */
-		while (PrevQh->LinkVirtual != 0) 
-		{	
-			/* Get queue */
-			PrevQueue = UHCI_QT_GET_QUEUE(PrevQh->Flags);
-
-			/* Sanity */
-			if (PrevQueue <= Queue)
+		// Iterate and find a spot, based on the queue priority
+		while (PrevQh->LinkIndex != UHCI_NO_INDEX) {	
+			PrevQueue = UHCI_QH_GET_QUEUE(PrevQh->Flags);
+			if (PrevQueue <= Queue) {
 				break;
+			}
 
-			/* Next! */
-			PrevQh = (UhciQueueHead_t*)PrevQh->LinkVirtual;
+			// Go to next qh
+			PrevQh = &Controller->QueueControl.QHPool[PrevQh->LinkIndex];
 		}
 
-		/* Steal it's link */
+		// Insert in-between the two by transfering link
+		// Make use of a memory-barrier to flush
 		Qh->Link = PrevQh->Link;
-		Qh->LinkVirtual = PrevQh->LinkVirtual;
-
-		/* Memory Barrier */
+		Qh->LinkIndex = PrevQh->LinkIndex;
 		MemoryBarrier();
-
-		/* Set link - Atomic operation
-		* We don't need to stop/start controller */
-		PrevQh->Link = (QhAddress | UHCI_TD_LINK_QH);
-		PrevQh->LinkVirtual = (uint32_t)Qh;
+		PrevQh->Link = (QhAddress | UHCI_LINK_QH);
+		PrevQh->LinkIndex = QhIndex;
 
 #ifdef UHCI_FSBR
 		/* FSBR? */
@@ -241,287 +237,236 @@ UhciTransactionDispatch(
 		}
 #endif
 	}
-	else if (Queue != UHCI_POOL_ISOCHRONOUS
-		&& Queue < UHCI_POOL_ASYNC)
-	{
-		/* Get queue */
+	// Periodic requests
+	else if (Queue != UHCI_QH_ISOCHRONOUS && Queue < UHCI_QH_ASYNC) {
+		
+		// Variables
 		UhciQueueHead_t *ItrQh = NULL, *PrevQh = NULL;
-		int NextQueue;
+		int NextQueue = -1;
 
-		/* Iterate list */
-		ItrQh = Ctrl->QhPool[Queue];
-
-		/* Iterate to end */
-		while (ItrQh)
-		{
-			/* Get next */
+		// Get initial qh of the queue
+		// and find the correct spot
+		ItrQh = &Controller->QueueControl.QHPool[Queue];
+		while (ItrQh) {
 			PrevQh = ItrQh;
-			ItrQh = (UhciQueueHead_t*)ItrQh->LinkVirtual;
-
-			/* Sanity -> */
-			if (ItrQh == NULL)
+			if (ItrQh->LinkIndex == UHCI_NO_INDEX) {
 				break;
-
-			/* Get queue of next */
-			NextQueue = UHCI_QT_GET_QUEUE(ItrQh->Flags);
-
-			/* Sanity */
-			if (Queue < NextQueue)
-				break;
-		}
-
-		/* Insert */
-		Qh->Link = PrevQh->Link;
-		Qh->LinkVirtual = PrevQh->LinkVirtual;
-
-		/* Memory Barrier */
-		MemoryBarrier();
-
-		/* Set link - Atomic operation 
-		 * We don't need to stop/start controller */
-		PrevQh->Link = QhAddress | UHCI_TD_LINK_QH;
-		PrevQh->LinkVirtual = (uint32_t)Qh;
-	}
-	else
-	{
-		/* Isochronous Transfer */
-		UhciLinkIsochronousRequest(Ctrl, Request, Ctrl->Frame + 10);
-	}
-
-	/* Release lock */
-	SpinlockRelease(&Ctrl->Lock);
-
-	/* Sanity */
-	if (Request->Type == InterruptTransfer
-		|| Request->Type == IsochronousTransfer)
-		return;
-	
-#ifndef __DEBUG
-	/* Wait for interrupt */
-	SchedulerSleepThread((Addr_t*)Qh, 5000);
-
-	/* Yield */
-	IThreadYield();
-#else
-	/* Wait */
-	StallMs(100);
-
-	/* Check Conditions */
-	LogDebug("UHCI", "Qh Next 0x%x, Qh Head 0x%x", Qh->Link, Qh->Child);
-#endif
-
-	/*************************
-	 *** VALIDATION PHASE ****
-	 *************************/
-	
-	Transaction = Request->Transactions;
-	while (Transaction)
-	{
-		/* Cast and get the transfer code */
-		Td = (UhciTransferDescriptor_t*)Transaction->TransferDescriptor;
-		CondCode = UhciConditionCodeToIndex(UHCI_TD_STATUS(Td->Flags));
-
-		/* Calculate length transferred 
-		 * Take into consideration N-1 */
-		if (Transaction->Buffer != NULL
-			&& Transaction->Length != 0) {
-			Transaction->ActualLength = UHCI_TD_ACT_LEN(Td->Flags + 1);
-		}
-
-#ifdef __DEBUG
-		LogDebug("UHCI", "Td Flags 0x%x, Header 0x%x, Buffer 0x%x, Td Condition Code %u (%s)", 
-			Td->Flags, Td->Header, Td->Buffer, CondCode, UhciErrorMessages[CondCode]);
-#endif
-
-		if (CondCode == 0 && Completed == TransferFinished)
-			Completed = TransferFinished;
-		else
-		{
-			if (CondCode == 6)
-				Completed = TransferStalled;
-			else if (CondCode == 1)
-				Completed = TransferInvalidToggles;
-			else if (CondCode == 2)
-				Completed = TransferNotResponding;
-			else if (CondCode == 3)
-				Completed = TransferNAK;
-			else {
-				LogDebug("UHCI", "Error: 0x%x (%s)", CondCode, UhciErrorMessages[CondCode]);
-				Completed = TransferInvalidData;
 			}
-			break;
+
+			// Get next qh
+			ItrQh = &Controller->QueueControl.QHPool[ItrQh->LinkIndex];
+			NextQueue = UHCI_QH_GET_QUEUE(ItrQh->Flags);
+			if (Queue < NextQueue) {
+				break;
+			}
 		}
 
-		Transaction = Transaction->Link;
+		// Insert in-between the two by transfering link
+		// Make use of a memory-barrier to flush
+		Qh->Link = PrevQh->Link;
+		Qh->LinkIndex = PrevQh->LinkIndex;
+		MemoryBarrier();
+		PrevQh->Link = (QhAddress | UHCI_LINK_QH);
+		PrevQh->LinkIndex = QhIndex;
+	}
+	else {
+		UhciLinkIsochronous(Controller, Qh);
 	}
 
-	/* Update Status */
-	Request->Status = Completed;
-
+	// Manually inspect
 #ifdef __DEBUG
-	for (;;);
-#endif
-
-	// Variables
-	OhciEndpointDescriptor_t *EndpointDescriptor = NULL;
-	int EndpointDescriptorIndex = -1;
-	uintptr_t EpAddress;
-	DataKey_t Key;
-
-	/*************************
-	 ****** SETUP PHASE ******
-	 *************************/
-	EndpointDescriptor = (OhciEndpointDescriptor_t*)Transfer->EndpointDescriptor;
-	EndpointDescriptorIndex = OHCI_ED_GET_INDEX(EndpointDescriptor->HcdFlags);
-
-	// Lookup physical
-	EpAddress = OHCI_POOL_EDINDEX(Controller->QueueControl.EDPoolPhysical, EndpointDescriptorIndex);
-
-	// Store transaction in queue
-	Key.Value = 0;
-	ListAppend(Controller->QueueControl.TransactionList, 
-		ListCreateNode(Key, Key, Transfer));
-
-	// Clear pauses
-	EndpointDescriptor->Flags &= ~(OHCI_EP_SKIP);
-	EndpointDescriptor->Current &= ~(OHCI_LINK_END);
-
-	// Trace
-	TRACE("Ed Address 0x%x, Flags 0x%x, Tail 0x%x, Current 0x%x, Link 0x%x", 
-		EpAddress, EndpointDescriptor->Flags, EndpointDescriptor->TailPointer, 
-		EndpointDescriptor->Current, EndpointDescriptor->Link);
-
-	/*************************
-	 **** LINKING PHASE ******
-	 *************************/
-	
-	// Set the schedule flag on ED
-	EndpointDescriptor->HcdFlags |= OHCI_ED_SCHEDULE;
-
-	// Enable SOF, ED is not scheduled before this interrupt
-	Controller->Registers->HcInterruptStatus = OHCI_INTR_SOF;
-	Controller->Registers->HcInterruptEnable = OHCI_INTR_SOF;
-
-	// Now the transaction is queued.
-#ifdef __DEBUG
-	TRACE("Current Frame 0x%x (HCCA), HcFrameNumber 0x%x, HcFrameInterval 0x%x, HcFrameRemaining 0x%x", Ctrl->HCCA->CurrentFrame,
-		Controller->Registers->HcFmNumber, Controller->Registers->HcFmInterval, 
-		Controller->Registers->HcFmRemaining);
-	TRACE("Transaction sent.. waiting for reply..");
 	ThreadSleep(5000);
-	TRACE("Current Frame 0x%x (HCCA), HcFrameNumber 0x%x, HcFrameInterval 0x%x, HcFrameRemaining 0x%x", Ctrl->HCCA->CurrentFrame,
-		Controller->Registers->HcFmNumber, Controller->Registers->HcFmInterval, 
-		Controller->Registers->HcFmRemaining);
-	TRACE("1. Current Control: 0x%x, Current Head: 0x%x",
-		Controller->Registers->HcControlCurrentED, Controller->Registers->HcControlHeadED);
-	ThreadSleep(5000);
-	TRACE("Current Frame 0x%x (HCCA), HcFrameNumber 0x%x, HcFrameInterval 0x%x, HcFrameRemaining 0x%x", Ctrl->HCCA->CurrentFrame,
-		Controller->Registers->HcFmNumber, Controller->Registers->HcFmInterval, 
-		Controller->Registers->HcFmRemaining);
-	TRACE("2. Current Control: 0x%x, Current Head: 0x%x",
-		Controller->Registers->HcControlCurrentED, Controller->Registers->HcControlHeadED);
-	TRACE("Current Control 0x%x, Current Cmd 0x%x",
-		Controller->Registers->HcControl, Controller->Registers->HcCommandStatus);
-
-	// Validate
-	Transfer->Requester = UUID_INVALID;
-	OhciTransactionFinalize(Controller, Transfer, 1);
-
-	// Don't go further
-	for (;;);
+	TRACE("UHCI: Qh Next 0x%x, Qh Head 0x%x", Qh->Link, Qh->Child);
 #endif
 
 	// Done
 	return OsSuccess;
 }
 
-/* OhciTransactionFinalize
+/* UhciTransactionFinalize
  * Cleans up the transfer, deallocates resources and validates the td's */
 OsStatus_t
-OhciTransactionFinalize(
-	_In_ OhciController_t *Controller,
+UhciTransactionFinalize(
+	_In_ UhciController_t *Controller,
 	_In_ UsbManagerTransfer_t *Transfer,
 	_In_ int Validate)
 {
 	// Variables
-	OhciEndpointDescriptor_t *EndpointDescriptor = 
-		(OhciEndpointDescriptor_t*)Transfer->EndpointDescriptor;
-	OhciTransferDescriptor_t *Td = NULL;
+	UhciQueueHead_t *Qh = (UhciQueueHead_t*)Transfer->EndpointDescriptor;
+	UhciTransferDescriptor_t *Td = NULL;
 	UsbTransferResult_t Result;
-	uint ErrorCode = 0;
+	int QhIndex = -1;
+	int ErrorCode = 0;
 
 	/*************************
 	 *** VALIDATION PHASE ****
 	 *************************/
+	QhIndex = UHCI_QH_GET_INDEX(Qh->Flags);
 	if (Validate != 0) {
 		// Iterate through all td's and validate condition code
 		// We don't validate the last td
 		TRACE("Flags 0x%x, Tail 0x%x, Current 0x%x", 
-			EndpointDescriptor->Flags, EndpointDescriptor->TailPointer, 
-			EndpointDescriptor->Current);
+			Qh->Flags, Qh->Link, Qh->Child);
 
 		// Get first td
-		Td = Controller->QueueControl.TDPool[EndpointDescriptor->HeadIndex];
-		while (Td->LinkIndex != -1) {
+		Td = &Controller->QueueControl.TDPool[Qh->ChildIndex];
+		while (Td) {
 			// Extract the error code
-			ErrorCode = OHCI_TD_GET_CC(Td->Flags);
+			ErrorCode = UhciConditionCodeToIndex(UHCI_TD_STATUS(Td->Flags));
 
 			// Calculate length transferred 
 			// Take into consideration the N-1 
-			if (Td->BufferEnd != 0) {
-				Transfer->BytesTransferred += (Td->Cbp + 1) & 0xFFF;
+			if (Td->Buffer != 0) {
+				Transfer->BytesTransferred += UHCI_TD_ACTUALLENGTH(Td->Flags + 1);
 			}
-			
+
 			// Trace
-			TRACE("Flags 0x%x, Cbp 0x%x, BufferEnd 0x%x, Condition Code %u (%s)", 
-				Td->Flags, Td->Cbp, Td->BufferEnd, ErrorCode, 
-				OhciErrorMessages[ErrorCode]);
+			TRACE("Flags 0x%x, Header 0x%x, Buffer 0x%x, Td Condition Code %u (%s)", 
+				Td->Flags, Td->Header, Td->Buffer, ErrorCode, 
+				UhciErrorMessages[ErrorCode]);
 
 			// Now validate the code
 			if (ErrorCode == 0 && Transfer->Status == TransferFinished)
 				Transfer->Status = TransferFinished;
 			else {
-				if (ErrorCode == 4)
+				if (ErrorCode == 6)
 					Transfer->Status = TransferStalled;
-				else if (ErrorCode == 3)
+				else if (ErrorCode == 1)
 					Transfer->Status = TransferInvalidToggles;
-				else if (ErrorCode == 2 || ErrorCode == 1)
+				else if (ErrorCode == 2)
 					Transfer->Status = TransferBabble;
-				else if (ErrorCode == 5)
+				else if (ErrorCode == 3)
 					Transfer->Status = TransferNotResponding;
 				else {
-					TRACE("Error: 0x%x (%s)", ErrorCode, OhciErrorMessages[ErrorCode]);
+					TRACE("UHCI Error: 0x%x (%s)", ErrorCode, UhciErrorMessages[ErrorCode]);
 					Transfer->Status = TransferInvalidData;
 				}
 				break;
 			}
 			
 			// Go to next td
-			Td = Controller->QueueControl.TDPool[Td->LinkIndex];
+			if (Td->LinkIndex != UHCI_NO_INDEX) {
+				Td = &Controller->QueueControl.TDPool[Td->LinkIndex];
+			}
+			else {
+				break;
+			}
 		}
 	}
 
-	// Step one is to unallocate the td's
+	// Unlink qh
+	if (Transfer->Transfer.Type == ControlTransfer
+		|| Transfer->Transfer.Type == BulkTransfer)
+	{
+		// Variables
+		UhciQueueHead_t *PrevQh = &Controller->QueueControl.QHPool[UHCI_QH_ASYNC];
+
+		// Iterate untill the current qh
+		while (PrevQh->LinkIndex != QhIndex) {
+			if (PrevQh->LinkIndex == UHCI_NO_INDEX) {
+				break;
+			}
+			PrevQh = &Controller->QueueControl.QHPool[PrevQh->LinkIndex];
+		}
+
+		// Check that the qh even exists
+		if (PrevQh->LinkIndex != QhIndex) {
+			TRACE("UHCI: Couldn't find Qh in frame-list");
+		}
+		else {
+			// Transfer the link to previous
+			PrevQh->Link = Qh->Link;
+			PrevQh->LinkIndex = Qh->LinkIndex;
+			MemoryBarrier();
+
+#ifdef UHCI_FSBR
+			/* Get */
+			int PrevQueue = UHCI_QH_GET_QUEUE(PrevQh->Flags);
+
+			/* Deactivate FSBR? */
+			if (PrevQueue < UHCI_POOL_FSBR
+				&& Queue >= UHCI_POOL_FSBR) {
+				/* Link NULL to the next in line */
+				Ctrl->QhPool[UHCI_POOL_NULL]->Link = Qh->Link;
+				Ctrl->QhPool[UHCI_POOL_NULL]->LinkVirtual = Qh->LinkVirtual;
+
+				/* Link last QH to NULL */
+				PrevQh = Ctrl->QhPool[UHCI_POOL_ASYNC];
+				while (PrevQh->LinkVirtual != 0)
+					PrevQh = (UhciQueueHead_t*)PrevQh->LinkVirtual;
+				PrevQh->Link = (Ctrl->QhPoolPhys[UHCI_POOL_NULL] | UHCI_TD_LINK_QH);
+				PrevQh->LinkVirtual = (uint32_t)Ctrl->QhPool[UHCI_POOL_NULL];
+			}
+#endif
+		}
+	}
+	else if (Transfer->Transfer.Type == InterruptTransfer) {
+		
+		// Variables
+		UhciQueueHead_t *ItrQh = NULL, *PrevQh = NULL;
+		int Queue = UHCI_QH_GET_QUEUE(Qh->Flags);
+
+		// Get initial qh of the queue
+		// and find the correct spot
+		ItrQh = &Controller->QueueControl.QHPool[Queue];
+		while (ItrQh != Qh) {
+			if (ItrQh->LinkIndex == UHCI_QH_NULL
+				|| ItrQh->LinkIndex == UHCI_NO_INDEX) {
+				ItrQh = NULL;
+				break;
+			}
+
+			// Go to next
+			PrevQh = ItrQh;
+			ItrQh = &Controller->QueueControl.QHPool[ItrQh->LinkIndex];
+		}
+
+		// If ItrQh is null it didn't exist
+		if (ItrQh == NULL) {
+			TRACE("UHCI: Tried to unschedule a queue-qh that didn't exist in queue");
+		}
+		else {
+			// If there is a previous transfer link, should always happen
+			if (PrevQh != NULL) {
+				PrevQh->Link = Qh->Link;
+				PrevQh->LinkIndex = Qh->LinkIndex;
+				MemoryBarrier();
+			}
+		}
+
+		// Release bandwidth
+		UsbSchedulerReleaseBandwidth(Controller->Scheduler, Qh->Period,
+			Qh->Bandwidth, Qh->StartFrame, 1);
+	}
+	else {
+		// Unlink and release bandwidth
+		UhciUnlinkIsochronous(Controller, Qh);
+		UsbSchedulerReleaseBandwidth(Controller->Scheduler, Qh->Period,
+			Qh->Bandwidth, Qh->StartFrame, 1);
+	}
+
+	// Step two is to unallocate the td's
 	// Get first td
-	Td = Controller->QueueControl.TDPool[EndpointDescriptor->HeadIndex];
+	Td = &Controller->QueueControl.TDPool[Qh->ChildIndex];
 	while (Td) {
 		// Save link-index before resetting
 		int LinkIndex = Td->LinkIndex;
 
 		// Reset the TD, nothing in there is something we store further
-		memset((void*)Td, 0, sizeof(OhciTransferDescriptor_t));
+		memset((void*)Td, 0, sizeof(UhciTransferDescriptor_t));
 
 		// Go to next td or terminate
-		if (LinkIndex != -1) {
-			Td = Controller->QueueControl.TDPool[LinkIndex];
+		if (LinkIndex != UHCI_NO_INDEX 
+			&& LinkIndex != UHCI_POOL_TDNULL) {
+			Td = &Controller->QueueControl.TDPool[LinkIndex];
 		}
 		else {
 			break;
 		}
 	}
 
-	// Now unallocate the ED by zeroing that
-	memset((void*)EndpointDescriptor, 0, sizeof(OhciEndpointDescriptor_t));
+	// Now unallocate theQhED by zeroing that
+	memset((void*)Qh, 0, sizeof(UhciQueueHead_t));
 
 	// Update members
 	Transfer->EndpointDescriptor = NULL;
@@ -550,24 +495,28 @@ UsbQueueTransferGeneric(
 	_InOut_ UsbManagerTransfer_t *Transfer)
 {
 	// Variables
-	OhciEndpointDescriptor_t *EndpointDescriptor = NULL;
-	OhciTransferDescriptor_t *FirstTd = NULL, *ItrTd = NULL, *ZeroTd = NULL;
-	OhciController_t *Controller = NULL;
+	UhciQueueHead_t *Qh = NULL;
+	UhciTransferDescriptor_t *FirstTd = NULL, *ItrTd = NULL;
+	UhciController_t *Controller = NULL;
 	size_t Address, Endpoint;
 	int i;
 
 	// Get Controller
-	Controller = (OhciController_t*)UsbManagerGetController(Transfer->Device);
+	Controller = (UhciController_t*)UsbManagerGetController(Transfer->Device);
 
 	// Initialize
-	EndpointDescriptor = OhciTransactionInitialize(Controller, &Transfer->Transfer);
+	Qh = UhciTransactionInitialize(Controller, &Transfer->Transfer);
 
 	// Update the stored information
 	Transfer->TransactionCount = 0;
-	Transfer->EndpointDescriptor = EndpointDescriptor;
+	Transfer->EndpointDescriptor = Qh;
 	Transfer->Status = TransferNotProcessed;
 	Transfer->BytesTransferred = 0;
 	Transfer->Cleanup = 0;
+	
+	// Extract address and endpoint
+	Address = HIWORD(Transfer->Pipe);
+	Endpoint = LOWORD(Transfer->Pipe);
 
 	// If it's a control transfer set initial toggle 0
 	if (Transfer->Transfer.Type == ControlTransfer) {
@@ -590,7 +539,7 @@ UsbQueueTransferGeneric(
 			|| Transfer->Transfer.Transactions[i].ZeroLength == 1
 			|| AddZeroLength == 1) {
 			// Variables
-			OhciTransferDescriptor_t *Td = NULL;
+			UhciTransferDescriptor_t *Td = NULL;
 			size_t BytesStep = 0;
 			int Toggle;
 
@@ -599,8 +548,9 @@ UsbQueueTransferGeneric(
 
 			// Allocate a new Td
 			if (Transfer->Transfer.Transactions[i].Type == SetupTransaction) {
-				Td = OhciTdSetup(Controller, &Transfer->Transfer.Transactions[i], 
-					Transfer->Transfer.Type);
+				Td = UhciTdSetup(Controller, &Transfer->Transfer.Transactions[i], 
+					Address, Endpoint, Transfer->Transfer.Type, 
+					Transfer->Transfer.Speed);
 
 				// Consume entire setup-package
 				BytesStep = BytesToTransfer;
@@ -616,9 +566,11 @@ UsbQueueTransferGeneric(
 					BytesStep = MIN(BytesToTransfer, 0x1000);
 				}
 
-				Td = OhciTdIo(Controller, Transfer->Transfer.Type, 
-					(Transfer->Transfer.Transactions[i].Type == InTransaction ? OHCI_TD_PID_IN : OHCI_TD_PID_OUT), 
-					Toggle, Transfer->Transfer.Transactions[i].BufferAddress + ByteOffset, BytesStep);
+				Td = UhciTdIo(Controller, Transfer->Transfer.Type, 
+					(Transfer->Transfer.Transactions[i].Type == InTransaction ? UHCI_TD_PID_IN : UHCI_TD_PID_OUT), 
+					Toggle, Address, Endpoint, Transfer->Transfer.Endpoint.MaxPacketSize,
+					Transfer->Transfer.Speed, 
+					Transfer->Transfer.Transactions[i].BufferAddress + ByteOffset, BytesStep);
 			}
 
 			// Store first
@@ -628,10 +580,8 @@ UsbQueueTransferGeneric(
 			}
 			else {
 				// Update physical link
-				ItrTd->Link = OHCI_POOL_TDINDEX(Controller->QueueControl.TDPoolPhysical, Td->Index);
-
-				// Not first, update links
-				ItrTd->LinkIndex = Td->Index;
+				ItrTd->LinkIndex = UHCI_TD_GET_INDEX(Td->HcdFlags);
+				ItrTd->Link = (UHCI_POOL_TDINDEX(Controller, ItrTd->LinkIndex) | UHCI_LINK_DEPTH);
 				ItrTd = Td;
 			}
 
@@ -662,32 +612,13 @@ UsbQueueTransferGeneric(
 	}
 
 	// Set last td to generate a interrupt (not null)
-	ItrTd->Flags &= ~(OHCI_TD_NO_IOC);
-
-	// Add a null-transaction (Out, Zero)
-	// But do NOT update the endpoint toggle, and Isoc does not need this
-	if (Transfer->Transfer.Type != IsochronousTransfer) {
-		ZeroTd = OhciTdIo(Controller, Transfer->Transfer.Type, OHCI_TD_PID_OUT, 
-		UsbManagerGetToggle(Transfer->Device, Transfer->Pipe), 0, 0);
-
-		// Update physical link
-		ItrTd->Link = OHCI_POOL_TDINDEX(Controller->QueueControl.TDPoolPhysical, ZeroTd->Index);
-
-		// Not first, update links
-		ItrTd->LinkIndex = ZeroTd->Index;
-	}
-	
-	// Extract address and endpoint
-	Address = HIWORD(Transfer->Pipe);
-	Endpoint = LOWORD(Transfer->Pipe);
+	ItrTd->Flags |= UHCI_TD_IOC;
 
 	// Finalize the endpoint-descriptor
-	OhciEdInitialize(Controller, EndpointDescriptor,
-		(int)FirstTd->Index, Transfer->Transfer.Type, Address, Endpoint, 
-		Transfer->Transfer.Endpoint.MaxPacketSize, Transfer->Transfer.Speed);
+	UhciQhInitialize(Controller, Qh, UHCI_TD_GET_INDEX(FirstTd->HcdFlags));
 
 	// Send the transaction and wait for completion
-	return OhciTransactionDispatch(Controller, Transfer);
+	return UhciTransactionDispatch(Controller, Transfer);
 }
 
 /* UsbDequeueTransferGeneric 
@@ -697,349 +628,19 @@ UsbDequeueTransferGeneric(
 	_In_ UsbManagerTransfer_t *Transfer)
 {
 	// Variables
-	OhciEndpointDescriptor_t *EndpointDescriptor = 
-		(OhciEndpointDescriptor_t*)Transfer->EndpointDescriptor;
-	OhciController_t *Controller = NULL;
+	UhciQueueHead_t *Qh = 
+		(UhciQueueHead_t*)Transfer->EndpointDescriptor;
+	UhciController_t *Controller = NULL;
 
 	// Get Controller
-	Controller = (OhciController_t*)UsbManagerGetController(Transfer->Device);
+	Controller = (UhciController_t*)UsbManagerGetController(Transfer->Device);
 
 	// Mark for unscheduling
-	EndpointDescriptor->HcdFlags |= OHCI_ED_UNSCHEDULE;
+	Qh->Flags |= UHCI_QH_UNSCHEDULE;
 
-	// Enable SOF, ED is not scheduled before
-	Controller->Registers->HcInterruptStatus = OHCI_INTR_SOF;
-	Controller->Registers->HcInterruptEnable = OHCI_INTR_SOF;
+	// Notice finalizer-thread? Or how to induce interrupt
+	// @todo
 
 	// Done, rest of cleanup happens in Finalize
 	return OsSuccess;
-}
-
-
-/* This one prepaires an setup Td */
-UsbHcTransaction_t *UhciTransactionSetup(void *Controller, UsbHcRequest_t *Request, UsbPacket_t *Packet)
-{
-	/* Vars */
-	UhciController_t *Ctrl = (UhciController_t*)Controller;
-	UsbHcTransaction_t *Transaction;
-
-	/* Unused */
-	_CRT_UNUSED(Ctrl);
-
-	/* Allocate Transaction */
-	Transaction = (UsbHcTransaction_t*)kmalloc(sizeof(UsbHcTransaction_t));
-	memset(Transaction, 0, sizeof(UsbHcTransaction_t));
-
-	/* Create the Td */
-	Transaction->TransferDescriptor = (void*)UhciTdSetup(Request->Endpoint->AttachedData,
-		Request->Type, Packet, 
-		Request->Device->Address, Request->Endpoint->Address, 
-		Request->Speed, &Transaction->TransferBuffer);
-
-	/* Done! */
-	return Transaction;
-}
-
-/* This one prepaires an in Td */
-UsbHcTransaction_t *UhciTransactionIn(void *Controller, UsbHcRequest_t *Request, void *Buffer, size_t Length)
-{
-	/* Variables */
-	UhciController_t *Ctrl = (UhciController_t*)Controller;
-	UsbHcTransaction_t *Transaction;
-
-	/* Unused */
-	_CRT_UNUSED(Ctrl);
-
-	/* Allocate Transaction */
-	Transaction = (UsbHcTransaction_t*)kmalloc(sizeof(UsbHcTransaction_t));
-	memset(Transaction, 0, sizeof(UsbHcTransaction_t));
-
-	/* Set Vars */
-	Transaction->Buffer = Buffer;
-	Transaction->Length = Length;
-
-	/* Setup Td */
-	Transaction->TransferDescriptor = (void*)UhciTdIo(Request->Endpoint->AttachedData,
-		Request->Type, Request->Endpoint->Toggle,
-		Request->Device->Address, Request->Endpoint->Address, UHCI_TD_PID_IN, Length,
-		Request->Speed, &Transaction->TransferBuffer);
-
-	/* If previous Transaction */
-	if (Request->Transactions != NULL)
-	{
-		UhciTransferDescriptor_t *PrevTd;
-		UsbHcTransaction_t *cTrans = Request->Transactions;
-
-		while (cTrans->Link)
-			cTrans = cTrans->Link;
-
-		PrevTd = (UhciTransferDescriptor_t*)cTrans->TransferDescriptor;
-		PrevTd->Link =
-			(AddressSpaceGetMap(AddressSpaceGetCurrent(), 
-				(VirtAddr_t)Transaction->TransferDescriptor) | UHCI_TD_LINK_DEPTH);
-	}
-
-	/* We might need a copy */
-	if (Request->Type == InterruptTransfer
-		|| Request->Type == IsochronousTransfer)
-	{
-		/* Allocate TD */
-		Transaction->TransferDescriptorCopy =
-			(void*)UhciAlign(((Addr_t)kmalloc(sizeof(UhciTransferDescriptor_t) + UHCI_STRUCT_ALIGN)), UHCI_STRUCT_ALIGN_BITS, UHCI_STRUCT_ALIGN);
-
-		/* Copy data */
-		memcpy(Transaction->TransferDescriptorCopy, 
-			Transaction->TransferDescriptor, sizeof(UhciTransferDescriptor_t));
-	}
-
-	/* Done */
-	return Transaction;
-}
-
-/* This one prepaires an out Td */
-UsbHcTransaction_t *UhciTransactionOut(void *Controller, UsbHcRequest_t *Request, void *Buffer, size_t Length)
-{
-	/* Vars */
-	UhciController_t *Ctrl = (UhciController_t*)Controller;
-	UsbHcTransaction_t *Transaction;
-
-	/* Unused */
-	_CRT_UNUSED(Ctrl);
-
-	/* Allocate Transaction */
-	Transaction = (UsbHcTransaction_t*)kmalloc(sizeof(UsbHcTransaction_t));
-	memset(Transaction, 0, sizeof(UsbHcTransaction_t));
-
-	/* Set Vars */
-	Transaction->Buffer = Buffer;
-	Transaction->Length = Length;
-
-	/* Setup Td */
-	Transaction->TransferDescriptor = (void*)UhciTdIo(Request->Endpoint->AttachedData,
-		Request->Type, Request->Endpoint->Toggle,
-		Request->Device->Address, Request->Endpoint->Address, UHCI_TD_PID_OUT, Length,
-		Request->Speed, &Transaction->TransferBuffer);
-
-	/* Copy Data */
-	if (Buffer != NULL && Length != 0)
-		memcpy(Transaction->TransferBuffer, Buffer, Length);
-
-	/* If previous Transaction */
-	if (Request->Transactions != NULL)
-	{
-		UhciTransferDescriptor_t *PrevTd;
-		UsbHcTransaction_t *cTrans = Request->Transactions;
-
-		while (cTrans->Link)
-			cTrans = cTrans->Link;
-
-		PrevTd = (UhciTransferDescriptor_t*)cTrans->TransferDescriptor;
-		PrevTd->Link =
-			(AddressSpaceGetMap(AddressSpaceGetCurrent(), (VirtAddr_t)Transaction->TransferDescriptor) | UHCI_TD_LINK_DEPTH);
-	}
-
-	/* We might need a copy */
-	if (Request->Type == InterruptTransfer
-		|| Request->Type == IsochronousTransfer)
-	{
-		/* Allocate TD */
-		Transaction->TransferDescriptorCopy =
-			(void*)UhciAlign(((Addr_t)kmalloc(sizeof(UhciTransferDescriptor_t) + UHCI_STRUCT_ALIGN)), UHCI_STRUCT_ALIGN_BITS, UHCI_STRUCT_ALIGN);
-
-		/* Copy data */
-		memcpy(Transaction->TransferDescriptorCopy,
-			Transaction->TransferDescriptor, sizeof(UhciTransferDescriptor_t));
-	}
-
-	/* Done */
-	return Transaction;
-}
-
-/* Cleans up transfers */
-void UhciTransactionDestroy(void *Controller, UsbHcRequest_t *Request)
-{
-	/* Cast, we need these */
-	UsbHcTransaction_t *Transaction = Request->Transactions;
-	UhciController_t *Ctrl = (UhciController_t*)Controller;
-	UhciQueueHead_t *Qh = (UhciQueueHead_t*)Request->Data;
-	ListNode_t *Node = NULL;
-
-	/* Update */
-	UhciGetCurrentFrame(Ctrl);
-
-	/* Unallocate Qh */
-	if (Request->Type == ControlTransfer
-		|| Request->Type == BulkTransfer)
-	{
-		/* Lock controller */
-		SpinlockAcquire(&Ctrl->Lock);
-
-		/* Unlink Qh */
-		UhciQueueHead_t *PrevQh = Ctrl->QhPool[UHCI_POOL_ASYNC];
-
-		/* Iterate to end */
-		while (PrevQh->LinkVirtual != (uint32_t)Qh)
-			PrevQh = (UhciQueueHead_t*)PrevQh->LinkVirtual;
-
-		/* Sanity */
-		if (PrevQh->LinkVirtual != (uint32_t)Qh) {
-			LogDebug("UHCI", "Couldn't find Qh in frame-list");
-		}
-		else 
-		{
-			/* Now skip */
-			PrevQh->Link = Qh->Link;
-			PrevQh->LinkVirtual = Qh->LinkVirtual;
-
-			/* Memory Barrier */
-			MemoryBarrier();
-
-#ifdef UHCI_FSBR
-			/* Get */
-			int PrevQueue = UHCI_QT_GET_QUEUE(PrevQh->Flags);
-
-			/* Deactivate FSBR? */
-			if (PrevQueue < UHCI_POOL_FSBR
-				&& Queue >= UHCI_POOL_FSBR) {
-				/* Link NULL to the next in line */
-				Ctrl->QhPool[UHCI_POOL_NULL]->Link = Qh->Link;
-				Ctrl->QhPool[UHCI_POOL_NULL]->LinkVirtual = Qh->LinkVirtual;
-
-				/* Link last QH to NULL */
-				PrevQh = Ctrl->QhPool[UHCI_POOL_ASYNC];
-				while (PrevQh->LinkVirtual != 0)
-					PrevQh = (UhciQueueHead_t*)PrevQh->LinkVirtual;
-				PrevQh->Link = (Ctrl->QhPoolPhys[UHCI_POOL_NULL] | UHCI_TD_LINK_QH);
-				PrevQh->LinkVirtual = (uint32_t)Ctrl->QhPool[UHCI_POOL_NULL];
-			}
-#endif
-
-			/* Iterate and reset */
-			while (Transaction) {
-				memset(Transaction->TransferDescriptor, 0, sizeof(UhciTransferDescriptor_t));
-				Transaction = Transaction->Link;
-			}
-
-			/* Invalidate links */
-			Qh->Child = 0;
-			Qh->ChildVirtual = 0;
-			Qh->Link = 0;
-			Qh->LinkVirtual = 0;
-
-			/* Mark inactive */
-			Qh->Flags &= ~UHCI_QH_ACTIVE;
-		}
-
-		/* Done */
-		SpinlockRelease(&Ctrl->Lock);
-	}
-	else if (Request->Type == InterruptTransfer)
-	{
-		/* Vars */
-		UhciQueueHead_t *ItrQh = NULL, *PrevQh = NULL;
-		int Queue = UHCI_QT_GET_QUEUE(Qh->Flags);
-
-		/* Iterate and find our Qh */
-		ItrQh = Ctrl->QhPool[Queue];
-		while (ItrQh != Qh) {
-			/* Validate we are not at the end */
-			if (ItrQh->LinkVirtual == (uint32_t)Ctrl->QhPool[UHCI_POOL_NULL]
-				|| ItrQh->LinkVirtual == 0) {
-				ItrQh = NULL;
-				break;
-			}
-
-			/* Next */
-			PrevQh = ItrQh;
-			ItrQh = (UhciQueueHead_t*)ItrQh->LinkVirtual;
-		}
-
-		/* If Qh is null, didn't exist */
-		if (Qh == NULL) {
-			LogDebug("UHCI", "Tried to unschedule a queue-qh that didn't exist in queue");
-		}
-		else
-		{
-			/* If there is a previous (there should always be) */
-			if (PrevQh != NULL) {
-				PrevQh->Link = Qh->Link;
-				PrevQh->LinkVirtual = Qh->LinkVirtual;
-
-				/* Memory Barrier */
-				MemoryBarrier();
-			}
-		}
-
-		/* Free bandwidth */
-		UhciReleaseBandwidth(Ctrl, Qh);
-
-		/* Iterate transactions and free buffers & td's */
-		while (Transaction)
-		{
-			/* free buffer */
-			kfree(Transaction->TransferBuffer);
-
-			/* free both TD's */
-			kfree((void*)Transaction->TransferDescriptor);
-			kfree((void*)Transaction->TransferDescriptorCopy);
-
-			/* Next */
-			Transaction = Transaction->Link;
-		}
-
-		/* Free it */
-		kfree(Request->Data);
-
-		/* Remove from list */
-		_foreach(Node, ((List_t*)Ctrl->TransactionList)) {
-			if (Node->Data == Request)
-				break;
-		}
-
-		/* Sanity */
-		if (Node != NULL) {
-			ListRemoveByNode((List_t*)Ctrl->TransactionList, Node);
-			kfree(Node);
-		}
-	}
-	else
-	{
-		/* Cast Qh */
-		UhciQueueHead_t *Qh = (UhciQueueHead_t*)Request->Data;
-
-		/* Unlink */
-		UhciUnlinkIsochronousRequest(Ctrl, Request);
-
-		/* Free bandwidth */
-		UhciReleaseBandwidth(Ctrl, Qh);
-
-		/* Iterate transactions and free buffers & td's */
-		while (Transaction)
-		{
-			/* free buffer */
-			kfree(Transaction->TransferBuffer);
-
-			/* free both TD's */
-			kfree((void*)Transaction->TransferDescriptor);
-			kfree((void*)Transaction->TransferDescriptorCopy);
-
-			/* Next */
-			Transaction = Transaction->Link;
-		}
-
-		/* Free it */
-		kfree(Request->Data);
-
-		/* Remove from list */
-		_foreach(Node, ((List_t*)Ctrl->TransactionList)) {
-			if (Node->Data == Request)
-				break;
-		}
-
-		/* Sanity */
-		if (Node != NULL) {
-			ListRemoveByNode((List_t*)Ctrl->TransactionList, Node);
-			kfree(Node);
-		}
-	}
 }

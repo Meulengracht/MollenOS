@@ -90,6 +90,8 @@ PACKED_TYPESTRUCT(UsbTransfer, {
 	// Generic Information
 	UsbTransferType_t					Type;
 	UsbSpeed_t							Speed;
+	size_t								Length;
+	int									Direction; // Uses USB_ENDPOINT_XX
 	UsbTransaction_t					Transactions[3];
 
 	// Endpoint Information
