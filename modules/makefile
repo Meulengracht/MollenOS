@@ -80,4 +80,5 @@ clean: clean_$(arch)
 	$(MAKE) -C storage/ahci -f makefile clean
 	$(MAKE) -C timers/hpet -f makefile clean
 	$(MAKE) -C serial/usb/ohci -f makefile clean
+	$(MAKE) -C serial/usb/uhci -f makefile clean
 	rm -rf build

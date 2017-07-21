@@ -660,7 +660,8 @@ UhciFixupToggles(
 }
 
 /* UhciProcessRequest
- * Processes a QH */
+ * Processes a transfer, and schedules it for finalization or reschuldes
+ * a transfer if neccessary. */
 void
 UhciProcessRequest(
 	_In_ UhciController_t *Controller,
@@ -693,7 +694,8 @@ UhciProcessRequest(
 		// Setup some variables
 		Qh = (UhciQueueHead_t*)Transfer->EndpointDescriptor;
 		Td = &Controller->QueueControl.TDPool[Qh->ChildIndex];
-		SwitchToggles = (DIVUP(Transfer->Length, Transfer->Endpoint.MaxPacketSize)) % 2;
+		SwitchToggles = (DIVUP(Transfer->Transfer.Length, 
+			Transfer->Transfer.Endpoint.MaxPacketSize)) % 2;
 
 		// Do we need to fix toggles?
 		if (FixupToggles) {
@@ -740,72 +742,49 @@ UhciProcessRequest(
 				(void*)Transfer->Transfer.PeriodicData);
 		}
 
-		/* Renew data if out transfer */
-		lIterator = Request->Transactions;
-		while (lIterator)
-		{
-			/* Get */
-			UhciTransferDescriptor_t *ppTd =
-				(UhciTransferDescriptor_t*)lIterator->TransferDescriptor;
-
-			/* Copy Data from IoBuffer to transfer buffer */
-			if (lIterator->Length != 0
-				&& (ppTd->Header & UHCI_TD_PID_OUT))
-				memcpy(lIterator->TransferBuffer, lIterator->Buffer, lIterator->Length);
-
-			/* Eh, next link */
-			lIterator = lIterator->Link;
-		}
-
-		/* Reinitilize Qh */
-		Qh->Child = Td->PhysicalAddr;
+		// Reinitialize the queue-head
+		Qh->Child = UHCI_POOL_TDINDEX(Controller, Qh->ChildIndex);
 	}
 	else
 	{
-		/* Re-Iterate */
-		UhciQueueHead_t *Qh = (UhciQueueHead_t*)Request->Data;
-		UsbHcTransaction_t *lIterator = Request->Transactions;
+		// Variables
+		reg32_t StartFrame = 0;
 
-		/* What to do on error transfer */
-		if (ErrorTransfer) {
-			/* Unschedule */
-			UhciUnlinkIsochronousRequest(Controller, Request);
+		// Enumerate td's and restart them
+		Td = &Controller->QueueControl.TDPool[Qh->ChildIndex];
+		while (Td) {
+			// Restore
+			Td->Header = Td->OriginalHeader;
+			Td->Flags = Td->OriginalFlags;
 
-			/* Callback - Inform the error */
-			if (Request->Callback != NULL)
-				Request->Callback->Callback(Request->Callback->Args, TransferStalled);
+			// Restore IoC
+			if (Td->LinkIndex == UHCI_NO_INDEX) {
+				Td->Flags |= UHCI_TD_IOC;
+			}
 
-			/* Done for now */
-			return;
+			// Go to next td
+			if (Td->LinkIndex != UHCI_NO_INDEX) {
+				Td = &Controller->QueueControl.TDPool[Td->LinkIndex];
+			}
+			else {
+				break;
+			}
 		}
 
-		/* Copy data if not dummy */
-		while (lIterator)
-		{
-			/* Copy Data from transfer buffer to IoBuffer */
-			if (lIterator->Length != 0)
-				memcpy(lIterator->Buffer, lIterator->TransferBuffer, lIterator->Length);
-
-			/* Restart Td */
-			memcpy(lIterator->TransferDescriptor,
-				lIterator->TransferDescriptorCopy, sizeof(UhciTransferDescriptor_t));
-
-			/* Restore IOC */
-			if (lIterator->Link == NULL)
-				((UhciTransferDescriptor_t*)
-				lIterator->TransferDescriptor)->Flags |= UHCI_TD_IOC;
-
-			/* Eh, next link */
-			lIterator = lIterator->Link;
+		// Notify process of transfer of the status
+		if (Transfer->Transfer.UpdatesOn) {
+			InterruptDriver(Transfer->Requester, 
+				(void*)Transfer->Transfer.PeriodicData);
 		}
 
-		/* Callback ?? needed */
-		if (Request->Callback != NULL)
-			Request->Callback->Callback(Request->Callback->Args, TransferFinished);
-
-		/* Reschedule */
-		UhciLinkIsochronousRequest(Controller, Request, 
-			Controller->Frame + UHCI_QT_GET_QUEUE(Qh->Flags));
+		// Link the isochronous request in again
+		if (ErrorTransfer == 0) {
+			StartFrame = Qh->StartFrame;
+			Qh->StartFrame = (reg32_t)Controller->QueueControl.Frame;
+			Qh->StartFrame += + UHCI_QH_GET_QUEUE(Qh->Flags);
+			UhciLinkIsochronous(Controller, Qh);
+			Qh->StartFrame = StartFrame;
+		}
 	}
 }
 
@@ -867,8 +846,8 @@ UhciProcessTransfers(
 
 				// If bulk or interrupt, and error transfer, we might have
 				// to fix the endpoint toggle
-				if (HcRequest->Type == BulkTransfer
-					|| HcRequest->Type == InterruptTransfer) {
+				if (Transfer->Transfer.Type == BulkTransfer
+					|| Transfer->Transfer.Type == InterruptTransfer) {
 					if (ShortTransfer == 1 || ErrorTransfer == 1) {
 						FixupToggles = 1;
 					}
@@ -904,7 +883,8 @@ UhciProcessTransfers(
 
 		// Process transfer?
 		if (ProcessQh) {
-			UhciProcessRequest(Controller, Node, HcRequest, FixupToggles, ErrorTransfer);
+			UhciProcessRequest(Controller, Transfer, 
+				Node, FixupToggles, ErrorTransfer);
 			break;
 		}
 	}

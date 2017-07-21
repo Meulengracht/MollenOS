@@ -13,12 +13,14 @@
             ],
             "browse": {
                 "path": [
-                    "${workspaceRoot}/librt/include"
+                    "${workspaceRoot}/librt/include",
+                    "${workspaceRoot}"
                 ],
                 "limitSymbolsToIncludedHeaders": true,
                 "databaseFilename": ""
             },
-            "intelliSenseMode": "msvc-x64"
+            "intelliSenseMode": "clang-x64"
         }
-    ]
+    ],
+    "version": 2
 }

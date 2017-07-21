@@ -1,4 +1,5 @@
 {
+    "C_Cpp.intelliSenseEngine": "Default",
     "files.associations": {
         "random": "cpp",
         "__mutex_base": "cpp",
