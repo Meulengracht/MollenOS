@@ -686,11 +686,11 @@ BusEnumerate(void)
 	return OsSuccess;
 }
 
-/* BusDeviceIoctl 
+/* IoctlDevice 
  * Performs any neccessary actions to control the device on the bus */
 __EXTERN
 OsStatus_t
-BusDeviceIoctl(
+IoctlDevice(
 	_In_ MCoreDevice_t *Device,
 	_In_ Flags_t Flags)
 {
@@ -748,6 +748,70 @@ BusDeviceIoctl(
 	// Write back settings
 	PciWrite16(PciDevice->BusIo, Device->Bus, 
 		Device->Slot, Device->Function, 0x04, Settings);
+
+	// Done
+	return OsSuccess;
+}
+
+/* IoctlDeviceEx (Extended) 
+ * Performs any neccessary actions to control the device on the bus */
+Flags_t
+IoctlDeviceEx(
+	_In_ MCoreDevice_t *Device,
+	_In_ Flags_t Parameters,
+	_In_ Flags_t Register,
+	_In_ Flags_t Value,
+	_In_ size_t Width)
+{
+	// Variables
+	PciDevice_t *PciDevice = NULL;
+
+	// Lookup pci-device
+	foreach(dNode, __GlbPciDevices) {
+		PciDevice_t *Entry = (PciDevice_t*)dNode->Data;
+		if (Entry->Bus == Device->Bus
+			&& Entry->Slot == Device->Slot
+			&& Entry->Function == Device->Function) {
+			PciDevice = Entry;
+			break;
+		}
+	}
+
+	// Sanitize
+	if (PciDevice == NULL) {
+		return OsError;
+	}
+
+	// Which kind of action?
+	if (Parameters & __DEVICEMANAGER_IOCTL_EXT_READ) {
+		if (Width == 1) {
+			return PciRead8(PciDevice->BusIo, Device->Bus,
+				Device->Slot, Device->Function, Register);
+		}
+		else if (Width == 2) {
+			return PciRead16(PciDevice->BusIo, Device->Bus,
+				Device->Slot, Device->Function, Register);
+		}
+		else {
+			return PciRead32(PciDevice->BusIo, Device->Bus,
+				Device->Slot, Device->Function, Register);
+		}
+	}
+	else {
+		if (Width == 1) {
+			PciWrite8(PciDevice->BusIo, Device->Bus, 
+				Device->Slot, Device->Function, Register, Value);
+		}
+		else if (Width == 2) {
+			PciWrite16(PciDevice->BusIo, Device->Bus, 
+				Device->Slot, Device->Function, Register, Value);
+		}
+		else {
+			PciWrite32(PciDevice->BusIo, Device->Bus, 
+				Device->Slot, Device->Function, Register, Value);
+		}
+	
+	}
 
 	// Done
 	return OsSuccess;

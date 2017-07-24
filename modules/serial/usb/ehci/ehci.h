@@ -1,109 +1,95 @@
 /* MollenOS
-*
-* Copyright 2011 - 2016, Philip Meulengracht
-*
-* This program is free software : you can redistribute it and / or modify
-* it under the terms of the GNU General Public License as published by
-* the Free Software Foundation ? , either version 3 of the License, or
-* (at your option) any later version.
-*
-* This program is distributed in the hope that it will be useful,
-* but WITHOUT ANY WARRANTY; without even the implied warranty of
-* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.See the
-* GNU General Public License for more details.
-*
-* You should have received a copy of the GNU General Public License
-* along with this program.If not, see <http://www.gnu.org/licenses/>.
-*
-*
-* MollenOS USB EHCI Controller Driver
-*/
+ *
+ * Copyright 2011 - 2017, Philip Meulengracht
+ *
+ * This program is free software : you can redistribute it and / or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation ? , either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.If not, see <http://www.gnu.org/licenses/>.
+ *
+ *
+ * MollenOS MCore - Enhanced Host Controller Interface Driver
+ * TODO:
+ * - Power Management
+ * - Isochronous Transport
+ * - Transaction Translator Support
+ */
 
-#ifndef _USB_EHCI_H_
-#define _USB_EHCI_H_
+#ifndef _USB_OHCI_H_
+#define _USB_OHCI_H_
 
-/* Includes */
-#include <crtdefs.h>
-#include <stdint.h>
+/* Includes
+ * - Library */
+#include <os/osdefs.h>
+#include <os/driver/contracts/usbhost.h>
+#include <os/osdefs.h>
+#include <ds/list.h>
 
-#include <Module.h>
-#include <DeviceManager.h>
-#include <UsbCore.h>
-#include <UsbScheduler.h>
+#include "../common/manager.h"
+#include "../common/scheduler.h"
 
-/* Definitions */
+/* EHCI Controller Definitions 
+ * Contains generic magic constants and definitions */
 #define EHCI_MAX_PORTS				15
 #define EHCI_STRUCT_ALIGN			32
 #define EHCI_MAX_BANDWIDTH			800
 
-//#define EHCI_DISABLE
-//#define EHCI_DIAGNOSTICS
-
-/* Structures */
-
-/* EHCI Register Space */
-
-/* Capability Registers */
-#pragma pack(push, 1)
-typedef struct _EchiCapabilityRegisters
-{
+/* EchiCapabilityRegisters
+ * Describes capabilities and gives information about which features the
+ * EHCI controller supports. */
+PACKED_ATYPESTRUCT(volatile, EchiCapabilityRegisters, {
 	/* Capability Registers Length 
 	 * We add this offset to the Usb Base
 	 * to get operational registers */
-	uint8_t Length;
+	uint8_t 					Length;
+	uint8_t 					Reserved;
+	uint16_t 					Version;
+	reg32_t 					SParams;
+	reg32_t						CParams;
+	reg64_t						PortRouting;
+});
 
-	/* Reserved */
-	uint8_t Reserved;
-
-	/* Interface Version Number */
-	uint16_t Version;
-
-	/* Structural Parameters 
-	 * Bits 0-3: Port Count (max of 15 ports) 
-	 * Bits 4: Port Power Control (If set, ports have power switches) 
-	 * Bits 5-6: Reserved
-	 * Bits 7: Port Routing Rules. 
-	 * Bits 8-11: Number of ports per companion controller 
-	 * Bits 12-15: Number of companion controllers 
-	 * Bits 16: Port Indicators Support 
-	 * Bits 17-19: Reserved
-	 * Bits 20-23: Debug Port Number 
-	 * Bits 24-31: Reserved */
-	uint32_t SParams;
-
-	/* Capability Parameters 
-	 * Bits 0: 64 Bit Capability if set (Use 64 bit data structures instead of 32 bit)! 
-	 * Bits 1: Frame List Flag, if set we can control how long a frame list is, otherwise it is 1024.
-	 * Bits 2: Asynchronous Schedule Park Support, if set it supports park feature for high-speed queue heads. 
-	 * Bits 3: Reserved
-	 * Bits 4-7: Isochronous Scheduling Threshold
-	 * Bits 8-15: Extended Capability Pointer, EECP. If a value is above 0x40 its a valid offset into pci-space. 
-	 * Bits 16: Hardware Prefect Capability
-	 * Bits 17: Link Power Management Capability
-	 * Bits 18: Per-Port Change Event Capability
-	 * Bits 19: 32-Frame Capability
-	 * Bits 20-31: Reserved */
-	uint32_t CParams;
-
-	/* Companion Port Route Description */
-	uint64_t PortRouting;
-
-} EchiCapabilityRegisters_t;
-#pragma pack(pop)
-
-/* Bit Definitions */
+/* EchiCapabilityRegisters::SParams
+ * Contains definitions and bitfield definitions for EchiCapabilityRegisters::SParams
+ * Bits 0-3: Port Count (max of 15 ports) 
+ * Bits 4: Port Power Control (If set, ports have power switches) 
+ * Bits 5-6: Reserved
+ * Bits 7: Port Routing Rules. 
+ * Bits 8-11: Number of ports per companion controller 
+ * Bits 12-15: Number of companion controllers 
+ * Bits 16: Port Indicators Support 
+ * Bits 17-19: Reserved
+ * Bits 20-23: Debug Port Number 
+ * Bits 24-31: Reserved */
 #define EHCI_SPARAM_PORTCOUNT(n)			(n & 0xF)
 #define EHCI_SPARAM_PPC						(1 << 4)
 #define EHCI_SPARAM_PORTROUTING				(1 << 7)
-
-/* Ports per companion controller */
 #define EHCI_SPARAM_CCPCOUNT(n)				((n >> 8) & 0xF)
-
-/* Number of companion controllers */
 #define EHCI_SPARAM_CCCOUNT(n)				((n >> 12) & 0xF)
 #define EHCI_SPARAM_PORTINDICATORS			(1 << 16)
 #define EHCI_SPARAM_DEBUGPORT(n)			((n >> 20) & 0xF)
 
+/* EchiCapabilityRegisters::CParams
+ * Contains definitions and bitfield definitions for EchiCapabilityRegisters::CParams
+ * Bits 0: 64 Bit Capability if set (Use 64 bit data structures instead of 32 bit)! 
+ * Bits 1: Frame List Flag, if set we can control how long a frame list is, otherwise it is 1024.
+ * Bits 2: Asynchronous Schedule Park Support, if set it supports park feature for high-speed queue heads. 
+ * Bits 3: Reserved
+ * Bits 4-7: Isochronous Scheduling Threshold
+ * Bits 8-15: Extended Capability Pointer, EECP. If a value is above 0x40 its a valid offset into pci-space. 
+ * Bits 16: Hardware Prefect Capability
+ * Bits 17: Link Power Management Capability
+ * Bits 18: Per-Port Change Event Capability
+ * Bits 19: 32-Frame Capability
+ * Bits 20-31: Reserved */
 #define EHCI_CPARAM_64BIT					(1 << 0)
 #define EHCI_CPARAM_VARIABLEFRAMELIST		(1 << 1)
 #define EHCI_CPARAM_ASYNCPARK				(1 << 2)
@@ -113,45 +99,24 @@ typedef struct _EchiCapabilityRegisters
 #define EHCI_CPARAM_LINK_PWR				(1 << 17)
 #define EHCI_CPARAM_PERPORT_CHANGE			(1 << 18)
 
-/* Operational Registers */
-#pragma pack(push, 1)
-typedef struct _EchiOperationalRegisters
-{
-	/* USB Command Register */
-	uint32_t UsbCommand;
+/* EchiOperationalRegisters
+ * Registers that are used to control and command the EHCI controller
+ * and its ports. */
+PACKED_ATYPESTRUCT(volatile, EchiOperationalRegisters, {
+	reg32_t						UsbCommand;
+	reg32_t						UsbStatus;
+	reg32_t						UsbIntr;
+	reg32_t						FrameIndex;
+	reg32_t						SegmentSelector;	// 4G Segment Selector
+	reg32_t						PeriodicListAddress;	// Periodic List
+	reg32_t						AsyncListAddress;		// AsyncList
+	uint8_t						Reserved[(0x40 - 0x1C)];
+	reg32_t						ConfigFlag;
+	reg32_t						Ports[EHCI_MAX_PORTS];
+});
 
-	/* USB Status Register */
-	uint32_t UsbStatus;
-
-	/* USB Interrupt Register */
-	uint32_t UsbIntr;
-
-	/* Frame Index */
-	uint32_t FrameIndex;
-
-	/* 4G Segment Selector */
-	uint32_t SegmentSelector;
-
-	/* Periodic Frame List Base Address */
-	uint32_t PeriodicListAddr;
-
-	/* Asynchronous List Address 
-	 * Get's executed after Periodic List */
-	uint32_t AsyncListAddress;
-
-	/* Reserved */
-	uint8_t Reserved[(0x40 - 0x1C)];
-
-	/* Configured Flag Register */
-	uint32_t ConfigFlag;
-
-	/* Port Status Registers */
-	uint32_t Ports[EHCI_MAX_PORTS];
-
-} EchiOperationalRegisters_t;
-#pragma pack(pop)
-
-/* Command Bits */
+/* EchiOperationalRegisters::UsbCommand
+ * Contains definitions and bitfield definitions for EchiOperationalRegisters::UsbCommand */
 #define EHCI_COMMAND_RUN				(1 << 0)
 #define EHCI_COMMAND_HCRESET			(1 << 1)
 #define EHCI_COMMAND_LISTSIZE(n)		((n & 0x3) << 2)
@@ -173,7 +138,8 @@ typedef struct _EchiOperationalRegisters
 #define EHCI_LISTSIZE_256				2
 #define EHCI_LISTSIZE_32				3
 
-/* Status Bits */
+/* EchiOperationalRegisters::UsbStatus
+ * Contains definitions and bitfield definitions for EchiOperationalRegisters::UsbStatus */
 #define EHCI_STATUS_PROCESS				(1 << 0)
 #define EHCI_STATUS_PROCESSERROR		(1 << 1)
 #define EHCI_STATUS_PORTCHANGE			(1 << 2)
@@ -187,7 +153,8 @@ typedef struct _EchiOperationalRegisters
 #define EHCI_STATUS_ASYNC_ACTIVE		(1 << 15)
 #define EHCI_STATUS_PERPORTCHANGE(n)	(1 << (16 + n))
 
-/* INTR Bits */
+/* EchiOperationalRegisters::UsbIntr
+ * Contains definitions and bitfield definitions for EchiOperationalRegisters::UsbIntr */
 #define EHCI_INTR_PROCESS				(1 << 0)
 #define EHCI_INTR_PROCESSERROR			(1 << 1)
 #define EHCI_INTR_PORTCHANGE			(1 << 2)
@@ -196,7 +163,8 @@ typedef struct _EchiOperationalRegisters
 #define EHCI_INTR_ASYNC_DOORBELL		(1 << 5)
 #define EHCI_INTR_PERPORTCHANGE(n)		(1 << (16 + n))
 
-/* Port Command Bits */
+/* EchiOperationalRegisters::Ports[n]
+ * Contains definitions and bitfield definitions for EchiOperationalRegisters::Ports[n] */
 #define EHCI_PORT_CONNECTED				(1 << 0)
 #define EHCI_PORT_CONNECT_EVENT			(1 << 1)
 #define EHCI_PORT_ENABLED				(1 << 2)
@@ -342,7 +310,7 @@ typedef struct _EhciSplitIsocDescriptor
 
 	/* Status
 	 * Bit 0-7: Status
-	 * Bit 8-15: µFrame Complete-split Progress Mask 
+	 * Bit 8-15: ï¿½Frame Complete-split Progress Mask 
 	 * Bit 16-25: Transfer Length (max 3FFh)
 	 * Bit 26-29: Reserved
 	 * Bit 30: Page Select (0 = Bp0, 1 = Bp1)
@@ -635,136 +603,153 @@ typedef struct _EhciQueueHead
 #define EHCI_QH_ALLOCATED			(1 << 0)
 #define EHCI_QH_UNSCHEDULE			(1 << 1)
 
-/* Periodic Frame Span Traversal Node
-* Must be 32 byte aligned */
-#pragma pack(push, 1)
-typedef struct _EhciFSTN
-{
-	/* Normal Path Pointer 
-	* Bit 0: Terminate
-	* Bit 1-2: Type
-	* Bit 3-4: Reserved */
-	uint32_t PathPointer;
+/* EhciFSTN
+ * Periodic Frame Span Traversal Node. Must be 32 byte aligned. 
+ * This is a hardware link node */
+PACKED_TYPESTRUCT(EhciFSTN, {
+	reg32_t					PathPointer; // HW Link
+	reg32_t					BackPathPointer; // HW Link
+}); 
 
-	/* Back Path Link Pointer
-	* Bit 0: Terminate
-	* Bit 1-2: Type
-	* Bit 3-4: Reserved */
-	uint32_t BackPathPointer;
-
-} EhciFSTN_t;
-#pragma pack(pop)
-
-/* Generic Link Format 
- * for iterating the 
- * periodic list */
+/* EhciGenericLink (Generic Link Format)
+ * This union is used for iterating the periodic list */
 typedef union _EhciGenericLink {
-
-	/* Different Links */
-	EhciQueueHead_t *Qh;
-	EhciTransferDescriptor_t *Td;
-	EhciIsocDescriptor_t *iTd;
-	EhciSplitIsocDescriptor_t *siTd;
-	EhciFSTN_t *FSTN;
-	Addr_t Address;
-
+	EhciQueueHead_t 			*Qh;
+	EhciTransferDescriptor_t 	*Td;
+	EhciIsocDescriptor_t 		*iTd;
+	EhciSplitIsocDescriptor_t 	*siTd;
+	EhciFSTN_t 					*FSTN;
+	uintptr_t 					 Address;
 } EhciGenericLink_t;
-
-/* Endpoint Data */
-typedef struct _EhciEndpoint
-{
-	/* Td's allocated */
-	size_t TdsAllocated;
-	size_t BuffersAllocated;
-
-	/* TD Pool */
-	EhciTransferDescriptor_t **TDPool;
-
-	/* Buffer Pool */
-	Addr_t **BufferPool;
-	int *BufferPoolStatus;
-
-	/* Lock */
-	Spinlock_t Lock;
-
-} EhciEndpoint_t;
 
 /* Pool Definitions */
 #define EHCI_POOL_NUM_QH				60
-#define EHCI_POOL_TD_SIZE				15
-#define EHCI_POOL_BUFFER_MIN			5
-#define EHCI_POOL_BUFFER_ALLOCATED		1
+#define EHCI_POOL_NUM_TD				200
+#define EHCI_POOL_QHINDEX(Ctrl, Index)	(Ctrl->QueueControl.QHPoolPhysical + (Index * sizeof(EhciQueueHead_t)))
+#define EHCI_POOL_TDINDEX(Ctrl, Index)	(Ctrl->QueueControl.TDPoolPhysical + (Index * sizeof(EhciTransferDescriptor_t)))
 
 /* Pool Indices */
 #define EHCI_POOL_QH_NULL				0
 #define EHCI_POOL_QH_ASYNC				1
 
-/* The Controller */
-typedef struct _EhciController
-{
-	/* Id */
-	int Id;
-	int HcdId;
+/* EhciControl
+ * Contains all necessary Queue related information
+ * and information needed to schedule */
+typedef struct _EhciControl {
+	// Resources
+	EhciQueueHead_t    			*QHPool;
+	EhciTransferDescriptor_t    *TDPool;
+	uintptr_t					 QHPoolPhysical;
+	uintptr_t					 TDPoolPhysical;
+	EhciTransferDescriptor_t 	*TDAsync;
 
-	/* Device */
-	MCoreDevice_t *Device;
+	// Frame-list resources
+	size_t 						 FLength;
+	uint32_t 					*FrameList;
+	uintptr_t 					 FrameListPhysical;
+	uint32_t 					*VirtualList;
 
-	/* Lock */
-	Spinlock_t Lock;
-	
-	/* Registers */
-	volatile EchiCapabilityRegisters_t *CapRegisters;
-	volatile EchiOperationalRegisters_t *OpRegisters;
+	// Transactions
+	int 						 AsyncTransactions;
+	int 						 BellIsRinging;
+	int 						 BellReScan;
+	List_t						*TransactionList;
+} EhciControl_t;
 
-	/* Copy of SP/CP */
-	uint32_t SParameters;
-	uint32_t CParameters;
+/* EhciController 
+ * Contains all per-controller information that is
+ * needed to control, queue and handle devices on an ehci-controller. */
+typedef struct _EhciController {
+	UsbManagerController_t	 	 Base;
+	EhciControl_t				 QueueControl;
+	UsbScheduler_t 				*Scheduler;
 
-	/* FrameList */
-	size_t FLength;
-	uint32_t *FrameList;
-	uint32_t FrameListPhysical;
-	uint32_t *VirtualList;
+	// Registers and resources
+	EchiCapabilityRegisters_t 	*CapRegisters;
+	EchiOperationalRegisters_t 	*OpRegisters;
 
-	/* Pools */
-	EhciQueueHead_t *QhPool[EHCI_POOL_NUM_QH];
-	EhciTransferDescriptor_t *TdAsync;
-
-	/* Scheduler */
-	UsbScheduler_t *Scheduler;
-
-	/* Transactions */
-	int AsyncTransactions;
-	int BellIsRinging;
-	int BellReScan;
-
-	/* Port Count */
-	size_t Ports;
-
-	/* Transaction List
-	* Contains transactions
-	* in progress */
-	void *TransactionList;
-
+	// Copy of vital registers
+	reg32_t 					 SParameters;
+	reg32_t 					 CParameters;
 } EhciController_t;
 
-/* Prototypes */
-__EXTERN void EhciInitQueues(EhciController_t *Controller);
+/* EhciControllerCreate 
+ * Initializes and creates a new Ehci Controller instance
+ * from a given new system device on the bus. */
+__EXTERN
+EhciController_t*
+EhciControllerCreate(
+	_In_ MCoreDevice_t *Device);
 
-/* Endpoint Prototypes */
-__EXTERN void EhciEndpointSetup(void *cData, UsbHcEndpoint_t *Endpoint);
-__EXTERN void EhciEndpointDestroy(void *cData, UsbHcEndpoint_t *Endpoint);
+/* EhciControllerDestroy
+ * Destroys an existing controller instance and cleans up
+ * any resources related to it */
+__EXTERN
+OsStatus_t
+EhciControllerDestroy(
+	_In_ EhciController_t *Controller);
 
-/* Transaction Prototypes */
-__EXTERN void EhciTransactionInit(void *cData, UsbHcRequest_t *Request);
-__EXTERN UsbHcTransaction_t *EhciTransactionSetup(void *cData, UsbHcRequest_t *Request, UsbPacket_t *Packet);
-__EXTERN UsbHcTransaction_t *EhciTransactionIn(void *cData, UsbHcRequest_t *Request, void *Buffer, size_t Length);
-__EXTERN UsbHcTransaction_t *EhciTransactionOut(void *cData, UsbHcRequest_t *Request, void *Buffer, size_t Length);
-__EXTERN void EhciTransactionSend(void *cData, UsbHcRequest_t *Request);
-__EXTERN void EhciTransactionDestroy(void *cData, UsbHcRequest_t *Request);
+/* EhciQueueInitialize
+ * Initialize the controller's queue resources and resets counters */
+__EXTERN
+OsStatus_t
+EhciQueueInitialize(
+	_In_ EhciController_t *Controller);
 
-/* Processing Functions */
-__EXTERN void EhciProcessTransfers(EhciController_t *Controller);
-__EXTERN void EhciProcessDoorBell(EhciController_t *Controller);
+/* EhciQueueDestroy
+ * Unschedules any scheduled ed's and frees all resources allocated
+ * by the initialize function */
+__EXTERN
+OsStatus_t
+EhciQueueDestroy(
+	_In_ EhciController_t *Controller);
+
+/* EhciRestart
+ * Resets and restarts the entire controller and schedule, this can be used in
+ * case of serious failures. */
+__EXTERN
+OsStatus_t
+EhciRestart(
+	_In_ EhciController_t *Controller);
+
+/* EhciPortScan
+ * Scans all ports of the controller for event-changes and handles
+ * them accordingly. */
+__EXTERN
+void
+EhciPortScan(
+	_In_ EhciController_t *Controller);
+
+/* EhciPortPrepare
+ * Resets the port and also clears out any event on the port line. */
+__EXTERN
+OsStatus_t
+EhciPortPrepare(
+	_In_ EhciController_t *Controller, 
+	_In_ int Index);
+
+/* EhciPortGetStatus 
+ * Retrieve the current port status, with connected and enabled information */
+__EXTERN
+void
+EhciPortGetStatus(
+	_In_ EhciController_t *Controller,
+	_In_ int Index,
+	_Out_ UsbHcPortDescriptor_t *Port);
+
+/* UsbQueueTransferGeneric 
+ * Queues a new transfer for the given driver
+ * and pipe. They must exist. The function does not block*/
+__EXTERN
+OsStatus_t
+UsbQueueTransferGeneric(
+	_InOut_ UsbManagerTransfer_t *Transfer);
+
+/* UsbDequeueTransferGeneric 
+ * Removes a queued transfer from the controller's framelist */
+__EXTERN
+OsStatus_t
+UsbDequeueTransferGeneric(
+	_In_ UsbManagerTransfer_t *Transfer);
 
 #endif

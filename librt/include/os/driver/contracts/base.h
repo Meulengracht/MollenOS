@@ -85,16 +85,16 @@ InitializeContract(
 	_In_ MContractType_t Type, 
 	_In_ __CONST char *ContractName)
 {
-	/* Clean out structure */
+	// Reset structure to 0
 	memset(Contract, 0, sizeof(MContract_t));
 
-	/* Initialize initial status */
+	// Initialize basic state
 	Contract->DriverId = UUID_INVALID;
 	Contract->DeviceId = Device;
 	Contract->Version = Version;
 	Contract->Type = Type;
 
-	/* Initialize name */
+	// Initialize name
 	memcpy(&Contract->Name[0], ContractName, 
 		MIN(CONTRACT_MAX_NAME - 1, strlen(ContractName)));
 }
@@ -116,19 +116,20 @@ SERVICEABI
 RegisterContract(
 	_In_ MContract_t *Contract)
 {
-	/* Variables */
+	// Variables
 	MRemoteCall_t Request;
 	OsStatus_t Result = OsSuccess;
 	UUId_t ContractId = UUID_INVALID;
 
-	/* Initialize RPC */
+	// Initialize static RPC variables like
+	// type of RPC, pipe and version
 	RPCInitialize(&Request, __DEVICEMANAGER_INTERFACE_VERSION,
 		PIPE_RPCOUT, __DEVICEMANAGER_REGISTERCONTRACT);
 	RPCSetArgument(&Request, 0, (const void*)Contract, sizeof(MContract_t));
 	RPCSetResult(&Request, &ContractId, sizeof(UUId_t));
 	Result = RPCExecute(&Request, __DEVICEMANAGER_TARGET);
 
-	/* Update result, return */
+	// Update the contract-id
 	Contract->ContractId = ContractId;
 	return Result;
 }

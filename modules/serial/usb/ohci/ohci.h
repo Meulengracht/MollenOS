@@ -26,6 +26,7 @@
 
 /* Includes
  * - Library */
+#include <os/osdefs.h>
 #include <os/driver/contracts/usbhost.h>
 #include <os/osdefs.h>
 #include <ds/list.h>
@@ -297,6 +298,7 @@ typedef struct _OhciControl {
  * needed to control, queue and handle devices on an ohci-controller. */
 typedef struct _OhciController {
 	UsbManagerController_t	 Base;
+	OhciControl_t			 QueueControl;
 
 	// Registers and resources
 	OhciRegisters_t			*Registers;
@@ -306,9 +308,6 @@ typedef struct _OhciController {
 	// State information
 	size_t					 PowerOnDelayMs;
 	int						 PowerMode;
-
-	// Queuing
-	OhciControl_t			 QueueControl;
 } OhciController_t;
 
 /* Power Mode Flags */

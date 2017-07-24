@@ -153,14 +153,6 @@ __EXTERN
 OsStatus_t
 BusEnumerate(void);
 
-/* BusDeviceEnable 
- * Performs any neccessary actions to control the device on the bus */
-__EXTERN
-OsStatus_t
-BusDeviceIoctl(
-	_In_ MCoreDevice_t *Device,
-	_In_ Flags_t Flags);
-
 /* PciRead32
  * Reads a 32 bit value from the pci-bus
  * at the specified location bus, slot, function and register */

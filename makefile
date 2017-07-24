@@ -13,6 +13,8 @@ config_flags =
 # Don't load drivers, run it without for debug
 #config_flags += -D__OSCONFIG_NODRIVERS
 
+# Disable usb 2.0 support, run only in usb 1.1
+#config_flags += -D__OSCONFIG_DISABLE_EHCI
 
 export arch = i386
 export CC = $(CROSS)/bin/clang

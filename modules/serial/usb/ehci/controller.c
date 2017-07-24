@@ -1,662 +1,537 @@
 /* MollenOS
-*
-* Copyright 2011 - 2016, Philip Meulengracht
-*
-* This program is free software : you can redistribute it and / or modify
-* it under the terms of the GNU General Public License as published by
-* the Free Software Foundation ? , either version 3 of the License, or
-* (at your option) any later version.
-*
-* This program is distributed in the hope that it will be useful,
-* but WITHOUT ANY WARRANTY; without even the implied warranty of
-* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.See the
-* GNU General Public License for more details.
-*
-* You should have received a copy of the GNU General Public License
-* along with this program.If not, see <http://www.gnu.org/licenses/>.
-*
-*
-* MollenOS USB EHCI Controller Driver
-*/
+ *
+ * Copyright 2011 - 2017, Philip Meulengracht
+ *
+ * This program is free software : you can redistribute it and / or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation ? , either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.If not, see <http://www.gnu.org/licenses/>.
+ *
+ *
+ * MollenOS MCore - Enhanced Host Controller Interface Driver
+ * TODO:
+ * - Power Management
+ * - Isochronous Transport
+ * - Transaction Translator Support
+ */
 
-/* Includes */
-#include <Module.h>
-#include "Ehci.h"
+/* Includes
+ * - System */
+#include <os/driver/device.h>
+#include <os/thread.h>
+#include "ehci.h"
 
-/* Additional Includes */
-#include <DeviceManager.h>
-#include <UsbCore.h>
-#include <Scheduler.h>
-#include <Heap.h>
-#include <Timers.h>
-#include <x86/Pci.h>
-
-/* CLib */
+/* Includes
+ * - Library */
 #include <string.h>
 
-/* Globals */
-const char *GlbEhciDriverName = "MollenOS EHCI Driver";
-int GlbEhciControllerId = 0;
+/* Prototypes 
+ * This is to keep the create/destroy at the top of the source file */
+OsStatus_t
+EhciSetup(
+	_In_ EhciController_t *Controller);
 
-/* Prototypes */
-void EhciSetup(EhciController_t *Controller);
-void EhciPortSetup(void *cData, UsbHcPort_t *Port);
-void EhciPortScan(void *cData);
-int EhciInterruptHandler(void *Args);
+/* Externs
+ * We need access to the interrupt-handler in main.c */
+ __EXTERN
+ InterruptStatus_t
+ OnInterrupt(
+	 _In_ void *InterruptData);
 
-/* Entry point of a module */
-MODULES_API void ModuleInit(void *Data)
+/* EhciControllerCreate 
+ * Initializes and creates a new Ehci Controller instance
+ * from a given new system device on the bus. */
+EhciController_t*
+EhciControllerCreate(
+	_In_ MCoreDevice_t *Device)
 {
-	/* Cast & Vars */
-	MCoreDevice_t *mDevice = (MCoreDevice_t*)Data;
+	// Variables
 	EhciController_t *Controller = NULL;
 	DeviceIoSpace_t *IoBase = NULL;
-	uint16_t PciCommand;
+	int i;
 
-	/* Allocate Resources for this Controller */
-	Controller = (EhciController_t*)kmalloc(sizeof(EhciController_t));
+	// Allocate a new instance of the controller
+	Controller = (EhciController_t*)malloc(sizeof(EhciController_t));
 	memset(Controller, 0, sizeof(EhciController_t));
+	memcpy(&Controller->Base.Device, Device, sizeof(MCoreDevice_t));
 
-	Controller->Device = mDevice;
-	Controller->Id = GlbEhciControllerId;
+	// Fill in some basic stuff needed for init
+	Controller->Base.Contract.DeviceId = Controller->Base.Device.Id;
+	Controller->Base.Type = UsbEHCI;
+	SpinlockReset(&Controller->Base.Lock);
 
-	/* Get I/O Base */
-	for (PciCommand = 0; PciCommand < DEVICEMANAGER_MAX_IOSPACES; PciCommand++) {
-		if (mDevice->IoSpaces[PciCommand] != NULL
-			&& mDevice->IoSpaces[PciCommand]->Type == DEVICE_IO_SPACE_MMIO) {
-			IoBase = mDevice->IoSpaces[PciCommand];
+	// Get I/O Base, and for EHCI it'll be the first address we encounter
+	// of type MMIO
+	for (i = 0; i < __DEVICEMANAGER_MAX_IOSPACES; i++) {
+		if (Controller->Base.Device.IoSpaces[i].Size != 0
+			&& Controller->Base.Device.IoSpaces[i].Type == IO_SPACE_MMIO) {
+			IoBase = &Controller->Base.Device.IoSpaces[i];
 			break;
 		}
 	}
 
-	/* Sanity */
-	if (IoBase == NULL)
-	{
-		/* Yea, give me my hat back */
-		LogFatal("EHCI", "No memory space found for controller!");
-		kfree(Controller);
-		return;
+	// Sanitize that we found the io-space
+	if (IoBase == NULL) {
+		ERROR("No memory space found for ehci-controller");
+		free(Controller);
+		return NULL;
 	}
 
-	/* Now we initialise */
-	GlbEhciControllerId++;
+	// Trace
+	TRACE("Found Io-Space (Type %u, Physical 0x%x, Size 0x%x)",
+		IoBase->Type, IoBase->PhysicalBase, IoBase->Size);
 
-	/* Get registers */
+	// Acquire the io-space
+	if (CreateIoSpace(IoBase) != OsSuccess
+		|| AcquireIoSpace(IoBase) != OsSuccess) {
+		ERROR("Failed to create and acquire the io-space for ehci-controller");
+		free(Controller);
+		return NULL;
+	}
+	else {
+		// Store information
+		Controller->Base.IoBase = IoBase;
+	}
+
+	// Start out by initializing the contract
+	InitializeContract(&Controller->Base.Contract, Controller->Base.Contract.DeviceId, 1,
+		ContractController, "EHCI Controller Interface");
+
+	// Trace
+	TRACE("Io-Space was assigned virtual address 0x%x", IoBase->VirtualBase);
+
+	// Instantiate the register-access
 	Controller->CapRegisters = (EchiCapabilityRegisters_t*)IoBase->VirtualBase;
 	Controller->OpRegisters = (EchiOperationalRegisters_t*)
 		(IoBase->VirtualBase + Controller->CapRegisters->Length);
 
-	/* Reset Lock */
-	SpinlockReset(&Controller->Lock);
+	// Initialize the interrupt settings
+	Controller->Base.Device.Interrupt.FastHandler = OnInterrupt;
+	Controller->Base.Device.Interrupt.Data = Controller;
 
-	/* Allocate Irq */
-	mDevice->IrqAvailable[0] = -1;
-	mDevice->IrqHandler = EhciInterruptHandler;
-
-	/* Register us for an irq */
-#ifndef EHCI_DISABLE
-	if (DmRequestResource(mDevice, ResourceIrq)) {
-
-		/* Damnit! */
-		LogFatal("EHCI", "Failed to allocate irq for use, bailing out!");
-		kfree(Controller);
-		return;
+	// Register contract before interrupt
+	if (RegisterContract(&Controller->Base.Contract) != OsSuccess) {
+		ERROR("Failed to register contract for ehci-controller");
+		ReleaseIoSpace(Controller->Base.IoBase);
+		DestroyIoSpace(Controller->Base.IoBase->Id);
+		free(Controller);
+		return NULL;
 	}
-#endif
 
-	/* Enable memory io and bus mastering, remove interrupts disabled */
-	PciCommand = (uint16_t)PciDeviceRead(mDevice->BusDevice, 0x4, 2);
-	PciDeviceWrite(mDevice->BusDevice, 0x4, (PciCommand & ~(0x400)) | 0x2 | 0x4, 2);
+	// Register interrupt
+	Controller->Base.Interrupt =
+		RegisterInterruptSource(&Controller->Base.Device.Interrupt, INTERRUPT_FAST);
 
-	/* Setup driver information */
-	mDevice->Driver.Name = (char*)GlbEhciDriverName;
-	mDevice->Driver.Data = Controller;
-	mDevice->Driver.Version = 1;
-	mDevice->Driver.Status = DriverActive;
+	// Enable device
+	if (IoctlDevice(Controller->Base.Device.Id, __DEVICEMANAGER_IOCTL_BUS,
+		(__DEVICEMANAGER_IOCTL_ENABLE | __DEVICEMANAGER_IOCTL_MMIO_ENABLE
+			| __DEVICEMANAGER_IOCTL_BUSMASTER_ENABLE)) != OsSuccess) {
+		ERROR("Failed to enable the ehci-controller");
+		UnregisterInterruptSource(Controller->Base.Interrupt);
+		ReleaseIoSpace(Controller->Base.IoBase);
+		DestroyIoSpace(Controller->Base.IoBase->Id);
+		free(Controller);
+		return NULL;
+	}
 
-	/* Setup Controller */
-	EhciSetup(Controller);
+	// Allocate a list of endpoints
+	Controller->Base.Endpoints = ListCreate(KeyInteger, LIST_SAFE);
+
+	// Now that all formalities has been taken care
+	// off we can actually setup controller
+	if (EhciSetup(Controller) == OsSuccess) {
+		return Controller;
+	}
+	else {
+		EhciControllerDestroy(Controller);
+		return NULL;
+	}
 }
 
-/* Disable Legecy Support */
-void EhciDisableLegacySupport(EhciController_t *Controller)
+/* EhciControllerDestroy
+ * Destroys an existing controller instance and cleans up
+ * any resources related to it */
+OsStatus_t
+EhciControllerDestroy(
+	_In_ EhciController_t *Controller)
 {
-	/* Vars */
-	uint32_t Eecp;
+	// Cleanup scheduler
+	EhciQueueDestroy(Controller);
 
-	/* Pci Registers
-	* BAR0 - Usb Base Registers
-	* 0x60 - Revision
-	* 0x61 - Frame Length Adjustment
-	* 0x62/3 - Port Wake capabilities
-	* ????? - Usb Legacy Support Extended Capability Register
-	* ???? + 4 - Usb Legacy Support Control And Status Register
-	* The above means ???? = EECP. EECP Offset in PCI space where
-	* we can find the above registers */
+	// Unregister the interrupt
+	UnregisterInterruptSource(Controller->Base.Interrupt);
+
+	// Release the io-space
+	ReleaseIoSpace(Controller->Base.IoBase);
+	DestroyIoSpace(Controller->Base.IoBase->Id);
+
+	// Free the list of endpoints
+	ListDestroy(Controller->Base.Endpoints);
+
+	// Free the controller structure
+	free(Controller);
+
+	// Cleanup done
+	return OsSuccess;
+}
+
+/* EhciDisableLegacySupport
+ * Disables legacy-support, by doing this PS/2 emulation and any of the
+ * kind will stop working. Must be done before using the ehci-controller. */
+void
+EhciDisableLegacySupport(
+	_In_ EhciController_t *Controller)
+{
+	// Variables
+	reg32_t Eecp = 0;
+
+	// Pci Registers
+	// BAR0 - Usb Base Registers
+	// 0x60 - Revision
+	// 0x61 - Frame Length Adjustment
+	// 0x62/3 - Port Wake capabilities
+	// ????? - Usb Legacy Support Extended Capability Register
+	// ???? + 4 - Usb Legacy Support Control And Status Register
+	// The above means ???? = EECP. EECP Offset in PCI space where
+	// we can find the above registers
 	Eecp = EHCI_CPARAM_EECP(Controller->CapRegisters->CParams);
 
-	/* Two cases, if EECP is valid we do additional steps */
-	if (Eecp >= 0x40)
-	{
-		volatile uint8_t Semaphore = 0;
-		volatile uint8_t CapId = 0;
-		uint8_t Failed = 0;
-		volatile uint8_t NextEecp = 0;
+	// If the eecp is valid ( >= 0x40), then there are a few
+	// cases we can handle, but if its not valid, there is no legacy
+	if (Eecp >= 0x40) {
+
+		// Variables
+		volatile Flags_t Semaphore = 0;
+		volatile Flags_t CapId = 0;
+		volatile Flags_t NextEecp = 0;
 		int Run = 1;
 
-		/* Get the extended capability register
-		* We read the second byte, because it contains
-		* the BIOS Semaphore */
-		Failed = 0;
-		while (Run)
-		{
-			/* Get Id */
-			CapId = (uint8_t)PciDeviceRead(Controller->Device->BusDevice, Eecp, 1);
-
-			/* Legacy Support? */
-			if (CapId == 0x01)
-				break;
-
-			/* No, get next Eecp */
-			NextEecp = (uint8_t)PciDeviceRead(Controller->Device->BusDevice, Eecp + 0x1, 1);
-
-			/* Sanity */
-			if (NextEecp == 0x00)
-				break;
-			else
-				Eecp = NextEecp;
-		}
-
-		/* Only continue if Id == 0x01 */
-		if (CapId == 0x01)
-		{
-			Semaphore = (uint8_t)PciDeviceRead(Controller->Device->BusDevice, Eecp + 0x2, 1);
-
-			/* Is it BIOS owned? First bit in second byte */
-			if (Semaphore & 0x1)
-			{
-				/* Request for my hat back :/
-				* Third byte contains the OS Semaphore */
-				PciDeviceWrite(Controller->Device->BusDevice, Eecp + 0x3, 0x1, 1);
-
-				/* Now we wait for the bios to release semaphore */
-				WaitForCondition((PciDeviceRead(Controller->Device->BusDevice, Eecp + 0x2, 1) & 0x1) == 0, 250, 10, "USB_EHCI: Failed to release BIOS Semaphore");
-				WaitForCondition((PciDeviceRead(Controller->Device->BusDevice, Eecp + 0x3, 1) & 0x1) == 1, 250, 10, "USB_EHCI: Failed to set OS Semaphore");
+		// Get the extended capability register
+		// We read the second byte, because it contains
+		// the BIOS Semaphore
+		while (Run) {
+			// Retrieve capability id
+			if (IoctlDeviceEx(Controller->Base.Device.Id, 0, Eecp, &CapId, 1) != OsSuccess) {
+				return;
 			}
 
-			/* Disable SMI by setting all lower 16 bits to 0 of EECP+4 */
-			PciDeviceWrite(Controller->Device->BusDevice, Eecp + 0x4, 0x0000, 2);
+			// Legacy support?
+			if (CapId == 0x01) {
+				break;
+			}
+
+			// Nope, follow eecp link
+			if (IoctlDeviceEx(Controller->Base.Device.Id, 0, Eecp + 0x1, &NextEecp, 1) != OsSuccess) {
+				return;
+			}
+
+			// Sanitize end of link
+			if (NextEecp == 0x00) {
+				break;
+			}
+			else {
+				Eecp = NextEecp;
+			}
+		}
+
+		// Only continue if Id == 0x01
+		if (CapId == 0x01) {
+			// Variables
+			Flags_t Zero = 0;
+			if (IoctlDeviceEx(Controller->Base.Device.Id, 0, Eecp + 0x2, &Semaphore, 1) != OsSuccess) {
+				return;
+			}
+
+			// Is it BIOS owned? First bit in second byte
+			if (Semaphore & 0x1) {
+				// Request for my hat back :/
+				// Third byte contains the OS Semaphore 
+				Flags_t One = 0x1;
+				if (IoctlDeviceEx(Controller->Base.Device.Id, 1, Eecp + 0x3, &One, 1) != OsSuccess) {
+					return;
+				}
+
+				// Now wait for bios to release the semaphore
+				while (One++) {
+					if (IoctlDeviceEx(Controller->Base.Device.Id, 0, Eecp + 0x2, &Semaphore, 1) != OsSuccess) {
+						return;
+					}
+					if ((Semaphore & 0x1) == 0) {
+						break;
+					}
+					if (One >= 250) {
+						Log("EHCI: Failed to release BIOS Semaphore");
+						break;
+					}
+					ThreadSleep(10);
+				}
+				One = 1;
+				while (One++) {
+					if (IoctlDeviceEx(Controller->Base.Device.Id, 0, Eecp + 0x3, &Semaphore, 1) != OsSuccess) {
+						return;
+					}
+					if ((Semaphore & 0x1) == 1) {
+						break;
+					}
+					if (One >= 250) {
+						Log("EHCI: Failed to set OS Semaphore");
+						break;
+					}
+					ThreadSleep(10);
+				}
+			}
+
+			// Disable SMI by setting all lower 16 bits to 0 of EECP+4
+			if (IoctlDeviceEx(Controller->Base.Device.Id, 1, Eecp + 0x4, &Zero, 2) != OsSuccess) {
+				return;
+			}
 		}
 	}
 }
 
-/* Stop Controller */
-void EhciHalt(EhciController_t *Controller)
+/* EhciHalt
+ * Halt's the controller and clears any pending events. */
+OsStatus_t
+EhciHalt(
+	_In_ EhciController_t *Controller)
 {
-	/* Vars */
-	uint32_t Temp;
+	// Variables
+	reg32_t TemporaryValue = 0;
 	int Fault = 0;
 
-	/* Stop scheduler */
-	Temp = Controller->OpRegisters->UsbCommand;
-	Temp &= ~(EHCI_COMMAND_PERIODIC_ENABLE | EHCI_COMMAND_ASYNC_ENABLE);
-	Controller->OpRegisters->UsbCommand = Temp;
+	// Try to stop the scheduler
+	TemporaryValue = Controller->OpRegisters->UsbCommand;
+	TemporaryValue &= ~(EHCI_COMMAND_PERIODIC_ENABLE | EHCI_COMMAND_ASYNC_ENABLE);
+	Controller->OpRegisters->UsbCommand = TemporaryValue;
 
-	/* Wait for stop */
-	WaitForConditionWithFault(Fault, (Controller->OpRegisters->UsbStatus & 0xC000) == 0, 250, 10);
+	// Wait for the active-bits to clear
+	WaitForConditionWithFault(Fault, 
+		(Controller->OpRegisters->UsbStatus & 0xC000) == 0, 250, 10);
 
-	/* Sanity */
+	// Did we stop the scheduler?
 	if (Fault) {
-		LogFatal("EHCI", "Failed to stop scheduler, Cmd Register: 0x%x - Status: 0x%x",
+		ERROR("EHCI-Failure: Failed to stop scheduler, Command Register: 0x%x - Status: 0x%x",
 			Controller->OpRegisters->UsbCommand, Controller->OpRegisters->UsbStatus);
 	}
 
-	/* Clear remaining interrupts */
+	// Clear remaining interrupts
 	Controller->OpRegisters->UsbIntr = 0;
 	Controller->OpRegisters->UsbStatus = (0x3F);
 
-	/* Stop controller */
-	Temp = Controller->OpRegisters->UsbCommand;
-	Temp &= ~(EHCI_COMMAND_RUN);
-	Controller->OpRegisters->UsbCommand = Temp;
+	// Now stop the controller, this should succeed
+	TemporaryValue = Controller->OpRegisters->UsbCommand;
+	TemporaryValue &= ~(EHCI_COMMAND_RUN);
+	Controller->OpRegisters->UsbCommand = TemporaryValue;
 
-	/* Wait for stop */
+	// Wait for the active-bit to clear
 	Fault = 0;
-	WaitForConditionWithFault(Fault, (Controller->OpRegisters->UsbStatus & EHCI_STATUS_HALTED) != 0, 250, 10);
+	WaitForConditionWithFault(Fault, 
+		(Controller->OpRegisters->UsbStatus & EHCI_STATUS_HALTED) != 0, 250, 10);
 
 	if (Fault) {
-		LogFatal("EHCI", "Failed to stop controller, Cmd Register: 0x%x - Status: 0x%x",
+		ERROR("EHCI-Failure: Failed to stop controller, Command Register: 0x%x - Status: 0x%x",
 			Controller->OpRegisters->UsbCommand, Controller->OpRegisters->UsbStatus);
+			return OsError;
+	}
+	else {
+		return OsSuccess;
 	}
 }
 
-/* Silence Controller */
-void EhciSilence(EhciController_t *Controller)
+/* EhciSilence
+ * Silences the controller by halting it and marking it unconfigured. */
+void
+EhciSilence(
+	_In_ EhciController_t *Controller)
 {
-	/* Halt Controller */
+	// Halt controller and mark it unconfigured, it won't be used
+	// when the configure flag is 0
 	EhciHalt(Controller);
-
-	/* Clear Configured Flag */
 	Controller->OpRegisters->ConfigFlag = 0;
 }
 
-/* Reset Controller */
-void EhciReset(EhciController_t *Controller)
+/* EhciReset
+ * Resets the controller from any state, leaves it post-reset state. */
+OsStatus_t
+EhciReset(
+	_In_ EhciController_t *Controller)
 {
-	/* Vars */
-	uint32_t Temp;
+	// Variables
+	reg32_t TemporaryValue = 0;
 	int Fault = 0;
 
-	/* Reset Controller */
-	Temp = Controller->OpRegisters->UsbCommand;
-	Temp |= EHCI_COMMAND_HCRESET;
-	Controller->OpRegisters->UsbCommand = Temp;
+	// Reset controller
+	TemporaryValue = Controller->OpRegisters->UsbCommand;
+	TemporaryValue |= EHCI_COMMAND_HCRESET;
+	Controller->OpRegisters->UsbCommand = TemporaryValue;
 
-	/* Wait for reset signal to deassert */
+	// Wait for signal to deassert
 	WaitForConditionWithFault(Fault, 
 		(Controller->OpRegisters->UsbCommand & EHCI_COMMAND_HCRESET) == 0, 250, 10);
 
+	// Handle result
 	if (Fault) {
-		LogDebug("EHCI", "Reset signal won't deassert, waiting one last long wait",
+		ERROR("EHCI-Failure: Reset signal won't deassert, waiting one last long wait",
 			Controller->OpRegisters->UsbCommand, Controller->OpRegisters->UsbStatus);
-		StallMs(250);
+		ThreadSleep(250);
+		return ((Controller->OpRegisters->UsbCommand & EHCI_COMMAND_HCRESET) == 0) ? OsSuccess : OsError;
+	}
+	else {
+		return OsSuccess;
 	}
 }
 
-/* Restart Controller */
-void EhciRestart(void *cData)
+/* EhciRestart
+ * Resets and restarts the entire controller and schedule, this can be used in
+ * case of serious failures. */
+OsStatus_t
+EhciRestart(
+	_In_ EhciController_t *Controller)
 {
-	/* Cast */
-	EhciController_t *Controller = (EhciController_t*)cData;
-	uint32_t Temp;
+	// Variables
+	reg32_t TemporaryValue = 0;
 
-	/* Start by stopping */
+	// Stop controller, unschedule everything
+	// and then reset it.
 	EhciHalt(Controller);
-
-	/* Unschedule everything */
-
-	/* Reset Controller */
 	EhciReset(Controller);
 
-	/* <reconfigure> */
+	// Reset certain indexes
 	Controller->OpRegisters->SegmentSelector = 0;
 	Controller->OpRegisters->FrameIndex = 0;
 
-	/* Set desired interrupts */
-	Controller->OpRegisters->UsbIntr = (EHCI_INTR_PROCESS | EHCI_INTR_PROCESSERROR
-		| EHCI_INTR_PORTCHANGE | EHCI_INTR_HOSTERROR | EHCI_INTR_ASYNC_DOORBELL);
-
-	/* Write addresses */
-	Controller->OpRegisters->PeriodicListAddr = 
-		(uint32_t)Controller->FrameList;
-	Controller->OpRegisters->AsyncListAddress = 
-		(uint32_t)Controller->QhPool[EHCI_POOL_QH_ASYNC]->PhysicalAddress;
-
-	/* Build Command
-	* Irq Latency = 0 */
-	Temp = EHCI_COMMAND_INTR_THRESHOLD(0);
-
-	/* Support for PerPort events? */
-	if (Controller->CParameters & EHCI_CPARAM_PERPORT_CHANGE)
-		Temp |= EHCI_COMMAND_PERPORT_ENABLE;
-
-	/* Support for Park Mode? */
-	if (Controller->CParameters & EHCI_CPARAM_ASYNCPARK) {
-		Temp |= EHCI_COMMAND_ASYNC_PARKMODE;
-		Temp |= EHCI_COMMAND_PARK_COUNT(3);
-	}
-
-	/* Frame list support */
-	if (Controller->CParameters & EHCI_CPARAM_VARIABLEFRAMELIST)
-		Temp |= EHCI_COMMAND_LISTSIZE(EHCI_LISTSIZE_256);
-
-	/* Start */
-	Temp |= EHCI_COMMAND_RUN;
-	Controller->OpRegisters->UsbCommand = Temp;
-
-	/* Set configured */
-	Controller->OpRegisters->ConfigFlag = 1;
-}
-
-/* Setup EHCI */
-void EhciSetup(EhciController_t *Controller)
-{
-	/* Vars */
-	UsbHc_t *HcCtrl;
-	uint32_t Temp;
-	size_t i;
-
-	/* Disable Legacy Support */
-	EhciDisableLegacySupport(Controller);
-
-#ifdef EHCI_DISABLE
-	/* Silence Controller */
-	EhciSilence(Controller);
-
-	/* Now everything is routed to companion controllers */
-#else
-	/* Save some read-only information */
-	Controller->Ports = EHCI_SPARAM_PORTCOUNT(Controller->CapRegisters->SParams);
-	Controller->SParameters = Controller->CapRegisters->SParams;
-	Controller->CParameters = Controller->CapRegisters->CParams;
-
-	/* Stop Controller */
-	EhciHalt(Controller);
-
-	/* Reset Controller */
-	EhciReset(Controller);
-
-	/* Initialize Queues */
-	EhciInitQueues(Controller);
-
-	/* Reset */
-	Controller->OpRegisters->SegmentSelector = 0;
-	Controller->OpRegisters->FrameIndex = 0;
-
-	/* Set desired interrupts */
+	// Enable desired interrupts and clear status
 	Controller->OpRegisters->UsbIntr = (EHCI_INTR_PROCESS | EHCI_INTR_PROCESSERROR
 		| EHCI_INTR_PORTCHANGE | EHCI_INTR_HOSTERROR | EHCI_INTR_ASYNC_DOORBELL);
 	Controller->OpRegisters->UsbStatus = Controller->OpRegisters->UsbIntr;
 
-	/* Build Command 
-	 * Irq Latency = 0 */
-	Temp = EHCI_COMMAND_INTR_THRESHOLD(0);
+	// Update queues
+	Controller->OpRegisters->PeriodicListAddress = 
+		Controller->QueueControl.FrameListPhysical;
+	Controller->OpRegisters->AsyncListAddress = 
+		EHCI_POOL_QHINDEX(Controller, EHCI_POOL_QH_ASYNC);
 
-	/* Support for PerPort events? */
-	if (Controller->CParameters & EHCI_CPARAM_PERPORT_CHANGE)
-		Temp |= EHCI_COMMAND_PERPORT_ENABLE;
-
-	/* Support for Park Mode? */
+	// Next step is to build the command configuring the controller
+	// Set irq latency to 0, enable per-port changes, async park
+	// and if variable frame-list, set it to 256.
+	TemporaryValue = EHCI_COMMAND_INTR_THRESHOLD(0);
+	if (Controller->CParameters & EHCI_CPARAM_PERPORT_CHANGE) {
+		TemporaryValue |= EHCI_COMMAND_PERPORT_ENABLE;
+	}
 	if (Controller->CParameters & EHCI_CPARAM_ASYNCPARK) {
-		Temp |= EHCI_COMMAND_ASYNC_PARKMODE;
-		Temp |= EHCI_COMMAND_PARK_COUNT(3);
+		TemporaryValue |= EHCI_COMMAND_ASYNC_PARKMODE;
+		TemporaryValue |= EHCI_COMMAND_PARK_COUNT(3);
+	}
+	if (Controller->CParameters & EHCI_CPARAM_VARIABLEFRAMELIST) {
+		TemporaryValue |= EHCI_COMMAND_LISTSIZE(EHCI_LISTSIZE_256);
 	}
 
-	/* Frame list support */
-	if (Controller->CParameters & EHCI_CPARAM_VARIABLEFRAMELIST)
-		Temp |= EHCI_COMMAND_LISTSIZE(EHCI_LISTSIZE_256);
+	// Start the controller by enabling it
+	TemporaryValue |= EHCI_COMMAND_RUN;
+	Controller->OpRegisters->UsbCommand = TemporaryValue;
 
-	/* Start */
-	Temp |= EHCI_COMMAND_RUN;
-	Controller->OpRegisters->UsbCommand = Temp;
-
-	/* Set configured */
+	// Mark as configured, this will enable the controller
 	Controller->OpRegisters->ConfigFlag = 1;
-#endif
+}
 
-	/* Initalize Controller (HCD) */
-	HcCtrl = UsbInitController(Controller, EhciController, 2);
+/* EhciSetup
+ * Initializes the ehci-controller and boots it up into runnable state. */
+OsStatus_t
+EhciSetup(
+	_In_ EhciController_t *Controller)
+{
+	// Variables
+	reg32_t TemporaryValue = 0;
+	size_t i = 0;
 
-	/* Port Functions */
-	HcCtrl->PortSetup = EhciPortSetup;
-	HcCtrl->RootHubCheck = EhciPortScan;
+	// Disable legacy support in controller
+	EhciDisableLegacySupport(Controller);
 
-	/* Reset/Resume */
-	HcCtrl->Reset = EhciRestart;
+	// Are we configured to disable ehci?
+#ifdef __OSCONFIG_DISABLE_EHCI
+	EhciSilence(Controller);
+#else
+	// Save some read-only but often accessed information
+	Controller->Base.PortCount = EHCI_SPARAM_PORTCOUNT(Controller->CapRegisters->SParams);
+	Controller->SParameters = Controller->CapRegisters->SParams;
+	Controller->CParameters = Controller->CapRegisters->CParams;
 
-	/* Endpoint Functions */
-	HcCtrl->EndpointSetup = EhciEndpointSetup;
-	HcCtrl->EndpointDestroy = EhciEndpointDestroy;
+	// We then stop the controller, reset it and 
+	// initialize data-structures
+	EhciHalt(Controller);
+	if (EhciReset(Controller) != OsSuccess
+		|| EhciQueueInitialize(Controller) != OsSuccess) {
+		ERROR("EHCI-Failure: failed to reset controller and create queues.");
+		return OsError;
+	}
 
-	/* Transaction Functions */
-	HcCtrl->TransactionInit = EhciTransactionInit;
-	HcCtrl->TransactionSetup = EhciTransactionSetup;
-	HcCtrl->TransactionIn = EhciTransactionIn;
-	HcCtrl->TransactionOut = EhciTransactionOut;
-	HcCtrl->TransactionSend = EhciTransactionSend;
-	HcCtrl->TransactionDestroy = EhciTransactionDestroy;
+	// Reset certain indexes
+	Controller->OpRegisters->SegmentSelector = 0;
+	Controller->OpRegisters->FrameIndex = 0;
 
-	/* Set override sizes */
-	HcCtrl->BulkOverride = (5 * PAGE_SIZE);
-	HcCtrl->InterruptOverride = (5 * PAGE_SIZE);
-	HcCtrl->IsocOverride = (3 * 1024);
+	// Enable desired interrupts and clear status
+	Controller->OpRegisters->UsbIntr = (EHCI_INTR_PROCESS | EHCI_INTR_PROCESSERROR
+		| EHCI_INTR_PORTCHANGE | EHCI_INTR_HOSTERROR | EHCI_INTR_ASYNC_DOORBELL);
+	Controller->OpRegisters->UsbStatus = Controller->OpRegisters->UsbIntr;
 
-	/* Register Controller */
-	Controller->HcdId = UsbRegisterController(HcCtrl);
+	// Next step is to build the command configuring the controller
+	// Set irq latency to 0, enable per-port changes, async park
+	// and if variable frame-list, set it to 256.
+	TemporaryValue = EHCI_COMMAND_INTR_THRESHOLD(0);
+	if (Controller->CParameters & EHCI_CPARAM_PERPORT_CHANGE) {
+		TemporaryValue |= EHCI_COMMAND_PERPORT_ENABLE;
+	}
+	if (Controller->CParameters & EHCI_CPARAM_ASYNCPARK) {
+		TemporaryValue |= EHCI_COMMAND_ASYNC_PARKMODE;
+		TemporaryValue |= EHCI_COMMAND_PARK_COUNT(3);
+	}
+	if (Controller->CParameters & EHCI_CPARAM_VARIABLEFRAMELIST) {
+		TemporaryValue |= EHCI_COMMAND_LISTSIZE(EHCI_LISTSIZE_256);
+	}
 
-	/* Setup Ports */
-#ifndef EHCI_DISABLE
-	/* Now, controller is up and running
-	* and we should start doing port setups */
+	// Start the controller by enabling it
+	TemporaryValue |= EHCI_COMMAND_RUN;
+	Controller->OpRegisters->UsbCommand = TemporaryValue;
 
-	/* Step 1. Power On Ports */
+	// Mark as configured, this will enable the controller
+	Controller->OpRegisters->ConfigFlag = 1;
+
+	// Now, controller is up and running
+	// and we should start doing port setups
+	// by first powering on
 	if (Controller->SParameters & EHCI_SPARAM_PPC) {
-		for (i = 0; i < Controller->Ports; i++) {
-			uint32_t Temp = Controller->OpRegisters->Ports[i];
-			Temp |= EHCI_PORT_POWER;
-			Controller->OpRegisters->Ports[i] = Temp;
+		for (i = 0; i < Controller->Base.PortCount; i++) {
+			TemporaryValue = Controller->OpRegisters->Ports[i];
+			TemporaryValue |= EHCI_PORT_POWER;
+			Controller->OpRegisters->Ports[i] = TemporaryValue;
 		}
 	}
 
-	/* Wait 20 ms for power to stabilize */
-	StallMs(20);
+	// Wait 20 ms for power to stabilize
+	ThreadSleep(20);
 
-	/* Step 2. Iterate and release USB 1.1 Devices */
-	for (i = 0; i < Controller->Ports; i++) {
-
-		/* Is port connected? */
-		if (Controller->OpRegisters->Ports[i] & EHCI_PORT_CONNECTED) 
-		{
-			/* Is the port destined for other controllers?
-			 * Port must be in K-State */
+	// Last step is to enumerate all ports that are connected with low-speed
+	// devices and release them to companion hc's for bandwidth.
+	for (i = 0; i < Controller->Base.PortCount; i++) {
+		if (Controller->OpRegisters->Ports[i] & EHCI_PORT_CONNECTED) {
+			// Is the port destined for other controllers?
+			// Port must be in K-State
 			if (EHCI_PORT_LINESTATUS(Controller->OpRegisters->Ports[i])
 				== EHCI_LINESTATUS_RELEASE) {
-				/* This is a low-speed device */
-				if (EHCI_SPARAM_CCCOUNT(Controller->SParameters) != 0)
+				// Lowspeed device
+				if (EHCI_SPARAM_CCCOUNT(Controller->SParameters) != 0) {
 					Controller->OpRegisters->Ports[i] |= EHCI_PORT_COMPANION_HC;
+				}
 			}
 		}
 	}
 #endif
-}
-
-/* Port Logic */
-int EhciPortReset(EhciController_t *Controller, size_t Port)
-{
-	/* Vars */
-	uint32_t Temp = Controller->OpRegisters->Ports[Port];
-
-	/* Enable port power */
-	if (Controller->SParameters & EHCI_SPARAM_PPC
-		&& !(Temp & EHCI_PORT_POWER)) 
-	{
-		/* Set bit */
-		Temp |= EHCI_PORT_POWER;
-
-		/* Write back */
-		Controller->OpRegisters->Ports[Port] = Temp;
-
-		/* Wait for power */
-		StallMs(20);
-	}
-
-	/* We must set the port-reset and keep the signal asserted for atleast 50 ms
-	 * now, we are going to keep the signal alive for (much) longer due to 
-	 * some devices being slow af */
-
-	/* The EHCI documentation says we should 
-	 * disable enabled and assert reset together */
-	Temp &= ~(EHCI_PORT_ENABLED);
-	Temp |= EHCI_PORT_RESET;
-
-	/* Write */
-	Controller->OpRegisters->Ports[Port] = Temp;
-
-	/* Wait */
-	StallMs(100);
-
-	/* Deassert signal */
-	Temp = Controller->OpRegisters->Ports[Port];
-	Temp &= ~(EHCI_PORT_RESET);
-	Controller->OpRegisters->Ports[Port] = Temp;
-
-	/* Wait for deassertion: 
-	 * The reset process is actually complete when software reads a zero in the PortReset bit */
-	Temp = 0;
-	WaitForConditionWithFault(Temp, (Controller->OpRegisters->Ports[Port] & EHCI_PORT_RESET) == 0, 250, 10);
-
-	/* Clear RWC */
-	Controller->OpRegisters->Ports[Port] |= EHCI_PORT_RWC;
-
-	/* Now, if the port has a high-speed 
-	 * device, the enabled port is set */
-	if (!(Controller->OpRegisters->Ports[Port] & EHCI_PORT_ENABLED)) {
-		if (EHCI_SPARAM_CCCOUNT(Controller->SParameters) != 0)
-			Controller->OpRegisters->Ports[Port] |= EHCI_PORT_COMPANION_HC;
-		return -1;
-	}
-
-	/* Done! */
-	return 0;
-}
-
-/* Setup Port */
-void EhciPortSetup(void *cData, UsbHcPort_t *Port)
-{
-	/* Cast */
-	EhciController_t *Controller = (EhciController_t*)cData;
-	int RetVal = 0;
-
-	/* Step 1. Wait for power to stabilize */
-	StallMs(100);
-
-#ifdef EHCI_DIAGNOSTICS
-	/* Debug */
-	LogDebug("EHCI", "Port Pre-Reset: 0x%x", Controller->OpRegisters->Ports[Port->Id]);
-#endif
-
-	/* Step 2. Reset Port */
-	RetVal = EhciPortReset(Controller, Port->Id);
-
-#ifdef EHCI_DIAGNOSTICS
-	/* Debug */
-	LogDebug("EHCI", "Port Post-Reset: 0x%x", Controller->OpRegisters->Ports[Port->Id]);
-#endif
-
-	/* Evaluate the status of the reset */
-	if (RetVal) 
-	{
-		/* Not for us */
-		Port->Connected = 0;
-		Port->Enabled = 0;
-	}
-	else
-	{
-		/* High Speed */
-		uint32_t Status = Controller->OpRegisters->Ports[Port->Id];
-
-		/* Connected? */
-		if (Status & EHCI_PORT_CONNECTED)
-			Port->Connected = 1;
-
-		/* Enabled? */
-		if (Status & EHCI_PORT_ENABLED)
-			Port->Enabled = 1;
-
-		/* High Speed */
-		Port->Speed = HighSpeed;
-	}
-}
-
-/* Port Status Check */
-void EhciPortCheck(EhciController_t *Controller, size_t Port)
-{
-	/* Vars */
-	uint32_t Status = Controller->OpRegisters->Ports[Port];
-	UsbHc_t *HcCtrl;
-
-	/* Connection event? */
-	if (!(Status & EHCI_PORT_CONNECT_EVENT))
-		return;
-
-	/* Clear Event Bits */
-	Controller->OpRegisters->Ports[Port] = (Status | EHCI_PORT_RWC);
-
-	/* Get HCD data */
-	HcCtrl = UsbGetHcd(Controller->HcdId);
-
-	/* Sanity */
-	if (HcCtrl == NULL)
-	{
-		LogDebug("EHCI", "Controller %u is zombie and is trying to give events!", Controller->Id);
-		return;
-	}
-
-	/* Connect or Disconnect? */
-	if (Status & EHCI_PORT_CONNECTED)
-	{
-		/* Ok, something happened
-		* but the port might not be for us */
-		if (EHCI_PORT_LINESTATUS(Status) == EHCI_LINESTATUS_RELEASE) {
-			/* This is a low-speed device */
-			if (EHCI_SPARAM_CCCOUNT(Controller->SParameters) != 0)
-				Controller->OpRegisters->Ports[Port] |= EHCI_PORT_COMPANION_HC;
-		}
-		else
-			UsbEventCreate(HcCtrl, (int)Port, HcdConnectedEvent);
-	}
-	else
-	{
-		/* Disconnect */
-		UsbEventCreate(HcCtrl, (int)Port, HcdDisconnectedEvent);
-	}
-}
-
-/* Root hub scan */
-void EhciPortScan(void *cData)
-{
-	/* Vars & Cast */
-	EhciController_t *Controller = (EhciController_t*)cData;
-	size_t i;
-
-	/* Go through Ports */
-	for (i = 0; i < Controller->Ports; i++)
-	{
-		/* Check íf Port has connected */
-		EhciPortCheck(Controller, i);
-	}
-}
-
-/* Interrupt Handler */
-int EhciInterruptHandler(void *Args)
-{
-	/* Cast */
-	MCoreDevice_t *mDevice = (MCoreDevice_t*)Args;
-	EhciController_t *Controller = 
-		(EhciController_t*)mDevice->Driver.Data;
-
-	/* Calculate which interrupts we accept */
-	uint32_t IntrState =
-		(Controller->OpRegisters->UsbStatus & Controller->OpRegisters->UsbIntr);
-
-	/* Sanity */
-	if (IntrState == 0)
-		return X86_IRQ_NOT_HANDLED;
-
-	/* Ok, lets see */
-	if (IntrState & (EHCI_STATUS_PROCESS | EHCI_STATUS_PROCESSERROR)) {
-		/* Scan for completion/error */
-		EhciProcessTransfers(Controller);
-	}
-
-	/* Hub Change? */
-	if (IntrState & EHCI_STATUS_PORTCHANGE) {
-		UsbEventCreate(UsbGetHcd(Controller->HcdId), 0, HcdRootHubEvent);
-	}
-
-	/* Fatal Error? */
-	if (IntrState & EHCI_STATUS_HOSTERROR) {
-		UsbEventCreate(UsbGetHcd(Controller->HcdId), 0, HcdFatalEvent);
-	}
-
-	/* Doorbell? */
-	if (IntrState & EHCI_STATUS_ASYNC_DOORBELL) {
-		EhciProcessDoorBell(Controller);
-	}
-
-	/* Acknowledge */
-	Controller->OpRegisters->UsbStatus = IntrState;
-
-	/* Done! */
-	return X86_IRQ_HANDLED;
 }

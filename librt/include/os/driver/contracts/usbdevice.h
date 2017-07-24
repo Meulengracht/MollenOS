@@ -16,36 +16,19 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS MCore - Contract Definitions & Structures (Video Contract)
+ * MollenOS MCore - Contract Definitions & Structures (Usb-Device Contract)
  * - This header describes the base contract-structure, prototypes
  *   and functionality, refer to the individual things for descriptions
  */
 
-#ifndef _CONTRACT_VIDEO_INTERFACE_H_
-#define _CONTRACT_VIDEO_INTERFACE_H_
+#ifndef _CONTRACT_USBDEVICE_INTERFACE_H_
+#define _CONTRACT_USBDEVICE_INTERFACE_H_
 
 /* Includes 
  * - System */
-#include <os/driver/contracts/base.h>
+#include <os/driver/usb/definitions.h>
+#include <os/driver/driver.h>
+#include <os/driver/usb.h>
 #include <os/osdefs.h>
 
-PACKED_TYPESTRUCT(VideoDescriptor, {
-	uintptr_t				FrameBufferAddress;
-	
-	size_t				BytesPerScanline;
-	size_t				Height;
-	size_t				Width;
-	int					Depth;
-
-	int					RedPosition;
-	int					BluePosition;
-	int					GreenPosition;
-	int					ReservedPosition;
-
-	int					RedMask;
-	int					BlueMask;
-	int					GreenMask;
-	int					ReservedMask;
-});
-
-#endif //!_CONTRACT_VIDEO_INTERFACE_H_
+#endif

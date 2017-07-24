@@ -3,7 +3,7 @@
 # - drivers
 
 .PHONY: all
-all: build mfs ahci hpet ohci uhci $(arch)
+all: build mfs ahci hpet ohci uhci ehci $(arch)
 
 build:
 	@mkdir -p $@
@@ -81,4 +81,5 @@ clean: clean_$(arch)
 	$(MAKE) -C timers/hpet -f makefile clean
 	$(MAKE) -C serial/usb/ohci -f makefile clean
 	$(MAKE) -C serial/usb/uhci -f makefile clean
+	$(MAKE) -C serial/usb/ehci -f makefile clean
 	rm -rf build

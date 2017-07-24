@@ -16,19 +16,23 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS MCore - Advanced Host Controller Interface Driver
+ * MollenOS MCore - Enhanced Host Controller Interface Driver
  * TODO:
- *	- Port Multiplier Support
- *	- Power Management
+ * - Power Management
+ * - Isochronous Transport
+ * - Transaction Translator Support
  */
 //#define __TRACE
 
 /* Includes 
  * - System */
-#include <os/driver/contracts/disk.h>
 #include <os/mollenos.h>
+#include <os/condition.h>
+#include <os/thread.h>
 #include <os/utils.h>
-#include "manager.h"
+
+#include "../common/manager.h"
+#include "ehci.h"
 
 /* Includes
  * - Library */
@@ -38,45 +42,140 @@
 #include <stdlib.h>
 
 /* Globals
- * State-tracking variables */
-static List_t *GlbControllers = NULL;
+ * Use these for state-keeping the thread */
+static UUId_t __GlbFinalizerThreadId = UUID_INVALID;
+static Condition_t *__GlbFinalizerEvent = NULL;
+
+/* FinalizerEntry 
+ * Entry of the finalizer thread, this thread handles
+ * all completed transactions to notify users */
+int FinalizerEntry(void *Argument)
+{
+	// Variables
+	ListNode_t *cNode = NULL;
+	Mutex_t EventLock;
+
+	// Unused
+	_CRT_UNUSED(Argument);
+
+	// Create the mutex
+	MutexConstruct(&EventLock, MUTEX_PLAIN);
+
+	// Forever-loop
+	while (1) {
+		// Wait for events
+		ConditionWait(__GlbFinalizerEvent, &EventLock);
+
+		// Iterate through all transactions for all controllers
+		_foreach(cNode, UsbManagerGetControllers()) {
+			// Instantiate a controller pointer
+			EhciController_t *Controller = 
+				(EhciController_t*)cNode->Data;
+			
+			// Iterate transactions
+			foreach_nolink(tNode, Controller->QueueControl.TransactionList) {
+				// Instantiate a transaction pointer
+				UsbManagerTransfer_t *Transfer = 
+					(UsbManagerTransfer_t*)tNode->Data;
+
+				// Cleanup?
+				if (Transfer->Cleanup) {
+					// Temporary copy of pointer
+					ListNode_t *Temp = tNode;
+
+					// Notify requester and finalize
+					OhciTransactionFinalize(Controller, Transfer, 1);
+				
+					// Remove from list (in-place, tricky)
+					tNode = ListUnlinkNode(
+						Controller->QueueControl.TransactionList,
+						tNode);
+
+					// Cleanup
+					ListDestroyNode(
+						Controller->QueueControl.TransactionList, 
+						Temp);
+				}
+				else {
+					tNode = ListNext(tNode);
+				}
+			}
+		}
+	}
+
+	// Done
+	return 0;
+}
 
 /* OnInterrupt
  * Is called when one of the registered devices
  * produces an interrupt. On successful handled
  * interrupt return OsSuccess, otherwise the interrupt
  * won't be acknowledged */
-InterruptStatus_t OnInterrupt(void *InterruptData)
+InterruptStatus_t
+OnInterrupt(
+	_In_ void *InterruptData)
 {
 	// Variables
-	AhciController_t *Controller = NULL;
+	EhciController_t *Controller = NULL;
 	reg32_t InterruptStatus;
-	int i;
 
 	// Instantiate the pointer
-	Controller = (AhciController_t*)InterruptData;
-	InterruptStatus = Controller->Registers->InterruptStatus;
+	Controller = (EhciController_t*)InterruptData;
+
+	// Calculate the kinds of interrupts this controller accepts
+	InterruptStatus = 
+		(Controller->OpRegisters->UsbStatus & Controller->OpRegisters->UsbIntr);
 
 	// Trace
-	TRACE("Interrupt - Status 0x%x", InterruptStatus);
+	TRACE("EHCI-Interrupt - Status 0x%x", InterruptStatus);
 
 	// Was the interrupt even from this controller?
 	if (!InterruptStatus) {
 		return InterruptNotHandled;
 	}
 
-	// Iterate the port-map and check if the interrupt
-	// came from that port
-	for (i = 0; i < 32; i++) {
-		if (Controller->Ports[i] != NULL
-			&& ((InterruptStatus & (1 << i)) != 0)) {
-			AhciPortInterruptHandler(Controller, Controller->Ports[i]);
+	// Transaction update, either error or completion
+	if (InterruptStatus & (EHCI_STATUS_PROCESS | EHCI_STATUS_PROCESSERROR)) {
+		EhciProcessTransfers(Controller);
+	}
+
+	// Hub change? We should enumerate ports and detect
+	// which events occured
+	if (InterruptStatus & EHCI_STATUS_PORTCHANGE) {
+		EhciPortScan(Controller);
+	}
+
+	// HC Fatal Error
+	// Clear all queued, reset controller
+	if (InterruptStatus & EHCI_STATUS_HOSTERROR) {
+		if (EhciRestart(Controller) != OsSuccess) {
+			ERROR("EHCI-Failure: Failed to reset controller after Fatal Error");
 		}
 	}
 
-	// Write clear interrupt register and return
-	Controller->Registers->InterruptStatus = InterruptStatus;
+	// Doorbell? Process transactions in progress
+	if (InterruptStatus & EHCI_STATUS_ASYNC_DOORBELL) {
+		EhciProcessDoorBell(Controller);
+	}
+
+	// Acknowledge the interrupt by clearing
+	Controller->OpRegisters->UsbStatus = InterruptStatus;
+
+	// Done
 	return InterruptHandled;
+}
+
+/* OnTimeout
+ * Is called when one of the registered timer-handles
+ * times-out. A new timeout event is generated and passed
+ * on to the below handler */
+OsStatus_t
+OnTimeout(
+	_In_ UUId_t Timer,
+	_In_ void *Data)
+{
+	return OsSuccess;
 }
 
 /* OnLoad
@@ -84,11 +183,14 @@ InterruptStatus_t OnInterrupt(void *InterruptData)
  * as soon as the driver is loaded in the system */
 OsStatus_t OnLoad(void)
 {
-	// Initialize state for this driver
-	GlbControllers = ListCreate(KeyInteger, LIST_NORMAL);
+	// Create event semaphore
+	__GlbFinalizerEvent = ConditionCreate();
+
+	// Start finalizer thread
+	__GlbFinalizerThreadId = ThreadCreate(FinalizerEntry, NULL);
 
 	// Initialize the device manager here
-	return AhciManagerInitialize();
+	return UsbManagerInitialize();
 }
 
 /* OnUnload
@@ -96,16 +198,14 @@ OsStatus_t OnLoad(void)
  * and should free all resources allocated by the system */
 OsStatus_t OnUnload(void)
 {
-	// Iterate registered controllers
-	foreach(cNode, GlbControllers) {
-		AhciControllerDestroy((AhciController_t*)cNode->Data);
-	}
+	// Stop thread
+	ThreadKill(__GlbFinalizerThreadId);
 
-	// Data is now cleaned up, destroy list
-	ListDestroy(GlbControllers);
+	// Cleanup semaphore
+	ConditionDestroy(__GlbFinalizerEvent);
 
 	// Cleanup the internal device manager
-	return AhciManagerDestroy();
+	return UsbManagerDestroy();
 }
 
 /* OnRegister
@@ -114,25 +214,18 @@ OsStatus_t OnUnload(void)
 OsStatus_t OnRegister(MCoreDevice_t *Device)
 {
 	// Variables
-	AhciController_t *Controller = NULL;
-	DataKey_t Key;
+	EhciController_t *Controller = NULL;
 	
 	// Register the new controller
-	Controller = AhciControllerCreate(Device);
+	Controller = EhciControllerCreate(Device);
 
 	// Sanitize
 	if (Controller == NULL) {
 		return OsError;
 	}
 
-	// Use the device-id as key
-	Key.Value = (int)Device->Id;
-
-	// Append the controller to our list
-	ListAppend(GlbControllers, ListCreateNode(Key, Key, Controller));
-
-	// Done - no error
-	return OsSuccess;
+	// Done - Register with service
+	return UsbManagerCreateController(&Controller->Base);
 }
 
 /* OnUnregister
@@ -141,27 +234,21 @@ OsStatus_t OnRegister(MCoreDevice_t *Device)
 OsStatus_t OnUnregister(MCoreDevice_t *Device)
 {
 	// Variables
-	AhciController_t *Controller = NULL;
-	DataKey_t Key;
-
-	// Set the key to the id of the device to find
-	// the bound controller
-	Key.Value = (int)Device->Id;
-
+	EhciController_t *Controller = NULL;
+	
 	// Lookup controller
-	Controller = (AhciController_t*)
-		ListGetDataByKey(GlbControllers, Key, 0);
+	Controller = (EhciController_t*)UsbManagerGetController(Device->Id);
 
 	// Sanitize lookup
 	if (Controller == NULL) {
 		return OsError;
 	}
 
-	// Remove node from list
-	ListRemoveByKey(GlbControllers, Key);
+	// Unregister, then destroy
+	UsbManagerDestroyController(&Controller->Base);
 
 	// Destroy it
-	return AhciControllerDestroy(Controller);
+	return EhciControllerDestroy(Controller);
 }
 
 /* OnQuery
@@ -177,93 +264,116 @@ OnQuery(_In_ MContractType_t QueryType,
 		_In_ UUId_t Queryee, 
 		_In_ int ResponsePort)
 {
-	// Unused params
-	_CRT_UNUSED(Arg2);
+	// Variables
+	UsbManagerTransfer_t *Transfer = NULL;
+	EhciController_t *Controller = NULL;
+	UUId_t Device = UUID_INVALID, Pipe = UUID_INVALID;
+	OsStatus_t Result = OsError;
 
-	// Sanitize the QueryType
-	if (QueryType != ContractDisk) {
-		return OsError;
+	// Instantiate some variables
+	Device = (UUId_t)Arg0->Data.Value;
+	Pipe = (UUId_t)Arg1->Data.Value;
+	
+	// Lookup controller
+	Controller = (EhciController_t*)UsbManagerGetController(Device);
+
+	// Sanitize we have a controller
+	if (Controller == NULL) {
+		// Null response
+		return PipeSend(Queryee, ResponsePort, 
+			(void*)&Result, sizeof(OsStatus_t));
 	}
 
-	// Which kind of function has been invoked?
 	switch (QueryFunction) {
-		// Query stats about a disk identifier in the form of
-		// a DiskDescriptor
-	case __DISK_QUERY_STAT: {
-		// Get parameters
-		AhciDevice_t *Device = NULL;
-		UUId_t DiskId = (UUId_t)Arg0->Data.Value;
+		// Generic Queue
+		case __USBHOST_QUEUETRANSFER: {
+			// Create and setup new transfer
+			Transfer = UsbManagerCreateTransfer(
+				(UsbTransfer_t*)Arg2->Data.Buffer,
+				Queryee, ResponsePort, Device, Pipe);
 
-		// Lookup device
-		Device = AhciManagerGetDevice(DiskId);
+			// Queue the generic transfer
+			return UsbQueueTransferGeneric(Transfer);
+		} break;
 
-		// Write the descriptor back
-		if (Device != NULL) {
-			return PipeSend(Queryee, ResponsePort,
-				(void*)&Device->Descriptor, sizeof(DiskDescriptor_t));
-		}
-		else {
-			OsStatus_t Result = OsError;
-			return PipeSend(Queryee, ResponsePort,
-				(void*)&Result, sizeof(OsStatus_t));
-		}
+		// Periodic Queue
+		case __USBHOST_QUEUEPERIODIC: {
+			// Variables
+			UsbTransferResult_t ResPackage;
 
-	} break;
+			// Create and setup new transfer
+			Transfer = UsbManagerCreateTransfer(
+				(UsbTransfer_t*)Arg2->Data.Buffer,
+				Queryee, ResponsePort, Device, Pipe);
 
-		// Read or write sectors from a disk identifier
-		// They have same parameters with different direction
-	case __DISK_QUERY_WRITE:
-	case __DISK_QUERY_READ: {
-		// Get parameters
-		DiskOperation_t *Operation = (DiskOperation_t*)Arg1->Data.Buffer;
-		UUId_t DiskId = (UUId_t)Arg0->Data.Value;
+			// Queue the periodic transfer
+			Result = UsbQueueTransferGeneric(Transfer);
 
-		// Create a new transaction
-		AhciTransaction_t *Transaction =
-			(AhciTransaction_t*)malloc(sizeof(AhciTransaction_t));
-		
-		// Set sender stuff so we can send a response
-		Transaction->Requester = Queryee;
-		Transaction->Pipe = ResponsePort;
-		
-		// Store buffer-object stuff
-		Transaction->Address = Operation->PhysicalBuffer;
-		Transaction->SectorCount = Operation->SectorCount;
-
-		// Lookup device
-		Transaction->Device = AhciManagerGetDevice(DiskId);
-
-		// Determine the kind of operation
-		if (Transaction->Device != NULL
-			&& Operation->Direction == __DISK_OPERATION_READ) {
-			if (AhciReadSectors(Transaction, Operation->AbsSector) != OsSuccess) {
-				OsStatus_t Result = OsError;
-				return PipeSend(Queryee, ResponsePort, (void*)&Result, sizeof(OsStatus_t));
+			// Get id
+			ResPackage.Id = Transfer->Id;
+			ResPackage.BytesTransferred = 0;
+			if (Result == OsSuccess) {
+				ResPackage.Status = TransferNotProcessed;
 			}
 			else {
-				return OsSuccess;
+				ResPackage.Status = TransferInvalidData;
 			}
-		}
-		else if (Transaction->Device != NULL
-			&& Operation->Direction == __DISK_OPERATION_WRITE) {
-			if (AhciWriteSectors(Transaction, Operation->AbsSector) != OsSuccess) {
-				OsStatus_t Result = OsError;
-				return PipeSend(Queryee, ResponsePort, (void*)&Result, sizeof(OsStatus_t));
-			}
-			else {
-				return OsSuccess;
-			}
-		}
-		else {
-			OsStatus_t Result = OsError;
-			return PipeSend(Queryee, ResponsePort, (void*)&Result, sizeof(OsStatus_t));
-		}
 
-	} break;
+			// Send back package
+			return PipeSend(Queryee, ResponsePort, 
+				(void*)&ResPackage, sizeof(UsbTransferResult_t));
+		} break;
 
-		// Other cases not supported
-	default: {
-		return OsError;
+		// Dequeue Transfer
+		case __USBHOST_DEQUEUEPERIODIC: {
+			
+			// Extract transfer-id
+			UsbManagerTransfer_t *Transfer = NULL;
+			UUId_t Id = (UUId_t)Arg1->Data.Value;
+
+			// Lookup transfer by iterating through
+			// available transfers
+			foreach(tNode, Controller->QueueControl.TransactionList) {
+				// Cast data to our type
+				UsbManagerTransfer_t *NodeTransfer = 
+					(UsbManagerTransfer_t*)tNode->Data;
+				if (NodeTransfer->Id == Id) {
+					Transfer = NodeTransfer;
+					break;
+				}
+			}
+
+			// Dequeue and send result back
+			if (Transfer != NULL) {
+				Result = UsbDequeueTransferGeneric(Transfer);
+			}
+		} break;
+
+		// Reset port
+		case __USBHOST_RESETPORT: {
+			// Call reset procedure, then let it fall through
+			// to QueryPort
+			EhciPortPrepare(Controller, (int)Pipe);
+		};
+		// Query port
+		case __USBHOST_QUERYPORT: {
+			// Variables
+			UsbHcPortDescriptor_t Descriptor;
+
+			// Fill port descriptor
+			EhciPortGetStatus(Controller, (int)Pipe, &Descriptor);
+
+			// Send descriptor back
+			return PipeSend(Queryee, ResponsePort, 
+				(void*)&Descriptor, sizeof(UsbHcPortDescriptor_t));
+		} break;
+
+		// Fall-through, error
+		default:
+			break;
 	}
-	}
+
+	// Dunno, fall-through case
+	// Return status response
+	return PipeSend(Queryee, ResponsePort, (void*)&Result, sizeof(OsStatus_t));
 }

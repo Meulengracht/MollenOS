@@ -31,6 +31,7 @@
 #include <os/driver/io.h>
 #include <os/driver/service.h>
 #include <os/driver/interrupt.h>
+#include <stddef.h>
 
 /* The export macro, and is only set by the
  * the actual implementation of the devicemanager */
@@ -73,6 +74,10 @@
 #define __DEVICEMANAGER_IOCTL_MMIO_ENABLE		(0x00000002 | 0x00000004)
 #define __DEVICEMANAGER_IOCTL_BUSMASTER_ENABLE	0x00000008
 #define __DEVICEMANAGER_IOCTL_FASTBTB_ENABLE	0x00000010  // Fast Back-To-Back
+
+// Ioctl-Ext Specific Flags
+#define __DEVICEMANAGER_IOCTL_EXT_WRITE			0x00000000
+#define __DEVICEMANAGER_IOCTL_EXT_READ			0x80000000
 
 /* These are the different IPC functions supported
  * by the devicemanager, note that some of them might
@@ -167,8 +172,7 @@ __DEVAPI
 OsStatus_t
 SERVICEABI
 IoctlDevice(
-	_In_ UUId_t Device,
-	_In_ Flags_t Command,
+	_In_ MCoreDevice_t *Device,
 	_In_ Flags_t Flags);
 #else
 __DEVAPI
@@ -199,15 +203,17 @@ IoctlDevice(
 
 /* Device I/O Control (Extended)
  * Allows manipulation of a given device to either disable
- * or enable, or configure the device */
+ * or enable, or configure the device.
+ * <Direction> = 0 (Read), 1 (Write) */
 #ifdef __DEVICEMANAGER_IMPL
 __DEVAPI
-OsStatus_t
+Flags_t
 SERVICEABI
 IoctlDeviceEx(
-	_In_ UUId_t Device,
+	_In_ MCoreDevice_t *Device,
+	_In_ Flags_t Parameters,
 	_In_ Flags_t Register,
-	_In_ Flags_t Command,
+	_In_ Flags_t Value,
 	_In_ size_t Width);
 #else
 __DEVAPI
@@ -215,14 +221,21 @@ OsStatus_t
 SERVICEABI
 IoctlDeviceEx(
 	_In_ UUId_t Device,
+	_In_ int Direction,
 	_In_ Flags_t Register,
-	_In_ Flags_t Command,
+	_InOut_ Flags_t *Value,
 	_In_ size_t Width)
 {
 	// Variables
 	MRemoteCall_t Request;
-	OsStatus_t Result = OsSuccess;
-	Flags_t Select = __DEVICEMANAGER_IOCTL_EXT;
+	Flags_t Result = 0;
+	Flags_t Select = 0;
+
+	// Build selection
+	Select = __DEVICEMANAGER_IOCTL_EXT;
+	if (Direction == 0) {
+		Select |= __DEVICEMANAGER_IOCTL_EXT_READ;
+	}
 
 	// Initialize RPC
 	RPCInitialize(&Request, __DEVICEMANAGER_INTERFACE_VERSION, 
@@ -230,13 +243,23 @@ IoctlDeviceEx(
 	RPCSetArgument(&Request, 0, (__CONST void*)&Device, sizeof(UUId_t));
 	RPCSetArgument(&Request, 1, (__CONST void*)&Select, sizeof(Flags_t));
 	RPCSetArgument(&Request, 2, (__CONST void*)&Register, sizeof(Flags_t));
-	RPCSetArgument(&Request, 3, (__CONST void*)&Command, sizeof(Flags_t));
+	RPCSetArgument(&Request, 3, (__CONST void*)Value, sizeof(Flags_t));
 	RPCSetArgument(&Request, 4, (__CONST void*)&Width, sizeof(size_t));
-	RPCSetResult(&Request, (__CONST void*)&Result, sizeof(OsStatus_t));
+	RPCSetResult(&Request, (__CONST void*)&Result, sizeof(Flags_t));
 	
 	// Execute RPC
 	RPCExecute(&Request, __DEVICEMANAGER_TARGET);
-	return Result;
+
+	// Handle return
+	if (Direction == 0 && Value != NULL) {
+		*Value = Result;
+	}
+	else {
+		return (OsStatus_t)Result;
+	}
+
+	// Read, discard value
+	return OsSuccess;
 }
 #endif
 

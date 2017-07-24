@@ -216,6 +216,23 @@
         "lzcrc32.inc": "c",
         "exception_fallback.ipp": "c",
         "exception_msvc.ipp": "c",
-        "cxa_handlers.cpp": "c"
+        "cxa_handlers.cpp": "c",
+        "acutils.h": "c",
+        "acdebug.h": "c",
+        "acexcep.h": "c",
+        "sdl_opengl_glext.h": "c",
+        "lzcheck.inc": "c",
+        "lzunpack.inc": "c",
+        "gpt.h": "c",
+        "scanner.cpp": "c",
+        "pshints.h": "c",
+        "__clang_cuda_cmath.h": "c",
+        "math.h": "c",
+        "ftbdf.h": "c",
+        "ftrfork.h": "c",
+        "video.h": "c",
+        "mollenos.h": "c",
+        "fpmath.h": "c",
+        "service.h": "c"
     }
 }

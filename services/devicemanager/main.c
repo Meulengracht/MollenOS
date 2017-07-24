@@ -127,8 +127,13 @@ OsStatus_t OnEvent(MRemoteCall_t *Message)
 
 			// Sanitizie
 			if (Device != NULL) {
-				if (Message->Arguments[1].Data.Value == __DEVICEMANAGER_IOCTL_BUS) {
-					Result = BusDeviceIoctl(Device, Message->Arguments[2].Data.Value);
+				if ((Message->Arguments[1].Data.Value & 0xFFFF) == __DEVICEMANAGER_IOCTL_BUS) {
+					Result = IoctlDevice(Device, Message->Arguments[2].Data.Value);
+				}
+				else if ((Message->Arguments[1].Data.Value & 0xFFFF) == __DEVICEMANAGER_IOCTL_EXT) {
+					Result = IoctlDeviceEx(Device, Message->Arguments[1].Data.Value,
+						Message->Arguments[2].Data.Value, Message->Arguments[3].Data.Value,
+						Message->Arguments[4].Data.Value);
 				}
 			}
 
