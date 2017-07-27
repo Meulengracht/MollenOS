@@ -84,7 +84,7 @@ int FinalizerEntry(void *Argument)
 					ListNode_t *Temp = tNode;
 
 					// Notify requester and finalize
-					OhciTransactionFinalize(Controller, Transfer, 1);
+					EhciTransactionFinalize(Controller, Transfer, 1);
 				
 					// Remove from list (in-place, tricky)
 					tNode = ListUnlinkNode(
@@ -353,7 +353,7 @@ OnQuery(_In_ MContractType_t QueryType,
 		case __USBHOST_RESETPORT: {
 			// Call reset procedure, then let it fall through
 			// to QueryPort
-			EhciPortPrepare(Controller, (int)Pipe);
+			EhciPortReset(Controller, (int)Pipe);
 		};
 		// Query port
 		case __USBHOST_QUERYPORT: {

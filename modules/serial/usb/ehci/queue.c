@@ -33,8 +33,7 @@
 #include <string.h>
 
 /* Globals */
-const char *EhciErrorMessages[] =
-{
+const char *EhciErrorMessages[] = {
 	"No Error",
 	"Ping State/PERR",
 	"Split Transaction State",
@@ -873,11 +872,11 @@ int EhciScanQh(EhciController_t *Controller, UsbHcRequest_t *Request)
 	return ProcessQh;
 }
 
-/* Process transfers 
- * for transaction progress
- * this involves done/error 
- * transfers */
-void EhciProcessTransfers(EhciController_t *Controller)
+/* EhciProcessTransfers
+ * For transaction progress this involves done/error transfers */
+void
+EhciProcessTransfers(
+	_In_ EhciController_t *Controller)
 {
 	/* Transaction is completed / Failed */
 	List_t *Transactions = (List_t*)Controller->TransactionList;
@@ -932,10 +931,11 @@ void EhciProcessTransfers(EhciController_t *Controller)
 	}
 }
 
-/* Processes transfers 
- * This makes sure to schedule 
- * and/or unschedule transfers */
-void EhciProcessDoorBell(EhciController_t *Controller)
+/* EhciProcessDoorBell
+ * This makes sure to schedule and/or unschedule transfers */
+void
+EhciProcessDoorBell(
+	_In_ EhciController_t *Controller)
 {
 	/* Vars */
 	ListNode_t *Node = NULL;
@@ -965,10 +965,8 @@ Scan:
 		}
 	}
 
-	/* If someone has 
-	 * rung the bell while 
-	 * the door was opened, we 
-	 * should not close the door yet */
+	/* If someone has rung the bell while 
+	 * the door was opened, we should not close the door yet */
 	if (Controller->BellReScan != 0)
 		goto Scan;
 

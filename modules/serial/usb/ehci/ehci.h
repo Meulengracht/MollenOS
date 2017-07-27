@@ -181,15 +181,17 @@ PACKED_ATYPESTRUCT(volatile, EchiOperationalRegisters, {
 #define EHCI_PORT_POWER					(1 << 12)
 #define EHCI_PORT_COMPANION_HC			(1 << 13)
 
-/* Port Wake Bits */
+// Wake bits and RWC
 #define EHCI_PORT_CONNECT_WAKE			(1 << 20)
 #define EHCI_PORT_DISCONNECT_WAKE		(1 << 21)
 #define EHCI_PORT_OC_WAKE				(1 << 22)
-
-/* Port Event Bits */
 #define EHCI_PORT_RWC					(EHCI_PORT_CONNECT_EVENT | EHCI_PORT_ENABLE_EVENT | EHCI_PORT_OC_EVENT)
 
-/* Link Bits */
+/* EhciLink::LinkBits
+ * Contains definitions and bitfield definitions for EhciLink::LinkBits
+ * Bit 0: Terminate
+ * Bit 1-2: Type
+ * Bit 3-4: 0 */
 #define EHCI_LINK_END					(1 << 0)
 #define EHCI_LINK_iTD					0
 #define EHCI_LINK_QH					(1 << 1)
@@ -197,74 +199,41 @@ PACKED_ATYPESTRUCT(volatile, EchiOperationalRegisters, {
 #define EHCI_LINK_FSTN					(3 << 1)
 #define EHCI_LINK_TYPE(n)				((n >> 1) & 0x3)
 
-/* Isochronous Transfer Descriptor 
- * Must be 32 byte aligned */
-#pragma pack(push, 1)
-typedef struct _EhciIsocDescriptor
-{
-	/* Link Pointer 
-	 * Bit 0: Terminate
-	 * Bit 1-2: Type
-	 * Bit 3-4: 0 */
-	uint32_t Link;
+/* EhciIsochronousDescriptor
+ * Isochronous Transfer Descripter. Must be 32 byte aligned */
+PACKED_TYPESTRUCT(EhciIsochronousDescriptor, {
+	reg32_t 					Link;
+	uint16_t 					Transaction0[2];
+	uint16_t 					Transaction1[2];
+	uint16_t 					Transaction2[2];
+	uint16_t 					Transaction3[2];
+	uint16_t 					Transaction4[2];
+	uint16_t 					Transaction5[2];
+	uint16_t 					Transaction6[2];
+	uint16_t 					Transaction7[2];
+	reg32_t 					StatusAndBp0;
+	reg32_t 					MpsAndBp1;
+	reg32_t 					MultAndBp2;
+	reg32_t 					Bp3;
+	reg32_t 					Bp4;
+	reg32_t 					Bp5;
+	reg32_t 					Bp6;
+	reg32_t 					ExtBp0;
+	reg32_t 					ExtBp1;
+	reg32_t 					ExtBp2;
+	reg32_t 					ExtBp3;
+	reg32_t 					ExtBp4;
+	reg32_t 					ExtBp5;
+	reg32_t 					ExtBp6;
+});
 
-	/* Transactions 
-	 * Bit 0-11: Transaction Offset
-	 * Bit 12-14: Page Selector 
-	 * Bit 15: Interrupt on Completion 
-	 * Bit 16-27: Transaction Length 
-	 * Bit 28-31: Condition Code (Status) */
-	uint16_t Transaction0[2];
-	uint16_t Transaction1[2];
-	uint16_t Transaction2[2];
-	uint16_t Transaction3[2];
-	uint16_t Transaction4[2];
-	uint16_t Transaction5[2];
-	uint16_t Transaction6[2];
-	uint16_t Transaction7[2];
-
-	/* Status & Bp0 
-	 * Bit 0-6: Device Address 
-	 * Bit 7: Reserved 
-	 * Bit 8-11: Endpoint Number 
-	 * Bit 12-31: Buffer Page */
-	uint32_t StatusAndBp0;
-
-	/* MaxPacketSize & Bp1 
-	 * Bit 0-10: Maximum Packet Size (max 400h)
-	 * Bit 11: Direction (0 = out, 1 = in) 
-	 * Bit 12-31: Buffer Page */
-	uint32_t MpsAndBp1;
-
-	/* Multi & Bp2
-	 * Bit 0-1: How many transactions per micro-frame should be executed
-	 * Bit 12-31: Buffer Page */
-	uint32_t MultAndBp2;
-
-	/* Bp3-6 
-	 * Bit 0-11: Reserved
-	 * Bit 12-31: Buffer Page */
-	uint32_t Bp3;
-	uint32_t Bp4;
-	uint32_t Bp5;
-	uint32_t Bp6;
-
-	/* Extended buffer pages
-	* Their upper address bits */
-	uint32_t ExtBp0;
-	uint32_t ExtBp1;
-	uint32_t ExtBp2;
-	uint32_t ExtBp3;
-	uint32_t ExtBp4;
-	uint32_t ExtBp5;
-	uint32_t ExtBp6;
-
-} EhciIsocDescriptor_t;
-#pragma pack(pop)
-
-/* iTD: Transaction Bits */
-#define EHCI_iTD_DEVADDR(n)				(n & 0x7F)
-#define EHCI_iTD_EPADDR(n)				((n & 0xF) << 8)
+/* EhciIsochronousDescriptor::Transaction[0-7]
+ * Contains definitions and bitfield definitions for EhciIsochronousDescriptor::Transaction[0-7]
+ * Bit 0-11: Transaction Offset
+ * Bit 12-14: Page Selector 
+ * Bit 15: Interrupt on Completion 
+ * Bit 16-27: Transaction Length 
+ * Bit 28-31: Condition Code (Status) */
 #define EHCI_iTD_OFFSET(n)				(n & 0xFFF)
 #define EHCI_iTD_PAGE(n)				((n & 0x7) << 12)
 #define EHCI_iTD_IOC					(1 << 15)
@@ -272,77 +241,87 @@ typedef struct _EhciIsocDescriptor
 #define EHCI_iTD_ACTIVE					(1 << 15)
 #define EHCI_iTD_CC(n)					((n >> 12) & 0xF)
 
+/* EhciIsochronousDescriptor::StatusAndBp0
+ * Contains definitions and bitfield definitions for EhciIsochronousDescriptor::StatusAndBp0
+ * Bit 0-6: Device Address 
+ * Bit 7: Reserved 
+ * Bit 8-11: Endpoint Number 
+ * Bit 12-31: Buffer Page */
+#define EHCI_iTD_DEVADDR(n)				(n & 0x7F)
+#define EHCI_iTD_EPADDR(n)				((n & 0xF) << 8)
+
+/* EhciIsochronousDescriptor::MpsAndBp1
+ * Contains definitions and bitfield definitions for EhciIsochronousDescriptor::MpsAndBp1
+ * Bit 0-10: Maximum Packet Size (max 400h)
+ * Bit 11: Direction (0 = out, 1 = in) 
+ * Bit 12-31: Buffer Page */
 #define EHCI_iTD_MPS(n)					(MIN(1024, n))
 #define EHCI_iTD_IN						(1 << 11);
 #define EHCI_iTD_OUT					0
-#define EHCI_iTD_BUFFER(n)				(n & 0xFFFFF000)
-#define EHCI_iTD_EXTBUFFER(n)			((n >> 32) & 0xFFFFFFFF)
+
+/* EhciIsochronousDescriptor::MultAndBp2
+ * Contains definitions and bitfield definitions for EhciIsochronousDescriptor::MultAndBp2
+ * Bit 0-1: How many transactions per micro-frame should be executed
+ * Bit 12-31: Buffer Page */
 #define EHCI_iTD_TRANSACTIONCOUNT(n)	(n & 0x3)
 
-/* Split Isochronous Transfer Descriptor
-* Must be 32 byte aligned */
-#pragma pack(push, 1)
-typedef struct _EhciSplitIsocDescriptor
-{
-	/* Link Pointer
-	* Bit 0: Terminate
-	* Bit 1-2: Type
-	* Bit 3-4: 0 */
-	uint32_t Link;
+/* EhciIsochronousDescriptor::Bp[3-6]
+ * Contains definitions and bitfield definitions for EhciIsochronousDescriptor::Bp[3-6]
+ * Bit 0-11: Reserved
+ * Bit 12-31: Buffer Page */
+#define EHCI_iTD_BUFFER(n)				(n & 0xFFFFF000)
+#define EHCI_iTD_EXTBUFFER(n)			((n >> 32) & 0xFFFFFFFF)
 
-	/* Flags 
-	 * Bit 0-6: Device Address
-	 * Bit 7: Reserved
-	 * Bit 8-11: Endpoint Address 
-	 * Bit 12-15: Reserved
-	 * Bit 16-22: Hub Address
-	 * Bit 23: Reserved
-	 * Bit 24-30: Port Number
-	 * Bit 31: Direction */
-	uint32_t Flags;
-
-	/* Frame Masks */
+/* EhciSplitIsochronousDescriptor
+ * Split Isochronous Transfer Descriptor. 
+ * Must be 32 byte aligned */
+PACKED_TYPESTRUCT(EhciSplitIsochronousDescriptor, {
+	reg32_t Link;
+	reg32_t Flags;
 	uint8_t FStartMask;
 	uint8_t FCompletionMask;
-
-	/* Reserved */
 	uint16_t Reserved;
-
-	/* Status
-	 * Bit 0-7: Status
-	 * Bit 8-15: �Frame Complete-split Progress Mask 
-	 * Bit 16-25: Transfer Length (max 3FFh)
-	 * Bit 26-29: Reserved
-	 * Bit 30: Page Select (0 = Bp0, 1 = Bp1)
-	 * Bit 31: IOC */
-	uint32_t Status;
+	reg32_t Status;
 
 	/* Buffer Page 0 + Offset 
 	 * Bit 0-11: Current Offset 
 	 * Bit 12-31: Bp0 */
-	uint32_t Bp0AndOffset;
+	reg32_t Bp0AndOffset;
 
 	/* Buffer Page 1 + Info 
 	 * Bit 0-2: Transaction count, max val 6
 	 * Bit 3-4: Transaction Position, 
 	 * Bit 5-11: Reserved
 	 * Bit 12-31: Bp1 */
-	uint32_t Bp1AndInfo;
+	reg32_t Bp1AndInfo;
+	reg32_t BackPointer;
+	reg32_t ExtBp0;
+	reg32_t ExtBp1;
+});
 
-	/* Back Pointer
-	 * Bit 0: Terminate 
-	 * Bit 1-4: Reserved */
-	uint32_t BackPointer;
+/* EhciSplitIsochronousDescriptor::Flags
+ * Contains definitions and bitfield definitions for EhciSplitIsochronousDescriptor::Flags
+ * Bit 0-11: Transaction Offset
+ * Bit 12-14: Page Selector 
+ * Bit 15: Interrupt on Completion 
+ * Bit 16-27: Transaction Length 
+ * Bit 28-31: Condition Code (Status) */
 
-	/* Extended buffer pages
-	* Their upper address bits */
-	uint32_t ExtBp0;
-	uint32_t ExtBp1;
 
-} EhciSplitIsocDescriptor_t;
-#pragma pack(pop)
+/* Status
+ * Bit 0-7: Status
+ * Bit 8-15: Frame Complete-split Progress Mask 
+ * Bit 16-25: Transfer Length (max 3FFh)
+ * Bit 26-29: Reserved
+ * Bit 30: Page Select (0 = Bp0, 1 = Bp1)
+ * Bit 31: IOC */
+#define EHCI_siTD_ACTIVE				(1 << 7)
+#define EHCI_siTD_CC(n)					(n & 0xFF)
+#define EHCI_siTD_CSPMASK(n)			((n & 0xFF) << 8)
+#define EHCI_siTD_LENGTH(n)				((n & 0x3FF) << 16)
+#define EHCI_siTD_PAGE(n)				((n & 0x1) << 30)
+#define EHCI_siTD_IOC					(n << 31)
 
-/* siTD Bits */
 #define EHCI_siTD_DEVADDR(n)			(n & 0x7F)
 #define EHCI_siTD_EPADDR(n)				((n & 0xF) << 8)
 #define EHCI_siTD_HUBADDR(n)			((n & 0x7F) << 16)
@@ -352,13 +331,6 @@ typedef struct _EhciSplitIsocDescriptor
 
 #define EHCI_siTD_SMASK(n)				(n & 0xFF)
 #define EHCI_siTD_CMASK(n)				((n & 0xFF) << 8)
-
-#define EHCI_siTD_ACTIVE				(1 << 7)
-#define EHCI_siTD_CC(n)					(n & 0xFF)
-#define EHCI_siTD_CSPMASK(n)			((n & 0xFF) << 8)
-#define EHCI_siTD_LENGTH(n)				((n & 0x3FF) << 16)
-#define EHCI_siTD_PAGE(n)				((n & 0x1) << 30)
-#define EHCI_siTD_IOC					(n << 31)
 
 #define EHCI_siTD_OFFSET(n)				(n & 0xFFF)
 #define EHCI_siTD_BUFFER(n)				(n & 0xFFFFF000)
@@ -376,13 +348,13 @@ typedef struct _EhciTransferDescriptor
 {
 	/* Link Pointer - Next TD
 	* Bit 0: Terminate */
-	uint32_t Link;
+	reg32_t Link;
 
 	/* Alternative Link Pointer - Next TD
 	* Only used when a short packet is detected
 	* Then this link is executed instead (if set..)
 	* Bit 0: Terminate */
-	uint32_t AlternativeLink;
+	reg32_t AlternativeLink;
 
 	/* Status */
 	uint8_t Status;
@@ -402,21 +374,13 @@ typedef struct _EhciTransferDescriptor
 	/* Buffer Page 0 + Offset 
 	 * Bit 0-11: Current Offset
 	 * Bit 12-31: Buffer Page */
-	uint32_t Buffers[5];
-
-	/* Extended buffer pages
-	* Their upper address bits */
-	uint32_t ExtBuffers[5];
+	reg32_t Buffers[5];
+	reg32_t ExtBuffers[5];
 
 	/* 52 bytes, lets reach 64 */
-
-	/* HCD Flags */
-	uint32_t HcdFlags;
-	uint32_t PhysicalAddress;
-
-	/* Padding */
-	uint32_t Padding[1];
-
+	reg32_t HcdFlags;
+	reg32_t PhysicalAddress;
+	reg32_t Padding[1];
 } EhciTransferDescriptor_t;
 #pragma pack(pop)
 
@@ -720,11 +684,11 @@ void
 EhciPortScan(
 	_In_ EhciController_t *Controller);
 
-/* EhciPortPrepare
- * Resets the port and also clears out any event on the port line. */
+/* EhciPortReset
+ * Resets the given port and returns the result of the reset */
 __EXTERN
 OsStatus_t
-EhciPortPrepare(
+EhciPortReset(
 	_In_ EhciController_t *Controller, 
 	_In_ int Index);
 
@@ -736,6 +700,20 @@ EhciPortGetStatus(
 	_In_ EhciController_t *Controller,
 	_In_ int Index,
 	_Out_ UsbHcPortDescriptor_t *Port);
+
+/* EhciProcessTransfers
+ * For transaction progress this involves done/error transfers */
+__EXTERN
+void
+EhciProcessTransfers(
+	_In_ EhciController_t *Controller);
+
+/* EhciProcessDoorBell
+ * This makes sure to schedule and/or unschedule transfers */
+__EXTERN
+void
+EhciProcessDoorBell(
+	_In_ EhciController_t *Controller);
 
 /* UsbQueueTransferGeneric 
  * Queues a new transfer for the given driver
