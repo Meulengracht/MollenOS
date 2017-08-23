@@ -336,6 +336,7 @@ UhciSetup(
 	_In_ UhciController_t *Controller)
 {
 	// Variables
+	Flags_t IoctlValue = 0;
 	uint16_t Temp = 0, i = 0;
 
 	// Disable interrupts while configuring (and stop controller)
@@ -370,13 +371,17 @@ UhciSetup(
 	Controller->Base.PortCount = i;
 
 	// Enable PCI Interrupts
-	if (IoctlDeviceEx(Controller->Base.Device.Id, UHCI_USBLEGEACY, 0x2000, 2) != OsSuccess) {
+	IoctlValue = 0x2000;
+	if (IoctlDeviceEx(Controller->Base.Device.Id, __DEVICEMANAGER_IOCTL_EXT_WRITE, 
+			UHCI_USBLEGEACY, &IoctlValue, 2) != OsSuccess) {
 		return OsError;
 	}
 
 	// If vendor is Intel we null out the intel register
 	if (Controller->Base.Device.VendorId == 0x8086) {
-		if (IoctlDeviceEx(Controller->Base.Device.Id, UHCI_USBRES_INTEL, 0x00, 1) != OsSuccess) {
+		IoctlValue = 0x00;
+		if (IoctlDeviceEx(Controller->Base.Device.Id, __DEVICEMANAGER_IOCTL_EXT_WRITE, 
+				UHCI_USBRES_INTEL, &IoctlValue, 1) != OsSuccess) {
 			return OsError;
 		}
 	}
