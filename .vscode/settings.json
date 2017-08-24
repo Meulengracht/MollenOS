@@ -233,6 +233,13 @@
         "video.h": "c",
         "mollenos.h": "c",
         "fpmath.h": "c",
-        "service.h": "c"
+        "service.h": "c",
+        "wchar.h": "c",
+        "cwchar": "c",
+        "iosfwd": "c",
+        "sstream": "c",
+        "strstream": "c",
+        "local.h": "c",
+        "wctype.h": "c"
     }
 }

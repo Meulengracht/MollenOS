@@ -26,7 +26,8 @@ LIBK_SRCS = $(wildcard ../libos/ds/*.c) \
 			locale/locale.c \
 			stdlib/itoa.c \
 			stdlib/strtoul.c \
-			stdlib/abs.c
+			stdlib/abs.c \
+			wstring/wcsnlen.c
 
 LIBC_SRCS = $(wildcard glue/*.c) \
 			$(wildcard ctype/*.c) \
@@ -35,7 +36,10 @@ LIBC_SRCS = $(wildcard glue/*.c) \
 			$(wildcard signal/*.c) \
 			$(wildcard stdio/*.c) \
 			$(wildcard stdlib/*.c) \
+			$(wildcard stdlib/mb/*.c) \
+			$(wildcard stdlib/wide/*.c) \
 			$(wildcard time/*.c) \
+			$(wildcard wstring/*.c) \
 			../libos/synchronization/spinlock.c \
 			../libos/driver/bufferobject.c \
 			../libos/syscalls.c \

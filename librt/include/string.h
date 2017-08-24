@@ -91,11 +91,6 @@ _CRTIMP	char *ltoa(long value, char *string, int radix);
 _CRTIMP	int ltoa_s(long value, char *str, size_t size, int radix);
 _CRTIMP	char *ultoa(unsigned long value, char *string, int radix);
 
-/*******************************
- *       WString Utility       *
- *******************************/
-_CRTIMP size_t wcsnlen(__CONST wchar_t * str, size_t count);
-
 #ifdef __cplusplus
 }
 #endif
