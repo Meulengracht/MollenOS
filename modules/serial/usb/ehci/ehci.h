@@ -30,7 +30,6 @@
  * - Library */
 #include <os/osdefs.h>
 #include <os/driver/contracts/usbhost.h>
-#include <os/osdefs.h>
 #include <ds/list.h>
 
 #include "../common/manager.h"
@@ -39,7 +38,6 @@
 /* EHCI Controller Definitions 
  * Contains generic magic constants and definitions */
 #define EHCI_MAX_PORTS				15
-#define EHCI_STRUCT_ALIGN			32
 #define EHCI_MAX_BANDWIDTH			800
 
 /* EchiCapabilityRegisters
@@ -198,6 +196,7 @@ PACKED_ATYPESTRUCT(volatile, EchiOperationalRegisters, {
 #define EHCI_LINK_siTD					(2 << 1)
 #define EHCI_LINK_FSTN					(3 << 1)
 #define EHCI_LINK_TYPE(n)				((n >> 1) & 0x3)
+#define EHCI_NO_INDEX                   -1
 
 /* EhciIsochronousDescriptor
  * Isochronous Transfer Descripter. Must be 32 byte aligned */
@@ -276,27 +275,17 @@ PACKED_TYPESTRUCT(EhciIsochronousDescriptor, {
  * Split Isochronous Transfer Descriptor. 
  * Must be 32 byte aligned */
 PACKED_TYPESTRUCT(EhciSplitIsochronousDescriptor, {
-	reg32_t Link;
-	reg32_t Flags;
-	uint8_t FStartMask;
-	uint8_t FCompletionMask;
-	uint16_t Reserved;
-	reg32_t Status;
-
-	/* Buffer Page 0 + Offset 
-	 * Bit 0-11: Current Offset 
-	 * Bit 12-31: Bp0 */
-	reg32_t Bp0AndOffset;
-
-	/* Buffer Page 1 + Info 
-	 * Bit 0-2: Transaction count, max val 6
-	 * Bit 3-4: Transaction Position, 
-	 * Bit 5-11: Reserved
-	 * Bit 12-31: Bp1 */
-	reg32_t Bp1AndInfo;
-	reg32_t BackPointer;
-	reg32_t ExtBp0;
-	reg32_t ExtBp1;
+	reg32_t                     Link;
+	reg32_t                     Flags;
+	uint8_t                     FrameStartMask;
+	uint8_t                     FrameCompletionMask;
+	uint16_t                    Reserved;
+	reg32_t                     Status;
+	reg32_t                     Bp0AndOffset;
+	reg32_t                     Bp1AndInfo;
+	reg32_t                     BackPointer;
+	reg32_t                     ExtBp0;
+	reg32_t                     ExtBp1;
 });
 
 /* EhciSplitIsochronousDescriptor::Flags
@@ -306,21 +295,26 @@ PACKED_TYPESTRUCT(EhciSplitIsochronousDescriptor, {
  * Bit 15: Interrupt on Completion 
  * Bit 16-27: Transaction Length 
  * Bit 28-31: Condition Code (Status) */
+#define EHCI_siTD_XACTIONOFFSET(Offset) (Offset & 0xFFF)
+#define EHCI_siTD_PAGESELECT(Page)      ((Page & 0x7) << 12)
+#define EHCI_siTD_IOC                   (1 << 15)
+#define EHCI_siTD_LENGTH(Length)        ((Length & 0xFFF) << 16)
+#define EHCI_siTD_CC(Code)              ((Code & 0xF) << 28)
 
-
-/* Status
+/* EhciSplitIsochronousDescriptor::Status
+ * Contains definitions and bitfield definitions for EhciSplitIsochronousDescriptor::Status
  * Bit 0-7: Status
  * Bit 8-15: Frame Complete-split Progress Mask 
  * Bit 16-25: Transfer Length (max 3FFh)
  * Bit 26-29: Reserved
  * Bit 30: Page Select (0 = Bp0, 1 = Bp1)
  * Bit 31: IOC */
-#define EHCI_siTD_ACTIVE				(1 << 7)
-#define EHCI_siTD_CC(n)					(n & 0xFF)
-#define EHCI_siTD_CSPMASK(n)			((n & 0xFF) << 8)
-#define EHCI_siTD_LENGTH(n)				((n & 0x3FF) << 16)
-#define EHCI_siTD_PAGE(n)				((n & 0x1) << 30)
-#define EHCI_siTD_IOC					(n << 31)
+#define EHCI_siTD_ACTIVE                (1 << 7)
+#define EHCI_siTD_STATUS(n)             (n & 0xFF)
+#define EHCI_siTD_CSPMASK(n)            ((n & 0xFF) << 8)
+#define EHCI_siTD_XFERLENGTH(n)         ((n & 0x3FF) << 16)
+#define EHCI_siTD_PAGE(n)               ((n & 0x1) << 30)
+#define EHCI_siTD_IOCSTATUS             (n << 31)
 
 #define EHCI_siTD_DEVADDR(n)			(n & 0x7F)
 #define EHCI_siTD_EPADDR(n)				((n & 0xF) << 8)
@@ -332,72 +326,62 @@ PACKED_TYPESTRUCT(EhciSplitIsochronousDescriptor, {
 #define EHCI_siTD_SMASK(n)				(n & 0xFF)
 #define EHCI_siTD_CMASK(n)				((n & 0xFF) << 8)
 
+/* EhciSplitIsochronousDescriptor::Bp0AndOffset
+ * Contains definitions and bitfield definitions for EhciSplitIsochronousDescriptor::Bp0AndOffset
+ * Bit 0-11: Current Offset 
+ * Bit 12-31: Bp0 */
 #define EHCI_siTD_OFFSET(n)				(n & 0xFFF)
 #define EHCI_siTD_BUFFER(n)				(n & 0xFFFFF000)
 
+/* EhciSplitIsochronousDescriptor::Bp1AndInfo
+ * Contains definitions and bitfield definitions for EhciSplitIsochronousDescriptor::Bp1AndInfo
+ * Bit 0-2: Transaction count, max val 6
+ * Bit 3-4: Transaction Position, 
+ * Bit 5-11: Reserved
+ * Bit 12-31: Bp1 */
 #define EHCI_siTD_TCOUNT(n)				(MIN(6, n) & 0x7)
 #define EHCI_siTD_POSITION_ALL			0
 #define EHCI_siTD_POSITION_BEGIN		(1 << 3)
 #define EHCI_siTD_POSITION_MID			(2 << 3)
 #define EHCI_siTD_POSITION_END			(3 << 3)
 
-/* Transfer Descriptor
-* Must be 32 byte aligned */
-#pragma pack(push, 1)
-typedef struct _EhciTransferDescriptor
-{
-	/* Link Pointer - Next TD
-	* Bit 0: Terminate */
-	reg32_t Link;
+/* EhciTransferDescriptor
+ * Generic transfer descriptor, used for bulk and control transactions.
+ * 64 Bytes in size, 52 bytes HW. Rest is used for metadata. 
+ * 32 Bytes Aligned. */
+PACKED_TYPESTRUCT(EhciTransferDescriptor, {
+	reg32_t                     Link;
+	reg32_t                     AlternativeLink; // Used if short-packet is detected
+	uint8_t                     Status;
+	uint8_t                     Token;
+	uint16_t                    Length;
+	reg32_t                     Buffers[5];
+	reg32_t                     ExtBuffers[5];
 
-	/* Alternative Link Pointer - Next TD
-	* Only used when a short packet is detected
-	* Then this link is executed instead (if set..)
-	* Bit 0: Terminate */
-	reg32_t AlternativeLink;
+    // Not seen by hardware, 12 bytes
+	reg32_t                     HcdFlags;
+    reg32_t                     Index;
+    reg16_t                     LinkIndex;
+    reg16_t                     AlternativeLinkIndex;
+})
 
-	/* Status */
-	uint8_t Status;
-
-	/* Token
-	* Bit 0-1: PID
-	* Bit 2-3: Error Count
-	* Bit 4-6: Page Selector (0-4 value)
-	* Bit 7: IOC */
-	uint8_t Token;
-
-	/* Transfer Length
-	 * Bit 0-14: Length (Max Value 0x5000 (5 Pages))
-	 * Bit 15: Data Toggle */
-	uint16_t Length;
-
-	/* Buffer Page 0 + Offset 
-	 * Bit 0-11: Current Offset
-	 * Bit 12-31: Buffer Page */
-	reg32_t Buffers[5];
-	reg32_t ExtBuffers[5];
-
-	/* 52 bytes, lets reach 64 */
-	reg32_t HcdFlags;
-	reg32_t PhysicalAddress;
-	reg32_t Padding[1];
-} EhciTransferDescriptor_t;
-#pragma pack(pop)
-
-/* TD Bits */
+/* EhciTransferDescriptor::Status
+ * Contains definitions and bitfield definitions for EhciTransferDescriptor::Status */
 #define EHCI_TD_PINGSTATE			(1 << 0)
 #define EHCI_TD_SPLITXACT			(1 << 1)
-
 #define EHCI_TD_INCOMPLETE			(1 << 2)
-
-/* CRC/Timeout, Bad PID */
-#define EHCI_TD_XACT				(1 << 3)
-
+#define EHCI_TD_XACT				(1 << 3) // CRC/Timeout, Bad PID
 #define EHCI_TD_BABBLE				(1 << 4)
 #define EHCI_TD_DATABUFERROR		(1 << 5)
 #define EHCI_TD_HALTED				(1 << 6)
 #define EHCI_TD_ACTIVE				(1 << 7)
 
+/* EhciTransferDescriptor::Token
+ * Contains definitions and bitfield definitions for EhciTransferDescriptor::Token
+ * Bit 0-1: PID
+ * Bit 2-3: Error Count
+ * Bit 4-6: Page Selector (0-4 value)
+ * Bit 7: IOC */
 #define EHCI_TD_OUT					0
 #define EHCI_TD_IN					(1 << 0)
 #define EHCI_TD_SETUP				(1 << 1)
@@ -405,9 +389,17 @@ typedef struct _EhciTransferDescriptor
 #define EHCI_TD_PAGE(n)				(MIN(4, n) << 4)
 #define EHCI_TD_IOC					(1 << 7)
 
+/* EhciTransferDescriptor::Length
+ * Contains definitions and bitfield definitions for EhciTransferDescriptor::Length
+ * Bit 0-14: Length (Max Value 0x5000 (5 Pages))
+ * Bit 15: Data Toggle */
 #define EHCI_TD_LENGTH(n)			(MIN(20480, n))
 #define EHCI_TD_TOGGLE				(1 << 15)
 
+/* EhciTransferDescriptor::Buffers[5]
+ * Contains definitions and bitfield definitions for EhciTransferDescriptor::Buffers[5]
+ * Bit 0-11: Current Offset
+ * Bit 12-31: Buffer Page */
 #define EHCI_TD_OFFSET(n)			(n & 0xFFF)
 #define EHCI_TD_BUFFER(n)			(n & 0xFFFFF000)
 #define EHCI_TD_EXTBUFFER(n)		((n >> 32) & 0xFFFFFFFF)
@@ -415,135 +407,92 @@ typedef struct _EhciTransferDescriptor
 #define EHCI_TD_CERR(n)				((n >> 10) & 0x3)
 #define EHCI_TD_CC(n)				(n & 0xFF)
 
+/* EhciTransferDescriptor::HcdFlags
+ * Contains definitions and bitfield definitions for EhciTransferDescriptor::HcdFlags */
 #define EHCI_TD_ALLOCATED			(1 << 0)
 #define EHCI_TD_IBUF(n)				((n & 0xFF) << 8)
 #define EHCI_TD_JBUF(n)				((n & 0xF) << 16)
-
 #define EHCI_TD_GETIBUF(n)			((n >> 8) & 0xFF)
 #define EHCI_TD_GETJBUF(n)			((n >> 16) & 0xF)
 
-/* Queue Head Overlay */
-#pragma pack(push, 1)
-typedef struct _EhciQueueHeadOverlay
-{
-	/* Next TD Pointer
-	* Bit 0: Terminate
-	* Bit 1-4: Reserved */
-	uint32_t NextTD;
+/* EhciQueueHeadOverlay
+ * This is the TD work area, most of the members are equal to the definitions
+ * presented in the generic transfer descriptor. We only describe them if they
+ * differ. */
+PACKED_TYPESTRUCT(EhciQueueHeadOverlay, {
+	reg32_t                     NextTD;
+	reg32_t                     NextAlternativeTD;
+	uint8_t                     Status;
+	uint8_t                     Token;
+	uint16_t                    Length;
+	reg32_t                     Bp0AndOffset;
+	reg32_t                     Bp1;
+	reg32_t                     Bp2;
+	reg32_t                     Bp3;
+	reg32_t                     Bp4;
+	reg32_t                     ExtBp0;
+	reg32_t                     ExtBp1;
+	reg32_t                     ExtBp2;
+	reg32_t                     ExtBp3;
+	reg32_t                     ExtBp4;
+})
 
-	/* Alternative TD Pointer
-	* Bit 0: Terminate
-	* Bit 1-4: NAK Count */
-	uint32_t NextAlternativeTD;
+/* EhciQueueHeadOverlay::NextAlternativeTD
+ * Contains definitions and bitfield definitions for EhciQueueHeadOverlay::NextAlternativeTD
+ * Bit 0: Terminate
+ * Bit 1-4: NAK Count */
+#define EHCI_TD_NAKCOUNT(Val)           ((Val >> 1) & 0xF)
 
-	/* Status */
-	uint8_t Status;
+/* EhciQueueHeadOverlay::Bp1
+ * Contains definitions and bitfield definitions for EhciQueueHeadOverlay::Bp1
+ * Bit 0-7: Completion Process Mask
+ * Bit 8-11: Reserved
+ * Bit 12-31: Buffer Page */
+#define EHCI_TD_CPMASK(Val)             (Val & 0xFF)
 
-	/* Token
-	* Bit 0-1: PID
-	* Bit 2-3: Error Count
-	* Bit 4-6: Page Selector (0-4 value)
-	* Bit 7: IOC */
-	uint8_t Token;
+/* EhciQueueHeadOverlay::Bp2
+ * Contains definitions and bitfield definitions for EhciQueueHeadOverlay::Bp2
+ * Bit 0-4: Frame Tag
+ * Bit 5-11: S-Bytes
+ * Bit 12-31: Buffer Page */
+#define EHCI_TD_FRAMETAG(Val)           (Val & 0x1F)
+#define EHCI_TD_SBYTES(Val)             ((Val >> 5) & 0x7F)
 
-	/* Transfer Length
-	* Bit 0-14: Length (Max Value 0x5000 (5 Pages))
-	* Bit 15: Data Toggle */
-	uint16_t Length;
-
-	/* Buffer Page 0 + Offset
-	* Bit 0-11: Current Offset
-	* Bit 12-31: Buffer Page */
-	uint32_t Bp0AndOffset;
-
-	/* Buffer Page 1 + Completion Process Mask
-	* Bit 0-7: Completion Process Mask
-	* Bit 8-11: Reserved
-	* Bit 12-31: Buffer Page */
-	uint32_t Bp1;
-
-	/* Buffer Page 2 + FrameTag
-	* Bit 0-4: Frame Tag
-	* Bit 5-11: S-Bytes
-	* Bit 12-31: Buffer Page */
-	uint32_t Bp2;
-
-	/* Buffer Page 3-4
-	* Bit 0-11: Reserved
-	* Bit 12-31: Buffer Page */
-	uint32_t Bp3;
-	uint32_t Bp4;
-
-	/* Extended buffer pages
-	* Their upper address bits */
-	uint32_t ExtBp0;
-	uint32_t ExtBp1;
-	uint32_t ExtBp2;
-	uint32_t ExtBp3;
-	uint32_t ExtBp4;
-
-} EhciQueueHeadOverlay_t;
-#pragma pack(pop)
-
-/* Queue Head
-* Must be 32 byte aligned */
-#pragma pack(push, 1)
-typedef struct _EhciQueueHead
-{
-	/* Queue Head Link Pointer 
-	 * Bit 0: Terminate
-	 * Bit 1-2: Type
-	 * Bit 3-4: Reserved */
-	uint32_t LinkPointer;
-
-	/* Flags 
-	 * Bit 0-6: Device Address
-	 * Bit 7: Inactivate on Next Transaction
-	 * Bit 8-11: Endpoint Number 
-	 * Bit 12-13: Endpoint Speed
-	 * Bit 14: Data Toggle Control
-	 * Bit 15: Head of Reclamation List Flag
-	 * Bit 16-26: Max Packet Length
-	 * Bit 27: Control Endpoint Flag
-	 * Bit 28-31: Nak Recount Load */
-	uint32_t Flags;
-
-	/* Frame Masks */
-	uint8_t FStartMask;
-	uint8_t FCompletionMask;
-
-	/* State 
-	 * Bit 0-6: Hub Address
-	 * Bit 7-13: Port Number
-	 * Bit 14-15: Multi */
-	uint16_t State;
-
-	/* Current TD Pointer 
-	 * Bit 0-4: Reserved */
-	uint32_t CurrentTD;
-
-	/* Overlay, represents 
-	 * the current transaction state */
-	EhciQueueHeadOverlay_t Overlay;
+/* EhciQueueHead
+ * Generic queue head, contains a working area aswell. The structure is 68 bytes
+ * so we add 28 bytes of metadata to work in 96-bytes.
+ * The structure must be 32 byte aligned */
+PACKED_TYPESTRUCT(EhciQueueHead, {
+	reg32_t                 LinkPointer;
+	reg32_t                 Flags;
+	uint8_t                 FrameStartMask;
+	uint8_t                 FrameCompletionMask;
+	uint16_t                State;
+    reg32_t                 CurrentTD;
+	EhciQueueHeadOverlay_t  Overlay; // Current working area, contains td
 
 	/* 68 bytes 
 	 * Add 28 bytes for allocation easieness */
-	uint32_t HcdFlags;
-	uint32_t PhysicalAddress;
+    reg32_t                 HcdFlags;
+    reg32_t                 Index;
+	reg32_t                 LinkIndex;
+	reg32_t                 Interval;
+	reg32_t                 Bandwidth;
+	reg32_t                 sFrame;
+	reg32_t                 sMask;
+})
 
-	/* Virtual Link */
-	uint32_t LinkPointerVirtual;
-
-	/* Bandwidth */
-	uint32_t Interval;
-	uint32_t Bandwidth;
-	uint32_t sFrame;
-	uint32_t sMask;
-
-} EhciQueueHead_t;
-#pragma pack(pop)
-
-/* QH Bits */
+/* EhciQueueHead::Flags
+ * Contains definitions and bitfield definitions for EhciQueueHead::Flags
+ * Bit 0-6: Device Address
+ * Bit 7: Inactivate on Next Transaction
+ * Bit 8-11: Endpoint Number 
+ * Bit 12-13: Endpoint Speed
+ * Bit 14: Data Toggle Control
+ * Bit 15: Head of Reclamation List Flag
+ * Bit 16-26: Max Packet Length
+ * Bit 27: Control Endpoint Flag
+ * Bit 28-31: Nak Recount Load */
 #define EHCI_QH_DEVADDR(n)			(n & 0x7F)
 #define EHCI_QH_INVALIDATE_NEXT		(1 << 7)
 #define EHCI_QH_EPADDR(n)			((n & 0xF) << 8)
@@ -556,14 +505,17 @@ typedef struct _EhciQueueHead
 #define EHCI_QH_CONTROLEP			(1 << 27)
 #define EHCI_QH_RL(n)				((n & 0xF) << 28)
 
+/* EhciQueueHead::State
+ * Contains definitions and bitfield definitions for EhciQueueHead::State
+ * Bit 0-6: Hub Address
+ * Bit 7-13: Port Number
+ * Bit 14-15: Multi */
 #define EHCI_QH_HUBADDR(n)			(n & 0x7F)
 #define EHCI_QH_PORT(n)				((n & 0x7F) << 7)
 #define EHCI_QH_MULTIPLIER(n)		((n & 0x3) << 14)
 
-#define EHCI_QH_OFFSET(n)			(n & 0xFFF)
-#define EHCI_QH_BUFFER(n)			(n & 0xFFFFF000)
-#define EHCI_QH_EXTBUFFER(n)		((n >> 32) & 0xFFFFFFFF)
-
+/* EhciQueueHead::HcdFlags
+ * Contains definitions and bitfield definitions for EhciQueueHead::HcdFlags */
 #define EHCI_QH_ALLOCATED			(1 << 0)
 #define EHCI_QH_UNSCHEDULE			(1 << 1)
 
@@ -595,29 +547,29 @@ typedef union _EhciGenericLink {
 /* Pool Indices */
 #define EHCI_POOL_QH_NULL				0
 #define EHCI_POOL_QH_ASYNC				1
+#define EHCI_POOL_TD_ASYNC              (EHCI_POOL_NUM_TD - 1)
 
 /* EhciControl
  * Contains all necessary Queue related information
  * and information needed to schedule */
 typedef struct _EhciControl {
 	// Resources
-	EhciQueueHead_t    			*QHPool;
+	EhciQueueHead_t             *QHPool;
 	EhciTransferDescriptor_t    *TDPool;
-	uintptr_t					 QHPoolPhysical;
-	uintptr_t					 TDPoolPhysical;
-	EhciTransferDescriptor_t 	*TDAsync;
-
+	uintptr_t                    QHPoolPhysical;
+    uintptr_t                    TDPoolPhysical;
+    
 	// Frame-list resources
-	size_t 						 FLength;
-	uint32_t 					*FrameList;
-	uintptr_t 					 FrameListPhysical;
-	uint32_t 					*VirtualList;
+	size_t                       FrameLength;
+	reg32_t                     *FrameList;
+	uintptr_t                    FrameListPhysical;
+	reg32_t                     *VirtualList;
 
 	// Transactions
-	int 						 AsyncTransactions;
-	int 						 BellIsRinging;
-	int 						 BellReScan;
-	List_t						*TransactionList;
+	int                          AsyncTransactions;
+	int                          BellIsRinging;
+	int                          BellReScan;
+	List_t                      *TransactionList;
 } EhciControl_t;
 
 /* EhciController 

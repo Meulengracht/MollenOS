@@ -25,6 +25,7 @@
 
 /* Includes
  * - System */
+#include <os/mollenos.h>
 #include "ehci.h"
 
 /* Includes
@@ -32,7 +33,8 @@
 #include <assert.h>
 #include <string.h>
 
-/* Globals */
+/* Globals 
+ * Error messages for codes that might appear in transfers */
 const char *EhciErrorMessages[] = {
 	"No Error",
 	"Ping State/PERR",
@@ -57,69 +59,88 @@ OsStatus_t
 EhciQueueInitialize(
 	_In_ EhciController_t *Controller)
 {
-	/* Vars */
-	Addr_t pSpace = 0, Phys = 0;
-	size_t i;
+	// Variables
+	EhciControl_t *Queue = NULL;
+	uintptr_t RequiredSpace = 0, PoolPhysical = 0;
+	void *Pool = NULL;
+	int i;
 
-	/* The first thing we want to do is 
-	 * to determine the size of the frame list */
-	if (Controller->CParameters & EHCI_CPARAM_VARIABLEFRAMELIST)
-		Controller->FLength = 256; /* Default to shortest list (not 32 frames though) */
-	else
-		Controller->FLength = 1024;
+	// Trace
+	TRACE("EhciQueueInitialize()");
 
-	/* Allocate the frame list, but do so in low memory
-	 * as some controllers can't handle addresses above 2gb */
-	Controller->FrameList = (uint32_t*)kmalloc_apm(
-		(Controller->FLength * sizeof(uint32_t)), &Phys, 0x0FFFFFFF);
-	Controller->FrameListPhysical = Phys;
+	// Shorthand the queue controller
+	Queue = &Controller->QueueControl;
 
-	/* Allocate the virtual copy list */
-	Controller->VirtualList = (uint32_t*)kmalloc(sizeof(uint32_t*) * Controller->FLength);
+	// Null out queue-control
+	memset(Queue, 0, sizeof(EhciControl_t));
 
-	/* Instantiate them all to nothing */
-	for (i = 0; i < Controller->FLength; i++)
-		Controller->VirtualList[i] = Controller->FrameList[i] = EHCI_LINK_END;
-
-	/* Allocate the Qh Pool */
-	pSpace = (Addr_t)kmalloc((sizeof(EhciQueueHead_t) * EHCI_POOL_NUM_QH) + EHCI_STRUCT_ALIGN);
-
-	/* Align with roundup */
-	pSpace = ALIGN(pSpace, EHCI_STRUCT_ALIGN, 1);
-
-	/* Zero it out */
-	memset((void*)pSpace, 0, (sizeof(EhciQueueHead_t) * EHCI_POOL_NUM_QH));
-
-	/* Get physical */
-	Phys = AddressSpaceGetMap(AddressSpaceGetCurrent(), pSpace);
-
-	/* Initialise ED Pool */
-	for (i = 0; i < EHCI_POOL_NUM_QH; i++)
-	{
-		/* Set */
-		Controller->QhPool[i] = (EhciQueueHead_t*)pSpace;
-		Controller->QhPool[i]->PhysicalAddress = Phys;
-
-		/* Increament */
-		pSpace += sizeof(EhciQueueHead_t);
-		Phys += sizeof(EhciQueueHead_t);
+	// The first thing we want to do is 
+	// to determine the size of the frame list, if we can control it ourself
+	// we set it to the shortest available (not 32 tho)
+	if (Controller->CParameters & EHCI_CPARAM_VARIABLEFRAMELIST) {
+		Queue->FrameLength = 256;
+	}
+ 	else {
+		Queue->FrameLength = 1024;
 	}
 
-	/* Initialize Dummy */
-	Controller->QhPool[EHCI_POOL_QH_NULL]->Overlay.NextTD = EHCI_LINK_END;
-	Controller->QhPool[EHCI_POOL_QH_NULL]->Overlay.NextAlternativeTD = EHCI_LINK_END;
-	Controller->QhPool[EHCI_POOL_QH_NULL]->LinkPointer = EHCI_LINK_END;
-	Controller->QhPool[EHCI_POOL_QH_NULL]->HcdFlags = EHCI_QH_ALLOCATED;
+	// Allocate a virtual list for keeping track of added
+	// queue-heads in virtual space first.
+	Queue->VirtualList = (reg32_t*)malloc(Queue->FrameLength * sizeof(reg32_t));
 
-	/* Allocate the Async Dummy */
-	pSpace = (Addr_t)kmalloc(sizeof(EhciTransferDescriptor_t) + EHCI_STRUCT_ALIGN);
-	pSpace = ALIGN(pSpace, EHCI_STRUCT_ALIGN, 1);
-	Controller->TdAsync = (EhciTransferDescriptor_t*)pSpace;
+	// Add up all the size we are going to need for pools and
+	// the actual frame list
+	RequiredSpace += Queue->FrameLength * sizeof(reg32_t);        // Framelist
+	RequiredSpace += sizeof(EhciQueueHead_t) * EHCI_POOL_NUM_QH;  // Qh-pool
+	RequiredSpace += sizeof(EhciTransferDescriptor_t) * EHCI_POOL_NUM_TD; // Td-pool
 
-	/* Initialize the Async Dummy */
-	Controller->TdAsync->Status = EHCI_TD_HALTED;
-	Controller->TdAsync->Link = EHCI_LINK_END;
-	Controller->TdAsync->AlternativeLink = EHCI_LINK_END;
+	// Perform the allocation
+	if (MemoryAllocate(RequiredSpace, MEMORY_CLEAN | MEMORY_COMMIT
+		| MEMORY_LOWFIRST | MEMORY_CONTIGIOUS, &Pool, &PoolPhysical) != OsSuccess) {
+		ERROR("Failed to allocate memory for resource-pool");
+		return OsError;
+	}
+
+	// Store the physical address for the frame
+	Queue->FrameList = (reg32_t*)Pool;
+	Queue->FrameListPhysical = PoolPhysical;
+
+	// Initialize addresses for pools
+	Queue->QHPool = (EhciQueueHead_t*)
+		((uint8_t*)Pool + (Queue->FrameLength * sizeof(reg32_t)));
+	Queue->QHPoolPhysical = PoolPhysical + (Queue->FrameLength * sizeof(reg32_t));
+	Queue->TDPool = (EhciTransferDescriptor_t*)
+		((uint8_t*)Queue->QHPool + (sizeof(EhciQueueHead_t) * EHCI_POOL_NUM_QH));
+	Queue->TDPoolPhysical = Queue->QHPoolPhysical + (sizeof(EhciQueueHead_t) * EHCI_POOL_NUM_QH);
+
+	// Initialize frame lists
+	for (i = 0; i < Queue->FrameLength; i++) {
+		Queue->VirtualList[i] = Queue->FrameList[i] = EHCI_LINK_END;
+	}
+
+	// Initialize the QH pool
+	for (i = 0; i < EHCI_POOL_NUM_QH; i++) {
+		Queue->QHPool[i].Index = i;
+		Queue->QHPool[i].LinkIndex = EHCI_NO_INDEX;
+	}
+
+	// Initialize the TD pool
+	for (i = 0; i < EHCI_POOL_NUM_TD; i++) {
+		Queue->TDPool[i].Index = i;
+		Queue->TDPool[i].LinkIndex = EHCI_NO_INDEX;
+		Queue->TDPool[i].AlternativeLinkIndex = EHCI_NO_INDEX;
+	}
+
+	// Initialize the dummy (null) queue-head that we use for end-link
+	Queue->QHPool[EHCI_POOL_QH_NULL].Overlay.NextTD = EHCI_LINK_END;
+	Queue->QHPool[EHCI_POOL_QH_NULL].Overlay.NextAlternativeTD = EHCI_LINK_END;
+	Queue->QHPool[EHCI_POOL_QH_NULL].LinkPointer = EHCI_LINK_END;
+	Queue->QHPool[EHCI_POOL_QH_NULL].HcdFlags = EHCI_QH_ALLOCATED;
+
+	// Initialize the dummy (async) transfer-descriptor that we use for queuing
+	Queue->TDPool[EHCI_POOL_TD_ASYNC].Status = EHCI_TD_HALTED;
+	Queue->TDPool[EHCI_POOL_TD_ASYNC].Link = EHCI_LINK_END;
+	Queue->TDPool[EHCI_POOL_TD_ASYNC].AlternativeLink = EHCI_LINK_END;
 
 	/* Initialize Async */
 	Controller->QhPool[EHCI_POOL_QH_ASYNC]->LinkPointer = 
@@ -134,21 +155,35 @@ EhciQueueInitialize(
 		AddressSpaceGetMap(AddressSpaceGetCurrent(), (VirtAddr_t)Controller->TdAsync);
 	Controller->QhPool[EHCI_POOL_QH_ASYNC]->HcdFlags = EHCI_QH_ALLOCATED;
 
-	/* Allocate Transaction List */
-	Controller->TransactionList = ListCreate(KeyInteger, LIST_SAFE);
+	// Allocate the transaction list
+	Queue->TransactionList = ListCreate(KeyInteger, LIST_SAFE);
 
-	/* Setup a bandwidth scheduler */
-	Controller->Scheduler = UsbSchedulerInit(Controller->FLength, EHCI_MAX_BANDWIDTH, 8);
+	// Initialize a bandwidth scheduler
+	Controller->Scheduler = UsbSchedulerInitialize(
+		Queue->FrameLength, EHCI_MAX_BANDWIDTH, 8);
 
-	/* Write addresses */
-	Controller->OpRegisters->PeriodicListAddr = 
-		(uint32_t)Controller->FrameListPhysical;
+	// Update the hardware registers to point to the newly allocated
+	// addresses
+	Controller->OpRegisters->PeriodicListAddress = 
+		(reg32_t)Queue->FrameListPhysical;
 	Controller->OpRegisters->AsyncListAddress = 
-		(uint32_t)Controller->QhPool[EHCI_POOL_QH_ASYNC]->PhysicalAddress | EHCI_LINK_QH;
+		(reg32_t)Queue->QHPool[EHCI_POOL_QH_ASYNC].PhysicalAddress | EHCI_LINK_QH;
+}
+
+/* EhciQueueDestroy
+ * Unschedules any scheduled ed's and frees all resources allocated
+ * by the initialize function */
+OsStatus_t
+EhciQueueDestroy(
+	_In_ EhciController_t *Controller)
+{
+
 }
 
 /* Helpers */
-int EhciConditionCodeToIndex(uint32_t ConditionCode)
+int
+EhciConditionCodeToIndex(
+	_In_ uint32_t ConditionCode)
 {
 	/* Vars */
 	int bCount = 0;
