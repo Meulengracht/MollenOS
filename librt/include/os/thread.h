@@ -29,6 +29,7 @@
 #include <os/osdefs.h>
 #include <sys/types.h>
 #include <time.h>
+#include <wchar.h>
 
 /* Includes
  * - System */
@@ -62,6 +63,7 @@ PACKED_TYPESTRUCT(ThreadLocalStorage, {
 	void					*Handle;
 	errno_t					 Errno;
 	void					*Locale;
+	mbstate_t				 MbState;
 	unsigned int			 Seed;
 	char					*StrTokNext;
 	struct tm				 TmBuffer;

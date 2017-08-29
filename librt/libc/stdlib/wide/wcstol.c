@@ -131,24 +131,22 @@ No supporting OS subroutines are required.
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  */
-
-
-#include <_ansi.h>
+#define __POSIX_VISIBLE
+#include <locale.h>
 #include <limits.h>
 #include <wctype.h>
 #include <errno.h>
 #include <wchar.h>
-#include <reent.h>
-#include "../locale/setlocale.h"
+#include "../../locale/setlocale.h"
 
 /*
  * Convert a wide string to a long integer.
  */
 static long
-_wcstol_l (struct _reent *rptr, const wchar_t *nptr, wchar_t **endptr,
+_wcstol_l (__CONST wchar_t *nptr, wchar_t **endptr,
 	   int base, locale_t loc)
 {
-	register const wchar_t *s = nptr;
+	register __CONST wchar_t *s = nptr;
 	register unsigned long acc;
 	register int c;
 	register unsigned long cutoff;
@@ -217,7 +215,7 @@ _wcstol_l (struct _reent *rptr, const wchar_t *nptr, wchar_t **endptr,
 	}
 	if (any < 0) {
 		acc = neg ? LONG_MIN : LONG_MAX;
-		rptr->_errno = ERANGE;
+		_set_errno(ERANGE);
 	} else if (neg)
 		acc = -acc;
 	if (endptr != 0)
@@ -225,32 +223,26 @@ _wcstol_l (struct _reent *rptr, const wchar_t *nptr, wchar_t **endptr,
 	return (acc);
 }
 
-long
-_DEFUN (_wcstol_r, (rptr, nptr, endptr, base),
-	struct _reent *rptr _AND
-	_CONST wchar_t *nptr _AND
-	wchar_t **endptr _AND
+long _wcstol_r(
+	__CONST wchar_t *nptr,
+	wchar_t **endptr,
 	int base)
 {
-	return _wcstol_l (rptr, nptr, endptr, base, __get_current_locale ());
+	return _wcstol_l (nptr, endptr, base, __get_current_locale ());
 }
 
-#ifndef _REENT_ONLY
-
 long
-wcstol_l (const wchar_t *__restrict s, wchar_t **__restrict ptr, int base,
+wcstol_l (__CONST wchar_t *__restrict s, wchar_t **__restrict ptr, int base,
 	  locale_t loc)
 {
-	return _wcstol_l (_REENT, s, ptr, base, loc);
+	return _wcstol_l (s, ptr, base, loc);
 }
 
-long
-_DEFUN (wcstol, (s, ptr, base),
-	_CONST wchar_t *__restrict s _AND
-	wchar_t **__restrict ptr _AND
+long wcstol(
+	__CONST wchar_t *__restrict s,
+	wchar_t **__restrict ptr,
 	int base)
 {
-	return _wcstol_l (_REENT, s, ptr, base, __get_current_locale ());
+	return _wcstol_l (s, ptr, base, __get_current_locale ());
 }
 
-#endif

@@ -31,24 +31,14 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  */
-
-#include <sys/cdefs.h>
-#if 0
-#if defined(LIBC_SCCS) && !defined(lint)
-static char sccsid[] = "from @(#)strtoul.c	8.1 (Berkeley) 6/4/93";
-#endif /* LIBC_SCCS and not lint */
-__FBSDID("FreeBSD: src/lib/libc/stdlib/strtoumax.c,v 1.8 2002/09/06 11:23:59 tjr Exp ");
-#endif
-__FBSDID("$FreeBSD: head/lib/libc/locale/wcstoumax.c 314436 2017-02-28 23:42:47Z imp $");
-
+#define __POSIX_VISIBLE
 #include <errno.h>
-#include <inttypes.h>
+#include <stdint.h>
 #include <stdlib.h>
 #include <wchar.h>
 #include <wctype.h>
 #include <stdint.h>
-#include <reent.h>
-#include "../locale/setlocale.h"
+#include "../../locale/setlocale.h"
 
 /*
  * Convert a wide character string to a uintmax_t integer.
@@ -57,11 +47,11 @@ __FBSDID("$FreeBSD: head/lib/libc/locale/wcstoumax.c 314436 2017-02-28 23:42:47Z
 /*
  *Reentrant version of wcstoumax.
  */
-static uintmax_t
-_wcstoumax_l(struct _reent *rptr,const wchar_t * __restrict nptr,
-	     wchar_t ** __restrict endptr, int base, locale_t loc)
+static uintmax_t _wcstoumax_l(
+	__CONST wchar_t * __restrict nptr,
+	wchar_t ** __restrict endptr, int base, locale_t loc)
 {
-	const wchar_t *s = nptr;
+	__CONST wchar_t *s = nptr;
 	uintmax_t acc;
 	wchar_t c;
 	uintmax_t cutoff;
@@ -121,10 +111,10 @@ _wcstoumax_l(struct _reent *rptr,const wchar_t * __restrict nptr,
 	}
 	if (any < 0) {
 		acc = UINTMAX_MAX;
-		rptr->_errno = ERANGE;
+		_set_errno(ERANGE);
 	} else if (!any) {
 noconv:
-		rptr->_errno = EINVAL;
+		_set_errno(EINVAL);
 	} else if (neg)
 		acc = -acc;
 	if (endptr != NULL)
@@ -132,26 +122,23 @@ noconv:
 	return (acc);
 }
 
-uintmax_t
-_wcstoumax_r(struct _reent *rptr, const wchar_t *__restrict nptr,
+uintmax_t _wcstoumax_r(__CONST wchar_t *__restrict nptr,
 	     wchar_t **__restrict endptr, int base)
 {
-	return _wcstoumax_l(rptr, nptr, endptr, base, __get_current_locale());
+	return _wcstoumax_l(nptr, endptr, base, __get_current_locale());
 }
 
-#ifndef _REENT_ONLY
-
 uintmax_t
-wcstoumax_l(const wchar_t * __restrict nptr, wchar_t ** __restrict endptr,
+wcstoumax_l(__CONST wchar_t * __restrict nptr, wchar_t ** __restrict endptr,
 	    int base, locale_t loc)
 {
-	return _wcstoumax_l(_REENT, nptr, endptr, base, loc);
+	return _wcstoumax_l(nptr, endptr, base, loc);
 }
 
-uintmax_t
-wcstoumax(const wchar_t* __restrict nptr, wchar_t** __restrict endptr, int base)
+uintmax_t wcstoumax(
+	__CONST wchar_t* __restrict nptr, 
+	wchar_t** __restrict endptr, 
+	int base)
 {
-	return _wcstoumax_l(_REENT, nptr, endptr, base, __get_current_locale());
+	return _wcstoumax_l(nptr, endptr, base, __get_current_locale());
 }
-
-#endif

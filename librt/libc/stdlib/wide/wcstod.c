@@ -150,8 +150,7 @@ Supporting OS subroutines required: <<close>>, <<fstat>>, <<isatty>>,
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  */
-
-#include <_ansi.h>
+#define __POSIX_VISIBLE
 #include <errno.h>
 #include <stdlib.h>
 #include <string.h>
@@ -159,17 +158,17 @@ Supporting OS subroutines required: <<close>>, <<fstat>>, <<isatty>>,
 #include <wctype.h>
 #include <locale.h>
 #include <math.h>
-#include "mprec.h"
+#include "../mprec.h"
 
 double
-_wcstod_l (struct _reent *ptr, const wchar_t *nptr, wchar_t **endptr,
+_wcstod_l (__CONST wchar_t *nptr, wchar_t **endptr,
 	   locale_t loc)
 {
-        static const mbstate_t initial;
+        static __CONST mbstate_t initial;
         mbstate_t mbs;
         double val;
         char *buf, *end;
-        const wchar_t *wcp;
+        __CONST wchar_t *wcp;
         size_t len;
 
         while (iswspace_l(*nptr, loc))
@@ -187,19 +186,19 @@ _wcstod_l (struct _reent *ptr, const wchar_t *nptr, wchar_t **endptr,
          */
         wcp = nptr;
         mbs = initial;
-        if ((len = _wcsnrtombs_l(ptr, NULL, &wcp, (size_t) -1, 0, &mbs, loc))
+        if ((len = _wcsnrtombs_l(NULL, &wcp, (size_t) -1, 0, &mbs, loc))
 	    == (size_t) -1) {
                 if (endptr != NULL)
                         *endptr = (wchar_t *)nptr;
                 return (0.0);
         }
-        if ((buf = _malloc_r(ptr, len + 1)) == NULL)
+        if ((buf = malloc(len + 1)) == NULL)
                 return (0.0);
         mbs = initial;
-        _wcsnrtombs_l(ptr, buf, &wcp, (size_t) -1, len + 1, &mbs, loc);
+        _wcsnrtombs_l(buf, &wcp, (size_t) -1, len + 1, &mbs, loc);
 
         /* Let strtod() do most of the work for us. */
-        val = _strtod_l(ptr, buf, &end, loc);
+        val = _strtod_l(buf, &end, loc);
 
         /*
          * We only know where the number ended in the _multibyte_
@@ -225,81 +224,70 @@ _wcstod_l (struct _reent *ptr, const wchar_t *nptr, wchar_t **endptr,
 			if (d && d < end)
 				end -= len - 1;
 		}
-                *endptr = (wchar_t *)nptr + (end - buf);
+    *endptr = (wchar_t *)nptr + (end - buf);
 	}
 
-        _free_r(ptr, buf);
-
+        free(buf);
         return (val);
 }
 
-double
-_DEFUN (_wcstod_r, (ptr, nptr, endptr),
-	struct _reent *ptr _AND
-	_CONST wchar_t *nptr _AND
+double _wcstod_r(
+	__CONST wchar_t *nptr,
 	wchar_t **endptr)
 {
-  return _wcstod_l (ptr, nptr, endptr, __get_current_locale ());
+  return _wcstod_l (nptr, endptr, __get_current_locale ());
 }
 
-float
-_DEFUN (_wcstof_r, (ptr, nptr, endptr),
-	struct _reent *ptr _AND
-	_CONST wchar_t *nptr _AND
+float _wcstof_r(
+	__CONST wchar_t *nptr,
 	wchar_t **endptr)
 {
-  double retval = _wcstod_l (ptr, nptr, endptr, __get_current_locale ());
+  double retval = _wcstod_l (nptr, endptr, __get_current_locale ());
   if (isnan (retval))
     return nanf (NULL);
   return (float)retval;
 }
 
-#ifndef _REENT_ONLY
-
-double
-wcstod_l (const wchar_t *__restrict nptr, wchar_t **__restrict endptr,
+double wcstod_l (__CONST wchar_t *__restrict nptr, wchar_t **__restrict endptr,
 	  locale_t loc)
 {
-  return _wcstod_l (_REENT, nptr, endptr, loc);
+  return _wcstod_l (nptr, endptr, loc);
 }
 
-double
-_DEFUN (wcstod, (nptr, endptr),
-	_CONST wchar_t *__restrict nptr _AND wchar_t **__restrict endptr)
+double wcstod(
+  __CONST wchar_t *__restrict nptr,
+  wchar_t **__restrict endptr)
 {
-  return _wcstod_l (_REENT, nptr, endptr, __get_current_locale ());
+  return _wcstod_l (nptr, endptr, __get_current_locale ());
 }
 
 float
-wcstof_l (const wchar_t *__restrict nptr, wchar_t **__restrict endptr,
+wcstof_l (__CONST wchar_t *__restrict nptr, wchar_t **__restrict endptr,
 	  locale_t loc)
 {
-  double val = _wcstod_l (_REENT, nptr, endptr, loc);
+  double val = _wcstod_l (nptr, endptr, loc);
   if (isnan (val))
     return nanf (NULL);
   float retval = (float) val;
 #ifndef NO_ERRNO
   if (isinf (retval) && !isinf (val))
-    _REENT->_errno = ERANGE;
+  _set_errno(ERANGE);
 #endif
   return retval;
 }
 
-float
-_DEFUN (wcstof, (nptr, endptr),
-	_CONST wchar_t *__restrict nptr _AND
+float wcstof(
+	__CONST wchar_t *__restrict nptr,
 	wchar_t **__restrict endptr)
 {
-  double val = _wcstod_l (_REENT, nptr, endptr, __get_current_locale ());
+  double val = _wcstod_l (nptr, endptr, __get_current_locale ());
   if (isnan (val))
     return nanf (NULL);
   float retval = (float) val;
 #ifndef NO_ERRNO
   if (isinf (retval) && !isinf (val))
-    _REENT->_errno = ERANGE;
+    _set_errno(ERANGE);
 #endif
 
   return retval;
 }
-
-#endif

@@ -46,24 +46,55 @@ effects vary with the locale.
 
 <<mbstowcs>> requires no supporting OS subroutines.
 */
-
-#ifndef _REENT_ONLY
-
-#include <newlib.h>
 #include <stdlib.h>
 #include <wchar.h>
+#include "../local.h"
+#include <locale.h>
 
 size_t
-_DEFUN (mbstowcs, (pwcs, s, n),
-        wchar_t *__restrict pwcs _AND
-        const char *__restrict s _AND
-        size_t n)
+_mbstowcs_r(     
+  wchar_t       *__restrict pwcs,
+  __CONST char    *__restrict s,
+  size_t         n,
+  mbstate_t     *state)
+{
+  size_t ret = 0;
+  char *t = (char *)s;
+  int bytes;
+
+  if (!pwcs)
+    n = (size_t) 1; /* Value doesn't matter as long as it's not 0. */
+  while (n > 0)
+    {
+      bytes = __MBTOWC (pwcs, t, MB_CUR_MAX, state);
+      if (bytes < 0)
+	{
+	  state->__count = 0;
+	  return -1;
+	}
+      else if (bytes == 0)
+	break;
+      t += bytes;
+      ++ret;
+      if (pwcs)
+	{
+	  ++pwcs;
+	  --n;
+	}
+    }
+  return ret;
+}   
+
+size_t mbstowcs(
+  wchar_t *__restrict pwcs,
+  __CONST char *__restrict s,
+  size_t n)
 {
 #ifdef _MB_CAPABLE
   mbstate_t state;
   state.__count = 0;
   
-  return _mbstowcs_r (_REENT, pwcs, s, n, &state);
+  return _mbstowcs_r (pwcs, s, n, &state);
 #else /* not _MB_CAPABLE */
   
   int count = 0;
@@ -79,5 +110,3 @@ _DEFUN (mbstowcs, (pwcs, s, n),
   return count;
 #endif /* not _MB_CAPABLE */
 }
-
-#endif /* !_REENT_ONLY */

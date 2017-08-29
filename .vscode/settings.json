@@ -240,6 +240,11 @@
         "sstream": "c",
         "strstream": "c",
         "local.h": "c",
-        "wctype.h": "c"
+        "wctype.h": "c",
+        "errno.h": "c",
+        "inttypes.h": "c",
+        "mbctype.h": "c",
+        "locale.h": "c",
+        "limits.h": "c"
     }
 }

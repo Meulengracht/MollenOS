@@ -131,24 +131,24 @@ No supporting OS subroutines are required.
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  */
-
+#define __POSIX_VISIBLE
 #define _GNU_SOURCE
-#include <_ansi.h>
+#include <locale.h>
 #include <limits.h>
+#include <stdint.h>
 #include <wctype.h>
 #include <errno.h>
 #include <wchar.h>
-#include <reent.h>
-#include "../locale/setlocale.h"
+#include "../../locale/setlocale.h"
 
 /*
  * Convert a wide string to a long long integer.
  */
 long long
-_wcstoll_l (struct _reent *rptr, const wchar_t *nptr, wchar_t **endptr,
+_wcstoll_l (__CONST wchar_t *nptr, wchar_t **endptr,
 	    int base, locale_t loc)
 {
-	register const wchar_t *s = nptr;
+	register __CONST wchar_t *s = nptr;
 	register unsigned long long acc;
 	register int c;
 	register unsigned long long cutoff;
@@ -217,7 +217,7 @@ _wcstoll_l (struct _reent *rptr, const wchar_t *nptr, wchar_t **endptr,
 	}
 	if (any < 0) {
 		acc = neg ? LONG_LONG_MIN : LONG_LONG_MAX;
-		rptr->_errno = ERANGE;
+		_set_errno(ERANGE);
 	} else if (neg)
 		acc = -acc;
 	if (endptr != 0)
@@ -225,32 +225,25 @@ _wcstoll_l (struct _reent *rptr, const wchar_t *nptr, wchar_t **endptr,
 	return (acc);
 }
 
-long long
-_DEFUN (_wcstoll_r, (rptr, nptr, endptr, base),
-	struct _reent *rptr _AND
-	_CONST wchar_t *nptr _AND
-	wchar_t **endptr _AND
+long long _wcstoll_r(
+	__CONST wchar_t *nptr,
+	wchar_t **endptr,
 	int base)
 {
-	return _wcstoll_l (rptr, nptr, endptr, base, __get_current_locale ());
+	return _wcstoll_l (nptr, endptr, base, __get_current_locale ());
 }
 
-#ifndef _REENT_ONLY
-
 long long
-wcstoll_l (const wchar_t *__restrict s, wchar_t **__restrict ptr, int base,
+wcstoll_l (__CONST wchar_t *__restrict s, wchar_t **__restrict ptr, int base,
 	   locale_t loc)
 {
-	return _wcstoll_l (_REENT, s, ptr, base, loc);
+	return _wcstoll_l (s, ptr, base, loc);
 }
 
-long long
-_DEFUN (wcstoll, (s, ptr, base),
-	_CONST wchar_t *__restrict s _AND
-	wchar_t **__restrict ptr _AND
+long long wcstoll(
+	__CONST wchar_t *__restrict s,
+	wchar_t **__restrict ptr,
 	int base)
 {
-	return _wcstoll_l (_REENT, s, ptr, base, __get_current_locale ());
+	return _wcstoll_l (s, ptr, base, __get_current_locale ());
 }
-
-#endif

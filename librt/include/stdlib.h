@@ -1,34 +1,31 @@
 /* MollenOS
-*
-* Copyright 2011 - 2016, Philip Meulengracht
-*
-* This program is free software : you can redistribute it and / or modify
-* it under the terms of the GNU General Public License as published by
-* the Free Software Foundation ? , either version 3 of the License, or
-* (at your option) any later version.
-*
-* This program is distributed in the hope that it will be useful,
-* but WITHOUT ANY WARRANTY; without even the implied warranty of
-* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.See the
-* GNU General Public License for more details.
-*
-* You should have received a copy of the GNU General Public License
-* along with this program.If not, see <http://www.gnu.org/licenses/>.
-*
-*
-* MollenOS C Library - Standard Library Utilities
-*/
-
+ *
+ * Copyright 2011 - 2017, Philip Meulengracht
+ *
+ * This program is free software : you can redistribute it and / or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation ? , either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.If not, see <http://www.gnu.org/licenses/>.
+ *
+ *
+ * MollenOS - Standard C Library (Stdlib)
+ *  - Contains the implementation of the stdlib interface
+ */
 #ifndef __STDLIB_INC__
 #define __STDLIB_INC__
 
-/* Includes */
-#include <crtdefs.h>
-
-/* Cpp-Guard */
-#ifdef __cplusplus
-extern "C" {
-#endif
+/* Includes
+ * Library */
+#include <os/osdefs.h>
+#include <wchar.h>
 
 /* Termination codes that must be defined in 
  * stdlib.h by the ISO C standard */
@@ -81,6 +78,7 @@ extern "C" {
 #ifndef MB_LEN_MAX
 #define MB_LEN_MAX	5
 #endif
+#define MB_CUR_MAX 10 //__locale_mb_cur_max()
 
 /* Define the division structures that are used 
  * by div, ldiv and lldiv. The mentioned functions
@@ -103,6 +101,7 @@ typedef struct _lldiv_t {
 } lldiv_t;
 #endif
 
+_CODE_BEGIN
 /* String Conversion functions 
  * Allows the extraction of integer, floats
  * and doubles from strings */
@@ -194,16 +193,99 @@ _CRTIMP long long llabs(long long);
 #endif
 
 /* Multibyte functions
- * Not implemented yet, no support for conversion
- * and such yet */
-//_CRTIMP int mblen(__CONST char* pmb, size_t max);
-//_CRTIMP int mbtowc(wchar_t *pwc, __CONST char *pmb, size_t max);
-//_CRTIMP int wctomb(char *pmb, wchar_t wc);
-//_CRTIMP size_t mbstowcs (wchar_t* dest, __CONST char* src, size_t max);
-//_CRTIMP size_t wcstombs(char* dest, __CONST wchar_t* src, size_t max);
+ * Used for multibyte string support */
+_CRTIMP int mblen( 
+    __CONST char *s,
+	size_t n);
+_CRTIMP size_t mbrlen(
+	__CONST char *__restrict s, 
+	size_t n, 
+	mbstate_t *__restrict ps);
+_CRTIMP size_t mbrtowc(
+	wchar_t *__restrict pwc,
+	const char *__restrict s,
+	size_t n,
+	mbstate_t *__restrict ps);
+_CRTIMP size_t mbstowcs(
+	wchar_t *__restrict pwcs,
+	__CONST char *__restrict s,
+	size_t n);
+_CRTIMP size_t mbsnrtowcs(
+	wchar_t *__restrict dst,
+	__CONST char **__restrict src,
+	size_t nms,
+	size_t len,
+	mbstate_t *__restrict ps);
+_CRTIMP size_t mbsrtowcs(
+	wchar_t *__restrict dst,
+	__CONST char **__restrict src,
+	size_t len,
+	mbstate_t *__restrict ps);
 
-#ifdef __cplusplus
-}
-#endif
+/* Wide functions
+ * Used for wide string support */
+_CRTIMP wint_t btowc (int c);
+_CRTIMP int wctob (wint_t wc);
+_CRTIMP size_t wcrtomb(
+	char *__restrict s,
+	wchar_t wc,
+	mbstate_t *__restrict ps);
+_CRTIMP size_t wcsnrtombs(
+	char *__restrict dst,
+	__CONST wchar_t **__restrict src,
+	size_t nwc,
+	size_t len,
+	mbstate_t *__restrict ps);
+_CRTIMP size_t wcsrtombs(
+	char *__restrict dst,
+	__CONST wchar_t **__restrict src,
+	size_t len,
+	mbstate_t *__restrict ps);
+_CRTIMP size_t wcstombs(
+    char *__restrict s,
+    __CONST wchar_t *__restrict pwcs,
+	size_t n);
+_CRTIMP int mbtowc(
+	wchar_t *__restrict pwc,
+	__CONST char *__restrict s,
+	size_t n);
+_CRTIMP int wctomb(
+	char *s,
+	wchar_t wchar);
+
+_CRTIMP float wcstof(
+	__CONST wchar_t *__restrict nptr,
+	wchar_t **__restrict endptr);
+_CRTIMP double wcstod(
+	__CONST wchar_t *__restrict nptr,
+	wchar_t **__restrict endptr);
+_CRTIMP long double wcstold(
+	__CONST wchar_t *__restrict nptr, 
+	wchar_t **__restrict endptr);
+_CRTIMP intmax_t wcstoimax(
+	__CONST wchar_t* __restrict nptr, 
+	wchar_t** __restrict endptr, 
+	int base);
+_CRTIMP uintmax_t wcstoumax(
+	__CONST wchar_t* __restrict nptr, 
+	wchar_t** __restrict endptr, 
+	int base);
+_CRTIMP long wcstol(
+	__CONST wchar_t *__restrict s,
+	wchar_t **__restrict ptr,
+	int base);
+_CRTIMP long long wcstoll(
+	__CONST wchar_t *__restrict s,
+	wchar_t **__restrict ptr,
+	int base);
+_CRTIMP unsigned long wcstoul(
+	__CONST wchar_t *__restrict s,
+	wchar_t **__restrict ptr,
+	int base);
+_CRTIMP unsigned long long wcstoull(
+	__CONST wchar_t *__restrict s,
+	wchar_t **__restrict ptr,
+	int base);
+_CODE_END
 
 #endif

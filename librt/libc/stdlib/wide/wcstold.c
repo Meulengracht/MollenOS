@@ -34,12 +34,18 @@ POSSIBILITY OF SUCH DAMAGE.
 #include <wchar.h>
 #include <wctype.h>
 #include <locale.h>
-#include "local.h"
-#include "../locale/setlocale.h"
+#include "../local.h"
+#include "../../locale/setlocale.h"
 
-long double
-wcstold_l (const wchar_t *__restrict nptr, wchar_t **__restrict endptr,
-	   locale_t loc)
+__EXTERN double wcstod_l(
+  __CONST wchar_t *__restrict nptr, 
+  wchar_t **__restrict endptr,
+  locale_t loc);
+
+long double wcstold_l(
+  __CONST wchar_t *__restrict nptr, 
+  wchar_t **__restrict endptr,
+  locale_t loc)
 {
 #ifdef _LDBL_EQ_DBL
 /* On platforms where long double is as wide as double.  */
@@ -60,7 +66,7 @@ wcstold_l (const wchar_t *__restrict nptr, wchar_t **__restrict endptr,
   /* Convert the supplied numeric wide char string to multibyte.  */
   wcp = nptr;
   mbs = initial;
-  if ((len = _wcsnrtombs_l (_REENT, NULL, &wcp, (size_t) -1, 0, &mbs, loc))
+  if ((len = _wcsnrtombs_l (NULL, &wcp, (size_t) -1, 0, &mbs, loc))
       == (size_t) -1)
     {
       if (endptr != NULL)
@@ -72,7 +78,7 @@ wcstold_l (const wchar_t *__restrict nptr, wchar_t **__restrict endptr,
     return 0.0L;
 
   mbs = initial;
-  _wcsnrtombs_l (_REENT, buf, &wcp, (size_t) -1, len + 1, &mbs, loc);
+  _wcsnrtombs_l (buf, &wcp, (size_t) -1, len + 1, &mbs, loc);
 
   val = strtold_l (buf, &end, loc);
 
@@ -111,8 +117,9 @@ wcstold_l (const wchar_t *__restrict nptr, wchar_t **__restrict endptr,
 #endif /* _LDBL_EQ_DBL */
 }
 
-long double
-wcstold (const wchar_t *__restrict nptr, wchar_t **__restrict endptr)
+long double wcstold(
+  __CONST wchar_t *__restrict nptr, 
+  wchar_t **__restrict endptr)
 {
 #ifdef _LDBL_EQ_DBL
 /* On platforms where long double is as wide as double.  */

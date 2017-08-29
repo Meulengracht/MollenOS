@@ -42,22 +42,18 @@ effects vary with the locale.
 
 <<_mblen_r>> requires no supporting OS subroutines.
 */
-
-#include <newlib.h>
 #include <stdlib.h>
 #include <wchar.h>
-#include "local.h"
+#include "../local.h"
 
-int
-_DEFUN (_mblen_r, (r, s, n, state), 
-        struct _reent *r    _AND
-        const char *s _AND
-        size_t n _AND
-        mbstate_t *state)
+int _mblen_r(
+  __CONST char *s,
+  size_t n,
+  mbstate_t *state)
 {
 #ifdef _MB_CAPABLE
   int retval;
-  retval = __MBTOWC (r, NULL, s, n, state);
+  retval = __MBTOWC (NULL, s, n, state);
 
   if (retval < 0)
     {

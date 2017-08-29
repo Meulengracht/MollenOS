@@ -41,26 +41,20 @@ effects vary with the locale.
 <<mblen>> requires no supporting OS subroutines.
 */
 
-#ifndef _REENT_ONLY
-
-#include <newlib.h>
+#include <os/thread.h>
 #include <stdlib.h>
 #include <wchar.h>
-#include "local.h"
+#include "../local.h"
 
-int
-_DEFUN (mblen, (s, n), 
-        const char *s _AND
-        size_t n)
+int mblen( 
+    __CONST char *s,
+    size_t n)
 {
 #ifdef _MB_CAPABLE
   int retval = 0;
-  struct _reent *reent = _REENT;
   mbstate_t *state;
-  
-  _REENT_CHECK_MISC(reent);
-  state = &(_REENT_MBLEN_STATE(reent));
-  retval = __MBTOWC (reent, NULL, s, n, state);
+  state = &(TLSGetCurrent()->MbState);
+  retval = __MBTOWC (NULL, s, n, state);
   if (retval < 0)
     {
       state->__count = 0;
@@ -77,5 +71,3 @@ _DEFUN (mblen, (s, n),
   return 1;
 #endif /* not _MB_CAPABLE */
 }
-
-#endif /* !_REENT_ONLY */

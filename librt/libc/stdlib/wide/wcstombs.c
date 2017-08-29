@@ -47,24 +47,63 @@ effects vary with the locale.
 
 <<wcstombs>> requires no supporting OS subroutines.
 */
-
-#ifndef _REENT_ONLY
-
-#include <newlib.h>
 #include <stdlib.h>
 #include <wchar.h>
+#include "../local.h"
 
-size_t
-_DEFUN (wcstombs, (s, pwcs, n),
-        char          *__restrict s    _AND
-        const wchar_t *__restrict pwcs _AND
-        size_t         n)
+size_t _wcstombs_r(
+    char          *__restrict s,
+    __CONST wchar_t *__restrict pwcs,
+    size_t         n,
+    mbstate_t     *state)
+{
+  char *ptr = s;
+  size_t max = n;
+  char buff[8];
+  int i, bytes, num_to_copy;
+
+  if (s == NULL)
+    {
+      size_t num_bytes = 0;
+      while (*pwcs != 0)
+	{
+	  bytes = __WCTOMB (buff, *pwcs++, state);
+	  if (bytes == -1)
+	    return -1;
+	  num_bytes += bytes;
+	}
+      return num_bytes;
+    }
+  else
+    {
+      while (n > 0)
+        {
+          bytes = __WCTOMB (buff, *pwcs, state);
+          if (bytes == -1)
+            return -1;
+          num_to_copy = (n > bytes ? bytes : (int)n);
+          for (i = 0; i < num_to_copy; ++i)
+            *ptr++ = buff[i];
+          
+          if (*pwcs == 0x00)
+            return ptr - s - (n >= bytes);
+          ++pwcs;
+          n -= num_to_copy;
+        }
+      return max;
+    }
+} 
+
+size_t wcstombs(
+    char *__restrict s,
+    __CONST wchar_t *__restrict pwcs,
+    size_t n)
 {
 #ifdef _MB_CAPABLE
   mbstate_t state;
   state.__count = 0;
   
-  return _wcstombs_r (_REENT, s, pwcs, n, &state);
+  return _wcstombs_r(s, pwcs, n, &state);
 #else /* not _MB_CAPABLE */
   int count = 0;
   
@@ -79,5 +118,3 @@ _DEFUN (wcstombs, (s, pwcs, n),
   return count;
 #endif /* not _MB_CAPABLE */
 }
-
-#endif /* !_REENT_ONLY */

@@ -1,15 +1,45 @@
-
-/* Includes */
 #include <stdlib.h>
 #include <locale.h>
 #include "mbctype.h"
 #include <wchar.h>
 #include <string.h>
 #include <errno.h>
-#include "local.h"
+#include "../local.h"
 
-int _mbtowc_r(wchar_t *__restrict pwc, 
-	const char *__restrict s, size_t n, mbstate_t *state)
+int mbtowc(
+	wchar_t *__restrict pwc,
+	__CONST char *__restrict s,
+	size_t n)
+{
+#ifdef _MB_CAPABLE
+  int retval = 0;
+  mbstate_t *ps;
+
+  ps = &(TLSGetCurrent()->MbState);
+  retval = __MBTOWC (pwc, s, n, ps);
+  
+  if (retval < 0)
+    {
+      ps->__count = 0;
+      return -1;
+    }
+  return retval;
+#else /* not _MB_CAPABLE */
+  if (s == NULL)
+    return 0;
+  if (n == 0)
+    return -1;
+  if (pwc)
+    *pwc = (wchar_t) *s;
+  return (*s != '\0');
+#endif /* not _MB_CAPABLE */
+}
+
+int _mbtowc_r(
+	wchar_t *__restrict pwc, 
+	__CONST char *__restrict s, 
+	size_t n, 
+	mbstate_t *state)
 {
 	return __MBTOWC(pwc, s, n, state);
 }
@@ -95,8 +125,8 @@ static JIS_ACTION JIS_action_table[JIS_S_NUM][JIS_C_NUM] = {
 
 #ifdef _MB_EXTENDED_CHARSETS_ISO
 static int
-___iso_mbtowc(struct _reent *r, wchar_t *pwc, const char *s, size_t n,
-int iso_idx, mbstate_t *state)
+___iso_mbtowc(wchar_t *pwc, const char *s, size_t n,
+	int iso_idx, mbstate_t *state)
 {
 	wchar_t dummy;
 	unsigned char *t = (unsigned char *)s;
@@ -117,7 +147,7 @@ int iso_idx, mbstate_t *state)
 			*pwc = __iso_8859_conv[iso_idx][*t - 0xa0];
 			if (*pwc == 0) /* Invalid character */
 			{
-				r->_errno = EILSEQ;
+				_set_errno(EILSEQ);
 				return -1;
 			}
 			return 1;
@@ -133,108 +163,93 @@ int iso_idx, mbstate_t *state)
 }
 
 static int
-__iso_8859_1_mbtowc(struct _reent *r, wchar_t *pwc, const char *s, size_t n,
-mbstate_t *state)
+__iso_8859_1_mbtowc(wchar_t *pwc, const char *s, size_t n, mbstate_t *state)
 {
-	return ___iso_mbtowc(r, pwc, s, n, -1, state);
+	return ___iso_mbtowc(pwc, s, n, -1, state);
 }
 
 static int
-__iso_8859_2_mbtowc(struct _reent *r, wchar_t *pwc, const char *s, size_t n,
-mbstate_t *state)
+__iso_8859_2_mbtowc(wchar_t *pwc, const char *s, size_t n, mbstate_t *state)
 {
-	return ___iso_mbtowc(r, pwc, s, n, 0, state);
+	return ___iso_mbtowc(pwc, s, n, 0, state);
 }
 
 static int
-__iso_8859_3_mbtowc(struct _reent *r, wchar_t *pwc, const char *s, size_t n,
-mbstate_t *state)
+__iso_8859_3_mbtowc(wchar_t *pwc, const char *s, size_t n, mbstate_t *state)
 {
-	return ___iso_mbtowc(r, pwc, s, n, 1, state);
+	return ___iso_mbtowc(pwc, s, n, 1, state);
 }
 
 static int
-__iso_8859_4_mbtowc(struct _reent *r, wchar_t *pwc, const char *s, size_t n,
-mbstate_t *state)
+__iso_8859_4_mbtowc(wchar_t *pwc, const char *s, size_t n, mbstate_t *state)
 {
-	return ___iso_mbtowc(r, pwc, s, n, 2, state);
+	return ___iso_mbtowc(pwc, s, n, 2, state);
 }
 
 static int
-__iso_8859_5_mbtowc(struct _reent *r, wchar_t *pwc, const char *s, size_t n,
-mbstate_t *state)
+__iso_8859_5_mbtowc(wchar_t *pwc, const char *s, size_t n, mbstate_t *state)
 {
-	return ___iso_mbtowc(r, pwc, s, n, 3, state);
+	return ___iso_mbtowc(pwc, s, n, 3, state);
 }
 
 static int
-__iso_8859_6_mbtowc(struct _reent *r, wchar_t *pwc, const char *s, size_t n,
-mbstate_t *state)
+__iso_8859_6_mbtowc(wchar_t *pwc, const char *s, size_t n, mbstate_t *state)
 {
-	return ___iso_mbtowc(r, pwc, s, n, 4, state);
+	return ___iso_mbtowc(pwc, s, n, 4, state);
 }
 
 static int
-__iso_8859_7_mbtowc(struct _reent *r, wchar_t *pwc, const char *s, size_t n,
-mbstate_t *state)
+__iso_8859_7_mbtowc(wchar_t *pwc, const char *s, size_t n, mbstate_t *state)
 {
-	return ___iso_mbtowc(r, pwc, s, n, 5, state);
+	return ___iso_mbtowc(pwc, s, n, 5, state);
 }
 
 static int
-__iso_8859_8_mbtowc(struct _reent *r, wchar_t *pwc, const char *s, size_t n,
-mbstate_t *state)
+__iso_8859_8_mbtowc(wchar_t *pwc, const char *s, size_t n, mbstate_t *state)
 {
-	return ___iso_mbtowc(r, pwc, s, n, 6, state);
+	return ___iso_mbtowc(pwc, s, n, 6, state);
 }
 
 static int
-__iso_8859_9_mbtowc(struct _reent *r, wchar_t *pwc, const char *s, size_t n,
-mbstate_t *state)
+__iso_8859_9_mbtowc(wchar_t *pwc, const char *s, size_t n, mbstate_t *state)
 {
-	return ___iso_mbtowc(r, pwc, s, n, 7, state);
+	return ___iso_mbtowc(pwc, s, n, 7, state);
 }
 
 static int
-__iso_8859_10_mbtowc(struct _reent *r, wchar_t *pwc, const char *s, size_t n,
-mbstate_t *state)
+__iso_8859_10_mbtowcwchar_t *pwc, const char *s, size_t n, mbstate_t *state)
 {
-	return ___iso_mbtowc(r, pwc, s, n, 8, state);
+	return ___iso_mbtowc(pwc, s, n, 8, state);
 }
 
 static int
-__iso_8859_11_mbtowc(struct _reent *r, wchar_t *pwc, const char *s, size_t n,
-mbstate_t *state)
+__iso_8859_11_mbtowc(char_t *pwc, const char *s, size_t n, mbstate_t *state)
 {
-	return ___iso_mbtowc(r, pwc, s, n, 9, state);
+	return ___iso_mbtowc(pwc, s, n, 9, state);
 }
 
 static int
-__iso_8859_13_mbtowc(struct _reent *r, wchar_t *pwc, const char *s, size_t n,
-mbstate_t *state)
+__iso_8859_13_mbtowc(wchar_t *pwc, const char *s, size_t n, mbstate_t *state)
 {
-	return ___iso_mbtowc(r, pwc, s, n, 10, state);
+	return ___iso_mbtowc(pwc, s, n, 10, state);
 }
 
 static int
-__iso_8859_14_mbtowc(struct _reent *r, wchar_t *pwc, const char *s, size_t n,
-mbstate_t *state)
+__iso_8859_14_mbtowc(wchar_t *pwc, const char *s, size_t n, mbstate_t *state)
 {
-	return ___iso_mbtowc(r, pwc, s, n, 11, state);
+	return ___iso_mbtowc(pwc, s, n, 11, state);
 }
 
 static int
-__iso_8859_15_mbtowc(struct _reent *r, wchar_t *pwc, const char *s, size_t n,
-mbstate_t *state)
+__iso_8859_15_mbtowc(wchar_t *pwc, const char *s, size_t n, mbstate_t *state)
 {
-	return ___iso_mbtowc(r, pwc, s, n, 12, state);
+	return ___iso_mbtowc(pwc, s, n, 12, state);
 }
 
 static int
-__iso_8859_16_mbtowc(struct _reent *r, wchar_t *pwc, const char *s, size_t n,
-mbstate_t *state)
+__iso_8859_16_mbtowc(wchar_t *pwc, const char *s, size_t n, mbstate_t *state)
 {
-	return ___iso_mbtowc(r, pwc, s, n, 13, state);
+	return ___iso_mbtowc(pwc, s, n, 13, state);
 }
 
 static mbtowc_p __iso_8859_mbtowc[17] = {
@@ -268,8 +283,7 @@ __iso_mbtowc(int val)
 
 #ifdef _MB_EXTENDED_CHARSETS_WINDOWS
 static int
-___cp_mbtowc(struct _reent *r, wchar_t *pwc, const char *s, size_t n,
-int cp_idx, mbstate_t *state)
+___cp_mbtowc(wchar_t *pwc, const char *s, size_t n, int cp_idx, mbstate_t *state)
 {
 	wchar_t dummy;
 	unsigned char *t = (unsigned char *)s;
@@ -290,7 +304,7 @@ int cp_idx, mbstate_t *state)
 			*pwc = __cp_conv[cp_idx][*t - 0x80];
 			if (*pwc == 0) /* Invalid character */
 			{
-				r->_errno = EILSEQ;
+				_set_errno(EILSEQ);
 				return -1;
 			}
 			return 1;
@@ -306,185 +320,159 @@ int cp_idx, mbstate_t *state)
 }
 
 static int
-__cp_437_mbtowc(struct _reent *r, wchar_t *pwc, const char *s, size_t n,
-mbstate_t *state)
+__cp_437_mbtowc(wchar_t *pwc, const char *s, size_t n, mbstate_t *state)
 {
-	return ___cp_mbtowc(r, pwc, s, n, 0, state);
+	return ___cp_mbtowc(pwc, s, n, 0, state);
 }
 
 static int
-__cp_720_mbtowc(struct _reent *r, wchar_t *pwc, const char *s, size_t n,
-mbstate_t *state)
+__cp_720_mbtowc(wchar_t *pwc, const char *s, size_t n, mbstate_t *state)
 {
-	return ___cp_mbtowc(r, pwc, s, n, 1, state);
+	return ___cp_mbtowc(pwc, s, n, 1, state);
 }
 
 static int
-__cp_737_mbtowc(struct _reent *r, wchar_t *pwc, const char *s, size_t n,
-mbstate_t *state)
+__cp_737_mbtowc(wchar_t *pwc, const char *s, size_t n, mbstate_t *state)
 {
-	return ___cp_mbtowc(r, pwc, s, n, 2, state);
+	return ___cp_mbtowc(pwc, s, n, 2, state);
 }
 
 static int
-__cp_775_mbtowc(struct _reent *r, wchar_t *pwc, const char *s, size_t n,
-mbstate_t *state)
+__cp_775_mbtowc(wchar_t *pwc, const char *s, size_t n, mbstate_t *state)
 {
-	return ___cp_mbtowc(r, pwc, s, n, 3, state);
+	return ___cp_mbtowc(pwc, s, n, 3, state);
 }
 
 static int
-__cp_850_mbtowc(struct _reent *r, wchar_t *pwc, const char *s, size_t n,
-mbstate_t *state)
+__cp_850_mbtowc(wchar_t *pwc, const char *s, size_t n, mbstate_t *state)
 {
-	return ___cp_mbtowc(r, pwc, s, n, 4, state);
+	return ___cp_mbtowc(pwc, s, n, 4, state);
 }
 
 static int
-__cp_852_mbtowc(struct _reent *r, wchar_t *pwc, const char *s, size_t n,
-mbstate_t *state)
+__cp_852_mbtowc(wchar_t *pwc, const char *s, size_t n, mbstate_t *state)
 {
-	return ___cp_mbtowc(r, pwc, s, n, 5, state);
+	return ___cp_mbtowc(pwc, s, n, 5, state);
 }
 
 static int
-__cp_855_mbtowc(struct _reent *r, wchar_t *pwc, const char *s, size_t n,
-mbstate_t *state)
+__cp_855_mbtowc(wchar_t *pwc, const char *s, size_t n, mbstate_t *state)
 {
-	return ___cp_mbtowc(r, pwc, s, n, 6, state);
+	return ___cp_mbtowc(pwc, s, n, 6, state);
 }
 
 static int
-__cp_857_mbtowc(struct _reent *r, wchar_t *pwc, const char *s, size_t n,
-mbstate_t *state)
+__cp_857_mbtowc(wchar_t *pwc, const char *s, size_t n, mbstate_t *state)
 {
-	return ___cp_mbtowc(r, pwc, s, n, 7, state);
+	return ___cp_mbtowc(pwc, s, n, 7, state);
 }
 
 static int
-__cp_858_mbtowc(struct _reent *r, wchar_t *pwc, const char *s, size_t n,
-mbstate_t *state)
+__cp_858_mbtowc(wchar_t *pwc, const char *s, size_t n, mbstate_t *state)
 {
-	return ___cp_mbtowc(r, pwc, s, n, 8, state);
+	return ___cp_mbtowc(pwc, s, n, 8, state);
 }
 
 static int
-__cp_862_mbtowc(struct _reent *r, wchar_t *pwc, const char *s, size_t n,
-mbstate_t *state)
+__cp_862_mbtowcwchar_t *pwc, const char *s, size_t n, mbstate_t *state)
 {
-	return ___cp_mbtowc(r, pwc, s, n, 9, state);
+	return ___cp_mbtowc(pwc, s, n, 9, state);
 }
 
 static int
-__cp_866_mbtowc(struct _reent *r, wchar_t *pwc, const char *s, size_t n,
-mbstate_t *state)
+__cp_866_mbtowc(wchar_t *pwc, const char *s, size_t n, mbstate_t *state)
 {
-	return ___cp_mbtowc(r, pwc, s, n, 10, state);
+	return ___cp_mbtowc(pwc, s, n, 10, state);
 }
 
 static int
-__cp_874_mbtowc(struct _reent *r, wchar_t *pwc, const char *s, size_t n,
-mbstate_t *state)
+__cp_874_mbtowc(wchar_t *pwc, const char *s, size_t n, mbstate_t *state)
 {
-	return ___cp_mbtowc(r, pwc, s, n, 11, state);
+	return ___cp_mbtowc(pwc, s, n, 11, state);
 }
 
 static int
-__cp_1125_mbtowc(struct _reent *r, wchar_t *pwc, const char *s, size_t n,
-mbstate_t *state)
+__cp_1125_mbtowc(wchar_t *pwc, const char *s, size_t n, mbstate_t *state)
 {
-	return ___cp_mbtowc(r, pwc, s, n, 12, state);
+	return ___cp_mbtowc(pwc, s, n, 12, state);
 }
 
 static int
-__cp_1250_mbtowc(struct _reent *r, wchar_t *pwc, const char *s, size_t n,
-mbstate_t *state)
+__cp_1250_mbtowc(wchar_t *pwc, const char *s, size_t n, mbstate_t *state)
 {
-	return ___cp_mbtowc(r, pwc, s, n, 13, state);
+	return ___cp_mbtowc(pwc, s, n, 13, state);
 }
 
 static int
-__cp_1251_mbtowc(struct _reent *r, wchar_t *pwc, const char *s, size_t n,
-mbstate_t *state)
+__cp_1251_mbtowc(wchar_t *pwc, const char *s, size_t n, mbstate_t *state)
 {
-	return ___cp_mbtowc(r, pwc, s, n, 14, state);
+	return ___cp_mbtowc(pwc, s, n, 14, state);
 }
 
 static int
-__cp_1252_mbtowc(struct _reent *r, wchar_t *pwc, const char *s, size_t n,
-mbstate_t *state)
+__cp_1252_mbtowc(wchar_t *pwc, const char *s, size_t n, mbstate_t *state)
 {
-	return ___cp_mbtowc(r, pwc, s, n, 15, state);
+	return ___cp_mbtowc(pwc, s, n, 15, state);
 }
 
 static int
-__cp_1253_mbtowc(struct _reent *r, wchar_t *pwc, const char *s, size_t n,
-mbstate_t *state)
+__cp_1253_mbtowc(wchar_t *pwc, const char *s, size_t n, mbstate_t *state)
 {
-	return ___cp_mbtowc(r, pwc, s, n, 16, state);
+	return ___cp_mbtowc(pwc, s, n, 16, state);
 }
 
 static int
-__cp_1254_mbtowc(struct _reent *r, wchar_t *pwc, const char *s, size_t n,
-mbstate_t *state)
+__cp_1254_mbtowc( wchar_t *pwc, const char *s, size_t n, mbstate_t *state)
 {
-	return ___cp_mbtowc(r, pwc, s, n, 17, state);
+	return ___cp_mbtowc(pwc, s, n, 17, state);
 }
 
 static int
-__cp_1255_mbtowc(struct _reent *r, wchar_t *pwc, const char *s, size_t n,
-mbstate_t *state)
+__cp_1255_mbtowc(wchar_t *pwc, const char *s, size_t n, mbstate_t *state)
 {
-	return ___cp_mbtowc(r, pwc, s, n, 18, state);
+	return ___cp_mbtowc(pwc, s, n, 18, state);
 }
 
 static int
-__cp_1256_mbtowc(struct _reent *r, wchar_t *pwc, const char *s, size_t n,
-mbstate_t *state)
+__cp_1256_mbtowc(wchar_t *pwc, const char *s, size_t n, mbstate_t *state)
 {
-	return ___cp_mbtowc(r, pwc, s, n, 19, state);
+	return ___cp_mbtowc(pwc, s, n, 19, state);
 }
 
 static int
-__cp_1257_mbtowc(struct _reent *r, wchar_t *pwc, const char *s, size_t n,
-mbstate_t *state)
+__cp_1257_mbtowc(wchar_t *pwc, const char *s, size_t n, mbstate_t *state)
 {
-	return ___cp_mbtowc(r, pwc, s, n, 20, state);
+	return ___cp_mbtowc(pwc, s, n, 20, state);
 }
 
 static int
-__cp_1258_mbtowc(struct _reent *r, wchar_t *pwc, const char *s, size_t n,
-mbstate_t *state)
+__cp_1258_mbtowc(wchar_t *pwc, const char *s, size_t n, mbstate_t *state)
 {
-	return ___cp_mbtowc(r, pwc, s, n, 21, state);
+	return ___cp_mbtowc(pwc, s, n, 21, state);
 }
 
 static int
-__cp_20866_mbtowc(struct _reent *r, wchar_t *pwc, const char *s, size_t n,
-mbstate_t *state)
+__cp_20866_mbtowc(wchar_t *pwc, const char *s, size_t n, mbstate_t *state)
 {
-	return ___cp_mbtowc(r, pwc, s, n, 22, state);
+	return ___cp_mbtowc(pwc, s, n, 22, state);
 }
 
 static int
-__cp_21866_mbtowc(struct _reent *r, wchar_t *pwc, const char *s, size_t n,
-mbstate_t *state)
+__cp_21866_mbtowc(wchar_t *pwc, const char *s, size_t n, mbstate_t *state)
 {
-	return ___cp_mbtowc(r, pwc, s, n, 23, state);
+	return ___cp_mbtowc(pwc, s, n, 23, state);
 }
 
 static int
-__cp_101_mbtowc(struct _reent *r, wchar_t *pwc, const char *s, size_t n,
-mbstate_t *state)
+__cp_101_mbtowc(wchar_t *pwc, const char *s, size_t n, mbstate_t *state)
 {
-	return ___cp_mbtowc(r, pwc, s, n, 24, state);
+	return ___cp_mbtowc(pwc, s, n, 24, state);
 }
 
 static int
-__cp_102_mbtowc(struct _reent *r, wchar_t *pwc, const char *s, size_t n,
-mbstate_t *state)
+__cp_102_mbtowcwchar_t *pwc, const char *s, size_t n, mbstate_t *state)
 {
-	return ___cp_mbtowc(r, pwc, s, n, 25, state);
+	return ___cp_mbtowc(pwc, s, n, 25, state);
 }
 
 static mbtowc_p __cp_xxx_mbtowc[26] = {
@@ -525,12 +513,10 @@ __cp_mbtowc(int val)
 }
 #endif /* _MB_EXTENDED_CHARSETS_WINDOWS */
 
-int
-_DEFUN(__utf8_mbtowc, (r, pwc, s, n, state),
-struct _reent *r       _AND
-	wchar_t       *pwc     _AND
-	const char    *s       _AND
-	size_t         n       _AND
+int __utf8_mbtowc(
+	wchar_t       *pwc,
+	const char    *s,
+	size_t         n,
 	mbstate_t      *state)
 {
 	wchar_t dummy;
@@ -579,13 +565,13 @@ struct _reent *r       _AND
 		ch = t[i++];
 		if (ch < 0x80 || ch > 0xbf)
 		{
-			r->_errno = EILSEQ;
+			_set_errno(EILSEQ);
 			return -1;
 		}
 		if (state->__value.__wchb[0] < 0xc2)
 		{
 			/* overlong UTF-8 sequence */
-			r->_errno = EILSEQ;
+			_set_errno(EILSEQ);
 			return -1;
 		}
 		state->__count = 0;
@@ -608,12 +594,12 @@ struct _reent *r       _AND
 		if (state->__value.__wchb[0] == 0xe0 && ch < 0xa0)
 		{
 			/* overlong UTF-8 sequence */
-			r->_errno = EILSEQ;
+			_set_errno(EILSEQ);
 			return -1;
 		}
 		if (ch < 0x80 || ch > 0xbf)
 		{
-			r->_errno = EILSEQ;
+			_set_errno(EILSEQ);
 			return -1;
 		}
 		state->__value.__wchb[1] = ch;
@@ -626,7 +612,7 @@ struct _reent *r       _AND
 		ch = t[i++];
 		if (ch < 0x80 || ch > 0xbf)
 		{
-			r->_errno = EILSEQ;
+			_set_errno(EILSEQ);
 			return -1;
 		}
 		state->__count = 0;
@@ -652,12 +638,12 @@ struct _reent *r       _AND
 			|| (state->__value.__wchb[0] == 0xf4 && ch >= 0x90))
 		{
 			/* overlong UTF-8 sequence or result is > 0x10ffff */
-			r->_errno = EILSEQ;
+			_set_errno(EILSEQ);
 			return -1;
 		}
 		if (ch < 0x80 || ch > 0xbf)
 		{
-			r->_errno = EILSEQ;
+			_set_errno(EILSEQ);
 			return -1;
 		}
 		state->__value.__wchb[1] = ch;
@@ -670,7 +656,7 @@ struct _reent *r       _AND
 		ch = (state->__count == 2) ? t[i++] : state->__value.__wchb[2];
 		if (ch < 0x80 || ch > 0xbf)
 		{
-			r->_errno = EILSEQ;
+			_set_errno(EILSEQ);
 			return -1;
 		}
 		state->__value.__wchb[2] = ch;
@@ -703,7 +689,7 @@ struct _reent *r       _AND
 		ch = t[i++];
 		if (ch < 0x80 || ch > 0xbf)
 		{
-			r->_errno = EILSEQ;
+			_set_errno(EILSEQ);
 			return -1;
 		}
 		tmp = (wint_t)((state->__value.__wchb[0] & 0x07) << 18)
@@ -720,19 +706,17 @@ struct _reent *r       _AND
 		return i;
 	}
 
-	r->_errno = EILSEQ;
+	_set_errno(EILSEQ);
 	return -1;
 }
 
 /* Cygwin defines its own doublebyte charset conversion functions
 because the underlying OS requires wchar_t == UTF-16. */
 #ifndef  __CYGWIN__
-int
-_DEFUN(__sjis_mbtowc, (r, pwc, s, n, state),
-struct _reent *r       _AND
-	wchar_t       *pwc     _AND
-	const char    *s       _AND
-	size_t         n       _AND
+int __sjis_mbtowc(
+	wchar_t       *pwc,
+	const char    *s,
+	size_t         n,
 	mbstate_t      *state)
 {
 	wchar_t dummy;
@@ -771,7 +755,7 @@ struct _reent *r       _AND
 		}
 		else
 		{
-			r->_errno = EILSEQ;
+			_set_errno(EILSEQ);
 			return -1;
 		}
 	}
@@ -784,12 +768,10 @@ struct _reent *r       _AND
 	return 1;
 }
 
-int
-_DEFUN(__eucjp_mbtowc, (r, pwc, s, n, state),
-struct _reent *r       _AND
-	wchar_t       *pwc     _AND
-	const char    *s       _AND
-	size_t         n       _AND
+int __eucjp_mbtowc(
+	wchar_t       *pwc,
+	const char    *s,
+	size_t         n,
 	mbstate_t      *state)
 {
 	wchar_t dummy;
@@ -839,7 +821,8 @@ struct _reent *r       _AND
 		}
 		else
 		{
-			r->_errno = EILSEQ;
+			
+			_set_errno(EILSEQ);
 			return -1;
 		}
 	}
@@ -854,7 +837,7 @@ struct _reent *r       _AND
 		}
 		else
 		{
-			r->_errno = EILSEQ;
+			_set_errno(EILSEQ);
 			return -1;
 		}
 	}
@@ -867,12 +850,10 @@ struct _reent *r       _AND
 	return 1;
 }
 
-int
-_DEFUN(__jis_mbtowc, (r, pwc, s, n, state),
-struct _reent *r       _AND
-	wchar_t       *pwc     _AND
-	const char    *s       _AND
-	size_t         n       _AND
+int __jis_mbtowc(
+	wchar_t       *pwc,
+	const char    *s,
+	size_t         n,
 	mbstate_t      *state)
 {
 	wchar_t dummy;
@@ -948,18 +929,18 @@ struct _reent *r       _AND
 			*pwc = (wchar_t)*ptr;
 			return (i + 1);
 		case COPY_J1:
-			state->__value.__wchb[0] = t[i];
+			state->__val.__wchb[0] = t[i];
 			break;
 		case COPY_J2:
 			state->__state = JIS;
-			*pwc = (((wchar_t)state->__value.__wchb[0]) << 8) + (wchar_t)(t[i]);
+			*pwc = (((wchar_t)state->__val.__wchb[0]) << 8) + (wchar_t)(t[i]);
 			return (i + 1);
 		case MAKE_A:
 			ptr = (unsigned char *)(t + i + 1);
 			break;
 		case ERROR:
 		default:
-			r->_errno = EILSEQ;
+			_set_errno(EILSEQ);
 			return -1;
 		}
 

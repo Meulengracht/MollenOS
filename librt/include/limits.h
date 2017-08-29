@@ -134,7 +134,7 @@
 #define _UI32_MAX 0xffffffffu
 #endif
 
-#if defined(__GNUC__)
+#if defined(__GNUC__) || defined(_GNU_SOURCE)
 #undef LONG_LONG_MAX
 #define LONG_LONG_MAX 9223372036854775807ll
 #undef LONG_LONG_MIN

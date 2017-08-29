@@ -95,21 +95,17 @@ PORTABILITY
 <<mbsrtowcs>> is defined by the C99 standard.
 <<mbsnrtowcs>> is defined by the POSIX.1-2008 standard.
 */
-
-#include <reent.h>
-#include <newlib.h>
+#include <os/thread.h>
 #include <wchar.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <errno.h>
 
-size_t
-_DEFUN (_mbsnrtowcs_r, (r, dst, src, nms, len, ps), 
-	struct _reent *r _AND
-	wchar_t *dst _AND
-	const char **src _AND
-	size_t nms _AND
-	size_t len _AND
+size_t _mbsnrtowcs_r(
+	wchar_t *dst,
+	__CONST char **src,
+	size_t nms,
+	size_t len,
 	mbstate_t *ps)
 {
   wchar_t *ptr = dst;
@@ -121,8 +117,7 @@ _DEFUN (_mbsnrtowcs_r, (r, dst, src, nms, len, ps),
 #ifdef _MB_CAPABLE
   if (ps == NULL)
     {
-      _REENT_CHECK_MISC(r);
-      ps = &(_REENT_MBSRTOWCS_STATE(r));
+			ps = &(TLSGetCurrent()->MbState);
     }
 #endif
 
@@ -138,7 +133,7 @@ _DEFUN (_mbsnrtowcs_r, (r, dst, src, nms, len, ps),
   max = len;
   while (len > 0)
     {
-      bytes = _mbrtowc_r (r, ptr, *src, nms, ps);
+      bytes = mbrtowc(ptr, *src, nms, ps);
       if (bytes > 0)
 	{
 	  *src += bytes;
@@ -160,7 +155,7 @@ _DEFUN (_mbsnrtowcs_r, (r, dst, src, nms, len, ps),
       else
 	{
 	  ps->__count = 0;
-	  r->_errno = EILSEQ;
+	  _set_errno(EILSEQ);
 	  return (size_t)-1;
 	}
     }
@@ -168,15 +163,12 @@ _DEFUN (_mbsnrtowcs_r, (r, dst, src, nms, len, ps),
   return (size_t)max;
 }
 
-#ifndef _REENT_ONLY
-size_t
-_DEFUN (mbsnrtowcs, (dst, src, nms, len, ps),
-	wchar_t *__restrict dst _AND
-	const char **__restrict src _AND
-	size_t nms _AND
-	size_t len _AND
+size_t mbsnrtowcs(
+	wchar_t *__restrict dst,
+	__CONST char **__restrict src,
+	size_t nms,
+	size_t len,
 	mbstate_t *__restrict ps)
 {
-  return _mbsnrtowcs_r (_REENT, dst, src, nms, len, ps);
+  return _mbsnrtowcs_r(dst, src, nms, len, ps);
 }
-#endif /* !_REENT_ONLY */
