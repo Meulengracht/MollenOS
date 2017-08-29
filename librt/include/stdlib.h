@@ -145,7 +145,7 @@ _CRTIMP void free(void*);
 
 /* Environment functions, primarily functions
  * related to system env setup and exit functionality */
-_CRTIMP void abort(void);
+_CRTIMP_NORETURN(void abort(void));
 _CRTIMP char *getenv(__CONST char*);
 _CRTIMP int system(__CONST char*);
 
@@ -156,14 +156,14 @@ _CRTIMP int system(__CONST char*);
 /* Terminate normally, no cleanup. 
  * Call all functions in atexit_quick stack */
 _CRTIMP int at_quick_exit(void(__CRTDECL *function)(void));
-_CRTIMP void quick_exit(int);
+_CRTIMP_NORETURN(void quick_exit(int));
 
 /* Terminate normally, no cleanup. No calls to anything. */
-_CRTIMP void _Exit(int);
+_CRTIMP_NORETURN(void _Exit(int));
 
 /* Terminate normally with cleanup, call all functions in atexit stack */
 __EXTERN int atexit(void(__CRTDECL *func)(void));
-_CRTIMP void exit(int);
+_CRTIMP_NORETURN(void exit(int));
 #define _exit(s)	exit(s);
 
 /* Search and sort functions, a custom sorting 

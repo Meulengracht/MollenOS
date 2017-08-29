@@ -6,14 +6,14 @@ SOURCES = $(wildcard ./*.cpp)
 OBJECTS = $(SOURCES:.cpp=.o)
 
 # dll - _LIBCXXABI_BUILDING_LIBRARY
-CXXFLAGS = $(GCXXFLAGS) -D_NEWLIB_VERSION -fno-ms-compatibility $(INCLUDES)
-LFLAGS = /lib
+CXXFLAGS = $(GCXXFLAGS) -D_DLL -D_LIBCXXABI_BUILDING_LIBRARY -D_NEWLIB_VERSION -fno-ms-compatibility $(INCLUDES)
+LFLAGS = /nodefaultlib /subsystem:native /noentry /dll ../build/libc.lib ../build/libcrt.lib
 
 # default-target
 .PHONY: all
-all: ../build/libcxxabi.lib
+all: ../build/libcxxabi.dll
 
-../build/libcxxabi.lib: $(OBJECTS)
+../build/libcxxabi.dll: $(OBJECTS)
 	$(LD) $(LFLAGS) $(OBJECTS) /out:$@
 
 %.o : %.cpp
@@ -21,5 +21,6 @@ all: ../build/libcxxabi.lib
 
 .PHONY: clean
 clean:
+	@rm -f ../build/libcxxabi.dll
 	@rm -f ../build/libcxxabi.lib
 	@rm -f $(OBJECTS)

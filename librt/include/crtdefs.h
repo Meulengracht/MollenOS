@@ -250,7 +250,12 @@
 #endif
 #endif
 
-#define DECLSPEC_NORETURN __declspec(noreturn)
+#ifdef _MSC_VER
+#define DECLSPEC_NORETURN(X) __declspec(noreturn) X
+#else
+#define DECLSPEC_NORETURN(X) X __attribute__((noreturn))
+#endif
+#define _CRTIMP_NORETURN(X) DECLSPEC_NORETURN(X)
 
 #ifndef DECLSPEC_ADDRSAFE
 #if defined(_MSC_VER) && (defined(_M_ALPHA) || defined(_M_AXP64))
