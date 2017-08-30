@@ -17,15 +17,16 @@
 #include <stddef.h>
 #include <string.h>
 
-int vasprintf(
+int asprintf(
 	_In_ char **ret, 
 	_In_ __CONST char *format, 
-	_In_ va_list ap)
+	...)
 {
 	// Hold a temporary buffer
 	char Buffer[512];
 	int Result;
 	FILE Stream;
+	va_list argptr;
 
 	// Sanity check parameters
 	if(format == NULL || ret == NULL) {
@@ -45,7 +46,9 @@ int vasprintf(
     Stream._tmpfname = 0;
 
 	// Store result
-	Result = streamout(&Stream, format, ap);
+	va_start(argptr, format);
+	Result = streamout(&Stream, format, argptr);
+	va_end(argptr);
 
 	// Allocate a new copy of the string
 	*ret = strdup(&Buffer[0]);

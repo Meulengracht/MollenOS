@@ -1,7 +1,8 @@
 #include <stdio.h>
 #include <stdarg.h>
 
-int printf(
+int fprintf(
+    _In_ FILE *file, 
     _In_ __CONST char *format, 
     ...)
 {
@@ -9,8 +10,7 @@ int printf(
     int result;
 
     va_start(argptr, format);
-    result = vfprintf(stdout, format, argptr);
+    result = vfprintf(file, format, argptr);
     va_end(argptr);
-
     return result;
 }

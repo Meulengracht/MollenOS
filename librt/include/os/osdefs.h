@@ -29,6 +29,14 @@
 #include <crtdefs.h>
 #include <stdint.h>
 
+#ifdef _UNICODE
+# define TCHAR wchar_t
+# define _T(x) L ##x
+#else
+# define TCHAR char
+# define _T(x) x
+#endif
+
 /* Memory / Addressing types below 
  * these will switch in size based upon target-arch */
 

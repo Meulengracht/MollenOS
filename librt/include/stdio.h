@@ -81,69 +81,166 @@ _CRTIMP __CONST char **_errstrings;
 /* The C-Library Error Codes 
  * These closely relate the the 
  * cLibFileStream->code member */
-#define _IOEOF				0x1
-#define _IOREAD				0x2
-#define _IOWRT				0x4
-#define _IORW				(_IOREAD | _IOWRT)
-#define _IOFBF				0x8
-#define _IOLBF				0x10
-#define _IONBF				0x20
+#define _IOFBF     0x0000
+#define _IOREAD	   0x0001
+#define _IOWRT     0x0002
+#define _IONBF     0x0004
+#define _IOMYBUF   0x0008
+#define _IOEOF     0x0010
+#define _IOERR     0x0020
+#define _IOLBF     0x0040
+#define _IOSTRG    0x0040
+#define _IORW      0x0080
+#define _USERBUF   0x0100
 
 /*******************************
  *       File Structures       *
  *******************************/
-typedef struct _CFILE {
-	UUId_t					 fd;
-	void					*buffer;
-	int						 code;
-	Flags_t					 opts;
-	Flags_t					 access;
-} FILE, *PFILE;
+#ifndef _FILE_DEFINED
+struct _iobuf {
+	UUId_t   _fd;
+    char    *_ptr;
+    int      _cnt;
+    char    *_base;
+    int      _flag;
+    int      _charbuf;
+    int      _bufsiz;
+    char    *_tmpfname;
+	Flags_t	 _opts;
+	Flags_t	 _access;
+};
+typedef struct _iobuf FILE;
+#define _FILE_DEFINED
+#endif
 
 /*******************************
  *       File Access           *
  *******************************/
-_CRTIMP Flags_t faccess(__CONST char * mode);
-_CRTIMP Flags_t fopts(__CONST char * mode);
-_CRTIMP int fclose(FILE * stream);
-_CRTIMP FILE *fopen(__CONST char * filename, __CONST char * mode);
-_CRTIMP FILE *fdopen(int fd, __CONST char *mode);
-_CRTIMP FILE *freopen(__CONST char * filename, __CONST char * mode, FILE * stream);
-_CRTIMP int remove(__CONST char * filename);
-_CRTIMP int fflush(FILE * stream);
-_CRTIMP int _fileno(FILE * stream);
-
-//rename
-//tmpfile
-//tmpnam
-
-//extern void setbuf (FILE * stream, char * buffer);
-//extern int setvbuf(FILE * stream, char * buffer, int mode, size_t size);
+_CRTIMP int _lock_file(
+	_In_ FILE * stream);
+_CRTIMP int _unlock_file(
+	_In_ FILE * stream);
+_CRTIMP Flags_t faccess(
+	_In_ __CONST char * mode);
+_CRTIMP Flags_t fopts(
+	_In_ __CONST char * mode);
+_CRTIMP int fclose(
+	_In_ FILE * stream);
+_CRTIMP FILE *fopen(
+	_In_ __CONST char * filename, 
+	_In_ __CONST char * mode);
+_CRTIMP FILE *fdopen(
+	_In_ int fd, 
+	_In_ __CONST char *mode);
+_CRTIMP FILE *freopen(
+	_In_ __CONST char * filename, 
+	_In_ __CONST char * mode, 
+	_In_ FILE * stream);
+_CRTIMP int remove(
+	_In_ __CONST char * filename);
+_CRTIMP int rename(
+	_In_ __CONST char * oldname, 
+	_In_ __CONST char * newname);
+_CRTIMP FILE *tmpfile(void);
+_CRTIMP char *tmpnam(
+	_In_ char * str);
+_CRTIMP int fflush(
+	_In_ FILE * stream);
+_CRTIMP int _fileno(
+	_In_ FILE * stream);
+_CRTIMP void setbuf(
+    _In_ FILE* file, 
+    _In_ char *buf);
+_CRTIMP int setvbuf(
+    _In_ FILE* file, 
+    _In_ char *buf, 
+    _In_ int mode, 
+    _In_ size_t size);
 
 /*******************************
  *       Formatted IO          *
  *******************************/
-_CRTIMP int sprintf(char *str, __CONST char *format, ...);
-_CRTIMP int snprintf(char *str, size_t size, __CONST char *format, ...);
-_CRTIMP int vnprintf(char *str, size_t size, __CONST char *format, ...);
-_CRTIMP int vsprintf(char *str, __CONST char *format, va_list ap);
-_CRTIMP int vsnprintf(char *str, size_t size, __CONST char *format, va_list ap);
-_CRTIMP int vasprintf(char **ret, __CONST char *format, va_list ap);
+_CRTIMP int printf(
+    _In_ __CONST char *format, 
+    ...);
+_CRTIMP int vprintf(
+    _In_ __CONST char *format, 
+    _In_ va_list argptr);
+_CRTIMP int sprintf(
+    _In_ char *buffer,
+    _In_ __CONST char *format,
+    ...);
+_CRTIMP int snprintf(
+	_In_ char *str, 
+	_In_ size_t size, 
+	_In_ __CONST char *format, 
+	...);
+_CRTIMP int vsprintf(
+    _In_ char *buffer,
+    _In_ __CONST char *format,
+    _In_ va_list argptr);
+_CRTIMP int vsnprintf(
+	_In_ char *str, 
+	_In_ size_t size, 
+	_In_ __CONST char *format,
+	_In_ va_list ap);
+_CRTIMP int asprintf(
+	_In_ char **ret, 
+	_In_ __CONST char *format, 
+	...);
+_CRTIMP int vasprintf(
+	_In_ char **ret, 
+	_In_ __CONST char *format, 
+	_In_ va_list ap);
 _CRTIMP int sscanf(__CONST char *ibuf, __CONST char *fmt, ...);
 _CRTIMP int vsscanf(__CONST char *inp, char __CONST *fmt0, va_list ap);
-
-_CRTIMP int fprintf(FILE * stream, __CONST char *format, ...);
-_CRTIMP int vfprintf(FILE *stream, __CONST char *format, va_list ap);
-_CRTIMP int fscanf(FILE *stream, __CONST char *format, ...);
-_CRTIMP int vfscanf(FILE * stream, __CONST char *format, va_list arg);
-
-_CRTIMP int printf(__CONST char *format, ...);
-_CRTIMP int vprintf(__CONST char *format, va_list ap);
 //_CRTIMP int scanf(__CONST char *format, ...);
 //_CRTIMP int vscanf(__CONST char * format, va_list arg);
 
-/* Helpers */
+_CRTIMP int fprintf(
+    _In_ FILE *file, 
+    _In_ __CONST char *format,
+    ...);
+_CRTIMP int vfprintf(
+    _In_ FILE *file, 
+    _In_ __CONST char *format, 
+    _In_ va_list argptr);
+_CRTIMP int fscanf(FILE *stream, __CONST char *format, ...);
+_CRTIMP int vfscanf(FILE * stream, __CONST char *format, va_list arg);
+
+_CRTIMP int wprintf(
+    _In_ __CONST wchar_t *format, 
+    ...);
+_CRTIMP int vwprintf(
+    _In_ __CONST wchar_t *format, 
+    _In_ va_list valist);
+_CRTIMP int swprintf(
+    _In_ wchar_t *buffer,
+    _In_ __CONST wchar_t *format,
+	...);
+_CRTIMP int vswprintf(
+    _In_ wchar_t *buffer,
+    _In_ __CONST wchar_t *format,
+	_In_ va_list argptr);
+
+_CRTIMP int vfwprintf(
+    _In_ FILE* file, 
+    _In_ __CONST wchar_t *format, 
+	_In_ va_list argptr);
+_CRTIMP int fwprintf(
+    _In_ FILE* file, 
+    _In_ __CONST wchar_t *format, 
+    ...);
+
 _CRTIMP int __svfscanf(FILE *fp, char __CONST * fmt0, va_list ap);
+_CRTIMP int streamout(
+    _In_ FILE *stream, 
+    _In_ __CONST char *format, 
+    _In_ va_list argptr);
+_CRTIMP int wstreamout(
+    _In_ FILE *stream, 
+    _In_ __CONST wchar_t *format, 
+    _In_ va_list argptr);
 
 /*******************************
  *       Character IO          *

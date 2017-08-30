@@ -1,16 +1,15 @@
 #include <stdio.h>
 #include <stdarg.h>
 
-int printf(
-    _In_ __CONST char *format, 
+int wprintf(
+    _In_ __CONST wchar_t *format, 
     ...)
 {
     va_list argptr;
     int result;
 
     va_start(argptr, format);
-    result = vfprintf(stdout, format, argptr);
+    result = vwprintf(format, argptr);
     va_end(argptr);
-
     return result;
 }

@@ -65,4 +65,4 @@ SEEALSO
 #include <time.h>
 #include <wchar.h>
 #define MAKE_WCSFTIME
-#include "../time/strftime.c"
+#include "strftime.c"
