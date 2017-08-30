@@ -22,8 +22,8 @@
 
 #include <stdio.h>
 
-int putchar(
-	_In_ int character)
+int fputchar(
+    _In_ int character)
 {
-	return fputc(character, stdout);
+    return fputc(character, stdout);
 }

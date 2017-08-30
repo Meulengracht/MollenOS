@@ -19,39 +19,83 @@
 * MollenOS C Library - File Get Character
 */
 
-/* Includes */
 #include <stdio.h>
-#include <errno.h>
-#include <string.h>
-#include <stdlib.h>
 
-/* The fgetc
- * Reads an character from the
- * given input stream */
-int fgetc(FILE * stream)
+int _filbuf(
+	_In_ FILE *file)
 {
-	/* Varaibles */
-	int character = 0;
+	unsigned char c;
+	_lock_file(file);
 
-	/* Sanity */
-	if (stream == NULL
-		|| stream == stdout
-		|| stream == stderr) {
-		_set_errno(EINVAL);
+	if (file->_flag & _IOSTRG)
+	{
+		_unlock_file(file);
 		return EOF;
 	}
 
-	/* If we want to read from stdin
-	 * redirect */
-	if (stream == stdin) {
-		return getchar();
+	/* Allocate buffer if needed */
+	if (!(file->_flag & (_IONBF | _IOMYBUF | _USERBUF)))
+		os_alloc_buffer(file);
+
+	if (!(file->_flag & _IOREAD))
+	{
+		if (file->_flag & _IORW)
+			file->_flag |= _IOREAD;
+		else
+		{
+			_unlock_file(file);
+			return EOF;
+		}
 	}
 
-	/* Read */
-	if (fread(&character, 1, 1, stream) != 1) {
-		return -1;
-	}
+	if (!(file->_flag & (_IOMYBUF | _USERBUF)))
+	{
+		int r;
+		if ((r = read_i(file->_fd, &c, 1)) != 1)
+		{
+			file->_flag |= (r == 0) ? _IOEOF : _IOERR;
+			_unlock_file(file);
+			return EOF;
+		}
 
-	/* Done! */
-	return character;
+		_unlock_file(file);
+		return c;
+	}
+	else
+	{
+		file->_cnt = read_i(file->_fd, file->_base, file->_bufsiz);
+		if (file->_cnt <= 0)
+		{
+			file->_flag |= (file->_cnt == 0) ? _IOEOF : _IOERR;
+			file->_cnt = 0;
+			_unlock_file(file);
+			return EOF;
+		}
+
+		file->_cnt--;
+		file->_ptr = file->_base + 1;
+		c = *(unsigned char *)file->_base;
+		_unlock_file(file);
+		return c;
+	}
+}
+
+int fgetc(
+	_In_ FILE *file)
+{
+	unsigned char *i;
+	unsigned int j;
+
+	_lock_file(file);
+	if (file->_cnt > 0)
+	{
+		file->_cnt--;
+		i = (unsigned char *)file->_ptr++;
+		j = *i;
+	}
+	else
+		j = _filbuf(file);
+
+	_unlock_file(file);
+	return j;
 }

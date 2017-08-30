@@ -19,22 +19,37 @@
 * MollenOS C Library - File Flush
 */
 
-/* Includes */
 #include <stdio.h>
-#include <errno.h>
-#include <string.h>
-#include <stdlib.h>
 
-/* The fflush
- * Closes a file handle and frees
- * resources associated */
-int fflush(FILE * stream)
+int fflush(
+	_In_ FILE *file)
 {
-	_CRT_UNUSED(stream);
+	if (!file)
+	{
+		os_flush_all_buffers(_IOWRT);
+	}
+	else if (file->_flag & _IOWRT)
+	{
+		int res;
 
-	/* Clear error */
-	_set_errno(EOK);
+		_lock_file(file);
+		res = os_flush_buffer(file);
+		/* FIXME
+        if(!res && (file->_flag & _IOCOMMIT))
+            res = _commit(file->_file) ? EOF : 0;
+        */
+		_unlock_file(file);
 
-	/* Done */
+		return res;
+	}
+	else if (file->_flag & _IOREAD)
+	{
+		_lock_file(file);
+		file->_cnt = 0;
+		file->_ptr = file->_base;
+		_unlock_file(file);
+
+		return 0;
+	}
 	return 0;
 }

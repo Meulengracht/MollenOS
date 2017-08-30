@@ -17,13 +17,13 @@
  *
  *
  * MollenOS - C Standard Library
- * - Writes a character to the stream and advances the position indicator.
+ * - Returns the next character from the standard input (stdin).
  */
 
 #include <stdio.h>
 
-int putchar(
-	_In_ int character)
+int getc(
+    _In_ FILE* file)
 {
-	return fputc(character, stdout);
+    return fgetc(file);
 }

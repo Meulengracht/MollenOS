@@ -1,71 +1,50 @@
 /* MollenOS
-*
-* Copyright 2011 - 2016, Philip Meulengracht
-*
-* This program is free software : you can redistribute it and / or modify
-* it under the terms of the GNU General Public License as published by
-* the Free Software Foundation ? , either version 3 of the License, or
-* (at your option) any later version.
-*
-* This program is distributed in the hope that it will be useful,
-* but WITHOUT ANY WARRANTY; without even the implied warranty of
-* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.See the
-* GNU General Public License for more details.
-*
-* You should have received a copy of the GNU General Public License
-* along with this program.If not, see <http://www.gnu.org/licenses/>.
-*
-*
-* MollenOS C Library - File Put Character
-*/
+ *
+ * Copyright 2011 - 2017, Philip Meulengracht
+ *
+ * This program is free software : you can redistribute it and / or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation ? , either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.If not, see <http://www.gnu.org/licenses/>.
+ *
+ *
+ * MollenOS - C Standard Library
+ * - Writes a character to the stream and advances the position indicator.
+ */
 
-/* Includes */
-#include <stdio.h>
-#include <errno.h>
-#include <string.h>
-#include <stdlib.h>
-
-/* Size of an UTF-8 Character */
-int __fgetcharbytes(unsigned long Character)
+ #include <stdio.h>
+ 
+int fputc(
+	_In_ int character,
+	_In_ FILE* file)
 {
-	/* Simple length check */
-	if (Character <= 0xFF)
-		return 1;
-	else if (Character < 0x800)
-		return 2;
-	else if (Character < 0x10000)
-		return 3;
-	else if (Character < 0x110000)
-		return 4;
+  int res;
 
-	/* Invalid! */
-	return 0;
-}
-
-/* The fputc
- * Writes an character to the
- * given input stream */
-int fputc(int character, FILE * stream)
-{
-	/* Sanity */
-	if (stream == NULL
-		|| stream == stdin) {
-		_set_errno(EINVAL);
-		return EOF;
-	}
-
-	/* If we are targeting stdout/stderr
-	 * we just redirect this call */
-	if (stream == stdout
-		|| stream == stderr) {
-		return putchar(character);
-	}
-
-	/* Translate the character that is 
-	 * contained in the int to how many bytes
-	 * we need to write out to file */
-	fwrite(&character, __fgetcharbytes((unsigned long)character), 1, stream);
-
-	/* Done */
-	return character;
+  _lock_file(file);
+  if(file->_cnt > 0) {
+    *file->_ptr++ = character;
+    file->_cnt--;
+    if (character == '\n')
+    {
+      res = os_flush_buffer(file);
+      _unlock_file(file);
+      return res ? res : character;
+    }
+    else {
+      _unlock_file(file);
+      return character & 0xff;
+    }
+  } else {
+    res = _flsbuf(character, file);
+    _unlock_file(file);
+    return res;
+  }
 }

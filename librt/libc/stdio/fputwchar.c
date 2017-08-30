@@ -21,9 +21,9 @@
  */
 
 #include <stdio.h>
-
-int putchar(
-	_In_ int character)
+ 
+wint_t fputwchar(
+    _In_ wint_t wc)
 {
-	return fputc(character, stdout);
+    return fputwc(wc, stdout);
 }

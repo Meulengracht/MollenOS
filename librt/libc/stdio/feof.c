@@ -19,36 +19,10 @@
 * MollenOS C Library - File EoF
 */
 
-/* Includes */
 #include <stdio.h>
-#include <errno.h>
-#include <string.h>
-#include <stdlib.h>
 
-/* The feof
- * checks for end of file indicator */
-int feof(FILE * stream)
+int feof(
+	_In_ FILE* file)
 {
-	/* Sanity */
-	if (stream == NULL) {
-		_set_errno(EINVAL);
-		return -1;
-	}
-
-	/* Update status code */
-	_set_errno(EOK);
-
-	/* Sanity special handles */
-	if (stream == stdin
-		|| stream == stdout
-		|| stream == stderr) {
-		return 0;
-	}
-
-	/* Let's check, MOS 
-	 * keeps our errors updated */
-	if (stream->code & _IOEOF)
-		return 1;
-	else
-		return 0;
+    return file->_flag & _IOEOF;
 }

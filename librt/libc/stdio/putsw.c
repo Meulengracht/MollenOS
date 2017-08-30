@@ -17,13 +17,28 @@
  *
  *
  * MollenOS - C Standard Library
- * - Writes a character to the stream and advances the position indicator.
+ * - Writes the wide C string pointed by str to the standard output 
+ *   (stdout) and appends a newline character ('\n').
  */
 
+#include <wchar.h>
 #include <stdio.h>
 
-int putchar(
-	_In_ int character)
+int putws(
+    _In_ __CONST wchar_t *s)
 {
-	return fputc(character, stdout);
+    // Variables
+    static __CONST wchar_t nl = '\n';
+    size_t len = wcslen(s);
+    int ret;
+
+    _lock_file(stdout);
+    if(fwrite(s, sizeof(*s), len, stdout) != len) {
+        _unlock_file(stdout);
+        return EOF;
+    }
+
+    ret = fwrite(&nl,sizeof(nl),1,stdout) == 1 ? 0 : EOF;
+    _unlock_file(stdout);
+    return ret;
 }

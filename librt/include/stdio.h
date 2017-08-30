@@ -1,23 +1,23 @@
 /* MollenOS
-*
-* Copyright 2011 - 2016, Philip Meulengracht
-*
-* This program is free software : you can redistribute it and / or modify
-* it under the terms of the GNU General Public License as published by
-* the Free Software Foundation ? , either version 3 of the License, or
-* (at your option) any later version.
-*
-* This program is distributed in the hope that it will be useful,
-* but WITHOUT ANY WARRANTY; without even the implied warranty of
-* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.See the
-* GNU General Public License for more details.
-*
-* You should have received a copy of the GNU General Public License
-* along with this program.If not, see <http://www.gnu.org/licenses/>.
-*
-*
-* MollenOS C Library - Standard I/O
-*/
+ *
+ * Copyright 2011 - 2017, Philip Meulengracht
+ *
+ * This program is free software : you can redistribute it and / or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation ? , either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.If not, see <http://www.gnu.org/licenses/>.
+ *
+ *
+ * MollenOS - C Standard Library
+ */
 
 #ifndef __STDIO_INC__
 #define __STDIO_INC__
@@ -28,9 +28,7 @@
 #include <stdarg.h>
 
 /* C Guard */
-#ifdef __cplusplus
-extern "C" {
-#endif
+_CODE_BEGIN
 
 /*******************************
  *        Definitions          *
@@ -245,21 +243,67 @@ _CRTIMP int wstreamout(
 /*******************************
  *       Character IO          *
  *******************************/
-_CRTIMP int putchar(int character);
-_CRTIMP int getchar(void);
-_CRTIMP char *gets(char *sstr);
-_CRTIMP int puts(__CONST char *sstr);
-
 _CRTIMP int fpeekc(FILE * stream);
-_CRTIMP int fgetc(FILE * stream);
-_CRTIMP int fputc(int character, FILE * stream);
-_CRTIMP char *fgets(char * buf, size_t n, FILE * stream);
-_CRTIMP int fputs(__CONST char * str, FILE * stream);
 _CRTIMP int fungetc (int character, FILE * stream);
 
+_CRTIMP int getchar(void);
+_CRTIMP int putchar(
+    _In_ int character);
+_CRTIMP int getc(
+    _In_ FILE* file);
+_CRTIMP int putc(
+    _In_ int character, 
+    _In_ FILE* file);
+_CRTIMP char *gets(
+    _In_ char *buf);
+_CRTIMP int puts(
+    _In_ __CONST char *s);
+
+_CRTIMP int fgetchar(void);
+_CRTIMP int fputchar(
+    _In_ int character);
+_CRTIMP int fputc(
+	_In_ int character,
+	_In_ FILE* file);
+_CRTIMP int fputs(
+	_In_ __CONST char *s, 
+    _In_ FILE* file);
+_CRTIMP int fgetc(
+	_In_ FILE *file);
+_CRTIMP char *fgets(
+	_In_ char *s, 
+	_In_ int size, 
+	_In_ FILE *file);
+
+_CRTIMP wint_t getwchar(void);
+_CRTIMP int getw(
+    _In_ FILE *file);
+_CRTIMP wint_t getwc(
+    _In_ FILE* file);
+_CRTIMP int putw(
+    _In_ int val, 
+    _In_ FILE *file);
+_CRTIMP wint_t putwch(
+    _In_ wchar_t character);
+_CRTIMP int putws(
+    _In_ __CONST wchar_t *s);
+_CRTIMP wchar_t* getws(
+    _In_ wchar_t* buf);
+
+_CRTIMP wint_t fgetwchar(void);
+_CRTIMP wint_t fputwchar(
+    _In_ wint_t wc);
+_CRTIMP wint_t fputwc(
+    _In_ wchar_t c, 
+    _In_ FILE* stream);
+_CRTIMP wint_t fgetwc(
+    _In_ FILE *file);
+_CRTIMP wchar_t *fgetws(
+    _In_ wchar_t *s,
+    _In_ int size,
+    _In_ FILE *file);
+
 #define peekc(stream) fpeekc(stream)
-#define getc(stream) fgetc(stream)
-#define putc(c, stream) fputc(c, stream)
 #define ungetc(c, stream) fungetc(c, stream)
 
 /*******************************
@@ -275,8 +319,10 @@ _CRTIMP int fgetpos(FILE * stream, fpos_t * pos);
 _CRTIMP int fsetpos(FILE * stream, __CONST fpos_t * pos);
 _CRTIMP int fseek(FILE * stream, long int offset, int origin);
 _CRTIMP long int ftell(FILE * stream);
-_CRTIMP void rewind(FILE * stream);
-_CRTIMP int feof(FILE * stream);
+_CRTIMP void rewind(
+	_In_ FILE *file);
+_CRTIMP int feof(
+	_In_ FILE* file);
 
 _CRTIMP off_t ftello(FILE *stream);
 _CRTIMP int fseeko(FILE *stream, off_t offset, int origin);
@@ -284,13 +330,13 @@ _CRTIMP int fseeko(FILE *stream, off_t offset, int origin);
 /*******************************
  *       Error Handling        *
  *******************************/
-_CRTIMP void clearerr(FILE * stream);
-_CRTIMP int ferror(FILE * stream);
+_CRTIMP void clearerr(
+	_In_ FILE *file);
+_CRTIMP int ferror(
+	_In_ FILE* file);
 _CRTIMP void perror(__CONST char * str);
 _CRTIMP char *strerror(int errnum);
 
-#ifdef __cplusplus
-}
-#endif
+_CODE_END
 
 #endif

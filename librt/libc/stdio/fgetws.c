@@ -17,13 +17,37 @@
  *
  *
  * MollenOS - C Standard Library
- * - Writes a character to the stream and advances the position indicator.
+ * - Writes a string to the stream and advances the position indicator.
  */
 
+#include <wchar.h>
 #include <stdio.h>
+#include <stdlib.h>
 
-int putchar(
-	_In_ int character)
+wchar_t *fgetws(
+    _In_ wchar_t *s,
+    _In_ int size,
+    _In_ FILE *file)
 {
-	return fputc(character, stdout);
+    int cc = WEOF;
+    wchar_t *buf_start = s;
+
+    _lock_file(file);
+
+    while ((size > 1) && (cc = fgetwc(file)) != WEOF && cc != '\n')
+    {
+        *s++ = (char)cc;
+        size--;
+    }
+    if ((cc == WEOF) && (s == buf_start)) /* If nothing read, return 0*/
+    {
+        _unlock_file(file);
+        return NULL;
+    }
+    if ((cc != WEOF) && (size > 1))
+        *s++ = cc;
+    *s = 0;
+
+    _unlock_file(file);
+    return buf_start;
 }

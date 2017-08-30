@@ -20,10 +20,37 @@
  * - Writes a character to the stream and advances the position indicator.
  */
 
+#include <wchar.h>
 #include <stdio.h>
-
-int putchar(
-	_In_ int character)
+#include <stdlib.h>
+ 
+wint_t fputwc(
+    _In_ wchar_t c,
+    _In_ FILE* stream)
 {
-	return fputc(character, stdout);
+    /* If this is a real file stream (and not some temporary one for
+       sprintf-like functions), check whether it is opened in text mode.
+       In this case, we have to perform an implicit conversion to ANSI. */
+    if (!(stream->_flag & _IOSTRG) && get_ioinfo(stream->_file)->wxflag & WX_TEXT)
+    {
+        /* Convert to multibyte in text mode */
+        char mbc[MB_LEN_MAX];
+        int mb_return;
+
+        mb_return = wctomb(mbc, c);
+
+        if(mb_return == -1)
+            return WEOF;
+
+        /* Output all characters */
+        if (fwrite(mbc, mb_return, 1, stream) != 1)
+            return WEOF;
+    }
+    else
+    {
+        if (fwrite(&c, sizeof(c), 1, stream) != 1)
+            return WEOF;
+    }
+
+    return c;
 }

@@ -22,8 +22,9 @@
 
 #include <stdio.h>
 
-int putchar(
-	_In_ int character)
+int putc(
+    _In_ int character, 
+    _In_ FILE* file)
 {
-	return fputc(character, stdout);
+    return fputc(character, file);
 }

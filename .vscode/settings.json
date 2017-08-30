@@ -245,6 +245,8 @@
         "inttypes.h": "c",
         "mbctype.h": "c",
         "locale.h": "c",
-        "limits.h": "c"
+        "limits.h": "c",
+        "queue": "c",
+        "complex": "c"
     }
 }

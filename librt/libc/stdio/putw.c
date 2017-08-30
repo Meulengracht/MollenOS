@@ -21,9 +21,23 @@
  */
 
 #include <stdio.h>
+#include <io.h>
 
-int putchar(
-	_In_ int character)
+int putw(
+    _In_ int val, 
+    _In_ FILE *file)
 {
-	return fputc(character, stdout);
+    int len;
+
+    _lock_file(file);
+    len = _write(file->_fd, &val, sizeof(val));
+    if (len == sizeof(val))
+    {
+        _unlock_file(file);
+        return val;
+    }
+
+    file->_flag |= _IOERR;
+    _unlock_file(file);
+    return EOF;
 }

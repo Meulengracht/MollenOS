@@ -16,12 +16,14 @@
 
 #ifdef _UNICODE
 # define _tcslen wcslen
+# define _tcscpy wcscpy
 # define streamout wstreamout
 # define format_float format_floatw
 # define fputtc fputwc
 # define _TEOF WEOF
 #else
 # define _tcslen strlen
+# define _tcscpy strcpy
 # define fputtc fputc
 # define _TEOF EOF
 #endif

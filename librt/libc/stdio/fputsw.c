@@ -23,17 +23,34 @@
  *   This terminating null-character is not copied to the stream.
  */
 
+#include <wchar.h>
 #include <stdio.h>
 
-int fputs(
-	_In_ __CONST char *s, 
-	_In_ FILE* file)
+int fputws(
+    _In_ __CONST wchar_t *s, 
+    _In_ FILE* file)
 {
-    size_t len = strlen(s);
+    size_t i, len = wcslen(s);
+    int tmp_buf = 0;
     int ret;
 
     _lock_file(file);
-    ret = fwrite(s, sizeof(*s), len, file) == len ? 0 : EOF;
+    if (!(get_ioinfo(file->_fd)->wxflag & WX_TEXT)) {
+        ret = fwrite(s,sizeof(*s),len,file) == len ? 0 : EOF;
+        _unlock_file(file);
+        return ret;
+    }
+
+    tmp_buf = add_std_buffer(file);
+    for (i=0; i<len; i++) {
+        if(fputwc(s[i], file) == WEOF) {
+            if(tmp_buf) remove_std_buffer(file);
+            _unlock_file(file);
+            return WEOF;
+        }
+    }
+
+    if(tmp_buf) remove_std_buffer(file);
     _unlock_file(file);
-    return ret;
+    return 0;
 }

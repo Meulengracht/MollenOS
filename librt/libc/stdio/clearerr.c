@@ -19,21 +19,12 @@
 * MollenOS C Library - Clear Error
 */
 
-/* Includes */
 #include <stdio.h>
-#include <errno.h>
-#include <string.h>
-#include <stdlib.h>
 
-/* The clearerr
- * Clears out any error
- * set by file stream ops */
-void clearerr(FILE * stream)
+void clearerr(
+	_In_ FILE *file)
 {
-	/* Sanity */
-	if (stream == NULL)
-		return;
-
-	/* Clear out code */
-	stream->code = EOK;
+	_lock_file(file);
+	file->_flag &= ~(_IOERR | _IOEOF);
+	_unlock_file(file);
 }

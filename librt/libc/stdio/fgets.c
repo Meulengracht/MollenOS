@@ -19,48 +19,32 @@
 * MollenOS C Library - File Get String
 */
 
-/* Includes */
 #include <stdio.h>
-#include <errno.h>
-#include <string.h>
-#include <stdlib.h>
 
-/* The fgets
- * Reads a string (max n chars tho) 
- * from the given stream */
-char *fgets(char * buf, size_t n, FILE * stream)
+char *fgets(
+	_In_ char *s, 
+	_In_ int size, 
+	_In_ FILE *file)
 {
-	/* Vars */
-	char *p = NULL;
-	int c = 0;
+	int cc = EOF;
+	char *buf_start = s;
 
-	/* Sanity input */
-	if (stream == NULL
-		|| buf == NULL
-		|| n == 0) {
-		_set_errno(EINVAL);
+	_lock_file(file);
+
+	while ((size > 1) && (cc = fgetc(file)) != EOF && cc != '\n')
+	{
+		*s++ = (char)cc;
+		size--;
+	}
+	if ((cc == EOF) && (s == buf_start)) /* If nothing read, return 0*/
+	{
+		_unlock_file(file);
 		return NULL;
 	}
-
-	/* get max bytes or upto a newline */
-	for (p = buf, n--; n > 0; n--) {
-		if ((c = fgetc(stream)) == EOF)
-			break;
-		*p++ = (char)c;
-		if (c == '\n')
-			break;
-	}
-
-	/* Null terminate */
-	*p = 0;
-
-	/* Sanity */
-	if (p == buf || c == EOF)
-		return NULL;
-
-	/* Clear error */
-	_set_errno(EOK);
-
-	/* Done! */
-	return p;
+	if ((cc != EOF) && (size > 1))
+		*s++ = cc;
+	*s = '\0';
+	
+	_unlock_file(file);
+	return buf_start;
 }

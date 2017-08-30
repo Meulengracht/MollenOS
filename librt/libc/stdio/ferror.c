@@ -19,21 +19,10 @@
 * MollenOS C Library - Get file error
 */
 
-/* Includes */
 #include <stdio.h>
-#include <errno.h>
-#include <string.h>
-#include <stdlib.h>
 
-/* The ferror
- * returns the file error
- * otherwise returns 0 if ok */
-int ferror(FILE * stream)
+int ferror(
+	_In_ FILE* file)
 {
-	/* Sanity */
-	if (stream == NULL)
-		return -1;
-
-	/* Return code */
-	return stream->code;
+    return file->_flag & _IOERR;
 }

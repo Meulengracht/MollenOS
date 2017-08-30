@@ -19,16 +19,13 @@
 * MollenOS C Library - File Rewind
 */
 
-/* Includes */
 #include <stdio.h>
-#include <errno.h>
-#include <string.h>
-#include <stdlib.h>
 
-/* The rewind
- * rewinds a file to it's start */
-void rewind(FILE * stream)
+void rewind(
+	_In_ FILE *file)
 {
-	/* Use seek */
-	fseek(stream, 0, SEEK_SET);
+	_lock_file(file);
+	fseek(file, 0L, SEEK_SET);
+	clearerr(file);
+	_unlock_file(file);
 }

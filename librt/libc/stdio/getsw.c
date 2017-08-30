@@ -17,13 +17,31 @@
  *
  *
  * MollenOS - C Standard Library
- * - Writes a character to the stream and advances the position indicator.
+ * - Reads characters from the standard input (stdin) and 
+ *   stores them as a C string into str until a newline character or 
+ *   the end-of-file is reached. 
+ * - The newline character, if found, is not copied into str.
  */
 
+#include <wchar.h>
 #include <stdio.h>
-
-int putchar(
-	_In_ int character)
+ 
+wchar_t* getws(
+    _In_ wchar_t* buf)
 {
-	return fputc(character, stdout);
+    wint_t cc;
+    wchar_t* ws = buf;
+
+    _lock_file(stdin);
+    for (cc = fgetwc(stdin); cc != WEOF && cc != '\n';
+         cc = fgetwc(stdin))
+    {
+        if (cc != '\r')
+            *buf++ = (wchar_t)cc;
+    }
+    *buf = '\0';
+
+    _unlock_file(stdin);
+    return ws;
 }
+ 
