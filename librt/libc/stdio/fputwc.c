@@ -23,6 +23,7 @@
 #include <wchar.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include "local.h"
  
 wint_t fputwc(
     _In_ wchar_t c,
@@ -31,7 +32,8 @@ wint_t fputwc(
     /* If this is a real file stream (and not some temporary one for
        sprintf-like functions), check whether it is opened in text mode.
        In this case, we have to perform an implicit conversion to ANSI. */
-    if (!(stream->_flag & _IOSTRG) && get_ioinfo(stream->_file)->wxflag & WX_TEXT)
+    if (!(stream->_flag & _IOSTRG) 
+        && get_ioinfo(stream->_fd)->wxflag & WX_TEXT)
     {
         /* Convert to multibyte in text mode */
         char mbc[MB_LEN_MAX];
@@ -46,8 +48,7 @@ wint_t fputwc(
         if (fwrite(mbc, mb_return, 1, stream) != 1)
             return WEOF;
     }
-    else
-    {
+    else {
         if (fwrite(&c, sizeof(c), 1, stream) != 1)
             return WEOF;
     }

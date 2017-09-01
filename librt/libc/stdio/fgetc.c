@@ -20,6 +20,7 @@
 */
 
 #include <stdio.h>
+#include "local.h"
 
 int _filbuf(
 	_In_ FILE *file)
@@ -27,8 +28,7 @@ int _filbuf(
 	unsigned char c;
 	_lock_file(file);
 
-	if (file->_flag & _IOSTRG)
-	{
+	if (file->_flag & _IOSTRG) {
 		_unlock_file(file);
 		return EOF;
 	}
@@ -51,8 +51,7 @@ int _filbuf(
 	if (!(file->_flag & (_IOMYBUF | _USERBUF)))
 	{
 		int r;
-		if ((r = read_i(file->_fd, &c, 1)) != 1)
-		{
+		if ((r = read_i(file->_fd, &c, 1)) != 1) {
 			file->_flag |= (r == 0) ? _IOEOF : _IOERR;
 			_unlock_file(file);
 			return EOF;
@@ -87,14 +86,14 @@ int fgetc(
 	unsigned int j;
 
 	_lock_file(file);
-	if (file->_cnt > 0)
-	{
+	if (file->_cnt > 0) {
 		file->_cnt--;
 		i = (unsigned char *)file->_ptr++;
 		j = *i;
 	}
-	else
+	else {
 		j = _filbuf(file);
+	}
 
 	_unlock_file(file);
 	return j;

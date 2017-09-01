@@ -22,7 +22,8 @@
 #ifndef __STDIO_INC__
 #define __STDIO_INC__
 
-/* Includes */
+/* Includes 
+ * - Library */
 #include <os/osdefs.h>
 #include <stddef.h>
 #include <stdarg.h>
@@ -34,19 +35,10 @@ _CODE_BEGIN
  *        Definitions          *
  *******************************/
 #define EOF				(-1)
-
-/* Seek from beginning of file.  */
-#define SEEK_SET        0       
-/* Seek from current position.  */
-#define SEEK_CUR        1
-/* Set file pointer to EOF plus "offset" */
-#define SEEK_END        2
-
-/* Standard I/O */
-#define stdout						(FILE*)1 //1
-#define stdin						(FILE*)2 //2
-#define	stderr						(FILE*)3 //3
-#define BUFSIZ						(int)2048
+#define SEEK_SET        0 /* Seek from beginning of file.  */
+#define SEEK_CUR        1 /* Seek from current position.  */
+#define SEEK_END        2 /* Set file pointer to EOF plus "offset" */
+#define BUFSIZ          (int)2048
 
 /* Set fpos_t to the arch-specific width */
 #ifndef FPOS_T_DEFINED
@@ -70,15 +62,13 @@ _CODE_BEGIN
 #define OFF_T_DEFINED
 #endif 
 
-/* ErrNo Definitions 
- * Limits and extern 
- * list of strings */
+/* Stdio errno String Definitions 
+ * Definitions and symbols for error strings in standard C */
 #define _MAX_ERRNO	127
 _CRTIMP __CONST char **_errstrings;
 
-/* The C-Library Error Codes 
- * These closely relate the the 
- * cLibFileStream->code member */
+/* Stdio file modes and flags
+ * Definitions and bit-flags for available IO modes */
 #define _IOFBF     0x0000
 #define _IOREAD	   0x0001
 #define _IOWRT     0x0002
@@ -96,7 +86,7 @@ _CRTIMP __CONST char **_errstrings;
  *******************************/
 #ifndef _FILE_DEFINED
 struct _iobuf {
-	UUId_t   _fd;
+	int      _fd;
     char    *_ptr;
     int      _cnt;
     char    *_base;
@@ -110,6 +100,16 @@ struct _iobuf {
 typedef struct _iobuf FILE;
 #define _FILE_DEFINED
 #endif
+
+/* Stdio Standard Handles
+ * Contains definitions for standard input and output handles used in C */
+_CRTIMP FILE *getstdfile(int n);
+#define STDOUT_FD                   (int)0
+#define STDIN_FD                    (int)1
+#define STDERR_FD                   (int)2
+#define stdout						getstdfile(STDOUT_FD)
+#define stdin						getstdfile(STDIN_FD)
+#define	stderr						getstdfile(STDERR_FD)
 
 /*******************************
  *       File Access           *
@@ -190,10 +190,20 @@ _CRTIMP int vasprintf(
 	_In_ char **ret, 
 	_In_ __CONST char *format, 
 	_In_ va_list ap);
-_CRTIMP int sscanf(__CONST char *ibuf, __CONST char *fmt, ...);
-_CRTIMP int vsscanf(__CONST char *inp, char __CONST *fmt0, va_list ap);
-//_CRTIMP int scanf(__CONST char *format, ...);
-//_CRTIMP int vscanf(__CONST char * format, va_list arg);
+_CRTIMP int scanf(
+    _In_ __CONST char *format, 
+    ...);
+_CRTIMP int wscanf(
+    _In_ __CONST wchar_t *format, 
+    ...);
+_CRTIMP int sscanf(
+    _In_ __CONST char *str, 
+    _In_ __CONST char *format, 
+    ...);
+_CRTIMP int swscanf(
+    _In_ __CONST wchar_t *str, 
+    _In_ __CONST wchar_t *format, 
+    ...);
 
 _CRTIMP int fprintf(
     _In_ FILE *file, 
@@ -203,8 +213,14 @@ _CRTIMP int vfprintf(
     _In_ FILE *file, 
     _In_ __CONST char *format, 
     _In_ va_list argptr);
-_CRTIMP int fscanf(FILE *stream, __CONST char *format, ...);
-_CRTIMP int vfscanf(FILE * stream, __CONST char *format, va_list arg);
+_CRTIMP int fscanf(
+    _In_ FILE *file, 
+    _In_ __CONST char *format, 
+    ...);
+_CRTIMP int fwscanf(
+    _In_ FILE *file, 
+    _In_ __CONST wchar_t *format, 
+    ...);
 
 _CRTIMP int wprintf(
     _In_ __CONST wchar_t *format, 
@@ -230,7 +246,6 @@ _CRTIMP int fwprintf(
     _In_ __CONST wchar_t *format, 
     ...);
 
-_CRTIMP int __svfscanf(FILE *fp, char __CONST * fmt0, va_list ap);
 _CRTIMP int streamout(
     _In_ FILE *stream, 
     _In_ __CONST char *format, 
@@ -243,9 +258,9 @@ _CRTIMP int wstreamout(
 /*******************************
  *       Character IO          *
  *******************************/
-_CRTIMP int fpeekc(FILE * stream);
-_CRTIMP int fungetc (int character, FILE * stream);
-
+_CRTIMP int ungetc(
+    _In_ int character, 
+    _In_ FILE *file);
 _CRTIMP int getchar(void);
 _CRTIMP int putchar(
     _In_ int character);
@@ -275,6 +290,9 @@ _CRTIMP char *fgets(
 	_In_ int size, 
 	_In_ FILE *file);
 
+_CRTIMP wint_t ungetwc(
+    _In_ wint_t wc, 
+    _In_ FILE *file);
 _CRTIMP wint_t getwchar(void);
 _CRTIMP int getw(
     _In_ FILE *file);
@@ -302,9 +320,6 @@ _CRTIMP wchar_t *fgetws(
     _In_ wchar_t *s,
     _In_ int size,
     _In_ FILE *file);
-
-#define peekc(stream) fpeekc(stream)
-#define ungetc(c, stream) fungetc(c, stream)
 
 /*******************************
  *         Direct IO           *
@@ -334,7 +349,10 @@ _CRTIMP void clearerr(
 	_In_ FILE *file);
 _CRTIMP int ferror(
 	_In_ FILE* file);
-_CRTIMP void perror(__CONST char * str);
+_CRTIMP void perror(
+    _In_ __CONST char * str);
+_CRTIMP void wperror(
+	_In_ __CONST wchar_t *str);
 _CRTIMP char *strerror(int errnum);
 
 _CODE_END

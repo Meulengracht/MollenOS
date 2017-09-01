@@ -227,6 +227,13 @@ void format_float(
 }
 #endif
 
+#ifdef LIBC_KERNEL
+__EXTERN
+OsStatus_t
+VideoPutCharacter(
+    _In_ int Character);
+#endif
+
 static
 int
 streamout_char(FILE *stream, int chr)
@@ -248,7 +255,11 @@ streamout_char(FILE *stream, int chr)
         return 1;
     }
 
+#ifdef LIBC_KERNEL
+    return VideoPutCharacter(chr) == OsSuccess;
+#else
     return fputtc((TCHAR)chr, stream) != _TEOF;
+#endif
 }
 
 static

@@ -102,7 +102,7 @@ _CRTIMP Flags_t _faccess(int oflags);
 _CRTIMP Flags_t _fopts(int oflags);
 _CRTIMP int _fval(int ocode);
 _CRTIMP int _open(__CONST char *file, int oflags, int pmode);
-_CRTIMP int _close(int handle);
+_CRTIMP int _close(int fd);
 
 _CRTIMP int _read(int fd, void *buffer, unsigned int len);
 _CRTIMP int _write(int fd, void *buffer, unsigned int length);

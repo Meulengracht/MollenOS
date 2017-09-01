@@ -23,17 +23,11 @@
  * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301, USA
  */
 
+#include <wchar.h>
 #include <stdarg.h>
 #include <limits.h>
-
-#include <wine/winternl.h>
-#include <wine/debug.h>
-
-#include "winesup.h"
-
-WINE_DEFAULT_DEBUG_CHANNEL(msvcrt);
-
-//extern FILE _iob[];
+#include <stdio.h>
+#include <stdint.h>
 
 /* helper function for *scanf.  Returns the value of character c in the
  * given base, or -1 if the given character is not a digit of the base.
@@ -57,7 +51,6 @@ static int wchar2digit(wchar_t c, int base) {
     return -1;
 }
 
-#ifndef _LIBCNT_
 /* vfscanf_l */
 #undef WIDE_SCANF
 #undef CONSOLE
@@ -71,7 +64,6 @@ static int wchar2digit(wchar_t c, int base) {
 #undef STRING
 #undef SECURE
 #include "scanf.h"
-#endif /* !_LIBCNT_ */
 
 /* vsscanf_l */
 #undef WIDE_SCANF
@@ -95,7 +87,6 @@ static int wchar2digit(wchar_t c, int base) {
 #undef SECURE
 #include "scanf.h"
 
-#ifndef _LIBCNT_
 /* vcscanf_l */
 #undef WIDE_SCANF
 #define CONSOLE 1
@@ -103,121 +94,106 @@ static int wchar2digit(wchar_t c, int base) {
 #undef SECURE
 #include "scanf.h"
 
-
-/*********************************************************************
- *		fscanf (MSVCRT.@)
- */
-int CDECL fscanf(FILE *file, const char *format, ...)
+int fscanf(
+    _In_ FILE *file, 
+    _In_ __CONST char *format, 
+    ...)
 {
-    __ms_va_list valist;
+    va_list valist;
     int res;
 
-    __ms_va_start(valist, format);
+    va_start(valist, format);
     res = vfscanf_l(file, format, NULL, valist);
-    __ms_va_end(valist);
+    va_end(valist);
     return res;
 }
 
-/*********************************************************************
- *		scanf (MSVCRT.@)
- */
-int CDECL scanf(const char *format, ...)
+int scanf(
+    _In_ __CONST char *format, 
+    ...)
 {
-    __ms_va_list valist;
+    va_list valist;
     int res;
 
-    __ms_va_start(valist, format);
+    va_start(valist, format);
     res = vfscanf_l(stdin, format, NULL, valist);
-    __ms_va_end(valist);
+    va_end(valist);
     return res;
 }
 
-/*********************************************************************
- *		fwscanf (MSVCRT.@)
- */
-int CDECL fwscanf(FILE *file, const wchar_t *format, ...)
+int fwscanf(
+    _In_ FILE *file, 
+    _In_ __CONST wchar_t *format, 
+    ...)
 {
-    __ms_va_list valist;
+    va_list valist;
     int res;
 
-    __ms_va_start(valist, format);
+    va_start(valist, format);
     res = vfwscanf_l(file, format, NULL, valist);
-    __ms_va_end(valist);
+    va_end(valist);
     return res;
 }
 
-
-/*********************************************************************
- *		wscanf (MSVCRT.@)
- */
-int CDECL wscanf(const wchar_t *format, ...)
+int wscanf(
+    _In_ __CONST wchar_t *format, 
+    ...)
 {
-    __ms_va_list valist;
+    va_list valist;
     int res;
 
-    __ms_va_start(valist, format);
+    va_start(valist, format);
     res = vfwscanf_l(stdin, format, NULL, valist);
-    __ms_va_end(valist);
+    va_end(valist);
     return res;
 }
-#endif /* !_LIBCNT_ */
 
-
-/*********************************************************************
- *		sscanf (MSVCRT.@)
- */
-int CDECL sscanf(const char *str, const char *format, ...)
+int sscanf(
+    _In_ __CONST char *str, 
+    _In_ __CONST char *format, 
+    ...)
 {
-    __ms_va_list valist;
+    va_list valist;
     int res;
 
-    __ms_va_start(valist, format);
+    va_start(valist, format);
     res = vsscanf_l(str, format, NULL, valist);
-    __ms_va_end(valist);
+    va_end(valist);
     return res;
 }
 
-
-/*********************************************************************
- *		swscanf (MSVCRT.@)
- */
-int CDECL swscanf(const wchar_t *str, const wchar_t *format, ...)
+int swscanf(
+    _In_ __CONST wchar_t *str, 
+    _In_ __CONST wchar_t *format, 
+    ...)
 {
-    __ms_va_list valist;
+    va_list valist;
     int res;
 
-    __ms_va_start(valist, format);
+    va_start(valist, format);
     res = vswscanf_l(str, format, NULL, valist);
-    __ms_va_end(valist);
+    va_end(valist);
     return res;
 }
 
-#ifndef _LIBCNT_
-/*********************************************************************
- *		_cscanf (MSVCRT.@)
- */
-int CDECL _cscanf(const char *format, ...)
+int _cscanf(const char *format, ...)
 {
-    __ms_va_list valist;
+    va_list valist;
     int res;
 
-    __ms_va_start(valist, format);
+    va_start(valist, format);
     res = vcscanf_l(format, NULL, valist);
-    __ms_va_end(valist);
+    va_end(valist);
     return res;
 }
-#endif
 
-/*********************************************************************
- *		_snscanf (MSVCRT.@)
- */
-int CDECL _snscanf(const char *input, size_t length, const char *format, ...)
+int _snscanf(const char *input, size_t length, const char *format, ...)
 {
-    __ms_va_list valist;
+    va_list valist;
     int res;
 
-    __ms_va_start(valist, format);
+    va_start(valist, format);
     res = vsnscanf_l(input, length, format, NULL, valist);
-    __ms_va_end(valist);
+    va_end(valist);
     return res;
 }

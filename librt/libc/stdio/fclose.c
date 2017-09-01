@@ -16,7 +16,8 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS C Library - FCLOSE
+ * MollenOS - C Standard Library
+ * - Closes a given file-handle and cleans up
  */
 
 /* Includes
@@ -31,59 +32,61 @@
 #include <errno.h>
 #include <string.h>
 #include <stdlib.h>
+#include "local.h"
 
-/* Externs, 
- * We need access to _ffillclean to clean out
- * the read buffers */
-__EXTERN int _ffillclean(FILE * stream);
-
-/* The _close 
- * This is ANSI C close function and works 
- * with filedescriptors */
-int _close(int handle)
+/* _close
+ * This is ANSI C close function and works with filedescriptors */
+int _close(int fd)
 {
-	/* Validation 
-	 * we need to make sure everythis is ok */
-	if (_fval(CloseFile((UUId_t)handle))) {
+	// Variables
+	UUId_t handle;
+	int result;
+
+	// Retrieve handle
+	handle = StdioFdToHandle(fd);
+	if (handle == UUID_INVALID) {
 		return -1;
-	}	
+	}
+
+	// Call OS routine
+	result = (int)CloseFile(handle);
+
+	// Validate the result code
+	if (_fval(result)) {
+		return -1;
+	}
 	else {
+		StdioFdFree(fd);
 		return 0;
 	}
 }
 
-/* The fclose 
- * Closes a file handle and frees 
- * resources associated */
-int fclose(FILE * stream)
+/* fclose
+ * Closes a file handle and frees resources associated */
+int fclose(FILE *stream)
 {
-	/* Sanity input */
-	if (stream == NULL
-		|| stream == stdin
-		|| stream == stdout
-		|| stream == stderr) {
-		_set_errno(EINVAL);
-		return EOF;
-	}
+	// Variables
+	int r, flag;
 
-	/* Flush the file? */
-	if (stream->code & _IOWRT) {
+	_lock_file(stream);
+	flag = stream->_flag;
+
+	// Flush and free associated buffers
+	if (stream->_tmpfname != NULL) {
+		free(stream->_tmpfname);
+	}
+	if (stream->_flag & _IOWRT) {
 		fflush(stream);
 	}
-
-	/* Close the associated
-	 * file descriptor */
-	if (_close(stream->fd)) {
-		free(stream);
-		return EOF;
+	if (stream->_flag & _IOMYBUF) {
+		free(stream->_base);
 	}
 
-	/* Cleanup the file buffer */
-	_ffillclean(stream);
+	// Call underlying close
+	r = _close(stream->_fd);
+	_unlock_file(stream);
 
-	/* Free the stream handle */
+	// Free the stream
 	free(stream);
-
-	/* Done */
-	return 0;
+	return ((r == -1) || (flag & _IOERR) ? EOF : 0);
 }

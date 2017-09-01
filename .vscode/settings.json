@@ -247,6 +247,7 @@
         "locale.h": "c",
         "limits.h": "c",
         "queue": "c",
-        "complex": "c"
+        "complex": "c",
+        "scanf.h": "c"
     }
 }

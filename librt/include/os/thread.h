@@ -21,7 +21,7 @@
  *   and functionality, refer to the individual things for descriptions
  */
 
-#if !defined(_THREADING_INTERFACE_H_) && !defined(CLIB_KERNEL)
+#if !defined(_THREADING_INTERFACE_H_)
 #define _THREADING_INTERFACE_H_
 
 /* Includes

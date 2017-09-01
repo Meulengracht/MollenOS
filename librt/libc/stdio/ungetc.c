@@ -17,37 +17,48 @@
  *
  *
  * MollenOS - C Standard Library
- * - Writes a character to the stream and advances the position indicator.
+ * - Returns a character back into the stream
  */
 
 #include <stdio.h>
 #include "local.h"
 
-int fputc(
-    _In_ int character,
+int ungetc(
+    _In_ int character, 
     _In_ FILE *file)
 {
-    int res;
+    if (file == NULL)
+        return EOF;
+
+    if (character == EOF || !(file->_flag & _IOREAD || (file->_flag & _IORW && !(file->_flag & _IOWRT))))
+        return EOF;
 
     _lock_file(file);
-    
-    if (file->_cnt > 0) {
-        *file->_ptr++ = character;
-        file->_cnt--;
+    if ((!(file->_flag & (_IONBF | _IOMYBUF | _USERBUF)) 
+            && os_alloc_buffer(file) == OsSuccess) || (!file->_cnt && file->_ptr == file->_base))
+        file->_ptr++;
 
-        if (character == '\n') {
-            res = os_flush_buffer(file);
-            _unlock_file(file);
-            return res ? res : character;
+    if (file->_ptr > file->_base) {
+        file->_ptr--;
+        
+        if (file->_flag & _IOSTRG) {
+            if (*file->_ptr != character) {
+                file->_ptr++;
+                _unlock_file(file);
+                return EOF;
+            }
         }
         else {
-            _unlock_file(file);
-            return character & 0xff;
+            *file->_ptr = character;
         }
-    }
-    else {
-        res = _flsbuf(character, file);
+
+        file->_cnt++;
+        clearerr(file);
+        file->_flag |= _IOREAD;
         _unlock_file(file);
-        return res;
+        return character;
     }
+
+    _unlock_file(file);
+    return EOF;
 }

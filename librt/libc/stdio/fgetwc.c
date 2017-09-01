@@ -23,6 +23,8 @@
 #include <wchar.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include "../stdlib/mb/mbctype.h"
+#include "local.h"
 
 wint_t fgetwc(
     _In_ FILE *file)
@@ -32,11 +34,10 @@ wint_t fgetwc(
 
     _lock_file(file);
 
-    if ((get_ioinfo(file->_file)->exflag & (EF_UTF8 | EF_UTF16)) 
-        || !(get_ioinfo(file->_file)->wxflag & WX_TEXT))
-    {
+    if ((get_ioinfo(file->_fd)->exflag & (EF_UTF8 | EF_UTF16)) 
+        || !(get_ioinfo(file->_fd)->wxflag & WX_TEXT)) {
+        
         char *p;
-
         for (p = (char *)&ret; (wint_t *)p < &ret + 1; p++)
         {
             ch = fgetc(file);
@@ -57,7 +58,7 @@ wint_t fgetwc(
         if (ch != EOF)
         {
             mbs[0] = (char)ch;
-            if (isleadbyte((unsigned char)mbs[0]))
+            if (_issjis1((unsigned char)mbs[0]))
             {
                 ch = fgetc(file);
                 if (ch != EOF)

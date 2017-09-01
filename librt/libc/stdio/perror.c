@@ -1,6 +1,6 @@
 /* MollenOS
 *
-* Copyright 2011 - 2016, Philip Meulengracht
+* Copyright 2011 - 2017, Philip Meulengracht
 *
 * This program is free software : you can redistribute it and / or modify
 * it under the terms of the GNU General Public License as published by
@@ -19,31 +19,17 @@
 * MollenOS C Library - Print Error
 */
 
-/* Includes */
 #include <stdio.h>
 #include <errno.h>
-#include <string.h>
-#include <stdlib.h>
 
-/* The perror
- * Interprets the value of errno as 
- * an error message, and prints it to stderr */
-void perror(const char * str)
+void perror(
+	_In_ __CONST char * str)
 {
-	/* Temp format buffer */
-	char TmpBuffer[256];
+	fprintf(stderr, "%s: %s\n", str, strerror(errno));
+}
 
-	/* Null it */
-	memset(TmpBuffer, 0, sizeof(TmpBuffer));
-
-	/* Sanity */
-	if (str != NULL) {
-		sprintf(TmpBuffer, "%s: %s\n", str, strerror(errno));
-	}
-	else {
-		sprintf(TmpBuffer, "%s\n", strerror(errno));
-	}
-
-	/* Print */
-	printf(TmpBuffer);
+void wperror(
+	_In_ __CONST wchar_t *str)
+{
+	fwprintf(stderr, L"%s: %S\n", str, strerror(errno));
 }

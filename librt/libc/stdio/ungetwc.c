@@ -17,41 +17,61 @@
  *
  *
  * MollenOS - C Standard Library
- * - Writes the C string pointed by str to the stream.
- * - The function begins copying from the address specified (str) until it 
- *   reaches the terminating null character ('\0'). 
- *   This terminating null-character is not copied to the stream.
+ * - Returns a character back into the stream
  */
 
 #include <wchar.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include "local.h"
 
-int fputws(
-    _In_ __CONST wchar_t *s, 
-    _In_ FILE* file)
+wint_t ungetwc(
+    _In_ wint_t wc, 
+    _In_ FILE *file)
 {
-    size_t i, len = wcslen(s);
-    int tmp_buf = 0;
-    int ret;
+    wchar_t mwc = wc;
+
+    if (wc == WEOF)
+        return WEOF;
 
     _lock_file(file);
-    if (!(get_ioinfo(file->_fd)->wxflag & WX_TEXT)) {
-        ret = fwrite(s,sizeof(*s),len,file) == len ? 0 : EOF;
-        _unlock_file(file);
-        return ret;
-    }
 
-    tmp_buf = add_std_buffer(file);
-    for (i=0; i<len; i++) {
-        if(fputwc(s[i], file) == WEOF) {
-            if(tmp_buf) remove_std_buffer(file);
+    if ((get_ioinfo(file->_fd)->exflag & (EF_UTF8 | EF_UTF16)) || !(get_ioinfo(file->_file)->wxflag & WX_TEXT))
+    {
+        unsigned char *pp = (unsigned char *)&mwc;
+        int i;
+
+        for (i = sizeof(wchar_t) - 1; i >= 0; i--)
+        {
+            if (pp[i] != ungetc(pp[i], file))
+            {
+                _unlock_file(file);
+                return WEOF;
+            }
+        }
+    }
+    else
+    {
+        char mbs[MB_LEN_MAX];
+        int len;
+
+        len = wctomb(mbs, mwc);
+        if (len == -1)
+        {
             _unlock_file(file);
             return WEOF;
         }
+
+        for (len--; len >= 0; len--)
+        {
+            if (mbs[len] != ungetc(mbs[len], file))
+            {
+                _unlock_file(file);
+                return WEOF;
+            }
+        }
     }
 
-    if(tmp_buf) remove_std_buffer(file);
     _unlock_file(file);
-    return 0;
+    return mwc;
 }

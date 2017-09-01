@@ -20,36 +20,36 @@
 */
 
 #include <stdio.h>
+#include "local.h"
 
 int fflush(
 	_In_ FILE *file)
 {
-	if (!file)
-	{
+	// If fflush is called with NULL argument
+	// we need to flush all buffers present
+	if (!file) {
 		os_flush_all_buffers(_IOWRT);
 	}
-	else if (file->_flag & _IOWRT)
-	{
-		int res;
+	else if (file->_flag & _IOWRT) {
+		OsStatus_t Result;
 
 		_lock_file(file);
-		res = os_flush_buffer(file);
-		/* FIXME
+		Result = os_flush_buffer(file);
+		/* @todo
         if(!res && (file->_flag & _IOCOMMIT))
-            res = _commit(file->_file) ? EOF : 0;
-        */
+            res = _commit(file->_file) ? EOF : 0; */
 		_unlock_file(file);
 
-		return res;
+		return (Result == OsSuccess) ? 0 : 1;
 	}
-	else if (file->_flag & _IOREAD)
-	{
+	// Flushing read files is just resetting the buffer pointer
+	else if (file->_flag & _IOREAD) {
 		_lock_file(file);
 		file->_cnt = 0;
 		file->_ptr = file->_base;
 		_unlock_file(file);
-
-		return 0;
 	}
+
+	// Return 0 on success
 	return 0;
 }
