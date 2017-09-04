@@ -16,14 +16,11 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS C Library - Read from file-handles
+ * MollenOS - C Standard Library
+ * - Reads an array of count elements, 
+ *   each one with a size of size bytes, from the stream and stores 
+ *   them in the block of memory specified by ptr.
  */
-
-/* Includes
- * - System */
-#include <os/driver/file.h>
-#include <os/syscall.h>
-#include <os/thread.h>
 
 /* Includes 
  * - Library */
@@ -32,92 +29,455 @@
 #include <errno.h>
 #include <string.h>
 #include <stdlib.h>
+#include <limits.h>
+#include "local.h"
 
-/* Externs */
-__EXTERN int _ffill(FILE * stream, void *ptr, size_t size);
 
-/* The read 
- * This is the ANSI C version
- * of fread */
-int _read(int fd, void *buffer, unsigned int len)
+static inline int get_utf8_char_len(char ch)
 {
-	/* Variables */
-	size_t BytesReadTotal = 0, BytesLeft = (size_t)len;
-	size_t OriginalSize = GetBufferSize(TLSGetCurrent()->Transfer);
-	uint8_t *Pointer = (uint8_t*)buffer;
-
-	/* Keep reading chunks of BUFSIZ */
-	while (BytesLeft > 0) {
-		size_t ChunkSize = MIN(OriginalSize, BytesLeft);
-		size_t BytesRead = 0, BytesIndex = 0;
-		ChangeBufferSize(TLSGetCurrent()->Transfer, ChunkSize);
-		if (_fval(ReadFile((UUId_t)fd, TLSGetCurrent()->Transfer, &BytesIndex, &BytesRead))) {
-			break;
-		}
-		if (BytesRead == 0) {
-			break;
-		}
-		SeekBuffer(TLSGetCurrent()->Transfer, BytesIndex);
-		ReadBuffer(TLSGetCurrent()->Transfer, (__CONST void*)Pointer, BytesRead, NULL);
-		SeekBuffer(TLSGetCurrent()->Transfer, 0);
-		BytesReadTotal += BytesRead;
-		BytesLeft -= BytesRead;
-		Pointer += BytesRead;
-	}
-
-	/* Done! */
-	ChangeBufferSize(TLSGetCurrent()->Transfer, OriginalSize);
-	return (unsigned int)BytesReadTotal;
+    if((ch&0xf8) == 0xf0)
+        return 4;
+    else if((ch&0xf0) == 0xe0)
+        return 3;
+    else if((ch&0xe0) == 0xc0)
+        return 2;
+    return 1;
 }
 
-/* The fread 
- * reads from a file handle */
-size_t fread(void * vptr, size_t size, size_t count, FILE * stream)
+int _ReadUtf8(int fd, wchar_t *buf, unsigned int count)
 {
-	/* Variables */
-	size_t BytesToRead = count * size, BytesRead = 0;
-	uint8_t *bPtr = (uint8_t*)vptr;
+    ioinfo *fdinfo = get_ioinfo(fd);
+    HANDLE hand = fdinfo->handle;
+    char min_buf[4], *readbuf, lookahead;
+    DWORD readbuf_size, pos=0, num_read=1, char_len, i, j;
 
-	/* Sanity */
-	if (vptr == NULL
-		|| stream == NULL
-		|| stream == stdin
-		|| stream == stdout
-		|| stream == stderr
-		|| BytesToRead == 0)
+    /* make the buffer big enough to hold at least one character */
+    /* read bytes have to fit to output and lookahead buffers */
+    count /= 2;
+    readbuf_size = count < 4 ? 4 : count;
+    if(readbuf_size<=4 || !(readbuf = malloc(readbuf_size))) {
+        readbuf_size = 4;
+        readbuf = min_buf;
+    }
+
+    if(fdinfo->lookahead[0] != '\n') {
+        readbuf[pos++] = fdinfo->lookahead[0];
+        fdinfo->lookahead[0] = '\n';
+
+        if(fdinfo->lookahead[1] != '\n') {
+            readbuf[pos++] = fdinfo->lookahead[1];
+            fdinfo->lookahead[1] = '\n';
+
+            if(fdinfo->lookahead[2] != '\n') {
+                readbuf[pos++] = fdinfo->lookahead[2];
+                fdinfo->lookahead[2] = '\n';
+            }
+        }
+    }
+
+    /* NOTE: this case is broken in native dll, reading
+     *        sometimes fails when small buffer is passed
+     */
+    if(count < 4) {
+        if(!pos && !ReadFile(hand, readbuf, 1, &num_read, NULL)) {
+            if (GetLastError() == ERROR_BROKEN_PIPE) {
+                fdinfo->wxflag |= WX_ATEOF;
+                return 0;
+            }else {
+                _dosmaperr(GetLastError());
+                return -1;
+            }
+        }else if(!num_read) {
+            fdinfo->wxflag |= WX_ATEOF;
+            return 0;
+        }else {
+            pos++;
+        }
+
+        char_len = get_utf8_char_len(readbuf[0]);
+        if(char_len>pos) {
+            if(ReadFile(hand, readbuf+pos, char_len-pos, &num_read, NULL))
+                pos += num_read;
+        }
+
+        if(readbuf[0] == '\n')
+            fdinfo->wxflag |= WX_READNL;
+        else
+            fdinfo->wxflag &= ~WX_READNL;
+
+        if(readbuf[0] == 0x1a) {
+            fdinfo->wxflag |= WX_ATEOF;
+            return 0;
+        }
+
+        if(readbuf[0] == '\r') {
+            if(!ReadFile(hand, &lookahead, 1, &num_read, NULL) || num_read!=1)
+                buf[0] = '\r';
+            else if(lookahead == '\n')
+                buf[0] = '\n';
+            else {
+                buf[0] = '\r';
+                if(fdinfo->wxflag & (WX_PIPE | WX_TTY))
+                    fdinfo->lookahead[0] = lookahead;
+                else
+                    SetFilePointer(fdinfo->handle, -1, NULL, FILE_CURRENT);
+            }
+            return 2;
+        }
+
+        if(!(num_read = MultiByteToWideChar(CP_UTF8, 0, readbuf, pos, buf, count))) {
+            _dosmaperr(GetLastError());
+            return -1;
+        }
+
+        return num_read*2;
+    }
+
+    if(!ReadFile(hand, readbuf+pos, readbuf_size-pos, &num_read, NULL)) {
+        if(pos) {
+            num_read = 0;
+        }else if(GetLastError() == ERROR_BROKEN_PIPE) {
+            fdinfo->wxflag |= WX_ATEOF;
+            if (readbuf != min_buf) free(readbuf);
+            return 0;
+        }else {
+            _dosmaperr(GetLastError());
+            if (readbuf != min_buf) free(readbuf);
+            return -1;
+        }
+    }else if(!pos && !num_read) {
+        fdinfo->wxflag |= WX_ATEOF;
+        if (readbuf != min_buf) free(readbuf);
+        return 0;
+    }
+
+    pos += num_read;
+    if(readbuf[0] == '\n')
+        fdinfo->wxflag |= WX_READNL;
+    else
+        fdinfo->wxflag &= ~WX_READNL;
+
+    /* Find first byte of last character (may be incomplete) */
+    for(i=pos-1; i>0 && i>pos-4; i--)
+        if((readbuf[i]&0xc0) != 0x80)
+            break;
+    char_len = get_utf8_char_len(readbuf[i]);
+    if(char_len+i <= pos)
+        i += char_len;
+
+    if(fdinfo->wxflag & (WX_PIPE | WX_TTY)) {
+        if(i < pos)
+            fdinfo->lookahead[0] = readbuf[i];
+        if(i+1 < pos)
+            fdinfo->lookahead[1] = readbuf[i+1];
+        if(i+2 < pos)
+            fdinfo->lookahead[2] = readbuf[i+2];
+    }else if(i < pos) {
+        SetFilePointer(fdinfo->handle, i-pos, NULL, FILE_CURRENT);
+    }
+    pos = i;
+
+    for(i=0, j=0; i<pos; i++) {
+        if(readbuf[i] == 0x1a) {
+            fdinfo->wxflag |= WX_ATEOF;
+            break;
+        }
+
+        /* strip '\r' if followed by '\n' */
+        if(readbuf[i] == '\r' && i+1==pos) {
+            if(fdinfo->lookahead[0] != '\n' || !ReadFile(hand, &lookahead, 1, &num_read, NULL) || !num_read) {
+                readbuf[j++] = '\r';
+            }else if(lookahead == '\n' && j==0) {
+                readbuf[j++] = '\n';
+            }else {
+                if(lookahead != '\n')
+                    readbuf[j++] = '\r';
+
+                if(fdinfo->wxflag & (WX_PIPE | WX_TTY))
+                    fdinfo->lookahead[0] = lookahead;
+                else
+                    SetFilePointer(fdinfo->handle, -1, NULL, FILE_CURRENT);
+            }
+        }else if(readbuf[i]!='\r' || readbuf[i+1]!='\n') {
+            readbuf[j++] = readbuf[i];
+        }
+    }
+    pos = j;
+
+    if(!(num_read = MultiByteToWideChar(CP_UTF8, 0, readbuf, pos, buf, count))) {
+        _dosmaperr(GetLastError());
+        if (readbuf != min_buf) free(readbuf);
+        return -1;
+    }
+
+    if (readbuf != min_buf) free(readbuf);
+    return num_read*2;
+}
+
+/* _read
+ * This is the ANSI C version of fread */
+int _read(int fd, void *buffer, unsigned int len)
+{
+	// Variables
+	size_t BytesRead, Utf16;
+	char *BufferCursor = (char *)buffer;
+	ioobject *fdinfo = get_ioinfo(fd);
+
+	// Sanitize parameters
+	if (len == 0 || (fdinfo->wxflag & WX_ATEOF)) {
 		return 0;
+	}
 
-	/* Keep reading untill
-	 * we've read all bytes requested */
-	while (BytesToRead > 0) 
-	{
-		/* Variables */
-		int res = _ffill(stream, bPtr, BytesToRead);
+	// Determine if we are reading UTF16
+	Utf16 = (fdinfo->exflag & EF_UTF16) != 0;
+	if (((fdinfo->exflag & EF_UTF8) || Utf16) && (len & 0x1)) {
+		_set_errno(EINVAL);
+		return -1;
+	}
 
-		/* Sanitize
-		 * if res is below 0, then errno is 
-		 * already set for us by _fval in _ffill */
-		if (res < 0) {
-			return res;
-		}
-		else if (feof(stream)) {
-			/* Just because stream is eof 
-			 * we might still have read bytes */
-			if (res > 0) {
-				BytesRead += (size_t)res;
+	// Determine if we are reading UTF8
+	if ((fdinfo->wxflag & WX_TEXT) && (fdinfo->exflag & EF_UTF8)) {
+		return _ReadUtf8(fd, (wchar_t*)buffer, len);
+	}
+
+	// Now do the actual read of either binary or UTF16
+	if (fdinfo->lookahead[0] != '\n' 
+		|| StdioReadInternal(fd, BufferCursor, len, &BytesRead) == OsSuccess) {
+		
+		// Always check lookahead
+		if (fdinfo->lookahead[0] != '\n') {
+			BufferCursor[0] = fdinfo->lookahead[0];
+			fdinfo->lookahead[0] = '\n';
+
+			if (Utf16) {
+				BufferCursor[1] = fdinfo->lookahead[1];
+				fdinfo->lookahead[1] = '\n';
 			}
-			break;
+
+			if (len > (1 + Utf16) && StdioReadInternal(fd, 
+				BufferCursor + 1 + Utf16, len - 1 - Utf16, &BytesRead) == OsSuccess) {
+				BytesRead += 1 + Utf16;			
+			}
+			else {
+				BytesRead = 1 + Utf16;
+			}
+		}
+
+		// If we get uneven bytes read ignore the last
+		if (Utf16 && (BytesRead & 1)) {
+			BytesRead--;
+		}
+
+		// Test against EOF
+		if (len != 0 && BytesRead == 0) {
+			fdinfo->wxflag |= WX_ATEOF;
+		}
+		else if (fdinfo->wxflag & WX_TEXT) {
+			// Variables
+			size_t i, j;
+
+			// Detect reading newline
+			if (BufferCursor[0] == '\n' && (!Utf16 || BufferCursor[1] == 0)) {
+				fdinfo->wxflag |= WX_READNL;
+			}
+			else {
+				fdinfo->wxflag &= ~WX_READNL;
+			}
+
+			for (i = 0, j = 0; i < BytesRead; i += 1 + Utf16)
+			{
+				// In text mode, a ctrl-z signals EOF
+				if (BufferCursor[i] == 0x1a && (!Utf16 || BufferCursor[i + 1] == 0)) {
+					fdinfo->wxflag |= WX_ATEOF;
+					break;
+				}
+
+				// In text mode, strip \r if followed by \n
+				if (BufferCursor[i] == '\r'
+					&& (!Utf16 || BufferCursor[i + 1] == 0) 
+					&& (i + 1 + Utf16 == BytesRead))
+				{
+					char lookahead[2];
+					size_t count;
+
+					lookahead[1] = '\n';
+					if (StdioReadInternal(fd, lookahead, 1 + Utf16, &count) == OsSuccess 
+						&& count) {
+						if (lookahead[0] == '\n' 
+							&& (!Utf16 || lookahead[1] == 0) 
+							&& j == 0) {
+							BufferCursor[j++] = '\n';
+
+							if (Utf16) {
+								BufferCursor[j++] = 0;
+							}
+						}
+						else {
+							if (lookahead[0] != '\n' || (Utf16 && lookahead[1] != 0)) {
+								BufferCursor[j++] = '\r';
+
+								if (Utf16) {
+									BufferCursor[j++] = 0;
+								}
+							}
+
+							if (fdinfo->wxflag & (WX_PIPE | WX_TTY)) {
+								if (lookahead[0] == '\n' && (!Utf16 || !lookahead[1])) {
+									BufferCursor[j++] = '\n';
+
+									if (Utf16) {
+										BufferCursor[j++] = 0;
+									}
+								}
+								else {
+									fdinfo->lookahead[0] = lookahead[0];
+									fdinfo->lookahead[1] = lookahead[1];
+								}
+							}
+							else {
+								SetFilePointer(fdinfo->handle, -1 - Utf16, NULL, FILE_CURRENT);
+							}
+						}
+					}
+					else {
+						BufferCursor[j++] = '\r';
+						
+						if (Utf16) {
+							BufferCursor[j++] = 0;
+						}
+					}
+				}
+				else if ((BufferCursor[i] != '\r' 
+					|| (Utf16 && BufferCursor[i + 1] != 0)) 
+					|| (BufferCursor[i + 1 + Utf16] != '\n' 
+					|| (Utf16 && BufferCursor[i + 3] != 0))) {
+					BufferCursor[j++] = BufferCursor[i];
+					
+					if (Utf16) {
+						BufferCursor[j++] = BufferCursor[i + 1];
+					}
+				}
+			}
+
+			// Update bytes read
+			BytesRead = j;
+		}
+	}
+	else {
+		return -1;
+	}
+
+	// Done
+	return (int)BytesRead;
+}
+
+/* fread
+ * Reads an array of count elements, 
+ * each one with a size of size bytes, from the stream and stores 
+ * them in the block of memory specified by ptr. */
+size_t fread(
+	_In_ void *vptr, 
+	_In_ size_t size, 
+	_In_ size_t count, 
+	_In_ FILE *stream)
+{
+	// Variables
+	size_t rcnt = size * count;
+	size_t read = 0;
+	size_t pread = 0;
+
+	// Sanitize parameters
+	if (!rcnt) {
+		return 0;
+	}
+
+	// Lock file access
+	_lock_file(stream);
+
+	// Check if we have any buffered data already
+	if (stream->_cnt > 0) {
+		int pcnt = (rcnt > stream->_cnt) ? stream->_cnt : rcnt;
+		memcpy(vptr, stream->_ptr, pcnt);
+		stream->_cnt -= pcnt;
+		stream->_ptr += pcnt;
+		read += pcnt;
+		rcnt -= pcnt;
+		vptr = (char *)vptr + pcnt;
+	}
+	// Detect if stream was opened in correct mode
+	else if (!(stream->_flag & _IOREAD)) {
+		if (stream->_flag & _IORW) {
+			stream->_flag |= _IOREAD;
 		}
 		else {
-			BytesToRead -= (size_t)res;
-			BytesRead += (size_t)res;
-			bPtr += res;
+			_unlock_file(stream);
+			return 0;
 		}
 	}
 
-	/* Clear error */
-	_set_errno(EOK);
+	// Do we need to allocate a buffer?
+	if (rcnt > 0 && !(stream->_flag & (_IONBF | _IOMYBUF | _USERBUF))) {
+		os_alloc_buffer(stream);
+	}
 
-	/* Gj */
-	return BytesRead;
+	// Keep reading untill all requested bytes are read, or EOF
+	while (rcnt > 0) {
+		int i;
+		if (!stream->_cnt && rcnt < BUFSIZ 
+			&& (stream->_flag & (_IOMYBUF | _USERBUF))) {
+			stream->_cnt = _read(stream->_fd, stream->_base, stream->_bufsiz);
+			stream->_ptr = stream->_base;
+			i = (stream->_cnt < rcnt) ? stream->_cnt : rcnt;
+
+			/* If the buffer fill reaches eof but 
+			 * fread wouldn't, clear eof. */
+			if (i > 0 && i < stream->_cnt) {
+				get_ioinfo(stream->_fd)->wxflag &= ~WX_ATEOF;
+				stream->_flag &= ~_IOEOF;
+			}
+			
+			if (i > 0) {
+				memcpy(vptr, stream->_ptr, i);
+				stream->_cnt -= i;
+				stream->_ptr += i;
+			}
+		}
+		else if (rcnt > INT_MAX) {
+			i = _read(stream->_fd, vptr, INT_MAX);
+		}
+		else if (rcnt < BUFSIZ) {
+			i = _read(stream->_fd, vptr, rcnt);
+		}
+		else {
+			i = _read(stream->_fd, vptr, rcnt - BUFSIZ / 2);
+		}
+
+		// Update iterators
+		pread += i;
+		rcnt -= i;
+		vptr = (char *)vptr + i;
+
+		// Check for EOF condition
+		// also for error conditions
+		if (get_ioinfo(stream->_fd)->wxflag & WX_ATEOF) {
+			stream->_flag |= _IOEOF;
+		}
+		else if (i == -1) {
+			stream->_flag |= _IOERR;
+			pread = 0;
+			rcnt = 0;
+		}
+
+		// Break if bytes read is 0 or below
+		if (i < 1) {
+			break;
+		}
+	}
+
+	// Increase the number of bytes read
+	read += pread;
+
+	// Unlock file and return amount read
+	_unlock_file(stream);
+	return (read / size);
 }

@@ -248,6 +248,7 @@
         "limits.h": "c",
         "queue": "c",
         "complex": "c",
-        "scanf.h": "c"
+        "scanf.h": "c",
+        "__refstring": "c"
     }
 }

@@ -29,6 +29,5 @@
  * Restores the file position */
 int fsetpos(FILE * stream, const fpos_t * pos)
 {
-	/* Utilize fseeko */
 	return (fseeko(stream, (off_t)*pos, SEEK_SET));
 }

@@ -70,9 +70,19 @@ __EXTERN int _flswbuf(int ch, FILE *stream);
 /* StdioFdAllocate 
  * Allocates a new file descriptor handle from the bitmap.
  * Returns -1 on error. */
-__EXTERN int StdioFdAllocate(void);
+__EXTERN int StdioFdAllocate(UUId_t handle, int flag);
 __EXTERN OsStatus_t StdioFdInitialize(_In_ FILE *file, _In_ int fd, _In_ unsigned stream_flags);
 __EXTERN void StdioFdFree(_In_ int fd);
 __EXTERN UUId_t StdioFdToHandle(_In_ int fd);
+
+/* StdioReadInternal
+ * Internal read wrapper for file-reading */
+__EXTERN
+OsStatus_t
+StdioReadInternal(
+    _In_ int fd, 
+    _In_ char *Buffer, 
+    _In_ size_t Length,
+    _Out_ size_t *BytesRead);
 
 #endif //!__STDIO_SUPPORT_H__

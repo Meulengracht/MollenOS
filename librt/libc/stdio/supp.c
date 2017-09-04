@@ -20,6 +20,9 @@
  * - Standard IO Support functions
  */
 
+#include <os/driver/input.h>
+#include <os/driver/file.h>
+#include <os/ipc/ipc.h>
 #include <os/thread.h>
 #include <ds/list.h>
 #include <stdio.h>
@@ -36,7 +39,8 @@ FILE __GlbStdout, __GlbStdin, __GlbStderr;
 
 /* StdioInitialize
  * Initializes default handles and resources */
-void StdioInitialize(void)
+void
+StdioInitialize(void)
 {
     // Initialize the list of io-objects
     __GlbIoObjects = ListCreate(KeyInteger, LIST_SAFE);
@@ -58,7 +62,8 @@ void StdioInitialize(void)
 
 /* StdioCleanup
  * */
-void StdioCleanup(void)
+void
+StdioCleanup(void)
 {
     // Flush all file buffers and close handles
     _flushall();
@@ -67,7 +72,8 @@ void StdioCleanup(void)
 
 /* StdioFdValid
  * Determines the validity of a file-descriptor handle */
-OsStatus_t StdioFdValid(int fd)
+OsStatus_t
+StdioFdValid(int fd)
 {
     return fd >= 0 && fd < INTERNAL_MAXFILES 
         && (get_ioinfo(fd)->wxflag & WX_OPEN);
@@ -76,10 +82,12 @@ OsStatus_t StdioFdValid(int fd)
 /* StdioFdAllocate 
  * Allocates a new file descriptor handle from the bitmap.
  * Returns -1 on error. */
-int StdioFdAllocate(UUId_t handle, int flag)
+int
+StdioFdAllocate(UUId_t handle, int flag)
 {
     // Variables
     ioobject *io = NULL;
+    DataKey_t Key;
     int i, j, result = -1;
 
     // Acquire the bitmap lock
@@ -109,20 +117,28 @@ int StdioFdAllocate(UUId_t handle, int flag)
     SpinlockRelease(&__GlbFdBitmapLock);
 
     // Create a new io-object
-    io = (ioobject*)malloc(sizeof(ioobject));
-    io->handle = handle;
-    io->wxflag = WX_OPEN | (flag & (WX_DONTINHERIT | WX_APPEND | WX_TEXT | WX_PIPE | WX_TTY));
-    io->lookahead[0] = '\n';
-    io->lookahead[1] = '\n';
-    io->lookahead[2] = '\n';
-    io->exflag = 0;
+    if (result != -1) {
+        io = (ioobject*)malloc(sizeof(ioobject));
+        io->handle = handle;
+        io->wxflag = WX_OPEN | (flag & (WX_DONTINHERIT | WX_APPEND | WX_TEXT | WX_PIPE | WX_TTY));
+        io->lookahead[0] = '\n';
+        io->lookahead[1] = '\n';
+        io->lookahead[2] = '\n';
+        io->exflag = 0;
+    
+        // Add to list
+        Key.Value = result;
+        ListAppend(__GlbIoObjects, ListCreateNode(Key, Key, io));
+    }
 
+    // Done
     return result;
 }
 
 /* StdioFdFree
  * Frees an already allocated file descriptor handle in the bitmap. */
-void StdioFdFree(
+void
+StdioFdFree(
     _In_ int fd)
 {
     // Variables
@@ -151,7 +167,8 @@ void StdioFdFree(
 
 /* StdioFdToHandle
  * Retrieves the file descriptor os-handle from the given fd */
-UUId_t StdioFdToHandle(
+UUId_t
+StdioFdToHandle(
     _In_ int fd)
 {
     // Variables
@@ -171,7 +188,8 @@ UUId_t StdioFdToHandle(
 
 /* StdioFdInitialize
  * Initializes a FILE stream object with the given file descriptor */
-OsStatus_t StdioFdInitialize(
+OsStatus_t
+StdioFdInitialize(
     _In_ FILE *file, 
     _In_ int fd,
     _In_ unsigned stream_flags)
@@ -204,6 +222,104 @@ OsStatus_t StdioFdInitialize(
         _set_errno(EBADFD);
         return OsError;
     }
+}
+
+/* StdioReadStdin
+ * */
+int
+StdioReadStdin(void)
+{
+	// Variables
+	MRemoteCall_t Event;
+	MInput_t *Input = NULL;
+	int Character = 0;
+	int Run = 1;
+
+	// Wait for input message, we need to discard 
+	// everything else as this is a polling op
+	while (Run) {
+		if (RPCListen(&Event) == OsSuccess) {
+			Input = (MInput_t*)Event.Arguments[0].Data.Buffer;
+			if (Event.Function == EVENT_INPUT) {
+				if (Input->Type == InputKeyboard
+					&& (Input->Flags & INPUT_BUTTON_CLICKED)) {
+					Character = (int)Input->Key;
+					Run = 0;
+				}
+			}
+		}
+		RPCCleanup(&Event);
+	}
+
+	// Return the resulting read character
+	return Character;
+}
+
+/* StdioReadInternal
+ * Internal read wrapper for file-reading */
+OsStatus_t
+StdioReadInternal(
+    _In_ int fd, 
+    _In_ char *Buffer, 
+    _In_ size_t Length,
+    _Out_ size_t *BytesRead)
+{
+    // Variables
+	size_t BytesReadTotal = 0, BytesLeft = (size_t)Length;
+	size_t OriginalSize = GetBufferSize(TLSGetCurrent()->Transfer);
+	uint8_t *Pointer = (uint8_t*)Buffer;
+    UUId_t Handle = StdioFdToHandle(fd);
+    
+    // Determine handle
+    if (Handle == UUID_INVALID) {
+        // Only one case this is allowed
+        if (__GlbStdin._fd == fd) {
+            switch (BytesLeft) {
+                case 1: {
+                    *Pointer = (uint8_t)StdioReadStdin();
+                } break;
+                case 2: {
+                    *((uint16_t*)Pointer) = (uint16_t)StdioReadStdin();
+                } break;
+                case 4: {
+                    *((uint32_t*)Pointer) = (uint32_t)StdioReadStdin();
+                } break;
+                default: {
+                    return OsError;
+                }
+            }
+            return OsSuccess;
+        }
+
+        // Otherwise set error
+        _set_errno(EBADF);
+		return OsError;
+    }
+
+	// Keep reading chunks untill we've read all requested
+	while (BytesLeft > 0) {
+		size_t ChunkSize = MIN(OriginalSize, BytesLeft);
+		size_t BytesRead = 0, BytesIndex = 0;
+		ChangeBufferSize(TLSGetCurrent()->Transfer, ChunkSize);
+        if (_fval(ReadFile(Handle, TLSGetCurrent()->Transfer, 
+            &BytesIndex, &BytesRead))) {
+			break;
+		}
+		if (BytesRead == 0) {
+			break;
+		}
+		SeekBuffer(TLSGetCurrent()->Transfer, BytesIndex);
+        ReadBuffer(TLSGetCurrent()->Transfer, 
+            (__CONST void*)Pointer, BytesRead, NULL);
+		SeekBuffer(TLSGetCurrent()->Transfer, 0);
+		BytesReadTotal += BytesRead;
+		BytesLeft -= BytesRead;
+		Pointer += BytesRead;
+	}
+
+	// Restore transfer buffer
+	return ChangeBufferSize(
+        TLSGetCurrent()->Transfer, OriginalSize);
 }
 
 /* getstdfile
@@ -292,7 +408,8 @@ os_flush_all_buffers(
     return num_flushed;
 }
 
-int _fcloseall(void)
+int
+_fcloseall(void)
 {
     int num_closed = 0;
     FILE *file;
@@ -382,7 +499,8 @@ add_std_buffer(
 /* remove_std_buffer
  * Removes temporary buffer from stdout or stderr
  * Only call this function when add_std_buffer returned Success */
-void remove_std_buffer(
+void
+remove_std_buffer(
     _In_ FILE *file)
 {
     // Flush it first
@@ -394,16 +512,26 @@ void remove_std_buffer(
     file->_flag &= ~_USERBUF;
 }
 
-void _lock_file(FILE *file)
+/* _lock_file
+ * */
+OsStatus_t
+_lock_file(
+    _In_ FILE *file)
 {
     if (!(file->_flag & _IOSTRG)) {
-        SpinlockAcquire(&get_ioinfo(file->_fd)->lock);
+        return SpinlockAcquire(&get_ioinfo(file->_fd)->lock);
     }
+    return OsSuccess;
 }
 
-void _unlock_file(FILE *file)
+/* _unlock_file
+ * */
+OsStatus_t
+_unlock_file(
+    _In_ FILE *file)
 {
     if (!(file->_flag & _IOSTRG)) {
-        SpinlockRelease(&get_ioinfo(file->_fd)->lock);
+        return SpinlockRelease(&get_ioinfo(file->_fd)->lock);
     }
+    return OsSuccess;
 }

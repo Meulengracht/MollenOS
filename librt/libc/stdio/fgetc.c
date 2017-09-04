@@ -51,7 +51,7 @@ int _filbuf(
 	if (!(file->_flag & (_IOMYBUF | _USERBUF)))
 	{
 		int r;
-		if ((r = read_i(file->_fd, &c, 1)) != 1) {
+		if ((r = _read(file->_fd, &c, 1)) != 1) {
 			file->_flag |= (r == 0) ? _IOEOF : _IOERR;
 			_unlock_file(file);
 			return EOF;
@@ -62,7 +62,7 @@ int _filbuf(
 	}
 	else
 	{
-		file->_cnt = read_i(file->_fd, file->_base, file->_bufsiz);
+		file->_cnt = _read(file->_fd, file->_base, file->_bufsiz);
 		if (file->_cnt <= 0)
 		{
 			file->_flag |= (file->_cnt == 0) ? _IOEOF : _IOERR;

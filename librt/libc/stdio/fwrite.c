@@ -32,9 +32,7 @@
 #include <errno.h>
 #include <string.h>
 #include <stdlib.h>
-
-/* Externs */
-__EXTERN int _favail(FILE * stream);
+#include "local.h"
 
 /* _write
  * This is the ANSI C version of fwrite */
@@ -43,18 +41,21 @@ int _write(int fd, void *buffer, unsigned int length)
 	/* Variables */
 	size_t BytesWrittenTotal = 0, BytesLeft = (size_t)length;
 	size_t OriginalSize = GetBufferSize(TLSGetCurrent()->Transfer);
-	uint8_t *Pointer = (uint8_t*)buffer;
+	uint8_t *Pointer = (uint8_t *)buffer;
 
 	/* Keep reading chunks of BUFSIZ */
-	while (BytesLeft > 0) {
+	while (BytesLeft > 0)
+	{
 		size_t ChunkSize = MIN(OriginalSize, BytesLeft);
 		size_t BytesWritten = 0;
 		ChangeBufferSize(TLSGetCurrent()->Transfer, ChunkSize);
-		WriteBuffer(TLSGetCurrent()->Transfer, (__CONST void*)Pointer, ChunkSize, &BytesWritten);
-		if (WriteFile((UUId_t)fd, TLSGetCurrent()->Transfer, &BytesWritten) != FsOk) {
+		WriteBuffer(TLSGetCurrent()->Transfer, (__CONST void *)Pointer, ChunkSize, &BytesWritten);
+		if (WriteFile((UUId_t)fd, TLSGetCurrent()->Transfer, &BytesWritten) != FsOk)
+		{
 			break;
 		}
-		if (BytesWritten == 0) {
+		if (BytesWritten == 0)
+		{
 			break;
 		}
 		BytesWrittenTotal += BytesWritten;
@@ -69,27 +70,72 @@ int _write(int fd, void *buffer, unsigned int length)
 
 /* The fwrite
 * writes to a file handle */
-size_t fwrite(const void * vptr, size_t size, size_t count, FILE * stream)
+size_t fwrite(
+	const void *vptr, 
+	size_t size, 
+	size_t count, 
+	FILE *stream)
 {
-	/* Variables */
-	size_t BytesToWrite = count * size;
-
-	/* Sanity */
-	if (vptr == NULL
-		|| stream == NULL
-		|| stream == stderr
-		|| stream == stdout
-		|| stream == stdin
-		|| BytesToWrite == 0)
+	// Variables
+	size_t wrcnt = size * count;
+	int written = 0;
+	if (size == 0)
 		return 0;
 
-	/* Sanity, if we are in position of a 
-	 * buffer, we need to adjust before writing */
-	if (_favail(stream)) {
-		fseek(stream, 0 - _favail(stream), SEEK_CUR);
+	_lock_file(stream);
+
+	while (wrcnt)
+	{
+		if (stream->_cnt < 0) {
+			stream->_flag |= _IOERR;
+			break;
+		}
+		else if (stream->_cnt)
+		{
+			int pcnt = (stream->_cnt > wrcnt) ? wrcnt : stream->_cnt;
+			memcpy(stream->_ptr, vptr, pcnt);
+			stream->_cnt -= pcnt;
+			stream->_ptr += pcnt;
+			written += pcnt;
+			wrcnt -= pcnt;
+			vptr = (const char *)vptr + pcnt;
+		}
+		else if ((stream->_flag & _IONBF) || ((stream->_flag & (_IOMYBUF | _USERBUF)) && wrcnt >= file->_bufsiz) || (!(file->_flag & (_IOMYBUF | _USERBUF)) && wrcnt >= MSVCRT_INTERNAL_BUFSIZ))
+		{
+			size_t pcnt;
+			int bufsiz;
+
+			if (stream->_flag & _IONBF)
+				bufsiz = 1;
+			else if (!(stream->_flag & (_IOMYBUF | _USERBUF)))
+				bufsiz = INTERNAL_BUFSIZ;
+			else
+				bufsiz = stream->_bufsiz;
+
+			pcnt = (wrcnt / bufsiz) * bufsiz;
+
+			if (os_flush_buffer(stream) == EOF)
+				break;
+
+			if (_write(stream->_fd, vptr, pcnt) <= 0)
+			{
+				stream->_flag |= _IOERR;
+				break;
+			}
+			written += pcnt;
+			wrcnt -= pcnt;
+			vptr = (const char *)vptr + pcnt;
+		}
+		else
+		{
+			if (_flsbuf(*(const char *)vptr, stream) == EOF)
+				break;
+			written++;
+			wrcnt--;
+			vptr = (const char *)vptr + 1;
+		}
 	}
 
-	/* Write to file */
-	_set_errno(EOK);
-	return (size_t)_write((int)stream->fd, (void*)vptr, BytesToWrite);
+	_unlock_file(stream);
+	return written / size;
 }

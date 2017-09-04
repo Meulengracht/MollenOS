@@ -114,9 +114,9 @@ _CRTIMP FILE *getstdfile(int n);
 /*******************************
  *       File Access           *
  *******************************/
-_CRTIMP int _lock_file(
+_CRTIMP OsStatus_t _lock_file(
 	_In_ FILE * stream);
-_CRTIMP int _unlock_file(
+_CRTIMP OsStatus_t _unlock_file(
 	_In_ FILE * stream);
 _CRTIMP Flags_t faccess(
 	_In_ __CONST char * mode);
@@ -324,7 +324,11 @@ _CRTIMP wchar_t *fgetws(
 /*******************************
  *         Direct IO           *
  *******************************/
-_CRTIMP size_t fread(void * vptr, size_t size, size_t count, FILE * stream);
+_CRTIMP size_t fread(
+	_In_ void *vptr, 
+	_In_ size_t size, 
+	_In_ size_t count, 
+	_In_ FILE *stream);
 _CRTIMP size_t fwrite(__CONST void * vptr, size_t size, size_t count, FILE * stream);
 
 /*******************************
