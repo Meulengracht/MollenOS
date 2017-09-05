@@ -85,4 +85,13 @@ StdioReadInternal(
     _In_ size_t Length,
     _Out_ size_t *BytesRead);
 
+/* StdioSeekInternal
+ * Internal wrapper for stdio's syntax, conversion to our own RPC syntax */
+__EXTERN
+OsStatus_t
+StdioSeekInternal(
+    _In_ int fd, 
+    _In_ off64_t Offset, 
+    _In_ int Origin);
+
 #endif //!__STDIO_SUPPORT_H__

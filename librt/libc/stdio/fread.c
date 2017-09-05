@@ -32,8 +32,7 @@
 #include <limits.h>
 #include "local.h"
 
-
-static inline int get_utf8_char_len(char ch)
+static int GetUtf8CharacterLength(char ch)
 {
     if((ch&0xf8) == 0xf0)
         return 4;
@@ -44,20 +43,21 @@ static inline int get_utf8_char_len(char ch)
     return 1;
 }
 
-int _ReadUtf8(int fd, wchar_t *buf, unsigned int count)
+static int _ReadUtf8(int fd, wchar_t *buf, unsigned int count)
 {
-    ioinfo *fdinfo = get_ioinfo(fd);
-    HANDLE hand = fdinfo->handle;
-    char min_buf[4], *readbuf, lookahead;
-    DWORD readbuf_size, pos=0, num_read=1, char_len, i, j;
-
-    /* make the buffer big enough to hold at least one character */
-    /* read bytes have to fit to output and lookahead buffers */
+	// Variables
+    char min_buf[5], *readbuf, lookahead;
+    size_t readbuf_size, pos=0, BytesRead = 1, char_len, i, j;
+	ioobject *fdinfo = get_ioinfo(fd);
+	
+    // make the buffer big enough to hold at least one character
+    // read bytes have to fit to output and lookahead buffers
     count /= 2;
     readbuf_size = count < 4 ? 4 : count;
     if(readbuf_size<=4 || !(readbuf = malloc(readbuf_size))) {
         readbuf_size = 4;
-        readbuf = min_buf;
+		readbuf = &min_buf[0];
+		memset(readbuf, 0, sizeof(min_buf));
     }
 
     if(fdinfo->lookahead[0] != '\n') {
@@ -73,85 +73,96 @@ int _ReadUtf8(int fd, wchar_t *buf, unsigned int count)
                 fdinfo->lookahead[2] = '\n';
             }
         }
-    }
-
-    /* NOTE: this case is broken in native dll, reading
-     *        sometimes fails when small buffer is passed
-     */
+	}
+	
+	// Handle the small case with the local buffer
     if(count < 4) {
-        if(!pos && !ReadFile(hand, readbuf, 1, &num_read, NULL)) {
-            if (GetLastError() == ERROR_BROKEN_PIPE) {
-                fdinfo->wxflag |= WX_ATEOF;
-                return 0;
-            }else {
-                _dosmaperr(GetLastError());
-                return -1;
-            }
-        }else if(!num_read) {
-            fdinfo->wxflag |= WX_ATEOF;
-            return 0;
-        }else {
-            pos++;
+        if(!pos && StdioReadInternal(fd, readbuf, 1, &BytesRead) == OsSuccess) {
+            if(!BytesRead) {
+				fdinfo->wxflag |= WX_ATEOF;
+				return 0;
+			}else {
+				pos++;
+			}
         }
 
-        char_len = get_utf8_char_len(readbuf[0]);
-        if(char_len>pos) {
-            if(ReadFile(hand, readbuf+pos, char_len-pos, &num_read, NULL))
-                pos += num_read;
+		// Read the rest of the character bytes
+        char_len = GetUtf8CharacterLength(readbuf[0]);
+        if(char_len > pos) {
+            if(StdioReadInternal(fd, readbuf + pos, char_len - pos, &BytesRead) == OsSuccess) {
+                pos += BytesRead;
+			}
         }
 
-        if(readbuf[0] == '\n')
+		// Handle newline checks
+        if(readbuf[0] == '\n') {
             fdinfo->wxflag |= WX_READNL;
-        else
+		}
+        else {
             fdinfo->wxflag &= ~WX_READNL;
+		}
 
+		// Check for ctrl-z
         if(readbuf[0] == 0x1a) {
             fdinfo->wxflag |= WX_ATEOF;
             return 0;
         }
 
+		// Handle CR
         if(readbuf[0] == '\r') {
-            if(!ReadFile(hand, &lookahead, 1, &num_read, NULL) || num_read!=1)
-                buf[0] = '\r';
-            else if(lookahead == '\n')
+			if(StdioReadInternal(fd, &lookahead, 1, &BytesRead) == OsSuccess 
+				&& BytesRead == 1) {
+				buf[0] = '\r';
+			}
+            else if(lookahead == '\n') {
                 buf[0] = '\n';
+			}
             else {
                 buf[0] = '\r';
-                if(fdinfo->wxflag & (WX_PIPE | WX_TTY))
+                if(fdinfo->wxflag & (WX_PIPE | WX_TTY)) {
                     fdinfo->lookahead[0] = lookahead;
-                else
-                    SetFilePointer(fdinfo->handle, -1, NULL, FILE_CURRENT);
-            }
+				}
+                else {
+                    StdioSeekInternal(fd, -1, SEEK_CUR);
+				}
+			}
+			
             return 2;
         }
 
-        if(!(num_read = MultiByteToWideChar(CP_UTF8, 0, readbuf, pos, buf, count))) {
-            _dosmaperr(GetLastError());
+		// Convert the mb to a wide-char
+        if(!(BytesRead = mbstowcs(buf, readbuf, count))) {
             return -1;
         }
 
-        return num_read*2;
+        return BytesRead * 2;
     }
 
-    if(!ReadFile(hand, readbuf+pos, readbuf_size-pos, &num_read, NULL)) {
+    if(StdioReadInternal(fd, readbuf+pos, readbuf_size-pos, &BytesRead) == OsSuccess) {
+		// EOF?
+		if(!pos && !BytesRead) {
+			fdinfo->wxflag |= WX_ATEOF;
+
+			if (readbuf != &min_buf[0]) {
+				free(readbuf);
+			}
+
+			return 0;
+		}
+
         if(pos) {
-            num_read = 0;
-        }else if(GetLastError() == ERROR_BROKEN_PIPE) {
-            fdinfo->wxflag |= WX_ATEOF;
-            if (readbuf != min_buf) free(readbuf);
-            return 0;
-        }else {
-            _dosmaperr(GetLastError());
-            if (readbuf != min_buf) free(readbuf);
+            BytesRead = 0;
+		}
+		else {
+            if (readbuf != &min_buf[0]) {
+				free(readbuf);
+			}
+
             return -1;
         }
-    }else if(!pos && !num_read) {
-        fdinfo->wxflag |= WX_ATEOF;
-        if (readbuf != min_buf) free(readbuf);
-        return 0;
     }
 
-    pos += num_read;
+    pos += BytesRead;
     if(readbuf[0] == '\n')
         fdinfo->wxflag |= WX_READNL;
     else
@@ -161,7 +172,7 @@ int _ReadUtf8(int fd, wchar_t *buf, unsigned int count)
     for(i=pos-1; i>0 && i>pos-4; i--)
         if((readbuf[i]&0xc0) != 0x80)
             break;
-    char_len = get_utf8_char_len(readbuf[i]);
+    char_len = GetUtf8CharacterLength(readbuf[i]);
     if(char_len+i <= pos)
         i += char_len;
 
@@ -205,7 +216,6 @@ int _ReadUtf8(int fd, wchar_t *buf, unsigned int count)
     pos = j;
 
     if(!(num_read = MultiByteToWideChar(CP_UTF8, 0, readbuf, pos, buf, count))) {
-        _dosmaperr(GetLastError());
         if (readbuf != min_buf) free(readbuf);
         return -1;
     }
@@ -215,8 +225,16 @@ int _ReadUtf8(int fd, wchar_t *buf, unsigned int count)
 }
 
 /* _read
- * This is the ANSI C version of fread */
-int _read(int fd, void *buffer, unsigned int len)
+ * returns the number of bytes read, which might be less than 
+ * count if there are fewer than count bytes left in the file or if the file 
+ * was opened in text mode, in which case each carriage return–line feed 
+ * (CR-LF) pair is replaced with a single linefeed character. 
+ * Only the single linefeed character is counted in the return value. 
+ * The replacement does not affect the file pointer. */
+int _read(
+	_In_ int fd, 
+	_In_ void *buffer, 
+	_In_ unsigned int len)
 {
 	// Variables
 	size_t BytesRead, Utf16;
@@ -335,7 +353,7 @@ int _read(int fd, void *buffer, unsigned int len)
 								}
 							}
 							else {
-								SetFilePointer(fdinfo->handle, -1 - Utf16, NULL, FILE_CURRENT);
+								StdioSeekInternal(fd, -1 - Utf16, SEEK_CUR);
 							}
 						}
 					}

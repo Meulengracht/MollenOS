@@ -177,10 +177,38 @@ ExitSeek:
 	return (RetVal == -1) ? -1 : 0;
 }
 
+int fseeki64(FILE* file, int64_t offset, int whence)
+{
+	int ret;
+	
+	  _lock_file(file);
+	  /* Flush output if needed */
+	  if(file->_flag & _IOWRT)
+		msvcrt_flush_buffer(file);
+	
+	  if(whence == SEEK_CUR && file->_flag & _IOREAD ) {
+		  whence = SEEK_SET;
+		  offset += _ftelli64(file);
+	  }
+	
+	  /* Discard buffered input */
+	  file->_cnt = 0;
+	  file->_ptr = file->_base;
+	  /* Reset direction of i/o */
+	  if(file->_flag & _IORW) {
+			file->_flag &= ~(_IOREAD|_IOWRT);
+	  }
+	  /* Clear end of file flag */
+	  file->_flag &= ~_IOEOF;
+	  ret = (_lseeki64(file->_fd,offset,whence) == -1)?-1:0;
+	
+	  _unlock_file(file);
+	  return ret;
+}
+
 /* The seek
  * Set the file position */
 int fseek(FILE * stream, long int offset, int origin)
 {
-	/* Deep call */
-	return fseeko(stream, offset, origin);
+	return _fseeki64(stream, offset, origin);
 }

@@ -277,12 +277,15 @@ StdioReadInternal(
             switch (BytesLeft) {
                 case 1: {
                     *Pointer = (uint8_t)StdioReadStdin();
+                    *BytesRead = 1;
                 } break;
                 case 2: {
                     *((uint16_t*)Pointer) = (uint16_t)StdioReadStdin();
+                    *BytesRead = 2;
                 } break;
                 case 4: {
                     *((uint32_t*)Pointer) = (uint32_t)StdioReadStdin();
+                    *BytesRead = 4;
                 } break;
                 default: {
                     return OsError;
@@ -320,6 +323,73 @@ StdioReadInternal(
 	// Restore transfer buffer
 	return ChangeBufferSize(
         TLSGetCurrent()->Transfer, OriginalSize);
+}
+
+off64_t offabs(off64_t Value) {
+	return (Value <= 0) ? 0 - Value : Value;
+}
+
+/* StdioSeekInternal
+ * Internal wrapper for stdio's syntax, conversion to our own RPC syntax */
+OsStatus_t
+StdioSeekInternal(
+    _In_ int fd, 
+    _In_ off64_t Offset, 
+    _In_ int Origin)
+{
+    /* Variables */
+    off_t SeekSpotLow = 0, SeekSpotHigh = 0;
+
+	/* Depends on origin */
+	if (Origin != SEEK_SET) 
+	{
+		/* We need current position / size */
+		off64_t CorrectedValue = offabs(Offset);
+		uint64_t fPos = 0, fSize = 0;
+		uint32_t pLo = 0, pHi = 0, 
+			sLo = 0, sHi = 0;
+
+		/* Syscall */
+		if (GetFilePosition((UUId_t)fd, &pLo, &pHi) != OsSuccess
+			&& GetFileSize((UUId_t)fd, &sLo, &sHi) != OsSuccess) {
+			return -1L;
+		}
+		else {
+			fSize = ((uint64_t)sHi << 32) | sLo;
+			fPos = ((uint64_t)pHi << 32) | pLo;
+		}
+
+		/* Sanity offset */
+		if ((size_t)fPos != fPos) {
+			_set_errno(EOVERFLOW);
+			return -1;
+		}
+
+		/* Lets see .. */
+		if (Origin == SEEK_CUR) {
+			if (Offset < 0) {
+				Offset = (long)fPos - CorrectedValue;
+			}
+			else {
+				Offset = (long)fPos + CorrectedValue;
+			}
+		}
+		else {
+			Offset = (long)fSize - CorrectedValue;
+		}
+	}
+
+	/* Build parts */
+	SeekSpotLow = Offset & 0xFFFFFFFF;
+	SeekSpotHigh = (Offset >> 32) & 0xFFFFFFFF;
+
+	/* Seek to the position */
+	if (_fval(SeekFile((UUId_t)fd, SeekSpotLow, SeekSpotHigh))) {
+		return -1L;
+	}
+	else {
+		return ((off64_t)SeekSpotHigh << 32) | SeekSpotLow;
+	}
 }
 
 /* getstdfile
