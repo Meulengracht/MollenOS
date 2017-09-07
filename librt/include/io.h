@@ -107,8 +107,16 @@ _CRTIMP int _close(int fd);
 _CRTIMP int _read(int fd, void *buffer, unsigned int len);
 _CRTIMP int _write(int fd, void *buffer, unsigned int length);
 
-_CRTIMP long _lseek(int fd, long offset, int mode);
-_CRTIMP long long _lseeki64(int fd, long long offset, int mode);
+_CRTIMP long _lseek(
+	_In_ int fd, 
+	_In_ long offset,
+	_In_ int whence);
+_CRTIMP long long _lseeki64(
+	_In_ int fd, 
+	_In_ long long offset, 
+	_In_ int whence);
+_CRTIMP long long _telli64(
+	_In_ int fd);
 _CRTIMP long _tell(int fd);
 _CRTIMP int _unlink(__CONST char *filename);
 

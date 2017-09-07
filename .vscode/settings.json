@@ -249,6 +249,7 @@
         "queue": "c",
         "complex": "c",
         "scanf.h": "c",
-        "__refstring": "c"
+        "__refstring": "c",
+        "string.h": "c"
     }
 }

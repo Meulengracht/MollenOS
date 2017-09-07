@@ -16,7 +16,8 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS C Library - File Opening & File Creation
+ * MollenOS - C Standard Library
+ * - Deletes the file specified by the path
  */
 
 /* Includes
@@ -29,28 +30,25 @@
 #include <io.h>
 #include <stdio.h>
 #include <errno.h>
-#include <string.h>
-#include <stdlib.h>
 
-/* The is the ANSI C file 
+/* _unlink
+ * The is the ANSI C file 
  * deletion method and is shared by the 'modern' */
-int _unlink(__CONST char *filename)
+int _unlink(
+	_In_ __CONST char *filename)
 {
-	/* Sanity input */
 	if (filename == NULL) {
 		_set_errno(EINVAL);
 		return EOF;
 	}
-
-	/* Redirect call */
 	return _fval(DeleteFile(filename));
 }
 
-/* The file deletion function
- * Simply deletes the file specified
- * by the path */
-int remove(__CONST char * filename)
+/* remove
+ * The file deletion function
+ * Simply deletes the file specified by the path */
+int remove(
+	_In_ __CONST char * filename)
 {
-	/* Simply just call this */
 	return _unlink(filename);
 }

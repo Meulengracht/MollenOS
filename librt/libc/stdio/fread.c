@@ -32,7 +32,10 @@
 #include <limits.h>
 #include "local.h"
 
-static int GetUtf8CharacterLength(char ch)
+/* GetUtf8CharacterLength
+ * Derives how many bytes the UTF8 character is */
+static int 
+GetUtf8CharacterLength(char ch)
 {
     if((ch&0xf8) == 0xf0)
         return 4;
@@ -43,7 +46,10 @@ static int GetUtf8CharacterLength(char ch)
     return 1;
 }
 
-static int _ReadUtf8(int fd, wchar_t *buf, unsigned int count)
+/* _ReadUtf8
+ * Reads an UTF8 character from the given file descriptor */
+static int 
+_ReadUtf8(int fd, wchar_t *buf, unsigned int count)
 {
 	// Variables
     char min_buf[5], *readbuf, lookahead;
@@ -131,7 +137,7 @@ static int _ReadUtf8(int fd, wchar_t *buf, unsigned int count)
         }
 
 		// Convert the mb to a wide-char
-        if(!(BytesRead = mbstowcs(buf, readbuf, count))) {
+        if(!(BytesRead = mbstowcs(buf, readbuf, MIN(pos, count)))) {
             return -1;
         }
 
@@ -146,7 +152,6 @@ static int _ReadUtf8(int fd, wchar_t *buf, unsigned int count)
 			if (readbuf != &min_buf[0]) {
 				free(readbuf);
 			}
-
 			return 0;
 		}
 
@@ -157,71 +162,102 @@ static int _ReadUtf8(int fd, wchar_t *buf, unsigned int count)
             if (readbuf != &min_buf[0]) {
 				free(readbuf);
 			}
-
             return -1;
         }
     }
 
+	// Increase position and do a check for newline
     pos += BytesRead;
-    if(readbuf[0] == '\n')
+    if(readbuf[0] == '\n') {
         fdinfo->wxflag |= WX_READNL;
-    else
+	}
+    else {
         fdinfo->wxflag &= ~WX_READNL;
+	}
 
-    /* Find first byte of last character (may be incomplete) */
-    for(i=pos-1; i>0 && i>pos-4; i--)
-        if((readbuf[i]&0xc0) != 0x80)
-            break;
+    // Find first byte of last character (may be incomplete)
+    for(i = pos - 1; i > 0 && i > (pos - 4); i--) {
+        if((readbuf[i] & 0xc0) != 0x80) {
+			break;
+		}
+	}
+
+	// Get the length of the read character
     char_len = GetUtf8CharacterLength(readbuf[i]);
-    if(char_len+i <= pos)
+    if(char_len + i <= pos) {
         i += char_len;
+	}
 
+	// If it's a terminal or pipe handle, use lookahead buffer
     if(fdinfo->wxflag & (WX_PIPE | WX_TTY)) {
-        if(i < pos)
+        if(i < pos) {
             fdinfo->lookahead[0] = readbuf[i];
-        if(i+1 < pos)
-            fdinfo->lookahead[1] = readbuf[i+1];
-        if(i+2 < pos)
-            fdinfo->lookahead[2] = readbuf[i+2];
+		}
+        if(i+1 < pos) {
+            fdinfo->lookahead[1] = readbuf[i + 1];
+		}
+        if(i+2 < pos) {
+            fdinfo->lookahead[2] = readbuf[i + 2];
+		}
     }else if(i < pos) {
-        SetFilePointer(fdinfo->handle, i-pos, NULL, FILE_CURRENT);
-    }
+        StdioSeekInternal(fd, i - pos, SEEK_CUR);
+	}
+	
+	// Store i
     pos = i;
 
-    for(i=0, j=0; i<pos; i++) {
+    for(i = 0, j = 0; i < pos; i++) {
+		// Check for ctrl-z
         if(readbuf[i] == 0x1a) {
             fdinfo->wxflag |= WX_ATEOF;
             break;
         }
 
-        /* strip '\r' if followed by '\n' */
-        if(readbuf[i] == '\r' && i+1==pos) {
-            if(fdinfo->lookahead[0] != '\n' || !ReadFile(hand, &lookahead, 1, &num_read, NULL) || !num_read) {
+        // strip '\r' if followed by '\n'
+        if(readbuf[i] == '\r' && (i + 1) == pos) {
+			if(fdinfo->lookahead[0] != '\n' 
+				|| StdioReadInternal(fd, &lookahead, 1, &BytesRead) == OsSuccess) {
                 readbuf[j++] = '\r';
-            }else if(lookahead == '\n' && j==0) {
+			}
+			else if(lookahead == '\n' && j == 0) {
                 readbuf[j++] = '\n';
-            }else {
-                if(lookahead != '\n')
+			}
+			else {
+                if(lookahead != '\n') {
                     readbuf[j++] = '\r';
+				}
 
-                if(fdinfo->wxflag & (WX_PIPE | WX_TTY))
+                if(fdinfo->wxflag & (WX_PIPE | WX_TTY)) {
                     fdinfo->lookahead[0] = lookahead;
-                else
-                    SetFilePointer(fdinfo->handle, -1, NULL, FILE_CURRENT);
+				}
+                else {
+					StdioSeekInternal(fd, -1, SEEK_CUR);
+				}
             }
-        }else if(readbuf[i]!='\r' || readbuf[i+1]!='\n') {
+		}
+		else if(readbuf[i]!='\r' || readbuf[i+1]!='\n') {
             readbuf[j++] = readbuf[i];
         }
-    }
+	}
+	
+	// Store j as new position
     pos = j;
 
-    if(!(num_read = MultiByteToWideChar(CP_UTF8, 0, readbuf, pos, buf, count))) {
-        if (readbuf != min_buf) free(readbuf);
+	// Convert to widechar string
+    if(!(BytesRead = mbstowcs(buf, &readbuf[0], MIN(pos, count)))) {
+        if (readbuf != &min_buf[0]) {
+			free(readbuf);
+		}
         return -1;
     }
 
-    if (readbuf != min_buf) free(readbuf);
-    return num_read*2;
+	// Free buffer if neccessary
+    if (readbuf != &min_buf[0]) {
+		free(readbuf);
+	}
+
+	// Done, return number of bytes read
+    return BytesRead * 2;
 }
 
 /* _read

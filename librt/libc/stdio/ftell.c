@@ -16,7 +16,8 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS C Library - Get file position
+ * MollenOS - C Standard Library
+ * - Returns the current value of the position indicator of the stream.
  */
 
 /* Includes
@@ -30,88 +31,134 @@
 #include <stdio.h>
 #include <errno.h>
 #include <string.h>
-#include <stdlib.h>
-
-/* Externs */
-__EXTERN int _favail(FILE * stream);
+#include "local.h"
 
 /* _tell 
- * the ANSII C version of ftell */
-long _tell(int fd)
+ * Returns the current value of the position indicator of the stream.
+ * ANSII Version of ftell */
+long _tell(
+	_In_ int fd)
 {
-	/* Variables */
-	uint32_t Position = 0;
+	return _lseek(fd, 0, SEEK_CUR);
+}
 
-	/* Syscall */
-	if (GetFilePosition((UUId_t)fd, &Position, NULL) != OsSuccess) {
+/* _telli64 
+ * Returns the current value of the position indicator of the stream.
+ * ANSII Version of ftelli64 */
+long long _telli64(
+	_In_ int fd)
+{
+	return _lseeki64(fd, 0, SEEK_CUR);
+}
+
+/* ftelli64
+ * Returns the current value of the position indicator of the stream. */
+long long ftelli64(
+	_In_ FILE *stream)
+{
+	// Variables
+	long long pos;
+	
+	// Lock access
+	_lock_file(stream);
+
+	// Get initial position
+	pos = _telli64(stream->_fd);
+	if (pos == -1) {
+		_unlock_file(stream);
 		return -1;
 	}
-	else {
-		return (long)Position;
+
+	// Buffered input? Then we have to modify the pointer
+	if (stream->_flag & (_IOMYBUF | _USERBUF)) {
+		if (stream->_flag & _IOWRT) {
+			// Add the calculated difference in position
+			pos += stream->_ptr - stream->_base;
+
+			// Extra special case in case of text stream
+			if (get_ioinfo(stream->_fd)->wxflag & WX_TEXT) {
+				char *p;
+
+				for (p = stream->_base; p < stream->_ptr; p++) {
+					if (*p == '\n') {
+						pos++;
+					}
+				}
+			}
+		}
+		else if (!stream->_cnt) {
+			// Empty buffer
+		}
+		else if (_lseeki64(stream->_fd, 0, SEEK_END) == pos) {
+			int i;
+
+			// Adjust for buffer count
+			pos -= stream->_cnt;
+
+			// Special case for text streams again
+			if (get_ioinfo(stream->_fd)->wxflag & WX_TEXT) {
+				for (i = 0; i < stream->_cnt; i++) {
+					if (stream->_ptr[i] == '\n') {
+						pos--;
+					}
+				}
+			}
+		}
+		else {
+			char *p;
+
+			// Restore stream cursor in case we seeked to end
+			if (_lseeki64(stream->_fd, pos, SEEK_SET) != pos) {
+				_unlock_file(stream);
+				return -1;
+			}
+
+			// Again adjust for the buffer
+			pos -= stream->_bufsiz;
+			pos += stream->_ptr - stream->_base;
+
+			// And lastly, special text case
+			if (get_ioinfo(stream->_fd)->wxflag & WX_TEXT) {
+				if (get_ioinfo(stream->_fd)->wxflag & WX_READNL) {
+					pos--;
+				}
+
+				for (p = stream->_base; p < stream->_ptr; p++) {
+					if (*p == '\n') {
+						pos++;
+					}
+				}
+			}
+		}
 	}
+
+	// Unlock and return the modified position
+	_unlock_file(stream);
+	return pos;
 }
 
-/* The ftello
- * Get the file position with off_t */
-off_t ftello(FILE * stream)
+/* ftello
+ * Returns the current value of the position indicator of the stream. */
+off_t ftello(
+	_In_ FILE *stream)
 {
-	/* Variables */
-	off_t Position = 0;
-#if _FILE_OFFSET_BITS==64
-	uint32_t pLo, pHi;
-#endif
-	
-	/* Sanity */
-	if (stream == NULL
-		|| stream == stdin
-		|| stream == stdout
-		|| stream == stderr) {
-		_set_errno(ESPIPE);
-		return -1L;
-	}
-
-	/* Get current position */
-#if _FILE_OFFSET_BITS==64
-	if (GetFilePosition((UUId_t)fd, &pLo, &pHi) != OsSuccess) {
-		return -1L;
-	}
-	else {
-		Position = (pHi << 32) | pLo;
-	}
-#else
-	Position = (off_t)_tell(stream->fd);
-
-	/* Sanity */
-	if (Position == -1) {
-		return -1L;
-	}
-#endif
-
-	/* Adjust for buffering */
-	if (_favail(stream) != 0) {
-		Position -= _favail(stream);
-	}
-
-	/* Done */
-	return Position;
+	return (off_t)_ftelli64(stream);
 }
 
-/* The ftell
- * Get the file position */
-long ftell(FILE * stream)
-{ 
-	/* Vars */
+/* ftell
+ * Returns the current value of the position indicator of the stream. */
+long ftell(
+	_In_ FILE *stream)
+{
+	// Variables
 	off_t rOffset;
-
-	/* Get offset */
 	rOffset = ftello(stream);
 
-	/* Sanity offset */
-	if ((long)rOffset != rOffset) {
+	// Overflow check
+	if ((long)rOffset != rOffset)
+	{
 		_set_errno(EOVERFLOW);
 		return -1L;
 	}
-
-	/* Done! */
 	return rOffset;
 }

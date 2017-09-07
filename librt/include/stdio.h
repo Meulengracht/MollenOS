@@ -329,22 +329,44 @@ _CRTIMP size_t fread(
 	_In_ size_t size, 
 	_In_ size_t count, 
 	_In_ FILE *stream);
-_CRTIMP size_t fwrite(__CONST void * vptr, size_t size, size_t count, FILE * stream);
+_CRTIMP size_t fwrite(
+	_In_ __CONST void *vptr,
+	_In_ size_t size,
+	_In_ size_t count,
+	_In_ FILE *stream);
 
 /*******************************
  *     File Positioning        *
  *******************************/
-_CRTIMP int fgetpos(FILE * stream, fpos_t * pos);
-_CRTIMP int fsetpos(FILE * stream, __CONST fpos_t * pos);
-_CRTIMP int fseek(FILE * stream, long int offset, int origin);
-_CRTIMP long int ftell(FILE * stream);
+_CRTIMP int fgetpos(
+	_In_ FILE *stream, 
+	_Out_ fpos_t *pos);
+_CRTIMP int fsetpos(
+	_In_ FILE *stream, 
+	_In_ __CONST fpos_t *pos);
+_CRTIMP int fseek(
+	_In_ FILE *stream, 
+	_In_ long int offset, 
+    _In_ int origin);
+_CRTIMP int fseeki64(
+	_In_ FILE *file, 
+	_In_ long long offset, 
+    _In_ int whence);
+_CRTIMP long ftell(
+    _In_ FILE *stream);
+_CRTIMP long long ftelli64(
+	_In_ FILE *stream);
 _CRTIMP void rewind(
 	_In_ FILE *file);
 _CRTIMP int feof(
 	_In_ FILE* file);
 
-_CRTIMP off_t ftello(FILE *stream);
-_CRTIMP int fseeko(FILE *stream, off_t offset, int origin);
+_CRTIMP off_t ftello(
+	_In_ FILE *stream);
+_CRTIMP int fseeko(
+	_In_ FILE *stream, 
+	_In_ off_t offset, 
+	_In_ int origin);
 
 /*******************************
  *       Error Handling        *

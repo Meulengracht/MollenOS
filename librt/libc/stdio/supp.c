@@ -325,6 +325,45 @@ StdioReadInternal(
         TLSGetCurrent()->Transfer, OriginalSize);
 }
 
+/* StdioWriteInternal
+ * Internal write wrapper for file-writing */
+OsStatus_t
+StdioWriteInternal(
+    _In_ int fd, 
+    _Out_ char *Buffer, 
+    _In_ size_t Length,
+    _Out_ size_t *BytesWritten)
+{
+    /* Variables */
+	size_t BytesWrittenTotal = 0, BytesLeft = (size_t)length;
+	size_t OriginalSize = GetBufferSize(TLSGetCurrent()->Transfer);
+	uint8_t *Pointer = (uint8_t *)buffer;
+
+	/* Keep reading chunks of BUFSIZ */
+	while (BytesLeft > 0)
+	{
+		size_t ChunkSize = MIN(OriginalSize, BytesLeft);
+		size_t BytesWritten = 0;
+		ChangeBufferSize(TLSGetCurrent()->Transfer, ChunkSize);
+		WriteBuffer(TLSGetCurrent()->Transfer, (__CONST void *)Pointer, ChunkSize, &BytesWritten);
+		if (WriteFile((UUId_t)fd, TLSGetCurrent()->Transfer, &BytesWritten) != FsOk)
+		{
+			break;
+		}
+		if (BytesWritten == 0)
+		{
+			break;
+		}
+		BytesWrittenTotal += BytesWritten;
+		BytesLeft -= BytesWritten;
+		Pointer += BytesWritten;
+	}
+
+	/* Done! */
+	ChangeBufferSize(TLSGetCurrent()->Transfer, OriginalSize);
+	return (int)BytesWrittenTotal;
+}
+
 off64_t offabs(off64_t Value) {
 	return (Value <= 0) ? 0 - Value : Value;
 }
@@ -335,37 +374,42 @@ OsStatus_t
 StdioSeekInternal(
     _In_ int fd, 
     _In_ off64_t Offset, 
-    _In_ int Origin)
+    _In_ int Origin,
+    _Out_ long long *Position)
 {
-    /* Variables */
+    // Variables
     off_t SeekSpotLow = 0, SeekSpotHigh = 0;
+    UUId_t Handle = StdioFdToHandle(fd);
 
-	/* Depends on origin */
-	if (Origin != SEEK_SET) 
-	{
-		/* We need current position / size */
+    // Sanitize the handle
+    if (Handle == UUID_INVALID) {
+        return OsError;
+    }
+
+    // If we search from SEEK_SET, just build offset directly
+	if (Origin != SEEK_SET) {
+		// Start calculation of corrected offsets
 		off64_t CorrectedValue = offabs(Offset);
 		uint64_t fPos = 0, fSize = 0;
-		uint32_t pLo = 0, pHi = 0, 
-			sLo = 0, sHi = 0;
+		uint32_t pLo = 0, pHi = 0, sLo = 0, sHi = 0;
 
-		/* Syscall */
-		if (GetFilePosition((UUId_t)fd, &pLo, &pHi) != OsSuccess
-			&& GetFileSize((UUId_t)fd, &sLo, &sHi) != OsSuccess) {
-			return -1L;
+	    // Invoke filemanager services
+		if (GetFilePosition(Handle, &pLo, &pHi) != OsSuccess
+			&& GetFileSize(Handle, &sLo, &sHi) != OsSuccess) {
+			return OsError;
 		}
 		else {
 			fSize = ((uint64_t)sHi << 32) | sLo;
 			fPos = ((uint64_t)pHi << 32) | pLo;
 		}
 
-		/* Sanity offset */
+		// Sanitize for overflow
 		if ((size_t)fPos != fPos) {
 			_set_errno(EOVERFLOW);
-			return -1;
+			return OsError;
 		}
 
-		/* Lets see .. */
+		// Adjust for seek origin
 		if (Origin == SEEK_CUR) {
 			if (Offset < 0) {
 				Offset = (long)fPos - CorrectedValue;
@@ -379,16 +423,17 @@ StdioSeekInternal(
 		}
 	}
 
-	/* Build parts */
+	// Build the final destination
 	SeekSpotLow = Offset & 0xFFFFFFFF;
 	SeekSpotHigh = (Offset >> 32) & 0xFFFFFFFF;
 
-	/* Seek to the position */
-	if (_fval(SeekFile((UUId_t)fd, SeekSpotLow, SeekSpotHigh))) {
-		return -1L;
+	// Now perform the seek
+	if (_fval(SeekFile(Handle, SeekSpotLow, SeekSpotHigh))) {
+		return OsError;
 	}
 	else {
-		return ((off64_t)SeekSpotHigh << 32) | SeekSpotLow;
+        *Position = ((long long)SeekSpotHigh << 32) | SeekSpotLow;
+		return OsSuccess;
 	}
 }
 

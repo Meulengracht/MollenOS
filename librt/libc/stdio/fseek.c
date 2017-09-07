@@ -16,7 +16,8 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS C Library - Set file position
+ * MollenOS - C Standard Library
+ * - Sets the position indicator associated with the stream to a new position.
  */
 
 /* Includes
@@ -30,185 +31,104 @@
 #include <stdio.h>
 #include <errno.h>
 #include <string.h>
-#include <stdlib.h>
+#include "local.h"
 
-/* Externs */
-extern int _finv(FILE * stream);
-extern int _favail(FILE * stream);
-extern int _fbufptr(FILE * stream);
-extern int _fbufadjust(FILE * stream, off_t offset);
-
-/* Helper */
-off64_t offabs(off64_t Value) {
-	return (Value <= 0) ? 0 - Value : Value;
-}
-
-/* The lseeki64
- * This is the ANSI C seek
- * function used by filedescriptors */
-off64_t _lseeki64(int fd, off64_t offset, int mode)
+/* _lseeki64
+ * Sets the position indicator associated with the stream to a new position. 
+ * ANSII Version of fseeki64. */
+long long _lseeki64(
+	_In_ int fd, 
+	_In_ long long offset, 
+	_In_ int whence)
 {
-	/* Variables */
-	off_t SeekSpotLow = 0, SeekSpotHigh = 0;
+	// Variables
+	long long Position = 0;
 
-	/* Depends on origin */
-	if (mode != SEEK_SET) 
-	{
-		/* We need current position / size */
-		off64_t CorrectedValue = offabs(offset);
-		uint64_t fPos = 0, fSize = 0;
-		uint32_t pLo = 0, pHi = 0, 
-			sLo = 0, sHi = 0;
-
-		/* Syscall */
-		if (GetFilePosition((UUId_t)fd, &pLo, &pHi) != OsSuccess
-			&& GetFileSize((UUId_t)fd, &sLo, &sHi) != OsSuccess) {
-			return -1L;
-		}
-		else {
-			fSize = ((uint64_t)sHi << 32) | sLo;
-			fPos = ((uint64_t)pHi << 32) | pLo;
-		}
-
-		/* Sanity offset */
-		if ((size_t)fPos != fPos) {
-			_set_errno(EOVERFLOW);
-			return -1;
-		}
-
-		/* Lets see .. */
-		if (mode == SEEK_CUR) {
-			if (offset < 0) {
-				offset = (long)fPos - CorrectedValue;
-			}
-			else {
-				offset = (long)fPos + CorrectedValue;
-			}
-		}
-		else {
-			offset = (long)fSize - CorrectedValue;
-		}
-	}
-
-	/* Build parts */
-	SeekSpotLow = offset & 0xFFFFFFFF;
-	SeekSpotHigh = (offset >> 32) & 0xFFFFFFFF;
-
-	/* Seek to the position */
-	if (_fval(SeekFile((UUId_t)fd, SeekSpotLow, SeekSpotHigh))) {
-		return -1L;
-	}
-	else {
-		return ((off64_t)SeekSpotHigh << 32) | SeekSpotLow;
-	}
-}
-
-/* The lseek
- * This is the ANSI C seek
- * function used by filedescriptors */
-long _lseek(int fd, long offset, int mode)
-{
-	/* Call the 64 bit version */
-	return (long)_lseeki64(fd, offset, mode);
-}
-
-/* The seeko
- * Set the file position with off_t */
-int fseeko(FILE *stream, off_t offset, int origin)
-{
-	/* Syscall Result */
-	off64_t RetVal = 0;
-
-	/* Sanitize parameters before 
-	 * doing anything */
-	if (stream == NULL
-		|| stream == stdin
-		|| stream == stdout
-		|| stream == stderr) {
+	// Sanitize parameters
+	if (whence < 0 || whence > 2) {
 		_set_errno(EINVAL);
 		return -1;
 	}
 
-	/* Save all output-buffered data */
-	if (stream->code & _IOWRT) {
-		fflush(stream);
+	// Use the internal wrapper for setting position
+	if (StdioSeekInternal(fd, offset, whence, &Position) != OsSuccess) {
+		return -1L;
 	}
-
-	/* Change from CURRENT to SET if we can */
-	if (origin == SEEK_CUR && (stream->code & _IOREAD)) {
-
-		/* First of all, before we actually seek 
-		 * can we just seek in current buffer? */
-		if (_fbufptr(stream) != -1) {
-			if (offset >= 0
-				&& _favail(stream) > offset) {
-				_fbufadjust(stream, offset);
-				goto ExitSeek;
-			}
-			else if (offset < 0
-				&& _fbufptr(stream) >= abs(offset)) {
-				_fbufadjust(stream, offset);
-				goto ExitSeek;
-			}
-		}
-
-		/* Nah, do an actual seek */
-		origin = SEEK_SET;
-		offset += ftell(stream);
+	else {
+		get_ioinfo(fd)->wxflag &= ~(WX_ATEOF|WX_READEOF);
+		return Position;
 	}
-
-	/* Reset direction of i/o */
-	if (stream->code & _IORW) {
-		stream->code &= ~(_IOREAD | _IOWRT);
-	}
-
-	/* Deep call _lseek */
-	RetVal = _lseeki64(stream->fd, offset, origin);
-
-	/* Invalidate the file buffer 
-	 * otherwise we read from wrong place! */
-	_finv(stream);
-
-ExitSeek:
-	/* Clear end of file */
-	stream->code = ~(_IOEOF);
-
-	/* Done */
-	return (RetVal == -1) ? -1 : 0;
 }
 
-int fseeki64(FILE* file, int64_t offset, int whence)
+/* _lseek
+ * Sets the position indicator associated with the stream to a new position. 
+ * ANSII Version of fseek. */
+long _lseek(
+	_In_ int fd,
+	_In_ long offset,
+	_In_ int whence)
 {
-	int ret;
-	
-	  _lock_file(file);
-	  /* Flush output if needed */
-	  if(file->_flag & _IOWRT)
-		msvcrt_flush_buffer(file);
-	
-	  if(whence == SEEK_CUR && file->_flag & _IOREAD ) {
-		  whence = SEEK_SET;
-		  offset += _ftelli64(file);
-	  }
-	
-	  /* Discard buffered input */
-	  file->_cnt = 0;
-	  file->_ptr = file->_base;
-	  /* Reset direction of i/o */
-	  if(file->_flag & _IORW) {
-			file->_flag &= ~(_IOREAD|_IOWRT);
-	  }
-	  /* Clear end of file flag */
-	  file->_flag &= ~_IOEOF;
-	  ret = (_lseeki64(file->_fd,offset,whence) == -1)?-1:0;
-	
-	  _unlock_file(file);
-	  return ret;
+	return (long)_lseeki64(fd, offset, whence);
 }
 
-/* The seek
- * Set the file position */
-int fseek(FILE * stream, long int offset, int origin)
+/* fseeki64
+ * Sets the position indicator associated with the stream to a new position. */
+int fseeki64(
+	_In_ FILE *file, 
+	_In_ long long offset, 
+	_In_ int whence)
+{
+	// Variables
+	int ret;
+
+	// Lock access to stream
+	_lock_file(file);
+
+	// Flush output if needed
+	if (file->_flag & _IOWRT) {
+		os_flush_buffer(file);
+	}
+
+	// Adjust for current position
+	if (whence == SEEK_CUR && (file->_flag & _IOREAD)) {
+		whence = SEEK_SET;
+		offset += _ftelli64(file);
+	}
+
+	// Discard buffered input
+	file->_cnt = 0;
+	file->_ptr = file->_base;
+
+	// Reset direction of i/o
+	if (file->_flag & _IORW) {
+		file->_flag &= ~(_IOREAD | _IOWRT);
+	}
+
+	// Clear end of file flag
+	file->_flag &= ~_IOEOF;
+	ret = (_lseeki64(file->_fd, offset, whence) == -1) ? -1 : 0;
+
+	// Unlock and return
+	_unlock_file(file);
+	return ret;
+}
+
+/* fseek
+ * Sets the position indicator associated with the stream to a new position. */
+int fseek(
+	_In_ FILE *stream,
+	_In_ long int offset,
+	_In_ int origin)
+{
+	return _fseeki64(stream, offset, origin);
+}
+
+/* fseeko
+ * Sets the position indicator associated with the stream to a new position. */
+int fseeko(
+	_In_ FILE *stream,
+	_In_ off_t offset,
+	_In_ int origin)
 {
 	return _fseeki64(stream, offset, origin);
 }

@@ -85,6 +85,16 @@ StdioReadInternal(
     _In_ size_t Length,
     _Out_ size_t *BytesRead);
 
+/* StdioWriteInternal
+ * Internal write wrapper for file-writing */
+__EXTERN
+OsStatus_t
+StdioWriteInternal(
+    _In_ int fd, 
+    _Out_ char *Buffer, 
+    _In_ size_t Length,
+    _Out_ size_t *BytesWritten);
+
 /* StdioSeekInternal
  * Internal wrapper for stdio's syntax, conversion to our own RPC syntax */
 __EXTERN
@@ -92,6 +102,7 @@ OsStatus_t
 StdioSeekInternal(
     _In_ int fd, 
     _In_ off64_t Offset, 
-    _In_ int Origin);
+    _In_ int Origin,
+    _Out_ long long *Position);
 
 #endif //!__STDIO_SUPPORT_H__
