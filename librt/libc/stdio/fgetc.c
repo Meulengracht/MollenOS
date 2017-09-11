@@ -22,6 +22,7 @@
  *   is then advanced to the next character.
  */
 
+#include <io.h>
 #include <stdio.h>
 #include "local.h"
 

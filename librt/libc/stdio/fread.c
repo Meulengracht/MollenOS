@@ -55,6 +55,7 @@ _ReadUtf8(int fd, wchar_t *buf, unsigned int count)
     char min_buf[5], *readbuf, lookahead;
     size_t readbuf_size, pos=0, BytesRead = 1, char_len, i, j;
 	ioobject *fdinfo = get_ioinfo(fd);
+	long long noppos;
 	
     // make the buffer big enough to hold at least one character
     // read bytes have to fit to output and lookahead buffers
@@ -129,7 +130,7 @@ _ReadUtf8(int fd, wchar_t *buf, unsigned int count)
                     fdinfo->lookahead[0] = lookahead;
 				}
                 else {
-                    StdioSeekInternal(fd, -1, SEEK_CUR);
+                    StdioSeekInternal(fd, -1, SEEK_CUR, &noppos);
 				}
 			}
 			
@@ -200,7 +201,7 @@ _ReadUtf8(int fd, wchar_t *buf, unsigned int count)
             fdinfo->lookahead[2] = readbuf[i + 2];
 		}
     }else if(i < pos) {
-        StdioSeekInternal(fd, i - pos, SEEK_CUR);
+        StdioSeekInternal(fd, i - pos, SEEK_CUR, &noppos);
 	}
 	
 	// Store i
@@ -231,7 +232,7 @@ _ReadUtf8(int fd, wchar_t *buf, unsigned int count)
                     fdinfo->lookahead[0] = lookahead;
 				}
                 else {
-					StdioSeekInternal(fd, -1, SEEK_CUR);
+					StdioSeekInternal(fd, -1, SEEK_CUR, &noppos);
 				}
             }
 		}
@@ -276,6 +277,7 @@ int _read(
 	size_t BytesRead, Utf16;
 	char *BufferCursor = (char *)buffer;
 	ioobject *fdinfo = get_ioinfo(fd);
+	long long pos;
 
 	// Sanitize parameters
 	if (len == 0 || (fdinfo->wxflag & WX_ATEOF)) {
@@ -389,7 +391,7 @@ int _read(
 								}
 							}
 							else {
-								StdioSeekInternal(fd, -1 - Utf16, SEEK_CUR);
+								StdioSeekInternal(fd, -1 - Utf16, SEEK_CUR, &pos);
 							}
 						}
 					}
@@ -437,7 +439,7 @@ size_t fread(
 {
 	// Variables
 	size_t rcnt = size * count;
-	size_t read = 0;
+	size_t cread = 0;
 	size_t pread = 0;
 
 	// Sanitize parameters
@@ -452,9 +454,11 @@ size_t fread(
 	if (stream->_cnt > 0) {
 		int pcnt = (rcnt > stream->_cnt) ? stream->_cnt : rcnt;
 		memcpy(vptr, stream->_ptr, pcnt);
+		
 		stream->_cnt -= pcnt;
 		stream->_ptr += pcnt;
-		read += pcnt;
+		
+		cread += pcnt;
 		rcnt -= pcnt;
 		vptr = (char *)vptr + pcnt;
 	}
@@ -529,9 +533,9 @@ size_t fread(
 	}
 
 	// Increase the number of bytes read
-	read += pread;
+	cread += pread;
 
 	// Unlock file and return amount read
 	_unlock_file(stream);
-	return (read / size);
+	return (cread / size);
 }

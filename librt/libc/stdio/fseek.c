@@ -92,7 +92,7 @@ int fseeki64(
 	// Adjust for current position
 	if (whence == SEEK_CUR && (file->_flag & _IOREAD)) {
 		whence = SEEK_SET;
-		offset += _ftelli64(file);
+		offset += ftelli64(file);
 	}
 
 	// Discard buffered input
@@ -120,7 +120,7 @@ int fseek(
 	_In_ long int offset,
 	_In_ int origin)
 {
-	return _fseeki64(stream, offset, origin);
+	return fseeki64(stream, offset, origin);
 }
 
 /* fseeko
@@ -130,5 +130,5 @@ int fseeko(
 	_In_ off_t offset,
 	_In_ int origin)
 {
-	return _fseeki64(stream, offset, origin);
+	return fseeki64(stream, offset, origin);
 }

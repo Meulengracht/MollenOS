@@ -21,6 +21,7 @@
 
 /* Includes
  * - System */
+#include <os/utils.h>
 #include <os/driver/file.h>
 #include <os/syscall.h>
 
@@ -31,48 +32,93 @@
 #include <errno.h>
 #include <string.h>
 #include <stdlib.h>
+#include "local.h"
 
-/* _open_shared 
- * Shared open function 
- * between the handles */
-int _open_shared(__CONST char *file, Flags_t Options, Flags_t Access)
+/* split_oflags
+ * Generates WX flags from the stdc opening flags */
+unsigned split_oflags(
+	_In_ unsigned oflags)
 {
-	/* Variables */
-	FileSystemCode_t Code = 0;
-	UUId_t Handle = 0;
+	// Variables
+    int         wxflags = 0;
+    unsigned unsupp; // until we support everything
 
-	/* System call time, get that file handle */
-	Code = OpenFile(file, Options, Access, &Handle);
+    if (oflags & _O_APPEND)              wxflags |= WX_APPEND;
+    if (oflags & _O_BINARY)              {/* Nothing to do */}
+    else if (oflags & _O_TEXT)           wxflags |= WX_TEXT;
+    else if (oflags & _O_WTEXT)          wxflags |= WX_TEXT;
+    else if (oflags & _O_U16TEXT)        wxflags |= WX_TEXT;
+    else if (oflags & _O_U8TEXT)         wxflags |= WX_TEXT;
+    else                                 wxflags |= WX_TEXT; // default to TEXT
+    if (oflags & _O_NOINHERIT)           wxflags |= WX_DONTINHERIT;
 
-	/* Ok, so we validate the error-code
-	 * If it's wrong we have to close the file
-	 * handle again, it almost always opens */
-	if (_fval(Code)) {
-		_close((int)Handle);
-		_fval(Code);
-		return -1;
+    if ((unsupp = oflags & ~(
+                    _O_BINARY|_O_TEXT|_O_APPEND|
+                    _O_TRUNC|_O_EXCL|_O_CREAT|
+                    _O_RDWR|_O_WRONLY|_O_TEMPORARY|
+                    _O_NOINHERIT|
+                    _O_SEQUENTIAL|_O_RANDOM|_O_SHORT_LIVED|
+                    _O_WTEXT|_O_U16TEXT|_O_U8TEXT
+                    ))) {
+		TRACE(":unsupported oflags 0x%04x\n", unsupp);
 	}
-	else {
-		return (int)Handle;
-	}
+
+	// Done
+    return wxflags;
 }
 
 /* _open
- * This is the old ANSI C version, and is here for
- * backwards compatability */
-int _open(__CONST char *file, int oflags, int pmode)
+ * ANSII Version of the fopen. Handles flags and creation flags. */
+int _open(
+	_In_ __CONST char *file, 
+	_In_ int flags,
+	...)
 {
-	/* Sanity input */
+	// Variables
+	FileSystemCode_t Code = 0;
+	UUId_t Handle;
+	int wxflags = 0;
+	int pmode = 0;
+	int fd = -1;
+	va_list ap;
+
+	// Sanitize input
 	if (file == NULL) {
 		_set_errno(EINVAL);
 		return -1;
 	}
 
-	/* Silence warning */
-	_CRT_UNUSED(pmode);
+	// Extract pmode flags
+	if (flags & _O_CREAT) {
+		va_start(ap, flags);
+		pmode = va_arg(ap, int);
+		va_end(ap);
+	}
 
-	/* Deep call! */
-	return _open_shared(file, _fopts(oflags), _faccess(oflags));
+	// Generate WX flags
+	wxflags = split_oflags((unsigned int)flags);
+
+	// Invoke os service
+	Code = OpenFile(file, _fopts(flags), _faccess(flags), &Handle);
+	if (!_fval(Code)) {
+		fd = StdioFdAllocate(Handle, wxflags);
+		if (flags & _O_WTEXT) {
+			get_ioinfo(fd)->exflag |= EF_UTF16|EF_UNK_UNICODE;		
+		}
+		else if (flags & _O_U16TEXT) {
+			get_ioinfo(fd)->exflag |= EF_UTF16;
+		}
+		else if (flags & _O_U8TEXT) {
+			get_ioinfo(fd)->exflag |= EF_UTF8;
+		}
+	}
+	else {
+		CloseFile(Handle);
+		_fval(Code);
+	}
+
+	// Done, return fd
+	return fd;
 }
 
 /* Information 
@@ -87,56 +133,59 @@ int _open(__CONST char *file, int oflags, int pmode)
 */
 FILE *fdopen(int fd, __CONST char *mode)
 {
-	/* First of all, sanity the fd */
-	if (fd < 0)
+	// Variables
+	int open_flags, stream_flags;
+	FILE *stream;
+
+	// Sanitize parameters
+	if (fd < 0 || mode == NULL) {
+		_set_errno(EINVAL);
 		return NULL;
+	}
 
-	/* Allocate a new file instance 
-	 * and reset the structure */
-	FILE *stream = (FILE*)malloc(sizeof(FILE));
+	// Split flags
+	_fflags(mode, &open_flags, &stream_flags);
+
+	// Allocate a new file instance 
+	// and reset the structure
+	stream = (FILE*)malloc(sizeof(FILE));
 	memset(stream, 0, sizeof(FILE));
-
-	/* Initialize instance */
-	stream->fd = (UUId_t)fd;
-	stream->code = _IOREAD | _IOFBF;
-
-	/* Do we need to change access mode ? */
-	if (mode != NULL) {
-		stream->opts = fopts(mode);
-		stream->access = faccess(mode);
-		SetFileOptions((UUId_t)fd, stream->opts, stream->access);
+	
+	// Initialize a handle
+	if (StdioFdInitialize(stream, fd, stream_flags) != OsSuccess) {
+		free(stream);
+		return NULL;
 	}
-	else {
-		GetFileOptions((UUId_t)fd, &stream->opts, &stream->access);
-	}
-
-	/* Set code */
-	_set_errno(EOK);
-
-	/* done! */
 	return stream;
 }
 
-/* The fopen */
-FILE *fopen(__CONST char * filename, __CONST char * mode)
+/* fopen
+ * Opens the file whose name is specified in the parameter filename 
+ * and associates it with a stream that can be identified in future 
+ * operations by the FILE pointer returned. */
+FILE *fopen(
+	_In_ __CONST char * filename, 
+	_In_ __CONST char * mode)
 {
-	/* Variables */
-	int RetVal = 0;
+	// Variables
+	int open_flags, stream_flags;
+	int fd = 0;
 
-	/* Sanity input */
+	// Sanitize parameters
 	if (filename == NULL || mode == NULL) {
 		_set_errno(EINVAL);
 		return NULL;
 	}
 
-	/* Use the shared open */
-	RetVal = _open_shared(filename, fopts(mode), faccess(mode));
+	// Split flags
+	_fflags(mode, &open_flags, &stream_flags);
 
-	/* Sanity */
-	if (RetVal == -1) {
+	// Open file as file-descriptor
+	fd = _open(filename, open_flags, _S_IREAD | _S_IWRITE);
+	if (fd == -1) {
 		return NULL;
 	}
 
-	/* Just return fdopen */
-	return fdopen(RetVal, NULL);
+	// Upgrade the fd to a file-stream
+	return fdopen(fd, mode);
 }

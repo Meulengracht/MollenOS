@@ -23,6 +23,7 @@
  *   This terminating null-character is not copied to the stream.
  */
 
+#include <string.h>
 #include <stdio.h>
 
 int fputs(

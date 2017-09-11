@@ -31,17 +31,21 @@
 #include <errno.h>
 #include <string.h>
 #include <stdlib.h>
+#include "local.h"
 
-/* Externs */
-__EXTERN int _finv(FILE * stream);
-
-/* The freopen
- * Reuses the file
- * handle to either open a new 
- * file or switch access mode */
-FILE *freopen(const char * filename, const char * mode, FILE * stream)
+/* freopen
+ * Reuses stream to either open the file specified 
+ * by filename or to change its access mode. */
+FILE *freopen(
+	_In_ __CONST char * filename, 
+	_In_ __CONST char * mode, 
+	_In_ FILE * stream)
 {
-	/* Sanity input */
+	// Variables
+	int open_flags, stream_flags;
+	int fd;
+
+	// Sanitize parameters
 	if ((filename == NULL
 		&& mode == NULL)
 		|| stream == NULL
@@ -52,51 +56,36 @@ FILE *freopen(const char * filename, const char * mode, FILE * stream)
 		return NULL;
 	}
 
-	/* Invalidate the stream buffer */
-	_finv(stream);
+	// Ok, if filename is not null 
+	// we must open a new file
+	if (filename != NULL) {
+		// Close
+		_close(stream->_fd);
 
-	/* Ok, if filename is not null 
-	 * we must open a new file */
-	if (filename != NULL) 
-	{
-		/* Close existing handle */
-		if (_fval((int)CloseFile((stream->fd)))) {
-			free(stream);
+		// Split flags
+		_fflags(mode, &open_flags, &stream_flags);
+
+		// Open and validate result
+		fd = _open(filename, open_flags, _S_IREAD | _S_IWRITE);
+		if (fd == -1) {
 			return NULL;
 		}
 
-		/* Get flags */
-		if (mode != NULL) {
-			stream->access = faccess(mode);
-			stream->opts = fopts(mode);
-		}
-
-		/* Re-open handle with new mode-settings */
-		if (OpenFile(filename, stream->opts, stream->access, &stream->fd) != FsOk) {
-			free(stream);
-			return NULL;
+		// Reinitialize handle
+		if (StdioFdInitialize(stream, fd, stream_flags) != OsSuccess) {
+			_set_errno(EINVAL);
 		}
 	}
-	else
-	{
-		/* Get flags */
+	else {
 		if (mode != NULL) {
-			stream->access = faccess(mode);
-			stream->opts = fopts(mode);
-
-			/* Update them */
-			if (SetFileOptions(stream->fd, stream->opts, stream->access) != OsSuccess) {
-				_fval((int)CloseFile((stream->fd)));
-				free(stream);
-				return NULL;
+			_fflags(mode, &open_flags, &stream_flags);
+			if (SetFileOptions(stream->_fd, _fopts(open_flags), _faccess(open_flags)) != OsSuccess) {
+				_set_errno(EINVAL);
 			}
 		}
 	}
 
-	/* Reset codes */
-	stream->code = _IOREAD | _IOFBF;
-	_set_errno(EOK);
-
-	/* Done */
+	// Done
+	stream->_flag &= ~(_IOEOF | _IOERR);
 	return stream;
 }

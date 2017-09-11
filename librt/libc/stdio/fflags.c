@@ -21,6 +21,7 @@
 
 /* Includes
  * - System */
+#include <os/utils.h>
 #include <os/driver/file.h>
 #include <os/syscall.h>
 
@@ -31,135 +32,190 @@
 #include <errno.h>
 #include <string.h>
 #include <stdlib.h>
+#include "local.h"
 
-/* The faccess 
- * Converts the C-mode flags into our access flags */
-Flags_t faccess(__CONST char * mode)
+int _fflags(
+	_In_ __CONST char *mode, 
+	_In_ int *open_flags, 
+	_In_ int *stream_flags)
 {
-	/* Variables */
-	Flags_t mFlags = 0;
-	int PlusConsumed = 1;
+	// Variables
+	int plus = strchr(mode, '+') != NULL;
 
-	/* Read modes first */
-	if (strchr(mode, 'r') != NULL) {
-		mFlags |= __FILE_READ_ACCESS;
-		if (strchr(mode, '+') != NULL) {
-			mFlags |= __FILE_WRITE_ACCESS;
-			PlusConsumed = 1;
+	// Skip leading whitespaces
+	while (*mode == ' ') {
+		mode++;
+	}
+
+	// Handle 'r', 'w' and 'a'
+	switch (*mode++) {
+		case 'R':
+		case 'r':
+			*open_flags = plus ? _O_RDWR : _O_RDONLY;
+			*stream_flags = plus ? _IORW : _IOREAD;
+			break;
+		case 'W':
+		case 'w':
+			*open_flags = _O_CREAT | _O_TRUNC | (plus ? _O_RDWR : _O_WRONLY);
+			*stream_flags = plus ? _IORW : _IOWRT;
+			break;
+		case 'A':
+		case 'a':
+			*open_flags = _O_CREAT | _O_APPEND | (plus ? _O_RDWR : _O_WRONLY);
+			*stream_flags = plus ? _IORW : _IOWRT;
+			break;
+		default:
+			_set_errno(EINVAL);
+			return -1;
+	}
+
+	// Now handle all the other options for opening
+	// like text, binary, file-type
+	while (*mode && *mode != ',') {
+		switch (*mode++) {
+			case 'B':
+			case 'b':
+				*open_flags |= _O_BINARY;
+				*open_flags &= ~_O_TEXT;
+				break;
+			case 't':
+				*open_flags |= _O_TEXT;
+				*open_flags &= ~_O_BINARY;
+				break;
+			case 'D':
+				*open_flags |= _O_TEMPORARY;
+				break;
+			case 'T':
+				*open_flags |= _O_SHORT_LIVED;
+				break;
+			case 'c':
+				*stream_flags |= _IOCOMMIT;
+				break;
+			case 'n':
+				*stream_flags &= ~_IOCOMMIT;
+				break;
+			case 'N':
+				*open_flags |= _O_NOINHERIT;
+				break;
+			case '+':
+			case ' ':
+			case 'a':
+			case 'w':
+				break;
+			case 'S':
+			case 'R':
+				TRACE("ignoring cache optimization flag: %c\n", mode[-1]);
+				break;
+			default:
+				ERROR("incorrect mode flag: %c\n", mode[-1]);
+				break;
 		}
 	}
 
-	/* Write modes */
-	if (strchr(mode, 'w') != NULL) {
-		mFlags |= __FILE_WRITE_ACCESS;
-		if (!PlusConsumed
-			&& strchr(mode, '+') != NULL) {
-			mFlags |= __FILE_READ_ACCESS;
-			PlusConsumed = 1;
+	// Now handle text-formatting options
+	if (*mode == ',') {
+		static const wchar_t ccs[] = {'c', 'c', 's'};
+		static const wchar_t utf8[] = {'u', 't', 'f', '-', '8'};
+		static const wchar_t utf16le[] = {'u', 't', 'f', '-', '1', '6', 'l', 'e'};
+		static const wchar_t unicode[] = {'u', 'n', 'i', 'c', 'o', 'd', 'e'};
+
+		mode++;
+		while (*mode == ' ')
+			mode++;
+		if (strncmp(ccs, mode, sizeof(ccs) / sizeof(ccs[0])))
+			return -1;
+		mode += sizeof(ccs) / sizeof(ccs[0]);
+		while (*mode == ' ')
+			mode++;
+		if (*mode != '=')
+			return -1;
+		mode++;
+		while (*mode == ' ')
+			mode++;
+
+		if (!strncmpi(utf8, mode, sizeof(utf8) / sizeof(utf8[0])))
+		{
+			*open_flags |= _O_U8TEXT;
+			mode += sizeof(utf8) / sizeof(utf8[0]);
+		}
+		else if (!strncmpi(utf16le, mode, sizeof(utf16le) / sizeof(utf16le[0])))
+		{
+			*open_flags |= _O_U16TEXT;
+			mode += sizeof(utf16le) / sizeof(utf16le[0]);
+		}
+		else if (!strncmpi(unicode, mode, sizeof(unicode) / sizeof(unicode[0])))
+		{
+			*open_flags |= _O_WTEXT;
+			mode += sizeof(unicode) / sizeof(unicode[0]);
+		}
+		else {
+			_set_errno(EINVAL);
+			return -1;
+		}
+
+		// Skip spaces
+		while (*mode == ' ') {
+			mode++;
 		}
 	}
 
-	/* Append modes */
-	if (strchr(mode, 'a') != NULL) {
-		mFlags |= __FILE_WRITE_ACCESS;
-		if (!PlusConsumed
-			&& strchr(mode, '+') != NULL) {
-			mFlags |= __FILE_READ_ACCESS;
-			PlusConsumed = 1;
-		}
+	// We should be at end of string, otherwise error
+	if (*mode != 0) {
+		return -1;
 	}
-
-	/* Done */
-	return mFlags;
+	return 0;
 }
 
-/* The faccess 
- * Converts the C-mode flags into our option flags */
-Flags_t fopts(__CONST char * mode)
+/* _faccess
+ * Converts the ANSI-C-mode flags into our access flags */
+Flags_t _faccess(
+	int oflags)
 {
-	/* Variables */
-	Flags_t mFlags = 0;
-	int PlusConsumed = 1;
-
-	/* Write modes */
-	if (strchr(mode, 'w') != NULL) {
-		mFlags |= __FILE_CREATE | __FILE_TRUNCATE;
-		if (!PlusConsumed
-			&& strchr(mode, '+') != NULL) {
-			PlusConsumed = 1;
-		}
-		if (strchr(mode, 'x') != NULL) {
-			mFlags |= __FILE_FAILONEXIST;
-		}
-	}
-
-	/* Append modes */
-	if (strchr(mode, 'a') != NULL) {
-		mFlags |= __FILE_APPEND | __FILE_CREATE;
-		if (!PlusConsumed
-			&& strchr(mode, '+') != NULL) {
-			PlusConsumed = 1;
-		}
-	}
-
-	/* Specials */
-	if (strchr(mode, 'b') != NULL) {
-		mFlags |= __FILE_BINARY;
-	}
-
-	/* Done */
-	return mFlags;
-}
-
-/* The _faccess
- * Converts the ANSI-C-mode
- * flags into our access flags */
-Flags_t _faccess(int oflags)
-{
-	/* Variables */
+	// Variables
 	Flags_t mFlags = __FILE_READ_ACCESS;
 
-	/* First we take care of read/write */
-	if (oflags & _O_WRONLY)
+	// Convert to access flags
+	if (oflags & _O_WRONLY) {
 		mFlags = __FILE_WRITE_ACCESS;
-	if (oflags & _O_RDWR)
+	}
+	if (oflags & _O_RDWR) {
 		mFlags |= __FILE_READ_ACCESS | __FILE_WRITE_ACCESS;
-
-	/* Done! */
+	}
 	return mFlags;
 }
 
-/* The _fopts
- * Converts the ANSI-C-mode
- * flags into our option flags */
-Flags_t _fopts(int oflags)
+/* _fopts
+ * Converts the ANSI-C-mode flags into our option flags */
+Flags_t _fopts(
+	int oflags)
 {
-	/* Variables */
+	// Variables
 	Flags_t mFlags = 0;
 
-	/* Now we take care of specials */
-	if (oflags & _O_CREAT)
+	// Take care of opening flags
+	if (oflags & _O_CREAT) {
 		mFlags |= __FILE_CREATE;
-	if (oflags & _O_TRUNC)
+	}
+	if (oflags & _O_TRUNC) {
 		mFlags |= __FILE_TRUNCATE;
-	if (oflags & _O_EXCL)
+	}
+	if (oflags & _O_EXCL) {
 		mFlags |= __FILE_FAILONEXIST;
-
-	/* Now we take care of the
-	* different data modes */
-	if (oflags & _O_BINARY)
+	}
+	if (oflags & _O_TEMPORARY) {
+		mFlags |= __FILE_TEMPORARY;
+	}
+	if (oflags & _O_BINARY) {
 		mFlags |= __FILE_BINARY;
-
-	/* Done */
+	}
 	return mFlags;
 }
 
-/* The _fval 
- * Validates a vfs response 
- * and converts it to errno */
-int _fval(int ocode)
+/* _fval 
+ * Validates a vfs response and converts it to errno */
+int _fval(
+	int ocode)
 {
-	/* Switch error */
 	if (ocode == 0)
 		_set_errno(EOK);
 	else if (ocode == 1)
@@ -180,7 +236,5 @@ int _fval(int ocode)
 		_set_errno(EIO);
 	else
 		_set_errno(EINVAL);
-
-	/* Return the code */
 	return errno;
 }

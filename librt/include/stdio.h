@@ -118,10 +118,10 @@ _CRTIMP OsStatus_t _lock_file(
 	_In_ FILE * stream);
 _CRTIMP OsStatus_t _unlock_file(
 	_In_ FILE * stream);
-_CRTIMP Flags_t faccess(
-	_In_ __CONST char * mode);
-_CRTIMP Flags_t fopts(
-	_In_ __CONST char * mode);
+_CRTIMP int _fflags(
+	_In_ __CONST char *mode, 
+	_In_ int *open_flags, 
+	_In_ int *stream_flags);
 _CRTIMP int fclose(
 	_In_ FILE * stream);
 _CRTIMP FILE *fopen(

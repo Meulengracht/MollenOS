@@ -33,6 +33,9 @@ extern "C" {
  *        Definitions          *
  *******************************/
 
+#define _S_IREAD		0x0001 
+#define _S_IWRITE		0x0002
+
 #define _O_RDONLY       0x0000  /* open for reading only */
 #define _O_WRONLY       0x0001  /* open for writing only */
 #define _O_RDWR         0x0002  /* open for reading and writing */
@@ -101,11 +104,17 @@ extern "C" {
 _CRTIMP Flags_t _faccess(int oflags);
 _CRTIMP Flags_t _fopts(int oflags);
 _CRTIMP int _fval(int ocode);
-_CRTIMP int _open(__CONST char *file, int oflags, int pmode);
+_CRTIMP int _open(
+	_In_ __CONST char *file, 
+	_In_ int flags,
+	...);
 _CRTIMP int _close(int fd);
 
 _CRTIMP int _read(int fd, void *buffer, unsigned int len);
-_CRTIMP int _write(int fd, void *buffer, unsigned int length);
+_CRTIMP int _write(
+	_In_ int fd, 
+	_In_ void *buffer, 
+	_In_ unsigned int length);
 
 _CRTIMP long _lseek(
 	_In_ int fd, 

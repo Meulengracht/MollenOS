@@ -142,7 +142,7 @@ long long ftelli64(
 off_t ftello(
 	_In_ FILE *stream)
 {
-	return (off_t)_ftelli64(stream);
+	return (off_t)ftelli64(stream);
 }
 
 /* ftell

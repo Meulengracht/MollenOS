@@ -20,7 +20,9 @@
  * - Sets the position indicator associated with the stream to a new position.
  */
 
-/* Includes */
+/* Includes 
+ * - Library */
+#include <io.h>
 #include <stdio.h>
 #include "local.h"
 

@@ -28,6 +28,10 @@
 #include <os/osdefs.h>
 #include <os/spinlock.h>
 
+#ifndef _IOCOMMIT
+#define _IOCOMMIT 0x4000
+#endif
+
 /* values for wxflag in file descriptor */
 #define WX_OPEN             0x01
 #define WX_ATEOF            0x02
