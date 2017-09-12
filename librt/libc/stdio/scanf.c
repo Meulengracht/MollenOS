@@ -23,11 +23,17 @@
  * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301, USA
  */
 
+#include <ds/bitmap.h>
 #include <wchar.h>
 #include <stdarg.h>
 #include <limits.h>
 #include <stdio.h>
 #include <stdint.h>
+#include <locale.h>
+#include "../locale/setlocale.h"
+#include <ctype.h>
+#include <wctype.h>
+#include <math.h>
 
 /* helper function for *scanf.  Returns the value of character c in the
  * given base, or -1 if the given character is not a digit of the base.

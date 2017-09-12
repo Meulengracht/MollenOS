@@ -10,6 +10,7 @@ extern "C" {
 #endif
 
 #include <crtdefs.h>
+#include <locale.h>
 
 /* Useful constants.  */
 #define _MOLLENOS 0x100
@@ -545,7 +546,7 @@ __fp_unordered_compare(long double x, long double y){
 #ifndef _CRT_ATOF_DEFINED
 #define _CRT_ATOF_DEFINED
 		_CRTIMP double __CRTDECL atof(__CONST char *str);
-		 double __CRTDECL _atof_l(__CONST char *str ,_locale_t locale);
+		 double __CRTDECL _atof_l(__CONST char *str ,locale_t locale);
 #endif
 #ifndef _SIGN_DEFINED
 #define _SIGN_DEFINED

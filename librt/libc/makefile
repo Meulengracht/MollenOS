@@ -18,8 +18,7 @@ COMMON_INCS = -I../include
 LIBK_INCS = -I../../kernel/include \
 			-I../../kernel/arch/x86/x32
 
-LIBK_SRCS = $(wildcard ../libos/ds/*.c) \
-			$(wildcard ../libos/mstring/*.c) \
+LIBK_SRCS = $(wildcard ../libos/mstring/*.c) \
 			../libos/synchronization/spinlock.c \
 			bufferobject_kernel.c \
 			rpc_kernel.c \
@@ -59,7 +58,7 @@ else
 			  $(join $(addprefix obc/, $(dir $(COMMON_SRCS))), $(notdir $(COMMON_SRCS:.c=.o))) \
 			  $(join $(addprefix obc/, $(dir $(LIBC_SRCS))), $(notdir $(LIBC_SRCS:.c=.o)))
 	CFLAGS = $(GCFLAGS) -D_HAVE_LONG_DOUBLE -D_LDBL_EQ_DBL -D_DLL -DCRTDLL $(COMMON_INCS)
-	LFLAGS = /nodefaultlib /subsystem:native /def:libc.def /noentry /dll ../build/libcrt.lib ../build/libm.lib
+	LFLAGS = /nodefaultlib /subsystem:native /def:libc.def /noentry /dll ../build/libcrt.lib ../build/libm.lib ../build/libds.lib
 	OBJDIR = obc
 endif
 

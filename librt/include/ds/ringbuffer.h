@@ -31,7 +31,6 @@
 * between c-lib and kern */
 #include <ds/ds.h>
 
-/* Structure */
 typedef struct _RingBuffer
 {
 	/* The buffer */
@@ -48,8 +47,6 @@ typedef struct _RingBuffer
 	Spinlock_t Lock;
 
 } RingBuffer_t;
-
-/* Prototypes */
 
 /* Initialise a new ring buffer */
 MOSAPI RingBuffer_t *RingBufferCreate(size_t Size);

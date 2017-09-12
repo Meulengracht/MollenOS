@@ -26,56 +26,69 @@
 #ifndef _GENERIC_HASHTABLE_H_
 #define _GENERIC_HASHTABLE_H_
 
-/* Includes */
-#include <crtdefs.h>
-#include <stdint.h>
+/* Includes 
+ * - Library */
+#include <os/osdefs.h>
 #include <ds/ds.h>
 #include <ds/list.h>
-
-/* Data Structures */
 
 /* The hashtable data 
  * structure, this keeps track
  * of keys, size, etc */
-typedef struct _HashTable
-{
-	/* Capacity & 
-	 * current size of the
-	 * hashtable */
-	size_t Capacity;
-	size_t Size;
-
-	/* The array */
-	List_t **Array;
-
+typedef struct _HashTable {
+	size_t 		  Capacity;
+	size_t 		  Size;
+	List_t 		**Array;
 } HashTable_t;
-
-
-/* Prototypes */
 
 /* HashTableCreate
  * Initializes a new hash table
  * of the given capacity */
-MOSAPI HashTable_t *HashTableCreate(KeyType_t KeyType, size_t Capacity);
+MOSAPI
+HashTable_t*
+MOSABI
+HashTableCreate(
+	_In_ KeyType_t KeyType, 
+	_In_ size_t Capacity);
 
 /* HashTableDestroy
  * Releases all resources 
  * associated with the hashtable */
-MOSAPI void HashTableDestroy(HashTable_t *HashTable);
+MOSAPI
+void
+MOSABI
+HashTableDestroy(
+	_In_ HashTable_t *HashTable);
 
 /* HashTableInsert
  * Inserts an object with the given
  * string key from the hash table */
-MOSAPI void HashTableInsert(HashTable_t *HashTable, DataKey_t Key, void *Data);
+MOSAPI
+void
+MOSABI
+HashTableInsert(
+	_In_ HashTable_t *HashTable, 
+	_In_ DataKey_t Key, 
+	_In_ void *Data);
 
 /* HashTableRemove 
  * Removes an object with the given 
  * string key from the hash table */
-MOSAPI void HashTableRemove(HashTable_t *HashTable, DataKey_t Key);
+MOSAPI
+void
+MOSABI
+HashTableRemove(
+	_In_ HashTable_t *HashTable, 
+	_In_ DataKey_t Key);
 
 /* HashTableGetValue
  * Retrieves the data associated with
  * a value from the hash table */
-MOSAPI void *HashTableGetValue(HashTable_t *HashTable, DataKey_t Key);
+MOSAPI
+void*
+MOSABI
+HashTableGetValue(
+	_In_ HashTable_t *HashTable, 
+	_In_ DataKey_t Key);
 
 #endif //!_HASHTABLE_H_

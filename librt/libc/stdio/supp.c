@@ -27,8 +27,13 @@
 #include <ds/list.h>
 #include <stdio.h>
 #include <errno.h>
+#include <stdlib.h>
 #include <io.h>
 #include "local.h"
+
+// Must be reentrancy spinlocks (critical sections)
+#define LOCK_FILES() do { } while(0)
+#define UNLOCK_FILES() do { } while(0)
 
 /* Globals
  * Used to keep state of all io-objects */
@@ -36,6 +41,11 @@ Spinlock_t __GlbFdBitmapLock;
 List_t *__GlbIoObjects = NULL;
 int *__GlbFdBitmap = NULL;
 FILE __GlbStdout, __GlbStdin, __GlbStderr;
+
+/* Prototypes
+ * Forward-declare these */
+int _flushall(void);
+int _fcloseall(void);
 
 /* StdioInitialize
  * Initializes default handles and resources */
@@ -50,18 +60,25 @@ StdioInitialize(void)
     memset(__GlbFdBitmap, 0, DIVUP(INTERNAL_MAXFILES, 8));
     SpinlockReset(&__GlbFdBitmapLock);
 
-    // Allocate the initial 3 fds
-    __GlbFdBitmap[0] |= (0x1 | 0x2 | 0x4);
-
     // Initialize the STDOUT handle
+    memset(&__GlbStdout, 0, sizeof(FILE));
+    __GlbStdout._fd = StdioFdAllocate(UUID_INVALID, WX_PIPE | WX_TTY);
+    StdioFdInitialize(&__GlbStdout, __GlbStdout._fd, _IOWRT);
 
     // Initialize the STDIN handle
+    memset(&__GlbStdin, 0, sizeof(FILE));
+    __GlbStdin._fd = StdioFdAllocate(UUID_INVALID, WX_PIPE | WX_TTY);
+    StdioFdInitialize(&__GlbStdin, __GlbStdin._fd, _IOREAD);
 
     // Initialize the STDERR handle
+    memset(&__GlbStderr, 0, sizeof(FILE));
+    __GlbStderr._fd = StdioFdAllocate(UUID_INVALID, WX_PIPE | WX_TTY);
+    StdioFdInitialize(&__GlbStderr, __GlbStderr._fd, _IOWRT);
 }
 
 /* StdioCleanup
- * */
+ * Flushes all files open to disk, and then frees any resources 
+ * allocated to the open file handles. */
 void
 StdioCleanup(void)
 {
@@ -73,7 +90,8 @@ StdioCleanup(void)
 /* StdioFdValid
  * Determines the validity of a file-descriptor handle */
 OsStatus_t
-StdioFdValid(int fd)
+StdioFdValid(
+    _In_ int fd)
 {
     return fd >= 0 && fd < INTERNAL_MAXFILES 
         && (get_ioinfo(fd)->wxflag & WX_OPEN);
@@ -83,7 +101,9 @@ StdioFdValid(int fd)
  * Allocates a new file descriptor handle from the bitmap.
  * Returns -1 on error. */
 int
-StdioFdAllocate(UUId_t handle, int flag)
+StdioFdAllocate(
+    _In_ UUId_t handle, 
+    _In_ int flag)
 {
     // Variables
     ioobject *io = NULL;
@@ -225,7 +245,8 @@ StdioFdInitialize(
 }
 
 /* StdioReadStdin
- * */
+ * Waits for an input event of type key, and returns the key.
+ * This is a blocking call. */
 int
 StdioReadStdin(void)
 {
@@ -302,25 +323,26 @@ StdioReadInternal(
 	// Keep reading chunks untill we've read all requested
 	while (BytesLeft > 0) {
 		size_t ChunkSize = MIN(OriginalSize, BytesLeft);
-		size_t BytesRead = 0, BytesIndex = 0;
+		size_t BytesReaden = 0, BytesIndex = 0;
 		ChangeBufferSize(TLSGetCurrent()->Transfer, ChunkSize);
         if (_fval(ReadFile(Handle, TLSGetCurrent()->Transfer, 
-            &BytesIndex, &BytesRead))) {
+            &BytesIndex, &BytesReaden))) {
 			break;
 		}
-		if (BytesRead == 0) {
+		if (BytesReaden == 0) {
 			break;
 		}
 		SeekBuffer(TLSGetCurrent()->Transfer, BytesIndex);
         ReadBuffer(TLSGetCurrent()->Transfer, 
-            (__CONST void*)Pointer, BytesRead, NULL);
+            (__CONST void*)Pointer, BytesReaden, NULL);
 		SeekBuffer(TLSGetCurrent()->Transfer, 0);
-		BytesReadTotal += BytesRead;
-		BytesLeft -= BytesRead;
-		Pointer += BytesRead;
+		BytesReadTotal += BytesReaden;
+		BytesLeft -= BytesReaden;
+		Pointer += BytesReaden;
 	}
 
-	// Restore transfer buffer
+    // Restore transfer buffer
+    *BytesRead = BytesReadTotal;
 	return ChangeBufferSize(
         TLSGetCurrent()->Transfer, OriginalSize);
 }
@@ -334,34 +356,49 @@ StdioWriteInternal(
     _In_ size_t Length,
     _Out_ size_t *BytesWritten)
 {
-    /* Variables */
-	size_t BytesWrittenTotal = 0, BytesLeft = (size_t)length;
+    // Variables
+	size_t BytesWrittenTotal = 0, BytesLeft = (size_t)Length;
 	size_t OriginalSize = GetBufferSize(TLSGetCurrent()->Transfer);
-	uint8_t *Pointer = (uint8_t *)buffer;
+    uint8_t *Pointer = (uint8_t *)Buffer;
+    UUId_t Handle = StdioFdToHandle(fd);
+    
+    // Special cases
+    if (Handle == UUID_INVALID) {
+        // Check for stdout
+        if (__GlbStdout._fd == fd) {
 
-	/* Keep reading chunks of BUFSIZ */
-	while (BytesLeft > 0)
-	{
+        }
+        else if (__GlbStderr._fd == fd) {
+
+        }
+
+        // Otherwise set error
+        _set_errno(EBADF);
+		return OsError;
+    }
+
+	// Keep writing chunks untill we've read all requested
+	while (BytesLeft > 0) {
 		size_t ChunkSize = MIN(OriginalSize, BytesLeft);
-		size_t BytesWritten = 0;
+		size_t BytesWrittenLocal = 0;
 		ChangeBufferSize(TLSGetCurrent()->Transfer, ChunkSize);
-		WriteBuffer(TLSGetCurrent()->Transfer, (__CONST void *)Pointer, ChunkSize, &BytesWritten);
-		if (WriteFile((UUId_t)fd, TLSGetCurrent()->Transfer, &BytesWritten) != FsOk)
-		{
+        WriteBuffer(TLSGetCurrent()->Transfer, 
+            (__CONST void *)Pointer, ChunkSize, &BytesWrittenLocal);
+		if (WriteFile(Handle, TLSGetCurrent()->Transfer, &BytesWrittenLocal) != FsOk) {
 			break;
 		}
-		if (BytesWritten == 0)
-		{
+		if (BytesWrittenLocal == 0) {
 			break;
 		}
-		BytesWrittenTotal += BytesWritten;
-		BytesLeft -= BytesWritten;
-		Pointer += BytesWritten;
+		BytesWrittenTotal += BytesWrittenLocal;
+		BytesLeft -= BytesWrittenLocal;
+		Pointer += BytesWrittenLocal;
 	}
 
-	/* Done! */
-	ChangeBufferSize(TLSGetCurrent()->Transfer, OriginalSize);
-	return (int)BytesWrittenTotal;
+	// Restore our transfer buffer and return
+    ChangeBufferSize(TLSGetCurrent()->Transfer, OriginalSize);
+    *BytesWritten = BytesWrittenTotal;
+	return OsSuccess;
 }
 
 off64_t offabs(off64_t Value) {
@@ -443,24 +480,19 @@ FILE *
 getstdfile(
     _In_ int n)
 {
-    switch (n)
-    {
-    case STDOUT_FD:
-    {
-        return &__GlbStdout;
-    }
-    case STDIN_FD:
-    {
-        return &__GlbStdin;
-    }
-    case STDERR_FD:
-    {
-        return &__GlbStderr;
-    }
-    default:
-    {
-        return NULL;
-    }
+    switch (n) {
+        case STDOUT_FD: {
+            return &__GlbStdout;
+        }
+        case STDIN_FD: {
+            return &__GlbStdin;
+        }
+        case STDERR_FD: {
+            return &__GlbStderr;
+        }
+        default: {
+            return NULL;
+        }
     }
 }
 
@@ -523,6 +555,8 @@ os_flush_all_buffers(
     return num_flushed;
 }
 
+/* _fcloseall
+ * Closes all open streams in this process-scope. */
 int
 _fcloseall(void)
 {
@@ -543,6 +577,8 @@ _fcloseall(void)
     return num_closed;
 }
 
+/* _isatty
+ * Returns non-zero if the given file-descriptor points to a tty. */
 int
 _isatty(
     _In_ int fd)
@@ -550,6 +586,8 @@ _isatty(
     return get_ioinfo(fd)->wxflag & WX_TTY;
 }
 
+/* _flushall
+ * Flushes all open streams in this process-scope. */
 int
 _flushall(void)
 {
@@ -628,7 +666,7 @@ remove_std_buffer(
 }
 
 /* _lock_file
- * */
+ * Performs primitive locking on a file-stream. */
 OsStatus_t
 _lock_file(
     _In_ FILE *file)
@@ -640,7 +678,7 @@ _lock_file(
 }
 
 /* _unlock_file
- * */
+ * Performs primitive unlocking on a file-stream. */
 OsStatus_t
 _unlock_file(
     _In_ FILE *file)

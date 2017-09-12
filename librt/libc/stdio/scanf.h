@@ -46,21 +46,21 @@
 #endif /* WIDE_SCANF */
 
 #ifdef CONSOLE
-#define _GETC_(file) (consumed++, _getch())
-#define _UNGETC_(nch, file) do { _ungetch(nch); consumed--; } while(0)
+#define _GETC_(file) (consumed++, getchar())
+#define _UNGETC_(nch, file) do { ungetc(nch, stdin); consumed--; } while(0)
 #define _LOCK_FILE_(file) _lock_file(stdin)
 #define _UNLOCK_FILE_(file) _unlock_file(stdin)
 #ifdef WIDE_SCANF
 #ifdef SECURE
-#define _FUNCTION_ static int vcwscanf_s_l(const char *format, _locale_t locale, va_list ap)
+#define _FUNCTION_ static int vcwscanf_s_l(const char *format, locale_t locale, va_list ap)
 #else  /* SECURE */
-#define _FUNCTION_ static int vcwscanf_l(const char *format, _locale_t locale, va_list ap)
+#define _FUNCTION_ static int vcwscanf_l(const char *format, locale_t locale, va_list ap)
 #endif /* SECURE */
 #else  /* WIDE_SCANF */
 #ifdef SECURE
-#define _FUNCTION_ static int vcscanf_s_l(const char *format, _locale_t locale, va_list ap)
+#define _FUNCTION_ static int vcscanf_s_l(const char *format, locale_t locale, va_list ap)
 #else  /* SECURE */
-#define _FUNCTION_ static int vcscanf_l(const char *format, _locale_t locale, va_list ap)
+#define _FUNCTION_ static int vcscanf_l(const char *format, locale_t locale, va_list ap)
 #endif /* SECURE */
 #endif /* WIDE_SCANF */
 #else
@@ -74,15 +74,15 @@
 #define _UNLOCK_FILE_(file) do {} while(0)
 #ifdef WIDE_SCANF
 #ifdef SECURE
-#define _FUNCTION_ static int vsnwscanf_s_l(const wchar_t *file, size_t length, const wchar_t *format, _locale_t locale, va_list ap)
+#define _FUNCTION_ static int vsnwscanf_s_l(const wchar_t *file, size_t length, const wchar_t *format, locale_t locale, va_list ap)
 #else  /* SECURE */
-#define _FUNCTION_ static int vsnwscanf_l(const wchar_t *file, size_t length, const wchar_t *format, _locale_t locale, va_list ap)
+#define _FUNCTION_ static int vsnwscanf_l(const wchar_t *file, size_t length, const wchar_t *format, locale_t locale, va_list ap)
 #endif /* SECURE */
 #else /* WIDE_SCANF */
 #ifdef SECURE
-#define _FUNCTION_ static int vsnscanf_s_l(const char *file, size_t length, const char *format, _locale_t locale, va_list ap)
+#define _FUNCTION_ static int vsnscanf_s_l(const char *file, size_t length, const char *format, locale_t locale, va_list ap)
 #else  /* SECURE */
-#define _FUNCTION_ static int vsnscanf_l(const char *file, size_t length, const char *format, _locale_t locale, va_list ap)
+#define _FUNCTION_ static int vsnscanf_l(const char *file, size_t length, const char *format, locale_t locale, va_list ap)
 #endif /* SECURE */
 #endif /* WIDE_SCANF */
 #else /* STRING_LEN */
@@ -92,15 +92,15 @@
 #define _UNLOCK_FILE_(file) do {} while(0)
 #ifdef WIDE_SCANF
 #ifdef SECURE
-#define _FUNCTION_ static int vswscanf_s_l(const wchar_t *file, const wchar_t *format, _locale_t locale, va_list ap)
+#define _FUNCTION_ static int vswscanf_s_l(const wchar_t *file, const wchar_t *format, locale_t locale, va_list ap)
 #else  /* SECURE */
-#define _FUNCTION_ static int vswscanf_l(const wchar_t *file, const wchar_t *format, _locale_t locale, va_list ap)
+#define _FUNCTION_ static int vswscanf_l(const wchar_t *file, const wchar_t *format, locale_t locale, va_list ap)
 #endif /* SECURE */
 #else /* WIDE_SCANF */
 #ifdef SECURE
-#define _FUNCTION_ static int vsscanf_s_l(const char *file, const char *format, _locale_t locale, va_list ap)
+#define _FUNCTION_ static int vsscanf_s_l(const char *file, const char *format, locale_t locale, va_list ap)
 #else  /* SECURE */
-#define _FUNCTION_ static int vsscanf_l(const char *file, const char *format, _locale_t locale, va_list ap)
+#define _FUNCTION_ static int vsscanf_l(const char *file, const char *format, locale_t locale, va_list ap)
 #endif /* SECURE */
 #endif /* WIDE_SCANF */
 #endif /* STRING_LEN */
@@ -111,9 +111,9 @@
 #define _LOCK_FILE_(file) _lock_file(file)
 #define _UNLOCK_FILE_(file) _unlock_file(file)
 #ifdef SECURE
-#define _FUNCTION_ static int vfwscanf_s_l(FILE* file, const wchar_t *format, _locale_t locale, va_list ap)
+#define _FUNCTION_ static int vfwscanf_s_l(FILE* file, const wchar_t *format, locale_t locale, va_list ap)
 #else  /* SECURE */
-#define _FUNCTION_ static int vfwscanf_l(FILE* file, const wchar_t *format, _locale_t locale, va_list ap)
+#define _FUNCTION_ static int vfwscanf_l(FILE* file, const wchar_t *format, locale_t locale, va_list ap)
 #endif /* SECURE */
 #else /* WIDE_SCANF */
 #define _GETC_(file) (consumed++, fgetc(file))
@@ -121,30 +121,22 @@
 #define _LOCK_FILE_(file) _lock_file(file)
 #define _UNLOCK_FILE_(file) _unlock_file(file)
 #ifdef SECURE
-#define _FUNCTION_ static int vfscanf_s_l(FILE* file, const char *format, _locale_t locale, va_list ap)
+#define _FUNCTION_ static int vfscanf_s_l(FILE* file, const char *format, locale_t locale, va_list ap)
 #else  /* SECURE */
-#define _FUNCTION_ static int vfscanf_l(FILE* file, const char *format, _locale_t locale, va_list ap)
+#define _FUNCTION_ static int vfscanf_l(FILE* file, const char *format, locale_t locale, va_list ap)
 #endif /* SECURE */
 #endif /* WIDE_SCANF */
 #endif /* STRING */
 #endif /* CONSOLE */
 
 _FUNCTION_ {
-    pthreadlocinfo locinfo;
     int rd = 0, consumed = 0;
     int nch;
     if (!*format) return 0;
-#ifndef WIDE_SCANF
-#ifdef CONSOLE
-    TRACE("(%s):\n", debugstr_a(format));
-#else /* CONSOLE */
-#ifdef STRING
-    TRACE("%s (%s)\n", debugstr_a(file), debugstr_a(format));
-#else /* STRING */
-    TRACE("%p (%s)\n", file, debugstr_a(format));
-#endif /* STRING */
-#endif /* CONSOLE */
-#endif /* WIDE_SCANF */
+    if (locale == NULL) {
+        locale = __get_locale_r();
+    }
+
     _LOCK_FILE_(file);
 
     nch = _GETC_(file);
@@ -153,18 +145,13 @@ _FUNCTION_ {
         return _EOF_RET;
     }
 
-    if(!locale)
-        locinfo = get_locinfo();
-    else
-        locinfo = locale->locinfo;
-
     while (*format) {
 	/* a whitespace character in the format string causes scanf to read,
 	 * but not store, all consecutive white-space characters in the input
 	 * up to the next non-white-space character.  One white space character
 	 * in the input matches any number (including zero) and combination of
 	 * white-space characters in the input. */
-	if (_ISSPACE_(*format)) {
+	if (_ISSPACE_((int)*format)) {
             /* skip whitespace */
             while ((nch!=_EOF_) && _ISSPACE_(nch))
                 nch = _GETC_(file);
@@ -190,7 +177,7 @@ _FUNCTION_ {
 		suppress=1;
 	    }
 	    /* look for width specification */
-	    while (_ISDIGIT_(*format)) {
+	    while (_ISDIGIT_((int)*format)) {
 		width*=10;
 		width+=*format++ - '0';
 	    }
@@ -224,7 +211,7 @@ _FUNCTION_ {
             switch(*format) {
 	    case 'p':
 	    case 'P': /* pointer. */
-                if (sizeof(void *) == sizeof(LONGLONG)) I64_prefix = 1;
+                if (sizeof(void *) == sizeof(int64_t)) I64_prefix = 1;
                 /* fall through */
 	    case 'x':
 	    case 'X': /* hexadecimal integer. */
@@ -243,7 +230,7 @@ _FUNCTION_ {
 		base = 0;
 	    number: {
 		    /* read an integer */
-		    ULONGLONG cur = 0;
+		    uint64_t cur = 0;
 		    int negative = 0;
 		    int seendigit=0;
                     /* skip initial whitespace */
@@ -297,9 +284,9 @@ _FUNCTION_ {
 		    if (!seendigit) break; /* not a valid number */
                     st = 1;
                     if (!suppress) {
-#define _SET_NUMBER_(type) *va_arg(ap, type*) = negative ? -(LONGLONG)cur : cur
-			if (I64_prefix) _SET_NUMBER_(LONGLONG);
-			else if (l_prefix) _SET_NUMBER_(LONG);
+#define _SET_NUMBER_(type) *va_arg(ap, type*) = negative ? -(int64_t)cur : cur
+			if (I64_prefix) _SET_NUMBER_(int64_t);
+			else if (l_prefix) _SET_NUMBER_(long);
 			else if (h_prefix == 1) _SET_NUMBER_(short int);
 			else _SET_NUMBER_(int);
 		    }
@@ -310,11 +297,11 @@ _FUNCTION_ {
             case 'f':
             case 'g':
             case 'G': { /* read a float */
-                    //long double cur = 1, expcnt = 10;
-                    ULONGLONG d, hlp;
+                    long double cur = 1, expcnt = 10;
+                    uint64_t d, hlp;
                     int exp = 0, negative = 0;
-                    //unsigned fpcontrol;
-                    //BOOL negexp;
+                    unsigned fpcontrol;
+                    int negexp;
 
                     /* skip initial whitespace */
                     while ((nch!=_EOF_) && _ISSPACE_(nch))
@@ -329,7 +316,7 @@ _FUNCTION_ {
                     }
 
                     /* get first digit. */
-                    if (*locinfo->lconv->decimal_point != nch) {
+                    if (*__get_numeric_locale(locale)->decimal_point != nch) {
                         if (!_ISDIGIT_(nch)) break;
                         d = nch - '0';
                         nch = _GETC_(file);
@@ -339,7 +326,7 @@ _FUNCTION_ {
                             hlp = d*10 + nch - '0';
                             nch = _GETC_(file);
                             if (width>0) width--;
-                            if(d > (ULONGLONG)-1/10 || hlp<d) {
+                            if(d > (uint64_t)-1/10 || hlp<d) {
                                 exp++;
                                 break;
                             }
@@ -356,7 +343,7 @@ _FUNCTION_ {
                     }
 
                     /* handle decimals */
-                    if (width!=0 && nch == *locinfo->lconv->decimal_point) {
+                    if (width!=0 && nch == *__get_numeric_locale(locale)->decimal_point) {
                         nch = _GETC_(file);
                         if (width>0) width--;
 
@@ -364,7 +351,7 @@ _FUNCTION_ {
                             hlp = d*10 + nch - '0';
                             nch = _GETC_(file);
                             if (width>0) width--;
-                            if(d > (ULONGLONG)-1/10 || hlp<d)
+                            if(d > (uint64_t)-1/10 || hlp<d)
                                 break;
 
                             d = hlp;
@@ -403,17 +390,12 @@ _FUNCTION_ {
                         else exp += e;
                     }
 
-#ifdef __REACTOS__
-                    /* ReactOS: don't inline float processing (kernel/freeldr don't like that! */
-                    _internal_handle_float(negative, exp, suppress, d, l_prefix || L_prefix, &ap);
-                    st = 1;
-#else
 #ifdef _M_ARM
                     DbgBreakPoint();
 #else
                     fpcontrol = _control87(0, 0);
-                    _control87(MSVCRT__EM_DENORMAL|MSVCRT__EM_INVALID|MSVCRT__EM_ZERODIVIDE
-                            |MSVCRT__EM_OVERFLOW|MSVCRT__EM_UNDERFLOW|MSVCRT__EM_INEXACT, 0xffffffff);
+                    _control87(_FPE_DENORMAL|_FPE_INVALID|_FPE_ZERODIVIDE
+                            |_FPE_OVERFLOW|_FPE_UNDERFLOW|_FPE_INEXACT, 0xffffffff);
 #endif
                     negexp = (exp < 0);
                     if(negexp)
@@ -437,7 +419,6 @@ _FUNCTION_ {
                         else if (l_prefix) _SET_NUMBER_(double);
                         else _SET_NUMBER_(float);
                     }
-#endif /* __REACTOS__ */
                 }
                 break;
 		/* According to msdn,
@@ -615,8 +596,7 @@ _FUNCTION_ {
 	    case '[': {
                     _CHAR_ *str = suppress ? NULL : va_arg(ap, _CHAR_*);
                     _CHAR_ *sptr = str;
-		    RTL_BITMAP bitMask;
-                    ULONG *Mask;
+		    Bitmap_t *bitMask;
 		    int invert = 0; /* Set if we are NOT to find the chars */
 #ifdef SECURE
                     unsigned size = suppress ? UINT_MAX : va_arg(ap, unsigned)/sizeof(_CHAR_);
@@ -625,8 +605,7 @@ _FUNCTION_ {
 #endif
 
 		    /* Init our bitmap */
-		    Mask = HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, _BITMAPSIZE_/8);
-		    RtlInitializeBitMap(&bitMask, Mask, _BITMAPSIZE_);
+		    bitMask = BitmapCreate(_BITMAPSIZE_);
 
 		    /* Read the format */
 		    format++;
@@ -635,7 +614,7 @@ _FUNCTION_ {
 			format++;
 		    }
 		    if(*format == ']') {
-			RtlSetBits(&bitMask, ']', 1);
+			BitmapSetBits(bitMask, ']', 1);
 			format++;
 		    }
                     while(*format && (*format != ']')) {
@@ -643,23 +622,23 @@ _FUNCTION_ {
 			 * "Note that %[a-z] and %[z-a] are interpreted as equivalent to %[abcde...z]." */
 			if((*format == '-') && (*(format + 1) != ']')) {
 			    if ((*(format - 1)) < *(format + 1))
-				RtlSetBits(&bitMask, *(format - 1) +1 , *(format + 1) - *(format - 1));
+				BitmapSetBits(bitMask, *(format - 1) +1 , *(format + 1) - *(format - 1));
 			    else
-				RtlSetBits(&bitMask, *(format + 1)    , *(format - 1) - *(format + 1));
+				BitmapSetBits(bitMask, *(format + 1)    , *(format - 1) - *(format + 1));
 			    format++;
 			} else
-			    RtlSetBits(&bitMask, *format, 1);
+                BitmapSetBits(bitMask, *format, 1);
 			format++;
 		    }
                     /* read until char is not suitable */
                     while ((width != 0) && (nch != _EOF_)) {
 			if(!invert) {
-			    if(RtlAreBitsSet(&bitMask, nch, 1)) {
+			    if(BitmapAreBitsSet(bitMask, nch, 1)) {
 				if (!suppress) *sptr++ = _CHAR2SUPPORTED_(nch);
 			    } else
 				break;
 			} else {
-			    if(RtlAreBitsClear(&bitMask, nch, 1)) {
+			    if(BitmapAreBitsClear(bitMask, nch, 1)) {
 				if (!suppress) *sptr++ = _CHAR2SUPPORTED_(nch);
 			    } else
 				break;
@@ -676,7 +655,7 @@ _FUNCTION_ {
                     }
                     /* terminate */
                     if (!suppress) *sptr = 0;
-		    HeapFree(GetProcessHeap(), 0, Mask);
+                    BitmapDestroy(bitMask);
                 }
                 break;
             default:
@@ -713,7 +692,6 @@ _FUNCTION_ {
 	_UNGETC_(nch, file);
     }
 
-    TRACE("returning %d\n", rd);
     _UNLOCK_FILE_(file);
     return rd;
 }

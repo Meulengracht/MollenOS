@@ -41,7 +41,7 @@ int _sxprintf(
     int result;
     FILE stream;
 
-    /* Setup the FILE structure */
+    // Setup the FILE structure
     stream._base = (char*)buffer;
     stream._ptr = stream._base;
     stream._charbuf = 0;
@@ -58,7 +58,7 @@ int _sxprintf(
     va_end(argptr);
 #endif
 
-    /* Only zero terminate if there is enough space left */
+    // Only zero terminate if there is enough space left
     if ((stream._cnt >= sizeof(TCHAR)) && (stream._ptr))
         *(TCHAR*)stream._ptr = _T('\0');
 

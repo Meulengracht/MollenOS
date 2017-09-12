@@ -36,7 +36,8 @@ wint_t ungetwc(
 
     _lock_file(file);
 
-    if ((get_ioinfo(file->_fd)->exflag & (EF_UTF8 | EF_UTF16)) || !(get_ioinfo(file->_file)->wxflag & WX_TEXT))
+    if ((get_ioinfo(file->_fd)->exflag & (EF_UTF8 | EF_UTF16)) 
+        || !(get_ioinfo(file->_fd)->wxflag & WX_TEXT))
     {
         unsigned char *pp = (unsigned char *)&mwc;
         int i;

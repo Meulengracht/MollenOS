@@ -27,17 +27,15 @@
 #include <stdint.h>
 
 /* The definition of a key
- * in generic data-structures
- * this can be values or data */
+ * in generic data-structures this can be values or data */
 typedef union _DataKey {
-	int Value;
-	void *Pointer;
-	char *String;
+	int 		 Value;
+	void 		*Pointer;
+	char 		*String;
 } DataKey_t;
 
 /* This enumeration denotes
- * the kind of key that is
- * to be interpreted by the
+ * the kind of key that is to be interpreted by the
  * data-structure */
 typedef enum _KeyType {
 	KeyInteger,
@@ -52,18 +50,38 @@ typedef enum _KeyType {
 /* This is used by data-structures 
  * to allocate memory, since it will 
  * be different for kernel/clib */
-MOSAPI void *dsalloc(size_t size);
-MOSAPI void dsfree(void *p);
+MOSAPI
+void*
+MOSABI
+dsalloc(
+	size_t size);
+MOSAPI
+void
+MOSABI
+dsfree(
+	void *p);
 
 /* Helper Function 
  * Matches two keys based on the key type 
  * returns 0 if they are equal, or -1 if not */
-MOSAPI int dsmatchkey(KeyType_t KeyType, DataKey_t Key1, DataKey_t Key2);
+MOSAPI
+int
+MOSABI
+dsmatchkey(
+	KeyType_t KeyType, 
+	DataKey_t Key1, 
+	DataKey_t Key2);
 
 /* Helper Function
  * Used by sorting, it compares to values
  * and returns 1 if 1 > 2, 0 if 1 == 2 and
  * -1 if 2 > 1 */
-MOSAPI int dssortkey(KeyType_t KeyType, DataKey_t Key1, DataKey_t Key2);
+MOSAPI
+int
+MOSABI
+dssortkey(
+	KeyType_t KeyType, 
+	DataKey_t Key1, 
+	DataKey_t Key2);
 
 #endif //!_DATASTRUCTURES_H_

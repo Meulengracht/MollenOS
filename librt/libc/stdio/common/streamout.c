@@ -10,6 +10,7 @@
 #include <stdarg.h>
 #include <string.h>
 #include <strings.h>
+#include <locale.h>
 #include <math.h>
 #include <float.h>
 #include <wchar.h>

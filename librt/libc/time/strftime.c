@@ -316,7 +316,7 @@ extern char **_tzname;
 #  define strftime_l	wcsftime_l	/* Alternate function name */
 #  define CHAR		wchar_t		/* string type basis */
 #  define CQ(a)		L##a		/* character constant qualifier */
-#  define snprintf	swprintf	/* wide-char equivalent function name */
+#  define snprintf	swnprintf	/* wide-char equivalent function name */
 #  define strncmp	wcsncmp		/* wide-char equivalent function name */
 #  define TOLOWER(c)	towlower((wint_t)(c))
 #  define STRTOUL(c,p,b) wcstoul((c),(p),(b))

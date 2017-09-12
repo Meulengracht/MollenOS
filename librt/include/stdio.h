@@ -94,8 +94,6 @@ struct _iobuf {
     int      _charbuf;
     int      _bufsiz;
     char    *_tmpfname;
-	Flags_t	 _opts;
-	Flags_t	 _access;
 };
 typedef struct _iobuf FILE;
 #define _FILE_DEFINED
@@ -230,6 +228,11 @@ _CRTIMP int vwprintf(
     _In_ va_list valist);
 _CRTIMP int swprintf(
     _In_ wchar_t *buffer,
+    _In_ __CONST wchar_t *format,
+    ...);
+_CRTIMP int swnprintf(
+    _In_ wchar_t *buffer,
+    _In_ size_t count,
     _In_ __CONST wchar_t *format,
 	...);
 _CRTIMP int vswprintf(

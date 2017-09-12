@@ -31,6 +31,7 @@
 #include <stdio.h>
 #include <errno.h>
 #include <string.h>
+#include <strings.h>
 #include <stdlib.h>
 #include "local.h"
 
@@ -114,10 +115,10 @@ int _fflags(
 
 	// Now handle text-formatting options
 	if (*mode == ',') {
-		static const wchar_t ccs[] = {'c', 'c', 's'};
-		static const wchar_t utf8[] = {'u', 't', 'f', '-', '8'};
-		static const wchar_t utf16le[] = {'u', 't', 'f', '-', '1', '6', 'l', 'e'};
-		static const wchar_t unicode[] = {'u', 'n', 'i', 'c', 'o', 'd', 'e'};
+		static const char ccs[] = {'c', 'c', 's'};
+		static const char utf8[] = {'u', 't', 'f', '-', '8'};
+		static const char utf16le[] = {'u', 't', 'f', '-', '1', '6', 'l', 'e'};
+		static const char unicode[] = {'u', 'n', 'i', 'c', 'o', 'd', 'e'};
 
 		mode++;
 		while (*mode == ' ')
@@ -133,17 +134,17 @@ int _fflags(
 		while (*mode == ' ')
 			mode++;
 
-		if (!strncmpi(utf8, mode, sizeof(utf8) / sizeof(utf8[0])))
+		if (!strncasecmp(utf8, mode, sizeof(utf8) / sizeof(utf8[0])))
 		{
 			*open_flags |= _O_U8TEXT;
 			mode += sizeof(utf8) / sizeof(utf8[0]);
 		}
-		else if (!strncmpi(utf16le, mode, sizeof(utf16le) / sizeof(utf16le[0])))
+		else if (!strncasecmp(utf16le, mode, sizeof(utf16le) / sizeof(utf16le[0])))
 		{
 			*open_flags |= _O_U16TEXT;
 			mode += sizeof(utf16le) / sizeof(utf16le[0]);
 		}
-		else if (!strncmpi(unicode, mode, sizeof(unicode) / sizeof(unicode[0])))
+		else if (!strncasecmp(unicode, mode, sizeof(unicode) / sizeof(unicode[0])))
 		{
 			*open_flags |= _O_WTEXT;
 			mode += sizeof(unicode) / sizeof(unicode[0]);
