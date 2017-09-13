@@ -6,3 +6,4 @@ __setjmp
 __setjmp3
 longjmp
 ___global_locale DATA
+_exit

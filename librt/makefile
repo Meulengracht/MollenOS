@@ -10,7 +10,7 @@
 # The remaining libraries are run-time libraries for C++ support
 
 .PHONY: all
-all: build build/libk.lib build/libds.lib build/libdsk.lib build/libcrt.lib build/libdrv.lib build/libsrv.lib build/libm.dll build/libc.dll build/libos.dll build/libcxxabi.dll
+all: build build/libk.lib build/libds.lib build/libdsk.lib build/libcrt.lib build/libdrv.lib build/libsrv.lib build/libm.dll build/libc.dll build/libos.dll
 
 build:
 	mkdir -p $@

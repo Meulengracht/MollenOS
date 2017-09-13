@@ -673,12 +673,11 @@ extern "C" {
 /* Set the FPU control word as cw = (cw & ~unMask) | (unNew & unMask),
  * i.e. change the bits in unMask to have the values they have in unNew,
  * leaving other bits unchanged. */
- unsigned int __CRTDECL _controlfp (unsigned int unNew, unsigned int unMask);
- unsigned int __CRTDECL _control87 (unsigned int unNew, unsigned int unMask);
+_CRTIMP unsigned int __CRTDECL _controlfp (unsigned int unNew, unsigned int unMask);
+_CRTIMP unsigned int __CRTDECL _control87 (unsigned int unNew, unsigned int unMask);
 
-
- unsigned int __CRTDECL _clearfp (void);	/* Clear the FPU status word */
- unsigned int __CRTDECL _statusfp (void);	/* Report the FPU status word */
+unsigned int __CRTDECL _clearfp (void);	/* Clear the FPU status word */
+unsigned int __CRTDECL _statusfp (void);	/* Report the FPU status word */
 #define		_clear87	_clearfp
 #define		_status87	_statusfp
 
@@ -704,11 +703,11 @@ void __CRTDECL fpreset (void);
  * but they really belong in math.h.
  */
 
- double __CRTDECL _chgsign	(double);
- double __CRTDECL _copysign (double, double);
- double __CRTDECL _logb (double);
- double __CRTDECL _nextafter (double, double);
- double __CRTDECL _scalb (double, long);
+double __CRTDECL _chgsign	(double);
+double __CRTDECL _copysign (double, double);
+double __CRTDECL _logb (double);
+double __CRTDECL _nextafter (double, double);
+double __CRTDECL _scalb (double, long);
 
 #define _finite(x) isfinite(x)
 #define _fpclass(x) fpclassify(x)

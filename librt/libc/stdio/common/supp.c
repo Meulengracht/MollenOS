@@ -20,6 +20,69 @@
  * - Standard IO Support functions
  */
 
+#ifdef LIBC_KERNEL
+#include <os/spinlock.h>
+#include <stdio.h>
+
+/* Globals
+ * Static initialization for kernel outs */
+Spinlock_t __GlbPrintLock = SPINLOCK_INIT;
+FILE __GlbStdout = { 0 }, __GlbStdin = { 0 }, __GlbStderr = { 0 };
+
+/* _lock_file
+ * Performs primitive locking on a file-stream. */
+OsStatus_t
+_lock_file(
+    _In_ FILE *file)
+{
+    if (!(file->_flag & _IOSTRG)) {
+        return SpinlockAcquire(&__GlbPrintLock);
+    }
+    return OsSuccess;
+}
+
+/* _unlock_file
+ * Performs primitive unlocking on a file-stream. */
+OsStatus_t
+_unlock_file(
+    _In_ FILE *file)
+{
+    if (!(file->_flag & _IOSTRG)) {
+        return SpinlockRelease(&__GlbPrintLock);
+    }
+    return OsSuccess;
+}
+
+/* getstdfile
+ * Retrieves a standard io stream handle */
+FILE *
+getstdfile(
+    _In_ int n)
+{
+    switch (n) {
+        case STDOUT_FD: {
+            return &__GlbStdout;
+        }
+        case STDIN_FD: {
+            return &__GlbStdin;
+        }
+        case STDERR_FD: {
+            return &__GlbStderr;
+        }
+        default: {
+            return NULL;
+        }
+    }
+}
+
+int wctomb(char *mbchar, wchar_t wchar)
+{
+    _CRT_UNUSED(mbchar);
+    _CRT_UNUSED(wchar);
+    return 0;
+}
+
+#else
 #include <os/driver/input.h>
 #include <os/driver/file.h>
 #include <os/ipc/ipc.h>
@@ -29,7 +92,7 @@
 #include <errno.h>
 #include <stdlib.h>
 #include <io.h>
-#include "local.h"
+#include "../local.h"
 
 // Must be reentrancy spinlocks (critical sections)
 #define LOCK_FILES() do { } while(0)
@@ -555,6 +618,19 @@ os_flush_all_buffers(
     return num_flushed;
 }
 
+/* get_ioinfo
+ * Retrieves the io-object that is bound to the given file descriptor. */
+ioobject*
+get_ioinfo(int fd)
+{
+    // Variables
+    DataKey_t Key;
+    Key.Value = fd;
+
+    // Lookup io-object
+    return (ioobject*)ListGetDataByKey(__GlbIoObjects, Key, 0);
+}
+
 /* _fcloseall
  * Closes all open streams in this process-scope. */
 int
@@ -688,3 +764,5 @@ _unlock_file(
     }
     return OsSuccess;
 }
+
+#endif
