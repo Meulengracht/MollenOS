@@ -44,11 +44,21 @@ void __EntryLibCEmpty(void)
 #define MOLLENOS_ARGUMENT_ADDR	0x1F000000
 #endif
 
-/* Extern */
+/* Extern
+ * - C/C++ Initialization
+ * - C/C++ Cleanup */
 __EXTERN int main(int argc, char** argv);
 __EXTERN void __CppInit(void);
 __EXTERN void __CppFinit(void);
+#ifndef __clang__
 MOSAPI void __CppInitVectoredEH(void);
+#endif
+
+/* StdioInitialize
+ * Initializes default handles and resources */
+_CRTIMP
+void
+StdioInitialize(void);
 
 /* Unescape Quotes in arguments */
 void UnEscapeQuotes(char *Arg)
@@ -137,15 +147,24 @@ int ParseCommandLine(char *CmdLine, char **ArgBuffer)
 	return ArgCount;
 }
 
-/* CRT Initialization sequence 
- * for a shared C/C++ environment 
- * call this in all entry points */
+/* CRT Initialization sequence
+ * for a shared C/C++ environment call this in all entry points */
 void _mCrtInit(ThreadLocalStorage_t *Tls)
 {
+	// Initialize C/CPP
 	__CppInit();
+ 
+	// Initialize the TLS System
 	TLSInitInstance(Tls);
 	TLSInit();
+ 
+	// Initialize STD-C
+	StdioInitialize();
+ 
+	// If msc, initialize the vectored-eh
+ #ifndef __clang__
 	__CppInitVectoredEH();
+ #endif
 }
 
 /* Service Entry Point 

@@ -16,21 +16,25 @@
 * MollenOS CLib - Exit Function (Exit normally with CRT Cleanup)
 */
 
-/* Includes */
+/* Include
+ * - Library */
 #include <stdlib.h>
 
 #ifndef LIBC_KERNEL
+__EXTERN void __CppFinit(void);
+__EXTERN void StdioCleanup(void);
 
-/* Globals */
-extern void __CppFinit(void);
-
-/* Terminate */
+/* exit
+ * Terminates application normally with CRT cleanup. */
 void exit(int Status)
 {
-	/* Cleanup Crt */
+	// Cleanup STD-C
+	StdioCleanup();
+
+	// Cleanup C/CPP
 	__CppFinit();
 
-	/* Exit normally */
+	// Exit
 	_Exit(Status);
 }
 

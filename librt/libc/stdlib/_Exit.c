@@ -27,12 +27,8 @@
  * And it never returns this function */
 void _Exit(int Status)
 {
-	/* Clean us up */
+	// Call for terminate and then yield.
 	Syscall1(SYSCALL_TERMINATE, SYSCALL_PARAM(Status));
-
-	/* Yield */
 	Syscall0(SYSCALL_THREADYIELD);
-
-	/* Forever */
 	for (;;);
 }

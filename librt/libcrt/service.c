@@ -42,14 +42,27 @@ __EXTERN void __CppFinit(void);
 MOSAPI void __CppInitVectoredEH(void);
 #endif
 
+/* StdioInitialize
+ * Initializes default handles and resources */
+_CRTIMP
+void
+StdioInitialize(void);
+
 /* CRT Initialization sequence
- * for a shared C/C++ environment
- * call this in all entry points */
+ * for a shared C/C++ environment call this in all entry points */
 void _mCrtInit(ThreadLocalStorage_t *Tls)
 {
+	// Initialize C/CPP
 	__CppInit();
+
+	// Initialize the TLS System
 	TLSInitInstance(Tls);
 	TLSInit();
+
+	// Initialize STD-C
+	StdioInitialize();
+
+	// If msc, initialize the vectored-eh
 #ifndef __clang__
 	__CppInitVectoredEH();
 #endif

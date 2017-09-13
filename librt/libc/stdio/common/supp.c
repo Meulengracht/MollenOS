@@ -112,6 +112,7 @@ int _fcloseall(void);
 
 /* StdioInitialize
  * Initializes default handles and resources */
+_CRTIMP
 void
 StdioInitialize(void)
 {
@@ -142,6 +143,7 @@ StdioInitialize(void)
 /* StdioCleanup
  * Flushes all files open to disk, and then frees any resources 
  * allocated to the open file handles. */
+_CRTIMP
 void
 StdioCleanup(void)
 {
