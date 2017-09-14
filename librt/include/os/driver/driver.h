@@ -124,7 +124,10 @@ OsStatus_t
 SERVICEABI
 InterruptDriver(
 	_In_ UUId_t Driver,
-	_In_ void *Data)
+    _In_ size_t Argument0,
+    _In_ size_t Argument1,
+    _In_ size_t Argument2,
+    _In_ size_t Argument3)
 {
 	// Variables
 	MRemoteCall_t Request;
@@ -133,7 +136,10 @@ InterruptDriver(
 	// Initialze RPC
 	RPCInitialize(&Request, 1, PIPE_RPCOUT, __DRIVER_INTERRUPT);
 	RPCSetArgument(&Request, 0, (__CONST void*)&NoId, sizeof(UUId_t));
-	RPCSetArgument(&Request, 1, (__CONST void*)&Data, sizeof(void*));
+    RPCSetArgument(&Request, 1, (__CONST void*)&Argument0, sizeof(size_t));
+    RPCSetArgument(&Request, 2, (__CONST void*)&Argument1, sizeof(size_t));
+    RPCSetArgument(&Request, 3, (__CONST void*)&Argument2, sizeof(size_t));
+    RPCSetArgument(&Request, 4, (__CONST void*)&Argument3, sizeof(size_t));
 
 	// Send
 	return RPCEvent(&Request, Driver);

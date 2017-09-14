@@ -739,7 +739,7 @@ UhciProcessRequest(
 		// Notify process of transfer of the status
 		if (Transfer->Transfer.UpdatesOn) {
 			InterruptDriver(Transfer->Requester, 
-				(void*)Transfer->Transfer.PeriodicData);
+				(size_t)Transfer->Transfer.PeriodicData, 0, 0, 0);
 		}
 
 		// Reinitialize the queue-head
@@ -774,7 +774,7 @@ UhciProcessRequest(
 		// Notify process of transfer of the status
 		if (Transfer->Transfer.UpdatesOn) {
 			InterruptDriver(Transfer->Requester, 
-				(void*)Transfer->Transfer.PeriodicData);
+				(size_t)Transfer->Transfer.PeriodicData, 0, 0, 0);
 		}
 
 		// Link the isochronous request in again

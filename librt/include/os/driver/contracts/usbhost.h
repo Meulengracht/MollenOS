@@ -87,20 +87,25 @@ PACKED_TYPESTRUCT(UsbTransaction, {
  * Describes an usb-transfer, that consists of transfer information
  * and a bunch of transactions. */
 PACKED_TYPESTRUCT(UsbTransfer, {
-	// Generic Information
-	UsbTransferType_t					Type;
-	UsbSpeed_t							Speed;
-	size_t								Length;
-	int									Direction; // Uses USB_ENDPOINT_XX
-	UsbTransaction_t					Transactions[3];
+    // Generic Information
+    Flags_t                             Flags;
+	UsbTransferType_t                   Type;
+	UsbSpeed_t                          Speed;
+	size_t                              Length;
+	int                                 Direction; // Uses USB_ENDPOINT_XX
+	UsbTransaction_t                    Transactions[3];
 
 	// Endpoint Information
-	UsbHcEndpointDescriptor_t			Endpoint;
+	UsbHcEndpointDescriptor_t           Endpoint;
 
 	// Periodic Information
-	int									UpdatesOn;
-	__CONST void*						PeriodicData;
+	int	                                UpdatesOn;
+	__CONST void*                       PeriodicData;
 });
+
+/* UsbTransfer::Flags
+ * Bit-definitions and declarations for the field. */
+#define USB_TRANSFER_SHORT_NOT_OK       0x00000001
 
 /* UsbTransferResult
  * Describes the result of an usb-transfer */

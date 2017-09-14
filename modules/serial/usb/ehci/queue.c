@@ -140,20 +140,20 @@ EhciQueueInitialize(
 	// Initialize the dummy (async) transfer-descriptor that we use for queuing
 	Queue->TDPool[EHCI_POOL_TD_ASYNC].Status = EHCI_TD_HALTED;
 	Queue->TDPool[EHCI_POOL_TD_ASYNC].Link = EHCI_LINK_END;
-	Queue->TDPool[EHCI_POOL_TD_ASYNC].AlternativeLink = EHCI_LINK_END;
+    Queue->TDPool[EHCI_POOL_TD_ASYNC].AlternativeLink = EHCI_LINK_END;
+    Queue->TDPool[EHCI_POOL_TD_ASYNC].AlternativeLinkIndex = EHCI_NO_INDEX;
 
-	/* Initialize Async */
-	Controller->QhPool[EHCI_POOL_QH_ASYNC]->LinkPointer = 
-		Controller->QhPool[EHCI_POOL_QH_ASYNC]->PhysicalAddress | EHCI_LINK_QH;
-	Controller->QhPool[EHCI_POOL_QH_ASYNC]->LinkPointerVirtual = 
-		(uint32_t)Controller->QhPool[EHCI_POOL_QH_ASYNC];
+	// Initialize the dummy (async) queue-head that we use for end-link
+	Queue->QHPool[EHCI_POOL_QH_ASYNC].LinkPointer = 
+		(EHCI_POOL_QHINDEX(Controller, EHCI_POOL_QH_ASYNC)) | EHCI_LINK_QH;
+	Queue->QHPool[EHCI_POOL_QH_ASYNC].LinkIndex = EHCI_POOL_QH_ASYNC;
 
-	Controller->QhPool[EHCI_POOL_QH_ASYNC]->Flags = EHCI_QH_RECLAMATIONHEAD;
-	Controller->QhPool[EHCI_POOL_QH_ASYNC]->Overlay.Status = EHCI_TD_HALTED;
-	Controller->QhPool[EHCI_POOL_QH_ASYNC]->Overlay.NextTD = EHCI_LINK_END;
-	Controller->QhPool[EHCI_POOL_QH_ASYNC]->Overlay.NextAlternativeTD =
-		AddressSpaceGetMap(AddressSpaceGetCurrent(), (VirtAddr_t)Controller->TdAsync);
-	Controller->QhPool[EHCI_POOL_QH_ASYNC]->HcdFlags = EHCI_QH_ALLOCATED;
+	Queue->QHPool[EHCI_POOL_QH_ASYNC].Flags = EHCI_QH_RECLAMATIONHEAD;
+	Queue->QHPool[EHCI_POOL_QH_ASYNC].Overlay.Status = EHCI_TD_HALTED;
+	Queue->QHPool[EHCI_POOL_QH_ASYNC].Overlay.NextTD = EHCI_LINK_END;
+	Queue->QHPool[EHCI_POOL_QH_ASYNC].Overlay.NextAlternativeTD =
+		EHCI_POOL_TDINDEX(Controller, EHCI_POOL_TD_ASYNC);
+	Queue->QHPool[EHCI_POOL_QH_ASYNC].HcdFlags = EHCI_QH_ALLOCATED;
 
 	// Allocate the transaction list
 	Queue->TransactionList = ListCreate(KeyInteger, LIST_SAFE);
@@ -167,7 +167,7 @@ EhciQueueInitialize(
 	Controller->OpRegisters->PeriodicListAddress = 
 		(reg32_t)Queue->FrameListPhysical;
 	Controller->OpRegisters->AsyncListAddress = 
-		(reg32_t)Queue->QHPool[EHCI_POOL_QH_ASYNC].PhysicalAddress | EHCI_LINK_QH;
+		(reg32_t)EHCI_POOL_QHINDEX(Controller, EHCI_POOL_QH_ASYNC) | EHCI_LINK_QH;
 }
 
 /* EhciQueueDestroy
@@ -180,616 +180,463 @@ EhciQueueDestroy(
 
 }
 
-/* Helpers */
+/* EhciConditionCodeToIndex
+ * Converts a given condition bit-index to number */
 int
 EhciConditionCodeToIndex(
-	_In_ uint32_t ConditionCode)
+	_In_ unsigned ConditionCode)
 {
-	/* Vars */
+    // Variables
+	unsigned Cc = ConditionCode;
 	int bCount = 0;
-	uint32_t Cc = ConditionCode;
 
-	/* Keep bit-shifting */
+	// Shift untill we reach 0, count number of shifts
 	for (; Cc != 0;) {
 		bCount++;
 		Cc >>= 1;
 	}
-
-	/* Done */
 	return bCount;
 }
 
-/* Enables the async scheduler if it 
- * is not enabled already */
-void EhciEnableAsyncScheduler(EhciController_t *Controller)
+/* EhciEnableAsyncScheduler
+ * Enables the async scheduler if it is not enabled already */
+void
+EhciEnableAsyncScheduler(
+    _In_ EhciController_t *Controller)
 {
-	/* Vars */
-	uint32_t Temp = 0;
+	// Variables
+	reg32_t Temp = 0;
 
-	/* Sanity */
-	if (Controller->OpRegisters->UsbStatus & EHCI_STATUS_ASYNC_ACTIVE)
+	// Sanitize the current status
+	if (Controller->OpRegisters->UsbStatus & EHCI_STATUS_ASYNC_ACTIVE) {
 		return;
+    }
 
-	/* Enable */
+	// Fire the enable command
 	Temp = Controller->OpRegisters->UsbCommand;
 	Temp |= EHCI_COMMAND_ASYNC_ENABLE;
 	Controller->OpRegisters->UsbCommand = Temp;
 }
 
-/* Disables the async sheduler if it 
- * is not disabled already */
-void EhciDisableAsyncScheduler(EhciController_t *Controller)
+/* EhciDisableAsyncScheduler
+ * Disables the async sheduler if it is not disabled already */
+void
+EhciDisableAsyncScheduler(
+    _In_ EhciController_t *Controller)
 {
-	/* Vars */
-	uint32_t Temp = 0;
+    // Variables
+    reg32_t Temp = 0;
 
-	/* If it's not running do nothing */
-	if (!(Controller->OpRegisters->UsbStatus & EHCI_STATUS_ASYNC_ACTIVE))
+	// Sanitize its current status
+	if (!(Controller->OpRegisters->UsbStatus & EHCI_STATUS_ASYNC_ACTIVE)) {
 		return;
+    }
 
-	/* Disable */
+	// Fire off disable command
 	Temp = Controller->OpRegisters->UsbCommand;
 	Temp &= ~(EHCI_COMMAND_ASYNC_ENABLE);
 	Controller->OpRegisters->UsbCommand = Temp;
 }
 
-/* This functions rings the bell
- * and waits for the door to open */
-void EhciRingDoorbell(EhciController_t *Controller, Addr_t *Data)
+/* EhciRingDoorbell
+ * This functions rings the bell */
+void
+EhciRingDoorbell(
+    _In_ EhciController_t *Controller)
 {
-	/* Now we have to force a doorbell */
-	if (!Controller->BellIsRinging) {
-		Controller->BellIsRinging = 1;
+	// If the bell is already ringing, force a re-bell
+	if (!Controller->QueueControl.BellIsRinging) {
+		Controller->QueueControl.BellIsRinging = 1;
 		Controller->OpRegisters->UsbCommand |= EHCI_COMMAND_IOC_ASYNC_DOORBELL;
 	}
-	else
-		Controller->BellReScan = 1;
-
-	/* Flush */
-	MemoryBarrier();
-
-	/* Wait */
-	SchedulerSleepThread(Data, 5000);
-	IThreadYield();
+	else {
+		Controller->QueueControl.BellReScan = 1;
+    }
 }
 
-/* Get's a pointer to the next virtaul 
- * link, only Qh's have this implemented 
+/* EhciNextGenericLink
+ * Get's a pointer to the next virtual link, only Qh's have this implemented 
  * right now and will need modifications */
-EhciGenericLink_t *EhciNextGenericLink(EhciGenericLink_t *Link, uint32_t Type)
+EhciGenericLink_t*
+EhciNextGenericLink(
+    EhciGenericLink_t *Link, 
+    uintptr_t Type)
 {
+    // @todo
 	switch (Type) {
-	case EHCI_LINK_QH:
-		return (EhciGenericLink_t*)&Link->Qh->LinkPointerVirtual;
-	case EHCI_LINK_FSTN:
-		return (EhciGenericLink_t*)&Link->FSTN->PathPointer;
-	case EHCI_LINK_iTD:
-		return (EhciGenericLink_t*)&Link->iTd->Link;
-	default:
-		return (EhciGenericLink_t*)&Link->siTd->Link;
+        case EHCI_LINK_QH:
+            return (EhciGenericLink_t*)&Link->Qh->LinkPointerVirtual;
+        case EHCI_LINK_FSTN:
+            return (EhciGenericLink_t*)&Link->FSTN->PathPointer;
+        case EHCI_LINK_iTD:
+            return (EhciGenericLink_t*)&Link->iTd->Link;
+        default:
+            return (EhciGenericLink_t*)&Link->siTd->Link;
 	}
 }
 
-/* This function links an interrupt Qh 
- * into the schedule at Qh->sFrame 
+/* EhciLinkPeriodicQh
+ * This function links an interrupt Qh into the schedule at Qh->sFrame 
  * and every other Qh->Interval */
-void EhciLinkPeriodicQh(EhciController_t *Controller, EhciQueueHead_t *Qh)
+void
+EhciLinkPeriodicQh(
+    _In_ EhciController_t *Controller, 
+    _In_ EhciQueueHead_t *Qh)
 {
-	/* Vars */
+    // Variables
 	size_t Period = Qh->Interval;
 	size_t i;
 
-	/* Sanity 
-	 * a minimum of every frame */
-	if (Period == 0)
+	// Sanity the period, it must be _atleast_ 1
+    if (Period == 0) {
 		Period = 1;
+    }
 
-	/* Iterate */
-	for (i = Qh->sFrame; i < Controller->FLength; i += Period) 
-	{
-		/* Virtual Pointer */
-		EhciGenericLink_t *pLink =
-			(EhciGenericLink_t*)&Controller->VirtualList[i];
+	// Iterate the entire framelist and install the periodic qh
+	for (i = Qh->sFrame; i < Controller->QueueControl.FrameList; i += Period) {
+		// Retrieve a virtual pointer and a physical
+        EhciGenericLink_t *VirtualLink =
+            (EhciGenericLink_t*)&Controller->QueueControl.VirtualList[i];
+		uintptr_t *PhysicalLink = &Controller->QueueControl.FrameList[i];
+		EhciGenericLink_t This = *VirtualLink;
+		uintptr_t Type = 0;
 
-		/* Hardware Pointer */
-		uint32_t *pHw = &Controller->FrameList[i];
-
-		/* Lokals */
-		EhciGenericLink_t This = *pLink;
-		uint32_t Type = 0;
-
-		/* Iterate past isochronous tds */
+		// Iterate past isochronous tds
 		while (This.Address) {
-			Type = EHCI_LINK_TYPE(*pHw);
-			if (Type == EHCI_LINK_QH)
+			Type = EHCI_LINK_TYPE(*PhysicalLink);
+			if (Type == EHCI_LINK_QH) {
 				break;
+            }
 
-			/* Next */
-			pLink = EhciNextGenericLink(pLink, Type);
-			pHw = &This.Address;
-			This = *pLink;
+            // Update iterators
+			VirtualLink = EhciNextGenericLink(VirtualLink, Type);
+			PhysicalLink = &This.Address;
+			This = *VirtualLink;
 		}
 
-		/* sorting each branch by period (slow-->fast)
-		 * enables sharing interior tree nodes */
+		// sorting each branch by period (slow-->fast)
+		// enables sharing interior tree nodes
 		while (This.Address && Qh != This.Qh) {
-			/* Sanity */
-			if (Qh->Interval > This.Qh->Interval)
+			if (Qh->Interval > This.Qh->Interval) {
 				break;
+            }
 
-			/* Move to next */
-			pLink = (EhciGenericLink_t*)&This.Qh->LinkPointerVirtual;
-			pHw = &This.Qh->LinkPointer;
-			This = *pLink;
+			// Update iterators
+			VirtualLink = (EhciGenericLink_t*)&Controller->QueueControl.QHPool[This.Qh->LinkIndex];
+			PhysicalLink = &This.Qh->LinkPointer;
+			This = *VirtualLink;
 		}
 
-		/* link in this qh, unless some earlier pass did that */
-		if (Qh != This.Qh) 
-		{
-			/* Steal link */
-			Qh->LinkPointerVirtual = (uint32_t)This.Qh;
-			if (This.Qh)
-				Qh->LinkPointer = *pHw;
+		// link in this qh, unless some earlier pass did that
+		if (Qh != This.Qh) {
+			Qh->LinkIndex = This.Qh->Index;
+			if (This.Qh) {
+				Qh->LinkPointer = *PhysicalLink;
+            }
 
-			/* Memory Barrier */
+            // Flush memory writes
 			MemoryBarrier();
 
-			/* Link it in */
-			pLink->Qh = Qh;
-			*pHw = (Qh->PhysicalAddress | EHCI_LINK_QH);
+			// Perform linking
+			VirtualLink->Qh = Qh;
+			*PhysicalLink = (EHCI_POOL_QHINDEX(Controller, Qh->Index) | EHCI_LINK_QH);
 		}
 	}
 }
 
-/* Generic unlink from periodic lsit 
- * needs a bit more information as it
+/* EhciUnlinkPeriodic
+ * Generic unlink from periodic list needs a bit more information as it
  * is used for all formats */
-void EhciUnlinkPeriodic(EhciController_t *Controller, Addr_t Address, size_t Period, size_t sFrame)
+void
+EhciUnlinkPeriodic(
+    _In_ EhciController_t *Controller, 
+    _In_ uintptr_t Address, 
+    _In_ size_t Period, 
+    _In_ size_t sFrame)
 {
-	/* Vars */
+	// Variables
 	size_t i;
 
-	/* Sanity
-	* a minimum of every frame */
-	if (Period == 0)
+	// Sanity the period, it must be _atleast_ 1
+    if (Period == 0) {
 		Period = 1;
+    }
 
-	/* We should mark Qh->Flags |= EHCI_QH_INVALIDATE_NEXT 
-	 * and wait for next frame */
-	/* Iterate */
-	for (i = sFrame; i < Controller->FLength; i += Period)
-	{
-		/* Virtual Pointer */
-		EhciGenericLink_t *pLink =
-			(EhciGenericLink_t*)&Controller->VirtualList[i];
+	// We should mark Qh->Flags |= EHCI_QH_INVALIDATE_NEXT 
+	// and wait for next frame
+	for (i = sFrame; i < Controller->QueueControl.FrameList; i += Period) {
+		// Retrieve a virtual pointer and a physical
+        EhciGenericLink_t *VirtualLink =
+            (EhciGenericLink_t*)&Controller->QueueControl.VirtualList[i];
+        uintptr_t *PhysicalLink = &Controller->QueueControl.FrameList[i];
+        EhciGenericLink_t This = *VirtualLink;
+        uintptr_t Type = 0;
 
-		/* Hardware Pointer */
-		uint32_t *pHw = &Controller->FrameList[i];
-
-		/* Lokals */
-		EhciGenericLink_t This = *pLink;
-		uint32_t Type = 0;
-
-		/* Find previous handle that points to our qh */
-		while (This.Address 
-			&& This.Address != Address) 
-		{
-			/* Just keep going forward ! */
-			Type = EHCI_LINK_TYPE(*pHw);
-			pLink = EhciNextGenericLink(pLink, Type);
-			pHw = &This.Address;
-			This = *pLink;
+		// Find previous handle that points to our qh
+		while (This.Address && This.Address != Address) {
+			Type = EHCI_LINK_TYPE(*PhysicalLink);
+			VirtualLink = EhciNextGenericLink(VirtualLink, Type);
+			PhysicalLink = &This.Address;
+			This = *VirtualLink;
 		}
 
-		/* Make sure we are not at end */
-		if (!This.Address)
+		// Sanitize end of list, it didn't exist
+		if (!This.Address) {
 			return;
+        }
 
-		/* Update links */
-		Type = EHCI_LINK_TYPE(*pHw);
-		*pLink = *EhciNextGenericLink(&This, Type);
+		// Perform the unlinking
+		Type = EHCI_LINK_TYPE(*PhysicalLink);
+		*VirtualLink = *EhciNextGenericLink(&This, Type);
 
-		if (*(&This.Address) != EHCI_LINK_END)
-			*pHw = *(&This.Address);
+		if (*(&This.Address) != EHCI_LINK_END) {
+			*PhysicalLink = *(&This.Address);
+        }
 	}
 }
 
-/* Queue Functions */
-
-/* This allocates a QH for a
-* Control, Bulk and Interrupt 
-* transaction and should not be 
-* used for isoc */
-EhciQueueHead_t *EhciAllocateQh(EhciController_t *Controller, UsbTransferType_t Type)
+/* EhciQhAllocate
+ * This allocates a QH for a Control, Bulk and Interrupt 
+ * transaction and should not be used for isoc */
+EhciQueueHead_t*
+EhciQhAllocate(
+    _In_ EhciController_t *Controller, 
+    _In_ UsbTransferType_t Type)
 {
-	/* Vars */
-	EhciQueueHead_t *Qh = NULL;
+	// Variables
+    EhciQueueHead_t *Qh = NULL;
+    int i;
 
-	/* Acquire Lock */
-	SpinlockAcquire(&Controller->Lock);
+	// Acquire controller lock
+    SpinlockAcquire(&Controller->Base.Lock);
+    
+    // Iterate the pool and find a free entry
+    for (i = EHCI_POOL_QH_START; i < EHCI_POOL_NUM_QH; i++) {
+        if (Controller->QueueControl.QHPool[i].HcdFlags & EHCI_QH_ALLOCATED) {
+            continue;
+        }
 
-	/* Allocate based on transaction type */
-	if (Type == ControlTransfer
-		|| Type == BulkTransfer)
-	{
-		/* Take from the pool */
-		int i;
+        // Set initial state
+        Controller->QueueControl.QHPool[i].Overlay.Status = EHCI_TD_HALTED;
+        Controller->QueueControl.QHPool[i].HcdFlags = EHCI_QH_ALLOCATED;
+        Qh = &Controller->QueueControl.QHPool[i];
+        break;
+    }
 
-		/* Iterate */
-		for (i = 0; i < EHCI_POOL_NUM_QH; i++) {
-			/* Sanity */
-			if (Controller->QhPool[i]->HcdFlags & EHCI_QH_ALLOCATED)
-				continue;
+    // Did we find anything? 
+    if (Qh == NULL) {
+        ERROR("EhciQhAllocate::(RAN OUT OF QH's)");
+    }
 
-			/* Allocate */
-			Controller->QhPool[i]->Overlay.Status = EHCI_TD_HALTED;
-			Controller->QhPool[i]->HcdFlags = EHCI_QH_ALLOCATED;
-
-			/* Done! */
-			Qh = Controller->QhPool[i];
-			break;
-		}
-
-		/* Sanity */
-		if (i == EHCI_POOL_NUM_QH)
-			kernel_panic("USB_EHCI::: RAN OUT OF QH'S!\n");
-	}
-	else if (Type == InterruptTransfer)
-	{
-		/* Interrupt -> Allocate */
-		Addr_t pSpace = (Addr_t)kmalloc(sizeof(EhciQueueHead_t) + EHCI_STRUCT_ALIGN);
-		pSpace = ALIGN(pSpace, EHCI_STRUCT_ALIGN, 1);
-
-		/* Memset */
-		memset((void*)pSpace, 0, sizeof(EhciQueueHead_t));
-
-		/* Cast */
-		Qh = (EhciQueueHead_t*)pSpace;
-
-		/* Setup */
-		Qh->Overlay.Status = EHCI_TD_HALTED;
-		Qh->Overlay.NextTD = EHCI_LINK_END;
-		Qh->Overlay.NextAlternativeTD = EHCI_LINK_END;
-		Qh->PhysicalAddress = AddressSpaceGetMap(AddressSpaceGetCurrent(), (VirtAddr_t)Qh);
-
-		/* Set allocated */
-		Qh->HcdFlags = EHCI_QH_ALLOCATED;
-	}
-	else
-	{
-		/* Isoc */
-	}
-
-	/* Unlock */
-	SpinlockRelease(&Controller->Lock);
-
-	/* Done */
+	// Release controller lock
+	SpinlockRelease(&Controller->Base.Lock);
 	return Qh;
 }
 
-/* This initiates any 
- * periodic scheduling 
- * information that might be 
- * needed */
-void EhciInititalizeQh(EhciController_t *Controller, UsbHcRequest_t *Request, EhciQueueHead_t *Qh)
+/* EhciQhInitialize
+ * This initiates any periodic scheduling information 
+ * that might be needed */
+void
+EhciQhInitialize(
+    _In_ EhciController_t *Controller, 
+    _In_ EhciQueueHead_t *Qh,
+    _In_ UsbSpeed_t Speed,
+    _In_ int Direction,
+    _In_ UsbTransferType_t Type,
+    _In_ size_t EndpointInterval,
+    _In_ size_t EndpointMaxPacketSize,
+    _In_ size_t TransferLength)
 {
-	/* Get frame-count */
-	uint32_t TransactionsPerFrame = Request->Endpoint->Bandwidth;
+    // Variables
+    int TransactionsPerFrame = DIVUP(TransferLength, EndpointMaxPacketSize);
 
-	/* Calculate Bandwidth */
-	Qh->Bandwidth = (uint16_t)
-		NS_TO_US(UsbCalculateBandwidth(Request->Speed,
-		Request->Endpoint->Direction, Request->Type,
-		TransactionsPerFrame * Request->Endpoint->MaxPacketSize));
+	// Calculate the neccessary bandwidth
+	Qh->Bandwidth = (reg32_t)
+        NS_TO_US(UsbCalculateBandwidth(Speed, 
+            Direction, Type, TransferLength));
 
-	/* Calculate actual period */
-	if (Request->Speed == HighSpeed
-		|| (Request->Speed == FullSpeed && Request->Type == IsochronousTransfer))
-	{
-		/* Calculate period as 2^(Interval-1) */
-		Qh->Interval = (1 << Request->Endpoint->Interval);
+    // Calculate the frame period
+    // If highspeed/fullspeed or Isoc calculate period as 2^(Interval-1)
+	if (Speed == HighSpeed
+		|| (Speed == FullSpeed && Type == IsochronousTransfer)) {
+		Qh->Interval = (1 << EndpointInterval);
 	}
-	else
-		Qh->Interval = Request->Endpoint->Interval;
+	else {
+		Qh->Interval = EndpointInterval;
+    }
 
 	/* Validate Bandwidth */
-	if (UsbSchedulerValidate(Controller->Scheduler, Qh->Interval, Qh->Bandwidth, TransactionsPerFrame))
-		LogDebug("EHCI", "Couldn't allocate space in scheduler for params %u:%u", 
+    if (UsbSchedulerValidate(Controller->Scheduler, 
+        Qh->Interval, Qh->Bandwidth, TransactionsPerFrame)) {
+		TRACE("EHCI::Couldn't allocate space in scheduler for params %u:%u", 
 			Qh->Interval, Qh->Bandwidth);
+    }
 }
 
-/* Transfer Descriptor Functions */
-
-/* This allocates a QTD (TD) for 
- * Control, Bulk and Interrupt */
-EhciTransferDescriptor_t *EhciAllocateTd(EhciEndpoint_t *Ep)
+/* EhciTdAllocate
+ * This allocates a QTD (TD) for Control, Bulk and Interrupt */
+EhciTransferDescriptor_t*
+EhciTdAllocate(
+    _In_ EhciController_t *Controller)
 {
-	/* Vars */
+	// Variables
 	EhciTransferDescriptor_t *Td = NULL;
-	size_t i;
+	int i;
 
-	/* Acquire Lock */
-	SpinlockAcquire(&Ep->Lock);
+	// Acquire controller lock
+    SpinlockAcquire(&Controller->Base.Lock);
+    
+    // Iterate the pool and find a free entry
+    for (i = 0; i < EHCI_POOL_TD_ASYNC; i++) {
+        if (Controller->QueueControl.TDPool[i].HcdFlags & EHCI_TD_ALLOCATED) {
+            continue;
+        }
 
-	/* If EP is empty, custom allocation */
-	if (Ep->TdsAllocated != 0)
-	{
-		/* Grap it, locked operation */
-		for (i = 0; i < Ep->TdsAllocated; i++)
-		{
-			/* Sanity */
-			if (Ep->TDPool[i]->HcdFlags & EHCI_TD_ALLOCATED)
-				continue;
-
-			/* Yay!! */
-			Ep->TDPool[i]->HcdFlags = EHCI_TD_ALLOCATED;
-			Td = Ep->TDPool[i];
-			break;
-		}
-
-		/* Sanity */
-		if (i == Ep->TdsAllocated)
-			kernel_panic("USB_EHCI::WTF ran out of TD's!!!!\n");
-	}
-	else
-	{
-		/* Interrupt */
-		Td = (EhciTransferDescriptor_t*)ALIGN(
-			(Addr_t)kmalloc(sizeof(EhciTransferDescriptor_t) + EHCI_STRUCT_ALIGN), EHCI_STRUCT_ALIGN, 1);
-
-		/* Initialize */
-		memset(Td, 0, sizeof(EhciTransferDescriptor_t));
+        // Perform allocation
+        Controller->QueueControl.TDPool[i].HcdFlags = EHCI_TD_ALLOCATED;
+        Td = &Controller->QueueControl.TDPool[i];
+        break;
 	}
 
-	/* Release */
-	SpinlockRelease(&Ep->Lock);
+    // Sanitize end of list, no allocations?
+    if (Td == NULL) {
+        ERROR("EhciTdAllocate::Ran out of TD's");
+    }
 
-	/* Done! */
+	// Release controller lock
+	SpinlockRelease(&Controller->Base.Lock);
 	return Td;
 }
 
-/* This allocates buffer-space for 
- * all types of transfers */
-Addr_t *EhciAllocateBuffers(EhciEndpoint_t *Ep, size_t Length, uint16_t *BufInfo)
+/* EhciTdFill
+ * This sets up a QTD (TD) buffer structure and makes 
+ * sure it's split correctly out on all the pages */
+size_t
+EhciTdFill(
+    _In_ EhciTransferDescriptor_t *Td, 
+    _In_ uintptr_t BufferAddress, 
+    _In_ size_t Length)
 {
-	/* Vars */
-	Addr_t *Buffer = NULL;
-	size_t i, j, NumPages = 0;
-	uint16_t bInfo = 0;
-
-	/* Sanity */
-	if (Length == 0)
-		return NULL;
-
-	/* How many pages to allocate? */
-	NumPages = DIVUP(Length, PAGE_SIZE);
-	bInfo = ((NumPages & 0xF) << 8);
-
-	/* Acquire Lock */
-	SpinlockAcquire(&Ep->Lock);
-
-	/* Sanity */
-	if (Ep->BuffersAllocated != 0)
-	{
-		/* Grap it, locked operation */
-		for (i = 0; i < Ep->BuffersAllocated; i++)
-		{
-			/* Sanity */
-			if (Ep->BufferPoolStatus[i] == EHCI_POOL_BUFFER_ALLOCATED)
-				continue;
-
-			/* Yay!! */
-			Buffer = Ep->BufferPool[i];
-
-			/* Store */
-			bInfo |= (i & 0xFF);
-
-			/* Now, how many should we allocate? */
-			for (j = 0; j < NumPages; j++) {
-				Ep->BufferPoolStatus[i + j] = EHCI_POOL_BUFFER_ALLOCATED;
-			}
-
-			break;
-		}
-
-		/* Sanity */
-		if (i == Ep->TdsAllocated)
-			kernel_panic("USB_EHCI::WTF ran out of TD BUFFERS!!!!\n");
-	}
-	else
-	{
-		/* Interrupt & Isoc */
-		Buffer = kmalloc_a(PAGE_SIZE * NumPages);
-	}
-
-	/* Release */
-	SpinlockRelease(&Ep->Lock);
-
-	/* Memset */
-	memset(Buffer, 0, PAGE_SIZE * NumPages);
-
-	/* Update */
-	*BufInfo = bInfo;
-
-	/* Done! */
-	return Buffer;
-}
-
-/* This deallocates the buffer-space
- * which was requested for a td */
-void EhciDeallocateBuffers(EhciEndpoint_t *Ep, EhciTransferDescriptor_t *Td)
-{
-	/* Vars */
-	uint32_t BufferIndex = 0;
-	uint32_t BufferCount = 0;
-	uint32_t i;
-
-	/* Get lock */
-	SpinlockAcquire(&Ep->Lock);
-
-	/* Get counts */
-	BufferIndex = EHCI_TD_GETIBUF(Td->HcdFlags);
-	BufferCount = EHCI_TD_GETJBUF(Td->HcdFlags);
-
-	/* Sanity */
-	if (BufferCount != 0) {
-		/* Iterate and free */
-		for (i = 0; i < BufferCount; i++) {
-			Ep->BufferPoolStatus[BufferIndex + i] = 0;
-		}
-	}
-
-	/* Release lock */
-	SpinlockRelease(&Ep->Lock);
-}
-
-/* This sets up a QTD (TD) buffer
- * structure and makes sure it's split correctly 
- * out on all the pages */
-size_t EhciTdFill(EhciTransferDescriptor_t *Td, Addr_t Buffer, size_t Length)
-{
-	/* Vars */
+	// Variables
 	size_t LengthRemaining = Length;
 	size_t Count = 0;
 	int i;
 
-	/* Sanity */
-	if (Length == 0)
+	// Sanitize parameters
+	if (Length == 0 || BufferAddress == 0) {
 		return 0;
+    }
 
-	/* Iterate */
-	for (i = 0; LengthRemaining > 0 && i < 5; i++)
-	{
-		/* Get physical */
-		Addr_t Physical = AddressSpaceGetMap(AddressSpaceGetCurrent(), Buffer + (i * PAGE_SIZE));
-
-		/* Set buffer */
-		Td->Buffers[i] = EHCI_TD_BUFFER(Physical);
-
-		/* Set extended? */
-		if (sizeof(Addr_t) > 4)
-			Td->ExtBuffers[i] = EHCI_TD_EXTBUFFER((uint64_t)Physical);
-		else
+	// Iterate buffers
+	for (i = 0; LengthRemaining > 0 && i < 5; i++) {
+		uintptr_t Physical = BufferAddress + (i * 0x1000);
+        
+        // Update buffer
+        Td->Buffers[i] = EHCI_TD_BUFFER(Physical);
+		if (sizeof(uintptr_t) > 4) {
+			Td->ExtBuffers[i] = EHCI_TD_EXTBUFFER(Physical);
+        }
+		else {
 			Td->ExtBuffers[i] = 0;
+        }
 
-		/* Increase */
+		// Update iterators
 		Count += MIN(0x1000, LengthRemaining);
-
-		/* Decrease remaining length */
 		LengthRemaining -= MIN(0x1000, LengthRemaining);
     }
 
-	/* Done */
+    // Return how many bytes were "buffered"
 	return Count;
 }
 
-/* This allocates & initializes 
- * a TD for a setup transaction 
- * this is only used for control
- * transactions */
-EhciTransferDescriptor_t *EhciTdSetup(EhciEndpoint_t *Ep, UsbPacket_t *pPacket, void **TDBuffer)
+/* EhciTdSetup
+ * This allocates & initializes a TD for a setup transaction 
+ * this is only used for control transactions */
+EhciTransferDescriptor_t*
+EhciTdSetup(
+    _In_ EhciController_t *Controller, 
+	_In_ UsbTransaction_t *Transaction)
 {
-	/* Vars */
+	// Variables
 	EhciTransferDescriptor_t *Td;
-	uint16_t BufInfo = 0;
-	void *Buffer;
 
-	/* Allocate a Td */
-	Td = EhciAllocateTd(Ep);
+	// Allocate the transfer-descriptor
+	Td = EhciTdAllocate(Controller);
 
-	/* Grab a Buffer */
-	Buffer = EhciAllocateBuffers(Ep, sizeof(UsbPacket_t), &BufInfo);
-
-	/* Invalidate Links */
+	// Initialize the transfer-descriptor
 	Td->Link = EHCI_LINK_END;
-	Td->AlternativeLink = EHCI_LINK_END;
-
-	/* Set Status */
+    Td->AlternativeLink = EHCI_LINK_END;
+    Td->AlternativeLinkIndex = EHCI_NO_INDEX;
 	Td->Status = EHCI_TD_ACTIVE;
-
-	/* Setup Token */
 	Td->Token = EHCI_TD_SETUP;
 	Td->Token |= EHCI_TD_ERRCOUNT;
 
-	/* Setup Length */
-	Td->Length = EHCI_TD_LENGTH((uint16_t)EhciTdFill(Td, (Addr_t)Buffer, sizeof(UsbPacket_t)));
+	// Calculate the length of the setup transfer
+    Td->Length = (uint16_t)(EHCI_TD_LENGTH(EhciTdFill(Td, 
+        Transaction->BufferAddress, sizeof(UsbPacket_t))));
 
-	/* Copy data to TD buffer */
-	*TDBuffer = Buffer;
-	memcpy(Buffer, (void*)pPacket, sizeof(UsbPacket_t));
-
-	/* Store information 
-	 * about the buffer allocation */
-	Td->HcdFlags |= EHCI_TD_IBUF(BufInfo);
-	Td->HcdFlags |= EHCI_TD_JBUF((BufInfo >> 8));
-
-	/* Done */
+	// Return the allocated descriptor
 	return Td;
 }
 
-/* This allocates & initializes
-* a TD for an i/o transaction 
-* and is used for control, bulk 
-* and interrupt */
-EhciTransferDescriptor_t *EhciTdIo(EhciController_t *Controller, 
-	EhciEndpoint_t *Ep, UsbHcRequest_t *Request, uint32_t PId,
-	size_t Length, void **TDBuffer)
+/* EhciTdIo
+ * This allocates & initializes a TD for an i/o transaction 
+ * and is used for control, bulk and interrupt */
+EhciTransferDescriptor_t*
+EhciTdIo(
+    _In_ EhciController_t *Controller,
+    _In_ UsbTransfer_t *Transfer,
+    _In_ UsbTransaction_t *Transaction,
+	_In_ uint32_t PId,
+	_In_ int Toggle)
 {
-	/* Vars */
+	// Variables
 	EhciTransferDescriptor_t *Td = NULL;
-	uint16_t BufInfo = 0;
-	void *Buffer;
 
-	/* Allocate a Td */
-	Td = EhciAllocateTd(Ep);
+	// Allocate a new td
+	Td = EhciTdAllocate(Controller);
 
-	/* Sanity */
-	Buffer = EhciAllocateBuffers(Ep, Length, &BufInfo);
-
-	/* Invalidate Links */
+	// Initialize the new Td
 	Td->Link = EHCI_LINK_END;
-	Td->AlternativeLink = EHCI_LINK_END;
-
-	/* Short packet not ok? */
-	//if (Request->Flags & USB_SHORT_NOT_OK && PId == EHCI_TD_IN)
-	//	Td->AlternativeLink = Controller->TdAsync->PhysicalAddress;
-	_CRT_UNUSED(Controller);
-
-	/* Set Status */
+    Td->AlternativeLink = EHCI_LINK_END;
+    Td->AlternativeLinkIndex = EHCI_NO_INDEX;
 	Td->Status = EHCI_TD_ACTIVE;
-
-	/* Setup Token */
 	Td->Token = (uint8_t)(PId & 0x3);
 	Td->Token |= EHCI_TD_ERRCOUNT;
+    
+    // Short packet not ok? 
+	if (Transfer->Flags & USB_TRANSFER_SHORT_NOT_OK && PId == EHCI_TD_IN) {
+		Td->AlternativeLink = EHCI_POOL_TDINDEX(Controller, EHCI_POOL_TD_ASYNC);
+        Td->AlternativeLinkIndex = EHCI_POOL_TD_ASYNC;
+    }
 
-	/* Setup Length */
-	Td->Length = EHCI_TD_LENGTH((uint16_t)EhciTdFill(Td, (Addr_t)Buffer, Length));
+	// Calculate the length of the transfer
+    Td->Length = (uint16_t)(EHCI_TD_LENGTH(EhciTdFill(Td, 
+        Transaction->BufferAddress, Transaction->Length)));
 
-	/* Toggle? */
-	if (Request->Endpoint->Toggle)
+	// Set toggle?
+	if (Toggle) {
 		Td->Length |= EHCI_TD_TOGGLE;
+    }
 
-	/* Calculate next toggle 
-	 * if transaction spans multiple transfers */
-	if (Length > 0
-		&& !(DIVUP(Length, Request->Endpoint->MaxPacketSize) % 2))
-		Request->Endpoint->Toggle ^= 0x1;
+	// Calculate next toggle 
+    // if transaction spans multiple transfers
+    // @todo
+	if (Transaction->Length > 0
+		&& !(DIVUP(Transaction->Length, Transfer->Endpoint.MaxPacketSize) % 2)) {
+        Toggle ^= 0x1;
+    }
 
-	/* Store buffer */
-	*TDBuffer = Buffer;
-
-	/* Store information
-	* about the buffer allocation */
-	Td->HcdFlags |= EHCI_TD_IBUF(BufInfo);
-	Td->HcdFlags |= EHCI_TD_JBUF((BufInfo >> 8));
-
-	/* Done */
+	// Setup done, return the new descriptor
 	return Td;
 }
 
 /* Restarts an interrupt QH 
  * by resetting it to it's start state */
-void EhciRestartQh(EhciController_t *Controller, UsbHcRequest_t *Request)
+void
+EhciRestartQh(
+    EhciController_t *Controller, 
+    UsbManagerTransfer_t *Transfer)
 {
 	/* Get transaction list */
 	UsbHcTransaction_t *tList = (UsbHcTransaction_t*)Request->Transactions;
@@ -835,11 +682,12 @@ void EhciRestartQh(EhciController_t *Controller, UsbHcRequest_t *Request)
 	Qh->Overlay.NextAlternativeTD = EHCI_LINK_END;
 }
 
-/* Scans a QH for 
- * completion or error 
- * returns non-zero if it 
- * has been touched */
-int EhciScanQh(EhciController_t *Controller, UsbHcRequest_t *Request)
+/* Scans a QH for completion or error 
+ * returns non-zero if it has been touched */
+int
+EhciScanQh(
+    EhciController_t *Controller, 
+    UsbManagerTransfer_t *Transfer)
 {
 	/* Get transaction list */
 	UsbHcTransaction_t *tList = (UsbHcTransaction_t*)Request->Transactions;
@@ -972,24 +820,23 @@ void
 EhciProcessDoorBell(
 	_In_ EhciController_t *Controller)
 {
-	/* Vars */
+    // Variables
 	ListNode_t *Node = NULL;
 
 Scan:
-	/* Reset the rescan */
-	Controller->BellReScan = 0;
+    // As soon as we enter the scan area we reset the re-scan
+    // to allow other threads to set it again
+	Controller->QueueControl.BellReScan = 0;
 
 	/* Iterate transactions */
-	_foreach(Node, ((List_t*)Controller->TransactionList))
-	{
-		/* Cast */
-		UsbHcRequest_t *Request = (UsbHcRequest_t*)Node->Data;
+	_foreach(Node, Controller->QueueControl.TransactionList) {
+		// Instantiate a transaction pointer
+        UsbManagerTransfer_t *Transfer = 
+            (UsbManagerTransfer_t*)Node->Data;
 
 		/* Get transaction type */
 		if (Request->Type == ControlTransfer
-			|| Request->Type == BulkTransfer)
-		{
-			/* Cast Qh */
+			|| Request->Type == BulkTransfer) {
 			EhciQueueHead_t *Qh = (EhciQueueHead_t*)Request->Data;
 
 			/* Has it asked to be unscheduled? */
@@ -1000,13 +847,14 @@ Scan:
 		}
 	}
 
-	/* If someone has rung the bell while 
-	 * the door was opened, we should not close the door yet */
-	if (Controller->BellReScan != 0)
+	// If someone has rung the bell while 
+	// the door was opened, we should not close the door yet
+	if (Controller->QueueControl.BellReScan != 0) {
 		goto Scan;
+    }
 
-	/* Bell is no longer ringing */
-	Controller->BellIsRinging = 0;
+	// Bell is no longer ringing
+	Controller->QueueControl.BellIsRinging = 0;
 }
 
 /* Re-enable warnings */

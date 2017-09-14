@@ -27,10 +27,12 @@
  * - System */
 #include <os/driver/device.h>
 #include <os/thread.h>
+#include <os/utils.h>
 #include "ehci.h"
 
 /* Includes
  * - Library */
+#include <stdlib.h>
 #include <string.h>
 
 /* Prototypes 
@@ -209,9 +211,9 @@ EhciDisableLegacySupport(
 	if (Eecp >= 0x40) {
 
 		// Variables
-		volatile Flags_t Semaphore = 0;
-		volatile Flags_t CapId = 0;
-		volatile Flags_t NextEecp = 0;
+		Flags_t Semaphore = 0;
+		Flags_t CapId = 0;
+		Flags_t NextEecp = 0;
 		int Run = 1;
 
 		// Get the extended capability register
@@ -268,7 +270,7 @@ EhciDisableLegacySupport(
 						break;
 					}
 					if (One >= 250) {
-						Log("EHCI: Failed to release BIOS Semaphore");
+						TRACE("EHCI: Failed to release BIOS Semaphore");
 						break;
 					}
 					ThreadSleep(10);
@@ -282,7 +284,7 @@ EhciDisableLegacySupport(
 						break;
 					}
 					if (One >= 250) {
-						Log("EHCI: Failed to set OS Semaphore");
+						TRACE("EHCI: Failed to set OS Semaphore");
 						break;
 					}
 					ThreadSleep(10);
@@ -439,7 +441,8 @@ EhciRestart(
 	Controller->OpRegisters->UsbCommand = TemporaryValue;
 
 	// Mark as configured, this will enable the controller
-	Controller->OpRegisters->ConfigFlag = 1;
+    Controller->OpRegisters->ConfigFlag = 1;
+    return OsSuccess;
 }
 
 /* EhciSetup
@@ -534,4 +537,5 @@ EhciSetup(
 		}
 	}
 #endif
+    return OsSuccess;
 }

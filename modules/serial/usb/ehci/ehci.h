@@ -361,9 +361,9 @@ PACKED_TYPESTRUCT(EhciTransferDescriptor, {
     // Not seen by hardware, 12 bytes
 	reg32_t                     HcdFlags;
     reg32_t                     Index;
-    reg16_t                     LinkIndex;
-    reg16_t                     AlternativeLinkIndex;
-})
+    uint16_t                    LinkIndex;
+    uint16_t                    AlternativeLinkIndex;
+});
 
 /* EhciTransferDescriptor::Status
  * Contains definitions and bitfield definitions for EhciTransferDescriptor::Status */
@@ -410,10 +410,6 @@ PACKED_TYPESTRUCT(EhciTransferDescriptor, {
 /* EhciTransferDescriptor::HcdFlags
  * Contains definitions and bitfield definitions for EhciTransferDescriptor::HcdFlags */
 #define EHCI_TD_ALLOCATED			(1 << 0)
-#define EHCI_TD_IBUF(n)				((n & 0xFF) << 8)
-#define EHCI_TD_JBUF(n)				((n & 0xF) << 16)
-#define EHCI_TD_GETIBUF(n)			((n >> 8) & 0xFF)
-#define EHCI_TD_GETJBUF(n)			((n >> 16) & 0xF)
 
 /* EhciQueueHeadOverlay
  * This is the TD work area, most of the members are equal to the definitions
@@ -435,7 +431,7 @@ PACKED_TYPESTRUCT(EhciQueueHeadOverlay, {
 	reg32_t                     ExtBp2;
 	reg32_t                     ExtBp3;
 	reg32_t                     ExtBp4;
-})
+});
 
 /* EhciQueueHeadOverlay::NextAlternativeTD
  * Contains definitions and bitfield definitions for EhciQueueHeadOverlay::NextAlternativeTD
@@ -480,7 +476,7 @@ PACKED_TYPESTRUCT(EhciQueueHead, {
 	reg32_t                 Bandwidth;
 	reg32_t                 sFrame;
 	reg32_t                 sMask;
-})
+});
 
 /* EhciQueueHead::Flags
  * Contains definitions and bitfield definitions for EhciQueueHead::Flags
@@ -523,19 +519,19 @@ PACKED_TYPESTRUCT(EhciQueueHead, {
  * Periodic Frame Span Traversal Node. Must be 32 byte aligned. 
  * This is a hardware link node */
 PACKED_TYPESTRUCT(EhciFSTN, {
-	reg32_t					PathPointer; // HW Link
+	reg32_t					PathPointer;     // HW Link
 	reg32_t					BackPathPointer; // HW Link
-}); 
+});
 
 /* EhciGenericLink (Generic Link Format)
  * This union is used for iterating the periodic list */
 typedef union _EhciGenericLink {
-	EhciQueueHead_t 			*Qh;
-	EhciTransferDescriptor_t 	*Td;
-	EhciIsocDescriptor_t 		*iTd;
-	EhciSplitIsocDescriptor_t 	*siTd;
-	EhciFSTN_t 					*FSTN;
-	uintptr_t 					 Address;
+	EhciQueueHead_t                     *Qh;
+	EhciTransferDescriptor_t            *Td;
+	EhciIsochronousDescriptor_t         *iTd;
+	EhciSplitIsochronousDescriptor_t    *siTd;
+	EhciFSTN_t                          *FSTN;
+	uintptr_t                            Address;
 } EhciGenericLink_t;
 
 /* Pool Definitions */
@@ -547,6 +543,7 @@ typedef union _EhciGenericLink {
 /* Pool Indices */
 #define EHCI_POOL_QH_NULL				0
 #define EHCI_POOL_QH_ASYNC				1
+#define EHCI_POOL_QH_START              2
 #define EHCI_POOL_TD_ASYNC              (EHCI_POOL_NUM_TD - 1)
 
 /* EhciControl
@@ -652,6 +649,13 @@ EhciPortGetStatus(
 	_In_ EhciController_t *Controller,
 	_In_ int Index,
 	_Out_ UsbHcPortDescriptor_t *Port);
+
+/* EhciRingDoorbell
+ * This functions rings the bell */
+__EXTERN
+void
+EhciRingDoorbell(
+     _In_ EhciController_t *Controller);
 
 /* EhciProcessTransfers
  * For transaction progress this involves done/error transfers */
