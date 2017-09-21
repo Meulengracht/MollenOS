@@ -26,6 +26,7 @@
 /* Includes
  * - System */
 #include <os/thread.h>
+#include <os/utils.h>
 #include "ehci.h"
 
 /* Includes
@@ -128,7 +129,7 @@ EhciPortGetStatus(
 
 /* EhciPortSetup 
  * Waits for power-on delay and resets port */
-void
+OsStatus_t
 EhciPortSetup(
 	_In_ EhciController_t *Controller,
 	_In_ int Index)

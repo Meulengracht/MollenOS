@@ -26,26 +26,14 @@
 /* Includes
  * - System */
 #include <os/mollenos.h>
+#include <os/utils.h>
 #include "ehci.h"
 
 /* Includes
  * - Library */
+#include <stdlib.h>
 #include <assert.h>
 #include <string.h>
-
-/* Globals 
- * Error messages for codes that might appear in transfers */
-const char *EhciErrorMessages[] = {
-	"No Error",
-	"Ping State/PERR",
-	"Split Transaction State",
-	"Missed Micro-Frame",
-	"Transaction Error (CRC, Timeout)",
-	"Babble Detected",
-	"Data Buffer Error",
-	"Halted, Stall",
-	"Active"
-};
 
 /* Disable the warning about conditional
  * expressions being constant, they are intentional */
@@ -167,7 +155,9 @@ EhciQueueInitialize(
 	Controller->OpRegisters->PeriodicListAddress = 
 		(reg32_t)Queue->FrameListPhysical;
 	Controller->OpRegisters->AsyncListAddress = 
-		(reg32_t)EHCI_POOL_QHINDEX(Controller, EHCI_POOL_QH_ASYNC) | EHCI_LINK_QH;
+        (reg32_t)EHCI_POOL_QHINDEX(Controller, EHCI_POOL_QH_ASYNC) | EHCI_LINK_QH;
+    
+    return OsSuccess;
 }
 
 /* EhciQueueDestroy
@@ -177,7 +167,7 @@ OsStatus_t
 EhciQueueDestroy(
 	_In_ EhciController_t *Controller)
 {
-
+    return OsError;
 }
 
 /* EhciConditionCodeToIndex
@@ -259,13 +249,13 @@ EhciRingDoorbell(
  * right now and will need modifications */
 EhciGenericLink_t*
 EhciNextGenericLink(
+    EhciController_t *Controller,
     EhciGenericLink_t *Link, 
     uintptr_t Type)
 {
-    // @todo
 	switch (Type) {
         case EHCI_LINK_QH:
-            return (EhciGenericLink_t*)&Link->Qh->LinkPointerVirtual;
+            return (EhciGenericLink_t*)&Controller->QueueControl.QHPool[Link->Qh->LinkIndex];
         case EHCI_LINK_FSTN:
             return (EhciGenericLink_t*)&Link->FSTN->PathPointer;
         case EHCI_LINK_iTD:
@@ -293,7 +283,7 @@ EhciLinkPeriodicQh(
     }
 
 	// Iterate the entire framelist and install the periodic qh
-	for (i = Qh->sFrame; i < Controller->QueueControl.FrameList; i += Period) {
+	for (i = Qh->sFrame; i < Controller->QueueControl.FrameLength; i += Period) {
 		// Retrieve a virtual pointer and a physical
         EhciGenericLink_t *VirtualLink =
             (EhciGenericLink_t*)&Controller->QueueControl.VirtualList[i];
@@ -309,7 +299,7 @@ EhciLinkPeriodicQh(
             }
 
             // Update iterators
-			VirtualLink = EhciNextGenericLink(VirtualLink, Type);
+			VirtualLink = EhciNextGenericLink(Controller, VirtualLink, Type);
 			PhysicalLink = &This.Address;
 			This = *VirtualLink;
 		}
@@ -364,7 +354,7 @@ EhciUnlinkPeriodic(
 
 	// We should mark Qh->Flags |= EHCI_QH_INVALIDATE_NEXT 
 	// and wait for next frame
-	for (i = sFrame; i < Controller->QueueControl.FrameList; i += Period) {
+	for (i = sFrame; i < Controller->QueueControl.FrameLength; i += Period) {
 		// Retrieve a virtual pointer and a physical
         EhciGenericLink_t *VirtualLink =
             (EhciGenericLink_t*)&Controller->QueueControl.VirtualList[i];
@@ -375,7 +365,7 @@ EhciUnlinkPeriodic(
 		// Find previous handle that points to our qh
 		while (This.Address && This.Address != Address) {
 			Type = EHCI_LINK_TYPE(*PhysicalLink);
-			VirtualLink = EhciNextGenericLink(VirtualLink, Type);
+			VirtualLink = EhciNextGenericLink(Controller, VirtualLink, Type);
 			PhysicalLink = &This.Address;
 			This = *VirtualLink;
 		}
@@ -387,7 +377,7 @@ EhciUnlinkPeriodic(
 
 		// Perform the unlinking
 		Type = EHCI_LINK_TYPE(*PhysicalLink);
-		*VirtualLink = *EhciNextGenericLink(&This, Type);
+		*VirtualLink = *EhciNextGenericLink(Controller, &This, Type);
 
 		if (*(&This.Address) != EHCI_LINK_END) {
 			*PhysicalLink = *(&This.Address);
@@ -419,6 +409,8 @@ EhciQhAllocate(
         // Set initial state
         Controller->QueueControl.QHPool[i].Overlay.Status = EHCI_TD_HALTED;
         Controller->QueueControl.QHPool[i].HcdFlags = EHCI_QH_ALLOCATED;
+        Controller->QueueControl.QHPool[i].LinkIndex = EHCI_NO_INDEX;
+        Controller->QueueControl.QHPool[i].ChildIndex = EHCI_NO_INDEX;
         Qh = &Controller->QueueControl.QHPool[i];
         break;
     }
@@ -465,7 +457,7 @@ EhciQhInitialize(
 		Qh->Interval = EndpointInterval;
     }
 
-	/* Validate Bandwidth */
+	// Validate Bandwidth
     if (UsbSchedulerValidate(Controller->Scheduler, 
         Qh->Interval, Qh->Bandwidth, TransactionsPerFrame)) {
 		TRACE("EHCI::Couldn't allocate space in scheduler for params %u:%u", 
@@ -575,6 +567,10 @@ EhciTdSetup(
     Td->Length = (uint16_t)(EHCI_TD_LENGTH(EhciTdFill(Td, 
         Transaction->BufferAddress, sizeof(UsbPacket_t))));
 
+    // Store copies
+    Td->OriginalLength = Td->Length;
+    Td->OriginalToken = Td->Token;
+
 	// Return the allocated descriptor
 	return Td;
 }
@@ -587,11 +583,11 @@ EhciTdIo(
     _In_ EhciController_t *Controller,
     _In_ UsbTransfer_t *Transfer,
     _In_ UsbTransaction_t *Transaction,
-	_In_ uint32_t PId,
 	_In_ int Toggle)
 {
 	// Variables
-	EhciTransferDescriptor_t *Td = NULL;
+    EhciTransferDescriptor_t *Td = NULL;
+    unsigned PId = (Transaction->Type == InTransaction) ? EHCI_TD_IN : EHCI_TD_OUT;
 
 	// Allocate a new td
 	Td = EhciTdAllocate(Controller);
@@ -627,131 +623,137 @@ EhciTdIo(
         Toggle ^= 0x1;
     }
 
+    // Store copies
+    Td->OriginalLength = Td->Length;
+    Td->OriginalToken = Td->Token;
+
 	// Setup done, return the new descriptor
 	return Td;
 }
 
-/* Restarts an interrupt QH 
- * by resetting it to it's start state */
+/* EhciRestartQh
+ * Restarts an interrupt QH by resetting it to it's start state */
 void
 EhciRestartQh(
     EhciController_t *Controller, 
     UsbManagerTransfer_t *Transfer)
 {
-	/* Get transaction list */
-	UsbHcTransaction_t *tList = (UsbHcTransaction_t*)Request->Transactions;
-	EhciQueueHead_t *Qh = (EhciQueueHead_t*)Request->Data;
-	EhciTransferDescriptor_t *Td = NULL, *TdCopy = NULL;
+	// Variables
+    EhciQueueHead_t *Qh = NULL;
+	EhciTransferDescriptor_t *Td = NULL;
+    
+    // Setup some variables
+	Qh = (EhciQueueHead_t*)Transfer->EndpointDescriptor;
+    Td = &Controller->QueueControl.TDPool[Qh->ChildIndex];
 
-	/* For now */
-	_CRT_UNUSED(Controller);
+	// Iterate td's
+	while (Td) {
+        // Update buffer pointer by loading next index from
+        // ringbuffer
+        // @todo
 
-	/* Iterate and reset 
-	 * Switch toggles if necessary ? */
-	while (tList)
-	{
-		/* Cast TD(s) */
-		TdCopy = (EhciTransferDescriptor_t*)tList->TransferDescriptorCopy;
-		Td = (EhciTransferDescriptor_t*)tList->TransferDescriptor;
+		// Update the toggle
+		Td->OriginalLength &= ~(EHCI_TD_TOGGLE);
+		if (Td->Length & EHCI_TD_TOGGLE) {
+			Td->OriginalLength |= EHCI_TD_TOGGLE;
+        }
 
-		/* Let's see */
-		if (tList->Length != 0
-			&& Td->Token & EHCI_TD_IN)
-			memcpy(tList->Buffer, tList->TransferBuffer, tList->Length);
+        // Reset members of td
+        // @todo
+        Td->Status = EHCI_TD_ACTIVE;
+        Td->Length = Td->OriginalLength;
+        Td->Token = Td->OriginalToken;
 
-		/* Update Toggles */
-		TdCopy->Length &= ~(EHCI_TD_TOGGLE);
-		if (Td->Length & EHCI_TD_TOGGLE)
-			TdCopy->Length |= EHCI_TD_TOGGLE;
-
-		/* Reset */
-		memcpy(Td, TdCopy, sizeof(EhciTransferDescriptor_t));
-
-		/* Get next link */
-		tList = tList->Link;
+		// Switch to next transfer descriptor
+        if (Td->LinkIndex != EHCI_NO_INDEX) {
+            Td = &Controller->QueueControl.TDPool[Td->LinkIndex];
+        }
+        else {
+            Td = NULL;
+            break;
+        }
 	}
 
-	/* Set Qh to point to first */
-	Td = (EhciTransferDescriptor_t*)Request->Transactions->TransferDescriptor;
+	// Set Qh to point to first
+	Td = &Controller->QueueControl.TDPool[Qh->ChildIndex];
 
-	/* Zero out overlay (BUT KEEP TOGGLE???) */
+    // Zero out overlay (BUT KEEP TOGGLE???)
+    // @todo
 	memset(&Qh->Overlay, 0, sizeof(EhciQueueHeadOverlay_t));
 
-	/* Set pointers accordingly */
-	Qh->Overlay.NextTD = Td->PhysicalAddress;
+    // Update links
+	Qh->Overlay.NextTD = EHCI_POOL_TDINDEX(Controller, Td->Index);
 	Qh->Overlay.NextAlternativeTD = EHCI_LINK_END;
 }
 
-/* Scans a QH for completion or error 
- * returns non-zero if it has been touched */
+/* EhciScanQh
+ * Scans a QH for completion or error returns non-zero if it has been touched */
 int
 EhciScanQh(
     EhciController_t *Controller, 
     UsbManagerTransfer_t *Transfer)
 {
-	/* Get transaction list */
-	UsbHcTransaction_t *tList = (UsbHcTransaction_t*)Request->Transactions;
-
-	/* State variables */
+    // Variables
+    EhciQueueHead_t *Qh = NULL;
+	EhciTransferDescriptor_t *Td = NULL;
 	int ShortTransfer = 0;
 	int ErrorTransfer = 0;
 	int Counter = 0;
-	int ProcessQh = 0;
-
-	/* For now... */
-	_CRT_UNUSED(Controller);
-
-	/* Loop through transactions */
-	while (tList)
-	{
-		/* Increament */
+    int ProcessQh = 0;
+    
+    // Setup some variables
+	Qh = (EhciQueueHead_t*)Transfer->EndpointDescriptor;
+    Td = &Controller->QueueControl.TDPool[Qh->ChildIndex];
+    
+    // Iterate td's
+	while (Td) {
+        // Locals
+		int CondCode = EhciConditionCodeToIndex(Transfer->Transfer.Speed == HighSpeed ? Td->Status & 0xFC : Td->Status);
+		int BytesLeft = Td->Length & 0x7FFF;
 		Counter++;
 
-		/* Cast Td */
-		EhciTransferDescriptor_t *Td =
-			(EhciTransferDescriptor_t*)tList->TransferDescriptor;
-
-		/* Get code */
-		int CondCode = EhciConditionCodeToIndex(Request->Speed == HighSpeed ? Td->Status & 0xFC : Td->Status);
-		int BytesLeft = Td->Length & 0x7FFF;
-
-		/* Sanity first */
+		// Sanitize td activity status
 		if (Td->Status & EHCI_TD_ACTIVE) {
-
-			/* If it's not the first TD, skip */
+			// If it's not the first TD, skip
 			if (Counter > 1
-				&& (ShortTransfer || ErrorTransfer))
-				ProcessQh = (ErrorTransfer == 1) ? 2 : 1;
-			else
-				ProcessQh = 0; /* No, only partially done without any errs */
-
-			/* Break */
+				&& (ShortTransfer || ErrorTransfer)) {
+                ProcessQh = (ErrorTransfer == 1) ? 2 : 1;
+            }
+			else {
+                // No, only partially done without any errors
+				ProcessQh = 0; 
+            }
 			break;
 		}
 
-		/* Set for processing per default */
+		// Set for processing per default if we reach here
 		ProcessQh = 1;
 
-		/* TD is not active
-		* this means it's been processed */
+		// TD is not active
+		// this means it's been processed
 		if (BytesLeft > 0) {
 			ShortTransfer = 1;
 		}
 
-		/* Error Transfer ? */
+		// Error Transfer?
 		if (CondCode != 0) {
 			ErrorTransfer = 1;
 		}
 
-		/* Get next transaction */
-		tList = tList->Link;
+        // Switch to next transfer descriptor
+        if (Td->LinkIndex != EHCI_NO_INDEX) {
+            Td = &Controller->QueueControl.TDPool[Td->LinkIndex];
+        }
+        else {
+            Td = NULL;
+            break;
+        }
 	}
 
-	/* Sanity */
-	if (ErrorTransfer)
+	// Sanitize the error transfer
+	if (ErrorTransfer) {
 		ProcessQh = 2;
-
-	/* Done */
+    }
 	return ProcessQh;
 }
 
@@ -761,55 +763,32 @@ void
 EhciProcessTransfers(
 	_In_ EhciController_t *Controller)
 {
-	/* Transaction is completed / Failed */
-	List_t *Transactions = (List_t*)Controller->TransactionList;
-
-	/* Get transactions in progress and find the offender */
-	foreach(Node, Transactions)
-	{
-		/* Cast UsbRequest */
-		UsbHcRequest_t *HcRequest = (UsbHcRequest_t*)Node->Data;
+	// Iterate active transfers
+	foreach(Node, Controller->QueueControl.TransactionList) {
+		// Instantiate a transaction pointer
+        UsbManagerTransfer_t *Transfer = 
+            (UsbManagerTransfer_t*)Node->Data;
 		int Processed = 0;
 
-		/* Scan */
-		if (HcRequest->Type != IsochronousTransfer)
-			Processed = EhciScanQh(Controller, HcRequest);
-		else
-			;
+		// Scan the transfer as long as it's not a isochronous-transfer
+		if (Transfer->Transfer.Type != IsochronousTransfer) {
+			Processed = EhciScanQh(Controller, Transfer);
+        }
 
-		/* If it is to be processed, wake or process */
+		// If it is to be processed, wake or process
 		if (Processed) {
-			if (HcRequest->Type == InterruptTransfer) 
-			{
-				/* Restart the Qh */
-				EhciRestartQh(Controller, HcRequest);
+			if (Transfer->Transfer.Type == InterruptTransfer)  {
+				EhciRestartQh(Controller, Transfer);
 
-				/* Access Callback */
-				if (HcRequest->Callback != NULL)
-					HcRequest->Callback->Callback(HcRequest->Callback->Args,
-					Processed == 2 ? TransferStalled : TransferFinished);
-
-				/* Renew data in out transfers */
-				UsbHcTransaction_t *tList = (UsbHcTransaction_t*)HcRequest->Transactions;
-
-				/* Iterate and reset */
-				while (tList)
-				{
-					/* Cast TD(s) */
-					EhciTransferDescriptor_t *Td = 
-						(EhciTransferDescriptor_t*)tList->TransferDescriptor;
-
-					/* Let's see */
-					if (tList->Length != 0
-						&& Td->Token & EHCI_TD_OUT)
-						memcpy(tList->TransferBuffer, tList->Buffer, tList->Length);
-
-					/* Get next link */
-					tList = tList->Link;
-				}
+				// Notify process of transfer of the status
+                if (Transfer->Transfer.UpdatesOn) {
+                    InterruptDriver(Transfer->Requester, 
+                        (size_t)Transfer->Transfer.PeriodicData, 0, 0, 0);
+                }
 			}
-			else
-				SchedulerWakeupOneThread((Addr_t*)HcRequest->Data);
+			else {
+                ERROR("Should wake-up transferqh");
+            }
 		}
 	}
 }
@@ -828,21 +807,45 @@ Scan:
     // to allow other threads to set it again
 	Controller->QueueControl.BellReScan = 0;
 
-	/* Iterate transactions */
+	// Iterate active transfers
 	_foreach(Node, Controller->QueueControl.TransactionList) {
 		// Instantiate a transaction pointer
         UsbManagerTransfer_t *Transfer = 
             (UsbManagerTransfer_t*)Node->Data;
 
-		/* Get transaction type */
-		if (Request->Type == ControlTransfer
-			|| Request->Type == BulkTransfer) {
-			EhciQueueHead_t *Qh = (EhciQueueHead_t*)Request->Data;
+		// Act based on transfer type
+		if (Transfer->Transfer.Type == ControlTransfer
+			|| Transfer->Transfer.Type == BulkTransfer) {
+            EhciQueueHead_t *Qh = (EhciQueueHead_t*)Transfer->EndpointDescriptor;
+            EhciQueueHead_t *PrevQh = NULL;
+            unsigned Index = 0;
 
-			/* Has it asked to be unscheduled? */
+			// Check for specific event flags
 			if (Qh->HcdFlags & EHCI_QH_UNSCHEDULE) {
 				Qh->HcdFlags &= ~(EHCI_QH_UNSCHEDULE);
-				SchedulerWakeupOneThread((Addr_t*)Qh);
+                // Perform an asynchronous memory unlink
+                PrevQh = &Controller->QueueControl.QHPool[EHCI_POOL_QH_ASYNC];
+                while (PrevQh->LinkIndex != Qh->Index
+                    && PrevQh->LinkIndex != EHCI_NO_INDEX) {
+                    PrevQh = &Controller->QueueControl.QHPool[PrevQh->LinkIndex];
+                }
+
+                // Now make sure we skip over our qh
+                PrevQh->LinkPointer = Qh->LinkPointer;
+                PrevQh->LinkIndex = Qh->LinkIndex;
+                MemoryBarrier();
+
+                // Reset the qh
+                Index = Qh->Index;
+                memset(Qh, 0, sizeof(EhciQueueHead_t));
+                Qh->Index = Index;
+                
+                // Stop async scheduler if there aren't anymore 
+                // transfers to process
+                Controller->QueueControl.AsyncTransactions--;
+                if (!Controller->QueueControl.AsyncTransactions) {
+                    EhciDisableAsyncScheduler(Controller);
+                }
 			}
 		}
 	}

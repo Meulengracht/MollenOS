@@ -250,6 +250,7 @@
         "complex": "c",
         "scanf.h": "c",
         "__refstring": "c",
-        "string.h": "c"
+        "string.h": "c",
+        "__config": "c"
     }
 }

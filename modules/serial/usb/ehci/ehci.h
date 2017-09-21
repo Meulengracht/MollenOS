@@ -359,10 +359,12 @@ PACKED_TYPESTRUCT(EhciTransferDescriptor, {
 	reg32_t                     ExtBuffers[5];
 
     // Not seen by hardware, 12 bytes
-	reg32_t                     HcdFlags;
-    reg32_t                     Index;
-    uint16_t                    LinkIndex;
-    uint16_t                    AlternativeLinkIndex;
+    uint16_t                    HcdFlags;
+    uint16_t                    OriginalToken;
+    uint16_t                    OriginalLength;
+    int16_t                     Index;
+    int16_t                     LinkIndex;
+    int16_t                     AlternativeLinkIndex;
 });
 
 /* EhciTransferDescriptor::Status
@@ -393,6 +395,7 @@ PACKED_TYPESTRUCT(EhciTransferDescriptor, {
  * Contains definitions and bitfield definitions for EhciTransferDescriptor::Length
  * Bit 0-14: Length (Max Value 0x5000 (5 Pages))
  * Bit 15: Data Toggle */
+#define EHCI_TD_LENGTHMASK          0x7FFF
 #define EHCI_TD_LENGTH(n)			(MIN(20480, n))
 #define EHCI_TD_TOGGLE				(1 << 15)
 
@@ -402,7 +405,7 @@ PACKED_TYPESTRUCT(EhciTransferDescriptor, {
  * Bit 12-31: Buffer Page */
 #define EHCI_TD_OFFSET(n)			(n & 0xFFF)
 #define EHCI_TD_BUFFER(n)			(n & 0xFFFFF000)
-#define EHCI_TD_EXTBUFFER(n)		((n >> 32) & 0xFFFFFFFF)
+#define EHCI_TD_EXTBUFFER(n)		(((uint64_t)n >> 32) & 0xFFFFFFFF)
 
 #define EHCI_TD_CERR(n)				((n >> 10) & 0x3)
 #define EHCI_TD_CC(n)				(n & 0xFF)
@@ -471,7 +474,8 @@ PACKED_TYPESTRUCT(EhciQueueHead, {
 	 * Add 28 bytes for allocation easieness */
     reg32_t                 HcdFlags;
     reg32_t                 Index;
-	reg32_t                 LinkIndex;
+    int16_t                 LinkIndex;
+    int16_t                 ChildIndex;
 	reg32_t                 Interval;
 	reg32_t                 Bandwidth;
 	reg32_t                 sFrame;
@@ -648,7 +652,85 @@ void
 EhciPortGetStatus(
 	_In_ EhciController_t *Controller,
 	_In_ int Index,
-	_Out_ UsbHcPortDescriptor_t *Port);
+    _Out_ UsbHcPortDescriptor_t *Port);
+    
+/* EhciQhAllocate
+ * This allocates a QH for a Control, Bulk and Interrupt 
+ * transaction and should not be used for isoc */
+__EXTERN
+EhciQueueHead_t*
+EhciQhAllocate(
+    _In_ EhciController_t *Controller, 
+    _In_ UsbTransferType_t Type);
+
+/* EhciQhInitialize
+ * This initiates any periodic scheduling information 
+ * that might be needed */
+__EXTERN
+void
+EhciQhInitialize(
+    _In_ EhciController_t *Controller, 
+    _In_ EhciQueueHead_t *Qh,
+    _In_ UsbSpeed_t Speed,
+    _In_ int Direction,
+    _In_ UsbTransferType_t Type,
+    _In_ size_t EndpointInterval,
+    _In_ size_t EndpointMaxPacketSize,
+    _In_ size_t TransferLength);
+
+/* EhciEnableAsyncScheduler
+ * Enables the async scheduler if it is not enabled already */
+__EXTERN
+void
+EhciEnableAsyncScheduler(
+    _In_ EhciController_t *Controller);
+
+/* EhciConditionCodeToIndex
+ * Converts a given condition bit-index to number */
+__EXTERN
+int
+EhciConditionCodeToIndex(
+	_In_ unsigned ConditionCode);
+
+/* EhciTdSetup
+ * This allocates & initializes a TD for a setup transaction 
+ * this is only used for control transactions */
+__EXTERN
+EhciTransferDescriptor_t*
+EhciTdSetup(
+    _In_ EhciController_t *Controller, 
+    _In_ UsbTransaction_t *Transaction);
+
+/* EhciTdIo
+ * This allocates & initializes a TD for an i/o transaction 
+ * and is used for control, bulk and interrupt */
+__EXTERN
+EhciTransferDescriptor_t*
+EhciTdIo(
+    _In_ EhciController_t *Controller,
+    _In_ UsbTransfer_t *Transfer,
+    _In_ UsbTransaction_t *Transaction,
+	_In_ int Toggle);
+    
+/* EhciLinkPeriodicQh
+ * This function links an interrupt Qh into the schedule at Qh->sFrame 
+ * and every other Qh->Interval */
+__EXTERN
+void
+EhciLinkPeriodicQh(
+    _In_ EhciController_t *Controller, 
+    _In_ EhciQueueHead_t *Qh);
+
+/* EhciUnlinkPeriodic
+ * Generic unlink from periodic list needs a bit more information as it
+ * is used for all formats */
+__EXTERN
+void
+EhciUnlinkPeriodic(
+    _In_ EhciController_t *Controller, 
+    _In_ uintptr_t Address, 
+    _In_ size_t Period, 
+    _In_ size_t sFrame);
 
 /* EhciRingDoorbell
  * This functions rings the bell */
@@ -669,7 +751,16 @@ EhciProcessTransfers(
 __EXTERN
 void
 EhciProcessDoorBell(
-	_In_ EhciController_t *Controller);
+    _In_ EhciController_t *Controller);
+    
+/* EhciTransactionFinalize
+ * Cleans up the transfer, deallocates resources and validates the td's */
+__EXTERN
+OsStatus_t
+EhciTransactionFinalize(
+    _In_ EhciController_t *Controller,
+    _In_ UsbManagerTransfer_t *Transfer,
+    _In_ int Validate);
 
 /* UsbQueueTransferGeneric 
  * Queues a new transfer for the given driver
