@@ -249,7 +249,7 @@ RegisterDevice(
 	// for the new device
 #ifndef __OSCONFIG_NODRIVERS
 	if (Flags & __DEVICEMANAGER_REGISTER_LOADDRIVER) {
-		return InstallDriver(CopyDevice);
+		return InstallDriver(CopyDevice, sizeof(MCoreDevice_t));
 	}
 #endif
 	

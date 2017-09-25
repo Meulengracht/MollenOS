@@ -34,17 +34,17 @@ OsStatus_t RegisterService(UUId_t Alias)
 {
 	/* Redirect a syscall, it does all */
 	return (OsStatus_t)Syscall1(
-		SYSCALL_SERVICEREGISTER, SYSCALL_PARAM(Alias));
+        SYSCALL_SERVICEREGISTER, SYSCALL_PARAM(Alias));
 }
 
 /* InstallDriver 
- * Tries to	find a suitable driver for the given device
+ * Tries to find a suitable driver for the given device
  * by searching storage-medias for the vendorid/deviceid 
  * combination or the class/subclass combination if specific
  * is not found */
-OsStatus_t InstallDriver(MCoreDevice_t *Device)
+OsStatus_t InstallDriver(MCoreDevice_t *Device, size_t Length)
 {
 	/* Redirect a syscall, it does all */
-	return (OsStatus_t)Syscall1(
-		SYSCALL_RESOLVEDRIVER, SYSCALL_PARAM(Device));
+	return (OsStatus_t)Syscall2(SYSCALL_RESOLVEDRIVER, 
+        SYSCALL_PARAM(Device), SYSCALL_PARAM(Length));
 }

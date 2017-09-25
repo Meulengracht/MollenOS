@@ -14,7 +14,10 @@
 static void ShowSyntax(void)
 {
 	printf("  Syntax:\n\n"
-           "    Generate    :  revision gen <msvc, clang>\n\n");
+           "    Build            :  revision build <msvc, clang>\n"
+           "    Minor Release    :  revision minor <msvc, clang>\n"
+           "    Major Release    :  revision major <msvc, clang>\n"
+           "\n");
 }
 
 // Retrieves the next text-line from a file
@@ -72,7 +75,7 @@ int GetNextLine(FILE *handle, char **tokens, int *count)
 }
 
 // Use this to get next revision of the file
-int GetRevision(FILE *handle, int *revision)
+int GetRevision(FILE *handle, int *revision, int *minor, int *major)
 {
 	// Variables
 	long fsize = 0;
@@ -103,9 +106,16 @@ int GetRevision(FILE *handle, int *revision)
 		if (tokencount >= 3) {
 			if (!strcmp(tokens[0], "#define")
 				&& !strcmp(tokens[1], "REVISION_BUILD")) {
-				*revision = atoi(tokens[2]) + 1;
-				break;
-			}
+				*revision = atoi(tokens[2]);
+            }
+            if (!strcmp(tokens[0], "#define")
+                && !strcmp(tokens[1], "REVISION_MINOR")) {
+                *minor = atoi(tokens[2]);
+            }
+            if (!strcmp(tokens[0], "#define")
+                && !strcmp(tokens[1], "REVISION_MAJOR")) {
+                *major = atoi(tokens[2]);
+            }
 		}
 	}
 
@@ -127,7 +137,7 @@ int main(int argc, char *argv[])
 	time_t DateTime;
 	struct tm *DateTimeInfo;
 	char buffer[64];
-	int revision = 0, major = 0;
+	int revision = 0, minor = 0, major = 0;
 
 	// Print header
 	printf("MollenOS Versioning Utility\n"
@@ -149,7 +159,7 @@ int main(int argc, char *argv[])
 
 	// Get the next revision for generation
 	printf("extracting revision...\n");
-	GetRevision(out, &revision);
+	GetRevision(out, &revision, &minor, &major);
 
 	// Close and cleanup
 SkipParse:
@@ -162,7 +172,22 @@ SkipParse:
 	if (out == NULL) {
 		printf("%s was an invalid output file\n", argv[2]);
 		return 1;
-	}
+    }
+
+    // Increase revision?
+    if (!strcmp(argv[1], "build")) {
+        revision++;
+    }
+
+    // Increase revision?
+    if (!strcmp(argv[1], "minor")) {
+        minor++;
+    }
+
+    // Increase revision?
+    if (!strcmp(argv[1], "major")) {
+        major++;
+    }
 
 	// Print out header
 	printf("generating revision file...\n");
@@ -182,7 +207,7 @@ SkipParse:
 
 	// Print out revision
 	fprintf(out, "#define REVISION_MAJOR %i\n", major);
-	fprintf(out, "#define REVISION_MINOR %i\n", (revision / 1000));
+	fprintf(out, "#define REVISION_MINOR %i\n", minor);
 	fprintf(out, "#define REVISION_BUILD %i\n\n", revision);
 
 	// End

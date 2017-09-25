@@ -1264,7 +1264,7 @@ OsStatus_t ScRegisterAliasId(UUId_t Alias)
 /* ScLoadDriver
  * Attempts to resolve the best possible drive for
  * the given device information */
-OsStatus_t ScLoadDriver(MCoreDevice_t *Device)
+OsStatus_t ScLoadDriver(MCoreDevice_t *Device, size_t Length)
 {
 	/* Variables */
 	MCorePhoenixRequest_t *Request = NULL;
@@ -1274,7 +1274,7 @@ OsStatus_t ScLoadDriver(MCoreDevice_t *Device)
 	MString_t *Path = NULL;
 
 	/* Sanitize information */
-	if (Device == NULL) {
+	if (Device == NULL || Length < sizeof(MCoreDevice_t)) {
 		return OsError;
 	}
 
@@ -1341,7 +1341,7 @@ OsStatus_t ScLoadDriver(MCoreDevice_t *Device)
 
 	/* Prepare the message */
 	RPCInitialize(&Message, 1, PIPE_RPCOUT, __DRIVER_REGISTERINSTANCE);
-	RPCSetArgument(&Message, 0, Device, sizeof(MCoreDevice_t));
+	RPCSetArgument(&Message, 0, Device, Length);
 	Message.Sender = ThreadingGetCurrentThread(CpuGetCurrentId())->AshId;
 
 	/* Wait for the driver to open it's

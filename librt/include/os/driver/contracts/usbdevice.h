@@ -28,7 +28,18 @@
  * - System */
 #include <os/driver/usb/definitions.h>
 #include <os/driver/driver.h>
+#include <os/driver/device.h>
 #include <os/driver/usb.h>
 #include <os/osdefs.h>
+
+/* MCoreUsbDevice_t
+ * This is the base usb device structure definition
+ * and is passed on to all usb-drivers on their initialization
+ * to give them an overview and description of their device 
+ * and functions to read/write directly to the device */
+PACKED_TYPESTRUCT(MCoreUsbDevice, {
+MCoreDevice_t Base;
+
+});
 
 #endif

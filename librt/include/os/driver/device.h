@@ -272,6 +272,7 @@ MOSAPI
 OsStatus_t
 MOSABI
 InstallDriver(
-	_In_ MCoreDevice_t *Device);
+	_In_ MCoreDevice_t *Device,
+	_In_ size_t Length);
 
 #endif //!_DEVICE_INTERFACE_H_

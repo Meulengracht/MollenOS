@@ -49,7 +49,7 @@ tools:
 
 .PHONY: gen_revision
 gen_revision:
-	./revision gen clang
+	./revision build clang
 	$(FCOPY) revision.h kernel/include/revision.h
 
 .PHONY: kernel
