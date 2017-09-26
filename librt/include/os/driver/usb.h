@@ -62,50 +62,50 @@ typedef enum _UsbControllerType {
 /* UsbSpeed 
  * Describes the possible speeds for usb devices */
 typedef enum _UsbSpeed {
-	LowSpeed,		// 1.0 / 1.1
-	FullSpeed,		// 1.0 / 1.1 / 2.0 (HID)
-	HighSpeed,		// 2.0
-	SuperSpeed		// 3.0
+	LowSpeed,       // 1.0 / 1.1
+	FullSpeed,      // 1.0 / 1.1 / 2.0 (HID)
+	HighSpeed,      // 2.0
+	SuperSpeed      // 3.0
 } UsbSpeed_t;
 
 /* UsbHcPortDescriptor 
  * Describes the current port information */
 PACKED_TYPESTRUCT(UsbHcPortDescriptor, {
-	UsbSpeed_t							Speed;
-	int									Enabled;
-	int									Connected;
+	UsbSpeed_t                          Speed;
+	int                                 Enabled;
+	int                                 Connected;
 });
 
 /* UsbHcEndpointDescriptor 
  * Describes a generic endpoint for an usb device */
 PACKED_TYPESTRUCT(UsbHcEndpointDescriptor, {
-	UsbEndpointType_t 					Type;
-	UsbEndpointSynchronization_t		Synchronization;
-	size_t 								Address;
-	size_t 								Direction;
-	size_t 								MaxPacketSize;
-	size_t 								Bandwidth;
-	size_t 								Interval;
+	UsbEndpointType_t                   Type;
+	UsbEndpointSynchronization_t        Synchronization;
+	size_t                              Address;
+	size_t                              Direction;
+	size_t                              MaxPacketSize;
+	size_t                              Bandwidth;
+	size_t                              Interval;
 });
 
 /* UsbHcInterfaceVersion 
  * Describes a version of an interface and it's endpoint count. */
 PACKED_TYPESTRUCT(UsbHcInterfaceVersion, {
-	int 								Id;
-	int 								EndpointCount;
+	int                                 Id;
+	int                                 EndpointCount;
 });
 
 /* UsbHcInterface 
  * Describes a generic interface for an usb device. There can be 
  * multiple versions each with a number of different endpoints. */
 PACKED_TYPESTRUCT(UsbHcInterface, {
-	size_t						 		Id;
-	size_t 						 		Class;
-	size_t 								Subclass;
-	size_t 								Protocol;
-	size_t 								StringIndex;
-	int									VersionCount;
-	UsbHcInterfaceVersion_t 			Versions[USB_MAX_VERSIONS];
+	int                                 Id;
+	size_t                              Class;
+	size_t                              Subclass;
+	size_t                              Protocol;
+	size_t                              StringIndex;
+	int	                                VersionCount;
+	UsbHcInterfaceVersion_t             Versions[USB_MAX_VERSIONS];
 });
 
 /* UsbHcDevice 
@@ -113,31 +113,31 @@ PACKED_TYPESTRUCT(UsbHcInterface, {
  * A device then further has a bunch of interfaces, and those interfaces
  * have a bunch of endpoints. */
 PACKED_TYPESTRUCT(UsbHcDevice, {
-	int							Address;
-	int							InterfaceCount;
-	int 						LanguageCount;
+	int                         Address;
+	int                         InterfaceCount;
+	int                         LanguageCount;
 
 	// Information
-	uint8_t 					Class;
-	uint8_t 					Subclass;
-	uint8_t 					Protocol;
-	uint16_t 					VendorId;
-	uint16_t 					ProductId;
+	uint8_t                     Class;
+	uint8_t                     Subclass;
+	uint8_t                     Protocol;
+	uint16_t                    VendorId;
+	uint16_t                    ProductId;
 
 	// Configurations
-	uint8_t 					ConfigurationCount;
-	uint16_t 					ConfigMaxLength;
-	uint16_t 					MaxPowerConsumption;
-	uint16_t 					MaxPacketSize;
-	uint8_t 					Configuration;
+	uint8_t                     ConfigurationCount;
+	uint16_t                    ConfigMaxLength;
+	uint16_t                    MaxPowerConsumption;
+	uint16_t                    MaxPacketSize;
+	uint8_t                     Configuration;
 
 	// String indexes
-	uint8_t 					StringIndexProduct;
-	uint8_t 					StringIndexManufactor;
-	uint8_t 					StringIndexSerialNumber;
+	uint8_t                     StringIndexProduct;
+	uint8_t                     StringIndexManufactor;
+	uint8_t                     StringIndexSerialNumber;
 
 	// Integrated buffers
-	uint16_t					Languages[USB_MAX_LANGUAGES];
+	uint16_t                    Languages[USB_MAX_LANGUAGES];
 });
 
 /* Bit-fields and definitions for field UsbHcEndpointDescriptor::Direction

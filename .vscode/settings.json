@@ -251,6 +251,7 @@
         "scanf.h": "c",
         "__refstring": "c",
         "string.h": "c",
-        "__config": "c"
+        "__config": "c",
+        "usbdevice.h": "c"
     }
 }

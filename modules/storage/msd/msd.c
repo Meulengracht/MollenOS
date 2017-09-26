@@ -87,6 +87,25 @@ UsbTransferStatus_t UsbMsdSendSCSICommandIn(uint8_t ScsiCommand, MsdDevice_t *De
 int UsbMsdReadSectors(void *mDevice, uint64_t SectorLBA, void *Buffer, size_t BufferLength);
 int UsbMsdWriteSectors(void *mDevice, uint64_t SectorLBA, void *Buffer, size_t BufferLength);
 
+/* MsdDeviceCreate
+ * Initializes a new msd-device from the given usb-device */
+MsdDevice_t*
+MsdDeviceCreate(
+    _In_ MCoreUsbDevice_t *UsbDevice)
+{
+
+}
+
+/* MsdDeviceDestroy
+ * Destroys an existing msd device instance and cleans up
+ * any resources related to it */
+OsStatus_t
+MsdDeviceDestroy(
+    _In_ MsdDevice_t *Device)
+{
+
+}
+
 /* Initialise Driver for a MSD */
 void UsbMsdInit(UsbHcDevice_t *UsbDevice, int InterfaceIndex)
 {

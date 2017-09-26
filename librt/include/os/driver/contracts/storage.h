@@ -48,7 +48,9 @@ PACKED_TYPESTRUCT(StorageDescriptor, {
 	char				Model[64];
 	char				Serial[32];
 	size_t				SectorSize;
-	uint64_t			SectorCount;
+    uint64_t			SectorCount;
+    size_t              SectorsPerCylinder;
+    size_t              LUNCount;
 });
 
 /* The storage operation structure 

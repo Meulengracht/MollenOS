@@ -38,8 +38,10 @@
  * to give them an overview and description of their device 
  * and functions to read/write directly to the device */
 PACKED_TYPESTRUCT(MCoreUsbDevice, {
-MCoreDevice_t Base;
-
+    MCoreDevice_t                   Base;
+    UsbHcDevice_t                   Device;
+    UsbHcInterface_t                Interface;
+    UsbHcEndpointDescriptor_t       Endpoints[USB_MAX_ENDPOINTS];
 });
 
 #endif
