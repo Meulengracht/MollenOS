@@ -93,119 +93,71 @@ MsdDevice_t*
 MsdDeviceCreate(
     _In_ MCoreUsbDevice_t *UsbDevice)
 {
+    // Variables
+    MsdDevice_t *Device = NULL;
+    int i;
 
-}
-
-/* MsdDeviceDestroy
- * Destroys an existing msd device instance and cleans up
- * any resources related to it */
-OsStatus_t
-MsdDeviceDestroy(
-    _In_ MsdDevice_t *Device)
-{
-
-}
-
-/* Initialise Driver for a MSD */
-void UsbMsdInit(UsbHcDevice_t *UsbDevice, int InterfaceIndex)
-{
-	/* Allocate */
-	MCoreDevice_t *mDevice = (MCoreDevice_t*)kmalloc(sizeof(MCoreDevice_t));
-	MsdDevice_t *DevData = (MsdDevice_t*)kmalloc(sizeof(MsdDevice_t));
-	MCoreStorageDevice_t *StorageData = 
-		(MCoreStorageDevice_t*)kmalloc(sizeof(MCoreStorageDevice_t));
-	UsbHc_t *UsbHcd = (UsbHc_t*)UsbDevice->HcDriver;
-	size_t i;
-
-	/* Do we support the subclass? */
-	if (UsbDevice->Interfaces[InterfaceIndex]->Subclass != USB_MSD_SUBCLASS_SCSI
-		&& UsbDevice->Interfaces[InterfaceIndex]->Subclass != USB_MSD_SUBCLASS_FLOPPY
-		&& UsbDevice->Interfaces[InterfaceIndex]->Subclass != USB_MSD_SUBCLASS_ATAPI) {
-		LogDebug("USBM", "Unsupported MSD Subclass 0x%x", UsbDevice->Interfaces[InterfaceIndex]->Subclass);
-		return;
+    // Validate the kind of msd device, we don't support all kinds
+	if (UsbDevice->Interface.Subclass != USB_MSD_SUBCLASS_SCSI
+		&& UsbDevice->Interface.Subclass != USB_MSD_SUBCLASS_FLOPPY
+		&& UsbDevice->Interface.Subclass != USB_MSD_SUBCLASS_ATAPI) {
+        ERROR("Unsupported MSD Subclass 0x%x", UsbDevice->Interface.Subclass);
+        goto Error;
 	}
 
-	/* Sanity */
-	if (UsbDevice->Interfaces[InterfaceIndex]->Subclass == USB_MSD_SUBCLASS_FLOPPY)
-		DevData->Type = FloppyDrive;
-	else if (UsbDevice->Interfaces[InterfaceIndex]->Subclass == USB_MSD_SUBCLASS_ATAPI)
-		DevData->Type = DiskDrive;
-	else
-		DevData->Type = HardDrive;
+    // Allocate new resources
+    Device = (MsdDevice_t*)malloc(sizeof(MsdDevice_t));
+    memset(Device, 0, sizeof(MsdDevice_t));
+    memcpy(&Device->Base, UsbDevice, sizeof(MCoreUsbDevice_t));
+    Device->Control = &UsbDevice->Endpoints[0];
 
-	/* Set */
-	StorageData->SectorSize = 512;
-	StorageData->SectorCount = 0;
-
-	/* Depends if floppy */
-	if (DevData->Type != FloppyDrive) {
-		DevData->AlignedAccess = 0;
-		DevData->SectorsPerCylinder = 64;
-	}
-	else {
-		DevData->AlignedAccess = 1;
-		DevData->SectorsPerCylinder = 18;
-	}
-
-	/* Set functions */
-	StorageData->Read = UsbMsdReadSectors;
-	StorageData->Write = UsbMsdWriteSectors;
-
-	DevData->UsbDevice = UsbDevice;
-	DevData->Interface = InterfaceIndex;
-	DevData->EpIn = NULL;
-	DevData->EpOut = NULL;
-	DevData->EpInterrupt = NULL;
-	DevData->LUNCount = 0;
-	DevData->IsExtended = 0;
-	DevData->IsReady = 0;
-	DevData->SectorSize = 512;
-
-	/* Locate neccessary endpoints */
-	for (i = 0; i < UsbDevice->Interfaces[InterfaceIndex]->Versions[0]->NumEndpoints; i++)
-	{
-		/* Interrupt? */
-		if (UsbDevice->Interfaces[InterfaceIndex]->Versions[0]->Endpoints[i]->Type == EndpointInterrupt)
-			DevData->EpInterrupt = UsbDevice->Interfaces[InterfaceIndex]->Versions[0]->Endpoints[i];
-
-		/* Bulk? */
-		if (UsbDevice->Interfaces[InterfaceIndex]->Versions[0]->Endpoints[i]->Type == EndpointBulk)
-		{
-			/* In or out? */
-			if (UsbDevice->Interfaces[InterfaceIndex]->Versions[0]->Endpoints[i]->Direction == USB_EP_DIRECTION_IN)
-				DevData->EpIn = UsbDevice->Interfaces[InterfaceIndex]->Versions[0]->Endpoints[i];
-			else if (UsbDevice->Interfaces[InterfaceIndex]->Versions[0]->Endpoints[i]->Direction == USB_EP_DIRECTION_OUT)
-				DevData->EpOut = UsbDevice->Interfaces[InterfaceIndex]->Versions[0]->Endpoints[i];
+    // Find neccessary endpoints
+    for (i = 1; i < UsbDevice->Interface.Versions[0].EndpointCount; i++) {
+		if (UsbDevice->Endpoints[i].Type == EndpointInterrupt) {
+            Device->Interrupt = &UsbDevice->Endpoints[i];
+        }
+		else if (UsbDevice->Endpoints[i].Type == EndpointBulk) {
+			if (UsbDevice->Endpoints[i].Direction == USB_ENDPOINT_IN) {
+                Device->In = &UsbDevice->Endpoints[i];
+            }
+			else if (UsbDevice->Endpoints[i].Direction == USB_ENDPOINT_OUT) {
+                Device->Out = &UsbDevice->Endpoints[i];
+            }
 		}
-	}
+    }
+    
+    // Sanitize found endpoints
+    if (Device->In == NULL || Device->Out == NULL) {
+        ERROR("Either in or out endpoint not available on device");
+		goto Error;
+    }
 
-	/* Sanity Ep's */
-	if (DevData->EpIn == NULL
-		|| DevData->EpOut == NULL)
-	{
-		LogDebug("USBM", "Msd is missing either in or out endpoint");
-		kfree(DevData);
-		kfree(mDevice);
-		return;
-	}
+    // Determine type of flash drive
+    if (UsbDevice->Interfaces[InterfaceIndex]->Subclass == MSD_SUBCLASS_FLOPPY) {
+        Device->Type = FloppyDrive;
+        Device->AlignedAccess = 1;
+		Device->Descriptor.SectorsPerCylinder = 18;
+    }
+	else if (UsbDevice->Interfaces[InterfaceIndex]->Subclass == MSD_SUBCLASS_ATAPI) {
+        Device->Type = DiskDrive;
+        Device->AlignedAccess = 0;
+		Device->Descriptor.SectorsPerCylinder = 64;
+    }
+	else {
+        Device->Type = HardDrive;
+        Device->AlignedAccess = 0;
+		Device->Descriptor.SectorsPerCylinder = 64;
+    }
 
-	/* Reset Toggles */
-	DevData->EpIn->Toggle = 0;
-	DevData->EpOut->Toggle = 0;
+    // Initialize the storage descriptor to default
+    Device->Descriptor.SectorSize = 512;
 
-	/* Save Data */
-	UsbDevice->Interfaces[InterfaceIndex]->Destroy = UsbMsdDestroy;
-	UsbDevice->Interfaces[InterfaceIndex]->DriverData = (void*)mDevice;
+    // If the type is of harddrive, reset bulk
+    if (Device->Type == HardDrive) {
+        MsdReset(Device);
+    }
 
-	/* Setup endpoints */
-	UsbHcd->EndpointSetup(UsbHcd->Hc, DevData->EpIn);
-	UsbHcd->EndpointSetup(UsbHcd->Hc, DevData->EpOut);
-
-	/* Test & Setup Disk */
-
-	/* Reset Bulk */
-	if (DevData->Type == HardDrive)
-		UsbMsdReset(DevData);
+    // Reset data toggles
 
 	/* Send Inquiry */
 	ScsiInquiry_t InquiryData;
@@ -213,29 +165,21 @@ void UsbMsdInit(UsbHcDevice_t *UsbDevice, int InterfaceIndex)
 		!= TransferFinished)
 		LogDebug("USBM", "Failed to execute Inquiry Command");
 
-	/* Send Test-Unit-Ready */
+	// Perform the Test-Unit Ready command
 	i = 3;
-	if (DevData->Type != HardDrive)
+	if (Device->Type != HardDrive) {
 		i = 30;
-
-	while (DevData->IsReady == 0
-		&& i != 0)
-	{
-		/* Test */
-		UsbMsdReadyDevice(DevData);
-
-		/* Did it work? */
-		if (DevData->IsReady == 1)
+    }
+	while (Device->IsReady == 0 && i != 0) {
+		UsbMsdReadyDevice(Device);
+		if (Device->IsReady == 1)
 			break; 
-
-		/* Fuck, try again soon */
 		StallMs(100);
 		i--;
 	}
 
 	/* Did we fail to ready device? */
-	if (!DevData->IsReady)
-	{
+	if (!DevData->IsReady) {
 		LogDebug("USBM", "Failed to ready MSD device");
 		return;
 	}
@@ -249,71 +193,71 @@ void UsbMsdInit(UsbHcDevice_t *UsbDevice, int InterfaceIndex)
 	LogInformation("USBM", "MSD SectorCount: 0x%x, SectorSize: 0x%x",
 		(size_t)StorageData->SectorCount, StorageData->SectorSize);
 
-	/* Setup device */
-	memset(mDevice, 0, sizeof(MCoreDevice_t));
-
 	/* Setup information */
 	mDevice->VendorId = 0x8086;
 	mDevice->DeviceId = 0x0;
 	mDevice->Class = DEVICEMANAGER_LEGACY_CLASS;
 	mDevice->Subclass = 0x00000018;
 
-	mDevice->IrqLine = -1;
-	mDevice->IrqPin = -1;
-	mDevice->IrqAvailable[0] = -1;
-	mDevice->IrqHandler = NULL;
+Error:
 
-	/* Type */
-	mDevice->Type = DeviceStorage;
-	mDevice->Data = StorageData;
 
-	/* Initial */
-	mDevice->Driver.Name = (char*)GlbUsbMsdDriverName;
-	mDevice->Driver.Version = 1;
-	mDevice->Driver.Data = DevData;
-	mDevice->Driver.Status = DriverActive;
-
-	/* Register Us */
-	DevData->DeviceId = DmCreateDevice((DevData->Type == HardDrive) ? "Usb Storage" : "Usb Drive", mDevice);
+    // Done, return null
+    return NULL;
 }
 
-/* Cleanup */
-void UsbMsdDestroy(void *UsbDevice, int Interface)
+/* MsdDeviceDestroy
+ * Destroys an existing msd device instance and cleans up
+ * any resources related to it */
+OsStatus_t
+MsdDeviceDestroy(
+    _In_ MsdDevice_t *Device)
 {
-	/* Cast */
-	UsbHcDevice_t *Dev = (UsbHcDevice_t*)UsbDevice;
-	MCoreDevice_t *mDevice = (MCoreDevice_t*)Dev->Interfaces[Interface]->DriverData;
-	MsdDevice_t *Device = (MsdDevice_t*)mDevice->Driver.Data;
-	UsbHc_t *UsbHcd = (UsbHc_t*)Dev->HcDriver;
+    // Flush existing requests?
 
-	/* Unregister Us */
-	DmDestroyDevice(Device->DeviceId);
-
-	/* Free endpoints */
-	UsbHcd->EndpointDestroy(UsbHcd->Hc, Device->EpIn);
-	UsbHcd->EndpointDestroy(UsbHcd->Hc, Device->EpOut);
-	
-	/* Free Data */
-	kfree(mDevice->Data);
-	kfree(mDevice->Driver.Data);
+    // Free data allocated
+    free(Device);
 }
 
-/* Msd Specific Requests */
-void UsbMsdReset(MsdDevice_t *Device)
+/* MsdReset
+ * Performs an interface reset, only neccessary for bulk endpoints. */
+OsStatus_t
+MsdReset(
+    _In_ MsdDevice_t *Device)
 {
-	/* Reset is 
-	* 0x21 | 0xFF | wIndex - Interface */
+    // Variables
+    UsbTransferResult_t Result;
+    UsbTransfer_t Transfer;
+    UsbPacket_t *Packet = NULL;
 
-	/* Send control packet - Interface Reset */
-	UsbFunctionSendPacket((UsbHc_t*)Device->UsbDevice->HcDriver, Device->UsbDevice->Port,
-		NULL, USB_REQUEST_TARGET_CLASS | USB_REQUEST_TARGET_INTERFACE,
-		USB_MSD_REQUEST_RESET, 0, 0, (uint16_t)Device->Interface, 0);
+    // Prepare transfer
+    UsbTransferInitialize(&Transfer, &Device->Base.Descriptor, 
+        Device->Control, ControlTransfer);
 
-	/* The value of the data toggle bits shall be preserved 
-	 * it says in the usbmassbulk spec */
+	// Reset is 
+    // 0x21 | 0xFF | wIndex - Interface
+    Packet->Direction = USBPACKET_DIRECTION_CLASS | USBPACKET_DIRECTION_INTERFACE;
+    Packet->Type = MSD_REQUEST_RESET;
+    Packet->ValueHi = 0;
+    Packet->ValueLo = 0;
+    Packet->Index = (uint16_t)Device->Base.Interface.Id;
+    Packet->Length = 0;
+
+    // Perform the transfer
+    UsbTransferSetup(&Transfer, 0, 0, 0);
+    if (UsbTransferQueue(Device->Base.Driver, Device->Base.Device, 
+            &Transfer, &Result) != OsSuccess) {
+        ERROR("Usb transfer returned error");
+        return OsError;
+    }
+
+    // The value of the data toggle bits shall be preserved 
+	// it says in the usbmassbulk spec
 }
 
-void UsbMsdResetRecovery(MsdDevice_t *Device)
+void
+UsbMsdResetRecovery(
+    MsdDevice_t *Device)
 {
 	/* Step 1 - Do Reset */
 	UsbMsdReset(Device);

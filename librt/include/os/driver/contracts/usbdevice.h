@@ -42,6 +42,8 @@ PACKED_TYPESTRUCT(MCoreUsbDevice, {
     UsbHcDevice_t                   Device;
     UsbHcInterface_t                Interface;
     UsbHcEndpointDescriptor_t       Endpoints[USB_MAX_ENDPOINTS];
+    UUId_t                          Driver;
+    UUId_t                          Device;
 });
 
 #endif

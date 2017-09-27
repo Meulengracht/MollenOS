@@ -31,24 +31,6 @@
 /* Includes
  * - System */
 #include <os/driver/usb/definitions.h>
-#include <os/driver/service.h>
-#include <os/driver/buffer.h>
-#include <os/ipc/ipc.h>
-
-/* These definitions are in-place to allow a custom
- * setting of the device-manager, these are set to values
- * where in theory it should never be needed to have more */
-#define __USBMANAGER_INTERFACE_VERSION		1
-
-/* These are the different IPC functions supported
- * by the usbmanager, note that some of them might
- * be changed in the different versions, and/or new
- * functions will be added */
-#define __USBMANAGER_REGISTERCONTROLLER			IPC_DECL_FUNCTION(0)
-#define __USBMANAGER_UNREGISTERCONTROLLER		IPC_DECL_FUNCTION(1)
-#define __USBMANAGER_QUERYCONTROLLERS			IPC_DECL_FUNCTION(2)
-
-#define __USBMANAGER_PORTEVENT					IPC_DECL_FUNCTION(3)
 
 /* UsbControllerType
  * Describes the possible types of usb controllers */
@@ -82,7 +64,7 @@ PACKED_TYPESTRUCT(UsbHcEndpointDescriptor, {
 	UsbEndpointType_t                   Type;
 	UsbEndpointSynchronization_t        Synchronization;
 	size_t                              Address;
-	size_t                              Direction;
+	int                                 Direction;
 	size_t                              MaxPacketSize;
 	size_t                              Bandwidth;
 	size_t                              Interval;
@@ -113,7 +95,8 @@ PACKED_TYPESTRUCT(UsbHcInterface, {
  * A device then further has a bunch of interfaces, and those interfaces
  * have a bunch of endpoints. */
 PACKED_TYPESTRUCT(UsbHcDevice, {
-	int                         Address;
+    int                         Address;
+    UsbSpeed_t                  Speed;
 	int                         InterfaceCount;
 	int                         LanguageCount;
 
@@ -146,110 +129,218 @@ PACKED_TYPESTRUCT(UsbHcDevice, {
 #define USB_ENDPOINT_OUT				0x1
 #define USB_ENDPOINT_BOTH				0x2
 
-/* UsbControllerRegister
- * Registers a new controller with the given type and setup */
-#ifdef __USBMANAGER_IMPL
+/* UsbTransactionType 
+ * Describes the possible types of usb transactions */
+typedef enum _UsbTransactionType {
+	SetupTransaction,
+	InTransaction,
+	OutTransaction
+} UsbTransactionType_t;
+
+/* UsbTransferType 
+ * Describes the type of transfer, it can be one of 4 that describe
+ * either Control, Bulk, Interrupt or Isochronous */
+typedef enum _UsbTransferType {
+	ControlTransfer,
+	BulkTransfer,
+	InterruptTransfer,
+	IsochronousTransfer
+} UsbTransferType_t;
+
+/* UsbTransferStatus
+ * Describes a unified way of reporting how a transfer ended.
+ * Where the initial state is NotProcessed */
+typedef enum _UsbTransferStatus {
+	TransferNotProcessed,
+	TransferFinished,
+	TransferStalled,
+	TransferNotResponding,
+	TransferInvalidToggles,
+	TransferInvalidData,
+	TransferNAK,
+	TransferBabble
+} UsbTransferStatus_t;
+
+/* UsbTransaction
+ * Describes a single transaction in an usb-transfer operation */
+PACKED_TYPESTRUCT(UsbTransaction, {
+	UsbTransactionType_t				Type;
+	int									Handshake;	// ACK always end in 1
+	int									ZeroLength;
+
+	// Data Information
+	uintptr_t							BufferAddress;
+	size_t								Length;
+});
+
+/* UsbTransfer 
+ * Describes an usb-transfer, that consists of transfer information
+ * and a bunch of transactions. */
+PACKED_TYPESTRUCT(UsbTransfer, {
+    // Generic Information
+    Flags_t                             Flags;
+    UUId_t                              Pipe;
+	UsbTransferType_t                   Type;
+	UsbSpeed_t                          Speed;
+	size_t                              Length;
+    UsbTransaction_t                    Transactions[3];
+    int                                 TransactionCount;
+
+	// Endpoint Information
+	UsbHcEndpointDescriptor_t           Endpoint;
+
+	// Periodic Information
+	int	                                UpdatesOn;
+	__CONST void*                       PeriodicData;
+});
+
+/* UsbTransfer::Flags
+ * Bit-definitions and declarations for the field. */
+#define USB_TRANSFER_SHORT_NOT_OK       0x00000001
+
+/* UsbTransferResult
+ * Describes the result of an usb-transfer */
+PACKED_TYPESTRUCT(UsbTransferResult, {
+	// Generic Information
+	UUId_t					Id;
+	size_t					BytesTransferred;
+	UsbTransferStatus_t 	Status;
+});
+
+/* UsbInitialize
+ * Initializes libusb and enables the use of all the control
+ * functions that require a shared buffer-pool. */
 __EXTERN
 OsStatus_t
-SERVICEABI
-UsbControllerRegister(
-	_In_ UUId_t Driver,
-	_In_ UUId_t Device,
-	_In_ UsbControllerType_t Type,
-	_In_ size_t Ports);
-#else
-SERVICEAPI
-OsStatus_t
-SERVICEABI
-UsbControllerRegister(
-	_In_ UUId_t Device,
-	_In_ UsbControllerType_t Type,
-	_In_ size_t Ports)
-{
-	// Variables
-	MRemoteCall_t Request;
+UsbInitialize(void);
 
-	// Initialize RPC
-	RPCInitialize(&Request, __USBMANAGER_INTERFACE_VERSION,
-		PIPE_RPCOUT, __USBMANAGER_REGISTERCONTROLLER);
-
-	// Setup arguments
-	RPCSetArgument(&Request, 0, (__CONST void*)&Device, sizeof(UUId_t));
-	RPCSetArgument(&Request, 1, (__CONST void*)&Type, sizeof(UsbControllerType_t));
-	RPCSetArgument(&Request, 2, (__CONST void*)&Ports, sizeof(size_t));
-
-	// Send event, no response
-	return RPCEvent(&Request, __USBMANAGER_TARGET);
-}
-#endif
-
-/* UsbControllerUnregister
- * Unregisters the given usb-controller from the manager and
- * unregisters any devices registered by the controller */
-#ifdef __USBMANAGER_IMPL
+/* UsbCleanup
+ * Frees the shared resources allocated by UsbInitialize. */
 __EXTERN
 OsStatus_t
-SERVICEABI
-UsbControllerUnregister(
-	_In_ UUId_t Driver,
-	_In_ UUId_t Device);
-#else
-SERVICEAPI
-OsStatus_t
-SERVICEABI
-UsbControllerUnregister(
-	_In_ UUId_t Device)
-{
-	// Variables
-	MRemoteCall_t Request;
+UsbCleanup(void);
 
-	// Initialize RPC
-	RPCInitialize(&Request, __USBMANAGER_INTERFACE_VERSION,
-		PIPE_RPCOUT, __USBMANAGER_UNREGISTERCONTROLLER);
-
-	// Setup arguments
-	RPCSetArgument(&Request, 0, (__CONST void*)&Device, sizeof(UUId_t));
-
-	// Send event, no response
-	return RPCEvent(&Request, __USBMANAGER_TARGET);
-}
-#endif
-
-/* UsbEventPort 
- * Fired by a usbhost controller driver whenever there is a change
- * in port-status. The port-status is then queried automatically by
- * the usbmanager. */
-#ifdef __USBMANAGER_IMPL
+/* UsbTransferInitialize
+ * Initializes the usb-transfer structure from the given
+ * device and requested transfer type. */
 __EXTERN
 OsStatus_t
-SERVICEABI
-UsbEventPort(
+UsbTransferInitialize(
+    _InOut_ UsbTransfer_t *Transfer,
+    _In_ UsbHcDevice_t *Device,
+    _In_ UsbHcEndpointDescriptor_t *Endpoint,
+    _In_ UsbTransferType_t Type);
+
+/* UsbTransferSetup 
+ * Initializes a transfer for a control setup-transaction. 
+ * If there is no data-stage then set Data members to 0. */
+__EXTERN
+OsStatus_t
+UsbTransferSetup(
+    _InOut_ UsbTransfer_t *Transfer,
+    _In_ uintptr_t SetupAddress,
+    _In_ uintptr_t DataAddress,
+    _In_ size_t DataLength,
+    _In_ UsbTransactionType_t DataType);
+
+/* UsbTransferIn 
+ * Creates an In-transaction in the given usb-transfer. Both buffer and length 
+ * must be pre-allocated - and passed here. If handshake == 1 it's an ack-transaction. */
+__EXTERN
+OsStatus_t
+UsbTransferIn(
+	_InOut_ UsbTransfer_t *Transfer,
+	_In_ uintptr_t BufferAddress, 
+	_In_ size_t Length,
+    _In_ int Handshake);
+    
+/* UsbTransferOut 
+ * Creates an Out-transaction in the given usb-transfer. Both buffer and length 
+ * must be pre-allocated - and passed here. If handshake == 1 it's an ack-transaction. */
+__EXTERN
+OsStatus_t
+UsbTransferOut(
+	_Out_ UsbTransfer_t *Transfer,
+	_In_ uintptr_t BufferAddress, 
+	_In_ size_t Length,
+	_In_ int Handshake);
+
+/* UsbTransferQueue 
+ * Queues a new Control or Bulk transfer for the given driver
+ * and pipe. They must exist. The function blocks untill execution */
+__EXTERN
+OsStatus_t
+UsbTransferQueue(
 	_In_ UUId_t Driver,
 	_In_ UUId_t Device,
-	_In_ int Index);
-#else
-SERVICEAPI
+	_In_ UsbTransfer_t *Transfer,
+	_Out_ UsbTransferResult_t *Result);
+
+/* UsbTransferQueuePeriodic 
+ * Queues a new Interrupt or Isochronous transfer. This transfer is 
+ * persistant untill device is disconnected or Dequeue is called. */
+__EXTERN
 OsStatus_t
-SERVICEABI
-UsbEventPort(
+UsbTransferQueuePeriodic(
+	_In_ UUId_t Driver,
 	_In_ UUId_t Device,
-	_In_ int Index)
-{
-	// Variables
-	MRemoteCall_t Request;
+	_In_ UsbTransfer_t *Transfer,
+	_Out_ UUId_t *TransferId);
 
-	// Initialize RPC
-	RPCInitialize(&Request, __USBMANAGER_INTERFACE_VERSION,
-		PIPE_RPCOUT, __USBMANAGER_PORTEVENT);
+/* UsbTransferDequeuePeriodic 
+ * Dequeues an existing periodic transfer from the given controller. The transfer
+ * and the controller must be valid. */
+__EXTERN
+OsStatus_t
+UsbTransferDequeuePeriodic(
+	_In_ UUId_t Driver,
+	_In_ UUId_t Device,
+	_In_ UUId_t TransferId);
 
-	// Setup arguments
-	RPCSetArgument(&Request, 0, (__CONST void*)&Device, sizeof(UUId_t));
-	RPCSetArgument(&Request, 1, (__CONST void*)&Index, sizeof(int));
+/* UsbHostResetPort
+ * Resets the given port on the given controller and queries it's
+ * status afterwards. This returns an updated status of the port after
+ * the reset. */
+__EXTERN
+OsStatus_t
+UsbHostResetPort(
+	_In_ UUId_t Driver,
+	_In_ UUId_t Device,
+	_In_ int Index,
+	_Out_ UsbHcPortDescriptor_t *Descriptor);
 
-	// Send event, no response
-	return RPCEvent(&Request, __USBMANAGER_TARGET);
-}
-#endif
+/* UsbHostQueryPort 
+ * Queries the port-descriptor of host-controller port. */
+__EXTERN
+OsStatus_t
+UsbHostQueryPort(
+	_In_ UUId_t Driver,
+	_In_ UUId_t Device,
+	_In_ int Index,
+	_Out_ UsbHcPortDescriptor_t *Descriptor);
+
+/* UsbSetAddress
+ * Changes the address of the usb-device. This permanently updates the address. 
+ * It is not possible to change the address once enumeration is done. */
+__EXTERN
+UsbTransferStatus_t
+UsbSetAddress(
+	_In_ UUId_t Driver,
+	_In_ UUId_t Device,
+	_In_ UsbHcDevice_t *UsbDevice, 
+	_In_ UsbHcEndpointDescriptor_t *Endpoint, 
+    _In_ int Address);
+    
+/* UsbGetDeviceDescriptor
+ * Queries the device descriptor of an usb device on a given port. */
+__EXTERN
+UsbTransferStatus_t
+UsbGetDeviceDescriptor(
+	_In_ UUId_t Driver,
+	_In_ UUId_t Device,
+	_In_ UsbHcDevice_t *UsbDevice, 
+    _In_ UsbHcEndpointDescriptor_t *Endpoint,
+    _Out_ UsbDeviceDescriptor_t *DeviceDescriptor);
 
 /* UsbQueryControllers 
  * Queries the available usb controllers and their status in the system

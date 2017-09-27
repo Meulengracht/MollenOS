@@ -29,6 +29,7 @@
 
 /* Includes
  * - Interfaces */
+#include <os/driver/contracts/usbhost.h>
 #include <os/driver/contracts/usbdevice.h>
 #include <os/driver/contracts/storage.h>
 
@@ -133,6 +134,7 @@ typedef struct _MsdDevice {
     int                          AlignedAccess;
     
     // CBI Information
+    UsbHcEndpointDescriptor_t   *Control;
     UsbHcEndpointDescriptor_t   *In;
 	UsbHcEndpointDescriptor_t   *Out;
 	UsbHcEndpointDescriptor_t   *Interrupt;
