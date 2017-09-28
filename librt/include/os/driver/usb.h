@@ -342,6 +342,68 @@ UsbGetDeviceDescriptor(
     _In_ UsbHcEndpointDescriptor_t *Endpoint,
     _Out_ UsbDeviceDescriptor_t *DeviceDescriptor);
 
+/* UsbFunctionGetConfigDescriptor
+ * Queries the full configuration descriptor setup including all endpoints and interfaces.
+ * This relies on the GetInitialConfigDescriptor. Also allocates all resources neccessary. */
+__EXTERN
+UsbTransferStatus_t
+UsbFunctionGetConfigDescriptor(
+	_In_ UUId_t Driver,
+	_In_ UUId_t Device,
+	_In_ UsbHcDevice_t *UsbDevice, 
+    _In_ UsbHcEndpointDescriptor_t *Endpoint,
+    _Out_ void **ConfigDescriptorBuffer,
+    _Out_ size_t *ConfigDescriptorBufferLength);
+
+/* UsbFunctionSetConfiguration
+ * Updates the configuration of an usb-device. This changes active endpoints. */
+__EXTERN
+UsbTransferStatus_t
+UsbFunctionSetConfiguration(
+	_In_ UUId_t Driver,
+	_In_ UUId_t Device,
+	_In_ UsbHcDevice_t *UsbDevice, 
+    _In_ UsbHcEndpointDescriptor_t *Endpoint,
+    _In_ int Configuration);
+    
+/* UsbFunctionClearFeature
+ * Indicates to an usb-device that we want to request a feature/state disabled. */
+__EXTERN
+UsbTransferStatus_t
+UsbFunctionClearFeature(
+    _In_ UUId_t Driver,
+    _In_ UUId_t Device,
+    _In_ UsbHcDevice_t *UsbDevice, 
+    _In_ UsbHcEndpointDescriptor_t *Endpoint,
+    _In_ uint8_t Target, 
+    _In_ uint16_t Index, 
+    _In_ uint16_t Feature);
+
+/* UsbFunctionSetFeature
+ * Indicates to an usb-device that we want to request a feature/state enabled. */
+__EXTERN
+UsbTransferStatus_t
+UsbFunctionSetFeature(
+	_In_ UUId_t Driver,
+	_In_ UUId_t Device,
+	_In_ UsbHcDevice_t *UsbDevice, 
+    _In_ UsbHcEndpointDescriptor_t *Endpoint,
+	_In_ uint8_t Target, 
+	_In_ uint16_t Index, 
+    _In_ uint16_t Feature);
+    
+/* UsbFunctionGetStringLanguages
+ * Gets the device string language descriptors (Index 0). The retrieved string descriptors are
+ * stored in the given descriptor storage. */
+__EXTERN
+UsbTransferStatus_t
+UsbFunctionGetStringLanguages(
+	_In_ UUId_t Driver,
+	_In_ UUId_t Device,
+	_In_ UsbHcDevice_t *UsbDevice, 
+    _In_ UsbHcEndpointDescriptor_t *Endpoint,
+    _Out_ UsbStringDescriptor_t *StringDescriptor);
+
 /* UsbQueryControllers 
  * Queries the available usb controllers and their status in the system
  * The given array must be of size USB_MAX_CONTROLLERS. */
