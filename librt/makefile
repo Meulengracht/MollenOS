@@ -10,7 +10,7 @@
 # The remaining libraries are run-time libraries for C++ support
 
 .PHONY: all
-all: build build/libk.lib build/libds.lib build/libdsk.lib build/libcrt.lib build/libdrv.lib build/libsrv.lib build/libm.dll build/libc.dll build/libos.dll
+all: build build/libk.lib build/libds.lib build/libdsk.lib build/libcrt.lib build/libdrv.lib build/libsrv.lib build/libm.dll build/libc.dll build/libos.dll build/libusb.lib
 
 build:
 	mkdir -p $@
@@ -42,6 +42,9 @@ build/libc.dll:
 build/libos.dll:
 	$(MAKE) -C libos -f makefile
 
+build/libusb.lib:
+	$(MAKE) -C libusb -f makefile
+
 build/libcxxabi.dll:
 	$(MAKE) -C libcxxabi -f makefile
 
@@ -51,6 +54,7 @@ clean:
 	$(MAKE) -C libds -f makefile clean
 	$(MAKE) -C libc -f makefile clean
 	$(MAKE) -C libos -f makefile clean
+	$(MAKE) -C libusb -f makefile clean
 	$(MAKE) -C libcrt -f makefile clean
 	$(MAKE) -C libcxxabi -f makefile clean
 	@rm -rf build

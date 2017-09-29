@@ -116,7 +116,11 @@ int GetRevision(FILE *handle, int *revision, int *minor, int *major)
                 && !strcmp(tokens[1], "REVISION_MAJOR")) {
                 *major = atoi(tokens[2]);
             }
-		}
+        }
+        
+        if (result == 1) {
+            break;
+        }
 	}
 
 	// Cleanup

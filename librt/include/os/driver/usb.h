@@ -342,35 +342,36 @@ UsbGetDeviceDescriptor(
     _In_ UsbHcEndpointDescriptor_t *Endpoint,
     _Out_ UsbDeviceDescriptor_t *DeviceDescriptor);
 
-/* UsbFunctionGetConfigDescriptor
- * Queries the full configuration descriptor setup including all endpoints and interfaces.
- * This relies on the GetInitialConfigDescriptor. Also allocates all resources neccessary. */
+/* UsbGetConfigDescriptor
+ * Queries the configuration descriptor. Ideally this function is called twice to get
+ * the full configuration descriptor. Once to retrieve the actual descriptor, and then
+ * twice to retrieve the full descriptor with all information. */
 __EXTERN
 UsbTransferStatus_t
-UsbFunctionGetConfigDescriptor(
+UsbGetConfigDescriptor(
 	_In_ UUId_t Driver,
 	_In_ UUId_t Device,
 	_In_ UsbHcDevice_t *UsbDevice, 
     _In_ UsbHcEndpointDescriptor_t *Endpoint,
-    _Out_ void **ConfigDescriptorBuffer,
-    _Out_ size_t *ConfigDescriptorBufferLength);
+    _Out_ void *ConfigDescriptorBuffer,
+    _Out_ size_t ConfigDescriptorBufferLength);
 
-/* UsbFunctionSetConfiguration
+/* UsbSetConfiguration
  * Updates the configuration of an usb-device. This changes active endpoints. */
 __EXTERN
 UsbTransferStatus_t
-UsbFunctionSetConfiguration(
+UsbSetConfiguration(
 	_In_ UUId_t Driver,
 	_In_ UUId_t Device,
 	_In_ UsbHcDevice_t *UsbDevice, 
     _In_ UsbHcEndpointDescriptor_t *Endpoint,
     _In_ int Configuration);
     
-/* UsbFunctionClearFeature
+/* UsbClearFeature
  * Indicates to an usb-device that we want to request a feature/state disabled. */
 __EXTERN
 UsbTransferStatus_t
-UsbFunctionClearFeature(
+UsbClearFeature(
     _In_ UUId_t Driver,
     _In_ UUId_t Device,
     _In_ UsbHcDevice_t *UsbDevice, 
@@ -379,11 +380,11 @@ UsbFunctionClearFeature(
     _In_ uint16_t Index, 
     _In_ uint16_t Feature);
 
-/* UsbFunctionSetFeature
+/* UsbSetFeature
  * Indicates to an usb-device that we want to request a feature/state enabled. */
 __EXTERN
 UsbTransferStatus_t
-UsbFunctionSetFeature(
+UsbSetFeature(
 	_In_ UUId_t Driver,
 	_In_ UUId_t Device,
 	_In_ UsbHcDevice_t *UsbDevice, 
@@ -392,18 +393,50 @@ UsbFunctionSetFeature(
 	_In_ uint16_t Index, 
     _In_ uint16_t Feature);
     
-/* UsbFunctionGetStringLanguages
+/* UsbGetStringLanguages
  * Gets the device string language descriptors (Index 0). The retrieved string descriptors are
  * stored in the given descriptor storage. */
 __EXTERN
 UsbTransferStatus_t
-UsbFunctionGetStringLanguages(
+UsbGetStringLanguages(
 	_In_ UUId_t Driver,
 	_In_ UUId_t Device,
 	_In_ UsbHcDevice_t *UsbDevice, 
     _In_ UsbHcEndpointDescriptor_t *Endpoint,
     _Out_ UsbStringDescriptor_t *StringDescriptor);
 
+/* UsbGetStringDescriptor
+ * Queries the usb device for a string with the given language and index. 
+ * The provided buffer must be of size at-least 64 bytes. */
+__EXTERN
+UsbTransferStatus_t
+UsbGetStringDescriptor(
+    _In_ UUId_t Driver,
+    _In_ UUId_t Device,
+    _In_ UsbHcDevice_t *UsbDevice, 
+    _In_ UsbHcEndpointDescriptor_t *Endpoint,
+    _In_ size_t LanguageId, 
+    _In_ size_t StringIndex, 
+    _Out_ char *String);
+
+/* UsbExecutePacket
+ * Executes a custom packet with or without a data-stage. Use this for vendor-specific
+ * control requests. */
+__EXTERN
+UsbTransferStatus_t
+UsbExecutePacket(
+    _In_ UUId_t Driver,
+    _In_ UUId_t Device,
+    _In_ UsbHcDevice_t *UsbDevice, 
+    _In_ UsbHcEndpointDescriptor_t *Endpoint,
+    _In_ uint8_t Direction,
+    _In_ uint8_t Type,
+    _In_ uint8_t ValueHigh,
+    _In_ uint8_t ValueLow,
+    _In_ uint16_t Index,
+    _In_ uint16_t Length,
+    _Out_ void *Buffer);
+    
 /* UsbQueryControllers 
  * Queries the available usb controllers and their status in the system
  * The given array must be of size USB_MAX_CONTROLLERS. */

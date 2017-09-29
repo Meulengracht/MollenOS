@@ -23,6 +23,7 @@
  * - Library */
 #include <os/osdefs.h>
 #include <ds/bitmap.h>
+#include <string.h>
 #include <stddef.h>
 
 /* BitmapCreate

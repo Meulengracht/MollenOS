@@ -132,6 +132,12 @@ typedef struct _MsdDevice {
 	int                          IsReady;
 	int                          IsExtended;
     int                          AlignedAccess;
+
+    // Reusable buffers
+    MsdCommandBlock_t           *CommandBlock;
+    uintptr_t                    CommandBlockAddress;
+    MsdCommandStatus_t          *StatusBlock;
+    uintptr_t                    StatusBlockAddress;
     
     // CBI Information
     UsbHcEndpointDescriptor_t   *Control;
@@ -153,6 +159,28 @@ MsdDeviceCreate(
 __EXTERN
 OsStatus_t
 MsdDeviceDestroy(
+    _In_ MsdDevice_t *Device);
+
+/* MsdReset
+ * Performs an interface reset, only neccessary for bulk endpoints. */
+__EXTERN
+OsStatus_t
+MsdReset(
+    _In_ MsdDevice_t *Device);
+
+/* MsdRecoveryReset
+ * Performs a full interface and endpoint reset, should only be used
+ * for fatal interface errors. */
+__EXTERN
+OsStatus_t
+MsdRecoveryReset(
+    _In_ MsdDevice_t *Device);
+
+/* MsdGetMaximumLunCount
+ * Retrieves the maximum logical unit count for the given msd-device. */
+__EXTERN
+OsStatus_t
+MsdGetMaximumLunCount(
     _In_ MsdDevice_t *Device);
 
 #endif // !_USB_MSD_H_

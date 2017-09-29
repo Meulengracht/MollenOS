@@ -74,7 +74,7 @@ EhciTransactionInitialize(
 
         // Calculate the bus-time
         if (Transfer->Type == InterruptTransfer) {
-            EhciQhInitialize(Controller, Qh, Transfer->Speed, Transfer->Direction,
+            EhciQhInitialize(Controller, Qh, Transfer->Speed, Transfer->Endpoint.Direction,
                              Transfer->Type, Transfer->Endpoint.Interval,
                              Transfer->Endpoint.MaxPacketSize, Transfer->Length);
         }

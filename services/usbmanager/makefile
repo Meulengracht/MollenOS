@@ -5,7 +5,7 @@ SOURCES = $(wildcard *.c)
 OBJECTS = $(SOURCES:.c=.o)
 
 CFLAGS = $(GCFLAGS) -Wno-address-of-packed-member -D__SERVICE_IMPL -D__USBMANAGER_IMPL $(INCLUDES)
-LFLAGS = /nodefaultlib /subsystem:native /entry:_mDrvCrt /dll ../../librt/build/libsrv.lib ../../librt/build/libc.lib ../../librt/build/libos.lib
+LFLAGS = /nodefaultlib /subsystem:native /entry:_mDrvCrt /dll ../../librt/build/libsrv.lib ../../librt/build/libc.lib ../../librt/build/libos.lib ../../librt/build/libusb.lib
 
 .PHONY: all
 all: ../build/usbmanager.dll ../build/usbmanager.mdrv

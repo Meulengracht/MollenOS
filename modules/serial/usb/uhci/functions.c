@@ -91,7 +91,7 @@ UhciTransactionInitialize(
 
 		// Calculate the bandwidth
 		Qh->Bandwidth = UsbCalculateBandwidth(Transfer->Speed, 
-			Transfer->Direction, Transfer->Type, Transfer->Length);
+			Transfer->Endpoint.Direction, Transfer->Type, Transfer->Length);
 
 		/* Make sure we have enough bandwidth for the transfer */
 		if (Exponent > 0) {
