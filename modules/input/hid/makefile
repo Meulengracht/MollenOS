@@ -9,12 +9,12 @@ CFLAGS = $(GCFLAGS) -D_DLL -D__DRIVER_IMPL $(INCLUDES)
 LFLAGS = /nodefaultlib /subsystem:native /entry:_mDrvCrt /dll ../../../librt/build/libc.lib ../../../librt/build/libdrv.lib ../../../librt/build/libos.lib ../../../librt/build/libusb.lib
 
 .PHONY: all
-all: ../../build/msd.dll ../../build/msd.mdrv
+all: ../../build/hid.dll ../../build/hid.mdrv
 
-../../build/msd.dll: $(OBJECTS)
+../../build/hid.dll: $(OBJECTS)
 	$(LD) $(LFLAGS) $(OBJECTS) /out:$@
 
-../../build/msd.mdrv: msd.mdrv
+../../build/hid.mdrv: hid.mdrv
 	cp $< $@
 
 %.o : %.c
@@ -22,7 +22,7 @@ all: ../../build/msd.dll ../../build/msd.mdrv
 
 .PHONY: clean
 clean:
-	rm -f ../../build/msd.dll
-	rm -f ../../build/msd.lib
-	rm -f ../../build/msd.mdrv
+	rm -f ../../build/hid.dll
+	rm -f ../../build/hid.lib
+	rm -f ../../build/hid.mdrv
 	rm -f $(OBJECTS)

@@ -42,7 +42,6 @@
 #define __USBMANAGER_REGISTERCONTROLLER			IPC_DECL_FUNCTION(0)
 #define __USBMANAGER_UNREGISTERCONTROLLER		IPC_DECL_FUNCTION(1)
 #define __USBMANAGER_QUERYCONTROLLERS			IPC_DECL_FUNCTION(2)
-
 #define __USBMANAGER_PORTEVENT					IPC_DECL_FUNCTION(3)
 
 /* Usb host controller query functions that must be implemented
@@ -52,6 +51,7 @@
 #define __USBHOST_DEQUEUEPERIODIC	IPC_DECL_FUNCTION(2)
 #define __USBHOST_RESETPORT			IPC_DECL_FUNCTION(3)
 #define __USBHOST_QUERYPORT			IPC_DECL_FUNCTION(4)
+#define __USBHOST_RESETENDPOINT     IPC_DECL_FUNCTION(5)
 
 /* UsbControllerRegister
  * Registers a new controller with the given type and setup */

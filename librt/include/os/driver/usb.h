@@ -31,6 +31,7 @@
 /* Includes
  * - System */
 #include <os/driver/usb/definitions.h>
+#include <os/driver/bufferpool.h>
 
 /* UsbControllerType
  * Describes the possible types of usb controllers */
@@ -219,6 +220,13 @@ UsbInitialize(void);
 __EXTERN
 OsStatus_t
 UsbCleanup(void);
+
+/* UsbRetrievePool 
+ * Retrieves the shared usb-memory pool for transfers. Only
+ * use this for small short-term use buffers. */
+__EXTERN
+BufferPool_t*
+UsbRetrievePool(void);
 
 /* UsbTransferInitialize
  * Initializes the usb-transfer structure from the given
@@ -436,7 +444,18 @@ UsbExecutePacket(
     _In_ uint16_t Index,
     _In_ uint16_t Length,
     _Out_ void *Buffer);
-    
+
+/* UsbEndpointReset
+ * Resets the data for the given endpoint. This includes the data-toggles. 
+ * This function is unavailable for control-endpoints. */
+__EXTERN
+OsStatus_t
+UsbEndpointReset(
+    _In_ UUId_t Driver,
+    _In_ UUId_t Device,
+    _In_ UsbHcDevice_t *UsbDevice, 
+    _In_ UsbHcEndpointDescriptor_t *Endpoint);
+
 /* UsbQueryControllers 
  * Queries the available usb controllers and their status in the system
  * The given array must be of size USB_MAX_CONTROLLERS. */

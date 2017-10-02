@@ -84,26 +84,19 @@
 #define SCSI_READ_CD                    0xBE
 #define SCSI_SEND_DISC_STRUCT           0xBF
 
-#pragma pack(push, 1)
-typedef struct _ScsiInquiry
-{
-    /* Bits 0:4 - Peripheral Device Type 
-     * Bits 5:7 - Peripheral Qualifier */
+/* ScsiInquiry
+ * Inquiry command response structure. Contains information
+ * about device usage and setup. This is returned upon the INQUIRY command. */
+PACKED_TYPESTRUCT(ScsiInquiry, {
     uint8_t PeripheralInfo;
-
-    /* Bit 7 - Removable Media */
-    uint8_t Rmb;
-
-    /* Version */
+    uint8_t Removable;
     uint8_t Version;
 
     /* Bits 0:3 - Response Data Format 
      * Bits 4 - Hearical Support 
      * Bits 5 - Normal ACA support */
     uint8_t RespDataFormat;
-
-    /* Additional Length N-4 */
-    uint8_t AdditionalLength;
+    uint8_t AdditionalLength; // Additional Length N-4
 
     /* Bit 0 - Protection Support
      * Bit 3 - Third Party Support (Third Party Commands) 
@@ -117,60 +110,41 @@ typedef struct _ScsiInquiry
      * Bit 14 - Enclosure Services
      * Bit 15 - Basic Queue Support */
     uint16_t Flags;
+    uint8_t VendorIdentification[8]; // Data is Left Aligned (Reversed)
+    uint8_t ProductIdentification[16]; // Data is Left Aligned (Reversed)
+    uint8_t ProductRevisionLevel[4]; // Data is Left Aligned (Reversed)
+});
 
-    /* Vendor Identification
-     * Data is Left Aligned */
-    uint8_t VendorIdent[8];
+/* ScsiInquiry::PeripheralInfo
+ * Contains definitions and bitfield definitions for ScsiInquiry::PeripheralInfo */
+#define SCSI_INQUIRY_DEVICETYPE(PeripheralInfo)     (PeripheralInfo & 0x1F)
+#define SCSI_INQUIRY_DEVICEQUAL(PeripheralInfo)     ((PeripheralInfo >> 5) & 0x7)
 
-    /* Product Identification 
-    * Data is Left Aligned (Reversed) */
-    uint8_t ProductIdent[16];
+/* ScsiInquiry::Removable
+ * Contains definitions and bitfield definitions for ScsiInquiry::Removable */
+#define SCSI_INQUIRY_REMOVABLE                      0x80
 
-    /* Product Revision Level
-     * Data is Left Aligned */
-    uint8_t ProductRevLvl[4];
-
-} ScsiInquiry_t;
-#pragma pack(pop)
-
-#pragma pack(push, 1)
-typedef struct _ScsiSense
-{
-    /* Response Code & Validity */
+/* ScsiSense
+ * Request device sense response structure. Contains information about
+ * device status and state. This is returned upon the SENSE command. */
+PACKED_TYPESTRUCT(ScsiSense, {
     uint8_t ResponseStatus;
-
-    /* Not Used */
     uint8_t Obsolete;
-
-    /* SenseFlags 
-     * 0:3 - SenseKey */
     uint8_t Flags;
-
-    /* Information */
     uint8_t Information[4];
-
-    /* Additional Length n - 7 */
-    uint8_t AdditionalLength;
-
-    /* Command Specific Information */
+    uint8_t AdditionalLength; // Additional Length n - 7
     uint8_t CmdInformation[4];
-
-    /* Additional Sense Code */
     uint8_t AdditionalSenseCode;
-
-    /* Additional Sense Qualifier */
     uint8_t AdditionalSenseQualifier;
-
-    /* Field Replacable Unit Code */
     uint8_t FieldUnitCode;
-
-    /* Extra Data */
     uint8_t ExtraData[3];
+});
 
-} ScsiSense_t;
-#pragma pack(pop)
-
-#define SCSI_SENSE_VALID            0x80
+/* ScsiSense::Flags
+ * Contains definitions and bitfield definitions for ScsiSense::Flags */
+#define SCSI_SENSE_RESPONSECODE(Flags)  (Flags & 0x7F)
+#define SCSI_SENSE_KEY(Flags)           (Flags & 0xF)
+#define SCSI_SENSE_VALID                0x80
 
 /* ScsiExtendedCaps
  * Extended capabilites structure, only used in case the device supports larger

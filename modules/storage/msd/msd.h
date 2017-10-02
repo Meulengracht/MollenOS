@@ -29,6 +29,7 @@
 
 /* Includes
  * - Interfaces */
+#include <os/driver/contracts/base.h>
 #include <os/driver/contracts/usbhost.h>
 #include <os/driver/contracts/usbdevice.h>
 #include <os/driver/contracts/storage.h>
@@ -127,6 +128,7 @@ typedef enum _MsdDeviceType {
  * Represents a mass storage device. */
 typedef struct _MsdDevice {
     MCoreUsbDevice_t             Base;
+    MContract_t                  Contract;
     StorageDescriptor_t          Descriptor;
     MsdDeviceType_t              Type;
 	int                          IsReady;
@@ -182,5 +184,35 @@ __EXTERN
 OsStatus_t
 MsdGetMaximumLunCount(
     _In_ MsdDevice_t *Device);
+
+/* MsdSetup
+ * Initializes the device by performing one-time setup and reading device
+ * capabilities and features. */
+__EXTERN
+OsStatus_t
+MsdSetup(
+    _In_ MsdDevice_t *Device);
+
+/* MsdReadSectors
+ * Read a given amount of sectors (bytes/sector-size) from the MSD. */
+__EXTERN
+OsStatus_t
+MsdReadSectors(
+    _In_ MsdDevice_t *Device,
+    _In_ uint64_t SectorStart, 
+    _In_ uintptr_t BufferAddress,
+    _In_ size_t BufferLength,
+    _Out_ size_t *BytesRead);
+
+/* MsdWriteSectors
+ * Write a given amount of sectors (bytes/sector-size) to the MSD. */
+__EXTERN
+OsStatus_t
+MsdWriteSectors(
+    _In_ MsdDevice_t *Device,
+    _In_ uint64_t SectorStart, 
+    _In_ uintptr_t BufferAddress,
+    _In_ size_t BufferLength,
+    _Out_ size_t *BytesWritten);
 
 #endif // !_USB_MSD_H_

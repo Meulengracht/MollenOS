@@ -18,9 +18,12 @@
  *
  * MollenOS MCore - Mass Storage Device Driver (Generic)
  */
+//#define __TRACE
 
 /* Includes
  * - System */
+#include <os/thread.h>
+#include <os/utils.h>
 #include <os/driver/usb.h>
 #include "msd.h"
 
@@ -74,8 +77,8 @@ MsdReset(
 
     // Reset is 
     // 0x21 | 0xFF | wIndex - Interface
-    Status = UsbExecutePacket(Device->Base.Driver, Device->Base.Device, 
-        Device->Base.Device, Device->Control,
+    Status = UsbExecutePacket(Device->Base.DriverId, Device->Base.DeviceId, 
+        &Device->Base.Device, Device->Control,
         USBPACKET_DIRECTION_CLASS | USBPACKET_DIRECTION_INTERFACE,
         MSD_REQUEST_RESET, 0, 0, (uint16_t)Device->Base.Interface.Id, 0, NULL);
 
@@ -106,26 +109,32 @@ MsdRecoveryReset(
     }
 
     // Clear HALT features on both in and out endpoints
-    if (UsbClearFeature(Device->Base.Driver, Device->Base.Device, 
-        Device->Base.Device, Device->Control, USBPACKET_DIRECTION_ENDPOINT,
+    if (UsbClearFeature(Device->Base.DriverId, Device->Base.DeviceId, 
+        &Device->Base.Device, Device->Control, USBPACKET_DIRECTION_ENDPOINT,
         Device->In->Address, USB_FEATURE_HALT) != TransferFinished
-        || UsbClearFeature(Device->Base.Driver, Device->Base.Device, 
-        Device->Base.UsbDevice, Device->Control, USBPACKET_DIRECTION_ENDPOINT,
+        || UsbClearFeature(Device->Base.DriverId, Device->Base.DeviceId, 
+        &Device->Base.Device, Device->Control, USBPACKET_DIRECTION_ENDPOINT,
         Device->Out->Address, USB_FEATURE_HALT) != TransferFinished) {
         ERROR("Failed to reset endpoints");
         return OsError;
     }
 
     // Restore to initial configuration
-    if (UsbSetConfiguration(Device->Base.Driver, Device->Base.Device, 
-        Device->Base.Device, Device->Control, 1) != TransferFinished) {
+    if (UsbSetConfiguration(Device->Base.DriverId, Device->Base.DeviceId, 
+        &Device->Base.Device, Device->Control, 1) != TransferFinished) {
         ERROR("Failed to restore device configuration to 1");
         return OsError;
     }
 
-    /* Reset Toggles */
-    Device->EpIn->Toggle = 0;
-    Device->EpOut->Toggle = 0;
+    // Reset data toggles for bulk-endpoints
+    if (UsbEndpointReset(Device->Base.DriverId, Device->Base.DeviceId, 
+        &Device->Base.Device, Device->In) != OsSuccess) {
+        ERROR("Failed to reset endpoint (in)");
+    }
+    if (UsbEndpointReset(Device->Base.DriverId, Device->Base.DeviceId, 
+        &Device->Base.Device, Device->Out) != OsSuccess) {
+        ERROR("Failed to reset endpoint (out)");
+    }
 
     // Reset interface again
     return MsdReset(Device);
@@ -144,8 +153,8 @@ MsdGetMaximumLunCount(
     // Get Max LUNS is
     // 0xA1 | 0xFE | wIndex - Interface 
     // 1 Byte is expected back, values range between 0 - 15, 0-indexed
-    Status = UsbExecutePacket(Device->Base.Driver, Device->Base.Device, 
-        Device->Base.Device, Device->Control,
+    Status = UsbExecutePacket(Device->Base.DriverId, Device->Base.DeviceId, 
+        &Device->Base.Device, Device->Control,
         USBPACKET_DIRECTION_IN | USBPACKET_DIRECTION_CLASS | USBPACKET_DIRECTION_INTERFACE,
         MSD_REQUEST_GET_MAX_LUN, 0, 0, (uint16_t)Device->Base.Interface.Id, 1, &MaxLuns);
 
@@ -180,7 +189,7 @@ MsdSCSICommmandConstruct(
     CmdBlock->Signature = MSD_CBW_SIGNATURE;
     CmdBlock->Tag = MSD_TAG_SIGNATURE | ScsiCommand;
     CmdBlock->CommandBytes[0] = ScsiCommand;
-    CmdBlock->DataLen = DataLen;
+    CmdBlock->DataLength = DataLen;
 
     // Switch between supported/implemented commands
     switch (ScsiCommand) {
@@ -418,11 +427,11 @@ MsdSCSICommmandConstruct(
  * Constructs a new SCSI command structure from the information given. */
 void
 MsdSCSICommmandConstructUFI(
-    MsdCommandBlockUFI_t *CmdBlock,
-    uint8_t ScsiCommand, 
-    uint64_t SectorLBA, 
-    uint32_t DataLen, 
-    uint16_t SectorSize)
+    _InOut_ MsdCommandBlockUFI_t *CmdBlock,
+    _In_ uint8_t ScsiCommand, 
+    _In_ uint64_t SectorLBA, 
+    _In_ uint32_t DataLen, 
+    _In_ uint16_t SectorSize)
 {
     // Reset structure
     memset((void*)CmdBlock, 0, sizeof(MsdCommandBlockUFI_t));
@@ -542,11 +551,11 @@ MsdSCSICommandIn(
         // Construct our command build the usb transfer
         MsdSCSICommmandConstruct(Device->CommandBlock, ScsiCommand, SectorStart, 
             DataLength, (uint16_t)Device->Descriptor.SectorSize);
-        UsbTransferInitialize(&ControlTransfer, Device->Base.Device, 
+        UsbTransferInitialize(&ControlTransfer, &Device->Base.Device, 
             Device->Out, BulkTransfer);
         UsbTransferOut(&ControlTransfer, Device->CommandBlockAddress, 
             sizeof(MsdCommandBlock_t), 0);
-        UsbTransferQueue(Device->Base.Driver, Device->Base.Device, 
+        UsbTransferQueue(Device->Base.DriverId, Device->Base.DeviceId, 
             &ControlTransfer, &Result);
     }
     else {
@@ -554,13 +563,13 @@ MsdSCSICommandIn(
         MsdCommandBlockUFI_t UfiCommandBlock;
 
         // Construct our command build the usb transfer
-        MsdSCSICommmandConstructUFI(&UfiCommandBlock, ScsiCommand, SectorStart
+        MsdSCSICommmandConstructUFI(&UfiCommandBlock, ScsiCommand, SectorStart,
             DataLength, (uint16_t)Device->Descriptor.SectorSize);
-        Result.Status = UsbExecutePacket(Device->Base.Driver, Device->Base.Device,
-            Device->Base.Device, Device->Control, 
+        Result.Status = UsbExecutePacket(Device->Base.DriverId, Device->Base.DeviceId,
+            &Device->Base.Device, Device->Control, 
             USBPACKET_DIRECTION_CLASS | USBPACKET_DIRECTION_INTERFACE, 0, 0, 0, 
             (uint16_t)Device->Base.Interface.Id, 
-            sizeof(MsdCommandBlockWrapUFI_t), &UfiCommandBlock);
+            sizeof(MsdCommandBlockUFI_t), &UfiCommandBlock);
     }
 
     // Sanitize for any transport errors
@@ -573,14 +582,14 @@ MsdSCSICommandIn(
 
     // The next step is construct and execute the data transfer
     // now that we have prepaired the device for control
-    UsbTransferInitialize(&DataTransfer, Device->Base.Device, Device->In, BulkTransfer);
+    UsbTransferInitialize(&DataTransfer, &Device->Base.Device, Device->In, BulkTransfer);
     if (DataLength != 0) {
         UsbTransferIn(&DataTransfer, DataAddress, DataLength, 0);
     }
     if (Device->Type == HardDrive) {
         UsbTransferIn(&DataTransfer, Device->StatusBlockAddress, sizeof(MsdCommandStatus_t), 0);
     }
-    UsbTransferQueue(Device->Base.Driver, Device->Base.Device, &ControlTransfer, &Result);
+    UsbTransferQueue(Device->Base.DriverId, Device->Base.DeviceId, &ControlTransfer, &Result);
 
     // Sanitize transfer response
     if (Result.Status != TransferFinished) {
@@ -617,12 +626,12 @@ MsdSCSICommandOut(
         // Construct our command build the usb transfer
         MsdSCSICommmandConstruct(Device->CommandBlock, ScsiCommand, SectorStart, 
             DataLength, (uint16_t)Device->Descriptor.SectorSize);
-        UsbTransferInitialize(&DataTransfer, Device->Base.Device, 
+        UsbTransferInitialize(&DataTransfer, &Device->Base.Device, 
             Device->Out, BulkTransfer);
         UsbTransferOut(&DataTransfer, Device->CommandBlockAddress, 
             sizeof(MsdCommandBlock_t), 0);
         UsbTransferOut(&DataTransfer, DataAddress, DataLength, 0);
-        UsbTransferQueue(Device->Base.Driver, Device->Base.Device, 
+        UsbTransferQueue(Device->Base.DriverId, Device->Base.DeviceId, 
             &DataTransfer, &Result);
     }
     else {
@@ -630,13 +639,13 @@ MsdSCSICommandOut(
         MsdCommandBlockUFI_t UfiCommandBlock;
 
         // Construct our command build the usb transfer
-        MsdSCSICommmandConstructUFI(&UfiCommandBlock, ScsiCommand, SectorStart
+        MsdSCSICommmandConstructUFI(&UfiCommandBlock, ScsiCommand, SectorStart,
             DataLength, (uint16_t)Device->Descriptor.SectorSize);
-        Result.Status = UsbExecutePacket(Device->Base.Driver, Device->Base.Device,
-            Device->Base.Device, Device->Control, 
+        Result.Status = UsbExecutePacket(Device->Base.DriverId, Device->Base.DeviceId,
+            &Device->Base.Device, Device->Control, 
             USBPACKET_DIRECTION_CLASS | USBPACKET_DIRECTION_INTERFACE, 0, 0, 0, 
             (uint16_t)Device->Base.Interface.Id, 
-            sizeof(MsdCommandBlockWrapUFI_t), &UfiCommandBlock);
+            sizeof(MsdCommandBlockUFI_t), &UfiCommandBlock);
 
         // Sanitize transfer status
         if (Result.Status != TransferFinished) {
@@ -644,10 +653,10 @@ MsdSCSICommandOut(
         }
 
         // Execute the data stage
-        UsbTransferInitialize(&DataTransfer, Device->Base.Device, 
+        UsbTransferInitialize(&DataTransfer, &Device->Base.Device, 
             Device->Out, BulkTransfer);
         UsbTransferOut(&DataTransfer, DataAddress, DataLength, 0);
-        UsbTransferQueue(Device->Base.Driver, Device->Base.Device, 
+        UsbTransferQueue(Device->Base.DriverId, Device->Base.DeviceId, 
             &DataTransfer, &Result);
 
         // Return the result
@@ -664,9 +673,9 @@ MsdSCSICommandOut(
 
     // The next step is construct and execute the status transfer
     // now that we have executed the data transfer
-    UsbTransferInitialize(&StatusTransfer, Device->Base.Device, Device->In, BulkTransfer);
+    UsbTransferInitialize(&StatusTransfer, &Device->Base.Device, Device->In, BulkTransfer);
     UsbTransferIn(&StatusTransfer, Device->StatusBlockAddress, sizeof(MsdCommandStatus_t), 0);
-    UsbTransferQueue(Device->Base.Driver, Device->Base.Device, &StatusTransfer, &Result);
+    UsbTransferQueue(Device->Base.DriverId, Device->Base.DeviceId, &StatusTransfer, &Result);
 
     // If the transfer was not UFI sanitize the CSW
     if (Device->Type == HardDrive) {
@@ -677,127 +686,241 @@ MsdSCSICommandOut(
     }
 }
 
-/* A combination of Test-Device-Ready & Requst Sense */
+/* MsdPrepareDevice
+ * Ready's the device by performing TDR's and requesting sense-status. */
 OsStatus_t
-UsbMsdReadyDevice(
+MsdPrepareDevice(
     MsdDevice_t *Device)
 {
     // Variables
     ScsiSense_t *SenseBlock = NULL;
-    uintptr_t *SenseBlockPhysical = 0;
+    uintptr_t SenseBlockPhysical = 0;
+    int ResponseCode, SenseKey;
 
-    /* We don't use TDR on UFI's */
+    // Debug
+    TRACE("MsdPrepareDevice()");
+
+    // Allocate memory buffer
+    if (BufferPoolAllocate(UsbRetrievePool(), sizeof(ScsiSense_t), 
+        (uintptr_t**)&SenseBlock, &SenseBlockPhysical) != OsSuccess) {
+        ERROR("Failed to allocate buffer (sense)");
+        return OsError;
+    }
+
+    // Don't use test-unit-ready for UFI
     if (Device->Type == HardDrive) {
-        if (MsdSCSICommandIn(SCSI_TEST_UNIT_READY, Device, 0, NULL, 0)
-            != TransferFinished) {
-            LogFatal("USBM", "Failed to test");
+        if (MsdSCSICommandIn(Device, SCSI_TEST_UNIT_READY, 0, 0, 0)
+                != TransferFinished) {
+            ERROR("Failed to perform test-unit-ready command");
+            BufferPoolFree(UsbRetrievePool(), (uintptr_t*)SenseBlock);
             Device->IsReady = 0;
-            return;
+            return OsError;
         }
     }
 
-    /* Request Sense this time */
-    if (MsdSCSICommandIn(SCSI_REQUEST_SENSE, Device, 0, &SenseBlock, sizeof(ScsiSense_t))
-        != TransferFinished) {
-        LogFatal("USBM", "Failed to sense");
+    // Now request the sense-status
+    if (MsdSCSICommandIn(Device, SCSI_REQUEST_SENSE, 0, 
+        SenseBlockPhysical, sizeof(ScsiSense_t)) != TransferFinished) {
+        ERROR("Failed to perform sense command");
+        BufferPoolFree(UsbRetrievePool(), (uintptr_t*)SenseBlock);
         Device->IsReady = 0;
-        return;
+        return OsError;
     }
 
-    /* Sanity Sense */
-    uint32_t ResponseCode = SenseBlock.ResponseStatus & 0x7F;
-    uint32_t SenseKey = SenseBlock.Flags & 0xF;
+    // Extract sense-codes and key
+    ResponseCode = SCSI_SENSE_RESPONSECODE(SenseBlock->ResponseStatus);
+    SenseKey = SCSI_SENSE_KEY(SenseBlock->Flags);
 
-    /* Must be either 0x70, 0x71, 0x72, 0x73 */
+    // Cleanup
+    BufferPoolFree(UsbRetrievePool(), (uintptr_t*)SenseBlock);
+
+    // Must be either 0x70, 0x71, 0x72, 0x73
     if (ResponseCode >= 0x70 && ResponseCode <= 0x73) {
-        LogInformation("USBM", "Sense Status: %s", SenseKeys[SenseKey]);
+        TRACE("Sense Status: %s", SenseKeys[SenseKey]);
     }
     else {
-        LogFatal("USBM", "Invalid Response Code: 0x%x", ResponseCode);
+        ERROR("Invalid Response Code: 0x%x", ResponseCode);
         Device->IsReady = 0;
-        return;
+        return OsError;
     }
+
+    // Mark ready and return
     Device->IsReady = 1;
+    return OsSuccess;
 }
 
-/* Read Capacity of a device */
-void UsbMsdReadCapacity(MsdDevice_t *Device, MCoreStorageDevice_t *sDevice)
+/* MsdReadCapabilities
+ * Reads the geometric capabilities of the device as sector-count and sector-size. */
+OsStatus_t 
+MsdReadCapabilities(
+    _In_ MsdDevice_t *Device)
 {
-    /* Buffer to store data */
-    uint32_t CapBuffer[2] = { 0 };
+    // Variables
+    StorageDescriptor_t *Descriptor = &Device->Descriptor;
+    uint32_t *CapabilitesPointer = NULL;
+    uintptr_t CapabilitiesAddress = 0;
 
-    /* Send Command */
-    if (UsbMsdSendSCSICommandIn(SCSI_READ_CAPACITY, Device, 0, &CapBuffer, 8)
-        != TransferFinished)
-        return;
-
-    /* We have to switch byte order, but first,
-     * lets sanity */
-    if (CapBuffer[0] == 0xFFFFFFFF)
-    {
-        /* CapBuffer16 */
-        ScsiExtendedCaps_t ExtendedCaps;
-
-        /* Do extended */
-        if (UsbMsdSendSCSICommandIn(SCSI_READ_CAPACITY_16, Device, 0, &ExtendedCaps, sizeof(ScsiExtendedCaps_t))
-            != TransferFinished)
-            return;
-
-        /* Reverse Byte Order */
-        sDevice->SectorCount = rev64(ExtendedCaps.SectorCount) + 1;
-        sDevice->SectorSize = rev32(ExtendedCaps.SectorSize);
-        Device->SectorSize = sDevice->SectorSize;
-        Device->IsExtended = 1;
-
-        /* Done */
-        return;
+    // Allocate buffer
+    if (BufferPoolAllocate(UsbRetrievePool(), sizeof(ScsiExtendedCaps_t), 
+        (uintptr_t**)&CapabilitesPointer, &CapabilitiesAddress) != OsSuccess) {
+        ERROR("Failed to allocate buffer (caps)");
+        return OsError;
     }
 
-    /* Reverse Byte Order */
-    sDevice->SectorCount = (uint64_t)rev32(CapBuffer[0]) + 1;
-    sDevice->SectorSize = rev32(CapBuffer[1]);
-    Device->SectorSize = sDevice->SectorSize;
+    // Perform caps-command
+    if (MsdSCSICommandIn(Device, SCSI_READ_CAPACITY, 0, 
+        CapabilitiesAddress, 8) != TransferFinished) {
+        BufferPoolFree(UsbRetrievePool(), (uintptr_t*)CapabilitesPointer);
+        return OsError;
+    }
+
+    // If the size equals max, then we need to use extended
+    // capabilities
+    if (CapabilitesPointer[0] == 0xFFFFFFFF) {
+        // Variables
+        ScsiExtendedCaps_t *ExtendedCaps = (ScsiExtendedCaps_t*)CapabilitesPointer;
+
+        // Perform extended-caps read command
+        if (MsdSCSICommandIn(Device, SCSI_READ_CAPACITY_16, 0, 
+            CapabilitiesAddress, sizeof(ScsiExtendedCaps_t)) != TransferFinished) {
+            BufferPoolFree(UsbRetrievePool(), (uintptr_t*)CapabilitesPointer);
+            return OsError;
+        }
+
+        // Capabilities are returned in reverse byte-order
+        Descriptor->SectorCount = rev64(ExtendedCaps->SectorCount) + 1;
+        Descriptor->SectorSize = rev32(ExtendedCaps->SectorSize);
+        Device->IsExtended = 1;
+        BufferPoolFree(UsbRetrievePool(), (uintptr_t*)CapabilitesPointer);
+        return OsSuccess;
+    }
+
+    // Capabilities are returned in reverse byte-order
+    Descriptor->SectorCount = (uint64_t)rev32(CapabilitesPointer[0]) + 1;
+    Descriptor->SectorSize = rev32(CapabilitesPointer[1]);
+    BufferPoolFree(UsbRetrievePool(), (uintptr_t*)CapabilitesPointer);
+    return OsSuccess;
 }
 
-/* Read & Write Sectors */
-int
-UsbMsdReadSectors(
-    MsdDevice_t *Device, 
-    uint64_t SectorLBA, 
-    void *Buffer, 
-    size_t BufferLength)
+/* MsdSetup
+ * Initializes the device by performing one-time setup and reading device
+ * capabilities and features. */
+OsStatus_t
+MsdSetup(
+    _In_ MsdDevice_t *Device)
 {
-    /* Store result */
-    UsbTransferStatus_t Result;
+    // Variables
+    ScsiInquiry_t *InquiryData = NULL;
+    uintptr_t InquiryAddress = 0;
+    int i;
 
-    /* Send */
-    Result = UsbMsdSendSCSICommandIn(MsdData->IsExtended == 0 ? SCSI_READ : SCSI_READ_16,
-        MsdData, SectorLBA, Buffer, BufferLength);
+    // Allocate space for inquiry
+    if (BufferPoolAllocate(UsbRetrievePool(), sizeof(ScsiInquiry_t), 
+        (uintptr_t**)&InquiryData, &InquiryAddress) != OsSuccess) {
+        ERROR("Failed to allocate buffer (inquiry)");
+        return OsError;
+    }
 
-    /* Sanity */
-    if (Result != TransferFinished)
-        return -1;
-    else
-        return 0;
+    // Perform inquiry
+    if (MsdSCSICommandIn(Device, SCSI_INQUIRY, 0, 
+        InquiryAddress, sizeof(ScsiInquiry_t)) != TransferFinished) {
+        ERROR("Failed to perform the inquiry command on device");
+        BufferPoolFree(UsbRetrievePool(), (uintptr_t*)InquiryData);
+        return OsError;
+    }
+
+    // Perform the Test-Unit Ready command
+    i = 3;
+    if (Device->Type != HardDrive) {
+        i = 30;
+    }
+    while (Device->IsReady == 0 && i != 0) {
+        MsdPrepareDevice(Device);
+        if (Device->IsReady == 1)
+            break; 
+        ThreadSleep(100);
+        i--;
+    }
+
+    // Sanitize the resulting ready state, we need it 
+    // ready otherwise we can't use it
+    if (!Device->IsReady) {
+        ERROR("Failed to ready MSD device");
+        BufferPoolFree(UsbRetrievePool(), (uintptr_t*)InquiryData);
+        return OsError;
+    }
+
+    // Cleanup the inquiry data
+    BufferPoolFree(UsbRetrievePool(), (uintptr_t*)InquiryData);
+
+    // Last thing to do is to read caps
+    return MsdReadCapabilities(Device);
 }
 
-int
-UsbMsdWriteSectors(
-    MsdDevice_t *Device, 
-    uint64_t SectorLBA, 
-    void *Buffer, 
-    size_t BufferLength)
+/* MsdReadSectors
+ * Read a given amount of sectors (bytes/sector-size) from the MSD. */
+OsStatus_t
+MsdReadSectors(
+    _In_ MsdDevice_t *Device,
+    _In_ uint64_t SectorStart, 
+    _In_ uintptr_t BufferAddress,
+    _In_ size_t BufferLength,
+    _Out_ size_t *BytesRead)
 {
-    /* Store result */
+    // Variables
     UsbTransferStatus_t Result;
 
-    /* Send */
-    Result = UsbMsdSendSCSICommandOut(MsdData->IsExtended == 0 ? SCSI_WRITE : SCSI_WRITE_16,
-        MsdData, SectorLBA, Buffer, BufferLength);
+    // Perform the read command
+    Result = MsdSCSICommandIn(Device, 
+        Device->IsExtended == 0 ? SCSI_READ : SCSI_READ_16,
+        SectorStart, BufferAddress, BufferLength);
 
-    /* Sanity */
-    if (Result != TransferFinished)
-        return -1;
-    else
-        return 0;
+    // Sanitize result
+    if (Result != TransferFinished) {
+        if (BytesRead != NULL) {
+            *BytesRead = 0;
+        }
+        return OsError;
+    }
+    else {
+        // Calculate the number of bytes (not)transferred
+        if (BytesRead != NULL) {
+            *BytesRead = (BufferLength - Device->StatusBlock->DataResidue);
+        }
+        return OsSuccess;
+    }
+}
+
+/* MsdWriteSectors
+ * Write a given amount of sectors (bytes/sector-size) to the MSD. */
+OsStatus_t
+MsdWriteSectors(
+    _In_ MsdDevice_t *Device,
+    _In_ uint64_t SectorStart, 
+    _In_ uintptr_t BufferAddress,
+    _In_ size_t BufferLength,
+    _Out_ size_t *BytesWritten)
+{
+    // Variables
+    UsbTransferStatus_t Result;
+
+    // Perform the read command
+    Result = MsdSCSICommandOut(Device, 
+        Device->IsExtended == 0 ? SCSI_WRITE : SCSI_WRITE_16,
+        SectorStart, BufferAddress, BufferLength);
+
+    // Sanitize result
+    if (Result != TransferFinished) {
+        if (BytesWritten != NULL) {
+            *BytesWritten = 0;
+        }
+        return OsError;
+    }
+    else {
+        // Calculate the number of bytes (not)transferred
+        if (BytesWritten != NULL) {
+            *BytesWritten = (BufferLength - Device->StatusBlock->DataResidue);
+        }
+        return OsSuccess;
+    }
 }

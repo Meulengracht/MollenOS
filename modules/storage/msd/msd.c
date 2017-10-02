@@ -21,8 +21,13 @@
 
 /* Includes
  * - System */
+#include <os/utils.h>
 #include <os/driver/usb.h>
 #include "msd.h"
+
+/* Includes
+ * - Library */
+#include <stdlib.h>
 
 /* MsdDeviceCreate
  * Initializes a new msd-device from the given usb-device */
@@ -33,6 +38,9 @@ MsdDeviceCreate(
     // Variables
     MsdDevice_t *Device = NULL;
     int i;
+
+    // Debug
+    TRACE("MsdDeviceCreate()");
 
     // Validate the kind of msd device, we don't support all kinds
     if (UsbDevice->Interface.Subclass != MSD_SUBCLASS_SCSI
@@ -91,53 +99,59 @@ MsdDeviceCreate(
 
     // If the type is of harddrive, reset bulk
     if (Device->Type == HardDrive) {
-        MsdReset(Device);
+        if (MsdReset(Device) != OsSuccess) {
+            ERROR("Failed to reset the interface");
+            goto Error;
+        }
     }
 
-    // Reset data toggles
-
-    /* Send Inquiry */
-    ScsiInquiry_t InquiryData;
-    if (UsbMsdSendSCSICommandIn(SCSI_INQUIRY, DevData, 0, &InquiryData, sizeof(ScsiInquiry_t))
-        != TransferFinished)
-        LogDebug("USBM", "Failed to execute Inquiry Command");
-
-    // Perform the Test-Unit Ready command
-    i = 3;
-    if (Device->Type != HardDrive) {
-        i = 30;
+    // Reset data toggles for bulk-endpoints
+    if (UsbEndpointReset(Device->Base.DriverId, Device->Base.DeviceId, 
+        &Device->Base.Device, Device->In) != OsSuccess) {
+        ERROR("Failed to reset endpoint (in)");
+        goto Error;
     }
-    while (Device->IsReady == 0 && i != 0) {
-        UsbMsdReadyDevice(Device);
-        if (Device->IsReady == 1)
-            break; 
-        StallMs(100);
-        i--;
+    if (UsbEndpointReset(Device->Base.DriverId, Device->Base.DeviceId, 
+        &Device->Base.Device, Device->Out) != OsSuccess) {
+        ERROR("Failed to reset endpoint (out)");
+        goto Error;
     }
 
-    /* Did we fail to ready device? */
-    if (!DevData->IsReady) {
-        LogDebug("USBM", "Failed to ready MSD device");
-        return;
+    // Allocate reusable buffers
+    if (BufferPoolAllocate(UsbRetrievePool(), sizeof(MsdCommandBlock_t), 
+        (uintptr_t**)&Device->CommandBlock, &Device->CommandBlockAddress) != OsSuccess) {
+        ERROR("Failed to allocate reusable buffer (command-block)");
+        goto Error;
+    }
+    if (BufferPoolAllocate(UsbRetrievePool(), sizeof(MsdCommandStatus_t), 
+        (uintptr_t**)&Device->StatusBlock, &Device->StatusBlockAddress) != OsSuccess) {
+        ERROR("Failed to allocate reusable buffer (status-block)");
+        goto Error;
     }
 
-    /* Read Capabilities 10
-     * If it returns 0xFFFFFFFF 
-     * Use Read Capabilities 16 */
-    UsbMsdReadCapacity(DevData, StorageData);
+    // Perform setup
+    if (MsdSetup(Device) != OsSuccess) {
+        ERROR("Failed to initialize the device");
+        goto Error;
+    }
 
-    /* Debug */
-    LogInformation("USBM", "MSD SectorCount: 0x%x, SectorSize: 0x%x",
-        (size_t)StorageData->SectorCount, StorageData->SectorSize);
+    // Start out by initializing the contract
+    InitializeContract(&Device->Contract, Device->Base.Base.DeviceId, 1,
+        ContractStorage, "MSD Storage Interface");
 
-    /* Setup information */
-    mDevice->VendorId = 0x8086;
-    mDevice->DeviceId = 0x0;
-    mDevice->Class = DEVICEMANAGER_LEGACY_CLASS;
-    mDevice->Subclass = 0x00000018;
+    // Register contract before interrupt
+    if (RegisterContract(&Device->Contract) != OsSuccess) {
+        ERROR("Failed to register storage contract for device");
+    }
+
+    // Done
+    return Device;
 
 Error:
-
+    // Cleanup
+    if (Device != NULL) {
+        MsdDeviceDestroy(Device);
+    }
 
     // Done, return null
     return NULL;
@@ -152,6 +166,15 @@ MsdDeviceDestroy(
 {
     // Flush existing requests?
 
+    // Free reusable buffers
+    if (Device->CommandBlock != NULL) {
+        BufferPoolFree(UsbRetrievePool(), (uintptr_t*)Device->CommandBlock);
+    }
+    if (Device->StatusBlock != NULL) {
+        BufferPoolFree(UsbRetrievePool(), (uintptr_t*)Device->StatusBlock);
+    }
+
     // Free data allocated
     free(Device);
+    return OsSuccess;
 }

@@ -39,7 +39,7 @@
 
 /* Globals
  * State-keeping variables for libusb */
-static const size_t LIBUSB_SHAREDBUFFER_SIZE = 0x1000;
+static const size_t LIBUSB_SHAREDBUFFER_SIZE = 0x2000;
 static BufferObject_t *__LibUsbBuffer = NULL;
 static BufferPool_t *__LibUsbBufferPool = NULL;
 
@@ -62,6 +62,16 @@ UsbCleanup(void)
     // Free resources
     BufferPoolDestroy(__LibUsbBufferPool);
     return DestroyBuffer(__LibUsbBuffer);
+}
+
+/* UsbRetrievePool 
+ * Retrieves the shared usb-memory pool for transfers. Only
+ * use this for small short-term use buffers. */
+__EXTERN
+BufferPool_t*
+UsbRetrievePool(void)
+{
+    return __LibUsbBufferPool;
 }
 
 /* UsbTransferInitialize
@@ -324,6 +334,38 @@ UsbHostQueryPort(
         &Device, sizeof(UUId_t), 
         &Index, sizeof(int), NULL, 0, 
         Descriptor, sizeof(UsbHcPortDescriptor_t));
+}
+
+/* UsbEndpointReset
+ * Resets the data for the given endpoint. This includes the data-toggles. 
+ * This function is unavailable for control-endpoints. */
+OsStatus_t
+UsbEndpointReset(
+    _In_ UUId_t Driver,
+    _In_ UUId_t Device,
+    _In_ UsbHcDevice_t *UsbDevice, 
+    _In_ UsbHcEndpointDescriptor_t *Endpoint)
+{
+    // Variables
+    OsStatus_t Result = OsError;
+    UUId_t Pipe = ((UsbDevice->Address & 0xFFFF) << 16) | (Endpoint->Address & 0xFFFF);
+    MContract_t Contract;
+
+    // Setup contract stuff for request
+    Contract.DriverId = Driver;
+    Contract.Type = ContractController;
+    Contract.Version = __USBMANAGER_INTERFACE_VERSION;
+
+    // Query the driver directly
+    if (QueryDriver(&Contract, __USBHOST_RESETENDPOINT,
+        &Device, sizeof(UUId_t), 
+        &Pipe, sizeof(UUId_t), NULL, 0, 
+        &Result, sizeof(OsStatus_t)) != OsSuccess) {
+        return OsError;
+    }
+    else {
+        return Result;
+    }
 }
 
 /* UsbSetAddress
