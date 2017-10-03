@@ -14,7 +14,7 @@ install: true
 script: make
 cache:
   directories:
-    - /usr/local/cross/ # Cache the bin directory
+    - $HOME/os-cross-out/ # Cache the bin directory
 env:
   global:
-  - CROSS=/usr/local/cross
+  - CROSS=$HOME/os-cross-out
