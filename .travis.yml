@@ -2,24 +2,30 @@ language: cpp
 sudo: required
 dist: trusty
 compiler:
-- gcc
+  - gcc
 os:
-- linux
-before_install:
-  - chmod +x ./tools/depends.sh  # Give permissions
-  - sudo bash ./tools/depends.sh # Run initializor script
-  - chmod +x ./tools/checkout.sh  # Give permissions
-  - sudo bash ./tools/checkout.sh # Run checkout script
-install: true
-before_script:
-  - chmod +x ./tools/build_clang.sh
-  - sudo bash ./tools/build_clang.sh
-  - chmod +x ./tools/build_toolchain.sh
-  - sudo bash ./tools/build_toolchain.sh
-script: make
+  - linux
 cache:
   directories:
     - $HOME/os-cross-out/ # Cache the bin directory
 env:
   global:
   - CROSS=$HOME/os-cross-out
+jobs:
+  include:
+    - stage: init
+      script:
+        - chmod +x ./tools/depends.sh  # Give permissions
+        - sudo bash ./tools/depends.sh # Run initializor script
+        - chmod +x ./tools/checkout.sh  # Give permissions
+        - sudo bash ./tools/checkout.sh # Run checkout script
+    - stage: clang
+      script:
+        - chmod +x ./tools/build_clang.sh
+        - sudo bash ./tools/build_clang.sh
+    - stage: toolchain
+      script:
+        - chmod +x ./tools/build_toolchain.sh
+        - sudo bash ./tools/build_toolchain.sh
+    - stage: build
+      script: make
