@@ -1,0 +1,20 @@
+language: cpp
+sudo: required
+dist: trusty
+compiler:
+- gcc
+os:
+- linux
+before_install:
+  - chmod +x ./depends.sh  # Give permissions
+  - sudo bash ./depends.sh # Run initializor script
+  - chmod +x ./init.sh  # Give permissions
+  - sudo bash ./init.sh # Run initializor script
+install: true
+script: make
+cache:
+  directories:
+    - /usr/local/cross/ # Cache the bin directory
+env:
+  global:
+  - CROSS=/usr/local/cross
