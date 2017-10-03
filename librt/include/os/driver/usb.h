@@ -192,7 +192,8 @@ PACKED_TYPESTRUCT(UsbTransfer, {
 
 	// Periodic Information
 	int	                                UpdatesOn;
-	__CONST void*                       PeriodicData;
+    __CONST void*                       PeriodicData;
+    size_t                              PeriodicBufferSize;
 });
 
 /* UsbTransfer::Flags
@@ -250,6 +251,19 @@ UsbTransferSetup(
     _In_ uintptr_t DataAddress,
     _In_ size_t DataLength,
     _In_ UsbTransactionType_t DataType);
+
+/* UsbTransferInterrupt 
+ * Initializes a transfer for a interrupt-transaction. */
+__EXTERN
+OsStatus_t
+UsbTransferInterrupt(
+    _InOut_ UsbTransfer_t *Transfer,
+    _In_ uintptr_t BufferAddress,
+    _In_ size_t BufferLength,
+    _In_ size_t DataLength,
+    _In_ UsbTransactionType_t DataDirection,
+    _In_ int Notify,
+    _In_ __CONST void *NotifyData);
 
 /* UsbTransferIn 
  * Creates an In-transaction in the given usb-transfer. Both buffer and length 

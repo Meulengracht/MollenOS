@@ -140,6 +140,21 @@ UsbTransferSetup(
     return OsSuccess;
 }
 
+/* UsbTransferInterrupt 
+ * Initializes a transfer for a interrupt-transaction. */
+OsStatus_t
+UsbTransferInterrupt(
+    _InOut_ UsbTransfer_t *Transfer,
+    _In_ uintptr_t BufferAddress,
+    _In_ size_t BufferLength,
+    _In_ size_t DataLength,
+    _In_ UsbTransactionType_t DataDirection,
+    _In_ int Notify,
+    _In_ __CONST void *NotifyData)
+{
+
+}
+
 /* UsbTransferIn 
  * Creates an In-transaction in the given usb-transfer. Both buffer and length 
  * must be pre-allocated - and passed here. If handshake == 1 it's an ack-transaction. */

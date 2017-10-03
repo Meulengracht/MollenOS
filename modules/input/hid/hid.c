@@ -57,6 +57,7 @@ HidDeviceCreate(
     memset(Device, 0, sizeof(HidDevice_t));
     memcpy(&Device->Base, UsbDevice, sizeof(MCoreUsbDevice_t));
     Device->Control = &UsbDevice->Endpoints[0];
+    Device->TransferId = UUID_INVALID;
 
     // Find neccessary endpoints
     for (i = 1; i < UsbDevice->Interface.Versions[0].EndpointCount; i++) {
@@ -86,125 +87,40 @@ HidDeviceCreate(
     }
 
     // Reset interrupt ep
+    if (UsbEndpointReset(Device->Base.DriverId, Device->Base.DeviceId, 
+        &Device->Base.Device, Device->Interrupt) != OsSuccess) {
+        ERROR("Failed to reset endpoint (interrupt)");
+        goto Error;
+    }
+
+    // Allocate a ringbuffer for use
+    if (BufferPoolAllocate(UsbRetrievePool(), 0x400, 
+        &Device->Buffer, &Device->BufferAddress) != OsSuccess) {
+        ERROR("Failed to allocate reusable buffer (interrupt-buffer)");
+        goto Error;
+    }
 
     // Install interrupt pipe
-    
-    /* Locate the HID descriptor 
-	 * TODO: there can be multiple 
-	 * hid descriptors, which means 
-	 * we must make sure our interface
-	 * has been "passed" before selecting */
-	i = 0;
-	while (BytesLeft > 0)
-	{
-		/* Cast */
-		uint8_t Length = *BufPtr;
-		uint8_t Type = *(BufPtr + 1);
+    UsbTransferInitialize(&Device->Transfer, &Device->Base.Device, 
+        Device->Interrupt, InterruptTransfer);
+    UsbTransferInterrupt(&Device->Transfer, Device->BufferAddress, 0x400, 
+        Device->ReportLength, InTransaction, 1, (__CONST void*)Device);
+    if (UsbTransferQueuePeriodic(Device->Base.DriverId, Device->Base.DeviceId, 
+        &Device->Transfer, &Device->TransferId) != OsSuccess) {
+        ERROR("Failed to install interrupt transfer");
+        goto Error;
+    }
 
-		/* Is this a HID descriptor ? */
-		if (Type == USB_DESCRIPTOR_TYPE_HID
-			&& Length == sizeof(UsbHidDescriptor_t)
-			&& i == 1)
-		{
-			HidDescriptor = (UsbHidDescriptor_t*)BufPtr;
-			break;
-		}
-		else if (Type == USB_DESC_TYPE_INTERFACE
-			&& Length == sizeof(UsbInterfaceDescriptor_t)) {
-			UsbInterfaceDescriptor_t *_If = (UsbInterfaceDescriptor_t*)BufPtr;
-			if ((int)_If->NumInterface == InterfaceIndex)
-				i = 1;
-		}
-		
-		/* Next */
-		BufPtr += Length;
-		BytesLeft -= Length;
-	}
-
-	/* Sanity */
-	if (HidDescriptor == NULL)
-	{
-		LogFatal("USBH", "HID Descriptor did not exist.");
-		kfree(mDevice);
-		kfree(DevData);
-		return;
-	}
-
-	/* Switch to Report Protocol (ONLY if we are in boot protocol) */
-	if (UsbDevice->Interfaces[InterfaceIndex]->Subclass == USB_HID_SUBCLASS_BOOT) {
-		UsbFunctionSendPacket((UsbHc_t*)UsbDevice->HcDriver, UsbDevice->Port, 0,
-			USB_REQUEST_TARGET_CLASS | USB_REQUEST_TARGET_INTERFACE,
-			USB_HID_SET_PROTOCOL, 0, 1, (uint8_t)InterfaceIndex, 0);
-	}
-
-	/* Set idle and silence the endpoint unless events */
-	/* We might have to set ValueHi to 500 ms for keyboards, but has to be tested
-	* time is calculated in 4ms resolution, so 500ms = HiVal = 125 */
-
-	/* This request MAY stall, which means it's unsupported */
-	UsbFunctionSendPacket((UsbHc_t*)UsbDevice->HcDriver, UsbDevice->Port, NULL,
-		USB_REQUEST_TARGET_CLASS | USB_REQUEST_TARGET_INTERFACE,
-		USB_HID_SET_IDLE, 0, 0, (uint8_t)InterfaceIndex, 0);
-
-	/* Get Report Descriptor */
-	ReportDescriptor = (uint8_t*)kmalloc(HidDescriptor->ClassDescriptorLength);
-	if (UsbFunctionGetDescriptor((UsbHc_t*)UsbDevice->HcDriver, UsbDevice->Port,
-		ReportDescriptor, USB_REQUEST_DIR_IN | USB_REQUEST_TARGET_INTERFACE,
-		HidDescriptor->ClassDescriptorType,
-		0, (uint8_t)InterfaceIndex, HidDescriptor->ClassDescriptorLength) != TransferFinished)
-	{
-		LogFatal("USBH", "Failed to get Report Descriptor.");
-		kfree(mDevice);
-		kfree(ReportDescriptor);
-		kfree(DevData);
-		return;
-	}
-
-	/* Parse Report Descriptor */
-	DevData->UsbDevice = UsbDevice;
-	DevData->Collection = NULL;
-	ReportLength = UsbHidParseReportDescriptor(DevData, 
-		ReportDescriptor, HidDescriptor->ClassDescriptorLength);
-
-	/* Free the report descriptor, we don't need it anymore */
-	kfree(ReportDescriptor);
-
-	/* Adjust if shorter than MPS */
-	if (ReportLength < DevData->EpInterrupt->MaxPacketSize)
-		ReportLength = DevData->EpInterrupt->MaxPacketSize;
-
-	/* Store length */
-	DevData->DataLength = ReportLength;
-
-	/* Reset EP toggle */
-	DevData->EpInterrupt->Toggle = 0;
-
-	/* Allocate Interrupt Channel */
-	DevData->InterruptChannel = (UsbHcRequest_t*)kmalloc(sizeof(UsbHcRequest_t));
-	memset(DevData->InterruptChannel, 0, sizeof(UsbHcRequest_t));
-
-	/* Setup Callback */
-	DevData->InterruptChannel->Callback =
-		(UsbInterruptCallback_t*)kmalloc(sizeof(UsbInterruptCallback_t));
-	DevData->InterruptChannel->Callback->Callback = UsbHidCallback;
-	DevData->InterruptChannel->Callback->Args = DevData;
-
-	/* Set driver data */
-	DevData->PrevDataBuffer = (uint8_t*)kmalloc(ReportLength);
-	DevData->DataBuffer = (uint8_t*)kmalloc(ReportLength);
-
-	/* Memset Databuffers */
-	memset(DevData->PrevDataBuffer, 0, ReportLength);
-	memset(DevData->DataBuffer, 0, ReportLength);
-
-	/* Some keyboards don't work before their LEDS are set. */
-
-	/* Install Interrupt */
-	UsbFunctionInstallPipe(UsbHcd, UsbDevice, DevData->InterruptChannel,
-		DevData->EpInterrupt, DevData->DataBuffer, ReportLength);
+    // Done
+    return Device;
 
 Error:
+    // Cleanup
+    if (Device != NULL) {
+        HidDeviceDestroy(Device);
+    }
 
+    // No device
     return NULL;
 }
 
@@ -215,34 +131,44 @@ OsStatus_t
 HidDeviceDestroy(
     _In_ HidDevice_t *Device)
 {
-	/* Destroy Channel */
-	UsbTransactionDestroy(UsbHcd, Device->InterruptChannel);
+    // Destroy the interrupt channel
+    if (Device->TransferId != UUID_INVALID) {
+        UsbTransferDequeuePeriodic(Device->Base.DriverId, 
+            Device->Base.DeviceId, Device->TransferId);
+    }
 
-	/* Free Collections */
+    // Cleanup collections
+    
+    // Cleanup the buffer
+    if (Device->Buffer != NULL) {
+        BufferPoolFree(UsbRetrievePool(), Device->Buffer);
+    }
 
-	/* Free Data */
-	kfree(Device->DataBuffer);
-	kfree(Device->PrevDataBuffer);
-
-	/* Last cleanup */
-	kfree(mDevice->Driver.Data);
+	// Cleanup structure
+    free(Device);
+    return OsSuccess;
 }
 
-/* The callback for device-feedback */
-void UsbHidCallback(void *Device, UsbTransferStatus_t Status)
+/* HidInterrupt
+ * Should be called from the primary driver OnInterrupt
+ * Performs the report-parsing and post-interrupt stuff */
+InterruptStatus_t
+HidInterrupt(
+    _In_ HidDevice_t *Device, 
+    _In_ UsbTransferStatus_t Status,
+    _In_ size_t DataIndex)
 {
-	/* Vars */
-	HidDevice_t *DevData = (HidDevice_t*)Device;
+	// Sanitize
+	if (Device->Collection == NULL || Status == TransferNAK) {
+        return InterruptHandled;
+    }
 
-	/* Sanity */
-	if (DevData->Collection == NULL
-		|| Status == TransferNAK)
-		return;
+	// Perform the report parse
+	if (!HidParseReport(Device, DataIndex)) {
+        return InterruptHandled;
+    }
 
-	/* Parse Collection (Recursively) */
-	if (!UsbHidApplyCollectionData(DevData, DevData->Collection))
-		return;
-
-	/* Now store this in old buffer */
-	memcpy(DevData->PrevDataBuffer, DevData->DataBuffer, DevData->DataLength);
+    // Store previous index
+    Device->PreviousDataIndex = DataIndex;
+    return InterruptHandled;
 }

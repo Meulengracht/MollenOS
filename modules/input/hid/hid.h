@@ -236,13 +236,15 @@ typedef struct _UsbHidReportCollection {
 typedef struct _HidDevice {
     MCoreUsbDevice_t             Base;
     MContract_t                  Contract;
+    UsbTransfer_t                Transfer;
+    UUId_t                       TransferId;
 
     // Buffers
     UsbHidReportCollection_t    *Collection;
+    uintptr_t                   *Buffer;
     uintptr_t                    BufferAddress;
-    uintptr_t                   *BufferPointer;
-    uintptr_t                   *BufferPointerPrevious;
-    size_t DataLength;
+    size_t                       PreviousDataIndex;
+    size_t                       ReportLength;
     
     // Endpoint Information
     UsbHcEndpointDescriptor_t   *Control;
@@ -291,5 +293,34 @@ HidSetIdle(
     _In_ HidDevice_t *Device,
     _In_ int ReportId,
     _In_ int Duration);
+
+/* HidParseReportDescriptor
+ * Parses the report descriptor and stores it as collection tree. The size
+ * of the largest individual report is returned. */
+__EXTERN
+size_t
+HidParseReportDescriptor(
+    _In_ HidDevice_t *Device,
+    _In_ uint8_t *Descriptor,
+    _In_ size_t DescriptorLength);
+
+/* HidParseReport
+ * Recursive report-parser that applies the given report-data
+ * to the parsed report collection. */
+__EXTERN
+OsStatus_t
+HidParseReport(
+    _In_ HidDevice_t *Device,
+    _In_ size_t DataIndex);
+
+/* HidInterrupt
+ * Should be called from the primary driver OnInterrupt
+ * Performs the report-parsing and post-interrupt stuff */
+__EXTERN
+InterruptStatus_t
+HidInterrupt(
+    _In_ HidDevice_t *Device, 
+    _In_ UsbTransferStatus_t Status,
+    _In_ size_t DataIndex);
 
 #endif //!__USB_HID_H__
