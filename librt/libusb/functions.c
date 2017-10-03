@@ -152,7 +152,23 @@ UsbTransferInterrupt(
     _In_ int Notify,
     _In_ __CONST void *NotifyData)
 {
+    // Sanitize, an interrupt transfer must not consist
+    // of other transfers
+    if (Transfer->TransactionCount != 0) {
+        return OsError;
+    }
 
+    // Initialize the data stage
+    Transfer->Transactions[0].Type = DataDirection;
+    Transfer->Transactions[0].BufferAddress = BufferAddress;
+    Transfer->Transactions[0].Length = DataLength;
+
+    // Initialize the transfer for interrupt
+    Transfer->UpdatesOn = Notify;
+    Transfer->PeriodicData = NotifyData;
+    Transfer->PeriodicBufferSize = BufferLength;
+    Transfer->TransactionCount = 1;
+    return OsSuccess;
 }
 
 /* UsbTransferIn 
