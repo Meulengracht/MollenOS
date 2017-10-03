@@ -264,4 +264,32 @@ OsStatus_t
 HidDeviceDestroy(
     _In_ HidDevice_t *Device);
 
+/* HidSetupGeneric 
+ * Sets up a generic HID device like a mouse or a keyboard. */
+__EXTERN
+OsStatus_t
+HidSetupGeneric(
+    _In_ HidDevice_t *Device);
+
+/* HidSetProtocol
+ * Changes the current protocol of the device. 
+ * 0 = Boot Protocol, 1 = Report Protocol */
+__EXTERN
+OsStatus_t
+HidSetProtocol(
+    _In_ HidDevice_t *Device,
+    _In_ int Protocol);
+
+/* HidSetIdle
+ * Changes the current situation of the device to idle. 
+ * Set ReportId = 0 to apply to all reports. 
+ * Set Duration = 0 to apply indefinite duration. Use this
+ * to set the report time-out time, minimum value is device polling rate */
+__EXTERN
+OsStatus_t
+HidSetIdle(
+    _In_ HidDevice_t *Device,
+    _In_ int ReportId,
+    _In_ int Duration);
+
 #endif //!__USB_HID_H__

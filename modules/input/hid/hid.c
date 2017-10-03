@@ -71,6 +71,23 @@ HidDeviceCreate(
         ERROR("HID Endpoint (In, Interrupt) did not exist.");
 		goto Error;
     }
+
+    // Validate the generic driver
+    if (UsbDevice->Interface.Protocol > HID_PROTOCOL_MOUSE) {
+        ERROR("This HID uses an unimplemented protocol and needs external drivers %u", 
+            UsbDevice->Interface.Protocol);
+		goto Error;
+    }
+
+    // Setup device
+    if (HidSetupGeneric(Device) != OsSuccess) {
+        ERROR("Failed to setup the generic hid device.");
+		goto Error;
+    }
+
+    // Reset interrupt ep
+
+    // Install interrupt pipe
     
     /* Locate the HID descriptor 
 	 * TODO: there can be multiple 
@@ -191,24 +208,15 @@ Error:
     return NULL;
 }
 
-/* Cleanup HID driver */
-void UsbHidDestroy(void *UsbDevice, int Interface)
+/* HidDeviceDestroy
+ * Destroys an existing hid device instance and cleans up
+ * any resources related to it */
+OsStatus_t
+HidDeviceDestroy(
+    _In_ HidDevice_t *Device)
 {
-	/* Cast */
-	UsbHcDevice_t *Dev = (UsbHcDevice_t*)UsbDevice;
-	MCoreDevice_t *mDevice = 
-		(MCoreDevice_t*)Dev->Interfaces[Interface]->DriverData;
-	HidDevice_t *Device = (HidDevice_t*)mDevice->Driver.Data;
-	UsbHc_t *UsbHcd = (UsbHc_t*)Dev->HcDriver;
-
 	/* Destroy Channel */
 	UsbTransactionDestroy(UsbHcd, Device->InterruptChannel);
-
-	/* Unregister Us */
-	DmDestroyDevice(Device->DeviceId);
-
-	/* Free endpoints */
-	UsbHcd->EndpointDestroy(UsbHcd->Hc, Device->EpInterrupt);
 
 	/* Free Collections */
 
