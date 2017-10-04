@@ -12,6 +12,15 @@ cache:
 env:
   global:
   - CROSS=$HOME/os-cross-out
+addons:
+  apt:
+    packages:
+      - clang-5.0
+      - subversion
+      - make
+      - g++-7
+      - nasm
+      - monodevelop
 jobs:
   include:
     - stage: init

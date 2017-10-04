@@ -38,21 +38,10 @@ HidDeviceCreate(
     // Variables
     HidDevice_t *Device = NULL;
 
-	/* Setup vars 
-	 * and prepare for a descriptor loop */
-	uint8_t *BufPtr = (uint8_t*)UsbDevice->Descriptors;
-	size_t BytesLeft = UsbDevice->DescriptorsLength;
-	size_t ReportLength = 0;
-
-	/* Needed for parsing */
-	UsbHidDescriptor_t *HidDescriptor = NULL;
-	uint8_t *ReportDescriptor = NULL;
-    size_t i;
-    
     // Debug
     TRACE("HidDeviceCreate()");
 
-	// Allocate new resources
+    // Allocate new resources
     Device = (HidDevice_t*)malloc(sizeof(HidDevice_t));
     memset(Device, 0, sizeof(HidDevice_t));
     memcpy(&Device->Base, UsbDevice, sizeof(MCoreUsbDevice_t));
@@ -67,23 +56,23 @@ HidDeviceCreate(
         }
     }
 
-	// Make sure we at-least found an interrupt endpoint
-	if (Device->Interrupt == NULL) {
+    // Make sure we at-least found an interrupt endpoint
+    if (Device->Interrupt == NULL) {
         ERROR("HID Endpoint (In, Interrupt) did not exist.");
-		goto Error;
+        goto Error;
     }
 
     // Validate the generic driver
     if (UsbDevice->Interface.Protocol > HID_PROTOCOL_MOUSE) {
         ERROR("This HID uses an unimplemented protocol and needs external drivers %u", 
             UsbDevice->Interface.Protocol);
-		goto Error;
+        goto Error;
     }
 
     // Setup device
     if (HidSetupGeneric(Device) != OsSuccess) {
         ERROR("Failed to setup the generic hid device.");
-		goto Error;
+        goto Error;
     }
 
     // Reset interrupt ep
@@ -144,7 +133,7 @@ HidDeviceDestroy(
         BufferPoolFree(UsbRetrievePool(), Device->Buffer);
     }
 
-	// Cleanup structure
+    // Cleanup structure
     free(Device);
     return OsSuccess;
 }
@@ -158,13 +147,13 @@ HidInterrupt(
     _In_ UsbTransferStatus_t Status,
     _In_ size_t DataIndex)
 {
-	// Sanitize
-	if (Device->Collection == NULL || Status == TransferNAK) {
+    // Sanitize
+    if (Device->Collection == NULL || Status == TransferNAK) {
         return InterruptHandled;
     }
 
-	// Perform the report parse
-	if (!HidParseReport(Device, DataIndex)) {
+    // Perform the report parse
+    if (!HidParseReport(Device, DataIndex)) {
         return InterruptHandled;
     }
 
