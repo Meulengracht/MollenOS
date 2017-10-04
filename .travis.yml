@@ -2,7 +2,7 @@ language: cpp
 sudo: required
 dist: trusty
 compiler:
-- gcc
+- clang
 os:
 - linux
 before_install:
@@ -12,14 +12,13 @@ before_install:
   - sudo bash ./tools/checkout.sh # Run checkout script
 install: true
 before_script:
-  - chmod +x ./tools/build_clang.sh
-  - sudo bash ./tools/build_clang.sh
   - chmod +x ./tools/build_toolchain.sh
   - sudo bash ./tools/build_toolchain.sh
 script: make
 cache:
   directories:
     - $HOME/os-cross-out/ # Cache the bin directory
+    - toolchain
 env:
   global:
   - CROSS=$HOME/os-cross-out
