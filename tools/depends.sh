@@ -55,6 +55,8 @@ if ! [[ "$CMAKE_VERSION" =~ "cmake version 3.8" ]]; then
   if [ -x "$(command -v cmake)" ]; then
     apt-get -qq remove "^cmake.*" 
   fi
+  CC=gcc
+  CXX=g++
   ./bootstrap
   make
   make install

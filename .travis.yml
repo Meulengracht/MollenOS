@@ -8,7 +8,7 @@ os:
 cache:
   directories:
     - $HOME/os-cross-out/ # Cache the bin directory
-    - toolchain
+    - toolchain/
 env:
   global:
   - CROSS=$HOME/os-cross-out
@@ -21,6 +21,12 @@ addons:
       - g++-4.8
       - nasm
       - monodevelop
+notifications:
+  email:
+    recipients:
+      - the_meulengracht@hotmail.com
+    on_success: never # default: change
+    on_failure: always # default: always
 jobs:
   include:
     - stage: init
