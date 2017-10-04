@@ -1,7 +1,6 @@
 #!/bin/sh
 
 if [ ! -f $CROSS/bin/clang ]; then
-  cd ..
   cd toolchain
   
   if [ ! -f ./llvm ]; then
