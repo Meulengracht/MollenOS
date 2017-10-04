@@ -18,7 +18,7 @@ addons:
       - clang-3.9
       - subversion
       - make
-      - g++-7
+      - g++-4.8
       - nasm
       - monodevelop
 jobs:
