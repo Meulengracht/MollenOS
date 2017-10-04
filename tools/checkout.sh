@@ -22,6 +22,5 @@ if [ ! -f $CROSS/bin/clang ]; then
     cd ../..
   fi
 
-  mkdir -p $CROSS
-  mkdir -p cross-build
+  cd ..
 fi

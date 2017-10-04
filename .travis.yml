@@ -2,23 +2,25 @@ language: cpp
 sudo: required
 dist: trusty
 compiler:
-  - clang
+  - g++
 os:
   - linux
 cache:
   directories:
     - $HOME/os-cross-out/ # Cache the bin directory
-    - toolchain/
 env:
   global:
   - CROSS=$HOME/os-cross-out
 addons:
   apt:
     packages:
+      - libelf1
+      - libelf-dev
+      - libffi6
+      - libffi-dev
       - clang-3.9
       - subversion
       - make
-      - g++-4.8
       - nasm
       - monodevelop
 notifications:
@@ -29,17 +31,13 @@ notifications:
     on_failure: always # default: always
 jobs:
   include:
-    - stage: init
-      script:
-        - chmod +x ./tools/depends.sh  # Give permissions
-        - sudo bash ./tools/depends.sh # Install dependencies
-        - chmod +x ./tools/checkout.sh  # Give permissions
-        - sudo bash ./tools/checkout.sh # Run checkout script
     - stage: toolchain
       script:
-        - chmod +x ./tools/depends.sh  # Give permissions
-        - sudo bash ./tools/depends.sh # Install dependencies
+        - mkdir -p toolchain
+        - chmod +x ./tools/checkout.sh  # Give permissions
+        - sudo bash ./tools/checkout.sh # Run checkout script
         - chmod +x ./tools/build_toolchain.sh
         - sudo bash ./tools/build_toolchain.sh
+        - rm -rf toolchain
     - stage: build
       script: make
