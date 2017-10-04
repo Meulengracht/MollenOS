@@ -33,7 +33,7 @@ jobs:
   include:
     - stage: toolchain
       script:
-        - mkdir -p toolchain
+        - sudo mkdir -p toolchain
         - chmod +x ./tools/checkout.sh  # Give permissions
         - sudo bash ./tools/checkout.sh # Run checkout script
         - chmod +x ./tools/build_toolchain.sh
