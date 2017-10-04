@@ -38,6 +38,6 @@ jobs:
         - sudo bash ./tools/checkout.sh # Run checkout script
         - chmod +x ./tools/build_toolchain.sh
         - sudo bash ./tools/build_toolchain.sh
-        - rm -rf toolchain
+        - sudo rm -rf toolchain
     - stage: build
       script: make

@@ -1,7 +1,8 @@
 #!/bin/sh
 
 if [ ! -f $CROSS/bin/clang ]; then
-  cd ../toolchain
+  cd ..
+  cd toolchain
   
   if [ ! -f ./llvm ]; then
     svn -q co http://llvm.org/svn/llvm-project/llvm/trunk llvm
