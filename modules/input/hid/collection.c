@@ -29,49 +29,6 @@
  * - Library */
 #include <stddef.h>
 
-/* HidCollectionInsertChild
- * Collection List Helpers */
-void
-HidCollectionInsertChild(
-    UsbHidReportCollection_t *Collection, 
-    UsbHidReportGlobalStats_t *Stats,
-    uint32_t HidType, 
-    uint32_t Type, 
-    void *Data)
-{
-    /* Prepare iterator vars */
-    UsbHidReportCollectionItem_t *CurrChild;
-
-    /* Allocate a new child */
-    UsbHidReportCollectionItem_t *Child =
-        (UsbHidReportCollectionItem_t*)kmalloc(sizeof(UsbHidReportCollectionItem_t));
-
-    /* Set items */
-    Child->Type = Type;
-    Child->InputType = HidType;
-    Child->Data = Data;
-    Child->Link = NULL;
-
-    /* Make a copy of stats for this sub-group */
-    memcpy((void*)(&Child->Stats), Stats, sizeof(UsbHidReportGlobalStats_t));
-
-    /* Insert */
-    if (Collection->Childs == NULL)
-        Collection->Childs = Child;
-    else
-    {
-        /* Get a itr ptr */
-        CurrChild = Collection->Childs;
-
-        /* Loop to end */
-        while (CurrChild->Link)
-            CurrChild = CurrChild->Link;
-
-        /* Append */
-        CurrChild->Link = Child;
-    }
-}
-
 /* Extracts Bits from buffer */
 uint64_t UsbHidGetBits(uint8_t *Buffer, uint32_t BitOffset, uint32_t NumBits)
 {
@@ -229,6 +186,65 @@ void UsbHidParseGlobalItem(UsbHidReportGlobalStats_t *Stats, uint8_t Tag, uint32
     }
 }
 
+/* HidCollectionCreate
+ * Allocates a new collection and fills it from the current states. */
+UsbHidReportCollection_t*
+HidCollectionCreate(
+    _In_ UsbHidReportGlobalStats_t *GlobalState, 
+    _In_ UsbHidReportItemStats_t *ItemState)
+{
+    // Allocate a new instance
+    UsbHidReportCollection_t *Collection =
+        (UsbHidReportCollection_t*)malloc(sizeof(UsbHidReportCollection_t));
+    memset(Collection, 0, sizeof(UsbHidReportCollection_t));
+
+    // Set members
+    Collection->UsagePage = GlobalState->UsagePage;
+    Collection->Usage = ItemState->Usages[0];
+    return Collection;
+}
+
+/* HidCollectionCreateChild
+ * Allocates a new collection item, fills it with data and automatically
+ * appends it to the given collection children list. */
+void
+HidCollectionCreateChild(
+    UsbHidReportCollection_t *Collection, 
+    UsbHidReportGlobalStats_t *Stats,
+    MInputType_t InputType, 
+    int CollectionType, 
+    void *Item)
+{
+    // Variables
+    UsbHidReportCollectionItem_t *CurrentChild = NULL;
+    UsbHidReportCollectionItem_t *Child = NULL;
+
+    // Allocate a new collection item
+    Child = (UsbHidReportCollectionItem_t*)malloc(sizeof(UsbHidReportCollectionItem_t));
+
+    // Set initial members
+    Child->CollectionType = CollectionType;
+    Child->InputType = InputType;
+    Child->ItemPointer = Item;
+    Child->Link = NULL;
+
+    // Make a local copy of the global active stats
+    memcpy(&Child->Stats, Stats, sizeof(UsbHidReportGlobalStats_t));
+
+    // Either insert at root if childs are null or
+    // insert at end
+    if (Collection->Childs == NULL) {
+        Collection->Childs = Child;
+    }
+    else {
+        CurrentChild = Collection->Childs;
+        while (CurrentChild->Link) {
+            CurrentChild = CurrentChild->Link;
+        }
+        CurrentChild->Link = Child;
+    }
+}
+
 /* HidParseReportDescriptor
  * Parses the report descriptor and stores it as collection tree. The size
  * of the largest individual report is returned. */
@@ -246,7 +262,7 @@ HidParseReportDescriptor(
     int ReportIdsUsed = 0;
 
     // Collection buffers and pointers
-    UsbHidReportCollection_t *Collection = NULL, 
+    UsbHidReportCollection_t *CurrentCollection = NULL, 
                              *RootCollection = NULL;
     UsbHidReportGlobalStats_t GlobalStats = { 0 };
     UsbHidReportItemStats_t ItemStats = { 0 };
@@ -285,198 +301,196 @@ HidParseReportDescriptor(
         // Update Report Pointer
         i += (Size + 1);
 
-        /* Sanity, the first item outside an collection should be an COLLECTION!! */
-        if (Collection == NULL 
-            && Type == USB_HID_REPORT_MAIN
-            && Tag != USB_HID_MAIN_COLLECTION)
+        // The first item that appears in type main MUST be collection
+        // otherwise just skip
+        if (CurrentCollection == NULL 
+            && Type == HID_REPORT_TYPE_MAIN
+            && Tag != HID_MAIN_COLLECTION) {
             continue;
+        }
 
-        /* Ok, we have 3 item groups. Main, Local & Global */
-        switch (Type)
-        {
-            /* Main Item */
-            case USB_HID_REPORT_MAIN:
-            {
-                /* 5 Main Item Groups: Input, Output, Feature, Collection, EndCollection */
-                switch (Tag)
-                {
-                    /* Collection Item */
-                    case USB_HID_MAIN_COLLECTION:
-                    {
-                        /* Create a new collection and set parent */
-                        UsbHidReportCollection_t *NextCollection =
-                            (UsbHidReportCollection_t*)kmalloc(sizeof(UsbHidReportCollection_t));
+        // The type we encounter can be of these types:
+        // Main, Global, Local or LongItem
+        switch (Type) {
+            
+            // Main items describe an upper container of either inputs, outputs
+            // features or a collection of items (Tag variable)
+            case HID_REPORT_TYPE_MAIN: {
+                switch (Tag) {
+                    // The collection contains a number of collection items
+                    // which can be anything. They usually describe a different
+                    // kind of report-collection which means the input device
+                    // has a number of configurations
+                    case HID_MAIN_COLLECTION: {
+                        // Create a collection from the current state-variables
+                        UsbHidReportCollection_t *Collection =
+                            HidCollectionCreate(&GlobalStats, &ItemStats);
 
-                        /* Set usage kind */
-                        NextCollection->UsagePage = GlobalStats.Usage;
-                        NextCollection->Usage = ItemStats.Usages[0];
-                        
-                        /* Set to null */
-                        NextCollection->Childs = NULL;
-                        NextCollection->Link = NULL;
+                        // Set it if current is not set
+                        // then we don't need to insert it to list
+                        if (CurrentCollection == NULL) {
+                            CurrentCollection = Collection;
+                        }
+                        else {
+                            // Update the parent of the collection
+                            Collection->Parent = CurrentCollection;
 
-                        /* Sanity */
-                        if (Collection == NULL)
-                            Collection = NextCollection;
-                        else
-                        {
-                            /* Set parent */
-                            NextCollection->Link = Collection;
+                            // Append it as a child note now that we 
+                            // aren't a child
+                            HidCollectionCreateChild(
+                                CurrentCollection, &GlobalStats, CurrentType,
+                                HID_TYPE_COLLECTION, Collection);
 
-                            /* Create a child node */
-                            UsbHidCollectionInsertChild(Collection, &GlobalStats, CurrentType,
-                                USB_HID_TYPE_COLLECTION, NextCollection);
-
-                            /* Enter collection */
-                            Collection = NextCollection;
+                            // Step into new collection
+                            CurrentCollection = Collection;
                         }
 
-                        /* Increase Depth */
+                        // Note the current depth
                         Depth++;
-
                     } break;
 
-                    /* End of Collection Item */
-                    case USB_HID_MAIN_ENDCOLLECTION:
-                    {
-                        /* Move up */
-                        if (Collection != NULL)
-                        {
-                            /* If parent is null, root collection is done (save it) */
-                            if (Collection->Link != NULL)
-                                RootCollection = Collection;
-                            Collection = Collection->Link;
-                        }
-
-                        /* Decrease Depth */
-                        Depth--;
-
-                    } break;
-
-                    /* Input Item */
-                    case USB_HID_MAIN_INPUT:
-                    {
-                        UsbHidReportInputItem_t *InputItem =
-                            (UsbHidReportInputItem_t*)kmalloc(sizeof(UsbHidReportInputItem_t));
-
-                        /* What kind of input data? */
-                        if (Packet & 0x1)
-                            InputItem->Flags = X86_USB_REPORT_INPUT_TYPE_CONSTANT;
-                        else
-                        {
-                            /* This is data, not constant */
-                            if (Packet & 0x2)
-                            {
-                                /* Variable Input */
-                                if (Packet & 0x4)
-                                    InputItem->Flags = X86_USB_REPORT_INPUT_TYPE_RELATIVE; /* Data, Variable, Relative */
-                                else
-                                    InputItem->Flags = X86_USB_REPORT_INPUT_TYPE_ABSOLUTE; /* Data, Variable, Absolute */
+                    // The end of collection marker means our collection is
+                    // closed and we should switch to parent collection context
+                    case HID_MAIN_ENDCOLLECTION: {
+                        if (CurrentCollection != NULL) {
+                            // If we finish with root collection, no more!
+                            if (CurrentCollection->Parent == NULL) {
+                                RootCollection = CurrentCollection;
                             }
-                            else
-                                InputItem->Flags = X86_USB_REPORT_INPUT_TYPE_ARRAY; /* Data, Array */
+                            CurrentCollection = CurrentCollection->Parent;
                         }
 
-                        /* Set local stats */
-                        for (j = 0; j < 16; j++)
-                            InputItem->Stats.Usages[j] = ItemStats.Usages[j];
+                        // Note the current depth
+                        Depth--;
+                    } break;
 
-                        InputItem->Stats.UsageMin = ItemStats.UsageMin;
-                        InputItem->Stats.UsageMax = ItemStats.UsageMax;
-                        InputItem->Stats.BitOffset = BitOffset;
+                    // Input items can describe any kind of physical input device
+                    // as mouse pointers, buttons, joysticks etc. The type of data
+                    // we recieve is described as either Constant, Relative, Absolute or Array
+                    case HID_MAIN_INPUT: {
+                        UsbHidReportInputItem_t *InputItem =
+                            (UsbHidReportInputItem_t*)malloc(sizeof(UsbHidReportInputItem_t));
 
-                        /* Add to list */
-                        UsbHidCollectionInsertChild(Collection, &GlobalStats, CurrentType,
-                            USB_HID_TYPE_INPUT, InputItem);
+                        // If the constant bit is set it overrides rest
+                        // of the bits.
+                        if (Packet & 0x1) {
+                            InputItem->Flags = HID_REPORT_INPUT_TYPE_CONSTANT;
+                        }
+                        else {
+                            // Ok, so the data available is actual dynamic data, not constant data
+                            // Now determine if its variable data or array data
+                            if (Packet & 0x2) {
+                                // If bit 2 is set, the data is variable and relative,
+                                // otherwise the data is variable but absolute
+                                if (Packet & 0x4) {
+                                    InputItem->Flags = HID_REPORT_INPUT_TYPE_RELATIVE;
+                                }
+                                else {
+                                    InputItem->Flags = HID_REPORT_INPUT_TYPE_ABSOLUTE;
+                                }
+                            }
+                            else {
+                                InputItem->Flags = HID_REPORT_INPUT_TYPE_ARRAY;
+                            }
+                        }
 
-                        /* Increase Bitoffset Counter */
+                        // Create a new copy of the current local state that applies
+                        // only to this input item. Override BitOffset member
+                        memcpy(&InputItem->LocalState, &ItemStats, sizeof(UsbHidReportItemStats_t));
+                        InputItem->LocalState.BitOffset = BitOffset;
+
+                        // Append it as a child note now that we 
+                        // aren't a child
+                        HidCollectionCreateChild(
+                            CurrentCollection, &GlobalStats, CurrentType,
+                            HID_TYPE_INPUT, InputItem);
+
+                        // Adjust BitOffset now to past this item
+                        // and also sanitize current length, make sure we store
+                        // the longest report
                         BitOffset += GlobalStats.ReportCount * GlobalStats.ReportSize;
-
-                        /* Sanity */
-                        if ((GlobalStats.ReportCount * GlobalStats.ReportSize) > LongestReport)
+                        if ((GlobalStats.ReportCount * GlobalStats.ReportSize) > LongestReport) {
                             LongestReport = GlobalStats.ReportCount * GlobalStats.ReportSize;
-                        
+                        }
                     } break;
 
-                    /* Output Item */
-                    case USB_HID_MAIN_OUTPUT:
-                    {
+                    // Output examples could be @todo
+                    case HID_MAIN_OUTPUT: {
 
                     } break;
 
-                    /* Feature Item */
-                    case USB_HID_MAIN_FEATURE:
-                    {
+                    // Feature examples could be @todo
+                    case HID_MAIN_FEATURE: {
 
                     } break;
                 }
 
-                /* Reset Local Stats */
-                for (j = 0; j < 16; j++)
+                // At the end of a collection item we need to 
+                // reset the local collection item stats
+                for (j = 0; j < 16; j++) {
                     ItemStats.Usages[j] = 0;
+                }
                 ItemStats.UsageMin = 0;
                 ItemStats.UsageMax = 0;
                 ItemStats.BitOffset = 0;
-
             } break;
 
             /* Global Item */
-            case USB_HID_REPORT_GLOBAL:
-            {
-                /* Parse */
+            case HID_REPORT_TYPE_GLOBAL: {
                 UsbHidParseGlobalItem(&GlobalStats, Tag, Packet);
-
-                /* Sanity */
-                if (GlobalStats.ReportId != 0xFFFFFFFF)
+                if (GlobalStats.ReportId != UUID_INVALID) {
                     ReportIdsUsed = 1;
-
+                }
             } break;
 
             /* Local Item */
-            case USB_HID_REPORT_LOCAL:
-            {
-                switch (Tag)
-                {
-                    /* Usage */
-                    case USB_HID_LOCAL_USAGE:
-                    {
-                        if (Packet == X86_USB_REPORT_USAGE_POINTER
-                            || Packet == X86_USB_REPORT_USAGE_MOUSE)
+            case HID_REPORT_TYPE_LOCAL: {
+                switch (Tag) {
+                    
+                    // The usage tag describes which kind of device we are dealing
+                    // with and are usefull for determing how to handle it.
+                    case HID_LOCAL_USAGE: {
+                        // Determine the kind of input device
+                        if (Packet == HID_REPORT_USAGE_POINTER
+                            || Packet == HID_REPORT_USAGE_MOUSE) {
                             CurrentType = InputMouse;
-                        else if (Packet == X86_USB_REPORT_USAGE_KEYBOARD)
+                        }
+                        else if (Packet == HID_REPORT_USAGE_KEYBOARD) {
                             CurrentType = InputKeyboard;
-                        else if (Packet == X86_USB_REPORT_USAGE_KEYPAD)
+                        }
+                        else if (Packet == HID_REPORT_USAGE_KEYPAD) {
                             CurrentType = InputKeypad;
-                        else if (Packet == X86_USB_REPORT_USAGE_JOYSTICK)
+                        }
+                        else if (Packet == HID_REPORT_USAGE_JOYSTICK) {
                             CurrentType = InputJoystick;
-                        else if (Packet == X86_USB_REPORT_USAGE_GAMEPAD)
+                        }
+                        else if (Packet == HID_REPORT_USAGE_GAMEPAD) {
                             CurrentType = InputGamePad;
+                        }
 
-                        for (j = 0; j < 16; j++)
-                        {
-                            if (ItemStats.Usages[j] == 0)
-                            {
+                        // There can be multiple usages for an descriptor
+                        // so store up to 16 usages
+                        for (j = 0; j < 16; j++) {
+                            if (ItemStats.Usages[j] == 0) {
                                 ItemStats.Usages[j] = Packet;
                                 break;
                             }
                         }
-                        
                     } break;
 
-                    /* Uage Min & Max */
-                    case USB_HID_LOCAL_USAGE_MIN:
-                    {
+                    // The usage min and max tells us the boundaries of
+                    // the data package
+                    case HID_LOCAL_USAGE_MIN: {
                         ItemStats.UsageMin = Packet;
                     } break;
-                    case USB_HID_LOCAL_USAGE_MAX:
-                    {
+                    case HID_LOCAL_USAGE_MAX: {
                         ItemStats.UsageMax = Packet;
                     } break;
 
-                    /* Unhandled */
-                    default:
-                    {
-                        LogInformation("USBH", "%u: Local Item %u", Depth, Tag);
+                    // If there is anything we don't handle it's not vital
+                    // but we should trace it in case we want to handle it
+                    default: {
+                        TRACE("%u: Local Item %u", Depth, Tag);
                     } break;
                 }
             } break;
@@ -515,7 +529,7 @@ UsbHidApplyInputData(
         return;
 
     /* If we have a valid ReportID, make sure this data is for us */
-    if (CollectionItem->Stats.ReportId != 0xFFFFFFFF)
+    if (CollectionItem->Stats.ReportId != UUID_INVALID)
     {
         /* The first byte is the report Id */
         uint8_t ReportId = Device->DataBuffer[0];

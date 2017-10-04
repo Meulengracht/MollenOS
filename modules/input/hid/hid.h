@@ -181,7 +181,7 @@ PACKED_TYPESTRUCT(UsbHidReportGlobalStats, {
  * Describes an HID-item for which kind of usages, and
  * where in the report (bit index) its data is */
 typedef struct _UsbHidReportItemStats {
-    uint32_t                        Usages[16];
+    int                             Usages[16];
 
     uint32_t                        UsageMin;
     uint32_t                        UsageMax;
@@ -206,9 +206,9 @@ typedef struct _UsbHidReportInputItem {
 /* UsbHidReportCollectionItem
  * Each of these items describe some form of physical input. */
 typedef struct _UsbHidReportCollectionItem {
-    int                                 Type;
+    int                                 CollectionType;
     MInputType_t                        InputType;
-    void                               *Data;
+    void                               *ItemPointer;
     UsbHidReportGlobalStats_t           Stats;
     struct _UsbHidReportCollectionItem *Link;
 } UsbHidReportCollectionItem_t;
@@ -227,8 +227,8 @@ typedef struct _UsbHidReportCollection {
     size_t                           UsagePage;
     size_t                           Usage;
     
+    struct _UsbHidReportCollection  *Parent;
     UsbHidReportCollectionItem_t    *Childs;
-    struct _UsbHidReportCollection  *Link;
 } UsbHidReportCollection_t;
 
 /* HidDevice
