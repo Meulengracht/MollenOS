@@ -15,7 +15,7 @@ env:
 addons:
   apt:
     packages:
-      - clang-5.0
+      - clang-3.9
       - subversion
       - make
       - g++-7
