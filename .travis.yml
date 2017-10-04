@@ -17,11 +17,13 @@ jobs:
     - stage: init
       script:
         - chmod +x ./tools/depends.sh  # Give permissions
-        - sudo bash ./tools/depends.sh # Run initializor script
+        - sudo bash ./tools/depends.sh # Install dependencies
         - chmod +x ./tools/checkout.sh  # Give permissions
         - sudo bash ./tools/checkout.sh # Run checkout script
     - stage: toolchain
       script:
+        - chmod +x ./tools/depends.sh  # Give permissions
+        - sudo bash ./tools/depends.sh # Install dependencies
         - chmod +x ./tools/build_toolchain.sh
         - sudo bash ./tools/build_toolchain.sh
     - stage: build

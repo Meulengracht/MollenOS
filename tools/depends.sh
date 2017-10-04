@@ -46,9 +46,11 @@ fi
 CMAKE_VERSION="$(cmake --version)"
 echo ${CMAKE_VERSION}
 if ! [[ "$CMAKE_VERSION" =~ "cmake version 3.8" ]]; then
-  wget https://cmake.org/files/v3.8/cmake-3.8.1.tar.gz
-  tar xzf cmake-3.8.1.tar.gz
-  rm cmake-3.8.1.tar.gz
+  if [ ! -f ./cmake-3.8.1 ]; then
+    wget https://cmake.org/files/v3.8/cmake-3.8.1.tar.gz
+    tar xzf cmake-3.8.1.tar.gz
+    rm cmake-3.8.1.tar.gz
+  fi
   cd cmake-3.8.1
   if [ -x "$(command -v cmake)" ]; then
     apt-get -qq remove "^cmake.*" 
