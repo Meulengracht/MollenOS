@@ -80,6 +80,7 @@ clean: clean_$(arch)
 	$(MAKE) -C storage/ahci -f makefile clean
 	$(MAKE) -C storage/msd -f makefile clean
 	$(MAKE) -C timers/hpet -f makefile clean
+	$(MAKE) -C input/hid -f makefile clean
 	$(MAKE) -C serial/usb/ohci -f makefile clean
 	$(MAKE) -C serial/usb/uhci -f makefile clean
 	$(MAKE) -C serial/usb/ehci -f makefile clean
