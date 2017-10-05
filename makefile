@@ -83,9 +83,18 @@ install:
 	./lzss c kernel/build/syskrnl.mos deploy/hdd/system/syskrnl.mos
 	mono diskutility -auto -target $(target) -scheme mbr
 
-.PHONY: release
-release:
-	curl -H "Content-Type: application/json" -X POST -d '{"tag_name":"$(RELEASE_VERSION)","target_commitish":"master","name":"$(RELEASE_VERSION)","body":"$(RELEASE_DESCRIPTION)","draft": false, "prerelease": false}' https://api.github.com/repos/Fadekraft/MollenOS/releases
+.PHONY: toolchain
+toolchain:
+	mkdir -p toolchain
+	chmod +x ./tools/depends.sh
+	chmod +x ./tools/checkout.sh
+	chmod +x ./tools/build_clang.sh
+	chmod +x ./tools/build_toolchain.sh
+	bash ./tools/depends.sh
+	bash ./tools/checkout.sh
+	bash ./tools/build_clang.sh
+	bash ./tools/build_toolchain.sh
+	rm -rf toolchain
 
 .PHONY: clean
 clean:

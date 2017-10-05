@@ -1,7 +1,7 @@
 #!/bin/sh
 
 if [ ! -f $CROSS/bin/clang ]; then
-  cd ../toolchain
+  cd toolchain
   
   if ! [ -x "$(command -v clang)" ]; then
 	mkdir -p build

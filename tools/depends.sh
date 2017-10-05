@@ -2,8 +2,6 @@
 
 # toolchain directory is required
 clear
-cd ..
-mkdir -p toolchain
 cd toolchain
 
 # Dev-libraries
