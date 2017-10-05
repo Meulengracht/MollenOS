@@ -450,7 +450,14 @@ OsStatus_t
 OhciTransactionFinalize(
 	_In_ OhciController_t *Controller,
 	_In_ UsbManagerTransfer_t *Transfer,
-	_In_ int Validate);
+    _In_ int Validate);
+
+/* OhciGetStatusCode
+ * Retrieves a status-code from a given condition code */
+__EXTERN
+UsbTransferStatus_t
+OhciGetStatusCode(
+    _In_ int ConditionCode);
 
 /* Process Transactions 
  * This code unlinks / links pending endpoint descriptors. 

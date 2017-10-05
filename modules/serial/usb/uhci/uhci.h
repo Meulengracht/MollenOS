@@ -283,7 +283,14 @@ void
 UhciWrite32(
 	_In_ UhciController_t *Controller, 
 	_In_ uint16_t Register, 
-	_In_ uint32_t Value);
+    _In_ uint32_t Value);
+    
+/* UhciGetStatusCode
+ * Retrieves a status-code from a given condition code */
+__EXTERN
+UsbTransferStatus_t
+UhciGetStatusCode(
+    _In_ int ConditionCode);
 
 /* UhciStart
  * Boots the controller, if it succeeds OsSuccess is returned. */

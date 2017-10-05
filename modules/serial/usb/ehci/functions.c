@@ -34,19 +34,6 @@
 #include <stddef.h>
 #include <string.h>
 
-/* Globals 
- * Error messages for codes that might appear in transfers */
-const char *EhciErrorMessages[] = {
-    "No Error",
-    "Ping State/PERR",
-    "Split Transaction State",
-    "Missed Micro-Frame",
-    "Transaction Error (CRC, Timeout)",
-    "Babble Detected",
-    "Data Buffer Error",
-    "Halted, Stall",
-    "Active"};
-
 /* EhciTransactionInitialize
  * Initializes a transaction by allocating a new endpoint-descriptor
  * and preparing it for usage */
@@ -314,18 +301,7 @@ EhciTransactionFinalize(
             Completed = TransferFinished;
         }
         else {
-            if (CondCode == 4)
-                Completed = TransferNotResponding;
-            else if (CondCode == 5)
-                Completed = TransferBabble;
-            else if (CondCode == 6)
-                Completed = TransferInvalidData;
-            else if (CondCode == 7)
-                Completed = TransferStalled;
-            else {
-                WARNING("EHCI-Error: 0x%x (%s)", CondCode, EhciErrorMessages[CondCode]);
-                Completed = TransferInvalidData;
-            }
+            Completed = EhciGetStatusCode(CondCode);
             break;
         }
 

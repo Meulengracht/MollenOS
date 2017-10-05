@@ -34,6 +34,19 @@
  * - Library */
 #include <string.h>
 
+/* UhciErrorMessages
+ * Textual representations of the possible error codes */
+const char *UhciErrorMessages[] = {
+	"No Error",
+	"Bitstuff Error",
+	"CRC/Timeout Error",
+	"NAK Recieved",
+	"Babble Detected",
+	"Data Buffer Error",
+	"Stalled",
+	"Active"
+};
+
 /* UhciFFS
  * This function calculates the first free set of bits in a value */
 size_t
@@ -87,6 +100,34 @@ UhciDetermineInterruptQh(
 
 	// Retrieve physical address of the calculated qh
 	return (UHCI_POOL_QHINDEX(Controller, Index) | UHCI_LINK_QH);
+}
+
+/* UhciGetStatusCode
+ * Retrieves a status-code from a given condition code */
+UsbTransferStatus_t
+UhciGetStatusCode(
+    _In_ int ConditionCode)
+{
+    // One huuuge if/else
+    if (ConditionCode == 0) {
+        return TransferFinished;
+    }
+    else if (ConditionCode == 6) {
+        return TransferStalled;
+    }
+    else if (ConditionCode == 1) {
+        return TransferInvalidToggles;
+    }
+    else if (ConditionCode == 2) {
+        return TransferBabble;
+    }
+    else if (ConditionCode == 3) {
+        return TransferNotResponding;
+    }
+    else {
+        TRACE("Error: 0x%x (%s)", ConditionCode, UhciErrorMessages[ConditionCode]);
+        return TransferInvalidData;
+    }
 }
 
 /* UhciQueueInitialize
@@ -688,7 +729,8 @@ UhciProcessRequest(
 	}
 	else if (Transfer->Transfer.Type == InterruptTransfer) {
 
-		// Variables
+        // Variables
+        uintptr_t BufferBase, BufferStep, BufferBaseUpdated;
 		int SwitchToggles = 0;
 		
 		// Setup some variables
@@ -700,7 +742,11 @@ UhciProcessRequest(
 		// Do we need to fix toggles?
 		if (FixupToggles) {
 			UhciFixupToggles(Controller, Transfer);
-		}
+        }
+        
+        // Do some extra processing for periodics
+        BufferBase = Transfer->Transfer.Transactions[0].BufferAddress;
+        BufferStep = Transfer->Transfer.Transactions[0].Length;
 
 		// Restart transfer
 		while (Td) {
@@ -712,7 +758,12 @@ UhciProcessRequest(
 					Td->OriginalHeader |= UHCI_TD_DATA_TOGGLE;
 				}
 				UsbManagerSetToggle(Transfer->Device, Transfer->Pipe, Toggle ^ 1);
-			}
+            }
+            
+            // Adjust buffer 
+            BufferBaseUpdated = ADDLIMIT(BufferBase, Td->Buffer, 
+                BufferStep, BufferBase + Transfer->Transfer.PeriodicBufferSize);
+            Td->Buffer = LODWORD(BufferBaseUpdated);
 
 			// Restore
 			Td->Header = Td->OriginalHeader;
@@ -730,17 +781,21 @@ UhciProcessRequest(
 			else {
 				break;
 			}
-		}
-
-		// Consider having a ring-buffer for interrupts and isoc
-		// so we can increase the buffer here and send notice at which offset
-		// @todo
-
+        }
+        
 		// Notify process of transfer of the status
-		if (Transfer->Transfer.UpdatesOn) {
-			InterruptDriver(Transfer->Requester, 
-				(size_t)Transfer->Transfer.PeriodicData, 0, 0, 0);
-		}
+        if (Transfer->Transfer.Type == InterruptTransfer) {
+            if (Transfer->Transfer.UpdatesOn) {
+                InterruptDriver(Transfer->Requester, 
+                    (size_t)Transfer->Transfer.PeriodicData, 
+                    (size_t)((ErrorTransfer == 0) ? TransferFinished : Transfer->Status), 
+                    Transfer->PeriodicDataIndex, 0);
+            }
+
+            // Increase
+            Transfer->PeriodicDataIndex = ADDLIMIT(0, Transfer->PeriodicDataIndex,
+                Transfer->Transfer.Transactions[0].Length, Transfer->Transfer.PeriodicBufferSize);
+        }
 
 		// Reinitialize the queue-head
 		Qh->Child = UHCI_POOL_TDINDEX(Controller, Qh->ChildIndex);
@@ -769,14 +824,8 @@ UhciProcessRequest(
 			else {
 				break;
 			}
-		}
-
-		// Notify process of transfer of the status
-		if (Transfer->Transfer.UpdatesOn) {
-			InterruptDriver(Transfer->Requester, 
-				(size_t)Transfer->Transfer.PeriodicData, 0, 0, 0);
-		}
-
+        }
+        
 		// Link the isochronous request in again
 		if (ErrorTransfer == 0) {
 			StartFrame = Qh->StartFrame;
@@ -869,7 +918,8 @@ UhciProcessTransfers(
 
 			// Sanitize the condition-code
 			if (CondCode != 0 && CondCode != 3) {
-				ErrorTransfer = 1;
+                ErrorTransfer = 1;
+                Transfer->Status = UhciGetStatusCode(CondCode);
 			}
 
 			// Go to next td or terminate

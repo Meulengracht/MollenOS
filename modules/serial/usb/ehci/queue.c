@@ -41,6 +41,20 @@
 #pragma warning(disable:4127)
 #endif
 
+/* Globals 
+ * Error messages for codes that might appear in transfers */
+const char *EhciErrorMessages[] = {
+    "No Error",
+    "Ping State/PERR",
+    "Split Transaction State",
+    "Missed Micro-Frame",
+    "Transaction Error (CRC, Timeout)",
+    "Babble Detected",
+    "Data Buffer Error",
+    "Halted, Stall",
+    "Active"
+};
+
 /* EhciQueueInitialize
  * Initialize the controller's queue resources and resets counters */
 OsStatus_t
@@ -631,6 +645,34 @@ EhciTdIo(
 	return Td;
 }
 
+/* EhciGetStatusCode
+ * Retrieves a status-code from a given condition code */
+UsbTransferStatus_t
+EhciGetStatusCode(
+    _In_ int ConditionCode)
+{
+    // One huuuge if/else
+    if (ConditionCode == 0) {
+        return TransferFinished;
+    }
+    else if (ConditionCode == 4) {
+        return TransferNotResponding;
+    }
+    else if (ConditionCode == 5) {
+        return TransferBabble;
+    }
+    else if (ConditionCode == 6) {
+        return TransferInvalidData;
+    }
+    else if (ConditionCode == 7) {
+        return TransferStalled;
+    }
+    else {
+        WARNING("EHCI-Error: 0x%x (%s)", ConditionCode, EhciErrorMessages[ConditionCode]);
+        return TransferInvalidData;
+    }
+}
+
 /* EhciRestartQh
  * Restarts an interrupt QH by resetting it to it's start state */
 void
@@ -640,18 +682,21 @@ EhciRestartQh(
 {
 	// Variables
     EhciQueueHead_t *Qh = NULL;
-	EhciTransferDescriptor_t *Td = NULL;
+    EhciTransferDescriptor_t *Td = NULL;
+    uintptr_t BufferBase, BufferStep;
     
     // Setup some variables
 	Qh = (EhciQueueHead_t*)Transfer->EndpointDescriptor;
     Td = &Controller->QueueControl.TDPool[Qh->ChildIndex];
 
+    // Do some extra processing for periodics
+    if (Transfer->Transfer.Type == InterruptTransfer) {
+        BufferBase = Transfer->Transfer.Transactions[0].BufferAddress;
+        BufferStep = Transfer->Transfer.Transactions[0].Length;
+    }
+
 	// Iterate td's
 	while (Td) {
-        // Update buffer pointer by loading next index from
-        // ringbuffer
-        // @todo
-
 		// Update the toggle
 		Td->OriginalLength &= ~(EHCI_TD_TOGGLE);
 		if (Td->Length & EHCI_TD_TOGGLE) {
@@ -659,10 +704,16 @@ EhciRestartQh(
         }
 
         // Reset members of td
-        // @todo
         Td->Status = EHCI_TD_ACTIVE;
         Td->Length = Td->OriginalLength;
         Td->Token = Td->OriginalToken;
+        
+        // Adjust buffers if interrupt in
+        if (Transfer->Transfer.Type == InterruptTransfer) {
+            uintptr_t BufferBaseUpdated = ADDLIMIT(BufferBase, Td->Buffers[0], 
+                BufferStep, BufferBase + Transfer->Transfer.PeriodicBufferSize);
+            EhciTdFill(Td, BufferBaseUpdated, BufferStep);
+        }
 
 		// Switch to next transfer descriptor
         if (Td->LinkIndex != EHCI_NO_INDEX) {
@@ -695,7 +746,7 @@ EhciScanQh(
 {
     // Variables
     EhciQueueHead_t *Qh = NULL;
-	EhciTransferDescriptor_t *Td = NULL;
+    EhciTransferDescriptor_t *Td = NULL;
 	int ShortTransfer = 0;
 	int ErrorTransfer = 0;
 	int Counter = 0;
@@ -737,7 +788,9 @@ EhciScanQh(
 
 		// Error Transfer?
 		if (CondCode != 0) {
-			ErrorTransfer = 1;
+            ErrorTransfer = 1;
+            Transfer->Status = EhciGetStatusCode(CondCode);
+            break;
 		}
 
         // Switch to next transfer descriptor
@@ -783,8 +836,14 @@ EhciProcessTransfers(
 				// Notify process of transfer of the status
                 if (Transfer->Transfer.UpdatesOn) {
                     InterruptDriver(Transfer->Requester, 
-                        (size_t)Transfer->Transfer.PeriodicData, 0, 0, 0);
+                        (size_t)Transfer->Transfer.PeriodicData, 
+                        (size_t)((Processed == 1) ? TransferFinished : Transfer->Status), 
+                        Transfer->PeriodicDataIndex, 0);
                 }
+
+                // Increase
+                Transfer->PeriodicDataIndex = ADDLIMIT(0, Transfer->PeriodicDataIndex,
+                    Transfer->Transfer.Transactions[0].Length, Transfer->Transfer.PeriodicBufferSize);
 			}
 			else {
                 ERROR("Should wake-up transferqh");

@@ -37,27 +37,6 @@
 #include <string.h>
 #include <stdlib.h>
 
-/* OhciErrorMessages
- * Textual representations of the possible error codes */
-const char *OhciErrorMessages[] = {
-	"No Error",
-	"CRC Error",
-	"Bit Stuffing Violation",
-	"Data Toggle Mismatch",
-	"Stall PID recieved",
-	"Device Not Responding",
-	"PID Check Failure",
-	"Unexpected PID",
-	"Data Overrun",
-	"Data Underrun",
-	"Reserved",
-	"Reserved",
-	"Buffer Overrun",
-	"Buffer Underrun",
-	"Not Accessed",
-	"Not Accessed"
-};
-
 /* OhciTransactionInitialize
  * Initializes a transaction by allocating a new endpoint-descriptor
  * and preparing it for usage */
@@ -208,26 +187,14 @@ OhciTransactionFinalize(
 			}
 			
 			// Trace
-			TRACE("Flags 0x%x, Cbp 0x%x, BufferEnd 0x%x, Condition Code %u (%s)", 
-				Td->Flags, Td->Cbp, Td->BufferEnd, ErrorCode, 
-				OhciErrorMessages[ErrorCode]);
+			TRACE("Flags 0x%x, Cbp 0x%x, BufferEnd 0x%x, Condition Code %u", 
+				Td->Flags, Td->Cbp, Td->BufferEnd, ErrorCode);
 
 			// Now validate the code
 			if (ErrorCode == 0 && Transfer->Status == TransferFinished)
 				Transfer->Status = TransferFinished;
 			else {
-				if (ErrorCode == 4)
-					Transfer->Status = TransferStalled;
-				else if (ErrorCode == 3)
-					Transfer->Status = TransferInvalidToggles;
-				else if (ErrorCode == 2 || ErrorCode == 1)
-					Transfer->Status = TransferBabble;
-				else if (ErrorCode == 5)
-					Transfer->Status = TransferNotResponding;
-				else {
-					TRACE("Error: 0x%x (%s)", ErrorCode, OhciErrorMessages[ErrorCode]);
-					Transfer->Status = TransferInvalidData;
-				}
+				Transfer->Status = OhciGetStatusCode(ErrorCode);
 				break;
 			}
 			

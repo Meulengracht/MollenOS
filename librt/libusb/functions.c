@@ -140,10 +140,10 @@ UsbTransferSetup(
     return OsSuccess;
 }
 
-/* UsbTransferInterrupt 
+/* UsbTransferPeriodic 
  * Initializes a transfer for a interrupt-transaction. */
 OsStatus_t
-UsbTransferInterrupt(
+UsbTransferPeriodic(
     _InOut_ UsbTransfer_t *Transfer,
     _In_ uintptr_t BufferAddress,
     _In_ size_t BufferLength,

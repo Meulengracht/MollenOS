@@ -753,6 +753,13 @@ void
 EhciProcessDoorBell(
     _In_ EhciController_t *Controller);
     
+/* EhciGetStatusCode
+ * Retrieves a status-code from a given condition code */
+__EXTERN
+UsbTransferStatus_t
+EhciGetStatusCode(
+    _In_ int ConditionCode);
+
 /* EhciTransactionFinalize
  * Cleans up the transfer, deallocates resources and validates the td's */
 __EXTERN

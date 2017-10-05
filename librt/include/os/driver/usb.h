@@ -252,11 +252,11 @@ UsbTransferSetup(
     _In_ size_t DataLength,
     _In_ UsbTransactionType_t DataType);
 
-/* UsbTransferInterrupt 
- * Initializes a transfer for a interrupt-transaction. */
+/* UsbTransferPeriodic
+ * Initializes a transfer for a periodic-transaction. */
 __EXTERN
 OsStatus_t
-UsbTransferInterrupt(
+UsbTransferPeriodic(
     _InOut_ UsbTransfer_t *Transfer,
     _In_ uintptr_t BufferAddress,
     _In_ size_t BufferLength,

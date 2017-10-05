@@ -37,19 +37,6 @@
 #include <string.h>
 #include <stdlib.h>
 
-/* UhciErrorMessages
- * Textual representations of the possible error codes */
-const char *UhciErrorMessages[] = {
-	"No Error",
-	"Bitstuff Error",
-	"CRC/Timeout Error",
-	"NAK Recieved",
-	"Babble Detected",
-	"Data Buffer Error",
-	"Stalled",
-	"Active"
-};
-
 /* UhciTransactionInitialize
  * Initializes a transaction by allocating a new endpoint-descriptor
  * and preparing it for usage */
@@ -84,8 +71,7 @@ UhciTransactionInitialize(
 
 		// Sanitize that the exponent is valid
 		if (Exponent < 0) {
-			ERROR("UHCI: Invalid interval %u", 
-				Transfer->Endpoint.Interval);
+			ERROR("UHCI: Invalid interval %u", Transfer->Endpoint.Interval);
 			Exponent = 0;
 		}
 
@@ -321,26 +307,14 @@ UhciTransactionFinalize(
 			}
 
 			// Trace
-			TRACE("Flags 0x%x, Header 0x%x, Buffer 0x%x, Td Condition Code %u (%s)", 
-				Td->Flags, Td->Header, Td->Buffer, ErrorCode, 
-				UhciErrorMessages[ErrorCode]);
+			TRACE("Flags 0x%x, Header 0x%x, Buffer 0x%x, Td Condition Code %u", 
+				Td->Flags, Td->Header, Td->Buffer, ErrorCode);
 
 			// Now validate the code
 			if (ErrorCode == 0 && Transfer->Status == TransferFinished)
 				Transfer->Status = TransferFinished;
 			else {
-				if (ErrorCode == 6)
-					Transfer->Status = TransferStalled;
-				else if (ErrorCode == 1)
-					Transfer->Status = TransferInvalidToggles;
-				else if (ErrorCode == 2)
-					Transfer->Status = TransferBabble;
-				else if (ErrorCode == 3)
-					Transfer->Status = TransferNotResponding;
-				else {
-					TRACE("UHCI Error: 0x%x (%s)", ErrorCode, UhciErrorMessages[ErrorCode]);
-					Transfer->Status = TransferInvalidData;
-				}
+				Transfer->Status = UhciGetStatusCode(ErrorCode);
 				break;
 			}
 			
