@@ -18,7 +18,7 @@ SOURCES = $(wildcard common/*.c) \
 		  oslmos.c
 OBJECTS = $(SOURCES:.c=.o)
 
-CFLAGS = $(GCFLAGS) -Wno-unused-const-variable -D_KAPI -DACPI_LIBRARY -DLIBC_KERNEL $(INCLUDES)
+CFLAGS = $(GCFLAGS) -Wno-unused-const-variable -mno-sse -D_KAPI -DACPI_LIBRARY -DLIBC_KERNEL $(INCLUDES)
 LFLAGS = /lib
 
 .PHONY: all

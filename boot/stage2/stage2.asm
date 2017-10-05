@@ -307,7 +307,6 @@ LoadKernel32:
 	mov 	esp, 0x7BFF
 
 	; Unpack kernel
-	xchg	bx, bx
 	mov		esi, MEMLOCATION_FLOAD_LOWER
 	mov		edi, MEMLOCATION_UNPACK_AREA
 	call	LZLoad
@@ -389,7 +388,6 @@ Entry32:
 	push 	ebx
 
 	; Jump to kernel (Entry Point in ECX)
-	xchg	bx, bx
 	jmp 	ecx
 
 	; Safety

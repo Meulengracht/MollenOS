@@ -14,7 +14,7 @@ SOURCES = $(wildcard common/*.c) \
 		  init.c
 OBJECTS = $(SOURCES:.c=.o)
 
-CFLAGS = $(GCFLAGS) -D_KAPI -DUNICODE -DLIBC_KERNEL -D_KRNL_DLL $(INCLUDES)
+CFLAGS = $(GCFLAGS) -D_KAPI -DUNICODE -DLIBC_KERNEL -D_KRNL_DLL -mno-sse $(INCLUDES)
 LFLAGS = /nodefaultlib /subsystem:native /entry:kentry /fixed /base:"0x100000" /manifest:no ../librt/build/libcrt.lib ../librt/build/libk.lib ../librt/build/libdsk.lib build/acpica.lib build/$(arch).lib
 
 .PHONY: all

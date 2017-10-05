@@ -153,6 +153,7 @@ static int LastSetBit(size_t Value)
 #define ADDLIMIT(Base, Current, Step, Limit)    ((Current + Step) >= Limit) ? Base : (Current + Step) 
 #define ALIGN(Val, Alignment, Roundup)          ((Val & (Alignment-1)) > 0 ? (Roundup == 1 ? ((Val + Alignment) & ~(Alignment-1)) : Val & ~(Alignment-1)) : Val)
 #define ISALIGNED(Val, Alignment)               ((Val & (Alignment-1)) == 0)
+#define BOCHSBREAK                              __asm__ __volatile__ ("xchg %bx, %bx\n\t");
 
 /* Time definitions that can help with 
  * conversion of the different time-units */

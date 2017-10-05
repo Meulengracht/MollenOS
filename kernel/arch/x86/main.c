@@ -79,7 +79,10 @@ void BootInitializeApic(void)
 /* This initializes all the basic parts of the HAL
  * and includes basic interrupt setup, memory setup and
  * basic serial/video output */
-void HALInit(void *BootInfo, MCoreBootDescriptor *Descriptor)
+void
+HALInit(
+	void *BootInfo, 
+	MCoreBootDescriptor *Descriptor)
 {
 	/* Initialize output */
 	VbeInitialize((Multiboot_t*)BootInfo);
@@ -102,32 +105,28 @@ void HALInit(void *BootInfo, MCoreBootDescriptor *Descriptor)
 /* This entry point is valid for both 32 and 64 bit
  * so this is where we do any mutual setup before 
  * calling the mcore entry */
-void InitX86(Multiboot_t *BootInfo, MCoreBootDescriptor *BootDescriptor)
+void
+InitX86(
+	Multiboot_t *BootInfo, 
+	MCoreBootDescriptor *BootDescriptor)
 {
-	/* Setup Boot Info */
+	// Store boot info
 	x86BootInfo.ArchBootInfo = (void*)BootInfo;
 	x86BootInfo.BootloaderName = (char*)BootInfo->BootLoaderName;
 	
-	/* Setup Kern & Mod info */
+	// Copy information from boot-descriptor to boot info
 	x86BootInfo.Descriptor.KernelAddress = BootDescriptor->KernelAddress;
 	x86BootInfo.Descriptor.KernelSize = BootDescriptor->KernelSize;
-
 	x86BootInfo.Descriptor.RamDiskAddress = BootDescriptor->RamDiskAddress;
 	x86BootInfo.Descriptor.RamDiskSize = BootDescriptor->RamDiskSize;
-
 	x86BootInfo.Descriptor.ExportsAddress = BootDescriptor->ExportsAddress;
 	x86BootInfo.Descriptor.ExportsSize = BootDescriptor->ExportsSize;
-
 	x86BootInfo.Descriptor.SymbolsAddress = BootDescriptor->SymbolsAddress;
 	x86BootInfo.Descriptor.SymbolsSize = BootDescriptor->SymbolsSize;
-	
-	/* Setup Functions */
 	x86BootInfo.InitHAL = HALInit;
 	x86BootInfo.InitPostSystems = BootInitializeApic;
 
-	/* Initialize Cpu */
+	// Initialize the cpu and call shared entry
 	CpuInitialize();
-
-	/* Call Entry Point */
 	MCoreInitialize(&x86BootInfo);
 }
