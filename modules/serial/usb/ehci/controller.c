@@ -43,10 +43,10 @@ EhciSetup(
 
 /* Externs
  * We need access to the interrupt-handler in main.c */
- __EXTERN
- InterruptStatus_t
- OnInterrupt(
-	 _In_ void *InterruptData);
+__EXTERN
+InterruptStatus_t
+OnFastInterrupt(
+    _In_Opt_ void *InterruptData);
 
 /* EhciControllerCreate 
  * Initializes and creates a new Ehci Controller instance
@@ -116,7 +116,7 @@ EhciControllerCreate(
 		(IoBase->VirtualBase + Controller->CapRegisters->Length);
 
 	// Initialize the interrupt settings
-	Controller->Base.Device.Interrupt.FastHandler = OnInterrupt;
+	Controller->Base.Device.Interrupt.FastHandler = OnFastInterrupt;
 	Controller->Base.Device.Interrupt.Data = Controller;
 
 	// Register contract before interrupt

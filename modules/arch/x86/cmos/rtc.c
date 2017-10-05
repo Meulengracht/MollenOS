@@ -35,7 +35,9 @@
 /* RtcInterrupt
  * Handles the rtc interrupt and acknowledges
  * the interrupt by reading cmos */
-InterruptStatus_t RtcInterrupt(Cmos_t *Chip)
+InterruptStatus_t
+RtcInterrupt(
+    _In_ Cmos_t *Chip)
 {
 	// Update Peroidic Tick Counter
 	Chip->NsCounter += Chip->NsTick;

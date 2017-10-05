@@ -25,7 +25,7 @@
 #include <os/driver/contracts/storage.h>
 #include <os/mollenos.h>
 #include <os/utils.h>
-#include "msd.h"
+#include "hid.h"
 
 /* Includes
  * - Library */
@@ -36,7 +36,7 @@
 
 /* Globals
  * State-tracking variables */
-static List_t *GlbMsdDevices = NULL;
+static List_t *GlbHidDevices = NULL;
 
 /* OnInterrupt
  * Is called when one of the registered devices
@@ -45,10 +45,15 @@ static List_t *GlbMsdDevices = NULL;
  * won't be acknowledged */
 InterruptStatus_t
 OnInterrupt(
-    _In_ void *InterruptData)
+    _In_Opt_ void *InterruptData,
+    _In_Opt_ size_t Arg0,
+    _In_Opt_ size_t Arg1,
+    _In_Opt_ size_t Arg2)
 {
-    _CRT_UNUSED(InterruptData);
-	return InterruptHandled;
+    // We don't use all params
+    _CRT_UNUSED(Arg2);
+    return HidInterrupt((HidDevice_t*)InterruptData, 
+        (UsbTransferStatus_t)Arg0, Arg1);
 }
 
 /* OnTimeout
@@ -72,7 +77,7 @@ OsStatus_t
 OnLoad(void)
 {
 	// Initialize state for this driver
-    GlbMsdDevices = ListCreate(KeyInteger, LIST_NORMAL);
+    GlbHidDevices = ListCreate(KeyInteger, LIST_NORMAL);
     return UsbInitialize();
 }
 
@@ -83,12 +88,12 @@ OsStatus_t
 OnUnload(void)
 {
 	// Iterate registered controllers
-	foreach(cNode, GlbMsdDevices) {
-		MsdDeviceDestroy((MsdDevice_t*)cNode->Data);
+	foreach(cNode, GlbHidDevices) {
+		HidDeviceDestroy((HidDevice_t*)cNode->Data);
 	}
 
 	// Data is now cleaned up, destroy list
-    ListDestroy(GlbMsdDevices);
+    ListDestroy(GlbHidDevices);
     return UsbCleanup();
 }
 
@@ -100,14 +105,14 @@ OnRegister(
     _In_ MCoreDevice_t *Device)
 {
 	// Variables
-	MsdDevice_t *MsdDevice = NULL;
+	HidDevice_t *HidDevice = NULL;
 	DataKey_t Key;
 	
 	// Register the new controller
-	MsdDevice = MsdDeviceCreate((MCoreUsbDevice_t*)Device);
+	HidDevice = HidDeviceCreate((MCoreUsbDevice_t*)Device);
 
 	// Sanitize
-	if (MsdDevice == NULL) {
+	if (HidDevice == NULL) {
 		return OsError;
 	}
 
@@ -115,7 +120,7 @@ OnRegister(
 	Key.Value = (int)Device->Id;
 
 	// Append the controller to our list
-	ListAppend(GlbMsdDevices, ListCreateNode(Key, Key, MsdDevice));
+	ListAppend(GlbHidDevices, ListCreateNode(Key, Key, HidDevice));
 
 	// Done - no error
 	return OsSuccess;
@@ -129,7 +134,7 @@ OnUnregister(
     _In_ MCoreDevice_t *Device)
 {
 	// Variables
-	MsdDevice_t *MsdDevice = NULL;
+	HidDevice_t *HidDevice = NULL;
 	DataKey_t Key;
 
 	// Set the key to the id of the device to find
@@ -137,19 +142,19 @@ OnUnregister(
 	Key.Value = (int)Device->Id;
 
 	// Lookup controller
-	MsdDevice = (MsdDevice_t*)
-		ListGetDataByKey(GlbMsdDevices, Key, 0);
+	HidDevice = (HidDevice_t*)
+		ListGetDataByKey(GlbHidDevices, Key, 0);
 
 	// Sanitize lookup
-	if (MsdDevice == NULL) {
+	if (HidDevice == NULL) {
 		return OsError;
 	}
 
 	// Remove node from list
-	ListRemoveByKey(GlbMsdDevices, Key);
+	ListRemoveByKey(GlbHidDevices, Key);
 
 	// Destroy it
-	return MsdDeviceDestroy(MsdDevice);
+	return HidDeviceDestroy(HidDevice);
 }
 
 /* OnQuery
@@ -165,88 +170,13 @@ OnQuery(_In_ MContractType_t QueryType,
 		_In_ UUId_t Queryee, 
 		_In_ int ResponsePort)
 {
-	// Unused params
-	_CRT_UNUSED(Arg2);
-
-	// Sanitize the QueryType
-	if (QueryType != ContractStorage) {
-		return OsError;
-	}
-
-	// Which kind of function has been invoked?
-	switch (QueryFunction) {
-		// Query stats about a disk identifier in the form of
-		// a StorageDescriptor
-	case __STORAGE_QUERY_STAT: {
-		// Get parameters
-		MsdDevice_t *Device = NULL;
-		DataKey_t Key;
-
-        // Lookup device
-        Key.Value = (int)Arg0->Data.Value;
-		Device = (MsdDevice_t*)ListGetDataByKey(GlbMsdDevices, Key, 0);
-
-		// Write the descriptor back
-		if (Device != NULL) {
-			return PipeSend(Queryee, ResponsePort,
-				(void*)&Device->Descriptor, sizeof(StorageDescriptor_t));
-		}
-		else {
-			OsStatus_t Result = OsError;
-			return PipeSend(Queryee, ResponsePort,
-				(void*)&Result, sizeof(OsStatus_t));
-		}
-
-	} break;
-
-		// Read or write sectors from a disk identifier
-		// They have same parameters with different direction
-	case __STORAGE_QUERY_WRITE:
-	case __STORAGE_QUERY_READ: {
-		// Get parameters
-        StorageOperation_t *Operation = (StorageOperation_t*)Arg1->Data.Buffer;
-        MsdDevice_t *Device = NULL;
-        DataKey_t Key;
-        
-        // Lookup device
-        Key.Value = (int)Arg0->Data.Value;
-		Device = (MsdDevice_t*)ListGetDataByKey(GlbMsdDevices, Key, 0);
-
-		// Determine the kind of operation
-		if (Device != NULL
-			&& Operation->Direction == __STORAGE_OPERATION_READ) {
-            if (MsdReadSectors(Device, Operation->AbsSector, Operation->PhysicalBuffer, 
-                Operation->SectorCount * Device->Descriptor.SectorSize, NULL) != OsSuccess) {
-				OsStatus_t Result = OsError;
-				return PipeSend(Queryee, ResponsePort, (void*)&Result, sizeof(OsStatus_t));
-			}
-			else {
-                OsStatus_t Result = OsSuccess;
-				return PipeSend(Queryee, ResponsePort, (void*)&Result, sizeof(OsStatus_t));
-			}
-		}
-		else if (Device != NULL
-			&& Operation->Direction == __STORAGE_OPERATION_WRITE) {
-			if (MsdWriteSectors(Device, Operation->AbsSector, Operation->PhysicalBuffer, 
-                Operation->SectorCount * Device->Descriptor.SectorSize, NULL) != OsSuccess) {
-				OsStatus_t Result = OsError;
-				return PipeSend(Queryee, ResponsePort, (void*)&Result, sizeof(OsStatus_t));
-			}
-			else {
-                OsStatus_t Result = OsSuccess;
-				return PipeSend(Queryee, ResponsePort, (void*)&Result, sizeof(OsStatus_t));
-			}
-		}
-		else {
-			OsStatus_t Result = OsError;
-			return PipeSend(Queryee, ResponsePort, (void*)&Result, sizeof(OsStatus_t));
-		}
-
-	} break;
-
-		// Other cases not supported
-	default: {
-		return OsError;
-	}
-	}
+    // Unused params
+    _CRT_UNUSED(QueryType);
+    _CRT_UNUSED(QueryFunction);
+    _CRT_UNUSED(Arg0);
+    _CRT_UNUSED(Arg1);
+    _CRT_UNUSED(Arg2);
+    _CRT_UNUSED(Queryee);
+    _CRT_UNUSED(ResponsePort);
+    return OsError;
 }

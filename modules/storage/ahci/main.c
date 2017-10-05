@@ -46,16 +46,26 @@ static List_t *GlbControllers = NULL;
  * produces an interrupt. On successful handled
  * interrupt return OsSuccess, otherwise the interrupt
  * won't be acknowledged */
-InterruptStatus_t OnInterrupt(void *InterruptData)
+InterruptStatus_t
+OnInterrupt(
+    _In_Opt_ void *InterruptData,
+    _In_Opt_ size_t Arg0,
+    _In_Opt_ size_t Arg1,
+    _In_Opt_ size_t Arg2)
 {
 	// Variables
 	AhciController_t *Controller = NULL;
 	reg32_t InterruptStatus;
-	int i;
+    int i;
 
 	// Instantiate the pointer
 	Controller = (AhciController_t*)InterruptData;
-	InterruptStatus = Controller->Registers->InterruptStatus;
+    InterruptStatus = Controller->Registers->InterruptStatus;
+    
+    // Unused
+    _CRT_UNUSED(Arg0);
+    _CRT_UNUSED(Arg1);
+    _CRT_UNUSED(Arg2);
 
 	// Trace
 	TRACE("Interrupt - Status 0x%x", InterruptStatus);

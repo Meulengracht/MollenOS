@@ -252,6 +252,7 @@
         "__refstring": "c",
         "string.h": "c",
         "__config": "c",
-        "usbdevice.h": "c"
+        "usbdevice.h": "c",
+        "virtualkeycodes.h": "c"
     }
 }

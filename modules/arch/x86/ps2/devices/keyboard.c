@@ -36,7 +36,9 @@
 /* PS2KeyboardInterrupt 
  * Handles the ps2-keyboard interrupt and extracts the
  * data for processing - fast interrupt */
-InterruptStatus_t PS2KeyboardInterrupt(void *InterruptData)
+InterruptStatus_t
+PS2KeyboardInterrupt(
+    _In_ void *InterruptData)
 {
 	/* Initialize the keyboard pointer */
 	PS2Keyboard_t *Kybd = (PS2Keyboard_t*)InterruptData;

@@ -86,7 +86,10 @@ OnUnregister(
 __EXTERN 
 InterruptStatus_t 
 OnInterrupt(
-	_In_Opt_ void *InterruptData);
+    _In_Opt_ void *InterruptData,
+    _In_Opt_ size_t Arg0,
+    _In_Opt_ size_t Arg1,
+    _In_Opt_ size_t Arg2);
 
 /* OnTimeout
  * Is called when one of the registered timer-handles

@@ -46,36 +46,18 @@ static List_t *GlbControllers = NULL;
  * produces an interrupt. On successful handled
  * interrupt return OsSuccess, otherwise the interrupt
  * won't be acknowledged */
-InterruptStatus_t OnInterrupt(void *InterruptData)
+InterruptStatus_t
+OnInterrupt(
+    _In_Opt_ void *InterruptData,
+    _In_Opt_ size_t Arg0,
+    _In_Opt_ size_t Arg1,
+    _In_Opt_ size_t Arg2)
 {
-	// Variables
-	AhciController_t *Controller = NULL;
-	reg32_t InterruptStatus;
-	int i;
-
-	// Instantiate the pointer
-	Controller = (AhciController_t*)InterruptData;
-	InterruptStatus = Controller->Registers->InterruptStatus;
-
-	// Trace
-	TRACE("Interrupt - Status 0x%x", InterruptStatus);
-
-	// Was the interrupt even from this controller?
-	if (!InterruptStatus) {
-		return InterruptNotHandled;
-	}
-
-	// Iterate the port-map and check if the interrupt
-	// came from that port
-	for (i = 0; i < 32; i++) {
-		if (Controller->Ports[i] != NULL
-			&& ((InterruptStatus & (1 << i)) != 0)) {
-			AhciPortInterruptHandler(Controller, Controller->Ports[i]);
-		}
-	}
-
-	// Write clear interrupt register and return
-	Controller->Registers->InterruptStatus = InterruptStatus;
+    // Unused
+    _CRT_UNUSED(InterruptData);
+    _CRT_UNUSED(Arg0);
+    _CRT_UNUSED(Arg1);
+    _CRT_UNUSED(Arg2);
 	return InterruptHandled;
 }
 

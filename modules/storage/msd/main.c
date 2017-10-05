@@ -45,9 +45,16 @@ static List_t *GlbMsdDevices = NULL;
  * won't be acknowledged */
 InterruptStatus_t
 OnInterrupt(
-    _In_ void *InterruptData)
+    _In_Opt_ void *InterruptData,
+    _In_Opt_ size_t Arg0,
+    _In_Opt_ size_t Arg1,
+    _In_Opt_ size_t Arg2)
 {
+    // Unused
     _CRT_UNUSED(InterruptData);
+    _CRT_UNUSED(Arg0);
+    _CRT_UNUSED(Arg1);
+    _CRT_UNUSED(Arg2);
 	return InterruptHandled;
 }
 

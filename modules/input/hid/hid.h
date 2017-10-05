@@ -311,6 +311,7 @@ __EXTERN
 OsStatus_t
 HidParseReport(
     _In_ HidDevice_t *Device,
+    _In_ UsbHidReportCollection_t *Collection,
     _In_ size_t DataIndex);
 
 /* HidInterrupt

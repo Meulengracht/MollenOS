@@ -32,6 +32,13 @@
  * - Library */
 #include <stdlib.h>
 
+/* Externs
+ * Access needed for the interrupt handler in main.c */
+__EXTERN
+InterruptStatus_t
+OnFastInterrupt(
+    _In_Opt_ void *InterruptData);
+
 /* HpRead
  * Reads the 32-bit value from the given register offset */
 OsStatus_t
@@ -189,7 +196,7 @@ HpComparatorStart(
 
 		// Set handler and data
 		Interrupt.Data = Controller;
-		Interrupt.FastHandler = OnInterrupt;
+		Interrupt.FastHandler = OnFastInterrupt;
 
 		// From the interrupt map, calculate possible int's
 		for (i = 0, j = 0; i < 32; i++) {

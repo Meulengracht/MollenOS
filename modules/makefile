@@ -3,7 +3,7 @@
 # - drivers
 
 .PHONY: all
-all: build mfs ahci hpet ohci uhci ehci msd $(arch)
+all: build mfs ahci hpet ohci uhci ehci msd hid $(arch)
 
 build:
 	@mkdir -p $@

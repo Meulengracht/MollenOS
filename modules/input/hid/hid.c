@@ -37,6 +37,7 @@ HidDeviceCreate(
 {
     // Variables
     HidDevice_t *Device = NULL;
+    int i;
 
     // Debug
     TRACE("HidDeviceCreate()");
@@ -153,7 +154,7 @@ HidInterrupt(
     }
 
     // Perform the report parse
-    if (!HidParseReport(Device, DataIndex)) {
+    if (!HidParseReport(Device, Device->Collection, DataIndex)) {
         return InterruptHandled;
     }
 

@@ -40,7 +40,7 @@ HidGetDescriptor(
     if (UsbExecutePacket(Device->Base.DriverId, Device->Base.DeviceId,
         &Device->Base.Device, Device->Control,
         USBPACKET_DIRECTION_INTERFACE | USBPACKET_DIRECTION_IN,
-        DESCRIPTOR_TYPE_HID, 0, 0, (uint16_t)Device->Base.InterfaceIndex,
+        DESCRIPTOR_TYPE_HID, 0, 0, (uint16_t)Device->Base.Interface.Id,
         sizeof(UsbHidDescriptor_t), (void*)Descriptor) != TransferFinished) {
         return OsError;
     }
@@ -62,7 +62,7 @@ HidGetReportDescriptor(
     if (UsbExecutePacket(Device->Base.DriverId, Device->Base.DeviceId,
         &Device->Base.Device, Device->Control,
         USBPACKET_DIRECTION_INTERFACE | USBPACKET_DIRECTION_IN,
-        ReportType, 0, 0, (uint16_t)Device->Base.InterfaceIndex,
+        ReportType, 0, 0, (uint16_t)Device->Base.Interface.Id,
         ReportLength, (void*)ReportBuffer) != TransferFinished) {
         return OsError;
     }
@@ -83,7 +83,7 @@ HidSetProtocol(
         &Device->Base.Device, Device->Control,
         USBPACKET_DIRECTION_INTERFACE | USBPACKET_DIRECTION_CLASS,
         HID_SET_PROTOCOL, 0, Protocol & 0xFF, 
-        (uint16_t)Device->Base.InterfaceIndex, 0, NULL) != TransferFinished) {
+        (uint16_t)Device->Base.Interface.Id, 0, NULL) != TransferFinished) {
         return OsError;
     }
     else {
@@ -107,7 +107,7 @@ HidSetIdle(
         &Device->Base.Device, Device->Control,
         USBPACKET_DIRECTION_INTERFACE | USBPACKET_DIRECTION_CLASS,
         HID_SET_IDLE, Duration & 0xFF, ReportId & 0xFF, 
-        (uint16_t)Device->Base.InterfaceIndex, 0, NULL) == TransferFinished) {
+        (uint16_t)Device->Base.Interface.Id, 0, NULL) == TransferFinished) {
         return OsSuccess;
     }
     else {

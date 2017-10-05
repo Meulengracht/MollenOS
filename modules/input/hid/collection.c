@@ -28,162 +28,32 @@
 /* Includes
  * - Library */
 #include <stddef.h>
+#include <stdlib.h>
 
-/* Extracts Bits from buffer */
-uint64_t UsbHidGetBits(uint8_t *Buffer, uint32_t BitOffset, uint32_t NumBits)
+/* HidExtractValue
+ * Retrieves a value from a buffer by the given bit-offset and the for a certain
+ * number of bits, the extracted value will be treated unsigned */
+uint64_t
+HidExtractValue(
+    _In_ uint8_t *Buffer, 
+    _In_ uint32_t BitOffset, 
+    _In_ uint32_t NumBits)
 {
+    // Variables
     uint64_t value = 0;
     uint32_t i = 0;
     uint32_t offset = BitOffset;
 
-    while (i < NumBits)
-    {
+    // Do it by loop
+    while (i < NumBits) {
         uint8_t bits = ((offset % 8) + NumBits - i) < 8 ? NumBits % 8 : 8 - (offset % 8);
-        
-        /* */
         value |= ((Buffer[offset / 8] >> (offset % 8)) & ((1 << bits) - 1)) << i;
-        
-        /* Skip to next set of bits */
         i += bits;
-        
-        /* Increase offset */
         offset += bits;
     }
 
-    /* Done */
+    // Return calculated value
     return value;
-}
-
-
-/* Parses a global report item */
-void UsbHidParseGlobalItem(UsbHidReportGlobalStats_t *Stats, uint8_t Tag, uint32_t Value)
-{
-    switch (Tag)
-    {
-        /* Usage Page */
-        case USB_HID_GLOBAL_USAGE_PAGE:
-        {
-            Stats->Usage = Value;
-        } break;
-
-        /* Logical Min & Max */
-        case USB_HID_GLOBAL_LOGICAL_MIN:
-        {
-            /* New pair of log */
-            if (Stats->HasLogicalMin != 0)
-                Stats->HasLogicalMax = 0;
-
-            Stats->LogicalMin = (int32_t)Value;
-            Stats->HasLogicalMin = 1;
-
-            if (Stats->HasLogicalMax != 0)
-            {
-                /* Make sure minimum value is less than max */
-                if ((int)(Stats->LogicalMin) >= (int)(Stats->LogicalMax))
-                {
-                    /* Sign it */
-                    Stats->LogicalMin = ~(Stats->LogicalMin);
-                    Stats->LogicalMin++;
-                }
-            }
-
-        } break;
-        case USB_HID_GLOBAL_LOGICAL_MAX:
-        {
-            /* New pair of log */
-            if (Stats->HasLogicalMax != 0)
-                Stats->HasLogicalMin = 0;
-
-            Stats->LogicalMax = (int32_t)Value;
-            Stats->HasLogicalMax = 1;
-
-            if (Stats->HasLogicalMin != 0)
-            {
-                /* Make sure minimum value is less than max */
-                if ((int)(Stats->LogicalMin) >= (int)(Stats->LogicalMax))
-                {
-                    /* Sign it */
-                    Stats->LogicalMin = ~(Stats->LogicalMin);
-                    Stats->LogicalMin++;
-                }
-            }
-
-        } break;
-
-        /* Physical Min & Max */
-        case USB_HID_GLOBAL_PHYSICAL_MIN:
-        {
-            /* New pair of physical */
-            if (Stats->HasPhysicalMin != 0)
-                Stats->HasPhysicalMax = 0;
-
-            Stats->PhysicalMin = (int32_t)Value;
-            Stats->HasPhysicalMin = 1;
-
-            if (Stats->HasPhysicalMax != 0)
-            {
-                /* Make sure minimum value is less than max */
-                if ((int)(Stats->PhysicalMin) >= (int)(Stats->PhysicalMax))
-                {
-                    /* Sign it */
-                    Stats->PhysicalMin = ~(Stats->PhysicalMin);
-                    Stats->PhysicalMin++;
-                }
-            }
-
-        } break;
-        case USB_HID_GLOBAL_PHYSICAL_MAX:
-        {
-            /* New pair of physical */
-            if (Stats->HasPhysicalMax != 0)
-                Stats->HasPhysicalMin = 0;
-
-            Stats->PhysicalMax = (int32_t)Value;
-            Stats->HasPhysicalMax = 1;
-
-            if (Stats->HasPhysicalMin != 0)
-            {
-                /* Make sure minimum value is less than max */
-                if ((int)(Stats->PhysicalMin) >= (int)(Stats->PhysicalMax))
-                {
-                    /* Sign it */
-                    Stats->PhysicalMin = ~(Stats->PhysicalMin);
-                    Stats->PhysicalMin++;
-                }
-            }
-
-            /* Unit & Unit Exponent */
-        case USB_HID_GLOBAL_UNIT_VALUE:
-        {
-            Stats->UnitType = (int32_t)Value;
-        } break;
-        case USB_HID_GLOBAL_UNIT_EXPONENT:
-        {
-            Stats->UnitExponent = (int32_t)Value;
-        } break;
-
-        } break;
-
-        /* Report Items */
-        case USB_HID_GLOBAL_REPORT_ID:
-        {
-            Stats->ReportId = Value;
-        } break;
-        case USB_HID_GLOBAL_REPORT_COUNT:
-        {
-            Stats->ReportCount = Value;
-        } break;
-        case USB_HID_GLOBAL_REPORT_SIZE:
-        {
-            Stats->ReportSize = Value;
-        } break;
-
-        /* Unhandled */
-        default:
-        {
-            LogInformation("USBH", "Global Item %u", Tag);
-        } break;
-    }
 }
 
 /* HidCollectionCreate
@@ -209,11 +79,11 @@ HidCollectionCreate(
  * appends it to the given collection children list. */
 void
 HidCollectionCreateChild(
-    UsbHidReportCollection_t *Collection, 
-    UsbHidReportGlobalStats_t *Stats,
-    MInputType_t InputType, 
-    int CollectionType, 
-    void *Item)
+    _In_ UsbHidReportCollection_t *Collection, 
+    _In_ UsbHidReportGlobalStats_t *Stats,
+    _In_ MInputType_t InputType, 
+    _In_ int CollectionType, 
+    _In_ void *Item)
 {
     // Variables
     UsbHidReportCollectionItem_t *CurrentChild = NULL;
@@ -245,6 +115,149 @@ HidCollectionCreateChild(
     }
 }
 
+/* HidParseGlobalState
+ * Parses an Global collection item and extracts all the stored settings
+ * in the given GlobalStats structure. */
+void
+HidParseGlobalState(
+    _InOut_ UsbHidReportGlobalStats_t *Stats,
+    _In_ uint8_t Tag,
+    _In_ uint32_t Value)
+{
+    switch (Tag) {
+        // The usage page is the most frequently data appearing in collections
+        // they describe the type of device.
+        case HID_GLOBAL_USAGE_PAGE: {
+            Stats->UsagePage = Value;
+        } break;
+
+        // The logical minimum setting, describes the
+        // lowest logical value to expect
+        case HID_GLOBAL_LOGICAL_MIN: {
+            // Detect new pairs of logical-min/max
+            if (Stats->HasLogicalMin != 0) {
+                Stats->HasLogicalMax = 0;
+            }
+
+            // Store the value and mark its presence
+            Stats->LogicalMin = (int32_t)Value;
+            Stats->HasLogicalMin = 1;
+
+            // If we have it's counter-part we have to sanitize
+            // it's value, because if low-part is higher/equal to
+            // higher part, then we have to negate the value by
+            // signing it. (It means the low-part is negative)
+            if (Stats->HasLogicalMax != 0) {
+                if ((int)(Stats->LogicalMin) >= (int)(Stats->LogicalMax)) {
+                    Stats->LogicalMin = ~(Stats->LogicalMin);
+                    Stats->LogicalMin++;
+                }
+            }
+        } break;
+
+        // The logical maximum setting, describes the
+        // highest logical value to expect
+        case HID_GLOBAL_LOGICAL_MAX: {
+            // Detect new pairs of logical-min/max
+            if (Stats->HasLogicalMax != 0) {
+                Stats->HasLogicalMin = 0;
+            }
+
+            // Store the value and mark its presence
+            Stats->LogicalMax = (int32_t)Value;
+            Stats->HasLogicalMax = 1;
+
+            // If we have it's counter-part we have to sanitize
+            // it's value, because if low-part is higher/equal to
+            // higher part, then we have to negate the value by
+            // signing it. (It means the low-part is negative)
+            if (Stats->HasLogicalMin != 0) {
+                if ((int)(Stats->LogicalMin) >= (int)(Stats->LogicalMax)) {
+                    Stats->LogicalMin = ~(Stats->LogicalMin);
+                    Stats->LogicalMin++;
+                }
+            }
+        } break;
+
+        // The physical minimum setting, describes the
+        // lowest phyiscal value to expect
+        case HID_GLOBAL_PHYSICAL_MIN: {
+            // Detect new pairs of physical-min/max
+            if (Stats->HasPhysicalMin != 0) {
+                Stats->HasPhysicalMax = 0;
+            }
+
+            // Store the value and mark its presence
+            Stats->PhysicalMin = (int32_t)Value;
+            Stats->HasPhysicalMin = 1;
+
+            // If we have it's counter-part we have to sanitize
+            // it's value, because if low-part is higher/equal to
+            // higher part, then we have to negate the value by
+            // signing it. (It means the low-part is negative)
+            if (Stats->HasPhysicalMax != 0) {
+                if ((int)(Stats->PhysicalMin) >= (int)(Stats->PhysicalMax)) {
+                    Stats->PhysicalMin = ~(Stats->PhysicalMin);
+                    Stats->PhysicalMin++;
+                }
+            }
+        } break;
+
+        // The physical maximum setting, describes the
+        // highest phyiscal value to expect
+        case HID_GLOBAL_PHYSICAL_MAX: {
+            // Detect new pairs of physical-min/max
+            if (Stats->HasPhysicalMax != 0) {
+                Stats->HasPhysicalMin = 0;
+            }
+
+            // Store the value and mark its presence
+            Stats->PhysicalMax = (int32_t)Value;
+            Stats->HasPhysicalMax = 1;
+
+            // If we have it's counter-part we have to sanitize
+            // it's value, because if low-part is higher/equal to
+            // higher part, then we have to negate the value by
+            // signing it. (It means the low-part is negative)
+            if (Stats->HasPhysicalMin != 0) {
+                if ((int)(Stats->PhysicalMin) >= (int)(Stats->PhysicalMax)) {
+                    Stats->PhysicalMin = ~(Stats->PhysicalMin);
+                    Stats->PhysicalMin++;
+                }
+            }
+        } break;
+
+        // The Unit & Unit Exponent describes the type of data-unit
+        // we can expect from the device, or this given input/output.
+        // and if there is an exponent attached we need that for the calculations
+        case HID_GLOBAL_UNIT_VALUE: {
+            Stats->UnitType = (int32_t)Value;
+        } break;
+        case HID_GLOBAL_UNIT_EXPONENT: {
+            Stats->UnitExponent = (int32_t)Value;
+        } break;
+
+        // Report items like Id, Count and Size tells about the actual
+        // report that we recieve from the device under data-transfers.
+        // These must be present if the device can send us reports. (Except Id)
+        case HID_GLOBAL_REPORT_ID: {
+            Stats->ReportId = Value;
+        } break;
+        case HID_GLOBAL_REPORT_COUNT: {
+            Stats->ReportCount = Value;
+        } break;
+        case HID_GLOBAL_REPORT_SIZE: {
+            Stats->ReportSize = Value;
+        } break;
+
+        // If there is anything we don't handle it's not vital
+        // but we should trace it in case we want to handle it
+        default: {
+            TRACE("Global Item %u", Tag);
+        } break;
+    }
+}
+
 /* HidParseReportDescriptor
  * Parses the report descriptor and stores it as collection tree. The size
  * of the largest individual report is returned. */
@@ -265,7 +278,7 @@ HidParseReportDescriptor(
     UsbHidReportCollection_t *CurrentCollection = NULL, 
                              *RootCollection = NULL;
     UsbHidReportGlobalStats_t GlobalStats = { 0 };
-    UsbHidReportItemStats_t ItemStats = { 0 };
+    UsbHidReportItemStats_t ItemStats = { { 0 }, 0 };
 
     // Make sure we set the report id to not available
     GlobalStats.ReportId = UUID_INVALID;
@@ -273,9 +286,9 @@ HidParseReportDescriptor(
     // Iterate the report descriptor
     for (i = 0; i < DescriptorLength; /* Increase manually */) {
         // Bits 0-1 (Must be either 0, 1, 2 or 4) 3 = 4
-        uint8_t Size = ReportData[i] & 0x03;
-        uint8_t Type = ReportData[i] & 0x0C; // Bits 2-3
-        uint8_t Tag = ReportData[i] & 0xF0; // Bits 4-7
+        uint8_t Size = Descriptor[i] & 0x03;
+        uint8_t Type = Descriptor[i] & 0x0C; // Bits 2-3
+        uint8_t Tag = Descriptor[i] & 0xF0; // Bits 4-7
         uint32_t Packet = 0;
 
         // Sanitize size, if 3, it must be 4
@@ -285,17 +298,17 @@ HidParseReportDescriptor(
 
         // Get actual packet (The byte(s) after the header)
         if (Size == 1) {
-            Packet = ReportData[i + 1];
+            Packet = Descriptor[i + 1];
         }
         else if (Size == 2) {
-            Packet = ReportData[i + 1] 
-                | (uint32_t)((ReportData[i + 2] << 8) & 0xFF00);
+            Packet = Descriptor[i + 1] 
+                | (uint32_t)((Descriptor[i + 2] << 8) & 0xFF00);
         }
         else if (Size == 4) {
-            Packet = ReportData[i + 1] 
-                | (uint32_t)((ReportData[i + 2] << 8) & 0xFF00)
-                | (uint32_t)((ReportData[i + 3] << 16) & 0xFF0000) 
-                | (uint32_t)((ReportData[i + 4] << 24) & 0xFF000000);
+            Packet = Descriptor[i + 1] 
+                | (uint32_t)((Descriptor[i + 2] << 8) & 0xFF00)
+                | (uint32_t)((Descriptor[i + 3] << 16) & 0xFF0000) 
+                | (uint32_t)((Descriptor[i + 4] << 24) & 0xFF000000);
         }
 
         // Update Report Pointer
@@ -374,7 +387,7 @@ HidParseReportDescriptor(
                         // If the constant bit is set it overrides rest
                         // of the bits.
                         if (Packet & 0x1) {
-                            InputItem->Flags = HID_REPORT_INPUT_TYPE_CONSTANT;
+                            InputItem->Flags = REPORT_INPUT_TYPE_CONSTANT;
                         }
                         else {
                             // Ok, so the data available is actual dynamic data, not constant data
@@ -383,14 +396,14 @@ HidParseReportDescriptor(
                                 // If bit 2 is set, the data is variable and relative,
                                 // otherwise the data is variable but absolute
                                 if (Packet & 0x4) {
-                                    InputItem->Flags = HID_REPORT_INPUT_TYPE_RELATIVE;
+                                    InputItem->Flags = REPORT_INPUT_TYPE_RELATIVE;
                                 }
                                 else {
-                                    InputItem->Flags = HID_REPORT_INPUT_TYPE_ABSOLUTE;
+                                    InputItem->Flags = REPORT_INPUT_TYPE_ABSOLUTE;
                                 }
                             }
                             else {
-                                InputItem->Flags = HID_REPORT_INPUT_TYPE_ARRAY;
+                                InputItem->Flags = REPORT_INPUT_TYPE_ARRAY;
                             }
                         }
 
@@ -435,15 +448,19 @@ HidParseReportDescriptor(
                 ItemStats.BitOffset = 0;
             } break;
 
-            /* Global Item */
+            // Global items are actually a global state for the entire collection
+            // and contains settings that are applied to all children elements
+            // They can also carry a report-id which means they only apply to a given
+            // report
             case HID_REPORT_TYPE_GLOBAL: {
-                UsbHidParseGlobalItem(&GlobalStats, Tag, Packet);
+                HidParseGlobalState(&GlobalStats, Tag, Packet);
                 if (GlobalStats.ReportId != UUID_INVALID) {
                     ReportIdsUsed = 1;
                 }
             } break;
 
-            /* Local Item */
+            // Local items are a local state that only applies to items in the current
+            // collection, and thus are reset between major items.
             case HID_REPORT_TYPE_LOCAL: {
                 switch (Tag) {
                     
@@ -497,262 +514,202 @@ HidParseReportDescriptor(
         }
     }
 
-    /* Save it in driver data */
-    Device->Collection = (RootCollection == NULL) ? Collection : RootCollection;
-
-    /* Done - Add one byte for the report id */
+    // Store the collection in the device
+    // and return the calculated number of maximum bytes reports can use
+    Device->Collection = (RootCollection == NULL) ? CurrentCollection : RootCollection;
     return DIVUP(LongestReport, 8) + ((ReportIdsUsed == 1) ? 1 : 0);
 }
 
-/* Gives input data to an input item */
+/* HidParseReportInput
+ * Handles report data from a collection-item of the type input.
+ * This means we have actual input data from the device */
 void
-UsbHidApplyInputData(
-    HidDevice_t *Device, 
-    UsbHidReportCollectionItem_t *CollectionItem)
+HidParseReportInput(
+    _In_ HidDevice_t *Device,
+    _In_ UsbHidReportCollectionItem_t *CollectionItem,
+    _In_ size_t DataIndex)
 {
-    /* Cast */
-    UsbHidReportInputItem_t *InputItem = (UsbHidReportInputItem_t*)CollectionItem->Data;
-
-    /* Need those for registrating events */
-    MEventMessageInput_t InputData = { 0 };
-
-    /* Set Headers */
-    InputData.Header.Type = EventInput;
-    InputData.Header.Length = sizeof(MEventMessageInput_t);
-
-    /* And these for parsing */
+    // Variables
+    uint8_t *DataPointer = NULL, *PreviousDataPointer = NULL;
+    UsbHidReportInputItem_t *InputItem = NULL;
     uint64_t Value = 0, OldValue = 0;
     size_t i, Offset, Length, Usage;
 
-    /* If we are constant, we are padding :D */
-    if (InputItem->Flags == X86_USB_REPORT_INPUT_TYPE_CONSTANT)
+    // Static buffers
+    MInput_t InputData = { 0 };
+
+    // Cast the input-item from the ItemPointer
+    InputItem = (UsbHidReportInputItem_t*)CollectionItem->ItemPointer;
+
+    // Initiate pointers to new and previous data
+    DataPointer = (uint8_t*)&Device->Buffer[DataIndex];
+    PreviousDataPointer = (uint8_t*)&Device->Buffer[Device->PreviousDataIndex];
+
+    // Sanitize the type of input, if we are constant, it's padding
+    if (InputItem->Flags == REPORT_INPUT_TYPE_CONSTANT) {
         return;
-
-    /* If we have a valid ReportID, make sure this data is for us */
-    if (CollectionItem->Stats.ReportId != UUID_INVALID)
-    {
-        /* The first byte is the report Id */
-        uint8_t ReportId = Device->DataBuffer[0];
-
-        /* Sanity */
-        if (ReportId != (uint8_t)CollectionItem->Stats.ReportId)
-            return;
     }
 
-    /* Set type */
+    // If report-ids are active, we must make sure this data-packet
+    // is actually for this report
+    // The first byte of the data-report is the id
+    if (CollectionItem->Stats.ReportId != UUID_INVALID) {
+        uint8_t ReportId = DataPointer[0];
+        if (ReportId != (uint8_t)CollectionItem->Stats.ReportId) {
+            return;
+        }
+    }
+
+    // Initiate the mInputEvent data
     InputData.Type = CollectionItem->InputType;
 
-    /* Loop through report data */
-    Offset = InputItem->Stats.BitOffset;
+    // Extract some of the state variables for parsing
+    Offset = InputItem->LocalState.BitOffset;
     Length = CollectionItem->Stats.ReportSize;
-    for (i = 0; i < CollectionItem->Stats.ReportCount; i++)
-    {
-        /* Get bits in question! */
-        Value = UsbHidGetBits(Device->DataBuffer, Offset, Length);
-        OldValue = UsbHidGetBits(Device->PrevDataBuffer, Offset, Length);
+
+    // Iterate the data
+    for (i = 0; i < CollectionItem->Stats.ReportCount; i++) {
+        Value = HidExtractValue(DataPointer, Offset, Length);
+        OldValue = HidExtractValue(PreviousDataPointer, Offset, Length);
         
         /* We cant expect this to be correct though, it might be 0 */
-        Usage = InputItem->Stats.Usages[i];
+        Usage = InputItem->LocalState.Usages[i];
 
-        /* Holy shit i hate switches */
-        switch (CollectionItem->Stats.Usage)
-        {
-            /* Mouse, Keyboard etc */
-            case USB_HID_USAGE_PAGE_GENERIC_PC:
-            {
-                /* Lets check sub-type (local usage) */
-                switch (Usage)
-                {
-                    /* Calculating Device Bounds 
-                     * Resolution = (Logical Maximum � Logical Minimum) / 
-                     * ((Physical Maximum � Physical Minimum) * (10 Unit Exponent)) */
+        // Take action based on the type of input
+        // currently we only handle generic pc input devices
+        switch (CollectionItem->Stats.UsagePage) {
+            case HID_USAGE_PAGE_GENERIC_PC: {
+                switch (Usage) {
+                    // Calculating Device Bounds 
+                    // Resolution = (Logical Maximum � Logical Minimum) / 
+                    // ((Physical Maximum � Physical Minimum) * (10 Unit Exponent))
 
-                    /* If physical min/max is not defined or are 0, we set them to be logical min/max */
+                    // If physical min/max is not defined or are 0, 
+                    // we set them to be logical min/max
 
-                    /* X Axis Update */
-                    case X86_USB_REPORT_USAGE_X_AXIS:
+                    // Grid updates like x, y or z coordinates have
+                    // changed. 
+                    case HID_REPORT_USAGE_X_AXIS:
+                    case HID_REPORT_USAGE_Y_AXIS:
+                    case HID_REPORT_USAGE_Z_AXIS:
                     {
-                        int64_t xRelative = (int64_t)Value;
+                        // Variables
+                        int64_t Relative = (int64_t)Value;
 
-                        /* Sanity */
-                        if (Value == 0)
+                        // Sanitize against no changes
+                        if (Value == 0) {
                             break;
-
-                        /* Convert to relative if necessary */
-                        if (InputItem->Flags == X86_USB_REPORT_INPUT_TYPE_ABSOLUTE)
-                            xRelative = (int64_t)(Value - OldValue);
-
-                        /* Fix-up relative number */
-                        if (xRelative > CollectionItem->Stats.LogicalMax
-                            && CollectionItem->Stats.LogicalMin < 0)
-                        {
-                            /* This means we have to sign extend x_relative */
-                            if (xRelative & (int64_t)(1 << (Length - 1)))
-                                xRelative -= (int64_t)(1 << Length);
                         }
 
-                        if (xRelative != 0)
-                        {
-                            /* Add it */
-                            InputData.xRelative = (int32_t)xRelative;
+                        // If the value is absolute, we want to
+                        // make sure we calculate the relative
+                        if (InputItem->Flags == REPORT_INPUT_TYPE_ABSOLUTE) {
+                            Relative = (int64_t)(Value - OldValue);
+                        }
 
-                            /* Now it epends on mouse, joystick or w/e */
-                            LogInformation("USBH", "X-Change: %i (Original 0x%x, Old 0x%x, LogMax %i)",
-                                (int32_t)xRelative, (uint32_t)Value, (uint32_t)OldValue, 
+                        // Handle sign-cases where we have to turn them negative
+                        if (Relative > CollectionItem->Stats.LogicalMax
+                            && CollectionItem->Stats.LogicalMin < 0) {
+                            if (Relative & (int64_t)(1 << (Length - 1))) {
+                                Relative -= (int64_t)(1 << Length);
+                            }
+                        }
+
+                        // Guard against relative = 0
+                        if (Relative != 0) {
+                            char *DebugAxis = NULL;
+                            if (Usage == HID_REPORT_USAGE_X_AXIS) {
+                                DebugAxis = "X";
+                                InputData.xRelative = (int32_t)Relative;
+                            }
+                            else if (Usage == HID_REPORT_USAGE_Y_AXIS) {
+                                DebugAxis = "Y";
+                                InputData.xRelative = (int32_t)Relative;
+                            }
+                            else { // HID_REPORT_USAGE_Z_AXIS
+                                DebugAxis = "Z";
+                                InputData.xRelative = (int32_t)Relative;
+                            }
+                            
+                            // Debug
+                            TRACE("%s-Change: %i (Original 0x%x, Old 0x%x, LogMax %i)",
+                                DebugAxis, (int32_t)Relative, (uint32_t)Value, (uint32_t)OldValue, 
                                 CollectionItem->Stats.LogicalMax);
                         }
 
                     } break;
-
-                    /* Y Axis Update */
-                    case X86_USB_REPORT_USAGE_Y_AXIS:
-                    {
-                        int64_t yRelative = (int64_t)Value;
-
-                        /* Sanity */
-                        if (Value == 0)
-                            break;
-
-                        /* Convert to relative if necessary */
-                        if (InputItem->Flags == X86_USB_REPORT_INPUT_TYPE_ABSOLUTE)
-                            yRelative = (int64_t)(Value - OldValue);
-
-                        /* Fix-up relative number */
-                        if (yRelative > CollectionItem->Stats.LogicalMax
-                            && CollectionItem->Stats.LogicalMin < 0)
-                        {
-                            /* This means we have to sign y_relative */
-                            if (yRelative & (int64_t)(1 << (Length - 1)))
-                                yRelative -= (int64_t)(1 << Length);
-                        }
-
-                        if (yRelative != 0)
-                        {
-                            /* Add it */
-                            InputData.yRelative = (int32_t)yRelative;
-
-                            /* Now it epends on mouse, joystick or w/e */
-                            LogInformation("USBH", "Y-Change: %i (Original 0x%x, Old 0x%x)",
-                                (int32_t)yRelative, (uint32_t)Value, (uint32_t)OldValue);
-                        }
-
-                    } break;
-
-                    /* Z Axis Update */
-                    case X86_USB_REPORT_USAGE_Z_AXIS:
-                    {
-                        int64_t zRelative = (int64_t)Value;
-
-                        /* Sanity */
-                        if (Value == 0)
-                            break;
-
-                        /* Convert to relative if necessary */
-                        if (InputItem->Flags == X86_USB_REPORT_INPUT_TYPE_ABSOLUTE)
-                            zRelative = (int64_t)(Value - OldValue);
-
-                        /* Fix-up relative number */
-                        if (zRelative > CollectionItem->Stats.LogicalMax
-                            && CollectionItem->Stats.LogicalMin < 0)
-                        {
-                            /* This means we have to sign x_relative */
-                            if (zRelative & (int64_t)(1 << (Length - 1)))
-                                zRelative -= (int64_t)(1 << Length);
-                        }
-
-                        if (zRelative != 0)
-                        {
-                            /* Add it */
-                            InputData.zRelative = (int32_t)zRelative;
-
-                            /* Now it epends on mouse, joystick or w/e */
-                            LogInformation("USBH", "Z-Change: %i (Original 0x%x, Old 0x%x)",
-                                (int32_t)zRelative, (uint32_t)Value, (uint32_t)OldValue);
-                        }
-
-                    } break;
                 }
 
             } break;
 
-            /* Keyboard, Keypad */
-            case X86_USB_REPORT_USAGE_PAGE_KEYBOARD:
-            {
+            // Describes keyboard or keypad events
+            case HID_REPORT_USAGE_PAGE_KEYBOARD: {
 
             } break;
 
-            /* Buttons (Mouse, Joystick, Gamepad, etc) */
-            case X86_USB_REPORT_USAGE_PAGE_BUTTON:
-            {
-                /* Determine if keystate has changed */
+            // Generic Button events
+            case HID_REPORT_USAGE_PAGE_BUTTON: {
                 uint8_t KeystateChanged = 0;
 
-                if (Value != OldValue)
+                // Check against old values if any changes are neccessary
+                if (Value != OldValue) {
                     KeystateChanged = 1;
-                else
+                }
+                else {
                     break;
+                }
 
-                /* Ok, so if we have multiple buttons (an array) 
-                 * we will use the logical min & max to find out which
-                 * button id this is */
-                LogInformation("USBH", "Button %u: %u", i, (uint32_t)Value);
+                // Ok, so if we have multiple buttons (an array) 
+                // we will use the logical min & max to find out which
+                // button id this is
+                TRACE("Button %u: %u", i, (uint32_t)Value);
 
-                /* Keyboard, keypad, mouse, gamepad or joystick? */
-                switch (CollectionItem->InputType)
-                {
-                    /* Mouse Button */
-                    case InputMouse:
-                    {
-
-                    } break;
-
-                    /* Gamepad Button */
-                    case InputGamePad:
-                    {
+                // Possible types are: Keyboard, keypad, mouse, gamepad or joystick
+                switch (CollectionItem->InputType) {
+                    // Mouse button event
+                    case InputMouse: {
 
                     } break;
 
-                    /* Joystick Button */
-                    case InputJoystick:
-                    {
+                    // Gamepad button event
+                    case InputGamePad: {
 
                     } break;
 
-                    /* /Care */
+                    // Joystick button event
+                    case InputJoystick: {
+
+                    } break;
+
+                    // Ignore the rest of the input-types
                     default:
                         break;
                 }
-
             } break;
 
-            /* Consumer, this is device-specific */
-            case X86_USB_REPORT_USAGE_PAGE_CONSUMER:
-            {
-                /* Virtual box sends me 0x238 which means AC Pan 
-                 * which actually is a kind of scrolling 
-                 * From the HID Usage Table Specs:
-                 * Sel - Set the horizontal offset of the display in the document. */
+            // Consumer, this is device-specific
+            case HID_REPORT_USAGE_PAGE_CONSUMER: {
+                // Virtual box sends me 0x238 which means AC Pan 
+                // which actually is a kind of scrolling 
+                // From the HID Usage Table Specs:
+                // Sel - Set the horizontal offset of the display in the document. 
             } break;
 
-            /* Debug Print */
-            default:
-            {
-                /* What kind of hat is this ? */
-                LogInformation("USBH", "Usage Page 0x%x (Input Type 0x%x), Usage 0x%x, Value 0x%x",
-                    CollectionItem->Stats.Usage, CollectionItem->InputType, Usage, (uint32_t)Value);
+            // We don't handle rest of usage-pages, but should be ok
+            default: {
+                TRACE("Usage Page 0x%x (Input Type 0x%x), Usage 0x%x, Value 0x%x",
+                    CollectionItem->Stats.UsagePage, CollectionItem->InputType, Usage, (uint32_t)Value);
             } break;
         }
 
-        /* Increase offset */
+        // Move on to next input
         Offset += Length;
     }
     
-    /* We send a report here */
+    // Create a new input report
     if (InputData.xRelative != 0 ||
         InputData.yRelative != 0 ||
-        InputData.zRelative != 0)
-    {
-        /* Register data */
+        InputData.zRelative != 0) {
         //InputManagerCreatePointerEvent(&PointerData);
     }
 
@@ -767,38 +724,48 @@ UsbHidApplyInputData(
 OsStatus_t
 HidParseReport(
     _In_ HidDevice_t *Device,
+    _In_ UsbHidReportCollection_t *Collection,
     _In_ size_t DataIndex)
 {
-    /* Vars needed */
-    UsbHidReportCollectionItem_t *Itr = Collection->Childs;
+    // Variables
+    UsbHidReportCollectionItem_t *Itr = NULL;
     int Calls = 0;
+
+    // Get the collection pointer
+    Itr = Collection->Childs;
     
-    /* Parse */
+    // Iterate over all the children elements of root
     while (Itr != NULL) {
-        switch (Itr->Type) {
-            case USB_HID_TYPE_COLLECTION: {
-                UsbHidReportCollection_t *SubCollection = 
-                    (UsbHidReportCollection_t*)Itr->Data;
-                
-                if (SubCollection == NULL) {
+        switch (Itr->CollectionType) {
+
+            // Collections inside collections must be parsed
+            // recursively, so handle them
+            case HID_TYPE_COLLECTION: {
+                // Sanitize data attached
+                if (Itr->ItemPointer == NULL) {
                     break;
                 }
                 
-                Calls += HidParseReport(Device, SubCollection);
+                // Recursive parser for sub-collections
+                Calls += HidParseReport(Device, (UsbHidReportCollection_t*)Itr->ItemPointer, DataIndex);
             } break;
             
-            case USB_HID_TYPE_INPUT: {
-                UsbHidApplyInputData(Device, Itr);
+            // Input reports are interesting, that means we have an input event
+            case HID_TYPE_INPUT: {
+                HidParseReportInput(Device, Itr, DataIndex);
                 Calls++;
             } break;
 
+            // For now we don't handle feature-reports
+            // output reports are not handled here, but never should
             default:
                 break;
         }
-
-        /* Next Item */
+        
+        // Go to next collection item in the collection
         Itr = Itr->Link;
     }
 
+    // Return the number of actual parses we made
     return Calls;
 }

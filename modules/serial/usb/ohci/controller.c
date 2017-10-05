@@ -44,10 +44,10 @@ OhciSetup(
 
 /* Externs
  * We need access to the interrupt-handler in main.c */
- __EXTERN
- InterruptStatus_t
- OnInterrupt(
-	 _In_ void *InterruptData);
+__EXTERN
+InterruptStatus_t
+OnFastInterrupt(
+    _In_Opt_ void *InterruptData);
 
 /* OhciControllerCreate 
  * Initializes and creates a new Ohci Controller instance
@@ -116,7 +116,7 @@ OhciControllerCreate(
 		(OhciRegisters_t*)IoBase->VirtualBase;
 
 	// Initialize the interrupt settings
-	Controller->Base.Device.Interrupt.FastHandler = OnInterrupt;
+	Controller->Base.Device.Interrupt.FastHandler = OnFastInterrupt;
 	Controller->Base.Device.Interrupt.Data = Controller;
 
 	// Register contract before interrupt

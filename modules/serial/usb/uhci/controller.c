@@ -43,10 +43,10 @@ UhciSetup(
 
 /* Externs
  * We need access to the interrupt-handler in main.c */
- __EXTERN
- InterruptStatus_t
- OnInterrupt(
-	 _In_ void *InterruptData);
+__EXTERN
+InterruptStatus_t
+OnFastInterrupt(
+    _In_Opt_ void *InterruptData);
 
 /* UhciRead16
  * Reads a 2-byte value from the control-space of the controller */
@@ -166,7 +166,7 @@ UhciControllerCreate(
 		ContractController, "UHCI Controller Interface");
 
 	// Initialize the interrupt settings
-	Controller->Base.Device.Interrupt.FastHandler = OnInterrupt;
+	Controller->Base.Device.Interrupt.FastHandler = OnFastInterrupt;
 	Controller->Base.Device.Interrupt.Data = Controller;
 
 	// Register contract before interrupt
