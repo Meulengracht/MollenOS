@@ -12,18 +12,19 @@ BITS 32
 
 %include "systems/lzcrc32.inc"
 
-; lz_validate(const void *source, void *destination)
+; lz_validate(const void *source)
 ; ********************************
 ; lz_validate
 ; IN:
-; 	- ESI: Source Data Package Address
+; 	- ESI: Source Base Address
+; 	- EDI: Destination Base Address
 ; OUT:
-;       - EAX: -1 if error, length of unpacked
+;   - ESI: Source Data Packet Address
+;   - EAX: -1 if error, length of unpacked
 ; ********************************
 lz_validate:
     push   ebx
     push   ecx
-    push   esi
 
     test   esi, esi
     jz     .return_error
@@ -37,18 +38,14 @@ lz_validate:
     cmp    ebx, 24            ; check header_size >= 24
     jb     .return_error
 
-    add    ebx, esi           ; ebx -> packed data
-    push   esi
-    mov    esi, ebx
-
+    add    ebx, esi                ; ebx -> packed data
     mov    ecx, dword [esi + 8]    ; push header.packed_size
+    
+    mov    esi, ebx
     call   lz_crc32
-    pop    esi
 
     cmp    eax, [esi + 12]    ; check eax == header.packed_crc
-
     mov    eax, [esi + 16]    ; eax = header.orig_size
-
     je     .return_eax
 
   .return_error:
@@ -56,7 +53,6 @@ lz_validate:
 
    ; return unpacked length in eax
   .return_eax:
-    pop   esi
     pop   ecx
     pop   ebx
     ret

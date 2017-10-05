@@ -35,14 +35,14 @@ BITS 32
   docrcM
 %endmacro
 
-; lz_crc32(cconst void *source, unsigned int length)
+; lz_crc32(const void *source, unsigned int length)
 ; ********************************
 ; lz_crc32
 ; IN:
 ; 	- ESI: Source Data Package Address
-;	- ECX: Length
+;	  - ECX: Length
 ; OUT:
-;       - EAX: 0 for success, error otherwise
+;   - EAX: CRC32
 ; ********************************
 lz_crc32:
     push   edi

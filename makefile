@@ -26,7 +26,6 @@ export AS = nasm
 export GCFLAGS = -Wall -Wno-self-assign -Wno-unused-function -fms-extensions -ffreestanding -nostdlib -O3 -DMOLLENOS -D$(arch) $(config_flags)
 export GCXXFLAGS = -Wall -Wno-self-assign -Wno-unused-function -ffreestanding -nostdlib -O3 -DMOLLENOS -D$(arch) $(config_flags)
 export FCOPY = cp
-target = img
 
 .PHONY: all
 all: tools gen_revision boot_loader libraries kernel drivers initrd
@@ -69,8 +68,8 @@ libraries:
 boot_loader:
 	$(MAKE) -C boot -f makefile
 
-.PHONY: install
-install:
+.PHONY: install_shared
+install_shared:
 	mkdir -p deploy/hdd
 	mkdir -p deploy/hdd/shared
 	mkdir -p deploy/hdd/system
@@ -81,7 +80,14 @@ install:
 	./rd $(arch) initrd.mos
 	./lzss c initrd.mos deploy/hdd/system/initrd.mos
 	./lzss c kernel/build/syskrnl.mos deploy/hdd/system/syskrnl.mos
-	mono diskutility -auto -target $(target) -scheme mbr
+
+.PHONY: install_img
+install_img: install_shared
+	mono diskutility -auto -target img -scheme mbr
+
+.PHONY: install_vmdk
+install_vmdk: install_shared
+	mono diskutility -auto -target vmdk -scheme mbr
 
 .PHONY: toolchain
 toolchain:

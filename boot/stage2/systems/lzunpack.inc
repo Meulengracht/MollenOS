@@ -16,12 +16,9 @@ BITS 32
 ; IN:
 ; 	- ESI: Source Data Package Address
 ; 	- EDI: Destination Data Address
-; OUT:
-;       - EAX: Unpacked size
 ; ********************************
 lz_decompress:
     pushad
-    mov    dword [dLZDestination], edi
     cld
     mov    dl, 80h
     xor    ebx,ebx
@@ -87,7 +84,6 @@ domatch_new_lastpos:
     xchg   eax, ebp
 domatch_lastpos:
     mov    eax, ebp
-
     mov    bl, 1
 
 domatch:
@@ -119,16 +115,6 @@ getgamma_no_ecx:
     ret
 
 donedepacking:
-    sub    edi, dword [dLZDestination]
-    mov    dword [dLZOriginalSize], edi
-
-    ; Return unpacked length in eax
+    ; restore state and return
     popad
-    mov eax, dword [dLZOriginalSize] 
     ret
-
-; ****************************
-; Variables
-; ****************************
-dLZOriginalSize					dd 		0
-dLZDestination					dd 		0

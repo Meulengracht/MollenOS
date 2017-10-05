@@ -30,10 +30,10 @@ BITS 32
 ; ********************************
 ; LZLoad
 ; IN:
-; 	- ESI: Source Data Package Address
-; 	- EDI: Destination Data Address
+; 	- ESI: Source Base Address
+; 	- EDI: Destination Base Address
 ; OUT:
-;       - EAX: Unpacked size or -1 if invalid
+;	- EAX: Unpacked size or -1 if invalid
 ; ********************************
 LZLoad:
 	; Step 1 - Validate the LZ package
