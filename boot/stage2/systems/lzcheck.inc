@@ -17,7 +17,6 @@ BITS 32
 ; lz_validate
 ; IN:
 ; 	- ESI: Source Base Address
-; 	- EDI: Destination Base Address
 ; OUT:
 ;   - ESI: Source Data Packet Address
 ;   - EAX: -1 if error, length of unpacked
@@ -41,11 +40,15 @@ lz_validate:
     add    ebx, esi                ; ebx -> packed data
     mov    ecx, dword [esi + 8]    ; push header.packed_size
     
+    push   ebx
+    push   esi
     mov    esi, ebx
     call   lz_crc32
+    pop    esi
 
     cmp    eax, [esi + 12]    ; check eax == header.packed_crc
     mov    eax, [esi + 16]    ; eax = header.orig_size
+    pop    esi
     je     .return_eax
 
   .return_error:

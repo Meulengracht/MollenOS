@@ -257,8 +257,7 @@ LeaveProtected:
 
 Finish16Bit:
 	; Save
-	mov 	dword [BootDescriptor + MollenOsBootDescriptor.RamDiskSize], eax
-	mov	eax, MEMLOCATION_RAMDISK_UPPER
+	mov		eax, MEMLOCATION_RAMDISK_UPPER
 	mov 	dword [BootDescriptor + MollenOsBootDescriptor.RamDiskAddr], eax
 
 	; Print
@@ -309,11 +308,11 @@ LoadKernel32:
 
 	; Unpack kernel
 	xchg	bx, bx
-	mov	esi, MEMLOCATION_FLOAD_LOWER
-	mov	edi, MEMLOCATION_UNPACK_AREA
+	mov		esi, MEMLOCATION_FLOAD_LOWER
+	mov		edi, MEMLOCATION_UNPACK_AREA
 	call	LZLoad
-	cmp	eax, -1
-	je	EndOfStage
+	cmp		eax, -1
+	je		EndOfStage
 
 	; Kernel Relocation to 1mb (PE, ELF, binary)
 	mov 	esi, MEMLOCATION_UNPACK_AREA
@@ -357,20 +356,20 @@ Entry32:
 	cli
 
 	; Unpack ramdisk - new size returned in eax
-	mov	esi, MEMLOCATION_FLOAD_LOWER
-	mov	edi, MEMLOCATION_UNPACK_AREA
+	mov		esi, MEMLOCATION_FLOAD_LOWER
+	mov		edi, MEMLOCATION_UNPACK_AREA
 	call	LZLoad
-	cmp	eax, -1
-	je	EndOfStage
-	mov	dword [BootDescriptor + MollenOsBootDescriptor.RamDiskSize], eax
+	cmp		eax, -1
+	je		EndOfStage
+	mov		dword [BootDescriptor + MollenOsBootDescriptor.RamDiskSize], eax
 
 	; RamDisk Relocation to 2mb
 	mov 	esi, MEMLOCATION_UNPACK_AREA
 	mov 	edi, MEMLOCATION_RAMDISK_UPPER
-	mov	ecx, dword [BootDescriptor + MollenOsBootDescriptor.RamDiskSize]
-	shr	ecx, 2
-	inc	ecx
-	rep	movsd
+	mov		ecx, dword [BootDescriptor + MollenOsBootDescriptor.RamDiskSize]
+	shr		ecx, 2
+	inc		ecx
+	rep		movsd
 
 	; Setup Cpu
 	call	CpuInit
@@ -390,6 +389,7 @@ Entry32:
 	push 	ebx
 
 	; Jump to kernel (Entry Point in ECX)
+	xchg	bx, bx
 	jmp 	ecx
 
 	; Safety
@@ -422,7 +422,7 @@ szRamDiskUtf					db		"system/initrd.mos", 0x0
 ; Practical stuff
 bDriveNumber 					db 		0
 dKernelSize						dd 		0
-dKernelEntry						dd		0
+dKernelEntry					dd		0
 
 ; 2 -> FAT12, 3 -> FAT16, 4 -> FAT32
 ; 5 -> MFS1
