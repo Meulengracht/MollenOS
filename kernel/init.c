@@ -42,8 +42,11 @@
  * - Library */
 #include <stddef.h>
 
-/* Print Header Information */
-void PrintHeader(MCoreBootInfo_t *BootInfo)
+/* PrintHeader
+ * Print build information and os-versioning */
+void
+PrintHeader(
+    _In_ MCoreBootInfo_t *BootInfo)
 {
 	Log("MollenOS - Platform: %s - Version %i.%i.%i",
 		ARCHITECTURE_NAME, REVISION_MAJOR, REVISION_MINOR, REVISION_BUILD);
@@ -121,11 +124,11 @@ MCoreInitialize(
 	 * We must do this before starting up servers */
 	PhoenixInit();
 
-	/* Last step, boot up all available system servers
-	 * like device-managers, vfs, etc */
+	// Last step, boot up all available system servers
+	// like device-managers, vfs, etc
 	ModulesRunServers();
-
-	/* Enter Idle Loop */
-	while (1)
+	while (1) {
+        LogInformation("INIT", "End of initialization");
 		CpuIdle();
+    }
 }

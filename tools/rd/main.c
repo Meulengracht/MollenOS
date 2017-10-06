@@ -11,19 +11,47 @@
 #include <dirent.h>
 #include <sys/stat.h>
 
-// Header
-#pragma pack(push, 1)
-struct {
-	uint32_t Magic;
-	uint32_t Version;
-	uint32_t Architecture;
-	int32_t FileCount;
-} RdHeaderStatic = {
+#define PACKED_TYPESTRUCT(name, body) typedef struct __attribute__((packed)) _##name body name##_t
+/* MCoreRamDiskHeader
+ * The ramdisk header, this is present in the 
+ * first few bytes of the ramdisk image, members
+ * do not vary in length */
+PACKED_TYPESTRUCT(MCoreRamDiskHeader, {
+    uint32_t    Magic;
+    uint32_t    Version;
+    uint32_t    Architecture;
+    int32_t     FileCount;
+});
+
+/* MCoreRamDiskEntry
+ * This is the ramdisk entry, which describes
+ * an entry in the ramdisk. The ramdisk entry area
+ * contains headers right after each other */
+PACKED_TYPESTRUCT(MCoreRamDiskEntry, {
+    uint8_t     Name[64]; // UTF-8 Encoded filename
+    uint32_t    Type; // Check the ramdisk entry definitions
+    uint32_t    DataOffset; // offset in the ramdisk
+});
+
+/* MCoreRamDiskModuleHeader
+ * This is the module header, and contains basic information
+ * about the module data that follow this header. */
+PACKED_TYPESTRUCT(MCoreRamDiskModuleHeader, {
+    uint8_t     ModuleName[64]; // UTF-8 Encoded name
+    uint32_t    VendorId;
+    uint32_t    DeviceId;
+    uint32_t    DeviceType;
+    uint32_t    DeviceSubType;
+    uint32_t    Flags;
+    uint32_t    Length; // Excluding this header
+});
+
+// Statics
+MCoreRamDiskHeader_t RdHeaderStatic = {
 	0x3144524D,
 	0x00000001,
 	0, 0
 };
-#pragma pack(pop)
 
 // Prints usage format of this program
 static void ShowSyntax(void)
@@ -52,43 +80,37 @@ static FILE *GetDriver(const char *path)
 }
 
 // Removes the file-extension from a file-name
-char *RemoveExtension(char* mystr, char dot, char sep) {
+char *RemoveExtension(char* mystr, char dot, char sep) 
+{
 	char *retstr, *lastdot, *lastsep;
 
 	// Error checks and allocate string.
-
 	if (mystr == NULL)
 		return NULL;
 	if ((retstr = malloc(strlen(mystr) + 1)) == NULL)
 		return NULL;
 
 	// Make a copy and find the relevant characters.
-
 	strcpy(retstr, mystr);
 	lastdot = strrchr(retstr, dot);
 	lastsep = (sep == 0) ? NULL : strrchr(retstr, sep);
 
 	// If it has an extension separator.
-
 	if (lastdot != NULL) {
 		// and it's before the extenstion separator.
-
 		if (lastsep != NULL) {
 			if (lastsep < lastdot) {
 				// then remove it.
-
 				*lastdot = '\0';
 			}
 		}
 		else {
 			// Has extension separator with no path separator.
-
 			*lastdot = '\0';
 		}
 	}
 
 	// Return the modified string.
-
 	return retstr;
 }
 
@@ -237,7 +259,11 @@ int main(int argc, char *argv[])
 			continue;
 		}
 		else {
-			char *dot = strrchr(dp->d_name, '.');
+            // Variables
+            MCoreRamDiskEntry_t rdentry = { { 0 }, 0 };
+            MCoreRamDiskModuleHeader_t rddataheader = { { 0 }, 0 };
+            char *dot = strrchr(dp->d_name, '.');
+            
 			if (!dot || strcmp(dot, ".dll")) {
 				continue;
 			}
@@ -263,12 +289,15 @@ int main(int argc, char *argv[])
 			}
 
 			// Seek to entry pos
-			fseek(out, fentrypos, SEEK_SET);
+            fseek(out, fentrypos, SEEK_SET);
+            
+            // fill entry
+            memcpy(&rdentry.Name[0], dp->d_name, strlen(dp->d_name));
+            rdentry.Type = type;
+            rdentry.DataOffset = fdatapos;
 
 			// Write header data
-			fwrite(dp->d_name, 1, strlen(dp->d_name), out);
-			fwrite(&type, 4, 1, out);
-			fwrite(&fdatapos, 4, 1, out);
+			fwrite(&rdentry, sizeof(MCoreRamDiskEntry_t), 1, out);
 			fflush(out);
 
 			// Update entry
@@ -278,10 +307,8 @@ int main(int argc, char *argv[])
 			fseek(out, fdatapos, SEEK_SET);
 
 			// Write header, then file data
-			name = RemoveExtension(dp->d_name, '.', '/');
-			
-			// Write name
-			fwrite(name, 1, strlen(name), out);
+            name = RemoveExtension(dp->d_name, '.', '/');
+            memcpy(&rddataheader.ModuleName[0], name, strlen(name));
 			free(name);
 
 			// Load driver data?
@@ -317,14 +344,14 @@ int main(int argc, char *argv[])
 				
 				// Cleanup
 				fclose(drvdata);
-			}
-
-			// Write rest of header
-			fwrite(&vendorid, 4, 1, out);
-			fwrite(&deviceid, 4, 1, out);
-			fwrite(&dclass, 4, 1, out);
-			fwrite(&dsubclass, 4, 1, out);
-			fwrite(&dflags, 4, 1, out);
+            }
+            
+            // Update rest of header
+            rddataheader.VendorId = vendorid;
+            rddataheader.DeviceId = deviceid;
+            rddataheader.DeviceType = dclass;
+            rddataheader.DeviceSubType = dsubclass;
+            rddataheader.Flags = dflags;
 
 			// Load file data
 			entry = fopen(&filename_qfd[0], "rb+");
@@ -335,8 +362,9 @@ int main(int argc, char *argv[])
 			fread(dataptr, 1, fsize, entry);
 			fclose(entry);
 
-			// Write file length
-			fwrite(&fsize, 4, 1, out);
+			// Write data header
+            rddataheader.Length = fsize;
+			fwrite(&rddataheader, sizeof(MCoreRamDiskModuleHeader_t), 1, out);
 
 			// Write file data
 			fwrite(dataptr, 1, fsize, out);

@@ -99,9 +99,6 @@ ModulesInitialize(
                 (MCoreRamDiskModuleHeader_t*)(BootDescriptor->RamDiskAddress + Entry->DataOffset); 
             MCoreModule_t *Module = NULL;
             DataKey_t Key;
-            
-            // Debug
-            TRACE("Found entry of type: %s", (Entry->Type == RAMDISK_MODULE) ? "Driver" : "File");
 
             // Allocate a new module header and copy some values 
             Module = (MCoreModule_t*)kmalloc(sizeof(MCoreModule_t));
@@ -136,7 +133,8 @@ ModulesInitialize(
 /* ModulesRunServers
  * Loads all iterated servers in the supplied ramdisk
  * by spawning each one as a new process */
-void ModulesRunServers(void)
+void
+ModulesRunServers(void)
 {
     // Variables
     IntStatus_t IrqState = 0;
@@ -181,19 +179,25 @@ void ModulesRunServers(void)
 /* ModulesQueryPath
  * Retrieve a pointer to the file-buffer and its length 
  * based on the given <rd:/> path */
-OsStatus_t ModulesQueryPath(MString_t *Path, void **Buffer, size_t *Length)
+OsStatus_t
+ModulesQueryPath(
+    _In_ MString_t *Path, 
+    _Out_ void **Buffer, 
+    _Out_ size_t *Length)
 {
-    /* Build the token we are searcing for */
-    MString_t *Token = MStringSubString(Path, 
-        MStringFindReverse(Path, '/') + 1, -1);
+    // Variables
+    MString_t *Token = NULL;
     OsStatus_t Result = OsError;
 
-    /* Sanitizie initialization status */
+    // Sanitize status
     if (GlbModulesInitialized != 1) {
         goto Exit;
     }
 
-    /* Iterate and compare */
+    // Build the token we are looking for
+    Token = MStringSubString(Path, MStringFindReverse(Path, '/') + 1, -1);
+
+    // Locate the module
     foreach(sNode, GlbModules) {
         MCoreModule_t *Mod = (MCoreModule_t*)sNode->Data;
         if (MStringCompare(Token, Mod->Name, 1) != MSTRING_NO_MATCH) {
@@ -206,8 +210,8 @@ OsStatus_t ModulesQueryPath(MString_t *Path, void **Buffer, size_t *Length)
     }
     
 Exit:
-    /* Cleanup the token we created
-     * and return the status */
+    // Cleanup the token we created
+    // and return the status
     MStringDestroy(Token);
     return Result;
 }
@@ -217,14 +221,17 @@ Exit:
  * its device sub-type, this is generally used if there is no
  * vendor specific driver available for the device. Returns NULL
  * if none is available */
-MCoreModule_t *ModulesFindGeneric(DevInfo_t DeviceType, DevInfo_t DeviceSubType)
+MCoreModule_t*
+ModulesFindGeneric(
+    _In_ DevInfo_t DeviceType, 
+    _In_ DevInfo_t DeviceSubType)
 {
-    /* Sanitizie initialization status */
+    // Sanitize status
     if (GlbModulesInitialized != 1) {
         return NULL;
     }
 
-    /* Iterate the list of modules */
+    // Locate the module
     foreach(sNode, GlbModules) {
         MCoreModule_t *Mod = (MCoreModule_t*)sNode->Data;
         if (Mod->Header->DeviceType == DeviceType
@@ -232,9 +239,6 @@ MCoreModule_t *ModulesFindGeneric(DevInfo_t DeviceType, DevInfo_t DeviceSubType)
             return Mod;
         }
     }
-
-    /* Dayum, return NULL upon no
-     * results of the iteration */
     return NULL;
 }
 
@@ -242,14 +246,17 @@ MCoreModule_t *ModulesFindGeneric(DevInfo_t DeviceType, DevInfo_t DeviceSubType)
  * Resolve a specific driver by its vendorid and deviceid 
  * this is to ensure optimal module load. Returns NULL 
  * if none is available */
-MCoreModule_t *ModulesFindSpecific(DevInfo_t VendorId, DevInfo_t DeviceId)
+MCoreModule_t*
+ModulesFindSpecific(
+    _In_ DevInfo_t VendorId, 
+    _In_ DevInfo_t DeviceId)
 {
-    /* Sanitizie initialization status */
+    // Sanitize status
     if (GlbModulesInitialized != 1) {
         return NULL;
     }
 
-    /* Iterate the list of modules */
+    // Locate the module
     foreach(sNode, GlbModules) {
         MCoreModule_t *Mod = (MCoreModule_t*)sNode->Data;
         if (Mod->Header->VendorId == VendorId
@@ -257,31 +264,27 @@ MCoreModule_t *ModulesFindSpecific(DevInfo_t VendorId, DevInfo_t DeviceId)
             return Mod;
         }
     }
-
-    /* Dayum, return NULL upon no
-     * results of the iteration */
     return NULL;
 }
 
 /* ModulesFindString
  * Resolve a module by its name. Returns NULL if none
  * is available */
-MCoreModule_t *ModulesFindString(MString_t *Module)
+MCoreModule_t*
+ModulesFindString(
+    _In_ MString_t *Module)
 {
-    /* Sanitizie initialization status */
+    // Sanitize status
     if (GlbModulesInitialized != 1) {
         return NULL;
     }
 
-    /* Iterate the list of modules */
+    // Locate the module
     foreach(sNode, GlbModules) {
         MCoreModule_t *Mod = (MCoreModule_t*)sNode->Data;
         if (MStringCompare(Module, Mod->Name, 1) == MSTRING_FULL_MATCH) {
             return Mod;
         }
     }
-
-    /* Dayum, return NULL upon no
-     * results of the iteration */
     return NULL;
 }
