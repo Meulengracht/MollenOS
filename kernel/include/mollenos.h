@@ -29,24 +29,15 @@
 
 /* This structure is passed by mBoot 
  * in order to properly setup */
-typedef struct _MCoreBootDescriptor
-{
-	/* Kernel Information */
+typedef struct _MCoreBootDescriptor {
 	uint32_t KernelAddress;
 	uint32_t KernelSize;
-
-	/* Ramdisk Information */
 	uint32_t RamDiskAddress;
 	uint32_t RamDiskSize;
-
-	/* Exports */
 	uint32_t ExportsAddress;
 	uint32_t ExportsSize;
-
-	/* Symbols */
 	uint32_t SymbolsAddress;
 	uint32_t SymbolsSize;
-
 } MCoreBootDescriptor;
 
 /* This structure is needed in order to

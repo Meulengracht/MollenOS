@@ -191,7 +191,11 @@ VesaDrawCharacter(
 	for (i = 0; i < MCoreFontNumChars; i++) {
 		if (MCoreFontIndex[i] == (uint16_t)Character)
 			break;
-	}
+    }
+    if (i == MCoreFontNumChars) {
+        // Not found
+        return OsError;
+    }
 #endif
 
 	// Lookup bitmap

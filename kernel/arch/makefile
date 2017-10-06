@@ -25,7 +25,7 @@ else
 endif
 
 OBJECTS = $(ASSEMBLY:.s=.o) $(SOURCES:.c=.o)
-CFLAGS = $(GCFLAGS) -D_KAPI -DLIBC_KERNEL -Wno-address-of-packed-member -mno-sse $(INCLUDES)
+CFLAGS = $(GCFLAGS) -D_KAPI -DLIBC_KERNEL -DUNICODE -Wno-address-of-packed-member -mno-sse $(INCLUDES)
 LFLAGS = /lib
 
 .PHONY: all

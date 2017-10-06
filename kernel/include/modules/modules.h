@@ -46,11 +46,14 @@ typedef struct _MCoreModule {
 	MCoreRamDiskModuleHeader_t *Header;
 } MCoreModule_t;
 
-/* ModulesInit
+/* ModulesInitialize
  * Loads the ramdisk, iterates all headers and 
  * builds a list of both available servers and 
  * available drivers */
-__EXTERN OsStatus_t ModulesInit(MCoreBootDescriptor *BootDescriptor);
+__EXTERN
+OsStatus_t
+ModulesInitialize(
+    _In_ MCoreBootDescriptor *BootDescriptor);
 
 /* ModulesRunServers
  * Loads all iterated servers in the supplied ramdisk

@@ -49,21 +49,20 @@ void PrintHeader(MCoreBootInfo_t *BootInfo)
 		ARCHITECTURE_NAME, REVISION_MAJOR, REVISION_MINOR, REVISION_BUILD);
 	Log("Written by Philip Meulengracht, Copyright 2011-2016.");
 	Log("Bootloader - %s", BootInfo->BootloaderName);
-	Log("VC Build %s - %s\n", BUILD_DATE, BUILD_TIME);
+	Log("%s build %s - %s\n", BUILD_SYSTEM, BUILD_DATE, BUILD_TIME);
 }
 
-/* * 
- * Shared Entry in MollenOS
- * */
-void MCoreInitialize(MCoreBootInfo_t *BootInfo)
+/* MCoreInitialize
+ * Main kernel initializor function. Set's up the entire system. */
+void
+MCoreInitialize(
+    _In_ MCoreBootInfo_t *BootInfo)
 {
-	/* Initialize Log */
+	// Initialize log and print the header
 	LogInit();
-
-	/* Print Header */
 	PrintHeader(BootInfo);
 
-	/* Init HAL */
+	// Now call the underlying architecture setup.
 	BootInfo->InitHAL(BootInfo->ArchBootInfo, &BootInfo->Descriptor);
 
 	/* Init the heap */
@@ -88,7 +87,7 @@ void MCoreInitialize(MCoreBootInfo_t *BootInfo)
 	/* Parse the ramdisk early, but we don't run
 	 * servers yet, this is not needed, but since there
 	 * is no dependancies yet, just do it */
-	if (ModulesInit(&BootInfo->Descriptor) != OsSuccess) {
+	if (ModulesInitialize(&BootInfo->Descriptor) != OsSuccess) {
 		CpuIdle();
 	}
 
