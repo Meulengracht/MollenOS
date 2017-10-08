@@ -19,7 +19,7 @@
  * MollenOS MCore - PE Format Loader
  */
 #define __MODULE        "PELD"
-//#define __TRACE
+#define __TRACE
 
 /* Includes 
  * - System */
@@ -160,30 +160,42 @@ PeValidate(
 /* PeHandleSections
  * Relocates and initializes all sections in the pe image
  * It also returns the last memory address of the relocations */
-uintptr_t PeHandleSections(MCorePeFile_t *PeFile, uint8_t *Data, 
-    uintptr_t SectionAddress, int NumSections, int UserSpace)
+uintptr_t
+PeHandleSections(
+    _In_ MCorePeFile_t *PeFile,
+    _In_ uint8_t *Data,
+    _In_ uintptr_t SectionAddress,
+    _In_ int SectionCount,
+    _In_ int UserSpace)
 {
-    /* Initialize pointers and some of the
-     * variables needed for iteration of sections*/
+    // Variables
     PeSectionHeader_t *Section = (PeSectionHeader_t*)SectionAddress;
     uintptr_t CurrentAddress = PeFile->VirtualAddress;
     char SectionName[PE_SECTION_NAME_LENGTH + 1];
     int i, j;
 
-    /* Iterate sections */
-    for (i = 0; i < NumSections; i++)
+    // Debug
+    TRACE("PeHandleSections(Library %s, Address 0x%x, AddressOfSections 0x%x, SectionCount %i)",
+        MStringRaw(PeFile->Name), PeFile->VirtualAddress, SectionAddress, SectionCount);
+
+    // Iterate all sections
+    for (i = 0; i < SectionCount; i++)
     {
-        /* Calculate pointers, we need two of them, one that
-         * points to data in file, and one that points to where
-         * in memory we want to copy data to */
+        // Calculate pointers, we need two of them, one that
+        // points to data in file, and one that points to where
+        // in memory we want to copy data to
         uint8_t *FileBuffer = (uint8_t*)(Data + Section->RawAddr);
         uint8_t *Destination = (uint8_t*)(PeFile->VirtualAddress + Section->VirtualAddr);
         int PageCount = DIVUP(MAX(Section->RawSize, Section->VirtualSize), PAGE_SIZE);
 
-        /* Make a local copy of the name, just in case
-         * we need to do some debug print */
+        // Make a local copy of the name, just in case
+        // we need to do some debug print
         memcpy(&SectionName[0], &Section->Name[0], 8);
         SectionName[8] = 0;
+
+        // Debug
+        TRACE("Section(%s), MapTo(0x%x), Pages(%i)",
+            &SectionName[0], Destination, PageCount);
 
         /* Iterate pages and map them in our memory space */
         for (j = 0; j < PageCount; j++) {
@@ -332,9 +344,12 @@ void PeHandleRelocations(MCorePeFile_t *PeFile,
 
 /* PeHandleExports
  * Parses the exporst that the pe image provides and caches the list */
-void PeHandleExports(MCorePeFile_t *PeFile, PeDataDirectory_t *ExportDirectory)
+void
+PeHandleExports(
+    _In_ MCorePeFile_t *PeFile, 
+    _In_ PeDataDirectory_t *ExportDirectory)
 {
-    /* Variables needed for enumerating the exports*/
+    // Variables
     PeExportDirectory_t *ExportTable = NULL;
     uint32_t *FunctionNamesPtr = NULL;
     uint16_t *FunctionOrdinalsPtr = NULL;
@@ -342,38 +357,48 @@ void PeHandleExports(MCorePeFile_t *PeFile, PeDataDirectory_t *ExportDirectory)
     DataKey_t Key;
     int i;
 
-    /* Sanitize the directory first */
+    // Debug
+    TRACE("PeHandleExports(AddressRVA 0x%x, Size 0x%x)",
+        ExportDirectory->AddressRVA, ExportDirectory->Size);
+
+    // Sanitize the directory first
     if (ExportDirectory->AddressRVA == 0
         || ExportDirectory->Size == 0) {
         return;
     }
 
-    /* Cast */
+    // Initiate pointer to export table
     ExportTable = (PeExportDirectory_t*)(PeFile->VirtualAddress + ExportDirectory->AddressRVA);
 
-    /* Calculate addresses */
+    // Calculate the names
     FunctionNamesPtr = (uint32_t*)(PeFile->VirtualAddress + ExportTable->AddressOfNames);
     FunctionOrdinalsPtr = (uint16_t*)(PeFile->VirtualAddress + ExportTable->AddressOfOrdinals);
     FunctionAddrPtr = (uint32_t*)(PeFile->VirtualAddress + ExportTable->AddressOfFunctions);
+    
+    // Debug
+    TRACE("FunctionNameTable(0x%x), FunctionOrdinalTable(0x%x), FunctionAddressTable(0x%x)", 
+        FunctionNamesPtr, FunctionOrdinalsPtr, FunctionAddrPtr);
 
-    /* Create the list */
+    // Instantiate the list for exported functions
     PeFile->ExportedFunctions = ListCreate(KeyInteger, LIST_NORMAL);
-
-    /* Iterate */
+    TRACE("Number of functions to iterate: %u", ExportTable->NumberOfFunctions);
     for (i = 0; i < (int)ExportTable->NumberOfFunctions; i++) {
         MCorePeExportFunction_t *ExFunc = 
             (MCorePeExportFunction_t*)kmalloc(sizeof(MCorePeExportFunction_t));
 
-        /* Setup */
+        // Initiate members
         ExFunc->Name = (char*)(PeFile->VirtualAddress + FunctionNamesPtr[i]);
         ExFunc->Ordinal = FunctionOrdinalsPtr[i];
         ExFunc->Address = AddressSpaceTranslate(AddressSpaceGetCurrent(), 
             (uintptr_t)(PeFile->VirtualAddress + FunctionAddrPtr[ExFunc->Ordinal]));
 
-        /* Add to list */
+        // Add to list
         Key.Value = (int)ExFunc->Ordinal;
         ListAppend(PeFile->ExportedFunctions, ListCreateNode(Key, Key, ExFunc));
     }
+
+    // Debug
+    TRACE("Functions exported: %u", ListLength(PeFile->ExportedFunctions));
 }
 
 /* PeHandleImports
@@ -532,8 +557,12 @@ void PeHandleImports(MCorePeFile_t *Parent, MCorePeFile_t *PeFile,
  * Resolves a dependancy or a given module path, a load address must be provided
  * together with a pe-file header to fill out and the parent that wants to resolve
  * the library */
-MCorePeFile_t *PeResolveLibrary(MCorePeFile_t *Parent, 
-    MCorePeFile_t *PeFile, MString_t *LibraryName, uintptr_t *LoadAddress)
+MCorePeFile_t*
+PeResolveLibrary(
+    _In_ MCorePeFile_t *Parent,
+    _In_ MCorePeFile_t *PeFile,
+    _In_ MString_t *LibraryName,
+    _InOut_ uintptr_t *LoadAddress)
 {
     // Variables
     MCorePeFile_t *ExportParent = Parent;
@@ -549,13 +578,13 @@ MCorePeFile_t *PeResolveLibrary(MCorePeFile_t *Parent,
     TRACE("PeResolveLibrary(Name %s, Address 0x%x)",
         MStringRaw(LibraryName), *LoadAddress);
 
-    /* Before actually loading the file, we want to
-     * try to locate the library in the parent first. */
+    // Before actually loading the file, we want to
+    // try to locate the library in the parent first.
     foreach(lNode, ExportParent->LoadedLibraries) {
         MCorePeFile_t *Library = (MCorePeFile_t*)lNode->Data;
 
-        /* If we find it, then increase the ref count
-         * and use its exports */
+        // If we find it, then increase the ref count
+        // and use its exports
         if (MStringCompare(Library->Name, LibraryName, 1) == MSTRING_FULL_MATCH) {
             TRACE("Library was already resolved, increasing ref count");
             Library->References++;
@@ -564,8 +593,7 @@ MCorePeFile_t *PeResolveLibrary(MCorePeFile_t *Parent,
         }
     }
 
-    /* Sanitize the exports, if its null
-     * we have to resolve the library */
+    // Sanitize the exports, if its null we have to resolve the library
     if (Exports == NULL) {
         BufferObject_t *BufferObject = NULL;
         UUId_t fHandle = UUID_INVALID;
@@ -573,9 +601,9 @@ MCorePeFile_t *PeResolveLibrary(MCorePeFile_t *Parent,
         uint8_t *fBuffer = NULL;
         size_t fSize = 0, fRead = 0, fIndex = 0;
 
-        /* Open the file
-         * We have a special case here that it might
-         * be from the ramdisk we are loading */
+        // Open the file
+        // We have a special case here that it might
+        // be from the ramdisk we are loading
         if (ExportParent->UsingInitRD) {
             TRACE("Loading from ramdisk");
             if (ModulesQueryPath(LibraryName, (void**)&fBuffer, &fSize) != OsSuccess) {
@@ -584,14 +612,14 @@ MCorePeFile_t *PeResolveLibrary(MCorePeFile_t *Parent,
             }
         }
         else {
-            /* Load the file */
+            // Load the file from hard storage
             FileSystemCode_t Code = 
                 OpenFile(MStringRaw(LibraryName),
                 __FILE_MUSTEXIST, __FILE_READ_ACCESS, &fHandle);
             
-            /* Sanitize the open file result */
+            // Sanitize the open file result
             if (Code != FsOk) {
-                LogDebug("PELD", "Failed to load library %s (Code %i)",
+                ERROR("Failed to load library %s (Code %i)",
                     MStringRaw(LibraryName), Code);
                 for (;;);
             }
@@ -668,38 +696,49 @@ uintptr_t PeResolveFunction(MCorePeFile_t *Library, const char *Function)
  * Loads the given file-buffer as a pe image into the current address space 
  * at the given Base-Address, which is updated after load to reflect where
  * the next address is available for load */
-MCorePeFile_t *PeLoadImage(MCorePeFile_t *Parent, MString_t *Name, 
-    uint8_t *Buffer, size_t Length, uintptr_t *BaseAddress, int UsingInitRD)
+MCorePeFile_t*
+PeLoadImage(
+    _In_ MCorePeFile_t *Parent, 
+    _In_ MString_t *Name, 
+    _In_ uint8_t *Buffer, 
+    _In_ size_t Length, 
+    _InOut_ uintptr_t *BaseAddress, 
+    _In_ int UsingInitRD)
 {
-    /* Base Headers */
+    // Variables
     MzHeader_t *DosHeader = NULL;
     PeHeader_t *BaseHeader = NULL;
     PeOptionalHeader_t *OptHeader = NULL;
 
-    /* This depends on the architecture */
+    // Optional headers for both bit-widths
     PeOptionalHeader32_t *OptHeader32 = NULL;
     PeOptionalHeader64_t *OptHeader64 = NULL;
 
-    /* Variables for loading the image */
+    // More variables
     uintptr_t SectionAddress = 0;
     uintptr_t ImageBase = 0;
     PeDataDirectory_t *DirectoryPtr = NULL;
     MCorePeFile_t *PeInfo = NULL;
 
-    /* Start out by validating the file buffer
-     * so we don't load any garbage */
+    // Debug
+    TRACE("PeLoadImage(Path %s, Parent %s, Address 0x%x)",
+        MStringRaw(Name), (Parent == NULL) ? "None" : MStringRaw(Parent->Name), 
+        *BaseAddress);
+
+    // Start out by validating the file buffer
+    // so we don't load any garbage
     if (!PeValidate(Buffer, Length)) {
         return NULL;
     }
     
-    /* Start out by initializing our header pointers */
+    // Start out by initializing our header pointers
     DosHeader = (MzHeader_t*)Buffer;
     BaseHeader = (PeHeader_t*)(Buffer + DosHeader->PeAddr);
     OptHeader = (PeOptionalHeader_t*)
         (Buffer + DosHeader->PeAddr + sizeof(PeHeader_t));
 
-    /* We need to re-cast based on architecture 
-     * and handle them differnetly */
+    // We need to re-cast based on architecture 
+    // and handle them differnetly
     if (OptHeader->Architecture == PE_ARCHITECTURE_32) {
         OptHeader32 = (PeOptionalHeader32_t*)(Buffer 
             + DosHeader->PeAddr + sizeof(PeHeader_t));
@@ -716,12 +755,17 @@ MCorePeFile_t *PeLoadImage(MCorePeFile_t *Parent, MString_t *Name,
             + sizeof(PeHeader_t) + sizeof(PeOptionalHeader64_t));
         DirectoryPtr = (PeDataDirectory_t*)&OptHeader64->Directories[0];
     }
+    else {
+        // Cleanup, return null
+        ERROR("Unsupported architecture %u", OptHeader->Architecture);
+        return NULL;
+    }
 
-    /* Allocate a new pe image file structure */
+    // Allocate a new pe image file structure
     PeInfo = (MCorePeFile_t*)kmalloc(sizeof(MCorePeFile_t));
     memset(PeInfo, 0, sizeof(MCorePeFile_t));
 
-    /* Set base information */
+    // Fill initial members
     PeInfo->Name = Name;
     PeInfo->Architecture = OptHeader->Architecture;
     PeInfo->VirtualAddress = *BaseAddress;
@@ -729,7 +773,7 @@ MCorePeFile_t *PeLoadImage(MCorePeFile_t *Parent, MString_t *Name,
     PeInfo->References = 1;
     PeInfo->UsingInitRD = UsingInitRD;
 
-    /* Set the entry point if there is any */
+    // Set the entry point if there is any
     if (OptHeader->EntryPoint != 0) {
         PeInfo->EntryAddress = AddressSpaceTranslate(AddressSpaceGetCurrent(), 
             PeInfo->VirtualAddress + OptHeader->EntryPoint);
@@ -738,26 +782,26 @@ MCorePeFile_t *PeLoadImage(MCorePeFile_t *Parent, MString_t *Name,
         PeInfo->EntryAddress = 0;
     }
         
-    /* Now we want to handle all the directories
-     * and sections in the image, start out by handling
-     * the sections, then parse all directories */
+    // Now we want to handle all the directories
+    // and sections in the image, start out by handling
+    // the sections, then parse all directories
+    TRACE("Handling sections, relocations and exports");
     *BaseAddress = PeHandleSections(PeInfo, Buffer, 
         SectionAddress, BaseHeader->NumSections, 1);
     PeHandleRelocations(PeInfo, &DirectoryPtr[PE_SECTION_BASE_RELOCATION], ImageBase);
     PeHandleExports(PeInfo, &DirectoryPtr[PE_SECTION_EXPORT]);
 
-    /* Before loading imports, add us to parent list of libraries 
-     * so we might be reused, instead of reloaded */
+    // Before loading imports, add us to parent list of libraries 
+    // so we might be reused, instead of reloaded
     if (Parent != NULL) {
         DataKey_t Key;
         Key.Value = 0;
         ListAppend(Parent->LoadedLibraries, ListCreateNode(Key, Key, PeInfo));
     }
 
-    /* Now we can handle the imports */
+    // Handle imports
     PeHandleImports(Parent, PeInfo, &DirectoryPtr[PE_SECTION_IMPORT], BaseAddress);
-
-    /* Done */
+    TRACE("Library(%s) has been loaded", MStringRaw(Name));
     return PeInfo;
 }
 

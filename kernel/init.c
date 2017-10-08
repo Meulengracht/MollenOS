@@ -18,6 +18,8 @@
  *
  * MollenOS Common Entry Point
  */
+#define __MODULE "INIT"
+#define __TRACE
 
 /* Includes 
  * - System */
@@ -35,6 +37,7 @@
 #include <scheduler.h>
 #include <threading.h>
 #include <timers.h>
+#include <debug.h>
 #include <heap.h>
 #include <log.h>
 
@@ -128,7 +131,7 @@ MCoreInitialize(
 	// like device-managers, vfs, etc
 	ModulesRunServers();
 	while (1) {
-        LogInformation("INIT", "End of initialization");
+        TRACE("End of initialization");
 		CpuIdle();
     }
 }

@@ -292,9 +292,11 @@ int main(int argc, char *argv[])
             fseek(out, fentrypos, SEEK_SET);
             
             // fill entry
-            memcpy(&rdentry.Name[0], dp->d_name, strlen(dp->d_name));
+            name = RemoveExtension(dp->d_name, '.', '/');
+            memcpy(&rdentry.Name[0], name, strlen(name));
             rdentry.Type = type;
             rdentry.DataOffset = fdatapos;
+			free(name);
 
 			// Write header data
 			fwrite(&rdentry, sizeof(MCoreRamDiskEntry_t), 1, out);
@@ -307,9 +309,7 @@ int main(int argc, char *argv[])
 			fseek(out, fdatapos, SEEK_SET);
 
 			// Write header, then file data
-            name = RemoveExtension(dp->d_name, '.', '/');
-            memcpy(&rddataheader.ModuleName[0], name, strlen(name));
-			free(name);
+            memcpy(&rddataheader.ModuleName[0], dp->d_name, strlen(dp->d_name));
 
 			// Load driver data?
 			if (drvdata != NULL) {

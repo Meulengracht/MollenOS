@@ -288,14 +288,9 @@ typedef struct _PeHeader
  * PE metadata. There is a max of 16 directories, and each
  * entry is fixed for its type/index */
 #pragma pack(push, 1)
-typedef struct _PeDataDirectory
-{
-	/* RVA Address */
+typedef struct _PeDataDirectory {
 	uint32_t AddressRVA;
-
-	/* Size */
 	uint32_t Size;
-
 } PeDataDirectory_t;
 #pragma pack(pop)
 

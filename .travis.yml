@@ -5,12 +5,9 @@ compiler:
   - g++
 os:
   - linux
-cache:
-  directories:
-    - $HOME/os-cross-out/ # Cache the bin directory
 env:
   global:
-  - CROSS=$HOME/os-cross-out
+  - CROSS=$HOME/cross-compiler
 addons:
   apt:
     packages:
@@ -18,7 +15,6 @@ addons:
       - libelf-dev
       - libffi6
       - libffi-dev
-      - clang-3.9
       - subversion
       - make
       - nasm
@@ -31,13 +27,8 @@ notifications:
     on_failure: always # default: always
 jobs:
   include:
-    - stage: toolchain
-      script:
-        - sudo mkdir -p toolchain
-        - chmod +x ./tools/checkout.sh  # Give permissions
-        - sudo bash ./tools/checkout.sh # Run checkout script
-        - chmod +x ./tools/build_toolchain.sh
-        - sudo bash ./tools/build_toolchain.sh
-        - sudo rm -rf toolchain
     - stage: build
-      script: make
+      script:
+        - mkdir -p $HOME/cross-compiler
+        - wget 
+        - make

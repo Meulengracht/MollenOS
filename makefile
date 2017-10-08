@@ -10,6 +10,9 @@
 # MollenOS Configuration, comment in or out for specific features
 config_flags = 
 
+# Use a full debug console on height
+config_flags += -D__OSCONFIG_FULLDEBUGCONSOLE
+
 # Don't load drivers, run it without for debug
 #config_flags += -D__OSCONFIG_NODRIVERS
 

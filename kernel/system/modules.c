@@ -19,7 +19,7 @@
  * MollenOS MCore - MollenOS Module Manager
  */
 #define __MODULE "MODS"
-#define __TRACE
+//#define __TRACE
 
 /* Includes 
  * - System */
@@ -189,6 +189,9 @@ ModulesQueryPath(
     MString_t *Token = NULL;
     OsStatus_t Result = OsError;
 
+    // Debug
+    TRACE("ModulesQueryPath(%s)", MStringRaw(Path));
+
     // Sanitize status
     if (GlbModulesInitialized != 1) {
         goto Exit;
@@ -196,10 +199,12 @@ ModulesQueryPath(
 
     // Build the token we are looking for
     Token = MStringSubString(Path, MStringFindReverse(Path, '/') + 1, -1);
+    TRACE("TokenToSearchFor(%s)", MStringRaw(Token));
 
     // Locate the module
     foreach(sNode, GlbModules) {
         MCoreModule_t *Mod = (MCoreModule_t*)sNode->Data;
+        TRACE("Comparing(%s)To(%s)", MStringRaw(Token), MStringRaw(Mod->Name));
         if (MStringCompare(Token, Mod->Name, 1) != MSTRING_NO_MATCH) {
             *Buffer = (void*)(
                 (uintptr_t)Mod->Header + sizeof(MCoreRamDiskModuleHeader_t));
