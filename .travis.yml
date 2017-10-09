@@ -34,6 +34,7 @@ jobs:
   include:
     - stage: build
       script:
+        - export PATH=/usr/local/bin:${PATH}
         - chmod +x ./get_toolchain.sh
         - bash ./get_toolchain.sh
         - make
